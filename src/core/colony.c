@@ -562,8 +562,7 @@ int colonies_found(
   if (horses > 0) {
     slot->stock[COLONIZE_CARGO_HORSES] += horses;
   }
-  /* New colonies start with a little food in the warehouse stub. */
-  slot->stock[COLONIZE_CARGO_FOOD] = 200;
+  /* DOS FUN_364b_1ba8: cargo stock (+0x9a, 0x20 bytes) cleared — food starts 0. */
 
   if (founder_type_index >= 0 && slot->colonist_count < COLONIZE_COLONY_POP_MAX) {
     ColonizeColonist* c = &slot->colonists[slot->colonist_count++];

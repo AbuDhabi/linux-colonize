@@ -569,7 +569,7 @@ int main(void) {
   CHECK(empty && !empty->has_building[stockade], "starter excludes Stockade");
   CHECK(empty && !empty->has_building[warehouse], "starter excludes Warehouse");
   CHECK(empty && !empty->has_building[docks], "starter excludes Docks");
-  CHECK(empty && empty->stock[COLONIZE_CARGO_FOOD] == 200, "starter food stockpile");
+  CHECK(empty && empty->stock[COLONIZE_CARGO_FOOD] == 0, "starter food stock is 0");
 
   /* Coastal colony still does not get free Docks (upgrade only). */
   int coast_x = -1, coast_y = -1;

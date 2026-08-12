@@ -235,6 +235,7 @@ Full catalog: [sons_of_liberty.md](sons_of_liberty.md). Tory thresh by difficult
 
 | UI element | Should show | Linux port today |
 |------------|-------------|------------------|
+| **Settlement badges** | Building slots | Workplace output-type + amount (Town Hall / Church include free passives even when empty) |
 | **Production tab** | Every cargo good / shortfall + hammers | [`colony_preview.c`](../src/core/colony_preview.c) via [`colony_production.c`](../src/core/colony_production.c); crosses/bells → people meters |
 | **Production strip** | Sum of assigned workers’ output | `colony_prod_worker_building_output()` |
 | **Construction Change list** | Buildable projects, min-pop, coastal docks, Adam Smith, Stuyvesant; owned refuse `@ALREADYHAVE` / `@NOMOREWAREHOUSE` | [`colonies_list_buildable()`](../src/core/colony.c) + `colonies_emit_already_have_chrome` |
@@ -259,7 +260,7 @@ input(worker, building)  = output × (factory ? 6/9 : 1)
 | Factory input 6→9 | Port wired; provisional vs DOS |
 | Class /3 and *2/3 | Port wired; DOS unconfirmed |
 | Construction costs / min_pop | Loaded from NAMES — matches table above |
-| Church / TH passives | Port wired; deep peel pending |
+| Church / TH passives | Settlement badge + totals Done; deep peel pending |
 | False `0x16103` EXE table | **Retracted** |
 
 ---

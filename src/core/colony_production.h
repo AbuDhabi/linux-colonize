@@ -147,4 +147,14 @@ int colony_prod_worker_building_output(
   int profession
 );
 
+/*
+ * Settlement-view building strip: Town Hall / Church / Cathedral free output
+ * plus assigned workers. Colony-wide base +1 cross is people-meter only.
+ */
+int colony_prod_building_display_output(
+  const ColonizeColonyPool* pool,
+  const ColonizeColony* colony,
+  int building_type
+);
+
 #endif

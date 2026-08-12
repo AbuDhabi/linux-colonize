@@ -52,7 +52,7 @@ Scratch: `DS:−0x7238` (gross), `−0x71f6` (reserve). Net: `281f_0b50` → `15
 | **G — Education graduate** | 57540–57589 | Pair students; set job; msgs |
 | **H — Random skill** | 57590–57614 | LCG specialty discover |
 | **I — Birth** | 57615–57622 | Food≥200 → spawn Free Colonist |
-| **J — Starvation kill** | 57623–57695 | Kill colonists / abandon empty |
+| **J — Starvation kill** | 57623–57695 | `8e5a`/`8e32` food scratch; `@FOODLOW` / kill / abandon |
 | **K — Build advisories** | 57696–57728 | Missing building msgs |
 | **L — Hammers / construction** | 57730–57787 | Add hammers; spend tools; complete `097a`→`0114` |
 | **M — Crosses** | 57788–57789 | Scratch → nation crosses |
@@ -158,6 +158,20 @@ H random field skill **Done** thin (Free Colonist on field 0..4, 1/100 → that
 profession + `@TRAINPROFESSION` chrome). Nation skill-flags / deep school-job tables
 **PARKED**. `0x5384|0x80` gates education msgs.
 
+## Deep — J food scratch / `@FOODLOW` (57623–57636)
+
+Compose (`FUN_15eb_0b52`) writes per-cargo:
+
+| DS | Meaning |
+|----|---------|
+| `0x8e32` | `max(0, consumption − production)` — eating into stores |
+| `0x8e5a` | `max(0, consumption − stock − production)` — true starve deficit |
+
+`@FOODLOW` (`0xe5e`) only when **`8e5a == 0`** and **`8e32 != 0`** and
+**stock < `8e32 × 4`** (and report bit `0x5384&0x40` clear). Surplus harvest
+(`production ≥ consumption` → `8e32==0`) never warns. Linux:
+`food_shortfall = consumed − field_food` with the same stock gate.
+
 ## Deep — K build advisories (57696–57728)
 
 Gated `!(0x5384 & 0x20)`. Scratch demand words vs missing net yield:
@@ -221,5 +235,5 @@ phrasing **Done** thin; full dialogs PARKED; century tip **Done** thin
 | Horse breed | `turn_produce_one_colony` **Done** thin (Stable cap) |
 | P spoilage msgs | Europe status + century tip + `tut3.nr6` latch **Done** thin; `@SPOIL1`–`4` section matrix **Done** thin; century `@CARGOREADY0`–`2` (at-cap → 1/2) **Done** thin |
 | K | hammers/tools/raw Europe status + `0x5384` gates **Done** thin; `@LUMBER`/`@ORE`/`@TOOLS` + craft `@COTTON`/`@TOBACCO`/`@CANESUGAR`/`@FURS` chrome **Done** thin; tools-short `@NEEDTOOLS0` / partial `@NEEDTOOLS` **Done** thin |
-| I birth / J starve-kill | **Done** (`turn_produce_one_colony`); birth `@NEWCOLONIST` chrome **Done** thin; `@FOODLOW` (stock &lt; need×4, no starve-kill) **Done** thin; first-latch `@FOOD1`/`@FOOD2` (autumn→FOOD2) **Done** thin; kill `@STARVE1`/`@STARVE2` (autumn→STARVE2) **Done** thin |
+| I birth / J starve-kill | **Done** (`turn_produce_one_colony`); birth `@NEWCOLONIST` chrome **Done** thin; `@FOODLOW` when `8e32≠0` (prod&lt;consume) and stock &lt; `8e32×4` and not starving (`8e5a==0`) **Done**; first-latch `@FOOD1`/`@FOOD2` (autumn→FOOD2) **Done** thin; kill `@STARVE1`/`@STARVE2` (autumn→STARVE2) **Done** thin |
 | Q depletion | wrap + `MAP_LAYER2_SUPPRESS` **Done**; `@DEPLETION` chrome **Done** thin |

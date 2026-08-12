@@ -549,3 +549,36 @@ int colony_prod_worker_building_output(
   }
   return 0;
 }
+
+int colony_prod_building_display_output(
+  const ColonizeColonyPool* pool,
+  const ColonizeColony* colony,
+  int building_type
+) {
+  if (!pool || !colony || building_type < 0 || building_type >= pool->building_type_count) {
+    return 0;
+  }
+  if (!colony->has_building[building_type]) {
+    return 0;
+  }
+  const char* name = pool->building_types[building_type].name;
+  if (!name) {
+    return 0;
+  }
+  int amount = 0;
+  if (colony_prod_name_has(name, "Town Hall")) {
+    amount += 1; /* building passive liberty bell */
+  } else if (
+    colony_prod_name_has(name, "Church") || colony_prod_name_has(name, "Cathedral")
+  ) {
+    amount += colony_prod_church_passive_crosses(name);
+  }
+  for (int p = 0; p < colony->colonist_count; ++p) {
+    const ColonizeColonist* c = &colony->colonists[p];
+    if (!c->active || c->building_type != building_type) {
+      continue;
+    }
+    amount += colony_prod_worker_building_output(pool, building_type, c->profession);
+  }
+  return amount;
+}

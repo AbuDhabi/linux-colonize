@@ -812,12 +812,15 @@ static void turn_produce_one_colony(
 
     /*
      * First starvation latch (stock < need, not yet killing): @FOOD1 / @FOOD2.
-     * Else DOS 0xe5e @FOODLOW when stock < need*4. Skip if starve-kill fired.
-     * Cite: ~57626–57686; autumn bit → winter-soon @FOOD2 thin.
+     * Else DOS 0xe5e @FOODLOW when eating into stores:
+     *   8e5a==0 (stock covers this turn) and 8e32!=0 (production < consumption)
+     *   and post-eat stock < 8e32×4. Cite: FUN_15eb_0b52; ~57626–57636.
+     * Surplus production (8e32==0) never warns — even if stock is modest.
      */
     if (!starved_this_tick && need > 0 && europe &&
         colony->nation_id == human_nation && turn_report_ok_food(col1)) {
       const int stock = colony->stock[COLONIZE_CARGO_FOOD];
+      const int food_shortfall = consumed - field_food; /* DOS 8e32 when >0 */
       if (stock < need && !was_starving) {
         if (colony->name[0]) {
           snprintf(
@@ -835,7 +838,9 @@ static void turn_produce_one_colony(
           popup_msg_fill(messages, sec, &tok, europe->status, body, sizeof(body));
           ai_popup_enqueue_ok(ai_popups, AI_POPUP_TAG_INFO, NULL, body);
         }
-      } else if (stock < need * 4) {
+      } else if (
+        stock >= need && food_shortfall > 0 && stock < food_shortfall * 4
+      ) {
         if (colony->name[0]) {
           snprintf(europe->status, sizeof(europe->status), "Food low in %s.", colony->name);
         } else {

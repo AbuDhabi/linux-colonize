@@ -1556,9 +1556,6 @@ static void colony_screen_blit_buildings(
       worker_icons[workers] = sprite;
       workers++;
     }
-    if (workers <= 0) {
-      continue;
-    }
     const ColonizeSprite* bspr =
       (built >= 0 && built < view->buildings.sprite_count) ? &view->buildings.sprites[built] : NULL;
     const int bw = (bspr && bspr->width > 2) ? bspr->width : COLONY_BUILDING_SLOT_W;
@@ -1575,36 +1572,37 @@ static void colony_screen_blit_buildings(
       }
     }
     const int strip_y = by + bh - strip_h;
-    int selected = -1;
-    for (int wi = 0; wi < workers; ++wi) {
-      if (view->selected_colonist == worker_ci[wi]) {
-        selected = wi;
-        break;
+    if (workers > 0) {
+      int selected = -1;
+      for (int wi = 0; wi < workers; ++wi) {
+        if (view->selected_colonist == worker_ci[wi]) {
+          selected = wi;
+          break;
+        }
       }
+      colony_screen_draw_icon_strip(
+        view,
+        NULL,
+        framebuffer,
+        bx,
+        strip_y,
+        bw,
+        strip_h,
+        worker_icons,
+        workers,
+        selected,
+        15,
+        false
+      );
     }
-    colony_screen_draw_icon_strip(
-      view,
-      NULL,
-      framebuffer,
-      bx,
-      strip_y,
-      bw,
-      strip_h,
-      worker_icons,
-      workers,
-      selected,
-      15,
-      false
-    );
-    /* One production strip spanning the building (sum of assigned workers). */
+    /*
+     * Production strip: worker output + Town Hall / Church / Cathedral free
+     * bells/crosses (still shown when the building is empty).
+     */
     if (view->icons_ok) {
       const int badge = colony_screen_building_production_badge(pool, built);
       if (badge >= 0) {
-        int amount = 0;
-        for (int wi = 0; wi < workers; ++wi) {
-          const ColonizeColonist* wc = &colony->colonists[worker_ci[wi]];
-          amount += colony_prod_worker_building_output(pool, built, wc->profession);
-        }
+        const int amount = colony_prod_building_display_output(pool, colony, built);
         if (amount > 0) {
           colony_screen_draw_resource_count(
             view,
