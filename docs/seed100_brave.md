@@ -4,26 +4,46 @@ Durable notes for `smoke_mapgen_seed100` + `smoke_ai_turns` (VR_SEED=100).
 Companion status: [ai_transcription.md](ai_transcription.md),
 [`original_sources_annotated/ai/move_scoring.md`](../original_sources_annotated/ai/move_scoring.md).
 
-## Status (call-graph annotation + phase 17)
+## Status (call-graph annotation + dump-free pass 2026-08-12)
 
 | Gate | State |
 |------|--------|
-| Init pick (default) | Quiet ASM + stay LCG + 13 peels — **green** |
-| Mid-turn pick (default) | Quiet ASM + stay LCG + mid peels + **2** spent residuals — **green** |
-| Multi-step / Inca tw | Cleared (phase 13) |
+| Init pick (default) | Quiet ASM + stay LCG + **13** peels — **green** |
+| Mid-turn pick (default) | Quiet ASM + stay LCG + **113** mid peels + **2** spent residuals — **green** |
+| Multi-step / Inca tw | Cleared (phase 13; river-first peels) |
+| Coarse fog explore index | **Fixed** — DOS `(y>>2)+(x>>2)*18` (was swapped); tribe `/5` unchanged |
 | Spent-only Sioux/Apache | **Post-ADD / after-`465b` writer**. Chrome helpers do **not** write `0x3149` |
 | Annotation | `ai/brave_spent_callgraph.md` — `14fe` act, post-ADD → `FUN_1427_*`, 3149 table |
-| Port | **Parked** — no T1-safe rule; keep `k_quiet_brave_t2` |
-| Hang EXEs | R/F done; **VR_B465X → `dump_b465x3`** named last resort (spent at RETF?) |
-| Force empiricism | `AI_EMPIRICISM=1` or `AI_QUIET_ASM=0` (keeps emp residual set) |
+| Spent port | **Parked** — dump-free + static xref (incl. foreign-only `465b:01ce`) found no T1-safe rule; keep `k_quiet_brave_t2` |
+| Hang EXEs | **Out of scope** this pass (policy); `VR_B465X` remains named last resort |
+| Force empiricism | `AI_EMPIRICISM=1` / `AI_QUIET_ASM=0` — emp residual set; **TURN2→3 currently red on HEAD** (Arawak xy; pre-existing, not this pass) |
+| Skip peels (audit) | `AI_NO_BRAVE_PEELS=1` — init/mid dir peels off (goldens fail; measures quiet gap) |
 | `smoke_mapgen_seed100` / `smoke_ai_turns` | GREEN |
 
-## Quiet mid-turn inventory (phase 13)
+## Dump-free scoring pass (2026-08-12)
+
+`AI_LCG_AUDIT=1` score dumps on all **13** init peels (`dump_miss` extended):
+
+- Every peel runs with `last_dir=0` (spawn facing).
+- Annotated quiet terms (`base` / `terr` / `gate` / `face` / `fog8` / `fogm2`) at matched LCG **do not** pick golden dirs for these tiles; empiricism still matches golden.
+- After tribe place the coarse plane is largely marked via `/5` cells → explore `+8` rarely fires on init (fog8=0 on peel dumps). Axis fix is still required for ASM fidelity / mid-game.
+- **Do not** paste empiricism additives (`base 200`, home/`−0x28`, mild facing) into quiet. Peels stay until a named quiet term (or input) closes the gap.
+
+Mid peel triage (`AI_STEP_AUDIT` + table comments):
+
+| Class | Count | Notes |
+|-------|------:|-------|
+| Scoring holdouts | 105 | Quiet formula ≠ golden at matched LCG |
+| River / multi-step first picks | 6 | Cost=1 then pulse continues |
+| Cascade / mis-key | 2 | `(39,20)` NE; `(27,34)` NE |
+| Spent-only overlays | 2 | t2 Apache/Sioux — not dir peels |
+
+## Quiet mid-turn inventory (phase 13 + triage)
 
 | Class | Count | Rows | Notes |
 |-------|------:|------|-------|
-| Dir-only (scoring) | ~110 | peels | Mid peels `(turn,nation,xy)→dir` |
-| Multi-step (cleared) | 0 | — | River-first peels; pulse already loops |
+| Dir peels (all mid) | 113 | `k_mid_peels` | See triage above |
+| Multi-step residual overlays | 0 | — | River-first peels; pulse already loops |
 | Mis-keyed overlays (retired) | 0 | was t3/t6 | Wrong unit’s end snapped onto neighbor |
 | Spent-only (XY match) | 2 | t2 Apache; t2 Sioux | Post-ADD; keep overlays |
 
@@ -48,11 +68,12 @@ Quiet residual table: **2 rows** (both t2 spent-only).
 ./build/smoke_ai_turns
 AI_EMPIRICISM=1 ./build/smoke_ai_turns
 AI_STEP_AUDIT=1 ./build/smoke_ai_turns   # per-step paths
-./build/smoke_mapgen_seed100
+AI_LCG_AUDIT=1 ./build/smoke_mapgen_seed100
+AI_NO_BRAVE_PEELS=1 ./build/smoke_mapgen_seed100  # expect 13 missing units
 ./build/probe_sioux_spent                # T1/T2 cost-head + neighborhood oracle
 ```
 
-## Spent-only — dump-free conclusion (phase 17)
+## Spent-only — dump-free + static (phase 17 / 2026-08-12)
 
 TURN2 pulse-start contrast (`tools/probe_sioux_spent`):
 
@@ -74,46 +95,15 @@ pair on DEST). From-presence caps break T1 spent=9 — rejected.
 | `dump_b465f3` | Force-max **not entered**; Sioux ends `(49,39)` spent=3. Distrust Apache path on F |
 | `dump_vrb465x2` | Broken X: Sioux `(49,40)` **spent=9** without XY commit ⇒ writer **after** ADD chrome / after `465b` return |
 
-**Apache “AL≈3”** (old r3 inference: force stubbed + already spent=3) is **not** proof of a
-cost-head mismatch — the same unknown post-ADD writer that turns Sioux 9→3 can turn
-Apache 6→3. SAV/DOS terrain → head **6** for Apache SE.
+### Static xref addendum
 
-### `0x3149` writers reachable from quiet act (static)
-
-| Site | Role | Quiet Brave? |
-|------|------|--------------|
-| `465b:05f0` ADD | cost ADD | yes |
-| `465b:0628` ocean force | spent=max_mp | **ruled out** (f3) |
-| `465b:08f8` → `0934`/`155e` | cargo/wagon + `07be(dest)≥0` | no (type 19; lone stack) |
-| `465b:0bd1` act>0x13 → `0934` | anti-spin | no (act=1) |
-| `1816` act≥0x15 → `0934` | loop clear | no |
-| `14fe` dir==8 → `0934` | stay exhaust | no (XY moves) |
-| `1427_155e` via colony `15eb` | recruit | wrong context |
+`465b:01ce` early `0934` when remaining MP < 3 requires **`foreign_tile` (`bVar4`)** —
+quiet Apache/Sioux holdouts are friendly land. Not a T2 writer.
 
 Prime remaining suspect: **conditional `0934`/`155e` after `465b` returns** (or an
-unlabeled thunk). Call-site needs hang X.
+unlabeled thunk). Call-site needs hang X (parked).
 
-Post-ADD chrome (`0916`→`12f6`, `0948`→`040c`, `08da`→`0968`, `084e`→`0ce6`,
-`07fe`→`0c72`, …) verified **no** `0x3149` write. In-`465b` `0934` paths ruled
-out for lone Brave. See
-[`original_sources_annotated/ai/brave_spent_callgraph.md`](../original_sources_annotated/ai/brave_spent_callgraph.md).
-
-### Dump-free predicates tried (all reject)
-
-| Predicate | Result |
-|-----------|--------|
-| Dest ocean-adjacent + cost>max | Breaks T1 Sioux + many cost=6/9 goldens |
-| Dest capital `dos_dist≤1` + cost>max | Breaks T1 Sioux `(49,40)` (capital at `(50,40)`) |
-| FROM presence / DEST unowned | Same shape as T2 control `(47,46)→(48,46)` which stays 9 |
-
-**Keep** `k_quiet_brave_t2` overlays (port-or-park → **park**). Next evidence:
-rebuild **`VR_B465X`** → `dump_b465x3` (spent at `465b` RETF already 3 or still 9?).
-
-`FUN_465b` write map (ASM): friendly land path only **ADD local_40** then
-optional ocean force-to-max; post-ADD chrome is not a spent writer for Brave.
-**Do not invent Sioux cost-head caps.**
-
-Hang recipes: [`tools/brave_dump/midturn_465b.md`](../tools/brave_dump/midturn_465b.md).
+**Keep** `k_quiet_brave_t2` overlays. **Do not invent Sioux cost-head caps.**
 
 ## Quiet ASM init inventory (phase 10)
 
@@ -137,10 +127,16 @@ At matched RNG, quiet formula still disagrees with golden on **13** Braves
 | 10 | (47,39) | 0 | 2 | (48,39) |
 | 11 | (32,31) | 0 | 5 | (31,32) |
 
-## Coarse fog (phase 9)
+## Coarse fog (phase 9 + axis fix)
 
-DOS plane `DS:0x9faa` (size `0x10e`): explore `+8` uses `(x>>2)+(y>>2)*18`;
-tribe place uses `(y/5)+(x/5)*18`. Linux `s_ai_coarse_fog` mirrors this.
+DOS plane `DS:0x9faa` (size `0x10e`):
+
+| Use | Index |
+|-----|-------|
+| Explore `+8` | `(y>>2)+(x>>2)*18` — ASM `521d:56d8` (`BX=y>>2`, `SI=(x>>2)*18`) |
+| Tribe spacing | `(y/5)+(x/5)*18` |
+
+Linux `s_ai_coarse_fog` mirrors this (explore axes were swapped prior to 2026-08-12).
 
 ## Empiricism vs DOS quiet
 
