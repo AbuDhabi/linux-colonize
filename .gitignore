@@ -17,3 +17,4 @@ tools/brave_dump/shots
 CLAUDE.md
 original_sources_decompiled/**
 !original_sources_decompiled/*.zip
+!original_sources_decompiled/*.c
