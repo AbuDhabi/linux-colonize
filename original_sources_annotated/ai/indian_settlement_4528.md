@@ -435,6 +435,48 @@ Reproduce: `tools/address_mapping.csv` → `FUN_4d56_4528` → `OVL13_L0000:4528
 at that address (Ghidra didn't auto-create one — cross-overlay call target,
 same reason covered in `docs/rtlink_decode_v2_gap.md`), decompile.
 
+## Case-dispatch tail (`switch(uStack_56)`, cases 1-9) — resolved, not a
+## hidden action tree (2026-08-13)
+
+The tail switch (last section of the full body above) calls
+`thunk_FUN_1000_a63c`/`a5e8`/`a5dc`/`a594`/`a618`/`a60c`/`a5b8`/`a5f4` per
+case — looked initially like 8 distinct raid-action implementations
+(Attack/Demand/Burn/etc.) worth deep-porting separately. They aren't.
+
+Traced each through two hops of thunk (OVL13-local stub → resident
+`FUN_1000_a5xx`, itself just a `CALLF <loader>; JMPF 0x0000:XXXX` stub with
+an **unpatched RTLink placeholder segment** — decompiling through it
+naively pulls in whatever static bytes happen to sit at that literal
+address, which produced an alarming false lead: content that looked like
+the main turn loop). Resolved the *real* targets properly instead, via
+`rtlink_decode VICEROY.EXE`'s own jump-table parser (info mode — the
+mechanism this whole file offset belongs to, see
+`docs/rtlink_decode_v2_gap.md`) rather than trusting the placeholder bytes:
+file offsets `0x1c994`/`0x1c9b8`/`0x1c9dc`/`0x1c9e8`/`0x1c9f4`/`0x1ca0c`/
+`0x1ca18`/`0x1ca3c` (all 8 case thunks) **all resolve to the identical
+target: segment index 11, offset 0** — `OVL11_L0000`'s entry point.
+
+That entry point is a trivial 21-byte function:
+```c
+char FUN_OVL11_L0000__000000(char *param_1) {
+  char c = *param_1;
+  return (c == 6) ? 5 : c;
+}
+```
+A shared value-clamp utility (collapses state/type byte `6` to `5`), not a
+per-case action implementation. **Conclusion: there is no hidden 8-way
+action tree behind this dispatch** — the switch's real job is setting the
+return code (`iStack_5a`: 0/1/2) and calling this one shared bookkeeping
+utility with case-specific *arguments*, not case-specific *code*. The
+already-recovered 312-line body above is essentially complete for
+`4528`'s own scope. Whatever differentiates Attack from Demand from Burn
+in-game lives either in `4528`'s **caller** (interpreting the 0/1/2 return
+code) or in the sibling loot-outcome functions already flagged at the top
+of this doc (`FUN_5fef_0f14`/`016c`/`0352`/`0ec0`,
+`indian_raid_outcomes.md`) — not reachable through this particular chain.
+Next step for anyone picking up raid-action porting: check those sibling
+functions and `4528`'s call sites, not this dispatch tail.
+
 ## Linux phase arms vs head
 
 | DOS head idea | Linux `ai_contact_indian_raids` |

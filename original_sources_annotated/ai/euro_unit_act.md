@@ -70,34 +70,50 @@ unconditional call before the switch) turned out to be a bare
 (same mechanism as the `thunk_FUN_1000_*` stubs elsewhere, just not
 auto-recognized as a named `Thunk` function by Ghidra's analyzer here).
 
-**Update, same day, one hop further still — `a6e4` is not a function, it's
-data.** `createFunction` at `ram:0x1a6e4` fails, and inspecting the raw
-disassembly there shows a suspiciously regular 12-byte repeating pattern
-(`OR AX,imm16` / `JMPF seg:off` / `OR AX,imm16` / `STOSW`) rather than
-plausible function prologues — a classic sign of code-as-data
-misinterpretation, not real instructions. **But the `JMPF` targets embedded
-in that pattern are real and meaningful**: `0000:20e6` (move-scoring,
-`FUN_521d_20e6`), `0000:5c3c` (the "Europe hire" address this very doc's
-phase table cites for case 7), `0000:0a60` (one of the two goal functions
-this doc's intro cites: "Goals are `0a60`/`5d04`"), plus `0072`, `00a8`,
-`02be`, `5cf6`, `052c` not yet identified. This strongly reads as a genuine
-**dispatch/jump table** — an array of far-pointer entries routing some
-index (unit goal? action code?) to real handler functions — being
-misdecoded as bogus instructions because nothing marks it as data. That
-table, properly extracted, would be a ground-truth map of goal→handler
-wiring instead of the manually-inferred version this doc currently has.
-Worth a dedicated extraction pass (mark it as data in Ghidra, read the raw
-4-byte-or-so far-pointer entries directly) rather than more `createFunction`
-attempts at individual addresses inside it — **not done here**, flagging
-for whoever picks this up next.
+**Correction (2026-08-13, later pass) — `a6e4` conclusion above was itself
+wrong, same root cause as `4528`'s case-dispatch false lead.** The "data
+table" read was from following an **unpatched RTLink call-thunk's raw
+placeholder bytes** (`JMPF 0x0000:XXXX` — segment `0000` is a
+build-time sentinel RTLink's loader patches at runtime; it is *not* the
+real target, and reading through it naively decodes whatever static bytes
+happen to sit at that literal file position — meaningless, and exactly
+what produced the "12-byte repeating pattern" / "looks like a jump table"
+read). Same failure mode `4528`'s case-dispatch chain hit (see
+`indian_settlement_4528.md` "Case-dispatch tail" section) — solved there by
+resolving the *real* target through `rtlink_decode VICEROY.EXE`'s own
+jump-table parser (info mode) instead of trusting the placeholder bytes.
+Applied the same fix here: `OVL14_L0000::7308`'s thunk chain → resident
+`ram:0x1a6e4` → file offset `0x1cae4` → **`rtlink_decode`'s jump table
+resolves this to segment index 12, offset 0** (`OVL12_L0000`'s entry
+point) — a real, clean, ~145-byte self-contained function (tribe search:
+matches a tribe by relative position + type nibble, sets a found flag and
+sentinels the match; falls through to a `FUN_1000_8842`/`8628`/`8b94`
+dialog call chain if no match). Full C decompile hits an unrelated pcode
+error (not chased further this pass); the raw disassembly is coherent and
+legible, confirmed via `docs/rtlink_decode_v2_gap.md`'s tooling.
 
-The case-7/8/9/0xb *dispatch targets* (`FUN_1000_93ea`, `func_0x000193b2`,
-`FUN_1000_9406`, `FUN_1000_96aa`) are still-uninvestigated candidates in
-their own right, independent of the `a6e4` table finding. Given `4528` and
-`2820` both turned out to have their "extra" content be either
-foreign-segment garbage or (for `2820`) misidentified internal labels,
-don't assume the phase content below is accurate as attributed until one of
-these is actually checked.
+**The broader "12-byte pattern" region** (the run of `JMPF 0x0000:20e6`/
+`5c3c`/`0a60`/`0072`/`00a8`/`02be`/`5cf6`/`052c` entries near `a6e4`) is,
+by the same logic, **not data** — it's more unpatched RTLink call-thunks in
+the same mechanism, each individually resolvable the same way (compute its
+own file offset, look it up in `rtlink_decode`'s jump table). Not resolved
+individually this pass; don't re-read them as a "data table to extract" —
+that framing was the mistake.
+
+**Method note for whoever continues this file:** when a `CALLF <loader>;
+JMPF 0x0000:XXXX` stub's decompile looks implausible (turn-loop-sized
+content from a 10-byte function, or a "data table" pattern from a function
+Ghidra won't create), the `JMPF` target is very likely an unpatched RTLink
+placeholder, not real control flow — resolve it via `rtlink_decode`'s jump
+table (file offset → segment index + offset) before concluding anything
+about what the code does. Naive tail-following or byte-pattern reading
+through these placeholders has now produced two false leads in this file
+alone (`a6e4` "data table", and — see `indian_settlement_4528.md` — an
+"8 raid actions" reading that was actually one shared utility). The
+case-7/8/9/0xb *dispatch targets* (`FUN_1000_93ea`, `func_0x000193b2`,
+`FUN_1000_9406`, `FUN_1000_96aa`) are still-uninvestigated in their own
+right — check whether each is itself a real function or another unpatched
+thunk before trusting a decompile of it.
 
 ---
 
