@@ -59,6 +59,20 @@ void units_set_combat_human_nation(int human_nation);
 void units_set_combat_popups(AiPopupState* popups, const ColonizeMsgCatalog* game_txt);
 
 /*
+ * Optional sound.c hooks for the DOS-evidenced combat "Military" BGM sting
+ * (SOUND_MILITARY_BGM_ID, see sound.h) — kept as function pointers rather
+ * than a direct link so units.c stays linkable without sound.c (several
+ * unit_* test binaries compile units.c standalone). Pass NULL/NULL to
+ * clear; game_loop wires the real sound_play/sound_active_song_id once at
+ * startup, matching units_set_combat_popups's wiring convention.
+ */
+typedef void (*ColonizeSoundPlayFn)(int id);
+typedef int (*ColonizeSoundActiveIdFn)(void);
+void units_set_combat_music_hooks(
+  ColonizeSoundPlayFn play_fn, ColonizeSoundActiveIdFn active_id_fn
+);
+
+/*
  * Apply pending treasure ransom CHOICE (AI_POPUP_TAG_COMBAT_RANSOM).
  * Accept (choice_id==1) credits payload gold to nation_a; Refuse credits 0.
  * Returns true if the tag was handled.

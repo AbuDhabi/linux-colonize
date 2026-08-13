@@ -581,6 +581,47 @@ Title/map BGM via `sound_play` / `sound_set_bgm` is enabled (`COLONIZE_SOUND_PLA
 `--nosound` skips the SDL device (and Pick Music previews). `smoke_sound` /
 `smoke_pick_music` cover load + dialog + golden decode checks.
 
+**Sound Options (GAME menu):** `@SOUNDOPTIONS` — Background Music / Event Music / Sound
+Effects checkboxes — implemented as a wood checkbox dialog (`options_dialog_open_sound` /
+`options_dialog_apply_sound`, `src/core/options_dialog.c`), reachable via `MAP_MENU_ACTION_
+SOUND_OPTIONS`. Applies to `sound_get_options`/`sound_set_options` (`ColonizeSoundOptions`)
+and persists to Col1 `head.tut2.{background_music,event_music,sound_effects}`.
+
+### Sound-ID ranges beyond the 12 BGM tracks (RE notes)
+
+`FUN_1000_19bc` (the driver's numeric-id dispatcher, `GSOUND.COL` and `PSOUND.COL` alike)
+has four ranges, all traced by disassembling the raw `.COL` MZ images (not just the
+overlay-affected `VICEROY.EXE` decompile):
+
+| Range | Table (image offset) | Confirmed behavior |
+|-------|----------------------|---------------------|
+| `< 0x10` (only 9 entries, ids 0–8) | `0x2A5C` | **Channel reset/silence**, not player-audible content — e.g. id 4's handler resets MIDI channels 6–7 (`CC121`/`CC123` all-notes-off + reset-controllers), id 1's handler mutes two specific voice slots. `sound_play` already treats id 0/1 as "stop" (`src/core/sound.c`). |
+| `0x20..0x3f` BGM | `0x2A6E` | The 12 Pick-Music tracks + named submenus (Independence/Military/Indian) **and** situational ids outside those submenus (`0x24`, `0x25`, `0x3e`) pushed directly by DOS gameplay code via `FUN_281f_048e`→`FUN_129f_02cc`. Confirmed real trigger: combat (`FUN_5fef`, land+naval) pushes `0x32` ("Military" sublist track 1) when an engagement begins — ported as `units_combat_music_sting()` (`units.c`), gated through `units_set_combat_music_hooks` (kept as a function-pointer hook so `units.c` stays linkable without `sound.c` in standalone `unit_*` test binaries). Other confirmed-real-but-unmapped-to-a-precise-trigger call sites: segments `65dd` (LCR), `75c2` (save/load), `48d3` (Europe exit), `364b` (colony), `38fd`/`3844` (trade) — left unwired pending closer per-site tracing. |
+| `0x40..0x5c` "event music" | `0x2AC4` | Engine-ready (`sound.c` loads/decodes/renders this range identically to BGM, gated by `event_music` option) but **no confirmed DOS trigger site was found** despite an extensive search of every numeric-id call site reachable from `FUN_2059_000a`. Left unwired — do not invent a trigger. |
+| `≥0x8020` (7 entries, ids `0x8020..0x8026`) | `0x2AB6` | Short pre-scripted multi-voice MIDI chord stings (writes directly into the same voice-struct engine used for BGM playback — not digital audio). No confirmed DOS caller found (the one literal `0x8025` reference elsewhere in `VICEROY.EXE` turned out to be an unrelated dialog-box parameter, not a sound id). Left unwired. |
+
+The `sound_effects` option flag (`ColonizeSoundOptions.sound_effects`, DS offset `0xa2` in
+the driver) is real and consulted by DOS at several BGM-change call sites
+(`FUN_129f_0300`/`0318`/`034c`) — but it gates **whether a BGM track change applies
+immediately or gets deferred to the next idle-pump poll**, not a separate audio category.
+`sound_play`'s existing BGM gating (`background_music`/`event_music` bits) already covers
+the player-visible effect; the immediate-vs-deferred nuance is DOS-internal scheduling with
+no equivalent complexity in the port's single-threaded playback and was not replicated.
+
+**`COLDIG.BIN` (digital/PCM "sound effects"):** confirmed real (raw 8-bit PCM, loaded via
+EMS with a signed↔unsigned `XOR 0x80` conversion pass) and **structurally identical in both
+`GSOUND.COL` and `PSOUND.COL`** (the Sound Blaster/PAS driver, i.e. real DMA-capable
+hardware — ruling out "GM hardware just can't do digital audio" as the explanation). Despite
+a full-disassembly search of both driver binaries for every reference to the loader's buffer/
+size/EMS-handle control variables, and a check of `VICEROY.EXE`'s own direct EMS calls
+(segment `210d` — confirmed to be RTLink's generic overlay-paging, unrelated to sound), no
+reachable code path was found that ever plays the loaded buffer back. Two of the driver's
+five registered entry-point callback slots (`DS:0xa660`/`0xa664`) are populated at load time
+and never called anywhere in the ~125k-line `VICEROY.EXE` decompile. Working theory: shared
+driver-template capability that shipped but was never wired into this game. AdLib / MT-32
+drivers and `COLDIG.BIN` playback remain out of scope; do not invent a trigger without new
+evidence (e.g. from an un-RE'd overlay path).
+
 ## Discovery Order
 
 Intended install layout: put original game files in `<executable-dir>/COLONIZE/`.

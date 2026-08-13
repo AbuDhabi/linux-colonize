@@ -22,6 +22,15 @@
 #define SOUND_BGM_ID_BASE 0x20
 #define SOUND_EVENT_ID_BASE 0x40
 #define SOUND_TITLE_ID 0x33
+/*
+ * Situational "Military" BGM cue (@PICKMUSIC Military sublist, first song).
+ * DOS combat engagement code (segment 5fef) pushes this literal id into the
+ * BGM-change path (FUN_281f_048e -> FUN_129f_02cc) when a land/naval attack
+ * begins; the real driver only restarts playback when the id actually
+ * changes (see sound_active_song_id), so callers should gate on that rather
+ * than calling sound_play() unconditionally on every attack.
+ */
+#define SOUND_MILITARY_BGM_ID 0x32
 
 /* True when ambient autoplay is allowed (not the Pick Music preview path). */
 bool sound_playback_enabled(void);
@@ -56,6 +65,11 @@ void sound_stop_preview(void);
 void sound_set_bgm(int track);
 void sound_stop_bgm(void);
 void sound_service(void);
+
+/* Currently playing song id (BGM/event/title), or -1 if none. Ambient BGM
+ * (sound_set_bgm) and one-shot sound_play() share this state, matching DOS
+ * FUN_129f_02cc/0318's "skip restart if id unchanged" gate. */
+int sound_active_song_id(void);
 
 /* Fill interleaved S16 samples for the SDL audio callback (thread-safe). */
 void sound_render_s16(int16_t* dst, int frames, int channels, int sample_rate);

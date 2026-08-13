@@ -344,6 +344,7 @@ static void game_bind_combat_analysis(ColonizeGameState* game) {
   }
   combat_analysis_set_presenter(game_combat_analysis_present, game);
   units_set_combat_human_nation(game->human_nation);
+  units_set_combat_music_hooks(sound_play, sound_active_song_id);
 }
 
 static void game_refresh_orders_menu(ColonizeGameState* game) {
