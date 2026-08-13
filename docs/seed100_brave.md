@@ -4,7 +4,83 @@ Durable notes for `golden_mapgen_seed100` + `golden_ai_turns` (VR_SEED=100).
 Companion status: [ai_transcription.md](ai_transcription.md),
 [`original_sources_annotated/ai/move_scoring.md`](../original_sources_annotated/ai/move_scoring.md).
 
-## Status (call-graph annotation + dump-free pass 2026-08-12)
+## Root cause candidate for the peel dependency (2026-08-13)
+
+Investigated `FUN_521d_20e6` (move scoring — the formula behind every peel
+in this file) for disassembly corruption, on the theory that a formula
+needing 126 hand-added per-tile "peels" (13 init + 113 mid) to match golden
+might be reading from corrupted bytes rather than encoding a genuine game
+rule. It was worse than corrupted — **it failed to decompile at all** in
+the canonical export (`Unable to decompile 'FUN_521d_20e6' — process:
+timeout`). Every existing doc/port for this formula (`move_scoring.md`,
+`quiet_brave_scoring.c`) was necessarily written from the raw `.asm`
+listing alone, never cross-checked against working C.
+
+Re-disassembled via the overlay-addressing project
+(`tools/address_mapping.csv` → `OVL14_L0000:20e6`, see
+`docs/rtlink_decode_v2_gap.md`): decompiled cleanly in 27 seconds (vs.
+never finishing before), 2219 lines, **zero warnings** — matches the
+existing ~2170-line ASM-derived estimate closely, so this isn't a severe
+desync like `4528`/`5b66` were; it's a case the decompiler's
+control-flow analysis simply couldn't resolve without correct addressing.
+
+**Found a real, confirmed gap, not corruption-driven wrongness in what's
+already ported:** the quiet Brave base/terrain/facing formula in
+`quiet_brave_scoring.c` is correct *for the branch it covers* — but that's
+only one of two outer branches in the real DOS code. The other branch
+(unit **has** been seen by some Euro nation — a per-nation bitmask on the
+unit record, `unit+0x3147` high nibble, bit `0x10 << nation_id`, same
+convention as the fog-of-war visibility bit `save_format_map.md` already
+documents for tiles/colonies) uses **`RNG(1,5)` and a structurally
+different formula** (add a scaled table lookup, or nothing at all) —
+entirely unimplemented in the current port, which always uses the
+"unseen" `RNG(1,3)` formula regardless of visibility state. Full detail
+and exact branch structure: `quiet_brave_scoring.c`'s new header comment.
+
+**Does this explain the very-first-move peels specifically?** Not fully
+confirmed — all Braves are genuinely unseen at spawn, so the missing
+branch shouldn't fire on turn 0/1 by itself, and the spot-checked pieces
+of the "unseen" formula (terrain +1/-table, facing quadratic penalty) do
+match what's already ported. **It does cleanly explain the *shape* of the
+existing peel counts** — 13 init vs. 113 mid-turn, ~9x more — since every
+turn some Braves become newly visible to Euro units as they explore, and
+each one's scoring should switch formulas and doesn't. Worth building
+(not done this pass) before writing off the remaining init-peel mismatch
+as something else: the "some contact/diplomacy condition" gate inside the
+RNG(1,5) branch isn't traced yet either, and until that branch exists at
+all, it's not possible to tell which peels it would actually eliminate.
+
+### Gate traced + implemented, verified against goldens (2026-08-13)
+
+Traced the RNG(1,5) branch's gate (`FUN_1000_89d0`/`FUN_1000_88cc`, both
+resolved past another placeholder-thunk hop) and implemented it in
+`ai_native_pick_dir_asm` (`src/core/ai.c`): unit-seen-by-any-Euro-nation
+now branches to `RNG(1,5)` + `map_dos_terr_found_score_byte`-scaled term
+(unless dest holds a same-nation unit), approximated via
+`map_tile_seen_by(map, x, y, *)` at the unit's own tile (documented in
+the code as an approximation — the DOS `unit+0x3147` field itself isn't
+independently confirmed as a mirror of the tile fog plane, just very
+likely).
+
+Verified: `golden_mapgen_seed100` and `golden_ai_turns` (peels on, the
+default/shipped config) stay green — no regression. Full `ctest`: 42/43,
+same pre-existing unrelated failure (`unit_ai_euro_expand`, Stockade
+labor-priority test) as before this change.
+
+**`AI_NO_BRAVE_PEELS=1` diagnostic (measures the true formula gap) is
+unchanged by this fix**: `golden_mapgen_seed100` still reports **13**
+missing init units, `golden_ai_turns` still fails at TURN1→2 with **18**
+`missing unit:` lines, identical before (branch stashed out) and after
+(branch applied). Confirms the turn-0/1 prediction above — all Braves are
+genuinely unseen at spawn and through the earliest turns in this seed, so
+the new branch has nothing to fire on yet in the exact spots the
+diagnostic checks. The branch is real (traced from clean, non-corrupted
+disassembly, backed by already-verified table data) and now in the
+running default config, but **does not yet measurably shrink the 126
+peel count** — the peels it should eventually retire are later-turn,
+once explorer contact starts flipping visibility, not caught by these
+two turn-1-scoped goldens. Left peels in place; no basis yet to remove
+any.
 
 | Gate | State |
 |------|--------|

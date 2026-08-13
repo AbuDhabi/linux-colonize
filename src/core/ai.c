@@ -2664,10 +2664,30 @@ static int ai_native_pick_dir_asm(
     }
     accepted++;
 
-    const int base = ai_rng_range(rng, 1, 3);
-    int score = base;
+    /*
+     * FUN_521d_20e6 outer branch (2026-08-13 finding, see docs/seed100_brave.md
+     * "Root cause candidate"): quiet Brave scoring splits on whether *this*
+     * unit has been seen by any Euro nation yet — DOS unit+0x3147 high
+     * nibble, bit (0x10<<nation), same convention as MAP_SEEN_NATION_BIT.
+     * Not previously implemented; always took the "unseen" branch below.
+     * Approximated here via map->seen at the unit's own (x,y) — the DOS
+     * field is very likely just a cached mirror of that same fog-of-war
+     * plane (same bit layout), not independently verified byte-for-byte.
+     */
+    int unit_seen_by_any = 0;
+    for (int sn = 0; sn < 4; ++sn) {
+      if (map_tile_seen_by(map, x, y, sn)) {
+        unit_seen_by_any = 1;
+        break;
+      }
+    }
+
+    int base;
+    int score;
     int terr_delta = 0;
-    {
+    if (!unit_seen_by_any) {
+      base = ai_rng_range(rng, 1, 3);
+      score = base;
       const int dest_river = (int)(ai_terrain_at(map, nx, ny) & 0x40u) != 0;
       const int dest_fa = ai_mask_fa_flags(map, nx, ny) != 0;
       const int cardinal = (d & 1) == 0;
@@ -2677,6 +2697,26 @@ static int ai_native_pick_dir_asm(
       } else {
         const int terr = ai_dos_terr_class(map, nx, ny) & 31;
         terr_delta = -map_dos_terr_cost_byte(terr);
+        score += terr_delta;
+      }
+    } else {
+      /*
+       * "Seen" branch (RNG(1,5), not RNG(1,3)) — real DOS table read
+       * confirmed live (map_dos_terr_found_score_byte / DS:0x2f77, same
+       * stride-16 records map_dos_terr_cost_byte already uses at +0).
+       * Gate (FUN_1000_89d0 / FUN_1000_88cc traced 2026-08-13): add the
+       * scaled table term unless dest already holds a unit AND is owned by
+       * this same nation (own-tile stacking discouragement); the outer
+       * ownership reject above already excludes foreign-owned dest tiles,
+       * so in practice this reduces to "dest is unowned" for anything that
+       * reaches here.
+       */
+      base = ai_rng_range(rng, 1, 5);
+      score = base;
+      const int dest_has_unit = units_id_at(units, nx, ny) >= 0;
+      if (!dest_has_unit || own != nation_id) {
+        const int terr = ai_dos_terr_class(map, nx, ny) & 31;
+        terr_delta = map_dos_terr_found_score_byte(terr) << 2;
         score += terr_delta;
       }
     }

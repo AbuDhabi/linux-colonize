@@ -9,6 +9,56 @@
  * same scorer and are out of scope here.
  *
  * Reference only — not compiled into the Linux binary.
+ *
+ * ============================================================================
+ * MAJOR FINDING (2026-08-13) — a whole branch of this formula is missing.
+ * See docs/seed100_brave.md "Root cause candidate" section for the full
+ * writeup; short version here.
+ *
+ * FUN_521d_20e6 failed to decompile entirely in the canonical export
+ * ("Unable to decompile ... process: timeout") — this file was necessarily
+ * written from the raw .asm only. Re-disassembled clean via the
+ * overlay-addressing project (tools/address_mapping.csv -> OVL14_L0000:20e6,
+ * see docs/rtlink_decode_v2_gap.md): decompiled successfully in 27s (vs.
+ * never finishing before), 2219 lines, zero warnings.
+ *
+ * The clean decompile confirms base/terrain/facing below ARE correct for the
+ * gate this file already scopes to ("type flags have 0x10 or 0x20 set") —
+ * but that gate is only the FIRST of TWO outer branches in the real DOS
+ * code, and this file (and quiet_score_base/quiet_score_terrain below) only
+ * ever implements the first one:
+ *
+ *   if ( (unit+0x3147 high nibble == 0) && (dest tile is not ocean/HS) ) {
+ *     // "unit not yet SEEN by any Euro nation" — this file's existing formula.
+ *     ... quiet_score_base() / quiet_score_terrain() as below ...
+ *   } else {
+ *     // "unit HAS been seen by at least one Euro nation" (or dest is
+ *     // ocean/HS) — a COMPLETELY DIFFERENT, UNPORTED formula:
+ *     base = RNG(1,5);                                    // not RNG(1,3)!
+ *     if (<some contact/diplomacy condition, not fully traced>) {
+ *       score = base + terr_cost_table2[terr] * 4;         // ADD, table+1, x4
+ *     }
+ *     // else: score stays just the RNG(1,5) roll, no terrain term at all.
+ *   }
+ *
+ * unit+0x3147's high nibble is a per-Euro-nation "has nation N seen this
+ * unit" bitmask (bit = 0x10 << nation_id) — same convention already
+ * documented for tile/colony visibility in docs/save_format_map.md ("0x10
+ * <<euro" fog-of-war bit), confirmed by cross-reference at
+ * viceroy_unpacked_2.c:53706 (`0x10 << (human_nation & 0x1f) & unit+0x3147`).
+ * quiet_lab_54f5_gate below does NOT implement or even reference this check.
+ *
+ * All Braves are genuinely unseen at spawn, so this doesn't obviously
+ * explain the very-first-move (turn 0/1, docs/seed100_brave.md "13 init
+ * peels") mismatch by itself — but it's the natural explanation for why
+ * MID-turn peels (113, ~9x more) so vastly outnumber init peels: every turn
+ * a Brave becomes visible to some Euro nation, its scoring should switch to
+ * the RNG(1,5) formula and currently never does. Not yet implemented here —
+ * this is the concrete next step for whoever picks up the peel-elimination
+ * work, not a full fix. The exact "some contact/diplomacy condition" gate
+ * for the ADD-vs-bare-roll split inside the RNG(1,5) branch also needs
+ * tracing before this can be ported (not done this pass).
+ * ============================================================================
  */
 
 #include <stdint.h>
