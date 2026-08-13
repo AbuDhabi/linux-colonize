@@ -4,6 +4,22 @@ Combat siblings used by Indian raid / naval plunder. Port stand-ins live in
 `ai_contact_indian_raids` / `units_plunder_*` — see
 [`indian_raid_outcomes.md`](indian_raid_outcomes.md).
 
+**Disassembly verified clean (2026-08-13).** `FUN_5fef_0f14` carried a
+Ghidra disassembly-fault warning in the canonical export (`Removing
+unreachable block (ram,0x0006125d)` — same defect class as `4528`/`2820`/
+`417e`/`5b66`, see `docs/decomp_inventory.md`). Re-disassembled via the
+overlay-addressing project (`docs/rtlink_decode_v2_gap.md`,
+`tools/address_mapping.csv` → `OVL17_L0000:f14`): clean, self-contained,
+309 lines, ends in a real return, one unrelated minor "unreachable block"
+warning at a different address (ordinary decompiler noise, not the
+corruption class). Line count (309) is close to this doc's existing
+298-line estimate — unlike `4528`, this function wasn't severely
+desynced, just untrusted pending verification. Confirms the `iStack_6`
+variable documented below as the `@RAID*` kind selector is real and the
+existing line-range docs below are trustworthy as written; not re-ported
+here (existing Linux `ai_contact_indian_raids` phase coverage already
+matches the documented shape).
+
 ---
 
 ## `FUN_5fef_016c` — pick cargo slot to plunder
