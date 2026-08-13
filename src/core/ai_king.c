@@ -2043,12 +2043,32 @@ static void ai_king_do_declare(ColonizeTurnContext* ctx, int human) {
   ctx->col1->head.backup_force[2] = (uint16_t)(diff > 1 ? 1 : 0);
   ctx->col1->head.backup_force[3] = 1;
   ai_king_set_ref_present(ctx->col1, 1);
-  /* 0218-shaped: fold other Euro AI as withdrawn. */
+  /*
+   * FUN_43f7_0108 (eliminate nation), called from FUN_43f7_1a26 for every
+   * nation that is neither the declaring human nor the crown proxy
+   * (DS:0x5398 / 0x53d2 gate) -- WoI narrows the world to rebel vs REF, so
+   * the other Euro powers are fully removed: diplomatic status withdrawn
+   * *and* every unit they own destroyed (colonies are untouched by 0108
+   * itself -- DOS leaves them ownerless/inert once their nation's
+   * status=2). Linux already set control=2 here ("withdrawn"); the
+   * unit-scrub half was missing. Crown-nation units (the REF spawns below)
+   * must survive.
+   */
+  const int crown_fold = ai_king_crown_nation(human);
   for (int n = 0; n < 4; ++n) {
     if (n == human) {
       continue;
     }
     ctx->col1->player[n].control = 2;
+    if (n == crown_fold || !ctx->units) {
+      continue;
+    }
+    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+      const ColonizeUnit* u = &ctx->units->units[i];
+      if (u->active && u->nation_id == n) {
+        units_despawn(ctx->units, u->id);
+      }
+    }
   }
   /*
    * Thin 160a independence rename stand-in (letter-animation cinematic PARKED).
@@ -2854,8 +2874,11 @@ static void ai_king_merc_offer(ColonizeTurnContext* ctx) {
  * capture/fortify for passengers skipped while aboard; idle empty MoW →
  * AI_SAIL coastal patrol (nearest human coast water; no new ships); 0982
  * boards up to ship capacity into cargo_ids;
- * 1eca colony-SoL bands (40–50 vet / >50 Continental+Regular); Cont. Army/Cav
- * after promote → capital-rally (founding capital; weakest_port fallback);
+ * 1eca full port: per colony with SoL>49, cap = max(1, min(pop>>1,
+ * pop*(sol-50)/50)) shared across a colony's own fortified Soldier/Dragoon
+ * (Regular/Veteran/already-Continental untouched — decomp tests raw type
+ * 1/4 only). Cont. Army/Cav after promote → capital-rally (founding
+ * capital; weakest_port fallback);
  * 10f0 intervene arm (≤3 @ difficulty≥2); thin 2244 merc auto-accept or
  * cannot-afford once/war.
  * REF idle Regular on crown colony (no adjacent foe) → fortify only if no other
@@ -2884,89 +2907,82 @@ static void ai_king_war_act(ColonizeTurnContext* ctx) {
   const int human = ctx->human_nation;
 
   /*
-   * Rebel arm (1eca + Cont. hunt) before crown capture so Cont. Army can still
-   * aim at human ports while they exist. FUN_43f7_1eca promote (catalog:
-   * Continental when colony SoL>50%):
-   * Per-unit SoL from Col1 rebel_dividend/divisor at the unit tile
-   * (ai_king_colony_sol_at); nation 0004 aggregate only as fallback.
-   *   colony SoL>50: Soldier* → Continental Army / Cont. Army / Veteran Soldier
-   *           Dragoon|Cavalry* → Continental Cavalry / Cont. Cav. / Veteran Dragoon
-   *           Regular* → Veteran Soldier / Continental Army (fallback)
-   *   colony SoL 40..50 (incl. exactly 50): Soldier* → Veteran Soldier only
-   *     (if type exists; no Continental); Regular/Dragoon unchanged
-   * Skip already Veteran / Continental / Cont. Army / Cont. Cav (abbrev Cont.
-   * lacks "Continental" — reuse ai_king_is_continental).
-   * Note: armed Regulars often *display* as "Soldier" — classify Regular by type name.
-   * King promote path only — not FF Washington mass-promote (combat upgrade PARKED).
-   * Deep veteran-profession / type-id table remains PARKED.
+   * FUN_43f7_1eca full port. Per colony owned by the rebel nation with
+   * colony SoL>49 (decomp `0x31 < iVar1`):
+   *   cap = max(1, min(pop>>1, pop*(sol-50)/50))
+   * Walk *only* the units stationed on that colony's own tile (decomp
+   * FUN_281f_07e0/02e4 tile-stack walk — not every unit the nation owns)
+   * and promote up to `cap` of them that are FORTIFIED and base type
+   * Soldier or Dragoon (decomp tests raw type id 1 / 4 only — Regulars,
+   * Veterans, and already-Continental units never match and are untouched).
+   * Soldier → Continental Army, Dragoon → Continental Cavalry. Pops a
+   * singular/plural status line per colony that actually promoted someone
+   * (decomp 0x132d "one unit" / 0x1336 "%d units"). Washington FF mass
+   * promote / combat-upgrade path is separate and untouched here. The
+   * SoL 40..49 "restless" band is status-text only (below), not a promote
+   * band in 1eca.
    */
   {
     int army = units_find_type(ctx->units, "Continental Army");
     if (army < 0) {
       army = units_find_type(ctx->units, "Cont. Army");
     }
-    if (army < 0) {
-      army = units_find_type(ctx->units, "Veteran Soldier");
-    }
     int cav = units_find_type(ctx->units, "Continental Cavalry");
     if (cav < 0) {
       cav = units_find_type(ctx->units, "Cont. Cav.");
     }
-    if (cav < 0) {
-      cav = units_find_type(ctx->units, "Veteran Dragoon");
-    }
-    int regular_tgt = units_find_type(ctx->units, "Veteran Soldier");
-    if (regular_tgt < 0) {
-      regular_tgt = units_find_type(ctx->units, "Continental Army");
-    }
-    if (regular_tgt < 0) {
-      regular_tgt = units_find_type(ctx->units, "Cont. Army");
-    }
-    const int vet = units_find_type(ctx->units, "Veteran Soldier");
-    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-      ColonizeUnit* u = &ctx->units->units[i];
-      if (!u->active || u->nation_id != human) {
-        continue;
-      }
-      const ColonizeUnitType* ut = units_type(ctx->units, u->type_index);
-      const char* tname = ut ? ut->name : NULL;
-      const char* name = units_display_name(ctx->units, u);
-      /*
-       * Already promoted: skip Veteran / Continental / Cont. Army / Cont. Cav
-       * (hunter Cont. check — abbrev Cont.* lacks "Continental"/"Veteran").
-       * SoL bands: >50 Continental; 40..50 (incl. exactly 50) Veteran Soldier
-       * only. Catalog: promote when colony SoL>50%.
-       */
-      if (ai_king_is_continental(ctx->units, u)) {
-        continue;
-      }
-      if ((name && strstr(name, "Veteran")) || (tname && strstr(tname, "Veteran"))) {
-        continue;
-      }
-      /* 1eca: bias threshold with colony SoL at tile (Washington FF path is separate). */
-      const int sol_p = ai_king_colony_sol_at(ctx, human, u->x, u->y);
-      const int is_regular = (tname && strstr(tname, "Regular") != NULL);
-      if (sol_p > 50) {
-        if (is_regular) {
-          if (regular_tgt >= 0) {
-            u->type_index = regular_tgt;
-          }
-        } else if (army >= 0 &&
-                   ((name && strstr(name, "Soldier")) ||
-                    (tname && strstr(tname, "Soldier")))) {
-          u->type_index = army;
-        } else if (cav >= 0 &&
-                   ((name && (strstr(name, "Dragoon") || strstr(name, "Cavalry"))) ||
-                    (tname && (strstr(tname, "Dragoon") || strstr(tname, "Cavalry"))))) {
-          u->type_index = cav;
-        }
-      } else if (sol_p >= 40) {
-        /* Mid-band 40..50: Soldier → Veteran Soldier; Regular/Dragoon unchanged. */
-        if (is_regular || vet < 0) {
+    const int soldier_ty = units_find_type(ctx->units, "Soldier");
+    const int dragoon_ty = units_find_type(ctx->units, "Dragoon");
+    if (ctx->col1->colony && (army >= 0 || cav >= 0) &&
+        (soldier_ty >= 0 || dragoon_ty >= 0)) {
+      for (uint16_t ci = 0; ci < ctx->col1->head.colony_count; ++ci) {
+        const ColonizeCol1Colony* c = &ctx->col1->colony[ci];
+        if ((int)c->nation_id != human) {
           continue;
         }
-        if ((name && strstr(name, "Soldier")) || (tname && strstr(tname, "Soldier"))) {
-          u->type_index = vet;
+        const int sol_p = ai_king_colony_sol_at(ctx, human, (int)c->x, (int)c->y);
+        if (sol_p <= 49) {
+          continue;
+        }
+        const int pop = c->population;
+        int cap = pop * (sol_p - 50) / 50;
+        if (pop / 2 < cap) {
+          cap = pop / 2;
+        }
+        if (cap < 1) {
+          cap = 1;
+        }
+        int promoted = 0;
+        for (int i = 0; i < COLONIZE_UNITS_MAX && cap > 0; ++i) {
+          ColonizeUnit* u = &ctx->units->units[i];
+          if (!u->active || u->nation_id != human) {
+            continue;
+          }
+          if (u->x != (int)c->x || u->y != (int)c->y) {
+            continue;
+          }
+          if (u->orders != UNITS_ORDER_FORTIFIED) {
+            continue;
+          }
+          if (soldier_ty >= 0 && u->type_index == soldier_ty && army >= 0) {
+            u->type_index = army;
+          } else if (dragoon_ty >= 0 && u->type_index == dragoon_ty && cav >= 0) {
+            u->type_index = cav;
+          } else {
+            continue;
+          }
+          --cap;
+          ++promoted;
+        }
+        if (promoted > 0 && ctx->status && ctx->status_size) {
+          if (promoted == 1) {
+            snprintf(ctx->status, ctx->status_size,
+                     "A rebel unit has been promoted to Continental status!");
+          } else {
+            snprintf(ctx->status, ctx->status_size,
+                     "%d rebel units have been promoted to Continental status!",
+                     promoted);
+          }
         }
       }
     }

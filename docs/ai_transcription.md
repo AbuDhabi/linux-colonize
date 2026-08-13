@@ -232,9 +232,10 @@ Thin map: [`euro_diplo.md`](../original_sources_annotated/ai/euro_diplo.md).
 | `FUN_43f7_0004` | ~42 | Pop-weighted SoL | `ai_king_sol_percent` | **partial** |
 | `FUN_43f7_1d42` | ~64 | Tax→REF funding | `ai_king_tax_event` | **partial** |
 | `FUN_43f7_2564` / `1a26` | ~200 / ~140 | Declare gate / crown setup | `ai_king_try_declare` (auto; `ai_popup` CHOICE **Done** structural) | **partial** |
+| `FUN_43f7_0108` | ~22 | Eliminate nation (diplo clear + scrub units + status=2), called from `1a26` fold loop for every non-human non-crown Euro | `ai_king_do_declare` fold loop **Done** (unit-scrub half; diplo-bit clear vs crown not ported -- no crown-nation-slot diplomacy model in Linux yet) | **partial** |
 | `FUN_43f7_060a` | ~37 | Landing / garrison score | `ai_king_weakest_port` | **partial** |
 | `FUN_43f7_0982` / `06a6` | ~335 / ~106 | REF wave / empty irregulars | `ai_king_ref_wave` | **partial** |
-| `FUN_43f7_2022` / `1eca` | ~98 / ~66 | War act + Continental promote | `ai_king_war_act` | **partial** |
+| `FUN_43f7_2022` / `1eca` | ~98 / ~66 | War act + Continental promote | `ai_king_war_act` (`1eca` cap/fortify/own-tile gate **Done** full port; rest of `2022` war-act **partial**) | **partial** |
 | `FUN_43f7_2424` | ~61 | Nation SoL + peace/war dispatch | `ai_king_nation_turn` | **partial** (structural) |
 | `FUN_43f7_10f0` / `1528` / `160a` / `2244` | — | Intervene / announce / rename / merc | `ai_king` thin 10f0/1528/160a/2244; merc `ai_popup` **Done** structural; letter cinematic / VGA PARKED | **partial** |
 
@@ -539,7 +540,10 @@ Wagon surplus load prefers FOOD when `food_short>20` **Done**.
 Thin lumber/ore/muskets/horses/food cargo hire stand-in (mirror tools ship/colony)
 **Done**.
 **OPEN (unpark #4):** full −0x6790 G table / explore-ring matrix still PARKED;
-land `20e6` settlement/siege peels + adjacent toughness **Done** thin
+land `20e6` settlement/siege peels + adjacent toughness **Done** thin;
+`0x46` undefended-colony-seize (combat-capable unit adjacent to an
+undefended foreign colony walks in and captures it, then fortifies to hold)
+**Done** full port (`ai_euro_land_try_adjacent_colony_seize`)
 ([`move_scoring_land.md`](../original_sources_annotated/ai/move_scoring_land.md));
 ocean-naval combat approach **Done** thin
 ([`move_scoring_ship.md`](../original_sources_annotated/ai/move_scoring_ship.md));
@@ -676,10 +680,13 @@ structural tax boycott/refuse
 thin `1528` arrival status on REF spawn; thin `2244` merc auto-accept
 (`unknown46[3]`, 300 gold → human Soldier; thin hire status + `ai_popup` CHOICE **Done**);
 thin `160a` rename
-(`country_name` / europe → "United Colonies"); thin `1eca` promote biased by
-**colony** SoL at unit tile (`rebel_dividend`/`divisor`) with nation SoL fallback —
-Soldier→Continental / Dragoon→Cont. Cavalry when SoL>50; Soldier→Veteran when SoL 40–50;
-thin SoL 40–49 restless
+(`country_name` / europe → "United Colonies"); **`1eca` full port** — per
+colony with SoL>49, `cap = max(1, min(pop>>1, pop*(sol-50)/50))` shared
+across that colony's own **fortified** Soldier/Dragoon (own-tile only, raw
+type 1/4 — Regular/Veteran/already-Continental untouched, matching the
+decomp exactly); Soldier→Continental Army, Dragoon→Continental Cavalry; at
+SoL==50 the cap is always exactly 1 (later units wait a turn); thin SoL
+40–49 restless
 status + `unknown46[5]` congress confirm + congress status on declare
 (`2564` confirm `ai_popup` CHOICE **Done** structural; VGA chrome PARKED).
 WoI stand-in `head.unknown46[0]` (DOS `0x5382` bit0 rename still PARKED); REF-present
@@ -693,7 +700,7 @@ second MoW at `difficulty≥2`; capture status chrome **Done**. Thin map:
 `ai_popup` (status chrome Done). VGA-identical wood chrome still PARKED.
 
 **Still PARKED:** `160a` letter cinematic; full merc/arrival/hold embark chrome;
-extra refuse boycott cargos beyond Sugar; deep `1eca` type-id table; exact `0x5382`
+extra refuse boycott cargos beyond Sugar; exact `0x5382`
 Col1 bit rename / T3.
 
 ---

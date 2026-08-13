@@ -1730,6 +1730,131 @@ static int unit_land_adjacent_combat_chain(void) {
 }
 
 /*
+ * FUN_521d_20e6 `0x46` gate: combat-capable land unit adjacent to an
+ * *undefended* foreign Euro colony (no unit on the tile) walks in and
+ * seizes it outright — no combat needed. Distinct from
+ * unit_land_adjacent_combat_chain (defended foe) and from the goal-driven
+ * MILITARY-goto capture path (this fires opportunistically regardless of
+ * the unit's assigned goal).
+ */
+static int unit_land_adjacent_colony_seize(void) {
+  const int nation = 1;
+  const int foe = 2;
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 16;
+  map.height = 16;
+  map.tile_count = 256;
+  map.terrain = calloc(256, 1);
+  map.layer2 = calloc(256, 1);
+  map.layer3 = calloc(256, 1);
+  if (!map.terrain || !map.layer2 || !map.layer3) {
+    return fail("colony-seize alloc map");
+  }
+  for (int i = 0; i < 256; ++i) {
+    map.terrain[i] = 1;
+  }
+
+  ColonizeUnitPool units;
+  units_reset(&units);
+  units.type_count = 1;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Soldier");
+  units.types[0].movement = 3;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  units.types[0].attack = 8;
+  units.types[0].defense = 1;
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  ColonizeColony* own = &colonies.colonies[0];
+  own->id = 0;
+  own->active = true;
+  own->nation_id = nation;
+  own->x = 2;
+  own->y = 2;
+  own->population = 2;
+  own->colonist_count = 2;
+  ColonizeColony* target = &colonies.colonies[1];
+  target->id = 1;
+  target->active = true;
+  target->nation_id = foe;
+  target->x = 6;
+  target->y = 5;
+  target->population = 1;
+  target->colonist_count = 1;
+  target->stock[0] = 30; /* plunder should be reported, not required to move it */
+  colonies.colony_count = 2;
+
+  /* Soldier adjacent to the foe colony tile — no defender there. */
+  const int own_id = units_spawn(&units, 0, 5, 5);
+  ColonizeUnit* soldier = units_get(&units, own_id);
+  if (!soldier) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("colony-seize spawn soldier");
+  }
+  soldier->nation_id = nation;
+  soldier->orders = 0;
+  soldier->moves_left = 3;
+
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 0;
+    col1.player[i].diplomacy = 0;
+  }
+  col1.head.difficulty = 0;
+  col1.nation[nation].gold = 50;
+  col1.nation[foe].gold = 50;
+  ai_diplo_declare_war(&col1, nation, foe);
+
+  ai_goals_reset();
+
+  uint32_t turn = 40;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.rng = NULL;
+  ctx.rng_seed = 42;
+
+  ai_euro_dispatcher_turn(&ctx, nation);
+
+  soldier = units_get(&units, own_id);
+  const ColonizeColony* seized = colonies_get(&colonies, 1);
+  const int on_tile = soldier && soldier->active && soldier->x == 6 && soldier->y == 5;
+  const int captured = seized && seized->active && seized->nation_id == nation;
+  if (!on_tile || !captured) {
+    fprintf(
+      stderr,
+      "unit_ai_euro_war: seize soldier=(%d,%d) active=%d colony_nation=%d\n",
+      soldier ? soldier->x : -1,
+      soldier ? soldier->y : -1,
+      soldier ? soldier->active : -1,
+      seized ? seized->nation_id : -1
+    );
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("land unit should walk into and seize an undefended adjacent foe colony");
+  }
+
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  fprintf(stderr, "unit_ai_euro_war: land adjacent undefended colony seize ok\n");
+  return 0;
+}
+
+/*
  * Thin mid-hire Artillery: at war, colonies>=2, gold, Europe ship with Soldier
  * already aboard → prefer Artillery (Cannon name fallback). If Artillery/Cannon
  * type missing from pool, hire falls back to Soldier/Dragoon path (documented).
@@ -9974,6 +10099,9 @@ int main(void) {
     return 1;
   }
   if (unit_land_adjacent_combat_chain() != 0) {
+    return 1;
+  }
+  if (unit_land_adjacent_colony_seize() != 0) {
     return 1;
   }
   if (unit_land_adjacent_foe_prefer_weak() != 0) {

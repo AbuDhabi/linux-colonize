@@ -10010,6 +10010,80 @@ static int ai_euro_land_best_adjacent_foe(ColonizeTurnContext* ctx, const Coloni
 }
 
 /*
+ * FUN_521d_20e6 `0x46` gate, full port: combat-capable land unit (combat
+ * rating >1) adjacent to a foreign Euro colony with **no defender on the
+ * tile** walks straight in and seizes it (Colonization capture-by-move —
+ * combat only triggers when a defender is actually present, handled
+ * separately by ai_euro_land_try_adjacent_attack's on-settlement
+ * preference). Decomp scans all 8 neighbors via `FUN_281f_0696`
+ * (`euro_settlement_owner`) and stamps orders `0x46` the moment any
+ * neighbor is owned by a different, non-crown Euro nation; Linux checks
+ * war state too (decomp's world model has no live peacetime seize). One
+ * seize per call — re-armed next act pass like the decomp reflex check.
+ */
+static int ai_euro_land_try_adjacent_colony_seize(ColonizeTurnContext* ctx, ColonizeUnit* u) {
+  if (!ctx || !ctx->units || !ctx->colonies || !u || !u->active ||
+      units_is_sea(ctx->units, u->id) || u->moves_left <= 0) {
+    return 0;
+  }
+  const ColonizeUnitType* ut = units_type(ctx->units, u->type_index);
+  if (!ut || ut->attack <= 1) {
+    return 0;
+  }
+  static const int dx[8] = {0, 1, 1, 1, 0, -1, -1, -1};
+  static const int dy[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
+  for (int d = 0; d < 8; ++d) {
+    const int nx = u->x + dx[d];
+    const int ny = u->y + dy[d];
+    const int cid = colonies_id_at(ctx->colonies, nx, ny);
+    if (cid < 0) {
+      continue;
+    }
+    const ColonizeColony* c = colonies_get(ctx->colonies, cid);
+    if (!c || !c->active || c->nation_id == u->nation_id || c->nation_id < 0 ||
+        c->nation_id > 3) {
+      continue;
+    }
+    if (ctx->col1_ok && ctx->col1 && !ai_diplo_at_war(ctx->col1, u->nation_id, c->nation_id)) {
+      continue;
+    }
+    if (units_id_at(ctx->units, nx, ny) >= 0) {
+      continue; /* defended — leave to ai_euro_land_try_adjacent_attack */
+    }
+    int plunder = 0;
+    for (int i = 0; i < COLONIZE_CARGO_COUNT; ++i) {
+      if (c->stock[i] > 0) {
+        plunder += c->stock[i];
+      }
+    }
+    ColonizeColony snap = *c;
+    if (!units_try_move(ctx->units, u->id, ctx->map, nx, ny, ctx->colonies, ctx->rng)) {
+      continue;
+    }
+    if (u->active && u->x == nx && u->y == ny &&
+        colonies_capture(ctx->colonies, cid, u->nation_id)) {
+      units_combat_notify_colony_captured(
+        ctx->col1_ok ? ctx->col1 : NULL, &snap, u->nation_id, plunder
+      );
+      /*
+       * Garrison the prize immediately (Colonization occupying-force
+       * convention; king_ref post-capture fortify precedent). Without this,
+       * a later outer-wave re-act on the same idle unit standing on its own
+       * fresh colony falls into the unrelated "on own colony, no fortify
+       * quota -> admit as LABOR" gate (10988-ish) meant for first-colony
+       * beachhead escorts, and the conqueror silently disappears into the
+       * workforce instead of holding the ground it just took.
+       */
+      if (u->active) {
+        (void)units_order_fortify(ctx->units, u->id);
+      }
+    }
+    return 1;
+  }
+  return 0;
+}
+
+/*
  * Attack adjacent enemy land unit while at war (prefer weaker foe).
  * Thin multi-step combat: keep fighting while moves remain after enter
  * (MP drained by try_move on win). Cap steps so a failed spend cannot spin.
@@ -11908,6 +11982,10 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
   /* Board already attempted early (pre-gate); hunt if still on map. */
   if (at_war_land && is_land_hunter && !ai_euro_land_is_fortified(u) &&
       u->orders != UNITS_ORDER_SENTRY) {
+    (void)ai_euro_land_try_adjacent_colony_seize(ctx, u);
+    if (!u->active) {
+      return;
+    }
     ai_euro_land_try_adjacent_attack(ctx, u);
     if (!u->active) {
       return;
@@ -12308,6 +12386,10 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
       }
     }
     if (!on_own) {
+      (void)ai_euro_land_try_adjacent_colony_seize(ctx, u);
+      if (!u->active) {
+        return;
+      }
       ai_euro_land_try_adjacent_attack(ctx, u);
       if (!u->active) {
         return;
@@ -12716,8 +12798,11 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
   }
   if (goal_code == AI_GOAL_MILITARY || goal_code == AI_GOAL_CONTACT) {
     if (abs(u->x - goal_x) <= 1 && abs(u->y - goal_y) <= 1) {
+      /* Exclude self: a stale goal can point at a tile the unit itself now
+       * occupies (e.g. just captured it opportunistically) — nothing to
+       * attack there. */
       const int foe = units_id_at(ctx->units, goal_x, goal_y);
-      if (foe >= 0) {
+      if (foe >= 0 && foe != u->id) {
         ai_euro_try_attack(ctx, u, goal_x, goal_y);
         return;
       }
@@ -12806,7 +12891,10 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
   }
 
   if (u->active && at_war_land && is_land_hunter && !ai_euro_land_is_fortified(u)) {
-    ai_euro_land_try_adjacent_attack(ctx, u);
+    (void)ai_euro_land_try_adjacent_colony_seize(ctx, u);
+    if (u->active) {
+      ai_euro_land_try_adjacent_attack(ctx, u);
+    }
   }
 
   /*

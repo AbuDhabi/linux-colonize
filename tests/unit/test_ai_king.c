@@ -3375,102 +3375,162 @@ int main(void) {
   }
 
   /*
-   * Thin 1eca widen (deep colony-SoL table PARKED):
-   * WoI + SoL>50 → Soldier → Continental Army; Dragoon → Continental Cavalry;
-   * Regular → Veteran Soldier (Continental Army fallback if no vet type).
+   * FUN_43f7_1eca full port: only units FORTIFIED on the colony's own tile
+   * are eligible (decomp walks the colony-tile unit stack, not every unit
+   * the nation owns). Soldier -> Continental Army, Dragoon -> Continental
+   * Cavalry; Regular is never touched (decomp tests raw type 1/4 only).
+   * colony0 (5,5) pop=4 SoL=60 by default caps at 1 promote
+   * (population*(sol-50)/50 == 0, floored to 1), too tight to prove Soldier
+   * + Dragoon together, so widen pop/SoL here. Also proves the fortified
+   * gate and the own-tile gate each independently block a promote.
    */
+  col1.colony[0].population = 20;
+  col1.colony[0].rebel_dividend = 70;
+  col1.colony[0].rebel_divisor = 100;
   colonies.colonies[0].nation_id = 0;
   memset(col1.head.expeditionary_force, 0, sizeof(col1.head.expeditionary_force));
-  const int sid = units_spawn_allow_stack(&units, ty_soldier, 6, 5);
-  const int did = units_spawn_allow_stack(&units, ty_dragoon, 7, 5);
-  const int rid = units_spawn_allow_stack(&units, ty_regular, 8, 5);
-  if (sid < 0 || did < 0 || rid < 0) {
-    return fail("1eca setup should spawn human Soldier + Dragoon + Regular");
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    ColonizeUnit* u = &units.units[i];
+    if (u->active && u->nation_id == 1) {
+      u->moves_left = 0;
+    }
+  }
+  const int sid = units_spawn_allow_stack(&units, ty_soldier, 5, 5);
+  const int did = units_spawn_allow_stack(&units, ty_dragoon, 5, 5);
+  const int rid = units_spawn_allow_stack(&units, ty_regular, 5, 5);
+  const int unfort_id = units_spawn_allow_stack(&units, ty_soldier, 5, 5);
+  const int offtile_id = units_spawn_allow_stack(&units, ty_soldier, 6, 5);
+  if (sid < 0 || did < 0 || rid < 0 || unfort_id < 0 || offtile_id < 0) {
+    return fail("1eca setup should spawn human Soldier + Dragoon + Regular probes");
   }
   {
     ColonizeUnit* su = units_get(&units, sid);
     ColonizeUnit* du = units_get(&units, did);
     ColonizeUnit* ru = units_get(&units, rid);
-    if (!su || !du || !ru) {
+    ColonizeUnit* unfort = units_get(&units, unfort_id);
+    ColonizeUnit* offtile = units_get(&units, offtile_id);
+    if (!su || !du || !ru || !unfort || !offtile) {
       return fail("1eca setup unit lookup");
     }
     su->nation_id = 0;
     du->nation_id = 0;
     ru->nation_id = 0;
+    unfort->nation_id = 0;
+    offtile->nation_id = 0;
+    su->orders = UNITS_ORDER_FORTIFIED;
+    du->orders = UNITS_ORDER_FORTIFIED;
+    ru->orders = UNITS_ORDER_FORTIFIED;
+    unfort->orders = UNITS_ORDER_NONE; /* on-tile, not fortified: must stay Soldier */
+    offtile->orders = UNITS_ORDER_FORTIFIED; /* fortified, off-tile: must stay Soldier */
   }
   ai_king_nation_turn(&ctx);
   {
     const ColonizeUnit* su = units_get_const(&units, sid);
     const ColonizeUnit* du = units_get_const(&units, did);
     const ColonizeUnit* ru = units_get_const(&units, rid);
+    const ColonizeUnit* unfort = units_get_const(&units, unfort_id);
+    const ColonizeUnit* offtile = units_get_const(&units, offtile_id);
     if (!su || !su->active || su->type_index != ty_cont_army) {
       fprintf(stderr, "unit_ai_king: Soldier type after 1eca: %d (want %d)\n",
               su ? su->type_index : -1, ty_cont_army);
-      return fail("1eca should promote Soldier → Continental Army");
+      return fail("1eca should promote fortified colony-tile Soldier → Continental Army");
     }
     if (!du || !du->active || du->type_index != ty_cont_cav) {
       fprintf(stderr, "unit_ai_king: Dragoon type after 1eca: %d (want %d)\n",
               du ? du->type_index : -1, ty_cont_cav);
-      return fail("1eca should promote Dragoon → Continental Cavalry");
+      return fail("1eca should promote fortified colony-tile Dragoon → Continental Cavalry");
     }
-    if (!ru || !ru->active || ru->type_index != ty_vet_soldier) {
+    if (!ru || !ru->active || ru->type_index != ty_regular) {
       fprintf(stderr, "unit_ai_king: Regular type after 1eca: %d (want %d)\n",
-              ru ? ru->type_index : -1, ty_vet_soldier);
-      return fail("1eca SoL>50 should promote Regular → Veteran Soldier");
+              ru ? ru->type_index : -1, ty_regular);
+      return fail("1eca must never touch Regular (decomp tests only type 1/4)");
+    }
+    if (!unfort || !unfort->active || unfort->type_index != ty_soldier) {
+      fprintf(stderr, "unit_ai_king: unfortified Soldier type after 1eca: %d (want %d)\n",
+              unfort ? unfort->type_index : -1, ty_soldier);
+      return fail("1eca must skip a colony-tile Soldier that is not fortified");
+    }
+    if (!offtile || !offtile->active || offtile->type_index != ty_soldier) {
+      fprintf(stderr, "unit_ai_king: off-tile Soldier type after 1eca: %d (want %d)\n",
+              offtile ? offtile->type_index : -1, ty_soldier);
+      return fail("1eca must skip a fortified Soldier off the colony's own tile");
     }
   }
 
   /*
-   * SoL 40..50 band: Soldier → Veteran Soldier only (no Continental).
-   * Regular stays Regular. WoI already declared.
+   * FUN_43f7_1eca gate: colony SoL<=49 (decomp `0x31 < iVar1`, i.e. sol>49)
+   * must not promote at all, even fortified on the colony's own tile.
    */
   col1.colony[0].rebel_dividend = 45;
   col1.colony[0].rebel_divisor = 100;
   {
     const int sol45w = ai_king_sol_percent(&ctx, 0);
     if (sol45w != 45) {
-      fprintf(stderr, "unit_ai_king: unexpected SoL %d (want 45) for mid-band 1eca\n",
+      fprintf(stderr, "unit_ai_king: unexpected SoL %d (want 45) for sub-threshold 1eca\n",
               sol45w);
-      return fail("1eca mid-band SoL setup");
+      return fail("1eca sub-threshold SoL setup");
     }
   }
   colonies.colonies[0].nation_id = 0;
   memset(col1.head.expeditionary_force, 0, sizeof(col1.head.expeditionary_force));
-  const int sid2 = units_spawn_allow_stack(&units, ty_soldier, 9, 5);
-  const int rid2 = units_spawn_allow_stack(&units, ty_regular, 10, 5);
-  if (sid2 < 0 || rid2 < 0) {
-    return fail("1eca mid-band setup should spawn Soldier + Regular");
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    ColonizeUnit* u = &units.units[i];
+    if (u->active && u->nation_id == 1) {
+      u->moves_left = 0;
+    }
+  }
+  const int sid2 = units_spawn_allow_stack(&units, ty_soldier, 5, 5);
+  if (sid2 < 0) {
+    return fail("1eca sub-threshold setup should spawn Soldier");
   }
   {
     ColonizeUnit* su = units_get(&units, sid2);
-    ColonizeUnit* ru = units_get(&units, rid2);
-    if (!su || !ru) {
-      return fail("1eca mid-band unit lookup");
+    if (!su) {
+      return fail("1eca sub-threshold unit lookup");
     }
     su->nation_id = 0;
-    ru->nation_id = 0;
+    su->orders = UNITS_ORDER_FORTIFIED;
   }
   ai_king_nation_turn(&ctx);
   {
     const ColonizeUnit* su = units_get_const(&units, sid2);
-    const ColonizeUnit* ru = units_get_const(&units, rid2);
-    if (!su || !su->active || su->type_index != ty_vet_soldier) {
+    if (!su || !su->active || su->type_index != ty_soldier) {
       fprintf(stderr, "unit_ai_king: Soldier type SoL45: %d (want %d)\n",
-              su ? su->type_index : -1, ty_vet_soldier);
-      return fail("1eca SoL 40-50 should promote Soldier → Veteran Soldier");
+              su ? su->type_index : -1, ty_soldier);
+      return fail("1eca SoL<=49 should leave a fortified colony-tile Soldier unpromoted");
     }
-    if (!ru || !ru->active || ru->type_index != ty_regular) {
-      fprintf(stderr, "unit_ai_king: Regular type SoL45: %d (want %d)\n",
-              ru ? ru->type_index : -1, ty_regular);
-      return fail("1eca SoL 40-50 should leave Regular unpromoted");
+  }
+  /*
+   * Clear every probe left fortified on (5,5) from the blocks above, and
+   * unfortify every other human unit anywhere (accumulated cruft from
+   * earlier sub-tests) — the next block needs cap==1 exactly, so any
+   * stray fortified Soldier/Dragoon elsewhere would steal that one slot
+   * ahead of its own probes (lower pool index scans first).
+   */
+  units_despawn(&units, sid);
+  units_despawn(&units, did);
+  units_despawn(&units, rid);
+  units_despawn(&units, unfort_id);
+  units_despawn(&units, offtile_id);
+  units_despawn(&units, sid2);
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    ColonizeUnit* u = &units.units[i];
+    if (u->active && u->nation_id == 0 && u->orders == UNITS_ORDER_FORTIFIED) {
+      u->orders = UNITS_ORDER_NONE;
     }
   }
 
   /*
-   * SoL promote band polish: exactly SoL=50 is mid-band (catalog SoL>50% for
-   * Continental) — Soldier → Veteran Soldier; Dragoon unchanged. Cont. Army
-   * abbrev already-promoted stays (skip via ai_king_is_continental).
+   * SoL promote band: exactly SoL=50 satisfies decomp `0x31 < iVar1`
+   * (49 < 50) so it IS eligible, same as any SoL>49. At the exact threshold
+   * the cap formula `min(pop>>1, pop*(sol-50)/50)` always floors to 1
+   * regardless of population (the second term is always 0 at sol==50), so
+   * only the *first* eligible unit found on the tile promotes this turn —
+   * the Soldier here, scanned before the Dragoon; the Dragoon is left for a
+   * later turn. Cont. Army abbrev already-promoted stays (raw type check
+   * only matches base Soldier/Dragoon type ids).
    */
+  col1.colony[0].population = 20;
   col1.colony[0].rebel_dividend = 50;
   col1.colony[0].rebel_divisor = 100;
   {
@@ -3493,9 +3553,9 @@ int main(void) {
     snprintf(army_name_save, sizeof(army_name_save), "%s", units.types[ty_cont_army].name);
     snprintf(units.types[ty_cont_army].name, sizeof(units.types[ty_cont_army].name),
              "Cont. Army");
-    const int sid50 = units_spawn_allow_stack(&units, ty_soldier, 9, 5);
-    const int did50 = units_spawn_allow_stack(&units, ty_dragoon, 10, 5);
-    const int ca50 = units_spawn_allow_stack(&units, ty_cont_army, 11, 5);
+    const int sid50 = units_spawn_allow_stack(&units, ty_soldier, 5, 5);
+    const int did50 = units_spawn_allow_stack(&units, ty_dragoon, 5, 5);
+    const int ca50 = units_spawn_allow_stack(&units, ty_cont_army, 5, 5);
     if (sid50 < 0 || did50 < 0 || ca50 < 0) {
       snprintf(units.types[ty_cont_army].name, sizeof(units.types[ty_cont_army].name), "%s",
                army_name_save);
@@ -3513,6 +3573,9 @@ int main(void) {
       su->nation_id = 0;
       du->nation_id = 0;
       ca->nation_id = 0;
+      su->orders = UNITS_ORDER_FORTIFIED;
+      du->orders = UNITS_ORDER_FORTIFIED;
+      ca->orders = UNITS_ORDER_FORTIFIED;
       ca->moves_left = 0; /* hold — only assert type skip, not rally */
     }
     ai_king_nation_turn(&ctx);
@@ -3520,19 +3583,19 @@ int main(void) {
       const ColonizeUnit* su = units_get_const(&units, sid50);
       const ColonizeUnit* du = units_get_const(&units, did50);
       const ColonizeUnit* ca = units_get_const(&units, ca50);
-      if (!su || !su->active || su->type_index != ty_vet_soldier) {
+      if (!su || !su->active || su->type_index != ty_cont_army) {
         fprintf(stderr, "unit_ai_king: Soldier type SoL50: %d (want %d)\n",
-                su ? su->type_index : -1, ty_vet_soldier);
+                su ? su->type_index : -1, ty_cont_army);
         snprintf(units.types[ty_cont_army].name, sizeof(units.types[ty_cont_army].name), "%s",
                  army_name_save);
-        return fail("1eca SoL=50 should promote Soldier → Veteran Soldier (not Cont.)");
+        return fail("1eca SoL=50 should promote Soldier → Continental Army (49 < 50)");
       }
       if (!du || !du->active || du->type_index != ty_dragoon) {
         fprintf(stderr, "unit_ai_king: Dragoon type SoL50: %d (want %d)\n",
                 du ? du->type_index : -1, ty_dragoon);
         snprintf(units.types[ty_cont_army].name, sizeof(units.types[ty_cont_army].name), "%s",
                  army_name_save);
-        return fail("1eca SoL=50 mid-band should leave Dragoon unpromoted");
+        return fail("1eca SoL=50 cap==1 should leave Dragoon for a later turn (Soldier spent it)");
       }
       if (!ca || !ca->active || ca->type_index != ty_cont_army) {
         fprintf(stderr, "unit_ai_king: Cont. Army type SoL50: %d (want %d)\n",
@@ -3542,15 +3605,21 @@ int main(void) {
         return fail("1eca Cont. Army abbrev must stay skipped (not re-typed)");
       }
     }
+    /* Clear this block's probes — a leftover fortified Cont. Army on (5,5)
+     * would otherwise fill the capital's 2-slot garrison cap ahead of the
+     * later Cont. capital-rally / fortify-on-capital sub-tests. */
+    units_despawn(&units, sid50);
+    units_despawn(&units, did50);
+    units_despawn(&units, ca50);
     snprintf(units.types[ty_cont_army].name, sizeof(units.types[ty_cont_army].name), "%s",
              army_name_save);
   }
 
   /*
-   * 1eca colony-SoL bias (FUN_43f7_1eca / catalog colony SoL>50%):
-   * Nation aggregate mid/low, but unit on a high-SoL Col1 colony tile promotes
-   * to Continental; unit on low-SoL colony tile does not. King promote path —
-   * not FF Washington mass-promote. No treasury bumps.
+   * 1eca colony-SoL bias (FUN_43f7_1eca): nation aggregate mid/low, but a
+   * fortified unit on a high-SoL Col1 colony's own tile promotes to
+   * Continental; the same on a low-SoL colony tile does not. King promote
+   * path only — not FF Washington mass-promote. No treasury bumps.
    */
   {
     ColonizeCol1Colony* grown = calloc(2, sizeof(ColonizeCol1Colony));
@@ -3606,6 +3675,8 @@ int main(void) {
     }
     hi->nation_id = 0;
     lo->nation_id = 0;
+    hi->orders = UNITS_ORDER_FORTIFIED;
+    lo->orders = UNITS_ORDER_FORTIFIED;
   }
   ai_king_nation_turn(&ctx);
   {

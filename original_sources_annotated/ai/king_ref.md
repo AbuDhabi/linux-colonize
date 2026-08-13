@@ -140,24 +140,36 @@ exact Col1 bit PARKED). Idempotent if already set. Restless SoL chrome
 (40..49) must **not** set this byte. Smoke: SoL 49 + bells≥100 leaves
 `unknown46[0]` clear; declare at SoL≥50 sets it.
 
-### `1eca` Continental / veteran promote (colony-SoL bias)
+### `1eca` Continental promote (colony-SoL bias) — full port
 
-During wartime `war_act`, each human land unit uses **colony SoL** from Col1
-`rebel_dividend`/`rebel_divisor` at the unit tile when a matching owned
-colony exists; otherwise nation `0004` aggregate (fallback):
+Direct read of the decompiled body (not the older secondary catalog
+summary, which mis-described a Regular branch and an SoL 40..50 vet band
+that the raw function does not have): per **colony** owned by the rebel
+nation with **colony SoL > 49** (`0x31 < iVar1`, i.e. `sol>49`, so exactly
+50 already qualifies):
 
-- **colony SoL > 50:** promote **Soldier** → `Continental Army` / `Cont. Army` /
-  `Veteran Soldier`; **Dragoon**/**Cavalry** → `Continental Cavalry` /
-  `Cont. Cav.` / `Veteran Dragoon`; type **Regular** → `Veteran Soldier` /
-  `Continental Army` / `Cont. Army`. Armed Regulars often *display* as
-  "Soldier" — Regular is classified by **type name**.
-- **colony SoL 40..50** (incl. exactly **50**): promote **Soldier** →
-  `Veteran Soldier` only when that type exists (no Continental). Regular and
-  Dragoon unchanged. Already Cont./Veteran/`Cont. Army`/`Cont. Cav` skipped.
+```
+cap = pop >> 1
+alt = pop * (sol - 50) / 50
+if alt < cap: cap = alt
+if cap < 1: cap = 1
+```
 
-Source: `FUN_43f7_1eca` / catalog “when colony SoL>50%”. King promote path
-only — **not** FF Washington mass-promote / combat upgrade. Deep
-veteran-profession / type-id table remains PARKED.
+The decomp then walks *only the units stationed on that colony's own tile*
+(its tile unit-stack, not every unit the nation owns anywhere), and for each
+that is **FORTIFIED** and raw type **1** (Soldier) or **4** (Dragoon), spends
+one slot of `cap` to promote: Soldier → Continental Army (type 9), Dragoon →
+Continental Cavalry (type 7). The budget is shared across both types in tile
+scan order — at the SoL==50 edge `cap` is always exactly 1 regardless of
+population (the `alt` term is 0), so only the first eligible unit found
+promotes that turn; the rest wait for a later turn. Regular, Veteran, and
+already-Continental units never match the raw type check and are never
+touched. A colony-count message pops when `promoted>0` (singular/plural).
+
+Source: `FUN_43f7_1eca`. King promote path only — **not** FF Washington
+mass-promote / combat upgrade. Linux: `ai_king_war_act` in `ai_king.c`
+(`unit_ai_king` 1eca block covers the fortified-gate, own-tile-gate,
+shared-cap, and SoL==50-edge cases).
 
 After promote, idle human **Cont. Army / Cont. Cav** (hunter name check includes
 `Continental` / `Cont. Army` / `Cont. Cav`) `AI_MOVE` toward the **nearest**
