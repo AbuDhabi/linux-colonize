@@ -257,12 +257,15 @@ bargain matrix `FUN_4d56_2820` **PARKED**.
 | Minuit | Indians no longer demand land payment |
 | Pocahontas | Reset + half future alarm |
 
-Incite / WARPATH gold still **PARKED** — but `FUN_4d56_417e` is now
-identified as this mechanic and fully structure-mapped (2026-08-13,
-confirmed against `@INDIANWARPATH`/`@INDIANWARPATH2` in `GAME.TXT`); see
-[`indian_incite_417e.md`](../original_sources_annotated/ai/indian_incite_417e.md).
-Not wired in yet — 2 of 4 price-formula table values are unnamed, caller
-unfound.
+Incite / WARPATH gold **Done** thin (2026-08-13) — `FUN_4d56_417e`
+identified and ported as a 6th village-meet CHOICE
+(`ai_contact_apply_incite`), confirmed against `@INDIANWARPATH`/
+`@INDIANWARPATH2` in `GAME.TXT` and two live DOSBox-X captures of a real
+player-driven Incite. See
+[`indian_incite_417e.md`](../original_sources_annotated/ai/indian_incite_417e.md)
+for exactly what's faithful vs. approximated — 2 of 4 price-formula
+table values are unnamed data, substituted with `indian.tech`; only the
+human-driven path is wired (no AI-nation auto-incite yet).
 
 ### Raids and combat fallout
 
@@ -294,7 +297,7 @@ Aligned with [manual_gap.md](manual_gap.md) §Indians — no new fidelity claims
 | Villages on map + Braves | Partial | Placement + icons; quiet pulse / growth — [seed100_brave.md](seed100_brave.md), [ai_transcription.md](ai_transcription.md) |
 | First contact WELCOME | Done structural | `ai_contact_*`; thin land grant |
 | Meet / trade / gift / teach | Partial | Widgets Done thin; deep `2820` / VGA **PARKED** |
-| Missions / convert / heresy | Partial | Structural; incite/WARPATH **PARKED** (mechanic identified + structure-mapped: `indian_incite_417e.md`) |
+| Missions / convert / heresy | Partial | Structural; incite/WARPATH **Done** thin (`indian_incite_417e.md`) |
 | Alarm / raids / wars | Partial | Structural `@RAID*`; village enter warn→Attack Done thin; deep `2820` PARKED |
 | Capital surrender / Cortes treasure | Done thin | `ai_diplo_*` / `units_*` fallout |
 | Indian×Euro diplo matrix | Done structural | Fuller `153e` unpark; FA UI **PARKED** |

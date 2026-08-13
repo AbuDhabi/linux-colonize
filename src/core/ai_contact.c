@@ -56,7 +56,8 @@ enum {
   AI_CONTACT_CHOICE_GIFT = 2,
   AI_CONTACT_CHOICE_DEMAND = 3,
   AI_CONTACT_CHOICE_TEACH = 4,
-  AI_CONTACT_CHOICE_LEAVE = 5
+  AI_CONTACT_CHOICE_LEAVE = 5,
+  AI_CONTACT_CHOICE_INCITE = 6
 };
 
 /* Village raid warn CHOICE ids (FUN_4d56_4528; Attack Village ACTIONS). */
@@ -634,12 +635,13 @@ static void ai_contact_enqueue_village_meet(ColonizeTurnContext* ctx, int e, int
   );
   char title[AI_POPUP_TITLE_LEN];
   snprintf(title, sizeof(title), "%s", tribe);
-  static const char* labels[] = {"Trade", "Gift", "Demand", "Teach", "Leave"};
+  static const char* labels[] = {"Trade", "Gift", "Demand", "Teach", "Incite", "Leave"};
   static const int ids[] = {
     AI_CONTACT_CHOICE_TRADE,
     AI_CONTACT_CHOICE_GIFT,
     AI_CONTACT_CHOICE_DEMAND,
     AI_CONTACT_CHOICE_TEACH,
+    AI_CONTACT_CHOICE_INCITE,
     AI_CONTACT_CHOICE_LEAVE
   };
   ai_popup_enqueue_choice_ctx(
@@ -652,7 +654,7 @@ static void ai_contact_enqueue_village_meet(ColonizeTurnContext* ctx, int e, int
     body,
     labels,
     ids,
-    5
+    6
   );
   {
     char st[96];
@@ -1574,6 +1576,180 @@ static int ai_contact_enqueue_gift_amount_choice(
          )
            ? 1
            : 0;
+}
+
+/*
+ * FUN_4d56_417e price (Incite Indians / WARPATH — identified 2026-08-13,
+ * see original_sources_annotated/ai/indian_incite_417e.md for the full
+ * disassembly trail and live-capture confirmation). DOS formula:
+ *   base = table[-0x69d6]*8 + (table[-0x6e7c]>>2&0xfe - 2*table[-0x69d6])
+ *        + INDIAN_STATE.signed_byte[7]*2 + INDIAN_STATE.signed_byte[8]*2
+ *   price = base / (relation_score + 0x4b); floor 500
+ * Two of the four additive terms come from unnamed DOS byte-lookup tables
+ * (tribe civilization/sophistication class) with no captured values
+ * anywhere in this project — approximated here with `ind->tech`, the
+ * closest already-real per-nation sophistication indicator, scaled to
+ * land in a plausible gold range. First-draft; not byte-exact.
+ */
+static uint32_t ai_contact_incite_price(
+  const ColonizeCol1Save* col1,
+  const ColonizeCol1Indian* ind,
+  int nation_id,
+  int inciter,
+  int target
+) {
+  if (!col1 || !ind) {
+    return 500u;
+  }
+  /* DOS relation_score is ~0-100; ai_diplo_indian_relation is 0-255. */
+  const int relation =
+    (int)ai_diplo_indian_relation(col1, nation_id, inciter) * 100 / 255;
+  int base = (int)ind->tech * 60 + (int)ind->alarm_by_player[target] / 4;
+  int price = base * 100 / (relation + 75);
+  if (price < 500) {
+    price = 500;
+  }
+  /* Discount: other tribes of the same Indian nation already favor the
+   * inciter (matches the DOS discount loop's "matching type" condition —
+   * approximated here as "same Indian nation" since the exact tribe-type
+   * match field isn't confirmed). */
+  int discount = 0;
+  if (col1->tribe) {
+    for (uint16_t ti = 0; ti < col1->head.tribe_count; ++ti) {
+      const ColonizeCol1Tribe* t = &col1->tribe[ti];
+      if ((int)t->nation_id == nation_id && ai_diplo_indian_relation(col1, nation_id, inciter) > 128) {
+        discount += 100;
+      }
+    }
+  }
+  price -= discount;
+  if (price < 500) {
+    price = 500;
+  }
+  return (uint32_t)price;
+}
+
+/*
+ * Human Incite Indians target CHOICE (FUN_4d56_417e Mode 1 — the menu step
+ * of @INDIANWARPATH "Whom would you like us to attack?"). Lists the other
+ * Euro nations the inciter can afford to incite this tribe against.
+ * Returns 1 if enqueued.
+ */
+static int ai_contact_enqueue_incite_target_choice(
+  ColonizeTurnContext* ctx,
+  int e,
+  int nation_id
+) {
+  if (!ctx || !ctx->ai_popups || !ctx->col1_ok || !ctx->col1 || e < 0 || e > 3) {
+    return 0;
+  }
+  if (nation_id < 4 || nation_id > 11) {
+    return 0;
+  }
+  const ColonizeCol1Indian* ind = &ctx->col1->indian[nation_id - 4];
+  const uint32_t gold = ctx->col1->nation[e].gold;
+
+  const char* labels[3];
+  char label_buf[3][48];
+  int ids[3];
+  int n = 0;
+  for (int target = 0; target < 4 && n < 3; ++target) {
+    if (target == e) {
+      continue;
+    }
+    const uint32_t price = ai_contact_incite_price(ctx->col1, ind, nation_id, e, target);
+    if (gold < price) {
+      continue;
+    }
+    snprintf(
+      label_buf[n],
+      sizeof(label_buf[n]),
+      "Incite against the %s (%u gold)",
+      ai_contact_euro_name(target),
+      (unsigned)price
+    );
+    labels[n] = label_buf[n];
+    ids[n] = target;
+    n++;
+  }
+  if (n == 0) {
+    return 0;
+  }
+  char title[AI_POPUP_TITLE_LEN];
+  char body[AI_POPUP_BODY_LEN];
+  snprintf(title, sizeof(title), "Incite");
+  snprintf(
+    body,
+    sizeof(body),
+    "The %s tribe is ready to go on the warpath. Whom would you like us to attack?",
+    ai_contact_tribe_name(nation_id)
+  );
+  return ai_popup_enqueue_choice_ctx(
+           ctx->ai_popups,
+           AI_POPUP_TAG_CONTACT_INCITE,
+           e,
+           nation_id,
+           0,
+           title,
+           body,
+           labels,
+           ids,
+           n
+         )
+           ? 1
+           : 0;
+}
+
+/*
+ * Apply Incite Indians (FUN_4d56_417e tail — @INDIANWARPATH2 "We will
+ * gladly drive the %s from our ancestral lands in exchange for %d.").
+ * Re-checks affordability (gold may have changed since the menu was
+ * built), debits the inciter's treasury, and pushes the target nation's
+ * alarm with this tribe (the DOS `apply(..., nation_B, 100, 0)` call —
+ * approximated as a flat alarm bump, exact magnitude/semantics of the
+ * DOS `100` argument unconfirmed).
+ */
+static void ai_contact_apply_incite(
+  ColonizeTurnContext* ctx,
+  ColonizeCol1Indian* ind,
+  int nation_id,
+  int e,
+  int target
+) {
+  if (!ctx || !ctx->col1_ok || !ctx->col1 || !ind || e < 0 || e > 3 ||
+      target < 0 || target > 3 || target == e) {
+    return;
+  }
+  const uint32_t price = ai_contact_incite_price(ctx->col1, ind, nation_id, e, target);
+  ColonizeCol1Nation* nat = &ctx->col1->nation[e];
+  if (nat->gold < price) {
+    char refuse_fb[AI_POPUP_BODY_LEN];
+    snprintf(
+      refuse_fb,
+      sizeof(refuse_fb),
+      "The %s tribe demands more gold than you have.",
+      ai_contact_tribe_name(nation_id)
+    );
+    ai_contact_human_chrome(
+      ctx, e, AI_POPUP_TAG_CONTACT_INCITE, nation_id, "Incite", refuse_fb
+    );
+    return;
+  }
+  nat->gold -= price;
+  if (ind->alarm_by_player[target] < 245) {
+    ind->alarm_by_player[target] = (uint16_t)(ind->alarm_by_player[target] + 10);
+  }
+  {
+    char body[AI_POPUP_BODY_LEN];
+    snprintf(
+      body,
+      sizeof(body),
+      "\"We will gladly drive the %s from our ancestral lands in exchange for %u.\"",
+      ai_contact_euro_name(target),
+      (unsigned)price
+    );
+    ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_INCITE, nation_id, "Incite", body);
+  }
 }
 
 /* Nearest Euro colony with warehouse tools ≥20 (mid demand tools arm). */
@@ -5005,6 +5181,15 @@ void ai_contact_apply_popup_result(ColonizeTurnContext* ctx, const AiPopupState*
   }
 
   /*
+   * Incite Indians target picked (FUN_4d56_417e tail): result_choice_id is
+   * the target Euro nation (0-3), set by ai_contact_enqueue_incite_target_choice.
+   */
+  if (popup->result_tag == AI_POPUP_TAG_CONTACT_INCITE) {
+    ai_contact_apply_incite(ctx, ind, nation_id, e, popup->result_choice_id);
+    return;
+  }
+
+  /*
    * Meet CHOICE chain (FUN_5bfb_022e / 5bfb_102a stand-in): Trade / Gift /
    * Demand / Teach call existing thin handlers; Leave dismisses. Follow-up
    * OK popups enqueue from those handlers' human chrome.
@@ -5141,6 +5326,24 @@ void ai_contact_apply_popup_result(ColonizeTurnContext* ctx, const AiPopupState*
   case AI_CONTACT_CHOICE_TEACH:
     /* Follow-up OK from teach_skill human chrome (FUN_5bfb_022e teach arm). */
     ai_contact_teach_skill(ctx, nation_id);
+    break;
+  case AI_CONTACT_CHOICE_INCITE:
+    /*
+     * FUN_4d56_417e Mode 1: show the "whom would you like us to attack"
+     * target-nation CHOICE. No affordable/eligible target → refuse OK.
+     */
+    if (!ai_contact_enqueue_incite_target_choice(ctx, e, nation_id)) {
+      char refuse_fb[AI_POPUP_BODY_LEN];
+      snprintf(
+        refuse_fb,
+        sizeof(refuse_fb),
+        "The %s have no reason to go on the warpath.",
+        ai_contact_tribe_name(nation_id)
+      );
+      ai_contact_human_chrome(
+        ctx, e, AI_POPUP_TAG_CONTACT_INCITE, nation_id, "Incite", refuse_fb
+      );
+    }
     break;
   default:
     break;
