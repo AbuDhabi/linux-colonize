@@ -231,3 +231,65 @@ Confirms the prediction above: real, worth keeping, does not clear the backlog.
    base, this sidesteps relocation math (and its V2 gaps) entirely for anything that
    isn't a genuine cross-overlay far call — those are enumerable from the same tool's
    jump-thunk table (`loadJumpList`, also printed by info mode).
+
+## Address-mapping table: canonical `FUN_<seg>_<off>` ↔ overlay addressing
+
+`tools/address_mapping.csv` — a row per function in the canonical flattened project
+(`decompiled-colonize` / `VICEROY_OUT_2.EXE`, the one behind `viceroy_unpacked*.c`),
+giving its corresponding address in the `OverlayTest` project (`viceroy_overlays.c`),
+and whether that address lines up with a function boundary there. Turns "is this
+WARNING-flagged function corrupted, and what does it really look like" from manual
+segment arithmetic into a lookup.
+
+**How it's built** (three pieces tied together by `tools/build_address_mapping.py`):
+
+1. `tools/viceroy_v2_output_layout.json` — per-segment file-offset layout of the
+   flattened `VICEROY_OUT_2.EXE` (original `codeOffset`/`codeSize`/`loadSegment` from
+   `rtlink_decode`'s own bookkeeping, plus where each segment landed in the flattened
+   output file). Captured once via a debug build of `rtlink_decode` printing its
+   internal `segmentList` after layout (same debug technique used earlier in this doc);
+   static data specific to `VICEROY.EXE`, not re-derived at build time.
+2. `tools/DumpCanonicalFuncs.java` — every function in the canonical project, with its
+   byte offset in `VICEROY_OUT_2.EXE` via Ghidra's own `MemoryBlockSourceInfo` (no
+   guessing at Ghidra's addressing scheme — it turned out **not** to be the simple
+   flat-from-zero convention used for our own resident-block import: the canonical
+   project's segment prefixes like `4d56`/`521d`/`1d1d` are real per-module segments
+   Ghidra recovered via the file's actual relocation table, applied by its stock MZ-EXE
+   loader — reading them back out programmatically sidesteps needing to replicate that).
+3. `tools/DumpOverlayFuncs.java` — every function in `OverlayTest`, address + body size.
+
+Given a canonical function's file offset, `build_address_mapping.py` locates which
+original segment (or the resident region) it falls in, computes the corresponding
+`OverlayTest` address, and looks for a function starting there.
+
+**Results, run against the current state of both projects:** 2,812 canonical functions
+mapped. 1,754 land exactly on an `OverlayTest` function start, 9 land inside one
+(`contained`); 1,049 don't (`gap` / `before-first-function` / `no-such-space` /
+`unmapped-region`) — meaning `OverlayTest`'s analysis didn't happen to create a function
+boundary at that exact address, not that the address is wrong. **The address itself is
+always given regardless of match** — even an unmatched row tells you exactly where to
+look (`OVL13_L0000::4528`, say) in `viceroy_overlays.asm` or the `OverlayTest` GUI.
+
+Spot check on the four originally-named trouble functions (this doc's very first
+table): all four now have a precise overlay-side address —
+`FUN_4d56_2820`/`FUN_4d56_417e`/`FUN_4d56_4528` → `OVL13_L0000` offsets `2820`/`417e`/
+`4528`; `FUN_521d_5b66` → `OVL14_L0000` offset `5b66`. None landed on a clean function
+boundary there (`before-first-function` / `gap`) — itself a signal worth noting: the
+*canonical* disassembly's function-start point for these may not be where the code
+actually begins, consistent with everything else this investigation has found about
+them.
+
+**Regenerate** (needs both Ghidra projects unlocked — check for `.lock` files first):
+
+```
+analyzeHeadless ~/projects decompiled-colonize -process VICEROY_OUT_2.EXE \
+  -readOnly -noanalysis -postScript DumpCanonicalFuncs.java canonical_funcs.csv \
+  -scriptPath tools
+
+analyzeHeadless ~/projects/ghidra_overlay_scratch OverlayTest -process seg_data_resident.bin \
+  -readOnly -noanalysis -postScript DumpOverlayFuncs.java overlay_funcs.csv \
+  -scriptPath tools
+
+python3 tools/build_address_mapping.py tools/viceroy_v2_output_layout.json \
+  canonical_funcs.csv overlay_funcs.csv tools/address_mapping.csv
+```

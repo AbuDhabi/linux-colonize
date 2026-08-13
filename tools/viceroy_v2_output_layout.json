@@ -1,0 +1,264 @@
+{
+  "global": {
+    "codeOffset": 9216,
+    "outputCodeOffset": 46080
+  },
+  "segments": [
+    {
+      "idx": 0,
+      "loadSegment": 0,
+      "codeOffset": 134880,
+      "codeSize": 15632,
+      "outputCodeOffset": 158112,
+      "isData": false
+    },
+    {
+      "idx": 1,
+      "loadSegment": 0,
+      "codeOffset": 153856,
+      "codeSize": 29184,
+      "outputCodeOffset": 173744,
+      "isData": false
+    },
+    {
+      "idx": 2,
+      "loadSegment": 64,
+      "codeOffset": 184272,
+      "codeSize": 11040,
+      "outputCodeOffset": 202928,
+      "isData": false
+    },
+    {
+      "idx": 3,
+      "loadSegment": 64,
+      "codeOffset": 197968,
+      "codeSize": 25664,
+      "outputCodeOffset": 213968,
+      "isData": false
+    },
+    {
+      "idx": 4,
+      "loadSegment": 64,
+      "codeOffset": 226112,
+      "codeSize": 16448,
+      "outputCodeOffset": 239632,
+      "isData": false
+    },
+    {
+      "idx": 5,
+      "loadSegment": 64,
+      "codeOffset": 243968,
+      "codeSize": 12640,
+      "outputCodeOffset": 256080,
+      "isData": false
+    },
+    {
+      "idx": 6,
+      "loadSegment": 64,
+      "codeOffset": 257264,
+      "codeSize": 5120,
+      "outputCodeOffset": 268720,
+      "isData": false
+    },
+    {
+      "idx": 7,
+      "loadSegment": 64,
+      "codeOffset": 263344,
+      "codeSize": 9248,
+      "outputCodeOffset": 273840,
+      "isData": false
+    },
+    {
+      "idx": 8,
+      "loadSegment": 0,
+      "codeOffset": 273488,
+      "codeSize": 6064,
+      "outputCodeOffset": 283088,
+      "isData": false
+    },
+    {
+      "idx": 9,
+      "loadSegment": 0,
+      "codeOffset": 279872,
+      "codeSize": 5856,
+      "outputCodeOffset": 289152,
+      "isData": false
+    },
+    {
+      "idx": 10,
+      "loadSegment": 0,
+      "codeOffset": 285952,
+      "codeSize": 2304,
+      "outputCodeOffset": 295008,
+      "isData": false
+    },
+    {
+      "idx": 11,
+      "loadSegment": 0,
+      "codeOffset": 290272,
+      "codeSize": 19568,
+      "outputCodeOffset": 297312,
+      "isData": false
+    },
+    {
+      "idx": 12,
+      "loadSegment": 0,
+      "codeOffset": 311792,
+      "codeSize": 29520,
+      "outputCodeOffset": 316880,
+      "isData": false
+    },
+    {
+      "idx": 13,
+      "loadSegment": 0,
+      "codeOffset": 342048,
+      "codeSize": 10896,
+      "outputCodeOffset": 346400,
+      "isData": false
+    },
+    {
+      "idx": 14,
+      "loadSegment": 64,
+      "codeOffset": 354832,
+      "codeSize": 16192,
+      "outputCodeOffset": 357296,
+      "isData": false
+    },
+    {
+      "idx": 15,
+      "loadSegment": 0,
+      "codeOffset": 372592,
+      "codeSize": 14288,
+      "outputCodeOffset": 373488,
+      "isData": false
+    },
+    {
+      "idx": 16,
+      "loadSegment": 0,
+      "codeOffset": 387504,
+      "codeSize": 4384,
+      "outputCodeOffset": 387776,
+      "isData": false
+    },
+    {
+      "idx": 17,
+      "loadSegment": 64,
+      "codeOffset": 392800,
+      "codeSize": 7744,
+      "outputCodeOffset": 392160,
+      "isData": false
+    },
+    {
+      "idx": 18,
+      "loadSegment": 0,
+      "codeOffset": 400912,
+      "codeSize": 5584,
+      "outputCodeOffset": 399904,
+      "isData": false
+    },
+    {
+      "idx": 19,
+      "loadSegment": 64,
+      "codeOffset": 407680,
+      "codeSize": 11776,
+      "outputCodeOffset": 405488,
+      "isData": false
+    },
+    {
+      "idx": 20,
+      "loadSegment": 64,
+      "codeOffset": 419920,
+      "codeSize": 8496,
+      "outputCodeOffset": 417264,
+      "isData": false
+    },
+    {
+      "idx": 21,
+      "loadSegment": 64,
+      "codeOffset": 429792,
+      "codeSize": 11296,
+      "outputCodeOffset": 425760,
+      "isData": false
+    },
+    {
+      "idx": 22,
+      "loadSegment": 0,
+      "codeOffset": 441936,
+      "codeSize": 14848,
+      "outputCodeOffset": 437056,
+      "isData": false
+    },
+    {
+      "idx": 23,
+      "loadSegment": 0,
+      "codeOffset": 456928,
+      "codeSize": 608,
+      "outputCodeOffset": 451904,
+      "isData": false
+    },
+    {
+      "idx": 24,
+      "loadSegment": 64,
+      "codeOffset": 458224,
+      "codeSize": 5792,
+      "outputCodeOffset": 452512,
+      "isData": false
+    },
+    {
+      "idx": 25,
+      "loadSegment": 64,
+      "codeOffset": 467088,
+      "codeSize": 17216,
+      "outputCodeOffset": 458304,
+      "isData": false
+    },
+    {
+      "idx": 26,
+      "loadSegment": 64,
+      "codeOffset": 484560,
+      "codeSize": 2208,
+      "outputCodeOffset": 475520,
+      "isData": false
+    },
+    {
+      "idx": 27,
+      "loadSegment": 64,
+      "codeOffset": 486992,
+      "codeSize": 2608,
+      "outputCodeOffset": 477728,
+      "isData": false
+    },
+    {
+      "idx": 28,
+      "loadSegment": 0,
+      "codeOffset": 489872,
+      "codeSize": 1136,
+      "outputCodeOffset": 480336,
+      "isData": false
+    },
+    {
+      "idx": 29,
+      "loadSegment": 64,
+      "codeOffset": 491216,
+      "codeSize": 1744,
+      "outputCodeOffset": 481472,
+      "isData": false
+    },
+    {
+      "idx": 30,
+      "loadSegment": 64,
+      "codeOffset": 493120,
+      "codeSize": 1792,
+      "outputCodeOffset": 483216,
+      "isData": false
+    },
+    {
+      "idx": 31,
+      "loadSegment": 7002,
+      "codeOffset": 121248,
+      "codeSize": 11472,
+      "outputCodeOffset": 485008,
+      "isData": true
+    }
+  ]
+}
