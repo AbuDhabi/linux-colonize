@@ -83,7 +83,7 @@ Deep mechanics (expected vs Linux by context): [unit_orders.md](unit_orders.md).
 
 | Manual feature | Status | Notes |
 |----------------|--------|-------|
-| Found colony (**B**) | Done | Disband → Town Hall + starters + stock dump; name-entry `@COLONY` |
+| Found colony (**B**) | Partial | Disband → Town Hall + starters + stock dump; name-entry `@COLONY`. **Missing:** minimum-distance-from-existing-colony gate — `colonies_can_found` only rejects arctic/mountain, an occupied tile, or an Indian city tile; GAME.TXT `@TOONEAR` ("This land is too near to {colony} for a new colony") proves DOS rejects close founding, but `Colonization.pdf` itself says a colonist "can build a colony anywhere except in a mountain square" (silent on the exact rule) and the real threshold isn't decomp-verified — do not invent a distance. Confirmed live AI-visible bug via `ai_euro`: an idle founder-capable unit sitting on its own colony (with construction wanting LABOR) can walk one tile off and found a second colony immediately adjacent instead of staying — see roadmap.md Phase 3 |
 | Join colony | Done | ORDERS Join Colony admits selected land unit on owned colony tile; else opens colony screen |
 | Colony display chrome | Partial | Area 1.5× (24px) tiles; people/transport (+30px) bands; multifunction; Note 1 resource-count strips; sprite-bound building hits (`colony_screen.c`) |
 | Assign jobs / field work / production numbers | Partial | Drag or select-then-click colonists to buildings/area/fence; workplace strips show **output-type badge**; Production tab via `colony_preview.c` — see [building_production.md](building_production.md) |
