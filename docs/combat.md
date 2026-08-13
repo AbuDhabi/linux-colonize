@@ -111,6 +111,19 @@ Fortify on bare colony: `2+2=4` (×2). Fortify on Stockade/Fort: `4+2=6` (×2.5,
 because `local_1a < 5` still holds before the add). Fortress `local_1a=8` →
 fortify does not stack.
 
+**Disassembly verified clean (2026-08-13).** `FUN_5fef_1b0e` carried a
+Ghidra `Removing unreachable block` disassembly-fault warning in the
+canonical export (`docs/decomp_inventory.md`). Re-disassembled via the
+overlay-addressing project (`tools/address_mapping.csv` →
+`OVL17_L0000:1b0e`): clean, self-contained, 7270 bytes / 1116 decompiled
+lines, one unrelated minor unreachable-block warning + one "type
+propagation not settling" note left (ordinary decompiler noise, not the
+corruption class). Calls several `thunk_FUN_1000_*` stubs whose exact
+targets weren't resolved this pass (see `euro_unit_act.md`'s method note
+if chasing them — verify via `rtlink_decode`'s jump table before trusting
+a decompile through any of them). Confirms the extensive peel/resolve
+mapping below is working from trustworthy source.
+
 ### Peels (`FUN_5fef_1b0e` / `combat_apply_1b0e_peels`)
 
 | Peel | When | Effect |
