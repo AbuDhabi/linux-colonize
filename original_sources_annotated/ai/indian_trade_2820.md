@@ -708,8 +708,89 @@ Subst slots: `281f_0438` slots 0..3 load cargo-name ptrs from table `−0x6840`.
 | Gift-amount CHOICE | `ai_popup` Done | Deep nest still PARKED |
 | VGA wood dialog | PARKED | `291f_019c` / `0438` subst |
 
+## AI buy-offer price formula — resolved (2026-08-13)
+
+The `2b92`/`2bbc` price-formula blocker below is now resolved for the
+**AI-controlled Euro peer path** (`LAB_002bbc`, `iStack_8==0` — the one
+`ai_contact_auto_trade` actually needs; the human `CHOICE`-dialog path
+`LAB_002e92`/player-buy stays separately PARKED, VGA-gated).
+
+**Key unlock: the Ask/Bid tables `2820` reads (`DS:0x9e58`/`0x9e78`,
+`-25000`/`-0x6188`) are not missing data — they're written by
+`FUN_4d56_2154`, which is already fully ported** as
+`ai_contact_meet_economics_2154` in `ai_contact.c` (`ask[16]`/`bid[16]`,
+tested — see `indian_meet_scoring_2154.md`, status "Done"). `2820`'s price
+formula is a *consumer* of already-working Linux state, not a fresh
+extraction target.
+
+Formula (`iStack_c8` = cargo type, `iStack_6a` = quantity, `aiStack_d6[0]`
+= relation via `FUN_1000_84fc` ≈ `ai_diplo_indian_relation`):
+
+```
+rng = RNG(1,5)                                           -- dos_rng_range(rng,1,5)
+base = (cargo_type > 8) ? 7 : 6
+if cargo_type == 0xd (TRADE_GOODS): base -= RNG(0,7)
+if cargo_type == 0xf (MUSKETS):     base -= (indian_state[7] - 0xc)
+if cargo_type == 8   (HORSES):      base -= (indian_state[8] - 10)
+if cargo_type == 0xe (TOOLS):       base += 1
+
+relation_component = f_8c50(relation) << 1     -- FUN_1000_8c50, exact shape not yet traced
+if cargo_type in {0xf, 8}: relation_component = 0
+if ask[cargo_type] > 19:   relation_component >>= 1
+
+raw = ((base - difficulty) - relation_component + rng + 4) * 2 * ask[cargo_type]
+raw = max(raw, 0)
+price = (rng*5 + raw) * quantity / 200          -- FUN_0000_e096 signed mul/div by 100, then /2
+price = max(price, 1)
+```
+
+Then **debits `price` from the Euro nation's gold**
+(`col1->nation[e].gold -= price` — confirmed via `param_4*0x13c-0x77cc`/
+`-0x77ce`, which `FUN_15eb_0544` already documents as the per-nation
+treasury dword) — the AI Euro nation *pays* to buy the cargo. Natives don't
+track a numeric gold resource; nothing is credited to the Indian side
+beyond relation/production bookkeeping (not yet fully traced — see below).
+
+**Real gap this surfaced:** `ai_contact_auto_trade` currently does
+goods/relation bookkeeping only — **no gold ever changes hands**. Not a
+conscious deferral in the existing thin stand-in's comments; a genuine
+missing behavior this investigation found.
+
+### `indian_state+7`/`+8` — resolved: difficulty-seeded musket/horse throttle
+
+Cargo type 8 = `COLONIZE_CARGO_HORSES`, cargo type 0xf =
+`COLONIZE_CARGO_MUSKETS` (`colony.h`) — i.e. the two cargo IDs this formula
+special-cases are exactly the two goods Colonization famously restricts
+native demand for. Traced `indian_state+7`/`+8` (`DS:0x8d4e+7`/`+8`) to
+their owner, `FUN_4d56_1816` (the Indian nation's per-turn tick):
+
+- **Init, once per Euro nation, gated by the same "contact prelude fired"
+  flag `ColonizeCol1Indian.unknown31_flags` bit `0x20` already documents**
+  (DOS: `indian_state+3` bit `0x20`) — on first real contact (relation
+  check + RNG gate), seeds `indian_state[7] = min(prior, difficulty) << 2`,
+  `indian_state[8] = min(prior, difficulty)`, `indian_state[10..13]
+  (int32) = difficulty * 25`.
+- **Decay, every tick**: `if (indian_state[7] > 0) { RNG-gated (probability
+  scales with difficulty) decrement by 1 }` — a replenishing-but-draining
+  "how many muskets/horses will natives still buy this stretch" throttle,
+  not a simple counter.
+
+`ColonizeCol1Indian.unknown33[8]` (currently "opaque in DOS") is unused
+padding large enough to host both new counters (`musket_sell_throttle`,
+`horse_sell_throttle`, 1 byte each, or the int32-at-+10 companion if that
+turns out to matter for the price formula too) without a save-format
+break. **Not yet implemented** — this doc records the finding; adding the
+fields + wiring init/decay/consume is the next concrete step (needs to
+locate `FUN_4d56_1816`'s existing Linux port to hook the same cadence, not
+yet located from this pass).
+
 ## Open RE
 
-- Exact price formulas inside `2b92`/`2bbc` (cargo-type deltas for goods 8/0xd/0xe/0xf)
+- `FUN_1000_8c50` (relation → price-discount shape) not yet traced
+- Human `CHOICE`-dialog buy-offer path (`LAB_002e92`) price formula — same
+  general shape, different RNG/UI gating, not traced this pass
+- Where the Indian side's own bookkeeping (production counters at
+  `indian_state + cargo*2 + 0xe`) gets updated post-sale — visible in the
+  decompile but not yet semantically mapped
 - Full string ID list for haggle / demand beyond `0x1561`/`0x156a`
 - Second entry into `2820` after `4528` blob (~86762) — confirm args

@@ -183,8 +183,8 @@ Line spans are approximate (next function start − 1). Status:
 | `FUN_4d56_1816` | ~141 | Indian nation turn entry: alarm prelude, unit loop, relation ticks | `ai_indian_nation_turn` + `ai_contact_*` | **partial** (structural; T2 quiet) |
 | `FUN_4d56_1b3a` | ~59 | Mid-turn: clear tables / tribe + colony ownership probes (does **not** call `2154`) | — | **partial** (known; not raid) |
 | `FUN_4d56_2154` | ~321 | Meet economics (`0x9e*` tables) from `5bfb_022e` via `2a1f_0434` — **not** raid | `ai_contact_meet_economics_2154` + gift/demand | **Done** (scorer + `0ce0` work-slot gate) |
-| `FUN_4d56_2820` | ~1396 | Heavy decision + nested trade `2aac…311e` | meet/trade auto-haggle | **partial** (T0; deep PARKED) |
-| `FUN_4d56_2aac`…`311e` | nested | Trade buy/haggle/demand helpers | `ai_contact_indian_meet_trade` | **partial** (auto only) |
+| `FUN_4d56_2820` | 595 lines (clean re-disasm; old ~1396 line estimate was from corrupted decomp, see `indian_trade_2820.md`) | AI-buy-offer price + trade dispatch (single function; the `2aac…311e` "nest" was internal goto labels, not separate functions) | `ai_contact_2820_ai_buy_price` + gold debit in `ai_contact_auto_trade` | **Done** (AI-buy-offer price path, `LAB_002bbc`); human CHOICE buy-offer path (`LAB_002e92`) still PARKED |
+| `FUN_4d56_2aac`…`311e` | n/a — resolved as internal labels of `2820` itself, not separate functions | — | — | superseded, see `2820` row |
 | `FUN_4d56_3582` | ~51 | Small helper after `2820` | friction floor (via contact clamp) | **partial** (thin Done) |
 | `FUN_4d56_417e` | ~188 | Mid-size helper | — | **parked** |
 | `FUN_4d56_4528` | ~3073 | Settlement enter/raid | `ai_contact_indian_raids` + `@RAID*` kinds | **partial** (structural outcomes) |
@@ -273,7 +273,7 @@ unannotated bodies.
 | `FUN_4d56_152e` growth | `ai_grow_villages` | Threshold `AI_VILLAGE_GROWTH_THRESHOLD` (19); pop cap 15 |
 | `FUN_4d56_1816` full body | `ai_indian_nation_turn` | Structural phases (prelude → growth → relation → pulse → meet/raid); quiet T2 overlays; thin maps `indian_contact.md` |
 | Per-unit indian act | pulse / residual | Quiet path; residual only on pulse≠golden; DOS thunk `func_0x00042191` → annotated stub `indian_unit_act` |
-| `@RAID*` / meet / mission | `ai_contact_*` | **Partial structural** — `@RAID*` + `5bfb` meet; player dialogs **Done** structural (`ai_popup`); deep `2820`/`4528` **mapped** (port PARKED); VGA PARKED |
+| `@RAID*` / meet / mission | `ai_contact_*` | **Partial structural** — `@RAID*` + `5bfb` meet; player dialogs **Done** structural (`ai_popup`); `2820` AI-buy-offer price **Done** (see `indian_trade_2820.md`); `4528` **mapped**, deep body still port PARKED; VGA PARKED |
 | `FUN_521d_6d8e` | `ai_euro_dispatcher_turn` / fixture | **Partial structural** 6d8e; T2 seed-100 fixture |
 | `FUN_521d_0000`…`0906` | `ai_goals_*` | T0 goal tables |
 | `FUN_521d_0a60` | `ai_euro_colony_goals` | T0 condensed phases |
