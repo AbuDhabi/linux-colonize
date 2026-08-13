@@ -4698,6 +4698,17 @@ void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id) {
               "Raid",
               raid_body
             );
+          } else if (abandoned && abandoned_name[0] &&
+                     (kind == AI_RAID_SCALP || kind == AI_RAID_BURN)) {
+            /*
+             * Human bystander (colony's own nation is AI-controlled): @BURNED3
+             * "Spies report: …" — the victim already got @BURNED above when
+             * they are human; this covers the human watching a rival's colony
+             * fall. Cite: GAME.TXT @BURNED3.
+             */
+            units_combat_notify_colony_burned_foreign(
+              ctx->col1, abandoned_name, target_euro, ai_contact_tribe_name(nation_id)
+            );
           }
         } else if (max_alarm >= 70) {
           /*

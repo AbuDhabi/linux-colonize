@@ -84,6 +84,17 @@ void units_combat_notify_colony_burned(
   int victim_nation,
   const char* burner_label
 );
+/*
+ * @BURNED3 "Spies report: …" bystander OK: enqueued for the human when they
+ * are neither the burner nor the victim (AI colony burned by natives/rivals
+ * while the human watches from elsewhere).
+ */
+void units_combat_notify_colony_burned_foreign(
+  const ColonizeCol1Save* col1,
+  const char* colony_name,
+  int victim_nation,
+  const char* burner_label
+);
 
 /*
  * FUN_5fef_0000: pick best defender on tile for engagement toughness.

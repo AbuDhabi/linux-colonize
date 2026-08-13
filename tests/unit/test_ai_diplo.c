@@ -2986,6 +2986,69 @@ int main(void) {
   }
 
   /*
+   * @CANCELPEACE: real 10ec AI→human war-declare CHOICE prompt body (not the
+   * hand-built fixture above) — drive ai_diplo_euro_balance itself until the
+   * 1-in-20 roll fires and assert the queued body is the authentic GAME.TXT
+   * line, not invented "%s declares war!" text.
+   */
+  {
+    ColonizeCol1Save cp;
+    col1_save_init(&cp);
+    memset(cp.nation, 0, sizeof(cp.nation));
+    for (int i = 0; i < 4; ++i) {
+      cp.player[i].control = 0;
+      cp.player[i].country_name[0] = '\0';
+    }
+    snprintf(cp.player[0].country_name, sizeof(cp.player[0].country_name), "England");
+    snprintf(cp.player[1].country_name, sizeof(cp.player[1].country_name), "France");
+    cp.nation[1].gold = 2000; /* self score ≫ human's 0 → 10ec eligible */
+    for (int i = 0; i < 8; ++i) {
+      cp.nation[0].relation_by_indian[i] = 100;
+      cp.nation[1].relation_by_indian[i] = 100;
+    }
+    char status_cp[128];
+    status_cp[0] = '\0';
+    AiPopupState pop_cp;
+    ai_popup_init(&pop_cp);
+    ColonizeDosRng rng_cp;
+    dos_rng_seed(&rng_cp, 99);
+    ColonizeTurnContext ctx_cp;
+    memset(&ctx_cp, 0, sizeof(ctx_cp));
+    ctx_cp.col1 = &cp;
+    ctx_cp.col1_ok = true;
+    ctx_cp.rng = &rng_cp;
+    ctx_cp.human_nation = 0;
+    ctx_cp.status = status_cp;
+    ctx_cp.status_size = sizeof(status_cp);
+    ctx_cp.ai_popups = &pop_cp;
+    ColonizeMsgCatalog game_txt_cp;
+    memset(&game_txt_cp, 0, sizeof(game_txt_cp));
+    if (!assets_msg_load_file(&game_txt_cp, "COLONIZE/GAME.TXT")) {
+      return fail("@CANCELPEACE: GAME.TXT load failed");
+    }
+    ctx_cp.messages = &game_txt_cp;
+    int fired = 0;
+    for (int n = 0; n < 200 && !fired; ++n) {
+      ai_diplo_euro_balance(&ctx_cp, 1);
+      if (pop_cp.queue_count > 0) {
+        fired = 1;
+      }
+    }
+    assets_msg_free(&game_txt_cp);
+    if (!fired) {
+      return fail("@CANCELPEACE: 10ec war-declare CHOICE never fired");
+    }
+    if (pop_cp.queue[0].tag != AI_POPUP_TAG_DIPLO_WAR ||
+        pop_cp.queue[0].kind != AI_POPUP_KIND_CHOICE) {
+      return fail("@CANCELPEACE: expected DIPLO_WAR CHOICE");
+    }
+    if (strcmp(pop_cp.queue[0].body, "France cancel peace treaty with England.") != 0) {
+      fprintf(stderr, "unit_ai_diplo: CANCELPEACE body '%s'\n", pop_cp.queue[0].body);
+      return fail("@CANCELPEACE: CHOICE body should be authentic GAME.TXT line");
+    }
+  }
+
+  /*
    * Marathon2 R5: AI→human break-alliance CHOICE Accept/Refuse (13b0 / 15b3).
    * Accept → break_alliance_ctx; Refuse → status + OK, ALLY kept.
    * FA 3f41 full UI PARKED.

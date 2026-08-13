@@ -65,7 +65,7 @@ choices from data where a real `@SECTION` exists.
 | FA gift/longevity INFO OK | — | Invented → status | Demoted |
 | `@DECLAREWAR` OK | `@DECLAREWAR` | Authentic | Base war-declared line now `popup_msg_fill("DECLAREWAR", …)`; boycott/hostility chrome may still override with a more specific status |
 | `@SIGNTREATY` OK | `@SIGNTREATY` | Authentic | Base peace-concluded line now `popup_msg_fill("SIGNTREATY", …)`; Tools-embargo-lift chrome may still override |
-| `@CANCELPEACE` OK | `@CANCELPEACE` | MissingWire | Directional "{%STRING0} cancel peace treaty with {%STRING1}" — no clear single call site yet (declare-war-from-peace vs. break-alliance); needs more investigation before wiring |
+| `@CANCELPEACE` CHOICE prompt | `@CANCELPEACE` | Authentic | 10ec AI→human war-declare CHOICE body (was invented "%s declares war!"); `popup_msg_fill` |
 
 ## King (`ai_king.c`)
 
@@ -100,7 +100,7 @@ choices from data where a real `@SECTION` exists.
 ## Remediation completed in this pass
 
 - Choice extraction: recognize LANDFALL / ABANDON / MERCENARIES / TAXOPTIONS labels; `%%` → `%`
-- Wired: `@LANDFALL`, `@ABANDON`/`@ABANDON2`, `@KEEPSTOCKADE`, `@MORETHANTHREE`, `@DONTKNOWSHIPS`, `@MADATSHIPS`, `@INDIANCOMMENT`, `@WHICHFREEDOM`, `@FREEDOM`, `@KINGTAX`+`@TAXOPTIONS`, `@MERCENARIES`, `@MERCS`, `@LOSTCITY1`-`9`/`@BURIAL1`-`3`/`@SCREWED`, `@DECLAREWAR`, `@SIGNTREATY`, `@LEARNMAD`, `@LEARNMASTER`
+- Wired: `@LANDFALL`, `@ABANDON`/`@ABANDON2`, `@KEEPSTOCKADE`, `@MORETHANTHREE`, `@DONTKNOWSHIPS`, `@MADATSHIPS`, `@INDIANCOMMENT`, `@WHICHFREEDOM`, `@FREEDOM`, `@KINGTAX`+`@TAXOPTIONS`, `@MERCENARIES`, `@MERCS`, `@LOSTCITY1`-`9`/`@BURIAL1`-`3`/`@SCREWED`, `@DECLAREWAR`, `@SIGNTREATY`, `@CANCELPEACE`, `@LEARNMAD`, `@LEARNMASTER`, `@BURNED3`, `@LOOTCASH`
 - Demoted invented INFO OKs: Privateer prize, war upkeep, FA gift/holds, diplo refuse follow-ups, colonial-era end, merc decline/cannot-afford
 
 Still Partial/PARKED: diplo Accept/Refuse CHOICE bodies (FA `3f41`), many contact teach/raid OKs, some king WoI chrome.

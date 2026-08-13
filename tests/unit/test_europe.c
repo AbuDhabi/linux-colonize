@@ -522,6 +522,14 @@ int main(void) {
       europe_free(&eu);
       return 1;
     }
+    /* @LOOTCASH wording, not an invented "Treasure cash-in" stub. */
+    if (strstr(eu.status, "treasure fleet laden with 1000$") == NULL ||
+        strstr(eu.status, "arrives safely in") == NULL ||
+        strstr(eu.status, "1000$ added to") == NULL) {
+      fprintf(stderr, "cash_treasure untaxed status '%s'\n", eu.status);
+      europe_free(&eu);
+      return 1;
+    }
     eu.tax_percent = 50;
     const int gold1 = eu.gold;
     const int half = europe_cash_treasure(&eu, 1000);

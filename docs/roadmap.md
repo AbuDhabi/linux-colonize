@@ -129,6 +129,20 @@ Euro rivals and natives must stay coherent through mid-game. Shared surfaces
   [ai_transcription.md](ai_transcription.md)
 - Seed-100 / early fidelity debt (R0) only as it blocks mid-planner claims —
   [seed100_brave.md](seed100_brave.md)
+- **Found and partially fixed:** `units_display_name()` was missing a
+  `Colonists`→`Free Colonist` branch (sibling to the existing `Pioneers`→
+  Pioneer / `Soldiers`→Soldier branches) — fixed, see [assets.md](assets.md)
+  Units section. Still open: ~19 `units_find_type(units, "Free Colonist")`
+  exact-match call sites in `ai_euro.c` (`ai_euro_type_from_dock_name` "hire
+  specialist from Europe dock" ladder) and one in `founding_fathers.c` search
+  the type *catalog* (always `Colonists`, never a literal `Free Colonist`
+  row) and so silently never resolve against real `NAMES.TXT` — a likely-dead
+  AI subsystem in real gameplay. Renaming them to `"Colonists"` is mechanical
+  but (a) changes `unit_founding_fathers`' Las Casas convert-rename test,
+  which relies on a fixture defining *both* `Colonists` and `Free Colonist`
+  as distinct types (unlike real data — fixture needs reconciling first) and
+  (b) may shift `golden_ai_*` AI-turn outcomes once the dock-hire ladder
+  actually fires. Needs a deliberate pass, not a blind rename.
 
 ### 4 — Independence & endgame (Partial)
 
