@@ -182,7 +182,7 @@ Line spans are approximate (next function start − 1). Status:
 | `FUN_4d56_152e` | ~156 | Village growth accumulator → pop++ | `ai_grow_villages` | **partial** (T0) |
 | `FUN_4d56_1816` | ~141 | Indian nation turn entry: alarm prelude, unit loop, relation ticks | `ai_indian_nation_turn` + `ai_contact_*` | **partial** (structural; T2 quiet) |
 | `FUN_4d56_1b3a` | ~59 | Mid-turn: clear tables / tribe + colony ownership probes (does **not** call `2154`) | — | **partial** (known; not raid) |
-| `FUN_4d56_2154` | ~321 | Meet economics (`0x9e*` tables) from `5bfb_022e` via `2a1f_0434` — **not** raid | `ai_contact_meet_economics_2154` + gift/demand | **Done** (scorer; `0ce0` OPEN) |
+| `FUN_4d56_2154` | ~321 | Meet economics (`0x9e*` tables) from `5bfb_022e` via `2a1f_0434` — **not** raid | `ai_contact_meet_economics_2154` + gift/demand | **Done** (scorer + `0ce0` work-slot gate) |
 | `FUN_4d56_2820` | ~1396 | Heavy decision + nested trade `2aac…311e` | meet/trade auto-haggle | **partial** (T0; deep PARKED) |
 | `FUN_4d56_2aac`…`311e` | nested | Trade buy/haggle/demand helpers | `ai_contact_indian_meet_trade` | **partial** (auto only) |
 | `FUN_4d56_3582` | ~51 | Small helper after `2820` | friction floor (via contact clamp) | **partial** (thin Done) |
@@ -620,7 +620,11 @@ raids, or FOUND must keep `golden_ai_joint` green (Euro **and** Indian fields).
 - `2154`: **Done** scorer — dual `ask[16]`/`bid[16]` (`0x9e58`/`0x9e78`) from
   terr_class buckets + tribe/indian fields + capital/tons mix; gift uses
   ask−bid + gold≥0x4b + RNG; demand ask↔bid preference (`unit_ai_contact`).
-  `281f_0ce0` work-slot cover still OPEN one-liner.
+  `281f_0ce0` work-slot cover **Done**: colony's own tile always covered, an
+  immediate ring tile (N/NE/E/SE/S/SW/W/NW) only when actively worked
+  (`colony->tiles[dir] >= 0`); the outer distance-2 ring is never
+  worker-assignable so is never covered — matches DOS
+  `15eb_06a6`/`15eb_05e2` signed-byte gate exactly.
 - `2820`: hard-bargain 45..54; primary extra trade-goods for all non-`0xff`
   teach primaries (silver/ore/tobacco/cotton/furs/sugar; Arawak fish single).
 - `4528`: `5fef` kind demote (difficulty/year/missing target → STORES/NOTHING)

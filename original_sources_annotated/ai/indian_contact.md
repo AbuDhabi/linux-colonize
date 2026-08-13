@@ -296,8 +296,8 @@ remain **PARKED**. Player meet/trade/gift/teach **status chrome thinned**; **wid
 ## PORT DEBT
 
 - Full `2820` / `4528` mid-bodies — **mapped** head/nest; port **PARKED**
-- `2154` meet economics — **Done** scorer + gift/demand table consumers
-  (`0ce0` work-slot cover OPEN)
+- `2154` meet economics — **Done** scorer + gift/demand table consumers +
+  `0ce0` work-slot cover gate
 - `5fef_0f14` / `016c` — **mapped**; port PARKED (structural raid stand-ins exist)
 - **Deep `FUN_4d56_2820` (thunk `2a1f_044c`) specifically PARKED:** ~1.4k-line
   meet/raid decision matrix; nested trade `2aac` (good dispatch) → `2af6` /

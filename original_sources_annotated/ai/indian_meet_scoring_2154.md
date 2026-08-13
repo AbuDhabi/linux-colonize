@@ -47,7 +47,7 @@ Port: `ai_contact_meet_economics_2154` in [`ai_contact.c`](../../src/core/ai_con
 
 | Phase | Linux |
 |-------|-------|
-| 1 Cover | Tribe-local 25-cell mask from colony↔tribe relative overlap (full ring; `281f_0ce0` work-slot **OPEN**) |
+| 1 Cover | Tribe-local 25-cell mask from colony↔tribe relative overlap; `281f_0ce0`→`15eb_06a6`→`15eb_05e2` work-slot gate **Done** — colony's own tile always covered, else one of the 8 immediate (N/NE/E/SE/S/SW/W/NW) ring tiles covered only when actively worked (`colony->tiles[dir] >= 0`); outer distance-2 ring cells never worker-assignable (`col1_bridge.c` `tiles[8..19]` stay `-1`) so are never covered, matching DOS byte-for-byte |
 | 2–3 Buckets | `map_dos_terr_class_at` class arms (`0x1b`/`0x1c`/`0x18`/plains/forest) |
 | 4 Write | Decomp formulas → `ask[16]` / `bid[16]` from `tech`, `population+1`, buckets, `muskets` / `horse_herds` / `horse_breeding` / `tons[]` |
 | 5 Clamp/mix | Ask clamp 0..0x32; capital doubles ask[0..7] + bumps; tons mix; bid/ask half-cross |

@@ -1362,8 +1362,27 @@ int main(void) {
     ind->tons[0] = 0;
     /*
      * Cover clears forest buckets + capital → Generous at gold 80.
+     * 281f_0ce0 work-slot gate: only the colony's own tile plus *actively
+     * worked* immediate (N/NE/E/SE/S/SW/W/NW) tiles are "covered" — the
+     * outer distance-2 ring is never worker-assignable (col1_bridge.c
+     * tiles[8..19] stay -1) and so is never covered. Shrink the forest
+     * patch to the 8 immediate ring cells (the second ring reverts to
+     * plains) and assign a worker to each so the whole patch is actually
+     * covered, matching the real DOS gate instead of the old "full ring"
+     * stand-in. Cite: indian_meet_scoring_2154.md Phase 1.
      */
     {
+      for (int dy = -2; dy <= 2; ++dy) {
+        for (int dx = -2; dx <= 2; ++dx) {
+          if (abs(dx) == 2 || abs(dy) == 2) {
+            const int nx = 5 + dx;
+            const int ny = 5 + dy;
+            if (nx >= 0 && ny >= 0 && nx < 16 && ny < 16) {
+              map.terrain[ny * 16 + nx] = 1; /* plains: outside worked ring */
+            }
+          }
+        }
+      }
       ColonizeColony* cov = &colonies.colonies[0];
       cov->id = 0;
       cov->active = true;
@@ -1371,6 +1390,10 @@ int main(void) {
       cov->x = 5;
       cov->y = 5;
       cov->population = 2;
+      cov->colonist_count = 2;
+      for (int dir = 0; dir < 8; ++dir) {
+        cov->tiles[dir] = 0; /* every immediate ring tile worked */
+      }
       colonies.colony_count = 1;
       col1.tribe[0].state.capital = 1;
       col1.nation[0].gold = 80;

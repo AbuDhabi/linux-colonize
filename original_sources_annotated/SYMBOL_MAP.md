@@ -106,7 +106,7 @@ Phase 1 AI-critical symbols + Euro early-settle Layer D + between-turns
 | `FUN_4962_0018` / `0606` | census / profession tally | `turn/census_tally.md` | Blank fill partial; live EOT lag |
 | `FUN_48d3_06ba` | Europe-exit landfall / tax | `turn/europe_exit_landfall.md` | Treasure tax / arrivals reshape |
 | `FUN_5bfb_00f8` / `4d56_1b3a` | rank euros / mid Indian tables | `turn/mid_pass_indian_rank.md` | Rank PARKED; Indians reshape |
-| `FUN_4d56_2154` | meet economics scorer | `ai/indian_meet_scoring_2154.md` | Done (scorer; 0ce0 OPEN) |
+| `FUN_4d56_2154` | meet economics scorer | `ai/indian_meet_scoring_2154.md` | Done (scorer + 0ce0 work-slot gate) |
 | `FUN_5fef_0f14` / `016c` | raid loot / plunder pick | `ai/indian_raid_loot.md` | Structural raid stand-ins |
 | `FUN_281f_0644` | → `nation_eot` / `3844_00f2` | `turn/between_turns.md` | — |
 | `FUN_281f_061e` | → `year_end_chrome` / `3844_0442` | `turn/between_turns.md` | — |
