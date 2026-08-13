@@ -1,6 +1,20 @@
 /*
  * European AI nation dispatcher — FUN_521d_6d8e + goal pass 0a60 shell.
  *
+ * Disassembly verified clean (2026-08-13): 6d8e carried a Ghidra
+ * `Removing unreachable block (ram,0x00059313)` disassembly-fault warning
+ * in the canonical export (docs/decomp_inventory.md) — same defect class
+ * as 2820/4528/417e/5b66/5fef_0f14/1816. Re-disassembled via the
+ * overlay-addressing project (tools/address_mapping.csv -> OVL14_L0000:6d8e):
+ * clean, self-contained, 1333 bytes / 262 decompiled lines, ends in a real
+ * return, one unrelated minor unreachable-block warning left (ordinary
+ * noise, different address). Unlike 4528/5b66, this one wasn't severely
+ * desynced — matches this file's existing line-range estimate and thunk
+ * wiring closely (the DS:0x2d12/0x1740 sticky-clear values below match the
+ * clean recovery's *(undefined2*)0x2d12=0xffff / *(undefined2*)0x1740=0
+ * exactly). Confirms this doc's existing annotation is trustworthy, not a
+ * correction.
+ *
  * Source: original_sources_decompiled/viceroy_unpacked.c
  *   6d8e ~93073–93325; 0a60 ~87408–88246; 5d04 parked; 5b66 → euro_unit_act.md
  * Linux:  src/core/ai_euro.c — ai_euro_dispatcher_turn
@@ -119,6 +133,17 @@ void euro_nation_colony_goals_pass(int nation_id) {
 /* ====================================================================== */
 
 /*
+ * Disassembly verified clean (2026-08-13): 0a60 carried a Ghidra
+ * `Removing unreachable block (ram,0x00053911)` disassembly-fault warning
+ * in the canonical export (docs/decomp_inventory.md). Re-disassembled via
+ * the overlay-addressing project (tools/address_mapping.csv ->
+ * OVL14_L0000:a60): clean, self-contained, 5700 bytes / 853 decompiled
+ * lines, ends in a real return, one unrelated minor unreachable-block
+ * warning left, no RTLink-thunk calls (no placeholder-resolution risk).
+ * 853 lines closely matches this doc's existing ~858-line estimate —
+ * like 6d8e, this one wasn't severely desynced; confirms the doc below,
+ * not a correction.
+ *
  * Ghidra: FUN_521d_0a60 | euro_unit_colony_goals
  * ~858 lines (decomp 87408–88246). Writes primary goals + work queue.
  *

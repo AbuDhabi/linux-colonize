@@ -110,6 +110,17 @@ missions slow hostility.
 | `FUN_5bfb_022e` | `2a1f_066c` | Indian unit meet/contact (~96565); also ~98793 | First-contact WELCOME **Done** (land only; ends at PEACE/COME); village Meet CHOICE **Done** thin |
 | `FUN_4cc6_00f2` / `0000` | `0d6c` / `0398` | Relation delta / mission clear | — |
 
+**`FUN_5bfb_022e` disassembly verified clean (2026-08-13).** Carried a
+Ghidra `Removing unreachable block (ram,0x0005c64f)` disassembly-fault
+warning in the canonical export (`docs/decomp_inventory.md`). Re-
+disassembled via the overlay-addressing project
+(`tools/address_mapping.csv` → `OVL16_L0040:62e`): clean, self-contained,
+3565 bytes / 580 decompiled lines, ends in a real return, one unrelated
+minor unreachable-block warning left, no RTLink-thunk calls (no
+placeholder-resolution risk), calls only resident helpers — no local
+overlay self-calls. Confirms the checklist below is working from
+trustworthy source, not a correction.
+
 ## Meet / trade `5bfb_022e` checklist (Linux)
 
 0. **First contact** (`FUN_5bfb_022e` unmet / `FUN_5bfb_0182`): when

@@ -72,6 +72,9 @@ functions that were candidates for deep porting that day):
 | `FUN_521d_5b66` | ~~`Instruction at (ram,0x00057701) overlaps...` + spacebase + 2× unreachable block~~ **fixed 2026-08-13** — true function is a tiny 198-byte dispatcher (not the 1815-line multi-phase body `euro_unit_act.md` describes — that content is almost certainly misattributed from the same desync pattern as `4528`; see correction note there) |
 | `FUN_5fef_0f14` | ~~`Removing unreachable block (ram,0x0006125d)`~~ **fixed 2026-08-13** — clean 309-line recovery, closely matches `indian_raid_loot.md`'s existing ~298-line estimate (unlike `4528`, wasn't severely desynced); see doc for confirmation note |
 | `FUN_4d56_1816` | ~~4× `Removing unreachable block`~~ **fixed 2026-08-13** — clean 799-byte recovery, confirms `indian_contact.md`'s existing phase checklist items 3-4 precisely; see doc for a flagged (not yet resolved) discrepancy on item 5's growth-loop call target |
+| `FUN_521d_6d8e` | ~~`Removing unreachable block (ram,0x00059313)`~~ **fixed 2026-08-13** — clean 1333-byte recovery, closely matches `euro_dispatcher.c`'s existing line-range and thunk-wiring docs (unlike `4528`/`5b66`, wasn't severely desynced) |
+| `FUN_521d_0a60` | ~~`Removing unreachable block (ram,0x00053911)`~~ **fixed 2026-08-13** — clean 5700-byte recovery, 853 lines vs. `euro_dispatcher.c`'s existing ~858-line estimate — confirmation, not correction |
+| `FUN_5bfb_022e` | ~~`Removing unreachable block (ram,0x0005c64f)`~~ **fixed 2026-08-13** — clean 3565-byte recovery, self-contained, confirms `indian_contact.md`'s meet/trade checklist as trustworthy |
 
 Systematic cross-reference done 2026-08-13: extracted all ~78 function
 names Ghidra's warnings sit immediately above in `viceroy_unpacked_2.c`,
