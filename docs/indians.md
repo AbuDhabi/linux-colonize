@@ -127,6 +127,15 @@ that patrol nearby are separate — killing one does not burn the dwelling.
 Homeland purchase radius (manual Indian Land): non-capital **1**, capital
 **2** (`colony.c`).
 
+**Teach skill is always free** (no gold changes hands either way — corrected
+2026-08-13, was never wired to charge). Non-capital villages teach **one**
+skill to **one** colonist, **total across all Euro nations** — once any
+nation's colonist learns there, the offer is gone for everyone. The tribe's
+**capital** is exempt from that one-shot and teaches unlimited colonists.
+`ai_contact_teach_skill` (`ai_contact.c`) implements this via
+`tribe.state.learned` (one-shot, shared — matches "total across all
+nations") gated by `!tribe.state.capital` (capital bypasses the gate).
+
 Key tribe fields: `x`/`y`, `nation_id`, `state.{capital,learned,scouted,…}`,
 `population`, `mission` (`0xff` none; low nibble Euro id; bit `0x10` Jesuit),
 `last_bought` / `last_sold`, `alarm[4]`.
@@ -248,7 +257,12 @@ bargain matrix `FUN_4d56_2820` **PARKED**.
 | Minuit | Indians no longer demand land payment |
 | Pocahontas | Reset + half future alarm |
 
-Incite / WARPATH gold still **PARKED**.
+Incite / WARPATH gold still **PARKED** — but `FUN_4d56_417e` is now
+identified as this mechanic and fully structure-mapped (2026-08-13,
+confirmed against `@INDIANWARPATH`/`@INDIANWARPATH2` in `GAME.TXT`); see
+[`indian_incite_417e.md`](../original_sources_annotated/ai/indian_incite_417e.md).
+Not wired in yet — 2 of 4 price-formula table values are unnamed, caller
+unfound.
 
 ### Raids and combat fallout
 
@@ -280,7 +294,7 @@ Aligned with [manual_gap.md](manual_gap.md) §Indians — no new fidelity claims
 | Villages on map + Braves | Partial | Placement + icons; quiet pulse / growth — [seed100_brave.md](seed100_brave.md), [ai_transcription.md](ai_transcription.md) |
 | First contact WELCOME | Done structural | `ai_contact_*`; thin land grant |
 | Meet / trade / gift / teach | Partial | Widgets Done thin; deep `2820` / VGA **PARKED** |
-| Missions / convert / heresy | Partial | Structural; incite/WARPATH **PARKED** |
+| Missions / convert / heresy | Partial | Structural; incite/WARPATH **PARKED** (mechanic identified + structure-mapped: `indian_incite_417e.md`) |
 | Alarm / raids / wars | Partial | Structural `@RAID*`; village enter warn→Attack Done thin; deep `2820` PARKED |
 | Capital surrender / Cortes treasure | Done thin | `ai_diplo_*` / `units_*` fallout |
 | Indian×Euro diplo matrix | Done structural | Fuller `153e` unpark; FA UI **PARKED** |

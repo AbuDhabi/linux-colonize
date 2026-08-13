@@ -1262,11 +1262,15 @@ static void ai_contact_teach_skill(ColonizeTurnContext* ctx, int nation_id) {
       continue;
     }
     /*
-     * Col1 one-shot: tribe.state.learned already set → skip teach and do not
-     * write teach/refuse status (preserves gift/trade chrome). Cite: village
-     * teaches once; fandom Teach / trade / missions.
+     * Col1 one-shot: tribe.state.learned already set -> skip teach and do
+     * not write teach/refuse status (preserves gift/trade chrome). Cite:
+     * non-capital village teaches one skill to one colonist total, shared
+     * across all Euro nations; the tribe's capital is exempt and teaches
+     * unlimited colonists (manual Indian Land / Colonization rules, per
+     * user correction 2026-08-13 -- teaching itself is always free, no
+     * gold changes hands either way).
      */
-    if (t->state.learned) {
+    if (t->state.learned && !t->state.capital) {
       continue;
     }
     for (int d = 0; d < 8; ++d) {
@@ -2371,7 +2375,10 @@ static void ai_contact_gift_or_demand(
  *      success → replace with denouncer nation (regular cross — GameFAQs:
  *      heresy install is not Jesuit-bright), +1 crosses;
  *      fail → despawn denouncer (burned at the stake).
- *    Cite: docs/manual_gap.md; fandom Missionaries denounce; WARPATH gold PARKED.
+ *    Cite: docs/manual_gap.md; fandom Missionaries denounce; WARPATH gold
+ *    PARKED (mechanic identified as FUN_4d56_417e, structure mapped in
+ *    original_sources_annotated/ai/indian_incite_417e.md; not wired in —
+ *    2 price-table values unnamed, caller unfound).
  *  - alarmed (≥55 refuse-talk gate) → refuse convert/heresy; no crosses
  *  - mid (40..54) convert: Jesuit-grade only (PEDIA @JOB24 / Brebeuf).
  * Teach/convert widgets Done structural; WARPATH gold / deep 2820 PARKED.
