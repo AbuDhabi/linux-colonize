@@ -10994,6 +10994,22 @@ static int ai_euro_try_first_colony_land(ColonizeTurnContext* ctx, ColonizeUnit*
 /*
  * FUN_521d_5b66 — scoring gate + case 0x0b arms; case 7 hire economy thin
  * (Pioneer tools-delivery here; wagon/tools dock hire lives in 5d04 planning).
+ *
+ * Correction (2026-08-13, see euro_unit_act.md): `FUN_521d_5b66` itself is a
+ * tiny 198-byte `switch(unit.orders_or_state)` dispatcher (cases
+ * 7/8/9/0xb/0xc/default calling out to `FUN_1000_93ea` / `func_0x000193b2` /
+ * `FUN_1000_9406` / `FUN_1000_8b24` / `FUN_1000_96aa`), not the ~1815-line
+ * body this file's "5b66 case N" comments were written against — that
+ * estimate came from a Ghidra disassembly-fault-corrupted read of the
+ * canonical export (real root cause: false adjacency to the next RTLink
+ * overlay segment in the flattened file, see `docs/rtlink_decode_v2_gap.md`).
+ * The case *numbers* below are still meaningful — they match the real
+ * dispatcher's cases 1:1 — but the elaborate bodies live in the callees
+ * above, not literally inside `5b66`. Re-attributing each "5b66 case N"
+ * comment throughout this function to its real DOS home is not done (large,
+ * mostly cosmetic given the case-shape framing still holds); treat "5b66
+ * case N" comments here as "the game behavior DOS dispatches via 5b66's
+ * case N", not "literally transcribed from 5b66's own bytes".
  */
 static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nation_id) {
   if (!ctx || !u || !u->active || u->aboard_ship_id >= 0) {
