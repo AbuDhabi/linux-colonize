@@ -89,8 +89,61 @@ point) — a real, clean, ~145-byte self-contained function (tribe search:
 matches a tribe by relative position + type nibble, sets a found flag and
 sentinels the match; falls through to a `FUN_1000_8842`/`8628`/`8b94`
 dialog call chain if no match). Full C decompile hits an unrelated pcode
-error (not chased further this pass); the raw disassembly is coherent and
-legible, confirmed via `docs/rtlink_decode_v2_gap.md`'s tooling.
+error; the raw disassembly is coherent and legible, confirmed via
+`docs/rtlink_decode_v2_gap.md`'s tooling.
+
+**Pcode error root-caused (2026-08-13, task #2 close-out) - decompiler
+bug, not corruption.** `Offset must be between 0x0 and 0x10ffef, got
+0xffffffff` on this function (and independently on `FUN_5fef_0000`, see
+`indian_raid_loot.md`) is **not** the disassembly-fault class every other
+entry in `decomp_inventory.md` documents. Checked at the raw-pcode level
+(`Instruction.getPcode()` per instruction, before the decompiler's
+higher-level SSA pass): every instruction's pcode is clean - no
+constant/unique varnode carries the `0xffffffff` sentinel. The bug lives
+inside the decompiler's own call-target/segment resolution for
+`CALLF 0x1000:XXXX`-style far calls specifically when they occur inside
+these two overlay-space functions (the *same* literal calls, e.g.
+`FUN_1000_8628`, decompile fine as named calls from other, already-working
+functions elsewhere in the project - so segment `1000` itself is a real,
+correctly-mapped address space; the failure is local to these two callers,
+not the callee segment). Not worth chasing into Ghidra's decompiler
+internals for two ~150-360-byte functions - hand-transcribed instead from
+the confirmed-clean raw disassembly:
+
+```c
+// OVL12_L0000:0000 - tribe search + no-match dialog fallback.
+// param_1 (BP+6), param_2 (BP+8): meaning not independently confirmed -
+// read from context (a6e4's caller site, "tribe search" framing above).
+// DS:0x54ee/0x54f1 table: stride 0x12 (18) bytes/record, byte @+0 and
+// byte @+3 read here - record layout/count source (DS:0x539a) not named.
+// DS:0x543f table: stride 0x34 (52) bytes/record, indexed by param_2.
+int FUN_OVL12_L0000_0(int param_1, int param_2) {
+  int found = 0;
+  for (int i = 0; i < *(int16_t *)0x539a; i++) {
+    uint8_t *rec = (uint8_t *)(0x54ee + i * 0x12);
+    if ((uint8_t)(rec[0] - (uint8_t)param_1) == 4) {
+      if ((rec[3] & 0xf) == param_2) {
+        found = 1;
+        rec[3] = 0xff; /* sentinel the match so it isn't picked twice */
+      }
+    }
+  }
+  if (found) {
+    int a = FUN_1000_8c0a(param_1 + 4);
+    FUN_1000_8628(a, 0);
+    int b = FUN_1000_8b94(param_2);
+    FUN_1000_8628(b, 1);
+    if (param_2 >= 4 && *(uint8_t *)(0x543f + param_2 * 0x34) == 0) {
+      FUN_1000_8842(0x14c8, 1); /* likely a message/dialog id + flag */
+    }
+  }
+  return found;
+}
+```
+
+Not ported to Linux - same "needs unlabeled DS globals named first"
+blocker as `FUN_4d56_417e` (task #5); disassembly-level task #2 is closed,
+semantic porting stays deferred pending that naming pass.
 
 **The broader "12-byte pattern" region** (the run of `JMPF 0x0000:20e6`/
 `5c3c`/`0a60`/`0072`/`00a8`/`02be`/`5cf6`/`052c` entries near `a6e4`) is,

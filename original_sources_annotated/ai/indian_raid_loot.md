@@ -22,6 +22,46 @@ matches the documented shape).
 
 ---
 
+## `FUN_5fef_0000` — candidate-unit search/scoring (pcode-blocked, hand-read)
+
+Segment's first function, offset 0. Same disassembly-fault-lookalike as
+the rest of this file's warnings, but the actual blocker is different:
+Ghidra's decompiler throws `Offset must be between 0x0 and 0x10ffef, got
+0xffffffff` on this one (root-caused 2026-08-13 alongside `OVL12_L0000:0`
+- see `euro_unit_act.md`'s writeup there - as a decompiler bug in
+`CALLF 0x1000:XXXX` far-call resolution local to these two functions, not
+a disassembly corruption - the raw bytes are clean, no overlap/bad-
+instruction warnings, no bad pcode varnodes at the per-instruction level).
+
+Hand-read from the raw disassembly (362 bytes, `OVL17_L0000:0000`-`016b`,
+`ENTER 0x14,0x0` / `PUSH SI` / ... / `POP SI` / `LEAVE` / `RETF`):
+a **best-candidate search loop** over the unit table (record stride
+`0x1c` = 28 bytes, matching the same `unit+0x3144..0x314c` field group
+`ai_native_pick_dir_asm`'s new RNG(1,5) visibility work this session
+already uses `unit+0x3147` from - same table, different sub-fields here:
+`+0x3144`/`+0x3145` position-ish bytes fed to `FUN_1000_8886`/`84f2`/
+`8958` "in range" tests, `+0x3146` a type/class byte checked against
+`0xb` and a `0xd..0x12` band, `+0x314c` a status byte checked against
+`5`/`6`). Two entry modes selected by `param_1 < 0`: a direct single-index
+fast path (`param_1 >= 0`) vs. a full linear scan picking the
+best-scoring candidate by a distance-like metric (`FUN_1000_8bb8`/`8bcc`
+combined into `local = (byte<<8) - prior - 1`, then min-tracked against
+`param_1`'s position via `FUN_1000_84d4`/`84de`). Returns the best index
+found, or the `0xffff` sentinel local it's initialized to if the scan
+exhausts without a hit.
+
+Consistent with this file's "colony raid loot" family - reads as a
+"find nearest/best-scoring eligible unit near this position" helper
+(candidate for a raid target or loot-recipient picker), but the call
+targets (`FUN_1000_8886`/`84f2`/`8958`/`8bb8`/`8bcc`/`84d4`/`84de`) and
+several of the byte-field cutoffs aren't independently named — not
+semantically confirmed enough to port. Not re-derived into full C here;
+raw disassembly is in the 2026-08-13 investigation log if anyone resumes
+this. Same "needs unlabeled DS globals/callees named first" gate as
+`FUN_4d56_417e` (task #5).
+
+---
+
 ## `FUN_5fef_016c` — pick cargo slot to plunder
 
 | Item | Value |
