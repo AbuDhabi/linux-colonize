@@ -204,48 +204,70 @@ User ran a patched `VR417E.EXE` (`EB FE` self-loop trap at the entry,
 same technique as the `VR4528.EXE` control build) under DOSBox-X's live
 debugger and got a genuine hit — `CS:IP = E2AF:417E` exactly. Recovered
 the stack (`SS:SP = 237D:E75E`) via a second debugger text capture and
-decoded the pushed args by hand (right-to-left push order):
+decoded the pushed args by hand.
+
+**Correction (still 2026-08-13) — the first parameter-order read below
+was wrong, fixed after a second capture caught the same call again from
+a different trap point and let it be cross-checked against the
+decompile's own body code.** Ghidra's `param_1` is not the first stack
+slot for this far-call signature — cross-referencing `[BP+0x6]` against
+`*(char *)(param_2 * 0x1c + 0x315b)` in the body (the unit-state check),
+`[BP+0x8]` against `param_3 < 4` / `param_3 * 0x34 + 0x543f` (the mode
+gate, two independent hits), and `[BP+0xA]` against
+`func_...8b94(0x181f, param_4)` (confirmed identically in *both*
+captures) pins the real layout: **`param_2`=`[BP+0x6]`,
+`param_3`=`[BP+0x8]`, `param_4`=`[BP+0xA]`**. `param_1` doesn't appear
+anywhere in the decompiled body at all — likely register-passed (`AX`)
+rather than a 4th stack slot; `[BP+0xC]` reads as `0xF` (15) in both
+captures but is more likely leftover caller-stack content than a real
+argument.
+
+A second capture (`VR417E1.EXE`, trapping the Mode-1 entry specifically)
+landed on **`param_2=38, param_3=0, param_4=11`, return address
+`1930:1554`** — bit-for-bit identical to the first capture's corrected
+values. Same real call, replayed from a reloaded save/state and caught
+at two different points, not two different events. Real, confirmed data
+for one genuine "player picks Incite Indians" action:
 
 ```
-param_1 = 0x26 (38)      -- unused inside the function body; role still unknown
-param_2 = 0x00 (0)       -- unit index 0
-param_3 = 0x0B (11)      -- an Indian-nation id (4-11 range), not Euro (0-3)
-param_4 = 0x0F (15)      -- still uncertain, see above
-return CS:IP = 1930:1554
+param_2 (unit)   = 38   -- the missionary performing the order
+param_3 (nation) = 0    -- English (a real Euro nation, 0-3 — NOT Indian
+                            nation 11 as the uncorrected first read said)
+param_4          = 11   -- consistent both times; still read as the
+                            acting tribe's own identity/Indian-nation id
 ```
 
-**`param_3=11` forces Mode 2** (`param_3>=4`) — this capture is the
-"no-menu, no-confirm-dialog" branch, not the human/menu-driven Mode 1.
+Since `param_3=0 < 4` and the second trap only fires past the Mode-1
+gate, **this positively confirms Mode 1 (menu + confirm dialog) as the
+real path for a player-initiated Incite** — not the Mode 2/AI-shortcut
+reading the first (uncorrected) capture suggested. **This walks back the
+earlier "checked `nation[11]`, found zero, explains the whole mechanic"
+conclusion** — that checked the wrong nation's memory (`param_3` was
+never 11); the zero-value observation at that address is still a true
+fact, it just doesn't explain *this* call. Whether Mode 2's "AI nation
+auto-incites" reading is even real is now unconfirmed again — no capture
+has actually landed there yet.
 
-**Checked `nation[11]`'s stored value directly** (computed address
-`DS:0x95C6`/`0x95C8` from the live `DS=237D`, per `param_3*0x13c-0x77ce`/
-`-0x77cc`): **exactly `0x00000000`.** Since price floors at 500 and the
-very next check is `if (stored_value < price) return;`, this specific
-call was about to fail the affordability gate and bail out silently —
-no dialog, no debit, nothing observable. This is a clean, direct
-explanation for "Indian nations don't appear to have a fixed gold
-reserve" (user's observation) as a **mechanical consequence**, not a
-coincidence: whatever this shared code path does for a nation whose
-`nation[]` slot is always zero, it can never actually spend anything.
-Refines rather than fully replaces the "Mode 2 = AI-Euro-nation
-shortcut" reading — the `OR flag byte set` half of Mode 2's gate still
-covers a genuine Euro-nation (0-3) case with a real, nonzero gold value;
-this capture just happened to land on the Indian-index case instead,
-which structurally always no-ops.
-
-**Chased the caller.** Found the exact `CALLF 0000:0000` (unpatched
-RTLink placeholder, same class as `a6e4`/`4528`'s case-thunks) in
-resident memory at `ram:0x1261f`, identified via a distinctive
+**Chased the caller for both captures.** Both times: the immediate
+return address points into a `CALLF 0000:0000` (unpatched RTLink
+placeholder, same class as `a6e4`/`4528`'s case-thunks) in resident
+memory at `ram:0x1261f`, identified via a distinctive
 `"<Return Vector>"` debug string sitting next to it in the static
 `resident.bin` (cross-referenced live memory bytes against the
 extracted per-segment `.bin` files rather than trying to decode
 DOSBox-X's `.sav` `CPU` component, which turned out to not be a simple
 flat physical dump). Disassembled the surrounding code: heavy
 register-save / stack-segment-switch pattern — this is **RTLink's own
-generic overlay-call trampoline**, not game-specific logic. Every
-overlay call in the game likely funnels through this exact spot, so
-finding it doesn't pin the gameplay trigger the way a real caller would
-have. Caller identity for a *specific* trigger context remains open.
+generic overlay-call trampoline**, confirmed reused across both captures
+(same static call site, dynamically re-patched to a different target
+segment each session — `E2AF` first capture, `D6A2` second, exact same
+`ram:0x1261f` origin and identical `1930:1554` return address both
+times, since resident itself loads at a stable address session to
+session while overlays don't). Not game-specific logic — every overlay
+call in the game likely funnels through this exact spot, so finding it
+doesn't pin the gameplay trigger the way a real caller would. Caller
+identity for a *specific* trigger context (one level further up, whoever
+calls the trampoline) remains open.
 
 **Not yet wired into Linux.** This is a real, currently-**absent**
 feature (no `AI_POPUP_TAG_CONTACT_INCITE` or equivalent exists in
