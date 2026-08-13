@@ -117,32 +117,32 @@ def load_segment_list_v2(data, code_offset, relocations):
     return segs
 
 
-def find_data_segment(data, segs):
-    """Mirrors loadDataDetails(): V2's static/resident+data region is found
-    by scanning for the "MS Run-Time" signature, 8 bytes before it."""
-    marker = b"MS Run-Time"
-    idx = data.find(marker)
-    if idx == -1:
-        raise RuntimeError('Could not locate "MS Run-Time" signature for the data segment')
-    file_offset = idx - 8
+def find_data_segment(data, code_offset, segs):
+    """The static/resident region — code AND data both, no separate split in
+    the file — is simply everything between the MZ header's own codeOffset
+    and the first RTLink segment's header. Standard DOS relocatable-EXE
+    convention: this whole span is compiled assuming it's loaded at CS=0000
+    in its own frame (DOS relocates it as a unit at load time), so its
+    correct Ghidra base is runtime segment 0 — *not* derived from any
+    signature scan inside it.
 
-    # Mirrors loadDataDetails(): for V2 (segmentList[0] is executable), the
-    # resident/data region runs up to the first RTLink segment's header —
-    # i.e. up to the *smallest* headerOffset among the parsed overlay
-    # segments, not "rest of file".
+    (Earlier version of this function found only the narrow "MS Run-Time"
+    tail of this region — by scanning for that libc-startup-copyright
+    string — and used its position as the block's base (0x1b5a for
+    VICEROY.EXE). That value is real (it's where rtlink_decode's own
+    internal dataSeg.loadSegment lands, and matches the 10 far-pointer
+    fixups in docs/rtlink_decode_v2_gap.md), but it's an offset *within*
+    this larger region, not the region's own base — using it as the base
+    left ~112KB of the actual resident code unextracted, including the
+    RTLink thunk-stub table itself, which is why cross-overlay call targets
+    were landing on undefined memory. See the "overlay2.c mostly broken"
+    finding this was diagnosed from.)"""
     first_header_offset = min(s["headerOffset"] for s in segs)
-
-    # loadSegment for this synthetic segment isn't printed by rtlink_decode's
-    # listInfo, but IS used internally (see rtlink_decode_v2_gap.md — this is
-    # the segment carrying the 10 patched data-segment pointers, at DOS
-    # selector 0x1b5a for VICEROY.EXE specifically). Not needed for byte
-    # extraction; pass a companion `rtlink_decode VICEROY.EXE` info-mode run
-    # if you need it for a Ghidra base address on this one segment.
     return {
         "segmentIndex": 0,
-        "loadSegment": None,  # see docstring above
-        "codeOffset": file_offset,
-        "codeSize": first_header_offset - file_offset,
+        "loadSegment": 0,
+        "codeOffset": code_offset,
+        "codeSize": first_header_offset - code_offset,
         "isDataSegment": True,
     }
 
@@ -167,7 +167,7 @@ def main():
 
     relocations = parse_relocations(data, reloc_offset, num_relocations)
     segs = load_segment_list_v2(data, code_offset, relocations)
-    data_seg = find_data_segment(data, segs)
+    data_seg = find_data_segment(data, code_offset, segs)
 
     manifest = []
     for seg in segs:

@@ -185,13 +185,41 @@ Confirms the prediction above: real, worth keeping, does not clear the backlog.
    The script also sweep-disassembles every block (linear-descent: try
    `disassemble()` at every address not already covered by a real code unit —
    raw import has no entry point/symbols to seed analysis from otherwise) and
-   then runs full `analyzeAll()`. Verified end-to-end: 102s total, **531
-   functions / 119,478 instructions** found across the 31 overlay spaces,
-   decompiler runs on all of them. A handful of expected `pcode error at
-   ...: Could not follow disassembly flow into non-existing memory` decompiler
-   warnings show up where a jump/switch target lands in a *different* overlay
-   space — that's the genuine cross-overlay boundary the thunk table covers,
-   not a bug in this tooling.
+   then runs full `analyzeAll()`.
+
+   **Resident/data region correction:** the first version of this tool found
+   the static/resident region by scanning for the `"MS Run-Time"` libc
+   signature and importing only that narrow ~11KB tail, based at the DOS
+   selector (0x1b5a) where that tail happens to sit. That value is real (it's
+   `rtlink_decode`'s own internal `dataSeg.loadSegment`, and matches the 10
+   far-pointer fixups documented above) but it's an offset *within* the
+   larger static region, not that region's own base — using it as the base
+   left ~112KB of actual resident code (including the RTLink thunk-stub
+   table itself) unextracted. Symptom: exporting a single overlay to C (e.g.
+   `FUN_OVL02_L0000__000070`) showed dozens of `thunk_EXT_FUN_1000_*` /
+   `halt_baddata()` functions — every call from the overlay into the
+   resident portion landed on undefined memory. Fix: the static region is
+   simply everything between the MZ header's `codeOffset` and the first
+   overlay's header (~120KB), based at runtime segment **0** (standard DOS
+   relocatable-EXE convention — the whole span is compiled assuming CS=0000
+   in its own frame). Re-verified against the same function: all
+   `thunk_EXT_FUN_1000_*`/`halt_baddata` calls resolved to real, named,
+   decompiled functions (`FUN_1000_84f2()`, `FUN_1000_8628(...)`, etc).
+   Project-wide: resident space went from 0 functions found to 1,429;
+   totals **1,960 functions / 162,921 instructions**, **zero**
+   `halt_baddata` thunks anywhere (was 44 in that one function alone).
+
+   **Still present, correctly not "fixed"**: implicit-DS near-data refs like
+   `*(int *)0x5392` (paired with an `unaff_DS` decompiler local) are
+   unchanged — Ghidra can't statically resolve the DS register's runtime
+   value there. Same pre-existing limitation already documented for
+   `viceroy_unpacked.c`'s own `unaff_*` flood; not a memory-layout problem,
+   not something this tool fixes.
+
+   A handful of expected `pcode error at ...: Could not follow disassembly
+   flow into non-existing memory` decompiler warnings remain where a
+   jump/switch target lands in a *different* overlay space — that's the
+   genuine cross-overlay boundary the thunk table covers, not a bug here.
 
 4. **For any function actually needed next** (per the existing "check for `WARNING:`
    above the function before porting" rule in decomp_inventory.md): prefer Ghidra's
