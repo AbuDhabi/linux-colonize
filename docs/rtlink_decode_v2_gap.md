@@ -108,6 +108,24 @@ Do **not** apply the second relaxation (extending the `rtlinkVersion == VERSION1
 in the later pass to include `VERSION2`) — verified above to corrupt resident/startup
 code, not fix anything.
 
+## Measured after the patch (Ghidra re-export, `viceroy_unpacked_2.c`/`.asm`)
+
+- `WARNING:` count: **386 → 369** (-17, ~4%).
+- Function definitions: 1196 → 1187; 7 `FUN_*` symbols vanished entirely — a
+  7-function garbage chain at `FUN_1d1d_1d79`…`FUN_1d1d_1e3f` (all under 200 bytes
+  combined) collapsed away, most likely a jump-table region that was getting
+  mis-split into phantom functions before.
+- Of the 4 named trouble functions above: `FUN_4d56_417e`, `FUN_4d56_2820`, and
+  `FUN_521d_5b66` are **byte-for-byte unchanged**, warnings and all (expected —
+  none of them sit near one of the 10 patched pointers). `FUN_4d56_4528` lost
+  its warnings but now hits `Unable to decompile 'FUN_4d56_4528'` instead of
+  emitting garbage C with a warning — safer per this project's own rule
+  (confidently-wrong beats nothing), but still not usable C; still needs the
+  manual/dynamic route, see `indian_settlement_4528.md`.
+
+Confirms the prediction above: real, worth keeping, does not clear the backlog.
+369 warnings remain.
+
 ## Recommended path forward, ranked
 
 1. **Apply Patch 1, regenerate `VICEROY_OUT.EXE`, re-run the existing Ghidra
