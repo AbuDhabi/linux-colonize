@@ -154,6 +154,32 @@ Euro rivals and natives must stay coherent through mid-game. Shared surfaces
   (which defines both names as distinct types) reconciled first. `golden_ai_*`
   / `golden_ai_joint` stay green — no observed AI-turn shift in the covered
   goldens.
+- **Found, not yet fixed — `colonies_can_found` missing minimum-distance
+  gate:** root-caused the pre-existing `unit_ai_euro_expand`
+  `unit_construction_labor_stockade` failure (fails identically on `main`;
+  because `main()` returns on first failure, it and every later test in that
+  binary — including dock-hire and wagon coverage — currently don't execute
+  under `ctest`; a real gap worth a dedicated pass, separate from this fix).
+  Instrumented trace: an idle Pioneer sitting on its own colony (Stockade in
+  production, wants LABOR) was expected to stay, but instead walked one tile
+  off (`(4,4)→(4,3)`) and founded a **second** colony
+  there in the same act — `ai_euro_found_with_unit` → `colonies_can_found`
+  returned true at a tile immediately adjacent to an existing own colony.
+  `colonies_can_found` (`colony.c`) only rejects arctic/mountain terrain, an
+  already-occupied tile, or an Indian city tile — no distance-from-existing-
+  colony check at all, for AI **or** human founding. GAME.TXT `@TOONEAR`
+  ("This land is too near to {colony} for a new colony") proves DOS rejects
+  close founding; `Colonization.pdf` itself only says a colonist "can build a
+  colony anywhere except in a mountain square" (silent on the exact rule) and
+  `docs/fandom_col1994.md` doesn't cover it either — the real threshold isn't
+  decomp-verified from any source available so far (the DOS founding gate,
+  likely inside the map-key `Build Colony` dispatch `FUN_2b5a_3252` or a
+  callee, wasn't traced to a distance constant this pass). **Do not invent a
+  distance** — needs either a decomp trace to the real `@TOONEAR` gate or a
+  DOSBox repro against `VICEROY.EXE` before porting a threshold. Separately,
+  `ai_euro`'s "second-wave expand" found-tile picker also needs a same-nation
+  proximity check once the constant is known, so it doesn't offer adjacent
+  sites in the first place.
 
 ### 4 — Independence & endgame (Partial)
 
