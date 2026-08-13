@@ -129,20 +129,31 @@ Euro rivals and natives must stay coherent through mid-game. Shared surfaces
   [ai_transcription.md](ai_transcription.md)
 - Seed-100 / early fidelity debt (R0) only as it blocks mid-planner claims —
   [seed100_brave.md](seed100_brave.md)
-- **Found and partially fixed:** `units_display_name()` was missing a
+- **Found and fixed:** `units_display_name()` was missing a
   `Colonists`→`Free Colonist` branch (sibling to the existing `Pioneers`→
   Pioneer / `Soldiers`→Soldier branches) — fixed, see [assets.md](assets.md)
-  Units section. Still open: ~19 `units_find_type(units, "Free Colonist")`
-  exact-match call sites in `ai_euro.c` (`ai_euro_type_from_dock_name` "hire
-  specialist from Europe dock" ladder) and one in `founding_fathers.c` search
-  the type *catalog* (always `Colonists`, never a literal `Free Colonist`
-  row) and so silently never resolve against real `NAMES.TXT` — a likely-dead
-  AI subsystem in real gameplay. Renaming them to `"Colonists"` is mechanical
-  but (a) changes `unit_founding_fathers`' Las Casas convert-rename test,
-  which relies on a fixture defining *both* `Colonists` and `Free Colonist`
-  as distinct types (unlike real data — fixture needs reconciling first) and
-  (b) may shift `golden_ai_*` AI-turn outcomes once the dock-hire ladder
-  actually fires. Needs a deliberate pass, not a blind rename.
+  Units section. **Also fixed:** the ~18 `units_find_type(units, "Free
+  Colonist")` exact-match call sites in `ai_euro.c`
+  (`ai_euro_type_from_dock_name` "hire specialist from Europe dock" ladder +
+  the base colonist-hire fallback) searched the type *catalog* for names that
+  never exist in real `NAMES.TXT` (only `Colonists` does — specialists are
+  `Colonists` + a `@JOB` profession) and so silently never resolved — a dead
+  AI subsystem in real gameplay (confirmed: with a real-shaped 2-type pool,
+  `hire_ty` stayed `-1` through every arm and the caller returned without
+  hiring or spending gold). Each arm now tries real `"Colonists"` before the
+  legacy `"Free Colonist"` name, so existing fixtures (which define
+  `"Free Colonist"` as a distinct type, unlike real data) keep resolving via
+  the fallback while real `NAMES.TXT` games now actually hire — the spawned
+  unit's profession is copied from the dock slot regardless of which arm
+  matched (existing `ai_euro.c` logic), so `units_display_name()` still shows
+  the specialist name. Regression: `unit_dock_farmer_hire_real_names` in
+  `test_ai_euro_expand.c` (2-type pool, no `Free Colonist`/`Expert Farmer`
+  rows). `founding_fathers.c`'s Las Casas site already tried `"Colonists"` as
+  its second fallback (after `"Free Colonist"`) — left as-is; not dead against
+  real data, and reordering it would need its `unit_founding_fathers` fixture
+  (which defines both names as distinct types) reconciled first. `golden_ai_*`
+  / `golden_ai_joint` stay green — no observed AI-turn shift in the covered
+  goldens.
 
 ### 4 — Independence & endgame (Partial)
 
