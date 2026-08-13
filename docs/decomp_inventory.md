@@ -95,22 +95,76 @@ original doc-count filter). Re-disassembled all 13 via the overlay project:
 | `FUN_2b5a_2464` | **clean** — 454 bytes (canonical export never gave it a function boundary here; created one) |
 | `FUN_2b5a_3252` | **clean** — 343 bytes (same) |
 | `FUN_2f2b_51ec` / `628a` / `6372` | **clean** — 656 / 206 / 2166 bytes (same "before-first-function" gap in the canonical export; all three are real, separate functions once given correct boundaries) |
-| `FUN_6cb2_2322` | **own body clean** (346 bytes) — but its decompile pulls in (inlines) a genuinely corrupted resident callee, `FUN_0000_00c6` — 5 warnings there (overlap, bad-instruction, 3× unreachable block, type-propagation-not-settling), not yet fixed |
-| `FUN_4720_049e` | **own body clean** (232 bytes, confirms `save_format_map.md`/`move_enter.md`) — decompile likewise pulls in a corrupted resident callee, `FUN_0000_7e22` / `FUN_0000_035c` / `FUN_0000_fe5e` / `FUN_0000_0d04` family, not yet fixed |
-| `FUN_479b_00ca` | **own body clean** (141 bytes) — pulls in corrupted resident callee `FUN_0000_0512`, not yet fixed |
-| `FUN_75c2_2d46` | **own body clean** (947 bytes, confirms `save_format_map.md` boot-timer citation) — pulls in corrupted resident callee `FUN_0000_42cc`'s neighborhood (offset 0x4386), not yet fixed |
+| `FUN_6cb2_2322` | **own body clean** (346 bytes) — decompile-time inlining cited `FUN_0000_00c6` as corrupted; **corrected (task #14): false positive**, see below |
+| `FUN_4720_049e` | **own body clean** (232 bytes, confirms `save_format_map.md`/`move_enter.md`) — inlining cited `FUN_0000_7e22`/`035c`/`fe5e`/`0d04`; **corrected (task #14): all false positives except `fe5e`**, see below |
+| `FUN_479b_00ca` | **own body clean** (141 bytes) — inlining cited `FUN_0000_0512`; **corrected (task #14): false positive**, see below |
+| `FUN_75c2_2d46` | **own body clean** (947 bytes, confirms `save_format_map.md` boot-timer citation) — inlining cited `FUN_0000_42cc`'s neighborhood; **corrected (task #14): false positive** — offset 0x4386 is a real instruction inside `FUN_0000_42cc`'s own already-clean body (confirmed decompiling perfectly earlier this session), see below |
 | `FUN_684c_08c0` | **disassembly confirmed 100% clean** (6317 bytes, 3972 instructions, 0 gaps) — this is the **NEW WORLD map-generate entry** (`golden_mapgen_seed100`'s subject). Decompiler itself crashes (`Unable to resolve constructor` at 3 addresses, then a low-level RPC desync) — a real Ghidra bug, not corruption; existing Linux `map_generate` port already passes its golden so no urgent action, this just confirms it isn't standing on corrupted disassembly |
 | `FUN_15eb_1d4c` | **corrected 2026-08-13 (task #13) — earlier same-day entry was wrong, see below** — the 497-byte boundary is actually **correct**: raw disasm confirms `FUN_0000_7bfc` runs 0x7bfc-0x7e21 straight-line, ends in a real `LEAVE; RETF`, immediately followed by a separate clean function at 0x7e22. The "~19KB corrupted function" reading came from the *decompiler* chasing an indirect switch jump-table (cases 9-17, dispatch table at `ram:0x1f44`) whose data only partially resolves — some entries (0x74c0/0x9ad4/0xc483) plausibly land on real resident function starts, but case 10's entry (`0xbe03`) points **mid-instruction** inside an unrelated `CALLF` elsewhere, and case 11's (`0x1`) isn't a valid code address at all. That's a real, narrower anomaly (bad/unresolved jump-table data, not a giant corrupted function) — root cause of *those* two entries not chased further this pass. `building_production.md`'s formula-domain content (percentage-scaling read, `unit+0x1a` class byte vs. `DS:0x543f` stride-0x34 table) sits entirely inside the clean 497-byte straight-line body and is safe to treat as legitimate |
 
-**New corruption pocket found, not yet fixed**: resident functions
-`FUN_0000_00c6`, `FUN_0000_7e22`, `FUN_0000_035c`, `FUN_0000_0512`,
-`FUN_0000_fe5e`, `FUN_0000_0d04`, and the `FUN_0000_42cc` neighborhood —
-discovered because the decompiler inlines them while decompiling their
-(clean) callers above. Resident space never got the same warning-sweep
-treatment the overlay segments did this session (the original sweep was
-seeded from the canonical export's warning positions, which don't cover
-resident 1:1) — worth a dedicated resident-space sweep if anyone
-continues this thread.
+**Resident pocket (task #14), resolved 2026-08-13 — mostly false positives,
+same inlining-artifact lesson as `FUN_15eb_1d4c` (task #13).** Decompiled
+all 6 candidates *directly* (as their own top-level target, not as an
+inlined callee) to properly test them:
+
+| Function | Result |
+|----------|--------|
+| `FUN_0000_00c6` | **clean** — decompiles with zero warnings as its own target; the "5 warnings" were entirely an artifact of `FUN_6cb2_2322`'s decompile inlining it |
+| `FUN_0000_7e22` | **clean** — immediately follows `FUN_0000_7bfc` (`FUN_15eb_1d4c`)'s real end at 0x7e22, itself a normal 1149-byte function |
+| `FUN_0000_035c` | **clean** |
+| `FUN_0000_0512` | **clean** (tiny, 16 bytes) |
+| `FUN_0000_0d04` | **clean** |
+| `FUN_0000_42cc` | **clean** — already confirmed earlier this session (small function, calls `FUN_1000_8628` etc.); offset 0x4386 cited via `75c2_2d46`'s inlining is a real instruction inside this same already-clean body, not a separate issue |
+| `FUN_0000_fe5e` | **real pcode error, own body likely clean** — `Could not follow disassembly flow into non-existing memory at 1000:ff05` (Ghidra's segmented display for flat resident offset `0x1ff05`). That address sits ~3KB past our resident extraction's captured end (`0x1e26f`, from `codeOffset` to the first overlay header) — most likely an edge case in `tools/rtlink_overlay_extract.py`'s resident-span boundary (worth widening/re-checking if anyone resumes this), not confirmed as corruption in the game's own code. Not chased further |
+
+**Takeaway for future sweeps**: a decompile-time `WARNING:` or pcode error
+attributed to a function via *another* function's inlining is not
+evidence that function is corrupted — decompile it directly first. This
+pattern (not `FUN_15eb_1d4c`'s jump-table case) accounted for 5 of this
+pocket's 6 "corrupted" callees turning out clean.
+
+**Final catalog-only sweep, 2026-08-13 (task #15) — lead exhausted.**
+Pushed into the remaining 81 `FUNCTION_CATALOG.md`-only-cited names
+(the low-value tail deprioritized since the first sweep) to test rather
+than assume the lead was dry. Batch-decompiled all 81 directly
+(`tools/CatalogSweep.java`), then for every one that showed any
+`WARNING:` text, cross-checked whether the warning's cited address
+actually falls inside that function's own body vs. a callee it inlines
+(`tools/CatalogSweep2.java`, same fix as the resident-pocket lesson
+above):
+
+| Bucket | Count | Meaning |
+|--------|------:|---------|
+| `CLEAN` | 7 | zero warnings, own or inlined |
+| `INLINED_ARTIFACT_ONLY` | 32 | warning present but every cited address belongs to a *different*, already-clean callee — false positive |
+| `REAL_OWN_WARNING` | 17 | at least one warning genuinely inside the function's own body |
+| `WARNING_NO_ADDR` | 22 | warning text without a `(space,addr)` citation (spacebase-tracking / jumptable-recovery-limit / stack-pointer-set style messages) |
+| `DECOMPILE_FAILED` / `NO_FUNCTION` | 2 | infra edge cases, not corruption |
+
+**None of the 17 `REAL_OWN_WARNING` hits (clustered mostly in segments
+`210d`/`275d`, plus a few scattered `1b01`/`1d1d`) carry the severe
+signature** (`Instruction ... overlaps`, `Control flow encountered bad
+instruction data`, decompile timeout) **that every genuine corruption
+fix this session actually had.** Sampled warning text directly: all are
+`Removing unreachable block`, `Globals starting with '_' overlap smaller
+symbols`, or `Read-only address ... is written` — the same mild/cosmetic
+classes already established this session (`6d8e`/`0a60`/`5bfb_022e`/
+`2f2b_5e44`/`38fd_0058`/`5fef_1b0e`/etc.) as decompiler noise, not
+disassembly-fault corruption. Spot-checked the 22 `WARNING_NO_ADDR`
+entries too: all `Unable to track spacebase fully for stack`, `Could not
+recover jumptable ... too many branches`, or `Treating indirect jump as
+call` — decompiler-limitation classes (same family as the `684c_08c0`
+and `FUN_0000_fe5e` pcode issues), not corruption either.
+
+**Conclusion: the corruption-hunting lead from this whole thread is now
+genuinely exhausted.** Every function this session flagged by a real
+disassembly-fault warning and backed by actual documentation has been
+checked; every remaining catalog-only name has now been checked too;
+nothing left shows the severe signature that meant real corruption
+anywhere else. What's left in `viceroy_unpacked_2.c`'s ~2380 functions
+beyond this ~159-name warning-adjacent set was never warning-flagged in
+the first place — no further leads to chase without a new, different
+starting signal.
 
 Systematic cross-reference done 2026-08-13: extracted all ~78 function
 names Ghidra's warnings sit immediately above in `viceroy_unpacked_2.c`,
