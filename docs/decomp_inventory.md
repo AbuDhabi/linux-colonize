@@ -83,6 +83,35 @@ functions that were candidates for deep porting that day):
 | `FUN_521d_20e6` | ~~`Unable to decompile 'FUN_521d_20e6' — process: timeout`~~ **fixed 2026-08-13** — the central move-scoring formula (every `docs/seed100_brave.md` peel routes through this); never decompiled at all before, now clean in 27s, 2219 lines, zero warnings. Found a real missing branch while there — see `docs/seed100_brave.md` "Root cause candidate" |
 | `FUN_OVL12_L0000_0` (task #2, real `a6e4` target) | **root-caused 2026-08-13** — same decompiler pcode bug as `FUN_5fef_0000` above, not corruption. Hand-transcribed clean from raw disassembly (145 bytes, tribe search + no-match dialog fallback); see `euro_unit_act.md`. Not ported to Linux — needs unlabeled DS globals/callees named first, same gate as `FUN_4d56_417e` (task #5) |
 
+**Catalog-tail sweep, 2026-08-13** — the ~70 `FUNCTION_CATALOG.md`-only
+names from the "systematic cross-reference" note below turned out to include
+13 that are actually cited in real (non-catalog) docs too (a gap in the
+original doc-count filter). Re-disassembled all 13 via the overlay project:
+
+| Function | Result |
+|----------|--------|
+| `FUN_112b_01ba` | **clean** — 123 bytes, confirms `assets.md`/`unit_orders.md`/`manual_gap.md` unit-chrome citations |
+| `FUN_2b5a_0070` | **clean** — 1670 bytes, confirms `unit_orders.md` |
+| `FUN_2b5a_2464` | **clean** — 454 bytes (canonical export never gave it a function boundary here; created one) |
+| `FUN_2b5a_3252` | **clean** — 343 bytes (same) |
+| `FUN_2f2b_51ec` / `628a` / `6372` | **clean** — 656 / 206 / 2166 bytes (same "before-first-function" gap in the canonical export; all three are real, separate functions once given correct boundaries) |
+| `FUN_6cb2_2322` | **own body clean** (346 bytes) — but its decompile pulls in (inlines) a genuinely corrupted resident callee, `FUN_0000_00c6` — 5 warnings there (overlap, bad-instruction, 3× unreachable block, type-propagation-not-settling), not yet fixed |
+| `FUN_4720_049e` | **own body clean** (232 bytes, confirms `save_format_map.md`/`move_enter.md`) — decompile likewise pulls in a corrupted resident callee, `FUN_0000_7e22` / `FUN_0000_035c` / `FUN_0000_fe5e` / `FUN_0000_0d04` family, not yet fixed |
+| `FUN_479b_00ca` | **own body clean** (141 bytes) — pulls in corrupted resident callee `FUN_0000_0512`, not yet fixed |
+| `FUN_75c2_2d46` | **own body clean** (947 bytes, confirms `save_format_map.md` boot-timer citation) — pulls in corrupted resident callee `FUN_0000_42cc`'s neighborhood (offset 0x4386), not yet fixed |
+| `FUN_684c_08c0` | **disassembly confirmed 100% clean** (6317 bytes, 3972 instructions, 0 gaps) — this is the **NEW WORLD map-generate entry** (`golden_mapgen_seed100`'s subject). Decompiler itself crashes (`Unable to resolve constructor` at 3 addresses, then a low-level RPC desync) — a real Ghidra bug, not corruption; existing Linux `map_generate` port already passes its golden so no urgent action, this just confirms it isn't standing on corrupted disassembly |
+| `FUN_15eb_1d4c` | **real corruption found, not fixed** — the reported 497-byte function boundary is stale/wrong; the decompiler's own reachability walk shows the true function extends to ~0xc54e (~19KB) and hits a genuine `Instruction ... overlaps` warning near ram:0xbe05. Matches `building_production.md`'s existing "decomp is messy... provisional... not fully re-peeled" flags precisely — this is real, not doc pessimism. Needs a proper `4528`-style boundary/offset fix pass, not done this session |
+
+**New corruption pocket found, not yet fixed**: resident functions
+`FUN_0000_00c6`, `FUN_0000_7e22`, `FUN_0000_035c`, `FUN_0000_0512`,
+`FUN_0000_fe5e`, `FUN_0000_0d04`, and the `FUN_0000_42cc` neighborhood —
+discovered because the decompiler inlines them while decompiling their
+(clean) callers above. Resident space never got the same warning-sweep
+treatment the overlay segments did this session (the original sweep was
+seeded from the canonical export's warning positions, which don't cover
+resident 1:1) — worth a dedicated resident-space sweep if anyone
+continues this thread.
+
 Systematic cross-reference done 2026-08-13: extracted all ~78 function
 names Ghidra's warnings sit immediately above in `viceroy_unpacked_2.c`,
 matched against every doc under `original_sources_annotated/` +
