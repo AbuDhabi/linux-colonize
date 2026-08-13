@@ -125,18 +125,23 @@ price = max(price, 500)                                     // explicit floor
   menu of the other 3 Euro nations** (skipping `nation_A` and the
   crown/peer nation) and something selects one → `nation_B`. If
   AMERICA-scenario map, `nation_B` is just fixed to the crown/peer
-  nation, no menu. Then: diplomacy-flags gate vs `nation_B`
-  (`FUN_1000_8c28 & 0x20`) — fail → one informational message
-  (string `0x16b7`), stop, no charge. Pass → show a **confirm dialog**
-  (string `0x16c1`); decline → stop. Then affordability check
-  (`nation_A.gold >= price`, plain 32-bit compare — not a separate
-  threshold table, just re-reading current gold) — fail → different
-  informational message (`0x16d0`). Pass → step 3.
-- **Mode 2** (`param_3>=4` or the flag byte is set — reads as an
-  AI-nation-only / no-menu path): `nation_B` fixed to **FOCUS_NATION**.
-  Diplomacy-flags gate vs `nation_B`, then a plain relation-score gate
-  (`>= 0x4b`/74), then the same affordability check. No menu, no confirm
-  dialog — straight through on pass.
+  nation, no menu. Then: diplomacy-flags gate — **`FUN_1000_8c28(dialog,
+  param_4, nation_B)`, correction 2026-08-13: this is `param_4` paired
+  against `nation_B`, not `nation_A`** (verified against both call sites
+  in the raw decompile; earlier draft of this doc mis-stated it) — fail →
+  one informational message (string `0x16b7`), stop, no charge. Pass →
+  show a **confirm dialog** (string `0x16c1`); decline → stop. Then
+  affordability check (`nation_A.gold >= price`, plain 32-bit compare —
+  not a separate threshold table, just re-reading current gold) — fail →
+  different informational message (`0x16d0`). Pass → step 3.
+- **Mode 2** (`param_3>=4` or the flag byte is set): `nation_B` fixed to
+  **FOCUS_NATION**. Same `FUN_1000_8c28(dialog, param_4, nation_B)`
+  diplomacy gate, then a plain relation-score gate (`>= 0x4b`/74), then
+  the same affordability check against `nation[param_3]`. No menu, no
+  confirm dialog — straight through on pass. **Live-captured 2026-08-13
+  (see "Live debugger capture" below): confirms `param_4` pairs with a
+  nation argument, not a flat "type" — strengthens the "`param_4` = the
+  acting tribe's own identity" reading over "a skill/good type".**
 
 **3. Execute (both modes converge here):** CHOICE dialog, string id
 `0x16e9` — almost certainly `@INDIANWARPATH2` ("We will gladly drive the
@@ -184,11 +189,63 @@ this further.
   sophistication class) — need a live memory dump, not just static
   disassembly.
 - `param_4`'s precise role — best guess above (tribe's own class, for
-  the same-class discount), not confirmed against the dialog text.
-- The caller — still not found (3 independent static methods tried, see
-  above); would confirm exact trigger conditions and `param_1`.
+  the same-class discount and the diplomacy check), not confirmed
+  against the dialog text.
+- The caller — still not found via static methods (see below); a live
+  capture traced it to RTLink's own generic overlay-call trampoline
+  (infrastructure, not game logic), so the real trigger context is
+  still open.
 - Whether the `+100` relation push is toward war/alarm specifically vs.
   some other effect — not traced past the call site.
+
+## Live debugger capture (2026-08-13)
+
+User ran a patched `VR417E.EXE` (`EB FE` self-loop trap at the entry,
+same technique as the `VR4528.EXE` control build) under DOSBox-X's live
+debugger and got a genuine hit — `CS:IP = E2AF:417E` exactly. Recovered
+the stack (`SS:SP = 237D:E75E`) via a second debugger text capture and
+decoded the pushed args by hand (right-to-left push order):
+
+```
+param_1 = 0x26 (38)      -- unused inside the function body; role still unknown
+param_2 = 0x00 (0)       -- unit index 0
+param_3 = 0x0B (11)      -- an Indian-nation id (4-11 range), not Euro (0-3)
+param_4 = 0x0F (15)      -- still uncertain, see above
+return CS:IP = 1930:1554
+```
+
+**`param_3=11` forces Mode 2** (`param_3>=4`) — this capture is the
+"no-menu, no-confirm-dialog" branch, not the human/menu-driven Mode 1.
+
+**Checked `nation[11]`'s stored value directly** (computed address
+`DS:0x95C6`/`0x95C8` from the live `DS=237D`, per `param_3*0x13c-0x77ce`/
+`-0x77cc`): **exactly `0x00000000`.** Since price floors at 500 and the
+very next check is `if (stored_value < price) return;`, this specific
+call was about to fail the affordability gate and bail out silently —
+no dialog, no debit, nothing observable. This is a clean, direct
+explanation for "Indian nations don't appear to have a fixed gold
+reserve" (user's observation) as a **mechanical consequence**, not a
+coincidence: whatever this shared code path does for a nation whose
+`nation[]` slot is always zero, it can never actually spend anything.
+Refines rather than fully replaces the "Mode 2 = AI-Euro-nation
+shortcut" reading — the `OR flag byte set` half of Mode 2's gate still
+covers a genuine Euro-nation (0-3) case with a real, nonzero gold value;
+this capture just happened to land on the Indian-index case instead,
+which structurally always no-ops.
+
+**Chased the caller.** Found the exact `CALLF 0000:0000` (unpatched
+RTLink placeholder, same class as `a6e4`/`4528`'s case-thunks) in
+resident memory at `ram:0x1261f`, identified via a distinctive
+`"<Return Vector>"` debug string sitting next to it in the static
+`resident.bin` (cross-referenced live memory bytes against the
+extracted per-segment `.bin` files rather than trying to decode
+DOSBox-X's `.sav` `CPU` component, which turned out to not be a simple
+flat physical dump). Disassembled the surrounding code: heavy
+register-save / stack-segment-switch pattern — this is **RTLink's own
+generic overlay-call trampoline**, not game-specific logic. Every
+overlay call in the game likely funnels through this exact spot, so
+finding it doesn't pin the gameplay trigger the way a real caller would
+have. Caller identity for a *specific* trigger context remains open.
 
 **Not yet wired into Linux.** This is a real, currently-**absent**
 feature (no `AI_POPUP_TAG_CONTACT_INCITE` or equivalent exists in
