@@ -76,6 +76,13 @@ Worth a systematic pass before the next deep-porting attempt on any large
 body — a 30-second grep above a target function's declaration is much
 cheaper than discovering the corruption mid-port.
 
+**Root-cause dig on the flattening step itself** (does `rtlink_decode`'s V2 output
+feed Ghidra bad bytes?): [rtlink_decode_v2_gap.md](rtlink_decode_v2_gap.md). Short
+answer: found and verified a real V2 relocation gap in the tool (10 stale
+data-segment pointers, safely fixable — patch included), but it's too small in
+scope to be the primary driver of the 386 warnings; the doc lays out the
+follow-up plan (dynamic ground-truth via DOSBox-X, Ghidra overlay-block import).
+
 ## DOS/Hardware-Coupled Surfaces
 
 Observed direct I/O and hardware assumptions in the decomp exports:
