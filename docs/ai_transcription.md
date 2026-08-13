@@ -200,7 +200,7 @@ AI = `1816` + unit-act thunk + those large bodies + `@RAID*` data.
 | `FUN_521d_0000`…`0906` | small | Goal-table ops + founding helpers | `ai_goals.c` | **partial** (T0 ported) |
 | `FUN_521d_0a60` | ~858 | Unit / colony goal writer | `ai_euro_colony_goals` | **partial** (T0 A–H condensed) |
 | `FUN_521d_20c6` | nested | Near helper before scoring | scoring step | **partial** (T0) |
-| `FUN_521d_20e6` | ~2180 | Direction / move scoring (all unit kinds) | quiet + `ai_euro_score_step` | **partial** (T0 Euro/ocean; T2 quiet) |
+| `FUN_521d_20e6` | ~2180 | Direction / move scoring (all unit kinds) | quiet + `ai_euro_score_step` | **partial** (T0 Euro/ocean; T2 quiet incl. RNG(1,5) seen-branch, phase 18) |
 | `FUN_521d_5b66` | ~1815 | Euro **per-unit act** (separate far; often → `20e6`) | `ai_euro_unit_act` | **partial** (T0) |
 | `FUN_521d_5c38` / `5c3c` / `5cf6` | small | Thin helpers before `5d04` | hire in planning | **partial** (T0) |
 | `FUN_521d_5d04` | ~748 | Nation planning / hire / treasury (6d8e via `0554`) | `ai_euro_nation_planning` | **partial** (T0) |
@@ -344,7 +344,16 @@ leftover FF KINGGALLEON2, deep `20e6`).
   this pass. Score dumps show annotated quiet terms still miss all 13 init golden
   dirs at matched LCG — peels kept (`AI_NO_BRAVE_PEELS=1` to measure). Empiricism
   mid-turn overlays retained under `AI_EMPIRICISM=1` / `AI_QUIET_ASM=0`. Complete
-  Map irrelevant.
+  Map irrelevant. **Phase 18 (2026-08-13):** `FUN_521d_20e6` re-disassembled
+  clean via the overlay project (was never decompiling before —
+  `docs/seed100_brave.md` "Root cause candidate"); found and implemented the
+  previously-100%-unported **RNG(1,5) "seen by Euro nation" branch**
+  (`ai_native_pick_dir_asm` in `ai.c`; gate `FUN_1000_89d0`/`88cc`, term
+  `map_dos_terr_found_score_byte`). Verified stash-based before/after: both
+  `AI_NO_BRAVE_PEELS=1` counts (13 init, 18 mid missing-unit lines) are
+  **unchanged** — turn-0/1 Braves are all genuinely unseen, so this doesn't
+  touch either golden's window. All 126 peels kept; branch is live in the
+  default path for when later-turn visibility-flip goldens exist.
 - **Euro early path (full dispatcher, 2026-08-10):** Default is
   `ai_euro_dispatcher_turn` (opt into retired fixture with
   `AI_EURO_EARLY_FIXTURE=1`). **TURN1→2 green:** `FUN_48d3_048e` place near
