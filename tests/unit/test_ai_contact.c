@@ -2885,6 +2885,99 @@ int main(void) {
   }
 
   /*
+   * @BURNED3 bystander: an AI-owned colony (nation 1) burns/abandons while
+   * the human (nation 0) is neither victim nor burner — "Spies report: …"
+   * OK instead of silence. Cite: GAME.TXT @BURNED3.
+   */
+  {
+    for (int i = 0; i < 256; ++i) {
+      map.terrain[i] = 1;
+    }
+    euro->x = 12;
+    euro->y = 12;
+    euro->active = true;
+    brave->x = 5;
+    brave->y = 5;
+    brave->moves_left = 3;
+    brave->nation_id = 4;
+    brave->active = true;
+    col1.tribe[0].nation_id = 4;
+    col1.tribe[0].mission = 0xff;
+    for (int e = 0; e < 4; ++e) {
+      ind->alarm_by_player[e] = 0;
+      col1.tribe[0].alarm[e].friction = 0;
+      col1.tribe[0].alarm[e].attacks = 0;
+      col1.nation[e].relation_by_indian[0] = 100; /* peaceful baseline */
+      col1.nation[e].gold = 0;
+    }
+    ind->alarm_by_player[1] = 75; /* ≥70 abandon gate targets nation 1 */
+    col1.tribe[0].alarm[1].friction = 75;
+    col1.nation[1].relation_by_indian[0] = 40;
+    col1.head.founding_father[FF_POCAHONTAS] = -1;
+    ColonizeColony* c_fbrn = &colonies.colonies[0];
+    memset(c_fbrn, 0, sizeof(*c_fbrn));
+    c_fbrn->active = true;
+    c_fbrn->nation_id = 1; /* AI-owned — not the human */
+    c_fbrn->x = 5;
+    c_fbrn->y = 5;
+    c_fbrn->population = 1; /* abandon gate */
+    c_fbrn->colonist_count = 1;
+    c_fbrn->building_in_production = -1;
+    snprintf(c_fbrn->name, sizeof(c_fbrn->name), "Jamestown");
+    memset(c_fbrn->stock, 0, sizeof(c_fbrn->stock));
+    c_fbrn->stock[COLONIZE_CARGO_LUMBER] = 6; /* forces BURN kind */
+    colonies.colony_count = 1;
+    status[0] = '\0';
+    ctx.status = status;
+    ctx.status_size = sizeof(status);
+    ctx.human_nation = 0;
+    AiPopupState pop_fbrn;
+    ai_popup_init(&pop_fbrn);
+    ctx.ai_popups = &pop_fbrn;
+    ColonizeMsgCatalog game_txt_fbrn;
+    assets_msg_init(&game_txt_fbrn);
+    if (!assets_msg_load_file(&game_txt_fbrn, "COLONIZE/GAME.TXT")) {
+      return fail("bystander burn: GAME.TXT load failed");
+    }
+    units_set_combat_human_nation(0);
+    units_set_combat_popups(&pop_fbrn, &game_txt_fbrn);
+    ai_contact_indian_raids(&ctx, 4);
+    units_set_combat_popups(NULL, NULL);
+    units_set_combat_human_nation(-1);
+    ctx.ai_popups = NULL;
+    assets_msg_free(&game_txt_fbrn);
+    if (ai_contact_last_raid_kind() != AI_RAID_BURN) {
+      fprintf(stderr, "unit_ai_contact: bystander burn kind=%d\n",
+              ai_contact_last_raid_kind());
+      return fail("bystander lumber-only colony at alarm≥70 should pick AI_RAID_BURN");
+    }
+    if (status[0] != '\0') {
+      return fail("bystander raid must not write human status (not a party)");
+    }
+    int found_burned3 = 0;
+    for (int qi = 0; qi < pop_fbrn.queue_count; ++qi) {
+      if (pop_fbrn.queue[qi].kind == AI_POPUP_KIND_OK &&
+          strstr(pop_fbrn.queue[qi].body, "Spies report") != NULL &&
+          strstr(pop_fbrn.queue[qi].body, "Jamestown") != NULL) {
+        found_burned3 = 1;
+      }
+    }
+    if (!found_burned3) {
+      fprintf(stderr, "unit_ai_contact: bystander popup queue_count=%d\n",
+              pop_fbrn.queue_count);
+      for (int qi = 0; qi < pop_fbrn.queue_count; ++qi) {
+        fprintf(stderr, "  [%d] '%s'\n", qi, pop_fbrn.queue[qi].body);
+      }
+      return fail("bystander colony burn should enqueue @BURNED3 spy-report OK");
+    }
+    /* Restore neutral baseline for nation 1 so later blocks (which only
+     * touch nation 0) are not hijacked by this block's higher alarm. */
+    ind->alarm_by_player[1] = 0;
+    col1.tribe[0].alarm[1].friction = 0;
+    col1.nation[1].relation_by_indian[0] = 0;
+  }
+
+  /*
    * @RAIDBURN empty warehouse → colonies_destroy_building (non-Town-Hall).
    * Cite: colonies_destroy_building; indian_raid_outcomes.md @RAIDBURN.
    */

@@ -1280,12 +1280,28 @@ int europe_cash_treasure(EuropeScreen* eu, int treasure_value) {
   }
   const int credited = (treasure_value * (100 - tax)) / 100;
   eu->gold += credited;
+  /*
+   * GAME.TXT @LOOTCASH: "{%STRING0} treasure fleet laden with {%NUMBER0$}
+   * arrives safely in %STRING1! Crown takes {%NUMBER1%%} share. {%NUMBER2$}
+   * added to %STRING0 treasury." No ColonizeMsgCatalog reachable from this
+   * call depth (europe.c has no catalog handle); wording matches the real
+   * section verbatim rather than an invented "Treasure cash-in" stub.
+   */
+  const char* nation = eu->nation_name[0] ? eu->nation_name : "Our";
+  const char* port = eu->port_city[0] ? eu->port_city : "Europe";
+  /* %.16s bounds nation/port so the worst case (both fields maxed, nation
+   * used twice) always fits eu->status[160] — silences -Wformat-truncation. */
   snprintf(
     eu->status,
     sizeof(eu->status),
-    "Treasure cash-in +%d$ (Crown %d%%).",
+    "%.16s treasure fleet laden with %d$ arrives safely in %.16s! Crown takes %d%% share. "
+    "%d$ added to %.16s treasury.",
+    nation,
+    treasure_value,
+    port,
+    tax,
     credited,
-    tax
+    nation
   );
   return credited;
 }

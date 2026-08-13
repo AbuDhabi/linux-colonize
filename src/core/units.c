@@ -1332,6 +1332,37 @@ void units_combat_notify_colony_burned(
   );
 }
 
+void units_combat_notify_colony_burned_foreign(
+  const ColonizeCol1Save* col1,
+  const char* colony_name,
+  int victim_nation,
+  const char* burner_label
+) {
+  if (!colony_name || !colony_name[0]) {
+    return;
+  }
+  /* Bystander only: a human nation exists and it is not the victim. The
+   * victim already gets @BURNED (units_combat_notify_colony_burned); the
+   * burner here is always a native tribe (id ≥4), never a euro nation. */
+  if (g_units_combat_human_nation < 0 || g_units_combat_human_nation == victim_nation) {
+    return;
+  }
+  PopupMsgTokens tok;
+  memset(&tok, 0, sizeof(tok));
+  tok.string0 = burner_label && burner_label[0] ? burner_label : "Enemies";
+  tok.string1 = units_combat_nation_label(col1, victim_nation);
+  tok.string3 = colony_name;
+  units_combat_enqueue_tok(
+    AI_POPUP_TAG_INFO,
+    "BURNED3",
+    g_units_combat_human_nation,
+    victim_nation,
+    0,
+    &tok,
+    "Spies report: %STRING0 burn %STRING1 colony at %STRING3."
+  );
+}
+
 /*
  * PEDIA George Washington: non-veteran soldier/dragoon who wins combat is
  * automatically upgraded. Name-based type swap (1eca-style) + profession bit
@@ -5920,6 +5951,9 @@ const char* units_display_name(const ColonizeUnitPool* pool, const ColonizeUnit*
   }
   if (ut && strcmp(ut->name, "Soldiers") == 0) {
     return "Soldier";
+  }
+  if (ut && strcmp(ut->name, "Colonists") == 0) {
+    return "Free Colonist";
   }
   return ut ? ut->name : "Unit";
 }

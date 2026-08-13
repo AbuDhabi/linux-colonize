@@ -1938,12 +1938,20 @@ void ai_diplo_euro_balance(ColonizeTurnContext* ctx, int nation_id) {
           if (!ai_diplo_popup_pair_queued(
                 ctx->ai_popups, AI_POPUP_TAG_DIPLO_WAR, nation_id, peer
               )) {
+            /*
+             * @CANCELPEACE ("{%STRING0} cancel peace treaty with {%STRING1}.")
+             * — authentic prompt for the AI-initiated war CHOICE; Accept lets
+             * the declaration stand (declare_war_ctx), Refuse averts it.
+             */
             char body[AI_POPUP_BODY_LEN];
-            snprintf(
-              body,
-              sizeof(body),
-              "%s declares war!",
-              ai_diplo_rival_name(ctx->col1, nation_id)
+            PopupMsgTokens tok;
+            memset(&tok, 0, sizeof(tok));
+            tok.string0 = ai_diplo_rival_name(ctx->col1, nation_id);
+            tok.string1 = ai_diplo_rival_name(ctx->col1, peer);
+            popup_msg_fill(
+              ctx->messages, "CANCELPEACE", &tok,
+              "%STRING0 cancel peace treaty with %STRING1.",
+              body, sizeof(body)
             );
             if (ctx->status && ctx->status_size > 0) {
               snprintf(ctx->status, ctx->status_size, "%s", body);

@@ -665,10 +665,64 @@ static int unit_pioneer_order_gates(void) {
   return 0;
 }
 
+/*
+ * units_display_name: real NAMES.TXT @UNIT base type names are plural
+ * catalog labels ("Colonists", "Pioneers", "Soldiers", …), not display
+ * strings. "Colonists" + no equipment/profession must resolve to the
+ * canonical "Free Colonist" name — mirrors the existing "Pioneers"→
+ * "Pioneer" / "Soldiers"→"Soldier" branches. Without this, every strstr(
+ * units_display_name(...), "Free Colonist") gate across the codebase
+ * (ai_contact teach-skill, ai_euro LABOR/founding-site checks, …) silently
+ * never matches an ordinary base colonist in real gameplay.
+ */
+static int unit_display_name_free_colonist(void) {
+  ColonizeMsgCatalog names;
+  assets_msg_init(&names);
+  if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT")) {
+    fprintf(stderr, "display_name: NAMES.TXT load failed\n");
+    return 1;
+  }
+  ColonizeUnitPool pool;
+  memset(&pool, 0, sizeof(pool));
+  if (!units_load_types(&pool, &names)) {
+    fprintf(stderr, "display_name: units_load_types failed\n");
+    assets_msg_free(&names);
+    return 1;
+  }
+  const int colonist_ty = units_find_type(&pool, "Colonists");
+  if (colonist_ty < 0) {
+    fprintf(stderr, "display_name: no Colonists type\n");
+    assets_msg_free(&names);
+    return 1;
+  }
+  const int uid = units_spawn_allow_stack(&pool, colonist_ty, 1, 1);
+  ColonizeUnit* u = units_get(&pool, uid);
+  if (!u) {
+    fprintf(stderr, "display_name: spawn failed\n");
+    assets_msg_free(&names);
+    return 1;
+  }
+  u->profession = UNITS_JOB_NONE;
+  const char* name = units_display_name(&pool, u);
+  if (!name || strcmp(name, "Free Colonist") != 0) {
+    fprintf(stderr, "display_name: base Colonists got '%s' want 'Free Colonist'\n",
+            name ? name : "(null)");
+    assets_msg_free(&names);
+    return 1;
+  }
+  assets_msg_free(&names);
+  fprintf(stderr, "unit_units: display_name Colonists->Free Colonist ok\n");
+  return 0;
+}
+
 int main(void) {
   diag_init(0, NULL);
 
   if (unit_clearcut_lumber() != 0) {
+    diag_shutdown();
+    return 1;
+  }
+  if (unit_display_name_free_colonist() != 0) {
     diag_shutdown();
     return 1;
   }

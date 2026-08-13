@@ -396,7 +396,7 @@ work.
 | `@LOSTCITY8` | Done thin | Trespassing near shrines — native relation malus, no combat |
 | `@LOSTCITY9` | Done thin | Survivors of a former colony join (free Colonist spawns) |
 | `@SNEAK` | Partial | FA / diplo lines — thin DIPLO_FA or status; full 3f41 PARKED |
-| `@CANCELPEACE` | Done | DIPLO_* CHOICE structural |
+| `@CANCELPEACE` | Done | DIPLO_* CHOICE structural; 10ec AI→human war-declare CHOICE prompt body now the real GAME.TXT line via `popup_msg_fill` |
 | `@SIGNTREATY` | Done | DIPLO_* CHOICE structural; peace-concluded OK popup body now the real GAME.TXT line via `popup_msg_fill` (Tools-embargo-lift chrome may override) |
 | `@DECLAREWAR` | Done | DIPLO_* CHOICE structural; war-declared OK popup body now the real GAME.TXT line via `popup_msg_fill` (boycott/hostility chrome may override) |
 | `@HAVETREATY` | Partial | FA / diplo lines — thin DIPLO_FA or status; full 3f41 PARKED |
@@ -437,8 +437,8 @@ work.
 | `@NOLOOT` | Partial | alias unused; village burn uses `@LOOT2` |
 | `@LOOT` | Done | Cortes/conquest treasure fallout |
 | `@LOOT2` | Done | village burn without treasure |
-| `@LOOTCASH` | Partial | Europe treasure fleet (not combat); combat uses `@LOOTCAPTURE` ransom |
-| `@LOOTFOREIGN` | Missing | combat/loot modals missing (effects may apply silently) |
+| `@LOOTCASH` | Done thin | `europe_cash_treasure` status now the real GAME.TXT line (was invented "Treasure cash-in +$"); not combat — combat uses `@LOOTCAPTURE` ransom |
+| `@LOOTFOREIGN` | Missing | Bystander spy-report sibling of `@LOOTCASH` (mirrors `@BURNED3`); not wired — `ai_euro_cash_one_treasure` reuses one shared `EuropeScreen` scratch struct per nation and it is unclear whether/when it runs for AI (non-human) nations, so gating "human is not the cashing nation" needs that traced first |
 | `@LOOTCAPTURE` | Done | treasure ransom Accept/Refuse + OK path |
 | `@WAGONCAPTURE` | Done | wagon nation-flip capture |
 | `@COLONISTCAPTURE` | Done | Euro winner captures Colonists only (not Pioneer) |
@@ -477,8 +477,8 @@ work.
 | `@CAPTURED2` | Done | spies report (AI capturer) |
 | `@CAPTURED3` | Done | conquest without plunder amount |
 | `@BURNED` | Done | Indian raid abandon burn → `units_combat_notify_colony_burned` |
-| `@BURNED2` | Missing | combat/loot modals missing (effects may apply silently) |
-| `@BURNED3` | Missing | combat/loot modals missing (effects may apply silently) |
+| `@BURNED2` | Missing | Ambiguous vs `@BURNED3` (no distinct trigger identified); left unwired |
+| `@BURNED3` | Done thin | Human-bystander "Spies report: …" via `units_combat_notify_colony_burned_foreign`, when the burned colony's nation is neither the human nor the raider |
 | `@EUROPEWIN` | Done | `{atk_nation} defeat {def_nation def_unit} near {place}!` |
 | `@EUROPELOSE` | Done | `{def_nation def_unit} defeat(s) {atk_nation} near {place}!` |
 | `@WAREHOUSEFULL` | Done thin | ship→colony unload when no room; spoilage remains `@SPOIL*` |
