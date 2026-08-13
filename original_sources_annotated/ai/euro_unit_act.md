@@ -68,17 +68,33 @@ Followed the lead one hop further: `FUN_OVL14_L0000__007308` (the
 unconditional call before the switch) turned out to be a bare
 `JMPF 0x1000:a6e4` — one entry in this overlay's own local thunk table
 (same mechanism as the `thunk_FUN_1000_*` stubs elsewhere, just not
-auto-recognized as a named `Thunk` function by Ghidra's analyzer here). Its
-real target, `FUN_1000_a6e4` in the resident space, does **not** exist as a
-function yet in the `OverlayTest` project — nobody's created it there. That
-address (resident `ram:0x1a6e4`, i.e. display form `1000:a6e4`) is the next
-concrete lead for whoever picks this up: create the function there the same
-way `4528`/`2820`/`417e`/`5b66` were recovered, decompile, and check whether
-its shape matches the phase table below (cases 7/8/9/0xb switch content,
-Europe hire, ship/land act). The case-7/8/9/0xb *dispatch targets*
-(`FUN_1000_93ea`, `func_0x000193b2`, `FUN_1000_9406`, `FUN_1000_96aa`) are
-other candidates worth the same check if `a6e4` doesn't pan out. Given
-`4528` and `2820` both turned out to have their "extra" content be either
+auto-recognized as a named `Thunk` function by Ghidra's analyzer here).
+
+**Update, same day, one hop further still — `a6e4` is not a function, it's
+data.** `createFunction` at `ram:0x1a6e4` fails, and inspecting the raw
+disassembly there shows a suspiciously regular 12-byte repeating pattern
+(`OR AX,imm16` / `JMPF seg:off` / `OR AX,imm16` / `STOSW`) rather than
+plausible function prologues — a classic sign of code-as-data
+misinterpretation, not real instructions. **But the `JMPF` targets embedded
+in that pattern are real and meaningful**: `0000:20e6` (move-scoring,
+`FUN_521d_20e6`), `0000:5c3c` (the "Europe hire" address this very doc's
+phase table cites for case 7), `0000:0a60` (one of the two goal functions
+this doc's intro cites: "Goals are `0a60`/`5d04`"), plus `0072`, `00a8`,
+`02be`, `5cf6`, `052c` not yet identified. This strongly reads as a genuine
+**dispatch/jump table** — an array of far-pointer entries routing some
+index (unit goal? action code?) to real handler functions — being
+misdecoded as bogus instructions because nothing marks it as data. That
+table, properly extracted, would be a ground-truth map of goal→handler
+wiring instead of the manually-inferred version this doc currently has.
+Worth a dedicated extraction pass (mark it as data in Ghidra, read the raw
+4-byte-or-so far-pointer entries directly) rather than more `createFunction`
+attempts at individual addresses inside it — **not done here**, flagging
+for whoever picks this up next.
+
+The case-7/8/9/0xb *dispatch targets* (`FUN_1000_93ea`, `func_0x000193b2`,
+`FUN_1000_9406`, `FUN_1000_96aa`) are still-uninvestigated candidates in
+their own right, independent of the `a6e4` table finding. Given `4528` and
+`2820` both turned out to have their "extra" content be either
 foreign-segment garbage or (for `2820`) misidentified internal labels,
 don't assume the phase content below is accurate as attributed until one of
 these is actually checked.
