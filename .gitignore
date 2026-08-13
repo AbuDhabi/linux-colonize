@@ -13,3 +13,5 @@ dosbox-x-dumps/**/
 *.pyc
 tools/brave_dump/shots
 **/__pycache__/**
+.claude/**
+CLAUDE.md
