@@ -4,6 +4,37 @@ Layer D hygiene for meet/trade/raid attachment. Quiet Brave pulse remains
 [`indian_nation_turn.c`](indian_nation_turn.c) (`1816` → `14fe`). Raid **outcome**
 arms: [`indian_raid_outcomes.md`](indian_raid_outcomes.md).
 
+**Disassembly verified clean (2026-08-13).** `FUN_4d56_1816` carried 4
+Ghidra `Removing unreachable block` warnings in the canonical export (see
+`docs/decomp_inventory.md`) — same defect class as `2820`/`4528`/`417e`/
+`5b66`/`5fef_0f14`. Re-disassembled via the overlay-addressing project
+(`tools/address_mapping.csv` → `OVL13_L0000:1816`): clean, self-contained,
+799 bytes, ends in a real return; 4 unrelated minor unreachable-block
+warnings remain (ordinary decompiler noise at different addresses, not the
+corruption class). **Confirms items 3-4 above precisely** (the alarm-
+prelude gate, RNG rolls, and the difficulty-seeded musket/horse throttle
+init at `indian_state+7/+8/+10` traced in `indian_trade_2820.md`'s "AI
+buy-offer price formula" section — same code, read twice from two
+different angles, matches exactly).
+
+**Flagging, not correcting, item 5:** the clean recovery's tribe loop
+(`for tribe in tribes: if tribe.nation == active_nation: call
+thunk_FUN_1000_a5d0(...)`) — the call this doc's item 5 attributes to
+`41f2_0280`/`152e` (village growth) — resolves, via the same
+`rtlink_decode` jump-table technique used to unravel `4528`'s case
+dispatch, to the *same shared trivial utility* (`OVL11_L0000:0`, a
+21-byte `c==6?5:c` clamp) that a half-dozen unrelated call sites across
+this session's investigation all route through (see
+`euro_unit_act.md`'s method note). That's not growth logic. Either the
+real `152e` growth call happens via a different step not captured in this
+one 799-byte body, or item 5's existing DOS citation needs re-checking —
+didn't chase further this pass. Similarly the unit-act loop's
+`thunk_FUN_1000_a5ac` call (item 7-8 territory) resolves to the same
+utility, not a per-unit action dispatch — consistent with this doc's own
+existing note that the real per-unit act is a separate mechanism
+(`func_0x00042191` / `indian_unit_act`, decomp_inventory.md), not inline
+in `1816`.
+
 Linux: [`src/core/ai_contact.c`](../../src/core/ai_contact.c) +
 `ai_indian_nation_turn` in [`ai.c`](../../src/core/ai.c). **Partial structural
 port** — odd deviations OK; not T3.
