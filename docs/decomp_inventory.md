@@ -75,6 +75,11 @@ functions that were candidates for deep porting that day):
 | `FUN_521d_6d8e` | ~~`Removing unreachable block (ram,0x00059313)`~~ **fixed 2026-08-13** — clean 1333-byte recovery, closely matches `euro_dispatcher.c`'s existing line-range and thunk-wiring docs (unlike `4528`/`5b66`, wasn't severely desynced) |
 | `FUN_521d_0a60` | ~~`Removing unreachable block (ram,0x00053911)`~~ **fixed 2026-08-13** — clean 5700-byte recovery, 853 lines vs. `euro_dispatcher.c`'s existing ~858-line estimate — confirmation, not correction |
 | `FUN_5bfb_022e` | ~~`Removing unreachable block (ram,0x0005c64f)`~~ **fixed 2026-08-13** — clean 3565-byte recovery, self-contained, confirms `indian_contact.md`'s meet/trade checklist as trustworthy |
+| `FUN_2f2b_5e44` | ~~`Removing unreachable block`~~ **fixed 2026-08-13** — clean 386-byte recovery; see `euro_unit_act.md` §2d13 |
+| `FUN_38fd_0058` | ~~`Removing unreachable block`~~ **fixed 2026-08-13** — clean 1420-byte recovery; see `europe_nation_eot.md` |
+| `FUN_5fef_1b0e` | ~~`Removing unreachable block`~~ **fixed 2026-08-13** — clean 7270-byte recovery (main combat resolution function); see `docs/combat.md` |
+| `FUN_521d_5c38` | ~~`Removing unreachable block`~~ **fixed 2026-08-13** — turned out to be a genuine trivial 4-byte `return 1;` stub, not corrupted content — nothing to correct |
+| `FUN_5fef_0000` | Body bounds correctly (362 bytes, self-contained) but Ghidra's decompiler hits `Offset must be between 0x0 and 0x10ffef, got 0xffffffff` — same pcode-error class blocking task #2's `OVL12_L0000:0`; not yet resolved |
 
 Systematic cross-reference done 2026-08-13: extracted all ~78 function
 names Ghidra's warnings sit immediately above in `viceroy_unpacked_2.c`,

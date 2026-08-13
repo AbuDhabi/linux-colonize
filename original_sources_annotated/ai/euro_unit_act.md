@@ -527,6 +527,13 @@ Runtime `ColonizeColony.hammers_purchased` bridged from Col1.
 `smoke_hammers_purchased_buy` / colony-screen BUY. Cite: save_format_map.md
 +0x98.
 
+`FUN_2f2b_5e44` disassembly verified clean (2026-08-13) — carried a Ghidra
+`Removing unreachable block` warning in the canonical export
+(`docs/decomp_inventory.md`); re-disassembled via `tools/address_mapping.csv`
+→ `OVL03_L0000:5e44`: clean, self-contained, 386 bytes / 83 decompiled
+lines, one unrelated minor warning left. Calls `thunk_FUN_1000_997c` —
+target not resolved this pass. Confirms this mapping, not a correction.
+
 ### 2d14. Linux thin — Col1 SoL latches on `colony_flags` (+0x1c)
 
 `colony_prod_refresh_sol_flags` sets sol_50 (0x04) / sol_100 (0x02) from

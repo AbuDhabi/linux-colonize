@@ -53,6 +53,16 @@ Bridge: [`between_turns.md`](between_turns.md) ·
 
 ## `FUN_38fd_0058` — market dynamics
 
+**Disassembly verified clean (2026-08-13).** Carried a Ghidra
+`Removing unreachable block` disassembly-fault warning in the canonical
+export (`docs/decomp_inventory.md`). Re-disassembled via the
+overlay-addressing project (`tools/address_mapping.csv` →
+`OVL05_L0040:458`): clean, self-contained, 1420 bytes / 275 decompiled
+lines, 3 unrelated minor unreachable-block warnings left (ordinary
+decompiler noise). Calls `thunk_FUN_1000_9bda` — target not resolved this
+pass. Confirms the market-dynamics mapping below is working from
+trustworthy source.
+
 | Item | Value |
 |------|-------|
 | Lines | **58741–59005** (~265) |
