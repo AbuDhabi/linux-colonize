@@ -18,11 +18,12 @@
 //     -scriptPath tools -noanalysis
 //
 // <extractedDir> is the directory rtlink_overlay_extract.py wrote
-// segments.tsv + seg_*.bin into. residentLoadSegmentHex defaults to 1b5a,
-// the value confirmed for VICEROY.EXE in docs/rtlink_decode_v2_gap.md (the
-// tool's own SegmentEntry.loadSegment field is never populated for the V2
-// data/resident segment, so it isn't in the manifest — pass it explicitly
-// if this is ever pointed at a different RTLink v2 title).
+// segments.tsv + seg_*.bin into. residentLoadSegmentHex defaults to 0 — the
+// static/resident region (now the *whole* span from the MZ header's
+// codeOffset to the first overlay's header, not just the narrow
+// "MS Run-Time"-bounded tail) is compiled assuming CS=0000 in its own
+// frame, standard DOS relocatable-EXE convention. Override only if pointed
+// at a different RTLink v2 title with different addressing.
 
 import ghidra.app.script.GhidraScript;
 import ghidra.program.model.address.Address;
@@ -50,7 +51,7 @@ public class GhidraImportOverlays extends GhidraScript {
             return;
         }
         String extractedDir = args[0];
-        int residentLoadSegment = args.length > 1 ? Integer.parseInt(args[1], 16) : 0x1B5A;
+        int residentLoadSegment = args.length > 1 ? Integer.parseInt(args[1], 16) : 0x0000;
 
         Memory memory = currentProgram.getMemory();
         AddressSpace space = currentProgram.getAddressFactory().getDefaultAddressSpace();
