@@ -4296,6 +4296,87 @@ int main(void) {
     }
 
     /*
+     * Incite Indians CHOICE (FUN_4d56_417e — see
+     * original_sources_annotated/ai/indian_incite_417e.md). Menu step lists
+     * affordable targets; picking one drains the inciter's gold and pushes
+     * the target's alarm with this tribe.
+     */
+    {
+      ind->tech = 1;
+      ind->alarm_by_player[0] = 0;
+      ind->alarm_by_player[1] = 0;
+      col1.nation[0].gold = 5000;
+      col1.nation[0].relation_by_indian[0] = 128;
+      ai_popup_clear(&pop);
+      pop.has_result = true;
+      pop.result_cancelled = false;
+      pop.result_choice_id = 6; /* AI_CONTACT_CHOICE_INCITE */
+      pop.result_tag = AI_POPUP_TAG_CONTACT_MEET;
+      pop.result_nation_a = 0;
+      pop.result_nation_b = 4;
+      st_pop[0] = '\0';
+      ai_contact_apply_popup_result(&ctx, &pop);
+      if (pop.queue_count < 1 ||
+          pop.queue[pop.queue_count - 1].kind != AI_POPUP_KIND_CHOICE ||
+          pop.queue[pop.queue_count - 1].tag != AI_POPUP_TAG_CONTACT_INCITE) {
+        return fail("Incite CHOICE should enqueue CONTACT_INCITE target CHOICE");
+      }
+      if (pop.queue[pop.queue_count - 1].choice_count < 1) {
+        return fail("affordable inciter should see at least one incite target");
+      }
+      const int target = pop.queue[pop.queue_count - 1].choice_ids[0];
+      if (target < 0 || target > 3 || target == 0) {
+        return fail("incite target choice id should be a Euro nation other than the inciter");
+      }
+
+      /* Apply the picked target: drains gold, target's own gold untouched. */
+      const uint32_t target_gold_before = col1.nation[target].gold;
+      ai_popup_clear(&pop);
+      pop.has_result = true;
+      pop.result_cancelled = false;
+      pop.result_choice_id = target;
+      pop.result_tag = AI_POPUP_TAG_CONTACT_INCITE;
+      pop.result_nation_a = 0;
+      pop.result_nation_b = 4;
+      st_pop[0] = '\0';
+      ai_contact_apply_popup_result(&ctx, &pop);
+      if (col1.nation[0].gold >= 5000u || col1.nation[0].gold > 4500u) {
+        return fail("Incite should drain at least 500 gold from the inciter");
+      }
+      if (col1.nation[target].gold != target_gold_before) {
+        return fail("Incite target's own gold should be untouched");
+      }
+      if (ind->alarm_by_player[target] != 10) {
+        return fail("Incite should push the target's alarm with this tribe");
+      }
+      if (pop.queue_count < 1 ||
+          pop.queue[pop.queue_count - 1].tag != AI_POPUP_TAG_CONTACT_INCITE ||
+          pop.queue[pop.queue_count - 1].kind != AI_POPUP_KIND_OK) {
+        return fail("Incite should enqueue an Incite OK follow-up");
+      }
+
+      /* Too poor to afford any target → no CHOICE enqueued, refuse OK instead. */
+      col1.nation[1].gold = 0;
+      col1.nation[2].gold = 0;
+      col1.nation[3].gold = 0;
+      ai_popup_clear(&pop);
+      pop.has_result = true;
+      pop.result_cancelled = false;
+      pop.result_choice_id = 6; /* AI_CONTACT_CHOICE_INCITE */
+      pop.result_tag = AI_POPUP_TAG_CONTACT_MEET;
+      pop.result_nation_a = 1;
+      pop.result_nation_b = 4;
+      col1.nation[1].gold = 0;
+      st_pop[0] = '\0';
+      ai_contact_apply_popup_result(&ctx, &pop);
+      if (pop.queue_count >= 1 &&
+          pop.queue[pop.queue_count - 1].kind == AI_POPUP_KIND_CHOICE &&
+          pop.queue[pop.queue_count - 1].tag == AI_POPUP_TAG_CONTACT_INCITE) {
+        return fail("broke inciter should not see an incite target CHOICE");
+      }
+    }
+
+    /*
      * Demand CHOICE → amount CHOICE (tools vs gold); gold apply −15.
      * Cite: FUN_5bfb_102a / 1092; indian_contact.md demand amount widget.
      */

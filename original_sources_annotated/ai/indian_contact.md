@@ -380,9 +380,9 @@ remain **PARKED**. Player meet/trade/gift/teach **status chrome thinned**; **wid
   colony raid status names tribe / SCALP massacre / GOLD treasury.
 - **Done (thin foreign-mission heresy):** adjacent missionary vs foreign mission →
   50/50 replace (regular cross) / burn denouncer; own-mission still one-shot;
-  WARPATH/incite gold PARKED — mechanic identified 2026-08-13 as
-  `FUN_4d56_417e`, structure fully mapped: `indian_incite_417e.md`, not
-  yet wired in. Cite: wiki/HandWiki; fandom Missionaries.
+  WARPATH/incite gold **Done thin** (2026-08-13) — `FUN_4d56_417e`
+  → `ai_contact_apply_incite`, 6th village-meet CHOICE:
+  `indian_incite_417e.md`. Cite: wiki/HandWiki; fandom Missionaries.
 - **Done (thin ambush WIN1/WIN2):** Brave win transfers foe muskets (prefer) or
   horses onto Brave + status. Cite: GAME.TXT `@INDIANWIN1`/`@INDIANWIN2`.
 - **Done (thin Dragoon/Artillery encroachment):** military presence names bump

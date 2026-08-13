@@ -1,11 +1,8 @@
 # `FUN_4d56_417e` — Incite Indians (WARPATH) price + gold deduct
 
-Disassembly-clean, structure fully clarified, **transaction identified**
-(2026-08-13, task #5). **Not yet ported to Linux** — two of the formula's
-four price terms are unnamed data (need a live memory dump), the caller
-is still unfound, and wiring this up is a real new player-facing feature
-(a `@ACTIONS` menu item + two-stage dialog), not a small pulse tweak. But
-the mechanic itself is now confidently known.
+Disassembly-clean, structure fully clarified, transaction identified and
+**ported to Linux** (2026-08-13, task #5, closed). First-draft quality —
+see "Ported to Linux" below for exactly what's faithful vs. approximated.
 
 **History on this doc, same day:** first guess was "skill-teach price"
 (wrong — teaching is free, user-corrected; see `indians.md`). Then a full
@@ -269,12 +266,55 @@ doesn't pin the gameplay trigger the way a real caller would. Caller
 identity for a *specific* trigger context (one level further up, whoever
 calls the trampoline) remains open.
 
-**Not yet wired into Linux.** This is a real, currently-**absent**
-feature (no `AI_POPUP_TAG_CONTACT_INCITE` or equivalent exists in
-`ai_popup.h`, confirmed 2026-08-13) — every other `AI_POPUP_TAG_CONTACT_*`
-mechanic (Meet/Teach/Gift/Demand/Raid/Convert/Welcome/Refuse) has one,
-Incite doesn't. Unlike the teach-skill fix earlier this session, this
-isn't editing working behavior — it's filling a total gap — so a
-reasonable first-draft implementation (documented approximations for the
-two unknown table values) is lower-risk than usual and worth attempting
-once the player-facing unit-order integration point is scoped.
+**Caller hunt closed out (2026-08-13).** A third patched build
+(`VR417ET.EXE`, trapping the trampoline's own `CALLF` one level earlier)
+never fired — most likely because `OVL13` was already warm-loaded by the
+time Incite was tried, so RTLink skipped the "ensure loaded" trampoline
+entirely for that call. Widening the stack dump from the working Mode-1
+trap (`VR417E1.EXE`) out ~130 bytes found no second far-pointer either —
+past the params it's all leftover garbage from `417e`'s own internal
+calls (the menu-building loop, several repeated copies of the same
+trampoline-return template) and then straight into static data
+(environment strings, `GAME.TXT` text). DOSBox-X has no call-stack
+feature to fall back on. Stopping here — the exact calling function's
+name doesn't block the port below; everything it needs (trigger
+condition, live params, full formula shape) is already confirmed.
+
+## Ported to Linux (2026-08-13, task #5 closed)
+
+`src/core/ai_contact.c`: `ai_contact_incite_target_choice` (menu step) +
+`ai_contact_incite_price` (formula) + `ai_contact_apply_incite` (pay +
+alarm push), wired into the existing village-meet `AI_POPUP_TAG_CONTACT_MEET`
+CHOICE chain as a 6th option alongside Trade/Gift/Demand/Teach/Leave.
+New tag `AI_POPUP_TAG_CONTACT_INCITE` in `ai_popup.h`. Two-stage flow
+matching `@INDIANWARPATH`/`@INDIANWARPATH2`: pick a target from the
+other Euro nations you can afford, then pay-and-commit.
+
+**Faithful to the confirmed structure:**
+- Menu → pick target → pay flow, matching Mode 1 exactly.
+- Gold debited only from the inciter; target nation's own gold untouched.
+- Relation-scaled component (via `ai_diplo_indian_relation`) and a floor
+  of 500.
+- Discount for other tribes of the same Indian nation already favoring
+  the inciter (approximating the DOS "matching type" discount loop —
+  exact tribe-type-match field still unconfirmed, substituted with
+  "same Indian nation").
+
+**Approximated, documented in code comments, not byte-exact:**
+- Two of the four DOS price terms are unnamed byte-lookup tables (tribe
+  civilization/sophistication class) with no captured values anywhere in
+  this project — substituted with `indian.tech`, the closest already-real
+  per-nation sophistication indicator.
+- The DOS `apply(CUR_INDIAN_ALT, nation_B, 100, 0)` relation-push call
+  (exact semantics/magnitude unconfirmed) — implemented as a flat +10
+  `alarm_by_player[target]` bump.
+- Only the "Mode 1" (human, menu-driven) path is wired. Mode 2's
+  AI-nation-shortcut reading (`param_3>=4` or a per-nation flag set) was
+  never actually confirmed by a live capture — not ported; AI nations
+  don't autonomously incite in this port yet.
+
+Verified: `unit_ai_contact` (new dedicated test: menu enqueues target
+choices for an affordable inciter, picking one drains ≥500 gold from the
+inciter only and bumps the target's alarm by 10, a broke inciter gets no
+target choices) + full `ctest` (42/43, same pre-existing unrelated
+`unit_ai_euro_expand` baseline failure, no regression).
