@@ -1,5 +1,90 @@
 # Euro per-unit act (`FUN_521d_5b66`) — thin section-map
 
+## Correction (2026-08-13) — true function is a tiny dispatcher, not 1815 lines
+
+`FUN_521d_5b66` carried a Ghidra disassembly-fault warning in the canonical
+export (`Instruction at (ram,0x00057701) overlaps instruction at
+(ram,0x000576ff)` + `Unable to track spacebase fully for stack` + 2×
+`Removing unreachable block` — `docs/decomp_inventory.md`), and line 17
+below already flagged the symptom ("Decomp shows corrupted far prototype").
+Re-disassembled directly via the overlay-addressing project
+(`docs/rtlink_decode_v2_gap.md`, `tools/address_mapping.csv` →
+`OVL14_L0000:5b66`): the real function is **198 bytes**, clean, no warnings:
+
+```c
+void FUN_521d_5b66(undefined2 param_1, int param_2)
+{
+  char *pcVar1;
+  int iVar2;
+  undefined2 unaff_CS;
+  undefined2 unaff_DS;
+
+  iVar2 = param_2 * 0x1c;
+  if ((((undefined1 *)&LAB_003149)[iVar2] != '\0') &&
+     (*(char *)(iVar2 + 0x314c) == '\v')) {
+    if ((*(byte *)((uint)*(byte *)(iVar2 + 0x3146) * 0xe + 0x523d) & 1) == 0)
+    goto LAB_005bda;
+    unaff_CS = 0x181f;
+    iVar2 = FUN_1000_8b74();
+    if (iVar2 == 0) goto LAB_005bda;
+    if (((undefined1 *)&LAB_00314b)[param_2 * 0x1c] == 'E') {
+      pcVar1 = (char *)((*(byte *)(iVar2 + 0x3147) & 0xf) + 0x9456);
+      *pcVar1 = *pcVar1 + -1;
+    }
+  }
+  iVar2 = FUN_OVL14_L0000__007308(unaff_CS,param_2);
+  if (iVar2 != 0) {
+    return;
+  }
+LAB_005bda:
+  switch(*(undefined1 *)(param_2 * 0x1c + 0x314c)) {
+  case 7:
+    FUN_1000_93ea(param_2);
+    break;
+  case 8:
+    func_0x000193b2(0,param_2);
+    break;
+  case 9:
+    FUN_1000_9406(param_2);
+    break;
+  default:
+    FUN_1000_8b24(0,param_2);
+    break;
+  case 0xb:
+  case 0xc:
+    FUN_1000_96aa(param_2);
+  }
+  return;
+}
+```
+
+This is a `switch(0x314c)` dispatcher with cases **7, 8, 9, 0xb/0xc, default**
+— the same case numbers the phase table below documents — but each case is
+a single call, not a multi-hundred-line inline body. **The elaborate
+"Europe hire" / "ship-land act" phase content in this doc almost certainly
+belongs to one of the callees, not to `5b66` itself.**
+
+Followed the lead one hop further: `FUN_OVL14_L0000__007308` (the
+unconditional call before the switch) turned out to be a bare
+`JMPF 0x1000:a6e4` — one entry in this overlay's own local thunk table
+(same mechanism as the `thunk_FUN_1000_*` stubs elsewhere, just not
+auto-recognized as a named `Thunk` function by Ghidra's analyzer here). Its
+real target, `FUN_1000_a6e4` in the resident space, does **not** exist as a
+function yet in the `OverlayTest` project — nobody's created it there. That
+address (resident `ram:0x1a6e4`, i.e. display form `1000:a6e4`) is the next
+concrete lead for whoever picks this up: create the function there the same
+way `4528`/`2820`/`417e`/`5b66` were recovered, decompile, and check whether
+its shape matches the phase table below (cases 7/8/9/0xb switch content,
+Europe hire, ship/land act). The case-7/8/9/0xb *dispatch targets*
+(`FUN_1000_93ea`, `func_0x000193b2`, `FUN_1000_9406`, `FUN_1000_96aa`) are
+other candidates worth the same check if `a6e4` doesn't pan out. Given
+`4528` and `2820` both turned out to have their "extra" content be either
+foreign-segment garbage or (for `2820`) misidentified internal labels,
+don't assume the phase content below is accurate as attributed until one of
+these is actually checked.
+
+---
+
 Layer D early-settle map only. Full body ~1815 lines at
 `viceroy_unpacked.c` ~90446–92260. Line-by-line extract still deferred (R5);
 **mid-planner combat / deep case-7 economy / deep land scoring slices are OPEN**

@@ -66,10 +66,10 @@ functions that were candidates for deep porting that day):
 
 | Function | Warning |
 |----------|---------|
-| `FUN_4d56_417e` | `Removing unreachable block (ram,0x0005180a)` |
-| `FUN_4d56_2820` | `Instruction at (ram,0x00040af8) overlaps instruction at (ram,0x00040af7)` |
-| `FUN_4d56_4528` | `Instruction at (ram,0x000586cb) overlaps instruction at (ram,0x000586c7)` + `Control flow encountered bad instruction data` *(see `indian_settlement_4528.md`)* |
-| `FUN_521d_5b66` | `Instruction at (ram,0x00057701) overlaps instruction at (ram,0x000576ff)` + `Unable to track spacebase fully for stack` + 2× `Removing unreachable block` |
+| `FUN_4d56_417e` | ~~`Removing unreachable block (ram,0x0005180a)`~~ **fixed 2026-08-13** — clean 933-byte function recovered, self-contained in `OVL13_L0000`, ends right where `4528` begins |
+| `FUN_4d56_2820` | ~~`Instruction at (ram,0x00040af8) overlaps...`~~ **fixed 2026-08-13** — clean 3439-byte function recovered, self-contained in `OVL13_L0000`; see `indian_trade_2820.md` correction note (size/shape mismatch vs the doc's existing nested-call map flagged there, needs follow-up) |
+| `FUN_4d56_4528` | ~~`Instruction at (ram,0x000586cb) overlaps...` + bad instruction data~~ **fixed 2026-08-13** — full clean re-disassembly recovered via the overlay-addressing project, root cause was the flattened file's false adjacency to the next RTLink segment; see `indian_settlement_4528.md` |
+| `FUN_521d_5b66` | ~~`Instruction at (ram,0x00057701) overlaps...` + spacebase + 2× unreachable block~~ **fixed 2026-08-13** — true function is a tiny 198-byte dispatcher (not the 1815-line multi-phase body `euro_unit_act.md` describes — that content is almost certainly misattributed from the same desync pattern as `4528`; see correction note there) |
 
 Not yet checked against this list: the rest of the ~125K-line `.c` export.
 Worth a systematic pass before the next deep-porting attempt on any large
