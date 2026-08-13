@@ -128,12 +128,13 @@ Confirms the prediction above: real, worth keeping, does not clear the backlog.
 
 ## Recommended path forward, ranked
 
-1. **Apply Patch 1, regenerate `VICEROY_OUT.EXE`, re-run the existing Ghidra
-   import/export pipeline, diff the `WARNING:` count against the current 386
-   baseline.** Cheap, directly tests whether this is worth keeping — I stopped short of
-   this because `~/projects/decompiled-colonize.gpr` had an active lock (`.lock` file,
-   modified today), i.e. a live Ghidra session was open; didn't want to touch that
-   project underneath it.
+1. **Done.** Patch 1 applied, `VICEROY_OUT_2.EXE` regenerated, re-run through the
+   existing Ghidra import/export pipeline (`viceroy_unpacked_2.c`/`.asm`, produced
+   by the user, not by this tooling): 386 → 369 warnings (-17, ~4%), 7 phantom
+   functions collapsed away. 3 of the 4 previously-named trouble functions
+   (`FUN_4d56_417e`, `FUN_4d56_2820`, `FUN_521d_5b66`) unchanged; `FUN_4d56_4528`
+   lost its warnings but now fails to decompile at all rather than emitting wrong
+   C. Confirms the prediction below — real, worth keeping, not a backlog-clearer.
 2. **If the warning count barely moves (expected, given only 10 words changed):** the
    real lever is dynamic ground-truth, not further static-relink archaeology. The repo
    already has the infrastructure for this (`dosbox-x-dumps/`, `original_memory_dumps/`
@@ -145,7 +146,54 @@ Confirms the prediction above: real, worth keeping, does not clear the backlog.
    fetched as an opcode (or vice versa) is a confirmed desync, and now you have the
    *real* byte stream to re-disassemble it from — instead of guessing from Ghidra's
    already-confused output.
-3. **For any function actually needed next** (per the existing "check for `WARNING:`
+3. **Tooling built for this, tested end-to-end** (`tools/rtlink_overlay_extract.py`
+   + `tools/GhidraImportOverlays.java`):
+
+   ```
+   python3 tools/rtlink_overlay_extract.py COLONIZE/VICEROY.EXE /path/to/extracted
+
+   /path/to/ghidra/support/analyzeHeadless /path/to/scratch/project ProjectName \
+     -import /path/to/extracted/seg_data_resident.bin \
+     -processor "x86:LE:16:Real Mode" -cspec default \
+     -postScript GhidraImportOverlays.java /path/to/extracted 1b5a \
+     -scriptPath tools -noanalysis
+   ```
+
+   `rtlink_overlay_extract.py` is a self-contained reimplementation of
+   `rtlink_decode`'s V2 segment-list parser (no dependency on that external
+   tool) — it writes each RTLink segment's raw bytes to its own `.bin`, plus
+   `segments.tsv`/`segments.json` manifests. Cross-validated against
+   `rtlink_decode VICEROY.EXE`'s info-mode listing — codeOffset/codeSize/
+   relocation-count match exactly for all 31 overlay segments.
+
+   `GhidraImportOverlays.java` (a Java `GhidraScript`, not Jython/PyGhidra —
+   Ghidra 12 dropped Jython and PyGhidra needs a separate Python env this box
+   doesn't have set up) moves the resident/data block to its real DOS base
+   (`0x1b5a<<4`, confirmed above) and adds one Ghidra **overlay** memory
+   block per RTLink segment, each at its true `loadSegment<<4` address, bytes
+   loaded straight from the extracted `.bin` — zero relocation math. Verified
+   by actually running it: produces a Ghidra project with exactly 1 resident
+   block + 31 overlay blocks, right sizes/addresses, confirmed by reopening
+   the saved project and listing blocks back out.
+
+   This is a **separate, throwaway project** — doesn't touch or rename
+   anything in the canonical `viceroy_unpacked*.c` / `FUNCTION_CATALOG.md`
+   naming. Use it to get a function's *correct* disassembly (open the right
+   `OVLnn_Lxxxx` overlay space in the Ghidra GUI), then port the finding back
+   under the function's existing `FUN_` name from the canonical export.
+
+   The script also sweep-disassembles every block (linear-descent: try
+   `disassemble()` at every address not already covered by a real code unit —
+   raw import has no entry point/symbols to seed analysis from otherwise) and
+   then runs full `analyzeAll()`. Verified end-to-end: 102s total, **531
+   functions / 119,478 instructions** found across the 31 overlay spaces,
+   decompiler runs on all of them. A handful of expected `pcode error at
+   ...: Could not follow disassembly flow into non-existing memory` decompiler
+   warnings show up where a jump/switch target lands in a *different* overlay
+   space — that's the genuine cross-overlay boundary the thunk table covers,
+   not a bug in this tooling.
+
+4. **For any function actually needed next** (per the existing "check for `WARNING:`
    above the function before porting" rule in decomp_inventory.md): prefer Ghidra's
    native **overlay memory-block** feature over trusting the flattened file's absolute
    addresses. Import each RTLink segment as its own named overlay block at its *original*
