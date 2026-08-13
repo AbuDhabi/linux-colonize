@@ -14,6 +14,7 @@
 #include "core/ai_diplo.h"
 #include "core/ai_popup.h"
 #include "core/map.h"
+#include "core/sound.h"
 #include "core/ss.h"
 #include "core/unit_chrome.h"
 #include "core/units.h"
@@ -715,6 +716,98 @@ static int unit_display_name_free_colonist(void) {
   return 0;
 }
 
+static int g_music_sting_play_calls = 0;
+static int g_music_sting_last_id = -1;
+static int g_music_sting_active_id = -1;
+
+static void unit_music_sting_play_mock(int id) {
+  g_music_sting_play_calls++;
+  g_music_sting_last_id = id;
+  g_music_sting_active_id = id; /* mirrors sound.c: playing sets the active id */
+}
+
+static int unit_music_sting_active_id_mock(void) {
+  return g_music_sting_active_id;
+}
+
+/*
+ * Combat engagement (units_resolve_land_combat_ff / _naval_combat_ff) should
+ * push SOUND_MILITARY_BGM_ID through the units_set_combat_music_hooks play
+ * hook once per "new" engagement, and skip the call when that id is already
+ * active — mirrors DOS FUN_129f_0318's "cmp [0x9c],id; jz done" restart
+ * skip (docs/assets.md; units.c units_combat_music_sting).
+ */
+static int unit_combat_music_sting(void) {
+  ColonizeUnitPool pool;
+  memset(&pool, 0, sizeof(pool));
+  pool.type_count = 2;
+  snprintf(pool.types[0].name, sizeof(pool.types[0].name), "Soldiers");
+  pool.types[0].attack = 99; /* attacker always wins: loser stays put, not despawned */
+  pool.types[0].defense = 99;
+  pool.types[0].movement = 1;
+  snprintf(pool.types[1].name, sizeof(pool.types[1].name), "Soldiers");
+  pool.types[1].attack = 0;
+  pool.types[1].defense = 0;
+  pool.types[1].movement = 1;
+
+  /* Each engagement spawns a fresh pair — combat may demote/despawn the
+   * loser (units_clear_slot resets type_index), so reusing ids across
+   * calls is not safe; only the hook wiring is under test here. */
+  int aid = units_spawn_allow_stack(&pool, 0, 5, 5);
+  int did = units_spawn_allow_stack(&pool, 1, 6, 5);
+  ColonizeUnit* atk = units_get(&pool, aid);
+  ColonizeUnit* def = units_get(&pool, did);
+  if (!atk || !def) {
+    fprintf(stderr, "combat_music_sting: spawn failed\n");
+    return 1;
+  }
+  atk->nation_id = 0;
+  def->nation_id = 1;
+
+  /* No hooks set (default): must not crash. */
+  ColonizeDosRng rng0;
+  dos_rng_seed(&rng0, 1);
+  units_resolve_land_combat_ff(&pool, aid, did, &rng0, NULL);
+
+  g_music_sting_play_calls = 0;
+  g_music_sting_last_id = -1;
+  g_music_sting_active_id = -1;
+  units_set_combat_music_hooks(unit_music_sting_play_mock, unit_music_sting_active_id_mock);
+
+  aid = units_spawn_allow_stack(&pool, 0, 5, 6);
+  did = units_spawn_allow_stack(&pool, 1, 6, 6);
+  units_get(&pool, aid)->nation_id = 0;
+  units_get(&pool, did)->nation_id = 1;
+  ColonizeDosRng rng1;
+  dos_rng_seed(&rng1, 2);
+  units_resolve_land_combat_ff(&pool, aid, did, &rng1, NULL);
+  if (g_music_sting_play_calls != 1 || g_music_sting_last_id != SOUND_MILITARY_BGM_ID) {
+    fprintf(stderr, "combat_music_sting: first engage calls=%d id=%d want 1/0x%02x\n",
+            g_music_sting_play_calls, g_music_sting_last_id, SOUND_MILITARY_BGM_ID);
+    units_set_combat_music_hooks(NULL, NULL);
+    return 1;
+  }
+
+  /* Military cue already active: a second engagement must not restart it. */
+  aid = units_spawn_allow_stack(&pool, 0, 5, 7);
+  did = units_spawn_allow_stack(&pool, 1, 6, 7);
+  units_get(&pool, aid)->nation_id = 0;
+  units_get(&pool, did)->nation_id = 1;
+  ColonizeDosRng rng2;
+  dos_rng_seed(&rng2, 3);
+  units_resolve_land_combat_ff(&pool, aid, did, &rng2, NULL);
+  if (g_music_sting_play_calls != 1) {
+    fprintf(stderr, "combat_music_sting: repeat engage should skip restart, calls=%d\n",
+            g_music_sting_play_calls);
+    units_set_combat_music_hooks(NULL, NULL);
+    return 1;
+  }
+
+  units_set_combat_music_hooks(NULL, NULL);
+  fprintf(stderr, "unit_units: combat music sting ok\n");
+  return 0;
+}
+
 int main(void) {
   diag_init(0, NULL);
 
@@ -723,6 +816,10 @@ int main(void) {
     return 1;
   }
   if (unit_display_name_free_colonist() != 0) {
+    diag_shutdown();
+    return 1;
+  }
+  if (unit_combat_music_sting() != 0) {
     diag_shutdown();
     return 1;
   }

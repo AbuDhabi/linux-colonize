@@ -1318,6 +1318,19 @@ void sound_stop_bgm(void) {
   sound_set_bgm(0);
 }
 
+int sound_active_song_id(void) {
+  if (!g_sound.inited) {
+    return -1;
+  }
+  pthread_mutex_lock(&g_sound.lock);
+  /* Pending sound_set_bgm() not yet applied by sound_service() still counts
+   * as "active" for id-unchanged gating, matching DOS's pending/current pair
+   * (FUN_129f_0300 stores DS:0x9a before the idle pump applies it). */
+  const int id = g_sound.need_restart ? g_sound.bgm_song_id : g_sound.active_song_id;
+  pthread_mutex_unlock(&g_sound.lock);
+  return id;
+}
+
 void sound_service(void) {
   if (!g_sound.inited) {
     return;

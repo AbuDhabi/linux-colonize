@@ -53,8 +53,9 @@ modals (GAME.TXT `@SECTION`s vs port Done/Partial/Missing): [popups.md](popups.m
 | Menu bar, right panel, minimap | Done | `map_menu.c`, `map_panel.c` |
 | Colonizopedia | Done | `pedia.c` |
 | Reports F1–F10 | Done | `reports.c` |
-| Pick Music + BGM | Done | `sound.c`, `pick_music.c` |
-| Digital SFX (`COLDIG.BIN`) | Missing | Deferred |
+| Pick Music + BGM | Done | `sound.c`, `pick_music.c`; Sound Options popup (Background/Event/Sound Effects) **Done**, `options_dialog.c` |
+| Situational "Military" BGM cue on combat | Done thin | `units_combat_music_sting` (`units.c`) — DOS-evidenced (segment `5fef`), see [assets.md](assets.md) Music / sound |
+| Digital SFX (`COLDIG.BIN`) | Missing | Investigated at length (RE trace across `GSOUND.COL`/`PSOUND.COL`, `VICEROY.EXE`'s own EMS calls); no reachable trigger found — see [assets.md](assets.md). Not the same system as the "Sound Effects" option, which gates real but different plumbing |
 | Col1 save / load | Done | Playable I/O: `col1_save.c`, `col1_bridge.c`. **Not** a complete field map — see [save_format_map.md](save_format_map.md) |
 
 ### Units and map orders

@@ -11,6 +11,7 @@
 #include "core/europe.h"
 #include "core/founding_fathers.h"
 #include "core/popup_msg.h"
+#include "core/sound.h"
 #include "core/strutil.h"
 #include "core/unit_chrome.h"
 #include "platform/diagnostics.h"
@@ -2611,6 +2612,35 @@ bool units_resolve_lcr_rumour(
   return true;
 }
 
+static ColonizeSoundPlayFn g_units_combat_sound_play = NULL;
+static ColonizeSoundActiveIdFn g_units_combat_sound_active_id = NULL;
+
+void units_set_combat_music_hooks(
+  ColonizeSoundPlayFn play_fn, ColonizeSoundActiveIdFn active_id_fn
+) {
+  g_units_combat_sound_play = play_fn;
+  g_units_combat_sound_active_id = active_id_fn;
+}
+
+/*
+ * DOS combat engagement (segment 5fef, reached after an attacker/defender
+ * tile-adjacency check succeeds) pushes literal id 0x32 — @PICKMUSIC
+ * Military sublist, first song (docs/assets.md) — into the BGM-change path
+ * (FUN_281f_048e -> FUN_129f_02cc) once a land or naval attack begins. The
+ * real driver only restarts playback when the id actually changes
+ * (FUN_129f_0318 "cmp [0x9c],id; jz done"); mirror that via the active-id
+ * hook so a combat-heavy turn does not restart the track on every attack.
+ */
+static void units_combat_music_sting(void) {
+  if (!g_units_combat_sound_play) {
+    return;
+  }
+  if (!g_units_combat_sound_active_id ||
+      g_units_combat_sound_active_id() != SOUND_MILITARY_BGM_ID) {
+    g_units_combat_sound_play(SOUND_MILITARY_BGM_ID);
+  }
+}
+
 bool units_resolve_land_combat(
   ColonizeUnitPool* pool,
   int attacker_id,
@@ -2648,6 +2678,7 @@ bool units_resolve_land_combat_ff(
   if (!at || !dt) {
     return false;
   }
+  units_combat_music_sting();
 
   /*
    * FUN_5fef_1b0e / FUN_157e: attacker 004a(mode=1); defender 015e + peels.
@@ -2870,6 +2901,7 @@ bool units_resolve_naval_combat_ff(
   if (!at || !dt) {
     return false;
   }
+  units_combat_music_sting();
 
   /* FUN_157e_004a + 1b0e difficulty peels for both sides. */
   ColonizeCombatStrengthCtx sctx = units_combat_strength_ctx(col1);
