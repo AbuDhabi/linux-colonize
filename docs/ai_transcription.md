@@ -700,8 +700,12 @@ second MoW at `difficulty≥2`; capture status chrome **Done**. Thin map:
 `ai_popup` (status chrome Done). VGA-identical wood chrome still PARKED.
 
 **Still PARKED:** `160a` letter cinematic; full merc/arrival/hold embark chrome;
-extra refuse boycott cargos beyond Sugar; exact `0x5382`
-Col1 bit rename / T3.
+exact `0x5382` Col1 bit rename / T3.
+
+Note (stale-claim correction): refuse already boycotts a **second** cargo
+beyond Sugar via `ai_king_tax_refuse_hike`'s dump-goods pick (`FUN_38fd_3dc8`
+stand-in) — human `KING_DUMP_GOODS` CHOICE among eligible bid>0 cargos, else
+RNG via `ai_king_pick_dump_goods_cargo`. Not a gap.
 
 ---
 
