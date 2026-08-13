@@ -6015,7 +6015,18 @@ static int ai_euro_dock_name_is_fur_trader_expert(const char* name) {
   return strstr(name, "Fur Trader") != NULL;
 }
 
-/* Resolve dock immigrant name → unit type (strip trailing 's' for pool plurals). */
+/*
+ * Resolve dock immigrant name → unit type (strip trailing 's' for pool
+ * plurals). None of "Expert Farmer" / "Fisherman" / … / "Free Colonist" are
+ * real NAMES.TXT @UNIT rows — every specialist is base type "Colonists" with
+ * a @JOB profession (units_display_name() flavors the shown name). Each arm
+ * below still tries the specialist/base occupation name first (dock pools in
+ * some fixtures do define them), then real "Colonists" before the legacy
+ * "Free Colonist" fallback, so real NAMES.TXT hires actually resolve instead
+ * of silently returning -1. Cite: roadmap.md Phase 3 "Free Colonist" dead-
+ * lookup note; the caller (below) copies the dock unit's real profession
+ * onto the spawned "Colonists" hire regardless of which arm matched.
+ */
 static int ai_euro_type_from_dock_name(const ColonizeUnitPool* units, const char* dock_name) {
   if (!units || !dock_name || !dock_name[0]) {
     return -1;
@@ -6044,7 +6055,10 @@ static int ai_euro_type_from_dock_name(const ColonizeUnitPool* units, const char
   if (strstr(dock_name, "Master Carpenter")) {
     ty = units_find_type(units, "Master Carpenter");
     if (ty < 0) {
-      ty = units_find_type(units, "Free Colonist");
+      ty = units_find_type(units, "Colonists");
+      if (ty < 0) {
+        ty = units_find_type(units, "Free Colonist");
+      }
     }
     return ty;
   }
@@ -6054,7 +6068,10 @@ static int ai_euro_type_from_dock_name(const ColonizeUnitPool* units, const char
       ty = units_find_type(units, "Farmer");
     }
     if (ty < 0) {
-      ty = units_find_type(units, "Free Colonist");
+      ty = units_find_type(units, "Colonists");
+      if (ty < 0) {
+        ty = units_find_type(units, "Free Colonist");
+      }
     }
     return ty;
   }
@@ -6064,7 +6081,10 @@ static int ai_euro_type_from_dock_name(const ColonizeUnitPool* units, const char
       ty = units_find_type(units, "Fisherman");
     }
     if (ty < 0) {
-      ty = units_find_type(units, "Free Colonist");
+      ty = units_find_type(units, "Colonists");
+      if (ty < 0) {
+        ty = units_find_type(units, "Free Colonist");
+      }
     }
     return ty;
   }
@@ -6074,7 +6094,10 @@ static int ai_euro_type_from_dock_name(const ColonizeUnitPool* units, const char
       ty = units_find_type(units, "Lumberjack");
     }
     if (ty < 0) {
-      ty = units_find_type(units, "Free Colonist");
+      ty = units_find_type(units, "Colonists");
+      if (ty < 0) {
+        ty = units_find_type(units, "Free Colonist");
+      }
     }
     return ty;
   }
@@ -6084,7 +6107,10 @@ static int ai_euro_type_from_dock_name(const ColonizeUnitPool* units, const char
       ty = units_find_type(units, "Ore Miner");
     }
     if (ty < 0) {
-      ty = units_find_type(units, "Free Colonist");
+      ty = units_find_type(units, "Colonists");
+      if (ty < 0) {
+        ty = units_find_type(units, "Free Colonist");
+      }
     }
     return ty;
   }
@@ -6094,7 +6120,10 @@ static int ai_euro_type_from_dock_name(const ColonizeUnitPool* units, const char
       ty = units_find_type(units, "Silver Miner");
     }
     if (ty < 0) {
-      ty = units_find_type(units, "Free Colonist");
+      ty = units_find_type(units, "Colonists");
+      if (ty < 0) {
+        ty = units_find_type(units, "Free Colonist");
+      }
     }
     return ty;
   }
@@ -6104,7 +6133,10 @@ static int ai_euro_type_from_dock_name(const ColonizeUnitPool* units, const char
       ty = units_find_type(units, "Gunsmith");
     }
     if (ty < 0) {
-      ty = units_find_type(units, "Free Colonist");
+      ty = units_find_type(units, "Colonists");
+      if (ty < 0) {
+        ty = units_find_type(units, "Free Colonist");
+      }
     }
     return ty;
   }
@@ -6114,7 +6146,10 @@ static int ai_euro_type_from_dock_name(const ColonizeUnitPool* units, const char
       ty = units_find_type(units, "Blacksmith");
     }
     if (ty < 0) {
-      ty = units_find_type(units, "Free Colonist");
+      ty = units_find_type(units, "Colonists");
+      if (ty < 0) {
+        ty = units_find_type(units, "Free Colonist");
+      }
     }
     return ty;
   }
@@ -6125,7 +6160,10 @@ static int ai_euro_type_from_dock_name(const ColonizeUnitPool* units, const char
       ty = units_find_type(units, "Scout");
     }
     if (ty < 0) {
-      ty = units_find_type(units, "Free Colonist");
+      ty = units_find_type(units, "Colonists");
+      if (ty < 0) {
+        ty = units_find_type(units, "Free Colonist");
+      }
     }
     return ty;
   }
@@ -6136,7 +6174,10 @@ static int ai_euro_type_from_dock_name(const ColonizeUnitPool* units, const char
       ty = units_find_type(units, "Missionary");
     }
     if (ty < 0) {
-      ty = units_find_type(units, "Free Colonist");
+      ty = units_find_type(units, "Colonists");
+      if (ty < 0) {
+        ty = units_find_type(units, "Free Colonist");
+      }
     }
     return ty;
   }
@@ -6146,7 +6187,10 @@ static int ai_euro_type_from_dock_name(const ColonizeUnitPool* units, const char
       ty = units_find_type(units, "Statesman");
     }
     if (ty < 0) {
-      ty = units_find_type(units, "Free Colonist");
+      ty = units_find_type(units, "Colonists");
+      if (ty < 0) {
+        ty = units_find_type(units, "Free Colonist");
+      }
     }
     return ty;
   }
@@ -6156,7 +6200,10 @@ static int ai_euro_type_from_dock_name(const ColonizeUnitPool* units, const char
       ty = units_find_type(units, "Preacher");
     }
     if (ty < 0) {
-      ty = units_find_type(units, "Free Colonist");
+      ty = units_find_type(units, "Colonists");
+      if (ty < 0) {
+        ty = units_find_type(units, "Free Colonist");
+      }
     }
     return ty;
   }
@@ -6166,7 +6213,10 @@ static int ai_euro_type_from_dock_name(const ColonizeUnitPool* units, const char
       ty = units_find_type(units, "Teacher");
     }
     if (ty < 0) {
-      ty = units_find_type(units, "Free Colonist");
+      ty = units_find_type(units, "Colonists");
+      if (ty < 0) {
+        ty = units_find_type(units, "Free Colonist");
+      }
     }
     return ty;
   }
@@ -6176,7 +6226,10 @@ static int ai_euro_type_from_dock_name(const ColonizeUnitPool* units, const char
       ty = units_find_type(units, "Distiller");
     }
     if (ty < 0) {
-      ty = units_find_type(units, "Free Colonist");
+      ty = units_find_type(units, "Colonists");
+      if (ty < 0) {
+        ty = units_find_type(units, "Free Colonist");
+      }
     }
     return ty;
   }
@@ -6186,7 +6239,10 @@ static int ai_euro_type_from_dock_name(const ColonizeUnitPool* units, const char
       ty = units_find_type(units, "Weaver");
     }
     if (ty < 0) {
-      ty = units_find_type(units, "Free Colonist");
+      ty = units_find_type(units, "Colonists");
+      if (ty < 0) {
+        ty = units_find_type(units, "Free Colonist");
+      }
     }
     return ty;
   }
@@ -6196,7 +6252,10 @@ static int ai_euro_type_from_dock_name(const ColonizeUnitPool* units, const char
       ty = units_find_type(units, "Tobacconist");
     }
     if (ty < 0) {
-      ty = units_find_type(units, "Free Colonist");
+      ty = units_find_type(units, "Colonists");
+      if (ty < 0) {
+        ty = units_find_type(units, "Free Colonist");
+      }
     }
     return ty;
   }
@@ -6206,7 +6265,10 @@ static int ai_euro_type_from_dock_name(const ColonizeUnitPool* units, const char
       ty = units_find_type(units, "Fur Trader");
     }
     if (ty < 0) {
-      ty = units_find_type(units, "Free Colonist");
+      ty = units_find_type(units, "Colonists");
+      if (ty < 0) {
+        ty = units_find_type(units, "Free Colonist");
+      }
     }
     return ty;
   }
@@ -7138,6 +7200,16 @@ static void ai_euro_nation_planning(ColonizeTurnContext* ctx, int nation_id) {
     if (colonies >= 6) {
       return;
     }
+    /*
+     * Real NAMES.TXT @UNIT has no "Free Colonist" / "Colonist" row — the base
+     * laborer type is "Colonists" (profession flavors the display name via
+     * units_display_name()). Try the real name first; keep the old names as
+     * fallback for fixtures that still define them. Cite: roadmap.md Phase 3
+     * "Free Colonist" dead-lookup note.
+     */
+    hire_ty = units_find_type(ctx->units, "Colonists");
+  }
+  if (hire_ty < 0) {
     hire_ty = units_find_type(ctx->units, "Free Colonist");
   }
   if (hire_ty < 0) {

@@ -4770,6 +4770,150 @@ static int unit_dock_farmer_hire(void) {
 }
 
 /*
+ * Same dock-farmer scenario, but with a real-NAMES.TXT-shaped type pool: only
+ * base "Colonists" (no literal "Expert Farmer" / "Free Colonist" @UNIT rows —
+ * those never exist in real data; specialists are "Colonists" + a @JOB
+ * profession, per units_display_name()). Before the ai_euro_type_from_dock_name
+ * fix this silently resolved to -1 and the dock hire never fired (roadmap.md
+ * Phase 3 "Free Colonist" dead-lookup note) — this regresses that.
+ */
+static int unit_dock_farmer_hire_real_names(void) {
+  const int nation = 1;
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 16;
+  map.height = 16;
+  map.tile_count = 256;
+  map.terrain = calloc(256, 1);
+  map.layer2 = calloc(256, 1);
+  map.layer3 = calloc(256, 1);
+  if (!map.terrain || !map.layer2 || !map.layer3) {
+    return fail("dock-farmer real-names alloc map");
+  }
+  for (int i = 0; i < 256; ++i) {
+    map.terrain[i] = 1;
+  }
+
+  ColonizeUnitPool units;
+  units_reset(&units);
+  units.type_count = 2;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Colonists");
+  units.types[0].movement = 1;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  snprintf(units.types[1].name, sizeof(units.types[1].name), "Caravel");
+  units.types[1].movement = 4;
+  units.types[1].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  units.types[1].cargo = 2;
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  for (int i = 0; i < 3; ++i) {
+    ColonizeColony* c = &colonies.colonies[i];
+    c->id = i;
+    c->active = true;
+    c->nation_id = nation;
+    c->x = 2 + i * 2;
+    c->y = 2;
+    c->population = 5;
+    c->colonist_count = 5;
+    c->stock[COLONIZE_CARGO_TOOLS] = 40; /* tools_short=0 */
+    c->stock[COLONIZE_CARGO_FOOD] = 0;   /* food_short=10 each → 30 total */
+    c->building_in_production = -1;
+  }
+  colonies.colony_count = 3;
+  colonies.next_id = 3;
+
+  const int sid = units_spawn(&units, 1, 200, 200);
+  ColonizeUnit* ship = units_get(&units, sid);
+  if (!ship) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("dock-farmer real-names spawn europe ship");
+  }
+  ship->nation_id = nation;
+  ship->moves_left = 0;
+  ship->orders = 0;
+
+  EuropeScreen europe;
+  memset(&europe, 0, sizeof(europe));
+  europe.gold = 500;
+  europe.dock_count = 1;
+  snprintf(europe.dock[0].name, sizeof(europe.dock[0].name), "Expert Farmers");
+  europe.dock[0].profession = 0; /* NAMES.TXT @JOB Farmer */
+  europe.dock[0].present = true;
+  europe.dock[0].sentry = true;
+
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 0;
+    col1.player[i].diplomacy = 0;
+  }
+  col1.head.difficulty = 0;
+  col1.nation[nation].gold = 500;
+
+  ai_goals_reset();
+
+  uint32_t turn = 13;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.europe = &europe;
+  ctx.rng_seed = 44;
+
+  const uint32_t gold_before = col1.nation[nation].gold;
+  ai_euro_dispatcher_turn(&ctx, nation);
+
+  int farmer_boarded = 0;
+  ship = units_get(&units, sid);
+  if (ship) {
+    for (int c = 0; c < ship->cargo_count; ++c) {
+      const ColonizeUnit* pax = units_get_const(&units, ship->cargo_ids[c]);
+      if (!pax) {
+        continue;
+      }
+      const ColonizeUnitType* ty = units_type(&units, pax->type_index);
+      if (ty && strcmp(ty->name, "Colonists") == 0 && pax->profession == 0) {
+        farmer_boarded = 1;
+      }
+    }
+  }
+  const int dock_cleared = (europe.dock_count == 0);
+  const int gold_spent = (col1.nation[nation].gold < gold_before + 50u);
+
+  if (!farmer_boarded || !dock_cleared || !gold_spent) {
+    fprintf(
+      stderr,
+      "unit_ai_euro_expand: dock real-names farmer=%d dock_count=%d gold %u→%u cargo=%d\n",
+      farmer_boarded,
+      europe.dock_count,
+      (unsigned)gold_before,
+      (unsigned)col1.nation[nation].gold,
+      ship ? ship->cargo_count : -1
+    );
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("expected Colonists+Farmer dock hire against real-shaped NAMES.TXT pool");
+  }
+
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  fprintf(stderr, "unit_ai_euro_expand: dock Expert Farmer hire (real names) ok\n");
+  return 0;
+}
+
+/*
  * Case-7 dock Master Carpenter: peace + construction LABOR wanted + Europe dock
  * has Master Carpenters → board that type (consume dock). No tools/food short
  * so Free Colonist fallback must not win. Cite: europe.c pool; building_production
@@ -21494,6 +21638,9 @@ int main(void) {
     return 1;
   }
   if (unit_dock_farmer_hire() != 0) {
+    return 1;
+  }
+  if (unit_dock_farmer_hire_real_names() != 0) {
     return 1;
   }
   if (unit_dock_carpenter_hire() != 0) {
