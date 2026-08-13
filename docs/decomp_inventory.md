@@ -70,11 +70,30 @@ functions that were candidates for deep porting that day):
 | `FUN_4d56_2820` | ~~`Instruction at (ram,0x00040af8) overlaps...`~~ **fixed 2026-08-13** — clean 3439-byte function recovered, self-contained in `OVL13_L0000`; see `indian_trade_2820.md` correction note (size/shape mismatch vs the doc's existing nested-call map flagged there, needs follow-up) |
 | `FUN_4d56_4528` | ~~`Instruction at (ram,0x000586cb) overlaps...` + bad instruction data~~ **fixed 2026-08-13** — full clean re-disassembly recovered via the overlay-addressing project, root cause was the flattened file's false adjacency to the next RTLink segment; see `indian_settlement_4528.md` |
 | `FUN_521d_5b66` | ~~`Instruction at (ram,0x00057701) overlaps...` + spacebase + 2× unreachable block~~ **fixed 2026-08-13** — true function is a tiny 198-byte dispatcher (not the 1815-line multi-phase body `euro_unit_act.md` describes — that content is almost certainly misattributed from the same desync pattern as `4528`; see correction note there) |
+| `FUN_5fef_0f14` | ~~`Removing unreachable block (ram,0x0006125d)`~~ **fixed 2026-08-13** — clean 309-line recovery, closely matches `indian_raid_loot.md`'s existing ~298-line estimate (unlike `4528`, wasn't severely desynced); see doc for confirmation note |
+| `FUN_4d56_1816` | ~~4× `Removing unreachable block`~~ **fixed 2026-08-13** — clean 799-byte recovery, confirms `indian_contact.md`'s existing phase checklist items 3-4 precisely; see doc for a flagged (not yet resolved) discrepancy on item 5's growth-loop call target |
 
-Not yet checked against this list: the rest of the ~125K-line `.c` export.
-Worth a systematic pass before the next deep-porting attempt on any large
-body — a 30-second grep above a target function's declaration is much
-cheaper than discovering the corruption mid-port.
+Systematic cross-reference done 2026-08-13: extracted all ~78 function
+names Ghidra's warnings sit immediately above in `viceroy_unpacked_2.c`,
+matched against every doc under `original_sources_annotated/` +
+`docs/` (excluding the generic all-functions `FUNCTION_CATALOG.md`).
+Fixed the ones with rich existing documentation, above. **Still flagged,
+not yet checked** — real, heavily-cited functions sitting on the same
+corruption, highest-value next candidates: `FUN_521d_6d8e` (the entire
+Euro nation turn dispatcher), `FUN_521d_0a60` (Euro AI goal-writer),
+`FUN_5bfb_022e` (Indian meet/contact dispatcher), `FUN_2f2b_5e44`,
+`FUN_38fd_0058`, `FUN_5fef_0000`, `FUN_5fef_1b0e`, `FUN_521d_5c38`. Full
+list: search `original_sources_decompiled/viceroy_unpacked_2.c` for a
+`WARNING:` comment immediately above a `FUN_*` declaration, then check
+whether that name appears in more than just `FUNCTION_CATALOG.md`.
+
+Not yet checked against the full list: the remaining ~125K-line `.c`
+export beyond the ~78 warning-adjacent names above (i.e. warnings that
+don't sit immediately above a function declaration — mid-body warnings on
+already-flagged functions, or ones this grep's "immediately above" rule
+missed). Worth a systematic pass before the next deep-porting attempt on
+any large body — a 30-second grep above a target function's declaration is
+much cheaper than discovering the corruption mid-port.
 
 **Root-cause dig on the flattening step itself** (does `rtlink_decode`'s V2 output
 feed Ghidra bad bytes?): [rtlink_decode_v2_gap.md](rtlink_decode_v2_gap.md). Short
