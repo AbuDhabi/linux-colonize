@@ -37,6 +37,45 @@ first-pass clustering mechanism:
 
 This clustering should be preserved in initial source splitting to reduce risk.
 
+## Known Ghidra Disassembly Faults (check before trusting a function)
+
+`viceroy_unpacked.c` carries **386** Ghidra `WARNING:` comments (`grep -c
+"WARNING: Instruction at\|WARNING: Removing unreachable\|WARNING: Unable to
+track spacebase"`), each sitting immediately above the function it applies
+to. These are Ghidra admitting its own **disassembly** — not just the
+higher-level C reconstruction — went wrong near that function: typically an
+instruction-boundary desync ("Instruction at (ram,X) overlaps instruction at
+(ram,Y)", meaning decode started mid-instruction and re-synced by luck, so
+everything downstream is suspect until it does), a stack-tracking failure
+("Unable to track spacebase fully for stack" → the messy `unaff_SI/DI/ES/SS`
+/ `in_stack_*` locals you'll see flooding the function's C body), or blocks
+Ghidra pruned as unreachable (a symptom of the same confusion, not
+necessarily truly dead code).
+
+**Before attempting to port or deep-RE any FUN_\* body, check the ~5 lines of
+C source right above its declaration for one of these comments.** If present,
+treat the function as **not safely portable from the existing decomp output
+as-is** — porting from a corrupted disassembly risks *confidently wrong*
+first-draft logic, which is worse than leaving it thin/stub. Fixing it for
+real needs manual re-disassembly from the correct byte offset, which is
+out-of-band from reading Ghidra's existing C/ASM output (that output is the
+thing that's wrong).
+
+Confirmed hits during the 2026-08-13 AI-transcription push (all four
+functions that were candidates for deep porting that day):
+
+| Function | Warning |
+|----------|---------|
+| `FUN_4d56_417e` | `Removing unreachable block (ram,0x0005180a)` |
+| `FUN_4d56_2820` | `Instruction at (ram,0x00040af8) overlaps instruction at (ram,0x00040af7)` |
+| `FUN_4d56_4528` | `Instruction at (ram,0x000586cb) overlaps instruction at (ram,0x000586c7)` + `Control flow encountered bad instruction data` *(see `indian_settlement_4528.md`)* |
+| `FUN_521d_5b66` | `Instruction at (ram,0x00057701) overlaps instruction at (ram,0x000576ff)` + `Unable to track spacebase fully for stack` + 2× `Removing unreachable block` |
+
+Not yet checked against this list: the rest of the ~125K-line `.c` export.
+Worth a systematic pass before the next deep-porting attempt on any large
+body — a 30-second grep above a target function's declaration is much
+cheaper than discovering the corruption mid-port.
+
 ## DOS/Hardware-Coupled Surfaces
 
 Observed direct I/O and hardware assumptions in the decomp exports:

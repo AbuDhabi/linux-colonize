@@ -70,16 +70,45 @@ ids until string table peel.
 
 Linux: `COLONIZE_ENTER_VILLAGE_SHIP` + `ai_contact_try_ship_village` (no landfall).
 
-## Decomp contamination note
+## Decomp contamination note (ASM pass, 2026-08-13 — correction of a same-day
+## over-claim, see below)
 
-After ~84216, labels such as `LAB_521d_*`, `LAB_5bfb_*`, `LAB_5fef_004a` appear
-inside the `4528` span. These are **Ghidra overlay collisions**, not proof that
-`4528` calls Euro scoring or `5fef` loot. Confirmed: **no direct `FUN_5fef_*`
-calls** in the `4528` line range. Colony loot runs on a **sibling** path
-documented in raid outcomes.
+**Root cause found, and it's stronger than either prior guess.** The raw
+decompiled source carries Ghidra's own warning immediately before this
+function's declaration (`viceroy_unpacked.c` line 83695-83697):
 
-Do not section-map mid-body until `viceroy_unpacked.asm` CODE_124:4d56 confirms
-real `LAB_4d56_*` continuity.
+```
+// WARNING: Instruction at (ram,0x000586cb) overlaps instruction at (ram,0x000586c7)
+// WARNING: Control flow encountered bad instruction data
+```
+
+Ghidra is stating outright that its **disassembly** (not just the C
+decompiler's higher-level reconstruction) went wrong at/near this function —
+overlapping instructions is the classic symptom of a byte-offset
+misalignment (decoding started one or more bytes into a real instruction, so
+everything downstream is partly garbage until the stream re-syncs by luck).
+That alone is sufficient explanation for messy labels/branches appearing
+later in the function; no overlay or tail-jump theory is needed to explain
+it, and none should be assumed without further evidence.
+
+An earlier pass on the same day *thought* it had confirmed a real cross-segment
+`JMPF` tail-jump explanation (citing that `LAB_5fef_004a` is a genuine label
+that really does exist in segment `5fef`, ASM line 167275, `FUN_5fef_0000`'s
+own body). That fact is true but doesn't prove the mechanism: a direct ASM
+search for `JMPF` instructions inside `FUN_4d56_4528`'s own instruction range
+(`viceroy_unpacked.asm` 143410–144409, all `CODE_125:4d56...`-tagged) found
+**none** crossing to another segment. So the tail-jump claim is retracted —
+it was an unconfirmed inference dressed up as a finding. The
+`LAB_5fef_004a`-exists-elsewhere fact is real but doesn't by itself connect to
+this function.
+
+**Net, revised:** the original caution stands, now on firmer ground (a
+Ghidra-acknowledged disassembly fault, not a vague "overlay collision"
+guess). Do not section-map mid-body until someone manually re-disassembles
+the bytes around `(ram,0x000586c7)` to find the correct instruction boundary
+and re-derives the true control flow from there — that's raw byte-level work,
+a different and much slower task than reading either the C or the ASM as
+Ghidra already segmented them.
 
 ## Linux phase arms vs head
 
