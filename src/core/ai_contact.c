@@ -1941,8 +1941,34 @@ static int ai_contact_meet_economics_2154(
           if (rel_x < 0 || rel_x > 4 || rel_y < 0 || rel_y > 4) {
             continue;
           }
-          /* Full relative ring stand-in for 281f_0ce0 work-slot gate. */
-          cover[ly * 5 + lx] = 1;
+          /*
+           * FUN_281f_0ce0 -> FUN_15eb_06a6 -> FUN_15eb_05e2: ring-slot lookup
+           * then colony+0x70 worker byte read; DOS compares the returned byte
+           * as *signed* (0xff == "no worker" == not-covered). Decomp special-
+           * cases the colony's own tile (lx==2 && ly==2, i.e. dx=dy=0) as
+           * always covered; every other covered cell must be one of the 8
+           * immediate work-ring tiles (N,E,S,W,NW,NE,SE,SW — colony.h order)
+           * *and* currently worked. Col1 colony tiles[8..19] (the raw-save
+           * 20-slot ring beyond the 8 immediate directions) never carry a
+           * worker in either DOS or col1_bridge.c, so those cells are simply
+           * never covered — an unworked adjacent tile stays "free" land for
+           * the tribe scorer, matching the DOS byte-for-byte. Cite:
+           * indian_meet_scoring_2154.md Phase 1 (281f_0ce0 work-slot OPEN).
+           */
+          const int dx = lx - 2;
+          const int dy = ly - 2;
+          if (dx == 0 && dy == 0) {
+            cover[ly * 5 + lx] = 1;
+            continue;
+          }
+          static const int k_dir_dx[8] = {0, 1, 1, 1, 0, -1, -1, -1};
+          static const int k_dir_dy[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
+          for (int dir = 0; dir < 8; ++dir) {
+            if (k_dir_dx[dir] == dx && k_dir_dy[dir] == dy && c->tiles[dir] >= 0) {
+              cover[ly * 5 + lx] = 1;
+              break;
+            }
+          }
         }
       }
     }
