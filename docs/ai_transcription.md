@@ -304,7 +304,7 @@ letter/MoW chrome, and VGA-identical dialog polish remain correctly **PARKED**
 
 | # | Track | Status |
 |--:|-------|--------|
-| 1 | Indian meet/trade/gift/teach **player dialogs** | **Done** structural (`ai_popup`); village-enter Meet CHOICE **Done** thin; gift-amount CHOICE **Done** thin; deep `2820` **mapped** ([`indian_trade_2820.md`](../original_sources_annotated/ai/indian_trade_2820.md)); VGA PARKED |
+| 1 | Indian meet/trade/gift/teach **player dialogs** | **Done** structural (`ai_popup`); village-enter Meet CHOICE **Done** thin; gift-amount CHOICE **Done** thin; deep `2820` **mapped** ([`indian_trade_2820.md`](../original_sources_annotated/ai/indian_trade_2820.md)); VGA PARKED. `ai_contact_teach_skill` correctly free (teaching never costs gold) — **Done** fixed capital-village exemption from the one-shot learn limit same day. `FUN_4d56_417e` (task #5) **identified as Incite Indians / WARPATH** (confirmed vs. `GAME.TXT` `@INDIANWARPATH`/`@INDIANWARPATH2`) — closes the "incite/WARPATH gold PARKED" gap cited below and elsewhere; structure fully mapped, not yet wired in (no `AI_POPUP_TAG_CONTACT_INCITE` exists yet) — 2 price-table values unnamed, caller unfound ([`indian_incite_417e.md`](../original_sources_annotated/ai/indian_incite_417e.md)) |
 | 2 | King audience / declare confirm / merc hire **UI** | **Done** structural + MoW×6 / Dragoon garrison / Cont. capital-rally / siege spawn **Done**; dump-goods CHOICE **Done**; VGA / `160a` remain PARKED |
 | 3 | Founding Fathers **deeper effect table** | Cortes coastal cash + de Witt delivery + Sepulveda convert-join (**Done** FUN_5fef_31ea peel); human Congress debate CHOICE (**Done** structural); KINGGALLEON2 still PARK; F3 portrait grid / VGA PARKED |
 | 4 | Euro mid-planner (`5d04` / CONTACT / land `20e6`) | OPEN deep −0x6790 (thin G prio ladder own≥2/3/4→6/7/8 Done); naval FUN_157e_004a holds/damage + ocean combat approach **Done**; land fort% + siege/open hunt + vet/Drake toughness **Done**; … ocean east-Europe HS bias **Done**; thin Europe ship buy ladder (Caravel/Merchantman/Galleon/Frigate) **Done**; mid-game colonies≥6 ship-buy+war hire **Done**; Col1 `labor_shortage` (+0x8e) LABOR join **Done**; `garrison_quota` (+0x1e) fortify DEC **Done**; `specialty_cargo` (+0x8d) haul prefer **Done**; `cargo_idle_turns` (+0x8f) haul score **Done**; `improve_timer` (+0x8c) pioneer gate **Done**; `build_ai_flags` (+0x1d bit7) wants_construction **Done**; `cargo_produced_mask` (+0x90) haul prefer **Done**; `ai_flags` (+0x1b) MoW→COLONY_ALT **Done**; `colony_flags` (+0x1c) starvation LABOR **Done**; `hammers_purchased` (+0x98) BUY **Done**; `colony_flags` sol_50/sol_100 latch **Done**; `depletion_counter` (+0x97) ore/silver wrap+suppress **Done**; `warehouse_level`/`capitol_level` (+0x95/+0x96) **Done** |
@@ -473,7 +473,9 @@ WELCOME Accept clears alarm/friction; Reject floors friction ≥80 + attacks++ *
 Missionary flee status (established mission) **Done** thin.
 Teach/gift/demand/raid/convert/trade-refuse status tribe naming **Done** thin.
 `@INDIANCOMMENT` / missionary flee / harbor / scout-kill tribe naming **Done** thin.
-Foreign-mission heresy denounce 50/50 **Done** thin (incite/WARPATH gold PARKED).
+Foreign-mission heresy denounce 50/50 **Done** thin (incite/WARPATH gold
+PARKED — mechanic identified 2026-08-13 as `FUN_4d56_417e`, structure
+fully mapped: `indian_incite_417e.md`, not yet wired in).
 Ambush `@INDIANWIN1`/`WIN2` muskets/horses seize **Done** thin.
 Peaceful relation-tick tribe friction −1 **Done** thin.
 Raid `@INDIANSURPRISE` / peace-break `@INDIANWAR` **Done** thin.

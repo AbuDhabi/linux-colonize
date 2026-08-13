@@ -127,7 +127,7 @@ Topic hub (graphics, units, settlements, alarm, contact): [indians.md](indians.m
 |----------------|--------|-------|
 | Villages on map + Braves | Partial | Map/minimap icons + placement + quiet pulse / growth / residual overlays (R0 partial: t1 empty, ~50 on t2–t6); see [ai_transcription.md](ai_transcription.md) |
 | Meet menus, trade, teach skills | Partial | Structural auto-meet/trade/teach (`ai_contact_*`); sea/wagon hold trade + gift/demand widgets **Done** thin; deep `2820` / VGA PARKED — [ai_transcription.md](ai_transcription.md) |
-| Missions / convert / incite | Partial | Adjacent Missionary → `tribe.mission` + crosses; convert UI **Done** structural (`@INDIANSCONVERT` colony name); foreign-mission heresy 50/50 **Done** thin; HELLO1/2 greet **Done** thin; raid surprise/war chrome **Done** thin; incite/WARPATH gold still PARKED |
+| Missions / convert / incite | Partial | Adjacent Missionary → `tribe.mission` + crosses; convert UI **Done** structural (`@INDIANSCONVERT` colony name); foreign-mission heresy 50/50 **Done** thin; HELLO1/2 greet **Done** thin; raid surprise/war chrome **Done** thin; incite/WARPATH gold still PARKED (mechanic identified as `FUN_4d56_417e`, fully structure-mapped: [`indian_incite_417e.md`](../original_sources_annotated/ai/indian_incite_417e.md), not yet wired in) |
 | Alarm, raid, Indian wars | Partial | Structural contact/raids (`ai_contact_*`, `@RAID*` tribe+colony status + ambush WIN1/2 / surprise / war); colony encroachment **Done** thin; player dialog **Done** structural (`ai_popup`); deep `2820`/`4528` still PARKED |
 
 ### Combat and diplomacy
