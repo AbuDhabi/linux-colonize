@@ -3082,9 +3082,53 @@ static uint8_t ai_contact_nation_primary_sold_cargo(int nation_id) {
 }
 
 /*
+ * FUN_4d56_2820 AI-buy-offer price (the `iStack_8==0` / `LAB_002bbc` branch —
+ * the non-human-Euro-peer path `ai_contact_auto_trade` needs; the human
+ * CHOICE-dialog buy-offer path stays separately PARKED, VGA-gated).
+ * cargo_type fixed to TRADE_GOODS (0xd/13) here — the only cargo this trade
+ * path moves. `ask_cargo` = `econ.ask[13]` from the already-ported
+ * `ai_contact_meet_economics_2154` (same DS:0x9e58 table 2820 itself reads —
+ * not a fresh extraction, a consumer of already-working state).
+ *
+ * `FUN_1000_8c50` (relation → discount shape) not fully traced — approximated
+ * as `(relation>>2)<<1` here, monotonic in the right direction but not
+ * confirmed byte-exact. First-draft per project convention (ai-transcription
+ * memory); flagged for a fidelity pass. Cite: indian_trade_2820.md.
+ */
+static int ai_contact_2820_ai_buy_price(
+  ColonizeDosRng* rng,
+  int ask_cargo,
+  int quantity,
+  int difficulty,
+  int relation
+) {
+  if (!rng || ask_cargo <= 0 || quantity <= 0) {
+    return 1;
+  }
+  const int r = dos_rng_range(rng, 1, 5);
+  int base = 7; /* cargo_type 0xd (13) > 8 */
+  base -= dos_rng_range(rng, 0, 7); /* 0xd special case */
+  int relation_component = (relation >> 2) << 1; /* approximated FUN_1000_8c50 */
+  if (ask_cargo > 19) {
+    relation_component >>= 1;
+  }
+  int raw = ((base - difficulty) - relation_component + r + 4) * 2 * ask_cargo;
+  if (raw < 0) {
+    raw = 0;
+  }
+  int price = (r * 5 + raw) * quantity / 200;
+  if (price < 1) {
+    price = 1;
+  }
+  return price;
+}
+
+/*
  * Thin peaceful auto-trade (FUN_5bfb_022e / 2aac…311e stand-in).
- * Colony warehouse or nearby ship/wagon hold TRADE_GOODS → alarm/friction decay.
- * Sea/land trade (fandom); no invented price math. Deep 2820 buy PARKED.
+ * Colony warehouse or nearby ship/wagon hold TRADE_GOODS → alarm/friction decay,
+ * now with real 2820 AI-buy-offer price debited from the Euro nation's gold
+ * (previously: goods/relation bookkeeping only, no gold ever changed hands —
+ * see indian_trade_2820.md "real gap found"). Deep human-CHOICE buy path PARKED.
  */
 static int ai_contact_auto_trade(
   ColonizeTurnContext* ctx,
@@ -3168,6 +3212,7 @@ static int ai_contact_auto_trade(
    */
   const int hard =
     (ind->alarm_by_player[e] >= 45 && ind->alarm_by_player[e] < 55);
+  int qty_drained = 1;
   if (use_colony) {
     ColonizeColony* c = &ctx->colonies->colonies[best_ci];
     c->stock[COLONIZE_CARGO_TRADE_GOODS]--;
@@ -3183,6 +3228,7 @@ static int ai_contact_auto_trade(
         ai_contact_nation_primary_sold_cargo(nation_id) != 0xffu &&
         c->stock[COLONIZE_CARGO_TRADE_GOODS] > 0) {
       c->stock[COLONIZE_CARGO_TRADE_GOODS]--;
+      qty_drained = 2;
     }
   } else {
     ColonizeUnit* ship = units_get(ctx->units, best_ship);
@@ -3193,6 +3239,36 @@ static int ai_contact_auto_trade(
     if (ship->hold_goods_amount[best_hold] <= 0) {
       ship->hold_goods_amount[best_hold] = 0;
       ship->hold_goods_type[best_hold] = 0;
+    }
+  }
+  /*
+   * 2820 AI-buy price + gold debit (see ai_contact_2820_ai_buy_price above).
+   * Real behavior this closed: auto-trade previously moved goods with no
+   * gold ever changing hands. Needs a tribe of nation_id for the 2154 ask
+   * table; skip pricing (goods still move, matching old behavior) if none.
+   */
+  if (ctx->col1->tribe) {
+    const ColonizeCol1Tribe* sample = NULL;
+    for (uint16_t ti = 0; ti < ctx->col1->head.tribe_count; ++ti) {
+      const ColonizeCol1Tribe* t = &ctx->col1->tribe[ti];
+      if ((int)t->nation_id == nation_id) {
+        sample = t;
+        break;
+      }
+    }
+    AiContactMeetEcon2154 econ;
+    memset(&econ, 0, sizeof(econ));
+    if (sample && ai_contact_meet_economics_2154(ctx, nation_id, sample, &econ) &&
+        econ.ask[COLONIZE_CARGO_TRADE_GOODS] > 0) {
+      ColonizeDosRng local;
+      ai_contact_local_rng(ctx, nation_id, &local);
+      const int relation = (int)ai_diplo_indian_relation(ctx->col1, nation_id, e);
+      const int price = ai_contact_2820_ai_buy_price(
+        &local, (int)econ.ask[COLONIZE_CARGO_TRADE_GOODS], qty_drained,
+        ctx->col1->head.difficulty, relation
+      );
+      ColonizeCol1Nation* nat = &ctx->col1->nation[e];
+      nat->gold = (nat->gold >= (uint32_t)price) ? (nat->gold - (uint32_t)price) : 0u;
     }
   }
   if (ind->alarm_by_player[e] > 0) {
