@@ -221,6 +221,24 @@ Confirms the prediction above: real, worth keeping, does not clear the backlog.
    jump/switch target lands in a *different* overlay space — that's the
    genuine cross-overlay boundary the thunk table covers, not a bug here.
 
+3b. **`tools/GhidraDecompileAt.java`** (added 2026-08-14): a third headless
+   postScript for the common case of needing just one or two specific
+   functions from an already-imported project, when the auto-analysis
+   function-start sweep didn't happen to create a boundary at the exact
+   target address (common — `address_mapping.csv` calls these "gap" or
+   "before-first-function" matches). Usage:
+   ```
+   analyzeHeadless <projectDir> <projectName> -process <programName> \
+     -postScript GhidraDecompileAt.java <space1>:<offsetHex1> [<space2>:<offsetHex2> ...] \
+     -scriptPath tools -noanalysis
+   ```
+   `<space>` is `0000` for the resident block or an overlay name like
+   `OVL14_L0000`; `<offsetHex>` has no `0x` prefix. Force-creates a function
+   at each address if none already covers it, then decompiles and prints
+   its C. Cheaper than a full-project `GhidraExportOverlaysFull.java` export
+   when you already know exactly which `FUN_<seg>_<off>` you need (look up
+   its overlay/offset in `address_mapping.csv` first).
+
 4. **For any function actually needed next** (per the existing "check for `WARNING:`
    above the function before porting" rule in decomp_inventory.md): prefer Ghidra's
    native **overlay memory-block** feature over trusting the flattened file's absolute

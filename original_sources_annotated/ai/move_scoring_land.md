@@ -9,7 +9,9 @@ Parent: [`move_scoring.md`](move_scoring.md). Act entry: [`euro_unit_act.md`](eu
 
 **Port status:** mapped; Linux `ai_euro_score_move` settlement/siege peels +
 `ai_euro_land_best_adjacent_foe` Done thin. Deep −0x6790 / full explore ring
-**PARKED**.
+**PARKED**. Full clean whole-function recovery (2215 lines, zero warnings,
+2026-08-14, supersedes the canonical export's tail — see its own header for
+what changed): [`move_scoring_20e6_full.md`](move_scoring_20e6_full.md).
 
 ## Entry into this band
 
@@ -108,15 +110,23 @@ point to its own nearest/bound colony**, 0 meaning "standing on it."
 This resolves the SCOUT/PATROL gate's condition (`local_2e==0` → orders
 `0x56`; `local_2e!=0` → `goto LAB_521d_27f5` walk-to-colony) semantically:
 *combat-capable/Scout unit, same continent as its colony, standing on the
-colony tile → enter Scout/patrol; away from it → head back first.* **Still
-not portable as a behavior change**, though — the consumer of orders byte
-`0x314b == 0x56` ('V') was searched for across the whole canonical export and
-found nowhere (no `0x314b == 'V'` compare exists), which lines up with the
-already-known open mystery that `5b66`'s real body (the `20e6` caller / act
-dispatcher) was never located (`decomp_inventory.md`'s note: the documented
-1815-line `5b66` body actually belongs to an unfound function reached via a
-local thunk). Setting the orders byte with no confirmed consumer would be
-pure guesswork on effect — not shipped.
+colony tile → enter Scout/patrol; away from it → head back first.*
+
+**Update, same day: the "no consumer found" blocker below is resolved —
+retracted, not just narrowed.** The original text here searched the
+canonical export for a `0x314b == 'V'` compare and, finding none, guessed
+the consumer must be the still-unfound real `5b66` body. A full clean
+re-recovery of `20e6` itself
+([`move_scoring_20e6_full.md`](move_scoring_20e6_full.md), 2026-08-14) shows
+**`20e6` reads `unit+0x314b` at its own entry** (checks several of its own
+previously-written values, `0x56` included in spirit — the same field is
+read-and-written throughout the function) — it's a persistent per-unit
+decision cache `20e6` consults on its next call, not a value some other
+function dispatches on. There never was a missing consumer to find. This
+specific sub-gate (`local_de` continent-tier band) is now semantically
+understood end-to-end; it's just the still-missing `local_12` term
+(`−0x6168`, unit `+0x3154`) that keeps it from being ported, per above —
+not an unfound caller anymore.
 
 **Also gates part of the deep explore-ring colony-pull adjustment** (the
 `local_de`/`local_ca` score-radius bands keyed off nation-power table
@@ -160,20 +170,29 @@ file exists to avoid, not a real port.
 **Also structurally (not semantically) placed `−0x6b1a` and `−0x6a8e`
 this pass**, via the same negative-offset→absolute-address trick
 (`mod 0x10000`): `−0x6b1a` = `0x94e6`, `−0x6a8e` = `0x9572` — both already
-rows in `save_format_map.md` (255 `unknown_ds_94e6`, 259 `unknown_ds_9572`;
-both cited from `FUN_5952_035e`, the colony production/buildings/stock
-tick). Found a second, independent read site for `−0x6b1a`/`0x94e6` inside
-`FUN_5952_035e` itself (~line 95043-95062): a 64-byte grid, nation row ×
-continent column (stride `0x10`), where `0x94e6`/`0x94f6`/`0x9506`/`0x9516`
-are the same array's 4 nation rows (`0x94e6` is the array's own base, not a
-separate table) — used there to check "does this nation's own value at this
-continent equal the sum across all 4 nations" (a sole-occupant-style
-condition). Consistent shape with the `20e6` read (`nation*0x10 + continent`
-byte lookup) but **not** semantically confirmed as the same "friction"
-meaning `move_scoring_ship.md` guesses — still `unknown`, not `mapped`.
-`−0x6a8e`/`0x9572` has no second read site found yet. Neither is safe to
-port on this evidence alone; next step would be tracing `FUN_5952_035e`'s
-writers for both arrays (not attempted this pass).
+rows in `save_format_map.md` (255 `unknown_ds_94e6`, 259 `unknown_ds_9572`).
+Neither is safe to port on this evidence alone.
+
+**Self-correction, same day, next pass:** the paragraph originally here
+claimed a second read site for `0x94e6` "inside `FUN_5952_035e` itself
+(~line 95043-95062)" — a nation×continent grid used for a sole-occupant
+check. **That was wrong**, caught before it went further: re-disassembled
+`FUN_5952_035e` cleanly via the overlay project (`OVL15_L0000:35e`) — same
+method as `4528`/`1816`/etc — and the real function is a **complete,
+zero-warning, 1577-line body that never references `0x94e6`, `0x9572`,
+`−0x6b1a`, or `−0x6a8e` anywhere**. The canonical export's `FUN_5952_035e`
+(`viceroy_unpacked.c:93790`, 4 params) carries the exact disassembly-fault
+warning class (`overlaps instruction` + 2× unreachable block) already known
+to cause content misattribution, and its param count (4) doesn't even match
+the clean recovery (2) — the line-94990-95070 block I read and attributed to
+it was corrupted-decompile content that doesn't actually belong to this
+function, same failure mode as `4528`'s old "8 raid actions" and
+`15eb_1d4c`'s old "19KB corrupted function" false leads (`decomp_inventory.md`
+"Lesson" notes). **Corrected finding: `0x94e6`/`0x9572`'s real reader/writer
+is still wholly unidentified** — not `5952_035e`, not chased further this
+pass. If resumed: the honest next step is finding which function truly
+follows `5952_035e` at `OVL15_L0000` past its real ~1577-line end (not
+assumed from the corrupted export's line numbers), then checking that.
 
 ## Thunks / helpers
 

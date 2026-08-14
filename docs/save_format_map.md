@@ -148,7 +148,7 @@ as peels land.
 | `ai_flags` (`ColonizeCol1ColonyAiFlags`) | 1 | `mapped` | +0x1b; ship/AI planner bits — Linux field + MoW/armed ship scan + COLONY 5|8; thin needs_colonists/garrison |
 | `flags` (`ColonizeCol1ColonyFlags`) | 1 | `mapped` | +0x1c; Linux `colony_flags` — starvation→LABOR + sol_50/100 + wagon/coastal/small (`FUN_364b_0688`) |
 | `build_ai_flags` | 1 | `mapped` | +0x1d; bit7 `wants_construction` (0x80) — Linux field + LABOR latch + clear on queue done; other bits reserved |
-| `garrison_quota` | 1 | `mapped` | +0x1e; `threat>>3` (`FUN_5952_035e`); Linux `ColonizeColony.garrison_quota` + fortify DEC + thin latch |
+| `garrison_quota` | 1 | `mapped` | +0x1e; `threat>>3` (`FUN_5952_035e`, clean recovery 2026-08-14 confirms exact match — [`colony_tick_5952_035e.md`](../original_sources_annotated/ai/colony_tick_5952_035e.md)); Linux `ColonizeColony.garrison_quota` + fortify DEC + thin latch |
 | `occupation` / `profession` | 64 | `mapped` | |
 | `specialty[16]` | 16 | `mapped` | +0x60; colonist specialty nibbles (`FUN_15eb_0c7a`; was `duration`) |
 | `tiles[20]` | 20 | `mapped` | +0x70; ring `[0..7]`; `[8..19]` empty `0xff` in fixtures |
@@ -252,11 +252,11 @@ RAM is scattered; the port stores one packed `ColonizeCol1Stuff` for RMW.
 | 140 | 16 | `0x947e` | `unknown_ds_947e` — save I/O |
 | 156 | 16 | `0x95f2` | `unknown_ds_95f2` — AI readers (`4d56`/`5952`) |
 | 172 | 64 | `0x94a6` | `unknown_ds_94a6` — save I/O |
-| 236 | 64 | `0x94e6` | `unknown_ds_94e6` — `FUN_5952_035e`; also `= −0x6b1a` in `FUN_521d_20e6` (nation×continent byte grid, stride 0x10; see `move_scoring_land.md` "`−0x6b1a`/`−0x6a8e` placed") |
+| 236 | 64 | `0x94e6` | `unknown_ds_94e6` — cite **`FUN_5952_035e` unconfirmed** (2026-08-14: that function's canonical decompile is corruption-warning-flagged; a clean re-disassembly, `OVL15_L0000:35e`, is a complete 1577-line body that never references this address — the citation predates that check and was likely misattributed content, same failure class as `4528`'s old false leads; true owner still unknown). Also `= −0x6b1a` in `FUN_521d_20e6` (nation×continent byte grid, stride 0x10; see `move_scoring_land.md` "`−0x6b1a`/`−0x6a8e` placed" + its self-correction note) |
 | 300 | 64 | `0x95b2` | `unknown_ds_95b2` — save I/O |
 | 364 | 64 | `0x9526` | `unknown_ds_9526` — save I/O |
 | 428 | 64 | `0x918c` | `unknown_ds_918c` — save I/O |
-| 492 | 64 | `0x9572` | `unknown_ds_9572` — save I/O; also `= −0x6a8e` in `FUN_521d_20e6` (same nation×continent grid shape; see `move_scoring_land.md`) |
+| 492 | 64 | `0x9572` | `unknown_ds_9572` — save I/O; also `= −0x6a8e` in `FUN_521d_20e6` (same nation×continent grid shape; see `move_scoring_land.md`; **not** `FUN_5952_035e` — see `0x94e6` row's correction) |
 | 556 | 8 | `0x944e` | `unknown_ds_944e` — pop word totals |
 | 564 | 1 | `0x336` | `ui_toggle_336` — `FUN_2f2b_*` toggle (key `0x4e`); smcol `show_colony_prod_quantities` |
 | 565 | 8 | `0x9184` | `tribe_data_9184` |
