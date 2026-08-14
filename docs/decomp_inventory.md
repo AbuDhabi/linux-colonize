@@ -124,6 +124,44 @@ evidence that function is corrupted — decompile it directly first. This
 pattern (not `FUN_15eb_1d4c`'s jump-table case) accounted for 5 of this
 pocket's 6 "corrupted" callees turning out clean.
 
+## Method: asking the user to identify things is a legitimate RE tool
+
+Not everything resolves from static analysis, and that's fine — the user
+owns and has actually played this game. When a mechanic, string, sprite,
+or sound can't be pinned down from the decompile/`GAME.TXT`/`asm` alone,
+**describe what the code does and ask the user to identify it from their
+own gameplay memory or a live capture**, rather than treating "static
+analysis says X" as the only acceptable path or guessing at meaning.
+This has repeatedly been the actual unblock, not a fallback of last
+resort:
+
+- `indian_incite_417e.md` — the whole function's real-world identity
+  ("Incite Indians"/WARPATH) was settled when the user recognized a
+  plain-language walkthrough of the code as a known game feature, not by
+  any disassembly.
+- `settlement_record_8d4a.md` — a real accept/decline sign-convention
+  blocker (parked for a full pass, `2026-08-14`) was resolved in minutes
+  once the user recognized live gameplay text (`@INDIANBEGFOOD`, "the
+  tribe has fallen upon hard times...") and reported, from direct
+  experience, "give food → relations improve, refuse → worsens." No
+  disassembly could have produced that answer — the raw code's own
+  "gives away half the colony's stock" wording actively pointed the
+  wrong way until the user's testimony reframed it correctly.
+- `docs/popup_string_resolver.md` — a live DOSBox-X capture session (a
+  `BPM` memory breakpoint on the generic dialog-flush entry point, not a
+  scenario-specific trap) let the user relay ids and on-screen text turn
+  by turn, cheaper and more reliable than continuing to trace a resident-
+  space resolver chain statically.
+
+When you hit a wall like this: describe the ambiguity precisely (what the
+code does, what's uncertain, why it matters), and either ask directly if
+the user might recognize it, or — if it needs a specific live trigger —
+propose a concrete DOSBox-X capture plan (which function/address to
+watch, what to look for) rather than open-endedly asking them to "try
+things." The user's domain knowledge (having actually played the game) is
+real evidence, on par with a live capture — treat it that way in the
+resulting doc, not as a hedge.
+
 **Final catalog-only sweep, 2026-08-13 (task #15) — lead exhausted.**
 Pushed into the remaining 81 `FUNCTION_CATALOG.md`-only-cited names
 (the low-value tail deprioritized since the first sweep) to test rather

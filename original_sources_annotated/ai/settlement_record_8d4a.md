@@ -12,8 +12,11 @@ full field map, gathered via a broad grep + read sweep across
 `viceroy_unpacked.c` / `viceroy_overlays.c` (no Ghidra recovery needed — the
 canonical decomp is clean at every site cited below).
 
-**Status: mapped, not ported.** See "Relationship to Linux" and "Open
-question" at the end before attempting to port any of this.
+**Status: mapped; the one bounded, sign-resolved call site (`96751-96827`,
+`@INDIANBEGFOOD`) is ported (2026-08-14, `ai_contact_try_village_beg_food`).
+Everything else — the deep `2820`/`4528`-adjacent gift/trade-selection
+scope — stays PARKED.** See "Relationship to Linux" and "Open question"
+at the end for what's genuinely still blocked.
 
 ## Storage and selection
 
@@ -244,13 +247,13 @@ Linux port of this function). DOS's body has two parts:
    `0x9e78`, then (`96751-96827`) uses those scores to roll a probabilistic
    accept/refuse outcome that **resets** the village's `friction` to 0 on
    refusal or **scales it up ×1.5** plus a computed positive tribe-relation
-   delta on acceptance. **This part is not ported at all** — Linux's
-   already-met path (`ai_contact.c:3673-3703`) skips straight to unrelated,
-   much simpler stand-ins: a Trade/Gift/Demand/Teach/Incite/Leave CHOICE
-   menu for human Euros, silent `ai_contact_auto_trade`/
-   `ai_contact_gift_or_demand` stand-ins for AI Euros. Neither resolves
-   through DOS's real accept/refuse roll or touches `friction`/`attacks`
-   the way `022e` does.
+   delta on acceptance. **This one call site is now ported** (2026-08-14,
+   `ai_contact_try_village_beg_food`/`ai_contact_apply_beg_food` — see the
+   "SIGN CONVENTION RESOLVED" section below), reusing the already-existing
+   `Trade/Gift/Demand/Teach/Incite/Leave` village-meet CHOICE menu's own
+   `ai_contact_auto_trade`/`ai_contact_gift_or_demand` stand-ins for
+   everything else unrelated to this specific begging-for-food scenario —
+   those remain separate, Linux-invented approximations, not replaced.
 
 **2026-08-14, later same day — correcting the estimate above after a full
 end-to-end read (attempted implementation, aborted):** "~75-line block
@@ -348,6 +351,12 @@ gift"; those are two different pieces of state.
 of this one call site (`96751-96827`). Implemented same pass in
 `ai_contact.c` — see the code for the final port; this doc records the
 resolution reasoning, not the implementation details.
+
+**This is a worked example of a general technique** — see
+`docs/decomp_inventory.md`'s "Method: asking the user to identify things
+is a legitimate RE tool". No amount of static disassembly reading would
+have settled this sign question; recognizing the live gameplay text and
+reporting real, direct experience did, in minutes.
 [`docs/popup_string_resolver.md`](../../docs/popup_string_resolver.md).
 Doesn't change this doc's conclusion (still correctly PARKED, still no
 resolved text) — just means "revisit if a way to recover the string table

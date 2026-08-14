@@ -117,3 +117,17 @@ Even a full id→text resolution only settles the sign/wording ambiguity —
 `022e`'s deep adjacency body, `2820`/`4528`, and `153e`'s `12d0` branch
 would still need their own porting effort afterward. This is a
 prerequisite-unblock, not a finished port.
+
+## Outcome, 2026-08-14 — the live capture happened
+
+The user ran the `BPM`-based capture recommended above. The specific
+mystery ids (`0x1866` etc.) were never recovered — the breakpoint mostly
+surfaced an already-mapped dialog family — but the session resolved the
+actual blocker anyway, by a different route: the user recognized live
+gameplay text (`@INDIANBEGFOOD`) from direct experience and gave decisive
+testimony on the accept/decline sign question, unblocking
+`settlement_record_8d4a.md`'s parked mechanic (now ported, see that doc).
+See `decomp_inventory.md`'s "Method: asking the user to identify things
+is a legitimate RE tool" for the general lesson — recognize-from-
+gameplay is often a faster path than a full id→text table, worth trying
+before or alongside a longer capture session.

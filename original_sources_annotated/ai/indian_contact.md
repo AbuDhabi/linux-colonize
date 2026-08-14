@@ -107,7 +107,7 @@ missions slow hostility.
 | `FUN_4d56_2154` | `2a1f_0434` | From **`5bfb_022e`** meet path — fills `0x9e*` gift/demand tables | **Done** scorer [`indian_meet_scoring_2154.md`](indian_meet_scoring_2154.md); not raid |
 | `FUN_4d56_2820` | `2a1f_044c` | Heavy decision + nested trade `2aac…311e`; also ~86766 | **Mapped** [`indian_trade_2820.md`](indian_trade_2820.md); port PARKED |
 | `FUN_4d56_4528` | `2a1f_016c` | Settlement enter/raid; from **move foreign** / contact (`move_spent` §3) | **Mapped** head [`indian_settlement_4528.md`](indian_settlement_4528.md); mid-body PARKED (decomp soup) |
-| `FUN_5bfb_022e` | `2a1f_066c` | Indian unit meet/contact (~96565); also ~98793 | First-contact WELCOME **Done** (land only; ends at PEACE/COME); village Meet CHOICE **Done** thin; **already-met adjacency deep body (`96677-97101`) not ported — confirmed PARKED, see 2026-08-14 notes below** |
+| `FUN_5bfb_022e` | `2a1f_066c` | Indian unit meet/contact (~96565); also ~98793 | First-contact WELCOME **Done** (land only; ends at PEACE/COME); village Meet CHOICE **Done** thin; already-met adjacency deep body (`96677-97101`) — its one bounded, sign-resolved piece (`96751-96827`, `@INDIANBEGFOOD`) **Done** 2026-08-14 (`ai_contact_try_village_beg_food`, see `settlement_record_8d4a.md`); the surrounding gift/trade-selection scope (`2820`/`4528`-adjacent) stays PARKED, see 2026-08-14 notes below |
 | `FUN_4cc6_00f2` / `0000` | `0d6c` / `0398` | Relation delta / mission clear | Already ported thin as `ai_diplo_indian_relation_delta` |
 
 **2026-08-14: `022e`'s already-met adjacency body — real gap, but
