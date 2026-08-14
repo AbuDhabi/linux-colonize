@@ -1661,20 +1661,33 @@ static uint32_t ai_contact_incite_price(
     village_count * 8 + (((brave_value_sum >> 2) & 0xfe) - 2 * village_count) +
     (int)ind->muskets * 2 + (int)ind->horse_herds * 2;
 
-  /* DOS relation_score is ~0-100; ai_diplo_indian_relation is 0-255. */
+  /* DOS relation_score is ~0-100 (0x4b=75 is a real DOS "hostile-ish"
+   * threshold on this exact scale, cross-confirmed via euro_g_table_0a60's
+   * independent use of the same FUN_281f_030c/relation<0x4b check);
+   * ai_diplo_indian_relation is 0-255. */
   const int relation =
     (int)ai_diplo_indian_relation(col1, nation_id, inciter) * 100 / 255;
   (void)target; /* alarm_by_player no longer used — real formula has no target term here */
-  /* NOTE: the base/relation division below (`* 100 /`) is UNCHANGED and
-   * still not independently confirmed byte-exact — the raw disassembly
-   * calls FUN_1d1d_0f60 here, which FUNCTION_CATALOG.md lists as the
-   * platform 32-bit *multiply* helper (not divide; that's FUN_1d1d_0ec6,
-   * used one branch below for the untouched param_3==1/French rescale).
-   * That conflicts with this formula reading as a division and would
-   * flip the whole shape of the price curve if true — not resolved this
-   * pass, left alone rather than guess at already-shipped, tested code.
-   * See indian_incite_417e.md. */
-  int price = base * 100 / (relation + 75);
+  /* Base-combine op resolved byte-exact, 2026-08-14: read the actual
+   * decompiled bodies of FUN_1d1d_0f60/FUN_1d1d_0ec6 (viceroy_unpacked.c
+   * lines 20742-20829, both "exact"-kind mapped) instead of trusting
+   * FUNCTION_CATALOG.md's inferred labels secondhand — confirms the
+   * catalog was right both times: 0f60 (called here) really is a plain
+   * 32-bit multiply (`return (ulong)param_1*(ulong)param_3;` for the
+   * common small-operand case), 0ec6 (called by the French branch below)
+   * really is the signed-division helper. So this line is `base *
+   * (relation+75)`, NOT a division — a previous pass's `* 100 /` here
+   * was backwards in both operation and shape. See indian_incite_417e.md
+   * "Base-combine op resolved" for the byte-exact walkthrough. */
+  int price = base * (relation + 75);
+  /* French get a real DOS price break here (nation_A==1, matches this
+   * project's own English/French/Spanish/Dutch=0/1/2/3 ordering) — genuine
+   * Colonization lore (French have the best native relations) and now
+   * byte-exact: raw disassembly's FUN_1d1d_0ec6(price<<1, ..., 3, 0) is a
+   * real division, i.e. price = price*2/3 (~33% off). */
+  if (inciter == 1) {
+    price = (int)(((long)price * 2) / 3);
+  }
   /* Discount loop — now byte-exact (2026-08-14, replaces the
    * `ai_diplo_indian_relation>128`/flat-100 stand-in). Raw disassembly:
    * for every tribe record, if tribe.nation_id(+2) == this village's own
