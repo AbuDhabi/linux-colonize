@@ -2690,6 +2690,233 @@ static void ai_contact_gift_or_demand(
 }
 
 /*
+ * FUN_5bfb_022e already-met Brave/Euro adjacency accept/refuse
+ * (viceroy_unpacked.c:96751-96827) — the mechanic settlement_record_8d4a.md
+ * flagged as blocked on an accept/decline sign ambiguity. Resolved
+ * 2026-08-14 via live user gameplay testimony captured during this
+ * session's DOSBox-X live-capture pass (see that doc's "SIGN CONVENTION
+ * RESOLVED" section): giving food improves tribe relations, refusing
+ * worsens them. GAME.TXT `@INDIANBEGFOOD` ("...will our brothers of
+ * {colony} share the bounty...") is the matching text — confirmed zero
+ * references anywhere in this project before this pass, a genuine unwired
+ * gap, not an approximation being replaced.
+ *
+ * Real DOS trigger: tribe's `2154` scorer `ask[0]>bid[0]`, a candidate
+ * Euro colony's relevant stock `> 0x4a` (74) — matches the user's own
+ * independently-reported trigger condition ("only ever seen with
+ * substantial food stores") — then `dos_rng_range(1,100) <= (ask-bid)`.
+ * On accept: attitude (`friction`) scales up roughly ×1.5, a positive
+ * relation delta (doubled if the tribe's own capital). On decline: the
+ * colony loses roughly half its stock anyway — a **punitive** seizure,
+ * not a withheld voluntary gift; this reconciles the raw decompile's
+ * "gives away half the colony's stock" wording on the *refuse* branch
+ * with a refuse outcome (natives who already know the colony is
+ * well-stocked take some anyway when rebuffed) — attitude resets to 0,
+ * negative relation delta (doubled if capital).
+ *
+ * Approximated, not independently byte-verified: the exact relation-delta
+ * magnitude (raw decompile has an uncertain floor-loop on the decline
+ * side not fully reconciled; used the same flat ±5/±10-doubled-if-capital
+ * shape as the loop's own base case before iterating), and the DOS
+ * AI-vs-human branch-selection nuance (a `param_1==2` hardcode in the
+ * human-controlled arm wasn't reconciled with the user's own experience
+ * of a real Give/Refuse choice regardless of nation played — implemented
+ * as a real CHOICE for any human nation instead). The DOS "which-good-to-
+ * gift sizing" sub-routine (a separate, still-unported piece) is
+ * approximated here as a simple quarter of current stock.
+ */
+static void ai_contact_apply_beg_food(
+  ColonizeTurnContext* ctx,
+  ColonizeCol1Indian* ind,
+  int nation_id,
+  int e,
+  int colony_id,
+  int accept
+) {
+  (void)ind;
+  if (!ctx || !ctx->col1_ok || !ctx->col1 || !ctx->colonies || e < 0 || e > 3) {
+    return;
+  }
+  if (colony_id < 0 || colony_id >= COLONIZE_COLONIES_MAX) {
+    return;
+  }
+  ColonizeColony* c = &ctx->colonies->colonies[colony_id];
+  if (!c->active || c->nation_id != e) {
+    return;
+  }
+  int capital = 0;
+  ColonizeCol1Tribe* target_tribe = NULL;
+  if (ctx->col1->tribe) {
+    for (uint16_t ti = 0; ti < ctx->col1->head.tribe_count; ++ti) {
+      ColonizeCol1Tribe* t = &ctx->col1->tribe[ti];
+      if ((int)t->nation_id == nation_id) {
+        target_tribe = t;
+        capital = t->state.capital != 0;
+        break;
+      }
+    }
+  }
+  ai_contact_bind_names(ctx);
+  if (accept) {
+    int gift = c->stock[COLONIZE_CARGO_FOOD] / 4;
+    if (gift < 1) {
+      gift = 1;
+    }
+    if (gift > c->stock[COLONIZE_CARGO_FOOD]) {
+      gift = c->stock[COLONIZE_CARGO_FOOD];
+    }
+    c->stock[COLONIZE_CARGO_FOOD] -= gift;
+    if (target_tribe) {
+      int fr = (int)target_tribe->alarm[e].friction;
+      fr += fr / 2;
+      if (fr > 255) {
+        fr = 255;
+      }
+      target_tribe->alarm[e].friction = (uint8_t)fr;
+    }
+    ai_diplo_indian_relation_delta(ctx->col1, nation_id, e, capital ? 10 : 5);
+    if (ctx->status && ctx->status_size) {
+      snprintf(
+        ctx->status, ctx->status_size, "We share %d food with the %s.", gift,
+        ai_contact_tribe_name(nation_id)
+      );
+    }
+  } else {
+    int half = c->stock[COLONIZE_CARGO_FOOD] / 2;
+    c->stock[COLONIZE_CARGO_FOOD] -= half;
+    if (target_tribe) {
+      target_tribe->alarm[e].friction = 0;
+    }
+    ai_diplo_indian_relation_delta(ctx->col1, nation_id, e, capital ? -10 : -5);
+    if (ctx->status && ctx->status_size) {
+      snprintf(
+        ctx->status, ctx->status_size, "The %s take %d food in anger at our refusal.",
+        ai_contact_tribe_name(nation_id), half
+      );
+    }
+  }
+}
+
+static int ai_contact_beg_food_pending(const AiPopupState* st) {
+  if (!st) {
+    return 0;
+  }
+  for (int i = 0; i < st->queue_count; ++i) {
+    if (st->queue[i].tag == AI_POPUP_TAG_CONTACT_BEGFOOD) {
+      return 1;
+    }
+  }
+  return st->open && st->current.tag == AI_POPUP_TAG_CONTACT_BEGFOOD;
+}
+
+/*
+ * Trigger side of the above — once per Indian nation's §9 (post-pulse,
+ * not inside the seed-100-sensitive quiet 14fe pulse), pick the first
+ * already-met Euro colony with food stock > 74 and enough tribe/Euro
+ * economic pressure (2154 ask>bid, RNG-gated) to beg. Human gets a real
+ * Give/Refuse CHOICE (`@INDIANBEGFOOD`); AI Euro nations auto-accept
+ * when it can spare the food (matches this file's established
+ * AI-defaults-generous convention for gift-shaped decisions elsewhere).
+ */
+void ai_contact_try_village_beg_food(ColonizeTurnContext* ctx, int nation_id) {
+  if (!ctx || !ctx->col1_ok || !ctx->col1 || !ctx->colonies || !ctx->col1->tribe || !ctx->rng) {
+    return;
+  }
+  if (nation_id < 4 || nation_id > 11) {
+    return;
+  }
+  ColonizeCol1Indian* ind = &ctx->col1->indian[nation_id - 4];
+  if (ctx->ai_popups && ai_contact_beg_food_pending(ctx->ai_popups)) {
+    return;
+  }
+  const ColonizeCol1Tribe* sample = NULL;
+  for (uint16_t ti = 0; ti < ctx->col1->head.tribe_count; ++ti) {
+    const ColonizeCol1Tribe* t = &ctx->col1->tribe[ti];
+    if ((int)t->nation_id == nation_id) {
+      sample = t;
+      break;
+    }
+  }
+  if (!sample) {
+    return;
+  }
+  AiContactMeetEcon2154 econ;
+  memset(&econ, 0, sizeof(econ));
+  if (!ai_contact_meet_economics_2154(ctx, nation_id, sample, &econ)) {
+    return;
+  }
+  const int delta = (int)econ.ask[0] - (int)econ.bid[0];
+  if (delta <= 0) {
+    return;
+  }
+  for (int e = 0; e < 4; ++e) {
+    if (!ind->euro_diplo[e] || ind->alarm_by_player[e] >= 55) {
+      continue;
+    }
+    int best_ci = -1;
+    for (int ci = 0; ci < COLONIZE_COLONIES_MAX; ++ci) {
+      ColonizeColony* c = &ctx->colonies->colonies[ci];
+      if (!c->active || c->nation_id != e || c->stock[COLONIZE_CARGO_FOOD] <= 0x4a) {
+        continue;
+      }
+      best_ci = ci;
+      break;
+    }
+    if (best_ci < 0) {
+      continue;
+    }
+    const int roll = dos_rng_range(ctx->rng, 1, 100);
+    if (roll > delta) {
+      continue;
+    }
+    ai_contact_bind_names(ctx);
+    if (ai_contact_euro_is_human(ctx, e)) {
+      PopupMsgTokens tok;
+      memset(&tok, 0, sizeof(tok));
+      tok.string0 = ai_contact_tribe_name(nation_id);
+      tok.string1 = ctx->colonies->colonies[best_ci].name;
+      char body[AI_POPUP_BODY_LEN];
+      popup_msg_fill(
+        ctx->messages, "INDIANBEGFOOD", &tok,
+        "\"The tribe has fallen upon hard times and does not have enough food this "
+        "season.  Will you share your bounty with them?\"",
+        body, sizeof(body)
+      );
+      char choice_buf[AI_POPUP_CHOICE_MAX][AI_POPUP_CHOICE_LEN];
+      const ColonizeMsgSection* sec = assets_msg_find(ctx->messages, "INDIANBEGFOOD");
+      int nch = popup_msg_choices(sec, choice_buf, AI_POPUP_CHOICE_MAX);
+      const char* labels[2];
+      char label_buf[2][AI_POPUP_CHOICE_LEN];
+      if (nch >= 2) {
+        labels[0] = choice_buf[0];
+        labels[1] = choice_buf[1];
+      } else {
+        snprintf(label_buf[0], sizeof(label_buf[0]), "I'm sorry, we gave at the office.");
+        snprintf(label_buf[1], sizeof(label_buf[1]), "We offer you food as a sign of friendship.");
+        labels[0] = label_buf[0];
+        labels[1] = label_buf[1];
+      }
+      const int ids[2] = {1, 2}; /* 1=decline (label[0]), 2=accept (label[1]) */
+      if (ai_popup_enqueue_choice_ctx(
+            ctx->ai_popups, AI_POPUP_TAG_CONTACT_BEGFOOD, e, nation_id, best_ci, NULL, body,
+            labels, ids, 2
+          )) {
+        if (ctx->status && ctx->status_size) {
+          snprintf(
+            ctx->status, ctx->status_size, "The %s beg for food at %s.",
+            ai_contact_tribe_name(nation_id), ctx->colonies->colonies[best_ci].name
+          );
+        }
+      }
+    } else {
+      /* AI Euro: auto-accept when it can spare a quarter of its food. */
+      ai_contact_apply_beg_food(ctx, ind, nation_id, e, best_ci, 1);
+    }
+    return; /* one beg-for-food event per Indian nation per turn */
+  }
+}
+
+/*
  * Missionary adjacent to tribe → convert / heresy pulse (5bfb / fandom
  * Missionaries / wiki heresy denounce):
  *  - mission unset (0xff) → set mission owner, alarm/friction decay (−1
@@ -5470,6 +5697,21 @@ void ai_contact_apply_popup_result(ColonizeTurnContext* ctx, const AiPopupState*
     } else if (popup->result_choice_id == AI_CONTACT_DEMAND_GOLD) {
       ai_contact_apply_demand_gold(ctx, ind, nation_id, e);
     }
+    return;
+  }
+
+  /*
+   * @INDIANBEGFOOD Give/Refuse (FUN_5bfb_022e already-met adjacency —
+   * see ai_contact_try_village_beg_food's own header comment). Payload
+   * carries the offer-time colony id (captured at offer time, same
+   * discipline as ai_king_merc's landing tile — the colony could
+   * theoretically change hands between offer and apply). choice_id 2 =
+   * accept/give (label[1]), 1 = decline/refuse (label[0]).
+   */
+  if (popup->result_tag == AI_POPUP_TAG_CONTACT_BEGFOOD) {
+    ai_contact_apply_beg_food(
+      ctx, ind, nation_id, e, popup->result_payload, popup->result_choice_id == 2
+    );
     return;
   }
 

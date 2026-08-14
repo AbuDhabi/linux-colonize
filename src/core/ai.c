@@ -3542,6 +3542,7 @@ void ai_indian_nation_turn(ColonizeTurnContext* ctx, int nation_id) {
 
   /* §9 meet/trade + raids (5bfb / 4528 paths — not quiet 14fe). */
   ai_contact_indian_meet_trade(ctx, nation_id);
+  ai_contact_try_village_beg_food(ctx, nation_id);
   ai_contact_indian_raids(ctx, nation_id);
 }
 
