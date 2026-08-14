@@ -1,4 +1,5 @@
 #include "core/ai_king.h"
+#include "core/ai_diplo.h"
 
 #include "core/assets.h"
 #include "core/colony.h"
@@ -2060,6 +2061,19 @@ static void ai_king_do_declare(ColonizeTurnContext* ctx, int human) {
       continue;
     }
     ctx->col1->player[n].control = 2;
+    if (n != crown_fold && ctx->col1_ok) {
+      /*
+       * FUN_43f7_0108 diplo-clear/set (0xb clear / 0x60 OR bitmasks vs
+       * DS:0x5398 declaring nation and DS:0x53d2 crown -- DOS never targets
+       * the crown itself with 0108, matching the n==crown_fold skip here).
+       * 0xb = WAR|PEACE|unmapped-bit3; 0x60 = unmapped-bit5|MET. The two
+       * unmapped bits are intentionally not applied -- see king_ref.md.
+       */
+      ai_diplo_clear_both(ctx->col1, n, human, (uint8_t)(AI_DIPLO_WAR | AI_DIPLO_PEACE));
+      ai_diplo_or_both(ctx->col1, n, human, (uint8_t)AI_DIPLO_MET);
+      ai_diplo_clear_both(ctx->col1, n, crown_fold, (uint8_t)(AI_DIPLO_WAR | AI_DIPLO_PEACE));
+      ai_diplo_or_both(ctx->col1, n, crown_fold, (uint8_t)AI_DIPLO_MET);
+    }
     if (n == crown_fold || !ctx->units) {
       continue;
     }
