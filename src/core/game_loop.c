@@ -685,6 +685,25 @@ static bool game_try_found_colony_at_cursor(ColonizeGameState* game) {
     set_status(game, "Cannot found colony here", NULL);
     return false;
   }
+  for (int i = 0; i < game->colonies.colony_count; ++i) {
+    const ColonizeColony* col = &game->colonies.colonies[i];
+    if (col->active && abs(col->x - cx) <= 1 && abs(col->y - cy) <= 1) {
+      char body[AI_POPUP_BODY_LEN];
+      PopupMsgTokens tok = {0};
+      tok.string0 = col->name[0] ? col->name : "nearby colony";
+      popup_msg_fill(
+        &game->messages,
+        "TOONEAR",
+        &tok,
+        "This land is too near to another colony for a new colony, Your Excellency.",
+        body,
+        sizeof(body)
+      );
+      ai_popup_enqueue_ok(&game->ai_popups, AI_POPUP_TAG_INFO, NULL, body);
+      set_status(game, "Cannot found colony here", NULL);
+      return false;
+    }
+  }
   if (map_pedia_terrain_index_at(&game->world_map, cx, cy) == 27) {
     char body[AI_POPUP_BODY_LEN];
     popup_msg_fill(

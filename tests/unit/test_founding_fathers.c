@@ -1479,6 +1479,7 @@ int main(void) {
       return fail("Minuit: land cost must be 0 with FF");
     }
     const uint32_t gold_before_free = gold_pay;
+    colonies_init(&mpool);
     const int cid_free = colonies_found_with_indian_land(
       &mpool, &mmap, &mcol1, &gold_pay, 6, 5, 0, -1, -1, 0, 0, 0
     );

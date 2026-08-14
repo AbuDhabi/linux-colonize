@@ -8586,12 +8586,17 @@ static int ai_euro_move_scoring_gate(ColonizeTurnContext* ctx, ColonizeUnit* u, 
     if (ai_euro_land_is_passive_orders(u) && ai_euro_is_artillery_name(hn)) {
       return 0;
     }
-    if (ai_euro_is_colony_garrison_name(hn) && ctx->colonies) {
+    if (ctx->colonies) {
       const int cid = colonies_id_at(ctx->colonies, u->x, u->y);
       if (cid >= 0) {
         const ColonizeColony* oc = colonies_get(ctx->colonies, cid);
         if (oc && oc->active && oc->nation_id == nation_id) {
-          return 0;
+          if (ai_euro_is_colony_garrison_name(hn)) {
+            return 0;
+          }
+          if (ai_euro_colony_wants_construction_labor(ctx->colonies, oc)) {
+            return 0;
+          }
         }
       }
     }

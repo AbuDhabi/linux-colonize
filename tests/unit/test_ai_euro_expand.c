@@ -8625,7 +8625,7 @@ static int unit_construction_labor_stockade(void) {
     fprintf(
       stderr,
       "unit_ai_euro_expand: construction joined=%d labor_stay=%d left=%d "
-      "pop %d→%d active=%d pos=(%d,%d) goto=(%d,%d) orders=%d labor_prio=%d\n",
+      "pop %d→%d active=%d pos=(%d,%d) goto=(%d,%d) orders=%d labor_prio=%d colonies=%d (c0=(%d,%d) c1=(%d,%d))\n",
       joined,
       labor_stay,
       left_for_found,
@@ -8637,7 +8637,11 @@ static int unit_construction_labor_stockade(void) {
       pioneer ? pioneer->goto_x : -1,
       pioneer ? pioneer->goto_y : -1,
       pioneer ? pioneer->orders : -1,
-      ai_goals_max_primary_prio(nation, 4, 4, AI_GOAL_LABOR)
+      ai_goals_max_primary_prio(nation, 4, 4, AI_GOAL_LABOR),
+      colonies.colony_count,
+      colonies.colonies[0].x, colonies.colonies[0].y,
+      colonies.colony_count > 1 ? colonies.colonies[1].x : -1,
+      colonies.colony_count > 1 ? colonies.colonies[1].y : -1
     );
     free(map.terrain);
     free(map.layer2);
