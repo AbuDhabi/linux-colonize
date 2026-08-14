@@ -539,6 +539,46 @@ not a quick fix — needs the actual CHOICE-dispatch call site found first
 (not yet located) before either the percentage or the Decline behavior
 can be ported with confidence. Stays PARKED.
 
+**2026-08-14, later same day — real domain-knowledge confirmation of the
+mechanic's shape, plus a real (partial) function-identification
+correction.** Asked the user directly (per the "ask the user" method,
+`decomp_inventory.md`): confirmed there genuinely **are** two different
+percentages — with Cortes, or using your own Galleon, the King takes the
+standard tax rate; without Cortes **and** without a Galleon, the King's
+Galleon offer still appears but the cut is "extreme, far in excess of the
+normal tax rate" (exact figure not recalled). This resolves the shape
+question this doc left open — the mechanic really is two-tier, not a
+single rate, so `local_4`/`bVar4` (or something like them) really should
+gate a percentage choice somewhere.
+
+**But `FUN_48d3_06ba` is very likely NOT that function.** Re-read its
+Treasure-cashing loop (`77985-78028`) with the confirmed two-tier shape
+in mind, expecting to find the branch — it isn't there. Every Treasure
+unit found gets the *same* single tax-clamped-≤50% formula applied
+unconditionally (no branch on `local_4`/`bVar4`, no Decline path, no
+second percentage anywhere in the loop) — this function is a flat-rate
+auto-cash routine, structurally incapable of expressing the confirmed
+two-tier mechanic. The "eligible ship found" flag it sets
+(`DS:0x14c`/`0x14e`) isn't a King's-Galleon-choice trigger either — traced
+its one real consumer (the caller at `viceroy_unpacked.c:58376-58381`,
+already independently documented in `europe_finish_bridge.md`) and it
+just **opens the Europe screen focused on the ship**, a UI convenience,
+unrelated to any percentage decision.
+
+**Net effect: this doc's earlier "traced the cited crown-cut function"
+premise was itself likely a mis-attribution** (same class of mistake as
+`euro_diplo_153e_full.md`'s retracted false lead this same session) —
+`FUN_48d3_06ba` isn't "the KINGGALLEON2 function," just a same-segment
+neighbor that happens to also touch Treasure units. The real two-tier
+percentage/Choice function is still unfound; a few other `0x3146=='\n'`
+(Treasure-type) sites exist nearby in the same file (`78908`, `79208`,
+others) but the ones checked so far are UI/display code, not the cash
+mechanic. **Genuinely still open** — narrowed (one wrong candidate ruled
+out, the real shape now confirmed from a decisive external source) but
+not located. Stays PARKED; worth a fresh, dedicated pass if picked up,
+now with a concrete two-tier-percentage shape to search for instead of
+an ambiguous "maybe inverted" reading.
+
 ### 2c6. Linux thin — Missionary CONTACT (act)
 
 Peace + Missionary/Jesuit, **not fleeing** (adjacent tribe Alarm/friction ≥55 —
