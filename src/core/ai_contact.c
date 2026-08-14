@@ -5,6 +5,7 @@
 #include "core/colony.h"
 #include "core/col1_save.h"
 #include "core/colony_yield.h"
+#include "core/combat_strength.h"
 #include "core/dos_rng.h"
 #include "core/founding_fathers.h"
 #include "core/map.h"
@@ -1585,39 +1586,95 @@ static int ai_contact_enqueue_gift_amount_choice(
  *   base = table[-0x69d6]*8 + (table[-0x6e7c]>>2&0xfe - 2*table[-0x69d6])
  *        + INDIAN_STATE.signed_byte[7]*2 + INDIAN_STATE.signed_byte[8]*2
  *   price = base / (relation_score + 0x4b); floor 500
- * Two of the four additive terms come from unnamed DOS byte-lookup tables
- * (tribe civilization/sophistication class) with no captured values
- * anywhere in this project — approximated here with `ind->tech`, the
- * closest already-real per-nation sophistication indicator, scaled to
- * land in a plausible gold range. First-draft; not byte-exact.
+ *
+ * 2026-08-14: both previously-unnamed tables identified while tracing the
+ * deep Euro G-table (euro_g_table_0a60.md / FUN_4962_06b6, same DS
+ * neighborhood) — neither is a static lookup constant, both are live
+ * per-turn recomputed sums over this tribe *type* (nation_id-4):
+ *   table[-0x69d6][type] = count of villages of that tribe type
+ *   table[-0x6e7c][type] = Σ combat_unit_base_x8(brave, mode=1) [attack-
+ *                          mode value, matching the traced FUN_281f_09c8
+ *                          call] over every Brave of that tribe type,
+ *                          byte-clamped (DOS's saturating FUN_4962_0006)
+ * INDIAN_STATE.signed_byte[7]/[8] were already-named fields all along —
+ * `ind->muskets` / `ind->horse_herds` (col1_save.h) — just never wired
+ * into this formula; the `ind->tech`/`alarm_by_player` stand-in below was
+ * approximating the wrong quantities entirely, not just missing two
+ * unconfirmed numbers.
  */
 static uint32_t ai_contact_incite_price(
-  const ColonizeCol1Save* col1,
+  ColonizeTurnContext* ctx,
   const ColonizeCol1Indian* ind,
   int nation_id,
   int inciter,
   int target
 ) {
-  if (!col1 || !ind) {
+  if (!ctx || !ctx->col1_ok || !ctx->col1 || !ind || nation_id < 4 || nation_id > 11) {
     return 500u;
   }
+  const ColonizeCol1Save* col1 = ctx->col1;
+  const int tribe_type = nation_id - 4;
+
+  int village_count = 0;
+  if (col1->tribe) {
+    for (uint16_t ti = 0; ti < col1->head.tribe_count; ++ti) {
+      if ((int)col1->tribe[ti].nation_id == tribe_type) {
+        ++village_count;
+      }
+    }
+  }
+  if (village_count > 0xff) {
+    village_count = 0xff;
+  }
+
+  int brave_value_sum = 0;
+  if (ctx->units) {
+    ColonizeCombatStrengthCtx sctx;
+    sctx.units = ctx->units;
+    sctx.map = ctx->map;
+    sctx.colonies = ctx->colonies;
+    sctx.col1 = col1;
+    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+      const ColonizeUnit* u = units_get_const(ctx->units, i);
+      if (!u || !u->active || u->nation_id != nation_id) {
+        continue;
+      }
+      if (units_is_sea(ctx->units, i)) {
+        continue;
+      }
+      const int val = combat_unit_base_x8(&sctx, i, 1, NULL);
+      brave_value_sum += val;
+      if (brave_value_sum > 0xff) {
+        brave_value_sum = 0xff;
+        break;
+      }
+    }
+  }
+
+  const int base =
+    village_count * 8 + (((brave_value_sum >> 2) & 0xfe) - 2 * village_count) +
+    (int)ind->muskets * 2 + (int)ind->horse_herds * 2;
+
   /* DOS relation_score is ~0-100; ai_diplo_indian_relation is 0-255. */
   const int relation =
     (int)ai_diplo_indian_relation(col1, nation_id, inciter) * 100 / 255;
-  int base = (int)ind->tech * 60 + (int)ind->alarm_by_player[target] / 4;
+  (void)target; /* alarm_by_player no longer used — real formula has no target term here */
   int price = base * 100 / (relation + 75);
   if (price < 500) {
     price = 500;
   }
-  /* Discount: other tribes of the same Indian nation already favor the
-   * inciter (matches the DOS discount loop's "matching type" condition —
-   * approximated here as "same Indian nation" since the exact tribe-type
-   * match field isn't confirmed). */
+  /* Discount: other tribes of the same tribe type already favor the
+   * inciter (matches the DOS discount loop's "matching type" condition).
+   * 2026-08-14: fixed a real bug found while wiring the formula above —
+   * this compared `t->nation_id` (raw tribe type, 0-7) against `nation_id`
+   * (indian nation id, 4-11) directly, so it never matched and the
+   * discount was always 0; now compares against `tribe_type` like the
+   * rest of this function. */
   int discount = 0;
   if (col1->tribe) {
     for (uint16_t ti = 0; ti < col1->head.tribe_count; ++ti) {
       const ColonizeCol1Tribe* t = &col1->tribe[ti];
-      if ((int)t->nation_id == nation_id && ai_diplo_indian_relation(col1, nation_id, inciter) > 128) {
+      if ((int)t->nation_id == tribe_type && ai_diplo_indian_relation(col1, nation_id, inciter) > 128) {
         discount += 100;
       }
     }
@@ -1657,7 +1714,7 @@ static int ai_contact_enqueue_incite_target_choice(
     if (target == e) {
       continue;
     }
-    const uint32_t price = ai_contact_incite_price(ctx->col1, ind, nation_id, e, target);
+    const uint32_t price = ai_contact_incite_price(ctx, ind, nation_id, e, target);
     if (gold < price) {
       continue;
     }
@@ -1720,7 +1777,7 @@ static void ai_contact_apply_incite(
       target < 0 || target > 3 || target == e) {
     return;
   }
-  const uint32_t price = ai_contact_incite_price(ctx->col1, ind, nation_id, e, target);
+  const uint32_t price = ai_contact_incite_price(ctx, ind, nation_id, e, target);
   ColonizeCol1Nation* nat = &ctx->col1->nation[e];
   if (nat->gold < price) {
     char refuse_fb[AI_POPUP_BODY_LEN];
