@@ -154,18 +154,38 @@ land-tile count). So the `local_de` tier-select (`<9`→0, `<0x19`→1, `<0x31`�
 else 3) reads a value this port already computes correctly — this specific
 sub-term is a real, safe, ready-to-wire target, no guessing required.
 
-**Not wired in this pass, though — the term it feeds is not fully
-resolvable yet.** DOS uses `local_de` only as a shift on `local_12`
-(`local_28 += local_12 >> local_de`, plus a `local_ca` radius picked from
-`local_12` directly, `0x1f`/`0x3f` tiers). `local_12` itself
-(prologue: `local_12 = *(byte*)(local_38 + -0x6168)*8 +
-*(byte*)(param_1*0x1c + 0x3154)`) depends on **two more unnamed values** —
-DS table `−0x6168` (continent-indexed byte, no cross-reference found yet)
-and unit-record byte `+0x3154` (not in any doc's unit-offset table checked
-so far) — so the bonus this would feed is still not faithfully
-reproducible; wiring `continent_tally_a` alone with an invented substitute
-for `local_12` would be exactly the "guess at the DS globals" mistake this
-file exists to avoid, not a real port.
+**Update, later pass — both remaining `local_12` unknowns resolved, still
+not wired.** `local_12 = *(byte*)(local_38 + -0x6168)*8 +
+*(byte*)(param_1*0x1c + 0x3154)`:
+
+- `−0x6168[continent]`: traced its write site into `FUN_521d_0a60`'s colony
+  loop (the same function that turned out to hold the deep G-table —
+  `euro_g_table_0a60.md`): max-tracks the largest `colony+0x1f` field
+  (SoL-shaped level) among all *foreign* colonies on that continent, then
+  folds in a capped sum of `−0x6b5a` (now-confirmed `land_unit_counts_by_
+  continent`) across the other 3 nations. So this is "how developed/
+  defended is the strongest foreign presence here" — a rival-strength
+  signal, consistent in spirit with the G-table's own inputs.
+- `unit+0x3154`: traced via a real getter/setter pair, `FUN_15eb_3040`/
+  `FUN_15eb_3054(unit, slot)` — a generic cargo-hold accessor (slot 0 = this
+  exact offset). Confirms the struct-offset guess from an earlier pass
+  (`ColonizeCol1Unit.cargo_hold[0]` in `col1_save.h`) via real usage
+  instead of hand-counting bitfield packing. So this term is literally the
+  unit's **first cargo-hold quantity (0-100 scale)** — for the Euro
+  Scout/explorer units this band actually handles (per "Entry into this
+  band" above, this is *not* the quiet-Brave path), a real if
+  semantically odd input (why would explore radius depend on cargo
+  carried?) — not resolvable further without a working theory, but the
+  field identity itself is solid.
+
+**Still not wired into Linux.** Both inputs are now named, but `local_12`
+only feeds `local_de`/`local_ca` — a **radius** for DOS's windowed best-
+tile-in-a-box explore scan. Linux's `ai_euro_score_move` is architecturally
+a single-step 8-neighbor scorer, not a windowed scan-then-commit — the same
+structural mismatch flagged from the start of this "0x8db8 identified"
+section. Wiring `local_12` in without that redesign would mean inventing a
+substitute mechanism, not porting one; the naming work here is prep for
+whoever takes on that redesign, not a shippable slice by itself.
 
 **Also structurally (not semantically) placed `−0x6b1a` and `−0x6a8e`
 this pass**, via the same negative-offset→absolute-address trick
