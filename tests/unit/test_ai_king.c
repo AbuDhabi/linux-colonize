@@ -26,6 +26,7 @@
  * follow-up OK, second MoW only @diff≥2. PARK: 160a letter cinematic;
  * dump-goods CHOICE prompt invent English (picker + Europe bid>0 Done). */
 #include "core/ai_king.h"
+#include "core/ai_diplo.h"
 #include "core/assets.h"
 #include "core/colony.h"
 #include "core/col1_save.h"
@@ -744,6 +745,14 @@ int main(void) {
   status[0] = '\0';
   const int units_before = count_active(&units);
 
+  /*
+   * Pre-declare WAR vs the soon-to-be-eliminated nation 2, so the 0108
+   * diplo-clear/set (below) has something real to clear. Nation 1 is the
+   * crown fold for human=0 (ai_king_crown_nation) and is excluded from
+   * elimination/0108 entirely, matching DOS (0108 never targets 0x53d2).
+   */
+  ai_diplo_or_both(&col1, 0, 2, (uint8_t)AI_DIPLO_WAR);
+
   /* Seed a pre-declare country so 160a rename is observable. */
   snprintf(col1.player[0].country_name, sizeof(col1.player[0].country_name), "England");
   snprintf(europe.nation_name, sizeof(europe.nation_name), "England");
@@ -768,6 +777,22 @@ int main(void) {
   if (col1.player[1].control != 2 || col1.player[2].control != 2 ||
       col1.player[3].control != 2) {
     return fail("declare should withdraw other Euro control");
+  }
+  /*
+   * FUN_43f7_0108 diplo-clear/set: eliminated nation 2 loses WAR/PEACE and
+   * gains MET vs both the declaring human (0) and the crown fold (1).
+   */
+  if ((ai_diplo_read(&col1, 2, 0) & (AI_DIPLO_WAR | AI_DIPLO_PEACE)) != 0) {
+    return fail("0108 should clear WAR/PEACE between eliminated nation and human");
+  }
+  if ((ai_diplo_read(&col1, 0, 2) & (AI_DIPLO_WAR | AI_DIPLO_PEACE)) != 0) {
+    return fail("0108 should clear WAR/PEACE symmetrically (human side)");
+  }
+  if ((ai_diplo_read(&col1, 2, 0) & AI_DIPLO_MET) == 0) {
+    return fail("0108 should mark eliminated nation as MET vs human");
+  }
+  if ((ai_diplo_read(&col1, 2, 1) & AI_DIPLO_MET) == 0) {
+    return fail("0108 should mark eliminated nation as MET vs crown fold");
   }
   /* Seed then drain: residual +1 regular may leave pools non-zero; require spawn. */
   if (count_nation(&units, 1) < 1) {

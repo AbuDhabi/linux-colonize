@@ -233,7 +233,7 @@ Thin map: [`euro_diplo.md`](../original_sources_annotated/ai/euro_diplo.md).
 | `FUN_43f7_0004` | ~42 | Pop-weighted SoL | `ai_king_sol_percent` | **partial** |
 | `FUN_43f7_1d42` | ~64 | Tax→REF funding | `ai_king_tax_event` | **partial** |
 | `FUN_43f7_2564` / `1a26` | ~200 / ~140 | Declare gate / crown setup | `ai_king_try_declare` (auto; `ai_popup` CHOICE **Done** structural) | **partial** |
-| `FUN_43f7_0108` | ~22 | Eliminate nation (diplo clear + scrub units + status=2), called from `1a26` fold loop for every non-human non-crown Euro | `ai_king_do_declare` fold loop **Done** (unit-scrub half; diplo-bit clear vs crown not ported -- no crown-nation-slot diplomacy model in Linux yet) | **partial** |
+| `FUN_43f7_0108` | ~22 | Eliminate nation (diplo clear + scrub units + status=2), called from `1a26` fold loop for every non-human non-crown Euro | `ai_king_do_declare` fold loop **Done** (unit-scrub + diplo WAR/PEACE-clear/MET-set vs both human and crown fold, 2026-08-14; two DOS bits unmapped, see `king_ref.md`) | **partial** |
 | `FUN_43f7_060a` | ~37 | Landing / garrison score | `ai_king_weakest_port` | **partial** |
 | `FUN_43f7_0982` / `06a6` | ~335 / ~106 | REF wave / empty irregulars | `ai_king_ref_wave` | **partial** |
 | `FUN_43f7_2022` / `1eca` | ~98 / ~66 | War act + Continental promote | `ai_king_war_act` (`1eca` cap/fortify/own-tile gate **Done** full port; rest of `2022` war-act **partial**) | **partial** |

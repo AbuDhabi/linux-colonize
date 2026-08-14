@@ -53,9 +53,20 @@ nation unit, and for each found:
      Indian nation-record stride from `FUN_15b3_0004`'s `param*0x4e+23000`
      addressing, though `0x5ade` itself is a different, unnamed table) to
      the max of the two tribes' current values — not resolved further.
-   - On a "successful" diplomatic outcome, fires a generic cross-overlay
-     event dispatch (`switchD_2000:da9f::caseD_10`, case `0x20`) — not
-     traced.
+   - On a "successful" diplomatic outcome, calls `switchD_2000:da9f::caseD_10`
+     with bit `0x20`. **Corrected 2026-08-14** (was mischaracterized as "a
+     generic cross-overlay event dispatch, case 0x20, not traced"):
+     `caseD_10` is not a dispatcher at all — it's a Ghidra-named single-case
+     thunk straight to `FUN_15b3_0066` (or-diplomacy-bit-both-directions,
+     already known per `FUNCTION_CATALOG.md`, already ported as
+     `ai_diplo_or_both`). So this call is simply
+     `ai_diplo_or_both(uVar7, local_4, 0x20)` — OR bit `0x20` between the two
+     encountering units' nations. `0x20` is the same unmapped bit seen in
+     `FUN_43f7_0108` (see `king_ref.md`'s 2026-08-14 note) — two independent
+     sites now OR the same bit on "positive outcome," which is suggestive
+     but still not enough to name it (no bit-read site found yet that would
+     pin down its effect). Still correctly PARKED alongside the rest of
+     `3180`'s diplomatic-dispatch branches, just for a narrower reason now.
 
 **This resolves last pass's open question cleanly**: `153e` is not a
 periodic turn-based "should I declare war" check — it's triggered by

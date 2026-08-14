@@ -63,6 +63,34 @@ EOT → 291f_0a66 → 43f7_2424  (SoL refresh + dispatch)
 
 Exact `0x5382` Col1 bit rename PARKED.
 
+### `0108` diplo-clear/set on nation elimination — done (2026-08-14)
+
+`FUN_43f7_0108` (eliminate nation, called from `1a26`'s declare-independence
+fold loop for every nation that is neither the declaring human `DS:0x5398`
+nor the crown `DS:0x53d2`) does four diplo writes before the already-ported
+unit-scrub + `control=2`: `FUN_281f_0a10`/`FUN_15b3_00d0` (clear-both,
+bitmask `0xb`) and `switchD_2000:da9f::caseD_10`/`FUN_15b3_0066` (or-both,
+bitmask `0x60`), each called once against the declaring human and once
+against the crown. **Resolved this pass**: `caseD_10` is not a generic
+event dispatcher (correcting the framing used in `euro_diplo_3180_full.md`
+for a different call site) — it's a Ghidra-named single-case thunk
+straight to `FUN_15b3_0066`, i.e. exactly the already-known/ported
+`FUN_15b3_0066`/`00d0` pair (`ai_diplo_or_both`/`ai_diplo_clear_both`,
+`FUNCTION_CATALOG.md` row already had this). `0xb` = `WAR(0x1)|PEACE(0x2)|
+unmapped-bit3(0x8)`; `0x60` = `unmapped-bit5(0x20)|MET(0x40)`. Ported the
+mapped bits (`WAR`/`PEACE` clear, `MET` set) via existing
+`ai_diplo_clear_both`/`or_both` in `ai_king_do_declare`'s fold loop,
+targeting both `human` and `ai_king_crown_nation(human)` — so "no
+crown-nation-slot diplomacy model" (this doc's old framing) was also
+stale: `ai_king_crown_nation` already reuses nation slot 0/1 as the crown
+stand-in for exactly this kind of write. The two unmapped bits (`0x8`,
+`0x20`) are intentionally not applied — no other site in the decompile
+was found this pass that pins their meaning down. Guarded to skip
+`n==crown_fold` (DOS's `0108` is never called with the crown as the
+eliminated nation). Covered by `unit_ai_king`'s declare-path assertions
+(pre-seeds nation-2 WAR vs human, asserts WAR/PEACE cleared + MET set vs
+both human and crown fold post-declare).
+
 ### Tax boycott / refuse audience (`1d42` + `38fd_5be8`)
 
 When a spring tax year would hike:
