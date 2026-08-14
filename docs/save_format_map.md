@@ -252,11 +252,11 @@ RAM is scattered; the port stores one packed `ColonizeCol1Stuff` for RMW.
 | 140 | 16 | `0x947e` | `unknown_ds_947e` — save I/O |
 | 156 | 16 | `0x95f2` | `unknown_ds_95f2` — AI readers (`4d56`/`5952`) |
 | 172 | 64 | `0x94a6` | `unknown_ds_94a6` — save I/O |
-| 236 | 64 | `0x94e6` | `unknown_ds_94e6` — `FUN_5952_035e` |
+| 236 | 64 | `0x94e6` | `unknown_ds_94e6` — `FUN_5952_035e`; also `= −0x6b1a` in `FUN_521d_20e6` (nation×continent byte grid, stride 0x10; see `move_scoring_land.md` "`−0x6b1a`/`−0x6a8e` placed") |
 | 300 | 64 | `0x95b2` | `unknown_ds_95b2` — save I/O |
 | 364 | 64 | `0x9526` | `unknown_ds_9526` — save I/O |
 | 428 | 64 | `0x918c` | `unknown_ds_918c` — save I/O |
-| 492 | 64 | `0x9572` | `unknown_ds_9572` — save I/O |
+| 492 | 64 | `0x9572` | `unknown_ds_9572` — save I/O; also `= −0x6a8e` in `FUN_521d_20e6` (same nation×continent grid shape; see `move_scoring_land.md`) |
 | 556 | 8 | `0x944e` | `unknown_ds_944e` — pop word totals |
 | 564 | 1 | `0x336` | `ui_toggle_336` — `FUN_2f2b_*` toggle (key `0x4e`); smcol `show_colony_prod_quantities` |
 | 565 | 8 | `0x9184` | `tribe_data_9184` |

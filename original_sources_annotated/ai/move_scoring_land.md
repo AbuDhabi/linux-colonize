@@ -84,6 +84,97 @@ When `281f_0b28(unit)==0` (not already tasked):
 6. Best score → commit path `LAB_521d_27f5` (goto stamp via `20c6` family) or
    dir pick → `5899`.
 
+## `0x8db8` identified (2026-08-14) — dist to bound/home colony, caller-supplied
+
+`local_2e` (`Dist / away from colony score` in the Key locals table above) and
+three sibling locals re-read at this band's own prologue (`local_74`/`local_a0`/
+`local_3c`, all `= *(int *)0x8db8` with different casts — same DOS cell,
+re-dereferenced per Ghidra's usual non-cached-global behavior, not 4 distinct
+values) are now identified: `0x8db8` is written in exactly one place,
+`FUN_15eb_0142(x, y, filter_nation, filter_continent)` — a nearest-colony
+search over the `*(int*)0x539e`-count colony table (stride `0xca`, base
+`0x5d60` for the nation/type filter field, `0x5d46`/`0x5d47` for colony x/y):
+for each colony matching `filter_nation` (or any if `<0`) and continent-gated
+by `FUN_137f_02a0`, computes `FUN_124c_0040(dx, dy)` (the already-named DOS
+Chebyshev distance helper, `ai_dos_dist`) to `(x,y)`, keeps the closest, binds
+the winner via `FUN_15eb_002c` (`= 15eb_002c`, the same "bind active colony"
+target `281f_09e6` thunks to elsewhere in this file), and stores that winning
+distance to `0x8db8` before returning. **`FUN_521d_20e6` never calls
+`FUN_15eb_0142` itself** — it only rereads `0x8db8` as a snapshot the caller
+(`5b66`/its own caller) already computed before invoking `20e6`, so within one
+`20e6` call it behaves as a constant: **DOS distance from the unit's query
+point to its own nearest/bound colony**, 0 meaning "standing on it."
+
+This resolves the SCOUT/PATROL gate's condition (`local_2e==0` → orders
+`0x56`; `local_2e!=0` → `goto LAB_521d_27f5` walk-to-colony) semantically:
+*combat-capable/Scout unit, same continent as its colony, standing on the
+colony tile → enter Scout/patrol; away from it → head back first.* **Still
+not portable as a behavior change**, though — the consumer of orders byte
+`0x314b == 0x56` ('V') was searched for across the whole canonical export and
+found nowhere (no `0x314b == 'V'` compare exists), which lines up with the
+already-known open mystery that `5b66`'s real body (the `20e6` caller / act
+dispatcher) was never located (`decomp_inventory.md`'s note: the documented
+1815-line `5b66` body actually belongs to an unfound function reached via a
+local thunk). Setting the orders byte with no confirmed consumer would be
+pure guesswork on effect — not shipped.
+
+**Also gates part of the deep explore-ring colony-pull adjustment** (the
+`local_de`/`local_ca` score-radius bands keyed off nation-power table
+`−0x6ba2`, and the `local_a2`/`iVar13`/`iVar16` colony-pull terms keyed off
+`local_32 = *(int*)0x8db8` compared against tiers 2/9 and `−0x6b1a` friction —
+those adjacent tables are still their own unlabeled globals, `0x8db8`'s ID
+alone doesn't unblock that arithmetic). Useful next step if anyone resumes:
+`−0x6ba2` (nation power, indexed `local_38*2` = continent×2) and `−0x6b1a`
+(indexed `continent + nation*0x10`, byte, "friction"-shaped) are the two
+remaining unnamed tables directly gating this band — same family as
+`move_scoring_ship.md`'s already-flagged `−0x6b1a`/`−0x6b5a`/`−0x6a0e` trio,
+worth naming together if picked up (`FUN_15eb_0142`'s call sites at line
+6380/6487/32084 plus this file's own `09e6`/`002c` binds are the cleanest
+callers to trace first — none touch `−0x6ba2`/`−0x6b1a` directly, so those
+still need their own write-site hunt).
+
+**Update (same day, next pass): `−0x6ba2` resolved — it's already-named,
+already-wired `continent_tally_a[16]`.** `−0x6ba2` mod 0x10000 = `0x945e`,
+which `save_format_map.md` row 304 already identifies as
+`continent_tally_a[16]` (`uint16_t`, "land terrain-class filter; rebuilt",
+status `mapped`) — live in Linux as
+`col1->post_map.continent_tally_a[continent_id]`
+([`col1_post_map.c`](../../src/core/col1_post_map.c), filled per-continent
+land-tile count). So the `local_de` tier-select (`<9`→0, `<0x19`→1, `<0x31`→2,
+else 3) reads a value this port already computes correctly — this specific
+sub-term is a real, safe, ready-to-wire target, no guessing required.
+
+**Not wired in this pass, though — the term it feeds is not fully
+resolvable yet.** DOS uses `local_de` only as a shift on `local_12`
+(`local_28 += local_12 >> local_de`, plus a `local_ca` radius picked from
+`local_12` directly, `0x1f`/`0x3f` tiers). `local_12` itself
+(prologue: `local_12 = *(byte*)(local_38 + -0x6168)*8 +
+*(byte*)(param_1*0x1c + 0x3154)`) depends on **two more unnamed values** —
+DS table `−0x6168` (continent-indexed byte, no cross-reference found yet)
+and unit-record byte `+0x3154` (not in any doc's unit-offset table checked
+so far) — so the bonus this would feed is still not faithfully
+reproducible; wiring `continent_tally_a` alone with an invented substitute
+for `local_12` would be exactly the "guess at the DS globals" mistake this
+file exists to avoid, not a real port.
+
+**Also structurally (not semantically) placed `−0x6b1a` and `−0x6a8e`
+this pass**, via the same negative-offset→absolute-address trick
+(`mod 0x10000`): `−0x6b1a` = `0x94e6`, `−0x6a8e` = `0x9572` — both already
+rows in `save_format_map.md` (255 `unknown_ds_94e6`, 259 `unknown_ds_9572`;
+both cited from `FUN_5952_035e`, the colony production/buildings/stock
+tick). Found a second, independent read site for `−0x6b1a`/`0x94e6` inside
+`FUN_5952_035e` itself (~line 95043-95062): a 64-byte grid, nation row ×
+continent column (stride `0x10`), where `0x94e6`/`0x94f6`/`0x9506`/`0x9516`
+are the same array's 4 nation rows (`0x94e6` is the array's own base, not a
+separate table) — used there to check "does this nation's own value at this
+continent equal the sum across all 4 nations" (a sole-occupant-style
+condition). Consistent shape with the `20e6` read (`nation*0x10 + continent`
+byte lookup) but **not** semantically confirmed as the same "friction"
+meaning `move_scoring_ship.md` guesses — still `unknown`, not `mapped`.
+`−0x6a8e`/`0x9572` has no second read site found yet. Neither is safe to
+port on this evidence alone; next step would be tracing `FUN_5952_035e`'s
+writers for both arrays (not attempted this pass).
+
 ## Thunks / helpers
 
 | Call | Real | Role |

@@ -1,9 +1,14 @@
 # Indian raid outcomes — thin section-map
 
 Maps settlement-raid / loot clusters for a **reasonable** Linux port in
-`ai_contact_indian_raids`. Full `FUN_4d56_4528` (~3073 lines) body stays PARKED
-for port; **authentic head mapped** in
-[`indian_settlement_4528.md`](indian_settlement_4528.md). Player raid/warn
+`ai_contact_indian_raids`. **Correction 2026-08-13**: the "~3073 lines,
+PARKED" figure below was from the *corrupted* canonical decompile export
+— re-disassembled clean this session via the overlay-addressing project:
+`FUN_4d56_4528`'s real body is a self-contained **312 lines**, fully
+mapped, and its 9-case dispatch tail resolved as all routing to one
+shared 21-byte value-clamp utility (no hidden action tree) — see
+[`indian_settlement_4528.md`](indian_settlement_4528.md) "Case-dispatch
+tail". Nothing left PARKED in `4528`'s own body. Player raid/warn
 **status chrome thinned**; dialog **widgets** **Done** structural (`ai_popup`;
 VGA PARKED).
 
