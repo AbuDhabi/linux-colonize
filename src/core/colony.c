@@ -261,8 +261,21 @@ bool colonies_can_found(
       return false;
     }
   }
-  if (colonies_id_at(pool, x, y) >= 0) {
-    return false;
+  /*
+   * Distance gate: A colony cannot be founded on a square adjacent to
+   * (Chebyshev distance <= 1, i.e. dx <= 1 && dy <= 1) ANY existing active
+   * colony (own or foreign).
+   * Cite: GAME.TXT @TOONEAR; FUN_2b5a_3252 -> FUN_15eb_0142 (nearest colony distance <= 1).
+   */
+  for (int i = 0; i < pool->colony_count; ++i) {
+    const ColonizeColony* c = &pool->colonies[i];
+    if (c->active) {
+      const int dx = abs(c->x - x);
+      const int dy = abs(c->y - y);
+      if (dx <= 1 && dy <= 1) {
+        return false;
+      }
+    }
   }
   /* Indian village tiles carry layer2 has_city without a colony row. */
   if (map->layer2) {

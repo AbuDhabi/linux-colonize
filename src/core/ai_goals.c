@@ -385,6 +385,45 @@ int ai_goals_pick_founding_tile_ex(
     }
   }
   if (!any) {
+    int best_rx = -1, best_ry = -1;
+    for (int r = 2; r <= 4 && !any; ++r) {
+      for (int dy = -r; dy <= r; ++dy) {
+        for (int dx = -r; dx <= r; ++dx) {
+          if (abs(dx) != r && abs(dy) != r) {
+            continue;
+          }
+          const int nx = x + dx;
+          const int ny = y + dy;
+          if (!map_coords_inset(map, nx, ny)) {
+            continue;
+          }
+          if (map_tile_is_water(map, nx, ny) || map_tile_is_high_seas(map, nx, ny)) {
+            continue;
+          }
+          if (map_pedia_terrain_index_at(map, nx, ny) == 24) {
+            continue;
+          }
+          if (colonies && !colonies_can_found(colonies, map, nx, ny)) {
+            continue;
+          }
+          int score = map_dos_terr_found_score_byte(map_dos_terr_class_at(map, nx, ny));
+          if (coastal_bonus > 0 && map_tile_is_coastal(map, nx, ny)) {
+            score += coastal_bonus;
+          }
+          if (score > best_score) {
+            best_score = score;
+            best_rx = nx;
+            best_ry = ny;
+            any = 1;
+          }
+        }
+      }
+    }
+    if (any) {
+      *out_x = best_rx;
+      *out_y = best_ry;
+      return 1;
+    }
     return 0;
   }
   *out_x = x + k_dir8_dx[best_dir];
