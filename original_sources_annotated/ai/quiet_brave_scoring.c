@@ -267,7 +267,32 @@ int quiet_score_colony_pull(int score, int colony_count) {
   if (colony_count == 0) {
     return score; /* no-op — DOS condition preserved */
   }
-  /* parked mid-game: FUN_291f_0a14 / FUN_281f_08bc weighting */
+  /*
+   * Checked 2026-08-14 whether this is a quick win like 417e/1816 turned
+   * out to be — it isn't, confirmed genuinely blocked, not just
+   * unattempted:
+   * - FUN_291f_0a14 is address_mapping.csv "gap"-kind (no canonical name)
+   *   AND its canonical declaration (`void FUN_291f_0a14(void)`,
+   *   viceroy_unpacked.c:36080) doesn't match a real call site
+   *   (`FUN_291f_0a14(uVar13,iVar9,iVar8,iVar7,local_8,1)`,
+   *   viceroy_unpacked.c:57109 — 6 args vs 0) — the same
+   *   wrong-function-boundary signature that made `2244` look
+   *   misidentified before its real offset was found; would need the same
+   *   overlay-recovery treatment before trusting anything about it.
+   * - FUN_281f_08bc (exact-mapped to FUN_1000_8aac) is a widely-reused
+   *   generic "get colony field by index" accessor called from many
+   *   unrelated functions (move_scoring_20e6_full.md,
+   *   euro_goal_orders_0a60_full.md) with numeric field indices (2, 3, 4,
+   *   5, 6, 0xb, 0xc, 0xd, 10, …) whose individual meanings were never
+   *   independently mapped — resolving them is its own semantic-RE task
+   *   shared by several other functions, not scoped to this one.
+   * Both blockers compound (need the real callee bodies AND the field
+   * index semantics before any weighting formula here could be trusted),
+   * and — same as when this was first parked — colony_count==0 in every
+   * existing golden means there's no test coverage to verify a guess
+   * against even if one were made. Left parked; see
+   * docs/ai_transcription.md's "mid-game quiet scoring" line.
+   */
   return score;
 }
 

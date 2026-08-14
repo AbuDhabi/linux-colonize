@@ -2927,6 +2927,115 @@ static void ai_king_merc_offer(ColonizeTurnContext* ctx) {
 }
 
 /*
+ * FUN_43f7_2244 — peacetime AI-nation-only twin of 2022's rebel gift,
+ * implemented 2026-08-14 (see king_ref.md "2244/2022 — corrected").
+ * Reached via FUN_281f_0668 from the generic per-Euro-nation turn loop
+ * (viceroy_unpacked.c:6409-6421), gated on the SAME human-controlled flag
+ * byte (`nation*0x34+0x543f==0`) Linux's turn_run_european_ai_stubs
+ * already uses to skip the human nation entirely — confirmed AI-only,
+ * never reachable for a human turn.
+ *
+ * Gate: WoI not yet declared, 1-in-21 roll (dos_rng_range(0,20)==0). Then
+ * picks a random Euro nation 0-3 as beneficiary; eligible only if that's
+ * this AI nation itself or a nation it's allied with (AI_DIPLO_ALLY bit).
+ * Quantity/price shape is genuinely NOT identical to 2022's (read raw
+ * bytes side by side, viceroy_unpacked.c:75098-75113 vs :75017-75028,
+ * before assuming king_ref.md's "same formula" summary was byte-precise
+ * — it wasn't, in the quantity roll specifically):
+ *   regular = dos_rng_range(1,3)
+ *   coin = dos_rng_range(0,1)
+ *   coin==0: artillery = 1, then dos_rng_range(0,1)==0 → artillery += 1
+ *            (so artillery ends up 1 or 2; regular stays as rolled)
+ *   coin==1: regular += 1 (no Dragoon path at all in 2244 — the shared
+ *            0x9e48 Dragoon slot is zeroed at entry and never written
+ *            again, unlike 2022 which sometimes sets it)
+ *   price = (artillery*2 + regular) * ((difficulty+4)*2 + dos_rng_range(0,6)) * 100
+ * (2022's `+3` price constant becomes `+4` here, matching the doc's
+ * original claim — that part *was* right).
+ *
+ * Paid from the ACTING nation's own gold; troops land for the BENEFICIARY
+ * (self or ally) at its own weakest port. No human popup is reachable
+ * through this call chain (DOS's own popup-flush call presumably
+ * auto-resolves for AI without blocking, same as every other AI-context
+ * dialog in this codebase) — Linux always auto-accepts when affordable,
+ * matching 2022's own no-popup fallback path.
+ *
+ * Approximated: DOS's own "which nation is FOCUS_NATION for the
+ * self/ally eligibility check" reads DS:0x5398, a global this specific
+ * call chain doesn't visibly (re)assign in the read window — the more
+ * locally-scoped per-nation loop variable is DS:0x5396/0x5394. Used the
+ * Linux loop's own `nation_id` (the AI nation whose turn is running) as
+ * the natural reading of "self" for both eligibility and payer, which
+ * matches every other established per-AI-nation-turn convention in this
+ * codebase; not independently confirmed byte-exact against 0x5398's
+ * specific role in this one call chain.
+ */
+void ai_king_ai_peacetime_gift(ColonizeTurnContext* ctx, int nation_id) {
+  if (!ctx || !ctx->col1_ok || !ctx->col1 || !ctx->units || !ctx->rng) {
+    return;
+  }
+  if (nation_id < 0 || nation_id >= 4) {
+    return;
+  }
+  if (ai_king_independence_declared(ctx->col1)) {
+    return; /* peacetime only */
+  }
+  if (dos_rng_range(ctx->rng, 0, 20) != 0) {
+    return; /* 1-in-21 */
+  }
+  const int beneficiary = dos_rng_range(ctx->rng, 0, 3);
+  int eligible = (beneficiary == nation_id);
+  if (!eligible && beneficiary >= 0 && beneficiary < 4) {
+    eligible = (ai_diplo_read(ctx->col1, nation_id, beneficiary) & AI_DIPLO_ALLY) != 0;
+  }
+  if (!eligible) {
+    return;
+  }
+
+  const int difficulty = ctx->col1->head.difficulty;
+  int regular = dos_rng_range(ctx->rng, 1, 3);
+  int artillery = 0;
+  if (dos_rng_range(ctx->rng, 0, 1) == 0) {
+    artillery = 1;
+    if (dos_rng_range(ctx->rng, 0, 1) == 0) {
+      artillery += 1;
+    }
+  } else {
+    regular += 1;
+  }
+  const int roll = dos_rng_range(ctx->rng, 0, 6);
+  const int price = (artillery * 2 + regular) * ((difficulty + 4) * 2 + roll) * 100;
+
+  ColonizeCol1Nation* payer = &ctx->col1->nation[nation_id];
+  if (payer->gold < (uint32_t)price) {
+    return; /* DOS silently skips when unaffordable — no status/dialog */
+  }
+  int hx = 0;
+  int hy = 0;
+  if (ai_king_weakest_port(ctx, beneficiary, &hx, &hy) < 0) {
+    return;
+  }
+  int landed = 0;
+  for (int i = 0; i < regular; ++i) {
+    if (ai_king_spawn_landing(ctx, beneficiary, hx, hy, "Regular", "Soldier") >= 0) {
+      ++landed;
+    }
+  }
+  for (int i = 0; i < artillery; ++i) {
+    if (ai_king_spawn_landing(ctx, beneficiary, hx, hy, "Artillery", NULL) >= 0) {
+      ++landed;
+    }
+  }
+  if (landed == 0) {
+    return;
+  }
+  /* Payer (nation_id) is always AI-controlled (the caller only runs this
+   * for AI turns) — no ctx->europe mirror to sync, that field only
+   * shadows the human's own treasury. */
+  payer->gold -= (uint32_t)price;
+}
+
+/*
  * FUN_43f7_2022 war act + 1eca promote.
  * REF land hunt (Regular/Dragoon/Artillery/Cont.→nearest human colony/unit) + combat/capture;
  * thin Artillery siege prefer fortified (adjacent unfortified must not override);
@@ -2948,8 +3057,8 @@ static void ai_king_merc_offer(ColonizeTurnContext* ctx) {
  * ordinary armed colonist without Veteran profession is also skipped,
  * confirmed 2026-08-14). Cont. Army/Cav after promote → capital-rally
  * (founding capital; weakest_port fallback);
- * 10f0 intervene arm (≤3 @ difficulty≥2); thin 2244 merc auto-accept or
- * cannot-afford once/war.
+ * 10f0 intervene arm (≤3 @ difficulty≥2); real 2022 rebel merc gift
+ * (recurring per-turn roll, CHOICE or auto-accept).
  * REF idle Regular on crown colony (no adjacent foe) → fortify only if no other
  * Regular/Dragoon/Cont.Cav on tile is already FORTIFY/FORTIFIED; if no Regular,
  * fortify one Dragoon/Cont.Cav (Colonization.pdf Defending a Colony; king_ref
@@ -2969,7 +3078,7 @@ static void ai_king_war_act(ColonizeTurnContext* ctx) {
    * below may seize the landing pick). In addition to 06a6 in ref_wave.
    */
   ai_king_foreign_intervene(ctx);
-  /* Thin 2244: once-per-war Continental merc for human (hire CHOICE / auto). */
+  /* Real 2022: recurring per-turn rebel merc gift (hire CHOICE / auto). */
   ai_king_merc_offer(ctx);
 
   const int crown = ai_king_crown_nation(ctx->human_nation);

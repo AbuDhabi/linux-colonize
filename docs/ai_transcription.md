@@ -238,7 +238,7 @@ Thin map: [`euro_diplo.md`](../original_sources_annotated/ai/euro_diplo.md).
 | `FUN_43f7_0982` / `06a6` | ~335 / ~106 | REF wave / empty irregulars | `ai_king_ref_wave` | **partial** |
 | `FUN_43f7_2022` / `1eca` | ~98 / ~66 | War act + Continental promote | `ai_king_war_act` (`1eca` cap/fortify/own-tile gate **Done** full port; rest of `2022` war-act **partial**) | **partial** |
 | `FUN_43f7_2424` | ~61 | Nation SoL + peace/war dispatch | `ai_king_nation_turn` | **partial** (structural) |
-| `FUN_43f7_10f0` / `1528` / `160a` / `2022` / `2244` | — | Intervene / announce / rename / merc | `ai_king` thin 10f0/1528/160a; `2022` rebel merc real formula **Done**; `2244` peacetime AI-only twin not ported; letter cinematic / VGA PARKED | **partial** |
+| `FUN_43f7_10f0` / `1528` / `160a` / `2022` / `2244` | — | Intervene / announce / rename / merc | `ai_king` thin 10f0/1528/160a; `2022` rebel merc real formula **Done**; `2244` peacetime AI-only self/ally-gift twin **Done** (`ai_king_ai_peacetime_gift`, called from `ai_euro_nation_turn`); letter cinematic / VGA PARKED | **partial** |
 
 Thin map: [`king_ref.md`](../original_sources_annotated/ai/king_ref.md). Unit: `unit_ai_king`.
 
@@ -433,7 +433,15 @@ wired too (same day, byte-exact — clears human missions on the defecting
 tribe's own nation, see doc).
 
 **Still open:** alarmed branches inside `14fe`; mid-game quiet scoring
-(goods/missions/capital pull); retiring spent overlays.
+(goods/missions/capital pull) — checked 2026-08-14 whether this was a
+quick win, confirmed genuinely blocked (not just unattempted): needs a
+`2244`-style overlay re-recovery for `FUN_291f_0a14` (canonical boundary
+looks wrong, "gap"-kind + arg-count mismatch against a real call site)
+plus mapping a widely-shared generic colony-field accessor's numeric
+field-index semantics — see `quiet_score_colony_pull`'s comment in
+`quiet_brave_scoring.c`; also no golden currently reaches `colony_count>0`
+for a Brave, so there'd be nothing to verify a fix against anyway; retiring
+spent overlays.
 
 ### R3 — Contact and raids (**partial structural port**)
 
@@ -706,8 +714,8 @@ troop-gift (2026-08-14, was thin `unknown46[3]`/300-gold once-per-war
 invented stand-in) — recurring per-turn 1-in-3 roll while REF absent or
 artillery pool empty, real price/qty formula, paid from the rebel's own
 treasury, landing tile captured at offer time; `ai_popup` Hire/Decline
-CHOICE **Done**; `2244`'s peacetime AI-nation-only twin still not ported
-(see `king_ref.md` "2244/2022 — corrected"); thin `160a` rename
+CHOICE **Done**; `2244`'s peacetime AI-nation-only twin now also ported
+(`ai_king_ai_peacetime_gift`, see `king_ref.md` "2244/2022 — corrected"); thin `160a` rename
 (`country_name` / europe → "United Colonies"); **`1eca` full port** — per
 colony with SoL>49, `cap = max(1, min(pop>>1, pop*(sol-50)/50))` shared
 across that colony's own **fortified** Soldier/Dragoon (own-tile only, raw
