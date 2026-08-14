@@ -298,6 +298,19 @@ adjacency, which is worse than an inert/unreached mechanic. Revisit only
 if a way to recover the popup string table surfaces (would also unblock
 `2820`/`4528`/the second `3180` roll, all blocked on the same wall).
 
+**2026-08-14, confirmed from a second, independent call path**: deep-diving
+`FUN_5bfb_153e` (Euro war-declare, `euro_diplo_153e_full.md`) found its
+"commit + flavor text" phase resolves to 5 local helpers
+(`FUN_OVL16_L0040__003bd0`/`003bd5`/`003bdf`/`003be4`/`003bee`) that are
+literally this same mechanic — same `attitude[4]`/`muskets`/`horse_herds`/
+`horse_breeding` field writes, and one of them calls message id `0x1866`,
+one of the three ids already named above as unrecoverable. Not a
+coincidental shape match; the same code (or same design pattern reusing
+the same string table region) is reachable via `153e`→`3180` adjacency as
+well as directly via `022e`. Strengthens rather than changes the verdict —
+still correctly PARKED, now with two independent confirmations instead of
+one.
+
 The missionary `0x4c` gate and the `+7/8/9` target-slot family (Euro-side,
 `0x8d4a`'s *other* half) are unaffected by any of this and stay PARKED
 under `move_scoring_land.md`'s original reasoning.

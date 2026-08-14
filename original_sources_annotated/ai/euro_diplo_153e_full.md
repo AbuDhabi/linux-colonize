@@ -1,6 +1,63 @@
 # `FUN_5bfb_153e` — full clean recovery (2026-08-14)
 
-## Status: recovered clean, characterized at moderate depth, not fully section-mapped or ported
+## Status: recovered clean; the "commit + flavor text" phase is now CONFIRMED BLOCKED (same wall as `022e`/`2820`/`4528`); worthiness-score phase and the actual war-declare state flip remain genuinely open, not yet located precisely
+
+**2026-08-14, later same day — deep-dive requested explicitly by the user
+("focus on completing structural work... deep-dive 153e now").** Resolved
+all 5 previously-untraced local helpers
+(`FUN_OVL16_L0040__003bd0`/`003bd5`/`003bdf`/`003be4`/`003bee`) via
+`GhidraDecompileAt`, and the result reframes what this function's back
+half actually does.
+
+**All 5 helpers turned out to be variants of the identical shape**,
+not 5 different things: dialog/portrait setup differing only in a couple
+of string-table IDs, then a shared decision — `if outcome==2: clear this
+tribe's attitude toward the acting nation, apply a negative
+relation-scaled delta (floored via a `<0x47` while-loop), debit a
+treasury-shaped table, and (type-specific) bump the tribe's own
+`muskets`/`horse_herds`/`horse_breeding`; else: attitude += 0x80
+(positive)`. The touched fields —`0x8d4a`+`target*2+10` (the tribe's own
+`attitude[4]` array) and `0x8d4e`+7/8/10 (`muskets`/`horse_herds`/
+`horse_breeding`) — are **exactly** `settlement_record_8d4a.md`'s already-
+documented, already-blocked fields, not new Euro-war-declare state at
+all. **Definitive confirmation, not just a shape match**: one of these
+helpers (`003be4`) calls `func_0x0001938c(dialog, 0x1866, CUR_ALT)` —
+`0x1866` is literally one of the three message ids
+`settlement_record_8d4a.md` already named as the unrecoverable string IDs
+blocking that document's own accept/decline sign question. This is the
+**same mechanic**, reached via a second call path (`153e`'s war-declare
+context, adjacency-triggered via `3180`), not a coincidentally similar
+one — confirming the tribe near an adjacency encounter reacts to (or
+mediates) the encounter, and that reaction shares literal code and string
+resources with `022e`'s village-appeal mechanic.
+
+**This also corrects a real guess this same doc made earlier the same
+day and got wrong**: the "Commit + flavor text" section below originally
+read `003bd0`'s two swapped-argument calls
+(`FUN_...__003bd0(param_2,param_3)` then `(param_3,param_2)`) as "almost
+certainly the real declare-war state flip, both directions." Now that
+`003bd0` is fully decompiled, it's visibly **the same attitude/relation-
+delta shape as the other 4 helpers**, not a war-flag-setting function at
+all. Wherever `153e` actually sets Euro×Euro WAR state is still not
+precisely located — **left genuinely open**, not resolved by this pass,
+flagged rather than re-guessed.
+
+**Practical upshot**: the "commit + flavor text" phase (~lines 390-1106,
+the majority of this function's body) is **not portable**, same
+"correctly stays PARKED" verdict and same reason as `022e`/`2820`/`4528`
+— unrecoverable binary popup-string resources gate a real accept/decline
+sign ambiguity, and guessing risks the AI doing the opposite of DOS. The
+**worthiness-score phase** (~lines 78-390, the actual war/no-war decision
+weighting) and the **real war-flag state flip** (location unconfirmed)
+are different code, not yet shown to be blocked the same way — genuinely
+still open, but **not attempted this pass**: with the majority of the
+function's observable *effects* (the flavor/attitude/resource branches)
+confirmed unportable, porting just the decision-weighting half without
+the actual state-change it's supposed to gate would ship something with
+no visible behavior to verify against — not worth the remaining
+G-table-integration effort until the state-flip location is found too.
+
+## Status (original, 2026-08-14 earlier same day): recovered clean, characterized at moderate depth, not fully section-mapped or ported
 
 Found while sweeping this project's `address_mapping.csv` for other large
 `before-first-function`/gap entries after `FUN_521d_0a60` turned out to be
@@ -104,8 +161,11 @@ cross-checked which one actually fires when in the real DOS turn order.
 - Still no line-by-line phase map with exact formulas (`0a60`-level rigor)
   — this is a structural read, confirmed accurate where checked but not
   exhaustive.
-- `FUN_...__003bdf`/`003bd0`/`003bd5`/`003be4`/`003bee` (5 local helpers
-  this function leans on heavily) not traced at all.
+- ~~`FUN_...__003bdf`/`003bd0`/`003bd5`/`003be4`/`003bee` (5 local helpers
+  this function leans on heavily) not traced at all.~~ **Traced, same day,
+  later pass** — all 5 are variants of the same blocked village-attitude
+  mechanic `settlement_record_8d4a.md` already documents. See the status
+  section at the top of this doc.
 - Message-id → `GAME.TXT` tag mapping not resolved.
 - Checked whether `153e` calls `10ec` or vice versa: **neither** —
   confirmed via direct canonical-export read, no cross-call in either
