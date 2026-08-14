@@ -1128,7 +1128,7 @@ void ai_diplo_declare_war(ColonizeCol1Save* col1, int nation_a, int nation_b) {
 }
 
 /* Rival label for thin status: player.country_name or "rival". */
-static const char* ai_diplo_rival_name(const ColonizeCol1Save* col1, int nation) {
+const char* ai_diplo_rival_name(const ColonizeCol1Save* col1, int nation) {
   if (!col1 || nation < 0 || nation >= 4) {
     return "rival";
   }

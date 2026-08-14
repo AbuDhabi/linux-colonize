@@ -40,6 +40,9 @@ void ai_diplo_break_alliance(ColonizeCol1Save* col1, int nation_a, int nation_b)
  * declare_war / make_peace / form_alliance / break_alliance without status.
  * FA 3f41 full UI PARKED. */
 void ai_diplo_declare_war_ctx(ColonizeTurnContext* ctx, int nation_a, int nation_b);
+
+/* Player-facing nation name (Col1 country_name if set, else "rival"). */
+const char* ai_diplo_rival_name(const ColonizeCol1Save* col1, int nation);
 void ai_diplo_make_peace_ctx(ColonizeTurnContext* ctx, int nation_a, int nation_b);
 void ai_diplo_form_alliance_ctx(ColonizeTurnContext* ctx, int nation_a, int nation_b);
 void ai_diplo_break_alliance_ctx(ColonizeTurnContext* ctx, int nation_a, int nation_b);
