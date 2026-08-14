@@ -337,7 +337,7 @@ API / behavior:
   combat) documented as real Privateer cargo path; 8g treasury prize **PARKED
   null-units only**; defensive smoke: Privateer commission INFO OK enqueue
   (status string already smoked). **No further thin diplo unpark.**
-## FA negotiation screen — one unified mechanic, mechanic confirmed, function not yet found
+## FA negotiation screen — one unified mechanic, structure confirmed, function not yet found
 
 **2026-08-14, real gap identified via the "ask the user" method**
 (`decomp_inventory.md`): `docs/popups.md` carried a whole cluster of
@@ -354,7 +354,30 @@ swine?" / "We suggest an alliance.") — confirmed by their literal
 identical wording appearing after `@PEACEMANLY`, `@PEACEMEEK`,
 `@OLDPEACEMEEK`, `@OLDPEACEMANLY`, and `@PEACEUSA` alike in `GAME.TXT`.
 
-**Entry points (the initial offer / situation):**
+**Two-stage architecture, confirmed by the user (2026-08-14, third round of
+asking)**: AI Euro nations, on their own turn, can spontaneously initiate
+any of the specific demand/threat/offer events below at the player (not
+just player-initiated) — and mere first contact with another European
+power also triggers this same flow (`@HELLO*`, below). After the specific
+event resolves, **if the pair is still at peace**, it falls through into
+the shared general negotiation menu ("Go in peace" / "First you must
+withdraw..." / "How much do you value your worthless lives..." / "We
+suggest an alliance.") as a *second*, separate step — same menu whether
+the player initiated contact or the AI did. So this is genuinely one
+coherent encounter-resolution system with many possible opening prompts,
+not several independent mechanics.
+
+**Entry points (the initial offer / situation) — all confirmed unwired,
+zero references anywhere in `src/core/*.c`:**
+- `@HELLOFIRST`/`@HELLOUSA`/`@HELLOAHOY` (sea variant) — first contact
+  with another European power (land or sea).
+- `@HELLOMEEK`/`@HELLOMANLY` — subsequent-contact greeting variants
+  (same MEEK/MANLY tone split as the peace offers below).
+- `@WORTHY` — "we propose a demarcation treaty, dividing... into
+  perpetual and inviolable spheres of influence. Will you agree?"
+  Yes/No — very likely the actual proposal step that *leads to*
+  `@PEACEMANLY`/`@PEACEMEEK` on "Yes" (not independently confirmed, but
+  the only unaccounted-for "propose peace" trigger found).
 - `@PEACEMANLY`/`@PEACEMEEK` — first-time peace negotiation, dividing
   territory ("MANLY" = confident/generous division, "MEEK" = submissive
   division — plausibly tone mirrors relative military strength, not
@@ -362,7 +385,33 @@ identical wording appearing after `@PEACEMANLY`, `@PEACEMEEK`,
 - `@OLDPEACEMEEK`/`@OLDPEACEMANLY`/`@PEACEUSA` — already-at-peace
   greeting, same tone split (+`@PEACEUSA` a third, nation-specific
   variant).
-- Adjacent-military "Demand Withdrawal" (confirmed by the user, below).
+- `@PIRACY`/`@PIRACYUSA` — AI complains about the player's privateers off
+  their coast, demands withdrawal. "What pirates? We have NEVER condoned
+  piracy!" (deny) / "Very well, we shall withdraw our privateers to
+  Europe." (comply).
+- `@SIEGES`/`@SIEGESUSA` — the *mirror* of "Demand Withdrawal" below: the
+  AI demands the *player* withdraw military units near *their* colonies.
+  "Our forces protect valid interests and shall stay." (refuse) /
+  "Very well, we shall withdraw our forces to Europe." (comply).
+- `@HEATHEN`/`@HEATHENUSA` — AI asks the player to jointly attack a named
+  native tribe. "Never! The {tribe} are a harmless and peaceful people!"
+  / "Yes! Let us teach the {tribe} a lesson!"
+- `@APOSTATES`/`@APOSTATESUSA` — AI demands the player cancel a treaty
+  with a third nation it considers heretical. "Never! They are our
+  friends!" / "Yes! We shall crush them together!"
+- `@TRIBUTE`/`@TRIBUTEUSA` — AI threatens to drive the player out (on
+  orders from its Crown) but offers to overlook it for a gold bribe.
+  "Not a penny..." (refuse) / "We will gladly donate {$N}..." (pay).
+- `@WANTSTUFF`/`@WANTSTUFFUSA` — same threat-and-overlook shape as
+  `@TRIBUTE`, demanding specific goods instead of gold. "We laugh at your
+  puny threats." / "We gladly share {N goods}..."
+- `@RID`/`@RIDUSA` — a blunt ultimatum, "leave {colony}/this hemisphere
+  immediately... or we shall drive you into the sea" — no response
+  options shown in `GAME.TXT` at this tag itself; most likely a
+  standalone warning that (like the others) falls through to the shared
+  negotiation menu rather than carrying its own choice.
+- Adjacent-military "Demand Withdrawal" — the player-initiated direction,
+  confirmed by the user, below.
 
 **Demand Withdrawal, player-initiated action — pick an adjacent European
 power with military units next to one of your colonies, demand they
@@ -402,27 +451,42 @@ direct response to a specific dialog choice; user recalls the tag but not
 precisely when it fires, consistent with this reading (an AI-initiated,
 not player-choice-triggered, declaration).
 
-**Real gap, genuinely not a quick fix**: the underlying DOS function(s)
-are unknown. Not part of `FUN_5bfb_3180`'s already-mapped
-already-met-adjacency dispatch (`euro_diplo_3180_full.md` — checked, no
-"withdraw"/"demobiliz"/"peace" hits), and most likely part of the Foreign
-Affairs advisor screen (`FA`/`3f41` segment, per `docs/popups.md`'s own
-citation) — a segment this project has **never recovered a single
-function from** (`grep` for `FUN_3f41_` in the canonical decompile:
-zero hits), unlike everything else touched this session. Finding it
-would mean the same from-scratch overlay-recovery investment as `153e`
-or `0a60` originally needed, not a quick lookup. The bribe/"demobilization
-cost" formula, the peace-tone selector (MEEK vs MANLY), and the
-war-declare dispatch are all completely unknown (no candidate function
-traced at all).
+**Real gap, genuinely not a quick fix, and bigger than it first looked**:
+this is not one small mechanic but a whole unimplemented "AI diplomatic
+pressure events" system — at least 17 distinct entry-point tags (first
+contact, peace offers/greetings at two tone levels, privateer/military
+withdrawal demands in both directions, joint-attack-a-tribe requests,
+treaty-cancellation demands, gold/goods tribute-or-be-driven-out threats,
+a bare ultimatum, and a territory-partition proposal), all funneling into
+one shared response menu, all still zero-referenced anywhere in Linux.
+The underlying DOS function(s) are unknown. Not part of
+`FUN_5bfb_3180`'s already-mapped already-met-adjacency dispatch
+(`euro_diplo_3180_full.md` — checked, no "withdraw"/"demobiliz"/"peace"
+hits), and most likely part of the Foreign Affairs advisor screen
+(`FA`/`3f41` segment, per `docs/popups.md`'s own citation) — a segment
+this project has **never recovered a single function from** (`grep` for
+`FUN_3f41_` in the canonical decompile: zero hits), unlike everything
+else touched this session. Finding it would mean the same from-scratch
+overlay-recovery investment as `153e` or `0a60` originally needed, likely
+larger given the number of distinct branches — not a quick lookup.
+Every formula involved (bribe/tribute amounts, "demobilization cost",
+which specific event fires when, the peace-tone selector, the
+war-declare dispatch) is completely unknown; no candidate function
+traced for any of it.
 
 **Not attempted this pass** — the mechanic's *shape* is now fully
-specified (real value, doesn't need re-asking), but implementing it
+specified (real value, doesn't need re-asking; three separate rounds of
+user testimony nailed down the trigger direction, the fall-through
+architecture, and the specific event texts), but implementing it
 faithfully needs either the real DOS formula (a proper `3f41` recovery
-pass) or an explicit decision to ship an approximated version with an
-invented cost formula, which would need the same care as any other
-"thin first draft" mechanic in this project — flagging for a future
-dedicated pass rather than guessing at a formula with zero DOS anchor.
+pass — now a well-scoped, worthwhile target given the size of what it'd
+unlock) or an explicit decision to ship an approximated version, which
+would need the same care as any other "thin first draft" mechanic in
+this project. Flagging as the single largest well-specified gap this
+session surfaced, worth prioritizing over other `3f41`-adjacent leads
+(`12d0`, the FA report UI) if anyone picks up a `3f41` recovery pass —
+this is the part of that segment with confirmed, decisive real-world
+value already in hand.
 
 - **Still PARKED (leftovers — no thin unpark left):**
   - FA `3f41` full body/UI (F2–F9 report dialogs; thin ally-aid 10g + FA gift
