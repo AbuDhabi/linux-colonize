@@ -67,7 +67,14 @@ LAB_521d_3fa6 → 291f_02ea → 48d3_015e spiral HS / set sail → 5a78
 
 Continent tables live at nation×16 + continent offsets **`−0x6790`**,
 **`−0x6b1a`**, **`−0x6b5a`**, **`−0x6a0e`**. Linux has no full port of these
-nibbles yet (PORT DEBT / unpark #4).
+nibbles yet (PORT DEBT / unpark #4). **2026-08-14: all three data tables
+now have confirmed writers** (`FUN_4962_0018` — colony count / land-unit
+count / per-continent presence bitmask respectively; `−0x6790` itself is
+the deep G-table computed in `FUN_521d_0a60`) — see
+[`euro_g_table_0a60.md`](euro_g_table_0a60.md) for the full formula and
+`docs/save_format_map.md` rows 236/172/156. Still not ported — the formula
+that *consumes* them (G-table expand/military split) needs four more
+unnamed tables first.
 
 ### Colony sail score (peace vs war cargo)
 

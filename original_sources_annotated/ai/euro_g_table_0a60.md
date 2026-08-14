@@ -100,21 +100,91 @@ labels transfer without checking a consumer site first.
   uses (`target = continent_tally_b[cid] / 12`) — real cross-validation that
   the thin version's instinct (compare against this field) was right, just
   scaled/shaped differently from the real formula.
-- `−0x6b1a`'s role is now much better characterized than the earlier
-  "friction"-shaped guess from `move_scoring_land.md`: here it's clearly a
-  **presence/colony-count tally per nation×continent**, summed across all 4
-  Euro nations and directly compared (×20) against `continent_tally_b`. This
-  is a stronger, more specific hypothesis than "friction" — worth
-  reconciling with the `FUN_521d_20e6` read site (`nation*0x10+continent`,
-  same indexing) next time either is revisited.
+- `−0x6b1a` **confirmed, not just characterized** (second pass same day):
+  its own writer, `FUN_4962_0018` (the "reset + recompute per-nation AI
+  stats" function, called once per nation, also the already-cited row-251
+  writer for `unit_type_counts`), increments `[continent + nation*0x10]`
+  once for every colony that nation owns on that continent — a plain colony
+  count, not "friction." `save_format_map.md`'s `0x94e6` row updated to
+  `colony_counts_by_continent`.
+- `−0x6b5a` **confirmed** the same way: same `FUN_4962_0018` loop over
+  units, increments `[continent + nation*0x10]` once per own **land** unit
+  (type outside the `[0xd,0x12]` ship range) found on that continent — a
+  land-unit-count table, not a bare presence flag. `save_format_map.md`'s
+  `0x94a6` row updated to `land_unit_counts_by_continent`.
+- `−0x6a0e` **confirmed**: same function, a per-continent (not per-nation)
+  bitmask — bit `1` any Indian tribe present, `2` a foreign Euro unit
+  present, `4` a foreign colony present, `8` this nation's own exposed
+  combat-capable land force. `save_format_map.md`'s `0x95f2` row updated.
+  Closes out `move_scoring_ship.md`'s `−0x6b1a`/`−0x6b5a`/`−0x6a0e` trio —
+  all three now have confirmed writers.
 
-**Still unnamed / not attempted this pass:**
-- `−0x6ada` (dev_accum per nation×continent, new table, not seen in any
-  prior session's notes).
-- `−0x6b5a` (used only as a nonzero/zero presence flag here; already
-  flagged in `move_scoring_ship.md`'s `−0x6b1a`/`−0x6b5a`/`−0x6a0e` trio).
-- `−0x6e74` / `−0x6e34` (own-vs-rival "development level" comparison tables,
-  Euro and Indian sides respectively — gate the expand-vs-military split).
+**Resolved, second pass same day — the `FUN_4962_0006` register blocker
+turned out tractable after all.** The decompiler couldn't show what
+`FUN_4962_0006`'s implicit `AX`/`BX` args were at each call site, but the
+raw `.asm` (`viceroy_unpacked.asm`, `FUN_4962_0018` body from offset
+`0x44`) shows every `MOV AX,.../MOV BX,...` immediately before each `CALL`
+in plain sight — no register-flow tooling needed, just reading the
+instructions the decompiler had already thrown away. All four:
+
+- `−0x6ada` **= skilled-unit count per nation×continent.** Incremented by 1
+  whenever `FUN_281f_0b78(unit) ≥ 0` — the same "is this unit skilled" query
+  that already feeds the known nation-total `census_pop_proxy` (`0x9410`,
+  save row 243, "+1 skilled unit"); this is that signal's per-continent
+  breakdown.
+- `−0x6e74` **= sum of `FUN_281f_09c8(unit, mode=0)` per nation×continent.**
+  `FUN_281f_09c8` thunks to `FUN_157e_004a`
+  (`FUNCTION_CATALOG.md`: "unit base combat×8 + vet/Drake/damage", already
+  partially ported per `move_scoring.md`/`euro_unit_act.md`'s vet/Drake +50%
+  peels) — mode 0 is the base/unbonused value. Also feeds the nation-total
+  `0x9180`. This is the G-table's Euro-side "development level" comparison
+  operand.
+- `−0x6a8e` **= sum of `FUN_281f_09c8(unit, mode=1)` per nation×continent**
+  (combat-adjusted/bonused value) — also feeds the already-known
+  `land_combat_strength[4]` nation-total (save row 247, confirming its
+  "Σ combat mode 1" description was right). This is `FUN_521d_20e6`'s
+  subtraction/"discount" term.
+- `−0x6a4e` **= same combat-value sum, restricted to exposed units**
+  (not fortified, orders `≠'A'(0x41)` `≠'G'(0x47)`, plus a difficulty/
+  building-class gate at `0x543f`) — per-continent twin of the already-known
+  `field_combat_totals[4]` nation-total (save row 250, same write site,
+  confirms its existing "land not in colony / not A\|G" description).
+
+All four are now `mapped`-quality in `save_format_map.md` (rows 254-259
+fully rewritten). **The whole six-table block (`0x94a6`/`0x94e6`/`0x9526`/
+`0x918c`/`0x9572`/`0x95b2`) is now a coherent, fully-named "per-nation-per-
+continent AI stats" scoreboard**: colonies, land units, skilled units, raw
+unit value, combat value, and exposed combat value — each summed by
+`FUN_4962_0018` once per nation per turn. This — combined with the already-
+resolved `continent_tally_a`/`continent_tally_b` thresholds — is
+**everything the G-table formula's own body needs**, except reconciling
+`FUN_281f_0a38`'s bitmasks (below) and the `−0x6e34`/Indian-side family.
+Structurally ready for a real port attempt next time, not just documentation.
+
+- `−0x6e34` **resolved, third pass same day** — traced exactly as predicted:
+  `FUN_4962_06b6`'s own `.asm` body sums `FUN_281f_09c8(brave, mode=1)`
+  (combat value) into `[continent + tribe_type*0x10]`, the Indian-side twin
+  of `−0x6e74`. `save_format_map.md`'s `0x91cc` row rewritten — was a never-
+  verified placeholder name (`tribe_dwellings_91cc`), now confirmed to be
+  something else entirely (Brave combat-value sum, not building/dwelling
+  data). **The G-table formula's entire data-table dependency list is now
+  fully named** — `−0x6790` (the table itself), `−0x6b1a`/`−0x6b5a`/
+  `−0x6ada`/`−0x6e74`/`−0x6a8e`/`−0x6a4e` (Euro six-table block),
+  `−0x6e34` (Indian side), `−0x7a38`=`continent_tally_b` (threshold). Only
+  `FUN_281f_0a38`'s bitmask reconciliation (below) remains before this
+  formula is honestly portable.
+- **Bonus, same trace**: `FUN_4962_06b6` also fully resolved
+  `indian_incite_417e.md`'s *second* unnamed price term, `−0x6e7c`
+  (sum of Brave combat values per tribe type — the per-nation-total sibling
+  of `−0x6e34`'s per-continent breakdown). Combined with the earlier
+  `−0x69d6` (village count) finding, **both of `417e`'s previously-unnamed
+  price terms are now identified** (though still not literally "captured" —
+  both are live per-turn sums, not fixed lookup constants, so the original
+  "need a memory dump" framing doesn't quite apply; a faithful port would
+  recompute them the same way DOS does). See `indian_incite_417e.md`'s
+  updated approximation note.
+- `0x947e` (`village_counts_by_continent`, cross-tribe-type, save row 252)
+  also fell out of the same trace — was `unknown_ds_947e`, now confirmed.
 - `FUN_281f_0a38` — **already identified**, checked this pass:
   `euro_diplo.md` names it as the `FUN_15b3_0004` thunk, "Read peer byte,"
   which already branches Euro (`nation<4`, `euro_relation[]`, Linux

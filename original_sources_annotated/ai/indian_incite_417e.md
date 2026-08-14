@@ -304,7 +304,31 @@ other Euro nations you can afford, then pay-and-commit.
 - Two of the four DOS price terms are unnamed byte-lookup tables (tribe
   civilization/sophistication class) with no captured values anywhere in
   this project — substituted with `indian.tech`, the closest already-real
-  per-nation sophistication indicator.
+  per-nation sophistication indicator. **Partial sharpening, 2026-08-14**:
+  `-0x69d6[tribe_type]`'s write site was found (`FUN_4962_06b6`, a per-
+  tribe-type reset/recompute helper found while tracing an unrelated
+  G-table target) — it's a plain **count of villages of that tribe type**,
+  incremented once per matching tribe, not a static "civilization class"
+  table. Still not captured/portable (no value snapshot, and this is a
+  *count* not a lookup constant, so it wouldn't have been a fixed table
+  value anyway) — but it does mean `indian.tech` was standing in for the
+  wrong *kind* of quantity, not just an unconfirmed value; a faithful port
+  would count villages, not read a static table. **`-0x6e7c` resolved too,
+  same day, second look**: raw `.asm` register tracing through
+  `FUN_4962_06b6` (the decompiler had dropped the implicit `AX`/`BX` args
+  into an unresolved-looking helper call) shows it's the **sum of Brave
+  combat values** (`FUN_281f_09c8(brave, mode=1)`, i.e. `FUN_157e_004a` —
+  already-catalogued "unit base combat×8 + vet/Drake/damage") across every
+  Brave belonging to that tribe type. So **both** unnamed price terms are
+  now identified: `-0x69d6` = village count, `-0x6e7c` = total Brave combat
+  strength, both per tribe type. Neither is a fixed lookup constant — both
+  are live per-turn recomputations — so `indian.tech`'s role as a
+  placeholder was standing in for the wrong *kind* of quantity twice over,
+  not just missing two unconfirmed numbers. A faithful port would recompute
+  both sums the same way DOS does (iterate this tribe type's villages/
+  Braves) rather than read any static table. See `euro_g_table_0a60.md`'s
+  writeup for the fuller trace (found while tracing the deep G-table, not
+  this function) and `docs/save_format_map.md` rows `0x9184`/`0x962a`.
 - The DOS `apply(CUR_INDIAN_ALT, nation_B, 100, 0)` relation-push call
   (exact semantics/magnitude unconfirmed) — implemented as a flat +10
   `alarm_by_player[target]` bump.
