@@ -18,7 +18,7 @@ census of human/crown. Bridge: [`between_turns.md`](between_turns.md).
 | # | Role |
 |---|------|
 | 1 | Zero nation counters + `unit_type_counts[19]` + cargo/continent scratch |
-| 2 | **Unit loop**: type tallies, ships vs land, Europe-dock proxies, continent OR bits `0x95f2`, combat/`0x941c`, free colonist, field combat; foreign Euro near continent → OR `0x02` |
+| 2 | **Unit loop**: type tallies, ships vs land, Europe-dock proxies, continent OR bits `0x95f2`, combat/`0x941c`, free colonist, field combat; foreign Euro near continent → OR `0x02`; also (2026-08-14) the nation×continent six-table block below |
 | 3 | **Colony loop**: `0x9298++`, pop sum; clear `colony+0x1b` bits 0/1; 11×11 ship probe → MoW/armed bits; globals `0xa89a`/`0xa89b`; foreign colony continent OR `0x04` |
 | 4 | **Tribe loop**: continent OR `0x01` |
 | 5 | Empty-colony continent bump `0x9650`; **mean pop** `0x944e = pop_sum / colonies` |
@@ -33,8 +33,27 @@ census of human/crown. Bridge: [`between_turns.md`](between_turns.md).
 | `0x941c` | `land_combat_strength[4]` |
 | `0x924c` | `unit_type_counts[4][19]` |
 | `0x944e` | mean colony pop |
-| `0x95f2` | continent AI flag bytes |
+| `0x95f2` | continent AI flag bytes (bitmask meaning fully resolved 2026-08-14, see below) |
 | colony `+0x1b` | ship-pressure bits (Linux `ai_flags`) |
+
+**Nation×continent block, resolved 2026-08-14** (this phase-2 sub-work was
+previously undetailed here — full trace in
+[`euro_g_table_0a60.md`](../ai/euro_g_table_0a60.md), which is what this
+function turned out to feed): `0x94a6`
+`land_unit_counts_by_continent`, `0x94e6` `colony_counts_by_continent`,
+`0x9526` `skilled_unit_counts_by_continent`, `0x918c`
+`unit_value_sum_by_continent`, `0x9572` `combat_value_sum_by_continent`,
+`0x95b2` `field_combat_strength_by_continent` — all `[continent+nation*0x10]`
+stride, confirmed via raw `.asm` register tracing of the `FUN_4962_0006`
+call sites (the decompiler drops the implicit `AX`/`BX` args, but the
+preceding `MOV AX,.../MOV BX,...` instructions are plain in the `.asm`).
+`0x95f2`'s bitmask: bit1 any Indian tribe present, bit2 foreign Euro unit
+present, bit4 foreign colony present, bit8 own exposed combat-capable land
+force. These six tables plus `continent_tally_b` (`0x85c8`) are the full
+data-table dependency list for the deep `−0x6790` G-table
+(`FUN_521d_0a60`), now ported as `ai_euro_refresh_continent_stance` in
+`ai_euro.c` (recomputes fresh each call rather than sharing this function's
+own per-turn pass — see `euro_g_table_0a60.md` for why).
 
 Helper: `FUN_4962_0006` — saturating +1 to 255.
 

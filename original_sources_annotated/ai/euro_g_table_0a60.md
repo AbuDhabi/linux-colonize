@@ -1,12 +1,21 @@
 # Deep `−0x6790` G-table — ported (`FUN_521d_0a60`, 2026-08-14)
 
 Section map for the **actual G-table (nation×continent stance) write loop**
-inside `FUN_521d_0a60` (Euro colony/unit goal writer — already confirmed
-clean, 853 lines, fifth-pass sweep; no disassembly-fault warning). Decomp
+inside `FUN_521d_0a60` (Euro colony/unit goal writer). Decomp
 `viceroy_unpacked.c:88054-88151`. This is the deep body `ai_transcription.md`
 unpark #4 has listed as **OPEN** since the earliest passes ("full −0x6790 G
 table / explore-ring matrix still PARKED"; "thin prio ladder own≥2/3/4→6/7/8
 Done" was always an approximation, not this).
+
+**Size correction, later same day**: every prior citation of `0a60`'s size
+("853/858 lines, fifth-pass sweep", "839 bytes" in `FUNCTION_CATALOG.md`)
+was wrong — not corrupted, silently *truncated*. The real function is
+~5.4KB / 845 lines and includes a previously-unmapped goal-consumption /
+unit-orders engine past where every earlier read stopped. This file's own
+G-table findings are unaffected (confirmed identical in the fuller
+recovery) — see
+[`euro_goal_orders_0a60_full.md`](euro_goal_orders_0a60_full.md) for the
+size correction detail and the new section.
 
 **Status: Done (real formula ported), same day.** All 8 data-table
 dependencies traced and confirmed (see "What's newly resolved" below), then

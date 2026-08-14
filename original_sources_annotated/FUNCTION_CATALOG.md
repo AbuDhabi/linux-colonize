@@ -2645,7 +2645,7 @@ Thin map: [ai/king_ref.md](ai/king_ref.md). Linux: `src/core/ai_king.c`.
 | `FUN_521d_06ae` | 87237 | 82 | ai | Pick best adjacent founding / site tile | known | ai/euro_goals.c; ai/euro_dispatcher.c |
 | `FUN_521d_0896` | 87319 | 26 | ai | Filter profession/role by distance and colony wealth | inferred | ai/euro_goals.c; ai/euro_dispatcher.c |
 | `FUN_521d_0906` | 87345 | 63 | ai | Probe adjacent tiles for contact / claim profession | known | ai/euro_goals.c; ai/euro_dispatcher.c |
-| `FUN_521d_0a60` | 87408 | 839 | ai | Euro unit/colony goal writer (sectioned; mid-game OPEN) | known | ai/euro_dispatcher.c; ai/euro_goals.c |
+| `FUN_521d_0a60` | 87408 | ~5510 (was wrongly `839` — canonical export silently truncated; see `ai/euro_goal_orders_0a60_full.md`) | ai | Euro unit/colony goal writer + goal-consumption/orders engine (sectioned; mid-game OPEN) | known | ai/euro_dispatcher.c; ai/euro_goals.c; ai/euro_g_table_0a60.md; ai/euro_goal_orders_0a60_full.md |
 | `FUN_521d_20c6` | 88247 | 19 | ai | Stamp unit orders=0x0B goto with dest (DL,BL)+param | inferred | ai/move_scoring.md; near FUN_521d_20e6 |
 | `FUN_521d_20e6` | 88266 | 2180 | ai | Direction / move scoring (all unit kinds); quiet Brave slice annotated | known | ai/quiet_brave_scoring.c; move_scoring.md; move_scoring_land.md; move_scoring_ship.md |
 | `FUN_521d_5b66` | 90446 | 1815 | ai | Euro per-unit act body (often → move_scoring 20e6); thin map | inferred | ai/euro_dispatcher.c; ai/euro_unit_act.md |
