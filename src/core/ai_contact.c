@@ -3106,10 +3106,11 @@ static void ai_contact_mission_pacify_meet(ColonizeTurnContext* ctx, int nation_
  * `DS:0x8d52`-selected "tribe" tech-lookup table whose value at this call
  * site isn't independently confirmed; substituted the same nation's own
  * already-mapped `tech` field (same conceptual quantity, most likely the
- * same table). DOS's `FUN_2a1f_0398` "mission clear" side-effect on the
- * human nation and the exact status-message wording are not reproduced
- * (see doc). `woi_defect_forced` (DOS bit 0x40) has no known setter this
- * pass — the eligibility gate below never gets forced on for now.
+ * same table). Exact DOS status-message wording is not reproduced (see
+ * doc). `woi_defect_forced` (DOS bit 0x40) has no known setter this pass —
+ * the eligibility gate below never gets forced on for now. DOS's
+ * `FUN_2a1f_0398` "mission clear" side-effect IS wired (below, after the
+ * windfall) — byte-exact once its target (FUN_4cc6_0000) was fully read.
  */
 void ai_contact_indian_woi_defect(ColonizeTurnContext* ctx, int nation_id) {
   if (!ctx || !ctx->col1_ok || !ctx->col1 || !ctx->rng || nation_id < 4 || nation_id > 11) {
@@ -3163,14 +3164,55 @@ void ai_contact_indian_woi_defect(ColonizeTurnContext* ctx, int nation_id) {
   ind->horse_herds = (uint8_t)horses;
   ind->horse_breeding = (uint16_t)(horses * 25);
 
+  /*
+   * FUN_2a1f_0398 "mission clear" side-effect, resolved 2026-08-14 (thunk
+   * to FUN_4cc6_0000, viceroy_unpacked.c:80774-80802 — a clean, uncorrupted
+   * canonical copy, no Ghidra needed): scans col1->tribe[] (same 18-byte
+   * stride / +2 nation_id / +5 mission fields the Incite discount loop
+   * already uses) for records with nation_id == this tribe's own
+   * nation_id and mission's low nibble == the declaring (human) nation,
+   * clearing them to "none". I.e. every village of this SAME Indian
+   * nation that currently hosts a mission from the rebel side loses it
+   * when one of its villages defects — DOS's own literal condition
+   * (type == param_1+4 where param_1 is the tribe *type*, 0-7) collapses
+   * to exactly `nation_id` here since this call always passes the
+   * defecting tribe's own type. DOS then shows the human player an
+   * informational popup (string id 0x14c8, exact text unrecoverable
+   * without a live capture) only when anything was actually cleared —
+   * folded into the existing status line instead.
+   */
+  int missions_cleared = 0;
+  if (ctx->col1->tribe) {
+    for (uint16_t ti = 0; ti < ctx->col1->head.tribe_count; ++ti) {
+      ColonizeCol1Tribe* t = &ctx->col1->tribe[ti];
+      if ((int)t->nation_id != nation_id) {
+        continue;
+      }
+      if ((t->mission & COL1_TRIBE_MISSION_NATION_MASK) != (uint8_t)human) {
+        continue;
+      }
+      t->mission = COL1_TRIBE_MISSION_NONE;
+      missions_cleared = 1;
+    }
+  }
+
   if (ctx->status && ctx->status_size > 0) {
     ai_contact_bind_names(ctx);
-    snprintf(
-      ctx->status,
-      ctx->status_size,
-      "The %s tribe declares for the rebel cause!",
-      ai_contact_tribe_name(nation_id)
-    );
+    if (missions_cleared) {
+      snprintf(
+        ctx->status,
+        ctx->status_size,
+        "The %s tribe declares for the rebel cause! Our missions among them are cleared.",
+        ai_contact_tribe_name(nation_id)
+      );
+    } else {
+      snprintf(
+        ctx->status,
+        ctx->status_size,
+        "The %s tribe declares for the rebel cause!",
+        ai_contact_tribe_name(nation_id)
+      );
+    }
   }
 }
 

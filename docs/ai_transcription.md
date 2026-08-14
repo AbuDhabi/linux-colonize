@@ -427,8 +427,10 @@ isolated contact RNG.
 `ai_contact_indian_woi_defect`, see
 [`indian_woi_defect_1816.md`](../original_sources_annotated/ai/indian_woi_defect_1816.md)
 (a previously-undocumented mechanic under the old checklist's "no-op"
-label for this phase). Musket/horse windfall tech source and DOS's
-`FUN_2a1f_0398` "mission clear" side-effect stay approximated.
+label for this phase). Musket/horse windfall tech source stays
+approximated; DOS's `FUN_2a1f_0398` "mission clear" side-effect is now
+wired too (same day, byte-exact — clears human missions on the defecting
+tribe's own nation, see doc).
 
 **Still open:** alarmed branches inside `14fe`; mid-game quiet scoring
 (goods/missions/capital pull); retiring spent overlays.
