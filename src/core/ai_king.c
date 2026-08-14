@@ -143,7 +143,7 @@
 #define AI_KING_CHOICE_THATS_ALL 0
 #define AI_KING_CHOICE_KEEP_PLAYING 1
 
-static int ai_king_crown_nation(int human_nation) {
+int ai_king_crown_nation(int human_nation) {
   return (human_nation == 0) ? 1 : 0;
 }
 
@@ -1667,7 +1667,7 @@ static int ai_king_colony_sol_at(const ColonizeTurnContext* ctx, int nation_id, 
  * Set only on declare (ai_king_try_declare / ai_king_set_independence) when
  * SoL≥AI_KING_DECLARE_SOL_MIN — never by restless chrome. Exact Col1 bit PARKED.
  */
-static int ai_king_independence_declared(const ColonizeCol1Save* col1) {
+int ai_king_independence_declared(const ColonizeCol1Save* col1) {
   if (!col1) {
     return 0;
   }

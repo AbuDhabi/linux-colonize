@@ -419,8 +419,16 @@ Still open for generic T1 (non-fixture):
 ### R2 — Indian nation turn beyond quiet pulse (**partial structural**)
 
 **Linux:** `ai_indian_nation_turn` mirrors annotated `1816` phase order
-(prelude → growth → relation → quiet pulse → post-pulse meet/raids). Seed-100
-LCG burns stay inside the pulse; prelude uses isolated contact RNG.
+(§2 WoI defection → prelude → growth → relation → quiet pulse → post-pulse
+meet/raids). Seed-100 LCG burns stay inside the pulse; prelude/§2 use
+isolated contact RNG.
+
+**Done (2026-08-14):** §2 War of Independence tribe defection —
+`ai_contact_indian_woi_defect`, see
+[`indian_woi_defect_1816.md`](../original_sources_annotated/ai/indian_woi_defect_1816.md)
+(a previously-undocumented mechanic under the old checklist's "no-op"
+label for this phase). Musket/horse windfall tech source and DOS's
+`FUN_2a1f_0398` "mission clear" side-effect stay approximated.
 
 **Still open:** alarmed branches inside `14fe`; mid-game quiet scoring
 (goods/missions/capital pull); retiring spent overlays.

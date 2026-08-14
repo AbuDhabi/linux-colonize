@@ -452,7 +452,16 @@ typedef struct ColonizeCol1Indian {
   uint8_t capitol_x;
   uint8_t capitol_y;
   uint8_t tech;
-  uint8_t unknown31_lo : 7;
+  uint8_t unknown31_lo_pad : 5; /* bits 0-4; no reader cite */
+  /* bit 0x20 (bit5): WoI tribe-defection one-shot latch — FUN_4d56_1816,
+   * indian_woi_defect_1816.md. Set once the roll resolves (hit or miss)
+   * so the tribe is not re-checked every turn for the rest of the war. */
+  uint8_t woi_defect_resolved : 1;
+  /* bit 0x40 (bit6): WoI guaranteed-defect override — FUN_4d56_1816. When
+   * set, skips the relation/RNG eligibility gate and always rolls the
+   * final defect chance. Trigger for this bit not identified (not set
+   * anywhere read this pass) — reserved for a future find. */
+  uint8_t woi_defect_forced : 1;
   uint8_t extinct : 1; /* bit7 */
   uint8_t unknown31b;
   uint8_t lands_bought; /* FUN_479b_00ca INC; purchase cost */

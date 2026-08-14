@@ -171,15 +171,17 @@ Systematic cross-reference done 2026-08-13: extracted all ~78 function
 names Ghidra's warnings sit immediately above in `viceroy_unpacked_2.c`,
 matched against every doc under `original_sources_annotated/` +
 `docs/` (excluding the generic all-functions `FUNCTION_CATALOG.md`).
-Fixed the ones with rich existing documentation, above. **Still flagged,
-not yet checked** — real, heavily-cited functions sitting on the same
-corruption, highest-value next candidates: `FUN_521d_6d8e` (the entire
-Euro nation turn dispatcher), `FUN_521d_0a60` (Euro AI goal-writer),
-`FUN_5bfb_022e` (Indian meet/contact dispatcher), `FUN_2f2b_5e44`,
-`FUN_38fd_0058`, `FUN_5fef_0000`, `FUN_5fef_1b0e`, `FUN_521d_5c38`. Full
-list: search `original_sources_decompiled/viceroy_unpacked_2.c` for a
-`WARNING:` comment immediately above a `FUN_*` declaration, then check
-whether that name appears in more than just `FUNCTION_CATALOG.md`.
+Fixed the ones with rich existing documentation, above. The candidate list
+originally named here (`FUN_521d_6d8e`, `FUN_521d_0a60`, `FUN_5bfb_022e`,
+`FUN_2f2b_5e44`, `FUN_38fd_0058`, `FUN_5fef_0000`, `FUN_5fef_1b0e`,
+`FUN_521d_5c38`) is **stale as of 2026-08-14** — every one of them was
+fixed later the same day (2026-08-13) per the entries above; this section
+just wasn't updated when that happened. Nothing left in this ~78-name
+warning-adjacent set is outstanding. Full method if a new corrupted-decomp
+lead ever needs the same treatment: search
+`original_sources_decompiled/viceroy_unpacked_2.c` for a `WARNING:`
+comment immediately above a `FUN_*` declaration, then check whether that
+name appears in more than just `FUNCTION_CATALOG.md`.
 
 Not yet checked against the full list: the remaining ~125K-line `.c`
 export beyond the ~78 warning-adjacent names above (i.e. warnings that

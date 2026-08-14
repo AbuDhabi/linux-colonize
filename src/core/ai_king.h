@@ -28,6 +28,13 @@ void ai_king_apply_popup_result(ColonizeTurnContext* ctx, const AiPopupState* po
 /* FUN_43f7_0004: pop-weighted SoL percent for a European nation (0..100). */
 int ai_king_sol_percent(const ColonizeTurnContext* ctx, int nation_id);
 
+/* True once WoI is declared (head.unknown46[0] stand-in). */
+int ai_king_independence_declared(const ColonizeCol1Save* col1);
+
+/* Crown nation-slot stand-in (nation 1 if human is 0, else nation 0) — no
+ * real 5th DOS crown identity in Linux, this reuses an existing slot. */
+int ai_king_crown_nation(int human_nation);
+
 /*
  * FUN_38fd_3dc8 dump-goods cargo pick (thin API for AI / tax refuse callers).
  *

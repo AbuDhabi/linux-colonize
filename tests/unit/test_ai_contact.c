@@ -4933,6 +4933,122 @@ int main(void) {
     ctx.ai_popups = NULL;
   }
 
+  /*
+   * WoI tribe defection (FUN_4d56_1816 §2, indian_woi_defect_1816.md): while
+   * WoI is declared, an eligible not-yet-resolved tribe may defect to the
+   * human's side — relation vs human +100 / vs crown -100, one-shot latch,
+   * musket/horse windfall. Sweep seeds to prove both outcomes are reachable
+   * (not just "doesn't crash") — same lesson as the naval-ambush mechanic.
+   */
+  {
+    char status_woi[128];
+    ctx.status = status_woi;
+    ctx.status_size = sizeof(status_woi);
+    ctx.human_nation = 0;
+    col1.head.unknown46[0] = 1; /* WoI declared (AI_KING_WOI_BYTE stand-in) */
+    ColonizeDosRng woi_rng;
+    ctx.rng = &woi_rng;
+
+    /*
+     * Seed once and let the stream advance across iterations without
+     * reseeding — reseeding per-iteration with small sequential seeds hits
+     * dos_rng's LCG warm-up bias (the first roll after a tiny seed is not
+     * yet well-mixed, so seeds 1..30 all produce the same first
+     * dos_rng_range(1,400) result). Matches real gameplay too: the turn RNG
+     * is one continuous stream, not reseeded per tribe per check.
+     */
+    dos_rng_seed(&woi_rng, 100u);
+    int saw_defect = 0;
+    int saw_no_defect = 0;
+    for (int i = 0; i < 60 && !(saw_defect && saw_no_defect); ++i) {
+      memset(ind, 0, sizeof(*ind));
+      ind->tech = 15;
+      ind->muskets = 10;
+      ind->horse_herds = 8;
+      /* relation_by_indian is indexed [euro_nation].[indian_idx]; human=0,
+       * crown fold=1 for human=0, tribe nation_id=4 → indian_idx=0. */
+      col1.nation[0].relation_by_indian[0] = 80;
+      col1.nation[1].relation_by_indian[0] = 50; /* crown fold for human=0 */
+      status_woi[0] = '\0';
+      ai_contact_indian_woi_defect(&ctx, 4);
+      if (ind->woi_defect_resolved) {
+        if (col1.nation[0].relation_by_indian[0] != 180) {
+          return fail("WoI defect hit should add +100 relation vs human");
+        }
+        if (col1.nation[1].relation_by_indian[0] != 0) {
+          fprintf(
+            stderr,
+            "unit_ai_contact: WoI crown relation=%u want 0\n",
+            (unsigned)col1.nation[1].relation_by_indian[0]
+          );
+          return fail("WoI defect hit should floor relation vs crown at 0");
+        }
+        if (ind->muskets != 40 || ind->horse_herds != 8 || ind->horse_breeding != 200) {
+          fprintf(
+            stderr,
+            "unit_ai_contact: WoI windfall muskets=%u horses=%u breeding=%u\n",
+            ind->muskets,
+            ind->horse_herds,
+            ind->horse_breeding
+          );
+          return fail("WoI defect hit should apply musket/horse windfall");
+        }
+        if (status_woi[0] == '\0') {
+          return fail("WoI defect hit should set a status line");
+        }
+        saw_defect = 1;
+      } else {
+        if (col1.nation[0].relation_by_indian[0] != 80 ||
+            col1.nation[1].relation_by_indian[0] != 50) {
+          return fail("WoI defect miss should leave relation untouched");
+        }
+        if (ind->muskets != 10 || ind->horse_herds != 8 || ind->horse_breeding != 0) {
+          return fail("WoI defect miss should leave musket/horse windfall untouched");
+        }
+        saw_no_defect = 1;
+      }
+    }
+    if (!saw_defect) {
+      return fail("WoI defect should hit at least once over the RNG stream sweep");
+    }
+    if (!saw_no_defect) {
+      return fail("WoI defect should miss at least once over the RNG stream sweep");
+    }
+    fprintf(
+      stderr, "unit_ai_contact: WoI tribe defection ok (hit and miss both reachable)\n"
+    );
+
+    /* Resolved latch: once set, no further mutation even on a hit-shaped seed. */
+    dos_rng_seed(&woi_rng, 1u);
+    memset(ind, 0, sizeof(*ind));
+    ind->woi_defect_resolved = 1;
+    ind->tech = 15;
+    ind->muskets = 10;
+    ind->horse_herds = 8;
+    col1.nation[0].relation_by_indian[0] = 80;
+    ai_contact_indian_woi_defect(&ctx, 4);
+    if (col1.nation[0].relation_by_indian[0] != 80 || ind->muskets != 10) {
+      return fail("WoI defect should skip an already-resolved tribe");
+    }
+
+    /* No WoI: must not touch state even on a hit-shaped seed. */
+    col1.head.unknown46[0] = 0;
+    dos_rng_seed(&woi_rng, 1u);
+    memset(ind, 0, sizeof(*ind));
+    ind->tech = 15;
+    ind->muskets = 10;
+    ind->horse_herds = 8;
+    col1.nation[0].relation_by_indian[0] = 80;
+    ai_contact_indian_woi_defect(&ctx, 4);
+    if (ind->woi_defect_resolved || col1.nation[0].relation_by_indian[0] != 80) {
+      return fail("WoI defect should no-op before independence is declared");
+    }
+    col1.head.unknown46[0] = 0;
+    ctx.rng = NULL;
+    ctx.status = NULL;
+    ctx.status_size = 0;
+  }
+
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);

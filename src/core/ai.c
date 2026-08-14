@@ -3434,6 +3434,9 @@ void ai_indian_nation_turn(ColonizeTurnContext* ctx, int nation_id) {
    */
   ai_nation_reseed(ctx);
 
+  /* §2 WoI tribe defection (isolated RNG, no pulse LCG burn). */
+  ai_contact_indian_woi_defect(ctx, nation_id);
+
   /* §2–4 alarm prelude (flags/mission); LCG stream-cost burns remain in pulse. */
   ai_contact_indian_prelude(ctx, nation_id);
 
