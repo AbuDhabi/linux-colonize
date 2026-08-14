@@ -138,13 +138,31 @@ genuinely separate cases.)
 
 **Case `0xb`/`0xc`** (`FUN_479b_0972`) is the entry into ship/land act —
 short pre-check, calls `FUN_2a1f_0210`/`FUN_291f_044e`/`FUN_2a1f_0142`
-(goto/move drivers, not traced this pass), terrain re-check on arrival,
-then falls into the same `default` thunk before clearing state.
+(goto/move drivers), terrain re-check on arrival, then falls into the
+same `default` thunk before clearing state.
+
+**Move drivers checked this same day, one resolved, two corrupted:**
+`FUN_2a1f_0142` → `FUN_465b_0000` — **already known/ported**, this is the
+terrain-MP-cost helper (`ai_transcription.md`'s "Shared move/terrain
+helpers" table, Linux `ai_dos_move_spent`). `FUN_291f_044e` →
+`FUN_4720_049e` carries a real Ghidra disassembly-fault warning
+(`Instruction at (ram,0x0004c035) overlaps instruction at
+(ram,0x0004c033)`, `viceroy_unpacked.c:76063`) — corrupted, needs the
+overlay-recovery treatment before trusting it. `FUN_2a1f_0210` →
+`FUN_6662_0f74` has no warning banner but shows the same corruption
+*signature* seen elsewhere this session (`in_AX` — a register-passed
+argument the decompiler failed to recover as a named parameter, despite a
+`void` signature) — likely corrupted too, not confirmed by a banner.
+Genuinely needs a fresh Ghidra recovery (comparable effort to the
+`0a60`/`153e`/`3180`/`1816`/`5b66` recoveries already done this session)
+to trust either — not attempted this pass; this is real "OPEN (unpark
+#4)" territory, not a quick follow-up like case 9 turned out to be.
 
 **Not yet mapped, flagged for a follow-up**: the full 16-byte-per-terrain-
 class content of `DS:0x2f78`/`0x2f80` (only offset +2 named so far);
 `FUN_281f_09fc(0x24)`'s founding-father identity; colony-record `+0xa4`;
-`FUN_2a1f_0210`/`FUN_291f_044e`/`FUN_2a1f_0142` (case `0xb` move drivers).
+`FUN_4720_049e`/`FUN_6662_0f74` (case `0xb` move drivers, corrupted,
+needs fresh recovery).
 
 **2026-08-14, same day — checked cases 8/9 against Linux's existing
 Pioneer plow/road port (`units_pioneer_work_tick` in `units.c`), found

@@ -185,19 +185,37 @@ if cap < 1: cap = 1
 
 The decomp then walks *only the units stationed on that colony's own tile*
 (its tile unit-stack, not every unit the nation owns anywhere), and for each
-that is **FORTIFIED** and raw type **1** (Soldier) or **4** (Dragoon), spends
-one slot of `cap` to promote: Soldier → Continental Army (type 9), Dragoon →
-Continental Cavalry (type 7). The budget is shared across both types in tile
-scan order — at the SoL==50 edge `cap` is always exactly 1 regardless of
-population (the `alt` term is 0), so only the first eligible unit found
-promotes that turn; the rest wait for a later turn. Regular, Veteran, and
-already-Continental units never match the raw type check and are never
-touched. A colony-count message pops when `promoted>0` (singular/plural).
+that is **FORTIFIED**, raw type **1** (Soldier) or **4** (Dragoon), **and**
+profession `unit+0x315b == 0x15`, spends one slot of `cap` to promote:
+Soldier → Continental Army (type 9), Dragoon → Continental Cavalry (type 7).
+The budget is shared across both types in tile scan order — at the SoL==50
+edge `cap` is always exactly 1 regardless of population (the `alt` term is
+0), so only the first eligible unit found promotes that turn; the rest wait
+for a later turn. Regular and already-Continental units never match the raw
+type check and are never touched. A colony-count message pops when
+`promoted>0` (singular/plural).
+
+**Profession gate resolved 2026-08-14, corrects a wrong claim in the
+paragraph above** ("Regular, Veteran... never match" was backwards). DOS
+code `0x15` is `UNITS_JOB_SOLDIER` ("Veteran Soldiers") — confirmed via the
+same offset (`unit+0x315b`) and adjacent code (`0x14`=Pioneer) already
+established in the case-8/9 terrain-improve investigation
+(`euro_unit_act.md`). So **only Veteran-status** Soldier/Dragoon promote —
+an ordinary armed colonist (type Soldier/Dragoon, profession
+`UNITS_JOB_NONE`) does **not**, even fortified on the colony's own tile.
+Previously unported (Linux checked only the raw type, no profession gate)
+— **fixed same day**: `ai_king_war_act`'s 1eca block now also requires
+`u->profession == UNITS_JOB_SOLDIER`. Verified against `unit_ai_king`'s
+existing 1eca test blocks (updated to grant Veteran profession to the
+units expected to promote) plus a new negative case (fortified, own-tile,
+right type, but `UNITS_JOB_NONE` — must not promote). Full `ctest` green,
+including golden fixtures — the stricter gate never conflicted with any
+already-verified seed-100 behavior.
 
 Source: `FUN_43f7_1eca`. King promote path only — **not** FF Washington
 mass-promote / combat upgrade. Linux: `ai_king_war_act` in `ai_king.c`
 (`unit_ai_king` 1eca block covers the fortified-gate, own-tile-gate,
-shared-cap, and SoL==50-edge cases).
+Veteran-profession-gate, shared-cap, and SoL==50-edge cases).
 
 After promote, idle human **Cont. Army / Cont. Cav** (hunter name check includes
 `Continental` / `Cont. Army` / `Cont. Cav`) `AI_MOVE` toward the **nearest**
@@ -358,7 +376,18 @@ dragoons…"); king_ref thin multi-garrison (cap 2). Multi-garrison chrome
 - **Done (structural REF / rebel — Marathon3):** **Dragoon garrison** (up to two Regular else Dragoon/Cont. Cav after capture / idle on crown; Defending a Colony cap 2; multi-garrison chrome still PARKED); **Cont. capital-rally** (nearest human colony + founding-capital MD slack; hold on colony tile; **Cont. Army/Cav fortify on founding capital cap 2**); **Artillery siege spawn** (`force[3]` prefer when target fortified even if Regular/Dragoon live; unfortified → Regular first); **SoL50 band** (`1eca`: SoL>50 Continental; exactly 50 mid-band Soldier→Veteran only, Dragoon unchanged). Smoke covers each.
 - **Still PARKED (king modals / chrome):** VGA-identical wood chrome; `160a` rename **letter cinematic** (thin `country_name` + rename/WoI OK done); dump-goods `38fd_3dc8` **CHOICE prompt** invent English (picker Done; `@TEAPARTY` after apply Done thin); deep `10f0` economy / merc-hire dialog beyond thin OK; full MoW embark **UI**; REF deep siege scoring UI
 - Deep `10f0` economy / merc hire / VGA arrival chrome — **PARKED** (≤2 + third @diff≥2 + Regular/Dragoon mix + nation-by-colonies pick + drain + thin ARRIVAL OK once Done)
-- Deep `1eca` veteran-profession / type-id promote table — **PARKED** (colony-SoL tile bias + SoL50 mid-band + Cont. abbrev skip Done above; deep type-id table still PARKED)
+- ~~Deep `1eca` veteran-profession / type-id promote table — PARKED~~
+  **stale, corrected 2026-08-14**: re-read `FUN_43f7_1eca` in full
+  (`viceroy_unpacked.c:74910-74972`, 62 lines, clean, no corruption
+  warnings) end to end — there is no type-id table anywhere in it, just
+  two literal type checks (`unit+0x3146 == 1` Soldier / `== 4` Dragoon,
+  gated on `unit+0x315b == 0x15` profession) and two literal promotions
+  (`1→9` Continental Army, `4→7` Continental Cavalry). This matches the
+  "full port" section above byte-for-byte — there was never a deep table
+  to port; this bullet was describing fabricated content from the same
+  era as the `caseD_10`/case-7/`−0x77c4` mischaracterizations already
+  corrected elsewhere this session. `1eca` is **fully done**, nothing
+  left here.
 - MoW hold fill + multi-unload — **Done** (`0982` boards Regular-then-Dragoon into `cargo_ids` up to `units_ship_capacity` / MoW×6; second MoW @diff≥2; wartime unload up to `min(moves_left, capacity)` at coast prefer colony tile (1 MP/pax) + same-beat seize/fortify + AI_SAIL→coast; **full unload + moves left → next human coast**; **after next-coast sail prefer unload if already adjacent**; idle empty MoW coastal patrol). Embark UI chrome — **PARKED**
 - REF deep multi-step land combat / full siege scoring — **PARKED** (thin hunt/capture/garrison cap-2/Artillery/Cont. structural Done above; deeper combat scoring UI still PARKED). Multi-garrison chrome **PARKED**.
 - Dump-goods refuse second cargo (`38fd_3dc8` RNG OR + all bitmap cargo names in status) — **Done**; Europe `bid>0` eligibility + price-weight — **Done**; dump modal CHOICE (`KING_DUMP_GOODS`) — **Done**; `@TEAPARTY` follow-up OK + thin stock dump — **Done** thin; refuse sync when `boycott_bitmap==0` (Fugger/external clear) Done

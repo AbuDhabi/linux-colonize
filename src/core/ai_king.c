@@ -2889,10 +2889,12 @@ static void ai_king_merc_offer(ColonizeTurnContext* ctx) {
  * AI_SAIL coastal patrol (nearest human coast water; no new ships); 0982
  * boards up to ship capacity into cargo_ids;
  * 1eca full port: per colony with SoL>49, cap = max(1, min(pop>>1,
- * pop*(sol-50)/50)) shared across a colony's own fortified Soldier/Dragoon
- * (Regular/Veteran/already-Continental untouched — decomp tests raw type
- * 1/4 only). Cont. Army/Cav after promote → capital-rally (founding
- * capital; weakest_port fallback);
+ * pop*(sol-50)/50)) shared across a colony's own fortified, Veteran-status
+ * (profession UNITS_JOB_SOLDIER — DOS unit+0x315b==0x15) Soldier/Dragoon
+ * (Regular/already-Continental untouched — decomp tests raw type 1/4; an
+ * ordinary armed colonist without Veteran profession is also skipped,
+ * confirmed 2026-08-14). Cont. Army/Cav after promote → capital-rally
+ * (founding capital; weakest_port fallback);
  * 10f0 intervene arm (≤3 @ difficulty≥2); thin 2244 merc auto-accept or
  * cannot-afford once/war.
  * REF idle Regular on crown colony (no adjacent foe) → fortify only if no other
@@ -2926,9 +2928,13 @@ static void ai_king_war_act(ColonizeTurnContext* ctx) {
    *   cap = max(1, min(pop>>1, pop*(sol-50)/50))
    * Walk *only* the units stationed on that colony's own tile (decomp
    * FUN_281f_07e0/02e4 tile-stack walk — not every unit the nation owns)
-   * and promote up to `cap` of them that are FORTIFIED and base type
-   * Soldier or Dragoon (decomp tests raw type id 1 / 4 only — Regulars,
-   * Veterans, and already-Continental units never match and are untouched).
+   * and promote up to `cap` of them that are FORTIFIED, base type Soldier
+   * or Dragoon (decomp tests raw type id 1 / 4 only — Regulars and
+   * already-Continental units never match and are untouched), AND Veteran
+   * status (decomp `unit+0x315b == 0x15` = UNITS_JOB_SOLDIER "Veteran
+   * Soldiers" — confirmed 2026-08-14 via the same offset/adjacent-code
+   * cross-reference as the case-8/9 Pioneer profession `0x14`; an ordinary
+   * armed colonist without Veteran profession does not promote).
    * Soldier → Continental Army, Dragoon → Continental Cavalry. Pops a
    * singular/plural status line per colony that actually promoted someone
    * (decomp 0x132d "one unit" / 0x1336 "%d units"). Washington FF mass
@@ -2976,6 +2982,18 @@ static void ai_king_war_act(ColonizeTurnContext* ctx) {
             continue;
           }
           if (u->orders != UNITS_ORDER_FORTIFIED) {
+            continue;
+          }
+          /*
+           * DOS gates on unit+0x315b == 0x15 alongside the raw type check —
+           * that profession code is UNITS_JOB_SOLDIER ("Veteran Soldiers"),
+           * confirmed 2026-08-14 by cross-referencing FUN_43f7_1eca against
+           * the already-established 0x14=Pioneer profession code from the
+           * case-8/9 terrain-improve investigation. Only Veteran-status
+           * Soldier/Dragoon promote — an ordinary armed colonist (profession
+           * UNITS_JOB_NONE) does not, even fortified on the colony tile.
+           */
+          if (u->profession != UNITS_JOB_SOLDIER) {
             continue;
           }
           if (soldier_ty >= 0 && u->type_index == soldier_ty && army >= 0) {
