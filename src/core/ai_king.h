@@ -15,6 +15,14 @@
 void ai_king_nation_turn(ColonizeTurnContext* ctx);
 
 /*
+ * FUN_43f7_2244 — peacetime AI-nation-only self/ally-funded troop gift.
+ * Called once per AI-controlled Euro nation's own turn (never the human —
+ * see ai_king.c's header comment on the function body for the full
+ * derivation). No-op post-WoI.
+ */
+void ai_king_ai_peacetime_gift(ColonizeTurnContext* ctx, int nation_id);
+
+/*
  * Apply human choice from map AI popup:
  *   KING_AUDIENCE Accept/Refuse (38fd_5be8; Refuse → @TEAPARTY OK /
  *     KING_DUMP_GOODS then @TEAPARTY),

@@ -8,6 +8,7 @@
 #include "core/ai_contact.h"
 #include "core/ai_euro.h"
 #include "core/ai_goals.h"
+#include "core/ai_king.h"
 #include "core/col1_bridge.h"
 #include "core/colony.h"
 #include "core/colony_production.h"
@@ -2178,6 +2179,18 @@ void ai_euro_nation_turn(ColonizeTurnContext* ctx, int nation_id) {
 
   /* FUN_521d_6d8e entry: FUN_281f_04ca reseeds from timer word. */
   ai_nation_reseed(ctx);
+
+  /*
+   * FUN_43f7_2244 (King segment, reached via FUN_281f_0668 from this same
+   * generic per-AI-Euro-nation turn loop in DOS): peacetime AI-nation
+   * self/ally-funded troop gift. Placed before the dispatch-mode branch
+   * below so it fires exactly once per AI nation's turn regardless of
+   * which dispatch path (full vs early-fixture) is active — see
+   * ai_king_ai_peacetime_gift's own header comment for the full formula
+   * derivation. No-op post-WoI or for the human (this function is never
+   * called for ctx->human_nation — see turn_run_european_ai_stubs).
+   */
+  ai_king_ai_peacetime_gift(ctx, nation_id);
 
   if (!ctx->map) {
     return;

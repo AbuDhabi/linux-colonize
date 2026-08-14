@@ -6188,6 +6188,49 @@ int main(void) {
     fprintf(stderr, "unit_ai_king: wartime @SOONRETIRING1 (1840) ok\n");
   }
 
+  /*
+   * FUN_43f7_2244: peacetime AI-nation self/ally-funded troop gift
+   * (ai_king_ai_peacetime_gift) — implemented 2026-08-14, see king_ref.md
+   * "2244/2022 — corrected". Deterministic seed=13 hits both the 1-in-21
+   * gate and rolls beneficiary==nation_id (self-gift) on its first two
+   * calls (probed empirically, same small-seed-first-roll convention used
+   * elsewhere in this file). AI-only: never fires post-WoI or for the
+   * human nation (not exercised here since the caller itself, not this
+   * function, is what skips the human — see ai.c's ai_euro_nation_turn).
+   */
+  {
+    col1.head.unknown46[0] = 0; /* peacetime */
+    ColonizeDosRng gift_rng;
+    dos_rng_seed(&gift_rng, 13u);
+    ctx.rng = &gift_rng;
+    col1.nation[1].gold = 1000000;
+    colonies.colonies[0].active = true;
+    colonies.colonies[0].nation_id = 1;
+    colonies.colonies[0].population = 3;
+    const int gift_units_before = count_nation(&units, 1);
+    const uint32_t gift_gold_before = col1.nation[1].gold;
+    ai_king_ai_peacetime_gift(&ctx, 1);
+    if (col1.nation[1].gold >= gift_gold_before) {
+      return fail("2244 self-gift (seed=13) should spend gold from the acting nation");
+    }
+    if (count_nation(&units, 1) <= gift_units_before) {
+      return fail("2244 self-gift (seed=13) should land at least one unit");
+    }
+    fprintf(stderr, "unit_ai_king: 2244 peacetime AI self-gift ok\n");
+
+    /* Post-WoI: must no-op even on the same hit-shaped seed. */
+    col1.head.unknown46[0] = 1;
+    dos_rng_seed(&gift_rng, 13u);
+    col1.nation[1].gold = 1000000;
+    const uint32_t gift_gold_before2 = col1.nation[1].gold;
+    ai_king_ai_peacetime_gift(&ctx, 1);
+    if (col1.nation[1].gold != gift_gold_before2) {
+      return fail("2244 must no-op once WoI is declared");
+    }
+    col1.head.unknown46[0] = 0;
+    ctx.rng = NULL; /* restore — later code in this test assumes no RNG */
+  }
+
   const uint8_t tax_final = col1.nation[0].tax_rate;
   const int crown_final = count_nation(&units, 1);
   const int intervene_final = count_nation(&units, 2);
