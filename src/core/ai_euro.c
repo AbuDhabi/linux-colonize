@@ -11,6 +11,7 @@
 #include "core/dos_rng.h"
 #include "core/founding_fathers.h"
 #include "core/map.h"
+#include "core/popup_msg.h"
 #include "core/units.h"
 
 #include <stdio.h>
@@ -8640,7 +8641,32 @@ static void ai_euro_try_attack(ColonizeTurnContext* ctx, ColonizeUnit* u, int tx
   }
   if (ctx->col1_ok && ctx->col1 && f->nation_id >= 0 && f->nation_id < 4) {
     if (!ai_diplo_at_war(ctx->col1, u->nation_id, f->nation_id)) {
-      ai_diplo_declare_war(ctx->col1, u->nation_id, f->nation_id);
+      /*
+       * @SNEAK ("Sneak attack by the treacherous {attacker}!") — confirmed
+       * real, 2026-08-14, via live user testimony (euro_diplo.md "FA
+       * negotiation screen"): AI Euro nations can attack outright, with
+       * war declared as a SIDE EFFECT of the attack rather than a
+       * prerequisite for it — exactly this code path (war-declare gated
+       * on the attack itself, not the other way around). The mechanic was
+       * already correctly implemented; only the player-facing
+       * notification was missing (declare was via the bare, status-free
+       * ai_diplo_declare_war). Switched to the _ctx variant (gains the
+       * existing boycott/sticky chrome for free) and override its generic
+       * @DECLAREWAR status with the real @SNEAK wording when the human is
+       * a party, since this specific path is never a negotiated/expected
+       * declaration.
+       */
+      ai_diplo_declare_war_ctx(ctx, u->nation_id, f->nation_id);
+      if (ctx->human_nation >= 0 && ctx->human_nation < 4 &&
+          (u->nation_id == ctx->human_nation || f->nation_id == ctx->human_nation) &&
+          ctx->status && ctx->status_size > 0) {
+        PopupMsgTokens tok = {0};
+        tok.string0 = ai_diplo_rival_name(ctx->col1, u->nation_id);
+        popup_msg_fill(
+          ctx->messages, "SNEAK", &tok, "Sneak attack by the treacherous %STRING0!",
+          ctx->status, ctx->status_size
+        );
+      }
     }
   }
   if (units_is_sea(ctx->units, u->id)) {

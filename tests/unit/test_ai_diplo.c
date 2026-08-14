@@ -21,6 +21,7 @@
 #include "core/dos_rng.h"
 #include "core/founding_fathers.h"
 #include "core/map.h"
+#include "core/popup_msg.h"
 #include "core/turn.h"
 #include "core/units.h"
 
@@ -1249,6 +1250,44 @@ int main(void) {
     }
     st.player[0].country_name[0] = '\0';
     st.player[2].country_name[0] = '\0';
+
+    /*
+     * @SNEAK ("Sneak attack by the treacherous {attacker}!") — real text
+     * confirmed 2026-08-14 (COLONIZE/GAME.TXT), user-confirmed live mechanic
+     * (see src/core/ai_euro.c ai_euro_try_attack). Direct primitive check
+     * since ai_euro_try_attack itself is static and its dispatcher-turn
+     * context is entangled with ai_diplo_euro_balance's own opportunistic
+     * declare_war_ctx (which can fire earlier in the same turn and win the
+     * @DECLAREWAR-vs-@SNEAK race) — too flaky for an end-to-end assertion,
+     * so this pins the exact fallback text and the real GAME.TXT rendering
+     * that ai_euro.c's popup_msg_fill call produces. */
+    {
+      char sneak_buf[256];
+      PopupMsgTokens tok = {0};
+      tok.string0 = "Spain";
+      popup_msg_fill(
+        NULL, "SNEAK", &tok, "Sneak attack by the treacherous %STRING0!", sneak_buf,
+        sizeof(sneak_buf)
+      );
+      if (strcmp(sneak_buf, "Sneak attack by the treacherous Spain!") != 0) {
+        fprintf(stderr, "unit_ai_diplo: sneak fallback status '%s'\n", sneak_buf);
+        return fail("@SNEAK fallback text should match ai_euro.c's popup_msg_fill call");
+      }
+      ColonizeMsgCatalog game_txt_sneak;
+      memset(&game_txt_sneak, 0, sizeof(game_txt_sneak));
+      if (!assets_msg_load_file(&game_txt_sneak, "COLONIZE/GAME.TXT")) {
+        return fail("@SNEAK: GAME.TXT load failed");
+      }
+      sneak_buf[0] = '\0';
+      popup_msg_fill(
+        &game_txt_sneak, "SNEAK", &tok, "Sneak attack by the treacherous %STRING0!", sneak_buf,
+        sizeof(sneak_buf)
+      );
+      if (strcmp(sneak_buf, "Sneak attack by the treacherous Spain!") != 0) {
+        fprintf(stderr, "unit_ai_diplo: sneak real-catalog status '%s'\n", sneak_buf);
+        return fail("@SNEAK should render authentic GAME.TXT text with attacker name");
+      }
+    }
 
     /* R6/R12: Indian −5 war-hit status when boycott chrome quiet and sticky rises. */
     ai_diplo_make_peace(&st, 0, 2);
