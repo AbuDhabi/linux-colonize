@@ -107,8 +107,36 @@ missions slow hostility.
 | `FUN_4d56_2154` | `2a1f_0434` | From **`5bfb_022e`** meet path — fills `0x9e*` gift/demand tables | **Done** scorer [`indian_meet_scoring_2154.md`](indian_meet_scoring_2154.md); not raid |
 | `FUN_4d56_2820` | `2a1f_044c` | Heavy decision + nested trade `2aac…311e`; also ~86766 | **Mapped** [`indian_trade_2820.md`](indian_trade_2820.md); port PARKED |
 | `FUN_4d56_4528` | `2a1f_016c` | Settlement enter/raid; from **move foreign** / contact (`move_spent` §3) | **Mapped** head [`indian_settlement_4528.md`](indian_settlement_4528.md); mid-body PARKED (decomp soup) |
-| `FUN_5bfb_022e` | `2a1f_066c` | Indian unit meet/contact (~96565); also ~98793 | First-contact WELCOME **Done** (land only; ends at PEACE/COME); village Meet CHOICE **Done** thin |
-| `FUN_4cc6_00f2` / `0000` | `0d6c` / `0398` | Relation delta / mission clear | — |
+| `FUN_5bfb_022e` | `2a1f_066c` | Indian unit meet/contact (~96565); also ~98793 | First-contact WELCOME **Done** (land only; ends at PEACE/COME); village Meet CHOICE **Done** thin; **already-met adjacency deep body (`96677-97101`) not ported — confirmed PARKED, see 2026-08-14 notes below** |
+| `FUN_4cc6_00f2` / `0000` | `0d6c` / `0398` | Relation delta / mission clear | Already ported thin as `ai_diplo_indian_relation_delta` |
+
+**2026-08-14: `022e`'s already-met adjacency body — real gap, but
+correctly PARKED, not a quick port (two-part finding, see
+[`settlement_record_8d4a.md`](settlement_record_8d4a.md) for full detail).**
+Past the first-contact arm (`96676`), DOS's already-met body is two
+parallel scenarios (Brave-meets-Euro / Euro-meets-village) each running a
+which-good-to-gift/trade selection, a free-colonist chance, and cash-gift
+sizing — comparable in size/shape to `2820`/`4528`, not a bounded slice.
+`FUN_281f_030c`/`0d6c` are confirmed as `ai_diplo_indian_read`/
+`ai_diplo_indian_relation_delta` (signature + sign convention match). The
+one piece that looked bounded (`96751-96827`, gated on the already-Done
+`2154` scorer's output) still splits into two branches — one resets the
+village's `alarm[e].friction` to 0 + a bounded negative relation delta,
+the other scales `friction` ×1.5 + a positive relation delta — and
+**which branch means "accepted" vs "declined" depends on popup message
+text (`0x1866` etc.) that isn't recoverable** (same unrecoverable-binary-
+resource class as the unit-capability bitmask; the one candidate
+corroborating site, `FUN_4d56_4528`, is itself the already-known corrupted
+decompile). Implementing a guessed polarity would make the AI silently do
+the *opposite* of DOS on every already-met encounter — worse than not
+porting it. **Stays PARKED** until the popup string table becomes
+recoverable. Linux's current stand-in (`ai_contact.c:3673-3703` — CHOICE
+menu for humans, silent auto-trade/gift-demand for AI) remains what
+ships. The underlying data fields (`t->alarm[e].friction`/`.attacks`,
+`ind->contact_state[e]`, `ind->alarm_by_player[e]`) do already exist in
+Linux with confirmed exact offset matches to DOS's `0x8d4a`/`0x8d4e`
+selected-record fields, so *if* the string blocker ever lifts, this is a
+behavior-only port, not a new-struct one.
 
 **`FUN_5bfb_022e` disassembly verified clean (2026-08-13).** Carried a
 Ghidra `Removing unreachable block (ram,0x0005c64f)` disassembly-fault

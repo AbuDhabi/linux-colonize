@@ -242,16 +242,14 @@ assumed from the corrupted export's line numbers), then checking that.
 **2026-08-14 investigation note (missionary `0x4c` gate, still correctly
 PARKED — do not re-open expecting a small fix):** the `0x4c`-write gate
 (decomp ~line 421 of the full-function recovery) reads through
-`*(int*)0x8d4a` — traced this pointer and it is **not** a small per-nation
-cache like `ai_goals`' found-tile slots. It's a large shared scratch
-struct with at least a dozen distinct byte/word/int fields (offsets 0, 1,
-3 [bitflags: bit1/2/4/8 all independently tested], 4, 5 [+ a nation-id tag
-in its low nibble], 7, 8, and a `+10` int array indexed by nation), written
-from dozens of call sites spread across `viceroy_overlays.c` lines
-~77000–83000 — comparable in scope to the explore-ring matrix itself, not
-a bounded single-purpose helper. Resolving the missionary gate for real
-means resolving that whole struct first. Correctly stays parked with the
-explore-ring matrix rather than attempted piecemeal.
+`*(int*)0x8d4a`. **Full struct now mapped** — it's DOS's persistent
+settlement record array (Euro colonies + Indian villages unified, 18
+bytes/record, up to 84), not a scratch cache — see
+[`settlement_record_8d4a.md`](settlement_record_8d4a.md) for the complete
+field map, function list, and the open question (relationship to the
+already-ported `FUN_5bfb_022e`/Indian-meet attitude tracking) that needs
+resolving before any of it — including this missionary gate — is safe to
+port.
 
 ## Related LAB exits (after this band)
 
