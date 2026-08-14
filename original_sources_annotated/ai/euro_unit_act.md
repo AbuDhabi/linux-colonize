@@ -145,6 +145,42 @@ Not ported to Linux - same "needs unlabeled DS globals named first"
 blocker as `FUN_4d56_417e` (task #5); disassembly-level task #2 is closed,
 semantic porting stays deferred pending that naming pass.
 
+**2026-08-14: the DS globals ARE now named — the record layout, not the
+caller, is what's still blocking this.** `DS:0x54ee`/stride `0x12` is 2
+bytes into the settlement-record array fully mapped in
+[`settlement_record_8d4a.md`](settlement_record_8d4a.md) (base `0x54ec`,
+same stride) — `rec[0]` here is that doc's `+2` (`type`, index into the
+8-entry type-profile table) and `rec[3]` is `+5` (`owner_flags`; this
+function's `rec[3] = 0xff` write sets the owner nibble to "none" *and*
+the sign-bit sentinel that other sites read as "record invalid/inactive"
+— reads as **eliminate one settlement of a given type belonging to a
+given nation**). `DS:0x543f` stride `0x34` is the per-nation
+AI-difficulty/control table used pervasively elsewhere (`param_1*0x34+
+0x543f`, e.g. `ai_king` control-status checks). So the callee's own body
+is fully legible now.
+
+**Resolved same day, later pass — the whole `a6e4`/`007308` thread was
+chasing the wrong address.** `FUN_OVL12_L0000_0` is not reached through
+`5b66`'s dispatcher at all; it doesn't need Ghidra hand-transcription
+either. It's `FUN_4cc6_0000` (`viceroy_unpacked.c:80774-80802`), already
+sitting fully clean/uncorrupted in the canonical export, real parameter
+names and everything (`param_1`=type-4, `param_2`=owner nation — matches
+this doc's transcription byte-for-byte). Its real caller is
+`thunk_FUN_2a1f_0398`, fired from `FUN_4cc6_0092` (peer diplo helper),
+`FUN_4cc6_00f2` (the already-known Indian relation-delta function, on a
+low-relation branch), and directly from `FUN_4d56_1816` (Indian nation
+turn) inside a previously-undocumented War-of-Independence tribe-defection
+branch — see [`indian_woi_defect_1816.md`](indian_woi_defect_1816.md) for
+the full mechanic this unblocked. `FUN_OVL14_L0000__007308` really is the
+giant move-scoring gate as the phase-outline said; the old `a6e4` prose
+above was simply investigating a different, wrong address from the start,
+compounded by not checking the plain canonical export first (the
+`FUN_4cc6_0000` copy was sitting there in the same file the whole time —
+same lesson as the G-table/`153e` passes: check canonical before Ghidra).
+Semantic porting of `FUN_4cc6_0000` itself now blocked only on deciding
+whether it's worth porting standalone vs. as part of the WoI-defection
+mechanic that calls it.
+
 **The broader "12-byte pattern" region** (the run of `JMPF 0x0000:20e6`/
 `5c3c`/`0a60`/`0072`/`00a8`/`02be`/`5cf6`/`052c` entries near `a6e4`) is,
 by the same logic, **not data** — it's more unpatched RTLink call-thunks in
@@ -322,6 +358,32 @@ non-Cortes royal-galleon extra share (see `europe_cash_treasure`).
 own coastal colony cashes via `europe_cash_treasure` (tax = Crown share) without
 boarding a ship (`ai_euro_try_cortes_king_galleon_cash`). Cite: fandom Hernan
 Cortes; GAME.TXT `@KINGGALLEON3`.
+
+**2026-08-14 investigation note (KINGGALLEON2, still correctly PARKED):**
+read the two GAME.TXT tags side by side — `@KINGGALLEON3` (Cortes) says
+"for no extra charge... taken a percentage equal to the current tax rate";
+`@KINGGALLEON2` (non-Cortes) drops the "no extra charge" line and just
+says "once our assessors have computed the Crown's proper share," with an
+explicit Yes/No choice ("let the Crown claim its rightful share" /
+"kiss your royal pinky ring"). Traced the cited crown-cut function
+(`FUN_48d3_06ba`, `viceroy_unpacked.c:77943-78039`) looking for a second,
+higher percentage or a decline path — it's more tangled than the docs
+implied: two separate scan loops (one over combat/ship-type units
+`0xc-0x13` computing `local_4`/`bVar4`, one over Treasure-type (`0x0a`)
+units applying the *same* tax-clamped-at-50% formula already in
+`europe_cash_treasure` and despawning them), joined by a UI-notify flag
+(`*(int*)0x14c`/`0x14e`) gated on the *first* loop's result and "current
+nation is human." Couldn't confidently determine within this pass whether
+`local_4`/`bVar4` selects "human has an eligible Galleon" (→ auto-cash,
+KINGGALLEON3-shaped) or "human lacks one" (→ CHOICE popup,
+KINGGALLEON2-shaped) — the condition reads as the former on a first pass
+but that contradicts the narrative (@KINGGALLEON2 is the *no-Galleon*
+case), so something in my reading is inverted or this function isn't the
+right one for the interactive CHOICE at all (it never branches on a
+Decline outcome anywhere in the ~95 lines read). Genuinely unresolved,
+not a quick fix — needs the actual CHOICE-dispatch call site found first
+(not yet located) before either the percentage or the Decline behavior
+can be ported with confidence. Stays PARKED.
 
 ### 2c6. Linux thin — Missionary CONTACT (act)
 

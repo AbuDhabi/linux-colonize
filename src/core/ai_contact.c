@@ -1,6 +1,7 @@
 #include "core/ai_contact.h"
 
 #include "core/ai_diplo.h"
+#include "core/ai_king.h"
 #include "core/assets.h"
 #include "core/colony.h"
 #include "core/col1_save.h"
@@ -2997,6 +2998,88 @@ static void ai_contact_mission_pacify_meet(ColonizeTurnContext* ctx, int nation_
     if (al >= 40 && al < 80) {
       ind->alarm_by_player[euro] = (uint16_t)(al >= 2 ? al - 2 : 0);
     }
+  }
+}
+
+/*
+ * FUN_4d56_1816 item 2 (War of Independence tribe defection) — thin port.
+ * See indian_woi_defect_1816.md for the full raw-decomp derivation. Once
+ * per Indian nation per turn while WoI is declared, a not-yet-resolved
+ * tribe may defect to the rebel (human) side: relation vs. the human jumps
+ * by +100, relation vs. the crown drops by -100 (DOS's own literal deltas
+ * on ai_diplo_indian_relation_delta-shaped storage, not a hard "set to
+ * max/min"), plus a one-time musket/horse windfall, then the tribe is
+ * latched (woi_defect_resolved) so it isn't re-rolled every turn.
+ *
+ * Approximated: DOS derives the musket/horse windfall's tech cap from a
+ * `DS:0x8d52`-selected "tribe" tech-lookup table whose value at this call
+ * site isn't independently confirmed; substituted the same nation's own
+ * already-mapped `tech` field (same conceptual quantity, most likely the
+ * same table). DOS's `FUN_2a1f_0398` "mission clear" side-effect on the
+ * human nation and the exact status-message wording are not reproduced
+ * (see doc). `woi_defect_forced` (DOS bit 0x40) has no known setter this
+ * pass — the eligibility gate below never gets forced on for now.
+ */
+void ai_contact_indian_woi_defect(ColonizeTurnContext* ctx, int nation_id) {
+  if (!ctx || !ctx->col1_ok || !ctx->col1 || !ctx->rng || nation_id < 4 || nation_id > 11) {
+    return;
+  }
+  if (!ai_king_independence_declared(ctx->col1)) {
+    return;
+  }
+  const int human = ctx->human_nation;
+  if (human < 0 || human > 3) {
+    return;
+  }
+  ColonizeCol1Indian* ind = &ctx->col1->indian[nation_id - 4];
+  if (ind->woi_defect_resolved) {
+    return;
+  }
+
+  int eligible = ind->woi_defect_forced != 0;
+  if (!eligible) {
+    const int rel = (int)ai_diplo_indian_relation(ctx->col1, nation_id, human);
+    if (rel >= 25) {
+      const int roll = dos_rng_range(ctx->rng, 1, 400);
+      eligible = roll >= rel;
+    }
+  }
+  if (!eligible) {
+    return;
+  }
+
+  const int difficulty = ctx->col1->head.difficulty;
+  const int span = (5 - difficulty) * 2; /* (difficulty-5)*-2: 10/8/6/4/2 */
+  if (dos_rng_range(ctx->rng, 0, span) != 0) {
+    return;
+  }
+
+  ind->woi_defect_resolved = 1;
+  const int crown = ai_king_crown_nation(human);
+  ai_diplo_indian_relation_delta(ctx->col1, nation_id, human, 100);
+  ai_diplo_indian_relation_delta(ctx->col1, nation_id, crown, -100);
+
+  const int tech = ind->tech;
+  int muskets = ind->muskets;
+  if (muskets > tech) {
+    muskets = tech;
+  }
+  ind->muskets = (uint8_t)(muskets * 4); /* DOS <<2; byte truncation matches */
+  int horses = ind->horse_herds;
+  if (horses > tech) {
+    horses = tech;
+  }
+  ind->horse_herds = (uint8_t)horses;
+  ind->horse_breeding = (uint16_t)(horses * 25);
+
+  if (ctx->status && ctx->status_size > 0) {
+    ai_contact_bind_names(ctx);
+    snprintf(
+      ctx->status,
+      ctx->status_size,
+      "The %s tribe declares for the rebel cause!",
+      ai_contact_tribe_name(nation_id)
+    );
   }
 }
 

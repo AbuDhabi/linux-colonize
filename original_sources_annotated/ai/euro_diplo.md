@@ -20,6 +20,8 @@ Decomp addressing:
 
 - **Euro** (`nation < 4`): `*(peer + nation * 0x13c − 0x77c4)`
 - **Indian** (`nation ≥ 4`): `*(peer + nation * 0x4e + 23000)` — full matrix **PORT DEBT** on Linux
+  (still true 2026-08-14 — see the `−0x77c4` note further down for what
+  this blocks: `FUN_4cc6_0092`'s Indian-nation-elimination handler)
 
 Linux Euro×Euro stand-in (316-byte / `0x13c` nation record):
 
@@ -161,7 +163,25 @@ Contact/King pattern — thin `ctx->status` stand-in for `102a`/`1092` (widgets 
 **Done (structural unpark #5):** AI popup OK/CHOICE enqueue + wartime Privateer
 **unit spawn** + score/trade deepen + thin status chrome. **Still PARKED:** full
 multi-line VGA `102a`/`1092` dialog widgets; FA `3f41` full UI; order clear
-`12d0` deep; exact `−0x77c4`.
+`12d0` deep.
+
+**`−0x77c4` resolved (2026-08-14, this list wasn't updated when it happened
+— it's actually already mapped above, §"`15b3` bilateral bytes"):**
+`FUN_15b3_0004`/`0032` is dual-mode — Euro owner (`<4`) addresses
+`*(peer + nation*0x13c − 0x77c4)`, exactly `nation[a].euro_relation[b]`
+(confirmed, already the live Linux field, `ai_diplo_read`/`write`'s
+backing store); Indian owner (`≥4`) addresses a **separate** table at
+`*(peer + nation*0x4e + 23000)` — that Indian branch is the real remaining
+gap, already correctly called out below as full-matrix PORT DEBT.
+`ai_diplo_or_both`/`clear_both`/`read`/`write` currently hard-reject any
+`nation_a`/`nation_b ≥ 4` (checked in `ai_diplo.c`), so callers that need
+the Indian branch (e.g. `FUN_4cc6_0092`, Indian-nation-type elimination
+paralleling the already-ported `FUN_43f7_0108`) can't be safely ported by
+just widening the existing bounds check — the `23000`/`0x4e` table itself
+has no Linux mirror yet, and it's unclear which of that record's 78 bytes
+are meaningful vs. reserved. Real next-step candidate, but a new-struct
+project (comparable to the `0x8d4a` settlement-record pass), not a quick
+follow-up — flagging rather than guessing at the table layout.
 
 ### Thin alliance treasury + treaty timer (Linux)
 

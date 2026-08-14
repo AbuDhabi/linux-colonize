@@ -405,5 +405,6 @@ direction here vs. movement momentum in `20e6`, not reconciled), and all
 of item 4 (diplomatic dispatch: Euro-vs-Euro → `153e` war-declare is
 itself parked — see `euro_diplo_153e_full.md`; Euro-vs-Indian already
 covered by the existing `ai_contact.c` meet dispatcher independent of this
-path; Indian-vs-Indian `DS:0x5ade` sync table; the `caseD_10`/`0x20`
-generic event dispatch).
+path; Indian-vs-Indian `DS:0x5ade` sync table; the `caseD_10`/`0x20` bit —
+identified 2026-08-14 as `ai_diplo_or_both(.., 0x20)`, unmapped bit, see
+above).

@@ -50,6 +50,12 @@ typedef enum AiRaidKind {
 int ai_contact_last_raid_kind(void);
 
 /*
+ * FUN_4d56_1816 §2 War of Independence tribe defection — thin port. See
+ * indian_woi_defect_1816.md.
+ */
+void ai_contact_indian_woi_defect(ColonizeTurnContext* ctx, int nation_id);
+
+/*
  * FUN_4d56_1816 §3 alarm prelude: clamp, mission clear, war/alarm flags.
  * Must not burn the quiet-pulse LCG (uses isolated contact RNG when needed).
  */
