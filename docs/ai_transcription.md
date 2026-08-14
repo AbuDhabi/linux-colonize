@@ -198,7 +198,7 @@ AI = `1816` + unit-act thunk + those large bodies + `@RAID*` data.
 | Symbol | ~Lines | Purpose (known / inferred) | Linux | Status |
 |--------|-------:|----------------------------|-------|--------|
 | `FUN_521d_0000`…`0906` | small | Goal-table ops + founding helpers | `ai_goals.c` | **partial** (T0 ported) |
-| `FUN_521d_0a60` | ~858 | Unit / colony goal writer | `ai_euro_colony_goals` | **partial** (T0 A–H condensed) |
+| `FUN_521d_0a60` | ~5510 (was wrongly cited ~858 — silently truncated, see [`euro_goal_orders_0a60_full.md`](../original_sources_annotated/ai/euro_goal_orders_0a60_full.md)) | Unit / colony goal writer + goal-consumption/orders engine (new section, 2026-08-14) | `ai_euro_colony_goals` + goal-selection distance/prio scoring in `ai_euro_unit_act` | **partial** (T0 A–H condensed; goal-selection now closest/highest-prio not first-match, matching DOS shape) |
 | `FUN_521d_20c6` | nested | Near helper before scoring | scoring step | **partial** (T0) |
 | `FUN_521d_20e6` | ~2180 | Direction / move scoring (all unit kinds) | quiet + `ai_euro_score_step` | **partial** (T0 Euro/ocean; T2 quiet incl. RNG(1,5) seen-branch, phase 18) |
 | `FUN_521d_5b66` | ~1815 | Euro **per-unit act** (separate far; often → `20e6`) | `ai_euro_unit_act` | **partial** (T0) |

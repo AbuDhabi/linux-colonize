@@ -83,6 +83,21 @@ static int ai_euro_at_war_any_peer(const ColonizeCol1Save* col1, int nation_id);
  * `unit_ai_euro_war`'s "war cargo sail should prefer Fortress colony over
  * bare" case, so it's load-bearing beyond just this table; kept.
  */
+/*
+ * FUN_0000_2500 (via FUN_1000_856a, FUN_521d_0a60's goal-distance helper) —
+ * octile distance, same shape as ai.c's own file-local `ai_dos_dist` (not
+ * exported, hence this small duplicate rather than plumbing a new header).
+ */
+static int ai_euro_dos_dist(int dx, int dy) {
+  if (dx < 0) {
+    dx = -dx;
+  }
+  if (dy < 0) {
+    dy = -dy;
+  }
+  return (dx < dy) ? dx / 2 + dy : dy / 2 + dx;
+}
+
 static void ai_euro_refresh_continent_stance(ColonizeTurnContext* ctx, int nation_id) {
   if (!ctx || nation_id < 0 || nation_id >= 4) {
     return;
@@ -12589,16 +12604,31 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
     /* Soldiers: MILITARY/CONTACT first; founders: FOUND over LABOR/COLONY —
      * except threatened Stockade LABOR (Free Colonist MD≤3) beats distant FOUND. */
     if (is_soldier) {
+      /*
+       * Real FUN_521d_0a60 goal-consumption shape (mapped 2026-08-14, see
+       * euro_goal_orders_0a60_full.md): DOS scores every matching slot by
+       * dist(unit,goal)/(prio+1) and takes the lowest, not the first slot
+       * in table order. Was first-match; now closest/highest-prio wins,
+       * same set of matching goals as before. Per-slot difficulty-scaled
+       * weight table (`aiStack_1da`) and the fine threshold gate are not
+       * reproduced — approximated as weight=1, no gate (see doc's "Not
+       * yet done").
+       */
+      int best_score = -1;
       for (int i = 0; i < AI_PRIMARY_SLOTS; ++i) {
         const AiGoalSlot* g = ai_goals_primary(nation_id, i);
         if (!g || g->code == AI_GOAL_EMPTY) {
           continue;
         }
         if (g->code == AI_GOAL_MILITARY || g->code == AI_GOAL_CONTACT) {
-          goal_x = g->x;
-          goal_y = g->y;
-          goal_code = (int)g->code;
-          break;
+          const int dist = ai_euro_dos_dist(g->x - u->x, g->y - u->y);
+          const int score = dist * 100 / (g->prio + 1);
+          if (best_score < 0 || score < best_score) {
+            best_score = score;
+            goal_x = g->x;
+            goal_y = g->y;
+            goal_code = (int)g->code;
+          }
         }
       }
     } else if (is_founder) {
@@ -12635,16 +12665,22 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
         }
       }
       if (!threat_stockade_labor) {
+        /* Closest/highest-prio wins — same DOS shape as the soldier loop above. */
+        int best_score = -1;
         for (int i = 0; i < AI_PRIMARY_SLOTS; ++i) {
           const AiGoalSlot* g = ai_goals_primary(nation_id, i);
           if (!g || g->code == AI_GOAL_EMPTY) {
             continue;
           }
           if (g->code == AI_GOAL_FOUND || g->code == AI_GOAL_MIL_EXPAND) {
-            goal_x = g->x;
-            goal_y = g->y;
-            goal_code = (int)g->code;
-            break;
+            const int dist = ai_euro_dos_dist(g->x - u->x, g->y - u->y);
+            const int score = dist * 100 / (g->prio + 1);
+            if (best_score < 0 || score < best_score) {
+              best_score = score;
+              goal_x = g->x;
+              goal_y = g->y;
+              goal_code = (int)g->code;
+            }
           }
         }
       }

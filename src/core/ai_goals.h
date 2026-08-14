@@ -7,7 +7,13 @@
 #include "core/col1_save.h"
 #include "core/map.h"
 
-/* Linux port of FUN_521d_0000…0906 goal tables (annotated euro_goals.c). */
+/*
+ * Linux port of FUN_521d_0000…0906 goal tables (annotated euro_goals.c).
+ * DOS *consumer* of `primary[]` — the code that reads these slots back to
+ * assign unit orders/act-state/goal-target x-y — is `FUN_521d_0a60`'s tail
+ * (mapped, not ported, 2026-08-14): see
+ * original_sources_annotated/ai/euro_goal_orders_0a60_full.md.
+ */
 
 #define AI_GOAL_EMPTY 0xff
 #define AI_GOAL_CONTACT 0
