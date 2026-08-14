@@ -2648,7 +2648,7 @@ Thin map: [ai/king_ref.md](ai/king_ref.md). Linux: `src/core/ai_king.c`.
 | `FUN_521d_0a60` | 87408 | ~5510 (was wrongly `839` — canonical export silently truncated; see `ai/euro_goal_orders_0a60_full.md`) | ai | Euro unit/colony goal writer + goal-consumption/orders engine (sectioned; mid-game OPEN) | known | ai/euro_dispatcher.c; ai/euro_goals.c; ai/euro_g_table_0a60.md; ai/euro_goal_orders_0a60_full.md |
 | `FUN_521d_20c6` | 88247 | 19 | ai | Stamp unit orders=0x0B goto with dest (DL,BL)+param | inferred | ai/move_scoring.md; near FUN_521d_20e6 |
 | `FUN_521d_20e6` | 88266 | 2180 | ai | Direction / move scoring (all unit kinds); quiet Brave slice annotated | known | ai/quiet_brave_scoring.c; move_scoring.md; move_scoring_land.md; move_scoring_ship.md |
-| `FUN_521d_5b66` | 90446 | 1815 | ai | Euro per-unit act body (often → move_scoring 20e6); thin map | inferred | ai/euro_dispatcher.c; ai/euro_unit_act.md |
+| `FUN_521d_5b66` | 90446 | 44 (was wrongly `1815` — corrupted-blob desync at that citation; real bodies live in `FUN_479b_076e`/`01a6`/`0526`/`0972` at 76722-77122; see `ai/euro_unit_act.md`) | ai | Euro per-unit act dispatcher (cases → `479b_*` handlers, often → move_scoring 20e6); thin map | known | ai/euro_dispatcher.c; ai/euro_unit_act.md |
 | `FUN_521d_5c38` | 92261 | 8 | ai | Always-true predicate stub (Europe hire gate) | inferred | ai/euro_dispatcher.c; docs/ai_transcription.md |
 | `FUN_521d_5c3c` | 92269 | 47 | ai | Try buy/hire Europe unit if treasury allows | inferred | ai/euro_dispatcher.c; docs/ai_transcription.md |
 | `FUN_521d_5cf6` | 92316 | 9 | ai | Refresh colony context pointer (6d8e inventory) | inferred | ai/euro_dispatcher.c; docs/ai_transcription.md |

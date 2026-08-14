@@ -87,10 +87,14 @@ void move_scoring(int unit_index) {
 /*
  * Ghidra: FUN_521d_5b66 | euro_unit_act  (thunk 2a1f_0488 from 6d8e loop)
  *
- * Per-unit act body (~1815 lines). Early path often calls move_scoring (20e6).
- * Thin section-map: ai/euro_unit_act.md. NOT nested inside 20e6.
+ * 44-line dispatcher (was wrongly cited ~1815 lines — corrupted-blob
+ * desync; real per-case bodies are FUN_479b_076e/01a6/0526/0972, see
+ * euro_unit_act.md "Case dispatch targets resolved"). Early path often
+ * calls move_scoring (20e6). Thin section-map: ai/euro_unit_act.md.
+ * NOT nested inside 20e6.
  *
- * PORT DEBT / OPEN (unpark #4): deepen beyond peels — land/combat 20e6, case-7 hire.
+ * PORT DEBT / OPEN (unpark #4): deepen beyond peels — land/combat 20e6,
+ * case-7 hire (FUN_291f_09b2, inside FUN_479b_076e).
  */
 void euro_unit_act(int unit_index) {
   ViceroyUnit *u = VICEROY_UNIT_AT(unit_index);

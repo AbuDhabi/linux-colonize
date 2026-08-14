@@ -58,6 +58,115 @@ LAB_005bda:
 }
 ```
 
+## Case dispatch targets resolved (2026-08-14)
+
+The `FUN_1000_93ea`/`func_0x000193b2`/`FUN_1000_9406`/`FUN_1000_8b24`/
+`FUN_1000_96aa` calls above are RTLink overlay-loader thunks (segment
+`0x1000` resident stub → `FUN_210d_0d91`/`FUN_210d_0dab` overlay-load →
+tail-call), previously flagged "still-uninvestigated" (see the method
+note further down). Re-ran the same overlay-addressing recovery used for
+the switch itself and traced each thunk to its real handler — all five
+sit clean and uncorrupted in the canonical export already, just never
+linked from `5b66` by name:
+
+| Case | Thunk | Real handler | Lines (`viceroy_unpacked.c`) | Size |
+|---|---|---|---|---|
+| 7 | `FUN_291f_01fa` | `FUN_479b_076e(int)` | 76961–77048 | 88 lines |
+| 8 | `FUN_291f_01c2` | `FUN_479b_01a6(int)` | 76722–76858 | 137 lines |
+| 9 | `FUN_291f_0216` | `FUN_479b_0526(int)` | 76862–76957 | 96 lines |
+| default (incl. state `10`) | `FUN_281f_0934` | `FUN_1427_155e(int)` | 8880–8888 | 9 lines |
+| `0xb`/`0xc` | `FUN_291f_04ba` | `FUN_479b_0972(undefined2,int)` | 77052–77122 | 71 lines |
+
+**Case `10` has no dedicated branch** — the switch only lists 7/8/9/0xb/0xc;
+any other state (including the literal value 10) falls through to
+`default`, which is genuinely tiny: `FUN_1427_155e` just recomputes one
+byte (`FUN_1427_065a`) into `unit+0x3149` (moves-spent) and returns. The
+old "case 10 ~91195+, UI/chrome-ish" phase-table entry further down this
+file describes corrupted-blob content, not this — see the warning above
+the phase outline.
+
+**Cases 8 and 9 read as Pioneer terrain-improvement completion**
+(clear/plow one state, road-building the other — not fully confirmed
+which is which). Shared skeleton: decode terrain class at the unit's
+tile, increment a per-unit "turns worked" counter (`unit+0x315a`) against
+a terrain-indexed threshold table at `DS:0x2f78` (stride `0x10` — this is
+the *same* table `§2d8` below already names for the `improve_timer`
+stand-in, just the "+2" byte of it; the other 15 bytes/terrain-class are
+still unmapped), halved when `unit+0x315b` (profession) `== 0x14` (not
+independently identified — sibling profession codes `0x15/0x18/0x19/
+0x1a/0x1b/0x1c` are named elsewhere for other skills, so `0x14` is
+plausibly Hardy Pioneer, not confirmed). Once the counter hits the
+threshold: orders clear, and — gated on live colony count
+(`DS:0x539e`) and the unit's nation matching the bound colony's owner —
+a reward lands: case 9 is a flat `+10` to that colony's
+`hammers_purchased` (`col1_save.h`'s `+0x98` field, already named, matches
+`§2d13` below); case 8 is a scaled reward from a paired terrain table at
+`DS:0x2f80` (stride `0x10`, offset +8 from the case-9 table), gated by a
+founding-father check (`FUN_281f_09fc(0x24)`, FF id `0x24` not yet named)
+and a per-colony "last granted" turn stamp at colony-record `+0xa4` (not
+in `col1_save.h` yet), credited via a 32-bit gold-add helper.
+
+**Case 7** (`FUN_479b_076e`) is only the *top level* of Europe hire —
+clears timer fields, calls `FUN_291f_09b2` for the actual hire pick, then
+a UI-notify chain. `FUN_291f_09b2` (not traced this pass) is very likely
+where the "deep case-7 economy OPEN" content the rest of this file
+discusses actually lives.
+
+**Case `0xb`/`0xc`** (`FUN_479b_0972`) is the entry into ship/land act —
+short pre-check, calls `FUN_2a1f_0210`/`FUN_291f_044e`/`FUN_2a1f_0142`
+(goto/move drivers, not traced this pass), terrain re-check on arrival,
+then falls into the same `default` thunk before clearing state.
+
+**Not yet mapped, flagged for a follow-up**: the full 16-byte-per-terrain-
+class content of `DS:0x2f78`/`0x2f80` (only offset +2 named so far);
+`FUN_281f_09fc(0x24)`'s founding-father identity; colony-record `+0xa4`;
+`FUN_291f_09b2` (case 7's real hire-pick body); `FUN_2a1f_0210`/
+`FUN_291f_044e`/`FUN_2a1f_0142` (case `0xb` move drivers).
+
+**2026-08-14, same day — checked cases 8/9 against Linux's existing
+Pioneer plow/road port (`units_pioneer_work_tick` in `units.c`), found
+it already faithful on the core timing and shipped one confirmed gap.**
+`units_pioneer_work_needed` (`terr_cost + 2` for plow/clear, halved for
+`profession == UNITS_JOB_PIONEER`) already matches case 8/9's
+`table[terrain]+2, >>1 if unit+0x315b=='\x14'` formula exactly — this
+independently **confirms profession code `0x14` = Pioneer** (previously
+flagged unconfirmed above). `units_pioneer_tile_can_clear_or_plow`'s
+`pedia 8..23` clearing range also matches case 8's forest-range check
+(`[8,15]∪[16,23]`) exactly. Case 8's completion reward was already
+ported with an explicit approximation (`units.c`, "FUN_479b_01a6 clear:
+lumber → nearest same-nation colony... Thin add=20 (terrain×20/Hardy×2
+PARKED)") — correctly still parked, the real formula needs the unmapped
+`0x2f80` table values.
+
+**Case 9's completion reward had no Linux port at all — implemented this
+pass.** DOS is a flat, fully-resolved formula (no unmapped table, no FF
+gate): nearest same-nation colony (no radius limit —
+`FUN_281f_0614(x,y,nation,0xffff)`) gets `hammers_purchased += 10`.
+Added to `units_pioneer_work_tick`'s road-completion branch, mirroring
+the existing clear-forest "nearest own colony" search pattern. Real bug
+caught before it shipped: `units_pioneer_road`'s public signature didn't
+take a `colonies` parameter at all (unlike its `units_pioneer_plow`
+sibling) — the new code would have been silently dead behind a `NULL`
+check at every real call site, same class of mistake as this session's
+naval-ambush placement bug. Added the parameter, threaded it through all
+4 call sites (`ai_euro.c` ×2, `game_loop.c` ×2) and 2 existing tests, and
+added a dedicated `unit_units` test that drives a real road completion
+and asserts `hammers_purchased` actually moved (5→15), not just that
+nothing crashed. Full `ctest` green (42/43, same pre-existing baseline
+failure).
+
+**⚠ Everything under "Phase outline" below cites `viceroy_unpacked.c` line
+numbers in the ~90446–92260 range — that entire range is the corrupted
+blob this correction replaces, not real content.** Section "0" and "1"
+and "2. Case `0x0b` settle-adjacent notes" describe DOS behavior that does
+not exist at those citations; treat their DOS-side claims as unverified.
+The many "Linux thin — ..." subsections from `2b` onward describe actual
+Linux port behavior and stay valid as behavioral documentation — they're
+just not reliably tied to the specific DOS line numbers some of them cite
+in passing. Not re-derived from the real `FUN_479b_*` handlers this pass
+(out of scope — see the unmapped list above for what a full redo would
+need).
+
 This is a `switch(0x314c)` dispatcher with cases **7, 8, 9, 0xb/0xc, default**
 — the same case numbers the phase table below documents — but each case is
 a single call, not a multi-hundred-line inline body. **The elaborate
@@ -206,11 +315,15 @@ thunk before trusting a decompile of it.
 
 ---
 
-Layer D early-settle map only. Full body ~1815 lines at
-`viceroy_unpacked.c` ~90446–92260. Line-by-line extract still deferred (R5);
-**mid-planner combat / deep case-7 economy / deep land scoring slices are OPEN**
-(unpark #4); many thin peels (dock hire matrix, construction prefers, haul,
-fortify/wake, naval prey) are **Done**.
+Layer D early-settle map only. `5b66` itself is the 44-line dispatcher at
+the top of this file, not ~1815 lines — that estimate and the
+`~90446–92260` range describe the corrupted blob, not real content (see
+"Case dispatch targets resolved" above). The real per-state bodies are
+`FUN_479b_076e`/`01a6`/`0526`/`0972` and `FUN_1427_155e` (76722–77122 and
+8880–8888). **Mid-planner combat / deep case-7 economy / deep land
+scoring slices are OPEN** (unpark #4) — now anchored to those real
+functions, not the old fictional line range; many thin peels (dock hire
+matrix, construction prefers, haul, fortify/wake, naval prey) are **Done**.
 
 Linux: `ai_euro_unit_act` + expand/war thin — deepen vs peels (**OPEN** remainders).
 

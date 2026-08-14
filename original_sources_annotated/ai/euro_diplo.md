@@ -21,7 +21,8 @@ Decomp addressing:
 - **Euro** (`nation < 4`): `*(peer + nation * 0x13c − 0x77c4)`
 - **Indian** (`nation ≥ 4`): `*(peer + nation * 0x4e + 23000)` — full matrix **PORT DEBT** on Linux
   (still true 2026-08-14 — see the `−0x77c4` note further down for what
-  this blocks: `FUN_4cc6_0092`'s Indian-nation-elimination handler)
+  this blocks: `FUN_4cc6_0092`'s Indian-nation-elimination handler; full
+  map of this table now in [`indian_euro_23000_matrix.md`](indian_euro_23000_matrix.md))
 
 Linux Euro×Euro stand-in (316-byte / `0x13c` nation record):
 

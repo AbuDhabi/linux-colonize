@@ -201,7 +201,7 @@ AI = `1816` + unit-act thunk + those large bodies + `@RAID*` data.
 | `FUN_521d_0a60` | ~5510 (was wrongly cited ~858 — silently truncated, see [`euro_goal_orders_0a60_full.md`](../original_sources_annotated/ai/euro_goal_orders_0a60_full.md)) | Unit / colony goal writer + goal-consumption/orders engine (new section, 2026-08-14) | `ai_euro_colony_goals` + goal-selection distance/prio scoring in `ai_euro_unit_act` | **partial** (T0 A–H condensed; goal-selection now closest/highest-prio not first-match, matching DOS shape) |
 | `FUN_521d_20c6` | nested | Near helper before scoring | scoring step | **partial** (T0) |
 | `FUN_521d_20e6` | ~2180 | Direction / move scoring (all unit kinds) | quiet + `ai_euro_score_step` | **partial** (T0 Euro/ocean; T2 quiet incl. RNG(1,5) seen-branch, phase 18) |
-| `FUN_521d_5b66` | ~1815 | Euro **per-unit act** (separate far; often → `20e6`) | `ai_euro_unit_act` | **partial** (T0) |
+| `FUN_521d_5b66` | 44 (was wrongly cited ~1815 — corrupted-blob desync, see `euro_unit_act.md`; real bodies live in `FUN_479b_076e`/`01a6`/`0526`/`0972`, ~390 total) | Euro **per-unit act** dispatcher (separate far; often → `20e6`) | `ai_euro_unit_act` | **partial** (T0) |
 | `FUN_521d_5c38` / `5c3c` / `5cf6` | small | Thin helpers before `5d04` | hire in planning | **partial** (T0) |
 | `FUN_521d_5d04` | ~748 | Nation planning / hire / treasury (6d8e via `0554`) | `ai_euro_nation_planning` | **partial** (T0) |
 | `FUN_521d_6d8e` | ~253 body | Euro AI **dispatcher** per nation | `ai_euro_dispatcher_turn` (+ seed-100 fixture) | **partial** (structural; T2 fixture) |
@@ -806,7 +806,7 @@ cmake --build build --target unit_ai && ./build/unit_ai
 | Side | Rough scale |
 |------|-------------|
 | Linux `ai.c` + `ai_*.c` | ~3.5k + goals/euro/diplo/contact/king modules |
-| Euro planner (DOS) | `6d8e` ~500 + `0a60` ~860 + `5d04` ~750 + `20e6` ~4k (+ nested `5b66` ~1.8k) |
+| Euro planner (DOS) | `6d8e` ~500 + `0a60` ~5.5k + `5d04` ~750 + `20e6` ~2.2k + `5b66` 44-line dispatcher → `479b_*` handlers ~390 |
 | Indian cluster (DOS) | `1816` ~140 + `2154` ~320 + `2820` ~1.4k + `4528` ~3k + helpers |
 
 Full T0/T1 surface is in: dispatcher + contact + king modules. Remaining work is
