@@ -66,15 +66,15 @@ LAB_521d_3fa6 → 291f_02ea → 48d3_015e spiral HS / set sail → 5a78
 | `0xffff` | Already committed goto on that continent (suppress others) |
 
 Continent tables live at nation×16 + continent offsets **`−0x6790`**,
-**`−0x6b1a`**, **`−0x6b5a`**, **`−0x6a0e`**. Linux has no full port of these
-nibbles yet (PORT DEBT / unpark #4). **2026-08-14: all three data tables
-now have confirmed writers** (`FUN_4962_0018` — colony count / land-unit
-count / per-continent presence bitmask respectively; `−0x6790` itself is
-the deep G-table computed in `FUN_521d_0a60`) — see
-[`euro_g_table_0a60.md`](euro_g_table_0a60.md) for the full formula and
-`docs/save_format_map.md` rows 236/172/156. Still not ported — the formula
-that *consumes* them (G-table expand/military split) needs four more
-unnamed tables first.
+**`−0x6b1a`**, **`−0x6b5a`**, **`−0x6a0e`**. **Done, 2026-08-14**: the real
+`−0x6790` G-table formula is ported (`ai_euro_refresh_continent_stance` in
+`ai_euro.c`, replacing the old thin `own≥2/3/4→6/7/8` heuristic) —
+`−0x6b1a`/`−0x6b5a` (colony/land-unit counts) and `−0x6a0e` (presence
+bitmask, not directly ported but its role is subsumed by the presence
+checks) all have confirmed writers per `FUN_4962_0018`. See
+[`euro_g_table_0a60.md`](euro_g_table_0a60.md) for the full formula,
+approximations kept (diplomacy-gate bits), and `docs/save_format_map.md`
+rows 236/172/156.
 
 ### Colony sail score (peace vs war cargo)
 

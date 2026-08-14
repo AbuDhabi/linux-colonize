@@ -1,4 +1,4 @@
-# Deep `−0x6790` G-table — real formula found (`FUN_521d_0a60`, 2026-08-14)
+# Deep `−0x6790` G-table — ported (`FUN_521d_0a60`, 2026-08-14)
 
 Section map for the **actual G-table (nation×continent stance) write loop**
 inside `FUN_521d_0a60` (Euro colony/unit goal writer — already confirmed
@@ -8,7 +8,23 @@ unpark #4 has listed as **OPEN** since the earliest passes ("full −0x6790 G
 table / explore-ring matrix still PARKED"; "thin prio ladder own≥2/3/4→6/7/8
 Done" was always an approximation, not this).
 
-Parent: [`move_scoring.md`](move_scoring.md). Linux thin stand-in:
+**Status: Done (real formula ported), same day.** All 8 data-table
+dependencies traced and confirmed (see "What's newly resolved" below), then
+wired into `ai_euro_refresh_continent_stance` in `ai_euro.c` — the formula
+itself (presence-vs-threshold baseline, expand/military pressure vs each
+rival/tribe by defense-value comparison, zero-presence override) is now
+real, not heuristic. Two approximations kept, both documented in-code:
+the DOS diplomacy-flag gate on which rivals count toward pressure (two
+still-unidentified bits) is skipped — every rival/tribe with presence is
+always counted, a defensible superset since DOS's gate only ever narrows
+that set; and the existing Linux-only at-war/Indian-hostility-sticky
+overrides are kept layered on top (protect tested behavior with no direct
+DOS-table backing). Full `ctest` 42/43 (same pre-existing unrelated
+`unit_ai_euro_expand` baseline failure, confirmed via `git stash` — no
+regression), including all T2 golden gates (`golden_ai_turns`/`_mid01`/
+`_late01`/`_joint`) unchanged.
+
+Parent: [`move_scoring.md`](move_scoring.md). Linux:
 `ai_euro_refresh_continent_stance` / `s_euro_continent_stance` in `ai_euro.c`.
 
 ## Real DOS formula (transcribed, not yet ported)
@@ -81,14 +97,22 @@ for (continent = 0; continent < 0x10; continent++) {
 }
 ```
 
-**Naming caveat on tier values 3/4:** the numeric G-table values `{0,3,4,6}`
-are the same set Linux's `ai_euro_refresh_continent_stance` already produces,
-but this transcription's `expand_pressure→4` / `military_pressure→3`
-assignment is copied straight from the decompile's own literal writes — it
-is **not** yet cross-checked against what `s_euro_continent_stance`'s
-existing 3-vs-4 comment convention (`3 expand`/`4 military`) means for
-consumers reading the table elsewhere in the DOS code. Don't assume the
-labels transfer without checking a consumer site first.
+**Naming caveat on tier values 3/4, checked at port time:** the numeric
+G-table values `{0,3,4,6}` are the same set Linux's
+`ai_euro_refresh_continent_stance` already produced, but this
+transcription's `expand_pressure→4` / `military_pressure→3` assignment is
+copied straight from the decompile's own literal writes — it does **not**
+match the old thin heuristic's `3 expand`/`4 military` comment convention
+(which was never itself DOS-derived, so has no authority to override this).
+Checked both hardcoded `stance==3`/`stance==4` consumer sites in `ai_euro.c`
+at port time: `stance==3` (soft-cap military priority + bump FOUND) reads
+as a defensible "contested continent, don't pick a losing fight, grab a
+founding spot instead" strategy under the new mapping, not obviously wrong;
+the peacetime `stance==4` sticky-gate is unaffected either way since it's
+forced by its own explicit override, independent of the pressure tier. Kept
+the DOS-literal values rather than swapping to match the old convention —
+full confidence would need tracing DOS's own `20e6`/`5d04` consumers of
+this exact table, not attempted.
 
 ## What's newly resolved vs. what's still open
 
@@ -199,8 +223,8 @@ Structurally ready for a real port attempt next time, not just documentation.
   Linux-side bit convention aren't a direct 1:1) before assuming either
   side is wrong.
 
-**Not ported to Linux.** Six more tables/helpers need naming before this
-formula is safely transcribable — same "structural confidence ≠ semantic
-confidence" discipline as everywhere else in this project. `−0x7a38`'s
-resolution is real, standalone progress (confirms and slightly sharpens the
-thin stand-in's existing instinct) but doesn't by itself unblock a full port.
+**Ported, same day (fourth pass).** All data tables above resolved via raw
+`.asm` register tracing; the `FUN_281f_0a38` bitmask gate was the one
+remaining open item and was **deliberately approximated, not blocking** —
+see the "Status: Done" note at the top of this file for what shipped and
+what's still simplified.

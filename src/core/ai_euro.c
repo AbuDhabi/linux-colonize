@@ -34,49 +34,156 @@ static void ai_euro_set_goto(ColonizeUnit* u, int orders, int gx, int gy);
 static int ai_euro_tile_is_coast_water(const ColonizeWorldMap* map, int x, int y);
 static int ai_euro_at_war_any_peer(const ColonizeCol1Save* col1, int nation_id);
 
+/*
+ * Real FUN_521d_0a60 deep G-table formula (was a thin have-vs-target
+ * heuristic). Recomputes the DOS FUN_4962_0018/06b6 per-nation-per-
+ * continent AI stats fresh each call (cheap: one pass over colonies, one
+ * over units) rather than porting those as separate persistent DS tables:
+ *   colony_count[nation][cid]   = −0x6b1a (colonies_by_continent)
+ *   land_unit_count[n][cid]     = −0x6b5a (land_unit_counts_by_continent)
+ *   defense_value[n][cid]       = −0x6e74 / −0x6a8e (Σ combat_unit_base_x8
+ *                                 mode=0, i.e. FUN_281f_09c8/FUN_157e_004a
+ *                                 defense value; DOS byte-clamps via its
+ *                                 saturating FUN_4962_0006 helper, mirrored
+ *                                 here) — covers nation 0..3 (Euro) and
+ *                                 4..11 (Indian, via Brave units; DOS's
+ *                                 separate −0x6e34 table over FUN_4962_06b6
+ *                                 is the same Brave-combat-value sum, so one
+ *                                 unit loop over the full nation_id range
+ *                                 covers both sides).
+ * Baseline tier: (own_colonies + Σcolonies_all_nations)×20 <=
+ * continent_tally_b[cid] → develop(6) else none(0); then compared against
+ * each rival/tribe with presence: weaker defense (or own zero presence) →
+ * tier 4, stronger → tier 3 (DOS's own literal tier-number writes, kept
+ * as-is — NOT swapped to match the old thin heuristic's "3=expand/
+ * 4=military" comment convention, since that convention was itself never
+ * DOS-derived. Checked both hardcoded `stance==3`/`stance==4` consumer
+ * sites in this file under the new mapping: `stance==3` now fires when a
+ * same-or-stronger rival shares the continent (soft-caps military
+ * priority + bumps FOUND — a defensible "don't pick a losing fight, grab
+ * a founding spot instead" reading, not obviously wrong); the peacetime
+ * `stance==4` sticky-gate is unaffected either way since it's forced by
+ * its own explicit override below, independent of this pressure tier).
+ * Zero own presence (colonies AND land units both) forces tier 4.
+ * Cite: euro_g_table_0a60.md "Naming caveat."
+ *
+ * Approximated (not byte-exact): DOS gates each rival/tribe comparison
+ * through a diplomacy-flag check (FUN_281f_0a38 bitmasks 0x60/0x48, two
+ * bits still unidentified) and an Indian relation<0x4b gate before
+ * counting pressure — both skipped here (every rival/tribe with presence
+ * is always counted), a defensible superset since the DOS gates only ever
+ * skip a subset, never add one we wouldn't otherwise have.
+ *
+ * Linux-only overrides kept on top of the real formula (protect existing
+ * tested behavior that has no direct DOS table backing this specific way):
+ * at-war or high Indian hostility sticky with own colony presence forces
+ * military(4) — see move_scoring_ship.md Series F1.
+ */
 static void ai_euro_refresh_continent_stance(ColonizeTurnContext* ctx, int nation_id) {
   if (!ctx || nation_id < 0 || nation_id >= 4) {
     return;
   }
   memset(s_euro_continent_stance[nation_id], 0, sizeof(s_euro_continent_stance[nation_id]));
-  if (!ctx->map || !ctx->colonies || !ctx->col1_ok || !ctx->col1) {
+  if (!ctx->map || !ctx->colonies || !ctx->units || !ctx->col1_ok || !ctx->col1) {
     return;
   }
-  int nation_cont[16];
-  memset(nation_cont, 0, sizeof(nation_cont));
+
+  uint8_t colony_count[4][16];
+  uint8_t land_unit_count[12][16];
+  uint8_t defense_value[12][16];
+  memset(colony_count, 0, sizeof(colony_count));
+  memset(land_unit_count, 0, sizeof(land_unit_count));
+  memset(defense_value, 0, sizeof(defense_value));
+
   for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
     const ColonizeColony* c = &ctx->colonies->colonies[i];
-    if (!c->active || c->nation_id != nation_id) {
+    if (!c->active || c->nation_id < 0 || c->nation_id >= 4) {
       continue;
     }
     const int cid = map_continent_id_at(ctx->map, c->x, c->y);
-    if (cid >= 0 && cid <= 15) {
-      nation_cont[cid]++;
+    if (cid < 0 || cid > 15) {
+      continue;
+    }
+    if (colony_count[c->nation_id][cid] < 0xff) {
+      colony_count[c->nation_id][cid]++;
     }
   }
+
+  ColonizeCombatStrengthCtx sctx;
+  sctx.units = ctx->units;
+  sctx.map = ctx->map;
+  sctx.colonies = ctx->colonies;
+  sctx.col1 = ctx->col1;
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    const ColonizeUnit* u = units_get_const(ctx->units, i);
+    if (!u || !u->active || u->nation_id < 0 || u->nation_id >= 12) {
+      continue;
+    }
+    if (units_is_sea(ctx->units, i)) {
+      continue; /* land units / Braves only, matches type∉[0xd,0x12] gate */
+    }
+    const int cid = map_continent_id_at(ctx->map, u->x, u->y);
+    if (cid < 0 || cid > 15) {
+      continue;
+    }
+    if (land_unit_count[u->nation_id][cid] < 0xff) {
+      land_unit_count[u->nation_id][cid]++;
+    }
+    const int val = combat_unit_base_x8(&sctx, i, 0, NULL);
+    const int sum = (int)defense_value[u->nation_id][cid] + val;
+    defense_value[u->nation_id][cid] = (uint8_t)(sum > 0xff ? 0xff : sum);
+  }
+
   const int at_war = ai_euro_at_war_any_peer(ctx->col1, nation_id);
   const int sticky = ai_diplo_indian_hostility_sticky(ctx->col1, nation_id);
   for (int cid = 0; cid <= 15; ++cid) {
-    const unsigned target =
-      (unsigned)ctx->col1->post_map.continent_tally_b[cid] / 12u;
-    const int have = nation_cont[cid];
-    if (have <= 0 && target == 0) {
-      s_euro_continent_stance[nation_id][cid] = 0;
-    } else if (have == 0 && target > 0) {
-      s_euro_continent_stance[nation_id][cid] = 3; /* expand */
-    } else if (at_war && have > 0) {
-      s_euro_continent_stance[nation_id][cid] = 4; /* military */
-    } else if (have > 0 && sticky >= 2) {
+    int presence_sum = 0;
+    for (int n = 0; n < 4; ++n) {
+      presence_sum += colony_count[n][cid];
+    }
+    const int own_colonies = colony_count[nation_id][cid];
+    const int scaled = (own_colonies + presence_sum) * 20;
+    const int cap = (int)ctx->col1->post_map.continent_tally_b[cid];
+    int tier = (scaled <= cap) ? 6 : 0;
+
+    int expand_pressure = 0;
+    int military_pressure = 0;
+    for (int other = 0; other < 12; ++other) {
+      if (other == nation_id) {
+        continue;
+      }
+      /* Indian side (other>=4) has no colony table; presence is land_unit_count only. */
+      const int other_has_presence =
+        (other < 4 && colony_count[other][cid] != 0) || land_unit_count[other][cid] != 0;
+      if (!other_has_presence) {
+        continue;
+      }
+      if (defense_value[other][cid] < defense_value[nation_id][cid] || own_colonies == 0) {
+        expand_pressure++;
+      } else {
+        military_pressure++;
+      }
+    }
+    if (expand_pressure) {
+      tier = 4;
+    }
+    if (military_pressure) {
+      tier = 3;
+    }
+    if (own_colonies == 0 && land_unit_count[nation_id][cid] == 0) {
+      tier = 4;
+    }
+
+    if (at_war && own_colonies > 0) {
+      tier = 4;
+    } else if (sticky >= 2 && own_colonies > 0) {
       /*
        * Peacetime −0x6790==4 stand-in: high Indian sticky → military nibble for
        * mil unload / war cargo arms. Cite: move_scoring_ship.md; Series F1.
        */
-      s_euro_continent_stance[nation_id][cid] = 4;
-    } else if (have > 0 && (unsigned)have < target) {
-      s_euro_continent_stance[nation_id][cid] = 3;
-    } else if (have > 0) {
-      s_euro_continent_stance[nation_id][cid] = 6; /* develop */
+      tier = 4;
     }
+    s_euro_continent_stance[nation_id][cid] = (uint8_t)tier;
   }
 }
 
