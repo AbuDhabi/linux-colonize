@@ -77,7 +77,11 @@ static int ai_euro_at_war_any_peer(const ColonizeCol1Save* col1, int nation_id);
  * Linux-only overrides kept on top of the real formula (protect existing
  * tested behavior that has no direct DOS table backing this specific way):
  * at-war or high Indian hostility sticky with own colony presence forces
- * military(4) — see move_scoring_ship.md Series F1.
+ * military(4) — see move_scoring_ship.md Series F1. Tried dropping the
+ * at-war half (it makes DOS's own tier-3 case unreachable during war,
+ * since own_colonies>0 is required for tier 3 too) — empirically breaks
+ * `unit_ai_euro_war`'s "war cargo sail should prefer Fortress colony over
+ * bare" case, so it's load-bearing beyond just this table; kept.
  */
 static void ai_euro_refresh_continent_stance(ColonizeTurnContext* ctx, int nation_id) {
   if (!ctx || nation_id < 0 || nation_id >= 4) {
