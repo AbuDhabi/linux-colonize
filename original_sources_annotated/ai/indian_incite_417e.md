@@ -352,25 +352,32 @@ cross-checking against how the *same field* is used elsewhere in the
 already-shipped Linux code before trusting it, not just re-reading the DOS
 side once more.
 
+**Base-combine op resolved byte-exact, 2026-08-14 (same day, later in the
+pass) — the multiply-vs-divide ambiguity above is closed.** Read the
+actual decompiled bodies of both helpers directly
+(`viceroy_unpacked.c:20742-20829`, both `address_mapping.csv` `"exact"`-kind)
+instead of trusting `FUNCTION_CATALOG.md`'s inferred labels secondhand:
+`FUN_1d1d_0f60` (`FUN_0000_e130`) really is a plain 32-bit multiply
+(`return (ulong)param_1*(ulong)param_3;` for the common small-operand
+case — confirmed line-by-line, not just by name); `FUN_1d1d_0ec6`
+(`FUN_0000_e096`) really is a full signed-division routine (restoring
+long division, `uVar1 = CONCAT22(...)/(ulong)uVar5` core step). So the
+catalog's inferred labels were right both times, and the earlier-shipped
+`base * 100 / (relation+75)` here was backwards in *both* operation
+(divide instead of multiply) and shape (an invented `*100` fudge with no
+DOS basis) — the real line is `price = base * (relation_raw + 75)`, a
+plain multiply, no fudge factor. **Now wired**, `ai_contact_incite_price`
+(`ai_contact.c`).
+
+**French `nation_A==1` rescale also now wired**, same resolution: since
+`FUN_1d1d_0ec6` really is the divide helper, the `if (param_3==1)` branch
+really is `price = price*2/3` (~33% off) — a real, independently-sensible
+DOS price break for the French (matches actual Colonization lore: French
+have the best native relations of the four powers). Implemented as
+`inciter==1` (this project's own English/French/Spanish/Dutch = 0/1/2/3
+ordering, `ai_contact_euro_name`).
+
 **Still approximated / open, documented in code comments:**
-- The base price ÷ relation division itself: raw disassembly calls
-  `FUN_1d1d_0f60` here, but `FUNCTION_CATALOG.md` lists that as the
-  platform 32-bit **multiply** helper (not divide — that's
-  `FUN_1d1d_0ec6`, used one branch below for the French/`nation_A==1`
-  rescale). If the catalog's inferred labels are right, this whole line
-  is a multiply, not a divide, which would completely change the price
-  curve's shape (magnitude analysis: with the current divide reading,
-  `base` is small enough in realistic games that price almost always
-  bottoms out at the 500 floor regardless of any other term). **Not
-  touched this pass** — flagging an already-shipped, tested formula as
-  maybe-backwards without independently resolving the ambiguity would be
-  exactly the "confidently wrong" mistake this project's method
-  explicitly guards against; left alone for a future pass to resolve via
-  raw pcode/instruction-level inspection of both helpers.
-- The French (`nation_A==1`) 2/3-ish rescale branch (`if param_3==1`) is
-  not wired into Linux at all — same "don't touch until the div/mul
-  ambiguity above is resolved" reasoning, since it composes with the
-  same unresolved formula.
 - The DOS `apply(CUR_INDIAN_ALT, nation_B, 100, 0)` relation-push call
   (exact semantics/magnitude unconfirmed) — implemented as a flat +10
   `alarm_by_player[target]` bump.
