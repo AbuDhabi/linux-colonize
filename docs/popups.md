@@ -609,32 +609,32 @@ work.
 | `@SCOUTCOLONY` | Partial | scout messages thin/missing modal |
 | `@LOSTOURSCOUTS` | Partial | scout messages thin/missing modal |
 | `@LOSTTHEIRSCOUTS` | Partial | scout messages thin/missing modal |
-| `@HELLOFIRST` | Partial | FA / diplo lines — thin DIPLO_FA or status; full 3f41 PARKED |
-| `@HELLOUSA` | Partial | FA / diplo lines — thin DIPLO_FA or status; full 3f41 PARKED |
-| `@HELLOAHOY` | Partial | FA / diplo lines — thin DIPLO_FA or status; full 3f41 PARKED |
-| `@HELLOMEEK` | Partial | FA / diplo lines — thin DIPLO_FA or status; full 3f41 PARKED |
-| `@HELLOMANLY` | Partial | FA / diplo lines — thin DIPLO_FA or status; full 3f41 PARKED |
+| `@HELLOFIRST` | Not wired | same, see `euro_diplo.md` "FA negotiation screen" |
+| `@HELLOUSA` | Not wired | same, see `euro_diplo.md` "FA negotiation screen" |
+| `@HELLOAHOY` | Not wired | same, see `euro_diplo.md` "FA negotiation screen" |
+| `@HELLOMEEK` | Not wired | same, see `euro_diplo.md` "FA negotiation screen" |
+| `@HELLOMANLY` | Not wired | same, see `euro_diplo.md` "FA negotiation screen" |
 | `@GREATKINGS` | Partial | FA / diplo lines — thin DIPLO_FA or status; full 3f41 PARKED |
 | `@GREATDEEDS` | Partial | FA / diplo lines — thin DIPLO_FA or status; full 3f41 PARKED |
 | `@GREATLEADER` | Partial | FA / diplo lines — thin DIPLO_FA or status; full 3f41 PARKED |
 | `@GREATLEADER2` | Partial | FA / diplo lines — thin DIPLO_FA or status; full 3f41 PARKED |
 | `@MYLEADER` | Partial | FA / diplo lines — thin DIPLO_FA or status; full 3f41 PARKED |
-| `@PIRACY` | Partial | FA / diplo lines — thin DIPLO_FA or status; full 3f41 PARKED |
-| `@PIRACYUSA` | Partial | FA / diplo lines — thin DIPLO_FA or status; full 3f41 PARKED |
-| `@SIEGES` | Partial | FA / diplo lines — thin DIPLO_FA or status; full 3f41 PARKED |
-| `@SIEGESUSA` | Partial | FA / diplo lines — thin DIPLO_FA or status; full 3f41 PARKED |
+| `@PIRACY` | Not wired | same, see `euro_diplo.md` "FA negotiation screen" |
+| `@PIRACYUSA` | Not wired | same, see `euro_diplo.md` "FA negotiation screen" |
+| `@SIEGES` | Not wired | same, see `euro_diplo.md` "FA negotiation screen" |
+| `@SIEGESUSA` | Not wired | same, see `euro_diplo.md` "FA negotiation screen" |
 | `@MEEKNESS` | Partial | FA / diplo lines — thin DIPLO_FA or status; full 3f41 PARKED |
-| `@HEATHEN` | Partial | FA / diplo lines — thin DIPLO_FA or status; full 3f41 PARKED |
-| `@HEATHENUSA` | Partial | FA / diplo lines — thin DIPLO_FA or status; full 3f41 PARKED |
-| `@APOSTATES` | Partial | FA / diplo lines — thin DIPLO_FA or status; full 3f41 PARKED |
-| `@APOSTATESUSA` | Partial | FA / diplo lines — thin DIPLO_FA or status; full 3f41 PARKED |
+| `@HEATHEN` | Not wired | same, see `euro_diplo.md` "FA negotiation screen" |
+| `@HEATHENUSA` | Not wired | same, see `euro_diplo.md` "FA negotiation screen" |
+| `@APOSTATES` | Not wired | same, see `euro_diplo.md` "FA negotiation screen" |
+| `@APOSTATESUSA` | Not wired | same, see `euro_diplo.md` "FA negotiation screen" |
 | `@TRIBUTE` | Partial | FA / diplo lines — thin DIPLO_FA or status; full 3f41 PARKED |
 | `@TRIBUTEUSA` | Partial | FA / diplo lines — thin DIPLO_FA or status; full 3f41 PARKED |
-| `@WANTSTUFF` | Partial | FA / diplo lines — thin DIPLO_FA or status; full 3f41 PARKED |
-| `@WANTSTUFFUSA` | Partial | FA / diplo lines — thin DIPLO_FA or status; full 3f41 PARKED |
-| `@RID` | Partial | FA / diplo lines — thin DIPLO_FA or status; full 3f41 PARKED |
-| `@RIDUSA` | Partial | FA / diplo lines — thin DIPLO_FA or status; full 3f41 PARKED |
-| `@WORTHY` | Partial | FA / diplo lines — thin DIPLO_FA or status; full 3f41 PARKED |
+| `@WANTSTUFF` | Not wired | same, see `euro_diplo.md` "FA negotiation screen" |
+| `@WANTSTUFFUSA` | Not wired | same, see `euro_diplo.md` "FA negotiation screen" |
+| `@RID` | Not wired | same, see `euro_diplo.md` "FA negotiation screen" |
+| `@RIDUSA` | Not wired | same, see `euro_diplo.md` "FA negotiation screen" |
+| `@WORTHY` | Not wired | same, see `euro_diplo.md` "FA negotiation screen" |
 | `@GIVECASH` | Partial | FA / diplo lines — thin DIPLO_FA or status; full 3f41 PARKED |
 | `@PEACEMANLY` | Not wired | FA negotiation screen — mechanic confirmed via user testimony 2026-08-14, DOS function not yet found (needs `3f41` recovery), see `euro_diplo.md` "FA negotiation screen" |
 | `@PEACEMEEK` | Not wired | same, see `euro_diplo.md` |
