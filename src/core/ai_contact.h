@@ -68,6 +68,15 @@ void ai_contact_indian_relation_tick(ColonizeTurnContext* ctx, int nation_id);
 void ai_contact_indian_meet_trade(ColonizeTurnContext* ctx, int nation_id);
 
 /*
+ * FUN_5bfb_022e already-met Brave/Euro adjacency accept/refuse
+ * (@INDIANBEGFOOD) — village begs a well-stocked colony for food; human
+ * gets a real Give/Refuse CHOICE, AI Euro auto-accepts. See
+ * ai_contact.c's own header comment on the implementation and
+ * settlement_record_8d4a.md for the sign-convention resolution.
+ */
+void ai_contact_try_village_beg_food(ColonizeTurnContext* ctx, int nation_id);
+
+/*
  * FUN_5bfb_022e first contact: if unmet, set met and enqueue @INDIANWELCOME
  * Yes/No for human (or auto-accept for AI / no popups). Returns 1 if this
  * call started first contact. indian_nation is Col1 id 4..11.

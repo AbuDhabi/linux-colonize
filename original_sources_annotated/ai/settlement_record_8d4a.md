@@ -307,6 +307,47 @@ hypothesis was tested and ruled out. Full writeup, exact function names,
 and a concrete recommended next step (a live DOSBox-X breakpoint at the
 dialog-flush entry point, logging ids as the user plays normally — same
 proven technique as `417e`'s capture) in
+
+**2026-08-14, SIGN CONVENTION RESOLVED — via live user gameplay
+testimony, same session, immediately following the write-up above.** The
+user actually ran the recommended `BPM`-based live capture. The specific
+scenario didn't come from the mystery ids directly (those stayed
+unrecovered — the breakpoint mostly caught a different, already-mapped
+dialog family), but it surfaced the right real-world mechanic by a
+different route: user recognized `@INDIANBEGFOOD` (a real, complete
+`GAME.TXT` tag, `COLONIZE/GAME.TXT:909-917` — confirmed **zero references
+anywhere in the Linux port's source**, so this is a genuine unwired gap,
+not an approximation) as "a common popup — triggers randomly when a
+colony has *substantial* food stores (never seen it with little food
+stored). Indians come, demand food. If you give them food, relations
+improve. If you refuse, relations suffer" — direct, confident, repeated
+real-gameplay testimony, the same evidentiary class as this session's
+earlier "teaching is always free" and "French have best native relations"
+corrections (external domain knowledge, not disassembly, but decisive).
+
+**Mapped onto the code**: `local_c!=2` = **accept/give food** (relations
+improve — matches the branch that scales `attitude` **up** ×1.5 and
+applies a **positive** relation delta); `local_c==2` = **decline/refuse**
+(relations suffer — matches the branch with the **negative** relation
+delta and `attitude` reset to 0). The "gives away half the colony's
+stock" wording on the `local_c==2` branch initially looked backwards for
+a "refuse" outcome (why would refusing give stock away?) until
+reconsidered as a **punitive seizure**, not a voluntary gift: natives who
+already know the colony is well-stocked (matches the user's own
+independently-reported trigger condition — this event apparently only
+fires when a colony has ample food, which is also exactly the setup where
+a punitive raid makes sense) take some anyway when refused, on top of the
+relation/attitude penalty. The actual *voluntary* gift amount (the
+`{%NUMBER0}` in `@INDIANBEGFOOD`'s accept response) is handled by a
+separate code path (the "which-good-to-gift/cash-gift sizing" logic
+already noted above, `97016-97089`), not this branch — so there's no
+contradiction between "accept keeps the stock" and "accept also gives a
+gift"; those are two different pieces of state.
+
+**No longer correctly-PARKED — ready to port**, at least the sign/shape
+of this one call site (`96751-96827`). Implemented same pass in
+`ai_contact.c` — see the code for the final port; this doc records the
+resolution reasoning, not the implementation details.
 [`docs/popup_string_resolver.md`](../../docs/popup_string_resolver.md).
 Doesn't change this doc's conclusion (still correctly PARKED, still no
 resolved text) — just means "revisit if a way to recover the string table
