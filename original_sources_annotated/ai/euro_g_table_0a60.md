@@ -201,12 +201,12 @@ Structurally ready for a real port attempt next time, not just documentation.
   `indian_incite_417e.md`'s *second* unnamed price term, `−0x6e7c`
   (sum of Brave combat values per tribe type — the per-nation-total sibling
   of `−0x6e34`'s per-continent breakdown). Combined with the earlier
-  `−0x69d6` (village count) finding, **both of `417e`'s previously-unnamed
-  price terms are now identified** (though still not literally "captured" —
-  both are live per-turn sums, not fixed lookup constants, so the original
-  "need a memory dump" framing doesn't quite apply; a faithful port would
-  recompute them the same way DOS does). See `indian_incite_417e.md`'s
-  updated approximation note.
+  `−0x69d6` (village count) finding, both of `417e`'s previously-unnamed
+  price terms were identified — and, in a later pass the same day, actually
+  **wired into `ai_contact_incite_price`** (recomputes both live sums
+  directly instead of the old `ind->tech` stand-in; also fixed a real
+  tribe-type comparison bug found in the process). See
+  `indian_incite_417e.md`'s "Price formula wired for real" section.
 - `0x947e` (`village_counts_by_continent`, cross-tribe-type, save row 252)
   also fell out of the same trace — was `unknown_ds_947e`, now confirmed.
 - `FUN_281f_0a38` — **already identified**, checked this pass:

@@ -300,35 +300,39 @@ other Euro nations you can afford, then pay-and-commit.
   exact tribe-type-match field still unconfirmed, substituted with
   "same Indian nation").
 
-**Approximated, documented in code comments, not byte-exact:**
-- Two of the four DOS price terms are unnamed byte-lookup tables (tribe
-  civilization/sophistication class) with no captured values anywhere in
-  this project — substituted with `indian.tech`, the closest already-real
-  per-nation sophistication indicator. **Partial sharpening, 2026-08-14**:
-  `-0x69d6[tribe_type]`'s write site was found (`FUN_4962_06b6`, a per-
-  tribe-type reset/recompute helper found while tracing an unrelated
-  G-table target) — it's a plain **count of villages of that tribe type**,
-  incremented once per matching tribe, not a static "civilization class"
-  table. Still not captured/portable (no value snapshot, and this is a
-  *count* not a lookup constant, so it wouldn't have been a fixed table
-  value anyway) — but it does mean `indian.tech` was standing in for the
-  wrong *kind* of quantity, not just an unconfirmed value; a faithful port
-  would count villages, not read a static table. **`-0x6e7c` resolved too,
-  same day, second look**: raw `.asm` register tracing through
-  `FUN_4962_06b6` (the decompiler had dropped the implicit `AX`/`BX` args
-  into an unresolved-looking helper call) shows it's the **sum of Brave
-  combat values** (`FUN_281f_09c8(brave, mode=1)`, i.e. `FUN_157e_004a` —
-  already-catalogued "unit base combat×8 + vet/Drake/damage") across every
-  Brave belonging to that tribe type. So **both** unnamed price terms are
-  now identified: `-0x69d6` = village count, `-0x6e7c` = total Brave combat
-  strength, both per tribe type. Neither is a fixed lookup constant — both
-  are live per-turn recomputations — so `indian.tech`'s role as a
-  placeholder was standing in for the wrong *kind* of quantity twice over,
-  not just missing two unconfirmed numbers. A faithful port would recompute
-  both sums the same way DOS does (iterate this tribe type's villages/
-  Braves) rather than read any static table. See `euro_g_table_0a60.md`'s
-  writeup for the fuller trace (found while tracing the deep G-table, not
-  this function) and `docs/save_format_map.md` rows `0x9184`/`0x962a`.
+**Price formula wired for real, 2026-08-14 (was approximated with
+`ind->tech` since 2026-08-13).** Both previously-unnamed DOS tables were
+identified while tracing the deep Euro G-table (`euro_g_table_0a60.md` /
+`FUN_4962_06b6`, same DS neighborhood) — neither is a static lookup
+constant, both are live per-turn sums over the tribe *type*
+(`nation_id - 4`):
+- `-0x69d6[type]` = count of villages of that tribe type.
+- `-0x6e7c[type]` = Σ `combat_unit_base_x8(brave, mode=1)` (attack-mode
+  value, matching the traced `FUN_281f_09c8`/`FUN_157e_004a` call) over
+  every Brave of that tribe type, byte-clamped to match DOS's saturating
+  `FUN_4962_0006` accumulator.
+
+`ai_contact_incite_price` now recomputes both directly (loop `col1->tribe`
+for the count, loop units for the combat sum) instead of reading a stand-in
+field. The other two DOS terms, `INDIAN_STATE.signed_byte[7]`/`[8]`, turned
+out to be already-named, already-real fields that were just never wired in
+— `ind->muskets` / `ind->horse_herds` (`col1_save.h`) — not new unknowns at
+all. **Base price formula (all four additive terms + the relation-scaled
+division) is now the real DOS formula, not an approximation.**
+
+**Bonus fix found while wiring this**: the existing discount loop ("other
+tribes of the same type already favor the inciter") compared
+`t->nation_id` (raw tribe type, 0-7) directly against `nation_id` (indian
+nation id, 4-11) — a range mismatch that meant the comparison never
+matched and the discount was silently always 0. Fixed to compare against
+`tribe_type` (`nation_id - 4`) like the rest of the function.
+
+**Still approximated, documented in code comments:**
+- The discount loop's *amount* (100 gold per matching-and-favorable tribe)
+  and its *trigger* (`ai_diplo_indian_relation > 128`) are Linux inventions
+  matching the DOS discount loop's shape ("matching type" condition) but
+  not independently confirmed against the real per-tribe discount formula
+  — only the type-matching bug above was fixed, not the magnitude.
 - The DOS `apply(CUR_INDIAN_ALT, nation_B, 100, 0)` relation-push call
   (exact semantics/magnitude unconfirmed) — implemented as a flat +10
   `alarm_by_player[target]` bump.
@@ -337,8 +341,11 @@ other Euro nations you can afford, then pay-and-commit.
   never actually confirmed by a live capture — not ported; AI nations
   don't autonomously incite in this port yet.
 
-Verified: `unit_ai_contact` (new dedicated test: menu enqueues target
+Verified: `unit_ai_contact` (existing dedicated test: menu enqueues target
 choices for an affordable inciter, picking one drains ≥500 gold from the
 inciter only and bumps the target's alarm by 10, a broke inciter gets no
-target choices) + full `ctest` (42/43, same pre-existing unrelated
-`unit_ai_euro_expand` baseline failure, no regression).
+target choices — all still pass with the real formula's different price
+outputs, since the test only asserts the ≥500 floor and gold-isolation, not
+an exact price) + full `ctest` (42/43, same pre-existing unrelated
+`unit_ai_euro_expand` baseline failure, no regression). Clean build, no
+warnings.
