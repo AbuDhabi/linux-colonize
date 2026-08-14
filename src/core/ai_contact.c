@@ -1614,12 +1614,17 @@ static uint32_t ai_contact_incite_price(
     return 500u;
   }
   const ColonizeCol1Save* col1 = ctx->col1;
-  const int tribe_type = nation_id - 4;
 
+  /* `tribe.nation_id` is the full 4-11 nation id, not a 0-7 "type" —
+   * confirmed independently via colony.c/units.c's own `-4` indexing
+   * into col1->indian[8] — so this compares directly against `nation_id`,
+   * not `nation_id - 4`. (Was comparing against a `tribe_type` local that
+   * made this loop count zero villages always; see the discount-loop
+   * comment below for the matching fix + how this was found.) */
   int village_count = 0;
   if (col1->tribe) {
     for (uint16_t ti = 0; ti < col1->head.tribe_count; ++ti) {
-      if ((int)col1->tribe[ti].nation_id == tribe_type) {
+      if ((int)col1->tribe[ti].nation_id == nation_id) {
         ++village_count;
       }
     }
@@ -1660,24 +1665,51 @@ static uint32_t ai_contact_incite_price(
   const int relation =
     (int)ai_diplo_indian_relation(col1, nation_id, inciter) * 100 / 255;
   (void)target; /* alarm_by_player no longer used — real formula has no target term here */
+  /* NOTE: the base/relation division below (`* 100 /`) is UNCHANGED and
+   * still not independently confirmed byte-exact — the raw disassembly
+   * calls FUN_1d1d_0f60 here, which FUNCTION_CATALOG.md lists as the
+   * platform 32-bit *multiply* helper (not divide; that's FUN_1d1d_0ec6,
+   * used one branch below for the untouched param_3==1/French rescale).
+   * That conflicts with this formula reading as a division and would
+   * flip the whole shape of the price curve if true — not resolved this
+   * pass, left alone rather than guess at already-shipped, tested code.
+   * See indian_incite_417e.md. */
   int price = base * 100 / (relation + 75);
-  if (price < 500) {
-    price = 500;
-  }
-  /* Discount: other tribes of the same tribe type already favor the
-   * inciter (matches the DOS discount loop's "matching type" condition).
-   * 2026-08-14: fixed a real bug found while wiring the formula above —
-   * this compared `t->nation_id` (raw tribe type, 0-7) against `nation_id`
-   * (indian nation id, 4-11) directly, so it never matched and the
-   * discount was always 0; now compares against `tribe_type` like the
-   * rest of this function. */
+  /* Discount loop — now byte-exact (2026-08-14, replaces the
+   * `ai_diplo_indian_relation>128`/flat-100 stand-in). Raw disassembly:
+   * for every tribe record, if tribe.nation_id(+2) == this village's own
+   * nation_id AND tribe.mission(+5)&0xf == inciter (i.e. that OTHER
+   * village of the same tribe already has a mission from the inciting
+   * Euro power — both fields already named/real in ColonizeCol1Tribe,
+   * no invented globals needed): discount 250, or 1000 if it's a
+   * Jesuit-grade mission (mission&0x10), doubled again if that other
+   * village is the tribe capital (state.capital, DOS state+3&4).
+   * Floor is applied ONCE at the very end in DOS (not before the loop
+   * too) — the previous premature clamp before this loop is removed to
+   * match.
+   * Also fixes a real regression from earlier the same session: a prior
+   * "bonus fix" here compared `t->nation_id` against `tribe_type`
+   * (nation_id-4, 0-7), assuming the field was a raw 0-7 type — but
+   * `colony.c`/`units.c` both independently confirm (via their own
+   * `tribe.nation_id - 4` indexing into `col1->indian[8]`) the field is
+   * really 4-11, same range as this function's own `nation_id` param, so
+   * the ORIGINAL direct comparison was correct all along and the "fix"
+   * broke it. Reverted to comparing against `nation_id` directly. */
   int discount = 0;
   if (col1->tribe) {
     for (uint16_t ti = 0; ti < col1->head.tribe_count; ++ti) {
       const ColonizeCol1Tribe* t = &col1->tribe[ti];
-      if ((int)t->nation_id == tribe_type && ai_diplo_indian_relation(col1, nation_id, inciter) > 128) {
-        discount += 100;
+      if ((int)t->nation_id != nation_id) {
+        continue;
       }
+      if ((t->mission & COL1_TRIBE_MISSION_NATION_MASK) != (uint8_t)inciter) {
+        continue;
+      }
+      int amt = (t->mission & COL1_TRIBE_MISSION_JESUIT_BIT) ? 1000 : 250;
+      if (t->state.capital) {
+        amt *= 2;
+      }
+      discount += amt;
     }
   }
   price -= discount;

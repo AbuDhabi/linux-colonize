@@ -320,22 +320,72 @@ out to be already-named, already-real fields that were just never wired in
 all. **Base price formula (all four additive terms + the relation-scaled
 division) is now the real DOS formula, not an approximation.**
 
-**Bonus fix found while wiring this**: the existing discount loop ("other
-tribes of the same type already favor the inciter") compared
-`t->nation_id` (raw tribe type, 0-7) directly against `nation_id` (indian
-nation id, 4-11) — a range mismatch that meant the comparison never
-matched and the discount was silently always 0. Fixed to compare against
-`tribe_type` (`nation_id - 4`) like the rest of the function.
+**Discount loop — byte-exact, 2026-08-14 (was a Linux-invented "100 gold if
+relation>128" stand-in).** Re-read the raw disassembly directly (not just
+the earlier prose pseudocode) and found the loop is a real, fully-decodable
+match against fields this project already has named on `ColonizeCol1Tribe`:
+for every tribe record where `tribe.nation_id(+2)` == this village's own
+`nation_id` AND `tribe.mission(+5)&0xf` == the inciter (another village of
+the same tribe already hosts a mission from the inciting Euro power),
+subtract 250 gold, or 1000 if it's a Jesuit-grade mission
+(`mission&0x10`), doubled again if that other village is the tribe
+capital (`state.capital`, DOS `state(+3)&4`). No unnamed globals needed —
+`mission` and `state.capital` were already real, wired fields (used
+elsewhere for convert odds / the teach one-shot exemption). Floor (500) is
+now applied once at the very end, matching DOS order, not also
+mid-formula before the loop.
 
-**Still approximated, documented in code comments:**
-- The discount loop's *amount* (100 gold per matching-and-favorable tribe)
-  and its *trigger* (`ai_diplo_indian_relation > 128`) are Linux inventions
-  matching the DOS discount loop's shape ("matching type" condition) but
-  not independently confirmed against the real per-tribe discount formula
-  — only the type-matching bug above was fixed, not the magnitude.
+**Real regression caught and reverted from the same day's earlier "bonus
+fix."** That earlier pass diagnosed the discount loop's `t->nation_id`
+comparison as a "0-7 vs 4-11 range mismatch" and changed it to compare
+against `nation_id - 4` — but `colony.c` and `units.c` both independently
+confirm (via their own `tribe.nation_id - 4` indexing into
+`col1->indian[8]`) the field is genuinely 4-11, the same range as this
+function's own `nation_id` parameter — so the *original* direct
+comparison was correct all along, and the "fix" broke it a second, subtly
+different way (still never matching). Reverted to comparing directly
+against `nation_id`. The exact same range bug, independently present in
+`village_count`'s own loop (part of the base-price formula wired the same
+day), meant `village_count` was silently always 0 — fixed identically.
+Lesson: a plausible-sounding range-mismatch diagnosis still needs
+cross-checking against how the *same field* is used elsewhere in the
+already-shipped Linux code before trusting it, not just re-reading the DOS
+side once more.
+
+**Still approximated / open, documented in code comments:**
+- The base price ÷ relation division itself: raw disassembly calls
+  `FUN_1d1d_0f60` here, but `FUNCTION_CATALOG.md` lists that as the
+  platform 32-bit **multiply** helper (not divide — that's
+  `FUN_1d1d_0ec6`, used one branch below for the French/`nation_A==1`
+  rescale). If the catalog's inferred labels are right, this whole line
+  is a multiply, not a divide, which would completely change the price
+  curve's shape (magnitude analysis: with the current divide reading,
+  `base` is small enough in realistic games that price almost always
+  bottoms out at the 500 floor regardless of any other term). **Not
+  touched this pass** — flagging an already-shipped, tested formula as
+  maybe-backwards without independently resolving the ambiguity would be
+  exactly the "confidently wrong" mistake this project's method
+  explicitly guards against; left alone for a future pass to resolve via
+  raw pcode/instruction-level inspection of both helpers.
+- The French (`nation_A==1`) 2/3-ish rescale branch (`if param_3==1`) is
+  not wired into Linux at all — same "don't touch until the div/mul
+  ambiguity above is resolved" reasoning, since it composes with the
+  same unresolved formula.
 - The DOS `apply(CUR_INDIAN_ALT, nation_B, 100, 0)` relation-push call
   (exact semantics/magnitude unconfirmed) — implemented as a flat +10
   `alarm_by_player[target]` bump.
+- The Missionary-unit -1500 discount (`if unit(param_2)'s own state byte
+  == 0x18`, i.e. `UNITS_JOB_MISSIONARY` — a real, already-named Linux
+  constant) is not wired: the async village-meet CHOICE flow never
+  threads a specific acting-unit id through to apply time (only
+  euro_nation/indian_nation), so there's no unit to check here yet. Real,
+  scoped follow-on (payload + call-chain threading), not attempted this
+  pass.
+- The target-tribe's-own-capital -500 flat discount is not wired either,
+  for a related reason: the meet trigger only carries the aggregate
+  `nation_id` (tribe *type*), not which specific `ColonizeCol1Tribe`
+  village (x,y) was actually visited — same threading gap as the
+  Missionary term above.
 - Only the "Mode 1" (human, menu-driven) path is wired. Mode 2's
   AI-nation-shortcut reading (`param_3>=4` or a per-nation flag set) was
   never actually confirmed by a live capture — not ported; AI nations

@@ -186,7 +186,7 @@ Line spans are approximate (next function start − 1). Status:
 | `FUN_4d56_2820` | 595 lines (clean re-disasm; old ~1396 line estimate was from corrupted decomp, see `indian_trade_2820.md`) | AI-buy-offer price + trade dispatch (single function; the `2aac…311e` "nest" was internal goto labels, not separate functions) | `ai_contact_2820_ai_buy_price` + gold debit in `ai_contact_auto_trade` | **Done** (AI-buy-offer price path, `LAB_002bbc`); human CHOICE buy-offer path (`LAB_002e92`) still PARKED |
 | `FUN_4d56_2aac`…`311e` | n/a — resolved as internal labels of `2820` itself, not separate functions | — | — | superseded, see `2820` row |
 | `FUN_4d56_3582` | ~51 | Small helper after `2820` | friction floor (via contact clamp) | **partial** (thin Done) |
-| `FUN_4d56_417e` | 933 bytes (clean re-disasm; identified as Incite Indians / WARPATH, `indian_incite_417e.md`) | Incite Indians (WARPATH) price + gold deduct + relation push | `ai_contact_incite_price` / `ai_contact_apply_incite` (6th village-meet CHOICE) | **Done** (Mode-1 human path; base price formula now byte-faithful (2026-08-14, was 2 approximated terms; discount-loop amount/threshold still Linux-invented — see `indian_incite_417e.md`), AI-Mode-2 path not ported) |
+| `FUN_4d56_417e` | 933 bytes (clean re-disasm; identified as Incite Indians / WARPATH, `indian_incite_417e.md`) | Incite Indians (WARPATH) price + gold deduct + relation push | `ai_contact_incite_price` / `ai_contact_apply_incite` (6th village-meet CHOICE) | **Done** (Mode-1 human path; base price formula + discount loop now byte-faithful (2026-08-14; discount loop uses real `mission`/`state.capital` fields, was a Linux-invented relation-trigger stand-in; base÷relation division itself has an unresolved multiply-vs-divide ambiguity, French rescale + Missionary/capital sub-discounts still not wired — see `indian_incite_417e.md`), AI-Mode-2 path not ported) |
 | `FUN_4d56_4528` | ~3073 | Settlement enter/raid | `ai_contact_indian_raids` + `@RAID*` kinds | **partial** (structural outcomes) |
 
 Nation entry `1816` does **not** call `2154`/`2820`/`4528` directly in the
@@ -238,7 +238,7 @@ Thin map: [`euro_diplo.md`](../original_sources_annotated/ai/euro_diplo.md).
 | `FUN_43f7_0982` / `06a6` | ~335 / ~106 | REF wave / empty irregulars | `ai_king_ref_wave` | **partial** |
 | `FUN_43f7_2022` / `1eca` | ~98 / ~66 | War act + Continental promote | `ai_king_war_act` (`1eca` cap/fortify/own-tile gate **Done** full port; rest of `2022` war-act **partial**) | **partial** |
 | `FUN_43f7_2424` | ~61 | Nation SoL + peace/war dispatch | `ai_king_nation_turn` | **partial** (structural) |
-| `FUN_43f7_10f0` / `1528` / `160a` / `2244` | — | Intervene / announce / rename / merc | `ai_king` thin 10f0/1528/160a/2244; merc `ai_popup` **Done** structural; letter cinematic / VGA PARKED | **partial** |
+| `FUN_43f7_10f0` / `1528` / `160a` / `2022` / `2244` | — | Intervene / announce / rename / merc | `ai_king` thin 10f0/1528/160a; `2022` rebel merc real formula **Done**; `2244` peacetime AI-only twin not ported; letter cinematic / VGA PARKED | **partial** |
 
 Thin map: [`king_ref.md`](../original_sources_annotated/ai/king_ref.md). Unit: `unit_ai_king`.
 
@@ -305,7 +305,7 @@ letter/MoW chrome, and VGA-identical dialog polish remain correctly **PARKED**
 
 | # | Track | Status |
 |--:|-------|--------|
-| 1 | Indian meet/trade/gift/teach/incite **player dialogs** | **Done** structural (`ai_popup`); village-enter Meet CHOICE **Done** thin (now 6 options: Trade/Gift/Demand/Teach/Incite/Leave); gift-amount CHOICE **Done** thin; deep `2820` **mapped** ([`indian_trade_2820.md`](../original_sources_annotated/ai/indian_trade_2820.md)); VGA PARKED. `ai_contact_teach_skill` correctly free (teaching never costs gold) — **Done** fixed capital-village exemption from the one-shot learn limit same day. `FUN_4d56_417e` (task #5, **closed**) identified and **ported** as Incite Indians / WARPATH (confirmed vs. `GAME.TXT` `@INDIANWARPATH`/`@INDIANWARPATH2` and two live captures) — `ai_contact_incite_price`/`ai_contact_apply_incite`, closes the "incite/WARPATH gold PARKED" gap cited below and elsewhere; Mode-1 human path only, base price formula now byte-faithful (2026-08-14, was 2 approximated terms; discount-loop amount/threshold still Linux-invented — see `indian_incite_417e.md`) ([`indian_incite_417e.md`](../original_sources_annotated/ai/indian_incite_417e.md)) |
+| 1 | Indian meet/trade/gift/teach/incite **player dialogs** | **Done** structural (`ai_popup`); village-enter Meet CHOICE **Done** thin (now 6 options: Trade/Gift/Demand/Teach/Incite/Leave); gift-amount CHOICE **Done** thin; deep `2820` **mapped** ([`indian_trade_2820.md`](../original_sources_annotated/ai/indian_trade_2820.md)); VGA PARKED. `ai_contact_teach_skill` correctly free (teaching never costs gold) — **Done** fixed capital-village exemption from the one-shot learn limit same day. `FUN_4d56_417e` (task #5, **closed**) identified and **ported** as Incite Indians / WARPATH (confirmed vs. `GAME.TXT` `@INDIANWARPATH`/`@INDIANWARPATH2` and two live captures) — `ai_contact_incite_price`/`ai_contact_apply_incite`, closes the "incite/WARPATH gold PARKED" gap cited below and elsewhere; Mode-1 human path only, base price formula + discount loop now byte-faithful (2026-08-14; discount loop uses real `mission`/`state.capital` fields, was a Linux-invented relation-trigger stand-in; base÷relation division itself has an unresolved multiply-vs-divide ambiguity, French rescale + Missionary/capital sub-discounts still not wired — see `indian_incite_417e.md`) ([`indian_incite_417e.md`](../original_sources_annotated/ai/indian_incite_417e.md)) |
 | 2 | King audience / declare confirm / merc hire **UI** | **Done** structural + MoW×6 / Dragoon garrison / Cont. capital-rally / siege spawn **Done**; dump-goods CHOICE **Done**; VGA / `160a` remain PARKED |
 | 3 | Founding Fathers **deeper effect table** | Cortes coastal cash + de Witt delivery + Sepulveda convert-join (**Done** FUN_5fef_31ea peel); human Congress debate CHOICE (**Done** structural); KINGGALLEON2 still PARK; F3 portrait grid / VGA PARKED |
 | 4 | Euro mid-planner (`5d04` / CONTACT / land `20e6`) | Deep −0x6790 G-table **Done** real formula (2026-08-14, was thin `own≥2/3/4→6/7/8` heuristic) — [`euro_g_table_0a60.md`](../original_sources_annotated/ai/euro_g_table_0a60.md); presence-vs-`continent_tally_b` baseline + defense-value pressure comparison vs each rival/tribe, `ai_euro_refresh_continent_stance`; diplomacy-flag sub-gate approximated (always-count), existing at-war/sticky overrides kept; naval FUN_157e_004a holds/damage + ocean combat approach **Done**; land fort% + siege/open hunt + vet/Drake toughness **Done**; … ocean east-Europe HS bias **Done**; thin Europe ship buy ladder (Caravel/Merchantman/Galleon/Frigate) **Done**; mid-game colonies≥6 ship-buy+war hire **Done**; Col1 `labor_shortage` (+0x8e) LABOR join **Done**; `garrison_quota` (+0x1e) fortify DEC **Done**; `specialty_cargo` (+0x8d) haul prefer **Done**; `cargo_idle_turns` (+0x8f) haul score **Done**; `improve_timer` (+0x8c) pioneer gate **Done**; `build_ai_flags` (+0x1d bit7) wants_construction **Done**; `cargo_produced_mask` (+0x90) haul prefer **Done**; `ai_flags` (+0x1b) MoW→COLONY_ALT **Done**; `colony_flags` (+0x1c) starvation LABOR **Done**; `hammers_purchased` (+0x98) BUY **Done**; `colony_flags` sol_50/sol_100 latch **Done**; `depletion_counter` (+0x97) ore/silver wrap+suppress **Done**; `warehouse_level`/`capitol_level` (+0x95/+0x96) **Done** |
@@ -699,9 +699,13 @@ tax → `2564`/`1a26` auto-declare) vs war (`0982`/`06a6` wave → `2022` act +
 Regular+Dragoon mix); thin MoW cargo unload (up to **3** Regulars with ship);
 structural tax boycott/refuse
 (`unknown46[2]` + Sugar boycott bit; thin audience status + `ai_popup` CHOICE **Done**);
-thin `1528` arrival status on REF spawn; thin `2244` merc auto-accept
-(`unknown46[3]`, 300 gold → human Soldier; thin hire status + `ai_popup` CHOICE **Done**);
-thin `160a` rename
+thin `1528` arrival status on REF spawn; real `2022` rebel-branch merc
+troop-gift (2026-08-14, was thin `unknown46[3]`/300-gold once-per-war
+invented stand-in) — recurring per-turn 1-in-3 roll while REF absent or
+artillery pool empty, real price/qty formula, paid from the rebel's own
+treasury, landing tile captured at offer time; `ai_popup` Hire/Decline
+CHOICE **Done**; `2244`'s peacetime AI-nation-only twin still not ported
+(see `king_ref.md` "2244/2022 — corrected"); thin `160a` rename
 (`country_name` / europe → "United Colonies"); **`1eca` full port** — per
 colony with SoL>49, `cap = max(1, min(pop>>1, pop*(sol-50)/50))` shared
 across that colony's own **fortified** Soldier/Dragoon (own-tile only, raw
@@ -718,8 +722,9 @@ second MoW at `difficulty≥2`; capture status chrome **Done**. Thin map:
 [`king_ref.md`](../original_sources_annotated/ai/king_ref.md). Unit:
 `unit_ai_king`.
 
-**Done (structural unpark #2):** real `38fd_5be8` / `2564` / `2244` **modals** via
-`ai_popup` (status chrome Done). VGA-identical wood chrome still PARKED.
+**Done (structural unpark #2):** real `38fd_5be8` / `2564` / `2022` **modals** via
+`ai_popup` (status chrome Done; `2022` merc CHOICE now real formula, not
+stand-in). VGA-identical wood chrome still PARKED.
 
 **Still PARKED:** `160a` letter cinematic; full merc/arrival/hold embark chrome;
 exact `0x5382` Col1 bit rename / T3.
@@ -748,7 +753,7 @@ Status reflects the AI-port prerequisite work:
 | Alarm / contact hooks | **Partial** (T0) | `ai_contact_*` meet/trade/missions/raids + adjacent friction |
 | AI colony economy + construction | **Ready** | `turn_run_colony_production` already ticks **all** active colonies |
 | Founding Fathers / liberty | **Partial** | Human+AI Euro elect; **manual-aligned effects** (no gold/crosses fiction); factory/Custom House gates; Magellan +1 sea MP; Fugger clears all boycotts; Minuit + Franklin + Brebeuf + Las Casas + Sepulveda convert-join (**Done** `units_try_native_settlement_fallout`) + Cortes coastal cash + de Witt **Done**; KINGGALLEON2 / Congress UI PARKED |
-| King / tax / REF | **Partial structural** | `ai_king_nation_turn` — R6; audience / confirm / merc via `ai_popup` **Done** structural; VGA chrome PARKED; `unit_ai_king` |
+| King / tax / REF | **Partial structural** | `ai_king_nation_turn` — R6; audience / confirm / `2022` merc via `ai_popup` **Done** (merc now real formula, not stand-in); VGA chrome PARKED; `unit_ai_king` |
 
 Suggested manual order: finish leftover **unpark #3** KINGGALLEON2 (non-Cortes
 royal-galleon share) if evidence appears, and **unpark #4** deep land/ocean `20e6`, then deepen PARKED bodies
