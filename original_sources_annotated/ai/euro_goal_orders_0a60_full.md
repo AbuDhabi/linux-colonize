@@ -183,24 +183,37 @@ Approximated: the DOS per-slot difficulty-scaled weight table (`aiStack_1da`)
 and the fine `score/dist <= prio*1.5` threshold gate are not reproduced
 (weight≈1, no gate) — same "confirmed core, approximate the edge" pattern
 as every other port this session. The third (generic fallback, no
-type-category match) loop was **left untouched** — its own comment
-("highest prio is slot 0 after ordered upsert") signals a deliberate
-existing design choice, and extending it wasn't part of what got mapped
-carefully enough to touch confidently this pass.
+type-category match) loop was left untouched in this same-day pass, then
+**also fixed two passes later** (2026-08-14, third pass) once the first two
+loops were verified safe — same closest/highest-prio scoring, no remaining
+first-match loop in this function.
 
 **Verified**: clean build, no warnings; full `ctest` 42/43 (same
-pre-existing `unit_ai_euro_expand` baseline failure, unaffected). No new
-dedicated test added this pass — the change is a scoring-order refinement
-inside an already-covered code path (existing goal/military-prio tests
-still pass unchanged), not new observable behavior with an obvious new
-assertion point; a future pass could add one if the closest-vs-first
-distinction needs its own regression guard.
+pre-existing `unit_ai_euro_expand` baseline failure, unaffected) — checked
+after each of the two implementation passes separately. No new dedicated
+test added — the change is a scoring-order refinement inside an already-
+covered code path (existing goal/military-prio tests still pass
+unchanged), not new observable behavior with an obvious new assertion
+point; a future pass could add one if the closest-vs-first distinction
+needs its own regression guard.
 
-**Not done, real follow-up if resumed**: the generic fallback loop (no
-type-category match) could get the same closest/highest-prio treatment for
-full consistency; `FUN_1000_96aa`/`FUN_1000_1e7b` (goal *fulfillment* once
-a unit arrives — separate from the *selection* ported here) still traced
-only one hop; `aiStack_1da`'s difficulty-scaled weight meaning unresolved.
+**Not done, real follow-up if resumed**: `FUN_1000_96aa`/`FUN_1000_1e7b`
+(goal *fulfillment* once a unit arrives — separate from the *selection*
+ported here) still traced only one hop; `aiStack_1da`'s difficulty-scaled
+weight meaning unresolved. (The generic-fallback-loop follow-up noted
+here originally is done — see "Implementation" above.)
+
+**Bonus, same day, third pass — separate `unit+0x314f` field also
+resolved and ported**: cross-checking `move_scoring_20e6_full.md` for
+`unit+0x314f` (seen written by `FUN_5bfb_3180`, a caller of `153e` found
+while mapping that function) showed `20e6` itself already reads/writes
+this field at its own commit point (`LAB_521d_589e`) and facing band
+(`LAB_521d_54f5`) — it's the **last chosen movement direction**, feeding a
+momentum bias (same-direction preferred, opposite penalized) identical in
+shape to the already-ported Brave `quiet_score_facing`
+(`ai.c`/`quiet_brave_scoring.c`), just never wired for Euro units. Added
+`s_euro_last_dir[COLONIZE_UNITS_MAX]` + the same bias formula to
+`ai_euro_score_move`. Verified: clean build, `ctest` 42/43 unchanged.
 
 ## Raw recovered C (845 lines, one mild warning)
 

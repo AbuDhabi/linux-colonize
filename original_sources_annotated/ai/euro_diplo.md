@@ -60,7 +60,7 @@ euro_nation_turn (6d8e)
 |--------|-------|------|
 | `FUN_5bfb_10ec` | `2a1f_067a` | Euro A↔B war/ally eligibility by military balance |
 | `FUN_5bfb_13b0` | `2a1f_065e` | Form or break alliance |
-| `FUN_5bfb_153e` | `2a1f_05fc` | Large war-declare body (~1112) — thin gold+tax+upkeep |
+| `FUN_5bfb_153e` | `2a1f_05fc` | Large war-declare body (~1112, size estimate confirmed accurate) — thin gold+tax+upkeep; **full clean recovery 2026-08-14**, [`euro_diplo_153e_full.md`](euro_diplo_153e_full.md) — real overlap with the deep G-table + `0a60` goal-engine tables, not yet section-mapped or ported |
 | `FUN_5bfb_0000` / `00f8` / `312e` | census / rank / combat factor | Score stand-ins |
 | `FUN_5bfb_102a` / `1092` / `0182` | dialogs | thin `ctx->status` **Done**; widgets **OPEN** (unpark #1 / #5) |
 | `FUN_3f41_*` | FA advisor | **PARKED** (R15: no further thin gap — ally-aid + FA gift only; full F2–F9 report bodies / dialog UI stay parked) |

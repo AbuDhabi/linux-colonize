@@ -22,6 +22,18 @@ static int s_sticky_unit = -1;
 static int s_sticky_count = 0;
 /* First-colony: unit stepped onto found this dispatcher_turn — defer found. */
 static uint8_t s_deferred_found[COLONIZE_UNITS_MAX];
+/*
+ * Last chosen land-move direction per unit (0..7, dx/dy index below) —
+ * DOS `unit+0x314f`, written by FUN_521d_20e6 at its commit point
+ * (LAB_521d_589e) and read back in the facing/momentum band (LAB_521d_54f5,
+ * already ported for Braves as `quiet_score_facing` in ai.c/
+ * quiet_brave_scoring.c) but never wired for Euro units, which had no
+ * persisted "last direction" at all. Zero-initialized (== dir 0/North) —
+ * a unit's very first move gets a harmless, self-correcting small bias
+ * instead of "no bias"; not worth a separate reset hook for that one-turn
+ * edge case. Cite: move_scoring_20e6_full.md.
+ */
+static int8_t s_euro_last_dir[COLONIZE_UNITS_MAX];
 /* Colony ids founded this dispatcher_turn — keep auto-Stockade bip one turn. */
 static uint8_t s_founded_colony_turn[COLONIZE_COLONIES_MAX];
 /*
@@ -8399,6 +8411,7 @@ static int ai_euro_score_move(
   int best = -999999;
   int bdx = 0;
   int bdy = 0;
+  int bd = 0;
   for (int d = 0; d < 8; ++d) {
     const int nx = u->x + dx[d];
     const int ny = u->y + dy[d];
@@ -8497,6 +8510,31 @@ static int ai_euro_score_move(
         }
       }
     }
+    /*
+     * Facing/momentum bias (LAB_521d_54f5, unit+0x314f): same-as-last-move
+     * direction preferred, exact opposite (d^4) penalized, adjacent (diff
+     * 1) mildly preferred — identical shape to the already-ported Brave
+     * `quiet_score_facing`.
+     */
+    {
+      const int last_dir = s_euro_last_dir[u->id];
+      if (d == last_dir) {
+        score += 4;
+      } else if (d == (last_dir ^ 4)) {
+        score -= 6;
+      } else {
+        int diff = d - last_dir;
+        if (diff < 0) {
+          diff = -diff;
+        }
+        if (diff > 4) {
+          diff = 8 - diff;
+        }
+        if (diff == 1) {
+          score += 3;
+        }
+      }
+    }
     if (ctx->rng) {
       score += dos_rng_range(ctx->rng, 0, 3);
     }
@@ -8504,11 +8542,13 @@ static int ai_euro_score_move(
       best = score;
       bdx = dx[d];
       bdy = dy[d];
+      bd = d;
     }
   }
   if (best < -999990) {
     return 0;
   }
+  s_euro_last_dir[u->id] = (int8_t)bd;
   *out_dx = bdx;
   *out_dy = bdy;
   return 1;
@@ -12686,15 +12726,27 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
       }
     }
     if (goal_code < 0) {
+      /*
+       * Was first-slot-wins ("highest prio is slot 0 after ordered
+       * upsert") — same DOS closest/highest-prio shape as the soldier/
+       * founder loops above, applied here too for consistency now that
+       * it's verified safe (0a60 goal-consumption tail, no unit-type
+       * gate at this fallback level in the real DOS body either).
+       */
+      int best_score = -1;
       for (int i = 0; i < AI_PRIMARY_SLOTS; ++i) {
         const AiGoalSlot* g = ai_goals_primary(nation_id, i);
         if (!g || g->code == AI_GOAL_EMPTY) {
           continue;
         }
-        goal_x = g->x;
-        goal_y = g->y;
-        goal_code = (int)g->code;
-        break; /* highest prio is slot 0 after ordered upsert */
+        const int dist = ai_euro_dos_dist(g->x - u->x, g->y - u->y);
+        const int score = dist * 100 / (g->prio + 1);
+        if (best_score < 0 || score < best_score) {
+          best_score = score;
+          goal_x = g->x;
+          goal_y = g->y;
+          goal_code = (int)g->code;
+        }
       }
     }
   }
