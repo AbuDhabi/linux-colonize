@@ -106,11 +106,35 @@ founding-father check (`FUN_281f_09fc(0x24)`, FF id `0x24` not yet named)
 and a per-colony "last granted" turn stamp at colony-record `+0xa4` (not
 in `col1_save.h` yet), credited via a 32-bit gold-add helper.
 
-**Case 7** (`FUN_479b_076e`) is only the *top level* of Europe hire —
-clears timer fields, calls `FUN_291f_09b2` for the actual hire pick, then
-a UI-notify chain. `FUN_291f_09b2` (not traced this pass) is very likely
-where the "deep case-7 economy OPEN" content the rest of this file
-discusses actually lives.
+**Case 7 is FOUND COLONY, not "Europe hire" — correcting my own guess from
+last pass (traced `FUN_291f_09b2` this pass, it's not a hire-pick body).**
+`FUN_479b_076e` clears order/timer fields, calls
+`thunk_FUN_2a1f_01f4(nation, name_buf[80])` (colony name generation), gates
+on a human CHOICE dialog (`FUN_291f_0120(0x17)` — very likely "Build a
+colony here?"), then calls `FUN_291f_09b2` → `FUN_364b_1ba8`
+(`viceroy_unpacked.c:58015-58131`) with `(nation, x, y, unit_index)`.
+That function is a straight-line **colony-record initializer**: owner
+nation (`+0x1a`), x/y (`+0/+1`), and zeroing/defaulting a long list of
+already-known Col1 colony fields (`ai_flags`/`colony_flags`/
+`build_ai_flags`/`warehouse_level`/`capitol_level`/`depletion_counter`/
+`cargo_produced_mask`/`specialty_cargo=0xff`/`improve_timer`/
+`labor_shortage`/`cargo_idle_turns`/`hammers_purchased`/cargo stock (16
+slots) all cleared, building-owned array reset). **Already correctly
+cross-referenced in the Linux port**: `colonies_found` (`colony.c:518`)
+cites this exact function by name at line 572 for the cargo-stock-clear
+behavior, and its `specialty_cargo=0xff`/`building_in_production=-1`/
+`tiles[]=-1` field-reset pattern already matches. Back on `FUN_479b_076e`:
+after the record init succeeds, it writes the generated name into the
+record (`FUN_1d1d_07e4(colony+2, name_buf)`), fires several UI-refresh
+flags, and a founding narration/sting — all cosmetic, not state.
+
+So the "deep case-7 economy OPEN" framing throughout the rest of this
+file (§2d, §2e, the old Phase-outline table, `ai_transcription.md`) was
+never about a hire economy at all — it was chasing corrupted-blob content
+attributed to the wrong case. Founding itself is **already faithfully
+ported**; nothing new to do here. (Case 8/9's terrain-improvement
+formulas, mapped last pass, are unaffected by this correction — they're
+genuinely separate cases.)
 
 **Case `0xb`/`0xc`** (`FUN_479b_0972`) is the entry into ship/land act —
 short pre-check, calls `FUN_2a1f_0210`/`FUN_291f_044e`/`FUN_2a1f_0142`
@@ -120,8 +144,7 @@ then falls into the same `default` thunk before clearing state.
 **Not yet mapped, flagged for a follow-up**: the full 16-byte-per-terrain-
 class content of `DS:0x2f78`/`0x2f80` (only offset +2 named so far);
 `FUN_281f_09fc(0x24)`'s founding-father identity; colony-record `+0xa4`;
-`FUN_291f_09b2` (case 7's real hire-pick body); `FUN_2a1f_0210`/
-`FUN_291f_044e`/`FUN_2a1f_0142` (case `0xb` move drivers).
+`FUN_2a1f_0210`/`FUN_291f_044e`/`FUN_2a1f_0142` (case `0xb` move drivers).
 
 **2026-08-14, same day — checked cases 8/9 against Linux's existing
 Pioneer plow/road port (`units_pioneer_work_tick` in `units.c`), found
@@ -521,7 +544,10 @@ Ships on `AI_SAIL` use scored ocean steps (same `ai_euro_score_move` /
 MP-drain. Replaces full `units_advance_goto` so HS west-explore bias applies
 per step. Full ocean combat `20e6` stays **PARKED**.
 
-### 2d. Linux thin — Pioneer tools delivery (case 7 economy stand-in)
+### 2d. Linux thin — Pioneer tools delivery
+(mislabeled "case 7 economy stand-in" in earlier passes — case 7 is Found
+Colony, not a hire economy; this section's own DOS citations are `5d04`/
+`5cf6`, unrelated to `5b66` case 7 — see "Case dispatch targets resolved")
 
 Idle / arriving Pioneer or Hardy on an **own** colony tile when
 `tools_short > 0` or colony `stock[TOOLS] < 20`: add **+10** tools
@@ -1028,6 +1054,8 @@ with the wider naval cargo band inside `20e6` / `0a60`.
 
 - Sectioned `.c` with provenance headers
 - Ship unload + founding-order arms readable end-to-end
-- Explicit **OPEN** remainder for land combat / case 7 hire (thin tools-delivery today)
+- Explicit **OPEN** remainder for land combat / case `0xb` move drivers
+  (case 7 is Found Colony, already faithfully ported — see "Case dispatch
+  targets resolved," not an open hire-economy item)
 - Ocean naval `20e6` + full line-by-line still R5 / PARKED
 - `SYMBOL_MAP` + catalog `links` updated
