@@ -4982,6 +4982,35 @@ bool units_pioneer_work_tick(
   if (road) {
     map_tile_set_road(map, u->x, u->y, true);
     const bool demoted = units_pioneer_wear_tools(pool, u);
+    /*
+     * FUN_479b_0526 road completion: nearest same-nation colony (no radius
+     * limit — DOS FUN_281f_0614(x,y,nation,0xffff)) gets a flat
+     * +10 hammers_purchased. Mirrors the already-ported case-8 clear-forest
+     * lumber grant's "nearest own colony" pattern (units_pioneer_work_tick
+     * clearing branch below).
+     */
+    if (colonies) {
+      ColonizeColony* near_road = NULL;
+      int best_md_road = -1;
+      for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+        ColonizeColony* c = &colonies->colonies[i];
+        if (!c->active || c->nation_id != u->nation_id) {
+          continue;
+        }
+        const int md = abs(c->x - u->x) + abs(c->y - u->y);
+        if (best_md_road < 0 || md < best_md_road) {
+          best_md_road = md;
+          near_road = c;
+        }
+      }
+      if (near_road) {
+        int next = (int)near_road->hammers_purchased + 10;
+        if (next > 65535) {
+          next = 65535;
+        }
+        near_road->hammers_purchased = (uint16_t)next;
+      }
+    }
     if (demoted) {
       units_pioneer_emit_useduptools(u, err, err_size, ai_popups, messages);
     } else if (err && err_size) {
@@ -5172,6 +5201,7 @@ bool units_pioneer_road(
   ColonizeWorldMap* map,
   char* err,
   size_t err_size,
+  ColonizeColonyPool* colonies,
   AiPopupState* ai_popups,
   const ColonizeMsgCatalog* messages
 ) {
@@ -5213,7 +5243,7 @@ bool units_pioneer_road(
     u->orders = UNITS_ORDER_BUILD_ROAD;
   }
   return units_pioneer_work_tick(
-    pool, unit_id, map, err, err_size, NULL, ai_popups, messages
+    pool, unit_id, map, err, err_size, colonies, ai_popups, messages
   );
 }
 

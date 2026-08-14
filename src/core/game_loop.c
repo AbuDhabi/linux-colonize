@@ -6259,6 +6259,7 @@ static bool game_apply_map_menu_action(ColonizeGameState* game, MapMenuAction ac
             &game->world_map,
             msg,
             sizeof(msg),
+            &game->colonies,
             &game->ai_popups,
             &game->messages
           )) {
@@ -8003,6 +8004,7 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
           &game->world_map,
           msg,
           sizeof(msg),
+          &game->colonies,
           &game->ai_popups,
           &game->messages
         );

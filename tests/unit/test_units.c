@@ -637,7 +637,7 @@ static int unit_pioneer_order_gates(void) {
     pu->moves_left = 1;
     ai_popup_init(&pops);
     msg[0] = '\0';
-    if (units_pioneer_road(&pool, pid, &map, msg, sizeof(msg), &pops, &game_txt)) {
+    if (units_pioneer_road(&pool, pid, &map, msg, sizeof(msg), NULL, &pops, &game_txt)) {
       fprintf(stderr, "ordgate: existing road should fail\n");
       assets_msg_free(&game_txt);
       map_free(&map);
@@ -1836,7 +1836,7 @@ int main(void) {
     char pmsg[64];
     pu3->moves_left = 1;
     /* Plains road: terr_cost 1 → completes on first work-tick. */
-    if (!units_pioneer_road(&pool, pid3, &tmap, pmsg, sizeof(pmsg), NULL, NULL) ||
+    if (!units_pioneer_road(&pool, pid3, &tmap, pmsg, sizeof(pmsg), NULL, NULL, NULL) ||
         !map_tile_has_road(&tmap, px, py) || pu3->tools != 80 || pu3->moves_left != 0) {
       fprintf(
         stderr,
@@ -1851,6 +1851,62 @@ int main(void) {
       assets_msg_free(&names);
       return 1;
     }
+
+    /*
+     * FUN_479b_0526 road completion: nearest same-nation colony gets a flat
+     * +10 hammers_purchased. Separate pioneer/tile so it doesn't disturb
+     * pu3's own state ahead of the plow test below.
+     */
+    {
+      ColonizeColonyPool colonies_road;
+      colonies_init(&colonies_road);
+      ColonizeColony* c = &colonies_road.colonies[0];
+      c->id = 0;
+      c->active = true;
+      c->nation_id = 0;
+      c->x = px;
+      c->y = py;
+      c->hammers_purchased = 5;
+      colonies_road.colony_count = 1;
+      colonies_road.next_id = 1;
+      const int rx = 7;
+      const int ry = 7;
+      tmap.terrain[ry * tmap.width + rx] = 2; /* plains, own tile away from px/py */
+      map_tile_set_road(&tmap, rx, ry, false);
+      const int pid4 = units_spawn(&pool, pioneer, rx, ry);
+      ColonizeUnit* pu4 = units_get(&pool, pid4);
+      if (!pu4) {
+        fprintf(stderr, "phase7 fourth pioneer spawn failed\n");
+        map_free(&tmap);
+        map_free(&map);
+        assets_msg_free(&names);
+        return 1;
+      }
+      pu4->nation_id = 0;
+      pu4->moves_left = 1;
+      pu4->tools = 100;
+      if (!units_pioneer_road(&pool, pid4, &tmap, pmsg, sizeof(pmsg), &colonies_road, NULL, NULL) ||
+          !map_tile_has_road(&tmap, rx, ry)) {
+        fprintf(stderr, "phase7 road-reward setup failed (%s)\n", pmsg);
+        map_free(&tmap);
+        map_free(&map);
+        assets_msg_free(&names);
+        return 1;
+      }
+      if (colonies_road.colonies[0].hammers_purchased != 15) {
+        fprintf(
+          stderr,
+          "phase7 road completion hammers_purchased=%u want 15\n",
+          (unsigned)colonies_road.colonies[0].hammers_purchased
+        );
+        map_free(&tmap);
+        map_free(&map);
+        assets_msg_free(&names);
+        return 1;
+      }
+      units_despawn(&pool, pid4);
+    }
+
     pu3->moves_left = 1;
     pu3->tools = 100;
     pu3->orders = UNITS_ORDER_NONE;

@@ -746,6 +746,7 @@ bool units_pioneer_road(
   ColonizeWorldMap* map,
   char* err,
   size_t err_size,
+  ColonizeColonyPool* colonies,
   AiPopupState* ai_popups,
   const ColonizeMsgCatalog* messages
 );
