@@ -3404,10 +3404,13 @@ int main(void) {
    * are eligible (decomp walks the colony-tile unit stack, not every unit
    * the nation owns). Soldier -> Continental Army, Dragoon -> Continental
    * Cavalry; Regular is never touched (decomp tests raw type 1/4 only).
+   * Also requires Veteran profession (UNITS_JOB_SOLDIER, DOS
+   * unit+0x315b==0x15) — an ordinary armed colonist does not promote.
    * colony0 (5,5) pop=4 SoL=60 by default caps at 1 promote
    * (population*(sol-50)/50 == 0, floored to 1), too tight to prove Soldier
    * + Dragoon together, so widen pop/SoL here. Also proves the fortified
-   * gate and the own-tile gate each independently block a promote.
+   * gate, the own-tile gate, and the Veteran-profession gate each
+   * independently block a promote.
    */
   col1.colony[0].population = 20;
   col1.colony[0].rebel_dividend = 70;
@@ -3425,7 +3428,8 @@ int main(void) {
   const int rid = units_spawn_allow_stack(&units, ty_regular, 5, 5);
   const int unfort_id = units_spawn_allow_stack(&units, ty_soldier, 5, 5);
   const int offtile_id = units_spawn_allow_stack(&units, ty_soldier, 6, 5);
-  if (sid < 0 || did < 0 || rid < 0 || unfort_id < 0 || offtile_id < 0) {
+  const int plain_id = units_spawn_allow_stack(&units, ty_soldier, 5, 5);
+  if (sid < 0 || did < 0 || rid < 0 || unfort_id < 0 || offtile_id < 0 || plain_id < 0) {
     return fail("1eca setup should spawn human Soldier + Dragoon + Regular probes");
   }
   {
@@ -3434,7 +3438,8 @@ int main(void) {
     ColonizeUnit* ru = units_get(&units, rid);
     ColonizeUnit* unfort = units_get(&units, unfort_id);
     ColonizeUnit* offtile = units_get(&units, offtile_id);
-    if (!su || !du || !ru || !unfort || !offtile) {
+    ColonizeUnit* plain = units_get(&units, plain_id);
+    if (!su || !du || !ru || !unfort || !offtile || !plain) {
       return fail("1eca setup unit lookup");
     }
     su->nation_id = 0;
@@ -3442,11 +3447,21 @@ int main(void) {
     ru->nation_id = 0;
     unfort->nation_id = 0;
     offtile->nation_id = 0;
+    plain->nation_id = 0;
     su->orders = UNITS_ORDER_FORTIFIED;
     du->orders = UNITS_ORDER_FORTIFIED;
     ru->orders = UNITS_ORDER_FORTIFIED;
     unfort->orders = UNITS_ORDER_NONE; /* on-tile, not fortified: must stay Soldier */
     offtile->orders = UNITS_ORDER_FORTIFIED; /* fortified, off-tile: must stay Soldier */
+    plain->orders = UNITS_ORDER_FORTIFIED;
+    /*
+     * FUN_43f7_1eca gates on unit+0x315b == 0x15 (UNITS_JOB_SOLDIER,
+     * "Veteran Soldiers") alongside the raw type check — only Veteran-
+     * status Soldier/Dragoon promote. su/du earn that; plain stays
+     * UNITS_JOB_NONE (an ordinary armed colonist) to prove the gate.
+     */
+    su->profession = UNITS_JOB_SOLDIER;
+    du->profession = UNITS_JOB_SOLDIER;
   }
   ai_king_nation_turn(&ctx);
   {
@@ -3455,6 +3470,7 @@ int main(void) {
     const ColonizeUnit* ru = units_get_const(&units, rid);
     const ColonizeUnit* unfort = units_get_const(&units, unfort_id);
     const ColonizeUnit* offtile = units_get_const(&units, offtile_id);
+    const ColonizeUnit* plain = units_get_const(&units, plain_id);
     if (!su || !su->active || su->type_index != ty_cont_army) {
       fprintf(stderr, "unit_ai_king: Soldier type after 1eca: %d (want %d)\n",
               su ? su->type_index : -1, ty_cont_army);
@@ -3479,6 +3495,11 @@ int main(void) {
       fprintf(stderr, "unit_ai_king: off-tile Soldier type after 1eca: %d (want %d)\n",
               offtile ? offtile->type_index : -1, ty_soldier);
       return fail("1eca must skip a fortified Soldier off the colony's own tile");
+    }
+    if (!plain || !plain->active || plain->type_index != ty_soldier) {
+      fprintf(stderr, "unit_ai_king: non-Veteran Soldier type after 1eca: %d (want %d)\n",
+              plain ? plain->type_index : -1, ty_soldier);
+      return fail("1eca must skip a fortified colony-tile Soldier without Veteran profession");
     }
   }
 
@@ -3602,6 +3623,8 @@ int main(void) {
       du->orders = UNITS_ORDER_FORTIFIED;
       ca->orders = UNITS_ORDER_FORTIFIED;
       ca->moves_left = 0; /* hold — only assert type skip, not rally */
+      su->profession = UNITS_JOB_SOLDIER; /* Veteran gate, see 1eca note above */
+      du->profession = UNITS_JOB_SOLDIER; /* eligible by type/profession; cap==1 still skips it */
     }
     ai_king_nation_turn(&ctx);
     {
@@ -3702,6 +3725,8 @@ int main(void) {
     lo->nation_id = 0;
     hi->orders = UNITS_ORDER_FORTIFIED;
     lo->orders = UNITS_ORDER_FORTIFIED;
+    hi->profession = UNITS_JOB_SOLDIER; /* Veteran gate, see 1eca note above */
+    lo->profession = UNITS_JOB_SOLDIER;
   }
   ai_king_nation_turn(&ctx);
   {
