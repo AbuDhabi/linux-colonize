@@ -298,18 +298,31 @@ adjacency, which is worse than an inert/unreached mechanic. Revisit only
 if a way to recover the popup string table surfaces (would also unblock
 `2820`/`4528`/the second `3180` roll, all blocked on the same wall).
 
-**2026-08-14, confirmed from a second, independent call path**: deep-diving
-`FUN_5bfb_153e` (Euro war-declare, `euro_diplo_153e_full.md`) found its
-"commit + flavor text" phase resolves to 5 local helpers
-(`FUN_OVL16_L0040__003bd0`/`003bd5`/`003bdf`/`003be4`/`003bee`) that are
-literally this same mechanic — same `attitude[4]`/`muskets`/`horse_herds`/
-`horse_breeding` field writes, and one of them calls message id `0x1866`,
-one of the three ids already named above as unrecoverable. Not a
-coincidental shape match; the same code (or same design pattern reusing
-the same string table region) is reachable via `153e`→`3180` adjacency as
-well as directly via `022e`. Strengthens rather than changes the verdict —
-still correctly PARKED, now with two independent confirmations instead of
-one.
+**2026-08-14, "unrecoverable" partially re-examined**: traced the numeric
+message-id resolver chain (`FUN_291f_019c`→`FUN_6f74_3760`→`FUN_1000_8b88`
+→`FUN_6f74_36ca`→`FUN_6f74_32a4`, all real, named, cross-checked
+functions) several hops deep — genuinely not a dead end, just an
+unfinished trace, and a "byte offset / ordinal into raw `GAME.TXT`"
+hypothesis was tested and ruled out. Full writeup, exact function names,
+and a concrete recommended next step (a live DOSBox-X breakpoint at the
+dialog-flush entry point, logging ids as the user plays normally — same
+proven technique as `417e`'s capture) in
+[`docs/popup_string_resolver.md`](../../docs/popup_string_resolver.md).
+Doesn't change this doc's conclusion (still correctly PARKED, still no
+resolved text) — just means "revisit if a way to recover the string table
+surfaces" has a concrete, scoped path now instead of being an open-ended
+someday.
+
+**2026-08-14, false alarm retracted**: a same-day `153e` deep-dive briefly
+claimed a second, independent confirmation of this exact mechanic via 5
+"local helpers" it thought it had decompiled from `153e`'s body. That
+claim was built on stale/wrong Ghidra function boundaries at addresses
+that turned out to be mid-jump-table thunk instructions, not real
+function entries — retracted in full in `euro_diplo_153e_full.md`. No
+change to this document's own conclusion (still correctly PARKED on the
+original `022e`/`2820`/`4528` evidence) — just noting the retraction here
+so a future reader of this section doesn't go looking for a "second
+confirmation" that never actually existed.
 
 The missionary `0x4c` gate and the `+7/8/9` target-slot family (Euro-side,
 `0x8d4a`'s *other* half) are unaffected by any of this and stay PARKED

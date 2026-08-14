@@ -29,6 +29,20 @@ treated as unverified until re-checked against this file, same "a function
 without a warning at its own declaration can still have real desync deeper
 inside" lesson `decomp_inventory.md` already documents for other functions.
 
+**2026-08-14, verified this does NOT implicate the Linux port**: checked
+whether `ai_native_pick_dir_asm` (`src/core/ai.c`, the actual port) has
+any recursive/self-referencing call pattern matching the canonical
+export's stray `thunk_FUN_2a1f_04f4` self-call — it doesn't (`grep` finds
+no `2a1f_04f4` reference in `ai.c` at all). `move_scoring.md`'s own
+citation of `2a1f_04f4` is the *normal, expected* outer entry thunk
+(`5b66 → 2a1f_04f4 → 20e6`, the caller-side path INTO this function),
+not anything inside `20e6`'s own body — matching this file's fresh, clean
+recovery, not the canonical export's stray anomaly. **Conclusion: the
+drift is confined to `viceroy_unpacked.c` (the tracking/ground-truth
+file, not used directly for porting) — the shipped port was never built
+from the corrupted spot and needs no changes.** Safe to close as
+"canonical file is stale, port is fine" rather than an open question.
+
 ## SCOUT/PATROL (`0x314b == 0x56`) mystery resolved
 
 `move_scoring_land.md`'s earlier note ("orders-byte consumer not found

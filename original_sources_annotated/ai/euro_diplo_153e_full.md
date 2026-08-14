@@ -1,61 +1,80 @@
 # `FUN_5bfb_153e` — full clean recovery (2026-08-14)
 
-## Status: recovered clean; the "commit + flavor text" phase is now CONFIRMED BLOCKED (same wall as `022e`/`2820`/`4528`); worthiness-score phase and the actual war-declare state flip remain genuinely open, not yet located precisely
+## Status: the "5 local helpers" from the earlier pass were a false lead — RETRACTED below. The `003bc6-003bf8` region is a resident-thunk jump table dispatching to 10 ALREADY-KNOWN `FUN_5bfb_*` functions, not new flavor-text/attitude code. Real structural finding: 153e's outcome dispatch reuses existing, mostly-already-ported machinery (102a/1092/0182 dialogs, 312e/0000 score, 13b0 alliance, 10ec war/ally eligibility, 022e Indian contact) plus one still-unresolved branch (`FUN_5bfb_12d0`, already tracked elsewhere as "Order clear `12d0` deep"). Worthiness-score phase and the exact war-declare state flip remain genuinely open.
 
-**2026-08-14, later same day — deep-dive requested explicitly by the user
-("focus on completing structural work... deep-dive 153e now").** Resolved
-all 5 previously-untraced local helpers
-(`FUN_OVL16_L0040__003bd0`/`003bd5`/`003bdf`/`003be4`/`003bee`) via
-`GhidraDecompileAt`, and the result reframes what this function's back
-half actually does.
+**2026-08-14, later same day — RETRACTION of this doc's own immediately-
+preceding "5 helpers confirmed blocked" claim.** That claim was built on
+decompiling `OVL16_L0040:003bd0`/`003bd5`/`003bdf`/`003be4`/`003bee` as if
+they were 5 separate function bodies. Dumping the **raw instructions**
+(not the decompiler's C) at those same addresses immediately after
+publishing that claim showed they are NOT function entries at all —
+they're **consecutive `JMPF <seg>:<off>` thunk instructions**, one
+5-byte jump each, part of a 10-entry (`003bcb`-`003bf8`) resident jump
+table (an 11th entry at `003bc6` precedes it, and garbage bytes follow at
+`003bfd`, confirming the table's real bounds). Ghidra's decompiler had
+**stale, wrong function boundaries cached at those addresses** from an
+earlier, unrelated analysis pass, and happily produced plausible-looking
+(but meaningless) C for garbage/misaligned bytes — the exact "silent
+wrong content, not a crash" failure mode this project's own memory has
+flagged before (`684c_08c0`, `15eb_1d4c`) as needing boundary
+verification, not just a successful decompile. Every claim in the
+immediately-preceding version of this section (shared attitude-adjustment
+shape, the `0x1866` message-id match, "confirmed blocked same wall as
+`022e`") is **void** — built on decompiling the wrong bytes. Full
+retraction; `settlement_record_8d4a.md`'s corresponding "second
+confirmation" addition is being reverted too.
 
-**All 5 helpers turned out to be variants of the identical shape**,
-not 5 different things: dialog/portrait setup differing only in a couple
-of string-table IDs, then a shared decision — `if outcome==2: clear this
-tribe's attitude toward the acting nation, apply a negative
-relation-scaled delta (floored via a `<0x47` while-loop), debit a
-treasury-shaped table, and (type-specific) bump the tribe's own
-`muskets`/`horse_herds`/`horse_breeding`; else: attitude += 0x80
-(positive)`. The touched fields —`0x8d4a`+`target*2+10` (the tribe's own
-`attitude[4]` array) and `0x8d4e`+7/8/10 (`muskets`/`horse_herds`/
-`horse_breeding`) — are **exactly** `settlement_record_8d4a.md`'s already-
-documented, already-blocked fields, not new Euro-war-declare state at
-all. **Definitive confirmation, not just a shape match**: one of these
-helpers (`003be4`) calls `func_0x0001938c(dialog, 0x1866, CUR_ALT)` —
-`0x1866` is literally one of the three message ids
-`settlement_record_8d4a.md` already named as the unrecoverable string IDs
-blocking that document's own accept/decline sign question. This is the
-**same mechanic**, reached via a second call path (`153e`'s war-declare
-context, adjacency-triggered via `3180`), not a coincidentally similar
-one — confirming the tribe near an adjacency encounter reacts to (or
-mediates) the encounter, and that reaction shares literal code and string
-resources with `022e`'s village-appeal mechanic.
+**What the jump table actually is, verified via `address_mapping.csv`
+cross-reference (not guessed)**: `address_mapping.csv` already had ONE
+entry for this exact table (`thunk_FUN_2a1f_05fc` at `5bfb:37cb` =
+`OVL16_L0040:3bcb` → canonical `FUN_1000_a7ec`/`FUN_2a1f_05fc`) — the
+missing piece was recognizing the other 9 addresses as the *same* table,
+continuing. `FUN_2a1f_05fc` and its 9 neighbors (offset +0xe each,
+`viceroy_unpacked.c:38150-38280`) are trivial 2-line resident thunks
+(`FUN_210d_0dab(0x2a1f); FUN_5bfb_XXXX(); return;` — an overlay-loader
+call then a direct forward), and **every one of the 10 targets is already
+a known, named, mostly-already-documented function**:
 
-**This also corrects a real guess this same doc made earlier the same
-day and got wrong**: the "Commit + flavor text" section below originally
-read `003bd0`'s two swapped-argument calls
-(`FUN_...__003bd0(param_2,param_3)` then `(param_3,param_2)`) as "almost
-certainly the real declare-war state flip, both directions." Now that
-`003bd0` is fully decompiled, it's visibly **the same attitude/relation-
-delta shape as the other 4 helpers**, not a war-flag-setting function at
-all. Wherever `153e` actually sets Euro×Euro WAR state is still not
-precisely located — **left genuinely open**, not resolved by this pass,
-flagged rather than re-guessed.
+| Table idx | Thunk offset | Target | Linux status |
+|---|---|---|---|
+| 0 | `2a1f:05fc` | `FUN_5bfb_153e` (self) | this function |
+| 1 | `2a1f:060a` | `FUN_5bfb_12d0` | unresolved — already tracked in `euro_diplo.md` ("Order clear `12d0` deep") |
+| 2 | `2a1f:0618` | `FUN_5bfb_102a` | dialogs, thin `ctx->status` **Done** |
+| 3 | `2a1f:0626` | `FUN_5bfb_312e` | census/rank/combat factor, score stand-in **Done** |
+| 4 | `2a1f:0634` | `FUN_5bfb_0000` | census/rank/combat factor, score stand-in **Done** |
+| 5 | `2a1f:0642` | `FUN_5bfb_1092` | dialogs, thin `ctx->status` **Done** |
+| 6 | `2a1f:0650` | `FUN_5bfb_0182` | dialogs, thin `ctx->status` **Done** |
+| 7 | `2a1f:065e` | `FUN_5bfb_13b0` | form/break alliance **Done** |
+| 8 | `2a1f:066c` | `FUN_5bfb_022e` | Indian unit meet/contact — partial, deep body PARKED (`settlement_record_8d4a.md`) |
+| 9 | `2a1f:067a` | `FUN_5bfb_10ec` | war/ally eligibility by military balance **Done** |
 
-**Practical upshot**: the "commit + flavor text" phase (~lines 390-1106,
-the majority of this function's body) is **not portable**, same
-"correctly stays PARKED" verdict and same reason as `022e`/`2820`/`4528`
-— unrecoverable binary popup-string resources gate a real accept/decline
-sign ambiguity, and guessing risks the AI doing the opposite of DOS. The
-**worthiness-score phase** (~lines 78-390, the actual war/no-war decision
-weighting) and the **real war-flag state flip** (location unconfirmed)
-are different code, not yet shown to be blocked the same way — genuinely
-still open, but **not attempted this pass**: with the majority of the
-function's observable *effects* (the flavor/attitude/resource branches)
-confirmed unportable, porting just the decision-weighting half without
-the actual state-change it's supposed to gate would ship something with
-no visible behavior to verify against — not worth the remaining
-G-table-integration effort until the state-flip location is found too.
+**Real implication, and it's a good one**: `153e`'s outcome dispatch —
+whatever selects an index 0-9 into this table — routes into machinery
+this project has **already mostly ported**, not a wall of new blocked
+code. Only index 1 (`12d0`) is a genuinely unresolved branch, and it's
+already a tracked lead elsewhere, not a new discovery. This makes `153e`
+look considerably *more* tractable than the retracted claim suggested —
+the real remaining work is finding **which selector value in `153e`'s own
+body picks the table index** (not yet located — the earlier phase-4
+description's "`FUN_...__003bd0(param_2,param_3)` then `(param_3,param_2)`
+... almost certainly the real declare-war state flip" guess is *also*
+now suspect, since `003bd0` turned out to be a mid-table jump instruction
+address, not a function call with real arguments — that phase-4 reading
+needs a fresh, careful re-check, not reuse) and the worthiness-score
+phase that feeds it. **Not attempted this pass** — flagging the corrected,
+now much more promising picture for a focused next pass rather than
+rushing it after just having to retract one wrong finding.
+
+**Lesson, the important one**: a decompile succeeding (Ghidra prints
+plausible C, no error) is not evidence the address it started from was a
+real function entry — cross-check against `address_mapping.csv`'s own
+already-registered entries for the SAME region *before* trusting a fresh
+decompile, and when something looks like a cluster of near-identical
+small "helper functions" sharing suspicious `unaff_BP`/`unaff_SS`
+register origins, dump raw instructions first. This is a sharper version
+of a lesson this project has logged at least twice before (`684c_08c0`,
+`15eb_1d4c`) — logging it a third time because it just cost a real
+retraction, not just a close call.
 
 ## Status (original, 2026-08-14 earlier same day): recovered clean, characterized at moderate depth, not fully section-mapped or ported
 
@@ -161,11 +180,12 @@ cross-checked which one actually fires when in the real DOS turn order.
 - Still no line-by-line phase map with exact formulas (`0a60`-level rigor)
   — this is a structural read, confirmed accurate where checked but not
   exhaustive.
-- ~~`FUN_...__003bdf`/`003bd0`/`003bd5`/`003be4`/`003bee` (5 local helpers
-  this function leans on heavily) not traced at all.~~ **Traced, same day,
-  later pass** — all 5 are variants of the same blocked village-attitude
-  mechanic `settlement_record_8d4a.md` already documents. See the status
-  section at the top of this doc.
+- `FUN_...__003bdf`/`003bd0`/`003bd5`/`003be4`/`003bee` were never real
+  local helper functions at all — resolved (and a first, wrong "traced"
+  attempt retracted) same day, later pass: these addresses are entries in
+  a resident jump table (`003bc6`-`003bf8`) whose real targets are 10
+  already-known `FUN_5bfb_*` functions. See the status section at the top
+  of this doc for the full table and what it means.
 - Message-id → `GAME.TXT` tag mapping not resolved.
 - Checked whether `153e` calls `10ec` or vice versa: **neither** —
   confirmed via direct canonical-export read, no cross-call in either
