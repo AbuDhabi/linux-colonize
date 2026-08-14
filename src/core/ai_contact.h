@@ -78,9 +78,20 @@ int ai_contact_try_first_welcome(ColonizeTurnContext* ctx, int euro_nation, int 
  * Village-enter Meet CHOICE (already-met human Euro on tribe tile). Enqueues
  * Trade/Gift/Demand/Teach/Leave. First-contact still uses WELCOME only.
  * Cite: indian_contact.md village Meet CHOICE; FUN_5bfb_022e. Deep 2820 PARKED.
+ * `is_missionary`/`is_capital`: the acting unit's/visited village's real
+ * status, captured by the caller at trigger time (each already has the
+ * specific unit and ColonizeCol1Tribe record) and carried through the Meet
+ * CHOICE's payload for the Incite sub-flow's two DOS flat discounts — see
+ * indian_incite_417e.md. Pass 0/0 when not applicable (e.g. ship contact).
  * Returns 1 if a CHOICE was enqueued.
  */
-int ai_contact_try_village_meet(ColonizeTurnContext* ctx, int euro_nation, int indian_nation);
+int ai_contact_try_village_meet(
+  ColonizeTurnContext* ctx,
+  int euro_nation,
+  int indian_nation,
+  int is_missionary,
+  int is_capital
+);
 
 /*
  * FUN_4d56_4528 human village-enter warn CHOICE (Attack / Leave) for combatish
