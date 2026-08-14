@@ -4588,7 +4588,7 @@ int main(void) {
         return fail("ai_popups should enqueue KING_MERC Hire/Decline");
       }
     }
-    const int merc_price = merc_payload & 0xffff;
+    const int merc_price = merc_payload & 0x7fff; /* price = bits 0-14; bit 15 = extra_flag */
     if (merc_price <= 0) {
       return fail("KING_MERC payload should carry a positive rolled price");
     }
