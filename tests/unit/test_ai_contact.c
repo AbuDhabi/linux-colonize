@@ -5160,6 +5160,78 @@ int main(void) {
     ctx.status_size = 0;
   }
 
+  /*
+   * @INDIANBEGFOOD accept/decline (FUN_5bfb_022e already-met adjacency —
+   * ai_contact_try_village_beg_food / ai_contact_apply_beg_food). Sign
+   * convention resolved 2026-08-14 via live user gameplay testimony (see
+   * settlement_record_8d4a.md): accept improves relations + friction
+   * scales up, decline worsens relations + friction resets to 0, and the
+   * colony loses food either way (voluntary gift vs. punitive seizure).
+   * Tests the apply side directly (payload = offer-time colony id, same
+   * discipline as ai_king_merc's landing tile) rather than fighting the
+   * trigger's own RNG/economics gating, matching this file's established
+   * convention for CHOICE mechanics with complex trigger conditions.
+   */
+  {
+    AiPopupState pop;
+    ai_popup_init(&pop);
+    ctx.ai_popups = &pop;
+    colonies.colonies[0].active = true;
+    colonies.colonies[0].nation_id = 0;
+    snprintf(colonies.colonies[0].name, sizeof(colonies.colonies[0].name), "Jamestown");
+    colonies.colonies[0].stock[COLONIZE_CARGO_FOOD] = 100;
+    col1.tribe[0].nation_id = 4;
+    col1.tribe[0].state.capital = 0;
+    col1.tribe[0].alarm[0].friction = 20;
+    col1.nation[0].relation_by_indian[0] = 128; /* mid-range, away from clamp edges */
+    const uint8_t rel_before_accept = col1.nation[0].relation_by_indian[0];
+
+    ai_popup_clear(&pop);
+    pop.has_result = true;
+    pop.result_cancelled = false;
+    pop.result_choice_id = 2; /* accept/give */
+    pop.result_tag = AI_POPUP_TAG_CONTACT_BEGFOOD;
+    pop.result_nation_a = 0;
+    pop.result_nation_b = 4;
+    pop.result_payload = 0; /* colony index */
+    ai_contact_apply_popup_result(&ctx, &pop);
+    if (colonies.colonies[0].stock[COLONIZE_CARGO_FOOD] >= 100) {
+      return fail("BEGFOOD accept should give away some food");
+    }
+    if (col1.tribe[0].alarm[0].friction <= 20) {
+      return fail("BEGFOOD accept should scale friction up");
+    }
+    if (col1.nation[0].relation_by_indian[0] <= rel_before_accept) {
+      return fail("BEGFOOD accept should improve relations");
+    }
+
+    colonies.colonies[0].stock[COLONIZE_CARGO_FOOD] = 100;
+    col1.tribe[0].alarm[0].friction = 20;
+    col1.nation[0].relation_by_indian[0] = 128;
+    const uint8_t rel_before_decline = col1.nation[0].relation_by_indian[0];
+
+    ai_popup_clear(&pop);
+    pop.has_result = true;
+    pop.result_cancelled = false;
+    pop.result_choice_id = 1; /* decline/refuse */
+    pop.result_tag = AI_POPUP_TAG_CONTACT_BEGFOOD;
+    pop.result_nation_a = 0;
+    pop.result_nation_b = 4;
+    pop.result_payload = 0;
+    ai_contact_apply_popup_result(&ctx, &pop);
+    if (colonies.colonies[0].stock[COLONIZE_CARGO_FOOD] >= 100) {
+      return fail("BEGFOOD decline should still cost the colony food (punitive seizure)");
+    }
+    if (col1.tribe[0].alarm[0].friction != 0) {
+      return fail("BEGFOOD decline should reset friction to 0");
+    }
+    if (col1.nation[0].relation_by_indian[0] >= rel_before_decline) {
+      return fail("BEGFOOD decline should worsen relations");
+    }
+    fprintf(stderr, "unit_ai_contact: BEGFOOD accept/decline ok\n");
+    ctx.ai_popups = NULL;
+  }
+
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);

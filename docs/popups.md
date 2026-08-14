@@ -422,7 +422,7 @@ work.
 | `@INDIANGIVEFOOD` | Partial | contact/raid/mission — structural OK/status; deep/VGA PARKED |
 | `@INDIANGIVESTUFF` | Partial | contact/raid/mission — structural OK/status; deep/VGA PARKED |
 | `@INDIANCOMMENT` | Done | Colony encroachment OK via `popup_msg_fill` |
-| `@INDIANBEGFOOD` | Partial | contact/raid/mission — structural OK/status; deep/VGA PARKED |
+| `@INDIANBEGFOOD` | Done | `ai_contact_try_village_beg_food`/`ai_contact_apply_beg_food` — real accept/decline CHOICE, `AI_POPUP_TAG_CONTACT_BEGFOOD` (2026-08-14, was unwired; sign convention resolved via live user gameplay testimony, see `settlement_record_8d4a.md`) |
 | `@INDIANWAR` | Partial | contact/raid/mission — structural OK/status; deep/VGA PARKED |
 | `@INDIANGRUDGE` | Partial | contact/raid/mission — structural OK/status; deep/VGA PARKED |
 | `@INDIANLAND` | Partial | contact/raid/mission — structural OK/status; deep/VGA PARKED |
