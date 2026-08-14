@@ -337,6 +337,93 @@ API / behavior:
   combat) documented as real Privateer cargo path; 8g treasury prize **PARKED
   null-units only**; defensive smoke: Privateer commission INFO OK enqueue
   (status string already smoked). **No further thin diplo unpark.**
+## FA negotiation screen — one unified mechanic, mechanic confirmed, function not yet found
+
+**2026-08-14, real gap identified via the "ask the user" method**
+(`decomp_inventory.md`): `docs/popups.md` carried a whole cluster of
+`GAME.TXT` tags as generic "Partial — thin `DIPLO_FA` or status; full
+`3f41` PARKED" boilerplate — but they're **completely unwired**
+(confirmed: zero references anywhere in `src/core/*.c`, not even a thin
+stand-in), not actually implemented at all. Two rounds of asking the user
+directly revealed this is **one single negotiation screen with multiple
+entry points**, not several separate mechanics — every offer variant
+below is followed by the *same* 4-option response menu ("Go in peace,
+{nation} brothers." / "First you must withdraw your forces from our
+colonies!" / "How much do you value your worthless lives, heathen
+swine?" / "We suggest an alliance.") — confirmed by their literal
+identical wording appearing after `@PEACEMANLY`, `@PEACEMEEK`,
+`@OLDPEACEMEEK`, `@OLDPEACEMANLY`, and `@PEACEUSA` alike in `GAME.TXT`.
+
+**Entry points (the initial offer / situation):**
+- `@PEACEMANLY`/`@PEACEMEEK` — first-time peace negotiation, dividing
+  territory ("MANLY" = confident/generous division, "MEEK" = submissive
+  division — plausibly tone mirrors relative military strength, not
+  confirmed).
+- `@OLDPEACEMEEK`/`@OLDPEACEMANLY`/`@PEACEUSA` — already-at-peace
+  greeting, same tone split (+`@PEACEUSA` a third, nation-specific
+  variant).
+- Adjacent-military "Demand Withdrawal" (confirmed by the user, below).
+
+**Demand Withdrawal, player-initiated action — pick an adjacent European
+power with military units next to one of your colonies, demand they
+withdraw. Four outcomes** (user-confirmed, decisive):
+1. **Refuse** (`@NOTWITHDRAW`, "Our forces protect valid interests and
+   shall not be moved.") — their units stay put.
+2. **Withdraw** (`@WITHDRAW`, "In the interest of peace, we shall
+   withdraw our forces.") — their units are teleported back to their own
+   colonies (exact mechanics of the teleport, e.g. which colony, not
+   confirmed by the user).
+3. **No units there** (`@NOTHINGWITHDRAW`, "We have no forces adjacent to
+   your colonies.") — a no-op informational response.
+4. **Counter-offer** (`@MAYBEWITHDRAW`, "...willing to move them in
+   exchange for `{$N}` to cover the cost of demobilization.") — a
+   sub-CHOICE: pay the bribe (→ same result as Withdraw) or refuse
+   (→ same result as Refuse, "Withdraw or perish, heathen pigs!"/"Oh.
+   Never mind then.").
+
+**War-declare outcomes from the shared response menu** (user-confirmed
+for the trigger; the tone-pairing below is my own reasoned-but-unconfirmed
+reading, not independently verified): picking "How much do you value your
+worthless lives, heathen swine?" — a threat, not a plain decline — after
+being offered peace triggers a war declaration. User confirms
+`@WARMEEK`/`@WARMANLY` fire in exactly this circumstance ("the other Euro
+offers you peace, and you refuse"); which of the two fires isn't
+independently confirmed by the user ("maybe it's relation-based, IDK"),
+but the wording is suggestive: `@WARMANLY` ("You reject our *generous*
+offer?... Prepare for WAR!") reads as mirroring a rejected `@PEACEMANLY`-
+toned offer, `@WARMEEK` ("Very well, then... Prepare for WAR!") mirroring
+a rejected `@PEACEMEEK`-toned one — i.e. the war-declare tone likely
+mirrors whichever tone the original peace offer used, not an independent
+roll. `@PROVOKE` ("We can no longer tolerate your foul provocations.
+Prepare for WAR!") reads as structurally different — no "rejected offer"
+framing at all, more likely an independent trigger (accumulated
+hostility/provocation crossing a threshold over multiple turns) than a
+direct response to a specific dialog choice; user recalls the tag but not
+precisely when it fires, consistent with this reading (an AI-initiated,
+not player-choice-triggered, declaration).
+
+**Real gap, genuinely not a quick fix**: the underlying DOS function(s)
+are unknown. Not part of `FUN_5bfb_3180`'s already-mapped
+already-met-adjacency dispatch (`euro_diplo_3180_full.md` — checked, no
+"withdraw"/"demobiliz"/"peace" hits), and most likely part of the Foreign
+Affairs advisor screen (`FA`/`3f41` segment, per `docs/popups.md`'s own
+citation) — a segment this project has **never recovered a single
+function from** (`grep` for `FUN_3f41_` in the canonical decompile:
+zero hits), unlike everything else touched this session. Finding it
+would mean the same from-scratch overlay-recovery investment as `153e`
+or `0a60` originally needed, not a quick lookup. The bribe/"demobilization
+cost" formula, the peace-tone selector (MEEK vs MANLY), and the
+war-declare dispatch are all completely unknown (no candidate function
+traced at all).
+
+**Not attempted this pass** — the mechanic's *shape* is now fully
+specified (real value, doesn't need re-asking), but implementing it
+faithfully needs either the real DOS formula (a proper `3f41` recovery
+pass) or an explicit decision to ship an approximated version with an
+invented cost formula, which would need the same care as any other
+"thin first draft" mechanic in this project — flagging for a future
+dedicated pass rather than guessing at a formula with zero DOS anchor.
+
 - **Still PARKED (leftovers — no thin unpark left):**
   - FA `3f41` full body/UI (F2–F9 report dialogs; thin ally-aid 10g + FA gift
     15g / longevity + `DIPLO_FA` OK only)
