@@ -4377,6 +4377,100 @@ int main(void) {
     }
 
     /*
+     * Missionary + capital-village Incite discount (2026-08-14 port,
+     * ai_contact_incite_price's is_missionary/is_capital flags — see
+     * indian_incite_417e.md). Boost muskets/horse_herds so `base` (and
+     * thus price) is well clear of the 500 floor, so the -1500/-500 DOS
+     * discounts are actually observable. Simulates the Meet CHOICE's
+     * payload (bit0=is_missionary, bit1=is_capital) the way
+     * ai_contact_try_village_meet's caller would really set it, since this
+     * test drives ai_contact_apply_popup_result directly rather than going
+     * through the full trigger path.
+     */
+    {
+      ind->muskets = 40;
+      ind->horse_herds = 40;
+      col1.nation[0].relation_by_indian[0] = 128;
+
+      col1.nation[0].gold = 1000000;
+      col1.nation[1].gold = 1000000;
+      ai_popup_clear(&pop);
+      pop.has_result = true;
+      pop.result_cancelled = false;
+      pop.result_choice_id = 6; /* AI_CONTACT_CHOICE_INCITE */
+      pop.result_tag = AI_POPUP_TAG_CONTACT_MEET;
+      pop.result_nation_a = 0;
+      pop.result_nation_b = 4;
+      pop.result_payload = 0; /* no missionary, not a capital village */
+      st_pop[0] = '\0';
+      ai_contact_apply_popup_result(&ctx, &pop);
+      if (pop.queue_count < 1 ||
+          pop.queue[pop.queue_count - 1].tag != AI_POPUP_TAG_CONTACT_INCITE ||
+          pop.queue[pop.queue_count - 1].choice_count < 1) {
+        return fail("discount setup: expected an affordable incite target CHOICE");
+      }
+      const int target1 = pop.queue[pop.queue_count - 1].choice_ids[0];
+      const int meet_payload1 = pop.queue[pop.queue_count - 1].payload;
+      const uint32_t gold_before1 = col1.nation[0].gold;
+      ai_popup_clear(&pop);
+      pop.has_result = true;
+      pop.result_cancelled = false;
+      pop.result_choice_id = target1;
+      pop.result_tag = AI_POPUP_TAG_CONTACT_INCITE;
+      pop.result_nation_a = 0;
+      pop.result_nation_b = 4;
+      /* The real harness carries the enqueued CHOICE's own .payload into
+       * .result_payload when a live popup is answered; replicate that here
+       * since this test drives apply_popup_result directly. */
+      pop.result_payload = meet_payload1;
+      ai_contact_apply_popup_result(&ctx, &pop);
+      const uint32_t price_no_discount = gold_before1 - col1.nation[0].gold;
+
+      col1.nation[0].gold = 1000000;
+      ai_popup_clear(&pop);
+      pop.has_result = true;
+      pop.result_cancelled = false;
+      pop.result_choice_id = 6; /* AI_CONTACT_CHOICE_INCITE */
+      pop.result_tag = AI_POPUP_TAG_CONTACT_MEET;
+      pop.result_nation_a = 0;
+      pop.result_nation_b = 4;
+      pop.result_payload = 3; /* is_missionary=1, is_capital=1 */
+      st_pop[0] = '\0';
+      ai_contact_apply_popup_result(&ctx, &pop);
+      if (pop.queue_count < 1 ||
+          pop.queue[pop.queue_count - 1].tag != AI_POPUP_TAG_CONTACT_INCITE ||
+          pop.queue[pop.queue_count - 1].choice_count < 1) {
+        return fail("discount setup: expected an affordable incite target CHOICE (discounted)");
+      }
+      const int target2 = pop.queue[pop.queue_count - 1].choice_ids[0];
+      const int meet_payload2 = pop.queue[pop.queue_count - 1].payload;
+      const uint32_t gold_before2 = col1.nation[0].gold;
+      ai_popup_clear(&pop);
+      pop.has_result = true;
+      pop.result_cancelled = false;
+      pop.result_choice_id = target2;
+      pop.result_tag = AI_POPUP_TAG_CONTACT_INCITE;
+      pop.result_nation_a = 0;
+      pop.result_nation_b = 4;
+      pop.result_payload = meet_payload2;
+      ai_contact_apply_popup_result(&ctx, &pop);
+      const uint32_t price_discounted = gold_before2 - col1.nation[0].gold;
+
+      if (price_discounted + 1900u > price_no_discount) {
+        fprintf(
+          stderr,
+          "unit_ai_contact: incite price no_discount=%u discounted=%u\n",
+          (unsigned)price_no_discount,
+          (unsigned)price_discounted
+        );
+        return fail("missionary+capital Incite discount should cut ~2000 gold off the price");
+      }
+
+      ind->muskets = 0;
+      ind->horse_herds = 0;
+    }
+
+    /*
      * Demand CHOICE → amount CHOICE (tools vs gold); gold apply −15.
      * Cite: FUN_5bfb_102a / 1092; indian_contact.md demand amount widget.
      */
@@ -4720,7 +4814,7 @@ int main(void) {
       col1.nation[0].relation_by_indian[0] = 100;
       ind->alarm_by_player[0] = 10;
       st_pop[0] = '\0';
-      if (!ai_contact_try_village_meet(&ctx, 0, 4)) {
+      if (!ai_contact_try_village_meet(&ctx, 0, 4, 0, 0)) {
         return fail("village meet should enqueue for already-met human");
       }
       if (pop.queue_count < 1 || pop.queue[0].tag != AI_POPUP_TAG_CONTACT_MEET ||
@@ -4738,7 +4832,7 @@ int main(void) {
       ai_popup_clear(&pop);
       ind->alarm_by_player[0] = 45;
       st_pop[0] = '\0';
-      if (!ai_contact_try_village_meet(&ctx, 0, 4)) {
+      if (!ai_contact_try_village_meet(&ctx, 0, 4, 0, 0)) {
         return fail("hot village meet should still enqueue");
       }
       if (strstr(st_pop, "ruthless") == NULL) {
@@ -4749,7 +4843,7 @@ int main(void) {
       /* Unmet must not use village meet (WELCOME path). */
       ai_popup_clear(&pop);
       ind->euro_diplo[0] = 0;
-      if (ai_contact_try_village_meet(&ctx, 0, 4)) {
+      if (ai_contact_try_village_meet(&ctx, 0, 4, 0, 0)) {
         return fail("unmet village must not enqueue Meet CHOICE");
       }
       /* Restore met for leftover arms. */

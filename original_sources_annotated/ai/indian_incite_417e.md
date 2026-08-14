@@ -377,22 +377,41 @@ have the best native relations of the four powers). Implemented as
 `inciter==1` (this project's own English/French/Spanish/Dutch = 0/1/2/3
 ordering, `ai_contact_euro_name`).
 
+**Missionary -1500 and target-village-capital -500 discounts — now wired,
+2026-08-14 (same day, third pass on this function).** Turned out not to
+need the unit-id/village-index threading originally assumed: both
+`game_loop.c` trigger sites (unit-enters-village, unit-already-adjacent)
+already have the exact right values in scope at the trigger point —
+`selected`/`u` (the specific acting `ColonizeUnit*`, checked against
+`UNITS_JOB_MISSIONARY`) and `t` (the specific matched `ColonizeCol1Tribe*`
+for that tile, `state.capital`) — no lookup/approximation needed at all.
+`ai_contact_try_village_meet` gained two new params
+(`is_missionary`/`is_capital`); the ship-contact call site
+(`ai_contact_try_village_meet`'s third caller, `ai_contact_try_ship_village`)
+already had its own resolved `tribe` pointer too (`is_missionary` forced 0
+— ships never carry one). Both booleans are captured once at Meet-CHOICE
+offer time and packed into that CHOICE's own `payload` (bit0/bit1, the
+same offer-time-capture discipline as `ai_king_merc`'s landing tile and
+this same function's earlier price-formula work), then re-packed into the
+Incite target-picker CHOICE's own payload for the second round-trip, so
+neither the acting unit nor the specific village record needs to still
+exist or be re-derivable at apply time.
+
+New test in `test_ai_contact.c`'s Incite block: two full CHOICE round
+trips with muskets/horse_herds boosted so `base` clears the 500 floor,
+payload `0` vs `3` (both bits set), asserts the discounted price is ~2000
+gold cheaper. Caught one real bug while writing it — the test's own
+simulated round trip needs to manually copy the enqueued CHOICE's
+`.payload` field into `.result_payload` before simulating the answer,
+matching what the real harness does live (`ai_popup.c:156`,
+`st->result_payload = st->current.payload`) — the actual gameplay wiring
+was correct from the first pass; only the synthetic test needed the fix,
+confirmed by checking the real harness code before concluding either way.
+
 **Still approximated / open, documented in code comments:**
 - The DOS `apply(CUR_INDIAN_ALT, nation_B, 100, 0)` relation-push call
   (exact semantics/magnitude unconfirmed) — implemented as a flat +10
   `alarm_by_player[target]` bump.
-- The Missionary-unit -1500 discount (`if unit(param_2)'s own state byte
-  == 0x18`, i.e. `UNITS_JOB_MISSIONARY` — a real, already-named Linux
-  constant) is not wired: the async village-meet CHOICE flow never
-  threads a specific acting-unit id through to apply time (only
-  euro_nation/indian_nation), so there's no unit to check here yet. Real,
-  scoped follow-on (payload + call-chain threading), not attempted this
-  pass.
-- The target-tribe's-own-capital -500 flat discount is not wired either,
-  for a related reason: the meet trigger only carries the aggregate
-  `nation_id` (tribe *type*), not which specific `ColonizeCol1Tribe`
-  village (x,y) was actually visited — same threading gap as the
-  Missionary term above.
 - Only the "Mode 1" (human, menu-driven) path is wired. Mode 2's
   AI-nation-shortcut reading (`param_3>=4` or a per-nation flag set) was
   never actually confirmed by a live capture — not ported; AI nations

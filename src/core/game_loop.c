@@ -4347,7 +4347,13 @@ static bool game_try_unit_move(ColonizeGameState* game, int dest_x, int dest_y) 
           set_status(game, "Village…", NULL);
           return true;
         }
-      } else if (ai_contact_try_village_meet(&ctx, selected->nation_id, (int)t->nation_id)) {
+      } else if (ai_contact_try_village_meet(
+                   &ctx,
+                   selected->nation_id,
+                   (int)t->nation_id,
+                   selected->profession == UNITS_JOB_MISSIONARY,
+                   t->state.capital
+                 )) {
         /* Peaceful Meet/Trade from adjacent — spend a step, stay put. */
         const int cost = units_move_cost(&game->units, sid, &game->world_map, dest_x, dest_y);
         selected->moves_left -= cost > 0 ? cost : 1;
@@ -4459,7 +4465,13 @@ static void game_after_unit_action(ColonizeGameState* game) {
         }
         ColonizeTurnContext ctx;
         game_fill_turn_context(game, &ctx);
-        if (ai_contact_try_village_meet(&ctx, u->nation_id, (int)t->nation_id)) {
+        if (ai_contact_try_village_meet(
+              &ctx,
+              u->nation_id,
+              (int)t->nation_id,
+              u->profession == UNITS_JOB_MISSIONARY,
+              t->state.capital
+            )) {
           break;
         }
       }

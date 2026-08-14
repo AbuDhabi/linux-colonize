@@ -623,7 +623,13 @@ static int ai_contact_meet_choice_pending(const AiPopupState* st, int e, int nat
   return 0;
 }
 
-static void ai_contact_enqueue_village_meet(ColonizeTurnContext* ctx, int e, int nation_id) {
+static void ai_contact_enqueue_village_meet(
+  ColonizeTurnContext* ctx,
+  int e,
+  int nation_id,
+  int is_missionary,
+  int is_capital
+) {
   if (!ctx || !ctx->ai_popups) {
     return;
   }
@@ -646,12 +652,17 @@ static void ai_contact_enqueue_village_meet(ColonizeTurnContext* ctx, int e, int
     AI_CONTACT_CHOICE_INCITE,
     AI_CONTACT_CHOICE_LEAVE
   };
+  /* Carry the acting unit's/village's real status through to the Incite
+   * sub-flow (bit0=is_missionary, bit1=is_capital) — see
+   * ai_contact_incite_price / indian_incite_417e.md. Unused by the other
+   * five Meet CHOICE arms. */
+  const int meet_payload = (is_missionary ? 1 : 0) | (is_capital ? 2 : 0);
   ai_popup_enqueue_choice_ctx(
     ctx->ai_popups,
     AI_POPUP_TAG_CONTACT_MEET,
     e,
     nation_id,
-    0,
+    meet_payload,
     title,
     body,
     labels,
@@ -687,7 +698,13 @@ static void ai_contact_enqueue_village_meet(ColonizeTurnContext* ctx, int e, int
   }
 }
 
-int ai_contact_try_village_meet(ColonizeTurnContext* ctx, int euro_nation, int indian_nation) {
+int ai_contact_try_village_meet(
+  ColonizeTurnContext* ctx,
+  int euro_nation,
+  int indian_nation,
+  int is_missionary,
+  int is_capital
+) {
   if (!ctx || !ctx->col1_ok || !ctx->col1 || euro_nation < 0 || euro_nation > 3) {
     return 0;
   }
@@ -710,7 +727,7 @@ int ai_contact_try_village_meet(ColonizeTurnContext* ctx, int euro_nation, int i
       ai_contact_welcome_pending(ctx->ai_popups, euro_nation, indian_nation)) {
     return 0;
   }
-  ai_contact_enqueue_village_meet(ctx, euro_nation, indian_nation);
+  ai_contact_enqueue_village_meet(ctx, euro_nation, indian_nation, is_missionary, is_capital);
   return 1;
 }
 
@@ -944,7 +961,9 @@ int ai_contact_try_ship_village(ColonizeTurnContext* ctx, int euro_nation, int x
     mid_wary = 1;
   }
 
-  if (ai_contact_try_village_meet(ctx, euro_nation, indian_nation)) {
+  /* Ship contact never carries a Missionary; capital status is real
+   * (the specific village record was already resolved above). */
+  if (ai_contact_try_village_meet(ctx, euro_nation, indian_nation, 0, tribe->state.capital)) {
     return 1;
   }
   if (!mid_wary) {
@@ -1608,7 +1627,9 @@ static uint32_t ai_contact_incite_price(
   const ColonizeCol1Indian* ind,
   int nation_id,
   int inciter,
-  int target
+  int target,
+  int is_missionary,
+  int is_capital
 ) {
   if (!ctx || !ctx->col1_ok || !ctx->col1 || !ind || nation_id < 4 || nation_id > 11) {
     return 500u;
@@ -1726,6 +1747,22 @@ static uint32_t ai_contact_incite_price(
     }
   }
   price -= discount;
+  /*
+   * Two more flat DOS discounts, wired 2026-08-14 (captured at popup-offer
+   * time as booleans, not re-derived at apply time — same discipline as
+   * ai_king_merc's offer-time landing capture, avoids needing a live unit
+   * id or specific village index to survive the async CHOICE round-trip):
+   * -1500 if the unit performing Incite is a Missionary
+   * (UNITS_JOB_MISSIONARY, DOS unit-state byte 0x18 — a real, already-named
+   * Linux constant); -500 if the specific village visited is the tribe
+   * capital (DOS CUR_TRIBE_PTR state+3&4, ColonizeCol1Tribe.state.capital).
+   */
+  if (is_missionary) {
+    price -= 1500;
+  }
+  if (is_capital) {
+    price -= 500;
+  }
   if (price < 500) {
     price = 500;
   }
@@ -1741,7 +1778,9 @@ static uint32_t ai_contact_incite_price(
 static int ai_contact_enqueue_incite_target_choice(
   ColonizeTurnContext* ctx,
   int e,
-  int nation_id
+  int nation_id,
+  int is_missionary,
+  int is_capital
 ) {
   if (!ctx || !ctx->ai_popups || !ctx->col1_ok || !ctx->col1 || e < 0 || e > 3) {
     return 0;
@@ -1760,7 +1799,8 @@ static int ai_contact_enqueue_incite_target_choice(
     if (target == e) {
       continue;
     }
-    const uint32_t price = ai_contact_incite_price(ctx, ind, nation_id, e, target);
+    const uint32_t price =
+      ai_contact_incite_price(ctx, ind, nation_id, e, target, is_missionary, is_capital);
     if (gold < price) {
       continue;
     }
@@ -1787,12 +1827,15 @@ static int ai_contact_enqueue_incite_target_choice(
     "The %s tribe is ready to go on the warpath. Whom would you like us to attack?",
     ai_contact_tribe_name(nation_id)
   );
+  /* Carry the offer-time-captured discount flags through to apply time
+   * (bit0=is_missionary, bit1=is_capital) — see ai_contact_incite_price. */
+  const int payload = (is_missionary ? 1 : 0) | (is_capital ? 2 : 0);
   return ai_popup_enqueue_choice_ctx(
            ctx->ai_popups,
            AI_POPUP_TAG_CONTACT_INCITE,
            e,
            nation_id,
-           0,
+           payload,
            title,
            body,
            labels,
@@ -1817,13 +1860,16 @@ static void ai_contact_apply_incite(
   ColonizeCol1Indian* ind,
   int nation_id,
   int e,
-  int target
+  int target,
+  int is_missionary,
+  int is_capital
 ) {
   if (!ctx || !ctx->col1_ok || !ctx->col1 || !ind || e < 0 || e > 3 ||
       target < 0 || target > 3 || target == e) {
     return;
   }
-  const uint32_t price = ai_contact_incite_price(ctx, ind, nation_id, e, target);
+  const uint32_t price =
+    ai_contact_incite_price(ctx, ind, nation_id, e, target, is_missionary, is_capital);
   ColonizeCol1Nation* nat = &ctx->col1->nation[e];
   if (nat->gold < price) {
     char refuse_fb[AI_POPUP_BODY_LEN];
@@ -5370,7 +5416,14 @@ void ai_contact_apply_popup_result(ColonizeTurnContext* ctx, const AiPopupState*
    * the target Euro nation (0-3), set by ai_contact_enqueue_incite_target_choice.
    */
   if (popup->result_tag == AI_POPUP_TAG_CONTACT_INCITE) {
-    ai_contact_apply_incite(ctx, ind, nation_id, e, popup->result_choice_id);
+    /* Unpack the offer-time discount flags packed by
+     * ai_contact_enqueue_incite_target_choice (bit0=is_missionary,
+     * bit1=is_capital). */
+    const int is_missionary = popup->result_payload & 1;
+    const int is_capital = (popup->result_payload >> 1) & 1;
+    ai_contact_apply_incite(
+      ctx, ind, nation_id, e, popup->result_choice_id, is_missionary, is_capital
+    );
     return;
   }
 
@@ -5512,12 +5565,17 @@ void ai_contact_apply_popup_result(ColonizeTurnContext* ctx, const AiPopupState*
     /* Follow-up OK from teach_skill human chrome (FUN_5bfb_022e teach arm). */
     ai_contact_teach_skill(ctx, nation_id);
     break;
-  case AI_CONTACT_CHOICE_INCITE:
+  case AI_CONTACT_CHOICE_INCITE: {
     /*
      * FUN_4d56_417e Mode 1: show the "whom would you like us to attack"
      * target-nation CHOICE. No affordable/eligible target → refuse OK.
+     * Re-unpack the same is_missionary/is_capital bits the Meet CHOICE
+     * itself was enqueued with (ai_contact_enqueue_village_meet) and carry
+     * them into the target-choice's own payload.
      */
-    if (!ai_contact_enqueue_incite_target_choice(ctx, e, nation_id)) {
+    const int is_missionary = popup->result_payload & 1;
+    const int is_capital = (popup->result_payload >> 1) & 1;
+    if (!ai_contact_enqueue_incite_target_choice(ctx, e, nation_id, is_missionary, is_capital)) {
       char refuse_fb[AI_POPUP_BODY_LEN];
       snprintf(
         refuse_fb,
@@ -5530,6 +5588,7 @@ void ai_contact_apply_popup_result(ColonizeTurnContext* ctx, const AiPopupState*
       );
     }
     break;
+  }
   default:
     break;
   }
