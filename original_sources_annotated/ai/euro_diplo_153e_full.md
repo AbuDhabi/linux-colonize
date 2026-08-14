@@ -120,16 +120,22 @@ cross-checked which one actually fires when in the real DOS turn order.
   - `FUN_5bfb_153e` is called from `FUN_5bfb_3180` — a **genuinely
     unmapped** function (not in `euro_diplo.md` at all), itself also
     flagged in this pass's gap sweep (a further 1.6KB gap right after it).
-    Its call site writes a **new, previously unseen unit field,
-    `unit+0x314f`** right before invoking `153e` — worth naming if anyone
-    picks this thread back up. `153e` really is the deep war-declare
-    trigger, reached through a distinct, uncharted caller — not a
-    duplicate/alternate path to what `10ec` already covers.
+    Its call site writes `unit+0x314f` right before invoking `153e`.
+    **Fully mapped in a later same-day pass**: `3180` is the adjacent-unit
+    encounter resolver — naval ambush roll + Euro/Euro (`153e`) vs
+    Euro/Indian (already-ported `022e`) vs Indian/Indian diplomatic
+    dispatch by nation-pair type. See
+    [`euro_diplo_3180_full.md`](euro_diplo_3180_full.md). `153e` really is
+    the deep war-declare trigger, fired on physical adjacency — not a
+    duplicate/alternate path to what `10ec` already covers, and not a
+    periodic turn-based check either (that assumption would have been
+    wrong if left unchecked).
   
-  Chased one level further than planned given how cheap the fix was (a
-  grep pattern miss, not a real investigation) — stopping here rather than
-  also mapping `3180`, which would be starting a fourth `0a60`-scale thread
-  in one sitting.
+  Chased one level further than originally planned that same pass (a grep
+  pattern miss, not a real investigation) — a later pass then went ahead
+  and mapped `3180` in full anyway, since at 239 lines it turned out much
+  smaller than `153e`/`0a60`, not the fourth big thread it looked like at
+  first glance.
 - **Not ported.**
 
 **Real next step if resumed**: this deserves the same phase-by-phase

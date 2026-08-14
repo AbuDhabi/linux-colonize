@@ -221,6 +221,7 @@ entry — goals ≈ `0a60` + `5d04`; scoring ≈ `20e6`; act ≈ `5b66`.
 | `FUN_5bfb_10ec` | ~63 | War/ally eligibility | `ai_diplo_euro_balance` | **partial** |
 | `FUN_5bfb_13b0` | ~61 | Form/break alliance | `form_alliance` / `break_alliance` | **partial** |
 | `FUN_5bfb_153e` | ~1112 | Large war-declare body | thin sting + structural deepen (**Done** unpark #5); deep body PARKED | **partial** |
+| `FUN_5bfb_3180` | 239 | Adjacent-unit encounter resolver (ambush + diplo dispatch) | naval ambush sub-mechanic **Done** (`ai_euro_naval_try_ambush`); diplo-dispatch branches PARKED | **partial** |
 | `FUN_4cc6_00f2` | — | Indian relation delta | `ai_diplo_indian_relation_delta` | **partial** |
 
 Thin map: [`euro_diplo.md`](../original_sources_annotated/ai/euro_diplo.md).

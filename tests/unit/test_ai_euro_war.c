@@ -9956,6 +9956,137 @@ static int unit_frigate_war_transport_threatened(void) {
   return 0;
 }
 
+/*
+ * FUN_5bfb_3180 naval ambush (thin, non-destructive): a Frigate ending its
+ * turn adjacent to a foreign Man-O-War, at peace (not war — DOS fires this
+ * regardless of war state), may lose moves to a surprise encounter. Seeded
+ * RNG so the outcome is deterministic; asserts moves_left is either
+ * unchanged (no ambush) or reduced by exactly the Frigate's type drain (6),
+ * proving the mechanic ran and picked one of its two real outcomes rather
+ * than silently no-op'ing or corrupting state.
+ */
+static int unit_naval_ambush(void) {
+  const int nation = 1;
+  const int foe_nat = 2;
+  const int own_x = 5;
+  const int own_y = 5;
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 16;
+  map.height = 16;
+  map.tile_count = 256;
+  map.terrain = calloc(256, 1);
+  map.layer2 = calloc(256, 1);
+  map.layer3 = calloc(256, 1);
+  if (!map.terrain || !map.layer2 || !map.layer3) {
+    return fail("naval-ambush alloc map");
+  }
+  for (int i = 0; i < 256; ++i) {
+    map.terrain[i] = 25; /* ocean */
+  }
+
+  ColonizeUnitPool units;
+  units_reset(&units);
+  units.type_count = 2;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Frigate");
+  units.types[0].movement = 5;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  units.types[0].attack = 5;
+  units.types[0].defense = 5;
+  snprintf(units.types[1].name, sizeof(units.types[1].name), "Man-O-War");
+  units.types[1].movement = 5;
+  units.types[1].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  units.types[1].attack = 8;
+  units.types[1].defense = 8;
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+
+  const int own_id = units_spawn(&units, 0, own_x, own_y);
+  ColonizeUnit* own = units_get(&units, own_id);
+  if (!own) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("naval-ambush spawn own");
+  }
+  own->nation_id = nation;
+  own->orders = 0;
+  own->moves_left = 5;
+
+  const int foe_id = units_spawn(&units, 1, own_x, own_y - 1);
+  ColonizeUnit* foe = units_get(&units, foe_id);
+  if (!foe) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("naval-ambush spawn foe");
+  }
+  foe->nation_id = foe_nat;
+  foe->orders = 0;
+  foe->moves_left = 0;
+
+  ColonizeCol1Save col1;
+  col1_save_init(&col1);
+  memset(col1.nation, 0, sizeof(col1.nation));
+  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
+  for (int i = 0; i < 4; ++i) {
+    col1.player[i].control = 0;
+    col1.player[i].diplomacy = 0;
+  }
+  col1.head.difficulty = 0;
+  col1.nation[nation].gold = 50;
+  col1.nation[foe_nat].gold = 50;
+  /* Deliberately at peace — DOS ambush fires regardless of war state. */
+
+  ColonizeDosRng rng;
+  dos_rng_seed(&rng, 7);
+
+  ai_goals_reset();
+
+  uint32_t turn = 42;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.turn_number = &turn;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.map = &map;
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.rng = &rng;
+  ctx.rng_seed = 7;
+
+  ai_euro_dispatcher_turn(&ctx, nation);
+
+  own = units_get(&units, own_id);
+  foe = units_get(&units, foe_id);
+  const int own_alive = own && own->active;
+  const int foe_alive = foe && foe->active;
+  const int moves_after = own_alive ? own->moves_left : -1;
+  const int ok = own_alive && foe_alive &&
+                 (moves_after == 5 /* no ambush this roll */ ||
+                  moves_after == 0 /* ambushed: drain 6 > moves_left 5, floored at 0 */);
+
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  if (!ok) {
+    fprintf(
+      stderr,
+      "unit_ai_euro_war: naval ambush moves_after=%d own_alive=%d foe_alive=%d\n",
+      moves_after,
+      own_alive,
+      foe_alive
+    );
+    return fail("expected naval ambush to either no-op or drain exactly the Frigate amount");
+  }
+  fprintf(
+    stderr, "unit_ai_euro_war: naval ambush ok (moves 5->%d, no combat, no war)\n", moves_after
+  );
+  return 0;
+}
+
 int main(void) {
   if (unit_mid_hire_mil() != 0) {
     return 1;
@@ -10132,6 +10263,9 @@ int main(void) {
     return 1;
   }
   if (unit_naval_adjacent_foe_prefer_weak() != 0) {
+    return 1;
+  }
+  if (unit_naval_ambush() != 0) {
     return 1;
   }
   if (unit_naval_adjacent_foe_prefer_loaded() != 0) {

@@ -239,6 +239,20 @@ assumed from the corrupted export's line numbers), then checking that.
 | Missionary `0x4c` | Thin mission contact | Full `2a1f_059c` dir + tribe gate |
 | Debug `077e` | — | Ignore (AI debug overlay) |
 
+**2026-08-14 investigation note (missionary `0x4c` gate, still correctly
+PARKED — do not re-open expecting a small fix):** the `0x4c`-write gate
+(decomp ~line 421 of the full-function recovery) reads through
+`*(int*)0x8d4a` — traced this pointer and it is **not** a small per-nation
+cache like `ai_goals`' found-tile slots. It's a large shared scratch
+struct with at least a dozen distinct byte/word/int fields (offsets 0, 1,
+3 [bitflags: bit1/2/4/8 all independently tested], 4, 5 [+ a nation-id tag
+in its low nibble], 7, 8, and a `+10` int array indexed by nation), written
+from dozens of call sites spread across `viceroy_overlays.c` lines
+~77000–83000 — comparable in scope to the explore-ring matrix itself, not
+a bounded single-purpose helper. Resolving the missionary gate for real
+means resolving that whole struct first. Correctly stays parked with the
+explore-ring matrix rather than attempted piecemeal.
+
 ## Related LAB exits (after this band)
 
 | LAB | Lines (approx) | Next |

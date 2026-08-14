@@ -9808,6 +9808,107 @@ static int ai_euro_naval_foe_toughness(
   return tough > 0 ? tough : 0;
 }
 
+/*
+ * FUN_5bfb_312e (naval ambush power — speed/maneuverability, not combat
+ * strength): movement points ×3-scaled (DOS internal unit-type table
+ * convention; Linux `movement` is the real, non-scaled value) + 3, ×2 for
+ * Man-O-War, +3 for Frigate, −4×cargo held, floor 1. Cite:
+ * euro_diplo_3180_full.md.
+ */
+static int ai_euro_naval_ambush_power(ColonizeTurnContext* ctx, const ColonizeUnit* u) {
+  if (!ctx || !ctx->units || !u) {
+    return 1;
+  }
+  const ColonizeUnitType* t = units_type(ctx->units, u->type_index);
+  if (!t) {
+    return 1;
+  }
+  const char* name = units_display_name(ctx->units, u);
+  int power = t->movement * 3 + 3;
+  if (ai_euro_type_is_man_o_war_name(name)) {
+    power *= 2;
+  } else if (name && strstr(name, "Frigate") != NULL) {
+    power += 3;
+  }
+  power -= 4 * u->cargo_count;
+  return power < 1 ? 1 : power;
+}
+
+/*
+ * FUN_5bfb_3180 naval ambush (thin — the surrounding encounter/war-declare
+ * dispatch is PARKED, see euro_diplo_3180_full.md; this ports only the
+ * self-contained, non-destructive ambush sub-mechanic). Own type must be
+ * Man-O-War/Frigate/Privateer (DOS gate on the *encountering* unit, not
+ * the foe); scans 8 neighbors for the first foreign-nation ship; rolls
+ * `dos_rng_range(1, self_power + foe_power + 2)` — if the roll exceeds
+ * self_power, this unit got ambushed and loses `moves_left` down to the
+ * ambush-power amount (DOS adds to a "spent" counter; Linux tracks moves
+ * as a countdown, so the faithful mirror is draining `moves_left` by the
+ * same amount, floored at 0). No combat/damage — matches DOS exactly
+ * (unit+0x3149 MP-spend byte, not a health/strength field).
+ * Approximated: DOS's exact RNG call (`FUN_281f_04d4`) and the partial-
+ * drain-on-tie case (`local_2c >> 1`) are not reproduced byte-for-byte —
+ * tie rounds down to "no ambush" here instead of a half-drain.
+ */
+static void ai_euro_naval_try_ambush(ColonizeTurnContext* ctx, ColonizeUnit* u) {
+  if (!ctx || !ctx->units || !ctx->map || !u || !u->active || u->moves_left <= 0) {
+    return;
+  }
+  if (!units_is_sea(ctx->units, u->id)) {
+    return;
+  }
+  const char* uname = units_display_name(ctx->units, u);
+  if (!uname || (!ai_euro_type_is_man_o_war_name(uname) &&
+                 strstr(uname, "Frigate") == NULL && strstr(uname, "Privateer") == NULL)) {
+    return;
+  }
+  static const int dx[8] = {0, 1, 1, 1, 0, -1, -1, -1};
+  static const int dy[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
+  int foe_id = -1;
+  for (int d = 0; d < 8 && foe_id < 0; ++d) {
+    const int nx = u->x + dx[d];
+    const int ny = u->y + dy[d];
+    const int fid = units_id_at(ctx->units, nx, ny);
+    if (fid < 0 || fid == u->id) {
+      continue;
+    }
+    const ColonizeUnit* f = units_get_const(ctx->units, fid);
+    if (!f || !f->active || f->nation_id == u->nation_id || !units_is_sea(ctx->units, fid)) {
+      continue;
+    }
+    foe_id = fid;
+  }
+  if (foe_id < 0) {
+    return;
+  }
+  const ColonizeUnit* foe = units_get_const(ctx->units, foe_id);
+  const int self_power = ai_euro_naval_ambush_power(ctx, u);
+  const int foe_power = ai_euro_naval_ambush_power(ctx, foe);
+  if (!ctx->rng) {
+    return;
+  }
+  const int roll = dos_rng_range(ctx->rng, 1, self_power + foe_power + 2);
+  if (roll <= self_power) {
+    return; /* no ambush */
+  }
+  /* Drain amount is the type-based constant (4/6/8), not the roll/power —
+   * DOS's `local_2c`, set once by the own-type gate above, separate from
+   * `local_6`/self_power used only for the roll comparison. */
+  int type_drain = 4;
+  if (ai_euro_type_is_man_o_war_name(uname)) {
+    type_drain = 4;
+  } else if (strstr(uname, "Frigate") != NULL) {
+    type_drain = 6;
+  } else {
+    type_drain = 8; /* Privateer */
+  }
+  const int drain = type_drain < u->moves_left ? type_drain : u->moves_left;
+  u->moves_left -= drain;
+  if (u->moves_left < 0) {
+    u->moves_left = 0;
+  }
+}
+
 /* Combat ships for Frigate hunt prefer (complement Privateer cargo prey). */
 static int ai_euro_is_warship_name(const char* name) {
   if (!name || ai_euro_is_cargo_ship_name(name)) {
@@ -12078,6 +12179,17 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
           !(u->goto_x == fx && u->goto_y == fy)) {
         ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, u->x, u->y);
       }
+    }
+    /*
+     * Naval ambush (thin FUN_5bfb_3180 — see euro_diplo_3180_full.md): a
+     * warship ending its turn adjacent to a foreign ship may lose remaining
+     * moves to a surprise encounter, regardless of war state. Non-
+     * destructive (no combat), same as DOS. Must run here, inside the
+     * is_ship block — every ship path returns above the land-only tail
+     * below, so a ship never reaches it.
+     */
+    if (u && u->active) {
+      ai_euro_naval_try_ambush(ctx, u);
     }
     return;
   }
