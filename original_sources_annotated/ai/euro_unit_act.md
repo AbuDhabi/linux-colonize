@@ -92,19 +92,29 @@ tile, increment a per-unit "turns worked" counter (`unit+0x315a`) against
 a terrain-indexed threshold table at `DS:0x2f78` (stride `0x10` — this is
 the *same* table `§2d8` below already names for the `improve_timer`
 stand-in, just the "+2" byte of it; the other 15 bytes/terrain-class are
-still unmapped), halved when `unit+0x315b` (profession) `== 0x14` (not
-independently identified — sibling profession codes `0x15/0x18/0x19/
-0x1a/0x1b/0x1c` are named elsewhere for other skills, so `0x14` is
-plausibly Hardy Pioneer, not confirmed). Once the counter hits the
+still unmapped), halved when `unit+0x315b` (profession) `== 0x14` — confirmed
+`UNITS_JOB_PIONEER` (`units.h:963`, "Hardy Pioneers"), independently
+cross-checked multiple times elsewhere this session (e.g. the `1eca`
+Continental-promote Veteran gate). Once the counter hits the
 threshold: orders clear, and — gated on live colony count
 (`DS:0x539e`) and the unit's nation matching the bound colony's owner —
 a reward lands: case 9 is a flat `+10` to that colony's
 `hammers_purchased` (`col1_save.h`'s `+0x98` field, already named, matches
 `§2d13` below); case 8 is a scaled reward from a paired terrain table at
-`DS:0x2f80` (stride `0x10`, offset +8 from the case-9 table), gated by a
-founding-father check (`FUN_281f_09fc(0x24)`, FF id `0x24` not yet named)
-and a per-colony "last granted" turn stamp at colony-record `+0xa4` (not
-in `col1_save.h` yet), credited via a 32-bit gold-add helper.
+`DS:0x2f80` (stride `0x10`, offset +8 from the case-9 table), gated by
+**`FUN_281f_09fc(0x24)`, resolved 2026-08-14 — this is not a founding-
+father check at all** (the doc's earlier guess was wrong; its own
+catalog entry already said "test building bit," just never cross-checked
+against a real building id). `FUN_15eb_038e`/`035e` test `has_building`
+at a numeric index into the same array `NAMES.TXT`'s `@BUILDING` section
+populates in file order (confirmed against `colony.c`'s own loader,
+`pool->building_types[pool->building_type_count++]`) — index `0x24`
+(36, 0-based) is **Lumber Mill**. Real mechanic: a Pioneer finishing a
+terrain-clear/plow/road job earns a bonus (scaled by which terrain was
+cleared) only when the colony has a Lumber Mill — sensible (Lumber Mill
+processes the lumber a forest-clear yields). Gated by a per-colony "last
+granted" turn stamp at colony-record `+0xa4` (not in `col1_save.h` yet),
+credited via a 32-bit gold-add helper.
 
 **Case 7 is FOUND COLONY, not "Europe hire" — correcting my own guess from
 last pass (traced `FUN_291f_09b2` this pass, it's not a hire-pick body).**
@@ -160,9 +170,10 @@ to trust either — not attempted this pass; this is real "OPEN (unpark
 
 **Not yet mapped, flagged for a follow-up**: the full 16-byte-per-terrain-
 class content of `DS:0x2f78`/`0x2f80` (only offset +2 named so far);
-`FUN_281f_09fc(0x24)`'s founding-father identity; colony-record `+0xa4`;
-`FUN_4720_049e`/`FUN_6662_0f74` (case `0xb` move drivers, corrupted,
-needs fresh recovery).
+colony-record `+0xa4`; `FUN_4720_049e`/`FUN_6662_0f74` (case `0xb` move
+drivers, corrupted, needs fresh recovery). (`FUN_281f_09fc(0x24)` itself
+is resolved — Lumber Mill building check, not a founding father, see
+above.)
 
 **2026-08-14, same day — checked cases 8/9 against Linux's existing
 Pioneer plow/road port (`units_pioneer_work_tick` in `units.c`), found
