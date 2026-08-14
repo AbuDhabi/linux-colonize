@@ -3564,7 +3564,27 @@ static int ai_contact_2820_ai_buy_price(
   const int r = dos_rng_range(rng, 1, 5);
   int base = 7; /* cargo_type 0xd (13) > 8 */
   base -= dos_rng_range(rng, 0, 7); /* 0xd special case */
-  int relation_component = (relation >> 2) << 1; /* approximated FUN_1000_8c50 */
+  /*
+   * FUN_1000_8c50 resolved byte-exact 2026-08-14 (was an unverified
+   * bit-shift approximation): thunk to FUN_15dc_00a2, a plain quartile
+   * bucketer on a 0-100 DOS-native scale (<25->0, <50->1, <75->2, else 3
+   * — viceroy_unpacked.c:9271-9284). `relation` here is
+   * ai_diplo_indian_relation's 0-255 Linux scale, so rescale first
+   * (same 0-255->0-100 convention used throughout this project, e.g.
+   * indian_incite_417e.md's price formula).
+   */
+  const int relation_100 = relation * 100 / 255;
+  int quartile;
+  if (relation_100 < 25) {
+    quartile = 0;
+  } else if (relation_100 < 50) {
+    quartile = 1;
+  } else if (relation_100 < 75) {
+    quartile = 2;
+  } else {
+    quartile = 3;
+  }
+  int relation_component = quartile << 1;
   if (ask_cargo > 19) {
     relation_component >>= 1;
   }

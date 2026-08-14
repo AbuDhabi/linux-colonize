@@ -786,7 +786,18 @@ yet located from this pass).
 
 ## Open RE
 
-- `FUN_1000_8c50` (relation → price-discount shape) not yet traced
+- ~~`FUN_1000_8c50` (relation → price-discount shape) not yet traced~~
+  **Resolved 2026-08-14**: thunk → `FUN_15dc_00a2`, a plain quartile
+  bucketer on a 0-100 DOS-native scale (`<25→0, <50→1, <75→2, else 3`,
+  `viceroy_unpacked.c:9271-9284`), already independently catalogued
+  ("Bucket integer into quartile 0..3"). **Wired into
+  `ai_contact_2820_ai_buy_price`** (`ai_contact.c`), replacing an
+  unverified `(relation>>2)<<1` bit-shift approximation that was also
+  missing the 0-255→0-100 rescale entirely (operated on
+  `ai_diplo_indian_relation`'s raw 0-255 Linux scale with no conversion —
+  a real magnitude bug, not just an approximation, now fixed). `ctest`
+  42/43 unchanged (only the known pre-existing unrelated failure), all
+  goldens green.
 - Human `CHOICE`-dialog buy-offer path (`LAB_002e92`) price formula — same
   general shape, different RNG/UI gating, not traced this pass
 - Where the Indian side's own bookkeeping (production counters at
