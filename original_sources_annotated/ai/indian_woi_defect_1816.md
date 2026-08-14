@@ -115,9 +115,24 @@ prelude — matches DOS phase order). New Linux-side pieces:
 - Approximated, as flagged above: the windfall's tech source uses
   `ind->tech` (this nation's own tech field) rather than DOS's
   `DS:0x8d52`-selected tribe-tech lookup (same conceptual quantity, exact
-  equivalence not proven); the `FUN_2a1f_0398` "mission clear" side-effect
-  and DOS's exact status wording are not reproduced — Linux invents its
-  own status line instead.
+  equivalence not proven); DOS's exact status wording is not reproduced —
+  Linux invents its own.
+- **`FUN_2a1f_0398` "mission clear" side-effect — wired 2026-08-14**, same
+  day, once its target (`FUN_4cc6_0000`) was fully read (`viceroy_unpacked.c:
+  80774-80802`, clean/uncorrupted). Byte-exact: `param_1` at the call site
+  is the defecting tribe's own *type* (0-7), and the DOS condition
+  `tribe.nation_id == param_1+4` collapses to exactly this tribe's own
+  `nation_id` — i.e. **every village of this same Indian nation currently
+  hosting a mission from the declaring (human) side loses it** when one of
+  its villages defects, using the identical `col1->tribe[]` 18-byte-stride
+  `+2`=`nation_id`/`+5`=`mission` fields the Incite discount loop
+  (`indian_incite_417e.md`) already established this same day. DOS then
+  shows the human an informational popup (string id `0x14c8`, exact
+  wording unrecoverable without a live capture — same "invent our own
+  text" gap as the rest of this mechanic) only when something was actually
+  cleared; folded into the existing status line instead of a separate
+  popup. Test: `test_ai_contact.c`'s WoI sweep re-arms a same-tribe human
+  mission each iteration and asserts it's cleared on a defect hit.
 
 **Real bug caught during testing, not a naval-ambush-style placement bug
 this time — a test-harness bug.** First test sweep reseeded the RNG with

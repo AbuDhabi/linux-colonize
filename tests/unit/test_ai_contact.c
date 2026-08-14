@@ -5054,6 +5054,7 @@ int main(void) {
     dos_rng_seed(&woi_rng, 100u);
     int saw_defect = 0;
     int saw_no_defect = 0;
+    int saw_mission_cleared = 0;
     for (int i = 0; i < 60 && !(saw_defect && saw_no_defect); ++i) {
       memset(ind, 0, sizeof(*ind));
       ind->tech = 15;
@@ -5064,8 +5065,21 @@ int main(void) {
       col1.nation[0].relation_by_indian[0] = 80;
       col1.nation[1].relation_by_indian[0] = 50; /* crown fold for human=0 */
       status_woi[0] = '\0';
+      /*
+       * "Mission clear" side-effect (FUN_2a1f_0398 / FUN_4cc6_0000, wired
+       * 2026-08-14 — see indian_woi_defect_1816.md): a village of this same
+       * tribe hosting a human (rebel) mission should lose it on a defect
+       * hit. Re-armed each iteration since a hit clears it to "none".
+       */
+      col1.tribe[0].nation_id = 4;
+      col1.tribe[0].mission = 0; /* human (English) mission */
       ai_contact_indian_woi_defect(&ctx, 4);
       if (ind->woi_defect_resolved) {
+        if (col1.tribe[0].mission == COL1_TRIBE_MISSION_NONE) {
+          saw_mission_cleared = 1;
+        } else {
+          return fail("WoI defect hit should clear this tribe's human missions");
+        }
         if (col1.nation[0].relation_by_indian[0] != 180) {
           return fail("WoI defect hit should add +100 relation vs human");
         }
@@ -5107,6 +5121,9 @@ int main(void) {
     }
     if (!saw_no_defect) {
       return fail("WoI defect should miss at least once over the RNG stream sweep");
+    }
+    if (!saw_mission_cleared) {
+      return fail("WoI defect should clear a human mission on the same tribe at least once");
     }
     fprintf(
       stderr, "unit_ai_contact: WoI tribe defection ok (hit and miss both reachable)\n"
