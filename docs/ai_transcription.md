@@ -220,7 +220,7 @@ entry — goals ≈ `0a60` + `5d04`; scoring ≈ `20e6`; act ≈ `5b66`.
 | `FUN_15b3_0066` / `00d0` | small | OR/clear both directions | `ai_diplo_or_both` / `clear_both` | **partial** |
 | `FUN_5bfb_10ec` | ~63 | War/ally eligibility | `ai_diplo_euro_balance` | **partial** |
 | `FUN_5bfb_13b0` | ~61 | Form/break alliance | `form_alliance` / `break_alliance` | **partial** |
-| `FUN_5bfb_153e` | ~1112 | Large war-declare body | thin sting + structural deepen (**Done** unpark #5); deep body's "commit + flavor text" phase (majority of the function) confirmed blocked 2026-08-14 — its 5 local helpers are the same unrecoverable-string-blocked village-attitude mechanic as `022e`/`2820`/`4528` (see `euro_diplo_153e_full.md`); worthiness-score phase + the actual war-flag state flip still genuinely open, not yet located | **partial** |
+| `FUN_5bfb_153e` | ~1112 | Large war-declare body | thin sting + structural deepen (**Done** unpark #5); deep body's outcome dispatch resolved 2026-08-14 to a resident jump table routing into 10 already-known `FUN_5bfb_*` functions (102a/1092/0182 dialogs, 312e/0000 score, 13b0 alliance, 10ec eligibility, 022e Indian contact — most already **Done**; only `12d0` unresolved, already tracked); worthiness-score phase + which selector picks the table index still genuinely open (see `euro_diplo_153e_full.md`, includes a retraction of an earlier same-day false lead) | **partial** |
 | `FUN_5bfb_3180` | 239 | Adjacent-unit encounter resolver (ambush + diplo dispatch) | naval ambush sub-mechanic **Done** (`ai_euro_naval_try_ambush`); diplo-dispatch branches PARKED | **partial** |
 | `FUN_4cc6_00f2` | — | Indian relation delta | `ai_diplo_indian_relation_delta` | **partial** |
 
