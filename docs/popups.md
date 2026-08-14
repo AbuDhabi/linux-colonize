@@ -636,18 +636,18 @@ work.
 | `@RIDUSA` | Partial | FA / diplo lines — thin DIPLO_FA or status; full 3f41 PARKED |
 | `@WORTHY` | Partial | FA / diplo lines — thin DIPLO_FA or status; full 3f41 PARKED |
 | `@GIVECASH` | Partial | FA / diplo lines — thin DIPLO_FA or status; full 3f41 PARKED |
-| `@PEACEMANLY` | Partial | FA / diplo lines — thin DIPLO_FA or status; full 3f41 PARKED |
-| `@PEACEMEEK` | Partial | FA / diplo lines — thin DIPLO_FA or status; full 3f41 PARKED |
-| `@OLDPEACEMEEK` | Partial | FA / diplo lines — thin DIPLO_FA or status; full 3f41 PARKED |
-| `@OLDPEACEMANLY` | Partial | FA / diplo lines — thin DIPLO_FA or status; full 3f41 PARKED |
-| `@PEACEUSA` | Partial | FA / diplo lines — thin DIPLO_FA or status; full 3f41 PARKED |
-| `@NOTWITHDRAW` | Partial | FA / diplo lines — thin DIPLO_FA or status; full 3f41 PARKED |
-| `@WITHDRAW` | Partial | FA / diplo lines — thin DIPLO_FA or status; full 3f41 PARKED |
-| `@NOTHINGWITHDRAW` | Partial | FA / diplo lines — thin DIPLO_FA or status; full 3f41 PARKED |
-| `@MAYBEWITHDRAW` | Partial | FA / diplo lines — thin DIPLO_FA or status; full 3f41 PARKED |
-| `@PROVOKE` | Partial | FA / diplo lines — thin DIPLO_FA or status; full 3f41 PARKED |
-| `@WARMEEK` | Partial | FA / diplo lines — thin DIPLO_FA or status; full 3f41 PARKED |
-| `@WARMANLY` | Partial | FA / diplo lines — thin DIPLO_FA or status; full 3f41 PARKED |
+| `@PEACEMANLY` | Not wired | FA negotiation screen — mechanic confirmed via user testimony 2026-08-14, DOS function not yet found (needs `3f41` recovery), see `euro_diplo.md` "FA negotiation screen" |
+| `@PEACEMEEK` | Not wired | same, see `euro_diplo.md` |
+| `@OLDPEACEMEEK` | Not wired | same, see `euro_diplo.md` |
+| `@OLDPEACEMANLY` | Not wired | same, see `euro_diplo.md` |
+| `@PEACEUSA` | Not wired | same, see `euro_diplo.md` |
+| `@NOTWITHDRAW` | Not wired | same, see `euro_diplo.md` |
+| `@WITHDRAW` | Not wired | same, see `euro_diplo.md` |
+| `@NOTHINGWITHDRAW` | Not wired | same, see `euro_diplo.md` |
+| `@MAYBEWITHDRAW` | Not wired | same, see `euro_diplo.md` |
+| `@PROVOKE` | Not wired | same, see `euro_diplo.md` |
+| `@WARMEEK` | Not wired | same, see `euro_diplo.md` |
+| `@WARMANLY` | Not wired | same, see `euro_diplo.md` |
 | `@THREATS` | Partial | FA / diplo lines — thin DIPLO_FA or status; full 3f41 PARKED |
 | `@GIFTS` | Partial | FA / diplo lines — thin DIPLO_FA or status; full 3f41 PARKED |
 | `@MILITARY` | Partial | FA / diplo lines — thin DIPLO_FA or status; full 3f41 PARKED |
