@@ -30,11 +30,12 @@
  *   status/OK lists all bitmap cargo names (presentation; Fugger partial clear).
  *   Cargo freeze: nation.boycott_bitmap. Fugger/diplo bitmap clear → drop
  *   unknown46[2] refuse when bitmap==0 (king sync; do not touch FF).
- * Merc hired/refused this war: head.unknown46[3] + thin 2244 hire
- *   (ai_popup CHOICE Hire/Decline when ctx->ai_popups; auto when NULL) or
- *   "Cannot afford mercenaries." OK once (flag gates spam).
- *   Hire apply/auto success → follow-up OK (same status body).
- *   Decline apply → follow-up OK ("Mercenaries declined."; gate unknown46[3]).
+ * Rebel troop-gift purchase (FUN_43f7_2022 rebel branch, real port
+ *   2026-08-14): recurring per-turn 1-in-3 roll while REF absent or
+ *   Artillery backup pool empty; ai_popup CHOICE Hire/Decline when
+ *   ctx->ai_popups (auto-accept when NULL); unaffordable → silently
+ *   skipped (no DOS status/dialog). No once-per-war flag — head.unknown46[3]
+ *   is unused for this now (was an invented gate, see king_ref.md).
  * 160a rename: player[human].country_name → "United Colonies"
  *   (letter cinematic PARKED — thin rename + KING_LETTER Done).
  *   unknown46[4] endgame latch: 0 none / 1 won / 2 lost.
@@ -98,9 +99,17 @@
  * fixed Tobacco/etc. second refuse bit here.
  * Cite: docs/fandom_col1994.md Boycott; viceroy FUN_38fd_3dc8. */
 #define AI_KING_BOYCOTT_CARGO_BIT (1u << COLONIZE_CARGO_SUGAR)
-/* Thin 2244 Continental merc aid (hire dialog / ai_popup CHOICE). */
+/*
+ * FUN_43f7_2022 rebel-branch self-funded troop-gift purchase — real port
+ * (2026-08-14, replaces an earlier SoL/300-gold invented stand-in; see
+ * king_ref.md "2244/2022 — corrected"). Recurring per-turn 1-in-3 roll
+ * while REF is not present or the Artillery backup pool is empty; price
+ * = (qty_regular+2) * ((difficulty+3)*2 + roll(0,6)) * 100, paid from the
+ * rebel (human) nation's own gold. AI_KING_MERC_COST kept only as the
+ * cannot-afford-path fallback display value, not a real DOS constant.
+ */
 #define AI_KING_MERC_COST 300
-#define AI_KING_MERC_SOL_MIN 50
+#define AI_KING_MERC_ROLL_CHANCE 3 /* 1-in-3 per turn, dos_rng_range(0,2)==0 */
 /*
  * FUN_43f7_2564 / fandom Independence: declare gate when total SoL already
  * past this existing threshold (no invented %). Bells gate stays separate.
@@ -1544,20 +1553,6 @@ static void ai_king_sync_boycott_refuse(ColonizeCol1Save* col1, int human) {
   }
 }
 
-static int ai_king_merc_hired(const ColonizeCol1Save* col1) {
-  if (!col1) {
-    return 0;
-  }
-  return col1->head.unknown46[AI_KING_MERC_HIRED_BYTE] != 0;
-}
-
-static void ai_king_set_merc_hired(ColonizeCol1Save* col1, int on) {
-  if (!col1) {
-    return;
-  }
-  col1->head.unknown46[AI_KING_MERC_HIRED_BYTE] = on ? 1 : 0;
-}
-
 /* Grow REF pools by current tax band (1d42 crumb; no tax_rate change). */
 static void ai_king_grow_ref_from_tax(ColonizeCol1Save* col1, uint8_t tax_rate) {
   if (!col1) {
@@ -2715,49 +2710,90 @@ static void ai_king_foreign_intervene(ColonizeTurnContext* ctx) {
   }
 }
 
-/* Pack offer-time landing into popup payload (hx<<16 | hy). */
-static int ai_king_merc_payload(int hx, int hy) {
-  return ((hx & 0xffff) << 16) | (hy & 0xffff);
+/*
+ * Pack offer-time roll + landing pick into the popup payload:
+ * hx(6b)<<26 | hy(6b)<<20 | qty_a(4b)<<16 | extra_flag(1b)<<15 | price(15b).
+ * Landing coords are captured at OFFER time (not re-derived at apply time)
+ * — same discipline the old fixed-cost hire used ("a same-turn REF capture
+ * cannot void the hire after CHOICE was queued"). Re-deriving via
+ * ai_king_weakest_port at apply time was tried and is NOT harmless: if the
+ * only human colony gets captured in the same beat the offer was rolled
+ * (a real, observed same-turn race in ai_king_war_act's own capture path),
+ * weakest_port returns -1 and the whole accept silently fails. Price fits
+ * 15 bits (max observed (8+2)*((4+3)*2+6)*100 = 20000 < 32768); qty_a fits
+ * 4 bits (range 2-8); hx/hy fit 6 bits each (map width/height ≤ 63 in this
+ * project's fixed 58×72 world).
+ */
+static int ai_king_merc_payload(int hx, int hy, int qty_a, int extra_flag, int price) {
+  return ((hx & 0x3f) << 26) | ((hy & 0x3f) << 20) | ((qty_a & 0xf) << 16) |
+         ((extra_flag & 1) << 15) | (price & 0x7fff);
 }
 
-static void ai_king_merc_payload_xy(int payload, int* out_x, int* out_y) {
-  if (out_x) {
-    *out_x = (payload >> 16) & 0xffff;
+static void ai_king_merc_payload_parts(int payload, int* out_hx, int* out_hy, int* out_qty_a,
+                                       int* out_extra_flag, int* out_price) {
+  if (out_hx) {
+    *out_hx = (payload >> 26) & 0x3f;
   }
-  if (out_y) {
-    *out_y = payload & 0xffff;
+  if (out_hy) {
+    *out_hy = (payload >> 20) & 0x3f;
+  }
+  if (out_qty_a) {
+    *out_qty_a = (payload >> 16) & 0xf;
+  }
+  if (out_extra_flag) {
+    *out_extra_flag = (payload >> 15) & 1;
+  }
+  if (out_price) {
+    *out_price = payload & 0x7fff;
   }
 }
 
 /*
- * FUN_43f7_2244 hire accept: spend, spawn Soldier/Dragoon near (hx,hy),
- * set unknown46[3], hire status. Returns 1 on success.
- * Landing coords come from offer-time weakest port (popup payload) so a
- * same-turn REF capture cannot void the hire after CHOICE was queued.
- * Human queue: success follow-up OK after Hire apply / auto-hire.
+ * FUN_43f7_2022 rebel-branch accept: spend the rolled price, spawn qty_a
+ * Regular + 1 extra (Dragoon or Artillery, per the offer-time coin flip)
+ * at the offer-time landing pick (hx,hy — NOT re-derived here; a same-turn
+ * capture of the only human colony would otherwise silently void an
+ * already-accepted offer, see ai_king_merc_payload's comment). Returns 1
+ * on success (at least the Regular batch landed), 0 if unaffordable or
+ * nothing could spawn. Real DOS type codes for a human-controlled rebel
+ * are FUN_43f7_0082's fixed slot0/1 values (6/8), not independently named
+ * this pass — using the already-established "Regular"/"Dragoon"/
+ * "Artillery" display names (same as ai_king_intervene_one) as a
+ * documented approximation.
  */
-static int ai_king_do_merc_hire_at(ColonizeTurnContext* ctx, int human, int hx, int hy) {
+static int ai_king_do_merc_hire_at(ColonizeTurnContext* ctx, int human, int hx, int hy,
+                                   int qty_a, int extra_flag, int price) {
   if (!ctx || !ctx->col1_ok || !ctx->col1 || !ctx->units || human < 0 || human >= 4) {
     return 0;
   }
-  if (hx < 0 || hy < 0) {
+  if (qty_a < 1 || price < 0 || hx < 0 || hy < 0) {
     return 0;
   }
   ColonizeCol1Nation* nat = &ctx->col1->nation[human];
-  if (nat->gold < AI_KING_MERC_COST) {
+  if (nat->gold < (uint32_t)price) {
     return 0;
   }
-  if (ai_king_spawn_landing(ctx, human, hx, hy, "Soldier", "Dragoon") < 0) {
+  int landed = 0;
+  for (int i = 0; i < qty_a; ++i) {
+    if (ai_king_spawn_landing(ctx, human, hx, hy, "Regular", "Soldier") >= 0) {
+      ++landed;
+    }
+  }
+  if (extra_flag) {
+    (void)ai_king_spawn_landing(ctx, human, hx, hy, "Artillery", NULL);
+  } else {
+    (void)ai_king_spawn_landing(ctx, human, hx, hy, "Dragoon", "Scout");
+  }
+  if (landed == 0) {
     return 0;
   }
-  nat->gold -= (uint32_t)AI_KING_MERC_COST;
+  nat->gold -= (uint32_t)price;
   if (ctx->europe) {
     ctx->europe->gold = (int)nat->gold;
   }
-  ai_king_set_merc_hired(ctx->col1, 1);
   if (ctx->status && ctx->status_size) {
     snprintf(ctx->status, ctx->status_size,
-             "Mercenaries join the Continental cause (−%d gold).", AI_KING_MERC_COST);
+             "Mercenaries join the Continental cause (−%d gold).", price);
   }
   /* GAME.TXT @MERCS arrival OK. */
   if (ai_king_human_popups(ctx)) {
@@ -2772,28 +2808,41 @@ static int ai_king_do_merc_hire_at(ColonizeTurnContext* ctx, int human, int hx, 
     );
     (void)ai_popup_enqueue_ok_ctx(ctx->ai_popups, AI_POPUP_TAG_KING_MERC, human,
                                   ai_king_crown_nation(human),
-                                  ai_king_merc_payload(hx, hy), NULL, body);
+                                  ai_king_merc_payload(hx, hy, qty_a, extra_flag, price), NULL,
+                                  body);
   }
   return 1;
 }
 
-static int ai_king_do_merc_hire(ColonizeTurnContext* ctx, int human) {
-  int hx = 0;
-  int hy = 0;
-  if (ai_king_weakest_port(ctx, human, &hx, &hy) < 0) {
+/*
+ * Linux-invented stand-in, NOT a faithful port of FUN_43f7_2244 or
+ * FUN_43f7_2022 — corrected 2026-08-14, see king_ref.md "2244/2022 —
+ * corrected". Neither DOS function has an SoL/300-gold gate or a
+ * once-per-war human CHOICE; 2022 is a recurring per-turn self-funded
+ * roll (any Euro nation's own treasury, wartime); 2244 is 2022's
+ * peacetime twin for AI nations only, unrelated to a human hire offer.
+ * This function now ports 2022's rebel branch faithfully: recurring
+ * per-turn 1-in-3 roll while REF is absent or the Artillery backup pool
+ * is empty; on a hit, roll quantity/price and offer a CHOICE (or
+ * auto-accept without ai_popups). unknown46[3] is no longer a gate —
+ * DOS has no once-per-war flag here — kept only as a "pending offer
+ * already queued" guard so a re-roll can't stack a second CHOICE while
+ * one is unanswered.
+ */
+static int ai_king_merc_offer_pending(const AiPopupState* st) {
+  if (!st) {
     return 0;
   }
-  return ai_king_do_merc_hire_at(ctx, human, hx, hy);
+  for (int i = 0; i < st->queue_count; ++i) {
+    if (st->queue[i].tag == AI_POPUP_TAG_KING_MERC) {
+      return 1;
+    }
+  }
+  return st->open && st->current.tag == AI_POPUP_TAG_KING_MERC;
 }
 
-/*
- * Thin FUN_43f7_2244 stand-in: once-per-war Continental merc offer when SoL>50.
- * Human + ctx->ai_popups + gold≥300 → CHOICE Hire/Decline (apply_popup_result).
- * Else gold≥300 → auto-hire. gold insufficient → cannot-afford status + OK once.
- * Gate: unknown46[3] — set on hire, decline, or cannot-afford (no spam).
- */
 static void ai_king_merc_offer(ColonizeTurnContext* ctx) {
-  if (!ctx || !ctx->col1_ok || !ctx->col1 || !ctx->units) {
+  if (!ctx || !ctx->col1_ok || !ctx->col1 || !ctx->units || !ctx->rng) {
     return;
   }
   if (!ai_king_independence_declared(ctx->col1)) {
@@ -2803,33 +2852,38 @@ static void ai_king_merc_offer(ColonizeTurnContext* ctx) {
   if (human < 0 || human >= 4) {
     return;
   }
-  /* Once-per-war: flag set after hire / decline / cannot-afford. */
-  if (ai_king_merc_hired(ctx->col1)) {
+  /* Don't stack a second offer while one is already pending a response. */
+  if (ai_king_human_popups(ctx) && ai_king_merc_offer_pending(ctx->ai_popups)) {
     return;
   }
-  if (ai_king_sol_percent(ctx, human) <= AI_KING_MERC_SOL_MIN) {
-    return;
+  const int ref_present = ctx->col1->head.game_options.ref_present != 0;
+  const int artillery_pool = ctx->col1->head.backup_force[3];
+  if (ref_present && artillery_pool != 0) {
+    return; /* free backup-force drain path (ai_king_foreign_intervene) covers this beat */
+  }
+  if (dos_rng_range(ctx->rng, 0, AI_KING_MERC_ROLL_CHANCE - 1) != 0) {
+    return; /* 1-in-3 chance to even attempt this turn */
+  }
+  const int difficulty = ctx->col1->head.difficulty;
+  const int qty_a = dos_rng_range(ctx->rng, 2, ((4 - difficulty) >> 1) + 2);
+  const int extra_flag = dos_rng_range(ctx->rng, 0, 1);
+  const int roll2 = dos_rng_range(ctx->rng, 0, 6);
+  const int price = (qty_a + 2) * ((difficulty + 3) * 2 + roll2) * 100;
+  ColonizeCol1Nation* nat = &ctx->col1->nation[human];
+  if (nat->gold < (uint32_t)price) {
+    return; /* DOS silently skips the offer when unaffordable — no status/dialog */
   }
   int hx = 0;
   int hy = 0;
   if (ai_king_weakest_port(ctx, human, &hx, &hy) < 0) {
     return;
   }
-  ColonizeCol1Nation* nat = &ctx->col1->nation[human];
-  if (nat->gold < AI_KING_MERC_COST) {
-    ai_king_set_merc_hired(ctx->col1, 1);
-    if (ctx->status && ctx->status_size) {
-      snprintf(ctx->status, ctx->status_size, "Cannot afford mercenaries.");
-    }
-    /* Status only — no GAME.TXT "cannot afford" dialog. */
-    return;
-  }
   if (ai_king_human_popups(ctx)) {
     PopupMsgTokens tok;
     memset(&tok, 0, sizeof(tok));
     tok.string0 = "Europe"; /* king nation stand-in */
-    tok.string1 = "Regulars";
-    tok.number0 = AI_KING_MERC_COST;
+    tok.string1 = extra_flag ? "Artillery" : "Dragoons";
+    tok.number0 = price;
     tok.has_number0 = true;
     char body[AI_POPUP_BODY_LEN];
     popup_msg_fill(
@@ -2860,17 +2914,16 @@ static void ai_king_merc_offer(ColonizeTurnContext* ctx) {
     }
     if (ai_popup_enqueue_choice_ctx(ctx->ai_popups, AI_POPUP_TAG_KING_MERC, human,
                                     ai_king_crown_nation(human),
-                                    ai_king_merc_payload(hx, hy), NULL, body,
-                                    labels, ids, 2)) {
+                                    ai_king_merc_payload(hx, hy, qty_a, extra_flag, price), NULL,
+                                    body, labels, ids, 2)) {
       if (ctx->status && ctx->status_size) {
         snprintf(ctx->status, ctx->status_size,
-                 "Mercenaries offer to join the Continental cause (−%d gold).",
-                 AI_KING_MERC_COST);
+                 "Mercenaries offer to join the Continental cause (−%d gold).", price);
       }
       return;
     }
   }
-  (void)ai_king_do_merc_hire_at(ctx, human, hx, hy);
+  (void)ai_king_do_merc_hire_at(ctx, human, hx, hy, qty_a, extra_flag, price);
 }
 
 /*
@@ -4133,26 +4186,21 @@ void ai_king_apply_popup_result(ColonizeTurnContext* ctx, const AiPopupState* po
       ai_king_apply_dump_goods_choice(ctx, human, popup->result_choice_id);
       break;
     case AI_POPUP_TAG_KING_MERC:
-      /* FUN_43f7_2244: Hire → spend/spawn at offer-time port; Decline → gate. */
+      /* FUN_43f7_2022 rebel branch: Hire → spend the rolled price, spawn at
+       * the offer-time landing pick (payload); Decline → status only, no
+       * gate — DOS has no once-per-war flag, next turn may roll again. */
       if (popup->result_choice_id == AI_KING_CHOICE_HIRE) {
         int hx = 0;
         int hy = 0;
-        ai_king_merc_payload_xy(popup->result_payload, &hx, &hy);
-        if (!ai_king_do_merc_hire_at(ctx, human, hx, hy) &&
-            !ai_king_do_merc_hire(ctx, human)) {
-          /* Gold drained or spawn fail — still gate so offer does not loop. */
-          if (ctx->col1_ok && ctx->col1) {
-            ai_king_set_merc_hired(ctx->col1, 1);
-          }
-          if (ctx->status && ctx->status_size) {
-            snprintf(ctx->status, ctx->status_size, "Cannot afford mercenaries.");
-          }
+        int qty_a = 0;
+        int extra_flag = 0;
+        int price = 0;
+        ai_king_merc_payload_parts(popup->result_payload, &hx, &hy, &qty_a, &extra_flag, &price);
+        if (!ai_king_do_merc_hire_at(ctx, human, hx, hy, qty_a, extra_flag, price) &&
+            ctx->status && ctx->status_size) {
+          snprintf(ctx->status, ctx->status_size, "Cannot afford mercenaries.");
         }
       } else if (popup->result_choice_id == AI_KING_CHOICE_DECLINE) {
-        /* FUN_43f7_2244 Decline: gate once/war; status only (no invented OK). */
-        if (ctx->col1_ok && ctx->col1) {
-          ai_king_set_merc_hired(ctx->col1, 1);
-        }
         if (ctx->status && ctx->status_size) {
           snprintf(ctx->status, ctx->status_size, "Mercenaries declined.");
         }

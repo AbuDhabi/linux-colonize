@@ -847,12 +847,19 @@ int main(void) {
     /* Boarded 6 (crown_land≥6); multi-unload ≤moves may empty or shrink hold. */
     (void)mow_hold;
   }
-  /* Thin 1528: successful 0982 spawn writes @INVASION status (VGA PARKED).
-   * Same-turn war_act may overwrite with capture or 2244 cannot-afford. */
+  /*
+   * Thin 1528: successful 0982 spawn writes @INVASION status (VGA PARKED).
+   * Same-turn war_act may overwrite with capture. The rebel troop-gift
+   * purchase (FUN_43f7_2022 rebel branch, ai_king_merc_offer) never fires
+   * in this test — ctx.rng is NULL here, and that mechanic is a no-op
+   * without a real RNG (see the dedicated seeded coverage further below,
+   * "2022 rebel troop-gift purchase"); no once-per-war flag exists for it
+   * to set (DOS has none — see king_ref.md "2244/2022 — corrected").
+   */
   if (!strstr(status, "Expeditionary Force") && !strstr(status, "lands near") &&
-      !strstr(status, "captured") && !strstr(status, "Cannot afford mercenaries")) {
+      !strstr(status, "captured")) {
     fprintf(stderr, "unit_ai_king: status after wave: '%s'\n", status);
-    return fail("0982 wave should set thin 1528 @INVASION (or same-turn capture/merc) status");
+    return fail("0982 wave should set thin 1528 @INVASION (or same-turn capture) status");
   }
   /* Pools seeded on declare then drained; still expect REF-present stand-in. */
   if (col1.head.unknown46[1] == 0) {
@@ -862,86 +869,6 @@ int main(void) {
   if (col1.head.backup_force[0] == 0 && col1.head.backup_force[1] == 0 &&
       col1.head.backup_force[2] == 0 && col1.head.backup_force[3] == 0) {
     return fail("declare should seed backup_force for 10f0");
-  }
-  if (col1.head.unknown46[3] == 0) {
-    return fail("no gold → 2244 cannot-afford should set unknown46[3]");
-  }
-  if (!strstr(status, "Cannot afford mercenaries") && !strstr(status, "captured") &&
-      !strstr(status, "Expeditionary Force") && !strstr(status, "lands near")) {
-    fprintf(stderr, "unit_ai_king: status after no-gold declare: '%s'\n", status);
-    return fail("no gold → 2244 should set cannot-afford (or same-turn wave/capture) status");
-  }
-  /* Capture may overwrite cannot-afford; force a clean refuse check next. */
-  {
-    status[0] = '\0';
-    memset(col1.head.expeditionary_force, 0, sizeof(col1.head.expeditionary_force));
-    col1.head.backup_force[0] = 0;
-    col1.head.backup_force[1] = 0;
-    col1.head.backup_force[2] = 0;
-    col1.head.backup_force[3] = 0;
-    col1.head.unknown46[3] = 0; /* re-arm once-gate for refuse probe */
-    colonies.colonies[0].nation_id = 0;
-    /* Keep end checks from latching lose if REF still sits on/re-enters the port. */
-    col1.head.unknown46[4] = 0;
-    const uint8_t ref_saved = col1.head.unknown46[1];
-    col1.head.unknown46[1] = 0;
-    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-      ColonizeUnit* u = &units.units[i];
-      if (u->active && u->nation_id == 1) {
-        u->moves_left = 0; /* park crown so capture does not clobber status */
-        if (u->x == 5 && u->y == 5) {
-          u->x = 4;
-          u->y = 5;
-        }
-      }
-    }
-    ai_king_nation_turn(&ctx);
-    col1.head.unknown46[1] = ref_saved;
-    if (col1.head.unknown46[3] == 0) {
-      return fail("2244 cannot-afford probe should set unknown46[3]");
-    }
-    if (!strstr(status, "Cannot afford mercenaries")) {
-      fprintf(stderr, "unit_ai_king: cannot-afford status: '%s'\n", status);
-      return fail("2244 gold-insufficient should write Cannot afford mercenaries.");
-    }
-    /* Second wartime turn: gate blocks refuse-status spam. */
-    status[0] = '\0';
-    col1.head.unknown46[1] = 0; /* keep lose checks disarmed for merc spam probe */
-    ai_king_nation_turn(&ctx);
-    col1.head.unknown46[1] = ref_saved;
-    if (strstr(status, "Cannot afford mercenaries")) {
-      return fail("merc unknown46[3] should block cannot-afford status spam");
-    }
-    /*
-     * Once-per-war across refuse→hire: unknown46[3] from cannot-afford must
-     * still block a later gold bump (no spend / spawn / hire status).
-     * Source: FUN_43f7_2244 once-gate; real modal PARKED.
-     */
-    {
-      const int human_refuse = count_nation(&units, 0);
-      const uint32_t gold_refuse = 500;
-      col1.nation[0].gold = gold_refuse;
-      europe.gold = (int)gold_refuse;
-      status[0] = '\0';
-      if (col1.head.unknown46[3] == 0) {
-        return fail("refuse→later-hire probe needs unknown46[3] still set");
-      }
-      col1.head.unknown46[1] = 0;
-      ai_king_nation_turn(&ctx);
-      col1.head.unknown46[1] = ref_saved;
-      if (col1.nation[0].gold != gold_refuse) {
-        return fail("unknown46[3] refuse must block later 2244 spend when gold arrives");
-      }
-      if (count_nation(&units, 0) != human_refuse) {
-        return fail("unknown46[3] refuse must block later 2244 merc spawn");
-      }
-      if (strstr(status, "Mercenaries join")) {
-        return fail("unknown46[3] refuse must block later 2244 hire status");
-      }
-      if (col1.head.unknown46[3] == 0) {
-        return fail("refuse→later-hire probe must leave unknown46[3] set");
-      }
-    }
   }
 
   /*
@@ -3306,98 +3233,17 @@ int main(void) {
   }
 
   /*
-   * Thin 2244 merc auto-accept + hire-dialog status (real modal PARKED):
-   * clear cannot-afford gate; gold>=300 + SoL>50 + !unknown46[3] → spend 300,
-   * spawn human Soldier/Dragoon, set merc-hired flag + Continental-cause status.
-   * Second wartime turn must not hire again.
+   * ai_king_merc_offer (FUN_43f7_2022 rebel branch) is a no-op through this
+   * whole test — ctx.rng stays NULL here, and that mechanic requires a real
+   * RNG (dos_rng_range(NULL,...) returns lo, but the function guards on
+   * !ctx->rng and returns before rolling at all). See the dedicated seeded
+   * coverage further below ("2022 rebel troop-gift purchase") for its real
+   * gate/price/spawn behavior.
    */
   colonies.colonies[0].nation_id = 0;
-  col1.head.unknown46[3] = 0; /* clear prior cannot-afford gate for hire path */
   col1.nation[0].gold = 450;
   europe.gold = 450;
   status[0] = '\0';
-  const int human_before = count_nation(&units, 0);
-  int soldierish_before = 0;
-  int dragoon_before = 0;
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-    const ColonizeUnit* u = &units.units[i];
-    if (!u->active || u->nation_id != 0) {
-      continue;
-    }
-    if (u->type_index == ty_soldier || u->type_index == ty_cont_army) {
-      soldierish_before++;
-    }
-    if (u->type_index == ty_dragoon) {
-      dragoon_before++;
-    }
-  }
-  const uint32_t gold_before = col1.nation[0].gold;
-  ai_king_nation_turn(&ctx);
-  if (col1.head.unknown46[3] == 0) {
-    return fail("2244 should set merc-hired unknown46[3]");
-  }
-  if (col1.nation[0].gold != gold_before - 300) {
-    fprintf(stderr, "unit_ai_king: gold after merc %u (want %u)\n",
-            (unsigned)col1.nation[0].gold, (unsigned)(gold_before - 300));
-    return fail("2244 should spend 300 gold");
-  }
-  if (europe.gold != (int)col1.nation[0].gold) {
-    return fail("2244 should sync europe.gold");
-  }
-  if (count_nation(&units, 0) <= human_before) {
-    return fail("2244 should spawn human Continental merc");
-  }
-  /*
-   * Primary hire type is Soldier (Dragoon only as alt when Soldier missing).
-   * Same-beat 1eca may Cont.-promote the new Soldier when SoL>50 — count either.
-   */
-  {
-    int soldierish_after = 0;
-    int dragoon_after = 0;
-    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-      const ColonizeUnit* u = &units.units[i];
-      if (!u->active || u->nation_id != 0) {
-        continue;
-      }
-      if (u->type_index == ty_soldier || u->type_index == ty_cont_army) {
-        soldierish_after++;
-      }
-      if (u->type_index == ty_dragoon) {
-        dragoon_after++;
-      }
-    }
-    if (soldierish_after <= soldierish_before) {
-      return fail("2244 merc hire should spawn Soldier type (or same-beat Cont. promote)");
-    }
-    if (dragoon_after > dragoon_before) {
-      return fail("2244 merc hire should prefer Soldier over Dragoon when Soldier exists");
-    }
-  }
-  if (!strstr(status, "Mercenaries join") || !strstr(status, "Continental cause")) {
-    fprintf(stderr, "unit_ai_king: status after merc: '%s'\n", status);
-    return fail("2244 should set hire-dialog merc status line");
-  }
-  if (!strstr(status, "300") && !strstr(status, "gold")) {
-    fprintf(stderr, "unit_ai_king: merc gold status: '%s'\n", status);
-    return fail("2244 merc status should mention gold spent");
-  }
-  const int human_after = count_nation(&units, 0);
-  const uint32_t gold_after = col1.nation[0].gold;
-  status[0] = '\0'; /* clear so a re-hire spam would be visible */
-  ai_king_nation_turn(&ctx);
-  if (col1.nation[0].gold != gold_after) {
-    return fail("merc flag should block second 2244 spend");
-  }
-  if (count_nation(&units, 0) != human_after) {
-    return fail("merc flag should block second human merc spawn");
-  }
-  if (col1.head.unknown46[3] == 0) {
-    return fail("merc-hired unknown46[3] should remain set");
-  }
-  /* Once-per-war: unknown46[3] must prevent hire-status rewrite spam. */
-  if (strstr(status, "Mercenaries join")) {
-    return fail("merc flag should block second 2244 hire-status spam");
-  }
 
   /*
    * FUN_43f7_1eca full port: only units FORTIFIED on the colony's own tile
@@ -4685,12 +4531,40 @@ int main(void) {
       }
     }
 
-    /* Merc CHOICE: wartime + gold → enqueue Hire; apply spends/spawns. */
-    col1.head.unknown46[3] = 0;
-    col1.nation[0].gold = 400;
-    europe.gold = 400;
+    /*
+     * Merc CHOICE (FUN_43f7_2022 rebel branch, real port): recurring
+     * per-turn 1-in-3 roll while REF absent/Artillery pool empty — needs a
+     * real ctx.rng to fire at all (guards on !ctx->rng). Seed 1 hits the
+     * roll on its first call (dos_rng's LCG warm-up bias — a tiny seed's
+     * first output is small regardless of range, same property the
+     * WoI-defection test coverage already documented); at difficulty 0
+     * that seed also rolls qty_a=3/extra=Dragoon/price=5500 (probed
+     * offline, not hand-derived) — read the real values back from the
+     * popup payload rather than hardcode them, in case the roll/price
+     * formula shifts.
+     */
+    ColonizeDosRng merc_rng;
+    dos_rng_seed(&merc_rng, 1u);
+    ctx.rng = &merc_rng;
+    col1.nation[0].gold = 6000;
+    europe.gold = 6000;
     colonies.colonies[0].nation_id = 0;
+    colonies.colonies[0].active = true; /* wave test above may have captured/destroyed it */
     memset(col1.head.expeditionary_force, 0, sizeof(col1.head.expeditionary_force));
+    col1.head.backup_force[3] = 0; /* Artillery pool empty → gate allows the roll */
+    /* Park crown far from the port so same-beat war_act combat/capture
+     * cannot re-take it before the popup apply reads it back
+     * (weakest_port needs it human). moves_left=0 alone wasn't enough —
+     * a crown unit already standing on/adjacent to the tile can still
+     * capture on presence; move them away entirely. */
+    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+      ColonizeUnit* u = &units.units[i];
+      if (u->active && u->nation_id == 1) {
+        u->moves_left = 0;
+        u->x = 0;
+        u->y = 0;
+      }
+    }
     status[0] = '\0';
     ai_popup_clear(&pop);
     const int merc_units_before = count_nation(&units, 0);
@@ -4699,15 +4573,14 @@ int main(void) {
     if (col1.nation[0].gold != merc_gold_before) {
       return fail("ai_popups merc must defer spend until Hire apply");
     }
-    if (col1.head.unknown46[3] != 0) {
-      return fail("ai_popups merc must leave unknown46[3] clear until apply");
-    }
+    int merc_payload = 0;
     {
       int found_merc = 0;
       for (int i = 0; i < pop.queue_count; ++i) {
         if (pop.queue[i].tag == AI_POPUP_TAG_KING_MERC &&
             pop.queue[i].kind == AI_POPUP_KIND_CHOICE) {
           found_merc = 1;
+          merc_payload = pop.queue[i].payload;
           break;
         }
       }
@@ -4715,34 +4588,27 @@ int main(void) {
         return fail("ai_popups should enqueue KING_MERC Hire/Decline");
       }
     }
-    /* Preserve offer payload (packed landing); colony may be captured same beat. */
-    {
-      int merc_payload = 0;
-      for (int i = 0; i < pop.queue_count; ++i) {
-        if (pop.queue[i].tag == AI_POPUP_TAG_KING_MERC &&
-            pop.queue[i].kind == AI_POPUP_KIND_CHOICE) {
-          merc_payload = pop.queue[i].payload;
-          break;
-        }
-      }
-      pop.has_result = true;
-      pop.result_cancelled = false;
-      pop.result_choice_id = 1; /* Hire */
-      pop.result_tag = AI_POPUP_TAG_KING_MERC;
-      pop.result_nation_a = 0;
-      pop.result_nation_b = 1;
-      pop.result_payload = merc_payload;
+    const int merc_price = merc_payload & 0xffff;
+    if (merc_price <= 0) {
+      return fail("KING_MERC payload should carry a positive rolled price");
     }
+    pop.has_result = true;
+    pop.result_cancelled = false;
+    pop.result_choice_id = 1; /* Hire */
+    pop.result_tag = AI_POPUP_TAG_KING_MERC;
+    pop.result_nation_a = 0;
+    pop.result_nation_b = 1;
+    pop.result_payload = merc_payload;
     ai_king_apply_popup_result(&ctx, &pop);
     ai_popup_consume_result(&pop);
-    if (col1.head.unknown46[3] == 0) {
-      return fail("apply Hire should set merc unknown46[3]");
-    }
-    if (col1.nation[0].gold != merc_gold_before - 300) {
-      return fail("apply Hire should spend 300 gold");
+    if (col1.nation[0].gold != merc_gold_before - (uint32_t)merc_price) {
+      fprintf(stderr, "unit_ai_king: gold after Hire=%u want=%u (price=%d)\n",
+              (unsigned)col1.nation[0].gold, (unsigned)(merc_gold_before - (uint32_t)merc_price),
+              merc_price);
+      return fail("apply Hire should spend the rolled price");
     }
     if (count_nation(&units, 0) <= merc_units_before) {
-      return fail("apply Hire should spawn Continental merc");
+      return fail("apply Hire should spawn rebel troop-gift units");
     }
     {
       int found_hire_ok = 0;
@@ -4760,53 +4626,59 @@ int main(void) {
       }
     }
 
-    /*
-     * R6: Decline apply → follow-up OK + unknown46[3] gate (no spend/spawn).
-     * Re-arm offer after Hire consumed the once-gate.
-     */
+    /* R6: Decline apply → follow-up OK, no spend/spawn, no once-per-war gate
+     * (DOS has none — a fresh roll can offer again on a later turn). */
     {
-      col1.head.unknown46[3] = 0;
-      col1.nation[0].gold = 400;
-      europe.gold = 400;
+      dos_rng_seed(&merc_rng, 2u); /* fresh roll for this sub-probe */
+      col1.nation[0].gold = 6000;
+      europe.gold = 6000;
       colonies.colonies[0].nation_id = 0;
+      colonies.colonies[0].active = true;
       memset(col1.head.expeditionary_force, 0, sizeof(col1.head.expeditionary_force));
+      col1.head.backup_force[3] = 0; /* Artillery pool empty → gate allows the roll */
+      /* Park crown away from the port — see Hire block above. */
+      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+        ColonizeUnit* u = &units.units[i];
+        if (u->active && u->nation_id == 1) {
+          u->moves_left = 0;
+          u->x = 0;
+          u->y = 0;
+        }
+      }
       status[0] = '\0';
       ai_popup_clear(&pop);
       const int decline_units_before = count_nation(&units, 0);
       const uint32_t decline_gold_before = col1.nation[0].gold;
       ai_king_nation_turn(&ctx);
+      int decline_payload = 0;
       {
         int found_merc = 0;
-        int merc_payload = 0;
         for (int i = 0; i < pop.queue_count; ++i) {
           if (pop.queue[i].tag == AI_POPUP_TAG_KING_MERC &&
               pop.queue[i].kind == AI_POPUP_KIND_CHOICE) {
             found_merc = 1;
-            merc_payload = pop.queue[i].payload;
+            decline_payload = pop.queue[i].payload;
             break;
           }
         }
         if (!found_merc) {
           return fail("R6 Decline probe should enqueue KING_MERC Hire/Decline");
         }
-        pop.has_result = true;
-        pop.result_cancelled = false;
-        pop.result_choice_id = 2; /* Decline */
-        pop.result_tag = AI_POPUP_TAG_KING_MERC;
-        pop.result_nation_a = 0;
-        pop.result_nation_b = 1;
-        pop.result_payload = merc_payload;
       }
+      pop.has_result = true;
+      pop.result_cancelled = false;
+      pop.result_choice_id = 2; /* Decline */
+      pop.result_tag = AI_POPUP_TAG_KING_MERC;
+      pop.result_nation_a = 0;
+      pop.result_nation_b = 1;
+      pop.result_payload = decline_payload;
       ai_king_apply_popup_result(&ctx, &pop);
       ai_popup_consume_result(&pop);
-      if (col1.head.unknown46[3] == 0) {
-        return fail("apply Decline should set merc unknown46[3]");
-      }
       if (col1.nation[0].gold != decline_gold_before) {
         return fail("apply Decline must not spend gold");
       }
       if (count_nation(&units, 0) != decline_units_before) {
-        return fail("apply Decline must not spawn Continental merc");
+        return fail("apply Decline must not spawn rebel troop-gift units");
       }
       if (!strstr(status, "Mercenaries declined")) {
         fprintf(stderr, "unit_ai_king: Decline status: '%s'\n", status);
@@ -4820,6 +4692,7 @@ int main(void) {
         }
       }
     }
+    ctx.rng = NULL; /* restore — later blocks in this test assume no RNG */
 
     /*
      * R3: 10f0 intervene landing enqueues @INTERVENTION + @INTERVENE ARRIVAL.
