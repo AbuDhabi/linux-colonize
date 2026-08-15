@@ -1979,6 +1979,48 @@ int main(void) {
   }
 
   /*
+   * Church and Cathedral passive crosses are the *same* (+1 each, on top of
+   * the colony base +1) in DOS (FUN_15eb_1f72 ~11306-11314: unconditional
+   * +1, then +1 independently if Church built, +1 independently if
+   * Cathedral built) — not the manual/wiki-sourced +2/+3 this used to
+   * return. No existing test exercised Cathedral specifically to catch a
+   * regression back to the old split.
+   */
+  {
+    ColonizeColonyPool pool;
+    colonies_init(&pool);
+    snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Church");
+    snprintf(pool.building_types[1].name, sizeof(pool.building_types[1].name), "Cathedral");
+    pool.building_type_count = 2;
+
+    ColonizeColony* col = &pool.colonies[0];
+    memset(col, 0, sizeof(*col));
+    col->active = true;
+    col->id = 1;
+    col->nation_id = 0;
+    for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES; ++t) {
+      col->tiles[t] = -1;
+    }
+    pool.colony_count = 1;
+
+    col->has_building[0] = true; /* Church */
+    const int church_crosses = colony_prod_colony_crosses(&pool, col);
+    col->has_building[0] = false;
+    col->has_building[1] = true; /* Cathedral */
+    const int cathedral_crosses = colony_prod_colony_crosses(&pool, col);
+    if (church_crosses != 2 || cathedral_crosses != 2) {
+      fprintf(
+        stderr,
+        "Church/Cathedral passive parity want 2/2 got %d/%d\n",
+        church_crosses,
+        cathedral_crosses
+      );
+      return 1;
+    }
+    fprintf(stderr, "Church/Cathedral passive parity ok\n");
+  }
+
+  /*
    * Custom House auto-sell (FUN_364b_0688 / FUN_364b_0636): stock>99 → leave 50;
    * Food denied; boycott bypass; tax then WoI untaxed.
    */
