@@ -80,14 +80,26 @@ below as ported guidance.
      If DOS really does apply it to the base too, the port under-counts by
      a small amount whenever Jefferson is owned. Not fixed — the combine
      point (item 2) needs resolving first to know how big a change this is.
-   - The `0x12` flag term (`(pop+3)/5`, gated on the AI/non-human-shaped
-     condition) doesn't match Bolivar's known effect (SoL +20%, a display-
-     time bonus in `founding_fathers_bolivar_sol_bonus`, not a bells
-     production term) even though `0x12 == 18 == FF_SIMON_BOLIVAR` lines up
-     numerically. Possibly a DOS AI-difficulty bells subsidy unrelated to
-     any Founding Father, using the same per-nation flag-test primitive for
-     an unrelated bit — not resolved, not ported, `byte 0xa892`'s meaning is
-     also unknown.
+   - **The `0x12` flag term — confirmed real and ported, 2026-08-15.**
+     Player-observed on Viceroy difficulty: an AI colony's free-colonist
+     Statesman nets 5 colony bells vs. 3 for a human colony in the same
+     setup (excluding the passive Town Hall +1), with no visible FF/media
+     bonus on either side. This rules out "dead code"/decompiler noise and
+     confirms the term is real and worth porting — the arithmetic itself
+     (`(pop+3)/5`) was already asm-certain, only its realness and purpose
+     were in doubt. The `0x12 == 18 == FF_SIMON_BOLIVAR` numeric match is
+     still almost certainly coincidental reuse of the shared flag-test
+     primitive for an unrelated AI-difficulty bit — Bolivar's real effect is
+     SoL +20% (`founding_fathers_bolivar_sol_bonus`), not a bells production
+     term, and nothing here reads Bolivar ownership; it reads the same
+     AI/non-human table gate `colony_prod_sol_bonus_field` already uses.
+     Ported: `colony_prod_colony_bells_ff` gained a `bool nation_is_ai`
+     parameter, adding `(pop+3)/5` to the Town Hall passive bells right
+     after the base +1 (matching the decomp's structural position, before
+     Paine/Press/Newspaper) — the exact pop value wasn't re-derived from the
+     single observation (that would be underdetermined from one data point);
+     the formula was taken directly from the decompiled bytes, only gated on
+     AI-ness. `byte 0xa892`'s meaning is still unknown, not ported.
 
 ## Open questions (next layer, not a blocker)
 
@@ -97,8 +109,8 @@ below as ported guidance.
 - Whether Jefferson/Printing-Press/Newspaper apply to the Town-Hall-passive
   bell too, not just per-statesman-worker contributions (would need the
   combine point resolved first).
-- What flag `0x12` and `byte 0xa892` actually are, given they don't match
-  Bolivar's documented effect.
+- `byte 0xa892`'s meaning — still unknown (flag `0x12`/AI bells subsidy
+  itself is now resolved and ported, see item 4 above).
 - `FUN_15eb_09c0` (`1f72`'s sibling in the `394c` compose call) — read;
   ruled out as the combine point. It's an unrelated per-nation colony-count
   tally (`byte 0x8d72`/`0x8d74`/`0x8d76`, capped at 50), nothing to do with

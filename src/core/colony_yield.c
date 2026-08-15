@@ -172,6 +172,21 @@ static bool colony_yield_is_road_job(int field_job) {
 /*
  * Minor-river bonus for a field job; major = 2×.
  * Food/crops +1, furs/lumber +2, ore/silver +1 (FreeCol classic / Col1).
+ *
+ * Fisherman (job 8), player-confirmed 2026-08-15 (Viceroy difficulty): Lake
+ * with a major river, free colonist, no sentiment bonus = 6 food. Base ocean
+ * fish is 3, coastal distance mod +1 (colony_yield_fisherman_distance_mod)
+ * = 4, so the river delta is +2 — exactly the food/crop bucket (base 1,
+ * major ×2) doubled. This also explains a previously-unexplained "coastal
+ * usually 4, sometimes 6" observation: the "sometimes 6" tiles are coastal
+ * *and* major-river (4 + 2). DOS's static terrain river-bit check
+ * (`FUN_15eb_18ec` ~11950s) applies to *any* job, not just job<4 — only the
+ * separate runtime-array river signal is job<4-gated (still unresolved, see
+ * terrain_yields.md, but doesn't block this: the port's own crop-job river
+ * magnitudes already matched player data without needing that signal, so
+ * Fisherman only needed the same "any job" static-bit path crop/ore/silver
+ * already get). Previously `default: return 0` silently dropped Fisherman
+ * from any river bonus at all — the bug this fixes.
  */
 static int colony_yield_river_bonus(int field_job, bool major) {
   int base = 0;
@@ -182,6 +197,7 @@ static int colony_yield_river_bonus(int field_job, bool major) {
   case COLONIZE_JOB_COTTON_PLANTER:
   case COLONIZE_JOB_ORE_MINER:
   case COLONIZE_JOB_SILVER_MINER:
+  case COLONIZE_JOB_FISHERMAN:
     base = 1;
     break;
   case COLONIZE_JOB_FUR_TRAPPER:

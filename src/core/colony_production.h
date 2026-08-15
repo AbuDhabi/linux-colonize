@@ -186,6 +186,14 @@ int colony_prod_colony_bells(const ColonizeColonyPool* pool, const ColonizeColon
  *   statesmen_bonus_pct — Jefferson: +50% on Town Hall (statesmen) worker bells
  *   all_bells_bonus_pct  — Paine: +current tax rate % on colony bells (after press/newspaper)
  *
+ * `nation_is_ai` — DOS AI bells subsidy (FUN_15eb_1f72: `bells += (pop+3)/5`
+ * on the Town Hall passive, gated on the colony's nation being AI-controlled
+ * — same primitive as colony_prod_sol_bonus_field's AI gate). Player-
+ * confirmed 2026-08-15 (Viceroy difficulty): AI free-colonist Statesman
+ * nets 5 colony bells vs 3 for human, same setup. Pass
+ * `col1->player[nation_id].control != 0` (false when col1 is unavailable).
+ * See manufacturing_worker_calc_1d4c.md / nation_crosses_bells_1f72.md.
+ *
  * `sol_bonus` (colony_prod_bells_ff only) folds the SoL/Tory term into each
  * bell worker individually (colony_prod_bells_worker) instead of a flat
  * post-hoc colony-wide add — pass 0 to get the pre-2026-08-15 un-modified
@@ -198,6 +206,7 @@ int colony_prod_colony_bells_ff(
   const ColonizeColony* colony,
   int statesmen_bonus_pct,
   int all_bells_bonus_pct,
+  bool nation_is_ai,
   int sol_bonus
 );
 /*

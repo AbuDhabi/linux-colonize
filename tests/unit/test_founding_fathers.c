@@ -1276,19 +1276,32 @@ int main(void) {
       return fail("prod baseline bells (statesman+hall) unexpected");
     }
     /* Jefferson +50% on statesmen worker only: 6→9, passive 1 → 10. */
-    const int bells_jeff = colony_prod_colony_bells_ff(&pool, col, 50, 0, 0);
+    const int bells_jeff = colony_prod_colony_bells_ff(&pool, col, 50, 0, false, 0);
     if (bells_jeff != 10) {
       return fail("Jefferson statesmen +50% bells");
     }
     /* Paine tax 20%: 7 × 120/100 = 8. */
-    const int bells_paine = colony_prod_colony_bells_ff(&pool, col, 0, 20, 0);
+    const int bells_paine = colony_prod_colony_bells_ff(&pool, col, 0, 20, false, 0);
     if (bells_paine != 8) {
       return fail("Paine tax% bells");
     }
     /* Both: Jefferson then media(none) then Paine: 10 × 120/100 = 12. */
-    const int bells_both = colony_prod_colony_bells_ff(&pool, col, 50, 20, 0);
+    const int bells_both = colony_prod_colony_bells_ff(&pool, col, 50, 20, false, 0);
     if (bells_both != 12) {
       return fail("Jefferson+Paine combined bells");
+    }
+    /*
+     * AI bells subsidy (FUN_15eb_1f72's flag-0x12 term, player-confirmed
+     * 2026-08-15 on Viceroy: AI free-colonist Statesman nets 5 colony bells
+     * vs 3 for human, same setup — see manufacturing_worker_calc_1d4c.md).
+     * `bells += (pop+3)/5` on the Town Hall passive only, before
+     * Jefferson/Paine/media. This fixture: colonist_count=2, so
+     * pop=2, (2+3)/5=1. Baseline passive+worker was 7 (bells_base above);
+     * +1 subsidy = 8.
+     */
+    const int bells_ai = colony_prod_colony_bells_ff(&pool, col, 0, 0, true, 0);
+    if (bells_ai != 8) {
+      return fail("AI bells subsidy");
     }
 
     /* Base crosses: 1 colony + Church passive 1 (DOS FUN_15eb_1f72: Church and

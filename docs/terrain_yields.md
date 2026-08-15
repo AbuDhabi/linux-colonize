@@ -309,6 +309,53 @@ using the wrong unit size, so still not attempted.
 
 Silver on mountains without a deposit / road can be forced to 0 or 1 (`18ec` ~11925–11938).
 
+**2026-08-15: player-supplied gameplay data (Viceroy difficulty) — crop-job
+magnitudes confirmed as-is, Fisherman bug found and fixed.** Five live
+observations (free colonist, no sentiment bonus unless noted):
+- Lake + major river, Fisherman: 6 food.
+- Scrub Forest + major river, Farmer: 3 food.
+- Conifer Forest + major river, Farmer: 3 food.
+- Plains + minor river, Farmer, +1 sentiment: 7 food.
+- Fully-enclosed-by-ocean tile, Fisherman: 2 food; a coastal tile usually 4,
+  "sometimes 6" (previously unexplained to the player).
+
+Checked against the port's actual formulas (not the unresolved
+`FUN_137f_0142` bit theory above, which stays open):
+- **Crop jobs (job&lt;4), no code change needed.** Scrub/Conifer are
+  unplowable (forest), so their major-river delta (+2 on a base-1 tile) is
+  river alone — matches the port's existing `colony_yield_river_bonus`
+  crop bucket (base 1, major ×2) exactly. Plains+minor river and +1 sentiment
+  only reconciles to the observed 7 if the tile is also plowed
+  (4 base + 1 plow + 1 minor-river + 1 sentiment = 7); unplowed doesn't fit
+  (would give 6). Both readings are consistent with the port's current model
+  as-is — no evidence of a bug for crop jobs from this data. Whatever the
+  unresolved runtime-array bit (`FUN_137f_0142 & 0x40`, job&lt;4-gated) truly
+  is, it doesn't change the final crop-job output the port already produces.
+- **Fisherman — real bug, fixed.** `colony_yield_river_bonus`'s switch had
+  no `COLONIZE_JOB_FISHERMAN` case, silently falling to `default: return 0`
+  — Fisherman got *no* river bonus at all, even though DOS's static
+  terrain-river-bit check (`terrain_byte & 0x40`, the second signal above)
+  applies to *any* job, fish included; only the *first*, still-unidentified
+  runtime-array signal is job&lt;4-gated (and job 8 isn't &lt;4, so Fisherman
+  was never eligible for that one anyway — consistent, not a new mystery).
+  Lake+major-river=6 confirms it: Ocean base fish 3, +1 coastal distance mod
+  (`colony_yield_fisherman_distance_mod`, few ocean neighbors around a small
+  lake) = 4, +2 major river (base 1 × 2, same magnitude bucket as
+  Farmer/Ore/Silver) = 6. This *also* resolves the player's separate
+  "coastal usually 4, sometimes 6" observation, previously opaque: the
+  "sometimes 6" tiles are simply coastal *and* major-river (4 + 2), nothing
+  to do with the distance-mod cascade itself. Fixed: added a
+  `COLONIZE_JOB_FISHERMAN` case (base 1, major ×2) to
+  `colony_yield_river_bonus`. Since `colony_yield_for_tile` already calls
+  the shared road/river helper unconditionally for every job, no other
+  pipeline change was needed. Regression: `test_colony_yield.c` (Ocean +
+  major river tile, `colony_yield_for_tile(..., COLONIZE_JOB_FISHERMAN)` ==
+  6, matched the hand-derived value on first run).
+
+The `FUN_137f_0142 & 0x40` runtime-array bit's actual identity is still
+unresolved — this pass confirmed it doesn't change any *observable* output
+the port produces for the cases tested, not what the bit itself means.
+
 ---
 
 ## Town commons (colony center tile)
