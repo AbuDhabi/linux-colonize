@@ -153,6 +153,61 @@ table.
   `cases_listing.txt` if resumed (not checked into the repo; regenerate
   with the command below).
 
+**Update (2026-08-15, fourth pass) — case 2's own helper traced; return
+semantics resolved, one real hypothesis left open.** Checked `0a60`'s
+other field-2 call site (`euro_goal_orders_0a60_full.md` line 599,
+`iStack_10 = FUN_1000_8aac(0x181f,iStack_154,2)`) for a second data point —
+its result feeds `iStack_10 + colony_ptr[0x1f]` compared against a
+threshold, ruling out "returns a raw unit id" as too coincidental to be
+useful there. Traced case 2's general-path helper (raw `CALLF 0x024c:0x2a`
+→ flat `0x24ea`, clean): it's a generic `swap(word* a, word* b)` — swaps
+the two words pointed to and returns the new `*a`. Re-reading case 2 with
+that: it's a **doubly-linked-list node exchange**, not a plain insert —
+it swaps *both* `next` (`+0x315e`) and `prev` (`+0x315c`) links between
+`unit_A=[bp+6]` and `unit_B=[bp+8]` (calling the swap helper twice, once
+per field), and returns the second swap's result = `unit_A`'s *old*
+`next` value, now stored as `unit_B`'s new `next`. The fast path (`A`'s
+`next` already equals `B`) is a no-op-shaped equivalent returning `B`
+literally, for the same reason.
+
+**For the AI's calls specifically** (`FUN_1000_8aac(unit_id, 2)`,
+*only two args* — `[bp+8]` here is the literal constant `2`, not a second
+unit): `unit_B` in this call is **unit-table slot 2 itself**, not a
+variable. Reads as "splice this unit into slot 2's chain position,
+return the resulting chain-next value" — consistent with slot 2 being a
+reserved sentinel/head entry for some shared list (matches this game's
+common pattern of low fixed unit-table indices as list anchors; not
+independently confirmed). Both branches return a **chain-link value**
+(a unit id, `-1` sentinel, or slot 2 itself), never a count — so `< 2` at
+the call sites most plausibly reads as "the resulting chain link is empty/
+terminal (0, 1, or none)", i.e. a **singleton/idle-list check** ("is this
+unit not already part of an active chain?") gating the `0x42`/`0x65`
+impulse — plausible, not confirmed; would need slot 2's own conventional
+role traced to close out.
+
+**Update (2026-08-15, fifth pass) — chased slot 2's identity, hit a real
+wall, not a self-inflicted one this time.** Traced `0a60`'s
+`FUN_1000_89d0(0x181f)` call (the source of its `iStack_154` first arg to
+the field-2 call) to its real target (flat `0x42cc`, clean): it's a
+coordinate-based unit search (`find unit at (x,y)`, `AX`/`DX` in = search
+coords, scans `unit+0x3144`/`0x3145` against the whole unit table). But
+that call site passes **no explicit x/y** — `AX`/`DX` are whatever the
+surrounding code left in those registers, meaning `iStack_154` is a real,
+variable, found-by-search unit id, not a "slot 2" reference — this
+actually *rules out* the "unit-table slot 2 is a reserved sentinel"
+framing for `0a60`'s call (only `20e6`'s literal-2-as-second-arg shape
+suggested it). Checked Linux (`grep` `units.c`/`units.h`/`col1_bridge.c`)
+for any already-known reserved/sentinel low unit index — nothing; this
+port never inherited the DOS chain mechanism, so there's no shortcut via
+existing Linux knowledge either. Confirming what registers hold at that
+exact `0a60` call point needs reading a long stretch of that function's
+own preceding code (which coordinates are live there), the same
+diminishing-returns shape as `417e`'s caller hunt — **parking here, not a
+corruption or tooling wall, a genuine "needs more context than is cheaply
+available" stop.** The solid finding (case 2 = doubly-linked transport-
+chain node exchange, helper `swap(word*,word*)` at flat `0x24ea`) stands
+and is fully documented above regardless.
+
 **Practical upshot for `0x42`/`0x65`:** still not safe to port — case 2's
 own return-value semantics (what "id < 2" means) remain the real open
 question, and it's now clear that's a self-contained puzzle about *this
