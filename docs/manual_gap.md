@@ -113,7 +113,7 @@ Deep mechanics (expected vs Linux by context): [unit_orders.md](unit_orders.md).
 | Manual feature | Status | Notes |
 |----------------|--------|-------|
 | Calendar (`@TIMECHANGE`) | Done | Year then Spring/Autumn from 1600 |
-| Food / production / hammers | Partial | Simplified stubs in `turn.c` |
+| Food / production / hammers | Partial | Full EOT chain in `turn.c` (`turn_produce_one_colony`): field yield, food consume/starve/birth, horse breeding, manufacturing (`colony_craft_one_colony`), hammers; tier rates + class scale still DOS-unconfirmed — [building_production.md](building_production.md) |
 | Liberty bells / crosses counters | Partial | Accumulators; FF election via `founding_fathers_tick` |
 | Full production formulas, spoilage, boycotts | Partial | SoL/Tory net mod (`colony_prod_sol_bonus`); warehouse spoilage clamp EOT (`colonies_apply_warehouse_spoilage` / FUN_15eb_0a50); boycotts structural diplo |
 | Market prices driven by trade volume | Partial | T0: buy/sell update `trade_nr` + FUN_38fd_0058 rise/fall ±1 bid (`europe_apply_volume_price`); EOT attrition + colony→`price_group_state` half **Done** thin; pressure/bid chrome PARKED |
