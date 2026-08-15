@@ -199,6 +199,20 @@ not previously documented at all — see below):
    unreachable code changes nothing observable). Regression: new
    `test_turn.c` synthetic-map check (open-ocean vs. sheltered, exact
    3-point swing).
+
+   **The `count >= 8` (`−2`) case is itself unreachable for any tile a real
+   colonist can be assigned to fish**, raised and confirmed on a user
+   question: a colony can never be founded on ocean, and every one of a
+   colony's 8 field-work positions has the colony center as one of *its own*
+   8 neighbors (verified by direct enumeration — for any offset `(dx,dy)`
+   with `dx,dy ∈ {-1,0,1}` not both 0, `(-dx,-dy)` is itself a valid offset,
+   so the center is always among the 8 neighbors of every surrounding tile).
+   So the center — guaranteed non-ocean — always counts against the full-8
+   threshold. This looks like a genuine DOS quirk (the distance function is
+   generic over any two tiles, not aware it's only ever called this way) —
+   kept exactly as ported, matching this project's north star of DOS
+   fidelity over invented "fixes"; not a reachability bug worth guarding
+   against, since it can never fire.
 3. Early terrain/FA tweaks (incl. fur-specific road/river nibbles, job==4 only).
 4. Clamp negative → 0.
 5. **SoL / Tory mod** if `mod > 0`: `yield += mod`. The mod itself can be
@@ -233,7 +247,7 @@ not previously documented at all — see below):
 | Matching expert, food or fish | **+2** (not ×2), plus the SoL mod re-add above | **2026-08-15 fix** — flat +2 wired; the SoL mod re-add is still not (needs the SoL-threading work first, deferred) |
 | Matching expert, other field jobs | **×2** | Wired |
 | Mismatched skill | Free-colonist yield | Wired |
-| Indian convert | **+1** if job ∈ {0,1,2,3,4} or job &gt; 7 (fisherman); **not** lumber/ore/silver | **2026-08-15 fix** — `colony_yield_for_worker` now gates on the exact whitelist (confirmed by direct read of `FUN_15eb_18ec` ~11974-11979) |
+| Indian convert | **+1** if job ∈ {0,1,2,3,4} or job &gt; 7 (fisherman); **not** lumber/ore/silver | **2026-08-15 fix, re-verified against raw asm on user question** — `colony_yield_for_worker` gates on the exact whitelist. First pass read this from the `.c` decompile only (`FUN_15eb_18ec` ~11974-11979); re-checked byte-for-byte against `viceroy_unpacked.asm` (`~15eb:1cd6-1d06`) after a user asked whether converts really lose the bonus on lumber/ore/silver specifically — confirmed exact, not decompiler noise: `CMP local_14,0/2/3/1/4` (`JZ` to the `INC`) then `CMP local_14,8; JL` (skip unless ≥8, i.e. Fisherman only from that point up.) Lumber(5)/Ore(6)/Silver(7) are the only 3 field jobs with no matching branch. Real DOS behavior, not a port bug, whatever the manual/community memory says — the *manufacturing* (building) side of converts (1/3 the free-colonist rate, confirmed separately in `manufacturing_worker_calc_1d4c.md`) is unaffected by this and already matches the "converts work buildings poorly" expectation exactly. |
 
 ### Plow / road / river stacking
 
