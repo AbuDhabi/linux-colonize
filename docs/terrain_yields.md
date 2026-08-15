@@ -424,32 +424,58 @@ double, road/river unit doubles for the expert too). This is what's fixed
 above (`colony_yield_pipeline`), fully validated by this data point, and
 already ported.
 
-**Fur: real gap, not explained by anything in this model — left
-unfixed, flagged for you.** Mixed Forest Furs base is 3 (`NAMES.TXT`
-`@FORESTED`, double-checked against the raw file directly, not just this
-doc's summary table — not a transcription error). Running the *exact same,
-now-fixed* pipeline: free = `3 + sol(2) + road(u=1) = 6`; expert = `(3 +
-sol(2)) <<= 1 = 10`, `+ road(u=2) = 12`. Observed is 14 and 28 — roughly
-**2.3× higher** at both skill levels (14/6 = 28/12 = 7/3), not explained by
-any combination of the road/river/SoL/expert rules confirmed above. The
-expert:free ratio is a clean exact ×2 in both the Ore and Fur data (12/6,
-28/14), which is consistent with everything above — the *base* free-colonist
-number itself (14) is what doesn't fit. Solved algebraically assuming a flat
-*additive* special-resource bonus `R` on this specific tile (DOS's
-"expert doubles the additive resource bonus" rule — see the "Special
-resource" step-7 fix above, wired but not yet independently validated by
-player data): `free = 6 + R = 14` and `expert = 12 + 2R = 28` both solve
-cleanly to **R = 8** — a real special resource (e.g. a fur-type bonus
-resource on that specific Mixed Forest tile) would explain the entire gap
-exactly, at both skill levels, using a mechanism that's *already* real
-(asm-confirmed, just not yet cross-validated). **Not implemented — this is
-a guess dressed up as algebra, not a confirmed fix.** Before touching
-anything resource-related for this: **did that Mixed Forest tile have a
-visible special resource (a "Beaver"-type bonus icon, or similar) on it?**
-If yes, this is very likely fully explained and the resource-effect table's
-actual furs value can be checked/confirmed against R=8. If no, the gap is
-real and unexplained, and this needs a different theory entirely — not
-guessed at here.
+**Fur: real gap, resource hypothesis ruled out by the player, new
+hypothesis found — still not implemented, needs one more confirmation.**
+Mixed Forest Furs base is 3 (`NAMES.TXT` `@FORESTED`, double-checked against
+the raw file directly). Player confirmed **no special resource** was on
+that tile, ruling out the `R=8` additive-resource guess floated earlier.
+Player also confirmed: on a *different* tile that does carry a fur-boosting
+special resource, the expert:free ratio was *also* exactly twofold —
+consistent with (and a real independent player-side confirmation of) the
+already-wired "expert doubles the additive resource bonus" rule (step 7
+above), but doesn't bear on this specific non-resource tile's gap.
+
+New candidate, found by re-deriving what *would* make both numbers exact
+(not approximate) instead of guessing a free parameter:
+1. **Road's per-job magnitude may need the same fur/lumber-vs-everything-else
+   split river already has.** The port's `colony_yield_road_bonus` is a flat
+   `+1` for *any* of fur/lumber/ore/silver; `colony_yield_river_bonus`
+   already uses `+2` for fur/lumber specifically (`+1` for ore/silver/crop) —
+   an asymmetry between road and river that was never DOS-confirmed for
+   *either* function (the river split itself is commented "FreeCol
+   classic/Col1", i.e. not decomp-derived) and may simply be a port
+   invention. If Fur Trapper's road magnitude is *also* 2 (matching river's
+   own fur/lumber bucket, not the flat 1 every other road job gets):
+   `free = base(3) + sol(2) + road(u=1, base=2) = 7` — still short of 14 by
+   exactly ×2.
+2. **Henry Hudson** (fur trapper output +100%) would supply exactly that
+   missing ×2, applied uniformly to both free and expert (it's a flat
+   post-pipeline multiply in `turn.c`/`colony_preview.c`, unaffected by
+   skill level) — and combining both pieces lands on the *exact* observed
+   numbers, not approximately:
+   ```
+   free:   (base 3 + sol 2 + road[u=1,base=2]) × Hudson(2) = 7 × 2 = 14  ✓
+   expert: ((base 3 + sol 2) <<=1 + road[u=2,base=2]) × Hudson(2)
+         = (10 + 4) × 2 = 28  ✓
+   ```
+   Both equations solve *exactly*, not just closely — a much stronger fit
+   than the ruled-out resource guess, and using only mechanisms already
+   confirmed to exist (Hudson) or already partially wired with an untested
+   asymmetry (road's per-job magnitude).
+
+**Confirmed and fixed 2026-08-15.** Player confirmed Henry Hudson was
+owned by that nation — both equations above solve exactly, not
+coincidentally. Fixed: `colony_yield_road_bonus` now uses the same
+per-job magnitude bucket `colony_yield_river_bonus` already had (furs/
+lumber `+2`, ore/silver `+1`), replacing the old flat `+1` for every road
+job. Regression: `test_colony_yield.c` (Fur Trapper, Mixed Forest+road+
+sentiment(+2), no Hudson in this direct-pipeline test — Hudson is an
+external post-hoc multiply in `turn.c`/`colony_preview.c`, already covered
+by existing "Henry Hudson" tests — free=7/expert=14, matching the
+pre-Hudson half of the derivation exactly); one pre-existing `test_units.c`
+road/lumberjack test needed its hardcoded expectation updated again
+(`clear+2` → `clear+4`: Lumberjack is in the fur/lumber magnitude bucket
+too, so its road bonus is now `2(base) × 2(unit size) = 4`).
 
 ---
 

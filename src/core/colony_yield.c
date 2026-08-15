@@ -171,11 +171,6 @@ static bool colony_yield_is_crop_job(int field_job) {
          field_job == COLONIZE_JOB_TOBACCO_PLANTER || field_job == COLONIZE_JOB_COTTON_PLANTER;
 }
 
-static bool colony_yield_is_road_job(int field_job) {
-  return field_job == COLONIZE_JOB_FUR_TRAPPER || field_job == COLONIZE_JOB_LUMBERJACK ||
-         field_job == COLONIZE_JOB_ORE_MINER || field_job == COLONIZE_JOB_SILVER_MINER;
-}
-
 /*
  * Minor-river bonus for a field job; major = 2×.
  * Food/crops +1, furs/lumber +2, ore/silver +1 (FreeCol classic / Col1).
@@ -217,8 +212,31 @@ static int colony_yield_river_bonus(int field_job, bool major) {
   return major ? (base * 2) : base;
 }
 
+/*
+ * Road bonus for a field job — same per-job magnitude bucket as
+ * colony_yield_river_bonus's minor-river value (furs/lumber +2,
+ * ore/silver +1), not a flat +1 for every road job. Player-confirmed
+ * 2026-08-15 (Viceroy): Expert Fur Trapper, Mixed Forest+road+sentiment(+2),
+ * Henry Hudson owned = 28 furs; Free Colonist, same tile = 14. The port
+ * used to give every road job (fur/lumber/ore/silver alike) a flat +1,
+ * which — even combined with Hudson's ×2 and the expert road/river
+ * doubling fixed above — landed on free=12/expert=24, not 14/28. Only
+ * matches exactly once fur/lumber's road magnitude is 2, same as their
+ * river magnitude: free = (base 3 + sol 2 + road[u=1,base=2]) × Hudson(2)
+ * = 7×2 = 14; expert = ((base 3 + sol 2)<<=1 + road[u=2,base=2]) × Hudson(2)
+ * = 14×2 = 28. See docs/terrain_yields.md "Plow / road / river stacking".
+ */
 static int colony_yield_road_bonus(int field_job) {
-  return colony_yield_is_road_job(field_job) ? 1 : 0;
+  switch (field_job) {
+  case COLONIZE_JOB_ORE_MINER:
+  case COLONIZE_JOB_SILVER_MINER:
+    return 1;
+  case COLONIZE_JOB_FUR_TRAPPER:
+  case COLONIZE_JOB_LUMBERJACK:
+    return 2;
+  default:
+    return 0;
+  }
 }
 
 /*

@@ -106,25 +106,34 @@ below as ported guidance.
 - The early 5×5/`0xa891`/`0xa895`/`0xa896` block (item 1) — purpose unknown.
 - Where the `1d4c` per-worker totals (item 2) combine with this function's
   crosses/bells (items 3-4) — not found in this function's body.
-- Whether Jefferson/Printing-Press/Newspaper apply to the Town-Hall-passive
-  bell too, not just per-statesman-worker contributions (would need the
-  combine point resolved first). **Tested 2026-08-15, inconclusive:**
-  player observation (empty Town Hall, no Statesman, Viceroy) — Jefferson
-  alone: 1 bell; Jefferson+Printing Press: 1 bell; Jefferson+Newspaper: 2
-  bells. Checked against both hypotheses: the port's current behavior
-  (Jefferson only applies per-worker, so a no-worker colony sees zero effect
-  from it, Press/Newspaper apply straight to the base 1) predicts 1/1/2. But
-  so does DOS's literal decomp order applied to the base *before*
-  Press/Newspaper (`bells=1; if Jefferson: bells+=bells>>1` → `1+(1>>1=0)=1`
-  either way `Jefferson runs or not`, since `1>>1` truncates to 0; Press
-  adds another `bells>>1=0` → still 1; Newspaper instead is `bells<<=1` → 2)
-  — both hypotheses land on the same 1/1/2 because Jefferson's 50% vanishes
-  to integer truncation at base value 1 regardless of whether DOS applies
-  it. **This data doesn't distinguish the two implementations**, so no code
-  change made. What would: the same empty-Town-Hall+Jefferson setup on an
-  **AI-controlled** colony, where the passive base is `1+(pop+3)/5` (can
-  exceed 1, per the now-ported AI bells subsidy — see item 4) and so
-  wouldn't fully truncate away a real Jefferson effect if one exists.
+- **Whether Jefferson/Printing-Press/Newspaper apply to the Town-Hall-passive
+  bell — closed 2026-08-15, structurally provably moot, not just untested.**
+  First pass (human colony): Jefferson alone 1 bell; +Printing Press 1 bell;
+  +Newspaper 2 bells — matched both hypotheses (port's per-worker-only
+  Jefferson, and DOS's literal base-first order) identically, since
+  `bells=1; bells+=bells>>1` truncates to `1` either way (`1>>1=0`).
+  Proposed as a next step: re-test on an **AI-controlled** colony, reasoning
+  the AI bells subsidy (item 4, `+(pop+3)/5`) could push the passive base
+  above 1 before Jefferson's truncation could hide anything. **That
+  reasoning was wrong** — re-reading this function's own literal decomp
+  order (`bells=1` → Jefferson → Paine → AI-subsidy → `byte 0xa892` →
+  media), Jefferson is the *second* step, evaluated immediately after
+  `bells=1`, strictly *before* Paine, the AI subsidy, or the mystery byte
+  can add anything. So `bells` is provably still exactly `1` at the moment
+  Jefferson's check runs, for *every* colony configuration this function can
+  ever compose — human or AI, any population, any tax rate, Bolivar-gate or
+  not. `1 >> 1 = 0` is not a coincidence of small test cases; it's forced by
+  the order itself. Player re-test on an AI colony, empty Town Hall,
+  Jefferson: still **1 bell**, exactly as this proof predicts. Conclusion:
+  whichever way DOS's bytes literally read here, Jefferson's *observable*
+  effect on the passive Town-Hall bell is always zero — porting this
+  specific piece would be a no-op by construction, not merely unconfirmed.
+  Closed; no code change, and no further test of this specific question is
+  needed (its answer can't vary). This does *not* touch whether
+  Jefferson/Press/Newspaper apply to the *per-worker* Statesman
+  contributions — that part is already correctly wired
+  (`colony_prod_bells_worker`, `colony_prod_colony_bells_ff`) and unrelated
+  to this passive-only question.
 - `byte 0xa892`'s meaning — still unknown (flag `0x12`/AI bells subsidy
   itself is now resolved and ported, see item 4 above).
 - `FUN_15eb_09c0` (`1f72`'s sibling in the `394c` compose call) — read;

@@ -243,6 +243,64 @@ int main(void) {
     }
   }
 
+  /*
+   * Expert Fur Trapper on Mixed Forest+road+sentiment, player-confirmed
+   * 2026-08-15 (Viceroy): 28 furs with Henry Hudson owned, vs. 14 for a
+   * Free Colonist — vs. 12/24 the port would have given before this fix.
+   * Ruled out a special resource explaining the gap (player-confirmed
+   * none present); solved instead to fur/lumber's road bonus needing the
+   * same base-2 magnitude bucket river already has (was flat 1 for every
+   * road job). This checks that piece alone, via colony_yield_for_worker
+   * (job-only pipeline, no Hudson — Hudson's x2 is an external post-hoc
+   * step in turn.c/colony_preview.c, not part of colony_yield_pipeline):
+   *   free:   base(3) +sol(2)=5,                +road(u=1,base=2)=7
+   *   expert: base(3) +sol(2)=5, <<=1(expert)=10, +road(u=2,base=2)=14
+   * (x Hudson's external x2 separately gives the full 14/28 the player
+   * observed — not re-tested here, that multiply is already covered by
+   * the existing "Henry Hudson" tests in test_turn.c.)
+   */
+  {
+    /* Resources are procedurally derived from (terrain, x, y), not stored
+     * data — scan for a resource-free Mixed forest cell rather than assume
+     * a fixed coordinate has none (an earlier fixed pick landed on one by
+     * coincidence, inflating the result and catching this comment's own
+     * claim of "no resource involved" out — good, that's what the scan is
+     * for). */
+    int mx = -1;
+    int my = -1;
+    for (int y = 0; y < (int)map.height && mx < 0; ++y) {
+      for (int x = 0; x < (int)map.width && mx < 0; ++x) {
+        map.terrain[y * map.width + x] = 10; /* Mixed forest, pedia 8+2, no river */
+        if (map_resource_type_for_yield(&map, x, y) < 0) {
+          mx = x;
+          my = y;
+        }
+      }
+    }
+    if (mx < 0) {
+      fprintf(stderr, "no resource-free Mixed forest tile found on 32x32\n");
+      map_free(&map);
+      return 1;
+    }
+    map_tile_set_road(&map, mx, my, true);
+    const int free_fur = colony_yield_for_worker(
+      &map, mx, my, COLONIZE_JOB_FUR_TRAPPER, COLONIZE_PROF_FREE_COLONIST, /*has_docks=*/true, 2
+    );
+    if (free_fur != 7) {
+      fprintf(stderr, "free colonist fur+road+sol want 7 got %d\n", free_fur);
+      map_free(&map);
+      return 1;
+    }
+    const int expert_fur = colony_yield_for_worker(
+      &map, mx, my, COLONIZE_JOB_FUR_TRAPPER, COLONIZE_JOB_FUR_TRAPPER, /*has_docks=*/true, 2
+    );
+    if (expert_fur != 14) {
+      fprintf(stderr, "expert fur trapper+road+sol want 14 got %d\n", expert_fur);
+      map_free(&map);
+      return 1;
+    }
+  }
+
   map_free(&map);
   printf("colony_yield town commons tests ok\n");
   return 0;
