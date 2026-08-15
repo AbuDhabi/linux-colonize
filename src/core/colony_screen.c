@@ -7,6 +7,7 @@
 #include "core/colony_preview.h"
 #include "core/colony_production.h"
 #include "core/colony_yield.h"
+#include "core/founding_fathers.h"
 #include "core/popup_msg.h"
 #include "core/turn.h"
 #include "core/ui_button.h"
@@ -1226,6 +1227,7 @@ static void colony_screen_draw_area_overlays(
   const ColonizeColony* colony,
   const ColonizeUnitPool* units,
   const ColonizeWorldMap* map,
+  const ColonizeCol1Save* col1,
   const ColonizeFont* font,
   ColonizeFramebuffer8* framebuffer
 ) {
@@ -1319,9 +1321,16 @@ static void colony_screen_draw_area_overlays(
     const int tile_x = origin_x + (dx + half) * tile;
     const int tile_y = origin_y + (dy + half) * tile;
     const int cargo = colony_yield_job_cargo(c->field_job);
-    const int yld = colony_yield_for_worker(
+    int yld = colony_yield_for_worker(
       map, colony->x + dx, colony->y + dy, c->field_job, c->profession, has_docks, 0
     );
+    /* Henry Hudson: fur trapper output +100% — matches turn.c/colony_preview.c
+     * (2026-08-15: badges previously missed this, a known gap — see
+     * building_production.md "UI: settlement badges vs Production tab"). */
+    if (yld > 0 && c->field_job == COLONIZE_JOB_FUR_TRAPPER && col1 &&
+        founding_fathers_nation_has(col1, colony->nation_id, FF_HENRY_HUDSON)) {
+      yld *= 2;
+    }
     if (cargo >= 0 && yld > 0) {
       const int icon = (c->field_job == COLONIZE_JOB_FISHERMAN)
                          ? COLONY_ICON_FISH
@@ -2587,6 +2596,7 @@ static void colony_screen_draw_jobs_popup(
   const ColonizeColonyPool* pool,
   const ColonizeWorldMap* map,
   const ColonizeColony* colony,
+  const ColonizeCol1Save* col1,
   const ColonizeFont* font,
   ColonizeFramebuffer8* framebuffer
 ) {
@@ -2673,8 +2683,13 @@ static void colony_screen_draw_jobs_popup(
         view->selected_colonist < colony->colonist_count) {
       profession = colony->colonists[view->selected_colonist].profession;
     }
-    const int yld =
-      (map && colony) ? colony_yield_for_worker(map, tx, ty, job, profession, has_docks, 0) : 0;
+    int yld = (map && colony) ? colony_yield_for_worker(map, tx, ty, job, profession, has_docks, 0) : 0;
+    /* Henry Hudson: fur trapper output +100% — same gap/fix as
+     * colony_screen_draw_area_overlays above. */
+    if (yld > 0 && job == COLONIZE_JOB_FUR_TRAPPER && colony && col1 &&
+        founding_fathers_nation_has(col1, colony->nation_id, FF_HENRY_HUDSON)) {
+      yld *= 2;
+    }
     snprintf(label, sizeof(label), "%s (%d)", colony_yield_job_name(job), yld);
     if (font) {
       font_draw_text(font, framebuffer, inner_x + pad, row_y + 1, label, 15);
@@ -3403,7 +3418,7 @@ void colony_screen_render(
   colony_screen_fill_wood_tile(view, framebuffer);
   if (colony && map && terrain) {
     colony_screen_render_minimap(map, terrain, phys0, colony->x, colony->y, framebuffer);
-    colony_screen_draw_area_overlays(view, pool, colony, units, map, font, framebuffer);
+    colony_screen_draw_area_overlays(view, pool, colony, units, map, col1, font, framebuffer);
   }
   if (view && view->bottom_panel_ok) {
     pik_blit(&view->bottom_panel, framebuffer, 0, COLONY_BOTTOM_PANEL_Y);
@@ -3433,7 +3448,7 @@ void colony_screen_render(
     colony_screen_draw_construction_popup(view, pool, colony, font, framebuffer);
   }
   if (view && view->jobs_open) {
-    colony_screen_draw_jobs_popup(view, pool, map, colony, font, framebuffer);
+    colony_screen_draw_jobs_popup(view, pool, map, colony, col1, font, framebuffer);
   }
   if (view && view->eject_open) {
     colony_screen_draw_eject_popup(view, font, framebuffer);
