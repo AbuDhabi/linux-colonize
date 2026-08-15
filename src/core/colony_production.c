@@ -86,17 +86,30 @@ static int colony_prod_religious_worker_rate(const char* building_name, int prof
 int colony_prod_manufacturing_output(
   const char* building_name,
   int profession,
-  int craft_profession
+  int craft_profession,
+  int sol_bonus
 ) {
   if (!building_name) {
     return 0;
   }
   const ColonyProdTier tier = colony_prod_building_tier(building_name);
-  int out = colony_prod_scale_by_class(profession, colony_prod_tier_free_output(tier));
+  /* DOS FUN_15eb_1d4c: class tag (1/2/3, i.e. colony_prod_scale_by_class at a
+   * fixed house-tier "3") plus sol_bonus first; shop re-adds the tag alone;
+   * factory applies ×1.5 (floor, matching x86 SAR) to the running total;
+   * skill match doubles whatever's left. See
+   * original_sources_annotated/turn/manufacturing_worker_calc_1d4c.md. */
+  const int tag = colony_prod_scale_by_class(profession, 3);
+  int out = tag + sol_bonus;
+  if (tier == COLONY_PROD_TIER_SHOP || tier == COLONY_PROD_TIER_FACTORY) {
+    out += tag;
+  }
+  if (tier == COLONY_PROD_TIER_FACTORY) {
+    out += out >> 1;
+  }
   if (colony_prod_craft_skill_matches(profession, craft_profession)) {
     out *= 2;
   }
-  return out;
+  return out > 0 ? out : 0;
 }
 
 int colony_prod_manufacturing_input(
@@ -104,7 +117,9 @@ int colony_prod_manufacturing_input(
   int profession,
   int craft_profession
 ) {
-  const int out = colony_prod_manufacturing_output(building_name, profession, craft_profession);
+  /* sol_bonus 0: input consumption tracks the un-modified base rate, not the
+   * SoL-adjusted output — see header comment. */
+  const int out = colony_prod_manufacturing_output(building_name, profession, craft_profession, 0);
   if (out <= 0) {
     return 0;
   }
@@ -529,23 +544,23 @@ int colony_prod_worker_building_output(
     return colony_prod_hammers_worker(name, profession);
   }
   if (colony_prod_name_has(name, "Rum Distill")) {
-    return colony_prod_manufacturing_output(name, profession, COLONIZE_PROF_DISTILLER);
+    return colony_prod_manufacturing_output(name, profession, COLONIZE_PROF_DISTILLER, 0);
   }
   if (colony_prod_name_has(name, "Tobacconist")) {
-    return colony_prod_manufacturing_output(name, profession, COLONIZE_PROF_TOBACCONIST);
+    return colony_prod_manufacturing_output(name, profession, COLONIZE_PROF_TOBACCONIST, 0);
   }
   if (colony_prod_name_has(name, "Weaver") || colony_prod_name_has(name, "Textile")) {
-    return colony_prod_manufacturing_output(name, profession, COLONIZE_PROF_WEAVER);
+    return colony_prod_manufacturing_output(name, profession, COLONIZE_PROF_WEAVER, 0);
   }
   if (colony_prod_name_has(name, "Fur Trad") || colony_prod_name_has(name, "Fur Fact")) {
-    return colony_prod_manufacturing_output(name, profession, COLONIZE_PROF_FUR_TRADER);
+    return colony_prod_manufacturing_output(name, profession, COLONIZE_PROF_FUR_TRADER, 0);
   }
   if (colony_prod_name_has(name, "Blacksmith") || colony_prod_name_has(name, "Iron Works")) {
-    return colony_prod_manufacturing_output(name, profession, COLONIZE_PROF_BLACKSMITH);
+    return colony_prod_manufacturing_output(name, profession, COLONIZE_PROF_BLACKSMITH, 0);
   }
   if (colony_prod_name_has(name, "Armory") || colony_prod_name_has(name, "Magazine") ||
       colony_prod_name_has(name, "Arsenal")) {
-    return colony_prod_manufacturing_output(name, profession, COLONIZE_PROF_GUNSMITH);
+    return colony_prod_manufacturing_output(name, profession, COLONIZE_PROF_GUNSMITH, 0);
   }
   return 0;
 }

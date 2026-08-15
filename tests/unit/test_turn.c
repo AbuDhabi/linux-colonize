@@ -1307,12 +1307,71 @@ int main(void) {
       return 1;
     }
     const char* dname = pool.building_types[distiller].name;
-    if (colony_prod_manufacturing_output(dname, COLONIZE_PROF_CONVERT, COLONIZE_PROF_DISTILLER) != 1 ||
-        colony_prod_manufacturing_output(dname, COLONIZE_PROF_BLACKSMITH, COLONIZE_PROF_DISTILLER) != 3 ||
-        colony_prod_manufacturing_output(dname, COLONIZE_PROF_DISTILLER, COLONIZE_PROF_DISTILLER) != 6) {
+    if (colony_prod_manufacturing_output(dname, COLONIZE_PROF_CONVERT, COLONIZE_PROF_DISTILLER, 0) != 1 ||
+        colony_prod_manufacturing_output(dname, COLONIZE_PROF_BLACKSMITH, COLONIZE_PROF_DISTILLER, 0) != 3 ||
+        colony_prod_manufacturing_output(dname, COLONIZE_PROF_DISTILLER, COLONIZE_PROF_DISTILLER, 0) != 6) {
       fprintf(stderr, "manufacturing class/skill rules failed\n");
       assets_msg_free(&names);
       return 1;
+    }
+
+    /*
+     * FUN_15eb_1d4c: sol_bonus folds in *before* tier/skill math, not as a
+     * flat post-hoc add — matters at factory tier (×1.5 of the whole running
+     * total, not just the class portion) and whenever skill matches (the
+     * whole thing doubles, sol_bonus included). See
+     * manufacturing_worker_calc_1d4c.md.
+     */
+    {
+      const int iron_works = colonies_find_building(&pool, "Iron Works");
+      if (iron_works < 0) {
+        fprintf(stderr, "production rules: missing Iron Works\n");
+        assets_msg_free(&names);
+        return 1;
+      }
+      const char* iname = pool.building_types[iron_works].name;
+      /* Free colonist (tag=3), factory tier, sol_bonus=3:
+       * v = 3+3=6; shop/factory re-add tag: 6+3=9; factory ×1.5 floor: 9+4=13. */
+      const int unskilled =
+        colony_prod_manufacturing_output(iname, COLONIZE_PROF_FREE_COLONIST, COLONIZE_PROF_BLACKSMITH, 3);
+      if (unskilled != 13) {
+        fprintf(stderr, "factory sol-fold unskilled want 13 got %d\n", unskilled);
+        assets_msg_free(&names);
+        return 1;
+      }
+      /* Skilled (Blacksmith in Iron Works): whole running total doubles: 13*2=26. */
+      const int skilled =
+        colony_prod_manufacturing_output(iname, COLONIZE_PROF_BLACKSMITH, COLONIZE_PROF_BLACKSMITH, 3);
+      if (skilled != 26) {
+        fprintf(stderr, "factory sol-fold skilled want 26 got %d\n", skilled);
+        assets_msg_free(&names);
+        return 1;
+      }
+      /* Tory penalty (negative sol_bonus) must reduce output, not get
+       * clamped away — house tier, criminal (tag=1), sol_bonus=-5 clamps to 0. */
+      const int penalized =
+        colony_prod_manufacturing_output(dname, COLONIZE_PROF_CRIMINAL, COLONIZE_PROF_DISTILLER, -5);
+      if (penalized != 0) {
+        fprintf(stderr, "Tory-penalty clamp want 0 got %d\n", penalized);
+        assets_msg_free(&names);
+        return 1;
+      }
+      /* Same penalty, free colonist (tag=3): 3-5=-2 clamps to 0 too. */
+      const int penalized2 =
+        colony_prod_manufacturing_output(dname, COLONIZE_PROF_FREE_COLONIST, COLONIZE_PROF_DISTILLER, -5);
+      if (penalized2 != 0) {
+        fprintf(stderr, "Tory-penalty clamp (free) want 0 got %d\n", penalized2);
+        assets_msg_free(&names);
+        return 1;
+      }
+      /* A smaller penalty that doesn't clamp: free colonist, house tier, sol=-1 -> 3-1=2. */
+      const int penalized3 =
+        colony_prod_manufacturing_output(dname, COLONIZE_PROF_FREE_COLONIST, COLONIZE_PROF_DISTILLER, -1);
+      if (penalized3 != 2) {
+        fprintf(stderr, "Tory-penalty (unclamped) want 2 got %d\n", penalized3);
+        assets_msg_free(&names);
+        return 1;
+      }
     }
 
     ColonizeColony* col = &pool.colonies[0];
