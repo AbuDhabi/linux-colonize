@@ -401,8 +401,11 @@ void colony_prod_tick_rebel_accumulators(
      founding_fathers_nation_has(col1, nation_id, FF_THOMAS_PAINE))
       ? (int)col1->nation[nation_id].tax_rate
       : 0;
+  const bool nation_is_ai = nation_id >= 0 && nation_id < (int)COLONIZE_COL1_NATION_COUNT &&
+                             col1->player[nation_id].control != 0;
   /* sol_bonus=0: the rebel-accumulator tick must not feed SoL back into itself. */
-  int bells = colony_prod_colony_bells_ff(pool, colony, statesmen_pct, paine_tax_pct, 0);
+  int bells =
+    colony_prod_colony_bells_ff(pool, colony, statesmen_pct, paine_tax_pct, nation_is_ai, 0);
 
   /* WoI + crown-occupied: bells feed Tory (negative half). */
   const int woi = col1->head.unknown46[0] != 0;
@@ -590,6 +593,7 @@ int colony_prod_colony_bells_ff(
   const ColonizeColony* colony,
   int statesmen_bonus_pct,
   int all_bells_bonus_pct,
+  bool nation_is_ai,
   int sol_bonus
 ) {
   if (!pool || !colony || !colony->active) {
@@ -599,6 +603,34 @@ int colony_prod_colony_bells_ff(
   const bool has_town_hall = colony_prod_building_built(pool, colony, "Town Hall");
   if (has_town_hall) {
     bells += 1;
+    /* AI bells subsidy, player-confirmed 2026-08-15 (Viceroy difficulty): a
+     * free-colonist Statesman produces 5 colony bells for an AI nation vs 3
+     * for a human, same colony shape, no visible FF/press bonus — exactly
+     * the delta this term predicts for a mid-size colony. FUN_15eb_1f72
+     * (nation crosses/bells composer) has `bells += (pop+3)/5` gated on
+     * flag 0x12 (numerically = 18 = FF_SIMON_BOLIVAR) AND the same
+     * AI/non-human table gate used by colony_prod_sol_bonus_field — the
+     * index match with Bolivar was flagged as probably coincidental (his
+     * real effect is SoL +20%, not bells) since the arithmetic here doesn't
+     * fit a Founding Father at all; this is almost certainly reusing the
+     * shared per-nation flag-test primitive for an unrelated AI-difficulty
+     * bit, not actually reading Bolivar ownership. The player observation
+     * confirms *some* AI-only bells advantage exists (ruling out "dead
+     * code"/decompiler noise), and the arithmetic itself was already
+     * asm-certain (only whether it was real and worth porting was in
+     * doubt) — so ported as read, gated on nation_is_ai (caller-computed:
+     * `col1->player[nation_id].control != 0`, same primitive as
+     * colony_prod_sol_bonus_field). Not re-derived from the single
+     * observation (that would be numerically underdetermined from one data
+     * point); taken directly from the decompiled bytes. See
+     * nation_crosses_bells_1f72.md item 4. */
+    if (nation_is_ai) {
+      int pop = colony->colonist_count > 0 ? colony->colonist_count : colony->population;
+      if (pop < 0) {
+        pop = 0;
+      }
+      bells += (pop + 3) / 5;
+    }
   }
   int bell_workers = 0;
   for (int p = 0; p < colony->colonist_count; ++p) {
@@ -644,7 +676,7 @@ int colony_prod_colony_bells_ff(
 }
 
 int colony_prod_colony_bells(const ColonizeColonyPool* pool, const ColonizeColony* colony) {
-  return colony_prod_colony_bells_ff(pool, colony, 0, 0, 0);
+  return colony_prod_colony_bells_ff(pool, colony, 0, 0, false, 0);
 }
 
 int colony_prod_colony_hammers(

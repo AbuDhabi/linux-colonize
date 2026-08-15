@@ -1617,6 +1617,9 @@ static int turn_count_bells_and_crosses_for_nation(
       : 0;
   const bool nation_has_penn =
     col1 && founding_fathers_nation_has(col1, nation_id, FF_WILLIAM_PENN);
+  const bool nation_is_ai =
+    col1 && nation_id >= 0 && nation_id < (int)COLONIZE_COL1_NATION_COUNT &&
+    col1->player[nation_id].control != 0;
   for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
     const ColonizeColony* c = &pool->colonies[i];
     if (!c->active || c->nation_id != nation_id) {
@@ -1627,7 +1630,7 @@ static int turn_count_bells_and_crosses_for_nation(
      * individually, inside colony_prod_colony_bells_ff/_crosses_ff (matches
      * FUN_15eb_1d4c's Statesman/Preacher bodies — see
      * manufacturing_worker_calc_1d4c.md). */
-    int b = colony_prod_colony_bells_ff(pool, c, statesmen_pct, paine_tax_pct, sol_b);
+    int b = colony_prod_colony_bells_ff(pool, c, statesmen_pct, paine_tax_pct, nation_is_ai, sol_b);
     int x = colony_prod_colony_crosses_ff(pool, c, nation_has_penn, sol_b);
     bells += b;
     crosses += x;

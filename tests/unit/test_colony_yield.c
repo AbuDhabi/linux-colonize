@@ -175,6 +175,36 @@ int main(void) {
     }
   }
 
+  /*
+   * Fisherman + major river, player-confirmed 2026-08-15 (Viceroy
+   * difficulty): Lake with a major river, free colonist, no sentiment
+   * bonus = 6 food. Ocean base fish 3, +1 coastal distance mod (few ocean
+   * neighbors, matching the "sometimes 6" coastal observation), +2 major
+   * river (base 1 × 2, same bucket as Farmer/Ore/Silver) = 6. Previously
+   * colony_yield_river_bonus's `default: return 0` silently dropped
+   * Fisherman from any river bonus — this is the regression check for that
+   * fix (colony_yield.c). Uses colony_yield_for_tile (job-only, matches
+   * this test binary's link set) rather than colony_yield_for_worker — no
+   * profession/docks gating needed since a free colonist has no skill-match
+   * bonus and this check is about the river term specifically.
+   */
+  {
+    const int fx = 20;
+    const int fy = 20;
+    map.terrain[fy * map.width + fx] = (uint8_t)(25u | 0x40u | 0x80u); /* Ocean, major river */
+    if (!map_tile_has_river(&map, fx, fy) || !map_tile_has_major_river(&map, fx, fy)) {
+      fprintf(stderr, "fisherman tile should be major river ocean\n");
+      map_free(&map);
+      return 1;
+    }
+    const int fish = colony_yield_for_tile(&map, fx, fy, COLONIZE_JOB_FISHERMAN);
+    if (fish != 6) {
+      fprintf(stderr, "fisherman+major river want 6 got %d\n", fish);
+      map_free(&map);
+      return 1;
+    }
+  }
+
   map_free(&map);
   printf("colony_yield town commons tests ok\n");
   return 0;

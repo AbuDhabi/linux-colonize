@@ -187,13 +187,17 @@ void colony_preview_compute(
       : 0;
   const bool nation_has_penn =
     col1 && founding_fathers_nation_has(col1, nation_id, FF_WILLIAM_PENN);
+  const bool nation_is_ai =
+    col1 && nation_id >= 0 && nation_id < (int)COLONIZE_COL1_NATION_COUNT &&
+    col1->player[nation_id].control != 0;
   /* Bells / crosses: sol_b folds into each Statesman/Preacher worker
    * individually, inside colony_prod_colony_bells_ff/_crosses_ff (matches
    * FUN_15eb_1d4c's Statesman/Preacher bodies — see
    * manufacturing_worker_calc_1d4c.md). Must match turn.c's
    * turn_count_bells_and_crosses_for_nation call exactly. */
   out->crosses = colony_prod_colony_crosses_ff(pool, colony, nation_has_penn, sol_b);
-  out->bells = colony_prod_colony_bells_ff(pool, colony, statesmen_pct, paine_tax_pct, sol_b);
+  out->bells =
+    colony_prod_colony_bells_ff(pool, colony, statesmen_pct, paine_tax_pct, nation_is_ai, sol_b);
 
   {
     /* Hammers bank even with no project queued (turn.c "TURN5→6" comment) —
