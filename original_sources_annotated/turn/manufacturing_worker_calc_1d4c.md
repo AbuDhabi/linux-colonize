@@ -284,12 +284,25 @@ reachable through normal construction (upgrades replace, not stack), so
 
 ## Open questions (next layer — normal RE backlog, not a blocker)
 
-- The same `local_e`-early-fold pattern shows up in the Carpenter/Preacher/
-  Statesman bodies too (hammers/bells/crosses), but those formulas live in a
-  *different* port mechanism (`turn.c`'s per-worker `bell_workers`/
-  `cross_workers`/`carpenters` count × `sol_b`, not a single
-  `colony_prod_manufacturing_output`-shaped call) — not touched this pass;
-  worth its own look if hammers/bells/crosses fidelity at high SoL matters.
+- **Partially fixed 2026-08-15:** hammers/bells/crosses (`turn.c`'s
+  `turn_count_bells_and_crosses_for_nation` and hammers block, mirrored in
+  `colony_preview.c`) had the *same* `sol_b > 0` guard bug as manufacturing —
+  every Tory penalty silently dropped instead of reducing output. That half
+  is fixed (signed `sol_b`, colony-total clamped to ≥0). **Still not fixed:**
+  unlike the manufacturing rewrite, these three still add `sol_b` *after*
+  `colony_prod_bells_worker`/`_crosses_worker`/`_hammers_worker` have already
+  applied their internal skill-match ×2 — so for a *skilled* Statesman/
+  Preacher/Carpenter, DOS doubles the SoL term along with everything else
+  (Carpenter/Preacher/Statesman bodies all show the identical `v =
+  base+local_e` then `if (skill) v <<= 1` shape the shared craft body has)
+  but the port still doesn't. Smaller-magnitude version of the same bug the
+  manufacturing fix closed; not restructured this pass because these three
+  use a colony-wide "count matching workers, multiply" mechanism rather than
+  a single per-worker function call, so folding sol in pre-doubling means
+  restructuring `colony_prod_colony_bells_ff`/`_crosses_ff`/
+  `colony_prod_colony_hammers` to take `sol_bonus` as a per-worker input
+  rather than a post-hoc colony-wide multiply — real work, not a one-line
+  change like the sign-drop fix was.
 - `byte[bx+0x1a]` / `0x543f` table / `byte[0x53a6]` — strong-hypothesis (per
   above: nation-control-type gate, per-nation table, difficulty setting) but
   not independently cross-checked against another call site yet.

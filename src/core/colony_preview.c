@@ -92,7 +92,9 @@ void colony_preview_compute(
           founding_fathers_nation_has(col1, colony->nation_id, FF_HENRY_HUDSON)) {
         yld *= 2;
       }
-      if (yld > 0 && sol_b > 0) {
+      /* sol_b is signed (Tory penalty reduces yield too) — matches turn.c's
+       * unconditional `add += colony_prod_sol_bonus(...)` in the same spot. */
+      if (yld > 0) {
         yld += sol_b;
       }
       const int cargo = colony_yield_job_cargo(c->field_job);
@@ -167,9 +169,10 @@ void colony_preview_compute(
     (col1 && founding_fathers_nation_has(col1, nation_id, FF_WILLIAM_PENN)) ? 50 : 0;
   out->crosses = colony_prod_colony_crosses_ff(pool, colony, penn_crosses_pct);
   out->bells = colony_prod_colony_bells_ff(pool, colony, statesmen_pct, paine_tax_pct);
-  if (sol_b > 0) {
-    /* SoL +1/+2 per production unit — per worker, not flat; must match
-     * turn_count_bells_and_crosses_for_nation's per-colony body (turn.c). */
+  if (sol_b != 0) {
+    /* +1/+2 per production unit — per worker, not flat; must match
+     * turn_count_bells_and_crosses_for_nation's per-colony body (turn.c).
+     * sol_b is signed — a Tory penalty must reduce these too. */
     int bell_workers = 0;
     int cross_workers = 0;
     for (int p = 0; p < colony->colonist_count; ++p) {
@@ -195,6 +198,12 @@ void colony_preview_compute(
     } else if (out->crosses > 0) {
       out->crosses += sol_b; /* church passive / colony base */
     }
+    if (out->bells < 0) {
+      out->bells = 0;
+    }
+    if (out->crosses < 0) {
+      out->crosses = 0;
+    }
   }
 
   {
@@ -203,7 +212,8 @@ void colony_preview_compute(
      * selected, or the player never sees lumber about to be consumed. */
     int lumber_use = 0;
     int hammers_add = colony_prod_colony_hammers(pool, colony, &lumber_use);
-    if (hammers_add > 0 && sol_b > 0) {
+    if (hammers_add > 0 && sol_b != 0) {
+      /* sol_b is signed — must match turn.c's hammers block. */
       int carpenters = 0;
       for (int ci = 0; ci < colony->colonist_count; ++ci) {
         const ColonizeColonist* cc = &colony->colonists[ci];
@@ -216,6 +226,9 @@ void colony_preview_compute(
         }
       }
       hammers_add += sol_b * carpenters;
+      if (hammers_add < 0) {
+        hammers_add = 0;
+      }
     }
     if (hammers_add > 0) {
       int lumber = colony->stock[COLONIZE_CARGO_LUMBER] + out->goods[COLONIZE_CARGO_LUMBER];
