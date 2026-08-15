@@ -264,24 +264,38 @@ gating **popup dialog calls** (`FUN_1000_8842` with catalog ids
 `0x13ba`/`0x13ad`/`0x13cb`/`0x13d7`, name-formatting helpers
 `FUN_1000_8c0a`/`func_0x00018b94`, `FUN_1000_8628` for string-arg slots).
 
-**Update (2026-08-15, later pass) — full surrounding context pulled;
-revised which popup id is the best `@VIOLATE` candidate.** This is a
-richer "two different-nation units meet on the map" handler than first
-read, with (at least) four distinct outcomes gated on pairwise
-`FUN_1000_8c28` PEACE-flag (`&0x40`) checks between the acting unit's
+**Correction (2026-08-15, third pass) — the gating bit is `MET`, not
+`PEACE`.** Cross-checked `FUN_1000_8c28`'s `&0x40` bit against ground
+truth instead of trusting the (inconsistent, across 3 different docs this
+project already had) "0x40 = ..." guesses: Linux's `ai_diplo_read`
+(`ai_diplo.c`) returns the DOS `euro_relation` byte **completely raw, no
+remapping** (`return *f;`), and its own `#define AI_DIPLO_MET 0x40` is
+that literal DOS bit — confirmed by `ai_diplo_write`'s callers only ever
+OR/AND-ing these same DOS-numbered bits directly into the save-format
+byte. So `FUN_1000_8c28`'s bit `0x40` is **"have these two nations met,"
+not "are they at peace."** (`move_scoring_20e6_full.md`'s own separate
+"`0x40` = at-war flag" citation is *also* wrong by this same evidence —
+flagging there too, not fixed in this pass.) Re-reads below as "met",
+correcting the previous "peace holds" framing throughout — this arguably
+fits a territorial-notice mechanic *better*: you can't sensibly be told
+"England violates your territory" about a nation you haven't met yet.
+
+This is a richer "two different-nation units meet on the map" handler
+than first read, with (at least) four distinct outcomes gated on pairwise
+`FUN_1000_8c28` MET-flag (`&0x40`) checks between the acting unit's
 nation (`uStack_44`) and an encountered nation (`uStack_e`, found via a
 unit search at/near the destination):
 
 1. Encountered unit is a Treasure type (`0x10`) → tension bits set
    (`nation*0x13c-0x77c4` `|0x80`, then `|2` or `|8` by an RNG roll) —
    no popup, pure state.
-2. `A→B` peace holds → format **only `uStack_e`'s** name into slot 0,
+2. `A` has met `B` → format **only `uStack_e`'s** name into slot 0,
    popup **`0x13ba`**, 1-button — but the code then branches on the
    *return value* `!=2`, unusual for a plain 1-button "OK" dialog (the
    3rd `FUN_1000_8842` arg may not mean "button count" the way assumed
    last pass).
 3. Reverse relation-flag check (`-0x77b8`) can skip the rest entirely.
-4. `B→A` peace holds → format **only `uStack_44`'s** name into slot 0,
+4. `B` has met `A` → format **only `uStack_44`'s** name into slot 0,
    then `FUN_1000_869c(4)`/`FUN_1000_8b88()` — **no popup call at all**,
    looks like queuing a pending action/event rather than showing a dialog.
 5. Either direction holds → format **both** nations' names into slots 0

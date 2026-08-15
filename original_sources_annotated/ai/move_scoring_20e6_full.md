@@ -288,14 +288,20 @@ globals** — but has no Linux structural home yet. After the upstream arms
    this call.
 4. Shared exit (`5a78`): if `0x314c` is 0 or 0xa (idle/none), reset orders to
    `0x30` (idle default) and re-arm `0x314c=5`. If `0x314c==5` (roaming), scan
-   8 neighbors via `FUN_1000_8886`/`FUN_1000_8c28`(`&0x40` = at-war flag,
-   already the exact diplomacy-flags helper `indian_incite_417e.md` already
-   ported) and clear the roam state (`0x314c=0`) the moment a hostile,
-   at-war foreign unit is adjacent — i.e. **stop passively roaming next to an
-   enemy, force a re-decide next call**. If a stashed one-shot goto (`0x314c==
-   0xb`) has just been reached and the unit is a ship (type 0xd..0x12)
-   whose orders were `'1'` (ASCII, some other arm's marker — not yet traced),
-   flip to `0x42` (found impulse) on arrival.
+   8 neighbors via `FUN_1000_8886`/`FUN_1000_8c28`(`&0x40` — **correction,
+   2026-08-15**: this is the `MET` flag, not "at-war" as originally guessed
+   here — cross-checked against Linux's `ai_diplo_read`, which returns the
+   DOS `euro_relation` byte completely raw and defines `AI_DIPLO_MET 0x40`
+   as that literal bit, no remapping; see `euro_unit_act.md`'s
+   `FUN_4720_049e` writeup for the full cross-check) and clear the roam
+   state (`0x314c=0`) the moment a **met** foreign unit is adjacent — i.e.
+   **stop passively roaming next to any nation you've already encountered,
+   force a re-decide next call** (broader than "enemy only" — the
+   re-decide could lead to attack, diplomacy, or just noticing them,
+   depending on actual relation, not gated to at-war alone). If a stashed
+   one-shot goto (`0x314c==0xb`) has just been reached and the unit is a
+   ship (type 0xd..0x12) whose orders were `'1'` (ASCII, some other arm's
+   marker — not yet traced), flip to `0x42` (found impulse) on arrival.
 
 **Correction, same pass: the "missing persistent cache" claim below was
 wrong — checked `units.h` after writing it.** `unit+0x314c` (pending-order
