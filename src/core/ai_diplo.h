@@ -18,17 +18,37 @@
 /*
  * FUN_4720_049e Treasure Train tension bump (euro_unit_act.md). DOS sets
  * the real bit 0x80 here (confirmed transient alert, set/cleared
- * elsewhere in FUN_15b3_153e) plus a weaker/stronger follow-up bit that in
- * DOS is literal "2"/"8" — bit 2 collides numerically with AI_DIPLO_PEACE
- * and 153e's own use of it there reads as "grudge/pressure", not
- * confirmed to be the same peace concept, so it is NOT reused here.
- * AI_DIPLO_TREASURE_ALERT reuses DOS's real bit; the follow-up pair uses
- * DOS's real (safe, unused) 0x08 bit plus a Linux-only 0x10 stand-in for
- * the other branch. No reader consumes these yet — state-tracking only.
+ * elsewhere in FUN_15b3_153e) plus a weaker/stronger follow-up bit, DOS
+ * literal "2"/"8".
+ *
+ * 2026-08-15, `153e` bit-semantics pass: bit 2 confirmed to genuinely BE
+ * `AI_DIPLO_PEACE` after all — the earlier "grudge/pressure, don't reuse"
+ * caution was built on `153e` call sites that turned out to read a
+ * *different* table (`FUN_1000_8c28` is a raw-byte accessor confirmed via
+ * its own decompile, `FUN_0000_5b34`: nation param <4 reads exactly
+ * `euro_relation`, but >=4 reads a wholly separate Indian-side flags
+ * table at absolute `23000`, stride `0x4e` — the misleading citations
+ * were Indian-range calls, not Euro-Euro ones). The real Euro-Euro bit-2
+ * sites in `153e` (direct `-0x77c4` reads, no accessor) are consistent
+ * with plain `PEACE`: discounts negotiation "worthiness" when already
+ * peaceful, and gets set alongside establishing contact (mirrors this
+ * port's own `ai_diplo_read` "unmet defaults to PEACE|MET" convention).
+ * Thematically fits the treasure mechanic too: a weaker rival responds to
+ * a wealthy/strong nation by seeking peace. **Now uses the real DOS bit.**
+ *
+ * Bit 8: found one Euro-Euro site (`153e` line ~1361, `*pbVar3 |= 8`),
+ * gated on a local (`iStack_b0`) that gets set when the pair is already
+ * MET *and* (already peaceful *or* the other nation is weaker) — reads
+ * as "negotiation concluded / other party already amenable", not a
+ * clean parallel to bit 2's plain peace-seeking. Doesn't cleanly match
+ * this mechanic's "stronger rival" branch (the opposite condition) —
+ * kept as a Linux-only stand-in (`AI_DIPLO_TREASURE_STRONGER`) rather
+ * than reuse a bit whose real DOS role points the other way; fully
+ * mapping it would need `153e`'s own `iStack_a8`/negotiation-flow depth,
+ * out of scope for this specific bit-semantics pass.
  */
 #define AI_DIPLO_TREASURE_ALERT 0x80
-#define AI_DIPLO_TREASURE_WEAKER 0x08
-#define AI_DIPLO_TREASURE_STRONGER 0x10
+#define AI_DIPLO_TREASURE_STRONGER 0x08
 
 uint8_t ai_diplo_read(const ColonizeCol1Save* col1, int nation_a, int nation_b);
 void ai_diplo_write(ColonizeCol1Save* col1, int nation_a, int nation_b, uint8_t value);
