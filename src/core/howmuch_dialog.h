@@ -24,7 +24,8 @@ typedef enum HowmuchKind {
   HOWMUCH_KIND_UNLOAD = 2,   /* @HOWMUCH2 */
   HOWMUCH_KIND_MOVE = 3,     /* @HOWMUCH3 */
   HOWMUCH_KIND_BUY = 4,      /* @HOWMUCH4 */
-  HOWMUCH_KIND_SELL = 5      /* @HOWMUCH5 */
+  HOWMUCH_KIND_SELL = 5,     /* @HOWMUCH5 */
+  HOWMUCH_KIND_SOUND_TEST = 6 /* CHEAT Sound Test (@SOUND: "Play what sound #?") */
 } HowmuchKind;
 
 typedef struct HowmuchDialog {

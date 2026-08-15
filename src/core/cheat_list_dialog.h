@@ -26,7 +26,14 @@ typedef enum CheatListKind {
   CHEAT_LIST_KIND_TRADE_UNLOAD,
   CHEAT_LIST_KIND_TRADE_LOAD,
   CHEAT_LIST_KIND_FIND_COLONY,
-  CHEAT_LIST_KIND_TRADE_SELECT
+  CHEAT_LIST_KIND_TRADE_SELECT,
+  /* CHEAT Create Unit (@CREATE/@CSHIP/@FOREIGN/@FOREIGN2): multi-stage;
+   * caller tracks stage, this dialog just returns whichever list was shown. */
+  CHEAT_LIST_KIND_CREATE_UNIT,
+  /* CHEAT Set Human Player (@SETHUMAN). */
+  CHEAT_LIST_KIND_SET_HUMAN,
+  /* CHEAT Debug Info Flags (@OPTIONS checkbox). */
+  CHEAT_LIST_KIND_DEBUG_FLAGS
 } CheatListKind;
 
 typedef struct CheatListDialog {
@@ -97,6 +104,33 @@ bool cheat_list_open_trade_select(
   const char* const* labels,
   const int* route_ids,
   int count
+);
+
+/*
+ * CHEAT Create Unit generic list step (@CREATE / @CSHIP / @FOREIGN / @FOREIGN2).
+ * Caller supplies whichever stage's labels/ids; result_id round-trips ids[i].
+ */
+bool cheat_list_open_create_unit(
+  CheatListDialog* dlg,
+  const char* prompt,
+  const char* const* labels,
+  const int* ids,
+  int count
+);
+
+/*
+ * CHEAT Set Human Player (@SETHUMAN). option_ids: 0..3 nation, -1 = None.
+ */
+bool cheat_list_open_set_human(CheatListDialog* dlg, const ColonizeMsgCatalog* debug_txt);
+
+/*
+ * CHEAT Debug Info Flags (@OPTIONS checkbox). multi_select; preselect bits
+ * from initial_mask; Enter confirms result_mask (7 bits, catalog order).
+ */
+bool cheat_list_open_debug_flags(
+  CheatListDialog* dlg,
+  const ColonizeMsgCatalog* debug_txt,
+  uint16_t initial_mask
 );
 
 /*

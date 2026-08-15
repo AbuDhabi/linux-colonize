@@ -228,6 +228,150 @@ bool cheat_list_open_trade_select(
   );
 }
 
+bool cheat_list_open_create_unit(
+  CheatListDialog* dlg,
+  const char* prompt,
+  const char* const* labels,
+  const int* ids,
+  int count
+) {
+  return cheat_list_open_simple_list(
+    dlg, CHEAT_LIST_KIND_CREATE_UNIT, prompt, labels, ids, count, 190
+  );
+}
+
+bool cheat_list_open_set_human(CheatListDialog* dlg, const ColonizeMsgCatalog* debug_txt) {
+  static const char* k_fallback_prompt = "Select Human Nationality";
+  static const char* k_fallback[] = {"English", "French", "Spanish", "Dutch", "None"};
+  static const int k_fallback_ids[] = {0, 1, 2, 3, -1};
+  if (!dlg) {
+    return false;
+  }
+  cheat_list_init(dlg);
+  dlg->has_result = false;
+  dlg->kind = CHEAT_LIST_KIND_SET_HUMAN;
+  dlg->width = 190;
+
+  const ColonizeMsgSection* section = debug_txt ? assets_msg_find(debug_txt, "SETHUMAN") : NULL;
+  if (!section) {
+    str_copy_trunc(dlg->prompt, sizeof(dlg->prompt), k_fallback_prompt);
+    for (int i = 0; i < 5; ++i) {
+      str_copy_trunc(dlg->options[i], sizeof(dlg->options[i]), k_fallback[i]);
+      dlg->option_ids[i] = k_fallback_ids[i];
+    }
+    dlg->option_count = 5;
+    dlg->open = true;
+    return true;
+  }
+
+  for (int i = 0; i < section->line_count; ++i) {
+    const char* line = section->lines[i];
+    if (!line || line[0] == '\0') {
+      continue;
+    }
+    if (cheat_list_is_directive(line)) {
+      continue;
+    }
+    if (dlg->prompt[0] == '\0') {
+      str_copy_trunc(dlg->prompt, sizeof(dlg->prompt), line);
+      continue;
+    }
+    if (dlg->option_count >= CHEAT_LIST_MAX_OPTIONS) {
+      break;
+    }
+    str_copy_trunc(
+      dlg->options[dlg->option_count], sizeof(dlg->options[dlg->option_count]), line
+    );
+    const int idx = dlg->option_count;
+    dlg->option_ids[idx] = idx < 5 ? k_fallback_ids[idx] : -1;
+    dlg->option_count++;
+  }
+  if (dlg->option_count <= 0) {
+    cheat_list_close(dlg);
+    return false;
+  }
+  dlg->open = true;
+  return true;
+}
+
+/* Strip a single leading '~' hotkey-underline marker (MENU.TXT/DEBUG.TXT convention). */
+static const char* cheat_list_strip_tilde(const char* s) {
+  return (s && s[0] == '~') ? s + 1 : s;
+}
+
+bool cheat_list_open_debug_flags(
+  CheatListDialog* dlg,
+  const ColonizeMsgCatalog* debug_txt,
+  uint16_t initial_mask
+) {
+  static const char* k_fallback_prompt = "Select Debug Information Options";
+  static const char* k_fallback[] = {
+    "Anger & Friction Levels",
+    "Indian AI movement",
+    "Supply and Demand (Indians)",
+    "Foreign AI planning modes",
+    "Close Moves",
+    "Far Moves",
+    "All Movement"
+  };
+  if (!dlg) {
+    return false;
+  }
+  cheat_list_init(dlg);
+  dlg->has_result = false;
+  dlg->kind = CHEAT_LIST_KIND_DEBUG_FLAGS;
+  dlg->width = 220;
+  dlg->multi_select = true;
+  dlg->selected_mask = initial_mask;
+
+  const ColonizeMsgSection* section = debug_txt ? assets_msg_find(debug_txt, "OPTIONS") : NULL;
+  int n = 0;
+  const char* labels[7];
+  if (section) {
+    for (int i = 0; i < section->line_count && n < 7; ++i) {
+      const char* line = section->lines[i];
+      if (!line || line[0] == '\0' || cheat_list_is_directive(line)) {
+        continue;
+      }
+      if (dlg->prompt[0] == '\0' && n == 0) {
+        /* First non-directive, non-checkbox line is the prompt; checkbox
+         * items all carry a leading '~' in @OPTIONS. */
+        if (line[0] != '~') {
+          str_copy_trunc(dlg->prompt, sizeof(dlg->prompt), line);
+          continue;
+        }
+      }
+      labels[n++] = cheat_list_strip_tilde(line);
+    }
+  }
+  if (n < 7) {
+    n = 7;
+    for (int i = 0; i < 7; ++i) {
+      labels[i] = k_fallback[i];
+    }
+  }
+  if (dlg->prompt[0] == '\0') {
+    str_copy_trunc(dlg->prompt, sizeof(dlg->prompt), k_fallback_prompt);
+  }
+  {
+    /* Multi-select only saves on Enter (Esc / click-outside cancels and
+     * discards toggles) — say so, matching the TRADE cargo picker hint. */
+    char with_hint[COLONIZE_MSG_LINE_LEN];
+    snprintf(with_hint, sizeof(with_hint), "%s (Space toggle, Enter OK)", dlg->prompt);
+    str_copy_trunc(dlg->prompt, sizeof(dlg->prompt), with_hint);
+  }
+  for (int i = 0; i < n; ++i) {
+    const int on = (initial_mask & (uint16_t)(1u << i)) != 0;
+    snprintf(
+      dlg->options[i], sizeof(dlg->options[i]), "%s %s", on ? "[x]" : "[ ]", labels[i]
+    );
+    dlg->option_ids[i] = i;
+  }
+  dlg->option_count = n;
+  dlg->open = true;
+  return true;
+}
+
 bool cheat_list_open_trade_cargos(
   CheatListDialog* dlg,
   CheatListKind kind,
@@ -270,24 +414,18 @@ bool cheat_list_open_trade_cargos(
   return true;
 }
 
-static void cheat_list_refresh_trade_labels(CheatListDialog* dlg) {
-  if (!dlg || !dlg->multi_select) {
+/*
+ * Every multi-select option is rendered "[x] Label" / "[ ] Label" (trade
+ * cargo, debug flags, …); flip the bracket char in place instead of
+ * rebuilding the label from a kind-specific name table.
+ */
+static void cheat_list_flip_checkbox(CheatListDialog* dlg, int idx) {
+  if (!dlg || idx < 0 || idx >= dlg->option_count) {
     return;
   }
-  static const char* const k_cargo[] = {
-    "Food",        "Sugar",  "Tobacco", "Cotton", "Furs",  "Lumber",
-    "Ore",         "Silver", "Horses",  "Rum",    "Cigars", "Cloth",
-    "Coats",       "Trade Goods", "Tools", "Muskets"
-  };
-  for (int i = 0; i < dlg->option_count && i < 16; ++i) {
-    const int on = (dlg->selected_mask & (uint16_t)(1u << i)) != 0;
-    snprintf(
-      dlg->options[i],
-      sizeof(dlg->options[i]),
-      "%s %s",
-      on ? "[x]" : "[ ]",
-      k_cargo[i]
-    );
+  char* opt = dlg->options[idx];
+  if (opt[0] == '[' && opt[2] == ']') {
+    opt[1] = (dlg->selected_mask & (uint16_t)(1u << idx)) ? 'x' : ' ';
   }
 }
 
@@ -341,7 +479,7 @@ static void cheat_list_toggle_multi(CheatListDialog* dlg, int idx) {
     return;
   }
   dlg->selected_mask ^= (uint16_t)(1u << idx);
-  cheat_list_refresh_trade_labels(dlg);
+  cheat_list_flip_checkbox(dlg, idx);
 }
 
 bool cheat_list_handle_input(CheatListDialog* dlg, const ColonizeInputState* input) {

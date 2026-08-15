@@ -84,8 +84,11 @@ int main(void) {
   }
   for (int i = 0; i < bar.menus[cup_i].item_count; ++i) {
     const MapMenuAction a = bar.menus[cup_i].items[i].action;
-    const bool should_enable =
-      (a == MAP_MENU_ACTION_CHEAT_REVEAL_MAP || a == MAP_MENU_ACTION_CHEAT_KILL_INDIANS);
+    if (bar.menus[cup_i].items[i].separator) {
+      continue;
+    }
+    /* All 11 CHEAT items are implemented (game_loop.c MAP_MENU_ACTION_CHEAT_*). */
+    const bool should_enable = true;
     if (bar.menus[cup_i].items[i].enabled != should_enable) {
       fprintf(
         stderr,
