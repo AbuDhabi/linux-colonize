@@ -175,6 +175,150 @@ drivers, corrupted, needs fresh recovery). (`FUN_281f_09fc(0x24)` itself
 is resolved — Lumber Mill building check, not a founding father, see
 above.)
 
+**Update (2026-08-15) — both move drivers checked with the overlay
+project; one resolved clean, one confirmed genuinely corrupted, and a
+shared blocker found across three separate gaps.**
+
+`FUN_6662_0f74` (`FUN_2a1f_0210`'s target): **clean, zero warnings**,
+full 250-line multi-tier goto/pathing driver recovered. Real structure:
+arrived-at-goto short-circuit; direct single-step for Chebyshev
+distance ≤1; a smarter direct-route attempt for distance ≤6 (falls back
+through an unresolved local waypoint helper for longer hauls); and, if
+none of those commit, a full 8-neighbor scored fallback (walkability +
+own-tile bias + distance-improvement + a toughness deduction) with an
+up-to-8-try random "wiggle" retry if the chosen tile gets rejected for
+ownership reasons on arrival. This is a materially richer algorithm than
+Linux's current single-tier `ai_euro_score_move` (direct-only, no
+detour/waypoint tier, no wiggle-retry) — real "OPEN (unpark #4)" territory,
+now unblocked to attempt, but a genuinely large port (4 more local
+helpers — `0015b7`/`0015bc`/`0015c1`/`000000` — still unnamed within this
+same overlay) not a quick follow-up.
+
+**The one piece of `0f74` that *was* immediately portable — the 8-neighbor
+fallback's toughness-deduction term, `*(byte*)(terrain_class*0x10+0x2f76)*3`
+— turns out to share the exact same unmapped table this doc already
+flagged** (`DS:0x2f78`/`0x2f80`, stride `0x10`, only the `+2` byte named
+so far). **`0x2f76` is table offset +0** — same family, one byte earlier.
+No real values ever captured for any of it, so nothing here is safely
+wireable without inventing constants (same "no invented numbers" rule as
+`417e`'s price tables). **This one small unmapped table is now a shared
+blocker across three separate gaps**: case 8's Pioneer-improvement reward
+scale (still thin/parked), this pathing term, and (if the full pathing
+tier structure is ever ported) its detour-route scoring too — a single
+live memory-dump capture of `DS:0x2f76..0x2f88`ish would unblock all
+three at once, the highest-leverage single capture identified so far this
+session if anyone gets DOSBox-X debugger access again.
+
+**Update (2026-08-15, later pass) — traced `0f74`'s own local helpers;
+scope turns out much larger than the earlier "quick follow-up" framing.**
+`FUN_OVL20_L0000__0015b7` (the short-distance direct-step helper): clean,
+tiny — sign(dx)/sign(dy) → 8-direction-table lookup (`dos_dir_from_sign`
+shape), genuinely small. But the other two are not: `0015bc` (the
+"smarter direct-route" call) is itself a **~230-line 16×16-window
+flood-fill/BFS route search** (FIFO work-queue relaxation over a scratch
+cost-map, per-cell terrain/ownership/diplomacy gating, the same unmapped
+`0x2f76` terrain-cost table, *and* an AI-debug visualization/keyboard-poll
+loop at the end — confirmed cosmetic, gated by the same class of debug
+flag `20e6` uses, safely skippable). `0015c1` (the longer-distance
+fallback) is **another, separate flood-fill pathfinder** over an 18×18
+window with its own scratch table, and calls a fifth still-unresolved
+local helper (`FUN_OVL20_L0000__0009ae`) not traced this pass.
+`FUN_OVL20_L0000__000000` hits the known pcode-error decompiler bug class
+(`task #2`/`FUN_5fef_0000` precedent) — not yet hand-transcribed.
+
+**Revised assessment: `FUN_6662_0f74` is not one move-driver function, it's
+a small pathfinding *subsystem*** — direct step, two independently-sized
+BFS flood-fill searches, and a scored single-step fallback, all clean
+(no corruption) but genuinely large and interlocking. Porting it
+faithfully is real, standalone, multi-pass-scale work, not a follow-up to
+the small case-handler set this thread started from. **Not attempted this
+pass** — flagging the honest scope instead of a partial/rushed port that
+would risk getting the flood-fill relaxation order or cost formula subtly
+wrong. If ever resumed, `0015b7` alone (the tiny direct-step helper) is
+the one genuinely quick win left in this specific area.
+
+`FUN_4720_049e` (`FUN_291f_044e`'s target): **corruption is real but
+narrow, and the function underneath is a genuinely major find — not a
+move driver at all.**
+
+Re-checked with a small (0x100-byte) force-clear + fresh disassemble
+(bypassing any stale analysis, same technique used elsewhere this
+session): the corruption is **confined to one case (`case 4`) of a small
+internal `switch(*(int*)0x9e4e - 1)`** near the function's entry (a
+`f000:66b0` pcode target — classic wild-jump garbage — inside just that
+one case). Cases 1/2/3/5/6/7/8 of that same switch decompile as small,
+plausible (if not yet named) low-level operations. **Case 7 falls through
+to the real body** (a C `break`, not a `goto` — genuine control flow, not
+a merged-function artifact), so the switch is very likely part of this
+function's own logic, not misattributed content — unlike the
+`15eb_1d4c`/`684c_08c0` false-boundary class, this reads as a real,
+mostly-intact function with one bad corner.
+
+**The body after the switch is clean, coherent, and uses entirely real,
+already-known fields**: `unit+0x3149` (moves spent), `+0x314c` (orders),
+`+0x315a` (turns-worked, wraps at 20), the `0x2f76` terrain table (same
+one `0f74`'s pathfinder reads), and — the actual find — repeated
+diplomacy-flag reads (`FUN_1000_8c28`, `nation*0x13c-0x77c4`/`-0x77b8`,
+matching `difficulty.md`'s already-known `euro_relation`/tension table)
+gating **popup dialog calls** (`FUN_1000_8842` with catalog ids
+`0x13ba`/`0x13ad`/`0x13cb`/`0x13d7`, name-formatting helpers
+`FUN_1000_8c0a`/`func_0x00018b94`, `FUN_1000_8628` for string-arg slots).
+
+**Update (2026-08-15, later pass) — full surrounding context pulled;
+revised which popup id is the best `@VIOLATE` candidate.** This is a
+richer "two different-nation units meet on the map" handler than first
+read, with (at least) four distinct outcomes gated on pairwise
+`FUN_1000_8c28` PEACE-flag (`&0x40`) checks between the acting unit's
+nation (`uStack_44`) and an encountered nation (`uStack_e`, found via a
+unit search at/near the destination):
+
+1. Encountered unit is a Treasure type (`0x10`) → tension bits set
+   (`nation*0x13c-0x77c4` `|0x80`, then `|2` or `|8` by an RNG roll) —
+   no popup, pure state.
+2. `A→B` peace holds → format **only `uStack_e`'s** name into slot 0,
+   popup **`0x13ba`**, 1-button — but the code then branches on the
+   *return value* `!=2`, unusual for a plain 1-button "OK" dialog (the
+   3rd `FUN_1000_8842` arg may not mean "button count" the way assumed
+   last pass).
+3. Reverse relation-flag check (`-0x77b8`) can skip the rest entirely.
+4. `B→A` peace holds → format **only `uStack_44`'s** name into slot 0,
+   then `FUN_1000_869c(4)`/`FUN_1000_8b88()` — **no popup call at all**,
+   looks like queuing a pending action/event rather than showing a dialog.
+5. Either direction holds → format **both** nations' names into slots 0
+   and 1 (`FUN_1000_8c0a` for Euro-non-crown → popup **`0x13cb`**; the
+   shorter-form `func_0x00018b94` for crown/other → popup **`0x13d7`**),
+   then actually calls `FUN_1000_8842` with 2 string args.
+
+**Revised candidate: `0x13cb`/`0x13d7`, not `0x13ba`, now looks like the
+better `@VIOLATE` match** — `@VIOLATE` needs two *nation* names
+(`%STRING0`/`%STRING1`) plus a place (`%STRING2`); only the dual-nation
+pair (5) names two nations at all, `0x13ba` names just one. `%STRING2`
+(the place) isn't set by an explicit `FUN_1000_8628` call anywhere in
+this function — plausibly auto-filled by the dialog engine from the
+already-current unit/tile context rather than an explicit arg, which
+would be consistent with not finding a third `8628` call. **Which nation
+is `%STRING0` (violator) vs `%STRING1` (owner) is not established** —
+slot order in the code is `uStack_e` then `uStack_44` for the Euro-
+non-crown case, reversed sense not ruled out.
+
+`popups.md`'s own entry for `@VIOLATE` explicitly says "Zero code refs;
+trigger function not found" — this is still the first real lead this
+project has had on it, just refined to a different (and better-fitting)
+call site than initially guessed. `0x13ba`/`0x13ad` remain real, found,
+but separately-unidentified single-nation notify popups (not necessarily
+`@VIOLATE`) — worth naming on their own if this thread continues.
+
+**Not confirmed to full certainty and not ported this pass** — mapping
+raw hex catalog ids to `GAME.TXT` tag names still needs a numeric-catalog
+decode this project doesn't have built; the violator/owner slot order and
+the unusual `0x13ba` return-value check are open questions. But the
+underlying mechanism (real diplomacy checks, real tension-flag writes, a
+genuine two-nation notify dialog) is solid and well-evidenced regardless
+of the exact tag match. Flagging as a high-value, close-to-resolved
+target for a focused follow-up (ideally with a live capture to confirm
+the id↔tag mapping directly) — smaller and more concrete now than the
+`0f74`/`5d04` large-body items.
+
 **2026-08-14, same day — checked cases 8/9 against Linux's existing
 Pioneer plow/road port (`units_pioneer_work_tick` in `units.c`), found
 it already faithful on the core timing and shipped one confirmed gap.**
