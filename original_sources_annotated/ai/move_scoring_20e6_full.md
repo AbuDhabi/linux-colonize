@@ -208,6 +208,24 @@ available" stop.** The solid finding (case 2 = doubly-linked transport-
 chain node exchange, helper `swap(word*,word*)` at flat `0x24ea`) stands
 and is fully documented above regardless.
 
+**Update (2026-08-15, sixth pass) — closed out, no code to ship.** User
+asked to wire `0x42`/`0x65` anyway with the singleton-check best-guess,
+flagged as approximate. Before writing it, checked whether the *outcome*
+is already produced elsewhere in Linux — it is. `ai_euro_unit_act`'s
+"H: light bind" block already binds idle, founding-capable land units
+(Pioneer/Free Colonist/etc, not Soldiers, not aboard a ship, not already
+on a goto) toward the best founding tile; `ai_euro_scout_contact_ring_target`
+does the equivalent for Scout/contact. Both already tested and shipping.
+DOS's field-2 "singleton chain" check is the same *kind* of safety gate as
+Linux's already-present `aboard_ship_id >= 0` / `units_orders_follow_goto`
+checks in that same block — just checking against DOS fields
+(`unit+0x315e`/`0x315c`) this port never actively maintains for land units
+(round-tripped through save/load only, never written by live logic).
+Wiring a check against always-empty state would be dead code, not a real
+approximation. **Not shipped** — the behavioral gap this whole
+investigation chased turns out to already be closed, just via different,
+already-shipped mechanics than DOS used. No source changes.
+
 **Practical upshot for `0x42`/`0x65`:** still not safe to port — case 2's
 own return-value semantics (what "id < 2" means) remain the real open
 question, and it's now clear that's a self-contained puzzle about *this
