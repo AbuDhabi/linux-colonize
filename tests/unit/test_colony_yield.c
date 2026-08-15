@@ -301,6 +301,43 @@ int main(void) {
     }
   }
 
+  /*
+   * Expert doubles a special resource's *additive* effect specifically
+   * (COLONY_YIELD_RESOURCE_DOUBLE-type effects are already a x2 either
+   * way, so this only matters for the additive kind, e.g. Game(9)+Farmer
+   * = +2). Asm-read (`FUN_15eb_17fa`/`18ec`), wired in colony_yield.c, but
+   * had no direct regression test of its own — this is that test, not new
+   * player data (the fur/ore cases above already validated the *shape* of
+   * expert doubling elsewhere in the pipeline).
+   *   free:   base(1)                +resource(free,+2)     = 3
+   *   expert: base(1) +2(expert food) +resource(expert,+2x2) = 7
+   */
+  {
+    int gx = -1;
+    int gy = -1;
+    if (!find_resource_tile(&map, 11, 9, &gx, &gy)) {
+      fprintf(stderr, "no broadleaf+Game procedural tile found for expert-resource test\n");
+      map_free(&map);
+      return 1;
+    }
+    const int free_game = colony_yield_for_worker(
+      &map, gx, gy, COLONIZE_JOB_FARMER, COLONIZE_PROF_FREE_COLONIST, /*has_docks=*/true, 0
+    );
+    if (free_game != 3) {
+      fprintf(stderr, "free colonist farmer+Game want 3 got %d\n", free_game);
+      map_free(&map);
+      return 1;
+    }
+    const int expert_game = colony_yield_for_worker(
+      &map, gx, gy, COLONIZE_JOB_FARMER, COLONIZE_JOB_FARMER, /*has_docks=*/true, 0
+    );
+    if (expert_game != 7) {
+      fprintf(stderr, "expert farmer+Game want 7 got %d\n", expert_game);
+      map_free(&map);
+      return 1;
+    }
+  }
+
   map_free(&map);
   printf("colony_yield town commons tests ok\n");
   return 0;

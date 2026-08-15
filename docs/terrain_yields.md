@@ -253,10 +253,14 @@ not previously documented at all — see below):
    longer add it externally. Regression: `test_colony_yield.c` (Hills+road,
    sol_bonus=1, free=6/expert=12, matched the hand-derivation on first run).
 7. **Special resource** via `17fa` (double or add; expert doubles additive).
-   **2026-08-15:** the expert-doubles-additive half is now wired too (same
-   refactor as steps 5+6) — asm-read, not yet independently player-
-   cross-validated the way steps 5/6/9 are (no test data with both a
-   matching expert and a resource on the same tile yet).
+   **2026-08-15:** the expert-doubles-additive half is wired (same refactor
+   as steps 5+6). Player later confirmed the same shape directly: on a
+   fur-boosting-resource tile, expert:free was also exactly ×2 (consistent
+   with, though not solely attributable to, this rule — see the Fur Trapper
+   writeup below, where the *non*-resource tile's gap was the real finding).
+   Directly unit-tested regardless (`test_colony_yield.c`, Game(9)+Farmer:
+   free=3, expert=7 — `1+2` vs `1+2+2×2`), since the player data alone
+   couldn't isolate this term from Henry Hudson's own ×2 on that tile.
 8. **Lumberjack:** `yield <<= 1`.
 9. **Plow / road / river** stack (below).
 10. **2026-08-15 fix:** Fish without Docks → 0; Henry Hudson FF check (`FUN_15eb_3960(nation, 8)`)
