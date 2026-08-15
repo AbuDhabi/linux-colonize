@@ -12,8 +12,38 @@
 /* Cargo produced by a field @JOB (Farmer/Fisherman → food). Returns -1 if invalid. */
 int colony_yield_job_cargo(int field_job);
 
-/* Base + resource yield for working (x,y) as field_job. 0 if impossible. */
+/*
+ * Base + resource yield for working (x,y) as field_job, no worker context
+ * (no expert/convert bonus, never docks-gated) — used by AI/job-suggestion
+ * callers that don't have a specific colonist. 0 if impossible. Thin
+ * wrapper over colony_yield_for_worker's full pipeline with profession=-1,
+ * sol_bonus=0, has_docks=true.
+ */
 int colony_yield_for_tile(const ColonizeWorldMap* map, int x, int y, int field_job);
+
+/*
+ * Tile yield for colonist `profession` on `field_job` — the full DOS
+ * pipeline (FUN_15eb_18ec): base terrain, positive sol_bonus fold, expert
+ * doubling (convert +1, expert ×2 when matched — flat +2 for food/fish),
+ * special resource, Lumberjack's unconditional ×2, plow, road/river (unit
+ * size doubles for a matching non-food/fish expert or any Lumberjack —
+ * player-confirmed 2026-08-15, Viceroy), then negative sol_bonus at the
+ * very end (not amplified by expert doubling). `has_docks`: pass whether
+ * the colony owns Docks (or an upgrade: Drydock/Shipyard) — Fisherman
+ * yields 0 without it, matching DOS. `sol_bonus`: colony_prod_sol_bonus_field
+ * (signed; 0 to skip). See colony_yield_pipeline's comment in
+ * colony_yield.c and docs/terrain_yields.md for the full step order and its
+ * player-data derivation.
+ */
+int colony_yield_for_worker(
+  const ColonizeWorldMap* map,
+  int x,
+  int y,
+  int field_job,
+  int profession,
+  bool has_docks,
+  int sol_bonus
+);
 
 /* Display name for field @JOB (static string). */
 const char* colony_yield_job_name(int field_job);

@@ -1320,7 +1320,7 @@ static void colony_screen_draw_area_overlays(
     const int tile_y = origin_y + (dy + half) * tile;
     const int cargo = colony_yield_job_cargo(c->field_job);
     const int yld = colony_yield_for_worker(
-      map, colony->x + dx, colony->y + dy, c->field_job, c->profession, has_docks
+      map, colony->x + dx, colony->y + dy, c->field_job, c->profession, has_docks, 0
     );
     if (cargo >= 0 && yld > 0) {
       const int icon = (c->field_job == COLONIZE_JOB_FISHERMAN)
@@ -2674,7 +2674,7 @@ static void colony_screen_draw_jobs_popup(
       profession = colony->colonists[view->selected_colonist].profession;
     }
     const int yld =
-      (map && colony) ? colony_yield_for_worker(map, tx, ty, job, profession, has_docks) : 0;
+      (map && colony) ? colony_yield_for_worker(map, tx, ty, job, profession, has_docks, 0) : 0;
     snprintf(label, sizeof(label), "%s (%d)", colony_yield_job_name(job), yld);
     if (font) {
       font_draw_text(font, framebuffer, inner_x + pad, row_y + 1, label, 15);

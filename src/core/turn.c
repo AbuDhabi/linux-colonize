@@ -607,22 +607,35 @@ static void turn_produce_one_colony(
       if (!colonies_field_tile_delta(ti, &dx, &dy)) {
         continue;
       }
+      /* DOS net SoL/Tory mod (sons_of_liberty.md). Field-specific variant:
+       * zeroed outright for AI colonies, unlike manufacturing/bells/crosses/
+       * hammers — see colony_prod_sol_bonus_field. Folded into
+       * colony_yield_for_worker directly now (2026-08-15): DOS applies a
+       * *positive* mod before expert doubling (so it gets swept up by an
+       * expert's ×2/road-river-unit-doubling, not added flat after —
+       * player-confirmed, see colony_yield.c's colony_yield_pipeline
+       * comment); a negative mod (Tory penalty) still lands at the very
+       * end, same net position as this function's old external add. */
+      const int sol_b_field = colony_prod_sol_bonus_field(col1, colony);
       const int yld = colony_yield_for_worker(
-        map, colony->x + dx, colony->y + dy, c->field_job, c->profession, has_docks
+        map, colony->x + dx, colony->y + dy, c->field_job, c->profession, has_docks, sol_b_field
       );
       if (yld <= 0) {
         continue;
       }
       int add = yld;
-      /* Henry Hudson: fur trapper output +100% (fandom_col1994 / manual). */
+      /* Henry Hudson: fur trapper output +100% (fandom_col1994 / manual).
+       * Still applied post-hoc here, same as before the SoL-fold change —
+       * DOS applies Hudson inside FUN_15eb_18ec too, but exactly where
+       * relative to the SoL mod isn't pinned down (see terrain_yields.md
+       * point 10); this now doubles an already-sol-adjusted yield rather
+       * than adding sol after doubling, a narrow behavior change only for
+       * Fur Trapper+Hudson+nonzero sol_bonus, not independently verified
+       * either way. */
       if (c->field_job == COLONIZE_JOB_FUR_TRAPPER && col1 &&
           founding_fathers_nation_has(col1, colony->nation_id, FF_HENRY_HUDSON)) {
         add *= 2;
       }
-      /* DOS net SoL/Tory mod (sons_of_liberty.md). Field-specific variant:
-       * zeroed outright for AI colonies, unlike manufacturing/bells/crosses/
-       * hammers — see colony_prod_sol_bonus_field. */
-      add += colony_prod_sol_bonus_field(col1, colony);
       const int cargo = colony_yield_job_cargo(c->field_job);
       if (cargo < 0 || cargo >= COLONIZE_CARGO_COUNT) {
         continue;

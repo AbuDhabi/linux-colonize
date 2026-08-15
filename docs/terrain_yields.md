@@ -80,9 +80,20 @@ Forest type *N* clears permanently to unforested type *N* (Boreal→Tundra, …,
 | Ocean | 25 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 3 |
 | Sea Lane | 26 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 3 |
 | Mountains | — | 0 | 0 | 0 | 0 | 0 | 0 | 4 | 1 | 0 |
-| Hills | — | **1** | 0 | 0 | 0 | 0 | 0 | 4 | 0 | 0 |
+| Hills | — | **2** | 0 | 0 | 0 | 0 | 0 | 4 | 0 | 0 |
 
-**Hills food:** `NAMES.TXT` lists Farmer **1**. Prefer that. The port / some Col1 center fixtures use **2** (chart / FreeCol-shaped override) — **divergent**; document overrides as such, do not silently “fix” NAMES.
+**Hills food: player-confirmed 2026-08-15 (Viceroy) — 2, not NAMES.TXT's 1.**
+A non-specialist Farmer on a worked (non-colony-center) Hills tile produces
+**2** food. `NAMES.TXT` `@OTHER` lists Farmer **1** for Hills, but real
+gameplay matches the port's existing override (`colony_yield.c` comment:
+"Terrain Chart / FreeCol / live Col1"), not the raw NAMES row. Whatever
+mechanism bumps this in DOS (a hard-coded case, a NAMES-independent Farmer
+path, or something the `FUN_15eb_17fa`/`18ec` peel hasn't traced) is still
+not identified at the byte level — but the *output* is no longer in doubt,
+so this is resolved player-side even though the "why NAMES says 1" question
+stays open as low-priority RE backlog. No code change needed (port already
+had it right); this just confirms the port's override over the raw data
+table instead of flagging it as an unverified divergence.
 
 Colonies cannot be founded on mountains (manual). Fishing on ocean/sea lane needs a colony **Docks** before fishermen can work those surrounds (`FUN_15eb_18ec` zeros fish jobs &gt;7 without dock building).
 
@@ -228,7 +239,24 @@ not previously documented at all — see below):
 6. **Expert:** food/fish → `yield += 2` (and re-add the positive SoL mod a
    second time — confirmed at this exact spot: `if (food/fish) { yield += 2;
    if (mod > 0) yield += mod; }`); other jobs → `yield <<= 1`.
+   **2026-08-15 fix — steps 5+6 now wired in this order, port-side:**
+   player-confirmed on Viceroy: Expert Ore Miner, Hills+road+sentiment(+1) =
+   12 ore; Free Colonist, same tile = 6. The port used to compute
+   base+road/river first, double the whole thing for a matching expert, then
+   add the SoL/Tory mod *flat, externally, after* `colony_yield_for_worker`
+   returned (in `turn.c`/`colony_preview.c`) — giving free=6 (right, by
+   coincidence) but expert=(4+1)×2+1=11, not 12, because the mod never got
+   swept up by the expert doubling the way DOS's step-5-before-step-6 order
+   demands. Fixed: `colony_yield_for_worker` (moved to `colony_yield.c`,
+   see below) now takes `sol_bonus` as a signed parameter and folds it in at
+   the correct pipeline position itself; `turn.c`/`colony_preview.c` no
+   longer add it externally. Regression: `test_colony_yield.c` (Hills+road,
+   sol_bonus=1, free=6/expert=12, matched the hand-derivation on first run).
 7. **Special resource** via `17fa` (double or add; expert doubles additive).
+   **2026-08-15:** the expert-doubles-additive half is now wired too (same
+   refactor as steps 5+6) — asm-read, not yet independently player-
+   cross-validated the way steps 5/6/9 are (no test data with both a
+   matching expert and a resource on the same tile yet).
 8. **Lumberjack:** `yield <<= 1`.
 9. **Plow / road / river** stack (below).
 10. **2026-08-15 fix:** Fish without Docks → 0; Henry Hudson FF check (`FUN_15eb_3960(nation, 8)`)
@@ -244,7 +272,7 @@ not previously documented at all — see below):
 
 | Worker | Rule | Port |
 |--------|------|------|
-| Matching expert, food or fish | **+2** (not ×2), plus the SoL mod re-add above | **2026-08-15 fix** — flat +2 wired; the SoL mod re-add is still not (needs the SoL-threading work first, deferred) |
+| Matching expert, food or fish | **+2** (not ×2), plus the SoL mod re-add above | **2026-08-15 fix** — both the flat +2 and the SoL mod re-add are wired (`colony_yield_pipeline`, see stacking section below for the player-confirmed derivation) |
 | Matching expert, other field jobs | **×2** | Wired |
 | Mismatched skill | Free-colonist yield | Wired |
 | Indian convert | **+1** if job ∈ {0,1,2,3,4} or job &gt; 7 (fisherman); **not** lumber/ore/silver | **2026-08-15 fix, re-verified against raw asm on user question** — `colony_yield_for_worker` gates on the exact whitelist. First pass read this from the `.c` decompile only (`FUN_15eb_18ec` ~11974-11979); re-checked byte-for-byte against `viceroy_unpacked.asm` (`~15eb:1cd6-1d06`) after a user asked whether converts really lose the bonus on lumber/ore/silver specifically — confirmed exact, not decompiler noise: `CMP local_14,0/2/3/1/4` (`JZ` to the `INC`) then `CMP local_14,8; JL` (skip unless ≥8, i.e. Fisherman only from that point up.) Lumber(5)/Ore(6)/Silver(7) are the only 3 field jobs with no matching branch. Real DOS behavior, not a port bug, whatever the manual/community memory says — the *manufacturing* (building) side of converts (1/3 the free-colonist rate, confirmed separately in `manufacturing_worker_calc_1d4c.md`) is unaffected by this and already matches the "converts work buildings poorly" expectation exactly. |
@@ -261,7 +289,30 @@ Unit size `u = 2` if (matching expert and not food/fish) **or** lumberjack; else
 | Terrain river bit `0x40` | (adds again) | +`u` |
 | Major river (`0x40|0x80`) when only one unit so far | | +`u` again |
 
-**Port:** plow +1 on crops; road +1 on fur/lumber/ore/silver; river magnitudes FreeCol-shaped; **road and river do not stack** (max of one) — **divergent** from DOS stacking.
+**Port:** plow +1 on crops; road +1 on fur/lumber/ore/silver (×2 unit for a
+matching non-food/fish expert or any Lumberjack — **2026-08-15 fix**, see
+below); river magnitudes FreeCol-shaped; **road and river do not stack**
+(max of one) — this specific piece stays **divergent** from DOS's literal
+multi-signal additive stack (below), but the *unit size itself* (u=1 vs u=2)
+is now DOS-confirmed and wired, which was the higher-value half of this
+item.
+
+**2026-08-15 fix — expert/lumberjack road-river doubling, player-confirmed
+(Viceroy):** Expert Ore Miner, Hills+road+sentiment(+1) = 12; Free
+Colonist, same tile = 6. This only reproduces if the road/river bonus
+itself doubles for the expert (`u=2`), not just the flat expert ×2 already
+wired (that alone predicts 11, not 12 — see the "Expert" step-6 fix above
+for the full arithmetic). Fixed: `colony_yield_road_or_river_bonus` takes a
+`big_unit` flag, true for a matching non-food/fish expert or any
+Lumberjack (matching or not — the latter per the decomp's own "or
+lumberjack" clause, not itself independently player-tested, but it's the
+same asm-read rule already cited in this section's `u` definition).
+Regression: `test_colony_yield.c` (Ore Miner case above) plus an existing
+`test_units.c` road/lumberjack test whose hardcoded `+1` expectation
+predated this fix and needed updating to `+2` to match (a real, expected
+behavior change, not a new bug — that test used `colony_yield_for_tile`,
+profession-less, so it exercises the *unconditional* Lumberjack half of the
+rule specifically).
 
 **2026-08-15: revisited, and a claim from earlier this same day was wrong —
 corrected below rather than left to mislead.**
@@ -301,11 +352,12 @@ if (terrain_byte & 0x40):                              term += u   ; the STATIC 
 The port's `map_tile_has_river()`/`map_tile_has_major_river()` read the
 **terrain byte** only (confirmed — `map.c:1271-1283`, matches the second
 signal). There is no port equivalent of the first signal at all — genuinely
-unresolved, not just unmapped. Also still open: `u`'s size depends on the
-expert-match flag (same profession-context entanglement as the
-resource/SoL work above). Both need resolving before a correct stacking
-implementation — a half-fix risks silently dropping a whole term, not just
-using the wrong unit size, so still not attempted.
+unresolved, not just unmapped. `u`'s size depending on the expert-match flag
+is **now resolved and wired** (2026-08-15, player-confirmed — see below);
+what's left open is specifically the *multi-signal additive stack itself*
+(the unidentified runtime-array bit, and whether road+river should add
+rather than take the max) — a half-fix there risks silently dropping a
+whole term, so still not attempted.
 
 Silver on mountains without a deposit / road can be forced to 0 or 1 (`18ec` ~11925–11938).
 
@@ -356,6 +408,49 @@ The `FUN_137f_0142 & 0x40` runtime-array bit's actual identity is still
 unresolved — this pass confirmed it doesn't change any *observable* output
 the port produces for the cases tested, not what the bit itself means.
 
+**2026-08-15: more player data (Viceroy) — expert road/river unit size
+confirmed and fixed; a second, unexplained anomaly found and left open.**
+Four more live observations (road present, sentiment as noted):
+- Expert Ore Miner, Hills+road, +1 sentiment: 12 ore.
+- Free Colonist, Hills+road, +1 sentiment: 6 ore.
+- Expert Fur Trapper, Mixed Forest+road, +2 sentiment: 28 furs.
+- Free Colonist, Mixed Forest+road, +2 sentiment: 14 furs.
+
+**Ore: clean, exact, fully explained — fixed.** Hills Ore base is 4. Free:
+`4 + sol(1) + road(u=1) = 6`, matches. Expert: `4 + sol(1) = 5`, `<<=1`
+(expert doubling) `= 10`, `+ road(u=2 for a matching expert) = 12`, matches
+*exactly* — and only with this order (SoL folds in before the expert
+double, road/river unit doubles for the expert too). This is what's fixed
+above (`colony_yield_pipeline`), fully validated by this data point, and
+already ported.
+
+**Fur: real gap, not explained by anything in this model — left
+unfixed, flagged for you.** Mixed Forest Furs base is 3 (`NAMES.TXT`
+`@FORESTED`, double-checked against the raw file directly, not just this
+doc's summary table — not a transcription error). Running the *exact same,
+now-fixed* pipeline: free = `3 + sol(2) + road(u=1) = 6`; expert = `(3 +
+sol(2)) <<= 1 = 10`, `+ road(u=2) = 12`. Observed is 14 and 28 — roughly
+**2.3× higher** at both skill levels (14/6 = 28/12 = 7/3), not explained by
+any combination of the road/river/SoL/expert rules confirmed above. The
+expert:free ratio is a clean exact ×2 in both the Ore and Fur data (12/6,
+28/14), which is consistent with everything above — the *base* free-colonist
+number itself (14) is what doesn't fit. Solved algebraically assuming a flat
+*additive* special-resource bonus `R` on this specific tile (DOS's
+"expert doubles the additive resource bonus" rule — see the "Special
+resource" step-7 fix above, wired but not yet independently validated by
+player data): `free = 6 + R = 14` and `expert = 12 + 2R = 28` both solve
+cleanly to **R = 8** — a real special resource (e.g. a fur-type bonus
+resource on that specific Mixed Forest tile) would explain the entire gap
+exactly, at both skill levels, using a mechanism that's *already* real
+(asm-confirmed, just not yet cross-validated). **Not implemented — this is
+a guess dressed up as algebra, not a confirmed fix.** Before touching
+anything resource-related for this: **did that Mixed Forest tile have a
+visible special resource (a "Beaver"-type bonus icon, or similar) on it?**
+If yes, this is very likely fully explained and the resource-effect table's
+actual furs value can be checked/confirmed against R=8. If no, the gap is
+real and unexplained, and this needs a different theory entirely — not
+guessed at here.
+
 ---
 
 ## Town commons (colony center tile)
@@ -402,9 +497,9 @@ Printed chart often shows post-modifier lumber (e.g. Plains forested lumber **6*
 | Base NAMES grids | Wired | Wired (Hills food override **2**) |
 | Resource effect `17fa` | Additive / double, per (resource,job) pair | **2026-08-15 fix** — `colony_yield_resource_effect()`, byte-exact table (Game/etc. now correctly pair with multiple jobs) |
 | Lumberjack ×2 | Yes | **2026-08-15 fix** — wired at the correct pipeline position (after resource, before plow/road/river) |
-| Expert food/fish +2 | Yes (+ SoL mod re-add) | **2026-08-15 fix** — flat +2 wired (SoL mod re-add still needs SoL-threading) |
+| Expert food/fish +2 | Yes (+ SoL mod re-add) | **2026-08-15 fix (player-confirmed, Viceroy)** — flat +2 and the SoL mod re-add both wired, plus `sol_bonus` now folds in *before* expert doubling colony-wide (`colony_yield_pipeline`), not as a flat post-hoc add |
 | Convert job whitelist | Yes | **2026-08-15 fix** — exact whitelist gate |
-| Plow/road/river stack | Add | Max(road, river) — **divergent**; entangled with expert-flag unit sizing, not attempted |
+| Plow/road/river stack | Add (multi-signal) | Max(road, river) — still **divergent** on the multi-signal additive stack itself (unresolved runtime-array bit, see below), but the **unit size** (u=1 vs u=2 for expert/Lumberjack) is now **2026-08-15 fix, player-confirmed (Viceroy)** — wired |
 | Fisherman distance modifier | Yes (`FUN_15eb_173e`) | **2026-08-15 fix** — real 3-case ladder confirmed from raw asm, ported |
 | Fisherman needs Docks | Yes, zeroes yield outright | **2026-08-15 fix** — `colony_yield_for_worker` gained a `has_docks` param, threaded from every production/preview/badge caller (`turn.c`, `colony_preview.c`, `colony_screen.c` area overlay + jobs popup) |
 | SoL mod: AI zero-out | Zeroed outright for AI (strong, cross-validated hypothesis — see manufacturing_worker_calc_1d4c.md) | **2026-08-15 fix** — `colony_prod_sol_bonus_field` (new function), wired into both field-yield call sites (`turn.c`, `colony_preview.c`); building contexts (craft/bells/crosses/hammers) keep the shared `colony_prod_sol_bonus`, unaffected |

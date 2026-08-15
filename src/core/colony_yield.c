@@ -3,6 +3,11 @@
 #include <stddef.h>
 #include <string.h>
 
+/* COLONIZE_PROF_CONVERT only — a #define, not a call, so this doesn't pull
+ * colony_production.c into this file's link set (unit_colony_yield links
+ * colony_yield.c standalone). */
+#include "core/colony_production.h"
+
 /*
  * Yield columns match NAMES.TXT @JOB Farmer…Fisherman.
  * Rows match pedia terrain indices (0–7 unforesed, 8–15 forest type,
@@ -34,7 +39,9 @@ static const int k_forested[8][COLONIZE_FIELD_JOB_COUNT] = {
 };
 
 /* Arctic, Ocean, Sea Lane, Mountains, Hills.
- * Hills Farmer is 2 (Terrain Chart / FreeCol / live Col1); NAMES.TXT lists 1. */
+ * Hills Farmer is 2 — player-confirmed 2026-08-15 (Viceroy difficulty), not
+ * just Terrain Chart/FreeCol; NAMES.TXT lists 1 but real gameplay doesn't
+ * match it. See docs/terrain_yields.md. */
 static const int k_other[5][COLONIZE_FIELD_JOB_COUNT] = {
   {0, 0, 0, 0, 0, 0, 0, 0, 0},
   {0, 0, 0, 0, 0, 0, 0, 0, 3},
@@ -255,22 +262,79 @@ static int colony_yield_fisherman_distance_mod(const ColonizeWorldMap* map, int 
   return 1;
 }
 
-/* Road and river do not stack — apply the larger bonus once. */
+/*
+ * Road and river do not stack — apply the larger bonus once. `big_unit`
+ * doubles whichever wins: DOS's road/river "u" unit size is 2 instead of 1
+ * for a matching expert on a non-food/fish job, or for any Lumberjack
+ * (matching, or not) — confirmed 2026-08-15 by player data (Viceroy):
+ * Expert Ore Miner on Hills+road+sentiment(+1) = 12; Free Colonist, same
+ * tile = 6 — exactly ×2 at every step, which only holds if road/river also
+ * doubles for the expert, not just the flat expert doubling already wired
+ * (that alone would give 10, not 12 — see colony_yield_pipeline's own
+ * comment for the full derivation). See docs/terrain_yields.md.
+ */
 static int colony_yield_road_or_river_bonus(
   const ColonizeWorldMap* map,
   int x,
   int y,
-  int field_job
+  int field_job,
+  bool big_unit
 ) {
   const int road = map_tile_has_road(map, x, y) ? colony_yield_road_bonus(field_job) : 0;
   int river = 0;
   if (map_tile_has_river(map, x, y)) {
     river = colony_yield_river_bonus(field_job, map_tile_has_major_river(map, x, y));
   }
-  return road > river ? road : river;
+  const int bonus = road > river ? road : river;
+  return big_unit ? bonus * 2 : bonus;
 }
 
-int colony_yield_for_tile(const ColonizeWorldMap* map, int x, int y, int field_job) {
+/*
+ * Full DOS field-yield pipeline (FUN_15eb_18ec), profession- and SoL-aware.
+ * `profession` -1 means no worker context (colony_yield_for_tile's AI/
+ * job-suggestion callers) — skips expert/convert/docks-gate entirely, same
+ * as this project's pre-2026-08-15 behavior. `sol_bonus` is the signed
+ * colony_prod_sol_bonus_field() value; 0 is a no-op either way.
+ *
+ * Step order, confirmed 2026-08-15 by player data (Viceroy difficulty):
+ * Expert Ore Miner, Hills+road+sentiment(+1) = 12; Free Colonist, same
+ * tile = 6. This only reproduces from *this* order — SoL folds in early
+ * (step 2) and gets swept up by the expert doubling (step 3), and the
+ * road/river unit doubles for the expert too (step 7):
+ *   free:   base(4) +mod(1)=5,               +road(u=1)=6
+ *   expert: base(4) +mod(1)=5, <<=1(step3)=10, +road(u=2)=12
+ * The port's old shape (compute base+road, double whole thing for expert,
+ * add SoL flat afterward, road never expert-scaled) gives free=6 too but
+ * expert=(4+1)*2+1=11, not 12 — silently wrong once an expert works a
+ * road/river tile, or whenever sol_bonus is nonzero on an expert tile.
+ *   1. base terrain + fisherman distance mod, clamp >= 0; docks-gate
+ *      (Fisherman only) applies here too — DOS zeroes the whole yield, so
+ *      it must beat every later step, not just come first arithmetically
+ *   2. positive sol_bonus folds in here, before expert doubling
+ *   3. expert: food/fish -> +2 (and re-add positive sol_bonus a second
+ *      time — flat +2 doesn't naturally re-double it the way <<=1 does for
+ *      every other job); other jobs -> <<=1
+ *   4. special resource: double, or additive with the expert doubling the
+ *      additive amount specifically (`FUN_15eb_17fa`, read from asm; not
+ *      yet independently player-cross-validated the way steps 2/3/7 are)
+ *   5. Lumberjack always <<=1, regardless of expert (pre-existing, still-DOS
+ *      -confirmed 2026-08-15 fix from an earlier pass)
+ *   6. plow +1 on crops
+ *   7. road/river, big_unit (u=2) for a matching non-food/fish expert or
+ *      any Lumberjack
+ *   8. Convert +1 (whitelist)
+ *   9. negative sol_bonus folds in here, at the very end, floor at 0 — DOS
+ *      does *not* let the expert doubling amplify a Tory penalty
+ */
+static int colony_yield_pipeline(
+  const ColonizeWorldMap* map,
+  int x,
+  int y,
+  int field_job,
+  int profession,
+  int sol_bonus,
+  bool has_docks
+) {
   if (!map || field_job < 0 || field_job >= COLONIZE_FIELD_JOB_COUNT) {
     return 0;
   }
@@ -278,21 +342,48 @@ int colony_yield_for_tile(const ColonizeWorldMap* map, int x, int y, int field_j
   int yield = colony_yield_base_for_pedia(pedia, field_job);
   if (field_job == COLONIZE_JOB_FISHERMAN) {
     yield += colony_yield_fisherman_distance_mod(map, x, y);
-    if (yield < 0) {
-      yield = 0;
+  }
+  if (yield < 0) {
+    yield = 0;
+  }
+  /* Fisherman needs Docks (or an upgrade: Drydock/Shipyard) to work ocean/sea
+   * surrounds at all — FUN_15eb_18ec ~11925-11939 zeroes the whole yield,
+   * not just a modifier. colony_yield_for_tile always passes has_docks=true
+   * (never gates), matching its pre-2026-08-15 profession-less behavior. */
+  if (field_job == COLONIZE_JOB_FISHERMAN && !has_docks) {
+    return 0;
+  }
+  if (yield <= 0) {
+    return 0;
+  }
+
+  const bool expert = profession >= 0 && profession == field_job;
+  const bool food_fish = field_job == COLONIZE_JOB_FARMER || field_job == COLONIZE_JOB_FISHERMAN;
+
+  if (sol_bonus > 0) {
+    yield += sol_bonus;
+  }
+  if (expert) {
+    if (food_fish) {
+      yield += 2;
+      if (sol_bonus > 0) {
+        yield += sol_bonus;
+      }
+    } else {
+      yield <<= 1;
     }
   }
+
   /* Resource effect (FUN_15eb_17fa) — DOS-exact table, applied before the
-   * Lumberjack double. Expert doubling the *additive* half specifically is
-   * not applied here — see docs/terrain_yields.md; colony_yield_for_tile has
-   * no profession context (used by AI/job-suggestion callers too). */
+   * Lumberjack double. Expert doubles the additive half specifically (not
+   * the whole-yield-doubling type, which is already a ×2 either way). */
   const int res = map_resource_type_for_yield(map, x, y);
   if (res >= 0) {
     const int effect = colony_yield_resource_effect(res, field_job);
     if (effect == COLONY_YIELD_RESOURCE_DOUBLE) {
       yield <<= 1;
     } else {
-      yield += effect;
+      yield += expert ? (effect * 2) : effect;
     }
   }
   /* Lumberjack: DOS always doubles lumber after the resource effect
@@ -303,8 +394,39 @@ int colony_yield_for_tile(const ColonizeWorldMap* map, int x, int y, int field_j
   if (map_tile_is_plowed(map, x, y) && colony_yield_is_crop_job(field_job)) {
     yield += 1;
   }
-  yield += colony_yield_road_or_river_bonus(map, x, y, field_job);
+  const bool big_unit = field_job == COLONIZE_JOB_LUMBERJACK || (expert && !food_fish);
+  yield += colony_yield_road_or_river_bonus(map, x, y, field_job, big_unit);
+
+  /* Convert +1 only on the DOS whitelist (FUN_15eb_18ec ~11974-11979): food/
+   * cash crops + fur trapper + fisherman — not lumber/ore/silver. */
+  if (yield > 0 && profession == COLONIZE_PROF_CONVERT && field_job != COLONIZE_JOB_LUMBERJACK &&
+      field_job != COLONIZE_JOB_ORE_MINER && field_job != COLONIZE_JOB_SILVER_MINER) {
+    yield += 1;
+  }
+
+  if (sol_bonus < 0) {
+    yield += sol_bonus;
+    if (yield < 0) {
+      yield = 0;
+    }
+  }
   return yield;
+}
+
+int colony_yield_for_tile(const ColonizeWorldMap* map, int x, int y, int field_job) {
+  return colony_yield_pipeline(map, x, y, field_job, -1, 0, true);
+}
+
+int colony_yield_for_worker(
+  const ColonizeWorldMap* map,
+  int x,
+  int y,
+  int field_job,
+  int profession,
+  bool has_docks,
+  int sol_bonus
+) {
+  return colony_yield_pipeline(map, x, y, field_job, profession, sol_bonus, has_docks);
 }
 
 /*
