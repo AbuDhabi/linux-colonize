@@ -113,17 +113,38 @@ void colony_prod_tick_rebel_accumulators(
   ColonizeCol1Save* col1
 );
 
-int colony_prod_crosses_worker(const char* building_name, int profession);
+/*
+ * sol_bonus (colony_prod_sol_bonus) folds in before the skill-driven
+ * doubling — matches FUN_15eb_1d4c's Preacher body: skill match picks a flat
+ * top-rate baseline (not a class-scale ×2), sol_bonus adds next,
+ * `colony_has_cathedral` (a *colony-wide* flag, not this worker's own
+ * building) doubles last. Pass sol_bonus=0, colony_has_cathedral=false for
+ * callers that intentionally show the un-modified base rate (settlement
+ * badges). See manufacturing_worker_calc_1d4c.md.
+ */
+int colony_prod_crosses_worker(
+  const char* building_name,
+  int profession,
+  int sol_bonus,
+  bool colony_has_cathedral
+);
 
 /*
  * sol_bonus (colony_prod_sol_bonus) is folded in *before* the skill-match
- * doubling, matching FUN_15eb_1d4c's Statesman body exactly (unlike
- * crosses_worker/hammers_worker, which still add it after — see
- * manufacturing_worker_calc_1d4c.md Open questions). Pass 0 for callers that
- * intentionally show the un-modified base rate (settlement badges).
+ * doubling, matching FUN_15eb_1d4c's Statesman body exactly. Pass 0 for
+ * callers that intentionally show the un-modified base rate (settlement
+ * badges).
  */
 int colony_prod_bells_worker(const char* building_name, int profession, int sol_bonus);
-int colony_prod_hammers_worker(const char* building_name, int profession);
+
+/* Same shape as colony_prod_crosses_worker (Carpenter body) —
+ * `colony_has_lumber_mill` is colony-wide, not this worker's own building. */
+int colony_prod_hammers_worker(
+  const char* building_name,
+  int profession,
+  int sol_bonus,
+  bool colony_has_lumber_mill
+);
 
 /* Passive crosses when Church (+2) or Cathedral (+3) is built. */
 int colony_prod_church_passive_crosses(const char* building_name);
@@ -154,19 +175,27 @@ int colony_prod_colony_bells_ff(
   int all_bells_bonus_pct,
   int sol_bonus
 );
+/* sol_bonus folds into each cross worker individually (colony_prod_crosses_worker)
+ * — see colony_prod_colony_bells_ff comment above, same pattern. */
 int colony_prod_colony_crosses_ff(
   const ColonizeColonyPool* pool,
   const ColonizeColony* colony,
-  int crosses_bonus_pct
+  int crosses_bonus_pct,
+  int sol_bonus
 );
 
 /*
  * Sum carpenter hammer output and lumber consumed this turn.
  * Only assigned workers at Carpenter's Shop / Lumber Mill produce hammers.
+ * sol_bonus folds into each hammer worker individually
+ * (colony_prod_hammers_worker) and only affects the returned hammer count —
+ * *out_lumber_use always reflects the un-modified base rate (lumber
+ * consumption doesn't scale with SoL/Tory).
  */
 int colony_prod_colony_hammers(
   const ColonizeColonyPool* pool,
   const ColonizeColony* colony,
+  int sol_bonus,
   int* out_lumber_use
 );
 

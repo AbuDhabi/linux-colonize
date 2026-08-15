@@ -167,61 +167,22 @@ void colony_preview_compute(
       : 0;
   const int penn_crosses_pct =
     (col1 && founding_fathers_nation_has(col1, nation_id, FF_WILLIAM_PENN)) ? 50 : 0;
-  out->crosses = colony_prod_colony_crosses_ff(pool, colony, penn_crosses_pct);
-  /* Bells: sol_b folds into each Statesman worker individually, inside
-   * colony_prod_colony_bells_ff (matches FUN_15eb_1d4c's Statesman body —
-   * see manufacturing_worker_calc_1d4c.md). Must match turn.c's
+  /* Bells / crosses: sol_b folds into each Statesman/Preacher worker
+   * individually, inside colony_prod_colony_bells_ff/_crosses_ff (matches
+   * FUN_15eb_1d4c's Statesman/Preacher bodies — see
+   * manufacturing_worker_calc_1d4c.md). Must match turn.c's
    * turn_count_bells_and_crosses_for_nation call exactly. */
+  out->crosses = colony_prod_colony_crosses_ff(pool, colony, penn_crosses_pct, sol_b);
   out->bells = colony_prod_colony_bells_ff(pool, colony, statesmen_pct, paine_tax_pct, sol_b);
-  if (sol_b != 0) {
-    /* Crosses: still the older flat "count workers, multiply" mechanism —
-     * see turn.c's twin of this block for why (Preacher's DOS body doesn't
-     * fold sol_bonus the same simple way Statesman's does). */
-    int cross_workers = 0;
-    for (int p = 0; p < colony->colonist_count; ++p) {
-      const ColonizeColonist* cc = &colony->colonists[p];
-      if (!cc->active || cc->building_type < 0 || cc->building_type >= pool->building_type_count) {
-        continue;
-      }
-      const char* bn = pool->building_types[cc->building_type].name;
-      if (colony_prod_crosses_worker(bn, cc->profession) > 0) {
-        cross_workers++;
-      }
-    }
-    if (cross_workers > 0) {
-      out->crosses += sol_b * cross_workers;
-    } else if (out->crosses > 0) {
-      out->crosses += sol_b; /* church passive / colony base */
-    }
-    if (out->crosses < 0) {
-      out->crosses = 0;
-    }
-  }
 
   {
     /* Hammers bank even with no project queued (turn.c "TURN5→6" comment) —
      * preview must show that too, not just while a Construction item is
-     * selected, or the player never sees lumber about to be consumed. */
+     * selected, or the player never sees lumber about to be consumed.
+     * sol_b folds into each Carpenter worker individually, inside
+     * colony_prod_colony_hammers (matches FUN_15eb_1d4c's Carpenter body). */
     int lumber_use = 0;
-    int hammers_add = colony_prod_colony_hammers(pool, colony, &lumber_use);
-    if (hammers_add > 0 && sol_b != 0) {
-      /* sol_b is signed — must match turn.c's hammers block. */
-      int carpenters = 0;
-      for (int ci = 0; ci < colony->colonist_count; ++ci) {
-        const ColonizeColonist* cc = &colony->colonists[ci];
-        if (!cc->active || cc->building_type < 0) {
-          continue;
-        }
-        const char* bn = pool->building_types[cc->building_type].name;
-        if (bn && (strstr(bn, "Carpenter") != NULL || strstr(bn, "Lumber Mill") != NULL)) {
-          carpenters++;
-        }
-      }
-      hammers_add += sol_b * carpenters;
-      if (hammers_add < 0) {
-        hammers_add = 0;
-      }
-    }
+    int hammers_add = colony_prod_colony_hammers(pool, colony, sol_b, &lumber_use);
     if (hammers_add > 0) {
       int lumber = colony->stock[COLONIZE_CARGO_LUMBER] + out->goods[COLONIZE_CARGO_LUMBER];
       if (lumber_use > lumber) {

@@ -73,14 +73,27 @@ static bool colony_prod_craft_skill_matches(int profession, int craft_profession
   return profession >= 0 && profession == craft_profession;
 }
 
-static int colony_prod_religious_worker_rate(const char* building_name, int profession, int church_rate, int cathedral_rate) {
-  int base = colony_prod_name_has(building_name, "Cathedral") ? cathedral_rate
-                                                              : church_rate;
-  base = colony_prod_scale_by_class(profession, base);
-  if (colony_prod_craft_skill_matches(profession, COLONIZE_PROF_PREACHER)) {
-    base *= 2;
+/*
+ * Shared shape for Carpenter/Preacher (FUN_15eb_1d4c bodies at 15eb:1e50 /
+ * 15eb:1e82 — see manufacturing_worker_calc_1d4c.md): skill match picks a
+ * flat top-rate baseline instead of the class tag (not a ×2 of the class
+ * scale like Statesman/the shared craft body), sol_bonus adds next, and a
+ * *colony-wide* "owns the upgraded building" flag (Lumber Mill / Cathedral —
+ * not this worker's own assigned building) doubles the result last. Clamped
+ * to >= 0, matching FUN_15eb_1d4c's shared epilogue.
+ */
+static int colony_prod_carpenter_preacher_shape(
+  int profession,
+  int craft_profession,
+  int sol_bonus,
+  bool colony_has_upgrade
+) {
+  const bool skilled = colony_prod_craft_skill_matches(profession, craft_profession);
+  int v = (skilled ? 6 : colony_prod_scale_by_class(profession, 3)) + sol_bonus;
+  if (colony_has_upgrade) {
+    v *= 2;
   }
-  return base;
+  return v > 0 ? v : 0;
 }
 
 int colony_prod_manufacturing_output(
@@ -352,13 +365,20 @@ void colony_prod_tick_rebel_accumulators(
   }
 }
 
-int colony_prod_crosses_worker(const char* building_name, int profession) {
+int colony_prod_crosses_worker(
+  const char* building_name,
+  int profession,
+  int sol_bonus,
+  bool colony_has_cathedral
+) {
   if (!building_name ||
       (!colony_prod_name_has(building_name, "Church") &&
        !colony_prod_name_has(building_name, "Cathedral"))) {
     return 0;
   }
-  return colony_prod_religious_worker_rate(building_name, profession, 3, 6);
+  return colony_prod_carpenter_preacher_shape(
+    profession, COLONIZE_PROF_PREACHER, sol_bonus, colony_has_cathedral
+  );
 }
 
 int colony_prod_bells_worker(const char* building_name, int profession, int sol_bonus) {
@@ -376,18 +396,20 @@ int colony_prod_bells_worker(const char* building_name, int profession, int sol_
   return base > 0 ? base : 0;
 }
 
-int colony_prod_hammers_worker(const char* building_name, int profession) {
+int colony_prod_hammers_worker(
+  const char* building_name,
+  int profession,
+  int sol_bonus,
+  bool colony_has_lumber_mill
+) {
   if (!building_name ||
       (!colony_prod_name_has(building_name, "Carpenter") &&
        !colony_prod_name_has(building_name, "Lumber Mill"))) {
     return 0;
   }
-  const ColonyProdTier tier = colony_prod_building_tier(building_name);
-  int out = colony_prod_scale_by_class(profession, colony_prod_tier_free_output(tier));
-  if (colony_prod_craft_skill_matches(profession, COLONIZE_PROF_CARPENTER)) {
-    out *= 2;
-  }
-  return out;
+  return colony_prod_carpenter_preacher_shape(
+    profession, COLONIZE_PROF_CARPENTER, sol_bonus, colony_has_lumber_mill
+  );
 }
 
 int colony_prod_church_passive_crosses(const char* building_name) {
@@ -425,7 +447,8 @@ static bool colony_prod_building_built(
 int colony_prod_colony_crosses_ff(
   const ColonizeColonyPool* pool,
   const ColonizeColony* colony,
-  int crosses_bonus_pct
+  int crosses_bonus_pct,
+  int sol_bonus
 ) {
   if (!pool || !colony || !colony->active) {
     return 0;
@@ -437,12 +460,29 @@ int colony_prod_colony_crosses_ff(
     }
     crosses += colony_prod_church_passive_crosses(pool->building_types[i].name);
   }
+  const bool colony_has_cathedral = colony_prod_building_built(pool, colony, "Cathedral");
+  int cross_workers = 0;
   for (int p = 0; p < colony->colonist_count; ++p) {
     const ColonizeColonist* c = &colony->colonists[p];
     if (!c->active || c->building_type < 0 || c->building_type >= pool->building_type_count) {
       continue;
     }
-    crosses += colony_prod_crosses_worker(pool->building_types[c->building_type].name, c->profession);
+    const char* bn = pool->building_types[c->building_type].name;
+    if (!colony_prod_name_has(bn, "Church") && !colony_prod_name_has(bn, "Cathedral")) {
+      continue;
+    }
+    cross_workers++;
+    crosses += colony_prod_crosses_worker(bn, c->profession, sol_bonus, colony_has_cathedral);
+  }
+  /* No cross workers to fold sol_bonus into individually — apply it to the
+   * base/passive crosses directly instead (nothing else it could attach to;
+   * matches the pre-2026-08-15 external "church passive / colony base"
+   * fallback this replaces). */
+  if (cross_workers == 0 && sol_bonus != 0 && crosses > 0) {
+    crosses += sol_bonus;
+    if (crosses < 0) {
+      crosses = 0;
+    }
   }
   /* William Penn: cross production in all colonies +50% (fandom_col1994). */
   if (crosses_bonus_pct > 0) {
@@ -452,7 +492,7 @@ int colony_prod_colony_crosses_ff(
 }
 
 int colony_prod_colony_crosses(const ColonizeColonyPool* pool, const ColonizeColony* colony) {
-  return colony_prod_colony_crosses_ff(pool, colony, 0);
+  return colony_prod_colony_crosses_ff(pool, colony, 0, 0);
 }
 
 int colony_prod_colony_bells_ff(
@@ -520,6 +560,7 @@ int colony_prod_colony_bells(const ColonizeColonyPool* pool, const ColonizeColon
 int colony_prod_colony_hammers(
   const ColonizeColonyPool* pool,
   const ColonizeColony* colony,
+  int sol_bonus,
   int* out_lumber_use
 ) {
   if (out_lumber_use) {
@@ -528,19 +569,23 @@ int colony_prod_colony_hammers(
   if (!pool || !colony || !colony->active) {
     return 0;
   }
-  int total = 0;
+  const bool colony_has_lumber_mill = colony_prod_building_built(pool, colony, "Lumber Mill");
+  int lumber_total = 0; /* sol_bonus=0: lumber consumption tracks the un-modified base rate. */
+  int hammers_total = 0;
   for (int p = 0; p < colony->colonist_count; ++p) {
     const ColonizeColonist* c = &colony->colonists[p];
     if (!c->active || c->building_type < 0 || c->building_type >= pool->building_type_count) {
       continue;
     }
     const char* bname = pool->building_types[c->building_type].name;
-    total += colony_prod_hammers_worker(bname, c->profession);
+    lumber_total += colony_prod_hammers_worker(bname, c->profession, 0, colony_has_lumber_mill);
+    hammers_total +=
+      colony_prod_hammers_worker(bname, c->profession, sol_bonus, colony_has_lumber_mill);
   }
-  if (out_lumber_use && total > 0) {
-    *out_lumber_use = total;
+  if (out_lumber_use && lumber_total > 0) {
+    *out_lumber_use = lumber_total;
   }
-  return total;
+  return hammers_total;
 }
 
 int colony_prod_worker_building_output(
@@ -559,10 +604,10 @@ int colony_prod_worker_building_output(
     return colony_prod_bells_worker(name, profession, 0);
   }
   if (colony_prod_name_has(name, "Church") || colony_prod_name_has(name, "Cathedral")) {
-    return colony_prod_crosses_worker(name, profession);
+    return colony_prod_crosses_worker(name, profession, 0, false);
   }
   if (colony_prod_name_has(name, "Carpenter") || colony_prod_name_has(name, "Lumber Mill")) {
-    return colony_prod_hammers_worker(name, profession);
+    return colony_prod_hammers_worker(name, profession, 0, false);
   }
   if (colony_prod_name_has(name, "Rum Distill")) {
     return colony_prod_manufacturing_output(name, profession, COLONIZE_PROF_DISTILLER, 0);

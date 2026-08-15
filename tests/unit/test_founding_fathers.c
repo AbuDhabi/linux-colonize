@@ -1297,7 +1297,7 @@ int main(void) {
       return fail("prod baseline crosses unexpected");
     }
     /* Penn +50%: 9 × 150/100 = 13. */
-    const int crosses_penn = colony_prod_colony_crosses_ff(&pool, col, 50);
+    const int crosses_penn = colony_prod_colony_crosses_ff(&pool, col, 50, 0);
     if (crosses_penn != 13) {
       return fail("Penn crosses +50%");
     }

@@ -1178,33 +1178,14 @@ static void turn_produce_one_colony(
     delta->food_net = delta->goods[COLONIZE_CARGO_FOOD];
   }
 
-  /* Carpenter hammers: convert lumber toward current project (or bank if none). */
+  /* Carpenter hammers: convert lumber toward current project (or bank if none).
+   * sol_b folds into each Carpenter worker individually, inside
+   * colony_prod_colony_hammers (matches FUN_15eb_1d4c's Carpenter body —
+   * see manufacturing_worker_calc_1d4c.md). */
   {
     int lumber_use = 0;
-    int hammers_add = colony_prod_colony_hammers(pool, colony, &lumber_use);
     const int sol_b = colony_prod_sol_bonus(col1, colony);
-    if (hammers_add > 0 && sol_b != 0) {
-      /* +1/+2 per carpenter worker (manual SoL production unit); sol_b is
-       * signed — a Tory penalty must reduce hammers same as it reduces
-       * every other per-worker production, not just SoL bonuses adding to
-       * it (FUN_15eb_1d4c folds local_e in unconditionally, no positivity
-       * guard — see manufacturing_worker_calc_1d4c.md). */
-      int carpenters = 0;
-      for (int ci = 0; ci < colony->colonist_count; ++ci) {
-        const ColonizeColonist* cc = &colony->colonists[ci];
-        if (!cc->active || cc->building_type < 0) {
-          continue;
-        }
-        const char* bn = pool->building_types[cc->building_type].name;
-        if (bn && (strstr(bn, "Carpenter") != NULL || strstr(bn, "Lumber Mill") != NULL)) {
-          carpenters++;
-        }
-      }
-      hammers_add += sol_b * carpenters;
-      if (hammers_add < 0) {
-        hammers_add = 0;
-      }
-    }
+    int hammers_add = colony_prod_colony_hammers(pool, colony, sol_b, &lumber_use);
     if (hammers_add > 0) {
       if (lumber_use > colony->stock[COLONIZE_CARGO_LUMBER]) {
         lumber_use = colony->stock[COLONIZE_CARGO_LUMBER];
@@ -1625,39 +1606,12 @@ static int turn_count_bells_and_crosses_for_nation(
       continue;
     }
     const int sol_b = colony_prod_sol_bonus(col1, c);
-    /* Bells: sol_b folds into each Statesman worker individually, inside
-     * colony_prod_colony_bells_ff (matches FUN_15eb_1d4c's Statesman body —
-     * see manufacturing_worker_calc_1d4c.md). */
+    /* Bells/crosses: sol_b folds into each Statesman/Preacher worker
+     * individually, inside colony_prod_colony_bells_ff/_crosses_ff (matches
+     * FUN_15eb_1d4c's Statesman/Preacher bodies — see
+     * manufacturing_worker_calc_1d4c.md). */
     int b = colony_prod_colony_bells_ff(pool, c, statesmen_pct, paine_tax_pct, sol_b);
-    /* Crosses: still the older flat "count workers, multiply" mechanism —
-     * Preacher's DOS body doesn't fold sol_bonus the same simple way
-     * Statesman's does (a colony-wide Cathedral-owned flag interacts with it
-     * too), not restructured yet. sol_b is signed and clamped here so a
-     * Tory penalty still reduces crosses, just not with the same
-     * per-worker-before-doubling precision bells now has. */
-    int x = colony_prod_colony_crosses_ff(pool, c, penn_crosses_pct);
-    if (sol_b != 0) {
-      int cross_workers = 0;
-      for (int p = 0; p < c->colonist_count; ++p) {
-        const ColonizeColonist* col = &c->colonists[p];
-        if (!col->active || col->building_type < 0 ||
-            col->building_type >= pool->building_type_count) {
-          continue;
-        }
-        const char* bn = pool->building_types[col->building_type].name;
-        if (colony_prod_crosses_worker(bn, col->profession) > 0) {
-          cross_workers++;
-        }
-      }
-      if (cross_workers > 0) {
-        x += sol_b * cross_workers;
-      } else if (x > 0) {
-        x += sol_b; /* church passive / colony base */
-      }
-      if (x < 0) {
-        x = 0;
-      }
-    }
+    int x = colony_prod_colony_crosses_ff(pool, c, penn_crosses_pct, sol_b);
     bells += b;
     crosses += x;
   }
