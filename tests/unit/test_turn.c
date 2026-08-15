@@ -1390,6 +1390,59 @@ int main(void) {
         assets_msg_free(&names);
         return 1;
       }
+      /*
+       * colony_prod_crosses_worker / colony_prod_hammers_worker: Carpenter/
+       * Preacher DOS shape is `(skilled?6:tag)+sol_bonus`, *then* doubled by
+       * a colony-wide "owns the upgrade" flag — not the class-scaled rate
+       * table the port used to use, which only matched at sol_bonus=0 (see
+       * manufacturing_worker_calc_1d4c.md). These four values only diverge
+       * from the pre-fix numbers precisely when the colony owns the
+       * upgrade, which is exactly the case being tested here.
+       */
+      const int crosses_unskilled_cathedral =
+        colony_prod_crosses_worker("Cathedral", COLONIZE_PROF_FREE_COLONIST, 2, true);
+      if (crosses_unskilled_cathedral != 10) { /* (3+2)*2, not the old 6+2=8 */
+        fprintf(
+          stderr,
+          "crosses_worker unskilled+cathedral want 10 got %d\n",
+          crosses_unskilled_cathedral
+        );
+        assets_msg_free(&names);
+        return 1;
+      }
+      const int crosses_skilled_cathedral =
+        colony_prod_crosses_worker("Cathedral", COLONIZE_PROF_PREACHER, 2, true);
+      if (crosses_skilled_cathedral != 16) { /* (6+2)*2, not the old 6*2+2=14 */
+        fprintf(
+          stderr,
+          "crosses_worker skilled+cathedral want 16 got %d\n",
+          crosses_skilled_cathedral
+        );
+        assets_msg_free(&names);
+        return 1;
+      }
+      const int hammers_unskilled_mill =
+        colony_prod_hammers_worker("Lumber Mill", COLONIZE_PROF_FREE_COLONIST, 2, true);
+      if (hammers_unskilled_mill != 10) { /* (3+2)*2, not the old 6+2=8 */
+        fprintf(
+          stderr,
+          "hammers_worker unskilled+mill want 10 got %d\n",
+          hammers_unskilled_mill
+        );
+        assets_msg_free(&names);
+        return 1;
+      }
+      const int hammers_skilled_mill =
+        colony_prod_hammers_worker("Lumber Mill", COLONIZE_PROF_CARPENTER, 2, true);
+      if (hammers_skilled_mill != 16) { /* (6+2)*2, not the old 6*2+2=14 */
+        fprintf(
+          stderr,
+          "hammers_worker skilled+mill want 16 got %d\n",
+          hammers_skilled_mill
+        );
+        assets_msg_free(&names);
+        return 1;
+      }
     }
 
     ColonizeColony* col = &pool.colonies[0];
