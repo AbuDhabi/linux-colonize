@@ -284,25 +284,57 @@ reachable through normal construction (upgrades replace, not stack), so
 
 ## Open questions (next layer — normal RE backlog, not a blocker)
 
-- **Partially fixed 2026-08-15:** hammers/bells/crosses (`turn.c`'s
-  `turn_count_bells_and_crosses_for_nation` and hammers block, mirrored in
-  `colony_preview.c`) had the *same* `sol_b > 0` guard bug as manufacturing —
-  every Tory penalty silently dropped instead of reducing output. That half
-  is fixed (signed `sol_b`, colony-total clamped to ≥0). **Still not fixed:**
-  unlike the manufacturing rewrite, these three still add `sol_b` *after*
-  `colony_prod_bells_worker`/`_crosses_worker`/`_hammers_worker` have already
-  applied their internal skill-match ×2 — so for a *skilled* Statesman/
-  Preacher/Carpenter, DOS doubles the SoL term along with everything else
-  (Carpenter/Preacher/Statesman bodies all show the identical `v =
-  base+local_e` then `if (skill) v <<= 1` shape the shared craft body has)
-  but the port still doesn't. Smaller-magnitude version of the same bug the
-  manufacturing fix closed; not restructured this pass because these three
-  use a colony-wide "count matching workers, multiply" mechanism rather than
-  a single per-worker function call, so folding sol in pre-doubling means
-  restructuring `colony_prod_colony_bells_ff`/`_crosses_ff`/
-  `colony_prod_colony_hammers` to take `sol_bonus` as a per-worker input
-  rather than a post-hoc colony-wide multiply — real work, not a one-line
-  change like the sign-drop fix was.
+- **Bells fixed 2026-08-15 (two passes).** First pass fixed the `sol_b > 0`
+  sign-drop bug shared with hammers/crosses. Second pass fixed it properly:
+  `colony_prod_bells_worker` now takes `sol_bonus`, folds it into the class
+  tag *before* the Statesman ×2 (`(tag+sol)*2` when skilled), and
+  `colony_prod_colony_bells_ff` threads it per-worker — the old external
+  "count workers, multiply, add after `colony_prod_colony_bells_ff` returns"
+  mechanism in `turn.c`/`colony_preview.c` is gone for bells. Statesman's DOS
+  body has no colony-wide building-flag complication (unlike Carpenter/
+  Preacher, below), so this one is a clean, direct match: `v = local_12 +
+  local_e`, then `if (skill) v <<= 1` — exactly what the new
+  `colony_prod_bells_worker` does.
+
+- **Hammers/crosses: sign-drop fixed, doubling-order still not.** Both had
+  the same `sol_b > 0` guard fixed (signed, clamped). But copying the bells
+  fix (fold `sol_bonus` into a class-tag-shaped base, before an explicit ×2)
+  does *not* transfer cleanly here, because Carpenter/Preacher's DOS bodies
+  don't work like Statesman's:
+
+  ```
+  v = (skill_match ? 6 : local_12) + local_e     ; skill picks the BASE, not a ×2 flag
+  if (FUN_15eb_038e(building_index)) v <<= 1     ; COLONY-WIDE "owns the upgraded
+                                                    building" flag — Lumber Mill (0x24)
+                                                    for Carpenter, Cathedral (0x26) for
+                                                    Preacher — not per-worker skill match
+  ```
+
+  The port's `church_rate=3`/`cathedral_rate=6` (and the equivalent
+  house/shop `colony_prod_tier_free_output` lookup for hammers) captures that
+  colony-wide doubling *implicitly*, by using a bigger rate constant — which
+  is algebraically identical to DOS's explicit `×2` **only when there's
+  nothing added in between** (`scale_by_class(p, 2×base) ==
+  2×scale_by_class(p, base)` by linearity, for all three colonist classes).
+  Once `sol_bonus` is added in between, that identity breaks:
+  `scale_by_class(p, 6) + sol` ≠ `(scale_by_class(p, 3) + sol) × 2` — they
+  differ by exactly `sol`. So naively porting the bells fix here (fold sol
+  into the rate-scaled value, keep skill as a separate ×2) would be
+  numerically wrong whenever the colony owns the upgraded building and
+  `sol_bonus != 0`.
+
+  Fixing this bit-exactly means restructuring `colony_prod_crosses_worker`/
+  `colony_prod_hammers_worker` around the *actual* DOS shape above: skill
+  picks between a flat top rate and the class tag, `sol_bonus` adds next,
+  and a **separate, explicit, colony-wide "owns the upgraded building"
+  flag** (not derived from which building *this worker* is in) doubles the
+  result last. That flag needs to be passed in from the caller (which has
+  `pool`/`colony` in scope to check `has_building[]`), not derived from
+  `building_name` the way `colony_prod_building_tier` does today — a real
+  signature change across `colony_prod_colony_crosses_ff`/
+  `colony_prod_colony_hammers` and their callers, not a one-line addition
+  like the bells fix was. Not attempted this pass; correctly scoped for a
+  dedicated one.
 - `byte[bx+0x1a]` / `0x543f` table / `byte[0x53a6]` — strong-hypothesis (per
   above: nation-control-type gate, per-nation table, difficulty setting) but
   not independently cross-checked against another call site yet.

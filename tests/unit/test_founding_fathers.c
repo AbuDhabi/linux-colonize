@@ -1276,17 +1276,17 @@ int main(void) {
       return fail("prod baseline bells (statesman+hall) unexpected");
     }
     /* Jefferson +50% on statesmen worker only: 6→9, passive 1 → 10. */
-    const int bells_jeff = colony_prod_colony_bells_ff(&pool, col, 50, 0);
+    const int bells_jeff = colony_prod_colony_bells_ff(&pool, col, 50, 0, 0);
     if (bells_jeff != 10) {
       return fail("Jefferson statesmen +50% bells");
     }
     /* Paine tax 20%: 7 × 120/100 = 8. */
-    const int bells_paine = colony_prod_colony_bells_ff(&pool, col, 0, 20);
+    const int bells_paine = colony_prod_colony_bells_ff(&pool, col, 0, 20, 0);
     if (bells_paine != 8) {
       return fail("Paine tax% bells");
     }
     /* Both: Jefferson then media(none) then Paine: 10 × 120/100 = 12. */
-    const int bells_both = colony_prod_colony_bells_ff(&pool, col, 50, 20);
+    const int bells_both = colony_prod_colony_bells_ff(&pool, col, 50, 20, 0);
     if (bells_both != 12) {
       return fail("Jefferson+Paine combined bells");
     }

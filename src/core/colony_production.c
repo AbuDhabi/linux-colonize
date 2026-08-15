@@ -319,7 +319,8 @@ void colony_prod_tick_rebel_accumulators(
      founding_fathers_nation_has(col1, nation_id, FF_THOMAS_PAINE))
       ? (int)col1->nation[nation_id].tax_rate
       : 0;
-  int bells = colony_prod_colony_bells_ff(pool, colony, statesmen_pct, paine_tax_pct);
+  /* sol_bonus=0: the rebel-accumulator tick must not feed SoL back into itself. */
+  int bells = colony_prod_colony_bells_ff(pool, colony, statesmen_pct, paine_tax_pct, 0);
 
   /* WoI + crown-occupied: bells feed Tory (negative half). */
   const int woi = col1->head.unknown46[0] != 0;
@@ -360,15 +361,19 @@ int colony_prod_crosses_worker(const char* building_name, int profession) {
   return colony_prod_religious_worker_rate(building_name, profession, 3, 6);
 }
 
-int colony_prod_bells_worker(const char* building_name, int profession) {
+int colony_prod_bells_worker(const char* building_name, int profession, int sol_bonus) {
   if (!building_name || !colony_prod_name_has(building_name, "Town Hall")) {
     return 0;
   }
-  int base = colony_prod_scale_by_class(profession, 3);
+  /* DOS FUN_15eb_1d4c Statesman body: v = class_tag + local_e (sol_bonus),
+   * *then* doubled on skill match — sol_bonus must be inside the doubling,
+   * not added after (manufacturing_worker_calc_1d4c.md). Clamped to >= 0,
+   * matching FUN_15eb_1d4c's shared epilogue. */
+  int base = colony_prod_scale_by_class(profession, 3) + sol_bonus;
   if (colony_prod_craft_skill_matches(profession, COLONIZE_PROF_STATESMAN)) {
     base *= 2;
   }
-  return base;
+  return base > 0 ? base : 0;
 }
 
 int colony_prod_hammers_worker(const char* building_name, int profession) {
@@ -454,26 +459,42 @@ int colony_prod_colony_bells_ff(
   const ColonizeColonyPool* pool,
   const ColonizeColony* colony,
   int statesmen_bonus_pct,
-  int all_bells_bonus_pct
+  int all_bells_bonus_pct,
+  int sol_bonus
 ) {
   if (!pool || !colony || !colony->active) {
     return 0;
   }
   int bells = 0;
-  if (colony_prod_building_built(pool, colony, "Town Hall")) {
+  const bool has_town_hall = colony_prod_building_built(pool, colony, "Town Hall");
+  if (has_town_hall) {
     bells += 1;
   }
+  int bell_workers = 0;
   for (int p = 0; p < colony->colonist_count; ++p) {
     const ColonizeColonist* c = &colony->colonists[p];
     if (!c->active || c->building_type < 0 || c->building_type >= pool->building_type_count) {
       continue;
     }
-    int w = colony_prod_bells_worker(pool->building_types[c->building_type].name, c->profession);
+    const char* bn = pool->building_types[c->building_type].name;
+    if (!colony_prod_name_has(bn, "Town Hall")) {
+      continue;
+    }
+    bell_workers++;
+    int w = colony_prod_bells_worker(bn, c->profession, sol_bonus);
     /* Thomas Jefferson: liberty bell production of statesmen +50% (wiki). */
     if (w > 0 && statesmen_bonus_pct > 0) {
       w = w * (100 + statesmen_bonus_pct) / 100;
     }
     bells += w;
+  }
+  /* No bell workers to fold sol_bonus into individually — apply it to the
+   * Town Hall passive directly instead (nothing else it could attach to). */
+  if (bell_workers == 0 && has_town_hall && sol_bonus != 0) {
+    bells += sol_bonus;
+    if (bells < 0) {
+      bells = 0;
+    }
   }
   int bonus_pct = 0;
   if (colony_prod_building_built(pool, colony, "Printing Press")) {
@@ -493,7 +514,7 @@ int colony_prod_colony_bells_ff(
 }
 
 int colony_prod_colony_bells(const ColonizeColonyPool* pool, const ColonizeColony* colony) {
-  return colony_prod_colony_bells_ff(pool, colony, 0, 0);
+  return colony_prod_colony_bells_ff(pool, colony, 0, 0, 0);
 }
 
 int colony_prod_colony_hammers(
@@ -535,7 +556,7 @@ int colony_prod_worker_building_output(
     return 0;
   }
   if (colony_prod_name_has(name, "Town Hall")) {
-    return colony_prod_bells_worker(name, profession);
+    return colony_prod_bells_worker(name, profession, 0);
   }
   if (colony_prod_name_has(name, "Church") || colony_prod_name_has(name, "Cathedral")) {
     return colony_prod_crosses_worker(name, profession);
