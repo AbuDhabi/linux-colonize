@@ -2,6 +2,25 @@
 
 ## Status: the "5 local helpers" from the earlier pass were a false lead — RETRACTED below. The `003bc6-003bf8` region is a resident-thunk jump table dispatching to 10 ALREADY-KNOWN `FUN_5bfb_*` functions, not new flavor-text/attitude code. Real structural finding: 153e's outcome dispatch reuses existing, mostly-already-ported machinery (102a/1092/0182 dialogs, 312e/0000 score, 13b0 alliance, 10ec war/ally eligibility, 022e Indian contact) plus one still-unresolved branch (`FUN_5bfb_12d0`, already tracked elsewhere as "Order clear `12d0` deep"). Worthiness-score phase and the exact war-declare state flip remain genuinely open.
 
+**2026-08-15 — `FUN_1000_8c28` (the accessor most `& 0x..` reads in this
+doc go through) confirmed to be a pure raw-byte accessor with a
+nation-range branch, not a computed/derived summary.** Decompiled it
+directly (`FUN_0000_5b34`): `param_1<4` (Euro nation) reads exactly
+`euro_relation` (`nation*0x13c-0x77c4`, same field `col1_save.h` already
+maps); `param_1>=4` (Indian tribe) reads a **wholly separate** table at
+absolute `23000`, stride `0x4e` — not `relation_by_indian[8]`, a
+different, previously-unrecorded per-tribe-per-Euro-nation flags byte.
+Matters for reading this doc: several `& 2`/`& 0x60` checks below (e.g.
+the "worthiness score" phase, `iStack_a4 + 4` params) are Indian-range
+calls into that *other* table, not `euro_relation` — don't read their bit
+values as `euro_relation` semantics. The direct (non-accessor) `-0x77c4`
+reads in this doc (bit 2 set/checked around contact-establishment and
+worthiness discount) are consistent with plain `AI_DIPLO_PEACE`, cross-
+used to fix `euro_unit_act.md`'s `FUN_4720_049e` treasure-tension bit
+choice same day. Full writeup: `euro_unit_act.md`'s "`153e` bit-semantics
+pass" section. The 23000-stride-0x4e Indian table itself is not named or
+ported — real open lead if anyone wants it.
+
 **2026-08-14, later same day — RETRACTION of this doc's own immediately-
 preceding "5 helpers confirmed blocked" claim.** That claim was built on
 decompiling `OVL16_L0040:003bd0`/`003bd5`/`003bdf`/`003be4`/`003bee` as if

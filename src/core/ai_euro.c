@@ -3032,24 +3032,27 @@ static int ai_euro_is_treasure_name(const char* name) {
 }
 
 /*
- * FUN_4720_049e Treasure Train tension bump (thin, approximate — 2026-08-15
- * find). DOS: when a Treasure Train's own move ends adjacent to a foreign
- * unit, sets `nation[foreign].euro_relation[mover] |= 0x80` (the *other*
+ * FUN_4720_049e Treasure Train tension bump (thin — 2026-08-15 find, bit
+ * semantics confirmed same day via a `153e` cross-check, see `ai_diplo.h`).
+ * DOS: when a Treasure Train's own move ends adjacent to a foreign unit,
+ * sets `nation[foreign].euro_relation[mover] |= 0x80` (the *other*
  * nation's opinion of the treasure-carrying nation — "hauling a fortune
  * near a rival makes them suspicious/covetous", not "you saw their
  * treasure"), then an RNG roll scaled by difficulty compares
- * `land_combat_strength[]` between the two nations for a weaker/stronger
- * follow-up bit. `-0x6be4` (the DOS table the RNG branch reads) resolved
- * to `land_combat_strength[4]`, already live in `col1_stuff_census.c` — no
- * invented data here.
+ * `land_combat_strength[]` between the two nations: weaker rival →
+ * `AI_DIPLO_PEACE` (confirmed real DOS bit 2, not a Linux stand-in —
+ * "a weaker power responds to a wealthy/strong rival by seeking peace",
+ * mirrors this port's own "unmet defaults to PEACE|MET" convention),
+ * stronger rival → `AI_DIPLO_TREASURE_STRONGER` (DOS's real bit 8, still
+ * unconfirmed meaning beyond "not peace"). `-0x6be4` (the DOS table the
+ * RNG branch reads) resolved to `land_combat_strength[4]`, already live
+ * in `col1_stuff_census.c` — no invented data.
  *
- * Approximated: the two follow-up bits use `AI_DIPLO_TREASURE_WEAKER`/
- * `_STRONGER` (see `ai_diplo.h`) instead of DOS's literal "2"/"8" — bit 2
- * collides with the tested `AI_DIPLO_PEACE` on an unconfirmed DOS meaning
- * (see `euro_unit_act.md`), so it's deliberately not reused. No Linux
- * reader consumes any of these bits yet (matches `049e`'s own no-popup,
- * pure-state shape) — this is state-tracking only, ready for a future
- * consumer, not yet an observable gameplay change.
+ * Own addition, not DOS-derived: skip if the pair is already at war —
+ * DOS ORs this bit in unconditionally, but doing that over an active WAR
+ * bit would leave an internally inconsistent relation byte in this port
+ * (WAR still wins functionally via `ai_diplo_at_war`, but the byte itself
+ * would look self-contradictory); safer to just not fire there.
  */
 static void ai_euro_treasure_tension_bump(ColonizeTurnContext* ctx, ColonizeUnit* u) {
   if (!ctx || !ctx->units || !ctx->col1_ok || !ctx->col1 || !u || !u->active ||
@@ -3070,13 +3073,16 @@ static void ai_euro_treasure_tension_bump(ColonizeTurnContext* ctx, ColonizeUnit
     if (!f || f->nation_id == u->nation_id || f->nation_id < 0 || f->nation_id >= 4) {
       continue;
     }
+    if (ai_diplo_at_war(ctx->col1, u->nation_id, f->nation_id)) {
+      continue;
+    }
     const uint8_t before = ai_diplo_read(ctx->col1, f->nation_id, u->nation_id);
     ai_diplo_write(ctx->col1, f->nation_id, u->nation_id, (uint8_t)(before | AI_DIPLO_TREASURE_ALERT));
     if (ctx->rng && dos_rng_range(ctx->rng, 0, 99) < (int)ctx->col1->head.difficulty + 1) {
       const int their_strength = ctx->col1->stuff.land_combat_strength[f->nation_id];
       const int our_strength = ctx->col1->stuff.land_combat_strength[u->nation_id];
-      const uint8_t follow = (their_strength < our_strength) ? AI_DIPLO_TREASURE_WEAKER
-                                                               : AI_DIPLO_TREASURE_STRONGER;
+      const uint8_t follow =
+        (their_strength < our_strength) ? AI_DIPLO_PEACE : AI_DIPLO_TREASURE_STRONGER;
       const uint8_t cur = ai_diplo_read(ctx->col1, f->nation_id, u->nation_id);
       ai_diplo_write(ctx->col1, f->nation_id, u->nation_id, (uint8_t)(cur | follow));
     }

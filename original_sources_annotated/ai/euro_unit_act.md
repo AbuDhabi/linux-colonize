@@ -325,21 +325,32 @@ unit search at/near the destination):
    regression, not just a wrong comment — **deliberately not shipped this
    pass**.
 
-   Checked bit `0x08`'s other sites in `euro_diplo_153e_full.md` (the
-   already-mapped sibling diplomacy dialog): real, relevant context, not
-   a full answer. Bit `0x80` (the flag the treasure code unconditionally
-   sets) is **set then later cleared** (`&0x7f`) elsewhere in `153e`'s
-   own normal diplomacy processing — consistent with a genuine transient
-   "alert/pending" flag that gets consumed, not decoration this port can
-   ignore. Bit `0x02`'s role in `153e` reads more like a "grudge/
-   pressure" condition feeding an escalation decision than a literal "at
-   peace" check, which doesn't cleanly match `AI_DIPLO_PEACE`'s Linux
-   role either — real ambiguity, possibly a DOS bit reused for two
-   purposes across different call contexts, not resolved this pass.
-   Given `153e` itself is only a partial structural port in Linux, full
-   precision here likely needs that function's own deeper pass regardless
-   of this specific question. Next step if resumed: that deeper `153e`
-   bit-semantic pass, not another isolated grep.
+   **Update (2026-08-15, `153e` bit-semantics pass) — resolved, and
+   shipped.** The "grudge/pressure" reading of bit `0x02` was a false
+   alarm: `FUN_1000_8c28` (the accessor both `049e` and `153e` call)
+   decompiled directly (`FUN_0000_5b34`) turns out to be a **pure raw-byte
+   accessor with a nation-range branch** — param `<4` (Euro) reads exactly
+   `euro_relation` (`-0x77c4`), param `>=4` (Indian tribe) reads a wholly
+   *different* table (absolute `23000`, stride `0x4e`). The `153e` call
+   sites that looked like "grudge, not peace" were all Indian-range calls
+   into that other table — irrelevant to the Euro-Euro question. The
+   *actual* Euro-Euro bit-2 sites in `153e` (direct `-0x77c4` reads, no
+   accessor) are fully consistent with plain `AI_DIPLO_PEACE`: discounts
+   negotiation "worthiness" when already peaceful, and gets set right
+   alongside establishing contact — mirrors this port's own `ai_diplo_read`
+   "unmet defaults to PEACE|MET" convention exactly. Bit `0x80` (set/
+   cleared elsewhere in `153e`, a real transient flag) stands as found.
+   Bit `0x08` still has no Euro-Euro-confirmed site in `153e` — genuinely
+   open, not misattributed like bit 2 was.
+
+   **Shipped**: `ai_euro_treasure_tension_bump` now writes the real DOS
+   bit 2 (`AI_DIPLO_PEACE`) for the weaker-rival branch instead of a
+   Linux-only stand-in, with one own-addition guard (skip if already at
+   war, to avoid an internally contradictory WAR+PEACE byte — DOS itself
+   doesn't guard this, but nothing here depends on matching that edge
+   case exactly). Full `ctest` 42/43, same pre-existing baseline, no
+   regression. Bit 8 keeps its Linux-only `AI_DIPLO_TREASURE_STRONGER`
+   stand-in pending further tracing.
 2. `A` has met `B` → format **only `uStack_e`'s** name into slot 0,
    popup **`0x13ba`**, 1-button — but the code then branches on the
    *return value* `!=2`, unusual for a plain 1-button "OK" dialog (the
