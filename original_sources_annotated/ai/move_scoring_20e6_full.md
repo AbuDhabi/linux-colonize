@@ -63,8 +63,123 @@ gap, just an unexplored self-reference.
 matches `ai_euro_land_try_adjacent_colony_seize`/`ai_euro_land_try_adjacent_attack`
 in `ai_euro.c`. No new work needed there.
 
-**0x42/0x65 found/contact live-write gate (line ~2001-2023) — blocked, do not
-guess.** Both arms gate on `FUN_1000_8aac(nation, unit_id, field)` (field 2,
+**Update (2026-08-15, later pass) — "corrupted" diagnosis retracted; real
+root cause found, still not fully resolved.** User asked to "uncorrupt and
+continue." Re-chased `FUN_1000_8aac` from scratch with the raw disassembly
+(not the decompiler) as ground truth:
+
+- The apparent byte mismatch that looked like project corruption was my own
+  arithmetic error (used the wrong resident→file-offset delta twice in a
+  row) — confirmed by hashing all 4 on-disk `VICEROY.EXE` copies (identical,
+  `md5 0f5d5b00...`) and locating the real thunk bytes at file offset
+  `0x1aeac`, not `0xaeac`. The Ghidra project's disassembly listing and its
+  raw stored bytes agree perfectly once the arithmetic is right — **no
+  disassembly/memory desync, no project corruption.**
+- `FUN_1000_8aac`'s `JMPF 0x0000:4fa8` is *not* an unpatched RTLink
+  placeholder at all (`rtlink_decode`'s own jump-table parser classifies it
+  `segmentIndex=-1`, `segmentOffset=0x427` — its source comment explains
+  this class: "method stubs for methods which reside in the static part of
+  the executable and shouldn't need method stubs to begin with", i.e. an
+  already-concrete, non-overlay far pointer, same real flat target `0x4fa8`
+  either way).
+- `FUN_0000_4fa8` genuinely starts clean at `0x4fa8` (verified with plain
+  linear `ndisasm`, zero overlap, real `ENTER`/`LEAVE`/`RETF` framing) — a
+  15-case dispatcher (`param_2` 0..0xe) selecting via `jmp [cs:bx+0xd78]`.
+  **The "overlaps instruction"/BCD-arithmetic/`INT 21h` garbage was never a
+  disassembly-fault in this function's own bytes — it's Ghidra's
+  decompiler mis-chasing the indirect jump table**, the same
+  misresolution-bug family as `684c_08c0`/`15eb_1d4c`
+  (`decomp_inventory.md`), just manifesting on a *local* jump table instead
+  of a far-call thunk chain. Confirmed by force-clearing and rebuilding the
+  function from scratch (`tools/GhidraForceRedecomp.java`, new): Ghidra's
+  own `createFunction`+decompile reachability walk grows the body to
+  20KB+ and pulls in unrelated code, matching the earlier bad decompile
+  exactly — the bug is reproducible and not an artifact of a stale cache.
+- Read the real jump table directly out of memory (`tools/GhidraDumpBytes.java`,
+  new) instead of trusting Ghidra's chase: 15 words at flat `0xd78`.
+  Verified table[2] = `0x46c7` by hand-disassembling it: a clean, self-
+  contained 0x50-byte routine that splices `unit+0x315e`/`unit+0x315c`
+  (`next_unit_idx`/`prev_unit_idx` — literally `ColonizeCol1TransportChain`,
+  already in `col1_save.h`) — **this is a transport-chain link-insert
+  operation, not a cargo/count query.** Retracts `move_scoring_land.md`'s
+  "cargo_query<2" nickname for this call shape — field 2 doesn't return a
+  countable quantity at all (both branches return a unit id), so the `<2`
+  comparison at the 20e6/0a60 call sites reads a *unit id or chain-splice
+  result* against 2, not a cargo-slot count. What that comparison actually
+  means is now a fresh open question, not resolved this pass — did not
+  chase the other 14 cases or re-derive the `<2` semantics; flagging so a
+  future pass doesn't reuse the retracted "cargo" framing.
+
+**Update (2026-08-15, third pass) — all 15 cases disassembled; the
+"per-unit field selector" framing was wrong.** User asked to name every
+case. Dumped and hand-disassembled all 15 jump-table targets
+(`0x2ce0`/`0xd47f`/`0x46c7`/`0xf2`/`0xa100`/`0x2ce0`/`0x6ef7`/`0x2bf2`/
+`0xf446`/`0xd8f7`/`0xc00b`/`0x27d`/`0xc02b`/`0xc88b`/`0x1b8` for cases
+0-0xe). **Only 2 of the 15 touch anything unit/colony-record-shaped**
+(`*0x1c` stride, `0x31xx` unit-field offsets, or the known colony pointer
+`0x8542`) — the other 13 are generic, low-level runtime-support routines
+(setjmp/exception-frame install+reset sharing a global at `0x2d54`,
+`atol`-shaped string→int parsing, DOS `INT 21h AX=0x4400` IOCTL + ASCII-
+uppercase matching, far-heap alloc refcounting, a DS-segment-restore
+trampoline back to the confirmed `0x1b5a` MS-Run-Time static segment, a
+generic min/max-clamp loop, a nested sub-dispatch assigning small tier
+codes by threshold). **Conclusion: `FUN_0000_4fa8` isn't a purpose-built
+"AI unit-field query" dispatcher at all** — it's a shared, size-optimized
+low-level utility multiplexer that many unrelated parts of the whole
+compiled game (not just AI) reuse for miscellaneous small operations, each
+case with its own ad hoc register/stack convention. There's no single
+coherent "field enum" to name; each case's meaning is caller-dependent and
+would need that specific caller's own setup code traced, not just the
+table.
+
+**What's actually confirmed, concretely:**
+- **Case 2** (`0x46c7`, the one `20e6`'s `0x42`/`0x65` gate and several
+  `0a60` sites use): real, game-specific — splices `unit+0x315e`/`0x315c`
+  (`next_unit_idx`/`prev_unit_idx`, `ColonizeCol1TransportChain`), stride
+  `*0x1c` confirmed. Two branches (already-linked fast path vs. general
+  splice-insert via a small shared pointer-pair setter called twice).
+  Returns a unit id in both branches (not a count) — so the `<2` comparison
+  at the `20e6`/`0a60` call sites tests the *result of a chain-splice*
+  against 2, not a cargo-slot count; what that specifically means (unit id
+  0/1 being sentinel-shaped, most likely) is still open.
+- **Case 6** (`0x6ef7`): real, game-specific — sets/clears a bit
+  (`OR`/`AND` a byte) in a bitmap at `colony_ptr(0x8542)+0x84+(index>>3)`,
+  bit selected by `index&7`; `index`/on-off aren't sourced from the same
+  `[bp+6]`/`[bp+8]` slots case 2 uses (this case's calling convention is
+  its own, register-based) — which caller register feeds `index` wasn't
+  traced this pass.
+- Cases 0/1/3/4/5/7/8/9/0xa/0xb/0xc/0xd/0xe: generic CRT/RTL-shaped, no
+  unit or colony record touched — see the raw dump in this pass's
+  `cases_listing.txt` if resumed (not checked into the repo; regenerate
+  with the command below).
+
+**Practical upshot for `0x42`/`0x65`:** still not safe to port — case 2's
+own return-value semantics (what "id < 2" means) remain the real open
+question, and it's now clear that's a self-contained puzzle about *this
+one case*, not blocked on naming 14 unrelated CRT routines first (a false
+scope this pass corrected). `0a60`'s other field-2 call sites (lines
+599/796 in `euro_goal_orders_0a60_full.md`) are the next thing to check —
+same case, different caller context, might disambiguate the `<2` meaning
+faster than tracing case 2 in isolation further.
+
+Regenerate the case dump: `analyzeHeadless <proj> <name> -process
+seg_data_resident.bin -readOnly -noanalysis -postScript
+GhidraListInstrs.java 0000:2ce0 90 0000:d47f 90 0000:f2 90 0000:a100 90
+0000:6ef7 90 0000:2bf2 90 0000:f446 90 0000:d8f7 90 0000:c00b 90 0000:27d
+90 0000:c02b 90 0000:c88b 90 0000:1b8 90 -scriptPath tools`.
+
+**Net effect: `FUN_1000_8aac` is no longer a corruption dead-end**, and the
+scope of what's left to resolve is now much narrower and precisely stated
+(case 2's own return semantics) rather than "15 unnamed cases." New
+reusable tooling: `GhidraListInstrs.java` (raw instruction + byte listing,
+batches multiple address ranges in one headless launch — used for this
+pass's full 15-case sweep), `GhidraDumpBytes.java` (raw hex dump, bypasses
+the listing/decompiler entirely — the tool that broke this case open),
+`GhidraForceRedecomp.java` (clear + fresh disassemble + decompile, for
+reproducing/confirming decompiler jump-table bugs like this one).
+
+**0x42/0x65 found/contact live-write gate (line ~2001-2023) — still open,
+narrower blocker than before.** Both arms gate on `FUN_1000_8aac(nation, unit_id, field)` (field 2,
 compared `<2`) — a generic per-unit query also used heavily by `0a60`
 (`euro_goal_orders_0a60_full.md` lines 316-796, fields 2/3/4/5/6/0xd/0xc, never
 itself interpreted there either — this is a shared unresolved helper, not a
