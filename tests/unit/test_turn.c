@@ -7,9 +7,11 @@
 #include "core/col1_save.h"
 #include "core/col1_stuff_census.h"
 #include "core/colony.h"
+#include "core/colony_preview.h"
 #include "core/colony_production.h"
 #include "core/colony_yield.h"
 #include "core/europe.h"
+#include "core/founding_fathers.h"
 #include "core/map.h"
 #include "core/turn.h"
 #include "core/units.h"
@@ -1865,6 +1867,23 @@ int main(void) {
       fprintf(stderr, "Phase C setup bells want 7 got %d\n", expect_bells);
       return 1;
     }
+
+    /*
+     * Production tab preview must match the EOT tick's FF-adjusted, per-worker
+     * SoL bells (turn_count_bells_and_crosses_for_nation in turn.c), not the
+     * plain colony_prod_colony_bells() used above only to sanity-check the
+     * base rate. Jefferson: statesmen +50% -> 1 + 6*1.5 = 10; rebel_dividend/
+     * divisor above (50/100 <<6) give sol 50% -> sol_bonus +1, one bell
+     * worker -> +1 more = 11.
+     */
+    col1.head.founding_father[FF_THOMAS_JEFFERSON] = 0; /* nation 0 owns it */
+    ColonizeColonyPreview prev;
+    colony_preview_compute(&pool, c, NULL, &col1, &prev);
+    if (prev.bells != 11) {
+      fprintf(stderr, "Phase C preview Jefferson bells want 11 got %d\n", prev.bells);
+      return 1;
+    }
+    col1.head.founding_father[FF_THOMAS_JEFFERSON] = -1;
 
     ColonizeTurnResult prod;
     memset(&prod, 0, sizeof(prod));

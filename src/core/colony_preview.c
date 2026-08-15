@@ -5,6 +5,7 @@
 #include "core/colony_craft.h"
 #include "core/colony_production.h"
 #include "core/colony_yield.h"
+#include "core/founding_fathers.h"
 #include <string.h>
 
 int colony_preview_best_job(const ColonizeWorldMap* map, int x, int y) {
@@ -119,14 +120,48 @@ void colony_preview_compute(
     }
   }
 
-  out->crosses = colony_prod_colony_crosses(pool, colony);
-  out->bells = colony_prod_colony_bells(pool, colony);
+  /* Jefferson / Paine / Penn — must match turn.c's EOT tick (colony_prod_colony_bells_ff /
+   * colony_prod_colony_crosses_ff call sites) or the Production tab preview undercounts
+   * bells/crosses for colonies with these Founding Fathers active. */
+  const int nation_id = colony->nation_id;
+  const int statesmen_pct =
+    (col1 && founding_fathers_nation_has(col1, nation_id, FF_THOMAS_JEFFERSON)) ? 50 : 0;
+  const int paine_tax_pct =
+    (col1 && founding_fathers_nation_has(col1, nation_id, FF_THOMAS_PAINE) &&
+     nation_id >= 0 && nation_id < (int)COLONIZE_COL1_NATION_COUNT)
+      ? (int)col1->nation[nation_id].tax_rate
+      : 0;
+  const int penn_crosses_pct =
+    (col1 && founding_fathers_nation_has(col1, nation_id, FF_WILLIAM_PENN)) ? 50 : 0;
+  out->crosses = colony_prod_colony_crosses_ff(pool, colony, penn_crosses_pct);
+  out->bells = colony_prod_colony_bells_ff(pool, colony, statesmen_pct, paine_tax_pct);
   if (sol_b > 0) {
-    if (out->bells > 0) {
-      out->bells += sol_b;
+    /* SoL +1/+2 per production unit — per worker, not flat; must match
+     * turn_count_bells_and_crosses_for_nation's per-colony body (turn.c). */
+    int bell_workers = 0;
+    int cross_workers = 0;
+    for (int p = 0; p < colony->colonist_count; ++p) {
+      const ColonizeColonist* cc = &colony->colonists[p];
+      if (!cc->active || cc->building_type < 0 || cc->building_type >= pool->building_type_count) {
+        continue;
+      }
+      const char* bn = pool->building_types[cc->building_type].name;
+      if (colony_prod_bells_worker(bn, cc->profession) > 0) {
+        bell_workers++;
+      }
+      if (colony_prod_crosses_worker(bn, cc->profession) > 0) {
+        cross_workers++;
+      }
     }
-    if (out->crosses > 0) {
-      out->crosses += sol_b;
+    if (bell_workers > 0) {
+      out->bells += sol_b * bell_workers;
+    } else if (out->bells > 0) {
+      out->bells += sol_b; /* Town Hall / press passive unit */
+    }
+    if (cross_workers > 0) {
+      out->crosses += sol_b * cross_workers;
+    } else if (out->crosses > 0) {
+      out->crosses += sol_b; /* church passive / colony base */
     }
   }
 

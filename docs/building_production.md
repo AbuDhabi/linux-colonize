@@ -263,6 +263,7 @@ input(worker, building)  = output × (factory ? 6/9 : 1)
 | Construction costs / min_pop | Loaded from NAMES — matches table above |
 | Church / TH passives | Settlement badge + totals Done; deep peel pending |
 | False `0x16103` EXE table | **Retracted** |
+| **2026-08-15 fix:** Production tab bells/crosses vs EOT | `colony_preview_compute` used the plain `colony_prod_colony_bells`/`_crosses` (no FF bonus) and a flat one-shot SoL add, while the real EOT nation tick (`turn_count_bells_and_crosses_for_nation`) applies Jefferson/Paine/Penn and adds SoL **per bell/cross worker**. Preview under-counted for colonies with those FFs or >1 worker. Fixed: preview now calls the `_ff` variants with the same nation FF lookups and the same per-worker SoL loop as `turn.c`. Regression: Phase C block in `test_turn.c` (`colony_preview_compute` w/ Jefferson granted). |
 
 ---
 
