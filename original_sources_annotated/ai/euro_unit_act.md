@@ -286,9 +286,60 @@ than first read, with (at least) four distinct outcomes gated on pairwise
 nation (`uStack_44`) and an encountered nation (`uStack_e`, found via a
 unit search at/near the destination):
 
-1. Encountered unit is a Treasure type (`0x10`) → tension bits set
-   (`nation*0x13c-0x77c4` `|0x80`, then `|2` or `|8` by an RNG roll) —
-   no popup, pure state.
+1. **Correction (2026-08-15, fourth pass) — traced which unit's Treasure
+   this checks; it's the acting unit's own, not the encountered one.**
+   Chased the variable feeding the type check (`iVar12`) back to its
+   assignment (line ~342: `iVar12 = FUN_1000_89d0(...)`, the found-unit
+   search that also sets `uStack_e`) — `iVar12`'s own type is checked
+   first (skip this whole arm if the *encountered* unit is a Treasure);
+   the actual trigger, one level in, is `iStack_6` (**the acting unit
+   itself**) being a Treasure (`0x3146==0x10`). So: **the AI's own
+   Treasure Train, moving near a foreign unit, has a chance to flag
+   tension against that nation** — thematically "hauling a fortune near
+   a rival makes them suspicious/covetous," not "you noticed their
+   treasure." Sets `nation[uStack_e].euro_relation[uStack_44] |= 0x80`
+   (note the index order — the *other* nation's opinion of the acting
+   nation), then an RNG roll (`<difficulty+1`) compares a table at
+   `nation*2 + -0x6be4` between the two nations to decide `|=2` or `|=8`.
+   No popup, pure state.
+
+   **`-0x6be4` resolved — it's already fully live in Linux, no unknowns
+   left**: `mod 0x10000` = `0x941c` = `save_format_map.md` row 247,
+   `land_combat_strength[4]`, already computed every turn in
+   `col1_stuff_census.c` (`ColonizeCol1Save.stuff.land_combat_strength`).
+   So the RNG branch is: weaker `land_combat_strength` → bit `2`, stronger
+   → bit `8`.
+
+   **Still not ported — a real semantic puzzle, not a missing-data one,
+   caught before shipping anything risky.** Bit `0x02` in this same byte
+   is *already* `AI_DIPLO_PEACE` per the `ai_diplo_read` ground-truth this
+   pass established — a passive Treasure-Train encounter conditionally
+   setting the PEACE bit (on an already-default-peaceful unmet pair) reads
+   as a near-no-op most of the time, which is a suspicious fit for a
+   "tension" mechanic. Bit `0x08` is completely unmapped in Linux's
+   4-bit `AI_DIPLO_*` enum (only `WAR`/`PEACE`/`ALLY`/`MET` — `0x02`,
+   `0x01`, `0x04`, `0x40` — are modeled; `0x08`/`0x10`/`0x20`/`0x80` are
+   real DOS bits this port has never needed before now). Given this
+   touches the *same byte* the tested diplomacy system already reads/
+   writes, wiring it on an unconfirmed bit-8 meaning risks a real
+   regression, not just a wrong comment — **deliberately not shipped this
+   pass**.
+
+   Checked bit `0x08`'s other sites in `euro_diplo_153e_full.md` (the
+   already-mapped sibling diplomacy dialog): real, relevant context, not
+   a full answer. Bit `0x80` (the flag the treasure code unconditionally
+   sets) is **set then later cleared** (`&0x7f`) elsewhere in `153e`'s
+   own normal diplomacy processing — consistent with a genuine transient
+   "alert/pending" flag that gets consumed, not decoration this port can
+   ignore. Bit `0x02`'s role in `153e` reads more like a "grudge/
+   pressure" condition feeding an escalation decision than a literal "at
+   peace" check, which doesn't cleanly match `AI_DIPLO_PEACE`'s Linux
+   role either — real ambiguity, possibly a DOS bit reused for two
+   purposes across different call contexts, not resolved this pass.
+   Given `153e` itself is only a partial structural port in Linux, full
+   precision here likely needs that function's own deeper pass regardless
+   of this specific question. Next step if resumed: that deeper `153e`
+   bit-semantic pass, not another isolated grep.
 2. `A` has met `B` → format **only `uStack_e`'s** name into slot 0,
    popup **`0x13ba`**, 1-button — but the code then branches on the
    *return value* `!=2`, unusual for a plain 1-button "OK" dialog (the
