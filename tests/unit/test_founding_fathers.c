@@ -1291,14 +1291,16 @@ int main(void) {
       return fail("Jefferson+Paine combined bells");
     }
 
-    /* Base crosses: 1 colony + Church passive 2 + preacher×2 on church 3→6 = 9. */
+    /* Base crosses: 1 colony + Church passive 1 (DOS FUN_15eb_1f72: Church and
+     * Cathedral are worth the same +1, not manual-sourced +2/+3 — see
+     * manufacturing_worker_calc_1d4c.md) + preacher×2 on church 3→6 = 8. */
     const int crosses_base = colony_prod_colony_crosses(&pool, col);
-    if (crosses_base != 9) {
+    if (crosses_base != 8) {
       return fail("prod baseline crosses unexpected");
     }
-    /* Penn +50%: 9 × 150/100 = 13. */
+    /* Penn +50%: 8 × 150/100 = 12. */
     const int crosses_penn = colony_prod_colony_crosses_ff(&pool, col, 50, 0);
-    if (crosses_penn != 13) {
+    if (crosses_penn != 12) {
       return fail("Penn crosses +50%");
     }
 
@@ -1306,15 +1308,15 @@ int main(void) {
     if (colony_prod_building_display_output(&pool, col, 0) != 7) {
       return fail("Town Hall display should be passive1 + statesman6");
     }
-    if (colony_prod_building_display_output(&pool, col, 1) != 8) {
-      return fail("Church display should be passive2 + preacher6");
+    if (colony_prod_building_display_output(&pool, col, 1) != 7) {
+      return fail("Church display should be passive1 + preacher6");
     }
     col->colonists[0].active = false;
     col->colonists[1].active = false;
     if (colony_prod_building_display_output(&pool, col, 0) != 1) {
       return fail("empty Town Hall should still show passive bell");
     }
-    if (colony_prod_building_display_output(&pool, col, 1) != 2) {
+    if (colony_prod_building_display_output(&pool, col, 1) != 1) {
       return fail("empty Church should still show passive crosses");
     }
     col->colonists[0].active = true;
@@ -1384,11 +1386,11 @@ int main(void) {
     pnat->liberty_bells_total = 0;
     pnat->current_crosses = 0;
     turn_run_nation_ticks(&pctx, NULL);
-    /* Jefferson+Paine: 12 bells; Penn: 13 church crosses (no idle +2). */
+    /* Jefferson+Paine: 12 bells; Penn: 12 church crosses (no idle +2). */
     if (peu.liberty_bells_last_turn != 12) {
       return fail("turn Jefferson+Paine bells last_turn");
     }
-    if (peu.current_crosses != 13) {
+    if (peu.current_crosses != 12) {
       return fail("turn Penn crosses accrued");
     }
   }

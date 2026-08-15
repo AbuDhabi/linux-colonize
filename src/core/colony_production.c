@@ -423,14 +423,23 @@ int colony_prod_hammers_worker(
 }
 
 int colony_prod_church_passive_crosses(const char* building_name) {
+  /*
+   * DOS FUN_15eb_1f72 (nation bells/crosses composer, viceroy_unpacked_2.c
+   * ~11306-11314): colony crosses = 1 (unconditional) + 1 if Church built +
+   * 1 if Cathedral built — Church and Cathedral are worth the *same* passive
+   * (+1), not the manual/wiki-sourced +2/+3 this used to return. Confirmed
+   * by the same read that pinned down the Printing Press/Newspaper bell
+   * multipliers and the Jefferson/Paine FF indices (15/17) exactly matching
+   * founding_fathers.h — see manufacturing_worker_calc_1d4c.md.
+   */
   if (!building_name) {
     return 0;
   }
   if (colony_prod_name_has(building_name, "Cathedral")) {
-    return 3;
+    return 1;
   }
   if (colony_prod_name_has(building_name, "Church")) {
-    return 2;
+    return 1;
   }
   return 0;
 }
