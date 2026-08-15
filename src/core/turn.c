@@ -1183,8 +1183,12 @@ static void turn_produce_one_colony(
     int lumber_use = 0;
     int hammers_add = colony_prod_colony_hammers(pool, colony, &lumber_use);
     const int sol_b = colony_prod_sol_bonus(col1, colony);
-    if (hammers_add > 0 && sol_b > 0) {
-      /* +1/+2 per carpenter worker (manual SoL production unit). */
+    if (hammers_add > 0 && sol_b != 0) {
+      /* +1/+2 per carpenter worker (manual SoL production unit); sol_b is
+       * signed — a Tory penalty must reduce hammers same as it reduces
+       * every other per-worker production, not just SoL bonuses adding to
+       * it (FUN_15eb_1d4c folds local_e in unconditionally, no positivity
+       * guard — see manufacturing_worker_calc_1d4c.md). */
       int carpenters = 0;
       for (int ci = 0; ci < colony->colonist_count; ++ci) {
         const ColonizeColonist* cc = &colony->colonists[ci];
@@ -1197,6 +1201,9 @@ static void turn_produce_one_colony(
         }
       }
       hammers_add += sol_b * carpenters;
+      if (hammers_add < 0) {
+        hammers_add = 0;
+      }
     }
     if (hammers_add > 0) {
       if (lumber_use > colony->stock[COLONIZE_CARGO_LUMBER]) {
@@ -1620,8 +1627,12 @@ static int turn_count_bells_and_crosses_for_nation(
     int b = colony_prod_colony_bells_ff(pool, c, statesmen_pct, paine_tax_pct);
     int x = colony_prod_colony_crosses_ff(pool, c, penn_crosses_pct);
     const int sol_b = colony_prod_sol_bonus(col1, c);
-    if (sol_b > 0) {
-      /* SoL +1/+2 per production unit (building_production.md). */
+    if (sol_b != 0) {
+      /* +1/+2 per production unit (building_production.md); sol_b is signed —
+       * a Tory penalty must reduce bells/crosses same as every other
+       * per-worker production, not just SoL bonuses adding to them
+       * (FUN_15eb_1d4c folds local_e in unconditionally, no positivity
+       * guard — see manufacturing_worker_calc_1d4c.md). */
       int bell_workers = 0;
       int cross_workers = 0;
       for (int p = 0; p < c->colonist_count; ++p) {
@@ -1647,6 +1658,15 @@ static int turn_count_bells_and_crosses_for_nation(
         x += sol_b * cross_workers;
       } else if (x > 0) {
         x += sol_b; /* church passive / colony base */
+      }
+      /* DOS clamps each worker's own FUN_15eb_1d4c return to >= 0 before
+       * summing; this clamps the colony total once instead (documented
+       * approximation — see manufacturing_worker_calc_1d4c.md Open questions). */
+      if (b < 0) {
+        b = 0;
+      }
+      if (x < 0) {
+        x = 0;
       }
     }
     bells += b;

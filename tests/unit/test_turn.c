@@ -1489,6 +1489,27 @@ int main(void) {
       map_free(&map);
       return 1;
     }
+
+    /* Tory penalty must reduce the Production tab's field-yield preview too —
+     * colony_preview.c's field loop had the same `sol_b > 0` guard bug as
+     * bells/hammers, dropping every Tory penalty instead of applying it. */
+    col->population = 15; /* tories=15, thresh=10 (col1 NULL) -> mod=-1 */
+    const int base_yield =
+      colony_yield_for_worker(&map, fx, fy, COLONIZE_JOB_LUMBERJACK, col->colonists[0].profession);
+    ColonizeColonyPreview prev;
+    colony_preview_compute(&pool, col, &map, NULL, &prev);
+    if (prev.goods[COLONIZE_CARGO_LUMBER] != base_yield - 1) {
+      fprintf(
+        stderr,
+        "Tory-penalty field preview want %d got %d\n",
+        base_yield - 1,
+        prev.goods[COLONIZE_CARGO_LUMBER]
+      );
+      assets_msg_free(&names);
+      map_free(&map);
+      return 1;
+    }
+
     assets_msg_free(&names);
     map_free(&map);
   }
@@ -1660,6 +1681,61 @@ int main(void) {
       );
       return 1;
     }
+  }
+
+  /*
+   * Tory penalty must reduce banked hammers too, not get silently dropped
+   * (same `sol_b > 0` guard bug as bells above, now fixed). Zero lumber
+   * stock forces the "bank hammers_add directly" fallback so the sol-adjusted
+   * value is actually the one that lands in colony->hammers.
+   */
+  {
+    ColonizeColonyPool pool;
+    colonies_init(&pool);
+    snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Carpenter's Shop");
+    pool.building_type_count = 1;
+
+    ColonizeColony* col = &pool.colonies[0];
+    memset(col, 0, sizeof(*col));
+    col->active = true;
+    col->id = 1;
+    col->nation_id = 0;
+    col->building_in_production = -1;
+    col->stock[COLONIZE_CARGO_FOOD] = 100;
+    col->stock[COLONIZE_CARGO_LUMBER] = 0;
+    col->colonists[0].active = true;
+    col->colonists[0].building_type = 0;
+    col->colonists[0].profession = COLONIZE_PROF_FREE_COLONIST;
+    col->colonists[0].field_job = -1;
+    for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES; ++t) {
+      col->tiles[t] = -1;
+    }
+    col->colonist_count = 1;
+    col->population = 15; /* tories=15, thresh=10 (col1 NULL -> default) -> mod=-1 */
+    pool.colony_count = 1;
+
+    ColonizeColonyPreview prev;
+    colony_preview_compute(&pool, col, NULL, NULL, &prev);
+    if (prev.hammers != 2) {
+      fprintf(stderr, "Tory-penalty hammers preview want 2 got %d\n", prev.hammers);
+      return 1;
+    }
+
+    ColonizeTurnResult prod;
+    ColonizeColonyProdDelta delta;
+    memset(&prod, 0, sizeof(prod));
+    memset(&delta, 0, sizeof(delta));
+    turn_colony_free_production(&pool, col, NULL, &prod, &delta);
+    if (col->hammers != 2 || delta.hammers_added != 2) {
+      fprintf(
+        stderr,
+        "Tory-penalty hammers actual want 2 got hammers=%d delta=%d\n",
+        col->hammers,
+        delta.hammers_added
+      );
+      return 1;
+    }
+    fprintf(stderr, "Tory penalty reduces hammers ok\n");
   }
 
   /*
@@ -3092,6 +3168,61 @@ int main(void) {
       return 1;
     }
     fprintf(stderr, "AI nation bells accrue ok\n");
+  }
+
+  /*
+   * Tory penalty (negative colony_prod_sol_bonus) must reduce bells, not get
+   * silently dropped — turn_count_bells_and_crosses_for_nation used to guard
+   * the SoL adjustment on `sol_b > 0`, which threw away every Tory penalty.
+   * FUN_15eb_1d4c folds the (signed) term in unconditionally.
+   */
+  {
+    ColonizeColonyPool pool;
+    colonies_init(&pool);
+    snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Town Hall");
+    pool.building_type_count = 1;
+
+    ColonizeColony* ai = &pool.colonies[0];
+    memset(ai, 0, sizeof(*ai));
+    ai->active = true;
+    ai->id = 1;
+    ai->nation_id = 1;
+    ai->building_in_production = -1;
+    ai->has_building[0] = true;
+    ai->colonists[0].active = true;
+    ai->colonists[0].building_type = 0;
+    ai->colonists[0].profession = COLONIZE_PROF_STATESMAN;
+    ai->colonist_count = 1;
+    ai->population = 15; /* tories=(15*100+50)/100=15; thresh=10 (AI, fixed); mod=-1 */
+    pool.colony_count = 1;
+
+    ColonizeCol1Save col1;
+    memset(&col1, 0, sizeof(col1));
+    col1.player[0].control = 0;
+    col1.player[1].control = 1;
+    for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
+      col1.head.founding_father[i] = -1;
+    }
+
+    ColonizeTurnContext ctx;
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.human_nation = 0;
+    ctx.colonies = &pool;
+    ctx.col1 = &col1;
+    ctx.col1_ok = true;
+
+    turn_run_nation_ticks(&ctx, NULL);
+    /* Town Hall(+1) + skilled Statesman(3*2=6) = 7 base, sol_b=-1 * 1 bell
+     * worker = -1 -> 6, not 7 (bug would leave it at 7). */
+    if (col1.nation[1].liberty_bells_total != 6) {
+      fprintf(
+        stderr,
+        "Tory-penalty bells want 6 got %u\n",
+        (unsigned)col1.nation[1].liberty_bells_total
+      );
+      return 1;
+    }
+    fprintf(stderr, "Tory penalty reduces bells ok\n");
   }
 
   /*
