@@ -221,7 +221,7 @@ not previously documented at all — see below):
 
 | Worker | Rule | Port |
 |--------|------|------|
-| Matching expert, food or fish | **+2** (not ×2), plus the SoL mod re-add above | **Still divergent** (uses ×2 for all) — needs the SoL-threading work first (the re-add depends on it), not attempted this pass |
+| Matching expert, food or fish | **+2** (not ×2), plus the SoL mod re-add above | **2026-08-15 fix** — flat +2 wired; the SoL mod re-add is still not (needs the SoL-threading work first, deferred) |
 | Matching expert, other field jobs | **×2** | Wired |
 | Mismatched skill | Free-colonist yield | Wired |
 | Indian convert | **+1** if job ∈ {0,1,2,3,4} or job &gt; 7 (fisherman); **not** lumber/ore/silver | **2026-08-15 fix** — `colony_yield_for_worker` now gates on the exact whitelist (confirmed by direct read of `FUN_15eb_18ec` ~11974-11979) |
@@ -305,7 +305,7 @@ Printed chart often shows post-modifier lumber (e.g. Plains forested lumber **6*
 | Base NAMES grids | Wired | Wired (Hills food override **2**) |
 | Resource effect `17fa` | Additive / double, per (resource,job) pair | **2026-08-15 fix** — `colony_yield_resource_effect()`, byte-exact table (Game/etc. now correctly pair with multiple jobs) |
 | Lumberjack ×2 | Yes | **2026-08-15 fix** — wired at the correct pipeline position (after resource, before plow/road/river) |
-| Expert food/fish +2 | Yes (+ SoL mod re-add) | Uses ×2 — **still divergent**, needs SoL-threading first |
+| Expert food/fish +2 | Yes (+ SoL mod re-add) | **2026-08-15 fix** — flat +2 wired (SoL mod re-add still needs SoL-threading) |
 | Convert job whitelist | Yes | **2026-08-15 fix** — exact whitelist gate |
 | Plow/road/river stack | Add | Max(road, river) — **divergent**; entangled with expert-flag unit sizing, not attempted |
 | Fisherman distance modifier | Yes (`FUN_15eb_173e`) | **Missing** — new finding, not previously documented, not peeled further |

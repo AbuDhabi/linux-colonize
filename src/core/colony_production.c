@@ -169,7 +169,16 @@ int colony_yield_for_worker(
     yld += 1;
   }
   if (colony_prod_field_skill_matches(profession, field_job)) {
-    yld *= 2;
+    /* Food/fish expert gets flat +2, not ×2 like every other field job
+     * (FUN_15eb_18ec ~11890-11899: `if (food/fish) yld+=2; else yld<<=1;`).
+     * The "re-add the positive SoL mod a second time" refinement mentioned
+     * alongside this in DOS is not applied here — needs sol_bonus threaded
+     * into this function first (deferred, see terrain_yields.md). */
+    if (field_job == COLONIZE_JOB_FARMER || field_job == COLONIZE_JOB_FISHERMAN) {
+      yld += 2;
+    } else {
+      yld *= 2;
+    }
   }
   return yld;
 }

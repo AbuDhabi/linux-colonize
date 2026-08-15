@@ -2021,6 +2021,51 @@ int main(void) {
   }
 
   /*
+   * Expert Farmer/Fisherman get flat +2, not ×2 like every other field
+   * expert (FUN_15eb_18ec ~11890-11899). No existing test exercised a
+   * food/fish expert to catch a regression back to the old blanket ×2.
+   */
+  {
+    ColonizeWorldMap map;
+    memset(&map, 0, sizeof(map));
+    char err[256];
+    if (!map_load_mp("COLONIZE/AMER2.MP", &map, err, sizeof(err))) {
+      fprintf(stderr, "map load for expert food/fish test: %s\n", err);
+      return 1;
+    }
+    int fx = -1, fy = -1;
+    for (int y = 1; y < (int)map.height - 1 && fx < 0; ++y) {
+      for (int x = 1; x < (int)map.width - 1 && fx < 0; ++x) {
+        if (colony_yield_for_tile(&map, x, y, COLONIZE_JOB_FARMER) > 0) {
+          fx = x;
+          fy = y;
+        }
+      }
+    }
+    if (fx < 0) {
+      fprintf(stderr, "no tile with farmer yield for expert test\n");
+      map_free(&map);
+      return 1;
+    }
+    const int base = colony_yield_for_tile(&map, fx, fy, COLONIZE_JOB_FARMER);
+    const int expert_yld =
+      colony_yield_for_worker(&map, fx, fy, COLONIZE_JOB_FARMER, COLONIZE_JOB_FARMER, true);
+    if (expert_yld != base + 2) {
+      fprintf(
+        stderr,
+        "expert farmer flat +2 want %d got %d (base %d)\n",
+        base + 2,
+        expert_yld,
+        base
+      );
+      map_free(&map);
+      return 1;
+    }
+    map_free(&map);
+    fprintf(stderr, "expert farmer flat +2 ok\n");
+  }
+
+  /*
    * Custom House auto-sell (FUN_364b_0688 / FUN_364b_0636): stock>99 → leave 50;
    * Food denied; boycott bypass; tax then WoI untaxed.
    */
