@@ -70,13 +70,19 @@ int colony_prod_manufacturing_input(
 
 bool colony_prod_field_skill_matches(int profession, int field_job);
 
-/* Tile yield for colonist `profession` on `field_job` (convert +1, expert ×2 when matched). */
+/*
+ * Tile yield for colonist `profession` on `field_job` (convert +1, expert ×2
+ * when matched). `has_docks`: pass whether the colony owns Docks (or an
+ * upgrade: Drydock/Shipyard) — Fisherman yields 0 without it, matching DOS
+ * (FUN_15eb_18ec). Irrelevant for other jobs.
+ */
 int colony_yield_for_worker(
   const ColonizeWorldMap* map,
   int x,
   int y,
   int field_job,
-  int profession
+  int profession,
+  bool has_docks
 );
 
 /*
