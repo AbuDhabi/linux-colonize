@@ -58,6 +58,10 @@ void colony_preview_compute(
 
   const int pop = colony->colonist_count > 0 ? colony->colonist_count : colony->population;
   const int sol_b = colony_prod_sol_bonus(col1, colony);
+  /* Field yields zero this outright for AI colonies — see
+   * colony_prod_sol_bonus_field / turn.c's field loop. Buildings
+   * (craft/bells/crosses/hammers below) keep the shared sol_b. */
+  const int sol_b_field = colony_prod_sol_bonus_field(col1, colony);
 
   if (map) {
     ColonizeTownCommonsYield tc;
@@ -107,10 +111,11 @@ void colony_preview_compute(
           founding_fathers_nation_has(col1, colony->nation_id, FF_HENRY_HUDSON)) {
         yld *= 2;
       }
-      /* sol_b is signed (Tory penalty reduces yield too) — matches turn.c's
-       * unconditional `add += colony_prod_sol_bonus(...)` in the same spot. */
+      /* sol_b_field is signed (Tory penalty reduces yield too) — matches
+       * turn.c's unconditional `add += colony_prod_sol_bonus_field(...)` in
+       * the same spot. */
       if (yld > 0) {
-        yld += sol_b;
+        yld += sol_b_field;
       }
       const int cargo = colony_yield_job_cargo(c->field_job);
       if (yld > 0 && cargo >= 0 && cargo < COLONIZE_CARGO_COUNT) {

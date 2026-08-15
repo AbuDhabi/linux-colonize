@@ -185,23 +185,32 @@ substantially more involved than this "simplified" list, with two pieces
 not previously documented at all — see below):
 
 1. Base from terrain×job table at DS `0x2f7b` (NAMES-loaded).
-2. **Fisherman only** (job > 7): an undocumented distance/depth modifier via
-   `FUN_15eb_173e` (`local_4 < 8/6/4/3/1` ladder, ±1..±4 or a flat −1/−2) —
-   **new finding, not in any prior doc**; not yet peeled further, not ported.
+2. **Fisherman only** (job > 7): a distance/enclosure modifier via
+   `FUN_15eb_173e`/`FUN_15eb_16fe` — counts how many of the 8 neighbors of
+   the fished tile are themselves Ocean/Sea Lane. The decompiled C shows a
+   6-way `local_4 < 8/6/4/3/1` cascade, but **2026-08-15: verified against
+   the raw asm (not decompiler noise this time) that 3 of those 6 branches
+   are genuinely unreachable in the DOS binary itself** — each is only
+   entered after already proving `count < 6`, then immediately re-tested
+   against `count >= 6`, impossible. Real effective ladder: `count >= 8` →
+   **−2** (fully open ocean); `count >= 6` → **−1**; else → **+1** (sheltered
+   coastal tile). **Fixed:** ported as `colony_yield_fisherman_distance_mod`
+   in `colony_yield.c` (the 3 dead branches correctly omitted — porting
+   unreachable code changes nothing observable). Regression: new
+   `test_turn.c` synthetic-map check (open-ocean vs. sheltered, exact
+   3-point swing).
 3. Early terrain/FA tweaks (incl. fur-specific road/river nibbles, job==4 only).
 4. Clamp negative → 0.
-5. **SoL / Tory mod** if `mod > 0`: `yield += mod`. **New finding:** the mod
-   itself can be forced to **0 outright** (not just a different divisor) when
+5. **SoL / Tory mod** if `mod > 0`: `yield += mod`. The mod itself can be
+   forced to **0 outright** (not just a different divisor) when
    `byte[colony+0x1a] >= 4` or the per-nation `0x543f` table byte is nonzero
    — the *same* gate `FUN_15eb_1d4c` uses only to pick the divisor (10 vs
-   `10-difficulty`), but here it zeroes the whole mod instead. If that table
-   byte really is "nation is AI-controlled" (per the `FUN_15eb_1d4c`
-   deep-peel's hypothesis), **field yields skip the Tory penalty entirely for
-   AI colonies**, while manufacturing/bells/crosses/hammers do not — a real
-   behavioral difference between field and building production, not
-   independently confirmed yet. `colony_prod_sol_bonus` (shared by both
-   contexts in the port) doesn't distinguish them. See
-   [sons_of_liberty.md](sons_of_liberty.md).
+   `10-difficulty`), but here it zeroes the whole mod instead — **field
+   yields skip the Tory penalty entirely for AI colonies**, while
+   manufacturing/bells/crosses/hammers do not. **2026-08-15 fix:**
+   `colony_prod_sol_bonus_field` (new function) now applies this for both
+   field-yield call sites; `colony_prod_sol_bonus` (building contexts) is
+   unchanged. See [sons_of_liberty.md](sons_of_liberty.md).
 6. **Expert:** food/fish → `yield += 2` (and re-add the positive SoL mod a
    second time — confirmed at this exact spot: `if (food/fish) { yield += 2;
    if (mod > 0) yield += mod; }`); other jobs → `yield <<= 1`.
@@ -240,22 +249,35 @@ Unit size `u = 2` if (matching expert and not food/fish) **or** lumberjack; else
 
 **Port:** plow +1 on crops; road +1 on fur/lumber/ore/silver; river magnitudes FreeCol-shaped; **road and river do not stack** (max of one) — **divergent** from DOS stacking.
 
-**2026-08-15: checked whether this is safe to fix now — it isn't yet.** Two
-blockers, both needing their own verification pass, not implementation:
-(1) `u`'s size depends on the *expert-match* flag (`FUN_15eb_18ec`: `u=2` if
-matching expert and not food/fish, or Lumberjack; else `u=1`) — `field_job`
-only, no profession context, exactly the same entanglement already blocking
-the resource/expert-doubling and SoL-fold work above. (2) DOS's `layer2 &
-0x0a` check doesn't obviously map to the port's existing
-`map_tile_has_road()`, which reads a *different* array
-(`map->improve & MAP_IMPROVE_ROAD`) than `map->layer2`. There's independent
-evidence `layer2`'s `0x40` bit **is** the right "FA road" concept in the port
-(`ai_transcription.md`'s AI-movement-cost notes: "mask fa-flags (`layer2
-0x40` → DOS `&0x0a`)", a different subsystem, already cross-verified there)
-— but whether that's the *same* road concept `map_tile_has_road()`'s
-`improve` array represents (player-built roads) or a distinct one (e.g.
-native trails) isn't resolved. Fix needs both settled first, not attempted
-this pass.
+**2026-08-15: one blocker resolved, a bigger one found underneath.**
+
+*Resolved:* whether the port's `map_tile_has_road()` (`improve &
+MAP_IMPROVE_ROAD`) is the same concept as DOS's `layer2` FA-road bit —
+**yes.** `col1_bridge.c`'s save loader sets both from the *same* Col1 mask
+bit (`m & 0x08`) into two mirrored port arrays: "`Road in mask is 0x08; DOS
+AI scoring also checks layer2 bit 0x40 for roads — mirror improve road into
+that bit`" (`col1_bridge.c:611-624`). They're synchronized by construction,
+so `map_tile_has_road()` is safe to use for whichever DOS check needs it.
+
+*Still blocking, and bigger than thought:* re-reading `FUN_15eb_18ec`'s
+stacking block precisely (`viceroy_unpacked.c:11944-11966`), DOS checks
+river through **two separate signals**, not one:
+```
+if (FUN_137f_0142(tile) & 0x40 && field_job < 4):     term += u   ; "layer2-ish" river, food/crops only
+if (terrain_byte & 0x40):                              term += u   ; a DIFFERENT river bit, ANY job,
+  if (terrain_byte & 0x80 && term == u): term += u again           ; major-river doubles ONLY if this
+                                                                     was the sole contributor so far
+```
+The port's `map_tile_has_river()`/`map_tile_has_major_river()` read the
+**terrain byte** only (confirmed — `map.c:1271-1283`, matches the second
+signal above). There is no port equivalent of the first signal
+(`FUN_137f_0142() & 0x40`, gated to food/crop jobs specifically) — it may be
+a genuinely separate river/irrigation concept the port doesn't track at all,
+not just a naming mismatch like the road bit turned out to be. Also still
+open: `u`'s size depends on the expert-match flag (same profession-context
+entanglement as the resource/SoL work above). Both need resolving before a
+correct stacking implementation — a half-fix risks silently dropping a whole
+term, not just using the wrong unit size, so still not attempted.
 
 Silver on mountains without a deposit / road can be forced to 0 or 1 (`18ec` ~11925–11938).
 
@@ -308,9 +330,9 @@ Printed chart often shows post-modifier lumber (e.g. Plains forested lumber **6*
 | Expert food/fish +2 | Yes (+ SoL mod re-add) | **2026-08-15 fix** — flat +2 wired (SoL mod re-add still needs SoL-threading) |
 | Convert job whitelist | Yes | **2026-08-15 fix** — exact whitelist gate |
 | Plow/road/river stack | Add | Max(road, river) — **divergent**; entangled with expert-flag unit sizing, not attempted |
-| Fisherman distance modifier | Yes (`FUN_15eb_173e`) | **Missing** — new finding, not previously documented, not peeled further |
+| Fisherman distance modifier | Yes (`FUN_15eb_173e`) | **2026-08-15 fix** — real 3-case ladder confirmed from raw asm, ported |
 | Fisherman needs Docks | Yes, zeroes yield outright | **2026-08-15 fix** — `colony_yield_for_worker` gained a `has_docks` param, threaded from every production/preview/badge caller (`turn.c`, `colony_preview.c`, `colony_screen.c` area overlay + jobs popup) |
-| SoL mod: AI zero-out | Possibly zeroed outright for AI (new finding, not confirmed) | `colony_prod_sol_bonus` doesn't distinguish field vs. building context |
+| SoL mod: AI zero-out | Zeroed outright for AI (strong, cross-validated hypothesis — see manufacturing_worker_calc_1d4c.md) | **2026-08-15 fix** — `colony_prod_sol_bonus_field` (new function), wired into both field-yield call sites (`turn.c`, `colony_preview.c`); building contexts (craft/bells/crosses/hammers) keep the shared `colony_prod_sol_bonus`, unaffected |
 | Town commons | Peel pending | Fixture formula |
 
 ---

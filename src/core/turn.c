@@ -619,8 +619,10 @@ static void turn_produce_one_colony(
           founding_fathers_nation_has(col1, colony->nation_id, FF_HENRY_HUDSON)) {
         add *= 2;
       }
-      /* DOS net SoL/Tory mod (sons_of_liberty.md). */
-      add += colony_prod_sol_bonus(col1, colony);
+      /* DOS net SoL/Tory mod (sons_of_liberty.md). Field-specific variant:
+       * zeroed outright for AI colonies, unlike manufacturing/bells/crosses/
+       * hammers — see colony_prod_sol_bonus_field. */
+      add += colony_prod_sol_bonus_field(col1, colony);
       const int cargo = colony_yield_job_cargo(c->field_job);
       if (cargo < 0 || cargo >= COLONIZE_CARGO_COUNT) {
         continue;

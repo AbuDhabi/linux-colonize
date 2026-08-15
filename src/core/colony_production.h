@@ -94,13 +94,24 @@ int colony_yield_for_worker(
 int colony_prod_sol_percent(const ColonizeCol1Save* col1, const ColonizeColony* colony);
 
 /*
- * DOS net production mod per unit (field/craft/hammers/bells/crosses):
+ * DOS net production mod per unit (craft/hammers/bells/crosses — NOT field
+ * yields, which use colony_prod_sol_bonus_field instead, see below):
  *   tories = (pop * (100 - sol%) + 50) / 100
  *   thresh = human ? (10 - difficulty) : 10
  *   mod    = -floor(tories / thresh) + max(sol latches, live SoL ≥50/≥100)
  * See sons_of_liberty.md / difficulty.md.
  */
 int colony_prod_sol_bonus(const ColonizeCol1Save* col1, const ColonizeColony* colony);
+
+/*
+ * Field-yield variant of colony_prod_sol_bonus: returns 0 outright for
+ * AI-controlled colonies instead of computing a reduced-but-nonzero value —
+ * FUN_15eb_18ec zeroes the whole SoL/Tory term for AI, unlike
+ * FUN_15eb_1d4c (manufacturing/bells/crosses/hammers), which only changes
+ * the threshold. Use this for field/area yields; use colony_prod_sol_bonus
+ * for everything else. See manufacturing_worker_calc_1d4c.md.
+ */
+int colony_prod_sol_bonus_field(const ColonizeCol1Save* col1, const ColonizeColony* colony);
 
 /*
  * One-step latch Col1 +0x1c sol_50 / sol_100 from colony SoL % (FUN_364b_0688

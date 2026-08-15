@@ -198,6 +198,47 @@ static int colony_yield_road_bonus(int field_job) {
   return colony_yield_is_road_job(field_job) ? 1 : 0;
 }
 
+/*
+ * Fisherman-only distance/enclosure modifier (FUN_15eb_18ec ~11814-11838,
+ * calling FUN_15eb_173e/FUN_15eb_16fe). Counts how many of the 8 neighbors
+ * of this ocean tile are themselves Ocean(25)/Sea Lane(26) — i.e. how far
+ * out to open sea this tile is — and adjusts yield: fully open water is
+ * worse for fishing, a sheltered/coastal spot is better.
+ *
+ * The raw asm (viceroy_unpacked.asm ~15706-15735) is a 6-way cascade, but
+ * three of those branches (count>=4 / >=3 / >=1) are genuinely unreachable
+ * in the original DOS binary — each is only reached after already proving
+ * count<6 by an earlier `JL`, then immediately re-tested against `>=6`,
+ * which can never be true. Confirmed by reading the instructions directly,
+ * not decompiler noise like FUN_15eb_1d4c's jump table was — this looks
+ * like a leftover/typo in Sid Meier's team's original source. Ported as the
+ * 3 branches that can actually execute; the dead ones are omitted since
+ * porting unreachable code changes nothing observable.
+ */
+static int colony_yield_ocean_neighbor_count(const ColonizeWorldMap* map, int x, int y) {
+  static const int k_dx[8] = {-1, -1, -1, 0, 0, 1, 1, 1};
+  static const int k_dy[8] = {-1, 0, 1, -1, 1, -1, 0, 1};
+  int count = 0;
+  for (int i = 0; i < 8; ++i) {
+    const int pedia = map_pedia_terrain_index_at(map, x + k_dx[i], y + k_dy[i]);
+    if (pedia == 25 || pedia == 26) {
+      ++count;
+    }
+  }
+  return count;
+}
+
+static int colony_yield_fisherman_distance_mod(const ColonizeWorldMap* map, int x, int y) {
+  const int count = colony_yield_ocean_neighbor_count(map, x, y);
+  if (count >= 8) {
+    return -2;
+  }
+  if (count >= 6) {
+    return -1;
+  }
+  return 1;
+}
+
 /* Road and river do not stack — apply the larger bonus once. */
 static int colony_yield_road_or_river_bonus(
   const ColonizeWorldMap* map,
@@ -219,6 +260,12 @@ int colony_yield_for_tile(const ColonizeWorldMap* map, int x, int y, int field_j
   }
   const int pedia = map_pedia_terrain_index_at(map, x, y);
   int yield = colony_yield_base_for_pedia(pedia, field_job);
+  if (field_job == COLONIZE_JOB_FISHERMAN) {
+    yield += colony_yield_fisherman_distance_mod(map, x, y);
+    if (yield < 0) {
+      yield = 0;
+    }
+  }
   /* Resource effect (FUN_15eb_17fa) — DOS-exact table, applied before the
    * Lumberjack double. Expert doubling the *additive* half specifically is
    * not applied here — see docs/terrain_yields.md; colony_yield_for_tile has
