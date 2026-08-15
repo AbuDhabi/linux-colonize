@@ -1615,8 +1615,8 @@ static int turn_count_bells_and_crosses_for_nation(
      nation_id >= 0 && nation_id < (int)COLONIZE_COL1_NATION_COUNT)
       ? (int)col1->nation[nation_id].tax_rate
       : 0;
-  const int penn_crosses_pct =
-    (col1 && founding_fathers_nation_has(col1, nation_id, FF_WILLIAM_PENN)) ? 50 : 0;
+  const bool nation_has_penn =
+    col1 && founding_fathers_nation_has(col1, nation_id, FF_WILLIAM_PENN);
   for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
     const ColonizeColony* c = &pool->colonies[i];
     if (!c->active || c->nation_id != nation_id) {
@@ -1628,7 +1628,7 @@ static int turn_count_bells_and_crosses_for_nation(
      * FUN_15eb_1d4c's Statesman/Preacher bodies — see
      * manufacturing_worker_calc_1d4c.md). */
     int b = colony_prod_colony_bells_ff(pool, c, statesmen_pct, paine_tax_pct, sol_b);
-    int x = colony_prod_colony_crosses_ff(pool, c, penn_crosses_pct, sol_b);
+    int x = colony_prod_colony_crosses_ff(pool, c, nation_has_penn, sol_b);
     bells += b;
     crosses += x;
   }

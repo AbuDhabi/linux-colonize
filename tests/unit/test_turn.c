@@ -1477,7 +1477,7 @@ int main(void) {
        * upgrade, which is exactly the case being tested here.
        */
       const int crosses_unskilled_cathedral =
-        colony_prod_crosses_worker("Cathedral", COLONIZE_PROF_FREE_COLONIST, 2, true);
+        colony_prod_crosses_worker("Cathedral", COLONIZE_PROF_FREE_COLONIST, 2, true, false);
       if (crosses_unskilled_cathedral != 10) { /* (3+2)*2, not the old 6+2=8 */
         fprintf(
           stderr,
@@ -1488,7 +1488,7 @@ int main(void) {
         return 1;
       }
       const int crosses_skilled_cathedral =
-        colony_prod_crosses_worker("Cathedral", COLONIZE_PROF_PREACHER, 2, true);
+        colony_prod_crosses_worker("Cathedral", COLONIZE_PROF_PREACHER, 2, true, false);
       if (crosses_skilled_cathedral != 16) { /* (6+2)*2, not the old 6*2+2=14 */
         fprintf(
           stderr,
@@ -1516,6 +1516,37 @@ int main(void) {
           stderr,
           "hammers_worker skilled+mill want 16 got %d\n",
           hammers_skilled_mill
+        );
+        assets_msg_free(&names);
+        return 1;
+      }
+      /*
+       * William Penn stacks with Cathedral per-worker (v *= 2 for Cathedral,
+       * *then* v += v>>1 for Penn — DOS falls through from the Cathedral
+       * branch into the Penn check unconditionally, not an else). Confirmed
+       * by direct asm read of the Preacher body; see
+       * manufacturing_worker_calc_1d4c.md. Distinguishes this from the old
+       * (wrong) flat colony-total ×1.5, which this function never sees at
+       * all — it can only be right if the stacking happens right here.
+       */
+      const int crosses_unskilled_cathedral_penn =
+        colony_prod_crosses_worker("Cathedral", COLONIZE_PROF_FREE_COLONIST, 0, true, true);
+      if (crosses_unskilled_cathedral_penn != 9) { /* (3*2)+((3*2)>>1) = 6+3 */
+        fprintf(
+          stderr,
+          "crosses_worker unskilled+cathedral+penn want 9 got %d\n",
+          crosses_unskilled_cathedral_penn
+        );
+        assets_msg_free(&names);
+        return 1;
+      }
+      const int crosses_skilled_cathedral_penn =
+        colony_prod_crosses_worker("Cathedral", COLONIZE_PROF_PREACHER, 0, true, true);
+      if (crosses_skilled_cathedral_penn != 18) { /* (6*2)+((6*2)>>1) = 12+6 */
+        fprintf(
+          stderr,
+          "crosses_worker skilled+cathedral+penn want 18 got %d\n",
+          crosses_skilled_cathedral_penn
         );
         assets_msg_free(&names);
         return 1;
