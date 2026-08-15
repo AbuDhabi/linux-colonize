@@ -193,6 +193,45 @@ this pass**, via the same negative-offset→absolute-address trick
 rows in `save_format_map.md` (255 `unknown_ds_94e6`, 259 `unknown_ds_9572`).
 Neither is safe to port on this evidence alone.
 
+**Update (2026-08-15): both now fully confirmed, stale note above.**
+`save_format_map.md` rows 255/259 resolved these the same day via
+`FUN_4962_0018`'s already-known per-nation-per-turn recompute pass:
+`−0x6b1a` = `colony_counts_by_continent[continent+nation*0x10]` (own-colony
+count per continent), `−0x6a8e` = `combat_value_sum_by_continent[continent+
+nation*0x10]` (Σ `FUN_281f_09c8(unit,mode=1)`, combat-adjusted vet/Drake-
+bonused value, over that nation's units on that continent — also feeds the
+already-known `land_combat_strength[4]` nation total). This doc's own
+earlier pass just hadn't been synced with that confirmation. **Neither
+table is computed in Linux at all yet** (`grep` for either name in
+`src/core/` is empty) — real, concrete, well-specified gap now, template
+available in `col1_post_map.c`'s existing `continent_tally_a` per-continent
+tally loop. Still blocked from being *wired into `20e6`'s scoring* by the
+separate, larger issue: this arithmetic lives inside the windowed best-
+tile-in-box explore scan (`2912`/`2a59`), which Linux's single-step
+8-neighbor `ai_euro_score_move` doesn't structurally have a home for —
+that walker-architecture mismatch, not missing data, is now the only real
+remaining blocker.
+
+**Update (2026-08-15): windowed scan shipped, thin.** Turns out the
+"walker-architecture mismatch" didn't need a rewrite of `ai_euro_score_move`
+at all — Linux already separates "pick a goal (gx,gy)" from "step toward it"
+(the existing goto/orders machinery). Added `ai_euro_land_explore_scan_target`
+(`ai_euro.c`): a real radius-5 box scan (same continent, land, unclaimed,
+unseen-preferred, LCR-avoided) replacing the old placeholder wander goal
+(`gx = u->x-2`, literally "always walk 2 tiles west"). For the `−0x6b1a`/
+`−0x6a8e` friction term, reused the already-ported, already-tested G-table
+tier (`ai_euro_continent_stance_at` / `euro_g_table_0a60.md`) instead of
+re-deriving a parallel `colony_counts_by_continent`/`combat_value_sum_by_continent`
+table — same underlying signal (own colony count + rival defense comparison
+per continent), already computed once per turn. **Not byte-exact**: DOS's
+own nested friction formula (difficulty-bit doubling, nation-specific
+halving, `−0x6168` rival-strength radius shrink) isn't replicated, and the
+scan picks a single best tile rather than DOS's tiered candidate-scoring
+loop — a real behavioral upgrade over the placeholder, not a full `20e6`
+port. Full `ctest`: 42/43, only the known pre-existing `unit_ai_euro_expand`
+baseline failure (confirmed via `git stash` on unmodified HEAD), no
+regression.
+
 **Self-correction, same day, next pass:** the paragraph originally here
 claimed a second read site for `0x94e6` "inside `FUN_5952_035e` itself
 (~line 95043-95062)" — a nation×continent grid used for a sole-occupant

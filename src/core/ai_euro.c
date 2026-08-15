@@ -8555,6 +8555,95 @@ static int ai_euro_score_move(
   return 1;
 }
 
+/*
+ * FUN_521d_20e6 windowed explore scan (LAB_521d_2912 -> 2a59), thin port:
+ * picks a wander/explore destination over a radius box instead of the old
+ * "always walk 2 tiles west" placeholder. Filters: same continent as the
+ * unit (DOS `0722==local_38`), land, not already a colony/occupied tile.
+ * Scores: closer within the window, unseen (FoW) tiles preferred (DOS
+ * explore nibble), continent-pressure bonus/penalty via the already-ported
+ * G-table tier (`ai_euro_continent_stance_at` / `euro_g_table_0a60.md`) as
+ * a stand-in for DOS's own `colony_counts_by_continent` /
+ * `combat_value_sum_by_continent` friction term (`save_format_map.md` rows
+ * 255/259, `-0x6b1a`/`-0x6a8e`) — same underlying signal (own colony count
+ * + rival defense comparison per continent), reused instead of
+ * re-deriving a parallel table. NOT byte-exact: DOS's own nested formula
+ * (difficulty-bit doubling, nation-specific halving, `-0x6168` rival-
+ * strength radius shrink) is not replicated — PARK for a fidelity pass.
+ * Cite: move_scoring_land.md "Update (2026-08-15)".
+ */
+static int ai_euro_land_explore_scan_target(
+  ColonizeTurnContext* ctx, const ColonizeUnit* u, int nation_id, int* out_x, int* out_y
+) {
+  if (!ctx || !ctx->map || !u || !out_x || !out_y) {
+    return 0;
+  }
+  const int continent = map_continent_id_at(ctx->map, u->x, u->y);
+  if (continent < 0) {
+    return 0; /* not on a mapped landmass (e.g. still in Europe) */
+  }
+  static const int radius = 5;
+  int best = -999999;
+  int bx = 0;
+  int by = 0;
+  int found = 0;
+  for (int dy = -radius; dy <= radius; ++dy) {
+    for (int dx = -radius; dx <= radius; ++dx) {
+      if (dx == 0 && dy == 0) {
+        continue;
+      }
+      const int nx = u->x + dx;
+      const int ny = u->y + dy;
+      if (nx < 0 || ny < 0 || nx >= ctx->map->width || ny >= ctx->map->height) {
+        continue;
+      }
+      if (!map_tile_is_land(ctx->map, nx, ny)) {
+        continue;
+      }
+      if (map_continent_id_at(ctx->map, nx, ny) != continent) {
+        continue;
+      }
+      if (ctx->colonies && colonies_id_at(ctx->colonies, nx, ny) >= 0) {
+        continue; /* colony tile (own or foreign) — not a wander target */
+      }
+      const int occ = units_id_at(ctx->units, nx, ny);
+      if (occ >= 0 && occ != u->id) {
+        const ColonizeUnit* ou = units_get_const(ctx->units, occ);
+        if (ou && ou->nation_id == nation_id) {
+          continue; /* already staffed by our own unit */
+        }
+      }
+      const int md = abs(dx) + abs(dy);
+      int score = 100 - md * 4;
+      if (ctx->map->seen && !map_tile_seen_by(ctx->map, nx, ny, nation_id)) {
+        score += 10; /* unseen (FoW explore nibble) */
+      }
+      const int lcr = map_dos_terr_class_at(ctx->map, nx, ny) == 0x1b;
+      if (lcr) {
+        score -= 20; /* non-Scout skip LCR; dedicated Scout path handles LCR seek */
+      }
+      const int stance = ai_euro_continent_stance_at(nation_id, continent);
+      if (stance == 6) {
+        score += 8; /* under colonization cap here — keep exploring/expanding */
+      } else if (stance == 3) {
+        score -= 6; /* rival already militarily dominant on this continent */
+      }
+      if (score > best) {
+        best = score;
+        bx = nx;
+        by = ny;
+        found = 1;
+      }
+    }
+  }
+  if (!found) {
+    return 0;
+  }
+  *out_x = bx;
+  *out_y = by;
+  return 1;
+}
+
 /* Returns non-zero to abort act (DOS 20e6 non-zero return). */
 static int ai_euro_move_scoring_gate(ColonizeTurnContext* ctx, ColonizeUnit* u, int nation_id) {
   /*
@@ -8612,6 +8701,9 @@ static int ai_euro_move_scoring_gate(ColonizeTurnContext* ctx, ColonizeUnit* u, 
   } else if (units_orders_follow_goto(u->orders)) {
     gx = u->goto_x;
     gy = u->goto_y;
+  } else if (ai_euro_land_explore_scan_target(ctx, u, nation_id, &fx, &fy)) {
+    gx = fx;
+    gy = fy;
   } else {
     gx = u->x > 2 ? u->x - 2 : 0;
     gy = u->y;

@@ -56,6 +56,88 @@ read back on its next call — there is no separate downstream consumer to
 find.** No misresolved call, no hidden body; the mystery was never a real
 gap, just an unexplored self-reference.
 
+## Deep-port pass (2026-08-15)
+
+**0x46 attack gate re-confirmed already ported** (line ~2024-2044: combat-capable
++ not-ship + `in_stack_0000ff16` + 8-dir tile-nation scan via `FUN_1000_8886`) —
+matches `ai_euro_land_try_adjacent_colony_seize`/`ai_euro_land_try_adjacent_attack`
+in `ai_euro.c`. No new work needed there.
+
+**0x42/0x65 found/contact live-write gate (line ~2001-2023) — blocked, do not
+guess.** Both arms gate on `FUN_1000_8aac(nation, unit_id, field)` (field 2,
+compared `<2`) — a generic per-unit query also used heavily by `0a60`
+(`euro_goal_orders_0a60_full.md` lines 316-796, fields 2/3/4/5/6/0xd/0xc, never
+itself interpreted there either — this is a shared unresolved helper, not a
+20e6-only gap). Traced its resident target this pass: `FUN_281f_08bc` thunks to
+`FUN_1000_8aac` (`ram:0x18aac`, confirmed via `address_mapping.csv`), which
+decompiles as a two-call stub (`FUN_1000_1e61` — a real, RTLink-loader-shaped
+function — then a bare tail call to `FUN_0000_4fa8`). **`FUN_0000_4fa8` is
+corrupted**: its decompile carries a fresh `overlaps instruction` warning near
+`ram:0xc00b` and the body mixes plainly unrelated case logic (BCD arithmetic,
+DOS `INT 21h` string routines) under one switch — the same disassembly-fault
+signature `decomp_inventory.md` already catalogs elsewhere, meaning this address
+is very likely a **false collision**: an unpatched-thunk placeholder value that
+happens to coincide with real resident code rather than a real resolved
+call target. Per the project's own established method (`indian_settlement_4528.md`
+"Case-dispatch tail", `euro_unit_act.md`'s `a6e4` correction), the fix is to
+resolve the true target via `rtlink_decode`'s segment table (raw file offset →
+segment index), not trust this address — **not done this pass** (would need
+regenerating `seg_data_resident.bin` via `tools/rtlink_overlay_extract.py`, the
+loose extraction from earlier sessions is gone from disk). Until then, `0x42`/
+`0x65` stay unported; Linux's existing goal-driven found/contact impulses
+(`0a60`/`5d04`) are a reasonable functional stand-in, just not this live path.
+
+**Epilogue / commit block (line ~2213-2275) is fully resolved, zero unnamed
+globals** — but has no Linux structural home yet. After the upstream arms
+(whichever one fires) leave `local_76` = chosen dir (0..7) or 8 = stay:
+1. Write `unit+0x314f` = `local_76` (last-commanded-dir byte).
+2. If staying (8): set `unit+0x314c` (pending-order-state cache) to 5
+   ("roam/re-evaluate next call"), or 6 if `unit+0x3148` bit1 set — both
+   already-named fields (`move_scoring_20e6_full.md`'s own prologue table).
+3. Else: step `local_88/local_94` one tile in `local_76`'s direction; if that
+   tile is walkable (`FUN_1000_84f2`), stash it as a one-shot pending goto
+   (`0x314c=0xc`, `0x314d/0x314e` = stashed x/y) instead of moving immediately
+   this call.
+4. Shared exit (`5a78`): if `0x314c` is 0 or 0xa (idle/none), reset orders to
+   `0x30` (idle default) and re-arm `0x314c=5`. If `0x314c==5` (roaming), scan
+   8 neighbors via `FUN_1000_8886`/`FUN_1000_8c28`(`&0x40` = at-war flag,
+   already the exact diplomacy-flags helper `indian_incite_417e.md` already
+   ported) and clear the roam state (`0x314c=0`) the moment a hostile,
+   at-war foreign unit is adjacent — i.e. **stop passively roaming next to an
+   enemy, force a re-decide next call**. If a stashed one-shot goto (`0x314c==
+   0xb`) has just been reached and the unit is a ship (type 0xd..0x12)
+   whose orders were `'1'` (ASCII, some other arm's marker — not yet traced),
+   flip to `0x42` (found impulse) on arrival.
+
+**Correction, same pass: the "missing persistent cache" claim below was
+wrong — checked `units.h` after writing it.** `unit+0x314c` (pending-order
+cache), `+0x314d`/`+0x314e` (goto stash), and `+0x314f` (facing/last dir)
+already have direct Linux homes: `ColonizeUnit.orders` (`UNITS_ORDER_NONE`/
+`SENTRY`/`FORTIFY`/`FORTIFIED`/`BUILD_COLONY` = DOS `0`/`1`/`5`/`6`/`7`,
+already numerically DOS-shaped), `.goto_x`/`.goto_y`
+(`UNITS_GOTO_NONE`=0xFF), and `.last_dir` — and `unit+0x314b` (the orders/
+act-opcode byte this whole file is about) is `.col1_ai_plan`
+(`col1_bridge.c` comment: "DOS unit+0x07 / Col1 ai_plan"). **No struct or
+save-format change needed.** What's actually missing is narrower: these
+fields round-trip through save/load (`col1_bridge.c`) but nothing in
+`ai_euro.c`/`ai.c` *reads* `col1_ai_plan` as a live decision cache the way
+`20e6` reads `0x314b` at its own entry — the AI never consults its own
+last act-opcode. Wiring the epilogue's roam-abort-if-hostile-adjacent
+behavior isn't blocked on missing state either: `ai_euro_unit_act` already
+runs `ai_euro_land_try_adjacent_attack` before movement, just gated to
+designated "hunter" roles at war (`is_land_hunter`) rather than DOS's
+broader "any unit currently idle-roaming" — narrower than DOS, but the
+same shape, not a gap requiring new plumbing.
+
+**Real remaining redesign, scoped correctly this time:** just the windowed
+best-tile-in-box explore scan (`move_scoring_land.md`'s `2912`/`2a59`
+section) replacing Linux's single-step 8-neighbor greedy walker — that one
+genuinely doesn't fit the current architecture and still needs `−0x6b1a`/
+`−0x6a8e` (structurally located, semantically unresolved) wired in. The
+epilogue's state-machine *transitions* (write orders/goto/facing after a
+dir is picked) could be wired against the existing fields today, independent
+of that scan redesign — smaller, real, immediately portable slice.
+
 ## Raw recovered C
 
 ```c
