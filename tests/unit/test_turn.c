@@ -1424,6 +1424,42 @@ int main(void) {
         assets_msg_free(&names);
         return 1;
       }
+      /*
+       * Factory input, player-confirmed 2026-08-15 (Viceroy): Textile Mill,
+       * free colonist, +2 sentiment — 12 cloth/turn output, 8 cotton/turn
+       * consumed (colony-wide cotton accounting: 23 produced, 15 surplus, 8
+       * consumed). Reusing Iron Works here (same tier/tag math, recipe-
+       * independent) — free colonist, sol_bonus=2: v=3+2=5, +tag=8,
+       * factory x1.5 floor=12 (matches the 12 cloth exactly). Input:
+       * (12*6+8)/9=8, matching the observed 8 cotton exactly — settles the
+       * long-open "does factory input discount 6-for-9, and does it track
+       * the SoL-adjusted output or the flat base rate" question both ways:
+       * yes to the discount, and it tracks the *actual* output (the old
+       * `sol_bonus=0`-forced reading would have given 6, not 8).
+       */
+      const int factory_out_sol2 =
+        colony_prod_manufacturing_output(iname, COLONIZE_PROF_FREE_COLONIST, COLONIZE_PROF_BLACKSMITH, 2);
+      if (factory_out_sol2 != 12) {
+        fprintf(stderr, "factory output sol=2 want 12 got %d\n", factory_out_sol2);
+        assets_msg_free(&names);
+        return 1;
+      }
+      const int factory_in_sol2 =
+        colony_prod_manufacturing_input(iname, COLONIZE_PROF_FREE_COLONIST, COLONIZE_PROF_BLACKSMITH, 2);
+      if (factory_in_sol2 != 8) {
+        fprintf(stderr, "factory input sol=2 want 8 got %d\n", factory_in_sol2);
+        assets_msg_free(&names);
+        return 1;
+      }
+      /* Base rate (sol_bonus=0) input stays 6 — the old, still-correct half
+       * of the ratio; only the sol-fold was missing before. */
+      const int factory_in_base =
+        colony_prod_manufacturing_input(iname, COLONIZE_PROF_FREE_COLONIST, COLONIZE_PROF_BLACKSMITH, 0);
+      if (factory_in_base != 6) {
+        fprintf(stderr, "factory input base want 6 got %d\n", factory_in_base);
+        assets_msg_free(&names);
+        return 1;
+      }
       /* Tory penalty (negative sol_bonus) must reduce output, not get
        * clamped away — house tier, criminal (tag=1), sol_bonus=-5 clamps to 0. */
       const int penalized =

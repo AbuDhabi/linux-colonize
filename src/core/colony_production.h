@@ -59,13 +59,21 @@ int colony_prod_manufacturing_output(
   int sol_bonus
 );
 
-/* Input is derived from the tier's un-modified base output (sol_bonus does not
- * affect raw-good consumption — DOS's input-side 6-in/9-out ratio is a
- * separate, not-yet-traced code path from FUN_15eb_1d4c's output calc). */
+/*
+ * Raw-good input for one worker's manufacturing output. Factory tier
+ * discounts 6-in for 9-out (`colony_prod_tier_input_for_output`); house/shop
+ * are 1:1. `sol_bonus` folds into the *output* used to derive this the same
+ * way colony_prod_manufacturing_output does — player-confirmed 2026-08-15
+ * (Viceroy): factory tier, +2 sentiment, output 12 → input 8, matching
+ * `(12*6+8)/9`, not the un-modified-base-output reading this function used
+ * to force (`(9*6+8)/9=6`, wrong). Pass 0 for callers that intentionally
+ * show the un-modified base rate (settlement badges).
+ */
 int colony_prod_manufacturing_input(
   const char* building_name,
   int profession,
-  int craft_profession
+  int craft_profession,
+  int sol_bonus
 );
 
 bool colony_prod_field_skill_matches(int profession, int field_job);
