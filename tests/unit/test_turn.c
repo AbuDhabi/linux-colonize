@@ -1435,6 +1435,175 @@ int main(void) {
   }
 
   /*
+   * Henry Hudson: fur trapper field output +100% (turn_produce_one_colony).
+   * Preview must match — colony_preview.c had been missing this doubling.
+   */
+  {
+    ColonizeWorldMap map;
+    memset(&map, 0, sizeof(map));
+    char err[256];
+    if (!map_load_mp("COLONIZE/AMER2.MP", &map, err, sizeof(err))) {
+      fprintf(stderr, "map load for Hudson test: %s\n", err);
+      return 1;
+    }
+    ColonizeColonyPool pool;
+    colonies_init(&pool);
+    ColonizeMsgCatalog names;
+    assets_msg_init(&names);
+    if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT") ||
+        !colonies_load_buildings(&pool, &names) || !colonies_load_names(&pool, "COLONIZE/COLONY.TXT")) {
+      fprintf(stderr, "names/buildings for Hudson test failed\n");
+      assets_msg_free(&names);
+      map_free(&map);
+      return 1;
+    }
+    int fx = -1, fy = -1, ftile = -1, cx = -1, cy = -1;
+    for (int y = 1; y < (int)map.height - 1 && fx < 0; ++y) {
+      for (int x = 1; x < (int)map.width - 1 && fx < 0; ++x) {
+        if (!map_tile_is_land(&map, x, y) || !colonies_can_found(&pool, &map, x, y)) {
+          continue;
+        }
+        for (int ti = 0; ti < COLONIZE_COLONY_FIELD_TILES; ++ti) {
+          int dx = 0, dy = 0;
+          colonies_field_tile_delta(ti, &dx, &dy);
+          const int yld =
+            colony_yield_for_tile(&map, x + dx, y + dy, COLONIZE_JOB_FUR_TRAPPER);
+          if (yld > 0) {
+            cx = x;
+            cy = y;
+            fx = x + dx;
+            fy = y + dy;
+            ftile = ti;
+            break;
+          }
+        }
+      }
+    }
+    if (ftile < 0) {
+      fprintf(stderr, "no colony site with fur trapper yield nearby\n");
+      assets_msg_free(&names);
+      map_free(&map);
+      return 1;
+    }
+    const int cid = colonies_found(&pool, &map, cx, cy, 0, 0, UNITS_JOB_NONE, 0, 0, 0);
+    ColonizeColony* col = colonies_get_mut(&pool, cid);
+    if (!col || !colonies_assign_field(&pool, cid, 0, ftile, COLONIZE_JOB_FUR_TRAPPER)) {
+      fprintf(stderr, "assign fur trapper failed at (%d,%d) tile %d\n", fx, fy, ftile);
+      assets_msg_free(&names);
+      map_free(&map);
+      return 1;
+    }
+    col->building_in_production = -1;
+    col->nation_id = 0;
+
+    ColonizeCol1Save col1;
+    memset(&col1, 0, sizeof(col1));
+    col1.player[0].control = 0;
+    for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
+      col1.head.founding_father[i] = -1;
+    }
+
+    ColonizeTurnResult prod;
+    memset(&prod, 0, sizeof(prod));
+    turn_run_colony_production(&pool, &map, &col1, NULL, -1, &prod, NULL, NULL);
+    const int base_furs = col->stock[COLONIZE_CARGO_FURS];
+    if (base_furs <= 0) {
+      fprintf(stderr, "Hudson test base fur harvest want >0 got %d\n", base_furs);
+      assets_msg_free(&names);
+      map_free(&map);
+      return 1;
+    }
+
+    /* Grant Hudson, redo the same tick from a clean stock, expect exactly 2x. */
+    col->stock[COLONIZE_CARGO_FURS] = 0;
+    col1.head.founding_father[FF_HENRY_HUDSON] = 0; /* nation 0 owns it */
+    ColonizeColonyPreview prev;
+    colony_preview_compute(&pool, col, &map, &col1, &prev);
+    memset(&prod, 0, sizeof(prod));
+    turn_run_colony_production(&pool, &map, &col1, NULL, -1, &prod, NULL, NULL);
+    const int hudson_furs = col->stock[COLONIZE_CARGO_FURS];
+    if (hudson_furs != base_furs * 2) {
+      fprintf(
+        stderr,
+        "Hudson fur doubling want %d got %d\n",
+        base_furs * 2,
+        hudson_furs
+      );
+      assets_msg_free(&names);
+      map_free(&map);
+      return 1;
+    }
+    if (prev.goods[COLONIZE_CARGO_FURS] != hudson_furs) {
+      fprintf(
+        stderr,
+        "Hudson fur preview mismatch want %d got %d\n",
+        hudson_furs,
+        prev.goods[COLONIZE_CARGO_FURS]
+      );
+      assets_msg_free(&names);
+      map_free(&map);
+      return 1;
+    }
+    assets_msg_free(&names);
+    map_free(&map);
+  }
+
+  /*
+   * Hammers bank even with no construction queued (turn.c "TURN5→6" comment,
+   * colony_prod_colony_hammers). Preview had been hiding this row entirely
+   * whenever building_in_production < 0.
+   */
+  {
+    ColonizeColonyPool pool;
+    colonies_init(&pool);
+    snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Carpenter's Shop");
+    pool.building_type_count = 1;
+
+    ColonizeColony* col = &pool.colonies[0];
+    memset(col, 0, sizeof(*col));
+    col->active = true;
+    col->id = 1;
+    col->nation_id = 0;
+    col->building_in_production = -1; /* no project selected */
+    col->stock[COLONIZE_CARGO_FOOD] = 100; /* avoid starve-kill wiping the colony */
+    col->stock[COLONIZE_CARGO_LUMBER] = 10;
+    col->colonists[0].active = true;
+    col->colonists[0].building_type = 0;
+    col->colonists[0].profession = COLONIZE_PROF_FREE_COLONIST;
+    col->colonists[0].field_job = -1;
+    for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES; ++t) {
+      col->tiles[t] = -1;
+    }
+    col->colonist_count = 1;
+    col->population = 1;
+    pool.colony_count = 1;
+
+    ColonizeColonyPreview prev;
+    colony_preview_compute(&pool, col, NULL, NULL, &prev);
+    if (prev.hammers != 3) {
+      fprintf(stderr, "no-project hammers preview want 3 got %d\n", prev.hammers);
+      return 1;
+    }
+
+    ColonizeTurnResult prod;
+    ColonizeColonyProdDelta delta;
+    memset(&prod, 0, sizeof(prod));
+    memset(&delta, 0, sizeof(delta));
+    turn_colony_free_production(&pool, col, NULL, &prod, &delta);
+    if (col->hammers != 3 || delta.hammers_added != 3 ||
+        col->stock[COLONIZE_CARGO_LUMBER] != 7) {
+      fprintf(
+        stderr,
+        "no-project hammers actual want hammers=3 delta=3 lumber=7 got %d/%d/%d\n",
+        col->hammers,
+        delta.hammers_added,
+        col->stock[COLONIZE_CARGO_LUMBER]
+      );
+      return 1;
+    }
+  }
+
+  /*
    * Custom House auto-sell (FUN_364b_0688 / FUN_364b_0636): stock>99 → leave 50;
    * Food denied; boycott bypass; tax then WoI untaxed.
    */
@@ -3268,17 +3437,32 @@ int main(void) {
     col->x = 3;
     col->y = 3;
 
+    /* Preview must show the same breeding the EOT tick is about to do. */
+    ColonizeColonyPreview prev;
+    colony_preview_compute(&pool, col, &map, NULL, &prev);
+
     ColonizeTurnResult prod;
     memset(&prod, 0, sizeof(prod));
     const int h0 = col->stock[COLONIZE_CARGO_HORSES];
     turn_run_colony_production(&pool, &map, NULL, NULL, 0, &prod, NULL, NULL);
-    if (col->stock[COLONIZE_CARGO_HORSES] <= h0) {
+    const int bred = col->stock[COLONIZE_CARGO_HORSES] - h0;
+    if (bred <= 0) {
       fprintf(
         stderr,
         "breed: horses %d→%d want increase (food=%d)\n",
         h0,
         col->stock[COLONIZE_CARGO_HORSES],
         col->stock[COLONIZE_CARGO_FOOD]
+      );
+      map_free(&map);
+      return 1;
+    }
+    if (prev.goods[COLONIZE_CARGO_HORSES] != bred) {
+      fprintf(
+        stderr,
+        "breed preview mismatch want %d got %d\n",
+        bred,
+        prev.goods[COLONIZE_CARGO_HORSES]
       );
       map_free(&map);
       return 1;

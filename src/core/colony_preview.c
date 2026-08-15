@@ -6,7 +6,6 @@
 #include "core/colony_production.h"
 #include "core/colony_yield.h"
 #include "core/founding_fathers.h"
-#include <string.h>
 
 int colony_preview_best_job(const ColonizeWorldMap* map, int x, int y) {
   int best_job = -1;
@@ -88,6 +87,11 @@ void colony_preview_compute(
       int yld = colony_yield_for_worker(
         map, colony->x + dx, colony->y + dy, c->field_job, c->profession
       );
+      /* Henry Hudson: fur trapper output +100% (turn.c turn_produce_one_colony). */
+      if (yld > 0 && c->field_job == COLONIZE_JOB_FUR_TRAPPER && col1 &&
+          founding_fathers_nation_has(col1, colony->nation_id, FF_HENRY_HUDSON)) {
+        yld *= 2;
+      }
       if (yld > 0 && sol_b > 0) {
         yld += sol_b;
       }
@@ -107,6 +111,34 @@ void colony_preview_compute(
   }
   out->food_consumed = pop > 0 ? pop * 2 : 0;
   out->food_net = out->food_produced - out->food_consumed;
+
+  /* Horse breeding (turn.c turn_produce_one_colony) — must show up in the
+   * Production tab's Horses row and reduce the Food row by the same amount,
+   * or the preview misses a real stock change that happens every EOT tick. */
+  if (colony->stock[COLONIZE_CARGO_HORSES] >= 2 && out->food_net > 0) {
+    bool has_stable = false;
+    for (int i = 0; i < pool->building_type_count && i < COLONIZE_BUILDING_TYPES_MAX; ++i) {
+      if (colony->has_building[i] && pool->building_types[i].name &&
+          strstr(pool->building_types[i].name, "Stable") != NULL) {
+        has_stable = true;
+        break;
+      }
+    }
+    const int cap = has_stable ? 4 : 2;
+    int breed = out->food_net / 2;
+    if (breed > cap) {
+      breed = cap;
+    }
+    int food_avail = colony->stock[COLONIZE_CARGO_FOOD] + out->food_net;
+    if (breed > food_avail) {
+      breed = food_avail > 0 ? food_avail : 0;
+    }
+    if (breed > 0) {
+      out->goods[COLONIZE_CARGO_HORSES] += breed;
+      out->goods[COLONIZE_CARGO_FOOD] -= breed;
+      out->food_net -= breed;
+    }
+  }
 
   {
     ColonizeColony scratch = *colony;
@@ -165,10 +197,13 @@ void colony_preview_compute(
     }
   }
 
-  if (colony->building_in_production >= 0) {
+  {
+    /* Hammers bank even with no project queued (turn.c "TURN5→6" comment) —
+     * preview must show that too, not just while a Construction item is
+     * selected, or the player never sees lumber about to be consumed. */
     int lumber_use = 0;
-    int hammers = colony_prod_colony_hammers(pool, colony, &lumber_use);
-    if (hammers > 0 && sol_b > 0) {
+    int hammers_add = colony_prod_colony_hammers(pool, colony, &lumber_use);
+    if (hammers_add > 0 && sol_b > 0) {
       int carpenters = 0;
       for (int ci = 0; ci < colony->colonist_count; ++ci) {
         const ColonizeColonist* cc = &colony->colonists[ci];
@@ -180,14 +215,20 @@ void colony_preview_compute(
           carpenters++;
         }
       }
-      hammers += sol_b * carpenters;
+      hammers_add += sol_b * carpenters;
     }
-    if (hammers > 0) {
+    if (hammers_add > 0) {
       int lumber = colony->stock[COLONIZE_CARGO_LUMBER] + out->goods[COLONIZE_CARGO_LUMBER];
       if (lumber_use > lumber) {
         lumber_use = lumber > 0 ? lumber : 0;
       }
-      out->hammers = lumber_use > 0 ? lumber_use : hammers;
+      if (colony->building_in_production >= 0) {
+        out->hammers = lumber_use > 0 ? lumber_use : hammers_add;
+      } else if (lumber_use > 0) {
+        out->hammers = lumber_use;
+      } else {
+        out->hammers = hammers_add;
+      }
     }
   }
 }
