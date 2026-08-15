@@ -69,6 +69,8 @@ static ColonizeKey map_key(SDL_Keycode key) {
     case SDLK_a: return COLONIZE_KEY_A;
     case SDLK_g: return COLONIZE_KEY_G;
     case SDLK_v: return COLONIZE_KEY_V;
+    case SDLK_x: return COLONIZE_KEY_X;
+    case SDLK_z: return COLONIZE_KEY_Z;
     case SDLK_LEFTBRACKET: return COLONIZE_KEY_LEFTBRACKET;
     case SDLK_RIGHTBRACKET: return COLONIZE_KEY_RIGHTBRACKET;
     case SDLK_BACKQUOTE: return COLONIZE_KEY_TILDE;

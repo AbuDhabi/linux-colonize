@@ -257,6 +257,24 @@ static MapMenuAction map_menu_classify(const char* section, const char* label) {
     if (strcmp(label, "Find Colony") == 0) {
       return MAP_MENU_ACTION_FIND_COLONY;
     }
+    if (strstr(label, "Zoom In") != NULL) {
+      return MAP_MENU_ACTION_ZOOM_IN;
+    }
+    if (strstr(label, "Zoom Out") != NULL) {
+      return MAP_MENU_ACTION_ZOOM_OUT;
+    }
+    if (strcmp(label, "Zoom Level 120 x 96") == 0) {
+      return MAP_MENU_ACTION_ZOOM_LEVEL_120X96;
+    }
+    if (strcmp(label, "Zoom Level 60 x 48") == 0) {
+      return MAP_MENU_ACTION_ZOOM_LEVEL_60X48;
+    }
+    if (strcmp(label, "Zoom Level 30 x 24") == 0) {
+      return MAP_MENU_ACTION_ZOOM_LEVEL_30X24;
+    }
+    if (strcmp(label, "Zoom Level 15 x 12") == 0) {
+      return MAP_MENU_ACTION_ZOOM_LEVEL_15X12;
+    }
     if (strcmp(label, "Center View") == 0) {
       return MAP_MENU_ACTION_CENTER_VIEW;
     }
@@ -461,6 +479,12 @@ static bool map_menu_action_enabled(MapMenuAction action) {
     case MAP_MENU_ACTION_SOUND_OPTIONS:
     case MAP_MENU_ACTION_EUROPE:
     case MAP_MENU_ACTION_FIND_COLONY:
+    case MAP_MENU_ACTION_ZOOM_IN:
+    case MAP_MENU_ACTION_ZOOM_OUT:
+    case MAP_MENU_ACTION_ZOOM_LEVEL_120X96:
+    case MAP_MENU_ACTION_ZOOM_LEVEL_60X48:
+    case MAP_MENU_ACTION_ZOOM_LEVEL_30X24:
+    case MAP_MENU_ACTION_ZOOM_LEVEL_15X12:
     case MAP_MENU_ACTION_CENTER_VIEW:
     case MAP_MENU_ACTION_ACTIVATE_UNIT:
     case MAP_MENU_ACTION_WAIT_UNIT:
@@ -1160,6 +1184,33 @@ MapMenuAction map_menu_orders_hotkey(
   return MAP_MENU_ACTION_NONE;
 }
 
+MapMenuAction map_menu_view_hotkey(const MapMenuBar* bar, char letter) {
+  if (!bar || !letter) {
+    return MAP_MENU_ACTION_NONE;
+  }
+  const MapMenuPulldown* view = NULL;
+  for (int i = 0; i < bar->menu_count; ++i) {
+    if (strcmp(bar->menus[i].section_name, "VIEW") == 0) {
+      view = &bar->menus[i];
+      break;
+    }
+  }
+  if (!view) {
+    return MAP_MENU_ACTION_NONE;
+  }
+  const char want = (char)toupper((unsigned char)letter);
+  for (int i = 0; i < view->item_count; ++i) {
+    const MapMenuItem* it = &view->items[i];
+    if (!it->visible || !it->enabled || it->separator) {
+      continue;
+    }
+    if (it->hotkey == want && !it->hotkey_shift && !it->hotkey_space) {
+      return it->action;
+    }
+  }
+  return MAP_MENU_ACTION_NONE;
+}
+
 static void map_menu_layout_titles(MapMenuBar* bar, const ColonizeFont* font) {
   /* 8px right of the old origin (4); COLONIZOPEDIA sits above the minimap strip. */
   int x = 12;
@@ -1524,6 +1575,18 @@ const char* map_menu_action_name(MapMenuAction action) {
       return "European Status";
     case MAP_MENU_ACTION_FIND_COLONY:
       return "Find Colony";
+    case MAP_MENU_ACTION_ZOOM_IN:
+      return "Zoom In";
+    case MAP_MENU_ACTION_ZOOM_OUT:
+      return "Zoom Out";
+    case MAP_MENU_ACTION_ZOOM_LEVEL_120X96:
+      return "Zoom Level 120 x 96";
+    case MAP_MENU_ACTION_ZOOM_LEVEL_60X48:
+      return "Zoom Level 60 x 48";
+    case MAP_MENU_ACTION_ZOOM_LEVEL_30X24:
+      return "Zoom Level 30 x 24";
+    case MAP_MENU_ACTION_ZOOM_LEVEL_15X12:
+      return "Zoom Level 15 x 12";
     case MAP_MENU_ACTION_CENTER_VIEW:
       return "Center View";
     case MAP_MENU_ACTION_ACTIVATE_UNIT:

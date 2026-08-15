@@ -92,6 +92,7 @@ struct ColonizeGameState {
   int map_cursor_y;
   int map_view_x; /* viewport center tile (may diverge from cursor while a unit is selected) */
   int map_view_y;
+  int map_zoom; /* 0..3 — VIEW Zoom In/Out/Level N. FUN_2b5a_0f92 DS:0x184; 0 = 15×12 native. */
   bool in_menu;
   NewGameWizard new_game;
   int difficulty;
@@ -386,6 +387,8 @@ static char game_key_letter(ColonizeKey key) {
     case COLONIZE_KEY_U: return 'U';
     case COLONIZE_KEY_V: return 'V';
     case COLONIZE_KEY_W: return 'W';
+    case COLONIZE_KEY_X: return 'X';
+    case COLONIZE_KEY_Z: return 'Z';
     default: return 0;
   }
 }
@@ -474,6 +477,8 @@ static const char* key_name(ColonizeKey key) {
     case COLONIZE_KEY_A: return "A";
     case COLONIZE_KEY_G: return "G";
     case COLONIZE_KEY_V: return "V";
+    case COLONIZE_KEY_X: return "X";
+    case COLONIZE_KEY_Z: return "Z";
     case COLONIZE_KEY_LEFTBRACKET: return "[";
     case COLONIZE_KEY_RIGHTBRACKET: return "]";
     case COLONIZE_KEY_TILDE: return "TILDE";
@@ -2171,6 +2176,52 @@ static void blit_map_sprite(
     cox,
     coy
   );
+}
+
+/*
+ * VIEW Zoom In/Out/Level N (FUN_2b5a_0f92: DS:0x184 clamped 0..3). DOS redraws
+ * the viewport at 16>>zoom px/tile so 15<<zoom × 12<<zoom tiles fit the same
+ * 240×192 area (FUN_6ba1_000c: view_w=0xf<<zoom, view_h=0xc<<zoom, tile_px=
+ * 0x10>>zoom). The port composites the wider tile grid at native 16px/tile
+ * into an offscreen buffer, then nearest-neighbor-decimates it into the fixed
+ * on-screen viewport — same visual result, different graphics pipeline.
+ */
+#define MAP_ZOOM_MAX 3
+#define MAP_ZOOM_NATIVE_TILE 16
+#define MAP_ZOOM_MAX_VIEW_COLS (15 << MAP_ZOOM_MAX)
+#define MAP_ZOOM_MAX_VIEW_ROWS (12 << MAP_ZOOM_MAX)
+
+static int game_map_zoom_clamp(int zoom) {
+  if (zoom < 0) {
+    return 0;
+  }
+  if (zoom > MAP_ZOOM_MAX) {
+    return MAP_ZOOM_MAX;
+  }
+  return zoom;
+}
+
+/* Nominal viewport size in tiles at this zoom tier; DOS 0xf<<zoom / 0xc<<zoom. */
+static void game_map_zoom_view_size(int zoom, int* out_cols, int* out_rows) {
+  zoom = game_map_zoom_clamp(zoom);
+  if (out_cols) {
+    *out_cols = MAP_VIEW_TILE_COLS << zoom;
+  }
+  if (out_rows) {
+    *out_rows = MAP_VIEW_TILE_ROWS << zoom;
+  }
+}
+
+/* On-screen pixels per tile at this zoom tier; DOS 0x10>>zoom. */
+static int game_map_zoom_tile_px(int zoom) {
+  return MAP_ZOOM_NATIVE_TILE >> game_map_zoom_clamp(zoom);
+}
+
+static void game_map_zoom_set(ColonizeGameState* game, int zoom) {
+  if (!game) {
+    return;
+  }
+  game->map_zoom = game_map_zoom_clamp(zoom);
 }
 
 static const char* render_mode_name(const ColonizeGameState* game) {
@@ -6197,6 +6248,25 @@ static bool game_apply_map_menu_action(ColonizeGameState* game, MapMenuAction ac
     case MAP_MENU_ACTION_FIND_COLONY:
       game_open_find_colony_picker(game);
       return true;
+    case MAP_MENU_ACTION_ZOOM_IN:
+      /* In = toward 15×12 (level 0, most detail); Out = toward 120×96. */
+      game_map_zoom_set(game, game->map_zoom - 1);
+      return true;
+    case MAP_MENU_ACTION_ZOOM_OUT:
+      game_map_zoom_set(game, game->map_zoom + 1);
+      return true;
+    case MAP_MENU_ACTION_ZOOM_LEVEL_120X96:
+      game_map_zoom_set(game, 3);
+      return true;
+    case MAP_MENU_ACTION_ZOOM_LEVEL_60X48:
+      game_map_zoom_set(game, 2);
+      return true;
+    case MAP_MENU_ACTION_ZOOM_LEVEL_30X24:
+      game_map_zoom_set(game, 1);
+      return true;
+    case MAP_MENU_ACTION_ZOOM_LEVEL_15X12:
+      game_map_zoom_set(game, 0);
+      return true;
     case MAP_MENU_ACTION_CENTER_VIEW:
       game_center_on_selected_unit(game);
       return true;
@@ -8238,18 +8308,29 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
         }
         return true;
       }
+      /* Plain VIEW hotkeys (Zoom In ~Z / Zoom Out ~X — MENU.TXT). */
+      if (!space && letter) {
+        const MapMenuAction view_hk = map_menu_view_hotkey(&game->map_menu, letter);
+        if (view_hk != MAP_MENU_ACTION_NONE) {
+          if (!game_apply_map_menu_action(game, view_hk)) {
+            return false;
+          }
+          return true;
+        }
+      }
     }
 
     if ((input->mouse_left_clicked || input->mouse_right_clicked || input->mouse_left_released ||
          (ui_drag_active(&game->ui_drag) && game->ui_drag.kind == UI_DRAG_MAP_GOTO &&
           input->mouse_left_down)) &&
         game->world_map_ok) {
-      const int tile_w = MAP_VIEW_TILE_W;
-      const int tile_h = MAP_VIEW_TILE_H;
+      const int tile_w = game_map_zoom_tile_px(game->map_zoom);
+      const int tile_h = tile_w;
       const int map_origin_x = 0;
       const int map_origin_y = MAP_VIEW_ORIGIN_Y;
-      const int view_cols = MAP_VIEW_TILE_COLS;
-      const int view_rows = MAP_VIEW_TILE_ROWS;
+      int view_cols = 0;
+      int view_rows = 0;
+      game_map_zoom_view_size(game->map_zoom, &view_cols, &view_rows);
       if (input->mouse_y < map_origin_y) {
         if (input->mouse_left_released && game->ui_drag.kind == UI_DRAG_MAP_GOTO) {
           game_ui_drag_clear(game);
@@ -9284,15 +9365,18 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
     goto render_log_sample;
   }
 
-  /* Map view: scrollable world map (15×12 tiles) left of the right info panel. */
+  /* Map view: scrollable world map (15<<zoom × 12<<zoom tiles) left of the right info panel. */
   memset(framebuffer->pixels, 0, (size_t)framebuffer->width * (size_t)framebuffer->height);
 
-  const int tile_w = 16;
-  const int tile_h = 16;
+  const int map_zoom = game_map_zoom_clamp(game->map_zoom);
+  const int tile_w = MAP_ZOOM_NATIVE_TILE; /* offscreen compositing stays native 16px/tile */
+  const int tile_h = MAP_ZOOM_NATIVE_TILE;
   const int map_origin_x = 0;
-  const int map_origin_y = MAP_MENU_BAR_H;
-  const int view_cols = MAP_VIEW_TILE_COLS;
-  const int view_rows = MAP_VIEW_TILE_ROWS;
+  const int map_origin_y = 0;
+  int view_cols = 0;
+  int view_rows = 0;
+  game_map_zoom_view_size(map_zoom, &view_cols, &view_rows);
+  const int screen_tile_px = game_map_zoom_tile_px(map_zoom);
 
   int view_x = 0;
   int view_y = 0;
@@ -9308,6 +9392,24 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
       &view_y
     );
   }
+
+  /*
+   * DOS redraws the viewport at 16>>zoom px/tile per FUN_6ba1_000c. This port
+   * instead reuses the zoom-0 tile compositor unchanged, drawing the wider
+   * (15<<zoom × 12<<zoom) tile grid at native 16px/tile into an offscreen
+   * buffer, then nearest-neighbor-decimates it into the fixed 240×192
+   * on-screen viewport below — same visual result (more tiles, smaller),
+   * different graphics pipeline, per the architectural gap noted in
+   * docs/roadmap.md.
+   */
+  static uint8_t s_map_zoom_buf[MAP_ZOOM_MAX_VIEW_COLS * MAP_ZOOM_NATIVE_TILE *
+                                 MAP_ZOOM_MAX_VIEW_ROWS * MAP_ZOOM_NATIVE_TILE];
+  ColonizeFramebuffer8 zoom_fb = {
+    .width = view_cols * tile_w, .height = view_rows * tile_h, .pixels = s_map_zoom_buf
+  };
+  memset(zoom_fb.pixels, 0, (size_t)zoom_fb.width * (size_t)zoom_fb.height);
+  ColonizeFramebuffer8* const framebuffer_screen = framebuffer;
+  framebuffer = &zoom_fb;
 
   if (game->terrain_ok && game->terrain.sprite_count > 0) {
     for (int sy = 0; sy < view_rows; ++sy) {
@@ -9543,9 +9645,32 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
     );
   }
 
+  /* Decimate the native-res composite down to the fixed 240×192 on-screen
+   * viewport (step = 1<<zoom is exact — nominal view width in screen px is
+   * (15<<zoom)*(16>>zoom) = 240 at every tier, so this always lands in-bounds). */
+  framebuffer = framebuffer_screen;
+  {
+    const int step = 1 << map_zoom;
+    for (int sy = 0; sy < MAP_VIEW_H; ++sy) {
+      const int src_y = sy * step;
+      if (src_y >= zoom_fb.height) {
+        continue;
+      }
+      const uint8_t* src_row = &zoom_fb.pixels[(size_t)src_y * (size_t)zoom_fb.width];
+      uint8_t* dst_row = &framebuffer->pixels[(size_t)(MAP_MENU_BAR_H + sy) * (size_t)framebuffer->width];
+      for (int sx = 0; sx < MAP_VIEW_W; ++sx) {
+        const int src_x = sx * step;
+        if (src_x < zoom_fb.width) {
+          dst_row[sx] = src_row[src_x];
+        }
+      }
+    }
+  }
+
   /*
    * Map tile cursor: blinking white outline only in tile-select mode (no unit selected).
-   * CURSOR.SS is the OS mouse pointer, not a tile overlay.
+   * CURSOR.SS is the OS mouse pointer, not a tile overlay. Drawn post-decimation at
+   * on-screen tile size (16>>zoom) so the outline stays crisp at every zoom tier.
    */
   if (game->units.selected_id < 0) {
     const int sx = game->map_cursor_x - view_x;
@@ -9553,14 +9678,15 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
     if (sx >= 0 && sy >= 0 && sx < view_cols && sy < view_rows) {
       const bool blink_on = ((game->elapsed_ms / 250u) % 2u) == 0u;
       if (blink_on) {
-        const int cx0 = map_origin_x + sx * tile_w;
-        const int cy0 = map_origin_y + sy * tile_h;
-        for (int y = cy0; y < cy0 + tile_h; ++y) {
-          for (int x = cx0; x < cx0 + tile_w; ++x) {
+        const int cx0 = sx * screen_tile_px;
+        const int cy0 = MAP_MENU_BAR_H + sy * screen_tile_px;
+        for (int y = cy0; y < cy0 + screen_tile_px; ++y) {
+          for (int x = cx0; x < cx0 + screen_tile_px; ++x) {
             if (x < 0 || y < 0 || x >= framebuffer->width || y >= framebuffer->height) {
               continue;
             }
-            if (x == cx0 || x == cx0 + tile_w - 1 || y == cy0 || y == cy0 + tile_h - 1) {
+            if (x == cx0 || x == cx0 + screen_tile_px - 1 || y == cy0 ||
+                y == cy0 + screen_tile_px - 1) {
               framebuffer->pixels[y * framebuffer->width + x] = 15;
             }
           }
