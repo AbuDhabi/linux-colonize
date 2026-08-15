@@ -5,11 +5,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/resource.h>
 
 #include "core/assets.h"
 #include "core/ai.h"
 #include "core/ai_contact.h"
 #include "core/ai_diplo.h"
+#include "core/ai_goals.h"
 #include "core/ai_king.h"
 #include "core/ai_popup.h"
 #include "core/cheat_list_dialog.h"
@@ -170,6 +172,12 @@ struct ColonizeGameState {
   int debug_mouse_x;       /* last pointer in 320×200 framebuffer space */
   int debug_mouse_y;
   bool debug_show_mouse_coords; /* DEBUG menu toggle; default on */
+  bool debug_show_strategy; /* CHEAT Show Strategy: per-nation top AI goal overlay */
+  bool debug_show_colony_sites; /* CHEAT Show Colony Sites: ai_goals_best_found_tile overlay */
+  uint16_t debug_flags_mask; /* CHEAT Debug Info Flags (@OPTIONS, 7 bits); bits 1/3 shadow
+                               * col1.game_options.show_indian_moves/show_foreign_moves */
+  int cheat_create_stage; /* CHEAT Create Unit: 0=main @CREATE, 1=@CSHIP, 2=@FOREIGN, 3=@FOREIGN2 */
+  int cheat_create_pending_nation; /* Foreign Unit stage: nation picked at @FOREIGN */
   int cheat_unlock_step;   /* 0=expect W, 1=I, 2=N for Alt-WIN */
   /*
    * Cheat Reveal Map viewpoint: -2 = normal (human fog), -1 = complete map,
@@ -1545,6 +1553,11 @@ static void game_apply_howmuch_result(ColonizeGameState* game) {
       left -= take;
       snprintf(eu->status, sizeof(eu->status), "Sold %d for %d$.", amt - left, gained);
     }
+  } else if (kind == HOWMUCH_KIND_SOUND_TEST) {
+    sound_play(amt);
+    char line[32];
+    snprintf(line, sizeof(line), "Playing sound #%d", amt);
+    set_status(game, line, NULL);
   }
 }
 
@@ -1745,6 +1758,323 @@ static void game_open_cheat_kill_indians(ColonizeGameState* game) {
   }
 }
 
+/* NAMES.TXT @UNIT type names for the CHEAT Create Unit stages. */
+static const char* const k_cheat_create_main_labels[] = {
+  "Colonists",   "Pioneers", "Militia",     "Missionary", "Scout",
+  "Artillery",   "Wagon Train", "Treasure", "Ship",       "Indian Braves",
+  "Indian Armed Braves", "Indian Horse", "Indian Armed Horse", "Foreign Unit"
+};
+/* units.h ColonizeUnitType.name for each main-stage entry (Ship/Foreign Unit
+ * resolved by a follow-up stage instead). */
+static const char* const k_cheat_create_main_types[] = {
+  "Colonists", "Pioneers", "Soldiers", "Missionaries", "Scouts",
+  "Artillery", "Wagon Train", NULL /* Treasure */, NULL /* Ship */,
+  "Braves", "Armed Braves", "Mtd. Braves", "Mtd. Warriors", NULL /* Foreign */
+};
+static const char* const k_cheat_create_ship_labels[] = {
+  "Caravel", "Merchantman", "Galleon", "Privateer", "Frigate", "Man-O-War"
+};
+static const char* const k_cheat_create_nation_labels[] = {
+  "English", "French", "Spanish", "Dutch"
+};
+static const char* const k_cheat_create_foreign_labels[] = {"Rebel", "Loyal"};
+
+static void game_open_cheat_create_unit(ColonizeGameState* game) {
+  if (!game) {
+    return;
+  }
+  static int ids[14];
+  for (int i = 0; i < 14; ++i) {
+    ids[i] = i;
+  }
+  game->cheat_create_stage = 0;
+  if (!cheat_list_open_create_unit(
+        &game->cheat_list, "Select Unit To Create", k_cheat_create_main_labels, ids, 14
+      )) {
+    set_status(game, "Create Unit unavailable", NULL);
+  }
+}
+
+static void game_open_cheat_set_human(ColonizeGameState* game) {
+  if (!game) {
+    return;
+  }
+  if (!cheat_list_open_set_human(&game->cheat_list, game->debug_txt_ok ? &game->debug_txt : NULL)) {
+    set_status(game, "Set Human Player unavailable", NULL);
+  }
+}
+
+static void game_open_cheat_debug_flags(ColonizeGameState* game) {
+  if (!game) {
+    return;
+  }
+  /* Bits 1 (Indian AI movement) / 3 (Foreign AI planning modes) are backed by
+   * real Col1 game-options bits; the rest are Linux-only, not round-tripped. */
+  uint16_t mask = game->debug_flags_mask;
+  if (game->col1_ok) {
+    mask = (uint16_t)(mask & (uint16_t) ~((1u << 1) | (1u << 3)));
+    if (game->col1.head.game_options.show_indian_moves) {
+      mask |= (uint16_t)(1u << 1);
+    }
+    if (game->col1.head.game_options.show_foreign_moves) {
+      mask |= (uint16_t)(1u << 3);
+    }
+  }
+  if (!cheat_list_open_debug_flags(
+        &game->cheat_list, game->debug_txt_ok ? &game->debug_txt : NULL, mask
+      )) {
+    set_status(game, "Debug Info Flags unavailable", NULL);
+  }
+}
+
+/* Applies a confirmed CHEAT_LIST_KIND_CREATE_UNIT id for the current stage;
+ * may re-open the dialog for a follow-up stage (Ship / Foreign Unit). */
+static void game_apply_cheat_create_unit(ColonizeGameState* game, int id) {
+  if (!game || !game->units_ok) {
+    return;
+  }
+  const int x = game->map_cursor_x;
+  const int y = game->map_cursor_y;
+
+  if (game->cheat_create_stage == 1) {
+    /* @CSHIP result: id = index into k_cheat_create_ship_labels. */
+    game->cheat_create_stage = 0;
+    if (id < 0 || id >= 6) {
+      return;
+    }
+    const int type_idx = units_find_type(&game->units, k_cheat_create_ship_labels[id]);
+    const int uid = type_idx >= 0
+      ? units_spawn_allow_stack(&game->units, type_idx, x, y)
+      : -1;
+    if (uid < 0) {
+      set_status(game, "Cannot create unit here", NULL);
+      return;
+    }
+    units_set_nation(units_get(&game->units, uid), game->human_nation);
+    set_status(game, "Created", k_cheat_create_ship_labels[id]);
+    return;
+  }
+  if (game->cheat_create_stage == 2) {
+    /* @FOREIGN result: id = nation 0..3. Ask Rebel/Loyal next. */
+    game->cheat_create_pending_nation = id;
+    game->cheat_create_stage = 3;
+    static int ids2[2] = {0, 1};
+    if (!cheat_list_open_create_unit(
+          &game->cheat_list, "Select Type to Create", k_cheat_create_foreign_labels, ids2, 2
+        )) {
+      game->cheat_create_stage = 0;
+      set_status(game, "Create Unit unavailable", NULL);
+    }
+    return;
+  }
+  if (game->cheat_create_stage == 3) {
+    /* @FOREIGN2 result: 0 = Rebel (Cont. Army), 1 = Loyal (Regulars). */
+    game->cheat_create_stage = 0;
+    const int nation = game->cheat_create_pending_nation;
+    game->cheat_create_pending_nation = -1;
+    if (nation < 0 || nation > 3) {
+      return;
+    }
+    const char* type_name = id == 0 ? "Cont. Army" : "Regulars";
+    const int type_idx = units_find_type(&game->units, type_name);
+    const int uid = type_idx >= 0
+      ? units_spawn_allow_stack(&game->units, type_idx, x, y)
+      : -1;
+    if (uid < 0) {
+      set_status(game, "Cannot create unit here", NULL);
+      return;
+    }
+    units_set_nation(units_get(&game->units, uid), nation);
+    set_status(game, "Created", type_name);
+    return;
+  }
+
+  /* Stage 0: main @CREATE list. */
+  if (id < 0 || id >= 14) {
+    return;
+  }
+  if (id == 8) {
+    /* Ship: follow up with @CSHIP. */
+    game->cheat_create_stage = 1;
+    static int ids3[6] = {0, 1, 2, 3, 4, 5};
+    if (!cheat_list_open_create_unit(
+          &game->cheat_list, "Select Ship To Create", k_cheat_create_ship_labels, ids3, 6
+        )) {
+      game->cheat_create_stage = 0;
+      set_status(game, "Create Unit unavailable", NULL);
+    }
+    return;
+  }
+  if (id == 13) {
+    /* Foreign Unit: follow up with @FOREIGN. */
+    game->cheat_create_stage = 2;
+    static int ids4[4] = {0, 1, 2, 3};
+    if (!cheat_list_open_create_unit(
+          &game->cheat_list, "Select Nationality To Create", k_cheat_create_nation_labels, ids4, 4
+        )) {
+      game->cheat_create_stage = 0;
+      set_status(game, "Create Unit unavailable", NULL);
+    }
+    return;
+  }
+  if (id == 7) {
+    /* Treasure: no @HOWMUCH gold prompt in @CREATE — debug default amount. */
+    const int uid =
+      units_spawn_treasure_train(&game->units, x, y, game->human_nation, 1000);
+    if (uid < 0) {
+      set_status(game, "Cannot create unit here", NULL);
+      return;
+    }
+    set_status(game, "Created", "Treasure (1000)");
+    return;
+  }
+  const char* type_name = k_cheat_create_main_types[id];
+  if (!type_name) {
+    return;
+  }
+  /* Indian unit types spawn for the first native tribe (id 4); @CREATE has
+   * no tribe picker in DEBUG.TXT. Cite: docs/save_format_map.md nation ids. */
+  const int nation = id >= 9 ? 4 : game->human_nation;
+  const int type_idx = units_find_type(&game->units, type_name);
+  const int uid =
+    type_idx >= 0 ? units_spawn_allow_stack(&game->units, type_idx, x, y) : -1;
+  if (uid < 0) {
+    set_status(game, "Cannot create unit here", NULL);
+    return;
+  }
+  units_set_nation(units_get(&game->units, uid), nation);
+  set_status(game, "Created", k_cheat_create_main_labels[id]);
+}
+
+static void game_apply_set_human(ColonizeGameState* game, int nation_id) {
+  if (!game) {
+    return;
+  }
+  if (nation_id < 0 || nation_id > 3) {
+    /* "None" (spectator, no human nation) touches every game->human_nation
+     * indexing site unguarded elsewhere — PARK rather than risk corruption. */
+    set_status(game, "Spectator mode not supported", NULL);
+    return;
+  }
+  game->human_nation = nation_id;
+  game->active_turn_nation = nation_id;
+  units_set_combat_human_nation(game->human_nation);
+  static const char* const k_names[4] = {"English", "French", "Spanish", "Dutch"};
+  set_status(game, "Now playing", k_names[nation_id]);
+}
+
+static void game_apply_debug_flags(ColonizeGameState* game, uint16_t mask) {
+  if (!game) {
+    return;
+  }
+  game->debug_flags_mask = mask;
+  if (game->col1_ok) {
+    game->col1.head.game_options.show_indian_moves = (mask & (1u << 1)) ? 1 : 0;
+    game->col1.head.game_options.show_foreign_moves = (mask & (1u << 3)) ? 1 : 0;
+  }
+  set_status(game, "Debug options set", NULL);
+}
+
+/*
+ * CHEAT Advance Revolution Status: DEBUG.TXT @FORCED has no options, just a
+ * notice. Wires col1.game_options.independence_force (0x20 — "bypass
+ * REF/event gates"), the real Col1 latch matching the DOS text exactly.
+ */
+static void game_cheat_advance_revolution(ColonizeGameState* game) {
+  if (!game) {
+    return;
+  }
+  if (!game->col1_ok) {
+    set_status(game, "Advance Revolution Status unavailable", NULL);
+    return;
+  }
+  game->col1.head.game_options.independence_force = 1;
+  set_status(game, "Independence forced at end of next turn.", NULL);
+}
+
+static void game_cheat_toggle_strategy(ColonizeGameState* game) {
+  if (!game) {
+    return;
+  }
+  game->debug_show_strategy = !game->debug_show_strategy;
+  set_status(game, "Show Strategy", game->debug_show_strategy ? "on" : "off");
+}
+
+static void game_cheat_toggle_colony_sites(ColonizeGameState* game) {
+  if (!game) {
+    return;
+  }
+  game->debug_show_colony_sites = !game->debug_show_colony_sites;
+  set_status(game, "Show Colony Sites", game->debug_show_colony_sites ? "on" : "off");
+}
+
+/* DEBUG.TXT @TEST: "Number of Units = %NUMBER0; Number of Colonies = %NUMBER1". */
+static void game_cheat_test_routine(ColonizeGameState* game) {
+  if (!game) {
+    return;
+  }
+  int units_n = 0;
+  if (game->units_ok) {
+    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+      if (game->units.units[i].active) {
+        units_n++;
+      }
+    }
+  }
+  int colonies_n = 0;
+  if (game->colonies_ok) {
+    for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+      if (game->colonies.colonies[i].active) {
+        colonies_n++;
+      }
+    }
+  }
+  char line[80];
+  snprintf(
+    line, sizeof(line), "Number of Units = %d; Number of Colonies = %d", units_n, colonies_n
+  );
+  set_status(game, line, NULL);
+}
+
+/*
+ * DEBUG.TXT @MEMORY reports DOS heap pools (Memory/Menu/Near/Stack Available,
+ * PSP segment) that have no Linux equivalent under malloc. Closest real
+ * analogue: actual process RSS (getrusage) plus the port's own fixed-size
+ * unit/colony pool headroom, which is where a Linux "out of memory" cheat
+ * check would actually matter.
+ */
+static void game_cheat_memory_check(ColonizeGameState* game) {
+  if (!game) {
+    return;
+  }
+  struct rusage ru;
+  long rss_kb = 0;
+  if (getrusage(RUSAGE_SELF, &ru) == 0) {
+    rss_kb = ru.ru_maxrss; /* Linux: KB already */
+  }
+  const int units_n = game->units_ok ? game->units.unit_count : 0;
+  const int colonies_n = game->colonies_ok ? game->colonies.colony_count : 0;
+  char line[96];
+  snprintf(
+    line,
+    sizeof(line),
+    "RSS = %ld KB; Units = %d/%d; Colonies = %d/%d",
+    rss_kb,
+    units_n,
+    COLONIZE_UNITS_MAX,
+    colonies_n,
+    COLONIZE_COLONIES_MAX
+  );
+  set_status(game, line, NULL);
+}
+
+static void game_open_cheat_sound_test(ColonizeGameState* game) {
+  if (!game) {
+    return;
+  }
+  howmuch_open(&game->howmuch, HOWMUCH_KIND_SOUND_TEST, "Play what sound #?", 255, 0, 0, 0);
+}
+
 static uint16_t game_trade_stop_mask_from_nibbles(const uint8_t nibbles[3], int count) {
   uint16_t m = 0;
   for (int i = 0; i < count && i < 6; ++i) {
@@ -1816,6 +2146,12 @@ static void game_apply_cheat_list_result(ColonizeGameState* game) {
     game_apply_setview(game, id, label);
   } else if (kind == CHEAT_LIST_KIND_KILL_INDIANS) {
     game_apply_kill_indians(game, id, label);
+  } else if (kind == CHEAT_LIST_KIND_CREATE_UNIT) {
+    game_apply_cheat_create_unit(game, id);
+  } else if (kind == CHEAT_LIST_KIND_SET_HUMAN) {
+    game_apply_set_human(game, id);
+  } else if (kind == CHEAT_LIST_KIND_DEBUG_FLAGS) {
+    game_apply_debug_flags(game, mask);
   } else if (kind == CHEAT_LIST_KIND_TRADE_UNLOAD || kind == CHEAT_LIST_KIND_TRADE_LOAD) {
     if (game->trade_edit_route < 0 || !game->col1_ok) {
       return;
@@ -3427,6 +3763,7 @@ ColonizeGameState* game_create(const ColonizeGameConfig* config) {
   game->pedia_return_to_list = false;
   game->pedia_father_loaded = -1;
   game->debug_show_mouse_coords = true;
+  game->cheat_create_pending_nation = -1;
   game->cheat_unlock_step = 0;
   game->fog_view = -2;
   col1_save_init(&game->col1);
@@ -6705,15 +7042,31 @@ static bool game_apply_map_menu_action(ColonizeGameState* game, MapMenuAction ac
       game_open_cheat_kill_indians(game);
       return true;
     case MAP_MENU_ACTION_CHEAT_CREATE_UNIT:
+      game_open_cheat_create_unit(game);
+      return true;
     case MAP_MENU_ACTION_CHEAT_DEBUG_FLAGS:
+      game_open_cheat_debug_flags(game);
+      return true;
     case MAP_MENU_ACTION_CHEAT_SET_HUMAN:
+      game_open_cheat_set_human(game);
+      return true;
     case MAP_MENU_ACTION_CHEAT_ADVANCE_REVOLUTION:
+      game_cheat_advance_revolution(game);
+      return true;
     case MAP_MENU_ACTION_CHEAT_SOUND_TEST:
+      game_open_cheat_sound_test(game);
+      return true;
     case MAP_MENU_ACTION_CHEAT_MEMORY_CHECK:
+      game_cheat_memory_check(game);
+      return true;
     case MAP_MENU_ACTION_CHEAT_SHOW_STRATEGY:
+      game_cheat_toggle_strategy(game);
+      return true;
     case MAP_MENU_ACTION_CHEAT_SHOW_COLONY_SITES:
+      game_cheat_toggle_colony_sites(game);
+      return true;
     case MAP_MENU_ACTION_CHEAT_TEST_ROUTINE:
-      set_status(game, "Cheat not implemented yet", map_menu_action_name(action));
+      game_cheat_test_routine(game);
       return true;
     default:
       set_status(game, "Not implemented yet", NULL);
@@ -8213,17 +8566,46 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
       }
     }
 
-    /* F1 terrain pedia at cursor; F2–F10 adviser / report screens.
-     * Shift-F4 / Shift-F6 = cheat Reveal Map / Kill Indians when unlocked. */
+    /*
+     * F1 terrain pedia at cursor; F2–F10 adviser / report screens. Shift-Fn =
+     * CHEAT menu hotkeys when unlocked, per MENU.TXT @CUP: ~F~0~1 Create
+     * Unit, ~F~0~2 Debug Info Flags, ~F~0~4 Reveal Map, ~F~0~5 Set Human
+     * Player, ~F~0~6 Kill Indians, ~F~0~7 Advance Revolution Status,
+     * ~F~0~8 Show Strategy, ~F~0~9 Show Colony Sites, ~F~1~0 Test Routine.
+     * Sound Test / Memory Check have no @CUP hotkey (menu-only).
+     */
     if (input->last_key >= COLONIZE_KEY_F1 && input->last_key <= COLONIZE_KEY_F10) {
       if (input->shift_held && game->map_menu.cheat_visible) {
-        if (input->last_key == COLONIZE_KEY_F4) {
-          game_open_cheat_setview(game);
-          return true;
-        }
-        if (input->last_key == COLONIZE_KEY_F6) {
-          game_open_cheat_kill_indians(game);
-          return true;
+        switch (input->last_key) {
+          case COLONIZE_KEY_F1:
+            game_open_cheat_create_unit(game);
+            return true;
+          case COLONIZE_KEY_F2:
+            game_open_cheat_debug_flags(game);
+            return true;
+          case COLONIZE_KEY_F4:
+            game_open_cheat_setview(game);
+            return true;
+          case COLONIZE_KEY_F5:
+            game_open_cheat_set_human(game);
+            return true;
+          case COLONIZE_KEY_F6:
+            game_open_cheat_kill_indians(game);
+            return true;
+          case COLONIZE_KEY_F7:
+            game_cheat_advance_revolution(game);
+            return true;
+          case COLONIZE_KEY_F8:
+            game_cheat_toggle_strategy(game);
+            return true;
+          case COLONIZE_KEY_F9:
+            game_cheat_toggle_colony_sites(game);
+            return true;
+          case COLONIZE_KEY_F10:
+            game_cheat_test_routine(game);
+            return true;
+          default:
+            break;
         }
       }
       game_handle_report_fkey(game, input->last_key);
@@ -9691,6 +10073,78 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
             }
           }
         }
+      }
+    }
+  }
+
+  /*
+   * CHEAT Show Strategy: each AI nation's top-priority goal slot
+   * (ai_goals_primary — AI_GOAL_* code + target tile), labelled at that
+   * tile. Surfaces the live AI planner state the DOS debug tool exposed.
+   */
+  if (game->debug_show_strategy) {
+    const ColonizeFont* dbg_font =
+      game->colony_font_ok ? &game->colony_font : (game->menu_font_ok ? &game->menu_font : NULL);
+    if (dbg_font) {
+      static const char k_nation_letter[4] = {'E', 'F', 'S', 'D'};
+      for (int n = 0; n < 4; ++n) {
+        if (n == game->human_nation) {
+          continue;
+        }
+        const AiGoalSlot* g = ai_goals_primary(n, 0);
+        if (!g || g->code == AI_GOAL_EMPTY) {
+          continue;
+        }
+        const int tx = g->x - view_x;
+        const int ty = g->y - view_y;
+        if (tx < 0 || ty < 0 || tx >= view_cols || ty >= view_rows) {
+          continue;
+        }
+        const char* code_name = "?";
+        switch (g->code) {
+          case AI_GOAL_CONTACT: code_name = "CONTACT"; break;
+          case AI_GOAL_FOUND: code_name = "FOUND"; break;
+          case AI_GOAL_LABOR: code_name = "LABOR"; break;
+          case AI_GOAL_MILITARY: code_name = "MILIT"; break;
+          case AI_GOAL_COLONY: code_name = "COLONY"; break;
+          case AI_GOAL_MIL_EXPAND: code_name = "MILEXP"; break;
+          case AI_GOAL_COLONY_ALT: code_name = "COLONY2"; break;
+          default: break;
+        }
+        char label[16];
+        snprintf(label, sizeof(label), "%c:%s", k_nation_letter[n], code_name);
+        font_draw_text(
+          dbg_font, framebuffer, tx * screen_tile_px, MAP_MENU_BAR_H + ty * screen_tile_px, label, 15
+        );
+      }
+    }
+  }
+
+  /*
+   * CHEAT Show Colony Sites: each AI nation's cached best founding tile
+   * (ai_goals_best_found_tile), marked at that tile.
+   */
+  if (game->debug_show_colony_sites) {
+    const ColonizeFont* dbg_font =
+      game->colony_font_ok ? &game->colony_font : (game->menu_font_ok ? &game->menu_font : NULL);
+    if (dbg_font) {
+      static const char k_nation_letter[4] = {'E', 'F', 'S', 'D'};
+      for (int n = 0; n < 4; ++n) {
+        int bx = 0;
+        int by = 0;
+        if (!ai_goals_best_found_tile(n, &bx, &by)) {
+          continue;
+        }
+        const int tx = bx - view_x;
+        const int ty = by - view_y;
+        if (tx < 0 || ty < 0 || tx >= view_cols || ty >= view_rows) {
+          continue;
+        }
+        char label[4];
+        snprintf(label, sizeof(label), "%c*", k_nation_letter[n]);
+        font_draw_text(
+          dbg_font, framebuffer, tx * screen_tile_px, MAP_MENU_BAR_H + ty * screen_tile_px, label, 14
+        );
       }
     }
   }

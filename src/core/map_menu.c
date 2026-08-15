@@ -528,8 +528,17 @@ static bool map_menu_action_enabled(MapMenuAction action) {
     case MAP_MENU_ACTION_REPORT_SCORE:
     case MAP_MENU_ACTION_DEBUG_SPRITE_VIEWER:
     case MAP_MENU_ACTION_DEBUG_TOGGLE_MOUSE_COORDS:
+    case MAP_MENU_ACTION_CHEAT_CREATE_UNIT:
+    case MAP_MENU_ACTION_CHEAT_DEBUG_FLAGS:
     case MAP_MENU_ACTION_CHEAT_REVEAL_MAP:
+    case MAP_MENU_ACTION_CHEAT_SET_HUMAN:
     case MAP_MENU_ACTION_CHEAT_KILL_INDIANS:
+    case MAP_MENU_ACTION_CHEAT_ADVANCE_REVOLUTION:
+    case MAP_MENU_ACTION_CHEAT_SOUND_TEST:
+    case MAP_MENU_ACTION_CHEAT_MEMORY_CHECK:
+    case MAP_MENU_ACTION_CHEAT_SHOW_STRATEGY:
+    case MAP_MENU_ACTION_CHEAT_SHOW_COLONY_SITES:
+    case MAP_MENU_ACTION_CHEAT_TEST_ROUTINE:
       return true;
     default:
       return false;
@@ -1115,12 +1124,6 @@ void map_menu_refresh(MapMenuBar* bar, const MapMenuOrdersContext* ctx) {
         continue;
       }
       it->visible = true;
-      if (strcmp(menu->section_name, "CUP") == 0) {
-        it->enabled =
-          (it->action == MAP_MENU_ACTION_CHEAT_REVEAL_MAP ||
-           it->action == MAP_MENU_ACTION_CHEAT_KILL_INDIANS);
-        continue;
-      }
       it->enabled = map_menu_action_enabled(it->action);
     }
   }
