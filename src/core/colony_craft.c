@@ -73,7 +73,12 @@ static void colony_craft_pair_totals(
      * for field yields in turn.c, not just SoL bonuses increasing it. */
     total_out +=
       colony_prod_manufacturing_output(bname, c->profession, rec->craft_profession, sol_bonus);
-    total_in += colony_prod_manufacturing_input(bname, c->profession, rec->craft_profession);
+    /* sol_bonus folds into input the same way it folds into output —
+     * player-confirmed 2026-08-15 (Viceroy): factory tier discount tracks
+     * the *actual* SoL-adjusted output, not the flat base rate. See
+     * colony_prod_manufacturing_input's header comment. */
+    total_in +=
+      colony_prod_manufacturing_input(bname, c->profession, rec->craft_profession, sol_bonus);
   }
   if (out_total_out) {
     *out_total_out = total_out;

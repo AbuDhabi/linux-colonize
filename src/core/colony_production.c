@@ -149,11 +149,25 @@ int colony_prod_manufacturing_output(
 int colony_prod_manufacturing_input(
   const char* building_name,
   int profession,
-  int craft_profession
+  int craft_profession,
+  int sol_bonus
 ) {
-  /* sol_bonus 0: input consumption tracks the un-modified base rate, not the
-   * SoL-adjusted output — see header comment. */
-  const int out = colony_prod_manufacturing_output(building_name, profession, craft_profession, 0);
+  /*
+   * Player-confirmed 2026-08-15 (Viceroy): Textile Mill (factory tier), free
+   * colonist, +2 sentiment bonus — output 12 cloth/turn, colony-wide cotton
+   * accounting showed exactly 8 consumed that turn. `colony_prod_tier_
+   * input_for_output(FACTORY, 12) = (12*6+8)/9 = 8` — exact match. The
+   * un-modified base output (9, sol_bonus=0) would give `(9*6+8)/9 = 6`,
+   * not 8 — wrong. So the 6-for-9 factory discount is real (this also
+   * settles the long-open "does DOS really discount factory input, or
+   * consume 1:1" question — it discounts), but it applies to the *actual*
+   * SoL-adjusted output, not the flat base rate this function used to force
+   * via `sol_bonus=0`. Fixed: takes sol_bonus and threads it through to
+   * colony_prod_manufacturing_output the same way the output side already
+   * does. See docs/building_production.md factory-input fix-log row.
+   */
+  const int out =
+    colony_prod_manufacturing_output(building_name, profession, craft_profession, sol_bonus);
   if (out <= 0) {
     return 0;
   }
