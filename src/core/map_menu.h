@@ -46,6 +46,12 @@ typedef enum MapMenuAction {
   /* VIEW */
   MAP_MENU_ACTION_EUROPE,
   MAP_MENU_ACTION_FIND_COLONY,
+  MAP_MENU_ACTION_ZOOM_IN,
+  MAP_MENU_ACTION_ZOOM_OUT,
+  MAP_MENU_ACTION_ZOOM_LEVEL_120X96, /* zoom 3 */
+  MAP_MENU_ACTION_ZOOM_LEVEL_60X48,  /* zoom 2 */
+  MAP_MENU_ACTION_ZOOM_LEVEL_30X24,  /* zoom 1 */
+  MAP_MENU_ACTION_ZOOM_LEVEL_15X12,  /* zoom 0 */
   MAP_MENU_ACTION_CENTER_VIEW,
 
   /* ORDERS */
@@ -185,6 +191,13 @@ bool map_menu_open_alt_hotkey(MapMenuBar* bar, char letter);
  * Returns MAP_MENU_ACTION_NONE if none.
  */
 MapMenuAction map_menu_orders_hotkey(const MapMenuBar* bar, char letter, bool shift, bool space);
+
+/*
+ * Plain VIEW hotkey (no Alt, no menu open needed): first visible+enabled
+ * VIEW item matching letter — Zoom In (Z) / Zoom Out (X) (MENU.TXT ~Z / ~X).
+ * Returns MAP_MENU_ACTION_NONE if none.
+ */
+MapMenuAction map_menu_view_hotkey(const MapMenuBar* bar, char letter);
 
 /* True if (x,y) is over the bar or an open dropdown (consumes map clicks). */
 bool map_menu_hit_ui(const MapMenuBar* bar, int x, int y);

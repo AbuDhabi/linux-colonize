@@ -47,7 +47,8 @@ modals (GAME.TXT `@SECTION`s vs port Done/Partial/Missing): [popups.md](popups.m
 | Hall of Fame | Done thin | Dedicated title-menu screen (`reports_render_hall_of_fame`, shares Score's WOODPANL.PIK — DOS `HALLFAME.DAT` also opens a WOODPANL screen); ranked top-10 retired scores (leader/nation/year); persists to `HOF.TXT`. No decomp evidence for exact DOS layout/positions — 10-entry cap and column layout are a Linux-port choice; VGA-identical chrome PARKED |
 | Map compositor (terrain, coasts, rivers, forest/hill, resources) | Done | MAPEDIT-faithful; see inventory / assets |
 | Fog of war / unexplored blackness | Partial | `map.seen` plane; black unseen; PHYS0 **104–107** edge fringe; units/tribes/colonies hidden in fog; Go-To reveals; cheat Reveal. Scenario `.MP` starts fully seen |
-| Zoom / hidden terrain VIEW modes | Missing | Menu stubs |
+| Zoom VIEW modes (In/Out/15×12/30×24/60×48/120×96) | Done | `game_map_zoom_*` (`game_loop.c`); FUN_6ba1_000c-equivalent viewport sizing (15<<zoom × 12<<zoom tiles, 16>>zoom on-screen px), but composited by rendering the wider tile grid at native 16px into an offscreen buffer then nearest-neighbor-decimating into the fixed 240×192 viewport — DOS instead redraws with pre-scaled sprite blits per zoom tier |
+| Hidden terrain VIEW mode | Missing | Menu stub |
 | Roads on map | Done | PHYS0 **80** isolated / **81–88** multi-blit stubs via `map_phys0_road_layer_*` (`FUN_6ba1_0938`) |
 | Plowed fields on map | Done | PHYS0 **149** via `map_phys0_plow_sprite_at` (main map + colony area) |
 | Menu bar, right panel, minimap | Done | `map_menu.c`, `map_panel.c` |
