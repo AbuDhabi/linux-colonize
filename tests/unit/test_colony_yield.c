@@ -1,4 +1,5 @@
 #include "core/colony.h"
+#include "core/colony_production.h"
 #include "core/colony_yield.h"
 #include "core/map.h"
 
@@ -200,6 +201,43 @@ int main(void) {
     const int fish = colony_yield_for_tile(&map, fx, fy, COLONIZE_JOB_FISHERMAN);
     if (fish != 6) {
       fprintf(stderr, "fisherman+major river want 6 got %d\n", fish);
+      map_free(&map);
+      return 1;
+    }
+  }
+
+  /*
+   * Expert Ore Miner on Hills+road+sentiment, player-confirmed 2026-08-15
+   * (Viceroy): 12 ore, vs. 6 for a Free Colonist on the same tile — exactly
+   * ×2 at every step, which only reproduces if (a) a positive sol_bonus
+   * folds in *before* expert doubling, not as a flat add after, and (b) the
+   * road/river unit size doubles for a matching non-food/fish expert too
+   * (colony_yield_pipeline, colony_yield.c):
+   *   free:   base(4) +sol(1)=5,                +road(u=1)=6
+   *   expert: base(4) +sol(1)=5, <<=1(expert)=10, +road(u=2)=12
+   * This is the regression check for both parts of that fix (previously
+   * sol_bonus was added externally in turn.c/colony_preview.c *after*
+   * colony_yield_for_worker returned, un-doubled, and road/river never
+   * scaled with expert skill at all).
+   */
+  {
+    const int hx = 21;
+    const int hy = 20;
+    map.terrain[hy * map.width + hx] = (uint8_t)(0x20u); /* Hills, no forest/river */
+    map_tile_set_road(&map, hx, hy, true);
+    const int free_ore = colony_yield_for_worker(
+      &map, hx, hy, COLONIZE_JOB_ORE_MINER, COLONIZE_PROF_FREE_COLONIST, /*has_docks=*/true, 1
+    );
+    if (free_ore != 6) {
+      fprintf(stderr, "free colonist ore+road+sol want 6 got %d\n", free_ore);
+      map_free(&map);
+      return 1;
+    }
+    const int expert_ore = colony_yield_for_worker(
+      &map, hx, hy, COLONIZE_JOB_ORE_MINER, COLONIZE_JOB_ORE_MINER, /*has_docks=*/true, 1
+    );
+    if (expert_ore != 12) {
+      fprintf(stderr, "expert ore miner+road+sol want 12 got %d\n", expert_ore);
       map_free(&map);
       return 1;
     }

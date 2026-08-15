@@ -1958,11 +1958,17 @@ int main(void) {
     map_tile_set_road(&tmap, fx, fy, false);
     const int lumber_clear = colony_yield_for_tile(&tmap, fx, fy, COLONIZE_JOB_LUMBERJACK);
     map_tile_set_road(&tmap, fx, fy, true);
-    if (lumber_base != lumber_clear + 1) {
+    /* Road/river unit size is 2 (not 1) for Lumberjack unconditionally —
+     * not just a matching expert — per the decomp's own stated rule ("u=2
+     * if matching expert and not food/fish, OR lumberjack"; see
+     * docs/terrain_yields.md "Plow / road / river stacking"). This test
+     * used to assert the port's old flat +1, which predates that rule being
+     * wired in (2026-08-15, colony_yield_pipeline). */
+    if (lumber_base != lumber_clear + 2) {
       fprintf(
         stderr,
         "phase7 road lumber yield expected %d got base=%d clear=%d\n",
-        lumber_clear + 1,
+        lumber_clear + 2,
         lumber_base,
         lumber_clear
       );

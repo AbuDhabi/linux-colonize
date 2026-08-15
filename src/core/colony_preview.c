@@ -103,19 +103,17 @@ void colony_preview_compute(
       if (!colonies_field_tile_delta(ti, &dx, &dy)) {
         continue;
       }
+      /* sol_b_field folds into colony_yield_for_worker directly now
+       * (2026-08-15, player-confirmed order) — must match turn.c's
+       * turn_produce_one_colony exactly, including the same Hudson-after-
+       * SoL-fold ordering note there. */
       int yld = colony_yield_for_worker(
-        map, colony->x + dx, colony->y + dy, c->field_job, c->profession, has_docks
+        map, colony->x + dx, colony->y + dy, c->field_job, c->profession, has_docks, sol_b_field
       );
       /* Henry Hudson: fur trapper output +100% (turn.c turn_produce_one_colony). */
       if (yld > 0 && c->field_job == COLONIZE_JOB_FUR_TRAPPER && col1 &&
           founding_fathers_nation_has(col1, colony->nation_id, FF_HENRY_HUDSON)) {
         yld *= 2;
-      }
-      /* sol_b_field is signed (Tory penalty reduces yield too) — matches
-       * turn.c's unconditional `add += colony_prod_sol_bonus_field(...)` in
-       * the same spot. */
-      if (yld > 0) {
-        yld += sol_b_field;
       }
       const int cargo = colony_yield_job_cargo(c->field_job);
       if (yld > 0 && cargo >= 0 && cargo < COLONIZE_CARGO_COUNT) {

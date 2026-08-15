@@ -165,45 +165,6 @@ bool colony_prod_field_skill_matches(int profession, int field_job) {
   return profession >= 0 && profession == field_job;
 }
 
-int colony_yield_for_worker(
-  const ColonizeWorldMap* map,
-  int x,
-  int y,
-  int field_job,
-  int profession,
-  bool has_docks
-) {
-  int yld = colony_yield_for_tile(map, x, y, field_job);
-  /* Fisherman needs Docks (or an upgrade: Drydock/Shipyard) to work ocean/sea
-   * surrounds at all — FUN_15eb_18ec ~11925-11939 zeroes the whole yield,
-   * not just a modifier. */
-  if (field_job == COLONIZE_JOB_FISHERMAN && !has_docks) {
-    return 0;
-  }
-  if (yld <= 0) {
-    return 0;
-  }
-  /* Convert +1 only on the DOS whitelist (FUN_15eb_18ec ~11974-11979): food/
-   * cash crops + fur trapper + fisherman — not lumber/ore/silver. */
-  if (profession == COLONIZE_PROF_CONVERT && field_job != COLONIZE_JOB_LUMBERJACK &&
-      field_job != COLONIZE_JOB_ORE_MINER && field_job != COLONIZE_JOB_SILVER_MINER) {
-    yld += 1;
-  }
-  if (colony_prod_field_skill_matches(profession, field_job)) {
-    /* Food/fish expert gets flat +2, not ×2 like every other field job
-     * (FUN_15eb_18ec ~11890-11899: `if (food/fish) yld+=2; else yld<<=1;`).
-     * The "re-add the positive SoL mod a second time" refinement mentioned
-     * alongside this in DOS is not applied here — needs sol_bonus threaded
-     * into this function first (deferred, see terrain_yields.md). */
-    if (field_job == COLONIZE_JOB_FARMER || field_job == COLONIZE_JOB_FISHERMAN) {
-      yld += 2;
-    } else {
-      yld *= 2;
-    }
-  }
-  return yld;
-}
-
 int colony_prod_sol_percent(const ColonizeCol1Save* col1, const ColonizeColony* colony) {
   if (!colony) {
     return 0;

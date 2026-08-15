@@ -1268,7 +1268,7 @@ int main(void) {
      * excluded — no +1 here, unlike Farmer/Sugar/Tobacco/Cotton/Fur
      * Trapper/Fisherman below. */
     const int convert_yld =
-      colony_yield_for_worker(&map, fx, fy, COLONIZE_JOB_LUMBERJACK, COLONIZE_PROF_CONVERT, true);
+      colony_yield_for_worker(&map, fx, fy, COLONIZE_JOB_LUMBERJACK, COLONIZE_PROF_CONVERT, true, 0);
     if (convert_yld != base) {
       fprintf(
         stderr,
@@ -1296,7 +1296,7 @@ int main(void) {
       }
       const int farmer_base = colony_yield_for_tile(&map, ffx, ffy, COLONIZE_JOB_FARMER);
       const int farmer_convert =
-        colony_yield_for_worker(&map, ffx, ffy, COLONIZE_JOB_FARMER, COLONIZE_PROF_CONVERT, true);
+        colony_yield_for_worker(&map, ffx, ffy, COLONIZE_JOB_FARMER, COLONIZE_PROF_CONVERT, true, 0);
       if (farmer_convert != farmer_base + 1) {
         fprintf(
           stderr,
@@ -1354,7 +1354,7 @@ int main(void) {
       }
     }
     const int wrong_expert =
-      colony_yield_for_worker(&map, fx, fy, COLONIZE_JOB_LUMBERJACK, COLONIZE_PROF_FREE_COLONIST, true);
+      colony_yield_for_worker(&map, fx, fy, COLONIZE_JOB_LUMBERJACK, COLONIZE_PROF_FREE_COLONIST, true, 0);
     if (wrong_expert != base) {
       fprintf(
         stderr,
@@ -1649,7 +1649,7 @@ int main(void) {
     col->building_in_production = -1;
     const int before = col->stock[COLONIZE_CARGO_LUMBER];
     const int expect =
-      colony_yield_for_worker(&map, fx, fy, COLONIZE_JOB_LUMBERJACK, col->colonists[0].profession, true);
+      colony_yield_for_worker(&map, fx, fy, COLONIZE_JOB_LUMBERJACK, col->colonists[0].profession, true, 0);
     ColonizeTurnResult prod;
     ColonizeColonyProdDelta delta;
     memset(&prod, 0, sizeof(prod));
@@ -1674,7 +1674,7 @@ int main(void) {
      * bells/hammers, dropping every Tory penalty instead of applying it. */
     col->population = 15; /* tories=15, thresh=10 (col1 NULL) -> mod=-1 */
     const int base_yield =
-      colony_yield_for_worker(&map, fx, fy, COLONIZE_JOB_LUMBERJACK, col->colonists[0].profession, true);
+      colony_yield_for_worker(&map, fx, fy, COLONIZE_JOB_LUMBERJACK, col->colonists[0].profession, true, 0);
     ColonizeColonyPreview prev;
     colony_preview_compute(&pool, col, &map, NULL, &prev);
     if (prev.goods[COLONIZE_CARGO_LUMBER] != base_yield - 1) {
@@ -1987,7 +1987,7 @@ int main(void) {
     }
     col->has_building[docks] = false;
     const int no_docks_yld = colony_yield_for_worker(
-      &map, fx, fy, COLONIZE_JOB_FISHERMAN, col->colonists[0].profession, false
+      &map, fx, fy, COLONIZE_JOB_FISHERMAN, col->colonists[0].profession, false, 0
     );
     if (no_docks_yld != 0) {
       fprintf(stderr, "fisherman without Docks want 0 got %d\n", no_docks_yld);
@@ -1996,7 +1996,7 @@ int main(void) {
       return 1;
     }
     const int with_docks_yld = colony_yield_for_worker(
-      &map, fx, fy, COLONIZE_JOB_FISHERMAN, col->colonists[0].profession, true
+      &map, fx, fy, COLONIZE_JOB_FISHERMAN, col->colonists[0].profession, true, 0
     );
     if (with_docks_yld <= 0) {
       fprintf(stderr, "fisherman with Docks want >0 got %d\n", with_docks_yld);
@@ -2080,7 +2080,7 @@ int main(void) {
     }
     const int base = colony_yield_for_tile(&map, fx, fy, COLONIZE_JOB_FARMER);
     const int expert_yld =
-      colony_yield_for_worker(&map, fx, fy, COLONIZE_JOB_FARMER, COLONIZE_JOB_FARMER, true);
+      colony_yield_for_worker(&map, fx, fy, COLONIZE_JOB_FARMER, COLONIZE_JOB_FARMER, true, 0);
     if (expert_yld != base + 2) {
       fprintf(
         stderr,
