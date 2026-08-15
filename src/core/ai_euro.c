@@ -42,10 +42,19 @@ static uint8_t s_founded_colony_turn[COLONIZE_COLONIES_MAX];
  * 0 none / 3 expand / 4 military / 6 develop. Filled from live colony tallies.
  */
 static uint8_t s_euro_continent_stance[4][16];
+/*
+ * Per-unit turn stamp of the last @VIOLATE fire (FUN_4720_049e, thin
+ * approximation) — own addition, not DOS-derived, to avoid repeat-spamming
+ * the notify every act call for units that just sit adjacent to each
+ * other. Cite: euro_unit_act.md "2026-08-15, later pass".
+ */
+static uint32_t s_violate_last_turn[COLONIZE_UNITS_MAX];
 
 static void ai_euro_set_goto(ColonizeUnit* u, int orders, int gx, int gy);
 static int ai_euro_tile_is_coast_water(const ColonizeWorldMap* map, int x, int y);
 static int ai_euro_at_war_any_peer(const ColonizeCol1Save* col1, int nation_id);
+static void ai_euro_treasure_tension_bump(ColonizeTurnContext* ctx, ColonizeUnit* u);
+static void ai_euro_try_violate_notify(ColonizeTurnContext* ctx, ColonizeUnit* u);
 
 /*
  * Real FUN_521d_0a60 deep G-table formula (was a thin have-vs-target
@@ -3020,6 +3029,59 @@ static int ai_euro_is_seasoned_scout_name(const char* name) {
 /* Treasure train — display-name stand-in (manual Treasure Trains). */
 static int ai_euro_is_treasure_name(const char* name) {
   return name && strstr(name, "Treasure") != NULL;
+}
+
+/*
+ * FUN_4720_049e Treasure Train tension bump (thin, approximate — 2026-08-15
+ * find). DOS: when a Treasure Train's own move ends adjacent to a foreign
+ * unit, sets `nation[foreign].euro_relation[mover] |= 0x80` (the *other*
+ * nation's opinion of the treasure-carrying nation — "hauling a fortune
+ * near a rival makes them suspicious/covetous", not "you saw their
+ * treasure"), then an RNG roll scaled by difficulty compares
+ * `land_combat_strength[]` between the two nations for a weaker/stronger
+ * follow-up bit. `-0x6be4` (the DOS table the RNG branch reads) resolved
+ * to `land_combat_strength[4]`, already live in `col1_stuff_census.c` — no
+ * invented data here.
+ *
+ * Approximated: the two follow-up bits use `AI_DIPLO_TREASURE_WEAKER`/
+ * `_STRONGER` (see `ai_diplo.h`) instead of DOS's literal "2"/"8" — bit 2
+ * collides with the tested `AI_DIPLO_PEACE` on an unconfirmed DOS meaning
+ * (see `euro_unit_act.md`), so it's deliberately not reused. No Linux
+ * reader consumes any of these bits yet (matches `049e`'s own no-popup,
+ * pure-state shape) — this is state-tracking only, ready for a future
+ * consumer, not yet an observable gameplay change.
+ */
+static void ai_euro_treasure_tension_bump(ColonizeTurnContext* ctx, ColonizeUnit* u) {
+  if (!ctx || !ctx->units || !ctx->col1_ok || !ctx->col1 || !u || !u->active ||
+      u->nation_id < 0 || u->nation_id >= 4 ||
+      !ai_euro_is_treasure_name(units_display_name(ctx->units, u))) {
+    return;
+  }
+  static const int dx[8] = {0, 1, 1, 1, 0, -1, -1, -1};
+  static const int dy[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
+  for (int d = 0; d < 8; ++d) {
+    const int nx = u->x + dx[d];
+    const int ny = u->y + dy[d];
+    const int foe = units_id_at(ctx->units, nx, ny);
+    if (foe < 0 || units_is_sea(ctx->units, foe)) {
+      continue;
+    }
+    const ColonizeUnit* f = units_get_const(ctx->units, foe);
+    if (!f || f->nation_id == u->nation_id || f->nation_id < 0 || f->nation_id >= 4) {
+      continue;
+    }
+    const uint8_t before = ai_diplo_read(ctx->col1, f->nation_id, u->nation_id);
+    ai_diplo_write(ctx->col1, f->nation_id, u->nation_id, (uint8_t)(before | AI_DIPLO_TREASURE_ALERT));
+    if (ctx->rng && dos_rng_range(ctx->rng, 0, 99) < (int)ctx->col1->head.difficulty + 1) {
+      const int their_strength = ctx->col1->stuff.land_combat_strength[f->nation_id];
+      const int our_strength = ctx->col1->stuff.land_combat_strength[u->nation_id];
+      const uint8_t follow = (their_strength < our_strength) ? AI_DIPLO_TREASURE_WEAKER
+                                                               : AI_DIPLO_TREASURE_STRONGER;
+      const uint8_t cur = ai_diplo_read(ctx->col1, f->nation_id, u->nation_id);
+      ai_diplo_write(ctx->col1, f->nation_id, u->nation_id, (uint8_t)(cur | follow));
+    }
+    return; /* DOS fires once per act, first foreign neighbor found */
+  }
 }
 
 /*
@@ -8717,6 +8779,97 @@ static int ai_euro_move_scoring_gate(ColonizeTurnContext* ctx, ColonizeUnit* u, 
   return 0;
 }
 
+/*
+ * FUN_4720_049e territorial notify (thin, approximate — 2026-08-15 find,
+ * likely `@VIOLATE` trigger, "Zero code refs; trigger function not found"
+ * per `popups.md` until now). DOS: land unit ends its move adjacent to a
+ * foreign Euro unit whose nation it has met (both directions,
+ * `FUN_1000_8c28 & 0x40` — corrected from an earlier "PEACE flag" misread,
+ * this is `AI_DIPLO_MET`) and not at war, fires a dialog naming both
+ * nations. GAME.TXT: "{%STRING0} violate {%STRING1} territory near
+ * {%STRING2}! Colonists are outraged!"
+ *
+ * Approximated, not byte-exact — see euro_unit_act.md for the full trace:
+ * - Exact catalog id (0x13cb vs 0x13d7) and violator/owner slot order were
+ *   never confirmed; assumed here the acting (moving) unit's nation is the
+ *   violator (%STRING0) and the encountered unit's nation is the owner
+ *   (%STRING1) — the plain-English reading of the tag name.
+ * - %STRING2 (place) has no explicit arg-set call in the DOS body found
+ *   (likely auto-filled by the dialog engine from context); approximated
+ *   here as the nearest colony's name.
+ * - DOS's exact ship/land-terrain gate and re-fire suppression weren't
+ *   fully traced; approximated with a land-unit-only trigger and a flat
+ *   per-unit cooldown (own addition, not DOS-derived) to avoid repeat
+ *   spam for units that just sit adjacent to each other.
+ */
+static void ai_euro_try_violate_notify(ColonizeTurnContext* ctx, ColonizeUnit* u) {
+  if (!ctx || !ctx->units || !ctx->col1_ok || !ctx->col1 || !u || !u->active ||
+      units_is_sea(ctx->units, u->id) || u->nation_id < 0 || u->nation_id >= 4) {
+    return;
+  }
+  if (!ctx->messages || !ctx->status || ctx->status_size <= 0) {
+    return; /* structural notify only, matches @SNEAK precedent */
+  }
+  const uint32_t turn = (ctx->turn_number && *ctx->turn_number) ? *ctx->turn_number : 0;
+  if (u->id >= 0 && u->id < COLONIZE_UNITS_MAX && s_violate_last_turn[u->id] != 0 &&
+      turn >= s_violate_last_turn[u->id] && turn - s_violate_last_turn[u->id] < 10) {
+    return;
+  }
+  static const int dx[8] = {0, 1, 1, 1, 0, -1, -1, -1};
+  static const int dy[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
+  for (int d = 0; d < 8; ++d) {
+    const int nx = u->x + dx[d];
+    const int ny = u->y + dy[d];
+    const int foe = units_id_at(ctx->units, nx, ny);
+    if (foe < 0 || units_is_sea(ctx->units, foe)) {
+      continue;
+    }
+    const ColonizeUnit* f = units_get_const(ctx->units, foe);
+    if (!f || f->nation_id == u->nation_id || f->nation_id < 0 || f->nation_id >= 4) {
+      continue;
+    }
+    if (!(ai_diplo_read(ctx->col1, u->nation_id, f->nation_id) & AI_DIPLO_MET) ||
+        !(ai_diplo_read(ctx->col1, f->nation_id, u->nation_id) & AI_DIPLO_MET)) {
+      continue;
+    }
+    if (ai_diplo_at_war(ctx->col1, u->nation_id, f->nation_id)) {
+      continue;
+    }
+    if (ctx->human_nation < 0 || ctx->human_nation >= 4 ||
+        (u->nation_id != ctx->human_nation && f->nation_id != ctx->human_nation)) {
+      continue; /* structural notify only fires with a human party */
+    }
+    const char* place = NULL;
+    int best_d = -1;
+    if (ctx->colonies) {
+      for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+        const ColonizeColony* c = &ctx->colonies->colonies[i];
+        if (!c->active) {
+          continue;
+        }
+        const int dd = abs(c->x - u->x) + abs(c->y - u->y);
+        if (best_d < 0 || dd < best_d) {
+          best_d = dd;
+          place = c->name;
+        }
+      }
+    }
+    PopupMsgTokens tok = {0};
+    tok.string0 = ai_diplo_rival_name(ctx->col1, u->nation_id);
+    tok.string1 = ai_diplo_rival_name(ctx->col1, f->nation_id);
+    tok.string2 = (place && place[0]) ? place : "the frontier";
+    popup_msg_fill(
+      ctx->messages, "VIOLATE", &tok,
+      "%STRING0 violate %STRING1 territory near %STRING2! Colonists are outraged!",
+      ctx->status, ctx->status_size
+    );
+    if (u->id >= 0 && u->id < COLONIZE_UNITS_MAX) {
+      s_violate_last_turn[u->id] = turn ? turn : 1;
+    }
+    return;
+  }
+}
+
 static void ai_euro_try_attack(ColonizeTurnContext* ctx, ColonizeUnit* u, int tx, int ty) {
   if (!ctx || !ctx->units || !u) {
     return;
@@ -11412,6 +11565,17 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
   }
   if (u->moves_left <= 0) {
     return;
+  }
+
+  /*
+   * FUN_4720_049e notify/tension checks (thin, approximate — see the two
+   * functions' own headers). Fire once near the top of the act, matching
+   * DOS's own move-driver-completion timing as closely as this port's
+   * architecture allows.
+   */
+  ai_euro_treasure_tension_bump(ctx, u);
+  if (!is_ship_early) {
+    ai_euro_try_violate_notify(ctx, u);
   }
 
   const int is_ship = is_ship_early;

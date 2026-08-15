@@ -15,6 +15,20 @@
 #define AI_DIPLO_PEACE 0x02
 #define AI_DIPLO_ALLY 0x04
 #define AI_DIPLO_MET 0x40
+/*
+ * FUN_4720_049e Treasure Train tension bump (euro_unit_act.md). DOS sets
+ * the real bit 0x80 here (confirmed transient alert, set/cleared
+ * elsewhere in FUN_15b3_153e) plus a weaker/stronger follow-up bit that in
+ * DOS is literal "2"/"8" — bit 2 collides numerically with AI_DIPLO_PEACE
+ * and 153e's own use of it there reads as "grudge/pressure", not
+ * confirmed to be the same peace concept, so it is NOT reused here.
+ * AI_DIPLO_TREASURE_ALERT reuses DOS's real bit; the follow-up pair uses
+ * DOS's real (safe, unused) 0x08 bit plus a Linux-only 0x10 stand-in for
+ * the other branch. No reader consumes these yet — state-tracking only.
+ */
+#define AI_DIPLO_TREASURE_ALERT 0x80
+#define AI_DIPLO_TREASURE_WEAKER 0x08
+#define AI_DIPLO_TREASURE_STRONGER 0x10
 
 uint8_t ai_diplo_read(const ColonizeCol1Save* col1, int nation_a, int nation_b);
 void ai_diplo_write(ColonizeCol1Save* col1, int nation_a, int nation_b, uint8_t value);
