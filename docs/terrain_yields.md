@@ -68,7 +68,7 @@ Forest type *N* clears permanently to unforested type *N* (Boreal→Tundra, …,
 | Wetland | Marsh | 1 | 0 | 1 | 0 | 2 | 2 | 1 | 0 | 0 |
 | Rain | Swamp | 1 | 1 | 0 | 0 | 1 | 2 | 1 | 0 | 0 |
 
-**Lumberjack note:** DOS always doubles lumber after other field mods (`local_14 == 5` → `<<1` in `FUN_15eb_18ec`). So Mixed forest lumber **3** in NAMES becomes **6** in play — matching the printed Terrain Chart. **Port:** [`colony_yield.c`](../src/core/colony_yield.c) does **not** apply this ×2 yet (**divergent**).
+**Lumberjack note:** DOS always doubles lumber after the resource effect, before plow/road/river (`local_14 == 5` → `<<1` in `FUN_15eb_18ec`, confirmed at this exact pipeline position by direct read). So Mixed forest lumber **3** in NAMES becomes **6** in play — matching the printed Terrain Chart. **2026-08-15 fix:** [`colony_yield.c`](../src/core/colony_yield.c) now applies this ×2 at the same pipeline position.
 
 ---
 
@@ -161,9 +161,9 @@ Hardcoded **(resource, job) → bonus**. Return **−1** means **double** the cu
 | Silver Deposit (12) | Silver Miner (7) | +2 |
 | Fishery (7) | Fisherman (8) | +3 |
 
-When the worker’s **skill matches** the job, an additive resource bonus is itself **×2** before being added (`18ec` ~11909–11912). Double (`−1`) path does `yield <<= 1`.
+When the worker’s **skill matches** the job, an additive resource bonus is itself **×2** before being added (`18ec` ~11909–11912). Double (`−1`) path does `yield <<= 1` **unconditionally** (not gated on expert match — confirmed from a direct read of `FUN_15eb_18ec`, not just this table).
 
-**Port:** still uses absolute `@RESOURCE` / base+2 (**divergent**).
+**2026-08-15 fix:** `colony_yield_for_tile` now uses `colony_yield_resource_effect(resource, field_job)`, a byte-exact port of `FUN_15eb_17fa`'s full if-chain (verified by direct read, not just this table) — every `(resource, job)` pair from the table above, including the ones a single `resource → job` map structurally couldn't express (Game(9) pairs with **both** Farmer +2 and Fur Trapper +2; the old `colony_yield_resource_job()` could only return one job per resource, so Farmer-on-Game got **zero** bonus, not just a wrong number). **Still not done:** the expert-doubles-additive-bonus rule above — needs profession context, which `colony_yield_for_tile` doesn't have (used by AI/job-suggestion callers with no specific worker); would need threading into `colony_yield_for_worker` instead, deferred pending the SoL-ordering work below since they're entangled (the same expert-match flag drives the plow/road/river unit size too — see below).
 
 Examples (free colonist, no other mods):
 
@@ -178,28 +178,53 @@ Examples (free colonist, no other mods):
 
 ## Field composition order (`FUN_15eb_18ec`)
 
-Simplified pipeline for one surround work-plot (authoritative order):
+Simplified pipeline for one surround work-plot (authoritative order —
+**2026-08-15: re-verified by a direct read of `FUN_15eb_18ec`'s full body**,
+`viceroy_unpacked.c:11771-11992`; the function turned out to be
+substantially more involved than this "simplified" list, with two pieces
+not previously documented at all — see below):
 
 1. Base from terrain×job table at DS `0x2f7b` (NAMES-loaded).
-2. Early terrain/FA tweaks (incl. fur-specific road/river nibbles).
-3. Clamp negative → 0.
-4. **SoL / Tory mod** if `mod > 0`: `yield += mod` (see [sons_of_liberty.md](sons_of_liberty.md)).
-5. **Expert:** food/fish → `yield += 2` (and re-add positive SoL); other jobs → `yield <<= 1`.
-6. **Special resource** via `17fa` (double or add; expert doubles additive).
-7. **Lumberjack:** `yield <<= 1`.
-8. **Plow / road / river** stack (below).
-9. Fish without Docks → 0; Hudson FF may double furs.
-10. **Convert** +1 on allowed jobs.
-11. If SoL/Tory `mod < 0`: `yield += mod` (floor at 0).
+2. **Fisherman only** (job > 7): an undocumented distance/depth modifier via
+   `FUN_15eb_173e` (`local_4 < 8/6/4/3/1` ladder, ±1..±4 or a flat −1/−2) —
+   **new finding, not in any prior doc**; not yet peeled further, not ported.
+3. Early terrain/FA tweaks (incl. fur-specific road/river nibbles, job==4 only).
+4. Clamp negative → 0.
+5. **SoL / Tory mod** if `mod > 0`: `yield += mod`. **New finding:** the mod
+   itself can be forced to **0 outright** (not just a different divisor) when
+   `byte[colony+0x1a] >= 4` or the per-nation `0x543f` table byte is nonzero
+   — the *same* gate `FUN_15eb_1d4c` uses only to pick the divisor (10 vs
+   `10-difficulty`), but here it zeroes the whole mod instead. If that table
+   byte really is "nation is AI-controlled" (per the `FUN_15eb_1d4c`
+   deep-peel's hypothesis), **field yields skip the Tory penalty entirely for
+   AI colonies**, while manufacturing/bells/crosses/hammers do not — a real
+   behavioral difference between field and building production, not
+   independently confirmed yet. `colony_prod_sol_bonus` (shared by both
+   contexts in the port) doesn't distinguish them. See
+   [sons_of_liberty.md](sons_of_liberty.md).
+6. **Expert:** food/fish → `yield += 2` (and re-add the positive SoL mod a
+   second time — confirmed at this exact spot: `if (food/fish) { yield += 2;
+   if (mod > 0) yield += mod; }`); other jobs → `yield <<= 1`.
+7. **Special resource** via `17fa` (double or add; expert doubles additive).
+8. **Lumberjack:** `yield <<= 1`.
+9. **Plow / road / river** stack (below).
+10. **2026-08-15 fix:** Fish without Docks → 0; Henry Hudson FF check (`FUN_15eb_3960(nation, 8)`)
+    doubles Fur Trapper yield **in this same function** — i.e. DOS applies
+    Hudson here, not as a separate post-hoc step the way the port's
+    `turn.c`/`colony_preview.c` currently do (same final number when there's
+    only one field worker per tick, not independently verified to diverge
+    otherwise).
+11. **Convert** +1 on allowed jobs.
+12. If SoL/Tory `mod < 0`: `yield += mod` (floor at 0).
 
 ### Expert / convert
 
 | Worker | Rule | Port |
 |--------|------|------|
-| Matching expert, food or fish | **+2** (not ×2) | **Divergent** (uses ×2 for all) |
+| Matching expert, food or fish | **+2** (not ×2), plus the SoL mod re-add above | **Still divergent** (uses ×2 for all) — needs the SoL-threading work first (the re-add depends on it), not attempted this pass |
 | Matching expert, other field jobs | **×2** | Wired |
 | Mismatched skill | Free-colonist yield | Wired |
-| Indian convert | **+1** if job ∈ {0,1,2,3,4} or job &gt; 7 (fisherman); **not** lumber/ore/silver | **Divergent** (always +1) |
+| Indian convert | **+1** if job ∈ {0,1,2,3,4} or job &gt; 7 (fisherman); **not** lumber/ore/silver | **2026-08-15 fix** — `colony_yield_for_worker` now gates on the exact whitelist (confirmed by direct read of `FUN_15eb_18ec` ~11974-11979) |
 
 ### Plow / road / river stacking
 
@@ -214,6 +239,23 @@ Unit size `u = 2` if (matching expert and not food/fish) **or** lumberjack; else
 | Major river (`0x40|0x80`) when only one unit so far | | +`u` again |
 
 **Port:** plow +1 on crops; road +1 on fur/lumber/ore/silver; river magnitudes FreeCol-shaped; **road and river do not stack** (max of one) — **divergent** from DOS stacking.
+
+**2026-08-15: checked whether this is safe to fix now — it isn't yet.** Two
+blockers, both needing their own verification pass, not implementation:
+(1) `u`'s size depends on the *expert-match* flag (`FUN_15eb_18ec`: `u=2` if
+matching expert and not food/fish, or Lumberjack; else `u=1`) — `field_job`
+only, no profession context, exactly the same entanglement already blocking
+the resource/expert-doubling and SoL-fold work above. (2) DOS's `layer2 &
+0x0a` check doesn't obviously map to the port's existing
+`map_tile_has_road()`, which reads a *different* array
+(`map->improve & MAP_IMPROVE_ROAD`) than `map->layer2`. There's independent
+evidence `layer2`'s `0x40` bit **is** the right "FA road" concept in the port
+(`ai_transcription.md`'s AI-movement-cost notes: "mask fa-flags (`layer2
+0x40` → DOS `&0x0a`)", a different subsystem, already cross-verified there)
+— but whether that's the *same* road concept `map_tile_has_road()`'s
+`improve` array represents (player-built roads) or a distinct one (e.g.
+native trails) isn't resolved. Fix needs both settled first, not attempted
+this pass.
 
 Silver on mountains without a deposit / road can be forced to 0 or 1 (`18ec` ~11925–11938).
 
@@ -261,11 +303,14 @@ Printed chart often shows post-modifier lumber (e.g. Plains forested lumber **6*
 | Rule | DOS | [`colony_yield.c`](../src/core/colony_yield.c) |
 |------|-----|-----------------------------------------------|
 | Base NAMES grids | Wired | Wired (Hills food override **2**) |
-| Resource effect `17fa` | Additive / double | Absolute `@RESOURCE` / +2 — **divergent** |
-| Lumberjack ×2 | Yes | **Missing** |
-| Expert food/fish +2 | Yes | Uses ×2 — **divergent** |
-| Convert job whitelist | Yes | Always +1 — **divergent** |
-| Plow/road/river stack | Add | Max(road, river) — **divergent** |
+| Resource effect `17fa` | Additive / double, per (resource,job) pair | **2026-08-15 fix** — `colony_yield_resource_effect()`, byte-exact table (Game/etc. now correctly pair with multiple jobs) |
+| Lumberjack ×2 | Yes | **2026-08-15 fix** — wired at the correct pipeline position (after resource, before plow/road/river) |
+| Expert food/fish +2 | Yes (+ SoL mod re-add) | Uses ×2 — **still divergent**, needs SoL-threading first |
+| Convert job whitelist | Yes | **2026-08-15 fix** — exact whitelist gate |
+| Plow/road/river stack | Add | Max(road, river) — **divergent**; entangled with expert-flag unit sizing, not attempted |
+| Fisherman distance modifier | Yes (`FUN_15eb_173e`) | **Missing** — new finding, not previously documented, not peeled further |
+| Fisherman needs Docks | Yes, zeroes yield outright | **2026-08-15 fix** — `colony_yield_for_worker` gained a `has_docks` param, threaded from every production/preview/badge caller (`turn.c`, `colony_preview.c`, `colony_screen.c` area overlay + jobs popup) |
+| SoL mod: AI zero-out | Possibly zeroed outright for AI (new finding, not confirmed) | `colony_prod_sol_bonus` doesn't distinguish field vs. building context |
 | Town commons | Peel pending | Fixture formula |
 
 ---

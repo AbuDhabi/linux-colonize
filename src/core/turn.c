@@ -578,6 +578,20 @@ static void turn_produce_one_colony(
       }
     }
 
+    /* Docks (or an upgrade: Drydock/Shipyard) gates Fisherman yield to 0 —
+     * FUN_15eb_18ec ~11925-11939. */
+    bool has_docks = false;
+    for (int bi = 0; bi < pool->building_type_count && bi < COLONIZE_BUILDING_TYPES_MAX; ++bi) {
+      if (!colony->has_building[bi]) {
+        continue;
+      }
+      const char* bn = pool->building_types[bi].name;
+      if (bn && (strstr(bn, "Docks") != NULL || strstr(bn, "Drydock") != NULL ||
+                 strstr(bn, "Shipyard") != NULL)) {
+        has_docks = true;
+        break;
+      }
+    }
     int mine_depleted = 0;
     for (int ti = 0; ti < COLONIZE_COLONY_FIELD_TILES; ++ti) {
       const int who = (int)colony->tiles[ti];
@@ -593,8 +607,9 @@ static void turn_produce_one_colony(
       if (!colonies_field_tile_delta(ti, &dx, &dy)) {
         continue;
       }
-      const int yld =
-        colony_yield_for_worker(map, colony->x + dx, colony->y + dy, c->field_job, c->profession);
+      const int yld = colony_yield_for_worker(
+        map, colony->x + dx, colony->y + dy, c->field_job, c->profession, has_docks
+      );
       if (yld <= 0) {
         continue;
       }

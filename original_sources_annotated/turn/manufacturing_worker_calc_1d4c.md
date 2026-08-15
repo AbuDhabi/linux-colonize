@@ -334,13 +334,20 @@ reachable through normal construction (upgrades replace, not stack), so
   values on first run.
 
   Hammers/crosses/bells are now all DOS-confirmed for the sol-fold shape.
-  What's *not* re-verified: the `FUN_15eb_038e(0x24)`/`FUN_15eb_038e(0x26)`
-  building-index arguments were inferred as Lumber Mill/Cathedral from
-  context (matches "doubles hammers"/plausible Cathedral semantics and the
-  numbers converge correctly at `sol_bonus=0` against the pre-existing,
-  already-tested port behavior) but never independently cross-checked
-  against `NAMES.TXT`'s real `@BUILDING` index ordering — low risk, still
-  open if someone wants to close the loop completely.
+
+  **Building-index args confirmed** (2026-08-15, same pass): counted
+  `COLONIZE/NAMES.TXT`'s `@BUILDING` rows 0-based in file order — index
+  `0x24` (36) is `Lumber Mill`, index `0x26` (38) is `Cathedral`, exactly
+  matching the Carpenter/Preacher bodies' `FUN_15eb_038e` args inferred from
+  context above. No longer just a converges-numerically hypothesis.
+  (Adjacent: index `0x25` (37) is `Church` — shows up as a *separate*
+  `FUN_15eb_038e(0x25)` check in the bells/crosses nation-aggregate caller
+  around `viceroy_unpacked_2.c:11307`, `0x8dea`/`0x8dec` accumulators, a
+  different function from `FUN_15eb_1d4c` entirely and not chased further
+  this pass — flagged below as a new open item since it looks like where
+  DOS's *real* Church/Cathedral passive-cross and Printing-Press/Newspaper
+  bell-bonus constants might actually live, which the port currently
+  sources from the manual instead of decomp.)
 - `byte[bx+0x1a]` / `0x543f` table / `byte[0x53a6]` — strong-hypothesis (per
   above: nation-control-type gate, per-nation table, difficulty setting) but
   not independently cross-checked against another call site yet.

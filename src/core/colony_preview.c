@@ -70,6 +70,21 @@ void colony_preview_compute(
       out->goods[tc.secondary_cargo] += tc.secondary_amount;
     }
 
+    /* Docks (or an upgrade: Drydock/Shipyard) gates Fisherman yield to 0 —
+     * FUN_15eb_18ec ~11925-11939. Must match turn.c's check. */
+    bool has_docks = false;
+    for (int bi = 0; bi < pool->building_type_count && bi < COLONIZE_BUILDING_TYPES_MAX; ++bi) {
+      if (!colony->has_building[bi]) {
+        continue;
+      }
+      const char* dn = pool->building_types[bi].name;
+      if (dn && (strstr(dn, "Docks") != NULL || strstr(dn, "Drydock") != NULL ||
+                 strstr(dn, "Shipyard") != NULL)) {
+        has_docks = true;
+        break;
+      }
+    }
+
     for (int ti = 0; ti < COLONIZE_COLONY_FIELD_TILES; ++ti) {
       const int who = (int)colony->tiles[ti];
       if (who < 0 || who >= colony->colonist_count) {
@@ -85,7 +100,7 @@ void colony_preview_compute(
         continue;
       }
       int yld = colony_yield_for_worker(
-        map, colony->x + dx, colony->y + dy, c->field_job, c->profession
+        map, colony->x + dx, colony->y + dy, c->field_job, c->profession, has_docks
       );
       /* Henry Hudson: fur trapper output +100% (turn.c turn_produce_one_colony). */
       if (yld > 0 && c->field_job == COLONIZE_JOB_FUR_TRAPPER && col1 &&

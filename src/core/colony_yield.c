@@ -102,43 +102,61 @@ static int colony_yield_base_for_pedia(int pedia, int field_job) {
   return 0;
 }
 
-/* @RESOURCE index → preferred field job; -1 none. */
-static int colony_yield_resource_job(int resource) {
-  switch (resource) {
-  case 1: /* Oasis */
-  case 2: /* Wheat */
-    return COLONIZE_JOB_FARMER;
-  case 3:
-    return COLONIZE_JOB_COTTON_PLANTER;
-  case 4:
-    return COLONIZE_JOB_TOBACCO_PLANTER;
-  case 5:
-    return COLONIZE_JOB_SUGAR_PLANTER;
-  case 6: /* Minerals */
-  case 13: /* Ore Deposit */
-    return COLONIZE_JOB_ORE_MINER;
-  case 7: /* Fishery */
-    return COLONIZE_JOB_FISHERMAN;
-  case 8: /* Beaver */
-  case 9: /* Game */
-    return COLONIZE_JOB_FUR_TRAPPER;
-  case 10: /* Prime Timber */
-  case 11:
-    return COLONIZE_JOB_LUMBERJACK;
-  case 12: /* Silver Deposit */
-    return COLONIZE_JOB_SILVER_MINER;
-  default:
-    return -1;
-  }
-}
+/*
+ * (resource, field_job) -> effect, byte-exact from FUN_15eb_17fa (a flat
+ * if-chain over hardcoded pairs, not a resource->job map — a resource can
+ * pair with more than one job, e.g. Game with both Farmer and Fur Trapper).
+ * COLONY_YIELD_RESOURCE_DOUBLE is the sentinel for the "double the yield
+ * so far" path; everything else is a flat additive amount (0 = no match).
+ * See docs/terrain_yields.md "Effect on a matching job".
+ */
+#define COLONY_YIELD_RESOURCE_DOUBLE (-1)
 
-static int colony_yield_resource_bonus(int resource) {
-  /* NAMES.TXT @RESOURCE values — used as flat yield when job matches on fields. */
-  static const int k_bonus[] = {0, 3, 4, 6, 6, 7, 4, 5, 6, 6, 6, 6, 12, 6};
-  if (resource < 0 || resource >= (int)(sizeof(k_bonus) / sizeof(k_bonus[0]))) {
-    return 0;
+static int colony_yield_resource_effect(int resource, int field_job) {
+  int v = 0;
+  if (resource == 9 && field_job == COLONIZE_JOB_FARMER) {
+    v = 2;
   }
-  return k_bonus[resource];
+  if (resource == 1 && field_job == COLONIZE_JOB_FARMER) {
+    v += 2;
+  }
+  if (resource == 2 && field_job == COLONIZE_JOB_FARMER) {
+    v += 2;
+  }
+  if (resource == 9 && field_job == COLONIZE_JOB_FUR_TRAPPER) {
+    v += 2;
+  }
+  if (resource == 8 && field_job == COLONIZE_JOB_FUR_TRAPPER) {
+    v += 3;
+  }
+  if (resource == 3 && field_job == COLONIZE_JOB_COTTON_PLANTER) {
+    v = COLONY_YIELD_RESOURCE_DOUBLE;
+  }
+  if (resource == 4 && field_job == COLONIZE_JOB_TOBACCO_PLANTER) {
+    v = COLONY_YIELD_RESOURCE_DOUBLE;
+  }
+  if (resource == 5 && field_job == COLONIZE_JOB_SUGAR_PLANTER) {
+    v = COLONY_YIELD_RESOURCE_DOUBLE;
+  }
+  if (resource == 10 && field_job == COLONIZE_JOB_LUMBERJACK) {
+    v += 2;
+  }
+  if (resource == 6 && field_job == COLONIZE_JOB_ORE_MINER) {
+    v += 3;
+  }
+  if (resource == 13 && field_job == COLONIZE_JOB_ORE_MINER) {
+    v += 2;
+  }
+  if (resource == 6 && field_job == COLONIZE_JOB_SILVER_MINER) {
+    v += 1;
+  }
+  if (resource == 12 && field_job == COLONIZE_JOB_SILVER_MINER) {
+    v += 2;
+  }
+  if (resource == 7 && field_job == COLONIZE_JOB_FISHERMAN) {
+    v += 3;
+  }
+  return v;
 }
 
 static bool colony_yield_is_crop_job(int field_job) {
@@ -201,14 +219,23 @@ int colony_yield_for_tile(const ColonizeWorldMap* map, int x, int y, int field_j
   }
   const int pedia = map_pedia_terrain_index_at(map, x, y);
   int yield = colony_yield_base_for_pedia(pedia, field_job);
+  /* Resource effect (FUN_15eb_17fa) — DOS-exact table, applied before the
+   * Lumberjack double. Expert doubling the *additive* half specifically is
+   * not applied here — see docs/terrain_yields.md; colony_yield_for_tile has
+   * no profession context (used by AI/job-suggestion callers too). */
   const int res = map_resource_type_for_yield(map, x, y);
-  if (res >= 0 && colony_yield_resource_job(res) == field_job) {
-    const int bonus = colony_yield_resource_bonus(res);
-    if (bonus > yield) {
-      yield = bonus;
+  if (res >= 0) {
+    const int effect = colony_yield_resource_effect(res, field_job);
+    if (effect == COLONY_YIELD_RESOURCE_DOUBLE) {
+      yield <<= 1;
     } else {
-      yield += 2;
+      yield += effect;
     }
+  }
+  /* Lumberjack: DOS always doubles lumber after the resource effect
+   * (FUN_15eb_18ec: `if (local_14==5) local_26 <<= 1`). */
+  if (field_job == COLONIZE_JOB_LUMBERJACK) {
+    yield <<= 1;
   }
   if (map_tile_is_plowed(map, x, y) && colony_yield_is_crop_job(field_job)) {
     yield += 1;
@@ -310,7 +337,7 @@ void colony_yield_town_commons(
     sec += colony_yield_river_bonus(sec_job, map_tile_has_major_river(map, x, y));
   }
   /* Matching special (except Prime Timber): +2 additive on commons. */
-  if (!timber && res >= 0 && colony_yield_resource_job(res) == sec_job) {
+  if (!timber && res >= 0 && colony_yield_resource_effect(res, sec_job) != 0) {
     sec += 2;
   }
   out->secondary_job = sec_job;

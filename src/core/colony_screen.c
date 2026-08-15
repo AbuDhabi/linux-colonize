@@ -1285,6 +1285,23 @@ static void colony_screen_draw_area_overlays(
     }
   }
 
+  /* Docks (or an upgrade: Drydock/Shipyard) gates Fisherman yield to 0 —
+   * FUN_15eb_18ec ~11925-11939. Must match turn.c's check. */
+  bool has_docks = false;
+  if (pool) {
+    for (int bi = 0; bi < pool->building_type_count && bi < COLONIZE_BUILDING_TYPES_MAX; ++bi) {
+      if (!colony->has_building[bi]) {
+        continue;
+      }
+      const char* dn = pool->building_types[bi].name;
+      if (dn && (strstr(dn, "Docks") != NULL || strstr(dn, "Drydock") != NULL ||
+                 strstr(dn, "Shipyard") != NULL)) {
+        has_docks = true;
+        break;
+      }
+    }
+  }
+
   for (int ti = 0; ti < COLONIZE_COLONY_FIELD_TILES; ++ti) {
     const int who = (int)colony->tiles[ti];
     if (who < 0 || who >= colony->colonist_count) {
@@ -1302,7 +1319,9 @@ static void colony_screen_draw_area_overlays(
     const int tile_x = origin_x + (dx + half) * tile;
     const int tile_y = origin_y + (dy + half) * tile;
     const int cargo = colony_yield_job_cargo(c->field_job);
-    const int yld = colony_yield_for_worker(map, colony->x + dx, colony->y + dy, c->field_job, c->profession);
+    const int yld = colony_yield_for_worker(
+      map, colony->x + dx, colony->y + dy, c->field_job, c->profession, has_docks
+    );
     if (cargo >= 0 && yld > 0) {
       const int icon = (c->field_job == COLONIZE_JOB_FISHERMAN)
                          ? COLONY_ICON_FISH
@@ -2565,6 +2584,7 @@ static void colony_screen_draw_construction_popup(
 
 static void colony_screen_draw_jobs_popup(
   ColonyScreenView* view,
+  const ColonizeColonyPool* pool,
   const ColonizeWorldMap* map,
   const ColonizeColony* colony,
   const ColonizeFont* font,
@@ -2621,6 +2641,23 @@ static void colony_screen_draw_jobs_popup(
   const int tx = colony ? colony->x + dx : 0;
   const int ty = colony ? colony->y + dy : 0;
 
+  /* Docks (or an upgrade: Drydock/Shipyard) gates Fisherman yield to 0 —
+   * FUN_15eb_18ec ~11925-11939. Must match turn.c's check. */
+  bool has_docks = false;
+  if (pool && colony) {
+    for (int bi = 0; bi < pool->building_type_count && bi < COLONIZE_BUILDING_TYPES_MAX; ++bi) {
+      if (!colony->has_building[bi]) {
+        continue;
+      }
+      const char* dn = pool->building_types[bi].name;
+      if (dn && (strstr(dn, "Docks") != NULL || strstr(dn, "Drydock") != NULL ||
+                 strstr(dn, "Shipyard") != NULL)) {
+        has_docks = true;
+        break;
+      }
+    }
+  }
+
   for (int i = 0; i < rows; ++i) {
     const int row_y = list_y0 + i * line_h;
     const bool selected = (i == view->jobs_selection);
@@ -2637,7 +2674,7 @@ static void colony_screen_draw_jobs_popup(
       profession = colony->colonists[view->selected_colonist].profession;
     }
     const int yld =
-      (map && colony) ? colony_yield_for_worker(map, tx, ty, job, profession) : 0;
+      (map && colony) ? colony_yield_for_worker(map, tx, ty, job, profession, has_docks) : 0;
     snprintf(label, sizeof(label), "%s (%d)", colony_yield_job_name(job), yld);
     if (font) {
       font_draw_text(font, framebuffer, inner_x + pad, row_y + 1, label, 15);
@@ -3396,7 +3433,7 @@ void colony_screen_render(
     colony_screen_draw_construction_popup(view, pool, colony, font, framebuffer);
   }
   if (view && view->jobs_open) {
-    colony_screen_draw_jobs_popup(view, map, colony, font, framebuffer);
+    colony_screen_draw_jobs_popup(view, pool, map, colony, font, framebuffer);
   }
   if (view && view->eject_open) {
     colony_screen_draw_eject_popup(view, font, framebuffer);

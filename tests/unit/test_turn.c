@@ -1264,20 +1264,97 @@ int main(void) {
       return 1;
     }
     const int base = colony_yield_for_tile(&map, fx, fy, COLONIZE_JOB_LUMBERJACK);
+    /* Convert whitelist (FUN_15eb_18ec ~11974-11979): Lumberjack is
+     * excluded — no +1 here, unlike Farmer/Sugar/Tobacco/Cotton/Fur
+     * Trapper/Fisherman below. */
     const int convert_yld =
-      colony_yield_for_worker(&map, fx, fy, COLONIZE_JOB_LUMBERJACK, COLONIZE_PROF_CONVERT);
-    if (convert_yld != base + 1) {
+      colony_yield_for_worker(&map, fx, fy, COLONIZE_JOB_LUMBERJACK, COLONIZE_PROF_CONVERT, true);
+    if (convert_yld != base) {
       fprintf(
         stderr,
-        "convert tile bonus failed base=%d convert=%d\n",
+        "convert lumberjack (not whitelisted) want %d got %d\n",
         base,
         convert_yld
       );
       map_free(&map);
       return 1;
     }
+    {
+      int ffx = -1, ffy = -1;
+      for (int y = 1; y < (int)map.height - 1 && ffx < 0; ++y) {
+        for (int x = 1; x < (int)map.width - 1 && ffx < 0; ++x) {
+          if (colony_yield_for_tile(&map, x, y, COLONIZE_JOB_FARMER) > 0) {
+            ffx = x;
+            ffy = y;
+          }
+        }
+      }
+      if (ffx < 0) {
+        fprintf(stderr, "production rules: no tile with farmer yield\n");
+        map_free(&map);
+        return 1;
+      }
+      const int farmer_base = colony_yield_for_tile(&map, ffx, ffy, COLONIZE_JOB_FARMER);
+      const int farmer_convert =
+        colony_yield_for_worker(&map, ffx, ffy, COLONIZE_JOB_FARMER, COLONIZE_PROF_CONVERT, true);
+      if (farmer_convert != farmer_base + 1) {
+        fprintf(
+          stderr,
+          "convert farmer (whitelisted) want %d got %d\n",
+          farmer_base + 1,
+          farmer_convert
+        );
+        map_free(&map);
+        return 1;
+      }
+    }
+    /*
+     * Resource effect table (FUN_15eb_17fa): a resource can pair with more
+     * than one job (Game(9) -> Farmer +2 AND Fur Trapper +2). The old port
+     * modeled resource->job as a single mapping (Game -> Fur Trapper only),
+     * so Farmer on a Game tile got no bonus at all — not just a wrong
+     * number, a whole matching case the old shape couldn't express.
+     */
+    {
+      int gx = -1, gy = -1;
+      for (int y = 1; y < (int)map.height - 1 && gx < 0; ++y) {
+        for (int x = 1; x < (int)map.width - 1 && gx < 0; ++x) {
+          if (map_resource_type_for_yield(&map, x, y) == 9 /* Game */) {
+            gx = x;
+            gy = y;
+          }
+        }
+      }
+      if (gx >= 0) {
+        const int farmer_no_res = colony_yield_for_tile(&map, gx, gy, COLONIZE_JOB_FARMER);
+        /* Base without the resource: same pedia, off-tile so no resource hits. */
+        const int base_pedia = map_pedia_terrain_index_at(&map, gx, gy);
+        int base_no_res = -1;
+        for (int y = 1; y < (int)map.height - 1 && base_no_res < 0; ++y) {
+          for (int x = 1; x < (int)map.width - 1 && base_no_res < 0; ++x) {
+            if (map_pedia_terrain_index_at(&map, x, y) == base_pedia &&
+                map_resource_type_for_yield(&map, x, y) < 0 &&
+                !map_tile_has_road(&map, x, y) && !map_tile_has_river(&map, x, y)) {
+              base_no_res = colony_yield_for_tile(&map, x, y, COLONIZE_JOB_FARMER);
+            }
+          }
+        }
+        if (base_no_res >= 0 && !map_tile_has_road(&map, gx, gy) &&
+            !map_tile_has_river(&map, gx, gy) && farmer_no_res != base_no_res + 2) {
+          fprintf(
+            stderr,
+            "Game+Farmer resource effect want %d got %d (base %d)\n",
+            base_no_res + 2,
+            farmer_no_res,
+            base_no_res
+          );
+          map_free(&map);
+          return 1;
+        }
+      }
+    }
     const int wrong_expert =
-      colony_yield_for_worker(&map, fx, fy, COLONIZE_JOB_LUMBERJACK, COLONIZE_PROF_FREE_COLONIST);
+      colony_yield_for_worker(&map, fx, fy, COLONIZE_JOB_LUMBERJACK, COLONIZE_PROF_FREE_COLONIST, true);
     if (wrong_expert != base) {
       fprintf(
         stderr,
@@ -1541,7 +1618,7 @@ int main(void) {
     col->building_in_production = -1;
     const int before = col->stock[COLONIZE_CARGO_LUMBER];
     const int expect =
-      colony_yield_for_worker(&map, fx, fy, COLONIZE_JOB_LUMBERJACK, col->colonists[0].profession);
+      colony_yield_for_worker(&map, fx, fy, COLONIZE_JOB_LUMBERJACK, col->colonists[0].profession, true);
     ColonizeTurnResult prod;
     ColonizeColonyProdDelta delta;
     memset(&prod, 0, sizeof(prod));
@@ -1566,7 +1643,7 @@ int main(void) {
      * bells/hammers, dropping every Tory penalty instead of applying it. */
     col->population = 15; /* tories=15, thresh=10 (col1 NULL) -> mod=-1 */
     const int base_yield =
-      colony_yield_for_worker(&map, fx, fy, COLONIZE_JOB_LUMBERJACK, col->colonists[0].profession);
+      colony_yield_for_worker(&map, fx, fy, COLONIZE_JOB_LUMBERJACK, col->colonists[0].profession, true);
     ColonizeColonyPreview prev;
     colony_preview_compute(&pool, col, &map, NULL, &prev);
     if (prev.goods[COLONIZE_CARGO_LUMBER] != base_yield - 1) {
@@ -1807,6 +1884,98 @@ int main(void) {
       return 1;
     }
     fprintf(stderr, "Tory penalty reduces hammers ok\n");
+  }
+
+  /*
+   * Fisherman needs Docks (FUN_15eb_18ec ~11925-11939): yields 0 without it,
+   * regardless of what the tile table says. colony_yield_for_worker's
+   * has_docks parameter must actually gate this, not just default to
+   * "allowed" everywhere.
+   */
+  {
+    ColonizeWorldMap map;
+    memset(&map, 0, sizeof(map));
+    char err[256];
+    if (!map_load_mp("COLONIZE/AMER2.MP", &map, err, sizeof(err))) {
+      fprintf(stderr, "map load for docks-gate test: %s\n", err);
+      return 1;
+    }
+    ColonizeColonyPool pool;
+    colonies_init(&pool);
+    ColonizeMsgCatalog names;
+    assets_msg_init(&names);
+    if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT") ||
+        !colonies_load_buildings(&pool, &names) || !colonies_load_names(&pool, "COLONIZE/COLONY.TXT")) {
+      fprintf(stderr, "names/buildings for docks-gate test failed\n");
+      assets_msg_free(&names);
+      map_free(&map);
+      return 1;
+    }
+    int fx = -1, fy = -1, ftile = -1, cx = -1, cy = -1;
+    for (int y = 1; y < (int)map.height - 1 && fx < 0; ++y) {
+      for (int x = 1; x < (int)map.width - 1 && fx < 0; ++x) {
+        if (!map_tile_is_land(&map, x, y) || !colonies_can_found(&pool, &map, x, y)) {
+          continue;
+        }
+        for (int ti = 0; ti < COLONIZE_COLONY_FIELD_TILES; ++ti) {
+          int dx = 0, dy = 0;
+          colonies_field_tile_delta(ti, &dx, &dy);
+          const int yld =
+            colony_yield_for_tile(&map, x + dx, y + dy, COLONIZE_JOB_FISHERMAN);
+          if (yld > 0) {
+            cx = x;
+            cy = y;
+            fx = x + dx;
+            fy = y + dy;
+            ftile = ti;
+            break;
+          }
+        }
+      }
+    }
+    if (ftile < 0) {
+      fprintf(stderr, "no colony site with fisherman yield nearby\n");
+      assets_msg_free(&names);
+      map_free(&map);
+      return 1;
+    }
+    const int cid = colonies_found(&pool, &map, cx, cy, 0, 0, UNITS_JOB_NONE, 0, 0, 0);
+    ColonizeColony* col = colonies_get_mut(&pool, cid);
+    if (!col || !colonies_assign_field(&pool, cid, 0, ftile, COLONIZE_JOB_FISHERMAN)) {
+      fprintf(stderr, "assign fisherman failed at (%d,%d) tile %d\n", fx, fy, ftile);
+      assets_msg_free(&names);
+      map_free(&map);
+      return 1;
+    }
+    const int docks = colonies_find_building(&pool, "Docks");
+    if (docks < 0) {
+      fprintf(stderr, "docks-gate test: missing Docks building type\n");
+      assets_msg_free(&names);
+      map_free(&map);
+      return 1;
+    }
+    col->has_building[docks] = false;
+    const int no_docks_yld = colony_yield_for_worker(
+      &map, fx, fy, COLONIZE_JOB_FISHERMAN, col->colonists[0].profession, false
+    );
+    if (no_docks_yld != 0) {
+      fprintf(stderr, "fisherman without Docks want 0 got %d\n", no_docks_yld);
+      assets_msg_free(&names);
+      map_free(&map);
+      return 1;
+    }
+    const int with_docks_yld = colony_yield_for_worker(
+      &map, fx, fy, COLONIZE_JOB_FISHERMAN, col->colonists[0].profession, true
+    );
+    if (with_docks_yld <= 0) {
+      fprintf(stderr, "fisherman with Docks want >0 got %d\n", with_docks_yld);
+      assets_msg_free(&names);
+      map_free(&map);
+      return 1;
+    }
+    assets_msg_free(&names);
+    map_free(&map);
+    fprintf(stderr, "fisherman Docks gate ok\n");
   }
 
   /*

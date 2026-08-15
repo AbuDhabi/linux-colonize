@@ -1069,6 +1069,8 @@ int main(void) {
 
     /* Fisherman food is still cargo food, but preview tracks fish for colony UI. */
     {
+      /* Fisherman needs Docks (FUN_15eb_18ec) — grant it just for this check. */
+      col->has_building[docks] = true;
       int tile_i = -1;
       int dx = 0;
       int dy = 0;
@@ -1136,6 +1138,7 @@ int main(void) {
         return 1;
       }
       /* Restore farmer on land for subsequent area overlay pixel checks. */
+      col->has_building[docks] = false;
       map.terrain[(col->y + dy) * map.width + (col->x + dx)] = 2; /* plains */
       if (!colonies_assign_field(&pool, cid, 0, 0, food_job)) {
         fprintf(stderr, "failed to restore farmer after fisherman preview\n");

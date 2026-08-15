@@ -149,13 +149,23 @@ int colony_yield_for_worker(
   int x,
   int y,
   int field_job,
-  int profession
+  int profession,
+  bool has_docks
 ) {
   int yld = colony_yield_for_tile(map, x, y, field_job);
+  /* Fisherman needs Docks (or an upgrade: Drydock/Shipyard) to work ocean/sea
+   * surrounds at all — FUN_15eb_18ec ~11925-11939 zeroes the whole yield,
+   * not just a modifier. */
+  if (field_job == COLONIZE_JOB_FISHERMAN && !has_docks) {
+    return 0;
+  }
   if (yld <= 0) {
     return 0;
   }
-  if (profession == COLONIZE_PROF_CONVERT) {
+  /* Convert +1 only on the DOS whitelist (FUN_15eb_18ec ~11974-11979): food/
+   * cash crops + fur trapper + fisherman — not lumber/ore/silver. */
+  if (profession == COLONIZE_PROF_CONVERT && field_job != COLONIZE_JOB_LUMBERJACK &&
+      field_job != COLONIZE_JOB_ORE_MINER && field_job != COLONIZE_JOB_SILVER_MINER) {
     yld += 1;
   }
   if (colony_prod_field_skill_matches(profession, field_job)) {
