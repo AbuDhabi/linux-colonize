@@ -41,13 +41,27 @@ int colony_prod_tier_input_for_output(ColonyProdTier tier, int output);
 /*
  * Manufacturing output for one worker. `craft_profession` is the @JOB index for the
  * recipe (e.g. COLONIZE_PROF_BLACKSMITH). Wrong skill → free-colonist rate only.
+ *
+ * `sol_bonus` (colony_prod_sol_bonus) is folded in *before* the tier/skill math,
+ * matching FUN_15eb_1d4c exactly: shop tier re-adds the class tag only (not
+ * sol_bonus again), factory tier applies the ×1.5 to the whole running total
+ * (tag math + sol_bonus together), and a skill match doubles the whole thing
+ * too — not a flat add after, which only happens to match DOS at house/shop
+ * tier with an unmatched skill. Pass 0 for callers that intentionally show
+ * the un-modified base rate (e.g. settlement badges — see building_production.md
+ * "UI: settlement badges vs Production tab"). Clamped to >= 0 (DOS does the
+ * same at its shared epilogue).
  */
 int colony_prod_manufacturing_output(
   const char* building_name,
   int profession,
-  int craft_profession
+  int craft_profession,
+  int sol_bonus
 );
 
+/* Input is derived from the tier's un-modified base output (sol_bonus does not
+ * affect raw-good consumption — DOS's input-side 6-in/9-out ratio is a
+ * separate, not-yet-traced code path from FUN_15eb_1d4c's output calc). */
 int colony_prod_manufacturing_input(
   const char* building_name,
   int profession,

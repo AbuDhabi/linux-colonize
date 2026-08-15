@@ -58,7 +58,6 @@ static void colony_craft_pair_totals(
     }
     return;
   }
-  const int sol = sol_bonus > 0 ? sol_bonus : 0;
   for (int i = 0; i < colony->colonist_count; ++i) {
     const ColonizeColonist* c = &colony->colonists[i];
     if (!c->active || c->building_type < 0 || c->building_type >= pool->building_type_count) {
@@ -68,12 +67,12 @@ static void colony_craft_pair_totals(
     if (!colony_craft_name_matches(bname, rec->needle)) {
       continue;
     }
-    int out =
-      colony_prod_manufacturing_output(bname, c->profession, rec->craft_profession);
-    if (out > 0 && sol > 0) {
-      out += sol;
-    }
-    total_out += out;
+    /* sol_bonus folds in before tier/skill math (matches DOS FUN_15eb_1d4c) —
+     * pass the signed value through, not just a positive-only bump; a Tory
+     * penalty (negative) reduces output here exactly like it already does
+     * for field yields in turn.c, not just SoL bonuses increasing it. */
+    total_out +=
+      colony_prod_manufacturing_output(bname, c->profession, rec->craft_profession, sol_bonus);
     total_in += colony_prod_manufacturing_input(bname, c->profession, rec->craft_profession);
   }
   if (out_total_out) {

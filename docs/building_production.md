@@ -7,8 +7,8 @@ Reference for what colonists produce **inside** colony buildings (settlement vie
 | Source | Role |
 |--------|------|
 | [`COLONIZE/NAMES.TXT`](../COLONIZE/NAMES.TXT) `@BUILDING`, `@JOB` | **Authoritative** construction hammers / tools×10 / min_colony; profession names and school tier |
-| `FUN_15eb_1d4c` (building/manufacturing yield) + `FUN_15eb_15c6` (upgrade depth 0/1/2) | **Authoritative** DOS manufacturing composer — decomp of `1d4c` is messy; tier rates below are **provisional** until a clean peel |
-| — | **2026-08-13 check, corrected same day (task #13):** first pass misread this as a ~19KB corrupted function; that was a decompiler artifact (chasing a partially-unresolvable indirect jump table inside the function, not real corruption — see `docs/decomp_inventory.md`). Re-checked: `1d4c`'s real body is a clean, self-contained 497 bytes (`0x7bfc`-`0x7e21`, ends in a genuine `RETF`), immediately followed by a separate real function. The percentage-scaling formula (`CX = 100 - call3()`; `AX = (byte[bx+0x1f] * CX + 50) / 100`, i.e. a rounding percentage scale) and the class-gate (`byte[bx+0x1a] < 4`, then a `0x34`-stride table read at `DS:0x543f` indexed by that same byte) are both confirmed present and legitimate — safe to trust the disassembly. **Still provisional**, though: which DS globals `0x8542`/`0x543f`/`0x53a6` and the two prior sub-calls (`6cc8`/`6d02`/`6124`) actually mean isn't decoded — that's a real semantic-RE task, not a corruption fix, and wasn't attempted this pass |
+| `FUN_15eb_1d4c` (per-worker manufacturing/production value) + `FUN_15eb_15c6` (upgrade depth 0/1/2) | **Authoritative** DOS manufacturing composer — deep peel: [`manufacturing_worker_calc_1d4c.md`](../original_sources_annotated/turn/manufacturing_worker_calc_1d4c.md). Tier rates 3/6/9, class-scale, and the SoL/Tory term's tier-interaction are now **DOS-confirmed and wired** (2026-08-15); the factory-tier 6→9 *input* ratio remains open (deep peel Open questions) |
+| — | **2026-08-15: corruption resolved, not just re-described.** There was never real file corruption — the `.asm` text export just never followed `1d4c`'s own indirect jump table (data sitting inline after the `JMP`, a routine case for a disassembler to miss, not damage). Manually extracted the raw bytes and re-disassembled with `ndisasm`; every resolved address lands exactly on the tool's own labels (byte-accurate). Full function now readable end to end: `15eb:1d4c`-`15eb:1f71` (549 bytes — the earlier "497" was a slip, not the `0x7bfc`-`0x7e21` address itself, which checks out exactly as this function's `FUN_0000_7bfc` alias in the sibling `viceroy_overlays.*` export, linear-addressed), a 9-way switch on the worker's `@JOB` profession (9-17) that matches the port's own Craftsmen/Carpenter/Preacher/Statesman split profession-for-profession. The percentage-scaling formula (`CX = 100 − SoL%`; `AX = (byte[bx+0x1f] * CX + 50) / 100`) and the class-gate (`byte[bx+0x1a] < 4`, `0x34`-stride table at `DS:0x543f`) are confirmed byte-exact, and the three prior sub-calls are now identified (`FUN_15eb_0e18`=profession, `FUN_15eb_0e52`=workplace, `FUN_15eb_0274`=colony SoL%) — not "6cc8/6d02/6124" as an earlier pass cited (that citation didn't match either export's naming and wasn't chased further this pass, but is no longer necessary — see below). **Also found:** the `.c` pseudocode export for this symbol is unreliable **in both** `viceroy_unpacked_2.c` and `viceroy_overlays.c` (both independently merge in unrelated sound/timer-driver code for cases it doesn't actually have — a shared bug in whatever switch-recovery step both exports went through, not random noise) — work from the `.asm`, not the `.c`, for this symbol. Remaining unknowns (what `byte[bx+0x1f]`/`0x1a`/`0x53a6`/`0x543f` and `local_12`/`local_e`'s origin mean, and whether the shared craft body's tier bonus is really 3/6/9) are enumerated as next steps in the deep-peel doc — normal RE backlog now, not a blocker |
 | [`COLONIZE/Colonization.pdf`](../COLONIZE/Colonization.pdf) | Manual ch. 6 workplace rules, Production view, shortfalls; Building Chart **effects** (prefer NAMES for costs) |
 | [`COLONIZE/README.TXT`](../COLONIZE/README.TXT) | Colony **Space** = one free production cycle; Cathedral min pop **8** (v3 fix) |
 | [`colony_eot_production.md`](../original_sources_annotated/turn/colony_eot_production.md) | EOT phase order (`FUN_364b_0688`) |
@@ -48,7 +48,7 @@ Manufacturing before hammers so ore→tools and cotton→cloth see same-turn fie
 
 ## Worker output: colonist class
 
-For **manufacturing** jobs. Free-colonist house baseline is **3** (provisional / port).
+For **manufacturing** jobs. Free-colonist house baseline is **3** — **DOS-confirmed** 2026-08-15, see [`manufacturing_worker_calc_1d4c.md`](../original_sources_annotated/turn/manufacturing_worker_calc_1d4c.md).
 
 | Colonist type | `@JOB` index | House-tier units / worker (port) |
 |---------------|-------------:|---------------------------------:|
@@ -57,7 +57,7 @@ For **manufacturing** jobs. Free-colonist house baseline is **3** (provisional /
 | Indentured servant | 25 | **2** (`tier*2/3`) |
 | Free colonist (unskilled) | 19 | **3** |
 
-At shop/factory tiers the port scales the same way: criminal/convert → **2 / 3**; indentured → **4 / 6**; free → **6 / 9**. **DOS class scaling inside `FUN_15eb_1d4c` not fully re-peeled** — treat shop/factory criminal floors as port behavior until confirmed.
+At shop/factory tiers the port scales the same way: criminal/convert → **2 / 3**; indentured → **4 / 6**; free → **6 / 9**. **DOS-confirmed** 2026-08-15 — traced `FUN_15eb_1d4c`'s class tag (indentured=2, criminal/convert=1, free=3, i.e. exactly numerator/3) through the tier arithmetic for all three tiers; matches this table exactly.
 
 ### Matching skill vs wrong job
 
@@ -66,13 +66,15 @@ At shop/factory tiers the port scales the same way: criminal/convert → **2 / 3
 | Skill matches workplace (e.g. Master Blacksmith in a smithy) | Expert / Master — **×2** manufacturing output and input |
 | Skill does **not** match | **Free colonist** rates for that assignment |
 
+**DOS-confirmed** 2026-08-15 for the six shared craft professions (skill-match flag doubles post-tier, via a compiler tail-merge into the Carpenter case body — see deep peel). Carpenter/Preacher's doubling in DOS is actually gated by a **colony-wide "owns the upgraded building" check**, not a per-worker skill-match flag — converges to the same numbers as the port's model in every buildable colony shape (upgrades replace, never stack), so left as-is; Statesman's doubling *is* a direct skill-match flag, no divergence.
+
 Field experts: food/fish **+2**, other jobs **×2** — [terrain_yields.md](terrain_yields.md) (not blanket ×2).
 
 ---
 
 ## Building tier throughput (free colonist, per worker)
 
-**Provisional** rates used by the port and consistent with Building Chart “doubles” / factory **1.5×** efficiency. DOS upgrade depth is `FUN_15eb_15c6` → **0 / 1 / 2** (house / shop / factory). Exact byte table in the EXE is **not** at `0x16103`.
+**DOS-confirmed** 2026-08-15 (see deep peel) — matches Building Chart “doubles” / factory **1.5×** efficiency exactly. DOS upgrade depth is `FUN_15eb_15c6` → **0 / 1 / 2** (house / shop / factory) / `FUN_15eb_039e` (owned-buildings-along-chain count, 1/2/3). Exact byte table in the EXE is **not** at `0x16103`.
 
 | Tier | Depth | Building level (examples) | Free **output** / worker | Typical **input** / worker |
 |------|------:|---------------------------|-------------------------:|---------------------------:|
@@ -241,15 +243,19 @@ Full catalog: [sons_of_liberty.md](sons_of_liberty.md). Tory thresh by difficult
 | **Production strip** | Sum of assigned workers’ output | `colony_prod_worker_building_output()` |
 | **Construction Change list** | Buildable projects, min-pop, coastal docks, Adam Smith, Stuyvesant; owned refuse `@ALREADYHAVE` / `@NOMOREWAREHOUSE` | [`colonies_list_buildable()`](../src/core/colony.c) + `colonies_emit_already_have_chrome` |
 
-Shared formula (port):
+Shared formula (port, `colony_prod_manufacturing_output` — DOS-confirmed 2026-08-15):
 
 ```
-effective_class = (profession matches recipe) ? skilled : free_colonist
-output(worker, building) = tier_rate(building) × class_factor(effective_class) + sentiment
-input(worker, building)  = output × (factory ? 6/9 : 1)
+tag = class_tag(profession)              ; 3 free / 2 indentured / 1 criminal-convert
+v = tag + sol_bonus                       ; sol_bonus signed — Tory penalty reduces output
+if tier >= shop:    v += tag
+if tier == factory: v += v >> 1           ; ×1.5, floor
+if skill matches:   v *= 2                ; whole running total, sol_bonus included
+output = max(v, 0)
+input(worker, building) = base_output(no sol_bonus) × (factory ? 6/9 : 1)
 ```
 
-`class_factor`: criminal/convert → `tier/3`; indentured → `tier*2/3`; free → tier; matched Master → ×2 after class scale. Sentiment applied in EOT and preview.
+Note `sol_bonus` folds in *before* tier/skill scaling — it is not a flat post-hoc add, and callers that want the un-modified base rate (settlement badges, input-side consumption) pass `sol_bonus=0`.
 
 ---
 
@@ -257,12 +263,13 @@ input(worker, building)  = output × (factory ? 6/9 : 1)
 
 | Rule | Status |
 |------|--------|
-| Tier rates 3 / 6 / 9 | Port wired; DOS cite = `15eb_15c6` depth + `15eb_1d4c` (peel incomplete) |
-| Factory input 6→9 | Port wired; provisional vs DOS |
-| Class /3 and *2/3 | Port wired; DOS unconfirmed |
+| Tier rates 3 / 6 / 9 | **DOS-confirmed** (2026-08-15) — `15eb_1d4c`'s shared craft body reproduces 3/6/9 exactly from `class_tag=3` (free colonist) through house→shop→factory tier math; see deep peel |
+| Factory input 6→9 | Still provisional — the *output* ladder (3/6/9) is confirmed; the input-side 6/9 ratio (`colony_prod_tier_input_for_output`) wasn't traced this pass (that's warehouse-consumption bookkeeping, a separate code path from `1d4c`'s output calc) |
+| Class /3 and *2/3 | **DOS-confirmed** (2026-08-15) — `1d4c`'s `local_12` tag (2=indentured, 1=criminal/convert, 3=free) is the exact numerator/3 of the port's `class_factor`; see deep peel |
 | Construction costs / min_pop | Loaded from NAMES — matches table above |
 | Church / TH passives | Settlement badge + totals Done; deep peel pending |
 | False `0x16103` EXE table | **Retracted** |
+| **2026-08-15 fix:** SoL/Tory term flat-add vs. DOS tier-fold | `colony_prod_manufacturing_output` used to add `sol_bonus` as a flat, **positive-only** term after tier+skill math — house/shop tier were numerically identical to DOS by coincidence, but factory tier missed the ×1.5 rounding, skilled workers missed the ×2, and every Tory *penalty* (negative `sol_bonus`) was silently dropped instead of reducing output. Fixed: `sol_bonus` is now a signed parameter folded in exactly where `FUN_15eb_1d4c` does (before tier/skill math). Callers that intentionally show the un-modified base rate (settlement badges, input-side consumption) pass `0`. Regression: `test_turn.c` factory-tier sol-fold + Tory-penalty-clamp block |
 | **2026-08-15 fix:** Production tab bells/crosses vs EOT | `colony_preview_compute` used the plain `colony_prod_colony_bells`/`_crosses` (no FF bonus) and a flat one-shot SoL add, while the real EOT nation tick (`turn_count_bells_and_crosses_for_nation`) applies Jefferson/Paine/Penn and adds SoL **per bell/cross worker**. Preview under-counted for colonies with those FFs or >1 worker. Fixed: preview now calls the `_ff` variants with the same nation FF lookups and the same per-worker SoL loop as `turn.c`. Regression: Phase C block in `test_turn.c` (`colony_preview_compute` w/ Jefferson granted). |
 | **2026-08-15 fix:** Production tab fur trapper vs Henry Hudson | `colony_preview_compute`'s field-worker loop never checked `FF_HENRY_HUDSON`, so the Production tab showed half the real fur yield for a colony that owns Hudson (`turn_produce_one_colony` in `turn.c` doubles fur trapper output). Fixed: preview now applies the same doubling before the SoL add. Regression: new `test_turn.c` block (`AMER2.MP` site with fur yield, doubles stock exactly, preview matches). |
 | **2026-08-15 fix:** Production tab hammers hidden without a queued project | `colony_preview_compute` only computed the Hammers row when `building_in_production >= 0`, but `turn_produce_one_colony`'s hammers block (turn.c "TURN5→6" comment) banks hammers and consumes lumber every turn a Carpenter is staffed, project or not — the preview silently under-informed the player (row just missing) whenever no Construction item was selected. Fixed: preview now mirrors the same three-way branch (queued project / no project but lumber available / no lumber, bank at raw output) as turn.c. Regression: new `test_turn.c` block (Carpenter's Shop, no project, checks both preview and the real EOT tick agree: hammers=3, lumber 10→7). |
