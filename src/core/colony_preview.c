@@ -168,12 +168,15 @@ void colony_preview_compute(
   const int penn_crosses_pct =
     (col1 && founding_fathers_nation_has(col1, nation_id, FF_WILLIAM_PENN)) ? 50 : 0;
   out->crosses = colony_prod_colony_crosses_ff(pool, colony, penn_crosses_pct);
-  out->bells = colony_prod_colony_bells_ff(pool, colony, statesmen_pct, paine_tax_pct);
+  /* Bells: sol_b folds into each Statesman worker individually, inside
+   * colony_prod_colony_bells_ff (matches FUN_15eb_1d4c's Statesman body —
+   * see manufacturing_worker_calc_1d4c.md). Must match turn.c's
+   * turn_count_bells_and_crosses_for_nation call exactly. */
+  out->bells = colony_prod_colony_bells_ff(pool, colony, statesmen_pct, paine_tax_pct, sol_b);
   if (sol_b != 0) {
-    /* +1/+2 per production unit — per worker, not flat; must match
-     * turn_count_bells_and_crosses_for_nation's per-colony body (turn.c).
-     * sol_b is signed — a Tory penalty must reduce these too. */
-    int bell_workers = 0;
+    /* Crosses: still the older flat "count workers, multiply" mechanism —
+     * see turn.c's twin of this block for why (Preacher's DOS body doesn't
+     * fold sol_bonus the same simple way Statesman's does). */
     int cross_workers = 0;
     for (int p = 0; p < colony->colonist_count; ++p) {
       const ColonizeColonist* cc = &colony->colonists[p];
@@ -181,25 +184,14 @@ void colony_preview_compute(
         continue;
       }
       const char* bn = pool->building_types[cc->building_type].name;
-      if (colony_prod_bells_worker(bn, cc->profession) > 0) {
-        bell_workers++;
-      }
       if (colony_prod_crosses_worker(bn, cc->profession) > 0) {
         cross_workers++;
       }
-    }
-    if (bell_workers > 0) {
-      out->bells += sol_b * bell_workers;
-    } else if (out->bells > 0) {
-      out->bells += sol_b; /* Town Hall / press passive unit */
     }
     if (cross_workers > 0) {
       out->crosses += sol_b * cross_workers;
     } else if (out->crosses > 0) {
       out->crosses += sol_b; /* church passive / colony base */
-    }
-    if (out->bells < 0) {
-      out->bells = 0;
     }
     if (out->crosses < 0) {
       out->crosses = 0;

@@ -114,7 +114,15 @@ void colony_prod_tick_rebel_accumulators(
 );
 
 int colony_prod_crosses_worker(const char* building_name, int profession);
-int colony_prod_bells_worker(const char* building_name, int profession);
+
+/*
+ * sol_bonus (colony_prod_sol_bonus) is folded in *before* the skill-match
+ * doubling, matching FUN_15eb_1d4c's Statesman body exactly (unlike
+ * crosses_worker/hammers_worker, which still add it after — see
+ * manufacturing_worker_calc_1d4c.md Open questions). Pass 0 for callers that
+ * intentionally show the un-modified base rate (settlement badges).
+ */
+int colony_prod_bells_worker(const char* building_name, int profession, int sol_bonus);
 int colony_prod_hammers_worker(const char* building_name, int profession);
 
 /* Passive crosses when Church (+2) or Cathedral (+3) is built. */
@@ -131,12 +139,20 @@ int colony_prod_colony_bells(const ColonizeColonyPool* pool, const ColonizeColon
  *   statesmen_bonus_pct — Jefferson: +50% on Town Hall (statesmen) worker bells
  *   all_bells_bonus_pct  — Paine: +current tax rate % on colony bells (after press/newspaper)
  *   crosses_bonus_pct   — Penn: +50% on colony cross production
+ *
+ * `sol_bonus` (colony_prod_bells_ff only) folds the SoL/Tory term into each
+ * bell worker individually (colony_prod_bells_worker) instead of a flat
+ * post-hoc colony-wide add — pass 0 to get the pre-2026-08-15 un-modified
+ * behavior (e.g. the rebel-accumulator tick, which must not feed sol back
+ * into itself). When there are no bell workers but Town Hall exists, the
+ * passive bell still gets sol_bonus added directly (nothing to fold it into).
  */
 int colony_prod_colony_bells_ff(
   const ColonizeColonyPool* pool,
   const ColonizeColony* colony,
   int statesmen_bonus_pct,
-  int all_bells_bonus_pct
+  int all_bells_bonus_pct,
+  int sol_bonus
 );
 int colony_prod_colony_crosses_ff(
   const ColonizeColonyPool* pool,

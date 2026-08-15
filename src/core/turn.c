@@ -1624,16 +1624,19 @@ static int turn_count_bells_and_crosses_for_nation(
     if (!c->active || c->nation_id != nation_id) {
       continue;
     }
-    int b = colony_prod_colony_bells_ff(pool, c, statesmen_pct, paine_tax_pct);
-    int x = colony_prod_colony_crosses_ff(pool, c, penn_crosses_pct);
     const int sol_b = colony_prod_sol_bonus(col1, c);
+    /* Bells: sol_b folds into each Statesman worker individually, inside
+     * colony_prod_colony_bells_ff (matches FUN_15eb_1d4c's Statesman body —
+     * see manufacturing_worker_calc_1d4c.md). */
+    int b = colony_prod_colony_bells_ff(pool, c, statesmen_pct, paine_tax_pct, sol_b);
+    /* Crosses: still the older flat "count workers, multiply" mechanism —
+     * Preacher's DOS body doesn't fold sol_bonus the same simple way
+     * Statesman's does (a colony-wide Cathedral-owned flag interacts with it
+     * too), not restructured yet. sol_b is signed and clamped here so a
+     * Tory penalty still reduces crosses, just not with the same
+     * per-worker-before-doubling precision bells now has. */
+    int x = colony_prod_colony_crosses_ff(pool, c, penn_crosses_pct);
     if (sol_b != 0) {
-      /* +1/+2 per production unit (building_production.md); sol_b is signed —
-       * a Tory penalty must reduce bells/crosses same as every other
-       * per-worker production, not just SoL bonuses adding to them
-       * (FUN_15eb_1d4c folds local_e in unconditionally, no positivity
-       * guard — see manufacturing_worker_calc_1d4c.md). */
-      int bell_workers = 0;
       int cross_workers = 0;
       for (int p = 0; p < c->colonist_count; ++p) {
         const ColonizeColonist* col = &c->colonists[p];
@@ -1642,28 +1645,14 @@ static int turn_count_bells_and_crosses_for_nation(
           continue;
         }
         const char* bn = pool->building_types[col->building_type].name;
-        if (colony_prod_bells_worker(bn, col->profession) > 0) {
-          bell_workers++;
-        }
         if (colony_prod_crosses_worker(bn, col->profession) > 0) {
           cross_workers++;
         }
-      }
-      if (bell_workers > 0) {
-        b += sol_b * bell_workers;
-      } else if (b > 0) {
-        b += sol_b; /* Town Hall / press passive unit */
       }
       if (cross_workers > 0) {
         x += sol_b * cross_workers;
       } else if (x > 0) {
         x += sol_b; /* church passive / colony base */
-      }
-      /* DOS clamps each worker's own FUN_15eb_1d4c return to >= 0 before
-       * summing; this clamps the colony total once instead (documented
-       * approximation — see manufacturing_worker_calc_1d4c.md Open questions). */
-      if (b < 0) {
-        b = 0;
       }
       if (x < 0) {
         x = 0;

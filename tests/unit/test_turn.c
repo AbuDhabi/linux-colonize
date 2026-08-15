@@ -1372,6 +1372,24 @@ int main(void) {
         assets_msg_free(&names);
         return 1;
       }
+      /* colony_prod_bells_worker: sol_bonus folds in before skill doubling
+       * (FUN_15eb_1d4c Statesman body) — unit-level check independent of the
+       * nation-tick machinery above. Skilled: (tag+sol)*2; unskilled: tag+sol
+       * only, no doubling. */
+      const int bells_skilled =
+        colony_prod_bells_worker("Town Hall", COLONIZE_PROF_STATESMAN, 2);
+      if (bells_skilled != 10) { /* (3+2)*2 */
+        fprintf(stderr, "bells_worker skilled sol-fold want 10 got %d\n", bells_skilled);
+        assets_msg_free(&names);
+        return 1;
+      }
+      const int bells_unskilled =
+        colony_prod_bells_worker("Town Hall", COLONIZE_PROF_FREE_COLONIST, 2);
+      if (bells_unskilled != 5) { /* 3+2, not doubled */
+        fprintf(stderr, "bells_worker unskilled sol-fold want 5 got %d\n", bells_unskilled);
+        assets_msg_free(&names);
+        return 1;
+      }
     }
 
     ColonizeColony* col = &pool.colonies[0];
@@ -2176,15 +2194,18 @@ int main(void) {
      * Production tab preview must match the EOT tick's FF-adjusted, per-worker
      * SoL bells (turn_count_bells_and_crosses_for_nation in turn.c), not the
      * plain colony_prod_colony_bells() used above only to sanity-check the
-     * base rate. Jefferson: statesmen +50% -> 1 + 6*1.5 = 10; rebel_dividend/
-     * divisor above (50/100 <<6) give sol 50% -> sol_bonus +1, one bell
-     * worker -> +1 more = 11.
+     * base rate. rebel_dividend/divisor above (50/100 <<6) give sol 50% ->
+     * sol_bonus +1. sol_bonus now folds into colony_prod_bells_worker
+     * *before* the skill-match doubling (matches FUN_15eb_1d4c's Statesman
+     * body — manufacturing_worker_calc_1d4c.md): tag(3)+sol_bonus(1)=4,
+     * doubled (skilled Statesman) = 8. Jefferson +50%: 8*1.5=12. Town Hall
+     * passive +1 = 13.
      */
     col1.head.founding_father[FF_THOMAS_JEFFERSON] = 0; /* nation 0 owns it */
     ColonizeColonyPreview prev;
     colony_preview_compute(&pool, c, NULL, &col1, &prev);
-    if (prev.bells != 11) {
-      fprintf(stderr, "Phase C preview Jefferson bells want 11 got %d\n", prev.bells);
+    if (prev.bells != 13) {
+      fprintf(stderr, "Phase C preview Jefferson bells want 13 got %d\n", prev.bells);
       return 1;
     }
     col1.head.founding_father[FF_THOMAS_JEFFERSON] = -1;
@@ -3212,12 +3233,16 @@ int main(void) {
     ctx.col1_ok = true;
 
     turn_run_nation_ticks(&ctx, NULL);
-    /* Town Hall(+1) + skilled Statesman(3*2=6) = 7 base, sol_b=-1 * 1 bell
-     * worker = -1 -> 6, not 7 (bug would leave it at 7). */
-    if (col1.nation[1].liberty_bells_total != 6) {
+    /* sol_bonus now folds into colony_prod_bells_worker *before* the
+     * skill-match doubling (matches FUN_15eb_1d4c's Statesman body):
+     * tag(3)+sol_b(-1)=2, doubled (skilled Statesman) = 4. Town Hall
+     * passive +1 = 5 — not 7 (bug would leave it there un-penalized), and
+     * not 6 either (that was this fix's own first pass, which only moved
+     * the sign-drop bug and still added sol_b post-doubling). */
+    if (col1.nation[1].liberty_bells_total != 5) {
       fprintf(
         stderr,
-        "Tory-penalty bells want 6 got %u\n",
+        "Tory-penalty bells want 5 got %u\n",
         (unsigned)col1.nation[1].liberty_bells_total
       );
       return 1;
