@@ -2066,6 +2066,78 @@ int main(void) {
   }
 
   /*
+   * Fisherman distance/enclosure modifier (FUN_15eb_18ec ~11814-11838):
+   * open-ocean tiles (all 8 neighbors Ocean/Sea Lane) get -2; a sheltered
+   * tile (few/no ocean neighbors) gets +1. Never ported before — new
+   * mechanic found this pass, not a divergence-fix.
+   */
+  {
+    ColonizeWorldMap map;
+    memset(&map, 0, sizeof(map));
+    char err[64];
+    if (!map_alloc(&map, 5, 5, err, sizeof(err))) {
+      fprintf(stderr, "fisherman distance mod: map_alloc %s\n", err);
+      return 1;
+    }
+    for (int i = 0; i < 25; ++i) {
+      map.terrain[i] = 2; /* plains everywhere */
+    }
+    map.terrain[2 * 5 + 2] = 25; /* ocean center tile being fished */
+    const int sheltered = colony_yield_for_tile(&map, 2, 2, COLONIZE_JOB_FISHERMAN);
+    for (int dy = -1; dy <= 1; ++dy) {
+      for (int dx = -1; dx <= 1; ++dx) {
+        if (dx == 0 && dy == 0) {
+          continue;
+        }
+        map.terrain[(2 + dy) * 5 + (2 + dx)] = 25; /* surround with open ocean too */
+      }
+    }
+    const int open_ocean = colony_yield_for_tile(&map, 2, 2, COLONIZE_JOB_FISHERMAN);
+    map_free(&map);
+    if (sheltered != open_ocean + 3) {
+      fprintf(
+        stderr,
+        "fisherman distance mod want sheltered=open_ocean+3 got sheltered=%d open_ocean=%d\n",
+        sheltered,
+        open_ocean
+      );
+      return 1;
+    }
+    fprintf(stderr, "fisherman distance mod ok\n");
+  }
+
+  /*
+   * Field yields zero the SoL/Tory mod outright for AI-controlled colonies
+   * (FUN_15eb_18ec); manufacturing/bells/crosses/hammers (FUN_15eb_1d4c)
+   * only change the divisor, never zero it — colony_prod_sol_bonus_field
+   * vs. the shared colony_prod_sol_bonus must actually differ for AI.
+   */
+  {
+    ColonizeColony col;
+    memset(&col, 0, sizeof(col));
+    col.active = true;
+    col.nation_id = 1;
+    col.population = 15; /* tories=(15*100+50)/100=15; thresh=10 -> mod=-1 */
+
+    ColonizeCol1Save col1;
+    memset(&col1, 0, sizeof(col1));
+    col1.player[1].control = 1; /* AI */
+
+    const int building_mod = colony_prod_sol_bonus(&col1, &col);
+    const int field_mod = colony_prod_sol_bonus_field(&col1, &col);
+    if (building_mod != -1 || field_mod != 0) {
+      fprintf(
+        stderr,
+        "AI field-vs-building SoL mod want building=-1 field=0 got building=%d field=%d\n",
+        building_mod,
+        field_mod
+      );
+      return 1;
+    }
+    fprintf(stderr, "AI field SoL zero-out ok\n");
+  }
+
+  /*
    * Custom House auto-sell (FUN_364b_0688 / FUN_364b_0636): stock>99 → leave 50;
    * Food denied; boycott bypass; tax then WoI untaxed.
    */

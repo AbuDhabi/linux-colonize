@@ -349,8 +349,16 @@ reachable through normal construction (upgrades replace, not stack), so
   bell-bonus constants might actually live, which the port currently
   sources from the manual instead of decomp.)
 - `byte[bx+0x1a]` / `0x543f` table / `byte[0x53a6]` — strong-hypothesis (per
-  above: nation-control-type gate, per-nation table, difficulty setting) but
-  not independently cross-checked against another call site yet.
+  above: nation-control-type gate, per-nation table, difficulty setting).
+  **2026-08-15: cross-checked against a third independent call site**
+  (`FUN_15eb_18ec`'s field-yield SoL zero-out — see
+  `docs/terrain_yields.md`), same shape again. Acted on: shipped
+  `colony_prod_sol_bonus_field`, a field-yield-only variant that zeroes the
+  SoL/Tory mod for AI colonies (matching `18ec`), while the shared
+  `colony_prod_sol_bonus` (matching `1d4c`'s divisor-only behavior) stays
+  unchanged for manufacturing/bells/crosses/hammers. Still not proven from a
+  source that states the table byte's meaning directly — three consistent
+  independent observations is strong, not certain.
 - The far call at `15eb:1eaf` (`CALL 0x1981:0x0000`, arg = `byte[bx+0x1a]`) —
   crosses into a completely different overlay segment; not investigated.
 - `FUN_15eb_0aec` / `FUN_15eb_0434` chain-id resolution feeding

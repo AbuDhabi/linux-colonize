@@ -275,6 +275,35 @@ int colony_prod_sol_bonus(const ColonizeCol1Save* col1, const ColonizeColony* co
   return mod;
 }
 
+int colony_prod_sol_bonus_field(const ColonizeCol1Save* col1, const ColonizeColony* colony) {
+  /*
+   * FUN_15eb_18ec (~11869-11878, field yields) zeroes the whole SoL/Tory
+   * term outright for AI-controlled colonies, gated by the same
+   * nation-status table `FUN_15eb_1d4c` (manufacturing/bells/crosses/
+   * hammers) only uses to pick a threshold (10 vs 10-difficulty), never to
+   * zero the term. That's a real difference between field and building
+   * production, not a duplicate of colony_prod_sol_bonus — hence a
+   * separate function, used only by field-yield call sites.
+   *
+   * Confidence: this exact "nation<4 && per-nation table byte==0" gate was
+   * independently observed with the same shape in three separate DOS
+   * functions this session (1d4c's threshold pick, 18ec's zero-out here,
+   * and 1f72's flag-0x12 bells term) — strong, cross-validated, but the
+   * table byte's meaning ("is this nation human-controlled") is still a
+   * hypothesis, not proven from a source that states it directly. See
+   * manufacturing_worker_calc_1d4c.md.
+   */
+  if (!colony) {
+    return 0;
+  }
+  if (col1 && colony->nation_id >= 0 &&
+      colony->nation_id < (int)COLONIZE_COL1_NATION_COUNT &&
+      col1->player[colony->nation_id].control != 0) {
+    return 0;
+  }
+  return colony_prod_sol_bonus(col1, colony);
+}
+
 /*
  * FUN_364b_0688 Phase D: one-step latch +0x1c sol_50 (0x04) / sol_100 (0x02).
  * Crossing 50 then 100 takes two ticks (majority then unanimous). Clears
