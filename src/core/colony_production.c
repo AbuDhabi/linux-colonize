@@ -86,12 +86,33 @@ static int colony_prod_carpenter_preacher_shape(
   int profession,
   int craft_profession,
   int sol_bonus,
-  bool colony_has_upgrade
+  bool colony_has_upgrade,
+  bool nation_has_penn
 ) {
   const bool skilled = colony_prod_craft_skill_matches(profession, craft_profession);
   int v = (skilled ? 6 : colony_prod_scale_by_class(profession, 3)) + sol_bonus;
   if (colony_has_upgrade) {
     v *= 2;
+  }
+  /*
+   * William Penn ("+50% cross production" — Preacher only; Carpenter always
+   * passes nation_has_penn=false). DOS's Preacher body (15eb:1e82-1eca)
+   * falls through into this check *unconditionally* after the Cathedral
+   * branch — it's not an "else": a colony with both Cathedral and Penn
+   * stacks ×2 then ×1.5 = ×3 per worker. Confirmed via the exact same
+   * FF-index table already matched for Jefferson(15)/Paine(17): the far
+   * call here passes flag 0x15 = 21 = FF_WILLIAM_PENN, and 0x1981:0x0000
+   * turned out to be FUN_15eb_3960's own overlay-split tail (table base
+   * printed as +0x880f, which is -0x77f1 in 16-bit two's complement — the
+   * *same* table Jefferson/Paine use), not a separate mystery function.
+   * The port previously applied Penn as a flat ×1.5 on the whole colony
+   * crosses total (including the base/Church passive, which DOS's
+   * passive-crosses composer — FUN_15eb_1f72 — never touches at all) —
+   * wrong both in *where* it multiplies and in *what* it multiplies. See
+   * manufacturing_worker_calc_1d4c.md.
+   */
+  if (nation_has_penn) {
+    v += v >> 1;
   }
   return v > 0 ? v : 0;
 }
@@ -417,7 +438,8 @@ int colony_prod_crosses_worker(
   const char* building_name,
   int profession,
   int sol_bonus,
-  bool colony_has_cathedral
+  bool colony_has_cathedral,
+  bool nation_has_penn
 ) {
   if (!building_name ||
       (!colony_prod_name_has(building_name, "Church") &&
@@ -425,7 +447,7 @@ int colony_prod_crosses_worker(
     return 0;
   }
   return colony_prod_carpenter_preacher_shape(
-    profession, COLONIZE_PROF_PREACHER, sol_bonus, colony_has_cathedral
+    profession, COLONIZE_PROF_PREACHER, sol_bonus, colony_has_cathedral, nation_has_penn
   );
 }
 
@@ -455,8 +477,11 @@ int colony_prod_hammers_worker(
        !colony_prod_name_has(building_name, "Lumber Mill"))) {
     return 0;
   }
+  /* Carpenter has no Penn-shaped second multiplier — confirmed by direct
+   * asm read: its body ends with an explicit jump after each branch, no
+   * fall-through into a further check (unlike Preacher's). */
   return colony_prod_carpenter_preacher_shape(
-    profession, COLONIZE_PROF_CARPENTER, sol_bonus, colony_has_lumber_mill
+    profession, COLONIZE_PROF_CARPENTER, sol_bonus, colony_has_lumber_mill, false
   );
 }
 
@@ -504,12 +529,23 @@ static bool colony_prod_building_built(
 int colony_prod_colony_crosses_ff(
   const ColonizeColonyPool* pool,
   const ColonizeColony* colony,
-  int crosses_bonus_pct,
+  bool nation_has_penn,
   int sol_bonus
 ) {
   if (!pool || !colony || !colony->active) {
     return 0;
   }
+  /*
+   * William Penn used to be a flat ×1.5 on the whole colony total, applied
+   * here after summing base/passive/workers. Confirmed wrong on both counts
+   * by direct asm read of the Preacher body (FUN_15eb_1d4c): Penn folds in
+   * per-Preacher-worker, stacking with that worker's own Cathedral ×2 (so
+   * Cathedral+Penn together is ×3 for that worker, not ×1.5 of a total that
+   * already had Cathedral's ×2 baked in at the colony level) — and DOS's
+   * passive-crosses composer (FUN_15eb_1f72, base +1 / Church +1 / Cathedral
+   * +1) never touches Penn at all, so the base/passive portion doesn't get
+   * the bonus either. See manufacturing_worker_calc_1d4c.md.
+   */
   int crosses = COLONY_PROD_COLONY_BASE_CROSSES;
   for (int i = 0; i < pool->building_type_count && i < COLONIZE_BUILDING_TYPES_MAX; ++i) {
     if (!colony->has_building[i]) {
@@ -529,7 +565,8 @@ int colony_prod_colony_crosses_ff(
       continue;
     }
     cross_workers++;
-    crosses += colony_prod_crosses_worker(bn, c->profession, sol_bonus, colony_has_cathedral);
+    crosses +=
+      colony_prod_crosses_worker(bn, c->profession, sol_bonus, colony_has_cathedral, nation_has_penn);
   }
   /* No cross workers to fold sol_bonus into individually — apply it to the
    * base/passive crosses directly instead (nothing else it could attach to;
@@ -541,15 +578,11 @@ int colony_prod_colony_crosses_ff(
       crosses = 0;
     }
   }
-  /* William Penn: cross production in all colonies +50% (fandom_col1994). */
-  if (crosses_bonus_pct > 0) {
-    crosses = crosses * (100 + crosses_bonus_pct) / 100;
-  }
   return crosses;
 }
 
 int colony_prod_colony_crosses(const ColonizeColonyPool* pool, const ColonizeColony* colony) {
-  return colony_prod_colony_crosses_ff(pool, colony, 0, 0);
+  return colony_prod_colony_crosses_ff(pool, colony, false, 0);
 }
 
 int colony_prod_colony_bells_ff(
@@ -661,7 +694,7 @@ int colony_prod_worker_building_output(
     return colony_prod_bells_worker(name, profession, 0);
   }
   if (colony_prod_name_has(name, "Church") || colony_prod_name_has(name, "Cathedral")) {
-    return colony_prod_crosses_worker(name, profession, 0, false);
+    return colony_prod_crosses_worker(name, profession, 0, false, false);
   }
   if (colony_prod_name_has(name, "Carpenter") || colony_prod_name_has(name, "Lumber Mill")) {
     return colony_prod_hammers_worker(name, profession, 0, false);

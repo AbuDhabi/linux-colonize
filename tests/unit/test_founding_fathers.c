@@ -1298,9 +1298,14 @@ int main(void) {
     if (crosses_base != 8) {
       return fail("prod baseline crosses unexpected");
     }
-    /* Penn +50%: 8 × 150/100 = 12. */
-    const int crosses_penn = colony_prod_colony_crosses_ff(&pool, col, 50, 0);
-    if (crosses_penn != 12) {
+    /* Penn +50% folds in per-Preacher-worker now, not a flat colony-total
+     * multiply (DOS FUN_15eb_1d4c's Preacher body falls through into the
+     * Penn check unconditionally after the Cathedral branch — see
+     * manufacturing_worker_calc_1d4c.md). This fixture has no Cathedral, so
+     * only the skilled worker's own 6 gets it: 6+3=9. Base(1)+church
+     * passive(1, untouched by Penn)+9 = 11, not the old flat 8×1.5=12. */
+    const int crosses_penn = colony_prod_colony_crosses_ff(&pool, col, true, 0);
+    if (crosses_penn != 11) {
       return fail("Penn crosses +50%");
     }
 
@@ -1386,11 +1391,12 @@ int main(void) {
     pnat->liberty_bells_total = 0;
     pnat->current_crosses = 0;
     turn_run_nation_ticks(&pctx, NULL);
-    /* Jefferson+Paine: 12 bells; Penn: 12 church crosses (no idle +2). */
+    /* Jefferson+Paine: 12 bells; Penn: 11 church crosses (no idle +2) — see
+     * the per-worker Penn fold note above crosses_penn. */
     if (peu.liberty_bells_last_turn != 12) {
       return fail("turn Jefferson+Paine bells last_turn");
     }
-    if (peu.current_crosses != 12) {
+    if (peu.current_crosses != 11) {
       return fail("turn Penn crosses accrued");
     }
   }

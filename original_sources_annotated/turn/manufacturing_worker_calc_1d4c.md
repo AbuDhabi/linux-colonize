@@ -169,9 +169,52 @@ exactly this (`base *= 2` on `COLONIZE_PROF_STATESMAN` match).
 ### Preacher body (`15eb:1e82`) and Carpenter body (`15eb:1e50`)
 
 Same shape as Statesman's: base value, a far call (`0x38e`, arg `0x26` for
-Preacher / `0x24` for Carpenter — not yet identified), then `if (result != 0)
-v <<= 1`. Consistent with "Firebrand Preacher ×2" and implied Master
-Carpenter ×2 already documented.
+Preacher / `0x24` for Carpenter — Cathedral / Lumber Mill, confirmed below),
+then `if (result != 0) v <<= 1`. Consistent with "Firebrand Preacher ×2" and
+implied Master Carpenter ×2 already documented.
+
+**Preacher only, fixed 2026-08-15.** Past the Cathedral doubling, Preacher's
+body (unlike Carpenter's, which `JMP`s straight to the shared epilogue)
+**falls through** into one more check at `15eb:1eaf`:
+`CALL 0x1981:0x0000` with arg `byte[bx+0x1a]=0x15` (21), then `if (result !=
+0) v += v >> 1` (×1.5). This closes the "far call into a different overlay
+segment, not investigated" item below: the call target is the *tail half* of
+`FUN_15eb_3960`, the same per-nation founding-father-ownership bit-test
+primitive already used for Jefferson (`0x0f`=15) and Paine (`0x11`=17)
+elsewhere in this file — `FUN_15eb_3960`'s own prologue lives in segment
+`15eb`, but its body is long enough to spill into segment `1981`, so DOS
+reaches the tail directly by far-calling its entry address instead of the
+segment-`15eb` head. Flag index `0x15` = 21 = `FF_WILLIAM_PENN`
+("+50% cross production"). So Preacher's full body is:
+
+```
+v = (skill_match ? 6 : local_12) + local_e
+if (owns_cathedral) v <<= 1        ; ×2, colony-wide flag, as below
+if (nation_has_penn) v += v >> 1   ; ×1.5, unconditional fall-through —
+                                    ; NOT gated on owns_cathedral, so the two
+                                    ; stack multiplicatively (×3 total) for a
+                                    ; skilled Preacher in a Cathedral colony
+                                    ; whose nation owns Penn
+```
+
+The port used to apply Penn's +50% as a flat post-hoc multiply on the whole
+colony's crosses total (`colony_prod_colony_crosses_ff`'s old
+`crosses_bonus_pct` parameter) — wrong on two counts: it touched the
+colony-wide base/passive crosses (which DOS's Penn check never sees, since
+it's inside the *per-worker* Preacher body, not the nation-aggregate
+composer), and it didn't stack with Cathedral the way DOS does. Fixed:
+`colony_prod_crosses_worker` now takes `nation_has_penn` and applies `v += v
+>> 1` right after the Cathedral doubling, matching the asm exactly;
+`colony_prod_colony_crosses_ff` takes `bool nation_has_penn` instead of the
+old percentage and threads it into each Preacher worker's own
+`colony_prod_crosses_worker` call. Regression: `test_turn.c` direct
+`colony_prod_crosses_worker(..., true, true)` checks for skilled+Cathedral+Penn
+(18 = (6×2)+((6×2)>>1)) and unskilled+Cathedral+Penn (9 = (3×2)+((3×2)>>1)),
+plus `test_founding_fathers.c`'s existing Penn fixture recomputed (12 → 11,
+since it has no Cathedral: base(1)+church-passive(1)+skilled-worker(6+3=9) =
+11). Carpenter's body has no equivalent second check — confirmed via asm, it
+`JMP`s to the shared epilogue right after the Lumber Mill doubling, no
+fall-through.
 
 ### `local_12` — the class-scale tag, fully traced and confirmed
 
@@ -359,8 +402,10 @@ reachable through normal construction (upgrades replace, not stack), so
   unchanged for manufacturing/bells/crosses/hammers. Still not proven from a
   source that states the table byte's meaning directly — three consistent
   independent observations is strong, not certain.
-- The far call at `15eb:1eaf` (`CALL 0x1981:0x0000`, arg = `byte[bx+0x1a]`) —
-  crosses into a completely different overlay segment; not investigated.
+- ~~The far call at `15eb:1eaf` (`CALL 0x1981:0x0000`, arg =
+  `byte[bx+0x1a]`)~~ — **resolved 2026-08-15**, see the Preacher-body section
+  above: it's `FUN_15eb_3960` (Founding Father ownership test), Penn-specific,
+  reached via an overlay-segment-split tail.
 - `FUN_15eb_0aec` / `FUN_15eb_0434` chain-id resolution feeding
   `FUN_15eb_039e`'s tier count — catalog-level only, not traced byte-level.
 

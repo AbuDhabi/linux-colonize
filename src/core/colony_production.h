@@ -135,15 +135,22 @@ void colony_prod_tick_rebel_accumulators(
  * doubling — matches FUN_15eb_1d4c's Preacher body: skill match picks a flat
  * top-rate baseline (not a class-scale ×2), sol_bonus adds next,
  * `colony_has_cathedral` (a *colony-wide* flag, not this worker's own
- * building) doubles last. Pass sol_bonus=0, colony_has_cathedral=false for
- * callers that intentionally show the un-modified base rate (settlement
- * badges). See manufacturing_worker_calc_1d4c.md.
+ * building) doubles next, and `nation_has_penn` (William Penn, "+50% cross
+ * production") multiplies by another ×1.5 *after* that — DOS's Preacher
+ * body falls through into the Penn check unconditionally, so Cathedral+Penn
+ * stack to ×3 for that worker, not a flat ×1.5 of the colony total (the
+ * port used to apply Penn that way; wrong — see
+ * colony_prod_colony_crosses_ff). Pass sol_bonus=0,
+ * colony_has_cathedral=false, nation_has_penn=false for callers that
+ * intentionally show the un-modified base rate (settlement badges). See
+ * manufacturing_worker_calc_1d4c.md.
  */
 int colony_prod_crosses_worker(
   const char* building_name,
   int profession,
   int sol_bonus,
-  bool colony_has_cathedral
+  bool colony_has_cathedral,
+  bool nation_has_penn
 );
 
 /*
@@ -163,7 +170,9 @@ int colony_prod_hammers_worker(
   bool colony_has_lumber_mill
 );
 
-/* Passive crosses when Church (+2) or Cathedral (+3) is built. */
+/* Passive crosses when Church (+1) or Cathedral (+1) is built — same
+ * passive either way, confirmed via FUN_15eb_1f72 (not manual-sourced
+ * +2/+3). See manufacturing_worker_calc_1d4c.md. */
 int colony_prod_church_passive_crosses(const char* building_name);
 
 #define COLONY_PROD_COLONY_BASE_CROSSES 1
@@ -176,7 +185,6 @@ int colony_prod_colony_bells(const ColonizeColonyPool* pool, const ColonizeColon
  * FF-aware variants (fandom_col1994 / Colonization.pdf):
  *   statesmen_bonus_pct — Jefferson: +50% on Town Hall (statesmen) worker bells
  *   all_bells_bonus_pct  — Paine: +current tax rate % on colony bells (after press/newspaper)
- *   crosses_bonus_pct   — Penn: +50% on colony cross production
  *
  * `sol_bonus` (colony_prod_bells_ff only) folds the SoL/Tory term into each
  * bell worker individually (colony_prod_bells_worker) instead of a flat
@@ -192,12 +200,17 @@ int colony_prod_colony_bells_ff(
   int all_bells_bonus_pct,
   int sol_bonus
 );
-/* sol_bonus folds into each cross worker individually (colony_prod_crosses_worker)
- * — see colony_prod_colony_bells_ff comment above, same pattern. */
+/*
+ * nation_has_penn — William Penn, "+50% cross production": folds into each
+ * Preacher worker individually (colony_prod_crosses_worker), stacking with
+ * that worker's own Cathedral ×2, not a flat colony-total multiply — see
+ * colony_prod_crosses_worker's comment and manufacturing_worker_calc_1d4c.md.
+ * sol_bonus: same per-worker-fold pattern as colony_prod_colony_bells_ff.
+ */
 int colony_prod_colony_crosses_ff(
   const ColonizeColonyPool* pool,
   const ColonizeColony* colony,
-  int crosses_bonus_pct,
+  bool nation_has_penn,
   int sol_bonus
 );
 

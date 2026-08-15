@@ -263,35 +263,49 @@ Unit size `u = 2` if (matching expert and not food/fish) **or** lumberjack; else
 
 **Port:** plow +1 on crops; road +1 on fur/lumber/ore/silver; river magnitudes FreeCol-shaped; **road and river do not stack** (max of one) — **divergent** from DOS stacking.
 
-**2026-08-15: one blocker resolved, a bigger one found underneath.**
+**2026-08-15: revisited, and a claim from earlier this same day was wrong —
+corrected below rather than left to mislead.**
 
-*Resolved:* whether the port's `map_tile_has_road()` (`improve &
-MAP_IMPROVE_ROAD`) is the same concept as DOS's `layer2` FA-road bit —
-**yes.** `col1_bridge.c`'s save loader sets both from the *same* Col1 mask
-bit (`m & 0x08`) into two mirrored port arrays: "`Road in mask is 0x08; DOS
-AI scoring also checks layer2 bit 0x40 for roads — mirror improve road into
-that bit`" (`col1_bridge.c:611-624`). They're synchronized by construction,
-so `map_tile_has_road()` is safe to use for whichever DOS check needs it.
+The job>3 check (`FUN_15eb_18ec`'s `FUN_137f_0142(tile) & 0x0a`) really is
+road: that exact mask (`0x0a`) is independently cited in `ai_transcription.md`
+for a *different* DOS subsystem (AI movement costing) as the road test the
+port's `MAP_LAYER2_FA_ROAD` bit exists to mirror, and `col1_bridge.c`'s save
+loader confirms `MAP_IMPROVE_ROAD` and `MAP_LAYER2_FA_ROAD` are set from the
+same Col1 bit by construction. So `map_tile_has_road()` is safe for *that*
+check.
 
-*Still blocking, and bigger than thought:* re-reading `FUN_15eb_18ec`'s
-stacking block precisely (`viceroy_unpacked.c:11944-11966`), DOS checks
-river through **two separate signals**, not one:
+**But the earlier note above claiming this also resolved the job<4 river
+check was wrong** — a same-day mistake, not a new problem. That check tests
+a *different* mask (`FUN_137f_0142(tile) & 0x40`, standalone, not `0x0a`) on
+the same runtime array. I'd conflated "the port's own `MAP_LAYER2_FA_ROAD`
+constant happens to equal `0x40`" with "DOS's own bit `0x40` in this array
+means road" — those are unrelated facts. The port chose `0x40` as its *own*
+arbitrary bit value when defining `MAP_LAYER2_FA_ROAD`; nothing ties that
+choice to what DOS's `FUN_137f_0142` returns for bit `0x40`. Read further
+usages of `FUN_137f_0142` this pass (`viceroy_unpacked.c:6783-6935`,
+`FUN_137f_0314`/`0358`/`0392`/`03e4`/`044a`) — bits `0x01`/`0x02` there read
+as settlement/unit occupancy (matches `col1_bridge.c`'s own "Col1 mask low
+bits carry village/capital occupancy" note), bit `0x04` matches the port's
+own `MAP_LAYER2_SUPPRESS`, but nothing pins down what bit `0x40` *alone*
+means in this specific array — still open.
+
+So DOS still checks river through **two separate signals**, confirmed
+unresolved (not "one road blocker down, one river blocker to go" as the
+earlier version of this note claimed):
 ```
-if (FUN_137f_0142(tile) & 0x40 && field_job < 4):     term += u   ; "layer2-ish" river, food/crops only
-if (terrain_byte & 0x40):                              term += u   ; a DIFFERENT river bit, ANY job,
+if (FUN_137f_0142(tile) & 0x40 && field_job < 4):     term += u   ; unknown runtime-array bit, food/crops only
+if (terrain_byte & 0x40):                              term += u   ; the STATIC map-data river bit, ANY job,
   if (terrain_byte & 0x80 && term == u): term += u again           ; major-river doubles ONLY if this
                                                                      was the sole contributor so far
 ```
 The port's `map_tile_has_river()`/`map_tile_has_major_river()` read the
 **terrain byte** only (confirmed — `map.c:1271-1283`, matches the second
-signal above). There is no port equivalent of the first signal
-(`FUN_137f_0142() & 0x40`, gated to food/crop jobs specifically) — it may be
-a genuinely separate river/irrigation concept the port doesn't track at all,
-not just a naming mismatch like the road bit turned out to be. Also still
-open: `u`'s size depends on the expert-match flag (same profession-context
-entanglement as the resource/SoL work above). Both need resolving before a
-correct stacking implementation — a half-fix risks silently dropping a whole
-term, not just using the wrong unit size, so still not attempted.
+signal). There is no port equivalent of the first signal at all — genuinely
+unresolved, not just unmapped. Also still open: `u`'s size depends on the
+expert-match flag (same profession-context entanglement as the
+resource/SoL work above). Both need resolving before a correct stacking
+implementation — a half-fix risks silently dropping a whole term, not just
+using the wrong unit size, so still not attempted.
 
 Silver on mountains without a deposit / road can be forced to 0 or 1 (`18ec` ~11925–11938).
 
