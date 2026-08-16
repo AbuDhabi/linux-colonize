@@ -52,11 +52,20 @@ static int expect_cal(
   return 0;
 }
 
-/* Phase P century tip chrome (helper keeps large locals off main's stack). */
+/*
+ * Phase P century tip chrome (helper keeps large locals off main's stack).
+ * Drives the crossing via a skilled Distiller (Sugar → Rum craft, output 6
+ * rum/turn — no map/field-yield needed, unlike lumber): 2026-08-16 removed
+ * the "invent 1 lumber for Carpenter demos" stub this used to lean on (a
+ * fabricated resource, never DOS-cited — see turn.c's Carpenter hammers
+ * block fix), so this now drives a real production path instead.
+ */
 static int unit_century_cargoready(void) {
   ColonizeColonyPool pool;
   colonies_init(&pool);
-  snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Carpenter's Shop");
+  snprintf(
+    pool.building_types[0].name, sizeof(pool.building_types[0].name), "Rum Distiller's House"
+  );
   pool.building_type_count = 1;
   ColonizeColony* col = &pool.colonies[0];
   memset(col, 0, sizeof(*col));
@@ -67,10 +76,12 @@ static int unit_century_cargoready(void) {
   col->building_in_production = -1;
   col->warehouse_level = 5; /* cap 300; 100 cross → CARGOREADY0 */
   col->has_building[0] = true;
-  col->stock[COLONIZE_CARGO_LUMBER] = 99;
+  col->stock[COLONIZE_CARGO_SUGAR] = 50;
+  col->stock[COLONIZE_CARGO_RUM] = 99;
   col->stock[COLONIZE_CARGO_FOOD] = 50;
   col->colonists[0].active = true;
-  col->colonists[0].building_type = -1;
+  col->colonists[0].building_type = 0;
+  col->colonists[0].profession = COLONIZE_PROF_DISTILLER;
   col->colonists[0].field_job = -1;
   col->colonist_count = 1;
   col->population = 1;
@@ -82,7 +93,7 @@ static int unit_century_cargoready(void) {
   for (int i = 0; i < COLONIZE_CARGO_COUNT; ++i) {
     eu.cargo[i].bid = 1;
   }
-  snprintf(eu.cargo[COLONIZE_CARGO_LUMBER].name, sizeof(eu.cargo[0].name), "Lumber");
+  snprintf(eu.cargo[COLONIZE_CARGO_RUM].name, sizeof(eu.cargo[0].name), "Rum");
   AiPopupState pops;
   ai_popup_init(&pops);
   ColonizeMsgCatalog game_txt;
@@ -101,8 +112,8 @@ static int unit_century_cargoready(void) {
   if (strstr(eu.status, "Stockpile") == NULL || !tipcol.head.tut3.nr6) {
     fprintf(
       stderr,
-      "century tip want Stockpile+latch lumber=%d latch=%u '%s'\n",
-      col->stock[COLONIZE_CARGO_LUMBER],
+      "century tip want Stockpile+latch rum=%d latch=%u '%s'\n",
+      col->stock[COLONIZE_CARGO_RUM],
       (unsigned)tipcol.head.tut3.nr6,
       eu.status
     );
@@ -112,7 +123,7 @@ static int unit_century_cargoready(void) {
   if (pops.queue_count < 1 ||
       (strstr(pops.queue[0].body, "ready") == NULL &&
        strstr(pops.queue[0].body, "Salem") == NULL &&
-       strstr(pops.queue[0].body, "Lumber") == NULL)) {
+       strstr(pops.queue[0].body, "Rum") == NULL)) {
     fprintf(
       stderr,
       "century CARGOREADY0 weak q=%d body='%s'\n",
@@ -128,7 +139,8 @@ static int unit_century_cargoready(void) {
     return 1;
   }
   /* Second crossing while latched → no tip. */
-  col->stock[COLONIZE_CARGO_LUMBER] = 99;
+  col->stock[COLONIZE_CARGO_SUGAR] = 50;
+  col->stock[COLONIZE_CARGO_RUM] = 99;
   eu.status[0] = '\0';
   ai_popup_clear(&pops);
   memset(&prod, 0, sizeof(prod));
@@ -143,13 +155,14 @@ static int unit_century_cargoready(void) {
   /* At exact basic warehouse cap → @CARGOREADY1. */
   tipcol.head.tut3.nr6 = 0;
   col->warehouse_level = 0; /* cap 100 */
-  col->stock[COLONIZE_CARGO_LUMBER] = 99;
+  col->stock[COLONIZE_CARGO_SUGAR] = 50;
+  col->stock[COLONIZE_CARGO_RUM] = 94; /* 94 + 6 rum craft = exactly 100 */
   eu.status[0] = '\0';
   ai_popup_clear(&pops);
   memset(&prod, 0, sizeof(prod));
   turn_run_colony_production(&pool, NULL, &tipcol, &eu, 0, &prod, &pops, &game_txt);
-  if (col->stock[COLONIZE_CARGO_LUMBER] != 100) {
-    fprintf(stderr, "century CARGOREADY1 lumber want 100 got %d\n", col->stock[COLONIZE_CARGO_LUMBER]);
+  if (col->stock[COLONIZE_CARGO_RUM] != 100) {
+    fprintf(stderr, "century CARGOREADY1 rum want 100 got %d\n", col->stock[COLONIZE_CARGO_RUM]);
     assets_msg_free(&game_txt);
     return 1;
   }
@@ -1900,9 +1913,11 @@ int main(void) {
 
   /*
    * Tory penalty must reduce banked hammers too, not get silently dropped
-   * (same `sol_b > 0` guard bug as bells above, now fixed). Zero lumber
-   * stock forces the "bank hammers_add directly" fallback so the sol-adjusted
-   * value is actually the one that lands in colony->hammers.
+   * (same `sol_b > 0` guard bug as bells above, now fixed). Lumber stock
+   * must cover the sol-adjusted output — hammers cost lumber 1:1, capped by
+   * what was on hand at the start of the turn (2026-08-16 real-DOS fix: a
+   * carpenter with 0 lumber on hand now correctly bags 0 hammers, not the
+   * sol-adjusted value for free — see turn.c's Carpenter hammers block).
    */
   {
     ColonizeColonyPool pool;
@@ -1917,7 +1932,7 @@ int main(void) {
     col->nation_id = 0;
     col->building_in_production = -1;
     col->stock[COLONIZE_CARGO_FOOD] = 100;
-    col->stock[COLONIZE_CARGO_LUMBER] = 0;
+    col->stock[COLONIZE_CARGO_LUMBER] = 100;
     col->colonists[0].active = true;
     col->colonists[0].building_type = 0;
     col->colonists[0].profession = COLONIZE_PROF_FREE_COLONIST;
