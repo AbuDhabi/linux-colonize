@@ -638,12 +638,18 @@ static void turn_produce_one_colony(
         field_ore += add;
       }
       /*
-       * Col1 +0x97: INC per ore/silver field yield; wrap at 50 →
-       * MAP_LAYER2_SUPPRESS on worked tile (FUN_364b_033a feature 4).
-       * Chrome: GAME.TXT @DEPLETION (DOS 0xd75).
+       * Col1 +0x97: INC per ore/silver field yield *from a special-resource
+       * deposit tile* — wrap at 50 → MAP_LAYER2_SUPPRESS on that tile
+       * (FUN_364b_033a feature 4). Chrome: GAME.TXT @DEPLETION (DOS 0xd75).
+       * A depletable deposit is what's being "used up"; an ordinary
+       * hills/mountain tile with no bonus resource isn't. Player-confirmed
+       * 2026-08-16 (colony-prod-tests real DOS save): every Dutch colony
+       * mining plain ore/silver tiles ended the turn at depletion_counter
+       * 0, not incremented — the old code counted any ore/silver yield.
        */
       if (add > 0 &&
-          (cargo == COLONIZE_CARGO_ORE || cargo == COLONIZE_CARGO_SILVER)) {
+          (cargo == COLONIZE_CARGO_ORE || cargo == COLONIZE_CARGO_SILVER) &&
+          map_resource_type_for_yield(map, colony->x + dx, colony->y + dy) >= 0) {
         colony->depletion_counter =
           (uint8_t)(colony->depletion_counter + 1u);
         if (colony->depletion_counter > 0x31u) {
@@ -944,6 +950,7 @@ static void turn_produce_one_colony(
           turn_clamp_stock(colony->stock[COLONIZE_CARGO_FOOD] - breed);
         colony->stock[COLONIZE_CARGO_HORSES] =
           turn_clamp_stock(colony->stock[COLONIZE_CARGO_HORSES] + breed);
+        colony->cargo_produced_mask |= (uint16_t)(1u << COLONIZE_CARGO_HORSES);
         if (delta) {
           delta->goods[COLONIZE_CARGO_FOOD] -= breed;
           delta->food_net -= breed;
@@ -1176,11 +1183,22 @@ static void turn_produce_one_colony(
     delta->food_net = delta->goods[COLONIZE_CARGO_FOOD];
   }
 
-  /* Carpenter hammers: convert lumber toward current project (or bank if none).
-   * sol_b folds into each Carpenter worker individually, inside
+  /*
+   * Carpenter hammers: convert lumber toward current project (or bank if
+   * none). sol_b folds into each Carpenter worker individually, inside
    * colony_prod_colony_hammers (matches FUN_15eb_1d4c's Carpenter body —
-   * see manufacturing_worker_calc_1d4c.md). */
-  {
+   * see manufacturing_worker_calc_1d4c.md).
+   *
+   * Spring-only (post-1600 biannual calendar, col1_save.h head.autumn):
+   * player-confirmed 2026-08-16 against a real DOS save (colony-prod-tests,
+   * a Spring→Autumn turn) — every one of 13 Dutch colonies, spanning wildly
+   * different populations/buildings/queued projects/worker setups
+   * (including multiple with skilled Carpenters and ample lumber), ended
+   * that Autumn turn with `hammers` byte-for-byte unchanged from Spring.
+   * Regular field/craft goods production is NOT seasonal (stock changed
+   * normally on the same turn) — only hammers freezes on Autumn.
+   */
+  if (!col1 || col1->head.autumn == 0) {
     const int sol_b = colony_prod_sol_bonus(col1, colony);
     int hammers_add = colony_prod_colony_hammers(pool, colony, sol_b, NULL);
     if (hammers_add > 0) {

@@ -2374,7 +2374,12 @@ int main(void) {
           colonies_field_tile_delta(ti, &dx, &dy);
           const int yld =
             colony_yield_for_tile(&map, x + dx, y + dy, COLONIZE_JOB_ORE_MINER);
-          if (yld > 0) {
+          /*
+           * depletion_counter only tracks a special-resource deposit being
+           * mined down (2026-08-16 real-DOS fix), not any ore-yielding
+           * tile — the site must actually carry the bonus resource.
+           */
+          if (yld > 0 && map_resource_type_for_yield(&map, x + dx, y + dy) >= 0) {
             cx = x;
             cy = y;
             fx = x + dx;
