@@ -208,9 +208,11 @@ static void europe_cash_treasure_passengers(
         (void)europe_cash_treasure(eu, gold);
       } else {
         /*
-         * PARK value source: intended COL1 Treasure cargo_hold[0..1] LE16 gold
-         * (ColonizeUnit has no treasure_gold; game_loop→europe_enqueue_expected
-         * does not fill cargo_treasure_gold yet). Do not invent a rate/value.
+         * gold==0 here means cargo_treasure_gold was never filled for this
+         * slot — game_loop.c's game_europe_fill_expected_treasure_gold (the
+         * H/Return-to-Europe path) now does the real fill, so this is a
+         * defensive no-op for any other boarding path, not the live gap
+         * this comment used to describe. Still don't invent a rate/value.
          */
       }
       continue;

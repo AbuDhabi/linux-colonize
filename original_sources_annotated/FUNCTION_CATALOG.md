@@ -1396,7 +1396,7 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_281f_0880` | 32660 | 10 | thunk | Far thunk → FUN_1427_0362 (move unit on map: unlink then place) | inferred |  |
 | `FUN_281f_088a` | 32670 | 10 | thunk | Far thunk → FUN_1427_1284 (stack_has_ship) | known | ai/move_spent.c; ai/unit_mp.c |
 | `FUN_281f_0894` | 32680 | 10 | thunk | Far thunk → FUN_1427_0d1e (set unit nation low-nibble) | inferred |  |
-| `FUN_281f_089e` | 32690 | 10 | thunk | Far thunk → FUN_1427_037e (re-place unit at its current xy) | inferred |  |
+| `FUN_281f_089e` | 32690 | 10 | thunk | **Correction 2026-08-16**: the "→ FUN_1427_037e" label is wrong for this call site — canonical `281f:089e` resolves (`address_mapping.csv`, `exact`) to resident `FUN_1000_8a8e`, a 2-call stub: `FUN_1000_1e61()` (an RTLink/interrupt-flavored trampoline, `LAB_1000_39e1`/`39f1` state bytes, jumptable warnings — not game logic) then `FUN_0000_45ee(unit)` → `FUN_0000_45d2(unit, unit.x[+0x3144], unit.y[+0x3145])`, i.e. "re-place/redraw unit at its own xy" — so the *old* label's verb was right, just attributed to the wrong symbol/segment. Verified directly via `GhidraDecompileAt.java 0000:18a8e` against `~/projects/ghidra_overlay_scratch` `OverlayTest`. See `turn/europe_nation_eot.md` "Transit turns — dead end" for why this matters (Harbor-menu Sail case). | known | turn/europe_nation_eot.md |
 | `FUN_281f_08a8` | 32700 | 10 | thunk | Far thunk → FUN_1427_14f4 (nearest unit of nation by dos_dist) | inferred |  |
 | `FUN_281f_08b2` | 32710 | 10 | thunk | Far thunk → FUN_1427_0fa0 (set profession high nibble (315b)) | inferred |  |
 | `FUN_281f_08bc` | 32720 | 10 | thunk | Far thunk → FUN_1427_0d38 (unit/stack cargo+combat query dispatcher) | inferred |  |

@@ -220,3 +220,119 @@ year &lt;`0x6a4` / &lt;`0x640` → +1/+2 to target. Nudge:
 
 Cross-links: [`nation_ticks_bells_ff.md`](nation_ticks_bells_ff.md) ·
 [`ai/king_ref.md`](../ai/king_ref.md).
+
+---
+
+## Transit turns (voyage duration) — dead end, 2026-08-16, don't re-chase blind
+
+`docs/assets.md` still flags the Europe↔New World voyage turn count
+(`europe_voyage_turns` — east 2, west 4, −1 if ship MP≥6, clamped 1-4) as
+**Unverified vs DOS**. Chased the natural lead — the Harbor ship context
+menu, `FUN_38fd_2bfe` (**60787–60900**, catalog "sail / sell / unload"),
+whose `iVar2==1` branch (first menu item, unconditionally offered) calls
+`FUN_281f_089e(nation)` then clears two globals (`0x9e20`/`0x9e1c`).
+
+**Resolved the real call target (previous pass's "next session should
+start there" note) — it's not departure logic.** `address_mapping.csv`
+gives `281f:089e` → resident `FUN_1000_8a8e` (`exact` match); decompiled
+directly against the overlay-correct `OverlayTest` project
+(`GhidraDecompileAt.java 0000:18a8e`, see command below) — clean, 2 calls:
+```c
+void FUN_1000_8a8e(void) {
+  FUN_1000_1e61();   // RTLink/interrupt-flavored trampoline (LAB_1000_39e1
+                      // state byte, jumptable warnings) — infra, not game logic
+  FUN_0000_45ee();    // → FUN_0000_45d2(unit, unit.x[+0x3144], unit.y[+0x3145])
+}                      // i.e. "re-place/redraw unit at its own xy"
+```
+So selecting "Sail" in this CHOICE menu just redraws/re-registers the ship
+at its current position (probably marking it as now in-transit for the
+minimap/sprite layer) — it does **not** compute or store a turn count
+anywhere in this call chain. `FUNCTION_CATALOG.md`'s old label for
+`FUN_281f_089e` ("re-place unit at its current xy") turns out to have had
+the right verb, just attached to the wrong symbol/segment — corrected in
+place.
+
+**Implication:** the real turn-count math (if it's a discrete lookup at
+all, rather than the ship's normal movement-point allowance being consumed
+against a fixed "High Seas" distance every EOT — the general-Colonization-
+knowledge explanation for why faster ships arrive sooner) lives somewhere
+in the generic per-unit turn-processing loop, not in this UI click handler.
+That's a much larger, different function to find (on the order of `5b66`/
+`20e6`'s per-unit-act dispatchers, but for *player* units, not the AI path
+this project has already mapped) — genuinely out of scope for a quick
+pass. **Don't re-enter through this menu function again** — it's a
+confirmed dead end now, not just an unexamined lead.
+
+Reproduction (needs `~/projects/ghidra_overlay_scratch/OverlayTest`, no
+`.lock` files):
+```
+analyzeHeadless ~/projects/ghidra_overlay_scratch OverlayTest \
+  -process seg_data_resident.bin -readOnly -noanalysis \
+  -postScript GhidraDecompileAt.java 0000:18a8e -scriptPath tools
+```
+(`0000:18a8e` = resident linear address for DOS `1000:8a8e`, i.e.
+`(0x1000<<4) + 0x8a8e` — `GhidraDecompileAt.java`'s `0000:` space is a flat
+linear address, unlike the canonical project's own segment-prefixed
+`FUN_1000_*` naming.)
+
+---
+
+## Dock-immigrant "equip before boarding" — investigated, disproven, don't build
+
+User asked whether a dock colonist can be equipped with tools/muskets/
+horses before boarding a ship (Linux currently can't — `EuropeDockImmigrant`
+only carries `profession`). The only DOS candidate is the dock-immigrant
+action mega-dialog, `FUN_38fd_3746` (**61212-64066**, 2854 lines, catalog
+"board/orders", real Ghidra corruption warnings above its declaration:
+`Instruction at (ram,0x0003ff0b) overlaps instruction at (ram,0x0003ff07)`
++ `Control flow encountered bad instruction data` — same signature class as
+the original `4528`/`417e` blockers).
+
+**Re-peeled via the overlay-correct project, per the standing method.**
+`address_mapping.csv` gives `38fd:3746` → `OVL05_L0040:3b46` (`gap` match —
+canonical entry point unconfirmed, same flag the four originally-blocked
+functions all carried). Raw-disassembled a window around that address
+(`GhidraListInstrs.java`, no `createFunction()`, avoids the reachability-
+walk misresolution bug) and found a genuine `RETF` at `0x3b45` immediately
+followed by a clean `ENTER 0x6c,0x0` prologue at exactly `0x3b46` — so the
+mapped address **is** the real entry point here (unlike `5b66`); the
+corruption is purely mid-body.
+
+**First legible block after the prologue looked exactly like a gear-price
+table** — three near-`CALL`s to `0x006740` and three to `0x0066c3`, each
+preceded by pushing `0xf`/`0xe`/`0x8` (== `COLONIZE_CARGO_MUSKETS` /
+`_TOOLS` / `_HORSES`), each result `IMUL`'d by `0x32`/`0x64`/`0x32` (50/
+100/50 — the real Col1 equip quantities) into 6 stack locals, later picked
+by a unit-class (`+0x3146`) compare and passed to a dialog/gold-deduct
+call. A very plausible read — **and wrong.** Both `0x006740` and `0x0066c3`
+are themselves unpatched-RTLink-placeholder thunks (`CALLF <loader>; JMPF
+0x0000:XXXX`, the same mechanism documented in `euro_unit_act.md`'s `a6e4`
+writeup); resolved both through `rtlink_decode`'s own jump-table (built a
+debug print of `listInfo()`'s jump list, matched by the `CALLF`'s own file
+offset = `ram_address + 0x2400` — verified against `euro_unit_act.md`'s
+already-confirmed `a6e4` pair first) rather than trusting the placeholder
+bytes: both land in **`OVL03_L0000`**, offsets `0x0016` and `0x0040`.
+
+**Decompiled/disassembled both real targets — neither is a price lookup.**
+Both iterate the 8 native tribes (`FUN_1000_89d0` tribe lookup, `unit+
+0x3147 & 0xf` tribe id, `FUN_1000_8c28` diplomacy-flags gate — the exact
+same resident helpers `indian_incite_417e.md` already named), tracking a
+per-tribe alarm-like value and its max/sum. **This is a native-alarm scan,
+not a gear-price table** — the `0xf`/`0xe`/`0x8` args pushed by the caller
+are not cargo-type ids at all (numeric coincidence only), and the `50`/
+`100`/`50` multipliers are unrelated to equip quantities. The whole
+"gear-price table" reading was a pattern-matched false lead, cleanly
+disproven by the resolved bytes, not left merely unconfirmed.
+
+**Conclusion: no evidence `FUN_38fd_3746` (or any part of it examined so
+far — only the first ~150 of ~2854 lines) implements dock-side equip.**
+Didn't chase further: fully verifying "equip-at-dock exists nowhere in
+this function" would mean re-peeling the entire corrupted 2854-line body,
+disproportionate effort for one UI nice-to-have. **Don't build the
+tools/muskets/horses-at-dock feature** — not confirmed as real DOS
+behavior, and the one lead that looked like it pointed there didn't pan
+out. If this is revisited, the efficient next step is a **live DOSBox-X
+capture** (same technique `indian_incite_417e.md`'s "Live debugger
+capture" section used) — drag Tools onto a dock colonist in the real game
+and see whether anything fires — not more static RE of this specific
+function.
