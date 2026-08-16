@@ -1,0 +1,1 @@
+Most of these saves (in the `original_saves` folder) are taken from the original DOS. Do not modify these without explicit instructions to do so. They serve as authoritative data for expected outcomes.
