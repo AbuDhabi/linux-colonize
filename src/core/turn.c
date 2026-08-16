@@ -500,23 +500,6 @@ static void turn_emit_sol_phase_d_chrome(
   ai_popup_enqueue_ok(ai_popups, AI_POPUP_TAG_INFO, NULL, body);
 }
 
-static int turn_count_field_job(const ColonizeColony* colony, int field_job) {
-  if (!colony) {
-    return 0;
-  }
-  int n = 0;
-  for (int i = 0; i < COLONIZE_COLONY_FIELD_TILES; ++i) {
-    const int who = (int)colony->tiles[i];
-    if (who < 0 || who >= colony->colonist_count) {
-      continue;
-    }
-    if (colony->colonists[who].active && colony->colonists[who].field_job == field_job) {
-      n++;
-    }
-  }
-  return n;
-}
-
 static void turn_produce_one_colony(
   ColonizeColonyPool* pool,
   ColonizeColony* colony,
@@ -1185,21 +1168,6 @@ static void turn_produce_one_colony(
     }
   }
 
-  /*
-   * Lumber fallback: if no lumberjacks but a carpenter building exists,
-   * invent 1 lumber so Stockade demos still work without field assign.
-   */
-  if (turn_count_field_job(colony, COLONIZE_JOB_LUMBERJACK) == 0 &&
-      turn_building_name_has(pool, colony, "Carpenter")) {
-    colony->stock[COLONIZE_CARGO_LUMBER] =
-      turn_clamp_stock(colony->stock[COLONIZE_CARGO_LUMBER] + 1);
-    colony->cargo_produced_mask |= (uint16_t)(1u << COLONIZE_CARGO_LUMBER);
-    if (delta) {
-      delta->lumber += 1;
-      delta->goods[COLONIZE_CARGO_LUMBER] += 1;
-    }
-  }
-
   /* Settlement manufacturing (raw → goods) before hammers consume lumber. */
   colony_craft_one_colony(pool, colony, delta, colony_prod_sol_bonus(col1, colony));
   if (delta) {
@@ -1213,31 +1181,35 @@ static void turn_produce_one_colony(
    * colony_prod_colony_hammers (matches FUN_15eb_1d4c's Carpenter body —
    * see manufacturing_worker_calc_1d4c.md). */
   {
-    int lumber_use = 0;
     const int sol_b = colony_prod_sol_bonus(col1, colony);
-    int hammers_add = colony_prod_colony_hammers(pool, colony, sol_b, &lumber_use);
+    int hammers_add = colony_prod_colony_hammers(pool, colony, sol_b, NULL);
     if (hammers_add > 0) {
-      if (lumber_use > colony->stock[COLONIZE_CARGO_LUMBER]) {
-        lumber_use = colony->stock[COLONIZE_CARGO_LUMBER];
+      /*
+       * Hammers cost lumber 1:1, capped by lumber on hand *at the start of
+       * this turn* — no project queued still banks hammers (TURN5→6), but a
+       * carpenter can't spend lumber this same turn's Lumberjack hasn't
+       * delivered yet (field yield already ran above this in the pipeline).
+       * Player-confirmed 2026-08-16 against a real DOS save
+       * (colony-prod-tests): a colony with 2 skilled Carpenters and a
+       * Lumberjack producing 22 lumber this same turn still ended the turn
+       * with all 22 untouched — carpenters gained 0 hammers, not the
+       * post-yield stock this used to allow them to spend. The old code
+       * also let hammers through *for free* (no lumber debit at all)
+       * whenever the clipped amount hit 0 instead of stopping production.
+       */
+      int hammers = hammers_add;
+      if (hammers > stock_before[COLONIZE_CARGO_LUMBER]) {
+        hammers = stock_before[COLONIZE_CARGO_LUMBER];
       }
-      /* Without a project, still bank hammers when lumber is available (TURN5→6). */
-      int hammers = 0;
-      if (colony->building_in_production >= 0) {
-        colony->stock[COLONIZE_CARGO_LUMBER] -= lumber_use;
+      if (hammers > colony->stock[COLONIZE_CARGO_LUMBER]) {
+        hammers = colony->stock[COLONIZE_CARGO_LUMBER];
+      }
+      if (hammers > 0) {
+        colony->stock[COLONIZE_CARGO_LUMBER] -= hammers;
         if (delta) {
-          delta->lumber -= lumber_use;
-          delta->goods[COLONIZE_CARGO_LUMBER] -= lumber_use;
+          delta->lumber -= hammers;
+          delta->goods[COLONIZE_CARGO_LUMBER] -= hammers;
         }
-        hammers = lumber_use > 0 ? lumber_use : hammers_add;
-      } else if (lumber_use > 0) {
-        colony->stock[COLONIZE_CARGO_LUMBER] -= lumber_use;
-        if (delta) {
-          delta->lumber -= lumber_use;
-          delta->goods[COLONIZE_CARGO_LUMBER] -= lumber_use;
-        }
-        hammers = lumber_use;
-      } else {
-        hammers = hammers_add;
       }
       colony->hammers += hammers;
       if (delta) {

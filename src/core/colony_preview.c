@@ -202,21 +202,19 @@ void colony_preview_compute(
      * preview must show that too, not just while a Construction item is
      * selected, or the player never sees lumber about to be consumed.
      * sol_b folds into each Carpenter worker individually, inside
-     * colony_prod_colony_hammers (matches FUN_15eb_1d4c's Carpenter body). */
-    int lumber_use = 0;
-    int hammers_add = colony_prod_colony_hammers(pool, colony, sol_b, &lumber_use);
+     * colony_prod_colony_hammers (matches FUN_15eb_1d4c's Carpenter body).
+     * Capped by lumber on hand *before* this turn's production (mirrors
+     * turn.c's real Carpenter hammers block, 2026-08-16 real-DOS fix): a
+     * carpenter can't spend lumber this same turn's Lumberjack hasn't
+     * delivered yet, and 0 lumber on hand means 0 hammers, not a free
+     * hammers_add. */
+    int hammers_add = colony_prod_colony_hammers(pool, colony, sol_b, NULL);
     if (hammers_add > 0) {
-      int lumber = colony->stock[COLONIZE_CARGO_LUMBER] + out->goods[COLONIZE_CARGO_LUMBER];
-      if (lumber_use > lumber) {
-        lumber_use = lumber > 0 ? lumber : 0;
+      int hammers = hammers_add;
+      if (hammers > colony->stock[COLONIZE_CARGO_LUMBER]) {
+        hammers = colony->stock[COLONIZE_CARGO_LUMBER];
       }
-      if (colony->building_in_production >= 0) {
-        out->hammers = lumber_use > 0 ? lumber_use : hammers_add;
-      } else if (lumber_use > 0) {
-        out->hammers = lumber_use;
-      } else {
-        out->hammers = hammers_add;
-      }
+      out->hammers = hammers;
     }
   }
 }
