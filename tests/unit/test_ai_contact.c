@@ -5040,6 +5040,7 @@ int main(void) {
     ctx.status_size = sizeof(status_woi);
     ctx.human_nation = 0;
     col1.head.unknown46[0] = 1; /* WoI declared (AI_KING_WOI_BYTE stand-in) */
+    col1.head.game_options.woi = 1;
     ColonizeDosRng woi_rng;
     ctx.rng = &woi_rng;
 
@@ -5144,6 +5145,7 @@ int main(void) {
 
     /* No WoI: must not touch state even on a hit-shaped seed. */
     col1.head.unknown46[0] = 0;
+    col1.head.game_options.woi = 0;
     dos_rng_seed(&woi_rng, 1u);
     memset(ind, 0, sizeof(*ind));
     ind->tech = 15;
@@ -5155,6 +5157,7 @@ int main(void) {
       return fail("WoI defect should no-op before independence is declared");
     }
     col1.head.unknown46[0] = 0;
+    col1.head.game_options.woi = 0;
     ctx.rng = NULL;
     ctx.status = NULL;
     ctx.status_size = 0;

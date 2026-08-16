@@ -198,15 +198,21 @@ static int combat_woi_active(const ColonizeCol1Save* col1) {
   if (!col1) {
     return 0;
   }
-  /* game_options.woi (0x5382&1) or ai_king unknown46[0] stand-in. */
-  return col1->head.game_options.woi || col1->head.unknown46[0] != 0;
+  /*
+   * game_options.woi (0x5382&1) alone — unknown46[0] aliases DOS
+   * price_group_state word 0 (col1_save.h) and is near-always nonzero on a
+   * real DOS-authored save, which made this OR misfire "at war" on every
+   * such save regardless of actual WoI state. See ai_king_independence_declared.
+   */
+  return col1->head.game_options.woi != 0;
 }
 
 static int combat_ref_present(const ColonizeCol1Save* col1) {
   if (!col1) {
     return 0;
   }
-  return col1->head.game_options.ref_present || col1->head.unknown46[1] != 0;
+  /* Same unknown46[1]/price_group_state-word-0 collision as combat_woi_active. */
+  return col1->head.game_options.ref_present != 0;
 }
 
 /*

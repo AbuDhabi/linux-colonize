@@ -373,6 +373,17 @@ int units_cortes_cash_coastal_treasures(
 );
 bool units_despawn(ColonizeUnitPool* pool, int unit_id);
 int units_id_at(const ColonizeUnitPool* pool, int x, int y);
+/* First on-map unit at (x,y) that is neither except_unit_id nor
+ * except_nation_id — i.e. "is this tile still contested". Colony-capture
+ * call sites must check this before flipping ownership: a won combat only
+ * clears the defender that fought, not every unit stacked on the tile. */
+int units_foreign_unit_at(
+  const ColonizeUnitPool* pool,
+  int x,
+  int y,
+  int except_unit_id,
+  int except_nation_id
+);
 ColonizeUnit* units_get(ColonizeUnitPool* pool, int unit_id);
 const ColonizeUnit* units_get_const(const ColonizeUnitPool* pool, int unit_id);
 const ColonizeUnitType* units_type(const ColonizeUnitPool* pool, int type_index);
