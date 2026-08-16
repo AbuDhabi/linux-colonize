@@ -2223,7 +2223,11 @@ int main(void) {
     col->nation_id = 0;
     col->has_building[0] = true;
     col->building_in_production = -1;
-    col->custom_house_bits = 0;
+    /* bits==0 means "nothing configured" (per-cargo UI PARKED) → sells
+     * nothing; player-confirmed 2026-08-16 against a real DOS save
+     * (colony-prod-tests). Enable Tobacco explicitly to exercise the sell
+     * math below; the bits==0 no-op case is its own check further down. */
+    col->custom_house_bits = (uint16_t)(1u << COLONIZE_CARGO_TOBACCO);
     col->stock[COLONIZE_CARGO_TOBACCO] = 120;
     col->stock[COLONIZE_CARGO_FOOD] = 200;
 
@@ -2282,8 +2286,20 @@ int main(void) {
       return 1;
     }
 
-    /* turn_run_colony_production wires autosell. */
+    /* bits==0 (nothing configured yet) → sells nothing, not "everything".
+     * Player-confirmed 2026-08-16: real DOS save with Custom House built,
+     * custom_house_bits==0, sold nothing that turn. */
+    col->stock[COLONIZE_CARGO_TOBACCO] = 120;
     col->custom_house_bits = 0;
+    eu.gold = 0;
+    if (europe_custom_house_autosell(&eu, &pool, col, &col1, 0) != 0 ||
+        col->stock[COLONIZE_CARGO_TOBACCO] != 120) {
+      fprintf(stderr, "custom house bits==0 should sell nothing\n");
+      return 1;
+    }
+
+    /* turn_run_colony_production wires autosell. */
+    col->custom_house_bits = (uint16_t)(1u << COLONIZE_CARGO_TOBACCO);
     col->stock[COLONIZE_CARGO_TOBACCO] = 120;
     col->colonists[0].active = true;
     col->colonist_count = 1;
