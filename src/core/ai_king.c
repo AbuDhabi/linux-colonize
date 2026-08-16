@@ -1416,7 +1416,8 @@ static void ai_king_try_capture_at(ColonizeTurnContext* ctx, ColonizeUnit* u, in
     return;
   }
   ColonizeColony* c = colonies_get_mut(ctx->colonies, cid);
-  if (c && c->nation_id == human) {
+  if (c && c->nation_id == human &&
+      units_foreign_unit_at(ctx->units, u->x, u->y, u->id, u->nation_id) < 0) {
     /* Source: conquest / colonies_capture — Euro owner swap; no gold fiction. */
     char cname[COLONIZE_COLONY_NAME_MAX];
     snprintf(cname, sizeof(cname), "%s", c->name[0] ? c->name : "your colony");
@@ -1658,15 +1659,20 @@ static int ai_king_colony_sol_at(const ColonizeTurnContext* ctx, int nation_id, 
 }
 
 /*
- * Linux WoI stand-in for DOS 0x5382 bit0.
+ * DOS 0x5382 bit0 (head.game_options.woi) is the real WoI latch — read that,
+ * not the unknown46[0] stand-in: unknown46[0..5] alias DOS price_group_state
+ * words 0–2 (col1_save.h), so on a real DOS-authored save unknown46[0] holds
+ * live price data, not a war flag, and is nonzero almost every game. A save
+ * never touched by ai_king_set_independence (i.e. every save that didn't
+ * come out of this port's own turn_end) would misreport WoI as declared.
  * Set only on declare (ai_king_try_declare / ai_king_set_independence) when
- * SoL≥AI_KING_DECLARE_SOL_MIN — never by restless chrome. Exact Col1 bit PARKED.
+ * SoL≥AI_KING_DECLARE_SOL_MIN — never by restless chrome.
  */
 int ai_king_independence_declared(const ColonizeCol1Save* col1) {
   if (!col1) {
     return 0;
   }
-  return col1->head.unknown46[AI_KING_WOI_BYTE] != 0;
+  return col1->head.game_options.woi != 0;
 }
 
 static void ai_king_set_independence(ColonizeCol1Save* col1, int on) {

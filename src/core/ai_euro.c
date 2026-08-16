@@ -8934,7 +8934,8 @@ static void ai_euro_try_attack(ColonizeTurnContext* ctx, ColonizeUnit* u, int tx
     const int cid = colonies_id_at(ctx->colonies, u->x, u->y);
     if (cid >= 0) {
       ColonizeColony* c = colonies_get_mut(ctx->colonies, cid);
-      if (c && c->nation_id != u->nation_id && c->nation_id >= 0 && c->nation_id < 4) {
+      if (c && c->nation_id != u->nation_id && c->nation_id >= 0 && c->nation_id < 4 &&
+          units_foreign_unit_at(ctx->units, u->x, u->y, u->id, u->nation_id) < 0) {
         int plunder = 0;
         for (int i = 0; i < COLONIZE_CARGO_COUNT; ++i) {
           if (c->stock[i] > 0) {
@@ -13431,7 +13432,8 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
       const int cid = colonies_id_at(ctx->colonies, goal_x, goal_y);
       if (cid >= 0) {
         ColonizeColony* c = colonies_get_mut(ctx->colonies, cid);
-        if (c && c->nation_id != nation_id) {
+        if (c && c->nation_id != nation_id &&
+            units_foreign_unit_at(ctx->units, u->x, u->y, u->id, nation_id) < 0) {
           int plunder = 0;
           for (int i = 0; i < COLONIZE_CARGO_COUNT; ++i) {
             if (c->stock[i] > 0) {

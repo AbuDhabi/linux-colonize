@@ -4241,6 +4241,7 @@ int main(void) {
 
     /* Peacetime tax audience: clear WoI so 1d42 runs; spring tax year. */
     col1.head.unknown46[0] = 0;
+    col1.head.game_options.woi = 0;
     col1.head.unknown46[2] = 0;
     col1.head.unknown46[5] = 0;
     col1.nation[0].tax_rate = 10;
@@ -4403,6 +4404,7 @@ int main(void) {
 
     /* Congress CHOICE: gate met → enqueue @DECLARE, no WoI until Confirm. */
     col1.head.unknown46[0] = 0;
+    col1.head.game_options.woi = 0;
     col1.head.unknown46[5] = 0;
     col1.colony[0].rebel_dividend = 60;
     col1.colony[0].rebel_divisor = 100;
@@ -4700,6 +4702,7 @@ int main(void) {
      */
     {
       col1.head.unknown46[0] = 1;
+      col1.head.game_options.woi = 1;
       memset(col1.head.expeditionary_force, 0, sizeof(col1.head.expeditionary_force));
       colonies.colonies[0].nation_id = 0;
       col1.head.backup_force[0] = 2;
@@ -4744,6 +4747,7 @@ int main(void) {
      */
     {
       col1.head.unknown46[0] = 0;
+      col1.head.game_options.woi = 0;
       col1.head.unknown46[5] = 0;
       col1.head.colony_count = 1;
       col1.colony[0].nation_id = 0;
@@ -4786,7 +4790,9 @@ int main(void) {
     ColonizeCol1Save end;
     col1_save_init(&end);
     end.head.unknown46[0] = 1;
+    end.head.game_options.woi = 1;
     end.head.unknown46[1] = 1; /* REF already invading */
+    end.head.game_options.ref_present = 1;
     end.head.unknown46[4] = 0;
     end.head.year = 1785;
     end.player[0].control = 0;
@@ -4892,7 +4898,9 @@ int main(void) {
     ColonizeCol1Save end;
     col1_save_init(&end);
     end.head.unknown46[0] = 1;
+    end.head.game_options.woi = 1;
     end.head.unknown46[1] = 1; /* REF already invading */
+    end.head.game_options.ref_present = 1;
     end.head.unknown46[4] = 0;
     end.head.year = 1785;
     end.player[0].control = 0;
@@ -5008,7 +5016,9 @@ int main(void) {
     ColonizeCol1Save end;
     col1_save_init(&end);
     end.head.unknown46[0] = 1;
+    end.head.game_options.woi = 1;
     end.head.unknown46[1] = 1;
+    end.head.game_options.ref_present = 1;
     end.head.unknown46[4] = 0;
     end.head.unknown46[6] = 0;
     end.head.unknown46[7] = 0;
@@ -5251,7 +5261,9 @@ int main(void) {
     ColonizeCol1Save end;
     col1_save_init(&end);
     end.head.unknown46[0] = 1;
+    end.head.game_options.woi = 1;
     end.head.unknown46[1] = 1;
+    end.head.game_options.ref_present = 1;
     end.head.unknown46[4] = 0;
     end.head.unknown46[10] = 0;
     end.head.year = 1600;
@@ -5454,7 +5466,9 @@ int main(void) {
     ColonizeCol1Save end;
     col1_save_init(&end);
     end.head.unknown46[0] = 1;
+    end.head.game_options.woi = 1;
     end.head.unknown46[1] = 1;
+    end.head.game_options.ref_present = 1;
     end.head.unknown46[4] = 0;
     end.head.year = 1785;
     end.player[0].control = 0;
@@ -5589,7 +5603,9 @@ int main(void) {
     ColonizeCol1Save end;
     col1_save_init(&end);
     end.head.unknown46[0] = 1;
+    end.head.game_options.woi = 1;
     end.head.unknown46[1] = 1;
+    end.head.game_options.ref_present = 1;
     end.head.unknown46[4] = 0;
     end.head.year = 1850;
     end.player[0].control = 0;
@@ -5708,7 +5724,9 @@ int main(void) {
     ColonizeCol1Save end;
     col1_save_init(&end);
     end.head.unknown46[0] = 1;
+    end.head.game_options.woi = 1;
     end.head.unknown46[1] = 1;
+    end.head.game_options.ref_present = 1;
     end.head.unknown46[4] = 0;
     end.head.year = 1850;
     end.player[0].control = 0;
@@ -5842,7 +5860,9 @@ int main(void) {
     ColonizeCol1Save end;
     col1_save_init(&end);
     end.head.unknown46[0] = 0;
+    end.head.game_options.woi = 0;
     end.head.unknown46[1] = 0;
+    end.head.game_options.ref_present = 0;
     end.head.unknown46[4] = 0;
     end.head.year = 1800;
     end.player[0].control = 0;
@@ -5962,6 +5982,7 @@ int main(void) {
     ColonizeCol1Save end;
     col1_save_init(&end);
     end.head.unknown46[0] = 0;
+    end.head.game_options.woi = 0;
     end.head.unknown46[4] = 0;
     end.head.unknown46[8] = 0;
     end.head.year = 1790;
@@ -6051,7 +6072,9 @@ int main(void) {
     ColonizeCol1Save end;
     col1_save_init(&end);
     end.head.unknown46[0] = 1;
+    end.head.game_options.woi = 1;
     end.head.unknown46[1] = 1;
+    end.head.game_options.ref_present = 1;
     end.head.unknown46[4] = 0;
     end.head.unknown46[9] = 0;
     end.head.year = 1840;
@@ -6200,6 +6223,7 @@ int main(void) {
    */
   {
     col1.head.unknown46[0] = 0; /* peacetime */
+    col1.head.game_options.woi = 0;
     ColonizeDosRng gift_rng;
     dos_rng_seed(&gift_rng, 13u);
     ctx.rng = &gift_rng;
@@ -6220,6 +6244,7 @@ int main(void) {
 
     /* Post-WoI: must no-op even on the same hit-shaped seed. */
     col1.head.unknown46[0] = 1;
+    col1.head.game_options.woi = 1;
     dos_rng_seed(&gift_rng, 13u);
     col1.nation[1].gold = 1000000;
     const uint32_t gift_gold_before2 = col1.nation[1].gold;
@@ -6228,6 +6253,7 @@ int main(void) {
       return fail("2244 must no-op once WoI is declared");
     }
     col1.head.unknown46[0] = 0;
+    col1.head.game_options.woi = 0;
     ctx.rng = NULL; /* restore — later code in this test assumes no RNG */
   }
 

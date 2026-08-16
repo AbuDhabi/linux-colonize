@@ -927,6 +927,16 @@ static int units_foreign_at(
   return -1;
 }
 
+int units_foreign_unit_at(
+  const ColonizeUnitPool* pool,
+  int x,
+  int y,
+  int except_unit_id,
+  int except_nation_id
+) {
+  return units_foreign_at(pool, x, y, except_unit_id, except_nation_id);
+}
+
 /*
  * FUN_5fef_0000: walk stack for highest engagement toughness vs attacker.
  * Artillery vs Indian attacker ×2; skip type.attack==0.
