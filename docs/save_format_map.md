@@ -67,7 +67,7 @@ Byte-level sheet (sparse): [nawagers Google sheet](https://docs.google.com/sprea
 
 **Fixtures:** `original_saves/COLONY00.SAV`, `COLONY01.SAV`,
 `original_saves/valid-lategame-saves/COLONY{00–08,10}.SAV`,
-`test-saves-ai/TURN*`, `test-saves-mapgen/SEED100.SAV`,
+`test-saves-ai/TURN*`, `original_saves/mapgen/SEED100.SAV`,
 `tests-save-misc/unit flags error.sav`.
 
 ---
