@@ -596,6 +596,18 @@ bool col1_bridge_apply(
       )) {
     return false;
   }
+  /*
+   * post_map.prime_resource_seed (FUN_684c_08c0 mapgen) drives special-
+   * resource + rumour placement (map_resource_type_at_ex /
+   * map_procedural_rumour_at) — without this, those hash off a hardcoded
+   * MAP_RESOURCE_SEED_DEFAULT (100, this project's own mapgen-fixture
+   * seed) instead of the save's real one, so every loaded campaign save
+   * whose map wasn't generated with seed 100 gets resource/rumour
+   * placement for the *wrong* map. Player-confirmed 2026-08-16
+   * (colony-prod-tests, seed 541): tiles the real DOS map special-cased
+   * (Prime Tobacco etc.) read as plain terrain here, undercounting yield.
+   */
+  map->prime_resource_seed = save->post_map.prime_resource_seed;
   for (size_t i = 0; i < save->map.tile_count; ++i) {
     map->terrain[i] = col1_tile_to_mp_terrain(save->map.tile[i]);
     if (map->improve && save->map.mask) {

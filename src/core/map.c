@@ -474,6 +474,16 @@ static int phys0_connectivity_sprite(int base, uint8_t mask) {
   return base + (int)m;
 }
 
+/*
+ * Real per-map seed (post_map.prime_resource_seed, wired by col1_bridge_apply)
+ * drives resource/rumour placement — falls back to the mapgen-fixture
+ * default only for maps that never set one (fresh/blank templates).
+ */
+static unsigned map_resource_seed(const ColonizeWorldMap* map) {
+  return (map && map->prime_resource_seed != 0) ? map->prime_resource_seed
+                                                  : MAP_RESOURCE_SEED_DEFAULT;
+}
+
 static bool map_has_special_mountain_marker(const ColonizeWorldMap* map, int x, int y) {
   /* AMER2 (43,68): layer3 0x0e marks an isolated mountain peak on tundra. */
   return map_get_layer3(map, x, y) == 0x0eu;
@@ -523,7 +533,7 @@ static int map_resource_type_at_ex(
     !(((local_a < 8) || (local_a > 15)) && ((local_a < 16) || (local_a > 23))) ? 1 : 0;
   const int uVar2 = (dos_x & 3) * 4 + (dos_y & 3);
   const int uVar3 =
-    ((((dos_y >> 2) * 3 + (dos_x >> 2)) - local_4) + MAP_RESOURCE_SEED_DEFAULT) & 0xf;
+    ((((dos_y >> 2) * 3 + (dos_x >> 2)) - local_4) + (int)map_resource_seed(map)) & 0xf;
   if (uVar3 != uVar2 && (uVar3 ^ 10) != uVar2) {
     return -1;
   }
@@ -574,7 +584,7 @@ static bool map_procedural_rumour_at(const ColonizeWorldMap* map, int x, int y) 
   const int dos_x = x + 1;
   const int dos_y = y + 1;
   const unsigned hash =
-    (unsigned)(((dos_y >> 2) * 0x13 + (dos_x >> 2) * 0x11 + MAP_RESOURCE_SEED_DEFAULT + 8) & 0x1f);
+    (unsigned)(((dos_y >> 2) * 0x13 + (dos_x >> 2) * 0x11 + (int)map_resource_seed(map) + 8) & 0x1f);
   return (int)hash + (dos_x & 3) * -4 == (dos_y & 3);
 }
 
