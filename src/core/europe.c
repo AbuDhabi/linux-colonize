@@ -7,11 +7,14 @@
 #include "core/assets.h"
 #include "core/col1_save.h"
 #include "core/colony.h"
+#include "core/dos_rng.h"
 #include "core/ss.h"
 #include "core/strutil.h"
 #include "core/units.h"
 #include "platform/diagnostics.h"
 #include "platform/platform.h"
+
+static void europe_refresh_recruit_passage(EuropeScreen* eu);
 
 /* Deterministic LCG for pool fills when no external rng passed. */
 static unsigned europe_rng_next(unsigned* state) {
@@ -591,7 +594,9 @@ void europe_reset_campaign_nation(EuropeScreen* eu, int nation) {
   eu->selected_market = 0;
   eu->dock_count = 0;
   memset(eu->dock, 0, sizeof(eu->dock));
-  eu->recruit_passage = EUROPE_RECRUIT_PASSAGE_START;
+  eu->recruit_count = 0;
+  eu->difficulty = 0; /* first EOT tick caches the real col1 difficulty */
+  europe_refresh_recruit_passage(eu);
   europe_init_pool(eu);
   europe_init_purchase_table(eu);
   eu->menu = EUROPE_MENU_NONE;
@@ -689,14 +694,47 @@ void europe_free(EuropeScreen* eu) {
   memset(eu, 0, sizeof(*eu));
 }
 
-static void europe_bump_passage(EuropeScreen* eu) {
+int europe_compute_recruit_passage(
+  int recruit_count, int difficulty, int current_crosses, int needed_crosses
+) {
+  if (difficulty < 0) {
+    difficulty = 0;
+  }
+  if (difficulty > 8) {
+    difficulty = 8;
+  }
+  const long base = (long)(recruit_count + difficulty + 7) * 20;
+  long floor_val = base / 5;
+  if (floor_val < 100) {
+    floor_val = 100;
+  }
+  /* -(needed_crosses+1): DOS's own divide-by-zero guard (~X == -X-1). */
+  const long denom = -((long)needed_crosses + 1);
+  const long discount = ((base - floor_val) * (long)current_crosses) / denom;
+  long passage = base + discount;
+  if (passage < 10) {
+    passage = 10;
+  }
+  return (int)passage;
+}
+
+static void europe_refresh_recruit_passage(EuropeScreen* eu) {
   if (!eu) {
     return;
   }
-  eu->recruit_passage += EUROPE_RECRUIT_PASSAGE_STEP;
-  if (eu->recruit_passage > 20000) {
-    eu->recruit_passage = 20000;
+  eu->recruit_passage = europe_compute_recruit_passage(
+    eu->recruit_count, eu->difficulty, eu->current_crosses, eu->needed_crosses
+  );
+}
+
+static void europe_bump_recruit_count(EuropeScreen* eu) {
+  if (!eu) {
+    return;
   }
+  if (eu->recruit_count < 180) {
+    eu->recruit_count++;
+  }
+  europe_refresh_recruit_passage(eu);
 }
 
 bool europe_recruit_from_pool(EuropeScreen* eu, int pool_index) {
@@ -735,20 +773,29 @@ bool europe_recruit_from_pool(EuropeScreen* eu, int pool_index) {
     slot->name,
     eu->recruit_passage
   );
-  europe_bump_passage(eu);
+  europe_bump_recruit_count(eu);
   europe_refill_pool_slot(eu, pool_index, NULL);
   return true;
 }
 
-bool europe_immigrant_from_pool(EuropeScreen* eu) {
+bool europe_immigrant_from_pool(EuropeScreen* eu, ColonizeDosRng* rng) {
   if (!eu || eu->dock_count >= EUROPE_DOCK_MAX) {
     return false;
   }
   int slot = -1;
-  for (int i = 0; i < EUROPE_POOL_SIZE; ++i) {
-    if (eu->pool[i].filled) {
-      slot = i;
-      break;
+  if (rng) {
+    /* DOS `5e52` phase 5: 04d4(0,2) rolls the slot before rerolling it. */
+    const int roll = dos_rng_range(rng, 0, EUROPE_POOL_SIZE - 1);
+    if (eu->pool[roll].filled) {
+      slot = roll;
+    }
+  }
+  if (slot < 0) {
+    for (int i = 0; i < EUROPE_POOL_SIZE; ++i) {
+      if (eu->pool[i].filled) {
+        slot = i;
+        break;
+      }
     }
   }
   if (slot < 0) {
@@ -761,7 +808,8 @@ bool europe_immigrant_from_pool(EuropeScreen* eu) {
   d->profession = eu->pool[slot].profession;
   d->present = true;
   d->sentry = true;
-  europe_bump_passage(eu);
+  /* DOS 0718 harbor-spawn does NOT bump Europe+6 — only 4884's own real
+   * Recruit-click tail does (see europe_compute_recruit_passage). */
   europe_refill_pool_slot(eu, slot, NULL);
   return true;
 }
@@ -1623,7 +1671,8 @@ int europe_tick_immigration_pressure(
   const ColonizeColonyPool* colonies,
   const ColonizeUnitPool* units,
   const ColonizeCol1Save* col1,
-  int nation_id
+  int nation_id,
+  ColonizeDosRng* rng
 ) {
   /*
    * DOS: +0x30 = 584a score (needed_crosses); +0x2e += 2 (and church crosses
@@ -1631,6 +1680,16 @@ int europe_tick_immigration_pressure(
    */
   if (!eu || nation_id < 0 || nation_id > 3) {
     return 0;
+  }
+  if (col1) {
+    int diff = (int)col1->head.difficulty;
+    if (diff < 0) {
+      diff = 0;
+    }
+    if (diff > 8) {
+      diff = 8;
+    }
+    eu->difficulty = (uint8_t)diff;
   }
   const int score = europe_compute_immigration_score(colonies, units, col1, nation_id);
   int need = score;
@@ -1657,13 +1716,15 @@ int europe_tick_immigration_pressure(
   }
   eu->current_crosses = (uint16_t)cur;
   eu->immigration_pressure = (int16_t)(cur > 32767u ? 32767 : (int)cur);
+  europe_refresh_recruit_passage(eu);
 
   /* Phase 5: needed < current → dock immigrant; clear current. */
   if (need > 0 && (int)eu->current_crosses > need) {
     eu->current_crosses = 0;
     eu->immigration_pressure = 0;
     eu->crosses_immigrant_seen = true;
-    if (europe_immigrant_from_pool(eu)) {
+    europe_refresh_recruit_passage(eu);
+    if (europe_immigrant_from_pool(eu, rng)) {
       eu->open_on_dock = false;
       snprintf(eu->status, sizeof(eu->status), "Immigrant arrives in Europe.");
       return 1;

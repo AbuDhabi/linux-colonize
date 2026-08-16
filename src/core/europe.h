@@ -74,8 +74,6 @@
 /* Voyage delays — Unverified vs DOS (manual: 1–4 turns; east usually shorter). */
 #define EUROPE_VOYAGE_EAST_TURNS 2
 #define EUROPE_VOYAGE_WEST_TURNS 4
-#define EUROPE_RECRUIT_PASSAGE_START 100
-#define EUROPE_RECRUIT_PASSAGE_STEP 16
 
 typedef struct EuropeCargoQuote {
   char name[32];
@@ -210,7 +208,18 @@ typedef struct EuropeScreen {
   int selected_harbor; /* -1 none; index into harbor[] */
   int selected_market; /* cargo type highlight */
   EuropePoolSlot pool[EUROPE_POOL_SIZE];
-  int recruit_passage; /* current dialog gold */
+  int recruit_passage; /* current dialog gold; see europe_compute_recruit_passage */
+  /*
+   * DOS Europe+6: recruit count this era, capped 180 (0xb4). Bumped only by
+   * a real interactive Recruit (FUN_38fd_4884 tail, param_1==0&&param_2==0)
+   * — NOT by crosses-driven dock immigrants (separate 0718 harbor-spawn
+   * path). Cite: viceroy_unpacked.c 64778-64784.
+   */
+  uint8_t recruit_count;
+  /* Cached 0-8 clamp of col1->head.difficulty (0x53a6); refreshed each EOT
+   * tick so europe_recruit_from_pool can recompute passage without a col1
+   * pointer. */
+  uint8_t difficulty;
   EuropeTrainOption train[EUROPE_TRAIN_MAX];
   int train_count;
   EuropePurchaseOption purchase[EUROPE_PURCHASE_MAX];
@@ -249,9 +258,28 @@ void europe_reset_campaign_nation(EuropeScreen* eu, int nation);
 /* Voyage turns (east shorter). ship_movement ≥6 shaves one turn (Unverified). */
 int europe_voyage_turns(bool exit_east, int ship_movement);
 
+/*
+ * DOS `FUN_38fd_4884` real Recruit passage formula (was a linear
+ * start-100/+16-per-recruit placeholder — see manual_gap.md). base =
+ * (recruit_count+difficulty+7)*20; floor = max(base/5,100); discount =
+ * (base-floor)*current_crosses / -(needed_crosses+1) [`FUN_1d1d_0ec6`
+ * signed division; the +1 is the DOS divide-by-zero guard when
+ * needed_crosses==0]; passage = max(10, base+discount) — cheaper the
+ * closer current_crosses is to the next free immigrant.
+ * Cite: viceroy_unpacked.c 64682-64694; europe_nation_eot.md "Phase 5".
+ */
+int europe_compute_recruit_passage(
+  int recruit_count, int difficulty, int current_crosses, int needed_crosses
+);
+
 bool europe_recruit_from_pool(EuropeScreen* eu, int pool_index);
-/* Crosses / unrest: move pool[0] (or first filled) to docks; refill. */
-bool europe_immigrant_from_pool(EuropeScreen* eu);
+/*
+ * Crosses / unrest: move one pool slot to docks; refill. DOS `5e52` phase 5
+ * picks the slot via `FUN_281f_04d4` RNG(0,2) before rerolling it, not
+ * always pool[0] — pass `rng` to match; NULL falls back to first-filled
+ * (fixture / no-rng callers). Cite: europe_nation_eot.md "Phase 5".
+ */
+bool europe_immigrant_from_pool(EuropeScreen* eu, struct ColonizeDosRng* rng);
 void europe_refill_pool_slot(EuropeScreen* eu, int slot, unsigned* rng_state);
 
 bool europe_train(EuropeScreen* eu, int train_index);
@@ -394,7 +422,8 @@ int europe_tick_immigration_pressure(
   const struct ColonizeColonyPool* colonies,
   const ColonizeUnitPool* units,
   const struct ColonizeCol1Save* col1,
-  int nation_id
+  int nation_id,
+  struct ColonizeDosRng* rng
 );
 /*
  * Sell one commodity hold from a map/transport ColonizeUnit into eu->gold.
@@ -414,6 +443,7 @@ int europe_sell_unit_hold(
 struct ColonizeColonyPool;
 struct ColonizeColony;
 struct ColonizeCol1Save;
+struct ColonizeDosRng;
 
 /*
  * FUN_364b_0688 Custom House auto-sell (colony EOT after production).

@@ -1731,7 +1731,8 @@ void turn_run_nation_ticks(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
       ctx->europe->current_crosses = (uint16_t)cur;
     }
     if (europe_tick_immigration_pressure(
-          ctx->europe, ctx->colonies, ctx->units, ctx->col1_ok ? ctx->col1 : NULL, ctx->human_nation
+          ctx->europe, ctx->colonies, ctx->units, ctx->col1_ok ? ctx->col1 : NULL, ctx->human_nation,
+          ctx->rng
         )) {
       const char* name = "";
       if (ctx->europe->dock_count > 0) {

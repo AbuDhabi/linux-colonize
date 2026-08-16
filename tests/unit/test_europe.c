@@ -54,6 +54,63 @@ int main(void) {
     return 1;
   }
 
+  /*
+   * Real DOS `FUN_38fd_4884` passage formula (was a linear placeholder —
+   * see manual_gap.md). Pure-function checks against hand-traced bytes:
+   * viceroy_unpacked.c 64682-64694.
+   */
+  if (europe_compute_recruit_passage(0, 0, 0, 9) != 140) {
+    fprintf(
+      stderr, "passage(0,0,0,9) want 140 got %d\n", europe_compute_recruit_passage(0, 0, 0, 9)
+    );
+    europe_free(&eu);
+    return 1;
+  }
+  if (europe_compute_recruit_passage(1, 0, 0, 9) != 160) {
+    fprintf(
+      stderr, "passage(1,0,0,9) want 160 got %d\n", europe_compute_recruit_passage(1, 0, 0, 9)
+    );
+    europe_free(&eu);
+    return 1;
+  }
+  /* Crosses-pressure discount: base=320 floor=100 discount=(220*50)/-100=-110. */
+  if (europe_compute_recruit_passage(5, 4, 50, 99) != 210) {
+    fprintf(
+      stderr,
+      "passage(5,4,50,99) want 210 got %d\n",
+      europe_compute_recruit_passage(5, 4, 50, 99)
+    );
+    europe_free(&eu);
+    return 1;
+  }
+  /* Difficulty clamps to 0..8; out-of-range 20 must match the 8 case. */
+  if (europe_compute_recruit_passage(0, 20, 0, 9) != europe_compute_recruit_passage(0, 8, 0, 9)) {
+    fprintf(stderr, "passage difficulty clamp mismatch\n");
+    europe_free(&eu);
+    return 1;
+  }
+  /* Floor is 10 even when the discount would drive it lower/negative. */
+  if (europe_compute_recruit_passage(0, 0, 60000, 1) < 10) {
+    fprintf(
+      stderr,
+      "passage floor want >=10 got %d\n",
+      europe_compute_recruit_passage(0, 0, 60000, 1)
+    );
+    europe_free(&eu);
+    return 1;
+  }
+  /* Reset seeds needed_crosses=9/current=0/count=0/difficulty=0 → 140. */
+  if (eu.recruit_count != 0 || eu.recruit_passage != 140) {
+    fprintf(
+      stderr,
+      "initial recruit state want count=0 passage=140 got count=%d passage=%d\n",
+      eu.recruit_count,
+      eu.recruit_passage
+    );
+    europe_free(&eu);
+    return 1;
+  }
+
   const int gold_before = eu.gold;
   const int dock_before = eu.dock_count;
   if (!europe_recruit(&eu) || eu.menu != EUROPE_MENU_RECRUIT) {
@@ -72,6 +129,39 @@ int main(void) {
       dock_before, eu.dock_count, gold_before, eu.gold);
     europe_free(&eu);
     return 1;
+  }
+  /* Real Recruit bumps Europe+6 (recruit_count) and recomputes passage. */
+  {
+    const int want_passage =
+      europe_compute_recruit_passage(1, eu.difficulty, eu.current_crosses, eu.needed_crosses);
+    if (eu.recruit_count != 1 || eu.recruit_passage != want_passage) {
+      fprintf(
+        stderr,
+        "post-recruit want count=1 passage=%d got count=%d passage=%d\n",
+        want_passage,
+        eu.recruit_count,
+        eu.recruit_passage
+      );
+      europe_free(&eu);
+      return 1;
+    }
+  }
+  /* Crosses-driven free immigrant (0718 harbor spawn) must NOT bump
+   * Europe+6 — only the real interactive Recruit path (4884) does. */
+  {
+    const int count_before = eu.recruit_count;
+    const int dock2_before = eu.dock_count;
+    if (!europe_immigrant_from_pool(&eu, NULL) || eu.dock_count != dock2_before + 1 ||
+        eu.recruit_count != count_before) {
+      fprintf(
+        stderr,
+        "free immigrant should not bump recruit_count (before=%d after=%d)\n",
+        count_before,
+        eu.recruit_count
+      );
+      europe_free(&eu);
+      return 1;
+    }
   }
 
   const int gold_after_recruit = eu.gold;

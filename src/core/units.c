@@ -2507,7 +2507,9 @@ bool units_resolve_lcr_rumour(
      * AI nations have no modeled EuropeScreen recruit pool (PARK). */
     if (europe && nation == human_nation) {
       for (int i = 0; i < 8; ++i) {
-        (void)europe_immigrant_from_pool(europe);
+        /* FoY funnels through 4884, not 5e52's 04d4 slot roll — out of scope
+         * here; keep deterministic first-filled pick (rng=NULL). */
+        (void)europe_immigrant_from_pool(europe, NULL);
       }
     }
     units_combat_enqueue_tok(
