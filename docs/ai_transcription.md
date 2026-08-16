@@ -780,7 +780,7 @@ mid-planner share the next Euro path.
 
 | Artifact | Use |
 |----------|-----|
-| `test-saves-mapgen/SEED100.SAV` | Golden tribes/Braves; `golden_mapgen_seed100`; far-ocean probe |
+| `original_saves/mapgen/SEED100.SAV` | Golden tribes/Braves; `golden_mapgen_seed100`; far-ocean probe |
 | `tools/probe_far_ocean_4753.c` | Phase 8: far tiles Linux ↔ SAV ocean/land |
 | `tools/probe_sioux_spent.c` | T1/T2 Brave cost-head + neighborhood oracle (spent residuals) |
 | `test-saves-ai/TURN1.SAV`…`TURN7.SAV` | Early-AI T2 joint gate; `golden_ai_turns` (Euro+Indian+diplo fields) |

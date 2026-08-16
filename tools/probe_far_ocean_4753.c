@@ -80,7 +80,7 @@ int main(void) {
   char err[256];
   ColonizeCol1Save golden;
   col1_save_init(&golden);
-  if (!col1_save_read_file("test-saves-mapgen/SEED100.SAV", &golden, err, sizeof err)) {
+  if (!col1_save_read_file("original_saves/mapgen/SEED100.SAV", &golden, err, sizeof err)) {
     fprintf(stderr, "SEED100.SAV: %s\n", err);
     return 1;
   }

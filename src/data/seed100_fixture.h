@@ -2,7 +2,7 @@
 #define COLONIZE_SEED100_FIXTURE_H
 
 /*
- * Locked constants for golden_mapgen_seed100 vs test-saves-mapgen/SEED100.SAV.
+ * Locked constants for golden_mapgen_seed100 vs original_saves/mapgen/SEED100.SAV.
  * These are expected-value anchors only — runtime NEW WORLD never special-cases
  * seed 100; DOS LCG + FUN_684c_08c0 / FUN_6a09 must reproduce them for any seed.
  */
