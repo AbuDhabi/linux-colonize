@@ -1203,22 +1203,19 @@ static void turn_produce_one_colony(
     int hammers_add = colony_prod_colony_hammers(pool, colony, sol_b, NULL);
     if (hammers_add > 0) {
       /*
-       * Hammers cost lumber 1:1, capped by lumber on hand *at the start of
-       * this turn* — no project queued still banks hammers (TURN5→6), but a
-       * carpenter can't spend lumber this same turn's Lumberjack hasn't
-       * delivered yet (field yield already ran above this in the pipeline).
-       * Player-confirmed 2026-08-16 against a real DOS save
-       * (colony-prod-tests): a colony with 2 skilled Carpenters and a
-       * Lumberjack producing 22 lumber this same turn still ended the turn
-       * with all 22 untouched — carpenters gained 0 hammers, not the
-       * post-yield stock this used to allow them to spend. The old code
-       * also let hammers through *for free* (no lumber debit at all)
-       * whenever the clipped amount hit 0 instead of stopping production.
+       * Hammers cost lumber 1:1, capped by lumber actually on hand (this
+       * turn's field-yield lumber counts — TURN5→6: a lone Lumberjack+
+       * Carpenter pair goes 0 lumber/0 hammers to lumber=3/hammers=+3 in
+       * one same turn, so same-turn production *is* spendable). No project
+       * queued still banks hammers (TURN5→6). The old code let hammers
+       * through *for free* (no lumber debit at all) whenever the clipped
+       * amount hit 0 instead of stopping production — that's what's fixed
+       * here, not same-turn timing. (The colony-prod-tests Autumn-turn
+       * counter-example that once looked like a same-turn-lumber rule is
+       * fully explained by the Spring-only gate above — no separate timing
+       * restriction needed.)
        */
       int hammers = hammers_add;
-      if (hammers > stock_before[COLONIZE_CARGO_LUMBER]) {
-        hammers = stock_before[COLONIZE_CARGO_LUMBER];
-      }
       if (hammers > colony->stock[COLONIZE_CARGO_LUMBER]) {
         hammers = colony->stock[COLONIZE_CARGO_LUMBER];
       }
