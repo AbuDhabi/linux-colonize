@@ -2374,7 +2374,7 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_38fd_44a4` | 64455 | 61 | trade | King tax-raise event (pay gold + bump tax) | inferred | docs/savegame.md |
 | `FUN_38fd_4590` | 64516 | 38 | trade | Tax-pressure / boycott RNG check | inferred |  |
 | `FUN_38fd_46d4` | 64554 | 106 | trade | Roll next dock immigrant profession | inferred |  |
-| `FUN_38fd_4884` | 64660 | 140 | trade | Recruit dialog (3 pool slots + passage cost) | inferred | docs/assets.md |
+| `FUN_38fd_4884` | 64660 | 140 | trade | Recruit dialog (3 pool slots + passage cost) | inferred | docs/assets.md; turn/europe_nation_eot.md |
 | `FUN_38fd_4b50` | 64800 | 115 | trade | Purchase ship/artillery dialog | inferred | docs/assets.md |
 | `FUN_38fd_4e8e` | 64915 | 974 | trade | Europe mouse/drag input dispatcher; decomp noisy | inferred |  |
 | `FUN_38fd_4f6e` | 65889 | 2205 | trade | Europe keyboard/hotkey input dispatcher; decomp noisy | inferred |  |

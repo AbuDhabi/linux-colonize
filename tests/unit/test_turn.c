@@ -3950,7 +3950,7 @@ int main(void) {
     ColonizeUnitPool units;
     memset(&units, 0, sizeof(units));
     units_reset(&units);
-    europe_tick_immigration_pressure(&eu, &pool, &units, NULL, 0);
+    europe_tick_immigration_pressure(&eu, &pool, &units, NULL, 0, NULL);
     if (eu.needed_crosses <= 0) {
       fprintf(stderr, "immigration needed want >0 got %u\n", (unsigned)eu.needed_crosses);
       return 1;
@@ -3965,7 +3965,7 @@ int main(void) {
     eu.dock_count = 0;
     eu.status[0] = '\0';
     eu.open_on_dock = false;
-    if (!europe_tick_immigration_pressure(&eu, &pool, &units, NULL, 0) || eu.open_on_dock ||
+    if (!europe_tick_immigration_pressure(&eu, &pool, &units, NULL, 0, NULL) || eu.open_on_dock ||
         eu.dock_count < 1 || strstr(eu.status, "Immigrant") == NULL) {
       fprintf(
         stderr,
@@ -3987,12 +3987,12 @@ int main(void) {
       col->nation_id = 1;
       eu.current_crosses = 0;
       eu.immigration_pressure = 0;
-      europe_tick_immigration_pressure(&eu, &pool, &units, &icol, 1);
+      europe_tick_immigration_pressure(&eu, &pool, &units, &icol, 1, NULL);
       const int ai_score = (int)eu.needed_crosses;
       col->nation_id = 0;
       eu.current_crosses = 0;
       eu.immigration_pressure = 0;
-      europe_tick_immigration_pressure(&eu, &pool, &units, &icol, 0);
+      europe_tick_immigration_pressure(&eu, &pool, &units, &icol, 0, NULL);
       const int en_score = (int)eu.needed_crosses;
       /* Base pop5 → ((5)<<1)+8=18; EN *2/3=12; AI half of 18=9. */
       if (ai_score != 9 || en_score != 12) {
