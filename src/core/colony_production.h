@@ -237,6 +237,12 @@ int colony_prod_colony_hammers(
 );
 
 /* Primary goods output for a colonist in a workplace (for settlement badges). */
+const char* colony_prod_highest_manufacturing_tier_name(
+  const ColonizeColonyPool* pool,
+  const ColonizeColony* colony,
+  const char* base_name
+);
+
 int colony_prod_worker_building_output(
   const ColonizeColonyPool* pool,
   int building_type,

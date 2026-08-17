@@ -91,9 +91,10 @@ typedef struct ColonizeColony {
   int building_in_production; /* @BUILDING index, or -1 */
   /*
    * Custom House per-cargo enable mask (ColonizeCol1CustomHouse bit layout:
-   * bit0=Food … bit15=Muskets). 0 = all eligible types enabled (no UI chrome
-   * yet; AI / new colonies). Cite: FUN_15eb_0302 colony+0x8a.
+   * bit0=Food … bit15=Muskets). Default is 0x1ede (excludes food, horses,
+   * lumber, tools, trade goods, muskets).
    */
+#define COLONIZE_CUSTOM_HOUSE_DEFAULT_MASK 0x1edeu
   uint16_t custom_house_bits;
   /*
    * Col1 +0x8e LABOR demand counter. Unload/join decrements (FUN_521d_5b66

@@ -1278,19 +1278,10 @@ static void ai_euro_prefer_peace_construction(ColonizeTurnContext* ctx, int nati
     if (c->building_in_production >= 0) {
       continue; /* idle/empty queue only — do not yank active project */
     }
-    /*
-     * After beachhead Stockade cancel (pop≥2, no Stockade yet): stay idle so
-     * carpenter banks hammers (TURN5→6 Dutch). Do not climb to Warehouse.
-     */
-    {
-      const int pop = c->colonist_count > 0 ? c->colonist_count : c->population;
-      const int has_stockade =
-        stockade_id >= 0 && stockade_id < COLONIZE_BUILDING_TYPES_MAX &&
-        c->has_building[stockade_id];
-      if (pop >= 2 && !has_stockade) {
-        continue;
-      }
-    }
+    const int pop = c->colonist_count > 0 ? c->colonist_count : c->population;
+    const int has_stockade =
+      stockade_id >= 0 && stockade_id < COLONIZE_BUILDING_TYPES_MAX &&
+      c->has_building[stockade_id];
     const int has_wh =
       warehouse_id >= 0 && warehouse_id < COLONIZE_BUILDING_TYPES_MAX && c->has_building[warehouse_id];
     const int use_exp =
@@ -1306,6 +1297,9 @@ static void ai_euro_prefer_peace_construction(ColonizeTurnContext* ctx, int nati
     for (size_t p = 0; p < nprefer; ++p) {
       const int want = prefer[p];
       if (want < 0) {
+        continue;
+      }
+      if (stockade_id >= 0 && pop >= 2 && !has_stockade && want != stockade_id) {
         continue;
       }
       for (int b = 0; b < n; ++b) {
@@ -1342,7 +1336,7 @@ static void ai_euro_clear_pre_stockade_build_queue(ColonizeTurnContext* ctx, int
     const int has_stockade =
       stockade_id >= 0 && stockade_id < COLONIZE_BUILDING_TYPES_MAX &&
       c->has_building[stockade_id];
-    if (pop >= 2 && !has_stockade) {
+    if (pop < 3 && !has_stockade) {
       c->building_in_production = -1;
     }
   }
@@ -7782,20 +7776,7 @@ static void ai_euro_colony_goals(ColonizeTurnContext* ctx, int nation_id) {
         }
       }
       if (labor) {
-        int labor_prio = 4 + urgency / 4;
-        /* Stockade under threat: bump LABOR above distant FOUND (prio 2) and
-         * founder H-bind so Free Colonist stays for defense hammers. */
-        if (construction && ctx->col1_ok && ctx->col1 &&
-            ai_euro_at_war_any_peer(ctx->col1, nation_id) &&
-            ai_euro_colony_threatened_by_war(ctx, nation_id, c)) {
-          const ColonizeBuildingType* bt =
-            c->building_in_production >= 0
-              ? colonies_building_type(ctx->colonies, c->building_in_production)
-              : NULL;
-          if (bt && strcmp(bt->name, "Stockade") == 0) {
-            labor_prio = 6;
-          }
-        }
+        int labor_prio = construction ? 6 : (4 + urgency / 4);
         /* Thin demand latch when Linux detects LABOR need; full FUN_5952_035e
          * seed (local_76 / 0x8d72) PARKED — do not invent tallies. */
         if (c->labor_shortage == 0) {
@@ -13279,6 +13260,7 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
       int by = -1;
       int best = 99;
       int code = AI_GOAL_COLONY;
+      int b_construction = 0;
       for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
         const ColonizeColony* c = &ctx->colonies->colonies[i];
         if (!c->active || c->nation_id != nation_id) {
@@ -13344,6 +13326,7 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
           bx = c->x;
           by = c->y;
           code = AI_GOAL_LABOR;
+          b_construction = construction;
         }
       }
       if (bx >= 0) {
@@ -13351,7 +13334,7 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
         goal_y = by;
         goal_code = code;
         ai_goals_upsert_primary(
-          nation_id, bx, by, code, (food_emergency || threat_stockade_bind) ? 5 : 4
+          nation_id, bx, by, code, (food_emergency || threat_stockade_bind || b_construction) ? 6 : 4
         );
       }
     }
@@ -13590,6 +13573,7 @@ void ai_euro_dispatcher_turn(ColonizeTurnContext* ctx, int nation_id) {
   /* 5. Plan: 5d04 → 0342 → 0a60 */
   ai_euro_nation_planning(ctx, nation_id);
   ai_goals_promote_secondary_to_primary(nation_id);
+  ai_euro_cancel_stale_zero_hammer_builds(ctx, nation_id);
   /* Peace Stockade→Fort→Fortress→Warehouse→Docks, coastal Drydock→Shipyard,
    * then Stuyvesant Custom House, then Church (after Stockade); before LABOR. */
   ai_euro_prefer_peace_construction(ctx, nation_id);
@@ -13616,7 +13600,6 @@ void ai_euro_dispatcher_turn(ColonizeTurnContext* ctx, int nation_id) {
   ai_euro_prefer_capitol_expansion(ctx, nation_id);
   ai_euro_prefer_craft_upgrades(ctx, nation_id);
   ai_euro_clear_pre_stockade_build_queue(ctx, nation_id);
-  ai_euro_cancel_stale_zero_hammer_builds(ctx, nation_id);
   ai_euro_colony_goals(ctx, nation_id);
 
   /* Opportunistic balance after plan (separate from timer slot). */

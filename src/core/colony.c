@@ -1440,6 +1440,8 @@ bool colonies_try_complete_building(ColonizeColonyPool* pool, int colony_id) {
       col->capitol_level = 1;
     } else if (strcmp(bt->name, "Capitol Expansion") == 0) {
       col->capitol_level = 2;
+    } else if (strcmp(bt->name, "Custom House") == 0 && col->custom_house_bits == 0) {
+      col->custom_house_bits = COLONIZE_CUSTOM_HOUSE_DEFAULT_MASK;
     }
   }
   col->hammers = 0;

@@ -195,7 +195,7 @@ static void col1_apply_colony_buildings(
     "Tobacconist's House", "Tobacconist's Shop", "Cigar Factory"
   };
   static const char* k_rum[] = {
-    "Rum Distiller's House", "Rum Distiller's Shop", "Rum Factory"
+    "Rum Distiller's House", "Rum Distillery", "Rum Factory"
   };
   static const char* k_fur[] = {
     "Fur Trader's House", "Fur Trading Post", "Fur Factory"
@@ -254,7 +254,7 @@ static void col1_encode_colony_buildings(
     "Tobacconist's House", "Tobacconist's Shop", "Cigar Factory"
   };
   static const char* k_rum[] = {
-    "Rum Distiller's House", "Rum Distiller's Shop", "Rum Factory"
+    "Rum Distiller's House", "Rum Distillery", "Rum Factory"
   };
   static const char* k_fur[] = {
     "Fur Trader's House", "Fur Trading Post", "Fur Factory"
@@ -757,49 +757,60 @@ bool col1_bridge_apply(
         continue;
       }
       const int occ = (int)src->occupation[p];
-      /* Indoor: COL1 occupation is @JOB (craftsman), not @BUILDING index. */
-      const char* bname = NULL;
-      switch (occ) {
-        case 13: /* Carpenter */
-          bname = "Carpenter's Shop";
-          break;
-        case 9: /* Distiller */
-          bname = "Rum Distiller's House";
-          break;
-        case 10:
-          bname = "Tobacconist's House";
-          break;
-        case 11:
-          bname = "Weaver's House";
-          break;
-        case 12:
-          bname = "Fur Trader's House";
-          break;
-        case 14: /* Blacksmith */
-          bname = "Blacksmith's House";
-          break;
-        case 15: /* Gunsmith */
-          bname = "Armory";
-          break;
-        case 17: /* Statesman */
-        case 18: /* Preacher uses Church — Preacher is 16? */
-          bname = "Town Hall";
-          break;
-        case 16: /* Preacher */
-          bname = "Church";
-          break;
-        default:
-          break;
+      static const char* const k_chain_carpenter[] = {"Lumber Mill", "Carpenter's Shop"};
+      static const char* const k_chain_distiller[] = {"Rum Factory", "Rum Distillery", "Rum Distiller's House"};
+      static const char* const k_chain_tobacconist[] = {"Cigar Factory", "Tobacconist's Shop", "Tobacconist's House"};
+      static const char* const k_chain_weaver[] = {"Textile Mill", "Weaver's Shop", "Weaver's House"};
+      static const char* const k_chain_fur[] = {"Fur Factory", "Fur Trading Post", "Fur Trader's House"};
+      static const char* const k_chain_smith[] = {"Iron Works", "Blacksmith's Shop", "Blacksmith's House"};
+      static const char* const k_chain_gunsmith[] = {"Arsenal", "Magazine", "Armory"};
+      static const char* const k_chain_church[] = {"Cathedral", "Church"};
+      static const char* const k_chain_school[] = {"University", "College", "Schoolhouse"};
+      static const char* const k_chain_hall[] = {"Town Hall"};
+
+      const char* const* chain = NULL;
+      size_t chain_len = 0;
+
+      if (occ == 13) {
+        chain = k_chain_carpenter;
+        chain_len = sizeof(k_chain_carpenter) / sizeof(k_chain_carpenter[0]);
+      } else if (occ == 9 || occ == 27 || occ == 28 || occ == 29) {
+        chain = k_chain_distiller;
+        chain_len = sizeof(k_chain_distiller) / sizeof(k_chain_distiller[0]);
+      } else if (occ == 10) {
+        chain = k_chain_tobacconist;
+        chain_len = sizeof(k_chain_tobacconist) / sizeof(k_chain_tobacconist[0]);
+      } else if (occ == 11) {
+        chain = k_chain_weaver;
+        chain_len = sizeof(k_chain_weaver) / sizeof(k_chain_weaver[0]);
+      } else if (occ == 12) {
+        chain = k_chain_fur;
+        chain_len = sizeof(k_chain_fur) / sizeof(k_chain_fur[0]);
+      } else if (occ == 14) {
+        chain = k_chain_smith;
+        chain_len = sizeof(k_chain_smith) / sizeof(k_chain_smith[0]);
+      } else if (occ == 15) {
+        chain = k_chain_gunsmith;
+        chain_len = sizeof(k_chain_gunsmith) / sizeof(k_chain_gunsmith[0]);
+      } else if (occ == 16) {
+        chain = k_chain_church;
+        chain_len = sizeof(k_chain_church) / sizeof(k_chain_church[0]);
+      } else if (occ == 17) {
+        chain = k_chain_hall;
+        chain_len = sizeof(k_chain_hall) / sizeof(k_chain_hall[0]);
+      } else if (occ == 18) {
+        chain = k_chain_school;
+        chain_len = sizeof(k_chain_school) / sizeof(k_chain_school[0]);
       }
-      if (bname) {
-        const int bi = colonies_find_building(colonies, bname);
-        if (bi >= 0 && dst->has_building[bi]) {
-          dst->colonists[p].building_type = bi;
-          continue;
+
+      if (chain) {
+        for (size_t ci = 0; ci < chain_len; ++ci) {
+          const int bi = colonies_find_building(colonies, chain[ci]);
+          if (bi >= 0 && bi < COLONIZE_BUILDING_TYPES_MAX && dst->has_building[bi]) {
+            dst->colonists[p].building_type = bi;
+            break;
+          }
         }
-      }
-      if (occ >= 0 && occ < colonies->building_type_count && dst->has_building[occ]) {
-        dst->colonists[p].building_type = occ;
       }
     }
     dst->population = dst->colonist_count;

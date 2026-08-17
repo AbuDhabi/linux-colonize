@@ -540,7 +540,6 @@ static void turn_produce_one_colony(
     if (tc.food > 0) {
       colony->stock[COLONIZE_CARGO_FOOD] =
         turn_clamp_stock(colony->stock[COLONIZE_CARGO_FOOD] + tc.food);
-      colony->cargo_produced_mask |= (uint16_t)(1u << COLONIZE_CARGO_FOOD);
       field_food += tc.food;
       if (delta) {
         delta->goods[COLONIZE_CARGO_FOOD] += tc.food;
@@ -550,7 +549,6 @@ static void turn_produce_one_colony(
         tc.secondary_cargo < COLONIZE_CARGO_COUNT) {
       colony->stock[tc.secondary_cargo] =
         turn_clamp_stock(colony->stock[tc.secondary_cargo] + tc.secondary_amount);
-      colony->cargo_produced_mask |= (uint16_t)(1u << tc.secondary_cargo);
       if (delta) {
         delta->goods[tc.secondary_cargo] += tc.secondary_amount;
       }
@@ -624,9 +622,6 @@ static void turn_produce_one_colony(
         continue;
       }
       colony->stock[cargo] = turn_clamp_stock(colony->stock[cargo] + add);
-      if (add > 0) {
-        colony->cargo_produced_mask |= (uint16_t)(1u << cargo);
-      }
       if (delta) {
         delta->goods[cargo] += add;
       }
@@ -950,7 +945,6 @@ static void turn_produce_one_colony(
           turn_clamp_stock(colony->stock[COLONIZE_CARGO_FOOD] - breed);
         colony->stock[COLONIZE_CARGO_HORSES] =
           turn_clamp_stock(colony->stock[COLONIZE_CARGO_HORSES] + breed);
-        colony->cargo_produced_mask |= (uint16_t)(1u << COLONIZE_CARGO_HORSES);
         if (delta) {
           delta->goods[COLONIZE_CARGO_FOOD] -= breed;
           delta->food_net -= breed;
@@ -1181,6 +1175,18 @@ static void turn_produce_one_colony(
     delta->lumber = delta->goods[COLONIZE_CARGO_LUMBER];
     delta->ore = delta->goods[COLONIZE_CARGO_ORE];
     delta->food_net = delta->goods[COLONIZE_CARGO_FOOD];
+  }
+
+  /*
+   * FUN_364b_0688 Phase B: cargo_produced_mask (+0x90) sets bits for cargos
+   * whose net production is positive this tick.
+   */
+  colony->cargo_produced_mask = 0;
+  for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
+    const int net = delta ? delta->goods[c] : (colony->stock[c] - stock_before[c]);
+    if (net > 0) {
+      colony->cargo_produced_mask |= (uint16_t)(1u << c);
+    }
   }
 
   /*
