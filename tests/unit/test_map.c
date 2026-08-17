@@ -133,7 +133,7 @@ int main(void) {
     {1, 2, 0, 1, {73}},
     {16, 2, 0, 2, {70, 98}},
     {4, 18, 5, 1, {64}},
-    {36, 4, 2, 1, {68}},
+    {36, 4, 2, 2, {68, 97}},
     {27, 14, 3, 2, {69, 98}},
     {3, 3, 4, 1, {72}},
     {27, 20, 6, 1, {78}},
@@ -327,8 +327,13 @@ int main(void) {
         }
       }
     }
-    if (resources != 420 || rumours != 40) {
-      fprintf(stderr, "resource/rumour count expected 420/40 got %d/%d\n", resources, rumours);
+    /* 421, not 420: map_resource_type_at_ex's forest-range check
+     * (FUN_12ab_0458 local_4) only covered pedia 8-15, missing pedia
+     * 16-23 (the other forest half, same 8 types via &7) — asm-confirmed
+     * against mapedit.c's decompile. One AMER2 tile (pedia 19, forest) was
+     * silently dropping its resource because of it; fixed in map.c. */
+    if (resources != 421 || rumours != 40) {
+      fprintf(stderr, "resource/rumour count expected 421/40 got %d/%d\n", resources, rumours);
       map_free(&map);
       return 1;
     }

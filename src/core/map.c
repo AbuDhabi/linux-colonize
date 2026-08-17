@@ -529,7 +529,14 @@ static int map_resource_type_at_ex(
   const int dos_x = x + 1;
   const int dos_y = y + 1;
   const int local_a = (int)(terrain_byte & 0x1fu);
-  const int local_4 = (local_a >= 8 && local_a <= 15) ? 1 : 0;
+  /* Forest range is the full 8-23 (both `local_a<16` and `local_a>=16`
+   * forest halves — pedia 16-23 fold to the same 8 forest types via &7
+   * elsewhere) — asm checks `(local_a<8||local_a>0xf) && (local_a<0x10||
+   * local_a>0x17)` to fall through to local_4='\0', i.e. local_4=1 for
+   * 8-15 OR 0x10-0x17 combined, not just 8-15. Previously only checked
+   * 8-15, so pedia 16-23 tiles hashed to the wrong resource cell and
+   * silently dropped their resource/rumour half the time. */
+  const int local_4 = (local_a >= 8 && local_a <= 23) ? 1 : 0;
   const int uVar2 = (dos_x & 3) * 4 + (dos_y & 3);
   const int uVar3 =
     ((((dos_y >> 2) * 3 + (dos_x >> 2)) - local_4) + (int)(map_resource_seed(map) & 0xff)) & 0xf;
