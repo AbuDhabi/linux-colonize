@@ -2697,18 +2697,18 @@ int main(void) {
     ColonizeTurnResult prod;
     memset(&prod, 0, sizeof(prod));
     turn_run_colony_production(&pool, NULL, &col1, NULL, 0, &prod, NULL, NULL);
-    /* >>6 → 50/100; divisor+=2 → 102; dividend+=7 → 57. */
-    if (col1c.rebel_dividend != 57u || col1c.rebel_divisor != 102u) {
+    /* -= >>6 → 3150/6300; divisor+=2 → 6302; dividend+=7 → 3157. */
+    if (col1c.rebel_dividend != 3157u || col1c.rebel_divisor != 6302u) {
       fprintf(
         stderr,
-        "Phase C human tick want 57/102 got %u/%u\n",
+        "Phase C human tick want 3157/6302 got %u/%u\n",
         (unsigned)col1c.rebel_dividend,
         (unsigned)col1c.rebel_divisor
       );
       return 1;
     }
 
-    /* WoI + crown-occupied: bells = -(7>>1) = -3 → dividend 50-3=47. */
+    /* WoI + crown-occupied: bells = -(7>>1) = -3 → dividend 3150-3=3147. */
     col1c.rebel_dividend = 50u << 6;
     col1c.rebel_divisor = 100u << 6;
     c->nation_id = 1; /* crown peer of human 0 */
@@ -2717,7 +2717,7 @@ int main(void) {
     c->stock[COLONIZE_CARGO_FOOD] = 50;
     memset(&prod, 0, sizeof(prod));
     turn_run_colony_production(&pool, NULL, &col1, NULL, 0, &prod, NULL, NULL);
-    if (col1c.rebel_dividend != 47u || col1c.rebel_divisor != 102u) {
+    if (col1c.rebel_dividend != 3147u || col1c.rebel_divisor != 6302u) {
       fprintf(
         stderr,
         "Phase C WoI crown tick want 47/102 got %u/%u\n",
@@ -2766,8 +2766,8 @@ int main(void) {
     col1c.x = 10;
     col1c.y = 12;
     col1c.nation_id = 0;
-    /* Pre-shrink 45%/100 → after tick +7 bells → ~50%. */
-    col1c.rebel_dividend = 45u << 6;
+    /* Pre-shrink 50%/100 → after tick +6 bells → ~50.07%. */
+    col1c.rebel_dividend = 50u << 6;
     col1c.rebel_divisor = 100u << 6;
 
     ColonizeCol1Save col1;
@@ -2831,10 +2831,11 @@ int main(void) {
       return 1;
     }
 
-    /* Decade up (@SONSUP): sol_50 already, 58%→~63%. */
+    /* Decade up (@SONSUP): sol_50 already, 59%→60%. */
     col1.head.colony_report_options.report_rebel_majorities = 0;
+    col1.head.colony_report_options.report_sons_of_liberty_membership = 0;
     c->colony_flags = COLONIZE_COLONY_FLAG_SOL_50;
-    col1c.rebel_dividend = 58u << 6;
+    col1c.rebel_dividend = 3835u;
     col1c.rebel_divisor = 100u << 6;
     c->stock[COLONIZE_CARGO_FOOD] = 80;
     eu.status[0] = '\0';
@@ -2848,7 +2849,7 @@ int main(void) {
     }
     /* Suppress sons membership reports. */
     c->colony_flags = COLONIZE_COLONY_FLAG_SOL_50;
-    col1c.rebel_dividend = 58u << 6;
+    col1c.rebel_dividend = 3835u;
     col1c.rebel_divisor = 100u << 6;
     c->stock[COLONIZE_CARGO_FOOD] = 80;
     col1.head.colony_report_options.report_sons_of_liberty_membership = 1;
