@@ -613,7 +613,7 @@ bool col1_bridge_apply(
     if (map->improve && save->map.mask) {
       const uint8_t m = save->map.mask[i];
       uint8_t flags = 0;
-      if ((m & 0x08u) != 0) {
+      if ((m & 0x0cu) != 0) {
         flags = (uint8_t)(flags | MAP_IMPROVE_ROAD);
       }
       if ((m & 0x40u) != 0) {
@@ -627,7 +627,7 @@ bool col1_bridge_apply(
        */
       if (map->layer2) {
         /* Occupancy + density from Col1 mask; road → FA bit (not rumour 0x08). */
-        uint8_t l2 = (uint8_t)(m & (uint8_t)(0x03u | MAP_LAYER2_SUPPRESS | MAP_LAYER2_PURCHASED |
+        uint8_t l2 = (uint8_t)(m & (uint8_t)(0x03u | 0x04u | MAP_LAYER2_PURCHASED |
                                               MAP_LAYER2_PACIFIC));
         if ((m & 0x08u) != 0) {
           l2 = (uint8_t)(l2 | MAP_LAYER2_FA_ROAD);
@@ -750,6 +750,13 @@ bool col1_bridge_apply(
       if (occ >= 0 && occ < COLONIZE_FIELD_JOB_COUNT) {
         dst->colonists[who].field_job = occ;
         dst->colonists[who].building_type = -1;
+      }
+    }
+    for (int p = 0; p < dst->colonist_count; ++p) {
+      const int occ = (int)src->occupation[p];
+      if (occ >= 0 && occ < COLONIZE_FIELD_JOB_COUNT && dst->colonists[p].field_job < 0) {
+        dst->colonists[p].field_job = occ;
+        dst->colonists[p].building_type = -1;
       }
     }
     for (int p = 0; p < dst->colonist_count; ++p) {

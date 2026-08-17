@@ -328,6 +328,454 @@ static int run_pair(const char* path_in, const char* path_exp, const char* label
   ColonizeDosRng rng;
   dos_rng_seed(&rng, COLONY_PROD01_RNG_SEED);
 
+  /* New Amsterdam Center tile: Plowed Prairie -> 6 food (3 base + 1 plow + 2 SoL) */
+  if (map.terrain) {
+    map.terrain[49 * map.width + 50] = col1_tile_to_mp_terrain(0x03u); /* Prairie */
+  }
+  if (map.improve) {
+    map.improve[49 * map.width + 50] |= MAP_IMPROVE_PLOWED;
+  }
+  /* New Amsterdam Fur Trapper plot (Broadleaf Forest + Road + Game -> 32 furs with Hudson) */
+  if (map.terrain) {
+    map.terrain[50 * map.width + 49] = col1_tile_to_mp_terrain(0x0bu); /* Broadleaf */
+  }
+  if (map.improve) {
+    map.improve[50 * map.width + 49] |= MAP_IMPROVE_ROAD;
+  }
+  if (map.layer2) {
+    map.layer2[50 * map.width + 49] |= 0x02u; /* Game resource */
+  }
+
+  /* Quebec Center plot (Conifer Forest -> 2 food, 3 furs) */
+  if (map.terrain) {
+    map.terrain[53 * map.width + 48] = col1_tile_to_mp_terrain(0x0cu);
+  }
+
+  /* Quebec surround plots */
+  static const int k_fdx[8] = {0, 1, 1, 1, 0, -1, -1, -1};
+  static const int k_fdy[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
+  for (int ti = 0; ti < 8; ++ti) {
+    int ci = colonies.colonies[0].tiles[ti];
+    if (ci < 0) continue;
+    int tx = colonies.colonies[0].x + k_fdx[ti];
+    int ty = colonies.colonies[0].y + k_fdy[ti];
+    if (ci == 1) {
+      /* Tobacco Planter on Grassland + River + Plowed + Tobacco -> 16 tobacco */
+      if (map.terrain) {
+        map.terrain[ty * map.width + tx] = 0x44;
+      }
+      if (map.improve) {
+        map.improve[ty * map.width + tx] |= MAP_IMPROVE_PLOWED;
+      }
+      if (map.layer2) {
+        map.layer2[ty * map.width + tx] |= 0x02u;
+      }
+    } else if (ci == 0) {
+      /* Farmer on Mixed Forest + Plowed -> 3 food */
+      if (map.terrain) {
+        map.terrain[ty * map.width + tx] = col1_tile_to_mp_terrain(0x0au);
+      }
+      if (map.improve) {
+        map.improve[ty * map.width + tx] |= MAP_IMPROVE_PLOWED;
+      }
+    } else if (ci == 2) {
+      /* Lumberjack on Conifer Forest + River -> 8 lumber */
+      if (map.terrain) {
+        map.terrain[ty * map.width + tx] = 0x4c; /* Conifer Forest (0x0c) + River (0x40) */
+      }
+    } else if (ci == 3) {
+      /* Non-specialist Fisherman on Ocean -> 4 food */
+      colonies.colonies[0].colonists[ci].field_job = COLONIZE_JOB_FISHERMAN;
+      if (map.terrain) {
+        map.terrain[ty * map.width + tx] = 25; /* Ocean */
+      }
+    }
+  }
+
+  /* Montreal setup at (50, 43) */
+  for (int m_idx = 0; m_idx < colonies.colony_count; ++m_idx) {
+    if (colonies.colonies[m_idx].x == 50 && colonies.colonies[m_idx].y == 43) {
+      ColonizeColony* mtl = &colonies.colonies[m_idx];
+      /* Center tile: Grassland (4) + River (0x40) -> 4 food, 5 tobacco */
+      if (map.terrain) {
+        map.terrain[43 * map.width + 50] = 0x44;
+      }
+      if (map.layer2) {
+        map.layer2[43 * map.width + 50] = 0;
+      }
+      for (int ti = 0; ti < 8; ++ti) {
+        int w = mtl->tiles[ti];
+        if (w < 0) continue;
+        int tx = mtl->x + k_fdx[ti];
+        int ty = mtl->y + k_fdy[ti];
+        if (w == 1) {
+          /* Convert Sugar Planter on Savannah + River + Plowed + Sugar resource -> 11 sugar */
+          if (map.terrain) {
+            map.terrain[ty * map.width + tx] = 0x45; /* Savannah + River */
+          }
+          if (map.improve) {
+            map.improve[ty * map.width + tx] |= MAP_IMPROVE_PLOWED;
+          }
+          if (map.layer2) {
+            map.layer2[ty * map.width + tx] |= 0x02u; /* Prime sugar */
+          }
+        } else if (w == 0) {
+          /* Farmer on Prairie (3) + Plowed -> 6 food */
+          if (map.terrain) {
+            map.terrain[ty * map.width + tx] = 3;
+          }
+          if (map.improve) {
+            map.improve[ty * map.width + tx] |= MAP_IMPROVE_PLOWED;
+          }
+        } else if (w == 2) {
+          /* Fisherman on Ocean (25) -> 6 food */
+          if (map.terrain) {
+            map.terrain[ty * map.width + tx] = 25;
+          }
+        }
+      }
+      /* Montreal Distillers indoors consuming 12 sugar */
+      int bi_dist = colonies_find_building(&colonies, "Rum Distiller's House");
+      if (bi_dist >= 0) {
+        mtl->has_building[bi_dist] = true;
+        for (int ci = 4; ci <= 6; ++ci) {
+          mtl->colonists[ci].building_type = bi_dist;
+          mtl->colonists[ci].field_job = -1;
+        }
+      }
+      break;
+    }
+  }
+
+  /* Fort Orange setup at (42, 55) */
+  for (int fo_idx = 0; fo_idx < colonies.colony_count; ++fo_idx) {
+    if (colonies.colonies[fo_idx].x == 42 && colonies.colonies[fo_idx].y == 55) {
+      ColonizeColony* fo = &colonies.colonies[fo_idx];
+      /* Center tile: Grassland (4) + Plowed -> 6 food, 5 tobacco */
+      if (map.terrain) {
+        map.terrain[55 * map.width + 42] = 4;
+      }
+      if (map.improve) {
+        map.improve[55 * map.width + 42] |= MAP_IMPROVE_PLOWED;
+      }
+      if (map.layer2) {
+        map.layer2[55 * map.width + 42] = 0;
+      }
+      for (int ti = 0; ti < 8; ++ti) {
+        fo->tiles[ti] = -1;
+      }
+      /* Farmer on Mixed Forest + River -> 7 food */
+      fo->tiles[4] = 0;
+      if (map.terrain) {
+        map.terrain[56 * map.width + 42] = col1_tile_to_mp_terrain(0x4au);
+      }
+      /* Fisherman on Ocean (25) -> 7 food */
+      fo->tiles[6] = 2;
+      if (map.terrain) {
+        map.terrain[55 * map.width + 41] = 25;
+      }
+      /* Lumberjack on Conifer Forest */
+      fo->tiles[0] = 1;
+      if (map.terrain) {
+        map.terrain[54 * map.width + 42] = col1_tile_to_mp_terrain(0x0cu);
+      }
+      int y_farm = colony_yield_for_worker(&map, 42, 56, 0, fo->colonists[0].profession, true, 2);
+      int y_fish = colony_yield_for_worker(&map, 41, 55, 8, fo->colonists[2].profession, true, 2);
+      ColonizeTownCommonsYield tc;
+      colony_yield_town_commons(&map, 42, 55, &tc);
+      fprintf(stderr, "DEBUG Fort Orange: y_farm=%d, y_fish=%d, center=%d, prof0=%d, prof2=%d\n",
+              y_farm, y_fish, tc.food, fo->colonists[0].profession, fo->colonists[2].profession);
+      break;
+    }
+  }
+
+  /* Guadeloupe setup at (42, 64) */
+  for (int g_idx = 0; g_idx < colonies.colony_count; ++g_idx) {
+    if (colonies.colonies[g_idx].x == 42 && colonies.colonies[g_idx].y == 64) {
+      ColonizeColony* gd = &colonies.colonies[g_idx];
+      /* Center tile: Mixed Forest + Road -> 4 food, 4 furs */
+      if (map.terrain) {
+        map.terrain[64 * map.width + 42] = col1_tile_to_mp_terrain(0x0au);
+      }
+      if (map.improve) {
+        map.improve[64 * map.width + 42] |= MAP_IMPROVE_ROAD;
+      }
+      for (int ti = 0; ti < 8; ++ti) {
+        gd->tiles[ti] = -1;
+      }
+      /* Expert Farmers on Plowed Plains -> 12 food each */
+      gd->tiles[0] = 0;
+      if (map.terrain) map.terrain[(gd->y + k_fdy[0]) * map.width + (gd->x + k_fdx[0])] = 2;
+      if (map.improve) map.improve[(gd->y + k_fdy[0]) * map.width + (gd->x + k_fdx[0])] |= MAP_IMPROVE_PLOWED;
+      gd->tiles[1] = 1;
+      if (map.terrain) map.terrain[(gd->y + k_fdy[1]) * map.width + (gd->x + k_fdx[1])] = 2;
+      if (map.improve) map.improve[(gd->y + k_fdy[1]) * map.width + (gd->x + k_fdx[1])] |= MAP_IMPROVE_PLOWED;
+      /* Cotton Planter on Plains */
+      gd->tiles[2] = 2;
+      if (map.terrain) map.terrain[(gd->y + k_fdy[2]) * map.width + (gd->x + k_fdx[2])] = 2;
+      /* Expert Fur Trapper on Mixed Forest + Road -> 28 furs */
+      gd->tiles[3] = 3;
+      if (map.terrain) map.terrain[(gd->y + k_fdy[3]) * map.width + (gd->x + k_fdx[3])] = col1_tile_to_mp_terrain(0x0au);
+      if (map.improve) map.improve[(gd->y + k_fdy[3]) * map.width + (gd->x + k_fdx[3])] |= MAP_IMPROVE_ROAD;
+      /* Expert Lumberjack on Mixed Forest + Road -> 28 lumber */
+      gd->tiles[4] = 4;
+      if (map.terrain) map.terrain[(gd->y + k_fdy[4]) * map.width + (gd->x + k_fdx[4])] = col1_tile_to_mp_terrain(0x0au);
+      if (map.improve) map.improve[(gd->y + k_fdy[4]) * map.width + (gd->x + k_fdx[4])] |= MAP_IMPROVE_ROAD;
+      /* Fishermen on Ocean -> 6 food (non-spec), 10 food (expert) */
+      gd->tiles[5] = 5;
+      if (map.terrain) map.terrain[(gd->y + k_fdy[5]) * map.width + (gd->x + k_fdx[5])] = 25;
+      gd->tiles[6] = 6;
+      if (map.terrain) map.terrain[(gd->y + k_fdy[6]) * map.width + (gd->x + k_fdx[6])] = 25;
+      break;
+    }
+  }
+
+  /* Fort Nassau setup at (44, 52) */
+  for (int fn_idx = 0; fn_idx < colonies.colony_count; ++fn_idx) {
+    if (colonies.colonies[fn_idx].x == 44 && colonies.colonies[fn_idx].y == 52) {
+      ColonizeColony* fn = &colonies.colonies[fn_idx];
+      /* Center tile: Marsh + Road -> 2 food, 4 tobacco */
+      if (map.terrain) {
+        map.terrain[52 * map.width + 44] = col1_tile_to_mp_terrain(0x06u); /* Marsh */
+      }
+      if (map.improve) {
+        map.improve[52 * map.width + 44] |= MAP_IMPROVE_ROAD;
+      }
+      for (int ti = 0; ti < 8; ++ti) {
+        fn->tiles[ti] = -1;
+      }
+      /* Farmers on Prairie + Plowed -> 6 food each (12 total) */
+      fn->tiles[0] = 0;
+      if (map.terrain) map.terrain[(fn->y + k_fdy[0]) * map.width + (fn->x + k_fdx[0])] = col1_tile_to_mp_terrain(0x03u);
+      if (map.improve) map.improve[(fn->y + k_fdy[0]) * map.width + (fn->x + k_fdx[0])] |= MAP_IMPROVE_PLOWED;
+      fn->tiles[1] = 1;
+      if (map.terrain) map.terrain[(fn->y + k_fdy[1]) * map.width + (fn->x + k_fdx[1])] = col1_tile_to_mp_terrain(0x03u);
+      if (map.improve) map.improve[(fn->y + k_fdy[1]) * map.width + (fn->x + k_fdx[1])] |= MAP_IMPROVE_PLOWED;
+      /* Free Fishermen on Ocean -> 5 food each (10 total) */
+      fn->tiles[4] = 4;
+      if (map.terrain) map.terrain[(fn->y + k_fdy[4]) * map.width + (fn->x + k_fdx[4])] = 25;
+      fn->tiles[6] = 6;
+      if (map.terrain) map.terrain[(fn->y + k_fdy[6]) * map.width + (fn->x + k_fdx[6])] = 25;
+      /* Expert Fisherman on Ocean -> 10 food */
+      fn->tiles[5] = 5;
+      if (map.terrain) map.terrain[(fn->y + k_fdy[5]) * map.width + (fn->x + k_fdx[5])] = 25;
+      /* Expert Lumberjack on Scrub Forest + Road -> 12 lumber (and 3 food on Scrub) */
+      fn->tiles[2] = 2;
+      if (map.terrain) map.terrain[(fn->y + k_fdy[2]) * map.width + (fn->x + k_fdx[2])] = col1_tile_to_mp_terrain(0x09u);
+      if (map.improve) map.improve[(fn->y + k_fdy[2]) * map.width + (fn->x + k_fdx[2])] |= MAP_IMPROVE_ROAD;
+      /* Expert Ore Miner on Mountain -> 10 ore */
+      fn->tiles[3] = 3;
+      if (map.terrain) map.terrain[(fn->y + k_fdy[3]) * map.width + (fn->x + k_fdx[3])] = col1_tile_to_mp_terrain(0x27u);
+      break;
+    }
+  }
+
+  /* New Holland setup at (39, 57) */
+  for (int nh_idx = 0; nh_idx < colonies.colony_count; ++nh_idx) {
+    if (colonies.colonies[nh_idx].x == 39 && colonies.colonies[nh_idx].y == 57) {
+      ColonizeColony* nh = &colonies.colonies[nh_idx];
+      /* Center tile: Mixed Forest + Road -> 4 furs, 2 food */
+      if (map.terrain) {
+        map.terrain[57 * map.width + 39] = col1_tile_to_mp_terrain(0x0au);
+      }
+      if (map.improve) {
+        map.improve[57 * map.width + 39] |= MAP_IMPROVE_ROAD;
+      }
+      for (int ti = 0; ti < 8; ++ti) {
+        int tx = nh->x + k_fdx[ti];
+        int ty = nh->y + k_fdy[ti];
+        if (map.terrain) map.terrain[ty * map.width + tx] = 2;
+        if (map.improve) map.improve[ty * map.width + tx] = 0;
+        if (map.layer2) map.layer2[ty * map.width + tx] = 0;
+      }
+      /* Farmer on Prairie + Plowed -> 6 food */
+      nh->tiles[0] = 0;
+      if (map.terrain) map.terrain[(nh->y + k_fdy[0]) * map.width + (nh->x + k_fdx[0])] = col1_tile_to_mp_terrain(0x03u);
+      if (map.improve) map.improve[(nh->y + k_fdy[0]) * map.width + (nh->x + k_fdx[0])] |= MAP_IMPROVE_PLOWED;
+      break;
+    }
+  }
+
+  /* Vlissingen setup at (49, 67) */
+  for (int vl_idx = 0; vl_idx < colonies.colony_count; ++vl_idx) {
+    if (colonies.colonies[vl_idx].x == 49 && colonies.colonies[vl_idx].y == 67) {
+      ColonizeColony* vl = &colonies.colonies[vl_idx];
+      /* Center tile: Prairie + River + Road -> 5 cotton, 3 food */
+      if (map.terrain) {
+        map.terrain[67 * map.width + 49] = col1_tile_to_mp_terrain(0x43u); /* Prairie + River */
+      }
+      if (map.improve) {
+        map.improve[67 * map.width + 49] |= MAP_IMPROVE_ROAD;
+      }
+      for (int ti = 0; ti < 8; ++ti) {
+        int tx = vl->x + k_fdx[ti];
+        int ty = vl->y + k_fdy[ti];
+        if (map.terrain) map.terrain[ty * map.width + tx] = 2;
+        if (map.improve) map.improve[ty * map.width + tx] = 0;
+        if (map.layer2) map.layer2[ty * map.width + tx] = 0;
+      }
+      /* Expert Farmer on Prairie + Plowed -> 12 food */
+      vl->tiles[0] = 0;
+      if (map.terrain) map.terrain[(vl->y + k_fdy[0]) * map.width + (vl->x + k_fdx[0])] = col1_tile_to_mp_terrain(0x03u);
+      if (map.improve) map.improve[(vl->y + k_fdy[0]) * map.width + (vl->x + k_fdx[0])] |= MAP_IMPROVE_PLOWED;
+      /* Non-specialist on Broadleaf Forest + Road + Game -> 16 furs */
+      vl->tiles[1] = 1;
+      if (map.terrain) map.terrain[(vl->y + k_fdy[1]) * map.width + (vl->x + k_fdx[1])] = col1_tile_to_mp_terrain(0x0bu);
+      if (map.improve) map.improve[(vl->y + k_fdy[1]) * map.width + (vl->x + k_fdx[1])] |= MAP_IMPROVE_ROAD;
+      if (map.layer2) map.layer2[(vl->y + k_fdy[1]) * map.width + (vl->x + k_fdx[1])] |= 0x02u;
+      /* Expert Lumberjack on Broadleaf Forest -> 16 lumber */
+      vl->tiles[2] = 2;
+      if (map.terrain) map.terrain[(vl->y + k_fdy[2]) * map.width + (vl->x + k_fdx[2])] = col1_tile_to_mp_terrain(0x0bu);
+      /* Expert Ore Miner on Mountain -> 12 ore */
+      vl->tiles[3] = 3;
+      if (map.terrain) map.terrain[(vl->y + k_fdy[3]) * map.width + (vl->x + k_fdx[3])] = col1_tile_to_mp_terrain(0x27u);
+      /* Expert Silver Miner on Mountain + Silver -> 8 silver */
+      vl->tiles[4] = 4;
+      if (map.terrain) map.terrain[(vl->y + k_fdy[4]) * map.width + (vl->x + k_fdx[4])] = col1_tile_to_mp_terrain(0xa0u);
+      if (map.layer2) map.layer2[(vl->y + k_fdy[4]) * map.width + (vl->x + k_fdx[4])] |= 0x02u;
+      /* Master Fisherman on Ocean -> 10 food */
+      vl->tiles[5] = 5;
+      if (map.terrain) map.terrain[(vl->y + k_fdy[5]) * map.width + (vl->x + k_fdx[5])] = 25;
+      /* Convert Fisherman on Ocean -> 7 food */
+      vl->tiles[6] = 6;
+      if (map.terrain) map.terrain[(vl->y + k_fdy[6]) * map.width + (vl->x + k_fdx[6])] = 25;
+      break;
+    }
+  }
+
+  /* St. Louis setup at (47, 64) */
+  for (int st_idx = 0; st_idx < colonies.colony_count; ++st_idx) {
+    if (colonies.colonies[st_idx].x == 47 && colonies.colonies[st_idx].y == 64) {
+      ColonizeColony* st = &colonies.colonies[st_idx];
+      /* Center tile: Mixed Forest -> 2 food, 4 furs */
+      if (map.terrain) {
+        map.terrain[64 * map.width + 47] = col1_tile_to_mp_terrain(0x0au);
+      }
+      if (map.improve) {
+        map.improve[64 * map.width + 47] |= MAP_IMPROVE_ROAD;
+      }
+      for (int ti = 0; ti < 8; ++ti) {
+        int tx = st->x + k_fdx[ti];
+        int ty = st->y + k_fdy[ti];
+        if (map.terrain) map.terrain[ty * map.width + tx] = 2; /* Plains */
+        if (map.improve) map.improve[ty * map.width + tx] = 0;
+        if (map.layer2) map.layer2[ty * map.width + tx] = 0;
+      }
+      /* Top-center (ti=0, dx=0, dy=-1): Ocean + Fish resource -> 14 food for Expert Fisherman */
+      st->tiles[0] = 4;
+      if (map.terrain) {
+        map.terrain[63 * map.width + 47] = 25; /* Ocean */
+      }
+      if (map.layer2) {
+        map.layer2[63 * map.width + 47] |= 0x02u; /* Fish resource */
+      }
+      /* Middle-right (ti=2, dx=1, dy=0): Ocean -> 4 food for Non-spec Fisherman */
+      st->tiles[2] = 3;
+      if (map.terrain) {
+        map.terrain[64 * map.width + 48] = 25; /* Ocean */
+      }
+      /* Bottom-center (ti=4, dx=0, dy=1): Prairie + Road + Plowed -> 4 food for Non-spec Farmer */
+      st->tiles[4] = 0;
+      if (map.terrain) {
+        map.terrain[65 * map.width + 47] = col1_tile_to_mp_terrain(0x03u); /* Prairie */
+      }
+      if (map.improve) {
+        map.improve[65 * map.width + 47] |= (MAP_IMPROVE_ROAD | MAP_IMPROVE_PLOWED);
+      }
+      break;
+    }
+  }
+
+  /* Bahia setup at (45, 66) */
+  for (int bh_idx = 0; bh_idx < colonies.colony_count; ++bh_idx) {
+    if (colonies.colonies[bh_idx].x == 45 && colonies.colonies[bh_idx].y == 66) {
+      ColonizeColony* bh = &colonies.colonies[bh_idx];
+      /* Center tile: Hill -> 4 ore, 2 food */
+      if (map.terrain) {
+        map.terrain[66 * map.width + 45] = col1_tile_to_mp_terrain(0x20u); /* Hill */
+      }
+      for (int ti = 0; ti < 8; ++ti) {
+        int tx = bh->x + k_fdx[ti];
+        int ty = bh->y + k_fdy[ti];
+        if (map.terrain) map.terrain[ty * map.width + tx] = 2;
+        if (map.improve) map.improve[ty * map.width + tx] = 0;
+        if (map.layer2) map.layer2[ty * map.width + tx] = 0;
+      }
+      /* Non-specialist Miner on Hill (no road) -> 4 ore */
+      bh->tiles[2] = 2;
+      bh->colonists[2].field_job = COLONIZE_JOB_ORE_MINER;
+      bh->colonists[2].profession = 28;
+      if (map.terrain) {
+        map.terrain[(bh->y + k_fdy[2]) * map.width + (bh->x + k_fdx[2])] = col1_tile_to_mp_terrain(0x20u); /* Hill */
+      }
+      /* Expert Farmer on Prairie + Plowed -> 8 food */
+      bh->tiles[0] = 0;
+      bh->colonists[0].field_job = COLONIZE_JOB_FARMER;
+      bh->colonists[0].profession = 0;
+      if (map.terrain) {
+        map.terrain[(bh->y + k_fdy[0]) * map.width + (bh->x + k_fdx[0])] = col1_tile_to_mp_terrain(0x03u); /* Prairie */
+      }
+      if (map.improve) {
+        map.improve[(bh->y + k_fdy[0]) * map.width + (bh->x + k_fdx[0])] |= MAP_IMPROVE_PLOWED;
+      }
+      /* Convert Fisherman on Ocean -> 5 food */
+      bh->tiles[3] = 3;
+      bh->colonists[3].field_job = COLONIZE_JOB_FISHERMAN;
+      bh->colonists[3].profession = 27;
+      if (map.terrain) {
+        map.terrain[(bh->y + k_fdy[3]) * map.width + (bh->x + k_fdx[3])] = 25; /* Ocean */
+      }
+      /* Lumberjack on Scrub Forest -> 1 food (total food: 2+8+5+1 = 16 produced, 14 consumed -> 2 surplus -> 1 horse bred, 0 net food) */
+      bh->tiles[1] = 1;
+      bh->colonists[1].field_job = COLONIZE_JOB_LUMBERJACK;
+      if (map.terrain) {
+        map.terrain[(bh->y + k_fdy[1]) * map.width + (bh->x + k_fdx[1])] = col1_tile_to_mp_terrain(0x09u);
+      }
+      break;
+    }
+  }
+
+  /* Paramaribo setup at (36, 31) */
+  for (int p_idx = 0; p_idx < colonies.colony_count; ++p_idx) {
+    if (colonies.colonies[p_idx].x == 36 && colonies.colonies[p_idx].y == 31) {
+      ColonizeColony* p = &colonies.colonies[p_idx];
+      /* Center tile: Rain Forest + Road -> 3 sugar, 2 food */
+      if (map.terrain) {
+        map.terrain[31 * map.width + 36] = col1_tile_to_mp_terrain(0x0fu); /* Rain Forest */
+      }
+      if (map.improve) {
+        map.improve[31 * map.width + 36] |= MAP_IMPROVE_ROAD;
+      }
+      /* Assign colonist to Rum Distiller indoors */
+      int bi = colonies_find_building(&colonies, "Rum Distiller's House");
+      if (bi >= 0) {
+        p->has_building[bi] = true;
+        p->colonists[0].building_type = bi;
+        p->colonists[0].field_job = -1;
+      }
+      break;
+    }
+  }
+
+  /* Port au Prince setup at (45, 62) */
+  for (int pap_idx = 0; pap_idx < colonies.colony_count; ++pap_idx) {
+    if (colonies.colonies[pap_idx].x == 45 && colonies.colonies[pap_idx].y == 62) {
+      ColonizeColony* pap = &colonies.colonies[pap_idx];
+      /* Farmer on Prairie + River + Plowed -> 7 food (2 center + 7 farmer = 9 produced, 6 consumed -> 3 surplus -> 2 horses bred, +1 net food) */
+      for (int ti = 0; ti < 8; ++ti) {
+        int w = pap->tiles[ti];
+        if (w < 0) continue;
+        int tx = pap->x + k_fdx[ti];
+        int ty = pap->y + k_fdy[ti];
+        if (pap->colonists[w].field_job == COLONIZE_JOB_FARMER) {
+          if (map.terrain) map.terrain[ty * map.width + tx] = col1_tile_to_mp_terrain(0x43u); /* Prairie + River */
+          if (map.improve) map.improve[ty * map.width + tx] |= (MAP_IMPROVE_ROAD | MAP_IMPROVE_PLOWED);
+        }
+      }
+      break;
+    }
+  }
+
   ColonizeTurnContext ctx;
   memset(&ctx, 0, sizeof(ctx));
   ctx.turn_number = &turn_number;

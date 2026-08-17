@@ -20,7 +20,7 @@ static const int k_unforesed[8][COLONIZE_FIELD_JOB_COUNT] = {
   /* Tundra */ {2, 0, 0, 0, 0, 0, 2, 0, 0},
   /* Desert */ {1, 0, 0, 1, 0, 0, 2, 0, 0},
   /* Plains */ {4, 0, 0, 2, 0, 0, 1, 0, 0},
-  /* Prairie */ {2, 0, 0, 3, 0, 0, 0, 0, 0},
+  /* Prairie */ {3, 0, 0, 3, 0, 0, 0, 0, 0},
   /* Grassland */ {2, 0, 3, 0, 0, 0, 0, 0, 0},
   /* Savannah */ {3, 3, 0, 0, 0, 0, 0, 0, 0},
   /* Marsh */ {2, 0, 2, 0, 0, 0, 2, 0, 0},
@@ -35,7 +35,7 @@ static const int k_forested[8][COLONIZE_FIELD_JOB_COUNT] = {
   /* Conifer */ {1, 0, 1, 0, 2, 3, 0, 0, 0},
   /* Tropical */ {2, 1, 0, 0, 2, 2, 0, 0, 0},
   /* Wetland */ {1, 0, 1, 0, 2, 2, 1, 0, 0},
-  /* Rain */ {1, 1, 0, 0, 1, 2, 1, 0, 0},
+  /* Rain */ {2, 2, 0, 0, 1, 2, 1, 0, 0},
 };
 
 /* Arctic, Ocean, Sea Lane, Mountains, Hills.
@@ -134,7 +134,7 @@ static int colony_yield_resource_effect(int resource, int field_job) {
     v += 2;
   }
   if (resource == 8 && field_job == COLONIZE_JOB_FUR_TRAPPER) {
-    v += 3;
+    v += 2;
   }
   if (resource == 3 && field_job == COLONIZE_JOB_COTTON_PLANTER) {
     v = COLONY_YIELD_RESOURCE_DOUBLE;
@@ -191,23 +191,16 @@ static bool colony_yield_is_crop_job(int field_job) {
  * from any river bonus at all — the bug this fixes.
  */
 static int colony_yield_river_bonus(int field_job, bool major) {
-  int base = 0;
+  int base = 1;
   switch (field_job) {
   case COLONIZE_JOB_FARMER:
-  case COLONIZE_JOB_SUGAR_PLANTER:
-  case COLONIZE_JOB_TOBACCO_PLANTER:
-  case COLONIZE_JOB_COTTON_PLANTER:
-  case COLONIZE_JOB_ORE_MINER:
-  case COLONIZE_JOB_SILVER_MINER:
-  case COLONIZE_JOB_FISHERMAN:
-    base = 1;
-    break;
   case COLONIZE_JOB_FUR_TRAPPER:
   case COLONIZE_JOB_LUMBERJACK:
     base = 2;
     break;
   default:
-    return 0;
+    base = 1;
+    break;
   }
   return major ? (base * 2) : base;
 }
@@ -228,12 +221,12 @@ static int colony_yield_river_bonus(int field_job, bool major) {
  */
 static int colony_yield_road_bonus(int field_job) {
   switch (field_job) {
+  case COLONIZE_JOB_FUR_TRAPPER:
+    return 2;
+  case COLONIZE_JOB_LUMBERJACK:
   case COLONIZE_JOB_ORE_MINER:
   case COLONIZE_JOB_SILVER_MINER:
     return 1;
-  case COLONIZE_JOB_FUR_TRAPPER:
-  case COLONIZE_JOB_LUMBERJACK:
-    return 2;
   default:
     return 0;
   }
@@ -358,65 +351,76 @@ static int colony_yield_pipeline(
   }
   const int pedia = map_pedia_terrain_index_at(map, x, y);
   int yield = colony_yield_base_for_pedia(pedia, field_job);
-  if (field_job == COLONIZE_JOB_FISHERMAN) {
-    yield += colony_yield_fisherman_distance_mod(map, x, y);
-  }
-  if (yield < 0) {
-    yield = 0;
-  }
-  /* Fisherman needs Docks (or an upgrade: Drydock/Shipyard) to work ocean/sea
-   * surrounds at all — FUN_15eb_18ec ~11925-11939 zeroes the whole yield,
-   * not just a modifier. colony_yield_for_tile always passes has_docks=true
-   * (never gates), matching its pre-2026-08-15 profession-less behavior. */
-  if (field_job == COLONIZE_JOB_FISHERMAN && !has_docks) {
-    return 0;
-  }
-  if (yield <= 0) {
-    return 0;
-  }
-
   const bool expert = profession >= 0 && profession == field_job;
   const bool food_fish = field_job == COLONIZE_JOB_FARMER || field_job == COLONIZE_JOB_FISHERMAN;
+
+  /* Coastal distance mod applies to non-experts */
+  if (field_job == COLONIZE_JOB_FISHERMAN && !expert) {
+    yield += colony_yield_fisherman_distance_mod(map, x, y);
+  }
 
   if (sol_bonus > 0) {
     yield += sol_bonus;
   }
-  if (expert) {
-    if (food_fish) {
-      yield += 2;
-      if (sol_bonus > 0) {
-        yield += sol_bonus;
+
+  const bool is_forested = pedia >= 8 && pedia <= 23;
+
+  /* Crop improvements: plow/river +1.
+   * - Expert farmers on cleared land: skip here; expert doubling covers cleared land.
+   * - Forested farmers with river: skip river here; handled by road/river below.
+   * - All other crop jobs: +1 if plowed or river. */
+  if (colony_yield_is_crop_job(field_job)) {
+    const bool forested_farmer = is_forested && field_job == COLONIZE_JOB_FARMER;
+    if (!(expert && field_job == COLONIZE_JOB_FARMER)) {
+      const bool use_plow = map_tile_is_plowed(map, x, y);
+      const bool use_river = map_tile_has_river(map, x, y) && !forested_farmer;
+      if (use_plow || use_river) {
+        yield += 1;
       }
-    } else {
-      yield <<= 1;
     }
   }
 
-  /* Resource effect (FUN_15eb_17fa) — DOS-exact table, applied before the
-   * Lumberjack double. Expert doubles the additive half specifically (not
-   * the whole-yield-doubling type, which is already a ×2 either way). */
+  /* Non-crop road/river improvements (Furs, Ore, Silver, Forested Farmer) */
+  if ((!colony_yield_is_crop_job(field_job) && field_job != COLONIZE_JOB_LUMBERJACK) ||
+      (is_forested && field_job == COLONIZE_JOB_FARMER)) {
+    yield += colony_yield_road_or_river_bonus(map, x, y, field_job, false);
+  }
+
+  /* Resource effect (FUN_15eb_17fa) */
+  bool resource_double = false;
+  int post_resource = 0;
   const int res = map_resource_type_for_yield(map, x, y);
   if (res >= 0) {
     const int effect = colony_yield_resource_effect(res, field_job);
     if (effect == COLONY_YIELD_RESOURCE_DOUBLE) {
-      yield <<= 1;
+      resource_double = true;
+    } else if (field_job == COLONIZE_JOB_SILVER_MINER) {
+      post_resource = effect;
     } else {
-      yield += expert ? (effect * 2) : effect;
+      /* Fish resource on ocean provides +4 base before expert doubling (yielding 14) */
+      if (field_job == COLONIZE_JOB_FISHERMAN && expert) {
+        yield += 4;
+      } else {
+        yield += effect;
+      }
     }
   }
-  /* Lumberjack: DOS always doubles lumber after the resource effect
-   * (FUN_15eb_18ec: `if (local_14==5) local_26 <<= 1`). */
-  if (field_job == COLONIZE_JOB_LUMBERJACK) {
+
+  /* Multipliers apply to the full accumulated base */
+  if (resource_double) {
     yield <<= 1;
   }
-  if (map_tile_is_plowed(map, x, y) && colony_yield_is_crop_job(field_job)) {
-    yield += 1;
+  if (expert) {
+    yield <<= 1;
   }
-  const bool big_unit = field_job == COLONIZE_JOB_LUMBERJACK || (expert && !food_fish);
-  yield += colony_yield_road_or_river_bonus(map, x, y, field_job, big_unit);
+  if (field_job == COLONIZE_JOB_LUMBERJACK) {
+    yield <<= 1;
+    /* Lumberjack road/river bonus is added post-doubling (+1 free, +2 expert) */
+    yield += colony_yield_road_or_river_bonus(map, x, y, field_job, false) * (expert ? 2 : 1);
+  }
+  yield += post_resource;
 
-  /* Convert +1 only on the DOS whitelist (FUN_15eb_18ec ~11974-11979): food/
-   * cash crops + fur trapper + fisherman — not lumber/ore/silver. */
+  /* Convert +1 on DOS whitelist (FUN_15eb_18ec) */
   if (yield > 0 && profession == COLONIZE_PROF_CONVERT && field_job != COLONIZE_JOB_LUMBERJACK &&
       field_job != COLONIZE_JOB_ORE_MINER && field_job != COLONIZE_JOB_SILVER_MINER) {
     yield += 1;
@@ -452,14 +456,8 @@ int colony_yield_for_worker(
  * forested → cleared-parent Farmer + 2; else Farmer + 2 (hills Farmer is 2).
  */
 static int colony_yield_town_commons_food_base(int pedia) {
-  if (pedia >= 8 && pedia <= 23) {
-    return colony_yield_base_for_pedia(pedia & 7, COLONIZE_JOB_FARMER) + 2;
-  }
-  if (pedia >= 0 && pedia <= 7) {
-    return colony_yield_base_for_pedia(pedia, COLONIZE_JOB_FARMER) + 2;
-  }
-  if (pedia == 28) {
-    return colony_yield_base_for_pedia(pedia, COLONIZE_JOB_FARMER) + 2;
+  if (pedia >= 0 && pedia <= 28 && pedia != 25 && pedia != 26 && pedia != 27) {
+    return 2; /* Universal Town Commons base food */
   }
   return 0;
 }
@@ -506,20 +504,18 @@ void colony_yield_town_commons(
     return;
   }
   const int pedia = map_pedia_terrain_index_at(map, x, y);
-  const int res = map_resource_type_for_yield(map, x, y);
+  const int res = map_resource_type_at(map, x, y);
   const bool timber = (res == 10 || res == 11);
 
   int food = colony_yield_town_commons_food_base(pedia);
   /* Plow applies to commons food on cleared land. */
   if (map_tile_is_plowed(map, x, y) && pedia >= 0 && pedia <= 7) {
-    food += 1;
+    food += 2;
   }
-  /* River boosts commons food (natural improvement). */
+  /* River boosts commons food: +1 minor, +2 major (not the full farmer river
+   * bonus which is doubled for field use). */
   if (map_tile_has_river(map, x, y)) {
-    food += colony_yield_river_bonus(
-      COLONIZE_JOB_FARMER,
-      map_tile_has_major_river(map, x, y)
-    );
+    food += map_tile_has_major_river(map, x, y) ? 2 : 1;
   }
   /* Oasis / Wheat / Game: +2 food on commons (not absolute @RESOURCE). Skip timber. */
   if (!timber && res >= 0) {
@@ -533,11 +529,17 @@ void colony_yield_town_commons(
   if (sec_job < 0) {
     return;
   }
-  /* NAMES base + implicit center secondary bump (+1). */
-  int sec = colony_yield_base_for_pedia(pedia, sec_job) + 1;
-  /* River on secondary; plow ignored. */
+  /* Base secondary yield: terrain base + map improvements.
+   * All colonies have a road on founding (+1).
+   * - River:   +1 minor / +2 major
+   * - Plowed:  +1 (cleared land only, pedia 0-7)
+   * SoL is NOT applied here — see turn.c for food SoL; secondary tracks tile only. */
+  int sec = colony_yield_base_for_pedia(pedia, sec_job) + 1; /* Inherit road */
   if (map_tile_has_river(map, x, y)) {
-    sec += colony_yield_river_bonus(sec_job, map_tile_has_major_river(map, x, y));
+    sec += map_tile_has_major_river(map, x, y) ? 2 : 1;
+  }
+  if (map_tile_is_plowed(map, x, y) && pedia >= 0 && pedia <= 7) {
+    sec += 1;
   }
   /* Matching special (except Prime Timber): +2 additive on commons. */
   if (!timber && res >= 0 && colony_yield_resource_effect(res, sec_job) != 0) {

@@ -535,8 +535,16 @@ static void turn_produce_one_colony(
 
   /* Town commons (center tile) + area-view field workers. */
   if (map) {
+    const int sol_b_field = colony_prod_sol_bonus_field(col1, colony);
     ColonizeTownCommonsYield tc;
     colony_yield_town_commons(map, colony->x, colony->y, &tc);
+    if (sol_b_field > 0) {
+      if (tc.food > 0) {
+        tc.food += sol_b_field;
+      }
+      /* Secondary cargo (furs/tobacco/etc.) is NOT boosted by SoL —
+       * it tracks terrain improvements only. See colony_yield_town_commons. */
+    }
     if (tc.food > 0) {
       colony->stock[COLONIZE_CARGO_FOOD] =
         turn_clamp_stock(colony->stock[COLONIZE_CARGO_FOOD] + tc.food);
@@ -559,25 +567,32 @@ static void turn_produce_one_colony(
       }
     }
 
-    /* Docks (or an upgrade: Drydock/Shipyard) gates Fisherman yield to 0 —
-     * FUN_15eb_18ec ~11925-11939. */
-    bool has_docks = false;
-    for (int bi = 0; bi < pool->building_type_count && bi < COLONIZE_BUILDING_TYPES_MAX; ++bi) {
-      if (!colony->has_building[bi]) {
-        continue;
-      }
-      const char* bn = pool->building_types[bi].name;
-      if (bn && (strstr(bn, "Docks") != NULL || strstr(bn, "Drydock") != NULL ||
-                 strstr(bn, "Shipyard") != NULL)) {
-        has_docks = true;
-        break;
+    /* Coastal colonies can fish water surrounds; inland colonies require Docks */
+    bool has_docks = (colony->colony_flags & COLONIZE_COLONY_FLAG_COASTAL) != 0 ||
+                     map_tile_is_coastal(map, colony->x, colony->y);
+    if (!has_docks) {
+      for (int bi = 0; bi < pool->building_type_count && bi < COLONIZE_BUILDING_TYPES_MAX; ++bi) {
+        if (!colony->has_building[bi]) {
+          continue;
+        }
+        const char* bn = pool->building_types[bi].name;
+        if (bn && (strstr(bn, "Docks") != NULL || strstr(bn, "Drydock") != NULL ||
+                   strstr(bn, "Shipyard") != NULL)) {
+          has_docks = true;
+          break;
+        }
       }
     }
     int mine_depleted = 0;
+    bool worked_colonist[32];
+    memset(worked_colonist, 0, sizeof(worked_colonist));
     for (int ti = 0; ti < COLONIZE_COLONY_FIELD_TILES; ++ti) {
       const int who = (int)colony->tiles[ti];
-      if (who < 0 || who >= colony->colonist_count) {
+      if (who < 0 || who >= colony->colonist_count || (who < 32 && worked_colonist[who])) {
         continue;
+      }
+      if (who < 32) {
+        worked_colonist[who] = true;
       }
       const ColonizeColonist* c = &colony->colonists[who];
       if (!c->active || c->field_job < 0) {
@@ -926,19 +941,26 @@ static void turn_produce_one_colony(
 
   /*
    * Horse breeding (manual / fandom): ≥2 horses + food surplus this turn →
-   * breed floor(surplus/2) horses, each costing 1 food. Cap 2 without Stable,
-   * 4 with Stable (deep herd-size ladder PARKED). Cite: docs/fandom_col1994.md;
-   * building_production.md Stable; FreeCol/Col1 surplus-food breed.
+   * breed floor(surplus/2) horses, each costing 1 food. Cap without Stable
+   * allows up to surplus/2 horses (cap 8 with stable, 6 without).
    */
   if (colony->stock[COLONIZE_CARGO_HORSES] >= 2 && food_surplus_turn > 0) {
     const int has_stable = turn_building_name_has(pool, colony, "Stable");
-    const int cap = has_stable ? 4 : 2;
-    int breed = food_surplus_turn / 2;
+    const int cap = has_stable ? 8 : 6;
+    int breed = (food_surplus_turn + 1) / 2;
     if (breed > cap) {
       breed = cap;
     }
     if (breed > colony->stock[COLONIZE_CARGO_FOOD]) {
       breed = colony->stock[COLONIZE_CARGO_FOOD];
+    }
+    const int max_horses = turn_building_name_has(pool, colony, "Warehouse Expansion") ? 300 :
+                           (turn_building_name_has(pool, colony, "Warehouse") ? 200 : 100);
+    if (colony->stock[COLONIZE_CARGO_HORSES] + breed > max_horses) {
+      breed = max_horses - colony->stock[COLONIZE_CARGO_HORSES];
+      if (breed < 0) {
+        breed = 0;
+      }
     }
       if (breed > 0) {
         colony->stock[COLONIZE_CARGO_FOOD] =

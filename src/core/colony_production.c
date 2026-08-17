@@ -70,7 +70,27 @@ static int colony_prod_scale_by_class(int profession, int free_tier_output) {
 }
 
 static bool colony_prod_craft_skill_matches(int profession, int craft_profession) {
-  return profession >= 0 && profession == craft_profession;
+  if (profession < 0) {
+    return false;
+  }
+  if (profession == craft_profession) {
+    return true;
+  }
+  /* Map unit-type indices (19..27) to skill indices (9..17):
+   * 19=Carpenter(13), 20=Distiller(9), 21=Tobacconist(10), 22=Weaver(11),
+   * 23=FurTrader(12), 24=Blacksmith(14), 25=Gunsmith(15), 26=Preacher(16), 27=Statesman(17) */
+  switch (craft_profession) {
+  case 9:  return profession == 20;
+  case 10: return profession == 21;
+  case 11: return profession == 22;
+  case 12: return profession == 23;
+  case 13: return profession == 19;
+  case 14: return profession == 24;
+  case 15: return profession == 25;
+  case 16: return profession == 26;
+  case 17: return profession == 27;
+  default: return false;
+  }
 }
 
 /*
@@ -133,7 +153,9 @@ int colony_prod_manufacturing_output(
    * skill match doubles whatever's left. See
    * original_sources_annotated/turn/manufacturing_worker_calc_1d4c.md. */
   const int tag = colony_prod_scale_by_class(profession, 3);
-  int out = tag + sol_bonus;
+  /* In manufacturing, SoL bonus is +2 at 100% SoL, 0 below 100% (or clamped for sol_50) */
+  const int effective_sol = (sol_bonus >= 2) ? 2 : 0;
+  int out = tag + effective_sol;
   if (tier == COLONY_PROD_TIER_SHOP || tier == COLONY_PROD_TIER_FACTORY) {
     out += tag;
   }
@@ -242,11 +264,11 @@ int colony_prod_sol_bonus(const ColonizeCol1Save* col1, const ColonizeColony* co
       if (diff > 4) {
         diff = 4;
       }
-      thresh = 10 - diff;
+      thresh = 10 - diff * 2;
     }
   }
-  if (thresh < 1) {
-    thresh = 1;
+  if (thresh < 2) {
+    thresh = 2;
   }
 
   int mod = -(tories / thresh);
