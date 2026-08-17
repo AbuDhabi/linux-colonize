@@ -388,8 +388,8 @@ void colony_prod_tick_rebel_accumulators(
     bells = -(bells >> 1);
   }
 
-  cc->rebel_dividend >>= 6;
-  cc->rebel_divisor >>= 6;
+  cc->rebel_dividend -= (cc->rebel_dividend >> 6);
+  cc->rebel_divisor -= (cc->rebel_divisor >> 6);
   cc->rebel_divisor += (uint32_t)(pop * 2);
 
   if (bells >= 0) {
@@ -683,6 +683,47 @@ int colony_prod_colony_hammers(
     *out_lumber_use = lumber_total;
   }
   return hammers_total;
+}
+
+const char* colony_prod_highest_manufacturing_tier_name(
+  const ColonizeColonyPool* pool,
+  const ColonizeColony* colony,
+  const char* base_name
+) {
+  if (!base_name) {
+    return NULL;
+  }
+  if (colony_prod_name_has(base_name, "Weaver") || colony_prod_name_has(base_name, "Textile")) {
+    if (colony_prod_building_built(pool, colony, "Textile Mill")) return "Textile Mill";
+    if (colony_prod_building_built(pool, colony, "Weaver's Shop")) return "Weaver's Shop";
+    return "Weaver's House";
+  }
+  if (colony_prod_name_has(base_name, "Rum Distill")) {
+    if (colony_prod_building_built(pool, colony, "Rum Factory")) return "Rum Factory";
+    if (colony_prod_building_built(pool, colony, "Rum Distillery")) return "Rum Distillery";
+    return "Rum Distiller's House";
+  }
+  if (colony_prod_name_has(base_name, "Tobacconist") || colony_prod_name_has(base_name, "Cigar")) {
+    if (colony_prod_building_built(pool, colony, "Cigar Factory")) return "Cigar Factory";
+    if (colony_prod_building_built(pool, colony, "Tobacconist's Shop")) return "Tobacconist's Shop";
+    return "Tobacconist's House";
+  }
+  if (colony_prod_name_has(base_name, "Fur Trad") || colony_prod_name_has(base_name, "Fur Fact")) {
+    if (colony_prod_building_built(pool, colony, "Fur Factory")) return "Fur Factory";
+    if (colony_prod_building_built(pool, colony, "Fur Trading Post")) return "Fur Trading Post";
+    return "Fur Trader's House";
+  }
+  if (colony_prod_name_has(base_name, "Blacksmith") || colony_prod_name_has(base_name, "Iron Works")) {
+    if (colony_prod_building_built(pool, colony, "Iron Works")) return "Iron Works";
+    if (colony_prod_building_built(pool, colony, "Blacksmith's Shop")) return "Blacksmith's Shop";
+    return "Blacksmith's House";
+  }
+  if (colony_prod_name_has(base_name, "Armory") || colony_prod_name_has(base_name, "Magazine") || colony_prod_name_has(base_name, "Arsenal")) {
+    if (colony_prod_building_built(pool, colony, "Arsenal")) return "Arsenal";
+    if (colony_prod_building_built(pool, colony, "Magazine")) return "Magazine";
+    return "Armory";
+  }
+  return base_name;
 }
 
 int colony_prod_worker_building_output(

@@ -1779,11 +1779,11 @@ int europe_sell_hold(EuropeScreen* eu, int harbor_index, int hold_index) {
 
 /*
  * FUN_364b_0636: Custom House may auto-sell this cargo type.
- * Deny Food(0), Lumber(5), Horses(8), Tools(0xe), Muskets(0xf).
+ * Deny Food(0), Horses(8), Tools(0xe), Muskets(0xf).
  * Ore(6) extra DOS deny path not mapped — allow Ore (no invent).
  */
 static int europe_custom_house_cargo_eligible(int cargo_type) {
-  if (cargo_type == COLONIZE_CARGO_FOOD || cargo_type == COLONIZE_CARGO_LUMBER ||
+  if (cargo_type == COLONIZE_CARGO_FOOD ||
       cargo_type == COLONIZE_CARGO_HORSES || cargo_type == COLONIZE_CARGO_TOOLS ||
       cargo_type == COLONIZE_CARGO_MUSKETS) {
     return 0;
@@ -1852,9 +1852,6 @@ int europe_custom_house_autosell(
 
   int total = 0;
   for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
-    if (!europe_custom_house_cargo_eligible(c)) {
-      continue;
-    }
     if (!europe_custom_house_bit_enabled(colony->custom_house_bits, c)) {
       continue;
     }

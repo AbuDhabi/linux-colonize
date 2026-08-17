@@ -1,5 +1,6 @@
 #include "core/colony_craft.h"
 
+#include <stdio.h>
 #include <string.h>
 
 #include "core/colony_production.h"
@@ -13,7 +14,9 @@ typedef struct ColonyCraftRecipe {
 
 static const ColonyCraftRecipe k_recipes[] = {
   {"Rum Distill", COLONIZE_CARGO_SUGAR, COLONIZE_CARGO_RUM, COLONIZE_PROF_DISTILLER},
+  {"Rum Factory", COLONIZE_CARGO_SUGAR, COLONIZE_CARGO_RUM, COLONIZE_PROF_DISTILLER},
   {"Tobacconist", COLONIZE_CARGO_TOBACCO, COLONIZE_CARGO_CIGARS, COLONIZE_PROF_TOBACCONIST},
+  {"Cigar Factory", COLONIZE_CARGO_TOBACCO, COLONIZE_CARGO_CIGARS, COLONIZE_PROF_TOBACCONIST},
   {"Weaver", COLONIZE_CARGO_COTTON, COLONIZE_CARGO_CLOTH, COLONIZE_PROF_WEAVER},
   {"Textile", COLONIZE_CARGO_COTTON, COLONIZE_CARGO_CLOTH, COLONIZE_PROF_WEAVER},
   {"Fur Trad", COLONIZE_CARGO_FURS, COLONIZE_CARGO_COATS, COLONIZE_PROF_FUR_TRADER},
@@ -142,9 +145,6 @@ void colony_craft_one_colony(
     colony->stock[rec->in_cargo] -= actual_in;
     colony->stock[rec->out_cargo] =
       colony_craft_clamp(colony->stock[rec->out_cargo] + actual_out);
-    if (actual_out > 0) {
-      colony->cargo_produced_mask |= (uint16_t)(1u << rec->out_cargo);
-    }
     if (delta) {
       delta->goods[rec->in_cargo] -= actual_in;
       delta->goods[rec->out_cargo] += actual_out;
