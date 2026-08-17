@@ -47,7 +47,7 @@ static const int k_other[5][COLONIZE_FIELD_JOB_COUNT] = {
   {0, 0, 0, 0, 0, 0, 0, 0, 3},
   {0, 0, 0, 0, 0, 0, 0, 0, 3},
   {0, 0, 0, 0, 0, 0, 4, 1, 0},
-  {2, 0, 0, 0, 0, 0, 4, 0, 0},
+  {2, 0, 0, 0, 0, 0, 3, 0, 0},
 };
 
 static const char* k_job_names[COLONIZE_FIELD_JOB_COUNT] = {
@@ -349,6 +349,9 @@ static int colony_yield_pipeline(
   if (!map || field_job < 0 || field_job >= COLONIZE_FIELD_JOB_COUNT) {
     return 0;
   }
+  if (field_job == COLONIZE_JOB_FISHERMAN && !has_docks) {
+    return 0;
+  }
   const int pedia = map_pedia_terrain_index_at(map, x, y);
   int yield = colony_yield_base_for_pedia(pedia, field_job);
   const bool expert = profession >= 0 && profession == field_job;
@@ -406,7 +409,13 @@ static int colony_yield_pipeline(
     }
   }
 
-  /* Multipliers apply to the full accumulated base */
+  /* Multipliers apply to the full accumulated base.
+   * A flat "+2 instead of x2" rule for expert Farmer/Fisherman was tried
+   * here but regressed golden_colony_prod01 (a real single DOS turn across
+   * 14 Dutch colonies), so plain x2 stands for every field expert,
+   * Farmer/Fisherman included — see colony_yield_town_commons_food_base's
+   * comment for the matching town-commons-food finding from the same
+   * check. */
   if (resource_double) {
     yield <<= 1;
   }
@@ -452,12 +461,17 @@ int colony_yield_for_worker(
 }
 
 /*
- * Town-commons food before specials/river/plow:
- * forested → cleared-parent Farmer + 2; else Farmer + 2 (hills Farmer is 2).
+ * Town-commons food before specials/river/plow: flat +2 regardless of
+ * terrain. A per-terrain "cleared-parent Farmer + 2" formula was tried
+ * (matching an older doc fixture note) but regressed colony_prod01 — a
+ * real single DOS turn across 14 Dutch colonies — nearly every colony's
+ * food came out 1-4 too high. Flat +2 matches that golden exactly, so it
+ * is the confirmed rule; the terrain_yields.md fixture table predates this
+ * check and needs re-verifying against real DOS, not the other way around.
  */
 static int colony_yield_town_commons_food_base(int pedia) {
   if (pedia >= 0 && pedia <= 28 && pedia != 25 && pedia != 26 && pedia != 27) {
-    return 2; /* Universal Town Commons base food */
+    return 2;
   }
   return 0;
 }

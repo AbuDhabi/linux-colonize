@@ -153,8 +153,14 @@ int colony_prod_manufacturing_output(
    * skill match doubles whatever's left. See
    * original_sources_annotated/turn/manufacturing_worker_calc_1d4c.md. */
   const int tag = colony_prod_scale_by_class(profession, 3);
-  /* In manufacturing, SoL bonus is +2 at 100% SoL, 0 below 100% (or clamped for sol_50) */
-  const int effective_sol = (sol_bonus >= 2) ? 2 : 0;
+  /* In manufacturing, SoL bonus is +2 at 100% SoL, 0 below 100% (or clamped for sol_50).
+   * However, negative Tory penalties apply in full. */
+  int effective_sol = 0;
+  if (sol_bonus >= 2) {
+    effective_sol = 2;
+  } else if (sol_bonus < 0) {
+    effective_sol = sol_bonus;
+  }
   int out = tag + effective_sol;
   if (tier == COLONY_PROD_TIER_SHOP || tier == COLONY_PROD_TIER_FACTORY) {
     out += tag;
@@ -270,8 +276,10 @@ int colony_prod_sol_bonus(const ColonizeCol1Save* col1, const ColonizeColony* co
   if (thresh < 2) {
     thresh = 2;
   }
-
   int mod = -(tories / thresh);
+  if (mod < -2) {
+    mod = -2;
+  }
 
   /* Latch bits (hysteresis) or live SoL stand-in; take the larger so a
    * stale sol_50-only flag cannot under-count after SoL rises to 100, while

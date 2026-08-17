@@ -1420,20 +1420,20 @@ int main(void) {
         return 1;
       }
       const char* iname = pool.building_types[iron_works].name;
-      /* Free colonist (tag=3), factory tier, sol_bonus=3:
-       * v = 3+3=6; shop/factory re-add tag: 6+3=9; factory ×1.5 floor: 9+4=13. */
+      /* Free colonist (tag=3), factory tier, sol_bonus=3 (clamped to 2):
+       * v = 3+2=5; shop/factory re-add tag: 5+3=8; factory ×1.5 floor: 8+4=12. */
       const int unskilled =
         colony_prod_manufacturing_output(iname, COLONIZE_PROF_FREE_COLONIST, COLONIZE_PROF_BLACKSMITH, 3);
-      if (unskilled != 13) {
-        fprintf(stderr, "factory sol-fold unskilled want 13 got %d\n", unskilled);
+      if (unskilled != 12) {
+        fprintf(stderr, "factory sol-fold unskilled want 12 got %d\n", unskilled);
         assets_msg_free(&names);
         return 1;
       }
-      /* Skilled (Blacksmith in Iron Works): whole running total doubles: 13*2=26. */
+      /* Skilled (Blacksmith in Iron Works): whole running total doubles: 12*2=24. */
       const int skilled =
         colony_prod_manufacturing_output(iname, COLONIZE_PROF_BLACKSMITH, COLONIZE_PROF_BLACKSMITH, 3);
-      if (skilled != 26) {
-        fprintf(stderr, "factory sol-fold skilled want 26 got %d\n", skilled);
+      if (skilled != 24) {
+        fprintf(stderr, "factory sol-fold skilled want 24 got %d\n", skilled);
         assets_msg_free(&names);
         return 1;
       }
@@ -1547,8 +1547,14 @@ int main(void) {
         assets_msg_free(&names);
         return 1;
       }
+      const int hammers_unskilled =
+        colony_prod_hammers_worker("Carpenter's Shop", UNITS_JOB_NONE, 0, false);
+      const int hammers_skilled =
+        colony_prod_hammers_worker("Carpenter's Shop", COLONIZE_PROF_CARPENTER, 0, false);
+      const int hammers_unskilled_sol =
+        colony_prod_hammers_worker("Carpenter's Shop", UNITS_JOB_NONE, 2, false);
       const int hammers_unskilled_mill =
-        colony_prod_hammers_worker("Lumber Mill", COLONIZE_PROF_FREE_COLONIST, 2, true);
+        colony_prod_hammers_worker("Lumber Mill", UNITS_JOB_NONE, 2, true);
       if (hammers_unskilled_mill != 10) { /* (3+2)*2, not the old 6+2=8 */
         fprintf(
           stderr,
@@ -1694,8 +1700,14 @@ int main(void) {
       map_free(&map);
       return 1;
     }
-    /* Isolate field harvest from carpenter hammers on default Stockade project. */
+    /* Isolate field harvest from carpenter hammers on default Stockade project.
+     * This colony has no Farmer, only the Lumberjack under test, so give it a
+     * food buffer up front — otherwise Phase J's starve-kill (still short of
+     * `pop*2` after the turn, and food was 0 at turn start) removes the
+     * colony's only colonist on the very first turn_colony_free_production
+     * call below, before either check in this block ever runs. */
     col->building_in_production = -1;
+    col->stock[COLONIZE_CARGO_FOOD] = 100;
     const int before = col->stock[COLONIZE_CARGO_LUMBER];
     const int expect =
       colony_yield_for_worker(&map, fx, fy, COLONIZE_JOB_LUMBERJACK, col->colonists[0].profession, true, 0);
@@ -1729,9 +1741,10 @@ int main(void) {
     if (prev.goods[COLONIZE_CARGO_LUMBER] != base_yield - 1) {
       fprintf(
         stderr,
-        "Tory-penalty field preview want %d got %d\n",
+        "Tory-penalty field preview want %d got %d (base_yield=%d)\n",
         base_yield - 1,
-        prev.goods[COLONIZE_CARGO_LUMBER]
+        prev.goods[COLONIZE_CARGO_LUMBER],
+        base_yield
       );
       assets_msg_free(&names);
       map_free(&map);
@@ -1803,6 +1816,11 @@ int main(void) {
     }
     col->building_in_production = -1;
     col->nation_id = 0;
+    /* No Farmer, only the Fur Trapper under test — seed a food buffer so
+     * Phase J's starve-kill doesn't remove the colony's only colonist on
+     * this first simulated turn (town-commons food alone nets exactly 0
+     * against pop*2 consumption for a fresh 1-colonist colony). */
+    col->stock[COLONIZE_CARGO_FOOD] = 100;
 
     ColonizeCol1Save col1;
     memset(&col1, 0, sizeof(col1));

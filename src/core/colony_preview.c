@@ -2,6 +2,7 @@
 
 #include <string.h>
 
+#include "core/colony.h"
 #include "core/colony_craft.h"
 #include "core/colony_production.h"
 #include "core/colony_yield.h"
@@ -89,10 +90,15 @@ void colony_preview_compute(
       }
     }
 
+    bool worked_colonist[32];
+    memset(worked_colonist, 0, sizeof(worked_colonist));
     for (int ti = 0; ti < COLONIZE_COLONY_FIELD_TILES; ++ti) {
       const int who = (int)colony->tiles[ti];
-      if (who < 0 || who >= colony->colonist_count) {
+      if (who < 0 || who >= colony->colonist_count || (who < 32 && worked_colonist[who])) {
         continue;
+      }
+      if (who < 32) {
+        worked_colonist[who] = true;
       }
       const ColonizeColonist* c = &colony->colonists[who];
       if (!c->active || c->field_job < 0) {
@@ -144,14 +150,33 @@ void colony_preview_compute(
         break;
       }
     }
-    const int cap = has_stable ? 4 : 2;
-    int breed = out->food_net / 2;
+    const int cap = has_stable ? 8 : 6;
+    int breed = (out->food_net + 1) / 2;
     if (breed > cap) {
       breed = cap;
     }
     int food_avail = colony->stock[COLONIZE_CARGO_FOOD] + out->food_net;
     if (breed > food_avail) {
       breed = food_avail > 0 ? food_avail : 0;
+    }
+    bool has_warehouse = false;
+    bool has_warehouse_expansion = false;
+    for (int i = 0; i < pool->building_type_count && i < COLONIZE_BUILDING_TYPES_MAX; ++i) {
+      if (!colony->has_building[i] || !pool->building_types[i].name) {
+        continue;
+      }
+      if (strstr(pool->building_types[i].name, "Warehouse Expansion") != NULL) {
+        has_warehouse_expansion = true;
+      } else if (strstr(pool->building_types[i].name, "Warehouse") != NULL) {
+        has_warehouse = true;
+      }
+    }
+    const int max_horses = has_warehouse_expansion ? 300 : (has_warehouse ? 200 : 100);
+    if (colony->stock[COLONIZE_CARGO_HORSES] + breed > max_horses) {
+      breed = max_horses - colony->stock[COLONIZE_CARGO_HORSES];
+      if (breed < 0) {
+        breed = 0;
+      }
     }
     if (breed > 0) {
       out->goods[COLONIZE_CARGO_HORSES] += breed;

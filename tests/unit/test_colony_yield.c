@@ -73,13 +73,21 @@ int main(void) {
     return 1;
   }
 
+  /*
+   * Town-commons food is a flat +2 regardless of terrain (plus
+   * plow/river/resource on top) — golden_colony_prod01 (a real single DOS
+   * turn across 14 Dutch colonies) rules out a per-terrain "cleared-parent
+   * Farmer + 2" formula: it over-produced food by 1-4 in nearly every
+   * colony. See colony_yield_town_commons_food_base's comment.
+   */
+
   /* Scrub forest (pedia 9) — no special / river. */
   map.terrain[0] = 9;
   if (check_commons(
         &map,
         0,
         0,
-        3,
+        2,
         COLONIZE_CARGO_FURS,
         3,
         "scrub"
@@ -95,14 +103,14 @@ int main(void) {
     map_free(&map);
     return 1;
   }
-  if (check_commons(&map, 1, 0, 4, COLONIZE_CARGO_ORE, 5, "hills")) {
+  if (check_commons(&map, 1, 0, 2, COLONIZE_CARGO_ORE, 4, "hills")) {
     map_free(&map);
     return 1;
   }
 
   /* Broadleaf forest (pedia 11). */
   map.terrain[2] = 11;
-  if (check_commons(&map, 2, 0, 4, COLONIZE_CARGO_FURS, 3, "broadleaf")) {
+  if (check_commons(&map, 2, 0, 2, COLONIZE_CARGO_FURS, 3, "broadleaf")) {
     map_free(&map);
     return 1;
   }
@@ -114,7 +122,7 @@ int main(void) {
     map_free(&map);
     return 1;
   }
-  if (check_commons(&map, 3, 0, 5, COLONIZE_CARGO_COTTON, 5, "prairie+minor river")) {
+  if (check_commons(&map, 3, 0, 3, COLONIZE_CARGO_COTTON, 5, "prairie+minor river")) {
     map_free(&map);
     return 1;
   }
@@ -128,11 +136,14 @@ int main(void) {
       map_free(&map);
       return 1;
     }
-    if (check_commons(&map, gx, gy, 6, COLONIZE_CARGO_FURS, 5, "broadleaf+Game")) {
+    if (check_commons(&map, gx, gy, 4, COLONIZE_CARGO_FURS, 5, "broadleaf+Game")) {
       map_free(&map);
       return 1;
     }
-    /* Settlement bit hides sprites but yields must still see Game. */
+    /* Settlement bit hides sprites — a colony's own town square always
+     * carries this bit, so town-commons food/secondary correctly drop the
+     * Game bonus once it's set (colony_yield_town_commons intentionally
+     * uses the settlement-hiding resource lookup, unlike field yields). */
     map.layer2[gy * map.width + gx] = (uint8_t)(map.layer2[gy * map.width + gx] | 2u);
     if (map_resource_type_at(&map, gx, gy) >= 0) {
       fprintf(stderr, "settlement bit should hide resource sprite lookup\n");
@@ -148,9 +159,9 @@ int main(void) {
           &map,
           gx,
           gy,
-          6,
+          2,
           COLONIZE_CARGO_FURS,
-          5,
+          3,
           "broadleaf+Game (settlement bit)"
         )) {
       map_free(&map);
@@ -207,18 +218,18 @@ int main(void) {
   }
 
   /*
-   * Expert Ore Miner on Hills+road+sentiment, player-confirmed 2026-08-15
-   * (Viceroy): 12 ore, vs. 6 for a Free Colonist on the same tile — exactly
-   * ×2 at every step, which only reproduces if (a) a positive sol_bonus
-   * folds in *before* expert doubling, not as a flat add after, and (b) the
-   * road/river unit size doubles for a matching non-food/fish expert too
-   * (colony_yield_pipeline, colony_yield.c):
-   *   free:   base(4) +sol(1)=5,                +road(u=1)=6
-   *   expert: base(4) +sol(1)=5, <<=1(expert)=10, +road(u=2)=12
-   * This is the regression check for both parts of that fix (previously
-   * sol_bonus was added externally in turn.c/colony_preview.c *after*
-   * colony_yield_for_worker returned, un-doubled, and road/river never
-   * scaled with expert skill at all).
+   * Expert Ore Miner on Hills+road+sentiment. This regression check still
+   * covers (a) a positive sol_bonus folding in *before* expert doubling,
+   * not as a flat add after, and (b) the road/river unit size doubling for
+   * a matching non-food/fish expert (colony_yield_pipeline, colony_yield.c):
+   *   free:   base(3) +sol(1)=4,                +road(u=1)=5
+   *   expert: base(3) +sol(1)=4, <<=1(expert)=8, +road(u=2)=10
+   * An earlier pass here claimed Hills Ore base=4 (12 vs 6, "player-
+   * confirmed") — that value regressed golden_colony_prod01 (a real single
+   * DOS turn across 14 Dutch colonies: 3 of them, each with an expert Ore
+   * Miner on Hills, came out 2 ore too high). base=3 matches golden
+   * exactly; the 12/6 claim needs independent re-verification before it's
+   * trusted over that.
    */
   {
     const int hx = 21;
@@ -228,16 +239,16 @@ int main(void) {
     const int free_ore = colony_yield_for_worker(
       &map, hx, hy, COLONIZE_JOB_ORE_MINER, COLONIZE_PROF_FREE_COLONIST, /*has_docks=*/true, 1
     );
-    if (free_ore != 6) {
-      fprintf(stderr, "free colonist ore+road+sol want 6 got %d\n", free_ore);
+    if (free_ore != 5) {
+      fprintf(stderr, "free colonist ore+road+sol want 5 got %d\n", free_ore);
       map_free(&map);
       return 1;
     }
     const int expert_ore = colony_yield_for_worker(
       &map, hx, hy, COLONIZE_JOB_ORE_MINER, COLONIZE_JOB_ORE_MINER, /*has_docks=*/true, 1
     );
-    if (expert_ore != 12) {
-      fprintf(stderr, "expert ore miner+road+sol want 12 got %d\n", expert_ore);
+    if (expert_ore != 10) {
+      fprintf(stderr, "expert ore miner+road+sol want 10 got %d\n", expert_ore);
       map_free(&map);
       return 1;
     }
@@ -302,15 +313,13 @@ int main(void) {
   }
 
   /*
-   * Expert doubles a special resource's *additive* effect specifically
-   * (COLONY_YIELD_RESOURCE_DOUBLE-type effects are already a x2 either
-   * way, so this only matters for the additive kind, e.g. Game(9)+Farmer
-   * = +2). Asm-read (`FUN_15eb_17fa`/`18ec`), wired in colony_yield.c, but
-   * had no direct regression test of its own — this is that test, not new
-   * player data (the fur/ore cases above already validated the *shape* of
-   * expert doubling elsewhere in the pipeline).
-   *   free:   base(1)                +resource(free,+2)     = 3
-   *   expert: base(1) +2(expert food) +resource(expert,+2x2) = 7
+   * Expert doubling applies to the whole accumulated base (terrain +
+   * resource effect together), same as every other field expert — no
+   * special-cased resource-only doubling for Farmer. A flat "+2 instead
+   * of x2 for food/fish experts" variant was tried and regressed
+   * golden_colony_prod01 (see colony_yield_pipeline), so plain x2 stands.
+   *   free:   base(1)             +resource(free,+2)  = 3
+   *   expert: (base(1)+resource(+2)) x2                = 6
    */
   {
     int gx = -1;
@@ -331,8 +340,8 @@ int main(void) {
     const int expert_game = colony_yield_for_worker(
       &map, gx, gy, COLONIZE_JOB_FARMER, COLONIZE_JOB_FARMER, /*has_docks=*/true, 0
     );
-    if (expert_game != 7) {
-      fprintf(stderr, "expert farmer+Game want 7 got %d\n", expert_game);
+    if (expert_game != 6) {
+      fprintf(stderr, "expert farmer+Game want 6 got %d\n", expert_game);
       map_free(&map);
       return 1;
     }
