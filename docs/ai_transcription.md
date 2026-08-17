@@ -114,6 +114,9 @@ flowchart TD
   king --> ref[REF land / war turn]
 ```
 
+Color-coded SVG (done / partial / unported, plus orphan nodes whose callers
+are unidentified): [diagrams/ai_function_call_map.svg](diagrams/ai_function_call_map.svg).
+
 EOT orchestration (calendar / production / nation order / `130d`↔`TURN_PROC_*`):
 [turn_between_players.md](turn_between_players.md). This file owns planner
 fidelity only.
