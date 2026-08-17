@@ -1855,7 +1855,7 @@ int europe_custom_house_autosell(
     if (!europe_custom_house_bit_enabled(colony->custom_house_bits, c)) {
       continue;
     }
-    /* FUN_364b_0688: if (99 < stock) sell stock - 0x32 (leave 50). */
+    /* FUN_364b_0688: if (99 < stock) sell stock - 50 (leave 50 in warehouse). */
     if (colony->stock[c] <= 99) {
       continue;
     }

@@ -528,13 +528,12 @@ static int map_resource_type_at_ex(
 
   const int dos_x = x + 1;
   const int dos_y = y + 1;
-  const int local_a = (int)(terrain_byte & 0x3fu);
-  const int local_4 =
-    !(((local_a < 8) || (local_a > 15)) && ((local_a < 16) || (local_a > 23))) ? 1 : 0;
+  const int local_a = (int)(terrain_byte & 0x1fu);
+  const int local_4 = (local_a >= 8 && local_a <= 15) ? 1 : 0;
   const int uVar2 = (dos_x & 3) * 4 + (dos_y & 3);
   const int uVar3 =
-    ((((dos_y >> 2) * 3 + (dos_x >> 2)) - local_4) + (int)map_resource_seed(map)) & 0xf;
-  if (uVar3 != uVar2 && (uVar3 ^ 10) != uVar2) {
+    ((((dos_y >> 2) * 3 + (dos_x >> 2)) - local_4) + (int)(map_resource_seed(map) & 0xff)) & 0xf;
+  if ((!ignore_settlement || (layer2 & 2u) == 0) && uVar3 != uVar2 && (uVar3 ^ 10) != uVar2) {
     return -1;
   }
 
