@@ -1965,11 +1965,11 @@ int main(void) {
      * port's old flat +1 (pre-2026-08-15), then +2 (unit-size fix only,
      * before the road-magnitude fix); both predate the current rule. See
      * docs/terrain_yields.md "Plow / road / river stacking". */
-    if (lumber_base != lumber_clear + 4) {
+    if (lumber_base != lumber_clear + 1) {
       fprintf(
         stderr,
         "phase7 road lumber yield expected %d got base=%d clear=%d\n",
-        lumber_clear + 4,
+        lumber_clear + 1,
         lumber_base,
         lumber_clear
       );

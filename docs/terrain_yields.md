@@ -489,7 +489,21 @@ Manual: settlement square **always produces some food and one other commodity**;
 
 **Status:** formula below is **Col1-fixture calibrated** (not a NAMES row; full DOS commons composer peel pending). Keep as empirical until re-peeled.
 
-**Food base** (before plow / river / specials):
+**2026-08-17: retracted, not re-peeled yet.** The per-terrain "Farmer + 2"
+food formula below (and the fixture table under it) regressed
+`golden_colony_prod01` — a real single DOS turn captured across 14 Dutch
+colonies, diffed against `COLONY01_no-transports.SAV` — when tried in the
+port: nearly every colony's food came out 1-4 too high. The port now uses
+a **flat +2 regardless of terrain** for commons food (`colony_yield.c`,
+`colony_yield_town_commons_food_base`), which matches that golden exactly.
+The per-terrain formula and fixture table are left here as a record of
+what was tried, not as a target to re-implement without new real-DOS
+per-tile data (the golden save's colonies don't happen to sit on
+Hills/Scrub/Broadleaf town squares, so it can't arbitrate the per-terrain
+claim directly — only the *shape* of "more than flat +2" that it rules
+out).
+
+**Food base** (before plow / river / specials) — **superseded, see above**:
 
 - Forested: `@UNFORESTED` Farmer of cleared parent (`pedia & 7`) **+ 2**
 - Cleared / hills: Farmer **+ 2** (with port Hills Farmer 2 → commons food 4)
@@ -498,7 +512,7 @@ Manual: settlement square **always produces some food and one other commodity**;
 
 Then plow (+1 food on cleared), river (same magnitudes as port field table), Oasis/Wheat/Game **+2** food, matching secondary special **+2**.
 
-| Tile (fixtures) | Food | Secondary |
+| Tile (fixtures) | Food (per-terrain, retracted) | Secondary |
 |-----------------|-----:|-----------|
 | Scrub Forest | 3 | 3 furs |
 | Hills | 4 | 5 ore |
