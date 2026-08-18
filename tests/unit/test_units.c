@@ -1947,19 +1947,20 @@ int main(void) {
       return 1;
     }
     /*
-     * A non-expert Farmer's unconditional +1 (colony_yield_pipeline) does
-     * not stack with plow — the same +1 applies plowed or not. Real,
-     * previously-exact captures confirm this: golden_colony_prod02's New
-     * Amsterdam (Desert, plowed) and Fort Orange (Grassland, plowed,
-     * Convert), both non-expert, need exactly +1 over base+SoL(+convert),
-     * not +2 — trying +2 (this test's original expectation) overshot 9+
-     * other real/golden colonies. So plowing a bare tile changes nothing
-     * for colony_yield_for_tile's free-colonist reading here (still worth
-     * checking — it should stay inert, not silently start stacking again).
+     * A non-expert Farmer's unconditional +1 (colony_yield_pipeline) DOES
+     * stack with plow (+1 more) — the "doesn't stack" conclusion reached
+     * 2026-08-18 used New Amsterdam/Fort Orange's aggregates as its two
+     * anchors, but both were computed under the then-undiscovered
+     * town-commons plow bug (+2 instead of the real +1), which inflated
+     * commons by exactly +1 for those same two plowed colonies — so the
+     * "no stacking" fit was curve-fit against a wrong baseline. Once
+     * commons plow was corrected, both colonies needed their field total
+     * back up by +1, which this stacking plow term supplies exactly,
+     * restoring this test's original expectation.
      */
     const int farm_plowed = colony_yield_for_tile(&tmap, px, py, COLONIZE_JOB_FARMER);
-    if (farm_plowed != farm_base) {
-      fprintf(stderr, "phase7 plow yield expected %d got %d\n", farm_base, farm_plowed);
+    if (farm_plowed != farm_base + 1) {
+      fprintf(stderr, "phase7 plow yield expected %d got %d\n", farm_base + 1, farm_plowed);
       map_free(&tmap);
       map_free(&map);
       assets_msg_free(&names);

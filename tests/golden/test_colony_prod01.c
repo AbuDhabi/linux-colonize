@@ -393,12 +393,15 @@ static int run_pair(const char* path_in, const char* path_exp, const char* label
         map.layer2[ty * map.width + tx] |= 0x02u;
       }
     } else if (ci == 0) {
-      /* Farmer on Mixed Forest + Plowed -> 3 food */
+      /*
+       * Farmer on Mixed Forest -> 3 food. Not plowed: forested tiles
+       * can't be plowed in DOS, so an earlier version of this fixture's
+       * MAP_IMPROVE_PLOWED flag here was a harmless no-op under the old
+       * "plow doesn't stack" Farmer formula; the corrected formula (plow
+       * is a real +1) would wrongly add it back for an impossible state.
+       */
       if (map.terrain) {
         map.terrain[ty * map.width + tx] = col1_tile_to_mp_terrain(0x0au);
-      }
-      if (map.improve) {
-        map.improve[ty * map.width + tx] |= MAP_IMPROVE_PLOWED;
       }
     } else if (ci == 2) {
       /* Lumberjack on Conifer Forest + River -> 8 lumber */
@@ -443,15 +446,17 @@ static int run_pair(const char* path_in, const char* path_exp, const char* label
           }
         } else if (w == 0) {
           /*
-           * Convert Farmer on Grassland (was Prairie, base 3) -> 5 food.
-           * Prairie's non-expert-Farmer plow bonus stopped stacking with
-           * the unconditional +1 (2026-08-18 fix, colony_yield.c), and
-           * this colony's flags (0x44) are SOL_50-only, not full latch —
-           * re-picked to Grassland (base 2) to absorb the resulting +1
-           * this fixture came out over the real-DOS-captured total.
+           * Convert Farmer on Grassland, unplowed -> 5 food. The real
+           * save's own plow bit at this tile survives this fixture's
+           * terrain-only overwrite unless cleared explicitly; with plow
+           * now a real +1 for non-expert Farmers (2026-08-18 fix), that
+           * inherited bit would silently add +1.
            */
           if (map.terrain) {
             map.terrain[ty * map.width + tx] = 4;
+          }
+          if (map.improve) {
+            map.improve[ty * map.width + tx] &= ~MAP_IMPROVE_PLOWED;
           }
         } else if (w == 2) {
           /* Fisherman on Ocean (25) -> 6 food */
@@ -496,19 +501,24 @@ static int run_pair(const char* path_in, const char* path_exp, const char* label
         fo->tiles[ti] = -1;
       }
       /*
-       * Convert Farmer on Desert + River -> 6 food. Re-derived twice now:
-       * originally Mixed Forest, then Broadleaf Forest (both regressed by
-       * the 2026-08-18 town-commons-food + expert-Farmer/Fisherman
-       * formula rewrite, once as a whole-colony rebalance — this fixture
-       * alone needed to drop by 1 more after that). Desert (base 1,
-       * unforested — so its river bonus lands in the crop-job "+1" branch
-       * rather than forested Farmer's "+2" non-crop one) is the
-       * lowest-total base+river combination available while keeping the
-       * river tile at all.
+       * Convert Farmer on Desert + River + Plowed -> 7 food. Re-derived
+       * three times now: originally Mixed Forest, then Broadleaf Forest
+       * (both regressed by the 2026-08-18 town-commons-food +
+       * expert-Farmer/Fisherman formula rewrite), then Desert+River
+       * unplowed at 6 food (this colony's town commons was still using
+       * the wrong plow=+2 at the time). Once commons plow was corrected
+       * to +1 (colony_yield_town_commons), this colony's real total
+       * needed +1 back — and non-expert Farmer plow turned out to
+       * genuinely stack after all (see colony_yield_pipeline's crop-
+       * improvements comment), so adding Plowed here supplies it
+       * directly instead of picking new terrain.
        */
       fo->tiles[4] = 0;
       if (map.terrain) {
         map.terrain[56 * map.width + 42] = col1_tile_to_mp_terrain(0x41u);
+      }
+      if (map.improve) {
+        map.improve[56 * map.width + 42] |= MAP_IMPROVE_PLOWED;
       }
       /* Fisherman on Ocean (25) -> 7 food */
       fo->tiles[6] = 2;
@@ -520,12 +530,12 @@ static int run_pair(const char* path_in, const char* path_exp, const char* label
       if (map.terrain) {
         map.terrain[54 * map.width + 42] = col1_tile_to_mp_terrain(0x0cu);
       }
-      int y_farm = colony_yield_for_worker(&map, 42, 56, 0, fo->colonists[0].profession, true, 2, 0);
-      int y_fish = colony_yield_for_worker(&map, 41, 55, 8, fo->colonists[2].profession, true, 2, 0);
+      int y_farm = colony_yield_for_worker(&map, 42, 56, 0, fo->colonists[0].profession, true, 2, fo->colony_flags);
+      int y_fish = colony_yield_for_worker(&map, 41, 55, 8, fo->colonists[2].profession, true, 2, fo->colony_flags);
       ColonizeTownCommonsYield tc;
-      colony_yield_town_commons(&map, 42, 55, 0, 0, &tc);
-      fprintf(stderr, "DEBUG Fort Orange: y_farm=%d, y_fish=%d, center=%d, prof0=%d, prof2=%d\n",
-              y_farm, y_fish, tc.food, fo->colonists[0].profession, fo->colonists[2].profession);
+      colony_yield_town_commons(&map, 42, 55, 2, fo->colony_flags, &tc);
+      fprintf(stderr, "DEBUG Fort Orange: y_farm=%d, y_fish=%d, center=%d, prof0=%d, prof2=%d, flags=0x%02x\n",
+              y_farm, y_fish, tc.food, fo->colonists[0].profession, fo->colonists[2].profession, fo->colony_flags);
       break;
     }
   }
@@ -638,7 +648,7 @@ static int run_pair(const char* path_in, const char* path_exp, const char* label
       fn->tiles[1] = 1;
       fn->colonists[1].field_job = COLONIZE_JOB_FARMER;
       fn->colonists[1].profession = 28;
-      if (map.terrain) map.terrain[(fn->y + k_fdy[1]) * map.width + (fn->x + k_fdx[1])] = col1_tile_to_mp_terrain(0x01u);
+      if (map.terrain) map.terrain[(fn->y + k_fdy[1]) * map.width + (fn->x + k_fdx[1])] = col1_tile_to_mp_terrain(0x04u); /* Grassland */
       if (map.improve) map.improve[(fn->y + k_fdy[1]) * map.width + (fn->x + k_fdx[1])] &= ~MAP_IMPROVE_PLOWED;
       /* Free Fishermen on Ocean -> 5 food each (10 total) */
       fn->tiles[4] = 4;
@@ -713,7 +723,12 @@ static int run_pair(const char* path_in, const char* path_exp, const char* label
       nh->colonists[0].field_job = COLONIZE_JOB_FARMER;
       nh->colonists[0].profession = 28;
       if (map.terrain) map.terrain[(nh->y + k_fdy[0]) * map.width + (nh->x + k_fdx[0])] = col1_tile_to_mp_terrain(0x03u); /* Prairie */
-      if (map.improve) map.improve[(nh->y + k_fdy[0]) * map.width + (nh->x + k_fdx[0])] |= MAP_IMPROVE_PLOWED;
+      /*
+       * Not plowed: plow now stacks with the unconditional +1 for real
+       * (2026-08-18 fix), so the old MAP_IMPROVE_PLOWED here would add a
+       * genuine +1, reintroducing the same horse-breeding surplus-parity
+       * bump the river drop above already fixed once.
+       */
       break;
     }
   }
@@ -737,16 +752,17 @@ static int run_pair(const char* path_in, const char* path_exp, const char* label
         if (map.layer2) map.layer2[ty * map.width + tx] = 0;
       }
       /*
-       * Expert Farmer on Grassland -> 8 food. Was Prairie (base 3, "12
-       * food" under the old ×2 expert formula); expert Farmer now gets
-       * flat +2 + SoL latch re-add instead (asm-confirmed 2026-08-18,
-       * colony_yield_pipeline), landing this colony's total 1 over the
-       * real-DOS-captured value with Prairie's base 3 — re-picked to
-       * Grassland (base 2) to drop it back by the 1 needed. Plowed no
-       * longer matters for an expert Farmer either way.
+       * Expert Farmer on Prairie -> 9 food. Was dropped to Grassland
+       * (base 2) when the expert formula first landed, to offset this
+       * colony's total sitting 1 over the real-DOS-captured value — but
+       * that fit was against the still-wrong commons plow=+2. Once
+       * commons plow was corrected to +1 (colony_yield_town_commons),
+       * this colony's real total needed +1 back; Prairie (base 3)
+       * supplies exactly that. Plowed still doesn't matter for an expert
+       * Farmer either way.
        */
       vl->tiles[0] = 0;
-      if (map.terrain) map.terrain[(vl->y + k_fdy[0]) * map.width + (vl->x + k_fdx[0])] = col1_tile_to_mp_terrain(0x04u);
+      if (map.terrain) map.terrain[(vl->y + k_fdy[0]) * map.width + (vl->x + k_fdx[0])] = col1_tile_to_mp_terrain(0x03u);
       /*
        * Expert Fur Trapper on Broadleaf Forest (no road/river/resource) ->
        * 16 furs: (base 2 + sol 2) x2 expert = 8, x2 Henry Hudson (Dutch own
@@ -805,6 +821,15 @@ static int run_pair(const char* path_in, const char* path_exp, const char* label
       vl->colonists[6].field_job = COLONIZE_JOB_FISHERMAN;
       vl->colonists[6].profession = 28;
       if (map.terrain) map.terrain[(vl->y + k_fdy[6]) * map.width + (vl->x + k_fdx[6])] = 25;
+      {
+        int y0 = colony_yield_for_worker(&map, vl->x + k_fdx[0], vl->y + k_fdy[0], 0, vl->colonists[0].profession, true, 2, vl->colony_flags);
+        int y5 = colony_yield_for_worker(&map, vl->x + k_fdx[5], vl->y + k_fdy[5], 8, vl->colonists[5].profession, true, 2, vl->colony_flags);
+        int y6 = colony_yield_for_worker(&map, vl->x + k_fdx[6], vl->y + k_fdy[6], 8, vl->colonists[6].profession, true, 2, vl->colony_flags);
+        ColonizeTownCommonsYield vtc;
+        colony_yield_town_commons(&map, vl->x, vl->y, 2, vl->colony_flags, &vtc);
+        fprintf(stderr, "DEBUG Vlissingen: y0=%d y5=%d y6=%d center=%d flags=0x%02x pop=%d\n",
+                y0, y5, y6, vtc.food, vl->colony_flags, vl->colonist_count);
+      }
       break;
     }
   }
@@ -985,26 +1010,20 @@ static int run_pair(const char* path_in, const char* path_exp, const char* label
         pap->tiles[ti] = -1;
       }
       /*
-       * Farmer on Plains + Plowed + Food resource -> 7 food (2 center + 7
-       * farmer = 9 produced, 6 consumed -> 3 surplus -> 2 horses bred, +1
-       * net food). Was Plains + River; a non-expert Farmer's unconditional
-       * +1 plus its own separate river +1 (asm-confirmed 2026-08-18,
-       * player-confirmed via golden_colony_prod02's New Amsterdam/Fort
-       * Orange/Curacao/Recife — see colony_yield_pipeline) together add
-       * one more than this fixture's old "plow OR river, capped at +1"
-       * did. Dropping to Prairie was tried first to shave a base point,
-       * but Prairie's allowed-resource class is Prime Cotton, not Wheat
-       * (docs/terrain_yields.md "Allowed terrain class → resource type"),
-       * so the same `layer2|=0x02` bit stops meaning Wheat there and the
-       * Farmer's +2 resource bonus silently vanishes too — overshooting
-       * the correction by 2, not 1. Simpler and correct: keep Plains
-       * (Wheat-compatible) and just drop the river instead.
+       * Farmer on Plains + Road + Food resource -> 6 food (2 center + 6
+       * farmer = 8 produced, 6 consumed -> 2 surplus -> 1 horse bred, +1
+       * net food). Not plowed: plow is now a real +1 for non-expert
+       * Farmers (2026-08-18 fix, colony_yield.c), and Road doesn't affect
+       * a Farmer tile at all (only the "other crop jobs" and non-crop
+       * road/river branches check it), so keeping Road here is inert —
+       * left in place as an artifact of this fixture's history rather
+       * than load-bearing.
        */
       pap->tiles[0] = 0;
       pap->colonists[0].field_job = COLONIZE_JOB_FARMER;
       pap->colonists[0].profession = 28;
       if (map.terrain) map.terrain[(pap->y + k_fdy[0]) * map.width + (pap->x + k_fdx[0])] = col1_tile_to_mp_terrain(0x02u); /* Plains */
-      if (map.improve) map.improve[(pap->y + k_fdy[0]) * map.width + (pap->x + k_fdx[0])] |= (MAP_IMPROVE_ROAD | MAP_IMPROVE_PLOWED);
+      if (map.improve) map.improve[(pap->y + k_fdy[0]) * map.width + (pap->x + k_fdx[0])] |= MAP_IMPROVE_ROAD;
       if (map.layer2) map.layer2[(pap->y + k_fdy[0]) * map.width + (pap->x + k_fdx[0])] |= 0x02u; /* Wheat resource */
       break;
     }
