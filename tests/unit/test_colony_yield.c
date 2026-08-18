@@ -7,12 +7,13 @@
 #include <string.h>
 
 /*
- * Col1 town-commons fixtures (live observations):
- *   Scrub Forest:              3 food + 3 furs
- *   Hills:                     4 food + 5 ore
- *   Broadleaf Forest:          4 food + 3 furs
- *   Prairie + Minor River:     5 food + 5 cotton
- *   Broadleaf Forest + Game:   6 food + 5 furs
+ * Town-commons secondary is base_for_pedia(job) + river(0/1/2) + SoL latch
+ * bits (+1 SOL_50, +1 SOL_100), asm-confirmed against FUN_15eb_1f72
+ * (viceroy_unpacked.c ~12474) and player-confirmed via two real captures
+ * with zero free parameters (Curacao/Paramaribo, colony_yield_town_commons's
+ * own comment) — see docs/terrain_yields.md "Town commons". No plow, no
+ * flat road (an earlier reading of this file's own fixtures assumed both;
+ * superseded 2026-08-18).
  */
 
 static int find_resource_tile(
@@ -64,6 +65,34 @@ static int check_commons(
   return 0;
 }
 
+/* Same as check_commons, but with a colony_flags param (SoL latch bits)
+ * and no food check — isolates the secondary-amount SoL-latch behavior. */
+static int check_commons_sol(
+  ColonizeWorldMap* map,
+  int x,
+  int y,
+  int expect_cargo,
+  int expect_amt,
+  uint8_t colony_flags,
+  const char* label
+) {
+  ColonizeTownCommonsYield tc;
+  colony_yield_town_commons(map, x, y, 0, colony_flags, &tc);
+  if (tc.secondary_cargo != expect_cargo || tc.secondary_amount != expect_amt) {
+    fprintf(
+      stderr,
+      "town commons %s: expected cargo=%d amt=%d got cargo=%d amt=%d\n",
+      label,
+      expect_cargo,
+      expect_amt,
+      tc.secondary_cargo,
+      tc.secondary_amount
+    );
+    return 1;
+  }
+  return 0;
+}
+
 int main(void) {
   char err[256];
   ColonizeWorldMap map;
@@ -81,7 +110,7 @@ int main(void) {
    * colony. See colony_yield_town_commons_food_base's comment.
    */
 
-  /* Scrub forest (pedia 9) — no special / river. secondary base(2)+1 road=3. */
+  /* Scrub forest (pedia 9) — no special / river / latch. secondary base=2. */
   map.terrain[0] = 9;
   if (check_commons(
         &map,
@@ -89,7 +118,7 @@ int main(void) {
         0,
         2,
         COLONIZE_CARGO_FURS,
-        3,
+        2,
         "scrub"
       )) {
     map_free(&map);
@@ -103,19 +132,53 @@ int main(void) {
     map_free(&map);
     return 1;
   }
-  /* amt=7: base(Hills,Ore)=4, +1 road, +2 from a coincidental Prime Ore hash
+  /* amt=6: base(Hills,Ore)=4, +2 from a coincidental Prime Ore hash
    * match at (1,0) with the default seed (100, this synthetic map never
    * sets prime_resource_seed) — not something this fixture set out to
    * test, just a side effect of the 2026-08-18 coordinate-hash fix on this
    * exact coordinate. */
-  if (check_commons(&map, 1, 0, 2, COLONIZE_CARGO_ORE, 7, "hills")) {
+  if (check_commons(&map, 1, 0, 2, COLONIZE_CARGO_ORE, 6, "hills")) {
     map_free(&map);
     return 1;
   }
 
-  /* Broadleaf forest (pedia 11). base(2)+1 road=3. */
+  /*
+   * SoL latch bits on town-commons secondary — asm-confirmed 2026-08-18
+   * against FUN_15eb_1f72 (viceroy_unpacked.c ~12474): +1 if
+   * COLONIZE_COLONY_FLAG_SOL_50 is set, +1 if _SOL_100 is set (up to +2
+   * total). Player-confirmed 2026-08-18 by two real, zero-free-parameter
+   * captures (see colony_yield_town_commons's own comment): Curacao
+   * (golden_colony_prod02, town commons its only furs source, flat ground,
+   * full latch) and Paramaribo (golden_colony_prod01, town commons its
+   * only sugar source net of its Rum Distiller's consumption, full latch).
+   * Reuses the Hills tile above (base 4, +2 Prime Ore already covered).
+   */
+  if (check_commons_sol(&map, 1, 0, COLONIZE_CARGO_ORE, 6, 0, "hills, no SoL latch")) {
+    map_free(&map);
+    return 1;
+  }
+  if (check_commons_sol(
+        &map, 1, 0, COLONIZE_CARGO_ORE, 7, COLONIZE_COLONY_FLAG_SOL_50, "hills, SOL_50 latch"
+      )) {
+    map_free(&map);
+    return 1;
+  }
+  if (check_commons_sol(
+        &map,
+        1,
+        0,
+        COLONIZE_CARGO_ORE,
+        8,
+        (uint8_t)(COLONIZE_COLONY_FLAG_SOL_50 | COLONIZE_COLONY_FLAG_SOL_100),
+        "hills, SOL_50+SOL_100 latch"
+      )) {
+    map_free(&map);
+    return 1;
+  }
+
+  /* Broadleaf forest (pedia 11). base(2), no river/latch. */
   map.terrain[2] = 11;
-  if (check_commons(&map, 2, 0, 2, COLONIZE_CARGO_FURS, 3, "broadleaf")) {
+  if (check_commons(&map, 2, 0, 2, COLONIZE_CARGO_FURS, 2, "broadleaf")) {
     map_free(&map);
     return 1;
   }
@@ -127,8 +190,8 @@ int main(void) {
     map_free(&map);
     return 1;
   }
-  /* amt=5: base(Prairie,Cotton)=3 +1 road +1 river(minor). */
-  if (check_commons(&map, 3, 0, 3, COLONIZE_CARGO_COTTON, 5, "prairie+minor river")) {
+  /* amt=4: base(Prairie,Cotton)=3 +1 river(minor). */
+  if (check_commons(&map, 3, 0, 3, COLONIZE_CARGO_COTTON, 4, "prairie+minor river")) {
     map_free(&map);
     return 1;
   }
@@ -142,8 +205,8 @@ int main(void) {
       map_free(&map);
       return 1;
     }
-    /* amt=5: base(Broadleaf,Fur)=2 +1 road + Game(+2). */
-    if (check_commons(&map, gx, gy, 4, COLONIZE_CARGO_FURS, 5, "broadleaf+Game")) {
+    /* amt=4: base(Broadleaf,Fur)=2 + Game(+2). */
+    if (check_commons(&map, gx, gy, 4, COLONIZE_CARGO_FURS, 4, "broadleaf+Game")) {
       map_free(&map);
       return 1;
     }
@@ -162,14 +225,14 @@ int main(void) {
       map_free(&map);
       return 1;
     }
-    /* amt=3: base(Broadleaf,Fur)=2 +1 road, Game hidden. */
+    /* amt=2: base(Broadleaf,Fur)=2, Game hidden. */
     if (check_commons(
           &map,
           gx,
           gy,
           2,
           COLONIZE_CARGO_FURS,
-          3,
+          2,
           "broadleaf+Game (settlement bit)"
         )) {
       map_free(&map);
