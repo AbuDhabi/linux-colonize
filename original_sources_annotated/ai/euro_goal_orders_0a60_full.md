@@ -268,32 +268,162 @@ against that. `ai_euro_refresh_continent_stance` already covers the
 G-table's *effect* via a from-scratch recompute; it just isn't
 `FUN_521d_0a60`'s own literal write path.
 
-**Verified / known regression**: clean `colonize_core` rebuild, zero new
-warnings under `-Wall`. `golden_ai_turns`/`golden_ai_joint` fail at the
-same pre-existing TURN4→5 spot (confirmed via `git stash` before this
-change too) — specific goto numbers shifted (expected, new formula) but
-it was already failing there, not a newly-broken golden. **New failure**:
-`unit_ai_euro_expand` flips pass→fail. Root cause identified, not fixed:
-DOS's real `score = weight*dist/(prio+1)` formula (lower score wins) means
-a *higher* prio number pulls harder — but the still-condensed goal
-*writer* (`ai_euro_colony_goals`, the "A–H" phases, separate from this
-tail) hands out prio constants tuned for the old first-match/type-
-restricted consumption shape (`AI_GOAL_FOUND`→2, `AI_GOAL_COLONY`→5,
-`AI_GOAL_LABOR`→4–6), not for real prio-weighted competition. In the test
-scenario an idle Pioneer near its own (non-labor-short) colony now out-
-scores the nearby FOUND target and gets bound into the colony as labor
-instead of founding a second one — plausible under DOS's real formula
-given these prio values, but a behavior flip from the tuned-for-expansion
-old code. Not blind-tuned this pass (would be guesswork without DOS's real
-prio constants); expected per explicit user direction ("this is an
-improvement, don't expect tests to pass").
+## Second pass, "keep picking at it" (2026-08-18, same day)
 
-**Follow-up if resumed**: (1) the two out-of-scope sections above need
-their own mapping passes (same method as `euro_g_table_0a60.md`'s
-multi-pass `.asm` register tracing) before a literal port of them would be
-honest; (2) `ai_euro_colony_goals`'s prio constants need a real pass
-against this formula (or DOS's actual writer values) to close the
-`unit_ai_euro_expand` regression properly instead of by construction.
+User asked to keep pushing toward this being structurally done. Used
+Ghidra headless directly (`analyzeHeadless <projects> decompiled-colonize
+-process VICEROY_OUT_2.EXE -postScript GhidraDecompileAt.java <space:off>`,
+`space:off` = `0000:<segment*0x10+offset hex>` for a resident-space
+target) to decompile three of the four previously-unresolved thunks
+`0a60` itself calls — trivial once decompiled, each is a two-line overlay-
+load-then-call stub:
+
+- `thunk_FUN_2a1f_047c` → `FUN_521d_0906` = `probe_adjacent_contact_claim`
+  (already in `euro_goals.c`, catalogued "structure only" — not itself
+  further resolved this pass, but confirms the call site's shape: `0a60`
+  asks "is there an adjacent-tile contact claim available" and sets
+  `act_state=10` if so, i.e. a *third* act_state distinct from the goal-
+  pursuit `0xb` this port already models — units in that state are
+  implicitly excluded from goal-consumption since it only reacts to
+  `act_state ∈ {0,5,6}`. Not wired — this port has no upstream write of
+  `act_state=10` yet, so it would be permanently unreachable dead state.)
+- `thunk_FUN_2a1f_0524` → `FUN_521d_02be` = `upsert_work_queue` (already
+  in `euro_goals.c`, fully resolved) — **confirms `ai_euro_colony_goals`'s
+  existing haul work-queue registration is the structurally correct call
+  shape**, not a Linux invention.
+- `thunk_FUN_2a1f_0560` → `FUN_521d_031c` = `clear_work_queue` (already in
+  `euro_goals.c`, fully resolved) — DOS calls this once, between the unit
+  loop and the colony loop; Linux's `ai_euro_colony_goals` already calls
+  the equivalent `ai_goals_clear_work_queue()` once, at the top of the
+  function — functionally identical (nothing between "top of function"
+  and "end of unit loop" touches the work queue either way), just not at
+  the textually-identical spot.
+- `thunk_FUN_2a1f_0470` (the fourth) was already resolved earlier the same
+  day (`upsert_primary_goal`, see the CONTACT-gate fix above) — all four
+  `0a60`-called thunks are now named.
+
+**Real formula recovered and ported**: the colony-loop's haul-urgency
+work-queue score (raw lines ~528-604, the call into `upsert_work_queue`
+just confirmed above) is not the "16×6 matrix OPEN" mystery it was filed
+as — it's `Σ over 16 cargo slots (skip FOOD/LUMBER/TRADE_GOODS) of
+euro_price[cargo][nation] * clamp(f(stock,target), 0, target)`, both
+tables already fully live in Linux: `-0x7b44` is `col1->nation[n].trade.
+euro_price[]` (cross-referenced via `indian_raid_loot.md`/
+`indian_trade_2820.md`/`euro_diplo_153e_full.md`, all already citing this
+same table as "euro price"), and `colony_ptr+0x9a` is `c->stock[]` — same
+16-slot order, confirmed field-for-field against `col1_save.h`'s Col1
+colony struct (`+0x8c improve_timer` … `+0x98 hammers_purchased` then
+`stock[16]` immediately after, landing exactly on `+0x9a`). TOOLS(14)/
+MUSKETS(15) only contribute (at a flat −100 discount) when
+`cargo_produced_mask` has that bit set; HORSES(8) gets a floor-adjust
+below target instead of the plain clamp; at/above target, `have` doubles
+before re-clamping. Ported into `ai_euro_colony_goals`'s haul work-queue
+block, replacing the old `idle_turns*8 + specialty_bump` thin stand-in —
+the score is now the real formula (still `+ cargo_idle_turns*8` as its own
+tail term, matching DOS). `target` (`FUN_1000_8f2a()`, a single scalar,
+three other unrelated call sites across this project, never named
+anywhere) is approximated as a fixed 100 (base Warehouse capacity, the
+only DOS-documented "target stock level" constant already in this
+codebase) — flagged in-code as a placeholder.
+
+**Registration gate deliberately NOT switched to the real formula**:
+tried using the formula's own "any slot's post-adjustment value > 0x4a"
+signal as the register-or-not gate (matching DOS literally) — regressed
+`unit_specialty_flag_a_haul_match` (a deliberately-symmetric two-colony
+tie-break test) because the `target=100` placeholder never trips for that
+test's modest stock quantities (50 lumber vs. a 100 target), so neither
+colony ever got a work-queue entry and the wagon never moved. Reverted to
+the existing, already-tested `ai_euro_colony_haul_cargo_short`-based
+boolean as the gate, keeping only the *score* as the new real formula —
+a deliberate, documented "real value, pragmatic gate" split, not an
+oversight.
+
+**Still deliberately not ported** (same class of blocker as before, now
+narrower and more precisely stated): a real DOS pre-loop over this
+nation's units, run once per colony before the cargo-weight loop, adds a
+further saturating +800 (idle Missionary, globally) / +1500 (exposed
+combat-capable land unit on a `stance==0` continent — `LAB_0000_9870`,
+confirmed to be this file's own G-table output,
+`ai_euro_continent_stance_at()==0`, i.e. no assigned stance) into the same
+score, and its own boolean (whether the +1500 arm fired at least once)
+becomes `upsert_work_queue`'s real `flag_b` (this port keeps `flag_b` as
+its own already-load-bearing haul/CONTACT discriminator instead, see
+in-code comment). Not ported: its unit-iterator (`FUN_1000_89d0`, no
+explicit x/y args) was already traced in `move_scoring_20e6_full.md`'s
+`FUN_1000_8aac` investigation to depend on caller-context registers this
+project has no cheap way to read — a genuinely open question, not a
+convenience skip.
+
+**Verified**: clean `colonize_core` rebuild, zero new warnings. Full
+`ctest`: identical failure set before/after (`unit_ai_euro_expand`'s
+pre-existing unrelated ship-buy bug, `golden_ai_turns`/`golden_ai_joint`'s
+pre-existing TURN4→5) — confirmed via `git stash`/`git stash pop` on top
+of the CONTACT-gate-fixed baseline. No regressions from either the thunk
+resolution or the real haul-score formula.
+
+**Still open for a future "structurally done" pass** — the unit-loop
+(raw lines 1-189, per-unit garrison-request/threat-flag housekeeping that
+writes `unit+0x3148`'s bits before this section's own goal-consumption
+tail ever runs) and the missionary/exposed-unit haul-score bonus above are
+the two largest remaining pieces; both need the same kind of dedicated,
+possibly multi-pass raw-disassembly investigation `FUN_1000_8aac` needed
+(6 passes, 2 of 15 cases actually resolved) before a literal port is
+honest rather than guesswork. `unit+0x3148`'s individual bits are
+scattered across at least three other functions (`euro_unit_act.md`:
+`0x80`=ship damaged/under-construction, `nation_eot_ship_spawn.md`:
+`0x40`=in-transit, `move_scoring_20e6_full.md`: `0x20`/`0x10`/bit1 seen
+but not yet named) — collecting and reconciling all of them into one
+coherent bitfield is real, bounded follow-up work, not a dead end.
+
+**Verified**: clean `colonize_core` rebuild, zero new warnings under
+`-Wall`. `golden_ai_turns`/`golden_ai_joint` fail at the same pre-existing
+TURN4→5 spot (confirmed via `git stash` before this change too) — specific
+goto numbers shifted (expected, new formula) but it was already failing
+there, not a newly-broken golden.
+
+**`unit_ai_euro_expand` regression, root-caused and fixed (2026-08-18,
+same day, per "if it blocks getting the structure right, it's in
+scope")**: DOS's real `score = weight*dist/(prio+1)` formula (lower score
+wins) means a *higher* prio number pulls harder — this made the still-
+condensed goal *writer* (`ai_euro_colony_goals`)'s **unconditional**
+"else register a COLONY/COLONY_ALT visit goal at every owned colony,
+prio 5 or 8" branch out-compete a nearby FOUND goal (prio 2) whenever a
+colony had nothing else to report. Traced the real DOS write site: this is
+`thunk_FUN_2a1f_0470` call #2 in the raw colony loop (`*puVar4,puVar4[1],
+0,(-(uint)((puVar4[0x1b]&2)==0)&0xfffd)+8` — code is actually `CONTACT`
+(0), prio computed as exactly 8 when colony `ai_flags` bit1 (Man-O-War
+nearby) is set, else 5), gated by `(puVar4[0x1b] & 3) != 0` — i.e. it only
+fires when ai_flags bit0 (`COLONIZE_COLONY_AI_NEARBY_ARMED_SHIP`) or bit1
+(`COLONIZE_COLONY_AI_NEARBY_MAN_O_WAR`) is actually set (naval threat near
+the colony), never unconditionally. Fixed in `ai_euro_colony_goals`: the
+prio values (5/8) were already right, only the gate was invented; kept
+Linux's own `COLONY`/`COLONY_ALT` codes rather than switching to literal
+`CONTACT` (downstream `ai_euro_unit_act` already branches on them for
+"go work/garrison this colony", a behavior `CONTACT`'s own downstream
+handling — move-and-attack — doesn't have; DOS's own code being literally
+`CONTACT` at this site likely means its 5b66/20e6 tail treats an
+own-colony `CONTACT` target specially in a way not worth reverse-
+engineering just to rename an already-correctly-behaving Linux code).
+**Also confirmed unrelated**: a second failure surfaced once this one was
+fixed (`unit_5d04_buy_caravel_colonies_ge6`, further into the same test
+binary) — isolated via `git stash`/checkout bisection and found to
+already fail on committed `HEAD` with **zero** of this session's changes
+applied (a concurrent, unrelated "AI rewrite"/"AI structural rewrite"
+commit set rewrote the Europe ship-buy/treasury code separately and
+introduced its own bug there); left alone as out of scope for 0a60.
+
+**Verified after fix**: `unit_second_wave` (the pioneer-founds-second-
+colony scenario) now passes; overall `unit_ai_euro_expand` still fails
+(the unrelated pre-existing ship-buy bug above), `golden_ai_turns`/
+`golden_ai_joint` unchanged at the same pre-existing spot; clean rebuild,
+no new warnings.
+
+**Follow-up if resumed**: the two out-of-scope sections above (unit-loop
+threat-flags, deep G-table/colony-loop) still need their own mapping
+passes (same method as `euro_g_table_0a60.md`'s multi-pass `.asm` register
+tracing) before a literal port of them would be honest — the CONTACT-gate
+fix above was a narrow, well-evidenced extraction from that same raw
+block, not a full mapping pass of it.
 
 ## Raw recovered C (845 lines, one mild warning)
 
