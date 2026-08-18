@@ -278,6 +278,9 @@ static MapMenuAction map_menu_classify(const char* section, const char* label) {
     if (strcmp(label, "Center View") == 0) {
       return MAP_MENU_ACTION_CENTER_VIEW;
     }
+    if (strcmp(label, "Show Hidden Terrain") == 0) {
+      return MAP_MENU_ACTION_VIEW_HIDDEN_TERRAIN;
+    }
     return MAP_MENU_ACTION_UNIMPLEMENTED;
   }
 
@@ -486,6 +489,7 @@ static bool map_menu_action_enabled(MapMenuAction action) {
     case MAP_MENU_ACTION_ZOOM_LEVEL_30X24:
     case MAP_MENU_ACTION_ZOOM_LEVEL_15X12:
     case MAP_MENU_ACTION_CENTER_VIEW:
+    case MAP_MENU_ACTION_VIEW_HIDDEN_TERRAIN:
     case MAP_MENU_ACTION_ACTIVATE_UNIT:
     case MAP_MENU_ACTION_WAIT_UNIT:
     case MAP_MENU_ACTION_BUILD_COLONY:
@@ -1592,6 +1596,8 @@ const char* map_menu_action_name(MapMenuAction action) {
       return "Zoom Level 15 x 12";
     case MAP_MENU_ACTION_CENTER_VIEW:
       return "Center View";
+    case MAP_MENU_ACTION_VIEW_HIDDEN_TERRAIN:
+      return "Show Hidden Terrain";
     case MAP_MENU_ACTION_ACTIVATE_UNIT:
       return "Activate unit";
     case MAP_MENU_ACTION_WAIT_UNIT:

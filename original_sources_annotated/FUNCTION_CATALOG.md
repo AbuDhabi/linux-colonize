@@ -1913,7 +1913,7 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_2a1f_038a` | 37750 | 10 | mapgen | Far thunk → FUN_7ab9_00be (handle image-load status) | inferred |  |
 | `FUN_2a1f_0398` | 37760 | 10 | ai | Clear euro missions on Indian tribes (alarm) thunk→4cc6_0000 | inferred | original_sources_annotated/ai/indian_nation_turn.c |
 | `FUN_2a1f_0434` | 37770 | 10 | mapgen | Far thunk → FUN_4d56_2154 (meet economics / 0x9e* tables) | inferred | ai/indian_meet_scoring_2154.md |
-| `FUN_2a1f_0440` | 37780 | 10 | mapgen | Far thunk → FUN_4d56_0038 (small Indian AI helper; calls into 00e0 / map probes) | inferred | docs/ai_transcription.md |
+| `FUN_2a1f_0440` | 37780 | 10 | mapgen | Far thunk → FUN_4d56_0038 (settlement-record CREATE); sole caller is FUN_6a09_0006 (tribe placement, 3 sites) | confirmed | docs/ai_transcription.md, original_sources_annotated/ai/settlement_record_8d4a.md |
 | `FUN_2a1f_044c` | 37790 | 10 | mapgen | Far thunk → FUN_4d56_2820 (heavy Indian decision / raid-scale logic) | inferred | ai/indian_trade_2820.md |
 | `FUN_2a1f_016c` | 37330 | 10 | mapgen | Far thunk → FUN_4d56_4528 (Indian settlement enter/raid contact) | inferred | ai/indian_settlement_4528.md; ai/move_spent.c §3 |
 | `FUN_2a1f_0458` | 37800 | 10 | mapgen | Far thunk → FUN_5fef_0000 (pick best defender unit at tile by combat score walk) | inferred |  |
@@ -2599,7 +2599,7 @@ Thin map: [ai/king_ref.md](ai/king_ref.md). Linux: `src/core/ai_king.c`.
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_4d56_0038` | 81253 | 39 | ai | Small Indian AI helper; calls into 00e0 / map probes | inferred | docs/ai_transcription.md |
+| `FUN_4d56_0038` | 81253 | 39 | ai | Settlement-record CREATE (full-field init); caller is FUN_6a09_0006 only, not a contact-chain helper | confirmed | docs/ai_transcription.md, original_sources_annotated/ai/settlement_record_8d4a.md |
 | `FUN_4d56_00e0` | 81292 | 60 | ai | Chains to 01e2 / 14fe | inferred | docs/ai_transcription.md |
 | `FUN_4d56_01e2` | 81352 | 19 | ai | Thin wrapper to 14fe | inferred | docs/ai_transcription.md |
 | `FUN_4d56_14fe` | 81371 | 16 | ai | Indian unit act / dispatches growth 152e | inferred | ai/indian_nation_turn.c; src/core/ai.c |

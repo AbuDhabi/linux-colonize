@@ -52,6 +52,7 @@ typedef enum MapMenuAction {
   MAP_MENU_ACTION_ZOOM_LEVEL_60X48,  /* zoom 2 */
   MAP_MENU_ACTION_ZOOM_LEVEL_30X24,  /* zoom 1 */
   MAP_MENU_ACTION_ZOOM_LEVEL_15X12,  /* zoom 0 */
+  MAP_MENU_ACTION_VIEW_HIDDEN_TERRAIN, /* Show ~Hidden Terrain — H hotkey */
   MAP_MENU_ACTION_CENTER_VIEW,
 
   /* ORDERS */

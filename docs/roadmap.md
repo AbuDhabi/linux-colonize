@@ -206,7 +206,6 @@ Do not prioritize over gameplay/determinism.
   found in either sound driver or `VICEROY.EXE` itself (see
   [assets.md](assets.md) Music/sound). Likely unused shared-driver capability,
   not a fidelity gap — do not revisit without new evidence
-- Hidden terrain VIEW mode (Zoom In/Out/levels done — see manual_gap.md)
 - Pixel-exact layout and style
 - Blanket T3 AI goldens and remaining deep PARKED bodies (full `2820`/`4528`,
   letter cinematic, hang-dump RE)

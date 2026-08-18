@@ -178,7 +178,7 @@ Line spans are approximate (next function start − 1). Status:
 
 | Symbol | ~Lines | Purpose (known / inferred) | Linux | Status |
 |--------|-------:|----------------------------|-------|--------|
-| `FUN_4d56_0038` | ~39 | Small helper; calls into `00e0` / map probes | contact helpers | **partial** (T0 via contact) |
+| `FUN_4d56_0038` | ~39 | Settlement-record CREATE (full-field init of the `0x54ec` array); sole caller is `FUN_6a09_0006` (via `2a1f_0440` thunk, 3 call sites, tribe/village placement search) — not a contact-chain helper, not related to `00e0` (sibling delete/reindex fn, not a callee) | covered by `ai_install_tribes` (no separate port needed — see `settlement_record_8d4a.md`) | **partial** (T0; struct-equivalent already exists) |
 | `FUN_4d56_00e0` | ~60 | Chains to `01e2` / `14fe` | contact helpers | **partial** (T0) |
 | `FUN_4d56_01e2` | ~19 | Thin wrapper → `14fe` | — | **partial** (T0) |
 | `FUN_4d56_14fe` | ~16 | Dispatches growth `152e` | growth + pulse | **partial** (T0/T2 quiet) |
@@ -250,13 +250,36 @@ Thin map: [`king_ref.md`](../original_sources_annotated/ai/king_ref.md). Unit: `
 | Symbol | Role in AI | Linux |
 |--------|------------|-------|
 | `FUN_465b_0000` (terrain MP) | Brave step cost | `ai_dos_move_spent` |
-| `FUN_124c_0040` | DOS distance helper (not used in `FUN_521d_20e6`) | `ai_dos_dist` — empiricism-only home-dist in `ai_native_pick_dir` (not quiet ASM) |
+| `FUN_124c_0040` | DOS distance helper, **not** used in `FUN_521d_20e6`. 5 confirmed callers (2026-08-18, direct + thunk-traced): `FUN_1427_14f4` (tile display, ui), `FUN_15eb_0142` (pedia/map draw, ui), `FUN_5952_035e` (colony tick), `FUN_6662_09ae` (goto pathfinding, ui), `FUN_4cc6_0356` (Indian relations, ai — sibling of the already-known `FUN_4cc6_00f2`). Generic shared utility, not AI-exclusive. | `ai_dos_dist` — empiricism-only home-dist in `ai_native_pick_dir` (not quiet ASM) |
 | `FUN_281f_04ca` / `04d4` | Reseed / `range` | `dos_rng` |
 | `func_0x00042191` | Per-unit Indian act from `1816` | No direct symbol; pulse approximates quiet path only |
 
-Quiet dir-pick: [`ai.c`](../src/core/ai.c) labels the slice `FUN_4d56_021a`
-(likely a label/offset in the native move path); seed-100 notes cite
-`FUN_521d_20e6` quiet path. Same scoring behavior either way.
+`FUN_4d56_021a` — **not a real symbol.** No match in the decompiled sources
+or `address_mapping.csv` (checked 2026-08-18). Nearest real code is the tail
+of `FUN_4d56_01e2` (ends ~offset `0x0213`, RETF followed by unrecognized
+bytes the decompiler didn't chase as a function). The `ai.c`/diagram label
+citing it was an unverified guess; treat "quiet dir-pick" as living in
+`FUN_4d56_01e2`/`14fe`/`152e` until someone re-disassembles that gap.
+Same-behavior claim vs `FUN_521d_20e6` quiet path stands regardless.
+
+**2026-08-18 caller placements:**
+- `FUN_6662_0f74` (land pathing algorithm, `521d_5b66` case `0xb`/`0xc`) —
+  confirmed callers: `FUN_479b_0972` (one of the real `5b66` case bodies)
+  and `FUN_4720_015c` (ui naval-order / settlement target-slot helper).
+- `FUN_4720_049e` (`@VIOLATE` tension-notify handler, not a move driver) —
+  confirmed callers: `FUN_479b_0972` (same `5b66` case body as above),
+  `FUN_4720_015c` (sibling), and `FUN_2b5a_32a2`/`FUN_2b5a_3462` (player
+  unit-order UI, module `2b5a`) — so it's reachable from both an AI unit-act
+  path and direct human order input.
+- `FUN_5bfb_12d0` — two confirmed paths, both via `thunk_FUN_2a1f_060a`:
+  (1) already-known — `FUN_5bfb_153e`'s outcome jump table, index 1
+  (`euro_diplo_153e_full.md`); (2) new — 4 direct static call sites inside
+  `FUN_5bfb_13b0` (form/break alliance), not previously traced. Not
+  `FUN_5bfb_3180` (checked; the earlier pass mis-attributed a call site
+  that's actually inside `thunk_FUN_2a1f_060a` itself, not `3180`'s body —
+  `3180` has no path to `12d0`). Body itself still unexamined.
+- `FUN_0000_4fa8` — sole caller `FUN_1000_8aac` (tail `JMPF`), already
+  resolved in `move_scoring_20e6_full.md`; formalized on the diagram.
 
 ---
 

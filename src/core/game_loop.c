@@ -95,6 +95,13 @@ struct ColonizeGameState {
   int map_view_x; /* viewport center tile (may diverge from cursor while a unit is selected) */
   int map_view_y;
   int map_zoom; /* 0..3 — VIEW Zoom In/Out/Level N. FUN_2b5a_0f92 DS:0x184; 0 = 15×12 native. */
+  /*
+   * VIEW ~Hidden Terrain (H): 0 = off; 1..3 = DOS's three peel passes (units/
+   * settlements; non-exempt land PHYS; hills+forest). Auto-advances on a
+   * timer, then holds at 3 until any click/keypress cancels back to 0.
+   */
+  int hidden_terrain_phase;
+  uint32_t hidden_terrain_phase_ms; /* elapsed_ms when the current phase started */
   bool in_menu;
   NewGameWizard new_game;
   int difficulty;
@@ -2526,6 +2533,13 @@ static void blit_map_sprite(
 #define MAP_ZOOM_NATIVE_TILE 16
 #define MAP_ZOOM_MAX_VIEW_COLS (15 << MAP_ZOOM_MAX)
 #define MAP_ZOOM_MAX_VIEW_ROWS (12 << MAP_ZOOM_MAX)
+
+/*
+ * VIEW ~Hidden Terrain (H): brief pause between each of DOS's three peel
+ * passes before auto-advancing to the next. Equivalent-information UI
+ * convenience, not a timed DOS value — see docs.
+ */
+#define HIDDEN_TERRAIN_STEP_MS 700u
 
 static int game_map_zoom_clamp(int zoom) {
   if (zoom < 0) {
@@ -6607,6 +6621,11 @@ static bool game_apply_map_menu_action(ColonizeGameState* game, MapMenuAction ac
     case MAP_MENU_ACTION_CENTER_VIEW:
       game_center_on_selected_unit(game);
       return true;
+    case MAP_MENU_ACTION_VIEW_HIDDEN_TERRAIN:
+      game->hidden_terrain_phase = 1;
+      game->hidden_terrain_phase_ms = game->elapsed_ms;
+      set_status(game, "Hidden Terrain: units and settlements hidden", NULL);
+      return true;
     case MAP_MENU_ACTION_ACTIVATE_UNIT: {
       const int at = units_id_at(&game->units, game->map_cursor_x, game->map_cursor_y);
       if (at < 0) {
@@ -8542,6 +8561,32 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
   /* Map-screen menu bar (MENU.TXT pull-downs) + mouse map click. */
   if (!game->in_colony && !game->in_europe && !game->in_pedia && !game->in_debug_atlas &&
       !game->in_report) {
+    /*
+     * VIEW ~Hidden Terrain (H): auto-advance phases 1→2→3 on a timer, then
+     * hold at 3 until any click/keypress cancels back to the normal view.
+     * Simplification vs. DOS: any input during the brief auto-peel (not just
+     * once resting at 3) also cancels — equivalent information, less state.
+     */
+    if (game->hidden_terrain_phase != 0) {
+      const bool any_input = input->mouse_left_clicked || input->mouse_right_clicked ||
+        input->last_key != COLONIZE_KEY_NONE;
+      if (any_input) {
+        game->hidden_terrain_phase = 0;
+        set_status(game, "Hidden Terrain view off", NULL);
+        return true;
+      }
+      if (game->hidden_terrain_phase < 3 &&
+          game->elapsed_ms - game->hidden_terrain_phase_ms >= HIDDEN_TERRAIN_STEP_MS) {
+        game->hidden_terrain_phase++;
+        game->hidden_terrain_phase_ms = game->elapsed_ms;
+        if (game->hidden_terrain_phase == 2) {
+          set_status(game, "Hidden Terrain: roads, resources hidden", NULL);
+        } else {
+          set_status(game, "Hidden Terrain: hills and forest hidden", NULL);
+        }
+      }
+    }
+
     /* Go-To cursor only after ≥1 logical pixel (even if pointer leaves the map). */
     if (game->ui_drag.kind == UI_DRAG_MAP_GOTO && !game->map_goto_dragged_px) {
       const int pdx = input->mouse_x - game->map_goto_down_px;
@@ -8690,8 +8735,15 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
         }
         return true;
       }
-      /* Plain VIEW hotkeys (Zoom In ~Z / Zoom Out ~X — MENU.TXT). */
-      if (!space && letter) {
+      /*
+       * Plain VIEW hotkeys (Zoom In ~Z / Zoom Out ~X, Show ~Hidden Terrain —
+       * MENU.TXT). H is contextually overloaded: with a ship selected it
+       * sails to Europe (below, unconditional on world/units/europe_ok);
+       * otherwise it opens the Hidden Terrain reveal.
+       */
+      const bool ship_selected = game->units_ok && game->units.selected_id >= 0 &&
+        units_is_sea(&game->units, game->units.selected_id);
+      if (!space && letter && !(letter == 'H' && ship_selected)) {
         const MapMenuAction view_hk = map_menu_view_hotkey(&game->map_menu, letter);
         if (view_hk != MAP_MENU_ACTION_NONE) {
           if (!game_apply_map_menu_action(game, view_hk)) {
@@ -9812,6 +9864,12 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
           underlayer = map_coast_underlayer_sprite_at(&game->world_map, mx, my);
           coast_layers = map_phys0_coast_layer_count(&game->world_map, mx, my);
           base_sprite = (underlayer >= 0) ? underlayer : map_terrain_sprite_at(&game->world_map, mx, my);
+          /* Hidden Terrain phase 3: scrub forest reveals as Desert (its cleared
+           * base type), not the scrub-ground quirk sprite under its canopy. */
+          if (game->hidden_terrain_phase >= 3 && underlayer < 0 &&
+              map_tile_is_scrub_forest(&game->world_map, mx, my)) {
+            base_sprite = 1;
+          }
         } else {
           base_sprite = (view_x + sx + view_y + sy + (int)game->map_seed) % game->terrain.sprite_count;
         }
@@ -9853,7 +9911,8 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
             }
           }
           const int forest_sprite = map_phys0_forest_sprite_at(&game->world_map, mx, my);
-          if (forest_sprite >= 0) {
+          /* Hidden Terrain phase 3 removes forest canopy. */
+          if (forest_sprite >= 0 && game->hidden_terrain_phase < 3) {
             blit_map_sprite(
               &game->phys0, forest_sprite, framebuffer, sx, sy, tile_w, tile_h, map_origin_x, map_origin_y
             );
@@ -9862,6 +9921,22 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
           /* MAPEDIT: coast PHYS0, then masked ocean into colour-0 holes, then estuary. */
           const int coast_end = (underlayer >= 0) ? coast_layers : overlay_layers;
           for (int layer = 0; layer < coast_end; ++layer) {
+            /*
+             * Hidden Terrain phases 2/3: peel non-exempt land PHYS. Resource/
+             * rumour markers drop at phase 2; hills drop at phase 3 too (river
+             * / mountain stay exempt through phase 3; coast/estuary are water,
+             * never peeled).
+             */
+            if (game->hidden_terrain_phase >= 2) {
+              const ColonizeMapOverlayKind kind =
+                map_phys0_overlay_kind_at(&game->world_map, mx, my, layer);
+              if (kind == MAP_OVERLAY_KIND_RESOURCE || kind == MAP_OVERLAY_KIND_RUMOUR) {
+                continue;
+              }
+              if (game->hidden_terrain_phase >= 3 && kind == MAP_OVERLAY_KIND_HILL) {
+                continue;
+              }
+            }
             const int overlay_sprite = map_phys0_overlay_sprite_at(&game->world_map, mx, my, layer);
             if (overlay_sprite >= 0) {
               int ox = 0;
@@ -9899,6 +9974,13 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
               );
             }
             for (int layer = coast_layers; layer < overlay_layers; ++layer) {
+              if (game->hidden_terrain_phase >= 2) {
+                const ColonizeMapOverlayKind kind =
+                  map_phys0_overlay_kind_at(&game->world_map, mx, my, layer);
+                if (kind == MAP_OVERLAY_KIND_RESOURCE || kind == MAP_OVERLAY_KIND_RUMOUR) {
+                  continue;
+                }
+              }
               const int overlay_sprite = map_phys0_overlay_sprite_at(&game->world_map, mx, my, layer);
               if (overlay_sprite >= 0) {
                 int ox = 0;
@@ -9928,7 +10010,9 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
                 &game->phys0, plow, framebuffer, sx, sy, tile_w, tile_h, map_origin_x, map_origin_y
               );
             }
-            const int road_n = map_phys0_road_layer_count(&game->world_map, mx, my);
+            /* Hidden Terrain phase 2+: roads aren't in the exempt set. */
+            const int road_n =
+              (game->hidden_terrain_phase >= 2) ? 0 : map_phys0_road_layer_count(&game->world_map, mx, my);
             for (int ri = 0; ri < road_n; ++ri) {
               const int road =
                 map_phys0_road_layer_sprite_at(&game->world_map, mx, my, ri);
@@ -9966,7 +10050,8 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
     }
   }
 
-  if (game->colonies_ok || game->colonies.colony_count > 0) {
+  /* Hidden Terrain phase 1+ (VIEW ~Hidden Terrain): units/settlements peeled first, stay off. */
+  if (game->hidden_terrain_phase == 0 && (game->colonies_ok || game->colonies.colony_count > 0)) {
     colonies_render_on_map(
       &game->colonies,
       game->unit_icons_ok ? &game->unit_icons : NULL,
@@ -9985,7 +10070,7 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
     );
   }
 
-  if (game->col1_ok && game->unit_icons_ok) {
+  if (game->hidden_terrain_phase == 0 && game->col1_ok && game->unit_icons_ok) {
     map_panel_render_tribes_on_map(
       &game->col1,
       &game->unit_icons,
@@ -10003,7 +10088,7 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
     );
   }
 
-  if (game->units_ok && game->unit_icons_ok) {
+  if (game->hidden_terrain_phase == 0 && game->units_ok && game->unit_icons_ok) {
     /* Half-period 500ms → full blink cycle 1s (was 250ms / 500ms cycle). */
     const bool blink_on = ((game->elapsed_ms / 500u) % 2u) == 0u;
     const ColonizeFont* chrome_font = game->colony_font_ok ? &game->colony_font

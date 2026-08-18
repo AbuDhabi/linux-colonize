@@ -1192,6 +1192,68 @@ int map_phys0_overlay_sprite_at(const ColonizeWorldMap* map, int x, int y, int l
   return -1;
 }
 
+ColonizeMapOverlayKind map_phys0_overlay_kind_at(
+  const ColonizeWorldMap* map,
+  int x,
+  int y,
+  int layer
+) {
+  if (!map || layer < 0) {
+    return MAP_OVERLAY_KIND_WATER;
+  }
+
+  const uint8_t terrain_byte = map_get_terrain(map, x, y);
+  const int coast_layers = map_phys0_coast_layer_count(map, x, y);
+  if (layer < coast_layers) {
+    return MAP_OVERLAY_KIND_WATER;
+  }
+  int feature_layer = coast_layers;
+
+  if (map_has_special_mountain_marker(map, x, y)) {
+    if (layer == feature_layer) {
+      return MAP_OVERLAY_KIND_MOUNTAIN;
+    }
+    ++feature_layer;
+  }
+
+  if (!map_is_ocean_index(map_decode_terrain_index(terrain_byte))) {
+    if (map_byte_is_hill_or_mountain(terrain_byte)) {
+      if (layer == feature_layer) {
+        return map_byte_is_mountain(terrain_byte) ? MAP_OVERLAY_KIND_MOUNTAIN : MAP_OVERLAY_KIND_HILL;
+      }
+      ++feature_layer;
+    }
+
+    if (map_byte_has_river(terrain_byte)) {
+      if (layer == feature_layer) {
+        return MAP_OVERLAY_KIND_RIVER;
+      }
+      ++feature_layer;
+    }
+  }
+
+  {
+    const int resource_type = map_resource_type_at(map, x, y);
+    if (resource_type >= 0) {
+      if (layer == feature_layer) {
+        return MAP_OVERLAY_KIND_RESOURCE;
+      }
+      ++feature_layer;
+    }
+  }
+
+  if (!map_is_ocean_index(map_decode_terrain_index(terrain_byte)) &&
+      map_has_rumour_at(map, x, y)) {
+    if (layer == feature_layer) {
+      return MAP_OVERLAY_KIND_RUMOUR;
+    }
+    ++feature_layer;
+  }
+
+  /* Anything past here is an estuary layer — water. */
+  return MAP_OVERLAY_KIND_WATER;
+}
+
 void map_phys0_overlay_offset_at(
   const ColonizeWorldMap* map,
   int x,
@@ -1465,6 +1527,14 @@ void map_tile_set_plowed(ColonizeWorldMap* map, int x, int y, bool on) {
   } else {
     *p = (uint8_t)(*p & (uint8_t)~MAP_IMPROVE_PLOWED);
   }
+}
+
+bool map_tile_is_scrub_forest(const ColonizeWorldMap* map, int x, int y) {
+  if (!map || x < 0 || y < 0 || x >= map->width || y >= map->height) {
+    return false;
+  }
+  const int terrain_index = map_decode_terrain_index(map_get_terrain(map, x, y));
+  return map_is_forest_index(terrain_index) && map_forest_type(terrain_index) == 1;
 }
 
 bool map_tile_clear_forest(ColonizeWorldMap* map, int x, int y) {
