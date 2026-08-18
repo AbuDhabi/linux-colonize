@@ -8310,8 +8310,25 @@ static void ai_euro_colony_goals(ColonizeTurnContext* ctx, int nation_id) {
           c->labor_shortage = 1;
         }
         ai_goals_upsert_primary(nation_id, c->x, c->y, AI_GOAL_LABOR, labor_prio);
-      } else {
-        /* euro_dispatcher: COLONY code 5|8 — 8 if +0x1b bit1 (MoW). */
+      } else if (c->ai_flags & (COLONIZE_COLONY_AI_NEARBY_ARMED_SHIP |
+                                 COLONIZE_COLONY_AI_NEARBY_MAN_O_WAR)) {
+        /*
+         * Real 0a60 write site (raw decomp, thunk_FUN_2a1f_0470 call #2 in
+         * the colony loop): code is actually CONTACT(0), not a distinct
+         * COLONY/COLONY_ALT type — Linux keeps its own COLONY/COLONY_ALT
+         * codes (downstream ai_euro_unit_act already branches on them for
+         * "go work/garrison this colony", a real behavior CONTACT's own
+         * downstream handling — move-and-attack — doesn't have), but the
+         * *gate* is real DOS: only fires when the colony's ai_flags bit0
+         * (nearby armed ship) or bit1 (nearby Man-O-War) is set — prio 8 if
+         * bit1, else 5. Was unconditional ("else always register a visit
+         * goal"), which invented a goal DOS wouldn't have here and let it
+         * out-compete FOUND under the real prio-weighted formula whenever a
+         * colony had nothing better to report — see
+         * euro_goal_orders_0a60_full.md, "blocks getting the structure
+         * right" fix, 2026-08-18 (root cause of the unit_ai_euro_expand
+         * regression from making the goal-consumption tail live).
+         */
         const int mow = (c->ai_flags & COLONIZE_COLONY_AI_NEARBY_MAN_O_WAR) != 0;
         ai_goals_upsert_primary(
           nation_id,
@@ -8368,11 +8385,64 @@ static void ai_euro_colony_goals(ColonizeTurnContext* ctx, int nation_id) {
         }
       }
       /*
-       * Thin 4393 / −0x5f24 work-queue haul peel: short colonies get a scored
-       * work slot (idle*8 + specialty bump). Ship/wagon haul picks distance-
-       * normalize. Full 16×6 matrix OPEN. Cite: move_scoring_ship.md; Series F2.
+       * 0a60 work-queue haul score, real formula (raw decomp ~lines
+       * 528-604 of the colony loop, `thunk_FUN_2a1f_0524` =
+       * `upsert_work_queue`; was the thin "16×6 matrix OPEN" idle*8+
+       * specialty-bump stand-in). The "16×6 matrix" turned out to be:
+       * per-cargo Σ `euro_price[cargo][nation] * clamp(f(stock,target),
+       * 0,target)` over all 16 cargo slots except FOOD(0)/LUMBER(5)/
+       * TRADE_GOODS(13) — confirmed real, both tables already live in
+       * Linux (`col1->nation[n].trade.euro_price[]`, `col1_save.h`;
+       * `c->stock[]`, same 16-slot order, cross-checked field-for-field
+       * against `col1_save.h`'s Col1 colony struct at +0x9a). TOOLS(14)/
+       * MUSKETS(15) only contribute (with a flat −100 discount) when
+       * `cargo_produced_mask` has that bit set this tick — otherwise
+       * skipped entirely, not just discounted (DOS `goto`s past them).
+       * HORSES(8) below target gets a small floor-adjust
+       * (`stock+(25−target)`, clamped ≥0) instead of the plain `f()`.
+       * `f(stock,target)`: below target → stock as-is (HORSES exception
+       * above); at/above target → stock doubled (still capped to target
+       * right after). `target` is `FUN_1000_8f2a()` — a single scalar
+       * whose callee is unresolved (three other unrelated call sites
+       * across this project, never named); approximated as a fixed 100,
+       * matching base Warehouse capacity — the only DOS-documented
+       * "target stock level" constant already in this codebase.
+       * DELIBERATELY NOT ported: a real DOS pre-loop over this nation's
+       * units adds a further +800 (idle Missionary) / +1500 (exposed
+       * combat-capable land unit on a `stance==0` continent, i.e.
+       * `ai_euro_continent_stance_at()==0`) saturating bonus into this
+       * same score/flag_b before the cargo loop even starts — skipped
+       * here: its own unit-iterator call (`FUN_1000_89d0`, no explicit
+       * x/y) was traced in `move_scoring_20e6_full.md`'s `FUN_1000_8aac`
+       * investigation to depend on caller-context registers this project
+       * has no cheap way to read, i.e. genuinely open, not a shortcut
+       * skipped for convenience.
+       * Linux-only kept as-is (not DOS-real, but already useful and
+       * load-bearing downstream): `flag_a` stays the specialty-cargo
+       * hauler-match hint (`ai_euro_4393_work_queue_haul_pick`), `flag_b`
+       * stays the haul-vs-CONTACT work-queue discriminator — DOS's own
+       * `flag_a`/`flag_b` here are actually the accumulated per-slot
+       * count and the deferred exposed-unit boolean above, neither of
+       * which this port currently produces meaningfully; renaming
+       * Linux's fields to match would break the already-working
+       * specialty-match consumer for no behavioral gain.
+       * Cite: move_scoring_ship.md Series F2; col1_save.h `stock`/
+       * `trade.euro_price`/`cargo_produced_mask`.
        */
       {
+        /*
+         * Registration gate: kept as the existing simple stock<threshold
+         * check (`ai_euro_colony_haul_cargo_short`, already tested) rather
+         * than switching to DOS's own "any post-formula slot value >0x4a"
+         * signal — with the `target=100` placeholder, that real gate only
+         * trips for stock quantities this port's small-colony test
+         * fixtures never reach (DOS's real game likely deals in larger
+         * absolute stock at the point this scoring matters; `target`'s
+         * true value would need `FUN_1000_8f2a` resolved to know for
+         * sure). The *score* below is still the real formula — only the
+         * boolean "should this colony get a work-queue entry at all" gate
+         * is the pre-existing Linux threshold.
+         */
         const int haul_short =
           ai_euro_colony_haul_cargo_short(c, COLONIZE_CARGO_TOOLS) ||
           ai_euro_colony_haul_cargo_short(c, COLONIZE_CARGO_LUMBER) ||
@@ -8380,15 +8450,50 @@ static void ai_euro_colony_goals(ColonizeTurnContext* ctx, int nation_id) {
           ai_euro_colony_haul_cargo_short(c, COLONIZE_CARGO_MUSKETS) ||
           ai_euro_colony_haul_cargo_short(c, COLONIZE_CARGO_HORSES) ||
           ai_euro_colony_haul_cargo_short(c, COLONIZE_CARGO_FOOD);
+        const int target = 100; /* FUN_1000_8f2a() placeholder, see above */
+        const ColonizeCol1Nation* nat =
+          (ctx->col1_ok && ctx->col1 && nation_id >= 0 && nation_id < 4)
+            ? &ctx->col1->nation[nation_id]
+            : NULL;
+        long wscore = 0;
+        for (int slot = 0; slot < COLONIZE_CARGO_COUNT; ++slot) {
+          if (slot == COLONIZE_CARGO_FOOD || slot == COLONIZE_CARGO_LUMBER ||
+              slot == COLONIZE_CARGO_TRADE_GOODS) {
+            continue;
+          }
+          int have = c->stock[slot];
+          if (have < target) {
+            if (slot == COLONIZE_CARGO_HORSES) {
+              have += 25 - target;
+              if (have < 0) {
+                have = 0;
+              }
+            }
+          } else {
+            have <<= 1;
+          }
+          if (slot == COLONIZE_CARGO_TOOLS || slot == COLONIZE_CARGO_MUSKETS) {
+            if (!(c->cargo_produced_mask & (1u << slot))) {
+              continue; /* not produced this tick — DOS skips entirely */
+            }
+            have -= 100;
+          }
+          if (have >= 0) {
+            const int price = nat ? (int)nat->trade.euro_price[slot] : 0;
+            wscore += (long)price * have;
+          }
+        }
         if (haul_short) {
-          int wscore = (int)c->cargo_idle_turns * 8;
+          wscore += (long)c->cargo_idle_turns * 8;
+          if (wscore > 0x7fff) {
+            wscore = 0x7fff;
+          }
           uint8_t flag_a = 0xff;
           if (c->specialty_cargo != 0xff &&
               (int)c->specialty_cargo < COLONIZE_CARGO_COUNT) {
-            wscore += 16;
             flag_a = c->specialty_cargo;
           }
-          ai_goals_upsert_work(c->id, wscore, flag_a, /*haul=*/1);
+          ai_goals_upsert_work(c->id, (int)wscore, flag_a, /*haul=*/1);
         }
       }
     }
