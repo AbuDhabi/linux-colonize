@@ -11,6 +11,7 @@
 static AiNationGoals s_goals[4];
 static AiWorkSlot s_work[AI_WORK_SLOTS];
 static AiEuroInventory s_inv[4];
+static AiNationPlanScratch s_plan[4];
 
 static const int k_dir8_dx[9] = {0, 1, 1, 1, 0, -1, -1, -1, 0};
 static const int k_dir8_dy[9] = {-1, -1, 0, 1, 1, 1, 0, -1, 0};
@@ -19,6 +20,7 @@ void ai_goals_reset(void) {
   memset(s_goals, 0, sizeof(s_goals));
   memset(s_work, 0, sizeof(s_work));
   memset(s_inv, 0, sizeof(s_inv));
+  memset(s_plan, 0, sizeof(s_plan));
   for (int n = 0; n < 4; ++n) {
     for (int i = 0; i < AI_PRIMARY_SLOTS; ++i) {
       s_goals[n].primary[i].code = AI_GOAL_EMPTY;
@@ -61,6 +63,33 @@ void ai_goals_clear_secondary_slots(int nation_id) {
   for (int i = 0; i < AI_SECONDARY_SLOTS; ++i) {
     s_goals[nation_id].secondary[i].code = AI_GOAL_EMPTY;
     s_goals[nation_id].secondary[i].prio = 0;
+  }
+}
+
+/*
+ * FUN_521d_001c — invalidate_nearby_secondary_goals. Distance callee (DOS
+ * FUN_281f_037a) is corrupted in the decomp (no visible body/params); reuses
+ * the FUN_124c_0040 / ai_dos_dist formula as the closest known "generic DOS
+ * tile distance" analog.
+ */
+void ai_goals_invalidate_nearby_secondary(int nation_id, int code, int x, int y, int radius) {
+  if (nation_id < 0 || nation_id >= 4) {
+    return;
+  }
+  for (int i = 0; i < AI_SECONDARY_SLOTS; ++i) {
+    AiGoalSlot* s = &s_goals[nation_id].secondary[i];
+    if ((int)s->code != code) {
+      continue;
+    }
+    int dx = x - (int)s->x;
+    int dy = y - (int)s->y;
+    if (dx < 0) dx = -dx;
+    if (dy < 0) dy = -dy;
+    const int d = (dy < dx) ? (dy >> 1) + dx : (dx >> 1) + dy;
+    if (d <= radius) {
+      s->code = AI_GOAL_EMPTY;
+      s->prio = 0;
+    }
   }
 }
 
@@ -454,4 +483,270 @@ int ai_goals_pick_founding_tile(
     out_x,
     out_y
   );
+}
+
+AiNationPlanScratch* ai_goals_plan_scratch(int nation_id) {
+  if (nation_id < 0 || nation_id >= 4) {
+    return NULL;
+  }
+  return &s_plan[nation_id];
+}
+
+/*
+ * FUN_521d_03d0 — founding_expansion_urgency. Cite: viceroy_unpacked.c ~87058.
+ * All-zero scratch (no writer wired yet) takes the hire_flag==0 early return,
+ * reproducing today's existing "early game -> 8" stand-in in ai_euro.c.
+ */
+int ai_goals_founding_expansion_urgency(int nation_id, int total_colony_count) {
+  if (nation_id < 0 || nation_id >= 4) {
+    return 0;
+  }
+  if (total_colony_count < 0x30) {
+    const AiNationPlanScratch* p = &s_plan[nation_id];
+    if (p->hire_flag == 0 || p->found_flag == 0) {
+      return 8;
+    }
+    int local_10 = ((int)p->c_val - (int)p->hire_flag) / (4 - (int)p->e_val);
+    const int uv4 = (int)p->d_val >> 1;
+    if (uv4 < local_10) {
+      local_10 = -(((local_10 - uv4 + 1) >> 1) - local_10);
+    } else if (local_10 < uv4) {
+      local_10 = local_10 + ((1 - (local_10 - uv4)) >> 1);
+    }
+    const int iv2 = (int)p->e_val * 3 - 7;
+    const int iv3 = -iv2;
+    const int iv1 = p->f_val;
+    if (-iv1 != iv2 && iv1 <= iv3) {
+      local_10 = local_10 + (-1 - (iv3 - iv1)) * (int)p->hire_flag;
+    }
+    if (local_10 >= 0) {
+      return local_10;
+    }
+  }
+  return 0;
+}
+
+/*
+ * FUN_521d_052c — unit_desirability_score. Cite: viceroy_unpacked.c ~87139.
+ * dist_to_bound_colony is DOS DS:0x8db8 (caller-supplied snapshot, see
+ * move_scoring_land.md). FUN_281f_0c9a "needs training" gate is PARKED (reads
+ * as false). thunk_2a1f_0494(nation) resolved as founding_expansion_urgency's
+ * own thunk identity elsewhere, but 052c's own war-timing gate uses a
+ * separate at_war_flag/last_war_declare_turn pair — PARKED, all-zero.
+ */
+int ai_goals_unit_desirability_score(
+  const ColonizeColonyPool* colonies,
+  int nation_id,
+  int unit_x,
+  int unit_y,
+  int unit_type,
+  int unit_profession,
+  int continent_id,
+  int dist_to_bound_colony,
+  int turn
+) {
+  (void)continent_id; /* DOS 0614 continent-gate not replicated — thin exact-tile check only */
+  if (nation_id < 0 || nation_id >= 4) {
+    return 0;
+  }
+  const AiNationPlanScratch* p = &s_plan[nation_id];
+  int score = 0;
+  if (p->hire_flag != 0) {
+    int owns = -1;
+    if (colonies) {
+      const int idx = colonies_id_at(colonies, unit_x, unit_y);
+      if (idx >= 0 && colonies->colonies[idx].nation_id == nation_id) {
+        owns = idx;
+      }
+    }
+    if (owns < 0) {
+      score = 2;
+    } else {
+      score = dist_to_bound_colony / 5 - 1;
+    }
+  }
+  if (unit_type == 2) score += 2;
+  if (unit_type == 1) score += -2;
+  if (unit_type == 4) score += -3;
+  if (unit_type == 0) {
+    /* FUN_281f_0c9a(profession) — PARKED identity, thin false. */
+    const int needs_training = 0;
+    score += needs_training ? -4 : -2;
+    if (unit_profession == 0x1b) {
+      score += -0x14;
+    }
+  }
+  if (p->at_war_flag != 0) {
+    score += (turn - p->last_war_declare_turn) >> 4;
+  }
+  if (score > 0) {
+    score = 0;
+  }
+  return score;
+}
+
+/*
+ * FUN_521d_0600 — composite_unit_priority. Cite: viceroy_unpacked.c ~87196.
+ * Thunk identities resolved by arg-shape match against 052c/0492/03d0's own
+ * signatures (all three take a leading nation id and share this call site's
+ * exact arg counts).
+ */
+int ai_goals_composite_unit_priority(
+  const ColonizeWorldMap* map,
+  const ColonizeColonyPool* colonies,
+  const ColonizeCol1Save* col1,
+  int nation_id,
+  int unit_x,
+  int unit_y,
+  int unit_type,
+  int unit_profession,
+  int dist_to_bound_colony,
+  int turn,
+  int total_colony_count
+) {
+  if (!map) {
+    return 0;
+  }
+  const int continent = map_continent_id_at(map, unit_x, unit_y);
+  const int desirability = ai_goals_unit_desirability_score(
+    colonies, nation_id, unit_x, unit_y, unit_type, unit_profession,
+    continent, dist_to_bound_colony, turn
+  );
+  const int balance = ai_goals_colony_balance_flags(map, colonies, col1, nation_id, continent);
+  const int urgency = ai_goals_founding_expansion_urgency(nation_id, total_colony_count);
+  int total = desirability + balance + urgency;
+  if (total < 0) {
+    total = 0;
+  }
+  return total;
+}
+
+/*
+ * FUN_521d_0656 — walk_unit_stack_to_end. Cite: viceroy_unpacked.c ~87219.
+ * DOS body is corrupted (drops the FUN_281f_02e4 call's argument), but the
+ * shape is unambiguous: follow the transport chain until -1.
+ */
+int ai_goals_walk_unit_stack_to_end(
+  const ColonizeCol1Unit* units,
+  int unit_count,
+  int unit_index
+) {
+  int last = -1;
+  while (units && unit_index >= 0 && unit_index < unit_count) {
+    last = unit_index;
+    unit_index = units[unit_index].transport_chain.next_unit_idx;
+  }
+  return last;
+}
+
+/*
+ * FUN_521d_0896 — filter_profession_by_distance_wealth. Cite:
+ * viceroy_unpacked.c ~87319. `profession` is DOS's overloaded owner id
+ * (0..3 = nation, >=4 = Indian tribe index) reused as a profession code by
+ * the caller (see FUN_521d_0906) — the >3 gate is a no-op for real nation
+ * ids, matching by construction. FUN_281f_030c relation/alarm lookup and the
+ * DS:0x54f6 wealth table are PARKED (no Linux accessor).
+ */
+int ai_goals_filter_profession_by_distance_wealth(
+  const ColonizeCol1Unit* units,
+  int unit_count,
+  int nation_id,
+  int profession,
+  int has_context,
+  int unit_index
+) {
+  (void)nation_id;
+  if (profession > 3) {
+    if (!has_context) {
+      return -1;
+    }
+    /* FUN_281f_030c(nation, profession-4) — PARKED identity. */
+    const int relation_or_dist = 0;
+    int gate = relation_or_dist > 0x4a;
+    if (!gate && unit_index >= 0 && units && unit_index < unit_count) {
+      /* DS:0x54f6 wealth/tribute table [origin*9+nation], int16 — PARKED. */
+      const int wealth = 0;
+      if (wealth > 0x7f) {
+        gate = 1;
+      }
+    }
+    if (!gate) {
+      return -1;
+    }
+  }
+  return profession;
+}
+
+/*
+ * FUN_521d_0906 — probe_adjacent_contact_claim. Cite: viceroy_unpacked.c
+ * ~87345. Second (DOS DS:0x9ea8) probe and the tribe-owner / armed-cargo
+ * defender walk are PARKED (no tile->tribe or tile->unit-stack accessor
+ * wired here) — those branches always take their "not found" arm; see
+ * ai_goals.h.
+ */
+int ai_goals_probe_adjacent_contact_claim(
+  const ColonizeWorldMap* map,
+  const ColonizeColonyPool* colonies,
+  int x,
+  int y,
+  int nation_id,
+  int profession,
+  int* out_side_claim
+) {
+  int side = -1;
+  if (!map) {
+    if (out_side_claim) *out_side_claim = side;
+    return -1;
+  }
+  const int origin_water =
+    (map_tile_is_water(map, x, y) || map_tile_is_high_seas(map, x, y)) ? 1 : 0;
+  int claim = -1;
+  for (int dir = 0; dir < 8; ++dir) {
+    const int nx = x + k_dir8_dx[dir];
+    const int ny = y + k_dir8_dy[dir];
+    if (!map_coords_inset(map, nx, ny)) {
+      continue;
+    }
+    const int n_water =
+      (map_tile_is_water(map, nx, ny) || map_tile_is_high_seas(map, nx, ny)) ? 1 : 0;
+    if (n_water != origin_water) {
+      continue;
+    }
+    /* FUN_281f_0682: owner id (0..3 nation, >=4 tribe) — tribe half PARKED. */
+    int owner = -1;
+    if (colonies) {
+      const int idx = colonies_id_at(colonies, nx, ny);
+      if (idx >= 0) {
+        owner = colonies->colonies[idx].nation_id;
+      }
+    }
+    if (claim < 0 && owner >= 0 && owner != nation_id) {
+      /* Tribe (>=4) armed-cargo top-of-stack filter unit index — PARKED. */
+      const int unit_filter = -1;
+      claim = ai_goals_filter_profession_by_distance_wealth(
+        NULL, 0, nation_id, owner, profession, unit_filter
+      );
+      if (claim >= 0 && origin_water != 0) {
+        /* Armed-defender walk over the tile's unit stack — PARKED. */
+        const int has_valid_defender = 0;
+        if (!has_valid_defender) {
+          claim = -1;
+        }
+      }
+    }
+    /* Independent second probe (DOS FUN_281f_06be) — PARKED ownership table. */
+    const int owner_alt = -1;
+    if (owner_alt >= 0 && owner_alt != nation_id) {
+      const int side_claim = ai_goals_filter_profession_by_distance_wealth(
+        NULL, 0, nation_id, owner_alt, profession, -1
+      );
+      if (side_claim < 4 && side < 0) {
+        side = side_claim;
+      }
+    }
+  }
+  if (out_side_claim) {
+    *out_side_claim = side;
+  }
+  return claim;
 }
