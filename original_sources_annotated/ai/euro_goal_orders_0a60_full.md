@@ -215,6 +215,86 @@ shape to the already-ported Brave `quiet_score_facing`
 `s_euro_last_dir[COLONIZE_UNITS_MAX]` + the same bias formula to
 `ai_euro_score_move`. Verified: clean build, `ctest` 42/43 unchanged.
 
+## Structural port, now live (2026-08-18)
+
+User asked to "structura-port" `FUN_521d_0a60` — the whole function's own
+control flow ported faithfully, callees allowed to stay placeholder. Given
+the honest scoping constraint below, this landed as a standalone function
+first (pilot, gated behind an env var), then — on explicit instruction
+("replace the old ported function, it wasn't even fully ported") — was
+made the live path the same day, replacing the old three-loop
+soldier/founder/fallback approximation described in "Implementation"
+above.
+
+**Ported at structural (line-for-line control-flow) fidelity**:
+`ai_euro_0a60_goal_orders_structural` in `ai_euro.c`, next to
+`ai_euro_colony_goals` — the goal-consumption tail only (raw lines
+974-1063, this file's own "New section: goal -> orders wiring" pseudocode
+above). Mirrors the decomp's branches/arithmetic 1:1: act_state/order_code
+byte machine, Soldier/Dragoon continent-defense skip gate (recomputed
+fresh via a small local colony/land-unit-count-by-continent helper,
+same tables `euro_g_table_0a60.md` resolved), the 64-slot scored scan with
+the act-state 5/6 re-evaluation skip clause, and the best-slot commit
+(order_code/act_state/goal_x/goal_y write + non-MILITARY tally bump).
+DOS-only per-unit scratch bytes (`+0x314b/c/d/e`) live in a file-local
+`s_0a60_pilot_state[]` shadow array (name kept from the pilot pass) —
+Linux has no persisted struct field for them. **Live**: called once per
+nation per turn from `ai_euro_dispatcher_turn`, right after
+`ai_euro_colony_goals`; `ai_euro_unit_act`'s old three-loop scan was
+deleted and replaced with a read-back of the shadow state
+(`act_state==0xb`) plus the one Linux-only override that had no mapped
+0a60 equivalent (threatened-Stockade LABOR), kept as a post-override.
+The shadow array is memset at the top of every `ai_euro_dispatcher_turn`
+call (alongside the pre-existing `s_deferred_found`/`s_founded_colony_turn`
+resets) rather than kept across turns like DOS's real bytes — same
+"recompute fresh within the turn" simplification those two already use;
+avoids stale cross-scenario state (distinct unit pools reusing small unit
+ids, as several unit tests do) driving a unit into a found/labor-bind
+action from leftover garbage. Real games only ever have one live unit
+pool, so this is a test-hygiene fix, not an in-game behavior change.
+
+**Deliberately not attempted this pass**: the unit-loop threat-flag section
+(raw lines 1-189) and the deep G-table/colony-loop section (raw lines
+190-973). Both still lean on genuinely unresolved DOS accessor semantics —
+`FUN_1000_8aac`'s field-id meaning across its several call sites, what
+`thunk_FUN_2a1f_0470`/`047c`/`0524`/`0560` actually do, and what
+individual bits of `unit+0x3148` mean beyond the two already inferred here
+(FOUND/MIL_EXPAND eligibility, folded into
+`ai_euro_0a60_unit_can_pursue_goal` as a name-match approximation rather
+than modeled as a separate always-true gate). A literal transliteration of
+those sections right now would be unverifiable guesswork — this project's
+own method notes (`ai-transcription-fulldraft` memory) explicitly warn
+against that. `ai_euro_refresh_continent_stance` already covers the
+G-table's *effect* via a from-scratch recompute; it just isn't
+`FUN_521d_0a60`'s own literal write path.
+
+**Verified / known regression**: clean `colonize_core` rebuild, zero new
+warnings under `-Wall`. `golden_ai_turns`/`golden_ai_joint` fail at the
+same pre-existing TURN4→5 spot (confirmed via `git stash` before this
+change too) — specific goto numbers shifted (expected, new formula) but
+it was already failing there, not a newly-broken golden. **New failure**:
+`unit_ai_euro_expand` flips pass→fail. Root cause identified, not fixed:
+DOS's real `score = weight*dist/(prio+1)` formula (lower score wins) means
+a *higher* prio number pulls harder — but the still-condensed goal
+*writer* (`ai_euro_colony_goals`, the "A–H" phases, separate from this
+tail) hands out prio constants tuned for the old first-match/type-
+restricted consumption shape (`AI_GOAL_FOUND`→2, `AI_GOAL_COLONY`→5,
+`AI_GOAL_LABOR`→4–6), not for real prio-weighted competition. In the test
+scenario an idle Pioneer near its own (non-labor-short) colony now out-
+scores the nearby FOUND target and gets bound into the colony as labor
+instead of founding a second one — plausible under DOS's real formula
+given these prio values, but a behavior flip from the tuned-for-expansion
+old code. Not blind-tuned this pass (would be guesswork without DOS's real
+prio constants); expected per explicit user direction ("this is an
+improvement, don't expect tests to pass").
+
+**Follow-up if resumed**: (1) the two out-of-scope sections above need
+their own mapping passes (same method as `euro_g_table_0a60.md`'s
+multi-pass `.asm` register tracing) before a literal port of them would be
+honest; (2) `ai_euro_colony_goals`'s prio constants need a real pass
+against this formula (or DOS's actual writer values) to close the
+`unit_ai_euro_expand` regression properly instead of by construction.
+
 ## Raw recovered C (845 lines, one mild warning)
 
 ```c

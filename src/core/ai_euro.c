@@ -7708,6 +7708,243 @@ static void ai_euro_nation_planning(ColonizeTurnContext* ctx, int nation_id) {
   }
 }
 
+/* --- 0a60 goal-consumption engine (structural port, live) --------------
+ *
+ * Literal, section-scoped structural port of FUN_521d_0a60's own final
+ * goal-table consumption engine — raw decomp lines 974-1063 of the
+ * ~845-line function (see
+ * original_sources_annotated/ai/euro_goal_orders_0a60_full.md, "New
+ * section: goal -> orders wiring"). Per explicit instruction: port what
+ * 0a60 does IN ITSELF faithfully; the functions/data it reaches out to can
+ * stay at whatever level of development they're already at in this file
+ * (dos_dist / map_continent_id_at / units_id_at / ai_goals_primary are all
+ * real, already-ported equivalents of their DOS callees) or a documented
+ * placeholder where DOS's own callee/data semantics are still unresolved
+ * (func_0x0001854c's weight seed, DS:0x523d unit-type capability bitmask,
+ * unit+0x3148's FOUND/MIL_EXPAND eligibility bits).
+ *
+ * **Live as of 2026-08-18**, replacing the old approximate soldier/
+ * founder/generic-fallback three-loop scan inside `ai_euro_unit_act`
+ * (which never covered LABOR/COLONY assignment for founders without a
+ * matching FOUND/MIL_EXPAND slot, and used a two-phase "soldier goals
+ * first, then anything" priority hack that DOS's real single-pass 64-slot
+ * scan doesn't have — see euro_goal_orders_0a60_full.md's "Structural
+ * pilot port" section for the before/after). Runs once per nation per
+ * turn from `ai_euro_nation_planning`-equivalent, alongside
+ * `ai_euro_colony_goals`; `ai_euro_unit_act` reads its committed pick back
+ * per unit (act_state==0xb) instead of recomputing its own scan. Not a
+ * `golden_ai_turns` fidelity claim — expect no immediate change there
+ * (pre-existing TURN4→5 failure, unrelated); this is a structural quality
+ * improvement over the old approximation, not a new golden-alignment pass.
+ *
+ * Deliberately out of scope this pass: the unit-loop threat-flag section
+ * (raw lines 1-189) and the deep G-table / colony-loop section (raw lines
+ * 190-973). Both lean on DOS accessor semantics (FUN_1000_8aac's field-id
+ * meaning, thunk_FUN_2a1f_0470/047c/0524/0560's real effects, unit+0x3148's
+ * individual bit *writers*) that no prior mapping pass in this project has
+ * pinned down — a literal transliteration there would be unverifiable
+ * guesswork, which this project's own method notes explicitly warn
+ * against. ai_euro_refresh_continent_stance already covers the G-table's
+ * *effect* (nation x continent stance) via a from-scratch recompute, just
+ * not FUN_521d_0a60's literal write path.
+ *
+ * DOS-only per-unit AI scratch bytes this section reads/writes
+ * (unit+0x314b/c/d/e — "AI order code", "act state", "goal x/y") have no
+ * persisted Linux struct field; modeled here as a file-local shadow array
+ * (`s_0a60_pilot_state`, name kept from the original pilot pass) instead
+ * of new ColonizeUnit fields — same pattern this file already uses for
+ * `unit+0x314f` (`s_euro_last_dir`).
+ */
+
+typedef struct Ai0a60UnitState {
+  uint8_t order_code;    /* unit+0x314b: '?'=0x3f pending, 'A'=admitted-
+                           * labor, 't'=pursue-FOUND, 'i'=pursue-MIL_EXPAND,
+                           * '1'=pursue-generic goal */
+  uint8_t act_state;     /* unit+0x314c: 0/5/6 = idle/re-evaluate states
+                           * this section reacts to; 0xb = now pursuing */
+  uint8_t goal_x, goal_y; /* unit+0x314d/e: goal target tile once assigned */
+  int8_t goal_code;       /* Linux-only mirror of the committed slot's
+                           * AI_GOAL_* code (-1 = none) — DOS's own
+                           * order_code byte doesn't distinguish LABOR vs.
+                           * COLONY vs. COLONY_ALT vs. MILITARY vs. CONTACT,
+                           * but ai_euro_unit_act's downstream dispatch
+                           * (found/labor-bind/attack) needs the concrete
+                           * value. Only meaningful while act_state==0xb;
+                           * stale otherwise (matches order_code's own
+                           * DOS-real staleness — see body). */
+} Ai0a60UnitState;
+
+/*
+ * DOS func_0x0001854c(dialog, difficulty>>3, 3, 99) — the per-nation
+ * difficulty-scaled weight seed 0a60 seeds every primary-slot tally with
+ * at entry (aiStack_1da[64]). Callee semantics (random? clamp? lookup
+ * table?) unresolved. Placeholder: fixed midpoint of its own known [3,99]
+ * clamp range — inert, deterministic, documented approximation.
+ */
+static int ai_euro_0a60_ph_weight_seed(void) { return 50; }
+
+/*
+ * DS:0x523d unit-type -> goal-code capability bitmask — confirmed (per
+ * euro_goal_orders_0a60_full.md) to live in unrecoverable binary resource
+ * data, same standing limitation as every other capability check in this
+ * file. Mirror the file's existing convention (unit-name matching) rather
+ * than accept-all, since accept-all would let e.g. a Galleon "pursue" a
+ * LABOR goal. unit+0x3148's separate FOUND/MIL_EXPAND eligibility-bit
+ * refinement (set earlier in the out-of-scope unit-loop section) is folded
+ * in here rather than modeled as its own always-true gate.
+ */
+static int ai_euro_0a60_unit_can_pursue_goal(const char* name, int goal_code) {
+  switch (goal_code) {
+    case AI_GOAL_FOUND:
+      return ai_euro_name_is_pioneer(name) || (name && strstr(name, "Colonist") != NULL);
+    case AI_GOAL_MIL_EXPAND:
+    case AI_GOAL_MILITARY:
+      return ai_euro_is_military_name(name) || ai_euro_is_artillery_name(name);
+    default:
+      return 1; /* CONTACT/LABOR/COLONY/COLONY_ALT: no known DOS type gate here */
+  }
+}
+
+/*
+ * Soldier/Dragoon continent-defense skip gate (raw: `land_units_here =
+ * table[-0x6b5a][continent + nation*0x10]`, `colonies = table[-0x6b1a][...]`
+ * — the same colony-count / land-unit-count-by-continent tables
+ * euro_g_table_0a60.md resolved and ai_euro_refresh_continent_stance
+ * already recomputes for its own purpose). Recomputed fresh here too
+ * (cheap, one pass) rather than exposing that function's private locals.
+ */
+static void ai_euro_0a60_continent_presence(
+  const ColonizeTurnContext* ctx, int nation_id, int continent_id, int* out_colonies,
+  int* out_land_units
+) {
+  int colonies = 0;
+  int land_units = 0;
+  if (ctx->colonies) {
+    for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+      const ColonizeColony* c = &ctx->colonies->colonies[i];
+      if (c->active && c->nation_id == nation_id &&
+          map_continent_id_at(ctx->map, c->x, c->y) == continent_id) {
+        colonies++;
+      }
+    }
+  }
+  if (ctx->units) {
+    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+      const ColonizeUnit* u = units_get_const(ctx->units, i);
+      if (u && u->active && u->nation_id == nation_id && !units_is_sea(ctx->units, i) &&
+          map_continent_id_at(ctx->map, u->x, u->y) == continent_id) {
+        land_units++;
+      }
+    }
+  }
+  *out_colonies = colonies;
+  *out_land_units = land_units;
+}
+
+/*
+ * FUN_521d_0a60's own goal-consumption tail, literally: for every idle-ish
+ * unit of `nation_id`, pick the closest/highest-priority matching primary
+ * goal slot and write order_code/act_state/goal_x/goal_y — mirrors raw
+ * decomp lines 974-1063 control flow and arithmetic 1:1 (see file header
+ * comment for what's real vs. placeholder). Pilot-only: writes into the
+ * file-local shadow array below, not into ColonizeUnit or live orders.
+ */
+static Ai0a60UnitState s_0a60_pilot_state[COLONIZE_UNITS_MAX];
+
+static void ai_euro_0a60_goal_orders_structural(ColonizeTurnContext* ctx, int nation_id) {
+  if (!ctx || !ctx->map || !ctx->units) {
+    return;
+  }
+  const int weight_seed = ai_euro_0a60_ph_weight_seed();
+  int weight[AI_PRIMARY_SLOTS];
+  for (int i = 0; i < AI_PRIMARY_SLOTS; ++i) {
+    weight[i] = weight_seed;
+  }
+
+  for (int ui = 0; ui < COLONIZE_UNITS_MAX; ++ui) {
+    const ColonizeUnit* u = units_get_const(ctx->units, ui);
+    if (!u || !u->active || u->nation_id != nation_id) {
+      continue;
+    }
+    Ai0a60UnitState* st = &s_0a60_pilot_state[ui];
+    if (st->order_code == 'A') {
+      continue; /* already admitted as labor */
+    }
+    if (st->act_state < 10) {
+      st->order_code = 0x3f; /* '?' pending-decision placeholder */
+    }
+    if (st->act_state != 0 && st->act_state != 5 && st->act_state != 6) {
+      continue;
+    }
+    if (st->order_code == 't' || st->order_code == 'i') {
+      st->order_code = 0x3f; /* clear stale goal-pursuit code */
+    }
+
+    const char* uname = units_display_name(ctx->units, u);
+    const int unit_is_ship = ai_euro_is_ship_type(ctx->units, ui);
+    const int unit_continent = map_continent_id_at(ctx->map, u->x, u->y);
+
+    if (!unit_is_ship && (strstr(uname ? uname : "", "Soldier") ||
+                           strstr(uname ? uname : "", "Dragoon"))) {
+      int colonies = 0;
+      int land_units = 0;
+      ai_euro_0a60_continent_presence(ctx, nation_id, unit_continent, &colonies, &land_units);
+      if (land_units < 3 && (land_units < 2 || colonies == 0)) {
+        continue; /* don't reassign a defender off a continent that still needs it */
+      }
+    }
+
+    int best_score = 9999;
+    int best_slot = -1;
+    for (int slot = 0; slot < AI_PRIMARY_SLOTS; ++slot) {
+      const AiGoalSlot* g = ai_goals_primary(nation_id, slot);
+      if (!g || g->code == AI_GOAL_EMPTY) {
+        continue;
+      }
+      if (!ai_euro_0a60_unit_can_pursue_goal(uname, g->code)) {
+        continue;
+      }
+      const int goal_continent = map_continent_id_at(ctx->map, g->x, g->y);
+      if (goal_continent != unit_continent && !unit_is_ship) {
+        continue; /* off-continent goal, land unit can't reach it */
+      }
+
+      const int dist = ai_euro_dos_dist(g->x - u->x, g->y - u->y);
+      const int score = weight[slot] * dist / (g->prio + 1);
+
+      if ((st->act_state == 5 || st->act_state == 6) && !unit_is_ship) {
+        const int occupied = units_id_at(ctx->units, g->x, g->y) >= 0;
+        if (occupied ||
+            (g->prio < 3 || (g->prio * weight_seed < score && weight[slot] != weight_seed))) {
+          continue; /* re-evaluating unit: goal contested or not worth re-claiming */
+        }
+      }
+
+      if (score < best_score && score / weight_seed <= g->prio * 3 / 2) {
+        best_score = score;
+        best_slot = slot;
+      }
+    }
+
+    if (best_slot >= 0) {
+      const AiGoalSlot* g = ai_goals_primary(nation_id, best_slot);
+      st->order_code = 0x31; /* '1' default goal-pursue code */
+      if (g->code == AI_GOAL_FOUND) {
+        st->order_code = 0x74; /* 't' */
+      } else if (g->code == AI_GOAL_MIL_EXPAND) {
+        st->order_code = 0x69; /* 'i' */
+      }
+      st->act_state = 0xb; /* pursuing a goal */
+      st->goal_x = (uint8_t)g->x;
+      st->goal_y = (uint8_t)g->y;
+      st->goal_code = (int8_t)g->code;
+      if (g->code != AI_GOAL_MILITARY) {
+        weight[best_slot]++; /* claim-count so the same slot isn't over-assigned */
+      }
+    }
+  }
+}
+
 /* --- 0a60 colony goals ------------------------------------------------- */
 
 static void ai_euro_colony_goals(ColonizeTurnContext* ctx, int nation_id) {
@@ -13022,117 +13259,55 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
   int goal_y = u->goto_y;
   int goal_code = -1;
   {
-    const int is_soldier = uname && strstr(uname, "Soldier");
-    const int is_founder =
-      uname && !is_soldier &&
-      (strstr(uname, "Pioneer") || strstr(uname, "Hardy") || strstr(uname, "Free Colonist") ||
-       strstr(uname, "Colonist"));
-
-    /* Soldiers: MILITARY/CONTACT first; founders: FOUND over LABOR/COLONY —
-     * except threatened Stockade LABOR (Free Colonist MD≤3) beats distant FOUND. */
-    if (is_soldier) {
-      /*
-       * Real FUN_521d_0a60 goal-consumption shape (mapped 2026-08-14, see
-       * euro_goal_orders_0a60_full.md): DOS scores every matching slot by
-       * dist(unit,goal)/(prio+1) and takes the lowest, not the first slot
-       * in table order. Was first-match; now closest/highest-prio wins,
-       * same set of matching goals as before. Per-slot difficulty-scaled
-       * weight table (`aiStack_1da`) and the fine threshold gate are not
-       * reproduced — approximated as weight=1, no gate (see doc's "Not
-       * yet done").
-       */
-      int best_score = -1;
-      for (int i = 0; i < AI_PRIMARY_SLOTS; ++i) {
-        const AiGoalSlot* g = ai_goals_primary(nation_id, i);
-        if (!g || g->code == AI_GOAL_EMPTY) {
-          continue;
-        }
-        if (g->code == AI_GOAL_MILITARY || g->code == AI_GOAL_CONTACT) {
-          const int dist = ai_euro_dos_dist(g->x - u->x, g->y - u->y);
-          const int score = dist * 100 / (g->prio + 1);
-          if (best_score < 0 || score < best_score) {
-            best_score = score;
-            goal_x = g->x;
-            goal_y = g->y;
-            goal_code = (int)g->code;
-          }
-        }
-      }
-    } else if (is_founder) {
-      int threat_stockade_labor = 0;
-      if (ctx->colonies && at_war_land && uname &&
-          (strstr(uname, "Free Colonist") != NULL || strstr(uname, "Colonist") != NULL) &&
-          strstr(uname, "Soldier") == NULL) {
-        for (int ti = 0; ti < COLONIZE_COLONIES_MAX; ++ti) {
-          const ColonizeColony* tc = &ctx->colonies->colonies[ti];
-          if (!tc->active || tc->nation_id != nation_id) {
-            continue;
-          }
-          if (!ai_euro_colony_wants_construction_labor(ctx->colonies, tc)) {
-            continue;
-          }
-          const ColonizeBuildingType* bt =
-            tc->building_in_production >= 0
-              ? colonies_building_type(ctx->colonies, tc->building_in_production)
-              : NULL;
-          if (!bt || strcmp(bt->name, "Stockade") != 0) {
-            continue;
-          }
-          if (!ai_euro_colony_threatened_by_war(ctx, nation_id, tc)) {
-            continue;
-          }
-          if (abs(tc->x - u->x) + abs(tc->y - u->y) <= 3) {
-            goal_x = tc->x;
-            goal_y = tc->y;
-            goal_code = AI_GOAL_LABOR;
-            threat_stockade_labor = 1;
-            ai_goals_upsert_primary(nation_id, tc->x, tc->y, AI_GOAL_LABOR, 6);
-            break;
-          }
-        }
-      }
-      if (!threat_stockade_labor) {
-        /* Closest/highest-prio wins — same DOS shape as the soldier loop above. */
-        int best_score = -1;
-        for (int i = 0; i < AI_PRIMARY_SLOTS; ++i) {
-          const AiGoalSlot* g = ai_goals_primary(nation_id, i);
-          if (!g || g->code == AI_GOAL_EMPTY) {
-            continue;
-          }
-          if (g->code == AI_GOAL_FOUND || g->code == AI_GOAL_MIL_EXPAND) {
-            const int dist = ai_euro_dos_dist(g->x - u->x, g->y - u->y);
-            const int score = dist * 100 / (g->prio + 1);
-            if (best_score < 0 || score < best_score) {
-              best_score = score;
-              goal_x = g->x;
-              goal_y = g->y;
-              goal_code = (int)g->code;
-            }
-          }
-        }
-      }
+    /*
+     * FUN_521d_0a60 goal-consumption tail, structurally ported (see
+     * ai_euro_0a60_goal_orders_structural above / euro_goal_orders_0a60_
+     * full.md "Structural pilot port"): runs once per nation per turn,
+     * scores every matching primary-goal slot in one real single-pass
+     * scan (no soldier-first/founder-first two-phase hack), commits the
+     * pick into the shadow state below. Read it back here.
+     */
+    const Ai0a60UnitState* st = &s_0a60_pilot_state[u->id];
+    if (st->act_state == 0xb) {
+      goal_x = st->goal_x;
+      goal_y = st->goal_y;
+      goal_code = st->goal_code;
     }
-    if (goal_code < 0) {
-      /*
-       * Was first-slot-wins ("highest prio is slot 0 after ordered
-       * upsert") — same DOS closest/highest-prio shape as the soldier/
-       * founder loops above, applied here too for consistency now that
-       * it's verified safe (0a60 goal-consumption tail, no unit-type
-       * gate at this fallback level in the real DOS body either).
-       */
-      int best_score = -1;
-      for (int i = 0; i < AI_PRIMARY_SLOTS; ++i) {
-        const AiGoalSlot* g = ai_goals_primary(nation_id, i);
-        if (!g || g->code == AI_GOAL_EMPTY) {
+
+    /*
+     * Threatened-Stockade LABOR override: reactive same-turn war-threat
+     * check with no mapped 0a60 equivalent (labor urgency vs. war threat
+     * isn't part of the mapped goal-table scan) — kept, overrides the
+     * structural pick when it fires, same as before this section replaced
+     * the old three-loop approximation.
+     */
+    if (ctx->colonies && at_war_land && uname &&
+        (strstr(uname, "Free Colonist") != NULL || strstr(uname, "Colonist") != NULL) &&
+        strstr(uname, "Soldier") == NULL) {
+      for (int ti = 0; ti < COLONIZE_COLONIES_MAX; ++ti) {
+        const ColonizeColony* tc = &ctx->colonies->colonies[ti];
+        if (!tc->active || tc->nation_id != nation_id) {
           continue;
         }
-        const int dist = ai_euro_dos_dist(g->x - u->x, g->y - u->y);
-        const int score = dist * 100 / (g->prio + 1);
-        if (best_score < 0 || score < best_score) {
-          best_score = score;
-          goal_x = g->x;
-          goal_y = g->y;
-          goal_code = (int)g->code;
+        if (!ai_euro_colony_wants_construction_labor(ctx->colonies, tc)) {
+          continue;
+        }
+        const ColonizeBuildingType* bt =
+          tc->building_in_production >= 0
+            ? colonies_building_type(ctx->colonies, tc->building_in_production)
+            : NULL;
+        if (!bt || strcmp(bt->name, "Stockade") != 0) {
+          continue;
+        }
+        if (!ai_euro_colony_threatened_by_war(ctx, nation_id, tc)) {
+          continue;
+        }
+        if (abs(tc->x - u->x) + abs(tc->y - u->y) <= 3) {
+          goal_x = tc->x;
+          goal_y = tc->y;
+          goal_code = AI_GOAL_LABOR;
+          ai_goals_upsert_primary(nation_id, tc->x, tc->y, AI_GOAL_LABOR, 6);
+          break;
         }
       }
     }
@@ -13562,6 +13737,19 @@ void ai_euro_dispatcher_turn(ColonizeTurnContext* ctx, int nation_id) {
   s_sticky_count = 0;
   memset(s_deferred_found, 0, sizeof(s_deferred_found));
   memset(s_founded_colony_turn, 0, sizeof(s_founded_colony_turn));
+  /*
+   * 0a60 goal-consumption shadow state: reset every call rather than kept
+   * across turns like DOS's real unit+0x314b/c/d/e bytes — same "recompute
+   * fresh within the turn" simplification s_deferred_found/
+   * s_founded_colony_turn above already use, and it's fully repopulated by
+   * ai_euro_0a60_goal_orders_structural below before ai_euro_unit_act reads
+   * it back later this same call. Avoids stale cross-scenario garbage
+   * (distinct unit pools/tests reusing small unit ids) driving a unit into
+   * a found/labor-bind action on turn 1 from a previous run's leftover
+   * state — real gameplay only ever has one live unit pool, so this is a
+   * safety/test-hygiene fix, not a behavior change within a real game.
+   */
+  memset(s_0a60_pilot_state, 0, sizeof(s_0a60_pilot_state));
 
   /* 1–3. Colony + unit inventory */
   ai_euro_colony_inventory(ctx, nation_id);
@@ -13601,6 +13789,10 @@ void ai_euro_dispatcher_turn(ColonizeTurnContext* ctx, int nation_id) {
   ai_euro_prefer_craft_upgrades(ctx, nation_id);
   ai_euro_clear_pre_stockade_build_queue(ctx, nation_id);
   ai_euro_colony_goals(ctx, nation_id);
+  /* FUN_521d_0a60 goal-consumption tail (structural port) — picks each
+   * idle unit's next goal into the s_0a60_pilot_state shadow; consumed by
+   * ai_euro_unit_act below. See the function's header comment for scope. */
+  ai_euro_0a60_goal_orders_structural(ctx, nation_id);
 
   /* Opportunistic balance after plan (separate from timer slot). */
   ai_diplo_euro_balance(ctx, nation_id);
