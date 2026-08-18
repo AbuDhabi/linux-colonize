@@ -8203,10 +8203,25 @@ static void ai_euro_0a60_goal_orders_structural(ColonizeTurnContext* ctx, int na
       const int score = weight[slot] * dist / (g->prio + 1);
 
       if ((st->act_state == 5 || st->act_state == 6) && !unit_is_ship) {
-        const int occupied = units_id_at(ctx->units, g->x, g->y) >= 0;
-        if (occupied ||
+        /*
+         * Real check (fixed 2026-08-18, `address_mapping.csv`:
+         * FUN_1000_8886 → canonical FUN_281f_0696 → FUN_137f_0358 =
+         * `euro_settlement_owner`, already resolved in `accessors.c` —
+         * NOT a "is anyone standing on the goal tile" unit lookup as
+         * first ported. DOS's own args are the *unit's own* x/y
+         * (`uStack_36`/`uStack_3a`, set from `unit+0x3144/0x3145`
+         * earlier this same block), not the goal's — this checks
+         * whether the re-evaluating unit is *currently sitting in any
+         * Euro colony* (any nation), not whether the goal is occupied.
+         * `colonies_id_at` is the Linux equivalent (colony pool holds
+         * only Euro colonies; native villages are a separate `col1`
+         * table, matching DOS's own tribe-owner exclusion in
+         * `euro_settlement_owner`).
+         */
+        const int at_colony = colonies_id_at(ctx->colonies, u->x, u->y) >= 0;
+        if (at_colony ||
             (g->prio < 3 || (g->prio * weight_seed < score && weight[slot] != weight_seed))) {
-          continue; /* re-evaluating unit: goal contested or not worth re-claiming */
+          continue; /* re-evaluating unit already parked in a colony, or goal not worth it */
         }
       }
 
