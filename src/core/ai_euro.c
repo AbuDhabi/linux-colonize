@@ -6898,11 +6898,12 @@ static int ai_euro_tools_cargo_or_colony(
  * already-32-bit Linux `gold` field doesn't need), the per-nation census
  * block (colony_counts/ship_counts/colony_pop_totals/armed_ship_counts/
  * ship_cargo_totals/census_pop_proxy — col1_save.h `ColonizeCol1Stuff`),
- * unit_type_counts[nation][16]/[17], DS:0x5382 bit0 (col1_save.h documents
- * this bit as `game_options.woi` — declared independence — which conflicts
- * with an older, looser "NEW WORLD path" comment in euro_dispatcher.c /
- * SYMBOL_MAP.md for the *same* bit; not reconciled here, flagged at the
- * one call site below that depends on it), FUN_281f_09fc(building_index)
+ * unit_type_counts[nation][16]/[17], DS:0x5382 bit0 — **confirmed** (live
+ * DOSBox-X capture, 2026-08-18, `BPM 237D:5382`: `or byte [5382],01` fires
+ * 00→01 exactly on Declare Independence) as `game_options.woi`, settling
+ * the earlier conflict with an older, looser "NEW WORLD path" guess in
+ * euro_dispatcher.c / SYMBOL_MAP.md for the same bit — that guess was
+ * wrong, both docs corrected. FUN_281f_09fc(building_index)
  * confirmed elsewhere (euro_unit_act.md) as `has_building` indexed by
  * NAMES.TXT `@BUILDING` file order — index 0xd in that order is "College"
  * (cross-checked against that same doc's independently-confirmed index
@@ -6964,19 +6965,22 @@ static int ai_euro_5d04_stub_colony_has_building(
 }
 
 /* FUN_281f_0808 — destroy_unit (identity confirmed, see header). Real
- * mechanism, but destroying a live unit is exactly the side effect "be
- * safe" argues against wiring on a first pass — especially since the
- * gating condition it sits behind (DS:0x5382 bit0) has the unreconciled
- * woi-vs-"NEW WORLD" ambiguity noted above. Stub: no-op. */
+ * mechanism, gating condition now also confirmed (DS:0x5382 bit0 = `woi`,
+ * fires on Declare Independence — see header). Still stubbed: destroying
+ * a live unit is exactly the side effect "be safe" argues against wiring
+ * on a first pass, independent of the bit-identity question that's now
+ * settled. Stub: no-op. */
 static void ai_euro_5d04_stub_destroy_unit(int unit_id) {
   (void)unit_id;
 }
 
 /* First own unit matching the raw body's `(owner==nation) && (type==0x12)`
- * scan (candidate DOS "NEW WORLD wagon", per euro_dispatcher.c's existing
- * comment on this exact call site) — genuinely unresolved (no confirmed
- * DOS-type-id -> Linux-type mapping for id 0x12). Stub: "none found", so
- * the destroy branch below it never fires. */
+ * scan — fires post-independence (DS:0x5382 bit0 = `woi`, confirmed, see
+ * header); "NEW WORLD wagon" in euro_dispatcher.c's older comment on this
+ * call site described the gate, not the unit, and is superseded by the
+ * `woi` finding. The unit-type identity itself is still genuinely
+ * unresolved (no confirmed DOS-type-id -> Linux-type mapping for id
+ * 0x12). Stub: "none found", so the destroy branch below it never fires. */
 static int ai_euro_5d04_stub_find_new_world_wagon(
   const ColonizeTurnContext* ctx, int nation_id
 ) {

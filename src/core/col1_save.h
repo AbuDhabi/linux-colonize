@@ -88,7 +88,10 @@ typedef struct ColonizeCol1GameOptions {
   /* DS:0x5382 low byte — WoI/REF latches (was unused01). */
   uint16_t woi : 1; /* 0x01 — declare independence */
   uint16_t ref_present : 1; /* 0x02 — REF arrived */
-  uint16_t woi_crosses_event : 1; /* 0x04 */
+  uint16_t woi_crosses_event : 1; /* 0x04 — confirmed 2026-08-18 live DOSBox-X
+                                      capture: fires on the "foreign
+                                      intervention force, pending enough
+                                      liberty bells" dismissal popup */
   uint16_t independence_chrome : 1; /* 0x08 */
   uint16_t calendar_latch : 1; /* 0x10 */
   uint16_t independence_force : 1; /* 0x20 — bypass REF/event gates */
