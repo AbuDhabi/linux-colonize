@@ -276,10 +276,23 @@ not previously documented at all — see below):
 
 | Worker | Rule | Port |
 |--------|------|------|
-| Matching expert, food or fish | **+2** (not ×2), plus the SoL mod re-add above | **2026-08-15 fix** — both the flat +2 and the SoL mod re-add are wired (`colony_yield_pipeline`, see stacking section below for the player-confirmed derivation) |
+| Matching expert, food or fish | **+2** (not ×2), plus the SoL mod re-add above | **Contradicted, not wired** — a 2026-08-15 pass believed this landed, but `colony_yield_pipeline` ships plain ×2 for every field expert today (its own comment there claims the +2 variant "regressed golden_colony_prod01"). Asm-confirmed real 2026-08-18 (`FUN_15eb_18ec` ~11890-11899, `local_16`/`local_18` branch — see "Field Farmer/Fisherman expert formula" below): +2 is right, and the "SoL mod re-add" is real too, not a stale claim. Not reimplemented yet — the re-add term (`local_1c`) isn't simply this port's existing `sol_bonus`, see below. |
 | Matching expert, other field jobs | **×2** | Wired |
 | Mismatched skill | Free-colonist yield | Wired |
 | Indian convert | **+1** if job ∈ {0,1,2,3,4} or job &gt; 7 (fisherman); **not** lumber/ore/silver | **2026-08-15 fix, re-verified against raw asm on user question** — `colony_yield_for_worker` gates on the exact whitelist. First pass read this from the `.c` decompile only (`FUN_15eb_18ec` ~11974-11979); re-checked byte-for-byte against `viceroy_unpacked.asm` (`~15eb:1cd6-1d06`) after a user asked whether converts really lose the bonus on lumber/ore/silver specifically — confirmed exact, not decompiler noise: `CMP local_14,0/2/3/1/4` (`JZ` to the `INC`) then `CMP local_14,8; JL` (skip unless ≥8, i.e. Fisherman only from that point up.) Lumber(5)/Ore(6)/Silver(7) are the only 3 field jobs with no matching branch. Real DOS behavior, not a port bug, whatever the manual/community memory says — the *manufacturing* (building) side of converts (1/3 the free-colonist rate, confirmed separately in `manufacturing_worker_calc_1d4c.md`) is unaffected by this and already matches the "converts work buildings poorly" expectation exactly. |
+
+### Field Farmer/Fisherman expert formula — open (2026-08-18)
+
+Read `FUN_15eb_18ec` (`viceroy_unpacked.c` ~11771, the real per-tile field-yield composer) directly, chasing New Amsterdam/New Holland's horse-breeding drift in `golden_colony_prod02` (both traced to their expert Fishermen). Confirmed two real mechanics the port doesn't have:
+
+1. **The Fisherman coastal distance mod applies to experts too** (~11814-11838) — added early, unconditionally on skill match, same bucket shape (`+1` sheltered / `-1` moderately open / `-2` fully open) as `colony_yield_fisherman_distance_mod` already has for non-experts. The port currently skips it for experts entirely.
+2. **Farmer/Fisherman experts get a flat `+2` on skill match, not `×2`** (`local_16`/`local_18` branch, ~11890-11899) — matching the Expert/convert table's "Contradicted, not wired" row above, not this file's shipped `×2`. That branch *also* re-adds the colony's SoL/Tory term (`local_1c`) a second time on top of the once-only addition every job already gets (~11887) — i.e. Farmer/Fisherman experts get their sentiment bonus counted twice.
+
+`local_1c` (the term being re-added) is **not** this port's `sol_bonus`/`colony_prod_sol_bonus_field` — it's built from the colony's SoL latch bits (`+1` each, same `SOL_50`/`SOL_100` bits town commons uses) *minus* a separate tory-defection/difficulty percentage term (~11866-11886), a materially different derivation this port hasn't reverse-engineered yet.
+
+A same-day attempt to bolt on just mechanic 1 (distance mod for experts, added post-`×2` as a flat term, keeping the existing `×2`) fit `golden_colony_prod02`'s New Amsterdam and New Holland exactly — both real, single-turn, real-terrain captures. But it broke four `golden_colony_prod01` fixtures (New Amsterdam, Guadeloupe, Fort Nassau, St. Louis) whose real terrain/profession data this file can't freely re-derive the way its synthetic tiles can (that save is itself already flagged as having lossy terrain round-trips for some tiles, muddying which side is actually wrong for any one of them). Net effect was more colonies broken than fixed, so it was reverted rather than shipped half-fit.
+
+**To finish this properly:** decode `local_1c` for real (SoL latch bits are known; the tory/difficulty term at ~11871/11874/11880 isn't yet), then implement the *whole* mechanic — distance mod + flat `+2` + double sol-latch re-add — together, not the distance-mod half alone. Re-verify against both `golden_colony_prod01` and `golden_colony_prod02` before keeping it; a partial or wrongly-scaled version reproduces this session's regression.
 
 ### Plow / road / river stacking
 
