@@ -147,6 +147,20 @@ int map_land_transition_fill_terrain_at(const ColonizeWorldMap* map, int x, int 
 
 int map_phys0_overlay_count(const ColonizeWorldMap* map, int x, int y);
 int map_phys0_overlay_sprite_at(const ColonizeWorldMap* map, int x, int y, int layer);
+/*
+ * Land-feature identity of one map_phys0_overlay_sprite_at layer, for the
+ * VIEW ~Hidden Terrain reveal (peels layers without duplicating the count/
+ * order logic above). WATER covers coast + estuary layers — never peeled.
+ */
+typedef enum ColonizeMapOverlayKind {
+  MAP_OVERLAY_KIND_WATER = 0,
+  MAP_OVERLAY_KIND_MOUNTAIN,
+  MAP_OVERLAY_KIND_HILL,
+  MAP_OVERLAY_KIND_RIVER,
+  MAP_OVERLAY_KIND_RESOURCE,
+  MAP_OVERLAY_KIND_RUMOUR
+} ColonizeMapOverlayKind;
+ColonizeMapOverlayKind map_phys0_overlay_kind_at(const ColonizeWorldMap* map, int x, int y, int layer);
 /* Pixel offset within the 16×16 tile for 8×8 coast fragments; 0,0 for full tiles. */
 void map_phys0_overlay_offset_at(
   const ColonizeWorldMap* map,
@@ -194,6 +208,12 @@ void map_tile_set_road(ColonizeWorldMap* map, int x, int y, bool on);
 void map_tile_set_plowed(ColonizeWorldMap* map, int x, int y, bool on);
 /* Clear forest canopy to base land type; preserves river/hill overlay bits. */
 bool map_tile_clear_forest(ColonizeWorldMap* map, int x, int y);
+/*
+ * True for Scrub Forest (forest type 1 of 8) — clears to Desert. VIEW ~Hidden
+ * Terrain phase 3 draws Desert here instead of the scrub-ground quirk sprite
+ * MAPEDIT normally shows under scrub canopy.
+ */
+bool map_tile_is_scrub_forest(const ColonizeWorldMap* map, int x, int y);
 /*
  * DOS FUN_19b7_0006 / 465b terrain class: hill bit → 28, mountain → 27,
  * else terrain & 0x1f.

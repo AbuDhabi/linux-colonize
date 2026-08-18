@@ -433,7 +433,7 @@ Terrain move costs (plains 1, forest/hills 2, mountains 3; road/river halves) fo
 | D | Deploy oldest Europe-dock immigrant as a Colonist on cursor tile (land only) |
 | O | Board: selected land unit onto ship under cursor, or selected ship loading land unit under cursor (adjacent; boarded units go on sentry) |
 | U | Unload oldest passenger from selected ship onto adjacent enterable land under cursor |
-| H | Sail selected ship to Europe (must be on a high-seas tile, terrain index 26); passengers stay aboard in harbor |
+| H | Ship selected: sail to Europe (must be on a high-seas tile, terrain index 26); passengers stay aboard in harbor. No ship selected: VIEW **Show ~Hidden Terrain** — peel units/settlements, then non-exempt land PHYS, then hills/forest (see manual_gap.md) |
 | P | Pioneer selected with moves: plow/clear (20 tools). Otherwise open Colonizopedia |
 | R | Pioneer selected with moves: build road (20 tools). Otherwise unused on map (Europe: recruit) |
 | B | Found a colony on the cursor tile: land unit is disbanded into a colony colonist; tools/muskets/horses go to the warehouse stub (ships cannot found) |

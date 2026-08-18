@@ -48,7 +48,7 @@ modals (GAME.TXT `@SECTION`s vs port Done/Partial/Missing): [popups.md](popups.m
 | Map compositor (terrain, coasts, rivers, forest/hill, resources) | Done | MAPEDIT-faithful; see inventory / assets |
 | Fog of war / unexplored blackness | Partial | `map.seen` plane; black unseen; PHYS0 **104–107** edge fringe; units/tribes/colonies hidden in fog; Go-To reveals; cheat Reveal. Scenario `.MP` starts fully seen |
 | Zoom VIEW modes (In/Out/15×12/30×24/60×48/120×96) | Done | `game_map_zoom_*` (`game_loop.c`); FUN_6ba1_000c-equivalent viewport sizing (15<<zoom × 12<<zoom tiles, 16>>zoom on-screen px), but composited by rendering the wider tile grid at native 16px into an offscreen buffer then nearest-neighbor-decimating into the fixed 240×192 viewport — DOS instead redraws with pre-scaled sprite blits per zoom tier |
-| Hidden terrain VIEW mode | Missing | Menu stub |
+| Hidden terrain VIEW mode | Done thin | VIEW ~Hidden Terrain / **H** hotkey (`MAP_MENU_ACTION_VIEW_HIDDEN_TERRAIN`, `game_loop.c`); equivalent-information peel (units/settlements → non-exempt land PHYS → hills+forest, scrub→Desert), not pixel-1:1 with DOS's three-pass timing. H is contextual: sails a selected ship to Europe when one's selected, else opens the reveal |
 | Roads on map | Done | PHYS0 **80** isolated / **81–88** multi-blit stubs via `map_phys0_road_layer_*` (`FUN_6ba1_0938`) |
 | Plowed fields on map | Done | PHYS0 **149** via `map_phys0_plow_sprite_at` (main map + colony area) |
 | Menu bar, right panel, minimap | Done | `map_menu.c`, `map_panel.c` |
