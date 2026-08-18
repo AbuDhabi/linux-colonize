@@ -6882,6 +6882,296 @@ static int ai_euro_tools_cargo_or_colony(
   );
 }
 
+/* ========================================================================
+ * FUN_521d_5d04 — euro_nation_planning, structural port (2026-08-18)
+ *
+ * Ports the function's own control flow + arithmetic 1:1 from the raw
+ * decompile (original_sources_decompiled/viceroy_unpacked_2.c:85822-86564)
+ * for the part that's genuinely resolved (raw lines 85872-86064 — the
+ * difficulty-scaled treasury bump and the weak-vs-rival / no-ships /
+ * cargo-short gate cascade); callees stay stubbed throughout, per request.
+ *
+ * Resolved this pass (cross-referenced against save_format_map.md /
+ * col1_save.h / euro_g_table_0a60.md — see those for the trace): year/
+ * turn/difficulty (col1->head), nation.gold (32-bit, direct — the DOS body
+ * does manual 16-bit lo/hi carry arithmetic on nation+0x2a/+0x2c that the
+ * already-32-bit Linux `gold` field doesn't need), the per-nation census
+ * block (colony_counts/ship_counts/colony_pop_totals/armed_ship_counts/
+ * ship_cargo_totals/census_pop_proxy — col1_save.h `ColonizeCol1Stuff`),
+ * unit_type_counts[nation][16]/[17], DS:0x5382 bit0 (col1_save.h documents
+ * this bit as `game_options.woi` — declared independence — which conflicts
+ * with an older, looser "NEW WORLD path" comment in euro_dispatcher.c /
+ * SYMBOL_MAP.md for the *same* bit; not reconciled here, flagged at the
+ * one call site below that depends on it), FUN_281f_09fc(building_index)
+ * confirmed elsewhere (euro_unit_act.md) as `has_building` indexed by
+ * NAMES.TXT `@BUILDING` file order — index 0xd in that order is "College"
+ * (cross-checked against that same doc's independently-confirmed index
+ * 0x24 = "Lumber Mill"), FUN_281f_0808 confirmed as `destroy_unit`
+ * (move_scoring_ship.md).
+ *
+ * Deliberately NOT re-ported this pass: raw lines 86065-86564 (the Europe
+ * hire ladder + profession/reward loop tail, ~500 raw lines). Traced
+ * enough to see it's the same mechanic `ai_euro.c`'s existing extensive
+ * "5d04" thin-hire coverage (peace tools/wagon matrix, war Soldier/
+ * Dragoon/Artillery hire, buy ladder, `AiEuroInventory.profession_demand`
+ * already wired) already approximates — re-transcribing it blind risks
+ * duplicating/conflicting with that tested behavior rather than adding
+ * value, the same "scope down after inspection" call the 0a60 structural
+ * pilot made. Its own callees (FUN_281f_07e0/02e4/0b78/0c9a/095c/0be6/
+ * 0c68/0aec, FUN_291f_0b26/0afc/0c3e/09ea/0a2e/0ec2/0d8e/0dc6/0c14,
+ * FUN_1d1d_0ec6, FUN_281f_0aba) stay unresolved.
+ *
+ * Live now: only the treasury bump (`ai_euro_5d04_treasury_bump`) replaces
+ * the old function's simplified formula, called from both this function
+ * and `ai_euro_nation_planning` below. The gate cascade
+ * (`ai_euro_5d04_compute_flags`) is a faithful reference implementation —
+ * computed, logged nowhere, not yet gating any mutation — since its two
+ * real consumers (bVar5 feeds the deferred hire ladder; the destroy-unit
+ * branch is a live-side-effecting op this first pass deliberately keeps
+ * stubbed per "be safe").
+ * ======================================================================== */
+
+/* DS:0x9796/0x97a8/0x97ae — per-scenario gold-floor candidates 5d04 uses to
+ * clamp a nation's treasury up to a minimum ("catch-up" gold). No writer or
+ * table content ever captured (same class as the 0a60 pilot's DS:0x523d
+ * capability bitmask — unrecoverable binary resource data) — inert 0 (no
+ * floor bump) rather than an invented number. */
+static uint32_t ai_euro_5d04_ph_gold_floor(int which) {
+  (void)which;
+  return 0;
+}
+
+/* DS:0xa89a/0xa89b/0x9e52/0x9e54 — global "weakest rival" census/defense
+ * crumbs (census_tally.md / nation_eot_ship_spawn.md: "filled by
+ * 4962_0018"); no writer traced from this function's own call graph.
+ * Inert 0. */
+static int ai_euro_5d04_ph_rival_crumb(int which) {
+  (void)which;
+  return 0;
+}
+
+/* FUN_281f_09fc(building_index) on a scanned colony — "does this colony
+ * have building #N" (mechanism confirmed, see header). Kept as a stub
+ * rather than wired live: 5d04's own use of the result (bVar5) only feeds
+ * the still-deferred hire-ladder section, so wiring it for real would be
+ * effort spent on a value nothing downstream reads yet. */
+static int ai_euro_5d04_stub_colony_has_building(
+  const ColonizeColony* colony, int building_index
+) {
+  (void)colony;
+  (void)building_index;
+  return 0;
+}
+
+/* FUN_281f_0808 — destroy_unit (identity confirmed, see header). Real
+ * mechanism, but destroying a live unit is exactly the side effect "be
+ * safe" argues against wiring on a first pass — especially since the
+ * gating condition it sits behind (DS:0x5382 bit0) has the unreconciled
+ * woi-vs-"NEW WORLD" ambiguity noted above. Stub: no-op. */
+static void ai_euro_5d04_stub_destroy_unit(int unit_id) {
+  (void)unit_id;
+}
+
+/* First own unit matching the raw body's `(owner==nation) && (type==0x12)`
+ * scan (candidate DOS "NEW WORLD wagon", per euro_dispatcher.c's existing
+ * comment on this exact call site) — genuinely unresolved (no confirmed
+ * DOS-type-id -> Linux-type mapping for id 0x12). Stub: "none found", so
+ * the destroy branch below it never fires. */
+static int ai_euro_5d04_stub_find_new_world_wagon(
+  const ColonizeTurnContext* ctx, int nation_id
+) {
+  (void)ctx;
+  (void)nation_id;
+  return -1;
+}
+
+/*
+ * Raw decomp 85878-85899 (verbatim control flow): difficulty-scaled
+ * per-turn treasury bump. local_12 = colony_counts[n] + (year-1500)/50,
+ * zeroed before turn 20, doubled past year 1699; local_2e = difficulty *
+ * local_12, scaled *1.5 at difficulty 3, *2 at difficulty 4; gold +=
+ * local_2e*4.
+ */
+static void ai_euro_5d04_treasury_bump(ColonizeTurnContext* ctx, int nation_id) {
+  if (!ctx || !ctx->col1 || nation_id < 0 || nation_id >= 4) {
+    return;
+  }
+  ColonizeCol1Nation* nat = &ctx->col1->nation[nation_id];
+  const ColonizeCol1Head* head = &ctx->col1->head;
+  const int colony_count = ctx->col1->stuff.colony_counts[nation_id];
+
+  int local_12 = colony_count + ((int)head->year - 1500) / 50;
+  if ((int)head->turn < 20) {
+    local_12 = 0;
+  }
+  if ((int)head->year > 0x6a3) { /* 1699 */
+    local_12 <<= 1;
+  }
+  int local_2e = (int)head->difficulty * local_12;
+  if (head->difficulty == 3) {
+    local_2e = (local_2e >> 1) + local_2e; /* *1.5 */
+  } else if (head->difficulty == 4) {
+    local_2e <<= 1; /* *2 */
+  }
+  nat->gold += (uint32_t)(local_2e * 4);
+}
+
+static int nat_gold_ge(const ColonizeTurnContext* ctx, int nation_id, uint32_t threshold) {
+  return ctx->col1->nation[nation_id].gold >= threshold;
+}
+
+/* Raw decomp 85973-86002: raise gold to `floor` if it's currently lower
+ * (a per-flag "catch-up" clamp). Real mechanism, inert while
+ * `ai_euro_5d04_ph_gold_floor` returns 0. */
+static void ai_euro_5d04_apply_gold_floor(ColonizeTurnContext* ctx, int nation_id, uint32_t floor) {
+  ColonizeCol1Nation* nat = &ctx->col1->nation[nation_id];
+  if (nat->gold < floor) {
+    nat->gold = floor;
+  }
+}
+
+/* Raw decomp 85900-86064 gate cascade — computed reference values, not yet
+ * wired to a mutation (see file header). bVar5/no_ships/weak_vs_euro/
+ * weak_vs_indian/no_clear_navy/cargo_short name the raw bVar5/21/22/23/24/7
+ * booleans in call order. */
+typedef struct Ai5d04PlanningFlags {
+  int has_college;    /* bVar5 */
+  int no_ships;        /* bVar21 */
+  int weak_vs_euro;     /* bVar22 */
+  int weak_vs_indian;    /* bVar23 */
+  int no_clear_navy;     /* bVar24 */
+  int cargo_short;       /* bVar7 */
+} Ai5d04PlanningFlags;
+
+static Ai5d04PlanningFlags ai_euro_5d04_compute_flags(
+  ColonizeTurnContext* ctx, int nation_id
+) {
+  Ai5d04PlanningFlags f;
+  memset(&f, 0, sizeof(f));
+  if (!ctx || !ctx->col1 || !ctx->colonies || nation_id < 0 || nation_id >= 4) {
+    return f;
+  }
+  const ColonizeCol1Head* head = &ctx->col1->head;
+  const ColonizeCol1Stuff* stuff = &ctx->col1->stuff;
+  const int turn = (int)head->turn;
+  const int woi = head->game_options.woi != 0;
+
+  /* bVar5: any own colony has building index 0xd (College). */
+  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+    const ColonizeColony* c = &ctx->colonies->colonies[i];
+    if (c->active && c->nation_id == nation_id &&
+        ai_euro_5d04_stub_colony_has_building(c, 0xd)) {
+      f.has_college = 1;
+      break;
+    }
+  }
+
+  /* WoI-bit-gated scan: destroy this nation's first "NEW WORLD wagon" if
+   * one exists (raw 85909-85921; DS:0x53de bump has no live consumer in
+   * this pass's scope, dropped). */
+  if (woi) {
+    const int wagon = ai_euro_5d04_stub_find_new_world_wagon(ctx, nation_id);
+    if (wagon >= 0) {
+      ai_euro_5d04_stub_destroy_unit(wagon);
+    }
+  }
+
+  f.no_ships = stuff->ship_counts[nation_id] == 0;
+
+  /* local_3c: avg (over the other 3 nations) of unit_type_counts[.][16] +
+   * unit_type_counts[.][17]*4, >>2 (raw divides by 4 regardless of the
+   * 3-term sum — kept literal). Zeroed under WoI. */
+  int local_3c = 0;
+  for (int n = 0; n < 4; ++n) {
+    if (n == nation_id) {
+      continue;
+    }
+    local_3c += stuff->unit_type_counts[n][16] + stuff->unit_type_counts[n][17] * 4;
+  }
+  local_3c >>= 2;
+  if (woi) {
+    local_3c = 0;
+  }
+
+  const int col_half = stuff->colony_counts[nation_id] >> 1;
+  const int pop_half = stuff->colony_pop_totals[nation_id] >> 1;
+  const int focus_nation = head->human_player;
+  const int focus_ok = focus_nation >= 0 && focus_nation < 4;
+
+  /* bVar22: weak vs the other 3 Euro nations (raw 85934-85952). */
+  f.weak_vs_euro = 0;
+  if (!((ai_euro_5d04_ph_rival_crumb(0xa89b) == 0 && ai_euro_5d04_ph_rival_crumb(0xa89a) == 0) ||
+        local_3c == 0)) {
+    int reach_weak_check = 0;
+    if (ai_euro_5d04_ph_rival_crumb(0xa89b) < col_half &&
+        ai_euro_5d04_ph_rival_crumb(0x9e52) < pop_half) {
+      if (turn > 200 && nat_gold_ge(ctx, nation_id, 2000)) {
+        reach_weak_check = 1;
+      }
+    } else {
+      reach_weak_check = 1;
+    }
+    if (reach_weak_check && focus_ok) {
+      f.weak_vs_euro = stuff->unit_type_counts[nation_id][17] == 0 &&
+                        stuff->unit_type_counts[focus_nation][17] != 0;
+    }
+  }
+
+  /* bVar23: weak vs the Indian side (raw 85953-85971). */
+  f.weak_vs_indian = 0;
+  if (((ai_euro_5d04_ph_rival_crumb(0xa89a) != 0 || ai_euro_5d04_ph_rival_crumb(0xa89b) != 0)) &&
+      local_3c != 0 && !f.weak_vs_euro) {
+    int reach = 0;
+    if (ai_euro_5d04_ph_rival_crumb(0xa89a) < col_half &&
+        ai_euro_5d04_ph_rival_crumb(0x9e54) < pop_half) {
+      if (turn > 100 && nat_gold_ge(ctx, nation_id, 1000)) {
+        reach = 1;
+      }
+    } else {
+      reach = 1;
+    }
+    if (reach && focus_ok) {
+      f.weak_vs_indian = stuff->unit_type_counts[nation_id][16] < 2 &&
+                          stuff->unit_type_counts[focus_nation][16] != 0;
+    }
+  }
+
+  /* Gold-floor-max: raise gold to a per-scenario candidate under each flag
+   * (raw 85973-86002). Stub floors are 0 — always a no-op here. */
+  if (f.no_ships) {
+    ai_euro_5d04_apply_gold_floor(ctx, nation_id, ai_euro_5d04_ph_gold_floor(0x9796));
+  }
+  if (f.weak_vs_indian) {
+    ai_euro_5d04_apply_gold_floor(ctx, nation_id, ai_euro_5d04_ph_gold_floor(0x97a8));
+  }
+  if (f.weak_vs_euro) {
+    ai_euro_5d04_apply_gold_floor(ctx, nation_id, ai_euro_5d04_ph_gold_floor(0x97ae));
+  }
+
+  /* bVar24: no clear strongest navy (raw 86003-86024). */
+  uint8_t max_armed = 0;
+  for (int n = 0; n < 4; ++n) {
+    if (stuff->armed_ship_counts[n] > max_armed) {
+      max_armed = stuff->armed_ship_counts[n];
+    }
+  }
+  int tied = 0;
+  for (int n = 0; n < 4; ++n) {
+    if (stuff->armed_ship_counts[n] == max_armed) {
+      tied++;
+    }
+  }
+  f.no_clear_navy =
+    f.weak_vs_euro || stuff->armed_ship_counts[nation_id] < max_armed || tied > 1;
+
+  /* bVar7: cargo/passenger space short (raw 86025-86029). */
+  f.cargo_short =
+    stuff->ship_cargo_totals[nation_id] <= ((pop_half + stuff->colony_counts[nation_id] * 2) >> 1) &&
+    !woi;
+
+  return f;
+}
+
 static void ai_euro_nation_planning(ColonizeTurnContext* ctx, int nation_id) {
   if (!ctx || !ctx->col1_ok || !ctx->col1 || nation_id < 0 || nation_id >= 4) {
     return;
@@ -6889,8 +7179,8 @@ static void ai_euro_nation_planning(ColonizeTurnContext* ctx, int nation_id) {
   ColonizeCol1Nation* nat = &ctx->col1->nation[nation_id];
   AiEuroInventory* inv = ai_goals_inventory(nation_id);
   const int diff = ctx->col1->head.difficulty;
-  const unsigned bump = 10u + (unsigned)(4 - diff) * 5u + (inv ? (unsigned)inv->urgency : 0u);
-  nat->gold += bump;
+  ai_euro_5d04_treasury_bump(ctx, nation_id);
+  (void)ai_euro_5d04_compute_flags(ctx, nation_id); /* reference-only, see header */
 
   /*
    * NEW WORLD wagon / mid-game hire matrix — thin 5d04 slice (full ~748 PARKED).
