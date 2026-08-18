@@ -132,7 +132,7 @@ meet/king cinematic UI.
 
 | Cluster | Linux entry | Fidelity bar |
 |---------|-------------|--------------|
-| Euro dispatcher + goals + hire | `ai_euro_dispatcher_turn` (`ai_euro.c`) | **Partial structural** 6d8e; full dispatch **default**; fixture via `AI_EURO_EARLY_FIXTURE=1` |
+| Euro dispatcher + goals + hire | `ai_euro_dispatcher_turn` (`ai_euro.c`) | **6d8e shell itself: done** (sticky anti-spin, wave order, treaty timers, ship follow-up all byte-faithful); overall row is partial only because callees (`5d04`/`0a60`/`5b66`/`20e6`) are; full dispatch **default**, fixture via `AI_EURO_EARLY_FIXTURE=1` |
 | Euro unit act + scoring | `ai_euro_unit_act` / ocean `20e6` branch | **Partial** 5b66 case 0x0b + naval score; land/combat `20e6` **OPEN** (unpark #4) |
 | Diplomacy | `ai_diplo_*` (`ai_diplo.c`) | Bilateral peer bytes + war/ally; see R3.5 |
 | Indian nation + contact | `ai_indian_nation_turn` + `ai_contact_*` | Alarm/relations/missions/meet/trade T0 |
@@ -301,7 +301,7 @@ unannotated bodies.
 | `FUN_4d56_1816` full body | `ai_indian_nation_turn` | Structural phases (prelude → growth → relation → pulse → meet/raid); quiet T2 overlays; thin maps `indian_contact.md` |
 | Per-unit indian act | pulse / residual | Quiet path; residual only on pulse≠golden; DOS thunk `func_0x00042191` → annotated stub `indian_unit_act` |
 | `@RAID*` / meet / mission | `ai_contact_*` | **Partial structural** — `@RAID*` + `5bfb` meet; player dialogs **Done** structural (`ai_popup`); `2820` AI-buy-offer price **Done** (see `indian_trade_2820.md`); `4528` **mapped**, deep body still port PARKED; VGA PARKED |
-| `FUN_521d_6d8e` | `ai_euro_dispatcher_turn` / fixture | **Partial structural** 6d8e; T2 seed-100 fixture |
+| `FUN_521d_6d8e` | `ai_euro_dispatcher_turn` / fixture | **Shell done** (not thin — full control flow ported: sticky anti-spin, wave order, treaty timers, ship follow-up); "partial" is inherited from callees `5d04`/`0a60`/`5b66`/`20e6`, not `6d8e` itself; T2 seed-100 fixture |
 | `FUN_521d_0000`…`0906` | `ai_goals_*` | T0 goal tables |
 | `FUN_521d_0a60` | `ai_euro_colony_goals` | T0 condensed phases |
 | `FUN_521d_5d04` | `ai_euro_nation_planning` | T0 treasury + Europe hire |
