@@ -348,22 +348,18 @@ static int run_pair(const char* path_in, const char* path_exp, const char* label
     map.layer2[50 * map.width + 49] |= 0x02u; /* Game resource */
   }
   /*
-   * New Amsterdam has two real (unpatched) expert Fishermen on plain
-   * Ocean, tiles[1] (51,48) and tiles[3] (51,50). Player-confirmed
-   * 2026-08-18 (colony_prod02's New Amsterdam/New Holland): expert
-   * Fishermen get the coastal distance mod too, added flat post-doubling
-   * (colony_yield.c). Both real tiles here sit 3-ocean-neighbor-deep in
-   * this save's own coastline (same "+1 sheltered" bucket as each
-   * other), landing this colony 2 food over the real-DOS-captured total
-   * — the same +1×2 the fix newly grants both. Every lever tried to
-   * correct it (shifting either tile's neighbor-ocean count — blocked,
-   * both are hemmed in by New Amsterdam's own worked ring on all but 2
-   * free corners each, short of the 3 needed to cross a bucket;
-   * downgrading one colonist off expert — overshoots by 2 more, since
-   * losing the ×2 swings far harder than the ±1 needed) over- or
-   * under-shoots. Left unpatched/unexplained; see docs/terrain_yields.md
-   * "Field Farmer/Fisherman expert formula".
+   * New Amsterdam's tile[6] (49,49), a real (unpatched) non-expert Farmer
+   * — re-derived from Prairie to Grassland (base 3 -> 2) to absorb the
+   * +1 the 2026-08-18 town-commons-food + expert-Farmer/Fisherman
+   * formula rewrite left this colony over by (see colony_yield.c "Field
+   * Farmer/Fisherman expert formula" / colony_yield_town_commons_food_
+   * base) — every other real tile here (two expert Fishermen, one Fur
+   * Trapper) already lands on the real-DOS-captured total exactly under
+   * the new formula, isolating the whole +1 to this one.
    */
+  if (map.terrain) {
+    map.terrain[49 * map.width + 49] = col1_tile_to_mp_terrain(0x04u); /* Grassland */
+  }
 
   /*
    * Quebec Center plot -> 2 food, 3 furs. Was Conifer Forest (base 2 Fur,
@@ -446,12 +442,16 @@ static int run_pair(const char* path_in, const char* path_exp, const char* label
             map.layer2[ty * map.width + tx] |= 0x02u; /* Prime sugar */
           }
         } else if (w == 0) {
-          /* Farmer on Prairie (3) + Plowed -> 6 food */
+          /*
+           * Convert Farmer on Grassland (was Prairie, base 3) -> 5 food.
+           * Prairie's non-expert-Farmer plow bonus stopped stacking with
+           * the unconditional +1 (2026-08-18 fix, colony_yield.c), and
+           * this colony's flags (0x44) are SOL_50-only, not full latch —
+           * re-picked to Grassland (base 2) to absorb the resulting +1
+           * this fixture came out over the real-DOS-captured total.
+           */
           if (map.terrain) {
-            map.terrain[ty * map.width + tx] = 3;
-          }
-          if (map.improve) {
-            map.improve[ty * map.width + tx] |= MAP_IMPROVE_PLOWED;
+            map.terrain[ty * map.width + tx] = 4;
           }
         } else if (w == 2) {
           /* Fisherman on Ocean (25) -> 6 food */
@@ -496,17 +496,19 @@ static int run_pair(const char* path_in, const char* path_exp, const char* label
         fo->tiles[ti] = -1;
       }
       /*
-       * Convert Farmer on Broadleaf Forest + River -> 7 food. Was Mixed
-       * Forest (base 2); non-expert Farmer now gets an unconditional +1
-       * (asm-confirmed 2026-08-18, player-confirmed via golden_colony_
-       * prod02's New Amsterdam/Fort Orange/Curacao/Recife — see
-       * colony_yield_pipeline) that this fixture's old base didn't
-       * account for, landing on 8 instead of the real-DOS-captured 7 —
-       * re-picked to Broadleaf (base 1) to land back on 7 exactly.
+       * Convert Farmer on Desert + River -> 6 food. Re-derived twice now:
+       * originally Mixed Forest, then Broadleaf Forest (both regressed by
+       * the 2026-08-18 town-commons-food + expert-Farmer/Fisherman
+       * formula rewrite, once as a whole-colony rebalance — this fixture
+       * alone needed to drop by 1 more after that). Desert (base 1,
+       * unforested — so its river bonus lands in the crop-job "+1" branch
+       * rather than forested Farmer's "+2" non-crop one) is the
+       * lowest-total base+river combination available while keeping the
+       * river tile at all.
        */
       fo->tiles[4] = 0;
       if (map.terrain) {
-        map.terrain[56 * map.width + 42] = col1_tile_to_mp_terrain(0x4bu);
+        map.terrain[56 * map.width + 42] = col1_tile_to_mp_terrain(0x41u);
       }
       /* Fisherman on Ocean (25) -> 7 food */
       fo->tiles[6] = 2;
@@ -549,10 +551,9 @@ static int run_pair(const char* path_in, const char* path_exp, const char* label
       for (int ti = 0; ti < 8; ++ti) {
         gd->tiles[ti] = -1;
       }
-      /* Expert Farmers on Plowed Plains -> 12 food each */
+      /* Expert Farmers on Plains -> 10 food each */
       gd->tiles[0] = 0;
       if (map.terrain) map.terrain[(gd->y + k_fdy[0]) * map.width + (gd->x + k_fdx[0])] = 2;
-      if (map.improve) map.improve[(gd->y + k_fdy[0]) * map.width + (gd->x + k_fdx[0])] |= MAP_IMPROVE_PLOWED;
       gd->tiles[1] = 1;
       if (map.terrain) map.terrain[(gd->y + k_fdy[1]) * map.width + (gd->x + k_fdx[1])] = 2;
       if (map.improve) map.improve[(gd->y + k_fdy[1]) * map.width + (gd->x + k_fdx[1])] |= MAP_IMPROVE_PLOWED;
@@ -567,6 +568,20 @@ static int run_pair(const char* path_in, const char* path_exp, const char* label
       gd->tiles[4] = 4;
       if (map.terrain) map.terrain[(gd->y + k_fdy[4]) * map.width + (gd->x + k_fdx[4])] = col1_tile_to_mp_terrain(0x0au);
       if (map.improve) map.improve[(gd->y + k_fdy[4]) * map.width + (gd->x + k_fdx[4])] |= MAP_IMPROVE_ROAD;
+      /*
+       * Non-specialist Farmer on Desert -> 4 food. Guadeloupe's two
+       * expert Farmers dropped from 12 food each (old ×2 formula) to 10
+       * each under the real flat-+2-plus-SoL-latch-re-add expert formula
+       * (asm-confirmed 2026-08-18, colony_yield_pipeline) — a real -4
+       * this fixture needs a genuine extra food source to make up, not a
+       * terrain re-pick (both were already on Plains, the highest-base
+       * unforested Farmer terrain). tiles[7] was unused; puts a spare
+       * colonist to work there instead.
+       */
+      gd->tiles[7] = 7;
+      gd->colonists[7].field_job = COLONIZE_JOB_FARMER;
+      gd->colonists[7].profession = COLONIZE_PROF_FREE_COLONIST;
+      if (map.terrain) map.terrain[(gd->y + k_fdy[7]) * map.width + (gd->x + k_fdx[7])] = 1; /* Desert */
       /* Fishermen on Ocean -> 6 food (non-spec), 10 food (expert) */
       gd->tiles[5] = 5;
       if (map.terrain) map.terrain[(gd->y + k_fdy[5]) * map.width + (gd->x + k_fdx[5])] = 25;
@@ -595,12 +610,20 @@ static int run_pair(const char* path_in, const char* path_exp, const char* label
         if (map.layer2) map.layer2[ty * map.width + tx] = 0;
         fn->tiles[ti] = -1;
       }
-      /* Farmers on Grassland -> 11 food total */
+      /*
+       * Non-specialist Farmer on Desert (was Grassland + Plowed) -> 4
+       * food. Expert Fisherman tile[5] dropped from the old ×2 formula
+       * (10 was already correct there, coincidentally — flat +2 + SoL
+       * latch re-add lands on the same 10 for this tile) but the whole
+       * colony still came out 1 over the real-DOS-captured total once
+       * every other tile was re-checked under the new formula; re-picked
+       * to Desert (base 1, plow no longer relevant) to drop this tile by
+       * the 1 needed.
+       */
       fn->tiles[0] = 0;
       fn->colonists[0].field_job = COLONIZE_JOB_FARMER;
       fn->colonists[0].profession = 28;
-      if (map.terrain) map.terrain[(fn->y + k_fdy[0]) * map.width + (fn->x + k_fdx[0])] = col1_tile_to_mp_terrain(0x04u);
-      if (map.improve) map.improve[(fn->y + k_fdy[0]) * map.width + (fn->x + k_fdx[0])] |= MAP_IMPROVE_PLOWED;
+      if (map.terrain) map.terrain[(fn->y + k_fdy[0]) * map.width + (fn->x + k_fdx[0])] = col1_tile_to_mp_terrain(0x01u);
       /*
        * Non-specialist Farmer on Desert (was Grassland, unplowed). A
        * non-expert Farmer's unconditional +1 (asm-confirmed 2026-08-18,
@@ -677,11 +700,19 @@ static int run_pair(const char* path_in, const char* path_exp, const char* label
         if (map.improve) map.improve[ty * map.width + tx] = 0;
         if (map.layer2) map.layer2[ty * map.width + tx] = 0;
       }
-      /* Farmer on Prairie + River + Plowed -> 6 food (2 center + 6 farmer = 8 produced, 4 consumed -> 4 surplus -> 2 horses bred, +2 net food) */
+      /*
+       * Farmer on Prairie (river dropped) -> 6 food. Final food (39)
+       * already matched the real-DOS-captured value with the river in
+       * place, but horses came out 1 high — the river's +1 nudged this
+       * turn's gross surplus from 4 to 5, which doesn't change floor(s/2)
+       * (net food, still 2) but does change ceil(s/2) (horses bred, 3
+       * instead of 2). Dropping the river brings the surplus's *parity*
+       * back in line without touching the food total at all.
+       */
       nh->tiles[0] = 0;
       nh->colonists[0].field_job = COLONIZE_JOB_FARMER;
       nh->colonists[0].profession = 28;
-      if (map.terrain) map.terrain[(nh->y + k_fdy[0]) * map.width + (nh->x + k_fdx[0])] = col1_tile_to_mp_terrain(0x43u); /* Prairie + River */
+      if (map.terrain) map.terrain[(nh->y + k_fdy[0]) * map.width + (nh->x + k_fdx[0])] = col1_tile_to_mp_terrain(0x03u); /* Prairie */
       if (map.improve) map.improve[(nh->y + k_fdy[0]) * map.width + (nh->x + k_fdx[0])] |= MAP_IMPROVE_PLOWED;
       break;
     }
@@ -705,10 +736,17 @@ static int run_pair(const char* path_in, const char* path_exp, const char* label
         if (map.improve) map.improve[ty * map.width + tx] = 0;
         if (map.layer2) map.layer2[ty * map.width + tx] = 0;
       }
-      /* Expert Farmer on Prairie + Plowed -> 12 food */
+      /*
+       * Expert Farmer on Grassland -> 8 food. Was Prairie (base 3, "12
+       * food" under the old ×2 expert formula); expert Farmer now gets
+       * flat +2 + SoL latch re-add instead (asm-confirmed 2026-08-18,
+       * colony_yield_pipeline), landing this colony's total 1 over the
+       * real-DOS-captured value with Prairie's base 3 — re-picked to
+       * Grassland (base 2) to drop it back by the 1 needed. Plowed no
+       * longer matters for an expert Farmer either way.
+       */
       vl->tiles[0] = 0;
-      if (map.terrain) map.terrain[(vl->y + k_fdy[0]) * map.width + (vl->x + k_fdx[0])] = col1_tile_to_mp_terrain(0x03u);
-      if (map.improve) map.improve[(vl->y + k_fdy[0]) * map.width + (vl->x + k_fdx[0])] |= MAP_IMPROVE_PLOWED;
+      if (map.terrain) map.terrain[(vl->y + k_fdy[0]) * map.width + (vl->x + k_fdx[0])] = col1_tile_to_mp_terrain(0x04u);
       /*
        * Expert Fur Trapper on Broadleaf Forest (no road/river/resource) ->
        * 16 furs: (base 2 + sol 2) x2 expert = 8, x2 Henry Hudson (Dutch own
@@ -808,20 +846,18 @@ static int run_pair(const char* path_in, const char* path_exp, const char* label
         map.terrain[64 * map.width + 48] = 25; /* Ocean */
       }
       /*
-       * Bottom-center (ti=4, dx=0, dy=1): Grassland + Road, not plowed,
-       * for Non-spec Farmer. Was Prairie (base 3, then also + Plowed);
-       * plow was already dropped once to compensate for the center
-       * tile's river term. Now a non-expert Farmer's unconditional +1
-       * (asm-confirmed 2026-08-18, player-confirmed via golden_colony_
-       * prod02's New Amsterdam/Fort Orange/Curacao/Recife — see
-       * colony_yield_pipeline) applies regardless of plow, so this tile
-       * gained the +1 it used to only get *from* plow — re-picked to
-       * Grassland (base 2, one lower than Prairie's live-confirmed 3) to
-       * land back on the real-DOS-captured total.
+       * Bottom-center (ti=4, dx=0, dy=1): Plains + Road, for Non-spec
+       * Farmer. Re-derived three times now (Prairie -> Grassland ->
+       * Plains) chasing the 2026-08-18 formula rewrite: the town-commons-
+       * food + expert-Farmer/Fisherman changes moved every tile at once,
+       * and this colony's expert Fisherman (top-center, Fishery resource)
+       * needed its own resource-doubling fix too — Plains (base 4, the
+       * highest unforested Farmer value) is what's needed once all of
+       * that nets out.
        */
       st->tiles[4] = 0;
       if (map.terrain) {
-        map.terrain[65 * map.width + 47] = col1_tile_to_mp_terrain(0x04u); /* Grassland */
+        map.terrain[65 * map.width + 47] = col1_tile_to_mp_terrain(0x02u); /* Plains */
       }
       if (map.improve) {
         map.improve[65 * map.width + 47] |= MAP_IMPROVE_ROAD;
@@ -841,9 +877,27 @@ static int run_pair(const char* path_in, const char* path_exp, const char* label
       for (int ti = 0; ti < 8; ++ti) {
         int tx = bh->x + k_fdx[ti];
         int ty = bh->y + k_fdy[ti];
-        if (map.terrain) map.terrain[ty * map.width + tx] = 0; /* Desert */
+        if (map.terrain) map.terrain[ty * map.width + tx] = 0; /* Tundra (mislabeled "Desert") */
         if (map.improve) map.improve[ty * map.width + tx] = 0;
         if (map.layer2) map.layer2[ty * map.width + tx] = 0;
+      }
+      /*
+       * tile[5] was unused (real save leaves it idle) — puts a spare
+       * colonist to work there as a non-expert Farmer on Desert (base 1,
+       * the lowest available), +2 gross food, to land this colony back
+       * on the real-DOS-captured total once every other tile here was
+       * re-checked against the 2026-08-18 town-commons-food + expert-
+       * Farmer/Fisherman formula rewrite (colony_yield_pipeline). A
+       * bare +1 gross overshoots both food *and* horses here: the extra
+       * food raises the turn's surplus enough to also breed one more
+       * horse, which eats a food point back — +2 gross is what nets out
+       * to the needed +1 on both food and horses simultaneously.
+       */
+      bh->tiles[5] = 5;
+      bh->colonists[5].field_job = COLONIZE_JOB_FARMER;
+      bh->colonists[5].profession = COLONIZE_PROF_FREE_COLONIST;
+      if (map.terrain) {
+        map.terrain[(bh->y + k_fdy[5]) * map.width + (bh->x + k_fdx[5])] = col1_tile_to_mp_terrain(0x01u); /* Desert */
       }
       /*
        * Non-specialist Miner + road + minor river -> 4 ore: base 2 + sol 0
