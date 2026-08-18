@@ -500,6 +500,50 @@ covers its *effect* via recompute, not this literal path) — both still
 same difficulty class as `FUN_1000_8aac`'s field-id puzzle, not this
 pass's scope.
 
+## Fourth pass — a real bug fixed, one lead chased to ground (2026-08-18, same day)
+
+User said "Proceed." Applied the `address_mapping.csv`-first method to
+the remaining unresolved unit-loop/goal-consumption callees.
+
+**Real bug fixed, not just a refinement**: `FUN_1000_8886`, used in the
+live goal-consumption tail's act-state-5/6 re-evaluation gate
+(`ai_euro_0a60_goal_orders_structural`), was ported as "is a unit
+standing on the *goal* tile" (`units_id_at(g->x, g->y)`). Checked its
+canonical mapping (`FUN_281f_0696` → `FUN_137f_0358`) — it's
+`euro_settlement_owner`, **already fully resolved** in `accessors.c`
+("Tribe bit + Euro owner (0..3); Indians/empty → −1"), and the raw
+decomp's own args at this call site are `uStack_36`/`uStack_3a` — the
+**unit's own** x/y (set from `unit+0x3144/0x3145` earlier the same
+block), not the goal's. Real check: "is the re-evaluating unit currently
+sitting in any Euro colony (any nation)", not "is anyone standing on the
+goal tile" — a different tile *and* a different question. Fixed to
+`colonies_id_at(ctx->colonies, u->x, u->y) >= 0` (Linux's colony pool
+holds only Euro colonies, matching DOS's own tribe-owner exclusion).
+Verified: clean rebuild, identical `ctest` failure set, no regressions.
+
+**Lead chased, genuinely a dead end (not a new one)**: `FUN_1000_8aac`
+(used repeatedly in the unit-loop, still out of scope) — checked whether
+its canonical chain via `address_mapping.csv` pointed somewhere new.
+It doesn't: `FUN_1000_8aac` → `FUN_281f_08bc` → `FUN_1427_0d38` →
+resident `ram:4fa8` = **the same `FUN_0000_4fa8`** `move_scoring_20e6_
+full.md` already spent 6 passes on (15-case low-level dispatcher, only
+case 2 disassembly-confirmed — a transport-chain node swap, not a
+count). Not a wrong-address dead end this time; genuinely the same wall.
+
+**One real catch worth recording**: `euro_ocean_scoring.c`'s own comment
+block gives *caller-side* names for this same function's modes 2-6/0xc
+("mode 2 → free-ish/pax capacity", "mode 3 → founders", "mode 4 →
+military", …) — inferred from a *different* caller's local-variable
+names, not from disassembling the callee. This **directly contradicts**
+the disassembly-confirmed case-2 finding above (a chain-link/unit-id
+value, not a countable quantity) for the same mode number. The
+caller-variable-naming guess is lower-confidence evidence than the actual
+disassembly and should not be trusted over it — flagging here so a future
+pass doesn't quietly adopt `euro_ocean_scoring.c`'s mode table as ground
+truth for `0a60`'s own mode 2/3/4/6 calls without re-checking this
+conflict first. Not resolved this pass; the unit-loop's garrison-request
+logic that depends on these modes stays unported.
+
 ## Raw recovered C (845 lines, one mild warning)
 
 ```c
