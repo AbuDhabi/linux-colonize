@@ -8077,18 +8077,42 @@ static int ai_euro_0a60_ph_weight_seed(void) { return 50; }
  * DS:0x523d unit-type -> goal-code capability bitmask — confirmed (per
  * euro_goal_orders_0a60_full.md) to live in unrecoverable binary resource
  * data, same standing limitation as every other capability check in this
- * file. Mirror the file's existing convention (unit-name matching) rather
- * than accept-all, since accept-all would let e.g. a Galleon "pursue" a
- * LABOR goal. unit+0x3148's separate FOUND/MIL_EXPAND eligibility-bit
- * refinement (set earlier in the out-of-scope unit-loop section) is folded
- * in here rather than modeled as its own always-true gate.
+ * file. Mirror the file's existing convention (unit-name matching) for
+ * land units rather than accept-all, since accept-all would let e.g. a
+ * Galleon "pursue" a LABOR goal.
+ *
+ * unit+0x3148 bit2/bit3 (2026-08-18, resolved): the raw unit-loop (raw
+ * lines ~645-683, still otherwise out of scope) sets bit2 whenever a
+ * unit's own "stack" holds founders or military, bit3 specifically for
+ * military — gated `if (unit is ship-type)` for the refinement that
+ * matters here. `FUN_1000_8aac` modes 3/4/6 (the DOS "stack query" this
+ * reads) are NOT independently resolved at the disassembly level (same
+ * wall as `FUN_0000_4fa8`'s other cases — see file's "Fourth pass"), so
+ * this doesn't replicate DOS's own query mechanism; instead it computes
+ * the same *information* directly from Linux's real ship cargo hold
+ * (`cargo_ids[]`), which DOS's query would ultimately be reporting on
+ * anyway for a transport. Closes a real capability gap: previously ships
+ * could never satisfy FOUND/MIL_EXPAND at all (their names never match
+ * the land-unit name checks below), even when visibly carrying settlers
+ * or soldiers. Not modeled: DOS's "ship is full → also require every
+ * earlier-indexed ship in the same stack/fleet to be full too" fleet-
+ * coordination downgrade — a defensible superset (this port may let a
+ * not-yet-fully-loaded fleet's full ship pursue slightly earlier).
  */
-static int ai_euro_0a60_unit_can_pursue_goal(const char* name, int goal_code) {
+static int ai_euro_0a60_unit_can_pursue_goal(
+  const char* name, int goal_code, int is_ship, int ship_has_founders, int ship_has_military
+) {
   switch (goal_code) {
     case AI_GOAL_FOUND:
+      if (is_ship) {
+        return ship_has_founders || ship_has_military; /* unit+0x3148 bit2 */
+      }
       return ai_euro_name_is_pioneer(name) || (name && strstr(name, "Colonist") != NULL);
     case AI_GOAL_MIL_EXPAND:
     case AI_GOAL_MILITARY:
+      if (is_ship) {
+        return ship_has_military; /* unit+0x3148 bit3 */
+      }
       return ai_euro_is_military_name(name) || ai_euro_is_artillery_name(name);
     default:
       return 1; /* CONTACT/LABOR/COLONY/COLONY_ALT: no known DOS type gate here */
@@ -8174,6 +8198,23 @@ static void ai_euro_0a60_goal_orders_structural(ColonizeTurnContext* ctx, int na
     const int unit_is_ship = ai_euro_is_ship_type(ctx->units, ui);
     const int unit_continent = map_continent_id_at(ctx->map, u->x, u->y);
 
+    int ship_has_founders = 0;
+    int ship_has_military = 0;
+    if (unit_is_ship) {
+      for (int ci = 0; ci < u->cargo_count && ci < COLONIZE_UNIT_CARGO_MAX; ++ci) {
+        const ColonizeUnit* pax = units_get_const(ctx->units, u->cargo_ids[ci]);
+        if (!pax || !pax->active) {
+          continue;
+        }
+        const char* pn = units_display_name(ctx->units, pax);
+        if (ai_euro_is_military_name(pn) || ai_euro_is_artillery_name(pn)) {
+          ship_has_military = 1;
+        } else if (ai_euro_name_is_pioneer(pn) || (pn && strstr(pn, "Colonist") != NULL)) {
+          ship_has_founders = 1;
+        }
+      }
+    }
+
     if (!unit_is_ship && (strstr(uname ? uname : "", "Soldier") ||
                            strstr(uname ? uname : "", "Dragoon"))) {
       int colonies = 0;
@@ -8191,7 +8232,9 @@ static void ai_euro_0a60_goal_orders_structural(ColonizeTurnContext* ctx, int na
       if (!g || g->code == AI_GOAL_EMPTY) {
         continue;
       }
-      if (!ai_euro_0a60_unit_can_pursue_goal(uname, g->code)) {
+      if (!ai_euro_0a60_unit_can_pursue_goal(
+            uname, g->code, unit_is_ship, ship_has_founders, ship_has_military
+          )) {
         continue;
       }
       const int goal_continent = map_continent_id_at(ctx->map, g->x, g->y);
