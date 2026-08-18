@@ -400,34 +400,22 @@ static int colony_yield_pipeline(
   /* Crop improvements.
    * - Expert farmers on cleared land: skip here; expert doubling covers cleared land.
    * - Forested farmers with river: skip river here; handled by road/river below.
-   * - Non-expert Farmer: unconditional +1 that does *not* stack with plow
-   *   (a plowed and an unplowed non-expert Farmer tile get the same +1),
-   *   plus +1 more if river.
+   * - Non-expert Farmer: unconditional +1, plus +1 more if plowed, plus +1
+   *   more if river (all three stack).
    * - All other crop jobs: +1 if plowed or river.
    *
-   * FUN_15eb_18ec (~11950: `if (local_14 == 0) local_12 = local_c;`) sets
-   * this Farmer term fresh, unconditionally, not additively — the asm has
-   * no plow check feeding it at all. Two same-day attempts at this got
-   * the "stacks with plow" direction wrong before landing here: first
-   * tried stacking the unconditional +1 on top of this port's existing
-   * "plow OR river" (double-counted on any plowed tile, overshooting 9+
-   * previously-exact colonies by +1); then tried a from-scratch 3-term
-   * version with plow as its own separate add (still double-counted,
-   * same overshoot, on the theory that a LAYER2 bit near this in the asm
-   * was plow — but that bit's gate, `if (local_14 == 0)`, only matches
-   * Farmer regardless of plow, so a true plow check would have to be
-   * elsewhere). This version — unconditional +1, no separate plow term —
-   * is confirmed by *real*, previously-exact colonies in
-   * `golden_colony_prod02` that are specifically plowed non-expert
-   * Farmers: New Amsterdam (Desert, plowed, no river) and Fort Orange
-   * (Grassland, plowed, Convert) both need exactly +1 over base+SoL(+
-   * convert) — the *same* +1 the plow-less Curacao/Recife tiles that
-   * first surfaced this need, not +2. The only holdout is
-   * `test_units.c`'s runtime plow-tick test, which asserts plowing itself
-   * raises non-expert Farmer yield by +1 — not corroborated by any real
-   * capture, and contradicted by these two, so read as an unverified
-   * design assumption rather than ground truth; updated to match (see
-   * that file).
+   * 2026-08-18: an earlier version of this comment concluded plow does
+   * *not* stack with the unconditional +1, "confirmed" via New Amsterdam
+   * and Fort Orange's real golden_colony_prod02 aggregates. That was
+   * curve-fit against a wrong baseline: both colonies' aggregates were
+   * computed while town-commons' own plow term was still off by +1 (the
+   * +2-vs-+1 bug fixed the same day, see colony_yield_town_commons),
+   * which inflated their commons food by exactly +1 — the same +1 the
+   * "no stacking" reading was quietly absorbing. Once commons plow was
+   * corrected, both colonies came up short by +1 again; restoring the
+   * stacking +1 here (matching `test_units.c`'s original runtime
+   * plow-tick expectation, which this had also flipped) makes both real
+   * captures exact again.
    */
   if (colony_yield_is_crop_job(field_job)) {
     const bool forested_farmer = is_forested && field_job == COLONIZE_JOB_FARMER;
@@ -435,6 +423,9 @@ static int colony_yield_pipeline(
       if (field_job == COLONIZE_JOB_FARMER) {
         yield += 1;
         if (!forested_farmer && map_tile_has_river(map, x, y)) {
+          yield += 1;
+        }
+        if (map_tile_is_plowed(map, x, y)) {
           yield += 1;
         }
       } else {
@@ -671,9 +662,23 @@ void colony_yield_town_commons(
   const bool timber = (res == 10 || res == 11);
 
   int food = colony_yield_town_commons_food_base(pedia);
-  /* Plow applies to commons food on cleared land. */
+  /*
+   * Plow applies to commons food on cleared land: +1, not +2.
+   * Player-confirmed 2026-08-18 via two real, un-synthesized
+   * golden_colony_prod02 colonies (Guadeloupe, Vlissingen) whose own
+   * plowed-full-latch-class-3 town centers needed food 6, not the +2
+   * version's 7 — confirmed only once their real Fisherman tiles
+   * (mismatched-skill Ore Miner and Convert respectively) were checked
+   * against direct player-observed values and found already exact,
+   * isolating the gap to commons alone. This also exposed that Fort
+   * Orange's own real, plowed non-expert Farmer field tile had been
+   * under-credited by the same +1 elsewhere (the non-expert Farmer plow
+   * term was wrongly concluded not to stack — see the crop-improvements
+   * comment in colony_yield_pipeline); fixing both together reconciles
+   * Fort Orange (and New Amsterdam) exactly again.
+   */
   if (map_tile_is_plowed(map, x, y) && pedia >= 0 && pedia <= 7) {
-    food += 2;
+    food += 1;
   }
   /* River boosts commons food: +1 minor, +2 major (not the full farmer river
    * bonus which is doubled for field use). */
