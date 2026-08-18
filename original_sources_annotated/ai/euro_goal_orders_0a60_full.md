@@ -544,6 +544,68 @@ truth for `0a60`'s own mode 2/3/4/6 calls without re-checking this
 conflict first. Not resolved this pass; the unit-loop's garrison-request
 logic that depends on these modes stays unported.
 
+## Fifth pass — a real capability gap closed (2026-08-18, same day)
+
+User said "Continue." Went further into the unit-loop (raw lines
+~645-711) applying the same method, resolved several more supporting
+symbols along the way:
+
+- `FUN_1000_84de` → canonical `FUN_281f_02ee` → `FUN_1427_0002`
+  ("walk transport_next to stack head", per `FUNCTION_CATALOG.md`) —
+  confirms the unit-loop's `FUN_1000_84de`/`84d4` pair are the same
+  transport-chain-stack walk (to-head / one-step-down) already used
+  elsewhere (haul-score bonus, "Third pass").
+- `unit+0x3150` — already known project-wide as `holds_occupied` (cargo
+  count), cross-referenced via `euro_diplo_3180_full.md`. Combined with
+  the type-table `0x5237` (already known: "sail capacity" —
+  `move_scoring_ship.md`), the raw comparison
+  `type_table_5237[unit.type] == unit+0x3150` resolves cleanly as **"is
+  this ship's cargo hold completely full"** (`u->cargo_count ==
+  units_ship_capacity(...)` in Linux terms) — not the "type ==
+  personality" non-sequitur an unlabeled read would suggest.
+- `func_0x0001854c` (the `aiStack_1da` weight-seed initializer) —
+  attempted via `GhidraDecompileAt`; `createFunction` failed the same way
+  `FUN_1000_8f2a`'s wrong-guessed address did before the CSV lookup fixed
+  it, but this symbol has no `address_mapping.csv` row at all (unlike
+  every `FUN_1000_*`/`FUN_281f_*` name so far) — genuinely unresolved,
+  not a repeat of the same mistake. Left as the existing fixed-50
+  placeholder; low-impact since it seeds *all* 64 slots uniformly (the
+  claim-count increments that follow matter more than the seed's exact
+  magnitude).
+
+**Real capability gap closed**: `unit+0x3148` bit2/bit3 (the FOUND/
+MIL_EXPAND eligibility bits `ai_euro_0a60_unit_can_pursue_goal` folds in)
+turned out to be about a **ship's cargo composition**, not a land unit's
+own type — the raw code's outer gate (`FUN_1000_8aac` modes 3/4/6, still
+unresolved at the disassembly level — same `FUN_0000_4fa8` wall as
+before) is nested inside `if (unit is ship-type && ship_is_full)`, and
+sets bit2 when the ship carries founders-or-military, bit3 specifically
+for military. This means **ships were never eligible for FOUND/
+MIL_EXPAND at all** in this port before now — their names never match the
+land-unit name checks (`ai_euro_name_is_pioneer`, `ai_euro_is_military_
+name`), so a Caravel loaded with colonists ready to found a new town had
+no way to be assigned that goal via this mechanism. Fixed: since DOS's
+own query mechanism (modes 3/4/6) isn't safely portable, computed the
+same *information* directly from Linux's real ship cargo hold
+(`u->cargo_ids[]`, scanning each passenger's name) instead — ships with a
+military passenger now qualify for MIL_EXPAND, ships with a founder or
+military passenger now qualify for FOUND. Not modeled: DOS's "if this
+ship is full, also require every earlier-indexed ship in the same
+stack/fleet to be full" coordination downgrade — a defensible superset
+(may let a not-yet-fully-loaded fleet's already-full ship pursue slightly
+early).
+
+**Verified**: clean rebuild, zero new warnings. Full `ctest`: identical
+failure set before/after (confirmed via `git stash`/`git stash pop` —
+also confirmed HEAD had moved to a newer concurrent "AI rewrite" commit
+since the last pass, unrelated, no interaction).
+
+**Still open, unchanged from the "Fourth pass" note**: the unit-loop's
+remaining garrison-request bits (bit0/1/4/5/6/7, the `-0x6da6`/`-0x6da5`
+per-nation table, `LAB_0000_9259`) and the deep G-table's literal write
+path — same difficulty class as `FUN_1000_8aac`'s field-id puzzle for the
+parts that depend on it.
+
 ## Raw recovered C (845 lines, one mild warning)
 
 ```c
