@@ -428,7 +428,34 @@ static int colony_yield_pipeline(
    * 14 Dutch colonies), so plain x2 stands for every field expert,
    * Farmer/Fisherman included — see colony_yield_town_commons_food_base's
    * comment for the matching town-commons-food finding from the same
-   * check. */
+   * check.
+   *
+   * 2026-08-18: read FUN_15eb_18ec directly (viceroy_unpacked.c ~11771,
+   * the real per-tile field-yield composer) hoping to fix this properly.
+   * It confirms real DOS *does* apply the Fisherman coastal distance mod
+   * to experts too (added early, unconditionally on skill — ~11814-11838,
+   * same bucket shape this file's colony_yield_fisherman_distance_mod
+   * already has), and that Farmer/Fisherman experts really do get a flat
+   * "+2" on skill match, not ×2 (`local_16`/`local_18` branch, ~11890-
+   * 11899) — so the contradictory comment this port carried for a while
+   * (colony_yield_town_commons_food_base referenced regressing a "+2, not
+   * x2" attempt) was directionally right, just mis-applied without the
+   * distance-mod term alongside it. BUT that same branch adds the
+   * colony's SoL/Tory term (`local_1c`) a *second* time on top of the
+   * once-only addition every job already gets (~11887), and `local_1c`
+   * itself is computed from the SoL latch bits *and* a tory-defection/
+   * difficulty percentage (~11866-11886) — a materially different
+   * derivation from this port's colony_prod_sol_bonus_field, not simply
+   * equal to it. A same-day attempt to bolt just the distance-mod half
+   * onto the existing ×2 pipeline (post-doubling, flat) fit both of
+   * colony_prod02's New Amsterdam/New Holland exactly, but broke four
+   * colony_prod01 fixtures whose real terrain/profession data this port
+   * can't freely re-derive (unlike this file's synthetic tiles) — net
+   * regression, reverted. Implementing this for real needs local_1c's SoL/
+   * Tory term decoded and threaded through properly, not curve-fit from
+   * two data points; left as an open, well-scoped RE task (see
+   * docs/terrain_yields.md "Field Farmer/Fisherman expert formula").
+   */
   if (resource_double) {
     yield <<= 1;
   }
