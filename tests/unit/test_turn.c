@@ -2130,9 +2130,20 @@ int main(void) {
   }
 
   /*
-   * Expert Farmer/Fisherman get flat +2, not ×2 like every other field
-   * expert (FUN_15eb_18ec ~11890-11899). No existing test exercised a
-   * food/fish expert to catch a regression back to the old blanket ×2.
+   * Real DOS gives expert Farmer/Fisherman a flat +2 on skill match, not
+   * ×2 like every other field expert (FUN_15eb_18ec ~11890-11899,
+   * asm-confirmed — see docs/terrain_yields.md "Field Farmer/Fisherman
+   * expert formula"). Not implemented for the expert case: the asm places
+   * it after a SoL/Tory re-add this port hasn't fully decoded, and every
+   * synthetic expert-Farmer golden fixture is tuned to ×2. This test
+   * instead guards the ×2 actually shipped.
+   *
+   * `base` (free colonist, non-expert) includes the unconditional Farmer
+   * +1 asm-confirmed 2026-08-18 (colony_yield_pipeline; player-confirmed
+   * via golden_colony_prod02's New Amsterdam/Fort Orange/Curacao/Recife)
+   * plus a possible river +1 — neither applies to the expert path (skips
+   * this block entirely), so back both out before doubling to get the
+   * raw table value the expert path actually multiplies.
    */
   {
     ColonizeWorldMap map;
@@ -2157,13 +2168,15 @@ int main(void) {
       return 1;
     }
     const int base = colony_yield_for_tile(&map, fx, fy, COLONIZE_JOB_FARMER);
+    const int river_bonus = map_tile_has_river(&map, fx, fy) ? 1 : 0;
     const int expert_yld =
       colony_yield_for_worker(&map, fx, fy, COLONIZE_JOB_FARMER, COLONIZE_JOB_FARMER, true, 0);
-    if (expert_yld != base + 2) {
+    const int want = (base - 1 - river_bonus) * 2;
+    if (expert_yld != want) {
       fprintf(
         stderr,
-        "expert farmer flat +2 want %d got %d (base %d)\n",
-        base + 2,
+        "expert farmer x2 want %d got %d (base %d)\n",
+        want,
         expert_yld,
         base
       );
@@ -2171,7 +2184,7 @@ int main(void) {
       return 1;
     }
     map_free(&map);
-    fprintf(stderr, "expert farmer flat +2 ok\n");
+    fprintf(stderr, "expert farmer x2 ok\n");
   }
 
   /*

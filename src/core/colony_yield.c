@@ -381,17 +381,52 @@ static int colony_yield_pipeline(
 
   const bool is_forested = pedia >= 8 && pedia <= 23;
 
-  /* Crop improvements: plow/river +1.
+  /* Crop improvements.
    * - Expert farmers on cleared land: skip here; expert doubling covers cleared land.
    * - Forested farmers with river: skip river here; handled by road/river below.
-   * - All other crop jobs: +1 if plowed or river. */
+   * - Non-expert Farmer: unconditional +1 that does *not* stack with plow
+   *   (a plowed and an unplowed non-expert Farmer tile get the same +1),
+   *   plus +1 more if river.
+   * - All other crop jobs: +1 if plowed or river.
+   *
+   * FUN_15eb_18ec (~11950: `if (local_14 == 0) local_12 = local_c;`) sets
+   * this Farmer term fresh, unconditionally, not additively — the asm has
+   * no plow check feeding it at all. Two same-day attempts at this got
+   * the "stacks with plow" direction wrong before landing here: first
+   * tried stacking the unconditional +1 on top of this port's existing
+   * "plow OR river" (double-counted on any plowed tile, overshooting 9+
+   * previously-exact colonies by +1); then tried a from-scratch 3-term
+   * version with plow as its own separate add (still double-counted,
+   * same overshoot, on the theory that a LAYER2 bit near this in the asm
+   * was plow — but that bit's gate, `if (local_14 == 0)`, only matches
+   * Farmer regardless of plow, so a true plow check would have to be
+   * elsewhere). This version — unconditional +1, no separate plow term —
+   * is confirmed by *real*, previously-exact colonies in
+   * `golden_colony_prod02` that are specifically plowed non-expert
+   * Farmers: New Amsterdam (Desert, plowed, no river) and Fort Orange
+   * (Grassland, plowed, Convert) both need exactly +1 over base+SoL(+
+   * convert) — the *same* +1 the plow-less Curacao/Recife tiles that
+   * first surfaced this need, not +2. The only holdout is
+   * `test_units.c`'s runtime plow-tick test, which asserts plowing itself
+   * raises non-expert Farmer yield by +1 — not corroborated by any real
+   * capture, and contradicted by these two, so read as an unverified
+   * design assumption rather than ground truth; updated to match (see
+   * that file).
+   */
   if (colony_yield_is_crop_job(field_job)) {
     const bool forested_farmer = is_forested && field_job == COLONIZE_JOB_FARMER;
     if (!(expert && field_job == COLONIZE_JOB_FARMER)) {
-      const bool use_plow = map_tile_is_plowed(map, x, y);
-      const bool use_river = map_tile_has_river(map, x, y) && !forested_farmer;
-      if (use_plow || use_river) {
+      if (field_job == COLONIZE_JOB_FARMER) {
         yield += 1;
+        if (!forested_farmer && map_tile_has_river(map, x, y)) {
+          yield += 1;
+        }
+      } else {
+        const bool use_plow = map_tile_is_plowed(map, x, y);
+        const bool use_river = map_tile_has_river(map, x, y) && !forested_farmer;
+        if (use_plow || use_river) {
+          yield += 1;
+        }
       }
     }
   }
@@ -413,12 +448,7 @@ static int colony_yield_pipeline(
     } else if (field_job == COLONIZE_JOB_SILVER_MINER) {
       post_resource = effect;
     } else {
-      /* Fish resource on ocean provides +4 base before expert doubling (yielding 14) */
-      if (field_job == COLONIZE_JOB_FISHERMAN && expert) {
-        yield += 4;
-      } else {
-        yield += effect;
-      }
+      yield += effect;
     }
   }
 
@@ -482,6 +512,24 @@ static int colony_yield_pipeline(
   }
   yield += post_resource;
 
+  /*
+   * Coastal distance mod also applies to expert Fishermen — added here,
+   * post-doubling and flat, unlike the non-expert case above (pre-
+   * doubling). Player-confirmed 2026-08-18 via colony_prod02's New
+   * Amsterdam/New Holland (real DOS turn, both real un-synthesized
+   * tiles): expert Fisherman + Fishery resource (New Amsterdam) needed
+   * the ad-hoc "+4 instead of the resource table's +3, pre-doubling"
+   * override removed *and* this post-doubling distance mod added to land
+   * exactly; expert Fisherman with no resource (New Holland) needed only
+   * this term. See docs/terrain_yields.md "Field Farmer/Fisherman expert
+   * formula" — re-attempted after the sibling Farmer fix there showed the
+   * golden_colony_prod01 fixtures this broke are legitimately
+   * re-derivable synthetic tiles, not real counter-evidence.
+   */
+  if (field_job == COLONIZE_JOB_FISHERMAN && expert) {
+    yield += colony_yield_fisherman_distance_mod(map, x, y);
+  }
+
   /* Convert +1 on DOS whitelist (FUN_15eb_18ec) */
   if (yield > 0 && profession == COLONIZE_PROF_CONVERT && field_job != COLONIZE_JOB_LUMBERJACK &&
       field_job != COLONIZE_JOB_ORE_MINER && field_job != COLONIZE_JOB_SILVER_MINER) {
@@ -521,6 +569,18 @@ int colony_yield_for_worker(
  * food came out 1-4 too high. Flat +2 matches that golden exactly, so it
  * is the confirmed rule; the terrain_yields.md fixture table predates this
  * check and needs re-verifying against real DOS, not the other way around.
+ *
+ * 2026-08-18: FUN_15eb_1f72 (~12506-12518, the same composer secondary
+ * already uses) shows a real 4-way class split by pedia instead — class 2
+ * (most forest + Hills/Mountains) happens to equal flat +2, which is why
+ * this passed golden_colony_prod01/02 for the large majority of colonies
+ * (their town centers mostly sit on forest); class 3 (most cleared land,
+ * e.g. Savannah) is +1 higher, and class 1 (Desert/Scrub) is -1 lower.
+ * Player-confirmed via colony_prod02's Recife (Savannah, class 3 → real
+ * food 3, not flat +2's 2). Tried and reverted the same day, combined
+ * with the also-asm-confirmed Farmer +1 above: together they overshoot by
+ * +1 on 9+ other colonies across both goldens — see that comment for the
+ * full list and reasoning. Left as flat +2 pending the same missing piece.
  */
 static int colony_yield_town_commons_food_base(int pedia) {
   if (pedia >= 0 && pedia <= 28 && pedia != 25 && pedia != 26 && pedia != 27) {
