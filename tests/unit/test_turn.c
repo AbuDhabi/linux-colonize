@@ -1106,8 +1106,17 @@ int main(void) {
       assets_msg_free(&names);
       return 1;
     }
-    if (col->building_in_production >= 0) {
-      fprintf(stderr, "expected cleared building_in_production after complete\n");
+    /* DOS never clears building_in_production on completion (player-
+     * confirmed 2026-08-17, colony_prod02 golden: a real single DOS turn
+     * shows it still pointing at the just-finished project) — only
+     * has_building[]/hammers change, checked above. */
+    if (col->building_in_production != stockade) {
+      fprintf(
+        stderr,
+        "expected building_in_production to stay %d after complete, got %d\n",
+        stockade,
+        col->building_in_production
+      );
       assets_msg_free(&game_txt);
       assets_msg_free(&names);
       return 1;

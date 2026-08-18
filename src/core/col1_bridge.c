@@ -142,6 +142,27 @@ static void col1_copy_name24(char* dst, size_t dst_size, const char* src24) {
   dst[n] = '\0';
 }
 
+/*
+ * Player-confirmed 2026-08-18 (colony_prod02 golden): a chain's stored
+ * level is NOT the tier count N directly — it's `(1 << N) - 1` (N
+ * contiguous low bits), so a 2-tier chain reads 0/1/3 and a 3-tier chain
+ * reads 0/1/3/7, never 2/5/6. Confirmed both by cross-checking against
+ * founding-father gating (no nation in colony_prod02 owns Adam Smith, and
+ * no blacksmiths_house/carpenters_shop/etc. field ever reads a value
+ * requiring the top, Adam-Smith-gated tier) and by the value 2 simply
+ * never appearing across either save's ~30 colonies for any 2-or-3-tier
+ * chain field, which a plain tier-count encoding would produce constantly.
+ * `popcount` recovers N from that pattern exactly.
+ */
+static unsigned col1_building_level_to_tier_count(unsigned level) {
+  unsigned n = 0;
+  while (level) {
+    n += level & 1u;
+    level >>= 1;
+  }
+  return n;
+}
+
 static void col1_apply_building_level(
   ColonizeColonyPool* pool,
   ColonizeColony* colony,
@@ -152,7 +173,8 @@ static void col1_apply_building_level(
   if (level == 0) {
     return;
   }
-  for (int i = 0; i < name_count && (unsigned)i < level; ++i) {
+  const unsigned tier_count = col1_building_level_to_tier_count(level);
+  for (int i = 0; i < name_count && (unsigned)i < tier_count; ++i) {
     const int idx = colonies_find_building(pool, names[i]);
     if (idx >= 0 && idx < COLONIZE_BUILDING_TYPES_MAX) {
       colony->has_building[idx] = true;
@@ -166,17 +188,17 @@ static unsigned col1_encode_building_level(
   const char* const* names,
   int name_count
 ) {
-  unsigned level = 0;
+  unsigned tier_count = 0;
   if (!pool || !colony || !names || name_count <= 0) {
     return 0;
   }
   for (int i = 0; i < name_count; ++i) {
     const int idx = colonies_find_building(pool, names[i]);
     if (idx >= 0 && idx < COLONIZE_BUILDING_TYPES_MAX && colony->has_building[idx]) {
-      level = (unsigned)(i + 1);
+      tier_count = (unsigned)(i + 1);
     }
   }
-  return level;
+  return tier_count == 0 ? 0 : (1u << tier_count) - 1u;
 }
 
 static void col1_apply_colony_buildings(

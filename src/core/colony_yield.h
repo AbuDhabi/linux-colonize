@@ -50,9 +50,23 @@ const char* colony_yield_job_name(int field_job);
 
 /*
  * Town commons (colony center): always food + one other commodity.
- * Food base = cleared Farmer+2 (forests use parent land); secondary = NAMES+1.
- * Plow → food; river → food + secondary; Game/Oasis/Wheat → +2 food;
- * matching specials → +2 secondary (Prime Timber excluded).
+ * Food base = flat +2 regardless of terrain, folds `sol_bonus` directly
+ * (signed, floor 0). Secondary = terrain base, no flat road add, folds
+ * `colony_flags`' SoL *latch* bits only (+1 SOL_50, +1 SOL_100 — up to
+ * +2), not the general signed sol_bonus. Both asm-confirmed 2026-08-18
+ * against FUN_15eb_1f72 (viceroy_unpacked.c ~12474, the real town-commons
+ * composer, previously undiscovered — "peel pending" in terrain_yields.md):
+ * secondary is `table_lookup(pedia,job) + resource_effect + river(0/1/2,
+ * unscaled) + (SOL_50 latch ? +1) + (SOL_100 latch ? +1)`, no plow, no
+ * flat "+1 road"; a difficulty term (`+1` only on the easiest setting) is
+ * omitted here since every fixture this project's data comes from is
+ * Viceroy (hardest), where it's always 0. Player-confirmed via
+ * colony_prod02's New Holland (Savannah, no plow/river, needs base+2) vs
+ * golden_colony_prod01's Guadeloupe (Swamp, plowed, needs base+2 too —
+ * the plow contributes nothing; both colonies just have both SoL latch
+ * bits set). Plow → food only; river → food + secondary; Game/Oasis/Wheat
+ * → +2 food; matching specials → +2 secondary, or x2 for a DOUBLE-type
+ * match (Prime Timber excluded from both).
  * See docs/terrain_yields.md.
  */
 typedef struct ColonizeTownCommonsYield {
@@ -66,6 +80,8 @@ void colony_yield_town_commons(
   const ColonizeWorldMap* map,
   int x,
   int y,
+  int sol_bonus,
+  uint8_t colony_flags,
   ColonizeTownCommonsYield* out
 );
 

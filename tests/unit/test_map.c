@@ -129,12 +129,12 @@ int main(void) {
     {5, 21, 1, 1, {48}},
     {4, 20, 8, 0, {0}},
     {8, 14, 8, 1, {103}}, /* scrub + lost-city rumour */
-    {1, 0, 0, 1, {64}},
+    {1, 0, 0, 2, {64, 92}},
     {1, 2, 0, 1, {73}},
-    {16, 2, 0, 2, {70, 98}},
+    {16, 2, 0, 1, {70}},
     {4, 18, 5, 1, {64}},
-    {36, 4, 2, 2, {68, 97}},
-    {27, 14, 3, 2, {69, 98}},
+    {36, 4, 2, 1, {68}},
+    {27, 14, 3, 1, {69}},
     {3, 3, 4, 1, {72}},
     {27, 20, 6, 1, {78}},
     {39, 28, 7, 1, {66}},
@@ -164,7 +164,7 @@ int main(void) {
     {18, 2, 10, 1, {150}},
     {33, 6, 10, 4, {116, 125, 130, 115}},
     {9, 25, 10, 4, {112, 117, 126, 131}},
-    {8, 26, 10, 4, {132, 129, 114, 111}},
+    {8, 26, 10, 5, {132, 129, 114, 111, 96}},
     {34, 7, 10, 4, {128, 121, 118, 127}},
   };
 
@@ -327,18 +327,29 @@ int main(void) {
         }
       }
     }
-    /* 421, not 420: map_resource_type_at_ex's forest-range check
+    /* 420 -> 421: map_resource_type_at_ex's forest-range check
      * (FUN_12ab_0458 local_4) only covered pedia 8-15, missing pedia
      * 16-23 (the other forest half, same 8 types via &7) — asm-confirmed
      * against mapedit.c's decompile. One AMER2 tile (pedia 19, forest) was
-     * silently dropping its resource because of it; fixed in map.c. */
-    if (resources != 421 || rumours != 40) {
-      fprintf(stderr, "resource/rumour count expected 421/40 got %d/%d\n", resources, rumours);
+     * silently dropping its resource because of it; fixed in map.c.
+     * 421 -> 425: two more fixes, player-confirmed 2026-08-18 via
+     * colony_prod02's New Holland (real single-turn DOS capture): (1) the
+     * coordinate hash's `+1` ("DOS is 1-based") was never actually in
+     * FUN_12ab_0458 itself, just this port's unverified guess about its
+     * caller — dropping it moves the whole resource pattern by one tile
+     * in every direction; (2) the hash-match gate was wrongly skipped
+     * whenever a `_for_yield` (settlement-transparent) call landed on a
+     * tile that also had the settlement bit set — every colony center —
+     * so centers always reported a match regardless of the real hash. */
+    if (resources != 425 || rumours != 40) {
+      fprintf(stderr, "resource/rumour count expected 425/40 got %d/%d\n", resources, rumours);
       map_free(&map);
       return 1;
     }
-    if (fish != 275) {
-      fprintf(stderr, "fish resource count expected 275 got %d\n", fish);
+    /* 267, not 275 — same 2026-08-18 coordinate-hash fixes as the
+     * resource/rumour count above shifted which tiles match. */
+    if (fish != 267) {
+      fprintf(stderr, "fish resource count expected 267 got %d\n", fish);
       map_free(&map);
       return 1;
     }
@@ -352,19 +363,22 @@ int main(void) {
   /*
    * Minor-river chain on AMER2 (~14,22)–(18,25): shared mask → PHYS0 16–31.
    * Forest tiles may also report a canopy sprite ahead of the river overlay.
+   * Resource sprites (89-102) in this block shifted 2026-08-18 along with
+   * the rest of the map's resource pattern — see the whole-map resource
+   * count comment above for why.
    */
   static const MapTileExpectation amer2_river_chain[] = {
     {14, 22, 1, 1, {17}},
     {15, 22, 8, 1, {22}},
-    {15, 23, 8, 1, {25}},
+    {15, 23, 8, 2, {25, 90}},
     {16, 23, 3, 1, {19}},
-    {17, 23, 5, 1, {22}},
-    {17, 24, 3, 3, {64, 28, 98}},
+    {17, 23, 5, 2, {22, 94}},
+    {17, 24, 3, 2, {64, 28}},
     {17, 25, 8, 1, {25}},
-    {18, 25, 5, 2, {68, 19}},
+    {18, 25, 5, 3, {68, 19, 99}},
     {45, 50, 5, 3, {70, 24, 103}},
     {48, 46, 5, 1, {24}},
-    {50, 49, 5, 2, {79, 24}},
+    {50, 49, 5, 3, {79, 24, 99}},
   };
 
   for (size_t i = 0; i < sizeof(amer2_river_chain) / sizeof(amer2_river_chain[0]); ++i) {
@@ -375,12 +389,14 @@ int main(void) {
     }
   }
 
-  /* Minor-river segment on AMER2 (~6,19)–(8,16). */
+  /* Minor-river segment on AMER2 (~6,19)–(8,16). Resource sprite shifted
+   * from (7,17) to (6,19) with the 2026-08-18 coordinate-hash fix — see
+   * the whole-map resource count comment above. */
   static const MapTileExpectation amer2_river_north[] = {
-    {6, 19, 1, 1, {21}},
+    {6, 19, 1, 2, {21, 90}},
     {7, 19, 8, 1, {26}},
     {7, 18, 1, 1, {28}},
-    {7, 17, 1, 2, {28, 90}},
+    {7, 17, 1, 1, {28}},
     {7, 16, 1, 1, {21}},
     {8, 16, 8, 1, {18}},
   };
@@ -398,7 +414,7 @@ int main(void) {
     {21, 18, 3, 2, {69, 11}},
     {22, 18, 3, 2, {79, 7}},
     {21, 20, 3, 2, {79, 19}},
-    {22, 20, 3, 3, {79, 14, 98}},
+    {22, 20, 3, 2, {79, 14}},
     {29, 15, 3, 2, {79, 28}},
     {29, 14, 2, 2, {79, 20}},
   };
@@ -418,7 +434,7 @@ int main(void) {
   static const MapTileExpectation amer2_river_estuary[] = {
     {19, 25, 10, 2, {150, 147}},
     {22, 23, 10, 5, {132, 113, 110, 111, 140}},
-    {23, 22, 10, 6, {136, 137, 114, 127, 96, 143}},
+    {23, 22, 10, 5, {136, 137, 114, 127, 143}},
     {46, 39, 10, 3, {152, 142, 143}},
     {13, 8, 10, 6, {136, 137, 114, 135, 145, 147}},
     {25, 15, 10, 5, {132, 129, 138, 123, 141}},

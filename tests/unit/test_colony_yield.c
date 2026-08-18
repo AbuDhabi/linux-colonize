@@ -45,7 +45,7 @@ static int check_commons(
   const char* label
 ) {
   ColonizeTownCommonsYield tc;
-  colony_yield_town_commons(map, x, y, &tc);
+  colony_yield_town_commons(map, x, y, 0, 0, &tc);
   if (tc.food != expect_food || tc.secondary_cargo != expect_cargo ||
       tc.secondary_amount != expect_amt) {
     fprintf(
@@ -81,7 +81,7 @@ int main(void) {
    * colony. See colony_yield_town_commons_food_base's comment.
    */
 
-  /* Scrub forest (pedia 9) — no special / river. */
+  /* Scrub forest (pedia 9) — no special / river. secondary base(2)+1 road=3. */
   map.terrain[0] = 9;
   if (check_commons(
         &map,
@@ -103,12 +103,17 @@ int main(void) {
     map_free(&map);
     return 1;
   }
-  if (check_commons(&map, 1, 0, 2, COLONIZE_CARGO_ORE, 4, "hills")) {
+  /* amt=7: base(Hills,Ore)=4, +1 road, +2 from a coincidental Prime Ore hash
+   * match at (1,0) with the default seed (100, this synthetic map never
+   * sets prime_resource_seed) — not something this fixture set out to
+   * test, just a side effect of the 2026-08-18 coordinate-hash fix on this
+   * exact coordinate. */
+  if (check_commons(&map, 1, 0, 2, COLONIZE_CARGO_ORE, 7, "hills")) {
     map_free(&map);
     return 1;
   }
 
-  /* Broadleaf forest (pedia 11). */
+  /* Broadleaf forest (pedia 11). base(2)+1 road=3. */
   map.terrain[2] = 11;
   if (check_commons(&map, 2, 0, 2, COLONIZE_CARGO_FURS, 3, "broadleaf")) {
     map_free(&map);
@@ -122,6 +127,7 @@ int main(void) {
     map_free(&map);
     return 1;
   }
+  /* amt=5: base(Prairie,Cotton)=3 +1 road +1 river(minor). */
   if (check_commons(&map, 3, 0, 3, COLONIZE_CARGO_COTTON, 5, "prairie+minor river")) {
     map_free(&map);
     return 1;
@@ -136,6 +142,7 @@ int main(void) {
       map_free(&map);
       return 1;
     }
+    /* amt=5: base(Broadleaf,Fur)=2 +1 road + Game(+2). */
     if (check_commons(&map, gx, gy, 4, COLONIZE_CARGO_FURS, 5, "broadleaf+Game")) {
       map_free(&map);
       return 1;
@@ -155,6 +162,7 @@ int main(void) {
       map_free(&map);
       return 1;
     }
+    /* amt=3: base(Broadleaf,Fur)=2 +1 road, Game hidden. */
     if (check_commons(
           &map,
           gx,
@@ -222,14 +230,18 @@ int main(void) {
    * covers (a) a positive sol_bonus folding in *before* expert doubling,
    * not as a flat add after, and (b) the road/river unit size doubling for
    * a matching non-food/fish expert (colony_yield_pipeline, colony_yield.c):
-   *   free:   base(3) +sol(1)=4,                +road(u=1)=5
-   *   expert: base(3) +sol(1)=4, <<=1(expert)=8, +road(u=2)=10
-   * An earlier pass here claimed Hills Ore base=4 (12 vs 6, "player-
-   * confirmed") — that value regressed golden_colony_prod01 (a real single
-   * DOS turn across 14 Dutch colonies: 3 of them, each with an expert Ore
-   * Miner on Hills, came out 2 ore too high). base=3 matches golden
-   * exactly; the 12/6 claim needs independent re-verification before it's
-   * trusted over that.
+   *   free:   base(4) +sol(1)=5,                +road(u=1)=6
+   *   expert: base(4) +sol(1)=5, <<=1(expert)=10, +road(u=2)=12
+   * Hills Ore base=4 — player-confirmed 2026-08-18 via colony_prod02's Fort
+   * Orange: expert Ore Miner, Hills, sentiment +2, no road/river/resource,
+   * single colonist (no confound) -> 12 ore = (4+2)x2, and its paired
+   * non-specialist Blacksmith's Shop -> 8 tools/8 ore, independently
+   * confirming the manufacturing side. A base=3 reading was tried after
+   * golden_colony_prod01's synthetic Bahia fixture seemed to need it, but
+   * Bahia's terrain there is entirely hand-fabricated (not loaded from a
+   * real save) and carried an unconfirmed "+road" guess; base=3 only
+   * "worked" by coincidentally cancelling that guess's error. Fixed:
+   * Bahia's road flag dropped instead (see test_colony_prod01.c).
    */
   {
     const int hx = 21;
@@ -239,16 +251,16 @@ int main(void) {
     const int free_ore = colony_yield_for_worker(
       &map, hx, hy, COLONIZE_JOB_ORE_MINER, COLONIZE_PROF_FREE_COLONIST, /*has_docks=*/true, 1
     );
-    if (free_ore != 5) {
-      fprintf(stderr, "free colonist ore+road+sol want 5 got %d\n", free_ore);
+    if (free_ore != 6) {
+      fprintf(stderr, "free colonist ore+road+sol want 6 got %d\n", free_ore);
       map_free(&map);
       return 1;
     }
     const int expert_ore = colony_yield_for_worker(
       &map, hx, hy, COLONIZE_JOB_ORE_MINER, COLONIZE_JOB_ORE_MINER, /*has_docks=*/true, 1
     );
-    if (expert_ore != 10) {
-      fprintf(stderr, "expert ore miner+road+sol want 10 got %d\n", expert_ore);
+    if (expert_ore != 12) {
+      fprintf(stderr, "expert ore miner+road+sol want 12 got %d\n", expert_ore);
       map_free(&map);
       return 1;
     }

@@ -526,8 +526,18 @@ static int map_resource_type_at_ex(
     return -1;
   }
 
-  const int dos_x = x + 1;
-  const int dos_y = y + 1;
+  /* No +1: `x`/`y` are already whatever coordinate space the seed hash
+   * expects. Player-confirmed 2026-08-18 (colony_prod02's New Holland):
+   * with the settlement-gate bug above fixed, a "DOS is 1-based" +1 here
+   * put the matching tile one off in every direction from the real one
+   * (its Sugar Planter's own worked tile, not the colony center or any
+   * neighbor) — dropping the +1 lines up exactly, and also lands a second,
+   * independently-plausible match (Prime Timber) on that colony's
+   * Lumberjack's own tile. FUN_12ab_0458 itself never adds 1 to its
+   * params; the `+1` was this port's own unverified guess about what its
+   * caller passes in, not something read from the asm. */
+  const int dos_x = x;
+  const int dos_y = y;
   const int local_a = (int)(terrain_byte & 0x1fu);
   /* Forest range is the full 8-23 (both `local_a<16` and `local_a>=16`
    * forest halves — pedia 16-23 fold to the same 8 forest types via &7
@@ -540,7 +550,18 @@ static int map_resource_type_at_ex(
   const int uVar2 = (dos_x & 3) * 4 + (dos_y & 3);
   const int uVar3 =
     ((((dos_y >> 2) * 3 + (dos_x >> 2)) - local_4) + (int)(map_resource_seed(map) & 0xff)) & 0xf;
-  if ((!ignore_settlement || (layer2 & 2u) == 0) && uVar3 != uVar2 && (uVar3 ^ 10) != uVar2) {
+  /* Coordinate hash gate — asm-exact, and unconditional. Player-confirmed
+   * 2026-08-18 (colony_prod02's New Holland): this used to be gated on
+   * `!ignore_settlement || settlement-bit-clear`, so a `_for_yield` call
+   * (ignore_settlement=true) on a tile that also has the settlement bit
+   * set — i.e. every colony's own center tile — skipped the hash check
+   * entirely and always reported a match for the terrain's resource type,
+   * whether or not that coordinate's hash actually landed there. The
+   * settlement gate belongs only on the *earlier* early-return (still
+   * above, `!ignore_settlement && settlement -> -1`); this hash check is a
+   * separate concern (FUN_12ab_0458 has no settlement logic in it at all)
+   * and must always run. */
+  if (uVar3 != uVar2 && (uVar3 ^ 10) != uVar2) {
     return -1;
   }
 

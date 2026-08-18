@@ -1252,7 +1252,10 @@ static void colony_screen_draw_area_overlays(
       ss_blit_sprite(&view->icons, icon, framebuffer, px, py);
     }
     ColonizeTownCommonsYield tc;
-    colony_yield_town_commons(map, colony->x, colony->y, &tc);
+    /* Settlement badges intentionally show the base rate, SoL excluded —
+     * same design as field-yield badges elsewhere (colony_screen_draw_
+     * area_overlays / jobs_popup pass sol_bonus=0 too). */
+    colony_yield_town_commons(map, colony->x, colony->y, 0, 0, &tc);
     int row = 0;
     if (tc.food > 0) {
       colony_screen_draw_resource_count(

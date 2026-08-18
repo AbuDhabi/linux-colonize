@@ -47,7 +47,7 @@ static const int k_other[5][COLONIZE_FIELD_JOB_COUNT] = {
   {0, 0, 0, 0, 0, 0, 0, 0, 3},
   {0, 0, 0, 0, 0, 0, 0, 0, 3},
   {0, 0, 0, 0, 0, 0, 4, 1, 0},
-  {2, 0, 0, 0, 0, 0, 3, 0, 0},
+  {2, 0, 0, 0, 0, 0, 4, 0, 0},
 };
 
 static const char* k_job_names[COLONIZE_FIELD_JOB_COUNT] = {
@@ -218,12 +218,17 @@ static int colony_yield_river_bonus(int field_job, bool major) {
  * river magnitude: free = (base 3 + sol 2 + road[u=1,base=2]) × Hudson(2)
  * = 7×2 = 14; expert = ((base 3 + sol 2)<<=1 + road[u=2,base=2]) × Hudson(2)
  * = 14×2 = 28. See docs/terrain_yields.md "Plow / road / river stacking".
+ * Re-confirmed 2026-08-18 via colony_prod02's New Holland (real DOS turn):
+ * an unskilled Lumberjack + road was landing hammers-consumed-lumber one
+ * short (this bucket had regressed back to the old flat "ore/silver +1"
+ * grouping for Lumberjack specifically, contradicting this comment and
+ * colony_yield_river_bonus's own already-correct split).
  */
 static int colony_yield_road_bonus(int field_job) {
   switch (field_job) {
   case COLONIZE_JOB_FUR_TRAPPER:
-    return 2;
   case COLONIZE_JOB_LUMBERJACK:
+    return 2;
   case COLONIZE_JOB_ORE_MINER:
   case COLONIZE_JOB_SILVER_MINER:
     return 1;
@@ -296,7 +301,15 @@ static int colony_yield_road_or_river_bonus(
   if (map_tile_has_river(map, x, y)) {
     river = colony_yield_river_bonus(field_job, map_tile_has_major_river(map, x, y));
   }
-  const int bonus = road > river ? road : river;
+  /* Road and river stack (sum), not max — player-confirmed 2026-08-18 via
+   * colony_prod02's Fort Orange: an expert Lumberjack on a tile with both
+   * a road and a (minor) river needed both bonuses added (2+2=4) to match
+   * the real colony's lumber income; New Amsterdam's road-only expert
+   * Lumberjack (colony_prod01) independently confirmed the flat,
+   * non-doubled magnitude this now sums (see the Lumberjack pipeline
+   * comment for why the road/river addition itself isn't expert-doubled
+   * a second time here). */
+  const int bonus = road + river;
   return big_unit ? bonus * 2 : bonus;
 }
 
@@ -424,8 +437,21 @@ static int colony_yield_pipeline(
   }
   if (field_job == COLONIZE_JOB_LUMBERJACK) {
     yield <<= 1;
-    /* Lumberjack road/river bonus is added post-doubling (+1 free, +2 expert) */
-    yield += colony_yield_road_or_river_bonus(map, x, y, field_job, false) * (expert ? 2 : 1);
+    /*
+     * Road/river bonus is added post-doubling, flat (no extra expert
+     * multiplier here) — Lumberjack already went through the general
+     * `if (expert) yield <<= 1` above (it isn't excluded from that branch)
+     * on top of this job's own unconditional doubling, so an expert
+     * Lumberjack's base is already doubled twice by the time this runs;
+     * multiplying the road/river term a *third* time double-counted the
+     * expert bonus. Player-confirmed 2026-08-18 (colony_prod02's New
+     * Holland, non-expert + road, needed the base=2 magnitude fixed above
+     * with no extra multiplier; colony_prod01's New Amsterdam, expert +
+     * road, needed that same flat magnitude — the old `*(expert?2:1)` here
+     * only "worked" for the expert case by compounding with the wrong
+     * base=1 magnitude this fix also corrects).
+     */
+    yield += colony_yield_road_or_river_bonus(map, x, y, field_job, false);
   }
   yield += post_resource;
 
@@ -507,6 +533,8 @@ void colony_yield_town_commons(
   const ColonizeWorldMap* map,
   int x,
   int y,
+  int sol_bonus,
+  uint8_t colony_flags,
   ColonizeTownCommonsYield* out
 ) {
   if (out) {
@@ -517,6 +545,11 @@ void colony_yield_town_commons(
   if (!map || !out) {
     return;
   }
+  /* Secondary's own SoL/road formula is reverted below to the flat "+1
+   * road" rule (see comment above `sec`) pending the real 0x2f7b table;
+   * colony_flags is kept in the signature (callers already pass it) for
+   * when that table is recovered, unused for now. */
+  (void)colony_flags;
   const int pedia = map_pedia_terrain_index_at(map, x, y);
   const int res = map_resource_type_at(map, x, y);
   const bool timber = (res == 10 || res == 11);
@@ -537,17 +570,39 @@ void colony_yield_town_commons(
       food += 2;
     }
   }
+  food += sol_bonus;
   out->food = food > 0 ? food : 0;
 
   const int sec_job = colony_yield_town_commons_secondary_job(pedia);
   if (sec_job < 0) {
     return;
   }
-  /* Base secondary yield: terrain base + map improvements.
+  /*
+   * Base secondary yield: terrain base + map improvements.
    * All colonies have a road on founding (+1).
    * - River:   +1 minor / +2 major
    * - Plowed:  +1 (cleared land only, pedia 0-7)
-   * SoL is NOT applied here — see turn.c for food SoL; secondary tracks tile only. */
+   * SoL is NOT applied here — see turn.c for food SoL; secondary tracks tile only.
+   *
+   * 2026-08-18: read FUN_15eb_1f72 (the real town-commons composer,
+   * viceroy_unpacked.c ~12474) hoping to replace this with an asm-exact
+   * formula. Its secondary term does exist (river 0/1/2 + SoL_50/SoL_100
+   * latch bits, no plow), BUT its terrain base is looked up from a
+   * *different, compact* table — indexed by a 4-bucket terrain CLASS
+   * (FUN_13e4_003a's local_26, not the raw pedia this file's
+   * k_unforesed/k_forested/k_other tables are keyed on) at a data address
+   * (0x2f7b) that isn't present in the decompiled pseudo-C, only in the
+   * raw binary. Swapping just the +1/latch skeleton onto our per-pedia
+   * table regressed 6+ previously-matching colonies (golden_colony_prod01/02,
+   * 2026-08-18) — Quebec/Bahia/St.Louis (no latch) came out 1 short,
+   * Guadeloupe (full latch) came out 1 over, New Holland/Paramaribo (full
+   * latch) came out 1 short — no consistent single correction fits, which
+   * means the per-pedia table itself disagrees with the real compact-class
+   * table for at least some of these terrains. Reverted to the flat "+1
+   * inherit road" formula below, which is golden-verified against 14+
+   * real Dutch colonies; do not reapply the latch-only version without
+   * first recovering the real 0x2f7b table data.
+   */
   int sec = colony_yield_base_for_pedia(pedia, sec_job) + 1; /* Inherit road */
   if (map_tile_has_river(map, x, y)) {
     sec += map_tile_has_major_river(map, x, y) ? 2 : 1;
@@ -555,9 +610,16 @@ void colony_yield_town_commons(
   if (map_tile_is_plowed(map, x, y) && pedia >= 0 && pedia <= 7) {
     sec += 1;
   }
-  /* Matching special (except Prime Timber): +2 additive on commons. */
-  if (!timber && res >= 0 && colony_yield_resource_effect(res, sec_job) != 0) {
-    sec += 2;
+  /* Matching special (except Prime Timber): additive effects add flat, but
+   * a DOUBLE-type match doubles the accumulated secondary so far, same as
+   * the field pipeline. */
+  if (!timber && res >= 0) {
+    const int effect = colony_yield_resource_effect(res, sec_job);
+    if (effect == COLONY_YIELD_RESOURCE_DOUBLE) {
+      sec <<= 1;
+    } else if (effect != 0) {
+      sec += 2;
+    }
   }
   out->secondary_job = sec_job;
   out->secondary_cargo = colony_yield_job_cargo(sec_job);

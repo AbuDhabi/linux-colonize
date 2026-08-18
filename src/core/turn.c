@@ -537,14 +537,7 @@ static void turn_produce_one_colony(
   if (map) {
     const int sol_b_field = colony_prod_sol_bonus_field(col1, colony);
     ColonizeTownCommonsYield tc;
-    colony_yield_town_commons(map, colony->x, colony->y, &tc);
-    if (sol_b_field > 0) {
-      if (tc.food > 0) {
-        tc.food += sol_b_field;
-      }
-      /* Secondary cargo (furs/tobacco/etc.) is NOT boosted by SoL —
-       * it tracks terrain improvements only. See colony_yield_town_commons. */
-    }
+    colony_yield_town_commons(map, colony->x, colony->y, sol_b_field, colony->colony_flags, &tc);
     if (tc.food > 0) {
       colony->stock[COLONIZE_CARGO_FOOD] =
         turn_clamp_stock(colony->stock[COLONIZE_CARGO_FOOD] + tc.food);
