@@ -128,7 +128,7 @@ Phase 1 AI-critical symbols + Euro early-settle Layer D + between-turns
 | `0x3147` | `ViceroyUnit.nation_id` | low nibble |
 | `0x3149` | `ViceroyUnit.moves_spent` | MP spent this turn |
 | `0x315a` | `ViceroyUnit.act_counter` | Col1 `turns_worked`; 1816 act loop |
-| `0x5382` | `VICEROY_DS_GAME_FLAGS` | bit0 = NEW WORLD path in 1816 |
+| `0x5382` | `VICEROY_DS_GAME_FLAGS` | bit0 = `woi` (War of Independence declared) — confirmed 2026-08-18 via live DOSBox-X `BPM 237D:5382` capture, `or byte [5382],01` fires exactly on Declare Independence (00→01). Supersedes the old "NEW WORLD path in 1816" guess (unconfirmed, likely wrong — not re-checked against 1816 itself, but nothing suggests two different meanings for the same bit) |
 | `0x5394` | `VICEROY_DS_ACTIVE_NATION` | Current AI nation id |
 | `0x5396` | `VICEROY_DS_HUMAN_NATION` | Human nation |
 | `0x5398` | `VICEROY_DS_FOCUS_NATION` | Focus / camera nation |

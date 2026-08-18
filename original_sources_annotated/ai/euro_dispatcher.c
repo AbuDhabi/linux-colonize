@@ -55,9 +55,15 @@ extern int probe_adjacent_contact_claim(int x, int y, int nation_id, int unk);
 
 /*
  * Ghidra: FUN_521d_5d04 | euro_nation_planning
- * ~748 lines — difficulty-scaled treasury bump, colony/dock scan, NEW WORLD
- * wagon (type 0x12), Europe hire loop (→ 5c3c). Called from 6d8e via
- * 2a1f_0554 BEFORE promote/0a60.
+ * ~748 lines — difficulty-scaled treasury bump, colony/dock scan, a
+ * DS:0x5382-bit0-gated wagon destroy-scan (type 0x12), Europe hire loop
+ * (→ 5c3c). Called from 6d8e via 2a1f_0554 BEFORE promote/0a60.
+ * Structural port of the treasury bump + gate cascade (raw 85872-86064):
+ * `ai_euro.c`'s `ai_euro_5d04_treasury_bump` / `ai_euro_5d04_compute_flags`.
+ * DS:0x5382 bit0 confirmed **`woi`** (declared independence), not "NEW
+ * WORLD" — live DOSBox-X capture 2026-08-18, see SYMBOL_MAP.md. So the
+ * wagon-destroy scan below fires on independence, not on a scenario type;
+ * "type 0x12" itself is still an unconfirmed unit-type-id guess.
  * Linux thin: peace dock/wagon/shortage hire at any colony_count; Free
  * Colonist settle spam gated colonies≥6; mid-game still ship-buy + at-war
  * Soldier/Dragoon/Veteran/Artillery hire;
