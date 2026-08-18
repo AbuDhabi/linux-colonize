@@ -1960,16 +1960,23 @@ int main(void) {
     map_tile_set_road(&tmap, fx, fy, true);
     /* Lumberjack's road bonus is base 2 (fur/lumber bucket, same as
      * river's — player-confirmed 2026-08-15, Viceroy, see
-     * colony_yield_road_bonus) x2 unit size (matching-expert-or-Lumberjack
-     * doubling, also player-confirmed) = 4. This test used to assert the
-     * port's old flat +1 (pre-2026-08-15), then +2 (unit-size fix only,
-     * before the road-magnitude fix); both predate the current rule. See
-     * docs/terrain_yields.md "Plow / road / river stacking". */
-    if (lumber_base != lumber_clear + 1) {
+     * colony_yield_road_bonus). This call goes through colony_yield_for_tile
+     * (profession=-1, no worker context), so the matching-expert-or-
+     * Lumberjack "big_unit" x2 doesn't apply here — that only fires for a
+     * specific worker via colony_yield_for_worker (see
+     * test_colony_yield.c's own expert/road checks for that path); this one
+     * is the plain non-expert +2. 2026-08-18: this bucket had regressed
+     * back to the old flat "ore/silver +1" grouping for Lumberjack (see
+     * colony_yield_road_bonus's fix comment) — re-fixed, and this
+     * assertion (which had drifted to a stale "+1" while its own comment
+     * already described "+2 base", a leftover from even earlier road-bonus
+     * history) now matches it. See docs/terrain_yields.md "Plow / road /
+     * river stacking". */
+    if (lumber_base != lumber_clear + 2) {
       fprintf(
         stderr,
         "phase7 road lumber yield expected %d got base=%d clear=%d\n",
-        lumber_clear + 1,
+        lumber_clear + 2,
         lumber_base,
         lumber_clear
       );
@@ -1981,7 +1988,7 @@ int main(void) {
     /* Town commons: plains → food + cotton; forest → food + furs (not lumber). */
     {
       ColonizeTownCommonsYield tc;
-      colony_yield_town_commons(&tmap, px, py, &tc);
+      colony_yield_town_commons(&tmap, px, py, 0, 0, &tc);
       if (tc.food <= 0 || tc.secondary_cargo != COLONIZE_CARGO_COTTON) {
         fprintf(
           stderr,
@@ -1995,7 +2002,7 @@ int main(void) {
         assets_msg_free(&names);
         return 1;
       }
-      colony_yield_town_commons(&tmap, fx, fy, &tc);
+      colony_yield_town_commons(&tmap, fx, fy, 0, 0, &tc);
       if (tc.food <= 0 || tc.secondary_cargo != COLONIZE_CARGO_FURS) {
         fprintf(
           stderr,

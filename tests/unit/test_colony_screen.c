@@ -1928,8 +1928,10 @@ int main(void) {
       return 1;
     }
     col->stock[COLONIZE_CARGO_TOOLS] = fbt->tools_cost;
+    /* building_in_production stays == fort after completion — DOS never
+     * clears it (player-confirmed 2026-08-17, colony_prod02 golden). */
     if (!colonies_try_complete_building(&pool, cid) || !col->has_building[fort] ||
-        col->stock[COLONIZE_CARGO_TOOLS] != 0 || col->building_in_production >= 0) {
+        col->stock[COLONIZE_CARGO_TOOLS] != 0 || col->building_in_production != fort) {
       fprintf(stderr, "Fort tools completion failed\n");
       if (font_ok) {
         ff_free(&font);
@@ -1987,9 +1989,11 @@ int main(void) {
       colony_screen_free(&view);
       return 1;
     }
+    /* building_in_production stays == whe after completion — DOS never
+     * clears it (player-confirmed 2026-08-17, colony_prod02 golden). */
     if (!colonies_buy_construction(&pool, cid, &gold) || gold != 500 - expect_cost ||
         !col->has_building[whe] || col->stock[COLONIZE_CARGO_TOOLS] != 0 ||
-        col->building_in_production >= 0 ||
+        col->building_in_production != whe ||
         col->hammers_purchased != (uint16_t)expect_cost) {
       fprintf(
         stderr,

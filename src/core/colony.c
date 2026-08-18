@@ -1421,6 +1421,14 @@ bool colonies_try_complete_building(ColonizeColonyPool* pool, int colony_id) {
   if (!bt || bt->hammers <= 0 || col->hammers < bt->hammers) {
     return false;
   }
+  /* Already own the selected project (a later call the same turn it
+   * completed would otherwise re-fire; the selection itself is never
+   * cleared below, matching DOS — see that comment). Treat as nothing to
+   * complete, same as the player revisiting Construction on an
+   * already-owned item (@ALREADYHAVE). */
+  if (bid >= 0 && bid < COLONIZE_BUILDING_TYPES_MAX && col->has_building[bid]) {
+    return false;
+  }
   if (bt->tools_cost > 0 && col->stock[COLONIZE_CARGO_TOOLS] < bt->tools_cost) {
     return false;
   }
@@ -1445,7 +1453,11 @@ bool colonies_try_complete_building(ColonizeColonyPool* pool, int colony_id) {
     }
   }
   col->hammers = 0;
-  col->building_in_production = -1;
+  /* Player-confirmed 2026-08-17 (colony_prod02 golden, a real single DOS
+   * turn): building_in_production stays pointed at the just-completed
+   * project — DOS never clears it on completion, only has_building[] and
+   * hammers change. The guard above stops this function from re-firing on
+   * a later call against the same still-selected, now-owned project. */
   col->build_ai_flags =
     (uint8_t)(col->build_ai_flags & (uint8_t)~COLONIZE_BUILD_AI_WANTS_CONSTRUCTION);
   return true;

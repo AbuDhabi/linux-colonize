@@ -152,7 +152,7 @@ as peels land.
 | `occupation` / `profession` | 64 | `mapped` | |
 | `specialty[16]` | 16 | `mapped` | +0x60; colonist specialty nibbles (`FUN_15eb_0c7a`; was `duration`) |
 | `tiles[20]` | 20 | `mapped` | +0x70; ring `[0..7]`; `[8..19]` empty `0xff` in fixtures |
-| `buildings` / `custom_house` | — | `mapped` | `unused05` pad |
+| `buildings` / `custom_house` | — | `mapped` | `unused05` pad. Each 2/3-tier chain field (`fortification`, `armory`, `docks`, `blacksmiths_house`, `carpenters_shop`, …) stores `(1 << N) - 1`, not the tier count `N` directly — reads 0/1/3[/7], never 2/5/6. Player-confirmed 2026-08-18: no chain field ever read 2 across colony_prod01/02's ~30 colonies (a plain-count encoding would hit it constantly), and cross-checked against founding-father gating (a colony reading the top tier of an Adam-Smith-gated factory chain, when its nation didn't own Adam Smith, would be impossible under a plain-count reading but is expected/absent under this one). `col1_apply_building_level`/`col1_encode_building_level` (col1_bridge.c) convert via popcount / `(1<<N)-1`. |
 | `improve_timer` | 1 | `mapped` | +0x8c; INC cap `0x7f`; Linux field + pioneer gate (≥2 thin) + clear on plow/road |
 | `specialty_cargo` | 1 | `mapped` | +0x8d; `0xff` none (`FUN_5952_0306`); Linux field + haul prefer + warehouse-cap clear |
 | `labor_shortage` | 1 | `mapped` | +0x8e; Linux `ColonizeColony.labor_shortage` + admit decrement + AI LABOR latch |

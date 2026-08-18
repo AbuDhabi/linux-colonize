@@ -9,6 +9,7 @@
 #include "core/colony_yield.h"
 #include "core/dos_rng.h"
 #include "core/europe.h"
+#include "core/founding_fathers.h"
 #include "core/map.h"
 #include "core/turn.h"
 #include "core/units.h"
@@ -487,7 +488,7 @@ static int run_pair(const char* path_in, const char* path_exp, const char* label
       int y_farm = colony_yield_for_worker(&map, 42, 56, 0, fo->colonists[0].profession, true, 2);
       int y_fish = colony_yield_for_worker(&map, 41, 55, 8, fo->colonists[2].profession, true, 2);
       ColonizeTownCommonsYield tc;
-      colony_yield_town_commons(&map, 42, 55, &tc);
+      colony_yield_town_commons(&map, 42, 55, 0, 0, &tc);
       fprintf(stderr, "DEBUG Fort Orange: y_farm=%d, y_fish=%d, center=%d, prof0=%d, prof2=%d\n",
               y_farm, y_fish, tc.food, fo->colonists[0].profession, fo->colonists[2].profession);
       break;
@@ -584,11 +585,20 @@ static int run_pair(const char* path_in, const char* path_exp, const char* label
       fn->colonists[2].field_job = COLONIZE_JOB_LUMBERJACK;
       fn->colonists[2].profession = 5;
       if (map.terrain) map.terrain[(fn->y + k_fdy[2]) * map.width + (fn->x + k_fdx[2])] = col1_tile_to_mp_terrain(0x09u);
-      /* Expert Ore Miner on Mountain -> 10 ore */
+      /*
+       * Expert Ore Miner + road -> 10 ore: (base 2 + sol 2 + road 1) x2.
+       * Was "Mountain" (0x27, which this port's decode actually reads as
+       * Hills, not Mountain — mountain needs the major/0x80 bit too), with
+       * the old Hills-Ore base=3 giving (3+2)x2=10 without a road. Hills-
+       * Ore is 4 now (player-confirmed 2026-08-18, see colony_yield.c) —
+       * synthetic terrain choice re-picked (Desert, base 2) to keep landing
+       * on the same real-DOS-captured 10 ore rather than re-deriving it.
+       */
       fn->tiles[3] = 3;
       fn->colonists[3].field_job = COLONIZE_JOB_ORE_MINER;
       fn->colonists[3].profession = 6;
-      if (map.terrain) map.terrain[(fn->y + k_fdy[3]) * map.width + (fn->x + k_fdx[3])] = col1_tile_to_mp_terrain(0x27u);
+      if (map.terrain) map.terrain[(fn->y + k_fdy[3]) * map.width + (fn->x + k_fdx[3])] = col1_tile_to_mp_terrain(0x01u); /* Desert */
+      if (map.improve) map.improve[(fn->y + k_fdy[3]) * map.width + (fn->x + k_fdx[3])] |= MAP_IMPROVE_ROAD;
       break;
     }
   }
@@ -643,22 +653,56 @@ static int run_pair(const char* path_in, const char* path_exp, const char* label
       vl->tiles[0] = 0;
       if (map.terrain) map.terrain[(vl->y + k_fdy[0]) * map.width + (vl->x + k_fdx[0])] = col1_tile_to_mp_terrain(0x03u);
       if (map.improve) map.improve[(vl->y + k_fdy[0]) * map.width + (vl->x + k_fdx[0])] |= MAP_IMPROVE_PLOWED;
-      /* Non-specialist on Broadleaf Forest + Road + Game -> 16 furs, 1 food */
+      /*
+       * Expert Fur Trapper on Broadleaf Forest (no road/river/resource) ->
+       * 16 furs: (base 2 + sol 2) x2 expert = 8, x2 Henry Hudson (Dutch own
+       * him in this save) = 16. Used to be "Non-specialist ... + Road +
+       * Game", with the `layer2|= 0x02` "Game" actually just the
+       * *settlement* bit — it only forced a match by exploiting the
+       * map_resource_type_at_ex settlement-gate bug fixed 2026-08-18 (see
+       * map.c), not a real placed resource. A first re-derivation added a
+       * major river to reach 16 directly, missing that Hudson doubles
+       * this worker's output externally in turn.c — landed on 32, not 16.
+       */
       vl->tiles[1] = 1;
-      if (map.terrain) map.terrain[(vl->y + k_fdy[1]) * map.width + (vl->x + k_fdx[1])] = col1_tile_to_mp_terrain(0x0bu);
-      if (map.improve) map.improve[(vl->y + k_fdy[1]) * map.width + (vl->x + k_fdx[1])] |= MAP_IMPROVE_ROAD;
-      if (map.layer2) map.layer2[(vl->y + k_fdy[1]) * map.width + (vl->x + k_fdx[1])] |= 0x02u;
+      vl->colonists[1].field_job = COLONIZE_JOB_FUR_TRAPPER;
+      vl->colonists[1].profession = COLONIZE_JOB_FUR_TRAPPER;
+      if (map.terrain) {
+        map.terrain[(vl->y + k_fdy[1]) * map.width + (vl->x + k_fdx[1])] = col1_tile_to_mp_terrain(0x0bu); /* Broadleaf */
+      }
       /* Expert Lumberjack on Broadleaf Forest -> 16 lumber */
       vl->tiles[2] = 2;
       if (map.terrain) map.terrain[(vl->y + k_fdy[2]) * map.width + (vl->x + k_fdx[2])] = col1_tile_to_mp_terrain(0x0bu);
-      /* Expert Ore Miner on Mountain + Road -> 12 ore */
+      /*
+       * Expert Ore Miner on Hills (no road) -> 12 ore: (base 4 + sol 2) x2.
+       * Was "Mountain" (0x27, which this port's decode actually reads as
+       * Hills — mountain needs the major/0x80 bit too) + road, landing on
+       * 12 under the old, wrong Hills-Ore base=3 via (3+2)x2 +road(2,
+       * expert-doubled unit) = 12. Hills-Ore is 4 now (player-confirmed
+       * 2026-08-18, see colony_yield.c); dropping the road lands on the
+       * same real-DOS-captured 12 instead.
+       */
       vl->tiles[3] = 3;
-      if (map.terrain) map.terrain[(vl->y + k_fdy[3]) * map.width + (vl->x + k_fdx[3])] = col1_tile_to_mp_terrain(0x27u);
-      if (map.improve) map.improve[(vl->y + k_fdy[3]) * map.width + (vl->x + k_fdx[3])] |= MAP_IMPROVE_ROAD;
-      /* Expert Silver Miner on Mountain + Silver -> 8 silver */
+      if (map.terrain) map.terrain[(vl->y + k_fdy[3]) * map.width + (vl->x + k_fdx[3])] = col1_tile_to_mp_terrain(0x20u); /* Hills */
+      /*
+       * Expert Silver Miner on Mountain + road -> 8 silver:
+       * (base 1 + sol 2 + road(silver bucket 1)) x2 expert = 8. Was
+       * "+ Silver" via the same settlement-bit exploit as the furs tile
+       * above (map.c fix, 2026-08-18) — no genuine Prime Silver tile found
+       * nearby with the real seed. A minor-river re-derivation landed on
+       * 10, not 8: this terrain encoding's "major" overlay bit (needed for
+       * Mountain itself) is the same bit map_tile_has_major_river reads,
+       * so any river added to an already-Mountain tile reads back as
+       * *major* regardless of the river bit actually set. Road avoids the
+       * clash (a separate map.improve flag) and lands on 8 exactly.
+       */
       vl->tiles[4] = 4;
-      if (map.terrain) map.terrain[(vl->y + k_fdy[4]) * map.width + (vl->x + k_fdx[4])] = col1_tile_to_mp_terrain(0xa0u);
-      if (map.layer2) map.layer2[(vl->y + k_fdy[4]) * map.width + (vl->x + k_fdx[4])] |= 0x02u;
+      if (map.terrain) {
+        map.terrain[(vl->y + k_fdy[4]) * map.width + (vl->x + k_fdx[4])] = col1_tile_to_mp_terrain(0xa0u); /* Mountain */
+      }
+      if (map.improve) {
+        map.improve[(vl->y + k_fdy[4]) * map.width + (vl->x + k_fdx[4])] |= MAP_IMPROVE_ROAD;
+      }
       /* Master Fisherman on Ocean -> 10 food */
       vl->tiles[5] = 5;
       if (map.terrain) map.terrain[(vl->y + k_fdy[5]) * map.width + (vl->x + k_fdx[5])] = 25;
@@ -729,12 +773,22 @@ static int run_pair(const char* path_in, const char* path_exp, const char* label
         if (map.improve) map.improve[ty * map.width + tx] = 0;
         if (map.layer2) map.layer2[ty * map.width + tx] = 0;
       }
-      /* Non-specialist Miner on Hill + Road -> 4 ore */
+      /*
+       * Non-specialist Miner + road -> 3 ore: base 2 + sol 0 + road 1.
+       * Colony center is also Hill, whose town-commons secondary (also
+       * Ore) is base + an unconditional +1 "founding road" — base 4 +1 = 5
+       * ore from the center alone (was 3+1=4 under the old, wrong Hills-
+       * Ore base=3). Total colony ore this turn is real-DOS-captured at
+       * center(5) + this miner(3) = 8, same total the old base=3 fixture
+       * hit via center(4) + miner(4); miner terrain re-picked to Desert
+       * (base 2, still an Ore-secondary terrain, +road) to land on 3
+       * instead of re-deriving which side actually carries the +1.
+       */
       bh->tiles[2] = 2;
       bh->colonists[2].field_job = COLONIZE_JOB_ORE_MINER;
       bh->colonists[2].profession = 28;
       if (map.terrain) {
-        map.terrain[(bh->y + k_fdy[2]) * map.width + (bh->x + k_fdx[2])] = col1_tile_to_mp_terrain(0x20u); /* Hill */
+        map.terrain[(bh->y + k_fdy[2]) * map.width + (bh->x + k_fdx[2])] = col1_tile_to_mp_terrain(0x01u); /* Desert */
       }
       if (map.improve) {
         map.improve[(bh->y + k_fdy[2]) * map.width + (bh->x + k_fdx[2])] |= MAP_IMPROVE_ROAD;

@@ -971,6 +971,16 @@ target_include_directories(golden_colony_prod01 PRIVATE
 target_link_libraries(golden_colony_prod01 PRIVATE colonize_core)
 add_test(NAME golden_colony_prod01 COMMAND golden_colony_prod01 WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
+# Colony production golden #2 vs real-DOS-run saves (COLONY00/01-dutch2-t0/t1.SAV):
+add_executable(golden_colony_prod02
+  tests/golden/test_colony_prod02.c
+)
+target_include_directories(golden_colony_prod02 PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+target_link_libraries(golden_colony_prod02 PRIVATE colonize_core)
+add_test(NAME golden_colony_prod02 COMMAND golden_colony_prod02 WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+
 # Joint Euro↔Indian harness (T3 roadmap Phase 0 + Series D/H/K mid+late):
 add_custom_target(golden_ai_joint
   COMMAND ${CMAKE_COMMAND} -E echo "golden_ai_joint: mapgen + turns + contact + diplo + mid01 + late01"
