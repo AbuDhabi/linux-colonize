@@ -8434,14 +8434,14 @@ static void ai_euro_colony_goals(ColonizeTurnContext* ctx, int nation_id) {
          * Registration gate: kept as the existing simple stock<threshold
          * check (`ai_euro_colony_haul_cargo_short`, already tested) rather
          * than switching to DOS's own "any post-formula slot value >0x4a"
-         * signal — with the `target=100` placeholder, that real gate only
-         * trips for stock quantities this port's small-colony test
-         * fixtures never reach (DOS's real game likely deals in larger
-         * absolute stock at the point this scoring matters; `target`'s
-         * true value would need `FUN_1000_8f2a` resolved to know for
-         * sure). The *score* below is still the real formula — only the
-         * boolean "should this colony get a work-queue entry at all" gate
-         * is the pre-existing Linux threshold.
+         * signal, even now that `target` below is the real per-colony
+         * warehouse capacity (see resolved comment further down) —
+         * changing the gate is an independent decision from getting the
+         * formula right, and the existing threshold is already tested
+         * against real fixtures (small-colony stock scale can still land
+         * under 0x4a post-formula even at a correct `target`). The
+         * *score* is the real formula; only the "register at all"
+         * boolean stays pragmatic Linux.
          */
         const int haul_short =
           ai_euro_colony_haul_cargo_short(c, COLONIZE_CARGO_TOOLS) ||
@@ -8450,12 +8450,71 @@ static void ai_euro_colony_goals(ColonizeTurnContext* ctx, int nation_id) {
           ai_euro_colony_haul_cargo_short(c, COLONIZE_CARGO_MUSKETS) ||
           ai_euro_colony_haul_cargo_short(c, COLONIZE_CARGO_HORSES) ||
           ai_euro_colony_haul_cargo_short(c, COLONIZE_CARGO_FOOD);
-        const int target = 100; /* FUN_1000_8f2a() placeholder, see above */
+        /*
+         * FUN_1000_8f2a() RESOLVED (2026-08-18, static — no live session
+         * needed): address_mapping.csv's canonical chain
+         * FUN_1000_8f2a → FUN_281f_0d3a → FUN_15eb_0a50 is exactly the
+         * already-known, already-documented warehouse-capacity formula
+         * (`save_format_map.md`/`FUNCTION_CATALOG.md`: 100×(1+
+         * warehouse_level)) — already live in Linux as
+         * `colonies_warehouse_capacity`. DOS calls this once per colony
+         * (no cargo_type arg), same as here; pass a non-FOOD cargo type
+         * since that function's only cargo-dependent branch is FOOD's
+         * separate 199 cap (irrelevant here — FOOD is already skipped by
+         * this loop).
+         */
+        const int target =
+          colonies_warehouse_capacity(ctx->colonies, c, COLONIZE_CARGO_TOOLS);
         const ColonizeCol1Nation* nat =
           (ctx->col1_ok && ctx->col1 && nation_id >= 0 && nation_id < 4)
             ? &ctx->col1->nation[nation_id]
             : NULL;
         long wscore = 0;
+        /*
+         * Missionary / exposed-combat-unit bonus (raw lines ~536-563,
+         * same colony loop, before the cargo-weight scan below) — DOS
+         * walks units *stacked at this colony's own tile* via a
+         * transport-chain stack walk (`unit_index_on_tile` + prev-link
+         * follow, `FUN_1000_89d0`/`84d4`; both resolved this pass via
+         * `address_mapping.csv`: canonical `FUN_281f_07e0`/`02e4`,
+         * already-known `ai/accessors.c` unit-on-tile + transport-chain
+         * helpers). Linux has no live per-tile unit stack to walk, so
+         * iterate + filter x/y instead — same substitution this file
+         * already uses elsewhere (e.g. the garrison_quota scan just
+         * above). +800 (saturating in DOS; harmless to add plain here,
+         * the shared clamp below still applies) per Missionary/Jesuit
+         * here, when colony ai_flags bit7 is clear — DOS bit, unnamed,
+         * no Linux field; approximated as always-clear (always counted),
+         * a defensible superset since the real gate would only narrow
+         * this. +1500 per exposed combat-capable land unit (attack>1,
+         * not a ship) when this continent has no G-table stance assigned
+         * (`ai_euro_continent_stance_at()==0`) and the unit isn't
+         * garrisoned/admitted — that last check is against this port's
+         * own 0a60 shadow state (`s_0a60_pilot_state`), which is always
+         * fresh-zeroed at this point in the turn (`ai_euro_colony_goals`
+         * runs before `ai_euro_0a60_goal_orders_structural` populates
+         * it), so it's always satisfied here — correct given execution
+         * order, not a shortcut.
+         */
+        if (ctx->units) {
+          const int cid = map_continent_id_at(ctx->map, c->x, c->y);
+          for (int ui = 0; ui < COLONIZE_UNITS_MAX; ++ui) {
+            const ColonizeUnit* u = &ctx->units->units[ui];
+            if (!u->active || u->x != c->x || u->y != c->y) {
+              continue;
+            }
+            if (ai_euro_is_missionary_name(units_display_name(ctx->units, u))) {
+              wscore += 800;
+            }
+            if (ai_euro_continent_stance_at(nation_id, cid) == 0 &&
+                !units_is_sea(ctx->units, ui)) {
+              const ColonizeUnitType* ty = units_type(ctx->units, u->type_index);
+              if (ty && ty->attack > 1) {
+                wscore += 1500;
+              }
+            }
+          }
+        }
         for (int slot = 0; slot < COLONIZE_CARGO_COUNT; ++slot) {
           if (slot == COLONIZE_CARGO_FOOD || slot == COLONIZE_CARGO_LUMBER ||
               slot == COLONIZE_CARGO_TRADE_GOODS) {
