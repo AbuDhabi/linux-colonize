@@ -1946,9 +1946,20 @@ int main(void) {
       assets_msg_free(&names);
       return 1;
     }
+    /*
+     * A non-expert Farmer's unconditional +1 (colony_yield_pipeline) does
+     * not stack with plow — the same +1 applies plowed or not. Real,
+     * previously-exact captures confirm this: golden_colony_prod02's New
+     * Amsterdam (Desert, plowed) and Fort Orange (Grassland, plowed,
+     * Convert), both non-expert, need exactly +1 over base+SoL(+convert),
+     * not +2 — trying +2 (this test's original expectation) overshot 9+
+     * other real/golden colonies. So plowing a bare tile changes nothing
+     * for colony_yield_for_tile's free-colonist reading here (still worth
+     * checking — it should stay inert, not silently start stacking again).
+     */
     const int farm_plowed = colony_yield_for_tile(&tmap, px, py, COLONIZE_JOB_FARMER);
-    if (farm_plowed != farm_base + 1) {
-      fprintf(stderr, "phase7 plow yield expected %d got %d\n", farm_base + 1, farm_plowed);
+    if (farm_plowed != farm_base) {
+      fprintf(stderr, "phase7 plow yield expected %d got %d\n", farm_base, farm_plowed);
       map_free(&tmap);
       map_free(&map);
       assets_msg_free(&names);

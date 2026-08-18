@@ -393,8 +393,10 @@ int main(void) {
    * special-cased resource-only doubling for Farmer. A flat "+2 instead
    * of x2 for food/fish experts" variant was tried and regressed
    * golden_colony_prod01 (see colony_yield_pipeline), so plain x2 stands.
-   *   free:   base(1)             +resource(free,+2)  = 3
-   *   expert: (base(1)+resource(+2)) x2                = 6
+   *   free:   base(1) +farmer(+1, non-expert, asm-confirmed 2026-08-18,
+   *            see colony_yield_pipeline) +resource(free,+2)  = 4
+   *   expert: (base(1)+resource(+2)) x2  (farmer's +1 doesn't apply —
+   *            expert Farmers skip this block entirely)          = 6
    */
   {
     int gx = -1;
@@ -407,8 +409,8 @@ int main(void) {
     const int free_game = colony_yield_for_worker(
       &map, gx, gy, COLONIZE_JOB_FARMER, COLONIZE_PROF_FREE_COLONIST, /*has_docks=*/true, 0
     );
-    if (free_game != 3) {
-      fprintf(stderr, "free colonist farmer+Game want 3 got %d\n", free_game);
+    if (free_game != 4) {
+      fprintf(stderr, "free colonist farmer+Game want 4 got %d\n", free_game);
       map_free(&map);
       return 1;
     }

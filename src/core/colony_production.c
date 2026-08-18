@@ -270,7 +270,21 @@ int colony_prod_sol_bonus(const ColonizeCol1Save* col1, const ColonizeColony* co
       if (diff > 4) {
         diff = 4;
       }
-      thresh = 10 - diff * 2;
+      /*
+       * `local_10 = -(*(byte*)0x53a6 - 10)` in the real asm (FUN_15eb_18ec
+       * ~11871, field-yield's own SoL/Tory term) is `10 - difficulty`, not
+       * `10 - difficulty*2` — player-confirmed 2026-08-18 via
+       * colony_prod02's Recife (pop 4, 20% SoL, no latch, Viceroy,
+       * human-controlled): real DOS shows a +0 sentiment modifier there,
+       * but `10 - diff*2` (thresh 2 at Viceroy) gives floor(3/2) = -1, not
+       * 0. `10 - diff` (thresh 6) gives floor(3/6) = 0 — exact match, and
+       * matches this function's own "Tory floor" regression test's
+       * comment ("Viceroy → thresh 6"), which the `*2` version only
+       * passed by coincidence via the `mod < -2` clamp below (pop 12/sol 0
+       * gives floor(12/2)=6→clamped to -2, same as the correct
+       * floor(12/6)=2 — both land on -2, hiding the bug).
+       */
+      thresh = 10 - diff;
     }
   }
   if (thresh < 2) {
