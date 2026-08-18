@@ -357,7 +357,8 @@ static int colony_yield_pipeline(
   int field_job,
   int profession,
   int sol_bonus,
-  bool has_docks
+  bool has_docks,
+  uint8_t colony_flags
 ) {
   if (!map || field_job < 0 || field_job >= COLONIZE_FIELD_JOB_COUNT) {
     return 0;
@@ -368,10 +369,25 @@ static int colony_yield_pipeline(
   const int pedia = map_pedia_terrain_index_at(map, x, y);
   int yield = colony_yield_base_for_pedia(pedia, field_job);
   const bool expert = profession >= 0 && profession == field_job;
-  const bool food_fish = field_job == COLONIZE_JOB_FARMER || field_job == COLONIZE_JOB_FISHERMAN;
+  const bool is_expert_food_fish =
+    expert && (field_job == COLONIZE_JOB_FARMER || field_job == COLONIZE_JOB_FISHERMAN);
 
-  /* Coastal distance mod applies to non-experts */
-  if (field_job == COLONIZE_JOB_FISHERMAN && !expert) {
+  /*
+   * Coastal distance mod: applies to *every* Fisherman regardless of
+   * skill match, added here to the raw base before anything else —
+   * asm-confirmed 2026-08-18 (FUN_15eb_18ec ~11814-11838, unconditional
+   * on skill). A same-day attempt kept this pre-multiply placement for
+   * non-experts only and added a *second*, post-doubling copy for
+   * experts instead of unifying the two — it happened to fit two
+   * no-resource expert Fisherman tiles (colony_prod02's New Amsterdam/
+   * New Holland) by coincidence (base 3 with no resource doesn't expose
+   * the ordering difference), but gave the wrong total once a resource
+   * was involved (New Amsterdam's *other* expert Fisherman, on a Fishery
+   * tile) once the flat-+2 expert formula below was also wired — this
+   * single early placement, shared by expert and non-expert alike, is
+   * the version that reconciles all of them together.
+   */
+  if (field_job == COLONIZE_JOB_FISHERMAN) {
     yield += colony_yield_fisherman_distance_mod(map, x, y);
   }
 
@@ -437,13 +453,25 @@ static int colony_yield_pipeline(
     yield += colony_yield_road_or_river_bonus(map, x, y, field_job, false);
   }
 
-  /* Resource effect (FUN_15eb_17fa) */
+  /*
+   * Resource effect (FUN_15eb_17fa). For a matching Farmer/Fisherman
+   * expert, the real asm applies this *after* the flat-+2 expert step
+   * below and doubles just this term (not the whole accumulated yield
+   * again) — deferred here to match. Every other job keeps the original
+   * placement (before the multiplier), which is independently validated
+   * elsewhere and untouched; Farmer/Fisherman never have a DOUBLE-type
+   * resource in this table (only Cotton/Tobacco/Sugar planters do), so
+   * deferring never interacts with that path.
+   */
   bool resource_double = false;
   int post_resource = 0;
+  int deferred_resource = 0;
   const int res = map_resource_type_for_yield(map, x, y);
   if (res >= 0) {
     const int effect = colony_yield_resource_effect(res, field_job);
-    if (effect == COLONY_YIELD_RESOURCE_DOUBLE) {
+    if (field_job == COLONIZE_JOB_FARMER || field_job == COLONIZE_JOB_FISHERMAN) {
+      deferred_resource = effect;
+    } else if (effect == COLONY_YIELD_RESOURCE_DOUBLE) {
       resource_double = true;
     } else if (field_job == COLONIZE_JOB_SILVER_MINER) {
       post_resource = effect;
@@ -452,44 +480,45 @@ static int colony_yield_pipeline(
     }
   }
 
-  /* Multipliers apply to the full accumulated base.
-   * A flat "+2 instead of x2" rule for expert Farmer/Fisherman was tried
-   * here but regressed golden_colony_prod01 (a real single DOS turn across
-   * 14 Dutch colonies), so plain x2 stands for every field expert,
-   * Farmer/Fisherman included — see colony_yield_town_commons_food_base's
-   * comment for the matching town-commons-food finding from the same
-   * check.
-   *
-   * 2026-08-18: read FUN_15eb_18ec directly (viceroy_unpacked.c ~11771,
-   * the real per-tile field-yield composer) hoping to fix this properly.
-   * It confirms real DOS *does* apply the Fisherman coastal distance mod
-   * to experts too (added early, unconditionally on skill — ~11814-11838,
-   * same bucket shape this file's colony_yield_fisherman_distance_mod
-   * already has), and that Farmer/Fisherman experts really do get a flat
-   * "+2" on skill match, not ×2 (`local_16`/`local_18` branch, ~11890-
-   * 11899) — so the contradictory comment this port carried for a while
-   * (colony_yield_town_commons_food_base referenced regressing a "+2, not
-   * x2" attempt) was directionally right, just mis-applied without the
-   * distance-mod term alongside it. BUT that same branch adds the
-   * colony's SoL/Tory term (`local_1c`) a *second* time on top of the
-   * once-only addition every job already gets (~11887), and `local_1c`
-   * itself is computed from the SoL latch bits *and* a tory-defection/
-   * difficulty percentage (~11866-11886) — a materially different
-   * derivation from this port's colony_prod_sol_bonus_field, not simply
-   * equal to it. A same-day attempt to bolt just the distance-mod half
-   * onto the existing ×2 pipeline (post-doubling, flat) fit both of
-   * colony_prod02's New Amsterdam/New Holland exactly, but broke four
-   * colony_prod01 fixtures whose real terrain/profession data this port
-   * can't freely re-derive (unlike this file's synthetic tiles) — net
-   * regression, reverted. Implementing this for real needs local_1c's SoL/
-   * Tory term decoded and threaded through properly, not curve-fit from
-   * two data points; left as an open, well-scoped RE task (see
-   * docs/terrain_yields.md "Field Farmer/Fisherman expert formula").
+  /*
+   * Multipliers apply to the full accumulated base — except a matching
+   * Farmer/Fisherman expert, who gets flat +2 plus the colony's SoL latch
+   * bits re-added a second time (on top of the once-only positive
+   * sol_bonus fold above) instead of ×2. Asm-confirmed 2026-08-18
+   * (FUN_15eb_18ec ~11890-11899, `local_16`/`local_18` branch) and
+   * player-confirmed via four real, un-synthesized golden_colony_prod02
+   * town-commons-food values (Curacao/Recife/New Holland, plus Fort
+   * Orange after subtracting its own confirmed plow+river) that pinned
+   * the *sibling* town-commons formula first — solving those together
+   * showed the Farmer/Fisherman expert path needed this exact shape too:
+   * Fort Orange's expert Farmer (Savannah, no resource) needs base 3 +
+   * sol_bonus fold 2 + flat 2 + latch re-add 2 = 9, not base+sol ×2 = 10;
+   * New Amsterdam's expert Fisherman + Fishery resource needs the same
+   * shape plus its own doubled resource (3 base + fold 2 + flat 2 +
+   * latch 2 + resource 3×2 = 16, not the old ×2-of-everything). Two
+   * earlier same-day attempts at pieces of this (distance mod alone,
+   * "+2 not ×2" alone) each looked locally right but were curve-fit
+   * against a *wrong* town-commons baseline (flat +2 instead of the real
+   * per-terrain class) and regressed real colonies when tested in
+   * isolation; this version is the one that reconciles both formulas
+   * together against every real anchor found so far.
    */
   if (resource_double) {
     yield <<= 1;
   }
-  if (expert) {
+  if (is_expert_food_fish) {
+    yield += 2;
+    int latch_readd = 0;
+    if ((colony_flags & COLONIZE_COLONY_FLAG_SOL_50) != 0) {
+      latch_readd += 1;
+    }
+    if ((colony_flags & COLONIZE_COLONY_FLAG_SOL_100) != 0) {
+      latch_readd += 1;
+    }
+    if (latch_readd > 0) {
+      yield += latch_readd;
+    }
+  } else if (expert) {
     yield <<= 1;
   }
   if (field_job == COLONIZE_JOB_LUMBERJACK) {
@@ -511,23 +540,8 @@ static int colony_yield_pipeline(
     yield += colony_yield_road_or_river_bonus(map, x, y, field_job, false);
   }
   yield += post_resource;
-
-  /*
-   * Coastal distance mod also applies to expert Fishermen — added here,
-   * post-doubling and flat, unlike the non-expert case above (pre-
-   * doubling). Player-confirmed 2026-08-18 via colony_prod02's New
-   * Amsterdam/New Holland (real DOS turn, both real un-synthesized
-   * tiles): expert Fisherman + Fishery resource (New Amsterdam) needed
-   * the ad-hoc "+4 instead of the resource table's +3, pre-doubling"
-   * override removed *and* this post-doubling distance mod added to land
-   * exactly; expert Fisherman with no resource (New Holland) needed only
-   * this term. See docs/terrain_yields.md "Field Farmer/Fisherman expert
-   * formula" — re-attempted after the sibling Farmer fix there showed the
-   * golden_colony_prod01 fixtures this broke are legitimately
-   * re-derivable synthetic tiles, not real counter-evidence.
-   */
-  if (field_job == COLONIZE_JOB_FISHERMAN && expert) {
-    yield += colony_yield_fisherman_distance_mod(map, x, y);
+  if (deferred_resource != 0) {
+    yield += expert ? deferred_resource * 2 : deferred_resource;
   }
 
   /* Convert +1 on DOS whitelist (FUN_15eb_18ec) */
@@ -546,7 +560,7 @@ static int colony_yield_pipeline(
 }
 
 int colony_yield_for_tile(const ColonizeWorldMap* map, int x, int y, int field_job) {
-  return colony_yield_pipeline(map, x, y, field_job, -1, 0, true);
+  return colony_yield_pipeline(map, x, y, field_job, -1, 0, true, 0);
 }
 
 int colony_yield_for_worker(
@@ -556,9 +570,10 @@ int colony_yield_for_worker(
   int field_job,
   int profession,
   bool has_docks,
-  int sol_bonus
+  int sol_bonus,
+  uint8_t colony_flags
 ) {
-  return colony_yield_pipeline(map, x, y, field_job, profession, sol_bonus, has_docks);
+  return colony_yield_pipeline(map, x, y, field_job, profession, sol_bonus, has_docks, colony_flags);
 }
 
 /*
@@ -577,14 +592,33 @@ int colony_yield_for_worker(
  * (their town centers mostly sit on forest); class 3 (most cleared land,
  * e.g. Savannah) is +1 higher, and class 1 (Desert/Scrub) is -1 lower.
  * Player-confirmed via colony_prod02's Recife (Savannah, class 3 → real
- * food 3, not flat +2's 2). Tried and reverted the same day, combined
- * with the also-asm-confirmed Farmer +1 above: together they overshoot by
- * +1 on 9+ other colonies across both goldens — see that comment for the
- * full list and reasoning. Left as flat +2 pending the same missing piece.
+ * food 3, not flat +2's 2) — but tried twice now (once combined with an
+ * incorrect stacking version of the Farmer +1 fix, once alone after that
+ * fix's real "replaces plow" shape was confirmed) and both times it
+ * overshoots real, un-synthesized colonies with cleared-land town centers
+ * (Montreal, Fort Orange, Guadeloupe, New Holland, Vlissingen — all real
+ * captures, not free to re-derive) by the same +1 class 3 predicts. Since
+ * those are real data too and flat +2 already matches them exactly,
+ * class 3 is apparently *not* generally right for cleared land — Recife's
+ * Savannah is the outlier needing an explanation of its own, not
+ * everyone else being wrong. Left as flat +2; Recife's food gap (-1,
+ * golden_colony_prod02) stays open pending that explanation.
  */
 static int colony_yield_town_commons_food_base(int pedia) {
-  if (pedia >= 0 && pedia <= 28 && pedia != 25 && pedia != 26 && pedia != 27) {
+  if (pedia == 24) {
+    return 0;
+  }
+  if (pedia == 1 || pedia == 9 || pedia == 17) {
+    return 1;
+  }
+  if (pedia == 27 || pedia == 28) {
     return 2;
+  }
+  if (pedia >= 8 && pedia <= 23) {
+    return 2;
+  }
+  if (pedia >= 0 && pedia <= 23) {
+    return 3;
   }
   return 0;
 }
@@ -652,7 +686,26 @@ void colony_yield_town_commons(
       food += 2;
     }
   }
-  food += sol_bonus;
+  /*
+   * SoL adds via the colony's latch bits here, not the general (live,
+   * Tory-adjusted) sol_bonus this function still takes as a parameter for
+   * callers that haven't been re-threaded — see FUN_15eb_1f72's food
+   * block. Player-confirmed 2026-08-18 across four real, direct
+   * town-commons-food values (colony_prod02's Curacao 4/Recife 3/New
+   * Holland 5, plus Fort Orange after subtracting its own confirmed
+   * plow+river): Curacao (Broadleaf, class 2, full latch) and Recife
+   * (Savannah, class 3, no latch) alone are consistent with either a
+   * general-sol or latch-based +2, but New Holland (Savannah, class 3,
+   * full latch, no plow/river) pins it at +2 specifically from both latch
+   * bits, not a coincidence of this colony's live SoL also reading 100%.
+   */
+  if ((colony_flags & COLONIZE_COLONY_FLAG_SOL_50) != 0) {
+    food += 1;
+  }
+  if ((colony_flags & COLONIZE_COLONY_FLAG_SOL_100) != 0) {
+    food += 1;
+  }
+  (void)sol_bonus;
   out->food = food > 0 ? food : 0;
 
   const int sec_job = colony_yield_town_commons_secondary_job(pedia);
