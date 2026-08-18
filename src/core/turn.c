@@ -607,7 +607,14 @@ static void turn_produce_one_colony(
        * end, same net position as this function's old external add. */
       const int sol_b_field = colony_prod_sol_bonus_field(col1, colony);
       const int yld = colony_yield_for_worker(
-        map, colony->x + dx, colony->y + dy, c->field_job, c->profession, has_docks, sol_b_field
+        map,
+        colony->x + dx,
+        colony->y + dy,
+        c->field_job,
+        c->profession,
+        has_docks,
+        sol_b_field,
+        colony->colony_flags
       );
       if (yld <= 0) {
         continue;

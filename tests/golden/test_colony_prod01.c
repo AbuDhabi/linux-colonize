@@ -518,8 +518,8 @@ static int run_pair(const char* path_in, const char* path_exp, const char* label
       if (map.terrain) {
         map.terrain[54 * map.width + 42] = col1_tile_to_mp_terrain(0x0cu);
       }
-      int y_farm = colony_yield_for_worker(&map, 42, 56, 0, fo->colonists[0].profession, true, 2);
-      int y_fish = colony_yield_for_worker(&map, 41, 55, 8, fo->colonists[2].profession, true, 2);
+      int y_farm = colony_yield_for_worker(&map, 42, 56, 0, fo->colonists[0].profession, true, 2, 0);
+      int y_fish = colony_yield_for_worker(&map, 41, 55, 8, fo->colonists[2].profession, true, 2, 0);
       ColonizeTownCommonsYield tc;
       colony_yield_town_commons(&map, 42, 55, 0, 0, &tc);
       fprintf(stderr, "DEBUG Fort Orange: y_farm=%d, y_fish=%d, center=%d, prof0=%d, prof2=%d\n",

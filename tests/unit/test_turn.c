@@ -1290,7 +1290,7 @@ int main(void) {
      * excluded — no +1 here, unlike Farmer/Sugar/Tobacco/Cotton/Fur
      * Trapper/Fisherman below. */
     const int convert_yld =
-      colony_yield_for_worker(&map, fx, fy, COLONIZE_JOB_LUMBERJACK, COLONIZE_PROF_CONVERT, true, 0);
+      colony_yield_for_worker(&map, fx, fy, COLONIZE_JOB_LUMBERJACK, COLONIZE_PROF_CONVERT, true, 0, 0);
     if (convert_yld != base) {
       fprintf(
         stderr,
@@ -1318,7 +1318,7 @@ int main(void) {
       }
       const int farmer_base = colony_yield_for_tile(&map, ffx, ffy, COLONIZE_JOB_FARMER);
       const int farmer_convert =
-        colony_yield_for_worker(&map, ffx, ffy, COLONIZE_JOB_FARMER, COLONIZE_PROF_CONVERT, true, 0);
+        colony_yield_for_worker(&map, ffx, ffy, COLONIZE_JOB_FARMER, COLONIZE_PROF_CONVERT, true, 0, 0);
       if (farmer_convert != farmer_base + 1) {
         fprintf(
           stderr,
@@ -1376,7 +1376,7 @@ int main(void) {
       }
     }
     const int wrong_expert =
-      colony_yield_for_worker(&map, fx, fy, COLONIZE_JOB_LUMBERJACK, COLONIZE_PROF_FREE_COLONIST, true, 0);
+      colony_yield_for_worker(&map, fx, fy, COLONIZE_JOB_LUMBERJACK, COLONIZE_PROF_FREE_COLONIST, true, 0, 0);
     if (wrong_expert != base) {
       fprintf(
         stderr,
@@ -1719,7 +1719,7 @@ int main(void) {
     col->stock[COLONIZE_CARGO_FOOD] = 100;
     const int before = col->stock[COLONIZE_CARGO_LUMBER];
     const int expect =
-      colony_yield_for_worker(&map, fx, fy, COLONIZE_JOB_LUMBERJACK, col->colonists[0].profession, true, 0);
+      colony_yield_for_worker(&map, fx, fy, COLONIZE_JOB_LUMBERJACK, col->colonists[0].profession, true, 0, 0);
     ColonizeTurnResult prod;
     ColonizeColonyProdDelta delta;
     memset(&prod, 0, sizeof(prod));
@@ -1744,7 +1744,7 @@ int main(void) {
      * bells/hammers, dropping every Tory penalty instead of applying it. */
     col->population = 15; /* tories=15, thresh=10 (col1 NULL) -> mod=-1 */
     const int base_yield =
-      colony_yield_for_worker(&map, fx, fy, COLONIZE_JOB_LUMBERJACK, col->colonists[0].profession, true, 0);
+      colony_yield_for_worker(&map, fx, fy, COLONIZE_JOB_LUMBERJACK, col->colonists[0].profession, true, 0, 0);
     ColonizeColonyPreview prev;
     colony_preview_compute(&pool, col, &map, NULL, &prev);
     if (prev.goods[COLONIZE_CARGO_LUMBER] != base_yield - 1) {
@@ -2065,7 +2065,7 @@ int main(void) {
     }
     col->has_building[docks] = false;
     const int no_docks_yld = colony_yield_for_worker(
-      &map, fx, fy, COLONIZE_JOB_FISHERMAN, col->colonists[0].profession, false, 0
+      &map, fx, fy, COLONIZE_JOB_FISHERMAN, col->colonists[0].profession, false, 0, 0
     );
     if (no_docks_yld != 0) {
       fprintf(stderr, "fisherman without Docks want 0 got %d\n", no_docks_yld);
@@ -2074,7 +2074,7 @@ int main(void) {
       return 1;
     }
     const int with_docks_yld = colony_yield_for_worker(
-      &map, fx, fy, COLONIZE_JOB_FISHERMAN, col->colonists[0].profession, true, 0
+      &map, fx, fy, COLONIZE_JOB_FISHERMAN, col->colonists[0].profession, true, 0, 0
     );
     if (with_docks_yld <= 0) {
       fprintf(stderr, "fisherman with Docks want >0 got %d\n", with_docks_yld);
@@ -2131,19 +2131,23 @@ int main(void) {
 
   /*
    * Real DOS gives expert Farmer/Fisherman a flat +2 on skill match, not
-   * ×2 like every other field expert (FUN_15eb_18ec ~11890-11899,
-   * asm-confirmed — see docs/terrain_yields.md "Field Farmer/Fisherman
-   * expert formula"). Not implemented for the expert case: the asm places
-   * it after a SoL/Tory re-add this port hasn't fully decoded, and every
-   * synthetic expert-Farmer golden fixture is tuned to ×2. This test
-   * instead guards the ×2 actually shipped.
+   * ×2 like every other field expert, plus the colony's SoL latch bits
+   * re-added a second time (FUN_15eb_18ec ~11890-11899, asm-confirmed —
+   * see docs/terrain_yields.md "Field Farmer/Fisherman expert formula").
+   * Wired 2026-08-18, player-confirmed against four real,
+   * un-synthesized golden_colony_prod02 town-commons-food values (which
+   * pinned the sibling formula first) plus Fort Orange's real expert
+   * Farmer (Savannah, no resource: base 3 + sol fold 2 + flat 2 + latch
+   * re-add 2 = 9, not (3+2)×2 = 10) and New Amsterdam's real expert
+   * Fisherman + Fishery resource (needs the same shape plus its own
+   * doubled resource).
    *
    * `base` (free colonist, non-expert) includes the unconditional Farmer
-   * +1 asm-confirmed 2026-08-18 (colony_yield_pipeline; player-confirmed
-   * via golden_colony_prod02's New Amsterdam/Fort Orange/Curacao/Recife)
-   * plus a possible river +1 — neither applies to the expert path (skips
-   * this block entirely), so back both out before doubling to get the
-   * raw table value the expert path actually multiplies.
+   * +1 (colony_yield_pipeline) plus a possible river +1 — neither applies
+   * to the expert path (skips this block entirely), so back both out to
+   * get the raw table value the expert path's flat +2 applies to. No
+   * colony context here (real map, no colony), so colony_flags=0 → no
+   * latch re-add.
    */
   {
     ColonizeWorldMap map;
@@ -2170,12 +2174,12 @@ int main(void) {
     const int base = colony_yield_for_tile(&map, fx, fy, COLONIZE_JOB_FARMER);
     const int river_bonus = map_tile_has_river(&map, fx, fy) ? 1 : 0;
     const int expert_yld =
-      colony_yield_for_worker(&map, fx, fy, COLONIZE_JOB_FARMER, COLONIZE_JOB_FARMER, true, 0);
-    const int want = (base - 1 - river_bonus) * 2;
+      colony_yield_for_worker(&map, fx, fy, COLONIZE_JOB_FARMER, COLONIZE_JOB_FARMER, true, 0, 0);
+    const int want = (base - 1 - river_bonus) + 2;
     if (expert_yld != want) {
       fprintf(
         stderr,
-        "expert farmer x2 want %d got %d (base %d)\n",
+        "expert farmer flat+2 want %d got %d (base %d)\n",
         want,
         expert_yld,
         base
@@ -2184,7 +2188,7 @@ int main(void) {
       return 1;
     }
     map_free(&map);
-    fprintf(stderr, "expert farmer x2 ok\n");
+    fprintf(stderr, "expert farmer flat+2 ok\n");
   }
 
   /*

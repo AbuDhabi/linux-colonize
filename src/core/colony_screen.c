@@ -1325,7 +1325,7 @@ static void colony_screen_draw_area_overlays(
     const int tile_y = origin_y + (dy + half) * tile;
     const int cargo = colony_yield_job_cargo(c->field_job);
     int yld = colony_yield_for_worker(
-      map, colony->x + dx, colony->y + dy, c->field_job, c->profession, has_docks, 0
+      map, colony->x + dx, colony->y + dy, c->field_job, c->profession, has_docks, 0, 0
     );
     /* Henry Hudson: fur trapper output +100% — matches turn.c/colony_preview.c
      * (2026-08-15: badges previously missed this, a known gap — see
@@ -2686,7 +2686,7 @@ static void colony_screen_draw_jobs_popup(
         view->selected_colonist < colony->colonist_count) {
       profession = colony->colonists[view->selected_colonist].profession;
     }
-    int yld = (map && colony) ? colony_yield_for_worker(map, tx, ty, job, profession, has_docks, 0) : 0;
+    int yld = (map && colony) ? colony_yield_for_worker(map, tx, ty, job, profession, has_docks, 0, 0) : 0;
     /* Henry Hudson: fur trapper output +100% — same gap/fix as
      * colony_screen_draw_area_overlays above. */
     if (yld > 0 && job == COLONIZE_JOB_FUR_TRAPPER && colony && col1 &&

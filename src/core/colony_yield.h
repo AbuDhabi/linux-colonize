@@ -23,17 +23,24 @@ int colony_yield_for_tile(const ColonizeWorldMap* map, int x, int y, int field_j
 
 /*
  * Tile yield for colonist `profession` on `field_job` — the full DOS
- * pipeline (FUN_15eb_18ec): base terrain, positive sol_bonus fold, expert
- * doubling (convert +1, expert ×2 when matched — flat +2 for food/fish),
- * special resource, Lumberjack's unconditional ×2, plow, road/river (unit
- * size doubles for a matching non-food/fish expert or any Lumberjack —
- * player-confirmed 2026-08-15, Viceroy), then negative sol_bonus at the
- * very end (not amplified by expert doubling). `has_docks`: pass whether
- * the colony owns Docks (or an upgrade: Drydock/Shipyard) — Fisherman
- * yields 0 without it, matching DOS. `sol_bonus`: colony_prod_sol_bonus_field
- * (signed; 0 to skip). See colony_yield_pipeline's comment in
- * colony_yield.c and docs/terrain_yields.md for the full step order and its
- * player-data derivation.
+ * pipeline (FUN_15eb_18ec): base terrain, Fisherman coastal distance mod
+ * (any skill), positive sol_bonus fold, plow/road/river, special resource
+ * (deferred for a matching Farmer/Fisherman expert — see below), then the
+ * expert multiplier: flat ×2 for every field expert *except* a matching
+ * Farmer/Fisherman, which instead gets flat +2 plus the colony's SoL latch
+ * bits re-added a second time (`colony_flags`, asm-confirmed 2026-08-18 —
+ * see docs/terrain_yields.md "Field Farmer/Fisherman expert formula"), and
+ * only then its own resource bonus (doubled if expert). Lumberjack's
+ * unconditional ×2 and negative sol_bonus (not amplified by any of the
+ * above) apply last. `has_docks`: pass whether the colony owns Docks (or
+ * an upgrade: Drydock/Shipyard) — Fisherman yields 0 without it, matching
+ * DOS. `sol_bonus`: colony_prod_sol_bonus_field (signed; 0 to skip).
+ * `colony_flags`: the colony's ColonizeColony.colony_flags (SOL_50/
+ * SOL_100 latch bits; 0 if not a matching Farmer/Fisherman expert, or if
+ * the caller has no colony context — colony_yield_for_tile passes 0). See
+ * colony_yield_pipeline's comment in colony_yield.c and
+ * docs/terrain_yields.md for the full step order and its player-data
+ * derivation.
  */
 int colony_yield_for_worker(
   const ColonizeWorldMap* map,
@@ -42,7 +49,8 @@ int colony_yield_for_worker(
   int field_job,
   int profession,
   bool has_docks,
-  int sol_bonus
+  int sol_bonus,
+  uint8_t colony_flags
 );
 
 /* Display name for field @JOB (static string). */

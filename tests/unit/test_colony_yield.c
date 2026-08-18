@@ -110,13 +110,14 @@ int main(void) {
    * colony. See colony_yield_town_commons_food_base's comment.
    */
 
-  /* Scrub forest (pedia 9) — no special / river / latch. secondary base=2. */
+  /* Scrub forest (pedia 9) — food class 1 (Desert/Scrub special case, see
+   * colony_yield_town_commons_food_base), no special/river/latch. */
   map.terrain[0] = 9;
   if (check_commons(
         &map,
         0,
         0,
-        2,
+        1,
         COLONIZE_CARGO_FURS,
         2,
         "scrub"
@@ -191,7 +192,7 @@ int main(void) {
     return 1;
   }
   /* amt=4: base(Prairie,Cotton)=3 +1 river(minor). */
-  if (check_commons(&map, 3, 0, 3, COLONIZE_CARGO_COTTON, 4, "prairie+minor river")) {
+  if (check_commons(&map, 3, 0, 4, COLONIZE_CARGO_COTTON, 4, "prairie+minor river")) {
     map_free(&map);
     return 1;
   }
@@ -312,7 +313,7 @@ int main(void) {
     map.terrain[hy * map.width + hx] = (uint8_t)(0x20u); /* Hills, no forest/river */
     map_tile_set_road(&map, hx, hy, true);
     const int free_ore = colony_yield_for_worker(
-      &map, hx, hy, COLONIZE_JOB_ORE_MINER, COLONIZE_PROF_FREE_COLONIST, /*has_docks=*/true, 1
+      &map, hx, hy, COLONIZE_JOB_ORE_MINER, COLONIZE_PROF_FREE_COLONIST, /*has_docks=*/true, 1, 0
     );
     if (free_ore != 6) {
       fprintf(stderr, "free colonist ore+road+sol want 6 got %d\n", free_ore);
@@ -320,7 +321,7 @@ int main(void) {
       return 1;
     }
     const int expert_ore = colony_yield_for_worker(
-      &map, hx, hy, COLONIZE_JOB_ORE_MINER, COLONIZE_JOB_ORE_MINER, /*has_docks=*/true, 1
+      &map, hx, hy, COLONIZE_JOB_ORE_MINER, COLONIZE_JOB_ORE_MINER, /*has_docks=*/true, 1, 0
     );
     if (expert_ore != 12) {
       fprintf(stderr, "expert ore miner+road+sol want 12 got %d\n", expert_ore);
@@ -370,7 +371,7 @@ int main(void) {
     }
     map_tile_set_road(&map, mx, my, true);
     const int free_fur = colony_yield_for_worker(
-      &map, mx, my, COLONIZE_JOB_FUR_TRAPPER, COLONIZE_PROF_FREE_COLONIST, /*has_docks=*/true, 2
+      &map, mx, my, COLONIZE_JOB_FUR_TRAPPER, COLONIZE_PROF_FREE_COLONIST, /*has_docks=*/true, 2, 0
     );
     if (free_fur != 7) {
       fprintf(stderr, "free colonist fur+road+sol want 7 got %d\n", free_fur);
@@ -378,7 +379,7 @@ int main(void) {
       return 1;
     }
     const int expert_fur = colony_yield_for_worker(
-      &map, mx, my, COLONIZE_JOB_FUR_TRAPPER, COLONIZE_JOB_FUR_TRAPPER, /*has_docks=*/true, 2
+      &map, mx, my, COLONIZE_JOB_FUR_TRAPPER, COLONIZE_JOB_FUR_TRAPPER, /*has_docks=*/true, 2, 0
     );
     if (expert_fur != 14) {
       fprintf(stderr, "expert fur trapper+road+sol want 14 got %d\n", expert_fur);
@@ -388,15 +389,13 @@ int main(void) {
   }
 
   /*
-   * Expert doubling applies to the whole accumulated base (terrain +
-   * resource effect together), same as every other field expert — no
-   * special-cased resource-only doubling for Farmer. A flat "+2 instead
-   * of x2 for food/fish experts" variant was tried and regressed
-   * golden_colony_prod01 (see colony_yield_pipeline), so plain x2 stands.
-   *   free:   base(1) +farmer(+1, non-expert, asm-confirmed 2026-08-18,
-   *            see colony_yield_pipeline) +resource(free,+2)  = 4
-   *   expert: (base(1)+resource(+2)) x2  (farmer's +1 doesn't apply —
-   *            expert Farmers skip this block entirely)          = 6
+   * Expert Farmer gets flat +2 (not ×2) on skill match, plus the colony's
+   * SoL latch bits re-added a second time (0 here, no colony context) —
+   * asm-confirmed 2026-08-18, see colony_yield_pipeline. Its own resource
+   * bonus is deferred past that step and doubled separately, matching the
+   * real asm order (not "double the whole accumulated base").
+   *   free:   base(1) +farmer(+1, non-expert, unconditional) +resource(free,+2) = 4
+   *   expert: base(1) +flat(2) +latch_readd(0) +resource(+2 x2 expert)          = 7
    */
   {
     int gx = -1;
@@ -407,7 +406,7 @@ int main(void) {
       return 1;
     }
     const int free_game = colony_yield_for_worker(
-      &map, gx, gy, COLONIZE_JOB_FARMER, COLONIZE_PROF_FREE_COLONIST, /*has_docks=*/true, 0
+      &map, gx, gy, COLONIZE_JOB_FARMER, COLONIZE_PROF_FREE_COLONIST, /*has_docks=*/true, 0, 0
     );
     if (free_game != 4) {
       fprintf(stderr, "free colonist farmer+Game want 4 got %d\n", free_game);
@@ -415,10 +414,10 @@ int main(void) {
       return 1;
     }
     const int expert_game = colony_yield_for_worker(
-      &map, gx, gy, COLONIZE_JOB_FARMER, COLONIZE_JOB_FARMER, /*has_docks=*/true, 0
+      &map, gx, gy, COLONIZE_JOB_FARMER, COLONIZE_JOB_FARMER, /*has_docks=*/true, 0, 0
     );
-    if (expert_game != 6) {
-      fprintf(stderr, "expert farmer+Game want 6 got %d\n", expert_game);
+    if (expert_game != 7) {
+      fprintf(stderr, "expert farmer+Game want 7 got %d\n", expert_game);
       map_free(&map);
       return 1;
     }

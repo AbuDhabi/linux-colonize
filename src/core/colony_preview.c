@@ -114,7 +114,14 @@ void colony_preview_compute(
        * turn_produce_one_colony exactly, including the same Hudson-after-
        * SoL-fold ordering note there. */
       int yld = colony_yield_for_worker(
-        map, colony->x + dx, colony->y + dy, c->field_job, c->profession, has_docks, sol_b_field
+        map,
+        colony->x + dx,
+        colony->y + dy,
+        c->field_job,
+        c->profession,
+        has_docks,
+        sol_b_field,
+        colony->colony_flags
       );
       /* Henry Hudson: fur trapper output +100% (turn.c turn_produce_one_colony). */
       if (yld > 0 && c->field_job == COLONIZE_JOB_FUR_TRAPPER && col1 &&
