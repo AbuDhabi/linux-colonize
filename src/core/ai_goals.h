@@ -74,6 +74,124 @@ const AiGoalSlot* ai_goals_primary(int nation_id, int slot);
 const AiWorkSlot* ai_goals_work(int slot);
 int ai_goals_best_found_tile(int nation_id, int* out_x, int* out_y);
 
+/*
+ * FUN_521d_001c — invalidate_nearby_secondary_goals.
+ * Clear any nation secondary slot matching `code` within Chebyshev-ish
+ * `radius` of (x,y). Distance callee (DOS FUN_281f_037a) is corrupted in the
+ * decomp; reuses the already-identified FUN_124c_0040 / ai_dos_dist formula
+ * as the closest known analog (same "generic DOS tile distance" family).
+ */
+void ai_goals_invalidate_nearby_secondary(int nation_id, int code, int x, int y, int radius);
+
+/*
+ * Per-nation AI-planning scratch read by FUN_521d_03d0 / 052c. DOS DS
+ * fields (-0x6d68/-0x5f48/-0x6bf0/-0x6bec/-0x6a99/-0x6bb2/-0x77b2-ish) have
+ * no Linux writer yet — all-zero by default reproduces the existing
+ * "early game -> urgency 8" stand-in already inlined in ai_euro.c. Exposed
+ * so a future pass can wire real data without re-deriving the formulas.
+ */
+typedef struct AiNationPlanScratch {
+  uint8_t hire_flag;             /* DS nation-0x6d68 */
+  uint8_t found_flag;            /* DS nation-0x5f48 */
+  uint8_t c_val;                 /* DS nation-0x6bf0 */
+  uint8_t d_val;                 /* DS nation-0x6bec */
+  int8_t e_val;                  /* DS nation*3-0x6a99 (stride 3) */
+  int f_val;                     /* DS nation*2-0x6bb2 (stride 2) */
+  uint8_t at_war_flag;           /* thunk_2a1f_0494(nation) gate — PARKED identity */
+  int last_war_declare_turn;     /* DS nation*0x13c-0x77b2-ish — PARKED identity */
+} AiNationPlanScratch;
+
+AiNationPlanScratch* ai_goals_plan_scratch(int nation_id);
+
+/*
+ * FUN_521d_03d0 — founding_expansion_urgency(nation, total_colony_count).
+ * total_colony_count is DOS global colony_count (DS:0x539e), caller-supplied.
+ */
+int ai_goals_founding_expansion_urgency(int nation_id, int total_colony_count);
+
+/*
+ * FUN_521d_052c — unit_desirability_score.
+ * dist_to_bound_colony is DOS DS:0x8db8, a caller-computed snapshot (nearest/
+ * bound-colony distance) — see move_scoring_land.md "0x8db8 identified".
+ * unit_type/profession use the DOS raw byte codes (unit +0x2/+0x17).
+ */
+int ai_goals_unit_desirability_score(
+  const ColonizeColonyPool* colonies,
+  int nation_id,
+  int unit_x,
+  int unit_y,
+  int unit_type,
+  int unit_profession,
+  int continent_id,
+  int dist_to_bound_colony,
+  int turn
+);
+
+/*
+ * FUN_521d_0600 — composite_unit_priority = 052c + 0492 + 03d0, floor 0.
+ * Thunk identities resolved via arg-shape match (2a1f_053c=052c,
+ * 2a1f_04d0=0492, 2a1f_0494=03d0); see docs/ai_transcription.md.
+ */
+int ai_goals_composite_unit_priority(
+  const ColonizeWorldMap* map,
+  const ColonizeColonyPool* colonies,
+  const ColonizeCol1Save* col1,
+  int nation_id,
+  int unit_x,
+  int unit_y,
+  int unit_type,
+  int unit_profession,
+  int dist_to_bound_colony,
+  int turn,
+  int total_colony_count
+);
+
+/*
+ * FUN_521d_0656 — walk_unit_stack_to_end. Follows transport_chain.next_unit_idx
+ * until -1; returns the last valid index (-1 if unit_index itself was < 0).
+ */
+int ai_goals_walk_unit_stack_to_end(
+  const ColonizeCol1Unit* units,
+  int unit_count,
+  int unit_index
+);
+
+/*
+ * FUN_521d_0896 — filter_profession_by_distance_wealth. `profession` here
+ * is DOS's overloaded "owner id" (0..3 nation, >=4 Indian tribe index) or a
+ * true profession code depending on caller; for owner ids 0..3 the >3 gate
+ * never fires so the value passes through unchanged (see FUN_521d_0906).
+ * The two Indian-range gates (FUN_281f_030c relation/alarm lookup, DS:0x54f6
+ * wealth table) are PARKED — no Linux accessor wired, so they read as 0.
+ */
+int ai_goals_filter_profession_by_distance_wealth(
+  const ColonizeCol1Unit* units,
+  int unit_count,
+  int nation_id,
+  int profession,
+  int has_context,
+  int unit_index
+);
+
+/*
+ * FUN_521d_0906 — probe_adjacent_contact_claim. Scans 8 neighbors sharing
+ * (x,y)'s water/high-seas class; asks the shared ownership filter (0896)
+ * for a claim id on the first foreign-owned match. *out_side_claim mirrors
+ * DOS DS:0x9ea8, a second independent probe via a different (PARKED)
+ * ownership accessor. Indian tribe ownership and the armed-cargo
+ * top-of-stack defender walk are PARKED (no tile->tribe / tile->unit-stack
+ * accessor here yet) — those branches always take their "not found" arm.
+ */
+int ai_goals_probe_adjacent_contact_claim(
+  const ColonizeWorldMap* map,
+  const ColonizeColonyPool* colonies,
+  int x,
+  int y,
+  int nation_id,
+  int profession,
+  int* out_side_claim
+);
+
 AiEuroInventory* ai_goals_inventory(int nation_id);
 void ai_goals_inventory_clear(int nation_id);
 
