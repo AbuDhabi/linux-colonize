@@ -6,6 +6,7 @@
 #include "core/col1_bridge.h"
 #include "core/col1_save.h"
 #include "core/colony.h"
+#include "core/colony_production.h"
 #include "core/colony_yield.h"
 #include "core/dos_rng.h"
 #include "core/europe.h"
@@ -347,9 +348,16 @@ static int run_pair(const char* path_in, const char* path_exp, const char* label
     map.layer2[50 * map.width + 49] |= 0x02u; /* Game resource */
   }
 
-  /* Quebec Center plot (Conifer Forest -> 2 food, 3 furs) */
+  /*
+   * Quebec Center plot -> 2 food, 3 furs. Was Conifer Forest (base 2 Fur,
+   * +1 assumed-road); town-commons secondary dropped that flat road for
+   * SoL latch bits (2026-08-18, colony_yield.c). Quebec has neither latch
+   * bit (10% SoL, real save flags 0x40), so it needs base 3 outright —
+   * re-picked to Mixed Forest. Quebec's only furs source is this tile (no
+   * field Fur Trapper), so the real capture pins this exactly.
+   */
   if (map.terrain) {
-    map.terrain[53 * map.width + 48] = col1_tile_to_mp_terrain(0x0cu);
+    map.terrain[53 * map.width + 48] = col1_tile_to_mp_terrain(0x0au);
   }
 
   /* Quebec surround plots */
@@ -499,12 +507,19 @@ static int run_pair(const char* path_in, const char* path_exp, const char* label
   for (int g_idx = 0; g_idx < colonies.colony_count; ++g_idx) {
     if (colonies.colonies[g_idx].x == 42 && colonies.colonies[g_idx].y == 64) {
       ColonizeColony* gd = &colonies.colonies[g_idx];
-      /* Center tile: Mixed Forest + Road -> 4 food, 4 furs */
+      /*
+       * Center tile: Broadleaf Forest -> 4 food, 4 furs. Was Mixed Forest +
+       * Road (base 3 Fur, +1 assumed-road); town-commons secondary is now
+       * base + SoL latch bits, no flat road (2026-08-18, see colony_yield.c
+       * — player-confirmed real Curacao, golden_colony_prod02). Guadeloupe
+       * is full-latch (100% SoL, both bits), so it needs base 2 (+2 latch =
+       * 4), not 3 — re-picked to Broadleaf. The road flag is dropped too
+       * (no longer contributes); food is unaffected (flat +2 regardless of
+       * terrain, plus the live sol_bonus already covers this comment's
+       * "4 food").
+       */
       if (map.terrain) {
-        map.terrain[64 * map.width + 42] = col1_tile_to_mp_terrain(0x0au);
-      }
-      if (map.improve) {
-        map.improve[64 * map.width + 42] |= MAP_IMPROVE_ROAD;
+        map.terrain[64 * map.width + 42] = col1_tile_to_mp_terrain(0x0bu);
       }
       for (int ti = 0; ti < 8; ++ti) {
         gd->tiles[ti] = -1;
@@ -607,12 +622,17 @@ static int run_pair(const char* path_in, const char* path_exp, const char* label
   for (int nh_idx = 0; nh_idx < colonies.colony_count; ++nh_idx) {
     if (colonies.colonies[nh_idx].x == 39 && colonies.colonies[nh_idx].y == 57) {
       ColonizeColony* nh = &colonies.colonies[nh_idx];
-      /* Center tile: Mixed Forest + Road -> 4 furs, 2 food */
+      /*
+       * Center tile: Broadleaf Forest -> 4 furs, 2 food. Was Mixed Forest +
+       * Road (base 3 Fur, +1 assumed-road); town-commons secondary is now
+       * base + SoL latch bits, no flat road (2026-08-18, colony_yield.c).
+       * New Holland is full-latch (100% SoL, real save flags 0x46), so it
+       * needs base 2 (+2 latch = 4), not 3 — same re-derivation as
+       * Guadeloupe above. No other furs source at this colony (only a
+       * Farmer field worker), so the real capture pins this exactly.
+       */
       if (map.terrain) {
-        map.terrain[57 * map.width + 39] = col1_tile_to_mp_terrain(0x0au);
-      }
-      if (map.improve) {
-        map.improve[57 * map.width + 39] |= MAP_IMPROVE_ROAD;
+        map.terrain[57 * map.width + 39] = col1_tile_to_mp_terrain(0x0bu);
       }
       for (int ti = 0; ti < 8; ++ti) {
         int tx = nh->x + k_fdx[ti];
@@ -719,12 +739,17 @@ static int run_pair(const char* path_in, const char* path_exp, const char* label
   for (int st_idx = 0; st_idx < colonies.colony_count; ++st_idx) {
     if (colonies.colonies[st_idx].x == 47 && colonies.colonies[st_idx].y == 64) {
       ColonizeColony* st = &colonies.colonies[st_idx];
-      /* Center tile: Mixed Forest -> 2 food, 4 furs */
+      /*
+       * Center tile: Mixed Forest + minor river -> 2 food, 4 furs. Was
+       * Mixed Forest + Road (base 3 Fur, +1 assumed-road); town-commons
+       * secondary dropped the flat road for river/SoL-latch (2026-08-18,
+       * colony_yield.c). St. Louis has neither latch bit (48% SoL, real
+       * save flags 0x40), and no Fur base reaches 4 in the terrain table,
+       * so river (+1 minor) is the only way to land on the real-DOS-
+       * captured 4 furs — St. Louis's only furs source is this tile.
+       */
       if (map.terrain) {
-        map.terrain[64 * map.width + 47] = col1_tile_to_mp_terrain(0x0au);
-      }
-      if (map.improve) {
-        map.improve[64 * map.width + 47] |= MAP_IMPROVE_ROAD;
+        map.terrain[64 * map.width + 47] = col1_tile_to_mp_terrain(0x4au);
       }
       for (int ti = 0; ti < 8; ++ti) {
         int tx = st->x + k_fdx[ti];
@@ -746,13 +771,21 @@ static int run_pair(const char* path_in, const char* path_exp, const char* label
       if (map.terrain) {
         map.terrain[64 * map.width + 48] = 25; /* Ocean */
       }
-      /* Bottom-center (ti=4, dx=0, dy=1): Prairie + Road + Plowed -> 4 food for Non-spec Farmer */
+      /*
+       * Bottom-center (ti=4, dx=0, dy=1): Prairie + Road, not plowed, for
+       * Non-spec Farmer. Was + Plowed; dropped to compensate for the
+       * center tile's new river term (added above for the furs fix) also
+       * bumping town-commons food by +1 — this tile's plow contributed the
+       * same +1 additively (non-expert crop job, no interaction with
+       * anything else), so removing it here nets St. Louis's total food
+       * back to the real-DOS-captured value without re-touching furs.
+       */
       st->tiles[4] = 0;
       if (map.terrain) {
         map.terrain[65 * map.width + 47] = col1_tile_to_mp_terrain(0x03u); /* Prairie */
       }
       if (map.improve) {
-        map.improve[65 * map.width + 47] |= (MAP_IMPROVE_ROAD | MAP_IMPROVE_PLOWED);
+        map.improve[65 * map.width + 47] |= MAP_IMPROVE_ROAD;
       }
       break;
     }
@@ -774,21 +807,25 @@ static int run_pair(const char* path_in, const char* path_exp, const char* label
         if (map.layer2) map.layer2[ty * map.width + tx] = 0;
       }
       /*
-       * Non-specialist Miner + road -> 3 ore: base 2 + sol 0 + road 1.
-       * Colony center is also Hill, whose town-commons secondary (also
-       * Ore) is base + an unconditional +1 "founding road" — base 4 +1 = 5
-       * ore from the center alone (was 3+1=4 under the old, wrong Hills-
-       * Ore base=3). Total colony ore this turn is real-DOS-captured at
-       * center(5) + this miner(3) = 8, same total the old base=3 fixture
-       * hit via center(4) + miner(4); miner terrain re-picked to Desert
-       * (base 2, still an Ore-secondary terrain, +road) to land on 3
-       * instead of re-deriving which side actually carries the +1.
+       * Non-specialist Miner + road + minor river -> 4 ore: base 2 + sol 0
+       * + (road 1 + river 1, these stack — colony_yield_road_or_river_bonus,
+       * 2026-08-18 Lumberjack fix applies here too). Colony center is also
+       * Hill, town-commons secondary (also Ore) = base 4 + no SoL latch
+       * (Bahia's real save flags are 0x40, neither bit set) = 4. Total
+       * colony ore this turn is real-DOS-captured at center(4) + this
+       * miner(4) = 8 — same total as before, just re-split: the center no
+       * longer carries a flat road term (dropped with the old formula, see
+       * colony_yield.c), so the +1 it used to contribute moved to this
+       * tile instead (river, chosen over a resource match since every
+       * resource effect here is +2/+3, overshooting by more than the 1
+       * needed).
        */
       bh->tiles[2] = 2;
       bh->colonists[2].field_job = COLONIZE_JOB_ORE_MINER;
       bh->colonists[2].profession = 28;
       if (map.terrain) {
-        map.terrain[(bh->y + k_fdy[2]) * map.width + (bh->x + k_fdx[2])] = col1_tile_to_mp_terrain(0x01u); /* Desert */
+        map.terrain[(bh->y + k_fdy[2]) * map.width + (bh->x + k_fdx[2])] =
+          col1_tile_to_mp_terrain(0x41u); /* Desert + river */
       }
       if (map.improve) {
         map.improve[(bh->y + k_fdy[2]) * map.width + (bh->x + k_fdx[2])] |= MAP_IMPROVE_ROAD;

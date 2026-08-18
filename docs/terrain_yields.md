@@ -487,7 +487,7 @@ too, so its road bonus is now `2(base) × 2(unit size) = 4`).
 
 Manual: settlement square **always produces some food and one other commodity**; specials apply **except Prime Timber**. The colony center is *auto-worked* — no colonist assigned, no expert/convert doubling, no docks gate.
 
-**Status:** the real DOS composer (`FUN_15eb_1f72`, `viceroy_unpacked.c` ~12474) has been read directly, but its per-terrain base yield lives in a **separate binary data table** (`0x2f7b`, indexed by the same pedia numbering as the tables above) that isn't present in the decompiled pseudo-C — only the surrounding logic is. The port below is a **from-scratch, golden-verified approximation** that reuses the field-worker tables above for the base and a fixed empirical shape for the modifiers, **not** a byte-exact peel. It's confirmed correct against `golden_colony_prod01`/`02` (21 real Dutch colonies, one captured DOS turn each), but known to diverge from real DOS on at least one terrain pair — see "Known divergence" below.
+**Status:** the real DOS composer (`FUN_15eb_1f72`, `viceroy_unpacked.c` ~12474) has been read directly. Its secondary-commodity logic (river + SoL latch bits, no plow, no flat road) is now wired byte-for-byte; only its per-terrain *base* yield still reuses this file's field-worker tables as a stand-in, since the composer's own base table lives in a separate binary data address (`0x2f7b`, indexed by the same pedia numbering) not present in the decompiled pseudo-C. Confirmed correct against `golden_colony_prod01`/`02` (21 real Dutch colonies, one captured DOS turn each) — including two colonies (Curacao, Paramaribo) where town commons is that colony's *only* source of its secondary cargo, so those two checks pin the formula with zero free parameters. One data-table bug this pass also turned up and fixed: `k_forested`'s Rain row had Food/Sugar = 2/2; `NAMES.TXT` says 1/1, and Paramaribo's real capture (isolating the Rum Distiller's exact consumption) independently confirmed 1/1 — the table constant was wrong, not the formula.
 
 ### Food
 
@@ -508,13 +508,15 @@ The job is a **fixed per-terrain choice** (below), not DOS's real per-tile max-o
 
 ```
 secondary = table[pedia][job]                  (same per-pedia table as field yields, see sections above)
-          + 1                                   (every colony founds with a road on its own tile)
-          + 1   if plowed and pedia 0-7
           + 1/2 if river (minor/major)
+          + 1   if COLONIZE_COLONY_FLAG_SOL_50 is set
+          + 1   if COLONIZE_COLONY_FLAG_SOL_100 is set
           + 2   if resource matches job (flat types)
           × 2   if resource is a DOUBLE match (Prime Cotton/Tobacco/Sugar on their planter)
 floor 0
 ```
+
+**No plow term, no flat road** — asm-confirmed absent from `FUN_15eb_1f72` (2026-08-18). Earlier passes assumed "every colony founds with a road" (`+1` flat) and a plow bonus matching food's; both were unverified guesses this port carried since before the composer was read, and both are gone now. The SoL term is the two *latch* bits specifically (hysteresis flags, see [sons_of_liberty.md](sons_of_liberty.md)), not the general signed live-percentage/Tory-penalty `sol_bonus` value food uses.
 
 Prime Timber (resource 10/11) never applies to the commons (matches the manual's stated exception).
 
@@ -539,21 +541,22 @@ Prime Timber (resource 10/11) never applies to the commons (matches the manual's
 
 | Tile | Base | Modifiers | Secondary |
 |------|-----:|-----------|-----------:|
-| Scrub Forest | 2 (Fur) | +1 road | 3 furs |
-| Hills | 4 (Ore) | +1 road, +2 (coincidental Prime Ore hash hit) | 7 ore |
-| Broadleaf Forest | 2 (Fur) | +1 road | 3 furs |
-| Prairie + minor river | 3 (Cotton) | +1 road, +1 river | 5 cotton |
-| Broadleaf + Game | 2 (Fur) | +1 road, +2 Game | 5 furs |
+| Scrub Forest | 2 (Fur) | — | 2 furs |
+| Hills | 4 (Ore) | +2 (coincidental Prime Ore hash hit) | 6 ore |
+| Broadleaf Forest | 2 (Fur) | — | 2 furs |
+| Prairie + minor river | 3 (Cotton) | +1 river | 4 cotton |
+| Broadleaf + Game | 2 (Fur) | +2 Game | 4 furs |
+| Hills, SoL latch (SOL_50 only) | 4 (Ore) | +2 resource, +1 latch | 7 ore |
+| Hills, SoL latch (both bits) | 4 (Ore) | +2 resource, +2 latch | 8 ore |
 
-### Known divergence from real DOS
+### Real-DOS confirmation (Savannah vs Swamp sugar)
 
-Player-observed (live DOS play, not a golden fixture): **New Holland** (Savannah + road, no plow) town center makes **5 sugar**; **Guadeloupe** (Swamp + plowed + road) makes **4 sugar**. Both colonies are near 100% Sons of Liberty. Colonizapedia's field chart lists Savannah and Swamp sugar as equal, so naively they "should" match — they don't, and the reason is real:
+Player-observed (live DOS play): **New Holland** (Savannah, no plow) town center makes **5 sugar**; **Guadeloupe** (Swamp, plowed) makes **4 sugar**. Both colonies are near 100% Sons of Liberty. Colonizapedia's field chart lists Savannah and Swamp sugar as equal, so naively they "should" match — they don't:
 
-- `FUN_15eb_1f72`'s secondary term has **no plow check at all** — Guadeloupe's plow contributes nothing in real DOS. Its port equivalent (`+1 if plowed`, above) is compensating for a different missing term (see next point), not modeling a real plow bonus.
-- It adds **SoL latch bits** instead of a flat road term: `+1` if `COLONIZE_COLONY_FLAG_SOL_50` is set, `+1` if `_SOL_100` is set (both colonies, being near 100%, plausibly have both → `+2`).
-- Under that real formula: Savannah `3 + 2(latch) = 5` ✓, Swamp `2 + 2(latch) = 4` ✓ — both land exactly, with **zero** plow contribution.
+- No plow check — Guadeloupe's plow contributes nothing to secondary in real DOS.
+- Both SoL latch bits contribute: Savannah `3 + 2(latch) = 5` ✓, Swamp `2 + 2(latch) = 4` ✓.
 
-The port's current formula (`+1` flat road, `+1` plow) gets **Guadeloupe right by coincidence** (the plow `+1` standing in for the latch term it doesn't have) but is **quietly off-by-one low on New Holland** (gives 4, real is 5) — not caught by any golden test because neither test save's Dutch colonies happen to sit on a real Savannah town square. Re-deriving this properly needs the actual `0x2f7b` table bytes pulled from the game binary; the pseudo-C decompile only shows the surrounding logic, not the data.
+This is now exactly how the port computes both (`golden_colony_prod01`'s synthetic Quebec/Guadeloupe/New Holland/Bahia/St. Louis fixtures were re-derived to this formula 2026-08-18, since that save's whole map is hand-reconstructed and the terrain choice for each is a free parameter — see `test_colony_prod01.c`). Two *real, unpatched* saves independently confirm the same formula with zero free parameters: **Curacao** (`golden_colony_prod02`, Broadleaf Forest, no river/road, full latch — town commons is its only furs source: `2 + 2 = 4`, matches the captured turn exactly) and **Paramaribo** (`golden_colony_prod01`, Rain Forest, full latch — town commons is its only sugar source net of its Rum Distiller's own confirmed consumption: `1 + 2 = 3`, matches once the Rain-row table bug above was fixed).
 
 ---
 

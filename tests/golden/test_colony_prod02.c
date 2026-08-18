@@ -35,7 +35,12 @@
  * compare_dutch_colonies). AI nations are not checked here.
  *
  * Status 2026-08-18: 2/7 Dutch colonies (Guadeloupe, Fort Orange) match
- * exactly; the other 5 have real remaining drift.
+ * exactly; the other 5 have real remaining drift. (Later the same day:
+ * town-commons secondary's asm-confirmed formula fix — see colony_yield.c
+ * — cleared Curacao's furs and New Holland's sugar/lumber outright, both
+ * exactly, since town commons was each colony's sole source. New
+ * Amsterdam/New Holland horses and Curacao/Recife food are still open —
+ * see the dated note below.)
  *
  * 2026-08-18 fix #1: New Amsterdam and Fort Orange were wrongly decoded as
  * owning Iron Works (factory-tier Blacksmith) — neither Dutch nor any
@@ -63,13 +68,27 @@
  * New Amsterdam's ore now matches too; its remaining food/horses drift is
  * unrelated (see below).
  *
- * - New Holland: sugar way under (real +11 vs ours +0ish), lumber and
- *   horses also off — not investigated.
- * - New Amsterdam, Vlissingen, Curacao, Recife: smaller food/horses/furs/
- *   sugar drift —
- *   not investigated; likely field-yield or SoL-fold edge cases specific
- *   to this save's tiles, same category as colony_prod01's original
- *   findings but not yet chased down.
+ * 2026-08-18 fix #3: town-commons secondary's real formula (asm-read from
+ * FUN_15eb_1f72: base + river + SoL latch bits, no plow, no flat road —
+ * see colony_yield.c/docs/terrain_yields.md) cleared New Holland's sugar
+ * (was way under, real +11 vs ours ~+0) and Curacao's furs (each colony's
+ * only source of that cargo) exactly, plus Guadeloupe/Bahia/Quebec/
+ * St. Louis's synthetic fixtures in colony_prod01. Along the way this also
+ * caught a genuine data bug: k_forested's Rain row had Food/Sugar 2/2
+ * where NAMES.TXT (and Paramaribo's real capture) both say 1/1 — fixed
+ * (colony_yield.c).
+ *
+ * Still open, unrelated to the above:
+ * - New Amsterdam, New Holland: horses off by 1 — a food-surplus/2
+ *   breeding-rounding cascade, gross food is off by ~1 pre-breed even
+ *   though *net* food lands exactly right (the rounding hides it). New
+ *   Amsterdam's likely source: the "expert Fisherman + Fishery resource
+ *   -> +4 (not the table's +3), yielding 14 before doubling" override in
+ *   colony_yield_pipeline — added early this project with no dedicated
+ *   test, may be an unverified guess; New Holland's expert Fisherman has
+ *   *no* resource yet is *also* off (opposite direction), so a single
+ *   fix likely doesn't cover both — not chased down further this pass.
+ * - Curacao, Recife: food off by 1 / several — not investigated.
  *
  * One real, unrelated bug *was* found and fixed via this save:
  * `colonies_try_complete_building` used to clear `building_in_production`
