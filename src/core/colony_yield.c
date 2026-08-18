@@ -587,21 +587,28 @@ void colony_yield_town_commons(
    * 2026-08-18: read FUN_15eb_1f72 (the real town-commons composer,
    * viceroy_unpacked.c ~12474) hoping to replace this with an asm-exact
    * formula. Its secondary term does exist (river 0/1/2 + SoL_50/SoL_100
-   * latch bits, no plow), BUT its terrain base is looked up from a
-   * *different, compact* table — indexed by a 4-bucket terrain CLASS
-   * (FUN_13e4_003a's local_26, not the raw pedia this file's
-   * k_unforesed/k_forested/k_other tables are keyed on) at a data address
-   * (0x2f7b) that isn't present in the decompiled pseudo-C, only in the
-   * raw binary. Swapping just the +1/latch skeleton onto our per-pedia
-   * table regressed 6+ previously-matching colonies (golden_colony_prod01/02,
-   * 2026-08-18) — Quebec/Bahia/St.Louis (no latch) came out 1 short,
-   * Guadeloupe (full latch) came out 1 over, New Holland/Paramaribo (full
-   * latch) came out 1 short — no consistent single correction fits, which
-   * means the per-pedia table itself disagrees with the real compact-class
-   * table for at least some of these terrains. Reverted to the flat "+1
-   * inherit road" formula below, which is golden-verified against 14+
-   * real Dutch colonies; do not reapply the latch-only version without
-   * first recovering the real 0x2f7b table data.
+   * latch bits, no plow, no flat road), and it's keyed by the *same* raw
+   * pedia numbering this file uses (FUN_13e4_003a/FUN_13e4_000e's
+   * local_26 is the terrain byte's own low 5 bits, i.e. our pedia — not a
+   * coarse class, that was an earlier misreading of this comment). But the
+   * table itself lives at a separate data address (0x2f7b), not the
+   * k_unforesed/k_forested/k_other tables above, and isn't present in the
+   * decompiled pseudo-C (data, not code). Swapping the asm-exact
+   * river+latch skeleton onto our field-yield table for the base regressed
+   * 6+ previously-matching colonies (golden_colony_prod01/02, 2026-08-18)
+   * — Quebec/Bahia/St.Louis (no latch) came out 1 short, Guadeloupe (full
+   * latch) came out 1 over, New Holland/Paramaribo (full latch) came out 1
+   * short. Player-confirmed real numbers for one pair (New Holland
+   * Savannah=5, Guadeloupe Swamp+plow=4, docs/terrain_yields.md "Town
+   * commons") show *why*: 0x2f7b's Savannah-sugar entry is 3 (same as our
+   * table) but its Swamp-sugar entry must also be 2 for the latch-only
+   * formula to land both — so the two tables don't universally agree, and
+   * without the real 0x2f7b bytes there's no way to tell, terrain by
+   * terrain, where the field-yield table can be trusted as a stand-in and
+   * where it can't. Reverted to the flat "+1 inherit road" formula below,
+   * golden-verified against 14+ real Dutch colonies; do not reapply the
+   * latch-only version without first recovering the real 0x2f7b table
+   * data (see docs/terrain_yields.md).
    */
   int sec = colony_yield_base_for_pedia(pedia, sec_job) + 1; /* Inherit road */
   if (map_tile_has_river(map, x, y)) {

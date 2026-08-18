@@ -10,7 +10,7 @@ Reference for what a map square can produce when worked as a field job (or, for 
 | `FUN_15eb_17fa` / `FUN_15eb_18ec` (`viceroy_unpacked.c` ~11717–11991) | **Authoritative** special-resource effect, expert/convert, lumber ×2, plow/road/river stacking, SoL ± on fields |
 | [`COLONIZE/Colonization.pdf`](../COLONIZE/Colonization.pdf) | Qualitative rules (commons dual-produce, Prime Timber exception, plow/road/river intent). Printed Terrain Chart often **≠** `NAMES` — prefer `NAMES` + decomp |
 | MAPEDIT resource class table (`mapedit_resource_type_by_terrain` in [`map.c`](../src/core/map.c)) | Which special resource **type** a terrain class may roll |
-| Col1 fixtures / [`test_colony_yield.c`](../tests/unit/test_colony_yield.c) | Town-commons dual-produce — **empirically calibrated**, peel pending |
+| Col1 fixtures / [`test_colony_yield.c`](../tests/unit/test_colony_yield.c), `FUN_15eb_1f72` (`viceroy_unpacked.c` ~12474) | Town-commons dual-produce — composer logic read directly, but its base-yield data table (`0x2f7b`) isn't in the decompile; port formula is a **golden-verified approximation**, see [Town commons](#town-commons-colony-center-tile) |
 
 Pedia / map indices: cleared land **0–7**, forests **8–23** (type = `index & 7`), arctic / ocean / sea lane **24–26**, mountains / hills as classes **27 / 28**.
 
@@ -485,40 +485,75 @@ too, so its road bonus is now `2(base) × 2(unit size) = 4`).
 
 ## Town commons (colony center tile)
 
-Manual: settlement square **always produces some food and one other commodity**; specials apply **except Prime Timber**.
+Manual: settlement square **always produces some food and one other commodity**; specials apply **except Prime Timber**. The colony center is *auto-worked* — no colonist assigned, no expert/convert doubling, no docks gate.
 
-**Status:** formula below is **Col1-fixture calibrated** (not a NAMES row; full DOS commons composer peel pending). Keep as empirical until re-peeled.
+**Status:** the real DOS composer (`FUN_15eb_1f72`, `viceroy_unpacked.c` ~12474) has been read directly, but its per-terrain base yield lives in a **separate binary data table** (`0x2f7b`, indexed by the same pedia numbering as the tables above) that isn't present in the decompiled pseudo-C — only the surrounding logic is. The port below is a **from-scratch, golden-verified approximation** that reuses the field-worker tables above for the base and a fixed empirical shape for the modifiers, **not** a byte-exact peel. It's confirmed correct against `golden_colony_prod01`/`02` (21 real Dutch colonies, one captured DOS turn each), but known to diverge from real DOS on at least one terrain pair — see "Known divergence" below.
 
-**2026-08-17: retracted, not re-peeled yet.** The per-terrain "Farmer + 2"
-food formula below (and the fixture table under it) regressed
-`golden_colony_prod01` — a real single DOS turn captured across 14 Dutch
-colonies, diffed against `COLONY01_no-transports.SAV` — when tried in the
-port: nearly every colony's food came out 1-4 too high. The port now uses
-a **flat +2 regardless of terrain** for commons food (`colony_yield.c`,
-`colony_yield_town_commons_food_base`), which matches that golden exactly.
-The per-terrain formula and fixture table are left here as a record of
-what was tried, not as a target to re-implement without new real-DOS
-per-tile data (the golden save's colonies don't happen to sit on
-Hills/Scrub/Broadleaf town squares, so it can't arbitrate the per-terrain
-claim directly — only the *shape* of "more than flat +2" that it rules
-out).
+### Food
 
-**Food base** (before plow / river / specials) — **superseded, see above**:
+```
+food = 2                                   (flat; 0 for pedia 25/26/27 — Ocean/Sea Lane/Mountains, uninhabitable)
+     + 2   if plowed and pedia 0-7 (cleared land)
+     + 1/2 if river (minor/major)
+     + 2   if resource is Oasis(1) / Wheat(2) / Game(9)   (Prime Timber excluded)
+     + sol_bonus                            (signed live SoL/Tory value, turn.c colony_prod_sol_bonus_field)
+floor 0
+```
 
-- Forested: `@UNFORESTED` Farmer of cleared parent (`pedia & 7`) **+ 2**
-- Cleared / hills: Farmer **+ 2** (with port Hills Farmer 2 → commons food 4)
+Confirmed 2026-08-17: a per-terrain "cleared-parent Farmer + 2" food base was tried and regressed `golden_colony_prod01` (nearly every colony's food 1-4 too high); flat +2 is the one that matches. `NAMES.TXT`'s food chart does **not** apply to the town square.
 
-**Secondary:** terrain-fixed job; amount = `NAMES[job] + 1`.
+### Secondary commodity
 
-Then plow (+1 food on cleared), river (same magnitudes as port field table), Oasis/Wheat/Game **+2** food, matching secondary special **+2**.
+The job is a **fixed per-terrain choice** (below), not DOS's real per-tile max-over-all-jobs search (`FUN_15eb_1f72` loops jobs 1-7 skipping Lumberjack, scoring each via the 0x2f7b table + resource effect, and keeps the max) — the fixed choice matches that search's outcome for every terrain this project has real data for, since ties/near-ties haven't come up yet.
 
-| Tile (fixtures) | Food (per-terrain, retracted) | Secondary |
-|-----------------|-----:|-----------|
-| Scrub Forest | 3 | 3 furs |
-| Hills | 4 | 5 ore |
-| Broadleaf Forest | 4 | 3 furs |
-| Prairie + minor river | 5 | 5 cotton |
-| Broadleaf + Game | 6 | 5 furs |
+```
+secondary = table[pedia][job]                  (same per-pedia table as field yields, see sections above)
+          + 1                                   (every colony founds with a road on its own tile)
+          + 1   if plowed and pedia 0-7
+          + 1/2 if river (minor/major)
+          + 2   if resource matches job (flat types)
+          × 2   if resource is a DOUBLE match (Prime Cotton/Tobacco/Sugar on their planter)
+floor 0
+```
+
+Prime Timber (resource 10/11) never applies to the commons (matches the manual's stated exception).
+
+| Pedia | Terrain | Secondary job | Table col. (base) |
+|------:|---------|----------------|--------------------|
+| 0 | Tundra | Ore Miner | `@UNFORESTED` Ore |
+| 1 | Desert | Ore Miner | `@UNFORESTED` Ore |
+| 2 | Plains | Cotton Planter | `@UNFORESTED` Cotton |
+| 3 | Prairie | Cotton Planter | `@UNFORESTED` Cotton |
+| 4 | Grassland | Tobacco Planter | `@UNFORESTED` Tobacco |
+| 5 | Savannah | Sugar Planter | `@UNFORESTED` Sugar |
+| 6 | Marsh | Tobacco Planter | `@UNFORESTED` Tobacco |
+| 7 | Swamp | Sugar Planter | `@UNFORESTED` Sugar |
+| 8-23 | Forest (`pedia & 7`) | Sugar Planter if Rain (`&7==7`), else Fur Trapper | `@FORESTED` Sugar / Furs |
+| 24 | Arctic | — none — | — |
+| 25 | Ocean | — none — | — |
+| 26 | Sea Lane | — none — | — |
+| 27 | Mountains | Silver Miner | `@OTHER` Silver (uninhabitable, moot) |
+| 28 | Hills | Ore Miner | `@OTHER` Ore |
+
+### Worked examples (unit_colony_yield fixtures, `colony_flags`/`sol_bonus` = 0)
+
+| Tile | Base | Modifiers | Secondary |
+|------|-----:|-----------|-----------:|
+| Scrub Forest | 2 (Fur) | +1 road | 3 furs |
+| Hills | 4 (Ore) | +1 road, +2 (coincidental Prime Ore hash hit) | 7 ore |
+| Broadleaf Forest | 2 (Fur) | +1 road | 3 furs |
+| Prairie + minor river | 3 (Cotton) | +1 road, +1 river | 5 cotton |
+| Broadleaf + Game | 2 (Fur) | +1 road, +2 Game | 5 furs |
+
+### Known divergence from real DOS
+
+Player-observed (live DOS play, not a golden fixture): **New Holland** (Savannah + road, no plow) town center makes **5 sugar**; **Guadeloupe** (Swamp + plowed + road) makes **4 sugar**. Both colonies are near 100% Sons of Liberty. Colonizapedia's field chart lists Savannah and Swamp sugar as equal, so naively they "should" match — they don't, and the reason is real:
+
+- `FUN_15eb_1f72`'s secondary term has **no plow check at all** — Guadeloupe's plow contributes nothing in real DOS. Its port equivalent (`+1 if plowed`, above) is compensating for a different missing term (see next point), not modeling a real plow bonus.
+- It adds **SoL latch bits** instead of a flat road term: `+1` if `COLONIZE_COLONY_FLAG_SOL_50` is set, `+1` if `_SOL_100` is set (both colonies, being near 100%, plausibly have both → `+2`).
+- Under that real formula: Savannah `3 + 2(latch) = 5` ✓, Swamp `2 + 2(latch) = 4` ✓ — both land exactly, with **zero** plow contribution.
+
+The port's current formula (`+1` flat road, `+1` plow) gets **Guadeloupe right by coincidence** (the plow `+1` standing in for the latch term it doesn't have) but is **quietly off-by-one low on New Holland** (gives 4, real is 5) — not caught by any golden test because neither test save's Dutch colonies happen to sit on a real Savannah town square. Re-deriving this properly needs the actual `0x2f7b` table bytes pulled from the game binary; the pseudo-C decompile only shows the surrounding logic, not the data.
 
 ---
 
