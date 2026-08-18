@@ -6,6 +6,7 @@
 #include <strings.h>
 
 #include "core/ai_contact.h"
+#include "core/ai_diplo.h"
 #include "core/ai_euro.h"
 #include "core/ai_goals.h"
 #include "core/ai_king.h"
@@ -2237,29 +2238,264 @@ void ai_euro_nation_turn(ColonizeTurnContext* ctx, int nation_id) {
   }
 }
 
+/* FUN_281f_0a60 -> FUN_15dc_00a2: bucket a relation word into quartile 0..3
+ * (<25/50/75). Simple/confidently-described enough to implement directly
+ * rather than stub (FUNCTION_CATALOG.md: "inferred", not "known"). */
+static int ai_indian_152e_quartile(int relation) {
+  if (relation < 25) {
+    return 0;
+  }
+  if (relation < 50) {
+    return 1;
+  }
+  if (relation < 75) {
+    return 2;
+  }
+  return 3;
+}
+
+/*
+ * FUN_41f2_0294 (terrain-survey village "worth" cap) — unresolved DS
+ * tables (settlement_record_8d4a.md's "+4 founding worth" survey). Stub
+ * preserves the prior T0 approximation (hardcoded population cap 15) so
+ * pure-growth behavior is unchanged by this structural pass.
+ */
+static int ai_indian_152e_worth_cap_stub(
+  const ColonizeTurnContext* ctx,
+  const ColonizeCol1Tribe* t
+) {
+  (void)ctx;
+  (void)t;
+  return 15;
+}
+
+/*
+ * FUN_281f_095c -> FUN_1427_06b4 (spawn a colonist unit at the village) —
+ * unresolved unit-type table for the DOS "+2" arg. Stub never spawns
+ * (-1); the musket/horse cost side effects above it are real (already-
+ * resolved fields) and still apply.
+ */
+static int ai_indian_152e_spawn_colonist_stub(
+  ColonizeTurnContext* ctx,
+  const ColonizeCol1Tribe* t,
+  int cost,
+  int tribe_index
+) {
+  (void)ctx;
+  (void)t;
+  (void)cost;
+  (void)tribe_index;
+  return -1;
+}
+
+/*
+ * FUN_281f_0316 -> FUN_4cc6_03f8 (best-threat Euro nation + score near the
+ * tribe) — unresolved. Stub reports "no threat" so the parallel uVar12
+ * branch stays inert instead of guessing at a nation/score.
+ */
+static int ai_indian_152e_best_threat_nation_stub(
+  const ColonizeTurnContext* ctx,
+  const ColonizeCol1Tribe* t,
+  int* out_score
+) {
+  (void)ctx;
+  (void)t;
+  *out_score = 0;
+  return -1;
+}
+
+/*
+ * FUN_281f_07b4 -> FUN_15eb_3960 (nation FF/feature bit test, table
+ * -0x77f1, indices 0x17/0x18) — unresolved FF identity. Stub defaults
+ * false, same convention as other unresolved FF checks project-wide.
+ */
+static bool ai_indian_152e_ff_bit_stub(
+  const ColonizeTurnContext* ctx,
+  int euro_nation,
+  int ff_index
+) {
+  (void)ctx;
+  (void)euro_nation;
+  (void)ff_index;
+  return false;
+}
+
+/*
+ * FUN_4d56_152e | ai_indian_152e_village_growth — structural port.
+ *
+ * Own control flow ported in full (raw decomp viceroy_unpacked.c:81387-
+ * 81534, ~156 lines); unresolved callees kept as clearly-flagged stubs
+ * above (same convention as the ai_euro_5d04/0a60 structural pilots —
+ * see memory ai-5d04-structural-port / ai-0a60-structural-pilot).
+ *
+ * Field mapping (DOS 0x8d4a "settlement record" == this tribe;
+ * DOS 0x8d4e "indian state" == col1->indian[nation_id-4]):
+ *   +3 bit0 "needs first colonist"     -> t->state.needs_colonist (new bit,
+ *                                          no Linux producer yet, see its
+ *                                          own comment in col1_save.h).
+ *   +3 bit4 "capital-class multiplier" -> t->state.capital.
+ *   +4 "worth"                         -> t->population (existing T0 map).
+ *   +5 "owner_flags" (nibble = euro nation with a mission here / -1 none,
+ *      bit0x10 = Jesuit)               -> t->mission (exact match, see
+ *                                          ColonizeCol1Tribe.mission comment).
+ *   +6 "growth accumulator"            -> t->growth_accum.
+ *   +10..+16 "attitude[euro]"          -> t->alarm[euro].friction.
+ *   indian +7 "musket throttle"        -> ind->muskets.
+ *   indian +10 "horse breeding"        -> ind->horse_breeding.
+ *   indian +0x36 "euro_relation_accum" -> ind->euro_relation_accum[euro].
+ *   FUN_281f_0a38 bit 0x20 "met"       -> ind->euro_diplo & COL1_INDIAN_MET_BIT.
+ *   FUN_281f_030c relation get         -> ai_diplo_indian_relation.
+ *   FUN_281f_0d6c relation-delta spill -> ai_diplo_indian_relation_delta;
+ *                                          the DOS reason code (0/3/5, likely
+ *                                          selects a dialog) is dropped —
+ *                                          only the sign of the delta is
+ *                                          kept, dialog chrome PARKED.
+ *   FUN_281f_04d4 RNG range            -> dos_rng_range.
+ *   DS:0x5382 bit0 (WoI)               -> ai_king_independence_declared.
+ */
+static void ai_indian_152e_village_growth(
+  ColonizeTurnContext* ctx,
+  int tribe_index,
+  int nation_id,
+  AiRng* rng
+) {
+  ColonizeCol1Save* col1 = ctx->col1;
+  ColonizeCol1Tribe* t = &col1->tribe[tribe_index];
+  ColonizeCol1Indian* ind = &col1->indian[nation_id - 4];
+
+  int local_16 = 0;
+  if ((int)t->population < ai_indian_152e_worth_cap_stub(ctx, t)) {
+    local_16 = 2;
+  }
+  if (t->state.needs_colonist) {
+    local_16 = 1;
+  }
+  if (local_16 != 0) {
+    const int acc = (int)t->growth_accum + (int)t->population;
+    if (acc > AI_VILLAGE_GROWTH_THRESHOLD) {
+      t->growth_accum = 0;
+      if (local_16 == 2) {
+        t->population++;
+      } else {
+        /* local_16 == 1: assign a founding colonist. */
+        int cost = 0x13;
+        if (ind->muskets > 0) {
+          const int roll = dos_rng_range(rng, 0, (int)col1->head.difficulty);
+          if (roll == 0) {
+            ind->muskets--;
+          }
+          cost++;
+        }
+        if (ind->horse_breeding > 0x31) {
+          ind->horse_breeding -= 0x32;
+          cost += 2;
+        }
+        const int spawned = ai_indian_152e_spawn_colonist_stub(ctx, t, cost, tribe_index);
+        if (spawned >= 0) {
+          if (ctx->units && spawned < COLONIZE_UNITS_MAX) {
+            ctx->units->units[spawned].home_tribe_id = tribe_index;
+          }
+          t->state.needs_colonist = 0;
+        }
+      }
+    } else {
+      t->growth_accum = (uint8_t)acc;
+    }
+  }
+
+  /* Friction-roll loop, gated on !WoI (DS:0x5382 bit0). */
+  if (!ai_king_independence_declared(col1)) {
+    for (int e = 0; e < 4; ++e) {
+      if (!(ind->euro_diplo[e] & COL1_INDIAN_MET_BIT)) {
+        continue;
+      }
+      const int relation = ai_diplo_indian_relation(col1, nation_id, e);
+      const int quartile = ai_indian_152e_quartile(relation);
+      const int iters = quartile * quartile + 1;
+      const int hi = 0xc - quartile * quartile;
+      int gain = 0;
+      for (int k = 0; k < iters; ++k) {
+        if (dos_rng_range(rng, 0, hi) == 0) {
+          gain++;
+        }
+      }
+      ind->euro_relation_accum[e] = (int8_t)(ind->euro_relation_accum[e] + gain);
+    }
+  }
+
+  int threat_score = 0;
+  const int threat_nation = ai_indian_152e_best_threat_nation_stub(ctx, t, &threat_score);
+  const int mission_nation = (t->mission != 0xffu) ? (int)(t->mission & 0x0fu) : -1;
+
+  if (mission_nation >= 0 || threat_nation >= 0) {
+    const bool capital_mult = t->state.capital != 0;
+    if (mission_nation >= 0) {
+      const bool jesuit = (t->mission & 0x10u) != 0;
+      int local_8 = (jesuit ? 4 : 1) << (capital_mult ? 1 : 0);
+      if (ai_indian_152e_ff_bit_stub(ctx, mission_nation, 0x18)) {
+        local_8 <<= 1;
+      }
+      if (ai_indian_152e_ff_bit_stub(ctx, mission_nation, 0x17)) {
+        local_8 >>= 1;
+      }
+      ind->euro_relation_accum[mission_nation] =
+        (int8_t)(ind->euro_relation_accum[mission_nation] + local_8);
+      int atti = (int)t->alarm[mission_nation].friction + local_8 * -3;
+      if (atti < 0) {
+        atti = 0;
+      }
+      t->alarm[mission_nation].friction = (uint8_t)atti;
+    }
+    if (threat_nation >= 0) {
+      int local_c = threat_score << (capital_mult ? 1 : 0);
+      ind->euro_relation_accum[threat_nation] =
+        (int8_t)(ind->euro_relation_accum[threat_nation] - local_c);
+      if (threat_nation == mission_nation) {
+        local_c >>= 1;
+      }
+      const int rel = ai_diplo_indian_relation(col1, nation_id, threat_nation);
+      t->alarm[threat_nation].friction =
+        (uint8_t)((int)t->alarm[threat_nation].friction + local_c + rel / 5);
+    }
+    if (mission_nation >= 0) {
+      while (ind->euro_relation_accum[mission_nation] > 7) {
+        ind->euro_relation_accum[mission_nation] -= 8;
+        ai_diplo_indian_relation_delta(col1, nation_id, mission_nation, -1);
+      }
+    }
+    if (threat_nation >= 0) {
+      while (ind->euro_relation_accum[threat_nation] < -7) {
+        ind->euro_relation_accum[threat_nation] += 8;
+        ai_diplo_indian_relation_delta(col1, nation_id, threat_nation, 1);
+      }
+    }
+  }
+
+  for (int e = 0; e < 4; ++e) {
+    while (ind->euro_relation_accum[e] > 7) {
+      ind->euro_relation_accum[e] -= 8;
+      ai_diplo_indian_relation_delta(col1, nation_id, e, -1);
+    }
+  }
+}
+
 static void ai_grow_villages(ColonizeTurnContext* ctx, int nation_id) {
   if (!ctx || !ctx->col1_ok || !ctx->col1 || !ctx->col1->tribe) {
     return;
+  }
+  AiRng local;
+  AiRng* rng = ctx->rng;
+  if (!rng) {
+    const uint32_t seed = ctx->rng_seed ? ctx->rng_seed : 100u;
+    dos_rng_seed(&local, seed);
+    rng = &local;
   }
   for (uint16_t i = 0; i < ctx->col1->head.tribe_count; ++i) {
     ColonizeCol1Tribe* t = &ctx->col1->tribe[i];
     if ((int)t->nation_id != nation_id) {
       continue;
     }
-    /* FUN_4d56_152e grows capitals only (state.capital). */
-    if (!t->state.capital) {
-      continue;
-    }
-    /* FUN_4d56_152e: accumulate population into growth_accum; overflow → pop++. */
-    int acc = (int)t->growth_accum + (int)t->population;
-    if (acc > AI_VILLAGE_GROWTH_THRESHOLD) {
-      t->growth_accum = 0;
-      if (t->population < 15) {
-        t->population++;
-      }
-    } else {
-      t->growth_accum = (uint8_t)acc;
-    }
+    ai_indian_152e_village_growth(ctx, (int)i, nation_id, rng);
   }
 }
 

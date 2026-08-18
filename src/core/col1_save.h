@@ -419,7 +419,16 @@ typedef struct ColonizeCol1TribeState {
   uint8_t learned : 1;
   uint8_t capital : 1;
   uint8_t scouted : 1;
-  uint8_t unused09 : 4;
+  /*
+   * DOS settlement-record +3 bit0x1 "needs first colonist" — cleared by
+   * FUN_4d56_152e right after a founding-colonist assignment succeeds
+   * (settlement_record_8d4a.md). No Linux producer sets this bit yet
+   * (village creation, FUN_4d56_0038, is unported) — structurally present
+   * and read by ai_indian_152e_village_growth, but always 0 for now, same
+   * "wired but not fed" class as ai_euro_5d04_compute_flags.
+   */
+  uint8_t needs_colonist : 1;
+  uint8_t unused09 : 3;
 } ColonizeCol1TribeState;
 
 typedef struct ColonizeCol1TribeAlarm {

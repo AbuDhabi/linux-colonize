@@ -425,6 +425,81 @@ tracing) before a literal port of them would be honest — the CONTACT-gate
 fix above was a narrow, well-evidenced extraction from that same raw
 block, not a full mapping pass of it.
 
+## Third pass — both "genuinely open" targets closed, no live session needed (2026-08-18, same day)
+
+User asked whether they could help via a live DOSBox-X session, then
+corrected two things about the plan: don't assume a `FUN_1000_XXXX` name's
+suffix is its runtime address (real-mode segment relocation makes that
+unsafe), and prefer `BPM` (memory breakpoint) over a code breakpoint —
+matching this project's own established track record
+(`decomp_inventory.md`: `popup_string_resolver.md`'s `BPM` capture, "has
+repeatedly been the actual unblock, not a fallback of last resort").
+
+Before asking for a live session at all, re-checked whether
+`tools/address_mapping.csv` (already built, already used by the CONTACT-
+gate fix's thunk resolutions) had these two targets — it did, for both:
+
+- **`FUN_1000_8f2a` resolved**: canonical `FUN_281f_0d3a` (`281f:0d3a`),
+  which is itself a thunk to `FUN_15eb_0a50` — already fully documented
+  elsewhere in this project (`save_format_map.md`, `FUNCTION_CATALOG.md`
+  ×2) as the **warehouse capacity formula**, `100×(1+warehouse_level)`,
+  already live in Linux as `colonies_warehouse_capacity`. The "target"
+  scalar the haul-score clamp uses (previously a flat `100` placeholder)
+  is now the real per-colony value. Confirmed via `GhidraDecompileAt` on
+  `0000:28f2a` (`= 0x281f*0x10 + 0x0d3a`, i.e. the *canonical* thunk
+  address from the CSV — not the `FUN_1000_8f2a`-suffix-implied
+  `0000:18f2a`, which failed `createFunction` outright, exactly the
+  failure mode the user's correction predicted).
+- **`FUN_1000_89d0`/`FUN_1000_84d4` resolved**: canonical
+  `FUN_281f_07e0`/`FUN_281f_02e4`, both **already fully known** in
+  `ai/accessors.c` — `unit_index_on_tile(x,y)` and the transport-chain
+  prev-link walker (`FUN_1427_005c`/`FUN_1427_004a`, cross-referenced
+  against `euro_goals.c`'s already-documented `walk_unit_stack_to_end`).
+  This confirms the unit-scan pre-loop this file's "Second pass" section
+  filed as blocked is: walk the stack of units **at the colony's own
+  tile** (DOS via the transport-chain linked list; the call site's own
+  immediately-preceding code loads the colony's x/y right before, which
+  is why no explicit args are visible at the call — the chain-walk starts
+  from whatever's already at that tile). `move_scoring_20e6_full.md`'s
+  open "caller-context registers" question was about a *different* call
+  site (`20e6`'s own field-2 use of `FUN_1000_8aac`, a separate,
+  still-genuinely-open function) — not this one; the two were
+  conflated in the prior pass's writeup.
+
+**Ported, same pass**: the missionary/exposed-combat-unit haul-score
+bonus this file's "Second pass" section deferred. Linux has no live
+per-tile unit stack to walk, so iterates + filters `x/y` instead (same
+substitution this file already uses for `garrison_quota`). +800 per
+Missionary/Jesuit at the colony tile (DOS's "colony ai_flags bit7 clear"
+gate approximated as always-clear — unnamed bit, no Linux field, a
+defensible superset since the real gate would only narrow this); +1500
+per exposed combat-capable land unit (`attack>1`, real `ColonizeUnitType`
+field, not a name-match this time) when `ai_euro_continent_stance_at()`
+reads 0 for this colony's continent and the unit isn't garrisoned/
+admitted (checked against this port's own `s_0a60_pilot_state`, which is
+always fresh-zeroed at this point in the turn — `ai_euro_colony_goals`
+runs before the shadow state gets populated — so this arm is always
+satisfied here, correctly, not a shortcut).
+
+**Not changed**: `flag_b`'s real DOS meaning (whether the +1500 arm fired)
+still isn't wired — kept as Linux's own haul/CONTACT work-queue
+discriminator, same reasoning as the "Second pass" section already gave
+for `flag_a`.
+
+**Verified**: clean `colonize_core` rebuild, zero new warnings. Full
+`ctest`: identical failure set throughout, no regressions (`git stash`
+confirmed both before this pass's two edits individually).
+
+**Now actually closed** (not just "not attempted"): both concrete
+targets from the "Second pass" section's `**Still deliberately not
+ported**`/`**Still open**` notes. What remains genuinely open for a full
+structural pass is narrower now: the unit-loop's own per-unit garrison-
+request/`0x3148`-bit housekeeping (raw lines 1-189) and the deep G-table
+write path itself (raw lines 190-500ish, `ai_euro_refresh_continent_stance`
+covers its *effect* via recompute, not this literal path) — both still
+same difficulty class as `FUN_1000_8aac`'s field-id puzzle, not this
+pass's scope.
+
 ## Raw recovered C (845 lines, one mild warning)
 
 ```c
