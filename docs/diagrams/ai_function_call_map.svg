@@ -296,10 +296,12 @@
     <text x="1760" y="540" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="11" fill="#343a40">merc/peacetime gift</text>
   </g>
   <g filter="url(#shadow)">
-    <rect x="40" y="770" width="280" height="72" rx="6" fill="#d8f5d0" stroke="#2b8a3e" stroke-width="1.8"/>
+    <rect x="40" y="770" width="280" height="88" rx="6" fill="#d8f5d0" stroke="#2b8a3e" stroke-width="1.8"/>
     <text x="50" y="788" font-family="DejaVu Sans Mono, Consolas, monospace" font-size="12" font-weight="700" fill="#1b5e20">FUN_6a09_0006</text>
     <text x="50" y="806" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="11" fill="#343a40">Tribe capitals/satellites/</text>
     <text x="50" y="820" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="11" fill="#343a40">Brave spawn (new-game init)</text>
+    <text x="50" y="836" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="10.5" fill="#1b5e20">caller: FUN_2a1f_087c (mapgen</text>
+    <text x="50" y="850" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="10.5" fill="#1b5e20">dispatch) — confirmed, not EOT loop</text>
   </g>
   <g filter="url(#shadow)">
     <rect x="340" y="770" width="280" height="72" rx="6" fill="#fff3bf" stroke="#e67700" stroke-width="1.8"/>
