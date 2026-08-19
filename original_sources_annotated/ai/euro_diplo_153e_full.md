@@ -57,7 +57,7 @@ a known, named, mostly-already-documented function**:
 | Table idx | Thunk offset | Target | Linux status |
 |---|---|---|---|
 | 0 | `2a1f:05fc` | `FUN_5bfb_153e` (self) | this function |
-| 1 | `2a1f:060a` | `FUN_5bfb_12d0` | unresolved — already tracked in `euro_diplo.md` ("Order clear `12d0` deep") |
+| 1 | `2a1f:060a` | `FUN_5bfb_12d0` | **resolved 2026-08-19** — see below |
 | 2 | `2a1f:0618` | `FUN_5bfb_102a` | dialogs, thin `ctx->status` **Done** |
 | 3 | `2a1f:0626` | `FUN_5bfb_312e` | census/rank/combat factor, score stand-in **Done** |
 | 4 | `2a1f:0634` | `FUN_5bfb_0000` | census/rank/combat factor, score stand-in **Done** |
@@ -70,18 +70,65 @@ a known, named, mostly-already-documented function**:
 **Real implication, and it's a good one**: `153e`'s outcome dispatch —
 whatever selects an index 0-9 into this table — routes into machinery
 this project has **already mostly ported**, not a wall of new blocked
-code. Only index 1 (`12d0`) is a genuinely unresolved branch, and it's
-already a tracked lead elsewhere, not a new discovery. This makes `153e`
-look considerably *more* tractable than the retracted claim suggested —
-the real remaining work is finding **which selector value in `153e`'s own
-body picks the table index** (not yet located — the earlier phase-4
-description's "`FUN_...__003bd0(param_2,param_3)` then `(param_3,param_2)`
-... almost certainly the real declare-war state flip" guess is *also*
-now suspect, since `003bd0` turned out to be a mid-table jump instruction
-address, not a function call with real arguments — that phase-4 reading
-needs a fresh, careful re-check, not reuse) and the worthiness-score
-phase that feeds it. **Not attempted this pass** — flagging the corrected,
-now much more promising picture for a focused next pass rather than
+code. Index 1 (`12d0`) is now resolved too (below), so **every** table
+target is understood. This makes `153e` look considerably *more*
+tractable than the retracted claim suggested — the real remaining work is
+finding **which selector value in `153e`'s own body picks the table
+index** (not yet located — the earlier phase-4 description's
+"`FUN_...__003bd0(param_2,param_3)` then `(param_3,param_2)` ... almost
+certainly the real declare-war state flip" guess is *also* now suspect,
+since `003bd0` turned out to be a mid-table jump instruction address, not
+a function call with real arguments — that phase-4 reading needs a
+fresh, careful re-check, not reuse) and the worthiness-score phase that
+feeds it. **Not attempted this pass** — flagging the corrected, now much
+more promising picture for a focused next pass rather than
+
+## `FUN_5bfb_12d0` — resolved 2026-08-19, previously "body unexamined"
+
+Full body (`viceroy_unpacked.c:97214-97256`) is clean, 43 lines, no
+corruption. `FUN_5bfb_12d0(nation_a, nation_b)`:
+
+```c
+for (each unit i in the unit table) {
+  if (unit[i].owner_nation == nation_b            // +0x3147 & 0xf
+      && !(0xd <= unit[i].type <= 0x12)            // not a ship (+0x3146)
+      && unit_type_combat_byte[unit[i].type] > 1)   // combat-capable land unit (0x5236)
+  {
+    x, y = unit[i].x, unit[i].y;                    // +0x3144 / +0x3145
+    if (map_tile_in_bounds(x, y)) {                  // FUN_281f_0302
+      for (each of the 8 neighbor offsets) {
+        if (euro_settlement_owner(nx, ny) == nation_a) {   // FUN_281f_0696
+          if (unit[i].orders == 5 || unit[i].orders == 6) {  // +0x314c
+            unit[i].orders = 0;
+          }
+          break;
+        }
+      }
+    }
+  }
+}
+```
+
+Both callees are already-known, already-catalogued accessors
+(`FUNCTION_CATALOG.md`: `FUN_281f_0302`=`map_tile_in_bounds`,
+`FUN_281f_0696`=`euro_settlement_owner`), and the combat-capable/land-only
+gate (`0x5236>1`, ship range `0xd..0x12` excluded) is the same idiom
+already glossed elsewhere in this project (`move_scoring_land.md`:
+"combat-capable (`0x5236>1`)"). So the whole function reads cleanly with
+zero unresolved pieces: **for every combat-capable land unit belonging to
+`nation_b` that sits adjacent to a settlement owned by `nation_a`, cancel
+any pending roam/reevaluate order** (order-state 5 or 6 → 0; per
+`docs/mysteries_catalog.md`'s `unknown15_lo` entry, order-state∈{5,6} is
+exactly what `unit+0x3148` bit1 `roam_reeval_pending` mirrors). Called
+`(A,B)` then `(B,A)` from `FUN_5bfb_13b0`'s alliance-form path (both
+sides' border garrisons refreshed) and once from this table's index 1 —
+i.e. **"wake up border-garrison units near the other nation's territory
+so they re-plan, because the diplomatic relationship with that neighbor
+just changed."** `euro_diplo.md`'s "Order clear `12d0` deep" line item is
+now fully resolved; not ported to Linux yet — `ai_diplo_form_alliance_ctx`
+doesn't currently touch unit orders, and this is small enough to be a
+quick follow-up (loop units of the two nations, same adjacency/order-state
+test, no new struct fields needed) rather than a semantic gap.
 rushing it after just having to retract one wrong finding.
 
 **Lesson, the important one**: a decompile succeeding (Ghidra prints

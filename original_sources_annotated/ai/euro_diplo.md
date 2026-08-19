@@ -163,8 +163,12 @@ Contact/King pattern — thin `ctx->status` stand-in for `102a`/`1092` (widgets 
 
 **Done (structural unpark #5):** AI popup OK/CHOICE enqueue + wartime Privateer
 **unit spawn** + score/trade deepen + thin status chrome. **Still PARKED:** full
-multi-line VGA `102a`/`1092` dialog widgets; FA `3f41` full UI; order clear
-`12d0` deep.
+multi-line VGA `102a`/`1092` dialog widgets; FA `3f41` full UI. Order-clear
+`12d0` — **resolved 2026-08-19** (`euro_diplo_153e_full.md`): cancels
+roam/reevaluate orders (state 5/6→0) on the other nation's combat-capable
+land units adjacent to your settlements, fired both directions on alliance
+form and once from `153e`'s outcome table; small, not yet ported (would need
+a unit-loop + `euro_settlement_owner` adjacency check, no new struct fields).
 
 **`−0x77c4` resolved (2026-08-14, this list wasn't updated when it happened
 — it's actually already mapped above, §"`15b3` bilateral bytes"):**

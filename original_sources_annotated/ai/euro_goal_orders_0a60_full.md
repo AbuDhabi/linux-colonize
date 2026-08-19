@@ -368,12 +368,23 @@ tail ever runs) and the missionary/exposed-unit haul-score bonus above are
 the two largest remaining pieces; both need the same kind of dedicated,
 possibly multi-pass raw-disassembly investigation `FUN_1000_8aac` needed
 (6 passes, 2 of 15 cases actually resolved) before a literal port is
-honest rather than guesswork. `unit+0x3148`'s individual bits are
-scattered across at least three other functions (`euro_unit_act.md`:
-`0x80`=ship damaged/under-construction, `nation_eot_ship_spawn.md`:
-`0x40`=in-transit, `move_scoring_20e6_full.md`: `0x20`/`0x10`/bit1 seen
-but not yet named) — collecting and reconciling all of them into one
-coherent bitfield is real, bounded follow-up work, not a dead end.
+honest rather than guesswork.
+
+**Doc-sync, 2026-08-19: the bitfield-collection task this paragraph used
+to flag as open is already done.** `unit+0x3148`'s bits were fully
+reconciled and named in a later pass (see `docs/mysteries_catalog.md`'s
+`unknown15_lo` entry, and `col1_save.h`'s `roam_reeval_pending` /
+`stack_has_founders_or_military` / `stack_has_military` /
+`wander_dest_chosen` / `garrison_request_pending` / `bound_in_transit`
+bitfields, all live and round-tripped in `col1_bridge.c`) — bit0 dead,
+bits 1/2/3/5 confirmed reset-and-rederived every `FUN_521d_0a60` tick
+(`&=0xd1`), so they're per-tick AI scratch, not persistent history. This
+paragraph's own citations (`euro_unit_act.md` bit7, `nation_eot_ship_spawn.md`
+bit6) match the resolved table exactly; nothing here contradicts it, the
+note was just never updated after the bitfield pass landed. The still-open
+part is unchanged: the *per-unit garrison-request/threat-flag housekeeping
+logic* that writes these bits (raw lines 1-189 of this function) isn't
+ported — only the bit identities are now known.
 
 **Verified**: clean `colonize_core` rebuild, zero new warnings under
 `-Wall`. `golden_ai_turns`/`golden_ai_joint` fail at the same pre-existing

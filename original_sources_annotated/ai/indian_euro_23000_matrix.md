@@ -102,19 +102,46 @@ two passes ago.** What's left, genuinely:
   the *numeric* relation drop (already ported) may already drive every
   behavior that matters, making these bits internal bookkeeping with no
   independent effect. Not confirmed either way.
-- `FUN_4cc6_0092` (Indian-nation-*type* elimination, distinct from the
-  already-ported *nation*-elimination `FUN_43f7_0108`) unconditionally
-  clears the met bit (`0x40` in its own reading — wait, re-examine with
-  the corrected bit layout: **this function's own `0x40` argument is
-  almost certainly the *peace* bit under the now-confirmed Indian-branch
-  layout, not met** — worth re-deriving its effect with the corrected
-  bit meaning before porting, not just relabeling the old "clears MET"
-  read). Caller context (when does a settlement "type" get eliminated?)
-  is still unresolved from two passes ago.
+- `FUN_4cc6_0092` — **re-derived in full 2026-08-19, old "elimination
+  handler" framing dropped.** Full body (`viceroy_unpacked.c:80806-80822`):
+  ```c
+  void FUN_4cc6_0092(int param_1, int param_2, int param_3) {
+    uVar1 = 0x4cc6;
+    if (param_3 < 4 && *(char*)(param_3*0x34+0x543f) == 0 && param_1 != 0) {
+      uVar1 = FUN_281f_0a1a(0x4cc6, param_2+4);   // nation-name string (subst slot 0)
+      FUN_281f_0438(0x281f, 0, uVar1);
+      uVar1 = 0x281f;
+      FUN_281f_0998(0x281f);                      // "run pending dialog" — traced
+                                                    // in popup_string_resolver.md
+                                                    // (id→text step itself unresolved)
+    }
+    FUN_281f_0a10(uVar1, param_2+4, param_3, 0x40); // clear-both bit 0x40
+    thunk_FUN_2a1f_0398(0x281f, param_2, param_3);  // FUN_4cc6_0000 mission clear
+    return;
+  }
+  ```
+  `FUN_281f_0a1a` is independently catalogued (`FUNCTION_CATALOG.md:1434`)
+  as "nation name string ptr thunk → dialog subst," confirming the gated
+  branch is a **human-only notification**, not an elimination check. So
+  with the corrected Indian-branch layout (`0x20`=met, `0x40`=peace, see
+  above) this function is: **break peace** between Indian nation
+  `param_2+4` and Euro nation `param_3` — clear the peace bit
+  unconditionally, sever every mission that Euro nation holds among that
+  Indian nation's villages (`thunk_FUN_2a1f_0398` → `FUN_4cc6_0000`,
+  already fully read and ported for the WoI-defection caller — see
+  `indian_woi_defect_1816.md`), and, only if the Euro side is human and
+  `param_1!= 0`, show a nation-name-substituted notice. Not an
+  elimination handler at all — no settlement/tribe record is touched here
+  (that was `FUN_4cc6_0000`'s own body, misattributed to this function by
+  an earlier pass that hadn't yet separated the two). `param_1`'s role is
+  now just "notify the player" boolean, most plausibly set by the caller
+  to distinguish a player-visible peace break from a silent AI-vs-AI one.
+  Caller context (still unresolved — see below) no longer blocks
+  understanding what the function itself does.
 
 Net: no architecture extension needed for the part that matters most —
-that's done. The remaining piece is small (one function, one caller
-question, one bit-relabel to redo) rather than a systemic gap.
+that's done. `FUN_4cc6_0092` itself is now fully read (peace-break +
+mission-clear + human notice); only its caller remains open.
 
 **Caller search retried this same pass, still unresolved**: grepped both
 `viceroy_unpacked.c` and `viceroy_unpacked_2.c` for any call to
@@ -123,7 +150,50 @@ found this way immediately, confirming the method works) — zero call
 sites in either file, only the two definitions. Whatever calls it isn't
 resolvable from either canonical export; would need the `.asm`
 register-tracing approach `euro_g_table_0a60.md` used for its own blocked
-calls. Not worth that for one elimination-handler function — leaving
-`FUN_4cc6_0092` correctly parked, caller unknown, same status as before
-this pass (the redundancy question around it is resolved; the caller
-question isn't).
+calls. Given the function's now-clear semantics ("break peace with an
+Indian nation"), the likeliest caller is somewhere in the human/AI war-
+declare or `153e` diplomacy flow against an Indian nation, or a colony-
+destroyed/tribe-wiped-out path — not chased this pass (2026-08-19), still
+correctly parked, caller unknown (the redundancy question around it is
+resolved; the caller question isn't). **Not wired into Linux** on
+account of the unresolved caller — porting the mechanical effect without
+knowing when DOS actually fires it risks inventing a trigger condition,
+so this stays documentation-only for now.
+
+## `FUN_4cc6_00f2` max-relation branch — new finding, 2026-08-19
+
+Full body of `FUN_4cc6_00f2` (DOS original of the already-ported
+`ai_diplo_indian_relation_delta`, `viceroy_unpacked.c:80826-80917`) read
+in full for the first time this pass (prior passes only looked at the
+`0x02`/`0x04` clear lines cited above). Two previously-undocumented
+pieces:
+
+1. **Tier-crossed tension update** (main branch, `iVar5<100 || peace bit
+   clear`): when the new relation value crosses a 5-point tier boundary
+   (`iVar5/-5 != iVar2/-5`, i.e. old and new relation land in different
+   20-tier bands) and the delta was negative, updates the `0x54f6`
+   grudge/tension table (already relabeled in `docs/mysteries_catalog.md`)
+   for every tribe of this Indian nation, clamped to `0x20` or `0x60`
+   depending on how close nation and Indian's own combat-strength ratings
+   are (`iVar3`/`iVar6`, both from `FUN_281f_0a60`). Human-nation name
+   substitution (`FUN_281f_09a4` × 2) feeds a status line whose text isn't
+   captured. Not ported — needs the `0x54f6` field wired into
+   `col1_save.h` first (mysteries catalog: "still no Linux accessor").
+2. **Max-relation mission-clear branch** (else branch, `iVar5>=100 &&`
+   peace bit set): `local_66 = difficulty` if the Euro side is human else
+   `1`; roll `RNG(0,10)`; if `roll <= local_66+1`, call
+   `thunk_FUN_2a1f_0398` (→ `FUN_4cc6_0000`, the same mission-clear body
+   the WoI-defection port already uses) for this Indian/Euro pair and
+   return early — i.e. **once relation with an Indian nation is pinned at
+   the 100 cap while still at peace, every further positive relation-delta
+   call has a small chance (`(difficulty+2)/11` for human, `2/11` for AI)
+   to sever that Euro nation's mission(s) among the tribe's villages.**
+   Reads like "the tribe has nothing left to gain from missionary
+   contact and lets it lapse" flavor, though not confirmed against any
+   manual/fandom text. **Not ported** — the currently-live
+   `ai_diplo_indian_relation_delta` clamps to `[0,255]` (byte range), not
+   DOS's `[0,100]`, so a literal `v==100` check would almost never fire in
+   Linux the way it reliably does in DOS once the original hits its hard
+   cap; porting this branch correctly needs the relation clamp itself
+   re-scoped to 0-100 first (separate, slightly bigger PORT DEBT item, not
+   done this pass to avoid touching a shared clamp blind).
