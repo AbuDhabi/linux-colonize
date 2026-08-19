@@ -1,4 +1,9 @@
 /*
+ * PARKED 2026-08-19 (docs/ai_transcription.md R0, docs/roadmap.md): DISABLED
+ * in CMakeLists.txt — same reason as tests/golden/test_ai_turns.c. Red here
+ * means AI porting incomplete, not a fresh regression; do not chase to green
+ * until the transcription is done.
+ *
  * Joint late-war golden (T3 Series K).
  * LATE01: load MID02, stamp late-war Indian×Euro fields, write LATE01.SAV,
  * run one full joint turn, then structural pair compare (not TURN XY field-diff).

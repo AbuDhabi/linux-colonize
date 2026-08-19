@@ -1,3 +1,13 @@
+/*
+ * PARKED 2026-08-19 (docs/ai_transcription.md R0, docs/roadmap.md): DISABLED
+ * in CMakeLists.txt. This chases turn-for-turn DOS parity against an AI
+ * planner that is still only structurally/T0-T1 ported, not T3 1:1 — every
+ * remaining unported/stubbed callee (FUN_41f2_0294 etc.) is a guaranteed
+ * future diff here, so a red run means "porting incomplete", not "new
+ * regression". Do not chase individual TURN-step diffs to green until the
+ * underlying AI transcription is actually done; re-enable
+ * (set_tests_properties ... DISABLED FALSE) only then.
+ */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
