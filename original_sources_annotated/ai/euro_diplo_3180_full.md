@@ -118,14 +118,17 @@ patterned declaration — the two aren't always adjacent.
 - The `unit+0x314f` double-duty question (movement-momentum vs encounter-
   direction) — **not resolved**.
 - `DS:0x5ade` (Indian-vs-Indian sync table) — **not named**.
-- **Not ported.** This confirms a real, structural gap (Euro-vs-Euro
-  physical-adjacency encounter → ambush + potential war-declare) that
-  Linux's existing `ai_contact_*` Indian-meet system doesn't cover on the
-  Euro-Euro side at all. Real next step if resumed: this is more tractable
-  than `153e` alone since the *trigger condition* (8-neighbor scan on
-  movement, mirrors patterns already in `ai_euro_land_best_adjacent_foe`)
-  is simple and already has Linux precedent — the hard part remains `153e`
-  itself, not this dispatcher.
+- **Doc-sync 2026-08-19: the ambush sub-mechanic (item 1 above) IS ported**
+  — `ai_euro_naval_try_ambush`/`ai_euro_naval_ambush_power` (`ai_euro.c`),
+  confirmed live and cited in `docs/ai_transcription.md`'s `3180` row.
+  This paragraph's "Not ported" verdict was stale; only the surrounding
+  **diplo-dispatch** (item 4: Euro-vs-Euro → `153e`, Indian-vs-Indian
+  `0x5ade` sync, the `0x20`-bit OR outcome) remains genuinely PARKED —
+  blocked on `153e`'s own still-unresolved selector/worthiness-score logic
+  (see `euro_diplo_153e_full.md`), not on anything in this function. The
+  Indian-vs-Indian `0x5ade` sync is separately low-value to wire blind:
+  self-contained (no `153e` dependency) but has zero known reader in any
+  export, so it would be a write-only stub with no confirmed effect.
 
 ## Raw recovered C (canonical version, 239 lines, zero warnings)
 
