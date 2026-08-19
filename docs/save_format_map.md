@@ -120,9 +120,9 @@ as peels land.
 | `founding_father[25]` | 25 | `mapped` | −1 = unrecruited |
 | `turn_loop_running` / `map_modal_active` / `no_unit_selected` | 6 | `mapped` | DS:`0x53c2`/`c4`/`c6` |
 | `nation_relation[4]` | 8 | `mapped` | |
-| `rebel_sentiment_report` + `unknown45_pad[8]` | 10 | `mapped` | DS:`0x53d0` |
+| `rebel_sentiment_report` + `crown_nation_id`/`rival_nation_slot_1`/`_2`/`sol_pct_last_notified` (was `unknown45_pad[8]`) | 10 | `mapped` | DS:`0x53d0`; the 4 int16 slots resolved 2026-08-19 (crown nation, 2 lazy rival-nation caches, SoL-report dedup) |
 | `expeditionary_force` / `backup_force` | 16 | `mapped` | |
-| `unknown46` / `price_group_state[16]` | 32 | `partial` | DOS prices @`0x53ea`; Linux king bytes 0–5 overlay words 0–2. Smcol/supplemental: only **rum/cigars/cloth/coats** form a live price group (SG also lists sugar/tobacco/cotton/fur, but experiments say those move independently); other slots change with trades but are believed unused by the price formula |
+| `unknown46` / `price_group_state[16]` | 32 | `partial` | DOS market saturation/demand pool (not price) @`0x53ea`, formula traced 2026-08-19 (`FUN_38fd_0058`): seeded `RNG(600,1000)`, topped up per-turn from a per-nation demand table; Linux king bytes 0–5 overlay words 0–2. Only **rum/cigars/cloth/coats** confirmed as a live price group by code (index-9-12 floor-at-1 special case) — was previously only a smcol/experimental guess (SG also lists sugar/tobacco/cotton/fur, but experiments say those move independently); formula connecting this pool to `euro_price[16]` not traced |
 | `event` | 2 | `mapped` | Woodcut / discovery flags |
 | `unknown05` | 2 | `opaque` | Save R/W; no gameplay cite |
 
@@ -189,14 +189,14 @@ Export often **zeros** unnamed colony bytes on rebuild ([savegame.md](savegame.m
 | Field | Size | Status | Notes |
 |-------|------|--------|-------|
 | `tax_rate` / `recruit*` / FF / bells / gold / crosses | — | `mapped` | |
-| `nation_flags` | 1 | `partial` | Was `unknown19`; bits `0x04`/`0x08`/`0x40` live |
+| `nation_flags` | 1 | `partial` | Was `unknown19`; bits `0x04`/`0x08`/`0x40` live; bit `0x04` named 2026-08-19 = nation achieved independence |
 | `tax_hike_count` | 1 | `mapped` | Was `unused07`; `FUN_38fd_44a4` |
 | `unknown21_pad` | 1 | `opaque` | Was `unknown21`; resolved 2026-08-19 confirmed dead — untouched by all 3 DOS exports, the one gap new-game zero-init skips |
 | `king_audience_tax_delta` | 2 | `mapped` | Was `unknown22`; `int16`; resolved 2026-08-19: signed King-audience tax delta, `FUN_38fd_5be8` computes/writes, `FUN_38fd_3dc8` applies same-call to `tax_rate`; no DOS reader of the saved copy |
 | `ff_count_end_prob` | 2 | `community` | smcol; cleared on independence; no FF-prob reader |
-| `rebel_sentiment` + `unknown23_pad[4]` | 5 | `mapped` | nation+0x19 |
+| `rebel_sentiment` + `rebellion_pct_last_notified` + `unknown23_pad[3]` | 5 | `mapped` | nation+0x19; `rebellion_pct_last_notified` (was `unknown23_pad[0]`) resolved 2026-08-19: independence-news dedup latch |
 | `artillery_count` / `boycott_bitmap` | — | `mapped` | |
-| `royal_money` + `unknown24_pad[4]` | 8 | `mapped` | `int32` @ +0x22 REF budget |
+| `royal_money` + `unknown24_pad[4]` | 8 | `mapped` | `int32` @ +0x22 REF budget; `unknown24_pad` confirmed dead 2026-08-19 (zeroed at new-game init only, no other touch) |
 | `return_from_europe_x/y` | 2 | `mapped` | `FUN_48d3_007a` |
 | `euro_relation[4]` | 4 | `mapped` | −0x77c4 / `FUN_15b3_*` peer flags (ai_diplo: WAR`0x01` PEACE`0x02` ALLY`0x04` MET`0x40`). Smcol’s attitude?/status/piracy bitfield **disagrees** — prefer DOS |
 | `relation_by_indian[8]` | 8 | `mapped` | |

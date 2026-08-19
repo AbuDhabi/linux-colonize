@@ -211,7 +211,27 @@ typedef struct ColonizeCol1Head {
   uint16_t no_unit_selected; /* 0x53c6; View-idle when active_unit < 0 */
   int16_t nation_relation[4];
   int16_t rebel_sentiment_report; /* DS:0x53d0; congress UI 0..100 */
-  uint8_t unknown45_pad[8];
+  /* Was unknown45_pad[8]; resolved 2026-08-19 as four int16 slots, all
+   * -1/0xffff = none, all reset together in FUN_75c2_235c (new game). */
+  int16_t crown_nation_id; /* DS:0x53d2 — already named elsewhere in the
+     port (combat.md, king_ref.md, ai_king_crown_nation) as "Crown nation":
+     the non-human REF/King's-own Euro nation slot. Linux computes this
+     functionally (ai_king_crown_nation) rather than reading this save
+     copy; kept here for DOS byte-fidelity only. */
+  int16_t rival_nation_slot_1; /* DS:0x53d4 — year-end chrome's "rival
+     nation" (year_end_chrome.md D section): lazily picked once from the
+     other 3 Euro nations when a SoL-pressure/relation report needs one,
+     also reused for its name in a couple of unrelated dialog subs
+     ("crown name via 0x53d4" in that doc is the same lazy cache, not a
+     second crown concept). */
+  int16_t rival_nation_slot_2; /* DS:0x53d6 — second slot, identical
+     lazy-pick pattern to rival_nation_slot_1, for reports naming two
+     rivals at once. */
+  int16_t sol_pct_last_notified; /* DS:0x53d8 — human-colony SoL-pressure
+     news dedup latch: caches rebel_sentiment_report/10 (a decile), so the
+     "rising"/"falling" popup only re-fires on real movement. Same dedup
+     shape as rebellion_pct_last_notified above, but for the human's own
+     colonies rather than a rival's. */
   uint16_t expeditionary_force[4]; /* regulars, dragoons, man-o-wars, artillery.
                                        index 2 (0x53DE) confirmed 2026-08-18
                                        live DOSBox-X capture: dec'd right as
@@ -223,6 +243,22 @@ typedef struct ColonizeCol1Head {
    *   [0] WoI  [1] REF  [2] boycott  [3] merc  [4] unused  [5] congress
    * Those bytes collide with DOS price words 0–2 until stand-ins migrate to
    * game_options.woi / ref_present (0x5382).
+   *
+   * Formula traced 2026-08-19 (FUN_38fd_0058, new-game init at DOS
+   * 121528-121538): despite the name, this is NOT the displayed price —
+   * each of the 16 slots (one per cargo, `COLONIZE_CARGO_*` order) is a
+   * hidden **market saturation/demand pool**, seeded `RNG(600,1000)` at
+   * new game, and topped up every call by summing a per-Euro-nation demand
+   * table (`Σ over 4 nations of demand[nation][cargo]`, stride 0x4f). Two
+   * per-cargo special cases confirmed in the same function: index 0
+   * (`COLONIZE_CARGO_FOOD`) gets an extra 7-bit right-rotate decay applied
+   * only on turn 1 / nation 0; indices 9-12 (Rum/Cigars/Cloth/Coats) get a
+   * floor-at-1 clamp — this is the DOS *code* confirmation of this array's
+   * own "only rum/cigars/cloth/coats form a live price group" note
+   * (previously a smcol/experimental guess, see save_format_map.md).
+   * `ColonizeCol1NationTrade.euro_price[16]` is the actual displayed
+   * per-nation price; this global pool is what drives it,
+   * through a formula not traced this pass).
    */
   union {
     uint8_t unknown46[32];
@@ -432,7 +468,11 @@ typedef struct ColonizeCol1NationTrade {
 } ColonizeCol1NationTrade;
 
 typedef struct ColonizeCol1Nation {
-  uint8_t nation_flags; /* +0; live bits 0x04/0x08/0x40 @ −0x77f8 (was unknown19) */
+  uint8_t nation_flags; /* +0; live bits 0x04/0x08/0x40 @ −0x77f8 (was unknown19).
+     Bit 0x04 named 2026-08-19 (found via rebellion_pct_last_notified's
+     context): "this nation has achieved independence from its King" —
+     set when a nation's computed rebellion percentage crosses the
+     difficulty threshold; see rebellion_pct_last_notified above. */
   uint8_t tax_rate;
   uint8_t recruit[3];
   uint8_t tax_hike_count; /* +5; FUN_38fd_44a4 INC (was unused07) */
@@ -461,11 +501,28 @@ typedef struct ColonizeCol1Nation {
   uint16_t ff_count_end_prob; /* smcol; cleared on independence; no FF-prob reader */
   uint8_t villages_burned;
   uint8_t rebel_sentiment; /* nation+0x19 */
-  uint8_t unknown23_pad[4];
+  uint8_t rebellion_pct_last_notified; /* nation+0x1a; was unknown23_pad[0].
+     Resolved 2026-08-19: per-nation independence-progress news system (a
+     per-nation-turn loop switches context to each of the 4 nations via
+     FUN_281f_0582, computes rebel_sentiment(+0x19) × a per-continent weight
+     table ÷100, clamped 100, compared to a difficulty threshold). Below
+     threshold: this byte caches the last % the "rebellion sentiment rising/
+     falling" news popup (msg 0xf5e/0xf69) reported, so it only re-fires on
+     real movement. At/above threshold: independence achieved instead — sets
+     nation_flags bit 0x04 (see that field's comment) and broadcasts a
+     diplomatic relations update to the other 3 nations. Bytes +0x1b..+0x1d
+     (unknown23_pad[1..3]) never touched anywhere in any of the 3 decompiled
+     exports — kept as pad below. See docs/mysteries_catalog.md. */
+  uint8_t unknown23_pad[3];
   uint16_t artillery_count;
   uint16_t boycott_bitmap;
   int32_t royal_money; /* nation+0x22; FUN_43f7_1d42 REF budget */
-  uint8_t unknown24_pad[4];
+  uint8_t unknown24_pad[4]; /* nation+0x26; confirmed dead 2026-08-19 — no
+     reader or writer at all in any of the 3 decompiled exports outside
+     new-game init (`FUN_38fd_6024` zeroes it via two `undefined2` clears
+     at +0x26/+0x28, alongside neighboring `royal_money`), so it starts at
+     0 and every code path that would ever touch it again is simply
+     absent. Confirmed-dead tier, not merely under-searched. */
   uint32_t gold;
   uint16_t current_crosses;
   uint16_t needed_crosses;
