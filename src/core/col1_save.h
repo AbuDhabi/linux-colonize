@@ -388,7 +388,10 @@ typedef struct ColonizeCol1Colony {
   uint16_t hammers_purchased; /* +0x98; FUN_2f2b_5e44 BUY adds remainder */
   uint16_t stock[COLONIZE_COL1_CARGO_TYPES];
   uint8_t visible_to_euro[4]; /* +0xba; smcol population_on_map — fog pop per Euro; founding writes 1 (FUN_364b_1ba8) */
-  uint8_t unknown13_pad[4]; /* +0xbe; smcol fortification_on_map[4] (0..3); founding 0; lategame fixtures non-zero */
+  uint8_t unknown13_pad[4]; /* +0xbe; smcol fortification_on_map[4] (0..3); founding 0; lategame fixtures non-zero.
+                                Writer confirmed 2026-08-19 (live DOSBox-X trace): fires from a periodic timer-tick
+                                ISR (segment 124C, alternating-tick dispatch), not founding/player-action — absent
+                                from the 3 decompiled exports for that reason. Exact store opcode not pinned. */
   uint32_t rebel_dividend;
   uint32_t rebel_divisor;
 } ColonizeCol1Colony;
