@@ -2433,9 +2433,7 @@ static int ai_contact_meet_economics_2154(
   out->ask[0] = (int16_t)((pop1 * pop1 * 4) >> (1 < tech ? 1 : 0));
   if (tech != 0) {
     if (tech > 1) {
-      const int16_t word_c =
-        (int16_t)((uint16_t)ind->unknown31d[0] | ((uint16_t)ind->unknown31d[1] << 8));
-      out->bid[7] = (int16_t)((int)word_c / diff_div);
+      out->bid[7] = (int16_t)((int)ind->hill_silver_bid_bonus / diff_div);
       int a0_shift = local_a0 << 2;
       if (tech > 2) {
         a0_shift = local_a0 << 3;

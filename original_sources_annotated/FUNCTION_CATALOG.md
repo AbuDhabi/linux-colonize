@@ -1764,7 +1764,7 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_291f_0b50` | 36310 | 10 | thunk | Far thunk → FUN_38fd_19d8 (Europe text blit wrapper) | inferred |  |
 | `FUN_291f_0b5e` | 36320 | 10 | thunk | Far thunk → FUN_38fd_0f5e (cargo-slot rect constants) | inferred |  |
 | `FUN_291f_0b6c` | 36330 | 10 | thunk | Far thunk → FUN_38fd_6024 (new-game init Europe market state, all 4 nations) | inferred | docs/savegame.md |
-| `FUN_291f_0b7a` | 36340 | 10 | thunk | Far thunk → FUN_38fd_5be8 (king tax-raise proposal dialog) | inferred |  |
+| `FUN_291f_0b7a` | 36340 | 10 | thunk | Far thunk → FUN_38fd_5be8 (king audience tax event: favor-score picks cut or raise, applies same-call) | inferred |  |
 | `FUN_291f_0b88` | 36350 | 10 | thunk | Far thunk → FUN_38fd_2a92 (sell/scrap harbor ship dialog) | inferred |  |
 | `FUN_291f_0b96` | 36360 | 10 | thunk | Far thunk → FUN_38fd_19f8 (Europe string-table text blit by index) | inferred |  |
 | `FUN_291f_0bb2` | 36370 | 10 | thunk | Far thunk → FUN_38fd_4b50 (purchase ship/artillery dialog) | inferred |  |
@@ -2382,7 +2382,7 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_38fd_55b6` | 68114 | 134 | trade | Europe screen entry + main event loop | inferred | turn/europe_finish_bridge.md; docs/assets.md |
 | `FUN_38fd_584a` | 68248 | 57 | trade | Recruit-passage / immigration pressure score | inferred |  |
 | `FUN_38fd_5930` | 68305 | 115 | trade | Europe EOT FF cargo gift / grant | inferred |  |
-| `FUN_38fd_5be8` | 68420 | 119 | trade | King tax-raise proposal dialog | inferred | docs/savegame.md |
+| `FUN_38fd_5be8` | 68420 | 119 | trade | King audience tax event (cut or raise by favor score; applies via FUN_38fd_3dc8) | inferred | docs/savegame.md |
 | `FUN_38fd_5e52` | 68539 | 88 | trade | Europe nation end-of-turn (market + tax + pool) | inferred | turn/europe_nation_eot.md; docs/savegame.md |
 | `FUN_38fd_6024` | 68627 | 755 | trade | New-game init Europe market state (all 4 nations) | inferred | docs/savegame.md |
 

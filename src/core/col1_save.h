@@ -368,8 +368,40 @@ typedef struct ColonizeCol1Unit {
   uint8_t type;
   uint8_t nation_id : 4;
   uint8_t vis_mask : 4; /* DS:0x3147 hi; 0x10<<euro — FUN_1427_0992/0c72 */
-  uint8_t unknown15_lo : 7; /* live AI/cargo/orders latches @ 0x3148 */
-  uint8_t ship_damaged : 1; /* bit7 — FUN_1427_13b0 */
+  /*
+   * unknown15_lo (was one opaque 7-bit blob @ DS:0x3148) resolved 2026-08-19
+   * by exhaustively walking every literal +0x3148 access across all 3
+   * decompiled DOS exports. Byte's own writer resets bits 0x02/0x04/0x08/0x20
+   * to 0 at the top of every per-unit AI housekeeping pass (FUN_521d_0a60,
+   * `&= 0xd1`), then re-derives them fresh that same pass — so all four are
+   * per-tick scratch, not persistent unit history, even though they round-trip
+   * through the save file. See docs/mysteries_catalog.md.
+   */
+  uint8_t unknown15_bit0 : 1; /* bit0 (0x01) — never tested or set anywhere
+     in any of the 3 decompiled exports; confirmed dead */
+  uint8_t roam_reeval_pending : 1; /* bit1 (0x02) — FUN_521d_0a60: mirrors
+     pending-order-state (+0x314c) ∈ {5,6} (roam / re-evaluate-next-call) */
+  uint8_t stack_has_founders_or_military : 1; /* bit2 (0x04) — FUN_521d_0a60:
+     ship's cargo stack carries a founder-type or military-type passenger
+     (FUN_1000_8aac modes 3/4/6 "stack query", not independently disassembled,
+     but the info they report is now computed directly in the Linux port from
+     real cargo_ids[] — see ai_euro.c ai_euro_0a60_unit_can_pursue_goal) */
+  uint8_t stack_has_military : 1; /* bit3 (0x08) — as above, specifically
+     the founders/military-modes-4-or-6 branch; always set alongside bit2 */
+  uint8_t wander_dest_chosen : 1; /* bit4 (0x10) — FUN_521d_20e6 (huge
+     unnamed AI move-scorer): one-shot latch, peacetime only, set when the
+     unit rolls a random distant (>7 tiles) walkable tile as an exploration
+     destination; ~50% chance per call to clear it again and re-roll. Less
+     certain than the others — traced inside a still-largely-unnamed function */
+  uint8_t garrison_request_pending : 1; /* bit5 (0x20) — FUN_521d_0a60: land
+     unit (type 0xd..0x12 range check reused oddly here) near a threatened
+     colony without bit2/bit3 already set requests garrison duty; matches
+     the "garrison-check 0x3148 flags" already named in
+     euro_goal_orders_0a60_full.md's own prologue table */
+  uint8_t bound_in_transit : 1; /* bit6 (0x40) — FUN_3844_00f2 /
+     FUN_38fd_4e8e: ship spawned/dispatched toward a colony with a landfall
+     goto pending, cleared on arrival; see turn/nation_eot_ship_spawn.md */
+  uint8_t ship_damaged : 1; /* bit7 (0x80) — FUN_1427_13b0 */
   uint8_t moves;
   uint8_t origin; /* unknown16[0]: home tribe / origin settlement */
   uint8_t ai_plan; /* unknown16[1]: ASCII plan; default 'X' (0x58) */
@@ -406,10 +438,24 @@ typedef struct ColonizeCol1Nation {
   uint8_t tax_hike_count; /* +5; FUN_38fd_44a4 INC (was unused07) */
   uint8_t recruit_count;
   uint8_t founding_fathers[4];
-  uint8_t unknown21; /* +0xb; no reader cite — opaque */
+  uint8_t unknown21_pad; /* +0xb; was unknown21. Resolved 2026-08-19: confirmed
+     dead — checked all 3 decompiled DOS exports (viceroy_unpacked.c/_2.c/
+     overlays.c) for any literal touch of player-struct+0xb, none exists.
+     Provably so: new-game init (FUN_38fd_6024) zeroes founding_fathers[4]
+     (+7..+0xa) via a 4-byte clear, then separately zeroes +0xc.. onward —
+     this one byte between them is the sole gap, left un-inited. On a fresh
+     DOS game it is stack/heap garbage; no traced code ever reads or writes
+     it. See docs/mysteries_catalog.md. */
   uint16_t liberty_bells_total;
   uint16_t liberty_bells_last_turn;
-  int16_t unknown22; /* +0x10; written FUN_38fd_5be8; role thin */
+  int16_t king_audience_tax_delta; /* +0x10; was unknown22. Resolved 2026-08-19: the
+     signed tax-rate delta the King's audience event (FUN_38fd_5be8) rolls this
+     turn — cut (RNG 2..5, capped at current tax_rate, negated) when the royal
+     favor score is low, else +1/+2/+3-4/+5-8 by score-threshold ladder. Written
+     here, then applied unconditionally in the SAME call via FUN_38fd_3dc8(delta)
+     which does tax_rate += delta (clamped max 75). No DOS reader of this saved
+     copy was found — it's a write-through of a value already consumed
+     synchronously, not a pending/awaiting-input slot. See docs/mysteries_catalog.md. */
   int16_t next_founding_father;
   uint16_t founding_father_count;
   uint16_t ff_count_end_prob; /* smcol; cleared on independence; no FF-prob reader */
@@ -427,7 +473,35 @@ typedef struct ColonizeCol1Nation {
   uint8_t return_from_europe_y;
   uint8_t euro_relation[4]; /* −0x77c4 peer bytes / FUN_15b3_* */
   uint8_t relation_by_indian[8];
-  /* Linux diplo stand-ins (exact DS PARKED). Array + named views. */
+  /*
+   * Linux diplo stand-ins (exact DS PARKED, deliberately NOT touched this
+   * pass — this union is live, load-bearing gameplay code across
+   * ai_diplo.c/ai_euro.c, not an unused mystery byte). Two sub-ranges got
+   * concrete (if partial) DOS answers 2026-08-19, both confirming the
+   * Linux names below are functional stand-ins, not decodes — findings
+   * recorded here without renaming/restructuring anything live:
+   *   +0x44/+0x45 ("diplo_flag[0..1]"): real DOS content is per-nation
+   *     recruit-type RNG cycling state, nothing to do with diplomacy —
+   *     seeded once at nation creation (FUN_38fd_6024: RNG(1,32)/RNG(0,31)),
+   *     then +0x44 is overwritten each recruit pick by FUN_291f_0eda (a
+   *     stateful sequence step, modulus 0x14), and +0x44+0x45 summed &0x1f
+   *     feeds a remap table choosing the next Europe-dock recruit
+   *     profession (FUN_38fd_46d4, called via thunk_FUN_291f_0afc from the
+   *     per-nation EOT recruit-spawn path — europe_nation_eot.md's "roll
+   *     profession 0afc→46d4", byte-level detail not previously captured).
+   *   +0x48/+0x49/+0x4a ("indian_hostility_sticky"/"privateer_spawn_mask"/
+   *     "unknown26_pad"): already independently identified (not this pass)
+   *     as a genuine carry-normalize accumulator — see ai_euro.c's
+   *     Ai5d04HireScratch comment ("crosses/hammers-pool carry mechanic"):
+   *     +0x4a is the raw banked total, +0x49 the whole-units-carried-out
+   *     count, kept in sync by a `±0x32` normalize loop (confirmed again
+   *     this pass from FUN_4d56_4528's own copy of the same loop); +0x48 is
+   *     a separate decrementing grace/waiver counter read by 4528 before a
+   *     periodic gold cost. ai_euro.c already deliberately keeps its own
+   *     scratch copy instead of reusing this union, for exactly this reason.
+   *   +0x40-0x43 ("treaty_timer[4]"): unconfirmed either way this pass.
+   * See docs/mysteries_catalog.md Meta-mystery section.
+   */
   union {
     uint8_t unknown26[12];
     struct {
@@ -478,7 +552,15 @@ typedef struct ColonizeCol1Tribe {
 #define COL1_TRIBE_MISSION_NATION_MASK 0x0fu
 #define COL1_TRIBE_MISSION_JESUIT_BIT 0x10u
   uint8_t growth_accum; /* +0; +=pop, clear when >19 — FUN_4d56_152e */
-  uint8_t unknown28_pad; /* +1; unproven */
+  uint8_t sticky_trade_good; /* +1; was unknown28_pad. Resolved 2026-08-19 from
+     original_sources_annotated/ai/indian_trade_2820.md's own "sticky last-good
+     (tribe+7)" call-graph note (found, never propagated back here): the cargo
+     good index this tribe is mid-haggle over with the human trader — set to
+     the good on a haggle-more-money counter (FUN_4d56_2820 LAB_002e89 path),
+     read back next visit to resume the same standoff / show the "still
+     trying to sell that" line (string 0x156a) instead of a fresh offer.
+     0xff = idle (set on a completed sale); 0xfe = last visit ended in an
+     outright refusal. See docs/mysteries_catalog.md. */
   uint8_t last_bought;
   uint8_t last_sold;
   ColonizeCol1TribeAlarm alarm[4];
@@ -506,7 +588,16 @@ typedef struct ColonizeCol1Indian {
   uint8_t horse_herds;
   uint8_t unknown31c;
   uint16_t horse_breeding; /* +10; ±0x32 on acquire/tick — FUN_5bfb_* / 4d56 */
-  uint8_t unknown31d[2]; /* no reader cite */
+  int16_t hill_silver_bid_bonus; /* was unknown31d[2]. Resolved 2026-08-19:
+     write confirmed at map-gen (FUN_6a09_0006 tribe/satellite placement) —
+     scans the 5x5 tiles around each new tribe capital, `+= tech` per Hill
+     tile found (terrain class 0x1b); read confirmed at trade-meet economics
+     (FUN_4d56_2154): `/= difficulty`, feeds the tribe's Silver bid[7]
+     (COLONIZE_CARGO_SILVER). I.e. a nation with more hill-adjacent tribes
+     and higher tech offers a better Silver price, tempered by difficulty.
+     Was split as unknown31d[2] and manually reassembled little-endian in
+     ai_contact.c; now a direct int16 (struct is #pragma pack(1), same bytes).
+     See docs/mysteries_catalog.md. */
   int16_t tons[COLONIZE_COL1_CARGO_TYPES];
   /* +0x2e — per-euro contact FSM 0/1/2 (FUN_5bfb_*); was unknown32[12]. */
   int16_t contact_state[4];
@@ -537,7 +628,12 @@ typedef struct ColonizeCol1Indian {
  * export-OK zero when blank (save I/O only in unpacked VICEROY).
  */
 typedef struct ColonizeCol1Stuff {
-  uint8_t unknown34[12]; /* DS:0x9566 — save R/W only (vestigial) */
+  uint8_t unknown34_pad[12]; /* was unknown34[12]. Confirmed dead 2026-08-19:
+     DS:0x9566, exhaustively grepped across all 3 decompiled DOS exports —
+     the only touches at all are the two bulk save-block read/write calls
+     (FUN_1d1d_060c/_0528 size 0xc). Zero semantic reader or writer found
+     anywhere in game logic. Genuinely vestigial, not just under-searched —
+     what it originally held is unrecoverable from this angle. */
   uint8_t all_unit_counts[4]; /* DS:0x8cfc — per-euro unit totals (FUN_4962_0018) */
   uint8_t colony_counts[4]; /* DS:0x9298 — per-euro colony totals */
   /* File 20..63 mid-window (was unknown_stuff_20[44]) — FUN_4962_0018. */
