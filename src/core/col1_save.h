@@ -235,7 +235,16 @@ typedef struct ColonizeCol1Head {
 typedef struct ColonizeCol1Player {
   char name[24];
   char country_name[24];
-  uint8_t unknown06_lo : 7;
+  uint8_t unknown06_lo : 6; /* bits0-5 @ player+0x30; no reader/writer cite in either
+                                decompiled export — opaque */
+  uint8_t lcr_case5_bonus_used : 1; /* bit6 @ player+0x30; per-nation one-shot in
+                                        FUN_65dd_0004 (LCR/native-encounter result
+                                        table) — first roll landing on case 5 is
+                                        upgraded to case 4 (richer outcome), later
+                                        rolls stay case 5. Which named @LOSTCITY/
+                                        @BURIAL result cases 4/5 map to is unresolved
+                                        — FUN_65dd_0004's full table is still PARKED
+                                        (see indian_contact.md's de Soto note). */
   uint8_t named_new_world : 1; /* bit7 @ player+0x30; discovery one-shot (FUN_4720_049e) */
   uint8_t control; /* 0 player, 1 AI, 2 withdrawn */
   uint8_t founded_colonies;
