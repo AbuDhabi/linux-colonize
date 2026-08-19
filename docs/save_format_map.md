@@ -165,7 +165,7 @@ as peels land.
 | `hammers_purchased` | 2 | `mapped` | +0x98; BUY remainder (`FUN_2f2b_5e44`); Linux field + accumulate on `colonies_buy_construction` |
 | `stock[16]` | 32 | `mapped` | |
 | `visible_to_euro[4]` | 4 | `partial` | +0xba; **smcol `population_on_map[4]`** — fog-of-war population as each Euro sees this colony. Founding (`FUN_364b_1ba8`) writes `1` per slot (and only when tile seen via map `0x10<<euro`); lategame fixtures store real/estimate pops (owner slot ≈ live `population`). Port still names/exports as visibility latch — **misnamed** vs smcol+fixtures |
-| `unknown13_pad[4]` | 4 | `community` | +0xbe; **smcol `fortification_on_map[4]`** (0 none … 3 fortress). Founding clears to 0; lategame COLONY00/05 non-zero and track stockade/fort/fortress per viewer — **not** “found-zero”. Updater/reader cite still open |
+| `unknown13_pad[4]` | 4 | `community` | +0xbe; **smcol `fortification_on_map[4]`** (0 none … 3 fortress). Founding clears to 0; lategame COLONY00/05 non-zero and track stockade/fort/fortress per viewer — **not** “found-zero”. Writer confirmed 2026-08-19 via live DOSBox-X trace: fires from a periodic timer-tick ISR (segment `124C`, alternating-tick dispatch off a custom counter at DS:0x8338), not founding/player-action — explains why the 3 decompiled exports show no writer. Exact store opcode not pinned (traced 3 call levels deep); updater/reader cite still open |
 | `rebel_dividend` / `rebel_divisor` | 8 | `mapped` | SoL display |
 
 Export often **zeros** unnamed colony bytes on rebuild ([savegame.md](savegame.md)).
