@@ -76,11 +76,11 @@
 typedef struct ColonizeCol1Tut1 {
   uint8_t nr13 : 1; /* nawagers sheet: Pioneer message flag */
   uint8_t nr14 : 1; /* nawagers sheet: Soldier message flag */
-  uint8_t unknown01 : 1; /* tut bit; no distinct cite — keep opaque */
+  uint8_t unknown01 : 1; /* DS:0x5380 bit2; confirmed dead, never bit-tested in DOS */
   uint8_t nr15 : 1;
   uint8_t nr16 : 1;
   uint8_t nr17 : 1;
-  uint8_t unknown02 : 1; /* tut bit; no distinct cite — keep opaque */
+  uint8_t unknown02 : 1; /* DS:0x5380 bit6; confirmed dead, never bit-tested in DOS */
   uint8_t nr19 : 1;
 } ColonizeCol1Tut1;
 
