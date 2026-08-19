@@ -493,6 +493,18 @@ AiNationPlanScratch* ai_goals_plan_scratch(int nation_id) {
 }
 
 /*
+ * FUN_479b_076e's `nation*0x13c-0x77b2 = DS:0x538e` stamp (case-7 FOUND
+ * COLONY handler, viceroy_unpacked.c:77006): record the current turn as
+ * this nation's last colony-founding turn, feeding 052c's decay term.
+ */
+void ai_goals_note_colony_founded(int nation_id, int turn) {
+  if (nation_id < 0 || nation_id >= 4) {
+    return;
+  }
+  s_plan[nation_id].last_colony_founded_turn = turn;
+}
+
+/*
  * FUN_521d_03d0 — founding_expansion_urgency. Cite: viceroy_unpacked.c ~87058.
  * All-zero scratch (no writer wired yet) takes the hire_flag==0 early return,
  * reproducing today's existing "early game -> 8" stand-in in ai_euro.c.
@@ -530,9 +542,11 @@ int ai_goals_founding_expansion_urgency(int nation_id, int total_colony_count) {
  * FUN_521d_052c — unit_desirability_score. Cite: viceroy_unpacked.c ~87139.
  * dist_to_bound_colony is DOS DS:0x8db8 (caller-supplied snapshot, see
  * move_scoring_land.md). FUN_281f_0c9a "needs training" gate is PARKED (reads
- * as false). thunk_2a1f_0494(nation) resolved as founding_expansion_urgency's
- * own thunk identity elsewhere, but 052c's own war-timing gate uses a
- * separate at_war_flag/last_war_declare_turn pair — PARKED, all-zero.
+ * as false). Tail term identity confirmed 2026-08-19 (see
+ * AiNationPlanScratch's own header comment): thunk_2a1f_0494(nation) is
+ * founding_expansion_urgency, called here a second time purely as a
+ * nonzero gate (not a war flag) for a "(turns since last colony founded)
+ * >> 4" decay bonus.
  */
 int ai_goals_unit_desirability_score(
   const ColonizeColonyPool* colonies,
@@ -543,7 +557,8 @@ int ai_goals_unit_desirability_score(
   int unit_profession,
   int continent_id,
   int dist_to_bound_colony,
-  int turn
+  int turn,
+  int total_colony_count
 ) {
   (void)continent_id; /* DOS 0614 continent-gate not replicated — thin exact-tile check only */
   if (nation_id < 0 || nation_id >= 4) {
@@ -576,8 +591,8 @@ int ai_goals_unit_desirability_score(
       score += -0x14;
     }
   }
-  if (p->at_war_flag != 0) {
-    score += (turn - p->last_war_declare_turn) >> 4;
+  if (ai_goals_founding_expansion_urgency(nation_id, total_colony_count) != 0) {
+    score += (turn - p->last_colony_founded_turn) >> 4;
   }
   if (score > 0) {
     score = 0;
@@ -610,7 +625,7 @@ int ai_goals_composite_unit_priority(
   const int continent = map_continent_id_at(map, unit_x, unit_y);
   const int desirability = ai_goals_unit_desirability_score(
     colonies, nation_id, unit_x, unit_y, unit_type, unit_profession,
-    continent, dist_to_bound_colony, turn
+    continent, dist_to_bound_colony, turn, total_colony_count
   );
   const int balance = ai_goals_colony_balance_flags(map, colonies, col1, nation_id, continent);
   const int urgency = ai_goals_founding_expansion_urgency(nation_id, total_colony_count);
