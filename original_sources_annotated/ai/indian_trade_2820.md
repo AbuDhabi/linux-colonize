@@ -703,17 +703,27 @@ Subst slots: `281f_0438` slots 0..3 load cargo-name ptrs from table `−0x6840`.
 
 | Behavior | Linux (`ai_contact`) | This map |
 |----------|----------------------|----------|
-| Auto-trade / gift | Stand-in relation bumps | Full `2bbc` / `2b92` pricing |
+| Auto-trade / gift | Real gold debit (2bbc/2820 price formula) | Full `2bbc` / `2b92` pricing |
+| Human buy-offer CHOICE (`LAB_002e92` human branch) | `ai_popup` Accept/Decline Done (2026-08-19), locked price shown then charged | Deep Haggle (`2f96`) / hard-bargain counter-offer (`306c`) sub-loops still PARKED; multi-good cargo-select CHOICE (`0x15a0`) not ported (TRADE_GOODS only, matching the AI path's scope) |
 | Hard-bargain mid-alarm | Thin Done; primary extra TG for all non-`0xff` teach primaries (Series M) | Full `306c` loop |
 | Gift-amount CHOICE | `ai_popup` Done | Deep nest still PARKED |
 | VGA wood dialog | PARKED | `291f_019c` / `0438` subst |
 
-## AI buy-offer price formula — resolved (2026-08-13)
+## AI buy-offer price formula — resolved (2026-08-13); human CHOICE gate ported (2026-08-19)
 
 The `2b92`/`2bbc` price-formula blocker below is now resolved for the
 **AI-controlled Euro peer path** (`LAB_002bbc`, `iStack_8==0` — the one
-`ai_contact_auto_trade` actually needs; the human `CHOICE`-dialog path
-`LAB_002e92`/player-buy stays separately PARKED, VGA-gated).
+`ai_contact_auto_trade` actually needs). The human `CHOICE`-dialog path
+(`LAB_002e92`, `iStack_8 != 0`) now reuses this same formula/gold-debit for
+its own Accept/Decline CHOICE (`ai_contact_enqueue_trade_price_choice` /
+`ai_contact_apply_trade_offer` in `ai_contact.c`, wired from the Meet CHOICE
+Trade arm) — previously a human picking Trade silently ran the AI's blind
+auto-accept with no price shown or player agency at all; now the player
+sees the locked price and Accepts/Declines before any gold or goods move.
+This reuses the AI formula as the closest already-verified structural
+template rather than re-deriving `LAB_002e92`'s own distinct byte-level
+price table (see "Open RE" below) — same general shape, not a byte-exact
+transcription of the human branch's own constants.
 
 **Key unlock: the Ask/Bid tables `2820` reads (`DS:0x9e58`/`0x9e78`,
 `-25000`/`-0x6188`) are not missing data — they're written by
@@ -798,8 +808,29 @@ yet located from this pass).
   a real magnitude bug, not just an approximation, now fixed). `ctest`
   42/43 unchanged (only the known pre-existing unrelated failure), all
   goldens green.
-- Human `CHOICE`-dialog buy-offer path (`LAB_002e92`) price formula — same
-  general shape, different RNG/UI gating, not traced this pass
+- Human `CHOICE`-dialog buy-offer **gate** (`LAB_002e92` human `iStack_8 != 0`
+  branch) is **ported (2026-08-19)**: `ai_contact_enqueue_trade_price_choice`
+  / `ai_contact_apply_trade_offer` in `ai_contact.c` replace the old blind
+  auto-accept with a real Accept/Decline CHOICE for humans, using the
+  already-verified `2bbc`/`ai_contact_2820_ai_buy_price` formula (TRADE_GOODS
+  only, matching `ai_contact_auto_trade`'s existing scope). What's still
+  genuinely unresolved and **not invented**, honestly left out rather than
+  guessed:
+  - `LAB_002e92`'s own distinct byte-level price table for a *newly offered*
+    good (as opposed to `2bbc`'s sticky-good re-offer table): `*(int*)0x8d4e+2`
+    (an indian_state field distinct from the already-resolved `+7`/`+8`
+    musket/horse throttle), a per-(Euro-nation, cargo) throttle array at
+    absolute `-0x7b44`, and string/format IDs `0x15a9`/`0x2e0c`/`0x2e0e` —
+    none of these are captured anywhere in this project (address_mapping.csv
+    only maps function entry points, not these DS data offsets); no live
+    DOSBox-X session available this pass to trace them
+  - The deeper Haggle (`2f96`, "bump offer/tension; resume loop") and
+    hard-bargain counter-offer (`306c`) sub-loops that would let a *human*
+    push back for more gold instead of a flat Accept/Decline — PARKED, same
+    scope discipline as the already-thin Gift/Demand amount CHOICEs
+  - The multi-good cargo-select CHOICE (`0x15a0`, picking among up to 3
+    tribe-priced goods) — PARKED; the ported path stays TRADE_GOODS-only,
+    same as the AI path it reuses
 - Where the Indian side's own bookkeeping (production counters at
   `indian_state + cargo*2 + 0xe`) gets updated post-sale — visible in the
   decompile but not yet semantically mapped

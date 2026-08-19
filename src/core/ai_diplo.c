@@ -1516,6 +1516,392 @@ static void ai_diplo_wake_border_garrisons(
   }
 }
 
+/*
+ * FUN_5bfb_153e — outcome-table selector, resolved 2026-08-19 (was
+ * "genuinely open," euro_diplo_153e_full.md). There is NO runtime
+ * index-selector variable. The perceived "outcome jump table"
+ * (OVL16_L0040:3bcb-3bf8, 10 entries, 5-byte JMPF stride each) is DOS's
+ * own inter-overlay call linkage: every `FUN_OVL16_L0040__003bXX` symbol
+ * Ghidra printed inside 153e's body is a COMPILE-TIME-FIXED call site
+ * bound to exactly one table slot. Confirmed directly, not inferred —
+ * cross-referenced `tools/address_mapping.csv`'s `OVL16_L0040` offset
+ * column (rows 2360-2369) against the 10 trivial 2-line resident thunks
+ * at `viceroy_unpacked.c:38150-38246`
+ * (`FUN_210d_0dab(0x2a1f); FUN_5bfb_XXXX(); return;`). 153e's body only
+ * ever reaches 5 of the 10 slots (never 312e, 0182, or 022e — those are
+ * reached by other callers):
+ */
+typedef struct Ai153eSelectorSite {
+  int table_index;          /* 0-9 slot in the OVL16_L0040:3bcb-3bf8 table */
+  const char* ovl_offset;   /* 153e's own call-site symbol */
+  const char* target;       /* canonical FUN_5bfb_XXXX bound to that slot */
+  const char* linux_status; /* where the target already lives in Linux */
+} Ai153eSelectorSite;
+
+static const Ai153eSelectorSite ai_diplo_153e_selector_table[] = {
+  /* idx7, offset 3bee — raw line 406, 153e's OWN entry gate: fires with
+   * an unrecoverable zero-arg register call when `param_2` is invalid or
+   * IS the human nation (DOS `param_2*0x34+0x543f != 0`, the same
+   * control-status byte `ai_king.c`'s FUN_43f7_2244 header already cites
+   * as identical to `turn_run_european_ai_stubs`'s human-skip gate). */
+  {7, "3bee", "FUN_5bfb_13b0", "ai_diplo_form_alliance/break_alliance (Done)"},
+  /* idx4, offset 3bdf — raw line 485, the ONLY selector call inside the
+   * worthiness-score phase itself: a per-unit "score" callee inside the
+   * unit-ownership loop. See ai_diplo_153e_unit_score_stub below. */
+  {4, "3bdf", "FUN_5bfb_0000", "score stand-in, not independently ported (stub)"},
+  /* idx2, offset 3bd5 — commit/flavor-text phase (raw ~704+, past the
+   * worthiness-score phase), fired ~9x with different message-id
+   * literals (0x18bb..0x197c). Thin ctx->status dialog already covers
+   * the generic shape project-wide. */
+  {2, "3bd5", "FUN_5bfb_102a", "thin ctx->status dialog (Done, generic)"},
+  /* idx5, offset 3be4 — commit-phase sibling status/bool setter (not a
+   * message id), fired 3x (raw 734/785/842). */
+  {5, "3be4", "FUN_5bfb_1092", "thin ctx->status dialog (Done, generic)"},
+  /* idx1, offset 3bd0 — commit phase (raw 1065-1067): border-garrison
+   * wake, fired (A,B) then (B,A) once the "at war" bit reads set on the
+   * just-updated relation. Already the full port target above. */
+  {1, "3bd0", "FUN_5bfb_12d0", "ai_diplo_wake_border_garrisons (Done)"},
+};
+#define AI_DIPLO_153E_SELECTOR_COUNT \
+  (int)(sizeof(ai_diplo_153e_selector_table) / sizeof(ai_diplo_153e_selector_table[0]))
+
+/*
+ * FUN_5bfb_0000 (selector idx4) — "census/rank/combat factor, score
+ * stand-in" per euro_diplo.md; not independently resolved/ported as its
+ * own DOS body anywhere in this project (the project-wide generic
+ * stand-in for this role is ai_diplo_military_score, a different, already
+ * -live approximation — not a byte-exact port of this specific callee).
+ * Honest stub: contributes nothing and never claims a per-unit border
+ * match, so the worthiness-score unit loop's own control flow (which
+ * units it visits, which nation each belongs to) stays real while the one
+ * genuinely unresolved leaf value stays inert instead of invented.
+ */
+typedef struct Ai153eUnitScoreStub {
+  int value;          /* raw iStack_b8 */
+  int matched_target;  /* raw iStack_92 — which nation this call judged */
+  int flag;             /* raw iStack_6 */
+  int count;            /* raw iStack_c4 */
+} Ai153eUnitScoreStub;
+
+static Ai153eUnitScoreStub ai_diplo_153e_unit_score_stub(int self, int target, int unit_owner) {
+  (void)self;
+  (void)target;
+  (void)unit_owner;
+  Ai153eUnitScoreStub r;
+  r.value = 0;
+  r.matched_target = -1;
+  r.flag = 0;
+  r.count = 0;
+  return r;
+}
+
+/*
+ * FUN_5bfb_153e — worthiness-score phase, structural reference port
+ * (2026-08-19; euro_diplo_153e_full.md's "phase 1", raw lines ~405-594).
+ * Mirrors the DOS control flow and arithmetic shape end to end. Every DS
+ * global this project has NOT independently resolved elsewhere is an
+ * honest stub (neutral/inert value, never an invented formula/constant)
+ * — see each stub call's own comment for the raw offset it stands in
+ * for. NOT wired into any live caller: matches the
+ * ai_euro_5d04_nation_planning_structural precedent — finishing a
+ * structural port doesn't by itself make it safe to flip live on a
+ * function this stub-dense.
+ *
+ * Real inputs used: euro_relation[] peace bit (resolved, DS -0x77c4),
+ * turn/difficulty (col1->head, resolved), the human-nation entry gate
+ * (resolved, see the selector table above), and the G-table's already-
+ * resolved per-continent colony/land-unit counts (-0x6b1a/-0x6b5a),
+ * recomputed locally the same cheap way ai_euro_refresh_continent_stance
+ * does rather than reaching into that file's static tables.
+ *
+ * Genuinely unresolved DS globals stubbed here (documented, not
+ * guessed — see euro_diplo_153e_full.md for the full raw citations):
+ *   -0x77f8  per-nation flags byte, bit2 (raw 432) - NOT -0x77c4/euro_
+ *            relation, a distinct field this project hasn't named
+ *   -0x6d68  per-nation "tension" byte (raw 441, 556, 590)
+ *   -0x6a4e  per-continent EXPOSED combat value (raw 442+) - distinct
+ *            from the already-resolved -0x6e74/-0x6a8e sums this file's
+ *            G-table exposes; the "exposed" filter (not fortified,
+ *            orders != A/G, plus the 0x543f class gate) isn't wired
+ *   -0x6ada  per-continent skilled-unit count (raw 454)
+ *   0x53c8[] per-nation declare-war cooldown timer (raw 421-424, 436-437)
+ *   0xa153   single unresolved byte (raw 509) - no match anywhere else
+ *            in this project's docs or tools/address_mapping.csv
+ *   0x84fc   indirect royal/crown treasury record, +0x2a/+0x2c halves
+ *            (raw 570-584) - the affordability clamp this gates never
+ *            fires here (stub keeps the score unclamped by this gate)
+ *   FUN_1000_89a4 (table -0x77f1, idx 0x13) - per-nation FF/feature-bit
+ *            test (FUNCTION_CATALOG.md: "nation feature/FF bit test");
+ *            which specific FF isn't identified, stub reads "absent"
+ *   FUN_1000_8714/86b0/8772 - raw 419/430/435, dialog-name-prep side
+ *            effects that only feed phase 4's flavor text (out of this
+ *            phase's scope); no-ops here
+ */
+typedef struct Ai153eWorthinessScore {
+  int handled;         /* raw uStack_8e - did the phase run to completion */
+  int worthy;           /* raw bVar12/iStack_a8 at phase end */
+  int dominance_bonus;  /* raw iStack_ce */
+  int score;             /* raw uStack_68 - feeds the (unported) commit phase */
+  int at_peace;          /* raw uStack_ae: euro_relation[target][self] bit2,
+                             direct (non-accessor) read - doc: "consistent
+                             with plain AI_DIPLO_PEACE" */
+} Ai153eWorthinessScore;
+
+static int ai_diplo_153e_colonies_at(
+  const ColonizeTurnContext* ctx, int nation, int continent_id
+) {
+  int n = 0;
+  if (!ctx->colonies) {
+    return 0;
+  }
+  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+    const ColonizeColony* c = &ctx->colonies->colonies[i];
+    if (c->active && c->nation_id == nation &&
+        map_continent_id_at(ctx->map, c->x, c->y) == continent_id) {
+      ++n;
+    }
+  }
+  return n;
+}
+
+static int ai_diplo_153e_land_units_at(
+  const ColonizeTurnContext* ctx, int nation, int continent_id
+) {
+  int n = 0;
+  if (!ctx->units) {
+    return 0;
+  }
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    const ColonizeUnit* u = units_get_const(ctx->units, i);
+    if (u && u->active && u->nation_id == nation && !units_is_sea(ctx->units, i) &&
+        map_continent_id_at(ctx->map, u->x, u->y) == continent_id) {
+      ++n;
+    }
+  }
+  return n;
+}
+
+static Ai153eWorthinessScore ai_diplo_153e_worthiness_score_structural(
+  ColonizeTurnContext* ctx, int self, int target, int forced_gate
+) {
+  Ai153eWorthinessScore out;
+  out.handled = 0;
+  out.worthy = 0;
+  out.dominance_bonus = 0;
+  out.score = 0;
+  out.at_peace = 0;
+  if (!ctx || !ctx->col1_ok || !ctx->col1 || !ctx->map || !ctx->colonies || !ctx->units ||
+      self < 0 || self >= 4 || target < 0 || target >= 4) {
+    return out;
+  }
+
+  /* raw 405-410: entry gate — invalid self, or self IS the human nation.
+   * DOS fires the idx7 (FUN_5bfb_13b0) call here with unrecoverable args
+   * (register-passed thunk call, Ghidra shows empty parens) — not
+   * invented; we just mark the phase "handled" and bail, matching the
+   * DOS `goto LAB_OVL16_L0040__0034de` early exit. */
+  if (self == ctx->human_nation) {
+    out.handled = 1;
+    return out;
+  }
+
+  const ColonizeCol1Nation* nat_target = &ctx->col1->nation[target];
+  const int difficulty = ctx->col1->head.difficulty;
+  const int turn = ctx->col1->head.turn;
+
+  /* raw 412-428: gate cascade. `forced_gate` is DOS param_6 (caller-
+   * supplied). The two internal forcers (relation bit 0x20, and the
+   * 0x53c8[] cooldown timer) both stub to "doesn't force" — the timer
+   * table isn't tracked in Linux (see header), and the raw bit-0x20
+   * semantics on this specific accessor call (itself called with
+   * unrecoverable args, raw 415) aren't confirmed against Linux's own
+   * AI_DIPLO_* numbering (see euro_diplo.md's "do not conflate" note on
+   * DOS bit 0x40 vs Linux MET — the same caution applies to other raw
+   * bit literals in this function). */
+  int gate = forced_gate;
+  if (gate == 0) {
+    out.handled = 0;
+    return out; /* raw: goto LAB_OVL16_L0040__0034de, nothing computed */
+  }
+  out.handled = 1;
+
+  /* raw 432-434: -0x77f8 per-nation flags bit2 — stub, unresolved field,
+   * flavor-text-only downstream (phase 4, out of this phase's scope). */
+
+  /* raw 436-438: 0x53c8[target] cooldown reset to current turn — Linux
+   * has no persistent equivalent wired here (reference port, not live). */
+
+  /* raw 439-475: continent loop — the real G-table dominance/delta
+   * accumulators. Colonies (-0x6b1a) and land units (-0x6b5a) are real,
+   * recomputed locally; exposed combat value (-0x6a4e) and skilled-unit
+   * count (-0x6ada) are honest stubs (0) per the header — this makes the
+   * "self is dominant" branch never trigger and the delta-sum branch's
+   * exposed-value terms always cancel to a land-unit-count-only shape,
+   * which is real but incomplete without those two tables. */
+  int dominance_bonus = 0;   /* raw iStack_ce */
+  int combat_delta_sum = 0;  /* raw uStack_68 */
+  int worthy = 0;             /* raw iStack_a8 */
+  for (int cid = 1; cid <= 14; ++cid) {
+    const int target_colonies = ai_diplo_153e_colonies_at(ctx, target, cid);
+    const int target_land_units = ai_diplo_153e_land_units_at(ctx, target, cid);
+    const int self_colonies = ai_diplo_153e_colonies_at(ctx, self, cid);
+    const int self_exposed = 0;   /* -0x6a4e stub */
+    const int target_exposed = 0; /* -0x6a4e stub */
+    const int self_skilled = 0;   /* -0x6ada stub */
+    const int target_tension = 0; /* -0x6d68 stub */
+    const int dominance_threshold = (target_tension > 1) ? 1 : 0;
+    if (dominance_threshold < target_colonies && target_land_units < self_exposed) {
+      dominance_bonus += (self_exposed / (target_land_units + 1)) << (difficulty == 0 ? 1 : 2);
+    } else {
+      if (self_exposed != 0 && target_exposed != 0) {
+        worthy = 1;
+      }
+      if (target_exposed != 0 && self_skilled > 4) {
+        worthy = 1;
+      }
+      int delta;
+      if (self_colonies == 0) {
+        delta = (target_exposed - self_exposed) >> (target_colonies == 0 ? 1 : 2);
+      } else if (target_land_units < 2) {
+        delta = target_exposed;
+      } else {
+        delta = target_exposed - self_exposed;
+      }
+      combat_delta_sum += delta;
+    }
+  }
+
+  /* raw 476-508: unit-ownership loop, selector idx4 (FUN_5bfb_0000). Real
+   * control flow (visits every active unit, checks owner against
+   * self/target); the per-unit score contribution is the honest stub
+   * above (always 0 / never matches), so this loop is currently inert on
+   * the returned score but structurally faithful. */
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    const ColonizeUnit* u = units_get_const(ctx->units, i);
+    if (!u || !u->active) {
+      continue;
+    }
+    if (u->nation_id != self && u->nation_id != target) {
+      continue;
+    }
+    const Ai153eUnitScoreStub s = ai_diplo_153e_unit_score_stub(self, target, u->nation_id);
+    if (s.matched_target == target) {
+      combat_delta_sum += s.value * 2;
+      if (s.flag == 0 || s.count > 1) {
+        if (dominance_bonus != 0) {
+          dominance_bonus -= 1;
+        }
+        worthy = 1;
+      }
+    }
+    if (s.matched_target == self) {
+      combat_delta_sum += -(s.count * 2);
+    }
+  }
+
+  /* raw 509-521: forced-conflict override. 0xa153 (unresolved single
+   * byte) stubs to "never matches self" — the tension half of the OR
+   * still evaluates, but both tension bytes are themselves -0x6d68
+   * stubs (0), so this branch is currently always false in this port. */
+  const int forced_conflict_byte_match = 0; /* 0xa153 stub */
+  const int self_tension = 0;               /* -0x6d68 stub, reused */
+  const int target_tension2 = 0;            /* -0x6d68 stub, reused */
+  int forced_conflict =
+    forced_conflict_byte_match && turn > 0x4f && self_tension > 3 && target_tension2 > 1;
+  const int at_peace = (nat_target->euro_relation[self] & AI_DIPLO_PEACE) != 0; /* raw uStack_ae */
+  if (forced_conflict || (at_peace && self_tension < target_tension2 * 3)) {
+    worthy = 1;
+    dominance_bonus = 0;
+    /* raw 520: func_0x0001854c(seg, combat_delta_sum, difficulty*200+100,
+     * 0x26ac) — argument shape (value, min, max) read as a clamp; DOS
+     * name/body not independently confirmed, but no constant is invented
+     * (min/max are the raw literals). */
+    const int lo = difficulty * 200 + 100;
+    const int hi = 0x26ac;
+    if (combat_delta_sum < lo) combat_delta_sum = lo;
+    if (combat_delta_sum > hi) combat_delta_sum = hi;
+  }
+
+  /* raw 522-527 */
+  const int peace_bit_0x10 = (ai_diplo_read(ctx->col1, self, target) & 0x10) != 0; /* raw uStack_9e */
+  if (peace_bit_0x10) {
+    worthy = 1;
+  }
+  if (dominance_bonus != 0) {
+    worthy = 0;
+  }
+
+  /* raw 528-535: FUN_1000_89a4(seg, self, 0x13) — per-nation FF/feature
+   * bit test (table -0x77f1), stub reads "absent" (0). */
+  const int self_has_feature_0x13 = 0;
+  if (self_has_feature_0x13) {
+    forced_conflict = 0;
+    worthy = 0;
+  }
+
+  /* raw 536-544: difficulty-threshold override, only when not at peace. */
+  if (!at_peace) {
+    const int thr = (difficulty - 10) * -10;
+    if (thr != turn && turn <= thr) {
+      forced_conflict = 0;
+      worthy = 0;
+    }
+  }
+  (void)forced_conflict; /* not read again within this phase's own scope */
+
+  /* raw 545-563: final scaling. */
+  int scaled = ((difficulty + 8) * combat_delta_sum * 10) / 100;
+  if (!at_peace) {
+    combat_delta_sum = scaled >> 2;
+    /* raw 548 `-1 < iStack_8c` (old cooldown value) always true here —
+     * the 0x53c8[] cooldown table is stubbed, see header. */
+    if (turn < 0x32) {
+      scaled >>= 1;
+    } else if (turn < 100) {
+      scaled -= combat_delta_sum;
+    }
+    combat_delta_sum = scaled;
+    if (self_tension < 3 && 0 /* -0x6bf0 stub, raw 556 second operand */) {
+      combat_delta_sum >>= 1;
+    }
+  } else {
+    combat_delta_sum = scaled << 1;
+  }
+
+  /* raw 564-566 */
+  {
+    const int lo = 0;
+    const int hi = 400;
+    int v = (int)(((difficulty + 1) * combat_delta_sum) >> 3);
+    if (v < lo) v = lo;
+    if (v > hi) v = hi;
+    combat_delta_sum = v * 50;
+  }
+  if (peace_bit_0x10) {
+    combat_delta_sum += (difficulty + 1) * 500;
+  }
+
+  /* raw 570-584: royal/crown treasury affordability gate (DS 0x84fc,
+   * +0x2a/+0x2c halves) — stub, never triggers (treated as "always
+   * affordable"), so combat_delta_sum is not clamped by this gate here. */
+
+  /* raw 585-588 */
+  if (self_has_feature_0x13) {
+    combat_delta_sum >>= 1;
+  }
+
+  /* raw 589-593 */
+  if (combat_delta_sum == 0 || self_tension > target_tension2 * 3) {
+    worthy = 0;
+  }
+
+  out.worthy = worthy;
+  out.dominance_bonus = dominance_bonus;
+  out.score = combat_delta_sum;
+  out.at_peace = at_peace;
+  return out;
+}
+
 void ai_diplo_form_alliance(ColonizeCol1Save* col1, int nation_a, int nation_b) {
   const int was_war = ai_diplo_at_war(col1, nation_a, nation_b);
   ai_diplo_clear_both(col1, nation_a, nation_b, AI_DIPLO_WAR);
@@ -1717,6 +2103,13 @@ void ai_diplo_euro_balance(ColonizeTurnContext* ctx, int nation_id) {
   if (!ctx || !ctx->col1_ok || !ctx->col1 || nation_id < 0 || nation_id >= 4) {
     return;
   }
+  /* Reference-only: keep the 153e worthiness-score structural port and
+   * its selector-table documentation reachable/compiled without a live
+   * caller (matches the ai_euro_5d04_nation_planning_structural
+   * precedent — see euro_diplo_153e_full.md). */
+  (void)ai_diplo_153e_worthiness_score_structural;
+  (void)ai_diplo_153e_selector_table;
+  (void)AI_DIPLO_153E_SELECTOR_COUNT;
   /*
    * FUN_5bfb_10ec / 13b0 checklist:
    *  1 skip human; at-war → upkeep + privateer prize; war-fatigue + near-parity

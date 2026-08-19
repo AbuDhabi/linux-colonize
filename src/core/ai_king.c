@@ -22,14 +22,19 @@
  * WoI: head.unknown46[0] stand-in for DOS 0x5382 bit0 (exact Col1 bit PARKED).
  *   Set on declare when SoL≥50 (ai_king_set_independence); restless chrome must not.
  * REF-present: head.unknown46[1] stand-in for 0x5382 bit1.
- * Tax-boycott/refuse: head.unknown46[2] stand-in + thin 38fd_5be8 audience
- *   (status + ai_popup CHOICE Accept/Refuse when ctx->ai_popups; auto when NULL).
- *   Refuse apply/auto → Sugar freeze + optional dump-goods second; follow-up
- *   OK is GAME.TXT @TEAPARTY (KING_TAX; thin 3dc8 stock dump + tokens).
- *   Dump-goods CHOICE apply → same @TEAPARTY for chosen cargo. Boycott-holds
- *   status/OK lists all bitmap cargo names (presentation; Fugger partial clear).
- *   Cargo freeze: nation.boycott_bitmap. Fugger/diplo bitmap clear → drop
- *   unknown46[2] refuse when bitmap==0 (king sync; do not touch FF).
+ * Tax audience (ported 2026-08-19, real formula — see ai_king_audience_roll /
+ *   ai_king_audience_apply_delta / ai_king_tax_event): FUN_38fd_5be8 rolls a
+ *   signed delta off a turn-interval-gated favor-score ladder (cut, +1, +2,
+ *   +3-4, +5-8) and FUN_38fd_3dc8 applies it UNCONDITIONALLY, clamped to
+ *   0..75%. Only a genuine positive applied delta can trigger the
+ *   village-goods popup (Accept "kiss the ring" keeps it / Refuse "tea
+ *   party" REVERTS the just-applied hike + boycotts one roulette-picked
+ *   cargo) — there is no DOS gate on whether the hike itself happens.
+ *   head.unknown46[2] is now presentation-only (boycott-active flag +
+ *   Fugger sync), no longer gates the audience interval.
+ *   Follow-up OK is GAME.TXT @TEAPARTY (KING_TAX; thin 3dc8 stock dump +
+ *   tokens). Cargo freeze: nation.boycott_bitmap. Fugger/diplo bitmap
+ *   clear → drop unknown46[2] when bitmap==0 (king sync; do not touch FF).
  * Rebel troop-gift purchase (FUN_43f7_2022 rebel branch, real port
  *   2026-08-14): recurring per-turn 1-in-3 roll while REF absent or
  *   Artillery backup pool empty; ai_popup CHOICE Hire/Decline when
@@ -89,16 +94,20 @@
 #define AI_KING_WARN3_PCT_MIN 50
 #define AI_KING_LOSING3_PCT 90
 
-/* Structural refuse thresholds (exact DOS 38fd_5be8 gates still thin). */
+/*
+ * Auto-path (no ai_popups attached) tea-party stand-in thresholds. DOS's
+ * Accept/tea-party choice is inherently player-interactive (a single
+ * FUN_291f_0182 dialog inside FUN_38fd_3dc8, no NPC/auto answer exists) —
+ * this heuristic is invented for the no-UI auto path only, unrelated to
+ * the real 38fd_5be8 delta formula it now follows. See ai_king_tax_event.
+ */
 #define AI_KING_BOYCOTT_TAX_MIN 20
 #define AI_KING_BOYCOTT_SOL_MIN 30
 #define AI_KING_BOYCOTT_BELLS_MIN 80
-/* Sugar = cargo index 1 (COLONIZE_CARGO_SUGAR) — structural refuse freeze
- * (king_ref / 38fd_5be8 stand-in). Dump-goods “named goods” RNG is a separate
- * FUN_38fd_3dc8 pick — use ai_king_pick_dump_goods_cargo; do not invent a
- * fixed Tobacco/etc. second refuse bit here.
+/* Village-goods cargo pick is FUN_38fd_3dc8's roulette (stock×price weight)
+ * over non-boycotted, Europe-bid-eligible cargos — use
+ * ai_king_pick_dump_goods_cargo; do not invent a fixed Sugar/Tobacco pick.
  * Cite: docs/fandom_col1994.md Boycott; viceroy FUN_38fd_3dc8. */
-#define AI_KING_BOYCOTT_CARGO_BIT (1u << COLONIZE_CARGO_SUGAR)
 /*
  * FUN_43f7_2022 rebel-branch self-funded troop-gift purchase — real port
  * (2026-08-14, replaces an earlier SoL/300-gold invented stand-in; see
@@ -1522,13 +1531,6 @@ static void ai_king_set_ref_present(ColonizeCol1Save* col1, int on) {
   col1->head.game_options.ref_present = on ? 1 : 0;
 }
 
-static int ai_king_boycott_active(const ColonizeCol1Save* col1) {
-  if (!col1) {
-    return 0;
-  }
-  return col1->head.unknown46[AI_KING_BOYCOTT_BYTE] != 0;
-}
-
 static void ai_king_set_boycott(ColonizeCol1Save* col1, int on) {
   if (!col1) {
     return;
@@ -1688,58 +1690,164 @@ static void ai_king_set_independence(ColonizeCol1Save* col1, int on) {
 }
 
 /*
- * FUN_43f7_1d42 / 38fd_5be8 Accept path: hike tax + sync Europe + grow REF.
- * Used by auto peacetime path and ai_king_apply_popup_result (Accept).
+ * Pack/unpack the KING_AUDIENCE popup payload: the tax delta that was
+ * actually applied (1..8, always positive — only raises ever reach the
+ * tea-party choice) and the roulette-picked cargo (0..15) that a tea party
+ * would boycott/confiscate. Small ints, trivially reversible.
  */
-static void ai_king_tax_accept_hike(ColonizeTurnContext* ctx, int human) {
-  if (!ctx || !ctx->col1_ok || !ctx->col1 || human < 0 || human >= 4) {
-    return;
+static int ai_king_teaparty_payload(int applied, int cargo) {
+  return applied * 100 + cargo;
+}
+static void ai_king_teaparty_payload_parts(int payload, int* out_applied, int* out_cargo) {
+  if (out_applied) {
+    *out_applied = payload / 100;
   }
-  ColonizeCol1Nation* nat = &ctx->col1->nation[human];
-  if (nat->tax_rate >= 75) {
-    return;
-  }
-  nat->tax_rate = (uint8_t)(nat->tax_rate + 1);
-  if (ctx->europe) {
-    ctx->europe->tax_percent = nat->tax_rate;
-  }
-  ai_king_grow_ref_from_tax(ctx->col1, nat->tax_rate);
-  if (ctx->status && ctx->status_size) {
-    snprintf(ctx->status, ctx->status_size, "The King raises taxes to %u%%.", nat->tax_rate);
-  }
-  if (ai_king_human_popups(ctx)) {
-    char body[AI_POPUP_BODY_LEN];
-    snprintf(body, sizeof(body), "The King raises taxes to %u%%.", nat->tax_rate);
-    (void)ai_popup_enqueue_ok_ctx(ctx->ai_popups, AI_POPUP_TAG_KING_TAX, human,
-                                  ai_king_crown_nation(human), (int)nat->tax_rate,
-                                  "Royal Tax", body);
+  if (out_cargo) {
+    *out_cargo = payload % 100;
   }
 }
 
 /*
- * FUN_43f7_38fd_5be8 Refuse path: boycott stand-in + Sugar freeze + REF grow,
- * tax unchanged. Used by auto refuse and ai_king_apply_popup_result (Refuse).
- * Human queue: dump-goods CHOICE when eligible cargos remain, else @TEAPARTY
- * OK after Refuse (thin 3dc8 dump of narrative cargo).
+ * FUN_38fd_5be8: King-audience favor-score ladder → signed tax-rate delta.
+ * Real DOS gating/formula (no invented Accept/Refuse-whether-it-happens
+ * gate here — see divergence note above ai_king_tax_event for history).
+ * Source: original_sources_decompiled/viceroy_unpacked.c:68420.
+ *
+ * Gate: turn counter (DS:0x538e, Linux ctx->turn_number) >= 30; interval
+ * base 18/15/12/9 by year band (>1600/>1700/>1750), narrowed by
+ * difficulty (DOS: only when the audience's own nation *is* the human —
+ * this port only ever rolls the audience for the human's nation, so that
+ * gate is always true here); modulo turn counter; skip if tax_rate > 85.
+ *
+ * Score = RNG(1,1000) + (rebel_sentiment_report*2 − tax_rate)*5
+ *       + treasury/100 + this-nation SoL% + turn/30.
+ * DOS reads a cached per-nation SoL% table at DS:(nation−0x6bf0) for the
+ * last term; this port has no such cache, so it recomputes the same value
+ * live via ai_king_sol_percent — a documented substitution, not a guess
+ * (see docs pointer in the file header).
+ *
+ * Ladder: score<100 → cut = −min(RNG(2,5), tax_rate), but no event at all
+ * if that cut would be 0 (tax already 0%); 100≤score<650 and streak<30 →
+ * +1 (streak++); score>949 → +3/+4 (score<1100) or +5..+8; else → +2
+ * (covers 650..949, and the streak≥30 fallback out of the +1 band).
+ * Returns 1 and writes king_audience_tax_delta + *out_delta when an event
+ * fires; 0 (no state touched) when the gate fails or the cut degenerates.
  */
-static void ai_king_tax_refuse_hike(ColonizeTurnContext* ctx, int human) {
-  if (!ctx || !ctx->col1_ok || !ctx->col1 || human < 0 || human >= 4) {
-    return;
+static int ai_king_audience_roll(ColonizeTurnContext* ctx, int human, int* out_delta) {
+  if (!ctx || !ctx->col1_ok || !ctx->col1 || !ctx->rng || human < 0 || human >= 4) {
+    return 0;
   }
-  ColonizeCol1Nation* nat = &ctx->col1->nation[human];
-  ai_king_set_boycott(ctx->col1, 1);
-  nat->boycott_bitmap = (uint16_t)(nat->boycott_bitmap | AI_KING_BOYCOTT_CARGO_BIT);
-  /*
-   * Dump-goods second cargo (FUN_38fd_3dc8): pick among cargos not already
-   * boycotted. Sugar already set above. When ctx->europe present, candidate
-   * mask = cargos with live bid > 0. Human popups → CHOICE modal (tag
-   * KING_DUMP_GOODS); else RNG via ai_king_pick_dump_goods_cargo.
-   * Cite: FUN_38fd_3dc8 / wiki Boycott “named goods” / king_ref dump-goods.
-   */
+  ColonizeCol1Save* col1 = ctx->col1;
+  ColonizeCol1Nation* nat = &col1->nation[human];
+  const uint32_t turn = ctx->turn_number ? *ctx->turn_number : 0;
+  if (turn < 30) {
+    return 0;
+  }
+  const int year = ctx->game_year ? (int)*ctx->game_year : 1492;
+  int interval_base = 18;
+  if (year > 1600) {
+    interval_base = 15;
+  }
+  if (year > 1700) {
+    interval_base -= 3;
+  }
+  if (year > 1750) {
+    interval_base -= 3;
+  }
+  const int diff = col1->head.difficulty;
+  const int crown_adjust = diff - 2; /* "is human" branch — always true here */
+  const int interval = interval_base - 2 * crown_adjust;
+  if (interval <= 0 || (int)(turn % (uint32_t)interval) != 0) {
+    return 0;
+  }
+  if (nat->tax_rate > 85) {
+    return 0;
+  }
+
+  const int score =
+    dos_rng_range(ctx->rng, 1, 1000) +
+    (col1->head.rebel_sentiment_report * 2 - (int)nat->tax_rate) * 5 +
+    (int)(nat->gold / 100) +
+    ai_king_sol_percent(ctx, human) +
+    (int)(turn / 30);
+
+  int delta;
+  if (score < 100) {
+    const int roll = dos_rng_range(ctx->rng, 2, 5);
+    int cut = (roll < (int)nat->tax_rate) ? roll : (int)nat->tax_rate;
+    if (cut < 1) {
+      return 0; /* DOS: no audience event when tax is already 0% */
+    }
+    delta = -cut;
+  } else if (score < 650 && col1->head.king_audience_streak < 30) {
+    delta = 1;
+    if (col1->head.king_audience_streak < 255) {
+      col1->head.king_audience_streak++;
+    }
+  } else if (score > 949) {
+    delta = (score < 1100) ? dos_rng_range(ctx->rng, 3, 4) : dos_rng_range(ctx->rng, 5, 8);
+  } else {
+    delta = 2;
+    /* Narrative-line reroll only (avoid repeating the last text pick);
+     * no numeric effect on delta. */
+    int pick;
+    do {
+      pick = dos_rng_range(ctx->rng, 1, 8);
+    } while (pick == col1->head.king_audience_last_pick);
+    col1->head.king_audience_last_pick = (uint8_t)pick;
+  }
+
+  nat->king_audience_tax_delta = (int16_t)delta;
+  if (out_delta) {
+    *out_delta = delta;
+  }
+  return 1;
+}
+
+/*
+ * FUN_38fd_3dc8 core clamp: tax_rate += delta, floored so it can never go
+ * below 0%, ceiled at 75% (excess trimmed back out of the applied delta).
+ * *out_applied receives the delta actually applied post-clamp — the value
+ * the village-goods/tea-party branch below reverts on a "hold a tea
+ * party" choice.
+ */
+static void ai_king_audience_apply_delta(ColonizeCol1Nation* nat, int delta, int* out_applied) {
+  int applied = delta;
+  if (applied < 0) {
+    const int mag = -applied;
+    if (mag > (int)nat->tax_rate) {
+      applied = -(int)nat->tax_rate;
+    }
+  }
+  int new_tax = (int)nat->tax_rate + applied;
+  if (new_tax > 75) {
+    applied -= (new_tax - 75);
+    new_tax = 75;
+  }
+  if (new_tax < 0) {
+    new_tax = 0; /* safety net; the floor clamp above already prevents this */
+  }
+  nat->tax_rate = (uint8_t)new_tax;
+  if (out_applied) {
+    *out_applied = applied;
+  }
+}
+
+/*
+ * Build the Europe bid-eligible cargo mask for the village-goods pick
+ * (FUN_38fd_3dc8's local_7a price weighting stand-in — see
+ * ai_king_pick_dump_goods_cargo). *out_bids, when set, points at a
+ * COLONIZE_CARGO_COUNT-sized caller-owned buffer that stays valid only as
+ * long as bid_buf does.
+ */
+static uint16_t ai_king_teaparty_candidate_mask(
+  const ColonizeTurnContext* ctx,
+  int bid_buf[COLONIZE_CARGO_COUNT],
+  const int** out_bids
+) {
   const uint16_t all_cargos = (uint16_t)((1u << COLONIZE_CARGO_COUNT) - 1u);
   uint16_t candidate_mask = all_cargos;
-  const int* bids = NULL;
-  int bid_buf[COLONIZE_CARGO_COUNT];
+  *out_bids = NULL;
   if (ctx->europe) {
     const EuropeScreen* eu = ctx->europe;
     candidate_mask = 0;
@@ -1750,108 +1858,50 @@ static void ai_king_tax_refuse_hike(ColonizeTurnContext* ctx, int human) {
         candidate_mask = (uint16_t)(candidate_mask | (uint16_t)(1u << c));
       }
     }
-    bids = bid_buf;
+    *out_bids = bid_buf;
   }
-  const uint16_t eligible =
-    (uint16_t)(candidate_mask & (uint16_t)~nat->boycott_bitmap);
-  int dump_choice_enqueued = 0;
-  if (ai_king_human_popups(ctx) && eligible != 0) {
-    /* Build up to AI_POPUP_CHOICE_MAX labels (prefer highest bid when known). */
-    int idxs[COLONIZE_CARGO_COUNT];
-    int n = 0;
-    for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
-      if ((eligible & (uint16_t)(1u << c)) == 0) {
-        continue;
-      }
-      if (bids && bids[c] <= 0) {
-        continue;
-      }
-      idxs[n++] = c;
-    }
-    if (bids && n > 1) {
-      for (int a = 0; a < n - 1; ++a) {
-        for (int b = a + 1; b < n; ++b) {
-          if (bids[idxs[b]] > bids[idxs[a]]) {
-            const int tmp = idxs[a];
-            idxs[a] = idxs[b];
-            idxs[b] = tmp;
-          }
-        }
-      }
-    }
-    if (n > AI_POPUP_CHOICE_MAX) {
-      n = AI_POPUP_CHOICE_MAX;
-    }
-    if (n > 0) {
-      char labels[AI_POPUP_CHOICE_MAX][AI_POPUP_CHOICE_LEN];
-      int ids[AI_POPUP_CHOICE_MAX];
-      const char* label_ptrs[AI_POPUP_CHOICE_MAX];
-      for (int i = 0; i < n; ++i) {
-        const char* nm = ai_king_cargo_name(idxs[i]);
-        snprintf(labels[i], sizeof(labels[i]), "%s", nm ? nm : "Cargo");
-        ids[i] = idxs[i];
-        label_ptrs[i] = labels[i];
-      }
-      char body[AI_POPUP_BODY_LEN];
-      snprintf(
-        body,
-        sizeof(body),
-        "The colonies refuse the tax (stays at %u%%). Sugar is boycotted. "
-        "Name another good to dump from Europe trade:",
-        nat->tax_rate
-      );
-      dump_choice_enqueued = ai_popup_enqueue_choice_ctx(
-                               ctx->ai_popups,
-                               AI_POPUP_TAG_KING_DUMP_GOODS,
-                               human,
-                               ai_king_crown_nation(human),
-                               (int)nat->tax_rate,
-                               "Dump Goods",
-                               body,
-                               label_ptrs,
-                               ids,
-                               n
-                             )
-                               ? 1
-                               : 0;
-    }
+  return candidate_mask;
+}
+
+/*
+ * Tea-party choice apply: a human answered the KING_AUDIENCE CHOICE with
+ * "hold a tea party" after a real tax raise. FUN_38fd_3dc8: revert the
+ * just-applied hike, boycott the roulette-picked cargo, confiscate its
+ * stock (ai_king_enqueue_teaparty_ok dumps up to 100 tons from the
+ * richest human colony — thin stand-in for the colony-array seize into
+ * DOS's own royal-stock pile, real field unresolved, see file header).
+ * Used by both the human CHOICE-apply path and the no-popups auto path.
+ */
+static void ai_king_tax_teaparty(ColonizeTurnContext* ctx, int human, int applied, int cargo) {
+  if (!ctx || !ctx->col1_ok || !ctx->col1 || human < 0 || human >= 4) {
+    return;
   }
-  int teaparty_cargo = COLONIZE_CARGO_SUGAR;
-  if (!dump_choice_enqueued && ctx->rng) {
-    const int picked =
-      ai_king_pick_dump_goods_cargo(nat->boycott_bitmap, candidate_mask, ctx->rng, bids);
-    if (picked >= 0 && picked < COLONIZE_CARGO_COUNT) {
-      nat->boycott_bitmap =
-        (uint16_t)(nat->boycott_bitmap | (uint16_t)(1u << picked));
-      teaparty_cargo = picked;
-    }
+  if (cargo < 0 || cargo >= COLONIZE_CARGO_COUNT || applied <= 0) {
+    return;
   }
-  ai_king_grow_ref_from_tax(ctx->col1, nat->tax_rate);
+  ColonizeCol1Nation* nat = &ctx->col1->nation[human];
+  int revert = applied;
+  if (revert > (int)nat->tax_rate) {
+    revert = (int)nat->tax_rate;
+  }
+  nat->tax_rate = (uint8_t)(nat->tax_rate - revert);
+  if (ctx->europe) {
+    ctx->europe->tax_percent = nat->tax_rate;
+  }
+  nat->boycott_bitmap = (uint16_t)(nat->boycott_bitmap | (uint16_t)(1u << cargo));
+  ai_king_set_boycott(ctx->col1, 1);
+
   if (ctx->status && ctx->status_size) {
-    char cargos[96];
-    if (ai_king_format_boycott_cargos(cargos, sizeof(cargos), nat->boycott_bitmap)) {
-      snprintf(
-        ctx->status,
-        ctx->status_size,
-        dump_choice_enqueued
-          ? "Audience: refuse tax (stays %u%%). Boycotted so far: %s. Choose dump goods."
-          : "Audience: the colonies refuse the tax increase! Tax stays at %u%%. "
-            "Boycotted in Europe: %s.",
-        nat->tax_rate,
-        cargos
-      );
-    } else {
-      snprintf(
-        ctx->status,
-        ctx->status_size,
-        "Audience: the colonies refuse the tax increase! Tax stays at %u%%.",
-        nat->tax_rate
-      );
-    }
+    snprintf(
+      ctx->status,
+      ctx->status_size,
+      "Audience: tea party! Tax stays at %u%%. %s boycotted in Europe.",
+      nat->tax_rate,
+      ai_king_cargo_name(cargo)
+    );
   }
-  /* @TEAPARTY when no dump CHOICE pending (auto / no eligible / queue full). */
-  if (!dump_choice_enqueued && ai_king_human_popups(ctx)) {
-    ai_king_enqueue_teaparty_ok(ctx, human, teaparty_cargo);
+  if (ai_king_human_popups(ctx)) {
+    ai_king_enqueue_teaparty_ok(ctx, human, cargo);
   }
 }
 
@@ -1882,23 +1932,28 @@ static void ai_king_apply_dump_goods_choice(ColonizeTurnContext* ctx, int human,
 }
 
 /*
- * FUN_43f7_1d42 checklist:
- *  spring-only; first year / interval by difficulty; cap 75%;
- *  sync europe tax; grow REF pools by tax band.
- * Structural boycott/refuse + thin 38fd_5be8 audience:
- *  Human + ctx->ai_popups → CHOICE Accept/Refuse (effect in apply_popup_result).
- *  Else auto: when tax_rate >= 20 and (SoL >= 30 or liberty bells high), refuse
- *  hike once; else Accept hike. While boycott active, skip further tax hikes
- *  (hold-audience status + OK popup when queue attached).
- * Note: TURN_PROC_FINISH may overwrite ctx->status afterward.
+ * FUN_38fd_5be8 + FUN_38fd_3dc8: real King-audience tax-rate-change event.
+ * Ported 2026-08-19, replacing the earlier invented "Accept/Refuse gates
+ * whether the hike happens" design (see docs/mysteries_catalog.md,
+ * king_audience_tax_delta, for the divergence this replaces).
  *
- * Divergence flagged 2026-08-19 (see docs/mysteries_catalog.md,
- * king_audience_tax_delta): real DOS FUN_38fd_5be8 has no Accept/Refuse gate
- * at all — it rolls a signed delta off a treasury/tax/colony favor-score
- * ladder (cut when score low, else +1..+8) and applies it unconditionally
- * same-call via FUN_38fd_3dc8. This port's fixed +1-with-Accept/Refuse-choice
- * is a structural stand-in, not a decode of that formula. Not fixed here —
- * flagging for whoever next touches this path.
+ * Real DOS shape: the audience fires on a turn-counter interval (no
+ * spring-only restriction — that was also invented; see
+ * original_sources_decompiled/viceroy_unpacked.c:68539 FUN_38fd_5e52, the
+ * caller, which has no season gate either). A delta is always rolled and
+ * applied unconditionally (ai_king_audience_roll + ai_king_audience_apply_
+ * delta) — cuts and clamped-away deltas are never asked about. Only a
+ * genuine positive applied delta (a real raise) can lead to a village-
+ * goods popup, and only when an eligible cargo/colony candidate exists;
+ * that popup's real semantics are "keep it" vs. "hold a tea party", which
+ * REVERTS the raise just applied and boycotts the picked cargo — it does
+ * not gate whether the raise happens in the first place.
+ *
+ * The per-cargo boycott-holds-future-hikes behavior from the old design
+ * (unknown46[2] gating this function) is not real DOS (5be8/3dc8 never
+ * check it) and has been dropped; nation.boycott_bitmap / the tea-party
+ * flag are still set/read for presentation and for the Fugger-clears-
+ * boycotts sync, just no longer block the audience interval gate.
  */
 static void ai_king_tax_event(ColonizeTurnContext* ctx) {
   if (!ctx || !ctx->col1_ok || !ctx->col1) {
@@ -1908,77 +1963,88 @@ static void ai_king_tax_event(ColonizeTurnContext* ctx) {
   if (human < 0 || human >= 4) {
     return;
   }
-  /* Fugger / external bitmap clear → drop refuse so tax may resume. */
+  /* Fugger / external bitmap clear → drop the boycott presentation flag. */
   ai_king_sync_boycott_refuse(ctx->col1, human);
   ColonizeCol1Nation* nat = &ctx->col1->nation[human];
-  const int year = ctx->game_year ? (int)*ctx->game_year : 1492;
-  const int diff = ctx->col1->head.difficulty;
-  const int first = 1536 - diff;
-  const int interval = 22 - diff * 2;
-  if (year < first) {
-    return;
-  }
-  if (((year - first) % (interval > 4 ? interval : 4)) != 0) {
-    return;
-  }
-  if (ctx->game_autumn && *ctx->game_autumn != 0) {
-    return; /* spring tax audiences */
+
+  int delta = 0;
+  if (!ai_king_audience_roll(ctx, human, &delta)) {
+    return; /* no audience this turn: interval gate, or degenerate 0% cut */
   }
 
-  /* Already refused: no further tax hikes (REF grow-without-hike was once). */
-  if (ai_king_boycott_active(ctx->col1)) {
+  int applied = 0;
+  ai_king_audience_apply_delta(nat, delta, &applied);
+  if (ctx->europe) {
+    ctx->europe->tax_percent = nat->tax_rate;
+  }
+  /* FUN_43f7_1d42 REF-pool growth: a separate DOS mechanic (treasury
+   * threshold, not tax delta) that this port still only approximates by
+   * tax band — unchanged by this pass, kept for existing REF-growth
+   * behavior continuity. */
+  ai_king_grow_ref_from_tax(ctx->col1, nat->tax_rate);
+
+  if (applied < 0) {
     if (ctx->status && ctx->status_size) {
-      char cargos[96];
-      if (ai_king_format_boycott_cargos(cargos, sizeof(cargos), nat->boycott_bitmap)) {
-        snprintf(ctx->status, ctx->status_size,
-                 "Audience: boycott holds — the King cannot raise taxes. "
-                 "Boycotted: %s.",
-                 cargos);
-      } else {
-        snprintf(ctx->status, ctx->status_size,
-                 "Audience: boycott holds — the King cannot raise taxes.");
-      }
+      snprintf(ctx->status, ctx->status_size,
+               "Audience: the King lowers taxes to %u%%.", nat->tax_rate);
     }
     if (ai_king_human_popups(ctx)) {
       char body[AI_POPUP_BODY_LEN];
-      char cargos[96];
-      if (ai_king_format_boycott_cargos(cargos, sizeof(cargos), nat->boycott_bitmap)) {
-        snprintf(body, sizeof(body),
-                 "Boycott holds — the King cannot raise taxes. Boycotted: %s.",
-                 cargos);
-      } else {
-        snprintf(body, sizeof(body), "Boycott holds — the King cannot raise taxes.");
-      }
-      (void)ai_popup_enqueue_ok_ctx(
-        ctx->ai_popups, AI_POPUP_TAG_KING_TAX, human, ai_king_crown_nation(human),
-        (int)nat->tax_rate, "Royal Audience", body
-      );
+      snprintf(body, sizeof(body),
+               "The King, moved by your poverty, lowers taxes to %u%%.", nat->tax_rate);
+      (void)ai_popup_enqueue_ok_ctx(ctx->ai_popups, AI_POPUP_TAG_KING_TAX, human,
+                                    ai_king_crown_nation(human), (int)nat->tax_rate,
+                                    "Royal Audience", body);
     }
     return;
   }
 
-  if (nat->tax_rate >= 75) {
+  if (applied == 0) {
+    return; /* delta rolled but fully clamped away (already at 75%) */
+  }
+
+  /* applied > 0: a real hike happened. */
+  if (ctx->status && ctx->status_size) {
+    snprintf(ctx->status, ctx->status_size,
+             "Audience: the King raises taxes to %u%%.", nat->tax_rate);
+  }
+
+  int bid_buf[COLONIZE_CARGO_COUNT];
+  const int* bids = NULL;
+  const uint16_t candidate_mask = ai_king_teaparty_candidate_mask(ctx, bid_buf, &bids);
+  const int picked = ctx->rng
+    ? ai_king_pick_dump_goods_cargo(nat->boycott_bitmap, candidate_mask, ctx->rng, bids)
+    : -1;
+
+  if (picked < 0) {
+    /* No eligible village-goods candidate — DOS just pings and the hike
+     * stands silently. Still surface an OK popup so a human player isn't
+     * left with an unexplained rate change. */
+    if (ai_king_human_popups(ctx)) {
+      char body[AI_POPUP_BODY_LEN];
+      snprintf(body, sizeof(body), "The King raises taxes to %u%%.", nat->tax_rate);
+      (void)ai_popup_enqueue_ok_ctx(ctx->ai_popups, AI_POPUP_TAG_KING_TAX, human,
+                                    ai_king_crown_nation(human), (int)nat->tax_rate,
+                                    "Royal Tax", body);
+    }
     return;
   }
 
-  /*
-   * Human map popup: defer hike/refuse to ai_king_apply_popup_result
-   * (FUN_43f7_38fd_5be8 audience CHOICE). payload = current tax_rate.
-   */
   if (ai_king_human_popups(ctx)) {
     PopupMsgTokens tok;
     memset(&tok, 0, sizeof(tok));
     tok.number0 = 1;
     tok.has_number0 = true;
-    tok.number1 = (int)(nat->tax_rate + 1u);
+    tok.number1 = (int)nat->tax_rate;
     tok.has_number1 = true;
+    tok.string0 = ai_king_cargo_name(picked);
     tok.string3 = "Tea";
     char body[AI_POPUP_BODY_LEN];
     popup_msg_fill(
       ctx->messages,
       "KINGTAX",
       &tok,
-      "The King demands a tax increase. Kiss pinky ring or hold a tea party?",
+      "The King raises taxes. Kiss pinky ring, or hold a tea party and boycott a good?",
       body,
       sizeof(body)
     );
@@ -1986,7 +2052,6 @@ static void ai_king_tax_event(ColonizeTurnContext* ctx) {
     const ColonizeMsgSection* taxopt = assets_msg_find(ctx->messages, "TAXOPTIONS");
     int nch = 0;
     if (taxopt) {
-      /* Fill choice labels with STRING3 for Hold '{Tea Party}'. */
       char raw_choices[AI_POPUP_CHOICE_MAX][AI_POPUP_CHOICE_LEN];
       nch = popup_msg_choices(taxopt, raw_choices, AI_POPUP_CHOICE_MAX);
       for (int i = 0; i < nch; ++i) {
@@ -2003,28 +2068,27 @@ static void ai_king_tax_event(ColonizeTurnContext* ctx) {
       labels[1] = "Hold 'Tea Party.'";
     }
     if (ai_popup_enqueue_choice_ctx(ctx->ai_popups, AI_POPUP_TAG_KING_AUDIENCE, human,
-                                    ai_king_crown_nation(human), (int)nat->tax_rate,
+                                    ai_king_crown_nation(human),
+                                    ai_king_teaparty_payload(applied, picked),
                                     NULL, body, labels, ids, 2)) {
-      if (ctx->status && ctx->status_size) {
-        snprintf(ctx->status, ctx->status_size,
-                 "Audience: the King demands a tax increase to %u%%.",
-                 (unsigned)(nat->tax_rate + 1u));
-      }
-      return;
+      return; /* effect deferred to ai_king_apply_popup_result */
     }
     /* Queue full — fall through to auto resolve. */
   }
 
+  /*
+   * Auto path (no popups attached): DOS's tea-party choice is inherently
+   * player-interactive — there is no documented AI/auto answer. Stand-in
+   * heuristic (invented, not a decode): tea-party when the hike pushes tax
+   * to a high band and SoL/liberty bells suggest the colonies would balk.
+   */
   const int sol = ai_king_sol_percent(ctx, human);
-  const int refuse =
-      (nat->tax_rate >= AI_KING_BOYCOTT_TAX_MIN) &&
+  const int auto_teaparty =
+      ((int)nat->tax_rate >= AI_KING_BOYCOTT_TAX_MIN) &&
       (sol >= AI_KING_BOYCOTT_SOL_MIN || nat->liberty_bells_total >= AI_KING_BOYCOTT_BELLS_MIN);
-  if (refuse) {
-    ai_king_tax_refuse_hike(ctx, human);
-    return;
+  if (auto_teaparty) {
+    ai_king_tax_teaparty(ctx, human, applied, picked);
   }
-
-  ai_king_tax_accept_hike(ctx, human);
 }
 
 /*
@@ -4297,11 +4361,25 @@ void ai_king_apply_popup_result(ColonizeTurnContext* ctx, const AiPopupState* po
                       : ctx->human_nation;
   switch (popup->result_tag) {
     case AI_POPUP_TAG_KING_AUDIENCE:
-      /* FUN_43f7_38fd_5be8: Accept → hike; Refuse → boycott/refuse path. */
+      /*
+       * FUN_38fd_3dc8 village-goods choice: the hike is already applied
+       * (ai_king_tax_event); this only decides whether it's reverted.
+       * Accept ("kiss the ring") → keep it, status only. Refuse
+       * ("tea party") → ai_king_tax_teaparty reverts the delta packed in
+       * the payload and boycotts the picked cargo.
+       */
       if (popup->result_choice_id == AI_KING_CHOICE_ACCEPT) {
-        ai_king_tax_accept_hike(ctx, human);
+        if (ctx->status && ctx->status_size && ctx->col1_ok && ctx->col1 &&
+            human >= 0 && human < 4) {
+          snprintf(ctx->status, ctx->status_size,
+                   "Audience: the tax increase to %u%% stands.",
+                   ctx->col1->nation[human].tax_rate);
+        }
       } else if (popup->result_choice_id == AI_KING_CHOICE_REFUSE) {
-        ai_king_tax_refuse_hike(ctx, human);
+        int applied = 0;
+        int cargo = -1;
+        ai_king_teaparty_payload_parts(popup->result_payload, &applied, &cargo);
+        ai_king_tax_teaparty(ctx, human, applied, cargo);
       }
       break;
     case AI_POPUP_TAG_KING_DUMP_GOODS:

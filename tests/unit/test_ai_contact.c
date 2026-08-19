@@ -20,6 +20,42 @@ static int fail(const char* msg) {
   return 1;
 }
 
+/*
+ * Human buy-offer CHOICE follow-up (FUN_4d56_2820 LAB_002e92 human branch):
+ * pop the CONTACT_TRADE_OFFER price CHOICE just enqueued by Meet/TRADE and
+ * accept or decline it (same two-call idiom this file already uses for the
+ * Gift/Demand/Incite amount CHOICEs). Returns the locked price, or -1 if no
+ * such CHOICE was queued (caller's Meet/TRADE apply already ran its own
+ * fallback path — refuse gate or no source/econ to price against).
+ */
+static int apply_trade_offer_choice(
+  ColonizeTurnContext* ctx,
+  AiPopupState* pop,
+  int e,
+  int nation_id,
+  int accept
+) {
+  if (pop->queue_count < 1) {
+    return -1;
+  }
+  const AiPopupRequest* req = &pop->queue[pop->queue_count - 1];
+  if (req->kind != AI_POPUP_KIND_CHOICE || req->tag != AI_POPUP_TAG_CONTACT_TRADE_OFFER ||
+      req->nation_a != e || req->nation_b != nation_id) {
+    return -1;
+  }
+  const int price = req->payload;
+  ai_popup_clear(pop);
+  pop->has_result = true;
+  pop->result_cancelled = false;
+  pop->result_choice_id = accept ? 1 : 2; /* AI_CONTACT_TRADE_OFFER_ACCEPT : _DECLINE */
+  pop->result_tag = AI_POPUP_TAG_CONTACT_TRADE_OFFER;
+  pop->result_nation_a = e;
+  pop->result_nation_b = nation_id;
+  pop->result_payload = price;
+  ai_contact_apply_popup_result(ctx, pop);
+  return price;
+}
+
 int main(void) {
   ColonizeCol1Save col1;
   col1_save_init(&col1);
@@ -3666,25 +3702,42 @@ int main(void) {
     pop.result_payload = 0;
     st_pop[0] = '\0';
     ai_contact_apply_popup_result(&ctx, &pop);
+    /*
+     * Human buy-offer CHOICE (FUN_4d56_2820 LAB_002e92 human branch): Meet
+     * Trade now prices the offer and queues Accept/Decline instead of
+     * trading immediately. Cite: indian_trade_2820.md.
+     */
+    if (c_pop->stock[COLONIZE_CARGO_TRADE_GOODS] != goods0) {
+      return fail("Trade CHOICE should defer trade until price CHOICE");
+    }
+    if (pop.queue_count < 1 ||
+        pop.queue[pop.queue_count - 1].kind != AI_POPUP_KIND_CHOICE ||
+        pop.queue[pop.queue_count - 1].tag != AI_POPUP_TAG_CONTACT_TRADE_OFFER) {
+      return fail("Trade CHOICE should enqueue CONTACT_TRADE_OFFER price CHOICE");
+    }
+    st_pop[0] = '\0';
+    if (apply_trade_offer_choice(&ctx, &pop, 0, 4, 1) <= 0) {
+      return fail("Trade price CHOICE accept should carry a positive locked price");
+    }
     if (c_pop->stock[COLONIZE_CARGO_TRADE_GOODS] != goods0 - 1) {
-      return fail("Trade CHOICE should run thin auto-trade");
+      return fail("Trade accept should run thin auto-trade");
     }
     if (pop.queue_count < 1) {
-      return fail("Trade apply should enqueue Trade accepted OK");
+      return fail("Trade accept should enqueue Trade accepted OK");
     }
     if (strstr(st_pop, "Trade") == NULL) {
       fprintf(stderr, "unit_ai_contact: trade status '%s'\n", st_pop);
-      return fail("Trade apply should set Trade accepted status");
+      return fail("Trade accept should set Trade accepted status");
     }
     if (strstr(st_pop, "Jewelled Relics") == NULL) {
       fprintf(stderr, "unit_ai_contact: trade flavor status '%s'\n", st_pop);
-      return fail("Trade apply should name @TRIBES flavor good (Inca Jewelled Relics)");
+      return fail("Trade accept should name @TRIBES flavor good (Inca Jewelled Relics)");
     }
     if (col1.tribe[0].last_bought != (uint8_t)COLONIZE_CARGO_TRADE_GOODS) {
-      return fail("Trade apply should set tribe.last_bought to trade goods");
+      return fail("Trade accept should set tribe.last_bought to trade goods");
     }
     if (col1.tribe[0].last_sold != (uint8_t)COLONIZE_CARGO_SILVER) {
-      return fail("Trade apply should set Inca last_sold to silver (teach map)");
+      return fail("Trade accept should set Inca last_sold to silver (teach map)");
     }
 
     /*
@@ -3706,6 +3759,9 @@ int main(void) {
       pop.result_nation_b = 4;
       st_pop[0] = '\0';
       ai_contact_apply_popup_result(&ctx, &pop);
+      if (apply_trade_offer_choice(&ctx, &pop, 0, 4, 1) <= 0) {
+        return fail("hard-bargain trade price CHOICE accept failed");
+      }
       /* Inca silver + hard-bargain → 2bbc peel drains 2 trade goods. */
       if (c_pop->stock[COLONIZE_CARGO_TRADE_GOODS] != goods_hb - 2) {
         fprintf(stderr, "unit_ai_contact: hard-bargain goods %d→%d\n", goods_hb,
@@ -3750,6 +3806,9 @@ int main(void) {
       pop.result_nation_b = 5;
       st_pop[0] = '\0';
       ai_contact_apply_popup_result(&ctx, &pop);
+      if (apply_trade_offer_choice(&ctx, &pop, 0, 5, 1) <= 0) {
+        return fail("ore hard-bargain trade price CHOICE accept failed");
+      }
       if (c_pop->stock[COLONIZE_CARGO_TRADE_GOODS] != goods_ore - 2) {
         fprintf(stderr, "unit_ai_contact: ore hard-bargain goods %d→%d\n", goods_ore,
                 c_pop->stock[COLONIZE_CARGO_TRADE_GOODS]);
@@ -3793,6 +3852,9 @@ int main(void) {
         pop.result_nation_b = cases[ci].nation_b;
         st_pop[0] = '\0';
         ai_contact_apply_popup_result(&ctx, &pop);
+        if (apply_trade_offer_choice(&ctx, &pop, 0, cases[ci].nation_b, 1) <= 0) {
+          return fail("Series M trade price CHOICE accept failed");
+        }
         if (c_pop->stock[COLONIZE_CARGO_TRADE_GOODS] != goods_m - 2) {
           fprintf(stderr, "unit_ai_contact: %s hard-bargain goods %d→%d\n",
                   cases[ci].label, goods_m, c_pop->stock[COLONIZE_CARGO_TRADE_GOODS]);
@@ -3839,6 +3901,9 @@ int main(void) {
       pop.result_nation_b = 4;
       st_pop[0] = '\0';
       ai_contact_apply_popup_result(&ctx, &pop);
+      if (apply_trade_offer_choice(&ctx, &pop, 0, 4, 1) <= 0) {
+        return fail("sea-trade price CHOICE accept failed");
+      }
       if (ship->hold_goods_amount[0] != 2) {
         return fail("sea-trade should drain 1 TRADE_GOODS from ship hold");
       }
@@ -3889,6 +3954,9 @@ int main(void) {
       pop.result_nation_b = 4;
       st_pop[0] = '\0';
       ai_contact_apply_popup_result(&ctx, &pop);
+      if (apply_trade_offer_choice(&ctx, &pop, 0, 4, 1) <= 0) {
+        return fail("wagon-trade price CHOICE accept failed");
+      }
       if (wag->hold_goods_amount[0] != 1) {
         return fail("wagon-trade should drain 1 TRADE_GOODS from wagon hold");
       }

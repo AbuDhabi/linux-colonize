@@ -2,6 +2,15 @@
 
 ## Status: the "5 local helpers" from the earlier pass were a false lead — RETRACTED below. The `003bc6-003bf8` region is a resident-thunk jump table dispatching to 10 ALREADY-KNOWN `FUN_5bfb_*` functions, not new flavor-text/attitude code. Real structural finding: 153e's outcome dispatch reuses existing, mostly-already-ported machinery (102a/1092/0182 dialogs, 312e/0000 score, 13b0 alliance, 10ec war/ally eligibility, 022e Indian contact) plus one still-unresolved branch (`FUN_5bfb_12d0`, already tracked elsewhere as "Order clear `12d0` deep"). Worthiness-score phase and the exact war-declare state flip remain genuinely open.
 
+**2026-08-19 — both remaining open items resolved/ported.** The selector
+"mystery" turned out to be a false premise (no runtime index — every call
+site is compile-time-fixed to one jump-table slot, confirmed directly off
+`address_mapping.csv`), and the worthiness-score phase is now a
+structural reference port (`ai_diplo_153e_worthiness_score_structural` in
+`src/core/ai_diplo.c`, real where resolvable, honestly stubbed where not,
+not wired live). Full section below: "Selector logic + worthiness-score
+phase — resolved/ported 2026-08-19."
+
 **2026-08-15 — `FUN_1000_8c28` (the accessor most `& 0x..` reads in this
 doc go through) confirmed to be a pure raw-byte accessor with a
 nation-range branch, not a computed/derived summary.** Decompiled it
@@ -60,7 +69,7 @@ a known, named, mostly-already-documented function**:
 | 1 | `2a1f:060a` | `FUN_5bfb_12d0` | **resolved 2026-08-19** — see below |
 | 2 | `2a1f:0618` | `FUN_5bfb_102a` | dialogs, thin `ctx->status` **Done** |
 | 3 | `2a1f:0626` | `FUN_5bfb_312e` | census/rank/combat factor, score stand-in **Done** |
-| 4 | `2a1f:0634` | `FUN_5bfb_0000` | census/rank/combat factor, score stand-in **Done** |
+| 4 | `2a1f:0634` | `FUN_5bfb_0000` | census/rank/combat factor, score stand-in — this is the ONE selector call `153e` fires from inside its own worthiness-score phase (raw 485); still not independently ported byte-exact (honest stub, `ai_diplo_153e_unit_score_stub`, 2026-08-19) |
 | 5 | `2a1f:0642` | `FUN_5bfb_1092` | dialogs, thin `ctx->status` **Done** |
 | 6 | `2a1f:0650` | `FUN_5bfb_0182` | dialogs, thin `ctx->status` **Done** |
 | 7 | `2a1f:065e` | `FUN_5bfb_13b0` | form/break alliance **Done** |
@@ -72,16 +81,15 @@ whatever selects an index 0-9 into this table — routes into machinery
 this project has **already mostly ported**, not a wall of new blocked
 code. Index 1 (`12d0`) is now resolved too (below), so **every** table
 target is understood. This makes `153e` look considerably *more*
-tractable than the retracted claim suggested — the real remaining work is
-finding **which selector value in `153e`'s own body picks the table
-index** (not yet located — the earlier phase-4 description's
-"`FUN_...__003bd0(param_2,param_3)` then `(param_3,param_2)` ... almost
-certainly the real declare-war state flip" guess is *also* now suspect,
-since `003bd0` turned out to be a mid-table jump instruction address, not
-a function call with real arguments — that phase-4 reading needs a
-fresh, careful re-check, not reuse) and the worthiness-score phase that
-feeds it. **Not attempted this pass** — flagging the corrected, now much
-more promising picture for a focused next pass rather than
+tractable than the retracted claim suggested.
+
+**2026-08-19: both remaining items resolved.** "Which selector value
+picks the table index" turned out to be a false premise — see "Selector
+logic + worthiness-score phase — resolved/ported 2026-08-19" below for
+the mechanical offset→target table (built directly off
+`address_mapping.csv`, not re-derived) and the worthiness-score phase's
+structural port. The below paragraph is kept for its historical framing
+(what looked open before this pass), not as a still-current TODO.
 
 ## `FUN_5bfb_12d0` — resolved 2026-08-19, previously "body unexamined"
 
@@ -150,6 +158,116 @@ register origins, dump raw instructions first. This is a sharper version
 of a lesson this project has logged at least twice before (`684c_08c0`,
 `15eb_1d4c`) — logging it a third time because it just cost a real
 retraction, not just a close call.
+
+## Selector logic + worthiness-score phase — resolved/ported 2026-08-19
+
+**Selector logic: resolved, no runtime index exists.** The "which selector
+value picks the table index" question above is answered by rereading
+`tools/address_mapping.csv` directly instead of re-deriving anything: rows
+2360-2369 already list the exact `OVL16_L0040` byte offset of every one of
+the 10 jump-table slots (`3bcb, 3bd0, 3bd5, 3bda, 3bdf, 3be4, 3be9, 3bee,
+3bf3, 3bf8` — uniform 5-byte `JMPF` stride, matching the earlier retraction's
+own raw-instruction dump), and each offset's own row already carries the
+`FUN_OVL16_L0040__003bXX` symbol Ghidra printed at that address inside
+`153e`'s body. Cross-referencing those against the 10 trivial 2-line
+resident thunks at `viceroy_unpacked.c:38150-38246`
+(`FUN_210d_0dab(0x2a1f); FUN_5bfb_XXXX(); return;`, read directly, not
+inferred) gives a complete, mechanical offset→target table:
+
+| `153e` call-site symbol | table idx | target | raw line(s) |
+|---|---|---|---|
+| `FUN_OVL16_L0040__003bee` | 7 | `FUN_5bfb_13b0` | 406 (entry gate) |
+| `FUN_OVL16_L0040__003bdf` | 4 | `FUN_5bfb_0000` | 485 (worthiness-score unit loop) |
+| `FUN_OVL16_L0040__003bd5` | 2 | `FUN_5bfb_102a` | 704, 705, 780, 837, 900, 933, 959, 966, 991 (commit/flavor text) |
+| `FUN_OVL16_L0040__003be4` | 5 | `FUN_5bfb_1092` | 734, 785, 842 (commit/flavor text) |
+| `FUN_OVL16_L0040__003bd0` | 1 | `FUN_5bfb_12d0` | 1065-1066 (commit phase, "at war" bit set — both directions) |
+
+So there is **no runtime selector variable at all** — the earlier framing
+("which selector value... picks the table index") was itself a false
+premise, built on the now-retracted "`003bd0` is a real function call with
+real arguments" reading. Each named call site in the raw decompile is a
+**compile-time-fixed** call through one specific jump-table slot — this is
+just DOS's inter-overlay call linkage (every far call from one overlay
+into a different resident overlay routes through a per-call-site thunk
+slot), functionally identical to a direct call. `153e` reaches only 5 of
+the 10 possible targets; it never reaches `312e`, `0182`, or `022e` (those
+are reached by other callers elsewhere).
+
+Confirms the earlier "declare-war state flip" guess (`003bd0(a,b)` then
+`(b,a)`) was on the right track after all, just for the wrong reason: it's
+not a state flip, it's the border-garrison wake (`12d0`, already fully
+ported as `ai_diplo_wake_border_garrisons`) fired symmetrically once the
+"at war" bit reads set post-commit.
+
+**Worthiness-score phase: structurally ported (reference, not live)** as
+`ai_diplo_153e_worthiness_score_structural` in `src/core/ai_diplo.c`
+(alongside the selector table above, wired in as
+`ai_diplo_153e_selector_table`). Mirrors raw lines ~405-594 (the doc's
+"phase 1" description) end to end: the human-nation/invalid-nation entry
+gate (real — DOS `param_2*0x34+0x543f`, the same control-status byte
+`ai_king.c`'s `FUN_43f7_2244` header already ties to
+`turn_run_european_ai_stubs`'s human-skip check), the 14-continent
+dominance/delta-accumulator loop (real for the already-resolved colony
+(`-0x6b1a`) and land-unit (`-0x6b5a`) counts, recomputed locally the cheap
+way `ai_euro_refresh_continent_stance` already does), the per-unit
+ownership loop (real control flow; its one selector call, idx4/`FUN_5bfb_
+0000`, is an honest stub — see `ai_diplo_153e_unit_score_stub`), the
+euro_relation peace-bit check (real, `-0x77c4`), and the final clamp/scale
+arithmetic (real — the two `func_0x0001854c` calls are ported as plain
+value/lo/hi clamps, since the raw literals are given, not invented; the
+`FUN_0000_e096` treasury-ratio call is NOT ported, see below).
+
+Follows the `ai_euro_5d04_nation_planning_structural` precedent exactly:
+finishing a structural port with this many honest stubs does not by
+itself make it safe to wire live. **Newly identified, genuinely
+unresolved DS globals this pass** (none guessed, all left as documented
+neutral stubs in the code):
+
+- `-0x77f8` — a per-nation flags byte, bit 2 (raw 432). **Not** `-0x77c4`/
+  `euro_relation` — a distinct field this project hasn't named. Only feeds
+  phase 4's flavor text, inert within phase 1.
+- `-0x6d68` — per-nation "tension" byte (raw 441, 509-517, 556, 590),
+  compared against a ×3 threshold in several places. Central to the
+  forced-conflict override and final worthy-flag gate; stubbed to 0.
+- `-0x6a4e` — per-continent **exposed** combat value (not fortified,
+  orders ≠ `A`/`G`, plus the `0x543f` class gate). Distinct from the
+  already-resolved unrestricted sums (`-0x6e74`/`-0x6a8e`) this project's
+  G-table already exposes in `ai_euro.c` — a real, separate table this
+  port does not compute. Central to the continent loop's dominance/delta
+  math; stubbed to 0, which makes the "self is dominant here" branch
+  never fire.
+- `-0x6ada` — per-continent skilled-unit count. Stubbed to 0.
+- `0x53c8[]` — a per-nation declare-war cooldown timer (raw 421-424,
+  436-437, 548, 556). No persistent Linux equivalent tracked (reference
+  port, not live); stubbed as "always eligible."
+- `0xa153` — a single byte (raw 509), compared directly to `param_2`. No
+  match anywhere else in this project's docs or `address_mapping.csv`.
+  Stubbed to "never matches."
+- `0x84fc` — an indirect royal/crown treasury record (`+0x2a`/`+0x2c`
+  32-bit halves, raw 570-584), gating an affordability clamp via
+  `FUN_0000_e096`. Not the same as the already-known per-nation
+  `royal_money` field (`nation+0x22`, single `int32_t`) — this is a
+  separate, likely-global pointer. The clamp is stubbed to never trigger.
+- `FUN_1000_89a4` (table `-0x77f1`, arg `0x13`) — per-nation FF/feature-bit
+  test (`FUNCTION_CATALOG.md`: "nation feature/FF bit test"). **Not** an
+  is-human-nation check (that's the separate, already-resolved `0x543f`
+  table used at the entry gate) — which specific Founding Father or
+  feature bit 0x13 selects isn't identified. Stubbed to "absent."
+
+`FUN_5bfb_0000` (selector idx4, the worthiness-score unit loop's own
+per-unit score callee) is a genuinely separate open item from all of the
+above — it's not a DS global but an unresolved DOS *function body*
+(`euro_diplo.md`: "census/rank/combat factor, score stand-in", never
+independently ported byte-exact anywhere in this project; the existing
+`ai_diplo_military_score` is a different, already-live generic
+approximation of the same role, not a port of this specific callee).
+Stubbed via `ai_diplo_153e_unit_score_stub` — real per-unit iteration and
+ownership matching, inert per-unit score contribution.
+
+Full `ctest`: 41/41 runnable tests pass (2026-08-19; `golden_ai_turns`/
+`_mid01`/`_late01`/`golden_ai_joint` remain PARKED/Disabled per the top of
+`docs/ai_transcription.md`, unaffected either way since nothing here is
+wired live).
 
 ## Status (original, 2026-08-14 earlier same day): recovered clean, characterized at moderate depth, not fully section-mapped or ported
 

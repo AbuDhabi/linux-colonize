@@ -103,6 +103,15 @@ Written once at creation from `FUN_41f2_0294` (a terrain-survey function,
 `viceroy_unpacked.c:72085+`). Read as a scoring-table bonus term
 (`87998, 95380`).
 
+Correction (2026-08-19): "written once" undersells it — `FUN_4d56_152e`
+(village growth, `81414`) also calls `FUN_41f2_0294` live every growth
+tick and compares its result against the *current* `+4` value
+(`if (value < survey_result) grow`), so the survey is re-derived each
+turn, not cached from founding. `FUN_41f2_0294` itself turned out to be
+decompiler-corrupted (no recoverable stack frame — see the stub's comment
+in `src/core/ai.c`, `ai_indian_152e_worth_cap_stub`) and is still stubbed
+pending a live DOSBox-X trace.
+
 ### `+5` — owner + persistent flags
 - Low nibble: owner nation 0-3 (European), `0xf` = none/unowned. This is the
   field `FUN_4d56_00e0` uses to decide "European (≤3) vs native (>3)"

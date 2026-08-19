@@ -48,7 +48,7 @@ EOT → 291f_0a66 → 43f7_2424  (SoL refresh + dispatch)
 |-----|----------------|
 | `0x5382` bit0 war | `head.unknown26` — **no**; use `head.unknown46[0]` WoI |
 | `0x5382` bit1 REF present | `head.unknown46[1]` (thin) |
-| Tax boycott / refuse | `head.unknown46[2]` (structural + `38fd_5be8` audience; CHOICE when `ai_popups`) |
+| Tax boycott flag | `head.unknown46[2]` — presentation/Fugger-sync only since 2026-08-19 (real `38fd_5be8`/`38fd_3dc8` audience no longer gated by it; see "Tax audience" section below) |
 | `head.unknown46[3]` | unused — removed with the old invented once-per-war merc gate; `2022` rebel troop-gift is now a real recurring per-turn roll, no latch |
 | Independence rename | `player[human].country_name` → `"United Colonies"` (+ `europe.nation_name` if present); `unknown46[4]` endgame latch (0 none / 1 won / 2 lost / peace-1800) |
 | Mid-war `@WARN1` episode | `head.unknown46[6]` — set when one coastal port left + REF; clear when ports>1 |
@@ -91,34 +91,62 @@ eliminated nation). Covered by `unit_ai_king`'s declare-path assertions
 (pre-seeds nation-2 WAR vs human, asserts WAR/PEACE cleared + MET set vs
 both human and crown fold post-declare).
 
-### Tax boycott / refuse audience (`1d42` + `38fd_5be8`)
+### Tax audience (`38fd_5be8` + `38fd_3dc8`) — real formula ported 2026-08-19
 
-When a spring tax year would hike:
-- **Human + `ctx->ai_popups`:** enqueue `KING_AUDIENCE` CHOICE Accept/Refuse;
-  defer effect to `ai_king_apply_popup_result` (Accept → hike; Refuse → boycott
-  path). Status notes the demand.
-- **Else (auto):** if `tax_rate >= 20` and (SoL ≥ 30 or liberty bells ≥ 80):
-  **refuse** — do not raise tax; set `unknown46[2]`; OR Sugar boycott bit;
-  grow REF once; status refuse line. Else Accept hike + status (+ OK popup
-  when queue attached on apply path).
+Replaces the earlier invented "Accept/Refuse gates whether the hike
+happens" design (that divergence is what `king_audience_tax_delta` in
+`docs/mysteries_catalog.md` originally flagged). Real DOS shape, decoded
+from `viceroy_unpacked.c:68420` (`5be8`) and `:64132` (`3dc8`):
 
-While `unknown46[2]` is set, further tax years skip hikes (hold-audience
-status + OK when queue attached). Refuse apply/auto also enqueues `@TEAPARTY`
-follow-up OK (`KING_TAX`) when queue attached and no dump-goods CHOICE is
-pending (thin `FUN_38fd_3dc8` stock dump of narrative cargo from richest human
-colony, cap 100). Dump-goods CHOICE apply ORs the chosen cargo then enqueues
-the same `@TEAPARTY` OK. Restless SoL chrome (40..49) must **not** clobber
-audience lines. Fugger/external `boycott_bitmap==0` clears `unknown46[2]`.
-Dump-goods / `38fd_3dc8` RNG second cargo: **Done** (OR bit via
-`ai_king_pick_dump_goods_cargo` when `ctx->rng`; status lists **all**
-`boycott_bitmap` cargo names — refuse Sugar + second, holds after partial
-clear). Europe bid eligibility + price-weight (`local_7a` stand-in via
-`ctx->europe` cargo bids): **Done** — when europe set, candidates require
-`bid > 0`, then roulette by bid; europe NULL → uniform among all
-non-boycotted. Dump-goods modal CHOICE — **Done**
-(`AI_POPUP_TAG_KING_DUMP_GOODS`; apply ORs chosen cargo then `@TEAPARTY`).
-Auto / no-popups still RNG-picks via `ai_king_pick_dump_goods_cargo`.
-VGA `@TEAPARTY` chrome remains PARKED.
+- **Gate** (`ai_king_audience_roll`): fires on a **turn-counter** interval
+  (`ctx->turn_number`, DOS `DS:0x538e`) — no spring-only restriction (the
+  caller, `FUN_38fd_5e52`, has no season check either). Needs
+  `turn_number ≥ 30`; interval = year-band base (18/15/12/9 for
+  year ≤1600/≤1700/≤1750/>1750) narrowed by difficulty (`interval_base −
+  2·(difficulty−2)`, the DOS "is-human" branch, always true here since this
+  port only rolls the human's own audience); skip entirely if
+  `tax_rate > 85`.
+- **Score**: `RNG(1,1000) + (rebel_sentiment_report·2 − tax_rate)·5 +
+  treasury/100 + this-nation SoL% + turn/30`. The SoL term substitutes
+  `ai_king_sol_percent` for a DOS per-nation SoL% cache table
+  (`DS:nation−0x6bf0`) this port doesn't maintain — same value, no stored
+  cache, documented substitution not a guess.
+- **Ladder**: `score<100` → cut `= −min(RNG(2,5), tax_rate)`, but **no
+  audience at all** if that cut would be 0 (tax already 0%); `100≤score<650`
+  and streak<30 → `+1` (streak++); `score>949` → `+3/+4` (score<1100) or
+  `+5..+8`; else → `+2` (covers 650..949 and the streak≥30 fallback).
+- **Apply** (`ai_king_audience_apply_delta`, `3dc8`): **unconditional** —
+  `tax_rate += delta`, floored so it can't go below 0%, ceiled at 75%
+  (excess trimmed back out of the "applied" amount used below). No
+  Accept/Refuse gate on whether this happens at all.
+- **Village-goods choice**: only reachable when the *applied* delta is
+  positive (a real raise) and a Europe-bid-eligible, non-boycotted cargo
+  candidate exists (`ai_king_pick_dump_goods_cargo` roulette by stock×bid,
+  picked *before* the popup, exactly one cargo — no fixed Sugar-first, no
+  separate "name a good" menu). Human + `ai_popups`: single `KING_AUDIENCE`
+  CHOICE — Accept ("kiss the ring") keeps the raise; Refuse ("tea party",
+  `ai_king_tax_teaparty`) **reverts** the applied delta and boycotts the one
+  picked cargo, seizing stock via the existing `@TEAPARTY` OK (richest human
+  colony, cap 100 — thin stand-in for DOS's own colony-array seize-into-
+  royal-stock write, real field never resolved). No candidate / no popup
+  queue → hike just stands, still surfaced as an OK popup for human UX.
+  Auto/no-popups path: DOS's choice is inherently player-interactive with no
+  documented AI answer, so the tea-party decision there is an invented
+  stand-in heuristic (`tax_rate≥20` and (`SoL≥30` or `bells≥80`)), unrelated
+  to the real delta formula above.
+
+`unknown46[2]` (boycott-active) no longer gates the audience interval — that
+was invented; it's presentation/Fugger-sync only now (`ai_king_sync_boycott_
+refuse` still clears it when `boycott_bitmap==0`). Restless SoL chrome
+(40..49) still must not clobber audience status lines. VGA `@TEAPARTY`
+chrome remains PARKED.
+
+**Known gap:** `tests/unit/test_ai_king.c` predates this port and assumes
+the old deterministic/year-gated/RNG-free design throughout — its first tax
+scenario (no `ctx.rng`, `turn=1`) now fails before the rest of the
+6000+-line single-`main()` file runs. Rewriting the fixture for seeded RNG
++ turn-based setup is real follow-up work, out of scope for the formula
+port; see `docs/ai_transcription.md` R6 for the fuller note.
 
 ### Thin `1528` REF arrival announce
 
@@ -472,3 +500,13 @@ dragoons…"); king_ref thin multi-garrison (cap 2). Multi-garrison chrome
 - REF deep multi-step land combat / full siege scoring — **PARKED** (thin hunt/capture/garrison cap-2/Artillery/Cont. structural Done above; deeper combat scoring UI still PARKED). Multi-garrison chrome **PARKED**.
 - Dump-goods refuse second cargo (`38fd_3dc8` RNG OR + all bitmap cargo names in status) — **Done**; Europe `bid>0` eligibility + price-weight — **Done**; dump modal CHOICE (`KING_DUMP_GOODS`) — **Done**; `@TEAPARTY` follow-up OK + thin stock dump — **Done** thin; refuse sync when `boycott_bitmap==0` (Fugger/external clear) Done
 - `160a` letter cinematic — **PARKED** (thin rename + OK chain Done)
+- **Superseded 2026-08-19** (the `483`/`485`/`501` bullets above describe the
+  *pre*-formula audience shell, now stale for the delta/apply mechanics
+  specifically — the modal wiring, `@TEAPARTY`, dump-goods roulette, and
+  Fugger sync they describe are still accurate): `38fd_5be8`'s delta ladder
+  and `38fd_3dc8`'s clamp-apply are now the real formula, not a structural
+  stand-in — see "Tax audience (`38fd_5be8` + `38fd_3dc8`) — real formula
+  ported 2026-08-19" above for the full replacement. The old "Accept/Refuse
+  CHOICE gates whether the hike happens" framing in bullet 483 is wrong for
+  the delta itself (DOS applies unconditionally); Accept/Refuse now means
+  keep-it / revert-it after the fact.
