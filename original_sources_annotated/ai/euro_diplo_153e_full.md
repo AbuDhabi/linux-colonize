@@ -129,6 +129,15 @@ now fully resolved; not ported to Linux yet — `ai_diplo_form_alliance_ctx`
 doesn't currently touch unit orders, and this is small enough to be a
 quick follow-up (loop units of the two nations, same adjacency/order-state
 test, no new struct fields needed) rather than a semantic gap.
+
+**Ported 2026-08-19** as `ai_diplo_wake_border_garrisons` (`ai_diplo.c`,
+runtime layer): DOS order-state 5/6 lines up numerically with Linux's own
+`UNITS_ORDER_FORTIFY`/`FORTIFIED`, so the port clears a Fortify/Fortified
+order (`units_clear_orders`) on any combat-capable (`attack>1`) land unit
+of `nation_b` sitting adjacent to a `nation_a` colony; wired into
+`ai_diplo_form_alliance_ctx` called both directions (A,B)/(B,A), matching
+`13b0`'s dual call. `unit_ai_diplo`/`golden_ai_joint` green (pre-existing
+unrelated `TURN1→2 tribe[8]` fixture failure confirmed via `git stash`).
 rushing it after just having to retract one wrong finding.
 
 **Lesson, the important one**: a decompile succeeding (Ghidra prints
