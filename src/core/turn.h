@@ -146,7 +146,8 @@ void turn_run_colony_production(
   int human_nation,
   ColonizeTurnResult* out,
   AiPopupState* ai_popups,
-  const ColonizeMsgCatalog* messages
+  const ColonizeMsgCatalog* messages,
+  ColonizeDosRng* rng
 );
 
 /*

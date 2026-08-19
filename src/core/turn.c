@@ -510,7 +510,8 @@ static void turn_produce_one_colony(
   ColonizeTurnResult* out,
   ColonizeColonyProdDelta* delta,
   AiPopupState* ai_popups,
-  const ColonizeMsgCatalog* messages
+  const ColonizeMsgCatalog* messages,
+  ColonizeDosRng* rng
 ) {
   if (delta) {
     memset(delta, 0, sizeof(*delta));
@@ -742,7 +743,7 @@ static void turn_produce_one_colony(
    * FUN_364b_0688: starvation latch (+0x1c bit3) from food vs pop need.
    * Phase J kills when still short after this turn *and* food was already 0
    * at turn start (local_6c==0 / local_12e); pop==kills → @VANISH + abandon.
-   * Easy-difficulty no-kill RNG PARKED. Cite: ~57623–57694.
+   * Easy-difficulty no-kill mercy ported below. Cite: ~57623–57694.
    */
   {
     const int need = pop * TURN_FOOD_PER_COLONIST;
@@ -799,11 +800,27 @@ static void turn_produce_one_colony(
     }
 
     /*
+     * Easy-difficulty no-kill mercy (FUN_364b_0688, decomp ~57641-57647):
+     * on Discoverer/Explorer (difficulty < 2), the kill below never fires
+     * before year 1520; from 1520 on it's a `dos_rng_range(0, 2-difficulty)`
+     * roll, nonzero cancels (2/3 odds at Discoverer, 1/2 at Explorer). NULL
+     * col1/rng safely fall through to the plain kill (old behavior).
+     */
+    int starve_mercy = 0;
+    if (col1 && col1->head.difficulty < 2) {
+      if (col1->head.year < 1520) {
+        starve_mercy = 1;
+      } else if (dos_rng_range(rng, 0, 2 - col1->head.difficulty) != 0) {
+        starve_mercy = 1;
+      }
+    }
+
+    /*
      * Phase J — starve-kill when still short and started the turn at 0 food.
      * Last colonist → @VANISH + colonies_abandon (DOS 0xe47 / thunk 0254).
      */
     if ((colony->colony_flags & COLONIZE_COLONY_FLAG_STARVATION) != 0 &&
-        food_at_start == 0 && colony->colonist_count > 0) {
+        food_at_start == 0 && colony->colonist_count > 0 && !starve_mercy) {
       const int colony_id = colony->id;
       char vanish_name[COLONIZE_COLONY_NAME_MAX];
       snprintf(
@@ -1564,7 +1581,8 @@ void turn_run_colony_production(
   int human_nation,
   ColonizeTurnResult* out,
   AiPopupState* ai_popups,
-  const ColonizeMsgCatalog* messages
+  const ColonizeMsgCatalog* messages,
+  ColonizeDosRng* rng
 ) {
   if (!pool) {
     return;
@@ -1581,7 +1599,8 @@ void turn_run_colony_production(
         out,
         NULL,
         ai_popups,
-        messages
+        messages,
+        rng
       );
     }
   }
@@ -1613,7 +1632,7 @@ void turn_colony_free_production(
   ColonizeTurnResult local;
   memset(&local, 0, sizeof(local));
   turn_produce_one_colony(
-    pool, colony, map, NULL, NULL, -1, out ? out : &local, out_delta, NULL, NULL
+    pool, colony, map, NULL, NULL, -1, out ? out : &local, out_delta, NULL, NULL, NULL
   );
 }
 
@@ -2442,7 +2461,8 @@ bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ct
         ctx->human_nation,
         &proc->result,
         ctx->ai_popups,
-        ctx->messages
+        ctx->messages,
+        ctx->rng
       );
       /* FUN_364b_03f6 coastal Fort/Fortress fire after production. */
       (void)turn_run_coastal_fort_fire(ctx);
