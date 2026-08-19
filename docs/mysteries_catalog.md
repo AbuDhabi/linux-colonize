@@ -60,15 +60,38 @@ field's address, not a decode of the original.
 
 - **`FUN_5fef_0000`** (best-defender-unit-at-tile scoring walk, resident,
   99111/98). Hand-transcribed from clean disassembly (decompiler pcode
-  bug blocked normal recovery) — but "call targets and a few field
-  cutoffs [are] not independently named." Structural read only.
+  bug blocked normal recovery). **Substantially narrowed 2026-08-19**:
+  6 of its 7 previously-unnamed call targets now resolve via
+  `tools/address_mapping.csv`'s resident-thunk chain — 3 are already-named
+  `accessors.c` helpers (`euro_settlement_owner`/`map_tile_in_bounds`/
+  `ocean_or_high_seas`), 2 are the standard unit-list first/next iterator
+  pair, and 1 (`FUN_1000_8bcc`) lands in the same segment as the
+  already-catalogued unit-combat-strength function, refining the doc's
+  "distance-like metric" guess toward a real combat/defense score
+  (matching this function's own name). Only `FUN_1000_8bb8` and the exact
+  `8bcc` formula remain open. See `indian_raid_loot.md` for the full
+  chain. Still not ported (structural read only), but the "wall of
+  unnamed callees" blocker is mostly cleared.
 
-- **`FUN_521d_5b66`**: the switch-case body this function was long
-  documented as owning (~1815 lines) turned out to actually belong to a
-  *different, still-unfound* function reached through a local thunk.
-  `5b66` itself was misattributed for an unknown span of project history
-  before this was caught — the real owner of that body has never been
-  located.
+- **`FUN_521d_5b66` — resolved 2026-08-19 (doc-sync, not fresh RE):
+  `euro_unit_act.md` already located the real owner on 2026-08-13/14,
+  just never made it back to this catalog.** `5b66` itself is a clean,
+  tiny 44-line per-unit dispatcher (confirmed via `tools/address_mapping.csv`
+  re-disassembly, no corruption): it calls `FUN_521d_20e6` — the giant
+  2170-line move-scoring function, already separately documented in
+  `move_scoring.md` — and if that returns non-zero (unit already acted),
+  aborts; otherwise falls into its own small `switch(orders_state)` with 5
+  real handlers (`FUN_479b_076e`/`01a6`/`0526`/`0972`, `FUN_1427_155e`).
+  Two independently-written docs cross-confirm the call direction
+  (`euro_unit_act.md`'s trace of `5b66`'s own body vs. `move_scoring.md`'s
+  caller list for `20e6`). The ~1815-line estimate was corrupted-decompile
+  artifact, not real inline content — no separate "still-unfound" function
+  exists. A related false lead (an `a6e4`/"12-byte pattern" chase that
+  looked like a data table) is also closed: it was an unpatched RTLink
+  call-thunk placeholder, and its real target (`FUN_4cc6_0000`, WoI
+  tribe-defection) is unrelated to `5b66` — see `euro_unit_act.md`'s own
+  "Method note" on this failure mode (naive placeholder-byte reads = false
+  leads) before chasing another one of these.
 
 - **Nation-slot table ambiguity (resolved, but the resolution itself
   reveals a live confusion risk).** Pass 17 of the `417e` investigation

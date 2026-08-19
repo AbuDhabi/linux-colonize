@@ -52,13 +52,46 @@ exhausts without a hit.
 
 Consistent with this file's "colony raid loot" family - reads as a
 "find nearest/best-scoring eligible unit near this position" helper
-(candidate for a raid target or loot-recipient picker), but the call
-targets (`FUN_1000_8886`/`84f2`/`8958`/`8bb8`/`8bcc`/`84d4`/`84de`) and
-several of the byte-field cutoffs aren't independently named — not
-semantically confirmed enough to port. Not re-derived into full C here;
-raw disassembly is in the 2026-08-13 investigation log if anyone resumes
-this. Same "needs unlabeled DS globals/callees named first" gate as
-`FUN_4d56_417e` (task #5).
+(candidate for a raid target or loot-recipient picker).
+
+**Call targets named 2026-08-19** (via `tools/address_mapping.csv`'s
+resident-thunk → canonical chain, same method as `euro_unit_act.md`'s
+`FUN_1000_8886` fix — 6 of 7 resolve cleanly):
+- `FUN_1000_8886` → `FUN_137f_0358` = **`euro_settlement_owner`** (already
+  named in `accessors.c`)
+- `FUN_1000_84f2` → `FUN_137f_000a` = **`map_tile_in_bounds`** (already
+  named in `accessors.c`)
+- `FUN_1000_8958` → `FUN_13e4_0074` = **`ocean_or_high_seas`** (already
+  named in `accessors.c`)
+- `FUN_1000_84de` → `FUN_1427_0002`, `FUN_1000_84d4` → `FUN_1427_004a`:
+  the same first/next **unit-list iterator pair** `FUN_1427_09ac` uses
+  (`iVar1 = FUN_1427_0002(); while(-1 < iVar1) {...; iVar1 =
+  FUN_1427_004a();}`) — not independently named beyond that shape, but the
+  role (walk a unit list, -1-terminated) is now clear
+- `FUN_1000_8bcc` → `FUN_157e_015e` — same segment (`157e`) as the
+  already-catalogued `FUN_157e_004a` ("unit base combat×8 + vet/Drake/
+  damage", cited in `save_format_map.md`'s `field_combat_strength_by_
+  continent` entry). **Refines this doc's own "distance-like metric"
+  guess**: `local = (byte<<8) - prior - 1` is much more likely a real
+  combat/defense score than a distance, matching the function's own
+  "best-defender-unit-at-tile scoring walk" framing in the mysteries
+  catalog. Not independently disassembled this pass to confirm the exact
+  formula match.
+- `FUN_1000_8bb8` — still unresolved; no resident thunk stub for this
+  address exists in the canonical decompiled export (Ghidra only
+  materializes a named stub for addresses actually called from
+  *decompiled* code elsewhere, and this one apparently isn't), so the
+  `address_mapping.csv` chain-following method used above doesn't apply
+  directly. Would need a raw-file-offset lookup instead.
+
+Byte-field cutoffs (`unit+0x3144/0x3145/0x3146/0x314c`) were already named
+by this doc's own prior pass. Given 6/7 callees now resolve and the
+segment identity strongly supports "best-defender scoring," this function
+is much closer to portable than "not semantically confirmed enough" — not
+re-derived into full C this pass, still deferred, but the remaining gap is
+now just one address (`8bb8`) and confirming `8bcc`'s exact combat formula,
+not a wall of unknowns. Raw disassembly is in the 2026-08-13 investigation
+log if anyone resumes this.
 
 ---
 
