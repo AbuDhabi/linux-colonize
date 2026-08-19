@@ -1,0 +1,90 @@
+Debugger commands (enter all values in hex or as register):
+Commands------------------------------------------------
+BP     [segment]:[offset] - Set breakpoint.
+BPINT  [intNr] *          - Set interrupt breakpoint.
+BPINT  [intNr] [ah] *     - Set interrupt breakpoint with ah.
+BPINT  [intNr] [ah] [al]  - Set interrupt breakpoint with ah and al.
+BPM    [segment]:[offset] - Set memory breakpoint (memory change).
+BPPM   [selector]:[offset]- Set pmode-memory breakpoint (memory change).
+BPLM   [linear address]   - Set linear memory breakpoint (memory change).
+BPLIST                    - List breakpoints.
+BPDEL  [bpNr] / *         - Delete breakpoint nr / all.
+C / D  [segment]:[offset] - Set code / data view address.
+DV [addr]                 - Set data view to linear (virtual) address
+DP [addr]                 - Set data view to physical address
+DOS MCBS                  - Show Memory Control Block chain.
+DOS KERN                  - Show DOS kernel memory blocks.
+DOS XMS                   - Show XMS memory handles.
+DOS EMS                   - Show EMS memory handles.
+DOS FNKEY                 - Show PC-98 FnKey mapping.
+BIOS MEM                  - Show BIOS memory blocks.
+CALLBACKS                 - Show callbacks of interrupts.
+INT [nr] / INTT [nr]      - Execute / Trace into interrupt.
+LOG [num]                 - Write CPU log file.
+LOGS/LOGL/LOGC [num]      - Write short/long/cs:ip-only CPU log file.
+HEAVYLOG                  - Enable/Disable automatic CPU log when DOSBox-X exits.
+ZEROPROTECT               - Enable/Disable zero code execution detection.
+ADDLOG [message]          - Add message to the log file.
+SR [reg] [value]          - Set register value. Multiple pairs allowed.
+SM [seg]:[off] [val] [.]..- Set memory with following values.
+SMV [addr] [val] [.]..    - Set memory with following values at linear (virtual) address.
+FM [seg]:[off]            - Freeze memory value at address.
+EV [value [value] ...]    - Show register value(s).
+IV [seg]:[off] [name]     - Create var name for memory address.
+SV [filename]             - Save var list in file.
+LV [filename]             - Load var list from file.
+VRD                       - Redraw video.
+VGA cmd                   - VGA related debugging commands.
+PC98 cmd                  - PC98 related debugging commands.
+EMU MEM/MACHINE           - Show emulator memory or machine info.
+MEMDUMP [seg]:[off] [len] - Write memory to file memdump.txt.
+MEMDUMPBIN [s]:[o] [len]  - Write memory to file memdump.bin.
+MEMFIND [seg]:[off] [.].. - Start memory find search instance.
+MEMS [operator] [value]   - Search value within instance.
+SELINFO [segName]         - Show selector info.
+INTVEC [filename]         - Writes interrupt vector table to file.
+INTHAND [intNum]          - Set code view to interrupt handler.
+MMX [=t] [reg]            - Display MMX register file (t can be B,W,D,Q)
+MMX [=t] [reg] SET [val]  - Set MMX register (t can be B,W,D,Q), val is comma-separated
+SSE [=t] [reg]            - Display SSE register file (t can be B,W,D,Q,X,S,F)
+SSE [=t] [reg] SET [val]  - Set SSE register (t can be B,W,D,Q,X,S,F), val is comma-separated
+CPU                       - Display CPU status information.
+FPU                       - Display FPU status information.
+GDT                       - Lists descriptors of the GDT.
+LDT                       - Lists descriptors of the LDT.
+IDT                       - Lists descriptors of the IDT.
+PAGING [page]             - Display content of page table.
+EXTEND                    - Toggle additional info.
+TIMERIRQ                  - Run the system timer.
+TIME [time]               - Display or change the internal time.
+DATE [date]               - Display or change the internal date.
+VRT                       - Run, then enter debugger at next vertical retrace.
+IN[P|W|D] [port]          - I/O port read byte/word/dword.
+OUT[P|W|D] [port] [data]  - I/O port write byte/word/dword.
+HELP                      - Help
+Keys------------------------------------------------
+F3/F6                     - Previous command in history.
+F4/F7                     - Next command in history.
+F5                        - Run.
+F8                        - Toggle printable characters.
+F9                        - Set/Remove breakpoint.
+HELP                      - Help
+Keys------------------------------------------------
+F3/F6                     - Previous command in history.
+F4/F7                     - Next command in history.
+F5                        - Run.
+F8                        - Toggle printable characters.
+F9                        - Set/Remove breakpoint.
+F10/F11                   - Step over / trace into instruction.
+ALT + D/E/S/X/B           - Set data view to DS:SI/ES:DI/SS:SP/DS:DX/ES:BX.
+Escape                    - Clear input line.
+Up/Down                   - Scroll up/down in the current window.
+Page Up/Down              - Page up/down in the current window.
+Home/End                  - Move to begin/end of the current window.
+TAB/Shift+TAB             - Select next/prev window
+
+
+
+
+
+
