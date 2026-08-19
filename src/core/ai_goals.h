@@ -85,10 +85,23 @@ void ai_goals_invalidate_nearby_secondary(int nation_id, int code, int x, int y,
 
 /*
  * Per-nation AI-planning scratch read by FUN_521d_03d0 / 052c. DOS DS
- * fields (-0x6d68/-0x5f48/-0x6bf0/-0x6bec/-0x6a99/-0x6bb2/-0x77b2-ish) have
- * no Linux writer yet — all-zero by default reproduces the existing
- * "early game -> urgency 8" stand-in already inlined in ai_euro.c. Exposed
- * so a future pass can wire real data without re-deriving the formulas.
+ * fields (-0x6d68/-0x5f48/-0x6bf0/-0x6bec/-0x6a99/-0x6bb2) have no Linux
+ * writer yet — all-zero by default reproduces the existing "early game ->
+ * urgency 8" stand-in already inlined in ai_euro.c. Exposed so a future
+ * pass can wire real data without re-deriving the formulas.
+ *
+ * last_colony_founded_turn (DS nation*0x13c-0x77b2) identity confirmed
+ * 2026-08-19 by decompiling thunk_FUN_2a1f_0494's real overlay target
+ * (OVL14_L0000:72e0 = FUN_521d_03d0, this file's own
+ * ai_goals_founding_expansion_urgency) directly: it is NOT an at-war
+ * flag (the earlier guessed name) — 052c's own gate calls
+ * founding_expansion_urgency(nation) a second time purely as a nonzero
+ * check, and -0x77b2's one writer is `FUN_479b_076e` (case-7 FOUND
+ * COLONY handler, `viceroy_unpacked.c:77006`), which stamps the current
+ * turn counter (DS:0x538e) into it right before the colony-record init
+ * call. So the term 052c adds is "(turns since this nation last founded
+ * a colony) >> 4" gated on nonzero expansion urgency, not a war-timing
+ * bonus. Set via `ai_goals_note_colony_founded`.
  */
 typedef struct AiNationPlanScratch {
   uint8_t hire_flag;             /* DS nation-0x6d68 */
@@ -97,11 +110,13 @@ typedef struct AiNationPlanScratch {
   uint8_t d_val;                 /* DS nation-0x6bec */
   int8_t e_val;                  /* DS nation*3-0x6a99 (stride 3) */
   int f_val;                     /* DS nation*2-0x6bb2 (stride 2) */
-  uint8_t at_war_flag;           /* thunk_2a1f_0494(nation) gate — PARKED identity */
-  int last_war_declare_turn;     /* DS nation*0x13c-0x77b2-ish — PARKED identity */
+  int last_colony_founded_turn;  /* DS nation*0x13c-0x77b2; 0 = never founded, matches DOS's zero-init */
 } AiNationPlanScratch;
 
 AiNationPlanScratch* ai_goals_plan_scratch(int nation_id);
+
+/* FUN_479b_076e's `-0x77b2` stamp: call when nation_id founds a colony. */
+void ai_goals_note_colony_founded(int nation_id, int turn);
 
 /*
  * FUN_521d_03d0 — founding_expansion_urgency(nation, total_colony_count).
@@ -124,7 +139,8 @@ int ai_goals_unit_desirability_score(
   int unit_profession,
   int continent_id,
   int dist_to_bound_colony,
-  int turn
+  int turn,
+  int total_colony_count
 );
 
 /*

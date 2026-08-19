@@ -5520,6 +5520,10 @@ static void ai_euro_found_with_unit(ColonizeTurnContext* ctx, ColonizeUnit* foun
     if (cid >= 0 && cid < COLONIZE_COLONIES_MAX) {
       s_founded_colony_turn[cid] = 1;
     }
+    /* FUN_479b_076e -0x77b2 stamp — see ai_goals.h AiNationPlanScratch. */
+    ai_goals_note_colony_founded(
+      nation_id, ctx->turn_number ? (int)*ctx->turn_number : 0
+    );
     units_despawn(ctx->units, founder->id);
     if (ctx->col1_ok && ctx->col1 && nation_id >= 0 && nation_id < 4) {
       ctx->col1->player[nation_id].founded_colonies++;
