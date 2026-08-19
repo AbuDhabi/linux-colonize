@@ -200,7 +200,10 @@ typedef struct ColonizeCol1Head {
   int16_t nation_relation[4];
   int16_t rebel_sentiment_report; /* DS:0x53d0; congress UI 0..100 */
   uint8_t unknown45_pad[8];
-  uint16_t expeditionary_force[4]; /* regulars, dragoons, man-o-wars, artillery */
+  uint16_t expeditionary_force[4]; /* regulars, dragoons, man-o-wars, artillery.
+                                       index 2 (0x53DE) confirmed 2026-08-18
+                                       live DOSBox-X capture: dec'd right as
+                                       each REF wave lands post-independence */
   uint16_t backup_force[4];
   /*
    * DS:0x53ea — DOS uint16 price_group_state[16] (FUN_38fd_0058).

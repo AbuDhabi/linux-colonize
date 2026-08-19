@@ -19,7 +19,7 @@ census of human/crown. Bridge: [`between_turns.md`](between_turns.md).
 |---|------|
 | 1 | Zero nation counters + `unit_type_counts[19]` + cargo/continent scratch |
 | 2 | **Unit loop**: type tallies, ships vs land, Europe-dock proxies, continent OR bits `0x95f2`, combat/`0x941c`, free colonist, field combat; foreign Euro near continent → OR `0x02`; also (2026-08-14) the nation×continent six-table block below |
-| 3 | **Colony loop**: `0x9298++`, pop sum; clear `colony+0x1b` bits 0/1; 11×11 ship probe → MoW/armed bits; globals `0xa89a`/`0xa89b`; foreign colony continent OR `0x04` |
+| 3 | **Colony loop**: `0x9298++`, pop sum; clear `colony+0x1b` bits 0/1; 11×11 ship probe → MoW/armed bits; globals `0xa89a`/`0xa89b`; foreign colony continent OR `0x04`. Mechanism confirmed 2026-08-14 [sic 2026-08-18] via live DOSBox-X capture: `test byte [colony+1B],01` gates `inc [a89a]` + `[9e54] += (int8)colony[+1F]` (a running **(count, level-sum)** pair over colonies matching that bit — `colony+0x1f` is the already-known "level" field). Bit1's pairing with `0xa89b`/`0x9e52` is inferred symmetric, not independently captured. Whether the pair resets per-nation-call or accumulates across the turn's 4 census calls is still open — see `ai_euro.c`'s `ai_euro_5d04_ph_rival_crumb` header for the consumer side |
 | 4 | **Tribe loop**: continent OR `0x01` |
 | 5 | Empty-colony continent bump `0x9650`; **mean pop** `0x944e = pop_sum / colonies` |
 
