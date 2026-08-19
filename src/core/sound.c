@@ -334,12 +334,12 @@ static void sound_decode_tracks(
 
       const uint8_t gate = sound_note_gate(dur, artic_abs, artic_sub);
       if (note_raw == 0 || !play_notes) {
-        op_dur = dur ? (uint32_t)dur : 1u;
+        op_dur = dur + 1u;
       } else {
         sound_emit_note(
           song, time, channel, (int)note_raw + (int8_t)transpose, velocity, dur, gate
         );
-        op_dur = dur ? (uint32_t)dur : 1u;
+        op_dur = dur + 1u;
       }
       stuck = 0;
     }
@@ -605,7 +605,7 @@ static void sound_decode_tracks(
           );
         }
         pos += 3u + (size_t)n_raw;
-        op_dur = dur ? (uint32_t)dur : 1u;
+        op_dur = dur + 1u;
         break;
       }
       case 0xBB: /* RPN pitch-bend range: CC101=0, CC100=0, CC6=n */
