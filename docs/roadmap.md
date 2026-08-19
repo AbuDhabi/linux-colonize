@@ -226,6 +226,7 @@ Do not prioritize over gameplay/determinism.
 | Code architecture / layering (present + intended) | [architecture.md](architecture.md) |
 | Manual feature Done/Partial/Missing rows | [manual_gap.md](manual_gap.md) |
 | AI FUN_* inventory, unpark queue, R5 | [ai_transcription.md](ai_transcription.md) |
+| AI porting — sequenced agent work queue | [ai_port_plan.md](ai_port_plan.md) |
 | Col1 field atlas / save RE | [save_format_map.md](save_format_map.md) |
 | Save codec / interop notes | [savegame.md](savegame.md) |
 | Light catalog peel queue | [catalog_peel_ranking.md](catalog_peel_ranking.md) |
