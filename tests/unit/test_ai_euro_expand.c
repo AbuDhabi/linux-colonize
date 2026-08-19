@@ -3265,7 +3265,11 @@ static int unit_5d04_buy_caravel_colonies_ge6(void) {
     col1.player[i].diplomacy = 0;
   }
   col1.head.difficulty = 0;
-  col1.nation[nation].gold = 1000;
+  /* Caravel purchase (1000$) + leftover under hire_cost (200$ at diff=0),
+   * so the hire ladder is blocked by treasury, not skipped by having zero
+   * gold outright (a fixture that leaves exactly 0 can't tell "correctly
+   * gated" apart from "spent nothing" and made the test brittle). */
+  col1.nation[nation].gold = 1150;
 
   ai_goals_reset();
 
@@ -3383,9 +3387,14 @@ static int unit_5d04_buy_caravel_no_ship(void) {
     col1.player[i].control = 0;
     col1.player[i].diplomacy = 0;
   }
-  col1.head.difficulty = 0; /* hire_cost=200; bump≈30 */
-  /* After bump (~1030) buy 1000 → ~30 < hire_cost → ship only, no pax. */
-  col1.nation[nation].gold = 1000;
+  col1.head.difficulty = 0; /* hire_cost=200; treasury bump is 0 at diff 0
+                              * (raw local_2e = difficulty * local_12, so
+                              * difficulty 0 always bumps by 0 — do not
+                              * rely on it here). */
+  /* Buy Caravel (1000) leaving a remainder under hire_cost (200) but not
+   * exactly 0, so the assertion below can tell "correctly gated by
+   * treasury" apart from "spent nothing at all". */
+  col1.nation[nation].gold = 1120;
 
   ai_goals_reset();
 
