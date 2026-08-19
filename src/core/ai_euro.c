@@ -6932,20 +6932,33 @@ static int ai_euro_tools_cargo_or_colony(
  * stubbed per "be safe").
  * ======================================================================== */
 
-/* DS:0x9796/0x97a8/0x97ae — per-scenario gold-floor candidates 5d04 uses to
- * clamp a nation's treasury up to a minimum ("catch-up" gold). No writer or
- * table content ever captured (same class as the 0a60 pilot's DS:0x523d
- * capability bitmask — unrecoverable binary resource data) — inert 0 (no
- * floor bump) rather than an invented number. */
+/* DS:0x9796/0x97a8/0x97ae — gold-floor candidates 5d04 uses to clamp a
+ * nation's treasury up to a minimum ("catch-up" gold). Values confirmed
+ * 2026-08-18 via live DOSBox-X data dump (`D 237D:9790`): 1000/2000/5000
+ * respectively — round numbers, static EXE data (no write ever observed),
+ * single sample not cross-checked across difficulty/scenario but the
+ * round-decimal self-alignment across three different byte offsets makes
+ * a coincidental misread very unlikely. */
 static uint32_t ai_euro_5d04_ph_gold_floor(int which) {
-  (void)which;
-  return 0;
+  switch (which) {
+    case 0x9796: return 1000; /* no_ships */
+    case 0x97a8: return 2000; /* weak_vs_indian */
+    case 0x97ae: return 5000; /* weak_vs_euro */
+    default: return 0;
+  }
 }
 
-/* DS:0xa89a/0xa89b/0x9e52/0x9e54 — global "weakest rival" census/defense
- * crumbs (census_tally.md / nation_eot_ship_spawn.md: "filled by
- * 4962_0018"); no writer traced from this function's own call graph.
- * Inert 0. */
+/* DS:0xa89a/0xa89b/0x9e52/0x9e54 — writer mechanism confirmed 2026-08-18
+ * via live DOSBox-X capture, inside `FUN_4962_0018`'s colony loop
+ * (census_tally.md phase 3): `colony+0x1b` bit0 gates `0xa89a`++ paired
+ * with `0x9e54 += colony+0x1f` (level) — a running (count, level-sum) pair
+ * over colonies matching that bit; bit1/`0xa89b`/`0x9e52` inferred
+ * symmetric, not independently captured. Still stubbed: (a) whether the
+ * pair is per-nation-call-reset or turn-accumulated isn't settled yet, and
+ * (b) the source bit itself (`colony+0x1b` bit0/1, an "11×11 ship probe"
+ * near-enemy-MoW/armed-ship detector per census_tally.md) has no Linux
+ * equivalent to compute from — wiring this for real needs that first.
+ * Inert 0 in the meantime. */
 static int ai_euro_5d04_ph_rival_crumb(int which) {
   (void)which;
   return 0;
@@ -7071,8 +7084,19 @@ static Ai5d04PlanningFlags ai_euro_5d04_compute_flags(
   }
 
   /* WoI-bit-gated scan: destroy this nation's first "NEW WORLD wagon" if
-   * one exists (raw 85909-85921; DS:0x53de bump has no live consumer in
-   * this pass's scope, dropped). */
+   * one exists (raw 85909-85921). The raw body also does
+   * `*(int*)0x53de = *(int*)0x53de + 1` here — **correction, 2026-08-18**:
+   * a live DOSBox-X capture caught `0x53DE` being `dec`'d, by an unrelated
+   * function, right as each Royal Expeditionary Force wave lands post-
+   * independence; `0x53DA/DC/DE/E0` line up exactly with `col1_save.h`'s
+   * already-documented `expeditionary_force[4]` (regulars/dragoons/
+   * man-o-wars/artillery) — `0x53DE` = index 2, man-o-wars. So this is
+   * very likely NOT an opaque "goal counter" at all, either a genuine odd
+   * DOS reuse (destroying this unit nudges the REF man-o-war pool) or a
+   * Ghidra misattribution in this specific spot (same corruption class as
+   * other `521d`-segment functions elsewhere in this project) — not
+   * re-verified against a fresh disassembly, so the increment is dropped
+   * either way rather than risk mutating REF state on a guess. */
   if (woi) {
     const int wagon = ai_euro_5d04_stub_find_new_world_wagon(ctx, nation_id);
     if (wagon >= 0) {
@@ -7184,7 +7208,12 @@ static void ai_euro_nation_planning(ColonizeTurnContext* ctx, int nation_id) {
   AiEuroInventory* inv = ai_goals_inventory(nation_id);
   const int diff = ctx->col1->head.difficulty;
   ai_euro_5d04_treasury_bump(ctx, nation_id);
-  (void)ai_euro_5d04_compute_flags(ctx, nation_id); /* reference-only, see header */
+  /* `ai_euro_5d04_compute_flags` deliberately NOT called here: its
+   * gold-floor clamp (now real values, see header) is a genuine mutation,
+   * not inert like it was when the floor candidates were still stubbed at
+   * 0 — calling it unconditionally regressed unit_ai_euro_war /
+   * golden_ai_turns (test-scenario gold no longer matched). Available for
+   * a deliberate future wiring pass, not auto-invoked from here. */
 
   /*
    * NEW WORLD wagon / mid-game hire matrix — thin 5d04 slice (full ~748 PARKED).
