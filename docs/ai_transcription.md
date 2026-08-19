@@ -5,7 +5,9 @@ the Linux port has transcribed, and what remains for eventual **1:1
 correspondence** with the original planners.
 
 Navigation / bring-up status live elsewhere; this file owns the AI FUN_*
-inventory and roadmap. See also [original_index.md](original_index.md),
+inventory and roadmap. **Sequenced work queue for agents:**
+[ai_port_plan.md](ai_port_plan.md) — pick up work there, this file is the
+status/detail reference it points into. See also [original_index.md](original_index.md),
 [decomp_inventory.md](decomp_inventory.md), [turn_between_players.md](turn_between_players.md),
 [manual_gap.md](manual_gap.md),
 [data_vs_hardcoded.md](data_vs_hardcoded.md),
