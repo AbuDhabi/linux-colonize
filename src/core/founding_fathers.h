@@ -16,6 +16,38 @@
  *   3. Elect the locked-in next_founding_father; then next = -1 (re-debate).
  * Bells are never decremented — DOS threshold/spend recovery still PARKED.
  *
+ * 2026-08-19 investigation (real DOS mechanism confirmed, NOT safe to
+ * naively port — read before touching this): `FUN_4345_0a22`
+ * (viceroy_unpacked.c:73333-73373) accrues each turn's bell delta into
+ * TWO separate nation-struct fields (`*(int*)0x84fc` base, `+0xc` and
+ * `+0xe`), then on the same call, if the `+0xc` pool has reached the
+ * `0982` threshold, resets ONLY `+0xc` to 0 (line 73370) — `+0xe` is
+ * never reset anywhere. Linux's single `liberty_bells_total` field is
+ * fed by the same per-turn delta (`turn.c` ~1818/1754) and reads like a
+ * merge of both DOS fields into one — it is ALSO the field
+ * `ai_king.c`/`combat_strength.c`/`colony_production.c` read directly
+ * (no reset) for SoL-fallback, boycott-refusal (`AI_KING_BOYCOTT_BELLS_MIN`),
+ * and declare-independence (`AI_KING_DECLARE_BELLS_MIN`) gates — those all
+ * plainly need the never-reset `+0xe` semantics. So resetting
+ * `liberty_bells_total` to 0 on election (the literal DOS `+0xc` behavior)
+ * would be a real, wide regression to those gates, not a fidelity fix.
+ * Correct port needs a SEPARATE new field (DOS `+0xc`, "bells since last
+ * FF") — fed by the same accrual sites, read only by
+ * `founding_fathers_bells_needed`'s threshold check, reset to 0 in
+ * `elect_commit` — leaving `liberty_bells_total` (DOS `+0xe`) untouched.
+ * **Tried and reverted this pass**: adding the field directly to
+ * `ColonizeCol1Nation` (`col1_save.h`) broke `unit_col1_save`'s
+ * `col1_save_check_layout` (`COLONIZE_COL1_NATION_SIZE` — that struct is
+ * a byte-exact mirror of the real DOS on-disk record, confirmed by its
+ * own already-documented confirmed-dead pad bytes; growing it shifts
+ * every later field's offset and cascaded into 8 more test/golden
+ * failures, all reverted together). Any new field for this needs to live
+ * OUTSIDE that struct — a small nation-indexed side table in
+ * `founding_fathers.c`, same pattern as `ai_goals.h`'s
+ * `AiNationPlanScratch`/`ai_goals_plan_scratch`, not a `col1_save.h` edit.
+ * Not done this pass: real feature work (new side-table type, accessor
+ * functions, ~3 accrual call sites in `turn.c`, ~40 test fixture sites).
+ *
  * founding_fathers_tick: at most one elect per nation per call —
  * human first, then each AI Euro nation (player.control==1).
  *

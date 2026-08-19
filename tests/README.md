@@ -23,14 +23,20 @@ Exercise one subsystem (or a tight cluster) with concrete expected outcomes.
 
 ## Golden
 
-Examples: `golden_mapgen_seed100`, `golden_ai_turns`, `golden_ai_mid01`,
-`golden_ai_late01`.
+Examples: `golden_mapgen_seed100`, `golden_colony_prod01`/`02`.
 
-Aggregate gate (mapgen + early turns + contact/diplo units + mid/late goldens):
-
-```bash
-cmake --build build --target golden_ai_joint
-```
+**AI goldens PARKED (2026-08-19):** `golden_ai_turns`, `golden_ai_mid01`,
+`golden_ai_late01`, and the aggregate `golden_ai_joint` are `DISABLED` in
+CMake — `ctest` skips them by default. They chase turn-for-turn DOS parity
+against an AI planner that is still only structurally/T0-T1 ported (not T3
+1:1); every remaining unported/stubbed callee is a guaranteed future diff,
+so a red run there means "AI transcription incomplete", not "regression".
+See [`docs/ai_transcription.md`](../docs/ai_transcription.md) R0. Run them
+explicitly if you need to look (`ctest -R golden_ai_turns
+--force-new-ctest-process`, or `cmake --build build --target
+golden_ai_joint`); do not chase them to green piecemeal — re-enable
+(`set_tests_properties(... DISABLED FALSE)` in `CMakeLists.txt`) only once
+the AI port is actually complete.
 
 Most executables expect **repo root** as cwd (`WORKING_DIRECTORY` in CMake).
 

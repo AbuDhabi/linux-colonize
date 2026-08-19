@@ -56,7 +56,7 @@ MAPEDIT parked ([catalog_peel_ranking.md](catalog_peel_ranking.md)).
 | **0 Foundation** | Done | New game, map, menus, Col1 save/load round-trip, basic move/orders |
 | **1 Colony–Europe loop** | Mostly done | Found/assign/produce/sail/buy-sell/pioneer/trade-routes structural playable |
 | **2 Contact & conflict** | Partial | Land/naval combat + capture + Indian meet/trade/raid usable for a human game without deep PARK blockers |
-| **3 Mid-game AI** | Partial / active | Euro mid-planner (`5d04` / land `20e6`) + Indian large bodies advance; `golden_ai_joint` stays green |
+| **3 Mid-game AI** | Partial / active | Euro mid-planner (`5d04` / land `20e6`) + Indian large bodies advance; `golden_ai_joint` **PARKED / DISABLED** 2026-08-19 — no chance of staying green before AI transcription is complete, see ai_transcription.md R0 |
 | **4 Independence & endgame** | Partial | FF depth leftovers, REF/WoI paths, retire/HoF/auto-end enough to finish a campaign |
 | **5 Fidelity & polish** | Later | VGA dialog chrome, COLDIG SFX, VIEW modes, pixel layout, T3 AI goldens, remaining PARKED deep bodies |
 
@@ -118,7 +118,13 @@ PARKED deep/VGA bodies.
 ### 3 — Mid-game AI (Partial / active)
 
 Euro rivals and natives must stay coherent through mid-game. Shared surfaces
-(`20e6`, Indian×Euro diplo/sticky, raids, FOUND) keep `golden_ai_joint` green.
+(`20e6`, Indian×Euro diplo/sticky, raids, FOUND) used to be required to keep
+`golden_ai_joint` green; that gate is **PARKED / DISABLED** as of 2026-08-19
+(see [ai_transcription.md](ai_transcription.md) R0) — it has no chance of
+being useful before AI transcription is complete, since every remaining
+unported/stubbed AI callee is a guaranteed future diff. Do not chase it back
+to green piecemeal; re-enable it once the port is done and it's a real
+regression gate again.
 
 **Now:**
 

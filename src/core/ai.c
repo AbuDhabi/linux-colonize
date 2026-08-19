@@ -2363,43 +2363,67 @@ static void ai_indian_152e_village_growth(
   ColonizeCol1Tribe* t = &col1->tribe[tribe_index];
   ColonizeCol1Indian* ind = &col1->indian[nation_id - 4];
 
-  int local_16 = 0;
-  if ((int)t->population < ai_indian_152e_worth_cap_stub(ctx, t)) {
-    local_16 = 2;
-  }
-  if (t->state.needs_colonist) {
-    local_16 = 1;
-  }
-  if (local_16 != 0) {
-    const int acc = (int)t->growth_accum + (int)t->population;
-    if (acc > AI_VILLAGE_GROWTH_THRESHOLD) {
-      t->growth_accum = 0;
-      if (local_16 == 2) {
-        t->population++;
+  /*
+   * Capital-only growth gate, regression fix 2026-08-19 (golden_ai_turns
+   * TURN1->2 tribe[8] pop/acc mismatch). The 2026-08-18 structural rewrite
+   * dropped the prior "FUN_4d56_152e grows capitals only (state.capital)"
+   * check when it replaced the flat `population < 15` cap with
+   * ai_indian_152e_worth_cap_stub — both now unconditionally reachable for
+   * satellite villages too, making them accumulate growth every turn.
+   * Real DOS TURN1.SAV/TURN2.SAV (seed-100) show satellite tribes (non-
+   * capital) with growth_accum frozen at 0 across the turn while capital
+   * tribes accrue normally: the real per-tribe `+4 worth` stat
+   * (FUN_41f2_0294, still unresolved — settlement_record_8d4a.md) is
+   * DS-confirmed much larger for capitals (bit 0x10 capital flag doubles
+   * as a 1000-vs-250 weight multiplier elsewhere, FUN_4d56_417e) so the
+   * `population < worth_cap` gate effectively never opens for satellites
+   * this early. Until FUN_41f2_0294 is resolved, restore the known-good
+   * capital-only restriction rather than guess a satellite worth number.
+   * Scoped to this block only — the friction-roll / mission-relation tail
+   * below still runs per-settlement (every tribe, satellites included);
+   * an earlier version of this fix gated the whole function on capital and
+   * silently dropped satellites' RNG draws there too, desyncing the LCG
+   * stream and breaking TURN6->7 relation_by_indian (94 vs golden 96).
+   */
+  if (t->state.capital) {
+    int local_16 = 0;
+    if ((int)t->population < ai_indian_152e_worth_cap_stub(ctx, t)) {
+      local_16 = 2;
+    }
+    if (t->state.needs_colonist) {
+      local_16 = 1;
+    }
+    if (local_16 != 0) {
+      const int acc = (int)t->growth_accum + (int)t->population;
+      if (acc > AI_VILLAGE_GROWTH_THRESHOLD) {
+        t->growth_accum = 0;
+        if (local_16 == 2) {
+          t->population++;
+        } else {
+          /* local_16 == 1: assign a founding colonist. */
+          int cost = 0x13;
+          if (ind->muskets > 0) {
+            const int roll = dos_rng_range(rng, 0, (int)col1->head.difficulty);
+            if (roll == 0) {
+              ind->muskets--;
+            }
+            cost++;
+          }
+          if (ind->horse_breeding > 0x31) {
+            ind->horse_breeding -= 0x32;
+            cost += 2;
+          }
+          const int spawned = ai_indian_152e_spawn_colonist_stub(ctx, t, cost, tribe_index);
+          if (spawned >= 0) {
+            if (ctx->units && spawned < COLONIZE_UNITS_MAX) {
+              ctx->units->units[spawned].home_tribe_id = tribe_index;
+            }
+            t->state.needs_colonist = 0;
+          }
+        }
       } else {
-        /* local_16 == 1: assign a founding colonist. */
-        int cost = 0x13;
-        if (ind->muskets > 0) {
-          const int roll = dos_rng_range(rng, 0, (int)col1->head.difficulty);
-          if (roll == 0) {
-            ind->muskets--;
-          }
-          cost++;
-        }
-        if (ind->horse_breeding > 0x31) {
-          ind->horse_breeding -= 0x32;
-          cost += 2;
-        }
-        const int spawned = ai_indian_152e_spawn_colonist_stub(ctx, t, cost, tribe_index);
-        if (spawned >= 0) {
-          if (ctx->units && spawned < COLONIZE_UNITS_MAX) {
-            ctx->units->units[spawned].home_tribe_id = tribe_index;
-          }
-          t->state.needs_colonist = 0;
-        }
+        t->growth_accum = (uint8_t)acc;
       }
-    } else {
-      t->growth_accum = (uint8_t)acc;
     }
   }
 

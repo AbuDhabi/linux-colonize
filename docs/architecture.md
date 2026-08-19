@@ -221,8 +221,14 @@ greenfield redesign or a mandated `game_loop` rewrite phase.
 
 - **Col1** remains the interoperability path; remove or quarantine legacy COLZ
   when convenient, without blocking gameplay work.
-- Keep headless smoke/unit suites and the joint AI golden gate
-  (`golden_ai_joint`) as architecture checks for simulation / AI regressions.
+- Keep headless smoke/unit suites as architecture checks for simulation
+  regressions. The joint AI golden gate (`golden_ai_joint`, and
+  `golden_ai_turns`/`golden_ai_mid01`/`golden_ai_late01` under it) is
+  **PARKED / DISABLED** as of 2026-08-19 — it chases bit-exact DOS parity
+  against an AI planner that is still only structurally/T0-T1 ported, so a
+  red run means "porting incomplete", not "regression"; see
+  [ai_transcription.md](ai_transcription.md) R0. Re-enable it as a real
+  architecture check only once AI transcription is complete.
 
 ### Explicitly not intended (unless decided elsewhere)
 

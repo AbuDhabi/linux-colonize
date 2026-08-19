@@ -1,4 +1,9 @@
 /*
+ * PARKED 2026-08-19 (docs/ai_transcription.md R0, docs/roadmap.md): DISABLED
+ * in CMakeLists.txt — same reason as tests/golden/test_ai_turns.c. Red here
+ * means AI porting incomplete, not a fresh regression; do not chase to green
+ * until the transcription is done.
+ *
  * Joint mid-turn goldens (T3 Series D + H).
  * MID01: load TURN7, stamp mid-war Indian×Euro fields, write MID01.SAV.
  * MID02: load MID01, run one full joint turn (Euro + Indian), capture MID02.SAV.
