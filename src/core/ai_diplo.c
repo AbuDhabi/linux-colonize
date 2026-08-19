@@ -1473,6 +1473,49 @@ void ai_diplo_make_peace_ctx(ColonizeTurnContext* ctx, int nation_a, int nation_
   }
 }
 
+/*
+ * FUN_5bfb_12d0, full port (euro_diplo_153e_full.md, resolved 2026-08-19):
+ * for every combat-capable land unit belonging to `nation_b` sitting
+ * adjacent to a settlement owned by `nation_a`, cancel a pending
+ * Fortify/Fortified order (DOS order-state 5/6 -> 0) so the unit re-plans
+ * next act instead of sitting garrisoned against a neighbor whose
+ * diplomatic status just changed. Decomp calls this (A,B) then (B,A) from
+ * the alliance-form path (both sides' border garrisons refreshed).
+ */
+static void ai_diplo_wake_border_garrisons(
+  ColonizeTurnContext* ctx, int nation_a, int nation_b
+) {
+  if (!ctx || !ctx->units || !ctx->colonies) {
+    return;
+  }
+  static const int dx[8] = {0, 1, 1, 1, 0, -1, -1, -1};
+  static const int dy[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    ColonizeUnit* u = units_get(ctx->units, i);
+    if (!u || !u->active || u->nation_id != nation_b || units_is_sea(ctx->units, i)) {
+      continue;
+    }
+    if (u->orders != UNITS_ORDER_FORTIFY && u->orders != UNITS_ORDER_FORTIFIED) {
+      continue;
+    }
+    const ColonizeUnitType* ut = units_type(ctx->units, u->type_index);
+    if (!ut || ut->attack <= 1) {
+      continue;
+    }
+    for (int d = 0; d < 8; ++d) {
+      const int cid = colonies_id_at(ctx->colonies, u->x + dx[d], u->y + dy[d]);
+      if (cid < 0) {
+        continue;
+      }
+      const ColonizeColony* c = colonies_get(ctx->colonies, cid);
+      if (c && c->active && c->nation_id == nation_a) {
+        units_clear_orders(ctx->units, i);
+        break;
+      }
+    }
+  }
+}
+
 void ai_diplo_form_alliance(ColonizeCol1Save* col1, int nation_a, int nation_b) {
   const int was_war = ai_diplo_at_war(col1, nation_a, nation_b);
   ai_diplo_clear_both(col1, nation_a, nation_b, AI_DIPLO_WAR);
@@ -1509,6 +1552,8 @@ void ai_diplo_form_alliance_ctx(ColonizeTurnContext* ctx, int nation_a, int nati
     gold_before = ctx->col1->nation[human].gold;
   }
   ai_diplo_form_alliance(ctx->col1, nation_a, nation_b);
+  ai_diplo_wake_border_garrisons(ctx, nation_a, nation_b);
+  ai_diplo_wake_border_garrisons(ctx, nation_b, nation_a);
   int alliance_chrome = 0;
   if (!was_ally) {
     ai_diplo_status_human_pair(ctx, nation_a, nation_b, "Alliance formed with %s");
