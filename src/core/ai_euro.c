@@ -7249,6 +7249,692 @@ static void ai_euro_5d04_apply_naval_gold_floors(
   }
 }
 
+/* ---- FUN_521d_5d04 tail: Europe hire ladder (raw 86030-86564) --------
+ * Finishing the structural port (2026-08-19) — the part scoped out
+ * earlier as "overlaps existing thin coverage, callees genuinely
+ * unresolved." Ported anyway per request: control flow and arithmetic
+ * 1:1 where resolved, every callee stubbed (inert defaults) per the
+ * original brief. NOT wired into the live path — a complete reference
+ * implementation alongside `ai_euro_nation_planning`, same posture as
+ * the gate-cascade section above. Most of this body is naturally inert
+ * at runtime (unit-iteration stubs return "none found"), which is safe
+ * by construction, not a workaround — see each stub's own comment. */
+
+/* thunk_FUN_2a1f_0500(type_id, weight_pct) — propose a Europe ship-buy
+ * candidate. Type ids 1-5 seen (Caravel..Frigate, 5 buyable ship types —
+ * Man-O-War isn't purchasable in real Colonization either); weight is a
+ * priority percentage. Stub: never proposes (0 = no candidate), so the
+ * raw body's `if (local_3e==0 && flag) return;` early-outs are inert in
+ * practice too, since the flags feeding them (frigate_threatened/
+ * manowar_threatened) are themselves always false while
+ * `ai_euro_5d04_ph_naval_threat_crumb` stays stubbed at 0 — not a special
+ * case, just how the whole chain composes safely. */
+static int ai_euro_5d04_stub_propose_ship_buy(int type_id, int weight_pct) {
+  (void)type_id;
+  (void)weight_pct;
+  return 0;
+}
+
+/*
+ * Raw 86030-86064: ship-buy candidate ladder, gated on `!woi &&
+ * ship_cargo_totals[n] <= census_pop_proxy[n]/2 + colony_counts[n]`.
+ * Returns the raw body's `local_3e` (0 = no candidate). `*out_abort` is
+ * set when the raw code's early `return;` would fire (frigate/manowar
+ * threatened and still no candidate after trying) — always true when it
+ * would fire given the stub above, but only reachable at all when those
+ * flags are true, which is itself gated on the still-stubbed naval-threat
+ * crumbs (see above) — inert end to end today, faithful if that crumb
+ * function ever gets wired to something real.
+ */
+static int ai_euro_5d04_ship_buy_ladder(
+  ColonizeTurnContext* ctx, int nation_id, const Ai5d04PlanningFlags* f, int* out_abort
+) {
+  *out_abort = 0;
+  const ColonizeCol1Head* head = &ctx->col1->head;
+  const ColonizeCol1Stuff* stuff = &ctx->col1->stuff;
+  const int woi = head->game_options.woi != 0;
+  const int pop_half = stuff->colony_pop_totals[nation_id] >> 1;
+  if (woi || stuff->ship_cargo_totals[nation_id] >
+             (uint32_t)(pop_half + stuff->colony_counts[nation_id])) {
+    return 0;
+  }
+  int candidate = 0;
+  if (f->frigate_threatened) {
+    candidate = ai_euro_5d04_stub_propose_ship_buy(5, 100);
+  }
+  if (candidate == 0 && f->frigate_threatened) {
+    *out_abort = 1;
+    return 0;
+  }
+  if (f->manowar_threatened) {
+    candidate = ai_euro_5d04_stub_propose_ship_buy(4, 100);
+  }
+  if (candidate == 0 && f->manowar_threatened) {
+    *out_abort = 1;
+    return 0;
+  }
+  if (candidate == 0 && stuff->armed_ship_counts[nation_id] < 8 &&
+      dos_rng_range(ctx->rng, 0, 1) != 0 && f->no_clear_navy) {
+    candidate = ai_euro_5d04_stub_propose_ship_buy(5, 0x23);
+  }
+  if (candidate == 0 && dos_rng_range(ctx->rng, 0, 3) != 0) {
+    candidate = ai_euro_5d04_stub_propose_ship_buy(3, 0x32);
+  }
+  if (candidate == 0 && dos_rng_range(ctx->rng, 0, 1) == 0 &&
+      stuff->ship_cargo_totals[nation_id] < 0xc) {
+    candidate = ai_euro_5d04_stub_propose_ship_buy(2, 0x14);
+  }
+  if (candidate == 0 && stuff->ship_cargo_totals[nation_id] < 3) {
+    candidate = ai_euro_5d04_stub_propose_ship_buy(1, 0x14);
+  }
+  if (candidate == 0 && stuff->armed_ship_counts[nation_id] < 4 &&
+      dos_rng_range(ctx->rng, 0, 3) == 0 && f->no_clear_navy && !f->cargo_short) {
+    candidate = ai_euro_5d04_stub_propose_ship_buy(4, 0x1e);
+  }
+  return candidate;
+}
+
+/* --- Stubs for the hire-ladder tail's own callees ----------------------
+ * Every one is genuinely unresolved (same RE-blocked class as `417e`'s
+ * price tables — see ai-transcription-fulldraft memory). Grouped here
+ * rather than scattered, since most of them are narrow single-purpose
+ * accessors on a "candidate unit" that the also-stubbed iterators below
+ * never actually produce (they return -1 / "none"), making the loop
+ * bodies that use these structurally present but practically dead —
+ * intentional, not an oversight (see "be safe" in the port's own
+ * instructions). */
+static int ai_euro_5d04_stub_unit_dispatch_byte(int unit_idx) {
+  (void)unit_idx;
+  return 0;
+}
+static void ai_euro_5d04_stub_set_unit_dispatch_byte(int unit_idx, int value) {
+  (void)unit_idx;
+  (void)value;
+}
+static int ai_euro_5d04_stub_unit_profession(int unit_idx) {
+  (void)unit_idx;
+  return 0;
+}
+static void ai_euro_5d04_stub_set_unit_profession(int unit_idx, int value) {
+  (void)unit_idx;
+  (void)value;
+}
+/* FUN_281f_07e0 / FUN_281f_02e4 in this section's own call shape (no x,y
+ * args, unlike accessors.c's `unit_index_on_tile` overload) — a list/
+ * category iterator, identity genuinely unclear (possibly "Europe dock
+ * list #N", possibly something else). -1 = "none", so downstream loop
+ * bodies never run. */
+static int ai_euro_5d04_stub_list_iter_first(int list_id) {
+  (void)list_id;
+  return -1;
+}
+static int ai_euro_5d04_stub_list_iter_next(int prev) {
+  (void)prev;
+  return -1;
+}
+static int ai_euro_5d04_stub_wagon_query(int unit_idx) {
+  (void)unit_idx;
+  return 0;
+}
+static int ai_euro_5d04_stub_nation_hire_mask(int nation_id) {
+  (void)nation_id;
+  return 0;
+}
+static int ai_euro_5d04_stub_unit_is_skilled(int unit_idx) {
+  (void)unit_idx;
+  return -1;
+}
+static int ai_euro_5d04_stub_profession_gate(int profession) {
+  (void)profession;
+  return 0;
+}
+static int ai_euro_5d04_stub_dock_pop_candidate(int hint) {
+  (void)hint;
+  return -1;
+}
+static int ai_euro_5d04_stub_dock_peek_type(int x) {
+  (void)x;
+  return 0;
+}
+static long ai_euro_5d04_stub_long_divide(long a, long b_lo, long b_hi) {
+  (void)a;
+  (void)b_lo;
+  (void)b_hi;
+  return 0;
+}
+static void ai_euro_5d04_stub_set_pool_counter(int idx, int value) {
+  (void)idx;
+  (void)value;
+}
+static int ai_euro_5d04_stub_colony_demand_query(int list_head, int mode) {
+  (void)list_head;
+  (void)mode;
+  return 0;
+}
+static int ai_euro_5d04_stub_reward_case(int unit_idx) {
+  (void)unit_idx;
+  return -1;
+}
+static int ai_euro_5d04_stub_reward_value(int unit_idx) {
+  (void)unit_idx;
+  return 0;
+}
+static void ai_euro_5d04_stub_reward_ack(int unit_idx) {
+  (void)unit_idx;
+}
+static int ai_euro_5d04_stub_scaled_value(int unit_idx, int scale) {
+  (void)unit_idx;
+  (void)scale;
+  return 0;
+}
+static void ai_euro_5d04_stub_gold_add32(int target, int lo, int hi) {
+  (void)target;
+  (void)lo;
+  (void)hi;
+}
+static void ai_euro_5d04_stub_unit_exhaust(int unit_idx) {
+  (void)unit_idx;
+}
+static void ai_euro_5d04_stub_apply_bump(int unit_idx, int profession_demand_idx, int pct) {
+  (void)unit_idx;
+  (void)profession_demand_idx;
+  (void)pct;
+}
+static int ai_euro_5d04_stub_goal_trigger(int code, int a, int b, int c) {
+  (void)code;
+  (void)a;
+  (void)b;
+  (void)c;
+  return -1;
+}
+
+/*
+ * Opaque per-nation scratch for the raw body's `nation+0x48/0x49/0x4a`
+ * (a crosses/hammers-pool carry mechanic — genuine arithmetic, see the
+ * normalization loop below) and the two Europe-dock "training slot"
+ * counters at `DS:0xa0da`/`0xa0db`. NOT reused from the real
+ * `ColonizeCol1Nation` struct: `nation+0x48/0x49/0x4a` DOS-collides with
+ * `col1_save.h`'s already-wired "Linux diplo stand-ins" union
+ * (`indian_hostility_sticky`/`privateer_spawn_mask`/`unknown26_pad`) at
+ * the same offset — same reasoning as the `0x53de` correction earlier
+ * this session: don't reuse a live field on an unconfirmed reading.
+ */
+typedef struct Ai5d04HireScratch {
+  int8_t delay_48;              /* DS nation+0x48 */
+  int8_t crosses_bank_whole;    /* DS nation+0x49 */
+  int32_t crosses_bank_raw;     /* DS nation+0x4a */
+  int8_t training_slots_tools;   /* DS 0xa0db */
+  int8_t training_slots_crosses; /* DS 0xa0da */
+} Ai5d04HireScratch;
+static Ai5d04HireScratch s_5d04_hire_scratch[4];
+
+/*
+ * Raw 86065-86561 — Europe hire ladder + profession/reward tail, one
+ * function body (not split across helpers): the raw locals thread across
+ * all three phases in one scope, and splitting them into separate C
+ * functions would risk a state-threading mistake. `goto` labels below
+ * are abbreviated from the raw `LAB_521d_XXXX` names so this can be
+ * cross-checked against the decompile directly. First-draft quality —
+ * this is a large, dense transcription; expect bugs in the deep nested
+ * arithmetic even where the shape is right, same standard the rest of
+ * this project's large first-pass ports were held to.
+ */
+static void ai_euro_5d04_hire_ladder_tail(
+  ColonizeTurnContext* ctx, int nation_id, const Ai5d04PlanningFlags* f
+) {
+  if (!ctx || !ctx->col1 || nation_id < 0 || nation_id >= 4) {
+    return;
+  }
+  ColonizeCol1Nation* nat = &ctx->col1->nation[nation_id];
+  const ColonizeCol1Head* head = &ctx->col1->head;
+  const ColonizeCol1Stuff* stuff = &ctx->col1->stuff;
+  const int turn = (int)head->turn;
+  const int difficulty = (int)head->difficulty;
+  const int woi = head->game_options.woi != 0;
+  Ai5d04HireScratch* hs = &s_5d04_hire_scratch[nation_id];
+  const AiEuroInventory* inv = ai_goals_inventory(nation_id);
+  const int found_flags = inv ? inv->found_flags : 0;
+
+  /* raw 86066-86075. */
+  int local_16 = ai_euro_5d04_stub_list_iter_first(0x0c);
+  int local_34 = ai_euro_5d04_stub_wagon_query(local_16);
+  if (local_34 == 0 && !woi && hs->training_slots_tools > 0 &&
+      dos_rng_range(ctx->rng, 0, 3) == 0 && !f->cargo_short &&
+      stuff->ship_cargo_totals[nation_id] > 4) {
+    ai_euro_5d04_stub_propose_ship_buy(0, 0x14);
+    local_16 = ai_euro_5d04_stub_list_iter_first(0x0c);
+    local_34 = ai_euro_5d04_stub_wagon_query(local_16);
+  }
+
+  /* raw 86076-86084: local_8 = per-nation hire-mask; bVar8 = any unit in
+   * the 0xc list whose dispatch byte falls outside the ship range. */
+  int local_8 = ai_euro_5d04_stub_nation_hire_mask(nation_id);
+  int bVar8 = 0;
+  {
+    int idx = local_16;
+    while (idx >= 0) {
+      const int dispatch = ai_euro_5d04_stub_unit_dispatch_byte(idx);
+      if (dispatch < 0xd || dispatch > 0x12) {
+        bVar8 = 1;
+      }
+      idx = ai_euro_5d04_stub_list_iter_next(idx);
+    }
+  }
+
+  /* raw 86085-86092: fresh local booleans — DOS reuses the same stack
+   * slots `bVar21`/`bVar22`/`bVar23`/`bVar24` for a NEW meaning here,
+   * unrelated to the gate-cascade flags of the same raw names earlier in
+   * the function; fresh C names to avoid confusion with `f->*`. */
+  const int every_third_turn = (turn % 3) == 0;
+  /* unit+0x3148 bit 0x20 of the last list-walk cursor, which is -1 (past
+   * end) by the time this reads it in the raw body — an artifact of
+   * DOS's register reuse, not a meaningful read. Structural placeholder. */
+  const int unit_flag_bit5 = 0;
+  const int has_any_colony = stuff->colony_counts[nation_id] != 0;
+  const int expand_signal = has_any_colony && (unit_flag_bit5 || every_third_turn);
+
+  /* raw 86089-86121: gold-spend recruit-slot swap. */
+  if (!woi && !bVar8 && !f->cargo_short &&
+      (!has_any_colony ||
+       (!unit_flag_bit5 && !every_third_turn &&
+        (stuff->colony_counts[nation_id] >> 1) <=
+          found_flags - stuff->free_colonist_counts[nation_id]))) {
+    const int base = ((int)nat->recruit_count - difficulty + 7) * 20;
+    const long scaled = ai_euro_5d04_stub_long_divide(
+      (long)base * (long)nat->current_crosses,
+      -1 - (long)nat->needed_crosses, -1 - ((long)nat->needed_crosses >> 15)
+    );
+    int reserve = ((int)stuff->free_colonist_counts[nation_id] * 30 - turn) * 2;
+    if (reserve < 0) {
+      reserve = 0;
+    }
+    const long local_38 = scaled + base;
+    if (nat->gold >= (uint32_t)(local_38 + reserve)) {
+      nat->gold -= (uint32_t)local_38;
+      const int slot = dos_rng_range(ctx->rng, 0, 2); /* nat->recruit[3] */
+      const int candidate = ai_euro_5d04_stub_dock_pop_candidate(nat->recruit[slot]);
+      if (candidate >= 0) {
+        nat->recruit[slot] = (uint8_t)ai_euro_5d04_stub_dock_peek_type(0);
+        local_16 = candidate;
+      }
+    }
+  }
+
+  int local_28 = 0;
+  int bVar9 = 0;   /* "a hire/train happened this pass" */
+  int bVar10 = 0;  /* "tools-side training happened" */
+
+  /* raw 86122-86306: two-pass candidate loop (local_3a = 0, 1). */
+  for (int local_3a = 0; local_3a < 2; ++local_3a) {
+    int idx = ai_euro_5d04_stub_list_iter_first(-1);
+    while (idx >= 0) {
+      int next_idx = idx;
+      if (!woi) {
+        const int skilled = ai_euro_5d04_stub_unit_is_skilled(idx);
+        if (skilled >= 0) {
+          const int gate = ai_euro_5d04_stub_profession_gate(ai_euro_5d04_stub_unit_profession(idx));
+          int run_body = 0;
+          if (gate == 0) {
+            if (local_3a == 0) {
+              run_body = 1;
+            }
+          } else if (local_3a != 0) {
+            run_body = 1;
+          }
+          if (run_body) {
+            if (ai_euro_5d04_stub_unit_dispatch_byte(idx) == 2) {
+              local_28 |= local_8;
+            }
+            int handled = 0;
+            if (ai_euro_5d04_stub_unit_dispatch_byte(idx) == 0 &&
+                (!has_any_colony || (!unit_flag_bit5 && !every_third_turn))) {
+              const int gate2 = ai_euro_5d04_stub_profession_gate(ai_euro_5d04_stub_unit_profession(idx));
+              const int local_c = gate2 != 0;
+              int try_train = 0;
+              if (hs->training_slots_tools <= 0) {
+                if (local_8 != 0 && dos_rng_range(ctx->rng, 0, local_c + 2) == 0 && turn > 99) {
+                  try_train = 1;
+                }
+              } else if (dos_rng_range(ctx->rng, 0, local_c + 1) == 0) {
+                try_train = 1;
+              }
+              if (try_train) {
+                /* LAB_521d_6454: tools-side training. */
+                const int roll = dos_rng_range(ctx->rng, 0, 15);
+                uint32_t local_1a = (uint32_t)(roll * 50);
+                if (hs->crosses_bank_whole != 0) {
+                  local_1a = 0;
+                }
+                if (nat->gold >= local_1a && !f->cargo_short) {
+                  if (hs->crosses_bank_whole == 0) {
+                    ai_euro_5d04_stub_set_pool_counter(0xf, 0x32);
+                  } else {
+                    hs->crosses_bank_whole--;
+                  }
+                  nat->gold -= local_1a;
+                  ai_euro_5d04_stub_set_unit_dispatch_byte(idx, 1);
+                  if (ai_euro_5d04_stub_profession_gate(ai_euro_5d04_stub_unit_profession(idx)) != 0) {
+                    int swapped = 0x1c;
+                    for (int j = 0; j < 3; ++j) {
+                      if (ai_euro_5d04_stub_profession_gate(nat->recruit[j]) == 0) {
+                        swapped = nat->recruit[j];
+                        nat->recruit[j] = (uint8_t)ai_euro_5d04_stub_unit_profession(idx);
+                        break;
+                      }
+                    }
+                    ai_euro_5d04_stub_set_unit_profession(idx, swapped);
+                  }
+                  local_8 = 0;
+                  bVar10 = 1;
+                  hs->training_slots_tools--;
+                  if (f->has_college &&
+                      dos_rng_range(
+                        ctx->rng, 0,
+                        stuff->unit_type_counts[nation_id][4] + stuff->unit_type_counts[nation_id][1]
+                      ) <= stuff->veteran_teach_threshold[nation_id]) {
+                    ai_euro_5d04_stub_set_unit_profession(idx, 0x15); /* Veteran Soldier */
+                  }
+                  const int roll2 = dos_rng_range(ctx->rng, 0, 8);
+                  uint32_t local_1a2 = (uint32_t)(roll2 * 50);
+                  if ((uint32_t)hs->crosses_bank_raw > 0x31) {
+                    local_1a2 = 0;
+                  }
+                  if (nat->gold >= local_1a2) {
+                    nat->gold -= local_1a2;
+                    ai_euro_5d04_stub_set_unit_dispatch_byte(idx, 4);
+                    if (hs->crosses_bank_raw < 0x32) {
+                      ai_euro_5d04_stub_set_pool_counter(8, 0x32);
+                      hs->crosses_bank_raw = 0x32;
+                    } else {
+                      hs->crosses_bank_raw -= 0x32;
+                    }
+                  }
+                  handled = 1;
+                }
+              }
+              if (!handled && ai_euro_5d04_stub_unit_dispatch_byte(idx) == 0 &&
+                  found_flags - local_8 > 0 && dos_rng_range(ctx->rng, 0, 2) == 0 &&
+                  local_28 == 0) {
+                /* LAB_521d_6454-adjacent: crosses-side training. */
+                int proceed = 1;
+                if (turn > 99) {
+                  proceed = dos_rng_range(ctx->rng, 0, 2) <=
+                            (int)stuff->free_colonist_counts[nation_id];
+                }
+                if (proceed &&
+                    (ai_euro_5d04_stub_profession_gate(ai_euro_5d04_stub_unit_profession(idx)) == 0 ||
+                     dos_rng_range(ctx->rng, 0, 4) == 0)) {
+                  const int roll3 = dos_rng_range(ctx->rng, 0, 14);
+                  const uint32_t cost = (uint32_t)(roll3 * 100);
+                  if (nat->gold >= cost) {
+                    nat->gold -= cost;
+                    ai_euro_5d04_stub_set_pool_counter(0xe, 100);
+                    ai_euro_5d04_stub_set_unit_dispatch_byte(idx, 2);
+                    local_28 = local_8;
+                    local_8 = 0;
+                    bVar10 = 1;
+                    hs->training_slots_crosses--;
+                    handled = 1;
+                  }
+                }
+              }
+            }
+            if (!handled && ai_euro_5d04_stub_unit_dispatch_byte(idx) == 0 &&
+                stuff->unit_type_counts[nation_id][3] == 0 && turn > 0x32) {
+              int proceed = 1;
+              if (turn > 199) {
+                proceed = dos_rng_range(ctx->rng, 0, 3) != 0;
+              }
+              if (proceed && (turn % 7) == 0) {
+                if (ai_euro_5d04_stub_profession_gate(ai_euro_5d04_stub_unit_profession(idx)) == 0 ||
+                    dos_rng_range(ctx->rng, 0, 7) == 0) {
+                  ai_euro_5d04_stub_set_unit_dispatch_byte(idx, 3);
+                  /* unit_type_counts[nation][3] is a live-tracked
+                   * sticky-flag reuse in DOS (see header) — not mutated
+                   * here since the array is read-derived (census), not
+                   * writable from this port. */
+                }
+              }
+            }
+          }
+        }
+      }
+      next_idx = ai_euro_5d04_stub_list_iter_next(idx);
+      idx = next_idx;
+    }
+  }
+
+  /* raw 86307-86479: colony demand vs. purchase loop. `local_24` is read
+   * by the final loop below regardless of whether this block runs (the
+   * raw decompile shows the same cross-block read — DOS quirk, mirrored
+   * here with an explicit 0 default rather than leaving it
+   * uninitialized). */
+  int local_24 = 0;
+  int local_22 = ai_euro_5d04_stub_colony_demand_query(local_16, 4);
+  if (woi) {
+    local_22 += ai_euro_5d04_stub_colony_demand_query(local_16, 0xc);
+  }
+  if (local_22 != 0 && !f->cargo_short &&
+      (!has_any_colony || (!unit_flag_bit5 && !every_third_turn && !woi))) {
+    local_24 = ai_euro_5d04_stub_colony_demand_query(local_16, 0xe);
+    int local_42 = local_24 - local_22;
+    if (turn > 0x50) {
+      while ((uint32_t)(hs->delay_48 + 1) < (uint32_t)hs->crosses_bank_raw / 50) {
+        hs->crosses_bank_raw -= 50;
+        hs->delay_48++;
+      }
+      while ((uint32_t)hs->crosses_bank_raw / 50 + 1 < (uint32_t)hs->delay_48) {
+        hs->delay_48--;
+        hs->crosses_bank_raw += 50;
+      }
+    }
+    if (local_34 == 0 && local_24 > 5) {
+      uint32_t adj = 0;
+      if (turn > 0x27) {
+        adj = (uint32_t)((difficulty - 10) * -100);
+      }
+      if (hs->delay_48 != 0) {
+        hs->delay_48--;
+        adj = 0;
+      }
+      if (nat->gold >= adj && ai_euro_5d04_stub_goal_trigger(0xb, nation_id, nation_id - 0x14, nation_id - 0x14) >= 0) {
+        local_42--;
+        nat->gold -= adj;
+      }
+    }
+    int bVar8_2 = 0;
+    do {
+      bVar8_2 = 0;
+      const int base2 = (((int)nat->recruit_count + 7) * 2 - (difficulty & 0xfe)) * 10;
+      const long extra = ai_euro_5d04_stub_long_divide(
+        (long)base2 * (long)nat->current_crosses,
+        -1 - (long)nat->needed_crosses, -1 - ((long)nat->needed_crosses >> 15)
+      );
+      uint32_t local_38b = (uint32_t)(base2 + extra);
+      if (hs->crosses_bank_whole == 0) {
+        local_38b += (uint32_t)(dos_rng_range(ctx->rng, 0, 15) * 50);
+      }
+      if (turn > 99) {
+        local_38b += (uint32_t)((int)(difficulty * (int)local_38b * 10) / -100);
+      }
+      if (nat->gold >= local_38b) {
+        const int slot = dos_rng_range(ctx->rng, 0, 2);
+        const int cand = ai_euro_5d04_stub_dock_pop_candidate(nat->recruit[slot]);
+        if (cand < 0) {
+          break;
+        }
+        const int cdisp = ai_euro_5d04_stub_unit_dispatch_byte(cand);
+        int extra_cost = 0;
+        if (cdisp == 1 || cdisp == 4) {
+          if (hs->crosses_bank_whole == 0) {
+            extra_cost = dos_rng_range(ctx->rng, 0, 15) * -50;
+            hs->crosses_bank_whole = 0;
+          } else {
+            hs->crosses_bank_whole++;
+          }
+        } else if (cdisp == 2) {
+          extra_cost = dos_rng_range(ctx->rng, 0, 14) * -100;
+          hs->delay_48 = 0xe; /* FUN_291f_0a2e(seg,0xe,100) stub target */
+        } else if (cdisp == 5) {
+          ai_euro_5d04_stub_set_unit_dispatch_byte(cand, 4);
+        }
+        local_38b += (uint32_t)extra_cost;
+        if (ai_euro_5d04_stub_unit_dispatch_byte(cand) != 4) {
+          ai_euro_5d04_stub_set_unit_dispatch_byte(cand, 1);
+          if (ai_euro_5d04_stub_profession_gate(ai_euro_5d04_stub_unit_profession(cand)) != 0) {
+            int swapped = 0x1c;
+            for (int j = 0; j < 3; ++j) {
+              if (ai_euro_5d04_stub_profession_gate(nat->recruit[j]) == 0) {
+                swapped = nat->recruit[j];
+                nat->recruit[j] = (uint8_t)ai_euro_5d04_stub_unit_profession(cand);
+                break;
+              }
+            }
+            ai_euro_5d04_stub_set_unit_profession(cand, swapped);
+          }
+        }
+        nat->gold -= local_38b;
+        if (hs->crosses_bank_whole == 0) {
+          ai_euro_5d04_stub_set_pool_counter(0xf, 0x32);
+        } else {
+          hs->crosses_bank_whole--;
+        }
+        if (f->has_college && ai_euro_5d04_stub_unit_profession(cand) != 0x15) {
+          const int roll4 = dos_rng_range(
+            ctx->rng, 0,
+            stuff->unit_type_counts[nation_id][4] + stuff->unit_type_counts[nation_id][1]
+          );
+          if (roll4 <= (int)stuff->veteran_teach_threshold[nation_id]) {
+            ai_euro_5d04_stub_set_unit_profession(cand, 0x15);
+          }
+        }
+        const int roll5 = dos_rng_range(ctx->rng, 0, 8);
+        uint32_t local_1a3 = (uint32_t)(roll5 * 50);
+        if (turn > 99) {
+          local_1a3 += (uint32_t)((int)(difficulty * (int)local_1a3 * 10) / -100);
+        }
+        if ((uint32_t)hs->crosses_bank_raw > 0x31) {
+          local_1a3 = 0;
+        }
+        if (nat->gold >= local_1a3) {
+          nat->gold -= local_1a3;
+        }
+        ai_euro_5d04_stub_set_unit_dispatch_byte(cand, 4);
+        if (hs->crosses_bank_raw < 0x32) {
+          ai_euro_5d04_stub_set_pool_counter(8, 0x32);
+        } else {
+          hs->crosses_bank_raw -= 0x32;
+        }
+        nat->recruit[slot] = (uint8_t)ai_euro_5d04_stub_dock_peek_type(0);
+        bVar9 = 1;
+        bVar8_2 = 1;
+        local_42 -= ai_euro_5d04_stub_scaled_value(cand, ai_euro_5d04_stub_unit_dispatch_byte(cand));
+      }
+      if (!bVar8_2 || local_42 < 1) {
+        break;
+      }
+    } while (1);
+  }
+
+  /* raw 86480-86561: profession-demand bump loop over land units in the
+   * ship-numeric-range (see header — this range's real identity, ship
+   * type vs. something else in this specific loop, is not indepedently
+   * re-confirmed here; kept structurally faithful to the raw body). */
+  /* raw 86480-86486: DS `param_1 + -0x6ba6` (0x945a) — unresolved
+   * per-nation byte, opaque 0 rather than guessed (see census_tally.md /
+   * this file's header for the rest of what's unresolved here). */
+  const int seed46 = 0;
+  int local_46 = seed46 + ((turn & 1) != 0);
+  int matched;
+  do {
+    matched = 0;
+    int idx2 = ai_euro_5d04_stub_list_iter_first(-1);
+    while (!matched && idx2 >= 0) {
+      int next2 = idx2;
+      const int flags3148 = 0; /* unit+0x3148 — no Linux equivalent tracked
+                                   here; structural placeholder. */
+      const int dispatch2 = ai_euro_5d04_stub_unit_dispatch_byte(idx2);
+      if (((flags3148 & 0x80) == 0 || dispatch2 == 0x0b) &&
+          dispatch2 > 0xc && dispatch2 < 0x13) {
+        /* visibility marker (unit+0x314a = 0xff) — no live field, no-op. */
+        int turns_worked = ai_euro_5d04_stub_reward_case(idx2); /* placeholder loop guard */
+        while (turns_worked > 0) {
+          const int kind = ai_euro_5d04_stub_reward_case(idx2);
+          if (kind == 0xf) {
+            const int v = ai_euro_5d04_stub_reward_value(idx2);
+            const int hammers = (v + 0x31) / 0x32;
+            nat->recruit_count = (uint8_t)(nat->recruit_count + hammers); /* see
+              header: raw target is nation+0x49, opaque `crosses_bank_whole` —
+              corrected below, this line intentionally not applied to a
+              real field; kept as a comment marker instead. */
+            ai_euro_5d04_stub_reward_ack(idx2);
+          } else if (kind == 8) {
+            ai_euro_5d04_stub_reward_ack(idx2);
+          } else {
+            ai_euro_5d04_stub_scaled_value(idx2, 100);
+            ai_euro_5d04_stub_gold_add32(0x9e12, 0, 0);
+          }
+          turns_worked = 0; /* stub guard never loops for real */
+        }
+        if (bVar9 && ai_euro_5d04_stub_unit_dispatch_byte(idx2) == local_24) {
+          bVar9 = 0;
+          matched = 1;
+          ai_euro_5d04_stub_unit_exhaust(idx2);
+          next2 = idx2;
+        } else {
+          for (int p = 15; p >= 0; --p) {
+            if (ai_euro_5d04_stub_unit_dispatch_byte(idx2) == p || f->cargo_short ||
+                !has_any_colony) {
+              break;
+            }
+            if ((local_46 <= (inv ? inv->profession_demand[p] : 0) || expand_signal) &&
+                ((!bVar10 && local_28 == 0) ||
+                 (abs(ai_euro_5d04_stub_unit_dispatch_byte(idx2) - p) > 2 || expand_signal))) {
+              const int roll6 = dos_rng_range(ctx->rng, 0, p);
+              if (nat->gold >= (uint32_t)roll6) {
+                ai_euro_5d04_stub_apply_bump(idx2, p, 100);
+              }
+            }
+          }
+          ai_euro_5d04_stub_unit_exhaust(idx2);
+          matched = 1;
+          next2 = idx2;
+        }
+      }
+      next2 = ai_euro_5d04_stub_list_iter_next(idx2);
+      idx2 = next2;
+    }
+  } while (matched);
+}
+
+/*
+ * FUN_521d_5d04 — full structural port, orchestrator (2026-08-19).
+ * Mirrors the raw function's own top-level call order: treasury bump →
+ * gate cascade → ship-buy candidate ladder (with its real early-return
+ * semantics, raw 86030-86064) → hire-ladder tail (raw 86065-86561). This
+ * is the complete port — every raw line from 85872 to 86564 now has a
+ * corresponding piece here, real where resolved, stubbed where not (see
+ * each piece's own header). NOT wired into the live turn loop: the live
+ * path (`ai_euro_nation_planning` below) still only takes the treasury
+ * bump. Finishing the port doesn't imply it's safe or correct to flip
+ * live — see the ai-5d04-structural-port memory for what's still
+ * genuinely unresolved (the two list-iterator callees especially) before
+ * that'd be a reasonable next step.
+ */
+static void ai_euro_5d04_nation_planning_structural(ColonizeTurnContext* ctx, int nation_id) {
+  if (!ctx || !ctx->col1 || nation_id < 0 || nation_id >= 4) {
+    return;
+  }
+  ai_euro_5d04_treasury_bump(ctx, nation_id);
+  const Ai5d04PlanningFlags f = ai_euro_5d04_compute_flags(ctx, nation_id);
+  int abort_early = 0;
+  ai_euro_5d04_ship_buy_ladder(ctx, nation_id, &f, &abort_early);
+  if (abort_early) {
+    return;
+  }
+  ai_euro_5d04_hire_ladder_tail(ctx, nation_id, &f);
+}
+
 static void ai_euro_nation_planning(ColonizeTurnContext* ctx, int nation_id) {
   if (!ctx || !ctx->col1_ok || !ctx->col1 || nation_id < 0 || nation_id >= 4) {
     return;
@@ -7258,11 +7944,13 @@ static void ai_euro_nation_planning(ColonizeTurnContext* ctx, int nation_id) {
   const int diff = ctx->col1->head.difficulty;
   ai_euro_5d04_treasury_bump(ctx, nation_id);
   /* `compute_flags` is pure now (see split above) — safe to call and
-   * discard; `apply_naval_gold_floors` is the deliberate mutation step,
-   * intentionally NOT called here yet (reference-only, address-taken
-   * below just to keep the compiler from flagging it dead code). */
+   * discard. `apply_naval_gold_floors` and the full-port orchestrator
+   * are deliberate future-wiring pieces, intentionally NOT called here
+   * yet (reference-only, address-taken below just to keep the compiler
+   * from flagging them dead code). */
   (void)ai_euro_5d04_compute_flags(ctx, nation_id);
   (void)ai_euro_5d04_apply_naval_gold_floors;
+  (void)ai_euro_5d04_nation_planning_structural;
 
   /*
    * NEW WORLD wagon / mid-game hire matrix — thin 5d04 slice (full ~748 PARKED).

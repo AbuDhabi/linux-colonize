@@ -72,7 +72,11 @@ extern int probe_adjacent_contact_claim(int x, int y, int nation_id, int unk);
  * Wagon Train/Supply Train/Wagon type → hire wagon once (TOOLS on wagon);
  * else tools_short>20 prefer Pioneer/Hardy + ship +20 TOOLS or colony +15.
  * No Europe free-space ship → thin buy ladder **Done**: Caravel 1000$ /
- * Merchantman 2000$ (cargo) / Galleon 3000$ / Frigate 5000$ (at war). Deeper 5d04 OPEN.
+ * Merchantman 2000$ (cargo) / Galleon 3000$ / Frigate 5000$ (at war).
+ * **Full structural port complete, 2026-08-19** (`ai_euro_5d04_nation_
+ * planning_structural` in `ai_euro.c`, raw 85872-86564 end to end) — not
+ * wired live, a reference implementation alongside this thin function.
+ * See `ai-5d04-structural-port` memory for the resolved-symbol table.
  */
 void euro_nation_planning(int nation_id) {
   (void)nation_id;
