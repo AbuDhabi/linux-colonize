@@ -206,41 +206,115 @@ static void sound_emit_note(
  * original_sources_annotated/sound/). Bytes <= 0xBA are note/duration pairs;
  * F8 is program change (C2 is CC 91 reverb; C3 is hardware patch — unused in songs).
  */
-static void sound_decode_track(
-  SoundSong* song,
-  const uint8_t* ds_img,
-  size_t ds_size,
-  uint16_t start_off,
-  uint8_t channel
+
+typedef struct {
+  uint32_t wait_ticks;
+  size_t pos;
+  uint8_t velocity;
+  uint8_t artic_sub;
+  uint8_t artic_abs;
+  uint8_t transpose;
+  uint8_t volume;
+  int8_t vol_delta;
+  uint8_t vol_period;
+  uint8_t vol_count;
+  size_t loop_start;
+  int loop_count;
+  size_t nest_start;
+  int nest_count;
+  size_t call_stack[SOUND_MAX_CALL_DEPTH];
+  int call_depth;
+  bool active;
+  bool play_notes;
+  uint8_t channel;
+  int stuck;
+} SoundTrackState;
+
+static void sound_decode_tracks(
+  SoundSong* song, const uint8_t* ds_img, size_t ds_size, uint16_t* track_offs, int track_count
 ) {
-  if (!song || !ds_img || ds_size == 0 || (size_t)start_off >= ds_size) {
-    return;
+  if (!song || !ds_img || ds_size == 0 || track_count == 0) return;
+
+  SoundTrackState tracks[SOUND_MAX_TRACKS];
+  memset(tracks, 0, sizeof(tracks));
+  for (int t = 0; t < track_count; ++t) {
+    tracks[t].pos = track_offs[t];
+    tracks[t].active = true;
+    tracks[t].play_notes = true;
+    tracks[t].channel = t & 0x0f;
+    tracks[t].velocity = 64;
+    tracks[t].volume = 100;
+    tracks[t].loop_start = track_offs[t];
+    tracks[t].nest_start = track_offs[t];
   }
 
   uint32_t time = 0;
-  size_t pos = start_off;
-  uint8_t velocity = 64;
-  uint8_t artic_sub = 0; /* F7: gate = dur - artic_sub */
-  uint8_t artic_abs = 0; /* F6: gate = artic_abs when nonzero */
-  uint8_t transpose = 0; /* EE */
-  uint8_t volume = 100;  /* CC7; F1/F3 */
-  int8_t vol_delta = 0;  /* F3 */
-  uint8_t vol_period = 0;
-  uint8_t vol_count = 0;
-  uint8_t regs[64]; /* FUN_1000_01fd DS:5c+reg — song ALU / cond jumps */
+  uint8_t regs[64];
   memset(regs, 0, sizeof(regs));
 
-  size_t loop_start = start_off;
-  int loop_count = 0;
-  int nest_count = 0;
-  size_t nest_start = start_off;
-  size_t call_stack[SOUND_MAX_CALL_DEPTH];
-  int call_depth = 0;
-  int stuck = 0;
-
   while (time < SOUND_MAX_TRACK_TICKS && song->event_count < SOUND_MAX_EVENTS - 8) {
+    uint32_t min_wait = 0xFFFFFFFF;
+    int active_count = 0;
+    for (int t = 0; t < track_count; ++t) {
+      if (tracks[t].active) {
+        active_count++;
+        if (tracks[t].wait_ticks < min_wait) min_wait = tracks[t].wait_ticks;
+      }
+    }
+    if (active_count == 0) break;
+
+    if (min_wait > 0 && min_wait != 0xFFFFFFFF) {
+      for (uint32_t tick = 0; tick < min_wait; ++tick) {
+        time++;
+        for (int t = 0; t < track_count; ++t) {
+          if (tracks[t].active && tracks[t].vol_delta != 0) {
+            tracks[t].vol_count++;
+            if (tracks[t].vol_count >= tracks[t].vol_period) {
+              tracks[t].vol_count = 0;
+              int new_vol = (int)tracks[t].volume + tracks[t].vol_delta;
+              if (new_vol < 0) new_vol = 0;
+              if (new_vol > 127) { new_vol = 127; tracks[t].vol_delta = 0; }
+              if (new_vol == 0) { tracks[t].vol_delta = 0; }
+              tracks[t].volume = (uint8_t)new_vol;
+              sound_push_event(song, time, 0xb0, 7, tracks[t].volume, tracks[t].channel);
+            }
+          }
+        }
+      }
+      for (int t = 0; t < track_count; ++t) {
+        if (tracks[t].active) tracks[t].wait_ticks -= min_wait;
+      }
+    }
+
+    bool any_zero_delay = false;
+    for (int current_t = 0; current_t < track_count; ++current_t) {
+      if (tracks[current_t].active && tracks[current_t].wait_ticks == 0) {
+        any_zero_delay = true;
+        SoundTrackState* trk = &tracks[current_t];
+
+#define pos (trk->pos)
+#define velocity (trk->velocity)
+#define artic_sub (trk->artic_sub)
+#define artic_abs (trk->artic_abs)
+#define transpose (trk->transpose)
+#define volume (trk->volume)
+#define vol_delta (trk->vol_delta)
+#define vol_period (trk->vol_period)
+#define vol_count (trk->vol_count)
+#define loop_start (trk->loop_start)
+#define loop_count (trk->loop_count)
+#define nest_start (trk->nest_start)
+#define nest_count (trk->nest_count)
+#define call_stack (trk->call_stack)
+#define call_depth (trk->call_depth)
+#define channel (trk->channel)
+#define play_notes (trk->play_notes)
+#define stuck (trk->stuck)
+
+        uint32_t op_dur = 0;
+        if (pos >= ds_size) { trk->active = false; break; }
     if (pos >= ds_size) {
-      break;
+      trk->active = false; break;
     }
     const size_t pos_before = pos;
     const uint8_t op = ds_img[pos];
@@ -255,51 +329,46 @@ static void sound_decode_track(
 
       if (note_raw == 0 && dur == 0) {
         /* Terminal rest used at track ends — stop expanding. */
-        break;
+        trk->active = false; break;
       }
 
       const uint8_t gate = sound_note_gate(dur, artic_abs, artic_sub);
-      if (note_raw == 0) {
-        sound_advance_time(
-          song, &time, dur ? (uint32_t)dur : 1u, channel, &volume, &vol_delta, vol_period, &vol_count
-        );
+      if (note_raw == 0 || !play_notes) {
+        op_dur = dur ? (uint32_t)dur : 1u;
       } else {
         sound_emit_note(
           song, time, channel, (int)note_raw + (int8_t)transpose, velocity, dur, gate
         );
-        sound_advance_time(
-          song, &time, dur ? (uint32_t)dur : 1u, channel, &volume, &vol_delta, vol_period, &vol_count
-        );
+        op_dur = dur ? (uint32_t)dur : 1u;
       }
       stuck = 0;
-      continue;
     }
 
     /* Opcode 0xBB..0xFF — FUN_1000_01fd */
     switch (op) {
       case 0xF4: /* velocity → voice+6 */
         if (pos + 1 >= ds_size) {
-          return;
+          trk->active = false; break;
         }
         velocity = ds_img[pos + 1];
         pos += 2;
         break;
       case 0xF8: /* program change */
         if (pos + 1 >= ds_size) {
-          return;
+          trk->active = false; break;
         }
         sound_push_event(song, time, 0xc0, ds_img[pos + 1] & 0x7f, 0, channel);
         pos += 2;
         break;
       case 0xC3: /* FUN_1000_01bf → hardware patch queue; not in song streams */
         if (pos + 1 >= ds_size) {
-          return;
+          trk->active = false; break;
         }
         pos += 2;
         break;
       case 0xC4: /* far call via stream word — treat like FA into DS when in range */
         if (pos + 2 >= ds_size) {
-          return;
+          trk->active = false; break;
         }
         {
           const uint16_t abs = (uint16_t)(ds_img[pos + 1] | ((uint16_t)ds_img[pos + 2] << 8));
@@ -330,7 +399,7 @@ static void sound_decode_track(
       case 0xD4: {
         /* 5-byte cond jump: op, a, b|imm, tgt_lo, tgt_hi (FUN_1000_01fd). */
         if (pos + 4 >= ds_size) {
-          return;
+          trk->active = false; break;
         }
         const uint8_t a = ds_img[pos + 1] & 63;
         const uint8_t b = ds_img[pos + 2];
@@ -386,7 +455,7 @@ static void sound_decode_track(
       case 0xE8:
       case 0xE9: {
         if (pos + 2 >= ds_size) {
-          return;
+          trk->active = false; break;
         }
         const uint8_t a = ds_img[pos + 1] & 63;
         const uint8_t b = ds_img[pos + 2];
@@ -422,7 +491,7 @@ static void sound_decode_track(
       case 0xE5: /* reg[a]-- */
       case 0xE6: /* reg[a]++ */
         if (pos + 1 >= ds_size) {
-          return;
+          trk->active = false; break;
         }
         {
           const uint8_t a = ds_img[pos + 1] & 63;
@@ -437,24 +506,24 @@ static void sound_decode_track(
       case 0xEA: /* indexed stream poke — 4 bytes */
       case 0xEB: /* random in [lo,hi] written ahead — 4 bytes */
         if (pos + 3 >= ds_size) {
-          return;
+          trk->active = false; break;
         }
         pos += 4;
         break;
       case 0xEC: { /* pick random of n bytes into stream; then duration */
         if (pos + 1 >= ds_size) {
-          return;
+          trk->active = false; break;
         }
         const uint8_t n = ds_img[pos + 1];
         if (pos + 2u + (size_t)n >= ds_size) {
-          return;
+          trk->active = false; break;
         }
         pos += 2u + (size_t)n + 1u;
         break;
       }
       case 0xF1: /* CC 7 volume */
         if (pos + 1 >= ds_size) {
-          return;
+          trk->active = false; break;
         }
         volume = ds_img[pos + 1] & 0x7f;
         sound_push_event(song, time, 0xb0, 7, volume, channel);
@@ -462,42 +531,42 @@ static void sound_decode_track(
         break;
       case 0xF0: /* CC 10 pan */
         if (pos + 1 >= ds_size) {
-          return;
+          trk->active = false; break;
         }
         sound_push_event(song, time, 0xb0, 10, ds_img[pos + 1] & 0x7f, channel);
         pos += 2;
         break;
       case 0xC2: /* CC 91 reverb */
         if (pos + 1 >= ds_size) {
-          return;
+          trk->active = false; break;
         }
         sound_push_event(song, time, 0xb0, 91, ds_img[pos + 1] & 0x7f, channel);
         pos += 2;
         break;
       case 0xC1: /* CC 93 chorus */
         if (pos + 1 >= ds_size) {
-          return;
+          trk->active = false; break;
         }
         sound_push_event(song, time, 0xb0, 93, ds_img[pos + 1] & 0x7f, channel);
         pos += 2;
         break;
       case 0xC0: /* CC 0 bank select */
         if (pos + 1 >= ds_size) {
-          return;
+          trk->active = false; break;
         }
         sound_push_event(song, time, 0xb0, 0, ds_img[pos + 1] & 0x7f, channel);
         pos += 2;
         break;
       case 0xF2: /* pitch bend (high byte; low forced 0 like driver) */
         if (pos + 1 >= ds_size) {
-          return;
+          trk->active = false; break;
         }
         sound_push_event(song, time, 0xe0, 0, ds_img[pos + 1] & 0x7f, channel);
         pos += 2;
         break;
       case 0xF6: /* absolute gate */
         if (pos + 1 >= ds_size) {
-          return;
+          trk->active = false; break;
         }
         artic_abs = ds_img[pos + 1];
         artic_sub = 0;
@@ -505,7 +574,7 @@ static void sound_decode_track(
         break;
       case 0xF7: /* subtractive articulation */
         if (pos + 1 >= ds_size) {
-          return;
+          trk->active = false; break;
         }
         artic_sub = ds_img[pos + 1];
         artic_abs = 0;
@@ -513,19 +582,19 @@ static void sound_decode_track(
         break;
       case 0xEE: /* per-voice transpose */
         if (pos + 1 >= ds_size) {
-          return;
+          trk->active = false; break;
         }
         transpose = ds_img[pos + 1];
         pos += 2;
         break;
       case 0xED: { /* chord: ED n note×n dur — up to 4 slots (FUN_1000_01fd) */
         if (pos + 1 >= ds_size) {
-          return;
+          trk->active = false; break;
         }
         const uint8_t n_raw = ds_img[pos + 1];
         const uint8_t n_play = n_raw > SOUND_ED_MAX_NOTES ? SOUND_ED_MAX_NOTES : n_raw;
         if (pos + 2u + (size_t)n_raw >= ds_size) {
-          return;
+          trk->active = false; break;
         }
         const uint8_t dur = ds_img[pos + 2u + (size_t)n_raw];
         const uint8_t gate = sound_note_gate(dur, artic_abs, artic_sub);
@@ -536,14 +605,12 @@ static void sound_decode_track(
           );
         }
         pos += 3u + (size_t)n_raw;
-        sound_advance_time(
-          song, &time, dur ? (uint32_t)dur : 1u, channel, &volume, &vol_delta, vol_period, &vol_count
-        );
+        op_dur = dur ? (uint32_t)dur : 1u;
         break;
       }
       case 0xBB: /* RPN pitch-bend range: CC101=0, CC100=0, CC6=n */
         if (pos + 1 >= ds_size) {
-          return;
+          trk->active = false; break;
         }
         sound_push_event(song, time, 0xb0, 101, 0, channel);
         sound_push_event(song, time, 0xb0, 100, 0, channel);
@@ -552,7 +619,7 @@ static void sound_decode_track(
         break;
       case 0xF3: /* volume envelope: period, delta */
         if (pos + 2 >= ds_size) {
-          return;
+          trk->active = false; break;
         }
         vol_period = ds_img[pos + 1];
         vol_delta = (int8_t)ds_img[pos + 2];
@@ -566,25 +633,25 @@ static void sound_decode_track(
         break;
       case 0xBE: /* tempo pair → unread BSS product; IRQ still 60 Hz */
         if (pos + 2 >= ds_size) {
-          return;
+          trk->active = false; break;
         }
         pos += 3;
         break;
       case 0xEF: /* pan envelope (unused in BGM corpus) */
         if (pos + 2 >= ds_size) {
-          return;
+          trk->active = false; break;
         }
         pos += 3;
         break;
       case 0xF5: /* pitch envelope (rare) */
         if (pos + 3 >= ds_size) {
-          return;
+          trk->active = false; break;
         }
         pos += 4;
         break;
       case 0xFC: { /* set loop/stream anchors to absolute DS offset */
         if (pos + 2 >= ds_size) {
-          return;
+          trk->active = false; break;
         }
         const uint16_t abs = (uint16_t)(ds_img[pos + 1] | ((uint16_t)ds_img[pos + 2] << 8));
         loop_start = abs;
@@ -594,7 +661,7 @@ static void sound_decode_track(
       }
       case 0xFB: { /* jump absolute */
         if (pos + 2 >= ds_size) {
-          return;
+          trk->active = false; break;
         }
         const uint16_t abs = (uint16_t)(ds_img[pos + 1] | ((uint16_t)ds_img[pos + 2] << 8));
         pos = abs;
@@ -602,7 +669,7 @@ static void sound_decode_track(
       }
       case 0xFA: { /* call absolute */
         if (pos + 2 >= ds_size) {
-          return;
+          trk->active = false; break;
         }
         const uint16_t abs = (uint16_t)(ds_img[pos + 1] | ((uint16_t)ds_img[pos + 2] << 8));
         const size_t ret = pos + 3;
@@ -626,7 +693,7 @@ static void sound_decode_track(
         break;
       case 0xFF: { /* counted loop to loop_start */
         if (pos + 1 >= ds_size) {
-          return;
+          trk->active = false; break;
         }
         const uint8_t count = ds_img[pos + 1];
         if (count == 0) {
@@ -650,7 +717,7 @@ static void sound_decode_track(
       }
       case 0xFE: { /* nested counted loop */
         if (pos + 1 >= ds_size) {
-          return;
+          trk->active = false; break;
         }
         const uint8_t count = ds_img[pos + 1];
         if (count == 0) {
@@ -680,14 +747,40 @@ static void sound_decode_track(
 
     if (pos == pos_before) {
       if (++stuck > 8) {
-        break;
+        trk->active = false; break;
       }
     } else {
       stuck = 0;
     }
+
+        if (op_dur > 0) {
+          trk->wait_ticks += op_dur;
+        }
+
+#undef pos
+#undef velocity
+#undef artic_sub
+#undef artic_abs
+#undef transpose
+#undef volume
+#undef vol_delta
+#undef vol_period
+#undef vol_count
+#undef loop_start
+#undef loop_count
+#undef nest_start
+#undef nest_count
+#undef call_stack
+#undef call_depth
+#undef channel
+#undef play_notes
+#undef stuck
+
+      }
+    }
+    if (any_zero_delay) continue;
   }
 }
-
 static void sound_parse_handler_tracks(
   const uint8_t* img,
   size_t img_size,
@@ -821,12 +914,7 @@ static void sound_load_id_table(
     SoundSong* song = &g_sound.songs[g_sound.song_count];
     memset(song, 0, sizeof(*song));
     song->id = id;
-    for (int t = 0; t < track_count; ++t) {
-      if ((size_t)tracks[t] >= ds_size) {
-        continue;
-      }
-      sound_decode_track(song, ds_img, ds_size, tracks[t], (uint8_t)(t & 0x0f));
-    }
+    sound_decode_tracks(song, ds_img, ds_size, tracks, track_count);
     if (song->event_count > 0) {
       sound_finalize_song_events(song);
       g_sound.song_count++;
