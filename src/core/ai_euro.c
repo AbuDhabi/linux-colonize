@@ -6888,8 +6888,9 @@ static int ai_euro_tools_cargo_or_colony(
  * Ports the function's own control flow + arithmetic 1:1 from the raw
  * decompile (original_sources_decompiled/viceroy_unpacked_2.c:85822-86564)
  * for the part that's genuinely resolved (raw lines 85872-86064 — the
- * difficulty-scaled treasury bump and the weak-vs-rival / no-ships /
- * cargo-short gate cascade); callees stay stubbed throughout, per request.
+ * difficulty-scaled treasury bump and the Frigate/Man-O-War-threat /
+ * no-ships / cargo-short gate cascade); callees stay stubbed throughout,
+ * per request.
  *
  * Resolved this pass (cross-referenced against save_format_map.md /
  * col1_save.h / euro_g_table_0a60.md — see those for the trace): year/
@@ -6942,24 +6943,42 @@ static int ai_euro_tools_cargo_or_colony(
 static uint32_t ai_euro_5d04_ph_gold_floor(int which) {
   switch (which) {
     case 0x9796: return 1000; /* no_ships */
-    case 0x97a8: return 2000; /* weak_vs_indian */
-    case 0x97ae: return 5000; /* weak_vs_euro */
+    case 0x97a8: return 2000; /* manowar_threatened */
+    case 0x97ae: return 5000; /* frigate_threatened */
     default: return 0;
   }
 }
 
-/* DS:0xa89a/0xa89b/0x9e52/0x9e54 — writer mechanism confirmed 2026-08-18
- * via live DOSBox-X capture, inside `FUN_4962_0018`'s colony loop
- * (census_tally.md phase 3): `colony+0x1b` bit0 gates `0xa89a`++ paired
- * with `0x9e54 += colony+0x1f` (level) — a running (count, level-sum) pair
- * over colonies matching that bit; bit1/`0xa89b`/`0x9e52` inferred
- * symmetric, not independently captured. Still stubbed: (a) whether the
- * pair is per-nation-call-reset or turn-accumulated isn't settled yet, and
- * (b) the source bit itself (`colony+0x1b` bit0/1, an "11×11 ship probe"
- * near-enemy-MoW/armed-ship detector per census_tally.md) has no Linux
- * equivalent to compute from — wiring this for real needs that first.
- * Inert 0 in the meantime. */
-static int ai_euro_5d04_ph_rival_crumb(int which) {
+/* DS:0xa89a/0xa89b/0x9e52/0x9e54 — writer mechanism fully traced and
+ * live-confirmed 2026-08-19 (raw viceroy_unpacked.c:78243-78304 +
+ * DOSBox-X captures, see census_tally.md phase 3 for the full write-up).
+ * NOT a "rival" stat — it's this nation's own **(count, colony-level-sum)
+ * of its own colonies currently within 5 tiles of a foreign warship**:
+ * `0xa89b`/`0x9e52` = threatened by a **Frigate** specifically (the source
+ * code literal-checks `unit+0x3146 == 0x11`, confirmed = Frigate against
+ * NAMES.TXT `@UNIT` order); `0xa89a`/`0x9e54` = threatened by any other
+ * qualifying armed ship. Per-nation-call-reset (not turn-accumulated)
+ * confirmed both by the raw zero-out at the top of `FUN_4962_0018` and
+ * live capture.
+ *
+ * The type-range (`0x0d..0x12`) and the `type==0x11`-vs-else bit split are
+ * solid (literal code). The sub-gate (`FUN_2a1f_027e`) that has to pass
+ * before any qualifying ship counts at all is now identified by reading
+ * the source (not guessed from behavior): it thunks to `FUN_6662_0906`, a
+ * **movement/pathfinding cost check** ("is there a short-enough navigable
+ * route between ship and colony"), not a diplomacy gate — see
+ * census_tally.md for the trace. That retroactively explains three live
+ * captures that all fired regardless of diplomatic state (peace, alliance,
+ * war all confirmed) — diplomacy was never the variable being tested.
+ * Genuinely still open: whether Privateer specifically can pass the
+ * pathfinding gate (one confirmed instrumented positive at peace, zero
+ * confirmed instrumented negatives — an earlier "excluded" read came from
+ * an unverified report and was retracted), and the underlying cost
+ * function (`thunk_FUN_2a1f_05f0`)'s own formula. Still stubbed: the
+ * source detector (`colony+0x1b`'s 11×11 ship-probe scan itself, plus
+ * this pathfinding sub-gate) has no Linux equivalent computing it yet —
+ * wiring this for real needs that first. Inert 0 in the meantime. */
+static int ai_euro_5d04_ph_naval_threat_crumb(int which) {
   (void)which;
   return 0;
 }
@@ -7048,16 +7067,24 @@ static void ai_euro_5d04_apply_gold_floor(ColonizeTurnContext* ctx, int nation_i
 }
 
 /* Raw decomp 85900-86064 gate cascade — computed reference values, not yet
- * wired to a mutation (see file header). bVar5/no_ships/weak_vs_euro/
- * weak_vs_indian/no_clear_navy/cargo_short name the raw bVar5/21/22/23/24/7
- * booleans in call order. */
+ * wired to a mutation (see file header). bVar5/no_ships/frigate_threatened/
+ * manowar_threatened/no_clear_navy/cargo_short name the raw bVar5/21/22/23/
+ * 24/7 booleans in call order. `frigate_threatened`/`manowar_threatened`
+ * were named `weak_vs_euro`/`weak_vs_indian` until 2026-08-19 — renamed once
+ * the underlying `0xa89a`-family crumbs turned out to mean "own colonies
+ * near a Frigate/Man-O-War," not a rival-strength comparison at all (see
+ * `ai_euro_5d04_ph_naval_threat_crumb`'s header). The higher-level
+ * "weak/catch-up" framing for what 5d04 *does* with these two flags
+ * (gold-floor clamp, gate on turn/gold thresholds) may still be roughly
+ * right — that part of the raw logic itself didn't change, only what the
+ * inputs feeding it actually measure. */
 typedef struct Ai5d04PlanningFlags {
-  int has_college;    /* bVar5 */
-  int no_ships;        /* bVar21 */
-  int weak_vs_euro;     /* bVar22 */
-  int weak_vs_indian;    /* bVar23 */
-  int no_clear_navy;     /* bVar24 */
-  int cargo_short;       /* bVar7 */
+  int has_college;       /* bVar5 */
+  int no_ships;           /* bVar21 */
+  int frigate_threatened;  /* bVar22 */
+  int manowar_threatened;   /* bVar23 */
+  int no_clear_navy;         /* bVar24 */
+  int cargo_short;             /* bVar7 */
 } Ai5d04PlanningFlags;
 
 static Ai5d04PlanningFlags ai_euro_5d04_compute_flags(
@@ -7126,13 +7153,16 @@ static Ai5d04PlanningFlags ai_euro_5d04_compute_flags(
   const int focus_nation = head->human_player;
   const int focus_ok = focus_nation >= 0 && focus_nation < 4;
 
-  /* bVar22: weak vs the other 3 Euro nations (raw 85934-85952). */
-  f.weak_vs_euro = 0;
-  if (!((ai_euro_5d04_ph_rival_crumb(0xa89b) == 0 && ai_euro_5d04_ph_rival_crumb(0xa89a) == 0) ||
+  /* bVar22: gated on Frigate-threatened own colonies (raw 85934-85952).
+   * `0xa89b`/`0x9e52` = Frigate-threat (count, level-sum) — see
+   * `ai_euro_5d04_ph_naval_threat_crumb` header for how that's confirmed. */
+  f.frigate_threatened = 0;
+  if (!((ai_euro_5d04_ph_naval_threat_crumb(0xa89b) == 0 &&
+         ai_euro_5d04_ph_naval_threat_crumb(0xa89a) == 0) ||
         local_3c == 0)) {
     int reach_weak_check = 0;
-    if (ai_euro_5d04_ph_rival_crumb(0xa89b) < col_half &&
-        ai_euro_5d04_ph_rival_crumb(0x9e52) < pop_half) {
+    if (ai_euro_5d04_ph_naval_threat_crumb(0xa89b) < col_half &&
+        ai_euro_5d04_ph_naval_threat_crumb(0x9e52) < pop_half) {
       if (turn > 200 && nat_gold_ge(ctx, nation_id, 2000)) {
         reach_weak_check = 1;
       }
@@ -7140,18 +7170,26 @@ static Ai5d04PlanningFlags ai_euro_5d04_compute_flags(
       reach_weak_check = 1;
     }
     if (reach_weak_check && focus_ok) {
-      f.weak_vs_euro = stuff->unit_type_counts[nation_id][17] == 0 &&
-                        stuff->unit_type_counts[focus_nation][17] != 0;
+      f.frigate_threatened = stuff->unit_type_counts[nation_id][17] == 0 &&
+                              stuff->unit_type_counts[focus_nation][17] != 0;
     }
   }
 
-  /* bVar23: weak vs the Indian side (raw 85953-85971). */
-  f.weak_vs_indian = 0;
-  if (((ai_euro_5d04_ph_rival_crumb(0xa89a) != 0 || ai_euro_5d04_ph_rival_crumb(0xa89b) != 0)) &&
-      local_3c != 0 && !f.weak_vs_euro) {
+  /* bVar23: gated on "other-armed-ship"-threatened own colonies (raw
+   * 85953-85971). `0xa89a`/`0x9e54` = count/level-sum for any qualifying
+   * ship type other than Frigate — Man-O-War confirmed to reach this bit;
+   * whether Privateer ever does is unsettled (see
+   * `ai_euro_5d04_ph_naval_threat_crumb`'s header — the sub-gate that
+   * decides "qualifying at all" is non-deterministic, not a fixed type
+   * exclusion). Field kept named `manowar_threatened` since that's the
+   * confirmed/primary case, not a claim it's Man-O-War-exclusive. */
+  f.manowar_threatened = 0;
+  if (((ai_euro_5d04_ph_naval_threat_crumb(0xa89a) != 0 ||
+        ai_euro_5d04_ph_naval_threat_crumb(0xa89b) != 0)) &&
+      local_3c != 0 && !f.frigate_threatened) {
     int reach = 0;
-    if (ai_euro_5d04_ph_rival_crumb(0xa89a) < col_half &&
-        ai_euro_5d04_ph_rival_crumb(0x9e54) < pop_half) {
+    if (ai_euro_5d04_ph_naval_threat_crumb(0xa89a) < col_half &&
+        ai_euro_5d04_ph_naval_threat_crumb(0x9e54) < pop_half) {
       if (turn > 100 && nat_gold_ge(ctx, nation_id, 1000)) {
         reach = 1;
       }
@@ -7159,21 +7197,9 @@ static Ai5d04PlanningFlags ai_euro_5d04_compute_flags(
       reach = 1;
     }
     if (reach && focus_ok) {
-      f.weak_vs_indian = stuff->unit_type_counts[nation_id][16] < 2 &&
-                          stuff->unit_type_counts[focus_nation][16] != 0;
+      f.manowar_threatened = stuff->unit_type_counts[nation_id][16] < 2 &&
+                              stuff->unit_type_counts[focus_nation][16] != 0;
     }
-  }
-
-  /* Gold-floor-max: raise gold to a per-scenario candidate under each flag
-   * (raw 85973-86002). Stub floors are 0 — always a no-op here. */
-  if (f.no_ships) {
-    ai_euro_5d04_apply_gold_floor(ctx, nation_id, ai_euro_5d04_ph_gold_floor(0x9796));
-  }
-  if (f.weak_vs_indian) {
-    ai_euro_5d04_apply_gold_floor(ctx, nation_id, ai_euro_5d04_ph_gold_floor(0x97a8));
-  }
-  if (f.weak_vs_euro) {
-    ai_euro_5d04_apply_gold_floor(ctx, nation_id, ai_euro_5d04_ph_gold_floor(0x97ae));
   }
 
   /* bVar24: no clear strongest navy (raw 86003-86024). */
@@ -7190,7 +7216,7 @@ static Ai5d04PlanningFlags ai_euro_5d04_compute_flags(
     }
   }
   f.no_clear_navy =
-    f.weak_vs_euro || stuff->armed_ship_counts[nation_id] < max_armed || tied > 1;
+    f.frigate_threatened || stuff->armed_ship_counts[nation_id] < max_armed || tied > 1;
 
   /* bVar7: cargo/passenger space short (raw 86025-86029). */
   f.cargo_short =
@@ -7198,6 +7224,29 @@ static Ai5d04PlanningFlags ai_euro_5d04_compute_flags(
     !woi;
 
   return f;
+}
+
+/* Gold-floor-max: raise gold to a per-scenario candidate under each threat
+ * flag (raw 85973-86002, was inline inside `ai_euro_5d04_compute_flags`
+ * until 2026-08-19 — split out once the floor values went from stubbed-0
+ * to real (1000/2000/5000): baking a genuine mutation into a function
+ * whose result callers were discarding as "reference-only" was exactly
+ * the bug that regressed `unit_ai_euro_war` the first time (see memory).
+ * `compute_flags` is pure again; this is the deliberate, explicit
+ * mutation step, still not called from the live path — a future wiring
+ * pass calls this alongside `compute_flags`, not from inside it. */
+static void ai_euro_5d04_apply_naval_gold_floors(
+  ColonizeTurnContext* ctx, int nation_id, const Ai5d04PlanningFlags* f
+) {
+  if (f->no_ships) {
+    ai_euro_5d04_apply_gold_floor(ctx, nation_id, ai_euro_5d04_ph_gold_floor(0x9796));
+  }
+  if (f->manowar_threatened) {
+    ai_euro_5d04_apply_gold_floor(ctx, nation_id, ai_euro_5d04_ph_gold_floor(0x97a8));
+  }
+  if (f->frigate_threatened) {
+    ai_euro_5d04_apply_gold_floor(ctx, nation_id, ai_euro_5d04_ph_gold_floor(0x97ae));
+  }
 }
 
 static void ai_euro_nation_planning(ColonizeTurnContext* ctx, int nation_id) {
@@ -7208,12 +7257,12 @@ static void ai_euro_nation_planning(ColonizeTurnContext* ctx, int nation_id) {
   AiEuroInventory* inv = ai_goals_inventory(nation_id);
   const int diff = ctx->col1->head.difficulty;
   ai_euro_5d04_treasury_bump(ctx, nation_id);
-  /* `ai_euro_5d04_compute_flags` deliberately NOT called here: its
-   * gold-floor clamp (now real values, see header) is a genuine mutation,
-   * not inert like it was when the floor candidates were still stubbed at
-   * 0 — calling it unconditionally regressed unit_ai_euro_war /
-   * golden_ai_turns (test-scenario gold no longer matched). Available for
-   * a deliberate future wiring pass, not auto-invoked from here. */
+  /* `compute_flags` is pure now (see split above) — safe to call and
+   * discard; `apply_naval_gold_floors` is the deliberate mutation step,
+   * intentionally NOT called here yet (reference-only, address-taken
+   * below just to keep the compiler from flagging it dead code). */
+  (void)ai_euro_5d04_compute_flags(ctx, nation_id);
+  (void)ai_euro_5d04_apply_naval_gold_floors;
 
   /*
    * NEW WORLD wagon / mid-game hire matrix — thin 5d04 slice (full ~748 PARKED).
