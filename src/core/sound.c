@@ -334,12 +334,12 @@ static void sound_decode_tracks(
 
       const uint8_t gate = sound_note_gate(dur, artic_abs, artic_sub);
       if (note_raw == 0 || !play_notes) {
-        op_dur = dur + 1u;
+        op_dur = dur ? (uint32_t)dur : 1u;
       } else {
         sound_emit_note(
           song, time, channel, (int)note_raw + (int8_t)transpose, velocity, dur, gate
         );
-        op_dur = dur + 1u;
+        op_dur = dur ? (uint32_t)dur : 1u;
       }
       stuck = 0;
     }
@@ -366,21 +366,10 @@ static void sound_decode_tracks(
         }
         pos += 2;
         break;
-      case 0xC4: /* far call via stream word — treat like FA into DS when in range */
-        if (pos + 2 >= ds_size) {
-          trk->active = false; break;
-        }
-        {
-          const uint16_t abs = (uint16_t)(ds_img[pos + 1] | ((uint16_t)ds_img[pos + 2] << 8));
-          const size_t ret = pos + 3;
-          if ((size_t)abs < ds_size && call_depth < SOUND_MAX_CALL_DEPTH) {
-            call_stack[call_depth++] = ret;
-            pos = abs;
-          } else {
-            pos = ret;
-          }
-        }
+      case 0xC4: {
+        pos += 3;
         break;
+      }
       case 0xC5: /* reg[a] <= reg[b] ? skip : jump */
       case 0xC6:
       case 0xC7:
@@ -605,7 +594,7 @@ static void sound_decode_tracks(
           );
         }
         pos += 3u + (size_t)n_raw;
-        op_dur = dur + 1u;
+        op_dur = dur ? (uint32_t)dur : 1u;
         break;
       }
       case 0xBB: /* RPN pitch-bend range: CC101=0, CC100=0, CC6=n */
@@ -746,7 +735,7 @@ static void sound_decode_tracks(
     }
 
     if (pos == pos_before) {
-      if (++stuck > 8) {
+      if (++stuck > 8) { printf("Track %d STUCK at pos %x\n", current_t, pos);
         trk->active = false; break;
       }
     } else {
