@@ -237,6 +237,32 @@ would risk getting the flood-fill relaxation order or cost formula subtly
 wrong. If ever resumed, `0015b7` alone (the tiny direct-step helper) is
 the one genuinely quick win left in this specific area.
 
+**Doc-sync + `0015b7` decompiled, 2026-08-19: this whole tier structure
+already has a real Linux counterpart, just never cross-referenced here.**
+`units_next_goto_step` (`units.c`) independently implements the *same*
+three-tier shape this section describes — adjacent sign-step (in-code
+cite `FUN_6662_0086`), near-range destination cost-flood for both axes
+≤6 (`FUN_6662_00f2`, also independently cited in `save_format_map.md`),
+and a far-range uniform BFS + waypoint-flood fallback — with
+`units_greedy_next_step` providing the same full-8-neighbor scored
+fallback `0f74`'s own tail describes (walkability + distance-improvement
+score). Not byte-exact (no own-tile bias, no toughness-deduction term —
+still correctly blocked on the unmapped `0x2f76` table — no wiggle-retry
+on rejected tiles), but this is a real, mature, structurally-faithful
+implementation, not the "not attempted" gap this section's own framing
+suggested; whoever wrote `units_next_goto_step` apparently worked from
+the real `0086`/`00f2` addresses directly rather than through this file's
+`0f74` investigation. Also decompiled `FUN_OVL20_L0000__0015b7` cleanly
+this pass (Ghidra headless, `OverlayTest` project, `OVL20_L0000:15b7`):
+confirms the "sign(dx)/sign(dy) → 8-direction-table lookup" reading
+exactly (loop over the same 8-entry dx/dy table used throughout this
+project, default 8 = no direction when both signs are 0) — but Linux's
+existing `units_sign_i`-based direct step (used in the adjacent tier
+above) already produces the identical result without needing a literal
+port of the table-lookup shape, so there's no remaining gap to fill with
+it. **Net: no further src/ changes from this specific thread** — it was
+already done.
+
 `FUN_4720_049e` (`FUN_291f_044e`'s target): **corruption is real but
 narrow, and the function underneath is a genuinely major find — not a
 move driver at all.**
