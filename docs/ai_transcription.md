@@ -223,7 +223,7 @@ entry — goals ≈ `0a60` + `5d04`; scoring ≈ `20e6`; act ≈ `5b66`.
 | `FUN_15b3_0066` / `00d0` | small | OR/clear both directions | `ai_diplo_or_both` / `clear_both` | **partial** |
 | `FUN_5bfb_10ec` | ~63 | War/ally eligibility | `ai_diplo_euro_balance` | **partial** |
 | `FUN_5bfb_13b0` | ~61 | Form/break alliance | `form_alliance` / `break_alliance` | **partial** |
-| `FUN_5bfb_153e` | ~1112 | Large war-declare body | thin sting + structural deepen (**Done** unpark #5); deep body's outcome dispatch resolved 2026-08-14 to a resident jump table routing into 10 already-known `FUN_5bfb_*` functions (102a/1092/0182 dialogs, 312e/0000 score, 13b0 alliance, 10ec eligibility, 022e Indian contact — most already **Done**; only `12d0` unresolved, already tracked); worthiness-score phase + which selector picks the table index still genuinely open (see `euro_diplo_153e_full.md`, includes a retraction of an earlier same-day false lead) | **partial** |
+| `FUN_5bfb_153e` | ~1112 | Large war-declare body | thin sting + structural deepen (**Done** unpark #5); deep body's outcome dispatch resolved 2026-08-14 to a resident jump table routing into 10 already-known `FUN_5bfb_*` functions (102a/1092/0182 dialogs, 312e/0000 score, 13b0 alliance, 10ec eligibility, 022e Indian contact, `12d0` order-clear — all 10 targets now understood as of 2026-08-19); worthiness-score phase + which selector picks the table index still genuinely open (see `euro_diplo_153e_full.md`, includes a retraction of an earlier same-day false lead) | **partial** |
 | `FUN_5bfb_3180` | 239 | Adjacent-unit encounter resolver (ambush + diplo dispatch) | naval ambush sub-mechanic **Done** (`ai_euro_naval_try_ambush`); diplo-dispatch branches PARKED | **partial** |
 | `FUN_4cc6_00f2` | — | Indian relation delta | `ai_diplo_indian_relation_delta` | **partial** |
 
@@ -277,7 +277,11 @@ Same-behavior claim vs `FUN_521d_20e6` quiet path stands regardless.
   `FUN_5bfb_13b0` (form/break alliance), not previously traced. Not
   `FUN_5bfb_3180` (checked; the earlier pass mis-attributed a call site
   that's actually inside `thunk_FUN_2a1f_060a` itself, not `3180`'s body —
-  `3180` has no path to `12d0`). Body itself still unexamined.
+  `3180` has no path to `12d0`). Body itself **resolved 2026-08-19**
+  (`euro_diplo_153e_full.md`): cancels roam/reevaluate orders (state 5/6→0)
+  on the calling nation's combat-capable land units adjacent to the other
+  nation's settlements — a border-garrison "wake up and re-plan" refresh
+  fired on alliance form / war-outcome resolution.
 - `FUN_0000_4fa8` — sole caller `FUN_1000_8aac` (tail `JMPF`), already
   resolved in `move_scoring_20e6_full.md`; formalized on the diagram.
 
