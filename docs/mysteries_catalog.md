@@ -15,7 +15,7 @@ gameplay meaning:
 |---|---|
 | `tut1.unused06`/`unused08` (was `unknown01`/`unknown02`, DS:0x5380 bit2/bit6) | **confirmed dead, renamed off "unknown"** — all 3 decompiled sources test/set bits 0x01/02/08/10/20/80 on 0x5380 (nr13-nr19), never 0x04/0x40; only touch is word-clear `*(u16*)0x5380=0` at init |
 | `unknown05[2]` | head pad, no gameplay cite — only touch is the 4-byte memset that also clears `event` at new game (`FUN_1d1d_0dae(0x540a,0,4)`); no standalone R/W found |
-| `unknown06_lo` (7 bits, player struct) | unnamed, sibling bit7 (`named_new_world`) is named |
+| `unknown06_lo` (6 bits, player struct) | bits0-5 @ player+0x30 — no reader/writer cite in either decompiled export. **Was 7 bits; bit6 resolved 2026-08-19** as `lcr_case5_bonus_used`, a per-nation one-shot in `FUN_65dd_0004` (the still-PARKED LCR/native-encounter result table, see `indian_contact.md`'s de Soto note) that upgrades a first-time case-5 roll to case 4; which named `@LOSTCITY`/`@BURIAL` outcome cases 4/5 correspond to is still unresolved |
 | `unknown13_pad[4]` (+0xbe) | founding=0, lategame fixtures non-zero — pattern seen, not explained |
 | `unknown15_lo` (7 bits @ 0x3148) | "live AI/cargo/orders latches" — vague, not resolved to specific bits |
 | `unknown21` (+0xb) | no reader cite — opaque |

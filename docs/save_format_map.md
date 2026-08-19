@@ -131,7 +131,7 @@ as peels land.
 | Field | Size | Status | Notes |
 |-------|------|--------|-------|
 | `name` / `country_name` | 48 | `mapped` | |
-| `unknown06_lo` / `named_new_world` | 1 | `mapped` | bit7 discovery one-shot (`FUN_4720_049e`) |
+| `unknown06_lo` / `lcr_case5_bonus_used` / `named_new_world` | 1 | `partial` | bit7 discovery one-shot (`FUN_4720_049e`); bit6 per-nation LCR case5→4 upgrade latch (`FUN_65dd_0004`, still-PARKED result table); bits0-5 opaque, no cite |
 | `control` / `founded_colonies` / `diplomacy` | 3 | `mapped` | control 0/1/2 |
 
 ### Other (24) — prefix trailer

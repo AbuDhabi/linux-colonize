@@ -325,7 +325,9 @@ when FF + peace.
 
 **de Soto LCR:** **Done** thin — `units_resolve_lcr_rumour` clears rumour via
 `map_clear_rumour`; with FF 7 reveals radius (no invented treasure/FoY). Full
-FUN_65dd_0004 RNG table **PARKED**.
+FUN_65dd_0004 RNG table **PARKED**. (2026-08-19: the per-nation
+`player+0x30` bit6, `lcr_case5_bonus_used` in `col1_save.h`, is this
+function's one-shot case5→case4 upgrade latch — see `mysteries_catalog.md`.)
 
 ### Teach-skill profession map (Linux)
 
