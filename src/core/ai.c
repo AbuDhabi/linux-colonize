@@ -2255,10 +2255,55 @@ static int ai_indian_152e_quartile(int relation) {
 }
 
 /*
- * FUN_41f2_0294 (terrain-survey village "worth" cap) — unresolved DS
- * tables (settlement_record_8d4a.md's "+4 founding worth" survey). Stub
- * preserves the prior T0 approximation (hardcoded population cap 15) so
- * pure-growth behavior is unchanged by this structural pass.
+ * FUN_41f2_0294 (terrain-survey village "worth" cap) — investigated
+ * 2026-08-19, confirmed BLOCKED on decompiler corruption, not just
+ * unresolved DS tables. Left stubbed; do not attempt to "resolve via
+ * address_mapping.csv" again without a live DOSBox-X trace (see below).
+ *
+ * Two real DOS call sites, both pass the settlement/tribe array index:
+ *   - FUN_4d56_0038 (tribe creation, viceroy_unpacked.c:81273) — one-time,
+ *     stores the result into the new settlement's +4 "value" byte. This
+ *     creation path is itself unported (no Linux producer yet).
+ *   - FUN_4d56_152e (this function, viceroy_unpacked.c:81414) —
+ *     `bVar5 = FUN_41f2_0294(param_1); if (settlement.value < bVar5)
+ *     local_16 = 2;` i.e. called LIVE every growth tick and compared
+ *     against the settlement's *current* value/population, not a one-time
+ *     founding constant. This corrects settlement_record_8d4a.md's "+4
+ *     written once at creation" framing (true at 0038, but 152e re-derives
+ *     the cap fresh every turn) — the comparison direction it implies
+ *     (`value < survey_result` -> grow) is exactly what `population <
+ *     worth_cap` below already does, so only the cap's *value* is
+ *     approximated here, not its role in the control flow.
+ *
+ * Static RE attempted on the raw body (viceroy_unpacked.c:72085-72411,
+ * 327 lines; byte-identical in viceroy_unpacked_2.c) and found it
+ * genuinely corrupted, not merely citing unresolved globals:
+ *   - Ghidra never recovers a stack frame: every local/param is a raw
+ *     `unaff_BP + <offset>` dereference, the signature decompiles as
+ *     `(void)` even though both call sites pass a real argument, and the
+ *     top-of-loop continuation test reads `in_AL` before any visible
+ *     assignment (an uninitialized-register read the decompiler couldn't
+ *     tie to a real value).
+ *   - Its immediate predecessor in the same overlay, FUN_41f2_0280
+ *     (viceroy_unpacked.c:71743-72084), is the same shape with the same
+ *     locals and the same FUN_41f2_0266 tail call — consistent with an
+ *     overlay/thunk decompilation artifact rather than two distinguishable
+ *     functions. Recovering real parameter/local semantics needs a live
+ *     register/stack trace at entry (DOSBox-X), which is not available in
+ *     this environment.
+ * What *is* safely established without fabricating anything: a callee
+ * scan of the full 327-line body found no RNG call (no FUN_281f_04d4 /
+ * dos_rng_range analog anywhere) — so this stub cannot desync the per-
+ * turn LCG stream the way the capital-gate bug above did; roughly half
+ * the body is verbose/debug string-building (FUN_281f_016e/0178/0146/
+ * 0182/013c/01be/00e2/00ec/03c0 chains behind a debug-flag branch), not
+ * gameplay logic; the two real loops bucket terrain by class with
+ * different weight increments (class 0x1c: +2, 0x19/0x1a/0x1b: +1, else:
+ * +4) plausibly a movement/traversal-style scan, but not confirmed enough
+ * to port without inventing the weight table's meaning.
+ *
+ * Stub therefore still returns the flat population-cap-15 T0
+ * approximation — unchanged behavior, no invented terrain-worth formula.
  */
 static int ai_indian_152e_worth_cap_stub(
   const ColonizeTurnContext* ctx,
@@ -2373,12 +2418,14 @@ static void ai_indian_152e_village_growth(
    * Real DOS TURN1.SAV/TURN2.SAV (seed-100) show satellite tribes (non-
    * capital) with growth_accum frozen at 0 across the turn while capital
    * tribes accrue normally: the real per-tribe `+4 worth` stat
-   * (FUN_41f2_0294, still unresolved — settlement_record_8d4a.md) is
-   * DS-confirmed much larger for capitals (bit 0x10 capital flag doubles
-   * as a 1000-vs-250 weight multiplier elsewhere, FUN_4d56_417e) so the
-   * `population < worth_cap` gate effectively never opens for satellites
-   * this early. Until FUN_41f2_0294 is resolved, restore the known-good
-   * capital-only restriction rather than guess a satellite worth number.
+   * (FUN_41f2_0294 — see its stub above for the 2026-08-19 investigation:
+   * confirmed decompiler-corrupted, needs a live DOSBox-X trace, not
+   * expected to resolve from static analysis) is DS-confirmed much larger
+   * for capitals (bit 0x10 capital flag doubles as a 1000-vs-250 weight
+   * multiplier elsewhere, FUN_4d56_417e) so the `population < worth_cap`
+   * gate effectively never opens for satellites this early. Restore the
+   * known-good capital-only restriction rather than guess a satellite
+   * worth number.
    * Scoped to this block only — the friction-roll / mission-relation tail
    * below still runs per-settlement (every tribe, satellites included);
    * an earlier version of this fix gated the whole function on capital and

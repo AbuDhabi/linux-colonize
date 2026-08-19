@@ -233,7 +233,7 @@ Line spans are approximate (next function start − 1). Status:
 | `FUN_4d56_1816` | ~141 | Indian nation turn entry: alarm prelude, unit loop, relation ticks | `ai_indian_nation_turn` + `ai_contact_*` | **partial** (structural; T2 quiet) |
 | `FUN_4d56_1b3a` | ~59 | Mid-turn: clear tables / tribe + colony ownership probes (does **not** call `2154`) | — | **partial** (known; not raid) |
 | `FUN_4d56_2154` | ~321 | Meet economics (`0x9e*` tables) from `5bfb_022e` via `2a1f_0434` — **not** raid | `ai_contact_meet_economics_2154` + gift/demand | **Done** (scorer + `0ce0` work-slot gate) |
-| `FUN_4d56_2820` | 595 lines (clean re-disasm; old ~1396 line estimate was from corrupted decomp, see `indian_trade_2820.md`) | AI-buy-offer price + trade dispatch (single function; the `2aac…311e` "nest" was internal goto labels, not separate functions) | `ai_contact_2820_ai_buy_price` + gold debit in `ai_contact_auto_trade` | **Done** (AI-buy-offer price path, `LAB_002bbc`); human CHOICE buy-offer path (`LAB_002e92`) still PARKED |
+| `FUN_4d56_2820` | 595 lines (clean re-disasm; old ~1396 line estimate was from corrupted decomp, see `indian_trade_2820.md`) | AI-buy-offer price + trade dispatch (single function; the `2aac…311e` "nest" was internal goto labels, not separate functions) | `ai_contact_2820_ai_buy_price` + gold debit in `ai_contact_auto_trade`; human path `ai_contact_enqueue_trade_price_choice` / `ai_contact_apply_trade_offer` | **Done** (AI-buy-offer price path, `LAB_002bbc`); human CHOICE buy-offer **gate** ported 2026-08-19 (`LAB_002e92`, Accept/Decline on a locked price reusing the `2bbc` formula) — deep Haggle (`2f96`)/hard-bargain counter-offer (`306c`) sub-loops and the multi-good cargo-select CHOICE (`0x15a0`) still PARKED, see `indian_trade_2820.md` "Open RE" |
 | `FUN_4d56_2aac`…`311e` | n/a — resolved as internal labels of `2820` itself, not separate functions | — | — | superseded, see `2820` row |
 | `FUN_4d56_3582` | ~51 | Small helper after `2820` | friction floor (via contact clamp) | **partial** (thin Done) |
 | `FUN_4d56_417e` | 933 bytes (clean re-disasm; identified as Incite Indians / WARPATH, `indian_incite_417e.md`) | Incite Indians (WARPATH) price + gold deduct + relation push | `ai_contact_incite_price` / `ai_contact_apply_incite` (6th village-meet CHOICE) | **Done** (Mode-1 human path; price formula fully byte-faithful (2026-08-14; base-combine op resolved to a real multiply after reading the two DOS platform helpers' decompiled bodies; discount loop uses real `mission`/`state.capital` fields; French get the real 2/3 price break; Missionary/target-capital sub-discounts now wired too, captured at Meet-CHOICE offer time and carried through the payload, no threading gap after all — see `indian_incite_417e.md`), AI-Mode-2 path not ported) |
@@ -270,7 +270,7 @@ entry — goals ≈ `0a60` + `5d04`; scoring ≈ `20e6`; act ≈ `5b66`.
 | `FUN_15b3_0066` / `00d0` | small | OR/clear both directions | `ai_diplo_or_both` / `clear_both` | **partial** |
 | `FUN_5bfb_10ec` | ~63 | War/ally eligibility | `ai_diplo_euro_balance` | **partial** |
 | `FUN_5bfb_13b0` | ~61 | Form/break alliance | `form_alliance` / `break_alliance` | **partial** |
-| `FUN_5bfb_153e` | ~1112 | Large war-declare body | thin sting + structural deepen (**Done** unpark #5); deep body's outcome dispatch resolved 2026-08-14 to a resident jump table routing into 10 already-known `FUN_5bfb_*` functions (102a/1092/0182 dialogs, 312e/0000 score, 13b0 alliance, 10ec eligibility, 022e Indian contact, `12d0` order-clear, **ported** as `ai_diplo_wake_border_garrisons` — all 10 targets now understood as of 2026-08-19); worthiness-score phase + which selector picks the table index still genuinely open (see `euro_diplo_153e_full.md`, includes a retraction of an earlier same-day false lead) | **partial** |
+| `FUN_5bfb_153e` | ~1112 | Large war-declare body | thin sting + structural deepen (**Done** unpark #5); deep body's outcome dispatch resolved 2026-08-14 to a resident jump table routing into 10 already-known `FUN_5bfb_*` functions (102a/1092/0182 dialogs, 312e/0000 score, 13b0 alliance, 10ec eligibility, 022e Indian contact, `12d0` order-clear, **ported** as `ai_diplo_wake_border_garrisons` — all 10 targets now understood as of 2026-08-19); **2026-08-19: both remaining open items resolved.** Selector logic: no runtime index exists — every call site is compile-time-fixed to one jump-table slot, confirmed directly off `tools/address_mapping.csv`'s `OVL16_L0040` offset rows, not re-derived (`euro_diplo_153e_full.md`'s "Selector logic + worthiness-score phase" section has the full offset→target table). Worthiness-score phase: structurally ported as `ai_diplo_153e_worthiness_score_structural` (`src/core/ai_diplo.c`) — real where resolvable (colony/land-unit G-table counts, euro_relation peace bit, human-nation entry gate, clamp/scale arithmetic), honestly stubbed where a real blocker exists (several new-this-pass unresolved DS globals + the one unported selector-callee `FUN_5bfb_0000`, all cited in the doc); reference-only, not wired into any live caller (same posture as `ai_euro_5d04_nation_planning_structural`) | **partial** |
 | `FUN_5bfb_3180` | 239 | Adjacent-unit encounter resolver (ambush + diplo dispatch) | naval ambush sub-mechanic **Done** (`ai_euro_naval_try_ambush`); diplo-dispatch branches PARKED | **partial** |
 | `FUN_4cc6_00f2` | — | Indian relation delta | `ai_diplo_indian_relation_delta` | **partial** |
 
@@ -495,6 +495,28 @@ leftover FF KINGGALLEON2, deep `20e6`).
   before and after the capital-gate fix — a pre-existing Brave quiet-pulse
   movement/RNG divergence, not caused by 152e; root cause not chased this
   pass (deep, open-ended — same class as the quiet-ASM residual work above).
+  **`FUN_41f2_0294` itself investigated 2026-08-19 — confirmed BLOCKED, not
+  attempted further:** the raw body is 327 lines
+  (`viceroy_unpacked.c:72085-72411`, correcting the "~100-line" estimate
+  above), byte-identical in `viceroy_unpacked_2.c`, and genuinely
+  decompiler-corrupted rather than merely citing unresolved DS tables —
+  Ghidra never recovers a stack frame (every local/param is a raw
+  `unaff_BP + <offset>` dereference, the signature decompiles as `(void)`
+  despite both call sites passing a real argument, and the loop-continuation
+  test reads an uninitialized `in_AL` before any visible assignment); its
+  immediate predecessor `FUN_41f2_0280` (`71743-72084`) is the same
+  corrupted shape, consistent with an overlay/thunk artifact. Recovering
+  real semantics needs a live DOSBox-X register/stack trace, not available
+  this pass — left stubbed (full reasoning + what *was* safely established,
+  e.g. no RNG call anywhere in the body, in the stub's comment,
+  `ai_indian_152e_worth_cap_stub` in `src/core/ai.c`). **Assessment vs. this
+  TURN2→3 divergence:** would not fix it — the specific symptom above was
+  already isolated to a pre-existing Brave movement/RNG bug, reproducing
+  identically regardless of the worth-cap value. A correct
+  `FUN_41f2_0294` is still a real, separate, guaranteed future diff once
+  goldens are back on (as the parking rationale at the top of this file
+  already anticipates by name), just not the cause of this particular
+  documented failure.
 - Keep this file and [original_index.md](original_index.md) status rows aligned
   when slices land.
 
@@ -814,8 +836,15 @@ raids, or FOUND must keep `golden_ai_joint` green (Euro **and** Indian fields).
 tax → `2564`/`1a26` auto-declare) vs war (`0982`/`06a6` wave → `2022` act +
 `1eca` promote); thin `10f0` via `backup_force` (up to 2 landings, or **3** when `difficulty≥2`,
 Regular+Dragoon mix); thin MoW cargo unload (up to **3** Regulars with ship);
-structural tax boycott/refuse
-(`unknown46[2]` + Sugar boycott bit; thin audience status + `ai_popup` CHOICE **Done**);
+**real `38fd_5be8`/`38fd_3dc8` tax-audience formula (2026-08-19, replaces the
+earlier invented Accept/Refuse-gates-the-hike design)** — turn-interval-gated
+favor-score ladder (`ai_king_audience_roll`: RNG(1,1000) + rebel-sentiment/
+tax/treasury/SoL/turn terms → cut / +1 / +2 / +3-4 / +5-8) applies
+unconditionally (`ai_king_audience_apply_delta`, clamp 0..75%); only a real
+positive applied delta can trigger the village-goods `ai_popup` CHOICE
+(Accept keeps it, "tea party" **reverts** the hike + boycotts one
+roulette-picked cargo — `ai_king_tax_teaparty`); `unknown46[2]` is now
+presentation/Fugger-sync only, no longer gates the audience interval;
 thin `1528` arrival status on REF spawn; real `2022` rebel-branch merc
 troop-gift (2026-08-14, was thin `unknown46[3]`/300-gold once-per-war
 invented stand-in) — recurring per-turn 1-in-3 roll while REF absent or
@@ -841,15 +870,38 @@ second MoW at `difficulty≥2`; capture status chrome **Done**. Thin map:
 
 **Done (structural unpark #2):** real `38fd_5be8` / `2564` / `2022` **modals** via
 `ai_popup` (status chrome Done; `2022` merc CHOICE now real formula, not
-stand-in). VGA-identical wood chrome still PARKED.
+stand-in). `38fd_5be8`'s own delta formula and `38fd_3dc8`'s apply/clamp are
+now also real (2026-08-19, see above), not just the modal shell. VGA-identical
+wood chrome still PARKED.
 
 **Still PARKED:** `160a` letter cinematic; full merc/arrival/hold embark chrome;
-exact `0x5382` Col1 bit rename / T3.
+exact `0x5382` Col1 bit rename / T3; DOS's own colony-array goods-seize pile
+(`FUN_38fd_3dc8`'s confiscate-into-royal-stock write, colony+0x5e08 — real
+field never resolved; `ai_king_enqueue_teaparty_ok`'s richest-colony stock
+dump remains a stand-in for it, not a decode).
 
-Note (stale-claim correction): refuse already boycotts a **second** cargo
-beyond Sugar via `ai_king_tax_refuse_hike`'s dump-goods pick (`FUN_38fd_3dc8`
-stand-in) — human `KING_DUMP_GOODS` CHOICE among eligible bid>0 cargos, else
-RNG via `ai_king_pick_dump_goods_cargo`. Not a gap.
+Note (stale-claim correction, superseded 2026-08-19): the dump-goods cargo
+pick is `FUN_38fd_3dc8`'s roulette (stock×price weight) over non-boycotted,
+Europe-bid-eligible cargos, always exactly **one** cargo per tea-party event —
+DOS has no fixed Sugar-always-first boycott and no separate two-step
+CHOICE-among-cargos menu; the picked cargo is chosen *before* the single
+Accept/tea-party popup is shown, not by a follow-up "name a good" prompt.
+`ai_king_pick_dump_goods_cargo` (unchanged) still implements the roulette;
+`ai_king_tax_event`/`ai_king_tax_teaparty` now wire it the real way.
+
+**Known test-suite gap (2026-08-19, flagged not fixed):** `tests/unit/test_ai_king.c`
+predates this port and assumes the old deterministic, year-gated, RNG-free
+tax design throughout (its very first tax scenario hardcodes `turn=1`, no
+`ctx.rng`, and an unconditional "+1" expectation). The real formula requires
+`ctx.rng` and `ctx->turn_number ≥ 30` for every audience roll, so that first
+assertion now fails fast and the rest of the 6000+-line single-`main()` file
+never runs. This does not change the sandboxed `ctest` pass/fail count here
+(this test was already failing before this pass, at a later GAME.TXT-load
+step, for unrelated missing-asset reasons) but is a real regression for
+anyone running it with real `COLONIZE/` data. Rewriting the fixture (seeded
+RNG streams per scenario, turn-based not year-based setup) is a substantial
+follow-up task in its own right, out of scope for the formula port itself —
+parked here the way `golden_ai_turns`/`golden_ai_joint` are parked above.
 
 ---
 
@@ -870,7 +922,7 @@ Status reflects the AI-port prerequisite work:
 | Alarm / contact hooks | **Partial** (T0) | `ai_contact_*` meet/trade/missions/raids + adjacent friction |
 | AI colony economy + construction | **Ready** | `turn_run_colony_production` already ticks **all** active colonies |
 | Founding Fathers / liberty | **Partial** | Human+AI Euro elect; **manual-aligned effects** (no gold/crosses fiction); factory/Custom House gates; Magellan +1 sea MP; Fugger clears all boycotts; Minuit + Franklin + Brebeuf + Las Casas + Sepulveda convert-join (**Done** `units_try_native_settlement_fallout`) + Cortes coastal cash + de Witt **Done**; KINGGALLEON2 / Congress UI PARKED |
-| King / tax / REF | **Partial structural** | `ai_king_nation_turn` — R6; audience / confirm / `2022` merc via `ai_popup` **Done** (merc now real formula, not stand-in); VGA chrome PARKED; `unit_ai_king` |
+| King / tax / REF | **Partial structural** | `ai_king_nation_turn` — R6; audience / confirm / `2022` merc via `ai_popup` **Done** (audience `38fd_5be8`/`38fd_3dc8` delta formula and merc `2022` price/qty both now real, not stand-ins); VGA chrome PARKED; `unit_ai_king` (tax scenarios stale, see R6 note) |
 
 Suggested manual order: finish leftover **unpark #3** KINGGALLEON2 (non-Cortes
 royal-galleon share) if evidence appears, and **unpark #4** deep land/ocean `20e6`, then deepen PARKED bodies

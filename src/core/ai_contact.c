@@ -82,6 +82,16 @@ enum {
 };
 
 /*
+ * Trade buy-offer CHOICE ids (CONTACT_TRADE_OFFER; FUN_4d56_2820 LAB_002e92
+ * human `iStack_8 != 0` branch — Accept/Decline a locked price instead of
+ * the AI's silent auto-accept). Cite: indian_trade_2820.md.
+ */
+enum {
+  AI_CONTACT_TRADE_OFFER_ACCEPT = 1,
+  AI_CONTACT_TRADE_OFFER_DECLINE = 2
+};
+
+/*
  * Human status chrome + optional AI popup OK (keep both). Cite: FUN_5bfb_022e /
  * FUN_4d56_4528 thin arms; unpark #1 dialog widgets.
  */
@@ -3764,8 +3774,13 @@ static uint8_t ai_contact_nation_primary_sold_cargo(int nation_id) {
 
 /*
  * FUN_4d56_2820 AI-buy-offer price (the `iStack_8==0` / `LAB_002bbc` branch —
- * the non-human-Euro-peer path `ai_contact_auto_trade` needs; the human
- * CHOICE-dialog buy-offer path stays separately PARKED, VGA-gated).
+ * the non-human-Euro-peer path `ai_contact_auto_trade` needs). Reused as-is
+ * for the human `LAB_002e92` buy-offer CHOICE too (ai_contact_auto_trade_price /
+ * ai_contact_enqueue_trade_price_choice) — same general shape per
+ * indian_trade_2820.md; the human branch's own distinct byte-level price
+ * table (0x8d4e+2, a per-nation-per-cargo throttle array at -0x7b44, string
+ * IDs 0x15a9/0x2e0c/0x2e0e) is not resolved anywhere in this project and is
+ * NOT invented here — see indian_trade_2820.md "Open RE".
  * cargo_type fixed to TRADE_GOODS (0xd/13) here — the only cargo this trade
  * path moves. `ask_cargo` = `econ.ask[13]` from the already-ported
  * `ai_contact_meet_economics_2154` (same DS:0x9e58 table 2820 itself reads —
@@ -3825,26 +3840,33 @@ static int ai_contact_2820_ai_buy_price(
 }
 
 /*
- * Thin peaceful auto-trade (FUN_5bfb_022e / 2aac…311e stand-in).
- * Colony warehouse or nearby ship/wagon hold TRADE_GOODS → alarm/friction decay,
- * now with real 2820 AI-buy-offer price debited from the Euro nation's gold
- * (previously: goods/relation bookkeeping only, no gold ever changed hands —
- * see indian_trade_2820.md "real gap found"). Deep human-CHOICE buy path PARKED.
+ * Read-only auto-trade source pick (colony warehouse or nearby ship/wagon
+ * hold TRADE_GOODS near (near_x,near_y)). Factored out of ai_contact_auto_trade
+ * so the human buy-offer CHOICE (ai_contact_enqueue_trade_price_choice) can
+ * preview/price the same source before the player commits, without mutating
+ * any state. Cite: indian_trade_2820.md.
  */
-static int ai_contact_auto_trade(
+typedef struct AiContactTradeSource {
+  int use_colony;
+  int colony_index;
+  int ship_id;
+  int hold_index;
+} AiContactTradeSource;
+
+static int ai_contact_auto_trade_find_source(
   ColonizeTurnContext* ctx,
-  ColonizeCol1Indian* ind,
-  int nation_id,
   int e,
   int near_x,
-  int near_y
+  int near_y,
+  AiContactTradeSource* out
 ) {
-  if (!ctx || !ctx->col1_ok || !ctx->col1 || !ind) {
+  if (!ctx || !out) {
     return 0;
   }
-  if (!ind->euro_diplo[e] || ind->alarm_by_player[e] >= 50) {
-    return 0;
-  }
+  out->use_colony = 0;
+  out->colony_index = -1;
+  out->ship_id = -1;
+  out->hold_index = -1;
   /* French (1): cooperation bias — slightly longer wagon/ship reach (fandom). */
   const int max_dist = (e == 1) ? 5 : 4;
   int best_ci = -1;
@@ -3906,6 +3928,111 @@ static int ai_contact_auto_trade(
   if (!use_colony && best_ship < 0) {
     return 0;
   }
+  out->use_colony = use_colony;
+  out->colony_index = best_ci;
+  out->ship_id = best_ship;
+  out->hold_index = best_hold;
+  return 1;
+}
+
+/*
+ * Read-only peek at the hard-bargain trade-goods peel (see the drain-time
+ * comment in ai_contact_auto_trade) — how many units a colony-source offer
+ * would end up draining, without actually draining anything. Ship/wagon
+ * sources are always a single unit (no peel arm in the original stand-in).
+ */
+static int ai_contact_auto_trade_preview_qty(
+  ColonizeTurnContext* ctx,
+  int nation_id,
+  const AiContactTradeSource* src,
+  int hard
+) {
+  if (!hard || !src || !src->use_colony || !ctx || !ctx->colonies) {
+    return 1;
+  }
+  const ColonizeColony* c = &ctx->colonies->colonies[src->colony_index];
+  if (ai_contact_nation_primary_sold_cargo(nation_id) != 0xffu &&
+      c->stock[COLONIZE_CARGO_TRADE_GOODS] > 1) {
+    return 2;
+  }
+  return 1;
+}
+
+/*
+ * 2820 AI-buy price (ai_contact_2820_ai_buy_price above) for `qty` units of
+ * TRADE_GOODS, from the already-ported 2154 ask table + current relation/
+ * difficulty. Returns -1 if no tribe/econ found for nation_id (callers fall
+ * back to their own pre-existing "skip pricing" behavior — see
+ * ai_contact_auto_trade's own comment).
+ */
+static int ai_contact_auto_trade_price(
+  ColonizeTurnContext* ctx,
+  int nation_id,
+  int e,
+  int qty
+) {
+  if (!ctx || !ctx->col1_ok || !ctx->col1 || !ctx->col1->tribe) {
+    return -1;
+  }
+  const ColonizeCol1Tribe* sample = NULL;
+  for (uint16_t ti = 0; ti < ctx->col1->head.tribe_count; ++ti) {
+    const ColonizeCol1Tribe* t = &ctx->col1->tribe[ti];
+    if ((int)t->nation_id == nation_id) {
+      sample = t;
+      break;
+    }
+  }
+  if (!sample) {
+    return -1;
+  }
+  AiContactMeetEcon2154 econ;
+  memset(&econ, 0, sizeof(econ));
+  if (!ai_contact_meet_economics_2154(ctx, nation_id, sample, &econ) ||
+      econ.ask[COLONIZE_CARGO_TRADE_GOODS] <= 0) {
+    return -1;
+  }
+  ColonizeDosRng local;
+  ai_contact_local_rng(ctx, nation_id, &local);
+  const int relation = (int)ai_diplo_indian_relation(ctx->col1, nation_id, e);
+  return ai_contact_2820_ai_buy_price(
+    &local, (int)econ.ask[COLONIZE_CARGO_TRADE_GOODS], qty,
+    ctx->col1->head.difficulty, relation
+  );
+}
+
+/*
+ * Thin peaceful auto-trade (FUN_5bfb_022e / 2aac…311e stand-in).
+ * Colony warehouse or nearby ship/wagon hold TRADE_GOODS → alarm/friction decay,
+ * with real 2820 AI-buy-offer price debited from the Euro nation's gold
+ * (previously: goods/relation bookkeeping only, no gold ever changed hands —
+ * see indian_trade_2820.md "real gap found").
+ *
+ * `forced_price` < 0: AI silent path (LAB_002bbc-shaped) — price computed
+ * fresh here via ai_contact_auto_trade_price/RNG, matching the original
+ * behavior exactly. `forced_price` >= 0: human buy-offer CHOICE accept path
+ * (LAB_002e92 human branch) — reuses the exact price already shown and
+ * locked at offer time (ai_contact_enqueue_trade_price_choice) instead of
+ * re-rolling, so the player pays what they were shown.
+ */
+static int ai_contact_auto_trade(
+  ColonizeTurnContext* ctx,
+  ColonizeCol1Indian* ind,
+  int nation_id,
+  int e,
+  int near_x,
+  int near_y,
+  int forced_price
+) {
+  if (!ctx || !ctx->col1_ok || !ctx->col1 || !ind) {
+    return 0;
+  }
+  if (!ind->euro_diplo[e] || ind->alarm_by_player[e] >= 50) {
+    return 0;
+  }
+  AiContactTradeSource src;
+  if (!ai_contact_auto_trade_find_source(ctx, e, near_x, near_y, &src)) {
+    return 0;
+  }
   /*
    * Thin 2820 hard-bargain / price tension: mid alarm 45..54 still trades but
    * skips relation bump and tribe friction decay (tense haggle / 306c). Deep
@@ -3914,8 +4041,8 @@ static int ai_contact_auto_trade(
   const int hard =
     (ind->alarm_by_player[e] >= 45 && ind->alarm_by_player[e] < 55);
   int qty_drained = 1;
-  if (use_colony) {
-    ColonizeColony* c = &ctx->colonies->colonies[best_ci];
+  if (src.use_colony) {
+    ColonizeColony* c = &ctx->colonies->colonies[src.colony_index];
     c->stock[COLONIZE_CARGO_TRADE_GOODS]--;
     /*
      * Thin 2820 AI-buy price peel (2bbc-shaped): under hard-bargain tension,
@@ -3932,42 +4059,29 @@ static int ai_contact_auto_trade(
       qty_drained = 2;
     }
   } else {
-    ColonizeUnit* ship = units_get(ctx->units, best_ship);
-    if (!ship || best_hold < 0) {
+    ColonizeUnit* ship = units_get(ctx->units, src.ship_id);
+    if (!ship || src.hold_index < 0) {
       return 0;
     }
-    ship->hold_goods_amount[best_hold]--;
-    if (ship->hold_goods_amount[best_hold] <= 0) {
-      ship->hold_goods_amount[best_hold] = 0;
-      ship->hold_goods_type[best_hold] = 0;
+    ship->hold_goods_amount[src.hold_index]--;
+    if (ship->hold_goods_amount[src.hold_index] <= 0) {
+      ship->hold_goods_amount[src.hold_index] = 0;
+      ship->hold_goods_type[src.hold_index] = 0;
     }
   }
   /*
-   * 2820 AI-buy price + gold debit (see ai_contact_2820_ai_buy_price above).
+   * 2820 buy price + gold debit (see ai_contact_2820_ai_buy_price above).
    * Real behavior this closed: auto-trade previously moved goods with no
    * gold ever changing hands. Needs a tribe of nation_id for the 2154 ask
    * table; skip pricing (goods still move, matching old behavior) if none.
    */
-  if (ctx->col1->tribe) {
-    const ColonizeCol1Tribe* sample = NULL;
-    for (uint16_t ti = 0; ti < ctx->col1->head.tribe_count; ++ti) {
-      const ColonizeCol1Tribe* t = &ctx->col1->tribe[ti];
-      if ((int)t->nation_id == nation_id) {
-        sample = t;
-        break;
-      }
-    }
-    AiContactMeetEcon2154 econ;
-    memset(&econ, 0, sizeof(econ));
-    if (sample && ai_contact_meet_economics_2154(ctx, nation_id, sample, &econ) &&
-        econ.ask[COLONIZE_CARGO_TRADE_GOODS] > 0) {
-      ColonizeDosRng local;
-      ai_contact_local_rng(ctx, nation_id, &local);
-      const int relation = (int)ai_diplo_indian_relation(ctx->col1, nation_id, e);
-      const int price = ai_contact_2820_ai_buy_price(
-        &local, (int)econ.ask[COLONIZE_CARGO_TRADE_GOODS], qty_drained,
-        ctx->col1->head.difficulty, relation
-      );
+  if (forced_price >= 0) {
+    ColonizeCol1Nation* nat = &ctx->col1->nation[e];
+    nat->gold =
+      (nat->gold >= (uint32_t)forced_price) ? (nat->gold - (uint32_t)forced_price) : 0u;
+  } else {
+    const int price = ai_contact_auto_trade_price(ctx, nation_id, e, qty_drained);
+    if (price > 0) {
       ColonizeCol1Nation* nat = &ctx->col1->nation[e];
       nat->gold = (nat->gold >= (uint32_t)price) ? (nat->gold - (uint32_t)price) : 0u;
     }
@@ -4018,6 +4132,125 @@ static int ai_contact_auto_trade(
     ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_MEET, nation_id, "Trade", trade_fb);
   }
   return 1;
+}
+
+/*
+ * Human buy-offer CHOICE (FUN_4d56_2820 LAB_002e92 human `iStack_8 != 0`
+ * branch): instead of the AI's silent auto-accept, price a TRADE_GOODS offer
+ * from the same source ai_contact_auto_trade would use and let the player
+ * Accept or Decline the locked price — using the already-verified 2bbc/2820
+ * price formula and ai_contact_auto_trade's own source pick as the
+ * structural template (indian_trade_2820.md: "same general shape, different
+ * RNG/UI gating"). The deeper Haggle (2f96) / hard-bargain-tension (306c)
+ * counter-offer sub-loops that would let a human push for more gold are
+ * NOT ported here — this closes the "blind auto-trade for humans" gap with
+ * a real Accept/Decline gate, not the full haggle state machine (still
+ * PARKED; same scope discipline as the Gift/Demand amount CHOICEs). Returns
+ * 1 if a price CHOICE was queued (caller falls back to the old silent path
+ * on 0 — e.g. no colony/ship source, or no tribe/econ to price against).
+ */
+static int ai_contact_enqueue_trade_price_choice(
+  ColonizeTurnContext* ctx,
+  ColonizeCol1Indian* ind,
+  int nation_id,
+  int e,
+  int near_x,
+  int near_y
+) {
+  if (!ctx || !ctx->ai_popups || !ind || !ai_contact_euro_is_human(ctx, e)) {
+    return 0;
+  }
+  AiContactTradeSource src;
+  if (!ai_contact_auto_trade_find_source(ctx, e, near_x, near_y, &src)) {
+    return 0;
+  }
+  const int hard =
+    (ind->alarm_by_player[e] >= 45 && ind->alarm_by_player[e] < 55);
+  const int qty = ai_contact_auto_trade_preview_qty(ctx, nation_id, &src, hard);
+  const int price = ai_contact_auto_trade_price(ctx, nation_id, e, qty);
+  if (price <= 0) {
+    return 0;
+  }
+  char title[AI_POPUP_TITLE_LEN];
+  char body[AI_POPUP_BODY_LEN];
+  char accept_label[AI_POPUP_CHOICE_LEN];
+  snprintf(title, sizeof(title), "Trade");
+  snprintf(
+    body,
+    sizeof(body),
+    "The %s offer %d gold for your trade goods. Accept the deal?",
+    ai_contact_tribe_name(nation_id),
+    price
+  );
+  snprintf(accept_label, sizeof(accept_label), "Accept (%d gold)", price);
+  const char* labels[2] = {accept_label, "Decline"};
+  const int ids[2] = {AI_CONTACT_TRADE_OFFER_ACCEPT, AI_CONTACT_TRADE_OFFER_DECLINE};
+  return ai_popup_enqueue_choice_ctx(
+           ctx->ai_popups,
+           AI_POPUP_TAG_CONTACT_TRADE_OFFER,
+           e,
+           nation_id,
+           price,
+           title,
+           body,
+           labels,
+           ids,
+           2
+         )
+           ? 1
+           : 0;
+}
+
+/*
+ * Apply the human buy-offer CHOICE (AI_POPUP_TAG_CONTACT_TRADE_OFFER result).
+ * Accept -> ai_contact_auto_trade with the exact price shown/locked at offer
+ * time (source re-found fresh at apply time — same near_x/near_y discipline,
+ * adjacent-Euro-unit-then-tribe-position fallback, as the Meet CHOICE
+ * dispatcher itself uses for Trade/Gift/Demand). Decline -> no trade, no
+ * gold; this is a player-initiated pass, distinct from the tribe-refuses-
+ * to-trade alarm/relation gate already handled before the CHOICE is even
+ * offered.
+ */
+static void ai_contact_apply_trade_offer(
+  ColonizeTurnContext* ctx,
+  ColonizeCol1Indian* ind,
+  int nation_id,
+  int e,
+  int price,
+  int accept
+) {
+  if (!ctx || !ind) {
+    return;
+  }
+  if (!accept) {
+    char decline_fb[AI_POPUP_BODY_LEN];
+    snprintf(
+      decline_fb,
+      sizeof(decline_fb),
+      "You decline the %s trade offer.",
+      ai_contact_tribe_name(nation_id)
+    );
+    ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_MEET, nation_id, "Trade", decline_fb);
+    return;
+  }
+  int near_x = 0;
+  int near_y = 0;
+  ColonizeUnit* other = ai_contact_find_adjacent_euro(ctx, nation_id, e, &near_x, &near_y);
+  if (!other && ctx->col1_ok && ctx->col1 && ctx->col1->tribe) {
+    for (uint16_t ti = 0; ti < ctx->col1->head.tribe_count; ++ti) {
+      const ColonizeCol1Tribe* t = &ctx->col1->tribe[ti];
+      if ((int)t->nation_id == nation_id) {
+        near_x = t->x;
+        near_y = t->y;
+        break;
+      }
+    }
+  }
+  if (!ai_contact_auto_trade(ctx, ind, nation_id, e, near_x, near_y, price)) {
+    ai_contact_human_chrome(
+      ctx, e, AI_POPUP_TAG_CONTACT_MEET, nation_id, "Trade", "Trade concluded."
+    );
+  }
 }
 
 /* Find Euro unit of nation e adjacent to a Brave of nation_id (meet/gift apply). */
@@ -4157,7 +4390,7 @@ void ai_contact_indian_meet_trade(ColonizeTurnContext* ctx, int nation_id) {
        * 3. Peaceful auto-trade (nested 2bbc AI buy stand-in).
        * PARK deep FUN_4d56_2820 (~1.4k; thunk 2a1f_044c) — thin path only.
        */
-      ai_contact_auto_trade(ctx, ind, nation_id, e, brave->x, brave->y);
+      ai_contact_auto_trade(ctx, ind, nation_id, e, brave->x, brave->y, -1);
 
       /* 4. Gift / demand stand-in (5bfb_102a / 1092; AI silent). */
       ai_contact_gift_or_demand(ctx, ind, nation_id, e, other, brave->x, brave->y);
@@ -5672,6 +5905,19 @@ void ai_contact_apply_popup_result(ColonizeTurnContext* ctx, const AiPopupState*
   }
 
   /*
+   * Trade buy-offer CHOICE (FUN_4d56_2820 LAB_002e92 human branch): Accept
+   * applies the locked price via ai_contact_apply_trade_offer; Decline (or
+   * cancel) is a no-op pass. Cite: indian_trade_2820.md.
+   */
+  if (popup->result_tag == AI_POPUP_TAG_CONTACT_TRADE_OFFER) {
+    ai_contact_apply_trade_offer(
+      ctx, ind, nation_id, e, popup->result_payload,
+      popup->result_choice_id == AI_CONTACT_TRADE_OFFER_ACCEPT
+    );
+    return;
+  }
+
+  /*
    * Demand amount CHOICE (FUN_5bfb_102a / 1092 stand-in): tools vs gold.
    * Cite: indian_contact.md mid demand amount widget.
    */
@@ -5772,10 +6018,15 @@ void ai_contact_apply_popup_result(ColonizeTurnContext* ctx, const AiPopupState*
     break;
   case AI_CONTACT_CHOICE_TRADE:
     /*
-     * Thin auto-trade (FUN_5bfb_022e / 2aac…311e). Success → "Trade accepted."
-     * Alarmed / very-low relation → haggle refuse OK "The %s refuse to trade."
-     * (2aac refuse arm stand-in; fandom Alarm). No goods otherwise → haggle
-     * stub OK "Trade concluded." Deep buy/hard-bargain PARKED in FUN_4d56_2820.
+     * Human buy-offer (FUN_4d56_2820 LAB_002e92 human branch). Alarmed /
+     * very-low relation → haggle refuse OK "The %s refuse to trade." (2aac
+     * refuse arm stand-in; fandom Alarm) — same gate as before, checked
+     * before a price is ever shown. Otherwise: price + queue a real
+     * Accept/Decline CHOICE (ai_contact_enqueue_trade_price_choice); no
+     * source/econ to price against → same silent-path fallback as before
+     * ("Trade accepted."/"Trade concluded." via ai_contact_auto_trade,
+     * forced_price=-1). Deep Haggle (2f96) / hard-bargain (306c) counter-
+     * offer sub-loops still PARKED — see ai_contact_enqueue_trade_price_choice.
      */
     {
       const int refuse_trade =
@@ -5803,7 +6054,10 @@ void ai_contact_apply_popup_result(ColonizeTurnContext* ctx, const AiPopupState*
         }
         break;
       }
-      if (!ai_contact_auto_trade(ctx, ind, nation_id, e, near_x, near_y)) {
+      if (ai_contact_enqueue_trade_price_choice(ctx, ind, nation_id, e, near_x, near_y)) {
+        break;
+      }
+      if (!ai_contact_auto_trade(ctx, ind, nation_id, e, near_x, near_y, -1)) {
         ai_contact_human_chrome(
           ctx, e, AI_POPUP_TAG_CONTACT_MEET, nation_id, "Trade", "Trade concluded."
         );
