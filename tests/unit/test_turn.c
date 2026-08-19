@@ -108,7 +108,7 @@ static int unit_century_cargoready(void) {
 
   ColonizeTurnResult prod;
   memset(&prod, 0, sizeof(prod));
-  turn_run_colony_production(&pool, NULL, &tipcol, &eu, 0, &prod, &pops, &game_txt);
+  turn_run_colony_production(&pool, NULL, &tipcol, &eu, 0, &prod, &pops, &game_txt, NULL);
   if (strstr(eu.status, "Stockpile") == NULL || !tipcol.head.tut3.nr6) {
     fprintf(
       stderr,
@@ -144,7 +144,7 @@ static int unit_century_cargoready(void) {
   eu.status[0] = '\0';
   ai_popup_clear(&pops);
   memset(&prod, 0, sizeof(prod));
-  turn_run_colony_production(&pool, NULL, &tipcol, &eu, 0, &prod, &pops, &game_txt);
+  turn_run_colony_production(&pool, NULL, &tipcol, &eu, 0, &prod, &pops, &game_txt, NULL);
   if (strstr(eu.status, "Stockpile") != NULL || pops.queue_count > 0) {
     fprintf(stderr, "century tip latch must suppress second tip got '%s' q=%d\n", eu.status, pops.queue_count);
     assets_msg_free(&game_txt);
@@ -160,7 +160,7 @@ static int unit_century_cargoready(void) {
   eu.status[0] = '\0';
   ai_popup_clear(&pops);
   memset(&prod, 0, sizeof(prod));
-  turn_run_colony_production(&pool, NULL, &tipcol, &eu, 0, &prod, &pops, &game_txt);
+  turn_run_colony_production(&pool, NULL, &tipcol, &eu, 0, &prod, &pops, &game_txt, NULL);
   if (col->stock[COLONIZE_CARGO_RUM] != 100) {
     fprintf(stderr, "century CARGOREADY1 rum want 100 got %d\n", col->stock[COLONIZE_CARGO_RUM]);
     assets_msg_free(&game_txt);
@@ -288,7 +288,7 @@ static int unit_needtools0(void) {
 
   ColonizeTurnResult prod;
   memset(&prod, 0, sizeof(prod));
-  turn_run_colony_production(&pool, NULL, &col1, &eu, 0, &prod, &pops, &game_txt);
+  turn_run_colony_production(&pool, NULL, &col1, &eu, 0, &prod, &pops, &game_txt, NULL);
   if (col->has_building[press]) {
     fprintf(stderr, "needtools0: should not complete without tools\n");
     assets_msg_free(&game_txt);
@@ -392,7 +392,7 @@ static int unit_needtools(void) {
 
   ColonizeTurnResult prod;
   memset(&prod, 0, sizeof(prod));
-  turn_run_colony_production(&pool, NULL, &col1, &eu, 0, &prod, &pops, &game_txt);
+  turn_run_colony_production(&pool, NULL, &col1, &eu, 0, &prod, &pops, &game_txt, NULL);
   if (col->has_building[press]) {
     fprintf(stderr, "needtools: should not complete with short tools\n");
     assets_msg_free(&game_txt);
@@ -467,7 +467,7 @@ static int unit_trainfail(void) {
   memset(&col1, 0, sizeof(col1));
   ColonizeTurnResult prod;
   memset(&prod, 0, sizeof(prod));
-  turn_run_colony_production(&pool, NULL, &col1, &eu, 0, &prod, &pops, &game_txt);
+  turn_run_colony_production(&pool, NULL, &col1, &eu, 0, &prod, &pops, &game_txt, NULL);
   if (strstr(eu.status, "No students") == NULL) {
     fprintf(stderr, "trainfail: status want No students got '%s'\n", eu.status);
     assets_msg_free(&game_txt);
@@ -536,7 +536,7 @@ static int unit_trainprofession(void) {
   memset(&col1, 0, sizeof(col1));
   ColonizeTurnResult prod;
   memset(&prod, 0, sizeof(prod));
-  turn_run_colony_production(&pool, NULL, &col1, &eu, 0, &prod, &pops, &game_txt);
+  turn_run_colony_production(&pool, NULL, &col1, &eu, 0, &prod, &pops, &game_txt, NULL);
   if (col->colonists[1].profession != COLONIZE_JOB_FARMER) {
     fprintf(
       stderr,
@@ -615,7 +615,7 @@ static int unit_traincriminal(void) {
   memset(&col1, 0, sizeof(col1));
   ColonizeTurnResult prod;
   memset(&prod, 0, sizeof(prod));
-  turn_run_colony_production(&pool, NULL, &col1, &eu, 0, &prod, &pops, &game_txt);
+  turn_run_colony_production(&pool, NULL, &col1, &eu, 0, &prod, &pops, &game_txt, NULL);
   if (col->colonists[1].profession != COLONIZE_PROF_INDENTURED) {
     fprintf(
       stderr,
@@ -689,7 +689,7 @@ static int unit_trainindentured(void) {
   memset(&col1, 0, sizeof(col1));
   ColonizeTurnResult prod;
   memset(&prod, 0, sizeof(prod));
-  turn_run_colony_production(&pool, NULL, &col1, &eu, 0, &prod, &pops, &game_txt);
+  turn_run_colony_production(&pool, NULL, &col1, &eu, 0, &prod, &pops, &game_txt, NULL);
   if (col->colonists[1].profession != COLONIZE_PROF_FREE_COLONIST) {
     fprintf(
       stderr,
@@ -764,7 +764,7 @@ static int unit_phase_h_trainprofession(void) {
     ai_popup_init(&pops);
     ColonizeTurnResult prod;
     memset(&prod, 0, sizeof(prod));
-    turn_run_colony_production(&pool, NULL, &col1, &eu, 0, &prod, &pops, &game_txt);
+    turn_run_colony_production(&pool, NULL, &col1, &eu, 0, &prod, &pops, &game_txt, NULL);
     if (col->colonists[0].profession == COLONIZE_JOB_FARMER) {
       discovered = 1;
       if (pops.queue_count < 1 ||
@@ -1069,7 +1069,7 @@ int main(void) {
       memset(&delta, 0, sizeof(delta));
       ai_popup_clear(&pops);
       eu.status[0] = '\0';
-      turn_run_colony_production(&pool, NULL, NULL, &eu, 0, &prod, &pops, &game_txt);
+      turn_run_colony_production(&pool, NULL, NULL, &eu, 0, &prod, &pops, &game_txt, NULL);
       if (prod.buildings_completed > 0 || col->has_building[stockade]) {
         completed = true;
         if (strstr(eu.status, "Stockade") == NULL && strstr(eu.status, "completed") == NULL) {
@@ -1840,7 +1840,7 @@ int main(void) {
 
     ColonizeTurnResult prod;
     memset(&prod, 0, sizeof(prod));
-    turn_run_colony_production(&pool, &map, &col1, NULL, -1, &prod, NULL, NULL);
+    turn_run_colony_production(&pool, &map, &col1, NULL, -1, &prod, NULL, NULL, NULL);
     const int base_furs = col->stock[COLONIZE_CARGO_FURS];
     if (base_furs <= 0) {
       fprintf(stderr, "Hudson test base fur harvest want >0 got %d\n", base_furs);
@@ -1855,7 +1855,7 @@ int main(void) {
     ColonizeColonyPreview prev;
     colony_preview_compute(&pool, col, &map, &col1, &prev);
     memset(&prod, 0, sizeof(prod));
-    turn_run_colony_production(&pool, &map, &col1, NULL, -1, &prod, NULL, NULL);
+    turn_run_colony_production(&pool, &map, &col1, NULL, -1, &prod, NULL, NULL, NULL);
     const int hudson_furs = col->stock[COLONIZE_CARGO_FURS];
     if (hudson_furs != base_furs * 2) {
       fprintf(
@@ -2370,7 +2370,7 @@ int main(void) {
     eu.tax_percent = 0;
     ColonizeTurnResult prod;
     memset(&prod, 0, sizeof(prod));
-    turn_run_colony_production(&pool, NULL, &col1, &eu, 0, &prod, NULL, NULL);
+    turn_run_colony_production(&pool, NULL, &col1, &eu, 0, &prod, NULL, NULL, NULL);
     if (col->stock[COLONIZE_CARGO_TOBACCO] != 50 || eu.gold != 700) {
       fprintf(
         stderr,
@@ -2463,7 +2463,7 @@ int main(void) {
 
     ColonizeTurnResult prod;
     memset(&prod, 0, sizeof(prod));
-    turn_run_colony_production(&pool, &map, NULL, &eu, 0, &prod, &pops, &game_txt);
+    turn_run_colony_production(&pool, &map, NULL, &eu, 0, &prod, &pops, &game_txt, NULL);
     if (col->depletion_counter != 0) {
       fprintf(
         stderr,
@@ -2553,7 +2553,7 @@ int main(void) {
 
     ColonizeTurnResult br;
     memset(&br, 0, sizeof(br));
-    turn_run_colony_production(&birth_pool, NULL, NULL, &eu, 0, &br, &pops, &game_txt);
+    turn_run_colony_production(&birth_pool, NULL, NULL, &eu, 0, &br, &pops, &game_txt, NULL);
     if (!b->active || b->colonist_count != 2) {
       fprintf(stderr, "birth: colonist_count want 2 got %d\n", b->colonist_count);
       assets_msg_free(&game_txt);
@@ -2623,7 +2623,7 @@ int main(void) {
 
     ColonizeTurnResult ar;
     memset(&ar, 0, sizeof(ar));
-    turn_run_colony_production(&ai_pool, NULL, &col1, NULL, 0, &ar, NULL, NULL);
+    turn_run_colony_production(&ai_pool, NULL, &col1, NULL, 0, &ar, NULL, NULL, NULL);
     /* 10 + 2 AI food − 2 eat = 10 */
     if (a->stock[COLONIZE_CARGO_FOOD] != 10) {
       fprintf(
@@ -2636,7 +2636,7 @@ int main(void) {
 
     a->stock[COLONIZE_CARGO_FOOD] = 10;
     col1.head.difficulty = 0; /* Discoverer → +0 */
-    turn_run_colony_production(&ai_pool, NULL, &col1, NULL, 0, &ar, NULL, NULL);
+    turn_run_colony_production(&ai_pool, NULL, &col1, NULL, 0, &ar, NULL, NULL, NULL);
     if (a->stock[COLONIZE_CARGO_FOOD] != 8) {
       fprintf(
         stderr,
@@ -2649,7 +2649,7 @@ int main(void) {
     a->stock[COLONIZE_CARGO_FOOD] = 10;
     a->nation_id = 0; /* human */
     col1.head.difficulty = 4;
-    turn_run_colony_production(&ai_pool, NULL, &col1, NULL, 0, &ar, NULL, NULL);
+    turn_run_colony_production(&ai_pool, NULL, &col1, NULL, 0, &ar, NULL, NULL, NULL);
     if (a->stock[COLONIZE_CARGO_FOOD] != 8) {
       fprintf(
         stderr,
@@ -2740,7 +2740,7 @@ int main(void) {
 
     ColonizeTurnResult prod;
     memset(&prod, 0, sizeof(prod));
-    turn_run_colony_production(&pool, NULL, &col1, NULL, 0, &prod, NULL, NULL);
+    turn_run_colony_production(&pool, NULL, &col1, NULL, 0, &prod, NULL, NULL, NULL);
     /* -= >>6 → 3150/6300; divisor+=2 → 6302; dividend+=7 → 3157. */
     if (col1c.rebel_dividend != 3157u || col1c.rebel_divisor != 6302u) {
       fprintf(
@@ -2760,7 +2760,7 @@ int main(void) {
     col1.head.unknown46[0] = 1;
     c->stock[COLONIZE_CARGO_FOOD] = 50;
     memset(&prod, 0, sizeof(prod));
-    turn_run_colony_production(&pool, NULL, &col1, NULL, 0, &prod, NULL, NULL);
+    turn_run_colony_production(&pool, NULL, &col1, NULL, 0, &prod, NULL, NULL, NULL);
     if (col1c.rebel_dividend != 3147u || col1c.rebel_divisor != 6302u) {
       fprintf(
         stderr,
@@ -2834,7 +2834,7 @@ int main(void) {
 
     ColonizeTurnResult prod;
     memset(&prod, 0, sizeof(prod));
-    turn_run_colony_production(&pool, NULL, &col1, &eu, 0, &prod, &pops, &game_txt);
+    turn_run_colony_production(&pool, NULL, &col1, &eu, 0, &prod, &pops, &game_txt, NULL);
     if ((c->colony_flags & COLONIZE_COLONY_FLAG_SOL_50) == 0) {
       fprintf(stderr, "Phase D majority: sol_50 latch missing\n");
       assets_msg_free(&game_txt);
@@ -2863,7 +2863,7 @@ int main(void) {
     eu.status[0] = '\0';
     ai_popup_clear(&pops);
     memset(&prod, 0, sizeof(prod));
-    turn_run_colony_production(&pool, NULL, &col1, &eu, 0, &prod, &pops, &game_txt);
+    turn_run_colony_production(&pool, NULL, &col1, &eu, 0, &prod, &pops, &game_txt, NULL);
     if (pops.queue_count != 0 || strstr(eu.status, "SoL") != NULL) {
       fprintf(
         stderr,
@@ -2885,7 +2885,7 @@ int main(void) {
     eu.status[0] = '\0';
     ai_popup_clear(&pops);
     memset(&prod, 0, sizeof(prod));
-    turn_run_colony_production(&pool, NULL, &col1, &eu, 0, &prod, &pops, &game_txt);
+    turn_run_colony_production(&pool, NULL, &col1, &eu, 0, &prod, &pops, &game_txt, NULL);
     if (strstr(eu.status, "SoL") == NULL && pops.queue_count < 1) {
       fprintf(stderr, "Phase D SONSUP: want status/popup got '%s' q=%d\n", eu.status, pops.queue_count);
       assets_msg_free(&game_txt);
@@ -2900,7 +2900,7 @@ int main(void) {
     eu.status[0] = '\0';
     ai_popup_clear(&pops);
     memset(&prod, 0, sizeof(prod));
-    turn_run_colony_production(&pool, NULL, &col1, &eu, 0, &prod, &pops, &game_txt);
+    turn_run_colony_production(&pool, NULL, &col1, &eu, 0, &prod, &pops, &game_txt, NULL);
     if (pops.queue_count != 0 || strstr(eu.status, "SoL") != NULL) {
       fprintf(
         stderr,
@@ -2977,7 +2977,7 @@ int main(void) {
 
     ColonizeTurnResult prod;
     memset(&prod, 0, sizeof(prod));
-    turn_run_colony_production(&pool, NULL, &col1, &eu, 0, &prod, &pops, &game_txt);
+    turn_run_colony_production(&pool, NULL, &col1, &eu, 0, &prod, &pops, &game_txt, NULL);
     if (c->inefficient_gov == 0) {
       fprintf(stderr, "INEFFICIENT: latch not set (sol low, pop 12)\n");
       assets_msg_free(&game_txt);
@@ -2997,7 +2997,7 @@ int main(void) {
     eu.status[0] = '\0';
     ai_popup_clear(&pops);
     memset(&prod, 0, sizeof(prod));
-    turn_run_colony_production(&pool, NULL, &col1, &eu, 0, &prod, &pops, &game_txt);
+    turn_run_colony_production(&pool, NULL, &col1, &eu, 0, &prod, &pops, &game_txt, NULL);
     if (c->inefficient_gov != 0) {
       fprintf(stderr, "EFFICIENT: latch still set\n");
       assets_msg_free(&game_txt);
@@ -3019,7 +3019,7 @@ int main(void) {
     eu.status[0] = '\0';
     ai_popup_clear(&pops);
     memset(&prod, 0, sizeof(prod));
-    turn_run_colony_production(&pool, NULL, &col1, &eu, 0, &prod, &pops, &game_txt);
+    turn_run_colony_production(&pool, NULL, &col1, &eu, 0, &prod, &pops, &game_txt, NULL);
     if (c->inefficient_gov == 0) {
       fprintf(stderr, "INEFFICIENT suppress: latch should still set\n");
       assets_msg_free(&game_txt);
@@ -3116,7 +3116,7 @@ int main(void) {
 
     ColonizeTurnResult sr;
     memset(&sr, 0, sizeof(sr));
-    turn_run_colony_production(&pool, NULL, NULL, &eu, 0, &sr, &pops, &game_txt);
+    turn_run_colony_production(&pool, NULL, NULL, &eu, 0, &sr, &pops, &game_txt, NULL);
     if (s->active || pool.colony_count != 0) {
       fprintf(
         stderr,
@@ -3179,7 +3179,7 @@ int main(void) {
 
     ColonizeTurnResult sr;
     memset(&sr, 0, sizeof(sr));
-    turn_run_colony_production(&pool, NULL, NULL, &eu, 0, &sr, &pops, &game_txt);
+    turn_run_colony_production(&pool, NULL, NULL, &eu, 0, &sr, &pops, &game_txt, NULL);
     if (s->colonist_count != 1) {
       fprintf(stderr, "starve1: colonist_count want 1 got %d\n", s->colonist_count);
       assets_msg_free(&game_txt);
@@ -3229,10 +3229,13 @@ int main(void) {
     ColonizeCol1Save col1;
     memset(&col1, 0, sizeof(col1));
     col1.head.autumn = 1;
+    /* Difficulty>=2: skip the Discoverer/Explorer easy-mode no-kill mercy
+     * (FUN_364b_0688) so this deterministically still starve-kills. */
+    col1.head.difficulty = 2;
     eu.status[0] = '\0';
     ai_popup_clear(&pops);
     memset(&sr, 0, sizeof(sr));
-    turn_run_colony_production(&pool, NULL, &col1, &eu, 0, &sr, &pops, &game_txt);
+    turn_run_colony_production(&pool, NULL, &col1, &eu, 0, &sr, &pops, &game_txt, NULL);
     if (pops.queue_count < 1 ||
         (strstr(pops.queue[0].body, "coming soon") == NULL &&
          strstr(pops.queue[0].body, "worse") == NULL)) {
@@ -3276,7 +3279,7 @@ int main(void) {
 
     ColonizeTurnResult prod;
     memset(&prod, 0, sizeof(prod));
-    turn_run_colony_production(&pool, NULL, NULL, &eu, 0, &prod, NULL, NULL);
+    turn_run_colony_production(&pool, NULL, NULL, &eu, 0, &prod, NULL, NULL, NULL);
     if (prod.food_shortages < 1 || strstr(eu.status, "Food shortage") == NULL) {
       fprintf(
         stderr,
@@ -3321,7 +3324,7 @@ int main(void) {
 
     ColonizeTurnResult prod;
     memset(&prod, 0, sizeof(prod));
-    turn_run_colony_production(&pool, NULL, NULL, &eu, 0, &prod, &pops, &game_txt);
+    turn_run_colony_production(&pool, NULL, NULL, &eu, 0, &prod, &pops, &game_txt, NULL);
     if (col->stock[COLONIZE_CARGO_FOOD] != 6) {
       fprintf(stderr, "foodlow: stock want 6 got %d\n", col->stock[COLONIZE_CARGO_FOOD]);
       assets_msg_free(&game_txt);
@@ -3397,7 +3400,7 @@ int main(void) {
 
     ColonizeTurnResult prod;
     memset(&prod, 0, sizeof(prod));
-    turn_run_colony_production(&pool, &map, NULL, &eu, 0, &prod, &pops, NULL);
+    turn_run_colony_production(&pool, &map, NULL, &eu, 0, &prod, &pops, NULL, NULL);
     if (prod.food_shortages != 0) {
       fprintf(stderr, "foodlow-surplus: unexpected shortage %d\n", prod.food_shortages);
       map_free(&map);
@@ -3462,7 +3465,7 @@ int main(void) {
 
     ColonizeTurnResult prod;
     memset(&prod, 0, sizeof(prod));
-    turn_run_colony_production(&pool, NULL, NULL, &eu, 0, &prod, &pops, &game_txt);
+    turn_run_colony_production(&pool, NULL, NULL, &eu, 0, &prod, &pops, &game_txt, NULL);
     if ((col->colony_flags & COLONIZE_COLONY_FLAG_STARVATION) == 0) {
       fprintf(stderr, "food1: want STARVATION latch\n");
       assets_msg_free(&game_txt);
@@ -3529,7 +3532,7 @@ int main(void) {
 
     ColonizeTurnResult prod;
     memset(&prod, 0, sizeof(prod));
-    turn_run_colony_production(&pool, NULL, &col1, &eu, 0, &prod, &pops, &game_txt);
+    turn_run_colony_production(&pool, NULL, &col1, &eu, 0, &prod, &pops, &game_txt, NULL);
     if (pops.queue_count < 1 ||
         (strstr(pops.queue[0].body, "Winter") == NULL &&
          strstr(pops.queue[0].body, "starve") == NULL)) {
@@ -3632,7 +3635,7 @@ int main(void) {
     col1.nation[1].gold = 0;
     ColonizeTurnResult prod;
     memset(&prod, 0, sizeof(prod));
-    turn_run_colony_production(&pool, NULL, &col1, &eu, 0, &prod, NULL, NULL);
+    turn_run_colony_production(&pool, NULL, &col1, &eu, 0, &prod, NULL, NULL, NULL);
     if (ai->stock[COLONIZE_CARGO_TOBACCO] != 100 || ai->stock[COLONIZE_CARGO_HORSES] != 100) {
       fprintf(
         stderr,
@@ -3908,7 +3911,7 @@ int main(void) {
       col->population = 1;
       col->stock[COLONIZE_CARGO_FOOD] = 50; /* avoid food-shortage overwrite */
       memset(&prod, 0, sizeof(prod));
-      turn_run_colony_production(&pool, NULL, NULL, &eu, 0, &prod, NULL, NULL);
+      turn_run_colony_production(&pool, NULL, NULL, &eu, 0, &prod, NULL, NULL, NULL);
       if (strstr(eu.status, "No students") == NULL) {
         fprintf(stderr, "education no-students want status got '%s'\n", eu.status);
         return 1;
@@ -3952,7 +3955,7 @@ int main(void) {
       col->stock[COLONIZE_CARGO_FOOD] = 500;
       ColonizeTurnResult prod;
       memset(&prod, 0, sizeof(prod));
-      turn_run_colony_production(&pool, NULL, &col1, NULL, 0, &prod, NULL, NULL);
+      turn_run_colony_production(&pool, NULL, &col1, NULL, 0, &prod, NULL, NULL, NULL);
       if (col->colonists[0].profession == COLONIZE_JOB_FARMER) {
         discovered = 1;
         break;
@@ -4188,7 +4191,7 @@ int main(void) {
     ColonizeTurnResult prod;
     memset(&prod, 0, sizeof(prod));
     const int h0 = col->stock[COLONIZE_CARGO_HORSES];
-    turn_run_colony_production(&pool, &map, NULL, NULL, 0, &prod, NULL, NULL);
+    turn_run_colony_production(&pool, &map, NULL, NULL, 0, &prod, NULL, NULL, NULL);
     const int bred = col->stock[COLONIZE_CARGO_HORSES] - h0;
     if (bred <= 0) {
       fprintf(
@@ -4560,7 +4563,7 @@ int main(void) {
 
     ColonizeTurnResult prod;
     memset(&prod, 0, sizeof(prod));
-    turn_run_colony_production(&pool, NULL, NULL, &eu, 0, &prod, &pops, &game_txt);
+    turn_run_colony_production(&pool, NULL, NULL, &eu, 0, &prod, &pops, &game_txt, NULL);
     if (col->stock[COLONIZE_CARGO_TOBACCO] != 100) {
       fprintf(stderr, "spoilage clamp tobacco=%d want 100\n", col->stock[COLONIZE_CARGO_TOBACCO]);
       assets_msg_free(&game_txt);
@@ -4624,7 +4627,7 @@ int main(void) {
 
     ColonizeTurnResult prod;
     memset(&prod, 0, sizeof(prod));
-    turn_run_colony_production(&pool, NULL, NULL, &eu, 0, &prod, &pops, &game_txt);
+    turn_run_colony_production(&pool, NULL, NULL, &eu, 0, &prod, &pops, &game_txt, NULL);
     if (pops.queue_count < 1 || strstr(pops.queue[0].body, "Some of our cargo") == NULL) {
       fprintf(
         stderr,
@@ -4678,7 +4681,7 @@ int main(void) {
 
     ColonizeTurnResult prod;
     memset(&prod, 0, sizeof(prod));
-    turn_run_colony_production(&pool, NULL, NULL, &eu, 0, &prod, &pops, &game_txt);
+    turn_run_colony_production(&pool, NULL, NULL, &eu, 0, &prod, &pops, &game_txt, NULL);
     if (col->stock[COLONIZE_CARGO_TOBACCO] != 300) {
       fprintf(stderr, "spoilage SPOIL3 clamp tobacco=%d want 300\n", col->stock[COLONIZE_CARGO_TOBACCO]);
       assets_msg_free(&game_txt);
@@ -4821,7 +4824,7 @@ int main(void) {
 
     ColonizeTurnResult prod;
     memset(&prod, 0, sizeof(prod));
-    turn_run_colony_production(&pool, NULL, NULL, &eu, 0, &prod, NULL, NULL);
+    turn_run_colony_production(&pool, NULL, NULL, &eu, 0, &prod, NULL, NULL, NULL);
     if (strstr(eu.status, "hammers") == NULL) {
       fprintf(stderr, "build advisory K want hammers status got '%s'\n", eu.status);
       return 1;
@@ -4847,7 +4850,7 @@ int main(void) {
     col->colonists[0].profession = COLONIZE_PROF_CARPENTER;
     eu.status[0] = '\0';
     memset(&prod, 0, sizeof(prod));
-    turn_run_colony_production(&pool, NULL, NULL, &eu, 0, &prod, NULL, NULL);
+    turn_run_colony_production(&pool, NULL, NULL, &eu, 0, &prod, NULL, NULL, NULL);
     if (strstr(eu.status, "tools") == NULL) {
       fprintf(stderr, "build advisory K tools want status got '%s'\n", eu.status);
       return 1;
@@ -4864,7 +4867,7 @@ int main(void) {
     col->colonists[0].profession = UNITS_JOB_COLONIST;
     eu.status[0] = '\0';
     memset(&prod, 0, sizeof(prod));
-    turn_run_colony_production(&pool, NULL, &kcol, &eu, 0, &prod, NULL, NULL);
+    turn_run_colony_production(&pool, NULL, &kcol, &eu, 0, &prod, NULL, NULL, NULL);
     if (strstr(eu.status, "hammers") != NULL) {
       fprintf(stderr, "5384 gate want suppress hammers got '%s'\n", eu.status);
       return 1;
@@ -4887,7 +4890,7 @@ int main(void) {
     col->colonists[0].profession = UNITS_JOB_COLONIST;
     eu.status[0] = '\0';
     memset(&prod, 0, sizeof(prod));
-    turn_run_colony_production(&pool, NULL, &cloth_col, &eu, 0, &prod, NULL, NULL);
+    turn_run_colony_production(&pool, NULL, &cloth_col, &eu, 0, &prod, NULL, NULL, NULL);
     if (strstr(eu.status, "cotton") == NULL) {
       fprintf(stderr, "build advisory K cotton want status got '%s'\n", eu.status);
       return 1;
@@ -4920,7 +4923,7 @@ int main(void) {
     eu.status[0] = '\0';
     ai_popup_clear(&pops);
     memset(&prod, 0, sizeof(prod));
-    turn_run_colony_production(&pool, NULL, &food_gate, &eu, 0, &prod, &pops, &game_txt);
+    turn_run_colony_production(&pool, NULL, &food_gate, &eu, 0, &prod, &pops, &game_txt, NULL);
     if (strstr(eu.status, "lumber") == NULL) {
       fprintf(stderr, "K LUMBER status want lumber got '%s'\n", eu.status);
       assets_msg_free(&game_txt);
@@ -4949,7 +4952,7 @@ int main(void) {
     eu.status[0] = '\0';
     ai_popup_clear(&pops);
     memset(&prod, 0, sizeof(prod));
-    turn_run_colony_production(&pool, NULL, &food_gate, &eu, 0, &prod, &pops, &game_txt);
+    turn_run_colony_production(&pool, NULL, &food_gate, &eu, 0, &prod, &pops, &game_txt, NULL);
     if (strstr(eu.status, "ore") == NULL) {
       fprintf(stderr, "K ORE status want ore got '%s'\n", eu.status);
       assets_msg_free(&game_txt);
@@ -4975,7 +4978,7 @@ int main(void) {
     eu.status[0] = '\0';
     ai_popup_clear(&pops);
     memset(&prod, 0, sizeof(prod));
-    turn_run_colony_production(&pool, NULL, &food_gate, &eu, 0, &prod, &pops, &game_txt);
+    turn_run_colony_production(&pool, NULL, &food_gate, &eu, 0, &prod, &pops, &game_txt, NULL);
     if (strstr(eu.status, "tools") == NULL) {
       fprintf(stderr, "K TOOLS status want tools got '%s'\n", eu.status);
       assets_msg_free(&game_txt);
@@ -5012,7 +5015,7 @@ int main(void) {
     eu.status[0] = '\0';
     ai_popup_clear(&pops);
     memset(&prod, 0, sizeof(prod));
-    turn_run_colony_production(&pool, NULL, &food_gate, &eu, 0, &prod, &pops, &game_txt);
+    turn_run_colony_production(&pool, NULL, &food_gate, &eu, 0, &prod, &pops, &game_txt, NULL);
     if (strstr(eu.status, "cotton") == NULL) {
       fprintf(stderr, "K COTTON status want cotton got '%s'\n", eu.status);
       assets_msg_free(&game_txt);
@@ -5038,7 +5041,7 @@ int main(void) {
     eu.status[0] = '\0';
     ai_popup_clear(&pops);
     memset(&prod, 0, sizeof(prod));
-    turn_run_colony_production(&pool, NULL, &food_gate, &eu, 0, &prod, &pops, &game_txt);
+    turn_run_colony_production(&pool, NULL, &food_gate, &eu, 0, &prod, &pops, &game_txt, NULL);
     if (strstr(eu.status, "tobacco") == NULL) {
       fprintf(stderr, "K TOBACCO status want tobacco got '%s'\n", eu.status);
       assets_msg_free(&game_txt);
