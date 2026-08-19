@@ -60,18 +60,25 @@ field's address, not a decode of the original.
 
 - **`FUN_5fef_0000`** (best-defender-unit-at-tile scoring walk, resident,
   99111/98). Hand-transcribed from clean disassembly (decompiler pcode
-  bug blocked normal recovery). **Substantially narrowed 2026-08-19**:
-  6 of its 7 previously-unnamed call targets now resolve via
-  `tools/address_mapping.csv`'s resident-thunk chain — 3 are already-named
-  `accessors.c` helpers (`euro_settlement_owner`/`map_tile_in_bounds`/
-  `ocean_or_high_seas`), 2 are the standard unit-list first/next iterator
-  pair, and 1 (`FUN_1000_8bcc`) lands in the same segment as the
-  already-catalogued unit-combat-strength function, refining the doc's
-  "distance-like metric" guess toward a real combat/defense score
-  (matching this function's own name). Only `FUN_1000_8bb8` and the exact
-  `8bcc` formula remain open. See `indian_raid_loot.md` for the full
-  chain. Still not ported (structural read only), but the "wall of
-  unnamed callees" blocker is mostly cleared.
+  bug blocked normal recovery). **Fully resolved 2026-08-19**: all 7
+  previously-unnamed call targets now trace via `tools/address_mapping.csv`'s
+  resident-thunk chain — 3 are already-named `accessors.c` helpers
+  (`euro_settlement_owner`/`map_tile_in_bounds`/`ocean_or_high_seas`), 2 are
+  the standard unit-list first/next iterator pair, and the last 2
+  (`FUN_1000_8bb8`/`8bcc`) both land on the already-authoritative combat
+  pair `FUN_157e_004a`/`015e` (`combat_unit_base_x8` / `combat_engagement_strength`,
+  `docs/combat.md`) — `8bb8` via `FUN_281f_09c8` (a "gap" row in
+  `address_mapping.csv`: no decompiled `FUN_1000_8bb8` stub, but its
+  canonical target `FUN_281f_09c8` is a plain 2-instruction thunk straight to
+  `FUN_157e_004a`, confirming the doc's own prior guess and closing the "no
+  resident thunk stub" dead end without a raw-offset lookup); `8bcc` via
+  `FUN_281f_09dc` → `FUN_157e_015e`, matching the 2026-08-19 pass already on
+  record. So the scoring loop's `local = (byte<<8) - prior - 1` is confirmed
+  a real attack-base-vs-defense-site combat differential, not a distance
+  metric — both terms are combat-strength calls, not merely "same segment as."
+  See `indian_raid_loot.md` for the full chain. Still not ported (structural
+  read only), but every callee is now a named, already-documented function —
+  no remaining "wall of unnamed callees" blocker.
 
 - **`FUN_521d_5b66` — resolved 2026-08-19 (doc-sync, not fresh RE):
   `euro_unit_act.md` already located the real owner on 2026-08-13/14,

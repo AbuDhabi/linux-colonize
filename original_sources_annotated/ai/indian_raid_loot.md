@@ -77,21 +77,31 @@ resident-thunk → canonical chain, same method as `euro_unit_act.md`'s
   "best-defender-unit-at-tile scoring walk" framing in the mysteries
   catalog. Not independently disassembled this pass to confirm the exact
   formula match.
-- `FUN_1000_8bb8` — still unresolved; no resident thunk stub for this
-  address exists in the canonical decompiled export (Ghidra only
-  materializes a named stub for addresses actually called from
-  *decompiled* code elsewhere, and this one apparently isn't), so the
-  `address_mapping.csv` chain-following method used above doesn't apply
-  directly. Would need a raw-file-offset lookup instead.
+- `FUN_1000_8bb8` — **resolved 2026-08-19, no raw-offset lookup needed
+  after all.** Correct, but the earlier note over-read the "no resident
+  thunk stub" fact: `address_mapping.csv` doesn't need a `FUN_1000_8bb8`
+  overlay row to answer this — it already carries the *canonical* side of
+  the mapping. Row `FUN_281f_09c8,281f:09c8,ram,18bb8,,gap` says ram
+  offset `0x18bb8` (i.e. `FUN_1000_8bb8`) maps to canonical `FUN_281f_09c8`;
+  `match_kind=gap` only means the auto-namer had no decompiled
+  `FUN_1000_8bb8` overlay stub to cross-check against, not that the
+  canonical function is unknown. `FUN_281f_09c8` (`viceroy_unpacked.c:32980`)
+  is a plain 2-call thunk: `FUN_210d_0d91(); FUN_157e_004a();` — i.e.
+  `FUN_1000_8bb8` **is** `FUN_157e_004a` (`combat_unit_base_x8`,
+  `docs/combat.md`), one hop further than `8bcc`'s already-found
+  `FUN_281f_09dc` → `FUN_157e_015e` (`combat_engagement_strength`) but the
+  same two-function combat pair.
 
 Byte-field cutoffs (`unit+0x3144/0x3145/0x3146/0x314c`) were already named
-by this doc's own prior pass. Given 6/7 callees now resolve and the
-segment identity strongly supports "best-defender scoring," this function
-is much closer to portable than "not semantically confirmed enough" — not
-re-derived into full C this pass, still deferred, but the remaining gap is
-now just one address (`8bb8`) and confirming `8bcc`'s exact combat formula,
-not a wall of unknowns. Raw disassembly is in the 2026-08-13 investigation
-log if anyone resumes this.
+by this doc's own prior pass. With all 7 callees now resolved — the last
+two both landing on the fully-authoritative `combat_unit_base_x8`/
+`combat_engagement_strength` pair — this function's own
+`local = (byte<<8) - prior - 1` scoring term is confirmed to be a real
+attack-vs-defense-site combat differential (`8bb8`=attack base, `8bcc`=site-
+adjusted defense), not a guessed "distance-like metric." Still not
+re-derived into full C this pass (structural read only), but nothing left
+blocking a port attempt except doing the transcription work itself. Raw
+disassembly is in the 2026-08-13 investigation log if anyone resumes this.
 
 ---
 
