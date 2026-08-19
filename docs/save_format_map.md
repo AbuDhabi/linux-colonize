@@ -101,14 +101,14 @@ as peels land.
 | `sig_colonize` / `sig_eof` / `save_version` | 9+1+2 | `mapped` | `COLONIZE\0` + `0x1A`; ver **73** |
 | `map_size_x` / `map_size_y` | 4 | `mapped` | Typically 58×72 |
 | `tut1.*` known bits | — | `mapped` | Tutorial flags. Nawagers sheet: bit0/bit1 = Pioneer/Soldier message flags (`nr13`/`nr14`) |
-| `tut1.unknown01` / `unknown02` | 2 bits | `opaque` | DS:0x5380 bit2/bit6 — confirmed dead: never bit-tested/set in any of 3 decompiled sources (only nr13-nr19 bits are); sole touch is init word-clear `*(u16*)0x5380=0` |
-| `unknown03` | 1 | `opaque` | Save R/W; no gameplay cite |
+| `tut1.unused06` / `unused08` (was `unknown01`/`unknown02`) | 2 bits | `opaque` | DS:0x5380 bit2/bit6 — confirmed dead: never bit-tested/set in any of 3 decompiled sources (only nr13-nr19 bits are); sole touch is init word-clear `*(u16*)0x5380=0` |
+| `hotseat_woi_redirect_pending` (was `unknown03`) | 1 | `partial` | DS:`0x5381` bit7 — hotseat/WoI-redirect one-shot latch; set at new-game setup when >1 human chosen, tested+cleared in `FUN_43f7_2564`. Other 7 bits unmapped |
 | `game_options.woi`…`ref_unit_threshold` | 7 bits | `mapped` | DS:`0x5382` WoI/REF latches (was `unused01`) |
 | `game_options` (hints…moves) | — | `mapped` | |
 | `game_options.cheats_enabled` | 1 bit | `mapped` | DS:`0x5383` bit5; Alt-WIN |
 | `colony_report_options` | — | `mapped` | `unused03` pad |
 | `tut2` / `tut3` | — | `mapped` | `unused04` pad |
-| `unknown39` | 2 | `opaque` | Save R/W; no gameplay cite |
+| `start_mode_marker` (was `unknown39[2]`) | 2 | `partial` | DS:`0x5388`, one int16 — scenario/start-mode marker from `FUN_75c2_235c` param; tested nonzero to add intro text on first-colony founding |
 | `year` / `autumn` / `turn` | 6 | `mapped` | |
 | `map_mode` | 2 | `mapped` | DS:`0x5390`; 0=Move / 1=View |
 | `active_unit` | 2 | `mapped` | |
@@ -116,7 +116,7 @@ as peels land.
 | `tribe_count` / `unit_count` / `colony_count` | 6 | `mapped` | |
 | `trade_route_count` / `show_entire_map` / `fixed_nation_map_view` | 6 | `mapped` | DS:`0x53a0`.. |
 | `difficulty` | 1 | `mapped` | 0..4 |
-| `unknown43` | 2 | `opaque` | Save R/W; no gameplay cite |
+| `king_audience_streak` / `king_audience_last_pick` (was `unknown43[2]`) | 2 | `partial` | DS:`0x53a7`/`0x53a8` — King-audience RNG state (streak + last-picked line, avoid repeat); near `FUN_38fd_5be8` (`KING_AUDIENCE` in `ai_king.c`); reset at new game |
 | `founding_father[25]` | 25 | `mapped` | −1 = unrecruited |
 | `turn_loop_running` / `map_modal_active` / `no_unit_selected` | 6 | `mapped` | DS:`0x53c2`/`c4`/`c6` |
 | `nation_relation[4]` | 8 | `mapped` | |

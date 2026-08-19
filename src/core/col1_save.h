@@ -76,11 +76,11 @@
 typedef struct ColonizeCol1Tut1 {
   uint8_t nr13 : 1; /* nawagers sheet: Pioneer message flag */
   uint8_t nr14 : 1; /* nawagers sheet: Soldier message flag */
-  uint8_t unknown01 : 1; /* DS:0x5380 bit2; confirmed dead, never bit-tested in DOS */
+  uint8_t unused06 : 1; /* DS:0x5380 bit2; confirmed dead, never bit-tested in DOS */
   uint8_t nr15 : 1;
   uint8_t nr16 : 1;
   uint8_t nr17 : 1;
-  uint8_t unknown02 : 1; /* DS:0x5380 bit6; confirmed dead, never bit-tested in DOS */
+  uint8_t unused08 : 1; /* DS:0x5380 bit6; confirmed dead, never bit-tested in DOS */
   uint8_t nr19 : 1;
 } ColonizeCol1Tut1;
 
@@ -169,12 +169,20 @@ typedef struct ColonizeCol1Head {
   uint16_t map_size_x; /* typically 58 (visible 56 + border) */
   uint16_t map_size_y; /* typically 72 (visible 70 + border) */
   ColonizeCol1Tut1 tut1;
-  uint8_t unknown03; /* head pad; no gameplay cite in unpacked — save R/W */
+  /* DS:0x5381 bit7 — hotseat/WoI-redirect latch (was unknown03/pad). Set at
+   * new-game setup when >1 human player chosen; tested+cleared in
+   * FUN_43f7_2564 (WoI-eligibility popup): shows once, sets
+   * human_player=nation_turn, clears bit. Other 7 bits unmapped. */
+  uint8_t hotseat_woi_redirect_pending;
   ColonizeCol1GameOptions game_options;
   ColonizeCol1ColonyReportOptions colony_report_options;
   ColonizeCol1Tut2 tut2;
   ColonizeCol1Tut3 tut3;
-  uint8_t unknown39[2]; /* head pad; no gameplay cite — save R/W */
+  /* DS:0x5388 (was unknown39[2]) — scenario/start-mode marker set from
+   * FUN_75c2_235c's param at new-game start. Tested nonzero when founding
+   * the first colony to show extra intro guidance text
+   * (viceroy_unpacked.c:107782). */
+  uint16_t start_mode_marker;
   uint16_t year;
   uint16_t autumn; /* non-zero if autumn */
   uint16_t turn;
@@ -191,7 +199,11 @@ typedef struct ColonizeCol1Head {
   uint16_t show_entire_map; /* DS:0x53a2 — Complete Map cheat / post-win */
   uint16_t fixed_nation_map_view; /* DS:0x53a4; 0xffff = none */
   uint8_t difficulty; /* 0 Discoverer .. 4 Viceroy */
-  uint8_t unknown43[2]; /* head pad; no gameplay cite — save R/W */
+  /* DS:0x53a7 / 0x53a8 (was unknown43[2]) — King-audience RNG state. Lives
+   * near FUN_38fd_5be8, same function thin-ported as KING_AUDIENCE in
+   * ai_king.c. Reset at new game (streak=0, last_pick=random(1,8)). */
+  uint8_t king_audience_streak; /* 0x53a7 */
+  uint8_t king_audience_last_pick; /* 0x53a8; rerolled until != last, avoids text repeat */
   int8_t founding_father[COLONIZE_COL1_FF_COUNT];
   /* DS:0x53c2 / 0x53c4 / 0x53c6 — UI/turn latches (was unknown44[6]). */
   uint16_t turn_loop_running; /* 0x53c2; Esc clears (FUN_2b5a_3104); main loop sets */

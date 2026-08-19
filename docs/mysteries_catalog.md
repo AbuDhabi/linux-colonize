@@ -13,8 +13,8 @@ gameplay meaning:
 
 | Field | Note |
 |---|---|
-| `unknown01`/`unknown02` (tut bits, DS:0x5380 bit2/bit6) | **confirmed dead** — all 3 decompiled sources test/set bits 0x01/02/08/10/20/80 on 0x5380 (nr13-nr19), never 0x04/0x40; only touch is word-clear `*(u16*)0x5380=0` at init |
-| `unknown03`, `unknown05[2]`, `unknown39[2]`, `unknown43[2]` | head pad, no gameplay cite |
+| `tut1.unused06`/`unused08` (was `unknown01`/`unknown02`, DS:0x5380 bit2/bit6) | **confirmed dead, renamed off "unknown"** — all 3 decompiled sources test/set bits 0x01/02/08/10/20/80 on 0x5380 (nr13-nr19), never 0x04/0x40; only touch is word-clear `*(u16*)0x5380=0` at init |
+| `unknown05[2]` | head pad, no gameplay cite — only touch is the 4-byte memset that also clears `event` at new game (`FUN_1d1d_0dae(0x540a,0,4)`); no standalone R/W found |
 | `unknown06_lo` (7 bits, player struct) | unnamed, sibling bit7 (`named_new_world`) is named |
 | `unknown13_pad[4]` (+0xbe) | founding=0, lategame fixtures non-zero — pattern seen, not explained |
 | `unknown15_lo` (7 bits @ 0x3148) | "live AI/cargo/orders latches" — vague, not resolved to specific bits |
