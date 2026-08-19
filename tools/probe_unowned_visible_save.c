@@ -14,14 +14,14 @@
 
 static void print_tut1(const ColonizeCol1Tut1* t) {
   printf(
-    "  tut1 bits: nr13=%u nr14=%u unk01=%u nr15=%u nr16=%u nr17=%u unk02=%u nr19=%u\n",
+    "  tut1 bits: nr13=%u nr14=%u unused06=%u nr15=%u nr16=%u nr17=%u unused08=%u nr19=%u\n",
     (unsigned)t->nr13,
     (unsigned)t->nr14,
-    (unsigned)t->unknown01,
+    (unsigned)t->unused06,
     (unsigned)t->nr15,
     (unsigned)t->nr16,
     (unsigned)t->nr17,
-    (unsigned)t->unknown02,
+    (unsigned)t->unused08,
     (unsigned)t->nr19
   );
 }
