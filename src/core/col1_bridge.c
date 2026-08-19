@@ -935,8 +935,17 @@ bool col1_bridge_apply(
       } else {
         u->home_tribe_id = (int)src->origin;
       }
+      /* Repack the 8 named single-bit fields (was one unknown15_lo:7 blob;
+       * see col1_save.h) back into the raw byte col1_unknown15 expects. */
       u->col1_unknown15 =
-        (uint8_t)((src->unknown15_lo & 0x7fu) | (src->ship_damaged ? 0x80u : 0u));
+        (uint8_t)((src->unknown15_bit0 ? 0x01u : 0u) |
+                  (src->roam_reeval_pending ? 0x02u : 0u) |
+                  (src->stack_has_founders_or_military ? 0x04u : 0u) |
+                  (src->stack_has_military ? 0x08u : 0u) |
+                  (src->wander_dest_chosen ? 0x10u : 0u) |
+                  (src->garrison_request_pending ? 0x20u : 0u) |
+                  (src->bound_in_transit ? 0x40u : 0u) |
+                  (src->ship_damaged ? 0x80u : 0u));
       u->col1_ai_plan = src->ai_plan;
       u->col1_vis_mask = src->vis_mask;
       u->last_dir = (int)src->facing;
@@ -1558,7 +1567,15 @@ bool col1_bridge_capture(
       }
       dst->turns_worked =
         (uint8_t)(src->turns_worked < 0 ? 0 : (src->turns_worked > 255 ? 255 : src->turns_worked));
-      dst->unknown15_lo = (uint8_t)(src->col1_unknown15 & 0x7fu);
+      /* Unpack col1_unknown15's raw byte into the 8 named single-bit fields
+       * (was one unknown15_lo:7 blob; see col1_save.h). */
+      dst->unknown15_bit0 = (src->col1_unknown15 & 0x01u) != 0 ? 1u : 0u;
+      dst->roam_reeval_pending = (src->col1_unknown15 & 0x02u) != 0 ? 1u : 0u;
+      dst->stack_has_founders_or_military = (src->col1_unknown15 & 0x04u) != 0 ? 1u : 0u;
+      dst->stack_has_military = (src->col1_unknown15 & 0x08u) != 0 ? 1u : 0u;
+      dst->wander_dest_chosen = (src->col1_unknown15 & 0x10u) != 0 ? 1u : 0u;
+      dst->garrison_request_pending = (src->col1_unknown15 & 0x20u) != 0 ? 1u : 0u;
+      dst->bound_in_transit = (src->col1_unknown15 & 0x40u) != 0 ? 1u : 0u;
       dst->ship_damaged = (src->col1_unknown15 & 0x80u) != 0 ? 1u : 0u;
       /* Euros never carry a home-tribe origin; natives use tribe index / 0xff. */
       if ((src->nation_id & 0xF) < 4) {

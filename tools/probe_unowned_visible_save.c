@@ -153,7 +153,10 @@ static void print_unit(const char* tag, unsigned i, const ColonizeCol1Unit* u) {
     (unsigned)u->origin,
     (unsigned)u->moves,
     (unsigned)u->profession,
-    (unsigned)u->unknown15_lo,
+    (unsigned)(u->unknown15_bit0 | (u->roam_reeval_pending << 1) |
+               (u->stack_has_founders_or_military << 2) | (u->stack_has_military << 3) |
+               (u->wander_dest_chosen << 4) | (u->garrison_request_pending << 5) |
+               (u->bound_in_transit << 6)),
     (unsigned)u->ship_damaged
   );
   (void)unit_is_ship;

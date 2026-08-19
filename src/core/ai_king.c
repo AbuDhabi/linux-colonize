@@ -1891,6 +1891,14 @@ static void ai_king_apply_dump_goods_choice(ColonizeTurnContext* ctx, int human,
  *  hike once; else Accept hike. While boycott active, skip further tax hikes
  *  (hold-audience status + OK popup when queue attached).
  * Note: TURN_PROC_FINISH may overwrite ctx->status afterward.
+ *
+ * Divergence flagged 2026-08-19 (see docs/mysteries_catalog.md,
+ * king_audience_tax_delta): real DOS FUN_38fd_5be8 has no Accept/Refuse gate
+ * at all — it rolls a signed delta off a treasury/tax/colony favor-score
+ * ladder (cut when score low, else +1..+8) and applies it unconditionally
+ * same-call via FUN_38fd_3dc8. This port's fixed +1-with-Accept/Refuse-choice
+ * is a structural stand-in, not a decode of that formula. Not fixed here —
+ * flagging for whoever next touches this path.
  */
 static void ai_king_tax_event(ColonizeTurnContext* ctx) {
   if (!ctx || !ctx->col1_ok || !ctx->col1) {

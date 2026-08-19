@@ -176,7 +176,7 @@ Export often **zeros** unnamed colony bytes on rebuild ([savegame.md](savegame.m
 |-------|------|--------|-------|
 | `x` / `y` / `type` / `nation_id` | — | `mapped` | Europe sentinels ≥200 (fixtures often `228+nation` diagonal; nawagers also notes 235/239/243 travel states) |
 | `vis_mask` | 4 bits | `mapped` | euro owner `1<<n` (`FUN_1427_0992`); natives 0 on spawn/capture |
-| `unknown15_lo` / `ship_damaged` | 1 | `partial` | bit7 damaged (`FUN_1427_13b0`); lo bits AI latches |
+| 8 named bits (was `unknown15_lo`/`ship_damaged`) | 1 | `mapped` | bit7 `ship_damaged` (`FUN_1427_13b0`); bit0 dead; bits1/2/3/5/6 resolved 2026-08-19 (roam-reeval, stack founders/military, garrison-request, bound-in-transit); bit4 `wander_dest_chosen` partial — see mysteries_catalog.md |
 | `moves` / `orders` / `goto_*` | — | `mapped` | |
 | `origin` | 1 | `mapped` | Brave home tribe |
 | `ai_plan` | 1 | `mapped` | Default `0x58` / `'X'` |
@@ -191,8 +191,8 @@ Export often **zeros** unnamed colony bytes on rebuild ([savegame.md](savegame.m
 | `tax_rate` / `recruit*` / FF / bells / gold / crosses | — | `mapped` | |
 | `nation_flags` | 1 | `partial` | Was `unknown19`; bits `0x04`/`0x08`/`0x40` live |
 | `tax_hike_count` | 1 | `mapped` | Was `unused07`; `FUN_38fd_44a4` |
-| `unknown21` | 1 | `opaque` | No reader cite |
-| `unknown22` | 2 | `partial` | `int16`; `FUN_38fd_5be8` write; role thin |
+| `unknown21_pad` | 1 | `opaque` | Was `unknown21`; resolved 2026-08-19 confirmed dead — untouched by all 3 DOS exports, the one gap new-game zero-init skips |
+| `king_audience_tax_delta` | 2 | `mapped` | Was `unknown22`; `int16`; resolved 2026-08-19: signed King-audience tax delta, `FUN_38fd_5be8` computes/writes, `FUN_38fd_3dc8` applies same-call to `tax_rate`; no DOS reader of the saved copy |
 | `ff_count_end_prob` | 2 | `community` | smcol; cleared on independence; no FF-prob reader |
 | `rebel_sentiment` + `unknown23_pad[4]` | 5 | `mapped` | nation+0x19 |
 | `artillery_count` / `boycott_bitmap` | — | `mapped` | |
@@ -209,7 +209,7 @@ Export often **zeros** unnamed colony bytes on rebuild ([savegame.md](savegame.m
 |-------|------|--------|-------|
 | `x` / `y` / `nation_id` / `state` / `population` / `mission` | — | `mapped` | `unused09` pad |
 | `growth_accum` | 1 | `mapped` | +=pop; clear when >19 (`FUN_4d56_152e`); smcol `growth_counter` |
-| `unknown28_pad` | 1 | `opaque` | No cite |
+| `sticky_trade_good` | 1 | `mapped` | Was `unknown28_pad`; resolved 2026-08-19: mid-haggle cargo good index, `FUN_4d56_2820`; 0xff idle, 0xfe last-refused |
 | `last_bought` / `last_sold` / `alarm[4]` | — | `mapped` | `alarm.attacks`: smcol — rises on dwelling attacks, falls when brave attacks / drifts; may act as retaliation budget |
 
 ### Indian (78 × 8)
@@ -222,7 +222,8 @@ Export often **zeros** unnamed colony bytes on rebuild ([savegame.md](savegame.m
 | `unknown31_flags` | 1 | `partial` | Linux contact prelude bit `0x20` |
 | `muskets` / `horse_herds` | 2 | `mapped` | |
 | `horse_breeding` | 2 | `mapped` | ±0x32 acquire/tick (`FUN_5bfb_*` / `4d56`). Smcol: herds→breeding each turn; cash horses at ≥25; notes a DOS bug where only one tribe breeds and breeding += herds×(non-extinct count) |
-| `unknown31*` pads | 3+ | `opaque` | Closed as no-reader pads |
+| `unknown31b`/`unknown31c` pads | 2 | `opaque` | Closed as no-reader pads |
+| `hill_silver_bid_bonus` | 2 | `mapped` | Was `unknown31d[2]`; resolved 2026-08-19: map-gen hill-proximity×tech accumulator, feeds tribe's Silver trade bid (`FUN_6a09_0006` write, `FUN_4d56_2154` read) |
 | `contact_state[4]` | 8 | `mapped` | +0x2e; FSM 0/1/2 |
 | `euro_relation_accum[4]` | 4 | `mapped` | +0x36; spill → `FUN_281f_0d6c` |
 | `euro_diplo[4]` | 4 | `mapped` | +0x3a; met `0x20` / peace `0x40` (was `met_by_player`) |
@@ -235,7 +236,7 @@ RAM is scattered; the port stores one packed `ColonizeCol1Stuff` for RMW.
 
 | File off | Size | DS | Notes |
 |----------|------|-----|-------|
-| 0 | 12 | `0x9566` | `unknown34` — save R/W only |
+| 0 | 12 | `0x9566` | `unknown34_pad` — confirmed dead 2026-08-19, save R/W only |
 | 12 | 4 | `0x8cfc` | `all_unit_counts[4]` — `FUN_4962_0018` |
 | 16 | 4 | `0x9298` | `colony_counts[4]` — `FUN_4962_0018` |
 | 20 | 4 | `0x9408` | `free_colonist_counts[4]` — type==0 units |
@@ -269,7 +270,7 @@ RAM is scattered; the port stores one packed `ColonizeCol1Stuff` for RMW.
 | 723 | 2 | `0x17c` | `viewport_x` camera center |
 | 725 | 2 | `0x17e` | `viewport_y` |
 
-Port packing (727): `unknown34` + census + DS-named late chunks (was
+Port packing (727): `unknown34_pad` + census + DS-named late chunks (was
 `unknown36[577]`) + cursor/viewport. **Not connectivity** (that is `post_map`).
 
 **Census policy (DOS parity):** RMW/export **preserves** census bytes when the
@@ -278,7 +279,7 @@ window is non-zero. Do not freshen mid-turn lag. **Blank templates only:**
 
 | Field | Size | Status | Notes |
 |-------|------|--------|-------|
-| `unknown34` | 12 | `opaque` | DS:`0x9566` save R/W vestigial |
+| `unknown34_pad` | 12 | `opaque` | Was `unknown34`; confirmed dead 2026-08-19 — DS:`0x9566`, exhaustive check found zero non-save-I/O touches |
 | census + mid-window | 128 | `mapped` | See chunk table |
 | late DS chunks (577) | 577 | `partial` | Named `unknown_ds_*` / tribe_* / `ui_toggle_336` (smcol: `show_colony_prod_quantities`) |
 | `x` / `y` / zoom / viewport | 10 | `mapped` | Focus + camera |
