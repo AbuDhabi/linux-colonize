@@ -101,7 +101,7 @@ as peels land.
 | `sig_colonize` / `sig_eof` / `save_version` | 9+1+2 | `mapped` | `COLONIZE\0` + `0x1A`; ver **73** |
 | `map_size_x` / `map_size_y` | 4 | `mapped` | Typically 58×72 |
 | `tut1.*` known bits | — | `mapped` | Tutorial flags. Nawagers sheet: bit0/bit1 = Pioneer/Soldier message flags (`nr13`/`nr14`) |
-| `tut1.unknown01` / `unknown02` | 2 bits | `opaque` | No distinct cite — closed as tut pad |
+| `tut1.unknown01` / `unknown02` | 2 bits | `opaque` | DS:0x5380 bit2/bit6 — confirmed dead: never bit-tested/set in any of 3 decompiled sources (only nr13-nr19 bits are); sole touch is init word-clear `*(u16*)0x5380=0` |
 | `unknown03` | 1 | `opaque` | Save R/W; no gameplay cite |
 | `game_options.woi`…`ref_unit_threshold` | 7 bits | `mapped` | DS:`0x5382` WoI/REF latches (was `unused01`) |
 | `game_options` (hints…moves) | — | `mapped` | |
