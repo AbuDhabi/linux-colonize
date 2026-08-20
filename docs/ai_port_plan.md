@@ -193,13 +193,52 @@ T1.x" without doing T1.x first, it'll just re-derive the same dead end.
   **T1.1** above. Moved on to the landfall item this session rather than
   guess.
 
-- [ ] **T1.4 — Map `ai_goals_pick_founding_tile_ex` / `06ae`'s call-site
+- [x] **T1.4 — Map `ai_goals_pick_founding_tile_ex` / `06ae`'s call-site
   success/failure expectations.** New, split out of the failed T1.5
   attempt below as its real prerequisite. 12+ call sites in `ai_euro.c`
   treat this function's return-0 as a deliberate "no target here, let
   other logic decide" signal; before any replacement geometry (outward
   ring search etc.) can go in safely, catalog what each call site actually
   expects on success vs. failure. Do this before re-attempting T1.5.
+  **2026-08-20: catalogued, all 16 call sites of
+  `ai_euro_06ae_first_colony_from_landfall` in `ai_euro.c`** (lines 879,
+  9839, 12427, 12434, 12792, 12858, 13599, 13634, 13899, 13907, 14038,
+  15317, 15333, 15350, 15365, 15382). They split into two behaviorally
+  distinct groups:
+  - **Group A — cascading fallback (11 sites: 879, 9839, 12427/12434,
+    12792, 12858, 13599, 13634, 13899/13907, 14038).** `06ae` is treated
+    as the cheapest first attempt in a chain: on failure, retry with
+    `ai_euro_recover_landfall_from_ship`'s alternate landfall, or (in the
+    resolver `ai_euro_resolve_first_found_tile`, line ~12770) fall
+    through to `ai_euro_coastal_staging_from_landfall` +
+    `ai_euro_pick_founding_tile`, then finally
+    `ai_goals_pick_founding_tile`. Failure never aborts anything hard —
+    worst case a maneuver block is skipped this act, or the enclosing
+    helper returns 0 and its own caller picks a different top-level
+    action for the unit. **A replacement geometry that succeeds more
+    often is safe here** as long as it doesn't regress the exact-position
+    matches Group B depends on (below).
+  - **Group B — exact-position wake/skip gate (5 sites: 15317, 15333,
+    15350, 15365, 15382, all inside the per-turn "skip units with 0 MP"
+    dispatcher gate).** These don't just check success/failure — they
+    compare the returned `(fx,fy)` against `u->x`/`u->y` for an *exact*
+    match (`u->x==fx && u->y==fy`) to decide whether a unit already
+    sitting on/near the found tile should be woken this pass. Because
+    other code earlier in the same turn already committed a `goto` using
+    this same function's output, **these sites need `06ae` to return the
+    identical tile it returned earlier in the same turn, not merely "a
+    valid tile."** This is a stronger constraint than T1.5's original
+    framing (success/failure only) — a geometry swap that changes *which*
+    valid tile gets picked, even without ever failing where the old code
+    succeeded, would desync these comparisons and mis-wake/mis-skip
+    units. Confirms and sharpens the T1.5 revert's root-cause note.
+  **Net for T1.5**: safe to replace `06ae`'s geometry only if the new
+  version is called consistently (same inputs → same output) everywhere
+  in a turn — true of the current fixed-band code and needs to stay true
+  of any replacement; the success-rate change alone (Group A) was already
+  known risky, this pass adds the value-stability constraint (Group B) as
+  an equally real second constraint. Not attempted this pass — T1.5 is
+  next, informed by this catalog.
 
 - [ ] **T1.5 — Full multi-ring `06ae` first-colony landfall.** Current
   `ai_euro_06ae_first_colony_from_landfall` is a live west-box + coastal
