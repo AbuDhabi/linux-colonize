@@ -7402,14 +7402,55 @@ static int ai_euro_5d04_ship_buy_ladder(
 }
 
 /* --- Stubs for the hire-ladder tail's own callees ----------------------
- * Every one is genuinely unresolved (same RE-blocked class as `417e`'s
- * price tables — see ai-transcription-fulldraft memory). Grouped here
- * rather than scattered, since most of them are narrow single-purpose
- * accessors on a "candidate unit" that the also-stubbed iterators below
- * never actually produce (they return -1 / "none"), making the loop
- * bodies that use these structurally present but practically dead —
- * intentional, not an oversight (see "be safe" in the port's own
- * instructions). */
+ * Grouped here rather than scattered, since most of them are narrow
+ * single-purpose accessors on a "candidate unit" that the also-stubbed
+ * iterators below never actually produce (they return -1 / "none"),
+ * making the loop bodies that use these structurally present but
+ * practically dead — intentional, not an oversight (see "be safe" in
+ * the port's own instructions).
+ *
+ * 2026-08-20 (T1.10): several of the DOS callees behind this group are
+ * no longer "genuinely unresolved" — real disassembly (not the old
+ * `417e`-price-table framing) found:
+ *   - `FUN_1d1d_0ec6` (the crosses-price division): a generic Watcom/MS-C
+ *     signed 32-bit long-division CRT primitive (`FUN_0000_e096`, 4
+ *     word-pair args = two dwords, packed 32-bit quotient return) — not
+ *     a game formula at all, same class as `FUN_0000_4fa8`'s CRT
+ *     neighbors from the T1.1 dig. Plain C `/` on 32-bit operands is
+ *     byte-equivalent; no live capture needed.
+ *   - `FUN_281f_0b78` -> `FUN_0000_67b2`: `DS:0x30e[unit_type]` signed
+ *     byte lookup, used as a `>=0` gate right after pulling a unit from
+ *     the `FUN_281f_07e0` tile-stack iterator — "does this unit type
+ *     have a valid profession-slot category."
+ *   - `FUN_281f_0c9a` -> `FUN_0000_5eb2`: profession exclusion-set test —
+ *     0 (fail) when `unit+0x315b` (profession — already independently
+ *     confirmed project-wide: `0x14`=Pioneer, `0x15`=Vet. Soldier, etc.,
+ *     see `move_scoring_20e6_full.md`/`king_ref.md`) is one of
+ *     `{0x13,0x19,0x1a,0x1b,0x1c}`, else 1.
+ *   - `FUN_291f_0afc` -> `FUN_1000_9cec`: a real doubly-linked
+ *     transport-chain insert-after (splice using the already-known
+ *     `unit+0x315c`/`+0x315e` prev/next fields, same family as `20e6`
+ *     case 2 and `FUN_0000_4272`/`42ba`).
+ *   - `FUN_291f_0b26`: attempted, hit a **false collision** — its
+ *     apparent resident target (`FUN_1000_9d16` -> `FUN_0000_c11c`)
+ *     force-redecompiled clean but turned out to be a glyph/bitmap text
+ *     renderer, nothing to do with AI logic — the same
+ *     coincidental-thunk-placeholder bug class flagged elsewhere in this
+ *     project (`indian_settlement_4528.md`, `euro_unit_act.md`'s `a6e4`).
+ *     Real target still needs the `rtlink_decode` jump-table treatment,
+ *     not a plain address lookup. Genuinely still open.
+ * Exact per-call-site argument wiring (which literal DOS `iVar13`/
+ * `iVar17`/etc. feeds which stub above, across the ~15 call sites) was
+ * not re-traced this pass — the stub bodies below are unchanged (still
+ * safe/inert), this was an identity-resolution pass only, matching
+ * `T2.1`'s own precedent for the two list-iterators. `DS:0x945a`
+ * (+`0x9456` pair, this section's separate `local_46` override byte) is
+ * also resolved structurally: `census_tally.md` item 2's own "Europe-dock
+ * proxies" phrase, now connected to concrete addresses — a per-nation
+ * counter `FUN_4962_0018` increments once per unit sitting at a specific
+ * x-offset relative to the nation, exact per-nation slot semantics not
+ * pinned. Full trace: `ai-5d04-structural-port` memory, 2026-08-20 T1.10
+ * update. */
 static int ai_euro_5d04_stub_unit_dispatch_byte(int unit_idx) {
   (void)unit_idx;
   return 0;

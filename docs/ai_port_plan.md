@@ -463,6 +463,25 @@ T1.x" without doing T1.x first, it'll just re-derive the same dead end.
   this profession/dock query family is what would make wiring the
   structural port live (Tier 3) an actual behavior change instead of a
   no-op. See `ai-5d04-structural-port` memory for what's known so far.
+  **2026-08-20: mostly resolved, one false collision, not closed.**
+  `FUN_1d1d_0ec6` is a generic 32-bit signed-division CRT primitive (not
+  a game formula — no live capture needed, plain C `/` is equivalent).
+  `FUN_281f_0b78`/`FUN_281f_0c9a`/`FUN_291f_0afc` all resolved by direct
+  disassembly: a per-type profession-slot gate (`DS:0x30e`), a profession
+  exclusion test (`unit+0x315b ∉ {0x13,0x19,0x1a,0x1b,0x1c}`, cross-
+  confirmed against 6+ other docs already using `0x315b`=profession), and
+  a real transport-chain insert-after splice (same `0x315c`/`0x315e`
+  family as `20e6` case 2 / `4272`/`42ba`). `FUN_291f_0b26` hit a **false
+  collision** — its apparent target force-redecompiled clean but turned
+  out to be a glyph/bitmap renderer, unrelated to AI logic (same
+  coincidental-thunk bug class as `4528`'s `a6e4` correction) — real
+  target still needs the `rtlink_decode` jump-table treatment, genuinely
+  open. `DS:0x945a`/`0x9456` placed as `census_tally.md`'s own "Europe-
+  dock proxies" (concrete addresses now, exact per-nation slot meaning
+  still open). Identity-resolution pass only, matching **T2.1**'s own
+  precedent — none of this wired live (still Tier 3 scope regardless).
+  `ai_euro.c`'s stub header comment updated. Full trace:
+  `ai-5d04-structural-port` memory. `ctest` green (comment-only change).
 
 - [ ] **T1.11 — Name the diplomacy accessor bit `0x10` (`peace_bit_0x10`,
   same family as the already-resolved `AI_DIPLO_MET==0x40`).** New, split
