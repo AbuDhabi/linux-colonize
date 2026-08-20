@@ -557,6 +557,21 @@ treat all of T1.1 as stuck. Also fixed a stale cross-reference in T1.13
   `colony_count>0` for a Brave, so still nothing to regression-check a
   port against even once mapped — document even if untestable, per the
   original note.
+  **2026-08-20, later same day — two more pieces resolved, one genuine
+  new wall found.** `func_0x00019c04` (a 6-arg call in this same block):
+  resolved to the *same* `FUN_5fef_1b0e`/`combat_apply_1b0e_peels`
+  `FUN_291f_0a14` already thunks to — invoked twice with different
+  argument shapes, not two mysteries. `DS:0x53d2`: already named
+  elsewhere in this project (`king_ref.md`'s `crown_nation_id`) — the
+  gate reads "halve the score if the crown nation is slot 2 and two
+  other flags are clear," mechanically clear now. **`DS:0x5239`/the
+  `0x5235..0x523d` per-unit-type family hit a real new wall**: raw-byte-
+  reading flat `0000:5235` onward (same method that resolved the
+  `4fa8`/T1.1 family) returns unambiguous *code*, not a data table —
+  meaning the "DS-relative address == flat resident offset" identity
+  this session otherwise relied on successfully does not hold uniformly
+  for this address range. Not guessed at; flagged precisely instead.
+  Full trace: `quiet_brave_scoring.c`'s 2026-08-20 T1.9 update.
 
 - [ ] **T1.10 — Resolve `DS:0x945a` / `FUN_1d1d_0ec6` division (profession/
   dock query family).** New, split out of **T2.1**'s 2026-08-20 finding.

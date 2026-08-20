@@ -314,6 +314,48 @@ int quiet_score_colony_pull(int score, int colony_count) {
    * "corruption-blocked" to "known-clean, needs a dedicated formula-
    * mapping pass"** — a real, if partial, unblock. See `ai_port_plan.md`
    * T1.7 and `ai_transcription.md`'s R2 section for the up-to-date note.
+   *
+   * **2026-08-20 (T1.9 pass) — two more pieces resolved, one genuine new
+   * wall found.**
+   * - `func_0x00019c04(0x181f,param_2,uStack_18,uStack_1c,0,0)` (the
+   *   6-arg call right before `iVar15=FUN_1000_8aac(0x191f)`, result
+   *   discarded): force-disassembled its raw target (`ram:0x19c04`,
+   *   `tools/GhidraDisasmExact.java`) — a clean 2-instruction stub,
+   *   `CALLF FUN_1000_1e7b` (the usual loader guard) `; JMPF 0x0000:1b0e`.
+   *   `0x1b0e` is the *same* `FUN_5fef_1b0e`/`combat_apply_1b0e_peels`
+   *   this block's zero-arg `FUN_291f_0a14()` call already resolves to
+   *   (see above) — this call applies/primes that same combat-strength
+   *   computation for `(param_2, dest x/y)` before the cheap zero-arg
+   *   call reads a cached result from it; not a separate mystery
+   *   function, the same one invoked twice with different argument
+   *   shapes.
+   * - `DS:0x53d2` (the `*(int*)0x53d2==2` gate before the `>>1` halving):
+   *   already named elsewhere in this project — `king_ref.md`'s
+   *   `crown_nation_id` (the non-human Euro nation slot). Reads as "halve
+   *   the pull score if the crown-controlled nation is a specific slot
+   *   (2) and two other flags are clear" — mechanically clear now, still
+   *   not independently confirmed *why* slot 2 specifically matters.
+   * - `DS:0x5239` (and the whole `0x5235..0x523d` per-unit-type family
+   *   this formula reads): **attempted a raw-byte read via the resident
+   *   project (same method that resolved the T1.1/`4fa8` family) and hit
+   *   a real methodological wall, not a quick win.** Reading flat
+   *   `0000:5235` onward returns unambiguous *code* bytes (a real,
+   *   structured function body — `CALL`/`PUSH`/`MOV` patterns, not
+   *   table-shaped data), not the expected per-unit-type stat table.
+   *   Every other DS-relative address this project has successfully read
+   *   this way (`0x8542`, `0x92c0`, `0x9e12`, etc.) sits well above
+   *   `0x8000`; this table's addresses (`0x5235`-`0x523d`) sit well
+   *   below it, in what turns out to be the code region. **This means
+   *   the "DS-relative address == flat resident offset" identity this
+   *   session has otherwise relied on successfully does NOT hold
+   *   uniformly** — either DS's real runtime base differs from CS's for
+   *   addresses in this range, or this specific table lives somewhere
+   *   this flat single-blob resident extraction doesn't reach. Not
+   *   pursued further this pass — flagging as a real, new, precisely-
+   *   stated blocker rather than either trusting a wrong byte read or
+   *   guessing a value. Needs either resolving the actual DS segment
+   *   base for this address range (a static-tooling question, possibly
+   *   answerable without a live session) or a live DOSBox-X read.
    */
   return score;
 }
