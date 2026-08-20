@@ -1627,8 +1627,37 @@ static Ai153eUnitScoreStub ai_diplo_153e_unit_score_stub(int self, int target, i
  * named anywhere in this project — genuinely open, not just unattempted;
  * resolving it (or explicitly stubbing `peace_bit_0x10` to 0 to make this
  * function fully inert like `5d04`, if wiring is wanted before that RE
- * lands) is the real next step before this is a Tier 3 candidate. NOT
- * wired into any live caller: matches the
+ * lands) is the real next step before this is a Tier 3 candidate.
+ *
+ * 2026-08-20 (T1.11, write-trigger resolved): traced `FUN_0000_5b62`
+ * (the raw byte-setter) via Ghidra's own XREF index (not a text grep) to
+ * its only two callers — `FUN_0000_5b96` (OR-set a mask into the
+ * relation byte, both directions) and `FUN_0000_5c00` (AND-clear a mask,
+ * both directions) — then searched the canonical export for every
+ * literal `,0x10)` call into their overlay-side wrappers
+ * (`switchD_2000:da9f::caseD_10` / `FUN_281f_0a10`). Exactly one call
+ * site sets `0x10`: `FUN_38fd_5930` (raw ~67030-67141), a periodic
+ * per-nation event — gated on turn×wealth-rank threshold, not already
+ * crown-controlled (the `0x543f` field) — that, once per qualifying
+ * check, RNG-picks one already-met, not-at-war rival nation the acting
+ * nation is *behind* in colonial development, grants it up to a handful
+ * of free Veteran Soldiers plus a treasury bump scaled by the
+ * development gap, then sets both `AI_DIPLO_MET` (redundantly) and this
+ * bit on that specific (self, rival) pair. Reads as a scripted "the
+ * crown arms a struggling colony against a specific stronger rival"
+ * event — `peace_bit_0x10` is the marker that this just happened for
+ * this pair, which coheres with its role here (a flat, unconditional
+ * `worthy=1` + score bump): having just been armed against nation X is a
+ * legitimate independent reason to consider declaring on X. Not
+ * independently confirmed against any other source (no live capture, no
+ * cross-reference to a second DOS function) — structural/mechanical
+ * confidence, not full semantic certainty, same caveat this project's
+ * method notes always flag. **Still not wired live** — this only answers
+ * "what sets the bit," not "is `153e` safe to flip" (T3.2, needs user
+ * confirm regardless). Full trace: `euro_diplo_153e_full.md`'s 2026-08-20
+ * T1.11 update.
+ *
+ * NOT wired into any live caller: matches the
  * ai_euro_5d04_nation_planning_structural precedent — finishing a
  * structural port doesn't by itself make it safe to flip live on a
  * function this stub-dense.

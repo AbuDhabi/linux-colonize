@@ -322,6 +322,88 @@ caution in `ai_diplo.c`'s header stands as-is: not safe to wire `153e`
 live without either resolving the trigger or explicitly zeroing
 `peace_bit_0x10` first. No source changed this pass (doc-only).
 
+**2026-08-20, later same day — write-trigger found.** Used Ghidra's own
+cross-reference index instead of another text grep (new tool,
+`tools/GhidraDisasmExact.java`'s sibling `tools/GhidraListXRefs.java`,
+built this session for exactly this kind of chase). `FUN_0000_5b62`
+(`euro_relation` byte writer) has exactly 4 callers, all siblings in one
+tight resident cluster (`ram:0x5b96`-`0x5c73`):
+- `FUN_0000_5b96(nationA, nationB, mask)` — OR's `mask` into the relation
+  byte **both directions** (`A→B` and `B→A`), via two back-to-back
+  read/OR/write round trips through `FUN_0000_5b34`(read)/`FUN_0000_5b62`
+  (write).
+- `FUN_0000_5c00(nationA, nationB, mask)` — the AND-clear mirror, same
+  both-directions shape, plus a popup/notify call
+  (`CALLF 0x1000:896e`) when the two directions' post-clear values
+  disagree on the masked bits.
+
+Both are only reachable from two resident thunk stubs
+(`1000:8bfb`→`JMPF 0x5b96`, `1000:8c05`→`JMPF 0x5c00`, both real 5-byte
+patched far jumps, not RTLink placeholders) which the overlay-only
+resident project has no further XREFs into (overlay callers aren't
+imported there) — resolved instead by locating the same two addresses in
+`tools/address_mapping.csv` (they fall inside canonical `281f:0a06`
+[`switchD_2000:da9f::caseD_10`, the OR-set wrapper] and `281f:0a10`
+[`FUN_281f_0a10`, the AND-clear wrapper]) and grepping the whole
+canonical export for every literal-mask call into either wrapper.
+**Exactly one call site uses `0x10`** (out of ~20 literal-mask call
+sites found across both wrappers, values `2/4/0x10/0x20/0x22/0x40/0x60/
+0xb/0xbb` — `0x10` is not a common catch-all, this is a deliberate,
+narrow write): `FUN_38fd_5930` (raw `viceroy_unpacked_2.c:67030-67141`),
+line ~67135:
+
+```c
+FUN_281f_0a10(uVar11,iVar3,iVar5,0x40);
+switchD_2000:da9f::caseD_10(0x281f,iVar3,iVar5,0x10);
+```
+
+Read the enclosing function: a periodic per-acting-nation check (`iVar3
+= DS:0x9e12`, current AI nation), gated on `iVar3<4` (real Euro power),
+not already crown-managed (`DS:0x543f[iVar3]==0`, the same "`0x543f`
+trap" field the King-audience investigation already flagged), a
+per-nation-type-`0x13` exclusion probe, and `(wealth_rank+2)*turn > 799`
+(a turn-and-wealth-scaled activation threshold — fires later in the game,
+biased toward poorer nations). If armed: loops the other 3 nations,
+counting how many are already-MET (`local_1e`) and how many are in a
+plain-peace-only relation state (`&0x60==0x20`, `local_10`) while
+summing a per-nation strength table (`-0x6be4` — already resolved
+elsewhere in this project, not chased fresh here: `mod 0x10000`=`0x941c`
+=`save_format_map.md` row 247, `land_combat_strength[4]`, already live in
+`col1_stuff_census.c` per `euro_unit_act.md`'s own 2026-08-15 fourth-pass
+note) for self vs. each candidate. Only proceeds if it's met at least one
+nation,
+**none** of its known relations are plain-peace-only, and its own summed
+strength doesn't exceed the candidates' — then RNG-picks (retry loop) one
+already-met, not-flagged (`byte[nation*0x13c-0x77f8]&4==0`) rival it's
+*behind* in colonial development (compares an unnamed `-0x6bd4` byte
+table between the two nations), grants itself up to a handful of free
+Veteran Soldiers (writes `unit+0x315b=0x15`, the already-known Vet.
+Soldier profession code) and a treasury bump scaled by the development
+gap (written into the acting nation's own record at `+0x2a`/`+0x2c`),
+re-affirms `AI_DIPLO_MET` (`0x40`) on the (self, rival) pair, **and sets
+bit `0x10`** on that same pair.
+
+**Reads as a scripted "the crown arms a struggling colony against a
+specific rival" event** — free soldiers plus gold, earmarked at a named
+opponent, with `0x10` left behind as the marker "this happened, against
+this nation." Coheres cleanly with `0x10`'s own role in `153e` (an
+unconditional `worthy=1` + flat score bump): having just been armed
+against nation X by the crown is a self-contained, legitimate reason to
+lean toward declaring on X. **Caveat**: structural/mechanical confidence
+(the control flow, the writes, the call site) is solid; full semantic
+certainty (is this really "royal aid," not something else that happens
+to share the same shape) isn't independently cross-confirmed against a
+second source or a live capture — same standing caveat this project's
+method notes always apply. Several fields touched here remain unnamed
+(`-0x6be4`, `-0x6bd4`, `-0x77f8`'s `&4` bit, `DS:0x53d2`'s role in the
+loop's self-exclusion) — not chased further, weren't needed to answer
+the write-trigger question. **Still not a Tier 3 candidate**: this only
+answers "what sets the bit, and it's real, not a hypothetical" — whether
+to actually wire `153e` live is still a separate, deliberate decision
+(`T3.2`) needing the user's confirmation regardless, per this project's
+own "hard to reverse" rule. `ai_diplo.c`'s header comment updated in
+place. `ctest` green (comment-only change, verified anyway).
+
 Full `ctest`: 41/41 runnable tests pass (2026-08-19; `golden_ai_turns`/
 `_mid01`/`_late01`/`golden_ai_joint` remain PARKED/Disabled per the top of
 `docs/ai_transcription.md`, unaffected either way since nothing here is

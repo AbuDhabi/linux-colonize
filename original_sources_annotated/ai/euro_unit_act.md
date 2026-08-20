@@ -326,6 +326,24 @@ shape. Full `ctest` 40/40 green. The 8-neighbor scoring formula's own
 toughness term stays blocked on `0x2f76` (`T4.1`) regardless — only the
 wiggle-retry shipped, not the full byte-exact score formula.
 
+**2026-08-20, later same day (T1.8 re-check) — confirmed `units.c`'s
+flood-fill substitute is real and already ships, with one caveat.**
+`units_flood_next_step`/`units_bfs_next_step` (`units.c`) are wired into
+`units_next_goto_step`'s near/far tiers. `units_flood_next_step` is a
+16×16-window destination-outward cost flood — `UNITS_FLOOD_W==16`,
+matching this section's own `0015bc` window size exactly.
+`units_bfs_next_step` is a whole-map uniform BFS, a deliberately
+*different* (arguably stronger) substitute for `0015c1`'s
+18×18-window-plus-waypoint-retry scheme rather than a literal port.
+Per this doc's own 2026-08-19 entry above, both were built citing a
+*different* DOS routine pair (`FUN_6662_0086`/`FUN_6662_00f2`) — same
+shape by independent convergent design, not a confirmed byte-level match
+to `0015bc`/`0015c1`'s own formulas. A working, tested equivalent already
+exists; literally porting `0015bc`/`0015c1` for byte-exactness is now
+optional fidelity polish, not a functional gap. `0009ae`/`000000` remain
+untraced, still not needed for anything currently unblocked. Full detail:
+`ai_port_plan.md` T1.8.
+
 `FUN_4720_049e` (`FUN_291f_044e`'s target): **corruption is real but
 narrow, and the function underneath is a genuinely major find — not a
 move driver at all.**
