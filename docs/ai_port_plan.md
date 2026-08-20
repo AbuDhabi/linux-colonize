@@ -510,6 +510,27 @@ treat all of T1.1 as stuck. Also fixed a stale cross-reference in T1.13
   (`0015bc`/`0015c1`) still untouched, still the big remaining lift; the
   8-neighbor score formula's toughness term stays blocked on `0x2f76`
   (`T4.1`) regardless.
+  **2026-08-20, later same day — re-checked `units.c` directly, "big
+  remaining lift" needs a real caveat, not a full retraction.**
+  `units_flood_next_step`/`units_bfs_next_step` (`units.c`) already
+  exist and are wired into `units_next_goto_step`'s near/far tiers —
+  `units_flood_next_step` is a 16×16-window destination-outward cost
+  flood (`UNITS_FLOOD_W==16`, matching `0015bc`'s own window size
+  exactly), `units_bfs_next_step` is a whole-map uniform BFS (a
+  deliberately *different*, arguably stronger substitute for `0015c1`'s
+  18×18-window-plus-waypoint-retry scheme, not a literal port of it).
+  **Important caveat**: per `euro_unit_act.md`'s own 2026-08-19 note,
+  these two helpers were built citing a *different* DOS pair
+  (`FUN_6662_0086`/`FUN_6662_00f2`, a separate, analogous 3-tier pathing
+  routine in a different overlay) — same *shape* by independent
+  convergent design, not a confirmed byte-level match to `0015bc`/
+  `0015c1`'s own formulas specifically. **Net**: a working, tested,
+  structurally-faithful substitute already ships; closing `0015bc`/
+  `0015c1` for real byte-exactness is now optional fidelity polish, not
+  the functional hole the "still untouched, big remaining lift" wording
+  implied. `0009ae`/`000000` stay untouched — no evidence either is
+  needed for anything currently unblocked. Lowering this row's priority
+  accordingly; not resumed further this pass.
 
 - [ ] **T1.9 — Indian mid-game quiet scoring (goods/missions/capital
   pull) formula mapping.** R2 used to flag this as blocked on "a
@@ -564,7 +585,7 @@ treat all of T1.1 as stuck. Also fixed a stale cross-reference in T1.13
   `ai_euro.c`'s stub header comment updated. Full trace:
   `ai-5d04-structural-port` memory. `ctest` green (comment-only change).
 
-- [ ] **T1.11 — Name the diplomacy accessor bit `0x10` (`peace_bit_0x10`,
+- [x] **T1.11 — Name the diplomacy accessor bit `0x10` (`peace_bit_0x10`,
   same family as the already-resolved `AI_DIPLO_MET==0x40`).** New, split
   out of **T2.2**'s 2026-08-20 finding. This bit is the one live,
   non-stubbed term in the `153e` worthiness-score structural port — if
@@ -587,6 +608,28 @@ treat all of T1.1 as stuck. Also fixed a stale cross-reference in T1.13
   explicitly zeroed. Full trace: `euro_diplo_153e_full.md`'s 2026-08-20
   T1.11 update; `ai_diplo.c`'s header comment updated in place. `ctest`
   green (comment-only change).
+  **2026-08-20, later same day — write-trigger found, item closed.** New
+  tool `tools/GhidraListXRefs.java` (Ghidra's own cross-reference index,
+  not a text grep) found the writer's only 4 callers, all siblings in one
+  small resident cluster — a symmetric OR-set helper and an AND-clear
+  helper, each called from exactly one overlay-side wrapper
+  (`switchD_2000:da9f::caseD_10` / `FUN_281f_0a10`). Grepped the whole
+  canonical export for every literal-mask call into those two wrappers
+  (~20 found, values `2/4/0x10/0x20/0x22/0x40/0x60/0xb/0xbb`) — exactly
+  one uses `0x10`: `FUN_38fd_5930`, a periodic per-nation event (turn ×
+  wealth-rank gated) that RNG-picks an already-met, economically-behind
+  rival, grants free Veteran Soldiers + a treasury bump scaled to the
+  development gap, and marks bit `0x10` on that (self, rival) pair —
+  reads as a scripted "the crown arms us against a specific rival" event,
+  coherent with the bit's own `worthy=1`-trigger role in `153e`.
+  Structural/mechanical confidence solid, full semantic certainty not
+  independently cross-confirmed (no live capture) — standard caveat.
+  **Still not a Tier 3 candidate** — this answers "what sets the bit" (a
+  real, occasional trigger, not a hypothetical), not "is `153e` safe to
+  wire live," which stays `T3.2`'s call. Full trace:
+  `euro_diplo_153e_full.md`'s 2026-08-20 "write-trigger found" update;
+  `ai_diplo.c`'s header comment updated again. `ctest` green
+  (comment-only change).
 
 - [x] **T1.12 — `test_ai_king.c` fixture rewrite.** Not RE-blocked (the
   real formula is fully known and already implemented in `ai_king.c`),
@@ -678,10 +721,12 @@ treat all of T1.1 as stuck. Also fixed a stale cross-reference in T1.13
   checkable signature nobody's searched on yet. Full trace in
   `euro_unit_act.md`'s 2026-08-20 update. Stays PARKED. Tier 1 is **not**
   exhausted — **2026-08-20 reassessment: T1.4 is now done, remove it from
-  this list.** T1.1 (partial — fields 4/5/6/0xc), T1.9, T1.10 (partial —
-  `FUN_291f_0b26`'s real target), T1.11 (write-trigger XREF chase) are
-  still open and sort earlier; this was just the last item a given
-  session reached, not the end of the tier.
+  this list.** T1.1 (partial — fields 4/5/6 now Tier 4, `T4.8`), T1.9,
+  T1.10 (partial — `FUN_291f_0b26`'s real target still open) are still
+  open and sort earlier. **T1.11 closed later the same day** (write-
+  trigger found, see its own row) — no longer blocking anything here.
+  This was just the last item a given session reached, not the end of
+  the tier.
 
 ---
 
@@ -744,10 +789,12 @@ is genuinely stuck mid-session.
   `AI_DIPLO_MET==0x40`) has never been independently named — genuinely
   open RE, not attempted this pass. Full trace + the header-comment
   update: `ai_diplo.c` (search "T2.1 precedent, T2.2 delta catalog").
-  Queued as **T1.11**. **Not a Tier 3 candidate yet** — resolve bit `0x10`'s meaning (or
-  explicitly zero `peace_bit_0x10` to force full inertness, if wiring
-  is wanted sooner) before this is safe to flip. Full `ctest` green
-  (comment-only change, verified anyway).
+  Queued as **T1.11**, now closed (bit meaning and write-trigger both
+  found — see that row). **Still not a Tier 3 candidate** — resolving
+  what the bit means and what sets it answers the RE question, not the
+  policy one; wiring `153e` live either way (as-is, or with
+  `peace_bit_0x10` explicitly zeroed) is `T3.2`'s own user-confirm
+  decision. Full `ctest` green (comment-only change, verified anyway).
 
 ---
 
