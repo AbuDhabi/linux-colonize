@@ -37,6 +37,46 @@ from the call graph below weren't confirmed as labels in this recovery;
 worth checking if they're used at all or were part of the same corrupted
 inference.
 
+**Update (2026-08-20) — confirmed `2f96`/`306c`/`311e` are not separate
+functions; the "PARKED, needs deep RE" framing for Haggle/hard-bargain was
+stale.** `tools/address_mapping.csv` lists all three as
+`before-first-function` matches (Ghidra never gave them a boundary) — and
+all three addresses (`0x2f96`, `0x306c`, `0x311e`) fall **inside** this
+function's own already-recovered `0x2820`–`0x359a` byte range, same as
+`2aac`/`2b92`/`2bbc`/`2e92`/`3582` (confirmed internal `goto` labels).
+Read the raw recovered C directly at those offsets: the "Haggle: bump
+offer/tension; resume loop" and "hard-bargain: worse terms + tension;
+resume" behavior the old call-graph attributed to standalone `2f96`/`306c`
+functions is **already sitting in this file's own quoted raw-C dump**,
+as the `iStack_5e == 2`/`3` branches inside the `do { ... } while
+(iStack_6c != 0)` loops (see raw C around the `LAB_002e92`/`LAB_002bbc`
+labels below) — no separate function exists to chase, and no further
+disassembly work is needed to *find* this logic; it just needs reading
+and porting. Same false-lead shape as `4528`'s "8 raid actions" and
+`a6e4`'s "data table" (`ai-transcription-fulldraft` memory, ninth/
+twelfth-ish passes) — a stale call-graph inferred separate functions from
+what turned out to be internal control flow once the real disassembly
+was clean.
+
+**What actually blocks porting it (unchanged, now the sole real blocker
+for this whole item): the per-(Euro-nation, cargo) throttle table at
+absolute `-0x7b44`** (read at `iStack_c8 + param_4*0x10 + -0x7b44` /
+`param_4*0x10 + <idx> + -0x7b44`, gating both the AI auto-pick loop at
+`LAB_002e92` and a term inside the price formula) **and the running
+scratch value at `0x8dc4`** (used as a raw multiplier/percentage several
+times in the same formula, e.g. `FUN_0000_e096(*(int*)0x8dc4 * price, 100,
+0)`) — neither is in `viceroy_globals.h` or `address_mapping.csv`
+(checked 2026-08-20), confirmed genuinely uncaptured, not just
+unattempted. `0x53a6` (difficulty) and the ask/bid tables at `-25000`/
+`-0x6188` used throughout this same code ARE already resolved
+(`VICEROY_DS_DIFFICULTY`; `ai_contact_meet_economics_2154`'s `out->ask[]`/
+`out->bid[]`, same `0x9e58`/`0x9e78` tables). Also separately confirmed
+this pass: `*(int*)0x8d4e+2` (the "tribe level" field cited in the Open RE
+section below) **is already resolved and live** — it's
+`ColonizeCol1Indian.tech`, already wired into
+`ai_contact_meet_economics_2154` (`ai_contact.c`); one of three cited
+blockers there is gone, the throttle table and `0x8dc4` remain.
+
 Full clean recovery (Ghidra decompile, `OVL13_L0000::2820`–`0x359a`, zero
 warnings, ends in a real `return`):
 
@@ -704,8 +744,8 @@ Subst slots: `281f_0438` slots 0..3 load cargo-name ptrs from table `−0x6840`.
 | Behavior | Linux (`ai_contact`) | This map |
 |----------|----------------------|----------|
 | Auto-trade / gift | Real gold debit (2bbc/2820 price formula) | Full `2bbc` / `2b92` pricing |
-| Human buy-offer CHOICE (`LAB_002e92` human branch) | `ai_popup` Accept/Decline Done (2026-08-19), locked price shown then charged | Deep Haggle (`2f96`) / hard-bargain counter-offer (`306c`) sub-loops still PARKED; multi-good cargo-select CHOICE (`0x15a0`) not ported (TRADE_GOODS only, matching the AI path's scope) |
-| Hard-bargain mid-alarm | Thin Done; primary extra TG for all non-`0xff` teach primaries (Series M) | Full `306c` loop |
+| Human buy-offer CHOICE (`LAB_002e92` human branch) | `ai_popup` Accept/Decline Done (2026-08-19), locked price shown then charged | Deep Haggle / hard-bargain counter-offer resume-loops (the `iStack_5e==2`/`3` branches inline in `2820`'s own body — **not separate `2f96`/`306c` functions**, see 2026-08-20 correction above) still unported; genuinely blocked on the uncaptured `-0x7b44` throttle table + `0x8dc4` scratch value, not on missing RE. Multi-good cargo-select CHOICE (`0x15a0`) not ported (TRADE_GOODS only, matching the AI path's scope) |
+| Hard-bargain mid-alarm | Thin Done; primary extra TG for all non-`0xff` teach primaries (Series M) | Full inline hard-bargain resume-loop (same `-0x7b44`/`0x8dc4` blocker) |
 | Gift-amount CHOICE | `ai_popup` Done | Deep nest still PARKED |
 | VGA wood dialog | PARKED | `291f_019c` / `0438` subst |
 
@@ -817,17 +857,28 @@ yet located from this pass).
   genuinely unresolved and **not invented**, honestly left out rather than
   guessed:
   - `LAB_002e92`'s own distinct byte-level price table for a *newly offered*
-    good (as opposed to `2bbc`'s sticky-good re-offer table): `*(int*)0x8d4e+2`
-    (an indian_state field distinct from the already-resolved `+7`/`+8`
-    musket/horse throttle), a per-(Euro-nation, cargo) throttle array at
-    absolute `-0x7b44`, and string/format IDs `0x15a9`/`0x2e0c`/`0x2e0e` —
-    none of these are captured anywhere in this project (address_mapping.csv
-    only maps function entry points, not these DS data offsets); no live
-    DOSBox-X session available this pass to trace them
-  - The deeper Haggle (`2f96`, "bump offer/tension; resume loop") and
-    hard-bargain counter-offer (`306c`) sub-loops that would let a *human*
-    push back for more gold instead of a flat Accept/Decline — PARKED, same
-    scope discipline as the already-thin Gift/Demand amount CHOICEs
+    good (as opposed to `2bbc`'s sticky-good re-offer table): **`*(int*)0x8d4e+2`
+    resolved 2026-08-20** — it's `ColonizeCol1Indian.tech` (already wired into
+    `ai_contact_meet_economics_2154`, cross-referenced via
+    `indian_meet_scoring_2154.md`'s "tribe level" citation of the same
+    offset — just hadn't been linked back to this doc before). Still
+    genuinely uncaptured: a per-(Euro-nation, cargo) throttle array at
+    absolute `-0x7b44`, a running scratch value at `0x8dc4` (used as a raw
+    multiplier in the same formula), and string/format IDs `0x15a9`/
+    `0x2e0c`/`0x2e0e` — none of these are captured anywhere in this project
+    (`address_mapping.csv`/`viceroy_globals.h` re-checked 2026-08-20, still
+    no hit; only maps function entry points, not these DS data offsets); no
+    live DOSBox-X session available this pass to trace them. `-0x7b44` is
+    the load-bearing one — it gates both the AI's own auto-pick loop and a
+    term inside the price formula itself, so nothing past this point ports
+    without it.
+  - The deeper Haggle / hard-bargain resume-loops that would let a *human*
+    push back for more gold instead of a flat Accept/Decline —
+    **2026-08-20: confirmed these are NOT separate `2f96`/`306c` functions**
+    (see the correction note near the top of this doc) — they're the
+    `iStack_5e==2`/`3` branches already sitting in this file's own quoted
+    raw-C recovery. Not a missing-RE gap any more, purely blocked on the
+    `-0x7b44`/`0x8dc4` values above.
   - The multi-good cargo-select CHOICE (`0x15a0`, picking among up to 3
     tribe-priced goods) — PARKED; the ported path stays TRADE_GOODS-only,
     same as the AI path it reuses

@@ -119,6 +119,27 @@
 #define VICEROY_AI_GOAL_MIL_EXPAND    7 /* mil-expand peer of FOUND */
 #define VICEROY_AI_GOAL_COLONY_CARGO  8 /* colony +0x1b bit1 set → code 8 */
 
+/*
+ * Euro-nation wealth-rank table (byte[4], indexed by nation 0..3): 0 =
+ * richest, 3 = poorest by current treasury gold. Recomputed periodically by
+ * `FUN_5bfb_00f8` (viceroy_unpacked.c ~96503-96529): scores each nation via
+ * `FUN_1d1d_0ec6(nation.gold_lo, nation.gold_hi, 100, 0)` (already-known
+ * `nation.gold` fields, `-0x77ce`/`-0x77cc`) plus three small per-nation
+ * bonus tables (`-0x6d68`/`-0x6bf0`/`-0x6be4`, not independently named),
+ * sorts via `FUN_291f_0ed0`, then writes each nation's rank back here.
+ * Resolved 2026-08-20 (`indian_settlement_4528.md`'s case-3 raid-decision
+ * comparison) — this exact table is read via two different negative-offset
+ * aliases across the codebase (`DS:0x917c` direct and `DS:-0x6e84` via a
+ * different base pointer; both provably the same table — every call site
+ * that compares them cross-index the same array, e.g.
+ * `viceroy_unpacked.c:13073`/`85226`/`90062`/`94821` mix both spellings in
+ * one comparison). Appears (unresolved, until now) in
+ * `colony_tick_5952_035e.md`, `move_scoring_20e6_full.md`, and
+ * `indian_settlement_4528.md` — all three can now use this name instead of
+ * the raw offset.
+ */
+#define VICEROY_DS_EURO_WEALTH_RANK 0x917c
+
 /* ---- Helpers for annotated C (documentation macros) -------------------- */
 
 /*

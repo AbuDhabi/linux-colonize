@@ -74,7 +74,25 @@ bitmask, not directly ported but its role is subsumed by the presence
 checks) all have confirmed writers per `FUN_4962_0018`. See
 [`euro_g_table_0a60.md`](euro_g_table_0a60.md) for the full formula,
 approximations kept (diplomacy-gate bits), and `docs/save_format_map.md`
-rows 236/172/156.
+rows 236/172/156. **`−0x7a38` also resolved** (`continent_tally_b`,
+`col1->post_map.continent_tally_b[]`, per `euro_g_table_0a60.md`).
+
+**2026-08-20 — re-checked whether the tables now being resolved unblocks
+the full matrix; it doesn't, on its own.** Read `LAB_521d_3558`'s raw body
+directly (`move_scoring_20e6_full.md` line ~1064): every `local_9c` bit
+test is gated by an `FUN_1000_8aac(nation, unit, field)` query (fields
+2/3/4/5/6/0xc feeding `iStack_a8/4a/48/46/16`) — the same accessor
+`move_scoring_20e6_full.md`'s own six-pass investigation spent on field 2
+alone; fields 3/4/5/6/0xc were never chased. The now-resolved continent
+tables sit *behind* those still-opaque gates, so they don't make the
+bit-word portable by themselves. Separately, the `DS:0x523d` per-unit-
+type capability mask that decides which stack unit acts on a set bit is
+independently confirmed elsewhere (`ai_euro_0a60_unit_can_pursue_goal`,
+`ai_euro.c`) to live in unrecoverable binary resource data — a second
+blocker. **Real prerequisite before this matrix is portable**: extend the
+`8aac` field investigation to 3/4/5/6/0xc (same jump-table-dump method
+that resolved field 2). Not attempted this pass — flagging so the next
+session doesn't re-read "tables resolved" as "matrix portable."
 
 ### Colony sail score (peace vs war cargo)
 

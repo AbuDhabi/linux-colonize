@@ -486,6 +486,7 @@ functions and `4528`'s call sites, not this dispatch tail.
 | Ship abort | `ai_contact_try_ship_village` (`@DONTKNOWSHIPS` / `@MADATSHIPS`; mid-band 50..74 wary + Meet, Series T) |
 | Post-head combat / loot | Adjacent combat + `@RAID*` kinds + fallout `@LOOT`/`@LOOT2` |
 | Capture / burn | High band + tiny pop → `colonies_capture` |
+| AI-side undefended-village attack (tail switch, cases 1/4/5/6/7/8/9 shape) | **Done (2026-08-20)**: `ai_euro_land_try_adjacent_village_seize` (`ai_euro.c`) — war-hunting land unit adjacent to a garrison-free enemy tribe village opens hostilities and attacks via `units_try_move` (same combat internals the human Attack-CHOICE path already used). Closes a real gap: AI could already seize an undefended *colony* but had no village equivalent. Case 3's own RNG/wealth-rank-gated variant (a different raid-intensity roll, not "raid vs. don't") stays open — see "Open RE" below. |
 
 ## Related authentic LABs (named in early span)
 
@@ -497,6 +498,57 @@ functions and `4528`'s call sites, not this dispatch tail.
 
 ## Open RE
 
-- ASM-faithful map 84216→end
-- Wire `4528` return codes into move-foreign caller
-- String table XREF `0x1710`…`0x172e` → `GAME.TXT`
+**2026-08-20 — re-checked against `ai_port_plan.md` T1.5; two of three
+items below are stale, corrected in place rather than left misleading:**
+
+- ~~ASM-faithful map 84216→end~~ **Moot.** That address range belongs to
+  the *canonical export's* corrupted spillover into `OVL14_L0000`'s
+  unrelated bytes (see "Full body recovered" section above) — the real
+  function ends cleanly at `0x4c20`, fully shown in the 312-line recovery
+  already in this doc. There is no further body to map.
+- ~~Wire `4528` return codes into move-foreign caller~~ **Already traced**
+  (`ai-transcription-fulldraft` memory, "third pass"): `FUN_465b_0000`
+  line 74214 via thunk `2a1f_016c` — 0 = caller continues its own logic,
+  1/2 = caller skips via `goto LAB_465b_0bd1`, confirmed against the raw
+  body. Whether Linux's `ai_contact_indian_raids` needs an equivalent
+  three-way signal, or whether its existing direct architecture already
+  covers the same effect some other way, is un-checked — that's the real
+  remaining question, not the return-code semantics themselves.
+- String table XREF `0x1710`…`0x172e` → `GAME.TXT` — still genuinely open,
+  cosmetic/VGA priority only (matches header's "VGA chrome still open").
+
+**Real remaining gap, newly scoped this pass**: the tail case-dispatch
+(`switch(uStack_56)`, raw C lines ~338-365 above, the `case 3:` unit-type
+block specifically) decides which of the 9 outcome codes fires, and reads
+two fields not resolved when this doc was last touched:
+- `*(byte*)(uStack_6a + 0x917c)` — **resolved this pass**, see
+  `VICEROY_DS_EURO_WEALTH_RANK` in `viceroy_globals.h`: acting Euro
+  nation's treasury wealth-rank (0=richest..3=poorest) among the 4
+  powers, recomputed periodically by `FUN_5bfb_00f8`. Not invented — has
+  a confirmed writer.
+- `*(byte*)(*(int*)0x8d4a + 5)` — **also already structurally resolved**,
+  just not previously cross-referenced into this doc:
+  `settlement_record_8d4a.md`'s "`+5` — owner + persistent flags" section
+  (this is `0x8d4a`, the settlement-record selector, not `0x8d4e`) maps it
+  exactly to the bits `4528` reads here — low nibble = owner nation 0-3 /
+  `0xf` none, bit `0x10` = persistent capital flag, bit 7 (sign) = valid/
+  active sentinel. Structurally solid; **one real caveat before porting**:
+  that doc's own field derivation leans on colony-record call sites —
+  `4528` reads this on the *village's own* settlement record (`0x8d4a`
+  bound to the tribe via `09f0`/`0a4c` at entry, not the interacting
+  colony), and what the owner-nibble specifically tracks for a *native*
+  record (villages aren't Euro-owned) isn't spelled out anywhere yet —
+  plausibly "which Euro nation holds a mission/exclusive claim here,"
+  not independently confirmed. Structural offset: solid. Semantic meaning
+  in this specific (village-record) context: still open — same
+  "structural confidence ≠ semantic confidence" split this project's
+  method notes flag (`417e` teach-price saga). Worth a quick dedicated
+  check before wiring case 3, not a blind port.
+- The RNG-gated gold-affordability check (`*(int*)(uStack_6a*0x13c-0x77cc)`,
+  already-known nation.gold field) inside case 3 is otherwise fully
+  readable with known fields — no blocker there.
+
+Once tribe`+5` is resolved, case 3 (and likely the simpler cases 1/4/5/6/
+7/8/9, which don't reference either new field) becomes portable without
+further RE. Not attempted this pass — this was a scoping pass, not a
+port; see `ai_port_plan.md` T1.5 for the up-to-date status.
