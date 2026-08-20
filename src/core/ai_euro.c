@@ -7431,14 +7431,48 @@ static int ai_euro_5d04_ship_buy_ladder(
  *     transport-chain insert-after (splice using the already-known
  *     `unit+0x315c`/`+0x315e` prev/next fields, same family as `20e6`
  *     case 2 and `FUN_0000_4272`/`42ba`).
- *   - `FUN_291f_0b26`: attempted, hit a **false collision** — its
- *     apparent resident target (`FUN_1000_9d16` -> `FUN_0000_c11c`)
- *     force-redecompiled clean but turned out to be a glyph/bitmap text
+ *   - `FUN_291f_0b26`: attempted twice, still genuinely open, one dead
+ *     end added this pass (retracted below, kept for anyone re-chasing
+ *     this so they don't repeat it). First attempt: its apparent
+ *     resident target (`FUN_1000_9d16` -> `FUN_0000_c11c`) force-
+ *     redecompiled clean but turned out to be a glyph/bitmap text
  *     renderer, nothing to do with AI logic — the same
  *     coincidental-thunk-placeholder bug class flagged elsewhere in this
  *     project (`indian_settlement_4528.md`, `euro_unit_act.md`'s `a6e4`).
- *     Real target still needs the `rtlink_decode` jump-table treatment,
- *     not a plain address lookup. Genuinely still open.
+ *     Second attempt (2026-08-20, later pass): the canonical export's OWN
+ *     `FUN_291f_0b26` body looked clean (no `WARNING:`, a textbook
+ *     loader-guard-then-tail-call shape: `FUN_210d_0dab(0x291f);
+ *     FUN_38fd_0718(); return;`), and `FUN_38fd_0718` itself decompiles
+ *     as a real, coherent "spawn a purchased/recruited unit" routine
+ *     (profession-coded `param_1`, writes the already-known
+ *     `unit+0x314c`/`0x315b`/`0x3159` fields) — independently matching
+ *     `FUNCTION_CATALOG.md`'s own "inferred" label for both symbols.
+ *     **Retracted after checking ground truth**: force-disassembled the
+ *     resident bytes `address_mapping.csv` maps `FUN_291f_0b26` to
+ *     (`ram:0x19d16`, `tools/GhidraDisasmExact.java`, same tool T1.1's
+ *     `4fa8` dig built) — real code there, but a *different* routine
+ *     entirely (`CALLF FUN_1000_9042`, a `CMP/JZ` gate, then constants
+ *     `0,0x140,7` pushed into `CALLF 0xb73a` — plausibly the same
+ *     glyph/UI call the first attempt already found), not anything
+ *     resembling the `FUN_210d_0dab`/`FUN_38fd_0718` pair the canonical
+ *     export shows at that same symbol. **The canonical export's
+ *     `FUN_291f_0b26` decompile is itself silently wrong** — clean-
+ *     looking, no `WARNING:`, but contradicted by ground-truth bytes at
+ *     its own mapped address — a new instance of the "no-warning but
+ *     still corrupted" class this project's method notes already flag
+ *     (`684c_08c0`/`15eb_1d4c`). `FUN_38fd_0718` "spawn purchased unit"
+ *     is a real function (its own body is plausible and self-consistent)
+ *     but **not verified to be what `5d04` actually calls here** — don't
+ *     treat it as resolved. Also: the canonical export's own call sites
+ *     for `thunk_FUN_291f_0b26` (note the `thunk_` prefix, a *different*
+ *     symbol) disagree with each other on argument count/values across
+ *     4+ sites (`viceroy_unpacked_2.c` lines ~48355/63157/63493/67310) —
+ *     itself a signature of an unpatched-placeholder collision, not a
+ *     single well-defined callee. Real target still needs the
+ *     `rtlink_decode` jump-table treatment applied to `5d04`'s own raw
+ *     call-site bytes specifically (not a plain address/symbol lookup on
+ *     either canonical name) — not done this pass either. Genuinely
+ *     still open.
  * Exact per-call-site argument wiring (which literal DOS `iVar13`/
  * `iVar17`/etc. feeds which stub above, across the ~15 call sites) was
  * not re-traced this pass — the stub bodies below are unchanged (still

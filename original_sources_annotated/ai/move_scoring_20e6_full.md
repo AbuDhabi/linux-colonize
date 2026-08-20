@@ -541,6 +541,112 @@ Individual field semantics for 3/4/5/6/0xc remain open. `T1.2`/`T1.3`/
 better use of a live DOSBox-X session than re-guessing more case bytes
 statically).
 
+**2026-08-20, later same day — T1.1 fields 4/5/6/0xc pass: 0xc closed clean,
+4/5/6 hit a new, different live-capture wall; this pass's own case-4/case-6
+citations above are wrong and retracted.** Picked up the plan's "fields
+4/5/6/0xc are still genuinely static-tractable" framing. Built a new tool,
+`tools/GhidraDisasmExact.java` (force-clears and disassembles starting
+*exactly* at a given address, no fallback) — `GhidraListInstrs.java`
+silently falls back to `Listing.getInstructionContaining(start)` when the
+target isn't already an instruction boundary from a prior analysis pass,
+and that's what happened here: it returned a **different, nearby**
+already-analyzed instruction, 1-2 bytes off from the literal jump-table
+value, and the mismatch went unnoticed in this file's own case-4/case-6
+notes above. Re-verified from scratch against a freshly re-extracted
+`seg_data_resident.bin` (`tools/rtlink_overlay_extract.py` against the
+current `COLONIZE/VICEROY.EXE`, MD5 `0f5d5b00...` — matches the project's
+own already-verified hash, so not a stale-binary issue) — byte-identical to
+the existing `ghidra_overlay_scratch/OverlayTest` project at every address
+checked, so this isn't an extraction/staleness artifact either.
+
+- **Case 0xc (`0xc02b`) — confirmed closed, no change.** Force-disassembled
+  exactly at `0xc02b`: decodes cleanly with no ambiguity (`MOV [BP-4],0`;
+  loop comparing `SI`/`[BP-0xa]`; accumulate; bounds-check; `POP SI; LEAVE;
+  RETF`). Backward jumps (`JL 0xbfd1`, `JGE`-fail-path `JMP 0xbfc0`) land
+  well before this window, confirming `0xc02b` is a **mid-function landing
+  inside some unrelated, larger routine** (no `ENTER`, a bare `POP SI` with
+  no matching `PUSH` in view) — not its own dispatch target at all, just a
+  coincidental collision the same way 12 of the other 13 non-2/non-6 cases
+  already were. No unit-record (`*0x1c`) or colony-pointer (`0x8542`) touch
+  anywhere in it. Re-confirms the third pass's "generic, no unit touch"
+  verdict independently, this time with the corrected calling-convention
+  frame in hand. **Field 0xc: closed, not game-specific, no further work.**
+
+- **Case 5 = Case 4? No — case 5 = case 0, freshly re-confirmed.** Re-dumped
+  the raw jump table at `0xd78` as 16-bit words (not the earlier session's
+  byte-string transcription): `word[5] = 0x2ce0`, bit-identical to
+  `word[0]`. Case 5 and case 0 are **the literal same target address** —
+  whatever case 0 is, case 5 is too, by construction, no separate tracing
+  needed. (Third pass already filed case 0 under "generic, no unit touch";
+  this pass didn't overturn that filing, see below for what's actually
+  unresolved about it.)
+
+- **Cases 0/5 (`0x2ce0`) and case 4 (`0xa100`) and case 6 (`0x6ef7`) — real,
+  reproducible finding: the literal jump-table addresses do NOT land on
+  clean instruction boundaries.** Force-disassembling exactly at each cited
+  address produces implausible instruction streams — `PUSH ES` immediately
+  followed by an out-of-range shift-count `RCL byte[BP+SI+3],0x83` then a
+  segment-prefixed near `RET 0x1092` (case 4, `0xa100`); `ADD AX,[BP+DI]`
+  (reads the ENTER-pushed old-BP word at `[BP+0]`, since `DI=0` is held live
+  from `4fa8`'s own prologue) then `PUSH CS` with no matching pop before a
+  later `LEAVE`/`RETF` (case 6, `0x6ef7`); `ADD [BP+DI],CL` then a
+  `SAR byte[SI+8],0xb8` with the same out-of-range-immediate shape (case
+  0/5, `0x2ce0`). All three share one signature: a handful of bytes that
+  don't cohere as a real instruction sequence, followed by a resync into
+  something that *does* look like real, sensible code a few bytes later —
+  and in two cases, that later code is demonstrably real: widening the
+  disassembly window around case 6 found a **complete, coherent, `ENTER`-
+  headed function at `0x6ee0`** (`CL = [BP+6]&7; AX = 1<<CL` — a bit-mask
+  build — then falls into exactly the `SAR CX,3; ADD CX,[8542]; ADD CX,0x84`
+  bit-offset computation, then the on/off-gated `OR`/`AND [BX],AL` set/clear,
+  `LEAVE; RETF`) — a real, self-contained "set or clear bit `arg&7` of byte
+  `colony_ptr+0x84+(arg>>3)`" routine, matching this doc's own third-pass
+  description almost exactly. But its natural instruction boundary for the
+  bit-offset step is **`0x6ef5`, two bytes before the jump table's cited
+  `0x6ef7`** — `0x6ef7` is the *last byte* of that boundary's own 3-byte
+  `SAR CX,0x3` encoding (`c1 f9 03`), not a valid entry point into this
+  function at all. Case 0/5 shows the same shape in the other direction:
+  widening around `0x2ce0` found two real conditional branches (`CMP[0xa0],0
+  / JZ`, `CMP[0xa2],0 / JNZ`) both explicitly targeting `0x2ce1` — **one
+  byte after**, not at, the table's cited `0x2ce0`. Two different cases,
+  two different byte offsets (+2 late for case 6, -1 early for case 0/5) —
+  ruled out a uniform table-parsing bug on this pass's own end (would
+  produce a single consistent offset, not two different ones); the raw word
+  values themselves were independently re-confirmed straight from `0xd78`
+  bytes, not inferred.
+  **Also retracts this same file's own "2026-08-20" case-4 finding above**
+  (`[0x92c0]=3 unless [0x92c2]>0x10, then [0x372]=echoed word[BP+6]`,
+  cross-matched to `FUNCTION_CATALOG.md`'s `FUN_1a0a_0004` palette-cycle
+  init): that C does exist, verified real and byte-matching in
+  `viceroy_unpacked_2.c`/`viceroy_unpacked.c` — but at overlay address
+  `1a0a:0004`, a **completely different function in a different segment**,
+  not reachable from the resident `0xa100` jump target at all. The two were
+  conflated by pattern-matching decompiled C text without re-verifying the
+  citing address landed inside the actual case body — same mistake class
+  the project's own method notes already warn about (misattribution,
+  coincidental collision), now caught on this file's own prior entry rather
+  than an external one.
+  **Conclusion: this is a genuine byte-level wall, not a guessable one.**
+  Real, DOS-hardware execution at `CS:IP = 0000:a100` / `0000:6ef7` /
+  `0000:2ce0` is deterministic and would run exactly the implausible bytes
+  found — whether that's an intentional (if bizarre) byte-sharing trick, a
+  latent bug in the shipped 1994 binary that these specific field values
+  rarely trigger, or evidence that this project's addressing model has one
+  more subtlety not yet understood for *these three* targets specifically
+  (case 3 and 0xc don't show it) isn't resolvable from static bytes alone.
+  **Same shape as `T4.7`'s case-3 `0x4c4` wall, now extending to cases
+  0/4/5/6 as well** — a live DOSBox-X breakpoint on `FUN_0000_4fa8` entry,
+  single-stepping through calls with `field∈{0,4,5,6}`, would show what the
+  CPU actually fetches and executes. Not the same root cause as case 3's
+  wall (that one's a plausible-but-unverifiable *far displacement*; this
+  one's an implausible *local byte alignment*), so tracked as a new item
+  (`T4.8`) rather than folded into `T4.7`.
+  **Field 4: open, not closed (correction).** Field 5: same target as field
+  0, whatever field 0 turns out to be. Field 6: the bit-set/clear mechanism
+  and its `colony_ptr+0x84` bitmap are real and now more precisely mapped
+  (mask-build sub-routine at `0x6ee0` identified, not just guessed at) but
+  its actual entry alignment is unresolved, so still open, not closed.
+
 ## Raw recovered C
 
 ```c

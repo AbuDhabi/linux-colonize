@@ -159,6 +159,31 @@ treat all of T1.1 as stuck. Also fixed a stale cross-reference in T1.13
   specifically (in which case they inherit T4.7's live-capture block too)
   or only through the now-tractable fields. Re-check which once 4/5/6/0xc
   land, don't assume either way.
+  **2026-08-20, later same day — fields 4/5/6/0xc attempted, mixed result,
+  one prior-session finding retracted.** Field 0xc: closed, re-confirmed
+  generic/non-unit-touching with a byte-exact force-disassembly (new tool,
+  `tools/GhidraDisasmExact.java`). Field 5: same jump-table target as field
+  0 (`0x2ce0`), literally the same case. Fields 0/4/5/6: hit a **new, real,
+  reproducible static wall** — force-disassembling exactly at each field's
+  cited jump-table address (not falling back to a nearby already-analyzed
+  instruction, the mistake that let this file's own case-4 finding above
+  go unchecked) produces implausible byte streams that only resync to
+  real, sensible code 1-2 bytes later. This **retracts the case-4 finding
+  above** (the `[0x92c0]/[0x92c2]/[0x372]` palette-cycle C is real but
+  lives at a different function, `FUN_1a0a_0004`, overlay `1a0a:0004` —
+  not reachable from the resident case-4 target at all) and reopens case
+  6's "clean, register-source-untraced" filing (real bit-set/clear code
+  found nearby, complete with its mask-build helper at `0x6ee0`, but the
+  jump table's literal target lands 2 bytes into that code's own `SAR
+  CX,0x3` instruction, not at a boundary). Full trace, including the raw
+  byte evidence and why this isn't just a table-parsing bug on this pass's
+  own end: `move_scoring_20e6_full.md`'s "2026-08-20, later same day" T1.1
+  update. **Queued as `T4.8`** (Tier 4, new) — needs a live DOSBox-X trace,
+  different shape from `T4.7`'s case-3 wall (far displacement vs. local
+  byte-alignment ambiguity). Field 4 downgraded from "real, checkable
+  hypothesis" back to fully open — its downstream `iStack_48 != 0`
+  branches in `20e6` (lines ~1201/1205/1225) stay unresolved, not
+  "probably always true" as previously floated.
 
 - [ ] **T1.2 — Deep `20e6` remaining field fidelity.** Full arms +
   combat-resolve field fidelity is still OPEN per R5 Phase 1
@@ -173,13 +198,31 @@ treat all of T1.1 as stuck. Also fixed a stale cross-reference in T1.13
   `ai_euro_move_scoring_gate`'s explore-scan/fallback-west arms) now abort
   and force a re-decide the moment a MET foreign unit lands adjacent,
   matching DOS's `unit+0x314c==5` clear. Goal-directed AI_MOVE gotos (found-
-  tile, hunt, wagon, ship staging) untouched. Still OPEN: the windowed
-  best-tile-in-box explore-scan redesign itself (needs `−0x6b1a`/`−0x6a8e`
-  semantics) and the `0x42`/`0x65` found/contact gate (blocked on
-  `FUN_0000_4fa8`'s real resident target — see file for the false-collision
-  finding). Full `ctest` green after the change. Both remaining pieces
-  (explore-scan box redesign, `0x42`/`0x65` gate) are gated behind the
-  `FUN_1000_8aac` accessor — do **T1.1** first.
+  tile, hunt, wagon, ship staging) untouched. Full `ctest` green after
+  the change.
+  **2026-08-20, later same day — stale note corrected, real scope
+  narrower.** The "windowed best-tile-in-box explore-scan redesign" open
+  item was already stale when written: `move_scoring_land.md`'s own
+  2026-08-15 entries show it shipped that day
+  (`ai_euro_land_explore_scan_target` in `ai_euro.c`, radius-5 box scan
+  with the `−0x6b1a`/`−0x6a8e` friction term via the already-ported
+  G-table tier) — confirmed still live/wired at `ai_euro.c:10281`/`10411`,
+  thin (not byte-exact) but real, not a gap. **Real remaining scope is
+  just the `0x42`/`0x65` found/contact gate.** Its stated blocker was also
+  stale: T1.1's second 2026-08-20 pass fully cracked `FUN_0000_4fa8`'s
+  calling convention and confirmed it's real code, not a false collision
+  (case 2 = `0x46c7`, a real transport-chain node exchange). The actual
+  open question is narrower and older: case 2's own **return-value
+  semantics** (what "id < 2" means at the call sites), parked at a
+  genuine "needs more context than cheaply available" wall in
+  `move_scoring_20e6_full.md`'s "2026-08-15, fifth pass" (would need
+  tracing a long stretch of `0a60`'s preceding code, not a quick static
+  win). Not resumed this pass — flagging the correction rather than
+  re-diving into an already-parked dig. The sixth-pass finding still
+  stands too: the *behavioral* gap this gate would close already has a
+  shipped substitute (`ai_euro_unit_act`'s H-block founding-tile bind /
+  `ai_euro_scout_contact_ring_target`), so this is a byte-fidelity item,
+  not a functional hole.
 
 - [ ] **T1.3 — Full `LAB_521d_3558` cargo/colony sail matrix.** Still OPEN
   (R5 Phase 2/3 note it repeatedly). Current Linux only has thin tip/peel
@@ -393,6 +436,22 @@ treat all of T1.1 as stuck. Also fixed a stale cross-reference in T1.13
   than a literal case-by-case port of the DOS switch — case 3's own
   RNG/wealth-rank-gated variant (a *different* raid intensity/outcome
   roll, not "raid vs. don't") stays open per the note above.
+  **2026-08-20, later same day — case 3's entry gate re-checked before
+  porting, not yet safe.** `indian_settlement_4528.md`'s own "no blocker
+  there" claim undersold it: two more fields feed case 3's own entry `if`
+  (separate from the already-resolved tribe`+5` check). One resolved this
+  pass on the spot (`DS:0x5398` = already-named `VICEROY_DS_FOCUS_NATION`,
+  making the wealth-rank compare read as "acting nation poorer than focus
+  nation"; the `&0x20` diplo bit was already documented elsewhere, just
+  not cross-referenced here). Two remain genuinely open:
+  `FUN_1000_84fc`'s own semantics and `DS:0x8d52`'s identity (a
+  mismatched-looking `(nation_id, coord?)` argument pairing not safe to
+  guess at) and a tribe-record field pair at `-0x77cc`/`-0x77ce`. **Not
+  porting case 3 yet** — full trace in `indian_settlement_4528.md`'s
+  2026-08-20 update. Cases 1/4/5/6/7/8/9 (no `84fc`/`8d52` dependency)
+  are still the safer next slice if resumed, though the behavioral gap
+  they'd close is already covered by `ai_euro_land_try_adjacent_village_seize`
+  above (byte-fidelity item, not a functional hole).
 
 - [ ] **T1.8 — `FUN_6662_0f74` pathfinding subsystem.** Confirmed clean but
   large: `0015bc`/`0015c1` are two separate BFS flood-fill searches (16×16
@@ -782,6 +841,24 @@ but don't resume speculatively either.
   adjacent structure, or something else) and not safe to guess at. Needs
   a live DOSBox-X read of that displacement while `4fa8` case 3 is live.
   Doesn't block T1.1's fields 4/5/6/0xc — those stay Tier 1.
+
+- [ ] **T4.8 — `FUN_0000_4fa8` cases 0/4/5/6 (fields 4/5/6 of the
+  `FUN_1000_8aac` accessor; case 0 by extension since field 5 shares its
+  target), literal jump-table byte alignment.** New 2026-08-20, split out
+  of **T1.1**. Force-disassembling exactly at each case's cited jump-table
+  address (`0xa100`/`0x2ce0`/`0x6ef7`) produces implausible instruction
+  streams (out-of-range shift-count immediates, an unmatched `PUSH CS`
+  ahead of a `LEAVE`/`RETF`) that only resync into real, sensible code 1-2
+  bytes later — confirmed real, reproducible, and not a static tooling
+  artifact (checked against a fresh re-extraction of the current, MD5-
+  verified `VICEROY.EXE`). Different shape from `T4.7`'s case-3 wall (a
+  plausible-but-unverifiable *far displacement* read) — this one's a *local
+  byte-alignment* mismatch between where the jump table points and where
+  the surrounding code's own control flow says the real instruction
+  boundaries are. Needs a live DOSBox-X breakpoint on `FUN_0000_4fa8`'s
+  entry, single-stepping through calls with `field∈{0,4,5,6}`, to see what
+  the CPU actually fetches. Full trace: `move_scoring_20e6_full.md`'s
+  "2026-08-20, later same day" T1.1 update.
 
 ---
 

@@ -552,3 +552,29 @@ Once tribe`+5` is resolved, case 3 (and likely the simpler cases 1/4/5/6/
 7/8/9, which don't reference either new field) becomes portable without
 further RE. Not attempted this pass — this was a scoping pass, not a
 port; see `ai_port_plan.md` T1.5 for the up-to-date status.
+
+**2026-08-20 — re-checked before porting, the "no blocker" claim above
+undersold case 3's own *entry* gate (the outer `if`, lines ~339-349,
+separate from the tribe`+5` check below it).** That entry gate has its own
+two fields, both cross-referenceable but not previously connected to this
+file:
+- `*(undefined2*)0x5398` = `VICEROY_DS_FOCUS_NATION` (`viceroy_globals.h`) —
+  so `*(byte*)(*(int*)0x5398 + -0x6e84)` is
+  `VICEROY_DS_EURO_WEALTH_RANK[FOCUS_NATION]` (`-0x6e84` mod `0x10000` =
+  `0x917c`, the same wealth-rank table base already resolved for this same
+  case 3 at `uStack_6a+0x917c`). Reads as "acting nation's wealth rank <
+  focus nation's wealth rank" — am-I-poorer-than-the-reference-nation.
+- `(FUN_1000_8c28(...) & 0x20) != 0` — already documented in this same
+  file's own header (`!(euro_diplo & 0x20): @DONTKNOWSHIPS`, line ~32) and
+  in `indian_incite_417e.md` ("`&0x20` bit gates... 'peaceful enough'") —
+  not a new unknown, just not cross-referenced into this section before.
+**Still genuinely open**: `FUN_1000_84fc(0,*(undefined2*)0x8d52,*(undefined2*)0x5398)`
+itself (called as `(mode, a, b)` here with `a`=`DS:0x8d52` — likely a
+coordinate, not yet independently confirmed — and `b`=a *nation id*,
+`FOCUS_NATION` — a mismatched-looking argument pairing worth resolving
+before trusting a "distance" guess) and the tribe-record pair at
+`uStack_6a*0x13c + -0x77cc`/`-0x77ce` inside the nested `if`. **Don't port
+case 3 yet** — two more unnamed pieces than this doc previously implied;
+this pass only narrowed which two. Cases 1/4/5/6/7/8/9 (no `84fc`/`8d52`
+dependency) remain the safer/smaller port if anyone picks this up next,
+same as already noted above.
