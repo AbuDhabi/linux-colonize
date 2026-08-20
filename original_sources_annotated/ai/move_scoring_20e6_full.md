@@ -332,6 +332,24 @@ epilogue's state-machine *transitions* (write orders/goto/facing after a
 dir is picked) could be wired against the existing fields today, independent
 of that scan redesign — smaller, real, immediately portable slice.
 
+**2026-08-20: roam-abort transition shipped.** Wired the one piece of the
+"stop passively roaming next to any nation you've already encountered"
+transition described above — `unit+0x314c==5` idle-roam state, cleared the
+moment a MET foreign unit lands adjacent, forcing a re-decide. Linux has no
+persistent `act_state` distinguishing *why* a given AI_MOVE goto was set, so
+introduced a narrow file-local marker (`s_euro_roam_wander[]` in
+`ai_euro.c`) that `ai_euro_move_scoring_gate` sets only on its two genuine
+idle-wander arms (explore-scan target, fallback-west) and that
+`ai_euro_set_goto` clears by default on every other goto write (found-tile
+pursuit, war hunt, wagon delivery, ship staging) — so a stale roam flag from
+an earlier turn can never leak onto a goal-directed goto set by a different
+code path. Abort check runs at the top of `ai_euro_unit_act`, same MET-both-
+directions gate `ai_euro_try_violate_notify` already uses. Full `ctest`
+green (goldens still parked per T3.3, unaffected either way). Not done:
+the `0x42` found-impulse "flip on arrival" sub-clause of the epilogue (ship-
+only, orders `'1'` marker not yet traced) and the scan-redesign itself,
+both still open per above.
+
 ## Raw recovered C
 
 ```c
