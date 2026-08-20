@@ -562,14 +562,18 @@ tribe's own nation, see doc).
 
 **Still open:** alarmed branches inside `14fe`; mid-game quiet scoring
 (goods/missions/capital pull) — checked 2026-08-14 whether this was a
-quick win, confirmed genuinely blocked (not just unattempted): needs a
-`2244`-style overlay re-recovery for `FUN_291f_0a14` (canonical boundary
-looks wrong, "gap"-kind + arg-count mismatch against a real call site)
-plus mapping a widely-shared generic colony-field accessor's numeric
-field-index semantics — see `quiet_score_colony_pull`'s comment in
-`quiet_brave_scoring.c`; also no golden currently reaches `colony_count>0`
-for a Brave, so there'd be nothing to verify a fix against anyway; retiring
-spent overlays.
+quick win, thought genuinely blocked on a corrupted `FUN_291f_0a14`
+boundary. **2026-08-20 re-check: that diagnosis was wrong, retracted.**
+`FUN_291f_0a14` is a normal, clean RTLink thunk to the already-known
+`FUN_5fef_1b0e` (Linux's `combat_apply_1b0e_peels`) — the "arg-count
+mismatch" was a stale line-number citation pointing at an unrelated
+function, not corruption (see `quiet_score_colony_pull`'s comment,
+`quiet_brave_scoring.c`, for the full trace). Real remaining blocker is
+narrower now: the surrounding formula still needs a dedicated pass
+mapping `DS:0x5239`/`0x523d`/`0x53d2` and the generic field-accessor's
+index semantics — a real formula-mapping task, not a corruption wall.
+Still no golden reaches `colony_count>0` for a Brave, so still nothing to
+verify a port against even once mapped.
 
 ### R3 — Contact and raids (**partial structural port**)
 

@@ -269,29 +269,51 @@ int quiet_score_colony_pull(int score, int colony_count) {
   }
   /*
    * Checked 2026-08-14 whether this is a quick win like 417e/1816 turned
-   * out to be — it isn't, confirmed genuinely blocked, not just
-   * unattempted:
-   * - FUN_291f_0a14 is address_mapping.csv "gap"-kind (no canonical name)
-   *   AND its canonical declaration (`void FUN_291f_0a14(void)`,
-   *   viceroy_unpacked.c:36080) doesn't match a real call site
-   *   (`FUN_291f_0a14(uVar13,iVar9,iVar8,iVar7,local_8,1)`,
-   *   viceroy_unpacked.c:57109 — 6 args vs 0) — the same
-   *   wrong-function-boundary signature that made `2244` look
-   *   misidentified before its real offset was found; would need the same
-   *   overlay-recovery treatment before trusting anything about it.
-   * - FUN_281f_08bc (exact-mapped to FUN_1000_8aac) is a widely-reused
-   *   generic "get colony field by index" accessor called from many
-   *   unrelated functions (move_scoring_20e6_full.md,
-   *   euro_goal_orders_0a60_full.md) with numeric field indices (2, 3, 4,
-   *   5, 6, 0xb, 0xc, 0xd, 10, …) whose individual meanings were never
-   *   independently mapped — resolving them is its own semantic-RE task
-   *   shared by several other functions, not scoped to this one.
-   * Both blockers compound (need the real callee bodies AND the field
-   * index semantics before any weighting formula here could be trusted),
-   * and — same as when this was first parked — colony_count==0 in every
-   * existing golden means there's no test coverage to verify a guess
-   * against even if one were made. Left parked; see
-   * docs/ai_transcription.md's "mid-game quiet scoring" line.
+   * out to be — confirmed genuinely blocked then. **2026-08-20 re-check
+   * (T1.7): the "wrong function boundary, needs 2244-style overlay
+   * recovery" diagnosis was wrong — retracted, not just refined.**
+   *
+   * The 6-arg call site cited above (`viceroy_unpacked.c:57109` at the
+   * time) is a stale line reference from an earlier decompile pass —
+   * that line now belongs to the unrelated, already-ported
+   * `FUN_364b_03f6` (coastal fort fire, `turn_run_coastal_fort_fire`).
+   * The REAL call site for *this* quiet-scoring block is the zero-arg
+   * one, `iVar20 = FUN_291f_0a14();` at `viceroy_unpacked.c:85601`,
+   * directly inside `LAB_521d_52aa` (confirmed via the raw body — this
+   * is the actual colony/capital-pull section). Its canonical decompile
+   * (`FUN_210d_0dab(0x291f); FUN_5fef_1b0e(); return;`) is a completely
+   * normal RTLink call-thunk, rendered `(void)`-signature with no-arg
+   * inner calls — verified against a known-good sibling thunk
+   * (`FUN_291f_0996` → `FUN_364b_1b76`, same two-line shape, same
+   * `(void)` rendering) that nobody doubts is correct. Ghidra renders
+   * *every* thunk in this whole `291f_XXXX` family this way regardless
+   * of the real target's signature — the arg-count "mismatch" was never
+   * a corruption signal, just this rendering style plus a stale line
+   * cite pointing at an unrelated function's real (non-thunk) call.
+   *
+   * **Real target, already known**: `FUN_5fef_1b0e` — Linux's own
+   * `combat_apply_1b0e_peels` (`combat.md`), the open-field combat-
+   * strength formula `atk = ((terrain_stash+4)*atk>>2)*3>>1`. Its
+   * return here (`iVar20`) feeds directly into this block's own score
+   * arithmetic (`iStack_e8 = ((iVar18+1)/iVar14)*iVar20 / ...`) — reads
+   * as reusing the same combat-strength estimate as a scoring *input*
+   * (not resolving a real fight), consistent with `1b0e` computing a
+   * pure strength number rather than only being invoked for actual
+   * combat.
+   *
+   * **Not fully unblocked — real remaining work, just correctly scoped
+   * now**: the surrounding formula still touches several genuinely
+   * unnamed pieces (`DS:0x5239` stride-0xe table, `iVar14`/`iVar18`'s own
+   * source calls `FUN_281f_08bc` — the same widely-reused generic field
+   * accessor as before, `DS:0x523d` bitmask reuse, `DS:0x53d2`
+   * comparison) that would need their own semantic pass before a
+   * faithful port — a real formula-mapping task, comparable in size to
+   * `euro_g_table_0a60.md`'s own G-table dig, not a quick finish. Still
+   * no golden exercises `colony_count>0` for a Brave, so still nothing
+   * to verify a port against even once mapped. **Downgraded from
+   * "corruption-blocked" to "known-clean, needs a dedicated formula-
+   * mapping pass"** — a real, if partial, unblock. See `ai_port_plan.md`
+   * T1.7 and `ai_transcription.md`'s R2 section for the up-to-date note.
    */
   return score;
 }
