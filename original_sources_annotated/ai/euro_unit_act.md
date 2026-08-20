@@ -836,6 +836,42 @@ not located. Stays PARKED; worth a fresh, dedicated pass if picked up,
 now with a concrete two-tier-percentage shape to search for instead of
 an ambiguous "maybe inverted" reading.
 
+**2026-08-20 re-attempt (T1.9) — the "Treasure-type unit scan" search
+vector is now fully exhausted, still no match; one promising near-miss
+ruled out with live tooling.** Grepped every `*(char*)(unit+0x3146) ==
+'\n'` (Treasure-type) site in `viceroy_unpacked.c` — 9 total, all now
+individually checked (3 fresh this pass: `FUN_465b_0000`/75800,
+`FUN_521d_6d8e`/93229, `FUN_2f2b_51ec`/51779; combined with the
+previously-checked `europe_cash_treasure`-adjacent `77985`/`78908`/
+`79208` and 3 more unremarkable UI/combat sites this pass ruled out —
+`7640` tile-icon redraw, `99345` combat defender-softness check,
+`89997` inside the already-exhaustively-read `FUN_521d_20e6`). None is
+the King's Galleon CHOICE:
+- `93229`/`51779`: unrelated (sticky-wave unit-type grouping; unit-info
+  panel display formatting a treasure gold value for the UI).
+- `75800` (`FUN_465b_0000`, the already-known move-foreign/combat
+  dispatcher) looked genuinely promising at first — Treasure-type gate,
+  per-nation `0x543f`/`-0x6da5` (stride 0x13, FF-flag-shaped) checks, and
+  a real thunk call, `FUN_2a1f_0186`. **Resolved via live Ghidra
+  tooling** (canonical decompile check, same method that cracked T1.7):
+  `FUN_2a1f_0186` → `FUN_5fef_1908`, which `combat.md` already documents
+  as **Treasure ransom/loot gold** (the "native raid captures your
+  Treasure, human gets an Accept/Refuse ransom CHOICE" mechanic) — a
+  different, already-known mechanic, not the Galleon transport offer.
+  Flagging explicitly so a future pass doesn't re-cite this site as a
+  candidate.
+- Real conclusion: the King's Galleon offer is **not** triggered by a
+  per-unit Treasure-type scan the way `europe_cash_treasure`/ransom/UI
+  code is — it must live somewhere else (most likely a Europe-screen
+  periodic/harbor-tick check on *aggregate* pending treasure gold or
+  cargo-hold state, not a per-unit record scan). **Real next step if
+  resumed**: search the Europe-screen tick/harbor-arrival family
+  (`europe_finish_bridge.md`'s neighborhood) or search for a CHOICE
+  dialog call site with exactly 3 `STRING` args and **zero** `NUMBER`
+  args (KINGGALLEON2's own GAME.TXT template has no `%NUMBER0`, unlike
+  KINGGALLEON3's — a real, checkable signature) instead of repeating
+  this unit-type grep. Stays PARKED.
+
 ### 2c6. Linux thin — Missionary CONTACT (act)
 
 Peace + Missionary/Jesuit, **not fleeing** (adjacent tribe Alarm/friction ≥55 —

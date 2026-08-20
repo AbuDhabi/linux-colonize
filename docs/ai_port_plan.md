@@ -308,14 +308,45 @@ needed beyond periodic status updates.
   port against even once mapped — document even if untestable, per the
   original note.
 
-- [ ] **T1.8 — `test_ai_king.c` fixture rewrite.** Mechanical, not
-  RE-blocked: the file predates the real `38fd_5be8`/`38fd_3dc8` tax
-  formula and still assumes deterministic year-gated, RNG-free audiences.
-  Needs seeded RNG streams per scenario and `turn_number ≥ 30` setup
-  instead of year-based. See R6 "Known test-suite gap" note in
-  `ai_transcription.md`. Currently the whole 6000+-line single-`main()`
-  file bails on assertion #1 — this blocks real coverage of everything
-  else in that file, so it's higher-value than its size suggests.
+- [ ] **T1.8 — `test_ai_king.c` fixture rewrite.** Not RE-blocked (the
+  real formula is fully known and already implemented in `ai_king.c`),
+  but **2026-08-20: scoped precisely, and it's a real conceptual redesign,
+  not a mechanical seed/turn patch** — the row's own "mechanical" framing
+  undersold it.
+  **What's actually true, confirmed by reading the file**: `turn` is set
+  exactly **once** in the whole 6274-line file (`uint32_t turn = 1;`,
+  never reassigned) and nothing outside `ai_king_audience_roll` reads
+  `ctx->turn_number` — so the blast radius is contained to the tax/
+  audience-conceptual blocks specifically, not spread across the file
+  (good news: the ~5500 lines of REF/MoW/Continental-Army/combat
+  scenarios don't need touching). Bad news: those tax/audience blocks
+  don't just need `turn≥30` + a seed — they test mechanics the real port
+  **retired**, not approximated:
+  - Block 1 (~lines 195-620): tests a deterministic "spring tax year
+    always hikes," an `unknown46[2]`-gated persistent "refuse" state that
+    blocks further hikes until an external "Fugger sync" clears it, and
+    SoL-threshold-gated accept/refuse — **none of this exists in the real
+    `ai_king_tax_event`/`ai_king_audience_roll`** (see that function's own
+    header comment: the old boycott-gates-the-interval behav41ior "is not
+    real DOS... has been dropped"). Real design: unconditional per-
+    interval RNG score roll, ladder of outcomes (cut/+1/+2/+3-4/+5-8), no
+    persistent refuse-state gate.
+  - Block 2 (~lines 4221-4400): tests a CHOICE popup that asks the human
+    to Accept/Refuse *whether the hike happens at all*, deferred until
+    apply. Real design: the audience always applies its rolled delta
+    unconditionally; the *only* CHOICE is a post-hike tea-party revert
+    (Accept="keep it" / Refuse="hold a tea party", reverting the just-
+    applied raise) — a materially different flow (decide after, not
+    before).
+  Both blocks would need genuinely new scenarios authored against the
+  real formula (pick real seeds, run `ai_king_nation_turn`, observe and
+  assert actual output — same method already used correctly elsewhere in
+  this same file, e.g. the "Seed 1 hits the..." merc-hire block), not a
+  reinterpretation of the existing assertions. **Real estimate: a few
+  hundred lines of test redesign across 2 blocks, verified by actual runs
+  — a multi-pass task in its own right, not a same-session add-on.** Not
+  attempted this pass. See R6 "Known test-suite gap" note in
+  `ai_transcription.md` for the up-to-date pointer.
 
 - [ ] **T1.9 — KINGGALLEON2 (non-Cortes royal-galleon share) re-attempt.**
   Unpark #3, still PARKED "if evidence appears." Prior passes found the
@@ -325,6 +356,24 @@ needed beyond periodic status updates.
   cracked `4528`/`417e`/etc. postdates the last attempt here per
   [`euro_unit_act.md`](../original_sources_annotated/ai/euro_unit_act.md)
   (search `KINGGALLEON2`).
+  **2026-08-20: re-attempted with live Ghidra headless tooling (same
+  method that cracked T1.7). Exhausted the "Treasure-type unit scan"
+  search vector — all 9 `unit+0x3146=='\n'` sites in `viceroy_unpacked.c`
+  now checked, none is it.** One near-miss worth flagging: `FUN_465b_0000`
+  (the known move-foreign dispatcher) has a Treasure-gated thunk call
+  that looked promising, resolved via canonical-decompile check to
+  `FUN_5fef_1908` — already known as **Treasure ransom/loot** (a
+  different, already-documented mechanic), not the Galleon offer. Real
+  conclusion: this mechanic isn't gated by a per-unit-record scan at all,
+  so repeating that grep won't find it. **Real next step**: search the
+  Europe-screen tick/harbor-arrival family instead, or search for a
+  CHOICE dialog site with exactly 3 `STRING` args and **zero** `NUMBER`
+  args — KINGGALLEON2's own GAME.TXT text has no `%NUMBER0` placeholder
+  (unlike KINGGALLEON3's, which shows the tax-rate percentage), a real,
+  checkable signature nobody's searched on yet. Full trace in
+  `euro_unit_act.md`'s 2026-08-20 update. Stays PARKED — Tier 1 exhausted
+  for this pass after this item; next per plan order is Tier 2
+  (`5d04`/`153e` structural-port verification).
 
 ---
 

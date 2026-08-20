@@ -909,6 +909,17 @@ RNG streams per scenario, turn-based not year-based setup) is a substantial
 follow-up task in its own right, out of scope for the formula port itself —
 parked here the way `golden_ai_turns`/`golden_ai_joint` are parked above.
 
+**2026-08-20 scoping pass (T1.8):** confirmed the blast radius is
+contained — `turn` is set exactly once in the whole file and nothing
+outside the audience formula reads it, so only the tax/audience-
+conceptual blocks need touching, not the other ~5500 lines. But those
+blocks (~195-620 and ~4221-4400) test mechanics the real port explicitly
+retired (persistent SoL-gated refuse state, pre-hike Accept/Refuse
+CHOICE) rather than approximated — a real redesign against the new
+unconditional-roll-then-optional-tea-party-revert shape, not a
+seed/turn mechanical patch. See `ai_port_plan.md` T1.8 for the full
+breakdown. Not attempted this pass.
+
 ---
 
 ## Prerequisites
