@@ -264,6 +264,28 @@ approximation of the same role, not a port of this specific callee).
 Stubbed via `ai_diplo_153e_unit_score_stub` — real per-unit iteration and
 ownership matching, inert per-unit score contribution.
 
+**2026-08-20 correction (T2.2 delta-catalog pass): the "euro_relation
+peace-bit check (real, `-0x77c4`)" line above undersold a real gap.**
+That's `uStack_9e = FUN_1000_8c28(self,target) & 0x10` (raw ~522-527,
+~566, ~880) — the accessor itself is the already-resolved
+`ai_diplo_read`-shaped diplomacy-flags family (same one `AI_DIPLO_MET`
+`0x40` and `AI_DIPLO_PEACE`/`WAR`/`ALLY` come from), but **bit `0x10`
+specifically has never been named** — checked `ai_diplo.h`'s
+`AI_DIPLO_*` defines, only `0x01/0x02/0x04/0x08/0x40/0x80` are assigned,
+`0x10`/`0x20` are open. This matters more than the other stubs above:
+traced the function's full control flow with every stub at neutral —
+every other term (dominance loop, unit-ownership loop, tension,
+cooldown, treasury clamp) provably cancels to exactly 0/never-fires, but
+**this one read is real, non-stub, live data** — if `0x10` is ever set
+for a real nation pair, the function already asserts `worthy=1` and a
+real nonzero score *today*, live-reactive despite every other term being
+inert. Not a "does this port faithfully" gap like the others — it's the
+one path that would make wiring this live behave unpredictably (real
+data driving part of the formula, zeros driving the rest) rather than
+safely inert. See `ai_diplo.c`'s own header comment (search "T2.1
+precedent, T2.2 delta catalog") for the full trace. Genuinely open RE,
+not attempted this pass — the real next step before Tier 3.
+
 Full `ctest`: 41/41 runnable tests pass (2026-08-19; `golden_ai_turns`/
 `_mid01`/`_late01`/`golden_ai_joint` remain PARKED/Disabled per the top of
 `docs/ai_transcription.md`, unaffected either way since nothing here is

@@ -393,11 +393,52 @@ is genuinely stuck mid-session.
   remaining ambiguous list-iterator callees if feasible (see
   `ai-5d04-structural-port` memory for the resolved-symbol table and what's
   still open).
+  **2026-08-20: both sub-tasks done.** List-iterator callees resolved —
+  `FUN_281f_07e0`/`FUN_281f_02e4` are ordinary thunks to `FUN_1427_005c`/
+  `FUN_1427_004a`, a stack/tile-unit walker over the already-known
+  `ColonizeCol1TransportChain` next/prev fields (not a mystery "dock
+  list"); `ai_euro.c`'s stub comment updated with the full trace. Delta
+  catalog: **empty, confirmed by construction** — every mutation in the
+  hire-ladder tail is already gated behind these two stubs returning
+  "none," so resolving their identity doesn't change that; wiring the
+  structural port live today would produce zero observable change beyond
+  what's already live (the treasury bump). No live side-by-side
+  experiment was needed to establish that — it follows directly from the
+  stub-gating already documented. A real delta only appears once the
+  stubs return real values (a separate, later semantic-RE task on the
+  profession/dock query family, `DS:0x945a`, `FUN_1d1d_0ec6`'s division —
+  see `ai-5d04-structural-port` memory). **Not yet a Tier 3 candidate**:
+  wiring it live today is a safe no-op, so there's nothing to confirm
+  with the user yet — revisit once those remaining stubs go real.
 
 - [ ] **T2.2 — Verify `ai_diplo_153e_worthiness_score_structural`
   against live behavior.** Same shape as T2.1: structural reference port
   exists (`ai_diplo.c`), not wired live. Catalog deltas vs. current
   behavior before it's ready for a Tier 3 decision.
+  **2026-08-20: catalogued — and the answer is materially different from
+  T2.1's.** First, confirmed what "current behavior" even is: Linux has
+  **no standalone war-declare-eligibility decision at all** today — war
+  currently only happens as a side effect of `ai_euro_try_attack`'s
+  combat-scoring already picking a target (`@SNEAK`), not a deliberate
+  "should I declare on nation X" process. So wiring `153e` live wouldn't
+  replace an approximation, it would add a genuinely new proactive
+  trigger.
+  Second, traced the structural port's full control flow with every
+  current stub at its neutral value — **unlike `5d04`'s tail, this
+  function is not inert-by-construction.** Every stubbed term nets to
+  exactly 0 *except* `peace_bit_0x10` (`ai_diplo_read(self,target)&0x10`,
+  a real, non-stub, live-data diplomacy-bit read) — if that bit is ever
+  set for a real nation pair, the function already asserts `worthy=1`
+  and a real nonzero score, live-data-reactive today despite every other
+  term being a stub. Safe right now only because nothing calls it. Bit
+  `0x10` on this accessor (same family as the already-resolved
+  `AI_DIPLO_MET==0x40`) has never been independently named — genuinely
+  open RE, not attempted this pass. Full trace + the header-comment
+  update: `ai_diplo.c` (search "T2.1 precedent, T2.2 delta catalog").
+  **Not a Tier 3 candidate yet** — resolve bit `0x10`'s meaning (or
+  explicitly zero `peace_bit_0x10` to force full inertness, if wiring
+  is wanted sooner) before this is safe to flip. Full `ctest` green
+  (comment-only change, verified anyway).
 
 ---
 

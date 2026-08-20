@@ -1602,7 +1602,33 @@ static Ai153eUnitScoreStub ai_diplo_153e_unit_score_stub(int self, int target, i
  * global this project has NOT independently resolved elsewhere is an
  * honest stub (neutral/inert value, never an invented formula/constant)
  * — see each stub call's own comment for the raw offset it stands in
- * for. NOT wired into any live caller: matches the
+ * for.
+ *
+ * 2026-08-20 (T2.1 precedent, T2.2 delta catalog): **unlike the `5d04`
+ * hire-ladder tail, this function is NOT inert-by-construction.** Traced
+ * the full control flow with every current stub at its neutral value:
+ * `dominance_bonus` and the continent/unit-ownership loops genuinely
+ * cancel to zero end to end (confirmed, not assumed — `target_land_units
+ * < self_exposed(stub=0)` can never be true since counts are ≥0, so
+ * `dominance_bonus` never leaves 0; the unit-score stub never matches).
+ * `combat_delta_sum` likewise nets to exactly 0 through every stubbed
+ * term — **except** `peace_bit_0x10` (`ai_diplo_read(self,target)&0x10`,
+ * raw `uStack_9e`), the one non-stub, live-data read in this whole
+ * function. If that bit is ever set for a real nation pair, it directly
+ * sets `worthy=1` (raw line ~527) *and* adds `(difficulty+1)*500` to
+ * `combat_delta_sum` (raw ~566), which is otherwise the sole thing
+ * standing between "always inert" (line ~589's `combat_delta_sum==0 →
+ * worthy=0` catches every other path) and a real war-worthiness
+ * assertion. So: today, wiring this live is safe only because *nothing
+ * calls it* — the function itself would already react to live DOS
+ * diplomatic state via this one bit, not just to stubs, unlike `5d04`'s
+ * fully-gated tail. Bit `0x10` on this accessor (same family as the
+ * already-resolved `AI_DIPLO_MET`==`0x40`) has **not** been independently
+ * named anywhere in this project — genuinely open, not just unattempted;
+ * resolving it (or explicitly stubbing `peace_bit_0x10` to 0 to make this
+ * function fully inert like `5d04`, if wiring is wanted before that RE
+ * lands) is the real next step before this is a Tier 3 candidate. NOT
+ * wired into any live caller: matches the
  * ai_euro_5d04_nation_planning_structural precedent — finishing a
  * structural port doesn't by itself make it safe to flip live on a
  * function this stub-dense.
