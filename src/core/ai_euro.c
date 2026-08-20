@@ -7399,11 +7399,41 @@ static void ai_euro_5d04_stub_set_unit_profession(int unit_idx, int value) {
   (void)unit_idx;
   (void)value;
 }
-/* FUN_281f_07e0 / FUN_281f_02e4 in this section's own call shape (no x,y
- * args, unlike accessors.c's `unit_index_on_tile` overload) — a list/
- * category iterator, identity genuinely unclear (possibly "Europe dock
- * list #N", possibly something else). -1 = "none", so downstream loop
- * bodies never run. */
+/*
+ * FUN_281f_07e0 / FUN_281f_02e4 — identity resolved 2026-08-20 (T2.1).
+ * The earlier "genuinely unclear, possibly Europe dock list" note was
+ * written against a stale raw-line citation (the memory doc's own
+ * 85872-86564 range now belongs to an unrelated function — this whole
+ * body shifted to 92325-93067 in the current decompile, same "line
+ * numbers go stale across re-decompiles" trap T1.7 hit). Re-found `5d04`
+ * by its own declaration and re-grepped these two calls inside its real
+ * body: both are ordinary RTLink thunks (`FUN_210d_0d91(); FUN_1427_XXXX();
+ * return;`), resolving to:
+ *   - `FUN_281f_07e0` -> `FUN_1427_005c`: given a unit id in `AX` and an
+ *     (x,y) pair in `AL`/`DX`, first linear-scans the whole live unit
+ *     table for a unit AT that tile, then falls back to walking the
+ *     transport-chain `prev` link (`unit+0x315c`) from `AX` to find the
+ *     chain's head. I.e. "find (or confirm) the head unit of the stack
+ *     sitting on a given tile."
+ *   - `FUN_281f_02e4` -> `FUN_1427_004a`: given a unit id in `AX`, returns
+ *     `unit+0x315e` (`next_unit_idx`) — one step forward through the same
+ *     transport-chain linked list `move_scoring_20e6_full.md`'s case-2
+ *     investigation already named (`ColonizeCol1TransportChain`,
+ *     `col1_save.h`).
+ * So this pair is a **stack/tile-unit walker** over the already-known
+ * next/prev chain fields, not a mysterious "dock list" — this hire-ladder
+ * tail walks the units stacked on a tile (Europe dock or a colony tile)
+ * one at a time. Exact per-call-site argument wiring (which literal/
+ * variable feeds `AL`/`DX` at each of the 5 call points in `5d04`'s body)
+ * wasn't re-traced this pass — real work, but now a bounded "read 5
+ * call sites against 2 known functions" task, not an open identity
+ * question. Still stubbed: wiring this live is Tier 3 scope (changes
+ * default AI hire behavior), and per `ai-5d04-structural-port` memory
+ * every downstream mutation in this tail is already gated behind these
+ * two stubs returning "none" — so today, before or after resolving this,
+ * the tail is structurally complete but runtime-inert. -1 = "none", so
+ * downstream loop bodies never run.
+ */
 static int ai_euro_5d04_stub_list_iter_first(int list_id) {
   (void)list_id;
   return -1;
