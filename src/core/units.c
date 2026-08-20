@@ -4526,11 +4526,38 @@ static bool units_bfs_next_step(
   return ok;
 }
 
+/* DOS dir8 table (DS:0xb4/0xbe), also used project-wide; index^4 = reverse. */
+static int units_dir8_index(int dx, int dy) {
+  static const int k_dx[8] = {0, 1, 1, 1, 0, -1, -1, -1};
+  static const int k_dy[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
+  for (int i = 0; i < 8; ++i) {
+    if (k_dx[i] == dx && k_dy[i] == dy) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+/*
+ * FUN_6662_0f74's own last-taken-step tracker (unit+0x314f), used only for
+ * the anti-backtrack wiggle-retry below. Deliberately NOT `ColonizeUnit`'s
+ * `last_dir` field — that one is already live-owned by ai.c's Indian native
+ * Brave engine (`ai_native_pick_dir`); writing it here would silently
+ * corrupt that engine's own bookkeeping for any unit that also takes a
+ * goto step. Same shadow-array pattern ai_euro.c already uses for its own
+ * Euro `last_dir` equivalent (`s_euro_last_dir`), for the same reason.
+ * Zero-initialized (== dir 0/North): a unit's first goto step gets a
+ * harmless, self-correcting small bias instead of "no history" — not
+ * worth a separate reset hook, matching `s_euro_last_dir`'s own precedent.
+ */
+static int8_t s_units_goto_last_dir[COLONIZE_UNITS_MAX];
+
 static bool units_greedy_next_step(
   const ColonizeUnitPool* pool,
   int unit_id,
   const ColonizeWorldMap* map,
   const ColonizeColonyPool* colonies,
+  ColonizeDosRng* rng,
   int gx,
   int gy,
   int* out_x,
@@ -4596,6 +4623,46 @@ static bool units_greedy_next_step(
   if (best_x < 0) {
     return false;
   }
+  /*
+   * FUN_6662_0f74 tail (anti-backtrack wiggle): when the scored fallback's
+   * best pick is the exact reverse of the unit's last-taken step, DOS
+   * doesn't take it — it rerolls up to 8 random directions instead,
+   * accepting the first legal/affordable one (0f74 gates this on
+   * unit+0x314c=='\v'/goto-pending; Linux has no live copy of that cache
+   * per move_scoring_20e6_full.md, so gate on the live equivalent —
+   * already following a goto here). Avoids visible ping-pong between two
+   * tiles. Cite: euro_unit_act.md T1.8.
+   */
+  if (rng != NULL && unit_id >= 0 && unit_id < COLONIZE_UNITS_MAX &&
+      units_dir8_index(best_x - u->x, best_y - u->y) ==
+        (s_units_goto_last_dir[unit_id] ^ 4) &&
+      units_orders_follow_goto(u->orders)) {
+    static const int k_wig_dx[8] = {0, 1, 1, 1, 0, -1, -1, -1};
+    static const int k_wig_dy[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
+    int wig_x = -1;
+    int wig_y = -1;
+    for (int tries = 0; tries < 8 && wig_x < 0; ++tries) {
+      const int d = dos_rng_range(rng, 0, 7);
+      const int nx = u->x + k_wig_dx[d];
+      const int ny = u->y + k_wig_dy[d];
+      if (!units_can_enter(pool, u->type_index, map, nx, ny, unit_id, colonies)) {
+        continue;
+      }
+      if (!units_can_afford_move_cost(
+            pool, unit_id, units_move_cost(pool, unit_id, map, nx, ny)
+          )) {
+        continue;
+      }
+      wig_x = nx;
+      wig_y = ny;
+    }
+    if (wig_x < 0) {
+      /* All 8 rerolls rejected: DOS falls through to total failure here. */
+      return false;
+    }
+    best_x = wig_x;
+    best_y = wig_y;
+  }
   *out_x = best_x;
   *out_y = best_y;
   return true;
@@ -4606,6 +4673,7 @@ bool units_next_goto_step(
   int unit_id,
   const ColonizeWorldMap* map,
   const ColonizeColonyPool* colonies,
+  ColonizeDosRng* rng,
   int* out_x,
   int* out_y
 ) {
@@ -4641,7 +4709,7 @@ bool units_next_goto_step(
       *out_y = ny;
       return true;
     }
-    return units_greedy_next_step(pool, unit_id, map, colonies, gx, gy, out_x, out_y);
+    return units_greedy_next_step(pool, unit_id, map, colonies, rng, gx, gy, out_x, out_y);
   }
 
   /* Near: both axes within 6 — destination cost flood (FUN_6662_00f2). */
@@ -4649,7 +4717,7 @@ bool units_next_goto_step(
     if (units_flood_next_step(pool, unit_id, map, colonies, gx, gy, out_x, out_y)) {
       return true;
     }
-    return units_greedy_next_step(pool, unit_id, map, colonies, gx, gy, out_x, out_y);
+    return units_greedy_next_step(pool, unit_id, map, colonies, rng, gx, gy, out_x, out_y);
   }
 
   /* Far: uniform BFS first step, else greedy. */
@@ -4676,7 +4744,7 @@ bool units_next_goto_step(
       return true;
     }
   }
-  return units_greedy_next_step(pool, unit_id, map, colonies, gx, gy, out_x, out_y);
+  return units_greedy_next_step(pool, unit_id, map, colonies, rng, gx, gy, out_x, out_y);
 }
 
 bool units_advance_goto_one_step(
@@ -4711,17 +4779,31 @@ bool units_advance_goto_one_step(
   if (u->moves_left <= 0) {
     return false;
   }
+  const int ox = u->x;
+  const int oy = u->y;
   int nx = -1;
   int ny = -1;
-  if (!units_next_goto_step(pool, unit_id, map, colonies, &nx, &ny)) {
+  if (!units_next_goto_step(pool, unit_id, map, colonies, rng, &nx, &ny)) {
     return false;
   }
   if (!units_try_move(pool, unit_id, map, nx, ny, colonies, rng)) {
     return false;
   }
   u = units_get(pool, unit_id);
-  if (u && u->x == gx && u->y == gy && u->orders != UNITS_ORDER_TRADE_ROUTE) {
-    units_clear_orders(pool, unit_id);
+  if (u) {
+    /* FUN_6662_0f74's own tail writes unit+0x314f (last_dir) on every step
+     * it commits — feeds the anti-backtrack wiggle check above. Tracked in
+     * s_units_goto_last_dir, not ColonizeUnit.last_dir (see that array's
+     * own header comment for why). */
+    if (unit_id >= 0 && unit_id < COLONIZE_UNITS_MAX) {
+      const int d = units_dir8_index(nx - ox, ny - oy);
+      if (d >= 0) {
+        s_units_goto_last_dir[unit_id] = (int8_t)d;
+      }
+    }
+    if (u->x == gx && u->y == gy && u->orders != UNITS_ORDER_TRADE_ROUTE) {
+      units_clear_orders(pool, unit_id);
+    }
   }
   return true;
 }

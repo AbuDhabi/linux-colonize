@@ -404,6 +404,31 @@ T1.x" without doing T1.x first, it'll just re-derive the same dead end.
   next step if resumed: `0015bc` first (smaller of the two searches),
   fresh session, budget for a multi-pass RE + port effort, not a
   same-pass add-on.
+  **2026-08-20, same day, second attempt — the tail's anti-backtrack
+  wiggle-retry recovered, ported, first attempt reverted (real blocker,
+  not a mistake), second attempt shipped clean.** Recovered `0f74`'s full
+  tail (not attempted before): if its best 8-neighbor pick is the exact
+  reverse of the unit's last-taken step, DOS rerolls up to 8 random
+  directions instead of taking it, avoiding visible ping-pong — the
+  "own-tile bias" earlier notes couldn't place turns out to be this, not
+  a same-tile score term. First port wrote to `unit+0x314f`'s obvious
+  Linux home, `ColonizeUnit.last_dir` — reverted on discovering that
+  field **already has a live owner**: `ai.c`'s Indian native Brave engine
+  reads/writes it every act for its own anti-backtrack bias, and
+  `ai_euro.c` already independently avoided this exact collision via its
+  own `s_euro_last_dir[]` shadow array (a precedent the first attempt
+  missed until after implementing). **Shipped**: re-ported using a
+  dedicated `units.c`-local shadow array (`s_units_goto_last_dir[]`,
+  same zero-init/no-reset-hook convention as `s_euro_last_dir`) instead
+  of the shared struct field — `ColonizeUnit.last_dir` untouched by this
+  change (confirmed via `git diff`). `units_greedy_next_step`/
+  `units_next_goto_step` now take a `ColonizeDosRng*` (NULL-safe, wiggle
+  simply skipped when absent); `units_advance_goto_one_step` writes the
+  shadow entry after each committed step. Full `ctest` 40/40 green. Full
+  trace: `euro_unit_act.md`'s 2026-08-20 update. Flood-fills
+  (`0015bc`/`0015c1`) still untouched, still the big remaining lift; the
+  8-neighbor score formula's toughness term stays blocked on `0x2f76`
+  (`T4.1`) regardless.
 
 - [ ] **T1.9 — Indian mid-game quiet scoring (goods/missions/capital
   pull) formula mapping.** R2 used to flag this as blocked on "a

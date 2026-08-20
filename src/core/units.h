@@ -693,13 +693,16 @@ bool units_advance_follow_one_step(
 );
 /*
  * Next adjacent step toward goto (DOS FUN_6662 tiers: sign-step / cost flood / BFS).
- * Writes (out_x,out_y); returns false if stuck or already there.
+ * Writes (out_x,out_y); returns false if stuck or already there. rng may be
+ * NULL (disables the anti-backtrack wiggle reroll; deterministic geometry
+ * still runs).
  */
 bool units_next_goto_step(
   const ColonizeUnitPool* pool,
   int unit_id,
   const ColonizeWorldMap* map,
   const ColonizeColonyPool* colonies,
+  ColonizeDosRng* rng,
   int* out_x,
   int* out_y
 );
