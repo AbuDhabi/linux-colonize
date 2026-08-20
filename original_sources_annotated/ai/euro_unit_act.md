@@ -263,6 +263,69 @@ port of the table-lookup shape, so there's no remaining gap to fill with
 it. **Net: no further src/ changes from this specific thread** — it was
 already done.
 
+**2026-08-20 — `0f74`'s own tail (own-tile-adjacent scoring + wiggle-retry)
+fully recovered and shipped, after a first attempt hit a real
+field-ownership blocker (not a corruption or geometry problem).**
+Force-decompiled
+`OVL20_L0000:f74` fresh (`GhidraDecompileAt.java`, clean, matches the
+2026-08-15 "250-line" citation). The full 8-neighbor scored fallback +
+tail is now precisely transcribed, not just summarized:
+
+- Scores all 8 neighbors (skip non-walkable / claim-rejected /
+  diplomacy-blocked), tracking best dir index (sentinel `8` = none
+  found). Per-candidate score = `(own-tile-occupant-toughness-or-3) +
+  chebyshev*4 + |dx|+|dy|` — the "toughness" term is the same
+  `*(byte*)(terrain_class*0x10+0x2f76)` table already blocked (Tier 4,
+  `T4.1`), so this exact formula stays unportable regardless of the rest.
+- **Tail (this pass's real find, fully clean this time):** if the best
+  pick's direction equals the exact reverse of `unit+0x314f` (last-taken
+  step direction, `dir^4`) **and** the unit is mid-goto — DOS doesn't
+  take it; it rerolls up to 8 random directions (`dos_rng`-equivalent,
+  0..7) instead, accepting the first legal/affordable one, giving up
+  (total failure) if all 8 reroll attempts are also rejected. Prevents
+  visible single-tile ping-pong. `unit+0x314f` gets written on every exit
+  path (chosen dir, or `0xff`/-1 on failure) — this is the "own-tile
+  bias" the 2026-08-15 note flagged as missing, now correctly identified
+  as "last-direction anti-backtrack," not a literal same-tile score term.
+
+**First attempt** (`units_greedy_next_step`/`units_next_goto_step` in
+`units.c`, gated on `ColonizeDosRng*` so it's a no-op when `rng==NULL`)
+wrote `unit+0x314f`'s obvious Linux home, `ColonizeUnit.last_dir`
+(`col1_bridge.c` round-trips it as `facing`) — reverted before shipping
+on discovering **that field already has a live, different owner**:
+`ai.c`'s Indian native Brave-movement engine (`ai_native_pick_dir`,
+`src/core/ai.c:3661/3713`) reads and writes it every Brave act for its
+*own* anti-backtrack bias — and tellingly, `ai_euro.c` already
+independently solved the exact same problem for Euro AI scoring via its
+*own* file-local shadow array (`s_euro_last_dir[]`, `ai_euro.c:37`)
+instead of touching `unit->last_dir` — a precedent this pass should have
+checked *before* writing to the shared field, not after.
+`units_advance_goto_one_step` handles goto-walking for any unit (not
+gated to a single AI subsystem), so writing `unit->last_dir` there risked
+silently corrupting the Indian native engine's own bookkeeping for a
+Brave that happens to also run a goto step — a real regression with no
+enabled test that would catch it (`golden_ai_turns`/`golden_ai_joint`,
+the ones most likely to notice Indian movement drift, are parked per
+`T3.3`). Full revert, confirmed clean (`git diff` empty), rebuilt, full
+`ctest` green (40/40) again.
+
+**Second attempt, shipped.** Re-ported the exact same algorithm using a
+dedicated `units.c`-local shadow array instead
+(`s_units_goto_last_dir[COLONIZE_UNITS_MAX]`, same zero-init/no-reset-hook
+convention as `s_euro_last_dir` — "a unit's first goto step gets a
+harmless, self-correcting bias instead of no history," not worth a
+despawn/reuse reset hook). `ColonizeUnit.last_dir` is untouched by this
+change (verified via `git diff`, no hits). `units_greedy_next_step`/
+`units_next_goto_step` gained a `ColonizeDosRng*` parameter (NULL-safe —
+wiggle is skipped, deterministic geometry still runs);
+`units_advance_goto_one_step` writes the shadow array's entry for a unit
+right after it commits a step, covering all three of
+`units_next_goto_step`'s tiers (not just the fallback tier the wiggle
+check itself lives in), matching DOS's own single write-on-every-exit
+shape. Full `ctest` 40/40 green. The 8-neighbor scoring formula's own
+toughness term stays blocked on `0x2f76` (`T4.1`) regardless — only the
+wiggle-retry shipped, not the full byte-exact score formula.
+
 `FUN_4720_049e` (`FUN_291f_044e`'s target): **corruption is real but
 narrow, and the function underneath is a genuinely major find — not a
 move driver at all.**

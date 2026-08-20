@@ -2126,7 +2126,7 @@ int main(void) {
     }
     int nx = -1;
     int ny = -1;
-    if (!units_next_goto_step(&pool, uid, &map, NULL, &nx, &ny)) {
+    if (!units_next_goto_step(&pool, uid, &map, NULL, NULL, &nx, &ny)) {
       fprintf(stderr, "units_next_goto_step failed\n");
       ss_free(&icons);
       map_free(&map);
