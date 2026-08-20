@@ -598,6 +598,33 @@ treat all of T1.1 as stuck. Also fixed a stale cross-reference in T1.13
   still open). Identity-resolution pass only, matching **T2.1**'s own
   precedent — none of this wired live (still Tier 3 scope regardless).
   `ai_euro.c`'s stub header comment updated. Full trace:
+  **2026-08-20, later same day — independently reconfirmed via a
+  different route, still not closed.** Followed `address_mapping.csv`'s
+  own `FUN_291f_0b26 → ram:19d16 → FUN_1000_9d16` row (a second,
+  independent path from the earlier attempt) and force-decompiled
+  `ram:19d16` directly (`GhidraDecompileAt.java` against the
+  `ghidra_overlay_scratch`/`OverlayTest` project). Result:
+  `FUN_1000_9d16` is itself another two-call RTLink loader shim
+  (`FUN_1000_1e7b(); FUN_0000_c11c(); return;`) — `FUN_1000_1e7b`
+  (canonical `FUN_210d_0dab`) is the already-documented loader thunk
+  (`quiet_brave_scoring.c`'s comment), and its landing target
+  `FUN_0000_c11c` (canonical `FUN_1c11_000c`) is
+  `FUNCTION_CATALOG.md`'s own **"Decode 2-bit packed glyphs from font
+  sheet into pitched buffer at xy"** — the *same* glyph/bitmap renderer
+  this row already flagged as a false collision, reached by a different
+  chain. Reconfirms the false-lead diagnosis rather than progressing
+  past it. Tried `rtlink_decode VICEROY.EXE`'s own info-mode "Jump table
+  list" (Exe-Offset → Segment-Index/Offset dump, the thing this row's
+  "genuinely open" note points at) but couldn't yet connect `291f:0b26`
+  (a Ghidra/canonical-project segment:offset) to that table's "Exe
+  Offset" column (a flattened-output-file byte offset) — no layout-json
+  entry keys on `0x291f` the way `OVLxx_Lxxxx` names do elsewhere;
+  the index-to-loadSegment linkage this needs isn't obvious from
+  `viceroy_v2_output_layout.json` alone. **Real next step, still
+  unresolved**: find how `291f` (canonical Ghidra segment id) maps to
+  one of the jump-table-list's numbered `Segment Index` entries (2–32)
+  or a resident `-1` entry — likely needs reading `rtlink_decode.cpp`'s
+  own segment-numbering logic rather than guessing from the JSON.
   `ai-5d04-structural-port` memory. `ctest` green (comment-only change).
 
 - [x] **T1.11 — Name the diplomacy accessor bit `0x10` (`peace_bit_0x10`,
@@ -845,10 +872,21 @@ moves fast in this project) before asking the user to spend DOSBox-X time —
 but don't resume speculatively either.
 
 - [ ] **T4.1 — `DS:0x2f76..0x2f88`ish terrain-cost/toughness table.**
-  Highest-leverage single capture identified so far: unblocks case-8
-  Pioneer-improvement reward scale, `0f74`'s toughness-deduction term, and
-  detour-route scoring (if T1.8's flood-fill tiers get ported) all at once.
-  See `euro_unit_act.md` "highest-leverage single capture" note.
+  **2026-08-20: stale, corrected — narrower than stated.** `map.c` already
+  carries live captured values for offsets `+0` (`k_map_dos_terr_cost`,
+  32 entries, move-cost/toughness term — `0f74`'s toughness deduction
+  is this exact byte, already resolved not blocked) and `+1`
+  (`k_map_dos_terr_found_score`, founding-site score, feeds `06ae`),
+  both cited "from brave Memory dump" — a prior live capture never
+  cross-referenced back to this row. **Real remaining gap: offsets `+2`**
+  (Pioneer clear/plow/road work-turns threshold) **and `+8`** (case-8
+  completion reward scale, Lumber-Mill-gated) — formula shape known
+  (`table[terrain]+2`, halved for Hardy Pioneer), no real byte values
+  captured for either. Detour-route scoring (if T1.8's flood-fill tiers
+  ever get ported) would reuse the already-captured `+0` byte, so it's
+  not actually blocked on this either. See `euro_unit_act.md` "highest-
+  leverage single capture" note (also stale, same correction applies) and
+  `map.c:1555` comment.
 
 - [ ] **T4.2 — `FUN_41f2_0294` (village founding-worth cap) semantics.**
   Confirmed decompiler-corrupted (no recovered stack frame, `(void)`

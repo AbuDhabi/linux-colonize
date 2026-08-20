@@ -112,9 +112,32 @@ populates in file order (confirmed against `colony.c`'s own loader,
 (36, 0-based) is **Lumber Mill**. Real mechanic: a Pioneer finishing a
 terrain-clear/plow/road job earns a bonus (scaled by which terrain was
 cleared) only when the colony has a Lumber Mill — sensible (Lumber Mill
-processes the lumber a forest-clear yields). Gated by a per-colony "last
-granted" turn stamp at colony-record `+0xa4` (not in `col1_save.h` yet),
-credited via a 32-bit gold-add helper.
+processes the lumber a forest-clear yields).
+**2026-08-20 correction, twice-revised same day — this is the lumber-
+yield-into-warehouse credit for a completed forest clear, not a gold
+grant or a turn-throttled gate.** First correction: the Lumber Mill
+check is a *floor*, not an on/off switch, confirmed against the raw
+`FUN_479b_01a6` body directly (`viceroy_unpacked.c:76722-76858`) —
+without a Lumber Mill the table read (`local_14`) is forced down to `1`,
+not `0`, so a colony with **no** Lumber Mill still nets a flat `20`
+lumber (`40` for a Hardy Pioneer, `local_14*20<<hardy_pioneer` — Hardy
+Pioneer *doubles* this reward, opposite direction from the work-turns-
+needed halving); only a Lumber Mill lets the real, still-uncaptured `+8`
+byte scale it above `20`. A small `+1` bump from a separate terrain/tile
+flag (`FUN_281f_0754(...) & 0xa`) applies before the mill-or-1
+substitution. Second correction (retracts the first pass's "turn-
+elapsed throttle" misreading): `colony+0xa4` is not a separate stamp
+field at all — it's `col1_save.h`'s existing `stock[COLONIZE_CARGO_LUMBER]`
+slot (`hammers_purchased`@`+0x98` + `stock[]` starting `+0x9a` +
+`LUMBER`=index 5 → exactly `+0xa4`), and the function misread as "current
+turn" (`FUN_281f_0d3a`) is actually **warehouse capacity**
+(`FUN_15eb_0a50`, `100×(1+expansion)`, per `FUNCTION_CATALOG.md`). So the
+real formula is just an ordinary warehouse-capacity clamp: `add =
+clamp(local_14*20<<hardy, 0, capacity - stock[LUMBER]); stock[LUMBER] +=
+add` — no gold, no throttle. This is exactly the shape Linux's existing
+placeholder in `units.c` (`units_pioneer_work_tick`'s clearing branch)
+already implements, just with `local_14` hardcoded to `1` (flat `20`)
+instead of the real mill/terrain-scaled `+8` value.
 
 **Case 7 is FOUND COLONY, not "Europe hire" — correcting my own guess from
 last pass (traced `FUN_291f_09b2` this pass, it's not a hire-pick body).**
