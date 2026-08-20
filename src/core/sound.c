@@ -222,6 +222,8 @@ typedef struct {
   int loop_count;
   size_t nest_start;
   int nest_count;
+  size_t loop0_start;
+  size_t loop0_target;
   size_t call_stack[SOUND_MAX_CALL_DEPTH];
   int call_depth;
   bool active;
@@ -638,13 +640,15 @@ static void sound_decode_tracks(
         }
         pos += 4;
         break;
-      case 0xFC: { /* set loop/stream anchors to absolute DS offset */
+      case 0xFC: { /* absolute loop/stream jump */
         if (pos + 2 >= ds_size) {
           trk->active = false; break;
         }
         const uint16_t abs = (uint16_t)(ds_img[pos + 1] | ((uint16_t)ds_img[pos + 2] << 8));
+        trk->loop0_start = abs;
         loop_start = abs;
         nest_start = abs;
+        trk->loop0_target = abs;
         pos = abs;
         break;
       }
@@ -677,53 +681,68 @@ static void sound_decode_tracks(
           pos += 1;
         }
         break;
-      case 0xFD: /* jump to FC loop start */
-        pos = loop_start;
+      case 0xFD: { /* loop 0 */
+        if (trk->loop0_target == 0) {
+          pos = trk->loop0_start;
+        } else {
+          trk->loop0_start = trk->loop0_target;
+          pos = trk->loop0_target;
+          loop_start = trk->loop0_target;
+          nest_start = trk->loop0_target;
+        }
         break;
-      case 0xFF: { /* counted loop to loop_start */
+      }
+      case 0xFE: { /* loop 1 (nest) */
         if (pos + 1 >= ds_size) {
           trk->active = false; break;
         }
         const uint8_t count = ds_img[pos + 1];
-        if (count == 0) {
-          pos += 2;
-          loop_start = pos;
-        } else if (loop_count <= 0) {
-          loop_count = count;
-          if (loop_count > SOUND_MAX_LOOP_ITERS) {
-            loop_count = SOUND_MAX_LOOP_ITERS;
+        if (nest_count <= 0) {
+          if (count == 0) {
+            pos += 2;
+            nest_start = pos;
+            loop_start = pos;
+            nest_count = 0;
+            loop_count = 0;
+          } else {
+            nest_count = count;
+            pos = nest_start;
+            loop_start = pos;
           }
-          pos = loop_start;
+        } else {
+          nest_count--;
+          if (nest_count > 0) {
+            pos = nest_start;
+            loop_start = pos;
+          } else {
+            pos += 2;
+            nest_start = pos;
+            loop_start = pos;
+          }
+        }
+        break;
+      }
+      case 0xFF: { /* loop 2 (loop) */
+        if (pos + 1 >= ds_size) {
+          trk->active = false; break;
+        }
+        const uint8_t count = ds_img[pos + 1];
+        if (loop_count <= 0) {
+          if (count == 0) {
+            pos += 2;
+            loop_start = pos;
+            loop_count = 0;
+          } else {
+            loop_count = count;
+            pos = loop_start;
+          }
         } else {
           loop_count--;
           if (loop_count > 0) {
             pos = loop_start;
           } else {
             pos += 2;
-          }
-        }
-        break;
-      }
-      case 0xFE: { /* nested counted loop */
-        if (pos + 1 >= ds_size) {
-          trk->active = false; break;
-        }
-        const uint8_t count = ds_img[pos + 1];
-        if (count == 0) {
-          pos += 2;
-          nest_start = pos;
-        } else if (nest_count <= 0) {
-          nest_count = count;
-          if (nest_count > SOUND_MAX_LOOP_ITERS) {
-            nest_count = SOUND_MAX_LOOP_ITERS;
-          }
-          pos = nest_start;
-        } else {
-          nest_count--;
-          if (nest_count > 0) {
-            pos = nest_start;
-          } else {
-            pos += 2;
+            loop_start = pos;
           }
         }
         break;
@@ -735,7 +754,7 @@ static void sound_decode_tracks(
     }
 
     if (pos == pos_before) {
-      if (++stuck > 8) { printf("Track %d STUCK at pos %x\n", current_t, pos);
+      if (++stuck > 8) { printf("Track %d STUCK at pos %zx\n", current_t, pos);
         trk->active = false; break;
       }
     } else {
