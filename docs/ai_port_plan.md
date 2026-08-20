@@ -261,14 +261,52 @@ needed beyond periodic status updates.
   `0x2f76` (Tier 4) regardless — port everything else around that hole.
   See [`euro_unit_act.md`](../original_sources_annotated/ai/euro_unit_act.md)
   "2026-08-15" / "2026-08-19" updates.
+  **2026-08-20: row is stale — the "quick win" this row itself points at
+  is already done.** `euro_unit_act.md`'s own 2026-08-19 update (read
+  before starting, per this file's rule 2) found `0015b7` decompiled
+  clean and confirmed Linux's existing `units_sign_i`-based direct step
+  already produces the identical result — "no further src/ changes from
+  this specific thread — it was already done," written the day before
+  this plan file's own row was seeded, just never cross-synced. What's
+  actually left is genuinely large: two independent BFS flood-fill
+  searches (`0015bc` 16×16, `0015c1` 18×18, each its own scratch-table
+  relaxation loop) plus a fifth untraced helper (`0009ae`) and one
+  pcode-error function (`000000`, needs hand-transcription like
+  `FUN_5fef_0000`) — "not one move-driver function, a small pathfinding
+  *subsystem*... genuinely large and interlocking... real, standalone,
+  multi-pass-scale work," per the same doc's own honest assessment, not
+  attempted then or since. Skipped this pass rather than rush a
+  flood-fill port and risk the relaxation order or cost formula going
+  subtly wrong — exactly the risk that doc's own write-up flags. Real
+  next step if resumed: `0015bc` first (smaller of the two searches),
+  fresh session, budget for a multi-pass RE + port effort, not a
+  same-pass add-on.
 
-- [ ] **T1.7 — Re-attempt `FUN_291f_0a14` boundary (Indian mid-game quiet
-  scoring: goods/missions/capital pull).** R2 flags this as genuinely
-  blocked on "a `2244`-style overlay re-recovery... canonical boundary
-  looks wrong" — worth a fresh pass with the now-mature overlay tooling
-  before accepting the old verdict. No golden currently exercises
-  `colony_count>0` for a Brave, so there's nothing to regression-check
-  against yet; document the port even if untestable, and note that gap.
+- [ ] **T1.7 — Indian mid-game quiet scoring (goods/missions/capital
+  pull) formula mapping.** R2 used to flag this as blocked on "a
+  `2244`-style overlay re-recovery... canonical boundary looks wrong" for
+  `FUN_291f_0a14`. **2026-08-20: checked with the mature overlay tooling
+  as instructed — the "wrong boundary" diagnosis was itself wrong,
+  retracted.** `FUN_291f_0a14` is a completely normal thunk to the
+  already-known, already-ported `FUN_5fef_1b0e`
+  (`combat_apply_1b0e_peels`) — verified by direct disassembly
+  (`GhidraListInstrs.java`) showing the standard `CALLF <loader>; JMPF`
+  thunk pattern, and by comparing against a known-good sibling thunk
+  rendered identically. The "arg-count mismatch" that drove the old
+  diagnosis was a stale line-number citation pointing at an unrelated,
+  already-ported function (`FUN_364b_03f6`, coastal fort fire) — not a
+  property of `FUN_291f_0a14` itself. Full trace in
+  `quiet_brave_scoring.c`'s `quiet_score_colony_pull` comment.
+  **Real remaining scope, now correctly stated**: this is *not*
+  corruption-blocked any more, but a genuine formula-mapping task —
+  `DS:0x5239` (stride-0xe table), `DS:0x523d` bitmask reuse, `DS:0x53d2`
+  comparison, and the generic `FUN_281f_08bc`/`FUN_1000_8aac` field-index
+  accessor (shared blocker with T1.1/T1.2) all need names before a
+  faithful port, comparable in size to the `euro_g_table_0a60.md` dig.
+  Not attempted this pass. No golden currently exercises
+  `colony_count>0` for a Brave, so still nothing to regression-check a
+  port against even once mapped — document even if untestable, per the
+  original note.
 
 - [ ] **T1.8 — `test_ai_king.c` fixture rewrite.** Mechanical, not
   RE-blocked: the file predates the real `38fd_5be8`/`38fd_3dc8` tax
