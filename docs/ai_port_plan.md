@@ -101,6 +101,15 @@ once. Renumbered so those high-leverage prerequisites sort first — work top
 to bottom as usual, but don't re-attempt an item marked "blocked pending
 T1.x" without doing T1.x first, it'll just re-derive the same dead end.
 
+**Reassessed 2026-08-20, later same day**, after a further session landed
+four items (T1.4, T1.5, T1.6, T1.12 — all now `[x]`) and pushed T1.1/T1.10/
+T1.11 forward without closing them. No renumbering needed this pass —
+priority order still holds — but split one item: T1.1's case-3 sub-problem
+hit a genuine live-capture wall while its other fields (4/5/6/0xc) remain
+static-tractable, so that specific need is now **T4.7**, not a reason to
+treat all of T1.1 as stuck. Also fixed a stale cross-reference in T1.13
+(listed T1.4 as still-open after T1.4 had already landed).
+
 - [ ] **T1.1 — Resolve `FUN_1000_8aac` field-index accessor, fields
   3/4/5/6/0xc.** New, highest-leverage item this pass. Field 2 of this
   accessor took `move_scoring_20e6_full.md` six passes to crack (the
@@ -137,6 +146,19 @@ T1.x" without doing T1.x first, it'll just re-derive the same dead end.
   displacement), not more static case disassembly — first genuinely
   live-capture-gated sub-item in this whole T1.1 dig. Full trace:
   `move_scoring_20e6_full.md`'s three 2026-08-20 T1.1 updates.
+  **2026-08-20 reassessment: split, don't stall the whole item on case 3.**
+  Only field/case 3's own body hit the live-only wall — fields 4/5/6/0xc
+  were never attempted yet and the hard part (calling convention, frame
+  layout) is now cracked for all of them, so they're still genuinely
+  static-tractable with the same method that closed field 2. Case 3's
+  live-capture need is now tracked separately as **T4.7**; keep working
+  T1.1 on fields 4/5/6/0xc, skip case 3. Caveat for **T1.2**/**T1.3**
+  below: both cite the *whole* "field-3/4/5/6/0xc family" as their gate,
+  not a specific field — until 4/5/6/0xc are actually resolved it's
+  unknown whether their remaining OPEN pieces route through field 3
+  specifically (in which case they inherit T4.7's live-capture block too)
+  or only through the now-tractable fields. Re-check which once 4/5/6/0xc
+  land, don't assume either way.
 
 - [ ] **T1.2 — Deep `20e6` remaining field fidelity.** Full arms +
   combat-resolve field fidelity is still OPEN per R5 Phase 1
@@ -596,8 +618,10 @@ T1.x" without doing T1.x first, it'll just re-derive the same dead end.
   (unlike KINGGALLEON3's, which shows the tax-rate percentage), a real,
   checkable signature nobody's searched on yet. Full trace in
   `euro_unit_act.md`'s 2026-08-20 update. Stays PARKED. Tier 1 is **not**
-  exhausted — T1.1/T1.4/T1.10/T1.11 (new prerequisite items seeded this
-  pass) are still open and sort earlier; this was just the last item this
+  exhausted — **2026-08-20 reassessment: T1.4 is now done, remove it from
+  this list.** T1.1 (partial — fields 4/5/6/0xc), T1.9, T1.10 (partial —
+  `FUN_291f_0b26`'s real target), T1.11 (write-trigger XREF chase) are
+  still open and sort earlier; this was just the last item a given
   session reached, not the end of the tier.
 
 ---
@@ -748,6 +772,16 @@ but don't resume speculatively either.
 - [ ] **T4.6 — `VR_B465X` hang dump.** Explicitly parked **by policy**
   (R0). Do not resume without a new, stated reason — this was a deliberate
   stop, not a stall.
+
+- [ ] **T4.7 — `FUN_0000_4fa8` case 3 (field 3 of the `FUN_1000_8aac`
+  accessor), value at `[BP+DI+0x4c4]`.** New 2026-08-20, split out of
+  **T1.1**. Case 3's 81-byte body is fully disassembled and the calling
+  convention is confirmed (not guessed), but this one access lands 1220
+  bytes past the function's own 6-byte stack frame — genuinely ambiguous
+  statically (could be a legit DOS memory-model idiom reaching into an
+  adjacent structure, or something else) and not safe to guess at. Needs
+  a live DOSBox-X read of that displacement while `4fa8` case 3 is live.
+  Doesn't block T1.1's fields 4/5/6/0xc — those stay Tier 1.
 
 ---
 
