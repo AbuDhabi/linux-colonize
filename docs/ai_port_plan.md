@@ -117,13 +117,56 @@ needed beyond periodic status updates.
 - [ ] **T1.2 — Full `LAB_521d_3558` cargo/colony sail matrix.** Still OPEN
   (R5 Phase 2/3 note it repeatedly). Current Linux only has thin tip/peel
   ports (`ai_euro_ocean_3558_first_leg_tip`,
-  `ai_euro_ocean_3558_empty_cruise_tip`). Full multi-good cargo/colony
-  scoring matrix unported.
+  `ai_euro_ocean_3558_empty_cruise_tip`), plus Series I/L/O/R partials
+  (war-cargo unload, mil unload, colony-sail score, work-queue haul —
+  see `move_scoring_ship.md`'s Linux-vs-OPEN table). Full multi-good
+  cargo/colony scoring matrix (the `local_9c` 8-dir unload bit-word +
+  16×6 work-queue matrix) still unported.
+  **2026-08-20 re-check: freshly confirmed genuinely blocked, not just
+  unattempted — don't re-pick this expecting a quick static win without
+  reading this note first.** Traced the raw `LAB_OVL14_L0000__003558`
+  body (`move_scoring_20e6_full.md` line ~1064) directly: `local_9c`'s
+  bit tests are built almost entirely from `FUN_1000_8aac`'s field-3/4/
+  5/6/0xc query family (`iStack_4a/48/16/46` + wartime mode-0xc probe) —
+  the same accessor whose field-2 semantics took `move_scoring_20e6_full.md`
+  six investigation passes to (partially) resolve, and whose fields 3/4/
+  5/6/0xc were **never touched** by that investigation (it explicitly
+  scoped down to field 2 only). `−0x6790`/`−0x6b5a`/`−0x7a38` (the three
+  continent tables the doc's bit-cheat-sheet cites) genuinely are
+  resolved now — that part of the doc's "PARKED" note is stale — but
+  every branch that reads them is gated by one of these still-opaque
+  `8aac` field queries, so the gating logic can't be ported without
+  guessing. Also: the land-capability bitmask `DS:0x523d` gating which
+  units act on a set `local_9c` bit is separately confirmed elsewhere in
+  this project to live in unrecoverable binary resource data (see
+  `ai_euro_0a60_unit_can_pursue_goal`'s header in `ai_euro.c`) — a second,
+  independent hard blocker on top of the first. **Real prerequisite,
+  not scoped this pass**: extend the `FUN_1000_8aac` field investigation
+  (`move_scoring_20e6_full.md`'s "Update, Nth pass" chain) to fields 3/4/
+  5/6/0xc using the same jump-table-dump method that cracked field 2 —
+  do that as its own item before re-attempting T1.2's matrix. Moved on
+  to T1.3 this session rather than guess.
 
 - [ ] **T1.3 — Full multi-ring `06ae` first-colony landfall.** Current
   `ai_euro_06ae_first_colony_from_landfall` is a live west-box + coastal
   bias approximation; "adj `06ae` still misses some coastal first towns"
   (R0 dated entry). Needs the real DOS multi-ring search.
+  **2026-08-20 attempt, reverted — real blocker found, not a quick fix.**
+  DOS's actual `06ae` only scores the immediate 8+stay ring (already
+  byte-faithful in `ai_goals_pick_founding_tile_ex`); tried replacing this
+  function's fixed-band offsets with an outward ring search using that
+  same real terrain-founding byte. Broke `unit_ai`'s "ship far from
+  landfall/goto" sanity check even with the ring radius capped small —
+  root cause wasn't the radius, it's that this function's **failure**
+  return (0) is a deliberate "no target here, let other logic decide"
+  signal at several of its 12+ call sites in `ai_euro.c`, and a search
+  that (almost) always succeeds silently changed which branch multiple
+  unrelated call sites took. Reverted clean, full `ctest` green again.
+  **Real prerequisite**: map each of those 12+ call sites' success/
+  failure expectations before attempting a replacement — a drop-in swap
+  of this one function isn't safe regardless of how faithful its own
+  geometry is. Bigger lift than it looked; don't re-attempt as a quick
+  win.
 
 - [ ] **T1.4 — `2820` deep Haggle (`2f96`) / hard-bargain counter-offer
   (`306c`) sub-loops + multi-good cargo-select CHOICE (`0x15a0`).**
@@ -136,16 +179,75 @@ needed beyond periodic status updates.
   `address_mapping.csv`/`viceroy_globals.h` first, they only cover function
   entry points today so this may still need a capture; confirm before
   moving it to Tier 4.
+  **2026-08-20: checked, real progress, item is done as far as Tier 1 can
+  take it.** Two findings: (1) `2f96`/`306c`/`311e` ("deep Haggle" /
+  "hard-bargain" in the old call graph) **aren't separate functions at
+  all** — same false-lead shape as `4528`'s "8 raid actions"/`a6e4`'s
+  "data table" — they're internal control flow already sitting in `2820`'s
+  own clean, already-recovered 595-line body (the `iStack_5e==2`/`3`
+  resume-loop branches). No further RE needed to *find* this logic, just
+  porting. (2) `*(int*)0x8d4e+2` is resolved — `ColonizeCol1Indian.tech`,
+  already wired elsewhere (`ai_contact_meet_economics_2154`), just hadn't
+  been cross-referenced back to this item. **What's left is genuinely
+  Tier 4**: the per-(Euro-nation, cargo) throttle table at `-0x7b44` and a
+  running scratch value at `0x8dc4`, both re-confirmed absent from
+  `address_mapping.csv`/`viceroy_globals.h` this pass — load-bearing for
+  the whole remaining formula (both AI and human paths), not invented.
+  Moved the live-capture need to **T4.4** below (updated in place, was
+  already conditionally seeded there); full details in
+  `indian_trade_2820.md`'s 2026-08-20 update.
 
-- [ ] **T1.5 — `4528` deep raid body, ASM-faithful map `84216→end`.**
-  Per [`indian_settlement_4528.md`](../original_sources_annotated/ai/indian_settlement_4528.md)
-  "Open RE": full ASM-faithful mapping past the authentic head, wire
-  `4528`'s 0/1/2 return codes into the move-foreign caller
-  (`FUN_465b_0000`, already traced — see caller confirmation in the
-  fulldraft memory), and the `GAME.TXT` string-table XREF `0x1710`–`0x172e`.
-  Re-disassemble via the overlay tool first — corruption diagnosis for this
-  function has flip-flopped before (see method notes above); verify the
-  boundary before trusting old line estimates.
+- [ ] **T1.5 — `4528` deep raid body: tail case-dispatch semantics.**
+  **2026-08-20: re-scoped, old framing was stale.** The "ASM-faithful map
+  `84216→end`" item is **moot** — that range was the *canonical export's*
+  corrupted spillover into an unrelated overlay segment; the real function
+  is complete, clean, and already fully quoted (312 lines) in
+  [`indian_settlement_4528.md`](../original_sources_annotated/ai/indian_settlement_4528.md).
+  The caller return-code wiring was already traced (fulldraft memory,
+  "third pass") — what's actually unconfirmed is whether Linux's
+  `ai_contact_indian_raids` needs an equivalent 3-way signal at all, not
+  the DOS semantics. String XREF `0x1710`–`0x172e` stays open but is
+  cosmetic-only (VGA chrome priority, not gameplay logic) — the head/warn/
+  ship-abort thresholds it labels are already byte-exact in
+  `ai_contact_try_village_raid_warn` (checked this pass, matches DOS's
+  `0x4b`/`0x32`/`0x19` bands exactly).
+  **Real remaining item**: the tail `switch(uStack_56)` case-dispatch
+  (which of 9 outcome codes fires — case 3 specifically) needed two DS
+  fields. Both now resolved: `DS:0x917c` (Euro-nation wealth rank, new
+  `VICEROY_DS_EURO_WEALTH_RANK` in `viceroy_globals.h` — traced its writer,
+  `FUN_5bfb_00f8`, a genuine treasury-based rank table, also unblocks the
+  same field in `colony_tick_5952_035e.md`/`move_scoring_20e6_full.md`)
+  and `0x8d4a+5` (settlement-record owner/capital/valid flags, already
+  mapped in `settlement_record_8d4a.md`, just not cross-referenced here
+  before). One loose end before porting case 3: `+5`'s owner-nibble
+  meaning is confirmed for *colony* records but not independently
+  verified for a *village*'s own record (which this call reads) — quick
+  check, not a live-capture blocker. Cases 1/4/5/6/7/8/9 don't touch
+  either field and look portable now with no new blockers. Not
+  implemented this pass (scoping only) — see
+  `indian_settlement_4528.md`'s 2026-08-20 update for the full trace.
+  **2026-08-20, same day, follow-up — real functional gap found and
+  closed, separate from the case-3 semantic question above.** Tracing
+  where DOS's AI-path switch would even be *called from* in Linux's
+  architecture surfaced a genuine, confirmed hole: AI land units at war
+  with a tribe could already walk into an undefended *enemy colony* and
+  seize it (`ai_euro_land_try_adjacent_colony_seize`), but had no
+  equivalent for an undefended *village* — `ai_euro_land_best_adjacent_foe`
+  only ever targets actual unit occupants (a Brave standing on the tile),
+  never the village tile itself, so a war-hunted village with no Brave
+  garrison was simply never attacked at all. `units_try_move` already
+  resolves combat against an empty village correctly on its own (same
+  internals the human Attack-CHOICE path in `game_loop.c` already uses —
+  synthesizes a temp defender, applies raid fallout, attacker doesn't
+  occupy the tile). Added `ai_euro_land_try_adjacent_village_seize` in
+  `ai_euro.c` (mirrors the colony-seize function's shape, wired at the
+  same 3 call sites) — opens hostilities + attacks an adjacent undefended
+  war-target village. Full `ctest` green (40/40, no regression). This is
+  the case-1/4/5/6/7/8/9-shaped "AI acts on a village" behavior DOS's
+  switch dispatches to, reached via existing Linux architecture rather
+  than a literal case-by-case port of the DOS switch — case 3's own
+  RNG/wealth-rank-gated variant (a *different* raid intensity/outcome
+  roll, not "raid vs. don't") stays open per the note above.
 
 - [ ] **T1.6 — `FUN_6662_0f74` pathfinding subsystem.** Confirmed clean but
   large: `0015bc`/`0015c1` are two separate BFS flood-fill searches (16×16
@@ -265,11 +367,22 @@ but don't resume speculatively either.
   confirms a live dump is strictly required, just that static analysis
   hadn't found it yet); fall back to a hang-dump only if that's exhausted.
 
-- [ ] **T4.4 — `2820` remaining unresolved DS fields.** `*(int*)0x8d4e+2`
-  (new-offer price table distinct from the sticky-reoffer table),
-  per-(Euro-nation, cargo) throttle at `-0x7b44`, string/format IDs
-  `0x15a9`/`0x2e0c`/`0x2e0e`. Only pursue after confirming T1.4 can't reach
-  them statically.
+- [ ] **T4.4 — `2820` remaining unresolved DS fields.** **2026-08-20:
+  T1.4 static pass confirmed exhausted — promoting to active Tier 4, not
+  conditional any more.** `*(int*)0x8d4e+2` **resolved** (it's
+  `ColonizeCol1Indian.tech`, already wired into
+  `ai_contact_meet_economics_2154` — struck from this row's blocker list).
+  Still needed: per-(Euro-nation, cargo) throttle at `-0x7b44` (load-
+  bearing — gates both the AI auto-pick loop and a term inside the price
+  formula itself, blocks the whole remaining Haggle/hard-bargain
+  resume-loop port), a running scratch value at `0x8dc4` (raw multiplier
+  in the same formula), and string/format IDs `0x15a9`/`0x2e0c`/`0x2e0e`
+  (cosmetic only, lower priority than the two data values). Also
+  2026-08-20: confirmed the "Haggle (`2f96`)/hard-bargain (`306c`)"
+  framing was a false lead (not separate functions, no RE needed there —
+  see `indian_trade_2820.md`) — once `-0x7b44`/`0x8dc4` are captured, the
+  actual port is reading-and-transcribing already-recovered code, not a
+  fresh RE hunt.
 
 - [ ] **T4.5 — Incite (`417e`) Mode-2 trigger/caller.** Low value: Mode-1
   (human path) is fully ported and byte-faithful; whether an AI-vs-AI or

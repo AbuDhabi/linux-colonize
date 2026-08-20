@@ -496,6 +496,21 @@ static int ai_euro_ocean_3558_empty_cruise_tip(
  *   northern (y≥50): (−8,−4) → New Amsterdam (53,56)→(45,52)
  *   mid:             (−6,−5) → Quebec (56,42)→(50,37)
  */
+/*
+ * 2026-08-20, T1.3 attempt — tried replacing this fixed-band heuristic
+ * with a multi-ring search using 06ae's own real terrain-founding byte
+ * (`map_dos_terr_found_score_byte`), reasoning the fixed offsets below are
+ * seed-100-fixture-fit, not DOS-derived. Reverted: this function's
+ * *failure* return (0) turned out to be load-bearing at several of its
+ * 12+ call sites in this file (a deliberate "no landfall target here,
+ * fall through to other logic" signal, not just "couldn't find a tile") —
+ * a ring search that almost always succeeds changed which branch several
+ * unrelated call sites took, regressing `unit_ai`'s
+ * "AI ship Y far from landfall/goto Y" sanity check even with the search
+ * radius capped small. Real fix needs each of those 12+ call sites'
+ * success/failure expectations mapped first, not a drop-in replacement —
+ * left for a future pass; see `ai_port_plan.md` T1.3.
+ */
 static int ai_euro_06ae_first_colony_from_landfall(
   const ColonizeWorldMap* map,
   const ColonizeColonyPool* colonies,
@@ -12165,6 +12180,65 @@ static int ai_euro_land_try_adjacent_colony_seize(ColonizeTurnContext* ctx, Colo
 }
 
 /*
+ * FUN_4d56_4528 AI-side village raid, undefended case (2026-08-20, T1.5
+ * follow-up): combat-capable land unit at war with a tribe, adjacent to
+ * that tribe's own village tile with **no Brave garrison on the tile**,
+ * opens hostilities and attacks. Mirrors
+ * `ai_euro_land_try_adjacent_colony_seize`'s shape exactly, but for
+ * villages instead of colonies — a real gap this port had: AI units could
+ * already walk into an *undefended enemy colony* and seize it, but had no
+ * equivalent for an undefended *village*, because
+ * `ai_euro_land_best_adjacent_foe` only ever returns actual unit
+ * occupants (a Brave standing on the tile), never the village tile
+ * itself as a target. `units_try_move` already resolves combat against an
+ * empty village correctly on its own (synthesizes a temp defender per
+ * `FUN_5fef_1b0e`, applies raid fallout, then — unlike a colony capture —
+ * the attacker does **not** enter/occupy the tile, matching the human
+ * Attack-CHOICE path in `game_loop.c`, `AI_POPUP_TAG_CONTACT_VILLAGE_WARN`
+ * handling) — this function's only job is picking the target and opening
+ * hostilities, same division of labor as the human path.
+ * One raid attempt per call; re-armed next act pass like the colony seize.
+ */
+static int ai_euro_land_try_adjacent_village_seize(ColonizeTurnContext* ctx, ColonizeUnit* u) {
+  if (!ctx || !ctx->units || !ctx->col1_ok || !ctx->col1 || !ctx->col1->tribe || !u ||
+      !u->active || units_is_sea(ctx->units, u->id) || u->moves_left <= 0) {
+    return 0;
+  }
+  const ColonizeUnitType* ut = units_type(ctx->units, u->type_index);
+  if (!ut || ut->attack <= 1) {
+    return 0;
+  }
+  static const int dx[8] = {0, 1, 1, 1, 0, -1, -1, -1};
+  static const int dy[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
+  for (int d = 0; d < 8; ++d) {
+    const int nx = u->x + dx[d];
+    const int ny = u->y + dy[d];
+    for (uint16_t ti = 0; ti < ctx->col1->head.tribe_count; ++ti) {
+      const ColonizeCol1Tribe* t = &ctx->col1->tribe[ti];
+      if ((int)t->x != nx || (int)t->y != ny) {
+        continue;
+      }
+      if (t->nation_id < 4 || t->nation_id > 11) {
+        break;
+      }
+      const int indian_nation = (int)t->nation_id;
+      if (!ai_diplo_indian_at_war(ctx->col1, u->nation_id, indian_nation - 4)) {
+        break;
+      }
+      if (units_id_at(ctx->units, nx, ny) >= 0) {
+        break; /* garrisoned Brave — leave to ai_euro_land_try_adjacent_attack */
+      }
+      ai_contact_village_open_hostilities(ctx, indian_nation, u->nation_id);
+      if (!units_try_move(ctx->units, u->id, ctx->map, nx, ny, ctx->colonies, ctx->rng)) {
+        return 0;
+      }
+      return 1;
+    }
+  }
+  return 0;
+}
+
+/*
  * Attack adjacent enemy land unit while at war (prefer weaker foe).
  * Thin multi-step combat: keep fighting while moves remain after enter
  * (MP drained by try_move on win). Cap steps so a failed spend cannot spin.
@@ -14138,6 +14212,10 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
     if (!u->active) {
       return;
     }
+    (void)ai_euro_land_try_adjacent_village_seize(ctx, u);
+    if (!u->active) {
+      return;
+    }
     ai_euro_land_try_adjacent_attack(ctx, u);
     if (!u->active) {
       return;
@@ -14539,6 +14617,10 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
     }
     if (!on_own) {
       (void)ai_euro_land_try_adjacent_colony_seize(ctx, u);
+      if (!u->active) {
+        return;
+      }
+      (void)ai_euro_land_try_adjacent_village_seize(ctx, u);
       if (!u->active) {
         return;
       }
@@ -15018,6 +15100,9 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
 
   if (u->active && at_war_land && is_land_hunter && !ai_euro_land_is_fortified(u)) {
     (void)ai_euro_land_try_adjacent_colony_seize(ctx, u);
+    if (u->active) {
+      (void)ai_euro_land_try_adjacent_village_seize(ctx, u);
+    }
     if (u->active) {
       ai_euro_land_try_adjacent_attack(ctx, u);
     }
