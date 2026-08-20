@@ -490,8 +490,24 @@ T1.x" without doing T1.x first, it'll just re-derive the same dead end.
   it's ever set for a real nation pair the function already asserts
   `worthy=1` with a real score, so naming it (or explicitly deciding to
   zero it) is the real gate before that port is safe to wire live.
+  **2026-08-20: mechanical role fully pinned, write-trigger still open.**
+  It's a third, independent `worthy=1` trigger (distinct from the
+  scripted crown-pressure event and the peace+wealth-disparity read
+  already in the formula) and adds a flat `(difficulty+1)*500` straight
+  into `combat_delta_sum` when set — both confirmed by reading the raw
+  body, not guessed. What DOS condition ever *sets* the bit is still
+  unresolved: the writer (`FUN_0000_5b62`) takes a raw byte, not a mask,
+  so callers read-modify-write — a direct grep for a literal `|0x10` near
+  the confirmed euro_relation address pattern (39 hits project-wide,
+  none nearby) came back empty as expected, not a dead end but a scoped
+  next step (XREF the writer's callers, or a live write-breakpoint on
+  `ram:0x5b62`) different from grepping harder. Tier 3 gate unchanged:
+  not safe to wire `153e` live until this resolves or the bit is
+  explicitly zeroed. Full trace: `euro_diplo_153e_full.md`'s 2026-08-20
+  T1.11 update; `ai_diplo.c`'s header comment updated in place. `ctest`
+  green (comment-only change).
 
-- [ ] **T1.12 — `test_ai_king.c` fixture rewrite.** Not RE-blocked (the
+- [x] **T1.12 — `test_ai_king.c` fixture rewrite.** Not RE-blocked (the
   real formula is fully known and already implemented in `ai_king.c`),
   but **2026-08-20: scoped precisely, and it's a real conceptual redesign,
   not a mechanical seed/turn patch** — the row's own "mechanical" framing
@@ -530,6 +546,31 @@ T1.x" without doing T1.x first, it'll just re-derive the same dead end.
   — a multi-pass task in its own right, not a same-session add-on.** Not
   attempted this pass. See R6 "Known test-suite gap" note in
   `ai_transcription.md` for the up-to-date pointer.
+  **2026-08-20, same day, done.** Rewrote both blocks against the real
+  formula, all seeds=1 (`dos_rng_seed`), scores/deltas/picked cargos
+  computed by hand from the real formula (small Python replica of
+  `dos_rng_next`/`dos_rng_range`'s exact LCG — same algorithm, not
+  guessed) rather than trial-and-error: off-interval no-op, `tax_rate>85`
+  gate, and one deterministic scenario per ladder rung (cut / +1 / +2 /
+  big-raise), plus a no-`ai_popups` auto-teaparty integration case and
+  its below-threshold "hike just stands" counterpart. Block 2 rewritten
+  for the real apply-then-optionally-revert shape: hike lands immediately
+  inside `ai_king_nation_turn` (asserted directly, not deferred), the
+  `KING_AUDIENCE` CHOICE payload carries the already-decided (delta,
+  cargo) pair, Accept leaves it standing, Refuse reverts + boycotts +
+  dumps stock via `ai_king_tax_teaparty`. Dropped the old "dump-goods
+  CHOICE after Refuse" sub-test entirely — that two-step player-picks-a-
+  cargo flow doesn't exist in the real design (`ai_king.c`'s own
+  R6 "stale-claim correction": the cargo is roulette-picked once, before
+  the single Accept/tea-party popup, not by a follow-up prompt). Kept the
+  direct `ai_king_pick_dump_goods_cargo`-call block unchanged (never
+  depended on turn/interval). `turn` reset to 1 and all touched state
+  restored to baseline at the end of the rewritten region so nothing
+  downstream in the 6000+-line file is disturbed — confirmed by running
+  the whole file, not just the touched blocks. **Re-enabled in
+  `CMakeLists.txt`** (was `DISABLED TRUE` since 2026-08-19). Full `ctest`
+  41/41 green (the 4 golden AI suites remain separately Disabled per
+  `T3.3`, unrelated, unaffected).
 
 - [ ] **T1.13 — KINGGALLEON2 (non-Cortes royal-galleon share) re-attempt.**
   Unpark #3, still PARKED "if evidence appears." Prior passes found the

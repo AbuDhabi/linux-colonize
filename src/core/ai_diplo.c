@@ -1848,7 +1848,22 @@ static Ai153eWorthinessScore ai_diplo_153e_worthiness_score_structural(
     if (combat_delta_sum > hi) combat_delta_sum = hi;
   }
 
-  /* raw 522-527 */
+  /*
+   * raw 522-527. 2026-08-20 (T1.11): mechanical role now pinned — a third,
+   * independent worthy=1 trigger (alongside crown-pressure and
+   * peace+wealth-disparity below), and it also adds a flat
+   * `(difficulty+1)*500` straight into combat_delta_sum unconditionally
+   * (see the second `peace_bit_0x10` use below). What DOS condition ever
+   * *sets* this bit is still genuinely unresolved — the writer
+   * (`FUN_0000_5b62`, confirmed via address_mapping.csv) takes a raw byte,
+   * not a mask, so its callers read-modify-write; no literal `|0x10` near
+   * the euro_relation address pattern exists anywhere in the canonical
+   * export (checked). Needs an XREF search on the writer or a live
+   * write-breakpoint, not another grep. Full trace:
+   * euro_diplo_153e_full.md's 2026-08-20 T1.11 update. Still not safe to
+   * wire this function live without resolving that or explicitly zeroing
+   * this bit first (see T2.2 note above).
+   */
   const int peace_bit_0x10 = (ai_diplo_read(ctx->col1, self, target) & 0x10) != 0; /* raw uStack_9e */
   if (peace_bit_0x10) {
     worthy = 1;
