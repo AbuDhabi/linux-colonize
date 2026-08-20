@@ -218,169 +218,261 @@ int main(void) {
     return fail("SoL from rebel fields");
   }
 
-  /* Tax hike + REF bump on spring tax year (peacetime; bells low → no declare). */
-  const uint16_t pool0 = col1.head.expeditionary_force[0];
-  const uint8_t tax0 = col1.nation[0].tax_rate;
-  status[0] = '\0';
-  ai_king_nation_turn(&ctx);
-  if (col1.nation[0].tax_rate <= tax0) {
-    return fail("tax should hike on spring tax year");
-  }
-  if (col1.head.expeditionary_force[0] <= pool0) {
-    return fail("tax should grow REF regulars");
-  }
-  if (europe.tax_percent != col1.nation[0].tax_rate) {
-    return fail("europe tax_percent should sync");
-  }
-  /* 1d42: status buffer must mention the new rate when present. */
-  {
-    char rate_buf[16];
-    snprintf(rate_buf, sizeof(rate_buf), "%u", (unsigned)col1.nation[0].tax_rate);
-    if (!strstr(status, "raises taxes") || !strstr(status, rate_buf)) {
-      fprintf(stderr, "unit_ai_king: tax hike status: '%s' (want rate %s)\n", status,
-              rate_buf);
-      return fail("1d42 tax hike should mention new rate in status");
-    }
-  }
-  if (col1.head.unknown46[0] != 0) {
-    return fail("tax-only turn should not declare WoI");
-  }
-  if (col1.head.unknown46[2] != 0) {
-    return fail("low tax_rate should not set boycott stand-in");
-  }
-
   /*
-   * Boycott/refuse + thin 38fd_5be8 audience status:
-   * tax_rate>=20 + SoL>=30 → unknown46[2], sugar boycott bit, REF grow, no hike,
-   * audience status line. Next tax year while active: skip further hikes
-   * (hold-audience status; no extra REF grow).
-   */
-  year = 1558; /* 1536 + 22 */
-  autumn = 0;
-  col1.nation[0].tax_rate = 20;
-  europe.tax_percent = 20;
-  col1.nation[0].boycott_bitmap = 0;
-  col1.nation[0].liberty_bells_total = 0; /* keep declare gated */
-  memset(col1.head.expeditionary_force, 0, sizeof(col1.head.expeditionary_force));
-  const uint16_t pool_boycott = col1.head.expeditionary_force[0];
-  status[0] = '\0';
-  ai_king_nation_turn(&ctx);
-  if (col1.head.unknown46[2] == 0) {
-    return fail("refuse should set boycott flag unknown46[2]");
-  }
-  if (col1.nation[0].tax_rate != 20) {
-    return fail("refuse should not hike tax_rate");
-  }
-  /* Sugar = COLONIZE_CARGO_SUGAR (bit1); dump-goods second cargo needs rng. */
-  if ((col1.nation[0].boycott_bitmap & (1u << COLONIZE_CARGO_SUGAR)) == 0) {
-    return fail("refuse should set nation.boycott_bitmap Sugar bit (COLONIZE_CARGO_SUGAR)");
-  }
-  /* Without ctx.rng, refuse keeps Sugar-only (second dump-goods skipped). */
-  if (col1.head.expeditionary_force[0] <= pool_boycott) {
-    return fail("refuse should grow REF once without tax hike");
-  }
-  if (col1.head.unknown46[0] != 0) {
-    return fail("boycott turn should not declare WoI");
-  }
-  if (!strstr(status, "Audience") || !strstr(status, "refuse") ||
-      !strstr(status, "tax increase") || !strstr(status, "Tax stays") ||
-      !strstr(status, "20")) {
-    fprintf(stderr, "unit_ai_king: refuse audience status: '%s'\n", status);
-    return fail("38fd_5be8 refuse should set Audience status with Tax stays rate");
-  }
-
-  year = 1580; /* next tax year; boycott still active */
-  autumn = 0;
-  const uint8_t tax_held = col1.nation[0].tax_rate;
-  const uint16_t pool_held = col1.head.expeditionary_force[0];
-  status[0] = '\0';
-  ai_king_nation_turn(&ctx);
-  if (col1.nation[0].tax_rate != tax_held) {
-    return fail("active boycott should skip further tax hikes");
-  }
-  if (col1.head.expeditionary_force[0] != pool_held) {
-    return fail("active boycott should not grow REF again");
-  }
-  if (col1.head.unknown46[2] == 0) {
-    return fail("boycott flag should remain set");
-  }
-  if (!strstr(status, "boycott holds") && !strstr(status, "Audience")) {
-    fprintf(stderr, "unit_ai_king: boycott hold status: '%s'\n", status);
-    return fail("active boycott should set hold-audience status");
-  }
-  /*
-   * Boycott-holds status lists all boycott_bitmap cargo names (presentation;
-   * useful after partial external clear). Cite: king_ref refuse/holds chrome.
+   * King-audience tax event (FUN_38fd_5be8/3dc8) — 2026-08-20 rewrite
+   * against the real formula (ai_king_audience_roll / apply_delta),
+   * replacing the retired deterministic/year-gated design this block
+   * used to test (spring-tax-year-always-hikes, persistent SoL-gated
+   * refuse state, Fugger-clears-refuse — none of that is real DOS, see
+   * ai_king_tax_event's own header comment). Real shape: a turn-
+   * interval-gated RNG favor-score roll, applied unconditionally; only
+   * a real positive applied delta can lead to a tea-party revert.
+   * See ai_port_plan.md T1.12 for the full redesign writeup.
+   *
+   * All seeds below are seed=1 (dos_rng_seed) — deltas/scores computed
+   * by hand from the real formula (score = RNG(1,1000) +
+   * (rebel_sentiment_report*2 - tax_rate)*5 + gold/100 + SoL% + turn/30,
+   * ladder: <100 cut / <650 +1 / >949 +3..+8 / else +2), same "pick a
+   * real seed, run, assert actual output" method already used elsewhere
+   * in this file (the merc-hire block). `turn` is set explicitly per
+   * scenario and reset to 1 (its file-wide default) at the very end of
+   * this section, since nothing outside the audience formula reads it
+   * (confirmed 2026-08-20 scoping pass) — every other scenario in this
+   * file still runs with the audience gate closed, unaffected.
    */
   {
-    col1.head.unknown46[2] = 1;
-    col1.nation[0].boycott_bitmap =
-      (uint16_t)((1u << COLONIZE_CARGO_SUGAR) | (1u << COLONIZE_CARGO_TOBACCO));
-    year = 1602;
-    autumn = 0;
-    status[0] = '\0';
-    ai_king_nation_turn(&ctx);
-    if (!strstr(status, "Sugar") || !strstr(status, "Tobacco")) {
-      fprintf(stderr, "unit_ai_king: boycott holds cargo list: '%s'\n", status);
-      return fail("boycott holds status must list all boycott_bitmap cargo names");
-    }
-  }
-  /*
-   * Audience vs restless: spring refuse at SoL 40..49 must keep Audience status
-   * (restless chrome must not clobber 38fd_5be8). Real modal PARKED.
-   */
-  {
-    year = 1602; /* tax year after 1580+22 — wait, interval is 22-diff*2=22 at diff0 */
-    /* Use a known tax year: first=1536, interval=22 → 1536+22*k. Pick 1624. */
-    year = 1624;
-    autumn = 0;
-    col1.colony[0].rebel_dividend = 45;
-    col1.colony[0].rebel_divisor = 100;
+    /* Off-interval turn: no audience at all (interval=22 @ diff0,
+     * year<=1600 baked into ai_king_audience_roll; 43 % 22 != 0). */
+    turn = 43;
     col1.nation[0].tax_rate = 20;
     europe.tax_percent = 20;
-    col1.nation[0].boycott_bitmap = 0;
-    col1.head.unknown46[2] = 0;
-    col1.nation[0].liberty_bells_total = 0;
+    ColonizeDosRng off_rng;
+    dos_rng_seed(&off_rng, 1u);
+    ctx.rng = &off_rng;
     status[0] = '\0';
-    {
-      const int sol45a = ai_king_sol_percent(&ctx, 0);
-      if (sol45a != 45) {
-        fprintf(stderr, "unit_ai_king: unexpected SoL %d (want 45) for audience polish\n",
-                sol45a);
-        return fail("audience+restless SoL setup");
-      }
-    }
     ai_king_nation_turn(&ctx);
-    if (col1.head.unknown46[2] == 0) {
-      return fail("SoL45 refuse should set boycott unknown46[2]");
+    ctx.rng = NULL;
+    if (col1.nation[0].tax_rate != 20) {
+      return fail("off-interval turn must not roll an audience");
     }
-    if (!strstr(status, "Audience") || !strstr(status, "refuse") ||
-        !strstr(status, "Tax stays")) {
-      fprintf(stderr, "unit_ai_king: audience vs restless status: '%s'\n", status);
-      return fail("refuse at SoL 40-49 must keep Audience status (not restless only)");
+  }
+  {
+    /* tax_rate>85 gate: no event even on an interval turn. */
+    turn = 44;
+    col1.nation[0].tax_rate = 90;
+    europe.tax_percent = 90;
+    ColonizeDosRng gate_rng;
+    dos_rng_seed(&gate_rng, 1u);
+    ctx.rng = &gate_rng;
+    status[0] = '\0';
+    ai_king_nation_turn(&ctx);
+    ctx.rng = NULL;
+    if (col1.nation[0].tax_rate != 90) {
+      return fail("tax_rate>85 should skip the audience roll entirely");
     }
-    if (strstr(status, "Sons of Liberty") && !strstr(status, "refuse")) {
-      return fail("restless chrome must not replace Audience refuse status");
+  }
+  {
+    /* Cut branch (score<100): rebel_sentiment=0, tax=50, SoL=0, turn=44,
+     * seed=1 -> score -247, cut roll(2,5)=4 (capped at tax_rate) -> -4. */
+    turn = 44;
+    col1.head.rebel_sentiment_report = 0;
+    col1.nation[0].tax_rate = 50;
+    europe.tax_percent = 50;
+    col1.nation[0].gold = 0;
+    col1.colony[0].rebel_dividend = 0;
+    col1.colony[0].rebel_divisor = 100;
+    col1.head.expeditionary_force[0] = 0; /* isolate REF growth this call */
+    ColonizeDosRng cut_rng;
+    dos_rng_seed(&cut_rng, 1u);
+    ctx.rng = &cut_rng;
+    status[0] = '\0';
+    ai_king_nation_turn(&ctx);
+    ctx.rng = NULL;
+    if (col1.nation[0].tax_rate != 46) {
+      fprintf(stderr, "unit_ai_king: cut branch tax_rate=%u (want 46)\n",
+              col1.nation[0].tax_rate);
+      return fail("audience cut branch should lower tax_rate by 4 (seed 1)");
     }
-    /* Reset SoL for later declare path; clear boycott for clean declare. */
+    if (!strstr(status, "lowers taxes") || !strstr(status, "46")) {
+      fprintf(stderr, "unit_ai_king: cut branch status: '%s'\n", status);
+      return fail("audience cut branch should mention the lowered rate");
+    }
+    if (col1.head.expeditionary_force[0] == 0) {
+      return fail("an audience event (any delta sign) should still grow REF");
+    }
+  }
+  {
+    /* +1 branch (100<=score<650, streak<30): rebel=30, tax=40, SoL=20,
+     * turn=44, seed=1 -> score 123 -> delta +1, streak increments. */
+    turn = 44;
+    col1.head.rebel_sentiment_report = 30;
+    col1.nation[0].tax_rate = 40;
+    europe.tax_percent = 40;
+    col1.nation[0].gold = 0;
+    col1.colony[0].rebel_dividend = 20;
+    col1.colony[0].rebel_divisor = 100;
+    col1.head.king_audience_streak = 0;
+    ColonizeDosRng p1_rng;
+    dos_rng_seed(&p1_rng, 1u);
+    ctx.rng = &p1_rng;
+    status[0] = '\0';
+    ai_king_nation_turn(&ctx);
+    ctx.rng = NULL;
+    if (col1.nation[0].tax_rate != 41) {
+      fprintf(stderr, "unit_ai_king: +1 branch tax_rate=%u (want 41)\n",
+              col1.nation[0].tax_rate);
+      return fail("audience +1 branch should hike tax_rate by exactly 1 (seed 1)");
+    }
+    if (col1.head.king_audience_streak != 1) {
+      return fail("audience +1 branch should increment king_audience_streak");
+    }
+  }
+  {
+    /* +2 branch (650<=score<=949): rebel=80, tax=20, SoL=20, turn=44,
+     * seed=1 -> score 723 -> delta +2. */
+    turn = 44;
+    col1.head.rebel_sentiment_report = 80;
+    col1.nation[0].tax_rate = 20;
+    europe.tax_percent = 20;
+    col1.nation[0].gold = 0;
+    col1.colony[0].rebel_dividend = 20;
+    col1.colony[0].rebel_divisor = 100;
+    ColonizeDosRng p2_rng;
+    dos_rng_seed(&p2_rng, 1u);
+    ctx.rng = &p2_rng;
+    status[0] = '\0';
+    ai_king_nation_turn(&ctx);
+    ctx.rng = NULL;
+    if (col1.nation[0].tax_rate != 22) {
+      fprintf(stderr, "unit_ai_king: +2 branch tax_rate=%u (want 22)\n",
+              col1.nation[0].tax_rate);
+      return fail("audience +2 branch should hike tax_rate by exactly 2 (seed 1)");
+    }
+  }
+  {
+    /*
+     * Big-raise branch (score>949, <1100 sub-band): rebel=100, tax=0,
+     * SoL=0, turn=44, seed=1 -> score 1003 -> delta +4. Also checks the
+     * unconditional-apply shape (no accept/refuse gate before the hike
+     * itself), REF growth, and europe.tax_percent sync.
+     */
+    turn = 44;
+    col1.head.rebel_sentiment_report = 100;
+    col1.nation[0].tax_rate = 0;
+    europe.tax_percent = 0;
+    col1.nation[0].gold = 0;
+    col1.colony[0].rebel_dividend = 0;
+    col1.colony[0].rebel_divisor = 100;
+    col1.nation[0].liberty_bells_total = 0;
+    col1.nation[0].boycott_bitmap = 0;
+    memset(col1.head.expeditionary_force, 0, sizeof(col1.head.expeditionary_force));
+    const uint16_t pool_before = col1.head.expeditionary_force[0];
+    ColonizeDosRng big_rng;
+    dos_rng_seed(&big_rng, 1u);
+    ctx.rng = &big_rng;
+    status[0] = '\0';
+    ai_king_nation_turn(&ctx);
+    ctx.rng = NULL;
+    if (col1.nation[0].tax_rate != 4) {
+      fprintf(stderr, "unit_ai_king: big-raise branch tax_rate=%u (want 4)\n",
+              col1.nation[0].tax_rate);
+      return fail("audience big-raise branch should hike tax_rate to exactly 4 (seed 1)");
+    }
+    if (europe.tax_percent != col1.nation[0].tax_rate) {
+      return fail("big-raise branch should sync europe.tax_percent");
+    }
+    if (col1.head.expeditionary_force[0] <= pool_before) {
+      return fail("big-raise branch should grow REF (1d42)");
+    }
+    if (!strstr(status, "raises taxes") || !strstr(status, "4")) {
+      fprintf(stderr, "unit_ai_king: big-raise status: '%s'\n", status);
+      return fail("big-raise branch should mention the new rate in status");
+    }
+  }
+  {
+    /*
+     * No-popups auto path (FUN_38fd_3dc8's tea-party choice has no
+     * documented AI/auto answer — this port's own invented stand-in,
+     * see ai_king_tax_event's header): a real hike that crosses
+     * AI_KING_BOYCOTT_TAX_MIN with SoL/bells over threshold reverts
+     * itself and boycotts the single roulette-picked cargo, same turn,
+     * no ai_popups needed. rebel=100, tax=20, SoL=60, turn=44, seed=1 ->
+     * hike delta +4 (tax 20->24), then one bid-weighted dump-goods roll
+     * over the same rng stream picks Tobacco (heavy weight).
+     */
+    turn = 44;
+    col1.head.rebel_sentiment_report = 100;
+    col1.nation[0].tax_rate = 20;
+    europe.tax_percent = 20;
+    col1.nation[0].gold = 0;
     col1.colony[0].rebel_dividend = 60;
     col1.colony[0].rebel_divisor = 100;
+    col1.nation[0].liberty_bells_total = 0;
     col1.nation[0].boycott_bitmap = 0;
-    col1.head.unknown46[2] = 0;
-  }
-  /*
-   * External boycott clear (Fugger/diplo — do not touch FF): bitmap==0 →
-   * clear unknown46[2] refuse so tax may resume next hike year.
-   */
-  {
-    col1.head.unknown46[2] = 1; /* refuse still set; cargo bits already cleared */
-    col1.nation[0].boycott_bitmap = 0;
-    year = 1581; /* off-tax year; sync still runs */
-    autumn = 0;
+    europe.cargo_count = COLONIZE_CARGO_COUNT;
+    for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
+      europe.cargo[c].bid = 1;
+    }
+    europe.cargo[COLONIZE_CARGO_TOBACCO].bid = 500;
+    ctx.europe = &europe;
+    ColonizeDosRng tea_rng;
+    dos_rng_seed(&tea_rng, 1u);
+    ctx.rng = &tea_rng;
     status[0] = '\0';
     ai_king_nation_turn(&ctx);
-    if (col1.head.unknown46[2] != 0) {
-      return fail("bitmap==0 should clear unknown46[2] refuse (Fugger sync)");
+    ctx.rng = NULL;
+    if (col1.nation[0].tax_rate != 20) {
+      fprintf(stderr, "unit_ai_king: auto-teaparty tax_rate=%u (want reverted to 20)\n",
+              col1.nation[0].tax_rate);
+      return fail("no-popups auto path should revert the hike (tea party)");
+    }
+    if ((col1.nation[0].boycott_bitmap & (1u << COLONIZE_CARGO_TOBACCO)) == 0) {
+      return fail("no-popups auto path should boycott the picked cargo (Tobacco)");
+    }
+    /* Exactly one cargo bit — the single roulette pick, not a fixed
+     * Sugar-first two-cargo boycott (that shape is retired). */
+    int bits = 0;
+    for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
+      if (col1.nation[0].boycott_bitmap & (1u << c)) {
+        bits++;
+      }
+    }
+    if (bits != 1) {
+      fprintf(stderr, "unit_ai_king: auto-teaparty boycott_bitmap=0x%x bits=%d\n",
+              (unsigned)col1.nation[0].boycott_bitmap, bits);
+      return fail("no-popups auto path should boycott exactly one cargo");
+    }
+    if (!strstr(status, "tea party") || !strstr(status, "20")) {
+      fprintf(stderr, "unit_ai_king: auto-teaparty status: '%s'\n", status);
+      return fail("no-popups auto path tea-party status should mention the reverted rate");
+    }
+  }
+  {
+    /*
+     * Same shape, but below AI_KING_BOYCOTT_TAX_MIN so the auto path
+     * never evaluates SoL/bells at all: the hike simply stands.
+     * rebel=100, tax=0, SoL=0, turn=44, seed=1 -> delta +4, tax 0->4.
+     */
+    turn = 44;
+    col1.head.rebel_sentiment_report = 100;
+    col1.nation[0].tax_rate = 0;
+    europe.tax_percent = 0;
+    col1.nation[0].gold = 0;
+    col1.colony[0].rebel_dividend = 0;
+    col1.colony[0].rebel_divisor = 100;
+    col1.nation[0].liberty_bells_total = 0;
+    col1.nation[0].boycott_bitmap = 0;
+    ColonizeDosRng stand_rng;
+    dos_rng_seed(&stand_rng, 1u);
+    ctx.rng = &stand_rng;
+    status[0] = '\0';
+    ai_king_nation_turn(&ctx);
+    ctx.rng = NULL;
+    if (col1.nation[0].tax_rate != 4) {
+      return fail("a hike below the auto-teaparty tax floor should just stand");
+    }
+    if (col1.nation[0].boycott_bitmap != 0) {
+      return fail("a hike below the auto-teaparty tax floor must not boycott anything");
     }
   }
 
@@ -388,6 +480,8 @@ int main(void) {
    * Dump-goods pick API (FUN_38fd_3dc8 thin): among candidate bits clear in
    * boycott_bitmap, dos_rng picks one — not a fixed Tobacco second refuse.
    * Cite: docs/fandom_col1994.md Boycott “named goods”; viceroy FUN_38fd_3dc8.
+   * (Direct-function-call scenarios, unaffected by the turn/interval
+   * redesign above — unchanged from before this pass.)
    */
   {
     ColonizeDosRng dump_rng;
@@ -478,190 +572,22 @@ int main(void) {
   }
 
   /*
-   * Refuse path dump-goods second cargo (FUN_38fd_3dc8 wired): with ctx.rng,
-   * boycott_bitmap gains Sugar + one other eligible cargo. Cite: wiki Boycott.
-   * ctx.europe present → candidate mask = live bid>0, then weight by bid.
+   * Reset for the rest of the file: turn back below the interval gate
+   * so nothing downstream accidentally rolls an audience (nothing past
+   * this point cares about tax/audience — confirmed 2026-08-20 scoping
+   * pass), and tax/SoL/bells/boycott back to the baseline the declare-
+   * path scenarios below already expect.
    */
-  {
-    ColonizeDosRng refuse_rng;
-    dos_rng_seed(&refuse_rng, 99u);
-    year = 1602; /* fresh tax year after prior probes */
-    autumn = 0;
-    col1.nation[0].tax_rate = 20;
-    europe.tax_percent = 20;
-    europe.cargo_count = COLONIZE_CARGO_COUNT;
-    for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
-      europe.cargo[c].bid = 1;
-    }
-    col1.nation[0].boycott_bitmap = 0;
-    col1.head.unknown46[2] = 0;
-    col1.nation[0].liberty_bells_total = 0;
-    memset(col1.head.expeditionary_force, 0, sizeof(col1.head.expeditionary_force));
-    /* Keep SoL refuse gate (colony rebel 60%). */
-    ctx.rng = &refuse_rng;
-    status[0] = '\0';
-    ai_king_nation_turn(&ctx);
-    ctx.rng = NULL;
-    if ((col1.nation[0].boycott_bitmap & (1u << COLONIZE_CARGO_SUGAR)) == 0) {
-      return fail("rng refuse must still set Sugar boycott bit");
-    }
-    const uint16_t rest =
-      (uint16_t)(col1.nation[0].boycott_bitmap & ~(uint16_t)(1u << COLONIZE_CARGO_SUGAR));
-    if (rest == 0) {
-      return fail("rng refuse should OR a second dump-goods cargo bit");
-    }
-    /* Exactly one extra bit among cargo 0..15. */
-    int bits = 0;
-    for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
-      if ((rest & (uint16_t)(1u << c)) != 0) {
-        bits++;
-      }
-    }
-    if (bits != 1) {
-      fprintf(stderr, "unit_ai_king: refuse dump-goods rest=0x%x bits=%d\n",
-              (unsigned)rest, bits);
-      return fail("rng refuse should set exactly one second dump-goods cargo");
-    }
-    {
-      static const char* const cargo_names[COLONIZE_CARGO_COUNT] = {
-        "Food",        "Sugar",  "Tobacco", "Cotton", "Furs",  "Lumber",
-        "Ore",         "Silver", "Horses",  "Rum",    "Cigars", "Cloth",
-        "Coats",       "Trade Goods", "Tools", "Muskets"
-      };
-      int second_c = -1;
-      for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
-        if ((rest & (uint16_t)(1u << c)) != 0) {
-          second_c = c;
-        }
-      }
-      if (second_c < 0) {
-        return fail("rng refuse second cargo index");
-      }
-      if (!strstr(status, "Sugar") || !strstr(status, cargo_names[second_c])) {
-        fprintf(stderr, "unit_ai_king: refuse status (second=%s): '%s'\n",
-                cargo_names[second_c], status);
-        return fail("rng refuse status must name Sugar and second boycott cargo");
-      }
-    }
-  }
-
-  /*
-   * Marathon5 R1: refuse dump-goods eligible = live Europe bid > 0.
-   * Only Tobacco priced → second boycott must be Tobacco (not Cotton/etc.).
-   * Cite: FUN_38fd_3dc8 / local_7a; king_ref dump-goods.
-   */
-  {
-    ColonizeDosRng bid_rng;
-    dos_rng_seed(&bid_rng, 55u);
-    year = 1624;
-    autumn = 0;
-    col1.nation[0].tax_rate = 20;
-    europe.tax_percent = 20;
-    europe.cargo_count = COLONIZE_CARGO_COUNT;
-    for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
-      europe.cargo[c].bid = 0;
-    }
-    europe.cargo[COLONIZE_CARGO_TOBACCO].bid = 12;
-    /* Sugar bid ignored — already boycotted before pick. */
-    europe.cargo[COLONIZE_CARGO_SUGAR].bid = 99;
-    col1.nation[0].boycott_bitmap = 0;
-    col1.head.unknown46[2] = 0;
-    col1.nation[0].liberty_bells_total = 0;
-    memset(col1.head.expeditionary_force, 0, sizeof(col1.head.expeditionary_force));
-    col1.colony[0].rebel_dividend = 60;
-    col1.colony[0].rebel_divisor = 100;
-    ctx.rng = &bid_rng;
-    ctx.europe = &europe;
-    status[0] = '\0';
-    ai_king_nation_turn(&ctx);
-    ctx.rng = NULL;
-    if ((col1.nation[0].boycott_bitmap & (1u << COLONIZE_CARGO_SUGAR)) == 0) {
-      return fail("bid>0 refuse must still set Sugar bit");
-    }
-    if ((col1.nation[0].boycott_bitmap & (1u << COLONIZE_CARGO_TOBACCO)) == 0) {
-      return fail("bid>0 refuse second cargo must be sole priced Tobacco");
-    }
-    const uint16_t rest_bid =
-      (uint16_t)(col1.nation[0].boycott_bitmap &
-                 ~(uint16_t)((1u << COLONIZE_CARGO_SUGAR) |
-                             (1u << COLONIZE_CARGO_TOBACCO)));
-    if (rest_bid != 0) {
-      fprintf(stderr, "unit_ai_king: bid>0 refuse extra bits=0x%x\n",
-              (unsigned)rest_bid);
-      return fail("bid>0 refuse must not boycott zero-bid cargos");
-    }
-  }
-
-  /*
-   * europe NULL → prior uniform dump among all non-boycotted (no bid gate).
-   */
-  {
-    ColonizeDosRng no_eu_rng;
-    dos_rng_seed(&no_eu_rng, 66u);
-    year = 1646;
-    autumn = 0;
-    col1.nation[0].tax_rate = 20;
-    europe.tax_percent = 20;
-    col1.nation[0].boycott_bitmap = 0;
-    col1.head.unknown46[2] = 0;
-    col1.nation[0].liberty_bells_total = 0;
-    memset(col1.head.expeditionary_force, 0, sizeof(col1.head.expeditionary_force));
-    ctx.rng = &no_eu_rng;
-    ctx.europe = NULL;
-    status[0] = '\0';
-    ai_king_nation_turn(&ctx);
-    ctx.rng = NULL;
-    ctx.europe = &europe;
-    if ((col1.nation[0].boycott_bitmap & (1u << COLONIZE_CARGO_SUGAR)) == 0) {
-      return fail("europe-NULL refuse must still set Sugar bit");
-    }
-    const uint16_t rest_null =
-      (uint16_t)(col1.nation[0].boycott_bitmap & ~(uint16_t)(1u << COLONIZE_CARGO_SUGAR));
-    if (rest_null == 0) {
-      return fail("europe-NULL refuse should still OR a second dump-goods cargo");
-    }
-  }
-
-  /*
-   * Tax hike SoL gate (1d42 / AI_KING_BOYCOTT_SOL_MIN=30): tax_rate≥20 but
-   * SoL<30 and bells low → hike (refuse requires SoL≥30 or bells≥80).
-   * Asserts the existing threshold; real audience modal PARKED.
-   */
-  {
-    year = 1646; /* 1536 + 22*5 spring tax year */
-    autumn = 0;
-    col1.colony[0].rebel_dividend = 25;
-    col1.colony[0].rebel_divisor = 100;
-    col1.nation[0].tax_rate = 20;
-    europe.tax_percent = 20;
-    col1.nation[0].boycott_bitmap = 0;
-    col1.head.unknown46[2] = 0;
-    col1.nation[0].liberty_bells_total = 0;
-    {
-      const int sol25 = ai_king_sol_percent(&ctx, 0);
-      if (sol25 != 25) {
-        fprintf(stderr, "unit_ai_king: unexpected SoL %d (want 25) for tax SoL gate\n",
-                sol25);
-        return fail("tax hike SoL gate setup");
-      }
-    }
-    const uint8_t tax_low_sol = col1.nation[0].tax_rate;
-    status[0] = '\0';
-    ai_king_nation_turn(&ctx);
-    if (col1.head.unknown46[2] != 0) {
-      return fail("SoL<30 should not refuse tax hike (SoL gate)");
-    }
-    if (col1.nation[0].tax_rate <= tax_low_sol) {
-      return fail("SoL<30 + tax≥20 should still hike (refuse needs SoL≥30)");
-    }
-    if (!strstr(status, "raises taxes")) {
-      fprintf(stderr, "unit_ai_king: low-SoL hike status: '%s'\n", status);
-      return fail("SoL<30 tax year should hike with raises-taxes status");
-    }
-    /* Restore SoL for later declare path. */
-    col1.colony[0].rebel_dividend = 60;
-    col1.colony[0].rebel_divisor = 100;
-  }
+  turn = 1;
+  col1.nation[0].tax_rate = 20;
+  europe.tax_percent = 20;
+  col1.colony[0].rebel_dividend = 60;
+  col1.colony[0].rebel_divisor = 100;
+  col1.nation[0].boycott_bitmap = 0;
+  col1.head.unknown46[2] = 0;
+  col1.nation[0].liberty_bells_total = 0;
+  col1.head.king_audience_streak = 0;
+  memset(col1.head.expeditionary_force, 0, sizeof(col1.head.expeditionary_force));
 
   /*
    * Thin pre-declare SoL chrome: SoL 40..49 → restless status; no congress yet.
@@ -4239,165 +4165,173 @@ int main(void) {
     }
     ctx.europe = &europe;
 
-    /* Peacetime tax audience: clear WoI so 1d42 runs; spring tax year. */
+    /*
+     * King-audience CHOICE flow — 2026-08-20 rewrite against the real
+     * apply-then-optionally-revert shape (ai_king_apply_popup_result's
+     * own header comment): the hike from ai_king_audience_roll/
+     * apply_delta applies immediately inside ai_king_nation_turn, no
+     * deferral. The KING_AUDIENCE CHOICE only decides whether that
+     * already-applied hike is kept (Accept, "kiss the ring") or
+     * reverted (Refuse, "hold a tea party") — payload carries the
+     * exact (applied delta, picked cargo) pair via
+     * ai_king_teaparty_payload, both already fixed at hike time, not a
+     * player-picked cargo from a second CHOICE (that two-step "dump-
+     * goods CHOICE after Refuse" shape is retired — see
+     * ai_king.c's R6 "stale-claim correction").
+     *
+     * Deterministic via seed=1: rebel_sentiment=100, tax=10, SoL=100,
+     * turn=44 -> score 1053 -> delta +4 (tax 10->14), then a uniform
+     * (all Europe bids=1) dump-goods roll over the same rng stream
+     * picks cargo index 3 (Cotton).
+     */
+    turn = 44;
     col1.head.unknown46[0] = 0;
     col1.head.game_options.woi = 0;
     col1.head.unknown46[2] = 0;
     col1.head.unknown46[5] = 0;
+    col1.head.rebel_sentiment_report = 100;
     col1.nation[0].tax_rate = 10;
     europe.tax_percent = 10;
     col1.nation[0].boycott_bitmap = 0;
     col1.nation[0].liberty_bells_total = 0;
-    col1.colony[0].rebel_dividend = 20;
+    col1.nation[0].gold = 0;
+    col1.colony[0].rebel_dividend = 100;
     col1.colony[0].rebel_divisor = 100;
     year = 1536;
     autumn = 0;
     status[0] = '\0';
     ai_popup_clear(&pop);
-    const uint8_t tax_before = col1.nation[0].tax_rate;
+    const int expected_cargo = COLONIZE_CARGO_COTTON;
+    const int expected_delta = 4;
+    /* ai_king_teaparty_payload's own formula (applied*100+cargo) — not
+     * exported via ai_king.h, so mirrored here rather than exposed. */
+    const int expected_payload = expected_delta * 100 + expected_cargo;
+    ColonizeDosRng accept_rng;
+    dos_rng_seed(&accept_rng, 1u);
+    ctx.rng = &accept_rng;
     ai_king_nation_turn(&ctx);
-    if (col1.nation[0].tax_rate != tax_before) {
+    ctx.rng = NULL;
+    if (col1.nation[0].tax_rate != 10 + expected_delta) {
+      fprintf(stderr, "unit_ai_king: audience hike tax_rate=%u (want %d)\n",
+              col1.nation[0].tax_rate, 10 + expected_delta);
       assets_msg_free(&game_txt);
-      return fail("ai_popups tax audience must defer hike until apply");
+      return fail("audience hike must apply immediately, not defer to CHOICE apply");
     }
-    if (pop.queue_count < 1 || pop.queue[0].tag != AI_POPUP_TAG_KING_AUDIENCE ||
-        pop.queue[0].kind != AI_POPUP_KIND_CHOICE) {
+    int choice_qi = -1;
+    for (int i = 0; i < pop.queue_count; ++i) {
+      if (pop.queue[i].tag == AI_POPUP_TAG_KING_AUDIENCE &&
+          pop.queue[i].kind == AI_POPUP_KIND_CHOICE) {
+        choice_qi = i;
+        break;
+      }
+    }
+    if (choice_qi < 0) {
       assets_msg_free(&game_txt);
-      return fail("ai_popups should enqueue KING_AUDIENCE choice");
+      return fail("ai_popups should enqueue KING_AUDIENCE choice after the hike");
     }
-    /* Simulate Accept result (game_loop path). */
+    if (pop.queue[choice_qi].payload != expected_payload) {
+      fprintf(stderr, "unit_ai_king: KING_AUDIENCE payload=%d (want %d)\n",
+              pop.queue[choice_qi].payload, expected_payload);
+      assets_msg_free(&game_txt);
+      return fail("KING_AUDIENCE choice payload should carry (applied, picked cargo)");
+    }
+    /* Accept ("kiss the ring"): the standing hike is simply kept. */
     pop.has_result = true;
     pop.result_cancelled = false;
-    pop.result_choice_id = 1; /* Accept */
+    pop.result_choice_id = 1; /* AI_KING_CHOICE_ACCEPT */
     pop.result_tag = AI_POPUP_TAG_KING_AUDIENCE;
     pop.result_nation_a = 0;
     pop.result_nation_b = 1;
-    pop.result_payload = (int)tax_before;
+    pop.result_payload = pop.queue[choice_qi].payload;
     ai_king_apply_popup_result(&ctx, &pop);
     ai_popup_consume_result(&pop);
-    if (col1.nation[0].tax_rate != tax_before + 1) {
+    if (col1.nation[0].tax_rate != 10 + expected_delta) {
       assets_msg_free(&game_txt);
-      return fail("apply Accept should hike tax (1d42)");
+      return fail("Accept should leave the already-applied hike standing");
     }
-    if (col1.head.unknown46[2] != 0) {
+    if (col1.nation[0].boycott_bitmap != 0) {
       assets_msg_free(&game_txt);
-      return fail("Accept hike must not set boycott refuse");
+      return fail("Accept must not boycott anything");
     }
-    /* Tax audience chain: Accept apply → hike follow-up OK (FUN_43f7_1d42 / 38fd_5be8). */
-    {
-      int found_accept_ok = 0;
-      for (int i = 0; i < pop.queue_count; ++i) {
-        if (pop.queue[i].tag == AI_POPUP_TAG_KING_TAX &&
-            pop.queue[i].kind == AI_POPUP_KIND_OK &&
-            strstr(pop.queue[i].body, "raises taxes")) {
-          found_accept_ok = 1;
-          break;
-        }
-      }
-      if (!found_accept_ok) {
-        assets_msg_free(&game_txt);
-        return fail("apply Accept should enqueue tax hike follow-up OK");
-      }
+    if (!strstr(status, "tax increase") || !strstr(status, "stands") ||
+        !strstr(status, "14")) {
+      fprintf(stderr, "unit_ai_king: Accept status: '%s'\n", status);
+      assets_msg_free(&game_txt);
+      return fail("Accept apply should status the standing hike rate");
     }
 
-    /* Refuse path: enqueue again, apply Refuse → boycott. */
-    year = 1558;
-    autumn = 0;
-    col1.nation[0].tax_rate = 20;
-    europe.tax_percent = 20;
+    /* Refuse ("hold a tea party"): fresh identical roll, then revert. */
+    col1.nation[0].tax_rate = 10;
+    europe.tax_percent = 10;
     col1.nation[0].boycott_bitmap = 0;
-    col1.head.unknown46[2] = 0;
+    col1.nation[0].liberty_bells_total = 0;
+    col1.colony[0].rebel_dividend = 100;
+    col1.colony[0].rebel_divisor = 100;
     status[0] = '\0';
     ai_popup_clear(&pop);
+    ColonizeDosRng refuse_rng2;
+    dos_rng_seed(&refuse_rng2, 1u);
+    ctx.rng = &refuse_rng2;
     ai_king_nation_turn(&ctx);
-    if (col1.head.unknown46[2] != 0 || col1.nation[0].tax_rate != 20) {
+    ctx.rng = NULL;
+    if (col1.nation[0].tax_rate != 10 + expected_delta) {
       assets_msg_free(&game_txt);
-      return fail("ai_popups refuse choice must defer boycott until apply");
+      return fail("refuse setup: hike must apply immediately (same as Accept path)");
     }
+    choice_qi = -1;
+    for (int i = 0; i < pop.queue_count; ++i) {
+      if (pop.queue[i].tag == AI_POPUP_TAG_KING_AUDIENCE &&
+          pop.queue[i].kind == AI_POPUP_KIND_CHOICE) {
+        choice_qi = i;
+        break;
+      }
+    }
+    if (choice_qi < 0) {
+      assets_msg_free(&game_txt);
+      return fail("ai_popups should enqueue KING_AUDIENCE choice (refuse path)");
+    }
+    /* Seed richest-colony stock for the @TEAPARTY dump. */
+    colonies.colonies[0].nation_id = 0;
+    colonies.colonies[0].active = true;
+    colonies.colonies[0].stock[expected_cargo] = 75;
+    const int stock_before = colonies.colonies[0].stock[expected_cargo];
     pop.has_result = true;
     pop.result_cancelled = false;
-    pop.result_choice_id = 2; /* Refuse */
+    pop.result_choice_id = 2; /* AI_KING_CHOICE_REFUSE */
     pop.result_tag = AI_POPUP_TAG_KING_AUDIENCE;
     pop.result_nation_a = 0;
     pop.result_nation_b = 1;
-    pop.result_payload = 20;
+    pop.result_payload = pop.queue[choice_qi].payload;
     ai_king_apply_popup_result(&ctx, &pop);
     ai_popup_consume_result(&pop);
-    if (col1.head.unknown46[2] == 0) {
+    if (col1.nation[0].tax_rate != 10) {
+      fprintf(stderr, "unit_ai_king: Refuse tax_rate=%u (want reverted to 10)\n",
+              col1.nation[0].tax_rate);
       assets_msg_free(&game_txt);
-      return fail("apply Refuse should set boycott unknown46[2]");
+      return fail("Refuse should revert the just-applied hike");
     }
-    if (col1.nation[0].tax_rate != 20) {
+    if ((col1.nation[0].boycott_bitmap & (1u << expected_cargo)) == 0) {
       assets_msg_free(&game_txt);
-      return fail("apply Refuse must leave tax_rate unchanged");
+      return fail("Refuse should boycott the cargo picked at hike time (Cotton)");
     }
-    if ((col1.nation[0].boycott_bitmap & (1u << 1)) == 0) {
+    if (colonies.colonies[0].stock[expected_cargo] != stock_before - 75) {
+      fprintf(stderr, "unit_ai_king: TEAPARTY stock got %d want %d\n",
+              colonies.colonies[0].stock[expected_cargo], stock_before - 75);
       assets_msg_free(&game_txt);
-      return fail("apply Refuse should freeze Sugar boycott bit");
+      return fail("Refuse @TEAPARTY should dump min(100,stock) from the richest colony");
     }
-    /* Dump-goods CHOICE after Refuse (Sugar set; second cargo player-picked). */
-    {
-      int found_dump = 0;
-      int dump_qi = -1;
-      for (int i = 0; i < pop.queue_count; ++i) {
-        if (pop.queue[i].tag == AI_POPUP_TAG_KING_DUMP_GOODS &&
-            pop.queue[i].kind == AI_POPUP_KIND_CHOICE) {
-          found_dump = 1;
-          dump_qi = i;
-          break;
-        }
+    int found_teaparty = 0;
+    for (int i = 0; i < pop.queue_count; ++i) {
+      if (pop.queue[i].tag == AI_POPUP_TAG_KING_TAX && pop.queue[i].kind == AI_POPUP_KIND_OK &&
+          strstr(pop.queue[i].body, "Sons of Liberty") &&
+          strstr(pop.queue[i].body, "throw") && strstr(pop.queue[i].body, "75")) {
+        found_teaparty = 1;
+        break;
       }
-      if (!found_dump) {
-        assets_msg_free(&game_txt);
-        return fail("apply Refuse should enqueue KING_DUMP_GOODS CHOICE");
-      }
-      /* Pick Furs if offered, else first choice id. */
-      int pick = pop.queue[dump_qi].choice_ids[0];
-      for (int ci = 0; ci < pop.queue[dump_qi].choice_count; ++ci) {
-        if (pop.queue[dump_qi].choice_ids[ci] == COLONIZE_CARGO_FURS) {
-          pick = COLONIZE_CARGO_FURS;
-          break;
-        }
-      }
-      /* Seed richest-colony stock for thin 3dc8 dump under @TEAPARTY. */
-      colonies.colonies[0].nation_id = 0;
-      colonies.colonies[0].active = true;
-      colonies.colonies[0].stock[pick] = 75;
-      const int stock_before = colonies.colonies[0].stock[pick];
-      pop.has_result = true;
-      pop.result_cancelled = false;
-      pop.result_choice_id = pick;
-      pop.result_tag = AI_POPUP_TAG_KING_DUMP_GOODS;
-      pop.result_nation_a = 0;
-      pop.result_nation_b = 1;
-      pop.result_payload = 20;
-      ai_king_apply_popup_result(&ctx, &pop);
-      ai_popup_consume_result(&pop);
-      if ((col1.nation[0].boycott_bitmap & (1u << pick)) == 0) {
-        assets_msg_free(&game_txt);
-        return fail("dump-goods CHOICE should OR chosen cargo boycott bit");
-      }
-      if (colonies.colonies[0].stock[pick] != stock_before - 75) {
-        fprintf(stderr, "unit_ai_king: TEAPARTY stock got %d want %d\n",
-                colonies.colonies[0].stock[pick], stock_before - 75);
-        assets_msg_free(&game_txt);
-        return fail("dump-goods @TEAPARTY should dump min(100,stock) from colony");
-      }
-      int found_teaparty = 0;
-      for (int i = 0; i < pop.queue_count; ++i) {
-        if (pop.queue[i].tag == AI_POPUP_TAG_KING_TAX &&
-            pop.queue[i].kind == AI_POPUP_KIND_OK &&
-            strstr(pop.queue[i].body, "Sons of Liberty") &&
-            strstr(pop.queue[i].body, "throw") &&
-            strstr(pop.queue[i].body, "75")) {
-          found_teaparty = 1;
-          break;
-        }
-      }
-      if (!found_teaparty) {
-        assets_msg_free(&game_txt);
-        return fail("dump-goods apply should enqueue @TEAPARTY KING_TAX OK");
-      }
+    }
+    if (!found_teaparty) {
+      assets_msg_free(&game_txt);
+      return fail("Refuse apply should enqueue @TEAPARTY KING_TAX OK");
     }
 
     /* Keep GAME.TXT loaded for @DECLARE congress CHOICE (+ merc uses messages). */

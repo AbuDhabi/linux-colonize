@@ -286,6 +286,42 @@ safely inert. See `ai_diplo.c`'s own header comment (search "T2.1
 precedent, T2.2 delta catalog") for the full trace. Genuinely open RE,
 not attempted this pass — the real next step before Tier 3.
 
+**2026-08-20 (T1.11) — bit `0x10`'s mechanical role fully pinned; its
+write-trigger stays genuinely open, not for lack of trying.** Read the
+raw body around every `uStack_9e` site: it's a **third, independent**
+`worthy=1` trigger (raw ~662) alongside two already-understood ones —
+"crown nation, turn>0x4f, high tension both sides" (raw ~649-652) and
+"at PEACE *and* self-nation much poorer than target" (raw ~653-657,
+`euro_relation&2` + a 3x wealth-gap check) — set via a plain standalone
+`if (uStack_9e != 0)`, not combined with either. It also adds a flat
+`(difficulty+1)*500` straight into `combat_delta_sum` (raw ~707-709),
+unconditionally when set, on top of whatever the rest of the formula
+computed. So: a deliberate, independent "this pair has a real grievance"
+signal, distinct from both the scripted king-pressure event and the
+opportunistic rich-neighbor read.
+
+Chased the *write* side to find what sets it: the accessor thunks to
+`FUN_0000_5b34`(read)/`FUN_0000_5b62`(write) — confirmed via
+`address_mapping.csv` (`FUN_15b3_0004`/`FUN_15b3_0032` at `ram:5b34`/
+`5b62`). The writer takes a **raw byte value**, not a bitmask — callers
+must read-modify-write their own copy before calling it, so a
+`grep`-for-literal-`|0x10` search near the confirmed euro_relation
+address pattern (39 hits for `| 0x10` in the whole ~130K-line canonical
+export, none of them near a `*0x13c+-0x77c4` expression) came back
+empty, as expected once the setter's own shape was understood — this
+doesn't mean the bit is never set, it means finding the setter's real
+callers needs an XREF search this project doesn't have quick tooling
+for (or a live write-breakpoint on `ram:0x5b62`), not another literal
+grep. **Genuinely still open** — not a dead end, a scoped, concrete next
+step (`FUN_0000_5b62` callers) different from "grep harder."
+
+**Practical upshot for the Tier 3 gate**: the *consequence* of this bit
+being set is now precisely known (not a guess), which is real progress —
+but "what sets it, and how often" is unchanged from before, so the
+caution in `ai_diplo.c`'s header stands as-is: not safe to wire `153e`
+live without either resolving the trigger or explicitly zeroing
+`peace_bit_0x10` first. No source changed this pass (doc-only).
+
 Full `ctest`: 41/41 runnable tests pass (2026-08-19; `golden_ai_turns`/
 `_mid01`/`_late01`/`golden_ai_joint` remain PARKED/Disabled per the top of
 `docs/ai_transcription.md`, unaffected either way since nothing here is

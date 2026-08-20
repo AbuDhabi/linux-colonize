@@ -923,6 +923,17 @@ unconditional-roll-then-optional-tea-party-revert shape, not a
 seed/turn mechanical patch. See `ai_port_plan.md` T1.8 for the full
 breakdown. Not attempted this pass.
 
+**Closed 2026-08-20 (T1.12).** Both blocks rewritten against the real
+formula — deterministic seed=1 scenarios per ladder rung (cut/+1/+2/big-
+raise), off-interval and `tax_rate>85` gates, a no-`ai_popups` auto-
+teaparty case, and the real apply-then-optionally-revert CHOICE flow
+(hike lands immediately, Accept/Refuse only decide revert-or-keep,
+payload carries the already-picked cargo — the old two-step "dump-goods
+CHOICE after Refuse" is gone, matching the correction two paragraphs up).
+`turn` reset to 1 at the end so the rest of the file is unaffected.
+Re-enabled in `CMakeLists.txt` (was `DISABLED TRUE`). Full `ctest` 41/41
+green. Full writeup: `ai_port_plan.md` T1.12.
+
 ---
 
 ## Prerequisites

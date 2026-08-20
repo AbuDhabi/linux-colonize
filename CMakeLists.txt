@@ -881,15 +881,12 @@ target_include_directories(unit_ai_king PRIVATE
 target_link_libraries(unit_ai_king PRIVATE colonize_core)
 
 add_test(NAME unit_ai_king COMMAND unit_ai_king WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
-# DISABLED 2026-08-19 (see docs/ai_transcription.md R6): the King-audience
-# tax event was ported from the invented deterministic/year-gated design to
-# the real DOS RNG-driven favor-score formula (FUN_38fd_5be8/3dc8). This
-# 6000+-line single-`main()` fixture's very first tax scenario still assumes
-# the old design (turn=1, no ctx.rng, flat "+1" expectation), fails
-# immediately, and takes the rest of the file down with it. Not a code
-# regression — the fixture is stale. Re-enable once the fixture is rewritten
-# with seeded RNG streams per scenario (turn-gated, not year-gated).
-set_tests_properties(unit_ai_king PROPERTIES DISABLED TRUE)
+# RE-ENABLED 2026-08-20 (ai_port_plan.md T1.12): the tax/audience blocks
+# were rewritten against the real DOS RNG-driven favor-score formula
+# (FUN_38fd_5be8/3dc8) — seeded RNG streams per scenario, turn-gated (not
+# year-gated), apply-then-optionally-revert CHOICE shape. Was DISABLED
+# 2026-08-19 (docs/ai_transcription.md R6) because the fixture predated
+# this formula port; that gap is closed.
 
 add_executable(unit_ai_euro_expand
   tests/unit/test_ai_euro_expand.c
