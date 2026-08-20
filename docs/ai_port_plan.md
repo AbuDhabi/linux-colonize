@@ -102,7 +102,17 @@ needed beyond periodic status updates.
   [`move_scoring_land.md`](../original_sources_annotated/ai/move_scoring_land.md),
   [`move_scoring_ship.md`](../original_sources_annotated/ai/move_scoring_ship.md).
   Linux side: `ai_euro_score_step` / `ai_euro_land_*` / `ai_euro_naval_*` in
-  `ai_euro.c`.
+  `ai_euro.c`. **2026-08-20: epilogue roam-abort slice wired** (the
+  "smaller, real, immediately portable slice" `move_scoring_20e6_full.md`
+  flagged) — idle-roam gotos (`s_euro_roam_wander`, set only by
+  `ai_euro_move_scoring_gate`'s explore-scan/fallback-west arms) now abort
+  and force a re-decide the moment a MET foreign unit lands adjacent,
+  matching DOS's `unit+0x314c==5` clear. Goal-directed AI_MOVE gotos (found-
+  tile, hunt, wagon, ship staging) untouched. Still OPEN: the windowed
+  best-tile-in-box explore-scan redesign itself (needs `−0x6b1a`/`−0x6a8e`
+  semantics) and the `0x42`/`0x65` found/contact gate (blocked on
+  `FUN_0000_4fa8`'s real resident target — see file for the false-collision
+  finding). Full `ctest` green after the change.
 
 - [ ] **T1.2 — Full `LAB_521d_3558` cargo/colony sail matrix.** Still OPEN
   (R5 Phase 2/3 note it repeatedly). Current Linux only has thin tip/peel

@@ -49,6 +49,17 @@ static uint8_t s_euro_continent_stance[4][16];
  * other. Cite: euro_unit_act.md "2026-08-15, later pass".
  */
 static uint32_t s_violate_last_turn[COLONIZE_UNITS_MAX];
+/*
+ * DOS `unit+0x314c==5` ("idle roam / re-evaluate next call", see FUN_521d_20e6's
+ * epilogue commit block, move_scoring_20e6_full.md line ~2213-2275) — marks a
+ * goto set by this port's own idle-wander branch (explore-scan / fallback-west
+ * in ai_euro_move_scoring_gate), as opposed to a goal-directed AI_MOVE goto
+ * (found-tile pursuit, war hunt, wagon delivery, ship staging) set elsewhere.
+ * DOS clears roam state and forces a re-decide the moment a foreign unit whose
+ * nation has been MET is adjacent; only roam gotos are eligible for that abort
+ * (see the check near the top of ai_euro_unit_act).
+ */
+static uint8_t s_euro_roam_wander[COLONIZE_UNITS_MAX];
 
 static void ai_euro_set_goto(ColonizeUnit* u, int orders, int gx, int gy);
 static int ai_euro_tile_is_coast_water(const ColonizeWorldMap* map, int x, int y);
@@ -4086,6 +4097,16 @@ static void ai_euro_set_goto(ColonizeUnit* u, int orders, int gx, int gy) {
   u->orders = orders;
   u->goto_x = gx;
   u->goto_y = gy;
+  /*
+   * Every goto write defaults to "not idle-roam" (DOS unit+0x314c != 5) —
+   * ai_euro_move_scoring_gate re-marks its own two roam branches right
+   * after calling this, so a stale roam flag from an earlier turn never
+   * survives onto a goal-directed goto (found-tile, hunt, wagon, ship
+   * staging) set by any other call site. See s_euro_roam_wander.
+   */
+  if (u->id >= 0 && u->id < COLONIZE_UNITS_MAX) {
+    s_euro_roam_wander[u->id] = 0;
+  }
 }
 
 static int ai_euro_is_ship_type(const ColonizeUnitPool* units, int unit_id) {
@@ -10267,6 +10288,7 @@ static int ai_euro_move_scoring_gate(ColonizeTurnContext* ctx, ColonizeUnit* u, 
   int gy = u->y;
   int fx = 0;
   int fy = 0;
+  int is_roam = 0;
   if (ai_goals_best_found_tile(nation_id, &fx, &fy)) {
     gx = fx;
     gy = fy;
@@ -10276,9 +10298,11 @@ static int ai_euro_move_scoring_gate(ColonizeTurnContext* ctx, ColonizeUnit* u, 
   } else if (ai_euro_land_explore_scan_target(ctx, u, nation_id, &fx, &fy)) {
     gx = fx;
     gy = fy;
+    is_roam = 1; /* unit+0x314c==5 idle-roam (explore ring) */
   } else {
     gx = u->x > 2 ? u->x - 2 : 0;
     gy = u->y;
+    is_roam = 1; /* unit+0x314c==5 idle-roam (no target found, fallback walk) */
   }
   int dx = 0;
   int dy = 0;
@@ -10286,6 +10310,9 @@ static int ai_euro_move_scoring_gate(ColonizeTurnContext* ctx, ColonizeUnit* u, 
     return 1;
   }
   ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, gx, gy);
+  if (u->id >= 0 && u->id < COLONIZE_UNITS_MAX) {
+    s_euro_roam_wander[u->id] = (uint8_t)is_roam;
+  }
   return 0;
 }
 
@@ -13090,7 +13117,40 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
   }
 
   const int is_ship = is_ship_early;
-  const int is_goto = units_orders_follow_goto(u->orders);
+  int is_goto = units_orders_follow_goto(u->orders);
+
+  /*
+   * FUN_521d_20e6 epilogue roam-abort (unit+0x314c==5 cleared the moment a
+   * met foreign unit is adjacent, forcing a re-decide next call — see
+   * move_scoring_20e6_full.md "Epilogue / commit block", line ~2213-2275).
+   * Scoped to gotos this port's own idle-wander branch set
+   * (s_euro_roam_wander, written only by ai_euro_move_scoring_gate's
+   * explore-scan / fallback-west arms); goal-directed AI_MOVE gotos (found-
+   * tile pursuit, war hunt, wagon delivery, ship staging) are not DOS's
+   * "roaming" state and are left alone. MET check both directions, same
+   * gate as ai_euro_try_violate_notify's adjacency scan.
+   */
+  if (!is_ship && is_goto && u->orders == UNITS_ORDER_AI_MOVE && u->id >= 0 &&
+      u->id < COLONIZE_UNITS_MAX && s_euro_roam_wander[u->id] && ctx->col1_ok && ctx->col1) {
+    static const int rdx[8] = {0, 1, 1, 1, 0, -1, -1, -1};
+    static const int rdy[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
+    for (int d = 0; d < 8; ++d) {
+      const int fid = units_id_at(ctx->units, u->x + rdx[d], u->y + rdy[d]);
+      if (fid < 0 || units_is_sea(ctx->units, fid)) {
+        continue;
+      }
+      const ColonizeUnit* f = units_get_const(ctx->units, fid);
+      if (!f || f->nation_id == u->nation_id || f->nation_id < 0 || f->nation_id >= 4) {
+        continue;
+      }
+      if ((ai_diplo_read(ctx->col1, u->nation_id, f->nation_id) & AI_DIPLO_MET) &&
+          (ai_diplo_read(ctx->col1, f->nation_id, u->nation_id) & AI_DIPLO_MET)) {
+        ai_euro_set_goto(u, UNITS_ORDER_NONE, u->x, u->y);
+        is_goto = units_orders_follow_goto(u->orders);
+        break;
+      }
+    }
+  }
 
   /*
    * At-war Soldier/Dragoon/Artillery coastal embark — before move-scoring gate /
