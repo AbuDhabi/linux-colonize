@@ -1,0 +1,13 @@
+with open('src/core/sound.c', 'r') as f:
+    text = f.read()
+
+replacement = r'''
+      if (song->id == 0x33 && op == 0xBE) {
+        printf("T%d: op BE %d %d time=%d\n", current_t, (unsigned)ds_img[pos+1], (unsigned)ds_img[pos+2], (unsigned)time);
+      }
+      switch (op) {
+'''
+text = text.replace('switch (op) {', replacement.strip())
+
+with open('src/core/sound.c', 'w') as f:
+    f.write(text)
