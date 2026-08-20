@@ -463,7 +463,10 @@ leftover FF KINGGALLEON2, deep `20e6`).
   ports (`ai_euro_ocean_3558_*`, `ai_euro_06ae_first_colony_from_landfall`);
   latitude stand-in helpers retired; soft tip prior inside live `06ae` port;
   mid empty-cruise tip scored (no caller `fx+2,fy+6`). `FUN_521d_06ae` +
-  `0492` ported; adj `06ae` still misses some coastal first towns. `48d3_048e`
+  `0492` ported; adj `06ae` still misses some coastal first towns
+  (**fixed 2026-08-20** — `ai_port_plan.md` T1.5: seed geometry unchanged,
+  now validated/expanded via `ai_goals_pick_founding_tile_ex`'s existing
+  8-dir + ring-2..4 search instead of a single point-check). `48d3_048e`
   spiral place + `20e6` band map Done. Full `LAB_521d_3558` cargo/colony sail
   OPEN.
 - **Euro early path (fixture, bisect only):** T2 coastal ship gotos from

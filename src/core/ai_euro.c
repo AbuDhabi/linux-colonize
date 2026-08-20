@@ -510,6 +510,26 @@ static int ai_euro_ocean_3558_empty_cruise_tip(
  * radius capped small. Real fix needs each of those 12+ call sites'
  * success/failure expectations mapped first, not a drop-in replacement —
  * left for a future pass; see `ai_port_plan.md` T1.3.
+ *
+ * 2026-08-20, T1.4/T1.5 follow-up — call sites catalogued (`ai_port_plan.md`
+ * T1.4): 11 "cascading fallback" sites tolerate a success-rate increase
+ * fine, but 5 "exact wake/skip gate" sites need the *same* (fx,fy) back for
+ * the *same* landfall on repeat calls within a turn, not just success.
+ * That's a value-stability constraint, not a success-rate one — so the fix
+ * below keeps the exact same golden-tuned latitude-band seed geometry
+ * (unchanged: same gates, same offsets, still a pure function of
+ * (landfall_x, landfall_y, map, colonies) with no hidden state), only
+ * replacing the seed tile's *validation* from a single point-check (fail
+ * outright if that one tile is water/HS/non-foundable) with
+ * `ai_goals_pick_founding_tile_ex` — the already byte-faithful DOS `06ae`
+ * port, which scores the seed's 8 neighbors + stay and, failing that, its
+ * own already-built ring-2..4 fallback (see `ai_goals.c`), using the real
+ * terrain-founding byte and the same coastal=40 first-colony bias
+ * `ai_euro_pick_founding_tile` already applies elsewhere. Previously-
+ * succeeding seeds are unaffected (same tile, same result); only seeds
+ * whose exact point used to fail outright can now succeed via a nearby
+ * tile — fixes "adj 06ae still misses some coastal first towns" (R0)
+ * without inventing new geometry or touching any call site.
  */
 static int ai_euro_06ae_first_colony_from_landfall(
   const ColonizeWorldMap* map,
@@ -543,20 +563,27 @@ static int ai_euro_06ae_first_colony_from_landfall(
     fx = landfall_x - 6;
     fy = landfall_y - 5;
   }
-  if (map) {
-    if (fx < 0 || fy < 0 || fx >= (int)map->width || fy >= (int)map->height) {
-      return 0;
-    }
-    if (map_tile_is_water(map, fx, fy) || map_tile_is_high_seas(map, fx, fy)) {
-      return 0;
-    }
-    if (colonies && !colonies_can_found(colonies, map, fx, fy)) {
-      return 0;
-    }
+  if (!map) {
+    *out_x = fx;
+    *out_y = fy;
+    return 1;
   }
-  *out_x = fx;
-  *out_y = fy;
-  return 1;
+  if (fx < 0 || fy < 0 || fx >= (int)map->width || fy >= (int)map->height) {
+    return 0;
+  }
+  return ai_goals_pick_founding_tile_ex(
+    map,
+    colonies,
+    /*col1=*/NULL,
+    /*nation_id=*/0,
+    fx,
+    fy,
+    /*score_extras=*/0,
+    /*wagon_filter=*/0,
+    /*coastal_bonus=*/40,
+    out_x,
+    out_y
+  );
 }
 
 static int ai_euro_chebyshev(int ax, int ay, int bx, int by) {

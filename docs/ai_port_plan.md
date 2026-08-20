@@ -240,7 +240,7 @@ T1.x" without doing T1.x first, it'll just re-derive the same dead end.
   an equally real second constraint. Not attempted this pass — T1.5 is
   next, informed by this catalog.
 
-- [ ] **T1.5 — Full multi-ring `06ae` first-colony landfall.** Current
+- [x] **T1.5 — Full multi-ring `06ae` first-colony landfall.** Current
   `ai_euro_06ae_first_colony_from_landfall` is a live west-box + coastal
   bias approximation; "adj `06ae` still misses some coastal first towns"
   (R0 dated entry). Needs the real DOS multi-ring search.
@@ -260,6 +260,36 @@ T1.x" without doing T1.x first, it'll just re-derive the same dead end.
   of this one function isn't safe regardless of how faithful its own
   geometry is. Bigger lift than it looked; don't re-attempt as a quick
   win — do **T1.4** above first.
+  **2026-08-20, same day, second attempt — shipped, informed by T1.4's
+  catalog.** Key realization: DOS's real `06ae` is a *per-act, 9-tile*
+  decision (score the acting unit's own 8 neighbors + stay) — it has no
+  "search from a remembered landfall" shape at all; that whole concept is
+  a Linux-invented coordination device for the ship/pioneer choreography,
+  not a direct port of anything. And `ai_goals_pick_founding_tile_ex`
+  (the byte-faithful `06ae` port, already live at 10+ other call sites)
+  **already has** a ring-2..4 fallback search past its own 8-dir arm —
+  built for exactly this "nothing adjacent qualifies" case, just never
+  reused here. So instead of inventing new outward-search geometry (the
+  reverted attempt's mistake) or touching any of the 16 call sites: kept
+  `ai_euro_06ae_first_colony_from_landfall`'s existing golden-tuned
+  latitude-band seed arithmetic byte-for-byte (still a pure function of
+  the same inputs, no hidden state — satisfies T1.4 Group B's
+  value-stability need), and replaced only the seed tile's *validation* —
+  previously a single point-check that failed outright if that one tile
+  was water/HS/non-foundable — with a call into
+  `ai_goals_pick_founding_tile_ex` (`score_extras=0` so it needs no
+  `nation_id`/`col1`, `coastal_bonus=40` matching
+  `ai_euro_pick_founding_tile`'s existing first-colony convention).
+  Previously-succeeding seeds are byte-identical (same tile, same
+  result); only seeds that used to fail outright can now succeed via a
+  nearby real tile. Full `ctest` green, `unit_ai` included (40/40, 5
+  golden AI suites still Disabled per T3.3, unaffected either way). Also
+  found and **deliberately left alone**: a separate, differently-signed
+  copy of this same-named function in `ai.c`, hardcoded to specific
+  golden-turn coordinates (`test-saves-ai TURN3–6`) with all 8 call sites
+  discarding its return value — that's frozen golden-fixture scaffolding,
+  not general AI logic; touching it risks breaking the exact pinning it
+  exists for once goldens re-enable, out of scope here.
 
 - [x] **T1.6 — `2820` deep Haggle (`2f96`) / hard-bargain counter-offer
   (`306c`) sub-loops + multi-good cargo-select CHOICE (`0x15a0`).**
