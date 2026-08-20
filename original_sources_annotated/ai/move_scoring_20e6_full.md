@@ -350,6 +350,197 @@ the `0x42` found-impulse "flip on arrival" sub-clause of the epilogue (ship-
 only, orders `'1'` marker not yet traced) and the scan-redesign itself,
 both still open per above.
 
+**2026-08-20 — T1.1 attempt: `FUN_1000_8aac` fields 3/4/5/6/0xc, real
+progress, no semantic closure yet.** Picked up `ai_port_plan.md`'s T1.1
+(the highest-leverage queued item, gating T1.2/T1.3/T1.9). Confirmed
+`FUN_1000_8aac` itself is a bare two-call stub (`FUN_1000_1e61();
+FUN_0000_4fa8(); return;`, no per-field branch inside it at all) — so
+whatever `field` (2/3/4/5/6/0xc) selects, the selection happens entirely
+inside `FUN_0000_4fa8`'s jump table, exactly as the third-pass finding
+above already concluded. Re-verified that jump table completely fresh via
+`GhidraDumpBytes.java` at flat `0xd78` (raw bytes, not trusting the old
+citation): cases 0-7 read back as `2ce0/d47f/46c7/f2/a100/2ce0/6ef7/2bf2` —
+**matches the third-pass table exactly**, so that table is confirmed
+correct, not just plausible.
+
+Hand-disassembled cases 3 (`0xf2`), 4 (`0xa100`), and 0xc (`0xc02b`) fresh
+via `GhidraListInstrs.java` (ground-truth bytes, decompiler bypassed):
+
+- **Case 3** (`0xf2`): reads a word-pair at `0x2da4`/`0x2da6` (unnamed,
+  not in `viceroy_globals.h` or `address_mapping.csv`), does a
+  doubleword-shaped clamp/max against the incoming value, `CALLF 0xae72`
+  conditionally, then a second comparison loop calling `0xc0c6` — shaped
+  like a running max-tracker, not a flat per-unit field read. Checked
+  whether `FUN_1000_8b10` (called immediately before the field batch at
+  `move_scoring_20e6_full.md` line 1090) writes `0x2da4` first, since that
+  would directly explain the read-back — **it doesn't**; ruled out, not
+  confirmed.
+- **Case 4** (`0xa100`): a small, fully self-contained ~26-byte routine —
+  `[0x92c0]=3` unless `[0x92c2]>0x10` (then `[0x92c0]=0`), then
+  unconditionally `[0x372] = word[BP+6]; return` with `AX` still holding
+  that same echoed value. **Shaped like a per-turn call-budget/throttle
+  gate with a side-effect write, not a data query** — if `[BP+6]` in this
+  calling shape is the constant nation id (`0x181f`), the accessor's
+  return value would be a nonzero constant every time, which would make
+  every `iStack_48 != 0` branch downstream in `20e6` (lines 1201/1205/
+  1225) an unconditional true — a real, checkable hypothesis, not
+  confirmed (needs the exact `[BP+6]`/`[BP+8]` slot-to-argument mapping
+  for this specific 3-arg call shape, which is the actual remaining
+  blocker, not a new mystery).
+- **Case 0xc** (`0xc02b`): a bounds-clamped accumulate-loop tail
+  (`SI`/loop-counter shaped), immediately followed in memory by a small
+  `SHR BX,4 / AND AX,0xf` nibble-split helper at `0xc054` and an
+  ASCII-uppercase/flag-test routine at `0xc06c` — same low-level
+  CRT/string-table neighborhood the third pass already catalogued nearby
+  cases in (`0xc00b`/`0xc88b`). Reinforces "generic utility region," no
+  unit-record touch found in the 60 bytes sampled.
+- **Case 6** (`0x6ef7`) re-disassembled as a spot-check: bytes match the
+  third pass's colony-bitmap set/clear finding exactly, no change.
+
+**New, unrelated but real finding surfaced while chasing case 3's
+`FUN_1000_8b10` lead**: `FUN_1000_8b10` (`ram:0x18b10`) is *not* part of
+the `4fa8` family at all — it's the same `FUN_1000_1e61` loader-prologue
+shape (confirming that prologue is a generic "resident library loaded"
+guard reused by many unrelated thin stubs, not specific to `8aac`) tail-
+calling a completely different real function, `FUN_0000_532e`. That
+function is fully clean, decompiles with zero warnings, and is a genuine
+**transport-chain movement-budget distributor**: computes
+`local_8 = per-unit-type-max-moves[unit+0x3146] - unit+0x3150` (a
+"moves remaining this turn" formula, stride-`0xe` table at `0x5237`),
+then walks a unit chain via `FUN_0000_4272`/`FUN_0000_42ba` (next/prev —
+very likely the same transport-chain link fields case 2 above splices,
+`unit+0x315e`/`0x315c`), spending a per-unit-type move-cost
+(stride-`0xe` table at `0x5238`) out of the shared budget and marking
+`unit+0x314c=1` ("moved this turn") on each unit until the budget or
+chain is exhausted. Checked Linux (`units.c`): `moves_left` is tracked
+**independently per unit**, no shared/pooled chain budget exists — this
+DOS mechanic (wagon-train-style shared movement pool) may be a real gap,
+or may be functionally superseded by Linux's simpler per-unit model the
+same way the `0x42`/`0x65` gate turned out to already be closed by
+different means (sixth pass above). **Not chased further this pass** —
+flagging as a fresh, undocumented lead for a future session rather than
+scope-creeping off T1.1; not yet added to `ai_port_plan.md` since it
+needs its own scoping pass first.
+
+**2026-08-20, same day, second pass — the shared `4fa8` prologue itself
+cracked, closing the calling-convention question.** Went one level up
+from the case bodies to `FUN_0000_4fa8`'s own entry code (never
+disassembled before this pass — every prior pass jumped straight to the
+`0xd78` table's targets). Raw bytes, `ENTER 0x6,0`:
+
+```
+SI = [BP+6]                          ; first stack slot
+DI = 0                                ; "not found" sentinel, held live
+AX = SI; CALLF FUN_0000_4272(AX)      ; register-arg call, see below
+SI = AX; if SI < 0, return DI (bail, 0x5177)
+BX = SI * 0x1c                        ; unit-record stride confirmed
+[BP-6] = BX
+AX = byte[BX+0x3146]                  ; unit's type byte (zero-extended)
+[BP-4] = [BP-2] = AX                  ; type byte cached twice
+AX = [BP+8]                           ; second stack slot
+if AX > 0xe, fall to a defensive 0x5168 branch (see below); else:
+BX = AX * 2
+XCHG AX,BX          ; AX := old BX (= SI*0x1c, the unit-record offset)
+                     ; BX := AX*2 (case index)
+JMP CS:[BX+0xd78]    ; dispatch
+```
+
+Decompiled `FUN_0000_4272`/`FUN_0000_42ba` (called via bare register `AX`,
+no stack args — same "ad hoc per-callee convention" family) to see what
+`[BP+6]` actually has to be:
+
+```c
+// FUN_0000_4272(int in_AX /* unit index */)
+if (in_AX >= 0) {
+  while (*(int*)(in_AX*0x1c + 0x315c) >= 0)   // walk PREV (0x315c) to the head
+    in_AX = *(int*)(in_AX*0x1c + 0x315c);
+}
+return in_AX;
+
+// FUN_0000_42ba(int in_AX /* unit index */)
+if (in_AX >= 0) in_AX = *(int*)(in_AX*0x1c + 0x315e);   // one step via NEXT (0x315e)
+return in_AX;
+```
+
+Both operate on `unit+0x315c`/`unit+0x315e` — the **exact same fields**
+case 2 above splices, already named `prev_unit_idx`/`next_unit_idx` in
+`col1_save.h`'s `ColonizeCol1TransportChain` (round-tripped through
+save/load, never live). So `FUN_0000_4272` = "walk PREV links to the
+convoy's head unit" and `FUN_0000_42ba` = "step one unit forward via
+NEXT" — clean, reusable, fully game-specific findings on their own,
+independent of the field-index puzzle.
+
+This resolves the calling convention **by physical necessity, not
+push-order guesswork** (push-order reasoning from the decompiler's
+argument-list text turned out ambiguous/self-contradictory when checked
+both ways): `[BP+6]` gets fed straight into `FUN_0000_4272` as a raw unit
+index (`AX*0x1c` addressing) — it **has** to be a small, valid unit-table
+index or the game reads garbage memory, so it cannot be the `0x181f`
+nation constant (6175 decimal, wildly out of range as an index). It must
+be the real unit id (`param_2` in `20e6`'s calls). `[BP+8]` is bounds-
+checked against `0xe` (exactly the 15-entry table size) and shifted into
+the jump — that's unambiguously `field`. This also matches, and now
+properly explains, the already-established case 2 finding for the 2-arg
+call shape (`FUN_1000_8aac(unit_id, 2)`): `[BP+6]=unit_id` lines up
+exactly. **Net: `[BP+6]` = the unit being queried, resolved to its
+convoy's head unit before any case runs; `[BP+8]` = the field/case
+selector (0-0xe); any third argument (`0x181f` nation, present on the
+`20e6`/`0a60` 3-arg calls) lands one slot further out (`[BP+0xA]`),
+outside this shared prologue's 2-slot window — not read by the dispatch
+itself, and not found reading `[BP+0xA]` in the 60-byte case-3/4/0xc
+windows sampled last pass either (not exhaustively ruled out per-case,
+but not seen).**
+
+Concrete new implication for **fields 2-0xe generally**: every case
+operates on the **convoy head's** unit record (`AX`/`BX` = head's
+`unit_id*0x1c` at entry), not necessarily `param_2`'s own record — for an
+unchained unit (the common case, `prev_unit_idx==-1`) these are the same
+unit, so this doesn't overturn any already-shipped behavior, but it's the
+right frame for reading case bodies going forward: a case that looks like
+it's asking "does *this* unit have arms/cargo" is actually asking "does
+*this convoy* have arms/cargo," coherent with `20e6`'s field-3/4/5/6/0xc
+block being the **cargo/colony sail matrix** T1.3 needs (a convoy-level
+resource query is exactly the right shape for that).
+
+Bounds-check failure path (`[BP+8]>0xe`, `0x5168`) turned out to be a
+defensive fallback — `AX(=SI)` steps forward one unit via `FUN_0000_42ba`
+and retries the whole dispatch on the next chain member, bailing to 0 if
+the chain runs out. Not reachable by any real call site found so far (all
+confirmed literals are 2-0xd), so not chased further.
+
+**Where T1.1 actually stands now**: the *mechanism* (unit resolution +
+case dispatch) is fully closed with physical, not inferential, certainty.
+Individual field semantics for 3/4/5/6/0xc are **still not named**.
+
+**Same pass, immediate follow-up — re-read case 3's full body (`0xf2`-
+`0x143`, 81 bytes, confirmed complete by its own `RETF`) against the
+corrected frame, inconclusive.** `AX` at entry is the convoy-head record
+offset as expected, used in a doubleword clamp against unnamed globals
+`0x2da4`/`0x2da6`, then a small loop (`CALLF 0xae72`/`0xc0c6`/`0x26fa`)
+converging on a return value. But partway through, the byte-exact
+disassembly shows `OR AL,byte ptr [BP+DI+0x4c4]` — a **real** 8086
+`[base+index+disp16]` addressing form (verified from the raw modrm byte,
+not a rendering artifact), with `DI` confirmed `0` (set by `4fa8`'s
+prologue, untouched since) and `BP` still `4fa8`'s own 6-byte frame. A
+displacement of `0x4c4` (1220 bytes) from a 6-byte frame reads **far
+outside any local variable** — either a legitimate DOS-era idiom this
+project hasn't catalogued yet (some compilers/models use a frame-like
+register to reach a fixed-offset global data block, not just locals) or
+a case where trusting the raw disassembly's operand naming needs one
+more level of care than usual. Genuinely unclear which without deeper
+context (what's really stored 1220 bytes past this specific frame — a
+question about the compiler's overall memory layout convention, not
+about this one function). **Stopping here rather than guessing** —
+consistent with the project's own "never invent a constant" rule. Cases
+4/0xc not re-examined at this depth this pass (case 3 alone already hit
+the same kind of wall).
+
+Individual field semantics for 3/4/5/6/0xc remain open. `T1.2`/`T1.3`/
+`T1.9` stay blocked until they're named or a live capture settles the
+`0x4c4`-displacement question above (the concrete next step, and a
+better use of a live DOSBox-X session than re-guessing more case bytes
+statically).
+
 ## Raw recovered C
 
 ```c

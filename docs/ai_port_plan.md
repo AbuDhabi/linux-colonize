@@ -111,6 +111,32 @@ T1.x" without doing T1.x first, it'll just re-derive the same dead end.
   accessor per the 2026-08-20 trace in `move_scoring_20e6_full.md`), and
   **T1.9**'s Indian quiet-scoring formula (same accessor family, shared
   with `FUN_281f_08bc`). Do this before returning to any of those three.
+  **2026-08-20, first pass: real progress, not closed.** Re-verified the
+  `0xd78` jump table fresh via raw byte dump (matches prior citation
+  exactly) and hand-disassembled cases 3/4/0xc at the byte level (case 6
+  spot-checked, unchanged). Unrelated new lead surfaced: `FUN_0000_532e`,
+  a transport-chain shared-movement-budget distributor, not yet scoped.
+  **2026-08-20, second pass same day — calling convention fully cracked.**
+  Disassembled `FUN_0000_4fa8`'s own entry prologue (never checked
+  before — prior passes went straight to the case table). Physically
+  confirmed (not push-order-guessed): `[BP+6]` = the unit id, resolved to
+  its transport convoy's **head unit** via `FUN_0000_4272` (walks
+  `prev_unit_idx`/`0x315c` to the head — same fields case 2 splices,
+  already named in `col1_save.h`); `[BP+8]` = the field/case selector
+  (bounds-checked `<=0xe`, matching the 15-case table exactly); a 3rd
+  argument (nation) on `20e6`/`0a60`'s calls lands outside this 2-slot
+  window, unread by the shared dispatch. `FUN_0000_4272`/`FUN_0000_42ba`
+  are now cleanly named (convoy-head walker / next-link step), reusable
+  findings on their own. **Mechanism fully closed; individual field
+  semantics for 3/4/5/6/0xc still open.** Immediate follow-up: re-read
+  case 3's full 81-byte body against the known frame — hit a real wall,
+  a `[BP+DI+0x4c4]` access 1220 bytes past `4fa8`'s 6-byte frame,
+  genuinely ambiguous statically (legit DOS memory-model idiom vs.
+  something needing more context) and not worth guessing on. **Real next
+  step for T1.1 is now a live DOSBox-X question** (what's really at that
+  displacement), not more static case disassembly — first genuinely
+  live-capture-gated sub-item in this whole T1.1 dig. Full trace:
+  `move_scoring_20e6_full.md`'s three 2026-08-20 T1.1 updates.
 
 - [ ] **T1.2 — Deep `20e6` remaining field fidelity.** Full arms +
   combat-resolve field fidelity is still OPEN per R5 Phase 1
