@@ -95,7 +95,24 @@ lesson below needs more context):
 Pure decomp/ASM reading, semantic RE, C port, `ctest` verification. No user
 needed beyond periodic status updates.
 
-- [ ] **T1.1 — Deep `20e6` remaining field fidelity.** Full arms +
+**Reordered 2026-08-20** after a heavy investigation pass through T1.1–T1.9
+(old numbering) surfaced several shared blockers that gate multiple items at
+once. Renumbered so those high-leverage prerequisites sort first — work top
+to bottom as usual, but don't re-attempt an item marked "blocked pending
+T1.x" without doing T1.x first, it'll just re-derive the same dead end.
+
+- [ ] **T1.1 — Resolve `FUN_1000_8aac` field-index accessor, fields
+  3/4/5/6/0xc.** New, highest-leverage item this pass. Field 2 of this
+  accessor took `move_scoring_20e6_full.md` six passes to crack (the
+  jump-table-dump method, not naive decompile); fields 3/4/5/6/0xc were
+  explicitly never attempted. Resolving them unblocks three separate
+  downstream items at once: **T1.2**'s explore-scan/found-contact-gate
+  remainder, **T1.3**'s `3558` cargo matrix (both directly gated on this
+  accessor per the 2026-08-20 trace in `move_scoring_20e6_full.md`), and
+  **T1.9**'s Indian quiet-scoring formula (same accessor family, shared
+  with `FUN_281f_08bc`). Do this before returning to any of those three.
+
+- [ ] **T1.2 — Deep `20e6` remaining field fidelity.** Full arms +
   combat-resolve field fidelity is still OPEN per R5 Phase 1
   (`ai_transcription.md`). Entry points:
   [`move_scoring_20e6_full.md`](../original_sources_annotated/ai/move_scoring_20e6_full.md),
@@ -112,9 +129,11 @@ needed beyond periodic status updates.
   best-tile-in-box explore-scan redesign itself (needs `−0x6b1a`/`−0x6a8e`
   semantics) and the `0x42`/`0x65` found/contact gate (blocked on
   `FUN_0000_4fa8`'s real resident target — see file for the false-collision
-  finding). Full `ctest` green after the change.
+  finding). Full `ctest` green after the change. Both remaining pieces
+  (explore-scan box redesign, `0x42`/`0x65` gate) are gated behind the
+  `FUN_1000_8aac` accessor — do **T1.1** first.
 
-- [ ] **T1.2 — Full `LAB_521d_3558` cargo/colony sail matrix.** Still OPEN
+- [ ] **T1.3 — Full `LAB_521d_3558` cargo/colony sail matrix.** Still OPEN
   (R5 Phase 2/3 note it repeatedly). Current Linux only has thin tip/peel
   ports (`ai_euro_ocean_3558_first_leg_tip`,
   `ai_euro_ocean_3558_empty_cruise_tip`), plus Series I/L/O/R partials
@@ -144,10 +163,19 @@ needed beyond periodic status updates.
   not scoped this pass**: extend the `FUN_1000_8aac` field investigation
   (`move_scoring_20e6_full.md`'s "Update, Nth pass" chain) to fields 3/4/
   5/6/0xc using the same jump-table-dump method that cracked field 2 —
-  do that as its own item before re-attempting T1.2's matrix. Moved on
-  to T1.3 this session rather than guess.
+  do that as its own item before re-attempting this matrix — now queued as
+  **T1.1** above. Moved on to the landfall item this session rather than
+  guess.
 
-- [ ] **T1.3 — Full multi-ring `06ae` first-colony landfall.** Current
+- [ ] **T1.4 — Map `ai_goals_pick_founding_tile_ex` / `06ae`'s call-site
+  success/failure expectations.** New, split out of the failed T1.5
+  attempt below as its real prerequisite. 12+ call sites in `ai_euro.c`
+  treat this function's return-0 as a deliberate "no target here, let
+  other logic decide" signal; before any replacement geometry (outward
+  ring search etc.) can go in safely, catalog what each call site actually
+  expects on success vs. failure. Do this before re-attempting T1.5.
+
+- [ ] **T1.5 — Full multi-ring `06ae` first-colony landfall.** Current
   `ai_euro_06ae_first_colony_from_landfall` is a live west-box + coastal
   bias approximation; "adj `06ae` still misses some coastal first towns"
   (R0 dated entry). Needs the real DOS multi-ring search.
@@ -166,9 +194,9 @@ needed beyond periodic status updates.
   failure expectations before attempting a replacement — a drop-in swap
   of this one function isn't safe regardless of how faithful its own
   geometry is. Bigger lift than it looked; don't re-attempt as a quick
-  win.
+  win — do **T1.4** above first.
 
-- [ ] **T1.4 — `2820` deep Haggle (`2f96`) / hard-bargain counter-offer
+- [x] **T1.6 — `2820` deep Haggle (`2f96`) / hard-bargain counter-offer
   (`306c`) sub-loops + multi-good cargo-select CHOICE (`0x15a0`).**
   Deliberately scope-parked (not corruption-blocked) per
   [`indian_trade_2820.md`](../original_sources_annotated/ai/indian_trade_2820.md)
@@ -197,7 +225,7 @@ needed beyond periodic status updates.
   already conditionally seeded there); full details in
   `indian_trade_2820.md`'s 2026-08-20 update.
 
-- [ ] **T1.5 — `4528` deep raid body: tail case-dispatch semantics.**
+- [ ] **T1.7 — `4528` deep raid body: tail case-dispatch semantics.**
   **2026-08-20: re-scoped, old framing was stale.** The "ASM-faithful map
   `84216→end`" item is **moot** — that range was the *canonical export's*
   corrupted spillover into an unrelated overlay segment; the real function
@@ -249,7 +277,7 @@ needed beyond periodic status updates.
   RNG/wealth-rank-gated variant (a *different* raid intensity/outcome
   roll, not "raid vs. don't") stays open per the note above.
 
-- [ ] **T1.6 — `FUN_6662_0f74` pathfinding subsystem.** Confirmed clean but
+- [ ] **T1.8 — `FUN_6662_0f74` pathfinding subsystem.** Confirmed clean but
   large: `0015bc`/`0015c1` are two separate BFS flood-fill searches (16×16
   and 18×18 windows), `0015b7` is a small direct-step helper (the one
   genuinely quick win here, do it first within this item), a fifth helper
@@ -282,7 +310,7 @@ needed beyond periodic status updates.
   fresh session, budget for a multi-pass RE + port effort, not a
   same-pass add-on.
 
-- [ ] **T1.7 — Indian mid-game quiet scoring (goods/missions/capital
+- [ ] **T1.9 — Indian mid-game quiet scoring (goods/missions/capital
   pull) formula mapping.** R2 used to flag this as blocked on "a
   `2244`-style overlay re-recovery... canonical boundary looks wrong" for
   `FUN_291f_0a14`. **2026-08-20: checked with the mature overlay tooling
@@ -301,14 +329,30 @@ needed beyond periodic status updates.
   corruption-blocked any more, but a genuine formula-mapping task —
   `DS:0x5239` (stride-0xe table), `DS:0x523d` bitmask reuse, `DS:0x53d2`
   comparison, and the generic `FUN_281f_08bc`/`FUN_1000_8aac` field-index
-  accessor (shared blocker with T1.1/T1.2) all need names before a
+  accessor (shared blocker with **T1.1** above) all need names before a
   faithful port, comparable in size to the `euro_g_table_0a60.md` dig.
   Not attempted this pass. No golden currently exercises
   `colony_count>0` for a Brave, so still nothing to regression-check a
   port against even once mapped — document even if untestable, per the
   original note.
 
-- [ ] **T1.8 — `test_ai_king.c` fixture rewrite.** Not RE-blocked (the
+- [ ] **T1.10 — Resolve `DS:0x945a` / `FUN_1d1d_0ec6` division (profession/
+  dock query family).** New, split out of **T2.1**'s 2026-08-20 finding.
+  `5d04`'s structural hire-ladder tail is inert-by-construction today
+  because its two list-iterator stubs always return "none" — resolving
+  this profession/dock query family is what would make wiring the
+  structural port live (Tier 3) an actual behavior change instead of a
+  no-op. See `ai-5d04-structural-port` memory for what's known so far.
+
+- [ ] **T1.11 — Name the diplomacy accessor bit `0x10` (`peace_bit_0x10`,
+  same family as the already-resolved `AI_DIPLO_MET==0x40`).** New, split
+  out of **T2.2**'s 2026-08-20 finding. This bit is the one live,
+  non-stubbed term in the `153e` worthiness-score structural port — if
+  it's ever set for a real nation pair the function already asserts
+  `worthy=1` with a real score, so naming it (or explicitly deciding to
+  zero it) is the real gate before that port is safe to wire live.
+
+- [ ] **T1.12 — `test_ai_king.c` fixture rewrite.** Not RE-blocked (the
   real formula is fully known and already implemented in `ai_king.c`),
   but **2026-08-20: scoped precisely, and it's a real conceptual redesign,
   not a mechanical seed/turn patch** — the row's own "mechanical" framing
@@ -348,7 +392,7 @@ needed beyond periodic status updates.
   attempted this pass. See R6 "Known test-suite gap" note in
   `ai_transcription.md` for the up-to-date pointer.
 
-- [ ] **T1.9 — KINGGALLEON2 (non-Cortes royal-galleon share) re-attempt.**
+- [ ] **T1.13 — KINGGALLEON2 (non-Cortes royal-galleon share) re-attempt.**
   Unpark #3, still PARKED "if evidence appears." Prior passes found the
   narrative-vs-condition reading contradictory and `FUN_48d3_06ba` a false
   lead (same-segment neighbor, not the target). Re-run with overlay-clean
@@ -357,7 +401,7 @@ needed beyond periodic status updates.
   [`euro_unit_act.md`](../original_sources_annotated/ai/euro_unit_act.md)
   (search `KINGGALLEON2`).
   **2026-08-20: re-attempted with live Ghidra headless tooling (same
-  method that cracked T1.7). Exhausted the "Treasure-type unit scan"
+  method that cracked **T1.9**). Exhausted the "Treasure-type unit scan"
   search vector — all 9 `unit+0x3146=='\n'` sites in `viceroy_unpacked.c`
   now checked, none is it.** One near-miss worth flagging: `FUN_465b_0000`
   (the known move-foreign dispatcher) has a Treasure-gated thunk call
@@ -371,9 +415,10 @@ needed beyond periodic status updates.
   args — KINGGALLEON2's own GAME.TXT text has no `%NUMBER0` placeholder
   (unlike KINGGALLEON3's, which shows the tax-rate percentage), a real,
   checkable signature nobody's searched on yet. Full trace in
-  `euro_unit_act.md`'s 2026-08-20 update. Stays PARKED — Tier 1 exhausted
-  for this pass after this item; next per plan order is Tier 2
-  (`5d04`/`153e` structural-port verification).
+  `euro_unit_act.md`'s 2026-08-20 update. Stays PARKED. Tier 1 is **not**
+  exhausted — T1.1/T1.4/T1.10/T1.11 (new prerequisite items seeded this
+  pass) are still open and sort earlier; this was just the last item this
+  session reached, not the end of the tier.
 
 ---
 
@@ -409,7 +454,8 @@ is genuinely stuck mid-session.
   profession/dock query family, `DS:0x945a`, `FUN_1d1d_0ec6`'s division —
   see `ai-5d04-structural-port` memory). **Not yet a Tier 3 candidate**:
   wiring it live today is a safe no-op, so there's nothing to confirm
-  with the user yet — revisit once those remaining stubs go real.
+  with the user yet — revisit once those remaining stubs go real, i.e.
+  after **T1.10**.
 
 - [ ] **T2.2 — Verify `ai_diplo_153e_worthiness_score_structural`
   against live behavior.** Same shape as T2.1: structural reference port
@@ -435,7 +481,7 @@ is genuinely stuck mid-session.
   `AI_DIPLO_MET==0x40`) has never been independently named — genuinely
   open RE, not attempted this pass. Full trace + the header-comment
   update: `ai_diplo.c` (search "T2.1 precedent, T2.2 delta catalog").
-  **Not a Tier 3 candidate yet** — resolve bit `0x10`'s meaning (or
+  Queued as **T1.11**. **Not a Tier 3 candidate yet** — resolve bit `0x10`'s meaning (or
   explicitly zero `peace_bit_0x10` to force full inertness, if wiring
   is wanted sooner) before this is safe to flip. Full `ctest` green
   (comment-only change, verified anyway).
@@ -476,7 +522,7 @@ but don't resume speculatively either.
 - [ ] **T4.1 — `DS:0x2f76..0x2f88`ish terrain-cost/toughness table.**
   Highest-leverage single capture identified so far: unblocks case-8
   Pioneer-improvement reward scale, `0f74`'s toughness-deduction term, and
-  detour-route scoring (if T1.6's flood-fill tiers get ported) all at once.
+  detour-route scoring (if T1.8's flood-fill tiers get ported) all at once.
   See `euro_unit_act.md` "highest-leverage single capture" note.
 
 - [ ] **T4.2 — `FUN_41f2_0294` (village founding-worth cap) semantics.**
@@ -496,7 +542,7 @@ but don't resume speculatively either.
   hadn't found it yet); fall back to a hang-dump only if that's exhausted.
 
 - [ ] **T4.4 — `2820` remaining unresolved DS fields.** **2026-08-20:
-  T1.4 static pass confirmed exhausted — promoting to active Tier 4, not
+  T1.6 static pass confirmed exhausted — promoting to active Tier 4, not
   conditional any more.** `*(int*)0x8d4e+2` **resolved** (it's
   `ColonizeCol1Indian.tech`, already wired into
   `ai_contact_meet_economics_2154` — struck from this row's blocker list).
