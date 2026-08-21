@@ -4611,6 +4611,22 @@ static bool units_greedy_next_step(
      * `bVar27`'s `DS:0x543f` per-nation human-flag gate; reused via the
      * existing `g_units_combat_human_nation` module cache rather than
      * threading a new parameter through 16+ call sites.
+     *
+     * `FUN_281f_090c` itself re-resolved 2026-08-21 (its `address_mapping.csv`
+     * row is stale/wrong — points at `FUN_1000_8afc`, an unrelated
+     * village/nation-throttle function; the real 2-call thunk body's own
+     * second call lands at `FUN_1427_065a` -> `FUN_0000_48ca`, confirmed a
+     * clean, plausible max-MP accessor by direct disassembly, see
+     * `euro_unit_act.md`'s T1.8 update). Real DOS formula there is
+     * `type_table[type][DS:0x5234] + (3 if a per-nation capability bit is
+     * set AND type is in the ship range 0xd..0x12, else 0)` — `DS:0x5234`
+     * is this project's already-known `0x5236`/`0x5239`/`0x523d` unit-type
+     * table (stride 0xe), offset +0, i.e. exactly `type->movement`, so the
+     * `type->movement` read below is the right field. The ship-only `+3`
+     * bonus is a real gap (not wired: the gating nation flag isn't
+     * independently identified yet, and ship base movement is never <2 in
+     * practice, so this bonus can't actually change the `<2` branch —
+     * negligible real-world effect either way).
      */
     const ColonizeUnitType* type = units_type(pool, u->type_index);
     const int max_mp = type && type->movement > 0 ? type->movement : 1;

@@ -718,6 +718,32 @@ pass:
   sites). Full `ctest` 41/41 green. Full trace: `euro_unit_act.md`'s
   2026-08-21 update. Flood-fills (`0015bc`/`0015c1`) still untouched —
   unaffected by this, stays optional fidelity polish per the note above.
+  **2026-08-21, later same day — `0015bc` freshly redecompiled clean, real
+  structure now known, one tooling bug found+fixed, still not wired.**
+  Destination-outward 16×16 flood-fill, matching `units_flood_next_step`'s
+  own shape/window exactly. Its per-edge cost turns out to be the *same*
+  `penalty` formula as `0f74`'s already-ported scored-fallback tail
+  (`max_mp<2 ? 3 : terrain_cost*3`) — DOS reuses one formula across both
+  tiers, not two independent ones, a real and low-risk target if this is
+  resumed (the formula and its Linux implementation already exist).
+  Along the way: **`FUN_281f_090c`'s `address_mapping.csv` row was wrong**
+  (pointed at an unrelated village/nation-throttle function; the thunk's
+  real second call resolves to `FUN_0000_48ca`, confirmed by direct
+  disassembly as a small, correct max-MP accessor) — the "max MP" formula
+  `units_greedy_next_step` already ships is right in substance but misses
+  a ship-only `+3` conditional bonus (gated by an unidentified per-nation
+  capability bit); confirmed practically inert (no real ship has base
+  MP `<2`, so the bonus can never flip the branch) and **not wired**, just
+  documented. Also named **`DS:0x5234`** = `ColonizeUnitType.movement`,
+  completing the already-known `0x5236`/`0x5239`/`0x523d` stride-`0xe`
+  unit-type-table family with its `+0` column. **Still not wired**: the
+  domain/ownership gating half of `0015bc` (as opposed to just its cost
+  formula) needs `0x1dd2`/`0x1dd4`/`0x1dd6` characterized well enough to
+  be sure it matches `units_can_enter` before swapping
+  `units_flood_next_step`'s edge cost for real — real next step if
+  resumed. Full trace: `euro_unit_act.md`'s 2026-08-21 update; `units.c`'s
+  fallback-tier comment updated with the `FUN_281f_090c` correction.
+  `ctest` 41/41 green (comment-only `src/` change).
 
 - [ ] **T1.9 — Indian mid-game quiet scoring (goods/missions/capital
   pull) formula mapping.** R2 used to flag this as blocked on "a
