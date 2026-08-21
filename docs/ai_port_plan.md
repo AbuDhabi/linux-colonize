@@ -74,8 +74,11 @@ lesson below needs more context):
   "unlabeled" globals turn out to already be named for a sibling function.
 - **Never invent a constant.** If a price/byte table has no captured value
   anywhere in the project, leave it stubbed with a comment, don't guess —
-  this is why `417e`'s two byte tables and `0x2f76`'s terrain-cost table
-  are still open (Tier 4) rather than wired with made-up numbers.
+  this is why `417e`'s two byte tables are still open (Tier 4) rather than
+  wired with made-up numbers. (`0x2f76`'s terrain-cost table was the same
+  kind of gap — resolved 2026-08-21 not via a live session but by
+  byte-pattern-searching already-existing `dosbox-x-dumps/*` saves; check
+  those before assuming a fresh capture is the only way in.)
 - Structural confidence (params line up, globals are named, formula shape
   fits) is **not** semantic confidence (what real-world mechanic this is).
   Keep the two separate in write-ups; the `417e` teach-price/incite
@@ -110,7 +113,40 @@ static-tractable, so that specific need is now **T4.7**, not a reason to
 treat all of T1.1 as stuck. Also fixed a stale cross-reference in T1.13
 (listed T1.4 as still-open after T1.4 had already landed).
 
-- [ ] **T1.1 — Resolve `FUN_1000_8aac` field-index accessor, fields
+**Reassessed 2026-08-21**, after a heavy session closed T1.1's remaining
+static scope (fields 0/4/5/6 hit a *second* live-only wall, **T4.8**, same
+shape as T4.7's), closed T1.9's terrain-table sub-blocker, closed T1.10,
+and fully resolved T4.1 (the `0x2f76` terrain table — no live session
+needed after all, found in existing `dosbox-x-dumps/*` saves). Fixes this
+pass:
+- **T1.1 marked `[x]`.** Every constituent field (2 already done, `0xc`
+  closed generic, `5`≡`0`, `3`→`T4.7`, `0`/`4`/`5`/`6`→`T4.8`) is now
+  either resolved or moved to Tier 4 — nothing static left under this row
+  specifically. Don't re-open it hunting for more; go straight to `T4.7`/
+  `T4.8` if a live session becomes available, or skip to the next open
+  Tier 1 item otherwise.
+- **T1.2's own blocker note was stale** (still said "gated behind
+  `FUN_1000_8aac`, do T1.1 first" from earlier the same day it was
+  written) — its own later correction two paragraphs down already found
+  the real remaining scope is unrelated (case 2's return-value semantics,
+  a separate parked question with an existing behavioral substitute).
+  Corrected in place.
+- **T1.3 and T1.9's "shared blocker with T1.1" pointers updated** — T1.1
+  itself is closed now, so anything still gated on that accessor family is
+  transitively gated on `T4.7`/`T4.8`, not on a Tier 1 item. Restated so a
+  future pass doesn't go looking for Tier 1 work under T1.1 that no longer
+  exists.
+- **T1.7 checked off** — its own final entry already concluded "nothing
+  further to do... treating as closed for practical purposes" but left the
+  checkbox unchecked; fixed for consistency with how T1.6/T1.10/T1.11 were
+  closed.
+- **New T1.14**, genuinely new: `DS:0x2f76`'s full 16-byte layout (decoded
+  incidentally while closing `T4.1`) turned up two live, real, but
+  undecoded columns (`+3` colony-founding neighbor score, `+4` a
+  village/growth threshold term) with real call sites already found —
+  self-contained, static-tractable, not attempted yet. See its own row.
+
+- [x] **T1.1 — Resolve `FUN_1000_8aac` field-index accessor, fields
   3/4/5/6/0xc.** New, highest-leverage item this pass. Field 2 of this
   accessor took `move_scoring_20e6_full.md` six passes to crack (the
   jump-table-dump method, not naive decompile); fields 3/4/5/6/0xc were
@@ -146,6 +182,19 @@ treat all of T1.1 as stuck. Also fixed a stale cross-reference in T1.13
   displacement), not more static case disassembly — first genuinely
   live-capture-gated sub-item in this whole T1.1 dig. Full trace:
   `move_scoring_20e6_full.md`'s three 2026-08-20 T1.1 updates.
+  **2026-08-21 — closed. Fields 0/4/5/6 also hit a live-only wall (not just
+  case 3), nothing static left.** Field `0xc`: closed clean (generic,
+  non-unit-touching). Field `5`: same jump-table target as field `0`, one
+  case not two. Fields `0`/`4`/`5`/`6`: force-disassembling exactly at
+  each one's cited jump-table address produces implausible byte streams
+  that only resync into real code 1-2 bytes later — a genuine, reproducible
+  local byte-alignment mismatch (different shape from case 3's far-
+  displacement ambiguity below), confirmed against a fresh MD5-verified
+  re-extraction of `VICEROY.EXE`, not a tooling artifact. Queued as
+  **T4.8**. Between `T4.7` (case 3) and `T4.8` (cases 0/4/5/6), every
+  remaining field of this accessor needs a live DOSBox-X session — T1.1
+  itself has no more Tier 1 scope. See intro note above for what this
+  means for **T1.2**/**T1.3**/**T1.9**.
   **2026-08-20 reassessment: split, don't stall the whole item on case 3.**
   Only field/case 3's own body hit the live-only wall — fields 4/5/6/0xc
   were never attempted yet and the hard part (calling convention, frame
@@ -200,6 +249,13 @@ treat all of T1.1 as stuck. Also fixed a stale cross-reference in T1.13
   matching DOS's `unit+0x314c==5` clear. Goal-directed AI_MOVE gotos (found-
   tile, hunt, wagon, ship staging) untouched. Full `ctest` green after
   the change.
+  ~~Both remaining pieces (explore-scan box redesign, `0x42`/`0x65` gate)
+  are gated behind the `FUN_1000_8aac` accessor — do T1.1 first.~~
+  **2026-08-21: that note was already stale when written** — see the
+  correction immediately below (same day), which found the explore-scan
+  redesign had already shipped and the real remaining gate is unrelated to
+  `8aac`'s fields. T1.1 is now closed anyway (see its own row); nothing
+  here was ever actually gated on it.
   **2026-08-20, later same day — stale note corrected, real scope
   narrower.** The "windowed best-tile-in-box explore-scan redesign" open
   item was already stale when written: `move_scoring_land.md`'s own
@@ -257,6 +313,13 @@ treat all of T1.1 as stuck. Also fixed a stale cross-reference in T1.13
   do that as its own item before re-attempting this matrix — now queued as
   **T1.1** above. Moved on to the landfall item this session rather than
   guess.
+  **2026-08-21: T1.1 closed — this matrix's gate is now genuinely Tier 4,
+  not Tier 1.** T1.1 exhausted the static side of the `8aac` field family:
+  field `0xc` resolved generic, but fields `0`/`3`/`4`/`5`/`6` (this
+  matrix's own gating fields) all landed on a live-only wall (`T4.7`
+  case 3, `T4.8` cases 0/4/5/6). Nothing to do here until one of those
+  lands — don't re-attempt the field investigation, it's already been
+  done as far as static tooling can take it.
 
 - [x] **T1.4 — Map `ai_goals_pick_founding_tile_ex` / `06ae`'s call-site
   success/failure expectations.** New, split out of the failed T1.5
@@ -385,7 +448,7 @@ treat all of T1.1 as stuck. Also fixed a stale cross-reference in T1.13
   already conditionally seeded there); full details in
   `indian_trade_2820.md`'s 2026-08-20 update.
 
-- [ ] **T1.7 — `4528` deep raid body: tail case-dispatch semantics.**
+- [x] **T1.7 — `4528` deep raid body: tail case-dispatch semantics.**
   **2026-08-20: re-scoped, old framing was stale.** The "ASM-faithful map
   `84216→end`" item is **moot** — that range was the *canonical export's*
   corrupted spillover into an unrelated overlay segment; the real function
@@ -687,8 +750,10 @@ treat all of T1.1 as stuck. Also fixed a stale cross-reference in T1.13
   table family is fully closed** — but `iVar14`/`iVar18` (the two
   `FUN_281f_08bc()` calls also feeding `iStack_e8`'s formula) are a
   *different* piece, the generic field-index accessor shared with
-  **T1.1**'s own still-open blocker, not resolved by this. Full trace:
-  `quiet_brave_scoring.c`'s 2026-08-21 update.
+  **T1.1**'s own blocker, not resolved by this. **T1.1 closed same day**
+  (see its row) with those exact fields landing on `T4.7`/`T4.8` — so
+  this piece is now Tier-4-gated too, not a Tier 1 loose end.
+  Full trace: `quiet_brave_scoring.c`'s 2026-08-21 update.
 
 - [x] **T1.10 — Resolve `DS:0x945a` / `FUN_1d1d_0ec6` division (profession/
   dock query family).** New, split out of **T2.1**'s 2026-08-20 finding.
@@ -910,13 +975,36 @@ treat all of T1.1 as stuck. Also fixed a stale cross-reference in T1.13
   (unlike KINGGALLEON3's, which shows the tax-rate percentage), a real,
   checkable signature nobody's searched on yet. Full trace in
   `euro_unit_act.md`'s 2026-08-20 update. Stays PARKED. Tier 1 is **not**
-  exhausted — **2026-08-20 reassessment: T1.4 is now done, remove it from
-  this list.** T1.1 (partial — fields 4/5/6 now Tier 4, `T4.8`), T1.9,
-  T1.10 (partial — `FUN_291f_0b26`'s real target still open) are still
-  open and sort earlier. **T1.11 closed later the same day** (write-
-  trigger found, see its own row) — no longer blocking anything here.
-  This was just the last item a given session reached, not the end of
-  the tier.
+  exhausted — **2026-08-21 reassessment, list refreshed again: T1.1, T1.7,
+  and T1.10 are now also done.** Still genuinely open Tier 1 items ahead
+  of this one: **T1.8** (pathfinding flood-fills, deprioritized but not
+  closed), **T1.9** (Indian quiet-scoring formula mapping), and the new
+  **T1.14** (terrain-record `+3`/`+4` columns). This was just the last
+  item a given session reached, not the end of the tier.
+
+- [ ] **T1.14 — Decode `DS:0x2f76` record columns `+3` (colony-founding
+  neighbor score) and `+4` (village/growth threshold term); identify what
+  `+0xe` actually is.** New 2026-08-21, surfaced incidentally while closing
+  `T4.1`. Both have real, already-located decompiled use sites, not
+  hypothetical: `+3` is read in an accumulating colony-site desirability
+  loop over a candidate site's 8 neighbor tiles, gated by a coast/river
+  check (`viceroy_unpacked.c:85807/88865/91539`) — a **neighbor-tile**
+  term distinct from `+1`'s already-wired own-tile founding score, so
+  potentially relevant to **T1.3**'s `3558` matrix and any future
+  refinement of the already-shipped `T1.5` landfall port. `+4` is
+  subtracted from a running byte near Indian-village globals
+  (`0x8542`/`0x8dd2`, `viceroy_unpacked.c:3629`), with a forest-class
+  bonus gated on difficulty — reads as a terrain-scaled village/growth
+  threshold or food-cost term, potentially relevant to **T1.9** and the
+  already-ported `ai_indian_152e_village_growth`. `+0xe`'s own semantic
+  role is unidentified (an internal type/graphic-index-shaped column with
+  one confirmed anomaly at pedia index 15/Rain Forest — see
+  `terrain_yields.md`). Self-contained: the raw bytes for all three
+  columns are already captured (every `dosbox-x-dumps/*` save has them,
+  same table `T4.1` closed), so this is pure formula-mapping + port, no
+  live capture needed. Not attempted yet. Full data:
+  [`terrain_yields.md`](../terrain_yields.md) "DS:0x2f76 terrain-class
+  record" table.
 
 ---
 
