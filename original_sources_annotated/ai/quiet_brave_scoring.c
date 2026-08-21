@@ -356,6 +356,67 @@ int quiet_score_colony_pull(int score, int colony_count) {
    *   guessing a value. Needs either resolving the actual DS segment
    *   base for this address range (a static-tooling question, possibly
    *   answerable without a live session) or a live DOSBox-X read.
+   *
+   * **2026-08-21 — resolved from existing `dosbox-x-dumps/*` saves, no
+   * live session needed.** The "flat resident offset == DS-relative
+   * address" identity really doesn't hold for this range (confirmed),
+   * but the fix is the same one `terrain_yields.md`'s `DS:0x2f76` dig
+   * used: locate the table by **byte-pattern content search** across a
+   * captured `Memory` blob instead of computing a flat address, then
+   * (separately) calibrate `HDR + DS_segment*16 + ds_relative_offset`
+   * against a byte offset already found this way, using the real `DS`
+   * register value read straight from the save's own `CPU` record (same
+   * technique `tools/brave_dump/parse_0e52_dump.py` already uses to
+   * print `DS=`). Search target: the unit-type table's own flags byte
+   * (offset `+7` from `0x5236`, i.e. `DS:0x523d`) for Braves/Armed
+   * Braves/Mtd. Braves/Mtd. Warriors (indices 19-22) — `0x38` four times
+   * at stride `0xe`, an unambiguous signature. Found at the same file
+   * offset in every save checked (`dump_1816`, `vr4528`, `vr_2a02` —
+   * despite `vr_2a02` capturing a *different* `DS` register value,
+   * `0x2042` vs. the other saves' `0x237d`, confirming the table's file
+   * position tracks physical/linear memory, not the momentary `DS` value
+   * at capture time — the same `DS≠A000` caveat `parse_0e52_dump.py`
+   * already flags for IRQ-context captures applies here too, so byte-
+   * pattern search is the robust method, segment arithmetic is a
+   * cross-check only). Decoded the whole stride-`0xe` table (23 unit
+   * types, indices `0..22`) at that offset and diffed **three separate
+   * byte columns against `NAMES.TXT` `@UNIT` and `ColonizeUnitType`,
+   * 23-for-23 exact matches each, replicated in a second independent
+   * save**:
+   * - `DS:0x5236` (the `LAB_521d_52aa` entry gate, `!= 0`) = **`attack`**
+   *   (the same field already loaded into `ColonizeUnitType.attack`,
+   *   `units.c:129`). Braves' attack is `1` (nonzero) — gate open,
+   *   consistent with this formula being scoped to Braves.
+   * - `DS:0x5239` (`cVar9`, the clamped divisor) = **`cost`**
+   *   (`ColonizeUnitType.cost`, `units.c:132` — the Europe-purchase-price
+   *   `@UNIT` column, not a coordinate or distance value). Braves' cost
+   *   is `1`, so the clamp-to-≥1 divisor is trivially `1` for the
+   *   in-scope case — the `(cVar9-1U & ~-(cVar9==0))+1` clamp exists for
+   *   *other* unit types this same table/formula also runs for (out of
+   *   this file's stated scope), not for Braves specifically.
+   * - `DS:0x523d & 0x10`/`0x20` — already known (this file's own header,
+   *   "Brave type 19 → flags `0x38`" = `0b00111000`, bits `0x08/0x10/0x20`
+   *   set); now independently re-confirmed via the same calibrated read.
+   * **Net: for the Brave-scoped case this file documents, all three
+   * `DS:0x5235..0x523d`-family unknowns are resolved and trivial**
+   * (gate open, divisor `1`, flags already known) — this specific
+   * literal-address table family is fully closed for Braves. **Does not
+   * resolve `iVar14`/`iVar18`** (the two `FUN_281f_08bc()` calls feeding
+   * `iStack_e8 = ((iVar18+1)/iVar14)*iVar20/divisor`) — those are calls
+   * into the *generic field-index accessor*, same family as
+   * `FUN_1000_8aac` (**T1.1**'s own still-open blocker), not a literal
+   * `DS:0x52xx` address read; a different, separately-blocked piece of
+   * this same formula, untouched by this table-location fix. The table's
+   * *other* byte offsets (whatever sits at, e.g., `+8`/`+9`/`+10`) were
+   * not decoded — they didn't cross-match `NAMES.TXT`'s remaining
+   * columns cleanly at this same stride, likely different data
+   * interleaved nearby; out of scope since nothing in this formula reads
+   * them. Method note for reuse elsewhere: computing a `DS`-relative
+   * address by segment arithmetic is fragile (the `DS` register at
+   * capture time is not reliable — differs across saves even for
+   * genuinely static data); prefer content-based byte-pattern search
+   * first, use segment arithmetic only to sanity-check a hit already
+   * found that way.
    */
   return score;
 }

@@ -642,6 +642,27 @@ treat all of T1.1 as stuck. Also fixed a stale cross-reference in T1.13
   this session otherwise relied on successfully does not hold uniformly
   for this address range. Not guessed at; flagged precisely instead.
   Full trace: `quiet_brave_scoring.c`'s 2026-08-20 T1.9 update.
+  **2026-08-21 — the "real new wall" resolved, no live session needed
+  after all.** Same fix as `T4.1`'s `DS:0x2f76` dig: locate the table by
+  byte-pattern content search across existing `dosbox-x-dumps/*` saves
+  instead of computing a flat address (segment arithmetic off a save's
+  `CPU`-record `DS` register is fragile — confirmed two saves with
+  byte-identical static table content captured *different* `DS` values,
+  `0x237d` vs. `0x2042`, matching `parse_0e52_dump.py`'s own "`DS` may be
+  `A000` during IRQ" caveat). Found the unit-type table (Brave family's
+  known `0x38` flags, 4-in-a-row at stride `0xe`) at the same file offset
+  in 3 independent saves. Decoded and cross-checked against `NAMES.TXT`
+  `@UNIT`/`ColonizeUnitType`, 23/23 exact for every field this formula
+  actually reads: `DS:0x5236` (entry gate) = **`attack`**
+  (`ColonizeUnitType.attack`), `DS:0x5239` (`cVar9` divisor) = **`cost`**
+  (`ColonizeUnitType.cost`), `DS:0x523d` flags already known. For Braves
+  specifically (this file's whole documented scope): gate open (attack
+  `1`), divisor trivially `1` (cost `1`). **This one literal-address
+  table family is fully closed** — but `iVar14`/`iVar18` (the two
+  `FUN_281f_08bc()` calls also feeding `iStack_e8`'s formula) are a
+  *different* piece, the generic field-index accessor shared with
+  **T1.1**'s own still-open blocker, not resolved by this. Full trace:
+  `quiet_brave_scoring.c`'s 2026-08-21 update.
 
 - [ ] **T1.10 — Resolve `DS:0x945a` / `FUN_1d1d_0ec6` division (profession/
   dock query family).** New, split out of **T2.1**'s 2026-08-20 finding.
