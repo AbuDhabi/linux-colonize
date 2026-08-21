@@ -489,7 +489,9 @@ leftover FF KINGGALLEON2, deep `20e6`).
   initial broader fix that gated the whole function ate satellites' RNG
   draws there too and desynced the LCG stream, breaking `TURN6→7`
   `relation_by_indian` instead. Golden now passes TURN1→2 but fails at
-  **TURN2→3**: `tribe.value` (DOS `+4`, "founding worth") is compared
+  **TURN2→3**: `tribe.value` (DOS `+4`, decompiler-named "founding worth"
+  but really a per-turn growth-threshold field — see T4.2's note, no new
+  villages get founded mid-game) is compared
   against a **live** `FUN_41f2_0294(param_1)` call each turn (raw decomp,
   `viceroy_unpacked.c:81387-81460`) — not the flat `population < 15` (later
   `< worth_cap_stub`) this port has always used; `FUN_41f2_0294` itself is a
