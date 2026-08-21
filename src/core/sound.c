@@ -233,7 +233,7 @@ typedef struct {
 } SoundTrackState;
 
 static void sound_decode_tracks(
-  SoundSong* song, const uint8_t* ds_img, size_t ds_size, uint16_t* track_offs, int track_count
+  SoundSong* song, uint8_t* ds_img, size_t ds_size, uint16_t* track_offs, int track_count
 ) {
   if (!song || !ds_img || ds_size == 0 || track_count == 0) return;
 
@@ -369,6 +369,41 @@ static void sound_decode_tracks(
         pos += 2;
         break;
       case 0xC4: {
+        /*
+         * "Call [imm16]" through a data-embedded code pointer (FUN_1000_01d6
+         * → indirect call). Ghidra never resolved the callee (only reached
+         * via this trick), so it shows as raw bytes in gsound.asm. Verified
+         * by hand with ndisasm at image offset 0x2c66 (the only callee seen
+         * across the A/B corpus): mov bx,0x3532; call <PRNG>; and ax,4; jz;
+         * xchg bl,bh; then poke BL/BH into 4 fixed image offsets that are
+         * themselves the note bytes of the instructions right after this
+         * one — i.e. "pick 0x32 or 0x35 at random, patch it into the notes
+         * about to be played" (a drone/trill flourish), not code we can run.
+         * Only fire on that exact, verified byte signature; anything else
+         * at the callee address falls through to the old safe no-op skip.
+         */
+        if (pos + 2 < ds_size) {
+          /* The 2-byte operand is a CS-relative code address (image offset,
+           * not DS-relative like the track stream) — the callee lives
+           * outside the DS window the interpreter otherwise reads through. */
+          const uint16_t target = (uint16_t)(ds_img[pos + 1] | ((uint16_t)ds_img[pos + 2] << 8));
+          const uint8_t* img_full = ds_img - g_sound.ds_base;
+          if ((size_t)target + 2 < g_sound.gsound_img_size && img_full[target] == 0xBB &&
+              img_full[target + 1] == 0x32 && img_full[target + 2] == 0x35) {
+            uint8_t lo = 0x32, hi = 0x35;
+            if (rand() & 4) {
+              const uint8_t t = lo;
+              lo = hi;
+              hi = t;
+            }
+            static const uint16_t k_pokes_lo[] = {0x2d47, 0x2d76};
+            static const uint16_t k_pokes_hi[] = {0x2d72, 0x2d4b};
+            for (size_t i = 0; i < 2; ++i) {
+              if (k_pokes_lo[i] < ds_size) ds_img[k_pokes_lo[i]] = lo;
+              if (k_pokes_hi[i] < ds_size) ds_img[k_pokes_hi[i]] = hi;
+            }
+          }
+        }
         pos += 3;
         break;
       }
@@ -895,13 +930,13 @@ static void sound_finalize_song_events(SoundSong* song) {
 
 /* FUN_1000_19bc tables: BGM at 0x2A6E (ids 0x20..), event at 0x2AC4 (ids 0x40..). */
 static void sound_load_id_table(
-  const uint8_t* img,
+  uint8_t* img,
   size_t img_size,
   uint32_t table_off,
   int id_lo,
   int id_hi
 ) {
-  const uint8_t* ds_img = img + g_sound.ds_base;
+  uint8_t* ds_img = img + g_sound.ds_base;
   const size_t ds_size = img_size - g_sound.ds_base;
   for (int id = id_lo; id <= id_hi && g_sound.song_count < SOUND_MAX_SONGS; ++id) {
     const int idx = id - id_lo;
@@ -989,7 +1024,7 @@ static bool sound_load_gsound(const char* data_dir) {
     return false;
   }
 
-  const uint8_t* img = g_sound.gsound_img;
+  uint8_t* img = g_sound.gsound_img;
   const size_t img_size = g_sound.gsound_img_size;
   uint16_t bgm_max = 0x3f;
   if (SOUND_GSOUND_BGM_BOUND + 2 <= img_size) {
