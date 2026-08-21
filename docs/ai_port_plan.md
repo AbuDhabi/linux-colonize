@@ -452,6 +452,61 @@ treat all of T1.1 as stuck. Also fixed a stale cross-reference in T1.13
   are still the safer next slice if resumed, though the behavioral gap
   they'd close is already covered by `ai_euro_land_try_adjacent_village_seize`
   above (byte-fidelity item, not a functional hole).
+  **2026-08-21 — both remaining unknowns resolved by direct disassembly,
+  zero unnamed fields left in case 3.** `FUN_1000_84fc` force-decompiled
+  (Ghidra headless, `1000:84fc`): it's an unpatched RTLink thunk whose
+  real target (`FUN_0000_5ea0`) only reads 2 of the 3 pushed args — the
+  "mode"/"dialog" argument every caller passes (including case 3's `0` vs.
+  everyone else's `0x181f`) is dead, never read. Resolves the "mismatched
+  pairing" worry directly: real shape is a flat `table[nation_b][a]` word
+  read at `DS:0x5b1c` — a stored relation value, independently confirming
+  `ai.c`'s own pre-existing "`FUN_281f_030c` relation get ->
+  `ai_diplo_indian_relation`" comment from the opposite direction.
+  `DS:0x8d52` (`VICEROY_DS_CUR_INDIAN_ALT`) confirmed as "current Indian
+  nation" with no special case-3 meaning, once the dead-arg confusion is
+  cleared. Bonus find: the tribe`+5` semantic caveat this row's
+  2026-08-20 entries carried forward from `settlement_record_8d4a.md` is
+  also closed — `+5` on a *tribe* record isn't the colony-record owner-
+  nibble rule at all, it's `ColonizeCol1Tribe.mission`'s exact encoding
+  (already implemented in `col1_save.h`), confirmed via `ai.c`'s own
+  resolved-symbol header comment (present in-tree, just never cross-
+  referenced into this function before) plus a structural proof (the
+  comparison variable is provably a 0-3 Euro nation id, incompatible with
+  the colony-record nibble convention). Full decoded formula and the
+  `FUN_1000_8b24` housekeeping-call resolution (also disassembled, a
+  moves-cache refresh with no Linux counterpart to port): see
+  `indian_settlement_4528.md`'s 2026-08-21 update. **Still not wired** —
+  what's left is a caller-integration question, not RE: `FUN_4d56_4528`
+  fires from generic move-foreign/contact handling (any unit's move
+  landing near/on a village), a different trigger than the deliberate
+  attack decision `ai_euro_land_try_adjacent_village_seize` covers, so
+  the "functional gap already closed" note above may not actually apply
+  to case 3 specifically — needs checking where Linux's move-resolution
+  handles a unit stepping onto/adjacent to a native village before
+  writing any `src/` change, not assumed. Doc-only this pass, `ctest` not
+  re-run (no `.c` touched).
+  **2026-08-21, same pass — checked, and the gap is real, not covered.**
+  `ai_contact_try_village_raid_warn` (`ai_contact.c:802`, the Linux home
+  of `4528`'s human-warn head, already cited above) is called from exactly
+  one place: `game_try_unit_move` (`game_loop.c:4581`), the **human**
+  move-input handler — gated on nothing AI-reachable, and the function
+  itself early-returns via `ai_contact_euro_is_human()`. AI unit moves go
+  through `units_advance_goto_one_step`/`units_try_move` directly, which
+  never call it. `ai_euro_land_try_adjacent_village_seize` is a distinct,
+  deliberate "attack an adjacent undefended war-target village" AI
+  action evaluated during move-scoring — it does not fire from a unit's
+  *move landing on/near* a village tile the way `4528` does, and doesn't
+  cover the peaceful/mixed-relation cases (1/4/5/6/8) at all. **Net: for
+  AI-controlled units, `4528`'s whole mechanic — not just case 3 — is
+  currently unmodeled**, a genuine functional gap, not the fidelity-only
+  polish the 2026-08-20 note assumed. Real scope if resumed: decide
+  whether an AI unit stepping onto/adjacent to a village should get an
+  auto-decided equivalent of the human Attack/Leave choice (using this
+  session's now-fully-decoded case-3 formula for the "mission-aware"
+  outcome, cases 1/4/5/6/8/9 for the rest) — an architecture question
+  (where in `ai_euro.c`/`units.c` AI move execution should hook this) as
+  much as a formula-porting one. Not attempted — flagging precisely
+  scoped, not guessed at.
 
 - [ ] **T1.8 — `FUN_6662_0f74` pathfinding subsystem.** Confirmed clean but
   large: `0015bc`/`0015c1` are two separate BFS flood-fill searches (16×16
