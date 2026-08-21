@@ -918,6 +918,19 @@ but don't resume speculatively either.
   assumptions to multi-turn loops (method note: "existing unit test
   usually encodes the old behavior" — exactly that here). Full `ctest`
   41/41 green (4 golden AI suites still Disabled per `T3.3`, unaffected).
+  **2026-08-21 addendum — rest of the record decoded, no live session
+  needed.** Turns out every `dosbox-x-dumps/*` save already carries this
+  whole table (`HDR=0x88` for the `Memory` blob, not `parse_0e52_dump.py`'s
+  `8` — different build/segment), byte-identical across 19 unrelated
+  captures for terrain classes `0..28`. Full 16-byte layout, including the
+  long-sought `DS:0x2f7b` field-yield base table (`+5..+13` of this same
+  record — resolves `terrain_yields.md`'s "not present in the decompile"
+  note) and two newly-real-but-undecoded columns (`+3`, `+4`), written up
+  in `terrain_yields.md` under "DS:0x2f76 terrain-class record". Method
+  note for next time: check the existing `dosbox-x-dumps/` saves for a
+  byte-pattern match before asking the user for a fresh capture — full
+  static-memory RAM images may already have what's needed, and are more
+  reliable than a live paste for wide table ranges.
 
 - [ ] **T4.2 — `FUN_41f2_0294` (village founding-worth cap) semantics.**
   Confirmed decompiler-corrupted (no recovered stack frame, `(void)`
