@@ -507,6 +507,32 @@ treat all of T1.1 as stuck. Also fixed a stale cross-reference in T1.13
   (where in `ai_euro.c`/`units.c` AI move execution should hook this) as
   much as a formula-porting one. Not attempted — flagging precisely
   scoped, not guessed at.
+  **2026-08-21, later same day — corrected: the row above was wrong about
+  which side has the gap.** Dug into `4528`'s own `0x543f` polarity (the
+  byte gating the mechanical `switch(unit_type)` block vs. the narration-
+  only block) and found this doc's own long-standing framing had it
+  backwards — real polarity is `0`=AI, `1`=human (cross-confirmed against
+  the actual DOS per-nation turn dispatcher, `viceroy_unpacked.c:6395-
+  6421`, plus `ai_king.c`/`ai_diplo.c`'s pre-existing agreeing comments).
+  Once corrected: the mechanical Attack/Speak-to-Chief/Mission/Learn-
+  Skill/Trade dispatch (all of cases 1/3/4/5/0xb/0xc, including this
+  row's own fully-decoded case 3) is DOS's **human**-only path, and
+  traced what the AI-controlled branch does instead (`FUN_1000_935a`'s
+  non-blocking exit route, `FUN_6f74_248e`) — a plain window-redraw-and-
+  dispose with no selection/scoring logic at all. **DOS's own AI gets no
+  mechanical effect from this function either.** So Linux isn't missing
+  anything DOS-faithful here: `ai_contact_try_village_raid_warn`/
+  `ai_contact_try_village_meet` (human-only) are correctly scoped, and
+  `ai_euro_land_try_adjacent_village_seize` (a deliberate Linux-side
+  stand-in for "how AI ever attacks a village," not a literal port of
+  this switch) is the right shape of answer, not a compromise. No `src/`
+  change from this — full trace and the doc-prose fix (several passages
+  literally said "if human Euro" for the AI-only branch):
+  `indian_settlement_4528.md`'s 2026-08-21 section, added right after
+  the file header so it can't be missed. T1.7 has nothing further to do;
+  treating as closed for practical purposes even though the checkbox
+  above stays unchecked (the case-3 formula and this correction are the
+  full extent of what's decodable/needed here).
 
 - [ ] **T1.8 — `FUN_6662_0f74` pathfinding subsystem.** Confirmed clean but
   large: `0015bc`/`0015c1` are two separate BFS flood-fill searches (16×16
