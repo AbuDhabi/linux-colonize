@@ -508,8 +508,8 @@ treat all of T1.1 as stuck. Also fixed a stale cross-reference in T1.13
   shadow entry after each committed step. Full `ctest` 40/40 green. Full
   trace: `euro_unit_act.md`'s 2026-08-20 update. Flood-fills
   (`0015bc`/`0015c1`) still untouched, still the big remaining lift; the
-  8-neighbor score formula's toughness term stays blocked on `0x2f76`
-  (`T4.1`) regardless.
+  8-neighbor score formula's toughness term stayed blocked on `0x2f76`
+  (`T4.1`) at the time (resolved 2026-08-21, see this row's tail below).
   **2026-08-20, later same day — re-checked `units.c` directly, "big
   remaining lift" needs a real caveat, not a full retraction.**
   `units_flood_next_step`/`units_bfs_next_step` (`units.c`) already
@@ -531,6 +531,21 @@ treat all of T1.1 as stuck. Also fixed a stale cross-reference in T1.13
   implied. `0009ae`/`000000` stay untouched — no evidence either is
   needed for anything currently unblocked. Lowering this row's priority
   accordingly; not resumed further this pass.
+  **2026-08-21 — the terrain-table capture unblocked the toughness term,
+  wired.** `terrain_yields.md`'s full `DS:0x2f76` decode (that day) covers
+  offset +0, the exact byte `0f74`'s scored-fallback tail reads. Re-read
+  `FUN_6662_0f74`'s tail directly (`viceroy_unpacked.c:104652-104720`,
+  not just the prose summary above — real formula: `penalty +
+  chebyshev(cand,goal)*4 + manhattan(cand,goal)*5`, `penalty` = 3 if the
+  unit's max MP <2 else `terrain_cost[candidate]*3`; also picked up an
+  AI-only non-worsening-move filter, `bVar27`/`DS:0x543f`, previously
+  unmentioned in this row). Wired in `units_greedy_next_step`
+  (`units.c`) via the already-existing `map_dos_terr_cost_byte()`
+  accessor and the existing `g_units_combat_human_nation` module cache
+  (no new parameter threaded through `units_next_goto_step`'s 16+ call
+  sites). Full `ctest` 41/41 green. Full trace: `euro_unit_act.md`'s
+  2026-08-21 update. Flood-fills (`0015bc`/`0015c1`) still untouched —
+  unaffected by this, stays optional fidelity polish per the note above.
 
 - [ ] **T1.9 — Indian mid-game quiet scoring (goods/missions/capital
   pull) formula mapping.** R2 used to flag this as blocked on "a

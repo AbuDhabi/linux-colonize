@@ -346,8 +346,26 @@ right after it commits a step, covering all three of
 `units_next_goto_step`'s tiers (not just the fallback tier the wiggle
 check itself lives in), matching DOS's own single write-on-every-exit
 shape. Full `ctest` 40/40 green. The 8-neighbor scoring formula's own
-toughness term stays blocked on `0x2f76` (`T4.1`) regardless — only the
+toughness term stayed blocked on `0x2f76` (`T4.1`) at the time — only the
 wiggle-retry shipped, not the full byte-exact score formula.
+
+**2026-08-21 — full score formula wired, now that `T4.1`'s terrain-table
+capture covers `0x2f76` offset +0.** Re-read `FUN_6662_0f74`'s tail
+directly (`viceroy_unpacked.c:104652-104720`) rather than trusting this
+doc's own prose summary above, which undersold the distance term — real
+formula per candidate is `penalty + chebyshev(cand,goal)*4 +
+manhattan(cand,goal)*5`, not `chebyshev*4 + |dx|+|dy|` (the raw code's
+`iVar26*4 + uVar25+uVar24` folds a second manhattan term in beyond what
+the prose captured). `penalty` is `3` if the unit's max MP (`FUN_281f_090c`,
+already resolved as "max MP" per `move_scoring_land.md`) is `<2`, else
+`map_dos_terr_cost_byte(candidate_terrain)*3`. Also ported the AI-only
+non-worsening-move filter (`bVar27`, `DS:0x543f` per-nation human flag —
+skip a candidate whose chebyshev+manhattan-to-goal is worse than staying,
+unless the unit belongs to the human nation) via the existing
+`g_units_combat_human_nation` module-static cache in `units.c` (same
+pattern `units_can_show_combat_report` etc. already use), rather than
+threading a new parameter through `units_next_goto_step`'s 16+ call
+sites. Wired in `units_greedy_next_step`. Full `ctest` 41/41 green.
 
 **2026-08-20, later same day (T1.8 re-check) — confirmed `units.c`'s
 flood-fill substitute is real and already ships, with one caveat.**

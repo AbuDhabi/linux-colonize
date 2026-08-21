@@ -4596,7 +4596,28 @@ static bool units_greedy_next_step(
     }
   }
   if (best_x < 0) {
-    /* Full 8-neighbor fallback. */
+    /*
+     * Full 8-neighbor fallback (FUN_6662_0f74's own scored tail,
+     * viceroy_unpacked.c:104652-104720 — transcribed byte-exact, not the
+     * `move_scoring_20e6_full.md` prose summary, which undersold the
+     * distance term). Per-candidate:
+     *   score = penalty + chebyshev(cand,goal)*4 + manhattan(cand,goal)*5
+     * where penalty = 3 if the unit's max MP < 2 (`FUN_281f_090c`),
+     * else terrain_cost[candidate_terrain]*3 (DS:0x2f76 offset +0 —
+     * `map_dos_terr_cost_byte`, unblocked by the 2026-08-21 terrain-table
+     * capture, `T4.1`/`terrain_yields.md`). AI-owned units (not the human
+     * nation) additionally skip any candidate that doesn't improve or hold
+     * (chebyshev+manhattan to goal) vs. the unit's current position —
+     * `bVar27`'s `DS:0x543f` per-nation human-flag gate; reused via the
+     * existing `g_units_combat_human_nation` module cache rather than
+     * threading a new parameter through 16+ call sites.
+     */
+    const ColonizeUnitType* type = units_type(pool, u->type_index);
+    const int max_mp = type && type->movement > 0 ? type->movement : 1;
+    const bool is_human_unit =
+      g_units_combat_human_nation >= 0 && u->nation_id == g_units_combat_human_nation;
+    const int cheb_cur = units_chebyshev(u->x, u->y, gx, gy);
+    const int manh_cur = abs(gx - u->x) + abs(gy - u->y);
     for (int dy = -1; dy <= 1; ++dy) {
       for (int dx = -1; dx <= 1; ++dx) {
         if (dx == 0 && dy == 0) {
@@ -4604,6 +4625,11 @@ static bool units_greedy_next_step(
         }
         const int nx = u->x + dx;
         const int ny = u->y + dy;
+        const int cheb_cand = units_chebyshev(nx, ny, gx, gy);
+        const int manh_cand = abs(gx - nx) + abs(gy - ny);
+        if (!is_human_unit && cheb_cand + manh_cand > cheb_cur + manh_cur) {
+          continue;
+        }
         if (!units_can_enter(pool, u->type_index, map, nx, ny, unit_id, colonies)) {
           continue;
         }
@@ -4611,7 +4637,9 @@ static bool units_greedy_next_step(
         if (!units_can_afford_move_cost(pool, unit_id, step_cost)) {
           continue;
         }
-        const int score = units_octile(nx, ny, gx, gy) * 10 + step_cost;
+        const int penalty =
+          max_mp < 2 ? 3 : map_dos_terr_cost_byte(map_dos_terr_class_at(map, nx, ny)) * 3;
+        const int score = penalty + cheb_cand * 4 + manh_cand * 5;
         if (score < best_score) {
           best_score = score;
           best_x = nx;
