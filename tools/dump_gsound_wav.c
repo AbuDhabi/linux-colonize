@@ -354,6 +354,23 @@ static bool write_midi_type0(const char* path, int song_id) {
   return true;
 }
 
+static void dump_events_csv(int song_id) {
+  int events = 0;
+  if (!sound_gsound_song_stats(song_id, &events, NULL, NULL, NULL, NULL, NULL)) {
+    return;
+  }
+  for (int i = 0; i < events; ++i) {
+    uint32_t tick = 0;
+    uint8_t status = 0, d1 = 0, d2 = 0, ch = 0;
+    if (!sound_gsound_event_at(song_id, i, &tick, &status, &d1, &d2, &ch)) {
+      break;
+    }
+    fprintf(
+      stdout, "%.4f,0x%02x,%u,%u,%u\n", (double)tick / DUMP_TICK_HZ, status, d1, d2, ch
+    );
+  }
+}
+
 static double rms_s16_stereo(const int16_t* interleaved, int frames) {
   long double acc = 0.0;
   const int n = frames * 2;
@@ -412,6 +429,7 @@ int main(int argc, char** argv) {
   const char* out_dir = "./ripped_sound";
   int forced_seconds = 0;
   bool want_midi = false;
+  bool want_csv = false;
   bool rename_only = false;
   bool ab_mode = false;
   int songs[64];
@@ -435,6 +453,8 @@ int main(int argc, char** argv) {
       rename_only = true;
     } else if (strcmp(argv[i], "--ab") == 0) {
       ab_mode = true;
+    } else if (strcmp(argv[i], "--csv") == 0) {
+      want_csv = true;
     } else if (argv[i][0] == '-') {
       fprintf(stderr, "unknown flag %s\n", argv[i]);
       return 1;
@@ -556,6 +576,15 @@ int main(int argc, char** argv) {
     fprintf(stderr, "no songs to dump\n");
     sound_shutdown();
     return 1;
+  }
+
+  if (want_csv) {
+    for (int s = 0; s < song_count; ++s) {
+      dump_events_csv(songs[s]);
+    }
+    sound_shutdown();
+    diag_shutdown();
+    return 0;
   }
 
   mkdir(out_dir, 0755);
