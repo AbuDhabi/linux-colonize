@@ -568,13 +568,110 @@ file:
   file's own header (`!(euro_diplo & 0x20): @DONTKNOWSHIPS`, line ~32) and
   in `indian_incite_417e.md` ("`&0x20` bit gates... 'peaceful enough'") —
   not a new unknown, just not cross-referenced into this section before.
-**Still genuinely open**: `FUN_1000_84fc(0,*(undefined2*)0x8d52,*(undefined2*)0x5398)`
-itself (called as `(mode, a, b)` here with `a`=`DS:0x8d52` — likely a
-coordinate, not yet independently confirmed — and `b`=a *nation id*,
-`FOCUS_NATION` — a mismatched-looking argument pairing worth resolving
-before trusting a "distance" guess) and the tribe-record pair at
-`uStack_6a*0x13c + -0x77cc`/`-0x77ce` inside the nested `if`. **Don't port
-case 3 yet** — two more unnamed pieces than this doc previously implied;
-this pass only narrowed which two. Cases 1/4/5/6/7/8/9 (no `84fc`/`8d52`
-dependency) remain the safer/smaller port if anyone picks this up next,
-same as already noted above.
+**2026-08-21 — both remaining pieces resolved, plus the tribe`+5` semantic
+caveat closed too. Case 3's full entry gate and mission-check tail are now
+completely decoded.**
+
+- **`FUN_1000_84fc` itself, resolved by direct disassembly (Ghidra
+  headless, `OverlayTest` project, `1000:84fc`), not by more cross-doc
+  guessing.** It's an unpatched RTLink thunk (`FUN_1000_1e61()` loader +
+  `FUN_0000_5ea0()` landing call — same shape this project's method notes
+  already flag), and the real target is trivial:
+  ```c
+  undefined2 FUN_0000_5ea0(int param_1, int param_2) {
+    return *(undefined2 *)((param_1 * 0x27 + param_2) * 2 + 0x5b1c);
+  }
+  ```
+  a flat 2D word-table read, stride `0x27` (39), base `DS:0x5b1c` — **and
+  it only has 2 formal parameters.** `__cdecl` pushes right-to-left, so
+  the 3rd (leftmost, "mode"/"dialog") argument every caller passes is
+  never read by the real function at all — it's dead, full stop. This
+  resolves the "mismatched-looking argument pairing" worry directly: mode
+  `0` (this doc's case 3) vs. `0x181f` (every other caller) makes zero
+  difference, because neither value is ever consulted. `param_1`/`param_2`
+  map to the *last two* source arguments (nearest the return address) —
+  i.e. `table[b_nation][a]`. This is a **stored relation value**, matching
+  `ai.c`'s own already-existing resolved-symbol comment ("`FUN_281f_030c`
+  relation get -> `ai_diplo_indian_relation`" — `FUN_281f_030c` is the
+  overlay thunk to this same `FUN_1000_84fc`, per `address_mapping.csv`),
+  not a fresh discovery so much as independent confirmation from the
+  opposite direction (byte-level disassembly instead of caller-pattern
+  matching).
+- **`DS:0x8d52` (`VICEROY_DS_CUR_INDIAN_ALT`) confirmed, not a
+  coordinate.** With `84fc`'s dead-mode-arg resolved, the "mismatched
+  pairing" concern evaporates — `*(undefined2*)0x8d52` is used identically
+  as the "current Indian nation" argument at *every* `FUN_1000_84fc` call
+  site project-wide (`indian_trade_2820.md`, `move_scoring_20e6_full.md`,
+  `euro_goal_orders_0a60_full.md`), and case 3's own call is no exception,
+  no special-cased 3rd meaning. Reads as `ai_diplo_indian_relation(this
+  village's tribe, crown_nation)` — is this tribe's standing with the
+  crown-favored nation currently bad (`<0x4b`/75).
+- **The tribe`+5` semantic caveat — closed, not just narrowed.** Traced
+  where `*(char*)(*(int*)0x8d4a+5)` is actually compared against in this
+  function: line ~186/223 read the *same* `0x8d4a`-selected record's `+10`
+  word as `*(int*)(0x8d4a_ptr + uStack_6a*2 + 10)`, gated on
+  `(int)uStack_6a < 4` — i.e. `uStack_6a` is provably a **Euro nation id,
+  0-3** (it indexes a 4-slot array), not a nibble-range colony/tribe
+  distinction. `settlement_record_8d4a.md`'s own "≤3 Euro / >3 native"
+  owner-nibble rule is for *colony* records (from `FUN_4d56_00e0`'s
+  delete-reindex evidence) — applying it to a *village's own* `+5` would
+  make `(nibble & 0xf) == uStack_6a` (line 355) structurally unsatisfiable
+  (a village's nibble would sit >3, `uStack_6a` is always <4), i.e. dead
+  code, which doesn't fit this function's otherwise-clean, non-corrupted
+  body. Resolved by checking `ai.c`'s own resolved-symbol header comment
+  (already in the tree, just not cross-referenced into this file before):
+  **`+5` on a *tribe* record is a completely different encoding than on a
+  *colony* record** — "nibble = euro nation with a mission here / `-1`
+  none, bit `0x10` = Jesuit" — exactly `ColonizeCol1Tribe.mission` in
+  `col1_save.h` (`0xff` none, else low nibble = Euro nation 0-3, bit
+  `0x10` = Jesuit-grade). `*(char*)(...+5) < '\0'` (line 349) is precisely
+  "mission byte's sign bit set," i.e. `mission == 0xff` as a *signed*
+  read — **exact bit-for-bit match** to Linux's own `COL1_TRIBE_MISSION_NONE`
+  encoding, already implemented, not a guess.
+- **`FUN_1000_8b24` (called before `return 1`, line 418) — also
+  disassembled directly, confirmed harmless bookkeeping, nothing to
+  port.** Same RTLink-thunk shape (`FUN_1000_1e61()` + `FUN_0000_57ce()`);
+  the real target recomputes and writes `unit+0x3149` (moves-spent byte)
+  from a per-unit-type max-MP table (`DS:0x5234`, stride `0xe` — the same
+  table family **T1.9** flagged as a "real wall" for a *different*
+  investigation; no conflict, this call only *reads* it) plus a Founding-
+  Father-gated ship-speed bonus. A stat-cache refresh, not a narration or
+  popup call — Linux's unit model computes MP live from `type->movement`
+  with no equivalent cache to refresh, so this call has no Linux
+  counterpart to write.
+
+**Full decoded case 3, now unambiguous:**
+```
+relation   = ai_diplo_indian_relation(this_tribe, crown_nation)   // 84fc(0/0x181f, CUR_INDIAN_ALT, crown_nation) — mode is dead
+met        = diplo_flags(focus_nation, tribe) & 0x20              // already-documented "met" bit
+poorer     = wealth_rank[acting_euro_nation] < wealth_rank[focus_nation]
+if (relation < 0x4b && met && poorer) {
+  gold = nation[acting_euro_nation].gold                          // -0x77cc/-0x77ce, already-known field
+  if (gold >= 0 && (gold > 0 || nation[...].gold_lo > 0x5db)
+      && (rng_roll(1-in-4) != 0 || tribe.mission != NONE)) {
+    outcome = 7   // "mission-eligible or unlucky roll" path
+  }
+}
+if (outcome unset) {
+  if (tribe.mission == NONE)                        outcome = 3
+  else if ((tribe.mission & 0xf) == acting_euro_nation) goto default  // this nation already has the mission here
+  else                                               outcome = 4
+}
+```
+Outcomes only ever produce the caller-visible return code **1** (outcomes
+4/5/6/7/8, notify via the now-resolved `8b24` moves-refresh, no port
+needed) or **2** (outcome 3 only, tribe has no mission at all — a
+stronger abort signal) or **0** (outcome 9, "continue"). The 8 case-
+specific `thunk_FUN_1000_a5xx` calls (already established above as a
+shared generic bookkeeping stub, not per-case action code) don't change
+this. **Net: case 3 is now fully decodable, zero remaining unnamed
+fields.** Not wired this pass — the real remaining question is a caller-
+integration one, not RE: does Linux's `ai_contact_indian_raids` /
+`ai_euro_land_try_adjacent_village_seize` path need (or already
+implicitly have) an equivalent to the 0/1/2 three-way signal, particularly
+whether the mission-owner nation matters to it at all today. Check that
+before writing any `src/` change — a port that ignores the caller side
+risks being structurally right but behaviorally inert or wrong, the same
+"structural ≠ semantic" trap this project's method notes flag repeatedly.
+Cases 1/4/5/6/7/8/9 (no `84fc`/`8d52`/`8d4a+5` dependency) remain
+portable too, same caveat applies to all of them equally now.
