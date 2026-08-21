@@ -10,9 +10,44 @@ Reference for what a map square can produce when worked as a field job (or, for 
 | `FUN_15eb_17fa` / `FUN_15eb_18ec` (`viceroy_unpacked.c` ~11717–11991) | **Authoritative** special-resource effect, expert/convert, lumber ×2, plow/road/river stacking, SoL ± on fields |
 | [`COLONIZE/Colonization.pdf`](../COLONIZE/Colonization.pdf) | Qualitative rules (commons dual-produce, Prime Timber exception, plow/road/river intent). Printed Terrain Chart often **≠** `NAMES` — prefer `NAMES` + decomp |
 | MAPEDIT resource class table (`mapedit_resource_type_by_terrain` in [`map.c`](../src/core/map.c)) | Which special resource **type** a terrain class may roll |
-| Col1 fixtures / [`test_colony_yield.c`](../tests/unit/test_colony_yield.c), `FUN_15eb_1f72` (`viceroy_unpacked.c` ~12474) | Town-commons dual-produce — composer logic read directly, but its base-yield data table (`0x2f7b`) isn't in the decompile; port formula is a **golden-verified approximation**, see [Town commons](#town-commons-colony-center-tile) |
+| Col1 fixtures / [`test_colony_yield.c`](../tests/unit/test_colony_yield.c), `FUN_15eb_1f72` (`viceroy_unpacked.c` ~12474) | Town-commons dual-produce — composer logic read directly; base-yield data table (`0x2f7b`) **located 2026-08-21**, see [DS:0x2f76 terrain-class record](#ds0x2f76-terrain-class-record--full-16-byte-layout-2026-08-21) — confirmed byte-identical to the `NAMES`-sourced table this file already used, so the port formula is **confirmed exact, not just approximated**, see [Town commons](#town-commons-colony-center-tile) |
 
 Pedia / map indices: cleared land **0–7**, forests **8–23** (type = `index & 7`), arctic / ocean / sea lane **24–26**, mountains / hills as classes **27 / 28**.
+
+---
+
+## DS:`0x2f76` terrain-class record — full 16-byte layout (2026-08-21)
+
+The whole record this project had been chasing piecemeal (`map.c`'s
+`k_map_dos_terr_cost`/`k_map_dos_terr_found_score`/`k_map_dos_terr_pioneer_threshold`/
+`k_map_dos_terr_lumber_reward`, plus the separately-cited "`DS 0x2f7b`,
+not present in the decompile" base-yield table `FUN_15eb_18ec`/`FUN_15eb_1f72`
+read for field yields) is **one and the same table**: 32 stride-`0x10` records
+starting `DS:0x2f76`, real terrain classes `0..28` only (`29..31` noisy, not
+trusted — same caveat as before). Found by brute-force byte-pattern search
+across every `dosbox-x-dumps/*` save (19 completely different program states,
+zip'd DOSBox-X `Memory` blobs — `HDR=0x88` not `8`, i.e.
+`file_off = 0x88 + seg*16 + off`, calibrated against the already-known cost
+table since the naive `HDR=8` formula from `tools/brave_dump/parse_0e52_dump.py`
+doesn't hold for this build/segment): rows `0..28` are **byte-identical across
+every save**, confirming genuine static data, not runtime junk. No live
+DOSBox-X session needed for this pass — the existing dumps already had it.
+
+| Offset | Content | Evidence |
+|-------:|---------|----------|
+| `+0x0` | Move cost (`k_map_dos_terr_cost`) | Already wired |
+| `+0x1` | Founding score (`k_map_dos_terr_found_score`) — doubles as combat terrain-defense bonus (`combat_strength.c` reuses this same byte) | Already wired |
+| `+0x2` | Pioneer clear/plow work-turns threshold | Already wired |
+| `+0x3` | **New.** Real decompiled use found: `viceroy_unpacked.c:85807/88865/91539`, an accumulating colony-site desirability score loop over a candidate site's 8 neighbor tiles — adds this byte for a neighbor once a coast/river-type gate (`local_6a`) passes. Reads as a **neighbor-tile contribution to AI colony-founding scoring**, distinct from `+0x1`'s own-tile score. Not decoded to a semantic table (values 0–4) or wired; new backlog item. |
+| `+0x4` | **New.** Real decompiled use found: `viceroy_unpacked.c:3629`, subtracted from a running byte (`pbStack_1e`, floor 1) near Indian-village globals (`0x8542`, `0x8dd2`), with a `+0x18` bonus for forest classes (`8..23`) gated on difficulty `<0xb` — looks like a **terrain-scaled village/growth threshold or food-cost term** (values 7–24, forest classes generally higher). Not decoded further; new backlog item. |
+| `+0x5`..`+0xd` | **The `NAMES.TXT` field-yield grid itself** — Food/Sugar/Tobacco/Cotton/Furs/Lumber/Ore/Silver/Fish (job 0–8), i.e. `+0x5+job`. Confirmed two ways: (1) `viceroy_unpacked.c:11811`/`12553` (`FUN_15eb_18ec`/`FUN_15eb_1f72`) literally compute `job + terrain*0x10 + 0x2f7b`, and `0x2f7b == 0x2f76+5`; (2) the raw bytes at `+5..+13` for every terrain class match this doc's `NAMES.TXT`-sourced tables exactly, cell for cell, including the Hills-food **1** (raw table value — the live "2" some other mechanism applies is confirmed *not* this byte, tightening that open question). **Resolves the "base yield table not present in the decompile" note below** — it's this table, just offset `+5`, not a separate binary blob. |
+| `+0x8` | Also separately wired as `k_map_dos_terr_lumber_reward` (Pioneer clear-forest lumber reward scale) — this is the **same byte as the Cotton-yield column** (`job 3`). Numerically coincidental reuse in DOS (a real, player-confirmed, already-wired behavior for the Pioneer-reward reading of this byte) — not a bug, just two unrelated consumers of one byte. |
+| `+0xe` | **New, partially anomalous.** Looks like an internal type/graphic index: unforested `0..7` → value `idx+3`; forest primary `8..15` and forest-alt `16..23` → value `11+(idx&7)` (i.e. same formula continued) — **except index 15 (Rain Forest, primary)**, which reads `10` (matching Swamp's value) instead of the expected `18`. Index 23 (Rain-alt, same forest *type*) gets the expected `18` — so the anomaly is specific to pedia index 15 itself, a second real DOS quirk on that exact row (the first being the already-documented `k_forested` Rain Food/Sugar `2/2→1/1` table bug in [Town commons](#town-commons-colony-center-tile)). Semantic meaning of the column itself not identified; not wired. |
+| `+0xf` | Zero for every real terrain class (`0..28`) in every save. Likely unused padding — no evidence otherwise. |
+
+Not chased further this pass (would need decoding `+0x3`/`+0x4`'s exact
+formulas against real gameplay data, and identifying what `+0xe` is actually
+for) — flagged as backlog, not blocking anything currently wired.
 
 ---
 
@@ -499,7 +534,7 @@ too, so its road bonus is now `2(base) × 2(unit size) = 4`).
 
 Manual: settlement square **always produces some food and one other commodity**; specials apply **except Prime Timber**. The colony center is *auto-worked* — no colonist assigned, no expert/convert doubling, no docks gate.
 
-**Status:** the real DOS composer (`FUN_15eb_1f72`, `viceroy_unpacked.c` ~12474) has been read directly. Its secondary-commodity logic (river + SoL latch bits, no plow, no flat road) is now wired byte-for-byte; only its per-terrain *base* yield still reuses this file's field-worker tables as a stand-in, since the composer's own base table lives in a separate binary data address (`0x2f7b`, indexed by the same pedia numbering) not present in the decompiled pseudo-C. Confirmed correct against `golden_colony_prod01`/`02` (21 real Dutch colonies, one captured DOS turn each) — including two colonies (Curacao, Paramaribo) where town commons is that colony's *only* source of its secondary cargo, so those two checks pin the formula with zero free parameters. One data-table bug this pass also turned up and fixed: `k_forested`'s Rain row had Food/Sugar = 2/2; `NAMES.TXT` says 1/1, and Paramaribo's real capture (isolating the Rum Distiller's exact consumption) independently confirmed 1/1 — the table constant was wrong, not the formula.
+**Status:** the real DOS composer (`FUN_15eb_1f72`, `viceroy_unpacked.c` ~12474) has been read directly. Its secondary-commodity logic (river + SoL latch bits, no plow, no flat road) is now wired byte-for-byte; its per-terrain *base* yield reuses this file's field-worker tables as a stand-in — **2026-08-21: confirmed this isn't just a stand-in.** The composer's own base table (`0x2f7b`, indexed by the same pedia numbering) is **`DS:0x2f76+5`**, i.e. columns `+5..+13` of the stride-`0x10` terrain-class record already partly decoded for Pioneer/move-cost data — see [DS:0x2f76 terrain-class record](#ds0x2f76-terrain-class-record--full-16-byte-layout-2026-08-21). Read directly from real RAM (every `dosbox-x-dumps/*` save, not just decompiled pseudo-C) and byte-matched against this file's `NAMES.TXT` tables cell-for-cell. Confirmed correct against `golden_colony_prod01`/`02` (21 real Dutch colonies, one captured DOS turn each) — including two colonies (Curacao, Paramaribo) where town commons is that colony's *only* source of its secondary cargo, so those two checks pin the formula with zero free parameters. One data-table bug this pass also turned up and fixed: `k_forested`'s Rain row had Food/Sugar = 2/2; `NAMES.TXT` says 1/1, and Paramaribo's real capture (isolating the Rum Distiller's exact consumption) independently confirmed 1/1 — the table constant was wrong, not the formula.
 
 ### Food
 
@@ -602,7 +637,7 @@ Printed chart often shows post-modifier lumber (e.g. Plains forested lumber **6*
 | Fisherman distance modifier | Yes (`FUN_15eb_173e`) | **2026-08-15 fix** — real 3-case ladder confirmed from raw asm, ported |
 | Fisherman needs Docks | Yes, zeroes yield outright | **2026-08-15 fix** — `colony_yield_for_worker` gained a `has_docks` param, threaded from every production/preview/badge caller (`turn.c`, `colony_preview.c`, `colony_screen.c` area overlay + jobs popup) |
 | SoL mod: AI zero-out | Zeroed outright for AI (strong, cross-validated hypothesis — see manufacturing_worker_calc_1d4c.md) | **2026-08-15 fix** — `colony_prod_sol_bonus_field` (new function), wired into both field-yield call sites (`turn.c`, `colony_preview.c`); building contexts (craft/bells/crosses/hammers) keep the shared `colony_prod_sol_bonus`, unaffected |
-| Town commons | Peel pending | Fixture formula |
+| Town commons | Base-yield table now located (`DS:0x2f76+5`, 2026-08-21) — confirmed match | Fixture formula, now confirmed exact not approximated |
 
 ---
 
