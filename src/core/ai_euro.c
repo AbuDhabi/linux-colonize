@@ -7473,6 +7473,44 @@ static int ai_euro_5d04_ship_buy_ladder(
  *     call-site bytes specifically (not a plain address/symbol lookup on
  *     either canonical name) — not done this pass either. Genuinely
  *     still open.
+ *     **2026-08-21 — resolved, correcting the retraction above.** Traced
+ *     the call from `5d04`'s own side this time (not `FUN_291f_0b26`'s
+ *     symbol at all): force-decompiling `OVL14_L0000:5d04` fresh shows
+ *     the real call as `FUN_1000_9d16(byte)` directly — a different,
+ *     resident-only thunk than `FUN_291f_0b26`'s (that symbol was simply
+ *     the wrong lead the whole time, both this pass and the ones above
+ *     chased it needlessly). `tools/GhidraDisasmExact.java` at
+ *     `0000:19d16` (**not** the address the retraction above cites —
+ *     that citation itself was mistaken, reproducibly re-checked twice
+ *     this pass, deterministic, disassembly and a raw byte dump agree
+ *     exactly) shows: `CALLF FUN_1000_1e7b; JMPF 0x0000:0718` — the
+ *     usual loader-guard shape, unpatched placeholder segment `0000`
+ *     (garbage, as expected pre-patch — confirmed dead by trying to
+ *     force a function there: fails, lands mid-body of something else),
+ *     but **offset `0718` survives unpatched and matches
+ *     `FUN_38fd_0718` exactly** — RTLink only rewrites the segment half
+ *     of a far pointer at load time, not the offset, so a raw
+ *     placeholder's offset is real information even when its segment
+ *     isn't. `FUN_38fd_0718` is now confirmed three independent ways:
+ *     (1) canonical decompile — profession-coded `param_1`
+ *     (`0x14`/`0x15`/`0x16`/`0x18` = Pioneer/Soldier/Scout/Missionary per
+ *     `@JOB`), writes `unit+0x314c`/`0x315b`/`0x3159`, calls
+ *     `FUN_281f_095c` to actually place the unit — a real "spawn a unit
+ *     with this profession" routine; (2) independently re-decompiled at
+ *     its own `address_mapping.csv` overlay address
+ *     (`OVL05_L0040:b18`) — byte-for-byte same structure, confirming the
+ *     canonical body isn't corrupted here; (3) the raw offset match
+ *     above. **`FUN_291f_0b26` was always the wrong symbol to chase** —
+ *     the real call site resolves through `FUN_1000_9d16` directly, no
+ *     jump-table ambiguity once traced from `5d04`'s own bytes instead
+ *     of by name. Net: this call spawns a unit with a profession
+ *     RNG-picked from a small menu stored in the crown-record's
+ *     `+2/+3/+4` bytes — reads as a "crown grants a free specialist"
+ *     event, matching **T1.11**'s already-resolved `FUN_38fd_5930`
+ *     sibling event in the same `38fd` overlay. Still not wired live
+ *     (Tier 3 scope, same as the rest of this stub family) — this
+ *     closes the identity question, not the wiring decision. Full
+ *     trace: `ai-5d04-structural-port` memory, 2026-08-21 update.
  * Exact per-call-site argument wiring (which literal DOS `iVar13`/
  * `iVar17`/etc. feeds which stub above, across the ~15 call sites) was
  * not re-traced this pass — the stub bodies below are unchanged (still

@@ -664,7 +664,7 @@ treat all of T1.1 as stuck. Also fixed a stale cross-reference in T1.13
   **T1.1**'s own still-open blocker, not resolved by this. Full trace:
   `quiet_brave_scoring.c`'s 2026-08-21 update.
 
-- [ ] **T1.10 — Resolve `DS:0x945a` / `FUN_1d1d_0ec6` division (profession/
+- [x] **T1.10 — Resolve `DS:0x945a` / `FUN_1d1d_0ec6` division (profession/
   dock query family).** New, split out of **T2.1**'s 2026-08-20 finding.
   `5d04`'s structural hire-ladder tail is inert-by-construction today
   because its two list-iterator stubs always return "none" — resolving
@@ -717,6 +717,37 @@ treat all of T1.1 as stuck. Also fixed a stale cross-reference in T1.13
   or a resident `-1` entry — likely needs reading `rtlink_decode.cpp`'s
   own segment-numbering logic rather than guessing from the JSON.
   `ai-5d04-structural-port` memory. `ctest` green (comment-only change).
+  **2026-08-21 — resolved, item closed. The `291f:0b26`-to-segment-index
+  puzzle above was the wrong question the whole time** — traced the call
+  from `5d04`'s own body instead of from the `FUN_291f_0b26` symbol (that
+  symbol was never actually what `5d04` calls; a coincidental collision
+  every prior pass chased). Force-decompiling `5d04` fresh in the
+  overlay-ground-truth project shows the real call is `FUN_1000_9d16`
+  directly. `GhidraDisasmExact.java` at `0000:19d16` (**re-run twice this
+  pass, deterministic — the earlier retraction's very different raw-byte
+  citation for what it also called this same address was itself
+  mistaken**, not a real second code path) shows `CALLF FUN_1000_1e7b;
+  JMPF 0x0000:0718` — unpatched-placeholder segment `0000` (confirmed
+  dead: no function can be forced there), but the **offset `0718`
+  survives RTLink's patch untouched and matches `FUN_38fd_0718` exactly**
+  (RTLink only ever rewrites a far pointer's segment half at load time,
+  never its offset — a raw placeholder's offset half is real, trustworthy
+  information even before patching). `FUN_38fd_0718` — "spawn a unit with
+  a given profession" (`param_1` = `@JOB` code, e.g. `0x14`=Pioneer,
+  `0x15`=Soldier, `0x16`=Scout, `0x18`=Missionary; writes the
+  already-known `unit+0x314c`/`0x315b`/`0x3159` fields) — now confirmed
+  three independent ways: the canonical decompile itself, a from-scratch
+  redecompile at its own overlay address (`OVL05_L0040:b18`, byte-for-
+  byte matching structure), and the raw offset match above. Net: `5d04`'s
+  block here is a "crown grants a free specialist, RNG-picked from a
+  3-slot menu in the crown record, after a treasury debit" event —
+  sibling to **T1.11**'s already-resolved `FUN_38fd_5930` in the same
+  `38fd` overlay. `T2.1`'s "empty by construction" delta-catalog verdict
+  is unaffected (the hire-ladder tail's stub bodies are still what's
+  live, this only resolves the *identity* the stubs would need if wired)
+  — still Tier 3 scope to actually wire. Full trace: `ai_euro.c`'s stub
+  header comment, `ai-5d04-structural-port` memory 2026-08-21 update.
+  `ctest` 41/41 green (comment-only change).
 
 - [x] **T1.11 — Name the diplomacy accessor bit `0x10` (`peace_bit_0x10`,
   same family as the already-resolved `AI_DIPLO_MET==0x40`).** New, split
