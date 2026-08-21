@@ -871,7 +871,7 @@ memory dump, or hang-dump). Re-verify the blocker is still real (tooling
 moves fast in this project) before asking the user to spend DOSBox-X time —
 but don't resume speculatively either.
 
-- [ ] **T4.1 — `DS:0x2f76..0x2f88`ish terrain-cost/toughness table.**
+- [x] **T4.1 — `DS:0x2f76..0x2f88`ish terrain-cost/toughness table.**
   **2026-08-20: stale, corrected — narrower than stated.** `map.c` already
   carries live captured values for offsets `+0` (`k_map_dos_terr_cost`,
   32 entries, move-cost/toughness term — `0f74`'s toughness deduction
@@ -887,6 +887,37 @@ but don't resume speculatively either.
   not actually blocked on this either. See `euro_unit_act.md` "highest-
   leverage single capture" note (also stale, same correction applies) and
   `map.c:1555` comment.
+  **2026-08-20, same day — live DOSBox-X capture done and wired,
+  item closed.** User captured `DS:0x2f72..0x3175` at runtime segment
+  `237D` across two pastes; cross-checked against the already-known `+0`/
+  `+1` columns (30 values, exact match) to confirm `DS` correctness before
+  trusting the new bytes. All 29 real terrain classes (`0..28`, matching
+  `PEDIA_TERRAIN_COUNT`) decoded for `+2` and `+8`; classes 29–31 (past
+  the real terrain-type count) read noisy/inconsistent, not trusted.
+  Added `k_map_dos_terr_pioneer_threshold[29]`/`k_map_dos_terr_lumber_reward[29]`
+  + accessors (`map_dos_terr_pioneer_threshold_byte`/
+  `map_dos_terr_lumber_reward_byte`) in `map.c`/`map.h`. Wired into
+  `units.c`: `units_pioneer_work_needed` now reads the real `+2` byte
+  (previously approximated with the `+0` move-cost byte — a different
+  table column); the clear-forest lumber reward now uses the real
+  mill-scaled `+8` formula (`scale*20<<hardy`, floor of `1` with no Lumber
+  Mill — a floor, not a gate, corrected from an initial misreading of the
+  raw decompile) instead of a flat `20`, still warehouse-capacity-clamped.
+  **Also fixed three latent AI-dispatcher bugs this surfaced**: because
+  every Pioneer job used to finish in a single tick under the old
+  approximation, nothing had ever exercised a mid-job re-decide — with
+  the real (usually multi-turn) threshold, three separate opportunistic
+  idle-unit reassignment passes in `ai_euro.c` (`ai_euro_unit_act`'s early
+  move-scoring gate, `ai_euro_0a60_goal_orders_structural`'s per-unit
+  goal pick, and `ai_euro_colony_goals`'s "H: light bind" founder loop)
+  would each yank a Pioneer off an in-progress `CLEAR_PLOW`/`BUILD_ROAD`
+  order before it could finish, since none of them checked for those two
+  order codes the way they already checked for "goto" orders. All three
+  now skip a unit mid-improve-job. Five test scenarios across
+  `test_units.c`/`test_ai_euro_expand.c` updated from single-tick
+  assumptions to multi-turn loops (method note: "existing unit test
+  usually encodes the old behavior" — exactly that here). Full `ctest`
+  41/41 green (4 golden AI suites still Disabled per `T3.3`, unaffected).
 
 - [ ] **T4.2 — `FUN_41f2_0294` (village founding-worth cap) semantics.**
   Confirmed decompiler-corrupted (no recovered stack frame, `(void)`

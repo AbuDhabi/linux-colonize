@@ -4878,22 +4878,20 @@ bool units_is_pioneer(const ColonizeUnitPool* pool, int unit_id) {
 #define UNITS_PIONEER_TOOL_COST 20
 
 /*
- * DOS FUN_479b: clear/plow needs terr_cost[class]+2; road needs terr_cost.
- * Hardy Pioneer (profession 20) halves. Cite: viceroy_unpacked FUN_479b_01a6/0526.
+ * DOS FUN_479b_01a6/0526: both clear/plow and road share the same
+ * DS:0x2f78 threshold byte (offset +2 of the terrain-class record) +2.
+ * Hardy Pioneer (profession 20) halves. Cite: viceroy_unpacked
+ * FUN_479b_01a6/0526; live capture 2026-08-20 (was approximated with the
+ * move-cost byte, offset +0, before the real +2 byte was captured).
  */
 static int units_pioneer_work_needed(const ColonizeUnit* u, const ColonizeWorldMap* map, bool road) {
-  int needed = map_dos_terr_cost_byte(map_dos_terr_class_at(map, u->x, u->y));
-  if (needed > 100) {
-    needed = 1;
+  (void)road;
+  int needed = map_dos_terr_pioneer_threshold_byte(map_dos_terr_class_at(map, u->x, u->y)) + 2;
+  if (u->profession == UNITS_JOB_PIONEER) {
+    needed >>= 1;
   }
   if (needed < 1) {
     needed = 1;
-  }
-  if (!road) {
-    needed += 2;
-  }
-  if (u->profession == UNITS_JOB_PIONEER) {
-    needed >>= 1;
   }
   return needed;
 }
@@ -5124,7 +5122,11 @@ bool units_pioneer_work_tick(
       const bool demoted = units_pioneer_wear_tools(pool, u);
       /*
        * FUN_479b_01a6 clear: lumber → nearest same-nation colony + @CLEARCUT.
-       * Thin add=20 (terrain×20 / Hardy×2 PARKED). Cite: CLEARCUT GAME.TXT.
+       * Real formula (was flat 20, PARKED, before the terrain-table byte was
+       * captured 2026-08-20): scale = terrain +8 byte if colony has a Lumber
+       * Mill, else 1 (a floor, not a gate) — add = scale*20, doubled for
+       * Hardy Pioneer, clamped to warehouse room. Cite: viceroy_unpacked
+       * FUN_479b_01a6, live capture 2026-08-20.
        */
       int lumber_add = 0;
       ColonizeColony* near = NULL;
@@ -5142,12 +5144,22 @@ bool units_pioneer_work_tick(
           }
         }
         if (near) {
+          const int lumber_mill = colonies_find_building(colonies, "Lumber Mill");
+          const bool has_mill = lumber_mill >= 0 && near->has_building[lumber_mill];
+          int scale = map_dos_terr_lumber_reward_byte(map_dos_terr_class_at(map, u->x, u->y));
+          if (!has_mill) {
+            scale = 1;
+          }
+          int potential = scale * 20;
+          if (u->profession == UNITS_JOB_PIONEER) {
+            potential *= 2;
+          }
           const int cap = colonies_warehouse_capacity(colonies, near, COLONIZE_CARGO_LUMBER);
           int room = cap - near->stock[COLONIZE_CARGO_LUMBER];
           if (room < 0) {
             room = 0;
           }
-          lumber_add = 20;
+          lumber_add = potential;
           if (lumber_add > room) {
             lumber_add = room;
           }

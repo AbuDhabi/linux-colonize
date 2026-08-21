@@ -1574,6 +1574,36 @@ int map_dos_terr_found_score_byte(int terr_class) {
   return (int)k_map_dos_terr_found_score[terr_class & 31];
 }
 
+/*
+ * DS:0x2f78 Pioneer work-turns threshold byte (offset +2), from a live
+ * memory dump, 2026-08-20 (DS=237D session). Real terrain classes only
+ * span 0..28 (PEDIA_TERRAIN_COUNT) — bytes past that were captured too
+ * but read as noisy/inconsistent (past the real table), so callers clamp
+ * below rather than trust an invented 29..31 fill.
+ */
+static const uint8_t k_map_dos_terr_pioneer_threshold[29] = {
+  4, 3, 3, 3, 3, 3, 5, 7, 4, 4, 4, 4, 4, 6, 6, 7, 4, 4, 4, 4, 4, 6, 6, 7, 4, 2, 2, 7, 4
+};
+
+/* DS:0x2f80 Pioneer clear/plow lumber-reward scale byte (offset +8), same capture. */
+static const uint8_t k_map_dos_terr_lumber_reward[29] = {
+  0, 1, 2, 3, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0
+};
+
+int map_dos_terr_pioneer_threshold_byte(int terr_class) {
+  if (terr_class < 0 || terr_class > 28) {
+    terr_class = 0;
+  }
+  return (int)k_map_dos_terr_pioneer_threshold[terr_class];
+}
+
+int map_dos_terr_lumber_reward_byte(int terr_class) {
+  if (terr_class < 0 || terr_class > 28) {
+    terr_class = 0;
+  }
+  return (int)k_map_dos_terr_lumber_reward[terr_class];
+}
+
 int map_dos_terr_class_at(const ColonizeWorldMap* map, int x, int y) {
   if (!map || x < 0 || y < 0 || x >= map->width || y >= map->height) {
     return 0;

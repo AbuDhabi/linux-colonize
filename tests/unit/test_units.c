@@ -255,14 +255,24 @@ static int unit_useduptools(void) {
 
   char msg[96];
   msg[0] = '\0';
-  if (!units_pioneer_work_tick(
-        &pool, pid, &map, msg, sizeof(msg), NULL, &pops, &game_txt
-      )) {
-    fprintf(stderr, "usedup: work tick failed (%s)\n", msg);
-    assets_msg_free(&game_txt);
-    map_free(&map);
-    assets_msg_free(&names);
-    return 1;
+  /*
+   * Non-Hardy road-turns threshold is the real DS:0x2f78 terrain byte + 2
+   * (5 turns for this test's terrain class, since the live 2026-08-20
+   * capture landed pioneer_threshold[2]=3) — not a single-tick "terr_cost
+   * 1" approximation any more, so drive the tick loop to completion rather
+   * than assuming one call finishes the road.
+   */
+  for (int tick = 0; tick < 10 && u->orders == UNITS_ORDER_BUILD_ROAD; ++tick) {
+    u->moves_left = 1;
+    if (!units_pioneer_work_tick(
+          &pool, pid, &map, msg, sizeof(msg), NULL, &pops, &game_txt
+        )) {
+      fprintf(stderr, "usedup: work tick failed (%s)\n", msg);
+      assets_msg_free(&game_txt);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
   }
   if (!map_tile_has_road(&map, x, y) || u->type_index != colonist || u->tools != 0) {
     fprintf(
@@ -1835,9 +1845,20 @@ int main(void) {
     map_tile_set_road(&tmap, px, py, false);
     char pmsg[64];
     pu3->moves_left = 1;
-    /* Plains road: terr_cost 1 → completes on first work-tick. */
-    if (!units_pioneer_road(&pool, pid3, &tmap, pmsg, sizeof(pmsg), NULL, NULL, NULL) ||
-        !map_tile_has_road(&tmap, px, py) || pu3->tools != 80 || pu3->moves_left != 0) {
+    /*
+     * Plains road: real DS:0x2f78 threshold byte + 2 (5 turns for
+     * non-Hardy, since the live 2026-08-20 capture landed
+     * pioneer_threshold[2]=3), not the old "terr_cost 1, one tick"
+     * approximation — drive ticks to completion.
+     */
+    bool road3_ok = true;
+    while (!map_tile_has_road(&tmap, px, py)) {
+      road3_ok = units_pioneer_road(&pool, pid3, &tmap, pmsg, sizeof(pmsg), NULL, NULL, NULL);
+      if (!road3_ok) {
+        break;
+      }
+    }
+    if (!road3_ok || !map_tile_has_road(&tmap, px, py) || pu3->tools != 80 || pu3->moves_left != 0) {
       fprintf(
         stderr,
         "phase7 road failed tools=%d road=%d moves=%d (%s)\n",
@@ -1885,8 +1906,14 @@ int main(void) {
       pu4->nation_id = 0;
       pu4->moves_left = 1;
       pu4->tools = 100;
-      if (!units_pioneer_road(&pool, pid4, &tmap, pmsg, sizeof(pmsg), &colonies_road, NULL, NULL) ||
-          !map_tile_has_road(&tmap, rx, ry)) {
+      bool road4_ok = true;
+      while (!map_tile_has_road(&tmap, rx, ry)) {
+        road4_ok = units_pioneer_road(&pool, pid4, &tmap, pmsg, sizeof(pmsg), &colonies_road, NULL, NULL);
+        if (!road4_ok) {
+          break;
+        }
+      }
+      if (!road4_ok || !map_tile_has_road(&tmap, rx, ry)) {
         fprintf(stderr, "phase7 road-reward setup failed (%s)\n", pmsg);
         map_free(&tmap);
         map_free(&map);
