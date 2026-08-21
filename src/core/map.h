@@ -230,6 +230,19 @@ int map_dos_terr_cost_byte(int terr_class);
  */
 int map_dos_terr_found_score_byte(int terr_class);
 /*
+ * DOS DS:0x2f78 Pioneer clear/plow/road work-turns threshold byte (same
+ * stride-16 record, offset +2). Real turns needed = byte+2, halved for
+ * Hardy Pioneer. FUN_479b_01a6/0526. Cite: live capture, 2026-08-20.
+ */
+int map_dos_terr_pioneer_threshold_byte(int terr_class);
+/*
+ * DOS DS:0x2f80 Pioneer clear/plow completion lumber-reward scale byte
+ * (offset +8). Real reward = byte*20<<hardy_pioneer if colony has a
+ * Lumber Mill, else flat 20<<hardy_pioneer (mill check is a floor, not
+ * a gate). FUN_479b_01a6. Cite: live capture, 2026-08-20.
+ */
+int map_dos_terr_lumber_reward_byte(int terr_class);
+/*
  * Land movement cost: terr_cost[class] (NAMES scale). Prefer map_move_cost_step
  * for actual moves (DOS FA road-pair + cardinal river pair → cost 1). Sea → 1.
  */

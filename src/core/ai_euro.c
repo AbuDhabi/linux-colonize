@@ -9122,6 +9122,19 @@ static void ai_euro_0a60_goal_orders_structural(ColonizeTurnContext* ctx, int na
     if (!u || !u->active || u->nation_id != nation_id) {
       continue;
     }
+    /*
+     * s_0a60_pilot_state is reset every call (see its dispatcher_turn
+     * reset comment), so a mid-job Pioneer (CLEAR_PLOW/BUILD_ROAD) always
+     * starts this loop with act_state==0 — without this guard it gets a
+     * fresh goal assigned every turn regardless of its in-progress order,
+     * hijacking it before units_pioneer_work_tick ever finishes. Was
+     * invisible while the real DS:0x2f78 threshold was unknown and every
+     * job finished in a single tick; exposed once the real (usually
+     * multi-turn) threshold was captured 2026-08-20.
+     */
+    if (u->orders == UNITS_ORDER_CLEAR_PLOW || u->orders == UNITS_ORDER_BUILD_ROAD) {
+      continue;
+    }
     Ai0a60UnitState* st = &s_0a60_pilot_state[ui];
     if (st->order_code == 'A') {
       continue; /* already admitted as labor */
@@ -9698,6 +9711,16 @@ static void ai_euro_colony_goals(ColonizeTurnContext* ctx, int nation_id) {
         if (ai_euro_land_is_fortified(u)) {
           continue;
         }
+        /*
+         * Don't yank a Pioneer off an in-progress tile improve job for
+         * emergency food LABOR — exposed once the real DS:0x2f78 threshold
+         * (2026-08-20 live capture) made these jobs usually take more than
+         * one turn, so there's now a real window for this scan to hit a
+         * unit mid-job.
+         */
+        if (u->orders == UNITS_ORDER_CLEAR_PLOW || u->orders == UNITS_ORDER_BUILD_ROAD) {
+          continue;
+        }
         if (!ai_euro_unit_is_food_labor(ctx->units, u)) {
           continue;
         }
@@ -9975,6 +9998,15 @@ static void ai_euro_colony_goals(ColonizeTurnContext* ctx, int nation_id) {
         }
         if (units_orders_follow_goto(u->orders)) {
           continue; /* idle only */
+        }
+        /*
+         * Don't yank a Pioneer off an in-progress tile improve job for a
+         * FOUND bind — same class of gap as the food-emergency scan above,
+         * exposed once the real DS:0x2f78 threshold (2026-08-20 live
+         * capture) made these jobs usually take more than one turn.
+         */
+        if (u->orders == UNITS_ORDER_CLEAR_PLOW || u->orders == UNITS_ORDER_BUILD_ROAD) {
+          continue;
         }
         const char* name = units_display_name(ctx->units, u);
         if (!name || strstr(name, "Soldier")) {
@@ -13392,7 +13424,18 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
    * Treasure / Missionary: defer course to act-level coast / CONTACT routing
    * (do not FOUND-yank before treasure coast or missionary mission hunt).
    */
-  if (!is_goto) {
+  /*
+   * A unit mid-way through a Pioneer improve job (CLEAR_PLOW/BUILD_ROAD)
+   * isn't a "goto" per units_orders_follow_goto, so it used to fall
+   * through to the move-scoring gate below every turn and get hijacked
+   * into an AI_MOVE elsewhere before finishing — invisible while the
+   * real DS:0x2f78 threshold was unknown and every job finished in one
+   * tick, exposed once the real (usually multi-turn) threshold was
+   * captured 2026-08-20. Treat it as committed, same as a goto.
+   */
+  const int is_pioneer_job_active =
+    u->orders == UNITS_ORDER_CLEAR_PLOW || u->orders == UNITS_ORDER_BUILD_ROAD;
+  if (!is_goto && !is_pioneer_job_active) {
     const char* gate_name = units_display_name(ctx->units, u);
     const int defer_gate =
       ai_euro_is_treasure_name(gate_name) || ai_euro_is_missionary_name(gate_name) ||

@@ -12553,15 +12553,29 @@ static int unit_improve_timer_pioneer_gate(void) {
   pioneer->moves_left = 1;
   pioneer->orders = 0;
   pioneer->tools = 100;
-  ai_euro_dispatcher_turn(&ctx, nation);
+  /*
+   * Real DS:0x2f78 Pioneer threshold byte (2026-08-20 live capture) means
+   * plow no longer finishes in a single dispatcher turn even for a Hardy
+   * Pioneer on plains (threshold 5, halved to 2) — drive several turns
+   * rather than assuming one-shot completion, matching the real formula
+   * this test's gate logic is otherwise exercising correctly.
+   */
   int any_plow = 0;
-  for (int dy = -1; dy <= 1; ++dy) {
-    for (int dx = -1; dx <= 1; ++dx) {
-      if (dx == 0 && dy == 0) {
-        continue;
-      }
-      if (map_tile_is_plowed(&map, 4 + dx, 4 + dy)) {
-        any_plow = 1;
+  for (int t = 0; t < 8 && !any_plow; ++t) {
+    pioneer = units_get(&units, pid);
+    if (pioneer && pioneer->active) {
+      pioneer->moves_left = 1;
+    }
+    turn++;
+    ai_euro_dispatcher_turn(&ctx, nation);
+    for (int dy = -1; dy <= 1; ++dy) {
+      for (int dx = -1; dx <= 1; ++dx) {
+        if (dx == 0 && dy == 0) {
+          continue;
+        }
+        if (map_tile_is_plowed(&map, 4 + dx, 4 + dy)) {
+          any_plow = 1;
+        }
       }
     }
   }
@@ -12686,8 +12700,19 @@ static int unit_pioneer_plow_improve(void) {
     pioneer && pioneer->active && pioneer->orders == UNITS_ORDER_AI_MOVE &&
     abs(pioneer->goto_x - 4) <= 1 && abs(pioneer->goto_y - 4) <= 1 &&
     (pioneer->goto_x != 4 || pioneer->goto_y != 4);
+  /*
+   * Or already on-tile and mid-job (started this turn, not yet finished) —
+   * the real DS:0x2f78 threshold (2026-08-20 live capture) usually takes
+   * more than one turn even for a Hardy Pioneer, so "started CLEAR_PLOW/
+   * BUILD_ROAD on the surround tile" is now the common single-turn outcome,
+   * not "already plowed".
+   */
+  const int started =
+    pioneer && pioneer->active &&
+    (pioneer->orders == UNITS_ORDER_CLEAR_PLOW || pioneer->orders == UNITS_ORDER_BUILD_ROAD) &&
+    pioneer->x == 4 && pioneer->y == 3;
 
-  if (!plowed && !tools_spent && !improving) {
+  if (!plowed && !tools_spent && !improving && !started) {
     fprintf(
       stderr,
       "unit_ai_euro_expand: plow=%d tools=%d→%d orders=%d goto=(%d,%d) pos=(%d,%d)\n",
@@ -13659,10 +13684,23 @@ static int unit_pioneer_road_on_plowed(void) {
   ctx.rng_seed = 16;
 
   const int tools0 = pioneer->tools;
-  ai_euro_dispatcher_turn(&ctx, nation);
+  /*
+   * Real DS:0x2f78 threshold (2026-08-20 live capture) usually takes more
+   * than one turn even for a Hardy Pioneer on plains — drive several turns
+   * rather than assuming one-shot completion.
+   */
+  int roaded = 0;
+  for (int t = 0; t < 8 && !roaded; ++t) {
+    pioneer = units_get(&units, pid);
+    if (pioneer && pioneer->active) {
+      pioneer->moves_left = 1;
+    }
+    turn++;
+    ai_euro_dispatcher_turn(&ctx, nation);
+    roaded = map_tile_has_road(&map, 4, 3);
+  }
 
   pioneer = units_get(&units, pid);
-  const int roaded = map_tile_has_road(&map, 4, 3);
   const int tools_spent =
     pioneer && pioneer->active && pioneer->tools == tools0 - UNITS_EQUIP_TOOLS_STEP;
   const int still_plowed = map_tile_is_plowed(&map, 4, 3);
