@@ -385,6 +385,68 @@ optional fidelity polish, not a functional gap. `0009ae`/`000000` remain
 untraced, still not needed for anything currently unblocked. Full detail:
 `ai_port_plan.md` T1.8.
 
+**2026-08-21 — `0015bc` freshly force-decompiled (clean, zero warnings,
+`OverlayTest`), structure and edge-cost formula now much more precisely
+known; one real tooling bug found and fixed along the way.** Confirms the
+2026-08-20 structural read: a destination-outward FIFO flood-fill over a
+16×16 window (`origin = goal-8`), matching `units_flood_next_step`'s own
+shape/window size exactly — real, not coincidental convergence. New
+findings from reading the raw body directly:
+
+- **Per-edge cost is not a generic move-cost — it's the exact same
+  `penalty` term as `0f74`'s own already-ported scored-fallback tail**
+  (`units_greedy_next_step`'s `penalty = max_mp<2 ? 3 :
+  terrain_cost*3`), keyed off the same per-unit-type table this pass also
+  named (below). DOS reuses one edge-cost formula across both the flood
+  search and the scored fallback, not two independent ones — a real,
+  concrete, low-risk target for closing the byte-exactness gap if this is
+  resumed, since the formula and its Linux implementation already exist.
+- Also folds in claim-ownership/diplomacy gating (`FUN_1000_88c2`/`88d6`/
+  `88ae`/`88a4`) shaped like a `+8` cost penalty for entering another
+  nation's claimed territory under certain relation states, gated by the
+  same `DS:0x543f` per-nation human-flag table `0f74`'s own tail already
+  uses (`g_units_combat_human_nation` in `units.c`) — plausibly already
+  covered by `units_can_enter`'s existing claim checks, not independently
+  verified this pass.
+- **`FUN_281f_090c` ("max MP") re-resolved — its `address_mapping.csv` row
+  is wrong.** The CSV lists `FUN_281f_090c -> ram:18afc (FUN_1000_8afc)`,
+  but that address decompiles clean to a large, unrelated function
+  (village/nation-throttle-table logic, nothing to do with movement).
+  Reading the actual 2-call RTLink thunk body at `281f:090c` directly
+  (`FUN_210d_0d91(); FUN_1427_065a(); return;`) and following the *second*
+  call instead: `FUN_1427_065a -> ram:48ca (FUN_0000_48ca)` decompiles
+  clean to a small, obviously-right max-MP accessor: `base =
+  type_table[unit_type][DS:0x5234]`, `+3` if a per-nation capability bit
+  (`FUN_0000_9810(nation_nibble, 5)`, table at `-0x77f1` stride `0x13c`,
+  meaning of bit 5 itself not identified) is set **and** the unit type is
+  in the ship range `0xd..0x12` — same range this project already knows
+  from `0x5236`'s "combat-capable, ship range excluded" idiom
+  (`euro_diplo_153e_full.md` etc). **Real formula is base-plus-conditional-
+  ship-bonus, not the flat `type->movement` Linux currently reads** — but
+  the bonus can only ever matter if base MP is already `<2`, which no real
+  ship type is, so this is a confirmed-real but practically-inert gap; not
+  wired (`units.c`'s comment at the fallback-tier formula updated with the
+  full citation instead).
+- **`DS:0x5234` named**: offset `+0` of the same stride-`0xe` unit-type
+  table this project already has three other columns for (`+2`=`attack`
+  `0x5236`, `+5`=`cost` `0x5239`, `+9`=flags `0x523d`) — this is
+  `ColonizeUnitType.movement`, confirming the field `type->movement`
+  already reads is the right one.
+- `0015bc`'s own domain-match gate (ship-vs-land) uses the identical
+  `0xd..0x12` type range and the real terrain (Ocean `0x19`/Sea Lane
+  `0x1a`) via `func_0x0001897c` — same idiom throughout, no new unknowns.
+
+**Not wired this pass** — the edge-cost-formula swap is real and
+low-risk (reuses code that already exists and is tested), but several of
+`0015bc`'s own scratch globals (`0x1dd2`/`0x1dd4`/`0x1dd6`, the flood's
+own module-static goal-cache at `0x2d16`-`0x2d1c`) are still uncharacter-
+ized well enough to be sure the *domain/ownership* gating (as opposed to
+just the cost formula) matches `units_can_enter` exactly — a wrong guess
+there risks a subtle pathing regression with no enabled golden to catch
+it (`T3.3`). Real next step if resumed: confirm `units_can_enter`
+already covers the ownership/diplomacy `+8` case before swapping
+`units_flood_next_step`'s edge cost to the real formula.
+
 `FUN_4720_049e` (`FUN_291f_044e`'s target): **corruption is real but
 narrow, and the function underneath is a genuinely major find — not a
 move driver at all.**
