@@ -234,7 +234,7 @@ pass:
   branches in `20e6` (lines ~1201/1205/1225) stay unresolved, not
   "probably always true" as previously floated.
 
-- [ ] **T1.2 — Deep `20e6` remaining field fidelity.** Full arms +
+- [x] **T1.2 — Deep `20e6` remaining field fidelity.** Full arms +
   combat-resolve field fidelity is still OPEN per R5 Phase 1
   (`ai_transcription.md`). Entry points:
   [`move_scoring_20e6_full.md`](../original_sources_annotated/ai/move_scoring_20e6_full.md),
@@ -279,6 +279,34 @@ pass:
   shipped substitute (`ai_euro_unit_act`'s H-block founding-tile bind /
   `ai_euro_scout_contact_ring_target`), so this is a byte-fidelity item,
   not a functional hole.
+  **2026-08-21 — closed, nothing static left.** Re-verified the `0x42`/
+  `0x65` gate's own `FUN_1000_8aac(nation,param_2,2)` calls directly
+  (`move_scoring_20e6_full.md` lines ~2597/2609): `param_2` here is
+  `20e6`'s own formal unit-id parameter, not a register-sourced value —
+  no ambiguity to resolve, unlike the *different*, still-open `0a60`
+  call the 2026-08-15 fifth pass conflated this with (a conflation
+  already flagged and corrected in `euro_goal_orders_0a60_full.md`'s
+  2026-08-18 "Third pass": `0a60`'s own `FUN_1000_89d0`-sourced field-2
+  calls are fully resolved separately — colony-tile unit search — and
+  don't bear on this gate at all). Case 2's return-value semantics
+  (doubly-linked transport-chain splice against fixed slot 2, returning
+  a chain-link value, `<2` reading as an idle/singleton-chain check) were
+  already fully worked out in the 2026-08-15 fourth pass; the 2026-08-15
+  sixth pass already concluded there's **no code to ship** regardless of
+  further semantic certainty — the behavioral gap is already covered by
+  the shipped substitute cited above, and DOS's own chain fields
+  (`unit+0x315c`/`0x315e`) are never actively written for land units in
+  this port, so wiring a check against always-empty state would be dead
+  code. Nothing left to do here; this correction just confirms the wall
+  the 2026-08-20 note flagged isn't real for this call site. The broader
+  "full arms + combat-resolve field fidelity remain OPEN" framing in
+  `ai_transcription.md` R5 Phase 1 is now stale for the same reason
+  **T1.3** is stale: the only other field family this could refer to
+  (fields 3/4/5/6/0xc of the same `FUN_1000_8aac` accessor, lines
+  ~1388-1397) is the one **T1.1** fully exhausted statically and moved to
+  **T4.7**/**T4.8** — Tier-4-gated, not Tier-1 loose ends.
+  `ai_transcription.md` R5 Phase 1 line updated to match. `ctest` not
+  re-run (doc-only).
 
 - [ ] **T1.3 — Full `LAB_521d_3558` cargo/colony sail matrix.** Still OPEN
   (R5 Phase 2/3 note it repeatedly). Current Linux only has thin tip/peel
@@ -1005,6 +1033,26 @@ pass:
   live capture needed. Not attempted yet. Full data:
   [`terrain_yields.md`](../terrain_yields.md) "DS:0x2f76 terrain-class
   record" table.
+  **2026-08-21 — both columns' raw bytes extracted and cross-checked
+  (20/20 dump instances agree; `+0xe`'s formula independently re-derived
+  from the same extraction as a sanity check, matches the doc exactly
+  including its Rain-Forest anomaly), but neither is a quick port after
+  all — re-scoped, not closed.** `+3`'s only 3 use sites are all inside
+  `FUN_521d_20e6`'s own inline found/contact candidate-tile picker, the
+  exact mechanism **T1.2** closed as "no code to ship" (DOS's own chain
+  bookkeeping this gates on is dead for land units in this port; Linux
+  already covers the behavior another way) — porting `+3` there would be
+  dead code by the same reasoning, not attempted. `+4`'s one use site
+  sits inside `FUN_129f_0008` (canonical `FUN_0000_29f8`), a large
+  **uncatalogued** function — not `152e`, not named anywhere in
+  `FUNCTION_CATALOG.md`/`address_mapping.csv`, with several of its own
+  still-unmapped globals (`-0x71a6`, `-0x7262`, `-0x6e74`/`-0x6e34`/
+  `-0x6e80`/`-0x6e7c`) — needing a full dedicated RE pass before a
+  correct port, not a same-pass add-on. `+0xe` still not semantically
+  identified. Full decoded byte tables + citations: `terrain_yields.md`'s
+  `+0x3`/`+0x4` rows. **Not checked off** — nothing wired, and `+4`'s real
+  remaining scope (`FUN_129f_0008`) is new, genuine Tier 1 work if picked
+  up again, just not the self-contained item this row assumed.
 
 ---
 

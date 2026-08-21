@@ -755,7 +755,11 @@ raids, or FOUND must keep `golden_ai_joint` green (Euro **and** Indian fields).
   peace-meet floor holds relation under hot alarm wobble.
 - Land `20e6`: explore ring thin (continent match, FoW, LCR skip / Scout rumour);
   combat prefers settlement-adjacent foes (`0x46`-shaped). Ocean empty-hold
-  coastal cling. Full arms + combat-resolve field fidelity remain **OPEN**.
+  coastal cling. **2026-08-21:** the found/contact `0x42`/`0x65` gate is
+  now closed (no code to ship — see `ai_port_plan.md` T1.2); remaining
+  arms + combat-resolve field fidelity (the `FUN_1000_8aac` field-3/4/5/6/
+  0xc family) is Tier-4-gated (live-capture-only, see T4.7/T4.8), not open
+  Tier-1 scope.
 
 **Phase 2 (retire early Euro geometry) — Done (soft-tip prior)**
 

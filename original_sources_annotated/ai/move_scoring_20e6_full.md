@@ -235,6 +235,24 @@ scope this pass corrected). `0a60`'s other field-2 call sites (lines
 same case, different caller context, might disambiguate the `<2` meaning
 faster than tracing case 2 in isolation further.
 
+**Update (2026-08-21) — closed for practical purposes, per `ai_port_plan.md`
+T1.2.** The "0a60's other field-2 call sites" lead above was already a dead
+end by the time it was written: `euro_goal_orders_0a60_full.md`'s own
+2026-08-18 "Third pass" resolved `0a60`'s `FUN_1000_89d0`-sourced field-2
+calls independently (colony-tile unit search, no register ambiguity) and
+explicitly flagged that this doc's "caller-context registers" open question
+was conflated with a *different* call site — `20e6`'s own, right here —
+not actually answered by chasing `0a60`. Separately, and more decisively:
+this gate's own call site (`0x42`/`0x65`, lines ~2597/2609 in the raw dump
+below) passes `param_2` — `20e6`'s own formal unit-id parameter — not a
+register-sourced value at all, so there was never a "which registers are
+live" ambiguity here in the first place, only the semantic "what does `<2`
+mean" question, and that was already answered by the fourth pass above
+(idle/singleton-chain check) with the sixth pass already concluding **no
+code needs shipping regardless** (behavioral gap already covered by
+`ai_euro_unit_act`'s H-block bind / `ai_euro_scout_contact_ring_target`).
+Nothing left to do under `0x42`/`0x65`.
+
 Regenerate the case dump: `analyzeHeadless <proj> <name> -process
 seg_data_resident.bin -readOnly -noanalysis -postScript
 GhidraListInstrs.java 0000:2ce0 90 0000:d47f 90 0000:f2 90 0000:a100 90
