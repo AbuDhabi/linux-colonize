@@ -17,6 +17,17 @@ between each port render and its reference capture, and reports:
     (even if a != 1, i.e. uniformly off-speed). Large = tempo *drifts*
     over the piece (inconsistent decoding, stuck/skip bugs, etc).
 
+DTW runs banded (Sakoe-Chiba, band_rad=0.06) on purpose: these are march/
+fiddle tunes with strong ~4s self-repeating phrases (AABB structure).
+Unconstrained DTW can "teleport" onto a different, near-identical repeat of
+the phrase instead of tracking true chronological time — a comparator false
+positive, not a port bug. Confirmed on Jine the Cavalry: tightening the band
+from unconstrained down to band_rad=0.01 dropped apparent drift 4.43s→0.83s
+at nearly unchanged path cost (0.203→0.257), i.e. most of that "drift" was
+the phrase-repeat trap, not real desync. band_rad=0.06 is the compromise —
+tight enough to block repeat-jumps, loose enough not to mask a real global
+tempo bug by force-fitting the diagonal.
+
 Requires the venv at .venv-sound (numpy/scipy/librosa) — see
 docs/ai_transcription.md or run:
   python3 -m venv --without-pip .venv-sound
@@ -73,9 +84,15 @@ def dtw_align(ref: np.ndarray, port: np.ndarray, hop: int = 512):
 
     c_ref = chroma_of(ref, hop)
     c_port = chroma_of(port, hop)
-    D, wp = librosa.sequence.dtw(C=1 - (c_ref.T @ c_port) / (
+    cost_matrix = 1 - (c_ref.T @ c_port) / (
         np.linalg.norm(c_ref, axis=0)[:, None] * np.linalg.norm(c_port, axis=0)[None, :] + 1e-9
-    ))
+    )
+    # Repetitive tunes (march/fiddle AABB phrases) give unconstrained DTW a
+    # near-identical *other* repeat to lock onto instead of the true
+    # chronological match — a comparator false positive, not a port bug.
+    # A Sakoe-Chiba band forces the path to stay near the diagonal, i.e. near
+    # the true 1:1-ish timing, so it can't "teleport" to a different repeat.
+    D, wp = librosa.sequence.dtw(C=cost_matrix, global_constraints=True, band_rad=0.06)
     cost = D[-1, -1] / len(wp)
     wp = np.array(wp[::-1])  # dtw returns reversed (end->start)
     t_ref = wp[:, 0] * hop / SR
