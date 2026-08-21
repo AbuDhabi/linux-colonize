@@ -348,6 +348,30 @@ pass:
   case 3, `T4.8` cases 0/4/5/6). Nothing to do here until one of those
   lands — don't re-attempt the field investigation, it's already been
   done as far as static tooling can take it.
+  **2026-08-21, later same day — `T4.7`/`T4.8` landed, but don't treat this
+  matrix as unblocked yet.** Field `3`'s real body turned out to be a
+  cursor/keyboard-wait utility that never reads the unit-record pointer —
+  not a per-unit numeric field at all. Before porting this matrix's
+  `iStack_4a/48/16/46` reads against fields 3/4/5/6, first re-verify this
+  matrix's own call site (`LAB_OVL14_L0000__003558`, `move_scoring_20e6_full.md`
+  line ~1408) genuinely reaches the same case-3 dispatch with the same
+  `[BP+8]` convention — a keyboard-wait firing mid-cargo-scoring would be
+  broken, so either this call site doesn't really take that path at
+  runtime or there's a second, different field-3 dispatch not yet found.
+  Resolve that question before wiring anything, not just before trusting
+  old field-3 semantics.
+  **2026-08-21, same day, resolved — not a blocking wait, reachability
+  worry closed.** Fully decoded case 3's `0A85:00DA` helper: it's a
+  keyboard-buffer *flush* (drain already-queued keys), not a wait for a
+  future one — returns immediately when nothing's queued, so no hang risk
+  calling it from AI scoring. `iStack_4a` (field 3) just ends up holding a
+  stale cached `DS:0x2DA4`/`0x2DA6` UI coordinate — noise, not a real AI
+  signal, but harmless. **If this matrix is ever ported, treat field 3's
+  term as inert/no-op rather than chasing fidelity for it** — nothing
+  meaningful to preserve there. Fields `0`/`4`/`5`/`6` (the real gating
+  logic, `T4.8`) are the ones that actually matter for this matrix; those
+  are the genuine next-step scope if this item is resumed. Full trace:
+  `move_scoring_20e6_full.md`'s 2026-08-21 addendum.
 
 - [x] **T1.4 — Map `ai_goals_pick_founding_tile_ex` / `06ae`'s call-site
   success/failure expectations.** New, split out of the failed T1.5
@@ -1294,7 +1318,7 @@ but don't resume speculatively either.
   (R0). Do not resume without a new, stated reason — this was a deliberate
   stop, not a stall.
 
-- [ ] **T4.7 — `FUN_0000_4fa8` case 3 (field 3 of the `FUN_1000_8aac`
+- [x] **T4.7 — `FUN_0000_4fa8` case 3 (field 3 of the `FUN_1000_8aac`
   accessor), value at `[BP+DI+0x4c4]`.** New 2026-08-20, split out of
   **T1.1**. Case 3's 81-byte body is fully disassembled and the calling
   convention is confirmed (not guessed), but this one access lands 1220
@@ -1303,8 +1327,19 @@ but don't resume speculatively either.
   adjacent structure, or something else) and not safe to guess at. Needs
   a live DOSBox-X read of that displacement while `4fa8` case 3 is live.
   Doesn't block T1.1's fields 4/5/6/0xc — those stay Tier 1.
+  **2026-08-21 — resolved, not from a live breakpoint but from the
+  existing `dosbox-x-dumps/find_memory` savestate (same method as `T4.1`).**
+  `[BP+DI+0x4c4]` never appears in the real body — that was a static-tool
+  artifact. Bigger finding: case 3 doesn't touch the unit-record pointer
+  at all; it's a cursor/keyboard-wait utility (validates a `DS:0x2DA4`/
+  `0x2DA6` word pair, ends in an `INT 16h` keypress-wait), not a per-unit
+  field query. **Re-verify before porting**: T1.3's `FUN_1000_8aac(...,3)`
+  call site needs re-checking against this — a keyboard-wait mid-AI-scoring
+  doesn't make sense, so either that call site doesn't really reach this
+  case at runtime or there's a second dispatch not yet found. Full trace:
+  `move_scoring_20e6_full.md`'s 2026-08-21 update.
 
-- [ ] **T4.8 — `FUN_0000_4fa8` cases 0/4/5/6 (fields 4/5/6 of the
+- [x] **T4.8 — `FUN_0000_4fa8` cases 0/4/5/6 (fields 4/5/6 of the
   `FUN_1000_8aac` accessor; case 0 by extension since field 5 shares its
   target), literal jump-table byte alignment.** New 2026-08-20, split out
   of **T1.1**. Force-disassembling exactly at each case's cited jump-table
@@ -1321,6 +1356,17 @@ but don't resume speculatively either.
   entry, single-stepping through calls with `field∈{0,4,5,6}`, to see what
   the CPU actually fetches. Full trace: `move_scoring_20e6_full.md`'s
   "2026-08-20, later same day" T1.1 update.
+  **2026-08-21 — closed from the same `find_memory` savestate, no live
+  breakpoint needed.** Cases 4 and 6 resolved with strong confidence
+  (case 4's +2-byte-corrected read reproduces the exact `[0x92C0]`/
+  `[0x92C2]`/`[0x372]` addresses from a previously-*retracted* finding —
+  that finding's content was real, just mis-attributed to the wrong
+  function; case 6 turned out to need **no** adjustment at all — the
+  "reproducible" misalignment was scanning forward from the wrong earlier
+  byte, not a real problem with `0x6ef7`). Case 0/5 resolved with moderate
+  confidence (+1-byte fix, internally consistent but no external
+  cross-reference like case 4 had). Full trace:
+  `move_scoring_20e6_full.md`'s 2026-08-21 update.
 
 ---
 

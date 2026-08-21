@@ -665,6 +665,103 @@ checked, so this isn't an extraction/staleness artifact either.
   (mask-build sub-routine at `0x6ee0` identified, not just guessed at) but
   its actual entry alignment is unresolved, so still open, not closed.
 
+**2026-08-21 — `T4.7`/`T4.8` both resolved, straight from an existing dump,
+no debugger breakpoint needed.** Source: `dosbox-x-dumps/find_memory` (a
+DOSBox-X savestate, zip-format, `Save_Remark`="memfind"). Same method as
+`T4.1`'s terrain table: calibrated the `Memory` blob's header size
+(`HDR=0x88` for this capture — cross-checked by locating the already-known
+`-0x7b44` Indian-trade throttle-table bytes at their expected `DS:0x84bc`
+and confirming byte-exact match) before trusting any offset math. Located
+`FUN_0000_4fa8`'s real runtime code segment (**`CS=0x0823`**) not by timing
+a breakpoint but by searching the whole 17MB memory image for the
+5-byte `JMP CS:[BX+0xd78]` dispatch tail (`2E FF A7 78 0D`) — exactly one
+hit, and the jump table read from `0x823:0xd78` matches this doc's own
+cited values word-for-word (`2ce0/d47f/46c7/f2/a100/2ce0/6ef7/2bf2/f446/
+d8f7/c00b/27d/c02b/c88b/1b8`), confirming the segment beyond doubt.
+
+- **Case 3 (`T4.7`) — resolved, and it's a bigger correction than
+  expected.** Hand-disassembled the real 90-byte body at `0x823:0xf2`
+  clean, no ambiguity: **`[BP+DI+0x4c4]` does not appear anywhere in it.**
+  That access was a static-tool artifact, not real. The actual body never
+  touches `[BP-6]` (the unit-record pointer the shared prologue stashes
+  before dispatch) **at all** — instead it validates a `DS:0x2DA4`/
+  `0x2DA6` word pair (retry-on-out-of-range against bounds from a second
+  far call) and ends by calling a "wait for keypress" helper. Traced its
+  three `CALLF` targets (same live-dump method, same `CS=0x823` base):
+  `130A:0002` is `INT 16h AH=1` (BIOS check-keystroke, returns 0/1,
+  non-blocking poll) — a clean, textbook 12-byte routine (`PUSH BP; MOV
+  BP,SP; MOV AH,1; INT 16h; JNZ ...`); `127B:038B` reads a cached word pair
+  from `DS:0x92FC`/`0x92FE` gated on flag `DS:0x92F8`; `0A85:00DA` itself
+  calls `130A:0002` again plus a sibling entry `130A:0016`, i.e. a genuine
+  "block until a key is pressed" gate. **Conclusion: case 3 is not a
+  per-unit field query at all** — it's an unrelated UI/cursor-validation
+  utility that happens to share this dispatcher's index 3, not part of the
+  "field accessor" family cases 0/2/4/5/6/0xc belong to. **This matters for
+  T1.3**: its cargo/colony matrix reads `iStack_4a =
+  FUN_1000_8aac(0x181f,param_2,3)` expecting a per-unit numeric field —
+  re-verify that call site actually reaches this same case (same `[BP+8]`
+  convention) before porting anything against it; a keyboard-wait
+  mid-AI-scoring would be a strange thing to actually execute, so either
+  the call site never really takes this path at runtime, or there's a
+  second field-3 dispatch this doc hasn't found yet. **Don't assume the
+  field-3 numeric semantic anyone previously guessed at — reopen that
+  question instead of trusting old framing.**
+- **Case 0/5 (`T4.8`) — probable resolution, one byte-offset fix.**
+  Byte-exact at the table's cited `0x2ce0` decodes as garbage (`SAR
+  byte[SI+8], 0xb8` — an absurd shift count, matching the "implausible"
+  finding exactly). **+1 byte (`0x2ce1`)** gives a fully clean, self
+  consistent read: `OR AX,AX` / `JL +8` / `MOV AX,1` / `CALLF 0AFB:000E`
+  / `LEAVE` / `RETF`, with the `JL` branch landing exactly on the `LEAVE`
+  — internally consistent, not just locally plausible. Less
+  independently-confirmed than case 4 below (no external cross-reference),
+  but the branch-target self-consistency is a real signal, not a guess.
+- **Case 4 (`T4.8`) — resolved, strongly, and it vindicates the retracted
+  finding.** Byte-exact at `0xa100` also decodes as garbage (`RCL
+  byte[DX+3], 0x83` — same shift-immediate-garbage shape). **+2 bytes
+  (`0xa102`)** gives a fully clean routine that reads/writes **`[0x92C0]`**,
+  **`[0x92C2]`**, and **`[0x372]`** — the *exact* three addresses this same
+  file's 2026-08-20 pass found and then retracted, believing they belonged
+  to an unrelated function (`1a0a:0004`) reached by pattern-matching
+  decompiled text without checking address alignment. That retraction was
+  wrong about the address; the content was real all along, just
+  mis-attributed — it's genuinely case 4's own body, two bytes past the
+  jump table's literal entry.
+- **Case 6 — correction, was never actually broken.** Byte-exact at the
+  table's own `0x6ef7`, **no offset adjustment needed at all** — decodes
+  clean and matches this doc's own already-known semantic description
+  precisely: `OR [BX],AL` (set a bit) immediately followed by `AND [BX],AL`
+  (clear a bit, using a pre-`NOT`'d mask), `LEAVE`/`RETF` between the two.
+  The earlier "reproducible... lands 2 bytes into a `SAR CX,0x3`"
+  finding was a real byte pattern, but at a different starting point
+  (`0x6ef5`, reached by scanning forward from *before* the true entry) —
+  not evidence against `0x6ef7` itself. Exactly the "check the citing
+  address actually falls inside the target's own boundary" mistake this
+  file's own method notes already warn about, now caught on this file's
+  prior entry.
+
+Net: `T4.7` fully closed. `T4.8` closed for cases 4 and 6 with strong
+confidence, case 0/5 with moderate confidence (no live DOSBox-X session
+used for any of it — all four resolved from the existing `find_memory`
+dump). Field 6's `colony_ptr+0x84` bitmap semantics and mask-build routine
+stand as previously mapped; only the entry-alignment question is new here.
+
+**2026-08-21, same day — case 3's `0A85:00DA` fully decoded (110 bytes),
+resolving the T1.3 reachability worry above.** It's a **keyboard-buffer
+flush, not a blocking wait**: `check-key; if none queued, LEAVE/RETF
+immediately; else consume it, check again, loop only while more are
+queued`. Never waits for a *future* keystroke — in the normal AI-turn case
+(nothing queued) it returns the same instant, so it's not a hang risk
+called from AI scoring after all. Net semantic for the whole case-3 body:
+read a cached `DS:0x2DA4`/`0x2DA6` last-cursor/click position, validate
+against bounds (retry-refetch if out of range), flush any stray keyboard
+input, return. Entirely unit-independent, confirmed not part of the
+"field" family. **For T1.3**: `iStack_4a` (this matrix's own field-3 read)
+ends up holding whatever stale UI coordinate happens to be cached there —
+noise, not a real AI signal, but harmless (no crash/hang risk). If this
+matrix is ever ported, treat that term as safely inert/no-op rather than
+chasing byte-exact fidelity for it — there's no real semantic content to
+preserve.
+
 ## Raw recovered C
 
 ```c
