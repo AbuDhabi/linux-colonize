@@ -1042,17 +1042,25 @@ pass:
   exact mechanism **T1.2** closed as "no code to ship" (DOS's own chain
   bookkeeping this gates on is dead for land units in this port; Linux
   already covers the behavior another way) — porting `+3` there would be
-  dead code by the same reasoning, not attempted. `+4`'s one use site
-  sits inside `FUN_129f_0008` (canonical `FUN_0000_29f8`), a large
-  **uncatalogued** function — not `152e`, not named anywhere in
-  `FUNCTION_CATALOG.md`/`address_mapping.csv`, with several of its own
-  still-unmapped globals (`-0x71a6`, `-0x7262`, `-0x6e74`/`-0x6e34`/
-  `-0x6e80`/`-0x6e7c`) — needing a full dedicated RE pass before a
-  correct port, not a same-pass add-on. `+0xe` still not semantically
-  identified. Full decoded byte tables + citations: `terrain_yields.md`'s
-  `+0x3`/`+0x4` rows. **Not checked off** — nothing wired, and `+4`'s real
-  remaining scope (`FUN_129f_0008`) is new, genuine Tier 1 work if picked
-  up again, just not the self-contained item this row assumed.
+  dead code by the same reasoning, not attempted. `+4`'s one use site was
+  first attributed to `FUN_129f_0008` (canonical `FUN_0000_29f8`) —
+  **retracted same session, real function still unidentified.** A fresh
+  Ghidra headless force-redecompile of `FUN_0000_29f8`'s real resident
+  address (`0000:29f8`, `OverlayTest` project) turned out to be a
+  completely unrelated RLE/byte-run graphics decoder — the flattened
+  export's `FUN_129f_0008` span carries an unresolved-indirect-jump
+  corruption warning (`viceroy_unpacked.c:3513-3525`) *before* the `+0x4`
+  use site (line 3629), the same false-collision signature `4528`'s
+  `a6e4` and `T1.10`'s glyph-renderer already hit. **Real next step**:
+  find the `+0x4` read's true enclosing function via jump-table
+  resolution from a verified-clean entry point
+  (`tools/rtlink_overlay_extract.py`), not by trusting the flattened
+  export's nearest preceding function header — a harder, more open RE
+  problem than either the original row or the first correction assumed.
+  `+0xe` still not semantically identified. Full trace:
+  `terrain_yields.md`'s `+0x3`/`+0x4` rows. **Not checked off** — nothing
+  wired; `+4`'s real remaining scope is now "find the real function," not
+  "RE a known-uncatalogued one."
 
 ---
 
