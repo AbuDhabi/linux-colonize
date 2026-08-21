@@ -15,6 +15,75 @@ Loot outcomes (sibling path, not direct callees inside `4528`):
 **Port status:** head warn CHOICE + ship abort + Linux raid/fallout arms
 **Done** thin; full body now recovered clean (see below) — VGA chrome still open.
 
+## 2026-08-21 — major structural correction: this function's own "if human
+## Euro" framing (below) has the polarity backwards, and the real branch
+## split changes what's actually AI-reachable here
+
+Started from `ai_port_plan.md` T1.7's leftover ("does AI get an equivalent
+of this mechanic") and ended up re-deriving the whole function's control
+flow from scratch. Two real findings, cross-checked hard because they
+overturn this doc's own long-standing framing:
+
+1. **`nation*0x34+0x543f`'s polarity is `0`=AI-controlled, `1`=human** —
+   the *opposite* of this doc's own "if human Euro (control==0)" phrasing
+   used throughout the sections below. Confirmed from the actual DOS
+   per-nation turn dispatcher (`viceroy_unpacked.c:6395-6421`, the
+   top-level loop every nation's turn goes through):
+   ```c
+   if (*(char*)(nation*0x34+0x543f) == '\x01') { /* human turn UI */ }
+   else if (*(char*)(nation*0x34+0x543f) == '\0') { /* FUN_281f_0668 -> FUN_43f7_2244, AI-only */ }
+   ```
+   Independently cross-confirmed by `ai_king.c`'s and `ai_diplo.c`'s own
+   pre-existing comments on this exact byte (both already say `==0` is
+   the AI branch) — this doc is the odd one out, not them.
+2. **The 0x543f check inside `4528` gates which of two *mutually
+   exclusive* branches runs, and the mechanical one is on the human
+   side.** Line ~215's `if (uStack_6a<4 && byte==0)` (AI-controlled
+   mover) enters a narration/`CHOICE`-window-build block (215-319,
+   relation-banded flavor text, ends in `FUN_1000_935a`/a generic
+   resource-driven dialog engine in the `6f74` overlay). The **`else`**
+   (human-controlled mover, or `uStack_6a>=4` which can't happen for a
+   Euro unit) falls into the `switch(unit_type)` dispatch at line 320 —
+   **this is the block with all the real mechanical content**: military
+   types (1/4/0xb: Soldier/Dragoon/Artillery) → Attack; type 5 (Scout) →
+   Speak-to-Chief; type 3 (Missionary) → establish-mission (this doc's
+   own fully-decoded "case 3" below); eligible colonist/servant
+   professions → Learn Skill; type 0xc (Wagon Train) → Trade.
+3. **Traced what the AI-controlled branch's dialog-engine call actually
+   does when it doesn't wait for input** (`FUN_1000_935a` →
+   `FUN_6f74_2580`'s `piVar8[5]&0x20` early-exit path, line
+   `~116701-116704`) — it's `thunk_FUN_2a1f_0af2` → `FUN_6f74_248e`, a
+   plain **window-redraw-then-dispose sequence with zero selection
+   logic** (no RNG roll, no scoring, nothing resembling picking an
+   outcome). Whatever `uStack_56` ends up holding after this path falls
+   through to the tail `switch(uStack_56)` as a non-matching sentinel —
+   **no case fires.** Net: for an AI-controlled mover, this whole
+   function shows a passive on-screen narration (consistent with the
+   outer turn loop's own "AI turn" visual-feedback pattern found at the
+   same time, `viceroy_unpacked.c:6369-6392`) and **produces no
+   mechanical effect at all** — no Attack, no Mission, no Trade, nothing.
+
+**Conclusion, reversing this session's own earlier read of the situation
+(see `ai_port_plan.md` T1.7's 2026-08-21 entries for the in-progress
+version of this reasoning, corrected here):** the mechanical
+Attack/Speak-to-Chief/Mission/Learn-Skill/Trade dispatch this doc spent
+most of its effort decoding (the `switch(unit_type)` block and its case-3
+sub-formula) is **DOS's real human-only path**, not an "AI decision
+procedure that Linux is missing." DOS's own AI genuinely does not
+mechanically resolve a village encounter through this function either —
+matching, not contradicting, Linux's current architecture: human-facing
+interactive paths (`ai_contact_try_village_raid_warn`,
+`ai_contact_try_village_meet`, both `ai_contact_euro_is_human`-gated) are
+**correctly scoped**, and the separate, deliberately-Linux-invented
+`ai_euro_land_try_adjacent_village_seize` (AI attacks an adjacent
+undefended war-target village, reached via move-scoring rather than this
+reactive move-encounter function) is the right shape of answer for "how
+does AI ever attack a village" — not a compromise standing in for a real
+gap. **No `src/` change needed from this correction** — it settles that
+the previously-suspected polarity bug in shipped code isn't one; the
+earlier same-day report to the user overstated it before this deeper
+trace, corrected here rather than left standing.
+
 ## Authentic head (~83699–84215)
 
 ```
@@ -25,7 +94,9 @@ FUN_4d56_4528(unit, ?, ?, ?)
   relation = 030c(tribe, euro) → iVar20
   friction = tribe[euro*2+10] → local_66
 
-  if human Euro (control==0) && DS:0xa2==0:
+  if human Euro [**polarity corrected 2026-08-21, see note above the head:
+  the real condition is `0x543f==0`, i.e. this fires for an AI-controlled
+  mover, not human**] && DS:0xa2==0:
     BGM 04ac
 
   if unit is ship (type 0xd..0x12):
@@ -35,7 +106,10 @@ FUN_4d56_4528(unit, ?, ?, ?)
     else: fall through toward village meet (narrow mid-relation window;
       peace floor 96 normally hits MADAT)
 
-  if human Euro:
+  if human Euro [**same polarity correction — this is the AI-controlled-
+  mover narration/CHOICE-window block (215-319 in the full body below),
+  confirmed to produce no mechanical effect; the real mechanical
+  switch(unit_type) is the implicit `else` here, i.e. the human path**]:
     discovery 0524
     compose warn string base 0x1710 + band:
       relation ≥0x4b → 0x1718
