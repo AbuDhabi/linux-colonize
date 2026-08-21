@@ -1274,8 +1274,15 @@ but don't resume speculatively either.
   static-memory RAM images may already have what's needed, and are more
   reliable than a live paste for wide table ranges.
 
-- [ ] **T4.2 — `FUN_41f2_0294` (village founding-worth cap) semantics.**
-  Confirmed decompiler-corrupted (no recovered stack frame, `(void)`
+- [ ] **T4.2 — `FUN_41f2_0294` (village growth-threshold "worth" cap)
+  semantics.** Not a new-village-founding decision — villages are fixed
+  at map-gen and never appear mid-game; this gates an *existing* capital's
+  per-turn population growth (`population++`) vs. spawn-a-colonist
+  (`FUN_281f_095c`) branch. "Founding worth" is the DOS decompiler's own
+  naming for the underlying `+4 value` field (also used once, separately,
+  at tribe *creation* — see `FUN_4d56_0038` — which is the only place the
+  word "founding" actually applies); don't read it as new-village spawn
+  logic. Confirmed decompiler-corrupted (no recovered stack frame, `(void)`
   signature despite real call-site arguments) — needs a live
   register/stack trace, not just re-disassembly. Currently stubbed as
   `ai_indian_152e_worth_cap_stub`. Known *not* to be the cause of the
