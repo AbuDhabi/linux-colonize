@@ -30,7 +30,7 @@
  * written to unread BSS (see annotated gsound notes) — not a tick scaler.
  */
 #define SOUND_PIT_DIVISOR 0x4DBF
-#define SOUND_TICK_HZ 209.0
+#define SOUND_TICK_HZ (1193182.0 / (double)SOUND_PIT_DIVISOR)
 #define SOUND_TICK_SECONDS (1.0 / SOUND_TICK_HZ)
 #define SOUND_MAX_TRACK_TICKS 14400u /* 4 minutes @ ~60 Hz */
 #define SOUND_MAX_CALL_DEPTH 8
@@ -321,7 +321,6 @@ static void sound_decode_tracks(
     const size_t pos_before = pos;
     const uint8_t op = ds_img[pos];
 
-    if (song->id == 38 && op == 0xff) printf("T%d: FF count=%d time=%d\n", current_t, ds_img[pos+1], (int)time);
     if (op <= 0xBA) {
       if (pos + 1 >= ds_size) {
         break;
@@ -755,16 +754,17 @@ static void sound_decode_tracks(
     }
 
     if (pos == pos_before) {
-      if (++stuck > 8) { printf("Track %d STUCK at pos %zx\n", current_t, pos);
-        trk->active = false; break;
+      if (++stuck > 8) {
+        trk->active = false;
+        break;
       }
     } else {
       stuck = 0;
     }
 
-        if (op_dur > 0) {
-          trk->wait_ticks += op_dur;
-        }
+    if (op_dur > 0) {
+      trk->wait_ticks += op_dur;
+    }
 
 #undef pos
 #undef velocity
