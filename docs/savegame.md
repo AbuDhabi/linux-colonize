@@ -77,6 +77,29 @@ col1_save_free(&save);
 Slot helpers: `savegame_read_col1` / `savegame_write_col1` write
 `<save_dir>/COLONY%02d.SAV`.
 
+### CLI: SAV ↔ JSON
+
+`tools/sav_json_main.c` (target `sav_json`) converts a `COLONY##.SAV` to a
+JSON document field-for-field (this doc's section map + save_format_map.md's
+atlas, named substructs for every bitfield/enum) and back:
+
+```
+build/sav_json COLONY00.SAV COLONY00.json   # SAV -> JSON
+build/sav_json COLONY00.json COLONY00.SAV   # JSON -> SAV
+build/sav_json COLONY00.SAV                 # defaults to COLONY00.SAV.json
+```
+
+Opaque/pad byte blobs and the four raw map planes (tile/mask/path/seen) are
+hex strings, not decoded further. Fixed-size name fields (colony/player/
+tribe/trade-route names) round-trip as JSON strings up to their NUL
+terminator — any DOS memory-reuse garbage *after* the NUL in the original
+byte buffer is not preserved (invisible to DOS/the port either way; string
+reads stop at NUL). Verified byte-identical round-trip on
+`original_saves/COLONY00.SAV`/`COLONY01.SAV` and `mapgen/SEED100.SAV`; on
+lategame fixtures the only diffs are that trailing-garbage-after-NUL case.
+Implementation: `tools/col1_json.c` (struct↔JSON mapping) +
+`tools/json_min.c` (generic JSON parser/writer).
+
 ## Runtime game state mapping
 
 `src/core/col1_bridge.c` maps Col1 ↔ live pools:

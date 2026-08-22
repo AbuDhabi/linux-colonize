@@ -520,6 +520,19 @@ target_link_libraries(golden_mapgen_seed100 PRIVATE colonize_core)
 
 add_test(NAME golden_mapgen_seed100 COMMAND golden_mapgen_seed100 WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
+add_executable(sav_json
+  tools/sav_json_main.c
+  tools/col1_json.c
+  tools/json_min.c
+)
+
+target_include_directories(sav_json PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/src
+  ${CMAKE_CURRENT_SOURCE_DIR}/tools
+)
+
+target_link_libraries(sav_json PRIVATE colonize_core)
+
 add_executable(probe_far_ocean_4753
   tools/probe_far_ocean_4753.c
 )
