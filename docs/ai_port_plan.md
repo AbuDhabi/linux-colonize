@@ -1274,7 +1274,7 @@ but don't resume speculatively either.
   static-memory RAM images may already have what's needed, and are more
   reliable than a live paste for wide table ranges.
 
-- [ ] **T4.2 — `FUN_41f2_0294` (village growth-threshold "worth" cap)
+- [x] **T4.2 — `FUN_41f2_0294` (village growth-threshold "worth" cap)
   semantics.** Not a new-village-founding decision — villages are fixed
   at map-gen and never appear mid-game; this gates an *existing* capital's
   per-turn population growth (`population++`) vs. spawn-a-colonist
@@ -1282,12 +1282,75 @@ but don't resume speculatively either.
   naming for the underlying `+4 value` field (also used once, separately,
   at tribe *creation* — see `FUN_4d56_0038` — which is the only place the
   word "founding" actually applies); don't read it as new-village spawn
-  logic. Confirmed decompiler-corrupted (no recovered stack frame, `(void)`
-  signature despite real call-site arguments) — needs a live
-  register/stack trace, not just re-disassembly. Currently stubbed as
-  `ai_indian_152e_worth_cap_stub`. Known *not* to be the cause of the
-  TURN2→3 golden failure below (isolated separately) but is still a
-  guaranteed future diff once goldens are back on.
+  logic.
+  **2026-08-22 — resolved, static-only, no live DOSBox-X session needed
+  after all (same pattern as `T4.1`/`T4.7`/`T4.8`).** The "decompiler
+  corrupted" verdict was about Ghidra's *C pseudocode* reconstruction
+  failing on a bad stack-frame guess, not about the underlying machine
+  code — the raw `.asm` disassembly is completely intact and was byte-
+  verified against a live `dosbox_dump.sav` capture (took at `152e`'s own
+  entry, before the call): the entry fingerprint (`98 3B 46 A2 7E 30`) and
+  all three terrain-class weight comparisons matched at the exact expected
+  offsets, in both of their two copies in the file. Ghidra's own
+  compile-time call-target labeling (`viceroy_unpacked.asm:136006`,
+  `CALL CODE_112:FUN_41f2_0294`) confirms `152e`'s near call through the
+  RTLink import-thunk table really does reach this function — earlier live
+  tracing that landed elsewhere was chasing a stale/reused overlay-buffer
+  segment, not this function.
+  **Real function is much bigger than "a terrain-worth cap"** — it's the
+  settlement's whole AI "worth" score, a **word**-sized sum (only the low
+  byte survives at the `152e` call site, since that caller does
+  `cmp al,[bx+4]` — worth values ≥256 wrap silently there, a real quirk
+  to preserve if ported) of seven terms, computed once at
+  `41f2:0294`/`viceroy_unpacked.asm:111541` and returned at `0b6a`/`112375`:
+  1. **Terrain-neighbor weight bucket** (`[bp-0x6e]`) — the originally-
+     targeted piece, confirmed exact: scans a neighborhood (bound driven
+     by `DS:0x539e`/colony-pointer `+0x1f`), terrain class `0x1c` → **+2**,
+     `0x19`/`0x1a`/`0x1b` → **+1**, else → **+4** per tile. Appears as two
+     duplicate copies of the same scan in the compiled body.
+  2. **Founding-fathers time-remaining bonus** (`[bp-0x64]`) —
+     `(0x6f4 - x) << 1`, gated on `DS:0x5382` flag bit `0x08` and
+     `x < 0x6f4`; `x` comes from an earlier, not-yet-traced sub-scan.
+  3. **Nearby-unit count bonus** (`[bp-0x58]`) — `+5` per hit in a
+     25-iteration scan (`FUN_281f_07b4(i, settlement_id)` nonzero), gated
+     for *printing* on the debug flag but the addition itself is
+     unconditional.
+  4. **Founding-fathers/turns product** (`[bp-0x6c]`) —
+     `nation.<+0x18> * (0xFFFF - DS:0x53a6)`, gated on `nation.<+0x18>`
+     nonzero. `nation` = `*(int*)0x84fc`, the project's known nation-struct
+     anchor pointer (see `[[king-audience-tax-delta-resolved]]`'s method
+     notes) — **not indexed by a specific nation here**, just the raw base
+     pointer, so this reads whichever nation currently occupies slot 0 of
+     that pointer, not necessarily "this tribe's Euro contact."
+  5. **Clamped percentage term** (`[bp-0x60]`) — `min(nation.<+0xc>, 100)`,
+     gated on `DS:0x5382` bit `0x02` and `nation.<+0xc> >= 100`.
+  6. **Flat global bonus** (`[bp-0x5a]`) — `DS:0x53d0` copied directly if
+     nonzero.
+  7. **Distance-ish term** (`[bp-0x2]`) —
+     `FUN_1d1d_0ec6(nation.<+0x2a>, nation.<+0x2c>, 1000, 0)`, gated on
+     `nation.<+0x2c> >= 0` and `nation.<+0x2a> < 1000` — the two operand
+     fields are compared against map-coordinate-shaped bounds (0..999) in
+     this call, which reads as x/y, **but** `difficulty.md` already names
+     `nation+0x2a` as `gold` on the *`nation*0x13c` array* struct — open
+     contradiction, not resolved this pass; don't assume either naming
+     without checking whether `*(int*)0x84fc` (raw pointer, no
+     nation-index multiply here) and the `nation*0x13c` array element are
+     even the same struct.
+  After summing, an optional rounding correction applies if a computed
+  shift value is nonzero (`FUN_1d1d_0f60`, 32-bit divide-and-round-by-8).
+  The rest of the ~880-line body (roughly half of it) is verbose debug-
+  string-building and a debug info-box draw, all gated behind the
+  `param_1`/`DS:0x5382` debug flags — confirmed non-gameplay, matches the
+  doc's original guess exactly.
+  **Not yet done:** identifying `nation+0xc`/`+0x18`/`+0x2a`/`+0x2c`
+  against `col1_save.h`'s existing field names (several may already be
+  named — same doc-sync pattern that resolved `sticky_trade_good`/
+  `crown_nation_id` earlier), the sub-scan feeding term 2's `x`, and
+  `FUN_281f_07b4`'s own 25-count target list. A real C port also still
+  needs `DS:0x539e`/`0x539c` (scan bounds) and colony-pointer `+0x1f`
+  named. `ai_indian_152e_worth_cap_stub` in `src/core/ai.c` left
+  unchanged (still flat `15`) pending that follow-up — this pass resolved
+  *semantics*, not the port itself.
 
 - [ ] **T4.3 — TURN2→3 Brave quiet-pulse movement/RNG divergence.** Root
   cause not found (missing Brave `type=19 nation=6 xy=(39,20)` + 1-point
