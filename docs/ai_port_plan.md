@@ -72,6 +72,15 @@ lesson below needs more context):
   `original_sources_annotated/include/viceroy_globals.h` and
   `tools/address_mapping.csv` before assuming it needs a live dump — many
   "unlabeled" globals turn out to already be named for a sibling function.
+- **Before asking the user for a fresh live DOSBox-X capture, byte-pattern-
+  search the existing `dosbox-x-dumps/*` saves (`tools/find_memory` or
+  equivalent) for the table/value you need.** As of 2026-08-22 this has
+  closed 6 of 8 Tier 4 items that were originally filed as "needs a live
+  session" (`T4.1`, `T4.2`, `T4.3`, `T4.4`, `T4.7`, `T4.8`) — every one of
+  them turned out to already be sitting in one of the ~24 existing dumps,
+  static data unchanged across saves. A full RAM image beats a live paste
+  for wide table ranges and doesn't cost the user any time. Only file
+  something as genuinely Tier 4 after checking this and coming up empty.
 - **Never invent a constant.** If a price/byte table has no captured value
   anywhere in the project, leave it stubbed with a comment, don't guess —
   this is why `417e`'s two byte tables are still open (Tier 4) rather than
@@ -145,6 +154,16 @@ pass:
   undecoded columns (`+3` colony-founding neighbor score, `+4` a
   village/growth threshold term) with real call sites already found —
   self-contained, static-tractable, not attempted yet. See its own row.
+
+**Reassessed 2026-08-22.** A single session closed `T1.2` and pushed `T4.2`/
+`T4.3`/`T4.4`/`T4.7`/`T4.8` — all five *without* a live DOSBox-X session,
+via the `dosbox-x-dumps/*` static-search method (see the reinforced method
+note above). Two of those closures leave real, now-unblocked Tier 1 work
+that hadn't been queued yet — added as **T1.15** (`FUN_41f2_0294` village
+worth-score port, semantics fully known since `T4.2`) and **T1.16** (`2820`
+deep Haggle/hard-bargain port, blocking values resolved since `T4.4`). No
+renumbering — appended at the end of Tier 1, same low-risk approach as
+`T1.14`. `T1.13`'s open-items list refreshed again to include both.
 
 - [x] **T1.1 — Resolve `FUN_1000_8aac` field-index accessor, fields
   3/4/5/6/0xc.** New, highest-leverage item this pass. Field 2 of this
@@ -871,6 +890,15 @@ pass:
   (see its row) with those exact fields landing on `T4.7`/`T4.8` — so
   this piece is now Tier-4-gated too, not a Tier 1 loose end.
   Full trace: `quiet_brave_scoring.c`'s 2026-08-21 update.
+  **2026-08-22 — worth re-checking, not re-blocked.** `T4.7` and `T4.8`
+  both closed the same way `T1.1`'s other fields did (static, no live
+  session). Before treating `iVar14`/`iVar18` as still stuck: find which
+  specific field numbers those two `FUN_281f_08bc()` calls actually pass
+  and check them against the now-resolved case table (field `0xc` generic,
+  field `2`/`4`/`5` disguised constants per `T1.3`'s 2026-08-22 findings,
+  field `3` a keyboard-flush no-op, field `6` still genuinely unresolved).
+  Not done this pass — flagging that the door may already be open rather
+  than leaving the stale "blocked" framing standing.
 
 - [x] **T1.10 — Resolve `DS:0x945a` / `FUN_1d1d_0ec6` division (profession/
   dock query family).** New, split out of **T2.1**'s 2026-08-20 finding.
@@ -1092,12 +1120,15 @@ pass:
   (unlike KINGGALLEON3's, which shows the tax-rate percentage), a real,
   checkable signature nobody's searched on yet. Full trace in
   `euro_unit_act.md`'s 2026-08-20 update. Stays PARKED. Tier 1 is **not**
-  exhausted — **2026-08-21 reassessment, list refreshed again: T1.1, T1.7,
-  and T1.10 are now also done.** Still genuinely open Tier 1 items ahead
-  of this one: **T1.8** (pathfinding flood-fills, deprioritized but not
-  closed), **T1.9** (Indian quiet-scoring formula mapping), and the new
-  **T1.14** (terrain-record `+3`/`+4` columns). This was just the last
-  item a given session reached, not the end of the tier.
+  exhausted — **2026-08-22 reassessment, list refreshed again: T1.2 is now
+  also done.** Still genuinely open Tier 1 items ahead of this one:
+  **T1.3** (`3558` matrix, mostly-noise formula, one unresolved field-6
+  conflict left), **T1.8** (pathfinding flood-fills, deprioritized but not
+  closed), **T1.9** (Indian quiet-scoring formula mapping — worth
+  re-checking now `T4.7`/`T4.8` closed), and the new **T1.14**
+  (terrain-record `+3`/`+4` columns), **T1.15** (`41f2_0294` worth-score
+  port), **T1.16** (`2820` Haggle/hard-bargain port). This was just the
+  last item a given session reached, not the end of the tier.
 
 - [ ] **T1.14 — Decode `DS:0x2f76` record columns `+3` (colony-founding
   neighbor score) and `+4` (village/growth threshold term); identify what
@@ -1150,6 +1181,41 @@ pass:
   `terrain_yields.md`'s `+0x3`/`+0x4` rows. **Not checked off** — nothing
   wired; `+4`'s real remaining scope is now "find the real function," not
   "RE a known-uncatalogued one."
+
+- [ ] **T1.15 — Port `FUN_41f2_0294`'s village worth-score formula.** New
+  2026-08-22, split out of `T4.2` now that its semantics are fully known
+  (7-term word-sum, see that row) and only field-naming + porting remain —
+  no live capture needed for any of it. Replaces the flat-`15`
+  `ai_indian_152e_worth_cap_stub` in `src/core/ai.c`, which currently gates
+  the same `152e` capital-growth branch this session's `T4.3` root-cause
+  investigation traced a real (if unrelated) golden divergence into.
+  Remaining static sub-tasks per `T4.2`'s own list: name `nation+0xc`/
+  `+0x18`/`+0x2a`/`+0x2c` against `col1_save.h` (cross-check
+  `[[king-audience-tax-delta-resolved]]`'s already-resolved nation-struct
+  fields first — several of these may already have names), trace term 2's
+  not-yet-found sub-scan for its `x` input, identify `FUN_281f_07b4`'s
+  25-count target list, and name `DS:0x539e`/`0x539c` (scan bounds) +
+  colony-pointer `+0x1f`. Preserve the real quirk `T4.2` found: only the
+  low byte of the word-sized total survives at the `152e` call site
+  (`cmp al,[bx+4]`) — values ≥256 wrap silently, byte-truncate on port,
+  don't widen it "for correctness." Also resolve the open
+  `nation+0x2a`/`+0x2c` vs. `difficulty.md`'s existing `gold` naming
+  contradiction (`T4.2` flagged, didn't resolve) before trusting either.
+
+- [ ] **T1.16 — Port `2820`'s deep Haggle/hard-bargain resume-loop.** New
+  2026-08-22, split out of `T4.4` now that both blocking values are
+  resolved (per-(nation,cargo) throttle table at `DS:0x84BC..0x84FB`,
+  scratch multiplier `0x8dc4`=`0x32` — see that row). `T1.6` already
+  established this is reading-and-transcribing already-recovered code, not
+  fresh RE (the `iStack_5e==2`/`3` resume-loop branches inside `2820`'s
+  own already-clean 595-line body). One caveat to carry into the port,
+  not a blocker: `T4.4`'s captured throttle table was byte-identical
+  across all 4 nation rows in a single mid-negotiation save despite being
+  documented as per-nation — flagged there as "worth a second capture to
+  confirm it's not just coincidentally unmodified," still outstanding.
+  Port with the captured values, comment the single-capture caveat
+  in-line, don't block on a second capture unless the port's own behavior
+  turns out to hinge on real nation-to-nation variance.
 
 ---
 
@@ -1248,9 +1314,15 @@ CLAUDE.md's "hard to reverse" guidance.
 ## Tier 4 — Needs the user's live DOSBox-X session
 
 Confirmed genuinely blocked without a live capture (register/stack trace,
-memory dump, or hang-dump). Re-verify the blocker is still real (tooling
-moves fast in this project) before asking the user to spend DOSBox-X time —
-but don't resume speculatively either.
+memory dump, or hang-dump). **As of 2026-08-22, 6 of the 8 items ever filed
+here closed without any live session at all** — `tools/find_memory`-style
+byte-pattern search against the existing `dosbox-x-dumps/*` saves found
+every one of them already sitting in static data. Before working (or
+asking the user to work) any `[ ]` item below, search the existing dumps
+first — see the method note above. Only `T4.5`/`T4.6` remain genuinely
+open, and `T4.6` is parked by policy, not by blocker. Don't resume
+speculatively, but don't assume "Tier 4" still means "needs the user" the
+way it did when this file was first written.
 
 - [x] **T4.1 — `DS:0x2f76..0x2f88`ish terrain-cost/toughness table.**
   **2026-08-20: stale, corrected — narrower than stated.** `map.c` already
