@@ -873,15 +873,76 @@ adjustment" claim or this pass's "suspicious prefix" observation as final
 until someone traces the actual entry control flow into this address —
 flagging the conflict is this pass's contribution, not resolving it.**
 
-Net for `T1.3`: fields 2, 3, 5 are now solidly known to carry no real
-per-call variance (fixed/noise), field 4 reduces to a meaningless raw
-unit-id echo, field 6 is unresolved with a live discrepancy on record.
-**Recommend treating this matrix as very likely dead code / non-functional
-in the shipped binary** (mirroring `T1.2`'s "no code to ship" precedent),
-but not fully closing the checkbox this pass — field 6's discrepancy is a
-real gap, and this project's own method notes warn against overclaiming
-semantic conclusions on structural evidence alone. `ctest` not run
-(doc-only), no `src/` touched.
+**Same pass, continued — field 6's discrepancy resolved, and it corrects a
+previously-closed `T4.8` sub-finding.** Fetched a wide, properly-aligned
+window (`0823:6ed0..6f30`) instead of starting exactly at the cited
+`0x6ef7`: the real mask-build helper genuinely starts at **`0x6ee0`**
+(`ENTER 6,0; CL=[BP+6]&7; AX=1<<CL; CX=[BP+6]; SAR CX,3; ADD CX,[0x8542];
+ADD CX,0x84; CMP word[BP+8],0; JZ clear-path; ...OR/AND [BX],AL...`) — a
+clean, self-consistent 3-argument function (bit index, colony pointer via
+`DS:0x8542`, set/clear flag). But the jump table's word 6, re-read straight
+from `0xd78` (`0x6ef7`, confirmed bit-exact, not a transcription slip),
+lands exactly on the **third byte of that function's own `SAR CX,byte 0x3`
+instruction** (`0x6ef5-0x6ef7` = `C1 F9 03`) — genuinely mid-instruction,
+not a valid entry point at all. This directly **contradicts and corrects**
+this doc's own 2026-08-21 "Case 6 — correction, was never actually broken"
+entry, which claimed `0x6ef7` decoded clean with no adjustment — that
+claim was checked by locating the recognizable `OR`/`AND` fragment further
+into the byte stream without verifying the *literal* entry byte lines up
+with the start of an instruction; it doesn't.
+
+Traced what the CPU actually executes starting at the literal `0x6ef7`,
+now with the case-dispatcher's own prologue fully in hand (recovered this
+pass, `0823:4fb0` onward — was never disassembled before): at the moment
+of `JMP CS:[BX+0xd78]`, **`BX` = `field_index*2`** (the jump-table index
+register itself, not colony-related), **`DI = 0`** (confirmed, matches
+prior convention), and — the key new fact — **`CX` is left over from
+`FUN_0000_4272`'s own internal register use** (the convoy-head walker
+called earlier in this same prologue), never set or documented as part of
+the case-dispatch calling convention. Entering at `0x6ef7` with these
+registers: `ADD AX,[BP+DI]`(=`[BP]`) → `PUSH CS` → `INC DX` → `TEST
+[BX+DI+0x84c1],AX`(=`[0x84cd]`, flags-only) → `ADD [BP+DI+0x87e],AL`
+(=`[BP+0x87e]`, a real write ~2KB past the frame) → `ADD [SI+6],DH`(SI
+uncontrolled) → `MOV BX,CX` → `OR [BX],AL`. **Because `CX` is whatever
+`FUN_0000_4272` left behind, not the intended `colony_ptr+0x84+bit_offset`
+address, the final `OR [BX],AL` writes to an address this call site does
+not control** — the "set/clear a colony flag bit" semantic the jump table
+*appears* to offer for field 6 is not what actually executes; the real
+colony-pointer/bit-offset arithmetic (the `SAR`/`ADD [0x8542]`/`ADD 0x84`
+sequence) never runs at all, having been skipped over by landing mid-
+instruction past it. **Field 6, like 0/3/4/5, does not deliver the field
+this matrix's decompiled C names (`iStack_46`) as if it were a clean per-
+unit read.** Whether this is a genuine (rare, likely harmless in practice
+since `[BP+0x87e]`/`[SI+6]`/`[BX]` probably land on unused stack/data
+space most of the time) shipped bug in the 1994 binary, or whether this
+call site is simply never reached at runtime for some other reason not
+visible in this static trace, isn't resolved by this pass — structural
+confidence is high (every step is a direct byte read against a freshly-
+recovered, complete prologue), semantic confidence about *why* is not
+established, kept separate per this project's standing caution.
+
+**Net for `T1.3`, all five terms now accounted for**: field 2 near-fixed
+(`T1.2`), field 3 UI noise, field 4 a raw unit-id echo, field 5 a disguised
+constant, field 6 a broken/uncontrolled-address dispatch that never reaches
+its own apparent intent. **No term in the `iStack_82`/`local_9c` formula
+carries the per-unit/per-cargo signal its variable names imply.** This
+matches `T1.2`'s "no code to ship" shape closely enough to close on the
+same basis: there's nothing here a faithful port could preserve, because
+the shipped binary itself doesn't compute anything meaningful at this
+call site. Checking `T1.3` off in `ai_port_plan.md` on this basis. `ctest`
+not run (doc-only), no `src/` touched — nothing to port means nothing to
+test.
+
+**Correction to `T4.8`**: that item's case-6 finding ("was never actually
+broken... no offset adjustment needed") is superseded by this update — the
+byte-decode was correct as far as it went, but citing the `OR`/`AND`
+fragment as reachable "clean" content without checking the literal `0x6ef7`
+entry point against a real instruction boundary repeats the exact mistake
+`T4.8`'s own case-4 entry had already caught and fixed for a different
+case. Left `T4.8`'s checkbox as `[x]` (the item's real question — does
+this need a live DOSBox-X session — is still answered "no, resolved from
+existing dumps," just with a corrected answer for case 6 specifically) but
+added a pointer there to this section.
 
 ## Raw recovered C
 
