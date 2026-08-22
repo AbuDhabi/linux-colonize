@@ -842,6 +842,24 @@ renumbering — appended at the end of Tier 1, same low-risk approach as
   resumed. Full trace: `euro_unit_act.md`'s 2026-08-21 update; `units.c`'s
   fallback-tier comment updated with the `FUN_281f_090c` correction.
   `ctest` 41/41 green (comment-only `src/` change).
+  **2026-08-22 — answered: `units_can_enter` does not match it, it's
+  simply absent.** Read `units_enter_probe` end to end: for a land unit
+  stepping onto empty, unoccupied tribe territory or land near an enemy
+  fort/colony (the exact case DOS's `+8` penalty targets), it falls
+  straight through to `COLONIZE_ENTER_OK` — no ownership check at all.
+  So this isn't "probably already covered," it's a genuine, previously
+  unflagged gap. The four DOS accessors behind the penalty are already
+  identified (not new RE): `continent_id`, `tile_tribe_owner`,
+  `tile_tribe_or_presence` (Linux equivalents exist, though the tribe ones
+  are currently `static`/private to `ai.c`'s Indian quiet-scoring gate),
+  and "enemy Euro fort/colony owner vs nation" (no Linux equivalent yet).
+  Still open: the exact relation-state condition that gates the `+8`
+  itself, not traced from `0015bc`'s raw body this pass. Given a working,
+  tested substitute already ships and nothing would catch a wrong wire
+  (`T3.3`), staying optional fidelity polish — but now with a precise
+  3-step next action (trace the condition, expose a non-static accessor,
+  add the term) instead of an assumption to verify. Full trace:
+  `euro_unit_act.md`'s 2026-08-22 update. `ctest` not run (doc-only).
 
 - [ ] **T1.9 — Indian mid-game quiet scoring (goods/missions/capital
   pull) formula mapping.** R2 used to flag this as blocked on "a
