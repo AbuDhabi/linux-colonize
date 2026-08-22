@@ -2388,6 +2388,27 @@ static int ai_indian_152e_quartile(int relation) {
  * modeling deterministic-but-meaningless garbage as if it were designed
  * behavior. Stub still returns the flat population-cap-15 T0
  * approximation; a real port is not a same-session task from here.
+ * 2026-08-22, later session — **the "7-term word-sum" framing itself is
+ * an undersell, flagged not fixed.** Read `FUN_41f2_0294`'s real body
+ * straight from `viceroy_unpacked.c:72085` (both real callers,
+ * `FUN_4d56_0038`/`FUN_4d56_152e`, pass exactly 1 clean argument — the
+ * "zero-arg" rendering the earlier notes above describe is specific to
+ * `FUN_41f2_0294` itself, not its callers). The body is a ~200-line
+ * scan-and-accumulate loop over EVERY colony (bounded by the already-named
+ * `VICEROY_DS_COLONY_COUNT`/`_UNIT_COUNT`, matching an owner-nibble test
+ * at `settlement+0x1c*i+0x3147 & 0xf`) that **interleaves the numeric
+ * score with conditional formatted-text-line construction** (`FUN_281f_016e`/
+ * `_0178`/`_013c`-family calls building strings, paired with a repeating
+ * `y_offset += 0x14` line-height bump) — the shape of a scrollable report
+ * screen (Colonial Report / advisor prestige breakdown), not a plain
+ * arithmetic formula. Confirms term 7 (`gold>=1000?gold/1000:0`, seen
+ * again here at `nation+0x2a/0x2c`) and finds an eighth term at
+ * `nation+0xc` (liberty bells, `>99` gate, `/100` capped at 100) not
+ * previously counted. **Not attempted further this pass** — this is
+ * bigger and structurally different from what T1.15/T4.2 scoped (report-
+ * text generation entangled with scoring, not a clean sum), needs its own
+ * dedicated investigation before any port, same caution class as
+ * `T1.17`'s helper family. Full trace: `ai_port_plan.md` T1.15.
  */
 static int ai_indian_152e_worth_cap_stub(
   const ColonizeTurnContext* ctx,

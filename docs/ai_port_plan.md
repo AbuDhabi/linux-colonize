@@ -192,6 +192,12 @@ cross-reference in `T1.13`'s open-items list (was still citing `T1.3`/
 `T1.9` as open after both closed this pass). Tier 1 now: 12 of 17 items
 closed; genuinely open are only `T1.8`, `T1.13`, `T1.15`, `T1.16`, `T1.17`.
 
+**Reassessed 2026-08-22, later still — `T1.16` closed** (full per-unit
+rewrite, user-directed; its one remaining loose end, the AI refuse-gate
+scale, moved to Tier 4 as **T4.9** — genuinely needs a live session, not
+guessable from the established relation-polarity convention). Tier 1 now:
+13 of 17 closed; genuinely open are `T1.8`, `T1.13`, `T1.15`, `T1.17`.
+
 - [x] **T1.1 — Resolve `FUN_1000_8aac` field-index accessor, fields
   3/4/5/6/0xc.** New, highest-leverage item this pass. Field 2 of this
   accessor took `move_scoring_20e6_full.md` six passes to crack (the
@@ -1440,8 +1446,25 @@ closed; genuinely open are only `T1.8`, `T1.13`, `T1.15`, `T1.16`, `T1.17`.
   `ai_indian_152e_worth_cap_stub` header comment, 2026-08-22 continued
   update. Real port stays future work — not a same-session task. `ctest`
   not run (doc/comment-only).
+  **2026-08-22, later session — the "7-term word-sum" framing itself is
+  an undersell.** Read `FUN_41f2_0294`'s real body directly
+  (`viceroy_unpacked.c:72085`): both real callers pass a clean 1-argument
+  call (the earlier "zero-arg" confusion is specific to `0294`'s own
+  declared signature, not its callers). The body is a ~200-line loop over
+  every colony that **interleaves the numeric score with conditional
+  report-text-line construction** (string-builder calls paired with a
+  repeating line-height bump) — shaped like a scrollable Colonial
+  Report/prestige screen, not a plain arithmetic formula. Confirms term 7
+  again and finds an uncounted 8th term (`nation+0xc` liberty bells,
+  `>99` gate, `/100` capped at 100). **Not a same-session port** — bigger
+  and structurally different from this row's own scope, needs a fresh
+  dedicated investigation (same caution class as `T1.17`). Not resumed
+  further this pass — flagging precisely rather than guessing at the
+  report-vs-formula split. Full trace: `ai.c`'s
+  `ai_indian_152e_worth_cap_stub` header, 2026-08-22 later-session update.
+  `ctest` not run (comment-only).
 
-- [ ] **T1.16 — Port `2820`'s deep Haggle/hard-bargain resume-loop.** New
+- [x] **T1.16 — Port `2820`'s deep Haggle/hard-bargain resume-loop.** New
   2026-08-22, split out of `T4.4` now that both blocking values are
   resolved (per-(nation,cargo) throttle table at `DS:0x84BC..0x84FB`,
   scratch multiplier `0x8dc4`=`0x32` — see that row). `T1.6` already
@@ -1579,6 +1602,64 @@ closed; genuinely open are only `T1.8`, `T1.13`, `T1.15`, `T1.16`, `T1.17`.
   everywhere else this session — resolve the helper identities one at a
   time via force-decompile, don't guess at the scoring shape from names
   alone.
+  **2026-08-22, later session — 3 of 8 helpers identified, real progress,
+  not closed.** Read each directly (flattened export, no headless needed
+  this pass): **`FUN_15eb_0470`** = colony's workable-plot-tier count —
+  `min(census(job_type=10), 2) + 2`, indexes a small fixed table at
+  `+0x329` for how many tiles are in scope this pass (matches Colonization's
+  colony-radius-grows-with-size convention). **`FUN_15eb_039e`** (its own
+  callee, and called directly at two more sites in `28c8` itself with
+  `job_type=0x28`/`3`) = census helper: walks a stride-`0xc` linked list at
+  `-0x707a` counting nodes where `FUN_15eb_038e(job_type)` is true — a
+  building/work-slot chain, not yet itself resolved (`FUN_15eb_038e`).
+  **`FUN_15eb_0a50`** = colony population cap: `colony+0x95` (a level
+  byte) `==0 -> 100`, else `(level+1)*100`; paired with a per-job-type
+  count array at `colony+0x9a` (9 entries, one per job index 0-8) to
+  compute open headroom in `28c8`'s own scoring loop (`local_6 -
+  colony[0x9a+job*2]`, floored at 1). Still unresolved: `FUN_15eb_06d2`
+  (called with a tile pair + packed byte — looks like a "select candidate
+  tile" cursor/lock, called again with `0xffff` as a clear/release at loop
+  end, not yet confirmed), `_1068` (job assign/query, `param_2` in `0..0xd`
+  range including the `0xd`="none" sentinel), `_0e18` (returns current job
+  for a colonist), `_1f72` (void, no params — a refresh/cache-prime call),
+  `_1376` (returns a count/flag for `param_1` — called with `0xd` in
+  `28c8`), `FUN_13e4_003a` (tile-pair -> terrain-class index into the
+  already-resolved `DS:0x2f76` family — `local_32*0x10+0x2f7a` matches
+  that table's own `+4` yield-column pattern from `T1.14`/`ds237d-terrain-
+  record-full-layout`, likely just a coordinate->terrain-class lookup, high
+  confidence but not independently confirmed this pass), `FUN_137f_02a0`
+  (colony coordinates -> some scan-bound int, feeds `local_e`). Also
+  spotted, not previously counted: `FUN_15eb_15c6` (a small per-job-index
+  lookup, `local_34+0x2b6`) and `FUN_15dc_00e0` (`param_1`=another
+  colonist's job index, `param_2`=own nation — NOT the already-known
+  `FUN_15dc_00a2` quartile bucketer, a different function at a nearby
+  offset; don't conflate the two). **Net**: real per-helper progress, but
+  the count of genuinely unresolved pieces (`038e`'s own linked-list
+  semantics included) is still ~9, unchanged in scale from last pass —
+  not a same-session port. Real next step if resumed: resolve `_1068`/
+  `_0e18` next (they gate the AI-vs-human branch and the "current job"
+  baseline `iVar4`, both load-bearing for the loop's own control flow, not
+  just scoring weight), then `_06d2`'s tile-lock semantics. `ctest` not
+  run (doc-only, no `src/` touched).
+  **2026-08-22, same session, continued — `_0e18`/`_0e52` resolved (2 more
+  of the 8), confirms the existing Linux duality this row already flagged.**
+  `FUN_15eb_0e18(param_1)` = colonist-slot's assigned **work-plot job**:
+  `colony+param_1+0x20` (a per-colonist-slot array) when `param_1 <
+  colony+0x1f` (colonist count, already known), else an out-of-colony
+  fallback via `FUN_15eb_0924`/`_0902` (not resolved). `FUN_15eb_0e52` is
+  the sibling **profession-type** accessor, same in-range array at
+  `colony+param_1+0x40`, same out-of-range fallback reading straight
+  through to `unit+0x315b` (already-named `profession` field, `col1_save.h`)
+  — independent confirmation this DOS function models the exact same
+  "work-plot job slot" vs. "colonist profession" duality `ai_euro.c`'s own
+  existing hand-tuned heuristic already keys on (per this row's original
+  Linux-equivalent check). Still unresolved: `FUN_15eb_0924`/`_0902` (the
+  out-of-colony fallback pair both `_0e18`/`_0e52` share), `_06d2`, `_1f72`,
+  `_1376`, `FUN_13e4_003a`, `FUN_137f_02a0`, `FUN_15eb_038e` (the census
+  predicate `_039e` calls). Not a same-session port — pausing the helper
+  dig here; real next step if resumed is `_0924`/`_0902` (shared by both
+  just-resolved accessors, likely high-leverage) or `_06d2`'s tile-lock
+  role. `ctest` not run (doc-only).
 
 Bigger in scope than Tier 1 items but not blocked on anything static tooling
 can't reach. Pick up after Tier 1 thins out, or interleave if a Tier 1 item
@@ -1935,6 +2016,26 @@ way it did when this file was first written.
   confidence (+1-byte fix, internally consistent but no external
   cross-reference like case 4 had). Full trace:
   `move_scoring_20e6_full.md`'s 2026-08-21 update.
+
+- [ ] **T4.9 — `2820`'s AI refuse-gate scale for `FUN_1000_84fc`
+  (`aiStack_d6[0] > 0x31` → refuse-with-penalty).** New 2026-08-22, split
+  out of **T1.16** now that its own full rewrite landed. `aiStack_d6[0]` is
+  `FUN_1000_84fc`'s return, elsewhere equated to `ai_diplo_indian_relation`
+  — but this project's own established polarity for that accessor is
+  "higher = friendlier" (peace baseline 96, refuse-talk < 40, trade-accept
+  bumps +2, war deltas negative). A literal `relation > 0x31`-scaled port
+  of this gate would then refuse trade with FRIENDLY natives, which
+  contradicts every other established use of the same accessor family —
+  either this one call's `dialog`/context argument selects a genuinely
+  different (inverted or differently-scaled) native quantity, or this
+  project's own polarity convention is wrong for this specific site.
+  Static tooling can't distinguish the two — needs a live DOSBox-X read of
+  `aiStack_d6[0]`'s actual value at `2820`'s `FUN_1000_84fc` call, cross-
+  checked against the same save's known in-game relation, while an AI
+  peer contacts a tribe. Not wired on a guess; `ai_contact_auto_trade`
+  currently always succeeds once the pre-existing outer
+  `alarm_by_player>=50` gate (untouched, unrelated) is clear. Full trace:
+  `indian_trade_2820.md`'s 2026-08-22 "user decision" addendum.
 
 ---
 
