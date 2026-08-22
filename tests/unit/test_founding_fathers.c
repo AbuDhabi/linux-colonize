@@ -1,5 +1,6 @@
 /* Smoke: liberty-bell threshold elects FF with manual/wiki-aligned effects. */
 #include "core/ai_diplo.h"
+#include "core/col1_bridge.h"
 #include "core/col1_save.h"
 #include "core/colony.h"
 #include "core/colony_production.h"
@@ -2238,10 +2239,39 @@ int main(void) {
       col1_save_free(&loaded);
       return fail("blob after_load must restore pool 800");
     }
+    founding_fathers_reset();
+    ColonizeWorldMap bridge_map;
+    memset(&bridge_map, 0, sizeof(bridge_map));
+    ColonizeColonyPool bridge_colonies;
+    colonies_init(&bridge_colonies);
+    ColonizeUnitPool bridge_units;
+    units_reset(&bridge_units);
+    EuropeScreen bridge_europe;
+    memset(&bridge_europe, 0, sizeof(bridge_europe));
+    ColonizeCol1BridgeResult bridge_br;
+    if (!col1_bridge_apply(
+          &loaded, &bridge_map, &bridge_units, &bridge_colonies, &bridge_europe, &bridge_br, err,
+          sizeof(err)
+        )) {
+      free(enc);
+      col1_save_free(&blob_save);
+      col1_save_free(&loaded);
+      map_free(&bridge_map);
+      fprintf(stderr, "bridge apply: %s\n", err);
+      return fail("col1_bridge_apply on bell-pool save");
+    }
+    if (founding_fathers_bells_since_last_elect(0) != 800u) {
+      free(enc);
+      col1_save_free(&blob_save);
+      col1_save_free(&loaded);
+      map_free(&bridge_map);
+      return fail("bridge apply must restore pool 800");
+    }
+    map_free(&bridge_map);
     free(enc);
     col1_save_free(&blob_save);
     col1_save_free(&loaded);
-    fprintf(stderr, "unit_founding_fathers: bell pool Col1 blob round-trip ok\n");
+    fprintf(stderr, "unit_founding_fathers: bell pool Col1 blob + bridge load ok\n");
   }
 
   printf("unit_founding_fathers: OK\n");
