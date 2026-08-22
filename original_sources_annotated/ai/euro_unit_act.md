@@ -447,6 +447,39 @@ it (`T3.3`). Real next step if resumed: confirm `units_can_enter`
 already covers the ownership/diplomacy `+8` case before swapping
 `units_flood_next_step`'s edge cost to the real formula.
 
+**2026-08-22 — that open question answered: `units_can_enter` does NOT
+cover it, so this is a real, previously-unflagged gap, not just an
+unverified assumption.** Read `units_enter_probe` (`units.c`) end to end:
+its only ownership-aware logic is (a) foreign-*unit* combat/bounce
+resolution when an actual foe occupies the tile, and (b) ship-docking
+rules at a foreign *colony* tile. For the case `0015bc`'s `+8` penalty
+actually targets — a **land unit stepping onto empty, unoccupied land**
+that happens to be tribe territory or near an enemy fort/colony — the
+land branch falls straight through to `units_village_squat_illegal` and
+then `COLONIZE_ENTER_OK`, with no ownership check of any kind. **So the
+DOS `+8` claim-avoidance penalty has no Linux counterpart at all today**,
+not "probably already covered." The four DOS accessors behind it are
+already identified, not new unknowns: `FUN_1000_88a4`→`continent_id`,
+`FUN_1000_88ae`→`tile_tribe_owner`, `FUN_1000_88c2`→
+`tile_tribe_or_presence`, `FUN_1000_88d6`→"enemy Euro fort/colony owner
+vs nation" (`FUNCTION_CATALOG.md` lines 1352-1357, thunks resolved to
+`FUN_281f_06b4/06be/06d2/06e6`) — Linux equivalents of the first three
+already exist (`map_continent_id_at` in `map.c`; `ai_owner_nibble`/
+`ai_tile_tribe_or_presence`, currently `static` and private to `ai.c`'s
+Indian quiet-scoring gate, `ai.c:2841-2861`), the fourth has no Linux
+equivalent yet. **Still not wired**: the exact "certain relation states"
+condition that gates the `+8` (which relation states, whose perspective)
+wasn't traced this pass — that's the one remaining unknown, not the
+accessor identities. Given a working, tested pathing substitute already
+ships (`units_flood_next_step`/`units_bfs_next_step`) and no golden would
+catch a wrong guess here (`T3.3`), this stays optional fidelity polish
+per the note above, now with a precisely-scoped real next step instead of
+an assumption to verify: (1) trace the exact relation-state condition
+from `0015bc`'s own raw body, (2) expose a non-static tribe/fort-owner
+accessor `units.c` can call, (3) add the `+8` term to
+`units_flood_next_step`'s edge cost. Not attempted this pass beyond the
+identification above (doc-only, `ctest` not run).
+
 `FUN_4720_049e` (`FUN_291f_044e`'s target): **corruption is real but
 narrow, and the function underneath is a genuinely major find — not a
 move driver at all.**
