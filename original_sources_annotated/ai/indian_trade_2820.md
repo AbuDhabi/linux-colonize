@@ -757,9 +757,9 @@ Subst slots: `281f_0438` slots 0..3 load cargo-name ptrs from table `−0x6840`.
 
 | Behavior | Linux (`ai_contact`) | This map |
 |----------|----------------------|----------|
-| Auto-trade / gift | Real gold debit (2bbc/2820 price formula) | Full `2bbc` / `2b92` pricing |
-| Human buy-offer CHOICE (`LAB_002e92` human branch) | `ai_popup` Accept/Decline Done (2026-08-19), locked price shown then charged | Deep Haggle / hard-bargain counter-offer resume-loops (the `iStack_5e==2`/`3` branches inline in `2820`'s own body — **not separate `2f96`/`306c` functions**, see 2026-08-20 correction above) still unported; genuinely blocked on the uncaptured `-0x7b44` throttle table + `0x8dc4` scratch value, not on missing RE. Multi-good cargo-select CHOICE (`0x15a0`) not ported (TRADE_GOODS only, matching the AI path's scope) |
-| Hard-bargain mid-alarm | Thin Done; primary extra TG for all non-`0xff` teach primaries (Series M) | Full inline hard-bargain resume-loop (same `-0x7b44`/`0x8dc4` blocker) |
+| Auto-trade (AI-silent) | Real `LAB_002bbc` shape (2026-08-22): contacting unit's own TRADE_GOODS hold drained, Euro gold CREDITED. Refuse gate (`relation>0x31`) identified, not wired (polarity unconfirmed) | `LAB_002e92` (tribe sells its own goods to an empty-handed unit — different cargo universe) still PARKED |
+| Human trade CHOICE | `ai_popup` Accept/Decline Done, same `LAB_002bbc` shape as above, locked price shown then credited — a Linux agency layer, **not** a port of any DOS human branch (DOS's own human-with-cargo dispatch reaches neither label) | Deep Haggle / hard-bargain counter-offer resume-loops (the `iStack_5e==2`/`3` branches inline in `2820`'s own body) still unported — moot for the AI side (single deterministic decision, no resume), open for a human wanting to push back. Multi-good cargo-select CHOICE (`0x15a0`) not ported (TRADE_GOODS only) |
+| Hard-bargain mid-alarm | **Retired 2026-08-22** — no basis in `LAB_002bbc`'s real body; trade now behaves identically at any alarm below the outer `>=50` refuse-talk gate | n/a |
 | Gift-amount CHOICE | `ai_popup` Done | Deep nest still PARKED |
 | VGA wood dialog | PARKED | `291f_019c` / `0438` subst |
 
@@ -954,4 +954,134 @@ which side's cargo/gold each branch actually touches, before wiring
 anything. The refuse-decision finding above (real, useful, low-risk) is
 still worth adding once the direction question is settled — it doesn't
 depend on the answer, only the *accept* branch's existing gold logic does.
+
+## 2026-08-22, continued — direction question resolved (force-decompiled
+## both callees); dispatch condition traced; a second, bigger discrepancy
+## found in already-shipped code, not yet acted on
+
+`FUN_1000_8cdc`→canonical `FUN_0000_902c`: removes a cargo-hold slot from
+unit `param_1` (compacts remaining slots, hold-count--). `FUN_1000_8f48`→
+canonical `FUN_0000_8f68`: adds/merges quantity into a matching cargo-hold
+slot on unit `param_1` (or creates one if room). Confirms unambiguously:
+**`LAB_002bbc`'s accept branch (calls `902c`, not `8f68`) removes cargo
+from the Euro unit and credits Euro gold — "Euro sells to tribe."
+`LAB_002e92`'s accept branch (calls `8f68`, paired with an explicit
+`gold -= price` two lines above it) adds cargo to the Euro unit — "Euro
+buys from tribe."** `ai_contact_2820_ai_buy_price`/`ai_contact_auto_trade`
+model the buy direction but their comments cited `LAB_002bbc` — fixed in
+`ai_contact.c` (comment-only, 3 sites, `ctest` 41/41 green after).
+
+**Dispatch condition, traced from the shell (lines ~222-283, ~450-452):**
+simple once found. `iStack_c8` (cargo-hold type at the picked slot) starts
+`-1`; it only becomes `>=0` if the unit's own hold count (`unit+0x3150`)
+is nonzero AND a slot gets picked (RNG for AI, a real multi-good CHOICE
+dialog — the already-PARKED `0x15a0` — for humans). Then:
+```c
+if (iStack_c8 < 0) {                    // unit carries nothing to offer
+LAB_002e92:  ...                        // tribe sells TO the unit (buy-from-natives)
+}
+else if (iStack_8 == 0) {               // unit HAS cargo, AND is AI-controlled
+LAB_002bbc:  ...                        // unit sells cargo TO the tribe
+}
+// unit HAS cargo AND is human-controlled: neither branch fires here —
+// falls straight to the closing `func_0x0001938c(uVar12)` — real
+// destination not traced this pass, `uVar12` by that point is stale from
+// unrelated earlier code, not obviously meaningful. Likely means the
+// human "sell my cargo to a tribe" flow lives in a genuinely separate
+// function/call site this doc's call graph doesn't yet cover, or simply
+// isn't implemented in DOS for the human case at all — not resolved.
+```
+So: **`LAB_002bbc` fires only when an AI-controlled Euro unit is carrying
+cargo when it contacts a tribe** — a real, currently-unbuilt AI behavior
+("AI ships/wagons opportunistically sell surplus cargo to natives"), not
+gated on relation or anything ai_contact_auto_trade's callers currently
+check.
+
+**Second discovery, bigger than the mislabeling, not yet acted on.**
+Re-reading `ai_contact_auto_trade` (`ai_contact.c`) against BOTH now-fully-
+understood real branches: its actual mechanics — drain the **Euro
+colony's/ship's own TRADE_GOODS stock** *and* debit the Euro nation's
+gold — don't match either one. `LAB_002e92` (buy) never touches a Euro
+colony's stock at all (only the unit's cargo, which it *adds to*, and the
+*tribe's* own production counter, which decreases). `LAB_002bbc` (sell)
+also never touches a colony warehouse — only the unit's own cargo hold
+(*removed*) and the Euro nation's gold (*credited*, not debited). Draining
+the Euro side's own stock while ALSO charging it gold matches neither —
+it reads like a deliberate, simplified "gift + goodwill payment" hybrid
+from whichever earlier session wrote it, not a literal transcription of
+either DOS branch, though that intent isn't stated anywhere in its own
+history. **Not fixed this pass** — this is foundational, already-shipped,
+tested, live-gameplay code; concluding it's actually wrong (vs. an
+intentional simplification) needs more certainty than one re-reading
+provides, and the fix shape depends on which of the two real mechanics
+(or a genuine hybrid) it's meant to approximate. Flagged for a decision,
+not silently changed.
+
+## 2026-08-22, later same day — user decision: full rewrite to real
+## per-unit `LAB_002bbc` shape, colony-warehouse invention dropped
+
+User's call on the hybrid question above: port the real mechanic
+structurally (not a Linux-convenient refactor) so future comparison
+against the DOS decompile stays easy. Implemented in `ai_contact.c`:
+
+- **`ai_contact_auto_trade` now keys on the ONE contacting Euro unit**
+  (found the same way the Meet CHOICE dispatcher already finds it,
+  `ai_contact_find_adjacent_euro`), not a radius-4/5 "nearest colony or
+  ship/wagon" search. DOS's own `2820` never reads a colony warehouse at
+  all — that whole search was a Linux invention with no counterpart;
+  removed. 1 unit of TRADE_GOODS is now literally moved into/out of the
+  contacting unit's own `hold_goods_type`/`hold_goods_amount`, matching
+  `LAB_002bbc`'s real `FUN_1000_8cdc`/canonical `FUN_0000_902c` effect
+  exactly (cargo-hold-slot removal, not a warehouse decrement).
+- **`LAB_002e92`'s own scope confirmed narrower than previously assumed**:
+  it's not "the opposite direction of the same TRADE_GOODS transaction" —
+  it's the tribe selling its OWN production goods (furs/ore/silver/
+  tobacco/cotton/sugar, `iStack_c8>6`'s cargo-type family read via the
+  `acStack_7c`/`acStack_98` candidate-slot arrays) to an empty-handed
+  unit. TRADE_GOODS (cargo type `0xd`/13) is never itself one of those
+  candidates — it's the good the *Euro* side offers, matching `LAB_002bbc`
+  throughout this file's own special-casing (`if cargo_type==0xd:
+  base -= RNG(0,7)`, present in `002bbc`'s formula, absent from `002e92`'s
+  candidate-price block). So a TRADE_GOODS-scoped port of `002e92` isn't a
+  smaller version of the same mechanic, it's a different cargo-type
+  universe entirely — genuinely PARKED (real RE gap: the candidate-list
+  construction, `acStack_7c`/`98`, is unresolved), not invented to plug
+  the gap.
+- **Human-with-cargo CHOICE reframed honestly**: DOS's own dispatch never
+  reaches either label when the contacting unit is human-controlled and
+  carrying cargo (falls straight to the closing code, no cargo/gold
+  effect — see the 2026-08-22 dispatch trace above). The existing human
+  Accept/Decline CHOICE is NOT a port of a DOS human branch (there isn't
+  one here) — it's a deliberate Linux-side agency layer over the same
+  `002bbc`-shaped sale, now labeled as such in `ai_contact_enqueue_trade_price_choice`'s
+  header instead of miscited as "`LAB_002e92` human branch."
+- **Mid-alarm "hard bargain" 2x-drain peel retired.** The earlier finding
+  above (AI-controlled accept is a single deterministic decision,
+  `iStack_5e` fixed before the loop, only the — AI-unreachable — haggle
+  arm sets the continue flag) already ruled out any real tension/resume
+  mechanic for this branch. The peel had no DOS basis; dropped rather than
+  reinvented once the real per-unit shape replaced the colony-warehouse
+  approximation it was built on top of.
+- **DOS's own AI refuse gate NOT wired**: `LAB_002bbc`'s
+  `aiStack_d6[0] > 0x31 -> refuse` (`aiStack_d6[0] = FUN_1000_84fc(...)`,
+  elsewhere equated to `ai_diplo_indian_relation`). This project's
+  established polarity for that accessor is "higher = friendlier" (peace
+  baseline 96, refuse-talk < 40, trade-accept bumps +2, war deltas
+  negative) — a literal `relation > 49`-scaled refuse would then fire on
+  FRIENDLY natives, which doesn't hold up without independent
+  confirmation. Possible explanations not distinguished this pass: a
+  genuinely different (inverted, or differently-scaled) native quantity
+  specific to this call's `dialog`/context argument, or this project's
+  own established polarity being wrong for this one call site. Not
+  guessing either way — real next step if resumed: a live capture of
+  `DS` around `0x84fc`'s call in an active `LAB_002bbc` trade with known
+  in-game relation, or an independent doc that pins this exact call's
+  scale. Until then the AI-controlled accept branch always succeeds once
+  the outer `alarm_by_player >= 50` gate (pre-existing, untouched) is
+  clear — no invented refuse condition shipped in its place.
+
+Tests: rewrote `test_ai_contact.c`'s whole trade section (~15 assertions)
+to spawn cargo directly on the contacting unit instead of a colony
+warehouse, and to drop the hard-bargain-specific 2x-drain expectations.
+Full `ctest` 41/41 green after rebuild.
 - Second entry into `2820` after `4528` blob (~86762) — confirm args

@@ -235,7 +235,7 @@ Line spans are approximate (next function start − 1). Status:
 | `FUN_4d56_1816` | ~141 | Indian nation turn entry: alarm prelude, unit loop, relation ticks | `ai_indian_nation_turn` + `ai_contact_*` | **partial** (structural; T2 quiet) |
 | `FUN_4d56_1b3a` | ~59 | Mid-turn: clear tables / tribe + colony ownership probes (does **not** call `2154`) | — | **partial** (known; not raid) |
 | `FUN_4d56_2154` | ~321 | Meet economics (`0x9e*` tables) from `5bfb_022e` via `2a1f_0434` — **not** raid | `ai_contact_meet_economics_2154` + gift/demand | **Done** (scorer + `0ce0` work-slot gate) |
-| `FUN_4d56_2820` | 595 lines (clean re-disasm; old ~1396 line estimate was from corrupted decomp, see `indian_trade_2820.md`) | AI-buy-offer price + trade dispatch (single function; the `2aac…311e` "nest" was internal goto labels, not separate functions) | `ai_contact_2820_ai_buy_price` + gold debit in `ai_contact_auto_trade`; human path `ai_contact_enqueue_trade_price_choice` / `ai_contact_apply_trade_offer` | **Done** (AI-buy-offer price path, `LAB_002bbc`); human CHOICE buy-offer **gate** ported 2026-08-19 (`LAB_002e92`, Accept/Decline on a locked price reusing the `2bbc` formula) — deep Haggle (`2f96`)/hard-bargain counter-offer (`306c`) sub-loops and the multi-good cargo-select CHOICE (`0x15a0`) still PARKED, see `indian_trade_2820.md` "Open RE" |
+| `FUN_4d56_2820` | 595 lines (clean re-disasm; old ~1396 line estimate was from corrupted decomp, see `indian_trade_2820.md`) | Sell-to-tribe price + trade dispatch (single function; the `2aac…311e` "nest" was internal goto labels, not separate functions) | `ai_contact_2820_ai_sell_price` + gold credit in `ai_contact_auto_trade`; human path `ai_contact_enqueue_trade_price_choice` / `ai_contact_apply_trade_offer` | **Done** (`LAB_002bbc` price/gold-credit path, both AI-silent and human-CHOICE-locked modes). 2026-08-22, later same day: dropped the invented colony-warehouse/nearby-ship "trade source" search (no DOS counterpart — `2820` only ever reads the ONE contacting unit, `param_2`) in favor of the real per-unit dispatch, and dropped the invented mid-alarm "hard bargain" 2x-drain peel (no basis in `LAB_002bbc`'s real body — the AI accept branch is a single deterministic decision). **`LAB_002e92`** (tribe sells its OWN production goods — furs/ore/silver/tobacco/cotton/sugar, a different cargo-type universe than TRADE_GOODS — TO an empty-handed unit) **is still a separate, unported mechanic**, genuinely PARKED (real RE gap, not invented); deep Haggle (`2f96`)/hard-bargain counter-offer (`306c`) sub-loops and the multi-good cargo-select CHOICE (`0x15a0`) also still PARKED. DOS's own AI refuse gate (`relation > 0x31`) is identified but NOT wired — its scale's polarity vs. `ai_diplo_indian_relation` isn't independently confirmed, see `indian_trade_2820.md` "Open RE" and its 2026-08-22 addenda |
 | `FUN_4d56_2aac`…`311e` | n/a — resolved as internal labels of `2820` itself, not separate functions | — | — | superseded, see `2820` row |
 | `FUN_4d56_3582` | ~51 | Small helper after `2820` | friction floor (via contact clamp) | **partial** (thin Done) |
 | `FUN_4d56_417e` | 933 bytes (clean re-disasm; identified as Incite Indians / WARPATH, `indian_incite_417e.md`) | Incite Indians (WARPATH) price + gold deduct + relation push | `ai_contact_incite_price` / `ai_contact_apply_incite` (6th village-meet CHOICE) | **Done** (Mode-1 human path; price formula fully byte-faithful (2026-08-14; base-combine op resolved to a real multiply after reading the two DOS platform helpers' decompiled bodies; discount loop uses real `mission`/`state.capital` fields; French get the real 2/3 price break; Missionary/target-capital sub-discounts now wired too, captured at Meet-CHOICE offer time and carried through the payload, no threading gap after all — see `indian_incite_417e.md`), AI-Mode-2 path not ported) |
@@ -612,10 +612,10 @@ WELCOME land-grant radius (thin occupied-tile stamp **Done**). Scout `359c` RNG
 kill-with-flee **Done** thin (alarm≥95 ~1/4); French alarm half-rate + trade
 reach **Done**. `@TRIBES` flavor trade chrome **Done** (live NAMES when
 `ctx->names`; static fallback). Gift amount CHOICE Generous −20/−3 **Done** thin
-(deep `2820` haggle matrix mapped / port PARKED; hard-bargain mid-alarm **Done** thin).
+(deep `2820` haggle matrix mapped / port PARKED; mid-alarm "hard bargain"
+peel **retired** 2026-08-22 — no basis in `LAB_002bbc`'s real body).
 Spanish raid gate 35 **Done** thin. Capital destroy surrender **Done** thin.
-Trade-refuse `2af6` last-goods clear **Done** thin. Sea-hold / wagon-hold trade-goods drain **Done** thin (fandom sea/land). Hard-bargain
-skips tribe friction decay **Done** thin.
+Trade-refuse `2af6` last-goods clear **Done** thin. Sea-hold / wagon-hold trade-goods drain **Done** thin, now keyed on the real contacting unit only (no colony-warehouse search).
 Harbor `@RAIDSHIP` hold-cargo dump + status **Done** thin.
 `@INDIANWAGONS` demand tools-from-wagon hold **Done** thin.
 `@INDIANSCONVERT` colony-name convert status **Done** thin.
@@ -801,13 +801,20 @@ raids, or FOUND must keep `golden_ai_joint` green (Euro **and** Indian fields).
   (`colony->tiles[dir] >= 0`); the outer distance-2 ring is never
   worker-assignable so is never covered — matches DOS
   `15eb_06a6`/`15eb_05e2` signed-byte gate exactly.
-- `2820`: hard-bargain 45..54; primary extra trade-goods for all non-`0xff`
-  teach primaries (silver/ore/tobacco/cotton/furs/sugar; Arawak fish single).
+- `2820`: 2026-08-22 — the invented mid-alarm "hard bargain" 45..54 extra-
+  trade-goods peel is **retired**; `LAB_002bbc`'s real AI-controlled accept
+  branch is a single deterministic decision with no tension/resume loop
+  (see `indian_trade_2820.md`'s 2026-08-22 addendum). Trade now always
+  drains exactly 1 TRADE_GOODS and bumps relation +2 regardless of alarm
+  band (still subject to the pre-existing outer `alarm>=50` refuse-talk
+  gate, untouched by this pass).
 - `4528`: `5fef` kind demote (difficulty/year/missing target → STORES/NOTHING)
   + early-year demote smoke; ship mid-band wary+Meet (Series T).
 - Series J: successful-raid friction/alarm kind-scaled (STORES +4, BURN/WREAK
   +12, SCALP +16, GOLD/SHIP +8; Pocahontas/France half).
-- Series M: `2820` hard-bargain primary extras beyond silver/ore.
+- Series M: retired 2026-08-22 with the hard-bargain peel above (kept as a
+  per-nation flavor-good naming regression test, no longer a 2x-drain claim
+  — see `test_ai_contact.c`).
 - Series P/S scalar `S` gift floors **retired** (replaced by `2154` tables).
 - Growth `152e` / relation tick: prior T0 fidelity retained.
 

@@ -1483,6 +1483,70 @@ closed; genuinely open are only `T1.8`, `T1.13`, `T1.15`, `T1.16`, `T1.17`.
   addendum. `ctest` run after the comment-only `ai_contact.c` edits —
   green, no behavior changed (verified via `colonize_core` rebuild +
   full suite).
+  **2026-08-22, continued — dispatch condition traced (turned out simple),
+  a real gold-direction bug found and fixed with user confirmation.**
+  `iStack_c8<0` (unit carries nothing) → `LAB_002e92` (tribe sells TO the
+  unit); `iStack_c8>=0 && iStack_8==0` (unit has cargo, AI-controlled) →
+  `LAB_002bbc` (unit sells TO the tribe) — human-with-cargo falls through
+  to neither, real destination not traced. Force-decompiled `LAB_002bbc`'s
+  real callees (`FUN_1000_8cdc`/`FUN_1000_8f48` → canonical
+  `FUN_0000_902c`/`_8f68`): confirms `LAB_002bbc` removes cargo from the
+  unit and **credits** Euro gold. `ai_contact_auto_trade`'s stock-drain
+  has always structurally matched this (unit cargo leaving hand); its gold
+  **debit** — added in an earlier session citing this same branch — was
+  backwards. Confirmed independently by the human CHOICE's own UI text
+  ("The %s offer N gold for your trade goods"), which already described a
+  credit while the code debited. **Fixed with explicit user sign-off**
+  (asked before touching live, tested economic code): `ai_contact.c`'s
+  `nat->gold -=` → `+=` in both `ai_contact_auto_trade` branches, function
+  renamed `ai_contact_2820_ai_buy_price` → `_sell_price` to match, all
+  header comments corrected (including the ones this pass itself wrote
+  earlier the same day — they'd assumed the debit was correct). New
+  regression test added (`test_ai_contact.c`): asserts gold increases by
+  exactly the locked price on trade accept — passes, locks the fix in.
+  `ai_transcription.md`'s `2820` row corrected to match (was repeating the
+  same mislabeling). Full `ctest` 41/41 green after rebuild. **Not done**:
+  the AI-silent refuse decision (`LAB_002bbc`: relation-shaped value
+  `aiStack_d6[0] > 0x31` → refuse-with-penalty instead of always
+  succeeding) — plausibly already covered by the existing
+  `alarm_by_player[e] >= 50` gate at this function's own top (suspiciously
+  close threshold, 49 vs 50), not confirmed byte-exact, not added as a
+  possibly-redundant/wrong-polarity second gate. The human-with-cargo
+  dispatch destination and the deep Haggle/hard-bargain resume-loops
+  (mostly moot now that AI never actually loops — see the earlier note)
+  remain open if this is resumed.
+  **2026-08-22, later same day — full rewrite per user decision, item
+  closed as far as it safely goes.** User's call on the hybrid-mechanic
+  question above: port the real per-unit shape structurally rather than
+  keep the Linux-convenient colony-warehouse approximation, even though
+  it costs a larger diff. Shipped: `ai_contact_auto_trade` now keys on the
+  ONE contacting Euro unit (`ai_contact_find_adjacent_euro`'s own find),
+  moving TRADE_GOODS literally into/out of that unit's cargo hold --
+  matches `LAB_002bbc`'s real `FUN_0000_902c` cargo-removal effect exactly.
+  The colony-warehouse/nearby-ship radius search (no DOS counterpart) is
+  gone. Also retired the invented mid-alarm "hard bargain" 2x-drain peel --
+  no basis in `LAB_002bbc`'s real body (single deterministic AI decision,
+  already established above). `LAB_002e92` reassessed and confirmed
+  genuinely out of this port's TRADE_GOODS-only scope, not merely
+  direction-flipped: it sells the tribe's OWN production goods (furs/ore/
+  silver/tobacco/cotton/sugar via the `acStack_7c`/`98` candidate-slot
+  arrays), a cargo-type universe TRADE_GOODS was never part of -- real RE
+  gap (candidate-list construction unresolved), correctly still PARKED,
+  not invented to plug it. The human CHOICE is now honestly documented as
+  a Linux-only agency layer over `002bbc` (DOS's own human-with-cargo
+  dispatch reaches neither label) rather than miscited as a `002e92` port.
+  **Still not wired, on purpose**: the AI refuse gate -- `aiStack_d6[0]`
+  (`FUN_1000_84fc`) is elsewhere equated to `ai_diplo_indian_relation`,
+  but this project's established polarity for that accessor ("higher =
+  friendlier": peace baseline 96, refuse-talk <40, trade bumps +2, war
+  deltas negative) makes a literal `relation>49` refuse fire on FRIENDLY
+  natives -- doesn't hold up without a live/independent scale check, not
+  guessed at either way. Real next step if resumed: a live capture around
+  `0x84fc`'s call in an active trade with known relation, or another doc
+  independently pinning this specific call's scale. Rewrote
+  `test_ai_contact.c`'s whole trade section (~15 assertions) to spawn
+  cargo directly on the contacting unit; full `ctest` 41/41 green. Full
+  trace: `indian_trade_2820.md`'s 2026-08-22 "user decision" addendum.
 
 - [ ] **T1.17 — Port `FUN_15eb_28c8`: colonist work-plot job scoring.** New
   2026-08-22, split out of `T1.14`'s `+4` identification. 254 lines,
@@ -1497,6 +1561,24 @@ closed; genuinely open are only `T1.8`, `T1.13`, `T1.15`, `T1.16`, `T1.17`.
   settlement is adjacent) — that term's own formula is already known and
   ready to drop in once the enclosing function has a Linux home. Scope not
   otherwise assessed this pass (no read of the other ~250 lines yet).
+  **2026-08-22 — scoped, not attempted. Genuinely large, same class as
+  `T1.8`'s flood-fills, not a same-session port.** Checked first (per this
+  row's own instruction): `ai_euro.c` has a large, mature, already-tested
+  hand-tuned colonist-job-assignment heuristic (name-based profession
+  matching — Pioneer/Farmer/Carpenter/Lumberjack/Free Colonist — plus
+  per-shortage bind logic), not a port of this function and not obviously
+  replaceable by one without real regression risk. Read `FUN_15eb_28c8`'s
+  full body directly (`viceroy_unpacked.c:12908-13161`): scores up to 9
+  jobs per candidate work-plot in a nested loop, AI-vs-human branch, and
+  calls at least 8 still-unresolved helpers (`FUN_15eb_0a50`, `_06d2`,
+  `_1068`, `_0e18`, `_1f72`, `_1376`, `_0470`, `FUN_13e4_003a`) on top of
+  the already-known `FUN_15eb_18ec`. Porting this faithfully would need
+  resolving that whole helper family first — a multi-pass RE effort in its
+  own right, comparable in scope to `euro_g_table_0a60.md`'s own dig, not
+  attempted this pass. Real next step if resumed: same method as
+  everywhere else this session — resolve the helper identities one at a
+  time via force-decompile, don't guess at the scoring shape from names
+  alone.
 
 Bigger in scope than Tier 1 items but not blocked on anything static tooling
 can't reach. Pick up after Tier 1 thins out, or interleave if a Tier 1 item
