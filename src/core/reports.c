@@ -376,7 +376,16 @@ static void reports_render_religious(
   }
 }
 
-/* CCBKGD.PIK 5×5 Founding Father portrait slots (thin DOS layout). */
+/* CCBKGD.PIK 5×5 Founding Father portrait grid (Done structural).
+ * CC-xx.SS sprites are 54×125; blitted at plate origin (CCBKGD 320×200).
+ * Grid matches left panel recesses: origin (10,34), 32×40 cells, text col x=168. */
+#define REPORTS_FF_GRID_COLS 5
+#define REPORTS_FF_GRID_ORIGIN_X 10
+#define REPORTS_FF_GRID_ORIGIN_Y 34
+#define REPORTS_FF_GRID_CELL_W 32
+#define REPORTS_FF_GRID_CELL_H 40
+#define REPORTS_FF_GRID_TEXT_X 168
+
 static void reports_congress_blit_portraits(
   const char* data_dir,
   const ColonizeCol1Save* col1,
@@ -386,11 +395,11 @@ static void reports_congress_blit_portraits(
   if (!data_dir || !data_dir[0] || !col1 || !fb) {
     return;
   }
-  const int cols = 5;
-  const int origin_x = 10;
-  const int origin_y = 34;
-  const int cell_w = 32;
-  const int cell_h = 40;
+  const int cols = REPORTS_FF_GRID_COLS;
+  const int origin_x = REPORTS_FF_GRID_ORIGIN_X;
+  const int origin_y = REPORTS_FF_GRID_ORIGIN_Y;
+  const int cell_w = REPORTS_FF_GRID_CELL_W;
+  const int cell_h = REPORTS_FF_GRID_CELL_H;
   for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
     const int col = i % cols;
     const int row = i / cols;
@@ -457,7 +466,7 @@ static void reports_render_congress(
   char* line,
   size_t line_sz
 ) {
-  const int text_x = 168;
+  const int text_x = REPORTS_FF_GRID_TEXT_X;
   if (view && view->data_dir[0]) {
     reports_congress_blit_portraits(view->data_dir, col1, human, fb);
   }

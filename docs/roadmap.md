@@ -195,11 +195,13 @@ Finish a campaign: FF leftovers, king/REF, win/lose/retire.
 
 - FF leftovers (e.g. KINGGALLEON2) — [ai_transcription.md](ai_transcription.md)
   unpark #3; [manual_gap.md](manual_gap.md) FF section
+- Bell-pool save interop + F3 Congress structural UI — **Done** (2026-08-22)
+- Year-end SoL C2/D via `ai_king_sol_percent` — **Done** (2026-08-22)
 - REF / WoI depth beyond structural latches — [ai_transcription.md](ai_transcription.md),
-  [sons_of_liberty.md](sons_of_liberty.md)
+  [sons_of_liberty.md](sons_of_liberty.md) (`10f0` landing scorer, `20e6` siege)
 - Retire → score / HoF and auto-end 1800/1850 UI — [manual_gap.md](manual_gap.md)
   (Win / end sequences)
-- Congress / F3 portrait grid → phase 5 unless needed for elect fidelity
+- Congress VGA-identical chrome → phase 5
 
 ### 5 — Fidelity & polish (Later)
 

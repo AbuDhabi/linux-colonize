@@ -911,8 +911,10 @@ static void apply_effect(
     case FF_HERNANDO_DE_SOTO:
       /* docs/fandom_col1994.md: LCR always positive + extended sight.
        * Partial: extended sight via land-unit reveal on elect.
-       * LCR: units_resolve_lcr_rumour + founding_fathers_de_soto_lcr_always_positive;
-       * full FUN_65dd_0004 RNG table PARKED (no invented treasure/FoY). */
+       * LCR gate: units_resolve_lcr_rumour ← FUN_65dd_0004 via FUN_2a1f_0178
+       * (465b move-spent path); FF bit 7 reroll loop at 65dd:00a6.
+       * Full 65dd outcome weights / burial / FoY table PARKED — see
+       * original_sources_annotated/ai/indian_contact.md. */
       (void)effect_desoto_reveal(map, units, nation_id);
       break;
     case FF_HENRY_HUDSON:

@@ -189,6 +189,7 @@ Export often **zeros** unnamed colony bytes on rebuild ([savegame.md](savegame.m
 | Field | Size | Status | Notes |
 |-------|------|--------|-------|
 | `tax_rate` / `recruit*` / FF / bells / gold / crosses | — | `mapped` | |
+| `liberty_bells_total` / `liberty_bells_last_turn` | 2+2 | `mapped` | `total` = cumulative bells. `last_turn` = live EOT accrual; on Linux save write stashed with FF pool (`founding_fathers_stash_pools_into_col1`, restored after encode); load restores pool via `founding_fathers_sync_from_col1_after_load`. DOS saves: pool derived from total vs elect thresholds when `total <= need`. |
 | `nation_flags` | 1 | `partial` | Was `unknown19`; bits `0x04`/`0x08`/`0x40` live; bit `0x04` named 2026-08-19 = nation achieved independence |
 | `tax_hike_count` | 1 | `mapped` | Was `unused07`; `FUN_38fd_44a4` |
 | `unknown21_pad` | 1 | `opaque` | Was `unknown21`; resolved 2026-08-19 confirmed dead — untouched by all 3 DOS exports, the one gap new-game zero-init skips |

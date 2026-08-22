@@ -879,7 +879,8 @@ SoL==50 the cap is always exactly 1 (later units wait a turn); thin SoL
 40–49 restless
 status + `unknown46[5]` congress confirm + congress status on declare
 (`2564` confirm `ai_popup` CHOICE **Done** structural; VGA chrome PARKED).
-WoI stand-in `head.unknown46[0]` (DOS `0x5382` bit0 rename still PARKED); REF-present
+WoI latch `head.game_options.woi` (DOS `0x5382` bit0, mapped); legacy
+`unknown46[0]` kept in sync on declare only. REF-present
 `unknown46[1]`; crown/intervene use non-human Euro nation_ids. Thin Cont. Army
 in hunter check + capital rally after `1eca`; refuse clear when `boycott_bitmap==0`;
 second MoW at `difficulty≥2`; capture status chrome **Done**. Thin map:
@@ -961,7 +962,7 @@ Status reflects the AI-port prerequisite work:
 | AI coarse fog (`DS:0x9faa`) | **Partial** | Explore `(y>>2)+(x>>2)*18` + tribe `/5` dual index; Linux `s_ai_coarse_fog`; not player FoW |
 | Alarm / contact hooks | **Partial** (T0) | `ai_contact_*` meet/trade/missions/raids + adjacent friction |
 | AI colony economy + construction | **Ready** | `turn_run_colony_production` already ticks **all** active colonies |
-| Founding Fathers / liberty | **Partial** | Human+AI Euro elect; **manual-aligned effects** (no gold/crosses fiction); factory/Custom House gates; Magellan +1 sea MP; Fugger clears all boycotts; Minuit + Franklin + Brebeuf + Las Casas + Sepulveda convert-join (**Done** `units_try_native_settlement_fallout`) + Cortes coastal cash + de Witt **Done**; KINGGALLEON2 / Congress UI PARKED |
+| Founding Fathers / liberty | **Partial** | Human+AI Euro elect; **manual-aligned effects** (no gold/crosses fiction); factory/Custom House gates; Magellan +1 sea MP; Fugger clears all boycotts; Minuit + Franklin + Brebeuf + Las Casas + Sepulveda convert-join (**Done** `units_try_native_settlement_fallout`) + Cortes coastal cash + de Witt **Done**; KINGGALLEON2 PARK; F3 Congress portrait grid **Done** structural |
 | King / tax / REF | **Partial structural** | `ai_king_nation_turn` — R6; audience / confirm / `2022` merc via `ai_popup` **Done** (audience `38fd_5be8`/`38fd_3dc8` delta formula and merc `2022` price/qty both now real, not stand-ins); VGA chrome PARKED; `unit_ai_king` (tax scenarios stale, see R6 note) |
 
 Suggested manual order: finish leftover **unpark #3** KINGGALLEON2 (non-Cortes
