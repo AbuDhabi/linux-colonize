@@ -1152,6 +1152,34 @@ the King's Galleon CHOICE:
   KINGGALLEON3's — a real, checkable signature) instead of repeating
   this unit-type grep. Stays PARKED.
 
+**2026-08-22 — both suggested leads checked, neither panned out; one new,
+unexplored lead surfaced instead.** The `europe_finish_bridge.md`
+neighborhood (`48d3` cluster: `0002`/`03d0`/`064e`/`06ba`) is
+docks/landfall/ship-walk bookkeeping, not a dialog site — already the
+same overlay a 2026-08-14 pass ruled out (`06ba` itself), and its
+siblings are equally unrelated. The "`FUN_1000_8842(dialog, id, 1)` show
+CHOICE popup" call shape this doc's own reference table cites
+(`indian_incite_417e.md`) **doesn't actually appear anywhere in either
+flattened export under that name** — grepped both `viceroy_unpacked.c`
+and `viceroy_unpacked_2.c` for `_8842(`, zero hits. That citation has no
+traceable evidence trail in this project (no address, no call-site quote)
+— worth flagging as unreliable rather than trusted at face value; the
+real CHOICE-dispatch function `2820`/`4528` use has never actually been
+pinned to a specific address, just assumed same-shaped.
+**New lead, not chased before**: the King's Galleon offer is a
+Crown-initiated proposal, structurally the same *kind* of mechanic as
+audience/congress/mercenary-hire/tax-teaparty — all of which live in the
+**`38fd`** overlay (`king_ref.md`'s whole catalog: `5be8`/`3dc8`/`2564`/
+`2022`/`2244`/`5e52`, etc.), not `48d3`. Every prior KINGGALLEON2 pass
+searched `48d3`'s neighborhood or did a resident-wide Treasure-unit-type
+scan — nobody has searched `38fd` specifically for this. Not searched
+this pass either (`38fd`'s own `address_mapping.csv` rows are mostly
+`gap`-quality — 60+ unnamed functions, too large a space to blind-search
+without a narrower address hint first). Stays PARKED; real next step if
+resumed is narrowing `38fd`'s own gap functions (e.g. by proximity to
+already-known Crown-cash functions like the audience/teaparty pair) before
+attempting a blind sweep.
+
 ### 2c6. Linux thin — Missionary CONTACT (act)
 
 Peace + Missionary/Jesuit, **not fleeing** (adjacent tribe Alarm/friction ≥55 —
