@@ -239,6 +239,13 @@ int main(void) {
    * (confirmed 2026-08-20 scoping pass) — every other scenario in this
    * file still runs with the audience gate closed, unaffected.
    */
+  /* Audience block: keep SoL below declare gate and WoI clear — try_declare
+   * runs after every ai_king_nation_turn peacetime slice. */
+  col1.colony[0].rebel_dividend = 40;
+  col1.colony[0].rebel_divisor = 100;
+  col1.head.game_options.woi = 0;
+  col1.head.unknown46[0] = 0;
+  col1.head.unknown46[5] = 0;
   {
     /* Off-interval turn: no audience at all (interval=22 @ diff0,
      * year<=1600 baked into ai_king_audience_roll; 43 % 22 != 0). */
@@ -269,6 +276,9 @@ int main(void) {
     if (col1.nation[0].tax_rate != 90) {
       return fail("tax_rate>85 should skip the audience roll entirely");
     }
+    col1.head.game_options.woi = 0;
+    col1.head.unknown46[0] = 0;
+    col1.head.unknown46[5] = 0;
   }
   {
     /* Cut branch (score<100): rebel_sentiment=0, tax=50, SoL=0, turn=44,
@@ -395,16 +405,19 @@ int main(void) {
      * see ai_king_tax_event's header): a real hike that crosses
      * AI_KING_BOYCOTT_TAX_MIN with SoL/bells over threshold reverts
      * itself and boycotts the single roulette-picked cargo, same turn,
-     * no ai_popups needed. rebel=100, tax=20, SoL=60, turn=44, seed=1 ->
-     * hike delta +4 (tax 20->24), then one bid-weighted dump-goods roll
-     * over the same rng stream picks Tobacco (heavy weight).
+     * no ai_popups needed. rebel=101, tax=20, SoL=45 (below declare gate),
+     * turn=44, seed=1 -> hike delta +4 (tax 20->24), then one bid-weighted
+     * dump-goods roll over the same rng stream picks Tobacco (heavy weight).
      */
     turn = 44;
-    col1.head.rebel_sentiment_report = 100;
+    col1.head.game_options.woi = 0;
+    col1.head.unknown46[0] = 0;
+    col1.head.unknown46[5] = 0;
+    col1.head.rebel_sentiment_report = 101;
     col1.nation[0].tax_rate = 20;
     europe.tax_percent = 20;
     col1.nation[0].gold = 0;
-    col1.colony[0].rebel_dividend = 60;
+    col1.colony[0].rebel_dividend = 45;
     col1.colony[0].rebel_divisor = 100;
     col1.nation[0].liberty_bells_total = 0;
     col1.nation[0].boycott_bitmap = 0;

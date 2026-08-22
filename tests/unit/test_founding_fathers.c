@@ -21,7 +21,7 @@ static int fail(const char* msg) {
 
 static void ff_tick(ColonizeTurnContext* ctx) {
   if (ctx && ctx->col1) {
-    founding_fathers_sync_from_col1(ctx->col1);
+    founding_fathers_force_pool_from_total(ctx->col1);
   }
   founding_fathers_tick(ctx);
 }
@@ -2108,6 +2108,43 @@ int main(void) {
       return fail("elect path must not re-open debate CHOICE");
     }
     fprintf(stderr, "unit_founding_fathers: Congress debate CHOICE ok\n");
+  }
+
+  {
+    /* Stash/restore round-trip for side-table pool (liberty_bells_last_turn). */
+    ColonizeCol1Save rt;
+    col1_save_init(&rt);
+    rt.player[0].control = 0;
+    rt.head.difficulty = 0;
+    rt.nation[0].liberty_bells_total = 55;
+    rt.nation[0].founding_father_count = 1;
+    rt.nation[0].liberty_bells_last_turn = 99;
+    founding_fathers_reset();
+    rt.nation[0].liberty_bells_total = 13;
+    founding_fathers_force_pool_from_total(&rt);
+    rt.nation[0].liberty_bells_total = 55;
+    if (founding_fathers_bells_since_last_elect(0) != 13u) {
+      return fail("pool setup before stash");
+    }
+    uint16_t saved_last[COLONIZE_COL1_NATION_COUNT];
+    founding_fathers_stash_pools_into_col1(&rt, saved_last);
+    if (rt.nation[0].liberty_bells_last_turn != 13) {
+      founding_fathers_restore_col1_last_turn(&rt, saved_last);
+      return fail("stash must write pool into liberty_bells_last_turn");
+    }
+    founding_fathers_reset();
+    founding_fathers_sync_from_col1_after_load(&rt);
+    if (founding_fathers_bells_since_last_elect(0) != 13u) {
+      founding_fathers_restore_col1_last_turn(&rt, saved_last);
+      return fail("after_load must restore bells-since-last-elect pool");
+    }
+    founding_fathers_restore_col1_last_turn(&rt, saved_last);
+    if (rt.nation[0].liberty_bells_last_turn != 99) {
+      return fail("restore must put back live last_turn accrual");
+    }
+    if (rt.nation[0].liberty_bells_total != 55) {
+      return fail("stash/load must preserve cumulative liberty_bells_total");
+    }
   }
 
   printf("unit_founding_fathers: OK\n");

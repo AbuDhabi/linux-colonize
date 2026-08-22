@@ -104,14 +104,14 @@ with SoL: the port maps `0x40` as **coastal**.
 |------|--------|------|
 | Colony SoL ≥ 50% / ≥ 100% | Production +1 / +2 (via sol latches in full DOS mod) | **Wired** (`colony_prod_sol_bonus`) |
 | Tory count vs `10−diff` | `−⌊tories / thresh⌋` on production | **Wired** (same helper; AI thresh 10) |
-| Nation SoL ≥ 50% | May declare independence | **Structural Wired** (+ port bells≥100) |
+| Nation SoL ≥ 50% | May declare independence | **Structural Wired** (SoL only; `FUN_43f7_2564`) |
 | Nation SoL 40..49 | Restless chrome | **Wired** thin |
 | Tax ≥20 and (SoL≥30 or bells≥80) | Tax refuse / boycott path | **Wired** structural |
 | Nation SoL **>** 50 (WoI) | Continental merc offer | **Wired** thin |
 | Colony SoL at unit tile >50 / 40..50 | Cont. promote / Soldier→Veteran | **Wired** thin |
 | Bolivar elected | +20 SoL (DOS display-time) | **Wired** (`founding_fathers_bolivar_sol_bonus`) |
 | Rebel sentiment points | Score +1 per point | **Wired** |
-| Year-end C2 / D SoL chrome | Peace / pressure / rival dialogs | **Thin / PARK** |
+| Year-end SoL C2 / D SoL chrome | Peace / pressure / rival dialogs | **Wired** thin (pop-weighted SoL via `ai_king_sol_percent`; VGA PARK) |
 | Combat popular-support % | Attacker side’s SoL/Tory share **on colony** | **Wired** (`combat_apply_1b0e_peels`: colony REF +50% + Tory/Rebel %) — [combat.md](combat.md) |
 | Cont. Army muster by colony SoL | Declare-turn 1eca promote (Veteran fortified Soldier/Dragoon on colony tile; SoL>49) | **Wired** (`ai_king_war_act`; popup Confirm chains ref_wave+war_act) |
 | Map pop digit colors | White &lt;50 / green ≥50 / blue 100 | **PARK** |

@@ -26,13 +26,107 @@
 /* DOS nation+0xc — bells since last FF elect; not stored in ColonizeCol1Nation. */
 static uint16_t s_ff_bells_since_elect[COLONIZE_COL1_NATION_COUNT];
 
+static unsigned ff_bells_threshold_at_elect_count(
+  const ColonizeCol1Save* col1,
+  int nation,
+  unsigned elected_count
+) {
+  if (!col1 || nation < 0 || nation >= (int)COLONIZE_COL1_NATION_COUNT) {
+    return 40u;
+  }
+  ColonizeCol1Save snap = *col1;
+  snap.nation[nation].founding_father_count = (uint16_t)elected_count;
+  return founding_fathers_bells_needed(&snap, nation);
+}
+
 void founding_fathers_reset(void) {
   memset(s_ff_bells_since_elect, 0, sizeof(s_ff_bells_since_elect));
+}
+
+void founding_fathers_stash_pools_into_col1(
+  ColonizeCol1Save* col1,
+  uint16_t restore_last_turn[COLONIZE_COL1_NATION_COUNT]
+) {
+  if (!col1) {
+    return;
+  }
+  for (int n = 0; n < (int)COLONIZE_COL1_NATION_COUNT; ++n) {
+    if (restore_last_turn) {
+      restore_last_turn[n] = col1->nation[n].liberty_bells_last_turn;
+    }
+    col1->nation[n].liberty_bells_last_turn = s_ff_bells_since_elect[n];
+  }
+}
+
+void founding_fathers_restore_col1_last_turn(
+  ColonizeCol1Save* col1,
+  const uint16_t restore_last_turn[COLONIZE_COL1_NATION_COUNT]
+) {
+  if (!col1 || !restore_last_turn) {
+    return;
+  }
+  for (int n = 0; n < (int)COLONIZE_COL1_NATION_COUNT; ++n) {
+    col1->nation[n].liberty_bells_last_turn = restore_last_turn[n];
+  }
 }
 
 void founding_fathers_sync_from_col1(const ColonizeCol1Save* col1) {
   if (!col1) {
     founding_fathers_reset();
+    return;
+  }
+  for (int n = 0; n < (int)COLONIZE_COL1_NATION_COUNT; ++n) {
+    const ColonizeCol1Nation* nat = &col1->nation[n];
+    const unsigned total = (unsigned)nat->liberty_bells_total;
+    const unsigned count = (unsigned)nat->founding_father_count;
+    const unsigned need = founding_fathers_bells_needed(col1, n);
+
+    if (count == 0u) {
+      s_ff_bells_since_elect[n] = (uint16_t)total;
+      continue;
+    }
+
+    unsigned spent = 0u;
+    for (unsigned c = 0u; c < count; ++c) {
+      spent += ff_bells_threshold_at_elect_count(col1, n, c);
+    }
+    if (total <= spent) {
+      s_ff_bells_since_elect[n] = 0;
+    } else if (total <= need) {
+      /* Authentic DOS: +0xc is the live pool, not lifetime cumulative. */
+      s_ff_bells_since_elect[n] = (uint16_t)total;
+    } else {
+      /* Linux cumulative minus thresholds consumed at past elects. */
+      s_ff_bells_since_elect[n] = (uint16_t)(total - spent);
+    }
+  }
+}
+
+void founding_fathers_sync_from_col1_after_load(const ColonizeCol1Save* col1) {
+  founding_fathers_sync_from_col1(col1);
+  if (!col1) {
+    return;
+  }
+  for (int n = 0; n < (int)COLONIZE_COL1_NATION_COUNT; ++n) {
+    const ColonizeCol1Nation* nat = &col1->nation[n];
+    const unsigned count = (unsigned)nat->founding_father_count;
+    if (count == 0u) {
+      continue;
+    }
+    const unsigned need = founding_fathers_bells_needed(col1, n);
+    const unsigned last = (unsigned)nat->liberty_bells_last_turn;
+    if (last > 0u && last <= need) {
+      s_ff_bells_since_elect[n] = (uint16_t)last;
+    }
+  }
+}
+
+/*
+ * Test helper: treat liberty_bells_total as the since-last-elect pool (legacy
+ * unit-test convention). Live play uses turn accrual + sync_from_col1_after_load.
+ */
+void founding_fathers_force_pool_from_total(const ColonizeCol1Save* col1) {
+  if (!col1) {
     return;
   }
   for (int n = 0; n < (int)COLONIZE_COL1_NATION_COUNT; ++n) {
@@ -792,7 +886,7 @@ static void apply_effect(
       /* Manual/wiki: Indians no longer demand payment for land.
        * Decomp FUN_4cc6_07c2 zeros land-buy gold when FF 2 owned.
        * Wired via founding_fathers_nation_has → colonies_indian_land_purchase_gold
-       * / colonies_found_with_indian_land (pioneer plow/road buy still PORT). */
+       * / colonies_found_with_indian_land (**Done**). */
       break;
     case FF_PETER_STUYVESANT:
       /* Manual/wiki: unlock Custom House — gated via has_peter_stuyvesant.
