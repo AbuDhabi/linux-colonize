@@ -428,7 +428,7 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_15eb_268e` | 12804 | 22 | mapdraw | Fill 5×5 work-plot flag cache (−0x7210) once per colony view | inferred |  |
 | `FUN_15eb_26e4` | 12826 | 63 | mapdraw | Fill 5×5 native-contact caches; optional map mark via 137f_0228 | inferred |  |
 | `FUN_15eb_287e` | 12889 | 19 | mapdraw | Redraw all flagged 5×5 work plots via 06d2 | inferred |  |
-| `FUN_15eb_28c8` | 12908 | 254 | mapdraw | Score/assign best work-plot job for colonist (trial 1068+18ec+06d2) | inferred |  |
+| `FUN_15eb_28c8` | 12908 | 254 | mapdraw | Score/assign best work-plot job for colonist (trial 1068+18ec+06d2) | confirmed | [colonist_work_plot_28c8.md](turn/colonist_work_plot_28c8.md) |
 | `FUN_15eb_2ea0` | 13162 | 39 | mapdraw | Auto-assign unplotted field workers via 28c8 (else job 0x0d) | inferred |  |
 | `FUN_15eb_2f3c` | 13201 | 20 | mapdraw | Count map units with nonzero cargo/passenger capacity (0x5237) | inferred |  |
 | `FUN_15eb_2f8e` | 13221 | 23 | mapdraw | Nth map unit with cargo/passenger capacity (or −1) | inferred |  |

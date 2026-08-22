@@ -1660,6 +1660,133 @@ guessable from the established relation-polarity convention). Tier 1 now:
   dig here; real next step if resumed is `_0924`/`_0902` (shared by both
   just-resolved accessors, likely high-leverage) or `_06d2`'s tile-lock
   role. `ctest` not run (doc-only).
+  **2026-08-22, same session, continued further -- `_06d2` resolved, and it
+  surfaces a real, previously unflagged mechanic: working a tile for the
+  first time can discover a hidden bonus resource.** `FUN_15eb_06d2(x, y,
+  job_or_0xff)` writes `job_or_0xff` into the work-plot's occupant byte
+  (`colony+plot_idx+0x70`, the same field `28c8`'s own loop reads); when
+  writing a REAL job (not the `0xff` vacate sentinel) it also registers/
+  reveals the tile with the map layer (`FUN_137f_0314`/`_03e4`/`_0228`),
+  and -- only the FIRST time this specific tile is worked
+  (`*(char*)(y+x*5-0x7262) != -1` gate, then set to `0xff` after) -- rolls a
+  bonus-resource discovery (`FUN_281f_0d78`, a treasure/yield roll scaled
+  against a difficulty-seeded threshold from `FUN_15eb_0544`, crediting
+  `indian_state+5` -- or, on a miss, granting the colony a flat production
+  bonus scaled by difficulty and continent stance via `FUN_281f_0d6c`).
+  **Reads like Colonization's "found a hidden resource while working this
+  tile" mechanic** (a real, named Colonization feature) -- not confirmed
+  against `NAMES.TXT`/fandom docs this pass, flagging as a strong
+  hypothesis, not stated as fact. In `28c8`'s own calling pattern, `06d2`
+  is called once before scoring a candidate tile's 9 jobs (a real,
+  provisional assignment, not a no-op probe) and once after with the
+  `0xff` sentinel to undo it -- so scoring genuinely mutates colony state
+  transiently, a real semantic subtlety a port must preserve. **Growing
+  scope, not shrinking**: this dig pulled in 6 more unresolved callees of
+  its own (`FUN_137f_0314`/`_03e4`/`_0228`/`_04b0`, `FUN_281f_0d78`/
+  `_0d6c`, `FUN_15eb_0544`/`_0596`/`_0668`) on top of the ones already
+  open.
+  **2026-08-22, same session, correction -- the "growing scope" framing
+  above was premature; a proper cross-reference sweep (the method note
+  this very file's header repeats) resolves nearly all of it without any
+  fresh disassembly.** Checking each new symbol against
+  `original_sources_annotated/*.md` before assuming it needs RE (the
+  discipline skipped in the rush above) found: **`FUN_15eb_1f72` is not a
+  gap at all -- it's the already-documented, partially-ported colony
+  crosses/bells composer**
+  ([`nation_crosses_bells_1f72.md`](../original_sources_annotated/turn/nation_crosses_bells_1f72.md),
+  same address, `viceroy_unpacked.c:12474`) -- `28c8` calls it as a bare
+  side-effecting refresh before scoring. **`FUN_13e4_003a` is
+  `terrain_yields.md`'s own already-decoded `+0x4` labor/travel-penalty
+  term** -- that doc's 2026-08-21/22 entry already walked the raw `.asm`
+  XREF back to `FUN_15eb_28c8` as the real owner independently of this
+  investigation, table fully decoded (`DS:0x2f76+4`, 29 values). **`_0544`**
+  = per-nation treasury accessor (`indian_trade_2820.md`). **`_0668`** =
+  "mark tile purchased" (`MAP_LAYER2_PURCHASED`, nailed down in
+  `euro_unit_act.md`'s own T1.8 XREF sweep, same address). **`_02a0`** =
+  plain `continent_id(x,y)` (matches this project's already-named
+  accessor, `T1.8`'s own citation -- don't confuse with the different
+  4-arg `FUN_15eb_0142` that also uses `02a0` as a sub-step,
+  `move_scoring_land.md`). **`_0314`/`_03e4`/`_0228`** are the same
+  generic tile-record find/create family `terrain_yields.md`'s river-bit
+  dig already profiled. **`_1376(job)`** is trivial once `_0e18` is known
+  (census loop, no new accessor). **`_0924`/`_0902`** (the out-of-colony
+  fallback pair `_0e18`/`_0e52` share) walk the nation's own unit list via
+  the same iterator `28c8` already uses at its own top, filtered by the
+  already-named `DS:0x30e` profession-slot gate from `T1.10`. **Net: every
+  symbol in `28c8`'s call graph now has a real identity** -- RE-wise this
+  is close to done, not a fresh multi-session dig; the "growing subsystem"
+  read above came from not checking existing docs before assuming new RE
+  was needed, exactly the mistake this file's own header method notes warn
+  against. Genuinely still open and worth treating as a deliberately
+  separate/PARKED slice rather than blocking the core port: `06d2`'s
+  first-work hidden-resource **discovery roll itself** (`FUN_281f_0d78`'s
+  exact odds/payout, `FUN_15eb_0596`'s apply, `FUN_281f_0d6c`'s miss-case
+  bonus) -- self-contained, portable later without touching the scoring
+  loop.
+  **2026-08-22, same session, final -- one real architecture question
+  found, genuinely blocks a full-fidelity port, not RE-gated.** Cross-
+  checked the DOS formula's inputs against `colony.h`'s own
+  `ColonizeColony` struct before writing any port code (per this file's
+  own "check for a Linux equivalent first" discipline): `has_building[]`
+  already covers the building-test terms (`FUN_15eb_038e`) directly, no
+  raw-bitmask porting needed there at all -- good news. But DOS's own
+  workable-plot count is **not fixed at 8**: `FUN_15eb_0470` returns a
+  colony-size-scaled tier (`2..4`) indexing a small table at `DS:0x329`
+  for the real tile count that tier unlocks (classic Colonization
+  radius-grows-with-population), while `colony.h`'s own
+  `COLONIZE_COLONY_FIELD_TILES` is a hardcoded **8** (the immediate ring
+  only) -- no outer-ring field-tile storage exists in the Linux struct at
+  all. Tried to pin the `0x329` table's real values (byte-dump against
+  both Ghidra projects) to see whether tier 2 (the common/default case)
+  actually equals 8 -- inconclusive this pass, tool/addressing mismatch,
+  not a dead end just not finished. **This is the one piece that
+  actually blocks a full-fidelity port** (not more helper RE): a real
+  8-tile-only vs. full-radius scope decision, touching `ColonizeColony`'s
+  own layout. Recommend as next step: confirm the `0x329` table's values
+  (via existing `dosbox-x-dumps/*`, same method as `DS:0x2f76`) to learn
+  whether tier-2/default colonies are 8-tile-equivalent (safe to port as
+  base-ring-only, matching current data model) or genuinely need the
+  outer ring (a struct-layout change, `colony.h`/save-format-adjacent,
+  worth a user check-in before touching).
+  **2026-08-22, same session, resolved cleanly — user chose to find the
+  table; found, and it's a full match, not a compromise.** Byte-searched
+  `dosbox-x-dumps/find_memory` (the same save already calibrated for
+  `DS:0x2f76`, `HDR=0x88`, `DS=0x237d` — re-verified against the known
+  cost-column bytes before trusting the new read, matched exactly).
+  `DS:0x329..0x338` = `{0,4,8,12,20,2,0,1,0,3,0,1,0,0,2,2}`; `FUN_15eb_0470`
+  indexes this array directly by its own tier value (2/3/4), giving
+  **table[2]=8, table[3]=12, table[4]=20**. Tier 2 fires when
+  `FUN_15eb_039e(10)==0` — a census of building index **10 in `@BUILDING`
+  (NAMES.TXT row 176: "Town Hall", the 2nd of 3 Town Hall tiers)** — i.e.
+  tier 2 is the **default, Town-Hall-level-1 case**. **Tier-2's own tile
+  count is exactly 8** — the identical number `colony.h`'s
+  `COLONIZE_COLONY_FIELD_TILES` already hardcodes. So the 8-tile Linux
+  model isn't an approximation of DOS's common case, it **is** DOS's
+  common case, byte-for-byte; only colonies that have built Town Hall
+  level 2 (12 tiles) or level 3 (20 tiles) — a real but comparatively rare
+  mid/late-game upgrade — would need storage this project's struct doesn't
+  have yet. **Net: the core 9-job/8-tile scoring loop is now fully
+  portable within the existing data model, no architecture change needed
+  for the common case.** Town-Hall-level-2/3 outer-ring support stays a
+  clean, separately-scoped future item (needs `colony.h` layout work,
+  genuinely deferred, not blocking). `ctest` not run (doc-only; the
+  byte-search touched no `src/`).
+  **2026-08-22, session close-out -- consolidated into a proper deep-map
+  doc, matching this project's own convention** (every other resolved
+  accessor family in this file lives in a `.md` under
+  `original_sources_annotated/`, not scattered across plan-row updates):
+  [`colonist_work_plot_28c8.md`](../original_sources_annotated/turn/colonist_work_plot_28c8.md).
+  Full accessor table, structure walkthrough, the fidelity finding, and
+  the parked discovery-roll side effect all live there now. **RE is
+  complete; no C port written this pass** -- a real port needs a golden
+  fixture to verify the 9-job weighted formula against (none currently
+  exercises colonist auto-assignment) and is separate, risk-bearing work
+  matching this project's "document even if untestable, don't ship
+  unverifiable code" precedent (`T1.9`). Real next step if resumed: either
+  build a small golden fixture for colonist auto-assignment, or write the
+  port as a reference-only structural function (matching `T2.1`/`T2.2`'s
+  own "port exists, not wired" pattern) and accept it stays unverified
+  until a fixture exists. `ctest` 41/41 green (doc-only this whole item).
 
 Bigger in scope than Tier 1 items but not blocked on anything static tooling
 can't reach. Pick up after Tier 1 thins out, or interleave if a Tier 1 item
