@@ -27,7 +27,7 @@
  * merge of both DOS fields into one — it is ALSO the field
  * `ai_king.c`/`combat_strength.c`/`colony_production.c` read directly
  * (no reset) for SoL-fallback, boycott-refusal (`AI_KING_BOYCOTT_BELLS_MIN`),
- * and declare-independence (`AI_KING_DECLARE_BELLS_MIN`) gates — those all
+ * boycott-refusal (`AI_KING_BOYCOTT_BELLS_MIN`) gates — those all
  * plainly need the never-reset `+0xe` semantics. So resetting
  * `liberty_bells_total` to 0 on election (the literal DOS `+0xc` behavior)
  * would be a real, wide regression to those gates, not a fidelity fix.
@@ -45,8 +45,9 @@
  * OUTSIDE that struct — a small nation-indexed side table in
  * `founding_fathers.c`, same pattern as `ai_goals.h`'s
  * `AiNationPlanScratch`/`ai_goals_plan_scratch`, not a `col1_save.h` edit.
- * Not done this pass: real feature work (new side-table type, accessor
- * functions, ~3 accrual call sites in `turn.c`, ~40 test fixture sites).
+ * Implemented via nation-indexed side table in `founding_fathers.c`
+ * (`founding_fathers_accrue_bells` / `founding_fathers_bells_since_last_elect`).
+ * Sync from Col1 on load (`founding_fathers_sync_from_col1`); reset on new game.
  *
  * founding_fathers_tick: at most one elect per nation per call —
  * human first, then each AI Euro nation (player.control==1).
@@ -89,6 +90,21 @@
  * nation.founding_father_count. Fallback linear 40*(n+1) if col1 NULL.
  */
 unsigned founding_fathers_bells_needed(const ColonizeCol1Save* col1, int nation);
+
+/* DOS nation+0xc — bells accrued since last FF elect (reset on elect_commit). */
+unsigned founding_fathers_bells_since_last_elect(int nation_id);
+
+/* Add turn bell production to the per-nation since-last-elect pool (FUN_4345_0a22 +0xc). */
+void founding_fathers_accrue_bells(int nation_id, unsigned delta);
+
+/* Zero side pools (new game). */
+void founding_fathers_reset(void);
+
+/*
+ * Init side pools from Col1 nation+0xc (`liberty_bells_total` on-disk field).
+ * Call after col1_bridge_apply / before tests that set liberty_bells_total directly.
+ */
+void founding_fathers_sync_from_col1(const ColonizeCol1Save* col1);
 
 /* True if nation owns FF index (head owner or nation bitmask). */
 bool founding_fathers_nation_has(const ColonizeCol1Save* col1, int nation, int ff_index);

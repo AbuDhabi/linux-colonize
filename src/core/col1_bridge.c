@@ -6,6 +6,7 @@
 
 #include "core/col1_post_map.h"
 #include "core/col1_stuff_census.h"
+#include "core/founding_fathers.h"
 #include "core/turn.h"
 #include "core/strutil.h"
 #include "platform/diagnostics.h"
@@ -1053,6 +1054,8 @@ bool col1_bridge_apply(
 
   /* Align live layer2 occupancy with imported pools (tribes from save). */
   col1_bridge_sync_map_occupancy(NULL, map, units, colonies, save);
+
+  founding_fathers_sync_from_col1(save);
 
   if (out) {
     *out = local;

@@ -120,12 +120,10 @@
 #define AI_KING_MERC_COST 300
 #define AI_KING_MERC_ROLL_CHANCE 3 /* 1-in-3 per turn, dos_rng_range(0,2)==0 */
 /*
- * FUN_43f7_2564 / fandom Independence: declare gate when total SoL already
- * past this existing threshold (no invented %). Bells gate stays separate.
+ * FUN_43f7_2564 / fandom Independence: declare when nation SoL ≥ 50%.
  * Human + ai_popups → CHOICE; else auto-declare.
  */
 #define AI_KING_DECLARE_SOL_MIN 50
-#define AI_KING_DECLARE_BELLS_MIN 100
 /* Restless chrome band immediately below declare (SoL 40..49 when min=50). */
 #define AI_KING_RESTLESS_SOL_MIN 40
 /*
@@ -402,6 +400,56 @@ static int ai_king_intervention_nation(const ColonizeTurnContext* ctx, int human
     }
   }
   return best >= 0 ? best : crown;
+}
+
+/*
+ * FUN_43f7_1a26 foreign-intervention pool seed (DOS 0x53e2…0x53e8 → backup_force).
+ * Uses intervention-nation stats where DOS nation bytes are mapped to Col1 fields.
+ */
+static void ai_king_seed_backup_force_1a26(ColonizeTurnContext* ctx, int human) {
+  if (!ctx || !ctx->col1_ok || !ctx->col1) {
+    return;
+  }
+  const int diff = (int)ctx->col1->head.difficulty;
+  const int ally = ai_king_intervention_nation(ctx, human);
+  if (ally < 0 || ally >= 4) {
+    return;
+  }
+  const ColonizeCol1Nation* anat = &ctx->col1->nation[ally];
+  const int local_4 = ctx->colonies ? ai_king_colony_count(ctx->colonies, ally) : 0;
+  const int n6bf0 = (int)(anat->founding_father_count & 0xffu);
+  const int n6bd4 = (int)anat->rebel_sentiment;
+  const int n6be4 = (int)anat->liberty_bells_total;
+
+  int pool0 = (n6bf0 / 10) - diff + 8;
+  const int iVar7 = (4 - diff) / 2;
+  int pool1 = ((n6bd4 + 1) >> 4) + iVar7 + 1;
+  int pool3 = iVar7 + ((n6be4 + 1) >> 5) + 3;
+  int pool2 = iVar7 + local_4 + 3;
+
+  pool0 = (pool0 + 9) / 2;
+  pool1 = (pool1 + 2) / 2;
+  pool3 = (pool3 + 4) / 2;
+  pool2 = (pool2 + 4) / 2;
+
+  const int cap2x = pool2 * 2;
+  if (pool3 > cap2x) {
+    pool3 = cap2x;
+  }
+  if (pool1 > cap2x) {
+    pool1 = cap2x;
+  }
+  {
+    const int rem = pool2 * 6 - pool3 - pool1;
+    if (pool0 > rem) {
+      pool0 = rem;
+    }
+  }
+
+  ctx->col1->head.backup_force[0] = (uint16_t)(pool0 > 0 ? pool0 : 0);
+  ctx->col1->head.backup_force[1] = (uint16_t)(pool1 > 0 ? pool1 : 0);
+  ctx->col1->head.backup_force[2] = (uint16_t)(pool3 > 0 ? pool3 : 0);
+  ctx->col1->head.backup_force[3] = (uint16_t)(pool2 > 0 ? pool2 : 0);
 }
 
 /* True if unit type/display name is Artillery (or Cannon fallback). */
@@ -2111,11 +2159,7 @@ static void ai_king_do_declare(ColonizeTurnContext* ctx, int human) {
   ctx->col1->head.expeditionary_force[1] = (uint16_t)(4 + diff * 2);
   ctx->col1->head.expeditionary_force[2] = (uint16_t)(2 + diff);
   ctx->col1->head.expeditionary_force[3] = (uint16_t)(2 + diff);
-  /* backup_force: DOS 0x53e2… foreign-intervention pools — 10f0 stand-in. */
-  ctx->col1->head.backup_force[0] = (uint16_t)(2 + diff);
-  ctx->col1->head.backup_force[1] = (uint16_t)(1 + (diff > 0 ? 1 : 0));
-  ctx->col1->head.backup_force[2] = (uint16_t)(diff > 1 ? 1 : 0);
-  ctx->col1->head.backup_force[3] = 1;
+  ai_king_seed_backup_force_1a26(ctx, human);
   ai_king_set_ref_present(ctx->col1, 1);
   /*
    * FUN_43f7_0108 (eliminate nation), called from FUN_43f7_1a26 for every
@@ -2227,7 +2271,7 @@ static void ai_king_do_declare(ColonizeTurnContext* ctx, int human) {
  * FUN_43f7_2564 gate (SoL≥AI_KING_DECLARE_SOL_MIN) + 1a26 declare.
  * Human + ctx->ai_popups → CHOICE from GAME.TXT @DECLARE (Never / Yes;
  * effect in apply_popup_result). Else auto-declare when SoL past 2564/fandom
- * threshold and bells ≥ min.
+ * threshold and SoL ≥ min.
  */
 static void ai_king_try_declare(ColonizeTurnContext* ctx) {
   if (!ctx || !ctx->col1_ok || !ctx->col1) {
@@ -2242,10 +2286,6 @@ static void ai_king_try_declare(ColonizeTurnContext* ctx) {
   }
   const int sol = ai_king_sol_percent(ctx, human);
   if (sol < AI_KING_DECLARE_SOL_MIN) {
-    return;
-  }
-  const ColonizeCol1Nation* nat = &ctx->col1->nation[human];
-  if (nat->liberty_bells_total < AI_KING_DECLARE_BELLS_MIN) {
     return;
   }
   if (ai_king_human_popups(ctx)) {
@@ -2315,6 +2355,10 @@ static int ai_king_weakest_port(ColonizeTurnContext* ctx, int nation_id, int* ou
     int garrison = c->population;
     if (colonies_has_fortification(ctx->colonies, c)) {
       garrison *= 2;
+    }
+    /* Prefer coastal ports when garrison pressure is close (REF landing sites). */
+    if (ctx->map && map_tile_is_coastal(ctx->map, c->x, c->y)) {
+      garrison = (garrison * 9) / 10;
     }
     if (garrison < best_score) {
       best_score = garrison;
@@ -4411,6 +4455,13 @@ void ai_king_apply_popup_result(ColonizeTurnContext* ctx, const AiPopupState* po
       /* FUN_43f7_2564 / 1a26: Confirm → declare; Not yet → leave peacetime. */
       if (popup->result_choice_id == AI_KING_CHOICE_CONFIRM) {
         ai_king_do_declare(ctx, human);
+        /*
+         * Same-turn REF wave + 1eca Continental muster (FUN_43f7_0982 / 1eca).
+         * Auto-declare gets these from ai_king_nation_turn's WoI block; popup
+         * Confirm applies outside that turn slice.
+         */
+        ai_king_ref_wave(ctx);
+        ai_king_war_act(ctx);
       }
       break;
     case AI_POPUP_TAG_KING_SCORED:

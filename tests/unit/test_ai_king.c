@@ -20,8 +20,7 @@
  * + capital MD slack) +
  * SoL=50 mid-band edge + Cont. Army abbrev skip, REF capital MD hunt
  * bias (+ Artillery siege capital when fortified MD slack), congress
- * unknown46[5] on declare, WoI unknown46[0] only when SoL≥50
- * (bells≥100 alone insufficient), tax audience Accept→hike OK chain,
+ * unknown46[5] on declare, WoI unknown46[0] only when SoL≥50,
  * Refuse→dump CHOICE→@TEAPARTY OK (thin 3dc8 stock dump), 2244 Decline
  * follow-up OK, second MoW only @diff≥2. PARK: 160a letter cinematic;
  * dump-goods CHOICE prompt invent English (picker + Europe bid>0 Done). */
@@ -597,7 +596,7 @@ int main(void) {
   autumn = 1;
   col1.colony[0].rebel_dividend = 45;
   col1.colony[0].rebel_divisor = 100;
-  col1.nation[0].liberty_bells_total = 50; /* below declare gate */
+  col1.nation[0].liberty_bells_total = 50;
   status[0] = '\0';
   {
     const int sol45 = ai_king_sol_percent(&ctx, 0);
@@ -630,15 +629,14 @@ int main(void) {
 
   /*
    * WoI unknown46[0] SoL gate (FUN_43f7_2564 / fandom total SoL ≥ 50%):
-   * SoL 49 + bells≥100 must NOT declare — bells alone are insufficient.
-   * Restless chrome may fire; congress/WoI stay clear.
+   * SoL 49 must NOT declare regardless of liberty bells.
    */
   {
     year = 1591;
     autumn = 1;
     col1.colony[0].rebel_dividend = 49;
     col1.colony[0].rebel_divisor = 100;
-    col1.nation[0].liberty_bells_total = 200; /* would declare if SoL≥50 */
+    col1.nation[0].liberty_bells_total = 200;
     status[0] = '\0';
     {
       const int sol49 = ai_king_sol_percent(&ctx, 0);
@@ -649,14 +647,14 @@ int main(void) {
     }
     ai_king_nation_turn(&ctx);
     if (col1.head.unknown46[0] != 0) {
-      return fail("SoL 49 + bells≥100 must not set WoI unknown46[0]");
+      return fail("SoL 49 must not set WoI unknown46[0]");
     }
     if (col1.head.unknown46[5] != 0) {
-      return fail("SoL 49 + bells≥100 must not set congress unknown46[5]");
+      return fail("SoL 49 must not set congress unknown46[5]");
     }
   }
 
-  /* Declare path: autumn skips tax; SoL≥50 + bells≥100. Wave runs same turn. */
+  /* Declare path: autumn skips tax; SoL≥50 only (no bells gate). Wave runs same turn. */
   year = 1600;
   autumn = 1;
   col1.colony[0].rebel_dividend = 60;

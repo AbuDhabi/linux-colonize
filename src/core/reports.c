@@ -1,4 +1,6 @@
+#include "core/founding_fathers.h"
 #include "core/reports.h"
+#include "core/strutil.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -166,6 +168,7 @@ bool reports_load(ColonizeReportsView* view, const char* data_dir, char* err, si
     ok_count++;
   }
   view->loaded = ok_count > 0;
+  str_copy_trunc(view->data_dir, sizeof(view->data_dir), data_dir);
   if (!view->loaded) {
     snprintf(err, err_size, "no report backgrounds loaded");
     return false;
@@ -373,7 +376,72 @@ static void reports_render_religious(
   }
 }
 
+/* CCBKGD.PIK 5×5 Founding Father portrait slots (thin DOS layout). */
+static void reports_congress_blit_portraits(
+  const char* data_dir,
+  const ColonizeCol1Save* col1,
+  int human,
+  ColonizeFramebuffer8* fb
+) {
+  if (!data_dir || !data_dir[0] || !col1 || !fb) {
+    return;
+  }
+  const int cols = 5;
+  const int origin_x = 10;
+  const int origin_y = 34;
+  const int cell_w = 32;
+  const int cell_h = 40;
+  for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
+    const int8_t owner = col1->head.founding_father[i];
+    if (owner != (int8_t)human) {
+      continue;
+    }
+    char name[32];
+    char path[512];
+    char err[128];
+    snprintf(name, sizeof(name), "CC-%02d.SS", i);
+    if (!dos_compat_normalize_asset_path(data_dir, name, path, sizeof(path))) {
+      continue;
+    }
+    ColonizeSpriteSheet sheet;
+    memset(&sheet, 0, sizeof(sheet));
+    if (!ss_load(path, &sheet, err, sizeof(err)) || sheet.sprite_count <= 0) {
+      ss_free(&sheet);
+      continue;
+    }
+    const int col = i % cols;
+    const int row = i / cols;
+    const int px = origin_x + col * cell_w;
+    const int py = origin_y + row * cell_h;
+    ss_blit_sprite(&sheet, 0, fb, px, py);
+    ss_free(&sheet);
+  }
+  /* Debating candidate: outline slot when next_founding_father is set. */
+  const int next = (int)col1->nation[human].next_founding_father;
+  if (next >= 0 && next < (int)COLONIZE_COL1_FF_COUNT) {
+    const int col = next % cols;
+    const int row = next / cols;
+    const int px = origin_x + col * cell_w;
+    const int py = origin_y + row * cell_h;
+    for (int x = px; x < px + cell_w && x < fb->width; ++x) {
+      fb->pixels[py * fb->width + x] = 149;
+      const int y2 = py + cell_h - 1;
+      if (y2 >= 0 && y2 < fb->height) {
+        fb->pixels[y2 * fb->width + x] = 149;
+      }
+    }
+    for (int y = py; y < py + cell_h && y < fb->height; ++y) {
+      fb->pixels[y * fb->width + px] = 149;
+      const int x2 = px + cell_w - 1;
+      if (x2 >= 0 && x2 < fb->width) {
+        fb->pixels[y * fb->width + x2] = 149;
+      }
+    }
+  }
+}
+
 static void reports_render_congress(
+  const ColonizeReportsView* view,
   const ColonizeCol1Save* col1,
   int human,
   const ColonizeFont* font,
@@ -383,15 +451,20 @@ static void reports_render_congress(
   char* line,
   size_t line_sz
 ) {
+  const int text_x = 168;
+  if (view && view->data_dir[0]) {
+    reports_congress_blit_portraits(view->data_dir, col1, human, fb);
+  }
   if (!col1) {
-    reports_draw_line(font, fb, 8, *y, "Founding Fathers (no Col1 save loaded)", 14);
+    reports_draw_line(font, fb, text_x, *y, "Founding Fathers (no Col1 save loaded)", 14);
     *y += step;
-    reports_draw_line(font, fb, 8, *y, "Members in Congress: 0", 15);
+    reports_draw_line(font, fb, text_x, *y, "Members in Congress: 0", 15);
     *y += step;
-    reports_draw_line(font, fb, 8, *y, "Now debating: (none)", 15);
+    reports_draw_line(font, fb, text_x, *y, "Now debating: (none)", 15);
     return;
   }
 
+  *y = 34;
   const ColonizeCol1Nation* nat = &col1->nation[human];
   snprintf(
     line,
@@ -401,12 +474,11 @@ static void reports_render_congress(
     col1->head.autumn ? " Autumn" : " Spring",
     (unsigned)col1->head.turn
   );
-  reports_draw_line(font, fb, 8, *y, line, 14);
+  reports_draw_line(font, fb, text_x, *y, line, 14);
   *y += step;
 
-  /* FUN_3f41_0618 congress report includes tax rate. */
   snprintf(line, line_sz, "Tax rate: %u%%", (unsigned)nat->tax_rate);
-  reports_draw_line(font, fb, 8, *y, line, 15);
+  reports_draw_line(font, fb, text_x, *y, line, 15);
   *y += step;
 
   snprintf(
@@ -416,10 +488,17 @@ static void reports_render_congress(
     (unsigned)nat->liberty_bells_total,
     (unsigned)nat->liberty_bells_last_turn
   );
-  reports_draw_line(font, fb, 8, *y, line, 15);
+  reports_draw_line(font, fb, text_x, *y, line, 15);
   *y += step;
 
-  /* Average rebel sentiment across human colonies. */
+  {
+    const unsigned pool = founding_fathers_bells_since_last_elect(human);
+    const unsigned need = founding_fathers_bells_needed(col1, human);
+    snprintf(line, line_sz, "Next FF: %u / %u bells", pool, need);
+    reports_draw_line(font, fb, text_x, *y, line, 15);
+    *y += step;
+  }
+
   int rebel_sum = 0;
   int rebel_n = 0;
   for (uint16_t i = 0; i < col1->head.colony_count; ++i) {
@@ -435,7 +514,7 @@ static void reports_render_congress(
   } else {
     snprintf(line, line_sz, "Rebel sentiment: n/a (no colonies)");
   }
-  reports_draw_line(font, fb, 8, *y, line, 15);
+  reports_draw_line(font, fb, text_x, *y, line, 15);
   *y += step;
 
   if (nat->next_founding_father >= 0) {
@@ -443,7 +522,7 @@ static void reports_render_congress(
   } else {
     snprintf(line, line_sz, "Now debating: (none)");
   }
-  reports_draw_line(font, fb, 8, *y, line, 15);
+  reports_draw_line(font, fb, text_x, *y, line, 15);
   *y += step;
 
   int members = 0;
@@ -453,21 +532,12 @@ static void reports_render_congress(
     }
   }
   snprintf(line, line_sz, "Founding Fathers in Congress: %d", members);
-  reports_draw_line(font, fb, 8, *y, line, 15);
+  reports_draw_line(font, fb, text_x, *y, line, 15);
   *y += step;
 
   if (members == 0) {
-    reports_draw_line(font, fb, 8, *y, "  (none yet — produce liberty bells)", 14);
+    reports_draw_line(font, fb, text_x, *y, "(none yet — produce liberty bells)", 14);
     *y += step;
-  } else {
-    for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT && *y < 160; ++i) {
-      if (!reports_ff_joined(col1->head.founding_father[i])) {
-        continue;
-      }
-      snprintf(line, line_sz, "  %s", reports_ff_name(i));
-      reports_draw_line(font, fb, 8, *y, line, 15);
-      *y += step;
-    }
   }
 
   snprintf(
@@ -479,7 +549,7 @@ static void reports_render_congress(
     (unsigned)col1->head.expeditionary_force[2],
     (unsigned)col1->head.expeditionary_force[3]
   );
-  reports_draw_line(font, fb, 8, *y, line, 15);
+  reports_draw_line(font, fb, text_x, *y, line, 15);
 }
 
 static void reports_render_labor(
@@ -1582,7 +1652,7 @@ void reports_render(
       );
       break;
     case COLONIZE_REPORT_CONGRESS:
-      reports_render_congress(col1, human, font, framebuffer, &y, step, line, sizeof(line));
+      reports_render_congress(view, col1, human, font, framebuffer, &y, step, line, sizeof(line));
       break;
     case COLONIZE_REPORT_LABOR:
       reports_render_labor(

@@ -113,7 +113,7 @@ with SoL: the port maps `0x40` as **coastal**.
 | Rebel sentiment points | Score +1 per point | **Wired** |
 | Year-end C2 / D SoL chrome | Peace / pressure / rival dialogs | **Thin / PARK** |
 | Combat popular-support % | Attacker side’s SoL/Tory share **on colony** | **Wired** (`combat_apply_1b0e_peels`: colony REF +50% + Tory/Rebel %) — [combat.md](combat.md) |
-| Cont. Army muster by colony SoL | Declare-turn muster; &lt;50% = 0 | **PARK** |
+| Cont. Army muster by colony SoL | Declare-turn 1eca promote (Veteran fortified Soldier/Dragoon on colony tile; SoL>49) | **Wired** (`ai_king_war_act`; popup Confirm chains ref_wave+war_act) |
 | Map pop digit colors | White &lt;50 / green ≥50 / blue 100 | **PARK** |
 | Rebel accumulator EOT | Grow dividend/divisor from bells | **Wired** (`colony_prod_tick_rebel_accumulators`) |
 
@@ -152,7 +152,7 @@ applied in EOT field/craft/hammers/bells/crosses and preview.
 
 | Event | Gate | Port symbols |
 |-------|------|--------------|
-| Declare | Nation SoL ≥ **50%** (manual / `FUN_43f7_2564`) | `AI_KING_DECLARE_SOL_MIN`; also requires `liberty_bells_total ≥ 100` (**port extra gate**, not in manual) |
+| Declare | Nation SoL ≥ **50%** (manual / `FUN_43f7_2564`) | `AI_KING_DECLARE_SOL_MIN` |
 | Restless chrome | SoL **40..49** | `AI_KING_RESTLESS_SOL_MIN` |
 | Tax refuse / boycott | tax ≥ **20** and (SoL ≥ **30** or bells ≥ **80**) | `AI_KING_BOYCOTT_*` |
 | Continental merc | WoI and nation SoL **>** **50** | `AI_KING_MERC_SOL_MIN` |
@@ -174,7 +174,9 @@ Uses **colony** SoL at the unit’s tile ([`ai_king_colony_sol_at`](../src/core/
 | **&lt; 40** | No promote from this band |
 
 Deep profession/type-id promote table still **PARK**. Manual “Continental Army
-Muster” (counts by colony SoL on declare; &lt;50% colony contributes 0) is **PARK**.
+Muster” (counts by colony SoL on declare; &lt;50% colony contributes 0) is **Done**
+via `ai_king_war_act` / FUN_43f7_1eca (Veteran fortified Soldier/Dragoon on colony
+tile; cap from pop and SoL). Popup declare Confirm chains ref_wave+war_act same turn.
 
 ---
 
@@ -216,7 +218,7 @@ Details: [`year_end_chrome.md`](../original_sources_annotated/turn/year_end_chro
 |--------|--------|
 | DOS +0x1c bit `0x08` inefficient latch | decomp ~57468 — port chrome via `inefficient_gov` (bit3 stays starvation) |
 | Combat popular-support attack % = side’s SoL/Tory share | Manual — **Done** in `combat_apply_1b0e_peels` (colony Tory/Rebel) — [combat.md](combat.md) |
-| Continental Army muster by colony SoL | Manual |
+| Continental Army muster by colony SoL | Manual — **Done** in `ai_king_war_act` (1eca) |
 | Map population digit colors (white/green/blue) | Manual |
 | Decade SoL chrome messages | `colony_eot_production.md` — **Done** thin (`@SONSUP`/`@SONSDOWN`) |
 
@@ -229,7 +231,7 @@ Details: [`year_end_chrome.md`](../original_sources_annotated/turn/year_end_chro
 | Tory penalty size | Manual/fandom “−1 if ≥ thresh” | `−⌊tories / (10−diff)⌋` then +sol latches |
 | Tory thresh 10…6 | — | Decomp + manual; also [difficulty.md](difficulty.md) |
 | Bolivar | Port dividend bump alone as “the” rule | DOS/port: +20 on every SoL compute while FF held (human) |
-| Declare gate | Port bells≥100 as original | Manual/decomp: SoL≥50 only — bells gate is port-extra |
+| Declare gate | Manual/decomp: SoL≥50 only |
 | +0x1c `0x08` | Port food starvation bit | DOS inefficient-gov latch |
 | `0x1c & 0x40` as “rebel” | Some year-end annotations | Port: coastal bit |
 

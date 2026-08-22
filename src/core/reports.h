@@ -11,6 +11,7 @@
 #include "core/font.h"
 #include "core/map.h"
 #include "core/pik.h"
+#include "core/ss.h"
 #include "core/units.h"
 #include "platform/platform.h"
 
@@ -50,6 +51,7 @@ typedef struct ColonizeReportsView {
   bool background_ok[COLONIZE_REPORT_COUNT];
   bool loaded;
   ColonizeReportId active;
+  char data_dir[512];
 } ColonizeReportsView;
 
 void reports_init(ColonizeReportsView* view);

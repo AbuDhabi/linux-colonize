@@ -19,6 +19,13 @@ static int fail(const char* msg) {
   return 1;
 }
 
+static void ff_tick(ColonizeTurnContext* ctx) {
+  if (ctx && ctx->col1) {
+    founding_fathers_sync_from_col1(ctx->col1);
+  }
+  founding_fathers_tick(ctx);
+}
+
 static void seed_unclaimed(ColonizeCol1Save* col1) {
   for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
     col1->head.founding_father[i] = -1;
@@ -33,6 +40,7 @@ static void ff_test_calendar(ColonizeCol1Save* col1) {
 }
 
 int main(void) {
+  founding_fathers_reset();
   {
     ColonizeCol1Save curve;
     col1_save_init(&curve);
@@ -87,7 +95,7 @@ int main(void) {
 
   /* Below threshold: no elect. */
   nat->liberty_bells_total = 39;
-  founding_fathers_tick(&ctx);
+  ff_tick(&ctx);
   if (nat->founding_father_count != 0 || col1.head.founding_father[0] != -1) {
     return fail("no elect below threshold");
   }
@@ -95,7 +103,7 @@ int main(void) {
   /* At threshold: elect Adam Smith — ownership only (factory gate elsewhere). */
   nat->liberty_bells_total = 40;
   const uint32_t gold_smith = nat->gold;
-  founding_fathers_tick(&ctx);
+  ff_tick(&ctx);
   if (col1.head.founding_father[0] != 0) {
     return fail("head.founding_father[0] not human");
   }
@@ -120,13 +128,16 @@ int main(void) {
   if (nat->liberty_bells_total != 40) {
     return fail("bells were spent (expected gate-only)");
   }
+  if (founding_fathers_bells_since_last_elect(0) != 0u) {
+    return fail("FF elect should reset since-last-elect pool");
+  }
 
   /* Jakob Fugger: clear ALL boycotts; no gold bump. */
   nat->liberty_bells_total = 161;
   nat->boycott_bitmap = (uint16_t)((1u << 1) | (1u << 4) | (1u << 2));
   col1.head.unknown46[2] = 1;
   const uint32_t gold_before = nat->gold;
-  founding_fathers_tick(&ctx);
+  ff_tick(&ctx);
   if (col1.head.founding_father[1] != 0 || nat->founding_father_count != 2) {
     return fail("second FF not Jakob Fugger");
   }
@@ -153,7 +164,7 @@ int main(void) {
   ctx.europe = &eu_brew;
   const uint16_t crosses_before = nat->current_crosses;
   const uint32_t gold_brew = nat->gold;
-  founding_fathers_tick(&ctx);
+  ff_tick(&ctx);
   if (col1.head.founding_father[20] != 0 || nat->founding_father_count != 3) {
     return fail("Brewster not elected via next");
   }
@@ -197,7 +208,7 @@ int main(void) {
     bctx.col1 = &bcol1;
     bctx.col1_ok = true;
     bctx.europe = &eu_dock;
-    founding_fathers_tick(&bctx);
+    ff_tick(&bctx);
     if (!founding_fathers_nation_has(&bcol1, 0, FF_WILLIAM_BREWSTER)) {
       return fail("Brewster dock-filter elect");
     }
@@ -212,7 +223,7 @@ int main(void) {
   nat->liberty_bells_total = 321;
   nat->next_founding_father = 15;
   const uint16_t bells_before = nat->liberty_bells_total;
-  founding_fathers_tick(&ctx);
+  ff_tick(&ctx);
   if (col1.head.founding_father[15] != 0 || nat->founding_father_count != 4) {
     return fail("Jefferson not elected via next");
   }
@@ -227,7 +238,7 @@ int main(void) {
   nat->tax_rate = 12;
   nat->liberty_bells_total = 401;
   nat->next_founding_father = 4;
-  founding_fathers_tick(&ctx);
+  ff_tick(&ctx);
   if (col1.head.founding_father[4] != 0 || nat->founding_father_count != 5) {
     return fail("de Witt not elected via next");
   }
@@ -239,7 +250,7 @@ int main(void) {
   col1.head.expeditionary_force[0] = 5;
   nat->liberty_bells_total = 481;
   nat->next_founding_father = 11;
-  founding_fathers_tick(&ctx);
+  ff_tick(&ctx);
   if (col1.head.founding_father[11] != 0 || nat->founding_father_count != 6) {
     return fail("Washington not elected via next");
   }
@@ -252,7 +263,7 @@ int main(void) {
   nat->next_founding_father = 3;
   {
     const uint32_t g0 = nat->gold;
-    founding_fathers_tick(&ctx);
+    ff_tick(&ctx);
     if (col1.head.founding_father[3] != 0 || nat->founding_father_count != 7) {
       return fail("Stuyvesant not elected via next");
     }
@@ -266,7 +277,7 @@ int main(void) {
   nat->next_founding_father = 13;
   {
     const uint32_t g0 = nat->gold;
-    founding_fathers_tick(&ctx);
+    ff_tick(&ctx);
     if (col1.head.founding_father[13] != 0 || nat->founding_father_count != 8) {
       return fail("Drake not elected via next");
     }
@@ -280,7 +291,7 @@ int main(void) {
   nat->next_founding_father = 12;
   {
     const uint32_t g0 = nat->gold;
-    founding_fathers_tick(&ctx);
+    ff_tick(&ctx);
     if (col1.head.founding_father[12] != 0 || nat->founding_father_count != 9) {
       return fail("Revere not elected via next");
     }
@@ -294,7 +305,7 @@ int main(void) {
   nat->next_founding_father = 18;
   {
     const uint16_t b0 = nat->liberty_bells_total;
-    founding_fathers_tick(&ctx);
+    ff_tick(&ctx);
     if (col1.head.founding_father[18] != 0 || nat->founding_father_count != 10) {
       return fail("Bolivar not elected via next");
     }
@@ -322,7 +333,7 @@ int main(void) {
     col1.indian[0].alarm_by_player[1] = 20;
     col1.indian[1].alarm_by_player[0] = 70;
     const uint16_t c0 = nat->current_crosses;
-    founding_fathers_tick(&ctx);
+    ff_tick(&ctx);
     if (col1.head.founding_father[16] != 0 || nat->founding_father_count != 11) {
       return fail("Pocahontas not elected via next");
     }
@@ -351,7 +362,7 @@ int main(void) {
   nat->next_founding_father = 6;
   {
     const uint32_t g0 = nat->gold;
-    founding_fathers_tick(&ctx);
+    ff_tick(&ctx);
     if (col1.head.founding_father[6] != 0 || nat->founding_father_count != 12) {
       return fail("Coronado not elected via next");
     }
@@ -365,7 +376,7 @@ int main(void) {
   nat->next_founding_father = 14;
   {
     const uint32_t g0 = nat->gold;
-    founding_fathers_tick(&ctx);
+    ff_tick(&ctx);
     if (col1.head.founding_father[14] != 0 || nat->founding_father_count != 13) {
       return fail("Jones not elected via next");
     }
@@ -379,7 +390,7 @@ int main(void) {
   nat->next_founding_father = 22;
   {
     const uint16_t c0 = nat->current_crosses;
-    founding_fathers_tick(&ctx);
+    ff_tick(&ctx);
     if (col1.head.founding_father[22] != 0 || nat->founding_father_count != 14) {
       return fail("Brebeuf not elected via next");
     }
@@ -517,7 +528,7 @@ int main(void) {
       map_free(&map);
       return fail("deep map unexpectedly seen before Coronado");
     }
-    founding_fathers_tick(&deep_ctx);
+    ff_tick(&deep_ctx);
     if (deep_col1.head.founding_father[6] != 0 || dnat->founding_father_count != 1) {
       free(deep_col1.colony);
       map_free(&map);
@@ -544,7 +555,7 @@ int main(void) {
     dnat->next_founding_father = 5;
     const int car_moves = caravel->moves_left;
     const uint32_t gold_pre_mag = dnat->gold;
-    founding_fathers_tick(&deep_ctx);
+    ff_tick(&deep_ctx);
     if (deep_col1.head.founding_father[5] != 0 || dnat->founding_father_count != 2) {
       free(deep_col1.colony);
       map_free(&map);
@@ -577,7 +588,7 @@ int main(void) {
     dnat->next_founding_father = 8;
     const int tools_h = col->stock[COLONIZE_CARGO_TOOLS];
     const int furs_h = col->stock[COLONIZE_CARGO_FURS];
-    founding_fathers_tick(&deep_ctx);
+    ff_tick(&deep_ctx);
     if (deep_col1.head.founding_father[8] != 0 || dnat->founding_father_count != 3) {
       free(deep_col1.colony);
       map_free(&map);
@@ -598,7 +609,7 @@ int main(void) {
     dnat->liberty_bells_total = 321;
     dnat->next_founding_father = 7;
     const uint16_t crosses_pre = dnat->current_crosses;
-    founding_fathers_tick(&deep_ctx);
+    ff_tick(&deep_ctx);
     if (deep_col1.head.founding_father[7] != 0 || dnat->founding_father_count != 4) {
       free(deep_col1.colony);
       map_free(&map);
@@ -620,7 +631,7 @@ int main(void) {
     dnat->next_founding_father = 14;
     const int units_before = units.unit_count;
     const uint32_t gold_pre_jones = dnat->gold;
-    founding_fathers_tick(&deep_ctx);
+    ff_tick(&deep_ctx);
     if (deep_col1.head.founding_father[14] != 0 || dnat->founding_father_count != 5) {
       free(deep_col1.colony);
       map_free(&map);
@@ -641,7 +652,7 @@ int main(void) {
     deep_col1.head.expeditionary_force[0] = 3;
     dnat->liberty_bells_total = 481;
     dnat->next_founding_father = 11;
-    founding_fathers_tick(&deep_ctx);
+    ff_tick(&deep_ctx);
     if (deep_col1.head.founding_father[11] != 0 || dnat->founding_father_count != 6) {
       free(deep_col1.colony);
       map_free(&map);
@@ -662,7 +673,7 @@ int main(void) {
     dnat->liberty_bells_total = 561;
     dnat->next_founding_father = 12;
     const int tools_pre_rev = col->stock[COLONIZE_CARGO_TOOLS];
-    founding_fathers_tick(&deep_ctx);
+    ff_tick(&deep_ctx);
     if (deep_col1.head.founding_father[12] != 0 || dnat->founding_father_count != 7) {
       free(deep_col1.colony);
       map_free(&map);
@@ -678,7 +689,7 @@ int main(void) {
     dnat->liberty_bells_total = 641;
     dnat->next_founding_father = 13;
     const int car_moves_pre_drake = caravel->moves_left;
-    founding_fathers_tick(&deep_ctx);
+    ff_tick(&deep_ctx);
     if (deep_col1.head.founding_father[13] != 0 || dnat->founding_father_count != 8) {
       free(deep_col1.colony);
       map_free(&map);
@@ -696,7 +707,7 @@ int main(void) {
     {
       const uint32_t g0 = dnat->gold;
       const int tools0 = col->stock[COLONIZE_CARGO_TOOLS];
-      founding_fathers_tick(&deep_ctx);
+      ff_tick(&deep_ctx);
       if (deep_col1.head.founding_father[0] != 0 || dnat->founding_father_count != 9) {
         free(deep_col1.colony);
         map_free(&map);
@@ -712,7 +723,7 @@ int main(void) {
     /* La Salle: Stockade on pop>=3 colony. */
     dnat->liberty_bells_total = 801;
     dnat->next_founding_father = 9;
-    founding_fathers_tick(&deep_ctx);
+    ff_tick(&deep_ctx);
     if (deep_col1.head.founding_father[9] != 0 || dnat->founding_father_count != 10) {
       free(deep_col1.colony);
       map_free(&map);
@@ -730,7 +741,7 @@ int main(void) {
     {
       const uint16_t b0 = dnat->liberty_bells_total;
       const uint32_t div0 = deep_col1.colony[0].rebel_dividend;
-      founding_fathers_tick(&deep_ctx);
+      ff_tick(&deep_ctx);
       if (deep_col1.head.founding_father[18] != 0 || dnat->founding_father_count != 11) {
         free(deep_col1.colony);
         map_free(&map);
@@ -795,7 +806,7 @@ int main(void) {
     ai_ctx.col1 = &ai_col1;
     ai_ctx.col1_ok = true;
 
-    founding_fathers_tick(&ai_ctx);
+    ff_tick(&ai_ctx);
 
     if (human->founding_father_count != 0) {
       return fail("AI tick elected for human below threshold");
@@ -818,7 +829,7 @@ int main(void) {
     ai->boycott_bitmap = (uint16_t)((1u << 1) | (1u << 4) | (1u << 7));
     ai_col1.head.unknown46[2] = 1;
     const uint32_t ai_gold_before = ai->gold;
-    founding_fathers_tick(&ai_ctx);
+    ff_tick(&ai_ctx);
     if (ai_col1.head.founding_father[1] != 1 || ai->founding_father_count != 2) {
       return fail("AI second elect not Fugger");
     }
@@ -1381,19 +1392,19 @@ int main(void) {
     pctx.europe = &peu;
     pctx.units = &punits;
 
-    founding_fathers_tick(&pctx);
+    ff_tick(&pctx);
     if (!founding_fathers_nation_has(&pcol1, 0, FF_THOMAS_JEFFERSON)) {
       return fail("prod-path Jefferson elect");
     }
     pnat->liberty_bells_total = 161;
     pnat->next_founding_father = FF_THOMAS_PAINE;
-    founding_fathers_tick(&pctx);
+    ff_tick(&pctx);
     if (!founding_fathers_nation_has(&pcol1, 0, FF_THOMAS_PAINE)) {
       return fail("prod-path Paine elect");
     }
     pnat->liberty_bells_total = 241;
     pnat->next_founding_father = FF_WILLIAM_PENN;
-    founding_fathers_tick(&pctx);
+    ff_tick(&pctx);
     if (!founding_fathers_nation_has(&pcol1, 0, FF_WILLIAM_PENN)) {
       return fail("prod-path Penn elect");
     }
@@ -1489,7 +1500,7 @@ int main(void) {
     mctx.human_nation = 0;
     mctx.col1 = &mcol1;
     mctx.col1_ok = true;
-    founding_fathers_tick(&mctx);
+    ff_tick(&mctx);
     if (!founding_fathers_nation_has(&mcol1, 0, FF_PETER_MINUIT)) {
       map_free(&mmap);
       return fail("Minuit elect for land-buy smoke");
@@ -1626,7 +1637,7 @@ int main(void) {
 
     const uint32_t g0 = lnat->gold;
     const uint16_t c0 = lnat->current_crosses;
-    founding_fathers_tick(&lctx);
+    ff_tick(&lctx);
     if (lcol1.head.founding_father[FF_BARTOLOME_DE_LAS_CASAS] != 0 ||
         lnat->founding_father_count != 1) {
       return fail("Las Casas not elected");
@@ -1661,7 +1672,7 @@ int main(void) {
     late_u->nation_id = 0;
     late_u->profession = COLONIZE_PROF_CONVERT;
     lnat->liberty_bells_total = 0; /* below next elect threshold */
-    founding_fathers_tick(&lctx);
+    ff_tick(&lctx);
     if (late_u->profession != COLONIZE_PROF_FREE_COLONIST) {
       return fail("Las Casas ownership tick must assimilate late Convert");
     }
@@ -2055,7 +2066,7 @@ int main(void) {
     dctx.status_size = sizeof(dstatus);
     dctx.ai_popups = &pop;
 
-    founding_fathers_tick(&dctx);
+    ff_tick(&dctx);
     if (dnat->founding_father_count != 0) {
       return fail("debate path must not elect before CHOICE apply");
     }
@@ -2088,7 +2099,7 @@ int main(void) {
     ai_popup_init(&pop);
     dctx.ai_popups = &pop;
     dnat->liberty_bells_total = 40;
-    founding_fathers_tick(&dctx);
+    ff_tick(&dctx);
     if (dnat->founding_father_count != 1 ||
         !founding_fathers_nation_has(&dcol1, 0, chosen)) {
       return fail("threshold tick must elect previously locked founding father");
