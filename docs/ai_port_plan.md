@@ -924,6 +924,25 @@ closed; genuinely open are only `T1.8`, `T1.13`, `T1.15`, `T1.16`, `T1.17`.
   `T1.11`'s `0x10` write-trigger) to find what sets DOS mask bit `0x40`.
   Full trace: `euro_unit_act.md`'s 2026-08-22 later-same-day update.
   `ctest` 41/41 green.
+  **2026-08-22, later same day — the prescribed next step (literal-mask
+  grep of `FUN_137f_015e`'s own call sites) is done, exhaustively, and
+  `0x40` isn't set through this helper at all.** All 4 of `FUN_137f_015e`'s
+  real callers (verified via raw disasm + a flattened-export grep, two
+  independent methods agreeing) only ever pass masks `{1, 0x10}`; its
+  `FUN_281f_068c` generic-wrapper alias's own fully-resolvable callers only
+  ever pass `{1, 2, 4, 0x10}`. No `0x40`/`0x48` anywhere. Bonus, unrelated
+  cross-confirmation picked up along the way: mask `0x10` = already-known
+  `MAP_LAYER2_PURCHASED` (Indian land-purchase marker), not fort/colony.
+  **Real next step, if resumed, is different from what this row said
+  last time**: a raw `.asm` byte-pattern search for an inline `OR ,0x40`
+  near colony/fort construction code — not another XREF/grep sweep of this
+  helper family, that avenue is now closed. Not attempted (out of budget
+  this pass). Fort/colony `+8` term stays unwired. Full trace:
+  `euro_unit_act.md`'s 2026-08-22 later-same-day addendum. `ctest` not run
+  (doc-only). **Deprioritizing this row further** — two full passes now
+  spent on one gating bit with a working substitute already shipping;
+  next session should default to T1.15/T1.16/T1.17 instead unless this
+  specific `0x40` question is explicitly re-requested.
 
 - [x] **T1.9 — Indian mid-game quiet scoring (goods/missions/capital
   pull) formula mapping.** R2 used to flag this as blocked on "a
@@ -1373,6 +1392,25 @@ closed; genuinely open are only `T1.8`, `T1.13`, `T1.15`, `T1.16`, `T1.17`.
   don't widen it "for correctness." Also resolve the open
   `nation+0x2a`/`+0x2c` vs. `difficulty.md`'s existing `gold` naming
   contradiction (`T4.2` flagged, didn't resolve) before trusting either.
+  **2026-08-22 — real progress, not closed.** Resolved via `offsetof` +
+  reading the real asm at the term-7 call site directly (not the flattened
+  export's botched empty-arg rendering): `nation+0xc` = `liberty_bells_total`,
+  `nation+0x18` = `villages_burned`, `DS:0x539e`/`0x539c` were already-named
+  (`VICEROY_DS_COLONY_COUNT`/`_UNIT_COUNT`, just never cross-referenced into
+  this function before). The `+0x2a`/`+0x2c` "contradiction" is fully
+  resolved, not merely restated: they're the low/high halves of one 32-bit
+  read, `sizeof(ColonizeCol1Nation)==0x13c` matches `difficulty.md`'s own
+  citation exactly, `col1_save.h`'s existing `gold` field IS this field —
+  term 7 = `gold>=1000 ? gold/1000 : 0` (real gate read off the raw
+  `CMP`/`JGE`/`JG`/`JNC` chain), not a distance/coordinate read as
+  previously guessed. Full trace: `ai.c`'s `ai_indian_152e_worth_cap_stub`
+  header comment, 2026-08-22 update. **Still open, not attempted**: term
+  2's `x` sub-scan, `FUN_281f_07b4`'s 25-count target list, and the
+  neighbor-scan's real bound field (the doc's own "colony-pointer `+0x1f`"
+  framing doesn't match the actual asm — that literal byte pattern doesn't
+  occur in the function body; not re-derived this pass). Not a same-session
+  finish — real port still needs those two remaining pieces. `ctest` not
+  run (doc/comment-only change).
 
 - [ ] **T1.16 — Port `2820`'s deep Haggle/hard-bargain resume-loop.** New
   2026-08-22, split out of `T4.4` now that both blocking values are
