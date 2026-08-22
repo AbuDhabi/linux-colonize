@@ -860,6 +860,24 @@ renumbering — appended at the end of Tier 1, same low-risk approach as
   3-step next action (trace the condition, expose a non-static accessor,
   add the term) instead of an assumption to verify. Full trace:
   `euro_unit_act.md`'s 2026-08-22 update. `ctest` not run (doc-only).
+  **2026-08-22, later same day — step 1 done, and it's not a flat `+8`
+  after all.** Force-decompiled `0015bc` fresh (`OVL20_L0000:15bc`, clean):
+  the real gate is **asymmetric by nation**. If the candidate tile is
+  another tribe's territory, DOS **hard-rejects** it outright for any
+  pathing nation. If it's within an enemy fort/colony's zone: an
+  **AI-controlled nation also hard-rejects** it, but the **human**
+  player's own pathing only takes the soft `+8` penalty — the AI polices
+  its own routes strictly, the human just gets discouraged. A naive
+  "always +8" port would be wrong both ways (too lenient for AI, too
+  strict for the human). Separately, `0x1dd4` (the third scratch global)
+  turns out to gate an unrelated terrain-cost-vs-flat-`1` branch (a
+  hazard/cached-route heuristic), not part of the ownership question at
+  all — resolved, but tangential. **Still not wired**: needs a
+  nation-scoped tribe/fort accessor in `units.c` (none exposed yet) and
+  the reject-vs-penalize branch keyed on AI-vs-human, not a single cost
+  term — a small, well-scoped implementation task now, not an open RE
+  question. Full trace: `euro_unit_act.md`'s 2026-08-22 later update.
+  `ctest` not run (doc-only).
 
 - [ ] **T1.9 — Indian mid-game quiet scoring (goods/missions/capital
   pull) formula mapping.** R2 used to flag this as blocked on "a

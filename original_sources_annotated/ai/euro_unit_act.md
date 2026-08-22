@@ -480,6 +480,69 @@ accessor `units.c` can call, (3) add the `+8` term to
 `units_flood_next_step`'s edge cost. Not attempted this pass beyond the
 identification above (doc-only, `ctest` not run).
 
+**2026-08-22, later same day — step (1) done: the exact condition, force-
+decompiled fresh** (`analyzeHeadless` against `OverlayTest`,
+`OVL20_L0000:15bc`, clean). It's meaningfully more than a flat `+8`; the
+real shape, in the module's own scratch-global terms (`0x1dd2` = mover's
+unit-type index, `0x1dd4` = a separate cost-override mode flag unrelated
+to ownership — see below, `0x1dd6` = mover's nation id, `-1` if this
+flood-search invocation has none):
+
+```
+if (mover_nation >= 0) {                              // *(int*)0x1dd6
+  tribe = tile_tribe_or_presence(cand_x, cand_y);      // FUN_1000_88c2
+  if (tribe >= 0 && tribe != mover_nation)
+    reject_candidate();                                // hard skip, not a penalty
+  else {
+    fort_hit = enemy_fort_or_colony_owner(cand_x, cand_y, mover_nation); // FUN_1000_88d6
+    if (fort_hit >= 0) {
+      if (mover_nation > 3 || nation_is_ai[mover_nation])  // DS:0x543f, stride 0x34
+        reject_candidate();                            // hard skip for AI nations
+      else
+        cost += 8;                                     // soft penalty, human nation only
+    }
+  }
+}
+```
+
+So DOS's real behavior is **asymmetric by design**: an AI-controlled
+nation's pathfinding treats another tribe's territory or an enemy
+fort/colony's zone as a hard no-go (candidate rejected outright, same
+bucket as off-map or non-walkable), while the *human* player's own
+pathing request only gets discouraged (`+8`) — presumably so the human
+isn't silently blocked from routing near hostile territory the way the
+AI polices itself. This is a real behavioral asymmetry, not just a
+cost-formula detail — worth knowing before anyone wires this, since a
+naive "add `+8` for tribe/enemy tiles" port would be wrong for AI units
+(should reject, not merely discourage) and wrong for the human (should
+allow with a nudge, not block).
+
+**`0x1dd4`'s own role, separately**: gates a *different* branch — whether
+a candidate's terrain-cost term uses the real per-terrain-class formula
+(`terrain_cost*3`, ship flat `3`) or falls back to a flat `+1` when a pair
+of unrelated hazard-ish flags (`FUN_1000_8944`/`tile_fa_flags` bit `0xa`,
+`FUN_1000_891c`/`tile_has_minor_river` bit `0x40`) are set and `0x1dd4`
+itself is nonzero — reads as "already-favored/cached route tile is nearly
+free," not an ownership concept at all; don't conflate it with the
+tribe/fort gate above. Not traced further (not needed for the ownership
+question this pass targeted).
+
+**Still not wired** — `units.c` has no nation-scoped tribe/fort-owner
+accessor exposed today (the three ready ingredients are private statics
+in `ai.c`'s Indian-scoring file, and `enemy_fort_or_colony_owner` has no
+Linux port at all), and the AI-vs-human reject/penalty asymmetry means
+this can't be a single flat cost term — it needs a caller-nation check
+inside `units_flood_next_step` itself. Real remaining steps if resumed:
+(2) expose `tile_tribe_or_presence`/an `enemy_fort_or_colony_owner` port
+from `units.c` (or thread the values in), (3) wire the reject-vs-penalize
+branch keyed on whether the pathing nation is AI or human. Given the
+existing flood substitute already ships and works, and there's still no
+golden to catch a wrong wire (`T3.3`), leaving unwired — this is now a
+precisely scoped, small implementation task rather than an open RE
+question. Full trace: this session's `OVL20_L0000:15bc` force-decompile
+(not separately archived — see the condition transcribed above). `ctest`
+not run (doc-only).
+
 `FUN_4720_049e` (`FUN_291f_044e`'s target): **corruption is real but
 narrow, and the function underneath is a genuinely major find — not a
 move driver at all.**
