@@ -879,7 +879,7 @@ renumbering — appended at the end of Tier 1, same low-risk approach as
   question. Full trace: `euro_unit_act.md`'s 2026-08-22 later update.
   `ctest` not run (doc-only).
 
-- [ ] **T1.9 — Indian mid-game quiet scoring (goods/missions/capital
+- [x] **T1.9 — Indian mid-game quiet scoring (goods/missions/capital
   pull) formula mapping.** R2 used to flag this as blocked on "a
   `2244`-style overlay re-recovery... canonical boundary looks wrong" for
   `FUN_291f_0a14`. **2026-08-20: checked with the mature overlay tooling
@@ -972,6 +972,23 @@ renumbering — appended at the end of Tier 1, same low-risk approach as
   own original note — documenting per that note rather than shipping
   unverifiable code. Full trace: `quiet_brave_scoring.c`'s 2026-08-22
   update. `ctest` not run (doc-only, no `src/` touched).
+  **2026-08-22, later same day — the rest of the title's own scope
+  ("goods/missions/capital pull") traced too, all already-known
+  ingredients.** After the base value above, the real formula multiplies
+  by `3` if the candidate tile has a Euro settlement (the actual "capital
+  pull" term), `<<1` if it has a native village, `>>1` if the mover is the
+  crown nation with no settlement bonus and is already at its own home
+  colony (`DS:0x8db8`, already named elsewhere), and `*3` again if the
+  Brave-type flag is set and the candidate continent's G-table stance
+  equals `4` (the already-ported `ai_euro_continent_stance_at`, same
+  table `euro_g_table_0a60.md` fully resolved). A Missionary-only
+  zero-out sits between these but is unreachable for the Brave type this
+  file scopes to. **Every term is now named and reuses existing project
+  accessors** (`euro_settlement_owner`/`indian_settlement_owner`/
+  `continent_id`, all already catalogued/known) — nothing left to RE for
+  this item's own stated scope. Still not wired (same no-golden reason).
+  Full trace: `quiet_brave_scoring.c`'s 2026-08-22 later update. `ctest`
+  not run (doc-only).
 
 - [x] **T1.10 — Resolve `DS:0x945a` / `FUN_1d1d_0ec6` division (profession/
   dock query family).** New, split out of **T2.1**'s 2026-08-20 finding.

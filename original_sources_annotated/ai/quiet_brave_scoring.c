@@ -461,6 +461,55 @@ int quiet_score_colony_pull(int score, int colony_count) {
    * exercises `colony_count>0` for a Brave) and independently confirming
    * Braves' own chain fields are inert the same way land units' are, not
    * a new RE dig. Not wired this pass (doc-only, `ctest` not run).
+   *
+   * **2026-08-22, later same day — the downstream multiplier chain after
+   * `iStack_e8`'s base value, all resolved, no new RE needed.** These are
+   * the terms this item's own title's "goods/missions/capital pull"
+   * phrasing actually refers to — traced from `viceroy_unpacked.c`'s raw
+   * body right after the base-value computation:
+   * ```
+   * base = 2 * iVar20;                              // this pass's result above
+   * if (euro_settlement_owner(cand_x, cand_y) >= 0)  // FUN_281f_0696, known
+   *   base *= 3;                                     // "capital pull" proper
+   * if (indian_settlement_owner(cand_x, cand_y) >= 0)// FUN_281f_06f0, known
+   *   base <<= 1;                                    // pull toward a native village too
+   * // type==0xb (Missionary) zero-out: unreachable for a Brave (type 19),
+   * // out of this file's scope — real for other unit kinds sharing 20e6.
+   * if (mover_nation == crown_nation_id &&           // DS:0x53d2, already named
+   *     no_settlement_bonus_applied && home_dist == 0) // DS:0x8db8, already named
+   *   base >>= 1;
+   * if ((type_flags & 0x10) && continent_stance == 4)  // G-table, already ported
+   *   base *= 3;
+   * ```
+   * - `euro_settlement_owner`/`indian_settlement_owner` (`FUN_281f_0696`/
+   *   `FUN_281f_06f0`) are both already-known, already-ported accessors
+   *   (`ai/accessors.c`, `move_spent.c`) — no new RE, straightforward to
+   *   call from `ai.c` if this is ever wired.
+   * - The Missionary-only zero-out (`unit+0x3146 == 0xb`) can never fire
+   *   for a Brave (`type == 19`) — confirmed dead branch for this file's
+   *   documented scope, not something to model here.
+   * - `home_dist` is `DS:0x8db8`, already identified project-wide
+   *   (`move_scoring_land.md` "0x8db8 identified") as "distance to
+   *   bound/home colony, caller-supplied" — `==0` reads as "unit is
+   *   currently at its own home colony." Combined with the already-named
+   *   `crown_nation_id` gate (`T1.7`'s `king_ref.md` cross-reference),
+   *   this term reads as "don't push a crown-nation unit's pull score
+   *   down further once it's already home and found no settlement bonus."
+   * - `continent_stance` is a **direct read of the already-resolved,
+   *   already-ported G-table** (`euro_g_table_0a60.md`, `ai_euro.c`'s
+   *   `ai_euro_continent_stance_at(nation, continent_id)`) at the
+   *   candidate tile's own continent — `continent_id` itself from
+   *   `FUN_1000_8912` (`FUN_281f_0722` → "continent_id if in-bounds land;
+   *   else -1", already catalogued), sentinel stance `5` used when the
+   *   candidate isn't valid land. Stance `4` is an already-consumed tier
+   *   value elsewhere in `ai_euro.c` (the "peacetime sticky-gate" reading
+   *   `euro_g_table_0a60.md` already gives it) — not a new unknown either.
+   * **Net: every term feeding the Brave-scoped `capital pull` score is now
+   * named and portable** with existing project accessors — none of it
+   * needs fresh RE. Still not wired, same reason as above (no golden to
+   * verify against). Full trace: this file's 2026-08-22 updates plus
+   * `move_scoring_land.md`/`euro_g_table_0a60.md`'s existing entries.
+   * `ctest` not run (doc-only).
    */
   return score;
 }
