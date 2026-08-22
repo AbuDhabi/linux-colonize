@@ -144,8 +144,8 @@ Topic hub (graphics, units, settlements, alarm, contact): [indians.md](indians.m
 
 | Manual feature | Status | Notes |
 |----------------|--------|-------|
-| FF election from liberty bells | Partial | Rough threshold elect + manual-aligned effects (`founding_fathers`); Minuit+Franklin+Brebeuf+Las Casas+Cortes coastal cash+de Witt+Sepulveda convert-join **Done**; human debate CHOICE one-per-@FATHERS-type **Done** structural; KINGGALLEON2 PARK; F3 portrait grid PARKED |
-| Pedia / F3 Congress report | Partial | Data / articles; debate elect via popup; no election on F3 plate |
+| FF election from liberty bells | Partial | Side-table bell pool (DOS +0xc); threshold elect + manual-aligned effects; Minuit+Franklin+Brebeuf+Las Casas+Cortes coastal cash+de Witt+Sepulveda convert-join **Done**; human debate CHOICE **Done** structural; KINGGALLEON2 PARK; F3 portrait grid **Done** thin (CC-xx.SS on CCBKGD) |
+| Pedia / F3 Congress report | Partial | F3 blits joined FF portraits + debating highlight; stats column; debate elect via popup |
 | Sons of Liberty %, declare independence | Partial | SoL + auto-declare structural (`ai_king`); player confirm UI **Done** structural (`ai_popup`); `@INDEPENDENCE` letter OK **Done** thin; VGA / DECLARAT.PIK anim PARKED — [sons_of_liberty.md](sons_of_liberty.md) |
 | REF invasion / revolution combat | Partial | REF wave / war act structural; merc hire dialog **Done** structural (`ai_popup`); win (1850+no crown) / lose (no ports after REF) latches **Done** thin; deep `10f0` / DECLARAT anim PARKED |
 | F10 Colonization Score | Partial | Schedule exists; WoI → declared flag; achieve from endgame latch; retire opens score |

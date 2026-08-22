@@ -23,6 +23,48 @@
 /* King tax-refuse stand-in byte (ai_king unknown46[2]). */
 #define FF_KING_BOYCOTT_BYTE 2
 
+/* DOS nation+0xc — bells since last FF elect; not stored in ColonizeCol1Nation. */
+static uint16_t s_ff_bells_since_elect[COLONIZE_COL1_NATION_COUNT];
+
+void founding_fathers_reset(void) {
+  memset(s_ff_bells_since_elect, 0, sizeof(s_ff_bells_since_elect));
+}
+
+void founding_fathers_sync_from_col1(const ColonizeCol1Save* col1) {
+  if (!col1) {
+    founding_fathers_reset();
+    return;
+  }
+  for (int n = 0; n < (int)COLONIZE_COL1_NATION_COUNT; ++n) {
+    s_ff_bells_since_elect[n] = col1->nation[n].liberty_bells_total;
+  }
+}
+
+unsigned founding_fathers_bells_since_last_elect(int nation_id) {
+  if (nation_id < 0 || nation_id >= (int)COLONIZE_COL1_NATION_COUNT) {
+    return 0u;
+  }
+  return (unsigned)s_ff_bells_since_elect[nation_id];
+}
+
+void founding_fathers_accrue_bells(int nation_id, unsigned delta) {
+  if (nation_id < 0 || nation_id >= (int)COLONIZE_COL1_NATION_COUNT || delta == 0u) {
+    return;
+  }
+  unsigned total = (unsigned)s_ff_bells_since_elect[nation_id] + delta;
+  if (total > 65535u) {
+    total = 65535u;
+  }
+  s_ff_bells_since_elect[nation_id] = (uint16_t)total;
+}
+
+static void founding_fathers_reset_bells_pool(int nation_id) {
+  if (nation_id < 0 || nation_id >= (int)COLONIZE_COL1_NATION_COUNT) {
+    return;
+  }
+  s_ff_bells_since_elect[nation_id] = 0;
+}
+
 #define FF_CORONADO_REVEAL_RADIUS 2
 #define FF_DESOTO_REVEAL_RADIUS 1
 #define FF_BOLIVAR_SOL_BONUS 20
@@ -168,6 +210,8 @@ bool founding_fathers_cortes_free_king_galleon(const ColonizeCol1Save* col1, int
    * europe_cash_treasure); "for no extra charge" — do NOT invent KINGGALLEON2
    * non-Cortes royal-galleon extra %. AI/human stand-in: coastal own-colony
    * Treasure → europe_cash_treasure via units_cortes_cash_coastal_treasures.
+   * KINGGALLEON2 RE exhausted 2026-08-22 — 38fd Crown CHOICE callee not found
+   * (euro_unit_act.md / ai_port_plan T1.13). Stays PARK until evidence.
    * PARK: voyage chrome / KINGGALLEON2 share.
    */
   return founding_fathers_nation_has(col1, nation, FF_HERNAN_CORTES);
@@ -905,6 +949,8 @@ static bool elect_commit(
   if (ctx->status && ctx->status_size > 0 && nation_id == ctx->human_nation) {
     snprintf(ctx->status, ctx->status_size, "Founding Father elected (#%d)", idx);
   }
+  founding_fathers_reset_bells_pool(nation_id);
+
   if (ctx->ai_popups && nation_id == ctx->human_nation) {
     char body[AI_POPUP_BODY_LEN];
     PopupMsgTokens tok;
@@ -946,13 +992,14 @@ static bool try_elect_nation(ColonizeTurnContext* ctx, int nation_id) {
    * candidate (debate if next < 0), then elect only when bells >= threshold
    * and next >= 0. Wiki: choice after first bells, then accumulate to join.
    */
-  if (nat->liberty_bells_total == 0 && nat->liberty_bells_last_turn == 0) {
+  const unsigned pool = founding_fathers_bells_since_last_elect(nation_id);
+  if (pool == 0u && nat->liberty_bells_last_turn == 0) {
     return false;
   }
   ensure_next_candidate(ctx, nation_id);
 
   const unsigned needed = founding_fathers_bells_needed(col1, nation_id);
-  if ((unsigned)nat->liberty_bells_total < needed) {
+  if (pool < needed) {
     return false;
   }
 
@@ -989,7 +1036,8 @@ void founding_fathers_apply_popup_result(ColonizeTurnContext* ctx, AiPopupState*
   ColonizeCol1Nation* nat = &ctx->col1->nation[nation];
   nat->next_founding_father = (int16_t)idx;
   const unsigned needed = founding_fathers_bells_needed(ctx->col1, nation);
-  if ((unsigned)nat->liberty_bells_total >= needed) {
+  const unsigned pool = founding_fathers_bells_since_last_elect(nation);
+  if (pool >= needed) {
     (void)elect_commit(ctx, nation, idx);
   } else if (ctx->status && ctx->status_size > 0 && nation == ctx->human_nation) {
     snprintf(
@@ -997,7 +1045,7 @@ void founding_fathers_apply_popup_result(ColonizeTurnContext* ctx, AiPopupState*
       ctx->status_size,
       "Congress seeks %s (%u/%u bells).",
       k_ff_short_names[idx],
-      (unsigned)nat->liberty_bells_total,
+      pool,
       needed
     );
   }

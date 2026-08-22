@@ -8,6 +8,7 @@
 #include "core/ai_contact.h"
 #include "core/ai_diplo.h"
 #include "core/ai_euro.h"
+#include "core/founding_fathers.h"
 #include "core/ai_goals.h"
 #include "core/ai_king.h"
 #include "core/col1_bridge.h"
@@ -971,6 +972,7 @@ bool ai_init_new_game(const AiNewGameParams* params, char* err, size_t err_size)
   }
 
   ai_goals_reset();
+  founding_fathers_reset();
 
   if (!ai_setup_col1_template(params, err, err_size)) {
     return false;

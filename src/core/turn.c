@@ -1821,6 +1821,9 @@ void turn_run_nation_ticks(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
         }
         nat->liberty_bells_total = (uint16_t)total;
       }
+      if (nb > 0) {
+        founding_fathers_accrue_bells(n, (unsigned)nb);
+      }
       {
         unsigned cur = (unsigned)nat->current_crosses + (unsigned)nc;
         if (cur > 65535u) {
