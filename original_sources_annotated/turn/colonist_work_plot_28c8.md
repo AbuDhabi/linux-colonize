@@ -167,12 +167,95 @@ a clean, separately-scoped future item (needs `colony.h` layout work, a
 save-format-adjacent change, worth a deliberate decision rather than a
 silent side effect of this port).
 
+## Tile-offset table — resolved (2026-08-22, same byte-search)
+
+`colony+0xde+i` / `colony+200+i` are NOT per-colony save fields despite the
+`colony+...` framing in the raw decompile — they're two small **static**
+`DS`-relative arrays (`DS:0xde` dx, `DS:0xc8` dy), confirmed via the same
+`dosbox-x-dumps/find_memory` byte-search (`HDR=0x88`, `DS=0x237d`):
+
+```
+idx:  0    1   2   3    4    5    6    7    8   9   10   11
+dx:  -1    0   1   0   -1   -1    1    1   -2   0    2    0
+dy:   0    1   0  -1   -1    1    1   -1    0   2    0   -2
+
+idx:  12   13   14   15   16   17   18   19
+dx:   -2   -2    2    2   -1    1   -1    1
+dy:   -1    1   -1    1   -2   -2    2    2
+```
+
+Indices 0-7 = the immediate 8-ring (any order; independently confirmed as
+the *set* of the standard N/NE/E/SE/S/SW/W/NW neighbors — DOS's own
+enumeration order differs from `colony.h`'s `tiles[]` convention but
+covers the identical 8 tiles, order only matters for score-tie-breaking).
+Indices 8-19 extend to the full 5×5-square-minus-corners (21 tiles minus
+center = 20), exactly matching tier 4's `DS:0x329[4]=20` count from above
+— a clean, independent geometric confirmation of both tables at once (not
+just plausible-looking, provably the classic Colonization work-radius
+layout). `iVar5=dx+2`/`iVar12=dy+2` bias these into `0..4` array indices
+for the 5×5 runtime caches (`-0x7210`/`-0x7262`) `28c8` also reads — those
+two caches are themselves confirmed **runtime state** (filled once per
+colony view by `FUN_15eb_268e`/`FUN_15eb_23f2`, `FUNCTION_CATALOG.md` rows
+immediately before `28c8`), not static data, so there's nothing further to
+byte-search there.
+
+## Remaining genuinely open terms (sharpened, not resolved)
+
+Everything below is a real, specific, bounded unknown — not a "needs more
+general RE" placeholder:
+
+- **`bVar2`'s population gate** (`*(int*)(colony+0x9a) <= FUN_15eb_0a50()`,
+  unindexed) — reads oddly next to the *indexed* `colony+job*2+0x9a`
+  per-job-headcount usage a few lines later (index 0 would double as "this
+  scalar"). Two readings not distinguished: (a) `colony+0x9a` is total
+  population, coincidentally aliasing job-0's slot, or (b) it's genuinely
+  job-0 (Food) headcount specifically. Doesn't affect the 9-job scoring
+  math itself, only whether the AI full-search branch's "colony below
+  population cap" shortcut fires — a minor gating nuance, not core
+  fidelity.
+- **`-0x71ce`/`-0x71a6`**, word arrays indexed `job*2` — gate whether
+  `local_38` starts at `local_4` vs `local_4+2`, and whether `local_1e`
+  doubles. Purpose not hypothesized yet (need more context around their
+  other use sites, not searched this pass).
+- ~~`-0x6e74`/`-0x6e34`/`0x9180`/`-0x6e7c`~~ **resolved by cross-reference,
+  same session — not the `23000` family, the already-fully-solved G-table
+  one.** `-0x6e74` = `unit_value_sum_by_continent` (Euro-side "development
+  level," stride `0x10`, `DS:0x918c`) and `-0x6e34` = its Indian-side
+  sibling (per tribe-type×continent Brave combat-value sum, `DS:0x91cc`),
+  both already fully traced in `euro_g_table_0a60.md` with an existing
+  Linux accessor (`ai_euro_continent_stance_at`, per this project's own
+  earlier `T1.9` note). `0x9180` = `land_combat_totals[4]`, per-nation Euro
+  combat-value total (`save_format_map.md` offset 32). `-0x6e7c` =
+  `tribe_data_9184`, per-tribe Brave combat-value sum (`save_format_map.md`
+  offset 565). So `local_3c` isn't a mystery term — it's a real **military
+  development/danger comparison** (candidate tile's continent Euro
+  strength vs. Indian strength, then own-nation vs. tribe strength),
+  reusing the SAME G-table machinery `euro_g_table_0a60.md` already fully
+  decoded and this project already ported (`ai_euro_continent_stance_at`).
+  A port can likely reuse that existing accessor directly rather than
+  re-deriving the raw byte comparisons.
+- **`local_24`'s exact relationship to `local_34`** — `FUN_15eb_18ec`'s
+  3rd arg is an out-param (`&local_24`), and later code indexes by
+  `local_24` (not `local_34`) for the per-job headcount/throttle lookups.
+  Linux's own `colony_yield_for_tile(map,x,y,field_job)` (already-ported
+  equivalent) takes an explicit job and has no comparable out-param — a
+  port substituting `local_34` for `local_24` throughout is a plausible,
+  reasonable approximation (the two are very likely always equal in
+  practice) but not independently confirmed.
+- Job-6 (Ore) bonus's building indices **cross-validate the whole model**:
+  `FUN_15eb_039e(0x28)` + `FUN_15eb_039e(3)*2` = `has_building` counts for
+  `@BUILDING` rows 40 ("Blacksmith's Shop") and 3 ("Armory") — both real
+  ore-consuming industries, a sensible AI preference (mine more ore when
+  you can use it) that independently confirms job index 6 = Ore in this
+  function's own 0-8 numbering (matches `terrain_yields.md`'s
+  Food/Sugar/Tobacco/Cotton/Furs/Lumber/Ore/Silver/Fish order exactly).
+
 ## Not attempted this pass
 
 - The actual C port (needs a golden fixture to verify the 9-job weighted
-  formula against — none currently exercises colonist auto-assignment).
-- The per-continent×per-nation matrix pair (`-0x6e74`/`-0x6e34`) and the
-  `0x9180` per-nation byte — flagged, not re-derived.
+  formula against — none currently exercises colonist auto-assignment —
+  and the handful of terms above are real enough to want resolving or
+  explicitly stubbing first, not guessed at).
 - The discovery-roll's exact odds/payout formula (`FUN_281f_0d78`/
   `_0d6c`/`_0596`'s own internals) — parked as a separate slice per above.
 - Cross-checking whether `ai_euro.c`'s existing hand-tuned colonist-job
