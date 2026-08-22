@@ -2311,12 +2311,37 @@ static int ai_indian_152e_quartile(int relation) {
  * (FUN_281f_016e/0178/0146/0182/013c/01be/00e2/00ec/03c0 chains) behind
  * the caller's debug-flag param — confirmed non-gameplay.
  *
- * NOT yet done, needed before a real C port: identify nation+0xc/+0x18/
- * +0x2a/+0x2c against col1_save.h's existing field names, trace term 2's
- * `x` sub-scan and FUN_281f_07b4's own target list, name DS:0x539e/
- * 0x539c (scan bounds) and colony-pointer +0x1f. Stub therefore still
- * returns the flat population-cap-15 T0 approximation — semantics are
- * resolved, the port itself is still future work.
+ * 2026-08-22, T1.15 pass: four of the six open field/global IDs resolved,
+ * one "open contradiction" fully closed, no live session needed:
+ *   - `nation+0xc` = `liberty_bells_total` (u16); `nation+0x18` =
+ *     `villages_burned` (u8) — plain `offsetof(ColonizeCol1Nation, ...)`
+ *     against the existing `#pragma pack(1)` struct, term 5/4's own field
+ *     targets.
+ *   - `DS:0x539e`/`0x539c` (term 1's scan bound) were already named
+ *     project-wide (`VICEROY_DS_COLONY_COUNT`/`VICEROY_DS_UNIT_COUNT`,
+ *     `viceroy_globals.h`) — just never cross-referenced into this
+ *     function before.
+ *   - **Term 7's "open contradiction" is resolved, not a contradiction at
+ *     all.** Read the real call site directly (`viceroy_unpacked.asm`
+ *     ~0x41f2:059d-05af, not the flattened export's botched empty-arg
+ *     rendering): `nation+0x2a`/`+0x2c` are the LOW/HIGH words of one
+ *     32-bit read, not two independent fields — `sizeof(ColonizeCol1Nation)
+ *     == 0x13c` matches `difficulty.md`'s own "`nation*0x13c` array" framing
+ *     exactly, so `col1_save.h`'s `gold` (already at `+0x2a`, `uint32_t`) IS
+ *     this field, no second struct involved. `FUN_1d1d_0ec6` is the
+ *     already-known (T1.10) 32-bit-signed-division CRT primitive, called as
+ *     `divide(gold_lo, gold_hi, 1000, 0)`. The real gate, read off the raw
+ *     `CMP`/`JGE`/`JG`/`JNC` chain (not paraphrased): skip this term unless
+ *     the full signed 32-bit `gold >= 1000`. **Term 7 = `gold>=1000 ?
+ *     gold/1000 : 0`** — a plain treasury-scaled bonus, not a coordinate/
+ *     distance read as previously guessed.
+ * Still open, not attempted this pass: term 2's `x` sub-scan source,
+ * `FUN_281f_07b4`'s own 25-count target list, and the neighbor-scan's own
+ * bound field (a settlement/tribe-record offset, not `+0x1f` on the
+ * `0x8542` colony-array pointer as previously guessed — that literal
+ * pattern doesn't occur in the function body; not re-derived this pass).
+ * Stub still returns the flat population-cap-15 T0 approximation — real
+ * port needs those last two pieces first.
  */
 static int ai_indian_152e_worth_cap_stub(
   const ColonizeTurnContext* ctx,

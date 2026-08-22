@@ -617,6 +617,36 @@ the wire site rather than guessed. Full `ctest` 41/41 green. (`FUN_291f_044e`'s 
 narrow, and the function underneath is a genuinely major find — not a
 move driver at all.**
 
+**2026-08-22, later same day — the literal-mask grep this row itself
+prescribed is now done, exhaustively, and it's a dead end: `0x40` isn't set
+through this helper family at all.** `FUN_137f_015e` (== `ram:394e`) has
+**exactly 4 real call sites in the whole binary** — confirmed two
+independent ways (`GhidraListXRefs` fresh re-run, and grepping
+`FUN_137f_015e(` directly in the flattened `viceroy_unpacked.c`, both give
+the same 4). Read all 4 down to their literal args (raw-disasm push
+sequence where the decompiler botched it, same method that unstuck
+`T1.1`'s case dispatch): `viceroy_unpacked.c:7468` (mask `1`, clear —
+unit-occupancy `VICEROY_LAYER2_PRESENCE` bit, cleared on disband),
+`:7502` (mask `1`, set — occupancy bit, set on relocate), `:9816`
+(`FUN_15eb_0668`, mask `0x10` — matches `map.h`'s already-known
+`MAP_LAYER2_PURCHASED`, a nice bonus cross-confirmation: this is the
+Indian land-purchase/gift-tile marker, not fort/colony-related at all),
+and the `FUN_281f_068c` generic wrapper (resolves to the same target via
+a tail-jump chain, `1000:887c`→`0000:394e`) — every one of *its* own
+literally-resolvable callers across the whole flattened export
+(`viceroy_unpacked.c:42499/42592/57001/58157/76688/81307/101569/101570`)
+also only ever passes `{1, 2, 4, 0x10}`. **No call site anywhere passes
+`0x40` or `0x48`.** So the fort/colony-zone bit isn't OR'd in through this
+generic tile-flag setter family at all — it must be a direct inline
+`OR byte,0x40` (or set as part of a wider literal byte write) somewhere in
+colony/fort construction code, unreachable from this angle. Real next step
+if resumed: a raw byte-pattern search of the whole `.asm` for an inline
+`80 xx 40` (`OR byte ptr [...],0x40`)-shaped instruction near colony/fort
+placement code, not another XREF/grep sweep of this helper family — that
+avenue is now exhausted. Not attempted this pass (out of scope for a
+single-session budget); the fort/colony `+8` term stays unwired, same as
+before. `ctest` not run (doc-only).
+
 Re-checked with a small (0x100-byte) force-clear + fresh disassemble
 (bypassing any stale analysis, same technique used elsewhere this
 session): the corruption is **confined to one case (`case 4`) of a small
