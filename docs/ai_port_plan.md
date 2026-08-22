@@ -1360,22 +1360,36 @@ but don't resume speculatively either.
   confirms a live dump is strictly required, just that static analysis
   hadn't found it yet); fall back to a hang-dump only if that's exhausted.
 
-- [ ] **T4.4 — `2820` remaining unresolved DS fields.** **2026-08-20:
+- [x] **T4.4 — `2820` remaining unresolved DS fields.** **2026-08-20:
   T1.6 static pass confirmed exhausted — promoting to active Tier 4, not
   conditional any more.** `*(int*)0x8d4e+2` **resolved** (it's
   `ColonizeCol1Indian.tech`, already wired into
   `ai_contact_meet_economics_2154` — struck from this row's blocker list).
-  Still needed: per-(Euro-nation, cargo) throttle at `-0x7b44` (load-
-  bearing — gates both the AI auto-pick loop and a term inside the price
-  formula itself, blocks the whole remaining Haggle/hard-bargain
-  resume-loop port), a running scratch value at `0x8dc4` (raw multiplier
-  in the same formula), and string/format IDs `0x15a9`/`0x2e0c`/`0x2e0e`
-  (cosmetic only, lower priority than the two data values). Also
-  2026-08-20: confirmed the "Haggle (`2f96`)/hard-bargain (`306c`)"
-  framing was a false lead (not separate functions, no RE needed there —
-  see `indian_trade_2820.md`) — once `-0x7b44`/`0x8dc4` are captured, the
-  actual port is reading-and-transcribing already-recovered code, not a
-  fresh RE hunt.
+  **2026-08-22 — the two load-bearing values resolved, and *not* the way
+  this row assumed.** `-0x7b44` was mis-framed as needing a live BP-
+  relative stack trace (`iStack_c8 + param_4*0x10 + -0x7b44`) — re-reading
+  the `.c` shows `iStack_c8` there is a small cargo-good index (0-15), not
+  a stack address, so the whole expression is `(nation*0x10 + good_idx)
+  - 0x7b44`, which on 8086 wraps mod 0x10000 to a **fixed table address**:
+  `0x10000 - 0x7B44 = 0x84BC`. No live session needed — read straight out
+  of a `dosbox_dump.sav` mid-negotiation capture:
+  `DS:84BC..84FB` = `00 05 02 03 04 01 04 13 02 0a 0a 0e 09 02 01 02`,
+  byte-identical across all 4 nation rows (`84BC`/`84CC`/`84DC`/`84EC`) in
+  that capture — so despite the "per-nation" framing, this particular
+  table didn't actually vary by nation in the observed game state; worth
+  a second capture from a different save to confirm it's not just
+  coincidentally unmodified. `0x8dc4` (the running scratch multiplier)
+  was in the same capture: `50` (`0x32`) — matches the very first live
+  `BPM` hit from this session, cross-confirming. Also worth noting:
+  `0x8dc4` is **not** trade-specific — the `.asm` shows it's a shared
+  scratch cell also used by unrelated colony-construction (`2f2b`) and
+  King-audience (`38fd`) percentage math, so don't memory-watch it in
+  isolation expecting only trade activity.
+  Still open, lower priority: string/format IDs `0x15a9`/`0x2e0c`/`0x2e0e`
+  (cosmetic only). 2026-08-20: confirmed the "Haggle (`2f96`)/hard-bargain
+  (`306c`)" framing was a false lead (not separate functions, no RE needed
+  there — see `indian_trade_2820.md`) — the actual port is now
+  reading-and-transcribing already-recovered code, not a fresh RE hunt.
 
 - [ ] **T4.5 — Incite (`417e`) Mode-2 trigger/caller.** Low value: Mode-1
   (human path) is fully ported and byte-faithful; whether an AI-vs-AI or
