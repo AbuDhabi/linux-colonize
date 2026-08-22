@@ -386,7 +386,8 @@ Ordered pipeline recovered for the Linux port:
 4. **Nation ticks** — liberty bells + crosses; crosses ≥ needed → dock immigrant;
    founding-father election via `founding_fathers_tick` (manual-aligned effects;
    Sepulveda/Cortes/de Witt **Done**; KINGGALLEON2 leftover — see
-   [ai_transcription.md](ai_transcription.md) unpark #3)
+   [ai_transcription.md](ai_transcription.md) unpark #3; de Soto LCR gate wired,
+   full `FUN_65dd_0004` outcome table PARKED (`indian_contact.md`)
 5. **European AI** — EN→FR→SP→DU via `player.control` (0 human / 1 AI / 2 withdrawn);
    `ai_euro_nation_turn` (`src/core/ai.c` → `ai_euro.c`): reseed from VR_SEED timer word, tick AI crosses,
    `6d8e`-shaped ship/land passes; **T2 early path** (seed-100 TURN1→7 via `golden_ai_turns`;

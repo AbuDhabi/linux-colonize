@@ -19,8 +19,9 @@
  * FUN_43f7_* King/REF/independence — partial structural port.
  * Thin map: original_sources_annotated/ai/king_ref.md
  *
- * WoI: head.unknown46[0] stand-in for DOS 0x5382 bit0 (exact Col1 bit PARKED).
- *   Set on declare when SoL≥50 (ai_king_set_independence); restless chrome must not.
+ * WoI: primary latch is head.game_options.woi (DOS 0x5382 bit0, mapped in col1_save.h).
+ *   unknown46[AI_KING_WOI_BYTE] is kept in sync on declare for legacy Linux saves only;
+ *   reads use game_options.woi — unknown46[0..5] alias price_group_state on DOS saves.
  * REF-present: head.unknown46[1] stand-in for 0x5382 bit1.
  * Tax audience (ported 2026-08-19, real formula — see ai_king_audience_roll /
  *   ai_king_audience_apply_delta / ai_king_tax_event): FUN_38fd_5be8 rolls a
@@ -137,7 +138,9 @@
  * CHOICE Done (pick API + Europe bid>0 weight for auto; KING_DUMP_GOODS for
  * human; VGA PARKED).
  */
-/* 10f0: dual landing base; third when difficulty ≥ 2 (REF pressure stand-in). */
+/* 10f0: dual landing base; third when difficulty ≥ 2 (REF pressure stand-in).
+ * PARK (FUN_43f7_10f0 ~74270): pop-weighted landing tile scorer, per-call pool
+ * type caps (local_50), Veteran profession 0x15 on spawn, foreign MoW ship. */
 #define AI_KING_INTERVENE_LANDINGS_BASE 2
 #define AI_KING_INTERVENE_DIFF_THIRD 2
 /* 0982: second MoW same beat when difficulty ≥ 2 and force[2] still > 0. */
@@ -145,7 +148,7 @@
 /*
  * REF idle hunt capital bias: when founding-capital MD is within this slack of
  * the nearest other human colony MD, prefer the capital (fandom REF pressure
- * on main ports; deep multi-step scoring PARKED).
+ * on main ports; FUN_521d_20e6 multi-step combat×8 siege scoring PARKED).
  */
 #define AI_KING_CAPITAL_MD_SLACK 2
 
@@ -1729,7 +1732,7 @@ static void ai_king_set_independence(ColonizeCol1Save* col1, int on) {
   if (!col1) {
     return;
   }
-  /* unknown46[0] = WoI flag (set once on declare; idempotent if already set). */
+  /* Legacy Linux mirror; authoritative latch is game_options.woi. */
   col1->head.unknown46[AI_KING_WOI_BYTE] = on ? 1 : 0;
   col1->head.game_options.woi = on ? 1 : 0;
   if (on) {
@@ -4393,6 +4396,11 @@ void ai_king_nation_turn(ColonizeTurnContext* ctx) {
 
   if (ctx->active_turn_nation) {
     *ctx->active_turn_nation = ctx->human_nation;
+  }
+  if (ctx->col1_ok && ctx->col1) {
+    /* FUN_43f7_2424 tail: cache nation SoL for next turn's tax-audience score. */
+    ctx->col1->head.rebel_sentiment_report =
+      (uint8_t)ai_king_sol_percent(ctx, ctx->human_nation);
   }
 }
 

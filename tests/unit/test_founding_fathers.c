@@ -39,6 +39,31 @@ static void ff_test_calendar(ColonizeCol1Save* col1) {
   col1->player[0].control = 0;
 }
 
+static bool ff_build_minimal_col1_blob(ColonizeCol1Save* save, char* err, size_t err_size) {
+  col1_save_init(save);
+  memset(&save->head, 0, sizeof(save->head));
+  col1_save_stamp_head(&save->head);
+  save->head.map_size_x = COLONIZE_COL1_MAP_W_STD;
+  save->head.map_size_y = COLONIZE_COL1_MAP_H_STD;
+  save->head.year = 1492;
+  save->head.turn = 1;
+  save->head.colony_count = 1;
+  save->head.unit_count = 1;
+  save->head.tribe_count = 1;
+  save->head.difficulty = 2;
+  if (!col1_save_alloc_sections(save, err, err_size)) {
+    return false;
+  }
+  save->player[0].control = 0;
+  col1_save_stamp_head(&save->head);
+  save->head.map_size_x = COLONIZE_COL1_MAP_W_STD;
+  save->head.map_size_y = COLONIZE_COL1_MAP_H_STD;
+  save->head.colony_count = 1;
+  save->head.unit_count = 1;
+  save->head.tribe_count = 1;
+  return true;
+}
+
 int main(void) {
   founding_fathers_reset();
   {
@@ -67,6 +92,18 @@ int main(void) {
     if (founding_fathers_bells_needed(&curve, 0) != 24u) {
       return fail("bells_needed Discoverer 1st");
     }
+    /* WoI elevated threshold: diff*0x5dc+2000 (FUN_4345_0982). */
+    curve.head.game_options.woi = 1;
+    curve.head.difficulty = 2;
+    curve.nation[0].founding_father_count = 3;
+    if (founding_fathers_bells_needed(&curve, 0) != 2u * 0x5dcu + 2000u) {
+      return fail("bells_needed WoI diff=2");
+    }
+    curve.head.difficulty = 0;
+    if (founding_fathers_bells_needed(&curve, 0) != 2000u) {
+      return fail("bells_needed WoI diff=0");
+    }
+    curve.head.game_options.woi = 0;
   }
 
   ColonizeCol1Save col1;
@@ -2145,6 +2182,66 @@ int main(void) {
     if (rt.nation[0].liberty_bells_total != 55) {
       return fail("stash/load must preserve cumulative liberty_bells_total");
     }
+  }
+
+  {
+    /* Full Col1 blob round-trip: write stashes pool into liberty_bells_last_turn. */
+    char err[256];
+    ColonizeCol1Save blob_save;
+    if (!ff_build_minimal_col1_blob(&blob_save, err, sizeof(err))) {
+      fprintf(stderr, "blob setup: %s\n", err);
+      return fail("minimal col1 blob build");
+    }
+    seed_unclaimed(&blob_save);
+    blob_save.nation[0].founding_father_count = 1;
+    blob_save.nation[0].liberty_bells_total = 840; /* 800 pool + 40 first elect */
+    blob_save.nation[0].liberty_bells_last_turn = 12; /* live EOT accrual */
+    founding_fathers_reset();
+    founding_fathers_sync_from_col1(&blob_save);
+    if (founding_fathers_bells_since_last_elect(0) != 800u) {
+      col1_save_free(&blob_save);
+      return fail("blob setup pool must be 800");
+    }
+    uint8_t* enc = NULL;
+    size_t enc_n = 0;
+    if (!col1_save_write_memory(&blob_save, &enc, &enc_n, err, sizeof(err))) {
+      col1_save_free(&blob_save);
+      fprintf(stderr, "blob write: %s\n", err);
+      return fail("col1_save_write_memory");
+    }
+    founding_fathers_reset();
+    ColonizeCol1Save loaded;
+    col1_save_init(&loaded);
+    if (!col1_save_read_memory(enc, enc_n, &loaded, err, sizeof(err))) {
+      free(enc);
+      col1_save_free(&blob_save);
+      col1_save_free(&loaded);
+      fprintf(stderr, "blob read: %s\n", err);
+      return fail("col1_save_read_memory");
+    }
+    if (loaded.nation[0].liberty_bells_last_turn != 800) {
+      free(enc);
+      col1_save_free(&blob_save);
+      col1_save_free(&loaded);
+      return fail("blob must stash pool 800 into liberty_bells_last_turn");
+    }
+    if (loaded.nation[0].liberty_bells_total != 840) {
+      free(enc);
+      col1_save_free(&blob_save);
+      col1_save_free(&loaded);
+      return fail("blob must preserve cumulative liberty_bells_total");
+    }
+    founding_fathers_sync_from_col1_after_load(&loaded);
+    if (founding_fathers_bells_since_last_elect(0) != 800u) {
+      free(enc);
+      col1_save_free(&blob_save);
+      col1_save_free(&loaded);
+      return fail("blob after_load must restore pool 800");
+    }
+    free(enc);
+    col1_save_free(&blob_save);
+    col1_save_free(&loaded);
+    fprintf(stderr, "unit_founding_fathers: bell pool Col1 blob round-trip ok\n");
   }
 
   printf("unit_founding_fathers: OK\n");

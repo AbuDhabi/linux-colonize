@@ -144,8 +144,8 @@ Topic hub (graphics, units, settlements, alarm, contact): [indians.md](indians.m
 
 | Manual feature | Status | Notes |
 |----------------|--------|-------|
-| FF election from liberty bells | Partial | Side-table bell pool (DOS +0xc); threshold elect + manual-aligned effects; Minuit+Franklin+Brebeuf+Las Casas+Cortes coastal cash+de Witt+Sepulveda convert-join **Done**; human debate CHOICE **Done** structural; KINGGALLEON2 PARK; F3 portrait grid **Done** thin (CC-xx.SS on CCBKGD) |
-| Pedia / F3 Congress report | Partial | F3 blits joined FF portraits + debating highlight; stats column; debate elect via popup |
+| FF election from liberty bells | Partial | Side-table bell pool (DOS +0xc); threshold elect + manual-aligned effects; Minuit+Franklin+Brebeuf+Las Casas+Cortes coastal cash+de Witt+Sepulveda convert-join **Done**; human debate CHOICE **Done** structural; KINGGALLEON2 PARK; F3 portrait grid **Done** structural (CC-xx.SS on CCBKGD) |
+| Pedia / F3 Congress report | Partial | F3 blits joined FF portraits + debating highlight; stats column; debate elect via popup; VGA-identical chrome PARKED |
 | Sons of Liberty %, declare independence | Partial | SoL + auto-declare structural (`ai_king`); player confirm UI **Done** structural (`ai_popup`); `@INDEPENDENCE` letter OK **Done** thin; VGA / DECLARAT.PIK anim PARKED — [sons_of_liberty.md](sons_of_liberty.md) |
 | REF invasion / revolution combat | Partial | REF wave / war act structural; merc hire dialog **Done** structural (`ai_popup`); win (1850+no crown) / lose (no ports after REF) latches **Done** thin; deep `10f0` / DECLARAT anim PARKED |
 | F10 Colonization Score | Partial | Schedule exists; WoI → declared flag; achieve from endgame latch; retire opens score |
@@ -185,7 +185,7 @@ is the historical bring-up order (early manual chapters first), then the
    `FUN_5bfb_022e` / `0182`; thin land-grant purchased+owner on occupied tile);
    later meet / trade / teach / gift (**Done** structural `ai_popup`; deep/VGA
    PARKED)
-8. **King audience / declare / merc UI** (**Done** structural) + **FF effect depth** (Sepulveda convert-join + Cortes/de Witt Done; KINGGALLEON2 PARK; Congress UI later)
+8. **King audience / declare / merc UI** (**Done** structural) + **FF effect depth** (Sepulveda convert-join + Cortes/de Witt Done; KINGGALLEON2 PARK; F3 Congress **Done** structural)
 9. **Euro mid-planner** (deep `20e6` **OPEN** unpark #4) + **Indian×Euro diplo** (**Done** structural; FA UI PARKED)
 10. **Trade routes** — Create/Edit/Delete + Begin aim/cycle + stop nibble honor + Edit autofill + cargo picker + route select/delete confirms **Done**; VGA TRADE chrome PARKED
 11. **Deep PARKED bodies** (full `2820`/`4528`, VGA dialog chrome, T3 goldens, letter cinematic) + HoF / end sequences — [ai_transcription.md](ai_transcription.md)
@@ -202,7 +202,8 @@ effects **Done**), and early Euro AI (seed-100 T2 + thin expand/war) are in;
 next playability work is leftover **FF** KINGGALLEON2, deep mid-planner `20e6`,
 production / combat depth, and VGA / deep AI bodies — not waiting on missing
 combat/capture prerequisites. TRADE Create/Edit/Begin aim+cycle + stop nibble
-honor + Edit autofill + thin cargo picker are in; VGA TRADE chrome, Congress UI,
+honor + Edit autofill + thin cargo picker are in; VGA TRADE chrome,
+KINGGALLEON2, deep `10f0`/`20e6` still open;
 and full 1:1 AI bodies remain.
 
 ## See also

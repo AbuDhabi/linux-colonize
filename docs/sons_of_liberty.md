@@ -61,7 +61,7 @@ Each colony end-of-turn (DOS):
 
 **Port:** [`colony_prod_tick_rebel_accumulators`](../src/core/colony_production.c)
 **Wired** — called from `turn_produce_one_colony` before sol flag refresh.
-Jefferson/Paine FF applied to bells; WoI via `head.unknown46[0]`; crown =
+Jefferson/Paine FF applied to bells; WoI via `head.game_options.woi`; crown =
 human peer (0↔1).
 
 ### Nation / “overall” SoL (`FUN_43f7_0004`)

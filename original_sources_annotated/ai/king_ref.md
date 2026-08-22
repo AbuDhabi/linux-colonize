@@ -37,7 +37,7 @@ EOT → 291f_0a66 → 43f7_2424  (SoL refresh + dispatch)
 | `0982` | REF wave MoW + pools | `ai_king_ref_wave` (pools>0; thin MoW cargo unload) |
 | `06a6` | Irregulars when REF empty | `ai_king_ref_wave` (else) |
 | `1528` | REF arrival announce | `@INVASION` status + `ai_popup` OK `KING_ARRIVAL` when queue attached |
-| `10f0` | Foreign landing when REF empty + `backup_force` (≤2/call; third @diff≥2; prefer Regular+Dragoon) | `ai_king_foreign_intervene` (via `war_act`) |
+| `10f0` | Foreign landing when REF empty + `backup_force` (≤2/call; third @diff≥2; prefer Regular+Dragoon) | `ai_king_foreign_intervene` (via `war_act`). **PARK:** pop-weighted landing tile scorer, per-call pool type caps, Veteran profession 0x15, foreign MoW ship |
 | `2244` | Peacetime AI-nation self-funded troop gift (**not** a human merc hire — see "`2244`/`2022` — corrected" below) | `ai_king_ai_peacetime_gift` **Done** |
 | `2022` / `1eca` | War act + Continental/vet promote | `ai_king_war_act` (colony-SoL bias; Veteran-profession gate — see `1eca` note below) |
 | `05ea` / `05f4` | Crown colors | `turn.c` (known) |
@@ -46,7 +46,7 @@ EOT → 291f_0a66 → 43f7_2424  (SoL refresh + dispatch)
 
 | DOS | Linux stand-in |
 |-----|----------------|
-| `0x5382` bit0 war | `head.unknown26` — **no**; use `head.unknown46[0]` WoI |
+| `0x5382` bit0 war | `head.game_options.woi` (mapped); `unknown46[0]` legacy sync only |
 | `0x5382` bit1 REF present | `head.unknown46[1]` (thin) |
 | Tax boycott flag | `head.unknown46[2]` — presentation/Fugger-sync only since 2026-08-19 (real `38fd_5be8`/`38fd_3dc8` audience no longer gated by it; see "Tax audience" section below) |
 | `head.unknown46[3]` | unused — removed with the old invented once-per-war merc gate; `2022` rebel troop-gift is now a real recurring per-turn roll, no latch |
@@ -61,7 +61,17 @@ EOT → 291f_0a66 → 43f7_2424  (SoL refresh + dispatch)
 | Foreign pools `0x53e2…` | `head.backup_force[4]` — **10f0 stand-in** (seeded on declare) |
 | Crown id `0x53d2` | Non-human Euro nation slot (0 or 1) |
 
-Exact `0x5382` Col1 bit rename PARKED.
+Exact `0x5382` Col1 bit rename: **Done** — `game_options.woi` mapped; `unknown46[0]` kept in sync on declare for legacy Linux saves.
+
+### `2424` tail — `rebel_sentiment_report` (2026-08-22)
+
+DOS `FUN_43f7_2424` peacetime path stores `FUN_43f7_0004` result in
+`DS:0x53d0` (`head.rebel_sentiment_report`) for tax-audience favor scoring
+(`38fd_5be8`: `RNG(1,1000) + (report*2 − tax)*5`). Linux:
+`ai_king_nation_turn` writes `rebel_sentiment_report = ai_king_sol_percent`
+at **turn end** (audience on the same turn uses the prior cached value).
+Decile congress notify (`sol_pct_last_notified`, `0x1362`/`0x1358`)
+remains **PARK** (VGA chrome).
 
 ### `0108` diplo-clear/set on nation elimination — done (2026-08-14)
 

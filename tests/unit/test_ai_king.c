@@ -619,6 +619,14 @@ int main(void) {
     }
   }
   ai_king_nation_turn(&ctx);
+  if (col1.head.rebel_sentiment_report != 45) {
+    fprintf(
+      stderr,
+      "unit_ai_king: rebel_sentiment_report want 45 got %u\n",
+      (unsigned)col1.head.rebel_sentiment_report
+    );
+    return fail("2424 tail must cache nation SoL in rebel_sentiment_report");
+  }
   if (col1.head.unknown46[0] != 0) {
     return fail("SoL 45 should not declare WoI");
   }
