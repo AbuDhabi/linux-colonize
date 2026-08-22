@@ -178,9 +178,15 @@ caravel / peeled transport_chain (pre-fix: ship `profession=28`,
 ### Verified fixtures
 
 Codec byte-identical round-trip + import via `col1_bridge_apply`:
-`original_saves/COLONY00.SAV`, `COLONY01.SAV`,
-`original_saves/valid-lategame-saves/COLONY{00–08,10}.SAV` (Dutch campaign
-~1668–1698), and `test-saves-ai/TURN1.SAV`–`TURN7.SAV`.
+`original_saves/COLONY00.SAV`, `COLONY01.SAV` only.
+
+**Phase 5 codec drift (read→write, 2026-08-22):** lategame
+`valid-lategame-saves/COLONY{00–08,10}.SAV` and AI `TURN1`/`TURN5`–`TURN7` are
+**not** byte-identical on re-encode. `unit_col1_save` prints first diff offset
+via `report_codec_roundtrip_diff` (smoke + mapping checks still run). Early
+starters unchanged. Lategame diffs cluster in map/tail (offset ~10k+); TURN
+fixtures differ from ~2k (units/colony band). No fixture flipped to
+`byte_identical=true` until root cause is proven per field.
 
 Mapped-field checks on starters + lategame (occupancy, `colony_counts` vs live
 colonies, warehouse/capitol/depletion/timer bounds, `tiles[8..19]==0xff`,

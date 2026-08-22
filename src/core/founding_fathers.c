@@ -319,7 +319,10 @@ bool founding_fathers_cortes_free_king_galleon(const ColonizeCol1Save* col1, int
    * 0 NUMBER negative. Phase 4 (2026-08-22): Europe harbor tick / treasure-
    * sell / europe_cash_treasure path searched — no Crown-initiated Galleon
    * offer dispatch (zero KINGGALLEON2 hits in viceroy export; Cortes path is
-   * @KINGGALLEON3 tax-share only). Stays PARK until evidence.
+   * @KINGGALLEON3 tax-share only). Phase 5 (2026-08-22): 38fd overlay sweep
+   * for CHOICE(3 STRING, 0 NUMBER) + callee chain from harbor/treasure pending
+   * — no match; zero KINGGALLEON/GALLEON2 string refs in viceroy exports.
+   * Stays PARK until evidence.
    * PARK: voyage chrome / KINGGALLEON2 share.
    */
   return founding_fathers_nation_has(col1, nation, FF_HERNAN_CORTES);

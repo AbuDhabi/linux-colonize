@@ -139,9 +139,8 @@
  * human; VGA PARKED).
  */
 /* 10f0: dual landing base; third when difficulty ≥ 2 (REF pressure stand-in).
- * PARK (FUN_43f7_10f0 ~74270): pop-weighted landing tile scorer, per-call pool
- * type caps (local_50), Veteran profession 0x15 on spawn, foreign MoW ship.
- * Done Phase 4: rival_nation_slot_2 used for second mix landing when set. */
+ * Done Phase 5: pop-weighted coastal pick + 8-neighbor scorer; per-call caps;
+ * Veteran 0x15 on spawn; slot_2 mix (Phase 4). PARK: foreign MoW ship. */
 #define AI_KING_INTERVENE_LANDINGS_BASE 2
 #define AI_KING_INTERVENE_DIFF_THIRD 2
 /* 0982: second MoW same beat when difficulty ≥ 2 and force[2] still > 0. */
@@ -1602,8 +1601,8 @@ static int ai_king_force_total(const uint16_t force[4]) {
  * Spawn one land unit near (hx,hy) for nation_id — shared by 06a6 / 10f0.
  * Returns unit id or -1.
  */
-static int ai_king_spawn_landing(ColonizeTurnContext* ctx, int nation_id, int hx, int hy,
-                                 const char* type_name, const char* alt_name) {
+static int ai_king_spawn_landing(ColonizeTurnContext* ctx, int nation_id, int sx, int sy,
+                                 const char* type_name, const char* alt_name, bool veteran_10f0) {
   if (!ctx || !ctx->units || nation_id < 0) {
     return -1;
   }
@@ -1614,16 +1613,19 @@ static int ai_king_spawn_landing(ColonizeTurnContext* ctx, int nation_id, int hx
   if (ty < 0) {
     return -1;
   }
-  const int uid = units_spawn_allow_stack(ctx->units, ty, hx, hy + 1);
+  const int uid = units_spawn_allow_stack(ctx->units, ty, sx, sy);
   if (uid < 0) {
     return -1;
   }
   ColonizeUnit* u = units_get(ctx->units, uid);
   if (u) {
     units_set_nation(u, nation_id);
+    if (veteran_10f0) {
+      u->profession = UNITS_JOB_SOLDIER; /* DOS 0x15 Veteran Soldiers */
+    }
     u->orders = UNITS_ORDER_AI_MOVE;
-    u->goto_x = hx;
-    u->goto_y = hy;
+    u->goto_x = sx;
+    u->goto_y = sy;
   }
   return uid;
 }
@@ -2398,6 +2400,150 @@ static void ai_king_try_declare(ColonizeTurnContext* ctx) {
   ai_king_do_declare(ctx, human);
 }
 
+/* FUN_43f7_10f0 ~74307: pop-weighted coastal colony roulette (thin). */
+static int ai_king_10f0_pick_colony(const ColonizeTurnContext* ctx, int human, int* out_x,
+                                    int* out_y) {
+  if (!ctx || !out_x || !out_y || human < 0 || human >= 4) {
+    return -1;
+  }
+  int total_pop = 0;
+  int best_i = -1;
+  if (ctx->col1_ok && ctx->col1 && ctx->col1->colony) {
+    for (uint16_t i = 0; i < ctx->col1->head.colony_count; ++i) {
+      const ColonizeCol1Colony* c = &ctx->col1->colony[i];
+      if ((int)c->nation_id != human || !c->flags.coastal) {
+        continue;
+      }
+      const int pop = c->population > 0 ? (int)c->population : 1;
+      total_pop += pop;
+    }
+    if (total_pop <= 0) {
+      return -1;
+    }
+    int pick = total_pop / 2 + 1;
+    if (ctx->rng) {
+      pick = dos_rng_range(ctx->rng, 1, total_pop);
+    }
+    for (uint16_t i = 0; i < ctx->col1->head.colony_count; ++i) {
+      const ColonizeCol1Colony* c = &ctx->col1->colony[i];
+      if ((int)c->nation_id != human || !c->flags.coastal) {
+        continue;
+      }
+      const int pop = c->population > 0 ? (int)c->population : 1;
+      pick -= pop;
+      if (pick <= 0) {
+        *out_x = (int)c->x;
+        *out_y = (int)c->y;
+        return (int)i;
+      }
+    }
+  }
+  if (ctx->colonies) {
+    int best_score = 999999;
+    for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+      const ColonizeColony* c = &ctx->colonies->colonies[i];
+      if (!c->active || c->nation_id != human) {
+        continue;
+      }
+      if (ctx->map && !map_tile_is_coastal(ctx->map, c->x, c->y)) {
+        continue;
+      }
+      const int pop = c->population > 0 ? c->population : 1;
+      if (pop < best_score) {
+        best_score = pop;
+        best_i = i;
+        *out_x = c->x;
+        *out_y = c->y;
+      }
+    }
+  }
+  return best_i;
+}
+
+/* FUN_43f7_10f0 ~74339: 8-neighbor landing tile scorer. */
+static bool ai_king_10f0_tile_owner_ok(const ColonizeTurnContext* ctx, int ally, int x, int y) {
+  if (!ctx || !ctx->units) {
+    return true;
+  }
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    const ColonizeUnit* u = &ctx->units->units[i];
+    if (!u->active || u->x != x || u->y != y) {
+      continue;
+    }
+    if (u->nation_id != ally) {
+      return false;
+    }
+  }
+  return true;
+}
+
+static int ai_king_10f0_score_tile(const ColonizeTurnContext* ctx, int ally, int cx, int cy,
+                                     int tx, int ty) {
+  static const int dx[8] = {-1, 0, 1, -1, 1, -1, 0, 1};
+  static const int dy[8] = {-1, -1, -1, 0, 0, 1, 1, 1};
+  if (!ctx || !ctx->map || !map_tile_is_land(ctx->map, tx, ty)) {
+    return -1;
+  }
+  if (map_continent_id_at(ctx->map, tx, ty) != map_continent_id_at(ctx->map, cx, cy)) {
+    return -1;
+  }
+  if (!ai_king_10f0_tile_owner_ok(ctx, ally, tx, ty)) {
+    return -1;
+  }
+  int score = 1;
+  for (int i = 0; i < COLONIZE_UNITS_MAX && ctx->units; ++i) {
+    const ColonizeUnit* u = &ctx->units->units[i];
+    if (!u->active || u->x != tx || u->y != ty) {
+      continue;
+    }
+    if (u->type_index == 0x12) {
+      return -999;
+    }
+  }
+  for (int d = 0; d < 8; ++d) {
+    const int nx = tx + dx[d];
+    const int ny = ty + dy[d];
+    if (!map_coords_inset(ctx->map, nx, ny) || !map_tile_is_land(ctx->map, nx, ny)) {
+      continue;
+    }
+    if (map_continent_id_at(ctx->map, nx, ny) != map_continent_id_at(ctx->map, cx, cy)) {
+      continue;
+    }
+    if (ai_king_10f0_tile_owner_ok(ctx, ally, nx, ny)) {
+      score++;
+    }
+  }
+  return score;
+}
+
+static bool ai_king_10f0_pick_spawn(const ColonizeTurnContext* ctx, int human, int ally, int cx,
+                                    int cy, int* out_x, int* out_y) {
+  static const int dx[8] = {-1, 0, 1, -1, 1, -1, 0, 1};
+  static const int dy[8] = {-1, -1, -1, 0, 0, 1, 1, 1};
+  if (!ctx || !out_x || !out_y) {
+    return false;
+  }
+  int best = -1;
+  int bx = cx;
+  int by = cy;
+  for (int d = 0; d < 8; ++d) {
+    const int tx = cx + dx[d];
+    const int ty = cy + dy[d];
+    const int sc = ai_king_10f0_score_tile(ctx, ally, cx, cy, tx, ty);
+    if (sc > best) {
+      best = sc;
+      bx = tx;
+      by = ty;
+    }
+  }
+  if (best <= 0) {
+    return false;
+  }
+  *out_x = bx;
+  *out_y = by;
+  return true;
+}
+
 /* FUN_43f7_060a-shaped: weakest garrison (pop × fort). */
 static int ai_king_weakest_port(ColonizeTurnContext* ctx, int nation_id, int* out_x, int* out_y) {
   if (!ctx || !ctx->colonies || !out_x || !out_y) {
@@ -2567,7 +2713,7 @@ static void ai_king_ref_wave(ColonizeTurnContext* ctx) {
     if (ai_king_weakest_port(ctx, ctx->human_nation, &hx, &hy) < 0) {
       return;
     }
-    (void)ai_king_spawn_landing(ctx, crown, hx, hy, "Regular", "Soldier");
+    (void)ai_king_spawn_landing(ctx, crown, hx, hy + 1, "Regular", "Soldier", false);
     return;
   }
 
@@ -2744,8 +2890,8 @@ static void ai_king_ref_wave(ColonizeTurnContext* ctx) {
  * MoW backup pool lands a Regular stand-in (no foreign MoW ship this path).
  * Returns 1 if a unit spawned, else 0.
  */
-static int ai_king_intervene_one(ColonizeTurnContext* ctx, int ally, int hx, int hy,
-                                 uint16_t* backup, int k) {
+static int ai_king_intervene_one(ColonizeTurnContext* ctx, int ally, int sx, int sy,
+                                 uint16_t* backup, int k, bool veteran_10f0) {
   static const char* names[4] = {"Regular", "Dragoon", "Man-O-War", "Artillery"};
   if (!backup || k < 0 || k > 3 || backup[k] == 0) {
     return 0;
@@ -2761,7 +2907,7 @@ static int ai_king_intervene_one(ColonizeTurnContext* ctx, int ally, int hx, int
     primary = "Regular";
     alt = "Soldier";
   }
-  if (ai_king_spawn_landing(ctx, ally, hx, hy, primary, alt) < 0) {
+  if (ai_king_spawn_landing(ctx, ally, sx, sy, primary, alt, veteran_10f0) < 0) {
     return 0;
   }
   backup[k]--;
@@ -2792,33 +2938,69 @@ static void ai_king_foreign_intervene(ColonizeTurnContext* ctx) {
   }
   int hx = 0;
   int hy = 0;
-  if (ai_king_weakest_port(ctx, ctx->human_nation, &hx, &hy) < 0) {
-    return;
+  int sx = 0;
+  int sy = 0;
+  if (ai_king_10f0_pick_colony(ctx, ctx->human_nation, &hx, &hy) < 0) {
+    if (ai_king_weakest_port(ctx, ctx->human_nation, &hx, &hy) < 0) {
+      return;
+    }
   }
   const int human = ctx->human_nation;
   const int ally1 = ai_king_intervention_nation_slot(ctx, human, 0);
+  if (ally1 < 0) {
+    return;
+  }
+  if (!ai_king_10f0_pick_spawn(ctx, human, ally1, hx, hy, &sx, &sy)) {
+    sx = hx;
+    sy = hy + 1;
+  }
   int landings = 0;
   const int diff = ctx->col1->head.difficulty;
   const int max_landings =
       (diff >= AI_KING_INTERVENE_DIFF_THIRD) ? (AI_KING_INTERVENE_LANDINGS_BASE + 1)
                                             : AI_KING_INTERVENE_LANDINGS_BASE;
 
+  /* Prefer Regular + Dragoon mix when both pools live (decomp mix path). */
   if (backup[0] > 0 && backup[1] > 0) {
-    landings += ai_king_intervene_one(ctx, ally1, hx, hy, backup, 0);
+    landings += ai_king_intervene_one(ctx, ally1, sx, sy, backup, 0, true);
     if (landings < max_landings) {
       const int ally2 = ai_king_intervention_nation_slot(ctx, human, 1);
       const int ally = (ally2 >= 0 && ally2 != ally1) ? ally2 : ally1;
-      landings += ai_king_intervene_one(ctx, ally, hx, hy, backup, 1);
+      landings += ai_king_intervene_one(ctx, ally, sx, sy, backup, 1, true);
     }
   }
 
-  for (int k = 0; k < 4 && landings < max_landings; ++k) {
+  /* FUN_43f7_10f0 ~74402: per-call pool caps (Regular≤2, Dragoon≤2). */
+  int cap_reg = backup[0] > 0 ? (int)backup[0] : 0;
+  if (cap_reg > 2) {
+    cap_reg = 2;
+  }
+  int cap_drg = backup[1] > 0 ? (int)backup[1] : 0;
+  if (cap_drg > 2) {
+    cap_drg = 2;
+  }
+  static const int pool_k[3] = {0, 1, 3};
+  int caps[4] = {0, cap_reg, 0, cap_drg};
+  caps[0] = 6 - cap_reg - cap_drg;
+  if (caps[0] < 0) {
+    caps[0] = 0;
+  }
+  for (int pi = 0; pi < 3 && landings < max_landings; ++pi) {
+    const int k = pool_k[pi];
     if (backup[k] == 0) {
       continue;
     }
-    const int ally = (k == 1 && landings > 0) ? ai_king_intervention_nation_slot(ctx, human, 1)
-                                              : ally1;
-    landings += ai_king_intervene_one(ctx, ally >= 0 ? ally : ally1, hx, hy, backup, k);
+    int n = caps[k];
+    if (n > (int)backup[k]) {
+      n = (int)backup[k];
+    }
+    const int ally = (k == 1 && landings > 0)
+                       ? ai_king_intervention_nation_slot(ctx, human, 1)
+                       : ally1;
+    const int who = ally >= 0 ? ally : ally1;
+    for (int s = 0; s < n && landings < max_landings; ++s) {
+      landings += ai_king_intervene_one(ctx, who, sx, sy, backup, k, true);
+    }
   }
 
   if (landings > 0) {
@@ -2957,14 +3139,14 @@ static int ai_king_do_merc_hire_at(ColonizeTurnContext* ctx, int human, int hx, 
   }
   int landed = 0;
   for (int i = 0; i < qty_a; ++i) {
-    if (ai_king_spawn_landing(ctx, human, hx, hy, "Regular", "Soldier") >= 0) {
+    if (ai_king_spawn_landing(ctx, human, hx, hy + 1, "Regular", "Soldier", false) >= 0) {
       ++landed;
     }
   }
   if (extra_flag) {
-    (void)ai_king_spawn_landing(ctx, human, hx, hy, "Artillery", NULL);
+    (void)ai_king_spawn_landing(ctx, human, hx, hy + 1, "Artillery", NULL, false);
   } else {
-    (void)ai_king_spawn_landing(ctx, human, hx, hy, "Dragoon", "Scout");
+    (void)ai_king_spawn_landing(ctx, human, hx, hy + 1, "Dragoon", "Scout", false);
   }
   if (landed == 0) {
     return 0;
@@ -3199,12 +3381,12 @@ void ai_king_ai_peacetime_gift(ColonizeTurnContext* ctx, int nation_id) {
   }
   int landed = 0;
   for (int i = 0; i < regular; ++i) {
-    if (ai_king_spawn_landing(ctx, beneficiary, hx, hy, "Regular", "Soldier") >= 0) {
+    if (ai_king_spawn_landing(ctx, beneficiary, hx, hy + 1, "Regular", "Soldier", false) >= 0) {
       ++landed;
     }
   }
   for (int i = 0; i < artillery; ++i) {
-    if (ai_king_spawn_landing(ctx, beneficiary, hx, hy, "Artillery", NULL) >= 0) {
+    if (ai_king_spawn_landing(ctx, beneficiary, hx, hy + 1, "Artillery", NULL, false) >= 0) {
       ++landed;
     }
   }

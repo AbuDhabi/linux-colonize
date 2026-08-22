@@ -2107,6 +2107,23 @@ static bool turn_year_end_valid_rival(const ColonizeCol1Save* col1, int human, i
   return col1->player[n].control != 2;
 }
 
+/*
+ * FUN_3844_0442 §D: iVar5 = europe[nation][0x19] * table[nation − 0x6bf0] / 100.
+ * nation+0x19 = rebel_sentiment; continent-weight table at −0x6bf0 is a live
+ * DOS segment table (not a single Col1 field). Use rebel_sentiment when set,
+ * else colony SoL stand-in via ai_king_sol_percent.
+ */
+static int turn_year_end_rival_sol_percent(const ColonizeTurnContext* ctx, int rival) {
+  if (!ctx || !ctx->col1_ok || !ctx->col1 || rival < 0 || rival >= 4) {
+    return 0;
+  }
+  const uint8_t rs = ctx->col1->nation[rival].rebel_sentiment;
+  if (rs > 0) {
+    return rs > 100 ? 100 : (int)rs;
+  }
+  return ai_king_sol_percent(ctx, rival);
+}
+
 static void turn_year_end_ensure_rival_slots(ColonizeCol1Save* col1, int human) {
   if (!col1 || human < 0 || human >= 4) {
     return;
@@ -2342,7 +2359,8 @@ void turn_run_year_end_chrome(ColonizeTurnContext* ctx, ColonizeTurnResult* out)
    * Threshold (8−difficulty)×10; auto-declare when rival SoL ≥ threshold.
    * Rising/falling dedup via rebellion_pct_last_notified (+0x1a).
    * Rival pick: head.rival_nation_slot_1/_2 (lazy-filled). SoL via
-   * ai_king_sol_percent stand-in for DOS rebel_sentiment×table/100 (PARK).
+   * rebel_sentiment when non-zero; else ai_king_sol_percent. Continent-weight
+   * table at DOS −0x6bf0 remains PARK (see turn_year_end_rival_sol_percent).
    */
   if (!woi && ctx->col1_ok && ctx->col1 && ctx->status && ctx->status_size > 0 &&
       !out->year_end_defeat && !out->year_end_victory) {
@@ -2355,7 +2373,7 @@ void turn_run_year_end_chrome(ColonizeTurnContext* ctx, ColonizeTurnResult* out)
       if (!turn_year_end_valid_rival(ctx->col1, human, rival)) {
         continue;
       }
-      const int rival_sol = ai_king_sol_percent(ctx, rival);
+      const int rival_sol = turn_year_end_rival_sol_percent(ctx, rival);
       if (thresh > 0 && rival_sol >= thresh) {
         ai_diplo_declare_war(ctx->col1, rival, human);
         snprintf(ctx->status, ctx->status_size, "Rival declares war.");

@@ -73,6 +73,73 @@ static bool assert_byte_identical_roundtrip(const char* path, ColonizeCol1Save* 
   return true;
 }
 
+/* Phase 5: report first codec round-trip diff (diagnostic; non-fatal). */
+static void report_codec_roundtrip_diff(const char* path) {
+  char err[256];
+  ColonizeCol1Save save;
+  col1_save_init(&save);
+  if (!col1_save_read_file(path, &save, err, sizeof(err))) {
+    fprintf(stderr, "codec diff read fail %s: %s\n", path, err);
+    return;
+  }
+  uint8_t* enc = NULL;
+  size_t enc_n = 0;
+  if (!col1_save_write_memory(&save, &enc, &enc_n, err, sizeof(err))) {
+    fprintf(stderr, "codec diff encode fail %s: %s\n", path, err);
+    col1_save_free(&save);
+    return;
+  }
+  FILE* f = fopen(path, "rb");
+  if (!f) {
+    free(enc);
+    col1_save_free(&save);
+    return;
+  }
+  fseek(f, 0, SEEK_END);
+  long raw_n = ftell(f);
+  rewind(f);
+  uint8_t* raw = NULL;
+  if (raw_n > 0) {
+    raw = malloc((size_t)raw_n);
+    if (raw) {
+      fread(raw, 1, (size_t)raw_n, f);
+    }
+  }
+  fclose(f);
+  if (!raw || raw_n < 0) {
+    free(raw);
+    free(enc);
+    col1_save_free(&save);
+    return;
+  }
+  if ((size_t)raw_n != enc_n) {
+    fprintf(
+      stderr,
+      "codec diff %s size mismatch raw=%ld enc=%zu\n",
+      path,
+      raw_n,
+      enc_n
+    );
+  } else {
+    for (size_t i = 0; i < enc_n; ++i) {
+      if (raw[i] != enc[i]) {
+        fprintf(
+          stderr,
+          "codec diff %s first=%zu raw=%02x enc=%02x\n",
+          path,
+          i,
+          raw[i],
+          enc[i]
+        );
+        break;
+      }
+    }
+  }
+  free(raw);
+  free(enc);
+  col1_save_free(&save);
+}
+
 /* DOS UNITFLAG/COLONYFLAG structural checks (mask ↔ pools). */
 static bool assert_mask_occupancy_consistent(const ColonizeCol1Save* save, const char* label) {
   if (!save || !save->map.mask) {
@@ -608,6 +675,9 @@ int main(void) {
   };
   for (size_t oi = 0; oi < sizeof(k_fixtures) / sizeof(k_fixtures[0]); ++oi) {
     const Col1Fixture* fix = &k_fixtures[oi];
+    if (!fix->byte_identical) {
+      report_codec_roundtrip_diff(fix->path);
+    }
     ColonizeCol1Save orig;
     if (fix->byte_identical) {
       if (!assert_byte_identical_roundtrip(fix->path, &orig, err, sizeof(err))) {

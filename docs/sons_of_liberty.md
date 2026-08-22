@@ -205,8 +205,8 @@ dividend/divisor. End-game difficulty-scaled gold rebate after score
 
 | Section | SoL use | Port |
 |---------|---------|------|
-| C2 (WoI) | Crown vs human SoL ratio; pressure if &gt;79, peace if &gt;89 | Thin (bells proxy) |
-| D (peace) | Rival SoL vs threshold `(8−difficulty)×10` | Thin / PARK — fixed heuristics, not full decomp |
+| C2 (WoI) | Crown vs human SoL ratio; pressure if >79, peace if >89 | **Wired** thin (`ai_king_sol_percent`) |
+| D (peace) | Rival SoL vs threshold `(8−difficulty)×10` | **Wired** thin — `rebel_sentiment` when non-zero; else colony SoL stand-in; DOS continent table `−0x6bf0` **PARK** |
 
 Details: [`year_end_chrome.md`](../original_sources_annotated/turn/year_end_chrome.md).
 
