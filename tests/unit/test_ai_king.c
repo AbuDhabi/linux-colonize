@@ -31,6 +31,7 @@
 #include "core/col1_save.h"
 #include "core/dos_rng.h"
 #include "core/europe.h"
+#include "core/founding_fathers.h"
 #include "core/map.h"
 #include "core/turn.h"
 #include "core/units.h"
@@ -6257,6 +6258,45 @@ int main(void) {
     col1.head.unknown46[0] = 0;
     col1.head.game_options.woi = 0;
     ctx.rng = NULL; /* restore — later code in this test assumes no RNG */
+  }
+
+  /* FUN_4345_0a22 wartime spend: bell pool → intervention when REF absent. */
+  {
+    founding_fathers_reset();
+    col1.head.game_options.woi = 1;
+    col1.head.game_options.ref_present = 0;
+    col1.head.difficulty = 2;
+    memset(col1.head.expeditionary_force, 0, sizeof(col1.head.expeditionary_force));
+    col1.head.backup_force[0] = 3;
+    col1.head.backup_force[1] = 2;
+    col1.head.backup_force[2] = 0;
+    col1.head.backup_force[3] = 0;
+    colonies.colonies[0].nation_id = 0;
+    founding_fathers_accrue_bells(0, 2u * 0x5dcu + 2000u);
+
+    const int intervene_before = count_nation(&units, 2);
+    const unsigned pool_before = founding_fathers_bells_since_last_elect(0);
+    if (pool_before < founding_fathers_bells_needed(&col1, 0)) {
+      return fail("WoI bell spend setup pool below threshold");
+    }
+    if (!ai_king_spend_woi_bell_pool(&ctx, 0)) {
+      return fail("ai_king_spend_woi_bell_pool should succeed when REF absent");
+    }
+    founding_fathers_consume_woi_bell_pool(0);
+    if (founding_fathers_bells_since_last_elect(0) != 0u) {
+      return fail("consume_woi_bell_pool must zero side-table pool");
+    }
+    if (founding_fathers_intervention_bells(0) != 1u) {
+      return fail("consume_woi_bell_pool must increment intervention_bells");
+    }
+    if (count_nation(&units, 2) <= intervene_before) {
+      return fail("WoI bell spend should spawn foreign intervention");
+    }
+    col1.head.game_options.woi = 0;
+    col1.head.game_options.ref_present = 0;
+    memset(col1.head.backup_force, 0, sizeof(col1.head.backup_force));
+    founding_fathers_reset();
+    fprintf(stderr, "unit_ai_king: WoI bell pool intervention spend ok\n");
   }
 
   const uint8_t tax_final = col1.nation[0].tax_rate;

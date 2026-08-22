@@ -36,8 +36,16 @@ void ai_king_apply_popup_result(ColonizeTurnContext* ctx, const AiPopupState* po
 /* FUN_43f7_0004: pop-weighted SoL percent for a European nation (0..100). */
 int ai_king_sol_percent(const ColonizeTurnContext* ctx, int nation_id);
 
-/* True once WoI is declared (head.unknown46[0] stand-in). */
+/* True once WoI is declared (head.game_options.woi). */
 int ai_king_independence_declared(const ColonizeCol1Save* col1);
+
+/*
+ * FUN_4345_0a22 wartime branch: spend the bell pool on foreign intervention
+ * or a REF wave instead of electing a Founding Father. Returns 1 when the
+ * pool was consumed (caller resets founding_fathers side-table pool).
+ * No-op when REF already present (DOS 0x5382 bit1 set).
+ */
+int ai_king_spend_woi_bell_pool(ColonizeTurnContext* ctx, int nation_id);
 
 /* Crown nation-slot stand-in (nation 1 if human is 0, else nation 0) — no
  * real 5th DOS crown identity in Linux, this reuses an existing slot. */

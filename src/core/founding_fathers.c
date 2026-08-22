@@ -4,6 +4,7 @@
 #include "core/ai_popup.h"
 #include "core/colony.h"
 #include "core/colony_production.h"
+#include "core/dos_rng.h"
 #include "core/popup_msg.h"
 #include "core/units.h"
 
@@ -25,6 +26,8 @@
 
 /* DOS nation+0xc — bells since last FF elect; not stored in ColonizeCol1Nation. */
 static uint16_t s_ff_bells_since_elect[COLONIZE_COL1_NATION_COUNT];
+/* Score line: +1 per WoI bell-pool spend on foreign intervention. */
+static uint16_t s_intervention_bells[COLONIZE_COL1_NATION_COUNT];
 static bool s_ff_pools_initialized;
 
 /*
@@ -49,6 +52,7 @@ static unsigned ff_bells_threshold_at_elect_count(
 
 void founding_fathers_reset(void) {
   memset(s_ff_bells_since_elect, 0, sizeof(s_ff_bells_since_elect));
+  memset(s_intervention_bells, 0, sizeof(s_intervention_bells));
   s_ff_pools_initialized = false;
 }
 
@@ -170,6 +174,13 @@ unsigned founding_fathers_bells_since_last_elect(int nation_id) {
     return 0u;
   }
   return (unsigned)s_ff_bells_since_elect[nation_id];
+}
+
+unsigned founding_fathers_intervention_bells(int nation_id) {
+  if (nation_id < 0 || nation_id >= (int)COLONIZE_COL1_NATION_COUNT) {
+    return 0u;
+  }
+  return (unsigned)s_intervention_bells[nation_id];
 }
 
 void founding_fathers_accrue_bells(int nation_id, unsigned delta) {
@@ -442,6 +453,38 @@ static const uint8_t k_ff_type[COLONIZE_COL1_FF_COUNT] = {
   4, 4, 4, 4, 4  /* Religious 20–24 */
 };
 
+/*
+ * NAMES.TXT @FATHERS century weights (cols 3–5 after type).
+ * Century band from FUN_4345_005a: 0 ≤1599, 1 1600–1699, 2 ≥1700.
+ */
+static const uint8_t k_ff_weight[COLONIZE_COL1_FF_COUNT][3] = {
+  {2, 8, 6},
+  {0, 5, 8},
+  {9, 1, 0},
+  {2, 4, 8},
+  {2, 6, 10},
+  {2, 10, 10},
+  {3, 5, 7},
+  {5, 10, 5},
+  {10, 1, 0},
+  {7, 5, 3},
+  {6, 5, 1},
+  {0, 4, 10},
+  {10, 2, 1},
+  {4, 8, 6},
+  {0, 6, 7},
+  {4, 5, 6},
+  {7, 5, 3},
+  {1, 2, 8},
+  {0, 4, 6},
+  {5, 5, 5},
+  {7, 4, 1},
+  {8, 5, 2},
+  {6, 6, 1},
+  {3, 8, 3},
+  {0, 5, 10}
+};
+
 static const char* k_ff_short_names[COLONIZE_COL1_FF_COUNT] = {
   "Adam Smith",
   "Jakob Fugger",
@@ -470,14 +513,133 @@ static const char* k_ff_short_names[COLONIZE_COL1_FF_COUNT] = {
   "Bartolome de las Casas"
 };
 
-/* First unclaimed FF of @FATHERS type, else -1. */
-static int ff_first_unclaimed_of_type(const ColonizeCol1Save* col1, int type) {
+/* FUN_4345_005a: century band for @FATHERS weight column. */
+static int ff_century_band(const ColonizeCol1Save* col1) {
+  const unsigned year = col1 ? (unsigned)col1->head.year : 1600u;
+  if (year <= 1599u) {
+    return 0;
+  }
+  if (year <= 1699u) {
+    return 1;
+  }
+  return 2;
+}
+
+/* FUN_4345_0080: count unclaimed FFs of type with non-zero weight this century. */
+static int ff_count_eligible_of_type(const ColonizeCol1Save* col1, int type) {
+  const int band = ff_century_band(col1);
+  int count = 0;
   for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
-    if ((int)k_ff_type[i] == type && ff_unclaimed(col1, i)) {
+    if ((int)k_ff_type[i] != type || !ff_unclaimed(col1, i)) {
+      continue;
+    }
+    if (k_ff_weight[i][band] > 0) {
+      count++;
+    }
+  }
+  return count;
+}
+
+/*
+ * FUN_4345_06d2 weighted pick within one @FATHERS category (RNG(1, sum)).
+ * Returns FF index or -1 when none eligible.
+ */
+static int ff_pick_weighted_of_type(
+  const ColonizeCol1Save* col1,
+  int type,
+  ColonizeDosRng* rng
+) {
+  const int band = ff_century_band(col1);
+  int total = 0;
+  for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
+    if ((int)k_ff_type[i] != type || !ff_unclaimed(col1, i)) {
+      continue;
+    }
+    total += (int)k_ff_weight[i][band];
+  }
+  if (total <= 0) {
+    return -1;
+  }
+  if (!rng) {
+    /* Deterministic fallback when no RNG context (should not happen in tick). */
+    for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
+      if ((int)k_ff_type[i] == type && ff_unclaimed(col1, i) &&
+          k_ff_weight[i][band] > 0) {
+        return i;
+      }
+    }
+    return -1;
+  }
+  int roll = dos_rng_range(rng, 1, total);
+  for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
+    if ((int)k_ff_type[i] != type || !ff_unclaimed(col1, i)) {
+      continue;
+    }
+    const int w = (int)k_ff_weight[i][band];
+    if (w <= 0) {
+      continue;
+    }
+    roll -= w;
+    if (roll < 1) {
       return i;
     }
   }
   return -1;
+}
+
+/* FUN_4345_015a: @FATHERS category with the most eligible unclaimed Fathers. */
+static int ff_pick_strongest_category(const ColonizeCol1Save* col1) {
+  int best_type = -1;
+  int best_count = -1;
+  for (int type = 0; type < 5; ++type) {
+    const int n = ff_count_eligible_of_type(col1, type);
+    if (n > best_count) {
+      best_count = n;
+      best_type = type;
+    }
+  }
+  return best_type;
+}
+
+static void ff_record_intervention_spend(int nation_id) {
+  if (nation_id < 0 || nation_id >= (int)COLONIZE_COL1_NATION_COUNT) {
+    return;
+  }
+  if (s_intervention_bells[nation_id] < 65535u) {
+    s_intervention_bells[nation_id]++;
+  }
+}
+
+void founding_fathers_consume_woi_bell_pool(int nation_id) {
+  founding_fathers_reset_bells_pool(nation_id);
+  ff_record_intervention_spend(nation_id);
+}
+
+/*
+ * FUN_4345_0a22 phase 3 (thin): status while WoI bell pool grows toward
+ * intervention threshold. VGA-identical chrome remains PARKED.
+ */
+void founding_fathers_woi_intervention_chrome(
+  ColonizeTurnContext* ctx,
+  int nation_id,
+  unsigned pool,
+  unsigned needed
+) {
+  if (!ctx || nation_id != ctx->human_nation) {
+    return;
+  }
+  if (pool == 0u || pool >= needed) {
+    return;
+  }
+  if (ctx->status && ctx->status_size > 0 && pool >= needed / 2u) {
+    snprintf(
+      ctx->status,
+      ctx->status_size,
+      "Liberty bells rally foreign intervention (%u/%u).",
+      pool,
+      needed
+    );
+  }
 }
 
 static int ff_debate_pending(const AiPopupState* p) {
@@ -497,17 +659,17 @@ static int ff_debate_pending(const AiPopupState* p) {
   return 0;
 }
 
-static int pick_candidate(const ColonizeCol1Save* col1, const ColonizeCol1Nation* nat) {
+static int pick_candidate(ColonizeTurnContext* ctx, const ColonizeCol1Save* col1,
+                          const ColonizeCol1Nation* nat) {
   const int next = (int)nat->next_founding_father;
   if (next >= 0 && next < (int)COLONIZE_COL1_FF_COUNT && ff_unclaimed(col1, next)) {
     return next;
   }
-  for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
-    if (ff_unclaimed(col1, i)) {
-      return i;
-    }
+  const int type = ff_pick_strongest_category(col1);
+  if (type < 0) {
+    return -1;
   }
-  return -1;
+  return ff_pick_weighted_of_type(col1, type, ctx ? ctx->rng : NULL);
 }
 
 static int16_t advance_next_candidate(const ColonizeCol1Save* col1, int elected_idx) {
@@ -527,6 +689,10 @@ static void ensure_next_candidate(ColonizeTurnContext* ctx, int nation_id) {
     return;
   }
   ColonizeCol1Save* col1 = ctx->col1;
+  /* FUN_4345_0a22 phase 2: Congress nominate only in peacetime. */
+  if (col1->head.game_options.woi) {
+    return;
+  }
   ColonizeCol1Nation* nat = &col1->nation[nation_id];
   const int next = (int)nat->next_founding_father;
   if (next >= 0 && next < (int)COLONIZE_COL1_FF_COUNT && ff_unclaimed(col1, next)) {
@@ -542,7 +708,7 @@ static void ensure_next_candidate(ColonizeTurnContext* ctx, int nation_id) {
     int ids[AI_POPUP_CHOICE_MAX];
     int n = 0;
     for (int type = 0; type < 5 && n < AI_POPUP_CHOICE_MAX; ++type) {
-      const int idx = ff_first_unclaimed_of_type(col1, type);
+      const int idx = ff_pick_weighted_of_type(col1, type, ctx->rng);
       if (idx < 0) {
         continue;
       }
@@ -588,7 +754,7 @@ static void ensure_next_candidate(ColonizeTurnContext* ctx, int nation_id) {
     return;
   }
 
-  const int idx = pick_candidate(col1, nat);
+  const int idx = pick_candidate(ctx, col1, nat);
   if (idx >= 0) {
     nat->next_founding_father = (int16_t)idx;
   }
@@ -643,6 +809,9 @@ static int effect_desoto_reveal(
 /*
  * Magellan: permanent naval +1 — bump current sea moves_left once on elect;
  * turn_refresh_moves_for_nation adds +1 each turn while owned (see turn.c).
+ * FUN_48d3_0002 also gates landfall goto duration 2 (RNG>89, docks>2) on
+ * Magellan ownership — wired in turn.c rare immigrant spawn. Wiki "west-edge
+ * Europe sail shortcut" not found in viceroy (only 48d3:77575 07b4 FF#5); PARK.
  */
 static int effect_magellan_sea_moves(ColonizeUnitPool* units, int nation_id) {
   if (!units) {
@@ -1131,6 +1300,12 @@ static bool try_elect_nation(ColonizeTurnContext* ctx, int nation_id) {
   if (pool == 0u && nat->liberty_bells_last_turn == 0) {
     return false;
   }
+
+  /* Peacetime only — WoI bell spend runs from turn.c (ai_king hook). */
+  if (col1->head.game_options.woi) {
+    return false;
+  }
+
   ensure_next_candidate(ctx, nation_id);
 
   const unsigned needed = founding_fathers_bells_needed(col1, nation_id);
@@ -1153,6 +1328,10 @@ void founding_fathers_apply_popup_result(ColonizeTurnContext* ctx, AiPopupState*
     return;
   }
   if (popups->result_cancelled) {
+    return;
+  }
+  /* Peacetime only — Congress debate is gated in ensure_next_candidate. */
+  if (ctx->col1 && ctx->col1->head.game_options.woi) {
     return;
   }
   /* Debate CHOICE stores payload >0. Announce OK uses -1. */

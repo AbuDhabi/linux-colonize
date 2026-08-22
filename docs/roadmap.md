@@ -57,7 +57,7 @@ MAPEDIT parked ([catalog_peel_ranking.md](catalog_peel_ranking.md)).
 | **1 Colony–Europe loop** | Mostly done | Found/assign/produce/sail/buy-sell/pioneer/trade-routes structural playable |
 | **2 Contact & conflict** | Partial | Land/naval combat + capture + Indian meet/trade/raid usable for a human game without deep PARK blockers |
 | **3 Mid-game AI** | Partial / active | Euro mid-planner (`5d04` / land `20e6`) + Indian large bodies advance; `golden_ai_joint` **PARKED / DISABLED** 2026-08-19 — no chance of staying green before AI transcription is complete, see ai_transcription.md R0 |
-| **4 Independence & endgame** | Partial | FF depth leftovers, REF/WoI paths, retire/HoF/auto-end enough to finish a campaign |
+| **4 Independence & endgame** | Partial | WoI bell→intervention + Europe closed post-declare **Done** (2026-08-22); FF weighted pick **Done**; REF/WoI win/lose latches **Done** thin; KINGGALLEON2 / 65dd weights / Magellan west-sail PARK |
 | **5 Fidelity & polish** | Later | VGA dialog chrome, COLDIG SFX, VIEW modes, pixel layout, T3 AI goldens, remaining PARKED deep bodies |
 
 ```mermaid
@@ -199,6 +199,9 @@ Finish a campaign: FF leftovers, king/REF, win/lose/retire.
 - **Year-end D** — `rebel_sentiment` when set, else `ai_king_sol_percent`; continent table at DOS `−0x6bf0` **PARK**
 - **Lategame codec** — drift triaged (`unit_col1_save` diff reporter); early `COLONY00/01` byte-identical; lategame/TURN not yet
 - Bell-pool + bridge load + F3 Congress structural — **Done** (Phase 4)
+- WoI bell pool → intervention/REF (`4345_0a22` wartime branch) — **Done** (2026-08-22)
+- Europe closed during WoI; `game_options.woi` authoritative — **Done** (2026-08-22)
+- Century-weighted FF debate pick (`4345_06d2` / `015a`) — **Done** (2026-08-22)
 - `rival_nation_slot_1/2` + slot_2 intervene — **Done** (Phase 4)
 - Decile SoL notify — **Done** thin
 - Congress VGA-identical chrome → phase 5 polish

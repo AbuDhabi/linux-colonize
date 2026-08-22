@@ -1862,6 +1862,31 @@ void turn_run_nation_ticks(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
       }
     }
     founding_fathers_tick(ctx);
+
+    /* FUN_4345_0a22 wartime branch: bell pool → intervention / REF, not FF elect. */
+    if (ctx->col1->head.game_options.woi) {
+      for (int n = 0; n < 4; ++n) {
+        if (ctx->col1->player[n].control == 2) {
+          continue;
+        }
+        const unsigned pool = founding_fathers_bells_since_last_elect(n);
+        const unsigned needed = founding_fathers_bells_needed(ctx->col1, n);
+        founding_fathers_woi_intervention_chrome(ctx, n, pool, needed);
+        if (pool < needed) {
+          continue;
+        }
+        if (ai_king_spend_woi_bell_pool(ctx, n)) {
+          founding_fathers_consume_woi_bell_pool(n);
+          if (ctx->status && ctx->status_size > 0 && n == ctx->human_nation) {
+            snprintf(
+              ctx->status,
+              ctx->status_size,
+              "Foreign intervention force arrives!"
+            );
+          }
+        }
+      }
+    }
   }
 
   /*
@@ -1871,7 +1896,7 @@ void turn_run_nation_ticks(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
    */
   if (ctx->units && ctx->game_year && ctx->turn_number && *ctx->game_year >= 1600u &&
       (*ctx->turn_number & 7u) == 0u) {
-    const int woi = ctx->col1_ok && ctx->col1 && ctx->col1->head.unknown46[0] != 0;
+    const int woi = ctx->col1_ok && ctx->col1 && ctx->col1->head.game_options.woi != 0;
     if (!woi) {
       int ti = units_find_type(ctx->units, "Merchantman");
       if (ti < 0) {
@@ -1896,19 +1921,13 @@ void turn_run_nation_ticks(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
         u->col1_unknown15 = (uint8_t)(u->col1_unknown15 | 0x40u);
         u->goto_x = x;
         u->goto_y = y;
-        /* FUN_48d3_0002 landfall duration: usually 1; 2 if RNG>89 + docks/colonies. */
+        /* FUN_48d3_0002 landfall duration: 1; 2 if Magellan owned + RNG>89 + docks>2. */
         int dur = 1;
-        int colonies_n = 0;
-        if (ctx->colonies) {
-          for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
-            if (ctx->colonies->colonies[i].active &&
-                ctx->colonies->colonies[i].nation_id == ctx->human_nation) {
-              colonies_n++;
-            }
-          }
-        }
         const int docks = ctx->europe ? ctx->europe->dock_count + ctx->europe->harbor_ships : 0;
-        if (ctx->rng && docks > 2 && colonies_n > 0 && dos_rng_range(ctx->rng, 0, 99) > 89) {
+        const bool magellan = ctx->col1_ok && ctx->col1 &&
+          founding_fathers_nation_has(ctx->col1, ctx->human_nation, FF_FERDINAND_MAGELLAN);
+        if (ctx->rng && magellan && docks > 2 &&
+            dos_rng_range(ctx->rng, 1, 100) > 89) {
           dur = 2;
         }
         u->turns_worked = (uint8_t)dur;
@@ -2268,7 +2287,7 @@ void turn_run_year_end_chrome(ColonizeTurnContext* ctx, ColonizeTurnResult* out)
     }
   }
 
-  const int woi = ctx->col1_ok && ctx->col1 && ctx->col1->head.unknown46[0] != 0;
+  const int woi = ctx->col1_ok && ctx->col1 && ctx->col1->head.game_options.woi != 0;
   /* unknown46[4]==1 = independence achieved (reports); also skip re-fire. */
   const int already_won =
     ctx->col1_ok && ctx->col1 && ctx->col1->head.unknown46[4] == 1;

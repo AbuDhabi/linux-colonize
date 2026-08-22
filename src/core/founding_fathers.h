@@ -14,7 +14,8 @@
  *      debate (one unclaimed Father per category) or AI auto-pick into next.
  *   2. Accumulate bells until liberty_bells_total >= 40 * (count + 1).
  *   3. Elect the locked-in next_founding_father; then next = -1 (re-debate).
- * Bells are never decremented — DOS threshold/spend recovery still PARKED.
+ * During WoI (0x5382&1): no Congress debate; bell pool spends on foreign
+ * intervention / REF arrival (FUN_4345_0a22 wartime branch) instead of elect.
  *
  * 2026-08-19 investigation (real DOS mechanism confirmed, NOT safe to
  * naively port — read before touching this): `FUN_4345_0a22`
@@ -93,6 +94,26 @@ unsigned founding_fathers_bells_needed(const ColonizeCol1Save* col1, int nation)
 
 /* DOS nation+0xc — bells accrued since last FF elect (reset on elect_commit). */
 unsigned founding_fathers_bells_since_last_elect(int nation_id);
+
+/* WoI bell-pool spends on foreign intervention (+1 Colonization Score each). */
+unsigned founding_fathers_intervention_bells(int nation_id);
+
+/*
+ * FUN_4345_0a22 phase 3 (thin): status while WoI bell pool grows toward
+ * intervention threshold. Called from turn.c during WoI EOT.
+ */
+void founding_fathers_woi_intervention_chrome(
+  ColonizeTurnContext* ctx,
+  int nation_id,
+  unsigned pool,
+  unsigned needed
+);
+
+/*
+ * After ai_king_spend_woi_bell_pool succeeds: zero side-table pool and
+ * increment intervention_bells score counter.
+ */
+void founding_fathers_consume_woi_bell_pool(int nation_id);
 
 /* Add turn bell production to the per-nation since-last-elect pool (FUN_4345_0a22 +0xc). */
 void founding_fathers_accrue_bells(int nation_id, unsigned delta);

@@ -2330,7 +2330,7 @@ int main(void) {
     col->stock[COLONIZE_CARGO_TOBACCO] = 120;
     eu.gold = 0;
     col1.nation[0].gold = 0;
-    col1.head.unknown46[0] = 1; /* WoI — tax 0 */
+    col1.head.game_options.woi = 1; /* WoI — tax 0 */
     const int gained_woi = europe_custom_house_autosell(&eu, &pool, col, &col1, 0);
     if (gained_woi != 700 || eu.gold != 700) {
       fprintf(stderr, "custom house WoI gained=%d eu=%d (want 700)\n", gained_woi, eu.gold);
@@ -2367,7 +2367,7 @@ int main(void) {
     col->population = 1;
     col->stock[COLONIZE_CARGO_FOOD] = 10; /* eat 2 */
     eu.gold = 0;
-    col1.head.unknown46[0] = 0;
+    col1.head.game_options.woi = 0;
     col1.nation[0].gold = 0;
     eu.tax_percent = 0;
     ColonizeTurnResult prod;
@@ -2759,7 +2759,7 @@ int main(void) {
     col1c.rebel_divisor = 100u << 6;
     c->nation_id = 1; /* crown peer of human 0 */
     col1c.nation_id = 1;
-    col1.head.unknown46[0] = 1;
+    col1.head.game_options.woi = 1;
     c->stock[COLONIZE_CARGO_FOOD] = 50;
     memset(&prod, 0, sizeof(prod));
     turn_run_colony_production(&pool, NULL, &col1, NULL, 0, &prod, NULL, NULL, NULL);
@@ -4250,7 +4250,7 @@ int main(void) {
     /* WoI skips defeat. */
     ColonizeCol1Save col1;
     memset(&col1, 0, sizeof(col1));
-    col1.head.unknown46[0] = 1;
+    col1.head.game_options.woi = 1;
     ctx.col1 = &col1;
     ctx.col1_ok = true;
     memset(&out, 0, sizeof(out));
@@ -4294,7 +4294,7 @@ int main(void) {
     {
       ColonizeCol1Save fat;
       memset(&fat, 0, sizeof(fat));
-      fat.head.unknown46[0] = 1;
+      fat.head.game_options.woi = 1;
       fat.head.expeditionary_force[0] = 8; /* regulars → score ≥4 */
       fat.head.expeditionary_force[1] = 4;
       fat.head.expeditionary_force[3] = 2;
@@ -4360,7 +4360,7 @@ int main(void) {
     memset(&out, 0, sizeof(out));
     ColonizeCol1Save c2;
     col1_save_init(&c2);
-    c2.head.unknown46[0] = 1; /* WoI */
+    c2.head.game_options.woi = 1; /* WoI */
     c2.head.colony_count = 2;
     c2.colony = calloc(2, sizeof(ColonizeCol1Colony));
     if (!c2.colony) {
