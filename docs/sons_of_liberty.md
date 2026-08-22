@@ -111,7 +111,7 @@ with SoL: the port maps `0x40` as **coastal**.
 | Colony SoL at unit tile >50 / 40..50 | Cont. promote / Soldier→Veteran | **Wired** thin |
 | Bolivar elected | +20 SoL (DOS display-time) | **Wired** (`founding_fathers_bolivar_sol_bonus`) |
 | Rebel sentiment points | Score +1 per point | **Wired** |
-| Year-end SoL C2 / D SoL chrome | Peace / pressure / rival dialogs | **Wired** thin (pop-weighted SoL via `ai_king_sol_percent`; VGA PARK) |
+| Year-end SoL C2 / D SoL chrome | Peace / pressure / rival dialogs | **Wired** thin (pop-weighted SoL via `ai_king_sol_percent`; decile status via `sol_pct_last_notified`; VGA PARK) |
 | Combat popular-support % | Attacker side’s SoL/Tory share **on colony** | **Wired** (`combat_apply_1b0e_peels`: colony REF +50% + Tory/Rebel %) — [combat.md](combat.md) |
 | Cont. Army muster by colony SoL | Declare-turn 1eca promote (Veteran fortified Soldier/Dragoon on colony tile; SoL>49) | **Wired** (`ai_king_war_act`; popup Confirm chains ref_wave+war_act) |
 | Map pop digit colors | White &lt;50 / green ≥50 / blue 100 | **PARK** |

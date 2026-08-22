@@ -25,6 +25,7 @@
 
 /* DOS nation+0xc — bells since last FF elect; not stored in ColonizeCol1Nation. */
 static uint16_t s_ff_bells_since_elect[COLONIZE_COL1_NATION_COUNT];
+static bool s_ff_pools_initialized;
 
 static unsigned ff_bells_threshold_at_elect_count(
   const ColonizeCol1Save* col1,
@@ -41,6 +42,7 @@ static unsigned ff_bells_threshold_at_elect_count(
 
 void founding_fathers_reset(void) {
   memset(s_ff_bells_since_elect, 0, sizeof(s_ff_bells_since_elect));
+  s_ff_pools_initialized = false;
 }
 
 void founding_fathers_stash_pools_into_col1(
@@ -54,7 +56,12 @@ void founding_fathers_stash_pools_into_col1(
     if (restore_last_turn) {
       restore_last_turn[n] = col1->nation[n].liberty_bells_last_turn;
     }
-    col1->nation[n].liberty_bells_last_turn = s_ff_bells_since_elect[n];
+    if (!s_ff_pools_initialized) {
+      continue;
+    }
+    if (s_ff_bells_since_elect[n] != col1->nation[n].liberty_bells_last_turn) {
+      col1->nation[n].liberty_bells_last_turn = s_ff_bells_since_elect[n];
+    }
   }
 }
 
@@ -75,6 +82,7 @@ void founding_fathers_sync_from_col1(const ColonizeCol1Save* col1) {
     founding_fathers_reset();
     return;
   }
+  s_ff_pools_initialized = true;
   for (int n = 0; n < (int)COLONIZE_COL1_NATION_COUNT; ++n) {
     const ColonizeCol1Nation* nat = &col1->nation[n];
     const unsigned total = (unsigned)nat->liberty_bells_total;
@@ -129,6 +137,7 @@ void founding_fathers_force_pool_from_total(const ColonizeCol1Save* col1) {
   if (!col1) {
     return;
   }
+  s_ff_pools_initialized = true;
   for (int n = 0; n < (int)COLONIZE_COL1_NATION_COUNT; ++n) {
     s_ff_bells_since_elect[n] = col1->nation[n].liberty_bells_total;
   }
@@ -145,6 +154,7 @@ void founding_fathers_accrue_bells(int nation_id, unsigned delta) {
   if (nation_id < 0 || nation_id >= (int)COLONIZE_COL1_NATION_COUNT || delta == 0u) {
     return;
   }
+  s_ff_pools_initialized = true;
   unsigned total = (unsigned)s_ff_bells_since_elect[nation_id] + delta;
   if (total > 65535u) {
     total = 65535u;
@@ -305,7 +315,8 @@ bool founding_fathers_cortes_free_king_galleon(const ColonizeCol1Save* col1, int
    * non-Cortes royal-galleon extra %. AI/human stand-in: coastal own-colony
    * Treasure → europe_cash_treasure via units_cortes_cash_coastal_treasures.
    * KINGGALLEON2 RE exhausted 2026-08-22 — 38fd Crown CHOICE callee not found
-   * (euro_unit_act.md / ai_port_plan T1.13). Stays PARK until evidence.
+   * (euro_unit_act.md / ai_port_plan T1.13). Phase 3 (2026-08-22): 38fd overlay
+   * CHOICE 3 STRING / 0 NUMBER signature not located — stays PARK until evidence.
    * PARK: voyage chrome / KINGGALLEON2 share.
    */
   return founding_fathers_nation_has(col1, nation, FF_HERNAN_CORTES);

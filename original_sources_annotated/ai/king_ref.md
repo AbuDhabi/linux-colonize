@@ -37,7 +37,7 @@ EOT → 291f_0a66 → 43f7_2424  (SoL refresh + dispatch)
 | `0982` | REF wave MoW + pools | `ai_king_ref_wave` (pools>0; thin MoW cargo unload) |
 | `06a6` | Irregulars when REF empty | `ai_king_ref_wave` (else) |
 | `1528` | REF arrival announce | `@INVASION` status + `ai_popup` OK `KING_ARRIVAL` when queue attached |
-| `10f0` | Foreign landing when REF empty + `backup_force` (≤2/call; third @diff≥2; prefer Regular+Dragoon) | `ai_king_foreign_intervene` (via `war_act`). **PARK:** pop-weighted landing tile scorer, per-call pool type caps, Veteran profession 0x15, foreign MoW ship |
+| `10f0` | Foreign landing when REF empty + `backup_force` (≤2/call; third @diff≥2; prefer Regular+Dragoon) | `ai_king_foreign_intervene` (via `war_act`). `rival_nation_slot_1/2` cached at declare (**Done** 2026-08-22). **PARK:** pop-weighted landing tile scorer, per-call pool type caps, Veteran profession 0x15, foreign MoW ship |
 | `2244` | Peacetime AI-nation self-funded troop gift (**not** a human merc hire — see "`2244`/`2022` — corrected" below) | `ai_king_ai_peacetime_gift` **Done** |
 | `2022` / `1eca` | War act + Continental/vet promote | `ai_king_war_act` (colony-SoL bias; Veteran-profession gate — see `1eca` note below) |
 | `05ea` / `05f4` | Crown colors | `turn.c` (known) |
@@ -70,8 +70,8 @@ DOS `FUN_43f7_2424` peacetime path stores `FUN_43f7_0004` result in
 (`38fd_5be8`: `RNG(1,1000) + (report*2 − tax)*5`). Linux:
 `ai_king_nation_turn` writes `rebel_sentiment_report = ai_king_sol_percent`
 at **turn end** (audience on the same turn uses the prior cached value).
-Decile congress notify (`sol_pct_last_notified`, `0x1362`/`0x1358`)
-remains **PARK** (VGA chrome).
+Decile congress notify (`sol_pct_last_notified`, status-only) **Done** thin;
+full 0x1362/0x1358/0x136a popup chrome remains **PARK**.
 
 ### `0108` diplo-clear/set on nation elimination — done (2026-08-14)
 

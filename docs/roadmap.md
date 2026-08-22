@@ -199,6 +199,8 @@ Finish a campaign: FF leftovers, king/REF, win/lose/retire.
 - Year-end SoL C2/D via `ai_king_sol_percent` — **Done** (2026-08-22)
 - REF / WoI depth beyond structural latches — [ai_transcription.md](ai_transcription.md),
   [sons_of_liberty.md](sons_of_liberty.md) (`10f0` landing scorer, `20e6` siege)
+- `rival_nation_slot_1/2` at declare + conditional FF pool stash — **Done** (2026-08-22)
+- Decile SoL status notify (`sol_pct_last_notified`) — **Done** thin (2026-08-22)
 - Retire → score / HoF and auto-end 1800/1850 UI — [manual_gap.md](manual_gap.md)
   (Win / end sequences)
 - Congress VGA-identical chrome → phase 5

@@ -2420,6 +2420,8 @@ bool units_resolve_lcr_rumour(
    * it restricts the draw to the non-hostile subset instead of a bare
    * reveal-only shortcut. Deep DOS RNG weights / native-attack combat
    * resolution stay PARKed — see per-outcome comments below.
+   * lcr_case5_bonus_used (player+0x30 bit6): DOS upgrades first case-5 roll to
+   * case-4; full case mapping PARKED (FUN_65dd_0004 table RE incomplete).
    */
   ColonizeUnit* u = units_get(pool, unit_id);
   if (!u || !u->active || !map || !units_is_on_map(u)) {

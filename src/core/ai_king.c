@@ -368,11 +368,19 @@ static int ai_king_colony_count(const ColonizeColonyPool* colonies, int nation_i
 
 /*
  * Crown-hostile Euro slot for 10f0 landings (not human, not crown).
- * Prefer the Euro with most colonies; tie-break by on-map land unit count
- * (structural force presence — head.backup_force is a shared pool, not per-nation).
- * Source: FUN_43f7_10f0 intervene nation pick; Foreign intervention (fandom).
+ * After declare, prefer head.rival_nation_slot_1 cached at 1a26 (DOS 0x53d4);
+ * else most colonies + land-unit tie-break.
  */
 static int ai_king_intervention_nation(const ColonizeTurnContext* ctx, int human_nation) {
+  if (ctx && ctx->col1_ok && ctx->col1 &&
+      ai_king_independence_declared(ctx->col1)) {
+    const int slot = (int)ctx->col1->head.rival_nation_slot_1;
+    const int crown = ai_king_crown_nation(human_nation);
+    if (slot >= 0 && slot < 4 && slot != human_nation && slot != crown &&
+        ctx->col1->player[slot].control != 2) {
+      return slot;
+    }
+  }
   const int crown = ai_king_crown_nation(human_nation);
   int best = -1;
   int best_colonies = -1;
@@ -403,6 +411,28 @@ static int ai_king_intervention_nation(const ColonizeTurnContext* ctx, int human
     }
   }
   return best >= 0 ? best : crown;
+}
+
+/* FUN_43f7_1a26: cache first two non-human/non-crown Euro slots (DOS 0x53d4/0x53d6). */
+static void ai_king_write_rival_nation_slots(ColonizeCol1Save* col1, int human) {
+  if (!col1 || human < 0 || human >= 4) {
+    return;
+  }
+  const int crown = ai_king_crown_nation(human);
+  col1->head.rival_nation_slot_1 = -1;
+  col1->head.rival_nation_slot_2 = -1;
+  int w = 0;
+  for (int n = 0; n < 4 && w < 2; ++n) {
+    if (n == human || n == crown) {
+      continue;
+    }
+    if (w == 0) {
+      col1->head.rival_nation_slot_1 = (int16_t)n;
+    } else {
+      col1->head.rival_nation_slot_2 = (int16_t)n;
+    }
+    w++;
+  }
 }
 
 /*
@@ -2155,6 +2185,7 @@ static void ai_king_do_declare(ColonizeTurnContext* ctx, int human) {
     return;
   }
   ai_king_set_independence(ctx->col1, 1); /* WoI: unknown46[0] if not already */
+  ai_king_write_rival_nation_slots(ctx->col1, human);
   /* FUN_43f7_2564 congress-confirm stand-in. */
   ctx->col1->head.unknown46[AI_KING_CONGRESS_BYTE] = 1;
   const int diff = ctx->col1->head.difficulty;
@@ -4311,6 +4342,35 @@ void ai_king_nation_turn(ColonizeTurnContext* ctx) {
           ids,
           2
         );
+      }
+    }
+    /*
+     * FUN_43f7_2424 tail: decile SoL notify (DS:0x53d8 dedup). Status-only;
+     * full 0x1362/0x1358/0x136a popup chrome PARKED.
+     */
+    if (ctx->col1_ok && ctx->col1 && ctx->status && ctx->status_size &&
+        ctx->human_nation >= 0 && ctx->human_nation < 4 &&
+        ctx->col1->nation[ctx->human_nation].founding_father_count > 3 &&
+        ctx->status[0] == '\0') {
+      const int decile = sol / 10;
+      const int last = (int)ctx->col1->head.sol_pct_last_notified;
+      if (decile != last) {
+        if (decile > last) {
+          snprintf(
+            ctx->status,
+            ctx->status_size,
+            "Congress notes rising Sons of Liberty (%d%%).",
+            sol
+          );
+        } else {
+          snprintf(
+            ctx->status,
+            ctx->status_size,
+            "Congress notes falling Sons of Liberty (%d%%).",
+            sol
+          );
+        }
+        ctx->col1->head.sol_pct_last_notified = (int16_t)decile;
       }
     }
     /*

@@ -377,14 +377,55 @@ static void reports_render_religious(
 }
 
 /* CCBKGD.PIK 5×5 Founding Father portrait grid (Done structural).
- * CC-xx.SS sprites are 54×125; blitted at plate origin (CCBKGD 320×200).
- * Grid matches left panel recesses: origin (10,34), 32×40 cells, text col x=168. */
+ * CC-xx.SS sprites are 54×125; center-cropped into 32×40 plate cells.
+ * Grid: origin (10,34), text col x=168. */
 #define REPORTS_FF_GRID_COLS 5
 #define REPORTS_FF_GRID_ORIGIN_X 10
 #define REPORTS_FF_GRID_ORIGIN_Y 34
 #define REPORTS_FF_GRID_CELL_W 32
 #define REPORTS_FF_GRID_CELL_H 40
 #define REPORTS_FF_GRID_TEXT_X 168
+
+static void reports_blit_sprite_in_cell(
+  const ColonizeSpriteSheet* sheet,
+  int sprite_index,
+  ColonizeFramebuffer8* fb,
+  int cell_x,
+  int cell_y,
+  int cell_w,
+  int cell_h
+) {
+  if (!sheet || !fb || !fb->pixels || sprite_index < 0 || sprite_index >= sheet->sprite_count) {
+    return;
+  }
+  const ColonizeSprite* sprite = &sheet->sprites[sprite_index];
+  if (!sprite->pixels || sprite->width <= 0 || sprite->height <= 0) {
+    return;
+  }
+  const int sx0 = (sprite->width > cell_w) ? (sprite->width - cell_w) / 2 : 0;
+  const int sy0 = (sprite->height > cell_h) ? (sprite->height - cell_h) / 2 : 0;
+  const int dx0 = (sprite->width <= cell_w) ? (cell_w - sprite->width) / 2 : 0;
+  const int dy0 = (sprite->height <= cell_h) ? (cell_h - sprite->height) / 2 : 0;
+  const int copy_w = (sprite->width > cell_w) ? cell_w : sprite->width;
+  const int copy_h = (sprite->height > cell_h) ? cell_h : sprite->height;
+  for (int y = 0; y < copy_h; ++y) {
+    const int fy = cell_y + dy0 + y;
+    if (fy < cell_y || fy >= cell_y + cell_h || fy < 0 || fy >= fb->height) {
+      continue;
+    }
+    for (int x = 0; x < copy_w; ++x) {
+      const int fx = cell_x + dx0 + x;
+      if (fx < cell_x || fx >= cell_x + cell_w || fx < 0 || fx >= fb->width) {
+        continue;
+      }
+      const uint8_t color = sprite->pixels[(sy0 + y) * sprite->width + (sx0 + x)];
+      if (color == COLONIZE_SS_TRANSPARENT) {
+        continue;
+      }
+      fb->pixels[fy * fb->width + fx] = color;
+    }
+  }
+}
 
 static void reports_congress_blit_portraits(
   const char* data_dir,
@@ -428,7 +469,7 @@ static void reports_congress_blit_portraits(
       ss_free(&sheet);
       continue;
     }
-    ss_blit_sprite(&sheet, 0, fb, px, py);
+    reports_blit_sprite_in_cell(&sheet, 0, fb, px, py, cell_w, cell_h);
     ss_free(&sheet);
   }
   /* Debating candidate: outline slot when next_founding_father is set. */
