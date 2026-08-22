@@ -815,6 +815,15 @@ int main(void) {
       col1.head.backup_force[2] == 0 && col1.head.backup_force[3] == 0) {
     return fail("declare should seed backup_force for 10f0");
   }
+  if (col1.head.rival_nation_slot_1 != 2 || col1.head.rival_nation_slot_2 != 3) {
+    fprintf(
+      stderr,
+      "unit_ai_king: rival slots want 2,3 got %d,%d\n",
+      (int)col1.head.rival_nation_slot_1,
+      (int)col1.head.rival_nation_slot_2
+    );
+    return fail("declare should cache rival_nation_slot_1/2 at 1a26");
+  }
 
   /*
    * 10f0 deepen: REF empty + larger backup_force → up to 2 landings

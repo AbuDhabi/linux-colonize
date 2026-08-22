@@ -102,7 +102,9 @@ void founding_fathers_reset(void);
 
 /*
  * Init side pools from Col1 on load (`founding_fathers_sync_from_col1`); reset on new game.
- * Before Col1 write, stash live pools into liberty_bells_last_turn (Linux interop).
+ * Before Col1 write, stash live pools into liberty_bells_last_turn when the
+ * side table is active (sync/accrual this session). Codec-only round-trips
+ * skip stash so DOS fixture bytes stay identical.
  */
 void founding_fathers_sync_from_col1(const ColonizeCol1Save* col1);
 
