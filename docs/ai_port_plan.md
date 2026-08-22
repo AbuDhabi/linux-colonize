@@ -165,6 +165,33 @@ deep Haggle/hard-bargain port, blocking values resolved since `T4.4`). No
 renumbering — appended at the end of Tier 1, same low-risk approach as
 `T1.14`. `T1.13`'s open-items list refreshed again to include both.
 
+**Reassessed 2026-08-22, later same day**, after a further session resumed
+`T1.3`/`T1.8`/`T1.9`/`T1.14` (all newly reachable via `T4.7`/`T4.8`
+closing) and closed three of them: **`T1.3` closed dead** — every one of
+the `3558` matrix's 5 gating terms traced to a disguised constant, an
+always-fixed value, or an uncontrolled write target; the shipped binary
+computes no real per-unit signal here, so there's nothing to port ("no
+code to ship," same verdict class as `T1.2`). **`T1.9` closed** — its full
+formula (base value + capital-pull/village/crown/G-table-stance
+multipliers) is now completely named against existing project accessors;
+not wired only because no golden exercises `colony_count>0` for a Brave to
+verify against (a real test-coverage gap, not an RE gap — correctly not
+turned into a port item, matching `T1.15`/`T1.16`'s opposite case where RE
+*was* the only remaining blocker). **`T1.14` closed** — `+3` reconfirmed
+dead code (same mechanism as `T1.3`), `+4` traced to a real, previously
+uncatalogued function (`FUN_15eb_28c8`, "colonist work-plot job scoring,"
+254 lines, already in `FUNCTION_CATALOG.md` but never linked to a `.c`/
+`.md` file) — its own full port is new, separate scope, added as **T1.17**.
+`T1.8` gained a real refined finding (an asymmetric AI-vs-human
+tribe/fort-zone pathing gate `units.c` doesn't implement) but stays open,
+deliberately not closed — a working substitute already ships and nothing
+currently depends on the fix. `T1.13` (KINGGALLEON2) re-attempted, still
+PARKED — two prior leads ruled out, one new unexplored one (`38fd`
+overlay) flagged but not swept (too large to blind-search). Fixed a stale
+cross-reference in `T1.13`'s open-items list (was still citing `T1.3`/
+`T1.9` as open after both closed this pass). Tier 1 now: 12 of 17 items
+closed; genuinely open are only `T1.8`, `T1.13`, `T1.15`, `T1.16`, `T1.17`.
+
 - [x] **T1.1 — Resolve `FUN_1000_8aac` field-index accessor, fields
   3/4/5/6/0xc.** New, highest-leverage item this pass. Field 2 of this
   accessor took `move_scoring_20e6_full.md` six passes to crack (the
@@ -1210,15 +1237,27 @@ renumbering — appended at the end of Tier 1, same low-risk approach as
   (unlike KINGGALLEON3's, which shows the tax-rate percentage), a real,
   checkable signature nobody's searched on yet. Full trace in
   `euro_unit_act.md`'s 2026-08-20 update. Stays PARKED. Tier 1 is **not**
-  exhausted — **2026-08-22 reassessment, list refreshed again: T1.2 is now
-  also done.** Still genuinely open Tier 1 items ahead of this one:
-  **T1.3** (`3558` matrix, mostly-noise formula, one unresolved field-6
-  conflict left), **T1.8** (pathfinding flood-fills, deprioritized but not
-  closed), **T1.9** (Indian quiet-scoring formula mapping — worth
-  re-checking now `T4.7`/`T4.8` closed), and the new **T1.14**
-  (terrain-record `+3`/`+4` columns), **T1.15** (`41f2_0294` worth-score
-  port), **T1.16** (`2820` Haggle/hard-bargain port). This was just the
-  last item a given session reached, not the end of the tier.
+  exhausted — **2026-08-22 reassessment, list refreshed a third time:
+  T1.3, T1.9, and T1.14 are now also done** (all closed same day, see the
+  top-of-Tier-1 note). Still genuinely open Tier 1 items: **T1.8**
+  (pathfinding flood-fills / tribe-zone gate, deprioritized but not
+  closed), **T1.15** (`41f2_0294` worth-score port), **T1.16** (`2820`
+  Haggle/hard-bargain port), and the new **T1.17** (`FUN_15eb_28c8`
+  work-plot job-scoring port). This was just the last item a given session
+  reached, not the end of the tier.
+  **2026-08-22 — re-attempted, still PARKED, but the search space
+  narrowed.** Both of the 2026-08-20 pass's suggested leads ruled out:
+  the `48d3`/`europe_finish_bridge.md` neighborhood is docks/landfall
+  bookkeeping, unrelated; the cited `FUN_1000_8842` CHOICE-dispatch
+  function has no traceable evidence trail anywhere in this project
+  (zero hits in either flattened export) — flagged as unreliable, not
+  assumed correct going forward. **New, unexplored lead**: this is a
+  Crown-initiated offer, the same *kind* of mechanic as audience/
+  congress/mercenary-hire (all in the `38fd` overlay per `king_ref.md`),
+  not `48d3` — nobody has searched `38fd` for this specifically. Not
+  searched this pass (60+ un-attributed "gap" functions in that overlay,
+  too large to blind-sweep without a narrower hint). Full trace:
+  `euro_unit_act.md`'s 2026-08-22 update.
 
 - [x] **T1.14 — Decode `DS:0x2f76` record columns `+3` (colony-founding
   neighbor score) and `+4` (village/growth threshold term); identify what
@@ -1331,9 +1370,19 @@ renumbering — appended at the end of Tier 1, same low-risk approach as
   in-line, don't block on a second capture unless the port's own behavior
   turns out to hinge on real nation-to-nation variance.
 
----
-
-## Tier 2 — Larger mechanical lifts (still agent-autonomous)
+- [ ] **T1.17 — Port `FUN_15eb_28c8`: colonist work-plot job scoring.** New
+  2026-08-22, split out of `T1.14`'s `+4` identification. 254 lines,
+  already in `FUNCTION_CATALOG.md` ("Score/assign best work-plot job for
+  colonist," calls the already-ported `FUN_15eb_18ec`) but never linked to
+  any Linux `.c` or `original_sources_annotated` `.md` file — check first
+  whether an equivalent already exists under a different name (this
+  project's colony-tile/job-assignment code) before assuming it's a clean
+  gap. Includes the terrain-record `+4` term `T1.14` decoded (a labor/
+  travel penalty subtracted from a candidate work-plot's score, worse for
+  higher-effort terrain, plus a low-difficulty forest penalty when no
+  settlement is adjacent) — that term's own formula is already known and
+  ready to drop in once the enclosing function has a Linux home. Scope not
+  otherwise assessed this pass (no read of the other ~250 lines yet).
 
 Bigger in scope than Tier 1 items but not blocked on anything static tooling
 can't reach. Pick up after Tier 1 thins out, or interleave if a Tier 1 item
