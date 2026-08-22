@@ -58,24 +58,38 @@ twelfth-ish passes) — a stale call-graph inferred separate functions from
 what turned out to be internal control flow once the real disassembly
 was clean.
 
-**What actually blocks porting it (unchanged, now the sole real blocker
-for this whole item): the per-(Euro-nation, cargo) throttle table at
-absolute `-0x7b44`** (read at `iStack_c8 + param_4*0x10 + -0x7b44` /
-`param_4*0x10 + <idx> + -0x7b44`, gating both the AI auto-pick loop at
-`LAB_002e92` and a term inside the price formula) **and the running
-scratch value at `0x8dc4`** (used as a raw multiplier/percentage several
-times in the same formula, e.g. `FUN_0000_e096(*(int*)0x8dc4 * price, 100,
-0)`) — neither is in `viceroy_globals.h` or `address_mapping.csv`
-(checked 2026-08-20), confirmed genuinely uncaptured, not just
-unattempted. `0x53a6` (difficulty) and the ask/bid tables at `-25000`/
-`-0x6188` used throughout this same code ARE already resolved
-(`VICEROY_DS_DIFFICULTY`; `ai_contact_meet_economics_2154`'s `out->ask[]`/
-`out->bid[]`, same `0x9e58`/`0x9e78` tables). Also separately confirmed
-this pass: `*(int*)0x8d4e+2` (the "tribe level" field cited in the Open RE
-section below) **is already resolved and live** — it's
+**What used to block porting it: the per-(Euro-nation, cargo) throttle
+table at absolute `-0x7b44`** (read at `iStack_c8 + param_4*0x10 +
+-0x7b44` / `param_4*0x10 + <idx> + -0x7b44`, gating both the AI auto-pick
+loop at `LAB_002e92` and a term inside the price formula) **and the
+running scratch value at `0x8dc4`** (used as a raw multiplier/percentage
+several times in the same formula, e.g. `FUN_0000_e096(*(int*)0x8dc4 *
+price, 100, 0)`) — neither was in `viceroy_globals.h` or
+`address_mapping.csv` (checked 2026-08-20).
+**2026-08-22 — resolved, no live DOSBox-X session needed.** The throttle
+table was previously mis-read as stack-relative (`iStack_c8` looked like
+it could be a large `BP`-offset local); it's actually a small cargo-good
+index (0-15), so the whole expression `(nation*0x10 + good_idx) -
+0x7b44` wraps mod 0x10000 on 8086 to a **fixed address**, `0x84BC`. Read
+directly from a `dosbox_dump.sav` capture:
+`DS:84BC..84FB = 00 05 02 03 04 01 04 13 02 0a 0a 0e 09 02 01 02`,
+byte-identical across all 4 nation rows (`84BC`/`84CC`/`84DC`/`84EC`) —
+so despite the per-nation framing, this table wasn't actually varying by
+nation in that game state (worth a second capture to confirm it's not
+just coincidentally unmodified rather than genuinely nation-invariant).
+`0x8dc4` was `50` (`0x32`) in the same capture, cross-confirmed against
+an earlier live `BPM` hit this session. Note: `0x8dc4` is a **shared**
+scratch cell, also used by unrelated colony-construction (`2f2b`) and
+King-audience (`38fd`) percentage math — not trade-specific, don't expect
+it to only fire during trade.
+`0x53a6` (difficulty) and the ask/bid tables at `-25000`/`-0x6188` used
+throughout this same code ARE already resolved (`VICEROY_DS_DIFFICULTY`;
+`ai_contact_meet_economics_2154`'s `out->ask[]`/`out->bid[]`, same
+`0x9e58`/`0x9e78` tables). Also separately confirmed 2026-08-20:
+`*(int*)0x8d4e+2` (the "tribe level" field cited in the Open RE section
+below) **is already resolved and live** — it's
 `ColonizeCol1Indian.tech`, already wired into
-`ai_contact_meet_economics_2154` (`ai_contact.c`); one of three cited
-blockers there is gone, the throttle table and `0x8dc4` remain.
+`ai_contact_meet_economics_2154` (`ai_contact.c`).
 
 Full clean recovery (Ghidra decompile, `OVL13_L0000::2820`–`0x359a`, zero
 warnings, ends in a real `return`):
