@@ -502,21 +502,17 @@ leftover FF KINGGALLEON2, deep `20e6`).
   before and after the capital-gate fix — a pre-existing Brave quiet-pulse
   movement/RNG divergence, not caused by 152e; root cause not chased this
   pass (deep, open-ended — same class as the quiet-ASM residual work above).
-  **`FUN_41f2_0294` itself investigated 2026-08-19 — confirmed BLOCKED, not
-  attempted further:** the raw body is 327 lines
-  (`viceroy_unpacked.c:72085-72411`, correcting the "~100-line" estimate
-  above), byte-identical in `viceroy_unpacked_2.c`, and genuinely
-  decompiler-corrupted rather than merely citing unresolved DS tables —
-  Ghidra never recovers a stack frame (every local/param is a raw
-  `unaff_BP + <offset>` dereference, the signature decompiles as `(void)`
-  despite both call sites passing a real argument, and the loop-continuation
-  test reads an uninitialized `in_AL` before any visible assignment); its
-  immediate predecessor `FUN_41f2_0280` (`71743-72084`) is the same
-  corrupted shape, consistent with an overlay/thunk artifact. Recovering
-  real semantics needs a live DOSBox-X register/stack trace, not available
-  this pass — left stubbed (full reasoning + what *was* safely established,
-  e.g. no RNG call anywhere in the body, in the stub's comment,
-  `ai_indian_152e_worth_cap_stub` in `src/core/ai.c`). **Assessment vs. this
+  **`FUN_41f2_0294` itself investigated 2026-08-19, resolved 2026-08-22:**
+  believed decompiler-corrupted at first — Ghidra's C pseudocode never
+  recovers a stack frame — but that turned out to be a pseudocode-only
+  failure; the raw `.asm` is clean and matched byte-for-byte against a
+  live `dosbox_dump.sav` capture, no register/stack trace actually needed.
+  Real body is ~880 raw asm lines (not 327 — that was the truncated
+  pseudocode's line count), a 7-term settlement "worth" score (terrain
+  bucket + founding-fathers/time + unit-count + FF-product + clamped
+  percentage + flat global + a distance-ish call), no RNG anywhere. Full
+  formula: `docs/ai_port_plan.md` T4.2, stub comment in `src/core/ai.c`
+  (`ai_indian_152e_worth_cap_stub`). **Assessment vs. this
   TURN2→3 divergence:** would not fix it — the specific symptom above was
   already isolated to a pre-existing Brave movement/RNG bug, reproducing
   identically regardless of the worth-cap value. A correct

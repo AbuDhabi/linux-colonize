@@ -2255,10 +2255,19 @@ static int ai_indian_152e_quartile(int relation) {
 }
 
 /*
- * FUN_41f2_0294 (terrain-survey village "worth" cap) — investigated
- * 2026-08-19, confirmed BLOCKED on decompiler corruption, not just
- * unresolved DS tables. Left stubbed; do not attempt to "resolve via
- * address_mapping.csv" again without a live DOSBox-X trace (see below).
+ * FUN_41f2_0294 (settlement AI "worth" score, DOS decompiler's own
+ * "founding worth" naming — see T4.2 in docs/ai_port_plan.md for why that
+ * name is misleading; nothing here founds a new village).
+ *
+ * 2026-08-19: investigated, believed BLOCKED on decompiler corruption
+ * (Ghidra's *.c* pseudocode never recovers a stack frame for this
+ * function). 2026-08-22: turned out to be a false alarm — the corruption
+ * is confined to Ghidra's C reconstruction, not the underlying machine
+ * code. The raw `.asm` disassembly is clean and was cross-checked
+ * byte-for-byte against a live `dosbox_dump.sav` capture (entry
+ * fingerprint + all three terrain-class comparisons matched exactly, in
+ * both of their two copies in the compiled body) — no live DOSBox-X
+ * session was actually required. Full trace: `docs/ai_port_plan.md` T4.2.
  *
  * Two real DOS call sites, both pass the settlement/tribe array index:
  *   - FUN_4d56_0038 (tribe creation, viceroy_unpacked.c:81273) — one-time,
@@ -2268,42 +2277,46 @@ static int ai_indian_152e_quartile(int relation) {
  *     `bVar5 = FUN_41f2_0294(param_1); if (settlement.value < bVar5)
  *     local_16 = 2;` i.e. called LIVE every growth tick and compared
  *     against the settlement's *current* value/population, not a one-time
- *     founding constant. This corrects settlement_record_8d4a.md's "+4
- *     written once at creation" framing (true at 0038, but 152e re-derives
- *     the cap fresh every turn) — the comparison direction it implies
- *     (`value < survey_result` -> grow) is exactly what `population <
- *     worth_cap` below already does, so only the cap's *value* is
- *     approximated here, not its role in the control flow.
+ *     founding constant. Only the LOW BYTE of the return value is used
+ *     here (`cmp al,[bx+4]`) — the real function returns a 16-bit sum, so
+ *     worth values >= 256 wrap silently at this call site. Preserve that
+ *     quirk if this ever gets ported for real.
  *
- * Static RE attempted on the raw body (viceroy_unpacked.c:72085-72411,
- * 327 lines; byte-identical in viceroy_unpacked_2.c) and found it
- * genuinely corrupted, not merely citing unresolved globals:
- *   - Ghidra never recovers a stack frame: every local/param is a raw
- *     `unaff_BP + <offset>` dereference, the signature decompiles as
- *     `(void)` even though both call sites pass a real argument, and the
- *     top-of-loop continuation test reads `in_AL` before any visible
- *     assignment (an uninitialized-register read the decompiler couldn't
- *     tie to a real value).
- *   - Its immediate predecessor in the same overlay, FUN_41f2_0280
- *     (viceroy_unpacked.c:71743-72084), is the same shape with the same
- *     locals and the same FUN_41f2_0266 tail call — consistent with an
- *     overlay/thunk decompilation artifact rather than two distinguishable
- *     functions. Recovering real parameter/local semantics needs a live
- *     register/stack trace at entry (DOSBox-X), which is not available in
- *     this environment.
- * What *is* safely established without fabricating anything: a callee
- * scan of the full 327-line body found no RNG call (no FUN_281f_04d4 /
- * dos_rng_range analog anywhere) — so this stub cannot desync the per-
- * turn LCG stream the way the capital-gate bug above did; roughly half
- * the body is verbose/debug string-building (FUN_281f_016e/0178/0146/
- * 0182/013c/01be/00e2/00ec/03c0 chains behind a debug-flag branch), not
- * gameplay logic; the two real loops bucket terrain by class with
- * different weight increments (class 0x1c: +2, 0x19/0x1a/0x1b: +1, else:
- * +4) plausibly a movement/traversal-style scan, but not confirmed enough
- * to port without inventing the weight table's meaning.
+ * Real semantics (viceroy_unpacked.asm:111541-112377, ~880 raw asm lines):
+ * this isn't a terrain-only cap, it's the settlement's whole AI worth
+ * score — a word-sized sum of SEVEN terms, confirmed via the .asm and the
+ * live dump, no RNG call anywhere in the body:
+ *   1. Terrain-neighbor weight bucket — class 0x1c: +2, 0x19/0x1a/0x1b:
+ *      +1, else: +4 per scanned tile (the piece this stub originally
+ *      targeted; appears as two duplicate copies of the same scan).
+ *   2. Founding-fathers time-remaining bonus: (0x6f4 - x) << 1, gated on
+ *      DS:0x5382 bit 0x08.
+ *   3. Nearby-unit count bonus: +5 per hit, 25-iteration scan via
+ *      FUN_281f_07b4(i, settlement_id).
+ *   4. nation.<+0x18> * (0xFFFF - DS:0x53a6), nation = *(int*)0x84fc (the
+ *      project's known nation-struct anchor — see
+ *      king-audience-tax-delta-resolved.md's method notes), gated on
+ *      nation.<+0x18> nonzero. Not indexed by a specific nation here —
+ *      raw base pointer, whichever nation is in slot 0.
+ *   5. min(nation.<+0xc>, 100), gated on DS:0x5382 bit 0x02.
+ *   6. DS:0x53d0 copied directly if nonzero.
+ *   7. FUN_1d1d_0ec6(nation.<+0x2a>, nation.<+0x2c>, 1000, 0) — reads as a
+ *      distance-ish call (operands bounds-checked against 0..999) but
+ *      docs/difficulty.md separately names nation+0x2a as "gold" on a
+ *      different (nation*0x13c array) struct — open contradiction, not
+ *      resolved.
+ * Then an optional divide-and-round-by-8 correction (FUN_1d1d_0f60) if a
+ * computed shift is nonzero. Roughly half the ~880-line body is verbose
+ * debug-string-building and a debug info-box draw
+ * (FUN_281f_016e/0178/0146/0182/013c/01be/00e2/00ec/03c0 chains) behind
+ * the caller's debug-flag param — confirmed non-gameplay.
  *
- * Stub therefore still returns the flat population-cap-15 T0
- * approximation — unchanged behavior, no invented terrain-worth formula.
+ * NOT yet done, needed before a real C port: identify nation+0xc/+0x18/
+ * +0x2a/+0x2c against col1_save.h's existing field names, trace term 2's
+ * `x` sub-scan and FUN_281f_07b4's own target list, name DS:0x539e/
+ * 0x539c (scan bounds) and colony-pointer +0x1f. Stub therefore still
+ * returns the flat population-cap-15 T0 approximation — semantics are
+ * resolved, the port itself is still future work.
  */
 static int ai_indian_152e_worth_cap_stub(
   const ColonizeTurnContext* ctx,
