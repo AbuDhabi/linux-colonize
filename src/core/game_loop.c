@@ -523,6 +523,31 @@ static void set_status(ColonizeGameState* game, const char* prefix, const char* 
   snprintf(game->status, sizeof(game->status), "%.64s: %.60s", prefix, detail);
 }
 
+/* Manual / fandom: Europe screen closes once independence is declared. */
+static bool game_europe_blocked_by_woi(const ColonizeGameState* game) {
+  return game && game->col1_ok && ai_king_independence_declared(&game->col1);
+}
+
+static bool game_try_enter_europe(ColonizeGameState* game) {
+  if (!game || !game->europe_ok) {
+    return false;
+  }
+  if (game_europe_blocked_by_woi(game)) {
+    set_status(game, "Europe is closed during the War of Independence", NULL);
+    return false;
+  }
+  game->in_europe = true;
+  game->in_pedia = false;
+  game->in_colony = false;
+  game->in_report = false;
+  snprintf(
+    game->europe.status,
+    sizeof(game->europe.status),
+    "Home port ready. Recruit / Train / S Sail / Esc."
+  );
+  return true;
+}
+
 /* @WAREHOUSEFULL when ship→colony unload hits capacity. */
 static void game_emit_warehouse_full(
   ColonizeGameState* game,
@@ -6151,7 +6176,7 @@ static void game_finish_end_turn(ColonizeGameState* game, const ColonizeTurnResu
   if (result && result->request_europe_open && game->europe_ok) {
     game->europe.open_on_dock = true;
   }
-  if (game->europe_ok && game->europe.open_on_dock) {
+  if (game->europe_ok && game->europe.open_on_dock && !game_europe_blocked_by_woi(game)) {
     game->in_europe = true;
   }
   if (result && result->year_end_defeat) {
@@ -6587,14 +6612,7 @@ static bool game_apply_map_menu_action(ColonizeGameState* game, MapMenuAction ac
       return true;
     }
     case MAP_MENU_ACTION_EUROPE:
-      game->in_europe = true;
-      game->in_pedia = false;
-      game->in_colony = false;
-      snprintf(
-        game->europe.status,
-        sizeof(game->europe.status),
-        "Home port ready. Recruit / Train / S Sail / Esc."
-      );
+      (void)game_try_enter_europe(game);
       return true;
     case MAP_MENU_ACTION_FIND_COLONY:
       game_open_find_colony_picker(game);
@@ -6902,6 +6920,10 @@ static bool game_apply_map_menu_action(ColonizeGameState* game, MapMenuAction ac
         set_status(game, "Cannot return to Europe", NULL);
         return true;
       }
+      if (game_europe_blocked_by_woi(game)) {
+        set_status(game, "Europe is closed during the War of Independence", NULL);
+        return true;
+      }
       const int sid = game->units.selected_id;
       const ColonizeUnit* ship = units_get_const(&game->units, sid);
       if (sid < 0 || !ship || !units_is_sea(&game->units, sid)) {
@@ -6982,7 +7004,9 @@ static bool game_apply_map_menu_action(ColonizeGameState* game, MapMenuAction ac
               &game->europe, cargo_treasure_gold, cargo_count
             );
             snprintf(game->status, sizeof(game->status), "%s sailed to Europe", ship_name);
-            game->in_europe = true;
+            if (!game_try_enter_europe(game)) {
+              /* Ship already despawned — stay on map with status from helper. */
+            }
           }
         }
       }
@@ -8488,16 +8512,9 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
   }
 
   if (input->last_key == COLONIZE_KEY_E && !game->in_menu) {
-    game->in_europe = true;
-    game->in_pedia = false;
-    game->in_colony = false;
-    game->in_report = false;
-    snprintf(
-      game->europe.status,
-      sizeof(game->europe.status),
-      "Home port ready. Recruit / Train / S Sail / Esc."
-    );
-    diag_info("Entered Europe screen.");
+    if (game_try_enter_europe(game)) {
+      diag_info("Entered Europe screen.");
+    }
     return true;
   }
 

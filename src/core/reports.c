@@ -1475,6 +1475,7 @@ void reports_compute_score(
     out->rebel_sentiment = reports_rebel_sentiment_pct(col1, human);
     out->villages_burned = (int)col1->nation[human].villages_burned;
     out->villages_penalty = -(out->difficulty + 1) * out->villages_burned;
+    out->intervention_bells = (int)founding_fathers_intervention_bells(human);
 
     /*
      * Independence: WoI latch head.unknown46[0] (ai_king). Declare year not
@@ -1490,7 +1491,7 @@ void reports_compute_score(
         out->prior_nations++;
       }
     }
-    out->independence_declared = col1->head.unknown46[0] != 0;
+    out->independence_declared = col1->head.game_options.woi != 0;
     out->independence_achieved = col1->head.unknown46[4] == 1;
     out->declare_year = 0;
   } else {

@@ -1832,7 +1832,7 @@ int europe_custom_house_autosell(
     return 0;
   }
   const int nation = colony->nation_id;
-  const int woi = col1 && col1->head.unknown46[0] != 0;
+  const int woi = col1 && col1->head.game_options.woi != 0;
   int tax = 0;
   if (!woi) {
     if (nation == human_nation) {

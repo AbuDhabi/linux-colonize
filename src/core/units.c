@@ -2347,10 +2347,10 @@ bool units_try_native_settlement_fallout(
 
 /*
  * FUN_65dd_0004 outcome kinds (GAME.TXT @LOSTCITY1..9 / @BURIAL1..3 /
- * @SCREWED). Exact DOS weight table not RE'd — the buckets below are our own
- * choice (PARK), tuned so common finds dominate and rare ones (Cibola,
- * vanish) are uncommon; order matters only in that bucket 0 is what
- * dos_rng_range(NULL, ...) deterministically lands on (tests pass rng=NULL).
+ * @SCREWED). viceroy:103463-103618: roll local_8=max(local_2e, RNG(1,9)) with
+ * reroll loops; local_c=RNG(1,100)+local_36*10 gates case redirects; de Soto
+ * (FF#7) bumps local_36 when Scout (type 5). Not a flat weight table — full
+ * case/redirect graph PARKED; Linux uses thin buckets below.
  */
 typedef enum ColonizeLcrOutcome {
   COLONIZE_LCR_NOTHING = 0,     /* @LOSTCITY6 */

@@ -172,6 +172,7 @@ int main(void) {
 
   /* Jakob Fugger: clear ALL boycotts; no gold bump. */
   nat->liberty_bells_total = 161;
+  nat->next_founding_father = FF_JAKOB_FUGGER;
   nat->boycott_bitmap = (uint16_t)((1u << 1) | (1u << 4) | (1u << 2));
   col1.head.unknown46[2] = 1;
   const uint32_t gold_before = nat->gold;
@@ -2301,6 +2302,159 @@ int main(void) {
     col1_save_free(&blob_save);
     col1_save_free(&loaded);
     fprintf(stderr, "unit_founding_fathers: bell pool Col1 blob + bridge load ok\n");
+  }
+
+  /* Century-weighted debate pick: same RNG seed → same category candidates. */
+  {
+    int ids_a[AI_POPUP_CHOICE_MAX];
+    int ids_b[AI_POPUP_CHOICE_MAX];
+    int na = 0;
+    int nb = 0;
+    for (int pass = 0; pass < 2; ++pass) {
+      founding_fathers_reset();
+      ColonizeCol1Save rng_col1;
+      col1_save_init(&rng_col1);
+      seed_unclaimed(&rng_col1);
+      ff_test_calendar(&rng_col1);
+      ColonizeCol1Nation* rnat = &rng_col1.nation[0];
+      memset(rnat, 0, sizeof(*rnat));
+      rnat->liberty_bells_total = 10;
+      rnat->next_founding_father = -1;
+
+      AiPopupState rpop;
+      ai_popup_init(&rpop);
+      ColonizeDosRng rrng;
+      dos_rng_seed(&rrng, 7u);
+      ColonizeTurnContext rctx;
+      memset(&rctx, 0, sizeof(rctx));
+      rctx.human_nation = 0;
+      rctx.col1 = &rng_col1;
+      rctx.col1_ok = true;
+      rctx.ai_popups = &rpop;
+      rctx.rng = &rrng;
+
+      ff_tick(&rctx);
+      if (rpop.queue_count < 1 || rpop.queue[0].kind != AI_POPUP_KIND_CHOICE) {
+        return fail("weighted pick must open debate CHOICE");
+      }
+      const int n = rpop.queue[0].choice_count;
+      if (n < 2) {
+        return fail("weighted pick debate needs >=2 candidates");
+      }
+      if (pass == 0) {
+        na = n;
+        for (int i = 0; i < n; ++i) {
+          ids_a[i] = rpop.queue[0].choice_ids[i];
+        }
+      } else {
+        nb = n;
+        if (na != nb) {
+          return fail("same seed must yield same debate candidate count");
+        }
+        for (int i = 0; i < n; ++i) {
+          ids_b[i] = rpop.queue[0].choice_ids[i];
+          if (ids_b[i] != ids_a[i]) {
+            return fail("same seed must yield identical debate candidates");
+          }
+        }
+      }
+    }
+
+    founding_fathers_reset();
+    ColonizeCol1Save diff_a;
+    ColonizeCol1Save diff_b;
+    col1_save_init(&diff_a);
+    col1_save_init(&diff_b);
+    seed_unclaimed(&diff_a);
+    seed_unclaimed(&diff_b);
+    ff_test_calendar(&diff_a);
+    ff_test_calendar(&diff_b);
+    diff_a.nation[0].liberty_bells_total = 10;
+    diff_a.nation[0].next_founding_father = -1;
+    diff_b.nation[0].liberty_bells_total = 10;
+    diff_b.nation[0].next_founding_father = -1;
+
+    int ids7[AI_POPUP_CHOICE_MAX];
+    int ids9[AI_POPUP_CHOICE_MAX];
+    int n7 = 0;
+    int n9 = 0;
+    for (int pass = 0; pass < 2; ++pass) {
+      AiPopupState pop;
+      ai_popup_init(&pop);
+      ColonizeDosRng rng;
+      dos_rng_seed(&rng, pass == 0 ? 7u : 9u);
+      ColonizeTurnContext ctx;
+      memset(&ctx, 0, sizeof(ctx));
+      ctx.human_nation = 0;
+      ctx.col1 = pass == 0 ? &diff_a : &diff_b;
+      ctx.col1_ok = true;
+      ctx.ai_popups = &pop;
+      ctx.rng = &rng;
+      ff_tick(&ctx);
+      if (pop.queue_count < 1 || pop.queue[0].choice_count < 2) {
+        return fail("weighted pick needs debate candidates for seed compare");
+      }
+      if (pass == 0) {
+        n7 = pop.queue[0].choice_count;
+        for (int i = 0; i < n7; ++i) {
+          ids7[i] = pop.queue[0].choice_ids[i];
+        }
+      } else {
+        n9 = pop.queue[0].choice_count;
+        for (int i = 0; i < n9; ++i) {
+          ids9[i] = pop.queue[0].choice_ids[i];
+        }
+      }
+    }
+    if (n7 != n9) {
+      return fail("debate candidate count should not depend on RNG seed alone");
+    }
+    int same = 1;
+    for (int i = 0; i < n7; ++i) {
+      if (ids7[i] != ids9[i]) {
+        same = 0;
+        break;
+      }
+    }
+    if (same) {
+      return fail("different RNG seeds should usually pick different debate candidates");
+    }
+    fprintf(stderr, "unit_founding_fathers: century-weighted debate RNG ok\n");
+  }
+
+  /* WoI: no Congress debate or FF elect when bell pool crosses threshold. */
+  {
+    founding_fathers_reset();
+    ColonizeCol1Save wcol1;
+    col1_save_init(&wcol1);
+    seed_unclaimed(&wcol1);
+    ff_test_calendar(&wcol1);
+    wcol1.head.game_options.woi = 1;
+    wcol1.head.difficulty = 2;
+    ColonizeCol1Nation* wnat = &wcol1.nation[0];
+    memset(wnat, 0, sizeof(*wnat));
+    wnat->liberty_bells_total = 5000;
+    wnat->next_founding_father = FF_ADAM_SMITH;
+    wnat->founding_father_count = 0;
+    founding_fathers_force_pool_from_total(&wcol1);
+
+    AiPopupState wpop;
+    ai_popup_init(&wpop);
+    ColonizeTurnContext wctx;
+    memset(&wctx, 0, sizeof(wctx));
+    wctx.human_nation = 0;
+    wctx.col1 = &wcol1;
+    wctx.col1_ok = true;
+    wctx.ai_popups = &wpop;
+
+    ff_tick(&wctx);
+    if (wnat->founding_father_count != 0) {
+      return fail("WoI tick must not elect founding father");
+    }
+    if (wpop.queue_count > 0 && wpop.queue[0].tag == AI_POPUP_TAG_FF_CONGRESS) {
+      return fail("WoI tick must not open Congress debate");
+    }
+    fprintf(stderr, "unit_founding_fathers: WoI no-debate/no-elect ok\n");
   }
 
   printf("unit_founding_fathers: OK\n");

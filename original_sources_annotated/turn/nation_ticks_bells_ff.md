@@ -16,11 +16,11 @@ duplicate — see pointers below.
 | 1 | 73340–43 | Accrue `param_2` bells into nation Europe block `*[0x84fc]+0xc` (total) and `+0xe` (last-turn) |
 | 2 | 73344–46 | Peacetime (`!(0x5382&1)`) and `next_ff ( +0x12 ) < 0` → Congress nominate `2a1f_0000`→`4345_06d2` |
 | 3 | 73347–55 | Wartime independence chrome when bells still below total (set `0x5382` bit4) |
-| 4 | 73356–71 | Threshold `4345_0982` via `291f_0f66`: peacetime elect `291f_0fec`→`4345_0342(next)`; else wartime branch; **zero** `+0xc` |
+| 4 | 73356–71 | Threshold `4345_0982` via `291f_0f66`: peacetime elect `291f_0fec`→`4345_0342(next)`; WoI + REF absent → `1528`/intervention (`turn.c` + `ai_king_spend_woi_bell_pool`); **zero** `+0xc` |
 
-DOS spends/clears the total counter on elect; Linux keeps cumulative bells
-(`FUN_4345_0982` via `founding_fathers_bells_needed` — difficulty / human-vs-AI /
-year bands / WoI override **Done** thin; zero-on-elect still PARKED).
+DOS spends/clears the total counter on elect; Linux side-table `s_ff_bells_since_elect`
+(DOS `+0xc`) resets on peacetime elect or WoI intervention spend; cumulative
+`liberty_bells_total` (DOS `+0xe`) is never zeroed on elect.
 
 ## Linux
 
@@ -31,7 +31,9 @@ year bands / WoI override **Done** thin; zero-on-elect still PARKED).
 | Needed threshold | Recalc each EOT from **584a** score `(pop+units)<<1+8` (EN ×2/3; AI difficulty scale) | Grows with empire (TURN5 9→TURN6 10) |
 | Crosses threshold | Human → dock immigrant when `current > needed`; AI Free Colonist **PARKED** | Human **Done**; AI spawn unpark with golden refresh |
 
-| Debate / elect | `founding_fathers_tick` | **Human first**, then AI Euro (`control==1`); ≤1 elect / nation / call; threshold `4345_0982` **Done** thin |
+| Debate / elect | `founding_fathers_tick` | **Human first**, then AI Euro (`control==1`); peacetime only; WoI spend in `turn.c` |
+| WoI bell spend | `turn_run_nation_ticks` → `ai_king_spend_woi_bell_pool` | Pool ≥ `0982` → intervention/REF arrival; `founding_fathers_consume_woi_bell_pool`; no FF elect |
+| FF candidate pick | `4345_06d2` / `015a` | Century-weighted RNG per `@FATHERS` category (**Done** 2026-08-22) |
 
 Sources: [`src/core/turn.c`](../../src/core/turn.c)
 `turn_run_nation_ticks`; [`src/core/founding_fathers.c`](../../src/core/founding_fathers.c).

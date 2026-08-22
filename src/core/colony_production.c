@@ -427,7 +427,7 @@ void colony_prod_tick_rebel_accumulators(
     colony_prod_colony_bells_ff(pool, colony, statesmen_pct, paine_tax_pct, nation_is_ai, 0);
 
   /* WoI + crown-occupied: bells feed Tory (negative half). */
-  const int woi = col1->head.unknown46[0] != 0;
+  const int woi = col1->head.game_options.woi != 0;
   if (woi && nation_id == colony_prod_crown_nation(col1)) {
     bells = -(bells >> 1);
   }

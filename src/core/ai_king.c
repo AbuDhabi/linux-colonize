@@ -3075,6 +3075,38 @@ static void ai_king_foreign_intervene(ColonizeTurnContext* ctx) {
 }
 
 /*
+ * FUN_4345_0a22 wartime spend: when the bell pool reaches the WoI threshold,
+ * trigger foreign intervention / REF arrival instead of electing a Father.
+ * Returns 1 when the pool should be zeroed; 0 when REF-present blocks spend.
+ */
+int ai_king_spend_woi_bell_pool(ColonizeTurnContext* ctx, int nation_id) {
+  if (!ctx || !ctx->col1_ok || !ctx->col1) {
+    return 0;
+  }
+  if (!ai_king_independence_declared(ctx->col1)) {
+    return 0;
+  }
+  if (nation_id < 0 || nation_id >= (int)COLONIZE_COL1_NATION_COUNT) {
+    return 0;
+  }
+  /* DOS: (*(byte *)0x5382 & 2) != 0 → return without spending. */
+  if (ctx->col1->head.game_options.ref_present) {
+    return 0;
+  }
+  if (nation_id == ctx->human_nation) {
+    const int exp_total = ai_king_force_total(ctx->col1->head.expeditionary_force);
+    if (exp_total > 0) {
+      ai_king_ref_wave(ctx);
+    } else if (ai_king_force_total(ctx->col1->head.backup_force) > 0) {
+      ai_king_foreign_intervene(ctx);
+    } else {
+      ai_king_ref_wave(ctx); /* 06a6 irregulars when both pools empty. */
+    }
+  }
+  return 1;
+}
+
+/*
  * Pack offer-time roll + landing pick into the popup payload:
  * hx(6b)<<26 | hy(6b)<<20 | qty_a(4b)<<16 | extra_flag(1b)<<15 | price(15b).
  * Landing coords are captured at OFFER time (not re-derived at apply time)

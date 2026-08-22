@@ -98,7 +98,7 @@ Deep mechanics (expected vs Linux by context): [unit_orders.md](unit_orders.md).
 
 | Manual feature | Status | Notes |
 |----------------|--------|-------|
-| Open Europe (**E**), sail **H** / **S** | Done | Multi-turn Expected Soon / Bound For *region*; passengers + holds persist |
+| Open Europe (**E**), sail **H** / **S** | Done | Multi-turn Expected Soon / Bound For *region*; passengers + holds persist; **blocked after declare** (`game_options.woi`) |
 | Docks immigrants from crosses | Partial | Crosses pull from 3-slot recruit pool; Brewster filter Done; pool slot is DOS `RNG(0,2)` (`FUN_281f_04d4`) not player choice — **Done** (2026-08-15, was mislabeled "pick-among-pool UI PARKED"); Recruit UI / atomic `5e52` phase-6 tax/FF chrome still PARKED |
 | Market bid / ask display | Done | Bottom strip from `NAMES.TXT` `@CARGO` |
 | Buy / sell goods (drag / L / = / + / U) | Done | Drag market↔hold; **L**/**=**/**+** buy, **U**/**-**/**_** sell |
@@ -144,7 +144,7 @@ Topic hub (graphics, units, settlements, alarm, contact): [indians.md](indians.m
 
 | Manual feature | Status | Notes |
 |----------------|--------|-------|
-| FF election from liberty bells | Partial | Side-table bell pool (DOS +0xc); threshold elect + manual-aligned effects; Minuit+Franklin+Brebeuf+Las Casas+Cortes coastal cash+de Witt+Sepulveda convert-join **Done**; human debate CHOICE **Done** structural; KINGGALLEON2 PARK (Phase 4 harbor search negative); F3 portrait grid **Done** structural (CC-xx.SS on CCBKGD); FF pool bridge load smoke **Done** |
+| FF election from liberty bells | Partial | Side-table bell pool (DOS +0xc); peacetime threshold elect + WoI pool→intervention (**Done** 2026-08-22); century-weighted debate pick (`4345_06d2`/`015a` **Done**); manual-aligned effects; KINGGALLEON2 PARK (38fd CHOICE search negative); F3 portrait grid **Done** structural; FF pool bridge load smoke **Done** |
 | Pedia / F3 Congress report | Partial | F3 blits joined FF portraits (center-cropped to grid cells) + debating highlight; stats column; debate elect via popup; VGA-identical chrome PARKED |
 | Sons of Liberty %, declare independence | Partial | SoL + auto-declare structural (`ai_king`); player confirm UI **Done** structural (`ai_popup`); `@INDEPENDENCE` letter OK **Done** thin; VGA / DECLARAT.PIK anim PARKED — [sons_of_liberty.md](sons_of_liberty.md) |
 | REF invasion / revolution combat | Partial | REF wave / war act structural; merc hire dialog **Done** structural (`ai_popup`); win/lose latches **Done** thin; `10f0` landing scorer + caps + Veteran 0x15 **Done** Phase 5; foreign MoW ship + DECLARAT anim **PARK** |
