@@ -3773,23 +3773,44 @@ static uint8_t ai_contact_nation_primary_sold_cargo(int nation_id) {
 }
 
 /*
- * FUN_4d56_2820 AI-buy-offer price (the `iStack_8==0` / `LAB_002bbc` branch —
- * the non-human-Euro-peer path `ai_contact_auto_trade` needs). Reused as-is
- * for the human `LAB_002e92` buy-offer CHOICE too (ai_contact_auto_trade_price /
- * ai_contact_enqueue_trade_price_choice) — same general shape per
- * indian_trade_2820.md; the human branch's own distinct byte-level price
- * table (0x8d4e+2, a per-nation-per-cargo throttle array at -0x7b44, string
- * IDs 0x15a9/0x2e0c/0x2e0e) is not resolved anywhere in this project and is
- * NOT invented here — see indian_trade_2820.md "Open RE".
+ * FUN_4d56_2820 buy-offer price formula (the shared RNG/table math both
+ * `LAB_002bbc` and `LAB_002e92` build their own accept branch on top of).
+ *
+ * 2026-08-22 CORRECTION: this comment previously attributed the whole
+ * gold/cargo *transaction* to `iStack_8==0`/`LAB_002bbc`. That's wrong —
+ * verified by force-decompiling `LAB_002bbc`'s own accept branch's real
+ * callees (`FUN_1000_8cdc`→canonical `FUN_0000_902c`, `FUN_1000_8f48`→
+ * canonical `FUN_0000_8f68`): `LAB_002bbc`'s accept branch *removes a
+ * cargo-hold slot from the Euro unit* and *credits* the Euro nation's
+ * gold — i.e. `LAB_002bbc` is the Euro unit SELLING cargo TO the tribe,
+ * the opposite direction from what's implemented below. The gold-debit +
+ * cargo-receive behavior this function and `ai_contact_auto_trade` actually
+ * model — Euro nation pays gold, receives cargo FROM the tribe — matches
+ * `LAB_002e92`'s own accept branch instead (confirmed: its `FUN_1000_8f48`
+ * call adds cargo to the unit, paired with an explicit `gold -= price`
+ * a few lines above it). Not a logic bug — the shipped gold/cargo
+ * direction here is internally consistent and already tested — just a
+ * mislabeled source citation; the real `LAB_002bbc` "Euro sells to
+ * natives" mechanic is a genuinely separate, currently unported behavior
+ * (see indian_trade_2820.md's 2026-08-22 addendum; its own dispatch
+ * condition — when DOS picks sell-to-tribe vs buy-from-tribe — is not yet
+ * traced, so not attempted here).
+ *
+ * Reused as-is for the human `LAB_002e92` buy-offer CHOICE too
+ * (ai_contact_auto_trade_price / ai_contact_enqueue_trade_price_choice) —
+ * same general shape per indian_trade_2820.md; the human branch's own
+ * distinct byte-level price table (0x8d4e+2, a per-nation-per-cargo
+ * throttle array at -0x7b44, string IDs 0x15a9/0x2e0c/0x2e0e) is not
+ * resolved anywhere in this project and is NOT invented here — see
+ * indian_trade_2820.md "Open RE".
  * cargo_type fixed to TRADE_GOODS (0xd/13) here — the only cargo this trade
  * path moves. `ask_cargo` = `econ.ask[13]` from the already-ported
  * `ai_contact_meet_economics_2154` (same DS:0x9e58 table 2820 itself reads —
  * not a fresh extraction, a consumer of already-working state).
  *
- * `FUN_1000_8c50` (relation → discount shape) not fully traced — approximated
- * as `(relation>>2)<<1` here, monotonic in the right direction but not
- * confirmed byte-exact. First-draft per project convention (ai-transcription
- * memory); flagged for a fidelity pass. Cite: indian_trade_2820.md.
+ * `FUN_1000_8c50` (relation → discount shape) resolved byte-exact
+ * 2026-08-14 — see the quartile-bucket implementation below. Cite:
+ * indian_trade_2820.md.
  */
 static int ai_contact_2820_ai_buy_price(
   ColonizeDosRng* rng,
@@ -4007,9 +4028,12 @@ static int ai_contact_auto_trade_price(
  * (previously: goods/relation bookkeeping only, no gold ever changed hands —
  * see indian_trade_2820.md "real gap found").
  *
- * `forced_price` < 0: AI silent path (LAB_002bbc-shaped) — price computed
- * fresh here via ai_contact_auto_trade_price/RNG, matching the original
- * behavior exactly. `forced_price` >= 0: human buy-offer CHOICE accept path
+ * `forced_price` < 0: AI silent path — price computed fresh here via
+ * ai_contact_auto_trade_price/RNG, matching `LAB_002e92`'s accept-branch
+ * gold/cargo direction (see ai_contact_2820_ai_buy_price's 2026-08-22
+ * correction — not actually `LAB_002bbc`-shaped, that DOS branch is a
+ * separate, currently-unported "Euro sells to tribe" mechanic).
+ * `forced_price` >= 0: human buy-offer CHOICE accept path
  * (LAB_002e92 human branch) — reuses the exact price already shown and
  * locked at offer time (ai_contact_enqueue_trade_price_choice) instead of
  * re-rolling, so the player pays what they were shown.
