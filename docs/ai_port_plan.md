@@ -1787,6 +1787,25 @@ guessable from the established relation-polarity convention). Tier 1 now:
   port as a reference-only structural function (matching `T2.1`/`T2.2`'s
   own "port exists, not wired" pattern) and accept it stays unverified
   until a fixture exists. `ctest` 41/41 green (doc-only this whole item).
+  **2026-08-22, resumed — reference-only structural port written, the
+  close-out's own recommended path.** `ai_euro_28c8_colonist_job_score_structural`
+  (`ai_euro.c`, next to the other colonist job-assign helpers) scores all
+  8 field jobs across the 8 tier-2 tiles using the real resolved terms
+  (field yield via `colony_yield_for_tile`, a new
+  `map_dos_terr_labor_penalty_byte` accessor for the `+0x4` term — added
+  to `map.c`/`map.h` this pass, the table was already decoded in
+  `terrain_yields.md` but not yet in code — `warehouse_level`-as-
+  population-cap headroom clamp, current-job sticky doubling) and leaves
+  the still-open weight terms (distance term, continent×nation danger
+  term, RNG/wealth-rank boost, per-job throttle table, senior-tier/
+  unhappy-colony gate, discovery roll) unimplemented rather than guessed,
+  per its own header comment. **Not wired** — address-taken only in
+  `ai_euro_colony_goals`, same convention as
+  `ai_euro_5d04_nation_planning_structural`; still no golden fixture to
+  verify the weighted formula against. Doesn't cover building-job
+  assignment (DOS job `>=0xd`) or the human single-job-probe/early-
+  shortcut gate — AI full-search field-job loop only. Full `ctest`
+  41/41 green.
 
 Bigger in scope than Tier 1 items but not blocked on anything static tooling
 can't reach. Pick up after Tier 1 thins out, or interleave if a Tier 1 item
