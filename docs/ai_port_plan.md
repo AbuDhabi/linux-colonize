@@ -905,6 +905,25 @@ closed; genuinely open are only `T1.8`, `T1.13`, `T1.15`, `T1.16`, `T1.17`.
   term — a small, well-scoped implementation task now, not an open RE
   question. Full trace: `euro_unit_act.md`'s 2026-08-22 later update.
   `ctest` not run (doc-only).
+  **2026-08-22, later same day — tribe hard-reject wired; fort/colony `+8`
+  term still not, new genuine unknown found instead of the expected
+  quick wire.** Force-decompiled `FUN_1000_88c2`/`88d6` directly. `88c2`
+  (tribe/unit occupant) matched its known `accessors.c` equivalent exactly
+  — wired as `map_tile_tribe_or_presence` (`map.c`/`map.h`) + a hard
+  `continue` in `units_flood_next_step`'s candidate loop when a foreign
+  nation occupies the candidate tile (a real, previously-unmodeled gap:
+  `units_can_enter`'s land path had no ownership check at all for a bare
+  settlement tile). `88d6` (the fort/colony `+8` term) resolved the
+  nation/relation half cleanly (Euro `0..3` only, gated on the already-
+  named `euro_relation` MET bit `0x40`) but its own tile-flags gate reads
+  `layer2_byte & 0x48` — bit `0x08` is the known road bit, bit `0x40` has
+  **no established real-DOS-mask meaning** anywhere in this project (not
+  the same thing as this project's own synthetic `MAP_LAYER2_FA_ROAD`
+  reuse of that bit value). Not wired on a guess — real next step if
+  resumed: XREF-sweep `FUN_137f_015e`'s callers (same tool that found
+  `T1.11`'s `0x10` write-trigger) to find what sets DOS mask bit `0x40`.
+  Full trace: `euro_unit_act.md`'s 2026-08-22 later-same-day update.
+  `ctest` 41/41 green.
 
 - [x] **T1.9 — Indian mid-game quiet scoring (goods/missions/capital
   pull) formula mapping.** R2 used to flag this as blocked on "a
