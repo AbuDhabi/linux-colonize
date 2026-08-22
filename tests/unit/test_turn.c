@@ -184,6 +184,7 @@ static int unit_century_cargoready(void) {
 
 static int unit_eot_fog_reveal(void) {
   ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
   char err[128];
   if (!map_alloc(&map, 8, 8, err, sizeof(err))) {
     fprintf(stderr, "fog map_alloc: %s\n", err);
@@ -4420,6 +4421,7 @@ int main(void) {
     dcol.colony[0].population = 8;
     dcol.colony[0].rebel_dividend = 50;
     dcol.colony[0].rebel_divisor = 100;
+    dcol.nation[2].rebel_sentiment = 55;
     ctx.col1 = &dcol;
     ctx.col1_ok = true;
     turn_run_year_end_chrome(&ctx, &out);
@@ -4430,6 +4432,7 @@ int main(void) {
     }
     dcol.head.difficulty = 4;
     dcol.colony[0].rebel_dividend = 25;
+    dcol.nation[2].rebel_sentiment = 25;
     dcol.nation[2].rebellion_pct_last_notified = 10;
     status[0] = '\0';
     memset(&out, 0, sizeof(out));

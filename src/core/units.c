@@ -2419,7 +2419,11 @@ bool units_resolve_lcr_rumour(
    * sight is a separate always-on FF effect (see founding_fathers.h); here
    * it restricts the draw to the non-hostile subset instead of a bare
    * reveal-only shortcut. Deep DOS RNG weights / native-attack combat
-   * resolution stay PARKed — see per-outcome comments below.
+   * Deep DOS RNG weights / native-attack combat resolution stay PARKed — see
+   * per-outcome comments below. Decomp case IDs (FUN_65dd_0004 local_8):
+   *   1 trespass (@LOSTCITY8), 2 survivors (@LOSTCITY9), 3 small treasure,
+   *   4 burial (@LOSTCITY4), 5 trespass→4 latch, 6 nothing, 7 treasure variant,
+   *   8 chief gift, 9 Cibola/FoY — reroll loops PARKED; port uses thin buckets.
    * lcr_case5_bonus_used (player+0x30 bit6): FUN_65dd_0004 one-shot — first
    * case-5 roll becomes case-4 (burial mounds instead of trespass anger).
    * Cite: viceroy_unpacked.c:103608-103612 (sets bit 0x40, local_8=4).
@@ -2463,8 +2467,9 @@ bool units_resolve_lcr_rumour(
     const int n = (int)(sizeof(k_positive) / sizeof(k_positive[0]));
     outcome = k_positive[dos_rng_range(rng, 1, n) - 1];
   } else {
-    /* Weighted 1..100 draw; bucket 0 (1..25) is what rng==NULL always picks. */
+    /* Thin buckets; decomp rolls local_8=max(local_2e, RNG(1,9)) with rerolls. */
     const int roll = dos_rng_range(rng, 1, 100);
+    const int woi = col1 && col1->head.game_options.woi;
     if (roll <= 25) {
       outcome = COLONIZE_LCR_NOTHING;
     } else if (roll <= 45) {
@@ -2483,6 +2488,10 @@ bool units_resolve_lcr_rumour(
       outcome = COLONIZE_LCR_VANISHES;
     } else {
       outcome = COLONIZE_LCR_CIBOLA;
+    }
+    /* FUN_65dd_0004: case 1 → case 2 during WoI (103508). */
+    if (woi && outcome == COLONIZE_LCR_TRESPASS_ANGER) {
+      outcome = COLONIZE_LCR_SURVIVORS_JOIN;
     }
   }
 

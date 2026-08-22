@@ -191,23 +191,17 @@ regression gate again.
 
 Finish a campaign: FF leftovers, king/REF, win/lose/retire.
 
-**Now:**
+**Now (Phase 5, 2026-08-22):**
 
-- FF leftovers (e.g. KINGGALLEON2) — [ai_transcription.md](ai_transcription.md)
-  unpark #3; Phase 4 harbor/treasure-sell search negative — stays PARK
-- Bell-pool save interop + F3 Congress structural UI — **Done** (2026-08-22)
-- Bridge FF-pool load smoke (`col1_bridge` + `founding_fathers_sync_from_col1_after_load`) — **Done** (2026-08-22)
-- Year-end SoL C2/D via `ai_king_sol_percent` — **Done** (2026-08-22); D rival-slot pick +
-  `(8−difficulty)×10` auto-declare + `rebellion_pct_last_notified` dedup — **Done** Phase 4
-- REF / WoI depth beyond structural latches — [ai_transcription.md](ai_transcription.md),
-  [sons_of_liberty.md](sons_of_liberty.md) (`10f0` landing scorer / caps / Veteran 0x15 still PARK;
-  `20e6` siege depth)
-- `rival_nation_slot_1/2` at declare + slot_2 in `10f0` intervene pick — **Done** (2026-08-22)
-- de Soto `lcr_case5_bonus_used` one-shot latch — **Done** Phase 4 (`FUN_65dd_0004` table still PARK)
-- Decile SoL status notify (`sol_pct_last_notified`) — **Done** thin (2026-08-22)
-- Retire → score / HoF and auto-end 1800/1850 UI — [manual_gap.md](manual_gap.md)
-  (Win / end sequences)
-- Congress VGA-identical chrome → phase 5
+- **KINGGALLEON2** — still **PARK** (Phase 5: 38fd overlay + string search negative)
+- **10f0** — landing scorer, per-call caps, Veteran `0x15` — **Done** Phase 5; foreign MoW ship **PARK**
+- **65dd LCR** — decomp case table documented; WoI case-1→2 redirect + case5 latch **Done**; full weight reroll loops **PARK**
+- **Year-end D** — `rebel_sentiment` when set, else `ai_king_sol_percent`; continent table at DOS `−0x6bf0` **PARK**
+- **Lategame codec** — drift triaged (`unit_col1_save` diff reporter); early `COLONY00/01` byte-identical; lategame/TURN not yet
+- Bell-pool + bridge load + F3 Congress structural — **Done** (Phase 4)
+- `rival_nation_slot_1/2` + slot_2 intervene — **Done** (Phase 4)
+- Decile SoL notify — **Done** thin
+- Congress VGA-identical chrome → phase 5 polish
 
 ### 5 — Fidelity & polish (Later)
 
