@@ -372,6 +372,45 @@ pass:
   logic, `T4.8`) are the ones that actually matter for this matrix; those
   are the genuine next-step scope if this item is resumed. Full trace:
   `move_scoring_20e6_full.md`'s 2026-08-21 addendum.
+  **2026-08-22 — resumed now that `T4.7`/`T4.8` are closed. Cross-checked
+  `T4.8`'s single-dump resolution against all 24 `dosbox-x-dumps/*` saves**
+  (byte-identical everywhere — rules out a resident-vs-overlay-swap-buffer
+  worry this pass raised and then closed itself), **and fully traced field
+  5's callee to a concrete return value: it's a disguised constant.** For
+  any non-negative input (i.e. every real unit id this matrix ever passes),
+  field 5 (`iStack_16`) always returns exactly `1` — not a per-unit read at
+  all. Combined with field 3's already-known noise and `T1.2`'s finding that
+  field 2's chain fields are dead for land units (making `iStack_a8` a fixed
+  value too for this matrix's calls), **3 of the formula's 5 terms are now
+  known to carry zero real per-call variance**, leaving only fields 4/6 as
+  possible sources of actual signal — and both were already flagged
+  (independently, `T4.8`) as reaching non-numeric side-effecting code
+  (a palette-timer reset, a colony bitmap bit toggle), not plain value
+  reads. **Not fully closed**: fields 4/6's own `AX` return paths weren't
+  traced this pass the way field 5's was — that's the concrete next step,
+  and if they turn out equally input-independent the honest conclusion is
+  this whole gating formula is functionally constant in the shipped binary
+  (which would finally explain why it's resisted a faithful port across
+  this many passes — there may be no real design signal left to preserve).
+  Don't guess at 4/6 without doing the same full trace.
+  **Same pass, continued — field 4 traced too: also a disguised non-signal.**
+  Both of its branches reconverge on `MOV AX,[BP+6]` right before return —
+  it always echoes back the caller's own input unit id, unchanged, on top
+  of its already-known palette-timer side effect. Plugged into the formula:
+  with fields 2/3/5 now known fixed/noise and field 4 = raw unit id, the
+  whole `iStack_82` term reduces to essentially "negative of the acting
+  unit's own array index plus small constants" — no game-design signal,
+  dominated by an arbitrary index value. **Recommend treating this matrix
+  as very likely dead/non-functional in the shipped binary** (same shape as
+  `T1.2`'s "no code to ship" precedent). Field 6 attempted but **not
+  resolved — found a live discrepancy with this doc's own prior case-6
+  write-up** (a 21-byte prefix of suspicious far-offset memory touches
+  precedes the previously-cited "clean" `OR`/`AND` bit-toggle, not
+  reconciled this pass). **Not closing the checkbox**: field 6's conflict is
+  real and unresolved, and structural confidence (the arithmetic reduces to
+  noise) isn't the same as being certain there's no reachable code path here
+  worth preserving. Full trace: `move_scoring_20e6_full.md`'s 2026-08-22
+  update. `ctest` not re-run (doc-only, no `src/` touched).
 
 - [x] **T1.4 — Map `ai_goals_pick_founding_tile_ex` / `06ae`'s call-site
   success/failure expectations.** New, split out of the failed T1.5

@@ -762,6 +762,127 @@ matrix is ever ported, treat that term as safely inert/no-op rather than
 chasing byte-exact fidelity for it — there's no real semantic content to
 preserve.
 
+**2026-08-22 — resuming T1.3 now that `T4.7`/`T4.8` are closed; two new findings,
+one closes cleanly, the other reopens a question about the whole matrix.**
+
+First, cross-checked `T4.8`'s resident-code claim for cases 0/4/5/6 against
+every other `dosbox-x-dumps/*` save (24 independent captures, spanning
+2026-08-08 through 2026-08-22, different game states/turns), not just
+`find_memory` alone — located the same `JMP CS:[BX+0xd78]` 5-byte dispatch
+signature in each, then read the case 3/0-5/4/6 and jump-table bytes at the
+same signature-relative offset in every one. **All 24 are byte-identical.**
+This answers a real methodological worry before it got written down anywhere:
+`CS=0x823` sits at a huge span (dispatch tail at `+0x4fe2`, farthest case
+body at `+0x123b8`) that's larger than a typical small resident helper, which
+raised the possibility this address range might actually be a shared
+overlay-swap buffer whose content depends on whichever overlay happened to
+be loaded at capture time — that would have meant `T4.8`'s single-dump
+resolution wasn't trustworthy for reuse here. It's not: 24 saves across two
+weeks of different play sessions agree byte-for-byte, so this is genuinely
+stable resident content, not overlay-swap noise. `T4.8`'s findings stand.
+
+Second — and this is the one that matters for the matrix — re-derived case
+0/5's (`iStack_16`, field 5) *actual returned value* by tracing all the way
+through its `CALLF 0xafb:0x000e` callee, not just confirming the call
+target exists. Full body (disassembled directly from `find_memory`'s bytes,
+`0afb:000e` onward): `CX = AX; DI = BX = DX = 0; if CX>=0x10: BX=1; if
+CL&0x40: DI=1; if CL&0x20: DX=1;` then a chain of `OR`-and-branch tests on
+`BX`/`DX`/`DI` against globals `DS:0xa0`/`0xa4` that either falls through to
+`POP DI; RETF` (returning **AX unchanged**) or takes a side path through
+`push cx; call 0x187c:0xa`. Case 0/5's own caller sets `AX=1` unconditionally
+right before this call (only after passing a `sign(AX)` gate — negative
+input skips the call and returns unchanged) — so `CX` is **always exactly
+1** on entry, `1<0x10` and `1&0x40`/`1&0x20` are both false, all three of
+`BX`/`DI`/`DX` end up 0, and the branch chain lands on `RETF` with `AX`
+untouched. **Net: for any non-negative input (i.e. any real unit id — the
+only kind this matrix ever passes), field 0/5 always returns exactly `1`,
+full stop, regardless of what unit or context it's called for.** Not a
+per-unit query at all — a hardcoded constant in disguise. Confirmed from
+real bytes, not inferred from the case's general shape.
+
+This closes field 5's real value (`iStack_16 = 1` always, for this matrix's
+call pattern) but it also updates a standing worry: field 3 was already
+known to read stale UI noise (2026-08-21), and now field 5 is a disguised
+constant. Combined with `T1.2`'s own finding that field 2's chain fields
+(`unit+0x315c/0x315e`) are "never actively written for land units in this
+port" — meaning `iStack_a8` (`field 2 - 1`) is *also* realistically a fixed
+value for every call this matrix ever makes on a land unit, not a variable
+signal — **three of this formula's five terms (fields 2, 3, 5) are now
+known to carry no real per-call variance**, leaving only fields 4 and 6
+(both already flagged, independently of this session, as reaching
+non-numeric side-effecting code — a palette-timer reset and a colony
+bitmap bit toggle respectively, not plain reads) as the only terms that
+could possibly vary. **Not confirmed to a certainty this session**, but
+now a sharply scoped next step if this item is resumed: check whether
+fields 4 and 6's *return values* (as opposed to their already-documented
+side effects) carry any real per-call signal at all, the same way this
+pass did for field 5 — if they turn out to be similarly input-independent,
+the honest conclusion becomes "this whole `local_9c`/`iStack_82` gating
+formula is functionally constant in the shipped binary," which would
+finally explain why porting it byte-for-byte has stalled across so many
+passes: there may not be a real design signal here to preserve. Don't
+guess at fields 4/6's return values without doing the same full trace this
+pass did for field 5 — a plausible-looking side effect (palette reset,
+bitmap toggle) doesn't by itself tell you what ends up in `AX`.
+
+**Same pass, continued — field 4 traced too, same shape as field 5.** Full
+byte-accurate body at `0823:a102` (the already-established `+2`-corrected
+entry): `XCHG AX,DX; ADD AX,[BX+SI]; CMP word[0x92c2],0x10; JG +6` — that
+branch either falls through to `MOV word[0x92c0],0` or skips it — **but
+both paths reconverge on the same three instructions: `MOV AX,[BP+6]; MOV
+[0x372],AX; LEAVE; RETF`.** `[BP+6]` is the shared dispatcher's own first
+argument slot — the resolved unit id (convoy head) — so **field 4 always
+returns the caller's own input unit id, unchanged**, on top of its already-
+documented palette-timer side effect. Not a per-unit *attribute* query
+either: it's an identity echo. Plugging this into the formula
+(`iStack_82 = (-iStack_48 - (iStack_16 - iStack_a8)) - iStack_4a`) with
+`iStack_48 = unit_id`, `iStack_16 = 1` (this pass's field-5 finding),
+`iStack_4a` = UI noise (already known), `iStack_a8` = near-fixed per `T1.2`:
+the formula reduces to essentially `-unit_id + small_constant - noise` —
+dominated by the acting unit's raw array-index value, which carries no
+game-design meaning (units aren't ordered by anything relevant to cargo
+scoring). **This is a real, evidence-based reason to suspect the whole
+`iStack_82`/`local_9c` construction never worked as originally intended in
+the shipped 1994 binary** — same shape as a jump-table-generation mismatch
+scrambling which case bodies the compiler's switch statement actually
+reaches, not a deliberately obscure design. Structural confidence high
+(every step here is a direct byte read, not a guess); semantic confidence
+about *why* DOS shipped it this way is not established — keeping the two
+separate per this project's own standing caution.
+
+Attempted field 6 too, but **stopping short of a claim there — found a
+discrepancy with this doc's own 2026-08-21 case-6 write-up worth flagging,
+not papering over.** That entry describes `0x6ef7` as decoding "clean" into
+`OR [BX],AL` / `AND [BX],AL` with `LEAVE`/`RETF` between. Re-parsing the
+same bytes instruction-by-instruction from the literal start (not just
+locating that recognizable fragment further into the stream): the actual
+first ~21 bytes at `0x6ef7` are `ADD AX,[BP+DI]; PUSH CS; INC DX; TEST
+[BX+DI+0x84c1],AX; ADD [BP+DI+0x87e],AL; ADD [SI+6],DH; MOV BX,CX` *before*
+reaching the `OR [BX],AL` the prior entry cites — a chain that includes two
+far-offset memory touches (`[BP+DI+0x87e]`, `[BX+DI+0x84c1]`) in the same
+suspicious shape as case 3's original (later-retracted) `[BP+DI+0x4c4]`
+finding. Whether those 7 instructions are genuinely part of what executes
+here (in which case the "clean" characterization undersold real, possibly
+consequential side effects) or whether `0x6ef7` itself needs the same kind
+of small entry-offset correction cases 0/4 got (in which case the true
+entry is somewhere past this prefix, likely right at the `MOV BX,CX; OR
+[BX],AL` pair) isn't resolved by this pass — didn't have time to trace
+`0x6ee0`'s mask-build caller's own control flow to see which byte it
+actually calls/jumps into. **Don't trust either the prior "clean, no
+adjustment" claim or this pass's "suspicious prefix" observation as final
+until someone traces the actual entry control flow into this address —
+flagging the conflict is this pass's contribution, not resolving it.**
+
+Net for `T1.3`: fields 2, 3, 5 are now solidly known to carry no real
+per-call variance (fixed/noise), field 4 reduces to a meaningless raw
+unit-id echo, field 6 is unresolved with a live discrepancy on record.
+**Recommend treating this matrix as very likely dead code / non-functional
+in the shipped binary** (mirroring `T1.2`'s "no code to ship" precedent),
+but not fully closing the checkbox this pass — field 6's discrepancy is a
+real gap, and this project's own method notes warn against overclaiming
+semantic conclusions on structural evidence alone. `ctest` not run
+(doc-only), no `src/` touched.
+
 ## Raw recovered C
 
 ```c
