@@ -911,6 +911,18 @@ int map_continent_id_at(const ColonizeWorldMap* map, int x, int y) {
   return (int)(map_get_layer3(map, x, y) & 0x0fu);
 }
 
+int map_tile_tribe_or_presence(const ColonizeWorldMap* map, int x, int y) {
+  if (!map || !map->layer2 || x < 0 || y < 0 || x >= map->width || y >= map->height) {
+    return -1;
+  }
+  const uint8_t l2 = map->layer2[(size_t)y * (size_t)map->width + (size_t)x];
+  if ((l2 & (MAP_OCCUPANCY_HAS_CITY | MAP_OCCUPANCY_HAS_UNIT)) == 0) {
+    return -1;
+  }
+  const int hi = (int)((map_get_layer3(map, x, y) >> 4) & 0x0fu);
+  return hi == 0x0f ? -1 : hi;
+}
+
 uint8_t map_terrain_overlay(uint8_t terrain_byte) {
   return (uint8_t)(terrain_byte >> 5);
 }

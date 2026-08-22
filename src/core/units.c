@@ -4342,6 +4342,30 @@ static bool units_flood_next_step(
         if (!units_can_enter(pool, u->type_index, map, nx, ny, unit_id, colonies)) {
           continue;
         }
+        /*
+         * FUN_1000_88c2 `tile_tribe_or_presence` hard-reject (0015bc's own
+         * flood-fill body, force-decompiled 2026-08-22 — see
+         * euro_unit_act.md T1.8): a land settlement tile itself (village or
+         * colony) belonging to a different nation is never a valid step,
+         * regardless of AI/human. `units_can_enter`'s land branch has no
+         * such check today (it only handles a *unit* foe, not a bare
+         * settlement tile with none), so this is a real, previously-
+         * unmodeled gap for this flood-fill tier specifically — not
+         * threaded into `units_enter_probe`/`units_can_enter` itself, which
+         * stays scoped to real move-execution legality. The paired `+8`
+         * soft-penalty-vs-hard-reject asymmetry for merely being *near* an
+         * enemy fort/colony (DOS `FUN_1000_88d6`) is intentionally NOT
+         * wired here yet: its own gate reads `layer2_byte(cand) & 0x48`
+         * (`0x08` is the known FA_ROAD/Col1-road bit; `0x40`'s real DOS
+         * meaning is still unidentified — no invented guess per project
+         * convention, see that update for the traced function body).
+         */
+        if (u->nation_id >= 0) {
+          const int occupant = map_tile_tribe_or_presence(map, nx, ny);
+          if (occupant >= 0 && occupant != u->nation_id) {
+            continue;
+          }
+        }
         const int edge = units_move_cost(pool, unit_id, map, nx, ny);
         const int nc = base + (edge > 0 ? edge : 1);
         if (nc < cost[nly][nlx]) {

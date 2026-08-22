@@ -543,7 +543,77 @@ question. Full trace: this session's `OVL20_L0000:15bc` force-decompile
 (not separately archived — see the condition transcribed above). `ctest`
 not run (doc-only).
 
-`FUN_4720_049e` (`FUN_291f_044e`'s target): **corruption is real but
+**2026-08-22, later same day — step (2)/half of step (3) done: the tribe
+hard-reject wired, the fort/colony `+8` half deliberately left unwired
+(new, genuine unknown found, not the one this row expected).** Force-
+decompiled `FUN_1000_88c2`/`88d6` themselves (their `1000:` addresses don't
+exist as spaces in `OverlayTest`; resolved via the `281f_XXXX → ram:1XXXX`
+identity already established for this accessor family — flat `ram:188c2`/
+`ram:188d6` decompile clean):
+
+```c
+// FUN_1000_88c2 == accessors.c's tile_tribe_or_presence, confirmed exact:
+// HAS_CITY-or-HAS_UNIT gate, then owner high nibble. No new unknowns.
+
+// FUN_1000_88d6 (the fort/colony-zone term):
+int FUN_1000_88d6(x, y, mover_nation) {
+  if (!inset(x, y)) return -1;
+  flags = tile_layer2_byte(x, y);
+  if ((flags & 0x48) == 0) return -1;          // *** new unknown, see below ***
+  owner = owner_nibble(x, y);
+  if (owner < 0 || owner >= 4 || owner == mover_nation) return -1;
+  if ((euro_relation[mover_nation][owner] & 0x40) == 0) return -1;  // MET bit
+  return owner;
+}
+```
+
+Good news: the nation/MET half is fully resolved with zero new unknowns —
+`owner_nibble` range-gated to Euro `0..3` (excludes tribes, correctly
+scoping this term to *Euro* forts/colonies only, matching the DOS name),
+and `& 0x40` on `nation*0x13c-0x77c4` is exactly `euro_diplo.md`'s
+already-named `euro_relation[a][b]` MET bit — this term only fires between
+nations that have met, which makes sense (can't have a diplomatic-flavored
+zone reaction to someone you've never seen).
+
+**Bad news, genuinely new**: the tile-flags gate is `layer2_byte(x,y) &
+0x48` (bits 3 and 6) — **not** `MAP_OCCUPANCY_HAS_CITY` (`0x02`) as a naive
+reading of "fort/colony tile" would assume. Bit `0x08` is
+`VICEROY_LAYER2_FA_MASK`'s known **road** component
+(`viceroy_types.h:VICEROY_LAYER2_FA_ROAD`); bit `0x40` has **no
+established real-DOS-mask meaning anywhere in this project** — it is
+*not* the same thing as this project's own `MAP_LAYER2_FA_ROAD=0x40u`
+(that's an explicitly-noted Linux-side synthetic stand-in bit, per
+`map.h`'s own comment, unrelated to the original save format). Best
+working guess (not verified, not wired on the strength of a guess per
+project convention): a per-tile fortification-tier marker mirrored onto
+the map plane for fast lookup (stockade/fort vs. fortress), since
+`colony.h`'s own `fortification` field is colony-record-side and this is
+a tile-plane check — but this is exactly the kind of "structural
+confidence ≠ semantic confidence" trap the method notes warn about, so
+treating it as **open, not resolved**. Real next step if resumed: find
+what sets real DOS mask bit `0x40` (an XREF sweep on the `FUN_137f_015e`
+OR/AND-clear helper's callers, the same tool `T1.11` used to find
+`0x10`'s own write-trigger, would answer this directly).
+**Tried this pass, inconclusive — not a dead end, just needs a different
+angle.** `GhidraListXRefs` on the resident setter (`ram:394e`) found only
+4 direct callers (`0000:4520/4595/654f`, `1000:8881`), but none show a
+resolvable literal mask argument — three decompile with an empty
+`FUN_0000_394e();` call (Ghidra couldn't recover the stack-passed
+immediate) and the fourth (`8881`, a large, real, previously-unlinked
+function worth its own look later) doesn't call it directly at all in the
+decompiled body shown. **T1.11's own `0x10` search worked by grepping
+literal-mask *call sites* into the wrapper switch, not by XREF-ing the
+resident setter itself** — the real next step is that same literal-mask
+grep (`switchD_2000:da9f::caseD_10`-style call sites passing `0x40`) as
+applied to *this* setter's own overlay-side wrapper, not a repeat of the
+XREF sweep just tried.
+
+**Wired**: the tribe-owner hard-reject half only (fully resolved, zero
+open questions) — `map_tile_tribe_or_presence` (`map.c`/`map.h`, new)
+plus a nation-mismatch `continue` in `units_flood_next_step`'s candidate
+loop (`units.c`). **Not wired**: the fort/colony `+8`-vs-reject term,
+pending the `0x40` bit's real meaning — left as a precise code comment at
+the wire site rather than guessed. Full `ctest` 41/41 green. (`FUN_291f_044e`'s target): **corruption is real but
 narrow, and the function underneath is a genuinely major find — not a
 move driver at all.**
 

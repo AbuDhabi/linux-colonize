@@ -118,6 +118,15 @@ uint8_t map_get_layer3(const ColonizeWorldMap* map, int x, int y);
  * Cite: accessors.c continent_id; ai.c ai_continent_id.
  */
 int map_continent_id_at(const ColonizeWorldMap* map, int x, int y);
+/*
+ * Owner (Euro nation 0..3 or tribe id) of whatever is physically standing on
+ * (x,y) right now: a settlement (HAS_CITY) if one is there, else an
+ * occupying unit (HAS_UNIT), else -1. FUN_1000_88c2 / FUN_137f_0428
+ * `tile_tribe_or_presence` (original_sources_annotated/ai/accessors.c) —
+ * does NOT cover a colony's wider worked-tile claim, only literal
+ * occupancy. Cite: euro_unit_act.md T1.8 2026-08-22 (0015bc hard-reject).
+ */
+int map_tile_tribe_or_presence(const ColonizeWorldMap* map, int x, int y);
 uint8_t map_terrain_overlay(uint8_t terrain_byte);
 int map_terrain_base_sprite(uint8_t terrain_byte);
 int map_terrain_sprite_at(const ColonizeWorldMap* map, int x, int y);
