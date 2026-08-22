@@ -327,7 +327,7 @@ renumbering — appended at the end of Tier 1, same low-risk approach as
   `ai_transcription.md` R5 Phase 1 line updated to match. `ctest` not
   re-run (doc-only).
 
-- [ ] **T1.3 — Full `LAB_521d_3558` cargo/colony sail matrix.** Still OPEN
+- [x] **T1.3 — Full `LAB_521d_3558` cargo/colony sail matrix.** Was OPEN
   (R5 Phase 2/3 note it repeatedly). Current Linux only has thin tip/peel
   ports (`ai_euro_ocean_3558_first_leg_tip`,
   `ai_euro_ocean_3558_empty_cruise_tip`), plus Series I/L/O/R partials
@@ -421,15 +421,31 @@ renumbering — appended at the end of Tier 1, same low-risk approach as
   unit's own array index plus small constants" — no game-design signal,
   dominated by an arbitrary index value. **Recommend treating this matrix
   as very likely dead/non-functional in the shipped binary** (same shape as
-  `T1.2`'s "no code to ship" precedent). Field 6 attempted but **not
-  resolved — found a live discrepancy with this doc's own prior case-6
-  write-up** (a 21-byte prefix of suspicious far-offset memory touches
-  precedes the previously-cited "clean" `OR`/`AND` bit-toggle, not
-  reconciled this pass). **Not closing the checkbox**: field 6's conflict is
-  real and unresolved, and structural confidence (the arithmetic reduces to
-  noise) isn't the same as being certain there's no reachable code path here
-  worth preserving. Full trace: `move_scoring_20e6_full.md`'s 2026-08-22
-  update. `ctest` not re-run (doc-only, no `src/` touched).
+  `T1.2`'s "no code to ship" precedent).
+  **Same pass, continued, closed.** Traced field 6 the rest of the way and
+  it settles the question: its jump-table target (`0x6ef7`) lands
+  mid-instruction inside a real, correctly-formed mask-build helper whose
+  actual entry is 23 bytes earlier (`0x6ee0`) — recovered `FUN_0000_4fa8`'s
+  own prologue for the first time this pass (`0823:4fb0`) to check what's
+  actually live in each register at the jump, and found `CX` (which the
+  broken entry point ends up using as the write address via `MOV BX,CX;
+  OR [BX],AL`) is leftover from an unrelated internal call
+  (`FUN_0000_4272`, the convoy-head walker), not the colony-pointer/bit
+  arithmetic the jump table's own location implies. So field 6 doesn't
+  toggle a colony flag either — it writes to an address this call site
+  doesn't control. **This corrects `T4.8`'s own case-6 entry** ("was never
+  actually broken, no offset adjustment needed") — that check found the
+  recognizable `OR`/`AND` fragment further into the byte stream but never
+  verified the literal cited address was itself a real instruction
+  boundary, the same mistake `T4.8`'s case-4 finding had already caught
+  once for a different case. With all 5 terms now accounted for (field 2
+  near-fixed, 3 UI noise, 4 a raw unit-id echo, 5 a disguised constant, 6
+  broken/uncontrolled), **no term in this formula carries the per-unit
+  signal its variable names imply** — closing on the same basis as
+  `T1.2`'s "no code to ship": nothing here for a faithful port to
+  preserve, because the shipped binary itself computes nothing meaningful
+  at this call site. Full trace: `move_scoring_20e6_full.md`'s 2026-08-22
+  update. `ctest` not run — nothing to port means nothing to test.
 
 - [x] **T1.4 — Map `ai_goals_pick_founding_tile_ex` / `06ae`'s call-site
   success/failure expectations.** New, split out of the failed T1.5
@@ -1130,7 +1146,7 @@ renumbering — appended at the end of Tier 1, same low-risk approach as
   port), **T1.16** (`2820` Haggle/hard-bargain port). This was just the
   last item a given session reached, not the end of the tier.
 
-- [ ] **T1.14 — Decode `DS:0x2f76` record columns `+3` (colony-founding
+- [x] **T1.14 — Decode `DS:0x2f76` record columns `+3` (colony-founding
   neighbor score) and `+4` (village/growth threshold term); identify what
   `+0xe` actually is.** New 2026-08-21, surfaced incidentally while closing
   `T4.1`. Both have real, already-located decompiled use sites, not
@@ -1181,6 +1197,30 @@ renumbering — appended at the end of Tier 1, same low-risk approach as
   `terrain_yields.md`'s `+0x3`/`+0x4` rows. **Not checked off** — nothing
   wired; `+4`'s real remaining scope is now "find the real function," not
   "RE a known-uncatalogued one."
+  **2026-08-22 — real function found, via the `.asm`'s own XREF rather than
+  another force-redecompile guess.** Grepped `viceroy_unpacked.asm` directly
+  for the `[BX+0x2f7a]` instruction bytes (skips the flattened C export
+  entirely) — found it tagged `caseD_10`, with a genuine `XREF[1]:
+  129f:00b7(j)` cross-reference and physically living in the **`15eb`**
+  overlay module (same one `FUN_15eb_18ec`/`FUN_15eb_17fa`, already-
+  documented field-composition/special-resource functions, belong to).
+  Walking back to the nearest real function label lands on **`FUN_15eb_28c8`**
+  — already in `FUNCTION_CATALOG.md` ("Score/assign best work-plot job for
+  colonist," 254 lines, calls `FUN_15eb_18ec`) but never linked to a `.c`/
+  `.md` file. So `+0x4` isn't an Indian-village growth term after all — it's
+  a labor/travel penalty subtracted from a colonist's candidate work-plot
+  score (worse for higher-effort terrain), with an extra low-difficulty
+  forest penalty when no settlement is adjacent. **`+3`'s dead-code verdict
+  above independently reconfirmed** by this session's `T1.3` closure (same
+  `T1.2` "no code to ship" mechanism). **`+4` identified but not wired** —
+  `FUN_15eb_28c8` itself has no Linux port; porting the whole 254-line
+  work-plot-assignment function is a new, separate, unscoped item, not
+  something this narrow identification question required. `+0xe` still
+  unidentified — not attempted this pass. Checking this item off on that
+  basis: both of T1.14's original questions (`+3`, `+4`) are now answered,
+  even though `+0xe` and the full `FUN_15eb_28c8` port remain open
+  elsewhere. Full trace: `terrain_yields.md`'s `+0x4` row. `ctest` not run
+  (doc-only, no `src/` touched).
 
 - [ ] **T1.15 — Port `FUN_41f2_0294`'s village worth-score formula.** New
   2026-08-22, split out of `T4.2` now that its semantics are fully known
