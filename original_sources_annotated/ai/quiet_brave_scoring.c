@@ -417,6 +417,50 @@ int quiet_score_colony_pull(int score, int colony_count) {
    * genuinely static data); prefer content-based byte-pattern search
    * first, use segment arithmetic only to sanity-check a hit already
    * found that way.
+   *
+   * **2026-08-22 — `iVar14`/`iVar18` themselves resolved, from the raw
+   * `.asm`, not a guess.** The flattened C export renders every
+   * `FUN_281f_08bc()` call here with zero visible arguments (same
+   * misleading-thunk-rendering issue already flagged above for
+   * `FUN_291f_0a14`) — pulled the real args from
+   * `viceroy_unpacked.asm` at `LAB_521d_52ca` (`521d:52ca` onward)
+   * instead: three calls, each `PUSH <field>; PUSH [local_5c]` (i.e.
+   * `unit_id` at `[bp+6]`, literal field constant at `[bp+8]` — same
+   * 2-arg convention as `FUN_1000_8aac` itself, confirming `FUN_281f_08bc`
+   * passes straight through with no hidden 3rd `0x181f` arg to worry
+   * about). The three fields are **`2`, `2`, `0`** — `iVar14` = field 2
+   * (called twice: once for the `<1` clamp check, again for the real
+   * value if the clamp didn't trigger), `iVar18` = field 0.
+   * - **Field 0 = `T1.3`'s already-resolved disguised constant** (this
+   *   session's `T1.3` closure, `move_scoring_20e6_full.md`): for any
+   *   non-negative unit id it always returns exactly `1`, full stop. So
+   *   **`iVar18 = 1`**, unconditionally, no further RE needed.
+   * - **Field 2 = the already-known doubly-linked transport-chain node
+   *   exchange** (`move_scoring_20e6_full.md`'s 2026-08-15 fourth pass —
+   *   splices `unit_id` into unit-table slot 2's chain, returns the
+   *   resulting chain-link value). `T1.2` separately established DOS's
+   *   own chain fields (`unit+0x315c`/`0x315e`) are never actively
+   *   maintained for the units this project has checked — if that holds
+   *   for Braves too (not independently re-verified for the Indian side
+   *   specifically this pass, flagging rather than assuming), the raw
+   *   chain-link return is realistically always `<1` in real play, which
+   *   this block's own visible code already clamps to exactly `1` anyway
+   *   (`if (iVar14 < 1) iVar14 = 1;`, the code immediately following the
+   *   first call). So **`iVar14 = 1` with high but not absolute
+   *   confidence** — solid if Braves' chain fields are as inert as land
+   *   units', open only on that one cross-check.
+   * **Net for the formula**: with `iVar18=1` (certain) and `iVar14=1`
+   * (near-certain), `iStack_e8 = ((iVar18+1)/iVar14)*iVar20/divisor`
+   * collapses to `iStack_e8 = 2*iVar20/divisor` for the Brave-scoped case
+   * — and `divisor` was already resolved to `1` (Braves' `cost=1`) just
+   * above. **So the whole formula is, in practice, `iStack_e8 = 2*iVar20`**,
+   * where `iVar20` is the already-known, already-ported
+   * `combat_apply_1b0e_peels` strength value. This is now a concrete,
+   * portable formula, not an open field-mapping task — the remaining
+   * work is wiring it (still untestable, per the note above: no golden
+   * exercises `colony_count>0` for a Brave) and independently confirming
+   * Braves' own chain fields are inert the same way land units' are, not
+   * a new RE dig. Not wired this pass (doc-only, `ctest` not run).
    */
   return score;
 }
