@@ -3426,6 +3426,10 @@ int main(void) {
     if (!ai_diplo_at_war(&fr3, 0, 1)) {
       return fail("M3R1 Franklin elect setup: need WAR before tick");
     }
+    /* founding_fathers_tick reads the bells-since-elect side pool, not
+     * liberty_bells_total directly — seed it from this save first. */
+    founding_fathers_reset();
+    founding_fathers_sync_from_col1(&fr3);
     uint32_t turn_e = 1;
     char status_e[128];
     status_e[0] = '\0';

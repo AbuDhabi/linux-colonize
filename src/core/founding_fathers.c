@@ -27,6 +27,13 @@
 static uint16_t s_ff_bells_since_elect[COLONIZE_COL1_NATION_COUNT];
 static bool s_ff_pools_initialized;
 
+/*
+ * Sentinel written to nation.unknown21_pad (dead DOS byte, col1_save.h) when
+ * our own writer stashes the pool into liberty_bells_last_turn. Lets
+ * after_load tell that apart from a genuine/untouched DOS last_turn value.
+ */
+#define FF_POOL_STASH_MARKER ((uint8_t)0xc1)
+
 static unsigned ff_bells_threshold_at_elect_count(
   const ColonizeCol1Save* col1,
   int nation,
@@ -47,7 +54,8 @@ void founding_fathers_reset(void) {
 
 void founding_fathers_stash_pools_into_col1(
   ColonizeCol1Save* col1,
-  uint16_t restore_last_turn[COLONIZE_COL1_NATION_COUNT]
+  uint16_t restore_last_turn[COLONIZE_COL1_NATION_COUNT],
+  uint8_t restore_pad21[COLONIZE_COL1_NATION_COUNT]
 ) {
   if (!col1) {
     return;
@@ -56,24 +64,32 @@ void founding_fathers_stash_pools_into_col1(
     if (restore_last_turn) {
       restore_last_turn[n] = col1->nation[n].liberty_bells_last_turn;
     }
+    if (restore_pad21) {
+      restore_pad21[n] = col1->nation[n].unknown21_pad;
+    }
     if (!s_ff_pools_initialized) {
       continue;
     }
-    if (s_ff_bells_since_elect[n] != col1->nation[n].liberty_bells_last_turn) {
-      col1->nation[n].liberty_bells_last_turn = s_ff_bells_since_elect[n];
-    }
+    col1->nation[n].liberty_bells_last_turn = s_ff_bells_since_elect[n];
+    col1->nation[n].unknown21_pad = FF_POOL_STASH_MARKER;
   }
 }
 
 void founding_fathers_restore_col1_last_turn(
   ColonizeCol1Save* col1,
-  const uint16_t restore_last_turn[COLONIZE_COL1_NATION_COUNT]
+  const uint16_t restore_last_turn[COLONIZE_COL1_NATION_COUNT],
+  const uint8_t restore_pad21[COLONIZE_COL1_NATION_COUNT]
 ) {
-  if (!col1 || !restore_last_turn) {
+  if (!col1) {
     return;
   }
   for (int n = 0; n < (int)COLONIZE_COL1_NATION_COUNT; ++n) {
-    col1->nation[n].liberty_bells_last_turn = restore_last_turn[n];
+    if (restore_last_turn) {
+      col1->nation[n].liberty_bells_last_turn = restore_last_turn[n];
+    }
+    if (restore_pad21) {
+      col1->nation[n].unknown21_pad = restore_pad21[n];
+    }
   }
 }
 
@@ -119,6 +135,12 @@ void founding_fathers_sync_from_col1_after_load(const ColonizeCol1Save* col1) {
     const ColonizeCol1Nation* nat = &col1->nation[n];
     const unsigned count = (unsigned)nat->founding_father_count;
     if (count == 0u) {
+      continue;
+    }
+    if (nat->unknown21_pad != FF_POOL_STASH_MARKER) {
+      /* Not one of our own stashed saves (fresh DOS import, or a save this
+       * engine never wrote) — liberty_bells_last_turn is genuine EOT bell
+       * production here, not our pool. Keep the total-derived estimate. */
       continue;
     }
     const unsigned need = founding_fathers_bells_needed(col1, n);

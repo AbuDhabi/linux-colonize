@@ -4493,6 +4493,48 @@ int main(void) {
     ctx.col1 = NULL;
     ctx.col1_ok = false;
     fprintf(stderr, "year-end D auto-declare ok\n");
+
+    /*
+     * D rival slots: slot_1 stays valid and quiet (no war/rising/falling),
+     * so the loop must fall through to slot_2 — and if slot_2's nation was
+     * defeated meanwhile, ensure_rival_slots must refresh it rather than
+     * leaving the stale eliminated nation id in place forever.
+     */
+    year = 1700;
+    status[0] = '\0';
+    memset(&out, 0, sizeof(out));
+    ColonizeCol1Save ds;
+    col1_save_init(&ds);
+    ds.head.difficulty = 3; /* thresh = (8-3)*10 = 50 */
+    ds.player[0].control = 0;
+    ds.player[1].control = 1;
+    ds.player[2].control = 1;
+    ds.player[3].control = 2; /* already defeated */
+    ds.head.rival_nation_slot_1 = 2;
+    ds.head.rival_nation_slot_2 = 3; /* stale: nation 3 is gone */
+    ds.nation[2].rebel_sentiment = 30;
+    ds.nation[2].rebellion_pct_last_notified = 30; /* == SoL: no message */
+    ctx.col1 = &ds;
+    ctx.col1_ok = true;
+    turn_run_year_end_chrome(&ctx, &out);
+    if (ds.head.rival_nation_slot_2 == 3) {
+      fprintf(
+        stderr,
+        "year-end D want slot_2 refreshed off defeated nation 3, still 3\n"
+      );
+      return 1;
+    }
+    if (ds.head.rival_nation_slot_1 != 2) {
+      fprintf(
+        stderr,
+        "year-end D refresh should not disturb still-valid slot_1, got %d\n",
+        (int)ds.head.rival_nation_slot_1
+      );
+      return 1;
+    }
+    ctx.col1 = NULL;
+    ctx.col1_ok = false;
+    fprintf(stderr, "year-end D stale slot_2 refresh ok\n");
   }
 
   /*

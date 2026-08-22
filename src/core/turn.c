@@ -2128,7 +2128,8 @@ static void turn_year_end_ensure_rival_slots(ColonizeCol1Save* col1, int human) 
   if (!col1 || human < 0 || human >= 4) {
     return;
   }
-  if (turn_year_end_valid_rival(col1, human, (int)col1->head.rival_nation_slot_1)) {
+  if (turn_year_end_valid_rival(col1, human, (int)col1->head.rival_nation_slot_1) &&
+      turn_year_end_valid_rival(col1, human, (int)col1->head.rival_nation_slot_2)) {
     return;
   }
   const int crown = ai_king_crown_nation(human);

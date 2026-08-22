@@ -427,6 +427,36 @@ static void reports_blit_sprite_in_cell(
   }
 }
 
+/*
+ * Congress FF portraits (CC-xx.SS) rarely change once loaded and this blit
+ * runs from reports_render every frame the Congress report is open — cache
+ * per index so the sheet is parsed from disk once, not per frame.
+ */
+static const ColonizeSpriteSheet* reports_ff_portrait_sheet(const char* data_dir, int index) {
+  static bool s_tried[COLONIZE_COL1_FF_COUNT];
+  static ColonizeSpriteSheet s_sheet[COLONIZE_COL1_FF_COUNT];
+  if (index < 0 || index >= (int)COLONIZE_COL1_FF_COUNT) {
+    return NULL;
+  }
+  if (s_tried[index]) {
+    return s_sheet[index].sprite_count > 0 ? &s_sheet[index] : NULL;
+  }
+  s_tried[index] = true;
+  char name[32];
+  char path[512];
+  char err[128];
+  snprintf(name, sizeof(name), "CC-%02d.SS", index);
+  if (!dos_compat_normalize_asset_path(data_dir, name, path, sizeof(path))) {
+    return NULL;
+  }
+  if (!ss_load(path, &s_sheet[index], err, sizeof(err)) || s_sheet[index].sprite_count <= 0) {
+    ss_free(&s_sheet[index]);
+    memset(&s_sheet[index], 0, sizeof(s_sheet[index]));
+    return NULL;
+  }
+  return &s_sheet[index];
+}
+
 static void reports_congress_blit_portraits(
   const char* data_dir,
   const ColonizeCol1Save* col1,
@@ -456,21 +486,11 @@ static void reports_congress_blit_portraits(
       }
       continue;
     }
-    char name[32];
-    char path[512];
-    char err[128];
-    snprintf(name, sizeof(name), "CC-%02d.SS", i);
-    if (!dos_compat_normalize_asset_path(data_dir, name, path, sizeof(path))) {
+    const ColonizeSpriteSheet* sheet = reports_ff_portrait_sheet(data_dir, i);
+    if (!sheet) {
       continue;
     }
-    ColonizeSpriteSheet sheet;
-    memset(&sheet, 0, sizeof(sheet));
-    if (!ss_load(path, &sheet, err, sizeof(err)) || sheet.sprite_count <= 0) {
-      ss_free(&sheet);
-      continue;
-    }
-    reports_blit_sprite_in_cell(&sheet, 0, fb, px, py, cell_w, cell_h);
-    ss_free(&sheet);
+    reports_blit_sprite_in_cell(sheet, 0, fb, px, py, cell_w, cell_h);
   }
   /* Debating candidate: outline slot when next_founding_father is set. */
   const int next = (int)col1->nation[human].next_founding_father;

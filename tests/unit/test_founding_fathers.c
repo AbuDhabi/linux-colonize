@@ -2165,23 +2165,52 @@ int main(void) {
       return fail("pool setup before stash");
     }
     uint16_t saved_last[COLONIZE_COL1_NATION_COUNT];
-    founding_fathers_stash_pools_into_col1(&rt, saved_last);
+    uint8_t saved_pad21[COLONIZE_COL1_NATION_COUNT];
+    founding_fathers_stash_pools_into_col1(&rt, saved_last, saved_pad21);
     if (rt.nation[0].liberty_bells_last_turn != 13) {
-      founding_fathers_restore_col1_last_turn(&rt, saved_last);
+      founding_fathers_restore_col1_last_turn(&rt, saved_last, saved_pad21);
       return fail("stash must write pool into liberty_bells_last_turn");
+    }
+    if (rt.nation[0].unknown21_pad != 0xc1) {
+      founding_fathers_restore_col1_last_turn(&rt, saved_last, saved_pad21);
+      return fail("stash must mark unknown21_pad as ours");
     }
     founding_fathers_reset();
     founding_fathers_sync_from_col1_after_load(&rt);
     if (founding_fathers_bells_since_last_elect(0) != 13u) {
-      founding_fathers_restore_col1_last_turn(&rt, saved_last);
+      founding_fathers_restore_col1_last_turn(&rt, saved_last, saved_pad21);
       return fail("after_load must restore bells-since-last-elect pool");
     }
-    founding_fathers_restore_col1_last_turn(&rt, saved_last);
+    founding_fathers_restore_col1_last_turn(&rt, saved_last, saved_pad21);
     if (rt.nation[0].liberty_bells_last_turn != 99) {
       return fail("restore must put back live last_turn accrual");
     }
+    if (rt.nation[0].unknown21_pad != 0) {
+      return fail("restore must put back original unknown21_pad");
+    }
     if (rt.nation[0].liberty_bells_total != 55) {
       return fail("stash/load must preserve cumulative liberty_bells_total");
+    }
+  }
+
+  {
+    /* A pristine save this engine never stashed (fresh DOS import, or a mid-
+     * game DOS save with FFs already elected) must NOT have its genuine
+     * liberty_bells_last_turn (real EOT bell production) mistaken for our
+     * stashed pool, even when it happens to fit under the next threshold. */
+    ColonizeCol1Save dos;
+    col1_save_init(&dos);
+    dos.player[0].control = 0;
+    dos.head.difficulty = 0;
+    dos.nation[0].founding_father_count = 1;
+    dos.nation[0].liberty_bells_total = 55;
+    dos.nation[0].liberty_bells_last_turn = 9; /* genuine last-turn production */
+    dos.nation[0].unknown21_pad = 0; /* never touched by our writer */
+    founding_fathers_reset();
+    founding_fathers_sync_from_col1_after_load(&dos);
+    const unsigned pool = founding_fathers_bells_since_last_elect(0);
+    if (pool == 9u) {
+      return fail("after_load must not trust last_turn without our stash marker");
     }
   }
 

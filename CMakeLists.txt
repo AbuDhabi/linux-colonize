@@ -166,11 +166,8 @@ enable_testing()
 
 add_executable(smoke_savegame
   tests/smoke/test_savegame.c
-  src/core/savegame.c
-  src/core/col1_save.c
-  src/platform/diagnostics.c
-  src/core/strutil.c
 )
+target_link_libraries(smoke_savegame PRIVATE colonize_core)
 
 target_include_directories(smoke_savegame PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/src
@@ -180,11 +177,8 @@ add_test(NAME smoke_savegame COMMAND smoke_savegame)
 
 add_executable(smoke_savegame_incompatible
   tests/smoke/test_savegame_incompatible.c
-  src/core/savegame.c
-  src/core/col1_save.c
-  src/platform/diagnostics.c
-  src/core/strutil.c
 )
+target_link_libraries(smoke_savegame_incompatible PRIVATE colonize_core)
 
 target_include_directories(smoke_savegame_incompatible PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/src
