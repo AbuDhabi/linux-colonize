@@ -1352,13 +1352,27 @@ but don't resume speculatively either.
   unchanged (still flat `15`) pending that follow-up — this pass resolved
   *semantics*, not the port itself.
 
-- [ ] **T4.3 — TURN2→3 Brave quiet-pulse movement/RNG divergence.** Root
-  cause not found (missing Brave `type=19 nation=6 xy=(39,20)` + 1-point
-  `relation_by_indian` drift, reproduces identically regardless of the
-  `152e` capital-gate fix). Deep, open-ended — try a fresh static pass with
-  current overlay tooling first (nothing in the last investigation
-  confirms a live dump is strictly required, just that static analysis
-  hadn't found it yet); fall back to a hang-dump only if that's exhausted.
+- [x] **T4.3 — TURN2→3 Brave quiet-pulse movement/RNG divergence.**
+  **2026-08-22 — root cause pinpointed, no live DOSBox-X session needed.**
+  Wrote `tools/probe_missing.c` to simulate `TURN2.SAV`→`TURN3.SAV` in
+  isolation and diff every native (nation 6) unit individually — every
+  unit matches golden exactly except one: the Brave at `(40,20)` should
+  move **W** to `(39,20)` in real DOS, but Linux's quiet move-scoring
+  picks **NW** to `(39,19)` instead. The "missing Brave `type=19 nation=6
+  xy=(39,20)`" symptom was never a missing unit — it's this same unit,
+  one tile off, so the test's type/nation/xy match found nothing at the
+  expected coordinate. Almost certainly also explains the
+  `relation_by_indian` drift (wrong tile → different Euro/Indian contact
+  or visibility check nearby; not independently re-verified this pass).
+  **Same shape as the ~105 "quiet formula ≠ golden" holdouts
+  `seed100_brave.md` already catalogs and fixes via one-line
+  `k_mid_peels` entries** (e.g. the already-applied `(39,20)` peel a
+  few tiles over, `ai.c:3223` — a different tile, coincidentally close).
+  A peel entry for `(40,20)`/nation 6 would close this the same way.
+  **Deliberately not added** — `ai_transcription.md`'s parking note
+  explicitly says not to chase individual TURN-step diffs like this one
+  until the AI planner itself reaches T3 1:1; adding a peel now would be
+  exactly that. Leave for whoever resumes golden alignment post-parking.
 
 - [x] **T4.4 — `2820` remaining unresolved DS fields.** **2026-08-20:
   T1.6 static pass confirmed exhausted — promoting to active Tier 4, not
