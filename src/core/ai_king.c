@@ -2980,10 +2980,10 @@ static void ai_king_foreign_intervene(ColonizeTurnContext* ctx) {
     cap_drg = 2;
   }
   static const int pool_k[3] = {0, 1, 3};
-  int caps[4] = {0, cap_reg, 0, cap_drg};
-  caps[0] = 6 - cap_reg - cap_drg;
-  if (caps[0] < 0) {
-    caps[0] = 0;
+  int caps[4] = {cap_reg, cap_drg, 0, 0};
+  caps[3] = 6 - cap_reg - cap_drg;
+  if (caps[3] < 0) {
+    caps[3] = 0;
   }
   for (int pi = 0; pi < 3 && landings < max_landings; ++pi) {
     const int k = pool_k[pi];
@@ -4594,7 +4594,8 @@ void ai_king_nation_turn(ColonizeTurnContext* ctx) {
         ctx->status_size) {
       const int keep_tax_audience =
           strstr(ctx->status, "refuse") || strstr(ctx->status, "Audience") ||
-          strstr(ctx->status, "raises taxes") || strstr(ctx->status, "Tax stays");
+          strstr(ctx->status, "raises taxes") || strstr(ctx->status, "Tax stays") ||
+          strstr(ctx->status, "Congress notes"); /* decile SoL notify above; don't clobber */
       if (!keep_tax_audience) {
         const uint8_t tax =
             (ctx->col1_ok && ctx->col1 && ctx->human_nation >= 0 && ctx->human_nation < 4)

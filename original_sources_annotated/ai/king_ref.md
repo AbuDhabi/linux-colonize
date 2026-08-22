@@ -383,7 +383,8 @@ SoL≥50 only (`FUN_43f7_2564`; port-only bells gate removed 2026-08-22).
 ### Declare SoL gate (2564 — tighten/document only)
 
 `ai_king_try_declare` fires only when `ai_king_sol_percent` is already
-**≥ `AI_KING_DECLARE_SOL_MIN` (50)** and liberty bells ≥ 100. Threshold is the
+**≥ `AI_KING_DECLARE_SOL_MIN` (50)** — SoL≥50 only; the port-only bells≥100
+gate was removed 2026-08-22 (see above). Threshold is the
 existing 2564/fandom figure — do **not** invent a different SoL %. With
 `ai_popups`, Confirm (`AI_KING_CHOICE_CONFIRM` / `@DECLARE` Yes) applies declare;
 without, auto-declare.

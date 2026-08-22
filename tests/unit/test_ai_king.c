@@ -649,6 +649,30 @@ int main(void) {
   }
 
   /*
+   * 2424 tail decile SoL notify (DS:0x53d8 dedup) must survive the restless
+   * chrome below it: both fire in the SoL 40..49 band, and the restless
+   * block used to unconditionally overwrite ctx->status.
+   */
+  {
+    year = 1590;
+    autumn = 1;
+    col1.colony[0].rebel_dividend = 45;
+    col1.colony[0].rebel_divisor = 100;
+    col1.nation[0].liberty_bells_total = 50;
+    col1.nation[0].founding_father_count = 4;
+    col1.head.sol_pct_last_notified = 3; /* previous decile 30-39% */
+    col1.head.unknown46[0] = 0;
+    col1.head.unknown46[5] = 0;
+    status[0] = '\0';
+    ai_king_nation_turn(&ctx);
+    if (!strstr(status, "Congress notes")) {
+      fprintf(stderr, "unit_ai_king: decile+restless status: '%s'\n", status);
+      return fail("decile SoL notify must not be clobbered by restless chrome");
+    }
+    col1.nation[0].founding_father_count = 0;
+  }
+
+  /*
    * WoI unknown46[0] SoL gate (FUN_43f7_2564 / fandom total SoL ≥ 50%):
    * SoL 49 must NOT declare regardless of liberty bells.
    */

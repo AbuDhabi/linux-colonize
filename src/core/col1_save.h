@@ -488,7 +488,15 @@ typedef struct ColonizeCol1Nation {
      (+7..+0xa) via a 4-byte clear, then separately zeroes +0xc.. onward —
      this one byte between them is the sole gap, left un-inited. On a fresh
      DOS game it is stack/heap garbage; no traced code ever reads or writes
-     it. See docs/mysteries_catalog.md. */
+     it. See docs/mysteries_catalog.md.
+
+     Linux repurpose (2026-08-22): doubles as the FF-pool-stash marker
+     (`FF_POOL_STASH_MARKER` in founding_fathers.c). Set only when this
+     engine's own writer stashes `liberty_bells_since_elect` into
+     liberty_bells_last_turn (see founding_fathers_stash_pools_into_col1).
+     A save whose byte here isn't the marker is either untouched-by-us DOS
+     garbage or a fresh game, and liberty_bells_last_turn is trusted as
+     genuine EOT production instead — see founding_fathers_sync_from_col1_after_load. */
   uint16_t liberty_bells_total;
   uint16_t liberty_bells_last_turn;
   int16_t king_audience_tax_delta; /* +0x10; was unknown22. Resolved 2026-08-19: the

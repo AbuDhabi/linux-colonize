@@ -8,6 +8,7 @@
 #include "core/assets.h"
 #include "core/colony.h"
 #include "core/europe.h"
+#include "core/founding_fathers.h"
 #include "core/map.h"
 #include "core/units.h"
 #include "platform/diagnostics.h"
@@ -675,6 +676,11 @@ int main(void) {
   };
   for (size_t oi = 0; oi < sizeof(k_fixtures) / sizeof(k_fixtures[0]); ++oi) {
     const Col1Fixture* fix = &k_fixtures[oi];
+    /* Each fixture is an independent file: don't let founding_fathers'
+     * global bells-since-elect pool (set by the previous fixture's
+     * col1_bridge_apply below) leak into this fixture's byte-identical
+     * codec check or bridge apply. */
+    founding_fathers_reset();
     if (!fix->byte_identical) {
       report_codec_roundtrip_diff(fix->path);
     }

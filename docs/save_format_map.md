@@ -189,10 +189,10 @@ Export often **zeros** unnamed colony bytes on rebuild ([savegame.md](savegame.m
 | Field | Size | Status | Notes |
 |-------|------|--------|-------|
 | `tax_rate` / `recruit*` / FF / bells / gold / crosses | — | `mapped` | |
-| `liberty_bells_total` / `liberty_bells_last_turn` | 2+2 | `mapped` | `total` = cumulative bells. `last_turn` = live EOT accrual; conditional stash on Linux save write when FF side table active. Early `COLONY00/01` byte-identical; lategame/TURN codec drift documented in [savegame.md](savegame.md) Phase 5 |
+| `liberty_bells_total` / `liberty_bells_last_turn` | 2+2 | `mapped` | `total` = cumulative bells. `last_turn` = live EOT accrual; conditional stash on Linux save write when FF side table active, marked via `unknown21_pad` (see below) so a later load can tell a stashed pool apart from a genuine untouched value. Early `COLONY00/01` byte-identical; lategame/TURN codec drift documented in [savegame.md](savegame.md) Phase 5 |
 | `nation_flags` | 1 | `partial` | Was `unknown19`; bits `0x04`/`0x08`/`0x40` live; bit `0x04` named 2026-08-19 = nation achieved independence |
 | `tax_hike_count` | 1 | `mapped` | Was `unused07`; `FUN_38fd_44a4` |
-| `unknown21_pad` | 1 | `opaque` | Was `unknown21`; resolved 2026-08-19 confirmed dead — untouched by all 3 DOS exports, the one gap new-game zero-init skips |
+| `unknown21_pad` | 1 | `opaque` | Was `unknown21`; resolved 2026-08-19 confirmed dead — untouched by all 3 DOS exports, the one gap new-game zero-init skips. Linux repurpose 2026-08-22: `FF_POOL_STASH_MARKER` (0xc1) when this engine's writer stashed the FF pool into `liberty_bells_last_turn` (see row above) — a genuine/untouched DOS save won't carry it |
 | `king_audience_tax_delta` | 2 | `mapped` | Was `unknown22`; `int16`; resolved 2026-08-19: signed King-audience tax delta, `FUN_38fd_5be8` computes/writes, `FUN_38fd_3dc8` applies same-call to `tax_rate`; no DOS reader of the saved copy |
 | `ff_count_end_prob` | 2 | `community` | smcol; cleared on independence; no FF-prob reader |
 | `rebel_sentiment` + `rebellion_pct_last_notified` + `unknown23_pad[3]` | 5 | `mapped` | nation+0x19; `rebellion_pct_last_notified` (was `unknown23_pad[0]`) resolved 2026-08-19: independence-news dedup latch |

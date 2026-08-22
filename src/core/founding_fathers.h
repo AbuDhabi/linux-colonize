@@ -104,11 +104,20 @@ void founding_fathers_reset(void);
  * Init side pools from Col1 on load (`founding_fathers_sync_from_col1`); reset on new game.
  * Before Col1 write, stash live pools into liberty_bells_last_turn when the
  * side table is active (sync/accrual this session). Codec-only round-trips
- * skip stash so DOS fixture bytes stay identical.
+ * skip stash so DOS fixture bytes stay identical. Also marks
+ * nation.unknown21_pad (see col1_save.h) so a later load can tell the stash
+ * apart from a genuine DOS liberty_bells_last_turn value.
  */
 void founding_fathers_sync_from_col1(const ColonizeCol1Save* col1);
 
-/* After Col1 read: apply stashed side pools from liberty_bells_last_turn. */
+/*
+ * After Col1 read: apply the stashed pool from liberty_bells_last_turn, but
+ * only for nations whose unknown21_pad carries FF_POOL_STASH_MARKER — i.e.
+ * this file was previously written by our own stash. An original/untouched
+ * DOS save (or one this engine never wrote) keeps the total-derived estimate
+ * from founding_fathers_sync_from_col1 instead, since its
+ * liberty_bells_last_turn is genuine EOT production, not our pool.
+ */
 void founding_fathers_sync_from_col1_after_load(const ColonizeCol1Save* col1);
 
 /* Unit tests: liberty_bells_total doubles as pool input (not cumulative). */
@@ -116,12 +125,14 @@ void founding_fathers_force_pool_from_total(const ColonizeCol1Save* col1);
 
 void founding_fathers_stash_pools_into_col1(
   ColonizeCol1Save* col1,
-  uint16_t restore_last_turn[COLONIZE_COL1_NATION_COUNT]
+  uint16_t restore_last_turn[COLONIZE_COL1_NATION_COUNT],
+  uint8_t restore_pad21[COLONIZE_COL1_NATION_COUNT]
 );
 
 void founding_fathers_restore_col1_last_turn(
   ColonizeCol1Save* col1,
-  const uint16_t restore_last_turn[COLONIZE_COL1_NATION_COUNT]
+  const uint16_t restore_last_turn[COLONIZE_COL1_NATION_COUNT],
+  const uint8_t restore_pad21[COLONIZE_COL1_NATION_COUNT]
 );
 
 /* True if nation owns FF index (head owner or nation bitmask). */
