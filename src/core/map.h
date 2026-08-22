@@ -245,6 +245,14 @@ int map_dos_terr_found_score_byte(int terr_class);
  */
 int map_dos_terr_pioneer_threshold_byte(int terr_class);
 /*
+ * DOS DS:0x2f7a colonist work-plot labor/travel penalty byte (same
+ * stride-16 record, offset +4). Consumed by FUN_15eb_28c8 (colonist
+ * work-plot job scoring, RE complete but not ported — see
+ * docs/ai_port_plan.md T1.17 and original_sources_annotated/turn/
+ * colonist_work_plot_28c8.md). Cite: terrain_yields.md `+0x4` row.
+ */
+int map_dos_terr_labor_penalty_byte(int terr_class);
+/*
  * DOS DS:0x2f80 Pioneer clear/plow completion lumber-reward scale byte
  * (offset +8). Real reward = byte*20<<hardy_pioneer if colony has a
  * Lumber Mill, else flat 20<<hardy_pioneer (mill check is a floor, not

@@ -3568,6 +3568,136 @@ static int ai_euro_try_miner_field_assign(
   return 1;
 }
 
+/* Headcount of active colonists currently doing `field_job` in `col` —
+ * substitute for DOS's `colony+0x9a+job*2` per-job counter array (that
+ * table isn't itself modeled in ColonizeColony; this walks the colonist
+ * list instead, same result). Used by ai_euro_28c8_colonist_job_score_structural. */
+static int ai_euro_28c8_job_headcount(const ColonizeColony* col, int field_job) {
+  int n = 0;
+  for (int i = 0; i < col->colonist_count; ++i) {
+    if (col->colonists[i].active && col->colonists[i].field_job == field_job) {
+      ++n;
+    }
+  }
+  return n;
+}
+
+/*
+ * FUN_15eb_28c8 — colonist work-plot job scoring, structural reference port
+ * (2026-08-22, docs/ai_port_plan.md T1.17). RE is complete — see
+ * original_sources_annotated/turn/colonist_work_plot_28c8.md — but this is
+ * deliberately NOT wired into any live AI path: no golden fixture exercises
+ * colonist auto-job-assignment to verify a real port against (same
+ * "document, don't guess-ship" precedent as T1.9/T1.15). Kept here,
+ * address-taken only, as the documented next step if a fixture ever lands.
+ *
+ * Covers only the tier-2/8-tile case: colony.h's own
+ * COLONIZE_COLONY_FIELD_TILES==8 already matches DOS's default (Town-Hall-
+ * level-1) tile count byte-for-byte (see the doc's Fidelity section) — no
+ * struct change needed for the common case. Town-Hall-level-2/3 outer-ring
+ * tiles (12/20, DS:0x329-gated) have no storage in ColonizeColony yet and
+ * stay deliberately out of scope. Only scores field jobs 0..8
+ * (COLONIZE_FIELD_JOB_COUNT) — building-job assignment (DOS job >=0xd) and
+ * the human single-job-probe / early-shortcut gate (`param_2`, the
+ * ambiguous `bVar2` population-near-cap short-circuit) are not modeled;
+ * this is the AI full-search branch's core loop only.
+ *
+ * Real, resolved terms scored: field yield (colony_yield_for_tile — the
+ * same worker-context-free substitute this file's other job-assign helpers
+ * already use, per the doc's own "local_24 vs local_34" note), the
+ * labor/travel terrain penalty (map_dos_terr_labor_penalty_byte, this
+ * session's own T1.17 addition to map.c), the population-cap-vs-headroom
+ * clamp (warehouse_level doubles as DOS's population cap per
+ * FUN_15eb_0a50 — already named/cited in colony.h), and the current-job
+ * sticky-preference doubling.
+ *
+ * Deliberately left at 0 / unimplemented — real but not independently
+ * pinned down, would be guessing to fill in (see the doc's "Remaining
+ * genuinely open terms"): the dx/dy "distance-ish" term, the
+ * continent×nation military-development danger term (a real accessor
+ * exists, ai_euro_continent_stance_at, but the doc's exact combination
+ * with this term wasn't nailed down), the per-job RNG/wealth-rank boost
+ * for established colonies, the per-(nation,job) throttle table (a
+ * *different* table from 2820's own DS:0x84BC cargo throttle — not
+ * captured for this call site), the "senior profession tier"/"unhappy
+ * colony" AI-search-gate short-circuit (colony+0x94, no Linux field named
+ * yet), and the first-work hidden-resource discovery roll
+ * (FUN_281f_0d78/_0d6c — parked, self-contained, doc's own note).
+ */
+typedef struct AiEuro28c8JobCandidate {
+  int job;   /* COLONIZE_JOB_*, or -1 if nothing scored */
+  int tile;  /* 0..COLONIZE_COLONY_FIELD_TILES-1 */
+  int score;
+} AiEuro28c8JobCandidate;
+
+static int ai_euro_28c8_colonist_job_score_structural(
+  const ColonizeTurnContext* ctx,
+  int colony_id,
+  int colonist_slot,
+  AiEuro28c8JobCandidate* out_best
+) {
+  if (!ctx || !ctx->colonies || !ctx->map || !out_best) {
+    return 0;
+  }
+  const ColonizeColony* col = colonies_get(ctx->colonies, colony_id);
+  if (!col || !col->active || colonist_slot < 0 || colonist_slot >= col->colonist_count) {
+    return 0;
+  }
+  const ColonizeColonist* self = &col->colonists[colonist_slot];
+  if (!self->active) {
+    return 0;
+  }
+  const int current_job = self->field_job; /* -1 if not currently field-working */
+  const int pop_cap = col->warehouse_level == 0 ? 100 : ((int)col->warehouse_level + 1) * 100;
+  const int is_ai = col->nation_id != ctx->human_nation;
+
+  out_best->job = -1;
+  out_best->tile = -1;
+  out_best->score = -1000000;
+
+  for (int ti = 0; ti < COLONIZE_COLONY_FIELD_TILES; ++ti) {
+    if (col->tiles[ti] >= 0 && col->tiles[ti] != colonist_slot) {
+      continue; /* worked by a different colonist already */
+    }
+    int dx = 0;
+    int dy = 0;
+    if (!colonies_field_tile_delta(ti, &dx, &dy)) {
+      continue;
+    }
+    const int tx = col->x + dx;
+    const int ty = col->y + dy;
+    const int terr = map_dos_terr_class_at(ctx->map, tx, ty);
+    const int penalty = map_dos_terr_labor_penalty_byte(terr);
+    for (int job = 0; job < COLONIZE_FIELD_JOB_COUNT; ++job) {
+      int yld = colony_yield_for_tile(ctx->map, tx, ty, job);
+      if (yld <= 0) {
+        continue;
+      }
+      if (is_ai) {
+        /* AI-only headroom clamp: colony[0x9a+job*2], floor 1 (doc's own
+         * reading of the raw asm). */
+        int headroom = pop_cap - ai_euro_28c8_job_headcount(col, job);
+        if (headroom < 1) {
+          headroom = 1;
+        }
+        if (yld > headroom) {
+          yld = headroom;
+        }
+      }
+      int score = yld * 8 - penalty;
+      if (job == current_job) {
+        score *= 2; /* sticky preference for the colonist's current job */
+      }
+      if (score > out_best->score) {
+        out_best->score = score;
+        out_best->job = job;
+        out_best->tile = ti;
+      }
+    }
+  }
+  return out_best->job >= 0 ? 1 : 0;
+}
+
 /*
  * Free surround tile with positive Farmer food yield. Prefer higher yield
  * (plow/river already fold into colony_yield_for_tile). Cite:
@@ -9292,6 +9422,12 @@ static void ai_euro_colony_goals(ColonizeTurnContext* ctx, int nation_id) {
   if (!ctx || !ctx->map || !ctx->units) {
     return;
   }
+  /* FUN_15eb_28c8's structural port (T1.17) is reference-only, not called
+   * from the live colonist-job path below (see its own header for why —
+   * no golden fixture to verify against yet). Address-taken here just to
+   * keep the compiler from flagging it dead code, same convention as
+   * ai_euro_5d04_nation_planning_structural. */
+  (void)ai_euro_28c8_colonist_job_score_structural;
   AiEuroInventory* inv = ai_goals_inventory(nation_id);
   ai_goals_clear_work_queue();
 

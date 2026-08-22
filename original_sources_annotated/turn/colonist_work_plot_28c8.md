@@ -250,14 +250,31 @@ general RE" placeholder:
   function's own 0-8 numbering (matches `terrain_yields.md`'s
   Food/Sugar/Tobacco/Cotton/Furs/Lumber/Ore/Silver/Fish order exactly).
 
+## C port status
+
+**2026-08-22, resumed session — a reference-only structural port now
+exists.** `ai_euro_28c8_colonist_job_score_structural` (`ai_euro.c`, next
+to `ai_euro_colony_free_farmer_field`/`ai_euro_try_farmer_field_assign`)
+scores all 8 field jobs across the tier-2 8-tile ring using the terms this
+doc lists as resolved: field yield (`colony_yield_for_tile`), the `+0x4`
+labor/travel penalty (new `map_dos_terr_labor_penalty_byte` accessor added
+to `map.c`/`map.h` this pass — the byte table above was already decoded,
+just not yet in code), the population-cap headroom clamp
+(`warehouse_level`), and current-job sticky doubling. It deliberately
+leaves every term in "Remaining genuinely open terms" above unimplemented
+rather than guessed. **Not wired** — address-taken only in
+`ai_euro_colony_goals`, matching `ai_euro_5d04_nation_planning_structural`'s
+own reference-only convention; still no golden fixture to verify the
+weighted formula against, so this stays undeployed. Doesn't cover
+building-job assignment (DOS job `>=0xd`) or the human single-job-probe/
+early-shortcut gate.
+
 ## Not attempted this pass
 
-- The actual C port (needs a golden fixture to verify the 9-job weighted
-  formula against — none currently exercises colonist auto-assignment —
-  and the handful of terms above are real enough to want resolving or
-  explicitly stubbing first, not guessed at).
 - The discovery-roll's exact odds/payout formula (`FUN_281f_0d78`/
   `_0d6c`/`_0596`'s own internals) — parked as a separate slice per above.
 - Cross-checking whether `ai_euro.c`'s existing hand-tuned colonist-job
   heuristic should ever be replaced by a real port of this — a Tier 3
   "flip the switch" decision, not attempted or recommended here.
+- Building a golden fixture for colonist auto-assignment, which would let
+  the structural port above actually be wired and verified.
