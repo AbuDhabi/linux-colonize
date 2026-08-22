@@ -3615,6 +3615,92 @@ int main(void) {
     map_free(&lmap);
   }
 
+  {
+    /* lcr_case5_bonus_used: first trespass roll → burial (FUN_65dd_0004:103608). */
+    ColonizeCol1Save c5col1;
+    memset(&c5col1, 0, sizeof(c5col1));
+    for (int i = 0; i < COLONIZE_COL1_FF_COUNT; ++i) {
+      c5col1.head.founding_father[i] = -1;
+    }
+    const int scout_ti5 = units_find_type(&pool, "Scouts");
+    if (scout_ti5 < 0) {
+      fprintf(stderr, "case5 latch scout type missing\n");
+      return 1;
+    }
+    uint32_t trespass_seed = 0;
+    for (uint32_t s = 1; s < 50000u && trespass_seed == 0; ++s) {
+      ColonizeDosRng probe;
+      dos_rng_seed(&probe, s);
+      if (dos_rng_range(&probe, 1, 100) == 75) {
+        trespass_seed = s;
+      }
+    }
+    if (trespass_seed == 0) {
+      fprintf(stderr, "case5 latch could not find trespass RNG seed\n");
+      return 1;
+    }
+    int rx1 = -1;
+    int ry1 = -1;
+    int rx2 = -1;
+    int ry2 = -1;
+    for (int y = 0; y < (int)map.height; ++y) {
+      for (int x = 0; x < (int)map.width; ++x) {
+        if (!map_tile_has_rumour(&map, x, y)) {
+          continue;
+        }
+        if (rx1 < 0) {
+          rx1 = x;
+          ry1 = y;
+        } else if (x != rx1 || y != ry1) {
+          rx2 = x;
+          ry2 = y;
+          break;
+        }
+      }
+      if (rx2 >= 0) {
+        break;
+      }
+    }
+    if (rx1 < 0 || rx2 < 0) {
+      fprintf(stderr, "case5 latch need two rumour tiles on AMER2\n");
+      return 1;
+    }
+    ColonizeDosRng rng1;
+    dos_rng_seed(&rng1, trespass_seed);
+    const int sc1 = units_spawn_allow_stack(&pool, scout_ti5, rx1, ry1);
+    ColonizeUnit* u1 = units_get(&pool, sc1);
+    if (!u1) {
+      fprintf(stderr, "case5 latch scout spawn failed\n");
+      return 1;
+    }
+    u1->nation_id = 0;
+    if (!units_resolve_lcr_rumour(&pool, sc1, &map, &c5col1, &rng1, NULL, 0)) {
+      fprintf(stderr, "case5 latch first resolve failed\n");
+      return 1;
+    }
+    if (!c5col1.player[0].lcr_case5_bonus_used) {
+      fprintf(stderr, "case5 latch must set lcr_case5_bonus_used\n");
+      return 1;
+    }
+    map.layer2[ry2 * map.width + rx2] &= (uint8_t)~MAP_LAYER2_RUMOUR_CLEARED;
+    ColonizeDosRng rng2;
+    dos_rng_seed(&rng2, trespass_seed);
+    const int sc2 = units_spawn_allow_stack(&pool, scout_ti5, rx2, ry2);
+    ColonizeUnit* u2 = units_get(&pool, sc2);
+    if (!u2) {
+      fprintf(stderr, "case5 latch scout2 spawn failed\n");
+      return 1;
+    }
+    u2->nation_id = 0;
+    if (!units_resolve_lcr_rumour(&pool, sc2, &map, &c5col1, &rng2, NULL, 0)) {
+      fprintf(stderr, "case5 latch second resolve failed\n");
+      return 1;
+    }
+    units_despawn(&pool, sc1);
+    units_despawn(&pool, sc2);
+    fprintf(stderr, "unit_units: lcr_case5_bonus_used latch ok\n");
+  }
+
   /*
    * LCR outcome dispatch: real seeded RNG (not the rng==NULL fallback above)
    * over every rumour tile on the map, one fresh Scout per tile. Confirms

@@ -2420,8 +2420,10 @@ bool units_resolve_lcr_rumour(
    * it restricts the draw to the non-hostile subset instead of a bare
    * reveal-only shortcut. Deep DOS RNG weights / native-attack combat
    * resolution stay PARKed — see per-outcome comments below.
-   * lcr_case5_bonus_used (player+0x30 bit6): DOS upgrades first case-5 roll to
-   * case-4; full case mapping PARKED (FUN_65dd_0004 table RE incomplete).
+   * lcr_case5_bonus_used (player+0x30 bit6): FUN_65dd_0004 one-shot — first
+   * case-5 roll becomes case-4 (burial mounds instead of trespass anger).
+   * Cite: viceroy_unpacked.c:103608-103612 (sets bit 0x40, local_8=4).
+   * Full DOS case/weight table otherwise PARKED.
    */
   ColonizeUnit* u = units_get(pool, unit_id);
   if (!u || !u->active || !map || !units_is_on_map(u)) {
@@ -2482,6 +2484,12 @@ bool units_resolve_lcr_rumour(
     } else {
       outcome = COLONIZE_LCR_CIBOLA;
     }
+  }
+
+  if (outcome == COLONIZE_LCR_TRESPASS_ANGER && col1 && nation >= 0 && nation < 4 &&
+      !col1->player[nation].lcr_case5_bonus_used) {
+    col1->player[nation].lcr_case5_bonus_used = 1;
+    outcome = COLONIZE_LCR_BURIAL_MOUNDS;
   }
 
   PopupMsgTokens tok;

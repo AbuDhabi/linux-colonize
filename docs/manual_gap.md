@@ -144,10 +144,10 @@ Topic hub (graphics, units, settlements, alarm, contact): [indians.md](indians.m
 
 | Manual feature | Status | Notes |
 |----------------|--------|-------|
-| FF election from liberty bells | Partial | Side-table bell pool (DOS +0xc); threshold elect + manual-aligned effects; Minuit+Franklin+Brebeuf+Las Casas+Cortes coastal cash+de Witt+Sepulveda convert-join **Done**; human debate CHOICE **Done** structural; KINGGALLEON2 PARK; F3 portrait grid **Done** structural (CC-xx.SS on CCBKGD) |
+| FF election from liberty bells | Partial | Side-table bell pool (DOS +0xc); threshold elect + manual-aligned effects; Minuit+Franklin+Brebeuf+Las Casas+Cortes coastal cash+de Witt+Sepulveda convert-join **Done**; human debate CHOICE **Done** structural; KINGGALLEON2 PARK (Phase 4 harbor search negative); F3 portrait grid **Done** structural (CC-xx.SS on CCBKGD); FF pool bridge load smoke **Done** |
 | Pedia / F3 Congress report | Partial | F3 blits joined FF portraits (center-cropped to grid cells) + debating highlight; stats column; debate elect via popup; VGA-identical chrome PARKED |
 | Sons of Liberty %, declare independence | Partial | SoL + auto-declare structural (`ai_king`); player confirm UI **Done** structural (`ai_popup`); `@INDEPENDENCE` letter OK **Done** thin; VGA / DECLARAT.PIK anim PARKED — [sons_of_liberty.md](sons_of_liberty.md) |
-| REF invasion / revolution combat | Partial | REF wave / war act structural; merc hire dialog **Done** structural (`ai_popup`); win (1850+no crown) / lose (no ports after REF) latches **Done** thin; deep `10f0` / DECLARAT anim PARKED |
+| REF invasion / revolution combat | Partial | REF wave / war act structural; merc hire dialog **Done** structural (`ai_popup`); win (1850+no crown) / lose (no ports after REF) latches **Done** thin; `rival_nation_slot_2` in `10f0` intervene pick **Done** Phase 4; deep `10f0` landing scorer / caps / Veteran 0x15 + DECLARAT anim PARKED |
 | F10 Colonization Score | Partial | Schedule exists; WoI → declared flag; achieve from endgame latch; retire opens score |
 
 ### AI Europeans
@@ -203,7 +203,8 @@ next playability work is leftover **FF** KINGGALLEON2, deep mid-planner `20e6`,
 production / combat depth, and VGA / deep AI bodies — not waiting on missing
 combat/capture prerequisites. TRADE Create/Edit/Begin aim+cycle + stop nibble
 honor + Edit autofill + thin cargo picker are in; VGA TRADE chrome,
-KINGGALLEON2, deep `10f0`/`20e6` still open;
+KINGGALLEON2 PARK (Phase 4 harbor search negative), deep `10f0` landing scorer /
+caps / `20e6` still open;
 and full 1:1 AI bodies remain.
 
 ## See also

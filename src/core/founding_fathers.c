@@ -315,8 +315,11 @@ bool founding_fathers_cortes_free_king_galleon(const ColonizeCol1Save* col1, int
    * non-Cortes royal-galleon extra %. AI/human stand-in: coastal own-colony
    * Treasure → europe_cash_treasure via units_cortes_cash_coastal_treasures.
    * KINGGALLEON2 RE exhausted 2026-08-22 — 38fd Crown CHOICE callee not found
-   * (euro_unit_act.md / ai_port_plan T1.13). Phase 3 (2026-08-22): 38fd overlay
-   * CHOICE 3 STRING / 0 NUMBER signature not located — stays PARK until evidence.
+   * (euro_unit_act.md / ai_port_plan T1.13). Phase 3: 38fd CHOICE 3 STRING /
+   * 0 NUMBER negative. Phase 4 (2026-08-22): Europe harbor tick / treasure-
+   * sell / europe_cash_treasure path searched — no Crown-initiated Galleon
+   * offer dispatch (zero KINGGALLEON2 hits in viceroy export; Cortes path is
+   * @KINGGALLEON3 tax-share only). Stays PARK until evidence.
    * PARK: voyage chrome / KINGGALLEON2 share.
    */
   return founding_fathers_nation_has(col1, nation, FF_HERNAN_CORTES);

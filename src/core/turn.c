@@ -2100,6 +2100,37 @@ void turn_run_king_stub(ColonizeTurnContext* ctx) {
   ai_king_nation_turn(ctx);
 }
 
+static bool turn_year_end_valid_rival(const ColonizeCol1Save* col1, int human, int n) {
+  if (!col1 || n < 0 || n >= 4 || n == human) {
+    return false;
+  }
+  return col1->player[n].control != 2;
+}
+
+static void turn_year_end_ensure_rival_slots(ColonizeCol1Save* col1, int human) {
+  if (!col1 || human < 0 || human >= 4) {
+    return;
+  }
+  if (turn_year_end_valid_rival(col1, human, (int)col1->head.rival_nation_slot_1)) {
+    return;
+  }
+  const int crown = ai_king_crown_nation(human);
+  col1->head.rival_nation_slot_1 = -1;
+  col1->head.rival_nation_slot_2 = -1;
+  int w = 0;
+  for (int n = 0; n < 4 && w < 2; ++n) {
+    if (n == human || n == crown || col1->player[n].control == 2) {
+      continue;
+    }
+    if (w == 0) {
+      col1->head.rival_nation_slot_1 = (int16_t)n;
+    } else {
+      col1->head.rival_nation_slot_2 = (int16_t)n;
+    }
+    w++;
+  }
+}
+
 void turn_run_year_end_chrome(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
   /*
    * FUN_3844_0442 thin peels:
@@ -2308,34 +2339,37 @@ void turn_run_year_end_chrome(ColonizeTurnContext* ctx, ColonizeTurnResult* out)
 
   /*
    * Section D: peacetime rival SoL pressure (year_end_chrome D).
-   * Threshold (8−difficulty)×10 on rival nation SoL%; auto-declare when rival
-   * SoL ≥ human+40 and ≥120. Was liberty_bells proxy.
+   * Threshold (8−difficulty)×10; auto-declare when rival SoL ≥ threshold.
+   * Rising/falling dedup via rebellion_pct_last_notified (+0x1a).
+   * Rival pick: head.rival_nation_slot_1/_2 (lazy-filled). SoL via
+   * ai_king_sol_percent stand-in for DOS rebel_sentiment×table/100 (PARK).
    */
   if (!woi && ctx->col1_ok && ctx->col1 && ctx->status && ctx->status_size > 0 &&
       !out->year_end_defeat && !out->year_end_victory) {
     const int human = ctx->human_nation;
-    const int human_sol =
-      (human >= 0 && human < 4) ? ai_king_sol_percent(ctx, human) : 0;
     const int thresh = (8 - (int)ctx->col1->head.difficulty) * 10;
-    for (int n = 0; n < 4; ++n) {
-      if (n == human) {
+    turn_year_end_ensure_rival_slots(ctx->col1, human);
+    for (int pi = 0; pi < 2; ++pi) {
+      const int rival = pi == 0 ? (int)ctx->col1->head.rival_nation_slot_1
+                                : (int)ctx->col1->head.rival_nation_slot_2;
+      if (!turn_year_end_valid_rival(ctx->col1, human, rival)) {
         continue;
       }
-      if (ctx->col1->player[n].control == 2) {
-        continue;
-      }
-      const int rival_sol = ai_king_sol_percent(ctx, n);
-      if (rival_sol >= 120 && rival_sol >= human_sol * 3 + 1) {
-        ai_diplo_declare_war(ctx->col1, n, human);
+      const int rival_sol = ai_king_sol_percent(ctx, rival);
+      if (thresh > 0 && rival_sol >= thresh) {
+        ai_diplo_declare_war(ctx->col1, rival, human);
         snprintf(ctx->status, ctx->status_size, "Rival declares war.");
         break;
       }
-      if (rival_sol >= human_sol + 40) {
-        snprintf(ctx->status, ctx->status_size, "Rival SoL pressure.");
+      const uint8_t last = ctx->col1->nation[rival].rebellion_pct_last_notified;
+      if (rival_sol > last) {
+        snprintf(ctx->status, ctx->status_size, "Rival SoL rising.");
+        ctx->col1->nation[rival].rebellion_pct_last_notified = (uint8_t)rival_sol;
         break;
       }
-      if (thresh > 0 && rival_sol >= thresh) {
-        snprintf(ctx->status, ctx->status_size, "Rival SoL rising.");
+      if (rival_sol < last) {
+        snprintf(ctx->status, ctx->status_size, "Rival SoL easing.");
+        ctx->col1->nation[rival].rebellion_pct_last_notified = (uint8_t)rival_sol;
         break;
       }
     }

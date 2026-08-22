@@ -868,6 +868,9 @@ int main(void) {
       col1.head.backup_force[1] != backup_drg_before - 1) {
     return fail("10f0 should prefer Regular+Dragoon mix (drain one of each)");
   }
+  if (count_nation(&units, 3) < 1) {
+    return fail("10f0 mix should land second unit from rival_nation_slot_2 (nation 3)");
+  }
   if (count_nation(&units, 0) != 0) {
     return fail("intervention must not spawn as human nation");
   }
@@ -923,15 +926,20 @@ int main(void) {
     const int intervene_before3 = count_nation(&units, 2);
     int reg_land_before = 0;
     int drg_land_before = 0;
+    int drg3_land_before = 0;
     for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
       const ColonizeUnit* u = &units.units[i];
-      if (!u->active || u->nation_id != 2) {
+      if (!u->active) {
         continue;
       }
-      if (u->type_index == ty_regular) {
-        reg_land_before++;
-      } else if (u->type_index == ty_dragoon) {
-        drg_land_before++;
+      if (u->nation_id == 2) {
+        if (u->type_index == ty_regular) {
+          reg_land_before++;
+        } else if (u->type_index == ty_dragoon) {
+          drg_land_before++;
+        }
+      } else if (u->nation_id == 3 && u->type_index == ty_dragoon) {
+        drg3_land_before++;
       }
     }
     ai_king_nation_turn(&ctx);
@@ -956,21 +964,28 @@ int main(void) {
     {
       int reg_land_after = 0;
       int drg_land_after = 0;
+      int drg3_land_after = 0;
       for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
         const ColonizeUnit* u = &units.units[i];
-        if (!u->active || u->nation_id != 2) {
+        if (!u->active) {
           continue;
         }
-        if (u->type_index == ty_regular) {
-          reg_land_after++;
-        } else if (u->type_index == ty_dragoon) {
-          drg_land_after++;
+        if (u->nation_id == 2) {
+          if (u->type_index == ty_regular) {
+            reg_land_after++;
+          } else if (u->type_index == ty_dragoon) {
+            drg_land_after++;
+          }
+        } else if (u->nation_id == 3 && u->type_index == ty_dragoon) {
+          drg3_land_after++;
         }
       }
-      if (reg_land_after <= reg_land_before || drg_land_after <= drg_land_before) {
+      if (reg_land_after <= reg_land_before ||
+          (drg_land_after <= drg_land_before && drg3_land_after <= drg3_land_before)) {
         fprintf(stderr,
-                "unit_ai_king: 10f0@diff2 land types reg %d→%d drg %d→%d\n",
-                reg_land_before, reg_land_after, drg_land_before, drg_land_after);
+                "unit_ai_king: 10f0@diff2 land types reg %d→%d drg2 %d→%d drg3 %d→%d\n",
+                reg_land_before, reg_land_after, drg_land_before, drg_land_after,
+                drg3_land_before, drg3_land_after);
         return fail("10f0@diff2 should spawn both Regular and Dragoon (mix)");
       }
     }
@@ -978,11 +993,12 @@ int main(void) {
   col1.head.difficulty = 0; /* restore for later checks */
 
   /*
-   * 10f0 intervene nation pick: prefer Euro with most colonies (not first slot).
-   * human=0 crown=1 → candidates 2 and 3; seed a nation-3 colony → land as 3.
-   * Structural selection only (Foreign intervention / 10f0).
+   * 10f0 intervene nation pick fallback: when rival slots unset, prefer Euro
+   * with most colonies. human=0 crown=1 → seed nation-3 colony → land as 3.
    */
   {
+    col1.head.rival_nation_slot_1 = -1;
+    col1.head.rival_nation_slot_2 = -1;
     ColonizeColony* c3 = &colonies.colonies[1];
     c3->id = 1;
     c3->active = true;

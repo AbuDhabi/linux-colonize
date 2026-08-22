@@ -140,7 +140,8 @@
  */
 /* 10f0: dual landing base; third when difficulty ≥ 2 (REF pressure stand-in).
  * PARK (FUN_43f7_10f0 ~74270): pop-weighted landing tile scorer, per-call pool
- * type caps (local_50), Veteran profession 0x15 on spawn, foreign MoW ship. */
+ * type caps (local_50), Veteran profession 0x15 on spawn, foreign MoW ship.
+ * Done Phase 4: rival_nation_slot_2 used for second mix landing when set. */
 #define AI_KING_INTERVENE_LANDINGS_BASE 2
 #define AI_KING_INTERVENE_DIFF_THIRD 2
 /* 0982: second MoW same beat when difficulty ≥ 2 and force[2] still > 0. */
@@ -371,13 +372,22 @@ static int ai_king_colony_count(const ColonizeColonyPool* colonies, int nation_i
  * After declare, prefer head.rival_nation_slot_1 cached at 1a26 (DOS 0x53d4);
  * else most colonies + land-unit tie-break.
  */
+static bool ai_king_valid_intervention_slot(
+  const ColonizeCol1Save* col1, int human_nation, int slot
+) {
+  if (!col1 || slot < 0 || slot >= 4) {
+    return false;
+  }
+  const int crown = ai_king_crown_nation(human_nation);
+  /* WoI foreign landings: eliminated Euros (control==2) still intervene via 10f0. */
+  return slot != human_nation && slot != crown;
+}
+
 static int ai_king_intervention_nation(const ColonizeTurnContext* ctx, int human_nation) {
   if (ctx && ctx->col1_ok && ctx->col1 &&
       ai_king_independence_declared(ctx->col1)) {
     const int slot = (int)ctx->col1->head.rival_nation_slot_1;
-    const int crown = ai_king_crown_nation(human_nation);
-    if (slot >= 0 && slot < 4 && slot != human_nation && slot != crown &&
-        ctx->col1->player[slot].control != 2) {
+    if (ai_king_valid_intervention_slot(ctx->col1, human_nation, slot)) {
       return slot;
     }
   }
@@ -411,6 +421,20 @@ static int ai_king_intervention_nation(const ColonizeTurnContext* ctx, int human
     }
   }
   return best >= 0 ? best : crown;
+}
+
+static int ai_king_intervention_nation_slot(
+  const ColonizeTurnContext* ctx, int human_nation, int slot_idx
+) {
+  if (ctx && ctx->col1_ok && ctx->col1 &&
+      ai_king_independence_declared(ctx->col1)) {
+    const int slot = slot_idx == 0 ? (int)ctx->col1->head.rival_nation_slot_1
+                                   : (int)ctx->col1->head.rival_nation_slot_2;
+    if (ai_king_valid_intervention_slot(ctx->col1, human_nation, slot)) {
+      return slot;
+    }
+  }
+  return ai_king_intervention_nation(ctx, human_nation);
 }
 
 /* FUN_43f7_1a26: cache first two non-human/non-crown Euro slots (DOS 0x53d4/0x53d6). */
@@ -2771,17 +2795,19 @@ static void ai_king_foreign_intervene(ColonizeTurnContext* ctx) {
   if (ai_king_weakest_port(ctx, ctx->human_nation, &hx, &hy) < 0) {
     return;
   }
-  const int ally = ai_king_intervention_nation(ctx, ctx->human_nation);
+  const int human = ctx->human_nation;
+  const int ally1 = ai_king_intervention_nation_slot(ctx, human, 0);
   int landings = 0;
   const int diff = ctx->col1->head.difficulty;
   const int max_landings =
       (diff >= AI_KING_INTERVENE_DIFF_THIRD) ? (AI_KING_INTERVENE_LANDINGS_BASE + 1)
                                             : AI_KING_INTERVENE_LANDINGS_BASE;
 
-  /* Prefer mixing Regular + Dragoon when both foreign pools are live. */
   if (backup[0] > 0 && backup[1] > 0) {
-    landings += ai_king_intervene_one(ctx, ally, hx, hy, backup, 0);
+    landings += ai_king_intervene_one(ctx, ally1, hx, hy, backup, 0);
     if (landings < max_landings) {
+      const int ally2 = ai_king_intervention_nation_slot(ctx, human, 1);
+      const int ally = (ally2 >= 0 && ally2 != ally1) ? ally2 : ally1;
       landings += ai_king_intervene_one(ctx, ally, hx, hy, backup, 1);
     }
   }
@@ -2790,18 +2816,18 @@ static void ai_king_foreign_intervene(ColonizeTurnContext* ctx) {
     if (backup[k] == 0) {
       continue;
     }
-    landings += ai_king_intervene_one(ctx, ally, hx, hy, backup, k);
+    const int ally = (k == 1 && landings > 0) ? ai_king_intervention_nation_slot(ctx, human, 1)
+                                              : ally1;
+    landings += ai_king_intervene_one(ctx, ally >= 0 ? ally : ally1, hx, hy, backup, k);
   }
 
-  /* Authentic 10f0 announce once: @INTERVENTION then @INTERVENE (VGA PARKED). */
   if (landings > 0) {
     static const char* k_euro[4] = {"English", "French", "Spanish", "Dutch"};
-    const int human = ctx->human_nation;
     const int crown = ai_king_crown_nation(human);
     const char* ally_name =
-      (ally >= 0 && ally < 4 && ctx->col1 && ctx->col1->player[ally].country_name[0])
-        ? ctx->col1->player[ally].country_name
-        : ((ally >= 0 && ally < 4) ? k_euro[ally] : "Foreign");
+      (ally1 >= 0 && ally1 < 4 && ctx->col1 && ctx->col1->player[ally1].country_name[0])
+        ? ctx->col1->player[ally1].country_name
+        : ((ally1 >= 0 && ally1 < 4) ? k_euro[ally1] : "Foreign");
     const char* crown_name =
       (crown >= 0 && crown < 4 && ctx->col1 && ctx->col1->player[crown].country_name[0])
         ? ctx->col1->player[crown].country_name
@@ -2840,7 +2866,7 @@ static void ai_king_foreign_intervene(ColonizeTurnContext* ctx) {
       );
       popup_msg_fill(ctx->messages, "INTERVENTION", &itok, fallback, body, sizeof(body));
       (void)ai_popup_enqueue_ok_ctx(
-        ctx->ai_popups, AI_POPUP_TAG_KING_ARRIVAL, human, ally, landings,
+        ctx->ai_popups, AI_POPUP_TAG_KING_ARRIVAL, human, ally1, landings,
         "Foreign Intervention", body
       );
 
@@ -2859,7 +2885,7 @@ static void ai_king_foreign_intervene(ColonizeTurnContext* ctx) {
       );
       popup_msg_fill(ctx->messages, "INTERVENE", &atok, fallback, body, sizeof(body));
       (void)ai_popup_enqueue_ok_ctx(
-        ctx->ai_popups, AI_POPUP_TAG_KING_ARRIVAL, human, ally, landings,
+        ctx->ai_popups, AI_POPUP_TAG_KING_ARRIVAL, human, ally1, landings,
         "Foreign Intervention", body
       );
     }

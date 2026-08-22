@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "core/assets.h"
@@ -4352,39 +4353,34 @@ int main(void) {
     }
     fprintf(stderr, "year-end game-era richest ok\n");
 
-    /* Section D thin: rival liberty pressure. */
-    year = 1700;
-    status[0] = '\0';
-    memset(&out, 0, sizeof(out));
-    ColonizeCol1Save dcol;
-    memset(&dcol, 0, sizeof(dcol));
-    dcol.nation[0].liberty_bells_total = 10;
-    dcol.nation[1].liberty_bells_total = 60;
-    dcol.player[1].control = 1;
-    ctx.col1 = &dcol;
-    ctx.col1_ok = true;
-    turn_run_year_end_chrome(&ctx, &out);
-    if (strstr(status, "Rival SoL") == NULL) {
-      fprintf(stderr, "year-end D want Rival SoL status got '%s'\n", status);
-      return 1;
-    }
-    fprintf(stderr, "year-end rival SoL ok\n");
-
     /* C2: WoI + crown colonies + high crown SoL → peace offer status. */
     year = 1700;
     status[0] = '\0';
     memset(&out, 0, sizeof(out));
     ColonizeCol1Save c2;
-    memset(&c2, 0, sizeof(c2));
+    col1_save_init(&c2);
     c2.head.unknown46[0] = 1; /* WoI */
-    c2.nation[0].liberty_bells_total = 10;
-    c2.nation[1].liberty_bells_total = 200; /* crown SoL high */
-    ColonizeColony* crown_c = &pool.colonies[1];
-    memset(crown_c, 0, sizeof(*crown_c));
-    crown_c->active = true;
-    crown_c->nation_id = 1;
-    crown_c->building_in_production = -1;
-    pool.colony_count = 2;
+    c2.head.colony_count = 2;
+    c2.colony = calloc(2, sizeof(ColonizeCol1Colony));
+    if (!c2.colony) {
+      return 1;
+    }
+    c2.colony[0].nation_id = 0;
+    c2.colony[0].population = 1;
+    c2.colony[0].rebel_dividend = 5;
+    c2.colony[0].rebel_divisor = 100;
+    c2.colony[1].nation_id = 1;
+    c2.colony[1].population = 1;
+    c2.colony[1].rebel_dividend = 90;
+    c2.colony[1].rebel_divisor = 100;
+    ColonizeColony* crown_c2 = &pool.colonies[1];
+    memset(crown_c2, 0, sizeof(*crown_c2));
+    crown_c2->active = true;
+    crown_c2->nation_id = 1;
+    crown_c2->building_in_production = -1;
+    if (pool.colony_count < 2) {
+      pool.colony_count = 2;
+    }
     ctx.col1 = &c2;
     ctx.col1_ok = true;
     ctx.colonies = &pool;
@@ -4396,34 +4392,103 @@ int main(void) {
         out.year_end_victory,
         status
       );
+      free(c2.colony);
       return 1;
     }
+    free(c2.colony);
+    ctx.col1 = NULL;
+    ctx.col1_ok = false;
     fprintf(stderr, "year-end C2 peace ok\n");
 
-    /* D auto-declare: rival liberty ≫ human → war. */
+    /* Section D: rival_nation_slot + threshold + rebellion_pct dedup. */
+    year = 1700;
+    status[0] = '\0';
+    memset(&out, 0, sizeof(out));
+    ColonizeCol1Save dcol;
+    col1_save_init(&dcol);
+    dcol.head.difficulty = 3;
+    dcol.player[0].control = 0;
+    dcol.player[1].control = 1;
+    dcol.player[2].control = 1;
+    dcol.head.rival_nation_slot_1 = 2;
+    dcol.head.colony_count = 1;
+    dcol.colony = calloc(1, sizeof(ColonizeCol1Colony));
+    if (!dcol.colony) {
+      return 1;
+    }
+    dcol.colony[0].nation_id = 2;
+    dcol.colony[0].population = 8;
+    dcol.colony[0].rebel_dividend = 50;
+    dcol.colony[0].rebel_divisor = 100;
+    ctx.col1 = &dcol;
+    ctx.col1_ok = true;
+    turn_run_year_end_chrome(&ctx, &out);
+    if (strstr(status, "declares war") == NULL) {
+      fprintf(stderr, "year-end D want auto-declare at SoL>=50 got '%s'\n", status);
+      free(dcol.colony);
+      return 1;
+    }
+    dcol.head.difficulty = 4;
+    dcol.colony[0].rebel_dividend = 25;
+    dcol.nation[2].rebellion_pct_last_notified = 10;
+    status[0] = '\0';
+    memset(&out, 0, sizeof(out));
+    turn_run_year_end_chrome(&ctx, &out);
+    if (strstr(status, "Rival SoL rising") == NULL) {
+      fprintf(stderr, "year-end D want rising got '%s'\n", status);
+      free(dcol.colony);
+      return 1;
+    }
+    if (dcol.nation[2].rebellion_pct_last_notified != 25) {
+      fprintf(
+        stderr,
+        "year-end D latch want 25 got %u\n",
+        (unsigned)dcol.nation[2].rebellion_pct_last_notified
+      );
+      free(dcol.colony);
+      return 1;
+    }
+    free(dcol.colony);
+    ctx.col1 = NULL;
+    ctx.col1_ok = false;
+    fprintf(stderr, "year-end rival SoL ok\n");
+
+    /* D auto-declare via rival slot + colony SoL (not crown nation 1). */
     year = 1700;
     status[0] = '\0';
     memset(&out, 0, sizeof(out));
     ColonizeCol1Save dw;
-    memset(&dw, 0, sizeof(dw));
-    for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
-      dw.head.founding_father[i] = -1;
-    }
-    dw.nation[0].liberty_bells_total = 10;
-    dw.nation[1].liberty_bells_total = 200;
+    col1_save_init(&dw);
+    dw.head.difficulty = 3;
+    dw.player[0].control = 0;
     dw.player[1].control = 1;
+    dw.player[2].control = 1;
+    dw.head.rival_nation_slot_1 = 2;
+    dw.head.colony_count = 1;
+    dw.colony = calloc(1, sizeof(ColonizeCol1Colony));
+    if (!dw.colony) {
+      return 1;
+    }
+    dw.colony[0].nation_id = 2;
+    dw.colony[0].population = 5;
+    dw.colony[0].rebel_dividend = 55;
+    dw.colony[0].rebel_divisor = 100;
     ctx.col1 = &dw;
     ctx.col1_ok = true;
     turn_run_year_end_chrome(&ctx, &out);
-    if (strstr(status, "declares war") == NULL || !ai_diplo_at_war(&dw, 1, 0)) {
+    if (strstr(status, "declares war") == NULL || !ai_diplo_at_war(&dw, 2, 0)) {
       fprintf(
         stderr,
         "year-end D auto-declare want war status got '%s' at_war=%d\n",
         status,
-        ai_diplo_at_war(&dw, 1, 0)
+        ai_diplo_at_war(&dw, 2, 0)
       );
+      free(dw.colony);
       return 1;
     }
+    free(dw.colony);
+    ctx.col1 = NULL;
+    ctx.col1_ok = false;
     fprintf(stderr, "year-end D auto-declare ok\n");
   }
 

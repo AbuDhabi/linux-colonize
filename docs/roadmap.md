@@ -194,12 +194,16 @@ Finish a campaign: FF leftovers, king/REF, win/lose/retire.
 **Now:**
 
 - FF leftovers (e.g. KINGGALLEON2) — [ai_transcription.md](ai_transcription.md)
-  unpark #3; [manual_gap.md](manual_gap.md) FF section
+  unpark #3; Phase 4 harbor/treasure-sell search negative — stays PARK
 - Bell-pool save interop + F3 Congress structural UI — **Done** (2026-08-22)
-- Year-end SoL C2/D via `ai_king_sol_percent` — **Done** (2026-08-22)
+- Bridge FF-pool load smoke (`col1_bridge` + `founding_fathers_sync_from_col1_after_load`) — **Done** (2026-08-22)
+- Year-end SoL C2/D via `ai_king_sol_percent` — **Done** (2026-08-22); D rival-slot pick +
+  `(8−difficulty)×10` auto-declare + `rebellion_pct_last_notified` dedup — **Done** Phase 4
 - REF / WoI depth beyond structural latches — [ai_transcription.md](ai_transcription.md),
-  [sons_of_liberty.md](sons_of_liberty.md) (`10f0` landing scorer, `20e6` siege)
-- `rival_nation_slot_1/2` at declare + conditional FF pool stash — **Done** (2026-08-22)
+  [sons_of_liberty.md](sons_of_liberty.md) (`10f0` landing scorer / caps / Veteran 0x15 still PARK;
+  `20e6` siege depth)
+- `rival_nation_slot_1/2` at declare + slot_2 in `10f0` intervene pick — **Done** (2026-08-22)
+- de Soto `lcr_case5_bonus_used` one-shot latch — **Done** Phase 4 (`FUN_65dd_0004` table still PARK)
 - Decile SoL status notify (`sol_pct_last_notified`) — **Done** thin (2026-08-22)
 - Retire → score / HoF and auto-end 1800/1850 UI — [manual_gap.md](manual_gap.md)
   (Win / end sequences)
