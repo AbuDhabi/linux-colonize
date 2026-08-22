@@ -900,4 +900,58 @@ yet located from this pass).
   `indian_state + cargo*2 + 0xe`) gets updated post-sale — visible in the
   decompile but not yet semantically mapped
 - Full string ID list for haggle / demand beyond `0x1561`/`0x156a`
+
+## 2026-08-22 — T1.16 full-port attempt found a real gold-direction
+## contradiction, stopped before touching shipped code
+
+Attempted the full `LAB_002bbc`/`LAB_002e92` resume-loop port (both are
+`iStack_5e` state machines, not separate `2f96`/`306c` functions per the
+correction above). Real progress: **for the AI-controlled path
+(`iStack_8==0`), the "resume loop" never actually resumes** —
+`iStack_5e` is recomputed fresh each iteration from a value fixed before
+the loop starts (`aiStack_d6[0]`, the relation read), and only the
+`iStack_5e==2` branch ever sets the continue-flag (`iStack_6c=1`); AI
+never produces `2`. So `LAB_002bbc` for AI nations is a **single
+deterministic accept-or-refuse decision** — `iStack_5e = (aiStack_d6[0] >
+0x31) ? 3 : 1` — not a real loop. Genuinely new, useful, low-risk finding:
+`ai_contact_auto_trade` today always succeeds; the real DOS binary has a
+refuse branch this port is missing.
+
+**Blocked before wiring it, on a real contradiction, not a difficulty
+wall.** `LAB_002bbc`'s own `iStack_5e==1` (accept) branch reads, verified
+twice against the raw quoted C above (not a transcription slip):
+```c
+puVar2 = (uint *)(param_4 * 0x13c + -0x77ce);   // nation[param_4].gold low word
+*puVar2 = *puVar2 + uStack_62;                  // += price
+piVar3 = (int *)(*(int *)0x8d4e + iStack_c8 * 2 + 0xe);  // indian_state produce[cargo]
+*piVar3 = *piVar3 + *(int *)0x8dc4;             // += scratch
+```
+i.e. **the Euro nation's gold goes UP and native production goes UP** on
+accept, with no `FUN_1000_8f48` cargo-delivery call anywhere in this
+branch (unlike `LAB_002e92`'s own accept branch, which does call it and
+does debit gold). This is the *opposite* direction from the already-
+shipped `ai_contact_2820_ai_buy_price`/`ai_contact_auto_trade`, whose own
+header comments (written by an earlier session, presumably from the same
+source) say "the AI Euro nation *pays* to buy the cargo" and debit gold.
+Both readings can't be right for the same DOS code. Two live
+possibilities, not resolved this pass:
+  1. `LAB_002bbc`/`LAB_002e92` are NOT the same transaction direction —
+     `002e92` = Euro buys FROM the tribe (gold out, cargo in), `002bbc` =
+     natives buy the Euro unit's docked cargo FROM the Euro side (gold
+     in) — i.e. two genuinely different trade directions sharing one
+     function, and the existing `ai_contact_auto_trade`/`2820_ai_buy_price`
+     naming ("AI buy-offer price... AI Euro nation pays") was written
+     against the wrong branch of this same file.
+  2. Or there's a sign/pointer-identity mistake somewhere (either in this
+     doc's original raw-C transcription, or in the already-shipped code's
+     own citation) not yet found.
+**Not resolved — did not touch `ai_contact_auto_trade`'s gold logic.**
+Given it's already shipped, tested, and goldens-green, the cost of being
+wrong here is real (would silently invert or duplicate a live economic
+effect). Real next step: force-decompile `FUN_1000_8cdc`/`FUN_1000_8f48`
+fresh (same headless-Ghidra method used elsewhere this session) to nail
+which side's cargo/gold each branch actually touches, before wiring
+anything. The refuse-decision finding above (real, useful, low-risk) is
+still worth adding once the direction question is settled — it doesn't
+depend on the answer, only the *accept* branch's existing gold logic does.
 - Second entry into `2820` after `4528` blob (~86762) — confirm args

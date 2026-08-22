@@ -2335,13 +2335,59 @@ static int ai_indian_152e_quartile(int relation) {
  *     the full signed 32-bit `gold >= 1000`. **Term 7 = `gold>=1000 ?
  *     gold/1000 : 0`** — a plain treasury-scaled bonus, not a coordinate/
  *     distance read as previously guessed.
- * Still open, not attempted this pass: term 2's `x` sub-scan source,
- * `FUN_281f_07b4`'s own 25-count target list, and the neighbor-scan's own
- * bound field (a settlement/tribe-record offset, not `+0x1f` on the
- * `0x8542` colony-array pointer as previously guessed — that literal
- * pattern doesn't occur in the function body; not re-derived this pass).
- * Stub still returns the flat population-cap-15 T0 approximation — real
- * port needs those last two pieces first.
+ * 2026-08-22, continued same day — a bigger structural finding than
+ * expected, changes the confidence picture for the WHOLE function, not
+ * just one term. **`FUN_41f2_0294` is not a standalone function — it's
+ * one of at least 4 external entry points into ONE shared, contiguous
+ * code block** (`FUN_41f2_0266`/`_0280`/`_026e`-ish/`_0294`, each with its
+ * own `4d56:XXXX` `CALLF` XREF, all falling through into the same body,
+ * confirmed by reading the raw `.asm` labels directly — Ghidra's own
+ * function-split here is nominal, not four independent routines). None of
+ * these entry points does its own `ENTER`/frame setup; they all run on
+ * whichever caller's `BP` was already live, sibling-DOS-compiler code
+ * sharing at the label level, same class of trick already seen for
+ * `394e`'s callers. Entry `0266` (called from `4d56:1b84`, a *different*
+ * call site than the two this stub cares about) does `MOV [BP-0x5e],0`
+ * before falling through — the ONLY place in the whole shared block that
+ * initializes that slot. **The two call sites this stub actually needs
+ * (`4d56:0086` tribe creation, `4d56:1547` growth-tick) both `CALL`
+ * straight into `0294` itself, skipping `0266`'s init entirely** — and
+ * both callers' own `ENTER` sizes (`0x6` and `0x18` bytes) are far smaller
+ * than the `-0x5e`/`-0x64`/`-0x6a`/`-0x6e`/`-0x7c`/`-0x7e` offsets this
+ * code reads as "locals" (confirmed via each caller's own Ghidra-recovered
+ * local-variable table, neither lists anything past `-0x1a`). So for
+ * *these two call sites specifically*, several terms — confirmed for term
+ * 2's `x` (`[BP-0x6a]`, never written anywhere in the shared block, and
+ * genuinely unreachable from either caller's own declared frame) — read
+ * whatever stack content is left over from earlier unrelated calls, not a
+ * real per-tribe signal. Same verdict class as `T1.3`'s five dead terms:
+ * **not a formula to port, a structural quirk to document as inert.**
+ * Term 3's callee resolved and independently corrects the row's own
+ * "nearby-unit count" framing: `FUN_281f_07b4`/canonical `FUN_0000_9810`
+ * (force-decompiled directly) is `bool(euro_nation 0..3, bit_index)` — a
+ * per-Euro-nation FF/feature bitmap test at nation-array offset `-0x77f1`
+ * (near the already-known `euro_relation`'s `-0x77c4`), returning `true`
+ * unconditionally when `bit_index<0` and `false` when `euro_nation>3`.
+ * Confirms (doesn't just restate) this stub's own existing "FF/feature bit
+ * test" comment above. Since the 25-iteration loop's index only ever
+ * satisfies `euro_nation<=3` for `i=0..3`, term 3 is really "+5 × how many
+ * of the 4 Euro nations have FF-bit `settlement_id` set" for iterations
+ * 0-3, a no-op for i=4..24 — not a spatial "nearby unit" scan at all.
+ * Neighbor-scan's own bound field (term 1) still not re-derived — the
+ * doc's original "colony-pointer `+0x1f`" citation doesn't match the real
+ * asm (a tribe-record `+0x1f` read does feed the *outer* loop gate, but
+ * that gate itself compares against the same `-0x5e`-shaped slot this
+ * pass just found uninitialized for these two call sites, so it inherits
+ * the same caveat rather than needing separate RE).
+ * **Net for a real port**: given how much of this function's local state
+ * turns out to be structurally unreachable from its own two real callers,
+ * treat the whole "7-term word-sum" as unreliable beyond terms 4/5/6/7
+ * (nation-struct/global reads, genuinely caller-independent) until a live
+ * trace confirms what's actually sitting in the shared stack region at
+ * these two call sites — porting terms 1/2/3 as literally decoded risks
+ * modeling deterministic-but-meaningless garbage as if it were designed
+ * behavior. Stub still returns the flat population-cap-15 T0
+ * approximation; a real port is not a same-session task from here.
  */
 static int ai_indian_152e_worth_cap_stub(
   const ColonizeTurnContext* ctx,

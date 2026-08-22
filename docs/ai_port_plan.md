@@ -1411,6 +1411,35 @@ closed; genuinely open are only `T1.8`, `T1.13`, `T1.15`, `T1.16`, `T1.17`.
   occur in the function body; not re-derived this pass). Not a same-session
   finish — real port still needs those two remaining pieces. `ctest` not
   run (doc/comment-only change).
+  **2026-08-22, continued same day — bigger structural finding, changes
+  confidence for the whole function.** `FUN_41f2_0294` turns out to be one
+  of at least 4 external entry points into ONE shared code block
+  (`_0266`/`_0280`/`_026e`-ish/`_0294`, each with its own `4d56:XXXX` XREF,
+  none with its own `ENTER` — same DOS-compiler frame-sharing trick already
+  seen for `394e`'s callers). Entry `0266` initializes `[BP-0x5e]` before
+  falling through — the only init anywhere in the block — but the two call
+  sites this item actually needs (`4d56:0086`/`4d56:1547`) `CALL` straight
+  into `0294`, skipping that init, and both callers' own `ENTER` sizes
+  (`0x6`/`0x18` bytes) are far smaller than the `-0x5e..-0x7e` offsets read
+  as "locals." **Term 2's `x` (`[BP-0x6a]`) is confirmed never written
+  anywhere in the shared block and unreachable from either real caller's
+  declared frame** — same "no real design signal" verdict class as `T1.3`'s
+  five dead terms, not a formula to port. Term 3's callee resolved (force-
+  decompiled `FUN_0000_9810` directly): it's `bool(euro_nation 0..3,
+  bit_index)`, a per-nation FF/feature bitmap test — confirms the existing
+  `ai_indian_152e_ff_bit_stub` comment, and corrects this row's own
+  "nearby-unit count" framing (the 25-iteration loop only ever produces a
+  hit for `i=0..3`, not a spatial scan). Term 1's own scan-bound field
+  still not re-derived — it gates on the same uninitialized-for-these-
+  callers slot family, inheriting the same caveat rather than needing
+  separate RE. **Net: terms 4/5/6/7 (nation-struct/global reads) stay
+  reliable; terms 1/2/3 are now suspect as modeling deterministic-but-
+  meaningless stack garbage rather than designed behavior** — a live trace
+  would settle it, but porting them as literally decoded risks shipping
+  noise as if it were a real formula. Full trace: `ai.c`'s
+  `ai_indian_152e_worth_cap_stub` header comment, 2026-08-22 continued
+  update. Real port stays future work — not a same-session task. `ctest`
+  not run (doc/comment-only).
 
 - [ ] **T1.16 — Port `2820`'s deep Haggle/hard-bargain resume-loop.** New
   2026-08-22, split out of `T4.4` now that both blocking values are
@@ -1426,6 +1455,34 @@ closed; genuinely open are only `T1.8`, `T1.13`, `T1.15`, `T1.16`, `T1.17`.
   Port with the captured values, comment the single-capture caveat
   in-line, don't block on a second capture unless the port's own behavior
   turns out to hinge on real nation-to-nation variance.
+  **2026-08-22 — attempted, found a real mislabeling in already-shipped
+  code, corrected it, did NOT ship the resume-loop itself.** Read the full
+  595-line body end to end. Real finding #1: for the AI-controlled path,
+  the "resume loop" never actually resumes — `iStack_5e` is recomputed
+  fresh each iteration from a value fixed before the loop starts, and only
+  the haggle branch (`iStack_5e==2`) sets the continue-flag; AI never
+  produces `2`. So the AI side is a **single deterministic accept-or-refuse
+  decision**, not a real loop — simpler than the row's own framing assumed.
+  Real finding #2, bigger: force-decompiling `LAB_002bbc`'s own callees
+  (`FUN_1000_8cdc`/`FUN_1000_8f48` → canonical `FUN_0000_902c`/`_8f68`)
+  proved `LAB_002bbc`'s accept branch **removes cargo from the Euro unit
+  and credits the Euro nation's gold** — the opposite direction from what
+  `ai_contact_auto_trade`/`ai_contact_2820_ai_buy_price` already implement
+  and attribute to it. The shipped code's actual gold/cargo direction
+  matches `LAB_002e92`'s accept branch instead (verified: explicit
+  `gold -= price` there, paired with a real `FUN_1000_8f48` cargo-add).
+  **Not a bug in shipped behavior** — the direction it implements is
+  internally consistent and already tested — **just a wrong DOS-branch
+  citation**, now corrected in `ai_contact.c`'s comments (3 call sites).
+  The real `LAB_002bbc` mechanic ("Euro nation sells cargo to natives, gets
+  paid") is a genuinely separate, currently-unported behavior — its own
+  dispatch condition (when DOS picks sell-to-tribe vs buy-from-tribe,
+  traced to somewhere in `2820`'s lines ~189-283, not yet fully mapped)
+  needs nailing down before it's safe to wire, so not attempted this pass
+  rather than guessed at. Full trace: `indian_trade_2820.md`'s 2026-08-22
+  addendum. `ctest` run after the comment-only `ai_contact.c` edits —
+  green, no behavior changed (verified via `colonize_core` rebuild +
+  full suite).
 
 - [ ] **T1.17 — Port `FUN_15eb_28c8`: colonist work-plot job scoring.** New
   2026-08-22, split out of `T1.14`'s `+4` identification. 254 lines,
