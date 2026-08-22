@@ -101,10 +101,26 @@ void founding_fathers_accrue_bells(int nation_id, unsigned delta);
 void founding_fathers_reset(void);
 
 /*
- * Init side pools from Col1 nation+0xc (`liberty_bells_total` on-disk field).
- * Call after col1_bridge_apply / before tests that set liberty_bells_total directly.
+ * Init side pools from Col1 on load (`founding_fathers_sync_from_col1`); reset on new game.
+ * Before Col1 write, stash live pools into liberty_bells_last_turn (Linux interop).
  */
 void founding_fathers_sync_from_col1(const ColonizeCol1Save* col1);
+
+/* After Col1 read: apply stashed side pools from liberty_bells_last_turn. */
+void founding_fathers_sync_from_col1_after_load(const ColonizeCol1Save* col1);
+
+/* Unit tests: liberty_bells_total doubles as pool input (not cumulative). */
+void founding_fathers_force_pool_from_total(const ColonizeCol1Save* col1);
+
+void founding_fathers_stash_pools_into_col1(
+  ColonizeCol1Save* col1,
+  uint16_t restore_last_turn[COLONIZE_COL1_NATION_COUNT]
+);
+
+void founding_fathers_restore_col1_last_turn(
+  ColonizeCol1Save* col1,
+  const uint16_t restore_last_turn[COLONIZE_COL1_NATION_COUNT]
+);
 
 /* True if nation owns FF index (head owner or nation bitmask). */
 bool founding_fathers_nation_has(const ColonizeCol1Save* col1, int nation, int ff_index);

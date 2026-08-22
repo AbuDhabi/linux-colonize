@@ -7,6 +7,7 @@
 
 #include "core/ai.h"
 #include "core/ai_diplo.h"
+#include "core/ai_king.h"
 #include "core/col1_stuff_census.h"
 #include "core/colony_craft.h"
 #include "core/colony_production.h"
@@ -2286,18 +2287,17 @@ void turn_run_year_end_chrome(ColonizeTurnContext* ctx, ColonizeTurnResult* out)
     }
 
     /*
-     * Section C2 thin: WoI with crown still present — SoL proxy pressure/peace
-     * status (dialogs PARKED). Cite: year_end_chrome.md C2.
+     * Section C2: WoI crown vs human SoL ratio (FUN year-end C2).
+     * Was bells proxy; now pop-weighted colony SoL via ai_king_sol_percent.
      */
     if (crown_colonies > 0 && ctx->status && ctx->status_size > 0 && ctx->col1_ok &&
         ctx->col1) {
-      const unsigned human_b =
-        (ctx->human_nation >= 0 && ctx->human_nation < 4)
-          ? (unsigned)ctx->col1->nation[ctx->human_nation].liberty_bells_total
-          : 0u;
-      const unsigned crown_b = (unsigned)ctx->col1->nation[crown].liberty_bells_total;
-      const unsigned sol =
-        ((crown_b + 1u) * 100u) / (human_b + crown_b + 1u);
+      const int human = ctx->human_nation;
+      const int human_sol =
+        (human >= 0 && human < 4) ? ai_king_sol_percent(ctx, human) : 0;
+      const int crown_sol = ai_king_sol_percent(ctx, crown);
+      const unsigned sol = ((unsigned)crown_sol + 1u) * 100u /
+                           ((unsigned)human_sol + (unsigned)crown_sol + 1u);
       if (sol > 89u) {
         snprintf(ctx->status, ctx->status_size, "Crown peace offer.");
       } else if (sol > 79u) {
@@ -2307,35 +2307,35 @@ void turn_run_year_end_chrome(ColonizeTurnContext* ctx, ColonizeTurnResult* out)
   }
 
   /*
-   * Section D thin: peacetime rival liberty pressure (auto-declare PARKED).
-   * If any AI Euro has liberty_bells_total ≥ human + 40, status once.
-   * Cite: year_end_chrome.md Rival SoL.
+   * Section D: peacetime rival SoL pressure (year_end_chrome D).
+   * Threshold (8−difficulty)×10 on rival nation SoL%; auto-declare when rival
+   * SoL ≥ human+40 and ≥120. Was liberty_bells proxy.
    */
   if (!woi && ctx->col1_ok && ctx->col1 && ctx->status && ctx->status_size > 0 &&
       !out->year_end_defeat && !out->year_end_victory) {
-    const unsigned human_bells =
-      (ctx->human_nation >= 0 && ctx->human_nation < 4)
-        ? (unsigned)ctx->col1->nation[ctx->human_nation].liberty_bells_total
-        : 0u;
+    const int human = ctx->human_nation;
+    const int human_sol =
+      (human >= 0 && human < 4) ? ai_king_sol_percent(ctx, human) : 0;
+    const int thresh = (8 - (int)ctx->col1->head.difficulty) * 10;
     for (int n = 0; n < 4; ++n) {
-      if (n == ctx->human_nation) {
+      if (n == human) {
         continue;
       }
       if (ctx->col1->player[n].control == 2) {
         continue;
       }
-      const unsigned rival = (unsigned)ctx->col1->nation[n].liberty_bells_total;
-      /*
-       * Auto-declare thin: rival liberty ≫ human (×3 and ≥120) → war.
-       * Full dialog / europe flag bit2 PARKED. Cite: year_end_chrome.md D.
-       */
-      if (rival >= 120u && rival >= human_bells * 3u + 1u) {
-        ai_diplo_declare_war(ctx->col1, n, ctx->human_nation);
+      const int rival_sol = ai_king_sol_percent(ctx, n);
+      if (rival_sol >= 120 && rival_sol >= human_sol * 3 + 1) {
+        ai_diplo_declare_war(ctx->col1, n, human);
         snprintf(ctx->status, ctx->status_size, "Rival declares war.");
         break;
       }
-      if (rival >= human_bells + 40u) {
+      if (rival_sol >= human_sol + 40) {
         snprintf(ctx->status, ctx->status_size, "Rival SoL pressure.");
+        break;
+      }
+      if (thresh > 0 && rival_sol >= thresh) {
+        snprintf(ctx->status, ctx->status_size, "Rival SoL rising.");
         break;
       }
     }

@@ -1787,7 +1787,7 @@ static int ai_king_audience_roll(ColonizeTurnContext* ctx, int human, int* out_d
   }
   ColonizeCol1Save* col1 = ctx->col1;
   ColonizeCol1Nation* nat = &col1->nation[human];
-  const uint32_t turn = ctx->turn_number ? *ctx->turn_number : 0;
+  const uint32_t turn = ctx->turn_number ? *ctx->turn_number : 0u;
   if (turn < 30) {
     return 0;
   }

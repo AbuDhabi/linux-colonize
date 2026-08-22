@@ -1,4 +1,5 @@
 #include "core/col1_save.h"
+#include "core/founding_fathers.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -631,15 +632,22 @@ bool col1_save_write_file(const char* path, const ColonizeCol1Save* save, char* 
     return false;
   }
 
+  ColonizeCol1Save* mut = (ColonizeCol1Save*)save;
+  uint16_t saved_last[COLONIZE_COL1_NATION_COUNT];
+  founding_fathers_stash_pools_into_col1(mut, saved_last);
+
   FILE* f = fopen(path, "wb");
   if (!f) {
+    founding_fathers_restore_col1_last_turn(mut, saved_last);
     COL1_FAIL(err, err_size, "cannot open %s for write", path);
   }
   Col1FileCtx ctx = {.f = f};
   const bool ok = emit_to_stream(file_put, &ctx, save, err, err_size);
   if (fclose(f) != 0) {
+    founding_fathers_restore_col1_last_turn(mut, saved_last);
     COL1_FAIL(err, err_size, "fclose failed for %s", path);
   }
+  founding_fathers_restore_col1_last_turn(mut, saved_last);
   if (!ok) {
     return false;
   }
@@ -707,21 +715,30 @@ bool col1_save_write_memory(
     return false;
   }
 
+  ColonizeCol1Save* mut = (ColonizeCol1Save*)save;
+  uint16_t saved_last[COLONIZE_COL1_NATION_COUNT];
+  founding_fathers_stash_pools_into_col1(mut, saved_last);
+
   const size_t need = col1_save_expected_size(save);
   uint8_t* buf = malloc(need);
   if (!buf) {
+    founding_fathers_restore_col1_last_turn(mut, saved_last);
     COL1_FAIL(err, err_size, "oom output buffer");
   }
 
   Col1MemOutCtx ctx = {.p = buf, .remain = need};
   if (!emit_to_stream(mem_put_ctx, &ctx, save, err, err_size)) {
+    founding_fathers_restore_col1_last_turn(mut, saved_last);
     free(buf);
     return false;
   }
   if (ctx.remain != 0) {
+    founding_fathers_restore_col1_last_turn(mut, saved_last);
     free(buf);
     COL1_FAIL(err, err_size, "internal size mismatch (%zu bytes left)", ctx.remain);
   }
+
+  founding_fathers_restore_col1_last_turn(mut, saved_last);
 
   *out_data = buf;
   *out_size = need;

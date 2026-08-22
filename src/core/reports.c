@@ -392,8 +392,18 @@ static void reports_congress_blit_portraits(
   const int cell_w = 32;
   const int cell_h = 40;
   for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
+    const int col = i % cols;
+    const int row = i / cols;
+    const int px = origin_x + col * cell_w;
+    const int py = origin_y + row * cell_h;
     const int8_t owner = col1->head.founding_father[i];
     if (owner != (int8_t)human) {
+      /* Empty slot: muted frame (CCBKGD plate positions). */
+      for (int y = py + 2; y < py + cell_h - 2 && y < fb->height; ++y) {
+        for (int x = px + 2; x < px + cell_w - 2 && x < fb->width; ++x) {
+          fb->pixels[y * fb->width + x] = 8;
+        }
+      }
       continue;
     }
     char name[32];
@@ -409,10 +419,6 @@ static void reports_congress_blit_portraits(
       ss_free(&sheet);
       continue;
     }
-    const int col = i % cols;
-    const int row = i / cols;
-    const int px = origin_x + col * cell_w;
-    const int py = origin_y + row * cell_h;
     ss_blit_sprite(&sheet, 0, fb, px, py);
     ss_free(&sheet);
   }

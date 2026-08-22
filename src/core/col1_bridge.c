@@ -1055,7 +1055,7 @@ bool col1_bridge_apply(
   /* Align live layer2 occupancy with imported pools (tribes from save). */
   col1_bridge_sync_map_occupancy(NULL, map, units, colonies, save);
 
-  founding_fathers_sync_from_col1(save);
+  founding_fathers_sync_from_col1_after_load(save);
 
   if (out) {
     *out = local;

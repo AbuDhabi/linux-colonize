@@ -270,10 +270,10 @@ first two calls).
 
 ### WoI flag (`unknown46[0]`)
 
-`ai_king_try_declare` (SoL≥`AI_KING_DECLARE_SOL_MIN` 50 + bells≥100) sets
+`ai_king_try_declare` (SoL≥`AI_KING_DECLARE_SOL_MIN` 50 only) sets
 `head.unknown46[0]` via `ai_king_set_independence` (DOS `0x5382` bit0 stand-in;
 exact Col1 bit PARKED). Idempotent if already set. Restless SoL chrome
-(40..49) must **not** set this byte. Smoke: SoL 49 + bells≥100 leaves
+(40..49) must **not** set this byte. Smoke: SoL 49 leaves
 `unknown46[0]` clear; declare at SoL≥50 sets it.
 
 ### `1eca` Continental promote (colony-SoL bias) — full port
@@ -337,7 +337,7 @@ deep rebel AI PARKED.
 
 ### Thin `160a` independence rename + `2564` congress
 
-Gate (SoL≥50 + bells≥100): human + `ai_popups` → `KING_CONGRESS` CHOICE from
+(SoL≥50 only): human + `ai_popups` → `KING_CONGRESS` CHOICE from
 GAME.TXT `@DECLARE` (Never / Yes; Yes → `ai_king_do_declare`); else auto-declare.
 On declare: status `"Congress declares independence!"`; rename
 `country_name` → `"United Colonies"` (+ `europe.nation_name`); set
@@ -368,7 +368,7 @@ Must **not** overwrite an existing 1d42 audience / tax-hike
 status line. Does **not** set WoI/`unknown46[0]` or congress/`unknown46[5]`.
 Auto-declare still requires SoL≥**50**
 (`AI_KING_DECLARE_SOL_MIN` = FUN_43f7_2564 / fandom total SoL ≥ 50%; no new %)
-+ bells≥100 (`AI_KING_DECLARE_BELLS_MIN`).
+SoL≥50 only (`FUN_43f7_2564`; port-only bells gate removed 2026-08-22).
 
 ### Declare SoL gate (2564 — tighten/document only)
 
