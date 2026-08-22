@@ -915,6 +915,27 @@ renumbering — appended at the end of Tier 1, same low-risk approach as
   field `3` a keyboard-flush no-op, field `6` still genuinely unresolved).
   Not done this pass — flagging that the door may already be open rather
   than leaving the stale "blocked" framing standing.
+  **2026-08-22, later same day — done, and the formula collapses.** Pulled
+  `iVar14`/`iVar18`'s real arguments straight from `viceroy_unpacked.asm`
+  (`LAB_521d_52ca` onward — the flattened C export hides them, same
+  zero-arg thunk-rendering issue already flagged for `FUN_291f_0a14`
+  above): the three `FUN_281f_08bc()` calls here pass fields **2, 2, 0**.
+  Field 0 is `T1.3`'s already-resolved disguised constant (always `1` for
+  a non-negative unit id) — `iVar18 = 1`, certain. Field 2 is the known
+  transport-chain node exchange; combined with `T1.2`'s "chain fields
+  never actively maintained" finding, its raw return is realistically
+  always `<1` in practice, which this block's own code already clamps to
+  `1` regardless (`if (iVar14 < 1) iVar14 = 1;`) — so `iVar14 = 1` with
+  high but not airtight confidence (open only on whether Braves' chain
+  fields are as inert as land units', not independently re-checked).
+  **With both resolved, the formula collapses to `iStack_e8 = 2*iVar20`**
+  (divisor already `1` for Braves) — `iVar20` being the already-ported
+  `combat_apply_1b0e_peels` strength value. Concrete and portable now, not
+  an open field-mapping task. **Not wired**: still no golden exercises
+  `colony_count>0` for a Brave to verify a port against, per this item's
+  own original note — documenting per that note rather than shipping
+  unverifiable code. Full trace: `quiet_brave_scoring.c`'s 2026-08-22
+  update. `ctest` not run (doc-only, no `src/` touched).
 
 - [x] **T1.10 — Resolve `DS:0x945a` / `FUN_1d1d_0ec6` division (profession/
   dock query family).** New, split out of **T2.1**'s 2026-08-20 finding.
