@@ -3585,11 +3585,15 @@ static int ai_euro_28c8_job_headcount(const ColonizeColony* col, int field_job) 
 /*
  * FUN_15eb_28c8 — colonist work-plot job scoring, structural reference port
  * (2026-08-22, docs/ai_port_plan.md T1.17). RE is complete — see
- * original_sources_annotated/turn/colonist_work_plot_28c8.md — but this is
- * deliberately NOT wired into any live AI path: no golden fixture exercises
- * colonist auto-job-assignment to verify a real port against (same
- * "document, don't guess-ship" precedent as T1.9/T1.15). Kept here,
- * address-taken only, as the documented next step if a fixture ever lands.
+ * original_sources_annotated/turn/colonist_work_plot_28c8.md. **2026-08-24
+ * (W1.7):** a golden fixture now verifies the 9-job weighted formula —
+ * tests/unit/test_ai_euro_28c8_job_score.c — and caught a real discrepancy
+ * against the doc, fixed here (see the labor/travel-penalty note below).
+ * Still deliberately NOT wired into any live AI path — that's Tier 3
+ * (docs/port_plan.md W3.1), a user-confirmed default-behavior change, not
+ * this pass's scope (same "document/verify, don't silently ship"
+ * precedent as T1.9/T1.15). External linkage (declared in ai_euro.h) so
+ * the fixture can call it directly.
  *
  * Covers only the tier-2/8-tile case: colony.h's own
  * COLONIZE_COLONY_FIELD_TILES==8 already matches DOS's default (Town-Hall-
@@ -3606,8 +3610,12 @@ static int ai_euro_28c8_job_headcount(const ColonizeColony* col, int field_job) 
  * same worker-context-free substitute this file's other job-assign helpers
  * already use, per the doc's own "local_24 vs local_34" note), the
  * labor/travel terrain penalty (map_dos_terr_labor_penalty_byte, this
- * session's own T1.17 addition to map.c), the population-cap-vs-headroom
- * clamp (warehouse_level doubles as DOS's population cap per
+ * session's own T1.17 addition to map.c) — per the doc's Structure §5,
+ * this is an AI-full-search-branch term scoped to jobs 0 (Farmer) and 8
+ * (Fisherman) only ("generalist" slots), NOT a universal base-score term;
+ * the original port applied it to every job unconditionally, which the
+ * golden fixture caught and this pass fixed — the population-cap-vs-
+ * headroom clamp (warehouse_level doubles as DOS's population cap per
  * FUN_15eb_0a50 — already named/cited in colony.h), and the current-job
  * sticky-preference doubling.
  *
@@ -3624,13 +3632,7 @@ static int ai_euro_28c8_job_headcount(const ColonizeColony* col, int field_job) 
  * yet), and the first-work hidden-resource discovery roll
  * (FUN_281f_0d78/_0d6c — parked, self-contained, doc's own note).
  */
-typedef struct AiEuro28c8JobCandidate {
-  int job;   /* COLONIZE_JOB_*, or -1 if nothing scored */
-  int tile;  /* 0..COLONIZE_COLONY_FIELD_TILES-1 */
-  int score;
-} AiEuro28c8JobCandidate;
-
-static int ai_euro_28c8_colonist_job_score_structural(
+int ai_euro_28c8_colonist_job_score_structural(
   const ColonizeTurnContext* ctx,
   int colony_id,
   int colonist_slot,
@@ -3684,7 +3686,16 @@ static int ai_euro_28c8_colonist_job_score_structural(
           yld = headroom;
         }
       }
-      int score = yld * 8 - penalty;
+      int score = yld * 8;
+      /* Doc's own Structure §5: the DS:0x2f76+4 labor/travel penalty is an
+       * AI-full-search-branch term scoped to jobs 0/8 only ("generalist"
+       * Farmer/Fisherman slots) — NOT a universal base-score term. Fixed
+       * 2026-08-24 (W1.7 verification): the port previously subtracted it
+       * from every job's base score, which the doc's own derivation doesn't
+       * support (a golden fixture caught the resulting best-pick flip). */
+      if (is_ai && (job == COLONIZE_JOB_FARMER || job == COLONIZE_JOB_FISHERMAN)) {
+        score -= penalty;
+      }
       if (job == current_job) {
         score *= 2; /* sticky preference for the colonist's current job */
       }
@@ -9423,11 +9434,14 @@ static void ai_euro_colony_goals(ColonizeTurnContext* ctx, int nation_id) {
     return;
   }
   /* FUN_15eb_28c8's structural port (T1.17) is reference-only, not called
-   * from the live colonist-job path below (see its own header for why —
-   * no golden fixture to verify against yet). Address-taken here just to
-   * keep the compiler from flagging it dead code, same convention as
+   * from the live colonist-job path below (see its own header comment for
+   * scope). W1.7 (2026-08-24) added a golden fixture verifying the 9-job
+   * formula — see tests/unit/test_ai_euro_28c8_job_score.c — but wiring it
+   * live is Tier 3 (docs/port_plan.md W3.1), a user-confirmed behavior
+   * change, not attempted here. External linkage (declared in ai_euro.h)
+   * so the fixture can call it directly; still address-taken by nothing
+   * else in this file, same convention as
    * ai_euro_5d04_nation_planning_structural. */
-  (void)ai_euro_28c8_colonist_job_score_structural;
   AiEuroInventory* inv = ai_goals_inventory(nation_id);
   ai_goals_clear_work_queue();
 

@@ -993,6 +993,41 @@ item's own 2026-08-24 entry for the full derivation. Ported, real
   keeps shipping as the tested substitute. Full trace: `euro_unit_act.md`'s
   2026-08-24 update. Full `ctest` 41/41 green (one real `src/` change:
   `0015bc`'s edge-cost formula).
+  **2026-08-24, later same day — `FUN_1000_8560`/`FUN_1000_856a` both
+  resolved (same formula, already live); two NEW genuine blockers found
+  instead of a port landing.** `8560`/`856a` both resolve to
+  `FUN_124c_0040`/`ai_dos_dist` — already shipping as `units_octile`
+  (`units.c:3927`) — so `0009ae`'s and `0015c1`'s own scoring/tie-break
+  calls need no new logic. Along the way: **`0015b7`/`0015b2`/`0015c1`
+  are 5-byte JMPF thunks into resident segment `1000`** (real bodies at
+  `1000:a78c`/`a46e`/`a9c0`), not overlay-local bodies as assumed —
+  doesn't invalidate prior findings (Ghidra auto-follows the tail call),
+  just corrects address attribution. `1000:a46e` (`0015b2`'s target)
+  newly identified: a Chebyshev-8-gated shortcut that, when the goal is
+  close, calls **`0015bc` itself (already-ported `units_flood_next_step`)
+  directly** rather than running the windowed dance — confirms Linux's
+  own near/far tiering already mirrors this. `DS:0x1dd2` resolved
+  (domain-flag relay between `1000:a46e` and `0015c1`). **Two new,
+  previously-unflagged blockers, not restatements of old ones**: (1)
+  `FUN_1000_1e7b`'s `address_mapping.csv` "exact" identity (the generic
+  RTLink loader) is wrong for this call context — direct disasm shows a
+  real critical-section/task-state primitive (`PUSHF/CLI/...gated on
+  CS:0x39e1/0x39de.../POPF`), cross-confirmed against an unrelated
+  citation in `euro_goal_orders_0a60_full.md`, but its actual
+  return-value semantics are unresolved; (2) the window-local per-domain
+  walkability grids `0009ae`/`0015c1` read are never populated anywhere
+  in this call chain — the population function hasn't been found.
+  Porting `0009ae`/`0015c1` now would mean inventing behavior for both —
+  not done, per project convention. `units_bfs_next_step` re-verified as
+  the far tier's sole caller (one call site) — kept, not retired. Full
+  trace: `euro_unit_act.md`'s 2026-08-24 later-same-day update. `ctest`:
+  rebuilt fresh (worktree needed the gitignored `COLONIZE/` assets
+  symlinked in from the main checkout to run at all) — 40/41 green;
+  the one failure (`unit_ai_king`) is a pre-existing baseline condition,
+  not a regression (zero `src/` files touched this pass). **Row stays
+  open** — real next step if resumed: `FUN_1000_1e7b`'s true semantics,
+  and finding what populates the `-0x790a`/`-0x7a18` walkability grids
+  (likely inside `0f74` itself, not chased this session).
 
 - [x] **T1.9 — Indian mid-game quiet scoring (goods/missions/capital
   pull) formula mapping.** R2 used to flag this as blocked on "a

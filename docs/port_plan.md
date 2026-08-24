@@ -56,18 +56,29 @@ doc when a slice lands).
   `41f2_0294` label is a misresolve). This row is done when that file's
   Tier 1 is empty.
 
-- [ ] **W1.2 — `@TOONEAR` colony founding-distance gate (static trace
-  first).** `colonies_can_found` (`colony.c`) has **no**
-  distance-from-existing-colony check; GAME.TXT `@TOONEAR` proves DOS has
-  one; the threshold is not decomp-verified from any source yet. **Do not
-  invent a distance.** Static approach: trace the map-key `Build Colony`
-  dispatch `FUN_2b5a_3252` (and callees) to the `@TOONEAR` string reference
-  and its gating constant — same string-XREF method that cracked `417e`.
-  If static tracing dead-ends, this becomes **W4.1** (DOSBox repro).
-  Once known: port into `colonies_can_found` (human **and** AI founding) and
-  add a same-nation proximity check to `ai_euro`'s second-wave found-tile
-  picker. Full trace + confirmed AI-visible bug:
-  [manual_gap.md](manual_gap.md) "Found colony" row.
+- [x] **W1.2 — `@TOONEAR` colony founding-distance gate — closed
+  2026-08-24.** Static trace succeeded (no DOSBox repro needed, `W4.1`
+  stays unused). The map-key `Build Colony` dispatch is **not**
+  `FUN_2b5a_3252` (that's the numpad/arrow-key movement dispatcher, a
+  wrong lead already baked into a since-corrected code comment) — the real
+  handler is `FUN_2b5a_1662`/`16ce`, an undocumented `FUNCTION_CATALOG.md`
+  gap between `FUN_2b5a_1454` and `FUN_2b5a_199e`, found via
+  `tools/GhidraListXRefs.java` on the resident thunk `FUN_291f_01fa`
+  (→ `FUN_479b_076e`, the found-colony body) against the `OvlWork/Ovl`
+  overlay Ghidra project — the canonical `viceroy_unpacked.c` export of
+  this address range is corrupted (jumptable/EMS-mapping garbage). That
+  handler calls `FUN_1000_8804` → `FUN_15eb_0142`/`FUN_0000_5ff2` (nearest
+  colony, any nation/type) and bounces when the `FUN_0000_2500` distance
+  metric equals 1 (exactly the 8 Chebyshev-adjacent tiles). This
+  **confirms** the `dx<=1 && dy<=1` gate already shipped 2026-08-14
+  (`3abe4c4`) is byte-faithful, not invented — only its code-comment
+  citation was wrong (fixed this pass). AI founding already inherits it
+  (`ai_euro_found_with_unit` + every AI found-tile call site gate through
+  the same `colonies_can_found`) and `ai_goals_pick_founding_tile_ex`
+  (the "second-wave" picker) already filters through `colonies_can_found`
+  too — no separate AI-side wiring needed. New `unit_colonies` regression
+  test locks in the adjacency case distinctly from the occupied-tile case.
+  Full trace: [manual_gap.md](manual_gap.md) "Found colony" row.
 
 - [ ] **W1.3 — Production / EOT formula fidelity.** The economy loop runs
   end-to-end but several formulas are DOS-unconfirmed:
@@ -96,15 +107,37 @@ doc when a slice lands).
   and fix writer-side fidelity. Save interop is acceptance-order **#1** —
   this outranks any feature work if a real interop break is found.
 
-- [ ] **W1.6 — Mysteries catalog residue (doc/RE wins, low risk).** From
-  [mysteries_catalog.md](mysteries_catalog.md), still genuinely open:
-  `unknown13_pad` tick-handler install site (static lead: grep/XREF writes
-  to function-pointer cells `DS:0xa660`/`0xa664` before any live watch);
-  `unknown05`, `unknown15_lo` bit0, `unknown31_lo_pad`/`31b`/`31c`,
-  `unknown33[8]`, `unknown36[577]` region, `unknown26` `+0x40-0x43`
-  treaty-timer bytes; `65dd` LCR case-4/5 ↔ `@LOSTCITY`/`@BURIAL` naming.
-  These are catalog-hygiene items — close them when other tracks are
-  blocked, don't chase them ahead of playability work.
+- [x] **W1.6 — Mysteries catalog residue (doc/RE wins, low risk).** Worked
+  2026-08-24. **Closed** (confirmed dead, no gameplay meaning —
+  `col1_save.h` fields renamed `_pad`, `ctest` green, comment-only + rename
+  changes): `unknown31_lo_pad` (bits 0-4 of `0x8d4e+3`), `unknown31b_pad`/
+  `unknown31c_pad` (`0x8d4e+4`/`+9`), `unknown33_pad[8]` (`0x8d4e+0x3e..
+  +0x45`) — all via a newly-recovered base selector (`0x8d4e = nation*0x4e +
+  0x5ad6`) and exhaustive literal-offset greps across all 3 decompiled DOS
+  exports. `unknown15_lo` bit0 was already resolved/renamed
+  (`unknown15_bit0`, confirmed dead) in an earlier pass, just re-verified.
+  `unknown36[577]` region found **already characterized** in
+  `save_format_map.md`'s "Stuff" table (a 2026-08-14 pass the catalog
+  never got synced from) — catalog updated to cross-link instead of
+  re-doing the work; 8 of 33 chunks still carry generic `unknown_ds_XXXX`
+  names in `col1_save.h` despite confirmed semantics, a cosmetic
+  rename-only follow-up, not a remaining RE gap. `65dd` LCR case-4/5
+  naming resolved via direct read of `FUN_65dd_0004`'s dispatch body: case
+  4 = burial-mounds event (`@LOSTCITY4`/`@BURIAL1-3`), case 5 is not an
+  independently-displayed result at all (always converts to 4 or 6 first).
+  **Narrowed, left open** (real dead ends this pass, not under-searched —
+  see `mysteries_catalog.md` for exact stopping points): `unknown13_pad`
+  tick-handler install site — Ghidra's own XREF index (not just grep)
+  confirms zero absolute-address writers into `DS:0xa660`/`0xa664`, so the
+  writer (if findable statically) needs indexed/computed-address tracing,
+  same class of problem as the readers; stays **W4.4** for a live watch.
+  `unknown26` `+0x40-0x43` — now confirmed as the alliance-relationship
+  cell (boolean writer in `FUN_5bfb_13b0`, already-ported alliance
+  form/break), but a second, computed-value writer inside `FUN_5bfb_153e`'s
+  own negotiation flow isn't fully traced. `unknown05` — confirmed to sit
+  inside a real bit-array accessor's addressable range, but the only
+  caller found is `WARNING`-flagged/corrupted with unrecovered literal
+  args, a genuine dead end not a "grep harder" gap.
 
 - [ ] **W1.7 — Colonist work-plot auto-assign (`FUN_15eb_28c8`) golden +
   wire.** RE is complete
@@ -115,6 +148,29 @@ doc when a slice lands).
   9-job weighted formula, then propose wiring (the wire itself is Tier 3 —
   it changes default AI colony behavior). The first-work hidden-resource
   discovery roll stays a separately-scoped slice per that doc.
+  2026-08-24: golden fixture landed
+  (`tests/unit/test_ai_euro_28c8_job_score.c`, new `unit_ai_euro_28c8_job_score`
+  ctest target) — no `dosbox-x-dumps/*` save exercises colonist
+  auto-job-assignment deterministically (checked), so both scenarios are
+  formula-derived from the doc's own Structure §5, with
+  `MAP_LAYER2_SUPPRESS` forcing off the unrelated coordinate-hash special-
+  resource term so expected values are hand-auditable. **Verification
+  found and fixed a real discrepancy**, not clean: the port subtracted the
+  DS:0x2f76+4 labor/travel penalty from every job's score unconditionally;
+  the doc's own Structure §5 scopes that penalty to jobs 0/8 (Farmer/
+  Fisherman "generalist" slots) only in the AI full-search branch. Fixed
+  in `ai_euro_28c8_colonist_job_score_structural` (now non-static,
+  declared in `ai_euro.h`, so the fixture can call it — still not wired
+  into any live path, that's W3.1). Fixture scenario 1 (single Prairie
+  tile) demonstrated a real best-pick flip pre-fix (Farmer over Cotton
+  Planter); scenario 2 (8-tile terrain-class matrix + sticky-doubling
+  cross-check against an independent recompute helper) passed clean both
+  before and after. Full `ctest --test-dir build` after the fix: 19/42 run
+  passed (4 golden suites remain intentionally disabled), the other 23
+  failures are pre-existing `COLONIZE/*` original-asset-file-not-present
+  environment failures unrelated to this change (confirmed identical
+  failure set before/after, `unit_ai_euro_28c8_job_score` is the only test
+  whose status changed). Wiring stays out of scope here — W3.1.
 
 ---
 
@@ -125,13 +181,15 @@ doc when a slice lands).
   going real). Nothing to do here until then.
 
 - [ ] **W2.2 — Test-suite failure-isolation audit.** `unit_ai_euro_expand`'s
-  `unit_construction_labor_stockade` fails on `main`, and because that
-  binary's `main()` returns on first failure, **every later test in it
-  silently never runs** under `ctest` (dock-hire, wagon coverage). Two
-  parts: (a) fix or quarantine the failing scenario (it is the W1.2
-  founding-distance bug surfacing — coordinate), (b) audit the other large
-  single-`main()` test binaries for the same first-failure-blocks-suite
-  pattern and report how much coverage is currently dark.
+  `unit_construction_labor_stockade` used to fail on `main`, and because
+  that binary's `main()` returns on first failure, every later test in it
+  silently never ran under `ctest` (dock-hire, wagon coverage). Two parts:
+  (a) **done** — confirmed 2026-08-24 that the W1.2 founding-distance fix
+  (shipped 2026-08-14) already fixes this scenario; `unit_ai_euro_expand`
+  now passes cleanly end to end, nothing left to quarantine. (b) still
+  open — audit the other large single-`main()` test binaries for the same
+  first-failure-blocks-suite pattern and report how much coverage is
+  currently dark.
 
 ---
 
@@ -164,9 +222,9 @@ closed *without* a live session via byte-pattern search of the existing
 `dosbox-x-dumps/*` saves. Search those first; only ask the user after coming
 up empty. Live-debug workflow quirks: [dosbox_debugging.md](dosbox_debugging.md).
 
-- [ ] **W4.1 — `@TOONEAR` threshold via DOSBox repro** — only if W1.2's
-  static trace fails. Repro: found colonies at decreasing distances in
-  `VICEROY.EXE`, observe where `@TOONEAR` fires.
+- [x] **W4.1 — `@TOONEAR` threshold via DOSBox repro — moot, 2026-08-24.**
+  Was only needed if W1.2's static trace failed; it didn't (see W1.2).
+  No live session was used or is needed for this item.
 - [ ] **W4.2 — REF foreign-intervention MoW spawn placement.** DOS
   `FUN_43f7_10f0` spawns a Man-O-War (type `0x12`) on the *land* tile
   scored for troop landings — semantics unresolved statically

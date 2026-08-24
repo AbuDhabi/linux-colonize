@@ -1034,19 +1034,19 @@ static void write_indian(FILE* f, const ColonizeCol1Indian* ind) {
   wb(f, &n, "woi_defect_resolved", ind->woi_defect_resolved);
   wb(f, &n, "woi_defect_forced", ind->woi_defect_forced);
   wb(f, &n, "extinct", ind->extinct);
-  wi(f, &n, "unknown31b", ind->unknown31b);
+  wi(f, &n, "unknown31b", ind->unknown31b_pad);
   wi(f, &n, "lands_bought", ind->lands_bought);
   wi(f, &n, "unknown31_flags", ind->unknown31_flags);
   wi(f, &n, "muskets", ind->muskets);
   wi(f, &n, "horse_herds", ind->horse_herds);
-  wi(f, &n, "unknown31c", ind->unknown31c);
+  wi(f, &n, "unknown31c", ind->unknown31c_pad);
   wi(f, &n, "horse_breeding", ind->horse_breeding);
   wi(f, &n, "hill_silver_bid_bonus", ind->hill_silver_bid_bonus);
   W_I16ARR(f, &n, "tons", ind->tons, COLONIZE_COL1_CARGO_TYPES);
   W_I16ARR(f, &n, "contact_state", ind->contact_state, 4);
   W_I8ARR(f, &n, "euro_relation_accum", ind->euro_relation_accum, 4);
   W_U8ARR(f, &n, "euro_diplo", ind->euro_diplo, 4);
-  W_U8ARR(f, &n, "unknown33", ind->unknown33, 8);
+  W_U8ARR(f, &n, "unknown33", ind->unknown33_pad, 8);
   W_U16ARR(f, &n, "alarm_by_player", ind->alarm_by_player, 4);
   fputc('}', f);
 }
@@ -1061,12 +1061,12 @@ static void read_indian(const JsonValue* o, ColonizeCol1Indian* ind) {
   if (json_get_bool(o, "woi_defect_resolved", &b)) ind->woi_defect_resolved = b;
   if (json_get_bool(o, "woi_defect_forced", &b)) ind->woi_defect_forced = b;
   if (json_get_bool(o, "extinct", &b)) ind->extinct = b;
-  if (json_get_u64(o, "unknown31b", &u)) ind->unknown31b = (uint8_t)u;
+  if (json_get_u64(o, "unknown31b", &u)) ind->unknown31b_pad = (uint8_t)u;
   if (json_get_u64(o, "lands_bought", &u)) ind->lands_bought = (uint8_t)u;
   if (json_get_u64(o, "unknown31_flags", &u)) ind->unknown31_flags = (uint8_t)u;
   if (json_get_u64(o, "muskets", &u)) ind->muskets = (uint8_t)u;
   if (json_get_u64(o, "horse_herds", &u)) ind->horse_herds = (uint8_t)u;
-  if (json_get_u64(o, "unknown31c", &u)) ind->unknown31c = (uint8_t)u;
+  if (json_get_u64(o, "unknown31c", &u)) ind->unknown31c_pad = (uint8_t)u;
   if (json_get_u64(o, "horse_breeding", &u)) ind->horse_breeding = (uint16_t)u;
   if (json_get_i64(o, "hill_silver_bid_bonus", &i)) ind->hill_silver_bid_bonus = (int16_t)i;
   JsonValue* arr = json_obj_get(o, "tons");
@@ -1091,7 +1091,7 @@ static void read_indian(const JsonValue* o, ColonizeCol1Indian* ind) {
     }
   }
   read_arr_u8(o, "euro_diplo", ind->euro_diplo, 4);
-  read_arr_u8(o, "unknown33", ind->unknown33, 8);
+  read_arr_u8(o, "unknown33", ind->unknown33_pad, 8);
   arr = json_obj_get(o, "alarm_by_player");
   if (arr && arr->type == JV_ARR) {
     for (size_t k = 0; k < 4 && k < json_arr_len(arr); ++k) {

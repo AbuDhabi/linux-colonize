@@ -273,14 +273,22 @@ typedef struct ColonizeCol1Player {
   char country_name[24];
   uint8_t unknown06_lo : 6; /* bits0-5 @ player+0x30; no reader/writer cite in either
                                 decompiled export — opaque */
-  uint8_t lcr_case5_bonus_used : 1; /* bit6 @ player+0x30; per-nation one-shot in
-                                        FUN_65dd_0004 (LCR/native-encounter result
-                                        table) — first roll landing on case 5 is
-                                        upgraded to case 4 (richer outcome), later
-                                        rolls stay case 5. Which named @LOSTCITY/
-                                        @BURIAL result cases 4/5 map to is unresolved
-                                        — FUN_65dd_0004's full table is still PARKED
-                                        (see indian_contact.md's de Soto note). */
+  uint8_t lcr_case5_bonus_used : 1; /* bit6 @ player+0x30 (nation*0x34+0x543e in DOS
+                                        terms); per-nation one-shot in FUN_65dd_0004
+                                        (LCR/native-encounter result table) — first
+                                        roll landing on the internal case-5 bucket is
+                                        upgraded to case 4, later ones fall through to
+                                        case 6 instead. Case 4/5 naming resolved
+                                        2026-08-24 (viceroy_unpacked.c:103463-103757):
+                                        case 4 IS the burial-mounds "search for
+                                        treasure" event (@LOSTCITY4/@SCREWED prompt,
+                                        @BURIAL1/2/3 payout variants); case 5 has no
+                                        display of its own — every path through it
+                                        converts to case 4 or case 6 before the
+                                        dispatch runs, so this bit's own description
+                                        was already accurate. FUN_65dd_0004's full
+                                        table is still PARKED (see indian_contact.md's
+                                        de Soto note). See docs/mysteries_catalog.md. */
   uint8_t named_new_world : 1; /* bit7 @ player+0x30; discovery one-shot (FUN_4720_049e) */
   uint8_t control; /* 0 player, 1 AI, 2 withdrawn */
   uint8_t founded_colonies;
@@ -567,7 +575,18 @@ typedef struct ColonizeCol1Nation {
    *     a separate decrementing grace/waiver counter read by 4528 before a
    *     periodic gold cost. ai_euro.c already deliberately keeps its own
    *     scratch copy instead of reusing this union, for exactly this reason.
-   *   +0x40-0x43 ("treaty_timer[4]"): unconfirmed either way this pass.
+   *   +0x40-0x43 ("treaty_timer[4]"): narrowed 2026-08-24 — real DOS
+   *     content is a per-(nation_a,nation_b) pair, symmetric byte cell
+   *     written by FUN_5bfb_13b0 (form/break alliance, already ported as
+   *     ai_diplo_form_alliance_ctx/break_alliance_ctx) as a plain boolean
+   *     1/0 "are these two nations allied," plus a second, not-fully-traced
+   *     write from FUN_5bfb_153e's own negotiation flow that stores a
+   *     computed (non-boolean) value under a separate gate. So it's the
+   *     alliance-relationship cell, not a total mystery, but not a
+   *     confirmed countdown either — this file's own treaty_timer[4] as an
+   *     actual decrementing expiry counter (ai_diplo_ally_treaty_timer_bump
+   *     / ai_diplo_treaty_timers) remains a functional Linux invention
+   *     layered on top, same as before.
    * See docs/mysteries_catalog.md Meta-mystery section.
    */
   union {
@@ -638,7 +657,11 @@ typedef struct ColonizeCol1Indian {
   uint8_t capitol_x;
   uint8_t capitol_y;
   uint8_t tech;
-  uint8_t unknown31_lo_pad : 5; /* bits 0-4; no reader cite */
+  uint8_t unknown31_lo_pad : 5; /* bits 0-4 (0x8d4e+3 low nibble+1 bit) — confirmed
+     dead 2026-08-24: every literal `*(int*)0x8d4e + 3` access across all 3
+     decompiled DOS exports only ever masks 0x20/0x40/0x80 (the three named
+     bits below); masks 0x01/0x02/0x04/0x08/0x10 never appear anywhere. See
+     docs/mysteries_catalog.md. */
   /* bit 0x20 (bit5): WoI tribe-defection one-shot latch — FUN_4d56_1816,
    * indian_woi_defect_1816.md. Set once the roll resolves (hit or miss)
    * so the tribe is not re-checked every turn for the rest of the war. */
@@ -649,12 +672,14 @@ typedef struct ColonizeCol1Indian {
    * anywhere read this pass) — reserved for a future find. */
   uint8_t woi_defect_forced : 1;
   uint8_t extinct : 1; /* bit7 */
-  uint8_t unknown31b;
+  uint8_t unknown31b_pad; /* 0x8d4e+4 — confirmed dead 2026-08-24: zero literal
+     offset-+4 touches in any of the 3 decompiled DOS exports. */
   uint8_t lands_bought; /* FUN_479b_00ca INC; purchase cost */
   uint8_t unknown31_flags; /* Linux: bit 0x20 = contact prelude fired */
   uint8_t muskets;
   uint8_t horse_herds;
-  uint8_t unknown31c;
+  uint8_t unknown31c_pad; /* 0x8d4e+9 — confirmed dead 2026-08-24: zero literal
+     offset-+9 touches in any of the 3 decompiled DOS exports. */
   uint16_t horse_breeding; /* +10; ±0x32 on acquire/tick — FUN_5bfb_* / 4d56 */
   int16_t hill_silver_bid_bonus; /* was unknown31d[2]. Resolved 2026-08-19:
      write confirmed at map-gen (FUN_6a09_0006 NEW WORLD/procedural tribe
@@ -679,9 +704,7 @@ typedef struct ColonizeCol1Indian {
      now a direct int16 (struct is #pragma pack(1), same bytes).
      Write side wired 2026-08-24 (ai_place_tribes_procedural, ai.c) —
      previously read-only dead weight since NEW WORLD games never
-     populated it. See docs/mysteries_catalog.md (write-side/class
-     correction not yet merged into that file — flagged for the
-     doc-owning pass). */
+     populated it. See docs/mysteries_catalog.md. */
   int16_t tons[COLONIZE_COL1_CARGO_TYPES];
   /* +0x2e — per-euro contact FSM 0/1/2 (FUN_5bfb_*); was unknown32[12]. */
   int16_t contact_state[4];
@@ -693,7 +716,10 @@ typedef struct ColonizeCol1Indian {
    * Linux meet still sets the byte non-zero; peace uses bit 0x40.
    */
   uint8_t euro_diplo[4];
-  uint8_t unknown33[8]; /* +0x3e; opaque in DOS (Linux formerly parked peace here) */
+  uint8_t unknown33_pad[8]; /* 0x8d4e+0x3e..+0x45 — confirmed dead 2026-08-24:
+     zero literal offset touches (+0x3e through +0x45) in any of the 3
+     decompiled DOS exports; Linux formerly parked peace bookkeeping here,
+     since moved off (see euro_diplo above). */
   uint16_t alarm_by_player[4];
 } ColonizeCol1Indian;
 
