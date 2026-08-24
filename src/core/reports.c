@@ -139,7 +139,54 @@ void reports_free(ColonizeReportsView* view) {
   for (int i = 0; i < COLONIZE_REPORT_COUNT; ++i) {
     pik_free(&view->backgrounds[i]);
   }
+  ss_free(&view->icons);
+  ff_free(&view->title_font);
   memset(view, 0, sizeof(*view));
+}
+
+/* Nearest-color remap of a sprite sheet's own palette onto dst_pal (see
+ * colony_screen.c / europe.c: same per-file pattern, no shared header). */
+static void reports_remap_sheet_to_palette(
+  ColonizeSpriteSheet* sheet,
+  const ColonizePalette* dst_pal
+) {
+  if (!sheet || !dst_pal || !sheet->has_palette) {
+    return;
+  }
+  uint8_t lut[256];
+  for (int i = 0; i < 256; ++i) {
+    if (i == COLONIZE_SS_TRANSPARENT) {
+      lut[i] = (uint8_t)COLONIZE_SS_TRANSPARENT;
+      continue;
+    }
+    const int sr = sheet->palette.rgb[i][0];
+    const int sg = sheet->palette.rgb[i][1];
+    const int sb = sheet->palette.rgb[i][2];
+    int best = 0;
+    int best_d = 1 << 30;
+    for (int j = 0; j < 256; ++j) {
+      const int dr = sr - dst_pal->rgb[j][0];
+      const int dg = sg - dst_pal->rgb[j][1];
+      const int db = sb - dst_pal->rgb[j][2];
+      const int d = dr * dr + dg * dg + db * db;
+      if (d < best_d) {
+        best_d = d;
+        best = j;
+      }
+    }
+    lut[i] = (uint8_t)best;
+  }
+  for (int s = 0; s < sheet->sprite_count; ++s) {
+    ColonizeSprite* spr = &sheet->sprites[s];
+    if (!spr->pixels) {
+      continue;
+    }
+    const int n = spr->width * spr->height;
+    for (int p = 0; p < n; ++p) {
+      spr->pixels[p] = lut[spr->pixels[p]];
+    }
+  }
+  sheet->palette = *dst_pal;
 }
 
 bool reports_load(ColonizeReportsView* view, const char* data_dir, char* err, size_t err_size) {
@@ -173,6 +220,34 @@ bool reports_load(ColonizeReportsView* view, const char* data_dir, char* err, si
     snprintf(err, err_size, "no report backgrounds loaded");
     return false;
   }
+
+  /* Cross counter (Religious report) reuses the game's standard resource-count
+   * icon (ICONS.SS #56), remapped to REPORT2.PIK's palette. */
+  char ss_path[512];
+  char ss_err[256];
+  if (dos_compat_normalize_asset_path(data_dir, "ICONS.SS", ss_path, sizeof(ss_path)) &&
+      ss_load(ss_path, &view->icons, ss_err, sizeof(ss_err))) {
+    if (view->background_ok[COLONIZE_REPORT_RELIGIOUS]) {
+      reports_remap_sheet_to_palette(
+        &view->icons, &view->backgrounds[COLONIZE_REPORT_RELIGIOUS].palette
+      );
+    }
+    view->icons_ok = true;
+  } else {
+    diag_warn("Failed to load ICONS.SS for reports: %s", ss_err);
+  }
+
+  /* Report titles use FONTTINY, not the FONTSMAL body/menu font (golden:
+   * religious.png / labor.png — bolder, wider-spaced glyphs). */
+  char font_path[512];
+  char font_err[256];
+  if (dos_compat_normalize_asset_path(data_dir, "FONTTINY.FF", font_path, sizeof(font_path)) &&
+      ff_load(font_path, &view->title_font, font_err, sizeof(font_err))) {
+    view->title_font_ok = true;
+  } else {
+    diag_warn("Failed to load FONTTINY.FF for reports: %s", font_err);
+  }
+
   diag_info("Report screens loaded (%d/%d backgrounds)", ok_count, COLONIZE_REPORT_COUNT);
   return true;
 }
@@ -227,9 +302,73 @@ static void reports_render_body_start(
     pik_blit(&view->backgrounds[id], fb, 0, 0);
   }
 
-  reports_draw_line(font, fb, 8, 4, reports_title(id), 15);
-  reports_draw_line(font, fb, 8, 4 + reports_line_step(font), "Esc returns to map", 14);
-  *out_y = 4 + reports_line_step(font) * 2 + 4;
+  const ColonizeFont* title_font =
+    (view && view->title_font_ok) ? &view->title_font : font;
+  const char* title = reports_title(id);
+  const int title_w = title_font ? font_text_width(title_font, title) : 0;
+  reports_draw_line(title_font, fb, (fb->width - title_w) / 2, 5, title, 15);
+  *out_y = 4 + reports_line_step(font) + 4;
+}
+
+/* Bottom-right "OK" button (native 320×200 coords), shared by every F2–F9
+ * report (golden: religious.png / labor.png; not drawn on F10 Score). */
+#define REPORTS_OK_X 286
+#define REPORTS_OK_Y 184
+#define REPORTS_OK_W 30
+#define REPORTS_OK_H 14
+
+bool reports_ok_button_hit(ColonizeReportId id, int mx, int my) {
+  if (id == COLONIZE_REPORT_SCORE) {
+    return false;
+  }
+  return mx >= REPORTS_OK_X && mx < REPORTS_OK_X + REPORTS_OK_W && my >= REPORTS_OK_Y &&
+    my < REPORTS_OK_Y + REPORTS_OK_H;
+}
+
+static void reports_draw_rect_outline(
+  ColonizeFramebuffer8* fb,
+  int x0,
+  int y0,
+  int x1,
+  int y1,
+  uint8_t color
+) {
+  if (!fb || !fb->pixels) {
+    return;
+  }
+  for (int x = x0; x < x1; ++x) {
+    if (x >= 0 && x < fb->width) {
+      if (y0 >= 0 && y0 < fb->height) {
+        fb->pixels[y0 * fb->width + x] = color;
+      }
+      if (y1 - 1 >= 0 && y1 - 1 < fb->height) {
+        fb->pixels[(y1 - 1) * fb->width + x] = color;
+      }
+    }
+  }
+  for (int y = y0; y < y1; ++y) {
+    if (y >= 0 && y < fb->height) {
+      if (x0 >= 0 && x0 < fb->width) {
+        fb->pixels[y * fb->width + x0] = color;
+      }
+      if (x1 - 1 >= 0 && x1 - 1 < fb->width) {
+        fb->pixels[y * fb->width + x1 - 1] = color;
+      }
+    }
+  }
+}
+
+static void reports_render_ok_button(const ColonizeFont* font, ColonizeFramebuffer8* fb) {
+  reports_draw_rect_outline(
+    fb, REPORTS_OK_X, REPORTS_OK_Y, REPORTS_OK_X + REPORTS_OK_W, REPORTS_OK_Y + REPORTS_OK_H, 4
+  );
+  if (!font) {
+    return;
+  }
+  const int tw = font_text_width(font, "OK");
+  const int tx = REPORTS_OK_X + (REPORTS_OK_W - tw) / 2;
+  const int ty = REPORTS_OK_Y + (REPORTS_OK_H - font->max_height) / 2;
+  reports_draw_line(font, fb, tx, ty, "OK", 14);
 }
 
 static int reports_clamp_nation(int human_nation) {
@@ -292,88 +431,110 @@ static int reports_colony_rebel_pct(const ColonizeCol1Colony* c) {
   return (int)((c->rebel_dividend * 100u) / c->rebel_divisor);
 }
 
-static void reports_render_religious(
-  const ColonizeCol1Save* col1,
-  int human,
-  const ColonizeColonyPool* colonies,
-  const EuropeScreen* europe,
+/* Cross counter (native 320×200 coords; golden religious.png). A real
+ * progress bar: full width (needed_crosses, rarely seen — resets on
+ * threshold) spans left margin to right margin; current width
+ * (current_crosses) is that scaled by current/needed. Crosses pack evenly
+ * across the scaled width — the game's standard resource-count template
+ * (colony_screen_draw_resource_count), reused here with its own copy since
+ * reports.c has no ColonyScreenView. */
+#define REPORTS_CROSS_ICON 56 /* ICONS.SS #56 */
+#define REPORTS_CROSS_X 10
+#define REPORTS_CROSS_Y 27
+#define REPORTS_CROSS_RIGHT_MARGIN 10 /* assumed symmetric with left; never seen at 100% fill */
+#define REPORTS_CROSS_MAX_W (320 - REPORTS_CROSS_X - REPORTS_CROSS_RIGHT_MARGIN)
+#define REPORTS_CROSS_H 11
+
+static void reports_draw_outlined_number(
   const ColonizeFont* font,
   ColonizeFramebuffer8* fb,
-  int* y,
-  int step,
-  char* line,
-  size_t line_sz
+  int x,
+  int y,
+  const char* text,
+  uint8_t fg_color
 ) {
-  reports_draw_line(font, fb, 8, *y, "Immigration / religious unrest", 15);
-  *y += step;
-
-  if (col1) {
-    const ColonizeCol1Nation* nat = &col1->nation[human];
-    snprintf(
-      line,
-      line_sz,
-      "Crosses: %u / %u  (toward next immigrant)",
-      (unsigned)nat->current_crosses,
-      (unsigned)nat->needed_crosses
-    );
-    reports_draw_line(font, fb, 8, *y, line, 15);
-    *y += step;
-
-    const unsigned need = nat->needed_crosses > nat->current_crosses
-                            ? (unsigned)(nat->needed_crosses - nat->current_crosses)
-                            : 0u;
-    snprintf(line, line_sz, "Crosses still needed: %u", need);
-    reports_draw_line(font, fb, 8, *y, line, 15);
-    *y += step;
-
-    reports_draw_line(font, fb, 8, *y, "Recruitment pool:", 15);
-    *y += step;
-    for (int i = 0; i < 3; ++i) {
-      snprintf(line, line_sz, "  %d. %s", i + 1, reports_job_name(nat->recruit[i]));
-      reports_draw_line(font, fb, 8, *y, line, 15);
-      *y += step;
-    }
-
-    int churches = 0;
-    int cathedrals = 0;
-    for (uint16_t i = 0; i < col1->head.colony_count; ++i) {
-      const ColonizeCol1Colony* c = &col1->colony[i];
-      if (c->nation_id != (uint8_t)human) {
+  if (!font || !fb || !text) {
+    return;
+  }
+  for (int dy = -1; dy <= 1; ++dy) {
+    for (int dx = -1; dx <= 1; ++dx) {
+      if (dx == 0 && dy == 0) {
         continue;
       }
-      if (c->buildings.church >= 2) {
-        cathedrals++;
-      } else if (c->buildings.church >= 1) {
-        churches++;
-      }
+      font_draw_text(font, fb, x + dx, y + dy, text, 0);
     }
-    snprintf(line, line_sz, "Churches: %d   Cathedrals: %d", churches, cathedrals);
-    reports_draw_line(font, fb, 8, *y, line, 15);
-    *y += step;
+  }
+  font_draw_text(font, fb, x, y, text, fg_color);
+}
+
+static void reports_draw_cross_counter(
+  const ColonizeReportsView* view,
+  const ColonizeFont* font,
+  ColonizeFramebuffer8* fb,
+  int x,
+  int y,
+  int w,
+  int h,
+  int amount
+) {
+  if (!view || !view->icons_ok || amount <= 0 || w <= 0 || h <= 0) {
+    return;
+  }
+  if (REPORTS_CROSS_ICON >= view->icons.sprite_count) {
+    return;
+  }
+  const ColonizeSprite* sp = &view->icons.sprites[REPORTS_CROSS_ICON];
+  if (!sp->pixels || sp->width <= 0 || sp->height <= 0) {
+    return;
+  }
+  const int iw = sp->width;
+  const int ih = sp->height;
+  const int iy = y + (h - ih) / 2;
+  int start_step = iw;
+  if (amount == 1) {
+    ss_blit_sprite(&view->icons, REPORTS_CROSS_ICON, fb, x + (w - iw) / 2, iy);
+  } else if (w <= iw) {
+    for (int i = 0; i < amount; ++i) {
+      ss_blit_sprite(&view->icons, REPORTS_CROSS_ICON, fb, x, iy);
+    }
+    start_step = 0;
   } else {
-    reports_draw_line(font, fb, 8, *y, "Cross production: (no Col1 save loaded)", 14);
-    *y += step;
-  }
-
-  const int dock = europe ? europe->dock_count : 0;
-  snprintf(line, line_sz, "Immigrants waiting on docks: %d", dock);
-  reports_draw_line(font, fb, 8, *y, line, 15);
-  *y += step;
-  if (europe && europe->dock_count > 0) {
-    for (int i = 0; i < europe->dock_count && i < 6 && *y < 180; ++i) {
-      if (!europe->dock[i].present) {
-        continue;
-      }
-      snprintf(line, line_sz, "  Dock: %s", europe->dock[i].name);
-      reports_draw_line(font, fb, 8, *y, line, 15);
-      *y += step;
+    const int span = w - iw;
+    start_step = span / (amount - 1);
+    for (int i = 0; i < amount; ++i) {
+      ss_blit_sprite(&view->icons, REPORTS_CROSS_ICON, fb, x + (i * span) / (amount - 1), iy);
     }
   }
-
-  if (!col1 && colonies) {
-    *y += 2;
-    reports_draw_line(font, fb, 8, *y, "Build church/cathedral to speed immigration.", 14);
+  if (start_step <= 1 && font) {
+    char num[12];
+    snprintf(num, sizeof(num), "%d", amount);
+    reports_draw_outlined_number(font, fb, x + 1, y + (h > 6 ? 1 : 0), num, 15);
   }
+}
+
+static void reports_render_religious(
+  const ColonizeReportsView* view,
+  const ColonizeCol1Save* col1,
+  int human,
+  const ColonizeFont* font,
+  ColonizeFramebuffer8* fb
+) {
+  if (!col1) {
+    return;
+  }
+  const ColonizeCol1Nation* nat = &col1->nation[human];
+  const unsigned needed = nat->needed_crosses;
+  const unsigned current = nat->current_crosses;
+  if (needed == 0) {
+    return;
+  }
+  int w = (int)(((uint32_t)REPORTS_CROSS_MAX_W * current) / needed);
+  if (w > REPORTS_CROSS_MAX_W) {
+    w = REPORTS_CROSS_MAX_W;
+  }
+  reports_draw_cross_counter(
+    view, font, fb, REPORTS_CROSS_X, REPORTS_CROSS_Y, w, REPORTS_CROSS_H, (int)current
+  );
 }
 
 /* CCBKGD.PIK 5×5 Founding Father portrait grid (Done structural).
@@ -1724,9 +1885,7 @@ void reports_render(
 
   switch (id) {
     case COLONIZE_REPORT_RELIGIOUS:
-      reports_render_religious(
-        col1, human, colonies, europe, font, framebuffer, &y, step, line, sizeof(line)
-      );
+      reports_render_religious(view, col1, human, font, framebuffer);
       break;
     case COLONIZE_REPORT_CONGRESS:
       reports_render_congress(view, col1, human, font, framebuffer, &y, step, line, sizeof(line));
@@ -1778,5 +1937,9 @@ void reports_render(
       break;
     default:
       break;
+  }
+
+  if (id != COLONIZE_REPORT_SCORE) {
+    reports_render_ok_button(font, framebuffer);
   }
 }

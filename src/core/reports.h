@@ -49,6 +49,10 @@ typedef enum ColonizeReportId {
 typedef struct ColonizeReportsView {
   ColonizePikImage backgrounds[COLONIZE_REPORT_COUNT];
   bool background_ok[COLONIZE_REPORT_COUNT];
+  ColonizeSpriteSheet icons; /* ICONS.SS, remapped to REPORT2.PIK's palette (cross counter). */
+  bool icons_ok;
+  ColonizeFont title_font; /* FONTTINY.FF — report titles (golden: religious.png / labor.png). */
+  bool title_font_ok;
   bool loaded;
   ColonizeReportId active;
   char data_dir[512];
@@ -63,6 +67,12 @@ const char* reports_background_name(ColonizeReportId id);
 
 /* Map F2–F10 → report id; returns false for F1 / non-report keys. */
 bool reports_id_from_fkey(int fkey_number /*1..10*/, ColonizeReportId* out_id);
+
+/*
+ * Bottom-right "OK" button every F2–F9 report shares (native 320×200 coords).
+ * F10 Colonization Score has no OK button (Retire/exit is separate).
+ */
+bool reports_ok_button_hit(ColonizeReportId id, int mx, int my);
 
 /*
  * Live Colonization Score (manual / FAQ rules) for F10.

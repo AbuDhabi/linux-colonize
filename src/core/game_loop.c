@@ -7280,7 +7280,10 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
   }
 
   if (game->in_report) {
-    if (input->last_key == COLONIZE_KEY_ESCAPE || input->last_key == COLONIZE_KEY_ENTER) {
+    const bool ok_clicked = input->mouse_left_clicked &&
+      reports_ok_button_hit(game->report_id, input->mouse_x, input->mouse_y);
+    if (input->last_key == COLONIZE_KEY_ESCAPE || input->last_key == COLONIZE_KEY_ENTER ||
+        ok_clicked) {
       game->in_report = false;
       diag_info("Left report screen.");
       if (game->report_exits_to_menu) {
