@@ -64,6 +64,18 @@ Each colony end-of-turn (DOS):
 Jefferson/Paine FF applied to bells; WoI via `head.game_options.woi`; crown =
 human peer (0↔1).
 
+**Founding seed (fixed 2026-08-24):** DOS `FUN_364b_1ba8` (colony founding)
+sets `rebel_divisor = 100`, `rebel_dividend = 0` (viceroy_unpacked.c:58052-58055)
+— *not* both-zero. The math is self-similar (dividend and divisor both decay
+at the same ÷64 rate off the same per-turn additive terms), so with a
+both-zero start the colony SoL% jumps straight to its steady-state
+`bells/(2×pop)` ratio on turn 1 instead of ramping — a size-2 colony with one
+Town Hall statesman (bells≈7) hit 100% the very first turn. Port's
+`col1_bridge.c` colony-export loop (which mints a fresh `ColonizeCol1Colony`
+record the first time a newly founded colony appears) was leaving both
+fields at the `memset` zero; it now seeds `rebel_divisor = 100` for a
+first-appearance (non-preserved-by-xy) record, matching DOS.
+
 ### Nation / “overall” SoL (`FUN_43f7_0004`)
 
 Pop-weighted average of **colony** SoL%:
@@ -158,7 +170,8 @@ applied in EOT field/craft/hammers/bells/crosses and preview.
 
 | Event | Gate | Port symbols |
 |-------|------|--------------|
-| Declare | Nation SoL ≥ **50%** (manual / `FUN_43f7_2564`) | `AI_KING_DECLARE_SOL_MIN` — two-stage-popup lead resolved 2026-08-24 (see `ai_king_try_declare` comment): `0x1386`=`@TOOTORY` (unreachable — port only calls this once already eligible); the bit-`0x80`-gated first popup is a hotseat/multi-human-player disambiguation step (set only in the new-game nation-select screen, `FUN_75c2_10ae`), no reachable equivalent under the port's single-`human_nation` model — single @DECLARE Never/Yes is the complete behavior, not a gap |
+| Declare | Nation SoL ≥ **50%** (manual / `FUN_43f7_2564`) | `AI_KING_DECLARE_SOL_MIN` — two-stage-popup lead resolved 2026-08-24 (see `ai_king_try_declare` comment): `0x1386`=`@TOOTORY`, now reachable via the menu path below (not from the per-turn auto-check); the bit-`0x80`-gated first popup is a hotseat/multi-human-player disambiguation step (set only in the new-game nation-select screen, `FUN_75c2_10ae`), no reachable equivalent under the port's single-`human_nation` model — the auto-check's single @DECLARE Never/Yes is the complete per-turn behavior, not a gap |
+| Declare (menu) | Reachable any time via MENU.TXT `@GAME` "DECLARE INDEPENDENCE" (`FUN_43f7_2564`, same as auto) | **Added 2026-08-24**: `ai_king_menu_declare_independence` / `MAP_MENU_ACTION_DECLARE_INDEPENDENCE` — below `AI_KING_DECLARE_SOL_MIN` shows `@TOOTORY`; at/above shows the same `@DECLARE` confirm; already-WoI is a status-only no-op. Lets a "Not yet" answer be revisited on demand instead of only via next turn's auto-repeat. See `original_sources_annotated/ai/king_ref.md` |
 | Restless chrome | SoL **40..49** | `AI_KING_RESTLESS_SOL_MIN` |
 | Tax refuse / boycott | tax ≥ **20** and (SoL ≥ **30** or bells ≥ **80**) | `AI_KING_BOYCOTT_*` |
 | Continental merc | WoI and nation SoL **>** **50** | `AI_KING_MERC_SOL_MIN` |

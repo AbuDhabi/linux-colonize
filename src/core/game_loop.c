@@ -6564,6 +6564,12 @@ static bool game_apply_map_menu_action(ColonizeGameState* game, MapMenuAction ac
       game_open_save_load(game, SAVE_LOAD_MODE_LOAD);
       return true;
     }
+    case MAP_MENU_ACTION_DECLARE_INDEPENDENCE: {
+      ColonizeTurnContext ctx;
+      game_fill_turn_context(game, &ctx);
+      ai_king_menu_declare_independence(&ctx);
+      return true;
+    }
     case MAP_MENU_ACTION_RETIRE: {
       ColonizeInputState empty;
       memset(&empty, 0, sizeof(empty));

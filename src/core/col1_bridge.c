@@ -1339,13 +1339,21 @@ bool col1_bridge_capture(
       }
       ColonizeCol1Colony* dst = &neu[written++];
       memset(dst, 0, sizeof(*dst));
+      bool matched_old = false;
       if (old_colony) {
         for (uint16_t oi = 0; oi < old_count; ++oi) {
           if (old_colony[oi].x == (uint8_t)src->x && old_colony[oi].y == (uint8_t)src->y) {
             *dst = old_colony[oi];
+            matched_old = true;
             break;
           }
         }
+      }
+      if (!matched_old) {
+        /* DOS FUN_364b_1ba8 founding: divisor seeded to 100 (dividend 0) so a
+         * brand-new colony's SoL% doesn't instantly saturate off one turn of
+         * bells vs a tiny pop*2 divisor. */
+        dst->rebel_divisor = 100;
       }
       dst->x = (uint8_t)src->x;
       dst->y = (uint8_t)src->y;
