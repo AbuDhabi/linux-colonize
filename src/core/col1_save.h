@@ -865,6 +865,21 @@ typedef struct ColonizeCol1Save {
   ColonizeCol1Unit* unit;
   ColonizeCol1Nation nation[COLONIZE_COL1_NATION_COUNT];
   ColonizeCol1Tribe* tribe;
+  /*
+   * DS:0x54f6 Indian grudge/tension table, `[tribe_index * 4 + euro_nation]`,
+   * int16 per slot (DOS stride is 9 but only euro_nation 0..3 has any
+   * confirmed touch site — docs/mysteries_catalog.md's "0x54f6" entry).
+   * Runtime-only: DOS's own "stuff@727 bytes / 33 discrete DS writes"
+   * save-chunk inventory (see header comment above) does not include this
+   * table, so it is not part of the persisted col1 record either — reset to
+   * 0 on load/new game like the table itself is in DOS. Heap-owned/freed
+   * alongside `tribe` (same `owned` flag), sized `head.tribe_count * 4`.
+   * Write formula: ai_diplo.c's ai_diplo_indian_relation_delta (FUN_4cc6_00f2
+   * tier-crossing clamp). No Linux reader yet — DOS's own read sites
+   * (FUN_521d_0896 hostility gate, viceroy_unpacked.c:87333) are Euro-AI
+   * goal-scoring, out of Indian/contact domain; left for that owner.
+   */
+  int16_t* indian_tension;
   ColonizeCol1Indian indian[COLONIZE_COL1_INDIAN_COUNT];
   ColonizeCol1Stuff stuff;
   ColonizeCol1Map map;

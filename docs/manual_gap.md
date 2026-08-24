@@ -99,7 +99,7 @@ Deep mechanics (expected vs Linux by context): [unit_orders.md](unit_orders.md).
 | Manual feature | Status | Notes |
 |----------------|--------|-------|
 | Open Europe (**E**), sail **H** / **S** | Done | Multi-turn Expected Soon / Bound For *region*; passengers + holds persist; **blocked after declare** (`game_options.woi`) |
-| Docks immigrants from crosses | Partial | Crosses pull from 3-slot recruit pool; Brewster filter Done; pool slot is DOS `RNG(0,2)` (`FUN_281f_04d4`) not player choice — **Done** (2026-08-15, was mislabeled "pick-among-pool UI PARKED"); Recruit UI / atomic `5e52` phase-6 tax/FF chrome still PARKED |
+| Docks immigrants from crosses | Partial | Crosses pull from 3-slot recruit pool; Brewster filter Done; pool slot is DOS `RNG(0,2)` (`FUN_281f_04d4`) not player choice — **Done** (2026-08-15, was mislabeled "pick-among-pool UI PARKED"). Interactive **R** Recruit UI (3-slot picker, passage price, selection highlight → `europe_recruit_from_pool`) confirmed **Done** (2026-08-24 re-check, stale "Recruit UI PARKED" wording removed — `game_loop.c` `EUROPE_MENU_RECRUIT`). Atomic `5e52` phase-6 tax-audience/FF-gift tail (raw decompile 68617-68620: `5be8` king tax then `5930` FF grant) still **PARKED** — not a Europe-screen item, belongs to `ai_king.c`/`founding_fathers.c` (out of this file's domain) |
 | Market bid / ask display | Done | Bottom strip from `NAMES.TXT` `@CARGO` |
 | Buy / sell goods (drag / L / = / + / U) | Done | Drag market↔hold; **L**/**=**/**+** buy, **U**/**-**/**_** sell |
 | Buy ships / artillery | Done | **P** purchase menu (screenshot gold: Artillery 500 … Frigate 5000) |
@@ -107,7 +107,7 @@ Deep mechanics (expected vs Linux by context): [unit_orders.md](unit_orders.md).
 | Recruit pool (3) + passage | Done | **R** dialog; passage = real DOS `FUN_38fd_4884` formula (2026-08-15, was linear start-100/+16 placeholder) — `europe_compute_recruit_passage`, see `europe.h` |
 | Dock sentry / board on sail | Partial | Default sentry; Don’t/Board/Move-front menu; full equip/bless later |
 | Equip muskets / horses / tools; bless missionary | Partial | Tools/muskets/horses on units; Leave-as Missionary with Church/Cathedral **Done**; fence icons; colony admit dumps gear |
-| Tax rate / boycotts / king tax events | Partial | Structural tax→REF + refuse/boycott flag (`ai_king`); audience UI **Done** structural (`ai_popup`); VGA chrome PARKED — [ai_transcription.md](ai_transcription.md) |
+| Tax rate / boycotts / king tax events | Partial | Structural tax→REF + refuse/boycott flag (`ai_king`); audience UI **Done** structural (`ai_popup`); Europe screen now enforces the boycott itself (2026-08-24): `europe_cargo_boycotted` gates `europe_buy_cargo`/`europe_sell_hold`/`europe_sell_unit_hold`, boycotted market cell price drawn in red — `EuropeScreen.boycott_bitmap` mirrors `nation.boycott_bitmap` live each Europe-screen render (`game_loop.c`); Custom House intentionally still bypasses it (fandom). Boycott buy-back (~500 tons gold cost, fandom) not implemented — no UI trigger for it yet. VGA dialog pixel chrome still PARKED — [ai_transcription.md](ai_transcription.md) |
 
 ### Economy and turn sequence
 
@@ -147,7 +147,7 @@ Topic hub (graphics, units, settlements, alarm, contact): [indians.md](indians.m
 | FF election from liberty bells | Partial | Side-table bell pool (DOS +0xc); peacetime threshold elect + WoI pool→intervention (**Done** 2026-08-22); century-weighted debate pick (`4345_06d2`/`015a` **Done**); manual-aligned effects; KINGGALLEON2 PARK (38fd CHOICE search negative); F3 portrait grid **Done** structural; FF pool bridge load smoke **Done** |
 | Pedia / F3 Congress report | Partial | F3 blits joined FF portraits (center-cropped to grid cells) + debating highlight; stats column; debate elect via popup; VGA-identical chrome PARKED |
 | Sons of Liberty %, declare independence | Partial | SoL + auto-declare structural (`ai_king`); player confirm UI **Done** structural (`ai_popup`); `@INDEPENDENCE` letter OK **Done** thin; VGA / DECLARAT.PIK anim PARKED — [sons_of_liberty.md](sons_of_liberty.md) |
-| REF invasion / revolution combat | Partial | REF wave / war act structural; merc hire dialog **Done** structural (`ai_popup`); win/lose latches **Done** thin; `10f0` landing scorer + caps + Veteran 0x15 **Done** Phase 5; foreign MoW ship + DECLARAT anim **PARK** |
+| REF invasion / revolution combat | Partial | REF wave / war act structural; merc hire dialog **Done** structural (`ai_popup`); win/lose latches **Done** thin; `10f0` landing scorer + caps + Veteran 0x15 **Done** Phase 5; `backup_force[2]`/`[3]` index-swap bug fixed 2026-08-24 (was feeding the wrong pool formula into both the Man-O-War/`2022` merc-gate check and the Artillery land-troop drain — `ai_king_seed_backup_force_1a26` / `ai_king_merc_offer`, verified byte-for-byte against `FUN_43f7_10f0`/`FUN_43f7_0082`/`FUN_43f7_2022`); foreign MoW ship + DECLARAT anim **PARK** (DOS spawns unit type 0x12 at the same land tile scored for troop landings — placement semantics unresolved from static reading, needs live DOSBox-X) |
 | F10 Colonization Score | Partial | Schedule exists; WoI → declared flag; achieve from endgame latch; retire opens score |
 
 ### AI Europeans

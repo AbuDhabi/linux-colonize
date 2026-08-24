@@ -461,6 +461,22 @@ static void ai_king_write_rival_nation_slots(ColonizeCol1Save* col1, int human) 
 /*
  * FUN_43f7_1a26 foreign-intervention pool seed (DOS 0x53e2…0x53e8 → backup_force).
  * Uses intervention-nation stats where DOS nation bytes are mapped to Col1 fields.
+ *
+ * Index is a literal mirror of the DOS addresses (backup_force[i] ↔
+ * 0x53e2+i*2), confirmed byte-for-byte against viceroy_unpacked.c:74765-74795
+ * (formula-to-address) and :74424 (`thunk_FUN_2a1f_0070` type lookup,
+ * FUN_43f7_0082 @73519: param_1==2 → unit type 0x12 Man-O-War, param_1==3 →
+ * type 0xb Artillery — both cross-checked against NAMES.TXT @UNIT row order):
+ *   [0] founding-father-count-based (0x53e2) — Regular land-troop pool
+ *   [1] rebel-sentiment-based       (0x53e4) — Dragoon land-troop pool
+ *   [2] colony-count-based          (0x53e6) — Man-O-War pool; FUN_43f7_2022's
+ *       rebel-gift gate reads this address directly (line 75007) — gates
+ *       ai_king_merc_offer, NOT spent as a land unit (FUN_43f7_10f0 skips
+ *       `local_52==2` in its land-troop loop, line 74418/74448)
+ *   [3] liberty-bells-based         (0x53e8) — Artillery land-troop pool
+ * (was previously stored index-swapped — [2]<->[3] — which fed the wrong
+ * formula into ai_king_merc_offer's gate and into the Artillery land-troop
+ * drain; fixed together with that call site below.)
  */
 static void ai_king_seed_backup_force_1a26(ColonizeTurnContext* ctx, int human) {
   if (!ctx || !ctx->col1_ok || !ctx->col1) {
@@ -504,8 +520,8 @@ static void ai_king_seed_backup_force_1a26(ColonizeTurnContext* ctx, int human) 
 
   ctx->col1->head.backup_force[0] = (uint16_t)(pool0 > 0 ? pool0 : 0);
   ctx->col1->head.backup_force[1] = (uint16_t)(pool1 > 0 ? pool1 : 0);
-  ctx->col1->head.backup_force[2] = (uint16_t)(pool3 > 0 ? pool3 : 0);
-  ctx->col1->head.backup_force[3] = (uint16_t)(pool2 > 0 ? pool2 : 0);
+  ctx->col1->head.backup_force[2] = (uint16_t)(pool2 > 0 ? pool2 : 0); /* 0x53e6 MoW pool */
+  ctx->col1->head.backup_force[3] = (uint16_t)(pool3 > 0 ? pool3 : 0); /* 0x53e8 Artillery pool */
 }
 
 /* True if unit type/display name is Artillery (or Cannon fallback). */
@@ -2887,7 +2903,16 @@ static void ai_king_ref_wave(ColonizeTurnContext* ctx) {
 
 /*
  * Try one foreign landing from backup pool k; drain on success.
- * MoW backup pool lands a Regular stand-in (no foreign MoW ship this path).
+ * k==2 (Man-O-War / backup_force[2], DOS 0x53e6) is never passed by any
+ * caller — verified against FUN_43f7_10f0 (viceroy_unpacked.c:74417-74449):
+ * DOS's own land-troop spawn loop explicitly skips `local_52==2` there too
+ * (that pool gates ai_king_merc_offer / FUN_43f7_2022 instead — see
+ * ai_king_seed_backup_force_1a26). DOS *does* additionally spawn one unit
+ * of type 0x12 (Man-O-War) at the land tile once per successful call
+ * (:74378-74382, decrementing 0x53e6) whose real placement semantics
+ * (a naval type placed at the same land tile scored for troop landings)
+ * aren't resolved from static reading alone — PARK, no invented ship spawn
+ * here; needs live DOSBox-X to confirm before porting.
  * Returns 1 if a unit spawned, else 0.
  */
 static int ai_king_intervene_one(ColonizeTurnContext* ctx, int ally, int sx, int sy,
@@ -2903,7 +2928,8 @@ static int ai_king_intervene_one(ColonizeTurnContext* ctx, int ally, int sx, int
   } else if (k == 1) {
     alt = "Scout";
   } else if (k == 2) {
-    /* Naval pool: land a Regular stand-in near port (foreign MoW ship PARKED). */
+    /* Unreachable (see function doc above) — kept only so an accidental
+     * future k==2 call fails soft instead of mis-landing a ship as infantry. */
     primary = "Regular";
     alt = "Soldier";
   }
@@ -2979,6 +3005,8 @@ static void ai_king_foreign_intervene(ColonizeTurnContext* ctx) {
   if (cap_drg > 2) {
     cap_drg = 2;
   }
+  /* Land-troop pools only — index 2 (Man-O-War/0x53e6) deliberately excluded,
+   * matching DOS's own loop (see ai_king_intervene_one doc above). */
   static const int pool_k[3] = {0, 1, 3};
   int caps[4] = {cap_reg, cap_drg, 0, 0};
   caps[3] = 6 - cap_reg - cap_drg;
@@ -3253,8 +3281,13 @@ static void ai_king_merc_offer(ColonizeTurnContext* ctx) {
     return;
   }
   const int ref_present = ctx->col1->head.game_options.ref_present != 0;
-  const int artillery_pool = ctx->col1->head.backup_force[3];
-  if (ref_present && artillery_pool != 0) {
+  /*
+   * FUN_43f7_2022 line 75007: `(*(byte*)0x5382 & 2) == 0 || *(int*)0x53e6 == 0`
+   * — gate reads the Man-O-War/colony-count pool (backup_force[2], see
+   * ai_king_seed_backup_force_1a26), not the Artillery pool.
+   */
+  const int mow_pool = ctx->col1->head.backup_force[2];
+  if (ref_present && mow_pool != 0) {
     return; /* free backup-force drain path (ai_king_foreign_intervene) covers this beat */
   }
   if (dos_rng_range(ctx->rng, 0, AI_KING_MERC_ROLL_CHANCE - 1) != 0) {

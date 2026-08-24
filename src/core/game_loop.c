@@ -3406,6 +3406,14 @@ static void render_europe_screen(const ColonizeGameState* game, ColonizeFramebuf
   const EuropeScreen* eu = &game->europe;
   if (eu_mut) {
     europe_refresh_harbor_selection(eu_mut);
+    /* Live boycott mirror: ai_king.c tea-party / ai_diplo.c embargo write
+     * game->col1.nation[human].boycott_bitmap directly; europe.c has no
+     * col1 pointer, so refresh the UI-side copy every render (screen is
+     * always rendered at least once before the player can act on it). */
+    if (game->col1_ok && game->human_nation >= 0 &&
+        game->human_nation < (int)COLONIZE_COL1_NATION_COUNT) {
+      eu_mut->boycott_bitmap = game->col1.nation[game->human_nation].boycott_bitmap;
+    }
   }
 
   if (game->europe_ok && eu->background_ok) {
@@ -3627,13 +3635,18 @@ static void render_europe_screen(const ColonizeGameState* game, ColonizeFramebuf
       const int iy = EUROPE_MARKET_Y + 1;
       ss_blit_sprite(&game->unit_icons, sprite, framebuffer, ix, iy);
     }
+    /* Boycotted cargo (ai_king.c tea-party / ai_diplo.c embargo): price text
+     * in red — trading is blocked until the boycott lifts (europe_buy_cargo /
+     * europe_sell_hold / europe_sell_unit_hold refuse it; see
+     * europe_cargo_boycotted). Source: fandom Boycott (Col). */
+    const bool boycotted = europe_cargo_boycotted(eu, i);
     snprintf(line, sizeof(line), "%d/%d", eu->cargo[i].bid, eu->cargo[i].ask);
     {
       const int tw = font_text_width(font, line);
       const int th = font ? (font->max_height > 0 ? (int)font->max_height : 6) : 7;
       const int tx = mx + (EUROPE_MARKET_CELL - tw) / 2;
       const int ty = EUROPE_MARKET_Y + EUROPE_MARKET_CELL - th - 1;
-      font_draw_text(font, framebuffer, tx, ty, line, 0);
+      font_draw_text(font, framebuffer, tx, ty, line, boycotted ? 12 : 0);
     }
     if (sel) {
       europe_draw_box_border(

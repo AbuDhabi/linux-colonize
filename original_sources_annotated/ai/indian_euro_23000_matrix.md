@@ -173,12 +173,27 @@ pieces:
    (`iVar5/-5 != iVar2/-5`, i.e. old and new relation land in different
    20-tier bands) and the delta was negative, updates the `0x54f6`
    grudge/tension table (already relabeled in `docs/mysteries_catalog.md`)
-   for every tribe of this Indian nation, clamped to `0x20` or `0x60`
-   depending on how close nation and Indian's own combat-strength ratings
-   are (`iVar3`/`iVar6`, both from `FUN_281f_0a60`). Human-nation name
-   substitution (`FUN_281f_09a4` × 2) feeds a status line whose text isn't
-   captured. Not ported — needs the `0x54f6` field wired into
-   `col1_save.h` first (mysteries catalog: "still no Linux accessor").
+   for every tribe of this Indian nation, clamped to `0x20` or `0x60`.
+   Human-nation name substitution (`FUN_281f_09a4` × 2) feeds a status
+   line whose text isn't captured.
+   **Correction, 2026-08-24**: `iVar3`/`iVar6` are **not** a "combat
+   strength rating" — both are `FUN_281f_0a60` applied to the OLD/NEW
+   *relation* values themselves (`iVar2`/`iVar5`, same storage as the
+   delta this function already applies), i.e. the identical quartile
+   bucketer `ai.c` already ported as `ai_indian_152e_quartile`
+   (`FUN_281f_0a60` → `FUN_15dc_00a2`, "bucket int into quartile 0..3").
+   Re-reading with that correction also shows the DOS `else` branch
+   ("hard reset to 0 if the gap is ≥2 tiers") is **dead code**: quartile
+   output is bounded 0..3, so `(iVar3>>1)-(iVar6>>1)` is always in
+   `{-1,0,1}`, never `>=2` — the guarding `if` is always true, so only
+   the clamp-down arm can ever execute. **Now ported** (2026-08-24):
+   storage (`ColonizeCol1Save.indian_tension`, runtime-only, not part of
+   the persisted col1 record — see `col1_save.h`'s field doc) + the
+   write formula, both in `ai_diplo.c`'s `ai_diplo_indian_relation_delta`
+   / `ai_diplo_indian_tension_tier_update`. **Still no Linux reader** —
+   DOS's own read sites (`FUN_521d_0896` Euro-AI goal-scoring hostility
+   gate; a `>>5` 4-tier relations-report icon) are outside Indian/contact
+   domain, left for whoever owns `ai_euro.c`/reports.
 2. **Max-relation mission-clear branch** (else branch, `iVar5>=100 &&`
    peace bit set): `local_66 = difficulty` if the Euro side is human else
    `1`; roll `RNG(0,10)`; if `roll <= local_66+1`, call

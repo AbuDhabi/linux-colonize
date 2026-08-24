@@ -2556,6 +2556,89 @@ void ai_diplo_euro_timers(ColonizeTurnContext* ctx, int nation_id) {
   ai_diplo_treaty_timers(ctx, nation_id);
 }
 
+/* FUN_281f_0a60 -> FUN_15dc_00a2 quartile bucketer, same formula as
+ * ai.c's ai_indian_152e_quartile (duplicated here, not shared, to avoid
+ * cross-module coupling under parallel edits — 5-line pure function). */
+static int ai_diplo_indian_relation_quartile(int relation) {
+  if (relation < 25) {
+    return 0;
+  }
+  if (relation < 50) {
+    return 1;
+  }
+  if (relation < 75) {
+    return 2;
+  }
+  return 3;
+}
+
+/*
+ * DS:0x54f6 grudge/tension tier-crossing update — FUN_4cc6_00f2's second
+ * half (viceroy_unpacked.c:80864-80900), never wired before this pass
+ * (docs/mysteries_catalog.md: "still no Linux accessor or struct field").
+ *
+ * Raw DOS body (only the reachable arm, see below):
+ *   if (iVar5 < 100 || !(peace bit set)) {          // most calls take this
+ *     if (iVar5 > 99) iVar5 = 99;
+ *     if (iVar5/-5 != iVar2/-5) {                    // 5-pt tier crossing
+ *       if (delta < 0) {
+ *         for each tribe of this Indian nation:
+ *           if ((iVar3>>1)-(iVar6>>1) < 2)            // always true, see below
+ *             *(0x54f6 slot) = min(*(0x54f6 slot), iVar6>>1==0 ? 0x20 : 0x60);
+ *           else
+ *             *(0x54f6 slot) = 0;                     // DEAD, see below
+ *       }
+ *     }
+ *   }
+ * where iVar2/iVar5 are the OLD/NEW relation values (0..100 DOS scale,
+ * same storage as ai_diplo_indian_relation_delta's own clamp) and
+ * iVar3/iVar6 = ai_diplo_indian_relation_quartile(iVar2)/(iVar5) — the
+ * *same* FUN_281f_0a60 quartile bucketer ai.c already ported for 152e,
+ * not a separate "combat strength" stat (mysteries_catalog.md's framing
+ * of this branch was a misreading of what FUN_281f_0a60 was bucketing —
+ * flagging for doc correction, not changing that shared file here).
+ *
+ * The `else` branch (hard reset to 0 on a >=2-tier gap) is DEAD CODE:
+ * quartile() only returns 0..3, so `>>1` is always 0 or 1, so the gap
+ * `(iVar3>>1)-(iVar6>>1)` is always in {-1,0,1} — never >=2. Verified by
+ * direct read of both call sites' value ranges, not assumed. Only the
+ * clamp-down arm is implemented below.
+ *
+ * DOS reads iVar2/iVar5 already clamped to [0,100] from the same storage
+ * this function's caller writes (0x5b1c == relation_by_indian). Linux's
+ * relation_by_indian is [0,255] (separate PORT DEBT, not rescoped here —
+ * see ai_port_plan.md) so old/new are locally capped to 99 for this tier
+ * check only, matching DOS's own `if (iVar5>99) iVar5=99` clamp; storage
+ * itself is untouched.
+ */
+static void ai_diplo_indian_tension_tier_update(
+  ColonizeCol1Save* col1,
+  int indian_nation,
+  int euro_nation,
+  int old_relation,
+  int new_relation,
+  int delta
+) {
+  if (!col1 || !col1->indian_tension || !col1->tribe || delta >= 0) {
+    return;
+  }
+  int old99 = old_relation > 99 ? 99 : (old_relation < 0 ? 0 : old_relation);
+  int new99 = new_relation > 99 ? 99 : (new_relation < 0 ? 0 : new_relation);
+  if (old99 / -5 == new99 / -5) {
+    return; /* no tier boundary crossed */
+  }
+  const int cap = (ai_diplo_indian_relation_quartile(new99) >> 1) == 0 ? 0x20 : 0x60;
+  for (uint16_t ti = 0; ti < col1->head.tribe_count; ++ti) {
+    if ((int)col1->tribe[ti].nation_id != indian_nation) {
+      continue;
+    }
+    int16_t* slot = &col1->indian_tension[(size_t)ti * 4 + (size_t)euro_nation];
+    if (*slot > cap) {
+      *slot = (int16_t)cap;
+    }
+  }
+}
+
 void ai_diplo_indian_relation_delta(
   ColonizeCol1Save* col1,
   int indian_nation,
@@ -2573,9 +2656,10 @@ void ai_diplo_indian_relation_delta(
   if (idx < 0 || idx >= 8) {
     return;
   }
+  const int old_v = (int)col1->nation[euro_nation].relation_by_indian[idx];
   /* Floor 0 / cap 255 — war −5 (+ optional −10 deepen) must not underflow.
    * Source: FUN_4cc6_00f2 / 15dc_00e0 scalar clamp; fandom relation band. */
-  int v = (int)col1->nation[euro_nation].relation_by_indian[idx] + delta;
+  int v = old_v + delta;
   if (v < 0) {
     v = 0;
   }
@@ -2583,6 +2667,7 @@ void ai_diplo_indian_relation_delta(
     v = 255;
   }
   col1->nation[euro_nation].relation_by_indian[idx] = (uint8_t)v;
+  ai_diplo_indian_tension_tier_update(col1, indian_nation, euro_nation, old_v, v, delta);
 }
 
 uint8_t ai_diplo_indian_relation(

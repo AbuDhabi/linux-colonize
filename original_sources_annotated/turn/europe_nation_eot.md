@@ -47,7 +47,7 @@ Bridge: [`between_turns.md`](between_turns.md) ·
 | DOS | Linux | Fidelity |
 |-----|-------|----------|
 | Phase 3 market | `europe_tick_market_prices` (FINISH) | **Partial** |
-| Pressure / recruit / tax / FF | dock immigrants + `europe_tick_immigration_pressure` (584a +2/tick + phase5 pool→dock; `@UNREST` not `open_on_dock`) **Done** thin; phase-5 slot roll (`04d4` RNG(0,2), see below) **Done**; king tax elsewhere | Recruit UI / atomic `5e52` phase-6 tax/FF chrome **PARKED** |
+| Pressure / recruit / tax / FF | dock immigrants + `europe_tick_immigration_pressure` (584a +2/tick + phase5 pool→dock; `@UNREST` not `open_on_dock`) **Done** thin; phase-5 slot roll (`04d4` RNG(0,2), see below) **Done**; king tax elsewhere | Interactive **R** Recruit UI (3-slot picker) **Done** (`game_loop.c` `EUROPE_MENU_RECRUIT`, re-checked 2026-08-24 — stale "Recruit UI PARKED" removed); atomic `5e52` phase-6 tax/FF chrome **PARKED** (not Europe-screen scope — see phase 6 below) |
 
 ---
 
@@ -191,7 +191,18 @@ needed the price math.
 | 68618–19 | if **0**: `0c84`→`5930()` | FF cargo/gold grant path |
 
 Linux: dock immigrants / crosses in `turn_run_nation_ticks`; tax in `ai_king`;
-atomic `5e52` **PARKED**.
+atomic `5e52` **PARKED** — `5be8`/`5930` are king-audience and FF-grant
+functions, out of `europe.c`'s domain (`ai_king.c`/`founding_fathers.c`), not
+attempted from the Europe-screen side (2026-08-24 re-check).
+
+Also re-checked 2026-08-24: europe.c now enforces boycotts on the human
+trade path (`europe_cargo_boycotted` gates `europe_buy_cargo` /
+`europe_sell_hold` / `europe_sell_unit_hold`; `EuropeScreen.boycott_bitmap`
+mirrors `nation.boycott_bitmap` live each Europe-screen render). Previously
+`nation.boycott_bitmap` was written by `ai_king.c`/`ai_diplo.c` and read by
+`ai_euro.c`/`reports.c`, but nothing on the human buy/sell path checked it —
+a player could freely trade goods Parliament had boycotted. Fandom source:
+Boycott (Col) — "goods blocked in Europe until penalty paid or Fugger".
 
 ---
 

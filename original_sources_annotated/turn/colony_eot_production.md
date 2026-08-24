@@ -154,9 +154,18 @@ University); ladder Criminal→Indentured (`@TRAINCRIMINAL`), Indentured→Free
 (`@TRAININDENTURED`); Free/Convert → teacher `field_job` specialty if set, else
 Farmer or Carpenter (`@TRAINPROFESSION`); no-students status + `@TRAINFAIL`
 chrome **Done** thin.
-H random field skill **Done** thin (Free Colonist on field 0..4, 1/100 → that
-profession + `@TRAINPROFESSION` chrome). Nation skill-flags / deep school-job tables
-**PARKED**. `0x5384|0x80` gates education msgs.
+H random field skill **Done** thin (Free Colonist / Indentured Servant /
+Petty Criminal on field 0..4, `dos_rng_range(rng, 0, 99|199|299)` → that
+profession + `@TRAINPROFESSION` chrome; **2026-08-24 fix:** was Free-Colonist-
+only and used an ad hoc non-DOS PRNG instead of the shared turn `rng` — now
+uses `dos_rng_range` like DOS's `FUN_281f_04d4` and applies the Indentured
+(199)/Criminal (299) denominators; no `rng` (e.g. deterministic-production
+test callers) → phase skipped rather than mis-reading `dos_rng_range(NULL,
+...)`'s "returns lo" convention as a guaranteed hit). Field-job lower bound
+still ported as the wider `0..4` rather than DOS's literal `1..4` (see
+`specialty` vs `field_job` ambiguity above — unresolved, not guessed).
+Nation skill-flags / deep school-job tables **PARKED**. `0x5384|0x80` gates
+education msgs.
 
 ## Deep — J food scratch / `@FOODLOW` (57623–57636)
 

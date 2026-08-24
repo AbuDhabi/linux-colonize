@@ -756,6 +756,8 @@ static int unit_phase_h_trainprofession(void) {
   memset(&eu, 0, sizeof(eu));
   AiPopupState pops;
   ai_popup_init(&pops);
+  ColonizeDosRng rng;
+  dos_rng_seed(&rng, 1);
   int discovered = 0;
   for (unsigned t = 0; t < 5000u; ++t) {
     col1.head.turn = (uint16_t)(t & 0xffffu);
@@ -766,7 +768,7 @@ static int unit_phase_h_trainprofession(void) {
     ai_popup_init(&pops);
     ColonizeTurnResult prod;
     memset(&prod, 0, sizeof(prod));
-    turn_run_colony_production(&pool, NULL, &col1, &eu, 0, &prod, &pops, &game_txt, NULL);
+    turn_run_colony_production(&pool, NULL, &col1, &eu, 0, &prod, &pops, &game_txt, &rng);
     if (col->colonists[0].profession == COLONIZE_JOB_FARMER) {
       discovered = 1;
       if (pops.queue_count < 1 ||
@@ -3949,6 +3951,8 @@ int main(void) {
     ColonizeCol1Save col1;
     memset(&col1, 0, sizeof(col1));
     col1.head.year = 1492;
+    ColonizeDosRng rng;
+    dos_rng_seed(&rng, 1);
     int discovered = 0;
     for (unsigned t = 0; t < 5000u; ++t) {
       col1.head.turn = (uint16_t)(t & 0xffffu);
@@ -3957,7 +3961,7 @@ int main(void) {
       col->stock[COLONIZE_CARGO_FOOD] = 500;
       ColonizeTurnResult prod;
       memset(&prod, 0, sizeof(prod));
-      turn_run_colony_production(&pool, NULL, &col1, NULL, 0, &prod, NULL, NULL, NULL);
+      turn_run_colony_production(&pool, NULL, &col1, NULL, 0, &prod, NULL, NULL, &rng);
       if (col->colonists[0].profession == COLONIZE_JOB_FARMER) {
         discovered = 1;
         break;
