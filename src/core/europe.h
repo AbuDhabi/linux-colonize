@@ -247,6 +247,17 @@ typedef struct EuropeScreen {
    */
   uint16_t nation_horses[4];
   uint16_t nation_musket_batches[4];
+  /*
+   * Human nation's boycott state — mirrors ColonizeCol1Nation.boycott_bitmap
+   * (ai_king.c tea-party / ai_diplo.c wartime embargo write it; this is a
+   * read-only copy refreshed each frame the Europe screen renders, since
+   * europe.c can't see ColonizeCol1Save directly). Bit c set = cargo type c
+   * blocked from Europe trade until the boycott is lifted. Source: fandom
+   * Boycott (Col) — "goods blocked in Europe until penalty paid or Fugger";
+   * Custom House bypasses this (europe_custom_house_autosell intentionally
+   * does not check it).
+   */
+  uint16_t boycott_bitmap;
   char status[160];
 } EuropeScreen;
 
@@ -379,6 +390,13 @@ void europe_tick_voyages(EuropeScreen* eu, const ColonizeUnitPool* units);
  * Returns gold credited (0 if value <= 0).
  */
 int europe_cash_treasure(EuropeScreen* eu, int treasure_value);
+
+/*
+ * True when cargo_type is set in eu->boycott_bitmap (Parliament boycott
+ * still active — see EuropeScreen.boycott_bitmap). Out-of-range cargo_type
+ * reads as not boycotted.
+ */
+int europe_cargo_boycotted(const EuropeScreen* eu, int cargo_type);
 
 int europe_sell_proceeds(const EuropeScreen* eu, int cargo_type, int amount);
 int europe_sell_hold(EuropeScreen* eu, int harbor_index, int hold_index);

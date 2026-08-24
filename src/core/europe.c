@@ -608,6 +608,7 @@ void europe_reset_campaign_nation(EuropeScreen* eu, int nation) {
   eu->open_on_dock = false;
   eu->immigration_score = 0;
   eu->immigration_pressure = 0;
+  eu->boycott_bitmap = 0;
   /* DOS FUN_38fd_6024: recruit pool (+2..+4) filled; docks empty; pressure 0. */
   europe_set_status(eu, "Home port ready. Recruit / Purchase / Train / S Sail.");
 }
@@ -1735,6 +1736,13 @@ int europe_tick_immigration_pressure(
   return 0;
 }
 
+int europe_cargo_boycotted(const EuropeScreen* eu, int cargo_type) {
+  if (!eu || cargo_type < 0 || cargo_type >= EUROPE_CARGO_MAX) {
+    return 0;
+  }
+  return (eu->boycott_bitmap & (uint16_t)(1u << cargo_type)) != 0;
+}
+
 int europe_sell_proceeds(const EuropeScreen* eu, int cargo_type, int amount) {
   if (!eu || amount <= 0 || cargo_type < 0 || cargo_type >= eu->cargo_count) {
     return 0;
@@ -1764,6 +1772,14 @@ int europe_sell_hold(EuropeScreen* eu, int harbor_index, int hold_index) {
   const int amt = ship->hold_goods_amount[hold_index];
   const int ctype = ship->hold_goods_type[hold_index];
   if (amt <= 0 || amt >= 255) {
+    return 0;
+  }
+  if (europe_cargo_boycotted(eu, ctype)) {
+    const char* cname =
+      (ctype >= 0 && ctype < eu->cargo_count) ? eu->cargo[ctype].name : "That cargo";
+    snprintf(
+      eu->status, sizeof(eu->status), "%s is boycotted — cannot trade in Europe.", cname
+    );
     return 0;
   }
   const int gained = europe_sell_proceeds(eu, ctype, amt);
@@ -2014,6 +2030,14 @@ int europe_sell_unit_hold(
   if (amt <= 0 || amt >= 255) {
     return 0;
   }
+  if (europe_cargo_boycotted(eu, ctype)) {
+    const char* cname =
+      (ctype >= 0 && ctype < eu->cargo_count) ? eu->cargo[ctype].name : "That cargo";
+    snprintf(
+      eu->status, sizeof(eu->status), "%s is boycotted — cannot trade in Europe.", cname
+    );
+    return 0;
+  }
   const int gained = europe_sell_proceeds(eu, ctype, amt);
   eu->gold += gained;
   u->hold_goods_amount[hold_index] = 0;
@@ -2030,6 +2054,13 @@ int europe_buy_cargo(EuropeScreen* eu, int harbor_index, int cargo_type, int amo
     return 0;
   }
   if (cargo_type < 0 || cargo_type >= eu->cargo_count || amount <= 0) {
+    return 0;
+  }
+  if (europe_cargo_boycotted(eu, cargo_type)) {
+    const char* cname = eu->cargo[cargo_type].name[0] ? eu->cargo[cargo_type].name : "That cargo";
+    snprintf(
+      eu->status, sizeof(eu->status), "%s is boycotted — cannot trade in Europe.", cname
+    );
     return 0;
   }
   const int ask = eu->cargo[cargo_type].ask;

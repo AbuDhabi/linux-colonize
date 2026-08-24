@@ -3510,6 +3510,64 @@ int main(void) {
     }
   }
 
+  /*
+   * DS:0x54f6 Indian grudge/tension tier-crossing clamp (FUN_4cc6_00f2's
+   * second half, viceroy_unpacked.c:80864-80900) — wired into
+   * ai_diplo_indian_relation_delta 2026-08-24. Only the reachable "clamp
+   * down" arm exists; the DOS else-branch is dead code (see ai_diplo.c
+   * comment). Own local save/tribe fixture — does not touch the shared
+   * `col1` used by the rest of this file.
+   */
+  {
+    ColonizeCol1Save gt;
+    col1_save_init(&gt);
+    gt.head.tribe_count = 2;
+    ColonizeCol1Tribe tribes[2];
+    memset(tribes, 0, sizeof(tribes));
+    tribes[0].nation_id = 4; /* Indian nation 0 */
+    tribes[1].nation_id = 5; /* Indian nation 1 — must stay untouched below */
+    gt.tribe = tribes;
+    int16_t tension[2 * 4];
+    memset(tension, 0, sizeof(tension));
+    tension[0 * 4 + 0] = 0x70; /* tribe0/euro0: above both caps */
+    tension[0 * 4 + 1] = 0x70; /* tribe0/euro1: untouched control */
+    tension[1 * 4 + 0] = 0x70; /* tribe1/euro0: untouched control */
+    tension[1 * 4 + 1] = 0x70; /* tribe1/euro1: above both caps */
+    gt.indian_tension = tension;
+    gt.owned = false; /* stack-owned fixture, nothing to free */
+
+    /* High-relation tier crossing (new relation >=50 -> cap 0x60). */
+    gt.nation[0].relation_by_indian[0] = 62; /* indian_nation 4, euro 0 */
+    ai_diplo_indian_relation_delta(&gt, 4, 0, -10); /* 62 -> 52, crosses tier */
+    if (gt.nation[0].relation_by_indian[0] != 52) {
+      return fail("54f6: relation_by_indian delta itself must still apply");
+    }
+    if (tension[0 * 4 + 0] != 0x60) {
+      return fail("54f6: tribe0/euro0 should clamp to 0x60 (new relation >=50)");
+    }
+    if (tension[0 * 4 + 1] != 0x70) {
+      return fail("54f6: tribe0/euro1 must be untouched (different euro nation)");
+    }
+    if (tension[1 * 4 + 0] != 0x70) {
+      return fail("54f6: tribe1/euro0 must be untouched (different Indian nation)");
+    }
+
+    /* Low-relation tier crossing (new relation <50 -> cap 0x20). */
+    gt.nation[1].relation_by_indian[1] = 30; /* indian_nation 5, euro 1 */
+    ai_diplo_indian_relation_delta(&gt, 5, 1, -20); /* 30 -> 10, crosses tier */
+    if (tension[1 * 4 + 1] != 0x20) {
+      return fail("54f6: tribe1/euro1 should clamp to 0x20 (new relation <50)");
+    }
+
+    /* Positive delta never triggers the clamp (DOS gates on delta<0). */
+    tension[1 * 4 + 1] = 0x70;
+    gt.nation[1].relation_by_indian[1] = 10;
+    ai_diplo_indian_relation_delta(&gt, 5, 1, 40); /* 10 -> 50, crosses tier */
+    if (tension[1 * 4 + 1] != 0x70) {
+      return fail("54f6: positive delta must not touch the tension table");
+    }
+  }
+
   fprintf(stderr, "unit_ai_diplo: ok\n");
   return 0;
 }

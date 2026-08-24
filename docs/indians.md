@@ -172,6 +172,19 @@ conquest / French cooperation hooks, not a named personality enum.
 Nation turn prelude (`FUN_4d56_1816` → `ai_contact_indian_prelude`) bumps both
 layers together on escalation. Clamp alarm ≥ 0 after prelude.
 
+**Third, separate layer — grudge/tension (DS:0x54f6), storage + write-side
+wired 2026-08-24.** `ColonizeCol1Save.indian_tension[tribe_index*4+euro_nation]`
+(int16, runtime-only — not part of the persisted col1 record, DOS never
+saves this table either). Distinct from both alarm layers above; DOS's own
+write site is `FUN_4cc6_00f2` (relation-delta, `ai_diplo_indian_relation_delta`
+in `ai_diplo.c`): on a negative relation delta that crosses a 5-point tier
+boundary, clamp every tribe-of-that-Indian-nation's tension slot down to
+`0x20` (new relation <50) or `0x60` (≥50). No Linux reader yet — DOS's own
+read sites (`FUN_521d_0896` hostility gate in Euro AI goal-scoring; a
+`>>5` 4-tier relations-report icon) are outside Indian/contact domain, left
+for whoever owns `ai_euro.c`/reports. See `docs/mysteries_catalog.md`'s
+"0x54f6" entry for the full formula trace.
+
 ### Gameplay bands
 
 Used by contact / mission / raid gates ([indian_contact.md](../original_sources_annotated/ai/indian_contact.md)):

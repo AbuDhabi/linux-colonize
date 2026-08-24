@@ -40,6 +40,7 @@ void col1_save_free(ColonizeCol1Save* save) {
     free(save->colony);
     free(save->unit);
     free(save->tribe);
+    free(save->indian_tension);
     free(save->map.tile);
     free(save->map.mask);
     free(save->map.path);
@@ -243,6 +244,7 @@ bool col1_save_alloc_sections(ColonizeCol1Save* save, char* err, size_t err_size
     free(save->colony);
     free(save->unit);
     free(save->tribe);
+    free(save->indian_tension);
     free(save->map.tile);
     free(save->map.mask);
     free(save->map.path);
@@ -250,6 +252,7 @@ bool col1_save_alloc_sections(ColonizeCol1Save* save, char* err, size_t err_size
     save->colony = NULL;
     save->unit = NULL;
     save->tribe = NULL;
+    save->indian_tension = NULL;
     save->map.tile = NULL;
     save->map.mask = NULL;
     save->map.path = NULL;
@@ -270,6 +273,7 @@ bool col1_save_alloc_sections(ColonizeCol1Save* save, char* err, size_t err_size
   ColonizeCol1Colony* colonies = NULL;
   ColonizeCol1Unit* units = NULL;
   ColonizeCol1Tribe* tribes = NULL;
+  int16_t* tension = NULL;
   uint8_t* tile = NULL;
   uint8_t* mask = NULL;
   uint8_t* path = NULL;
@@ -292,6 +296,14 @@ bool col1_save_alloc_sections(ColonizeCol1Save* save, char* err, size_t err_size
     if (!tribes) {
       goto oom;
     }
+    /* DS:0x54f6 grudge/tension, runtime-only — see col1_save.h field doc. */
+    tension = calloc(
+      (size_t)save->head.tribe_count * COLONIZE_COL1_NATION_COUNT,
+      sizeof(int16_t)
+    );
+    if (!tension) {
+      goto oom;
+    }
   }
 
   tile = calloc(save->map.tile_count, 1);
@@ -305,6 +317,7 @@ bool col1_save_alloc_sections(ColonizeCol1Save* save, char* err, size_t err_size
   save->colony = colonies;
   save->unit = units;
   save->tribe = tribes;
+  save->indian_tension = tension;
   save->map.tile = tile;
   save->map.mask = mask;
   save->map.path = path;
@@ -319,6 +332,7 @@ oom:
   free(colonies);
   free(units);
   free(tribes);
+  free(tension);
   free(tile);
   free(mask);
   free(path);

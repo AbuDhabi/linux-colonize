@@ -576,6 +576,17 @@ index semantics — a real formula-mapping task, not a corruption wall.
 Still no golden reaches `colony_count>0` for a Brave, so still nothing to
 verify a port against even once mapped.
 
+**2026-08-24 — `DS:0x54f6` grudge/tension wired** (was fully decoded, unwired
+per `mysteries_catalog.md`): `ColonizeCol1Save.indian_tension` +
+`ai_diplo_indian_tension_tier_update`, called from
+`ai_diplo_indian_relation_delta` (`FUN_4cc6_00f2`'s port). Same pass corrected
+the catalog's own read of that DOS function — `iVar3`/`iVar6` are the quartile
+bucketer applied to old/new *relation*, not a separate combat-strength stat,
+so DOS's own "hard reset on ≥2-tier gap" branch is dead code; only the
+clamp-to-`0x20`/`0x60` arm is real. Two DOS read sites (Euro-AI hostility
+gate `FUN_521d_0896`, relations-report tier icon) still unwired — Euro-AI /
+reports territory, separate items. See `indian_euro_23000_matrix.md`.
+
 ### R3 — Contact and raids (**partial structural port**)
 
 **Linux:** [`ai_contact.c`](../src/core/ai_contact.c) — `5bfb` meet/auto-trade,
@@ -887,6 +898,18 @@ in hunter check + capital rally after `1eca`; refuse clear when `boycott_bitmap=
 second MoW at `difficulty≥2`; capture status chrome **Done**. Thin map:
 [`king_ref.md`](../original_sources_annotated/ai/king_ref.md). Unit:
 `unit_ai_king`.
+
+**2026-08-24 — real bug fixed, not a PARK.** `ai_king_seed_backup_force_1a26`
+had the two foreign-intervention pools index-swapped vs. DOS (`backup_force[2]`
+↔`[3]` vs. DOS `0x53e6` Man-O-War/`0x53e8` Artillery, confirmed byte-for-byte
+against `FUN_43f7_0082`/`FUN_43f7_2022`) — `ai_king_foreign_intervene`'s land
+troop loop was draining the MoW pool as Artillery while the real Artillery
+pool sat unused; `ai_king_merc_offer`'s gate read the wrong slot too (worked
+by accident of the same swap). Both fixed together, cited at
+`ai_king.c:461-524`/`3281-3290`. Remaining real PARK found alongside it: DOS's
+`FUN_43f7_10f0` also spawns a MoW unit on the same land tile scored for troop
+landings each successful intervention — doesn't obviously make sense for a
+naval unit, resolving needs live DOSBox-X, not guessed.
 
 **Done (structural unpark #2):** real `38fd_5be8` / `2564` / `2022` **modals** via
 `ai_popup` (status chrome Done; `2022` merc CHOICE now real formula, not

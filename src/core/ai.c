@@ -935,6 +935,8 @@ static bool ai_install_tribes(
   }
   free(p->col1->tribe);
   p->col1->tribe = NULL;
+  free(p->col1->indian_tension);
+  p->col1->indian_tension = NULL;
   p->col1->head.tribe_count = 0;
   if (count <= 0) {
     return true;
@@ -943,8 +945,16 @@ static bool ai_install_tribes(
   if (!owned) {
     return false;
   }
+  /* DS:0x54f6 grudge/tension, runtime-only parallel array — col1_save.h
+   * field doc. New game starts every slot at 0, same as DOS. */
+  int16_t* tension = calloc((size_t)count * COLONIZE_COL1_NATION_COUNT, sizeof(int16_t));
+  if (!tension) {
+    free(owned);
+    return false;
+  }
   memcpy(owned, tribes, (size_t)count * sizeof(ColonizeCol1Tribe));
   p->col1->tribe = owned;
+  p->col1->indian_tension = tension;
   p->col1->head.tribe_count = (uint16_t)count;
   p->col1->owned = true;
   return true;
@@ -3902,6 +3912,24 @@ int col1_kill_indian_nation(
           continue;
         }
         u->home_tribe_id = remap[u->home_tribe_id];
+      }
+    }
+
+    /* Keep DS:0x54f6 grudge/tension (col1->indian_tension, keyed by tribe
+     * array index) in lockstep with the same compaction — same remap
+     * table the tribe array and home_tribe_id fixups above just used. */
+    if (col1->indian_tension) {
+      for (uint16_t i = 0; i < old_count; ++i) {
+        if (remap[i] < 0) {
+          continue;
+        }
+        if ((uint16_t)remap[i] != i) {
+          memmove(
+            &col1->indian_tension[(size_t)remap[i] * COLONIZE_COL1_NATION_COUNT],
+            &col1->indian_tension[(size_t)i * COLONIZE_COL1_NATION_COUNT],
+            COLONIZE_COL1_NATION_COUNT * sizeof(int16_t)
+          );
+        }
       }
     }
     free(remap);

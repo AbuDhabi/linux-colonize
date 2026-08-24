@@ -1015,6 +1015,7 @@ bool col1_bridge_apply(
     const ColonizeCol1Nation* nat = &save->nation[local.human_nation];
     europe->gold = (int)nat->gold;
     europe->tax_percent = nat->tax_rate;
+    europe->boycott_bitmap = nat->boycott_bitmap;
     europe->current_crosses = nat->current_crosses;
     europe->needed_crosses =
       nat->needed_crosses > 0 ? nat->needed_crosses : TURN_DEFAULT_NEEDED_CROSSES;

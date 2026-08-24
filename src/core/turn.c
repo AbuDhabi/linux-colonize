@@ -1162,28 +1162,48 @@ static void turn_produce_one_colony(
     }
 
     /*
-     * Phase H thin — random field skill discover (DOS ~57590–57614).
-     * Free Colonist on field job 0..4: 1/100 → gain that field profession.
-     * Treasure/already-skilled / nation skill-flags / school-job thresholds PARKED.
+     * Phase H — random field skill discover (DOS FUN_364b_0688 ~57590-57614,
+     * see colony_eot_production.md Deep H). Raw bytes: skip profession 0x1b
+     * (Convert); else roll dos_rng_range(0, N) where N is 99 (base — Free
+     * Colonist / unset), 199 (0x19 Indentured Servant), or 299 (0x1a Petty
+     * Criminal, the two ifs are sequential, not else-if, so Criminal takes
+     * base+200); success on 0 → gain the field profession. Previously this
+     * only fired for Free Colonist and used an ad hoc non-DOS PRNG instead
+     * of the shared `rng` this function already threads through for the
+     * starve-mercy roll a few lines up — fixed to use dos_rng_range(rng, ...)
+     * like DOS's own FUN_281f_04d4 call, and to extend the class-scaled odds
+     * to Indentured/Criminal (Convert stays excluded — not Free/Indentured/
+     * Criminal). The DOS field-job lower bound reads as `1..4` in the raw
+     * bytes (specialty via 0c0e), not `0..4`; whether that's the same value
+     * as `field_job` here is still unresolved (see colony_eot_production.md
+     * Deep H / Deep F "0c0e -> specialty" vs "0c54 -> current job" split) —
+     * left at the port's existing 0..4 scan rather than guess. Nation
+     * skill-flags / deep school-job tables still PARKED.
      */
     for (int ci = 0; ci < colony->colonist_count; ++ci) {
       ColonizeColonist* c = &colony->colonists[ci];
       if (!c->active) {
         continue;
       }
-      if (c->profession != COLONIZE_PROF_FREE_COLONIST && c->profession >= 0) {
+      /* No RNG supplied (e.g. a caller that wants deterministic production
+       * with no stochastic side effects) -> skip rather than let
+       * dos_rng_range(NULL, 0, N)'s "always returns lo" convention read as
+       * a guaranteed hit. */
+      if (!rng) {
+        continue;
+      }
+      int discover_denom = 99;
+      if (c->profession == COLONIZE_PROF_INDENTURED) {
+        discover_denom = 199;
+      } else if (c->profession == COLONIZE_PROF_CRIMINAL) {
+        discover_denom = 299;
+      } else if (c->profession != COLONIZE_PROF_FREE_COLONIST && c->profession >= 0) {
         continue;
       }
       if (c->field_job < 0 || c->field_job > COLONIZE_JOB_FUR_TRAPPER) {
         continue;
       }
-      unsigned seed = 1u;
-      if (col1) {
-        seed = (unsigned)col1->head.turn * 1103515245u + (unsigned)col1->head.year + 12345u;
-      }
-      seed = seed * 1103515245u + 12345u + (unsigned)(ci * 17 + colony->id * 31);
-      const unsigned roll = (seed >> 16) & 0x7fffu;
-      if ((roll % 100u) == 0u) {
+      if (dos_rng_range(rng, 0, discover_denom) == 0) {
         c->profession = c->field_job;
         c->turns_in_job = 0;
         if (europe && colony->nation_id == human_nation && turn_report_ok_trained(col1)) {

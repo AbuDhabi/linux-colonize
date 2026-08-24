@@ -4556,7 +4556,11 @@ int main(void) {
     colonies.colonies[0].nation_id = 0;
     colonies.colonies[0].active = true; /* wave test above may have captured/destroyed it */
     memset(col1.head.expeditionary_force, 0, sizeof(col1.head.expeditionary_force));
-    col1.head.backup_force[3] = 0; /* Artillery pool empty → gate allows the roll */
+    /* MoW pool (0x53e6, backup_force[2]) empty → 2022 gate allows the roll;
+     * zero Artillery pool [3] too so ai_king_foreign_intervene's land-troop
+     * drain can't spawn an unrelated unit in this merc-offer probe. */
+    col1.head.backup_force[2] = 0;
+    col1.head.backup_force[3] = 0;
     /* Park crown far from the port so same-beat war_act combat/capture
      * cannot re-take it before the popup apply reads it back
      * (weakest_port needs it human). moves_left=0 alone wasn't enough —
@@ -4640,7 +4644,10 @@ int main(void) {
       colonies.colonies[0].nation_id = 0;
       colonies.colonies[0].active = true;
       memset(col1.head.expeditionary_force, 0, sizeof(col1.head.expeditionary_force));
-      col1.head.backup_force[3] = 0; /* Artillery pool empty → gate allows the roll */
+      /* MoW pool [2] empty → 2022 gate allows the roll; zero Artillery [3]
+       * too so foreign_intervene's land-troop drain stays out of this probe. */
+      col1.head.backup_force[2] = 0;
+      col1.head.backup_force[3] = 0;
       /* Park crown away from the port — see Hire block above. */
       for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
         ColonizeUnit* u = &units.units[i];

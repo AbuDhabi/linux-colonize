@@ -286,6 +286,52 @@ int main(void) {
     return 1;
   }
 
+  /*
+   * Boycott gating (fandom Boycott (Col): "goods blocked in Europe until
+   * penalty paid or Fugger"). Boycott Furs, confirm buy/sell both refuse it
+   * and leave state untouched, then lift and confirm trade works again.
+   * Uses a scratch hold slot (2) so it doesn't disturb hold[0]/[1], which
+   * later harbor_pop checks below depend on.
+   * Cite: europe_cargo_boycotted / EuropeScreen.boycott_bitmap.
+   */
+  {
+    if (europe_cargo_boycotted(&eu, COLONIZE_CARGO_FURS)) {
+      fprintf(stderr, "furs should not start boycotted\n");
+      europe_free(&eu);
+      return 1;
+    }
+    eu.harbor[0].hold_goods_type[2] = COLONIZE_CARGO_FURS;
+    eu.harbor[0].hold_goods_amount[2] = 30;
+    eu.boycott_bitmap = (uint16_t)(1u << COLONIZE_CARGO_FURS);
+    if (!europe_cargo_boycotted(&eu, COLONIZE_CARGO_FURS)) {
+      fprintf(stderr, "furs should read as boycotted\n");
+      europe_free(&eu);
+      return 1;
+    }
+    const int gold_before = eu.gold;
+    const int blocked_sell = europe_sell_hold(&eu, 0, 2);
+    if (blocked_sell != 0 || eu.gold != gold_before ||
+        eu.harbor[0].hold_goods_amount[2] != 30) {
+      fprintf(stderr, "boycotted sell should be refused, got %d\n", blocked_sell);
+      europe_free(&eu);
+      return 1;
+    }
+    const int blocked_buy = europe_buy_cargo(&eu, 0, COLONIZE_CARGO_FURS, 50);
+    if (blocked_buy != 0 || eu.gold != gold_before) {
+      fprintf(stderr, "boycotted buy should be refused, got %d\n", blocked_buy);
+      europe_free(&eu);
+      return 1;
+    }
+    /* Lift the boycott; the same trade must now succeed. */
+    eu.boycott_bitmap = 0;
+    const int unblocked_sell = europe_sell_hold(&eu, 0, 2);
+    if (unblocked_sell <= 0 || eu.harbor[0].hold_goods_amount[2] != 0) {
+      fprintf(stderr, "sell should succeed once boycott lifted, got %d\n", unblocked_sell);
+      europe_free(&eu);
+      return 1;
+    }
+  }
+
   /* Drag session helpers. */
   {
     UiDragSession drag;
