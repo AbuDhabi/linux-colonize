@@ -647,6 +647,184 @@ avenue is now exhausted. Not attempted this pass (out of scope for a
 single-session budget); the fort/colony `+8` term stays unwired, same as
 before. `ctest` not run (doc-only).
 
+**2026-08-24 — resumed per this row's own real next step (`0015bc` first,
+smaller of the two flood-fills), plus the row's other three open items
+(`0015c1`, `0009ae`, `000000`). Net: `0015bc`'s edge-cost formula wired
+(real, low-risk fix landed); `0015c1` and `0009ae` decompile clean for the
+first time (both previously either unread or force-decompile-avoided) and
+are now structurally documented; `000000` (the pcode-error function) hand-
+transcribed from raw disassembly, same method as `FUN_5fef_0000`/
+`OVL12_L0000`. Byte-exact wiring of `0015c1`/`0009ae`/`000000` themselves
+still not done — see "still open" at the end of this entry.**
+
+- **`0015bc` edge-cost formula: wired.** Force-decompiled fresh again to
+  re-verify byte-for-byte before writing any C (`OVL20_L0000:15bc`, clean,
+  matches the 2026-08-21/22 passes' own citations exactly, no drift). One
+  correction to a claim in this doc's own 2026-08-21 entry: that pass
+  asserted `0015bc` "reuses the *same* `penalty` formula as `0f74`'s
+  already-ported scored-fallback tail" (`max_mp<2 ? 3 :
+  terrain_cost*3`). Re-reading the raw disassembly line-for-line, that's
+  not quite right — `0015bc`'s own gate is `uStack_12 =
+  type_table[type][DS:0x5234] < 4` (the raw `movement` column, no
+  `FUN_281f_090c`/ship-bonus computation involved at all), not `<2` on a
+  *computed* max-MP value. Same shape (flat `3` vs `terrain_cost*3`), a
+  different, simpler threshold on a different (unadjusted) input — two
+  real, independently-tuned formulas that happen to look alike, not one
+  formula reused verbatim. Wired into `units_flood_next_step`
+  (`units.c`) as the edge cost inside the flood's own BFS relaxation loop,
+  replacing the previous generic `units_move_cost` edge — `flood_low_move
+  = type->movement < 4`, edge `= flood_low_move ? 3 :
+  map_dos_terr_cost_byte(map_dos_terr_class_at(...)) * 3`, both accessors
+  already existing and already used by `0f74`'s own port. **Deliberately
+  not ported**: the `DS:0x1dd4` "cached/favored route" flat-`+1` override
+  (a hazard-flag-gated exception, unrelated to ownership, still untraced
+  past what the 2026-08-22 entry above already noted) and re-deriving the
+  domain/continent match term inline (already enforced upstream by
+  `units_can_enter`). Full `ctest` 41/41 green (comment cites this
+  entry).
+
+- **`0009ae` — force-decompiled clean for the first time (was genuinely
+  untraced before this pass).** 411 bytes, `OVL20_L0000:9ae`, no pcode
+  error, no warnings. Structural read: takes window-local-scaled
+  coordinates via registers (`in_AX`, `in_DX`) and a domain flag
+  (`in_BX`), consults the same per-domain walkability grids `0015bc`/
+  `0015c1` themselves read (`-0x790a`/`-0x7a18`, stride `0x12`); if the
+  *current* cell is itself walkable, first tries a direct "stay" candidate
+  (`local_10 = 8`, this project's usual "no offset" sentinel) validated
+  via `FUN_OVL20_L0000_000000` + `FUN_OVL20_L0000_0015b2`; if that fails
+  (or the current cell isn't walkable), falls back to scanning all 8
+  neighbors, scoring each by a distance call (`FUN_1000_8560`, not
+  independently identified this pass) and keeping the best that also
+  passes both validators. On success, writes the winning cell into
+  `DS:0xa14e`/`DS:0xa14c` (the same pair `0015bc`/`0015c1` themselves read
+  as their own flood-origin/goal) and returns `1`; `0` on total failure.
+  Reads as "pick one best immediate step toward the real goal, or bail" —
+  structurally close to `0f74`'s own scored-fallback tail, but operating
+  in `0015c1`'s coarser 18×18 window-local coordinate space rather than
+  real map coordinates. Not the same function as the already-confirmed
+  `0015b7` (direct-step helper matching `units_sign_i`) — a distinct,
+  previously-unaccounted-for fifth helper, now identified rather than a
+  mystery. `FUN_1000_8560`'s identity and the exact register-passing
+  convention (which of `AX`/`DX` is x vs y, and whether they're real map
+  coordinates or the `×4`-scaled quantities `0009ae`'s own body implies
+  elsewhere) are **not** independently confirmed this pass — flagging as
+  structural-not-semantic confidence per this file's own convention.
+
+- **`0015c1` — force-decompiled clean for the first time (this row's own
+  2026-08-20 note said it was never independently read raw; the shipped
+  Linux `units_bfs_next_step` was built citing a *different* DOS pair,
+  `0086`/`00f2`, not this one).** 5-byte stub function count aside, the
+  real body is ~230 lines, clean, `OVL20_L0000:15c1`. Structure, read
+  directly rather than inferred: an 18×18-window (`0x12`) flood-fill, same
+  family shape as `0015bc`'s 16×16 but with one extra stage in front —
+  it first calls `0009ae` (above) to try to pick a single best immediate
+  step; if that fails outright, it falls through with the original
+  in-args untouched (no flood attempted — a real "give up early" path
+  `0015bc` doesn't have). If `0009ae` *succeeds*, `0015c1` runs its own
+  destination-outward BFS flood over the 18×18 window — same per-cell
+  8-neighbor relaxation shape as `0015bc`, same domain-vs-continent gate
+  inlined (`FUN_1000_88a4`, `FUN_1000_8886`, `FUN_1000_88c2`/`88d6`/
+  `88ae`/`89d0`, all already-identified accessors per the 2026-08-22
+  entries above) — then, once the flood settles, scores the *unit's own*
+  8 neighbors by flood-cost (tie-broken by `FUN_1000_856a`, an XY-distance
+  helper, not independently confirmed this pass) and, on picking a
+  winner, calls `FUN_OVL20_L0000_000000` **again** to validate/finalize it
+  before committing. A popup/dialog tail (mirroring `0015bc`'s own —
+  `FUN_0000_dd18`/`FUN_1000_83e0`/`83ea` message-box calls, catalog id
+  `0x1df6`) fires only when a UI-visibility flag (`DS:0x1df4`) is set —
+  matches `0015bc`'s analogous `DS:0x1df2` gate, almost certainly a
+  "show the AI's pathing on-screen" debug/spectator toggle, not gameplay
+  logic; out of scope for a port regardless. **Net: `units_bfs_next_step`
+  remains a deliberately different substitute, not a literal port** —
+  confirmed now from `0015c1`'s own raw body rather than inference. A
+  real byte-exact port would need `0009ae`'s waypoint-pick semantics
+  fully pinned down first (its own open questions above) plus threading
+  the same edge-cost/ownership-gate work `0015bc` already has partway
+  done — not attempted this pass, real next step if resumed.
+
+- **`000000` — hand-transcribed from raw disassembly, same method as
+  `FUN_5fef_0000`/`OVL12_L0000` (this doc's 2026-08-13 entry).** Confirmed
+  still hits the known decompiler bug (`Offset must be between 0x0 and
+  0x10ffef, got 0xffffffff`) even freshly force-cleared. 132 bytes
+  (`OVL20_L0000:0000`, confirmed via `DumpOverlayFuncs.java`), small enough
+  to transcribe whole. Disassembled exactly via `GhidraDisasmExact.java`
+  and hand-decoded (`ENTER 0x6,0x0` frame; 3 register args saved to
+  locals; 2 genuine stack args popped by the trailing `RET 0x4`):
+
+  ```c
+  // OVL20_L0000:0000 - hand-transcribed (pcode-error function, decompiler
+  // can't resolve this one's CALLF targets, same bug class as
+  // FUN_5fef_0000/OVL12_L0000). Entry registers AX/DX/BX are real inputs
+  // (this compiler's near-call convention passes some args in registers,
+  // not just the stack) - saved to locals at entry, never re-loaded from
+  // fresh AX/DX/BX after. Two more args arrive via the stack proper
+  // (BP+4, BP+6), consistent with the trailing `RET 4`.
+  //
+  // Confirmed accessor identities (already named project-wide, not new
+  // RE): CALLF 1000:8958 == FUN_1000_8958 == FUN_13e4_0074 ==
+  // "ocean_or_high_seas" (this project's `ai_is_ocean_hs`, ai.c:534).
+  // CALLF 1000:88a4 == FUN_1000_88a4 == "continent_id" (per this doc's
+  // own 2026-08-22 entry above, citing FUNCTION_CATALOG.md).
+  //
+  // NOT independently confirmed this pass: which of the 3 register args
+  // is x vs y vs "wanted domain" bool, whether AX/DX arrive already
+  // window-local-scaled (as 0009ae's own body implies) or as real map
+  // coordinates, and what BP+4 vs the BX-register arg's respective roles
+  // are (BP+4 reads like a stack-safe copy of a boolean domain want-flag,
+  // not independently proven). Structural shape only - do not treat as
+  // semantically confirmed.
+  // Address-by-address control flow (0x0F JMP 0x67; 0x12/0x15 inner-loop
+  // head; 0x64/0x67 outer-loop head) collapses cleanly to a standard
+  // pre-tested nested for-loop — verified by re-deriving the outer bound
+  // arithmetic from the raw jumps rather than assumed: `entry_ax` (saved
+  // AX) and `row`'s own initial value are the SAME literal quantity (both
+  // loaded from AX before anything clobbers it), so the outer test
+  // `!(entry_ax+1 < row)` only holds for row in {entry_ax, entry_ax+1} —
+  // a real, confirmed 2-row (not N-row) span; same arithmetic for the
+  // inner `col` span against `entry_dx`. Reads as a 2x2-cell probe, not a
+  // window-wide scan.
+  int FUN_OVL20_L0000_000000(word bp4_domain_flag, word* bp6_out_pair) {
+    word entry_bx = BX, entry_dx = DX, entry_ax = AX;  // pushed, unclobbered
+    int found = 0;
+    for (int row = entry_ax; !found && !(entry_ax + 1 < row); row++) {
+      for (int col = entry_dx; !found && !(entry_dx + 1 < col); col++) {
+        if (ocean_or_high_seas(col, row) == bp4_domain_flag) {
+          /* real code re-issues the same call rather than reusing AX;
+           * transcribed as one call here, behaviorally identical since
+           * the accessor is a pure read. */
+          if (bp4_domain_flag == 0 || continent_id(col, row) == 1) {
+            *(word*)entry_bx = row;        // out param #1 (register ptr)
+            bp6_out_pair[0]  = col;        // out param #2 (stack ptr)
+            found = 1;
+          }
+        }
+      }
+    }
+    return found;   // 0 or 1
+  }
+  ```
+
+  Not ported to Linux this pass — called from `0009ae`/`0015c1` (above),
+  both of which are themselves still unwired; porting `000000` alone
+  without its two callers' own remaining open questions (register-arg
+  roles, `FUN_1000_8560`/`FUN_1000_856a` identities) would be RE without
+  a place to land it. Documented per project convention ("document even
+  if untestable/unwired," `T1.9`'s own precedent) rather than left as a
+  bare pcode-error citation.
+
+**Still open, honestly**: `0015c1`/`0009ae`/`000000` are now fully
+*documented* (clean decompiles or, for `000000`, a verified hand
+transcription) but not byte-exact **ported** — `units_bfs_next_step`
+keeps shipping as the tested, working, deliberately-different substitute
+per the 2026-08-20 note above. Real next step if resumed: pin down
+`FUN_1000_8560`/`FUN_1000_856a` (both distance/tie-break helpers, neither
+independently identified) and the exact register-argument roles for
+`000000`/`0009ae`, then decide whether `0015c1`'s two-stage
+(waypoint-pick + windowed-flood) shape is worth porting literally given
+`units_bfs_next_step` already covers the same functional need. `ctest`
+41/41 green (one real `src/` change this pass: `0015bc`'s edge-cost
+formula in `units_flood_next_step`).
+
 Re-checked with a small (0x100-byte) force-clear + fresh disassemble
 (bypassing any stale analysis, same technique used elsewhere this
 session): the corruption is **confined to one case (`case 4`) of a small
@@ -1279,6 +1457,55 @@ without a narrower address hint first). Stays PARKED; real next step if
 resumed is narrowing `38fd`'s own gap functions (e.g. by proximity to
 already-known Crown-cash functions like the audience/teaparty pair) before
 attempting a blind sweep.
+
+**2026-08-24 — the `38fd` sweep this note called for turned out to have
+already been run a few hours after this note was written (same day,
+2026-08-22), just never written back here.** Found via
+`src/core/founding_fathers.c`'s `founding_fathers_cortes_free_king_galleon`
+comment: "Phase 3: 38fd CHOICE 3 STRING / 0 NUMBER negative... Phase 4:
+Europe harbor tick / treasure-sell / europe_cash_treasure path searched —
+no Crown-initiated Galleon offer dispatch... Phase 5: 38fd overlay sweep
+for CHOICE(3 STRING, 0 NUMBER) + callee chain from harbor/treasure —
+no match." Cross-confirmed by matching "Phase 5: 38fd overlay + string
+search negative" status lines added the same day to `docs/roadmap.md`,
+`docs/manual_gap.md`, and `docs/ai_transcription.md`. Independently
+re-verified this session rather than trusted outright (this item's own
+history of unverifiable citations, e.g. the retracted `FUN_1000_8842`,
+warrants that): mapped all 81 `38fd` functions
+(`viceroy_unpacked.c:58695-68762`) and every CHOICE-adjacent call site
+(`FUN_291f_0182` CHOICE-read, `FUN_1d1d_07e4` string-template format,
+`thunk_FUN_291f_0ae0` notify) to its owning function, including the
+overlay's two largest, `WARNING:`-flagged-corrupted outliers
+(`FUN_38fd_3694`, 2886 lines; `FUN_38fd_4f6e`, 2205 lines — the likeliest
+place a text-only scan could miss something). Neither is Galleon-shaped:
+`3694` matches its `FUNCTION_CATALOG.md` "dock immigrant info / embark
+bark dialog" label on inspection (unit-type checks span ship types
+`0xd-0x12` plus a few land types, never Treasure's `'\n'`/`0x0a`); `4f6e`
+reads as warehouse/goods-overflow accounting, not the catalog's guessed
+"Europe keyboard/hotkey dispatcher," but not Galleon either way. `38fd`
+is genuinely exhausted, independently confirmed, not just asserted.
+
+**Also found and corrected: this note's own "all in the `38fd` overlay per
+`king_ref.md`" framing was half wrong.** Re-reading `king_ref.md` (whose
+own title is "King / REF / independence (`43f7`)"): only the tax-audience
+pair (`38fd_5be8`/`38fd_3dc8`/`38fd_5e52`) is actually `38fd` — the
+declare-gate/congress citation (`2564`/`1a26`) and the mercenary-hire pair
+(`2022`/`2244`) this note also cited as "38fd" are really **`43f7`**, a
+different, much smaller overlay (21 functions vs `38fd`'s 81). Since
+KINGGALLEON2 is structurally closer to those Crown-proposal mechanics than
+to audience/tax-teaparty, `43f7` — not `38fd` — is what `king_ref.md`
+actually motivates as a candidate. Checked it in full this pass: 18/21
+functions were already attributed in `king_ref.md`; the remaining 3
+(`FUN_43f7_0082`, `_0108`, `_0188`) are now read and ruled out —
+`0082` is a difficulty-scaled weight/constant table (no dialog at all),
+`0108` is per-nation elimination/reset bookkeeping, `0188` disposes an
+eliminated nation's ships with a single-string status message (one
+`STRING` arg, no CHOICE). No corruption warnings anywhere in `43f7`, so no
+live-Ghidra re-check is owed here. **`43f7` is now also fully exhausted
+(21/21), not just `38fd`.** No new candidate overlay surfaced this pass.
+Full write-up: `docs/ai_port_plan.md` T1.13's 2026-08-24 entry. Stays
+PARKED — a future attempt needs either a genuinely new overlay hypothesis
+or a live DOSBox-X capture, not a repeat of either sweep above.
 
 ### 2c6. Linux thin — Missionary CONTACT (act)
 

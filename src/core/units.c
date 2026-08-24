@@ -4310,6 +4310,25 @@ static bool units_flood_next_step(
   if (!u || !out_x || !out_y) {
     return false;
   }
+  /*
+   * FUN_6662_0015bc's own per-edge cost, force-decompiled clean 2026-08-24
+   * (see euro_unit_act.md T1.8): `uStack_12 = type_table[type][DS:0x5234]
+   * < 4` (the same `movement` column T1.8's 2026-08-21 pass already named
+   * — `type->movement` below), then per-candidate `cost +=
+   * (uStack_12==0) ? terrain_cost[cand]*3 : 3`. Real, separate threshold
+   * from `0f74`'s own scored-fallback tail (`max_mp<2`, where max_mp is a
+   * *computed* value via `FUN_281f_090c`, not this raw table field) — the
+   * two tiers do not share one literal formula the way an earlier pass's
+   * prose summary assumed; `<4` on the raw `movement` field is `0015bc`'s
+   * own rule, confirmed from its raw decompile, not copied from `0f74`.
+   * NOT ported here: the `DS:0x1dd4` "cached/favored route" flat-`+1`
+   * override (a hazard-flag-gated exception to this formula, unrelated to
+   * ownership, not traced — see euro_unit_act.md's 2026-08-22 note) and
+   * the domain/continent match term (already enforced upstream by
+   * `units_can_enter`, not re-derived here).
+   */
+  const ColonizeUnitType* flood_type = units_type(pool, u->type_index);
+  const bool flood_low_move = flood_type != NULL && flood_type->movement < 4;
   const int origin_x = gx - UNITS_FLOOD_W / 2;
   const int origin_y = gy - UNITS_FLOOD_W / 2;
   int cost[UNITS_FLOOD_W][UNITS_FLOOD_W];
@@ -4385,7 +4404,9 @@ static bool units_flood_next_step(
             continue;
           }
         }
-        const int edge = units_move_cost(pool, unit_id, map, nx, ny);
+        const int edge = flood_low_move
+                           ? 3
+                           : map_dos_terr_cost_byte(map_dos_terr_class_at(map, nx, ny)) * 3;
         const int nc = base + (edge > 0 ? edge : 1);
         if (nc < cost[nly][nlx]) {
           cost[nly][nlx] = nc;

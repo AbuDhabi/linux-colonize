@@ -207,6 +207,16 @@ label is a misresolve (real path `4c54→2a1f:0410→overlay:0`); candidate
 overlay-id. T1.17: reference-only structural port already shipped last
 session — checkbox closed. Tier 1 open: `T1.8`, `T1.13`, `T1.15`.
 
+**Reassessed 2026-08-24, later same day — `T1.15` closed.** Ghidra
+headless `GhidraDecompileAt.java` against the raw bytes (not the
+flattened export) confirmed the thunk chain the `4c54`/`2a1f:0410` path
+above was blocked on: it really is `FUN_4d56_0000` (as guessed), and the
+"cannot explain capital growth" contradiction was this session's own
+transcription bug (capital arm is `3*tech+4`, not `tech+1`) — see the
+item's own 2026-08-24 entry for the full derivation. Ported, real
+`ctest` (41/41, unrelated golden-AI cluster still intentionally
+`DISABLED`). Tier 1 open: `T1.8`, `T1.13`.
+
 - [x] **T1.1 — Resolve `FUN_1000_8aac` field-index accessor, fields
   3/4/5/6/0xc.** New, highest-leverage item this pass. Field 2 of this
   accessor took `move_scoring_20e6_full.md` six passes to crack (the
@@ -958,6 +968,31 @@ session — checkbox closed. Tier 1 open: `T1.8`, `T1.13`, `T1.15`.
   spent on one gating bit with a working substitute already shipping;
   next session should default to T1.15/T1.16/T1.17 instead unless this
   specific `0x40` question is explicitly re-requested.
+  **2026-08-24 — resumed at this row's own instruction (`0015bc` first),
+  plus the other three still-open items (`0015c1`, `0009ae`, `000000`).
+  Real, verified progress on all four; none fully byte-exact-ported.**
+  (1) `0015bc`'s per-edge cost formula wired into `units_flood_next_step`
+  (`units.c`) — re-confirmed from a fresh force-decompile that its real
+  gate is `type->movement < 4` (the raw table field), not `0f74`'s own
+  `max_mp<2` (a *computed* value) as an earlier pass's prose summary
+  implied; the two tiers use similarly-shaped but genuinely different
+  formulas, now corrected in the doc. (2) `0009ae` — previously untraced
+  entirely — force-decompiles clean (411 bytes, no pcode error): a
+  window-local "best immediate step toward goal" picker, structurally
+  distinct from the already-confirmed `0015b7`. (3) `0015c1` — never
+  actually read raw before (only inferred from its window size) — also
+  force-decompiles clean: an 18×18 flood confirmed structurally close to
+  `0015bc`'s own shape, gated by a first-stage call into `0009ae`.
+  (4) `000000` — still hits the known pcode-error decompiler bug even
+  fresh — hand-transcribed from raw disassembly (132 bytes), same method
+  as `FUN_5fef_0000`/`OVL12_L0000`; both its callees turn out to be
+  already-named accessors (`ocean_or_high_seas`, `continent_id`).
+  **Not done**: byte-exact porting of `0015c1`/`0009ae`/`000000`
+  themselves (two helper identities, `FUN_1000_8560`/`FUN_1000_856a`,
+  and the exact register-argument roles, remain open) — `units_bfs_next_step`
+  keeps shipping as the tested substitute. Full trace: `euro_unit_act.md`'s
+  2026-08-24 update. Full `ctest` 41/41 green (one real `src/` change:
+  `0015bc`'s edge-cost formula).
 
 - [x] **T1.9 — Indian mid-game quiet scoring (goods/missions/capital
   pull) formula mapping.** R2 used to flag this as blocked on "a
@@ -1311,6 +1346,64 @@ session — checkbox closed. Tier 1 open: `T1.8`, `T1.13`, `T1.15`.
   searched this pass (60+ un-attributed "gap" functions in that overlay,
   too large to blind-sweep without a narrower hint). Full trace:
   `euro_unit_act.md`'s 2026-08-22 update.
+  **2026-08-24 — the `38fd` CHOICE(3 STRING, 0 NUMBER) sweep this row asked
+  for was, in fact, already run later the same day as the note above (this
+  row itself was just never updated with the result) — found via
+  `src/core/founding_fathers.c`'s own `founding_fathers_cortes_free_king_
+  galleon` comment ("Phase 3: 38fd CHOICE 3 STRING / 0 NUMBER negative...
+  Phase 5: 38fd overlay sweep... no match"), cross-confirmed by matching
+  Phase-5-negative status lines added the same day to `roadmap.md`,
+  `manual_gap.md`, and `ai_transcription.md`. That result predates this
+  row's own text by a few hours and was never propagated here — pure
+  doc-sync gap, not unfinished research. Rather than trust the comment at
+  face value (this item's own history of unverifiable citations, e.g. the
+  retracted `FUN_1000_8842`, earns that skepticism), independently re-ran
+  the same search this session: mapped all 81 `38fd` functions
+  (`viceroy_unpacked.c:58695-68762`) and every CHOICE-adjacent call site in
+  that span (`FUN_291f_0182` CHOICE-read, `FUN_1d1d_07e4` string-template
+  format, `thunk_FUN_291f_0ae0` notify) to its owning function, including
+  the overlay's two giant outliers (`FUN_38fd_3694`, 2886 lines, and
+  `FUN_38fd_4f6e`, 2205 lines — both flagged `WARNING:` corrupted in spots,
+  the likeliest place a signature-based text scan could have missed
+  something). Neither reads as Treasure/Galleon: `3694` matches
+  `FUNCTION_CATALOG.md`'s existing "dock immigrant info / embark bark
+  dialog" label on inspection (its many `unit+0x3146` type checks span
+  ship types `0xd-0x12` and a few land types, never Treasure's `'\n'`/
+  `0x0a`); `4f6e` reads as warehouse/goods-overflow accounting (`nation+
+  0x92`/`0x94`/`0x95`/`0xb6`/`0x9a` fields), not "Europe keyboard/hotkey
+  dispatcher" as currently inferred-labeled, but not Galleon-shaped either
+  way. **Confirms the negative independently — `38fd` is genuinely
+  exhausted, both by this session and the prior one.**
+  **Real, new correction found in the process**: this row's own "audience/
+  congress/mercenary-hire... all in the `38fd` overlay per `king_ref.md`"
+  premise is half wrong — re-reading `king_ref.md`, only the tax-audience
+  pair (`38fd_5be8`/`38fd_3dc8`, plus `38fd_5e52`) is actually `38fd`; the
+  declare-gate/congress citation (`2564`/`1a26`) and the mercenary-hire
+  pair (`2022`/`2244`) that doc cites live in **`43f7`** (the doc's own
+  title: "King / REF / independence (`43f7`)") — a different, much smaller
+  overlay (21 functions vs `38fd`'s 81). Since KINGGALLEON2 is structurally
+  closer to those Crown-proposal mechanics than to the audience/tax-teaparty
+  pair, `43f7` is arguably the better-motivated candidate `king_ref.md`
+  actually points to. Checked it fully this pass: 18/21 of `43f7`'s
+  functions were already attributed in `king_ref.md`; the 3 that weren't
+  (`FUN_43f7_0082`, `_0108`, `_0188`) are now read and ruled out too —
+  `0082` is a small difficulty-scaled weight/priority-constant table (no
+  dialog at all), `0108` is per-nation elimination/reset bookkeeping
+  (kills that nation's units, sets `nation+0x543f=2`), `0188` disposes a
+  losing/eliminated nation's ships with a single-string status message (one
+  `STRING` arg, no CHOICE, no second option) — none is a 3-STRING/0-NUMBER
+  CHOICE, and `43f7` has no corruption warnings anywhere in its 21
+  functions, so nothing here needs live Ghidra re-verification. **`43f7`
+  is now also fully exhausted (21/21 functions accounted for), not just
+  `38fd`.** Net: both King-turn overlays plausibly reachable from
+  `king_ref.md`'s own citations are now genuinely searched and negative,
+  not merely asserted negative. No new candidate overlay identified this
+  pass. **Stays PARKED** — a future re-attempt should not repeat either the
+  `38fd` or `43f7` sweep; if picked up again, needs either a genuinely new
+  overlay hypothesis or a live DOSBox-X capture (e.g. a hang-dump trapped
+  at the moment a non-Cortes player accumulates Treasure with no Galleon,
+  the same method that pinned `417e`'s real caller args). Doc-only pass,
+  no `src/` touched, `ctest` not run.
 
 - [x] **T1.14 — Decode `DS:0x2f76` record columns `+3` (colony-founding
   neighbor score) and `+4` (village/growth threshold term); identify what
@@ -1388,7 +1481,7 @@ session — checkbox closed. Tier 1 open: `T1.8`, `T1.13`, `T1.15`.
   elsewhere. Full trace: `terrain_yields.md`'s `+0x4` row. `ctest` not run
   (doc-only, no `src/` touched).
 
-- [ ] **T1.15 — Port `FUN_41f2_0294`'s village worth-score formula.** New
+- [x] **T1.15 — Port `FUN_41f2_0294`'s village worth-score formula.** New
   2026-08-22, split out of `T4.2` now that its semantics are fully known
   (7-term word-sum, see that row) and only field-naming + porting remain —
   no live capture needed for any of it. Replaces the flat-`15`
@@ -1490,6 +1583,55 @@ session — checkbox closed. Tier 1 open: `T1.8`, `T1.13`, `T1.15`.
   still real — just not this call site. Next: RTLink jump-list / live
   overlay-load for `2a1f:0410`. Cited `ai_tribe_initial_pop` /
   stub comments in `ai.c`. `ctest` not required (comment-only `src/`).
+  **2026-08-24, later same day — resolved and ported; CLOSED.** Used
+  this project's own established recipe for a `CALLF <loader>; JMPF`
+  RTLink placeholder (Ghidra headless `analyzeHeadless ... -postScript
+  GhidraDecompileAt.java <space>:<offsetHex>` against the canonical
+  `decompiled-colonize`/`VICEROY_OUT_2.EXE` project — same tool used
+  earlier in this project for the `0a60`/`153e` thunk tables, see
+  `docs/rtlink_decode_v2_gap.md` step 3b) instead of the flattened
+  export's `FUN_41f2_0294` misresolve:
+  - `4d56:0086`'s near `CALL` raw bytes `E8 CB 4B` decode to target
+    `0x0089+0x4BCB = 0x4C54` (Ghidra's own rendered `0x4000:21b4` display
+    for this instruction is wrong — a segmented-space rendering artifact,
+    confirmed by manually decoding the `rel16` operand).
+  - `4d56:4c54` raw bytes `EA 10 04 1F 2A` = `JMPF 2A1F:0410` (again,
+    Ghidra's rendered `0x2000:a600` is the same display artifact).
+  - Raw bytes at `2a1f:0410`, read directly (not via a stale/cached
+    function boundary from a prior probe in the same run — first attempt
+    at this address produced a mismatched result from exactly that
+    trap): `CALLF 210D:0DAB` (`FUN_210d_0dab`, the RTLink overlay loader)
+    + `JMPF 4D56:0000`, a clean 12-byte thunk-table entry. Confirms the
+    **already-guessed** target, `FUN_4d56_0000`. (Table entries also
+    resolved in passing: `041c`->`4d56:39ea`, `0428`->`4d56:3646`,
+    `0434`->`4d56:2154`.)
+  The 2026-08-24 "cannot be the live compare" contradiction above turned
+  out to be a **transcription bug in that same session**, not a wrong
+  callee: decompiling `4d56:0000` fresh gives capital arm `3*tech+4`
+  (`ADD CX,AX; INC CX` onto the already-computed `2*tech+3` base), not
+  `tech+1` as read then (the base add was dropped in transcription).
+  `3*tech+4 > 2*tech+3` for every `tech >= 0`, so `pop < worth` holds for
+  seed-100 capitals and `growth_accum += pop` fires every turn — matches
+  golden TURN1->2 exactly, contradiction resolved. Ported: stub renamed
+  `ai_indian_152e_worth_cap_stub` -> `ai_indian_152e_worth_cap` (no
+  longer a stub), reads `ind->tech` and `t->state.capital` directly
+  (already-wired fields) instead of re-deriving them through
+  `FUN_4d56_0000`'s own redundant `DS:0x54ec`-stride-`0x12` lookup table
+  (a separate per-tribe worklist mirroring the same two fields — porting
+  it as a second table would just be duplicate state). Result truncated
+  through `uint8_t` before return, matching DOS's own `byte bVar5 = ...`
+  before the compare (same "byte-truncate on port" convention as the
+  `T4.2`/`417e` case). Full diff + derivation: `ai.c`'s
+  `ai_indian_152e_worth_cap` header comment. `ctest`: full suite green,
+  41/41 (4 golden-AI-cluster tests remain `DISABLED` by pre-existing
+  2026-08-19 policy, unrelated to this fix — see `CMakeLists.txt`'s own
+  comment there). Informational-only spot check (not part of the gating
+  suite): running the disabled `golden_ai_turns` binary directly now
+  reports `TURN1->2 ok`; TURN2->3 still diverges on unrelated,
+  already-documented gaps (unit-order/goal mismatches, two
+  `relation_by_indian` off-by-ones) — expected per that cluster's own
+  "guaranteed future diff until AI transcription is further along"
+  framing, not a regression from this change. **T1.15 closed.**
 
 - [x] **T1.16 — Port `2820`'s deep Haggle/hard-bargain resume-loop.** New
   2026-08-22, split out of `T4.4` now that both blocking values are
