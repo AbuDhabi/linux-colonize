@@ -2361,7 +2361,7 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_38fd_285c` | 60650 | 79 | trade | Transfer cargo between ship holds | inferred |  |
 | `FUN_38fd_2a92` | 60729 | 58 | trade | Sell/scrap harbor ship dialog | inferred |  |
 | `FUN_38fd_2bfe` | 60787 | 117 | trade | Harbor ship context menu (sail / sell / unload) | inferred |  |
-| `FUN_38fd_2dfe` | 60904 | 45 | trade | Pay to lift cargo boycott | inferred | docs/savegame.md |
+| `FUN_38fd_2dfe` | 60904 | 45 | trade | Pay to lift cargo boycott: cost = ask_price×500, credits nation.royal_money, clears boycott bit | confirmed | turn/europe_nation_eot.md |
 | `FUN_38fd_2edc` | 60949 | 88 | trade | Loading-panel ship click / selection handler | inferred |  |
 | `FUN_38fd_30aa` | 61037 | 47 | trade | Hold-slot click: load/unload cargo | inferred |  |
 | `FUN_38fd_31c6` | 61084 | 23 | trade | Hold-strip hit-test / drag-target arm | inferred |  |

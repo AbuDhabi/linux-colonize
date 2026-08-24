@@ -15,7 +15,8 @@ Orchestration: [`between_turns.md`](between_turns.md) ·
 `turn_produce_one_colony` (`src/core/turn.c`); shared rules in
 `colony_production.c` / `colony_craft.c`. **Birth + starve-kill Done** (I–J).
 **AI dump-sell Done** thin (O). **Education F–H Done** thin. **Phase D SoL chrome Done** thin. **Inefficient-gov chrome Done** thin.
-K / P msgs **mapped**; port **PARKED**.
+K / P msgs **mapped**; port **Done** thin (was stale here — see Deep K /
+Linux correspondence below; 2026-08-24 demand-gate fix).
 
 ## Sibling — `FUN_364b_03f6` (coastal fort fire)
 
@@ -197,7 +198,37 @@ Gated `!(0x5384 & 0x20)`. Scratch demand words vs missing net yield:
 
 **Port:** hammers-zero / tools / lumber/ore/food / rum/cigars/cloth/coats /
 muskets(+tools paired) status **Done** thin; `0x5384` report-bit gates **Done**
-thin (show when bit clear); scratch-demand net-yield probe still thin vs stock.
+thin (show when bit clear).
+
+**2026-08-24 fix — scratch-demand net-yield probe resolved statically (no
+live capture needed):** traced `FUN_15eb_0bd4`/`FUN_15eb_0b96`/`FUN_15eb_0b52`
+(all in `viceroy_unpacked.c` near `10102`–`10182`) and their one real call
+site (`~12680`–`12689`, the food/lumber/tools/raw-material demand composer
+that runs before this phase): `local_6` (the "consumption" DOS feeds into
+each raw good's demand word) is derived from *this tick's actual tier-scaled
+worker output* for the paired finished good (`FUN_15eb_0bd4(raw, output)` —
+`(1,9)`=sugar→rum, `(2,10)`=tobacco→cigars, `(3,0xb)`=cotton→cloth,
+`(4,0xc)`=furs→coats, `(6,0xe)`=ore→tools; lumber/tools set directly via
+`FUN_15eb_0b96(5, …)`/`FUN_15eb_0b96(0xe, …)`) — i.e. **demand is zero
+whenever nobody is staffed producing that output**, not merely "the building
+exists." Separately proved the probe's own "net output of the finished good
+== 0" half always reduces to `stock[in_cargo] == 0` for this game's recipe
+ratios (output tier ≥ input tier for every recipe here, so any nonzero input
+yields ≥1 output) — so that half of the port's existing `stock==0` check was
+already right; only the gate was wrong. Fixed: `colony_craft_demand_mask`
+(`colony_craft.c`) reruns the same tier-scaled recipe pass
+`colony_craft_one_colony` already does this tick and reports which raw goods
+have a real (staffed, sol_bonus-folded) input requirement; `turn.c`'s Phase K
+block now gates ORE/CANESUGAR/TOBACCO/COTTON/FURS/TOOLS(+muskets) on that
+instead of `turn_building_name_has`. Lumber/hammers kept its existing
+building-name gate (interacts with the separate Autumn hammers-freeze,
+not disentangled here) and food is unaffected (not a craft recipe). Fixes a
+real false-positive: a colony with an unstaffed starter Blacksmith's House
+and 0 ore used to nag "Need ore." every turn even though nobody was trying to
+make tools; DOS stays silent (demand word is 0) in that case. Regression:
+`tests/unit/test_turn.c` "build advisory K …" blocks updated to staff the
+recipe's colonist (previously left `building_type=-1` — encoded the old,
+wrong "building merely exists" behavior).
 
 ## Deep — O / P AI dump-sell + spoilage msgs
 

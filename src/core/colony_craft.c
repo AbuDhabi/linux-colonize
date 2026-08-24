@@ -152,6 +152,54 @@ void colony_craft_one_colony(
   }
 }
 
+/* See header: demand[in_cargo] = someone staffed produced a positive
+ * tier-scaled input requirement for that recipe this tick (stock not read). */
+void colony_craft_demand_mask(
+  const ColonizeColonyPool* pool,
+  const ColonizeColony* colony,
+  int sol_bonus,
+  bool demand[COLONIZE_CARGO_COUNT]
+) {
+  if (!demand) {
+    return;
+  }
+  memset(demand, 0, sizeof(bool) * COLONIZE_CARGO_COUNT);
+  if (!pool || !colony || !colony->active) {
+    return;
+  }
+
+  bool done_pair[COLONIZE_CARGO_COUNT][COLONIZE_CARGO_COUNT];
+  memset(done_pair, 0, sizeof(done_pair));
+
+  for (size_t r = 0; r < sizeof(k_recipes) / sizeof(k_recipes[0]); ++r) {
+    const ColonyCraftRecipe* rec = &k_recipes[r];
+    if (rec->in_cargo < 0 || rec->in_cargo >= COLONIZE_CARGO_COUNT || rec->out_cargo < 0 ||
+        rec->out_cargo >= COLONIZE_CARGO_COUNT) {
+      continue;
+    }
+    if (done_pair[rec->in_cargo][rec->out_cargo]) {
+      continue;
+    }
+
+    int total_in = 0;
+    for (size_t r2 = 0; r2 < sizeof(k_recipes) / sizeof(k_recipes[0]); ++r2) {
+      const ColonyCraftRecipe* rec2 = &k_recipes[r2];
+      if (rec2->in_cargo != rec->in_cargo || rec2->out_cargo != rec->out_cargo) {
+        continue;
+      }
+      int pair_out = 0;
+      int pair_in = 0;
+      colony_craft_pair_totals(pool, colony, rec2, sol_bonus, &pair_out, &pair_in);
+      total_in += pair_in;
+    }
+    done_pair[rec->in_cargo][rec->out_cargo] = true;
+
+    if (total_in > 0) {
+      demand[rec->in_cargo] = true;
+    }
+  }
+}
+
 /*
  * Preview helper: same recipe pass as colony_craft_one_colony but records shortfalls
  * and does not require mutating the live colony (operates on scratch stock).

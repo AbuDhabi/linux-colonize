@@ -1380,13 +1380,34 @@ static void turn_produce_one_colony(
   /* Phase K demand crumbs (hammers/tools already above): raw / craft empty. */
   if (colony->nation_id == human_nation && europe && europe->status[0] == '\0' &&
       turn_report_ok_raw(col1)) {
+    /*
+     * DOS gates each "ran out of X" msg on a demand scratch word (set by
+     * FUN_15eb_0bd4/0b96 from the SAME turn's tier-scaled worker output,
+     * see colony_eot_production.md Deep K), not on "does the building
+     * exist" — a staffed-vs-unstaffed distinction the port used to miss
+     * (a colony with e.g. an unstaffed starter Blacksmith's House and 0
+     * ore would nag "Need ore." every turn even though nobody was trying
+     * to make tools). The DOS probe's "net output of the finished good ==
+     * 0" half always reduces to "stock[in_cargo] == 0" for this game's
+     * recipe ratios (output tier is always >= input tier, so any nonzero
+     * input yields >=1 output) — proven, not assumed — so that half of
+     * the port's existing check was already right; only the gate needed
+     * fixing. 2026-08-24 fix: replaced building-name-substring gates with
+     * colony_craft_demand_mask (same recipe pass colony_craft_one_colony
+     * already ran this tick, sol_bonus-consistent). Lumber/hammers and
+     * food keep their existing gates — hammers has its own Autumn-freeze
+     * wrinkle (see hammers block above) not yet disentangled from the
+     * message trigger, and food isn't a craft recipe.
+     */
+    bool craft_demand[COLONIZE_CARGO_COUNT];
+    colony_craft_demand_mask(pool, colony, colony_prod_sol_bonus(col1, colony), craft_demand);
+
     const char* k_sec = NULL;
     if (colony->stock[COLONIZE_CARGO_LUMBER] == 0 &&
         turn_building_name_has(pool, colony, "Carpenter")) {
       snprintf(europe->status, sizeof(europe->status), "Need lumber.");
       k_sec = "LUMBER";
-    } else if (colony->stock[COLONIZE_CARGO_ORE] == 0 &&
-               turn_building_name_has(pool, colony, "Blacksmith")) {
+    } else if (colony->stock[COLONIZE_CARGO_ORE] == 0 && craft_demand[COLONIZE_CARGO_ORE]) {
       snprintf(europe->status, sizeof(europe->status), "Need ore.");
       k_sec = "ORE";
     } else if (
@@ -1394,43 +1415,34 @@ static void turn_produce_one_colony(
     ) {
       snprintf(europe->status, sizeof(europe->status), "Need food.");
     } else if (
-      colony->stock[COLONIZE_CARGO_SUGAR] == 0 &&
-      turn_building_name_has(pool, colony, "Distiller")
+      colony->stock[COLONIZE_CARGO_SUGAR] == 0 && craft_demand[COLONIZE_CARGO_SUGAR]
     ) {
       snprintf(europe->status, sizeof(europe->status), "Need sugar.");
       k_sec = "CANESUGAR";
     } else if (
-      colony->stock[COLONIZE_CARGO_TOBACCO] == 0 &&
-      turn_building_name_has(pool, colony, "Tobacconist")
+      colony->stock[COLONIZE_CARGO_TOBACCO] == 0 && craft_demand[COLONIZE_CARGO_TOBACCO]
     ) {
       snprintf(europe->status, sizeof(europe->status), "Need tobacco.");
       k_sec = "TOBACCO";
     } else if (
-      colony->stock[COLONIZE_CARGO_COTTON] == 0 &&
-      turn_building_name_has(pool, colony, "Weaver")
+      colony->stock[COLONIZE_CARGO_COTTON] == 0 && craft_demand[COLONIZE_CARGO_COTTON]
     ) {
       snprintf(europe->status, sizeof(europe->status), "Need cotton.");
       k_sec = "COTTON";
     } else if (
-      colony->stock[COLONIZE_CARGO_FURS] == 0 &&
-      turn_building_name_has(pool, colony, "Fur Trader")
+      colony->stock[COLONIZE_CARGO_FURS] == 0 && craft_demand[COLONIZE_CARGO_FURS]
     ) {
       snprintf(europe->status, sizeof(europe->status), "Need furs.");
       k_sec = "FURS";
     } else if (
       colony->stock[COLONIZE_CARGO_MUSKETS] == 0 && colony->stock[COLONIZE_CARGO_TOOLS] == 0 &&
-      (turn_building_name_has(pool, colony, "Armory") ||
-       turn_building_name_has(pool, colony, "Magazine") ||
-       turn_building_name_has(pool, colony, "Arsenal"))
+      craft_demand[COLONIZE_CARGO_TOOLS]
     ) {
       /* 0x8e66 paired tools+muskets empty. */
       snprintf(europe->status, sizeof(europe->status), "Need tools for muskets.");
       k_sec = "TOOLS";
     } else if (
-      colony->stock[COLONIZE_CARGO_MUSKETS] == 0 &&
-      (turn_building_name_has(pool, colony, "Armory") ||
-       turn_building_name_has(pool, colony, "Magazine") ||
-       turn_building_name_has(pool, colony, "Arsenal"))
+      colony->stock[COLONIZE_CARGO_MUSKETS] == 0 && craft_demand[COLONIZE_CARGO_TOOLS]
     ) {
       snprintf(europe->status, sizeof(europe->status), "Need muskets.");
     }

@@ -204,6 +204,54 @@ mirrors `nation.boycott_bitmap` live each Europe-screen render). Previously
 a player could freely trade goods Parliament had boycotted. Fandom source:
 Boycott (Col) — "goods blocked in Europe until penalty paid or Fugger".
 
+### Boycott buy-back — `FUN_38fd_2dfe`, ported 2026-08-24
+
+Found the real UI trigger by reading `GAME.TXT` instead of guessing a menu:
+`@SOMEBOYCOTT` ("Some of the cargo could not be unloaded because of a
+parliamentary boycott. If you want to ask that the boycott be lifted, click
+on the cargo type in question.") names the click site directly — the
+Europe market strip cell for the boycotted cargo. `FUNCTION_CATALOG.md`
+already had the callee labeled ("pay to lift cargo boycott", thunk
+`FUN_291f_0c06`) but nothing had read or ported it yet.
+
+`FUN_38fd_2dfe` (**60904–60945**, clean disassembly, no warnings):
+
+```
+if (nation invalid or AI-controlled) { clear a display flag; return; }  // human-only gate
+price = FUN_38fd_0016(cargo)        // effective ask price — already ported
+                                     // as eu->cargo[cargo_type].ask
+cost  = price * 500                 // matches fandom's "500 tons of that
+                                     // good at current price" exactly
+if (nation.gold < cost) {           // GAME.TXT @KISSSORRY
+  show "only {gold}$ available"; return;
+}
+nation.gold        -= cost;         // nation+0x2a (32-bit)
+nation.royal_money  += cost;        // nation+0x22 — col1_save.h already
+                                     // names this exact offset royal_money
+                                     // (Crown/REF budget, FUN_43f7_1d42) —
+                                     // paying back taxes literally funds
+                                     // the King's war chest
+nation.boycott_bitmap &= ~(1<<cargo) ; // nation+0x20
+```
+
+The `nation+0x22`/`royal_money` match is the load-bearing confirmation here:
+that offset was independently named from `col1_save.h`'s own DOS-export
+tracing before this pass touched it, and the newly-read function writes to
+exactly that field — not a coincidence, a real cross-check.
+
+Ported: `europe_buyback_boycott(eu, col1, human_nation, cargo_type)`
+(`europe.c`/`europe.h`), wired at the click site in `game_loop.c`'s
+`EUROPE_HIT_MARKET` handler — clicking a boycotted market cell calls it
+instead of the normal buy/select flow, regardless of whether a harbor ship
+is selected (matching `@SOMEBOYCOTT`'s wording, no ship needed). `@KISSUP`'s
+Pay/Cancel CHOICE dialog and `@KISSSORRY`'s insufficient-funds dialog are
+**not** modal-ported — implemented as an immediate action + `eu->status`
+line instead, the same chrome-PARKED tradeoff already accepted elsewhere on
+this screen (e.g. `europe_custom_house_autosell`, the `+`/`U` immediate
+buy/sell keys). `tests/unit/test_europe.c` covers insufficient-funds no-op,
+successful pay (gold debited, `royal_money` credited, bit cleared), and
+no-op on an already-unboycotted cargo.
+
 ---
 
 ## Deep — `0058` phases 1–3

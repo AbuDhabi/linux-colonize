@@ -398,6 +398,22 @@ int europe_cash_treasure(EuropeScreen* eu, int treasure_value);
  */
 int europe_cargo_boycotted(const EuropeScreen* eu, int cargo_type);
 
+/*
+ * FUN_38fd_2dfe: pay back taxes to lift a Parliamentary boycott on
+ * cargo_type. Cost = eu->cargo[cargo_type].ask * 500 ("500 tons of that
+ * good" — fandom Boycott (Col); GAME.TXT @KISSUP). On success: deducts cost
+ * from gold, credits it to nation.royal_money (Crown REF budget — the DOS
+ * write really does land on that field, see col1_save.h), clears the
+ * boycott bit. Insufficient funds / not boycotted / bad args: no-op,
+ * returns 0. Real trigger: GAME.TXT @SOMEBOYCOTT — click the boycotted
+ * cargo cell on the Europe market strip (game_loop.c EUROPE_HIT_MARKET).
+ * @KISSUP/@KISSSORRY CHOICE dialog chrome PARKED — ported as immediate
+ * action + eu->status line. Returns gold paid (>0) on success.
+ */
+int europe_buyback_boycott(
+  EuropeScreen* eu, struct ColonizeCol1Save* col1, int human_nation, int cargo_type
+);
+
 int europe_sell_proceeds(const EuropeScreen* eu, int cargo_type, int amount);
 int europe_sell_hold(EuropeScreen* eu, int harbor_index, int hold_index);
 /*

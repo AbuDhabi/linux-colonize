@@ -587,6 +587,17 @@ clamp-to-`0x20`/`0x60` arm is real. Two DOS read sites (Euro-AI hostility
 gate `FUN_521d_0896`, relations-report tier icon) still unwired — Euro-AI /
 reports territory, separate items. See `indian_euro_23000_matrix.md`.
 
+**2026-08-24 — `hill_silver_bid_bonus` write side wired** (read side already
+live): `FUN_6a09_0006`'s tribe-placement bonus scan was never ported, so the
+field was always 0 in every procedurally-generated game. Wired into
+`ai_place_tribes_procedural` (`ai.c`). Found while porting: terrain class
+`0x1b` is **Mountains**, not "Hills" as the field's resolved name implied —
+corrected in `mysteries_catalog.md`, field name left as-is (no live-field
+rename). Same pass fixed a matching inverted `0x1b`/`0x1c` ternary in
+`ai_decoded_type`. `sticky_trade_good` (same catalog entry, the other unwired
+field) stays open — needs the deep `FUN_4d56_2820` Haggle/hard-bargain CHOICE
+nest, which is PARKED VGA chrome, out of scope.
+
 ### R3 — Contact and raids (**partial structural port**)
 
 **Linux:** [`ai_contact.c`](../src/core/ai_contact.c) — `5bfb` meet/auto-trade,
@@ -879,7 +890,11 @@ thin `1528` arrival status on REF spawn; real `2022` rebel-branch merc
 troop-gift (2026-08-14, was thin `unknown46[3]`/300-gold once-per-war
 invented stand-in) — recurring per-turn 1-in-3 roll while REF absent or
 artillery pool empty, real price/qty formula, paid from the rebel's own
-treasury, landing tile captured at offer time; `ai_popup` Hire/Decline
+treasury, landing tile captured at offer time; **2026-08-24: `1eca` promote's `FORTIFIED`
+gate removed** — the raw decompile (`viceroy_unpacked.c:74910-74972`) only
+reads unit type (`+0x3146`) and profession (`+0x315b`), never `orders`
+(`+0x08`); the fortify requirement was an unsupported over-restriction added
+2026-08-14, under-promoting relative to DOS. `ai_popup` Hire/Decline
 CHOICE **Done**; `2244`'s peacetime AI-nation-only twin now also ported
 (`ai_king_ai_peacetime_gift`, see `king_ref.md` "2244/2022 — corrected"); thin `160a` rename
 (`country_name` / europe → "United Colonies"); **`1eca` full port** — per

@@ -460,6 +460,36 @@ static int run_init_and_turns(
     return 1;
   }
 
+  if (!america) {
+    /* FUN_6a09_0006 tail (ai_place_tribes_procedural, ai.c): NEW WORLD-only
+     * mountain-adjacency Silver bid bonus. Sanity, not a byte-exact golden:
+     * no field should go negative (int16 wrap on an always-nonnegative
+     * accumulator would be a real bug), and this seed's generated map is
+     * expected to place at least one nation's tribes near a class-0x1b
+     * (Mountain) tile, so the total across all 8 nations should be > 0 --
+     * catches a silent regression (e.g. the write loop never firing) that
+     * a pure non-negative check would miss. */
+    int total_hill_bonus = 0;
+    for (int n = 0; n < 8; ++n) {
+      const int16_t v = col1.indian[n].hill_silver_bid_bonus;
+      if (v < 0) {
+        fprintf(stderr, "%s: nation %d hill_silver_bid_bonus went negative (%d)\n", label, n, v);
+        map_free(&map);
+        col1_save_free(&col1);
+        assets_msg_free(&names);
+        return 1;
+      }
+      total_hill_bonus += v;
+    }
+    if (total_hill_bonus <= 0) {
+      fprintf(stderr, "%s: expected some nation to accrue hill_silver_bid_bonus (Mountain-adjacent tribes), got 0 total\n", label);
+      map_free(&map);
+      col1_save_free(&col1);
+      assets_msg_free(&names);
+      return 1;
+    }
+  }
+
   int euro_fleets = 0;
   for (int n = 0; n < 4; ++n) {
     if (n == human_nation) {

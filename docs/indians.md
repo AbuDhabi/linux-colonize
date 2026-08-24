@@ -117,6 +117,20 @@ playable nations — cosmetic / scenario pool, not additional `indian[8]` slots.
 | AMERICA | [`TRIBE.TXT`](../COLONIZE/TRIBE.TXT) `@INCA`…`@TUPI` coordinates |
 | NEW WORLD | Procedural `FUN_6a09_0006` → `ai_place_tribes_procedural` (capitals then satellites) |
 
+**NEW WORLD-only Silver bid bonus (wired 2026-08-24).** After every capital
+and satellite tribe is placed, `FUN_6a09_0006`'s own tail re-walks each tribe
+and scans the 5×5 window centered on its own tile for terrain class `0x1b`,
+adding that nation's `tech` to `indian.hill_silver_bid_bonus` per hit (read
+side already fed the tribe's Silver bid — see `ai_contact.c`). Class `0x1b`
+is **Mountains**, not Hills — the field's original name was a decode-era
+mislabel (raw `.asm` of `FUN_13e4_000e` and `map.c`'s independent
+MAPEDIT-derived convention agree: `0x1b`=Mountains, `0x1c`=Hills); kept the
+existing field name (no rename of a live field) and fixed the comments +
+the write side instead. AMERICA-mode tribes never get this bonus — it's
+specific to the NEW WORLD/procedural placement function, not the
+TRIBE.TXT path. Full trace: `col1_save.h`'s `hill_silver_bid_bonus` comment
+and `ai.c`'s `ai_place_tribes_procedural`/`ai_decoded_type`.
+
 Initial village population = **`3 + 2*tech`**. Growth `FUN_4d56_152e` /
 `ai_grow_villages`: accumulates on **capitals only**; threshold accum **> 19**;
 pop cap **15**. Empty-tile Attack (`FUN_5fef_1b0e`): temp Brave fight from the

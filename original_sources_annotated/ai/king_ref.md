@@ -303,7 +303,7 @@ if cap < 1: cap = 1
 
 The decomp then walks *only the units stationed on that colony's own tile*
 (its tile unit-stack, not every unit the nation owns anywhere), and for each
-that is **FORTIFIED**, raw type **1** (Soldier) or **4** (Dragoon), **and**
+that is raw type **1** (Soldier) or **4** (Dragoon), **and**
 profession `unit+0x315b == 0x15`, spends one slot of `cap` to promote:
 Soldier → Continental Army (type 9), Dragoon → Continental Cavalry (type 7).
 The budget is shared across both types in tile scan order — at the SoL==50
@@ -330,10 +330,23 @@ right type, but `UNITS_JOB_NONE` — must not promote). Full `ctest` green,
 including golden fixtures — the stricter gate never conflicted with any
 already-verified seed-100 behavior.
 
+**Fortify-gate correction (2026-08-24)**: the paragraph above previously
+claimed a `FORTIFIED` requirement as part of "direct read of the decompiled
+body" — that was wrong. A full end-to-end read of `FUN_43f7_1eca`
+(`viceroy_unpacked.c:74910-74972`) shows only two per-unit tests: the type
+byte at `unit+0x3146` and the profession byte at `unit+0x315b`. `orders`
+(`ViceroyUnit.orders`, `original_sources_annotated/include/viceroy_types.h`)
+lives at `unit+0x08`, an address this function never reads. The Linux port
+had carried an extra `u->orders != UNITS_ORDER_FORTIFIED` gate (added
+2026-08-14 alongside the real profession-gate fix, apparently by inference
+rather than a direct byte-offset citation) that DOS does not have — removed
+this pass, tests updated to prove a non-fortified on-tile Veteran Soldier
+now promotes.
+
 Source: `FUN_43f7_1eca`. King promote path only — **not** FF Washington
 mass-promote / combat upgrade. Linux: `ai_king_war_act` in `ai_king.c`
-(`unit_ai_king` 1eca block covers the fortified-gate, own-tile-gate,
-Veteran-profession-gate, shared-cap, and SoL==50-edge cases).
+(`unit_ai_king` 1eca block covers the own-tile-gate, Veteran-profession-gate,
+shared-cap, and SoL==50-edge cases).
 
 After promote, idle human **Cont. Army / Cont. Cav** (hunter name check includes
 `Continental` / `Cont. Army` / `Cont. Cav`) `AI_MOVE` toward the **nearest**

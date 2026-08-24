@@ -3241,17 +3241,22 @@ int main(void) {
   status[0] = '\0';
 
   /*
-   * FUN_43f7_1eca full port: only units FORTIFIED on the colony's own tile
-   * are eligible (decomp walks the colony-tile unit stack, not every unit
-   * the nation owns). Soldier -> Continental Army, Dragoon -> Continental
+   * FUN_43f7_1eca full port: units on the colony's own tile are eligible
+   * (decomp walks the colony-tile unit stack, not every unit the nation
+   * owns) — re-verified 2026-08-24 by reading the complete raw decomp body
+   * (viceroy_unpacked.c:74910-74972) end to end: it tests only unit+0x3146
+   * (raw type 1/4) and unit+0x315b (profession); it never reads unit+0x08
+   * (ViceroyUnit.orders), so fortified/sentry/active state does NOT gate
+   * this promote (prior test/impl both wrongly required FORTIFIED — fixed
+   * this pass). Soldier -> Continental Army, Dragoon -> Continental
    * Cavalry; Regular is never touched (decomp tests raw type 1/4 only).
    * Also requires Veteran profession (UNITS_JOB_SOLDIER, DOS
    * unit+0x315b==0x15) — an ordinary armed colonist does not promote.
    * colony0 (5,5) pop=4 SoL=60 by default caps at 1 promote
    * (population*(sol-50)/50 == 0, floored to 1), too tight to prove Soldier
-   * + Dragoon together, so widen pop/SoL here. Also proves the fortified
-   * gate, the own-tile gate, and the Veteran-profession gate each
-   * independently block a promote.
+   * + Dragoon together, so widen pop/SoL here. Also proves the own-tile
+   * gate and the Veteran-profession gate each independently block a
+   * promote, and that a non-fortified Veteran on-tile unit still promotes.
    */
   col1.colony[0].population = 20;
   col1.colony[0].rebel_dividend = 70;
@@ -3292,17 +3297,22 @@ int main(void) {
     su->orders = UNITS_ORDER_FORTIFIED;
     du->orders = UNITS_ORDER_FORTIFIED;
     ru->orders = UNITS_ORDER_FORTIFIED;
-    unfort->orders = UNITS_ORDER_NONE; /* on-tile, not fortified: must stay Soldier */
+    unfort->orders = UNITS_ORDER_NONE; /* on-tile, NOT fortified: must still promote */
     offtile->orders = UNITS_ORDER_FORTIFIED; /* fortified, off-tile: must stay Soldier */
     plain->orders = UNITS_ORDER_FORTIFIED;
     /*
      * FUN_43f7_1eca gates on unit+0x315b == 0x15 (UNITS_JOB_SOLDIER,
      * "Veteran Soldiers") alongside the raw type check — only Veteran-
-     * status Soldier/Dragoon promote. su/du earn that; plain stays
-     * UNITS_JOB_NONE (an ordinary armed colonist) to prove the gate.
+     * status Soldier/Dragoon promote. su/du/unfort/offtile earn that so
+     * the fortify-state and own-tile gates are each isolated (unfort is
+     * off the fortified path entirely; offtile is fortified but on the
+     * wrong tile); plain stays UNITS_JOB_NONE (an ordinary armed
+     * colonist) to prove the profession gate on its own.
      */
     su->profession = UNITS_JOB_SOLDIER;
     du->profession = UNITS_JOB_SOLDIER;
+    unfort->profession = UNITS_JOB_SOLDIER;
+    offtile->profession = UNITS_JOB_SOLDIER;
   }
   ai_king_nation_turn(&ctx);
   {
@@ -3327,15 +3337,17 @@ int main(void) {
               ru ? ru->type_index : -1, ty_regular);
       return fail("1eca must never touch Regular (decomp tests only type 1/4)");
     }
-    if (!unfort || !unfort->active || unfort->type_index != ty_soldier) {
-      fprintf(stderr, "unit_ai_king: unfortified Soldier type after 1eca: %d (want %d)\n",
-              unfort ? unfort->type_index : -1, ty_soldier);
-      return fail("1eca must skip a colony-tile Soldier that is not fortified");
+    if (!unfort || !unfort->active || unfort->type_index != ty_cont_army) {
+      fprintf(stderr, "unit_ai_king: unfortified Veteran Soldier type after 1eca: %d (want %d)\n",
+              unfort ? unfort->type_index : -1, ty_cont_army);
+      return fail("1eca must promote a non-fortified on-tile Veteran Soldier "
+                   "(decomp never reads unit+0x08/orders)");
     }
     if (!offtile || !offtile->active || offtile->type_index != ty_soldier) {
       fprintf(stderr, "unit_ai_king: off-tile Soldier type after 1eca: %d (want %d)\n",
               offtile ? offtile->type_index : -1, ty_soldier);
-      return fail("1eca must skip a fortified Soldier off the colony's own tile");
+      return fail("1eca must skip a Veteran Soldier off the colony's own tile "
+                   "regardless of fortify state");
     }
     if (!plain || !plain->active || plain->type_index != ty_soldier) {
       fprintf(stderr, "unit_ai_king: non-Veteran Soldier type after 1eca: %d (want %d)\n",

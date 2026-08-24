@@ -74,7 +74,13 @@ nation_sol = Σ(pop × colony_sol%) / Σ(pop)
 
 Used for declare, restless chrome, tax-refuse SoL gate, merc offer, score
 rebel points. **Port:** [`ai_king_sol_percent`](../src/core/ai_king.c) —
-`Σ(dividend×pop) × 100 / Σ(divisor×pop)`; else `liberty_bells_total/4`.
+per-colony `sol% = dividend×100/divisor` (truncated, Bolivar +20 applied and
+clamped per colony, matching `FUN_281f_0c86`'s per-colony read inside the
+`0004` loop) **then** pop-weighted: `Σ(pop×sol%) / Σ(pop)`; else
+`liberty_bells_total/4`. (Corrected 2026-08-24: this line previously read
+`Σ(dividend×pop)×100/Σ(divisor×pop)`, a different — and wrong — order of
+operations that doesn't match either the decomp or the actual
+`ai_king_sol_percent` body.)
 
 ### Colony flag latches (+0x1c)
 
@@ -169,14 +175,16 @@ Uses **colony** SoL at the unit’s tile ([`ai_king_colony_sol_at`](../src/core/
 
 | Colony SoL | Effect |
 |------------|--------|
-| **> 50** | Soldier/Regular → Continental Army; Dragoon/Cavalry → Continental Cavalry |
-| **40..50** | Soldier → Veteran only; Dragoon unchanged |
-| **&lt; 40** | No promote from this band |
+| **> 49** | Colony-tile, Veteran-profession (`unit+0x315b==0x15`) Soldier → Continental Army; Dragoon → Continental Cavalry. Cap `max(1, min(pop/2, pop*(sol-50)/50))` per colony. Regular and already-Continental units never match the raw-type test and are left untouched; a colony-tile Soldier/Dragoon *without* Veteran profession is also skipped. **No fortify requirement** — re-verified 2026-08-24 by reading the full decomp body end to end: it tests only `unit+0x3146` (type) and `unit+0x315b` (profession), never `unit+0x08` (`orders`). A prior fix (2026-08-14) had added a `UNITS_ORDER_FORTIFIED` gate here on top of the real profession gate; that extra gate was unsupported and has been removed. |
+| **40..49** | Restless status text only (`AI_KING_RESTLESS_SOL_MIN`..`AI_KING_DECLARE_SOL_MIN-1`) — **not** a promote band in `1eca` itself |
+| **&lt; 40** | No effect |
 
-Deep profession/type-id promote table still **PARK**. Manual “Continental Army
-Muster” (counts by colony SoL on declare; &lt;50% colony contributes 0) is **Done**
-via `ai_king_war_act` / FUN_43f7_1eca (Veteran fortified Soldier/Dragoon on colony
-tile; cap from pop and SoL). Popup declare Confirm chains ref_wave+war_act same turn.
+**Done** — full profession/type-id promote table ported (was previously filed
+as deep-PARK; that filing was stale against the code, corrected 2026-08-24).
+Manual “Continental Army Muster” (counts by colony SoL on declare; &lt;50%
+colony contributes 0) via `ai_king_war_act` / `FUN_43f7_1eca` (Veteran
+fortified Soldier/Dragoon on colony tile; cap from pop and SoL). Popup
+declare Confirm chains ref_wave+war_act same turn.
 
 ---
 
