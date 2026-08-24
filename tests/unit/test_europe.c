@@ -1006,10 +1006,13 @@ int main(void) {
     tick.trade_nr[tg] = 100; /* ≥ fall*100 → bid−1 */
     tick.status[0] = '\0';
     europe_tick_market_prices(&tick, NULL, NULL);
-    if (tick.cargo[tg].bid != 9 || strstr(tick.status, "fell") == NULL) {
+    /* Real DOS wording, GAME.TXT @PRICEDOWN (COLONIZE/GAME.TXT:1687-1689):
+       "The price of {cargo} in {port} has fallen to {bid}." */
+    if (tick.cargo[tg].bid != 9 || strstr(tick.status, "has fallen to 9") == NULL ||
+        strstr(tick.status, "Trade Goods") == NULL) {
       fprintf(
         stderr,
-        "market fall status want bid=9+'fell' got bid=%d '%s'\n",
+        "market fall status want bid=9+'has fallen to 9'+'Trade Goods' got bid=%d '%s'\n",
         tick.cargo[tg].bid,
         tick.status
       );

@@ -598,6 +598,12 @@ rename). Same pass fixed a matching inverted `0x1b`/`0x1c` ternary in
 field) stays open — needs the deep `FUN_4d56_2820` Haggle/hard-bargain CHOICE
 nest, which is PARKED VGA chrome, out of scope.
 
+**2026-08-24, round 3 — second `0x54f6` write site wired.** `FUN_5fef_0f14`
+(colony raid loot) unconditionally zeroes the raiding tribe's tension slot on
+every outcome including total wipe — raiding discharges tension regardless of
+result. Wired into `ai_contact_indian_raids`. Two more touch sites
+(`FUN_5fef_1b0e`, `FUN_5fef_31ea`) live in `units.c`, out of domain, left open.
+
 ### R3 — Contact and raids (**partial structural port**)
 
 **Linux:** [`ai_contact.c`](../src/core/ai_contact.c) — `5bfb` meet/auto-trade,
@@ -899,7 +905,8 @@ CHOICE **Done**; `2244`'s peacetime AI-nation-only twin now also ported
 (`ai_king_ai_peacetime_gift`, see `king_ref.md` "2244/2022 — corrected"); thin `160a` rename
 (`country_name` / europe → "United Colonies"); **`1eca` full port** — per
 colony with SoL>49, `cap = max(1, min(pop>>1, pop*(sol-50)/50))` shared
-across that colony's own **fortified** Soldier/Dragoon (own-tile only, raw
+across that colony's own Soldier/Dragoon (own-tile only, `FORTIFIED` gate
+removed 2026-08-24 above — not read by the decomp; raw
 type 1/4 — Regular/Veteran/already-Continental untouched, matching the
 decomp exactly); Soldier→Continental Army, Dragoon→Continental Cavalry; at
 SoL==50 the cap is always exactly 1 (later units wait a turn); thin SoL
@@ -925,6 +932,16 @@ by accident of the same swap). Both fixed together, cited at
 `FUN_43f7_10f0` also spawns a MoW unit on the same land tile scored for troop
 landings each successful intervention — doesn't obviously make sense for a
 naval unit, resolving needs live DOSBox-X, not guessed.
+
+**2026-08-24, round 3 — `2564`'s two-stage declare popup resolved, no gap.**
+The `0x5381 & 0x80` bit gating a first popup ahead of the real `@DECLARE`
+confirm is only ever set in `FUN_75c2_10ae` (new-game setup), when more than
+one nation slot is flagged human (hotseat) — it picks *which* human player is
+declaring before falling into the shared confirm. `ColonizeTurnContext` only
+ever models one `human_nation`, so this branch has no reachable port
+equivalent; the single Never/Yes `@DECLARE` popup already wired is complete
+for the port's model. Comment added at `ai_king_try_declare` (~line 2346), no
+behavior change.
 
 **Done (structural unpark #2):** real `38fd_5be8` / `2564` / `2022` **modals** via
 `ai_popup` (status chrome Done; `2022` merc CHOICE now real formula, not

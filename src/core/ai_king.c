@@ -2348,6 +2348,36 @@ static void ai_king_do_declare(ColonizeTurnContext* ctx, int human) {
  * Human + ctx->ai_popups → CHOICE from GAME.TXT @DECLARE (Never / Yes;
  * effect in apply_popup_result). Else auto-declare when SoL past 2564/fandom
  * threshold and SoL ≥ min.
+ *
+ * 2026-08-24: resolved the "two-stage declare popup" question flagged by a
+ * prior pass (docs/sons_of_liberty.md). Raw 2564 body
+ * (viceroy_unpacked.c:75217-75253): when SoL≤49 it shows msg 0x1386 with
+ * `*(int*)0x53d0` (the SoL value) as its NUMBER0 arg — that argument shape
+ * matches GAME.TXT `@TOOTORY` ("Only {%NUMBER0%%} of the colonists support
+ * the independence movement... until the {majority} is behind us") exactly,
+ * so 0x1386 = @TOOTORY. Unreachable here: this function only runs once
+ * `sol >= AI_KING_DECLARE_SOL_MIN` already, so @TOOTORY has no port call
+ * site (matches DOS: 2564 is also reachable from a menu command at any SoL
+ * in the original, which the port doesn't model as a separate player-
+ * invoked action — the port only offers Declare once eligible).
+ *
+ * The `*(byte*)0x5381 & 0x80` branch gating a *first* popup (msg 0x138e)
+ * ahead of the real confirm is NOT a "recommend declare" one-shot notice —
+ * traced where that bit is ever *set*: only in `FUN_75c2_10ae`
+ * (viceroy_unpacked.c:120544-120694), the new-game nation-select/setup
+ * screen, when more than one nation slot is flagged human (`iVar5 > 1`,
+ * counting bits in the per-nation "is human" mask at 0x1f54). That's a
+ * hotseat/multi-human-player marker, not a per-turn SoL event — the extra
+ * dialog picks *which* human player is declaring (`*(u16*)0x5398 =
+ * *(u16*)0x5394` after it returns) before falling into the same @DECLARE
+ * confirm every path shares. `ColonizeTurnContext` models exactly one
+ * `human_nation`, so this branch has no reachable port equivalent — the
+ * single Never/Yes @DECLARE popup below is the complete behavior for the
+ * port's single-human model, not a missing feature. (0x138e's exact
+ * wording was never recovered — not needed since the branch is
+ * unreachable; the `*(byte*)0x5382&1` else-branch's msg 0x1374, shown when
+ * already at war, is likewise unrecovered and likewise not required since
+ * `ai_king_independence_declared` already short-circuits that case above.)
  */
 static void ai_king_try_declare(ColonizeTurnContext* ctx) {
   if (!ctx || !ctx->col1_ok || !ctx->col1) {
