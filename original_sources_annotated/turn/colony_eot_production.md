@@ -230,6 +230,28 @@ make tools; DOS stays silent (demand word is 0) in that case. Regression:
 recipe's colonist (previously left `building_type=-1` — encoded the old,
 wrong "building merely exists" behavior).
 
+**2026-08-24 fix (round 3) — lumber disentangled from the Autumn freeze:**
+the "kept its existing building-name gate" line above turned out to be more
+separable than it looked. The Autumn freeze (see the hammers block comment
+in `turn.c`) only blocks hammers *production*/lumber *consumption* on Autumn
+ticks — it says nothing about whether the "Need lumber." message itself
+should also go quiet then, and that specific question is still open (no
+located write site for the DOS demand word this message mirrors, `DS:0x8de8`
+— checked both `.c` and `.asm` exports of `viceroy_unpacked`/`viceroy_overlays`,
+only reads/compares turned up, no `MOV [0x8de8], ...`). What *is* resolved:
+the message's per-tick gate (independent of season) had the exact same
+"building exists" vs. "someone is staffed" bug as the five goods above.
+`colony_prod_colony_hammers`'s `out_lumber_use` output (already
+sol-bonus-independent, computed by summing `colony_prod_hammers_worker` over
+staffed Carpenter's Shop/Lumber Mill workers) is the same "this tick's real
+tier-scaled demand" signal `colony_craft_demand_mask` provides for the craft
+recipes, just from the hammers pipeline instead of `colony_craft.c` (lumber
+isn't a craft recipe, so it can't reuse that mask directly). `turn.c` Phase K
+now gates `Need lumber.` on `out_lumber_use > 0` instead of
+`turn_building_name_has(..., "Carpenter")`, without touching the Autumn-freeze
+gate on hammers production itself. Regression: `test_turn.c` new unstaffed-
+Carpenter's-Shop block (0 lumber, no queued project → no "lumber" in status).
+
 ## Deep — O / P AI dump-sell + spoilage msgs
 
 ### O — AI dump-sell + trim (57806–57873)

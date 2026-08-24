@@ -2936,12 +2936,15 @@ void ai_contact_try_village_beg_food(ColonizeTurnContext* ctx, int nation_id) {
  *      heresy install is not Jesuit-bright), +1 crosses;
  *      fail → despawn denouncer (burned at the stake).
  *    Cite: docs/manual_gap.md; fandom Missionaries denounce; WARPATH gold
- *    PARKED (mechanic identified as FUN_4d56_417e, structure mapped in
- *    original_sources_annotated/ai/indian_incite_417e.md; not wired in —
- *    2 price-table values unnamed, caller unfound).
+ *    Done thin (mechanic FUN_4d56_417e, structure mapped in
+ *    original_sources_annotated/ai/indian_incite_417e.md; wired as a 6th
+ *    village-meet CHOICE — ai_contact_apply_incite / AI_POPUP_TAG_CONTACT_INCITE
+ *    below — 2 of 4 price-table values still unnamed data, substituted with
+ *    indian.tech; only the human-driven path is wired, no AI-nation
+ *    auto-incite caller found yet).
  *  - alarmed (≥55 refuse-talk gate) → refuse convert/heresy; no crosses
  *  - mid (40..54) convert: Jesuit-grade only (PEDIA @JOB24 / Brebeuf).
- * Teach/convert widgets Done structural; WARPATH gold / deep 2820 PARKED.
+ * Teach/convert widgets Done structural; deep 2820 PARKED.
  */
 static void ai_contact_missionary_convert(ColonizeTurnContext* ctx, int nation_id) {
   if (!ctx || !ctx->units || !ctx->col1_ok || !ctx->col1 || !ctx->col1->tribe) {
@@ -5317,6 +5320,25 @@ void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id) {
             ctx, c, ai_contact_pick_raid_kind(ctx, c, target_euro, max_alarm, rng)
           );
           ai_contact_apply_raid_loot(ctx, c, target_euro, kind, max_alarm);
+          /*
+           * DS:0x54f6 grudge/tension discharge: FUN_5fef_0f14's tail
+           * (viceroy_unpacked.c:100034) unconditionally clears
+           * `(origin*9 + euro)*2 + 0x54f6` to 0 right before returning, for
+           * EVERY kind including "Nothing" (raiding party wiped out) — the
+           * act of raiding itself discharges accumulated tension, win or
+           * lose. `origin` is the raiding unit's home-tribe id (unit+6,
+           * `home_tribe_id` here — same index space `indian_tension` is
+           * already keyed by, see col1_save.h). Read side (FUN_521d_0896
+           * hostility gate) stays out of domain; this only wires the write.
+           */
+          if (
+            ctx->col1->indian_tension && brave->home_tribe_id >= 0 &&
+            (uint16_t)brave->home_tribe_id < ctx->col1->head.tribe_count
+          ) {
+            ctx->col1->indian_tension
+              [(size_t)brave->home_tribe_id * COLONIZE_COL1_NATION_COUNT + (size_t)target_euro] =
+              0;
+          }
           int abandoned = 0;
           char abandoned_name[40];
           abandoned_name[0] = '\0';

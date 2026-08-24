@@ -5064,6 +5064,35 @@ int main(void) {
     }
     fprintf(stderr, "Phase K LUMBER chrome ok\n");
 
+    /* Phase K LUMBER negative: unstaffed Carpenter's Shop + 0 lumber must NOT
+     * nag "Need lumber." — 2026-08-24 fix applies the same real-staffed-
+     * demand gate (colony_prod_colony_hammers' out_lumber_use) already used
+     * for the other five K goods above; lumber isn't a colony_craft.c recipe
+     * so it can't reuse colony_craft_demand_mask directly, but the principle
+     * (an unstaffed building has zero demand in DOS) is the same. */
+    col->building_in_production = -1;
+    col->colonists[0].building_type = -1;
+    col->colonists[0].profession = UNITS_JOB_COLONIST;
+    col->stock[COLONIZE_CARGO_LUMBER] = 0;
+    col->stock[COLONIZE_CARGO_ORE] = 5;
+    col->stock[COLONIZE_CARGO_SUGAR] = 5;
+    col->stock[COLONIZE_CARGO_TOBACCO] = 5;
+    col->stock[COLONIZE_CARGO_COTTON] = 5;
+    col->stock[COLONIZE_CARGO_FURS] = 5;
+    col->stock[COLONIZE_CARGO_TOOLS] = 5;
+    col->stock[COLONIZE_CARGO_MUSKETS] = 5;
+    col->stock[COLONIZE_CARGO_FOOD] = 40;
+    eu.status[0] = '\0';
+    ai_popup_clear(&pops);
+    memset(&prod, 0, sizeof(prod));
+    turn_run_colony_production(&pool, NULL, &food_gate, &eu, 0, &prod, &pops, &game_txt, NULL);
+    if (strstr(eu.status, "lumber") != NULL) {
+      fprintf(stderr, "K LUMBER unstaffed want silence got '%s'\n", eu.status);
+      assets_msg_free(&game_txt);
+      return 1;
+    }
+    fprintf(stderr, "Phase K LUMBER unstaffed-silence ok\n");
+
     snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Blacksmith's House");
     col->building_in_production = -1;
     /* Stays staffed (building_type=0) — 2026-08-24: K's "ran out of X" gate

@@ -891,7 +891,10 @@ typedef struct ColonizeCol1Save {
    * 0 on load/new game like the table itself is in DOS. Heap-owned/freed
    * alongside `tribe` (same `owned` flag), sized `head.tribe_count * 4`.
    * Write formula: ai_diplo.c's ai_diplo_indian_relation_delta (FUN_4cc6_00f2
-   * tier-crossing clamp). No Linux reader yet — DOS's own read sites
+   * tier-crossing clamp); ai_contact.c's ai_contact_indian_raids also clears
+   * a slot to 0 on every raid resolution (FUN_5fef_0f14 tail,
+   * viceroy_unpacked.c:100034 — unconditional, all loot kinds incl.
+   * "Nothing"). No Linux reader yet — DOS's own read sites
    * (FUN_521d_0896 hostility gate, viceroy_unpacked.c:87333) are Euro-AI
    * goal-scoring, out of Indian/contact domain; left for that owner.
    */

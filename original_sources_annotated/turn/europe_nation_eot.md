@@ -96,7 +96,7 @@ trustworthy source.
 | Colony → `0x53ea` half | **Done** thin — `europe_tick_market_prices(eu, col1, colonies)` decays `head.price_group_state[c]` by colony stock sum `>> 7` |
 | Phase 2 cargos 9..12 | **Done** thin — `trade_nr += sign * mid * 100` |
 | Phase 3 cargos 1..4 | **Done** thin — `trade_nr += mid * sign`; fur year &lt;1700/&lt;1600 |
-| Phase 4 rise/fall status | **Done** thin — `"Market price rose/fell."`; dialogs PARKED |
+| Phase 4 rise/fall status | **Done** thin (2026-08-24: real GAME.TXT `@PRICEUP`/`@PRICEDOWN` wording — `"The price of {cargo} in {port_city} has risen/fallen to {bid}."`, `COLONIZE/GAME.TXT:1683-1689` — was a generic "Market price rose/fell." placeholder); modal CHOICE dialog chrome still PARKED |
 
 ---
 

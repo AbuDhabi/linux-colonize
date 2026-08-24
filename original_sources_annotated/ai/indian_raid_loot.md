@@ -164,7 +164,17 @@ Difficulty / year / building-present gates can demote 2/3/4 → 1 or 0.
 | 4 | Subtract rolled gold from nation ledger | `0xfff8` (−8) |
 | 0 | Scare dialog only | skip `0d6c` |
 
-Then clear war/chrome word at `(param_3*9 + euro)*2 + 0x54f6`.
+Then clear war/chrome word at `(param_3*9 + euro)*2 + 0x54f6` — confirmed
+2026-08-24 to be the DS:0x54f6 grudge/tension table itself (same table as
+`docs/mysteries_catalog.md`'s entry / `ColonizeCol1Save.indian_tension`);
+`param_3` is the raiding unit's home-tribe/settlement index (same index
+space as `unit+6` / Linux `ColonizeUnit.home_tribe_id`, which is already
+kept in the same array-index space as `indian_tension` — see `ai.c`'s
+tribe-compaction remap). The clear sits at the function's single `return`
+and fires unconditionally for every roll of `local_6` (kind 0..4 —
+including "Nothing"/raiding-party-wiped-out): the act of raiding itself
+discharges the raiding tribe's accumulated tension toward that Euro
+nation, win or lose loot-wise.
 
 Human: sounds + side-art strings `0x1b8a`…`0x1bba` by kind.
 
@@ -172,3 +182,10 @@ Human: sounds + side-art strings `0x1b8a`…`0x1bba` by kind.
 STORES half-stock clamp **Done** thin; GOLD drain peel **Done** thin. Kind-scaled
 friction/alarm escalate (Series J: STORES +4, BURN/WREAK +12, SCALP +16, GOLD/SHIP
 +8; Pocahontas/France half) **Done** thin. Full `0f14` RNG ladders still **PARKED**.
+**Tension discharge wired 2026-08-24**: `ai_contact_indian_raids` clears
+`indian_tension[brave->home_tribe_id * 4 + target_euro]` to 0 right after
+`ai_contact_apply_raid_loot`, for every raid kind including Nothing — see
+`ai_contact.c`'s colony-approach block. `FUN_5fef_1b0e` (empty-tile Attack)
+has two more clear sites on the same table (lines ~101041/101297) not
+wired here — that path lives in `units.c`, outside this pass's file
+domain (Indian/contact), left for whoever owns combat/units.

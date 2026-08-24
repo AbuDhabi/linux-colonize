@@ -158,7 +158,7 @@ applied in EOT field/craft/hammers/bells/crosses and preview.
 
 | Event | Gate | Port symbols |
 |-------|------|--------------|
-| Declare | Nation SoL ≥ **50%** (manual / `FUN_43f7_2564`) | `AI_KING_DECLARE_SOL_MIN` |
+| Declare | Nation SoL ≥ **50%** (manual / `FUN_43f7_2564`) | `AI_KING_DECLARE_SOL_MIN` — two-stage-popup lead resolved 2026-08-24 (see `ai_king_try_declare` comment): `0x1386`=`@TOOTORY` (unreachable — port only calls this once already eligible); the bit-`0x80`-gated first popup is a hotseat/multi-human-player disambiguation step (set only in the new-game nation-select screen, `FUN_75c2_10ae`), no reachable equivalent under the port's single-`human_nation` model — single @DECLARE Never/Yes is the complete behavior, not a gap |
 | Restless chrome | SoL **40..49** | `AI_KING_RESTLESS_SOL_MIN` |
 | Tax refuse / boycott | tax ≥ **20** and (SoL ≥ **30** or bells ≥ **80**) | `AI_KING_BOYCOTT_*` |
 | Continental merc | WoI and nation SoL **>** **50** | `AI_KING_MERC_SOL_MIN` |

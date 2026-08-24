@@ -126,8 +126,12 @@ typedef struct EuropeHarborShip {
   int cargo_professions[EUROPE_SHIP_CARGO_MAX]; /* @JOB per passenger */
   /*
    * Per-passenger Treasure gold for Europe cash-in (0 = unknown / not treasure).
-   * Intended source: COL1 Treasure unit cargo_hold[0..1] LE16 gold (not yet on
-   * ColonizeUnit; game_loop enqueue does not fill this yet — PARK).
+   * Source: COL1 Treasure unit hold_goods_amount[0..1] LE16 gold, captured by
+   * game_loop.c's game_europe_capture_pax_treasure_gold and filled onto the
+   * newest Expected slot by game_europe_fill_expected_treasure_gold on both
+   * H/sail-to-Europe and Return-to-Europe paths (2026-08 — stale "does not
+   * fill this yet" wording removed; cash-in itself is europe_cash_treasure /
+   * europe_cash_treasure_passengers below).
    */
   int cargo_treasure_gold[EUROPE_SHIP_CARGO_MAX];
   int cargo_count;

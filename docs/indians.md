@@ -199,6 +199,16 @@ read sites (`FUN_521d_0896` hostility gate in Euro AI goal-scoring; a
 for whoever owns `ai_euro.c`/reports. See `docs/mysteries_catalog.md`'s
 "0x54f6" entry for the full formula trace.
 
+**Second write site wired 2026-08-24 — raid discharges tension.**
+`FUN_5fef_0f14` (colony raid loot) unconditionally zeroes the raiding
+tribe's tension slot toward the raided Euro nation right before it
+returns, for every loot kind (including "Nothing"). Wired in
+`ai_contact_indian_raids` (`ai_contact.c`): clears
+`indian_tension[brave->home_tribe_id * 4 + target_euro]` after
+`ai_contact_apply_raid_loot`. `FUN_5fef_1b0e` (empty-tile Attack) has the
+same clear on two more paths but lives in `units.c`, outside this domain —
+left open.
+
 ### Gameplay bands
 
 Used by contact / mission / raid gates ([indian_contact.md](../original_sources_annotated/ai/indian_contact.md)):

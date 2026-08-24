@@ -1394,17 +1394,36 @@ static void turn_produce_one_colony(
      * the port's existing check was already right; only the gate needed
      * fixing. 2026-08-24 fix: replaced building-name-substring gates with
      * colony_craft_demand_mask (same recipe pass colony_craft_one_colony
-     * already ran this tick, sol_bonus-consistent). Lumber/hammers and
-     * food keep their existing gates — hammers has its own Autumn-freeze
-     * wrinkle (see hammers block above) not yet disentangled from the
-     * message trigger, and food isn't a craft recipe.
+     * already ran this tick, sol_bonus-consistent). Food keeps its existing
+     * gate (not a craft recipe).
+     *
+     * 2026-08-24 fix (lumber): same false-positive existed for lumber —
+     * an unstaffed Carpenter's Shop/Lumber Mill with 0 lumber nagged "Need
+     * lumber." every turn even though nobody was banking hammers. Lumber
+     * isn't in colony_craft.c's recipe table (hammers are a separate
+     * pipeline, colony_prod_colony_hammers), so it can't use
+     * colony_craft_demand_mask directly, but the same "real staffed demand,
+     * not building-exists" principle applies: colony_prod_colony_hammers's
+     * out_lumber_use is this tick's actual tier-scaled lumber requirement
+     * from staffed Carpenter/Lumber Mill workers (sol_bonus-independent —
+     * lumber consumption doesn't scale with SoL, see that function). This
+     * intentionally does NOT touch the hammers block's Autumn-freeze gate
+     * above (col1->head.autumn) — whether DOS also silences this specific
+     * message on Autumn ticks is unresolved (the DOS demand word this
+     * mirrors, DS:0x8de8, has no located write site in either decompile
+     * export to confirm one way or the other; see colony_eot_production.md
+     * Deep K) and left as a separate, still-open question. This fix only
+     * replaces the always-wrong "building exists" gate with a strictly more
+     * accurate "someone is actually staffed to consume lumber" gate, same
+     * as the other five goods above.
      */
     bool craft_demand[COLONIZE_CARGO_COUNT];
     colony_craft_demand_mask(pool, colony, colony_prod_sol_bonus(col1, colony), craft_demand);
+    int lumber_demand = 0;
+    (void)colony_prod_colony_hammers(pool, colony, 0, &lumber_demand);
 
     const char* k_sec = NULL;
-    if (colony->stock[COLONIZE_CARGO_LUMBER] == 0 &&
-        turn_building_name_has(pool, colony, "Carpenter")) {
+    if (colony->stock[COLONIZE_CARGO_LUMBER] == 0 && lumber_demand > 0) {
       snprintf(europe->status, sizeof(europe->status), "Need lumber.");
       k_sec = "LUMBER";
     } else if (colony->stock[COLONIZE_CARGO_ORE] == 0 && craft_demand[COLONIZE_CARGO_ORE]) {

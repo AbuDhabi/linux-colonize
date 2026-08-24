@@ -1597,15 +1597,31 @@ void europe_tick_market_prices(
     }
     eu->trade_nr[c] = (int16_t)nr;
   }
-  /* Phase 4 dialog crumbs 0xfa8 / 0xfb0 → status (full dialog PARKED). */
+  /*
+   * Phase 4 dialog crumbs 0xfa8/0xfb0 -> status line (full CHOICE dialog
+   * chrome still PARKED, same precedent as @KISSUP). Real DOS wording from
+   * GAME.TXT @PRICEUP/@PRICEDOWN (COLONIZE/GAME.TXT:1683-1689):
+   *   "The price of {%STRING0} in %STRING1 has risen to {%NUMBER0$}."
+   *   "The price of {%STRING0} in %STRING1 has fallen to {%NUMBER0$}."
+   * STRING0 = cargo name (-0x6840 @CARGO table), STRING1 = nation home-port
+   * city (-0x7c74 table == eu->port_city), NUMBER0 = new bid.
+   */
   if (last_rise >= 0) {
     const char* nm =
       (eu->cargo[last_rise].name[0]) ? eu->cargo[last_rise].name : "Goods";
-    snprintf(eu->status, sizeof(eu->status), "Market: %s price rose.", nm);
+    const char* port = eu->port_city[0] ? eu->port_city : "Europe";
+    snprintf(
+      eu->status, sizeof(eu->status),
+      "The price of %s in %s has risen to %d.", nm, port, eu->cargo[last_rise].bid
+    );
   } else if (last_fall >= 0) {
     const char* nm =
       (eu->cargo[last_fall].name[0]) ? eu->cargo[last_fall].name : "Goods";
-    snprintf(eu->status, sizeof(eu->status), "Market: %s price fell.", nm);
+    const char* port = eu->port_city[0] ? eu->port_city : "Europe";
+    snprintf(
+      eu->status, sizeof(eu->status),
+      "The price of %s in %s has fallen to %d.", nm, port, eu->cargo[last_fall].bid
+    );
   }
 }
 
