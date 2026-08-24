@@ -2332,42 +2332,66 @@ static int ai_indian_152e_quartile(int relation) {
 /*
  * Village growth worth-cap (152e: `if (value < worth) local_16 = 2`).
  *
- * 2026-08-24 (T1.15): Ghidra's `CALL FUN_41f2_0294` label on both
- * `FUN_4d56_0038` and `FUN_4d56_152e` is a **misresolve**. Raw OVL13
- * bytes: both sites `PUSH` tribe-index / `PUSH CS` / near-`CALL 4c54`,
- * and `4c54` is `JMPF 2a1f:0410` (loader `FUN_210d_0dab` + `JMPF`
- * offset `0`). Neighboring `2a1f` thunks at `041c`/`0440`/`044c` land
- * in the `4d56` overlay (`39ea`/`0038`/`2820`), so offset `0` is
- * plausibly `FUN_4d56_0000` (OVL13 start, ENTER 4) — a tiny helper:
- *   tech = indian[nation_id-4].tech   // DS:0x5AD6 stride 0x4e, +2
- *   return (flags+3 & 4) ? tech+1 : 2*tech+3;
- * The non-capital arm is exactly `ai_tribe_initial_pop` (and matches
- * TURN1 satellite `pop == 2*tech+3`). Capital arm returns `tech+1`.
+ * 2026-08-24 (T1.15), resolved same day in a follow-up pass: the thunk
+ * chain from the 2026-08-24 note above (`4d56:0038`/`4d56:152e` ->
+ * near-`CALL 4c54` -> `JMPF 2a1f:0410`) was re-walked with Ghidra
+ * headless directly against the raw bytes (not the flattened export's
+ * `FUN_41f2_0294` misresolve) and fully confirmed:
+ *   - `4d56:0086`'s near `CALL` encodes as `E8 CB 4B` -> target
+ *     `0x0089 + 0x4BCB = 0x4C54` (same segment, matches the prior note).
+ *   - `4d56:4c54` disassembles as `JMPF 2A1F:0410` (raw operand bytes
+ *     `EA 10 04 1F 2A`; Ghidra's rendered `0x2000:a600` display is a
+ *     segmented-space rendering artifact, not the real target).
+ *   - Raw bytes at `2a1f:0410` (read directly, not via a stale cached
+ *     function boundary): `CALLF 210D:0DAB` (`FUN_210d_0dab`, the RTLink
+ *     overlay loader) immediately followed by `JMPF 4D56:0000` — a
+ *     12-byte RTLink thunk-table entry. So thunk offset `0` in the
+ *     `2a1f` slot really does resolve to `FUN_4d56_0000`, confirming the
+ *     earlier session's guess. (Table also gives `041c`->`4d56:39ea`,
+ *     `0428`->`4d56:3646`, `0434`->`4d56:2154`, consistent with this
+ *     project's other already-resolved `2a1f` thunk-table entries.)
  *
- * **Not wired as the live growth cap.** Seed-100 TURN1→2 capitals have
- * `pop == 2*tech+3` and still accrue `growth_accum += pop` every turn,
- * which requires `pop < worth`. Both arms of `4d56:0000` give
- * `worth <= pop` for those rows (`tech+1 < pop`, or equality for the
- * non-capital arm), so that helper cannot be what 152e is comparing
- * against unless the loader for thunk `0410` maps offset 0 to a
- * *different* overlay than `4d56`. `FUN_41f2_0092`/`0294` (nation-score
- * + report UI) remains a real function — just not this call site.
- * Next step: RTLink jump-list / live overlay-load dump for `2a1f:0410`
- * (`docs/rtlink_decode_v2_gap.md`). Until then keep the flat-15 T0
- * stub that matches early capital accrual (`pop < 15`).
+ * **The earlier session's own transcription of `FUN_4d56_0000`'s capital
+ * arm was the actual bug**, not the callee identification. Decompiling
+ * `4d56:0000` fresh gives:
+ *   tech = indian[nation_id-4].tech;      // DS:0x5AD6 stride 0x4e, +2
+ *   worth = tech*2 + 3;                   // ASM: base in CX
+ *   if (capital_flag) worth = tech + worth + 1;   // ASM: ADD CX,AX; INC CX
+ * i.e. the capital arm is **`3*tech + 4`**, not `tech+1` as previously
+ * transcribed (the earlier read dropped the pre-existing `2*tech+3` base
+ * before the `ADD`/`INC`). This resolves the 2026-08-24 contradiction
+ * cleanly: seed-100 capitals have `pop == 2*tech+3`, and
+ * `3*tech+4 > 2*tech+3` for every `tech >= 0`, so `pop < worth` holds and
+ * `growth_accum += pop` fires every turn, exactly matching golden
+ * TURN1->2 behavior. The non-capital arm (`2*tech+3`, unused at this
+ * call site since 152e's growth block is capital-gated, see
+ * `ai_indian_152e_village_growth`) still matches `ai_tribe_initial_pop`.
  *
- * Prior 2026-08-19..22 notes on `FUN_41f2_0294`'s 7-term sum / mid-entry
- * stack-garbage / report-UI entanglement still describe that nation-
- * score body correctly; they do not apply to the 152e/0038 callee.
+ * `FUN_4d56_0000` takes `(unused_cs_word, tribe_index)`; the byte-pair
+ * it reads (`DS:0x54ec` stride `0x12`, `+2` nation id / `+3 bit0x4`
+ * capital flag) is a separate per-tribe worklist table mirroring the
+ * settlement record's own `nation_id`/`state.capital` fields already
+ * wired in this port — read those directly off `t` instead of porting
+ * the redundant lookup table. DOS stores the result through a `byte`
+ * local before comparing (`byte bVar5 = FUN_41f2_0294(...)`), so the
+ * value is truncated mod 256 same as this project's established
+ * "byte-truncate on port" convention elsewhere.
+ *
+ * `FUN_41f2_0092`/`0294` (nation-score + report UI, prior 2026-08-19..22
+ * notes) remains a real function — just never called from 152e/0038.
  * Full trace: `docs/ai_port_plan.md` T1.15.
  */
-static int ai_indian_152e_worth_cap_stub(
+static int ai_indian_152e_worth_cap(
   const ColonizeTurnContext* ctx,
   const ColonizeCol1Tribe* t
 ) {
-  (void)ctx;
-  (void)t;
-  return 15;
+  const ColonizeCol1Indian* ind = &ctx->col1->indian[t->nation_id - 4];
+  int tech = ind->tech;
+  int worth = tech * 2 + 3;
+  if (t->state.capital) {
+    worth = tech + worth + 1; /* == 3*tech + 4 */
+  }
+  return (uint8_t)worth; /* DOS truncates through a `byte` before the compare */
 }
 
 /*
@@ -2468,18 +2492,19 @@ static void ai_indian_152e_village_growth(
    * Capital-only growth gate, regression fix 2026-08-19 (golden_ai_turns
    * TURN1->2 tribe[8] pop/acc mismatch). The 2026-08-18 structural rewrite
    * dropped the prior "FUN_4d56_152e grows capitals only (state.capital)"
-   * check when it replaced the flat `population < 15` cap with
-   * ai_indian_152e_worth_cap_stub — both now unconditionally reachable for
-   * satellite villages too, making them accumulate growth every turn.
+   * check when it replaced the flat `population < 15` cap with the
+   * worth-cap callee — both now unconditionally reachable for satellite
+   * villages too, making them accumulate growth every turn.
    * Real DOS TURN1.SAV/TURN2.SAV (seed-100) show satellite tribes (non-
    * capital) with growth_accum frozen at 0 across the turn while capital
-   * tribes accrue normally: the real per-tribe worth compare
-   * (152e vs live worth — callee mislabeled `FUN_41f2_0294` by Ghidra;
-   * see `ai_indian_152e_worth_cap_stub` 2026-08-24 note) is DS-confirmed
-   * much larger for capitals early on so the `population < worth_cap`
-   * gate effectively never opens for satellites this early. Restore the
-   * known-good capital-only restriction rather than guess a satellite
-   * worth number.
+   * tribes accrue normally. Now that `ai_indian_152e_worth_cap` is ported
+   * for real (see its own 2026-08-24 header, `FUN_4d56_0000`'s
+   * `2*tech+3` / `3*tech+4` formula), this gate is still kept — it isn't
+   * redundant: `ai_indian_152e_worth_cap`'s non-capital arm (`2*tech+3`)
+   * is never exercised at this call site regardless, since the block
+   * below only runs for capitals; removing this gate would just start
+   * calling the capital-arm formula for satellites too, which is wrong.
+   * Keep the known-good capital-only restriction.
    * Scoped to this block only — the friction-roll / mission-relation tail
    * below still runs per-settlement (every tribe, satellites included);
    * an earlier version of this fix gated the whole function on capital and
@@ -2488,7 +2513,7 @@ static void ai_indian_152e_village_growth(
    */
   if (t->state.capital) {
     int local_16 = 0;
-    if ((int)t->population < ai_indian_152e_worth_cap_stub(ctx, t)) {
+    if ((int)t->population < ai_indian_152e_worth_cap(ctx, t)) {
       local_16 = 2;
     }
     if (t->state.needs_colonist) {

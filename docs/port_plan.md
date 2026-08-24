@@ -47,9 +47,11 @@ doc when a slice lands).
 
 - [ ] **W1.1 — AI transcription (the largest track).** Work
   [ai_port_plan.md](ai_port_plan.md) top to bottom. Open there as of
-  2026-08-24: **T1.8** (pathfinding flood-fills `0015bc`/`0015c1` byte-exact
-  wire + fort/colony `+8` mask-bit `0x40`, deprioritized — working substitute
-  ships), **T1.13** (KINGGALLEON2, PARKED pending a narrower `38fd`-overlay
+  2026-08-24 (later same day): **T1.8** (`0015bc`'s edge-cost formula now
+  wired; `0015c1`/`0009ae` decompile clean and `000000` hand-transcribed
+  but none byte-exact-ported yet, plus the still-unwired fort/colony `+8`
+  mask-bit `0x40` — deprioritized, working substitute ships), **T1.13**
+  (KINGGALLEON2, PARKED pending a narrower `38fd`-overlay
   hint), **T1.15** (`152e` worth-cap thunk `2a1f:0410` overlay-id — Ghidra's
   `41f2_0294` label is a misresolve). This row is done when that file's
   Tier 1 is empty.
