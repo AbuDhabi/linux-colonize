@@ -8300,7 +8300,14 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
         break;
       case EUROPE_HIT_MARKET:
         eu->selected_market = hit.index;
-        if (eu->selected_harbor < 0) {
+        if (europe_cargo_boycotted(eu, hit.index)) {
+          /* GAME.TXT @SOMEBOYCOTT: "...click on the cargo type in question"
+           * to ask that the boycott be lifted -- pay-back-taxes buyback,
+           * not the normal buy/sell flow. See europe_buyback_boycott. */
+          if (game->col1_ok && game->human_nation >= 0) {
+            europe_buyback_boycott(eu, &game->col1, game->human_nation, hit.index);
+          }
+        } else if (eu->selected_harbor < 0) {
           snprintf(eu->status, sizeof(eu->status), "%s", "Select a ship first.");
         } else {
           ui_drag_begin(&game->ui_drag, UI_DRAG_EUROPE_MARKET, hit.index, -1, 100);

@@ -332,6 +332,61 @@ int main(void) {
     }
   }
 
+  /*
+   * Boycott buy-back (FUN_38fd_2dfe): pay ask*500 back taxes to lift a
+   * boycott -- gold debited, nation.royal_money credited the same amount
+   * (Crown REF budget, DOS write lands on that exact field), boycott bit
+   * cleared. Insufficient funds leaves everything untouched.
+   * Cite: GAME.TXT @SOMEBOYCOTT / @KISSUP / @KISSSORRY; europe.h
+   * europe_buyback_boycott.
+   */
+  {
+    ColonizeCol1Save col1;
+    memset(&col1, 0, sizeof(col1));
+    col1.nation[0].boycott_bitmap = (uint16_t)(1u << COLONIZE_CARGO_FURS);
+    col1.nation[0].royal_money = 1000;
+    col1.nation[0].gold = 500;
+    eu.boycott_bitmap = col1.nation[0].boycott_bitmap;
+    eu.cargo[COLONIZE_CARGO_FURS].ask = 6;
+    eu.gold = 500; /* not enough for 6*500 = 3000 */
+
+    const int fail = europe_buyback_boycott(&eu, &col1, 0, COLONIZE_CARGO_FURS);
+    if (fail != 0 || eu.gold != 500 || col1.nation[0].royal_money != 1000 ||
+        !europe_cargo_boycotted(&eu, COLONIZE_CARGO_FURS)) {
+      fprintf(stderr, "buyback should refuse on insufficient funds, got %d\n", fail);
+      europe_free(&eu);
+      return 1;
+    }
+
+    eu.gold = 5000;
+    col1.nation[0].gold = 5000;
+    const int paid = europe_buyback_boycott(&eu, &col1, 0, COLONIZE_CARGO_FURS);
+    if (paid != 3000 || eu.gold != 2000 || col1.nation[0].gold != 2000 ||
+        col1.nation[0].royal_money != 4000 ||
+        europe_cargo_boycotted(&eu, COLONIZE_CARGO_FURS) ||
+        (col1.nation[0].boycott_bitmap & (uint16_t)(1u << COLONIZE_CARGO_FURS)) != 0) {
+      fprintf(
+        stderr,
+        "buyback expected paid=3000 gold=2000 royal_money=4000, got paid=%d gold=%d "
+        "royal_money=%d\n",
+        paid,
+        eu.gold,
+        (int)col1.nation[0].royal_money
+      );
+      europe_free(&eu);
+      return 1;
+    }
+
+    /* Not boycotted: no-op. */
+    const int noop = europe_buyback_boycott(&eu, &col1, 0, COLONIZE_CARGO_FURS);
+    if (noop != 0) {
+      fprintf(stderr, "buyback on non-boycotted cargo should no-op, got %d\n", noop);
+      europe_free(&eu);
+      return 1;
+    }
+    fprintf(stderr, "europe boycott buyback ok\n");
+  }
+
   /* Drag session helpers. */
   {
     UiDragSession drag;

@@ -4986,7 +4986,14 @@ int main(void) {
       fprintf(stderr, "5384 gate want suppress hammers got '%s'\n", eu.status);
       return 1;
     }
-    /* K craft crumbs: Weaver with empty cotton (suppress food-shortage crumb). */
+    /* K craft crumbs: Weaver with empty cotton (suppress food-shortage crumb).
+     * 2026-08-24 fix: the K "ran out of X" gate now uses actual craft demand
+     * (colony_craft_demand_mask — someone staffed producing a positive
+     * tier-scaled input requirement), not "the building exists by name",
+     * matching DOS FUN_15eb_0bd4/0b96's demand scratch word — so the
+     * colonist must actually be assigned to the Weaver's House for the
+     * @COTTON crumb to fire (an unstaffed building has zero demand in DOS,
+     * and used to incorrectly nag "Need cotton." regardless of staffing). */
     ColonizeCol1Save cloth_col;
     memset(&cloth_col, 0, sizeof(cloth_col));
     cloth_col.head.colony_report_options.report_food_shortages = 1;
@@ -5000,8 +5007,8 @@ int main(void) {
     col->stock[COLONIZE_CARGO_FOOD] = 20;
     col->stock[COLONIZE_CARGO_LUMBER] = 5;
     col->stock[COLONIZE_CARGO_ORE] = 5;
-    col->colonists[0].building_type = -1;
-    col->colonists[0].profession = UNITS_JOB_COLONIST;
+    col->colonists[0].building_type = 0;
+    col->colonists[0].profession = COLONIZE_PROF_WEAVER;
     eu.status[0] = '\0';
     memset(&prod, 0, sizeof(prod));
     turn_run_colony_production(&pool, NULL, &cloth_col, &eu, 0, &prod, NULL, NULL, NULL);
@@ -5059,8 +5066,10 @@ int main(void) {
 
     snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Blacksmith's House");
     col->building_in_production = -1;
-    col->colonists[0].building_type = -1;
-    col->colonists[0].profession = UNITS_JOB_COLONIST;
+    /* Stays staffed (building_type=0) — 2026-08-24: K's "ran out of X" gate
+     * needs real craft demand now, not just the building existing. */
+    col->colonists[0].building_type = 0;
+    col->colonists[0].profession = COLONIZE_PROF_BLACKSMITH;
     col->stock[COLONIZE_CARGO_LUMBER] = 5;
     col->stock[COLONIZE_CARGO_ORE] = 0;
     eu.status[0] = '\0';
@@ -5086,6 +5095,7 @@ int main(void) {
     fprintf(stderr, "Phase K ORE chrome ok\n");
 
     snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Armory");
+    col->colonists[0].profession = COLONIZE_PROF_GUNSMITH;
     col->stock[COLONIZE_CARGO_ORE] = 5;
     col->stock[COLONIZE_CARGO_TOOLS] = 0;
     col->stock[COLONIZE_CARGO_MUSKETS] = 0;
@@ -5117,7 +5127,8 @@ int main(void) {
     (void)assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT");
     snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Weaver's House");
     col->building_in_production = -1;
-    col->colonists[0].building_type = -1;
+    col->colonists[0].building_type = 0;
+    col->colonists[0].profession = COLONIZE_PROF_WEAVER;
     col->stock[COLONIZE_CARGO_COTTON] = 0;
     col->stock[COLONIZE_CARGO_SUGAR] = 5;
     col->stock[COLONIZE_CARGO_TOBACCO] = 5;
@@ -5150,6 +5161,7 @@ int main(void) {
     fprintf(stderr, "Phase K COTTON chrome ok\n");
 
     snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Tobacconist's House");
+    col->colonists[0].profession = COLONIZE_PROF_TOBACCONIST;
     col->stock[COLONIZE_CARGO_COTTON] = 5;
     col->stock[COLONIZE_CARGO_TOBACCO] = 0;
     eu.status[0] = '\0';

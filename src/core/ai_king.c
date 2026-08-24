@@ -3480,11 +3480,12 @@ void ai_king_ai_peacetime_gift(ColonizeTurnContext* ctx, int nation_id) {
  * AI_SAIL coastal patrol (nearest human coast water; no new ships); 0982
  * boards up to ship capacity into cargo_ids;
  * 1eca full port: per colony with SoL>49, cap = max(1, min(pop>>1,
- * pop*(sol-50)/50)) shared across a colony's own fortified, Veteran-status
+ * pop*(sol-50)/50)) shared across a colony's own-tile, Veteran-status
  * (profession UNITS_JOB_SOLDIER — DOS unit+0x315b==0x15) Soldier/Dragoon
  * (Regular/already-Continental untouched — decomp tests raw type 1/4; an
  * ordinary armed colonist without Veteran profession is also skipped,
- * confirmed 2026-08-14). Cont. Army/Cav after promote → capital-rally
+ * confirmed 2026-08-14; no FORTIFIED requirement — re-verified 2026-08-24,
+ * decomp never reads unit+0x08/orders). Cont. Army/Cav after promote → capital-rally
  * (founding capital; weakest_port fallback);
  * 10f0 intervene arm (≤3 @ difficulty≥2); real 2022 rebel merc gift
  * (recurring per-turn roll, CHOICE or auto-accept).
@@ -3572,17 +3573,27 @@ static void ai_king_war_act(ColonizeTurnContext* ctx) {
           if (u->x != (int)c->x || u->y != (int)c->y) {
             continue;
           }
-          if (u->orders != UNITS_ORDER_FORTIFIED) {
-            continue;
-          }
           /*
-           * DOS gates on unit+0x315b == 0x15 alongside the raw type check —
-           * that profession code is UNITS_JOB_SOLDIER ("Veteran Soldiers"),
-           * confirmed 2026-08-14 by cross-referencing FUN_43f7_1eca against
-           * the already-established 0x14=Pioneer profession code from the
-           * case-8/9 terrain-improve investigation. Only Veteran-status
-           * Soldier/Dragoon promote — an ordinary armed colonist (profession
-           * UNITS_JOB_NONE) does not, even fortified on the colony tile.
+           * DOS gates on unit+0x3146 (raw type 1/4) and unit+0x315b == 0x15
+           * only — that profession code is UNITS_JOB_SOLDIER ("Veteran
+           * Soldiers"), confirmed 2026-08-14 by cross-referencing
+           * FUN_43f7_1eca against the already-established 0x14=Pioneer
+           * profession code from the case-8/9 terrain-improve investigation.
+           * Only Veteran-status Soldier/Dragoon promote — an ordinary armed
+           * colonist (profession UNITS_JOB_NONE) does not.
+           * No FORTIFIED requirement: re-verified 2026-08-24 by reading the
+           * complete raw FUN_43f7_1eca body (viceroy_unpacked.c:74910-74972)
+           * end to end — its only two per-unit tests are the type byte at
+           * unit+0x3146 and the profession byte at unit+0x315b. `orders`
+           * (ViceroyUnit.orders, original_sources_annotated/include/
+           * viceroy_types.h) lives at unit+0x08 (0x314c), an address this
+           * function never touches. The prior `u->orders !=
+           * UNITS_ORDER_FORTIFIED` gate here (removed this pass) was an
+           * unsupported over-restriction — DOS promotes any Veteran-status
+           * Soldier/Dragoon on the colony's own tile regardless of
+           * fortified/sentry/active order state. See king_ref.md "1eca
+           * Continental promote" and docs/sons_of_liberty.md (both
+           * corrected 2026-08-24).
            */
           if (u->profession != UNITS_JOB_SOLDIER) {
             continue;

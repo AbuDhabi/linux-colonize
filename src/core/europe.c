@@ -1743,6 +1743,73 @@ int europe_cargo_boycotted(const EuropeScreen* eu, int cargo_type) {
   return (eu->boycott_bitmap & (uint16_t)(1u << cargo_type)) != 0;
 }
 
+int europe_buyback_boycott(
+  EuropeScreen* eu, struct ColonizeCol1Save* col1, int human_nation, int cargo_type
+) {
+  /*
+   * FUN_38fd_2dfe (viceroy_unpacked.c:60904-60945), clean disassembly, no
+   * warnings. Real DOS trigger per GAME.TXT @SOMEBOYCOTT: "Some of the
+   * cargo could not be unloaded because of a parliamentary boycott. If you
+   * want to ask that the boycott be lifted, click on the cargo type in
+   * question." — i.e. clicking a boycotted cell on the Europe market strip
+   * (wired at that exact click site: game_loop.c EUROPE_HIT_MARKET).
+   *
+   * Traced formula (iVar3 = thunk_FUN_291f_0c3e -> FUN_38fd_0016, the same
+   * "effective ask price" this file already exposes as
+   * eu->cargo[cargo_type].ask):
+   *   cost = ask_price * 500         // fandom "500 tons of that good"
+   *   if nation.gold < cost: GAME.TXT @KISSSORRY, no state change
+   *   else: nation.gold -= cost
+   *         nation.royal_money += cost   // DOS write at nation+0x22, the
+   *                                      // exact byte offset col1_save.h
+   *                                      // already documents as royal_money
+   *                                      // (REF budget, FUN_43f7_1d42) --
+   *                                      // paying back taxes funds the Crown
+   *         nation.boycott_bitmap &= ~(1 << cargo_type)   // nation+0x20
+   * DOS gates this to the human-controlled nation (player_control[nation]
+   * check at 0x543f); callers here only ever pass the human nation for the
+   * same reason (only the human clicks their own market strip).
+   *
+   * GAME.TXT @KISSUP's Pay/Cancel CHOICE dialog chrome PARKED (VGA modal,
+   * matching this file's existing chrome-PARKED precedent -- e.g.
+   * europe_custom_house_autosell); ported as an immediate action + status
+   * line instead, same pattern as the '+'/'U' immediate buy/sell keys.
+   * Returns gold paid (>0) on success, 0 on no-op/insufficient funds.
+   */
+  if (!eu || !col1) {
+    return 0;
+  }
+  if (human_nation < 0 || human_nation >= (int)COLONIZE_COL1_NATION_COUNT) {
+    return 0;
+  }
+  if (cargo_type < 0 || cargo_type >= eu->cargo_count) {
+    return 0;
+  }
+  if (!europe_cargo_boycotted(eu, cargo_type)) {
+    return 0;
+  }
+  const int price = eu->cargo[cargo_type].ask;
+  if (price <= 0) {
+    return 0;
+  }
+  const int cost = price * 500;
+  if (eu->gold < cost) {
+    snprintf(eu->status, sizeof(eu->status), "Unfortunately, we only have %d$ available.", eu->gold);
+    return 0;
+  }
+  eu->gold -= cost;
+  ColonizeCol1Nation* nation = &col1->nation[human_nation];
+  nation->gold = (uint32_t)(eu->gold < 0 ? 0 : eu->gold);
+  nation->royal_money += cost;
+  nation->boycott_bitmap &= (uint16_t)~(1u << cargo_type);
+  eu->boycott_bitmap = nation->boycott_bitmap;
+  const char* cname = eu->cargo[cargo_type].name[0] ? eu->cargo[cargo_type].name : "That cargo";
+  snprintf(
+    eu->status, sizeof(eu->status), "Paid %d$ in back taxes -- boycott on %s lifted.", cost, cname
+  );
+  return cost;
+}
+
 int europe_sell_proceeds(const EuropeScreen* eu, int cargo_type, int amount) {
   if (!eu || amount <= 0 || cargo_type < 0 || cargo_type >= eu->cargo_count) {
     return 0;

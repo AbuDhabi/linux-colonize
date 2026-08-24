@@ -537,14 +537,34 @@ static int ai_is_ocean_hs(const ColonizeWorldMap* map, int x, int y) {
   return t == 0x19 || t == 0x1a;
 }
 
-/* FUN_13e4_003a / FUN_13e4_000e */
+/*
+ * FUN_13e4_003a / FUN_13e4_000e.
+ * 2026-08-24: bit-test polarity fixed against the raw `.asm`, not the
+ * decompile. `FUN_13e4_000e`'s decompile cites an unresolved
+ * `unaff_1000000c` for the class-27-vs-28 branch, ambiguous on its own;
+ * direct disassembly (`viceroy_unpacked.asm:7847-7860`) shows that
+ * register is just the same input byte re-read into AL (`MOV BX,
+ * [BP+..]; TEST BL,0x20; ...; MOV AL,BL; AND AX,0x80; CMP AX,1; SBB
+ * DX,DX; AND DX,1; ADD DX,0x1b`): AX==0 (bit 0x80 clear) borrows, giving
+ * DX=0x1c; AX==0x80 (bit 0x80 set) does not borrow, giving DX=0x1b. So
+ * **bit 0x80 set -> class 0x1b (Mountains)**, bit 0x80 clear -> class
+ * 0x1c (Hills) -- matches `map.c`'s independently-derived MAPEDIT
+ * convention (`map_byte_is_mountain`: `terrain & 0xa0 == 0xa0`)
+ * exactly. The previous ternary here had the two classes swapped (a
+ * transcription slip, not a cited DOS behavior); harmless for this
+ * function's only caller (`ai_terrain_ok_for_village`, which just tests
+ * `typ >= 0x18` and doesn't care which of 0x1b/0x1c it is) but real bit
+ * rot for any future 0x1b/0x1c-specific caller — see
+ * `ai_place_tribes_procedural`'s hill_silver_bid_bonus tail below, the
+ * first caller that actually needs the distinction right.
+ */
 static int ai_decoded_type(const ColonizeWorldMap* map, int x, int y) {
   if (!ai_map_inset(map, x, y)) {
     return 25;
   }
   const uint8_t t = ai_terrain_at(map, x, y);
   if (t & 0x20u) {
-    return (t & 0x80u) ? 0x1c : 0x1b;
+    return (t & 0x80u) ? 0x1b : 0x1c;
   }
   return (int)(t & 0x1fu);
 }
@@ -918,6 +938,41 @@ static bool ai_place_tribes_procedural(
       }
     }
     regions_marked++;
+  }
+
+  /*
+   * FUN_6a09_0006 tail (viceroy_unpacked.c:108006-108020), unwired until
+   * now: once every capital/satellite tribe for this game is placed
+   * (DOS loops `local_cc < *(int*)0x539a`, VICEROY_DS_TRIBE_COUNT, the
+   * running total that already includes satellites here -- not
+   * capitals only, despite col1_save.h's older summary comment), re-walk
+   * every tribe and scan the 5x5 window centered on its OWN tile (not
+   * just capitals) for terrain class 0x1b -- confirmed **Mountains**,
+   * not Hills, see `ai_decoded_type`'s 2026-08-24 comment above (also
+   * thematically right: Silver comes from Mountains in Col1, not
+   * Hills). Each Mountain tile found adds the tribe's nation `tech` to
+   * that nation's `indian[].hill_silver_bid_bonus` (DOS: plain 16-bit
+   * `*(int*)(indian+0xc) += indian.tech`; field kept its original name,
+   * not renamed, per project convention against renaming a live field).
+   * Bounds are implicit: `ai_decoded_type` already returns 25 (never
+   * 0x1b) for any (x,y) outside `ai_map_inset`, matching DOS's own
+   * separate `FUN_281f_0302` bounds-gate ahead of the class read.
+   */
+  for (int i = 0; i < *count; ++i) {
+    const ColonizeCol1Tribe* vt = &(*tribes)[i];
+    const int nation = (int)vt->nation_id;
+    if (nation < 4 || nation > 11) {
+      continue;
+    }
+    ColonizeCol1Indian* vind = &p->col1->indian[nation - 4];
+    for (int yy = (int)vt->y - 2; yy <= (int)vt->y + 2; ++yy) {
+      for (int xx = (int)vt->x - 2; xx <= (int)vt->x + 2; ++xx) {
+        if (ai_decoded_type(map, xx, yy) == 0x1b) {
+          const int v = (int)vind->hill_silver_bid_bonus + (int)vind->tech;
+          vind->hill_silver_bid_bonus = (int16_t)v;
+        }
+      }
+    }
   }
 
   (void)regions_marked;

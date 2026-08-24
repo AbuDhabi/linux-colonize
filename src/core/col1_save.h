@@ -657,15 +657,31 @@ typedef struct ColonizeCol1Indian {
   uint8_t unknown31c;
   uint16_t horse_breeding; /* +10; ±0x32 on acquire/tick — FUN_5bfb_* / 4d56 */
   int16_t hill_silver_bid_bonus; /* was unknown31d[2]. Resolved 2026-08-19:
-     write confirmed at map-gen (FUN_6a09_0006 tribe/satellite placement) —
-     scans the 5x5 tiles around each new tribe capital, `+= tech` per Hill
-     tile found (terrain class 0x1b); read confirmed at trade-meet economics
-     (FUN_4d56_2154): `/= difficulty`, feeds the tribe's Silver bid[7]
-     (COLONIZE_CARGO_SILVER). I.e. a nation with more hill-adjacent tribes
-     and higher tech offers a better Silver price, tempered by difficulty.
-     Was split as unknown31d[2] and manually reassembled little-endian in
-     ai_contact.c; now a direct int16 (struct is #pragma pack(1), same bytes).
-     See docs/mysteries_catalog.md. */
+     write confirmed at map-gen (FUN_6a09_0006 NEW WORLD/procedural tribe
+     placement, ai_place_tribes_procedural — not the AMERICA/TRIBE.TXT
+     path) — scans the 5x5 tiles centered on EVERY placed tribe's own
+     tile (capitals and satellites alike, not "capitals only" as first
+     summarized), `+= tech` per terrain-class-0x1b tile found.
+     **2026-08-24 correction**: class 0x1b is **Mountains**, not Hills —
+     the field's original name/comment mislabeled it (confirmed via raw
+     `.asm` disassembly of FUN_13e4_000e, `viceroy_unpacked.asm:7847-60`;
+     cross-checked against map.c's independent MAPEDIT-derived
+     `map_byte_is_mountain` convention, same answer both ways; see
+     ai_decoded_type's comment in ai.c). Thematically this fits better
+     too — Col1 Silver comes from Mountains, not Hills. Field name kept
+     unchanged (no rename of a live field), semantics corrected in this
+     comment and in ai_place_tribes_procedural's own write-side comment.
+     Read confirmed at trade-meet economics (FUN_4d56_2154): `/=
+     difficulty`, feeds the tribe's Silver bid[7] (COLONIZE_CARGO_SILVER).
+     I.e. a nation with more mountain-adjacent tribes and higher tech
+     offers a better Silver price, tempered by difficulty. Was split as
+     unknown31d[2] and manually reassembled little-endian in ai_contact.c;
+     now a direct int16 (struct is #pragma pack(1), same bytes).
+     Write side wired 2026-08-24 (ai_place_tribes_procedural, ai.c) —
+     previously read-only dead weight since NEW WORLD games never
+     populated it. See docs/mysteries_catalog.md (write-side/class
+     correction not yet merged into that file — flagged for the
+     doc-owning pass). */
   int16_t tons[COLONIZE_COL1_CARGO_TYPES];
   /* +0x2e — per-euro contact FSM 0/1/2 (FUN_5bfb_*); was unknown32[12]. */
   int16_t contact_state[4];
