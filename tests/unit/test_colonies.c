@@ -994,6 +994,46 @@ int main(void) {
   CHECK(colonies_id_at(&pool, land2_x, land2_y) == cid, "colonies_id_at returns correct id");
   CHECK(colonies_id_at(&pool, land2_x + 1, land2_y) < 0, "colonies_id_at returns -1 for empty tile");
 
+  /*
+   * Distance gate: an active colony blocks founding on any Chebyshev-
+   * adjacent (dist<=1) tile too, not just its own occupied tile — a
+   * distinct rule from the "occupied tile" check above. Cite: GAME.TXT
+   * @TOONEAR; DOS Build Colony order gate (FUN_2b5a_1662 fragment) ->
+   * FUN_1000_8804/FUN_15eb_0142 (nearest colony, any nation/type) ->
+   * FUN_0000_2500 distance==1 -> @TOONEAR bounce (docs/manual_gap.md
+   * "Found colony" row). `colonies_id_at(pool, land2_x+1, land2_y) < 0`
+   * above already proves that neighbor tile is unoccupied, so this isolates
+   * the adjacency rule from the occupied-tile rule.
+   */
+  {
+    static const int k_dx[8] = {-1, 0, 1, -1, 1, -1, 0, 1};
+    static const int k_dy[8] = {-1, -1, -1, 0, 0, 1, 1, 1};
+    bool found_adjacent_case = false;
+    for (int i = 0; i < 8 && !found_adjacent_case; ++i) {
+      const int ax = land2_x + k_dx[i];
+      const int ay = land2_y + k_dy[i];
+      if (ax < 0 || ay < 0 || ax >= (int)map.width || ay >= (int)map.height) {
+        continue;
+      }
+      if (!map_tile_is_land(&map, ax, ay)) {
+        continue;
+      }
+      const int pedia = map_pedia_terrain_index_at(&map, ax, ay);
+      if (pedia == 24 || pedia == 27) {
+        continue; /* arctic / mountain would fail for an unrelated reason */
+      }
+      if (colonies_id_at(&pool, ax, ay) >= 0) {
+        continue; /* occupied by another colony; wouldn't isolate the adjacency gate */
+      }
+      CHECK(
+        !colonies_can_found(&pool, &map, ax, ay),
+        "cannot found on a tile Chebyshev-adjacent to an existing active colony"
+      );
+      found_adjacent_case = true;
+    }
+    CHECK(found_adjacent_case, "found a plain land neighbor tile to isolate the adjacency gate");
+  }
+
   /* SoL craft deepen: +sol_bonus per manufacturing worker on output. */
   {
     ColonizeColony* c = colonies_get_mut(&pool, cid);

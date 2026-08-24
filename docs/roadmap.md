@@ -142,12 +142,18 @@ regression gate again.
   `Colonists`; the Europe-dock hire ladder silently never resolved). Detail
   + regression test: [assets.md](assets.md) Units section and
   `test_ai_euro_expand.c` (`unit_dock_farmer_hire_real_names`).
-- **Found, not yet fixed — `colonies_can_found` missing minimum-distance
-  gate** (GAME.TXT `@TOONEAR` proves DOS rejects adjacent founding; real
-  threshold not decomp-verified — **do not invent a distance**). Full trace,
-  constraints, and the related `unit_ai_euro_expand` first-failure-blocks-
-  suite test gap: [manual_gap.md](manual_gap.md) "Found colony" row and
-  [port_plan.md](port_plan.md) (W1.2 / W4.1).
+- **Found and fixed (2026-08-24, confirmed via static decomp trace) —
+  `colonies_can_found` minimum-distance gate.** The `dx<=1 && dy<=1`
+  Chebyshev-adjacency rejection already shipped 2026-08-14 (`3abe4c4`) is
+  now confirmed byte-faithful against DOS, not an invented threshold: the
+  real Build Colony order handler (`FUN_2b5a_1662`/`16ce`, an undocumented
+  gap in `FUNCTION_CATALOG.md`) calls `FUN_1000_8804` →
+  `FUN_15eb_0142`/`FUN_0000_5ff2` (nearest colony, any nation/type) and
+  rejects when the `FUN_0000_2500` distance metric equals 1 — which
+  evaluates to exactly 1 for all 8 Chebyshev-adjacent tiles. Full trace +
+  the related `unit_ai_euro_expand` first-failure-blocks-suite gap (now
+  also resolved, same fix): [manual_gap.md](manual_gap.md) "Found colony"
+  row and [port_plan.md](port_plan.md) W1.2.
 
 ### 4 — Independence & endgame (Partial)
 

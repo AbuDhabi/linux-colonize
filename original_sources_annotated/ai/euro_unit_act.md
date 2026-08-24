@@ -825,6 +825,148 @@ independently identified) and the exact register-argument roles for
 41/41 green (one real `src/` change this pass: `0015bc`'s edge-cost
 formula in `units_flood_next_step`).
 
+**2026-08-24, later same day — resumed per this row's own real next step
+(`FUN_1000_8560`/`FUN_1000_856a` first). Both resolved; a major structural
+correction found along the way (`0015b7`/`0015b2`/`0015c1` are 5-byte JMPF
+thunks into resident segment `1000`, not overlay-local bodies); two new,
+genuine blockers surfaced (not restatements of old ones). No `src/`
+change — forcing one would mean guessing behavior for an unresolved
+load-bearing accessor and an unfound data-population step.**
+
+- **`FUN_1000_8560`/`FUN_1000_856a` both resolved, and it's the same
+  formula.** `address_mapping.csv` row 811 (`FUN_281f_0370,281f:0370,ram,
+  18560,FUN_1000_8560,exact`) plus `FUNCTION_CATALOG.md`'s own entry for
+  `FUN_281f_0370` ("Far thunk → `FUN_124c_0040` (DOS distance helper)")
+  resolve `0009ae`'s neighbor-scoring call. `FUN_1000_856a` was already
+  resolved to the same `FUN_124c_0040` in `euro_goal_orders_0a60_full.md`
+  (octile distance, `max(dx,dy)+min(dx,dy)/2`). **Both of `0009ae`'s and
+  `0015c1`'s "mystery" scoring/tie-break helpers are the identical
+  already-live formula** — `units_octile` (`units.c:3927`) — reached via
+  two different thunk chains, not two different formulas. Answers this
+  row's own step-1 ask: the two functions "fit together" by sharing one
+  distance primitive, no new logic needed for that piece specifically.
+
+- **Structural correction: `0015b7`/`0015b2`/`0015c1`, as addressed
+  within `OVL20_L0000`, are each plain 5-byte `JMPF` thunks into resident
+  segment `1000`** — not overlay-local bodies as every prior pass
+  (including this row's own 2026-08-24 earlier entry) implicitly assumed.
+  Confirmed via `GhidraDisasmExact.java` with `len=1` at each address
+  (`OVL20_L0000:15b7` → `JMPF 1000:a78c`; `:15b2` → `JMPF 1000:a46e`;
+  `:15c1` → `JMPF 1000:a9c0`; each is exactly `EA <off_lo><off_hi>
+  <seg_lo><seg_hi>`, 5 bytes). **Tooling gotcha**: a wider `len` at these
+  same addresses throws `AddressRange`'s "different address space" error
+  from `GhidraDisasmExact.java`'s own `clearCodeUnits` call — this
+  overlay's block is short enough that `off+len` wraps out of
+  `OVL20_L0000`'s space; `len=1` (or whatever fits) sidesteps it, worth
+  trying first at a suspected thunk before assuming corruption. This
+  doesn't invalidate any previously-banked finding — Ghidra's decompiler
+  auto-follows a tail-call `JMPF` and renders the *target's* body under
+  the thunk's own name, which is why `GhidraDecompileAt.java` at
+  `OVL20_L0000:15b7`/`:15c1` etc. still produced real, useful bodies (the
+  already-confirmed `0015b7`≈`units_sign_i` match is really about
+  `1000:a78c`'s body) — just corrects the address attribution.
+
+- **`1000:a46e` (`0015b2`'s real target) identified: a Chebyshev-8-gated
+  shortcut that re-invokes the already-ported near-flood.** Body (from
+  `GhidraDecompileAt.java` at `OVL20_L0000:15b2`, i.e. this target's
+  code): if `|FUN_1000_1e7b() − in_BX| < 8` AND `|in_DX − param_4| < 8`
+  (candidate goal within 8 tiles on both axes of whatever `FUN_1000_1e7b`
+  returns — see caveat below), it sets `DS:0x1dd2` (next bullet), sets
+  the flood-goal globals `DS:0xa14e`/`DS:0xa14c` to the real goal, blanks
+  `DS:0x1dd6` temporarily, and calls **`FUN_OVL20_L0000_0015bc(0)` —
+  `0015bc` itself, already ported as `units_flood_next_step`** — then
+  returns its first-step result (`DS:0xa370`). Reads as "if the real goal
+  is close enough, skip the windowed 18×18 dance and just reuse the
+  16×16 near-flood directly." Structurally this mirrors Linux's own
+  `units_next_goto_step` tiering (`adx<=6 && ady<=6` → `units_flood_next_step`)
+  — the same ~8-tile-ish near/far split appears independently in two
+  places in the DOS call graph, not just at `0f74`'s own top dispatch.
+
+- **`DS:0x1dd2` resolved**: `1000:a46e` sets it to `1` when its domain
+  arg is `0`, `0xd` (13) when nonzero; `0015c1`'s own body (see below)
+  reads it back via a `13..18` inclusive range test to reconstruct the
+  same domain flag as a 0/1 bool. One member of the previously-flagged
+  `0x1dd2`/`0x1dd4`/`0x1dd6` trio (2026-08-21/22 notes) now resolved: it's
+  a domain-flag relay between `1000:a46e`/`0015bc` and `0015c1`'s own
+  body, not distinct new game state.
+
+- **New genuine blocker: `FUN_1000_1e7b`'s `address_mapping.csv` "exact"
+  identity (`FUN_210d_0dab`, the generic RTLink loader) does not hold for
+  this call context.** Direct disassembly at its real flat address
+  (`GhidraDisasmExact.java 0000:11e7b` — see tooling note below for why
+  `1000:1e7b` and `0000:1e7b` both fail/mislead) shows `PUSHF; CLI; TEST
+  CS:[0x39e1]... ; JNZ ...; TEST CS:[0x39de]...; JNZ ...; MOV
+  CS:[0x39f1],0; MOV CS:[0x39e1],0xff; POPF; POP CS:[0x397d]` — a real
+  critical-section/task-state primitive, not a loader stub and not a
+  plain coordinate accessor. **Cross-confirms**
+  `euro_goal_orders_0a60_full.md`'s own independent citation (via the
+  unrelated `FUN_1000_96aa`→`FUN_1000_1e7b` chain) of "a computed
+  function-pointer dispatch gated on globals `LAB_1000_39e1`/
+  `LAB_1000_39dc_2`" — same address, same gating globals, found from two
+  unrelated call chains now. Its actual return-value semantics (why
+  `1000:a78c`/`1000:a46e` use it arithmetically as if it returned a
+  coordinate) are **unresolved** — not guessed at. Likely explanation:
+  the `address_mapping.csv` row was derived from a different caller
+  context and doesn't generalize here — same class of stale-row error
+  already caught once for `FUN_281f_090c` (T1.8's 2026-08-21 entry).
+  **Tooling note**: this project's single `ram` memory block spans the
+  *entire* real-mode range (`0000:0000`…`1000:e26f`, confirmed via a
+  one-off memory-block dump), addressed as flat `segment*16+offset` — so
+  a `FUN_1000_XXXX` symbol must be queried as `0000:<hex of
+  0x10000+0xXXXX>` (e.g. `FUN_1000_1e7b` → `0000:11e7b`). Neither
+  `1000:1e7b` (no block literally named `1000`, `GhidraDecompileAt.java`/
+  `GhidraDisasmExact.java` error out) nor the naive `0000:1e7b` (silently
+  resolves to a *different*, unrelated segment-0 address and prints
+  plausible-looking garbage — confirmed by trying it first) work — a new
+  instance of the "silently pull in wrong but plausible content" trap
+  class, worth flagging explicitly since the mechanism (space-name
+  aliasing, not jump/call misresolution) is different from the previously
+  documented instances.
+
+- **New genuine blocker: the window-local per-domain walkability grids
+  are never populated by anything in this call chain.** `0009ae`/`0015c1`
+  both read the two quad-map-resolution per-domain bitmaps (`-0x790a`/
+  `-0x7a18`, stride `0x12`); `0015c1` additionally reads/writes its own
+  flood-visited/parent-direction work arrays (`-0x5e9e`/`-0x5c8e`/
+  `-0x5b8e`). None of `0009ae`, `0015c1`, `000000`, or `1000:a46e`'s own
+  bodies populate the two walkability grids from scratch — whatever
+  builds them ahead of a pathfind call has not been identified in this or
+  any prior session. Without it, a literal byte-exact translation of
+  `0009ae`'s 8-neighbor window scan or `0015c1`'s own 18×18 flood isn't
+  implementable; a Linux port would need to substitute live
+  `units_can_enter()` checks (an approximation, matching how
+  `units_flood_next_step` already substitutes for `0015bc`'s own
+  equivalent gating — not a new problem in principle, just not previously
+  spelled out for this specific pair of functions).
+
+- **`000000`'s existing hand-transcription re-confirmed unaffected** by
+  either finding above — it calls neither `FUN_1000_1e7b` nor the
+  unpopulated window grids, and remains the cleanest, most self-contained
+  piece of this subsystem. Still has no safe wiring point until its two
+  real callers (`0009ae`'s own "stay" validation, `0015c1`'s post-flood
+  neighbor-scoring tail) are themselves portable.
+
+**Net for this pass**: given the two blockers above are both new and
+genuine (not restatements of the already-known "structural not semantic"
+caveat), forcing a `0009ae`/`0015c1` port now would mean inventing
+behavior for an unresolved load-bearing accessor (`FUN_1000_1e7b`) and an
+unfound data-population step (the window grids) — against this project's
+own "never invent" convention. **No `src/` change this pass.**
+`units_bfs_next_step` re-checked as the far tier's sole caller (one call
+site, `units.c:4832`, verified by grep) — stays exactly as-is, not
+retired; nothing here makes it safe to replace. Real next step if
+resumed: chase `FUN_1000_1e7b`'s actual return-value semantics (its two
+`JNZ` targets and the `LAB_1000_39e1`/`39de`/`39f1`/`397d` state block),
+and separately, find what populates the `-0x790a`/`-0x7a18` per-domain
+walkability grids (likely a setup pass inside `0f74` itself, not chased
+this session). `ctest`: rebuilt fresh in this pass's worktree (had to
+symlink the gitignored `COLONIZE/` asset directory in from the main
+checkout for the unit tests to load `NAMES.TXT` at all — a local,
+non-committed fix, not a code change) — 40/41 green; the one failure
+(`unit_ai_king`, a "multi-unload fortify count" assertion) is a
+pre-existing baseline condition unrelated to this row (confirmed via
+`git status`: zero `src/` files touched this pass), not a regression.
+
 Re-checked with a small (0x100-byte) force-clear + fresh disassemble
 (bypassing any stale analysis, same technique used elsewhere this
 session): the corruption is **confined to one case (`case 4`) of a small

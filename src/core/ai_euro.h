@@ -13,4 +13,26 @@ void ai_euro_dispatcher_turn(ColonizeTurnContext* ctx, int nation_id);
 /* True when full dispatcher should run (non-fixture path). */
 int ai_euro_use_full_dispatch(const ColonizeTurnContext* ctx);
 
+/*
+ * FUN_15eb_28c8 — colonist work-plot job scoring, structural reference port
+ * (docs/ai_port_plan.md T1.17 / docs/port_plan.md W1.7). See ai_euro.c's own
+ * header comment above the definition, and
+ * original_sources_annotated/turn/colonist_work_plot_28c8.md, for scope and
+ * fidelity notes. Reference-only / not wired into any live AI path (Tier 3
+ * per docs/port_plan.md); declared here only so
+ * tests/unit/test_ai_euro_28c8_job_score.c can verify it directly.
+ */
+typedef struct AiEuro28c8JobCandidate {
+  int job;   /* COLONIZE_JOB_*, or -1 if nothing scored */
+  int tile;  /* 0..COLONIZE_COLONY_FIELD_TILES-1 */
+  int score;
+} AiEuro28c8JobCandidate;
+
+int ai_euro_28c8_colonist_job_score_structural(
+  const ColonizeTurnContext* ctx,
+  int colony_id,
+  int colonist_slot,
+  AiEuro28c8JobCandidate* out_best
+);
+
 #endif

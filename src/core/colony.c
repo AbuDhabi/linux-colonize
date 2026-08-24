@@ -265,7 +265,42 @@ bool colonies_can_found(
    * Distance gate: A colony cannot be founded on a square adjacent to
    * (Chebyshev distance <= 1, i.e. dx <= 1 && dy <= 1) ANY existing active
    * colony (own or foreign).
-   * Cite: GAME.TXT @TOONEAR; FUN_2b5a_3252 -> FUN_15eb_0142 (nearest colony distance <= 1).
+   *
+   * Cite (corrected 2026-08-24 — the previous citation of FUN_2b5a_3252 was
+   * wrong; that function is the numpad/arrow-key movement dispatcher, not
+   * Build Colony, confirmed by a clean overlay-project decompile that
+   * contains no call anywhere near this logic). Real DOS chain, traced via
+   * tools/GhidraDecompileAt.java + tools/GhidraListXRefs.java against the
+   * OvlWork/Ovl overlay Ghidra project (canonical viceroy_unpacked.c's
+   * export of this address range is corrupted -- WARNING: jumptable/
+   * EMS-mapping garbage, same false-alarm class ai_port_plan.md's Method
+   * notes warn about): the Build Colony order handler (OVL02_L0000
+   * offset 0x16ce, canonical FUN_2b5a_16ce, inside the larger
+   * ENTER-prologue function at FUN_2b5a_1662, an undocumented gap in
+   * FUNCTION_CATALOG.md between FUN_2b5a_1454 and FUN_2b5a_199e) calls
+   * FUN_1000_8804 (thin resident thunk) -> FUN_15eb_0142 / FUN_0000_5ff2
+   * ("nearest colony" utility, called with type=-1/nation=-1 i.e. any
+   * nation, any colony type) whose returned distance (DS:0x8db8, via the
+   * FUN_0000_2500 metric: max(|dx|,|dy|) + min(|dx|,|dy|)/2, which
+   * evaluates to exactly 1 for all 8 Chebyshev-adjacent neighbor tiles and
+   * to 0 only for the same tile) is compared == 1; on match the winning
+   * colony's name is formatted into a dialog string-substitution slot
+   * (FUN_1000_8606) and a bounce message (opaque numeric GAME.TXT id
+   * 0x9a5 -- popup_string_resolver.md documents these ids don't resolve to
+   * a @TAG statically, needs a live capture) aborts the order. This id is
+   * mid-cluster among 3 sibling hard-reject "bounce" ids in the same
+   * function that line up structurally with @TOOMOUNTAIN (terrain==0x1b
+   * gate, 2 ids later) and @TOONEARBUILD (a 9-tile neighbor scan for a
+   * stacked unit with order==7 pending, 1 id later) -- @TOONEAR is the
+   * only one of the three whose gate condition (nearest-colony distance)
+   * and dialog substitution (colony name) match GAME.TXT's own @TOONEAR
+   * text ("too near to {colony}") exactly, which is why the id ordering
+   * plus semantics together (not just the id) pin it down without needing
+   * the live capture. Distance==1 is exactly the Chebyshev dx<=1&&dy<=1
+   * ring below (same tile, dx=dy=0, yields metric 0 and is instead caught
+   * by the separate occupied-tile case already folded into this same
+   * loop) -- this confirms the already-shipped dx<=1&&dy<=1 formula, it
+   * was not an invented threshold.
    */
   for (int i = 0; i < pool->colony_count; ++i) {
     const ColonizeColony* c = &pool->colonies[i];
