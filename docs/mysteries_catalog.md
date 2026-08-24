@@ -149,36 +149,85 @@ names are stand-ins:
   (`FUN_4d56_4528`/`FUN_4d56_5d04`) — already independently found and kept
   as separate scratch in `ai_euro.c`'s `Ai5d04HireScratch`, for exactly
   this reason; confirmed again this pass from a second call site.
-- `+0x40-0x43` ("`treaty_timer[4]`"): **narrowed 2026-08-24, not fully closed.**
+- `+0x40-0x43` ("`treaty_timer[4]`"): **resolved 2026-08-24 (round 2) — this
+  is a genuine numeric cooldown/countdown, not a boolean, and the second
+  writer's formula, gate, and readers are all now pinned down.**
   Base confirmed via struct-offset math (`nation_flags` at DS `-0x77f8`
   unsigned `0x8808`, `+0x40` → `-0x77b8` unsigned `0x8848`) and cross-checked
   against a literal-offset grep across all 3 decompiled DOS exports. Two
   confirmed writers, both indexed `[nation_a][nation_b]` via
   `param_b + param_a*0x13c + -0x77b8` (row stride `0x13c` = `sizeof`
   the DOS per-nation record, symmetric — always written both directions):
-  - `FUN_5bfb_13b0` (`euro_diplo_153e_full.md`'s already-"Done"/ported
-    "form/break alliance" — Linux: `ai_diplo_form_alliance_ctx`/
-    `ai_diplo_break_alliance_ctx`) writes literal **`1`** on forming an
-    alliance and **`0`** on breaking one (`viceroy_unpacked.c:97291-97292`/
-    `97308-97309`) — a plain **boolean "are these two nations allied"
-    flag**, not a countdown.
-  - `FUN_5bfb_153e` itself (the giant diplomacy-negotiation function this
-    same doc's "Raw recovered C" section already has verbatim) writes a
-    **computed non-boolean value** into the same cell under a different,
-    not-yet-traced gate (`viceroy_unpacked.c` excerpt at
-    `euro_diplo_153e_full.md:1686`: `(*(byte*)0x53a6 - difficulty)*-2`
-    -ish, condition-gated by `FUN_1000_8c28(...)&0x40`) — so the field
-    isn't purely a static boolean either; something in `153e`'s own
-    negotiation flow overwrites it with a magnitude later.
-  Net: this is now solidly the **alliance-relationship cell** (matches the
-  Linux name's spirit — "treaty" — even though "timer" is wrong for at
-  least the `13b0` writer), not a total mystery, but the second writer's
-  exact numeric semantics need a dedicated read of `153e`'s own negotiation
-  branch to pin down — left open rather than guessed. Linux's existing
-  `treaty_timer[4]` as an actual decrementing countdown (`ai_diplo.c`'s
-  `ai_diplo_ally_treaty_timer_bump`/`ai_diplo_treaty_timers`) is confirmed,
-  same as before, a **functional Linux invention** layered on this cell,
-  not a decode — nothing here changes that it's tested/working as-is.
+  - `FUN_5bfb_13b0` (form/break alliance, already ported as
+    `ai_diplo_form_alliance_ctx`/`ai_diplo_break_alliance_ctx`) writes
+    literal **`1`** on forming an alliance and **`0`** on breaking one
+    (`viceroy_unpacked.c:97291-97292`/`97308-97309`).
+  - `FUN_5bfb_153e` itself, at its single common exit (`LAB_..._0034de`,
+    reached from nearly every internal branch — this is effectively the
+    function's tail, not a rare edge case): re-read directly off the
+    canonical export (`viceroy_unpacked.c:98423-98426`), cross-confirmed
+    byte-for-byte against a second, independently decompiled export of the
+    same tail (`viceroy_overlays.c:84013-84025`, a register-based
+    `unaff_BP` variant of the identical code — not a decompiler artifact).
+    Gate: `FUN_1000_8c28(self,target)&0x40` — already-resolved
+    `AI_DIPLO_MET` (`ai_diplo.h`). Formula, exact now (the earlier "-ish"/
+    "difficulty" framing was a correct hedge, no longer needed):
+    `value = (DS:0x53a6 - 6) * -2`, where `DS:0x53a6` is the already-named
+    `VICEROY_DS_DIFFICULTY` global (`viceroy_globals.h:68`), then
+    **halved** (`>>1`) if `FUN_1000_89a4(self,0x13)` — a per-nation
+    FF/feature-bit test whose specific bit `0x13` selects is still
+    unresolved elsewhere in this project (`euro_diplo_153e_full.md`'s
+    worthiness-score writeup already stubs this same accessor to "absent").
+    So the unhalved range is `12`(difficulty 0)..`4`(difficulty 4), halved
+    to `6..2` when that FF bit is set — always a small positive magnitude,
+    never the literal `0`/`1` `13b0` writes.
+  **Readers found this pass** (grepped every `-0x77b8`/`0x77b8` literal
+  touch across all 3 decompiled exports — the write list above is now
+  known-complete, and so is this read list):
+  - `FUN_521d_6d8e` (`viceroy_unpacked.c:93172-93187`, the Euro-AI
+    per-nation-turn dispatcher) unconditionally decrements the cell by 1
+    every turn once nonzero, and — only in the turn(s) the cell reads `0`,
+    gated on a *different* diplo-flag bit (`&8`, not yet named) plus a
+    1-in-3 RNG roll — tweaks the `-0x77c4` relation byte (clears bits
+    `0x08`/`0x40`, sets bit `0x01`). This is **already ported**, and the
+    decrement half already matches: `ai_diplo.c`'s `ai_diplo_treaty_timers`
+    carries the comment "6d8e step 4: decrement per-rival treaty timer
+    bytes before planning" and does exactly that (decrement, floor 0,
+    re-checked every turn while at 0) — confirming the Linux name/shape
+    was right all along. The zero-tick expiry *action* itself is a
+    different, simpler Linux invention (break alliance if `AI_DIPLO_ALLY`,
+    else a 1-in-8 reset to plain `PEACE|MET`) rather than a decode of
+    DOS's own bit-`8`+RNG(1-in-3)+relation-mask tweak — not revisited this
+    pass, out of this task's scope.
+  - `FUN_465b_0000` (`viceroy_unpacked.c:75417` on, the "moving onto a
+    foreign-owned tile" handler) reads the cell as a plain **nonzero
+    gate**: `if (met && timer != 0) skip further war/reaction escalation
+    on this encounter` (`viceroy_unpacked.c:75551-75556`). This whole body
+    is Linux's `move_spent_foreign_combat_parked` — explicitly **PARKED**,
+    not ported (`original_sources_annotated/ai/move_spent.c:191-206`).
+  **Semantics, now settled**: DS `-0x77b8` is a genuine per-nation-pair
+  **diplomatic cooldown counter** ("don't re-trigger a war/reaction
+  encounter, or the AI's own war-fatigue-flip roll, against this rival for
+  N more turns"), ticked down once per turn by `6d8e` and read as a guard
+  by both `6d8e`'s own zero-tick branch and `465b_0000`'s encounter gate.
+  `13b0`'s plain `1`/`0` writes are just the low/degenerate end of that
+  same numeric range (alliance just formed → minimal 1-turn cooldown;
+  alliance just broken → 0, immediately eligible again), not a separate
+  boolean field — the field really is one thing throughout, just with a
+  wide write-value range. Confirms Linux's own `treaty_timer[4]` naming was
+  apt in spirit even before this pass.
+  **Not ported this round**: `153e`'s own difficulty-scaled reset formula.
+  `153e` is not wired live anywhere in Linux (`ai_diplo.c`'s `153e`
+  comments: its outcome-table dispatch and worthiness-score phase are
+  structural references only, deliberately not called) and its only DOS
+  caller (`FUN_5bfb_3180`, the adjacent-unit encounter resolver) isn't
+  wired for the Euro×Euro case either — so there is no live call site to
+  attach this reset to without porting the rest of `153e` first, which is
+  out of scope here. Same "documented, not ported" outcome as the
+  already-closed `+0x44/+0x45`/`+0x48-0x4a` sub-ranges. Genuinely still
+  open, low-value: the `0x13` FF/feature-bit meaning (`FUN_1000_89a4`) and
+  `6d8e`'s own `&8` gate bit — neither blocks this writeup, both already
+  tracked as open elsewhere in this project.
 
 ---
 Not included: `PARKED` markers (~90+ across `ai_diplo.c`/`ai_king.c`) —

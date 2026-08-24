@@ -3667,6 +3667,22 @@ bool units_try_move(
    */
   int village_temp = -1;
   int village_nation = -1;
+  /*
+   * DOS FUN_5fef_1b0e: attacking always drains 3 extra moves_spent right
+   * before the roll, win or lose (viceroy_unpacked.c ~100340-100343:
+   * `*(char*)(unit+0x3149) += 3` when the attack-flag param is set — real
+   * on every combat-entry call site, confirmed both in the flattened export
+   * and a fresh OVL17_L0000:1b0e decompile). It stacks with the normal
+   * per-tile step cost (DOS FUN_465b ~75640) into the same gate/RNG-roll
+   * that decides whether the unit can afford to enter, so it must feed the
+   * shared `cost` below rather than being pre-subtracted from moves_left
+   * (pre-subtracting would corrupt the "started this move at full MP"
+   * bypass check that gate also does). Land units' low max MP (<=4) is
+   * usually consumed either way ("attack ends the turn"); ships' much
+   * higher max MP survives it as a genuine slow, not a full stop — this is
+   * what "ship-slow" refers to.
+   */
+  int combat_attack_mp_surcharge = 0;
   if (g_units_ff_col1 && unit->nation_id >= 0 && unit->nation_id <= 3) {
     village_nation = units_tribe_nation_at(g_units_ff_col1, dest_x, dest_y);
     if (village_nation >= 4) {
@@ -3751,7 +3767,31 @@ bool units_try_move(
       units_despawn(pool, village_temp);
       village_temp = -1;
     }
+    /*
+     * DOS FUN_5fef_1b0e: attacking always drains 3 extra moves_spent right
+     * before the roll, win or lose (viceroy_unpacked.c ~100340-100343:
+     * `*(char*)(unit+0x3149) += 3` when the attack-flag param is set — real
+     * on every combat-entry call site, confirmed both in the flattened
+     * export and a fresh OVL17_L0000:1b0e decompile). This stacks with the
+     * normal per-tile step cost (DOS FUN_465b ~75640, applied unconditionally
+     * *before* combat even starts) — so attacking costs (step_cost + 3) MP
+     * total, win or lose. Land units' low max MP (<=4) is usually consumed
+     * either way, so this reads as "attack ends the turn"; ships' much
+     * higher max MP survives it as a genuine slow rather than a full stop
+     * — this is what "ship-slow" refers to. Linux previously charged only
+     * the step cost, and only on a win (further below); this adds the
+     * missing +3 surcharge plus the missing step cost on a loss. The native
+     * raid-stay-put branch just below already has its own complete,
+     * separately-cited MP model (FUN_4d56_4528) — skip it there to avoid
+     * double-charging.
+     */
     if (!won) {
+      ColonizeUnit* atk_mp = units_get(pool, unit_id);
+      if (atk_mp && atk_mp->active) {
+        const int cost = units_move_cost(pool, unit_id, map, dest_x, dest_y);
+        const int drain = cost + 3;
+        atk_mp->moves_left = (atk_mp->moves_left > drain) ? atk_mp->moves_left - drain : 0;
+      }
       return false;
     }
     unit = units_get(pool, unit_id);
@@ -3789,6 +3829,10 @@ bool units_try_move(
     if (units_foreign_at(pool, dest_x, dest_y, unit_id, unit->nation_id) >= 0) {
       return false;
     }
+    /* Combat-entry MP surcharge (see comment above) folded into the shared
+     * step-cost gate below, not applied directly — feeding it into `cost`
+     * there keeps the "started this move at full MP" bypass check correct. */
+    combat_attack_mp_surcharge = 3;
   } else {
     if (village_temp >= 0) {
       units_despawn(pool, village_temp);
@@ -3824,7 +3868,8 @@ bool units_try_move(
     }
   }
 
-  const int cost = units_move_cost(pool, unit_id, map, dest_x, dest_y);
+  const int cost =
+    units_move_cost(pool, unit_id, map, dest_x, dest_y) + combat_attack_mp_surcharge;
   const int remaining = unit->moves_left;
   const ColonizeUnitType* type = units_type(pool, unit->type_index);
   const int max_mp = type && type->movement > 0 ? type->movement : 1;

@@ -124,11 +124,74 @@ doc when a slice lands).
   - Warehouse spoilage / food chain already thin-ported (`turn.c`); deepen
     only against decomp evidence.
 
-- [ ] **W1.4 — Combat depth beyond T0.** [combat.md](combat.md) PARKED
-  section: deeper `5fef` (ship-slow beyond current thin port), DOS
-  temp-attacker spawn on village battles, deep `−0x6790` matrix (shared with
-  AI unpark #4 — coordinate with W1.1 rather than porting twice). VGA combat
-  chrome is Tier 5, not here.
+- [x] **W1.4 — Combat depth beyond T0.** Worked 2026-08-24. **2 of 3
+  sub-items closed, 1 confirmed correctly left to W1.1 (not "still open" by
+  neglect).**
+  - **Ship-slow — closed, real gap found and ported.** Re-decompiled
+    `FUN_5fef_1b0e` both from the flattened export and fresh via
+    `GhidraDecompileAt.java` at `OVL17_L0000:1b0e` (they agree): every
+    combat-entry call (`param_5`/`param_6` attack flag set) drains a flat
+    `+3` to `unit+0x3149` (`moves_spent`) **before the roll, win or lose**
+    (viceroy_unpacked.c ~100340-100343), stacking with the ordinary per-tile
+    step cost DOS charges unconditionally in the caller (`FUN_465b`
+    ~75640) — so attacking costs `(step_cost + 3)` MP total regardless of
+    outcome. Land units' max MP (≤4) is consumed either way ("attack ends
+    the turn"); ships' much higher max MP survives it as a genuine slow —
+    that's what "ship-slow" names. Linux's `units_try_move` previously
+    charged only the step cost, and only on a **win**; a loss charged
+    nothing at all. Fixed in `src/core/units.c` (`units_try_move`): the
+    surcharge is folded into the shared step-cost/RNG-overspend gate's
+    `cost` value (not pre-subtracted from `moves_left`, which would corrupt
+    that gate's "started this move at full MP → always allowed" bypass
+    check) via a new `combat_attack_mp_surcharge` local, and the loss path
+    now also charges `(step_cost + 3)`, clamped ≥0. New regression test
+    `tests/unit/test_units.c` "naval combat-entry ship-slow MP surcharge"
+    spawns an 8-movement ship, wins a combat-entry attack, and asserts
+    exactly 4 MP remain (8 − (1 ocean step + 3)) — proving the ship is
+    slowed, not stopped. The native raid-stay-put branch (`FUN_4d56_4528`,
+    a different DOS function) keeps its own pre-existing separate MP model
+    untouched.
+  - **DOS temp-attacker spawn on village battles — confirmed already
+    correctly ported; found and filed a real sibling gap (new W1.8).**
+    Traced `FUN_5fef_1b0e`'s "no live defender found" branch: it calls
+    `tile_tribe_owner` (`FUN_281f_06be`) and `colony_at_xy` (`FUN_281f_07be`)
+    to tell an Indian dwelling tile from a Euro colony tile. When it's a
+    dwelling (`colony_at_xy` < 0), it spawns a temp Brave/Armed
+    Braves/Mtd. Braves/Mtd. Warriors from the tribe struct's `muskets`
+    (+7) and `horse_breeding` (+10, >0x18) fields
+    (viceroy_unpacked.c ~100400-100416) — this is a **defender** stand-in,
+    not an "attacker" (the port_plan phrasing is the DOS call table's own
+    loose term, reused from the fort-fire call site where the spawned unit
+    genuinely is the aggressor). `src/core/units.c`'s
+    `units_spawn_village_temp_defender` already matches this field-for-field
+    (same +7/+10 offsets, same 0x13/0x14/+2 type-selection logic) — real,
+    not a stub. **New finding:** the sibling branch (`colony_at_xy` ≥ 0 —
+    i.e. an undefended **Euro** colony, not a village) spawns a *different*
+    temp defender via `FUN_281f_02c6` (→ `FUN_112b_0002`,
+    profession→ICONS.SS index) using colony fields at `+0x1f`/`+0xb8`
+    (viceroy_unpacked.c ~100417-100432) — Linux currently has no equivalent
+    at all; `units_try_capture_foreign_colony` walks straight into any
+    colony with zero live defenders, no token-militia combat. Filed as
+    **W1.8** below rather than ported here (needs its own RE pass on the
+    colony field offsets and the profession→type mapping) — out of this
+    row's stated scope ("village battles").
+  - **Deep `−0x6790` matrix — confirmed not done anywhere, correctly left
+    to W1.1/unpark #4, not ported here.** Checked `ai_port_plan.md` /
+    `ai_transcription.md` first per this row's own "coordinate with W1.1"
+    instruction: the *other* `−0x6790` site (`0a60`/`5d04` G-table stance
+    nibbles) was closed 2026-08-14, but the one this row and
+    `ai_transcription.md`'s "unpark #4" both point at — the deep Euro
+    land/ocean `20e6` explore-ring combat-scoring matrix — is still
+    explicitly **OPEN** there (`ai_transcription.md` lines ~741, 1032-1038;
+    `roadmap.md` line 132; `port_plan.md` W1.1's own open-item list). Not
+    duplicated here; leave to W1.1.
+  - VGA combat chrome untouched (Tier 5, out of scope, as stated).
+  - Full `ctest --test-dir build`: 41/42 run passed (4 golden suites
+    intentionally disabled). The one failure, `unit_ai_king`'s
+    "multi-unload capture should fortify one or two Regulars," is
+    **pre-existing** — reproduced identically on the unmodified tree before
+    any of this row's edits, unrelated to combat (that scenario never
+    enters `units_try_move`'s combat branch at all).
 
 - [x] **W1.5 — Lategame Col1 codec drift.** Worked 2026-08-24. **Closed —
   was already fixed, doc-stale.** Re-ran `unit_col1_save`'s diff reporter
@@ -214,6 +277,25 @@ doc when a slice lands).
   environment failures unrelated to this change (confirmed identical
   failure set before/after, `unit_ai_euro_28c8_job_score` is the only test
   whose status changed). Wiring stays out of scope here — W3.1.
+
+- [ ] **W1.8 — Undefended Euro colony: missing token-militia combat.**
+  Found 2026-08-24 while tracing W1.4's village temp-defender mechanic.
+  DOS `FUN_5fef_1b0e`'s "no live defender found" branch spawns a temp
+  defender whenever the target tile is a **Euro colony** with zero live
+  garrison (`colony_at_xy`/`FUN_281f_07be` ≥ 0), not just when it's an
+  empty Indian dwelling — a different code path (`FUN_281f_02c6` →
+  `FUN_112b_0002`, profession→ICONS.SS index; colony fields `+0x1f`/`+0xb8`;
+  viceroy_unpacked.c ~100417-100432) from the already-ported village-Brave
+  arm. Linux's `units_try_capture_foreign_colony` currently walks straight
+  into *any* colony with no live defenders and captures it — no combat, no
+  chance to lose, unlike DOS which apparently always makes the attacker
+  fight a token colonist-militia defender first. Static RE only (no live
+  capture needed — `FUN_281f_02c6`'s target and the colony fields are
+  already resolvable per `FUNCTION_CATALOG.md` / `save_format_map.md`), but
+  real work: resolve what `+0x1f`/`+0xb8` are on the colony record, what the
+  profession→type selection actually produces as a defender's strength, and
+  whether an empty colony can therefore ever repel an attacker. Cite:
+  [combat.md](combat.md) PARKED table.
 
 ---
 
