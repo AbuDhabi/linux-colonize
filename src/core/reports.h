@@ -53,6 +53,11 @@ typedef struct ColonizeReportsView {
   bool icons_ok;
   ColonizeFont title_font; /* FONTTINY.FF — report titles (golden: religious.png / labor.png). */
   bool title_font_ok;
+  /* Congress is two pages: p1 = REPORT3.PIK (this nation's own desk/study —
+   * F3's natural REPORT-N slot, unused until now); p2 reuses backgrounds[
+   * COLONIZE_REPORT_CONGRESS] (CCBKGD.PIK, the hall photo). */
+  ColonizePikImage congress_page1_bg;
+  bool congress_page1_bg_ok;
   bool loaded;
   ColonizeReportId active;
   char data_dir[512];
@@ -70,9 +75,10 @@ bool reports_id_from_fkey(int fkey_number /*1..10*/, ColonizeReportId* out_id);
 
 /*
  * Bottom-right "OK" button every F2–F9 report shares (native 320×200 coords).
- * F10 Colonization Score has no OK button (Retire/exit is separate).
+ * F10 Colonization Score has no OK button (Retire/exit is separate); neither
+ * does Congress page 2 (golden: continental_p2.png — full-bleed photo, no chrome).
  */
-bool reports_ok_button_hit(ColonizeReportId id, int mx, int my);
+bool reports_ok_button_hit(ColonizeReportId id, bool congress_page2, int mx, int my);
 
 /*
  * Live Colonization Score (manual / FAQ rules) for F10.
@@ -107,9 +113,12 @@ void reports_compute_score(
   const EuropeScreen* europe
 );
 
+/* congress_page2: true shows Continental Congress page 2 (golden:
+ * continental_p2.png); ignored for every id but COLONIZE_REPORT_CONGRESS. */
 void reports_render(
   const ColonizeReportsView* view,
   ColonizeReportId id,
+  bool congress_page2,
   const ColonizeColonyPool* colonies,
   const ColonizeUnitPool* units,
   const ColonizeWorldMap* map,

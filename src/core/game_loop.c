@@ -153,6 +153,7 @@ struct ColonizeGameState {
   bool reports_ok;
   bool in_report;
   bool report_exits_to_menu; /* Retire: close score → title menu */
+  bool congress_page2; /* Continental Congress is two pages; closing p1 shows p2 */
   ColonizeHofEntry hof_entries[COLONIZE_HOF_MAX]; /* ranked desc; session + HOF.TXT */
   int hof_count;
   bool in_hall_of_fame; /* title-menu "View Hall of Fame" screen (reports_render_hall_of_fame) */
@@ -2788,6 +2789,7 @@ static void game_open_report(ColonizeGameState* game, ColonizeReportId id) {
   game->in_report = true;
   game->report_id = id;
   game->report_exits_to_menu = false;
+  game->congress_page2 = false;
   game->in_pedia = false;
   game->in_europe = false;
   game->in_colony = false;
@@ -7281,9 +7283,15 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
 
   if (game->in_report) {
     const bool ok_clicked = input->mouse_left_clicked &&
-      reports_ok_button_hit(game->report_id, input->mouse_x, input->mouse_y);
+      reports_ok_button_hit(game->report_id, game->congress_page2, input->mouse_x, input->mouse_y);
     if (input->last_key == COLONIZE_KEY_ESCAPE || input->last_key == COLONIZE_KEY_ENTER ||
         ok_clicked) {
+      /* Continental Congress is two pages: closing page 1 (any means — Esc,
+       * click, Enter) shows page 2 instead of leaving the report. */
+      if (game->report_id == COLONIZE_REPORT_CONGRESS && !game->congress_page2) {
+        game->congress_page2 = true;
+        return true;
+      }
       game->in_report = false;
       diag_info("Left report screen.");
       if (game->report_exits_to_menu) {
@@ -9654,6 +9662,10 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
       : (game->in_pedia && game->pedia_view == PEDIA_VIEW_LIST && game->pedia_wood_ok &&
          game->pedia_wood.has_palette)
         ? game->pedia_wood.palette
+        : (game->in_report && game->reports_ok &&
+           game->report_id == COLONIZE_REPORT_CONGRESS && !game->congress_page2 &&
+           game->reports.congress_page1_bg_ok && game->reports.congress_page1_bg.has_palette)
+          ? game->reports.congress_page1_bg.palette
         : (game->in_report && game->reports_ok && game->reports.background_ok[game->report_id] &&
            game->reports.backgrounds[game->report_id].has_palette)
           ? game->reports.backgrounds[game->report_id].palette
@@ -9687,6 +9699,7 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
     reports_render(
       game->reports_ok ? &game->reports : NULL,
       game->report_id,
+      game->congress_page2,
       &game->colonies,
       game->units_ok ? &game->units : NULL,
       game->world_map_ok ? &game->world_map : NULL,

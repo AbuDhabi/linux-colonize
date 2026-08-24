@@ -141,6 +141,7 @@ void reports_free(ColonizeReportsView* view) {
   }
   ss_free(&view->icons);
   ff_free(&view->title_font);
+  pik_free(&view->congress_page1_bg);
   memset(view, 0, sizeof(*view));
 }
 
@@ -248,6 +249,18 @@ bool reports_load(ColonizeReportsView* view, const char* data_dir, char* err, si
     diag_warn("Failed to load FONTTINY.FF for reports: %s", font_err);
   }
 
+  /* Congress page 1's own background (golden: continental_p1.png) — F3's
+   * natural REPORT-N slot, orphaned until now (Congress used CCBKGD.PIK,
+   * page 2's hall photo, for both pages). */
+  char cc_p1_path[512];
+  char cc_p1_err[256];
+  if (dos_compat_normalize_asset_path(data_dir, "REPORT3.PIK", cc_p1_path, sizeof(cc_p1_path)) &&
+      pik_load(cc_p1_path, &view->congress_page1_bg, cc_p1_err, sizeof(cc_p1_err))) {
+    view->congress_page1_bg_ok = true;
+  } else {
+    diag_warn("Failed to load REPORT3.PIK for Congress page 1: %s", cc_p1_err);
+  }
+
   diag_info("Report screens loaded (%d/%d backgrounds)", ok_count, COLONIZE_REPORT_COUNT);
   return true;
 }
@@ -298,7 +311,13 @@ static void reports_render_body_start(
   int* out_y
 ) {
   memset(fb->pixels, 0, (size_t)fb->width * (size_t)fb->height);
-  if (view && view->background_ok[id]) {
+  if (id == COLONIZE_REPORT_CONGRESS) {
+    /* Page 1 uses its own REPORT3.PIK background, not CCBKGD.PIK (that's
+     * page 2's hall photo) — see reports_render_congress_page1. */
+    if (view && view->congress_page1_bg_ok) {
+      pik_blit(&view->congress_page1_bg, fb, 0, 0);
+    }
+  } else if (view && view->background_ok[id]) {
     pik_blit(&view->backgrounds[id], fb, 0, 0);
   }
 
@@ -317,8 +336,11 @@ static void reports_render_body_start(
 #define REPORTS_OK_W 30
 #define REPORTS_OK_H 14
 
-bool reports_ok_button_hit(ColonizeReportId id, int mx, int my) {
+bool reports_ok_button_hit(ColonizeReportId id, bool congress_page2, int mx, int my) {
   if (id == COLONIZE_REPORT_SCORE) {
+    return false;
+  }
+  if (id == COLONIZE_REPORT_CONGRESS && congress_page2) {
     return false;
   }
   return mx >= REPORTS_OK_X && mx < REPORTS_OK_X + REPORTS_OK_W && my >= REPORTS_OK_Y &&
@@ -396,6 +418,13 @@ static bool reports_ff_joined(int8_t status) {
   return status > 0;
 }
 
+static const char* reports_nation_adjective(int nation) {
+  if (nation < 0 || nation >= (int)COLONIZE_COL1_NATION_COUNT) {
+    return "";
+  }
+  return k_euro_short[nation];
+}
+
 static const char* reports_attitude_from_alarm(unsigned alarm) {
   /* Rough bands matching @ATTITUDE labels Content..War. */
   if (alarm <= 2) {
@@ -467,23 +496,32 @@ static void reports_draw_outlined_number(
   font_draw_text(font, fb, x, y, text, fg_color);
 }
 
-static void reports_draw_cross_counter(
+/*
+ * Shared resource-count template (colony_screen_draw_resource_count, ported
+ * standalone since reports.c has no ColonyScreenView): `amount` copies of
+ * one ICONS.SS icon, evenly spread across [x, x+w). When start-to-start
+ * spacing collapses to <=1px (icons fully overlapping) — or always_show_number
+ * is forced — the count is overlaid as a black-outlined number instead.
+ */
+static void reports_draw_icon_bar(
   const ColonizeReportsView* view,
   const ColonizeFont* font,
   ColonizeFramebuffer8* fb,
+  int icon,
   int x,
   int y,
   int w,
   int h,
-  int amount
+  int amount,
+  bool always_show_number
 ) {
   if (!view || !view->icons_ok || amount <= 0 || w <= 0 || h <= 0) {
     return;
   }
-  if (REPORTS_CROSS_ICON >= view->icons.sprite_count) {
+  if (icon < 0 || icon >= view->icons.sprite_count) {
     return;
   }
-  const ColonizeSprite* sp = &view->icons.sprites[REPORTS_CROSS_ICON];
+  const ColonizeSprite* sp = &view->icons.sprites[icon];
   if (!sp->pixels || sp->width <= 0 || sp->height <= 0) {
     return;
   }
@@ -492,23 +530,79 @@ static void reports_draw_cross_counter(
   const int iy = y + (h - ih) / 2;
   int start_step = iw;
   if (amount == 1) {
-    ss_blit_sprite(&view->icons, REPORTS_CROSS_ICON, fb, x + (w - iw) / 2, iy);
+    ss_blit_sprite(&view->icons, icon, fb, x + (w - iw) / 2, iy);
   } else if (w <= iw) {
     for (int i = 0; i < amount; ++i) {
-      ss_blit_sprite(&view->icons, REPORTS_CROSS_ICON, fb, x, iy);
+      ss_blit_sprite(&view->icons, icon, fb, x, iy);
     }
     start_step = 0;
   } else {
     const int span = w - iw;
     start_step = span / (amount - 1);
     for (int i = 0; i < amount; ++i) {
-      ss_blit_sprite(&view->icons, REPORTS_CROSS_ICON, fb, x + (i * span) / (amount - 1), iy);
+      ss_blit_sprite(&view->icons, icon, fb, x + (i * span) / (amount - 1), iy);
     }
   }
-  if (start_step <= 1 && font) {
+  if ((always_show_number || start_step <= 1) && font) {
     char num[12];
     snprintf(num, sizeof(num), "%d", amount);
     reports_draw_outlined_number(font, fb, x + 1, y + (h > 6 ? 1 : 0), num, 15);
+  }
+}
+
+/*
+ * Two-icon variant (golden: continental_p1.png rebel/tory bar — flags then
+ * crowns, back to back, stretched evenly across the shared width; no gap by
+ * construction). Mirrors colony_screen_draw_resource_count_pair.
+ */
+static void reports_draw_icon_bar_pair(
+  const ColonizeReportsView* view,
+  ColonizeFramebuffer8* fb,
+  int icon0,
+  int amount0,
+  int icon1,
+  int amount1,
+  int x,
+  int y,
+  int w,
+  int h
+) {
+  if (!view || !view->icons_ok || w <= 0 || h <= 0) {
+    return;
+  }
+  if (amount0 < 0) {
+    amount0 = 0;
+  }
+  if (amount1 < 0) {
+    amount1 = 0;
+  }
+  const int amount = amount0 + amount1;
+  if (amount <= 0) {
+    return;
+  }
+  const int first_icon = amount0 > 0 ? icon0 : icon1;
+  if (first_icon < 0 || first_icon >= view->icons.sprite_count) {
+    return;
+  }
+  const ColonizeSprite* sp = &view->icons.sprites[first_icon];
+  if (!sp->pixels || sp->width <= 0 || sp->height <= 0) {
+    return;
+  }
+  const int iw = sp->width;
+  const int ih = sp->height;
+  const int iy = y + (h - ih) / 2;
+  if (amount == 1) {
+    ss_blit_sprite(&view->icons, first_icon, fb, x + (w - iw) / 2, iy);
+  } else if (w <= iw) {
+    for (int i = 0; i < amount; ++i) {
+      ss_blit_sprite(&view->icons, (i < amount0) ? icon0 : icon1, fb, x, iy);
+    }
+  } else {
+    const int span = w - iw;
+    for (int i = 0; i < amount; ++i) {
+      const int icon = (i < amount0) ? icon0 : icon1;
+      ss_blit_sprite(&view->icons, icon, fb, x + (i * span) / (amount - 1), iy);
+    }
   }
 }
 
@@ -532,66 +626,16 @@ static void reports_render_religious(
   if (w > REPORTS_CROSS_MAX_W) {
     w = REPORTS_CROSS_MAX_W;
   }
-  reports_draw_cross_counter(
-    view, font, fb, REPORTS_CROSS_X, REPORTS_CROSS_Y, w, REPORTS_CROSS_H, (int)current
+  reports_draw_icon_bar(
+    view, font, fb, REPORTS_CROSS_ICON, REPORTS_CROSS_X, REPORTS_CROSS_Y, w, REPORTS_CROSS_H,
+    (int)current, false
   );
 }
 
-/* CCBKGD.PIK 5×5 Founding Father portrait grid (Done structural).
- * CC-xx.SS sprites are 54×125; center-cropped into 32×40 plate cells.
- * Grid: origin (10,34), text col x=168. */
-#define REPORTS_FF_GRID_COLS 5
-#define REPORTS_FF_GRID_ORIGIN_X 10
-#define REPORTS_FF_GRID_ORIGIN_Y 34
-#define REPORTS_FF_GRID_CELL_W 32
-#define REPORTS_FF_GRID_CELL_H 40
-#define REPORTS_FF_GRID_TEXT_X 168
-
-static void reports_blit_sprite_in_cell(
-  const ColonizeSpriteSheet* sheet,
-  int sprite_index,
-  ColonizeFramebuffer8* fb,
-  int cell_x,
-  int cell_y,
-  int cell_w,
-  int cell_h
-) {
-  if (!sheet || !fb || !fb->pixels || sprite_index < 0 || sprite_index >= sheet->sprite_count) {
-    return;
-  }
-  const ColonizeSprite* sprite = &sheet->sprites[sprite_index];
-  if (!sprite->pixels || sprite->width <= 0 || sprite->height <= 0) {
-    return;
-  }
-  const int sx0 = (sprite->width > cell_w) ? (sprite->width - cell_w) / 2 : 0;
-  const int sy0 = (sprite->height > cell_h) ? (sprite->height - cell_h) / 2 : 0;
-  const int dx0 = (sprite->width <= cell_w) ? (cell_w - sprite->width) / 2 : 0;
-  const int dy0 = (sprite->height <= cell_h) ? (cell_h - sprite->height) / 2 : 0;
-  const int copy_w = (sprite->width > cell_w) ? cell_w : sprite->width;
-  const int copy_h = (sprite->height > cell_h) ? cell_h : sprite->height;
-  for (int y = 0; y < copy_h; ++y) {
-    const int fy = cell_y + dy0 + y;
-    if (fy < cell_y || fy >= cell_y + cell_h || fy < 0 || fy >= fb->height) {
-      continue;
-    }
-    for (int x = 0; x < copy_w; ++x) {
-      const int fx = cell_x + dx0 + x;
-      if (fx < cell_x || fx >= cell_x + cell_w || fx < 0 || fx >= fb->width) {
-        continue;
-      }
-      const uint8_t color = sprite->pixels[(sy0 + y) * sprite->width + (sx0 + x)];
-      if (color == COLONIZE_SS_TRANSPARENT) {
-        continue;
-      }
-      fb->pixels[fy * fb->width + fx] = color;
-    }
-  }
-}
-
 /*
- * Congress FF portraits (CC-xx.SS) rarely change once loaded and this blit
- * runs from reports_render every frame the Congress report is open — cache
- * per index so the sheet is parsed from disk once, not per frame.
+ * Congress FF portraits (CC-xx.SS) rarely change once loaded and page 2 blits
+ * them every frame it's open — cache per index so each sheet is parsed from
+ * disk once, not per frame.
  */
 static const ColonizeSpriteSheet* reports_ff_portrait_sheet(const char* data_dir, int index) {
   static bool s_tried[COLONIZE_COL1_FF_COUNT];
@@ -618,175 +662,238 @@ static const ColonizeSpriteSheet* reports_ff_portrait_sheet(const char* data_dir
   return &s_sheet[index];
 }
 
-static void reports_congress_blit_portraits(
-  const char* data_dir,
-  const ColonizeCol1Save* col1,
-  int human,
-  ColonizeFramebuffer8* fb
-) {
-  if (!data_dir || !data_dir[0] || !col1 || !fb) {
-    return;
-  }
-  const int cols = REPORTS_FF_GRID_COLS;
-  const int origin_x = REPORTS_FF_GRID_ORIGIN_X;
-  const int origin_y = REPORTS_FF_GRID_ORIGIN_Y;
-  const int cell_w = REPORTS_FF_GRID_CELL_W;
-  const int cell_h = REPORTS_FF_GRID_CELL_H;
-  for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
-    const int col = i % cols;
-    const int row = i / cols;
-    const int px = origin_x + col * cell_w;
-    const int py = origin_y + row * cell_h;
-    const int8_t owner = col1->head.founding_father[i];
-    if (owner != (int8_t)human) {
-      /* Empty slot: muted frame (CCBKGD plate positions). */
-      for (int y = py + 2; y < py + cell_h - 2 && y < fb->height; ++y) {
-        for (int x = px + 2; x < px + cell_w - 2 && x < fb->width; ++x) {
-          fb->pixels[y * fb->width + x] = 8;
-        }
-      }
-      continue;
-    }
-    const ColonizeSpriteSheet* sheet = reports_ff_portrait_sheet(data_dir, i);
-    if (!sheet) {
-      continue;
-    }
-    reports_blit_sprite_in_cell(sheet, 0, fb, px, py, cell_w, cell_h);
-  }
-  /* Debating candidate: outline slot when next_founding_father is set. */
-  const int next = (int)col1->nation[human].next_founding_father;
-  if (next >= 0 && next < (int)COLONIZE_COL1_FF_COUNT) {
-    const int col = next % cols;
-    const int row = next / cols;
-    const int px = origin_x + col * cell_w;
-    const int py = origin_y + row * cell_h;
-    for (int x = px; x < px + cell_w && x < fb->width; ++x) {
-      fb->pixels[py * fb->width + x] = 149;
-      const int y2 = py + cell_h - 1;
-      if (y2 >= 0 && y2 < fb->height) {
-        fb->pixels[y2 * fb->width + x] = 149;
-      }
-    }
-    for (int y = py; y < py + cell_h && y < fb->height; ++y) {
-      fb->pixels[y * fb->width + px] = 149;
-      const int x2 = px + cell_w - 1;
-      if (x2 >= 0 && x2 < fb->width) {
-        fb->pixels[y * fb->width + x2] = 149;
-      }
-    }
-  }
-}
+/*
+ * Page 1 (golden: continental_p1.png). Native 320×200 coords, all measured
+ * off the golden — DOS's FUN_3f41_0618/06d0 (Congress F3) is unannotated
+ * asm-derived C with no meaningful names, so positions are pixel-measured
+ * rather than transcribed. FUN_3f41_0ae6's 25-slot FF-name loop *did* decode
+ * cleanly: 4 columns, col step 0x4e (78px), row step font-height+2 — used
+ * verbatim below.
+ */
+#define REPORTS_CONGRESS_BELL_ICON 62 /* ICONS.SS #62 */
+#define REPORTS_CONGRESS_FLAG_ICON 123 /* ICONS.SS #123 */
+#define REPORTS_CONGRESS_CROWN_ICON 124 /* ICONS.SS #124 */
+/* 0-based ICONS.SS index for NAMES.TXT @UNIT icon field (1-based) minus 1. */
+#define REPORTS_CONGRESS_ICON_REGULARS 125 /* @UNIT Regulars icon 126 */
+#define REPORTS_CONGRESS_ICON_CAVALRY 126 /* @UNIT Cavalry icon 127 */
+#define REPORTS_CONGRESS_ICON_ARTILLERY 9 /* @UNIT Artillery icon 10 */
+#define REPORTS_CONGRESS_ICON_MANOWAR 127 /* @UNIT Man-O-War icon 128 */
 
-static void reports_render_congress(
+#define REPORTS_CONGRESS_TEXT1_Y 13 /* "Next Continental Congress Session: (...)" */
+#define REPORTS_CONGRESS_BELLS_X 6
+#define REPORTS_CONGRESS_BELLS_Y 35
+#define REPORTS_CONGRESS_BELLS_RIGHT_MARGIN 20 /* measured; pool rarely reaches need, like crosses */
+#define REPORTS_CONGRESS_BELLS_MAX_W (320 - REPORTS_CONGRESS_BELLS_X - REPORTS_CONGRESS_BELLS_RIGHT_MARGIN)
+#define REPORTS_CONGRESS_BELLS_H 10
+
+#define REPORTS_CONGRESS_TEXT2_Y 59 /* "Rebel Sentiment: XX%  Tory Sentiment: YY%" */
+#define REPORTS_CONGRESS_SENT_X 4
+#define REPORTS_CONGRESS_SENT_Y 67
+#define REPORTS_CONGRESS_SENT_W 285 /* measured; always full (rounded rebel:tory split) */
+#define REPORTS_CONGRESS_SENT_H 9
+#define REPORTS_CONGRESS_SENT_SLOTS 50 /* rounding budget for the flag/crown split */
+
+#define REPORTS_CONGRESS_TEXT3_Y 78 /* "<Nation> Expeditionary Force:" */
+#define REPORTS_CONGRESS_FORCE_Y 102
+#define REPORTS_CONGRESS_FORCE_H 13
+/* Natural (unstretched) tally width per unit, px ×10 — measured avg ~2.2px/unit. */
+#define REPORTS_CONGRESS_FORCE_STEP_X10 22
+
+#define REPORTS_CONGRESS_FF_HEADER_Y 116 /* "Founding Fathers:" */
+#define REPORTS_CONGRESS_FF_COL_X0 8
+#define REPORTS_CONGRESS_FF_COL_STEP 78 /* FUN_3f41_0ae6: unaff_BP-0x68 += 0x4e */
+
+static void reports_render_congress_page1(
   const ColonizeReportsView* view,
   const ColonizeCol1Save* col1,
   int human,
-  const ColonizeFont* font,
+  const ColonizeFont* body_font,
   ColonizeFramebuffer8* fb,
-  int* y,
-  int step,
   char* line,
   size_t line_sz
 ) {
-  const int text_x = REPORTS_FF_GRID_TEXT_X;
-  if (view && view->data_dir[0]) {
-    reports_congress_blit_portraits(view->data_dir, col1, human, fb);
-  }
+  /* Golden text is compact (e.g. "Peter Stuyvesant" fits a 78px column) —
+   * FONTTINY, like report titles, not the FONTSMAL other reports' bodies use. */
+  const ColonizeFont* font = (view && view->title_font_ok) ? &view->title_font : body_font;
   if (!col1) {
-    reports_draw_line(font, fb, text_x, *y, "Founding Fathers (no Col1 save loaded)", 14);
-    *y += step;
-    reports_draw_line(font, fb, text_x, *y, "Members in Congress: 0", 15);
-    *y += step;
-    reports_draw_line(font, fb, text_x, *y, "Now debating: (none)", 15);
+    reports_draw_line(font, fb, 8, REPORTS_CONGRESS_TEXT1_Y, "(no Col1 save loaded)", 14);
     return;
   }
 
-  *y = 34;
   const ColonizeCol1Nation* nat = &col1->nation[human];
-  snprintf(
-    line,
-    line_sz,
-    "Year %u%s   Turn %u",
-    (unsigned)col1->head.year,
-    col1->head.autumn ? " Autumn" : " Spring",
-    (unsigned)col1->head.turn
-  );
-  reports_draw_line(font, fb, text_x, *y, line, 14);
-  *y += step;
-
-  snprintf(line, line_sz, "Tax rate: %u%%", (unsigned)nat->tax_rate);
-  reports_draw_line(font, fb, text_x, *y, line, 15);
-  *y += step;
+  const int step = reports_line_step(font);
 
   snprintf(
     line,
     line_sz,
-    "Liberty bells: %u total  (+%u last turn)",
-    (unsigned)nat->liberty_bells_total,
-    (unsigned)nat->liberty_bells_last_turn
+    "Next Continental Congress Session:  (%s)",
+    nat->next_founding_father >= 0 ? reports_ff_name(nat->next_founding_father) : "none"
   );
-  reports_draw_line(font, fb, text_x, *y, line, 15);
-  *y += step;
+  reports_draw_line(font, fb, 8, REPORTS_CONGRESS_TEXT1_Y, line, 15);
 
   {
     const unsigned pool = founding_fathers_bells_since_last_elect(human);
     const unsigned need = founding_fathers_bells_needed(col1, human);
-    snprintf(line, line_sz, "Next FF: %u / %u bells", pool, need);
-    reports_draw_line(font, fb, text_x, *y, line, 15);
-    *y += step;
+    if (need > 0) {
+      int w = (int)(((uint32_t)REPORTS_CONGRESS_BELLS_MAX_W * pool) / need);
+      if (w > REPORTS_CONGRESS_BELLS_MAX_W) {
+        w = REPORTS_CONGRESS_BELLS_MAX_W;
+      }
+      reports_draw_icon_bar(
+        view,
+        font,
+        fb,
+        REPORTS_CONGRESS_BELL_ICON,
+        REPORTS_CONGRESS_BELLS_X,
+        REPORTS_CONGRESS_BELLS_Y,
+        w,
+        REPORTS_CONGRESS_BELLS_H,
+        (int)pool,
+        true /* golden always shows the pool number, e.g. "1135" */
+      );
+    }
   }
 
-  int rebel_sum = 0;
-  int rebel_n = 0;
-  for (uint16_t i = 0; i < col1->head.colony_count; ++i) {
-    const ColonizeCol1Colony* c = &col1->colony[i];
-    if (c->nation_id != (uint8_t)human || c->population == 0) {
+  const unsigned rebel_pct = nat->rebel_sentiment > 100 ? 100 : nat->rebel_sentiment;
+  snprintf(
+    line, line_sz, "Rebel Sentiment: %u%%  Tory Sentiment: %u%%", rebel_pct, 100 - rebel_pct
+  );
+  reports_draw_line(font, fb, 8, REPORTS_CONGRESS_TEXT2_Y, line, 15);
+
+  {
+    const int flags = (int)((REPORTS_CONGRESS_SENT_SLOTS * rebel_pct + 50) / 100);
+    const int crowns = REPORTS_CONGRESS_SENT_SLOTS - flags;
+    reports_draw_icon_bar_pair(
+      view,
+      fb,
+      REPORTS_CONGRESS_FLAG_ICON,
+      flags,
+      REPORTS_CONGRESS_CROWN_ICON,
+      crowns,
+      REPORTS_CONGRESS_SENT_X,
+      REPORTS_CONGRESS_SENT_Y,
+      REPORTS_CONGRESS_SENT_W,
+      REPORTS_CONGRESS_SENT_H
+    );
+  }
+
+  snprintf(line, line_sz, "%s Expeditionary Force:", reports_nation_adjective(human));
+  reports_draw_line(font, fb, 8, REPORTS_CONGRESS_TEXT3_Y, line, 15);
+
+  {
+    /* Storage order is [regulars, dragoons, man-o-wars, artillery]; the
+     * golden displays regulars, cavalry, artillery, man-o-war. */
+    static const int kForceIndex[4] = {0, 1, 3, 2};
+    static const int kForceIcon[4] = {
+      REPORTS_CONGRESS_ICON_REGULARS,
+      REPORTS_CONGRESS_ICON_CAVALRY,
+      REPORTS_CONGRESS_ICON_ARTILLERY,
+      REPORTS_CONGRESS_ICON_MANOWAR
+    };
+    static const int kForceX[4] = {4, 128, 193, 260};
+    for (int i = 0; i < 4; ++i) {
+      const int amount = (int)col1->head.expeditionary_force[kForceIndex[i]];
+      if (amount <= 0) {
+        continue;
+      }
+      const int w = (amount * REPORTS_CONGRESS_FORCE_STEP_X10) / 10;
+      reports_draw_icon_bar(
+        view,
+        font,
+        fb,
+        kForceIcon[i],
+        kForceX[i],
+        REPORTS_CONGRESS_FORCE_Y,
+        w,
+        REPORTS_CONGRESS_FORCE_H,
+        amount,
+        true
+      );
+    }
+  }
+
+  reports_draw_line(font, fb, 8, REPORTS_CONGRESS_FF_HEADER_Y, "Founding Fathers:", 15);
+  {
+    int shown = 0;
+    int y = REPORTS_CONGRESS_FF_HEADER_Y + step;
+    for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
+      if (col1->head.founding_father[i] != (int8_t)human) {
+        continue;
+      }
+      const int col = shown % 4;
+      const int row = shown / 4;
+      reports_draw_line(
+        font,
+        fb,
+        REPORTS_CONGRESS_FF_COL_X0 + col * REPORTS_CONGRESS_FF_COL_STEP,
+        y + row * step,
+        reports_ff_name(i),
+        15
+      );
+      shown++;
+    }
+  }
+}
+
+/*
+ * Page 2 (golden: continental_p2.png) — CCBKGD.PIK hall, full-bleed group
+ * portrait, no title/text/OK chrome. Positions below are template-matched
+ * directly off the golden for the 10 Founding Fathers it shows (each CC-xx.SS
+ * blitted at native size, no cropping); the other 15 have no known position
+ * yet (no second golden to cross-reference) and are skipped rather than guessed.
+ */
+typedef struct ReportsFfPortraitSlot {
+  int8_t ff_index;
+  int16_t x;
+  int16_t y;
+} ReportsFfPortraitSlot;
+
+/*
+ * Draw order matters: sprites are photo cutouts with opaque (non-transparent)
+ * canvas margins, not clean alpha mattes, so an overlapping later sprite can
+ * blank out an earlier one even outside its "person" silhouette. Ordered
+ * back-to-front by (y + height) ascending so foreground figures (DeLaSalle,
+ * Washington, Franklin, ...) paint over the background row behind them,
+ * matching the golden's apparent layering.
+ */
+static const ReportsFfPortraitSlot k_ff_portrait_slots[] = {
+  {18, 148, 47}, /* Simon Bolivar */
+  {16, 129, 37}, /* Pocahontas */
+  {17, 147, 55}, /* Thomas Paine */
+  {2, 129, 49},  /* Peter Minuit */
+  {3, 139, 75},  /* Peter Stuyvesant */
+  {20, 138, 93}, /* William Brewster */
+  {15, 96, 56},  /* Thomas Jefferson */
+  {11, 154, 60}, /* George Washington */
+  {9, 39, 65},   /* Sieur De La Salle */
+  {19, 118, 86}  /* Benjamin Franklin */
+};
+#define REPORTS_FF_PORTRAIT_SLOT_COUNT \
+  (int)(sizeof(k_ff_portrait_slots) / sizeof(k_ff_portrait_slots[0]))
+
+static void reports_render_congress_page2(
+  const ColonizeReportsView* view,
+  const ColonizeCol1Save* col1,
+  int human,
+  ColonizeFramebuffer8* fb
+) {
+  if (view && view->background_ok[COLONIZE_REPORT_CONGRESS]) {
+    pik_blit(&view->backgrounds[COLONIZE_REPORT_CONGRESS], fb, 0, 0);
+  }
+  if (!col1 || !view || !view->data_dir[0]) {
+    return;
+  }
+  for (int i = 0; i < REPORTS_FF_PORTRAIT_SLOT_COUNT; ++i) {
+    const ReportsFfPortraitSlot* slot = &k_ff_portrait_slots[i];
+    if (col1->head.founding_father[slot->ff_index] != (int8_t)human) {
       continue;
     }
-    rebel_sum += reports_colony_rebel_pct(c);
-    rebel_n++;
-  }
-  if (rebel_n > 0) {
-    snprintf(line, line_sz, "Rebel sentiment (avg): %d%%", rebel_sum / rebel_n);
-  } else {
-    snprintf(line, line_sz, "Rebel sentiment: n/a (no colonies)");
-  }
-  reports_draw_line(font, fb, text_x, *y, line, 15);
-  *y += step;
-
-  if (nat->next_founding_father >= 0) {
-    snprintf(line, line_sz, "Now debating: %s", reports_ff_name(nat->next_founding_father));
-  } else {
-    snprintf(line, line_sz, "Now debating: (none)");
-  }
-  reports_draw_line(font, fb, text_x, *y, line, 15);
-  *y += step;
-
-  int members = 0;
-  for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
-    if (reports_ff_joined(col1->head.founding_father[i])) {
-      members++;
+    const ColonizeSpriteSheet* sheet = reports_ff_portrait_sheet(view->data_dir, slot->ff_index);
+    if (!sheet) {
+      continue;
     }
+    ss_blit_sprite(sheet, 0, fb, slot->x, slot->y);
   }
-  snprintf(line, line_sz, "Founding Fathers in Congress: %d", members);
-  reports_draw_line(font, fb, text_x, *y, line, 15);
-  *y += step;
-
-  if (members == 0) {
-    reports_draw_line(font, fb, text_x, *y, "(none yet — produce liberty bells)", 14);
-    *y += step;
-  }
-
-  snprintf(
-    line,
-    line_sz,
-    "Expeditionary Force: %u reg  %u drag  %u MoW  %u art",
-    (unsigned)col1->head.expeditionary_force[0],
-    (unsigned)col1->head.expeditionary_force[1],
-    (unsigned)col1->head.expeditionary_force[2],
-    (unsigned)col1->head.expeditionary_force[3]
-  );
-  reports_draw_line(font, fb, text_x, *y, line, 15);
 }
 
 static void reports_render_labor(
@@ -1855,6 +1962,7 @@ void reports_render_hall_of_fame(
 void reports_render(
   const ColonizeReportsView* view,
   ColonizeReportId id,
+  bool congress_page2,
   const ColonizeColonyPool* colonies,
   const ColonizeUnitPool* units,
   const ColonizeWorldMap* map,
@@ -1878,6 +1986,13 @@ void reports_render(
   }
 
   const int human = reports_clamp_nation(human_nation);
+
+  /* Congress page 2: full-bleed hall photo, no title/text/OK chrome at all. */
+  if (id == COLONIZE_REPORT_CONGRESS && congress_page2) {
+    reports_render_congress_page2(view, col1, human, framebuffer);
+    return;
+  }
+
   int y = 0;
   const int step = reports_line_step(font);
   char line[160];
@@ -1888,7 +2003,7 @@ void reports_render(
       reports_render_religious(view, col1, human, font, framebuffer);
       break;
     case COLONIZE_REPORT_CONGRESS:
-      reports_render_congress(view, col1, human, font, framebuffer, &y, step, line, sizeof(line));
+      reports_render_congress_page1(view, col1, human, font, framebuffer, line, sizeof(line));
       break;
     case COLONIZE_REPORT_LABOR:
       reports_render_labor(
