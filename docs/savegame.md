@@ -201,15 +201,29 @@ caravel / peeled transport_chain (pre-fix: ship `profession=28`,
 ### Verified fixtures
 
 Codec byte-identical round-trip + import via `col1_bridge_apply`:
-`original_saves/COLONY00.SAV`, `COLONY01.SAV` only.
+`original_saves/COLONY00.SAV`, `COLONY01.SAV`, all of
+`valid-lategame-saves/COLONY{00–08,10}.SAV`, and AI `TURN1`–`TURN7` — every
+Col1 `.SAV` fixture in the repo (12 lategame/TURN fixtures promoted to
+`byte_identical=true` in `unit_col1_save`'s `k_fixtures` table).
 
-**Phase 5 codec drift (read→write, 2026-08-22):** lategame
-`valid-lategame-saves/COLONY{00–08,10}.SAV` and AI `TURN1`/`TURN5`–`TURN7` are
-**not** byte-identical on re-encode. `unit_col1_save` prints first diff offset
-via `report_codec_roundtrip_diff` (smoke + mapping checks still run). Early
-starters unchanged. Lategame diffs cluster in map/tail (offset ~10k+); TURN
-fixtures differ from ~2k (units/colony band). No fixture flipped to
-`byte_identical=true` until root cause is proven per field.
+**Phase 5 codec drift — resolved (2026-08-24, W1.5).** A 2026-08-22 pass
+found lategame `valid-lategame-saves/COLONY{00–08,10}.SAV` and AI
+`TURN1`/`TURN5`–`TURN7` not byte-identical on re-encode and documented it
+here as open drift. Unnoticed at the time: the *same-day* commit `753662d`
+"Fix FF + I work" (2026-08-22, 42 minutes after the drift note was written)
+had already fixed it — `founding_fathers_stash_pools_into_col1`/
+`_restore_col1_last_turn` gained a `saved_pad21` parameter that stashes and
+restores nation `unknown21_pad` (the `FF_POOL_STASH_MARKER` byte) alongside
+`liberty_bells_last_turn`; before that fix, a save write that stashed the FF
+pool into `liberty_bells_last_turn` left `unknown21_pad` un-restored, so a
+second write of the same in-memory save produced different bytes there.
+Only the doc note calling it "drift" survived uncorrected. W1.5 re-verified
+with a full-range byte diff (not just first-offset) across all 19 fixtures
+(2 starters + 10 lategame + 7 TURN) plus `mapgen/SEED100.SAV` and
+`tests-save-misc/unit flags error.sav`: zero differing bytes anywhere.
+`unit_col1_save`'s `report_codec_roundtrip_diff` was also upgraded
+same-pass to print every contiguous diff range (was: first byte only) —
+kept as the tool for any future fixture that does regress.
 
 Mapped-field checks on starters + lategame (occupancy, `colony_counts` vs live
 colonies, warehouse/capitol/depletion/timer bounds, `tiles[8..19]==0xff`,

@@ -1028,6 +1028,37 @@ item's own 2026-08-24 entry for the full derivation. Ported, real
   open** — real next step if resumed: `FUN_1000_1e7b`'s true semantics,
   and finding what populates the `-0x790a`/`-0x7a18` walkability grids
   (likely inside `0f74` itself, not chased this session).
+  **2026-08-24, third pass — both blockers substantially resolved via
+  static tooling (force-clear/XREF/custom operand-scan, no live capture
+  needed); one correction to the prior pass's own finding; still no `src/`
+  change.** (1) `FUN_1000_1e7b` hands back nothing real — confirmed `void`
+  at its own address (a critical-section guard around `FUN_1000_40a2`/
+  `FUN_1000_1d4f`, unrelated to pathfinding), and, **correcting** the prior
+  pass: the "`1000:a46e` Chebyshev-8-gated shortcut... calls `0015bc(0)`"
+  citation was a stale-decompile misattribution — force-redecompiling
+  `1000:a46e` fresh shows a trivial `FUN_1000_1e7b();FUN_0000_084a();`
+  relay, and `0015bc`'s real 4 XREF callers don't include it. The *real*
+  Chebyshev-8 logic is genuine DOS code, just living elsewhere: an
+  uncatalogued function inside `OVL20_L0000` itself (~offset `0x8f0`-`0x9ab`,
+  one of `0015bc`'s real callers) whose own entry/caller aren't pinned down
+  yet. (2) The "`-0x790a`/`-0x7a18` stack-relative" grids are actually
+  fixed `DS:0x86f6`/`DS:0x85e8` absolute tables (Ghidra mis-rendered a
+  `[BX+SI+disp]` indexed read as a bogus giant-negative BP-relative local).
+  A full displacement-operand sweep of the resident block plus all 31
+  overlay blocks found their one populator: `FUN_OVL21_L0040__0007ef`
+  (DOS segment ≈`67f4`, not previously catalogued) — `memset`s both via
+  the known `FUN_0000_df7e`, then a step-4 row/col/direction loop fills
+  them (explains the previously-unplaced "×4-scaled quantities" note), and
+  its tail also refreshes two unrelated per-nation aggregate tables —
+  reads as a broader AI turn-start cache refresh, not pathfinding-only.
+  Its own caller is not yet found (0 XREFs) — needed to know whether it
+  runs once per AI turn or once per pathfind call before this could be
+  safely modeled in Linux. **Row stays open** — both remaining sub-items
+  (the shortcut function's own entry/caller; `0007ef`'s own caller) are
+  static-analysis questions, not live-capture ones. No `src/` change (the
+  `a46e` correction doesn't touch any shipped code). `ctest` not re-run
+  (doc-only pass, zero `src/` touched). Full trace: `euro_unit_act.md`'s
+  2026-08-24 third-pass update.
 
 - [x] **T1.9 — Indian mid-game quiet scoring (goods/missions/capital
   pull) formula mapping.** R2 used to flag this as blocked on "a

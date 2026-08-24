@@ -165,7 +165,7 @@ Finish a campaign: FF leftovers, king/REF, win/lose/retire.
 - **10f0** — landing scorer, per-call caps, Veteran `0x15` — **Done** Phase 5; foreign MoW ship **PARK**
 - **65dd LCR** — decomp case table documented; WoI case-1→2 redirect + case5 latch **Done**; full weight reroll loops **PARK**
 - **Year-end D** — `rebel_sentiment` when set, else `ai_king_sol_percent`; continent table at DOS `−0x6bf0` **PARK**
-- **Lategame codec** — drift triaged (`unit_col1_save` diff reporter); early `COLONY00/01` byte-identical; lategame/TURN not yet
+- **Lategame codec** — **Done** (W1.5, 2026-08-24): all Col1 `.SAV` fixtures (starters + lategame + `TURN`) byte-identical on re-encode; the "not yet" here was a stale doc note — fixed same-day it was written (`753662d`, 2026-08-22), just never updated. See [save_format_map.md](save_format_map.md) / [savegame.md](savegame.md) Phase 5
 - Bell-pool + bridge load + F3 Congress structural — **Done** (Phase 4)
 - WoI bell pool → intervention/REF (`4345_0a22` wartime branch) — **Done** (2026-08-22)
 - Europe closed during WoI; `game_options.woi` authoritative — **Done** (2026-08-22)
