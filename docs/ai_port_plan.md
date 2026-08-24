@@ -21,6 +21,12 @@ reachable once better static tooling (`tools/rtlink_overlay_extract.py`,
 properly. Re-check that before trusting an old "blocked" verdict at face
 value — but don't rabbit-hole re-litigating closed items either.
 
+
+> **2026-08-24 — track status: DEFERRED.** Project goal is now playability
+> ([port_plan.md](port_plan.md) P1–P11); this queue is deferred phase D1/D2
+> there. Work it only when a P-track needs a minimum-thin unblock, or the
+> user asks for AI work explicitly.
+
 ## How an agent should use this file
 
 1. Read this file **and** [ai_transcription.md](ai_transcription.md) first

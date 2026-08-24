@@ -1,49 +1,401 @@
-# Whole-Project Port Plan — Sequential Work Queue
+# Whole-Project Port Plan — Playability-First Work Queue
 
-A living, ordered queue for finishing the **entire** Linux Colonization port —
-the cross-subsystem companion to [ai_port_plan.md](ai_port_plan.md) (which
-stays the authoritative queue for AI transcription work and is *referenced*
-from here, not duplicated). This file owns **whole-project sequencing**: which
-non-AI (or cross-cutting) item an agent should pick up next and why.
+**Reframed 2026-08-24.** The project goal for this phase is **playability**: a
+human can start a game, build an economy, trade with Europe, deal with the
+natives, declare independence, fight the War of Independence and win — with
+the UI, reports, popups and music good enough that none of it feels like a
+placeholder. DOS-exact rival AI, 1:1 Indian AI, seed determinism, pixel-exact
+art and full-fidelity music are **explicitly deferred** (see "Deferred
+phases" below). The AI queue in [ai_port_plan.md](ai_port_plan.md) stays the
+authoritative queue for AI transcription, but it is now a **deferred track**,
+not a peer of this file's Tier 1.
 
-It does not own status detail. Owners:
+Status detail still lives with its owners:
 
 | Detail | Owner |
 |--------|-------|
 | Phase order / exit criteria | [roadmap.md](roadmap.md) |
 | Feature Done/Partial/Missing | [manual_gap.md](manual_gap.md) |
-| AI FUN inventory + fidelity claims | [ai_transcription.md](ai_transcription.md) |
-| AI sequenced queue | [ai_port_plan.md](ai_port_plan.md) |
-| Unresolved-meaning fields/functions | [mysteries_catalog.md](mysteries_catalog.md) |
+| Popup inventory / authenticity | [popups.md](popups.md), [popup_audit.md](popup_audit.md) |
+| Combat mechanics | [combat.md](combat.md) |
+| SoL / independence | [sons_of_liberty.md](sons_of_liberty.md) |
+| Indians | [indians.md](indians.md) |
+| Production formulas | [building_production.md](building_production.md), [terrain_yields.md](terrain_yields.md) |
+| Music / sound | [assets.md](assets.md) "Music / sound" |
+| AI FUN inventory + sequenced queue | [ai_transcription.md](ai_transcription.md), [ai_port_plan.md](ai_port_plan.md) |
 | Architecture constraints | [architecture.md](architecture.md) |
 | Fidelity bar / conflict order | [project_goals.md](project_goals.md) |
 
 ## How an agent should use this file
 
-Same contract as `ai_port_plan.md` (read its "How an agent should use this
-file" + "Method notes" sections — they apply verbatim here, including: read
-raw decomp before trusting summaries; check `address_mapping.csv` /
-`viceroy_globals.h` / existing `dosbox-x-dumps/*` before filing anything as
-live-capture-blocked; never invent a constant; never `git commit`/`push`;
-run **full** `ctest` before calling anything done; update the owning status
-doc when a slice lands).
+Same method contract as `ai_port_plan.md`'s "How an agent should use this
+file" + "Method notes" (read raw decomp before trusting summaries; check
+`address_mapping.csv` / `viceroy_globals.h` / `dosbox-x-dumps/*` before filing
+anything as live-capture-blocked; never invent a constant; never `git commit`
+/ `push`; run **full** `ctest` before calling anything done; update the owning
+status doc when a slice lands).
 
 1. Read this file, [roadmap.md](roadmap.md), and the owning doc of whatever
    you touch (CLAUDE.md rule 1).
-2. Default rule: **if the AI queue has open Tier-1 work, that track and this
-   file's Tier 1 are equal-priority peers** — pick whichever the user asked
-   about, or whichever unblocks a roadmap phase exit criterion. AI items are
-   never worked from this file directly; go through `ai_port_plan.md`.
-3. Tier numbering mirrors `ai_port_plan.md`: Tier 1 fully agent-autonomous,
-   Tier 2 verification legwork, Tier 3 user-confirm switch flips, Tier 4
-   needs the user's live DOSBox-X session, Tier 5 polish (last, per
-   [project_goals.md](project_goals.md) acceptance order).
-4. Check items off in place with a one-line dated result; add new discoveries
-   to the tier matching their actual blocker.
+2. Work the **playability tracks P1–P11** in the order below unless the user
+   points at a specific one. Within a track, the "Open" bullets are ordered.
+3. Each bullet carries a gate tag:
+   - **[auto]** — agent-autonomous (static RE / port / tests).
+   - **[user]** — needs the user's eyes or decision (UI look, behavior
+     choice, anything that changes default player-facing behavior). Prepare
+     the work, then stop and ask.
+   - **[live]** — needs the user's live DOSBox-X session. File it, do not
+     block on it; try `dosbox-x-dumps/*` byte-pattern search first.
+4. **Deferred** items are not worked from this file. If a playability track
+   is blocked by a deferred item, do the *minimum* thin port that unblocks
+   playability, mark it thin in the owning doc, and move on.
+5. Check items off in place with a one-line dated result; keep history.
+
+### Fidelity bar for this phase
+
+"Playable" ≠ "byte-exact". For every track below, the bar is:
+- Uses real `GAME.TXT` / `NAMES.TXT` / `LABELS.TXT` strings where DOS does
+  (no invented dialog bodies — [popup_audit.md](popup_audit.md) rules apply).
+- Formulas match DOS where the decomp is already read; where it is not,
+  the manual's documented behavior is acceptable **for now** with a PARK
+  comment naming the DOS function to revisit.
+- Never regress Col1 save interop (P10) — every slice runs
+  `unit_col1_save` and the `.SAV` fixture round-trips.
 
 ---
 
-## Tier 1 — Static RE + port (fully agent-autonomous)
+## Playability tracks (priority order)
+
+### P1 — UI correctness (player-guided)
+
+**Now:** map/colony/Europe screens, menus, panel, keyboard model all
+structurally in; many details are "Done thin" against screenshots rather
+than against the user's play experience.
+
+**How to work:** this track is **[user]**-driven by design. The user plays,
+reports what is wrong or missing, and the agent fixes. Agents should not
+self-select UI polish here; they should keep a running checklist in this
+section from the user's feedback.
+
+- [ ] **P1.1 [user]** Establish a UI feedback checklist (screen → issue →
+  fix). Seed it from the user's first play session. Append below as items
+  arrive.
+- [ ] **P1.2 [auto]** Before each user session: build, run a
+  new-game→colony→Europe→save smoke by hand (`run` skill), fix anything
+  that crashes or obviously misrenders, so the user's time goes to
+  judgement calls not crashes.
+- [ ] **P1.3 [user]** Colony screen: confirm drag/assign, building
+  click, warehouse↔ship, production preview numbers, and the "People"
+  strip all read as DOS does at a glance.
+- [ ] **P1.4 [user]** Europe screen: confirm dock/harbor/market interactions,
+  recruit/train/purchase menus, tax/boycott chrome.
+- [ ] **P1.5 [user]** Map/panel: unit chrome, orders letters, minimap,
+  status line, F-key model, end-turn flow, stack picker.
+
+### P2 — Report screens (F1–F10 + Hall of Fame)
+
+**Now:** [`reports.c`](../src/core/reports.c) renders every report as
+flat text lines ("Done" in `manual_gap.md` only in the sense that each
+F-key opens *something*). Two reports carry a literal "(Click on item to
+zoom — not wired)". No report uses DOS layout, columns, icons, or the
+`LABELS.TXT` headings beyond HoF.
+
+**Target:** each report matches the DOS screen in content, column layout
+and interaction (scroll, click-to-zoom to colony / unit where DOS does),
+using `LABELS.TXT` strings and existing sprite sheets. Pixel-exact chrome
+stays deferred (D4).
+
+- [ ] **P2.1 [auto]** RE the DOS report renderers: locate the per-report
+  functions (F1 Religious … F10 Score) in `viceroy_unpacked.c` /
+  `FUNCTION_CATALOG.md`, record for each: data source, column set,
+  ordering, scroll model, click targets, strings used. Write
+  `docs/reports.md` as the owner doc (layout tables + FUN map).
+- [ ] **P2.2 [auto]** Shared report scaffolding: heading from
+  `LABELS.TXT`, column helper, scroll, click-to-zoom plumbing into
+  `game_loop` (colony screen / center unit).
+- [ ] **P2.3 [auto]** F1 Religious Advisor (crosses, immigration, recruit
+  pool) to DOS layout.
+- [ ] **P2.4 [auto]** F2 Continental Congress / F3 as DOS splits them
+  (bells, rebels, FF list) — F3 portrait grid already structural; keep the
+  portraits, fix the stats column.
+- [ ] **P2.5 [auto]** F4 Labor Advisor: profession × colony matrix,
+  click-to-zoom.
+- [ ] **P2.6 [auto]** F5 Economic Advisor: treasury, tax, market bid/ask
+  table, boycotts, trade ledger.
+- [ ] **P2.7 [auto]** F6 Colony Advisor: per-colony warehouse/status rows
+  incl. SoL %, buildings-in-progress, click-to-zoom.
+- [ ] **P2.8 [auto]** F7 Naval Advisor: ship rows with cargo icons,
+  location/destination.
+- [ ] **P2.9 [auto]** F8 Foreign Affairs: rival strength table (de Witt
+  gating), war/peace status.
+- [ ] **P2.10 [auto]** F9 Indian Advisor: tribes, attitude, missions.
+- [ ] **P2.11 [auto]** F10 Score: DOS score table layout; retire path.
+- [ ] **P2.12 [user]** Review pass with the user on each report once
+  P2.3–P2.11 land.
+
+### P3 — Passable music
+
+**Now:** `GSOUND.COL` General MIDI songs decoded and played through the
+port's own sequencer + FluidSynth (`sound.c`, `pick_music.c`); Pick Music,
+Sound Options, BGM/event ids, situational Military sting all in. "Passable"
+here means: tracks play on the right cues, loop cleanly, don't glitch, and a
+default SoundFont path works out of the box.
+
+- [ ] **P3.1 [auto]** Audit cue coverage: every DOS BGM/event id push site
+  (`FUN_12d8_000e` callers, tables `0x2A6E` / `0x2AC4`) vs port call sites.
+  List missing cues (colony enter/leave, Europe enter, contact, combat
+  win/lose, declare, king audience, year-end, endgame).
+- [ ] **P3.2 [auto]** Wire the missing cues found in P3.1.
+- [ ] **P3.3 [auto]** Playback robustness: loop points, tempo/timing
+  drift, note-off leaks, track change without pops, `--nosound` path.
+- [ ] **P3.4 [auto]** SoundFont discovery: sane default search order +
+  clear error when none found; document in README.
+- [ ] **P3.5 [user]** Listen test with the user on a handful of tracks vs
+  DOSBox reference. Anything "sounds wrong but recognizable" is D5, not
+  here.
+
+### P4 — Player colony production, complete
+
+**Now:** economy loop runs end to end; expert bonuses, SoL/Tory modifier,
+spoilage, hidden-resource discovery, construction and manufacturing chain
+are in. Formula fidelity is the gap: manufacturing tier rates, class scale,
+Town Hall L2/L3 tile rings, school/college/university training, Custom
+House, horse breeding, food→colonist growth details.
+
+- [ ] **P4.1 [auto]** Manufacturing tier rates + class scale against decomp
+  ([building_production.md](building_production.md) open items). Golden
+  against `golden_colony_prod01/02` once `COLONIZE/` assets are present
+  in the worktree (currently missing → both goldens fail at `NAMES.TXT`).
+- [ ] **P4.2 [auto]** Town Hall L2/L3 outer-ring tiles (was W3.3): needs a
+  `colony.h` layout change — save-bridge-adjacent, so confirm layout with
+  the user **[user]** before touching, then port.
+- [ ] **P4.3 [auto]** Training (schoolhouse/college/university): teacher
+  assignment, turns-to-train, `@NOTEACHER`/`@TRAINFAIL*` popups full.
+- [ ] **P4.4 [auto]** Custom House (Stuyvesant): auto-sell at EOT with
+  boycott + WoI rules.
+- [ ] **P4.5 [auto]** Horses: breeding formula, stable, food interplay.
+- [ ] **P4.6 [auto]** Food surplus → new colonist at 200, starvation
+  warnings/deaths, `@STARVE*` full path.
+- [ ] **P4.7 [auto]** Warehouse/Warehouse Expansion caps + `@WAREHOUSEFULL`
+  / `@SPOIL*` exact thresholds.
+- [ ] **P4.8 [auto]** Building construction: hammers/tools consumption,
+  `@CARGOREADY*`, "nothing to build" and prerequisite refusals from
+  `GAME.TXT`.
+- [ ] **P4.9 [user]** Colonist auto-assign on join (`FUN_15eb_28c8`, W1.7
+  structural port exists + golden): wire for the **player** colony join
+  path — changes default behavior, confirm with user.
+- [ ] **P4.10 [auto]** Colony production preview matches actual EOT result
+  (regression test: preview == turn delta for a fixture colony).
+
+### P5 — War of Independence: declarable, fightable, winnable
+
+**Now:** declare (menu + auto) with SoL ≥ 50 gate, `@INDEPENDENCE` letter,
+Europe closed post-declare, bell pool → intervention, REF wave/landing
+scorer, merc offer, Continental Army muster, win/lose latches — all
+"structural" or "thin". Combat: land/naval engage, best defender, fort
+tiers, promote/demote/capture, plunder, coastal fort fire, Combat Analysis
+— playable bar Done. Gaps are depth and the REF's own campaign behavior.
+
+- [ ] **P5.1 [auto]** REF campaign loop: turn-by-turn REF behavior after
+  landing (target choice, siege, re-embark, reinforcement waves from
+  `backup_force`), king's replies. Port from `43f7`/`4345` bodies to the
+  point where a REF actually prosecutes a war against the player, not
+  just lands once.
+- [ ] **P5.2 [auto]** Win condition: exact DOS rule (REF land force
+  destroyed / % of REF committed and beaten / turn cap) and the
+  `@INDEPENDENCEWON`-class endgame popups + score hand-off. Lose
+  condition: colonies captured threshold / all-lost.
+- [ ] **P5.3 [auto]** Combat depth needed for a fair WoI: ambush bonus,
+  artillery in the open / in colony, veteran status, Continental
+  Army/Cavalry types, REF regulars/cavalry/artillery strengths and
+  bonuses, Man-O-War vs Frigate/Privateer, bombard. Cross-check
+  [combat.md](combat.md) status matrix; deep `−0x6790` AI scoring stays D1.
+- [ ] **P5.4 [auto]** Colony capture/recapture mechanics during WoI
+  (Tory/rebel population effects, `@CAPTURED*`, fort damage), plus the
+  undefended-colony token militia (was W1.8, `units_try_capture_foreign_colony`).
+- [ ] **P5.5 [auto]** Foreign intervention force: arrival, control
+  (player-controlled per DOS), Man-O-War spawn placement (was W4.2 —
+  attempt static first, **[live]** fallback).
+- [ ] **P5.6 [auto]** Post-declare economy rules: no Europe, Custom House
+  continues, tax removed, bells → Continental Army promotions, SoL
+  combat support % (already wired — verify).
+- [ ] **P5.7 [user]** Full playthrough test with the user: declare on a
+  lategame fixture (`valid-lategame-saves/COLONY*`), fight to a win.
+  Fixture-driven `unit_ai_king` scenarios stay the regression net.
+- [ ] **P5.8 [auto]** `unit_ai_king` first-failure-blocks-suite: fix the
+  "multi-unload fortify count" failure so the ~204 downstream WoI checks
+  actually run (was W2.2 residue).
+
+### P6 — Player ↔ Europe trade, complete
+
+**Now:** sail/harbor/buy/sell/recruit/hire/train/purchase/equip Done;
+volume-price T0 (`FUN_38fd_0058` ±1 bids) Done thin; boycotts enforced on
+the Europe screen; tax audience Done; price change notices are status
+lines.
+
+- [ ] **P6.1 [auto]** Price model to DOS: `price_group_state`, EOT
+  attrition, colony production feedback, buy/sell volume thresholds per
+  commodity, `@PRICEUP`/`@PRICEDOWN` as real popups where DOS pops them.
+- [ ] **P6.2 [auto]** Tax raise events: full `@KINGTAX` cadence formula
+  (trigger, amount, cap), `@TEAPARTY` boycott of that good, boycott lift
+  (Fugger / pay-arrears `@BOYCOTT*` flow).
+- [ ] **P6.3 [auto]** Sell/buy edge cases: partial holds, selling into a
+  boycott, buying with insufficient gold (`@NOGOLD*`), 100-unit lots,
+  tax applied to sales only.
+- [ ] **P6.4 [auto]** Equip/unequip in Europe (muskets/horses/tools
+  pricing via market, missionary bless cost) and the dock-order menu
+  completeness.
+- [ ] **P6.5 [auto]** Trade routes with Europe as an endpoint (`TRADE`
+  editor already Done structural — verify Europe stops, wagon/ship
+  auto-buy/sell amounts).
+- [ ] **P6.6 [user]** Europe screen behavior review with the user.
+
+### P7 — Rumours and treasure
+
+**Now:** `units_resolve_lcr_rumour` thin transcription of `FUN_65dd_0004`
+(case table documented, WoI case-1→2 redirect + case-5 latch Done, weight
+reroll loops PARK); treasure train spawn/tick/cash, Cortes conquest
+treasure, king's galleon transport with Cortes free, ransom on capture.
+KINGGALLEON2 (non-Cortes galleon share string) PARK.
+
+- [ ] **P7.1 [auto]** LCR outcome weights + reroll loops from `65dd`
+  (difficulty, de Soto, unit type Scout vs other, already-explored
+  latch), so outcome frequencies match DOS.
+- [ ] **P7.2 [auto]** Each LCR outcome fully applied: Fountain of Youth
+  (docks immigrant pick popup), Cibola/small treasure gold amounts by
+  difficulty, burial mounds anger + `@SCREWED`, survivors join
+  (colonist/unit spawn), unit vanishes, `@LOSTCITY*`/`@BURIAL*` bodies.
+- [ ] **P7.3 [auto]** Treasure train: move rules (1 MP, no boarding
+  except Galleon), cash-in at coastal colony w/ Galleon absent →
+  king's offer (`@KINGGALLEON1`, share % by difficulty), Cortes free,
+  transport by own Galleon → Europe cash at full value; WoI behavior.
+- [ ] **P7.4 [auto]** KINGGALLEON2 re-attempt with the narrower `38fd`
+  overlay hint from `ai_port_plan.md` T1.13 — if still negative, ship the
+  manual's documented share and PARK the string.
+- [ ] **P7.5 [auto]** Rumour tile clearing + Col1 `path`/`mask` bits so
+  DOS-loaded saves and port-explored rumours agree (P10 tie-in).
+
+### P8 — Basic Indian interactions (teach, alarm, gifts, raids)
+
+**Now:** structural contact/meet/teach/gift/demand/convert/raid
+(`ai_contact.c`), alarm bookkeeping, encroachment, missions, Pocahontas.
+Deep `2820` (village trade/haggle) and `4528` (deep settlement battle) PARK.
+**Village trade is deferred (D2)** — do not open `2820`.
+
+- [ ] **P8.1 [auto]** Teach: one-shot per village, skill by village type
+  (`@LEARN*` full set incl. `@LEARNCRIMINAL`/`@LEARNALREADY`), Scout →
+  Seasoned, expert refuses, alarm-band refusals — finish the
+  "MissingWire" rows in [popup_audit.md](popup_audit.md).
+- [ ] **P8.2 [auto]** Alarm model for the player: per-village + tribe
+  alarm accrual from proximity/land use/missions/combat, decay, thresholds
+  for attitude words in F9 and `@INDIANCOMMENT`/`HELLO*` bands, Pocahontas
+  halving — from `FUN_4d56_152e` (already ported) + the reader side.
+- [ ] **P8.3 [auto]** Gifts: Small/Large/Generous amounts and alarm effect,
+  gift-of-goods from wagon/ship hold (already thin), tribute demand outcomes.
+- [ ] **P8.4 [auto]** Raids on player colonies: trigger (alarm band +
+  proximity), target pick, outcome table (`@RAID*`: burn building, steal
+  goods, damage ship, kill colonist, plunder gold), stockade/soldier
+  defense, `@RAIDWIN*` — thin port of the `4528` raid *outcome* path only,
+  not its deep AI.
+- [ ] **P8.5 [auto]** Land purchase / encroachment CHOICE (`@INDIANLAND*`
+  bribe / take / leave, Minuit free) — currently thin OK/status.
+- [ ] **P8.6 [auto]** Chief portraits on meet (`IND*.SS` shipped,
+  unloaded) — cheap and visible; layout exactness is D4.
+- [ ] **P8.7 [user]** Contact flow review with the user on a fresh game.
+
+### P9 — Founding Father effects (non-deferred ones)
+
+**Now:** election/debate/pool Done; effects wired for Bolivar, Brebeuf,
+Brewster, Cortes, de Soto, de Witt, Drake, Franklin, Hudson, Jefferson,
+Paine, Penn, Pocahontas, Revere, Sepulveda, Washington, Las Casas
+(assimilate), Minuit/Smith/Stuyvesant referenced from `colony.c`/`ai_euro.c`
+(verify depth). Not found outside `founding_fathers.c`/`reports.c`:
+**Fugger, Coronado, La Salle, Magellan (turn.c only), Jones (ai_ only)**.
+
+- [ ] **P9.1 [auto]** Write a per-FF status table into a new
+  `docs/founding_fathers.md` (effect, DOS FUN, port symbol, test) — it
+  does not exist today; `fandom_col1994.md` is Tier-3 evidence only.
+- [ ] **P9.2 [auto]** Port missing/thin player-facing effects: Fugger
+  (lift all boycotts), Coronado (reveal colonies + radius), La Salle
+  (auto-Stockade at pop 3, existing + future), Magellan (+1 naval MP,
+  west-edge sail time), John Paul Jones (free Frigate for the **player**),
+  Adam Smith (factory tier 1.5× — verify wired in production, not just
+  build gating), Stuyvesant (Custom House build gate + P4.4), Minuit
+  (Indian land free — with P8.5).
+- [ ] **P9.3 [auto]** Verify each wired effect with a unit test if none
+  exists (`test_founding_fathers.c` covers a subset).
+- [ ] **P9.4 [auto]** FF election chrome: `@WHICHFREEDOM` / `@FREEDOM`
+  bodies already authentic; add the elect-effect one-liners DOS shows
+  (e.g. Coronado reveal, Jones frigate arrival) where `GAME.TXT` has them.
+- **Deferred** in this track: effects that only matter for rival AI
+  behavior parity (D1) and KINGGALLEON2 string (P7.4 handles the
+  gameplay).
+
+### P10 — Mapgen + DOS save interop: keep green
+
+**Now:** Col1 save/load byte-identical on all 19 `.SAV` fixtures (W1.5
+closed); mapgen matches MAPEDIT for terrain/resources/rumours; `.MP` load
+Done.
+
+- [ ] **P10.1 [auto]** Every slice in P1–P9 that touches `col1_save.h`,
+  `col1_bridge.c`, or colony/unit layout runs `unit_col1_save` strict
+  round-trip + a load-in-DOS spot check of at least one port-written save
+  **[user]** when the change is bridge-adjacent (P4.2, P7.5).
+- [ ] **P10.2 [auto]** Add a CI-style script `tools/check_save_interop.sh`
+  (or ctest label) that runs only the interop suite fast, for use before
+  every user handoff.
+- [ ] **P10.3 [auto]** Legacy COLZ save path quarantine/removal (was W3.4)
+  — **[user]** confirm timing; reduces surface that can drift.
+
+### P11 — Popups: right text, options, layout
+
+**Now:** ~80% of player-facing modals are "Authentic" per
+[popup_audit.md](popup_audit.md); remaining MissingWire/Partial rows are
+mostly in contact (`@LEARN*`, `@RAID*`, `@CHIEF*`), Europe
+(`@PRICEUP/DOWN`), order gates (`@NEEDTOOLS`…), FA `3f41` thin, boycott
+`DIPLO_BOYCOTT`, and "Invented" title strings in save/load.
+
+- [ ] **P11.1 [auto]** Close every **MissingWire** row in
+  `popup_audit.md` (wire the real `@SECTION` body/choices).
+- [ ] **P11.2 [auto]** Convert **Partial** rows that are status lines but
+  DOS shows a modal (`@PRICEUP`/`@PRICEDOWN`, order gates, `@CARGOREADY`
+  ship-finish, HELLO attitude) to real modals with correct choice sets.
+- [ ] **P11.3 [auto]** Layout: popup width/height/wrap rules from the
+  `6f74` compositor (`FUN_6f74_36ca`/`3760`/`3848`) so multi-line bodies and
+  CHOICE lists size like DOS — content correctness only; wood-frame pixel
+  chrome is D4.
+- [ ] **P11.4 [auto]** Token substitution audit (`popup_msg_fill`): every
+  `%s`/numeric token in used sections resolves; add a test that walks all
+  wired sections and fills with a fixture.
+- [ ] **P11.5 [user]** Popup review with the user during P1 sessions;
+  file per-popup fixes here.
+
+---
+
+## Deferred phases (not worked from this file)
+
+| # | Deferred | Where it lives | Minimum-thin rule |
+|---|----------|----------------|-------------------|
+| D1 | Rival Europeans behaving like DOS (`5d04`/`20e6`/`−0x6790`, goldens) | [ai_port_plan.md](ai_port_plan.md) T1/T2/T3, `golden_ai_joint` | Rivals must not crash, must found/trade/fight *something*; that bar is already met |
+| D2 | Indian behavior 1:1 (`2820` trade/haggle, deep `4528`, `2154`) | [ai_port_plan.md](ai_port_plan.md), [indians.md](indians.md) | P8 thin outcome ports only |
+| D3 | Known-seed determinism with DOS | [seed100_brave.md](seed100_brave.md), T4.3 | None required for playability |
+| D4 | Pixel-perfect graphics / VGA-identical chrome (dialogs, TRADE/FA editors, Congress, king letter, `DECLARAT.PIK`, map digit colors) | old W5.1–W5.3, T5.x | Content + layout correct (P2, P11); frames may stay port-drawn |
+| D5 | Fully faithful music (SC-55 timbre parity, per-driver quirks) | [assets.md](assets.md) | P3 "passable" bar |
+| D6 | Present-but-unused digital SFX (`COLDIG.BIN`) | [assets.md](assets.md) | Not planned; user notes it is used in some versions — revisit only with a version that triggers it |
+
+Also parked with these: MAPEDIT catalog track (old W5.4), `VR_B465X` hang
+dump (T4.6, by policy), `unknown13_pad` tick-handler live watch (old W4.4).
+
+---
+
+## Archive — pre-2026-08-24 W-tier queue
+
+Kept verbatim for history. Mapping to the new tracks: W1.1 → D1/D2;
+W1.3 → P4.1; W1.4 → P5.3; W1.7 → P4.9; W1.8 → P5.4; W2.2 residue → P5.8;
+W3.1 → D1; W3.2 → D1; W3.3 → P4.2; W3.4 → P10.3; W4.2 → P5.5;
+W4.3/W4.4 → deferred; W5.x → D4; W5.5 → D1/D3.
+
+### (archived) Tier 1 — Static RE + port (fully agent-autonomous)
 
 - [ ] **W1.1 — AI transcription (the largest track).** Work
   [ai_port_plan.md](ai_port_plan.md) top to bottom. Open there as of
@@ -299,7 +651,7 @@ doc when a slice lands).
 
 ---
 
-## Tier 2 — Verification legwork (agent-autonomous, feeds Tier 3)
+### (archived) Tier 2 — Verification legwork (agent-autonomous, feeds Tier 3)
 
 - [ ] **W2.1 — AI structural-port delta catalogs.** Owned by
   `ai_port_plan.md` T2.1/T2.2 (both done; waiting on their stub families
@@ -347,7 +699,7 @@ doc when a slice lands).
 
 ---
 
-## Tier 3 — Confirm with the user before flipping
+### (archived) Tier 3 — Confirm with the user before flipping
 
 Verification can happen autonomously; the flip is a user decision
 (CLAUDE.md "hard to reverse / outward-facing").
@@ -369,7 +721,7 @@ Verification can happen autonomously; the flip is a user decision
 
 ---
 
-## Tier 4 — Needs the user's live DOSBox-X session
+### (archived) Tier 4 — Needs the user's live DOSBox-X session
 
 **Method note first:** 6 of 8 items ever filed in `ai_port_plan.md`'s Tier 4
 closed *without* a live session via byte-pattern search of the existing
@@ -394,7 +746,7 @@ up empty. Live-debug workflow quirks: [dosbox_debugging.md](dosbox_debugging.md)
 
 ---
 
-## Tier 5 — Polish / chrome (last)
+### (archived) Tier 5 — Polish / chrome (last)
 
 Per [project_goals.md](project_goals.md) acceptance order: never ahead of
 gameplay/determinism. Most rows need the user's visual-fidelity judgement.
@@ -424,8 +776,12 @@ gameplay/determinism. Most rows need the user's visual-fidelity judgement.
 
 ---
 
+---
+
 ## Updating this file
 
-Same rules as `ai_port_plan.md`'s "Updating this file" section: check off in
-place with date + one-liner, keep history, promote items across tiers with a
-note on what unblocked them, and keep Tier 3's user-confirmation gate real.
+Check off in place with date + one-liner, keep history, promote items
+between tracks with a note on what unblocked them, and keep the **[user]**
+gate real: prepare, then ask. When a deferred item becomes a playability
+blocker, add the minimum-thin bullet to the relevant P-track rather than
+un-deferring the whole item.
