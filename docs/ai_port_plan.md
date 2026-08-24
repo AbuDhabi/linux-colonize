@@ -198,6 +198,13 @@ scale, moved to Tier 4 as **T4.9** — genuinely needs a live session, not
 guessable from the established relation-polarity convention). Tier 1 now:
 13 of 17 closed; genuinely open are `T1.8`, `T1.13`, `T1.15`, `T1.17`.
 
+**Reassessed 2026-08-24.** T1.15: Ghidra's `152e`/`0038`→`41f2_0294`
+label is a misresolve (real path `4c54→2a1f:0410→overlay:0`); candidate
+`FUN_4d56_0000` matches `ai_tribe_initial_pop` but cannot explain capital
+`growth_accum` in TURN1→2 — stub stays 15; item stays open pending thunk
+overlay-id. T1.17: reference-only structural port already shipped last
+session — checkbox closed. Tier 1 open: `T1.8`, `T1.13`, `T1.15`.
+
 - [x] **T1.1 — Resolve `FUN_1000_8aac` field-index accessor, fields
   3/4/5/6/0xc.** New, highest-leverage item this pass. Field 2 of this
   accessor took `move_scoring_20e6_full.md` six passes to crack (the
@@ -1463,6 +1470,24 @@ guessable from the established relation-polarity convention). Tier 1 now:
   report-vs-formula split. Full trace: `ai.c`'s
   `ai_indian_152e_worth_cap_stub` header, 2026-08-22 later-session update.
   `ctest` not run (comment-only).
+  **2026-08-24 — Ghidra call-target misresolve; real callee unknown;
+  stub kept.** Both `4d56:0038` and `4d56:152e` near-call through
+  `4c54 → JMPF 2a1f:0410` (loader + `JMPF` offset `0`), **not** into
+  `FUN_41f2_0294`. Neighboring thunks in that table land in overlay
+  `4d56`, so offset `0` is plausibly `FUN_4d56_0000` (OVL13 start):
+  `return (tribe+3 & 4) ? tech+1 : 2*tech+3` with `tech =
+  indian[nation-4].tech` (`DS:0x5AD6` stride `0x4e`, +2). Non-capital
+  arm == existing `ai_tribe_initial_pop` (TURN1 satellites match
+  `pop == 2*tech+3` exactly). **Cannot be the live 152e worth compare:**
+  seed-100 capitals have `pop == 2*tech+3` yet still do
+  `growth_accum += pop` each turn, which needs `pop < worth`; both arms
+  of `4d56:0000` give `worth <= pop` on those rows. So either thunk
+  `0410` loads a different overlay than `4d56` at offset 0, or another
+  mechanism sets `local_16`. Flat-15 stub retained (matches early
+  capital accrual). `FUN_41f2_0092`/`0294` nation-score/report body
+  still real — just not this call site. Next: RTLink jump-list / live
+  overlay-load for `2a1f:0410`. Cited `ai_tribe_initial_pop` /
+  stub comments in `ai.c`. `ctest` not required (comment-only `src/`).
 
 - [x] **T1.16 — Port `2820`'s deep Haggle/hard-bargain resume-loop.** New
   2026-08-22, split out of `T4.4` now that both blocking values are
@@ -1571,7 +1596,7 @@ guessable from the established relation-polarity convention). Tier 1 now:
   cargo directly on the contacting unit; full `ctest` 41/41 green. Full
   trace: `indian_trade_2820.md`'s 2026-08-22 "user decision" addendum.
 
-- [ ] **T1.17 — Port `FUN_15eb_28c8`: colonist work-plot job scoring.** New
+- [x] **T1.17 — Port `FUN_15eb_28c8`: colonist work-plot job scoring.** New
   2026-08-22, split out of `T1.14`'s `+4` identification. 254 lines,
   already in `FUNCTION_CATALOG.md` ("Score/assign best work-plot job for
   colonist," calls the already-ported `FUN_15eb_18ec`) but never linked to

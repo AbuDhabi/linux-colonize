@@ -365,6 +365,14 @@ static bool ai_spawn_euro_fleet(
   return ship_id >= 0;
 }
 
+/*
+ * FUN_4d56_0000 non-capital branch: `2*indian[nation-4].tech + 3`
+ * (OVL13 start; confirmed 2026-08-24). Capital branch of that same
+ * helper returns `tech+1` instead — not used here because DOS clears
+ * +3 flags before create finishes, then ORs capital bit 0x04 only
+ * after the worth/create call returns (6a09), so founding always
+ * stores the non-capital formula into settlement+4 / population.
+ */
 static int ai_tribe_initial_pop(uint8_t tech) {
   return 3 + 2 * (int)tech;
 }
@@ -2257,160 +2265,36 @@ static int ai_indian_152e_quartile(int relation) {
 }
 
 /*
- * FUN_41f2_0294 (settlement AI "worth" score, DOS decompiler's own
- * "founding worth" naming — see T4.2 in docs/ai_port_plan.md for why that
- * name is misleading; nothing here founds a new village).
+ * Village growth worth-cap (152e: `if (value < worth) local_16 = 2`).
  *
- * 2026-08-19: investigated, believed BLOCKED on decompiler corruption
- * (Ghidra's *.c* pseudocode never recovers a stack frame for this
- * function). 2026-08-22: turned out to be a false alarm — the corruption
- * is confined to Ghidra's C reconstruction, not the underlying machine
- * code. The raw `.asm` disassembly is clean and was cross-checked
- * byte-for-byte against a live `dosbox_dump.sav` capture (entry
- * fingerprint + all three terrain-class comparisons matched exactly, in
- * both of their two copies in the compiled body) — no live DOSBox-X
- * session was actually required. Full trace: `docs/ai_port_plan.md` T4.2.
+ * 2026-08-24 (T1.15): Ghidra's `CALL FUN_41f2_0294` label on both
+ * `FUN_4d56_0038` and `FUN_4d56_152e` is a **misresolve**. Raw OVL13
+ * bytes: both sites `PUSH` tribe-index / `PUSH CS` / near-`CALL 4c54`,
+ * and `4c54` is `JMPF 2a1f:0410` (loader `FUN_210d_0dab` + `JMPF`
+ * offset `0`). Neighboring `2a1f` thunks at `041c`/`0440`/`044c` land
+ * in the `4d56` overlay (`39ea`/`0038`/`2820`), so offset `0` is
+ * plausibly `FUN_4d56_0000` (OVL13 start, ENTER 4) — a tiny helper:
+ *   tech = indian[nation_id-4].tech   // DS:0x5AD6 stride 0x4e, +2
+ *   return (flags+3 & 4) ? tech+1 : 2*tech+3;
+ * The non-capital arm is exactly `ai_tribe_initial_pop` (and matches
+ * TURN1 satellite `pop == 2*tech+3`). Capital arm returns `tech+1`.
  *
- * Two real DOS call sites, both pass the settlement/tribe array index:
- *   - FUN_4d56_0038 (tribe creation, viceroy_unpacked.c:81273) — one-time,
- *     stores the result into the new settlement's +4 "value" byte. This
- *     creation path is itself unported (no Linux producer yet).
- *   - FUN_4d56_152e (this function, viceroy_unpacked.c:81414) —
- *     `bVar5 = FUN_41f2_0294(param_1); if (settlement.value < bVar5)
- *     local_16 = 2;` i.e. called LIVE every growth tick and compared
- *     against the settlement's *current* value/population, not a one-time
- *     founding constant. Only the LOW BYTE of the return value is used
- *     here (`cmp al,[bx+4]`) — the real function returns a 16-bit sum, so
- *     worth values >= 256 wrap silently at this call site. Preserve that
- *     quirk if this ever gets ported for real.
+ * **Not wired as the live growth cap.** Seed-100 TURN1→2 capitals have
+ * `pop == 2*tech+3` and still accrue `growth_accum += pop` every turn,
+ * which requires `pop < worth`. Both arms of `4d56:0000` give
+ * `worth <= pop` for those rows (`tech+1 < pop`, or equality for the
+ * non-capital arm), so that helper cannot be what 152e is comparing
+ * against unless the loader for thunk `0410` maps offset 0 to a
+ * *different* overlay than `4d56`. `FUN_41f2_0092`/`0294` (nation-score
+ * + report UI) remains a real function — just not this call site.
+ * Next step: RTLink jump-list / live overlay-load dump for `2a1f:0410`
+ * (`docs/rtlink_decode_v2_gap.md`). Until then keep the flat-15 T0
+ * stub that matches early capital accrual (`pop < 15`).
  *
- * Real semantics (viceroy_unpacked.asm:111541-112377, ~880 raw asm lines):
- * this isn't a terrain-only cap, it's the settlement's whole AI worth
- * score — a word-sized sum of SEVEN terms, confirmed via the .asm and the
- * live dump, no RNG call anywhere in the body:
- *   1. Terrain-neighbor weight bucket — class 0x1c: +2, 0x19/0x1a/0x1b:
- *      +1, else: +4 per scanned tile (the piece this stub originally
- *      targeted; appears as two duplicate copies of the same scan).
- *   2. Founding-fathers time-remaining bonus: (0x6f4 - x) << 1, gated on
- *      DS:0x5382 bit 0x08.
- *   3. Nearby-unit count bonus: +5 per hit, 25-iteration scan via
- *      FUN_281f_07b4(i, settlement_id).
- *   4. nation.<+0x18> * (0xFFFF - DS:0x53a6), nation = *(int*)0x84fc (the
- *      project's known nation-struct anchor — see
- *      king-audience-tax-delta-resolved.md's method notes), gated on
- *      nation.<+0x18> nonzero. Not indexed by a specific nation here —
- *      raw base pointer, whichever nation is in slot 0.
- *   5. min(nation.<+0xc>, 100), gated on DS:0x5382 bit 0x02.
- *   6. DS:0x53d0 copied directly if nonzero.
- *   7. FUN_1d1d_0ec6(nation.<+0x2a>, nation.<+0x2c>, 1000, 0) — reads as a
- *      distance-ish call (operands bounds-checked against 0..999) but
- *      docs/difficulty.md separately names nation+0x2a as "gold" on a
- *      different (nation*0x13c array) struct — open contradiction, not
- *      resolved.
- * Then an optional divide-and-round-by-8 correction (FUN_1d1d_0f60) if a
- * computed shift is nonzero. Roughly half the ~880-line body is verbose
- * debug-string-building and a debug info-box draw
- * (FUN_281f_016e/0178/0146/0182/013c/01be/00e2/00ec/03c0 chains) behind
- * the caller's debug-flag param — confirmed non-gameplay.
- *
- * 2026-08-22, T1.15 pass: four of the six open field/global IDs resolved,
- * one "open contradiction" fully closed, no live session needed:
- *   - `nation+0xc` = `liberty_bells_total` (u16); `nation+0x18` =
- *     `villages_burned` (u8) — plain `offsetof(ColonizeCol1Nation, ...)`
- *     against the existing `#pragma pack(1)` struct, term 5/4's own field
- *     targets.
- *   - `DS:0x539e`/`0x539c` (term 1's scan bound) were already named
- *     project-wide (`VICEROY_DS_COLONY_COUNT`/`VICEROY_DS_UNIT_COUNT`,
- *     `viceroy_globals.h`) — just never cross-referenced into this
- *     function before.
- *   - **Term 7's "open contradiction" is resolved, not a contradiction at
- *     all.** Read the real call site directly (`viceroy_unpacked.asm`
- *     ~0x41f2:059d-05af, not the flattened export's botched empty-arg
- *     rendering): `nation+0x2a`/`+0x2c` are the LOW/HIGH words of one
- *     32-bit read, not two independent fields — `sizeof(ColonizeCol1Nation)
- *     == 0x13c` matches `difficulty.md`'s own "`nation*0x13c` array" framing
- *     exactly, so `col1_save.h`'s `gold` (already at `+0x2a`, `uint32_t`) IS
- *     this field, no second struct involved. `FUN_1d1d_0ec6` is the
- *     already-known (T1.10) 32-bit-signed-division CRT primitive, called as
- *     `divide(gold_lo, gold_hi, 1000, 0)`. The real gate, read off the raw
- *     `CMP`/`JGE`/`JG`/`JNC` chain (not paraphrased): skip this term unless
- *     the full signed 32-bit `gold >= 1000`. **Term 7 = `gold>=1000 ?
- *     gold/1000 : 0`** — a plain treasury-scaled bonus, not a coordinate/
- *     distance read as previously guessed.
- * 2026-08-22, continued same day — a bigger structural finding than
- * expected, changes the confidence picture for the WHOLE function, not
- * just one term. **`FUN_41f2_0294` is not a standalone function — it's
- * one of at least 4 external entry points into ONE shared, contiguous
- * code block** (`FUN_41f2_0266`/`_0280`/`_026e`-ish/`_0294`, each with its
- * own `4d56:XXXX` `CALLF` XREF, all falling through into the same body,
- * confirmed by reading the raw `.asm` labels directly — Ghidra's own
- * function-split here is nominal, not four independent routines). None of
- * these entry points does its own `ENTER`/frame setup; they all run on
- * whichever caller's `BP` was already live, sibling-DOS-compiler code
- * sharing at the label level, same class of trick already seen for
- * `394e`'s callers. Entry `0266` (called from `4d56:1b84`, a *different*
- * call site than the two this stub cares about) does `MOV [BP-0x5e],0`
- * before falling through — the ONLY place in the whole shared block that
- * initializes that slot. **The two call sites this stub actually needs
- * (`4d56:0086` tribe creation, `4d56:1547` growth-tick) both `CALL`
- * straight into `0294` itself, skipping `0266`'s init entirely** — and
- * both callers' own `ENTER` sizes (`0x6` and `0x18` bytes) are far smaller
- * than the `-0x5e`/`-0x64`/`-0x6a`/`-0x6e`/`-0x7c`/`-0x7e` offsets this
- * code reads as "locals" (confirmed via each caller's own Ghidra-recovered
- * local-variable table, neither lists anything past `-0x1a`). So for
- * *these two call sites specifically*, several terms — confirmed for term
- * 2's `x` (`[BP-0x6a]`, never written anywhere in the shared block, and
- * genuinely unreachable from either caller's own declared frame) — read
- * whatever stack content is left over from earlier unrelated calls, not a
- * real per-tribe signal. Same verdict class as `T1.3`'s five dead terms:
- * **not a formula to port, a structural quirk to document as inert.**
- * Term 3's callee resolved and independently corrects the row's own
- * "nearby-unit count" framing: `FUN_281f_07b4`/canonical `FUN_0000_9810`
- * (force-decompiled directly) is `bool(euro_nation 0..3, bit_index)` — a
- * per-Euro-nation FF/feature bitmap test at nation-array offset `-0x77f1`
- * (near the already-known `euro_relation`'s `-0x77c4`), returning `true`
- * unconditionally when `bit_index<0` and `false` when `euro_nation>3`.
- * Confirms (doesn't just restate) this stub's own existing "FF/feature bit
- * test" comment above. Since the 25-iteration loop's index only ever
- * satisfies `euro_nation<=3` for `i=0..3`, term 3 is really "+5 × how many
- * of the 4 Euro nations have FF-bit `settlement_id` set" for iterations
- * 0-3, a no-op for i=4..24 — not a spatial "nearby unit" scan at all.
- * Neighbor-scan's own bound field (term 1) still not re-derived — the
- * doc's original "colony-pointer `+0x1f`" citation doesn't match the real
- * asm (a tribe-record `+0x1f` read does feed the *outer* loop gate, but
- * that gate itself compares against the same `-0x5e`-shaped slot this
- * pass just found uninitialized for these two call sites, so it inherits
- * the same caveat rather than needing separate RE).
- * **Net for a real port**: given how much of this function's local state
- * turns out to be structurally unreachable from its own two real callers,
- * treat the whole "7-term word-sum" as unreliable beyond terms 4/5/6/7
- * (nation-struct/global reads, genuinely caller-independent) until a live
- * trace confirms what's actually sitting in the shared stack region at
- * these two call sites — porting terms 1/2/3 as literally decoded risks
- * modeling deterministic-but-meaningless garbage as if it were designed
- * behavior. Stub still returns the flat population-cap-15 T0
- * approximation; a real port is not a same-session task from here.
- * 2026-08-22, later session — **the "7-term word-sum" framing itself is
- * an undersell, flagged not fixed.** Read `FUN_41f2_0294`'s real body
- * straight from `viceroy_unpacked.c:72085` (both real callers,
- * `FUN_4d56_0038`/`FUN_4d56_152e`, pass exactly 1 clean argument — the
- * "zero-arg" rendering the earlier notes above describe is specific to
- * `FUN_41f2_0294` itself, not its callers). The body is a ~200-line
- * scan-and-accumulate loop over EVERY colony (bounded by the already-named
- * `VICEROY_DS_COLONY_COUNT`/`_UNIT_COUNT`, matching an owner-nibble test
- * at `settlement+0x1c*i+0x3147 & 0xf`) that **interleaves the numeric
- * score with conditional formatted-text-line construction** (`FUN_281f_016e`/
- * `_0178`/`_013c`-family calls building strings, paired with a repeating
- * `y_offset += 0x14` line-height bump) — the shape of a scrollable report
- * screen (Colonial Report / advisor prestige breakdown), not a plain
- * arithmetic formula. Confirms term 7 (`gold>=1000?gold/1000:0`, seen
- * again here at `nation+0x2a/0x2c`) and finds an eighth term at
- * `nation+0xc` (liberty bells, `>99` gate, `/100` capped at 100) not
- * previously counted. **Not attempted further this pass** — this is
- * bigger and structurally different from what T1.15/T4.2 scoped (report-
- * text generation entangled with scoring, not a clean sum), needs its own
- * dedicated investigation before any port, same caution class as
- * `T1.17`'s helper family. Full trace: `ai_port_plan.md` T1.15.
+ * Prior 2026-08-19..22 notes on `FUN_41f2_0294`'s 7-term sum / mid-entry
+ * stack-garbage / report-UI entanglement still describe that nation-
+ * score body correctly; they do not apply to the 152e/0038 callee.
+ * Full trace: `docs/ai_port_plan.md` T1.15.
  */
 static int ai_indian_152e_worth_cap_stub(
   const ColonizeTurnContext* ctx,
@@ -2524,12 +2408,10 @@ static void ai_indian_152e_village_growth(
    * satellite villages too, making them accumulate growth every turn.
    * Real DOS TURN1.SAV/TURN2.SAV (seed-100) show satellite tribes (non-
    * capital) with growth_accum frozen at 0 across the turn while capital
-   * tribes accrue normally: the real per-tribe `+4 worth` stat
-   * (FUN_41f2_0294 — see its stub above for the 2026-08-19 investigation:
-   * confirmed decompiler-corrupted, needs a live DOSBox-X trace, not
-   * expected to resolve from static analysis) is DS-confirmed much larger
-   * for capitals (bit 0x10 capital flag doubles as a 1000-vs-250 weight
-   * multiplier elsewhere, FUN_4d56_417e) so the `population < worth_cap`
+   * tribes accrue normally: the real per-tribe worth compare
+   * (152e vs live worth — callee mislabeled `FUN_41f2_0294` by Ghidra;
+   * see `ai_indian_152e_worth_cap_stub` 2026-08-24 note) is DS-confirmed
+   * much larger for capitals early on so the `population < worth_cap`
    * gate effectively never opens for satellites this early. Restore the
    * known-good capital-only restriction rather than guess a satellite
    * worth number.
