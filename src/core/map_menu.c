@@ -229,6 +229,9 @@ static MapMenuAction map_menu_classify(const char* section, const char* label) {
     if (strcmp(label, "Load Game") == 0) {
       return MAP_MENU_ACTION_LOAD;
     }
+    if (strcmp(label, "DECLARE INDEPENDENCE") == 0) {
+      return MAP_MENU_ACTION_DECLARE_INDEPENDENCE;
+    }
     if (strcmp(label, "Retire") == 0) {
       return MAP_MENU_ACTION_RETIRE;
     }
@@ -474,6 +477,7 @@ static bool map_menu_action_enabled(MapMenuAction action) {
   switch (action) {
     case MAP_MENU_ACTION_SAVE:
     case MAP_MENU_ACTION_LOAD:
+    case MAP_MENU_ACTION_DECLARE_INDEPENDENCE:
     case MAP_MENU_ACTION_RETIRE:
     case MAP_MENU_ACTION_EXIT:
     case MAP_MENU_ACTION_PICK_MUSIC:
@@ -1566,6 +1570,8 @@ const char* map_menu_action_name(MapMenuAction action) {
       return "Save Game";
     case MAP_MENU_ACTION_LOAD:
       return "Load Game";
+    case MAP_MENU_ACTION_DECLARE_INDEPENDENCE:
+      return "Declare Independence";
     case MAP_MENU_ACTION_RETIRE:
       return "Retire";
     case MAP_MENU_ACTION_EXIT:

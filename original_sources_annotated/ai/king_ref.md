@@ -402,6 +402,19 @@ existing 2564/fandom figure — do **not** invent a different SoL %. With
 `ai_popups`, Confirm (`AI_KING_CHOICE_CONFIRM` / `@DECLARE` Yes) applies declare;
 without, auto-declare.
 
+**Menu path added 2026-08-24:** DOS `2564` is also reachable from the
+MENU.TXT `@GAME` "DECLARE INDEPENDENCE" command at any SoL — the port now
+models this as `ai_king_menu_declare_independence`
+(`MAP_MENU_ACTION_DECLARE_INDEPENDENCE` in `map_menu.c`/`game_loop.c`),
+separate from the per-turn auto-check. Below threshold it shows GAME.TXT
+`@TOOTORY` (reachable here, unlike from the auto-check); at/above
+threshold and not yet at war it shows the same `@DECLARE` Never/Yes
+confirm; already at war is a status-only no-op. This also gives a player
+who answered "Not yet" on the auto-popup a way to reopen the choice
+without waiting for next turn's repeat (bug report: "the choice belongs
+under the Game menu's DECLARE INDEPENDENCE, not on the SoL-100% notice" —
+the notice itself was already OK-only; see docs/sons_of_liberty.md).
+
 ### Structural `10f0` foreign intervention (≤3 landings)
 
 When WoI and REF pools empty and `backup_force` total > 0:
@@ -461,9 +474,34 @@ Deep multi-step siege / combat scoring remains PARKED.
 
 ### Wartime MoW sail + unload + idle coastal patrol
 
+**Fixed 2026-08-24** (bug report: "REF appears to land directly on the
+colony, not adjacent like DOS"): `ai_king_mow_unload_land_dest` used to
+score the human colony tile itself as the best (100) unload destination,
+so a freshly spawned MoW could disembark straight onto the colony and
+`ai_king_mow_post_unload_land`'s walk-in capture fired the **same turn**
+as the wave/declare. DOS disembarking spends the unit's moves for the
+beat; a colony-tile "landing" is really a same-beat attack-move, not
+possible for a unit that just came ashore. The colony tile is now
+*deprioritized* as an unload destination — adjacent foundable/coastal
+land always wins when it exists, so REF units normally come ashore
+adjacent and only walk onto (and, if undefended, capture) the colony on
+a later activation via the separate "REF land hunt" path below, once
+moves are restored.
+
+Same-day follow-up: a single-tile-island colony has no adjacent land at
+all (every neighbor is water), so excluding the colony tile outright
+would leave it permanently un-landable — worse than the original bug.
+The colony tile is kept as a **last-resort fallback** (used only when no
+other adjacent land/coastal candidate exists), so island colonies stay
+invadable while the normal mainland/peninsula case gets the adjacent-
+first, one-turn-of-lag behavior above. No confirmed DOS ground truth for
+this exact tile choice either way — this whole destination-picker is a
+fandom-shaped reconstruction, not a byte-traced port of `0982`'s real
+target selection.
+
 Crown **Man-O-War** (Galleon fallback) during `war_act`:
 - `cargo_count > 0`: when adjacent to foundable/coastal land by a human colony
-  (prefer the colony tile — unload+seize/attack path), unload up to
+  (never the colony tile itself — see fix note above), unload up to
   `min(moves_left, capacity)` passengers via `units_unload_passenger`
   (prefer Regular; else Dragoon when cargo allows; **1 ship MP per pax**);
   same-beat seize/fortify for passengers skipped while aboard; else `AI_SAIL`

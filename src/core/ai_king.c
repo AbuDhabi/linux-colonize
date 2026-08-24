@@ -1248,9 +1248,29 @@ static int ai_king_human_coast_water(const ColonizeTurnContext* ctx, int human, 
 
 /*
  * Adjacent land for wartime MoW unload near a human colony.
- * Prefer the human colony tile itself; else foundable or coastal land that is
- * adjacent to a human colony. Source: fandom REF man-o-war → ports / seize
- * landing. Returns 1 if a dest was found.
+ * Foundable or coastal land adjacent to a human colony is always preferred
+ * over the colony tile itself. Source: fandom REF man-o-war → ports / seize
+ * landing (this destination-picker is a fandom-shaped reconstruction, not a
+ * byte-traced port of FUN_43f7_0982's own target selection — no confirmed
+ * DOS ground truth for the exact tile choice).
+ * DOS FUN_43f7_0982/2022: disembarking spends the landed unit's moves for
+ * the beat, so a fresh REF unit comes ashore *adjacent* and only walks onto
+ * (and, if undefended, captures) the colony on a later activation with
+ * moves restored — never same-beat. Landing straight onto the colony tile
+ * here would let ai_king_mow_post_unload_land's walk-in capture fire the
+ * same turn as the wave/declare, skipping that lag entirely (bug report
+ * 2026-08-24: "REF appears to land directly on the colony ... not as it
+ * happens in DOS").
+ * Colony-tile fallback (2026-08-24, same-day follow-up): a colony sited on
+ * a single-tile island has *no* adjacent land at all — every one of its
+ * neighbors is water, so the loop below never finds a non-colony land
+ * candidate. Excluding the colony tile unconditionally would leave such a
+ * colony permanently un-landable (REF could never invade it at all, which
+ * is a worse divergence than same-beat capture). The colony tile is
+ * therefore still recorded as a last-resort fallback, used only when no
+ * other adjacent land/coastal tile exists — the normal mainland/peninsula
+ * case is unaffected (it always has a real coastal-neighbor candidate that
+ * outscores the fallback). Returns 1 if a dest was found.
  */
 static int ai_king_mow_unload_land_dest(const ColonizeTurnContext* ctx, int human,
                                         const ColonizeUnit* ship, int* out_x, int* out_y) {
@@ -1275,6 +1295,9 @@ static int ai_king_mow_unload_land_dest(const ColonizeTurnContext* ctx, int huma
   int best_score = -1;
   int bx = 0;
   int by = 0;
+  int have_colony_fallback = 0;
+  int fcx = 0;
+  int fcy = 0;
   for (int d = 0; d < 8; ++d) {
     const int nx = ship->x + dx[d];
     const int ny = ship->y + dy[d];
@@ -1287,18 +1310,25 @@ static int ai_king_mow_unload_land_dest(const ColonizeTurnContext* ctx, int huma
     int score = 0;
     const int cid = ctx->colonies ? colonies_id_at(ctx->colonies, nx, ny) : -1;
     if (cid >= 0) {
+      /*
+       * Never *prefer* landing straight onto a colony tile (see header) —
+       * but remember the human's own colony tile as a last-resort fallback
+       * for a single-tile-island colony, where no other adjacent land
+       * exists at all and this is the only way REF can ever come ashore.
+       */
       const ColonizeColony* c = &ctx->colonies->colonies[cid];
-      if (c->active && c->nation_id == human) {
-        score = 100; /* Prefer unload onto the human colony tile. */
-      } else {
-        continue; /* Other colony tiles are not REF coastal landings. */
+      if (c->active && c->nation_id == human && !have_colony_fallback) {
+        have_colony_fallback = 1;
+        fcx = nx;
+        fcy = ny;
       }
+      continue;
     } else {
       /*
        * Soft coastal / foundable land next to a human colony — only when the
        * ship is already adjacent to that colony (port water). One tile shy of
        * the port must not dump onto foundable tiles (MD-early soft coast);
-       * sail onto coast water first, then unload (prefer colony tile above).
+       * sail onto coast water first, then unload.
        */
       if (!ai_king_adjacent_human_colony(ctx, human, ship->x, ship->y)) {
         continue;
@@ -1321,7 +1351,11 @@ static int ai_king_mow_unload_land_dest(const ColonizeTurnContext* ctx, int huma
     }
   }
   if (best_score < 0) {
-    return 0;
+    if (!have_colony_fallback) {
+      return 0;
+    }
+    bx = fcx;
+    by = fcy;
   }
   *out_x = bx;
   *out_y = by;
@@ -2355,11 +2389,13 @@ static void ai_king_do_declare(ColonizeTurnContext* ctx, int human) {
  * `*(int*)0x53d0` (the SoL value) as its NUMBER0 arg — that argument shape
  * matches GAME.TXT `@TOOTORY` ("Only {%NUMBER0%%} of the colonists support
  * the independence movement... until the {majority} is behind us") exactly,
- * so 0x1386 = @TOOTORY. Unreachable here: this function only runs once
- * `sol >= AI_KING_DECLARE_SOL_MIN` already, so @TOOTORY has no port call
- * site (matches DOS: 2564 is also reachable from a menu command at any SoL
- * in the original, which the port doesn't model as a separate player-
- * invoked action — the port only offers Declare once eligible).
+ * so 0x1386 = @TOOTORY. Unreachable *here*: this function (the per-turn
+ * auto-check) only runs once `sol >= AI_KING_DECLARE_SOL_MIN` already.
+ * 2564 is *also* reachable from the MENU.TXT @GAME "DECLARE INDEPENDENCE"
+ * command at any SoL in the original — the port models that path
+ * separately as `ai_king_menu_declare_independence` (wired to
+ * MAP_MENU_ACTION_DECLARE_INDEPENDENCE in game_loop.c), which is where
+ * @TOOTORY actually fires below threshold.
  *
  * The `*(byte*)0x5381 & 0x80` branch gating a *first* popup (msg 0x138e)
  * ahead of the real confirm is NOT a "recommend declare" one-shot notice —
@@ -2379,21 +2415,13 @@ static void ai_king_do_declare(ColonizeTurnContext* ctx, int human) {
  * already at war, is likewise unrecovered and likewise not required since
  * `ai_king_independence_declared` already short-circuits that case above.)
  */
-static void ai_king_try_declare(ColonizeTurnContext* ctx) {
-  if (!ctx || !ctx->col1_ok || !ctx->col1) {
-    return;
-  }
-  const int human = ctx->human_nation;
-  if (human < 0 || human >= 4) {
-    return;
-  }
-  if (ai_king_independence_declared(ctx->col1)) {
-    return;
-  }
-  const int sol = ai_king_sol_percent(ctx, human);
-  if (sol < AI_KING_DECLARE_SOL_MIN) {
-    return;
-  }
+/*
+ * Shared @DECLARE Never/Yes confirm body — called once `sol` is already
+ * known ≥ AI_KING_DECLARE_SOL_MIN, from both the automatic per-turn check
+ * (ai_king_try_declare) and the menu-invoked path
+ * (ai_king_menu_declare_independence).
+ */
+static void ai_king_show_declare_choice(ColonizeTurnContext* ctx, int human, int sol) {
   if (ai_king_human_popups(ctx)) {
     const char* motherland = "the Crown";
     if (ctx->col1->player[human].country_name[0] != '\0') {
@@ -2444,6 +2472,82 @@ static void ai_king_try_declare(ColonizeTurnContext* ctx) {
     /* Queue full — fall through to auto declare. */
   }
   ai_king_do_declare(ctx, human);
+}
+
+static void ai_king_try_declare(ColonizeTurnContext* ctx) {
+  if (!ctx || !ctx->col1_ok || !ctx->col1) {
+    return;
+  }
+  const int human = ctx->human_nation;
+  if (human < 0 || human >= 4) {
+    return;
+  }
+  if (ai_king_independence_declared(ctx->col1)) {
+    return;
+  }
+  const int sol = ai_king_sol_percent(ctx, human);
+  if (sol < AI_KING_DECLARE_SOL_MIN) {
+    return;
+  }
+  ai_king_show_declare_choice(ctx, human, sol);
+}
+
+/*
+ * Menu-invoked DECLARE INDEPENDENCE (MENU.TXT @GAME item, MAP_MENU_ACTION_
+ * DECLARE_INDEPENDENCE). DOS FUN_43f7_2564 reached from this same menu
+ * command at any SoL, not just once auto-eligible — the per-turn
+ * ai_king_try_declare check above only ever calls in once already ≥
+ * AI_KING_DECLARE_SOL_MIN, so the sol<min branch (GAME.TXT @TOOTORY) was
+ * unreachable there. This entry point makes it reachable: below the
+ * threshold, show @TOOTORY (Congress won't back a rebellion yet) as a
+ * plain OK notice; at/above threshold, show the same Never/Yes @DECLARE
+ * confirm ai_king_try_declare would auto-fire on its next turn — so
+ * declining "Not yet" from the auto-popup can be revisited here on demand
+ * instead of only ever re-asked wholesale next turn.
+ */
+void ai_king_menu_declare_independence(ColonizeTurnContext* ctx) {
+  if (!ctx || !ctx->col1_ok || !ctx->col1) {
+    return;
+  }
+  const int human = ctx->human_nation;
+  if (human < 0 || human >= 4) {
+    return;
+  }
+  if (ai_king_independence_declared(ctx->col1)) {
+    if (ctx->status && ctx->status_size) {
+      snprintf(ctx->status, ctx->status_size, "We are already at war with the Crown.");
+    }
+    return;
+  }
+  const int sol = ai_king_sol_percent(ctx, human);
+  if (sol < AI_KING_DECLARE_SOL_MIN) {
+    if (ai_king_human_popups(ctx)) {
+      PopupMsgTokens tok;
+      memset(&tok, 0, sizeof(tok));
+      tok.number0 = sol;
+      tok.has_number0 = true;
+      char fallback[AI_POPUP_BODY_LEN];
+      snprintf(
+        fallback,
+        sizeof(fallback),
+        "Only %d%% of the colonists support the independence movement, Your "
+        "Excellency. We cannot start a rebellion against the King until the "
+        "majority is behind us.",
+        sol
+      );
+      char body[AI_POPUP_BODY_LEN];
+      popup_msg_fill(ctx->messages, "TOOTORY", &tok, fallback, body, sizeof(body));
+      (void)ai_popup_enqueue_ok_ctx(ctx->ai_popups, AI_POPUP_TAG_INFO, human,
+                                    ai_king_crown_nation(human), sol, "Continental Congress",
+                                    body);
+    }
+    if (ctx->status && ctx->status_size) {
+      snprintf(ctx->status, ctx->status_size,
+               "Only %d%% of the colonists support independence yet.", sol);
+    }
+    return;
+  }
+  ai_king_show_declare_choice(ctx, human, sol);
 }
 
 /* FUN_43f7_10f0 ~74307: pop-weighted coastal colony roulette (thin). */

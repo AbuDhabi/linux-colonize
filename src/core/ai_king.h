@@ -40,6 +40,15 @@ int ai_king_sol_percent(const ColonizeTurnContext* ctx, int nation_id);
 int ai_king_independence_declared(const ColonizeCol1Save* col1);
 
 /*
+ * MENU.TXT @GAME "DECLARE INDEPENDENCE" command (MAP_MENU_ACTION_
+ * DECLARE_INDEPENDENCE). Below AI_KING_DECLARE_SOL_MIN: GAME.TXT @TOOTORY OK
+ * notice. At/above threshold and not yet at war: same Never/Yes @DECLARE
+ * confirm the per-turn auto-check shows. No-op once already at war (status
+ * message only).
+ */
+void ai_king_menu_declare_independence(ColonizeTurnContext* ctx);
+
+/*
  * FUN_4345_0a22 wartime branch: spend the bell pool on foreign intervention
  * or a REF wave instead of electing a Founding Father. Returns 1 when the
  * pool was consumed (caller resets founding_fathers side-table pool).
