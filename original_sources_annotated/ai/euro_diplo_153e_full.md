@@ -1,5 +1,22 @@
 # `FUN_5bfb_153e` — full clean recovery (2026-08-14)
 
+**2026-08-24 — tail write at `-0x77b8` (line ~1686 below) fully resolved.**
+Re-decompiled fresh and cross-confirmed against a second, independently
+decompiled export of the same tail (`viceroy_overlays.c:84013-84025`,
+register-based `unaff_BP` variant, identical code — not a decompiler
+artifact). Exact formula: `(DS:0x53a6 - 6) * -2` (`0x53a6` =
+`VICEROY_DS_DIFFICULTY`, already named), halved if
+`FUN_1000_89a4(self,0x13)` (an unresolved per-nation FF/feature-bit test,
+same one already stubbed "absent" in this doc's worthiness-score writeup),
+gated on `FUN_1000_8c28(self,target)&0x40` (`AI_DIPLO_MET`). Readers found:
+`FUN_521d_6d8e` (already-ported `ai_diplo_treaty_timers`, decrements this
+same cell every turn — the write here is exactly the "reset the cooldown"
+counterpart of that already-live decrement) and `FUN_465b_0000`'s foreign-
+tile encounter body (`move_spent_foreign_combat_parked`, PARKED). Full
+writeup: `docs/mysteries_catalog.md`'s Section D `unknown26` entry,
+`+0x40-0x43` sub-range. Not ported — `153e` itself still has no live call
+site in Linux, so this reset has nowhere to attach yet.
+
 ## Status: the "5 local helpers" from the earlier pass were a false lead — RETRACTED below. The `003bc6-003bf8` region is a resident-thunk jump table dispatching to 10 ALREADY-KNOWN `FUN_5bfb_*` functions, not new flavor-text/attitude code. Real structural finding: 153e's outcome dispatch reuses existing, mostly-already-ported machinery (102a/1092/0182 dialogs, 312e/0000 score, 13b0 alliance, 10ec war/ally eligibility, 022e Indian contact) plus one still-unresolved branch (`FUN_5bfb_12d0`, already tracked elsewhere as "Order clear `12d0` deep"). Worthiness-score phase and the exact war-declare state flip remain genuinely open.
 
 **2026-08-19 — both remaining open items resolved/ported.** The selector

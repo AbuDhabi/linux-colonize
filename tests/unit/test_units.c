@@ -4059,6 +4059,43 @@ int main(void) {
         return 1;
       }
       units_despawn(&pool, a);
+
+      /*
+       * Ship-slow: a fast ship survives the combat-entry MP surcharge with
+       * moves left (only slowed), unlike land units whose low max MP is
+       * fully consumed by it (attack ends the turn). Cite: FUN_5fef_1b0e
+       * `*(char*)(unit+0x3149) += 3` (viceroy_unpacked.c ~100340-100343) —
+       * see units_try_move's combat_attack_mp_surcharge comment.
+       */
+      const int saved_movement = pool.types[caravel_t].movement;
+      pool.types[caravel_t].movement = 8;
+      const int sa = units_spawn(&pool, caravel_t, wx, wy);
+      const int sb = units_spawn_allow_stack(&pool, caravel_t, wx2, wy2);
+      ColonizeUnit* sua = units_get(&pool, sa);
+      ColonizeUnit* sub = units_get(&pool, sb);
+      if (!sua || !sub) {
+        fprintf(stderr, "ship-slow spawn failed\n");
+        return 1;
+      }
+      sua->nation_id = 0;
+      sub->nation_id = 1;
+      sua->moves_left = 8; /* full MP: attack + ocean step cost (1) + 3 surcharge = 4 spent. */
+      if (!units_try_move(&pool, sa, &map, wx2, wy2, NULL, NULL)) {
+        fprintf(stderr, "ship-slow move combat failed\n");
+        return 1;
+      }
+      sua = units_get(&pool, sa);
+      if (!sua || sua->moves_left != 4) {
+        fprintf(
+          stderr,
+          "ship-slow expected 4 moves left after win, got %d\n",
+          sua ? sua->moves_left : -1
+        );
+        return 1;
+      }
+      units_despawn(&pool, sa);
+      pool.types[caravel_t].movement = saved_movement;
+      fprintf(stderr, "unit_units: naval combat-entry ship-slow MP surcharge ok\n");
     }
   }
 

@@ -1059,6 +1059,93 @@ item's own 2026-08-24 entry for the full derivation. Ported, real
   `a46e` correction doesn't touch any shipped code). `ctest` not re-run
   (doc-only pass, zero `src/` touched). Full trace: `euro_unit_act.md`'s
   2026-08-24 third-pass update.
+  **2026-08-24, fourth pass — both of the row's own two open leads
+  resolved via static tooling (live overlay disasm + canonical flattened-
+  export cross-reference, no live capture needed); no `src/` change (still
+  nothing safe to wire).** (1) **Chebyshev shortcut's own entry+caller:
+  found.** Real entry is `OVL20_L0000:0x906` (`ENTER 0xc,0x0` … `RETF
+  0x6`, 0x906-0x9ab, reached by plain linear fallthrough after the
+  previous function's `RETF`+one `NOP` pad byte at 0x905 — same
+  "createFunction fails at the cited offset because the true entry is a
+  few bytes earlier" pattern as `0007ef` below) — created as a real
+  function in the `OverlayTest` project now (`FUN_OVL20_L0000__000906`).
+  Cross-confirmed two independent ways: the live force-redecompile matches
+  the already-known citation (`|x-goal|<8 && |y-goal|<8` gate, writes
+  `DS:0x1dd2`/`0xa14e`/`0xa14c`/`0x1dd6`, calls `0015bc(0)` at its own
+  `0x98f` — one of `0015bc`'s 4 known XREFs), and the canonical flattened
+  export's `FUN_6662_0906` (`viceroy_unpacked.c:104150`) decompiles to the
+  structurally identical body. **Caller, traced through the full RTLink
+  relay chain**: `FUN_OVL20_L0000__0009ae`'s own body issues a near `CALL
+  0x0015b2` (at both its "stay" and its 8-neighbor validation sites) →
+  `0x15b2` is the already-known 5-byte `JMPF 1000:a46e` thunk →
+  `1000:a46e`'s own real body (already known from third pass) is the
+  2-instruction relay `CALLF 1000:1e7b; JMPF 0000:0906` → that `0000:0906`
+  target is **not** a literal resident-space address (which would sit in
+  IVT/BDA territory and can't be real code) — it's DOS's "whichever
+  overlay is currently loaded in the shared window, offset 0x906"
+  convention, and since this whole chain only ever runs from code that is
+  itself part of `OVL20_L0000` (`0009ae`), that window necessarily already
+  holds `OVL20_L0000` — i.e. it resolves to the real shortcut at
+  `OVL20_L0000:0x906` found above. `FUN_1000_1e7b`'s own call inside the
+  relay is unconditional and its return value unused before the tail
+  `JMPF`, matching third pass's own "1e7b's return doesn't gate this path"
+  finding — nothing about that earlier open question blocks this chain.
+  (2) **`0007ef`'s own entry+caller: found, with a correction to the cited
+  offset.** The true function entry is `OVL21_L0040:0x7d8`, not `0x7ef`
+  (`0x7ef` was only the specific instruction offset the prior pass's
+  operand-scan cited for the table *write*, not the function's own start —
+  created now as `FUN_OVL21_L0040__0007d8`, 0x7d8-0x9e6, body confirmed
+  identical to the earlier `0007ef`-cited description). Traced via the
+  canonical flattened export (`viceroy_unpacked.c`, grep for the unique
+  symbol name — exhaustive across the whole file, not a sampled search):
+  its RTLink thunk (`FUN_2a1f_07ea`) has **exactly one call site project-
+  wide**, inside `FUN_75c2_235c` — and that function is not a per-turn or
+  per-pathfind routine at all, it's a **one-time new-game/scenario-setup
+  state-reset** (zeroes ~15 `DS:` globals, seeds 16 RNG slots, resets
+  per-nation relation tables). `FUN_75c2_235c` is itself reached (via its
+  own thunk) from exactly 2 call sites, both inside `FUN_75c2_2778` — a
+  dialog-driven new-game/load-game/scenario-selection wizard screen
+  handler (catalog-id dialog calls, scenario-file-existence checks). This
+  **corrects** the prior pass's "reads as a broader AI turn-start cache
+  refresh" characterization — the evidence points to a one-time
+  new-game/map-setup populator, not a per-turn one. **New, honestly-flagged
+  open question this raises** (not resolved, not blocking): if the
+  walkability grids are genuinely written only once at new-game setup and
+  never again (confirmed: the exhaustive grep found no second call site),
+  it's unclear whether DOS's runtime pathfinder reads meaningfully-live
+  data from them mid-game or a map-gen-time-only snapshot — doesn't change
+  the port decision either way (Linux has no equivalent one-time new-game
+  hook regardless, so the existing `units_can_enter()`-based substitute
+  stays the right call), so not filed as a blocking Tier-4 item, just
+  flagged for whoever next touches this. **Bonus, tangential finding, not
+  chased further**: while mapping `0009ae`'s own body, its *second*
+  `CALL 0x0015b2`-chain sibling call turned out to sit inside a **third,
+  previously uncatalogued function** at `OVL20_L0000:0xb4e` (reached the
+  same way — linear fallthrough after `0009ae`'s own `RET`, not a `CALL`)
+  whose body matches every structural detail this doc's earlier passes
+  attributed to "`0015c1`, force-decompiled" (18×18 flood, first-stage
+  call into `0009ae`, same popup-tail catalog id) — while `0x15c1` itself
+  is independently confirmed (raw disasm, segment field literally `1000`
+  in the JMPF bytes, not subject to the "current overlay window" trick
+  above) to jump to genuine resident address `1000:a9c0`, which is a
+  *different*, real function (also calls `FUN_1000_1e7b`, but its own
+  decompile shows `unaff_BP`-relative locals — a probable bad-boundary
+  artifact, same class as `684c_08c0`/`15eb_1d4c`, not chased this pass).
+  Whether `0xb4e`'s body is `0015c1`'s real target via some further hop
+  from `1000:a9c0`, or a fully separate sibling copy, is undetermined —
+  flagging for a future pass, not this row's own two asks. **`src/`: no
+  change** — `0906`'s only caller (`0009ae`) still isn't itself portable
+  (still depends on the same walkability-grid semantics question above),
+  so there's no safe place to wire the newly-identified shortcut into
+  yet; nothing here was invented. **Housekeeping**: filled in 3
+  previously-`gap` `address_mapping.csv` rows now that live evidence
+  backs them (`FUN_2a1f_027e`→`FUN_1000_a46e`, `FUN_6662_0906`→
+  `FUN_OVL20_L0000__000906`, `FUN_67f4_0088`→`FUN_OVL21_L0040__0007d8`,
+  all `exact`); also created both new functions for real in the
+  `OverlayTest` Ghidra project (persisted) so a future pass doesn't hit
+  the same "createFunction fails at the cited offset" wall. `ctest` not
+  re-run (doc-only pass, zero `src/` touched, confirmed via `git status`).
+  Full trace: `euro_unit_act.md`'s 2026-08-24 fourth-pass update.
 
 - [x] **T1.9 — Indian mid-game quiet scoring (goods/missions/capital
   pull) formula mapping.** R2 used to flag this as blocked on "a

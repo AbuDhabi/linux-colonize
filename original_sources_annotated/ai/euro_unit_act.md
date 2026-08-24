@@ -1089,6 +1089,143 @@ edge-cost wiring in `units.c` never referenced `a46e`/`1e7b`). `ctest` not
 re-run (doc/investigation-only pass, confirmed via `git status`: zero
 `src/` files touched).
 
+**2026-08-24, fourth pass — this row's own two remaining leads (the
+shortcut's own entry+caller; `0007ef`'s own entry+caller) both resolved,
+via live overlay disassembly cross-checked against the canonical
+flattened export (`viceroy_unpacked.c`). No live DOSBox-X session needed.
+No `src/` change.**
+
+- **Chebyshev shortcut: real entry `OVL20_L0000:0x906`, caller
+  `FUN_OVL20_L0000__0009ae`, full relay chain traced.** Disassembled
+  linearly forward from the end of the already-known `FUN_OVL20_L0000_00f2`
+  function (`GhidraListInstrs.java`, real bytes, not cache): `RETF` at
+  `0x904`, one `NOP` pad byte at `0x905`, then a fresh `ENTER 0xc,0x0` at
+  `0x906` — exactly the "true entry is a few bytes earlier than the cited
+  offset, reached by fallthrough not `CALL`" pattern this row's own prior
+  pass predicted. Body (`0x906`-`0x9ab`, `RETF 0x6`): computes `|AX-BX|`
+  and `|DX-BP+0xa|` via manual `SUB`/`NOT`/`INC` sequences, gates on both
+  `<8`, writes `DS:0x1dd2` (`0xd` or `0x1dd2=(-(param==0)&0xfff4)+0xd`
+  per the canonical decompile — domain-flag encoding), writes
+  `DS:0xa14e`/`0xa14c` (flood-goal globals), saves/restores `DS:0x1dd6`,
+  and calls `CALL 0x0015bc` at its own `0x98f` — **one of `0015bc`'s
+  already-known 4 XREF callers** (`98f`/`10bb`/`1107`/`113e` — the other
+  three all belong to `0f74` itself, confirmed by force-redecompiling
+  `0f74` fresh and finding no `CALL 0x000906`/`0x0015b2` anywhere in its
+  own body). Reads `DS:0xa370` on success. Registered for real in the
+  `OverlayTest` project (`createFunction` at `0x906`, ends `0x9ad`) rather
+  than left as a bare offset citation. **Cross-confirmed independently**:
+  the canonical flattened export's `FUN_6662_0906`
+  (`viceroy_unpacked.c:104150`, `int __stdcall16far
+  FUN_6662_0906(undefined2 param_1,int param_2,int param_3)`) decompiles
+  to the structurally identical body (same `|in_AX-in_BX|<8 &&
+  |in_DX-param_3|<8` gate, same 4 global writes, same
+  `thunk_FUN_2a1f_05f0` tail call — `address_mapping.csv`'s own row
+  confirms `thunk_FUN_2a1f_05f0` = `6662:15bc` = `0015bc` exactly).
+  **Caller, traced through the full RTLink relay** (all links already
+  individually known from prior passes, just not chained together until
+  now): `FUN_OVL20_L0000__0009ae`'s own body issues a near `CALL 0x0015b2`
+  at both its "stay"-candidate check (`0xa20`) and inside its 8-neighbor
+  validation loop (`0xb02`) → `0x15b2` is the already-confirmed 5-byte
+  `JMPF 1000:a46e` thunk → `1000:a46e`'s own real body (already
+  hand-decoded by third pass) is the 2-instruction relay `CALLF
+  1000:1e7b; JMPF 0000:0906` → that `JMPF`'s `0000:0906` target is **not**
+  a literal resident-space address (flat `0x906` sits in IVT/BDA
+  territory in real DOS memory — can't be real code) — it is DOS's
+  "whichever overlay currently occupies the shared load window, offset
+  0x906" addressing, and since this entire call chain only ever executes
+  from code that is itself part of `OVL20_L0000` (`0009ae`), that window
+  is necessarily already holding `OVL20_L0000` at the time — i.e. it
+  resolves to exactly the shortcut found above. `FUN_1000_1e7b`'s own
+  call inside the relay is unconditional and its return value is unused
+  before the tail `JMPF` (confirmed via the raw 2-instruction body — no
+  branch between the `CALLF` and the `JMPF`), consistent with third
+  pass's own "1e7b's return doesn't gate this path" finding — that
+  earlier open question doesn't block this chain being real. **Bonus,
+  tangential, not chased further**: `0009ae`'s *other* structural sibling
+  — the function this doc's earlier passes described as "`0015c1`,
+  force-decompiled" — turns out to physically live at a **third,
+  previously-uncatalogued address, `OVL20_L0000:0xb4e`** (reached the
+  same way: linear fallthrough after `0009ae`'s own `RET`, not a `CALL`;
+  `ENTER 0x7a,0x0`, `RETF 0x2` at `0xf70`), matching every structural
+  detail this doc's 2026-08-24-earlier entry attributed to `0015c1` (18×18
+  flood, opening call into `0009ae`, same `DS:0x1df4`-gated popup tail via
+  `FUN_0000_dd18`/`1000_83e0`/`83ea`). Meanwhile `0x15c1` itself is
+  independently reconfirmed (raw disasm, segment field literally `1000`
+  encoded in the `JMPF` bytes — not subject to the "current overlay
+  window" trick above, since that only applies to `JMPF`s whose *encoded*
+  segment is `0000`) to jump to a genuinely different resident address,
+  `1000:a9c0`, whose own body (force-decompiled) also calls
+  `FUN_1000_1e7b` but renders with `unaff_BP`-relative locals — a likely
+  bad-function-boundary artifact, same class as `684c_08c0`/`15eb_1d4c`,
+  not chased this pass. Whether `0xb4e` is reached from `1000:a9c0` via a
+  further hop, or is a fully separate sibling copy of the same logic, is
+  undetermined — flagging for whoever next resumes this row, not one of
+  this pass's own two asks.
+
+- **`0007ef`: real entry `OVL21_L0040:0x7d8` (not `0x7ef`), caller traced
+  to a one-time new-game/scenario-setup routine, not a per-turn refresh.**
+  `0x7ef` (the address this doc's earlier pass cited) is only the specific
+  instruction offset a prior operand-scan flagged for the table *write* —
+  not the function's own entry, same "true start is earlier, reached by
+  fallthrough" pattern as the shortcut above. The real entry,
+  force-created (`OverlayTest` project, `createFunction` at `0x7d8`, ends
+  `0x9e6`) and force-decompiled fresh, matches the earlier `0007ef`
+  citation's own description exactly (writes `DS:0x1dd4=1`; loop over
+  2 domains; `memset`s `-0x7a18`/`-0x790a` via `FUN_1d1d_0dae` — the
+  canonical name for the already-known memset helper — then the step-4
+  row/col/direction fill). Traced its caller via an **exhaustive grep of
+  the entire canonical flattened export** (`viceroy_unpacked.c`) for its
+  unique canonical symbol (`FUN_67f4_0088`, resolved via
+  `address_mapping.csv`'s own `overlay_offset_hex`↔`canonical_address`
+  arithmetic for this segment): **exactly one call site project-wide**,
+  through its RTLink thunk `FUN_2a1f_07ea`, inside `FUN_75c2_235c`. That
+  function is **not** a per-turn or per-pathfind routine — it zeroes
+  roughly 15 `DS:` globals, seeds 16 RNG slots (`FUN_281f_04d4(...,600,
+  1000)` ×16), and resets 4 per-nation relation-table entries in a single
+  straight-line block with no loop-back — the shape of a one-time
+  **new-game/scenario state reset**. `FUN_75c2_235c` is itself reached
+  (via its own thunk, `FUN_2a1f_0dd6`/`thunk_FUN_2a1f_0dd6`) from exactly
+  2 call sites, both inside a single function, `FUN_75c2_2778` — a
+  dialog-catalog-id-driven (`0x233c`, `0x2366`, `0x235c`, `0x2357`, …)
+  new-game/load-game/scenario-file-selection wizard screen handler
+  (scenario-file-existence checks via `FUN_1d1d_0816`, menu-step branches
+  on `iVar2 == 2/3/4/5`). **Corrects** the 2026-08-24-earlier entry's own
+  "reads as a broader AI turn-start cache refresh" characterization — the
+  evidence (single call site, deep inside a new-game wizard, alongside
+  unambiguous one-time init code) points to a one-time new-game/map-setup
+  populator instead. **New, honestly-flagged open question, not resolved
+  and not blocking**: since the grep confirming "exactly one call site"
+  was exhaustive across the whole flattened binary, the walkability grids
+  really are written only once, at new-game/scenario setup, and never
+  again from anywhere reachable in this codebase — it's genuinely
+  undetermined whether DOS's runtime pathfinder later reads meaningfully
+  live data from them mid-game, or a map-generation-time-only snapshot.
+  This doesn't change the port decision either way: Linux has no
+  equivalent one-time new-game hook regardless, so the existing
+  `units_can_enter()`-based live substitute (already how `0015bc`'s
+  analogous gating was handled) stays correct either way — not filing as
+  a blocking Tier-4 item, just flagging precisely for whoever next touches
+  this specific pair (`0009ae`/`0015c1`).
+
+**Net for this fourth pass**: both of the row's own two asks are answered
+with real, cross-confirmed evidence (live overlay disasm + the canonical
+flattened export agreeing independently) — no live DOSBox-X session was
+needed for either. **Still no `src/` change**: `0906`'s only caller
+(`0009ae`) isn't itself portable yet — it still depends on the same
+walkability-grid semantics question above, now better-characterized but
+not resolved to "safe to model." Porting `0009ae`/`0015c1` (or the newly-
+found `0xb4e`) now would still mean inventing behavior for that gap,
+against this project's own "never invent" convention. **Housekeeping**:
+3 previously-`gap` `address_mapping.csv` rows filled in now that live
+evidence backs them (`FUN_2a1f_027e`→`FUN_1000_a46e`,
+`FUN_6662_0906`→`FUN_OVL20_L0000__000906`,
+`FUN_67f4_0088`→`FUN_OVL21_L0040__0007d8`, all `exact`); both new
+functions created for real in the `OverlayTest` Ghidra project (persisted
+via the same auto-save headless runs use throughout this project) so a
+future pass doesn't hit the "createFunction fails at the cited offset"
+wall again. `ctest` not re-run (doc-only pass; zero `src/` files touched,
+confirmed via `git status`).
+
 Re-checked with a small (0x100-byte) force-clear + fresh disassemble
 (bypassing any stale analysis, same technique used elsewhere this
 session): the corruption is **confined to one case (`case 4`) of a small

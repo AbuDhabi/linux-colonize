@@ -320,12 +320,13 @@ Deep DOS notes: [`coastal_fort_fire.md`](../original_sources_annotated/turn/coas
 | Best defender | Done | `units_best_defender_at` |
 | Colony / village / terrain / fortify site | Done | `015e` |
 | `1b0e` peels | Done | Colony REF +50%; Tory/Rebel support % Done |
+| `1b0e` combat-entry MP surcharge ("ship-slow") | Done | 2026-08-24: `unit+0x3149 += 3` on every attack, win or lose, stacked on the normal step cost — `units_try_move`'s `combat_attack_mp_surcharge`. Land units usually fully drained either way; ships retain leftover MP (genuinely "slowed") |
 | Promote / demote / capture / treasure | Done | Ransom Accept/Refuse Done; wagon/colonist capture Done |
 | Naval damage / sink / plunder | Done | Close-fight escape path Done; Privateer `@SEIZURESEA` |
 | Combat Analysis | Done | Options-gated dual column |
 | Coastal fort fire | Done | Miss→MP drain; close hit→bit7; Drydock repair + `@REFIT` Done thin; temp unit/VGA PARKED |
 | Outcome popups `@EUROPE*` / `@SHIP*` / `@LOOT*` / `@CAPTURED*` / `@BURNED*` | Done | Playable matrix; Europe `@LOOTCASH` separate — [popups.md](popups.md) |
-| Village settlement battle `4528` | Done thin | Warn→Attack/Leave; empty-tile temp Brave from adjacent (stay put) + pop drain / destroy; fallout `@LOOT`/`@LOOT2`; deep mid-body/VGA PARKED |
+| Village settlement battle `4528` | Done thin | Warn→Attack/Leave; empty-tile temp Brave from adjacent (stay put) + pop drain / destroy; fallout `@LOOT`/`@LOOT2`; deep mid-body/VGA PARKED. 2026-08-24: `1b0e`'s "no live defender" arm re-verified field-for-field (tribe struct `+7` muskets / `+10` horse_breeding → `units_spawn_village_temp_defender`) — confirmed already correct, not a stub. Sibling arm (undefended **Euro** colony, not a village) spawns a *different* temp defender DOS-side that Linux has no equivalent of — filed [port_plan.md](port_plan.md) W1.8, not this row |
 | Euro mid combat scoring `20e6` | Done thin | Settlement/siege peels + adjacent toughness; deep −0x6790 matrix PARKED |
 | VGA-identical combat chrome | PARKED | — |
 
@@ -348,8 +349,9 @@ Deep DOS notes: [`coastal_fort_fire.md`](../original_sources_annotated/turn/coas
 | Gap | Where |
 |-----|-------|
 | Village raid / settlement deep `2820` + VGA | `ai_contact.c`, [move_enter.md](move_enter.md), [indians.md](indians.md) |
-| Deep Euro combat −0x6790 / full explore ring | `ai_euro.c` / [move_scoring_land.md](../original_sources_annotated/ai/move_scoring_land.md) |
+| Deep Euro combat −0x6790 / full explore ring — **2026-08-24: confirmed still open, owned by `ai_port_plan.md` unpark #4 / W1.1, not duplicated here** | `ai_euro.c` / [move_scoring_land.md](../original_sources_annotated/ai/move_scoring_land.md) |
 | Fort-fire temp unit + camera / VGA chrome | `units_coastal_fort_fire_pulse` |
+| Undefended Euro colony token-militia combat (sibling of the village temp-defender arm) — new 2026-08-24, [port_plan.md](port_plan.md) W1.8 | `units_try_capture_foreign_colony` |
 | VGA-identical combat chrome | — |
 
 ---
@@ -384,7 +386,7 @@ Deep DOS notes: [`coastal_fort_fire.md`](../original_sources_annotated/turn/coas
 | `FUN_157e_004a` | `combat_unit_base_x8` |
 | `FUN_157e_015e` | `combat_engagement_strength` |
 | `FUN_157e_0008` / `15eb_038e` | village probe count |
-| `FUN_5fef_1b0e` | `combat_apply_1b0e_peels` + resolve roll shell |
+| `FUN_5fef_1b0e` | `combat_apply_1b0e_peels` + resolve roll shell + `units_try_move`'s combat-entry MP surcharge (ship-slow) |
 | `FUN_5fef_0000` | `units_best_defender_at` |
 | `FUN_5fef_0352` | `units_apply_land_loss_outcome` |
 | `FUN_5fef_0ec0` | `units_sweep_stack_after_loss` |
