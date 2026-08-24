@@ -42,21 +42,20 @@ field's address, not a decode of the original.
 
 ## B. Semantic-RE dead ends (named function, meaning still guessed/unfound)
 
-- **`FUN_4d56_417e` (Incite Indians) — two price-table terms.** Formula
-  traced (`table[-0x69d6]*8 + (table[-0x6e7c]>>2&0xfe - 2*table[-0x69d6])`),
-  and on 2026-08-14 both tables got *identified* (village-count-by-type,
-  Σ combat-strength-by-type) — but this is a structural identification,
-  not captured DOS values; `ai_contact_incite_price()` in `ai_contact.c`
-  approximates both with `indian.tech` rather than the real per-type
-  tables. **Caller never found** despite three static methods + two live
-  DOSBox-X hang-dump captures (trampoline at resident `0x1261f` is
-  RTLink's generic overlay dispatcher, not game logic — doesn't pin the
-  trigger).
-  - **Stale-doc mismatch found this pass**: `ai_contact.c:2930-2933`'s own
-    comment still says "not wired in — 2 price-table values unnamed,
-    caller unfound," but `AI_POPUP_TAG_CONTACT_INCITE` *is* wired
-    (`ai_contact.c:1625,1803,1835,1872,1900,5722`). Comment is out of date
-    relative to the code sitting right below it.
+- **`FUN_4d56_417e` (Incite Indians) — Mode-2 caller only.** Formula
+  traced (`table[-0x69d6]*8 + (table[-0x6e7c]>>2&0xfe - 2*table[-0x69d6])`);
+  on 2026-08-14 both tables *identified* (village-count-by-type,
+  Σ combat-strength-by-type) — and **since then wired for real**:
+  `ai_contact_incite_price()` (`ai_contact.c`) computes both as live
+  per-tribe-type sums (village count over `col1->tribe`,
+  `combat_unit_base_x8` over Braves), the old `indian.tech` stand-in is
+  gone. The earlier "stale-doc mismatch" note here is also resolved —
+  the `ai_contact.c` header comment now matches the code (2026-08-24).
+  **What's still open: the AI Mode-2 caller** — never found despite three
+  static methods + two live DOSBox-X hang-dump captures (trampoline at
+  resident `0x1261f` is RTLink's generic overlay dispatcher, not game
+  logic — doesn't pin the trigger). Tracked as `ai_port_plan.md` T4.5
+  (low value; Mode-1 human path is complete and byte-faithful).
 
 - **`FUN_5fef_0000`** (best-defender-unit-at-tile scoring walk, resident,
   99111/98). Hand-transcribed from clean disassembly (decompiler pcode

@@ -84,7 +84,7 @@ Deep mechanics (expected vs Linux by context): [unit_orders.md](unit_orders.md).
 
 | Manual feature | Status | Notes |
 |----------------|--------|-------|
-| Found colony (**B**) | Partial | Disband → Town Hall + starters + stock dump; name-entry `@COLONY`. **Missing:** minimum-distance-from-existing-colony gate — `colonies_can_found` only rejects arctic/mountain, an occupied tile, or an Indian city tile; GAME.TXT `@TOONEAR` ("This land is too near to {colony} for a new colony") proves DOS rejects close founding, but `Colonization.pdf` itself says a colonist "can build a colony anywhere except in a mountain square" (silent on the exact rule) and the real threshold isn't decomp-verified — do not invent a distance. Confirmed live AI-visible bug via `ai_euro`: an idle founder-capable unit sitting on its own colony (with construction wanting LABOR) can walk one tile off and found a second colony immediately adjacent instead of staying — see roadmap.md Phase 3 |
+| Found colony (**B**) | Partial | Disband → Town Hall + starters + stock dump; name-entry `@COLONY`. **Missing:** minimum-distance-from-existing-colony gate — `colonies_can_found` only rejects arctic/mountain, an occupied tile, or an Indian city tile; GAME.TXT `@TOONEAR` ("This land is too near to {colony} for a new colony") proves DOS rejects close founding, but `Colonization.pdf` itself says a colonist "can build a colony anywhere except in a mountain square" (silent on the exact rule) and the real threshold isn't decomp-verified — do not invent a distance (the DOS gate likely lives in the map-key `Build Colony` dispatch `FUN_2b5a_3252` or a callee; needs a decomp trace to the `@TOONEAR` gate or a DOSBox repro before porting a threshold). Confirmed live AI-visible bug via `ai_euro`: an idle founder-capable unit sitting on its own colony (with construction wanting LABOR) can walk one tile off and found a second colony immediately adjacent instead of staying (instrumented: Pioneer `(4,4)→(4,3)`, `ai_euro_found_with_unit` → `colonies_can_found` true adjacent to own colony). Once the constant is known, `ai_euro`'s second-wave found-tile picker also needs a same-nation proximity check so it doesn't offer adjacent sites. Related test gap: `unit_ai_euro_expand`'s `unit_construction_labor_stockade` fails on `main` and, because `main()` returns on first failure, blocks every later test in that binary under `ctest` — worth a dedicated pass. Queue: [port_plan.md](port_plan.md) W1.2 / W4.1 |
 | Join colony | Done | ORDERS Join Colony admits selected land unit on owned colony tile; else opens colony screen |
 | Colony display chrome | Partial | Area 1.5× (24px) tiles; people/transport (+30px) bands; multifunction; Note 1 resource-count strips; sprite-bound building hits (`colony_screen.c`) |
 | Assign jobs / field work / production numbers | Partial | Drag or select-then-click colonists to buildings/area/fence; workplace strips show **output-type badge**; Production tab via `colony_preview.c` — see [building_production.md](building_production.md) |
@@ -203,9 +203,10 @@ next playability work is leftover **FF** KINGGALLEON2, deep mid-planner `20e6`,
 production / combat depth, and VGA / deep AI bodies — not waiting on missing
 combat/capture prerequisites. TRADE Create/Edit/Begin aim+cycle + stop nibble
 honor + Edit autofill + thin cargo picker are in; VGA TRADE chrome,
-KINGGALLEON2 PARK (Phase 4 harbor search negative), deep `10f0` landing scorer /
-caps / `20e6` still open;
-and full 1:1 AI bodies remain.
+KINGGALLEON2 PARK (Phase 5 `38fd` overlay + string search negative), and deep
+`20e6` still open (`10f0` landing scorer / caps / Veteran `0x15` landed —
+Done Phase 5, foreign MoW ship spawn still PARK); and full 1:1 AI bodies
+remain.
 
 ## See also
 
