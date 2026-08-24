@@ -5,7 +5,9 @@ owns **sequencing** — which item to pick up next and why it's placed there.
 It does not own status detail: that stays in
 [ai_transcription.md](ai_transcription.md) (FUN_* inventory, per-cluster
 fidelity claims) and the `original_sources_annotated/ai/*.md` thin maps.
-Phase priority for the whole project stays in [roadmap.md](roadmap.md).
+Phase priority for the whole project stays in [roadmap.md](roadmap.md);
+the non-AI / cross-cutting sibling queue is [port_plan.md](port_plan.md)
+(this file remains the sole queue for AI transcription work).
 
 **Ordering principle:** tiers are ordered from *fully agent-autonomous* to
 *requires the user's live DOSBox-X session*. Work the earliest unfinished

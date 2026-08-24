@@ -113,9 +113,15 @@ LCG stream — reverted). Golden now passes **TURN1→2** but fails at
 save is missing from Linux output, plus a 1-point `relation_by_indian` drift
 — a Brave quiet-pulse movement/RNG divergence unrelated to village growth,
 not caused by the above fix (reproduces identically before and after it).
-Root cause not yet found; likely lives in the same quiet-ASM/residual-overlay
-space R0 already tracks below, not a quick fix. See `src/core/ai.c`
-(`ai_indian_152e_village_growth`) for the fix's own comment/citations.
+**Root cause pinpointed 2026-08-22** (`ai_port_plan.md` T4.3, via
+`tools/probe_missing.c`): the Brave at `(40,20)` should move W to `(39,20)`
+but Linux's quiet move-scoring picks NW to `(39,19)` — the "missing Brave"
+was this unit one tile off, same shape as the ~105 quiet-formula holdouts
+`seed100_brave.md` catalogs. A `k_mid_peels` entry would close it, but was
+deliberately **not** added: per the parking policy above, individual
+TURN-step diffs aren't chased while the goldens are DISABLED. See
+`src/core/ai.c` (`ai_indian_152e_village_growth`) for the fix's own
+comment/citations.
 Below "Claims" text describes the **target**, not current passing state —
 correct it here rather than mark it stale prose, since it stayed accurate
 from TURN3 onward through 2026-08-18 and is the nearest true statement once
@@ -501,7 +507,9 @@ leftover FF KINGGALLEON2, deep `20e6`).
   xy=(39,20)` + 1-point `relation_by_indian` drift) reproduces identically
   before and after the capital-gate fix — a pre-existing Brave quiet-pulse
   movement/RNG divergence, not caused by 152e; root cause not chased this
-  pass (deep, open-ended — same class as the quiet-ASM residual work above).
+  pass (later pinpointed 2026-08-22 — one-tile W-vs-NW quiet-scoring
+  divergence at `(40,20)`, see `ai_port_plan.md` T4.3 and the status note
+  at the top of this file).
   **`FUN_41f2_0294` itself investigated 2026-08-19, resolved 2026-08-22:**
   believed decompiler-corrupted at first — Ghidra's C pseudocode never
   recovers a stack frame — but that turned out to be a pseudocode-only

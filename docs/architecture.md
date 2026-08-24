@@ -245,6 +245,7 @@ greenfield redesign or a mandated `game_loop` rewrite phase.
 | Topic | Doc |
 |-------|-----|
 | Phases / what’s next | [roadmap.md](roadmap.md) |
+| Whole-project agent work queue | [port_plan.md](port_plan.md) |
 | Feature Done/Partial/Missing | [manual_gap.md](manual_gap.md) |
 | AI FUN inventory / unpark | [ai_transcription.md](ai_transcription.md) |
 | EOT / between-player turns | [turn_between_players.md](turn_between_players.md) |

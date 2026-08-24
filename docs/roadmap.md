@@ -111,7 +111,8 @@ PARKED deep/VGA bodies.
 - Combat depth beyond T0 (ship-slow, deeper `5fef`) — [combat.md](combat.md)
 - Production / EOT formula fidelity (food, spoilage, bells/crosses) —
   [manual_gap.md](manual_gap.md), [turn_between_players.md](turn_between_players.md)
-- Fog / exploration leftovers (VIEW modes stay Missing → phase 5)
+- Fog / exploration leftovers (Zoom + Hidden Terrain VIEW modes are **Done**
+  per [manual_gap.md](manual_gap.md); remaining fog depth is polish)
 - Indian meet/trade/raid: structural Done; deep `2820`/`4528` stay PARKED until
   playability needs them — [ai_transcription.md](ai_transcription.md)
 
@@ -135,57 +136,18 @@ regression gate again.
   [ai_transcription.md](ai_transcription.md)
 - Seed-100 / early fidelity debt (R0) only as it blocks mid-planner claims —
   [seed100_brave.md](seed100_brave.md)
-- **Found and fixed:** `units_display_name()` was missing a
-  `Colonists`→`Free Colonist` branch (sibling to the existing `Pioneers`→
-  Pioneer / `Soldiers`→Soldier branches) — fixed, see [assets.md](assets.md)
-  Units section. **Also fixed:** the ~18 `units_find_type(units, "Free
-  Colonist")` exact-match call sites in `ai_euro.c`
-  (`ai_euro_type_from_dock_name` "hire specialist from Europe dock" ladder +
-  the base colonist-hire fallback) searched the type *catalog* for names that
-  never exist in real `NAMES.TXT` (only `Colonists` does — specialists are
-  `Colonists` + a `@JOB` profession) and so silently never resolved — a dead
-  AI subsystem in real gameplay (confirmed: with a real-shaped 2-type pool,
-  `hire_ty` stayed `-1` through every arm and the caller returned without
-  hiring or spending gold). Each arm now tries real `"Colonists"` before the
-  legacy `"Free Colonist"` name, so existing fixtures (which define
-  `"Free Colonist"` as a distinct type, unlike real data) keep resolving via
-  the fallback while real `NAMES.TXT` games now actually hire — the spawned
-  unit's profession is copied from the dock slot regardless of which arm
-  matched (existing `ai_euro.c` logic), so `units_display_name()` still shows
-  the specialist name. Regression: `unit_dock_farmer_hire_real_names` in
-  `test_ai_euro_expand.c` (2-type pool, no `Free Colonist`/`Expert Farmer`
-  rows). `founding_fathers.c`'s Las Casas site already tried `"Colonists"` as
-  its second fallback (after `"Free Colonist"`) — left as-is; not dead against
-  real data, and reordering it would need its `unit_founding_fathers` fixture
-  (which defines both names as distinct types) reconciled first. `golden_ai_*`
-  / `golden_ai_joint` stay green — no observed AI-turn shift in the covered
-  goldens.
+- **Found and fixed:** `units_display_name()` missing `Colonists`→`Free
+  Colonist` branch + the ~18 dead `units_find_type("Free Colonist")`
+  exact-match call sites in `ai_euro.c` (real `NAMES.TXT` only has
+  `Colonists`; the Europe-dock hire ladder silently never resolved). Detail
+  + regression test: [assets.md](assets.md) Units section and
+  `test_ai_euro_expand.c` (`unit_dock_farmer_hire_real_names`).
 - **Found, not yet fixed — `colonies_can_found` missing minimum-distance
-  gate:** root-caused the pre-existing `unit_ai_euro_expand`
-  `unit_construction_labor_stockade` failure (fails identically on `main`;
-  because `main()` returns on first failure, it and every later test in that
-  binary — including dock-hire and wagon coverage — currently don't execute
-  under `ctest`; a real gap worth a dedicated pass, separate from this fix).
-  Instrumented trace: an idle Pioneer sitting on its own colony (Stockade in
-  production, wants LABOR) was expected to stay, but instead walked one tile
-  off (`(4,4)→(4,3)`) and founded a **second** colony
-  there in the same act — `ai_euro_found_with_unit` → `colonies_can_found`
-  returned true at a tile immediately adjacent to an existing own colony.
-  `colonies_can_found` (`colony.c`) only rejects arctic/mountain terrain, an
-  already-occupied tile, or an Indian city tile — no distance-from-existing-
-  colony check at all, for AI **or** human founding. GAME.TXT `@TOONEAR`
-  ("This land is too near to {colony} for a new colony") proves DOS rejects
-  close founding; `Colonization.pdf` itself only says a colonist "can build a
-  colony anywhere except in a mountain square" (silent on the exact rule) and
-  `docs/fandom_col1994.md` doesn't cover it either — the real threshold isn't
-  decomp-verified from any source available so far (the DOS founding gate,
-  likely inside the map-key `Build Colony` dispatch `FUN_2b5a_3252` or a
-  callee, wasn't traced to a distance constant this pass). **Do not invent a
-  distance** — needs either a decomp trace to the real `@TOONEAR` gate or a
-  DOSBox repro against `VICEROY.EXE` before porting a threshold. Separately,
-  `ai_euro`'s "second-wave expand" found-tile picker also needs a same-nation
-  proximity check once the constant is known, so it doesn't offer adjacent
-  sites in the first place.
+  gate** (GAME.TXT `@TOONEAR` proves DOS rejects adjacent founding; real
+  threshold not decomp-verified — **do not invent a distance**). Full trace,
+  constraints, and the related `unit_ai_euro_expand` first-failure-blocks-
+  suite test gap: [manual_gap.md](manual_gap.md) "Found colony" row and
+  [port_plan.md](port_plan.md) (W1.2 / W4.1).
 
 ### 4 — Independence & endgame (Partial)
 
@@ -232,6 +194,7 @@ Do not prioritize over gameplay/determinism.
 | Manual feature Done/Partial/Missing rows | [manual_gap.md](manual_gap.md) |
 | AI FUN_* inventory, unpark queue, R5 | [ai_transcription.md](ai_transcription.md) |
 | AI porting — sequenced agent work queue | [ai_port_plan.md](ai_port_plan.md) |
+| Whole-project sequenced agent work queue (non-AI + cross-cutting) | [port_plan.md](port_plan.md) |
 | Col1 field atlas / save RE | [save_format_map.md](save_format_map.md) |
 | Save codec / interop notes | [savegame.md](savegame.md) |
 | Light catalog peel queue | [catalog_peel_ranking.md](catalog_peel_ranking.md) |

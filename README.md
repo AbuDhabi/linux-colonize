@@ -20,6 +20,8 @@ Living status:
 - [docs/architecture.md](docs/architecture.md) — present / intended code architecture
 - [tests/README.md](tests/README.md) — smoke / unit / golden test layout
 - [docs/roadmap.md](docs/roadmap.md) — whole-project phases / what’s next
+- [docs/port_plan.md](docs/port_plan.md) — whole-project sequenced work queue (agents start here)
+- [docs/ai_port_plan.md](docs/ai_port_plan.md) — AI porting work queue
 - [docs/manual_gap.md](docs/manual_gap.md) — feature Done / Partial / Missing
 - [docs/ai_transcription.md](docs/ai_transcription.md) — AI FUN inventory / unpark
 - [docs/original_index.md](docs/original_index.md) — decomp / data navigation
