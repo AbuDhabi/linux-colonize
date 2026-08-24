@@ -77,6 +77,7 @@ int main(void) {
   reports_render(
     &view,
     COLONIZE_REPORT_CONGRESS,
+    false,
     NULL,
     NULL,
     NULL,
@@ -99,6 +100,7 @@ int main(void) {
   reports_render(
     &view,
     COLONIZE_REPORT_SCORE,
+    false,
     NULL,
     NULL,
     NULL,
@@ -130,6 +132,7 @@ int main(void) {
     reports_render(
       &view,
       (ColonizeReportId)id,
+      false,
       NULL,
       NULL,
       NULL,
