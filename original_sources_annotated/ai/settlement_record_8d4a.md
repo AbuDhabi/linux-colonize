@@ -99,18 +99,14 @@ settlement attributes:
   (`77413-77415` set, `83584` test).
 
 ### `+4` — founding "worth" stat
-Written once at creation from `FUN_41f2_0294` (a terrain-survey function,
-`viceroy_unpacked.c:72085+`). Read as a scoring-table bonus term
-(`87998, 95380`).
-
-Correction (2026-08-19): "written once" undersells it — `FUN_4d56_152e`
-(village growth, `81414`) also calls `FUN_41f2_0294` live every growth
-tick and compares its result against the *current* `+4` value
-(`if (value < survey_result) grow`), so the survey is re-derived each
-turn, not cached from founding. `FUN_41f2_0294` itself turned out to be
-decompiler-corrupted (no recoverable stack frame — see the stub's comment
-in `src/core/ai.c`, `ai_indian_152e_worth_cap_stub`) and is still stubbed
-pending a live DOSBox-X trace.
+Written at creation and re-read every growth tick (`FUN_4d56_152e`:
+`if (value < worth) grow`). Ghidra labels both call sites as
+`FUN_41f2_0294` — **misresolve (2026-08-24)**. Real path is near-call
+`4c54 → JMPF 2a1f:0410` (loader + offset `0`). Candidate `FUN_4d56_0000`
+(`2*tech+3` / capital `tech+1`) matches founding pop for non-capitals
+but cannot explain seed-100 capital `growth_accum` accrual; live worth
+callee still unidentified. Linux keeps flat-15 stub — see
+`ai_indian_152e_worth_cap_stub` / `ai_port_plan.md` T1.15.
 
 ### `+5` — owner + persistent flags
 - Low nibble: owner nation 0-3 (European), `0xf` = none/unowned. This is the

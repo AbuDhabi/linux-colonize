@@ -494,10 +494,10 @@ leftover FF KINGGALLEON2, deep `20e6`).
   villages get founded mid-game) is compared
   against a **live** `FUN_41f2_0294(param_1)` call each turn (raw decomp,
   `viceroy_unpacked.c:81387-81460`) — not the flat `population < 15` (later
-  `< worth_cap_stub`) this port has always used; `FUN_41f2_0294` itself is a
-  ~100-line unresolved terrain-survey function
-  (`viceroy_unpacked.c:72085+`), separate from `settlement_record_8d4a.md`'s
-  already-known fields. TURN2→3's failure (a missing Brave `type=19 nation=6
+  `< worth_cap_stub`) this port has always used; Ghidra labels that call
+  `FUN_41f2_0294`, but that is a **misresolve** (2026-08-24) — real path is
+  `4c54→2a1f:0410→overlay:0` (see `ai_port_plan.md` T1.15 / stub in `ai.c`).
+  TURN2→3's failure (a missing Brave `type=19 nation=6
   xy=(39,20)` + 1-point `relation_by_indian` drift) reproduces identically
   before and after the capital-gate fix — a pre-existing Brave quiet-pulse
   movement/RNG divergence, not caused by 152e; root cause not chased this

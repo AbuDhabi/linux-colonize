@@ -2424,7 +2424,7 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_41f2_0092` | 71068 | 346 | ai | Nation score compute + optional full report UI | inferred |  |
 | `FUN_41f2_0266` | 71414 | 329 | ai | Mid-entry of 0092 colonist-score loop (Ghidra split) | inferred |  |
 | `FUN_41f2_0280` | 71743 | 342 | ai | Tribe growth tick from Indian nation turn (4d56_1816) | known | docs/ai_transcription.md |
-| `FUN_41f2_0294` | 72085 | 330 | ai | Village pop init/cap (tribe create 0038 + growth 152e) | inferred | ai/indian_nation_turn.c |
+| `FUN_41f2_0294` | 72085 | 330 | ai | Mid-label of 0092 nation-score/report (NOT the 152e/0038 callee — Ghidra misresolve 2026-08-24; those call `2a1f:0410`→overlay:0, candidate `4d56:0000`) | inferred | docs/ai_port_plan.md T1.15 |
 | `FUN_41f2_0b70` | 72415 | 137 | ai | Score→difficulty-scaled gold rebate + treasure dialog | inferred |  |
 | `FUN_41f2_0f56` | 72552 | 175 | ai | High-score table load/insert/save + present UI | inferred |  |
 | `FUN_41f2_14a8` | 72727 | 72 | ai | End-game score snapshot → rebate(0b70) + HoF(0f56) | inferred |  |
@@ -2599,6 +2599,7 @@ Thin map: [ai/king_ref.md](ai/king_ref.md). Linux: `src/core/ai_king.c`.
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
+| `FUN_4d56_0000` | — | 56 | ai | Tribe worth/init helper: `(flags&4)?tech+1:2*tech+3` (tech=indian[n-4].tech). Candidate 152e/0038 callee via `2a1f:0410`; not live-confirmed (capital growth contradiction) | known | docs/ai_port_plan.md T1.15; src/core/ai.c `ai_tribe_initial_pop` |
 | `FUN_4d56_0038` | 81253 | 39 | ai | Settlement-record CREATE (full-field init); caller is FUN_6a09_0006 only, not a contact-chain helper | confirmed | docs/ai_transcription.md, original_sources_annotated/ai/settlement_record_8d4a.md |
 | `FUN_4d56_00e0` | 81292 | 60 | ai | Chains to 01e2 / 14fe | inferred | docs/ai_transcription.md |
 | `FUN_4d56_01e2` | 81352 | 19 | ai | Thin wrapper to 14fe | inferred | docs/ai_transcription.md |
