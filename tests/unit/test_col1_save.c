@@ -74,7 +74,12 @@ static bool assert_byte_identical_roundtrip(const char* path, ColonizeCol1Save* 
   return true;
 }
 
-/* Phase 5: report first codec round-trip diff (diagnostic; non-fatal). */
+/* Phase 5: report every contiguous codec round-trip diff range, not just the
+ * first byte (diagnostic; non-fatal). Used for any fixture still marked
+ * byte_identical=false in k_fixtures below; capped at 40 ranges so a fully
+ * garbled file doesn't flood stderr. W1.5 (2026-08-24): this used to stop at
+ * the first differing byte, which was not enough to triage a real drift by
+ * section/field — kept as the tool for any future non-identical fixture. */
 static void report_codec_roundtrip_diff(const char* path) {
   char err[256];
   ColonizeCol1Save save;
@@ -122,18 +127,33 @@ static void report_codec_roundtrip_diff(const char* path) {
       enc_n
     );
   } else {
-    for (size_t i = 0; i < enc_n; ++i) {
-      if (raw[i] != enc[i]) {
+    size_t i = 0;
+    int nranges = 0;
+    while (i < enc_n) {
+      if (raw[i] == enc[i]) {
+        ++i;
+        continue;
+      }
+      const size_t start = i;
+      while (i < enc_n && raw[i] != enc[i]) {
+        ++i;
+      }
+      ++nranges;
+      if (nranges <= 40) {
         fprintf(
           stderr,
-          "codec diff %s first=%zu raw=%02x enc=%02x\n",
+          "codec diff %s range=[%zu,%zu) len=%zu raw[0]=%02x enc[0]=%02x\n",
           path,
+          start,
           i,
-          raw[i],
-          enc[i]
+          i - start,
+          raw[start],
+          enc[start]
         );
-        break;
       }
+    }
+    if (nranges > 40) {
+      fprintf(stderr, "codec diff %s ... %d more diff ranges not shown\n", path, nranges - 40);
     }
   }
   free(raw);
@@ -656,23 +676,32 @@ int main(void) {
   static const Col1Fixture k_fixtures[] = {
     {"original_saves/COLONY00.SAV", true, true, true},
     {"original_saves/COLONY01.SAV", true, true, true},
-    {"original_saves/valid-lategame-saves/COLONY00.SAV", false, true, false},
-    {"original_saves/valid-lategame-saves/COLONY01.SAV", false, true, false},
-    {"original_saves/valid-lategame-saves/COLONY02.SAV", false, true, false},
-    {"original_saves/valid-lategame-saves/COLONY03.SAV", false, true, false},
-    {"original_saves/valid-lategame-saves/COLONY04.SAV", false, true, false},
-    {"original_saves/valid-lategame-saves/COLONY05.SAV", false, true, false},
-    {"original_saves/valid-lategame-saves/COLONY06.SAV", false, true, false},
-    {"original_saves/valid-lategame-saves/COLONY07.SAV", false, true, false},
-    {"original_saves/valid-lategame-saves/COLONY08.SAV", false, true, false},
-    {"original_saves/valid-lategame-saves/COLONY10.SAV", false, true, false},
-    {"test-saves-ai/TURN1.SAV", false, false, false},
-    {"test-saves-ai/TURN2.SAV", false, false, false},
-    {"test-saves-ai/TURN3.SAV", false, false, false},
-    {"test-saves-ai/TURN4.SAV", false, false, false},
-    {"test-saves-ai/TURN5.SAV", false, false, false},
-    {"test-saves-ai/TURN6.SAV", false, false, false},
-    {"test-saves-ai/TURN7.SAV", false, false, false},
+    /* Lategame + TURN byte_identical promoted true 2026-08-24 (W1.5):
+     * confirmed via full-range diff (not just first-byte) that every
+     * fixture below round-trips byte-for-byte on this HEAD. The drift
+     * once documented here was fixed same-day by 753662d "Fix FF + I
+     * work" (2026-08-22), which stashes/restores nation.unknown21_pad
+     * (FF_POOL_STASH_MARKER) alongside liberty_bells_last_turn on
+     * save write; docs/savegame.md + docs/save_format_map.md just
+     * never got the "still drifting" language removed. See
+     * docs/save_format_map.md and docs/port_plan.md W1.5. */
+    {"original_saves/valid-lategame-saves/COLONY00.SAV", false, true, true},
+    {"original_saves/valid-lategame-saves/COLONY01.SAV", false, true, true},
+    {"original_saves/valid-lategame-saves/COLONY02.SAV", false, true, true},
+    {"original_saves/valid-lategame-saves/COLONY03.SAV", false, true, true},
+    {"original_saves/valid-lategame-saves/COLONY04.SAV", false, true, true},
+    {"original_saves/valid-lategame-saves/COLONY05.SAV", false, true, true},
+    {"original_saves/valid-lategame-saves/COLONY06.SAV", false, true, true},
+    {"original_saves/valid-lategame-saves/COLONY07.SAV", false, true, true},
+    {"original_saves/valid-lategame-saves/COLONY08.SAV", false, true, true},
+    {"original_saves/valid-lategame-saves/COLONY10.SAV", false, true, true},
+    {"test-saves-ai/TURN1.SAV", false, false, true},
+    {"test-saves-ai/TURN2.SAV", false, false, true},
+    {"test-saves-ai/TURN3.SAV", false, false, true},
+    {"test-saves-ai/TURN4.SAV", false, false, true},
+    {"test-saves-ai/TURN5.SAV", false, false, true},
+    {"test-saves-ai/TURN6.SAV", false, false, true},
+    {"test-saves-ai/TURN7.SAV", false, false, true},
   };
   for (size_t oi = 0; oi < sizeof(k_fixtures) / sizeof(k_fixtures[0]); ++oi) {
     const Col1Fixture* fix = &k_fixtures[oi];

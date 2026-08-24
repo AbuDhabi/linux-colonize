@@ -15,6 +15,8 @@ Reference for what colonists produce **inside** colony buildings (settlement vie
 
 **Removed:** earlier claim that `VICEROY.EXE` @ `0x16103` embeds tier bytes `3,6,8` — that offset is **not** a rate table (false cite).
 
+**2026-08-24: `byte[bx+0x1f]` resolved — colonist count / population, not still-unknown.** Flagged "remaining unknown" above (2026-08-15); already named project-wide by the time of that note (`colonist_work_plot_28c8.md` line 52: "`colony+0x1f` | Colonist count | Established project-wide"; `colony_eot_production.md` line 32: "`+0x1f` | Population") and independently re-confirmed this pass while decoding [terrain_yields.md](terrain_yields.md)'s `local_1c` (the sibling field-yield function `FUN_15eb_18ec` reads the exact same `byte[colony+0x1f] * (100 - SoL%)` shape). No `building_production.md`/`colony_production.c` code change needed — the port's `colony_prod_sol_bonus`/`colony_prod_sol_bonus_field` already use `colony->population`/`colonist_count` here, matching.
+
 When the manual Building Chart disagrees with `NAMES.TXT` on **construction** costs or min population, prefer **`NAMES.TXT`**.
 
 ---

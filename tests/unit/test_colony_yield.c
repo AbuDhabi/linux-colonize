@@ -423,6 +423,55 @@ int main(void) {
     }
   }
 
+  /*
+   * 2026-08-24 fix regression: the Farmer/Fisherman expert's second SoL/
+   * Tory re-add (colony_yield_pipeline's `is_expert_food_fish` branch) must
+   * re-add `sol_bonus` itself, not a value reconstructed from the colony's
+   * SoL latch bits (`colony_flags`) — direct read of FUN_15eb_18ec
+   * (~11866-11899) shows the re-added variable (`local_1c`) is the *same*
+   * one already folded in once earlier in the function (the `sol_bonus`
+   * parameter this port already threads through), computed from colonist
+   * count/SoL% (byte+0x1f / FUN_15eb_0274, already ported as
+   * colony_prod_sol_percent), not freshly derived from latch bits alone.
+   * The two only coincide when the formula's Tory-penalty term is exactly
+   * 0 (every other test in this file happens to hit that case); this test
+   * uses a nonzero sol_bonus with colony_flags=0 (no latch bits) to prove
+   * the re-add tracks sol_bonus, not the latch reconstruction the old code
+   * used (which would have re-added 0 here instead of 3).
+   *   expert: base(2) +sol_fold(3)=5, +flat(2)=7, +sol_readd(3)=10
+   */
+  {
+    int tx = -1;
+    int ty = -1;
+    for (int y = 0; y < (int)map.height && tx < 0; ++y) {
+      for (int x = 0; x < (int)map.width && tx < 0; ++x) {
+        map.terrain[y * map.width + x] = 0; /* Tundra, unforested pedia 0 */
+        if (map_resource_type_for_yield(&map, x, y) < 0) {
+          tx = x;
+          ty = y;
+        }
+      }
+    }
+    if (tx < 0) {
+      fprintf(stderr, "no resource-free Tundra tile found on 32x32\n");
+      map_free(&map);
+      return 1;
+    }
+    const int expert_farmer_sol = colony_yield_for_worker(
+      &map, tx, ty, COLONIZE_JOB_FARMER, COLONIZE_JOB_FARMER, /*has_docks=*/true, /*sol_bonus=*/3,
+      /*colony_flags=*/0
+    );
+    if (expert_farmer_sol != 10) {
+      fprintf(
+        stderr,
+        "expert farmer, sol_bonus=3 colony_flags=0 want 10 got %d\n",
+        expert_farmer_sol
+      );
+      map_free(&map);
+      return 1;
+    }
+  }
+
   map_free(&map);
   printf("colony_yield town commons tests ok\n");
   return 0;

@@ -84,12 +84,43 @@ doc when a slice lands).
   end-to-end but several formulas are DOS-unconfirmed:
   - Manufacturing tier rates + class scale
     ([building_production.md](building_production.md)).
-  - [terrain_yields.md](terrain_yields.md) "Still open": Farmer/Fisherman
-    experts get flat `+2` (not `×2`) on skill match **and** double-count the
-    colony SoL/Tory term; `local_1c`'s tory *numerator* (byte `+0x1f` ×
-    `FUN_15eb_0274()`) still undecoded — likely the cause of the
-    `golden_colony_prod01` coastal-tile residuals, so decode it before
-    inventing per-tile workarounds.
+  - [terrain_yields.md](terrain_yields.md) "Still open", **2026-08-24 —
+    all 3 sub-items closed statically, golden re-verification still
+    pending:**
+    - Farmer/Fisherman expert flat `+2` vs `×2`: **confirmed correct as
+      shipped**, direct decompile read (`FUN_15eb_18ec` ~11890-11899,
+      `viceroy_unpacked.c`) — `local_26 += 2`, not `<<=1`, for a matching
+      food/fish expert. `colony_yield_pipeline`'s `is_expert_food_fish`
+      branch already had this right; the doc's "not wired" framing was
+      stale relative to the 2026-08-18 code that landed it.
+    - Colony SoL/Tory term double-count: **real DOS behavior, not a bug**
+      (the same `local_1c` variable is re-added a second time in the
+      expert branch, on top of its once-only fold earlier in the same
+      function) — but the port's own replication of the re-add was wrong:
+      it rebuilt the value from `colony_flags` latch bits alone instead of
+      reusing the `sol_bonus` parameter already carrying the identical
+      value. Fixed in `colony_yield.c`'s `colony_yield_pipeline`.
+    - `local_1c`'s tory numerator (byte `+0x1f` × `FUN_15eb_0274()`):
+      **fully decoded, and it isn't new** — `+0x1f` is already named
+      colonist count/population elsewhere in the project
+      (`colonist_work_plot_28c8.md`, `colony_eot_production.md`), and
+      `FUN_15eb_0274()` is already ported as `colony_prod_sol_percent()`.
+      `local_1c` is field-for-field `colony_prod_sol_bonus_field()`'s
+      return value — not a separate, unnamed term. See
+      [terrain_yields.md](terrain_yields.md) "Field Farmer/Fisherman
+      expert formula" for the full trace.
+    - **Not independently re-verified against `golden_colony_prod01`/`02`**
+      this pass — this worktree has no `COLONIZE/` original-asset
+      directory, so both goldens fail at `NAMES.TXT` load before any
+      assertion runs (pre-existing environment gap, same 23/42 `ctest`
+      failure set as `W1.7`'s 2026-08-24 entry, unchanged by this fix).
+      The coastal-tile residual hypothesis stays open pending a run with
+      the real assets present — new unit regression added instead
+      (`test_colony_yield.c`, expert Farmer + `sol_bonus=3`/
+      `colony_flags=0`, isolates the fixed re-add from the old
+      latch-reconstruction path). Full `ctest --test-dir build`: same
+      19/42 pass, 23/42 pre-existing-environment fail, 4 disabled — no
+      regressions, `unit_colony_yield` (now 1 test larger) still green.
   - Warehouse spoilage / food chain already thin-ported (`turn.c`); deepen
     only against decomp evidence.
 
@@ -99,13 +130,25 @@ doc when a slice lands).
   AI unpark #4 — coordinate with W1.1 rather than porting twice). VGA combat
   chrome is Tier 5, not here.
 
-- [ ] **W1.5 — Lategame Col1 codec drift.** Early `COLONY00/01` round-trip
-  is byte-identical; lategame + `TURN` saves are not
-  ([roadmap.md](roadmap.md) Phase 4 "Lategame codec"). Triage with
-  `unit_col1_save`'s diff reporter; classify each drifting byte range
-  against [save_format_map.md](save_format_map.md) (real field vs. dead pad)
-  and fix writer-side fidelity. Save interop is acceptance-order **#1** —
-  this outranks any feature work if a real interop break is found.
+- [x] **W1.5 — Lategame Col1 codec drift.** Worked 2026-08-24. **Closed —
+  was already fixed, doc-stale.** Re-ran `unit_col1_save`'s diff reporter
+  (upgraded from first-byte-only to full contiguous-range reporting, a real
+  gap the row flagged) against every Col1 `.SAV` fixture in the repo: all 19
+  (2 starters + 10 `valid-lategame-saves/COLONY*` + 7 `test-saves-ai/TURN*`,
+  plus `mapgen/SEED100.SAV` and `tests-save-misc/unit flags error.sav`) are
+  byte-identical on read→write — zero drift found. The "not byte-identical"
+  claim in [roadmap.md](roadmap.md)/[savegame.md](savegame.md) dated from
+  2026-08-22, 42 minutes *before* the same day's `753662d` "Fix FF + I work"
+  commit fixed it (stash/restore of nation `unknown21_pad`
+  `FF_POOL_STASH_MARKER` alongside `liberty_bells_last_turn` in
+  `col1_save.c`'s write path); nobody circled back to the doc note after.
+  `unit_col1_save`'s `k_fixtures` table promoted all 12 lategame/TURN rows
+  from diagnostic-only to strict `byte_identical=true` (real regression
+  coverage now, not just a smoke pass) — `ctest` green (41/42; the one
+  failure, `unit_ai_king`, is pre-existing/unrelated, confirmed at baseline
+  before this row's changes). No writer-side fix was needed. See
+  [save_format_map.md](save_format_map.md) and [savegame.md](savegame.md)
+  Phase 5 for the dated writeup.
 
 - [x] **W1.6 — Mysteries catalog residue (doc/RE wins, low risk).** Worked
   2026-08-24. **Closed** (confirmed dead, no gameplay meaning —
@@ -180,16 +223,45 @@ doc when a slice lands).
   `ai_port_plan.md` T2.1/T2.2 (both done; waiting on their stub families
   going real). Nothing to do here until then.
 
-- [ ] **W2.2 — Test-suite failure-isolation audit.** `unit_ai_euro_expand`'s
+- [x] **W2.2 — Test-suite failure-isolation audit.** `unit_ai_euro_expand`'s
   `unit_construction_labor_stockade` used to fail on `main`, and because
   that binary's `main()` returns on first failure, every later test in it
   silently never ran under `ctest` (dock-hire, wagon coverage). Two parts:
   (a) **done** — confirmed 2026-08-24 that the W1.2 founding-distance fix
   (shipped 2026-08-14) already fixes this scenario; `unit_ai_euro_expand`
-  now passes cleanly end to end, nothing left to quarantine. (b) still
-  open — audit the other large single-`main()` test binaries for the same
-  first-failure-blocks-suite pattern and report how much coverage is
-  currently dark.
+  now passes cleanly end to end, nothing left to quarantine. (b) **done**
+  2026-08-24 — audited every multi-scenario `main()` test binary
+  (CMakeLists `add_test` entries under `tests/unit/`, `tests/golden/`).
+  Full ctest baseline: 41/42 active tests pass (4 `golden_ai_*`/`joint`
+  disabled per W3.2, unrelated). The first-failure-blocks-suite pattern
+  (`return 1`/`return fail(...)` on first check, no accumulate-and-continue)
+  is the house style across essentially every multi-scenario binary, not
+  just `unit_ai_euro_expand` — confirmed present in `unit_ai_euro_expand`
+  (160 scenarios), `unit_ai_euro_war` (70), `unit_ai_king` (~430 inline
+  checks), `unit_ai_contact` (~406), `unit_ai_diplo` (~346),
+  `unit_founding_fathers` (~254), `unit_units` (443 exit points),
+  `unit_turn` (293), `unit_colony_screen` (109), `unit_col1_save` (86),
+  `unit_europe` (88), `unit_colonies` (48), `unit_ai` (2 scenarios), plus
+  smaller multi-check binaries (`unit_map`, `unit_map_menu`,
+  `unit_map_panel`, `unit_colony_yield`, `unit_reports`, `unit_pedia`,
+  `unit_hall_of_fame`, `unit_new_game`, `unit_ff`, `unit_kill_indians`).
+  `golden_colony_prod01`/`02` are single-scenario despite their size (one
+  `run_pair` golden check each) — not at risk. All of the above currently
+  pass end to end, so risk is **latent only** (nothing dark today) —
+  except **`unit_ai_king`, which is a real, live instance right now**:
+  its pre-existing "multi-unload fortify count" failure sits at line
+  ~2890 of ~6335, and 204 `return fail(...)` checks after it (covering
+  later WoI/REF/SoL/founding-father scenarios in that file) do not
+  execute under `ctest` today. Underlying bug intentionally left
+  unfixed (out of scope, tracked separately). No restructuring done —
+  converting the shared-mutable-state monoliths (`ai_king`, `ai_contact`,
+  `ai_diplo`, `founding_fathers`, `turn`, `units`, `colony_screen`,
+  `col1_save`, `colonies`, `europe`) to accumulate-and-continue isn't
+  safe as a mechanical edit (scenarios share state across checks within
+  one `main()`); `ai_euro_expand`/`ai_euro_war` use independent
+  self-contained scenario functions so a mechanical fix is plausible
+  there, but 230 call sites across two files is a real refactor, not a
+  trivial one — left as a documented follow-up, not attempted here.
 
 ---
 

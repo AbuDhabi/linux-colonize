@@ -360,6 +360,15 @@ static int colony_yield_pipeline(
   bool has_docks,
   uint8_t colony_flags
 ) {
+  /* Field-job expert-fish/farmer re-add now goes through `sol_bonus`
+   * itself (see the is_expert_food_fish block below) rather than
+   * reconstructing it from the colony's SoL latch bits directly — the
+   * DOS variable it mirrors (`local_1c`) already folds those bits in
+   * upstream of both fold points. `colony_flags` stays a parameter for
+   * API symmetry with colony_yield_town_commons (a different DOS
+   * function, FUN_15eb_1f72, which does read its own latch bits
+   * directly), but this function no longer needs it directly. */
+  (void)colony_flags;
   if (!map || field_job < 0 || field_job >= COLONIZE_FIELD_JOB_COUNT) {
     return 0;
   }
@@ -473,41 +482,55 @@ static int colony_yield_pipeline(
 
   /*
    * Multipliers apply to the full accumulated base — except a matching
-   * Farmer/Fisherman expert, who gets flat +2 plus the colony's SoL latch
-   * bits re-added a second time (on top of the once-only positive
-   * sol_bonus fold above) instead of ×2. Asm-confirmed 2026-08-18
-   * (FUN_15eb_18ec ~11890-11899, `local_16`/`local_18` branch) and
-   * player-confirmed via four real, un-synthesized golden_colony_prod02
-   * town-commons-food values (Curacao/Recife/New Holland, plus Fort
-   * Orange after subtracting its own confirmed plow+river) that pinned
-   * the *sibling* town-commons formula first — solving those together
-   * showed the Farmer/Fisherman expert path needed this exact shape too:
-   * Fort Orange's expert Farmer (Savannah, no resource) needs base 3 +
-   * sol_bonus fold 2 + flat 2 + latch re-add 2 = 9, not base+sol ×2 = 10;
-   * New Amsterdam's expert Fisherman + Fishery resource needs the same
-   * shape plus its own doubled resource (3 base + fold 2 + flat 2 +
-   * latch 2 + resource 3×2 = 16, not the old ×2-of-everything). Two
-   * earlier same-day attempts at pieces of this (distance mod alone,
-   * "+2 not ×2" alone) each looked locally right but were curve-fit
-   * against a *wrong* town-commons baseline (flat +2 instead of the real
-   * per-terrain class) and regressed real colonies when tested in
-   * isolation; this version is the one that reconciles both formulas
-   * together against every real anchor found so far.
+   * Farmer/Fisherman expert, who gets flat +2 plus a second copy of the
+   * *same* positive sol_bonus already folded in above (step 2), instead of
+   * ×2. Asm-confirmed 2026-08-18 (FUN_15eb_18ec ~11890-11899, `local_16`/
+   * `local_18` branch) and player-confirmed via four real, un-synthesized
+   * golden_colony_prod02 town-commons-food values (Curacao/Recife/New
+   * Holland, plus Fort Orange after subtracting its own confirmed
+   * plow+river) that pinned the *sibling* town-commons formula first —
+   * solving those together showed the Farmer/Fisherman expert path needed
+   * this exact shape too: Fort Orange's expert Farmer (Savannah, no
+   * resource) needs base 3 + sol_bonus fold 2 + flat 2 + sol_bonus re-add
+   * 2 = 9, not base+sol ×2 = 10; New Amsterdam's expert Fisherman +
+   * Fishery resource needs the same shape plus its own doubled resource
+   * (3 base + fold 2 + flat 2 + re-add 2 + resource 3×2 = 16, not the old
+   * ×2-of-everything). Two earlier same-day attempts at pieces of this
+   * (distance mod alone, "+2 not ×2" alone) each looked locally right but
+   * were curve-fit against a *wrong* town-commons baseline (flat +2
+   * instead of the real per-terrain class) and regressed real colonies
+   * when tested in isolation; this version is the one that reconciles
+   * both formulas together against every real anchor found so far.
+   *
+   * 2026-08-24: the re-add term is `sol_bonus` itself, not a fresh
+   * reconstruction from the colony's SoL latch bits. Direct read of
+   * `FUN_15eb_18ec` (~11866-11889) shows `local_1c` — the value re-added
+   * here — is computed *once*, earlier in the function, from
+   * `byte[colony+0x1f]` (colonist count/population, already named
+   * project-wide: `colonist_work_plot_28c8.md`, `colony_eot_production.md`
+   * "+0x1f | Population") times `FUN_15eb_0274()` (colony SoL%, already
+   * ported as `colony_prod_sol_percent` — same rebel-dividend/-divisor
+   * shape plus the same human-only Bolivar +20), divided by the same
+   * 10-or-(10-difficulty) gate, plus the same `+0x1c` bit `0x04`/`0x02`
+   * latch adds `colony_prod_sol_bonus` already applies (`COLONIZE_COLONY_
+   * FLAG_SOL_50`/`_100` match exactly) — i.e. `local_1c` *is*
+   * `colony_prod_sol_bonus_field()`'s return value, already threaded
+   * through this pipeline as the `sol_bonus` parameter and already folded
+   * in once above. It is the *same* variable, unmodified, re-added a
+   * second time here — not a separately-derived latch-only value. The
+   * previous latch-bits reconstruction only coincidentally matched
+   * `sol_bonus` in the validated examples above because their Tory-penalty
+   * term happened to be 0 (`sol_bonus == latch bits` only in that case);
+   * whenever the tory-penalty term is nonzero the two diverge and the old
+   * code re-added the wrong amount. Fixed: re-add `sol_bonus` itself.
    */
   if (resource_double) {
     yield <<= 1;
   }
   if (is_expert_food_fish) {
     yield += 2;
-    int latch_readd = 0;
-    if ((colony_flags & COLONIZE_COLONY_FLAG_SOL_50) != 0) {
-      latch_readd += 1;
-    }
-    if ((colony_flags & COLONIZE_COLONY_FLAG_SOL_100) != 0) {
-      latch_readd += 1;
-    }
-    if (latch_readd > 0) {
-      yield += latch_readd;
+    if (sol_bonus > 0) {
+      yield += sol_bonus;
     }
   } else if (expert) {
     yield <<= 1;

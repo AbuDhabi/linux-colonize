@@ -967,6 +967,128 @@ non-committed fix, not a code change) — 40/41 green; the one failure
 pre-existing baseline condition unrelated to this row (confirmed via
 `git status`: zero `src/` files touched this pass), not a regression.
 
+**2026-08-24, third pass — both blockers chased with force-clear/XREF/operand-
+scan techniques instead of a live capture; both substantially resolved, one
+new correction to the prior pass's own finding, no `src/` change (still not
+safe to port `0009ae`/`0015c1` — new open sub-items, not old ones).**
+
+- **Blocker 1 (`FUN_1000_1e7b` semantics) — resolved: it hands back nothing
+  real, and the prior pass's "1000:a46e Chebyshev-8-gated shortcut" citation
+  was a stale-analysis misattribution.** Force-redecompiled flat `1000:a46e`
+  fresh (`clearCodeUnits` + `disassemble` + `createFunction`, the same
+  technique this doc's 2026-08-15 "third pass" used on an unrelated
+  function) instead of trusting the saved project's cached decompile: the
+  real bytes there are a trivial 10-byte, 2-instruction relay —
+  `CALLF 1000:1e7b; JMPF 0000:0906` — decompiling to
+  `void FUN_1000_a46e(void) { FUN_1000_1e7b(); FUN_0000_084a(); return; }`.
+  **Not** the Chebyshev-8 gate (`|x-goal|<8 && |y-goal|<8` → writes
+  `DS:0x1dd2`/`0xa14e`/`0xa14c`/`0x1dd6`, calls `0015bc(0)`, reads `0xa370`)
+  the 2026-08-24-earlier entry above attributed to it — that citation came
+  from letting the decompiler chase `0015b2`'s `JMPF` through the *cached*
+  project database instead of the real bytes; cross-confirmed by XREF:
+  `0015bc`'s actual 4 callers (`GhidraListXRefs`, `OVL20_L0000` offsets
+  `98f`/`10bb`/`1107`/`113e`) do not include `a46e` or anywhere in the
+  resident space at all. **`FUN_1000_1e7b` itself, decompiled fresh and
+  independently at its own address, is `void`**: a critical-section guard
+  (`LAB_1000_39e1=='\0' && (LAB_1000_39dc_2&0xc)==0`) — guard-open path sets
+  the busy flag, calls `FUN_1000_40a2()`, then branches on the *caller's
+  own* pre-call CF/ZF (not anything `40a2` sets — confirmed via raw disasm:
+  the `PUSHF` is 1e7b's own first instruction, popped right before the
+  branch, so these are literally the flags the caller had at the `CALLF`)
+  into one of 3 message-pointer setups ending in an indirect jump Ghidra
+  can't resolve (`Could not recover jumptable... too many branches`);
+  guard-blocked path calls `FUN_1000_1d4f()` (itself real but clearly
+  unrelated to pathfinding — touches `unit+0x3146`/the `0x5232` stride-`0xe`
+  unit-type table and an unrelated purchase/turn-limit counter pair
+  `DAT_2000_92c2`/`92c4`) and returns *its* result. Chased one level
+  further: `FUN_0000_0906` (`a46e`'s tail-jump target, independently
+  force-created/decompiled) is itself another trivial thunk
+  (`FUN_0000_084a(); return;`), and `FUN_0000_084a` is *also* `void`
+  (2 params, calls `FUN_0000_c28a(0)` then
+  `FUN_0000_c11c(0,param_1,param_2,DS:0x268a,DS:0x268c)`) — every link in
+  this chain is `void` per Ghidra's own independent signature inference at
+  each address, yet multiple *callers'* decompiles (`0015b2`'s Chebyshev-8
+  body, and a genuinely separate population routine found below) show code
+  using "the call's return value" in real comparisons — a decompiler
+  rendering artifact, not real callee behavior: the value being compared is
+  whatever the caller's own register already held before the `void` call,
+  surviving through untouched. `084a`'s real shape (a screen/video-memory
+  write gated behind a critical section, 2 caller coordinates plus 2 fixed
+  `DS:` params) reads as a strong match for the *already-documented*
+  "AI pathing on-screen debug/spectator visualization" toggle
+  (`0015bc`/`0015c1`'s own `DS:0x1df2`/`0x1df4`-gated popup/dialog tails,
+  2026-08-20/24 entries above) — i.e. likely debug instrumentation, out of
+  scope for a gameplay port, not a second independent finding needing its
+  own chase. **Net: `FUN_1000_1e7b`'s return value does not gate
+  `0009ae`/`0015c1`'s logic, because there is no real returned value to gate
+  with — the original blocker's premise doesn't hold.** **Still open**: the
+  *real* Chebyshev-8-gated near-flood-shortcut logic the prior pass
+  described is genuine, verified DOS code (confirmed via raw disasm, ending
+  `RETF 0x6`) — it just lives somewhere else: a distinct, previously-
+  uncatalogued function physically inside `OVL20_L0000` itself, roughly
+  offset `0x8f0`-`0x9ab`, one of `0015bc`'s real 4 XREF callers (its own
+  call to `0015bc` is the hit at `0x98f`). Its true entry point (`0x8f0`
+  itself has zero XREFs and `createFunction` fails there — collides with
+  something reachable via recursive-descent disassembly, so the real start
+  is earlier, reached by fallthrough) and its own caller are not pinned
+  down this pass — precise next step if resumed.
+
+- **Blocker 2 (walkability-grid population) — resolved: found the
+  populator, its own caller not yet found.** The "`-0x790a`/`-0x7a18`
+  stack-relative" framing in the 2026-08-24-earlier entry above was itself
+  a decompiler artifact — raw disasm of `0009ae`'s own reads
+  (`GhidraDumpBody`, custom one-off script) shows the true addressing is
+  `[BX+SI+0x86f6]` / `[BX+SI+0x85e8]`, i.e. two **fixed absolute `DS:`
+  addresses** (`0x86f6`, `0x85e8`; `-0x790a`/`-0x7a18` are the same 16-bit
+  bit pattern, just sign-reinterpreted by Ghidra's BP-relative heuristic —
+  not a real multi-kilobyte stack frame). A custom `GhidraFindDisp.java`
+  one-off (scans every already-disassembled instruction's operand scalars
+  for a literal match) swept the resident block plus **all 31 overlay
+  blocks** for any reference to these two literals: the *only* writer is
+  **`FUN_OVL21_L0040__0007ef`** (DOS-canonical segment ≈`67f4`, a "gap"
+  address in `address_mapping.csv` — not previously catalogued under any
+  name). It `memset`s both tables to 0 via the already-known
+  `FUN_0000_df7e` (confirmed project-wide `memset(ptr,val,len[,seg])`
+  equivalent — same `0x10e`-byte size constant also appears in
+  `euro_goal_orders_0a60_full.md`'s own unrelated `FUN_0000_df7e` call),
+  then walks a nested row/col/4-direction loop, step-4 sampling across
+  what resolves to an 18-wide window (matches the documented `0x12` stride
+  exactly, and explains "`0009ae`'s own body implies... ×4-scaled
+  quantities" from the 2026-08-24-earlier entry — that's literally this
+  loop's own step size) calling `FUN_1000_84f2` plus the *same*
+  `1000:a46e` relay chain (here invoked with 4 real args and an
+  `0<result<8` octant-range gate — consistent with the debug-draw read
+  above, or possibly a genuine octant/direction classifier reused by both;
+  not disambiguated) to decide which bits to set per domain. The same
+  function's tail (once both domains are done) also zeroes and recomputes
+  two unrelated per-nation aggregate tables at `0x945e`/`0x85c8` — these
+  are the *already-resolved* `-0x6ba2`/`-0x7a38` locals from this doc's own
+  much earlier Treasure-Train-tension finding (`land_combat_strength`-style
+  bookkeeping) — confirming `0007ef` is a broader **AI turn-start cache
+  refresh**, not a narrow pathfinding-only helper. **Still open**: nothing
+  in this project's current XREF index calls `FUN_OVL21_L0040__0007ef` at
+  all (0 hits) — plausibly reached via a computed/indirect dispatch, or its
+  true entry is earlier than `0x7ef` (same fallthrough pattern as blocker
+  1's still-open shortcut function). Finding that caller is required to
+  know *when* this population runs (once per AI turn vs. once per
+  individual pathfind call) before it could be safely modeled in Linux —
+  precise, well-scoped next step if resumed, not chased this pass.
+
+**Net for this third pass**: both blockers are substantially further
+resolved via static tooling alone (force-clear/XREF/custom operand-scan —
+no live DOSBox-X session needed, and none is judged necessary yet: every
+open sub-item above is still a static-analysis question, XREF/backward-scan
+territory, not something only runtime behavior could answer). But neither
+is closed all the way to "safe to port `0009ae`/`0015c1` without inventing
+anything" — two *new* callers (the real Chebyshev-8-shortcut function's own
+caller; `0007ef`'s own caller) are the concrete missing pieces, not
+restatements of the walkability-grid/1e7b questions this row started with.
+**No `src/` change this pass** — the one correction found (the `a46e`
+misattribution) doesn't touch any currently-shipped code (`0015bc`'s own
+edge-cost wiring in `units.c` never referenced `a46e`/`1e7b`). `ctest` not
+re-run (doc/investigation-only pass, confirmed via `git status`: zero
+`src/` files touched).
+
 Re-checked with a small (0x100-byte) force-clear + fresh disassemble
 (bypassing any stale analysis, same technique used elsewhere this
 session): the corruption is **confined to one case (`case 4`) of a small
