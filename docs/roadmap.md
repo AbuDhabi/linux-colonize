@@ -31,6 +31,14 @@ Full bar: [project_goals.md](project_goals.md).
 
 ## Current posture
 
+**2026-08-24 — goal reframed to playability.** [port_plan.md](port_plan.md)
+now carries priority tracks P1–P11 (UI, reports, music, colony production,
+War of Independence, Europe trade, rumours/treasure, basic Indian
+interactions, FF effects, save interop, popups). Rival-AI parity, 1:1 Indian
+AI, seed determinism, pixel-exact art, faithful music and `COLDIG.BIN` SFX are
+**deferred** (port_plan.md D1–D6). The phase table below is kept for
+archaeology; the P-tracks are the working order.
+
 The port is strong on **shell, map art, navigation, reports / pedia, Col1
 save/load, basic units / naval passengers, founding a colony, and Europe
 buy/sell/recruit/hire**. Structural Indian contact (including player dialogs),
