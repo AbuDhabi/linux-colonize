@@ -1865,117 +1865,347 @@ static void reports_render_colony_sol(
   }
 }
 
-static void reports_render_naval(
-  const ColonizeCol1Save* col1,
+/*
+ * Naval report (F7) table (golden: naval.png). 4 columns: Ship (icon + class
+ * name), Cargo (goods icons packed onto the ship's own row; a passenger gets
+ * its own row ABOVE the ship's row, unit_chrome icon + type name, no ship
+ * info in that row's Ship cell), Location, Destination. One flat row list is
+ * built once (reports_naval_build_rows) and reused for both page_count and
+ * render, same shape as the ship's own row/passenger-row split the golden
+ * shows for a Caravel carrying one colonist + a full stack of Trade Goods.
+ */
+#define REPORTS_NAVAL_ROWS_PER_PAGE 7
+#define REPORTS_NAVAL_ROW0_Y 40 /* first horizontal rule (golden: naval.png hline scan) */
+#define REPORTS_NAVAL_ROW_STEP 20
+#define REPORTS_NAVAL_HEADER_Y 27
+#define REPORTS_NAVAL_VLINE_TOP_Y 25 /* column rules start a row above the data
+   grid, level with the headers — same convention as REPORTS_ECON1_VLINE_TOP_Y */
+#define REPORTS_NAVAL_DIV1_X 82 /* Ship | Cargo */
+#define REPORTS_NAVAL_DIV2_X 162 /* Cargo | Location */
+#define REPORTS_NAVAL_DIV3_X 242 /* Location | Destination */
+#define REPORTS_NAVAL_SHIP_ICON_X 0
+#define REPORTS_NAVAL_SHIP_NAME_X 26
+#define REPORTS_NAVAL_CARGO_ICON_X (REPORTS_NAVAL_DIV1_X + 2)
+#define REPORTS_NAVAL_CARGO_ICON_PITCH 14 /* same goods-hold pitch as colony_screen.c's COLONY_HOLD_PITCH */
+#define REPORTS_NAVAL_CARGO_LABEL_X (REPORTS_NAVAL_DIV1_X + 30) /* passenger-row type name */
+#define REPORTS_NAVAL_ICON_DY 2 /* icon top = row_top + this */
+#define REPORTS_NAVAL_TEXT_DY 8 /* text top = row_top + this */
+#define REPORTS_NAVAL_LINE_COLOR 119 /* dark red (134,0,0) — same index as REPORTS_ECON_LINE_COLOR */
+#define REPORTS_NAVAL_HEADER_COLOR 14 /* bright yellow (255,243,93 in golden) */
+#define REPORTS_NAVAL_TEXT_COLOR 97 /* pale cream (247,243,199) — same index as REPORTS_ECON_VALUE_COLOR */
+#define REPORTS_NAVAL_CARGO_ICON_BASE 22 /* ICONS.SS — same as colony_screen.h COLONY_CARGO_ICON_BASE */
+#define REPORTS_NAVAL_CARGO_GREY_BASE 38 /* ICONS.SS — same as colony_screen.h COLONY_CARGO_GREY_BASE */
+#define REPORTS_NAVAL_ROWS_MAX 96
+
+typedef struct NavalRow {
+  bool has_ship;
+  int ship_sprite;
+  int ship_type;
+  int ship_nation;
+  int ship_orders;
+  const char* ship_name;
+
+  bool has_passenger;
+  int pass_sprite;
+  int pass_type;
+  int pass_nation;
+  int pass_orders;
+  const char* pass_label;
+
+  int goods_icon[COLONIZE_UNIT_CARGO_MAX];
+  int goods_count;
+
+  char location[40];
+  char destination[40];
+} NavalRow;
+
+/* Colony name at (x,y) if this nation (or any nation — golden only shows a
+ * human colony, but a foreign port would read the same way) has one there;
+ * else the raw coordinates, matching the report spec's Location column. */
+static void reports_naval_location(
+  const ColonizeColonyPool* colonies, int x, int y, char* out, size_t out_sz
+) {
+  if (colonies) {
+    for (int i = 0; i < colonies->colony_count && i < COLONIZE_COLONIES_MAX; ++i) {
+      const ColonizeColony* c = &colonies->colonies[i];
+      if (c->active && c->x == x && c->y == y) {
+        snprintf(out, out_sz, "%s", c->name);
+        return;
+      }
+    }
+  }
+  snprintf(out, out_sz, "(%d, %d)", x, y);
+}
+
+static int reports_naval_goods_icon(int cargo_type, int amount) {
+  /* Grey vs colored: same "100-per-stack" rule as colony_screen.c's docked-
+   * transport hold display (colony_screen_blit_cargo's `partial = amt<100`). */
+  const bool grey = amount < 100;
+  return (grey ? REPORTS_NAVAL_CARGO_GREY_BASE : REPORTS_NAVAL_CARGO_ICON_BASE) + cargo_type;
+}
+
+/* Builds the flat ship/passenger row list (on-mapboard ships from `units`,
+ * Europe-side ships from `europe`'s harbor/expected/bound lists — a ship
+ * mid-Atlantic exists only in the latter, never in `units`, until it
+ * arrives). Returns the row count (<= max_rows). Shared by page_count and
+ * render so pagination always matches what's actually drawn. */
+static int reports_naval_build_rows(
   int human,
   const ColonizeUnitPool* units,
+  const ColonizeColonyPool* colonies,
+  const EuropeScreen* europe,
+  NavalRow* rows,
+  int max_rows
+) {
+  int n = 0;
+  if (units) {
+    for (int i = 0; i < COLONIZE_UNITS_MAX && n < max_rows; ++i) {
+      const ColonizeUnit* u = &units->units[i];
+      if (!u->active || u->nation_id != human) {
+        continue;
+      }
+      if (!units_is_sea(units, u->id)) {
+        continue;
+      }
+      /* Docked-in-Europe ships are represented separately (and more
+       * completely — resolved cargo/hold state) via europe->harbor[]. */
+      if (reports_unit_in_europe(u->x, u->y)) {
+        continue;
+      }
+      for (int c = 0; c < u->cargo_count && c < COLONIZE_UNIT_CARGO_MAX && n < max_rows; ++c) {
+        const ColonizeUnit* pax = units_get_const(units, u->cargo_ids[c]);
+        if (!pax) {
+          continue;
+        }
+        NavalRow* r = &rows[n++];
+        memset(r, 0, sizeof(*r));
+        r->has_passenger = true;
+        r->pass_sprite = units_map_sprite(units, pax->id);
+        r->pass_type = units_display_type_index(units, pax->id);
+        r->pass_nation = pax->nation_id;
+        r->pass_orders = pax->orders;
+        const ColonizeUnitType* pt = units_type(units, pax->type_index);
+        r->pass_label = (pt && pt->name[0]) ? pt->name : "Colonists";
+        reports_naval_location(colonies, u->x, u->y, r->location, sizeof(r->location));
+      }
+      if (n >= max_rows) {
+        break;
+      }
+      NavalRow* r = &rows[n++];
+      memset(r, 0, sizeof(*r));
+      r->has_ship = true;
+      r->ship_sprite = units_map_sprite(units, u->id);
+      r->ship_type = units_display_type_index(units, u->id);
+      r->ship_nation = u->nation_id;
+      r->ship_orders = u->orders;
+      const ColonizeUnitType* st = units_type(units, u->type_index);
+      r->ship_name = (st && st->name[0]) ? st->name : "Ship";
+      for (int h = 0; h < COLONIZE_UNIT_CARGO_MAX && r->goods_count < COLONIZE_UNIT_CARGO_MAX; ++h) {
+        const int amt = u->hold_goods_amount[h];
+        const int gtype = u->hold_goods_type[h];
+        if (amt > 0 && gtype >= 0 && gtype < (int)COLONIZE_CARGO_COUNT) {
+          r->goods_icon[r->goods_count++] = reports_naval_goods_icon(gtype, amt);
+        }
+      }
+      reports_naval_location(colonies, u->x, u->y, r->location, sizeof(r->location));
+      if (units_orders_follow_goto(u->orders) && u->goto_x != UNITS_GOTO_NONE &&
+          u->goto_y != UNITS_GOTO_NONE) {
+        snprintf(r->destination, sizeof(r->destination), "(%d, %d)", u->goto_x, u->goto_y);
+      }
+    }
+  }
+
+  /* Europe-side ships — harbor (docked, Location = port), expected (sailing
+   * back to Europe, Location = High Seas / Destination = port), bound
+   * (sailing to the New World, Location = High Seas / Destination = this
+   * nation's named colony region). Not independently golden-verified (no
+   * Europe-side ship in naval.png's save) — built from EuropeScreen's own
+   * already-resolved harbor/expected/bound lists by the same shape as the
+   * on-mapboard loop above. */
+  if (europe) {
+    struct {
+      const EuropeHarborShip* list;
+      int count;
+      const char* loc;
+      const char* dest;
+    } lanes[3] = {
+      {europe->harbor, europe->harbor_ships, europe->port_city, ""},
+      {europe->expected, europe->expected_ships, "High Seas", europe->port_city},
+      {europe->bound, europe->bound_ships, "High Seas", europe->colony_region},
+    };
+    for (int lane = 0; lane < 3; ++lane) {
+      for (int i = 0; i < lanes[lane].count && n < max_rows; ++i) {
+        const EuropeHarborShip* s = &lanes[lane].list[i];
+        for (int c = 0; c < s->cargo_count && c < EUROPE_SHIP_CARGO_MAX && n < max_rows; ++c) {
+          NavalRow* r = &rows[n++];
+          memset(r, 0, sizeof(*r));
+          r->has_passenger = true;
+          const ColonizeUnitType* pt = units ? units_type(units, s->cargo_types[c]) : NULL;
+          r->pass_sprite = pt ? pt->icon_sprite : -1;
+          r->pass_type = s->cargo_types[c];
+          r->pass_nation = human;
+          r->pass_orders = 1; /* Sentry — aboard, matching the docked/undirected passenger look */
+          r->pass_label = (pt && pt->name[0]) ? pt->name : reports_job_name(s->cargo_professions[c]);
+          snprintf(r->location, sizeof(r->location), "%s", lanes[lane].loc);
+        }
+        if (n >= max_rows) {
+          break;
+        }
+        NavalRow* r = &rows[n++];
+        memset(r, 0, sizeof(*r));
+        r->has_ship = true;
+        const ColonizeUnitType* st = (s->type_index >= 0 && units) ? units_type(units, s->type_index) : NULL;
+        r->ship_sprite = st ? st->icon_sprite : -1;
+        r->ship_type = s->type_index;
+        r->ship_nation = human;
+        r->ship_orders = 1;
+        r->ship_name = (st && st->name[0]) ? st->name : (s->name[0] ? s->name : "Ship");
+        for (int h = 0; h < EUROPE_SHIP_CARGO_MAX && r->goods_count < COLONIZE_UNIT_CARGO_MAX; ++h) {
+          const int amt = s->hold_goods_amount[h];
+          const int gtype = s->hold_goods_type[h];
+          if (amt > 0 && gtype >= 0 && gtype < (int)COLONIZE_CARGO_COUNT) {
+            r->goods_icon[r->goods_count++] = reports_naval_goods_icon(gtype, amt);
+          }
+        }
+        snprintf(r->location, sizeof(r->location), "%s", lanes[lane].loc);
+        snprintf(r->destination, sizeof(r->destination), "%s", lanes[lane].dest);
+      }
+    }
+  }
+  return n;
+}
+
+int reports_naval_page_count(
+  int human_nation,
+  const ColonizeUnitPool* units,
+  const ColonizeColonyPool* colonies,
+  const EuropeScreen* europe
+) {
+  NavalRow rows[REPORTS_NAVAL_ROWS_MAX];
+  const int n = reports_naval_build_rows(human_nation, units, colonies, europe, rows, REPORTS_NAVAL_ROWS_MAX);
+  int pages = (n + REPORTS_NAVAL_ROWS_PER_PAGE - 1) / REPORTS_NAVAL_ROWS_PER_PAGE;
+  if (pages < 1) {
+    pages = 1;
+  }
+  return pages;
+}
+
+/* Column-centered text, e.g. the header row and the Location/Destination
+ * cells (golden: both header and body text sit centered in their column,
+ * unlike the left-aligned Ship/Cargo name text next to an icon). */
+static void reports_naval_draw_centered(
+  const ColonizeFont* font,
+  ColonizeFramebuffer8* fb,
+  int col_left,
+  int col_right,
+  int y,
+  const char* text,
+  uint8_t color
+) {
+  const int w = font ? font_text_width(font, text) : 0;
+  reports_draw_line(font, fb, col_left + ((col_right - col_left) - w) / 2, y, text, color);
+}
+
+static void reports_render_naval(
+  const ColonizeReportsView* view,
+  int human,
+  const ColonizeUnitPool* units,
+  const ColonizeColonyPool* colonies,
   const EuropeScreen* europe,
   const ColonizeFont* font,
   ColonizeFramebuffer8* fb,
-  int* y,
-  int step,
-  char* line,
-  size_t line_sz
+  int page
 ) {
-  reports_draw_line(font, fb, 8, *y, "Ships — cargo / location / destination", 15);
-  *y += step;
+  /* Body text needs FONTTINY, not FONTSMAL — golden's mixed-case, ~2px/char
+   * ship/cargo/location text is far narrower than FONTSMAL renders (which
+   * also turned out to be upper-case-only at this size); same pitfall as
+   * Congress page 1's body (docs/report_screens.md). */
+  font = (view && view->title_font_ok) ? &view->title_font : font;
+  reports_naval_draw_centered(
+    font, fb, 0, REPORTS_NAVAL_DIV1_X, REPORTS_NAVAL_HEADER_Y, "Ship", REPORTS_NAVAL_HEADER_COLOR
+  );
+  reports_naval_draw_centered(
+    font, fb, REPORTS_NAVAL_DIV1_X, REPORTS_NAVAL_DIV2_X, REPORTS_NAVAL_HEADER_Y, "Cargo",
+    REPORTS_NAVAL_HEADER_COLOR
+  );
+  reports_naval_draw_centered(
+    font, fb, REPORTS_NAVAL_DIV2_X, REPORTS_NAVAL_DIV3_X, REPORTS_NAVAL_HEADER_Y, "Location",
+    REPORTS_NAVAL_HEADER_COLOR
+  );
+  reports_naval_draw_centered(
+    font, fb, REPORTS_NAVAL_DIV3_X, fb->width, REPORTS_NAVAL_HEADER_Y, "Destination",
+    REPORTS_NAVAL_HEADER_COLOR
+  );
 
-  int sea = 0;
+  const int table_bottom = REPORTS_NAVAL_ROW0_Y + REPORTS_NAVAL_ROWS_PER_PAGE * REPORTS_NAVAL_ROW_STEP;
+  for (int i = 0; i <= REPORTS_NAVAL_ROWS_PER_PAGE; ++i) {
+    reports_draw_hline(
+      fb, 0, fb->width, REPORTS_NAVAL_ROW0_Y + i * REPORTS_NAVAL_ROW_STEP, REPORTS_NAVAL_LINE_COLOR
+    );
+  }
+  reports_draw_vline(fb, REPORTS_NAVAL_DIV1_X, REPORTS_NAVAL_VLINE_TOP_Y, table_bottom, REPORTS_NAVAL_LINE_COLOR);
+  reports_draw_vline(fb, REPORTS_NAVAL_DIV2_X, REPORTS_NAVAL_VLINE_TOP_Y, table_bottom, REPORTS_NAVAL_LINE_COLOR);
+  reports_draw_vline(fb, REPORTS_NAVAL_DIV3_X, REPORTS_NAVAL_VLINE_TOP_Y, table_bottom, REPORTS_NAVAL_LINE_COLOR);
 
-  if (col1) {
-    for (uint16_t i = 0; i < col1->head.unit_count && *y < 180; ++i) {
-      const ColonizeCol1Unit* u = &col1->unit[i];
-      if ((int)u->nation_id != human) {
-        continue;
+  NavalRow rows[REPORTS_NAVAL_ROWS_MAX];
+  const int total = reports_naval_build_rows(human, units, colonies, europe, rows, REPORTS_NAVAL_ROWS_MAX);
+  const int skip = page * REPORTS_NAVAL_ROWS_PER_PAGE;
+  const ColonizePalette* active_palette =
+    (view && view->background_ok[COLONIZE_REPORT_NAVAL] && view->backgrounds[COLONIZE_REPORT_NAVAL].has_palette)
+      ? &view->backgrounds[COLONIZE_REPORT_NAVAL].palette
+      : NULL;
+
+  for (int row = 0; row < REPORTS_NAVAL_ROWS_PER_PAGE; ++row) {
+    const int idx = skip + row;
+    if (idx >= total) {
+      break;
+    }
+    const NavalRow* r = &rows[idx];
+    const int row_top = REPORTS_NAVAL_ROW0_Y + row * REPORTS_NAVAL_ROW_STEP;
+    const int icon_y = row_top + REPORTS_NAVAL_ICON_DY;
+    const int text_y = row_top + REPORTS_NAVAL_TEXT_DY;
+
+    if (r->has_ship && view && view->icons_ok && r->ship_sprite >= 0) {
+      unit_chrome_blit_unit_for_palette(
+        fb, font, &view->icons, r->ship_sprite, REPORTS_NAVAL_SHIP_ICON_X, icon_y,
+        r->ship_type, r->ship_nation, r->ship_orders, false, false, active_palette
+      );
+    }
+    if (r->has_ship && r->ship_name) {
+      reports_draw_line(font, fb, REPORTS_NAVAL_SHIP_NAME_X, text_y, r->ship_name, REPORTS_NAVAL_TEXT_COLOR);
+    }
+
+    if (r->has_passenger) {
+      if (view && view->icons_ok && r->pass_sprite >= 0) {
+        unit_chrome_blit_unit_for_palette(
+          fb, font, &view->icons, r->pass_sprite, REPORTS_NAVAL_CARGO_ICON_X, icon_y,
+          r->pass_type, r->pass_nation, r->pass_orders, false, true, active_palette
+        );
       }
-      if (u->type < 13 || u->type > 18) {
-        continue;
+      if (r->pass_label) {
+        reports_draw_line(
+          font, fb, REPORTS_NAVAL_CARGO_LABEL_X, text_y, r->pass_label, REPORTS_NAVAL_TEXT_COLOR
+        );
       }
-      const char* ship_name = "Ship";
-      if (units) {
-        const ColonizeUnitType* ut = units_type(units, u->type);
-        if (ut) {
-          ship_name = ut->name;
+    } else if (view && view->icons_ok) {
+      for (int g = 0; g < r->goods_count; ++g) {
+        const int icon = r->goods_icon[g];
+        if (icon >= 0 && icon < view->icons.sprite_count) {
+          ss_blit_sprite(&view->icons, icon, fb, REPORTS_NAVAL_CARGO_ICON_X + g * REPORTS_NAVAL_CARGO_ICON_PITCH, icon_y);
         }
       }
-      const char* loc = reports_unit_in_europe(u->x, u->y) ? "Off Mapboard (Europe)" : "On Mapboard";
-      if (u->orders == 0 && u->goto_x == 0xFF) {
-        snprintf(
-          line,
-          line_sz,
-          "  %s  %s (%u,%u)  holds %u",
-          ship_name,
-          loc,
-          (unsigned)u->x,
-          (unsigned)u->y,
-          (unsigned)u->holds_occupied
-        );
-      } else {
-        snprintf(
-          line,
-          line_sz,
-          "  %s  %s (%u,%u)  holds %u  dest (%u,%u)",
-          ship_name,
-          loc,
-          (unsigned)u->x,
-          (unsigned)u->y,
-          (unsigned)u->holds_occupied,
-          (unsigned)u->goto_x,
-          (unsigned)u->goto_y
-        );
-      }
-      reports_draw_line(font, fb, 8, *y, line, 15);
-      *y += step;
-      sea++;
     }
-  } else if (units) {
-    for (int i = 0; i < COLONIZE_UNITS_MAX && *y < 170; ++i) {
-      const ColonizeUnit* u = &units->units[i];
-      if (!u->active || !units_is_sea(units, u->id)) {
-        continue;
-      }
-      if (u->nation_id >= 0 && u->nation_id < 4 && u->nation_id != human) {
-        continue;
-      }
-      const ColonizeUnitType* ut = units_type(units, u->type_index);
-      const char* loc =
-        reports_unit_in_europe(u->x, u->y) ? "Off Mapboard (Europe)" : "On Mapboard";
-      snprintf(
-        line,
-        line_sz,
-        "  %s  %s (%d,%d)  hold %d",
-        ut ? ut->name : "Ship",
-        loc,
-        u->x,
-        u->y,
-        u->cargo_count
-      );
-      reports_draw_line(font, fb, 8, *y, line, 15);
-      *y += step;
-      sea++;
-    }
-  }
 
-  if (europe) {
-    snprintf(line, line_sz, "Europe harbor ships: %d", europe->harbor_ships);
-    reports_draw_line(font, fb, 8, *y, line, 15);
-    *y += step;
-    for (int i = 0; i < europe->harbor_ships && *y < 190; ++i) {
-      snprintf(
-        line,
-        line_sz,
-        "  Harbor: %s (+%d passengers)",
-        europe->harbor[i].name,
-        europe->harbor[i].cargo_count
+    if (r->location[0]) {
+      reports_naval_draw_centered(
+        font, fb, REPORTS_NAVAL_DIV2_X, REPORTS_NAVAL_DIV3_X, text_y, r->location, REPORTS_NAVAL_TEXT_COLOR
       );
-      reports_draw_line(font, fb, 8, *y, line, 15);
-      *y += step;
-      sea++;
     }
-  }
-
-  if (sea == 0) {
-    reports_draw_line(font, fb, 8, *y, "No ships in play.", 14);
+    if (r->destination[0]) {
+      reports_naval_draw_centered(
+        font, fb, REPORTS_NAVAL_DIV3_X, fb->width, text_y, r->destination, REPORTS_NAVAL_TEXT_COLOR
+      );
+    }
   }
 }
 
@@ -2620,6 +2850,7 @@ void reports_render(
   int labor_detail_job,
   int economic_page,
   int colony_page,
+  int naval_page,
   const ColonizeColonyPool* colonies,
   const ColonizeUnitPool* units,
   const ColonizeWorldMap* map,
@@ -2696,10 +2927,7 @@ void reports_render(
       break;
     }
     case COLONIZE_REPORT_NAVAL:
-      /* When ship icon rows are added, draw with unit_chrome_draw (FUN_112b_01ba). */
-      reports_render_naval(
-        col1, human, units, europe, font, framebuffer, &y, step, line, sizeof(line)
-      );
+      reports_render_naval(view, human, units, colonies, europe, font, framebuffer, naval_page);
       break;
     case COLONIZE_REPORT_FOREIGN:
       reports_render_foreign(

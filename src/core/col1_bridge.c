@@ -991,7 +991,22 @@ bool col1_bridge_apply(
           src->cargo_item_4,
           src->cargo_item_5
         };
-        for (int h = 0; h < COLONIZE_UNIT_CARGO_MAX; ++h) {
+        /*
+         * Only the first `holds_occupied` slots are real (savegame.md:
+         * "Ship holds_occupied = goods only"). The rest of cargo_hold[]/
+         * cargo_item_*[] can carry stale bytes left over from goods a ship
+         * unloaded earlier in the game — DOS clears the slot count but not
+         * the array contents. Without this gate a ship with holds_occupied
+         * == 0 (nothing aboard) still had its stale array contents read as
+         * real cargo. Player-reported (Naval report, dutch-reports.SAV): a
+         * Merchantman and Privateer both showed phantom cargo icons (Furs /
+         * Tools) that don't exist in the golden capture; both have
+         * holds_occupied == 0 in the raw save.
+         */
+        const int holds = src->holds_occupied < COLONIZE_UNIT_CARGO_MAX
+          ? src->holds_occupied
+          : COLONIZE_UNIT_CARGO_MAX;
+        for (int h = 0; h < holds; ++h) {
           const int amt = src->cargo_hold[h];
           if (amt > 0 && amt < 255) {
             u->hold_goods_type[h] = (int)items[h];
@@ -1006,9 +1021,30 @@ bool col1_bridge_apply(
     local.imported_units++;
   }
 
-  /* Board passengers via transport chain. */
+  /* Board passengers via transport chain.
+   *
+   * col1_find_ship_root walks transport_chain prev/next looking for any sea
+   * unit — but Col1 reuses that same chain for plain same-tile stacking
+   * order too, not just genuine Europe-dock/hold manifests. A land unit
+   * merely garrisoned on a colony tile that also has a ship docked shares
+   * the tile's stacking chain with that ship, so without a discriminator
+   * every such garrison unit gets wrongly "boarded" (aboard_ship_id set,
+   * orders forced to Sentry — see units_board_stacked). Player-reported
+   * (Naval report, dutch-reports.SAV New Amsterdam dock): a Fortified
+   * Dragoon and a Fortified Artillery both showed up as passengers of the
+   * Privateer docked there. Fortified/Fortify is a strict discriminator —
+   * a unit mid-fortify or already fortified is definitionally not aboard a
+   * ship (confirmed against the same save's one genuine passenger, a
+   * Sentry-orders Colonist on the Caravel: never Fortified). This doesn't
+   * catch every possible false positive (a Sentried land unit simply
+   * standing at a dock, not boarded, would still slip through), but it's a
+   * real, low-risk, well-evidenced fix for the concrete case seen — see
+   * docs/report_screens.md's Naval report section. */
   for (int i = 0; i < (int)save->head.unit_count; ++i) {
     if (!id_by_index || id_by_index[i] < 0) {
+      continue;
+    }
+    if (save->unit[i].orders == UNITS_ORDER_FORTIFY || save->unit[i].orders == UNITS_ORDER_FORTIFIED) {
       continue;
     }
     const int ship_idx = col1_find_ship_root(save->unit, (int)save->head.unit_count, i);
