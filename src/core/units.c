@@ -6279,16 +6279,46 @@ const char* units_display_name(const ColonizeUnitPool* pool, const ColonizeUnit*
   return ut ? ut->name : "Unit";
 }
 
+/*
+ * ICONS.SS index per NAMES.TXT @JOB profession (0..28, UNITS_JOB_NONE
+ * included); -1 where no dedicated working-colonist portrait was found
+ * (Expert Teachers, Veteran Dragoons — falls back to the unit type's own
+ * icon_sprite below, same as before this table existed). Identified by
+ * visual match against report-screen-goldens/labor.png's per-cell
+ * portraits — see reports.c's k_labor_layout comment for the same table's
+ * derivation notes (moderate confidence on the near-identical planter/
+ * processor pairs). Pioneer/Soldier use each's dedicated *working* pose
+ * (UNITS_ICON_HARDY_PIONEER_WORK/VETERAN_SOLDIER_WORK), not the on-map
+ * pose with musket/tools/horse equipped (that's what a bare `type->
+ * icon_sprite` fallback would give a Colonists-type unit with no
+ * profession match — wrong for anyone actually working, hence this table
+ * instead of the old 2-profession-only special case). UNITS_JOB_NONE (28,
+ * "no expert skill") uses the same portrait as Free Colonists (19) — an
+ * unspecialized @UNIT-type-0 Colonists unit *is* a Free Colonist.
+ */
+static const int16_t k_units_job_icon[UNITS_JOB_NONE + 1] = {
+  81,  82,  83, 84,  85,  86,  87,  88, /* 0-7   farm/forest/mine experts */
+  89,  90,  91, 92,  93,  94,  95,  96, 97, /* 8-16  fisherman..preacher */
+  98,  -1, 100, UNITS_ICON_HARDY_PIONEER_WORK, UNITS_ICON_VETERAN_SOLDIER_WORK,
+  60,  -1, 77,  106, 107, 66, /* 22-27 scout,dragoon,missionary,servant,criminal,convert */
+  100 /* 28 NONE: same as Free Colonists */
+};
+
+int units_job_icon_sprite(int profession) {
+  if (profession < 0 || profession >= (int)(sizeof(k_units_job_icon) / sizeof(k_units_job_icon[0]))) {
+    return -1;
+  }
+  return k_units_job_icon[profession];
+}
+
 int units_working_colonist_sprite(
   const ColonizeUnitPool* pool,
   int unit_type_index,
   int profession
 ) {
-  if (profession == UNITS_JOB_PIONEER) {
-    return UNITS_ICON_HARDY_PIONEER_WORK;
-  }
-  if (profession == UNITS_JOB_SOLDIER) {
-    return UNITS_ICON_VETERAN_SOLDIER_WORK;
+  const int icon = units_job_icon_sprite(profession);
+  if (icon >= 0) {
+    return icon;
   }
   const ColonizeUnitType* type = units_type(pool, unit_type_index);
   return type ? type->icon_sprite : -1;

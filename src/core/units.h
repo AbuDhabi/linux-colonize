@@ -1028,8 +1028,17 @@ int units_spawn_euro_starter_fleet(
 const char* units_display_name(const ColonizeUnitPool* pool, const ColonizeUnit* unit);
 
 /*
- * ICONS.SS index for a colonist working inside a colony (no field equipment).
- * Hardy Pioneer → #58, Veteran Soldier → #59; else @UNIT icon for unit_type_index.
+ * ICONS.SS index per NAMES.TXT @JOB profession (0..28) for a colonist
+ * working inside a colony / waiting on a dock — no field equipment, unlike
+ * the on-map UNITS_ICON_* sprites. -1 if that profession has no dedicated
+ * portrait (Expert Teachers, Veteran Dragoons).
+ */
+int units_job_icon_sprite(int profession);
+
+/*
+ * ICONS.SS index for a colonist working inside a colony (no field
+ * equipment): units_job_icon_sprite(profession) if it has one, else the
+ * @UNIT icon for unit_type_index.
  */
 int units_working_colonist_sprite(
   const ColonizeUnitPool* pool,
