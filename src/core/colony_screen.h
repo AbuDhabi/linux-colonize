@@ -56,6 +56,13 @@
 #define COLONY_VIEWPORT_W 202
 #define COLONY_VIEWPORT_H 114
 
+/* Parchment fill extent — separate from COLONY_VIEWPORT_W/H (building/hit-test
+   space) so the beige tiling reaches exactly to the minimap section's left
+   edge and the bottom separator, with no leftover chrome strip showing
+   through (player-reported: 1px right, 5px bottom uncovered). */
+#define COLONY_PARCH_FILL_W (COLONY_MINIMAP_SECTION_X - COLONY_VIEWPORT_X)
+#define COLONY_PARCH_FILL_H (COLONY_BOTTOM_SEPARATOR_Y - COLONY_VIEWPORT_Y)
+
 #define COLONY_CARGO_SLOT_X0 1
 #define COLONY_CARGO_SLOT_W 18
 #define COLONY_CARGO_PITCH 19

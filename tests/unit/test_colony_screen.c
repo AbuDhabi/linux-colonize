@@ -1392,15 +1392,15 @@ int main(void) {
     }
 
     const int carpenter = colonies_find_building(&pool, "Carpenter's Shop");
-    /* Golden-measured carpenter slot (k_building_slots): (127,45), 44x22 —
-     * click an interior point. */
+    /* Carpenter's MED pool slot is (127,10) (k_group_med_slots); (154,30) is
+     * an interior point clear of the church LARGE slot it partly abuts. */
     hit = colony_screen_hit_test(
       &view,
       &pool,
       sample,
       &units,
-      COLONY_VIEWPORT_X + 127 + 10,
-      COLONY_VIEWPORT_Y + 45 + 10
+      COLONY_VIEWPORT_X + 154,
+      COLONY_VIEWPORT_Y + 30
     );
     if (hit.kind != COLONY_HIT_BUILDING || hit.index != carpenter) {
       fprintf(
