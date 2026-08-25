@@ -1318,11 +1318,13 @@ static void reports_draw_right(
 }
 
 #define REPORTS_ECON1_ROWS 16
-#define REPORTS_ECON1_ROW0_Y 33
+#define REPORTS_ECON1_ROW0_Y 33 /* first horizontal rule (also last row's bottom) */
 #define REPORTS_ECON1_ROW_STEP 8
 #define REPORTS_ECON1_LABEL_X 2
 #define REPORTS_ECON1_DIVIDER_X 67
-#define REPORTS_ECON1_HEADER_Y 25
+#define REPORTS_ECON1_VLINE_TOP_Y 25 /* the divider (and page 2's column rules)
+   start a row above the rule lines, level with the column headers — golden-measured, not a typo of ROW0_Y */
+#define REPORTS_ECON1_HEADER_Y 24
 #define REPORTS_ECON1_TONS_RIGHT 90
 #define REPORTS_ECON1_GOLD_RIGHT 144
 #define REPORTS_ECON1_BID_RIGHT 199
@@ -1343,7 +1345,7 @@ static void reports_render_economic_trade(
   if (font) {
     static const char kSubtitle[] = "European Trade";
     const int w = font_text_width(font, kSubtitle);
-    reports_draw_line(font, fb, (fb->width - w) / 2, y, kSubtitle, REPORTS_ECON_LABEL_COLOR);
+    reports_draw_line(font, fb, (fb->width - w) / 2, y - 1, kSubtitle, REPORTS_ECON_LABEL_COLOR);
   }
 
   reports_draw_right(font, fb, REPORTS_ECON1_TONS_RIGHT, REPORTS_ECON1_HEADER_Y, "Tons", REPORTS_ECON_LABEL_COLOR);
@@ -1359,12 +1361,12 @@ static void reports_render_economic_trade(
   for (int i = 0; i <= REPORTS_ECON1_ROWS; ++i) {
     reports_draw_hline(fb, 0, fb->width, REPORTS_ECON1_ROW0_Y + i * REPORTS_ECON1_ROW_STEP, REPORTS_ECON_LINE_COLOR);
   }
-  reports_draw_vline(fb, REPORTS_ECON1_DIVIDER_X, REPORTS_ECON1_ROW0_Y, table_bottom, REPORTS_ECON_LINE_COLOR);
+  reports_draw_vline(fb, REPORTS_ECON1_DIVIDER_X, REPORTS_ECON1_VLINE_TOP_Y, table_bottom, REPORTS_ECON_LINE_COLOR);
 
   const ColonizeCol1Nation* nat = col1 ? &col1->nation[human] : NULL;
   for (int c = 0; c < (int)COLONIZE_COL1_CARGO_TYPES; ++c) {
     const int row_top = REPORTS_ECON1_ROW0_Y + c * REPORTS_ECON1_ROW_STEP;
-    const int text_y = row_top + 3;
+    const int text_y = row_top + 2;
     reports_draw_line(font, fb, REPORTS_ECON1_LABEL_X, text_y, k_cargo_names[c], REPORTS_ECON_LABEL_COLOR);
 
     const int32_t tons = nat ? nat->trade.tons[c] : 0;
@@ -1373,7 +1375,7 @@ static void reports_render_economic_trade(
     const uint8_t sign_color = net_bought ? REPORTS_ECON_NEG_COLOR : REPORTS_ECON_POS_COLOR;
     snprintf(line, line_sz, "%d", tons < 0 ? -tons : tons);
     reports_draw_right(font, fb, REPORTS_ECON1_TONS_RIGHT, text_y, line, sign_color);
-    snprintf(line, line_sz, "%dg", g < 0 ? -g : g);
+    snprintf(line, line_sz, "%d$", g < 0 ? -g : g);
     reports_draw_right(font, fb, REPORTS_ECON1_GOLD_RIGHT, text_y, line, sign_color);
 
     int bid;
@@ -1388,9 +1390,9 @@ static void reports_render_economic_trade(
       bid = 0;
       ask = 0;
     }
-    snprintf(line, line_sz, "%dg", bid);
+    snprintf(line, line_sz, "%d$", bid);
     reports_draw_right(font, fb, REPORTS_ECON1_BID_RIGHT, text_y, line, REPORTS_ECON_VALUE_COLOR);
-    snprintf(line, line_sz, "%dg", ask);
+    snprintf(line, line_sz, "%d$", ask);
     reports_draw_right(font, fb, REPORTS_ECON1_ASK_RIGHT, text_y, line, REPORTS_ECON_VALUE_COLOR);
   }
 }
@@ -1435,9 +1437,13 @@ static void reports_render_economic_cargo(
   if (font) {
     static const char kSubtitle[] = "Cargo in Port";
     const int w = font_text_width(font, kSubtitle);
-    reports_draw_line(font, fb, (fb->width - w) / 2, y, kSubtitle, REPORTS_ECON_LABEL_COLOR);
+    reports_draw_line(font, fb, (fb->width - w) / 2, y - 1, kSubtitle, REPORTS_ECON_LABEL_COLOR);
   }
 
+  /* Column rules run the full height of the icon header row too, not just
+   * the data grid below it — same top (REPORTS_ECON1_VLINE_TOP_Y) as page
+   * 1's row-label/Tons divider. Row rules stay confined to the data grid
+   * (no line above the icons; they float). */
   const int table_bottom = REPORTS_ECON2_ROW0_Y + REPORTS_ECON2_ROWS_PER_PAGE * REPORTS_ECON2_ROW_STEP;
   for (int i = 0; i <= REPORTS_ECON2_ROWS_PER_PAGE; ++i) {
     reports_draw_hline(
@@ -1446,7 +1452,11 @@ static void reports_render_economic_cargo(
   }
   for (int c = 0; c <= REPORTS_ECON2_COLS; ++c) {
     reports_draw_vline(
-      fb, REPORTS_ECON2_DIVIDER_X + c * REPORTS_ECON2_COL_STEP, REPORTS_ECON2_ROW0_Y, table_bottom, REPORTS_ECON_LINE_COLOR
+      fb,
+      REPORTS_ECON2_DIVIDER_X + c * REPORTS_ECON2_COL_STEP,
+      REPORTS_ECON1_VLINE_TOP_Y,
+      table_bottom,
+      REPORTS_ECON_LINE_COLOR
     );
   }
 
@@ -1479,15 +1489,18 @@ static void reports_render_economic_cargo(
       break;
     }
     const int row_top = REPORTS_ECON2_ROW0_Y + row * REPORTS_ECON2_ROW_STEP;
-    const int text_y = row_top + 3;
+    const int text_y = row_top + 2;
     reports_draw_line(font, fb, REPORTS_ECON2_LABEL_X, text_y, c->name, REPORTS_ECON_LABEL_COLOR);
     for (int cg = 0; cg < REPORTS_ECON2_COLS; ++cg) {
       const int col_left = REPORTS_ECON2_DIVIDER_X + cg * REPORTS_ECON2_COL_STEP;
-      snprintf(line, line_sz, "%u", (unsigned)c->stock[cg]);
+      const unsigned stock = c->stock[cg];
+      /* Golden: 0 is black (de-emphasized), 1-99 is the usual pale cream,
+       * >=100 (near/at the 100-per-good warehouse cap) switches to the
+       * bright yellow used for labels — a "getting full" warning. */
+      const uint8_t color = stock == 0 ? 0 : (stock >= 100 ? REPORTS_ECON_LABEL_COLOR : REPORTS_ECON_VALUE_COLOR);
+      snprintf(line, line_sz, "%u", stock);
       const int w = font ? font_text_width(font, line) : 0;
-      reports_draw_line(
-        font, fb, col_left + (REPORTS_ECON2_COL_STEP - w) / 2, text_y, line, REPORTS_ECON_VALUE_COLOR
-      );
+      reports_draw_line(font, fb, col_left + (REPORTS_ECON2_COL_STEP - w) / 2, text_y, line, color);
     }
     shown++;
   }
