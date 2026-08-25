@@ -915,25 +915,72 @@ static void reports_render_congress_page2(
   }
 }
 
-static void reports_render_labor(
+/*
+ * Labor report (F4, golden: labor.png / labor_detail.png) — a 9-row x
+ * 3-column table of profession icon + name + headcount (bottom-left cell
+ * empty), plus a per-profession detail view reached by clicking a cell.
+ *
+ * DOS lays out a fixed 26-slot table, not a straight scan of job ids 0..27:
+ * Expert Teachers (18) and Veteran Dragoons (23) never appear, and Free
+ * Colonists (19) is pulled out of numeric order to the bottom of column 3.
+ * Measured off labor.png (native 320x200): icon rows start y=26, step=18;
+ * columns start x=2/107/212.
+ */
+#define REPORTS_LABOR_ROWS 9
+#define REPORTS_LABOR_COLS 3
+#define REPORTS_LABOR_ROW0_Y 26
+#define REPORTS_LABOR_ROW_STEP 18
+#define REPORTS_LABOR_COL0_X 2
+#define REPORTS_LABOR_COL_STEP 105
+#define REPORTS_LABOR_CELL_W 100
+#define REPORTS_LABOR_TEXT_DX 18
+
+static const int8_t k_labor_layout[REPORTS_LABOR_COLS][REPORTS_LABOR_ROWS] = {
+  {0, 1, 2, 3, 4, 5, 6, 7, -1},
+  {8, 9, 10, 11, 12, 13, 14, 15, 16},
+  {17, 20, 21, 22, 24, 25, 26, 27, 19}
+};
+
+/* ICONS.SS index per job id (index into k_job_names[]); -1 for the two job
+ * ids the report table skips (Expert Teachers, Veteran Dragoons). Identified
+ * by visual match against labor.png's per-cell portraits (remapped through
+ * backgrounds[RELIGIOUS]'s palette, same as the report's other ICONS.SS
+ * uses) — moderate confidence on the near-identical planter/processor pairs
+ * (sugar/tobacco/cotton share art with distiller/tobacconist/weaver, which
+ * looks right thematically); Hardy Pioneer (101) and Veteran Soldier (102)
+ * are exact, reused from UNITS_ICON_HARDY_PIONEER/VETERAN_SOLDIER. Indian
+ * Converts (113) is a known-weak match — it's one of ICONS.SS's five
+ * head-only native portraits (113-117), not a full standing figure like the
+ * golden's; no better candidate found in ICONS.SS. */
+static const int16_t k_labor_icon[28] = {
+  81,  82,  83, 84,  85,  86,  87,  88, /* 0-7   farm/forest/mine experts */
+  89,  90,  91, 92,  93,  94,  95,  96, 97, /* 8-16  fisherman..preacher */
+  98,  -1, 100, 101, 102, 99,  -1, 105, 106, 107, 113 /* 17-27 statesman.. */
+};
+
+static int reports_labor_icon_for_job(int job) {
+  if (job < 0 || job >= (int)(sizeof(k_labor_icon) / sizeof(k_labor_icon[0]))) {
+    return -1;
+  }
+  return k_labor_icon[job];
+}
+
+/* Sums to the same total the DOS golden shows (colonies + on-map + Europe);
+ * bucketed separately so the detail view's "Off Mapboard (Europe) / On
+ * Mapboard / In Colonies" breakdown and the grid's per-cell total share one
+ * scan of the save. */
+static void reports_labor_job_counts(
   const ColonizeCol1Save* col1,
   int human,
   const ColonizeColonyPool* colonies,
-  const ColonizeUnitPool* units,
-  const ColonizeFont* font,
-  ColonizeFramebuffer8* fb,
-  int* y,
-  int step,
-  char* line,
-  size_t line_sz
+  int* colony_counts,
+  int* mapboard_counts,
+  int* europe_counts,
+  int* total_out
 ) {
-  reports_draw_line(font, fb, 8, *y, "Colonists by profession", 15);
-  *y += step;
-  reports_draw_line(font, fb, 8, *y, "(Click on item to zoom — not wired)", 14);
-  *y += step;
-
-  int counts[64];
-  memset(counts, 0, sizeof(counts));
+  memset(colony_counts, 0, 64 * sizeof(int));
+  memset(mapboard_counts, 0, 64 * sizeof(int));
+  memset(europe_counts, 0, 64 * sizeof(int));
   int total = 0;
 
   if (col1) {
@@ -952,11 +999,10 @@ static void reports_render_labor(
         if (job >= 64) {
           job = 63;
         }
-        counts[job]++;
+        colony_counts[job]++;
         total++;
       }
     }
-    /* Land units outside colonies (same nation). */
     for (uint16_t i = 0; i < col1->head.unit_count; ++i) {
       const ColonizeCol1Unit* u = &col1->unit[i];
       if ((int)u->nation_id != human) {
@@ -965,14 +1011,15 @@ static void reports_render_labor(
       if (u->type >= 13 && u->type <= 18) {
         continue; /* ships */
       }
-      if (reports_unit_in_europe(u->x, u->y)) {
-        continue;
-      }
       int job = u->profession;
       if (job < 0 || job >= 64) {
         job = u->type < 64 ? u->type : 0;
       }
-      counts[job]++;
+      if (reports_unit_in_europe(u->x, u->y)) {
+        europe_counts[job]++;
+      } else {
+        mapboard_counts[job]++;
+      }
       total++;
     }
   } else if (colonies) {
@@ -993,37 +1040,171 @@ static void reports_render_labor(
         if (t >= 64) {
           t = 63;
         }
-        counts[t]++;
+        colony_counts[t]++;
         total++;
       }
     }
   }
+  *total_out = total;
+}
 
-  snprintf(line, line_sz, "Total colonists: %d", total);
-  reports_draw_line(font, fb, 8, *y, line, 15);
-  *y += step;
+/* Grid-cell hit test (native 320x200 coords) for "(Click on item to zoom)".
+ * Returns the job id (0..27) under (mx,my), or -1 if the click misses every
+ * cell (including the empty bottom-left one). */
+int reports_labor_cell_hit(int mx, int my) {
+  if (my < REPORTS_LABOR_ROW0_Y) {
+    return -1;
+  }
+  const int row = (my - REPORTS_LABOR_ROW0_Y) / REPORTS_LABOR_ROW_STEP;
+  if (row < 0 || row >= REPORTS_LABOR_ROWS) {
+    return -1;
+  }
+  if (mx < REPORTS_LABOR_COL0_X) {
+    return -1;
+  }
+  const int col = (mx - REPORTS_LABOR_COL0_X) / REPORTS_LABOR_COL_STEP;
+  if (col < 0 || col >= REPORTS_LABOR_COLS) {
+    return -1;
+  }
+  if (mx - (REPORTS_LABOR_COL0_X + col * REPORTS_LABOR_COL_STEP) >= REPORTS_LABOR_CELL_W) {
+    return -1;
+  }
+  return k_labor_layout[col][row];
+}
 
-  if (total == 0) {
-    reports_draw_line(font, fb, 8, *y, "No colonists in play yet.", 14);
-    return;
+static void reports_render_labor_grid(
+  const ColonizeReportsView* view,
+  const ColonizeCol1Save* col1,
+  int human,
+  const ColonizeColonyPool* colonies,
+  const ColonizeFont* font,
+  ColonizeFramebuffer8* fb,
+  int y
+) {
+  /* Golden shows job names/counts in FONTTINY (mixed case, narrow) like the
+   * title and Congress page 1 — not body_font (FONTSMAL, all-caps, wide
+   * enough to overlap the next column). */
+  const ColonizeFont* body_font = font;
+  font = (view && view->title_font_ok) ? &view->title_font : body_font;
+
+  int colony_counts[64], mapboard_counts[64], europe_counts[64], total;
+  reports_labor_job_counts(col1, human, colonies, colony_counts, mapboard_counts, europe_counts, &total);
+  /* Centered, matching every other report's centered-title convention. */
+  if (font) {
+    const int w = font_text_width(font, "(Click on item to zoom)");
+    reports_draw_line(font, fb, (fb->width - w) / 2, y, "(Click on item to zoom)", 14);
   }
 
-  for (int t = 0; t < 64 && *y < 185; ++t) {
-    if (counts[t] <= 0) {
+  for (int col = 0; col < REPORTS_LABOR_COLS; ++col) {
+    for (int row = 0; row < REPORTS_LABOR_ROWS; ++row) {
+      const int job = k_labor_layout[col][row];
+      if (job < 0) {
+        continue;
+      }
+      const int cx = REPORTS_LABOR_COL0_X + col * REPORTS_LABOR_COL_STEP;
+      const int cy = REPORTS_LABOR_ROW0_Y + row * REPORTS_LABOR_ROW_STEP;
+      const int icon = reports_labor_icon_for_job(job);
+      if (view && view->icons_ok && icon >= 0 && icon < view->icons.sprite_count) {
+        ss_blit_sprite(&view->icons, icon, fb, cx, cy);
+      }
+      const int count = colony_counts[job] + mapboard_counts[job] + europe_counts[job];
+      char num[16];
+      snprintf(num, sizeof(num), "%d", count);
+      reports_draw_line(font, fb, cx + REPORTS_LABOR_TEXT_DX, cy, reports_job_name(job), 14);
+      reports_draw_line(font, fb, cx + REPORTS_LABOR_TEXT_DX, cy + 9, num, 14);
+    }
+  }
+}
+
+static void reports_render_labor_detail(
+  const ColonizeReportsView* view,
+  const ColonizeCol1Save* col1,
+  int human,
+  const ColonizeColonyPool* colonies,
+  const ColonizeFont* font,
+  ColonizeFramebuffer8* fb,
+  int y,
+  int job,
+  char* line,
+  size_t line_sz
+) {
+  font = (view && view->title_font_ok) ? &view->title_font : font;
+
+  snprintf(line, line_sz, "(%s)", reports_job_name(job));
+  if (font) {
+    const int w = font_text_width(font, line);
+    reports_draw_line(font, fb, (fb->width - w) / 2, y, line, 14);
+  }
+
+  int colony_counts[64], mapboard_counts[64], europe_counts[64], total;
+  reports_labor_job_counts(col1, human, colonies, colony_counts, mapboard_counts, europe_counts, &total);
+  (void)total;
+  const int europe_n = europe_counts[job];
+  const int mapboard_n = mapboard_counts[job];
+  const int colony_n = colony_counts[job];
+  const int sum = europe_n + mapboard_n + colony_n;
+
+  const int header_y = y + REPORTS_LABOR_ROW_STEP / 2;
+  const int icon = reports_labor_icon_for_job(job);
+  if (view && view->icons_ok && icon >= 0 && icon < view->icons.sprite_count) {
+    ss_blit_sprite(&view->icons, icon, fb, 4, header_y);
+  }
+  snprintf(line, line_sz, "%s: %d", reports_job_name(job), sum);
+  reports_draw_line(font, fb, 22, header_y, line, 14);
+
+  const int bd_x_label = 165;
+  const int bd_x_value = 295;
+  snprintf(line, line_sz, "Off Mapboard (Europe):");
+  reports_draw_line(font, fb, bd_x_label, header_y, line, 14);
+  snprintf(line, line_sz, "%d", europe_n);
+  reports_draw_line(font, fb, bd_x_value, header_y, line, 14);
+  snprintf(line, line_sz, "On Mapboard:");
+  reports_draw_line(font, fb, bd_x_label, header_y + REPORTS_LABOR_ROW_STEP / 2, line, 14);
+  snprintf(line, line_sz, "%d", mapboard_n);
+  reports_draw_line(font, fb, bd_x_value, header_y + REPORTS_LABOR_ROW_STEP / 2, line, 14);
+  snprintf(line, line_sz, "In Colonies:");
+  reports_draw_line(font, fb, bd_x_label, header_y + REPORTS_LABOR_ROW_STEP, line, 14);
+  snprintf(line, line_sz, "%d", colony_n);
+  reports_draw_line(font, fb, bd_x_value, header_y + REPORTS_LABOR_ROW_STEP, line, 14);
+
+  if (!col1) {
+    return;
+  }
+  int shown = 0;
+  const int list_y0 = header_y + 3 * REPORTS_LABOR_ROW_STEP;
+  static const int kListColX[3] = {4, 124, 244};
+  for (uint16_t i = 0; i < col1->head.colony_count; ++i) {
+    const ColonizeCol1Colony* c = &col1->colony[i];
+    if (c->nation_id != (uint8_t)human) {
       continue;
     }
-    const char* name = NULL;
-    if (col1) {
-      name = reports_job_name(t);
-    } else if (units) {
-      const ColonizeUnitType* ut = units_type(units, t);
-      name = ut ? ut->name : "Unknown";
-    } else {
-      name = "Unknown";
+    const int pop = c->population > COLONIZE_COL1_COLONY_POP_MAX ? COLONIZE_COL1_COLONY_POP_MAX
+                                                                 : (int)c->population;
+    int n = 0;
+    for (int p = 0; p < pop; ++p) {
+      int j = c->profession[p];
+      if (j < 0) {
+        j = 0;
+      }
+      if (j >= 64) {
+        j = 63;
+      }
+      if (j == job) {
+        n++;
+      }
     }
-    snprintf(line, line_sz, "  %s: %d", name, counts[t]);
-    reports_draw_line(font, fb, 8, *y, line, 15);
-    *y += step;
+    if (n <= 0) {
+      continue;
+    }
+    const int col = shown % 3;
+    const int row = shown / 3;
+    const int ly = list_y0 + row * REPORTS_LABOR_ROW_STEP;
+    if (ly >= 185) {
+      break;
+    }
+    snprintf(line, line_sz, "%s: %d", c->name, n);
+    reports_draw_line(font, fb, kListColX[col], ly, line, 14);
+    shown++;
   }
 }
 
@@ -1985,6 +2166,7 @@ void reports_render(
   const ColonizeReportsView* view,
   ColonizeReportId id,
   bool congress_page2,
+  int labor_detail_job,
   const ColonizeColonyPool* colonies,
   const ColonizeUnitPool* units,
   const ColonizeWorldMap* map,
@@ -2028,9 +2210,13 @@ void reports_render(
       reports_render_congress_page1(view, col1, human, font, framebuffer, line, sizeof(line));
       break;
     case COLONIZE_REPORT_LABOR:
-      reports_render_labor(
-        col1, human, colonies, units, font, framebuffer, &y, step, line, sizeof(line)
-      );
+      if (labor_detail_job >= 0) {
+        reports_render_labor_detail(
+          view, col1, human, colonies, font, framebuffer, y, labor_detail_job, line, sizeof(line)
+        );
+      } else {
+        reports_render_labor_grid(view, col1, human, colonies, font, framebuffer, y);
+      }
       break;
     case COLONIZE_REPORT_ECONOMIC:
       reports_render_economic(

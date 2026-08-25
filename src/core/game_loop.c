@@ -154,6 +154,7 @@ struct ColonizeGameState {
   bool in_report;
   bool report_exits_to_menu; /* Retire: close score → title menu */
   bool congress_page2; /* Continental Congress is two pages; closing p1 shows p2 */
+  int labor_detail_job; /* -1 = Labor report grid; >=0 = zoomed job id detail view */
   ColonizeHofEntry hof_entries[COLONIZE_HOF_MAX]; /* ranked desc; session + HOF.TXT */
   int hof_count;
   bool in_hall_of_fame; /* title-menu "View Hall of Fame" screen (reports_render_hall_of_fame) */
@@ -2790,6 +2791,7 @@ static void game_open_report(ColonizeGameState* game, ColonizeReportId id) {
   game->report_id = id;
   game->report_exits_to_menu = false;
   game->congress_page2 = false;
+  game->labor_detail_job = -1;
   game->in_pedia = false;
   game->in_europe = false;
   game->in_colony = false;
@@ -7282,6 +7284,16 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
   }
 
   if (game->in_report) {
+    /* Labor report grid: a click on a profession cell zooms to its detail
+     * view (golden: labor_detail.png) instead of anything OK/Esc-related. */
+    if (game->report_id == COLONIZE_REPORT_LABOR && game->labor_detail_job < 0 &&
+        input->mouse_left_clicked) {
+      const int hit = reports_labor_cell_hit(input->mouse_x, input->mouse_y);
+      if (hit >= 0) {
+        game->labor_detail_job = hit;
+        return true;
+      }
+    }
     /* Congress page 2 has no OK button (golden: full-bleed photo, no chrome)
      * — any click closes it, not just a hit on a drawn box. */
     const bool page2_click_anywhere =
@@ -7296,6 +7308,12 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
        * click, Enter) shows page 2 instead of leaving the report. */
       if (game->report_id == COLONIZE_REPORT_CONGRESS && !game->congress_page2) {
         game->congress_page2 = true;
+        return true;
+      }
+      /* Labor detail view: closing it (Esc/Enter/OK) returns to the grid,
+       * same as other reports' Esc — it doesn't leave the report yet. */
+      if (game->report_id == COLONIZE_REPORT_LABOR && game->labor_detail_job >= 0) {
+        game->labor_detail_job = -1;
         return true;
       }
       game->in_report = false;
@@ -9706,6 +9724,7 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
       game->reports_ok ? &game->reports : NULL,
       game->report_id,
       game->congress_page2,
+      game->labor_detail_job,
       &game->colonies,
       game->units_ok ? &game->units : NULL,
       game->world_map_ok ? &game->world_map : NULL,

@@ -10,7 +10,7 @@
  * See docs/report_screens.md for the full report-porting workflow this tool
  * is part of (grid_overlay.sh / render_diff.sh live in scripts/).
  *
- *   render_report <data_dir> <save.SAV> <out.ppm> [report_id] [congress_page2]
+ *   render_report <data_dir> <save.SAV> <out.ppm> [report_id] [congress_page2] [labor_detail_job]
  *
  *   data_dir        usually "COLONIZE"
  *   save.SAV        a Col1 .SAV to load (report content needs one)
@@ -19,6 +19,9 @@
  *                     4 Colony     5 Naval      6 Foreign 7 Indian  8 Score
  *   congress_page2  1 to render Continental Congress page 2 (ignored
  *                   otherwise); default 0
+ *   labor_detail_job  job id (0..27, see reports.c k_job_names) to render the
+ *                   Labor report's zoomed detail view instead of the grid
+ *                   (ignored otherwise); default -1
  *
  * Also prints the founding-fathers bells pool/need to stderr (useful when
  * working on the Congress bells bar) after seeding the pool the same way
@@ -49,6 +52,7 @@ int main(int argc, char** argv) {
   const char* out_path = argv[3];
   const int report_id = argc > 4 ? atoi(argv[4]) : COLONIZE_REPORT_RELIGIOUS;
   const bool congress_page2 = argc > 5 && atoi(argv[5]) != 0;
+  const int labor_detail_job = argc > 6 ? atoi(argv[6]) : -1;
 
   char err[256];
   ColonizeReportsView view;
@@ -98,6 +102,7 @@ int main(int argc, char** argv) {
     &view,
     (ColonizeReportId)report_id,
     congress_page2,
+    labor_detail_job,
     NULL,
     NULL,
     NULL,

@@ -81,6 +81,13 @@ bool reports_id_from_fkey(int fkey_number /*1..10*/, ColonizeReportId* out_id);
 bool reports_ok_button_hit(ColonizeReportId id, bool congress_page2, int mx, int my);
 
 /*
+ * Labor report (F4) grid-cell hit test (native 320x200 coords). Returns the
+ * job id (0..27, see reports.c's k_job_names) under (mx,my), or -1 if the
+ * click misses every cell — including the always-empty bottom-left one.
+ */
+int reports_labor_cell_hit(int mx, int my);
+
+/*
  * Live Colonization Score (manual / FAQ rules) for F10.
  * Independence bonuses apply only once declare/achieve are tracked in save;
  * until then those fields stay 0 and the base total is still shown.
@@ -114,11 +121,15 @@ void reports_compute_score(
 );
 
 /* congress_page2: true shows Continental Congress page 2 (golden:
- * continental_p2.png); ignored for every id but COLONIZE_REPORT_CONGRESS. */
+ * continental_p2.png); ignored for every id but COLONIZE_REPORT_CONGRESS.
+ * labor_detail_job: >=0 shows the Labor report (F4) detail view for that
+ * job id (golden: labor_detail.png) instead of the profession grid; ignored
+ * for every id but COLONIZE_REPORT_LABOR. */
 void reports_render(
   const ColonizeReportsView* view,
   ColonizeReportId id,
   bool congress_page2,
+  int labor_detail_job,
   const ColonizeColonyPool* colonies,
   const ColonizeUnitPool* units,
   const ColonizeWorldMap* map,
