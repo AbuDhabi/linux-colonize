@@ -533,6 +533,16 @@ target_include_directories(sav_json PRIVATE
 
 target_link_libraries(sav_json PRIVATE colonize_core)
 
+add_executable(render_report
+  tools/render_report_main.c
+)
+
+target_include_directories(render_report PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
+target_link_libraries(render_report PRIVATE colonize_core)
+
 add_executable(probe_far_ocean_4753
   tools/probe_far_ocean_4753.c
 )
