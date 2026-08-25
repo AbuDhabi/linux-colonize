@@ -116,13 +116,14 @@ static const char* k_cargo_names[COLONIZE_COL1_CARGO_TYPES] = {
   "Muskets"
 };
 
+/* NAMES.TXT @TRIBES column 0 (plural display name — golden: indian.png
+ * "Arawaks:" / "Cherokee:"). Only Inca/Aztec/Arawak actually change in
+ * plural; the rest are already the same word. */
 static const char* k_tribe_names[COLONIZE_COL1_INDIAN_COUNT] = {
-  "Inca", "Aztec", "Arawak", "Iroquois", "Cherokee", "Apache", "Sioux", "Tupi"
+  "Incas", "Aztecs", "Arawaks", "Iroquois", "Cherokee", "Apache", "Sioux", "Tupi"
 };
 
 static const char* k_tribe_levels[] = {"Semi-Nomadic", "Agrarian", "Advanced", "Civilized"};
-
-static const char* k_attitudes[] = {"Content", "Uneasy", "Restless", "Angry", "War"};
 
 static const char* k_euro_short[COLONIZE_COL1_NATION_COUNT] = {
   "English", "French", "Spanish", "Dutch"
@@ -329,7 +330,12 @@ static void reports_render_body_start(
     (view && view->title_font_ok) ? &view->title_font : font;
   const char* title = reports_title(id);
   const int title_w = title_font ? font_text_width(title_font, title) : 0;
-  reports_draw_line(title_font, fb, (fb->width - title_w) / 2, 5, title, 15);
+  /* WOODPANL.PIK (F10 Score) doesn't remap palette index 15 to a gold shade
+   * the way every other report background does — its index 15 is literal
+   * EGA white. Score's title/body ink is index 149 (199,162,32), confirmed
+   * against score.png. */
+  const uint8_t title_color = (id == COLONIZE_REPORT_SCORE) ? 149 : 15;
+  reports_draw_line(title_font, fb, (fb->width - title_w) / 2, 5, title, title_color);
   *out_y = 4 + reports_line_step(font) + 4;
 }
 
@@ -418,10 +424,6 @@ static const char* reports_ff_name(int idx) {
   return k_ff_names[idx];
 }
 
-static bool reports_ff_joined(int8_t status) {
-  return status > 0;
-}
-
 /*
  * head.founding_father[i] (-1 unclaimed, else 0..3) is NOT "does this
  * nation have FF i" — nation.founding_fathers[4] is the real per-nation
@@ -442,23 +444,6 @@ static const char* reports_nation_adjective(int nation) {
     return "";
   }
   return k_euro_short[nation];
-}
-
-static const char* reports_attitude_from_alarm(unsigned alarm) {
-  /* Rough bands matching @ATTITUDE labels Content..War. */
-  if (alarm <= 2) {
-    return k_attitudes[0];
-  }
-  if (alarm <= 5) {
-    return k_attitudes[1];
-  }
-  if (alarm <= 8) {
-    return k_attitudes[2];
-  }
-  if (alarm <= 11) {
-    return k_attitudes[3];
-  }
-  return k_attitudes[4];
 }
 
 static const char* reports_tribe_level(uint8_t tech) {
@@ -2238,226 +2223,395 @@ static void reports_render_naval(
   }
 }
 
-static void reports_count_nation_forces(
+/*
+ * Foreign Affairs report (F8) — one block per Euro nation, fixed English/
+ * French/Spanish/Dutch order (golden: foreign.png). Each block: a header
+ * rule, "<Leader>'s <Adjective>:" (leader name yellow, adjective cream —
+ * two draw calls split at the leader segment's measured width, same idiom
+ * as a two-color same-line label elsewhere in this file), then either a
+ * centered "(Withdrawn from New World)" (LABELS.TXT #205) for a nation
+ * with player.control==2, or a 2-column grid of "<peer country>: Peace|War"
+ * for every OTHER non-withdrawn nation (own-nation and withdrawn peers are
+ * skipped — confirmed against the golden: every block lists exactly its 2
+ * surviving peers, never the withdrawn Spanish), followed by a
+ * "Rebels: N   Tories: N" line.
+ *
+ * War/Peace: nation[a].euro_relation[b] is the DS -0x77c4 peer byte
+ * ai_diplo.h also reads, but that module's AI_DIPLO_WAR=0x01/PEACE=0x02
+ * bit *names* don't reproduce this golden's War pairs when applied at
+ * face value (ai_diplo.c's own semantics are a structural port of the
+ * war/ally state *machine*, not a byte-verified decode of a real DOS
+ * save's raw values). Empirically, against dutch-reports.SAV, bit 0x02
+ * being set in *either* direction's byte (nation[a].euro_relation[b] or
+ * nation[b].euro_relation[a]) exactly identifies every War pair the
+ * golden shows (French/Dutch) and excludes every Peace pair — used here
+ * as a report-local reading, deliberately not fed back into ai_diplo.h's
+ * shared bit constants (that module drives live AI turn processing; this
+ * finding is a single-save empirical fit, not a confirmed DOS decode).
+ *
+ * Rebels/Tories: total = col1->stuff.census_pop_proxy[nation] (DS:0x9410,
+ * "+1 skilled unit + Σ colony pop" per col1_save.h — a DOS-computed census
+ * byte, RMW-preserved from the loaded save, not recomputed by this port
+ * during live play). rebels = floor(total * rebel_sentiment / 100); tories
+ * = total - rebels. Confirmed exact for all 3 surviving nations in the
+ * golden (75/45/54 total, 21/24/50 rebels, 54/21/4 tories) — colony
+ * population alone (col1->colony[].population summed) undercounts by the
+ * nation's field colonist-type units (Soldiers/Dragoons/etc., counted in
+ * census_pop_proxy but not colony population), which is why this reads
+ * the census byte rather than re-deriving the total from colonies+units.
+ */
+#define REPORTS_FOREIGN_BLOCK0_Y 10 /* first block's rule (golden: foreign.png hline scan) */
+#define REPORTS_FOREIGN_BLOCK_STEP 45 /* divider-to-divider spacing, 4 fixed nation blocks */
+#define REPORTS_FOREIGN_LINE_STEP 7 /* FONTTINY line pitch within a block */
+#define REPORTS_FOREIGN_HEADER_DY 3 /* header line y = block_top + this */
+#define REPORTS_FOREIGN_BODY_DY 17 /* first body line (relation grid / withdrawn) = block_top + this;
+   header_dy + 2*LINE_STEP — golden shows one blank line between header and body */
+#define REPORTS_FOREIGN_COL1_X 2
+#define REPORTS_FOREIGN_COL2_X 80
+#define REPORTS_FOREIGN_LEADER_COLOR 146 /* bright yellow (255,243,93) — REPORT8.PIK palette probe */
+#define REPORTS_FOREIGN_ADJ_COLOR 97 /* pale cream (247,243,199) — same index as REPORTS_NAVAL_TEXT_COLOR */
+#define REPORTS_FOREIGN_LABEL_COLOR 145 /* light yellow (255,255,142) — peer/nation names, Rebels/Tories */
+#define REPORTS_FOREIGN_PEACE_COLOR 15 /* white — REPORT8.PIK palette probe */
+#define REPORTS_FOREIGN_WAR_COLOR 112 /* red (243,0,0) — same index as REPORTS_ECON_NEG_COLOR */
+#define REPORTS_FOREIGN_RULE_COLOR 119 /* dark red (134,0,0) — same index as REPORTS_NAVAL_LINE_COLOR */
+
+/* NAMES.TXT country names (europe.c / map_panel.c / new_game.c share this
+ * exact set) — distinct from k_euro_short's nationality adjectives; the
+ * golden uses country names ("France", "Netherlands") for peer relations
+ * but adjectives ("French", "Dutch") in the leader header line. */
+static const char* k_euro_country[COLONIZE_COL1_NATION_COUNT] = {
+  "England", "France", "Spain", "Netherlands"
+};
+
+typedef struct ForeignRow {
+  const char* leader;
+  const char* adjective;
+  bool withdrawn;
+  int peer_nation[COLONIZE_COL1_NATION_COUNT - 1];
+  bool peer_war[COLONIZE_COL1_NATION_COUNT - 1];
+  int peer_count;
+  int rebels;
+  int tories;
+} ForeignRow;
+
+/* True if euro_relation's War bit (0x02, empirically — see block comment
+ * above) is set in either direction between a and b. */
+static bool reports_foreign_at_war(const ColonizeCol1Save* col1, int a, int b) {
+  if (!col1 || a == b || a < 0 || a >= (int)COLONIZE_COL1_NATION_COUNT || b < 0 ||
+      b >= (int)COLONIZE_COL1_NATION_COUNT) {
+    return false;
+  }
+  const uint8_t ab = col1->nation[a].euro_relation[b];
+  const uint8_t ba = col1->nation[b].euro_relation[a];
+  return ((ab | ba) & 0x02u) != 0;
+}
+
+/* Builds one row per Euro nation, fixed English/French/Spanish/Dutch order.
+ * Shared shape with reports_naval_build_rows even though this report never
+ * paginates (always exactly COLONIZE_COL1_NATION_COUNT rows) — kept as its
+ * own build step for the same reason: render draws exactly what this
+ * function decided, nothing recomputed inline. */
+static int reports_foreign_build_rows(
   const ColonizeCol1Save* col1,
-  int nation,
-  int* out_colonies,
-  int* out_pop,
-  int* out_military,
-  int* out_naval,
-  int* out_merchant
+  ForeignRow* rows,
+  int max_rows
 ) {
-  int colonies = 0;
-  int pop = 0;
-  int military = 0;
-  int naval = 0;
-  int merchant = 0;
   if (!col1) {
-    *out_colonies = 0;
-    *out_pop = 0;
-    *out_military = 0;
-    *out_naval = 0;
-    *out_merchant = 0;
-    return;
+    return 0;
   }
-  for (uint16_t i = 0; i < col1->head.colony_count; ++i) {
-    if (col1->colony[i].nation_id == (uint8_t)nation) {
-      colonies++;
-      pop += col1->colony[i].population;
-    }
-  }
-  for (uint16_t i = 0; i < col1->head.unit_count; ++i) {
-    const ColonizeCol1Unit* u = &col1->unit[i];
-    if ((int)u->nation_id != nation) {
+  int n = 0;
+  for (int i = 0; i < (int)COLONIZE_COL1_NATION_COUNT && n < max_rows; ++i) {
+    ForeignRow* r = &rows[n++];
+    memset(r, 0, sizeof(*r));
+    const ColonizeCol1Player* p = &col1->player[i];
+    r->leader = p->name[0] ? p->name : reports_nation_adjective(i);
+    r->adjective = reports_nation_adjective(i);
+    r->withdrawn = (p->control == 2);
+    if (r->withdrawn) {
       continue;
     }
-    if (u->type >= 13 && u->type <= 18) {
-      if (u->type == 13 || u->type == 14 || u->type == 15) {
-        merchant++;
-      } else {
-        naval++;
+    for (int j = 0; j < (int)COLONIZE_COL1_NATION_COUNT &&
+                    r->peer_count < (int)(COLONIZE_COL1_NATION_COUNT - 1);
+         ++j) {
+      if (j == i || col1->player[j].control == 2) {
+        continue;
       }
-    } else if (u->type == 1 || u->type == 4 || u->type == 6 || u->type == 7 || u->type == 8 ||
-               u->type == 9 || u->type == 11) {
-      military++;
+      r->peer_nation[r->peer_count] = j;
+      r->peer_war[r->peer_count] = reports_foreign_at_war(col1, i, j);
+      r->peer_count++;
     }
+    const int total = col1->stuff.census_pop_proxy[i];
+    const int rebels = (total * (int)col1->nation[i].rebel_sentiment) / 100;
+    r->rebels = rebels;
+    r->tories = total - rebels;
   }
-  *out_colonies = colonies;
-  *out_pop = pop;
-  *out_military = military;
-  *out_naval = naval;
-  *out_merchant = merchant;
+  return n;
 }
 
 static void reports_render_foreign(
+  const ColonizeReportsView* view,
   const ColonizeCol1Save* col1,
-  int human,
-  const EuropeScreen* europe,
   const ColonizeFont* font,
-  ColonizeFramebuffer8* fb,
-  int* y,
-  int step,
-  char* line,
-  size_t line_sz
+  ColonizeFramebuffer8* fb
 ) {
-  reports_draw_line(font, fb, 8, *y, "European rivals", 15);
-  *y += step;
+  /* Body needs FONTTINY, not FONTSMAL — same pitfall as Naval/Congress
+   * page 1 (docs/report_screens.md): golden's text is far narrower than
+   * FONTSMAL renders at this size. */
+  font = (view && view->title_font_ok) ? &view->title_font : font;
 
   if (!col1) {
-    reports_draw_line(font, fb, 8, *y, "Other powers require a loaded Col1 save.", 14);
-    *y += step;
-    if (europe) {
-      snprintf(line, line_sz, "Your nation: %s", europe->nation_name);
-      reports_draw_line(font, fb, 8, *y, line, 15);
-    }
-    return;
-  }
-
-  const bool detailed = reports_ff_joined(col1->head.founding_father[4]); /* Jan de Witt */
-  if (!detailed) {
     reports_draw_line(
-      font, fb, 8, *y, "Detailed strength unlocks with Jan de Witt.", 14
+      font, fb, REPORTS_FOREIGN_COL1_X, 20, "Foreign Affairs requires a loaded Col1 save.",
+      REPORTS_FOREIGN_LABEL_COLOR
     );
-    *y += step;
-  }
-
-  for (int n = 0; n < (int)COLONIZE_COL1_NATION_COUNT && *y < 170; ++n) {
-    const ColonizeCol1Player* p = &col1->player[n];
-    const char* ctrl =
-      p->control == 0 ? "Player" : (p->control == 2 ? "Withdrawn" : "AI");
-    int colonies = 0, pop = 0, mil = 0, nav = 0, mer = 0;
-    reports_count_nation_forces(col1, n, &colonies, &pop, &mil, &nav, &mer);
-    const int avg = colonies > 0 ? pop / colonies : 0;
-
-    snprintf(
-      line,
-      line_sz,
-      "%s%s (%s)",
-      p->country_name[0] ? p->country_name : k_euro_short[n],
-      n == human ? " *" : "",
-      ctrl
-    );
-    reports_draw_line(font, fb, 8, *y, line, 15);
-    *y += step;
-
-    if (detailed || n == human) {
-      snprintf(
-        line,
-        line_sz,
-        "  colonies %d  pop %d  avg %d  mil %d  naval %d  merchants %d",
-        colonies,
-        pop,
-        avg,
-        mil,
-        nav,
-        mer
-      );
-      reports_draw_line(font, fb, 8, *y, line, 14);
-      *y += step;
-    } else {
-      snprintf(line, line_sz, "  colonies founded: %u", (unsigned)p->founded_colonies);
-      reports_draw_line(font, fb, 8, *y, line, 14);
-      *y += step;
-    }
-  }
-
-  snprintf(
-    line,
-    line_sz,
-    "Royal Expeditionary Force: %u/%u/%u/%u",
-    (unsigned)col1->head.expeditionary_force[0],
-    (unsigned)col1->head.expeditionary_force[1],
-    (unsigned)col1->head.expeditionary_force[2],
-    (unsigned)col1->head.expeditionary_force[3]
-  );
-  reports_draw_line(font, fb, 8, *y, line, 15);
-}
-
-static void reports_render_indian(
-  const ColonizeCol1Save* col1,
-  int human,
-  const ColonizeFont* font,
-  ColonizeFramebuffer8* fb,
-  int* y,
-  int step,
-  char* line,
-  size_t line_sz
-) {
-  reports_draw_line(font, fb, 8, *y, "Native tribes contacted", 15);
-  *y += step;
-
-  if (!col1 || !col1->tribe) {
-    reports_draw_line(font, fb, 8, *y, "Indian villages require a loaded Col1 save.", 14);
     return;
   }
 
-  int shown = 0;
-  for (int t = 0; t < (int)COLONIZE_COL1_INDIAN_COUNT && *y < 185; ++t) {
-    const ColonizeCol1Indian* ind = &col1->indian[t];
-    const uint8_t nation_id = (uint8_t)(t + 4);
-    int villages = 0;
-    int pop = 0;
-    int missions = 0;
-    int capitals = 0;
-    int alarm_sum = 0;
-    int alarm_n = 0;
+  ForeignRow rows[COLONIZE_COL1_NATION_COUNT];
+  const int n = reports_foreign_build_rows(col1, rows, (int)COLONIZE_COL1_NATION_COUNT);
+  char line[64];
 
-    for (uint16_t i = 0; i < col1->head.tribe_count; ++i) {
-      const ColonizeCol1Tribe* tr = &col1->tribe[i];
-      if (tr->nation_id != nation_id) {
-        continue;
-      }
-      villages++;
-      pop += tr->population;
-      if (tr->mission != 0xFF) {
-        missions++;
-      }
-      if (tr->state.capital) {
-        capitals++;
-      }
-      if (human >= 0 && human < 4) {
-        alarm_sum += tr->alarm[human].friction;
-        alarm_n++;
-      }
-    }
+  for (int i = 0; i < n; ++i) {
+    const ForeignRow* r = &rows[i];
+    const int block_top = REPORTS_FOREIGN_BLOCK0_Y + i * REPORTS_FOREIGN_BLOCK_STEP;
+    reports_draw_hline(fb, 0, fb->width, block_top, REPORTS_FOREIGN_RULE_COLOR);
 
-    const bool met = ind->euro_diplo[human] != 0 || villages > 0;
-    if (!met && villages == 0) {
+    const int header_y = block_top + REPORTS_FOREIGN_HEADER_DY;
+    snprintf(line, sizeof(line), "%s's", r->leader);
+    reports_draw_line(font, fb, REPORTS_FOREIGN_COL1_X, header_y, line, REPORTS_FOREIGN_LEADER_COLOR);
+    const int leader_w = font ? font_text_width(font, line) : 0;
+    snprintf(line, sizeof(line), " %s:", r->adjective);
+    reports_draw_line(
+      font, fb, REPORTS_FOREIGN_COL1_X + leader_w, header_y, line, REPORTS_FOREIGN_ADJ_COLOR
+    );
+
+    const int body_y = block_top + REPORTS_FOREIGN_BODY_DY;
+    if (r->withdrawn) {
+      const char* msg = "(Withdrawn from New World)";
+      const int w = font ? font_text_width(font, msg) : 0;
+      reports_draw_line(font, fb, (fb->width - w) / 2, body_y, msg, REPORTS_FOREIGN_LABEL_COLOR);
       continue;
     }
 
-    const unsigned alarm =
-      ind->alarm_by_player[human] != 0
-        ? (unsigned)ind->alarm_by_player[human]
-        : (alarm_n > 0 ? (unsigned)(alarm_sum / alarm_n) : 0u);
+    for (int p = 0; p < r->peer_count; ++p) {
+      const int col_x = (p % 2 == 0) ? REPORTS_FOREIGN_COL1_X : REPORTS_FOREIGN_COL2_X;
+      const int row_y = body_y + (p / 2) * REPORTS_FOREIGN_LINE_STEP;
+      snprintf(line, sizeof(line), "%s:", k_euro_country[r->peer_nation[p]]);
+      reports_draw_line(font, fb, col_x, row_y, line, REPORTS_FOREIGN_LABEL_COLOR);
+      const int label_w = font ? font_text_width(font, line) : 0;
+      snprintf(line, sizeof(line), " %s", r->peer_war[p] ? "War" : "Peace");
+      reports_draw_line(
+        font, fb, col_x + label_w, row_y, line,
+        r->peer_war[p] ? REPORTS_FOREIGN_WAR_COLOR : REPORTS_FOREIGN_PEACE_COLOR
+      );
+    }
 
-    snprintf(
-      line,
-      line_sz,
-      "%s (%s)  villages %d  pop %d",
-      k_tribe_names[t],
-      reports_tribe_level(ind->tech),
-      villages,
-      pop
-    );
-    reports_draw_line(font, fb, 8, *y, line, 15);
-    *y += step;
-    snprintf(
-      line,
-      line_sz,
-      "  %s  missions %d  capitals %d  alarm %u",
-      reports_attitude_from_alarm(alarm),
-      missions,
-      capitals,
-      alarm
-    );
-    reports_draw_line(font, fb, 8, *y, line, 14);
-    *y += step;
-    shown++;
+    const int peer_rows = (r->peer_count + 1) / 2;
+    const int rebels_y = body_y + peer_rows * REPORTS_FOREIGN_LINE_STEP;
+    snprintf(line, sizeof(line), "Rebels: %d", r->rebels);
+    reports_draw_line(font, fb, REPORTS_FOREIGN_COL1_X, rebels_y, line, REPORTS_FOREIGN_LABEL_COLOR);
+    snprintf(line, sizeof(line), "Tories: %d", r->tories);
+    reports_draw_line(font, fb, REPORTS_FOREIGN_COL2_X, rebels_y, line, REPORTS_FOREIGN_LABEL_COLOR);
+  }
+}
+
+/*
+ * Indian Adviser report (F9) — golden: indian.png. One two-line block per
+ * contacted tribe (indian.euro_diplo[human] != 0 — bit 0x20 met/0x40 peace;
+ * DOS: FUN_3f41_010a's `(uVar1 & 0x20) != 0` gate, viceroy_unpacked.c:69480):
+ *
+ *   line 1: headband portrait icon + "<PluralTribeName>:" (NAMES.TXT
+ *     @TRIBES column 0), colored per tribe (k_indian_tribe_colors below —
+ *     unit_chrome.c's own k_tribe_colors, duplicated per the project's
+ *     established no-shared-header convention; confirmed an *exact*
+ *     0-distance RGB match against REPORT9.PIK's own palette at both
+ *     golden indices, no remap needed here unlike ICONS.SS sprites).
+ *     Right-aligned: tribe level (Semi-Nomadic/Agrarian/Advanced/Civilized
+ *     by indian.tech, reports_tribe_level), same color.
+ *   line 2 (fixed columns, black — golden-sampled (0,0,0) exactly), each
+ *     column skipped when its count is 0:
+ *     "<n> Villages"    — tribe[].nation_id count, always shown.
+ *     "<n> Missions"    — villages whose mission's low nibble equals
+ *                         `human` (DOS: local_58, `*(byte*)(sel+5)&0xf ==
+ *                         param_1` — a per-*viewing-nation* mission count,
+ *                         not "any mission"; COL1_TRIBE_MISSION_NATION_MASK).
+ *     "<n> Muskets"     — (indian.muskets + count of this tribe's Armed
+ *                         Brave/Mtd. Warrior units) * 50. Reverse-engineered
+ *                         from FUN_3f41_010a's `local_6c` (viceroy_unpacked.c
+ *                         :69545-69553: seeds from `*(char*)(sel+7)`
+ *                         [muskets], scans the unit array for
+ *                         `type==0x14||type==0x16` [Armed Brave=20 / Mtd.
+ *                         Warrior=22 — the two musket-equipped native unit
+ *                         types, indians.md's @UNIT table] owned by this
+ *                         tribe, `*= 0x32` [50]) — confirmed exact against
+ *                         dutch-reports.SAV: Arawak (muskets=0 + 3 Mtd.
+ *                         Warriors)*50 = 150, Cherokee (muskets=5 + 7 Armed
+ *                         Braves + 2 Mtd. Warriors)*50 = 700, both matching
+ *                         indian.png's printed numbers exactly.
+ *     "<n> Horse Herds" — indian.horse_herds, raw (DOS: `*(char*)(sel+8)`,
+ *                         no scale — confirmed exact, Arawak 5 / Cherokee 6).
+ *
+ * DOS draws up to all 8 tribes in one unpaginated pass (no page state in
+ * FUN_3f41_010a) — this port matches that rather than inventing pagination;
+ * with 8 tribes at 21px/row from y=28 the list can in principle run under
+ * the OK button exactly like DOS's own screen would.
+ *
+ * Icon: ICONS.SS #113, one of five near-identical headband portraits
+ * (#113-117, 16x16) DOS appears to pick between via an alarm-derived 0-4
+ * index (an unidentified `0x281f`-segment helper, not the unrelated
+ * `FUN_521d_0a60` euro-goal function of similar name) — indian.png's only
+ * two examples (alarm 0 vs 34-48 toward the viewing nation) both render
+ * pixel-identical #113, so this port always uses #113 pending a golden
+ * that actually shows a different variant.
+ */
+#define REPORTS_INDIAN_ROW0_Y 28 /* first tribe name line (golden: indian.png text-color scan) */
+#define REPORTS_INDIAN_ROW_STEP 21
+#define REPORTS_INDIAN_ICON_X 8
+#define REPORTS_INDIAN_ICON_DY (-2) /* icon top = name_y + this */
+#define REPORTS_INDIAN_ICON_SPRITE 113 /* ICONS.SS headband portrait, 16x16 — see comment above */
+#define REPORTS_INDIAN_NAME_X 30
+#define REPORTS_INDIAN_STATS_DY 8 /* stats line y = name_y + this */
+#define REPORTS_INDIAN_VILLAGES_X 40
+#define REPORTS_INDIAN_MISSIONS_X 96
+#define REPORTS_INDIAN_MUSKETS_X 153
+#define REPORTS_INDIAN_HORSES_X 208
+#define REPORTS_INDIAN_LEVEL_RIGHT 310
+#define REPORTS_INDIAN_TEXT_COLOR 0 /* black — golden-sampled (0,0,0) exactly */
+#define REPORTS_INDIAN_UNIT_ARMED_BRAVE 20 /* Viceroy type id, indians.md @UNIT table */
+#define REPORTS_INDIAN_UNIT_MTD_WARRIOR 22
+#define REPORTS_INDIAN_MUSKET_UNIT_SCALE 50
+
+/* unit_chrome.c's k_tribe_colors, duplicated (see that file's own comment
+ * on why these tables aren't shared via a header). Confirmed an exact
+ * (0-distance) RGB match against REPORT9.PIK for tribe 2 (Arawak, 54) and
+ * tribe 4 (Cherokee, 67) — the two golden examples. */
+static const uint8_t k_indian_tribe_colors[COLONIZE_COL1_INDIAN_COUNT] = {
+  97, 149, 54, 87, 67, 111, 118, 71
+};
+
+typedef struct IndianRow {
+  int nation_id;
+  const char* name;
+  uint8_t color;
+  const char* level;
+  int villages;
+  int missions;
+  int muskets;
+  int horse_herds;
+} IndianRow;
+
+/* Builds the flat contacted-tribe row list — shared shape with
+ * reports_naval_build_rows even though this report has no pagination. */
+static int reports_indian_build_rows(
+  const ColonizeCol1Save* col1,
+  const ColonizeUnitPool* units,
+  int human,
+  IndianRow* rows,
+  int max_rows
+) {
+  int n = 0;
+  if (!col1 || human < 0 || human >= (int)COLONIZE_COL1_NATION_COUNT) {
+    return 0;
+  }
+  for (int t = 0; t < (int)COLONIZE_COL1_INDIAN_COUNT && n < max_rows; ++t) {
+    const ColonizeCol1Indian* ind = &col1->indian[t];
+    if (ind->euro_diplo[human] == 0) {
+      continue;
+    }
+    const int nation_id = t + 4;
+    int villages = 0;
+    int missions = 0;
+    if (col1->tribe) {
+      for (uint16_t i = 0; i < col1->head.tribe_count; ++i) {
+        const ColonizeCol1Tribe* tr = &col1->tribe[i];
+        if (tr->nation_id != (uint8_t)nation_id) {
+          continue;
+        }
+        villages++;
+        if (tr->mission != COL1_TRIBE_MISSION_NONE &&
+            (tr->mission & COL1_TRIBE_MISSION_NATION_MASK) == (uint8_t)human) {
+          missions++;
+        }
+      }
+    }
+    int armed_units = 0;
+    if (units) {
+      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+        const ColonizeUnit* u = &units->units[i];
+        if (!u->active || u->nation_id != nation_id) {
+          continue;
+        }
+        if (u->type_index == REPORTS_INDIAN_UNIT_ARMED_BRAVE ||
+            u->type_index == REPORTS_INDIAN_UNIT_MTD_WARRIOR) {
+          armed_units++;
+        }
+      }
+    }
+    IndianRow* r = &rows[n++];
+    r->nation_id = nation_id;
+    r->name = k_tribe_names[t];
+    r->color = k_indian_tribe_colors[t];
+    r->level = reports_tribe_level(ind->tech);
+    r->villages = villages;
+    r->missions = missions;
+    r->muskets = ((int)ind->muskets + armed_units) * REPORTS_INDIAN_MUSKET_UNIT_SCALE;
+    r->horse_herds = ind->horse_herds;
+  }
+  return n;
+}
+
+static void reports_render_indian(
+  const ColonizeReportsView* view,
+  const ColonizeCol1Save* col1,
+  const ColonizeUnitPool* units,
+  int human,
+  const ColonizeFont* font,
+  ColonizeFramebuffer8* fb
+) {
+  /* Body text needs FONTTINY, not FONTSMAL — same pitfall as Naval/Congress
+   * page 1 (docs/report_screens.md): the tight fixed-column stats line
+   * ("<n> Villages" at 56px available width) only fits at FONTTINY size. */
+  font = (view && view->title_font_ok) ? &view->title_font : font;
+
+  IndianRow rows[COLONIZE_COL1_INDIAN_COUNT];
+  const int n = reports_indian_build_rows(col1, units, human, rows, COLONIZE_COL1_INDIAN_COUNT);
+
+  for (int i = 0; i < n; ++i) {
+    const IndianRow* r = &rows[i];
+    const int name_y = REPORTS_INDIAN_ROW0_Y + i * REPORTS_INDIAN_ROW_STEP;
+    const int stats_y = name_y + REPORTS_INDIAN_STATS_DY;
+
+    if (view && view->icons_ok) {
+      ss_blit_sprite(
+        &view->icons, REPORTS_INDIAN_ICON_SPRITE, fb, REPORTS_INDIAN_ICON_X,
+        name_y + REPORTS_INDIAN_ICON_DY
+      );
+    }
+
+    char name_buf[40];
+    snprintf(name_buf, sizeof(name_buf), "%s:", r->name);
+    reports_draw_line(font, fb, REPORTS_INDIAN_NAME_X, name_y, name_buf, r->color);
+    reports_draw_right(font, fb, REPORTS_INDIAN_LEVEL_RIGHT, name_y, r->level, r->color);
+
+    char buf[32];
+    snprintf(buf, sizeof(buf), "%d Villages", r->villages);
+    reports_draw_line(font, fb, REPORTS_INDIAN_VILLAGES_X, stats_y, buf, REPORTS_INDIAN_TEXT_COLOR);
+    if (r->missions > 0) {
+      snprintf(buf, sizeof(buf), "%d Missions", r->missions);
+      reports_draw_line(font, fb, REPORTS_INDIAN_MISSIONS_X, stats_y, buf, REPORTS_INDIAN_TEXT_COLOR);
+    }
+    if (r->muskets > 0) {
+      snprintf(buf, sizeof(buf), "%d Muskets", r->muskets);
+      reports_draw_line(font, fb, REPORTS_INDIAN_MUSKETS_X, stats_y, buf, REPORTS_INDIAN_TEXT_COLOR);
+    }
+    if (r->horse_herds > 0) {
+      snprintf(buf, sizeof(buf), "%d Horse Herds", r->horse_herds);
+      reports_draw_line(font, fb, REPORTS_INDIAN_HORSES_X, stats_y, buf, REPORTS_INDIAN_TEXT_COLOR);
+    }
   }
 
-  if (shown == 0) {
-    reports_draw_line(font, fb, 8, *y, "No tribes contacted yet.", 14);
+  if (n == 0) {
+    reports_draw_line(font, fb, 8, REPORTS_INDIAN_ROW0_Y, "No tribes contacted yet.", 14);
   }
 }
 
@@ -2553,24 +2707,17 @@ static int reports_count_ff_for_nation(const ColonizeCol1Save* col1, int human) 
   return ff;
 }
 
+/* nation.rebel_sentiment (nation+0x19) is the DOS-maintained empire-wide
+ * value the Score screen actually shows — confirmed byte-for-byte against
+ * dutch-reports.SAV (94, matching score.png's "Rebel Sentiment: +94"
+ * exactly). A pop-weighted recompute from colony rebel_dividend/rebel_divisor
+ * looked equivalent but isn't (91 on that same save) — trust the stored
+ * field, don't re-derive it. */
 static int reports_rebel_sentiment_pct(const ColonizeCol1Save* col1, int human) {
   if (!col1) {
     return 0;
   }
-  uint64_t weighted = 0;
-  uint64_t pop = 0;
-  for (uint16_t i = 0; i < col1->head.colony_count; ++i) {
-    const ColonizeCol1Colony* c = &col1->colony[i];
-    if (c->nation_id != (uint8_t)human || c->population == 0) {
-      continue;
-    }
-    weighted += (uint64_t)reports_colony_rebel_pct(c) * (uint64_t)c->population;
-    pop += c->population;
-  }
-  if (pop == 0) {
-    return 0;
-  }
-  int pct = (int)(weighted / pop);
+  int pct = (int)col1->nation[human].rebel_sentiment;
   if (pct < 0) {
     pct = 0;
   }
@@ -2578,6 +2725,65 @@ static int reports_rebel_sentiment_pct(const ColonizeCol1Save* col1, int human) 
     pct = 100;
   }
   return pct;
+}
+
+#define REPORTS_SCORE_CITIZENS_MAX 1024
+
+/*
+ * Every counted "citizen" for the Score screen's Citizens line/icon strip,
+ * as a @JOB id (0..27) suitable for reports_citizen_points_for_job /
+ * units_job_icon_sprite. Two different rules for the two sources, both
+ * confirmed against dutch-reports.SAV (colony population sums to 142,
+ * +16 more from 4 qualifying map/Europe units = golden's exact +158):
+ *
+ * - Colony population: every occupied slot is unconditionally a person, so
+ *   an invalid/sentinel profession byte (28, UNITS_JOB_NONE) still falls
+ *   back to Free Colonist (reports_resolve_job's default).
+ * - Map/Europe units: only counted when the unit's raw `profession` byte is
+ *   itself a genuine assigned job (0..27) — a unit created without one
+ *   (profession==28, the common case for a plain freshly-recruited/promoted
+ *   unit) contributes nothing here, *no* type-based fallback. Synthesizing
+ *   a job from unit type (as reports_profession_from_unit_type does for
+ *   other purposes) overcounts: applying it to every scored-colonist unit
+ *   in that save gives 180, not the golden's 158.
+ */
+static int reports_score_collect_citizen_jobs(
+  const ColonizeCol1Save* col1,
+  int human,
+  int* jobs_out,
+  int max_out
+) {
+  int count = 0;
+  if (!col1 || !jobs_out || max_out <= 0) {
+    return 0;
+  }
+  for (uint16_t i = 0; i < col1->head.colony_count && count < max_out; ++i) {
+    const ColonizeCol1Colony* c = &col1->colony[i];
+    if (c->nation_id != (uint8_t)human) {
+      continue;
+    }
+    const int pop =
+      c->population > COLONIZE_COL1_COLONY_POP_MAX ? COLONIZE_COL1_COLONY_POP_MAX
+                                                   : (int)c->population;
+    for (int p = 0; p < pop && count < max_out; ++p) {
+      jobs_out[count++] = reports_resolve_job((int)c->profession[p], -1);
+    }
+  }
+  for (uint16_t i = 0; i < col1->head.unit_count && count < max_out; ++i) {
+    const ColonizeCol1Unit* u = &col1->unit[i];
+    if ((int)u->nation_id != human) {
+      continue;
+    }
+    if (!reports_unit_type_is_scored_colonist((int)u->type)) {
+      continue;
+    }
+    const int prof = (int)u->profession;
+    if (prof < 0 || prof >= k_job_count) {
+      continue;
+    }
+    jobs_out[count++] = prof;
+  }
+  return count;
 }
 
 static int reports_foreign_recognition_pct(int prior_nations, bool achieved) {
@@ -2623,32 +2829,15 @@ void reports_compute_score(
       out->difficulty = 4;
     }
 
-    /* Colony citizens by profession. */
-    for (uint16_t i = 0; i < col1->head.colony_count; ++i) {
-      const ColonizeCol1Colony* c = &col1->colony[i];
-      if (c->nation_id != (uint8_t)human) {
-        continue;
+    /* Citizens: colony population + qualifying map/Europe units — see
+     * reports_score_collect_citizen_jobs for the two source-specific rules. */
+    {
+      int jobs[REPORTS_SCORE_CITIZENS_MAX];
+      const int n =
+        reports_score_collect_citizen_jobs(col1, human, jobs, REPORTS_SCORE_CITIZENS_MAX);
+      for (int i = 0; i < n; ++i) {
+        out->citizens += reports_citizen_points_for_job(jobs[i]);
       }
-      const int pop =
-        c->population > COLONIZE_COL1_COLONY_POP_MAX ? COLONIZE_COL1_COLONY_POP_MAX
-                                                     : (int)c->population;
-      for (int p = 0; p < pop; ++p) {
-        const int job = reports_resolve_job((int)c->profession[p], -1);
-        out->citizens += reports_citizen_points_for_job(job);
-      }
-    }
-
-    /* Map / Europe land colonists (not ships, wagons, artillery, treasure). */
-    for (uint16_t i = 0; i < col1->head.unit_count; ++i) {
-      const ColonizeCol1Unit* u = &col1->unit[i];
-      if ((int)u->nation_id != human) {
-        continue;
-      }
-      if (!reports_unit_type_is_scored_colonist((int)u->type)) {
-        continue;
-      }
-      const int job = reports_resolve_job((int)u->profession, (int)u->type);
-      out->citizens += reports_citizen_points_for_job(job);
     }
 
     out->congress = reports_count_ff_for_nation(col1, human) * 5;
@@ -2713,7 +2902,102 @@ void reports_compute_score(
   }
 }
 
+/*
+ * Geometry below is measured directly off score.png (native = golden/2, per
+ * report_screens.md's golden-measurement recipe), not derived from the
+ * generic per-report step/margin conventions the F2-F9 reports share — F10
+ * has its own hand-tuned layout with a lot of unused wood in the middle.
+ */
+#define REPORTS_SCORE_TITLE_COLOR 149 /* (199,162,32) — same ink for title/subtitle/Total Score */
+#define REPORTS_SCORE_GREEN_COLOR 68 /* (85,150,52) — Citizens/Congress/FF names/Gold/Rebel */
+#define REPORTS_SCORE_BAR_FILL_COLOR 68
+#define REPORTS_SCORE_BAR_TRACK_COLOR 138 /* (60,32,24) */
+#define REPORTS_SCORE_LEFT_X 16
+#define REPORTS_SCORE_SUBTITLE_Y 12
+#define REPORTS_SCORE_CITIZENS_Y 24
+#define REPORTS_SCORE_ICON_X 16
+#define REPORTS_SCORE_ICON_Y 32
+#define REPORTS_SCORE_ICON_W 288
+#define REPORTS_SCORE_ICON_AVG_W 7 /* colonist working-portrait sprites run ~6-8px wide */
+#define REPORTS_SCORE_CONGRESS_Y 60
+#define REPORTS_SCORE_FF_ROW0_Y 67
+#define REPORTS_SCORE_FF_ROW_STEP 7
+#define REPORTS_SCORE_FF_COL0_X 16
+#define REPORTS_SCORE_FF_COL_STEP 72
+#define REPORTS_SCORE_FF_COLS 4
+#define REPORTS_SCORE_GOLD_Y 150
+#define REPORTS_SCORE_REBEL_Y 157
+#define REPORTS_SCORE_TOTAL_Y 164
+#define REPORTS_SCORE_BAR_X 35
+#define REPORTS_SCORE_BAR_Y 186
+#define REPORTS_SCORE_BAR_W 250
+#define REPORTS_SCORE_BAR_H 7
+#define REPORTS_SCORE_BAR_MAX 1000 /* fill = min(total,MAX)/MAX of the track — measured 305/1000 on the golden */
+
+static void reports_score_fill_rect(
+  ColonizeFramebuffer8* fb,
+  int x,
+  int y,
+  int w,
+  int h,
+  uint8_t color
+) {
+  if (!fb || !fb->pixels || w <= 0 || h <= 0) {
+    return;
+  }
+  for (int yy = y; yy < y + h; ++yy) {
+    if (yy < 0 || yy >= fb->height) {
+      continue;
+    }
+    for (int xx = x; xx < x + w; ++xx) {
+      if (xx < 0 || xx >= fb->width) {
+        continue;
+      }
+      fb->pixels[yy * fb->width + xx] = color;
+    }
+  }
+}
+
+/* Citizens icon strip: one units_job_icon_sprite() portrait per counted
+ * citizen (same job list reports_compute_score sums points from), packed
+ * evenly left-to-right across [x, x+w) — same spread math as
+ * reports_draw_icon_bar, generalized to a heterogeneous icon-per-slot list
+ * since each citizen can be a different job/portrait (golden: score.png's
+ * strip visibly mixes farmers/fishermen/soldiers/a mounted scout/a
+ * preacher). Icons overlap at this density by construction (48 icons across
+ * ~288px, matching the golden). */
+static void reports_score_draw_citizen_icons(
+  const ColonizeReportsView* view,
+  ColonizeFramebuffer8* fb,
+  const int* jobs,
+  int count,
+  int x,
+  int y,
+  int w
+) {
+  if (!view || !view->icons_ok || count <= 0 || w <= 0) {
+    return;
+  }
+  if (count == 1) {
+    const int icon = units_job_icon_sprite(jobs[0]);
+    if (icon >= 0 && icon < view->icons.sprite_count) {
+      ss_blit_sprite(&view->icons, icon, fb, x, y);
+    }
+    return;
+  }
+  const int span = w - REPORTS_SCORE_ICON_AVG_W;
+  for (int i = 0; i < count; ++i) {
+    const int icon = units_job_icon_sprite(jobs[i]);
+    if (icon < 0 || icon >= view->icons.sprite_count) {
+      continue;
+    }
+    const int ix = x + (span > 0 ? (i * span) / (count - 1) : 0);
+    ss_blit_sprite(&view->icons, icon, fb, ix, y);
+  }
+}
+
 static void reports_render_score(
+  const ColonizeReportsView* view,
   const ColonizeCol1Save* col1,
   int human,
   const ColonizeColonyPool* colonies,
@@ -2721,105 +3005,139 @@ static void reports_render_score(
   uint32_t turn_number,
   const ColonizeFont* font,
   ColonizeFramebuffer8* fb,
-  int* y,
-  int step,
   char* line,
   size_t line_sz
 ) {
+  (void)turn_number;
   ColonizeScoreBreakdown sc;
   reports_compute_score(&sc, col1, human, colonies, europe);
+
+  const ColonizeFont* body_font = (view && view->title_font_ok) ? &view->title_font : font;
 
   static const char* k_diff[] = {
     "Discoverer", "Explorer", "Conquistador", "Governor", "Viceroy"
   };
   const char* diff_name =
     (sc.difficulty >= 0 && sc.difficulty <= 4) ? k_diff[sc.difficulty] : "?";
+  const char* nation_adj = reports_nation_adjective(human);
 
+  /* Subtitle: "<difficulty rank> <leader> of the <nation>:  <Season> <year>"
+   * (golden: "Viceroy Michiel De Ruyter of the Dutch:  Autumn 1630"). */
   if (col1) {
+    const char* leader =
+      (human >= 0 && human < (int)COLONIZE_COL1_NATION_COUNT && col1->player[human].name[0])
+        ? col1->player[human].name
+        : "";
     snprintf(
       line,
       line_sz,
-      "Year %d%s   Turn %u   %s",
-      sc.year,
-      col1->head.autumn ? " Autumn" : " Spring",
-      (unsigned)(turn_number ? turn_number : col1->head.turn),
-      diff_name
+      "%s %s of the %s:  %s %d",
+      diff_name,
+      leader,
+      nation_adj,
+      col1->head.autumn ? "Autumn" : "Spring",
+      sc.year
     );
   } else {
     snprintf(line, line_sz, "Turn %u", (unsigned)turn_number);
   }
-  reports_draw_line(font, fb, 8, *y, line, 14);
-  *y += step + 2;
-
-  snprintf(line, line_sz, "Citizens                %d", sc.citizens);
-  reports_draw_line(font, fb, 8, *y, line, 15);
-  *y += step;
-  snprintf(line, line_sz, "Continental Congress    %d", sc.congress);
-  reports_draw_line(font, fb, 8, *y, line, 15);
-  *y += step;
-  snprintf(line, line_sz, "Gold                    %d", sc.treasury);
-  reports_draw_line(font, fb, 8, *y, line, 15);
-  *y += step;
-  snprintf(line, line_sz, "Rebel Sentiment         %d", sc.rebel_sentiment);
-  reports_draw_line(font, fb, 8, *y, line, 15);
-  *y += step;
-  snprintf(
-    line,
-    line_sz,
-    "Villages Burned         %d  (%d)",
-    sc.villages_penalty,
-    sc.villages_burned
-  );
-  reports_draw_line(font, fb, 8, *y, line, 15);
-  *y += step;
-  if (sc.intervention_bells != 0) {
-    snprintf(line, line_sz, "Intervention Bells      %d", sc.intervention_bells);
-    reports_draw_line(font, fb, 8, *y, line, 15);
-    *y += step;
+  if (body_font) {
+    const int w = font_text_width(body_font, line);
+    reports_draw_line(
+      body_font, fb, (fb->width - w) / 2, REPORTS_SCORE_SUBTITLE_Y, line, REPORTS_SCORE_TITLE_COLOR
+    );
   }
 
-  *y += 2;
-  reports_draw_line(font, fb, 8, *y, "Independence", 15);
-  *y += step;
-  snprintf(
-    line,
-    line_sz,
-    "  Declared              %s",
-    sc.independence_declared ? "Yes" : "No"
-  );
-  reports_draw_line(font, fb, 8, *y, line, 14);
-  *y += step;
-  snprintf(
-    line,
-    line_sz,
-    "  Achieved              %s",
-    sc.independence_achieved ? "Yes" : "No"
-  );
-  reports_draw_line(font, fb, 8, *y, line, 14);
-  *y += step;
-  snprintf(line, line_sz, "  Early Revolution      +%d%%", sc.early_revolution_pct);
-  reports_draw_line(font, fb, 8, *y, line, 14);
-  *y += step;
-  snprintf(
-    line,
-    line_sz,
-    "  Foreign Recognition   +%d%%  (%d prior nations)",
-    sc.foreign_recognition_pct,
-    sc.prior_nations
-  );
-  reports_draw_line(font, fb, 8, *y, line, 14);
-  *y += step + 2;
-
-  snprintf(line, line_sz, "Subtotal                %d", sc.base_total);
-  reports_draw_line(font, fb, 8, *y, line, 15);
-  *y += step;
-  snprintf(line, line_sz, "Total Score             %d", sc.total);
-  reports_draw_line(font, fb, 8, *y, line, 15);
-
-  if (!sc.independence_achieved) {
-    *y += step + 2;
+  if (!col1) {
+    snprintf(line, line_sz, "Gold                    %d", sc.treasury);
     reports_draw_line(
-      font, fb, 8, *y, "Win independence to apply revolution bonuses.", 14
+      body_font, fb, REPORTS_SCORE_LEFT_X, REPORTS_SCORE_GOLD_Y, line, REPORTS_SCORE_GREEN_COLOR
+    );
+    snprintf(line, line_sz, "Total Score             %d", sc.total);
+    reports_draw_line(
+      body_font, fb, REPORTS_SCORE_LEFT_X, REPORTS_SCORE_TOTAL_Y, line, REPORTS_SCORE_TITLE_COLOR
+    );
+    return;
+  }
+
+  /* Citizens line + icon strip. */
+  snprintf(line, line_sz, "%s Citizens:  +%d", nation_adj, sc.citizens);
+  reports_draw_line(
+    body_font, fb, REPORTS_SCORE_LEFT_X, REPORTS_SCORE_CITIZENS_Y, line, REPORTS_SCORE_GREEN_COLOR
+  );
+  {
+    int jobs[REPORTS_SCORE_CITIZENS_MAX];
+    const int n = reports_score_collect_citizen_jobs(col1, human, jobs, REPORTS_SCORE_CITIZENS_MAX);
+    reports_score_draw_citizen_icons(
+      view, fb, jobs, n, REPORTS_SCORE_ICON_X, REPORTS_SCORE_ICON_Y, REPORTS_SCORE_ICON_W
+    );
+  }
+
+  /* Continental Congress line + 4-column Founding Father name grid. */
+  snprintf(line, line_sz, "%s Continental Congress:  +%d", nation_adj, sc.congress);
+  reports_draw_line(
+    body_font, fb, REPORTS_SCORE_LEFT_X, REPORTS_SCORE_CONGRESS_Y, line, REPORTS_SCORE_GREEN_COLOR
+  );
+  {
+    int shown = 0;
+    for (int idx = 0; idx < (int)COLONIZE_COL1_FF_COUNT; ++idx) {
+      if (!reports_ff_owned_by_nation(&col1->nation[human], idx)) {
+        continue;
+      }
+      const int col = shown % REPORTS_SCORE_FF_COLS;
+      const int row = shown / REPORTS_SCORE_FF_COLS;
+      const int x = REPORTS_SCORE_FF_COL0_X + col * REPORTS_SCORE_FF_COL_STEP;
+      const int y = REPORTS_SCORE_FF_ROW0_Y + row * REPORTS_SCORE_FF_ROW_STEP;
+      reports_draw_line(body_font, fb, x, y, reports_ff_name(idx), REPORTS_SCORE_GREEN_COLOR);
+      shown++;
+    }
+  }
+
+  /* Gold / Rebel Sentiment / Total Score — golden shows exactly these three,
+   * no Villages/Intervention/Independence breakout lines (this golden has
+   * zero villages burned and independence undeclared, but DOS appears to
+   * fold every other component silently into Total Score rather than list
+   * them; nothing in score.png suggests those rows ever appear here). */
+  snprintf(line, line_sz, "Gold:  (%ug) +%d", (unsigned)(col1->nation[human].gold), sc.treasury);
+  reports_draw_line(
+    body_font, fb, REPORTS_SCORE_LEFT_X, REPORTS_SCORE_GOLD_Y, line, REPORTS_SCORE_GREEN_COLOR
+  );
+  snprintf(line, line_sz, "Rebel Sentiment:  +%d", sc.rebel_sentiment);
+  reports_draw_line(
+    body_font, fb, REPORTS_SCORE_LEFT_X, REPORTS_SCORE_REBEL_Y, line, REPORTS_SCORE_GREEN_COLOR
+  );
+  snprintf(line, line_sz, "Total Score: %d", sc.total);
+  reports_draw_line(
+    body_font, fb, REPORTS_SCORE_LEFT_X, REPORTS_SCORE_TOTAL_Y, line, REPORTS_SCORE_TITLE_COLOR
+  );
+
+  /* Bottom progress bar: proportional fill toward a nominal 1000-point
+   * score, not toward anything display-labeled — golden's fill measures
+   * 76/250px = 30.4% against a Total Score of 305/1000 = 30.5%. */
+  reports_score_fill_rect(
+    fb,
+    REPORTS_SCORE_BAR_X,
+    REPORTS_SCORE_BAR_Y,
+    REPORTS_SCORE_BAR_W,
+    REPORTS_SCORE_BAR_H,
+    REPORTS_SCORE_BAR_TRACK_COLOR
+  );
+  int fill_total = sc.total;
+  if (fill_total < 0) {
+    fill_total = 0;
+  }
+  if (fill_total > REPORTS_SCORE_BAR_MAX) {
+    fill_total = REPORTS_SCORE_BAR_MAX;
+  }
+  const int fill_w = (REPORTS_SCORE_BAR_W * fill_total) / REPORTS_SCORE_BAR_MAX;
+  if (fill_w > 0) {
+    reports_score_fill_rect(
+      fb,
+      REPORTS_SCORE_BAR_X,
+      REPORTS_SCORE_BAR_Y,
+      fill_w,
+      REPORTS_SCORE_BAR_H,
+      REPORTS_SCORE_BAR_FILL_COLOR
     );
   }
 }
@@ -2959,15 +3277,14 @@ void reports_render(
       reports_render_naval(view, human, units, colonies, europe, font, framebuffer, naval_page);
       break;
     case COLONIZE_REPORT_FOREIGN:
-      reports_render_foreign(
-        col1, human, europe, font, framebuffer, &y, step, line, sizeof(line)
-      );
+      reports_render_foreign(view, col1, font, framebuffer);
       break;
     case COLONIZE_REPORT_INDIAN:
-      reports_render_indian(col1, human, font, framebuffer, &y, step, line, sizeof(line));
+      reports_render_indian(view, col1, units, human, font, framebuffer);
       break;
     case COLONIZE_REPORT_SCORE:
       reports_render_score(
+        view,
         col1,
         human,
         colonies,
@@ -2975,8 +3292,6 @@ void reports_render(
         turn_number,
         font,
         framebuffer,
-        &y,
-        step,
         line,
         sizeof(line)
       );
