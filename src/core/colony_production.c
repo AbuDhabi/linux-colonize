@@ -677,12 +677,16 @@ int colony_prod_colony_bells_ff(
       bells = 0;
     }
   }
+  /* FUN_15eb_1f72 (nation_crosses_bells_1f72.md ~67-68): Newspaper xor
+   * Printing Press, not both — a Newspaper colony always has_building[]
+   * "Printing Press" too (col1_apply_colony_buildings: Newspaper implies
+   * owning Press), so this must be an if/else, never additive, or a
+   * Newspaper colony's bells get double-bonused (150% instead of 100%). */
   int bonus_pct = 0;
-  if (colony_prod_building_built(pool, colony, "Printing Press")) {
-    bonus_pct += 50;
-  }
   if (colony_prod_building_built(pool, colony, "Newspaper")) {
-    bonus_pct += 100;
+    bonus_pct = 100;
+  } else if (colony_prod_building_built(pool, colony, "Printing Press")) {
+    bonus_pct = 50;
   }
   if (bonus_pct > 0) {
     bells = bells * (100 + bonus_pct) / 100;

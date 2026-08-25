@@ -1,4 +1,5 @@
 #include "core/colony_production.h"
+#include "core/combat_strength.h"
 #include "core/founding_fathers.h"
 #include "core/reports.h"
 #include "core/strutil.h"
@@ -1520,6 +1521,7 @@ static void reports_render_economic_cargo(
 #define REPORTS_COLONY_ROW_STEP 17
 #define REPORTS_COLONY_ICON_X 0
 #define REPORTS_COLONY_ICON_W 21 /* ICONS.SS #0-3: 21x16 fortification markers */
+#define REPORTS_COLONY_POP_DX 11 /* population digit: fixed x, not centered — see call site */
 #define REPORTS_COLONY_NAME_X 19
 /* Yellow name/value label — REPORT6.PIK's own remap of the usual report
  * yellow (index differs per background palette; see reports_render_colony
@@ -1593,10 +1595,18 @@ static uint8_t reports_colony_pop_color(int sol_pct) {
   return REPORTS_COLONY_DIGIT_WHITE;
 }
 
-/* Shared icon+digit+name sidebar cell, identical on both Colony pages. */
+/* Shared icon+digit+name sidebar cell, identical on both Colony pages.
+ * `colony` is the pool-matched colony for `c` (same index i as col1's
+ * colony array — see reports_render_colony_sol's comment), or NULL when
+ * unavailable; passing it gets the Bolivar +20% SoL bonus folded in via
+ * colony_prod_sol_percent (colony_prod_sol_percent is authoritative —
+ * colony_screen.c's own SoL display uses it), matching golden exactly
+ * (reports_colony_rebel_pct alone under-reports by Bolivar's +20). */
 static void reports_render_colony_sidebar(
   const ColonizeReportsView* view,
+  const ColonizeCol1Save* col1,
   const ColonizeCol1Colony* c,
+  const ColonizeColony* colony,
   const ColonizeFont* font,
   ColonizeFramebuffer8* fb,
   int row_top,
@@ -1607,11 +1617,14 @@ static void reports_render_colony_sidebar(
   if (view && view->icons_ok && icon >= 0 && icon < view->icons.sprite_count) {
     ss_blit_sprite(&view->icons, icon, fb, REPORTS_COLONY_ICON_X, row_top - 3);
   }
-  const int sol_pct = reports_colony_rebel_pct(c);
+  const int sol_pct = colony ? colony_prod_sol_percent(col1, colony) : reports_colony_rebel_pct(c);
   snprintf(line, line_sz, "%u", (unsigned)c->population);
-  const int dw = font ? font_text_width(font, line) : 0;
+  /* Golden: population digits sit at a fixed x regardless of digit count
+   * (measured: every single-digit row's ink starts at the same native x,
+   * a 2-digit row's "1" glyph just has some left-side padding within its
+   * own cell) — left-aligned on the icon, not centered in its width. */
   reports_draw_line(
-    font, fb, REPORTS_COLONY_ICON_X + (REPORTS_COLONY_ICON_W - dw) / 2, row_top,
+    font, fb, REPORTS_COLONY_ICON_X + REPORTS_COLONY_POP_DX, row_top,
     line, reports_colony_pop_color(sol_pct)
   );
   reports_draw_line(font, fb, REPORTS_COLONY_NAME_X, row_top, c->name, REPORTS_COLONY_LABEL_COLOR);
@@ -1673,6 +1686,7 @@ static void reports_render_colony_garrisons(
   const ColonizeCol1Save* col1,
   int human,
   const ColonizeUnitPool* units,
+  const ColonizeColonyPool* colonies,
   const ColonizeFont* font,
   ColonizeFramebuffer8* fb,
   int y,
@@ -1706,7 +1720,9 @@ static void reports_render_colony_garrisons(
       break;
     }
     const int row_top = REPORTS_COLONY_ROW0_Y + row * REPORTS_COLONY_ROW_STEP;
-    reports_render_colony_sidebar(view, c, font, fb, row_top, line, line_sz);
+    const ColonizeColony* colony =
+      (colonies && i < COLONIZE_COLONIES_MAX && i < colonies->colony_count) ? &colonies->colonies[i] : NULL;
+    reports_render_colony_sidebar(view, col1, c, colony, font, fb, row_top, line, line_sz);
 
     /* Units on this colony's own tile, drawn exactly as on the map
      * (allegiance/orders chrome + real map sprite — unit_chrome_blit_unit,
@@ -1737,6 +1753,14 @@ static void reports_render_colony_garrisons(
         /* Ships docked at the colony's tile aren't part of the garrison
          * (golden: colony_p1.png never shows a hull here, only land units). */
         if (units_is_sea(units, unit->id)) {
+          continue;
+        }
+        /* Only attack-capable land units defend a colony (Soldiers,
+         * Dragoons, Scouts, Regulars/Cont.Cav/Cavalry/Cont.Army, Artillery
+         * — NAMES.TXT @UNIT attack column > 0); unarmed Colonists,
+         * Pioneers, Missionaries, Treasure, and Wagon Trains never show on
+         * the defenders list even when standing on the colony's tile. */
+        if (!combat_unit_is_combat_role(units, unit->id)) {
           continue;
         }
         const int sprite = units_map_sprite(units, unit->id);
@@ -1821,9 +1845,16 @@ static void reports_render_colony_sol(
       break;
     }
     const int row_top = REPORTS_COLONY_ROW0_Y + row * REPORTS_COLONY_ROW_STEP;
-    reports_render_colony_sidebar(view, c, font, fb, row_top, line, line_sz);
+    /* Pool-based colony matched 1:1 by import order (col1_bridge_apply
+     * appends colonies in save order, no skipping under
+     * COLONIZE_COLONIES_MAX) — needed for both the Bolivar-aware SoL% and
+     * the bell-production formula below, same formula turn.c's EOT bells
+     * tally uses. */
+    const ColonizeColony* colony =
+      (colonies && i < COLONIZE_COLONIES_MAX && i < colonies->colony_count) ? &colonies->colonies[i] : NULL;
+    reports_render_colony_sidebar(view, col1, c, colony, font, fb, row_top, line, line_sz);
 
-    const int sol_pct = reports_colony_rebel_pct(c);
+    const int sol_pct = colony ? colony_prod_sol_percent(col1, colony) : reports_colony_rebel_pct(c);
     if (view && view->icons_ok) {
       ss_blit_sprite(&view->icons, REPORTS_COLONY_FLAG_ICON, fb, REPORTS_COLONY_FLAG_X, row_top - 3);
     }
@@ -1838,11 +1869,7 @@ static void reports_render_colony_sol(
       reports_draw_line(font, fb, REPORTS_COLONY_BUILDING_X, row_top, press_label, REPORTS_COLONY_LABEL_COLOR);
     }
 
-    /* Bell production — pool-based colony matched 1:1 by import order
-     * (col1_bridge_apply appends colonies in save order, no skipping under
-     * COLONIZE_COLONIES_MAX), same formula turn.c's EOT bells tally uses. */
-    const ColonizeColony* colony =
-      (colonies && i < COLONIZE_COLONIES_MAX && i < colonies->colony_count) ? &colonies->colonies[i] : NULL;
+    /* Bell production — same formula turn.c's EOT bells tally uses. */
     int bells = 0;
     if (colonies && colony) {
       const int sol_bonus = colony_prod_sol_bonus(col1, colony);
@@ -2700,7 +2727,7 @@ void reports_render(
       const int garrison_pages = total_pages / 2;
       if (colony_page < garrison_pages) {
         reports_render_colony_garrisons(
-          view, col1, human, units, font, framebuffer, y, colony_page, line, sizeof(line)
+          view, col1, human, units, colonies, font, framebuffer, y, colony_page, line, sizeof(line)
         );
       } else {
         reports_render_colony_sol(
