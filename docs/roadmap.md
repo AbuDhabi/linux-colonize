@@ -180,7 +180,7 @@ Finish a campaign: FF leftovers, king/REF, win/lose/retire.
 - Century-weighted FF debate pick (`4345_06d2` / `015a`) — **Done** (2026-08-22)
 - `rival_nation_slot_1/2` + slot_2 intervene — **Done** (Phase 4)
 - Decile SoL notify — **Done** thin
-- Congress VGA-identical chrome → phase 5 polish
+- Congress VGA-identical chrome — **Done** (2026-08-25): both pages match golden screenshots pixel-for-pixel (title/OK chrome, bells + rebel/tory + expeditionary-force bars, 4-col FF list, page-2 group portrait). Religious (F2) done the same way earlier. See [report_screens.md](report_screens.md) for the workflow — Labor/Economic/Colony/Naval/Foreign/Indian (F4–F9) still need the same treatment.
 
 ### 5 — Fidelity & polish (Later)
 

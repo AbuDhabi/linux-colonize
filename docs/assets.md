@@ -309,13 +309,13 @@ Not used for this panel: `WOODPAN2.PIK` (score/fame chrome), `WOODFRAM.SS` (colo
 
 ### Report / adviser screens
 
-Open from **REPORTS** on the map menu bar, or press **F2–F10**. Esc (or Enter) returns to the map. **F1 Terrain Information** opens the Colonizopedia entry for the terrain under the map cursor (not a report plate). Backgrounds:
+Open from **REPORTS** on the map menu bar, or press **F2–F10**. Esc (or Enter, or the shared bottom-right OK button) returns to the map. **F1 Terrain Information** opens the Colonizopedia entry for the terrain under the map cursor (not a report plate). Backgrounds:
 
 | Key | Report | Background |
 |-----|--------|------------|
 | F1 | Terrain Information | Colonizopedia (cursor tile) |
 | F2 | Religious Adviser | `REPORT2.PIK` |
-| F3 | Continental Congress | `CCBKGD.PIK` |
+| F3 | Continental Congress | page 1 `REPORT3.PIK`, page 2 `CCBKGD.PIK` |
 | F4 | Labor Adviser | `REPORT4.PIK` |
 | F5 | Economic Adviser | `REPORT5.PIK` |
 | F6 | Colony Adviser | `REPORT6.PIK` |
@@ -324,7 +324,9 @@ Open from **REPORTS** on the map menu bar, or press **F2–F10**. Esc (or Enter)
 | F9 | Indian Adviser | `REPORT9.PIK` |
 | F10 | Colonization Score | `WOODPANL.PIK` (full-screen wood) |
 
-Content uses `ColonizeCol1Save` when a campaign is loaded (crosses / founding fathers / tribes / trade ledger / rival strength), with runtime colony / unit / Europe pools as fallback. **F10** uses the manual score schedule (citizen quality, congress, gold/1000, rebel sentiment, village-burn penalty, independence multipliers when declare/achieve are tracked).
+Content uses `ColonizeCol1Save` when a campaign is loaded (crosses / founding fathers / tribes / trade ledger / rival strength), with runtime colony / unit / Europe pools as fallback. **F10** uses the manual score schedule (citizen quality, congress, gold/1000, rebel sentiment, village-burn penalty, independence multipliers when declare/achieve are tracked). **F3 Continental Congress** is two pages: page 1 (bells progress bar toward the next Founding Father, rebel/tory split, expeditionary force, FF name list) advances to page 2 (full-bleed Founding Father group portrait, no chrome) on Esc/Enter/click/OK, and page 2 itself closes on any click.
+
+Religious (F2) and Continental Congress (F3) are done to golden-screenshot fidelity; the rest still use placeholder/legacy layouts. See **[report_screens.md](report_screens.md)** before porting one of the others — it documents the golden-comparison workflow, the `render_report` dev tool, and several pitfalls (font choice, three distinct progress-bar shapes, a couple of misleading save-format fields) that cost real time on the first two.
 
 ### Colonizopedia
 
