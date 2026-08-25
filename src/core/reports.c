@@ -335,7 +335,12 @@ static void reports_render_body_start(
    * EGA white. Score's title/body ink is index 149 (199,162,32), confirmed
    * against score.png. */
   const uint8_t title_color = (id == COLONIZE_REPORT_SCORE) ? 149 : 15;
-  reports_draw_line(title_font, fb, (fb->width - title_w) / 2, 5, title, title_color);
+  /* Foreign Affairs' title sits ~3px higher in the golden than every other
+   * report (measured: foreign.png's title top is native y=2, everyone
+   * else's is y=5) — REPORT8.PIK's own baked title position, not a shared
+   * font/layout quirk. */
+  const int title_y = (id == COLONIZE_REPORT_FOREIGN) ? 2 : 5;
+  reports_draw_line(title_font, fb, (fb->width - title_w) / 2, title_y, title, title_color);
   *out_y = 4 + reports_line_step(font) + 4;
 }
 
@@ -1304,6 +1309,25 @@ static void reports_draw_right(
 ) {
   const int w = font ? font_text_width(font, text) : 0;
   reports_draw_line(font, fb, right_x - w, y, text, color);
+}
+
+/* Black drop shadow, offset +1,+1 — golden-confirmed on Indian's tribe
+ * name/level line (indian.png: a 1px black outline trails the colored
+ * text down-right). Same two-pass idea as popup_draw_text_shadowed, kept
+ * local since that one calls font_draw_text_unbold and every other report
+ * draws with reports_draw_line's bold font_draw_text. */
+static void reports_draw_line_shadowed(
+  const ColonizeFont* font, ColonizeFramebuffer8* fb, int x, int y, const char* text, uint8_t color
+) {
+  reports_draw_line(font, fb, x + 1, y + 1, text, 0);
+  reports_draw_line(font, fb, x, y, text, color);
+}
+
+static void reports_draw_right_shadowed(
+  const ColonizeFont* font, ColonizeFramebuffer8* fb, int right_x, int y, const char* text, uint8_t color
+) {
+  const int w = font ? font_text_width(font, text) : 0;
+  reports_draw_line_shadowed(font, fb, right_x - w, y, text, color);
 }
 
 #define REPORTS_ECON1_ROWS 16
@@ -2590,8 +2614,8 @@ static void reports_render_indian(
 
     char name_buf[40];
     snprintf(name_buf, sizeof(name_buf), "%s:", r->name);
-    reports_draw_line(font, fb, REPORTS_INDIAN_NAME_X, name_y, name_buf, r->color);
-    reports_draw_right(font, fb, REPORTS_INDIAN_LEVEL_RIGHT, name_y, r->level, r->color);
+    reports_draw_line_shadowed(font, fb, REPORTS_INDIAN_NAME_X, name_y, name_buf, r->color);
+    reports_draw_right_shadowed(font, fb, REPORTS_INDIAN_LEVEL_RIGHT, name_y, r->level, r->color);
 
     char buf[32];
     snprintf(buf, sizeof(buf), "%d Villages", r->villages);
@@ -2918,7 +2942,6 @@ void reports_compute_score(
 #define REPORTS_SCORE_ICON_X 16
 #define REPORTS_SCORE_ICON_Y 32
 #define REPORTS_SCORE_ICON_W 288
-#define REPORTS_SCORE_ICON_AVG_W 7 /* colonist working-portrait sprites run ~6-8px wide */
 #define REPORTS_SCORE_CONGRESS_Y 60
 #define REPORTS_SCORE_FF_ROW0_Y 67
 #define REPORTS_SCORE_FF_ROW_STEP 7
@@ -2960,12 +2983,17 @@ static void reports_score_fill_rect(
 
 /* Citizens icon strip: one units_job_icon_sprite() portrait per counted
  * citizen (same job list reports_compute_score sums points from), packed
- * evenly left-to-right across [x, x+w) — same spread math as
- * reports_draw_icon_bar, generalized to a heterogeneous icon-per-slot list
- * since each citizen can be a different job/portrait (golden: score.png's
- * strip visibly mixes farmers/fishermen/soldiers/a mounted scout/a
- * preacher). Icons overlap at this density by construction (48 icons across
- * ~288px, matching the golden). */
+ * left-to-right at a fixed pitch, wrapping to a new row when a row would
+ * exceed [x, x+w). Golden (score.png, 48 icons) measured via its row-1
+ * boot-shadow pixels: a uniform REPORTS_SCORE_ICON_PITCH_X=8 native advance
+ * per icon, 37 icons filling one full row ((37-1)*8=288=w exactly), with
+ * the remaining 11 spilling onto a second row — confirming DOS wraps
+ * rather than compressing pitch to force everything onto one line. Row 2
+ * (and every following even 1-indexed row) is shifted right by half an
+ * icon's width, and each row starts half an icon's height below the last
+ * — both directly visible in the golden's brick-offset overlap and
+ * confirmed against the sprite sheet's own reported 6x16 portrait size. */
+#define REPORTS_SCORE_ICON_PITCH_X 8
 static void reports_score_draw_citizen_icons(
   const ColonizeReportsView* view,
   ColonizeFramebuffer8* fb,
@@ -2978,21 +3006,32 @@ static void reports_score_draw_citizen_icons(
   if (!view || !view->icons_ok || count <= 0 || w <= 0) {
     return;
   }
-  if (count == 1) {
-    const int icon = units_job_icon_sprite(jobs[0]);
-    if (icon >= 0 && icon < view->icons.sprite_count) {
-      ss_blit_sprite(&view->icons, icon, fb, x, y);
+  int icon_w = 6;
+  int icon_h = 16;
+  for (int i = 0; i < count; ++i) {
+    const int probe = units_job_icon_sprite(jobs[i]);
+    if (probe >= 0 && probe < view->icons.sprite_count) {
+      icon_w = view->icons.sprites[probe].width;
+      icon_h = view->icons.sprites[probe].height;
+      break;
     }
-    return;
   }
-  const int span = w - REPORTS_SCORE_ICON_AVG_W;
+  const int per_row = w / REPORTS_SCORE_ICON_PITCH_X + 1;
+  const int row_dy = icon_h / 2;
+  const int row_dx = icon_w / 2;
   for (int i = 0; i < count; ++i) {
     const int icon = units_job_icon_sprite(jobs[i]);
     if (icon < 0 || icon >= view->icons.sprite_count) {
       continue;
     }
-    const int ix = x + (span > 0 ? (i * span) / (count - 1) : 0);
-    ss_blit_sprite(&view->icons, icon, fb, ix, y);
+    const int row = i / per_row;
+    const int col = i % per_row;
+    int ix = x + col * REPORTS_SCORE_ICON_PITCH_X;
+    if (row % 2 == 1) {
+      ix += row_dx;
+    }
+    const int iy = y + row * row_dy;
+    ss_blit_sprite(&view->icons, icon, fb, ix, iy);
   }
 }
 

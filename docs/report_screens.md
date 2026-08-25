@@ -512,6 +512,13 @@ above — this report produced two more instances of exactly that):
   caller needed it to reflect population changes since the save was
   loaded without a full reload.
 
+**Follow-up fix**: the shared title draw (`reports_render_body_start`) used
+a flat y=5 for every report, but Foreign's is baked ~3px higher in the
+golden (native y=2, measured via first-bright-pixel-row scan) — REPORT8.PIK's
+own title placement, not a shared-layout quirk (Naval/Religious both
+golden-measure at y=5, confirming 5 is the correct default everyone else
+keeps). Fixed with an `id == COLONIZE_REPORT_FOREIGN` override.
+
 ## Colonization Score report (F10): no shared chrome, own palette ink, and
 ## a citizens rule that only shows up by cross-checking the golden's save data
 
@@ -599,6 +606,25 @@ rebel_sentiment` (nation+0x19) directly — the DOS-maintained value the
 report actually shows (94, exact match). Same function name kept, body
 swapped to a direct field read.
 
+**Follow-up fixes**:
+- The citizens icon strip originally packed all N icons evenly across the
+  full `REPORTS_SCORE_ICON_W` span regardless of count — fine at low counts,
+  but golden's 48-icon strip actually *wraps*: golden-measured (boot-shadow
+  pixel clustering at native y=47) a uniform `REPORTS_SCORE_ICON_PITCH_X=8`
+  advance per icon, 37 icons filling row 1 exactly ((37-1)×8=288=the full
+  span), with the remaining 11 spilling onto a half-length row 2 — DOS
+  wraps rather than compressing pitch to force everything onto one line.
+  Every 1-indexed *even* row (0-indexed odd) is shifted right by half an
+  icon's width, and each row starts half an icon's height below the last —
+  both directly visible in the golden's brick-offset overlap. Icon
+  dimensions (6×16) are read from the sprite sheet at runtime rather than
+  hardcoded, since `reports_score_draw_citizen_icons` needs them for the
+  half-width/half-height offsets.
+- Score has no OK button (see above) but wasn't wired into the click-to-
+  dismiss path the way Congress page 2 (also OK-button-less) already was —
+  fixed in `game_loop.c`'s report click handler with a `score_click_anywhere`
+  flag alongside the existing `page2_click_anywhere` one.
+
 ## Indian Adviser report (F9): a genuinely undocumented DOS formula found by
 ## reading the real decompile, not by guessing at scale factors
 
@@ -678,3 +704,13 @@ one available golden — one at alarm 0, one at alarm 34-48 toward the
 viewing nation — render pixel-identical portrait #113, so this port always
 uses #113. A future golden showing a visibly different portrait would be
 needed to pin down the actual index formula.
+
+**Follow-up fix**: the name/level line drew flat-colored with no shadow,
+but indian.png shows a 1px black drop shadow trailing both down-right —
+added `reports_draw_line_shadowed`/`reports_draw_right_shadowed` (two-pass:
+black copy at +1,+1, then the real color on top — same idea as
+`popup_draw_text_shadowed` but reusing `reports_draw_line`'s bold
+`font_draw_text` instead of that helper's `font_draw_text_unbold`, to match
+every other report's text weight in this file) and wired them in for the
+name/level draws only — the black stats line below doesn't need one, it's
+already the shadow color.
