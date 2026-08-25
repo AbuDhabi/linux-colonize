@@ -934,6 +934,10 @@ static void reports_render_congress_page2(
 #define REPORTS_LABOR_COL_STEP 105
 #define REPORTS_LABOR_CELL_W 100
 #define REPORTS_LABOR_TEXT_DX 18
+/* Count-number x, relative to text_x — a fixed column offset (golden: every
+ * row's number starts at the same x, measured off single- and double-digit
+ * counts alike), not centered under each row's own (variable-width) name. */
+#define REPORTS_LABOR_NUM_DX 22
 
 static const int8_t k_labor_layout[REPORTS_LABOR_COLS][REPORTS_LABOR_ROWS] = {
   {0, 1, 2, 3, 4, 5, 6, 7, -1},
@@ -941,39 +945,12 @@ static const int8_t k_labor_layout[REPORTS_LABOR_COLS][REPORTS_LABOR_ROWS] = {
   {17, 20, 21, 22, 24, 25, 26, 27, 19}
 };
 
-/* ICONS.SS index per job id (index into k_job_names[]); -1 for the two job
- * ids the report table skips (Expert Teachers, Veteran Dragoons). Identified
- * by visual match against labor.png's per-cell portraits (remapped through
- * backgrounds[RELIGIOUS]'s palette, same as the report's other ICONS.SS
- * uses) — moderate confidence on the near-identical planter/processor pairs
- * (sugar/tobacco/cotton share art with distiller/tobacconist/weaver, which
- * looks right thematically).
- *
- * Pioneer/Soldier/Scout/Missionary specifically use each profession's
- * *working-in-a-colony* pose, not its on-map equipped pose (UNITS_ICON_
- * HARDY_PIONEER/VETERAN_SOLDIER/SEASONED_SCOUT, 101-103, look right at a
- * glance but are the map sprites with musket/tools/horse — wrong for this
- * report): Hardy Pioneer (58) and Veteran Soldier (59) are exactly
- * UNITS_ICON_HARDY_PIONEER_WORK/VETERAN_SOLDIER_WORK; 73-77 is evidently the
- * same "unit type base icon" sequence one slot further back (Pioneer,
- * Soldier, Scout, Dragoon, Missionary) — Jesuit Missionary uses 77 from
- * that row. Seasoned Scout uses 60 — a small dedicated working-colonist
- * portrait distinct from the base/veteran map sprites (75/103). Indian
- * Converts (66) is a real standing
- * native figure — the earlier pick (113) was one of ICONS.SS's five
- * head-only Indian *relationship/attitude* portraits (used by the Indian
- * report), not a colonist at all. */
-static const int16_t k_labor_icon[28] = {
-  81,  82,  83, 84,  85,  86,  87,  88, /* 0-7   farm/forest/mine experts */
-  89,  90,  91, 92,  93,  94,  95,  96, 97, /* 8-16  fisherman..preacher */
-  98,  -1, 100, 58,  59,  60,  -1, 77,  106, 107, 66 /* 17-27 statesman.. */
-};
-
+/* Icon selection is shared with the colony/dock renderer (units_job_icon_
+ * sprite — see its table comment in units.c for how each portrait was
+ * identified); this report never shows Expert Teachers/Veteran Dragoons
+ * (k_labor_layout skips them, so their -1 there never gets drawn). */
 static int reports_labor_icon_for_job(int job) {
-  if (job < 0 || job >= (int)(sizeof(k_labor_icon) / sizeof(k_labor_icon[0]))) {
-    return -1;
-  }
-  return k_labor_icon[job];
+  return units_job_icon_sprite(job);
 }
 
 /* Sums to the same total the DOS golden shows (colonies + on-map + Europe);
@@ -1038,6 +1015,16 @@ static void reports_labor_job_counts(
       int job = u->profession;
       if (job < 0 || job >= 64) {
         job = u->type < 64 ? u->type : 0;
+      }
+      /* A Soldier/Pioneer/Missionary/Dragoon/Scout @UNIT-type unit (garrison
+       * troops, scouts, etc. — type 1-5, see NAMES.TXT @UNIT) with no expert
+       * skill isn't a colony laborer, even standing on a colony's own tile;
+       * only fold "no expert skill" into Free Colonists for an actual
+       * Colonists-type (0) unit. An expert skill that does map to a report
+       * row (Veteran Soldier, Hardy Pioneer, ...) still counts normally —
+       * this only changes the no-skill case. */
+      if (job == UNITS_JOB_NONE && u->type != 0) {
+        continue;
       }
       job = reports_labor_normalize_job(job);
       if (reports_unit_in_europe(u->x, u->y)) {
@@ -1138,19 +1125,13 @@ static void reports_render_labor_grid(
       const int count = colony_counts[job] + mapboard_counts[job] + europe_counts[job];
       char num[16];
       snprintf(num, sizeof(num), "%d", count);
-      const char* name = reports_job_name(job);
       const int text_x = cx + REPORTS_LABOR_TEXT_DX;
-      reports_draw_line(font, fb, text_x, cy, name, 14);
-      /* Count is centered under the name (golden: white "19" centered under
-       * "Free Colonists", not left-aligned under it) and a paler/whiter 15
-       * (not 14 — the name's yellow) in this palette. */
-      int num_x = text_x;
-      if (font) {
-        const int name_w = font_text_width(font, name);
-        const int num_w = font_text_width(font, num);
-        num_x = text_x + (name_w - num_w) / 2;
-      }
-      reports_draw_line(font, fb, num_x, cy + 9, num, 15);
+      reports_draw_line(font, fb, text_x, cy, reports_job_name(job), 14);
+      /* Count sits at a fixed x per column (golden: every row's number lines
+       * up under the same point regardless of name length — not centered
+       * under each name individually) and a paler/whiter 15 (not 14 — the
+       * name's yellow) in this palette. */
+      reports_draw_line(font, fb, text_x + REPORTS_LABOR_NUM_DX, cy + 9, num, 15);
     }
   }
 }
