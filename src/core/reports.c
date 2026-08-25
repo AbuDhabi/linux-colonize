@@ -468,6 +468,22 @@ static bool reports_unit_in_europe(int x, int y) {
   return x >= 200 || y >= 200;
 }
 
+/* True if (x,y) is one of this nation's own colony tiles — a unit standing
+ * there (garrison, e.g.) counts as "In Colonies" for the labor report even
+ * though it's a separate col1->unit[] record, not colony population. */
+static bool reports_xy_is_own_colony(const ColonizeCol1Save* col1, int human, int x, int y) {
+  if (!col1) {
+    return false;
+  }
+  for (uint16_t i = 0; i < col1->head.colony_count; ++i) {
+    const ColonizeCol1Colony* c = &col1->colony[i];
+    if (c->nation_id == (uint8_t)human && c->x == (uint8_t)x && c->y == (uint8_t)y) {
+      return true;
+    }
+  }
+  return false;
+}
+
 static int reports_colony_rebel_pct(const ColonizeCol1Colony* c) {
   if (!c || c->rebel_divisor == 0) {
     return 0;
@@ -1009,26 +1025,30 @@ static void reports_labor_job_counts(
       if ((int)u->nation_id != human) {
         continue;
       }
-      if (u->type >= 13 && u->type <= 18) {
-        continue; /* ships */
+      /* Only @UNIT types 0-5 (Colonists, Soldiers, Pioneers, Missionaries,
+       * Dragoons, Scouts — NAMES.TXT @UNIT rows 0-5) are colonist-derived
+       * persons the labor report should ever count; everything else (ships
+       * 13-18, Artillery, Wagon Train, Treasure, Regulars/Cavalry/Continental
+       * Army 6-9) is equipment/vehicles/King's-army units with no colonist
+       * behind them, even though some carry a leftover profession byte. */
+      if (u->type > 5) {
+        continue;
       }
       int job = u->profession;
       if (job < 0 || job >= 64) {
         job = u->type < 64 ? u->type : 0;
       }
-      /* A Soldier/Pioneer/Missionary/Dragoon/Scout @UNIT-type unit (garrison
-       * troops, scouts, etc. — type 1-5, see NAMES.TXT @UNIT) with no expert
-       * skill isn't a colony laborer, even standing on a colony's own tile;
-       * only fold "no expert skill" into Free Colonists for an actual
-       * Colonists-type (0) unit. An expert skill that does map to a report
-       * row (Veteran Soldier, Hardy Pioneer, ...) still counts normally —
-       * this only changes the no-skill case. */
-      if (job == UNITS_JOB_NONE && u->type != 0) {
-        continue;
-      }
+      /* A Soldier/Pioneer/Missionary/Dragoon/Scout unit with no expert skill
+       * still counts — as its base type, Free Colonists — same as a plain
+       * Colonists-type unit. reports_labor_normalize_job folds UNITS_JOB_
+       * NONE into that regardless of @UNIT type. */
       job = reports_labor_normalize_job(job);
       if (reports_unit_in_europe(u->x, u->y)) {
         europe_counts[job]++;
+      } else if (reports_xy_is_own_colony(col1, human, u->x, u->y)) {
+        /* On the colony's own tile (garrison, e.g.) but not colony
+         * population — still "In Colonies" for this report, not Mapboard. */
+        colony_counts[job]++;
       } else {
         mapboard_counts[job]++;
       }
@@ -1204,6 +1224,31 @@ static void reports_render_labor_detail(
     int n = 0;
     for (int p = 0; p < pop; ++p) {
       if (reports_labor_normalize_job(c->profession[p]) == job) {
+        n++;
+      }
+    }
+    /* Garrison units standing on this colony's own tile (not colony
+     * population) still count as "In Colonies" here — see
+     * reports_xy_is_own_colony's comment at the grid/detail total. */
+    for (uint16_t j = 0; j < col1->head.unit_count; ++j) {
+      const ColonizeCol1Unit* u = &col1->unit[j];
+      if ((int)u->nation_id != human || u->x != c->x || u->y != c->y) {
+        continue;
+      }
+      /* Only @UNIT types 0-5 (Colonists, Soldiers, Pioneers, Missionaries,
+       * Dragoons, Scouts — NAMES.TXT @UNIT rows 0-5) are colonist-derived
+       * persons the labor report should ever count; everything else (ships
+       * 13-18, Artillery, Wagon Train, Treasure, Regulars/Cavalry/Continental
+       * Army 6-9) is equipment/vehicles/King's-army units with no colonist
+       * behind them, even though some carry a leftover profession byte. */
+      if (u->type > 5) {
+        continue;
+      }
+      int uj = u->profession;
+      if (uj < 0 || uj >= 64) {
+        uj = u->type < 64 ? u->type : 0;
+      }
+      if (reports_labor_normalize_job(uj) == job) {
         n++;
       }
     }
