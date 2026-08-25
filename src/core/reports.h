@@ -88,6 +88,14 @@ bool reports_ok_button_hit(ColonizeReportId id, bool congress_page2, int mx, int
 int reports_labor_cell_hit(int mx, int my);
 
 /*
+ * Economic report (F5) page count: 1 (European Trade) + however many
+ * "Cargo in Port" pages it takes to list every one of this nation's
+ * colonies, 17 rows per page (golden: economic_p2.png), minimum 1 even
+ * with zero colonies — so the report always has at least 2 pages.
+ */
+int reports_economic_page_count(const ColonizeCol1Save* col1, int human_nation);
+
+/*
  * Live Colonization Score (manual / FAQ rules) for F10.
  * Independence bonuses apply only once declare/achieve are tracked in save;
  * until then those fields stay 0 and the base total is still shown.
@@ -124,12 +132,17 @@ void reports_compute_score(
  * continental_p2.png); ignored for every id but COLONIZE_REPORT_CONGRESS.
  * labor_detail_job: >=0 shows the Labor report (F4) detail view for that
  * job id (golden: labor_detail.png) instead of the profession grid; ignored
- * for every id but COLONIZE_REPORT_LABOR. */
+ * for every id but COLONIZE_REPORT_LABOR.
+ * economic_page: 0 shows European Trade (golden: economic_p1.png); N>=1
+ * shows Cargo in Port page N (golden: economic_p2.png), colonies
+ * [(N-1)*17 .. N*17). Ignored for every id but COLONIZE_REPORT_ECONOMIC —
+ * see reports_economic_page_count for how many pages exist. */
 void reports_render(
   const ColonizeReportsView* view,
   ColonizeReportId id,
   bool congress_page2,
   int labor_detail_job,
+  int economic_page,
   const ColonizeColonyPool* colonies,
   const ColonizeUnitPool* units,
   const ColonizeWorldMap* map,

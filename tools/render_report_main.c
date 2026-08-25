@@ -10,7 +10,7 @@
  * See docs/report_screens.md for the full report-porting workflow this tool
  * is part of (grid_overlay.sh / render_diff.sh live in scripts/).
  *
- *   render_report <data_dir> <save.SAV> <out.ppm> [report_id] [congress_page2] [labor_detail_job]
+ *   render_report <data_dir> <save.SAV> <out.ppm> [report_id] [congress_page2] [labor_detail_job] [economic_page]
  *
  *   data_dir        usually "COLONIZE"
  *   save.SAV        a Col1 .SAV to load (report content needs one)
@@ -22,6 +22,8 @@
  *   labor_detail_job  job id (0..27, see reports.c k_job_names) to render the
  *                   Labor report's zoomed detail view instead of the grid
  *                   (ignored otherwise); default -1
+ *   economic_page   0 = European Trade, N>=1 = Cargo in Port page N (ignored
+ *                   otherwise); default 0
  *
  * Also prints the founding-fathers bells pool/need to stderr (useful when
  * working on the Congress bells bar) after seeding the pool the same way
@@ -53,6 +55,7 @@ int main(int argc, char** argv) {
   const int report_id = argc > 4 ? atoi(argv[4]) : COLONIZE_REPORT_RELIGIOUS;
   const bool congress_page2 = argc > 5 && atoi(argv[5]) != 0;
   const int labor_detail_job = argc > 6 ? atoi(argv[6]) : -1;
+  const int economic_page = argc > 7 ? atoi(argv[7]) : 0;
 
   char err[256];
   ColonizeReportsView view;
@@ -81,6 +84,23 @@ int main(int argc, char** argv) {
     human
   );
 
+  /* Economic report (F5) Bid/Ask needs europe.cargo[].bid/ask — the same
+   * sync col1_bridge_apply() does on load (bid = this nation's euro_price;
+   * ask = bid + this cargo's @CARGO burden + 1), done by hand here since
+   * this tool skips the full map/units/colonies bridge import. */
+  EuropeScreen europe;
+  memset(&europe, 0, sizeof(europe));
+  bool europe_ok = europe_load(&europe, data_dir, err, sizeof(err));
+  if (!europe_ok) {
+    fprintf(stderr, "europe_load warning: %s\n", err);
+  } else {
+    const ColonizeCol1Nation* nat = &save.nation[human];
+    for (int i = 0; i < europe.cargo_count && i < (int)COLONIZE_COL1_CARGO_TYPES; ++i) {
+      europe.cargo[i].bid = nat->trade.euro_price[i];
+      europe.cargo[i].ask = europe.cargo[i].bid + europe.cargo[i].burden + 1;
+    }
+  }
+
   /* Report body text uses menu_font (FONTSMAL) in the live game; report
    * TITLES and Congress page 1's body both actually use view.title_font
    * (FONTTINY) once loaded — reports_render() picks that automatically. */
@@ -103,10 +123,11 @@ int main(int argc, char** argv) {
     (ColonizeReportId)report_id,
     congress_page2,
     labor_detail_job,
+    economic_page,
     NULL,
     NULL,
     NULL,
-    NULL,
+    europe_ok ? &europe : NULL,
     &save,
     human,
     0,
