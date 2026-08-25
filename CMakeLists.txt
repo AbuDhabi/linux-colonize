@@ -723,6 +723,7 @@ add_executable(unit_reports
   src/core/col1_save.c
   src/core/colony.c
   src/core/colony_yield.c
+  src/core/colony_production.c
   src/core/units.c
   src/core/combat_strength.c
   src/core/combat_analysis.c

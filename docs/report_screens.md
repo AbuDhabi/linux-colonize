@@ -253,3 +253,67 @@ perfectly. Use `render_diff.sh` as a coarse smoke check (did something move
 by a lot?), but confirm real position questions with a plain side-by-side
 image (`convert golden.png render.png -append out.png`) or individual crops,
 not the mismatch count alone.
+
+## `unit_chrome_blit_unit` on a report background needs `_colored` + an override
+
+Colony report (F6) was the first report to draw real map-style unit chrome
+(orders box + allegiance color, via `unit_chrome_blit_unit`). The orders
+box came out solid magenta for a Dutch garrison instead of golden's orange.
+
+Root cause: `unit_chrome_nation_color()`/`unit_chrome_letter_color()`'s
+palette indices (`k_european_fill`/`k_european_names`, unit_chrome.c) are
+tuned against **`ICONS.SS`'s own native palette** — confirmed by loading
+`ICONS.SS` fresh (no remap) and checking: index 13 there really is a
+saturated `(255,113,0)` Dutch orange, index 5 a matching `(170,73,0)` for
+the Fortify/Fortified letter, both pixel-identical to golden. But
+`unit_chrome_draw`'s box fill writes that raw index straight to the
+framebuffer — it does *not* go through the sprite-remap LUT
+(`reports_remap_sheet_to_palette`) the way sprite pixels do. Report
+background palettes (`REPORT*.PIK`) repurpose indices 5/13 back to plain
+EGA magenta, so the raw fill renders wrong on report screens even though
+it's correct wherever the active palette matches `ICONS.SS`'s native one
+closely (apparently map/colony-screen/europe, though there was no golden
+on hand to directly confirm those independently).
+
+Fix: added `unit_chrome_blit_unit_colored()` (unit_chrome.c/.h) —
+identical to `unit_chrome_blit_unit` plus two trailing
+`fill_override`/`letter_override` params (`-1` = default nation-color
+computation, unchanged for every existing caller). `reports.c` computes
+the override once per report by nearest-RGB-matching `ICONS.SS`-native's
+per-nation fill/letter RGB (hardcoded from that one-time probe) against
+the *current report background's own palette*
+(`reports_colony_chrome_colors` / `reports_nearest_palette_index` —
+same nearest-match technique as `reports_remap_sheet_to_palette`'s LUT
+build). Any future report that draws `unit_chrome_blit_unit` on a report
+background should do the same rather than assume the raw nation-color
+index is correct there.
+
+## A save's `orders` byte isn't the last word — check `col1_bridge_apply`'s
+## transport-chain boarding pass before trusting `ColonizeUnit.orders`
+
+Colony report garrison icons showed the wrong orders letter (`S` Sentry
+instead of the save's real `F` Fortified) for land units standing on a
+colony tile that also had a ship docked there. Traced (via a scratch probe
+dumping both the raw `ColonizeCol1Unit.orders` and the post-bridge
+`ColonizeUnit.orders`/`.aboard_ship_id`) to `col1_bridge_apply`'s "Board
+passengers via transport chain" pass: `col1_find_ship_root` walks a raw
+unit's `transport_chain` prev/next links looking for *any* sea unit, with
+no check that the relationship is actually a passenger manifest — Col1
+apparently reuses `transport_chain` for plain same-tile stacking order too,
+not just genuine Europe-dock cargo chains. A land unit merely stacked next
+to a docked ship gets `units_board_stacked()` called on it, which forces
+`orders = 1` (Sentry) and sets `aboard_ship_id`, silently overwriting the
+save's real orders.
+
+This is a real, pre-existing `col1_bridge.c` bug reachable outside reports
+too (anything that reads `ColonizeUnit.orders`/`.aboard_ship_id` for a
+land unit sharing a tile with a docked ship). Not fixed at the source this
+session — `col1_find_ship_root` has no obvious cheap discriminator between
+a genuine passenger chain and a same-tile stack (both use the same field;
+a coordinate-based Europe-only gate would also wrongly stop *real*
+ship-hold boarding at a colony dock). The Colony report works around it
+locally: it re-derives orders straight from `col1->unit[]` (matched by
+x/y/nation/type, one raw record consumed per drawn icon) instead of
+trusting the bridged pool's `.orders` for display. Sprite/type selection
+is unaffected by the bug and still comes from the pool. Worth a real fix
+with a live DOSBox-X trace if this bites another screen.

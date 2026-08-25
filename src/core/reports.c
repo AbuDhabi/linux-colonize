@@ -1,8 +1,11 @@
+#include "core/colony_production.h"
 #include "core/founding_fathers.h"
 #include "core/reports.h"
 #include "core/strutil.h"
+#include "core/unit_chrome.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "platform/diagnostics.h"
@@ -1506,114 +1509,374 @@ static void reports_render_economic_cargo(
   }
 }
 
-static void reports_render_colony(
+/*
+ * Colony Adviser (F6): two paginated pages, each listing this nation's
+ * colonies (golden: colony_p1.png "Military Garrisons", colony_p2.png
+ * "Sons of Liberty"). Both share the same left-hand icon+digit+name sidebar
+ * (colony_p1.png / colony_p2.png measured identical x/y for that column).
+ */
+#define REPORTS_COLONY_ROWS_PER_PAGE 9
+#define REPORTS_COLONY_ROW0_Y 27
+#define REPORTS_COLONY_ROW_STEP 17
+#define REPORTS_COLONY_ICON_X 0
+#define REPORTS_COLONY_ICON_W 21 /* ICONS.SS #0-3: 21x16 fortification markers */
+#define REPORTS_COLONY_NAME_X 19
+/* Yellow name/value label — REPORT6.PIK's own remap of the usual report
+ * yellow (index differs per background palette; see reports_render_colony
+ * palette probe). */
+#define REPORTS_COLONY_LABEL_COLOR 146
+#define REPORTS_COLONY_DIGIT_WHITE 15
+#define REPORTS_COLONY_DIGIT_GREEN 10
+#define REPORTS_COLONY_DIGIT_BLUE 11
+
+#define REPORTS_COLONY_UNIT_X 110
+#define REPORTS_COLONY_UNIT_PITCH 18
+
+#define REPORTS_COLONY_FLAG_X 111
+#define REPORTS_COLONY_FLAG_ICON 123 /* ICONS.SS — same SoL flag as colony_screen.c */
+#define REPORTS_COLONY_PCT_X 129
+#define REPORTS_COLONY_BUILDING_X 153
+#define REPORTS_COLONY_BELL_X 206
+#define REPORTS_COLONY_BELL_ICON 62 /* ICONS.SS — same bell as the Congress bar */
+#define REPORTS_COLONY_BELL_NUM_X 225
+#define REPORTS_COLONY_WORKER_X 249
+#define REPORTS_COLONY_WORKER_PITCH 21
+#define REPORTS_COLONY_WORKER_MAX 6
+
+int reports_colony_page_count(const ColonizeCol1Save* col1, int human) {
+  int n = 0;
+  if (col1) {
+    for (uint16_t i = 0; i < col1->head.colony_count; ++i) {
+      if (col1->colony[i].nation_id == (uint8_t)human) {
+        n++;
+      }
+    }
+  }
+  int pages = (n + REPORTS_COLONY_ROWS_PER_PAGE - 1) / REPORTS_COLONY_ROWS_PER_PAGE;
+  if (pages < 1) {
+    pages = 1;
+  }
+  return 2 * pages;
+}
+
+/* @BUILDING fortification tier bitfield (col1_bridge.c's k_fort convention:
+ * popcount of the raw bits = how many of {Stockade,Fort,Fortress} are set,
+ * lowest-to-highest) -> ICONS.SS settlement marker (colony.c's
+ * COLONY_MAP_ICON_* — 0 stockade, 1 fort, 2 fortress, 3 none). */
+static int reports_colony_fort_icon(unsigned bits) {
+  int tier = 0;
+  while (bits) {
+    tier += (int)(bits & 1u);
+    bits >>= 1;
+  }
+  if (tier >= 3) {
+    return 2; /* Fortress */
+  }
+  if (tier >= 2) {
+    return 1; /* Fort */
+  }
+  if (tier >= 1) {
+    return 0; /* Stockade */
+  }
+  return 3; /* None */
+}
+
+/* Map population-digit color (docs/sons_of_liberty.md: "white <50 / green
+ * >=50 / blue 100") superimposed on the colony's fortification icon. */
+static uint8_t reports_colony_pop_color(int sol_pct) {
+  if (sol_pct >= 100) {
+    return REPORTS_COLONY_DIGIT_BLUE;
+  }
+  if (sol_pct >= 50) {
+    return REPORTS_COLONY_DIGIT_GREEN;
+  }
+  return REPORTS_COLONY_DIGIT_WHITE;
+}
+
+/* Shared icon+digit+name sidebar cell, identical on both Colony pages. */
+static void reports_render_colony_sidebar(
+  const ColonizeReportsView* view,
+  const ColonizeCol1Colony* c,
+  const ColonizeFont* font,
+  ColonizeFramebuffer8* fb,
+  int row_top,
+  char* line,
+  size_t line_sz
+) {
+  const int icon = reports_colony_fort_icon(c->buildings.fortification);
+  if (view && view->icons_ok && icon >= 0 && icon < view->icons.sprite_count) {
+    ss_blit_sprite(&view->icons, icon, fb, REPORTS_COLONY_ICON_X, row_top - 3);
+  }
+  const int sol_pct = reports_colony_rebel_pct(c);
+  snprintf(line, line_sz, "%u", (unsigned)c->population);
+  const int dw = font ? font_text_width(font, line) : 0;
+  reports_draw_line(
+    font, fb, REPORTS_COLONY_ICON_X + (REPORTS_COLONY_ICON_W - dw) / 2, row_top,
+    line, reports_colony_pop_color(sol_pct)
+  );
+  reports_draw_line(font, fb, REPORTS_COLONY_NAME_X, row_top, c->name, REPORTS_COLONY_LABEL_COLOR);
+}
+
+/* unit_chrome_nation_color()/unit_chrome_letter_color()'s indices (europe
+ * 0..3: England/France/Spain/Dutch) are tuned against ICONS.SS's own native
+ * palette, not any particular report background's — see
+ * unit_chrome_blit_unit_colored's doc comment. RGB here is that native
+ * palette's fill (k_european_fill) and Fortify/Fortified-letter
+ * (k_european_names - 8) color per nation, dumped once from ICONS.SS
+ * directly (probe: idx112/9/14/13 fill, idx4/1/6/5 letter). */
+static const uint8_t k_reports_nation_fill_rgb[4][3] = {
+  {243, 0, 0}, {85, 85, 255}, {255, 255, 85}, {255, 113, 0}
+};
+static const uint8_t k_reports_nation_letter_rgb[4][3] = {
+  {170, 0, 0}, {0, 0, 170}, {170, 85, 0}, {170, 73, 0}
+};
+
+/* Nearest palette index for an RGB triple within a report's own background
+ * palette (same technique as reports_remap_sheet_to_palette's LUT build) —
+ * only ever a handful of calls per report render, no need to cache. */
+static int reports_nearest_palette_index(const ColonizePalette* pal, const uint8_t rgb[3]) {
+  int best = 0;
+  int best_d = 1 << 30;
+  for (int i = 0; i < 256; ++i) {
+    const int dr = (int)pal->rgb[i][0] - rgb[0];
+    const int dg = (int)pal->rgb[i][1] - rgb[1];
+    const int db = (int)pal->rgb[i][2] - rgb[2];
+    const int d = dr * dr + dg * dg + db * db;
+    if (d < best_d) {
+      best_d = d;
+      best = i;
+    }
+  }
+  return best;
+}
+
+/* Unit-chrome fill/letter override for this report's own active palette
+ * (out_fill/out_letter set to -1, meaning "use unit_chrome's own default",
+ * if nation_id is out of the 4-European range or the report background
+ * has no palette). */
+static void reports_colony_chrome_colors(
+  const ColonizeReportsView* view, int nation_id, int* out_fill, int* out_letter
+) {
+  *out_fill = -1;
+  *out_letter = -1;
+  if (!view || nation_id < 0 || nation_id >= 4 || !view->background_ok[COLONIZE_REPORT_COLONY] ||
+      !view->backgrounds[COLONIZE_REPORT_COLONY].has_palette) {
+    return;
+  }
+  const ColonizePalette* pal = &view->backgrounds[COLONIZE_REPORT_COLONY].palette;
+  *out_fill = reports_nearest_palette_index(pal, k_reports_nation_fill_rgb[nation_id]);
+  *out_letter = reports_nearest_palette_index(pal, k_reports_nation_letter_rgb[nation_id]);
+}
+
+static void reports_render_colony_garrisons(
+  const ColonizeReportsView* view,
+  const ColonizeCol1Save* col1,
+  int human,
+  const ColonizeUnitPool* units,
+  const ColonizeFont* font,
+  ColonizeFramebuffer8* fb,
+  int y,
+  int page,
+  char* line,
+  size_t line_sz
+) {
+  font = (view && view->title_font_ok) ? &view->title_font : font;
+  if (font) {
+    static const char kSubtitle[] = "Military Garrisons";
+    const int w = font_text_width(font, kSubtitle);
+    reports_draw_line(font, fb, (fb->width - w) / 2, y - 1, kSubtitle, REPORTS_COLONY_LABEL_COLOR);
+  }
+  if (!col1) {
+    return;
+  }
+
+  int shown = 0;
+  const int skip = page * REPORTS_COLONY_ROWS_PER_PAGE;
+  for (uint16_t i = 0; i < col1->head.colony_count; ++i) {
+    const ColonizeCol1Colony* c = &col1->colony[i];
+    if (c->nation_id != (uint8_t)human) {
+      continue;
+    }
+    if (shown < skip) {
+      shown++;
+      continue;
+    }
+    const int row = shown - skip;
+    if (row >= REPORTS_COLONY_ROWS_PER_PAGE) {
+      break;
+    }
+    const int row_top = REPORTS_COLONY_ROW0_Y + row * REPORTS_COLONY_ROW_STEP;
+    reports_render_colony_sidebar(view, c, font, fb, row_top, line, line_sz);
+
+    /* Units on this colony's own tile, drawn exactly as on the map
+     * (allegiance/orders chrome + real map sprite — unit_chrome_blit_unit,
+     * same call shape as colony_screen.c's docked-transport row). */
+    if (units && view && view->icons_ok) {
+      /* col1_bridge_apply's transport_chain walk (col1_find_ship_root)
+       * conflates "linked to a ship elsewhere in this tile's stacking
+       * chain" with "actually boarded" — a land unit merely standing next
+       * to a docked ship on a colony tile gets u->orders forced to Sentry
+       * (aboard_ship_id set) even though the raw save's own orders byte is
+       * untouched (verified: Fortified=6 in save, Sentry=1 in the bridged
+       * pool). Read the *raw* orders straight from col1 here instead of
+       * trusting the pool's, so the drawn letter matches the golden
+       * (colony_p1.png: garrisoned units show 'F', not 'S'). Sprite/type
+       * selection is unaffected by this bug and still comes from the pool. */
+      bool* raw_used = col1->head.unit_count > 0 ? calloc(col1->head.unit_count, sizeof(bool)) : NULL;
+      int fill_override, letter_override;
+      reports_colony_chrome_colors(view, human, &fill_override, &letter_override);
+      int slot = 0;
+      for (int u = 0; u < COLONIZE_UNITS_MAX && slot < 8; ++u) {
+        const ColonizeUnit* unit = &units->units[u];
+        if (!unit->active || unit->nation_id != human) {
+          continue;
+        }
+        if (unit->x != c->x || unit->y != c->y) {
+          continue;
+        }
+        /* Ships docked at the colony's tile aren't part of the garrison
+         * (golden: colony_p1.png never shows a hull here, only land units). */
+        if (units_is_sea(units, unit->id)) {
+          continue;
+        }
+        const int sprite = units_map_sprite(units, unit->id);
+        if (sprite < 0) {
+          continue;
+        }
+        const int display_type = units_display_type_index(units, unit->id);
+        int orders = unit->orders;
+        if (raw_used) {
+          for (uint16_t ri = 0; ri < col1->head.unit_count; ++ri) {
+            if (raw_used[ri]) {
+              continue;
+            }
+            const ColonizeCol1Unit* ru = &col1->unit[ri];
+            if (ru->nation_id == (uint8_t)human && ru->x == c->x && ru->y == c->y &&
+                ru->type == (uint8_t)display_type) {
+              orders = ru->orders;
+              raw_used[ri] = true;
+              break;
+            }
+          }
+        }
+        const int x = REPORTS_COLONY_UNIT_X + slot * REPORTS_COLONY_UNIT_PITCH;
+        unit_chrome_blit_unit_colored(
+          fb, font, &view->icons, sprite, x, row_top - 3,
+          display_type, unit->nation_id, orders, false, false, fill_override, letter_override
+        );
+        slot++;
+      }
+      free(raw_used);
+    }
+    shown++;
+  }
+}
+
+static void reports_render_colony_sol(
+  const ColonizeReportsView* view,
   const ColonizeCol1Save* col1,
   int human,
   const ColonizeColonyPool* colonies,
   const ColonizeFont* font,
   ColonizeFramebuffer8* fb,
-  int* y,
-  int step,
+  int y,
+  int page,
   char* line,
   size_t line_sz
 ) {
-  reports_draw_line(font, fb, 8, *y, "Colony warehouses / status", 15);
-  *y += step;
-  reports_draw_line(font, fb, 8, *y, "(Click on item to zoom — not wired)", 14);
-  *y += step;
-
-  int totals[COLONIZE_COL1_CARGO_TYPES];
-  memset(totals, 0, sizeof(totals));
-  int n = 0;
-
-  if (col1) {
-    for (uint16_t i = 0; i < col1->head.colony_count && *y < 150; ++i) {
-      const ColonizeCol1Colony* c = &col1->colony[i];
-      if (c->nation_id != (uint8_t)human) {
-        continue;
-      }
-      snprintf(
-        line,
-        line_sz,
-        "%s (%u,%u) pop %u  rebel %d%%",
-        c->name,
-        (unsigned)c->x,
-        (unsigned)c->y,
-        (unsigned)c->population,
-        reports_colony_rebel_pct(c)
-      );
-      reports_draw_line(font, fb, 8, *y, line, 15);
-      *y += step;
-      snprintf(
-        line,
-        line_sz,
-        "  food %u  lumber %u  tools %u  muskets %u  horses %u",
-        (unsigned)c->stock[0],
-        (unsigned)c->stock[5],
-        (unsigned)c->stock[14],
-        (unsigned)c->stock[15],
-        (unsigned)c->stock[8]
-      );
-      reports_draw_line(font, fb, 8, *y, line, 14);
-      *y += step;
-      for (int g = 0; g < (int)COLONIZE_COL1_CARGO_TYPES; ++g) {
-        totals[g] += (int)c->stock[g];
-      }
-      n++;
-    }
-  } else if (colonies) {
-    for (int i = 0; i < COLONIZE_COLONIES_MAX && *y < 160; ++i) {
-      const ColonizeColony* c = &colonies->colonies[i];
-      if (!c->active) {
-        continue;
-      }
-      snprintf(
-        line,
-        line_sz,
-        "%s (%d,%d) pop %d",
-        c->name,
-        c->x,
-        c->y,
-        c->population
-      );
-      reports_draw_line(font, fb, 8, *y, line, 15);
-      *y += step;
-      snprintf(
-        line,
-        line_sz,
-        "  food %d  lumber %d  tools %d  muskets %d  horses %d",
-        c->stock[COLONIZE_CARGO_FOOD],
-        c->stock[COLONIZE_CARGO_LUMBER],
-        c->stock[COLONIZE_CARGO_TOOLS],
-        c->stock[COLONIZE_CARGO_MUSKETS],
-        c->stock[COLONIZE_CARGO_HORSES]
-      );
-      reports_draw_line(font, fb, 8, *y, line, 14);
-      *y += step;
-      for (int g = 0; g < COLONIZE_CARGO_COUNT; ++g) {
-        totals[g] += c->stock[g];
-      }
-      n++;
-    }
+  font = (view && view->title_font_ok) ? &view->title_font : font;
+  if (font) {
+    static const char kSubtitle[] = "Sons of Liberty";
+    const int w = font_text_width(font, kSubtitle);
+    reports_draw_line(font, fb, (fb->width - w) / 2, y - 1, kSubtitle, REPORTS_COLONY_LABEL_COLOR);
   }
-
-  if (n == 0) {
-    reports_draw_line(font, fb, 8, *y, "No colonies founded.", 14);
+  if (!col1) {
     return;
   }
 
-  snprintf(line, line_sz, "Total colonies: %d", n);
-  reports_draw_line(font, fb, 8, *y, line, 15);
-  *y += step;
-  reports_draw_line(font, fb, 8, *y, "Warehouse totals:", 15);
-  *y += step;
-  for (int g = 0; g < (int)COLONIZE_COL1_CARGO_TYPES && *y < 195; ++g) {
-    if (totals[g] <= 0) {
+  const int town_hall_idx = colonies ? colonies_find_building(colonies, "Town Hall") : -1;
+  const bool nation_is_ai =
+    human >= 0 && human < (int)COLONIZE_COL1_NATION_COUNT && col1->player[human].control != 0;
+  const int statesmen_pct =
+    founding_fathers_nation_has(col1, human, FF_THOMAS_JEFFERSON) ? 50 : 0;
+  const int paine_tax_pct =
+    (founding_fathers_nation_has(col1, human, FF_THOMAS_PAINE) &&
+     human >= 0 && human < (int)COLONIZE_COL1_NATION_COUNT)
+      ? (int)col1->nation[human].tax_rate
+      : 0;
+
+  int shown = 0;
+  const int skip = page * REPORTS_COLONY_ROWS_PER_PAGE;
+  for (uint16_t i = 0; i < col1->head.colony_count; ++i) {
+    const ColonizeCol1Colony* c = &col1->colony[i];
+    if (c->nation_id != (uint8_t)human) {
       continue;
     }
-    snprintf(line, line_sz, "  %s: %d", k_cargo_names[g], totals[g]);
-    reports_draw_line(font, fb, 8, *y, line, 15);
-    *y += step;
+    if (shown < skip) {
+      shown++;
+      continue;
+    }
+    const int row = shown - skip;
+    if (row >= REPORTS_COLONY_ROWS_PER_PAGE) {
+      break;
+    }
+    const int row_top = REPORTS_COLONY_ROW0_Y + row * REPORTS_COLONY_ROW_STEP;
+    reports_render_colony_sidebar(view, c, font, fb, row_top, line, line_sz);
+
+    const int sol_pct = reports_colony_rebel_pct(c);
+    if (view && view->icons_ok) {
+      ss_blit_sprite(&view->icons, REPORTS_COLONY_FLAG_ICON, fb, REPORTS_COLONY_FLAG_X, row_top - 3);
+    }
+    snprintf(line, line_sz, "%d%%", sol_pct);
+    reports_draw_line(font, fb, REPORTS_COLONY_PCT_X, row_top, line, REPORTS_COLONY_LABEL_COLOR);
+
+    /* Printing Press/Newspaper — 2-bit tier bitfield, same popcount
+     * convention as fortification; Newspaper implies Press. */
+    const unsigned press_bits = c->buildings.printing_press;
+    const char* press_label = (press_bits & 2u) ? "Newspaper" : ((press_bits & 1u) ? "Press" : NULL);
+    if (press_label) {
+      reports_draw_line(font, fb, REPORTS_COLONY_BUILDING_X, row_top, press_label, REPORTS_COLONY_LABEL_COLOR);
+    }
+
+    /* Bell production — pool-based colony matched 1:1 by import order
+     * (col1_bridge_apply appends colonies in save order, no skipping under
+     * COLONIZE_COLONIES_MAX), same formula turn.c's EOT bells tally uses. */
+    const ColonizeColony* colony =
+      (colonies && i < COLONIZE_COLONIES_MAX && i < colonies->colony_count) ? &colonies->colonies[i] : NULL;
+    int bells = 0;
+    if (colonies && colony) {
+      const int sol_bonus = colony_prod_sol_bonus(col1, colony);
+      bells = colony_prod_colony_bells_ff(
+        colonies, colony, statesmen_pct, paine_tax_pct, nation_is_ai, sol_bonus
+      );
+    }
+    if (view && view->icons_ok) {
+      ss_blit_sprite(&view->icons, REPORTS_COLONY_BELL_ICON, fb, REPORTS_COLONY_BELL_X, row_top - 3);
+    }
+    snprintf(line, line_sz, "%d", bells);
+    reports_draw_line(font, fb, REPORTS_COLONY_BELL_NUM_X, row_top, line, REPORTS_COLONY_LABEL_COLOR);
+
+    /* Colonists currently working the Town Hall — same drop-shadow icon
+     * convention as the Labor report's profession icons (units_job_icon_sprite +
+     * ss_blit_sprite_color 2px-left black underlay). */
+    if (colony && town_hall_idx >= 0 && view && view->icons_ok) {
+      int slot = 0;
+      for (int p = 0; p < colony->colonist_count && slot < REPORTS_COLONY_WORKER_MAX; ++p) {
+        const ColonizeColonist* col = &colony->colonists[p];
+        if (!col->active || col->building_type != town_hall_idx) {
+          continue;
+        }
+        const int sprite = units_job_icon_sprite(col->profession);
+        if (sprite < 0 || sprite >= view->icons.sprite_count) {
+          continue;
+        }
+        const int x = REPORTS_COLONY_WORKER_X + slot * REPORTS_COLONY_WORKER_PITCH;
+        ss_blit_sprite_color(&view->icons, sprite, fb, x - 2, row_top - 3, 0);
+        ss_blit_sprite(&view->icons, sprite, fb, x, row_top - 3);
+        slot++;
+      }
+    }
+    shown++;
   }
 }
 
@@ -2371,6 +2634,7 @@ void reports_render(
   bool congress_page2,
   int labor_detail_job,
   int economic_page,
+  int colony_page,
   const ColonizeColonyPool* colonies,
   const ColonizeUnitPool* units,
   const ColonizeWorldMap* map,
@@ -2431,12 +2695,21 @@ void reports_render(
         );
       }
       break;
-    case COLONIZE_REPORT_COLONY:
-      /* When unit icon rows are added, draw with unit_chrome_draw (FUN_112b_01ba). */
-      reports_render_colony(
-        col1, human, colonies, font, framebuffer, &y, step, line, sizeof(line)
-      );
+    case COLONIZE_REPORT_COLONY: {
+      const int total_pages = reports_colony_page_count(col1, human);
+      const int garrison_pages = total_pages / 2;
+      if (colony_page < garrison_pages) {
+        reports_render_colony_garrisons(
+          view, col1, human, units, font, framebuffer, y, colony_page, line, sizeof(line)
+        );
+      } else {
+        reports_render_colony_sol(
+          view, col1, human, colonies, font, framebuffer, y, colony_page - garrison_pages, line,
+          sizeof(line)
+        );
+      }
       break;
+    }
     case COLONIZE_REPORT_NAVAL:
       /* When ship icon rows are added, draw with unit_chrome_draw (FUN_112b_01ba). */
       reports_render_naval(
