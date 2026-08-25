@@ -724,11 +724,21 @@ bool col1_bridge_apply(
     dst->nation_id = src->nation_id;
     dst->population = src->population;
     dst->hammers = src->hammers;
-    /* COL1 Stockade construction id is 6; runtime uses @BUILDING index (0). */
+    /* Raw COL1 code == NAMES.TXT @BUILDING file-order index directly — the
+     * pool's own load order (colonies_load_buildings iterates the file
+     * top-to-bottom), confirmed against dutch-reports.SAV/its Construction-
+     * tab goldens: Recife's raw code 6 golden-shows "Docks" (@BUILDING's
+     * 7th, 0-indexed 6th, entry), not "Stockade" (index 0) — an earlier
+     * "COL1 Stockade id is 6" special case here was wrong (unverified
+     * guess predating any Construction-tab golden) and silently
+     * mis-tracked any colony actually building Docks as building a
+     * Stockade instead. A code past the table's own range (41, the last
+     * entry) encodes a buildable *unit* instead (New Amsterdam's golden:
+     * 42 = Artillery) — colonies_building_type returns NULL for those;
+     * colony_screen.c special-cases the one golden-confirmed unit code for
+     * display only, see its comment. */
     if (src->building_in_production == 0xFF) {
       dst->building_in_production = -1;
-    } else if (src->building_in_production == 6) {
-      dst->building_in_production = colonies_find_building(colonies, "Stockade");
     } else {
       dst->building_in_production = (int)src->building_in_production;
     }
@@ -1447,16 +1457,13 @@ bool col1_bridge_capture(
       dst->nation_id = (uint8_t)src->nation_id;
       dst->population = (uint8_t)(src->colonist_count > 32 ? 32 : src->colonist_count);
       dst->hammers = (uint16_t)(src->hammers < 0 ? 0 : (src->hammers > 65535 ? 65535 : src->hammers));
-      /* COL1 Stockade construction id is 6; none is 0xFF. */
+      /* Mirror of the import-side fix above: raw COL1 code == @BUILDING
+       * file-order index directly, none is 0xFF. See col1_bridge_apply's
+       * comment on this same field for the golden evidence. */
       if (src->building_in_production < 0) {
         dst->building_in_production = 0xFF;
       } else {
-        const int stockade = colonies_find_building(colonies, "Stockade");
-        if (stockade >= 0 && src->building_in_production == stockade) {
-          dst->building_in_production = 6;
-        } else {
-          dst->building_in_production = (uint8_t)src->building_in_production;
-        }
+        dst->building_in_production = (uint8_t)src->building_in_production;
       }
       for (int p = 0; p < (int)COLONIZE_COL1_COLONY_POP_MAX; ++p) {
         dst->profession[p] = 0;

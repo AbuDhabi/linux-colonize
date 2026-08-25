@@ -923,7 +923,11 @@ int main(void) {
   const int mini_y = COLONY_MINIMAP_SECTION_Y + margin_y;
   const int mini_x1 = mini_x + grid_px - 1;
   const int mini_y1 = mini_y + grid_px - 1;
-  if (pixels[mini_y * 320 + mini_x] == 0 || pixels[mini_y1 * 320 + mini_x1] == 0) {
+  /* Sample 1px inset from the exact corners now — colony_screen_render_minimap
+   * golden-added a black 1px frame around the whole grid, so the literal
+   * corner pixels are legitimately color 0 by design. */
+  if (pixels[(mini_y + 1) * 320 + (mini_x + 1)] == 0 ||
+      pixels[(mini_y1 - 1) * 320 + (mini_x1 - 1)] == 0) {
     fprintf(stderr, "minimap corners look empty (expected centered 3x3)\n");
     if (font_ok) {
       ff_free(&font);
@@ -1388,13 +1392,15 @@ int main(void) {
     }
 
     const int carpenter = colonies_find_building(&pool, "Carpenter's Shop");
+    /* Golden-measured carpenter slot (k_building_slots): (127,45), 44x22 —
+     * click an interior point. */
     hit = colony_screen_hit_test(
       &view,
       &pool,
       sample,
       &units,
-      COLONY_VIEWPORT_X + 8 + 4,
-      COLONY_VIEWPORT_Y + 44 + 4
+      COLONY_VIEWPORT_X + 127 + 10,
+      COLONY_VIEWPORT_Y + 45 + 10
     );
     if (hit.kind != COLONY_HIT_BUILDING || hit.index != carpenter) {
       fprintf(

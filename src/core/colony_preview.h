@@ -20,6 +20,27 @@ typedef struct ColonizeColonyPreview {
   int hammers; /* carpenter hammers that would be added */
   int goods[COLONIZE_CARGO_COUNT];     /* net field+craft before food eat */
   int shortfall[COLONIZE_CARGO_COUNT]; /* craft wanted beyond available raw */
+  /*
+   * Per-tier GROSS amounts, uncollapsed by downstream consumption within
+   * this same tick — for the colony screen's Production tab badges, which
+   * golden-confirmed (New Amsterdam, dutch-reports.SAV) show what each
+   * assigned worker actually produced this turn, not the warehouse-delta
+   * `goods[]` above (e.g. Ore badge reads 28 = both ore-miner tiles' raw
+   * output, even though `goods[ORE]` is only 4 once the Blacksmith's own
+   * 24-ore draw nets it down; Tools badge reads 24 = the Blacksmith's gross
+   * output, even though `goods[TOOLS]` is only 14 once the Armory's 10-tool
+   * draw nets it down further). `field_gross` is field-tile worker output
+   * only (colonists actually assigned a field job) — deliberately excludes
+   * the town-commons auto-yield (shown only on the minimap's center-tile
+   * badge, not duplicated here) and any craft output. `craft_gross` is each
+   * recipe's actual (stock-clamped) production this tick, keyed by
+   * out_cargo. A raw good that's also a craft out_cargo (none currently
+   * are) would need both summed; every other cargo needs exactly one of
+   * the two, or neither (Horses/Food: keep reading `goods[]`, see
+   * colony_screen.c).
+   */
+  int field_gross[COLONIZE_CARGO_COUNT];
+  int craft_gross[COLONIZE_CARGO_COUNT];
 } ColonizeColonyPreview;
 
 void colony_preview_compute(

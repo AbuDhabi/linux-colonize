@@ -543,6 +543,16 @@ target_include_directories(render_report PRIVATE
 
 target_link_libraries(render_report PRIVATE colonize_core)
 
+add_executable(render_colony
+  tools/render_colony_main.c
+)
+
+target_include_directories(render_colony PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
+target_link_libraries(render_colony PRIVATE colonize_core)
+
 add_executable(probe_far_ocean_4753
   tools/probe_far_ocean_4753.c
 )

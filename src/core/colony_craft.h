@@ -17,13 +17,21 @@ void colony_craft_one_colony(
   int sol_bonus
 );
 
-/* Non-mutating craft pass on scratch stock; fills shortfall[] and optional delta. */
+/*
+ * Non-mutating craft pass on scratch stock; fills shortfall[] and optional
+ * delta. `gross_out` (optional, NULL to skip) receives each recipe's actual
+ * (stock-clamped) production this tick keyed by out_cargo — the colony
+ * screen's Production tab badges want this uncollapsed-by-further-
+ * consumption figure, not `delta->goods[]`'s net (see
+ * ColonizeColonyPreview.craft_gross's header comment in colony_preview.h).
+ */
 void colony_craft_preview(
   const ColonizeColonyPool* pool,
   ColonizeColony* scratch,
   int shortfall[COLONIZE_CARGO_COUNT],
   ColonizeColonyProdDelta* delta,
-  int sol_bonus
+  int sol_bonus,
+  int gross_out[COLONIZE_CARGO_COUNT]
 );
 
 /*
