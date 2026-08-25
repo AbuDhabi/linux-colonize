@@ -1267,98 +1267,229 @@ static void reports_render_labor_detail(
   }
 }
 
-static void reports_render_economic(
+/*
+ * Economic report (F5, golden: economic_p1.png / economic_p2.png) — page 1
+ * is a 16-row "European Trade" ledger (row = cargo, columns Tons/Gold/Bid
+ * Price/Ask Price); page 2+ is a "Cargo in Port" grid (row = colony, column
+ * = cargo icon), 17 colonies per page, another page added past 17.
+ *
+ * Both tables share the same dark-red rule-line style; geometry (native
+ * 320x200) measured directly off the goldens.
+ */
+#define REPORTS_ECON_LINE_COLOR 119 /* dark red (134,0,0) row/column rules */
+#define REPORTS_ECON_LABEL_COLOR 14 /* yellow row/column labels */
+#define REPORTS_ECON_VALUE_COLOR 97 /* pale cream (247,243,199) Bid/Ask + stock values */
+#define REPORTS_ECON_POS_COLOR 10 /* green (85,255,85): net sold (tons/gold >= 0) */
+#define REPORTS_ECON_NEG_COLOR 112 /* red (243,0,0): net bought (tons/gold < 0) */
+
+static void reports_draw_hline(ColonizeFramebuffer8* fb, int x0, int x1, int y, uint8_t color) {
+  if (!fb || !fb->pixels || y < 0 || y >= fb->height) {
+    return;
+  }
+  for (int x = x0; x < x1; ++x) {
+    if (x >= 0 && x < fb->width) {
+      fb->pixels[y * fb->width + x] = color;
+    }
+  }
+}
+
+static void reports_draw_vline(ColonizeFramebuffer8* fb, int x, int y0, int y1, uint8_t color) {
+  if (!fb || !fb->pixels || x < 0 || x >= fb->width) {
+    return;
+  }
+  for (int y = y0; y < y1; ++y) {
+    if (y >= 0 && y < fb->height) {
+      fb->pixels[y * fb->width + x] = color;
+    }
+  }
+}
+
+/* Right-aligned text ending at right_x. */
+static void reports_draw_right(
+  const ColonizeFont* font,
+  ColonizeFramebuffer8* fb,
+  int right_x,
+  int y,
+  const char* text,
+  uint8_t color
+) {
+  const int w = font ? font_text_width(font, text) : 0;
+  reports_draw_line(font, fb, right_x - w, y, text, color);
+}
+
+#define REPORTS_ECON1_ROWS 16
+#define REPORTS_ECON1_ROW0_Y 33
+#define REPORTS_ECON1_ROW_STEP 8
+#define REPORTS_ECON1_LABEL_X 2
+#define REPORTS_ECON1_DIVIDER_X 67
+#define REPORTS_ECON1_HEADER_Y 25
+#define REPORTS_ECON1_TONS_RIGHT 90
+#define REPORTS_ECON1_GOLD_RIGHT 144
+#define REPORTS_ECON1_BID_RIGHT 199
+#define REPORTS_ECON1_ASK_RIGHT 251
+
+static void reports_render_economic_trade(
+  const ColonizeReportsView* view,
   const ColonizeCol1Save* col1,
   int human,
   const EuropeScreen* europe,
   const ColonizeFont* font,
   ColonizeFramebuffer8* fb,
-  int* y,
-  int step,
+  int y,
   char* line,
   size_t line_sz
 ) {
-  reports_draw_line(font, fb, 8, *y, "Treasury and European trade", 15);
-  *y += step;
+  font = (view && view->title_font_ok) ? &view->title_font : font;
+  if (font) {
+    static const char kSubtitle[] = "European Trade";
+    const int w = font_text_width(font, kSubtitle);
+    reports_draw_line(font, fb, (fb->width - w) / 2, y, kSubtitle, REPORTS_ECON_LABEL_COLOR);
+  }
 
-  const uint32_t gold = col1 ? col1->nation[human].gold : (uint32_t)(europe ? europe->gold : 0);
-  const int tax = col1 ? (int)col1->nation[human].tax_rate : (europe ? europe->tax_percent : 0);
-  snprintf(line, line_sz, "Gold: %u    Tax rate: %d%%", (unsigned)gold, tax);
-  reports_draw_line(font, fb, 8, *y, line, 15);
-  *y += step;
+  reports_draw_right(font, fb, REPORTS_ECON1_TONS_RIGHT, REPORTS_ECON1_HEADER_Y, "Tons", REPORTS_ECON_LABEL_COLOR);
+  reports_draw_right(font, fb, REPORTS_ECON1_GOLD_RIGHT, REPORTS_ECON1_HEADER_Y, "Gold", REPORTS_ECON_LABEL_COLOR);
+  reports_draw_right(
+    font, fb, REPORTS_ECON1_BID_RIGHT, REPORTS_ECON1_HEADER_Y, "Bid Price", REPORTS_ECON_LABEL_COLOR
+  );
+  reports_draw_right(
+    font, fb, REPORTS_ECON1_ASK_RIGHT, REPORTS_ECON1_HEADER_Y, "Ask Price", REPORTS_ECON_LABEL_COLOR
+  );
 
-  if (col1) {
-    const ColonizeCol1Nation* nat = &col1->nation[human];
-    if (nat->boycott_bitmap != 0) {
-      reports_draw_line(font, fb, 8, *y, "Boycotts:", 15);
-      *y += step;
-      for (int c = 0; c < (int)COLONIZE_COL1_CARGO_TYPES && *y < 100; ++c) {
-        if ((nat->boycott_bitmap & (1u << c)) == 0) {
-          continue;
-        }
-        snprintf(line, line_sz, "  %s", k_cargo_names[c]);
-        reports_draw_line(font, fb, 8, *y, line, 15);
-        *y += step;
-      }
+  const int table_bottom = REPORTS_ECON1_ROW0_Y + REPORTS_ECON1_ROWS * REPORTS_ECON1_ROW_STEP;
+  for (int i = 0; i <= REPORTS_ECON1_ROWS; ++i) {
+    reports_draw_hline(fb, 0, fb->width, REPORTS_ECON1_ROW0_Y + i * REPORTS_ECON1_ROW_STEP, REPORTS_ECON_LINE_COLOR);
+  }
+  reports_draw_vline(fb, REPORTS_ECON1_DIVIDER_X, REPORTS_ECON1_ROW0_Y, table_bottom, REPORTS_ECON_LINE_COLOR);
+
+  const ColonizeCol1Nation* nat = col1 ? &col1->nation[human] : NULL;
+  for (int c = 0; c < (int)COLONIZE_COL1_CARGO_TYPES; ++c) {
+    const int row_top = REPORTS_ECON1_ROW0_Y + c * REPORTS_ECON1_ROW_STEP;
+    const int text_y = row_top + 3;
+    reports_draw_line(font, fb, REPORTS_ECON1_LABEL_X, text_y, k_cargo_names[c], REPORTS_ECON_LABEL_COLOR);
+
+    const int32_t tons = nat ? nat->trade.tons[c] : 0;
+    const int32_t g = nat ? nat->trade.gold[c] : 0;
+    const bool net_bought = tons < 0 || (tons == 0 && g < 0);
+    const uint8_t sign_color = net_bought ? REPORTS_ECON_NEG_COLOR : REPORTS_ECON_POS_COLOR;
+    snprintf(line, line_sz, "%d", tons < 0 ? -tons : tons);
+    reports_draw_right(font, fb, REPORTS_ECON1_TONS_RIGHT, text_y, line, sign_color);
+    snprintf(line, line_sz, "%dg", g < 0 ? -g : g);
+    reports_draw_right(font, fb, REPORTS_ECON1_GOLD_RIGHT, text_y, line, sign_color);
+
+    int bid;
+    int ask;
+    if (europe && c < europe->cargo_count) {
+      bid = europe->cargo[c].bid;
+      ask = europe->cargo[c].ask;
+    } else if (nat) {
+      bid = nat->trade.euro_price[c];
+      ask = bid + 1;
     } else {
-      reports_draw_line(font, fb, 8, *y, "Boycotts: (none)", 14);
-      *y += step;
+      bid = 0;
+      ask = 0;
     }
+    snprintf(line, line_sz, "%dg", bid);
+    reports_draw_right(font, fb, REPORTS_ECON1_BID_RIGHT, text_y, line, REPORTS_ECON_VALUE_COLOR);
+    snprintf(line, line_sz, "%dg", ask);
+    reports_draw_right(font, fb, REPORTS_ECON1_ASK_RIGHT, text_y, line, REPORTS_ECON_VALUE_COLOR);
+  }
+}
 
-    reports_draw_line(font, fb, 8, *y, "Trade ledger (tons / gold):", 15);
-    *y += step;
-    int shown = 0;
-    for (int c = 0; c < (int)COLONIZE_COL1_CARGO_TYPES && *y < 175; ++c) {
-      const int32_t tons = nat->trade.tons[c];
-      const int32_t g = nat->trade.gold[c];
-      if (tons == 0 && g == 0) {
-        continue;
+#define REPORTS_ECON2_ROWS_PER_PAGE 17
+#define REPORTS_ECON2_ROW0_Y 42
+#define REPORTS_ECON2_ROW_STEP 8
+#define REPORTS_ECON2_ICON_Y (REPORTS_ECON2_ROW0_Y - 11)
+#define REPORTS_ECON2_LABEL_X 2
+#define REPORTS_ECON2_DIVIDER_X 87
+#define REPORTS_ECON2_COL_STEP 14
+#define REPORTS_ECON2_COLS (int)COLONIZE_COL1_CARGO_TYPES
+
+int reports_economic_page_count(const ColonizeCol1Save* col1, int human) {
+  int colony_count = 0;
+  if (col1) {
+    for (uint16_t i = 0; i < col1->head.colony_count; ++i) {
+      if (col1->colony[i].nation_id == (uint8_t)human) {
+        colony_count++;
       }
-      snprintf(
-        line,
-        line_sz,
-        "  %-12s  tons %d  gold %d",
-        k_cargo_names[c],
-        (int)tons,
-        (int)g
-      );
-      reports_draw_line(font, fb, 8, *y, line, 15);
-      *y += step;
-      shown++;
     }
-    if (shown == 0) {
-      reports_draw_line(font, fb, 8, *y, "  (no cargo traded yet)", 14);
-      *y += step;
-    }
+  }
+  int cargo_pages = (colony_count + REPORTS_ECON2_ROWS_PER_PAGE - 1) / REPORTS_ECON2_ROWS_PER_PAGE;
+  if (cargo_pages < 1) {
+    cargo_pages = 1;
+  }
+  return 1 + cargo_pages;
+}
 
-    reports_draw_line(font, fb, 8, *y, "Europe prices (bid):", 15);
-    *y += step;
-    for (int c = 0; c < 8 && *y < 190; ++c) {
-      snprintf(
-        line,
-        line_sz,
-        "  %-12s  %u",
-        k_cargo_names[c],
-        (unsigned)nat->trade.euro_price[c]
-      );
-      reports_draw_line(font, fb, 8, *y, line, 15);
-      *y += step;
+static void reports_render_economic_cargo(
+  const ColonizeReportsView* view,
+  const ColonizeCol1Save* col1,
+  int human,
+  const ColonizeFont* font,
+  ColonizeFramebuffer8* fb,
+  int y,
+  int cargo_page,
+  char* line,
+  size_t line_sz
+) {
+  font = (view && view->title_font_ok) ? &view->title_font : font;
+  if (font) {
+    static const char kSubtitle[] = "Cargo in Port";
+    const int w = font_text_width(font, kSubtitle);
+    reports_draw_line(font, fb, (fb->width - w) / 2, y, kSubtitle, REPORTS_ECON_LABEL_COLOR);
+  }
+
+  const int table_bottom = REPORTS_ECON2_ROW0_Y + REPORTS_ECON2_ROWS_PER_PAGE * REPORTS_ECON2_ROW_STEP;
+  for (int i = 0; i <= REPORTS_ECON2_ROWS_PER_PAGE; ++i) {
+    reports_draw_hline(
+      fb, REPORTS_ECON2_DIVIDER_X, fb->width, REPORTS_ECON2_ROW0_Y + i * REPORTS_ECON2_ROW_STEP, REPORTS_ECON_LINE_COLOR
+    );
+  }
+  for (int c = 0; c <= REPORTS_ECON2_COLS; ++c) {
+    reports_draw_vline(
+      fb, REPORTS_ECON2_DIVIDER_X + c * REPORTS_ECON2_COL_STEP, REPORTS_ECON2_ROW0_Y, table_bottom, REPORTS_ECON_LINE_COLOR
+    );
+  }
+
+  for (int c = 0; c < REPORTS_ECON2_COLS; ++c) {
+    const int icon = 22 + c;
+    if (view && view->icons_ok && icon < view->icons.sprite_count) {
+      const ColonizeSprite* sp = &view->icons.sprites[icon];
+      const int col_left = REPORTS_ECON2_DIVIDER_X + c * REPORTS_ECON2_COL_STEP;
+      const int icon_x = col_left + (REPORTS_ECON2_COL_STEP - sp->width) / 2;
+      ss_blit_sprite(&view->icons, icon, fb, icon_x, REPORTS_ECON2_ICON_Y);
     }
-  } else if (europe && europe->cargo_count > 0) {
-    reports_draw_line(font, fb, 8, *y, "Europe market (bid/ask):", 15);
-    *y += step;
-    for (int i = 0; i < europe->cargo_count && i < 10 && *y < 180; ++i) {
-      snprintf(
-        line,
-        line_sz,
-        "  %s  %d / %d",
-        europe->cargo[i].name,
-        europe->cargo[i].bid,
-        europe->cargo[i].ask
-      );
-      reports_draw_line(font, fb, 8, *y, line, 15);
-      *y += step;
+  }
+
+  if (!col1) {
+    return;
+  }
+  int shown = 0;
+  const int skip = cargo_page * REPORTS_ECON2_ROWS_PER_PAGE;
+  for (uint16_t i = 0; i < col1->head.colony_count; ++i) {
+    const ColonizeCol1Colony* c = &col1->colony[i];
+    if (c->nation_id != (uint8_t)human) {
+      continue;
     }
+    if (shown < skip) {
+      shown++;
+      continue;
+    }
+    const int row = shown - skip;
+    if (row >= REPORTS_ECON2_ROWS_PER_PAGE) {
+      break;
+    }
+    const int row_top = REPORTS_ECON2_ROW0_Y + row * REPORTS_ECON2_ROW_STEP;
+    const int text_y = row_top + 3;
+    reports_draw_line(font, fb, REPORTS_ECON2_LABEL_X, text_y, c->name, REPORTS_ECON_LABEL_COLOR);
+    for (int cg = 0; cg < REPORTS_ECON2_COLS; ++cg) {
+      const int col_left = REPORTS_ECON2_DIVIDER_X + cg * REPORTS_ECON2_COL_STEP;
+      snprintf(line, line_sz, "%u", (unsigned)c->stock[cg]);
+      const int w = font ? font_text_width(font, line) : 0;
+      reports_draw_line(
+        font, fb, col_left + (REPORTS_ECON2_COL_STEP - w) / 2, text_y, line, REPORTS_ECON_VALUE_COLOR
+      );
+    }
+    shown++;
   }
 }
 
@@ -2226,6 +2357,7 @@ void reports_render(
   ColonizeReportId id,
   bool congress_page2,
   int labor_detail_job,
+  int economic_page,
   const ColonizeColonyPool* colonies,
   const ColonizeUnitPool* units,
   const ColonizeWorldMap* map,
@@ -2278,9 +2410,13 @@ void reports_render(
       }
       break;
     case COLONIZE_REPORT_ECONOMIC:
-      reports_render_economic(
-        col1, human, europe, font, framebuffer, &y, step, line, sizeof(line)
-      );
+      if (economic_page <= 0) {
+        reports_render_economic_trade(view, col1, human, europe, font, framebuffer, y, line, sizeof(line));
+      } else {
+        reports_render_economic_cargo(
+          view, col1, human, font, framebuffer, y, economic_page - 1, line, sizeof(line)
+        );
+      }
       break;
     case COLONIZE_REPORT_COLONY:
       /* When unit icon rows are added, draw with unit_chrome_draw (FUN_112b_01ba). */
