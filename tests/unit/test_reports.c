@@ -185,13 +185,19 @@ int main(void) {
 
   ColonizeScoreBreakdown score;
   reports_compute_score(&score, &col1, 0, NULL, NULL);
-  /* COLONY01: Soldier(+4) + Pioneer(+4) + gold 1000(+1); no colonies/FF/rebels. */
-  if (score.citizens != 8 || score.treasury != 1 || score.congress != 0 ||
-      score.rebel_sentiment != 0 || score.villages_penalty != 0 || score.total != 9) {
+  /* COLONY01: Soldier(+4, profession byte 21 is a genuine assigned job) +
+   * gold 1000(+1); no colonies/FF/rebels. The Pioneer here carries the DOS
+   * "no expert" sentinel (profession byte 28) with no colony slot behind
+   * it, so it does NOT contribute — see reports_score_collect_citizen_jobs'
+   * comment (confirmed against dutch-reports.SAV/score.png: a type-based
+   * fallback for map/Europe units overcounts the golden by exactly the
+   * amount its own unscored units would add). */
+  if (score.citizens != 4 || score.treasury != 1 || score.congress != 0 ||
+      score.rebel_sentiment != 0 || score.villages_penalty != 0 || score.total != 5) {
     fprintf(
       stderr,
       "COLONY01 score mismatch citizens=%d treasury=%d congress=%d rebel=%d "
-      "villages=%d total=%d (want 8/1/0/0/0/9)\n",
+      "villages=%d total=%d (want 4/1/0/0/0/5)\n",
       score.citizens,
       score.treasury,
       score.congress,
@@ -242,6 +248,114 @@ int main(void) {
   }
 
   col1_save_free(&col1);
+
+  /* Foreign Affairs report (F8) golden: dutch-reports.SAV / foreign.png —
+   * locks in the census-based Rebels/Tories formula and the euro_relation
+   * War/Peace reading (see reports.c's reports_render_foreign comment). */
+  {
+    ColonizeCol1Save fcol1;
+    col1_save_init(&fcol1);
+    if (!col1_save_read_file(
+          "original_saves/report-screen-goldens/dutch-reports.SAV", &fcol1, err, sizeof(err)
+        )) {
+      fprintf(stderr, "dutch-reports.SAV load failed: %s\n", err);
+      reports_free(&view);
+      return 1;
+    }
+
+    /* census_pop_proxy + rebel_sentiment reproduce foreign.png's exact
+     * Rebels/Tories numbers for all 3 surviving nations. */
+    static const struct {
+      int nation;
+      int rebels;
+      int tories;
+    } want_pop[] = {
+      {0, 21, 54}, /* English */
+      {1, 24, 21}, /* French */
+      {3, 50, 4}, /* Dutch */
+    };
+    for (size_t i = 0; i < sizeof(want_pop) / sizeof(want_pop[0]); ++i) {
+      const int n = want_pop[i].nation;
+      const int total = fcol1.stuff.census_pop_proxy[n];
+      const int rebels = (total * (int)fcol1.nation[n].rebel_sentiment) / 100;
+      const int tories = total - rebels;
+      if (rebels != want_pop[i].rebels || tories != want_pop[i].tories) {
+        fprintf(
+          stderr,
+          "foreign rebels/tories mismatch nation=%d got=%d/%d want=%d/%d\n",
+          n,
+          rebels,
+          tories,
+          want_pop[i].rebels,
+          want_pop[i].tories
+        );
+        col1_save_free(&fcol1);
+        reports_free(&view);
+        return 1;
+      }
+    }
+
+    /* Spanish withdrew (control==2) — golden shows "(Withdrawn from New
+     * World)" instead of relation/population lines. */
+    if (fcol1.player[2].control != 2) {
+      fprintf(stderr, "dutch-reports.SAV Spanish should read withdrawn (control==2)\n");
+      col1_save_free(&fcol1);
+      reports_free(&view);
+      return 1;
+    }
+
+    /* French/Dutch are at war (golden: red "War"); English/French (and
+     * every other visible pair) is at peace. euro_relation's 0x02 bit set
+     * in either direction — see reports_render_foreign's block comment
+     * for why this, not ai_diplo.h's AI_DIPLO_WAR bit, matches this raw
+     * save. */
+    const bool fr_du_war =
+      ((fcol1.nation[1].euro_relation[3] | fcol1.nation[3].euro_relation[1]) & 0x02u) != 0;
+    const bool en_fr_war =
+      ((fcol1.nation[0].euro_relation[1] | fcol1.nation[1].euro_relation[0]) & 0x02u) != 0;
+    if (!fr_du_war || en_fr_war) {
+      fprintf(
+        stderr,
+        "dutch-reports.SAV war reading wrong: French/Dutch war=%d English/French war=%d\n",
+        fr_du_war,
+        en_fr_war
+      );
+      col1_save_free(&fcol1);
+      reports_free(&view);
+      return 1;
+    }
+
+    memset(pixels, 0, sizeof(pixels));
+    reports_render(
+      &view,
+      COLONIZE_REPORT_FOREIGN,
+      false,
+      -1,
+      0,
+      0,
+      0,
+      NULL,
+      NULL,
+      NULL,
+      NULL,
+      &fcol1,
+      fcol1.head.human_player,
+      0,
+      0,
+      fcol1.head.turn,
+      NULL,
+      &fb
+    );
+    if (pixels[0] == 0 && pixels[160 + 100 * 320] == 0) {
+      fprintf(stderr, "foreign affairs render looks empty for dutch-reports.SAV\n");
+      col1_save_free(&fcol1);
+      reports_free(&view);
+      return 1;
+    }
+
+    col1_save_free(&fcol1);
+  }
+
   fprintf(stderr, "report screens ok (%d backgrounds + Col1 data + score)\n", COLONIZE_REPORT_COUNT);
   reports_free(&view);
   diag_shutdown();

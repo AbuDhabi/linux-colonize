@@ -421,3 +421,260 @@ Two more pitfalls specific to this report:
   same gap harder (e.g. a background with *no* orange-family color at
   all) and it's worth resolving properly with a live DOSBox-X palette
   trace.
+
+## Foreign Affairs report (F8): a real DOS byte disagreeing with this
+## port's own AI abstraction of the same field, plus a population field
+## that isn't colony population
+
+Foreign (golden: foreign.png) is unpaginated: one fixed block per Euro
+nation, always English/French/Spanish/Dutch order
+(`reports_foreign_build_rows`, `COLONIZE_COL1_NATION_COUNT` rows, no page
+param — every nation always fits in the 4 fixed block slots, so unlike
+Naval/Economic/Colony there's no `reports_foreign_page_count`). Each block:
+a header rule, `"<Leader>'s <Adjective>:"` (leader name yellow idx146,
+adjective cream idx97 — two `reports_draw_line` calls split at the leader
+segment's measured width), then either a centered `"(Withdrawn from New
+World)"` (`player[n].control == 2`) or a 2-column grid of `"<peer
+country>: Peace|War"` for every *other* non-withdrawn nation (own nation
+and withdrawn peers are skipped entirely — confirmed against the golden,
+where Spain's withdrawal removes it from every other block's relation
+list, not just its own), then a `"Rebels: N   Tories: N"` line. Geometry:
+block rule at native y = 10, 55, 100, 145 (`REPORTS_FOREIGN_BLOCK0_Y`/
+`_BLOCK_STEP`), body text at a uniform 7px (native) line pitch
+(`REPORTS_FOREIGN_LINE_STEP`), two columns at native x = 2, 80. All
+measured the usual way (full-res golden, divide by 2) — see the header
+"Golden screenshots are 2x" pitfall, which bit here too: an early column-x
+reading taken from a crop limited to the image's left half accidentally
+still worked (0–320 happened to contain both columns), but only by luck —
+re-measure over the *full* image width, not an arbitrary crop, or a
+column past the crop boundary silently reads as missing.
+
+Colors are report-background-specific, not reused blind from Naval/
+Economic's index numbers — REPORT8.PIK's palette layout differs from
+REPORT7's at several indices. Probed directly (`pik_load` + nearest-RGB
+against the golden's sampled ink colors, same technique as the ICONS.SS
+remap): leader yellow `(255,243,93)` → idx146, adjective cream
+`(247,243,199)` → idx97 (same index Naval uses — this one *does* carry
+over), peer/Rebels/Tories label yellow `(255,255,142)` → idx145 (a
+*different*, slightly paler yellow than the header's — confirmed as two
+genuinely distinct colors by sampling both, not an antialiasing artifact),
+Peace white → idx15, War red `(255,0,0)` → idx112 (nearest stored color is
+`(243,0,0)`, same index Economic's negative-value red already uses), rule
+dark red `(134,0,0)` → idx119 (same index Naval/Economic use). Don't
+assume a shared index number means a shared color across two different
+`REPORT*.PIK`s — probe each report's own background palette.
+
+Two data-semantics findings, both from cross-referencing dutch-reports.SAV
+against foreign.png rather than trusting a plausible-looking existing
+field (see the "don't trust a promising-looking field on sight" pitfall
+above — this report produced two more instances of exactly that):
+
+- **War/Peace can't be read via `ai_diplo.h`'s `AI_DIPLO_WAR`/`_PEACE` bit
+  constants at face value.** Those bits (`0x01`/`0x02` on
+  `nation[a].euro_relation[b]`) are documented as DOS-genuine in
+  `original_sources_annotated/ai/euro_diplo.md`, and *are* what this
+  port's own `ai_diplo_*` calls write during live AI turn processing — but
+  applied directly to dutch-reports.SAV's raw bytes, `AI_DIPLO_WAR`
+  (`0x01`) never appears set anywhere in the save, including the golden's
+  one confirmed War pair (French/Dutch). Decoded by hand instead: bit
+  `0x02` being set in *either* direction's byte
+  (`nation[1].euro_relation[3] == 0x22` has it; the reverse
+  `nation[3].euro_relation[1] == 0x20` doesn't) exactly identifies every
+  War pair the golden shows and excludes every Peace pair. Implemented as
+  a report-local `reports_foreign_at_war()`, deliberately **not** fed back
+  into `ai_diplo.h`'s shared constants — that module drives live AI
+  simulation behavior project-wide, and this is a single-save empirical
+  fit (the byte's real DOS semantics may be a small state value rather
+  than a clean bitmask; not worth guessing further without a live
+  DOSBox-X trace). **General lesson**: a shared module's documented bit
+  meaning for a field, even one cited as DOS-genuine from a decompile, is
+  not automatically the right decode for that same field's raw bytes in
+  an actual captured save — when the two disagree, re-derive from the
+  golden and keep the finding local rather than editing the shared
+  module's semantics on a one-save sample.
+- **Rebels/Tories total isn't colony population.** `col1->colony[].
+  population` summed per nation undercounts — e.g. the English total in
+  dutch-reports.SAV is 41 by that sum, but golden shows Rebels:21 +
+  Tories:54 = 75. The gap is field colonist-type units (Soldiers,
+  Dragoons, etc. — anyone who's fundamentally a colonist even off in a
+  colony's garrison or roaming) that colony population doesn't count.
+  `col1->stuff.census_pop_proxy[nation]` (DS:0x9410, "+1 skilled unit + Σ
+  colony pop" per its `col1_save.h` comment) is the real total — confirmed
+  exact for all three surviving nations (75/45/54), with
+  `rebels = floor(total * rebel_sentiment / 100)`, `tories = total -
+  rebels` reproducing the golden's numbers exactly (21/54, 24/21, 50/4).
+  Worth knowing this field's own caveat before reusing it elsewhere:
+  `col1_save.h` documents it as RMW-preserved from the loaded save, not
+  recomputed by this port during live Linux-side play (only DOS's own
+  turn processing keeps it fresh) — fine for reading a loaded save (this
+  report's only supported path — same "content prefers `ColonizeCol1Save`"
+  convention as every other report), but it would read stale if a future
+  caller needed it to reflect population changes since the save was
+  loaded without a full reload.
+
+## Colonization Score report (F10): no shared chrome, own palette ink, and
+## a citizens rule that only shows up by cross-checking the golden's save data
+
+F10 is structurally unlike every other report — no OK button, no per-report
+`REPORT<N>.PIK` (it's the full-screen `WOODPANL.PIK` wood panel also used by
+the title-menu Hall of Fame), and its own hand-placed layout with large
+blank stretches of wood rather than the shared row/step grid. Golden:
+score.png, from `dutch-reports.SAV`. Content:
+
+- Title (shared chrome, FONTTINY, centered) + a second centered line, the
+  subtitle: `"<difficulty rank> <leader name> of the <nation adjective>:
+  <Season> <year>"` (golden: `"Viceroy Michiel De Ruyter of the Dutch:
+  Autumn 1630"` — difficulty rank reuses the existing Discoverer..Viceroy
+  names, leader name is `col1->player[human].name`).
+- `"<Nation> Citizens:  +<N>"` (native x=16, y=24) then a packed strip of
+  small colonist-portrait icons, one per counted citizen, at y=32 spanning
+  roughly x=16..304 (`REPORTS_SCORE_ICON_*`). Icons are
+  `units_job_icon_sprite(job)` — the same table the Labor report's grid
+  uses — packed with the same evenly-spread-across-a-fixed-width math as
+  `reports_draw_icon_bar`, generalized to a heterogeneous per-slot icon
+  list (`reports_score_draw_citizen_icons`) since every citizen can be a
+  different job/portrait.
+- `"<Nation> Continental Congress:  +<N>"` (y=60) then a 4-column,
+  row-major grid of this nation's Founding Father names (columns at native
+  x=16/88/160/232, rows at y=67/74/81, step 7) — `reports_ff_owned_by_
+  nation` bitmask, iterated in FF-table order (already existing
+  infrastructure from the Congress report, just reused here).
+- A large blank gap, then three lines near the bottom: `"Gold:  (<gold>g)
+  +<N>"`, `"Rebel Sentiment:  +<N>"`, `"Total Score: <N>"` (y=150/157/164).
+  Golden shows *only* these three plus Citizens/Congress above — no
+  Villages Burned, Intervention Bells, or Independence breakdown lines,
+  even though `reports_compute_score` still folds all of those into the
+  total internally. Left undisplayed rather than guessed at, since this
+  golden's save has zero villages burned and independence undeclared —
+  nothing in score.png suggests those rows exist at all on this screen;
+  they may be DOS-invisible always, or only appear post-WoI. Revisit if a
+  golden from a later-game save ever surfaces.
+- A plain two-tone progress bar at the very bottom (native x=35..285,
+  y=186, height 7 — no icons, not `reports_draw_icon_bar`, just a filled
+  rectangle): dark track (`60,32,24`, WOODPANL palette index 138) with a
+  green fill (`85,150,52`, index 68) proportional to `total score / 1000`
+  clamped to the track width — measured 76/250px (30.4%) fill against a
+  305 total (30.5%), close enough to confirm the 1000-point nominal max.
+  What (if anything) 1000 means to DOS isn't confirmed beyond this one
+  data point.
+
+Ink colors are **not** the usual report palette indices 14/15/97/etc. —
+`WOODPANL.PIK`'s own palette leaves index 15 as literal EGA white, unlike
+every `REPORT<N>.PIK` which remaps it to a report-specific gold. Score's
+title/subtitle/Total Score ink is index 149 (`199,162,32`); every other
+line (Citizens/Congress/FF names/Gold/Rebel Sentiment) is index 68
+(`85,150,52`, the same green as the bottom bar's fill) — both confirmed by
+loading `WOODPANL.PIK` standalone and nearest-matching the golden's sampled
+ink RGB (both came back an exact `dist2=0` match, i.e. these colors are
+genuinely *in* the palette, not approximated). `reports_render_body_start`'s
+shared title draw now branches on `id == COLONIZE_REPORT_SCORE` for this;
+every other report keeps its existing index-15 draw unchanged.
+
+**The real bug worth remembering**: the citizens formula. The manual/FAQ
+rule (`+1` indentured servant/petty criminal, `+2` free colonist/Indian
+convert, `+4` skilled, already correctly coded) undercounts against the
+golden if you count colony population alone (142 vs. the golden's 158),
+and *overcounts* if you also add every scored-colonist-type map/Europe
+unit via the same type-based job fallback colonies use (180). The correct
+rule, reverse-engineered by testing both hypotheses against
+`dutch-reports.SAV`'s actual unit records: colony population always counts
+(an occupied colony slot is unconditionally a person, so an invalid/
+sentinel profession byte still falls back to Free Colonist) — but a
+map/Europe unit only counts when its own raw `profession` byte is a
+genuine assigned job (0..27); the common sentinel value (28, "no expert
+skill") means *no* citizen credit at all for that unit, full stop, no
+type-based fallback. Exactly 4 of the golden's 9 land/Europe units had a
+real profession byte, contributing exactly the missing 16 points (142+16=
+158). `reports_score_collect_citizen_jobs` implements this and is shared
+between `reports_compute_score`'s point total and the citizens icon strip,
+so both always agree. This flipped one existing unit test's expected
+numbers (`COLONY01`'s lone Pioneer, profession byte 28, no longer scores)
+— a reminder that a pre-existing test's asserted values aren't necessarily
+DOS-verified truth, only "what the code did when someone wrote the test."
+
+Also fixed while re-deriving Citizens: `reports_rebel_sentiment_pct` used
+to recompute a population-weighted average from each colony's `rebel_
+dividend`/`rebel_divisor` (91 on the golden) instead of reading `nation.
+rebel_sentiment` (nation+0x19) directly — the DOS-maintained value the
+report actually shows (94, exact match). Same function name kept, body
+swapped to a direct field read.
+
+## Indian Adviser report (F9): a genuinely undocumented DOS formula found by
+## reading the real decompile, not by guessing at scale factors
+
+Indian is a flat, unpaginated list (golden: indian.png) — one two-line block
+per tribe the viewing nation has met (`indian.euro_diplo[human] != 0`, bit
+0x20 met / 0x40 peace), 21px/row from native y=28
+(`REPORTS_INDIAN_ROW0_Y`/`_ROW_STEP`), built once by
+`reports_indian_build_rows()` and drawn by `reports_render_indian()`. No
+page-count function exists for this report (unlike every other list-style
+report here) — DOS's own decompiled `FUN_3f41_010a` has no paging logic at
+all, just an unconditional 8-iteration loop, so a save with every tribe
+contacted would in principle run under DOS's own OK button too; porting in
+pagination anyway would be inventing behavior DOS doesn't have.
+
+Each block: a 16x16 headband portrait (`ICONS.SS` #113) + `"<PluralTribeName>:"`
+colored per-tribe, right-aligned tribe level (Semi-Nomadic/Agrarian/Advanced/
+Civilized) same color, then a black fixed-column stats line — Villages
+(always shown) / Missions / Muskets / Horse Herds (each skipped when 0).
+
+**The real find this report needed**: golden's Muskets numbers (150, 700)
+don't match `ColonizeCol1Indian.muskets` directly (0, 5) by any obvious
+scale factor — tempting to assume the field is wrong or needs a fudge
+constant. It isn't wrong. The DOS decompile for this *exact* screen exists
+(`FUN_3f41_010a`, `original_sources_decompiled/viceroy_unpacked.c:69451`,
+already catalogued in `original_sources_annotated/ai/settlement_record_8d4a.md`
+as "count-by-owner" but never actually read line-by-line before this
+session) and spells out the formula: `local_6c` starts at `indian.muskets`,
+then adds one for every unit this tribe owns whose type is Armed Brave (20)
+or Mtd. Warrior (22) — the two musket-equipped native unit types
+(`docs/indians.md`'s `@UNIT` table) — then multiplies the total by 50.
+Confirmed exact against `dutch-reports.SAV`: Arawak (muskets=0 + 3 Mtd.
+Warriors)×50 = 150; Cherokee (muskets=5 + 7 Armed Braves + 2 Mtd.
+Warriors)×50 = 700. Both match the golden's printed numbers to the digit.
+Horse Herds, by contrast, *is* `indian.horse_herds` read raw with no
+formula at all (5 and 6, matching directly) — the two fields look
+symmetric in the struct but aren't symmetric in what the report does with
+them. **General lesson, sharper than the usual "check the golden save's
+JSON dump" advice**: when a plausible-looking field doesn't reproduce a
+golden's number by any obvious arithmetic, check whether the exact DOS
+function for that screen has already been decompiled
+(`original_sources_annotated/FUNCTION_CATALOG.md`, search for the report's
+name) before spending time guessing at scale factors — the real formula is
+often sitting there, already found and catalogued, just never actually
+read.
+
+The Missions count has the same "read the real function" flavor: it's not
+"villages with any mission" (what a first guess, and this report's old
+placeholder implementation, both assumed) but `local_58` — villages whose
+`mission` byte's low nibble equals the *viewing* nation
+(`COL1_TRIBE_MISSION_NATION_MASK`), i.e. missions *this specific European
+power* has established, not any power's. The two happened to read identical
+for Arawak in the one golden available (every mission there happens to be
+Dutch), which would have hidden the bug indefinitely without the decompile
+read.
+
+Two more identifications from the same pass, both cheap to confirm once
+suspected: the plural tribe-name strings ("Arawaks:", not "Arawak:") come
+from `NAMES.TXT` `@TRIBES` column 0, not column 1 (the singular/adjective
+form some other code in this file already used) — golden text is
+`"<name>:"` with a trailing colon, easy to misread as a comma at FONTTINY
+size (measure it, don't guess). And the per-tribe name/level color
+(`k_indian_tribe_colors`, duplicated from `unit_chrome.c`'s `k_tribe_colors`
+per this project's established no-shared-header convention) turned out to
+need *no* palette remap at all against `REPORT9.PIK` — a direct
+nearest-RGB probe against that PIK's own palette landed at squared distance
+**0** for both golden tribes' colors, unlike the ICONS.SS sprite pixels
+(which do go through the usual remap) or Naval's Dutch-orange chrome (which
+famously doesn't land exactly). Confirm with a probe before assuming either
+way; it varies report to report.
+
+**Left unresolved**: DOS's headband portrait actually has five near-identical
+variants (`ICONS.SS` #113-117), and the decompile computes a 0-4 index
+(alarm-derived, via a still-unidentified `0x281f`-segment helper — *not*
+the unrelated `FUN_521d_0a60` euro-goal-planning function of confusingly
+similar name/suffix) to presumably pick between them. Both tribes in the
+one available golden — one at alarm 0, one at alarm 34-48 toward the
+viewing nation — render pixel-identical portrait #113, so this port always
+uses #113. A future golden showing a visibly different portrait would be
+needed to pin down the actual index formula.
