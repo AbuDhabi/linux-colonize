@@ -6236,7 +6236,20 @@ static void game_wait_next_unit(ColonizeGameState* game) {
   if (!game || !game->units_ok) {
     return;
   }
-  if (!turn_select_next_unit(&game->units, game->human_nation)) {
+  bool found = turn_select_next_unit(&game->units, game->human_nation);
+  /* Skip past standing-order units (Fortified/Sentry/etc. — units_orders_
+   * skip_turn, same discriminator the per-frame activation queue in
+   * game_update uses) rather than stopping the cycle on one; they don't
+   * need player attention. Bounded — each call moves strictly forward and
+   * never revisits a unit within one sweep. */
+  for (int guard = 0; found && guard < COLONIZE_UNITS_MAX; ++guard) {
+    const ColonizeUnit* next = units_get_const(&game->units, game->units.selected_id);
+    if (!next || !units_orders_skip_turn(next)) {
+      break;
+    }
+    found = turn_select_next_unit(&game->units, game->human_nation);
+  }
+  if (!found) {
     game_select_tile(game, game->map_cursor_x, game->map_cursor_y);
     if (turn_option_end_of_turn(game->col1_ok ? &game->col1 : NULL, game->col1_ok)) {
       snprintf(game->status, sizeof(game->status), "%s", "End of Turn");
@@ -7045,7 +7058,21 @@ static bool game_apply_map_menu_action(ColonizeGameState* game, MapMenuAction ac
       return true;
     }
     case MAP_MENU_ACTION_NO_ORDERS:
-      game_do_end_turn(game);
+      /* "No Orders (space bar)" — this is the *actual* reachable path for a
+       * physical Space press (map_menu_orders_hotkey resolves plain Space
+       * to this action before the plain-map COLONIZE_KEY_SPACE check ever
+       * runs), so this is the one that needs DOS's real Wait/Skip
+       * semantics: cycle to the next human unit still needing orders, only
+       * ending the turn once none remain. Calling game_do_end_turn
+       * directly here (the bug) skipped that cycle outright — pressing
+       * Space to dismiss one idle unit (e.g. a wagon train) force-ended
+       * the turn immediately instead of moving on to the next one,
+       * visibly starting rival nations' moves while human units still had
+       * pending orders. Player-reported; a same-shaped fix was tried
+       * earlier at the plain-map COLONIZE_KEY_SPACE handler, but that
+       * handler turned out to be unreachable for Space specifically since
+       * this hotkey table always claims it first. */
+      game_wait_next_unit(game);
       return true;
     case MAP_MENU_ACTION_PEDIA_CARGO:
       game_open_pedia_list(game, PEDIA_CAT_CARGO);
@@ -7178,67 +7205,102 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
     ai_popup_try_present_next(&game->ai_popups);
   }
 
-  /* Pace Go-To at 10 tile-steps/sec, or 12.5 with Fast Piece Slide. */
-  if (game->units_ok && game->world_map_ok) {
-    game->goto_step_accum_ms += dt_ms;
-    const uint32_t goto_step_ms =
-      (game->col1_ok && game->col1.head.game_options.fast_piece_slide) ? 80u : 100u;
-    if (game->goto_step_accum_ms >= goto_step_ms) {
-      game->goto_step_accum_ms -= goto_step_ms;
-      if (game->goto_step_accum_ms > 200u) {
-        game->goto_step_accum_ms = 0; /* drop backlog after hitch */
+  /*
+   * Turn activation queue (minimal): DOS gives control to exactly one
+   * human unit at a time, in a fixed deterministic order (turn_select_
+   * next_unit's ascending-id cycle, already used by the manual Wait/Space
+   * command) — not a background pacer that silently steps every unit with
+   * a queued go-to simultaneously on wall-clock time. A unit with a
+   * pending go-to/etc order auto-executes (still paced visually, one tile
+   * per goto_step_ms, "Pace Go-To") only while it's the *selected* unit,
+   * i.e. only once its turn in the cycle comes up; an idle unit (no
+   * queued order) stops the cycle and waits for the player, matching
+   * DOS's real "hand control to the next unit needing orders" flow.
+   *
+   * Player-reported (dutch-reports.SAV): loading mid-turn should hand
+   * control to the Vlissingen wagon train first (it's idle — no orders),
+   * then (once released) the New Amsterdam privateer (also idle), then
+   * auto-run the pioneer near Vlissingen's queued order, then hand
+   * control to the New Holland caravel — the Merchantman, already out of
+   * moves for the turn, should just sit still (its go-to resumes next
+   * turn, once turn.c's per-turn move refresh gives it moves again), not
+   * be silently paced just because time passes with the map on screen.
+   *
+   * Only runs while the map is actually the thing on screen — an overlay
+   * (report/menu/Europe/colony/pedia/debug atlas) covering it shouldn't
+   * let wall-clock time bleed into unit movement at all (that's also why
+   * dt_ms isn't accumulated below while covered, not just skipped — avoids
+   * a catch-up burst of steps the instant the overlay closes). AI/native
+   * units and other European nations' units are untouched here: they
+   * resolve their own goto orders exclusively inside turn_processor_
+   * advance(), during their own turn (see turn_select_next_unit's own
+   * human_nation filter).
+   */
+  const bool map_visible = !game->in_report && !game->in_menu && !game->in_europe &&
+    !game->in_colony && !game->in_pedia && !game->in_debug_atlas;
+  if (game->units_ok && game->world_map_ok && map_visible) {
+    ColonizeUnit* active =
+      game->units.selected_id >= 0 ? units_get(&game->units, game->units.selected_id) : NULL;
+    const bool active_on_map_with_moves = active && active->active &&
+      active->nation_id == game->human_nation && units_is_on_map(active) && active->moves_left > 0;
+    const bool active_pending = active_on_map_with_moves && units_orders_follow_goto(active->orders);
+    /* A standing order (Fortified/Sentry/Clear-Forest.../Build-Road —
+     * units_orders_skip_turn, the same discriminator turn.c's own
+     * per-turn move refresh uses) doesn't need player attention either,
+     * even though it isn't a goto. Without this, a mid-turn-loaded save
+     * (whose Fortified/Sentried units haven't had this turn's refresh
+     * zero their moves_left yet) demanded the player's input on every
+     * garrisoned unit in turn — player-reported alongside the Merchantman
+     * destination bug. */
+    const bool active_awaiting_player =
+      active_on_map_with_moves && !active_pending && !units_orders_skip_turn(active);
+
+    if (active_pending) {
+      game->goto_step_accum_ms += dt_ms;
+      const uint32_t goto_step_ms =
+        (game->col1_ok && game->col1.head.game_options.fast_piece_slide) ? 80u : 100u;
+      if (game->goto_step_accum_ms >= goto_step_ms) {
+        game->goto_step_accum_ms -= goto_step_ms;
+        if (game->goto_step_accum_ms > 200u) {
+          game->goto_step_accum_ms = 0; /* drop backlog after hitch */
+        }
+        const int active_id = active->id;
+        if (active->orders == UNITS_ORDER_TRADE_ROUTE) {
+          game_trade_route_retarget(game, active);
+        }
+        const bool stepped = units_advance_goto_one_step(
+          &game->units, active_id, &game->world_map, &game->colonies, &game->move_rng
+        );
+        ColonizeUnit* again = units_get(&game->units, active_id);
+        if (stepped) {
+          if (again && again->orders == UNITS_ORDER_TRADE_ROUTE) {
+            game_trade_route_retarget(game, again);
+          }
+          /* game_after_unit_action already does fog reveal / Land Ho! /
+           * LCR / first-contact / view centering / next-unit-when-
+           * exhausted — the same tail a player-driven move gets. */
+          game_after_unit_action(game);
+        } else {
+          /* Arrived (orders cleared), ran out of moves this step, or
+           * genuinely stuck (blocked path) — none of those should freeze
+           * the activation cycle here; move on to the next unit. */
+          turn_select_next_unit(&game->units, game->human_nation);
+        }
       }
-      int stepped = 0;
-      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-        ColonizeUnit* u = &game->units.units[i];
-        if (!u->active || !units_orders_follow_goto(u->orders) || !units_is_on_map(u)) {
-          continue;
+    } else if (!active_awaiting_player) {
+      /* No unit is currently both selected and idle-awaiting the player —
+       * advance the cycle to find the next one that does. Loops (bounded
+       * — each call moves strictly forward and never revisits a unit
+       * within one sweep) rather than a single call so a run of several
+       * standing-order units in a row doesn't each need their own frame
+       * to skip past. */
+      for (int guard = 0; guard < COLONIZE_UNITS_MAX; ++guard) {
+        if (!turn_select_next_unit(&game->units, game->human_nation)) {
+          break;
         }
-        /* This pacer only ever runs outside turn_processor_active() (see
-         * the early return above) — i.e. only during the human's own
-         * turn. AI/native units resolve their own goto orders exclusively
-         * inside turn_processor_advance(), during their own turn; a unit
-         * that's mid-multi-turn goto (e.g. a ship sailing a multi-turn
-         * ocean crossing) legitimately still carries that order in a
-         * loaded save, but shouldn't visibly keep sliding across the map
-         * while it's the human's turn. Player-reported: loading a save
-         * captured mid-human-turn showed other Europeans' units moving on
-         * their own before the human ended their turn. */
-        if (u->nation_id != game->human_nation) {
-          continue;
-        }
-        if (u->orders == UNITS_ORDER_TRADE_ROUTE) {
-          game_trade_route_retarget(game, u);
-        }
-        if (!units_advance_goto_one_step(
-              &game->units, u->id, &game->world_map, &game->colonies, &game->move_rng
-            )) {
-          continue;
-        }
-        stepped++;
-        u = units_get(&game->units, u->id);
-        if (u && u->orders == UNITS_ORDER_TRADE_ROUTE) {
-          game_trade_route_retarget(game, u);
-        }
-        if (u && u->nation_id >= 0 && u->nation_id <= 3) {
-          map_reveal_radius(&game->world_map, u->x, u->y, u->nation_id, 1);
-          if (game->col1_ok && u->nation_id == game->human_nation) {
-            game_try_prompt_landho(game);
-          }
-        }
-      }
-      if (stepped > 0 && game->units.selected_id >= 0) {
-        const ColonizeUnit* sel = units_get_const(&game->units, game->units.selected_id);
-        if (sel && sel->active && units_is_on_map(sel)) {
-          game->map_cursor_x = sel->x;
-          game->map_cursor_y = sel->y;
-          if (!game->in_menu && !game->in_colony && !game->in_europe && !game->in_report &&
-              !game->in_pedia && !game->in_debug_atlas && !game->in_hall_of_fame) {
-            game_set_view_center(game, sel->x, sel->y);
-          }
-          if (sel->moves_left <= 0) {
-            game_after_unit_action(game);
-          }
+        const ColonizeUnit* next = units_get_const(&game->units, game->units.selected_id);
+        if (!next || !units_orders_skip_turn(next)) {
+          break;
         }
       }
     }
@@ -9140,7 +9202,18 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
   }
 
   if (input->last_key == COLONIZE_KEY_SPACE) {
-    game_do_end_turn(game);
+    /* Wait/Skip: cycle to the next human unit still needing orders, only
+     * ending the turn once none remain (game_wait_next_unit — the same
+     * DOS Space semantics already used everywhere else Space fires, e.g.
+     * after Fortify/Sentry). This plain map-key handler used to call
+     * game_do_end_turn directly instead, skipping that cycle entirely —
+     * harmless before the turn-activation-queue fix (nothing depended on
+     * Space stepping through units), but once the map correctly stops on
+     * an idle unit awaiting orders, pressing Space to skip past it instead
+     * force-ended the turn immediately, visibly starting rival nations'
+     * moves while human units (Privateer, Caravel, ...) still had pending
+     * orders. Player-reported. */
+    game_wait_next_unit(game);
     return true;
   }
 
