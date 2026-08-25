@@ -418,6 +418,21 @@ static bool reports_ff_joined(int8_t status) {
   return status > 0;
 }
 
+/*
+ * head.founding_father[i] (-1 unclaimed, else 0..3) is NOT "does this
+ * nation have FF i" — nation.founding_fathers[4] is the real per-nation
+ * bitmask (bit i set = elected). Confirmed against dutch-reports.SAV: the
+ * Dutch bitmask's 10 set bits are exactly the golden's 10 names (including
+ * Franklin/Brewster, whose head.founding_father[] entry reads nation 2 —
+ * apparently FFs aren't nation-exclusive the way that array alone implies).
+ */
+static bool reports_ff_owned_by_nation(const ColonizeCol1Nation* nat, int ff_index) {
+  if (!nat || ff_index < 0 || ff_index >= (int)COLONIZE_COL1_FF_COUNT) {
+    return false;
+  }
+  return (nat->founding_fathers[ff_index / 8] >> (ff_index % 8)) & 1;
+}
+
 static const char* reports_nation_adjective(int nation) {
   if (nation < 0 || nation >= (int)COLONIZE_COL1_NATION_COUNT) {
     return "";
@@ -734,10 +749,13 @@ static void reports_render_congress_page1(
   {
     const unsigned pool = founding_fathers_bells_since_last_elect(human);
     const unsigned need = founding_fathers_bells_needed(col1, human);
-    if (need > 0) {
+    if (need > 0 && pool > 0) {
       int w = (int)(((uint32_t)REPORTS_CONGRESS_BELLS_MAX_W * pool) / need);
       if (w > REPORTS_CONGRESS_BELLS_MAX_W) {
         w = REPORTS_CONGRESS_BELLS_MAX_W;
+      }
+      if (w < 1) {
+        w = 1; /* pool>0 must still show something (at least the number overlay) */
       }
       reports_draw_icon_bar(
         view,
@@ -817,7 +835,7 @@ static void reports_render_congress_page1(
     int shown = 0;
     int y = REPORTS_CONGRESS_FF_HEADER_Y + step;
     for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
-      if (col1->head.founding_father[i] != (int8_t)human) {
+      if (!reports_ff_owned_by_nation(nat, i)) {
         continue;
       }
       const int col = shown % 4;
@@ -857,12 +875,12 @@ typedef struct ReportsFfPortraitSlot {
  * matching the golden's apparent layering.
  */
 static const ReportsFfPortraitSlot k_ff_portrait_slots[] = {
-  {18, 148, 47}, /* Simon Bolivar */
-  {16, 129, 37}, /* Pocahontas */
-  {17, 147, 55}, /* Thomas Paine */
-  {2, 129, 49},  /* Peter Minuit */
-  {3, 139, 75},  /* Peter Stuyvesant */
-  {20, 138, 93}, /* William Brewster */
+  {20, 268, 38}, /* William Brewster */
+  {3, 83, 34},   /* Peter Stuyvesant */
+  {17, 2, 22},   /* Thomas Paine */
+  {18, 190, 35}, /* Simon Bolivar */
+  {2, 49, 39},   /* Peter Minuit */
+  {16, 223, 37}, /* Pocahontas */
   {15, 96, 56},  /* Thomas Jefferson */
   {11, 154, 60}, /* George Washington */
   {9, 39, 65},   /* Sieur De La Salle */
@@ -883,9 +901,10 @@ static void reports_render_congress_page2(
   if (!col1 || !view || !view->data_dir[0]) {
     return;
   }
+  const ColonizeCol1Nation* nat = &col1->nation[human];
   for (int i = 0; i < REPORTS_FF_PORTRAIT_SLOT_COUNT; ++i) {
     const ReportsFfPortraitSlot* slot = &k_ff_portrait_slots[i];
-    if (col1->head.founding_father[slot->ff_index] != (int8_t)human) {
+    if (!reports_ff_owned_by_nation(nat, slot->ff_index)) {
       continue;
     }
     const ColonizeSpriteSheet* sheet = reports_ff_portrait_sheet(view->data_dir, slot->ff_index);
@@ -1612,24 +1631,15 @@ static int reports_resolve_job(int profession, int unit_type) {
 }
 
 static int reports_count_ff_for_nation(const ColonizeCol1Save* col1, int human) {
-  int ff = 0;
   if (!col1) {
     return 0;
   }
-  for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
-    /* Per-nation ownership: value stores the European nation id that elected them. */
-    if (col1->head.founding_father[i] == (int8_t)human) {
-      ff++;
-    }
-  }
-  if (ff > 0) {
-    return ff;
-  }
-  const uint16_t counted = col1->nation[human].founding_father_count;
-  if (counted > 0 && counted <= COLONIZE_COL1_FF_COUNT) {
-    return (int)counted;
-  }
-  /* Bitmask fallback in nation.founding_fathers[4]. */
+  /* nation.founding_fathers[4] (per-nation bitmask) is authoritative — see
+   * reports_ff_owned_by_nation. head.founding_father[i] (elsewhere read as
+   * "owning nation") is NOT nation-exclusive membership: confirmed against
+   * dutch-reports.SAV, it undercounts (misses FFs it also credits to another
+   * nation), so it's a last-resort fallback only, not tried first. */
+  int ff = 0;
   for (int b = 0; b < 4; ++b) {
     uint8_t bits = col1->nation[human].founding_fathers[b];
     while (bits) {
@@ -1637,7 +1647,19 @@ static int reports_count_ff_for_nation(const ColonizeCol1Save* col1, int human) 
       bits >>= 1;
     }
   }
-  return ff > (int)COLONIZE_COL1_FF_COUNT ? (int)COLONIZE_COL1_FF_COUNT : ff;
+  if (ff > 0) {
+    return ff > (int)COLONIZE_COL1_FF_COUNT ? (int)COLONIZE_COL1_FF_COUNT : ff;
+  }
+  const uint16_t counted = col1->nation[human].founding_father_count;
+  if (counted > 0 && counted <= COLONIZE_COL1_FF_COUNT) {
+    return (int)counted;
+  }
+  for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
+    if (col1->head.founding_father[i] == (int8_t)human) {
+      ff++;
+    }
+  }
+  return ff;
 }
 
 static int reports_rebel_sentiment_pct(const ColonizeCol1Save* col1, int human) {
