@@ -101,6 +101,20 @@ static bool col1_coord_is_europe(uint8_t x, uint8_t y) {
   return x >= 200 || y >= 200;
 }
 
+/* Display name for a save-loaded Europe-dock colonist: eu->train[]'s @JOB
+ * expert_name for that profession if trainable, else the generic name (a
+ * plain Free Colonist / unspecialized unit has no @JOB training entry). */
+static const char* col1_bridge_europe_dock_job_name(const EuropeScreen* eu, int profession) {
+  if (eu) {
+    for (int i = 0; i < eu->train_count; ++i) {
+      if (eu->train[i].job_index == profession) {
+        return eu->train[i].expert_name;
+      }
+    }
+  }
+  return "Colonists";
+}
+
 /*
  * COL1 surround-tile order (N,E,S,W,NW,NE,SE,SW) vs runtime (N,NE,E,SE,S,SW,W,NW).
  * See classic SAV notes (dledgard / CivFanatics).
@@ -896,7 +910,15 @@ bool col1_bridge_apply(
         }
         continue;
       }
-      /* Human Europe land units (dock immigrants) and AI Europe fleets: spawn. */
+      /* Human Europe land units are waiting-immigrant colonists — push them
+       * onto the dock (what the Europe screen actually renders), not a
+       * spawned off-map unit (invisible there; the old behavior). AI Europe
+       * land units/fleets still spawn as live off-map units, unchanged. */
+      if (europe && src->nation_id == (uint8_t)local.human_nation) {
+        const char* name = col1_bridge_europe_dock_job_name(europe, (int)src->profession);
+        europe_dock_push_load(europe, name, (int)src->profession);
+        continue;
+      }
     }
     const int ti = col1_unit_type_to_runtime(units, src->type);
     if (ti < 0) {
