@@ -205,6 +205,18 @@ Digest of DOS `FUN_2b5a_0b34` (Move Pieces) / `0902` (View Pieces) as ported in
 | Cargo items | Hide Load/Unload/Trade/Dump if no cargo capacity; Load/Unload disabled off Euro settlement; Dump disabled with no goods |
 | Activate | Enabled if a unit exists under cursor |
 
+VIEW pulldown's own `~Move Pieces` (M) / `~View Pieces` (V) — the mode toggle
+itself, distinct from the ORDERS-menu enable/hide table above — is wired to
+`MAP_MENU_ACTION_MOVE_PIECES` / `_VIEW_PIECES` in `game_apply_map_menu_action`.
+`ColonizeGameState.view_pieces_mode` is the player-facing half of DS:0x5390
+(`col1_save.h`'s `map_mode` field is the on-disk mirror, still unused): true
+only when the player explicitly browsed away from unit control (V / right-
+click / menu) with units possibly still awaiting orders, gating the per-frame
+turn-activation queue in `game_update` so it doesn't silently reclaim control
+the next frame — that queue still auto-selects the next unit and flips the
+flag back to Move Pieces the moment a real unit is found (Wait/Space, order
+commands, End Turn, Activate, or Move Pieces itself all resume it too).
+
 ---
 
 ## Order-gate and confirm popups
