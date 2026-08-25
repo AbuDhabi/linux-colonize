@@ -6438,7 +6438,8 @@ void units_render_on_map(
   int origin_y,
   bool selected_visible,
   const ColonizeWorldMap* fog_map,
-  int fog_nation
+  int fog_nation,
+  const ColonizePalette* active_palette
 ) {
   if (!pool || !nation_sheet || !framebuffer) {
     return;
@@ -6491,7 +6492,7 @@ void units_render_on_map(
     const bool stacked = on_tile > 1;
     const bool aboard = top->aboard_ship_id >= 0;
 
-    unit_chrome_blit_unit(
+    unit_chrome_blit_unit_for_palette(
       framebuffer,
       font,
       nation_sheet,
@@ -6502,7 +6503,8 @@ void units_render_on_map(
       top->nation_id,
       top->orders,
       stacked,
-      aboard
+      aboard,
+      active_palette
     );
   }
 }

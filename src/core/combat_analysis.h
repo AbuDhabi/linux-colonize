@@ -96,6 +96,7 @@ void combat_analysis_render(
   const ColonizePopupColors* colors,
   uint8_t text_color,
   uint8_t select_color,
+  const ColonizePalette* active_palette,
   ColonizeFramebuffer8* framebuffer
 );
 

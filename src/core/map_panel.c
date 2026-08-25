@@ -766,6 +766,7 @@ void map_panel_render(
   int gold,
   int tax_percent,
   const char* nation_name,
+  const ColonizePalette* active_palette,
   ColonizeFramebuffer8* framebuffer
 ) {
   if (!framebuffer || !framebuffer->pixels) {
@@ -921,7 +922,7 @@ void map_panel_render(
       const int ix = text_x + 2;
       const int iy = text_y + 1;
       const int stack_n = map_panel_count_units_at(units, selected->x, selected->y);
-      unit_chrome_blit_unit(
+      unit_chrome_blit_unit_for_palette(
         framebuffer,
         font,
         icons,
@@ -932,7 +933,8 @@ void map_panel_render(
         selected->nation_id,
         selected->orders,
         stack_n > 1,
-        selected->aboard_ship_id >= 0
+        selected->aboard_ship_id >= 0,
+        active_palette
       );
     }
     const char* uname = units_display_name(units, selected);
@@ -1081,7 +1083,9 @@ void map_panel_render(
         }
         int label_x = text_x + 18;
         if (icons && icons->sprite_count > MAP_PANEL_COLONY_ICON_NONE) {
-          ss_blit_sprite(icons, colony_icon, framebuffer, text_x, text_y);
+          colonies_blit_settlement_icon(
+            icons, colony_icon, framebuffer, text_x, text_y, col->nation_id, active_palette
+          );
           const ColonizeSprite* sp = &icons->sprites[colony_icon];
           if (sp->width > 0) {
             label_x = text_x + sp->width + 2;
@@ -1165,7 +1169,7 @@ void map_panel_render(
         }
         const int sprite = units_map_sprite(units, u->id);
         if (icons && sprite >= 0) {
-          unit_chrome_blit_unit(
+          unit_chrome_blit_unit_for_palette(
             framebuffer,
             font,
             icons,
@@ -1176,7 +1180,8 @@ void map_panel_render(
             u->nation_id,
             u->orders,
             tile_n > 1,
-            u->aboard_ship_id >= 0
+            u->aboard_ship_id >= 0,
+            active_palette
           );
         }
         const char* orders = map_panel_order_label(names, u->orders);

@@ -71,15 +71,29 @@ below as ported guidance.
    with what the port already implements (`colony_prod_colony_bells_ff`) —
    good independent confirmation those are right. But two things are
    **not** ported and not fully understood, so nothing here was changed:
-   - This applies Jefferson's ×1.5 (and Printing Press/Newspaper) to the
-     **whole passive bells total** (base + Paine + this mystery term),
-     *before* combining with the Town Hall statesman workers' totals (per
-     item 2, wherever that combine happens) — the port instead applies
-     Jefferson only to each statesman worker's own contribution inside
-     `colony_prod_colony_bells_ff`'s per-worker loop, never to the base +1.
-     If DOS really does apply it to the base too, the port under-counts by
-     a small amount whenever Jefferson is owned. Not fixed — the combine
-     point (item 2) needs resolving first to know how big a change this is.
+   - **2026-08-25: fixed, empirically.** This applies Jefferson's ×1.5 (and
+     Paine, and Printing Press/Newspaper) to the **whole passive bells
+     total** (base + Paine + this mystery term), *before* combining with
+     the Town Hall statesman workers' totals (per item 2, wherever that
+     combine happens) — the port used to apply Jefferson only to each
+     statesman worker's own contribution, never to the base +1, and ran
+     Paine *after* Press/Newspaper instead of before. Re-checking
+     `manufacturing_worker_calc_1d4c.md`'s own Statesman-body trace
+     (`15eb:1f18`) confirms Jefferson can't belong in the per-worker body
+     at all — it's exactly `v = base; if (skill) v <<= 1`, nothing else.
+     Generalized this function's literal order from "just the passive" to
+     "passive + workers combined, same relative order" (Jefferson → Paine
+     → Press/Newspaper) and checked against 7 player-reported colonies
+     (`dutch-reports.SAV`, Jefferson+Paine(35% tax) both owned, mixed
+     Newspaper/Press/none, 1-3 workers each): **exact match on all 7**.
+     `colony_prod_colony_bells_ff` (building_production.md 2026-08-25 row)
+     now applies Jefferson once colony-wide instead of per-worker, and
+     moved Paine before Press/Newspaper. `byte[0xa892]` is still not
+     identified — none of the 7 fits needed it, but a configuration this
+     set didn't cover could still expose it; the combine point (item 2)
+     also remains formally unresolved even though this specific
+     "passive+workers combined, same order" model now fits everything
+     tested.
    - **The `0x12` flag term — confirmed real and ported, 2026-08-15.**
      Player-observed on Viceroy difficulty: an AI colony's free-colonist
      Statesman nets 5 colony bells vs. 3 for a human colony in the same

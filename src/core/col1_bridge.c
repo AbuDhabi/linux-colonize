@@ -650,7 +650,13 @@ bool col1_bridge_apply(
     if (map->improve && save->map.mask) {
       const uint8_t m = save->map.mask[i];
       uint8_t flags = 0;
-      if ((m & 0x0cu) != 0) {
+      /* Road in mask is 0x08 only — 0x04 is village/capital occupancy (see
+       * the layer2 derivation right below, which already gets this right).
+       * Checking 0x0c (0x04|0x08) here falsely flagged any tile with the
+       * occupancy bit set — including plain ocean tiles — as having a
+       * road. Player-reported: (47,31)/(53,32)/(55,34)/(55,37) in
+       * dutch-reports.SAV, all mask=0x04, all ocean, all wrongly roaded. */
+      if ((m & 0x08u) != 0) {
         flags = (uint8_t)(flags | MAP_IMPROVE_ROAD);
       }
       if ((m & 0x40u) != 0) {

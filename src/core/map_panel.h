@@ -120,6 +120,7 @@ void map_panel_render(
   int gold,
   int tax_percent,
   const char* nation_name,
+  const ColonizePalette* active_palette,
   ColonizeFramebuffer8* framebuffer
 );
 

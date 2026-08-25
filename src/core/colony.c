@@ -14,6 +14,7 @@
 #include "core/colony_yield.h"
 #include "core/ss.h"
 #include "core/strutil.h"
+#include "core/unit_chrome.h"
 #include "core/units.h"
 #include "platform/diagnostics.h"
 
@@ -46,6 +47,65 @@ int colonies_settlement_icon(const ColonizeColonyPool* pool, const ColonizeColon
   return colony_map_icon(pool, colony);
 }
 
+/*
+ * ICONS.SS #0-3's stored flag: 15 fixed (dx,dy) pixels, identical across
+ * all four fortification tiers (dumped directly from ICONS.SS — see
+ * unit_chrome_nation_flag_shades_for_palette's comment for why this needs
+ * recoloring at all). is_dark selects which of the two nation shades that
+ * pixel gets.
+ */
+typedef struct ColonyIconFlagPixel {
+  int8_t dx;
+  int8_t dy;
+  bool is_dark;
+} ColonyIconFlagPixel;
+
+static const ColonyIconFlagPixel k_colony_icon_flag_pixels[15] = {
+  {6, 0, true}, {7, 0, false}, {8, 0, false},
+  {6, 1, true}, {7, 1, false}, {8, 1, false}, {9, 1, false},
+  {6, 2, true}, {7, 2, false}, {8, 2, false}, {9, 2, false}, {10, 2, false},
+  {8, 3, true}, {9, 3, false}, {10, 3, false}
+};
+
+void colonies_blit_settlement_icon(
+  const ColonizeSpriteSheet* icons,
+  int sprite,
+  ColonizeFramebuffer8* framebuffer,
+  int px,
+  int py,
+  int nation_id,
+  const ColonizePalette* active_palette
+) {
+  if (!icons || sprite < 0 || sprite >= icons->sprite_count || !framebuffer || !framebuffer->pixels) {
+    return;
+  }
+  const ColonizeSprite* sp = &icons->sprites[sprite];
+  if (!sp->pixels || sp->width <= 0 || sp->height <= 0) {
+    return;
+  }
+  ss_blit_sprite(icons, sprite, framebuffer, px, py);
+
+  int light = -1;
+  int dark = -1;
+  unit_chrome_nation_flag_shades_for_palette(nation_id, active_palette, &light, &dark);
+  if (light < 0 && dark < 0) {
+    return;
+  }
+  for (int i = 0; i < 15; ++i) {
+    const ColonyIconFlagPixel* fp = &k_colony_icon_flag_pixels[i];
+    const int color = fp->is_dark ? dark : light;
+    if (color < 0) {
+      continue;
+    }
+    const int fx = px + fp->dx;
+    const int fy = py + fp->dy;
+    if (fx < 0 || fy < 0 || fx >= framebuffer->width || fy >= framebuffer->height) {
+      continue;
+    }
+    framebuffer->pixels[fy * framebuffer->width + fx] = (uint8_t)color;
+  }
+}
+
 static void colony_blit_map_icon(
   const ColonizeSpriteSheet* icons,
   int sprite,
@@ -53,7 +113,9 @@ static void colony_blit_map_icon(
   int tile_px,
   int tile_py,
   int tile_w,
-  int tile_h
+  int tile_h,
+  int nation_id,
+  const ColonizePalette* active_palette
 ) {
   if (!icons || sprite < 0 || sprite >= icons->sprite_count) {
     return;
@@ -65,7 +127,7 @@ static void colony_blit_map_icon(
   /* 21×16 markers: center on the 16×16 tile. */
   const int px = tile_px + (tile_w - sp->width) / 2;
   const int py = tile_py + (tile_h - sp->height) / 2;
-  ss_blit_sprite(icons, sprite, framebuffer, px, py);
+  colonies_blit_settlement_icon(icons, sprite, framebuffer, px, py, nation_id, active_palette);
 }
 
 static void colony_trim(char* s) {
@@ -2441,7 +2503,8 @@ void colonies_render_on_map(
   int origin_x,
   int origin_y,
   const ColonizeWorldMap* fog_map,
-  int fog_nation
+  int fog_nation,
+  const ColonizePalette* active_palette
 ) {
   if (!pool || !framebuffer) {
     return;
@@ -2467,7 +2530,10 @@ void colonies_render_on_map(
     const int py = origin_y + sy * tile_h;
 
     if (have_icon) {
-      colony_blit_map_icon(icons, colony_map_icon(pool, c), framebuffer, px, py, tile_w, tile_h);
+      colony_blit_map_icon(
+        icons, colony_map_icon(pool, c), framebuffer, px, py, tile_w, tile_h, c->nation_id,
+        active_palette
+      );
     } else {
       /* Icons missing: tiny cyan marker so colonies stay findable. */
       for (int row = py; row < py + 2 && row < framebuffer->height; ++row) {
