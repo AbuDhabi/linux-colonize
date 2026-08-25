@@ -94,6 +94,16 @@ struct ColonizeGameState {
   int map_cursor_y;
   int map_view_x; /* viewport center tile (may diverge from cursor while a unit is selected) */
   int map_view_y;
+  /*
+   * DS:0x5390 map_mode, player-facing half only (0=Move Pieces, 1=View
+   * Pieces; col1_save.h's map_mode field is the on-disk mirror, unused —
+   * this derives fresh each session same as selected_id). True only when
+   * the player explicitly chose to browse the map (V / right-click /
+   * VIEW ~View Pieces) with units still possibly awaiting orders; gates
+   * the per-frame turn-activation queue in game_update so it doesn't
+   * silently snatch control back the next frame. units.selected_id >= 0
+   * always implies Move Pieces regardless of this flag. */
+  bool view_pieces_mode;
   int map_zoom; /* 0..3 — VIEW Zoom In/Out/Level N. FUN_2b5a_0f92 DS:0x184; 0 = 15×12 native. */
   /*
    * VIEW ~Hidden Terrain (H): 0 = off; 1..3 = DOS's three peel passes (units/
@@ -397,6 +407,7 @@ static char game_key_letter(ColonizeKey key) {
     case COLONIZE_KEY_H: return 'H';
     case COLONIZE_KEY_I: return 'I';
     case COLONIZE_KEY_L: return 'L';
+    case COLONIZE_KEY_M: return 'M';
     case COLONIZE_KEY_N: return 'N';
     case COLONIZE_KEY_O: return 'O';
     case COLONIZE_KEY_P: return 'P';
@@ -480,6 +491,7 @@ static const char* key_name(ColonizeKey key) {
     case COLONIZE_KEY_S: return "S";
     case COLONIZE_KEY_F: return "F";
     case COLONIZE_KEY_L: return "L";
+    case COLONIZE_KEY_M: return "M";
     case COLONIZE_KEY_Q: return "Q";
     case COLONIZE_KEY_P: return "P";
     case COLONIZE_KEY_E: return "E";
@@ -2667,6 +2679,7 @@ static bool game_apply_col1_save(ColonizeGameState* game, ColonizeCol1Save* load
   game->in_report = false;
   game->in_debug_atlas = false;
   game->colony_view_id = -1;
+  game->view_pieces_mode = false; /* loaded save resumes Move Pieces */
 
   col1_save_free(&game->col1);
   game->col1 = *loaded;
@@ -4486,6 +4499,7 @@ static void game_commit_new_campaign(ColonizeGameState* game) {
   sound_set_bgm(1);
   new_game_cancel(ng);
   game->in_menu = false;
+  game->view_pieces_mode = false;
   snprintf(
     game->status,
     sizeof(game->status),
@@ -4591,6 +4605,7 @@ static void game_select_tile(ColonizeGameState* game, int x, int y) {
   game->map_cursor_x = x;
   game->map_cursor_y = y;
   game_set_view_center(game, x, y);
+  game->view_pieces_mode = true;
 }
 
 /* On-map, or awake passenger (orders cleared) with moves remaining. */
@@ -4618,6 +4633,7 @@ static void game_select_unit(ColonizeGameState* game, int unit_id) {
     return;
   }
   game->units.selected_id = unit_id;
+  game->view_pieces_mode = false;
   game->map_cursor_x = u->x;
   game->map_cursor_y = u->y;
   game_set_view_center(game, u->x, u->y);
@@ -4942,6 +4958,7 @@ static void game_after_unit_action(ColonizeGameState* game) {
   const int exhausted_x = u->x;
   const int exhausted_y = u->y;
   if (turn_select_next_unit(&game->units, game->human_nation)) {
+    game->view_pieces_mode = false;
     game_center_on_selected_unit(game);
     const ColonizeUnit* next = units_get_const(&game->units, game->units.selected_id);
     snprintf(
@@ -6202,6 +6219,10 @@ static void game_europe_deliver_bound_ships(ColonizeGameState* game) {
 
 static void game_finish_end_turn(ColonizeGameState* game, const ColonizeTurnResult* result) {
   units_set_move_watch(NULL, NULL);
+  /* New turn always resumes Move Pieces (turn.c's own FINISH-step
+   * turn_select_next_unit already picked the first unit needing orders,
+   * or left none) — rearms the per-frame activation queue below. */
+  game->view_pieces_mode = false;
   game_apply_turn_autosave(game, result);
   game_europe_deliver_bound_ships(game);
   if (result && result->request_europe_open && game->europe_ok) {
@@ -6263,6 +6284,7 @@ static void game_wait_next_unit(ColonizeGameState* game) {
     }
     return;
   }
+  game->view_pieces_mode = false;
   game_center_on_selected_unit(game);
   snprintf(game->status, sizeof(game->status), "%s", "Continue turn.");
 }
@@ -6689,6 +6711,43 @@ static bool game_apply_map_menu_action(ColonizeGameState* game, MapMenuAction ac
     case MAP_MENU_ACTION_CENTER_VIEW:
       game_center_on_selected_unit(game);
       return true;
+    case MAP_MENU_ACTION_VIEW_PIECES:
+      /* Deselect whatever's controlled (if anything) and drop into the
+       * blinking tile cursor at its current spot — matches a right-click,
+       * just without needing a target tile. */
+      game_select_tile(game, game->map_cursor_x, game->map_cursor_y);
+      set_status(game, "Viewing map", NULL);
+      return true;
+    case MAP_MENU_ACTION_MOVE_PIECES: {
+      /* Hand control to the control-queue unit at/after the current
+       * cursor position, same cycle Wait/Space walks, but without Wait's
+       * end-of-turn fallthrough when none are left — that's View Pieces'
+       * job (turn_activation queue picks it up next frame regardless). */
+      if (game->units_ok && game->units.selected_id >= 0) {
+        game_center_on_selected_unit(game);
+        return true;
+      }
+      bool found = game->units_ok && turn_select_next_unit(&game->units, game->human_nation);
+      for (int guard = 0; found && guard < COLONIZE_UNITS_MAX; ++guard) {
+        const ColonizeUnit* next = units_get_const(&game->units, game->units.selected_id);
+        if (!next || !units_orders_skip_turn(next)) {
+          break;
+        }
+        found = turn_select_next_unit(&game->units, game->human_nation);
+      }
+      if (!found) {
+        set_status(game, "No units awaiting orders", NULL);
+        return true;
+      }
+      game->view_pieces_mode = false;
+      game_center_on_selected_unit(game);
+      const ColonizeUnit* next = units_get_const(&game->units, game->units.selected_id);
+      snprintf(
+        game->status, sizeof(game->status), "Selected %s",
+        next ? units_display_name(&game->units, next) : "unit"
+      );
+      return true;
+    }
     case MAP_MENU_ACTION_VIEW_HIDDEN_TERRAIN:
       game->hidden_terrain_phase = 1;
       game->hidden_terrain_phase_ms = game->elapsed_ms;
@@ -6701,6 +6760,7 @@ static bool game_apply_map_menu_action(ColonizeGameState* game, MapMenuAction ac
       } else {
         units_wake(&game->units, at);
         game->units.selected_id = at;
+        game->view_pieces_mode = false;
         const ColonizeUnit* u = units_get_const(&game->units, at);
         const ColonizeUnitType* ut = u ? units_type(&game->units, u->type_index) : NULL;
         snprintf(game->status, sizeof(game->status), "Activated %s", ut ? ut->name : "unit");
@@ -7291,25 +7351,65 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
         } else {
           /* Arrived (orders cleared), ran out of moves this step, or
            * genuinely stuck (blocked path) — none of those should freeze
-           * the activation cycle here; move on to the next unit. */
-          turn_select_next_unit(&game->units, game->human_nation);
+           * the activation cycle here; move on to the next unit. Sync
+           * view_pieces_mode either way: found → stay in Move Pieces;
+           * none left → drop into View Pieces at the unit's last tile
+           * (game_select_tile) instead of leaving a moves-exhausted
+           * "ghost" selection this loop would otherwise re-poll forever. */
+          if (turn_select_next_unit(&game->units, game->human_nation)) {
+            game->view_pieces_mode = false;
+            const ColonizeUnit* next = units_get_const(&game->units, game->units.selected_id);
+            if (next) {
+              game->map_cursor_x = next->x;
+              game->map_cursor_y = next->y;
+              game_set_view_center(game, next->x, next->y);
+              snprintf(
+                game->status, sizeof(game->status), "Selected %s",
+                units_display_name(&game->units, next)
+              );
+            }
+          } else {
+            const ColonizeUnit* stuck = units_get_const(&game->units, active_id);
+            game_select_tile(
+              game, stuck ? stuck->x : game->map_cursor_x, stuck ? stuck->y : game->map_cursor_y
+            );
+          }
         }
       }
-    } else if (!active_awaiting_player) {
+    } else if (!active_awaiting_player && !game->view_pieces_mode) {
       /* No unit is currently both selected and idle-awaiting the player —
        * advance the cycle to find the next one that does. Loops (bounded
        * — each call moves strictly forward and never revisits a unit
        * within one sweep) rather than a single call so a run of several
        * standing-order units in a row doesn't each need their own frame
-       * to skip past. */
+       * to skip past. Gated on !view_pieces_mode: once the player has
+       * explicitly deselected to browse (V / right-click / VIEW ~View
+       * Pieces), this must not silently grab control back next frame just
+       * because no unit is currently selected — that's the whole point of
+       * View Pieces (manual_gap / this file's Move-View spec). */
+      bool found_awaiting = false;
       for (int guard = 0; guard < COLONIZE_UNITS_MAX; ++guard) {
         if (!turn_select_next_unit(&game->units, game->human_nation)) {
           break;
         }
         const ColonizeUnit* next = units_get_const(&game->units, game->units.selected_id);
         if (!next || !units_orders_skip_turn(next)) {
+          found_awaiting = next != NULL;
           break;
         }
+      }
+      if (found_awaiting) {
+        game->view_pieces_mode = false;
+        const ColonizeUnit* next = units_get_const(&game->units, game->units.selected_id);
+        game->map_cursor_x = next->x;
+        game->map_cursor_y = next->y;
+        game_set_view_center(game, next->x, next->y);
+        snprintf(
+          game->status, sizeof(game->status), "Selected %s",
+          units_display_name(&game->units, next)
+        );
+      } else {
+        game_select_tile(game, game->map_cursor_x, game->map_cursor_y);
       }
     }
   }

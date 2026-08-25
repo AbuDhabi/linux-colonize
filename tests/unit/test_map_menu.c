@@ -110,6 +110,50 @@ int main(void) {
     }
   }
 
+  /* VIEW ~Move Pieces / ~View Pieces: classified + M/V hotkeys wired. */
+  {
+    bool found_move = false;
+    bool found_view = false;
+    for (int i = 0; i < bar.menus[view_i].item_count; ++i) {
+      const MapMenuItem* it = &bar.menus[view_i].items[i];
+      if (it->action == MAP_MENU_ACTION_MOVE_PIECES) {
+        found_move = true;
+        if (!it->enabled || it->hotkey != 'M') {
+          fprintf(
+            stderr, "Move Pieces enabled=%d hotkey=%c\n", it->enabled, it->hotkey ? it->hotkey : '?'
+          );
+          map_menu_free(&bar);
+          assets_msg_free(&menu_txt);
+          return 1;
+        }
+      }
+      if (it->action == MAP_MENU_ACTION_VIEW_PIECES) {
+        found_view = true;
+        if (!it->enabled || it->hotkey != 'V') {
+          fprintf(
+            stderr, "View Pieces enabled=%d hotkey=%c\n", it->enabled, it->hotkey ? it->hotkey : '?'
+          );
+          map_menu_free(&bar);
+          assets_msg_free(&menu_txt);
+          return 1;
+        }
+      }
+    }
+    if (!found_move || !found_view) {
+      fprintf(stderr, "VIEW menu missing Move Pieces / View Pieces items\n");
+      map_menu_free(&bar);
+      assets_msg_free(&menu_txt);
+      return 1;
+    }
+    if (map_menu_view_hotkey(&bar, 'M') != MAP_MENU_ACTION_MOVE_PIECES ||
+        map_menu_view_hotkey(&bar, 'V') != MAP_MENU_ACTION_VIEW_PIECES) {
+      fprintf(stderr, "map_menu_view_hotkey M/V did not resolve to Move/View Pieces\n");
+      map_menu_free(&bar);
+      assets_msg_free(&menu_txt);
+      return 1;
+    }
+  }
+
 #if COLONIZE_DEBUG_MENU
   if (debug_i < 0 || debug_i != cup_i + 1) {
     fprintf(stderr, "DEBUG should sit immediately after CHEAT (cup=%d debug=%d)\n", cup_i, debug_i);

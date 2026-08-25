@@ -254,6 +254,12 @@ static MapMenuAction map_menu_classify(const char* section, const char* label) {
   }
 
   if (strcmp(section, "VIEW") == 0) {
+    if (strcmp(label, "Move Pieces") == 0) {
+      return MAP_MENU_ACTION_MOVE_PIECES;
+    }
+    if (strcmp(label, "View Pieces") == 0) {
+      return MAP_MENU_ACTION_VIEW_PIECES;
+    }
     if (strcmp(label, "European Status") == 0) {
       return MAP_MENU_ACTION_EUROPE;
     }
@@ -484,6 +490,8 @@ static bool map_menu_action_enabled(MapMenuAction action) {
     case MAP_MENU_ACTION_OPTIONS:
     case MAP_MENU_ACTION_COLONY_OPTIONS:
     case MAP_MENU_ACTION_SOUND_OPTIONS:
+    case MAP_MENU_ACTION_MOVE_PIECES:
+    case MAP_MENU_ACTION_VIEW_PIECES:
     case MAP_MENU_ACTION_EUROPE:
     case MAP_MENU_ACTION_FIND_COLONY:
     case MAP_MENU_ACTION_ZOOM_IN:

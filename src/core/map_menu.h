@@ -45,6 +45,8 @@ typedef enum MapMenuAction {
   MAP_MENU_ACTION_EXIT,
 
   /* VIEW */
+  MAP_MENU_ACTION_MOVE_PIECES, /* ~Move Pieces — M hotkey */
+  MAP_MENU_ACTION_VIEW_PIECES, /* ~View Pieces — V hotkey */
   MAP_MENU_ACTION_EUROPE,
   MAP_MENU_ACTION_FIND_COLONY,
   MAP_MENU_ACTION_ZOOM_IN,
