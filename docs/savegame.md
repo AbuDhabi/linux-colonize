@@ -162,6 +162,14 @@ Full opaque-field inventory and RE phases: **[save_format_map.md](save_format_ma
 - Unit `vis_mask`: euro owner bit only on spawn/`units_set_nation`/capture;
   natives export 0 (fixes fog-visible Indians/AI). Ship `holds_occupied` =
   goods only — passengers use `transport_chain` (fixes fake food stacks).
+  **2026-08-25**: the *import* side (`col1_bridge_apply`) wasn't honoring
+  this on load — it copied all 6 `cargo_hold[]`/`cargo_item_*[]` slots
+  whenever a slot's byte looked like a plausible amount, ignoring
+  `holds_occupied`, so a ship that had unloaded (holds_occupied back to 0)
+  but still carried stale nonzero bytes in the trailing array slots showed
+  phantom goods. Fixed to only import the first `holds_occupied` slots
+  (see `docs/report_screens.md`'s Naval report section for how this
+  surfaced).
 - Boarded euros: `origin=0xff` (`home_tribe_id=-1`), pioneer `cargo_hold[5]=100`
   tools; Discoverer English pioneer profession `28` (Hardy is French-only).
   Ship/wagon `profession=0` (`FUN_1427_06b4`); never `28` — ships must look like

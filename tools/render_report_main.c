@@ -10,7 +10,7 @@
  * See docs/report_screens.md for the full report-porting workflow this tool
  * is part of (grid_overlay.sh / render_diff.sh live in scripts/).
  *
- *   render_report <data_dir> <save.SAV> <out.ppm> [report_id] [congress_page2] [labor_detail_job] [economic_page] [colony_page]
+ *   render_report <data_dir> <save.SAV> <out.ppm> [report_id] [congress_page2] [labor_detail_job] [economic_page] [colony_page] [naval_page]
  *
  *   data_dir        usually "COLONIZE"
  *   save.SAV        a Col1 .SAV to load (report content needs one)
@@ -25,6 +25,8 @@
  *   economic_page   0 = European Trade, N>=1 = Cargo in Port page N (ignored
  *                   otherwise); default 0
  *   colony_page     Colony report page index — see reports_colony_page_count
+ *                   (ignored otherwise); default 0
+ *   naval_page      Naval report page index — see reports_naval_page_count
  *                   (ignored otherwise); default 0
  *
  * Also prints the founding-fathers bells pool/need to stderr (useful when
@@ -63,6 +65,7 @@ int main(int argc, char** argv) {
   const int labor_detail_job = argc > 6 ? atoi(argv[6]) : -1;
   const int economic_page = argc > 7 ? atoi(argv[7]) : 0;
   const int colony_page = argc > 8 ? atoi(argv[8]) : 0;
+  const int naval_page = argc > 9 ? atoi(argv[9]) : 0;
 
   char err[256];
   ColonizeReportsView view;
@@ -169,6 +172,7 @@ int main(int argc, char** argv) {
     labor_detail_job,
     economic_page,
     colony_page,
+    naval_page,
     bridge_ok ? &colonies_pool : NULL,
     bridge_ok ? &units_pool : NULL,
     bridge_ok ? &map : NULL,

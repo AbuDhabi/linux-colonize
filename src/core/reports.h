@@ -105,6 +105,20 @@ int reports_economic_page_count(const ColonizeCol1Save* col1, int human_nation);
 int reports_colony_page_count(const ColonizeCol1Save* col1, int human_nation);
 
 /*
+ * Naval report (F7) page count: ceil(row_count / 7), minimum 1. row_count
+ * counts one row per on-mapboard/Europe-harbor ship plus one extra row per
+ * passenger it carries (golden: naval.png — a passenger sits on its own row
+ * above its ship's row). Mirrors reports_render's own row builder, so this
+ * always agrees with what actually paginates.
+ */
+int reports_naval_page_count(
+  int human_nation,
+  const ColonizeUnitPool* units,
+  const ColonizeColonyPool* colonies,
+  const EuropeScreen* europe
+);
+
+/*
  * Live Colonization Score (manual / FAQ rules) for F10.
  * Independence bonuses apply only once declare/achieve are tracked in save;
  * until then those fields stay 0 and the base total is still shown.
@@ -150,7 +164,10 @@ void reports_compute_score(
  * Military Garrisons, [k..2k) shows Sons of Liberty (k = reports_colony_
  * page_count(...)/2), 9 colonies per page each. Ignored for every id but
  * COLONIZE_REPORT_COLONY — see reports_colony_page_count for how many
- * pages exist. */
+ * pages exist.
+ * naval_page: page index into the Naval report (F7), 7 rows per page.
+ * Ignored for every id but COLONIZE_REPORT_NAVAL — see
+ * reports_naval_page_count for how many pages exist. */
 void reports_render(
   const ColonizeReportsView* view,
   ColonizeReportId id,
@@ -158,6 +175,7 @@ void reports_render(
   int labor_detail_job,
   int economic_page,
   int colony_page,
+  int naval_page,
   const ColonizeColonyPool* colonies,
   const ColonizeUnitPool* units,
   const ColonizeWorldMap* map,

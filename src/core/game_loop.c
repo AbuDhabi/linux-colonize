@@ -157,6 +157,7 @@ struct ColonizeGameState {
   int labor_detail_job; /* -1 = Labor report grid; >=0 = zoomed job id detail view */
   int economic_page; /* 0 = European Trade; >=1 = Cargo in Port page N */
   int colony_page; /* 0..k-1 = Military Garrisons; k..2k-1 = Sons of Liberty */
+  int naval_page; /* Naval report (F7) page index — reports_naval_page_count */
   ColonizeHofEntry hof_entries[COLONIZE_HOF_MAX]; /* ranked desc; session + HOF.TXT */
   int hof_count;
   bool in_hall_of_fame; /* title-menu "View Hall of Fame" screen (reports_render_hall_of_fame) */
@@ -2796,6 +2797,7 @@ static void game_open_report(ColonizeGameState* game, ColonizeReportId id) {
   game->labor_detail_job = -1;
   game->economic_page = 0;
   game->colony_page = 0;
+  game->naval_page = 0;
   game->in_pedia = false;
   game->in_europe = false;
   game->in_colony = false;
@@ -7362,6 +7364,19 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
         }
         game->colony_page = 0;
       }
+      /* Naval report is a single paginated ship/passenger table — same
+       * OK/Esc/Enter page-advance shape as Economic/Colony above. */
+      if (game->report_id == COLONIZE_REPORT_NAVAL) {
+        const int page_count = reports_naval_page_count(
+          game->human_nation, game->units_ok ? &game->units : NULL, &game->colonies,
+          game->europe_ok ? &game->europe : NULL
+        );
+        if (game->naval_page + 1 < page_count) {
+          game->naval_page++;
+          return true;
+        }
+        game->naval_page = 0;
+      }
       game->in_report = false;
       diag_info("Left report screen.");
       if (game->report_exits_to_menu) {
@@ -9773,6 +9788,7 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
       game->labor_detail_job,
       game->economic_page,
       game->colony_page,
+      game->naval_page,
       &game->colonies,
       game->units_ok ? &game->units : NULL,
       game->world_map_ok ? &game->world_map : NULL,

@@ -350,3 +350,74 @@ ratio — not DOS-confirmed, closest reproducible approximation),
 overpaints those 15 fixed pixels. Every colony-icon draw site (world map,
 map info-panel, Colony report both pages) now goes through it instead of
 a bare `ss_blit_sprite`.
+
+## Naval report (F7): two real `col1_bridge_apply` bugs found via the ship
+## table's Cargo column, plus a font/palette pitfall
+
+Naval is a single paginated 4-column table (Ship / Cargo / Location /
+Destination), 7 rows/page (golden: naval.png). Geometry: row rules at
+native y = 40, 60, … 180 (`REPORTS_NAVAL_ROW0_Y`/`_ROW_STEP`), column rules
+at native x = 82/162/242, all measured the usual way (full-res golden,
+divide by 2). Each ship is one row (icon + class name, goods icons packed
+left-to-right in its own Cargo cell); each passenger aboard gets its own
+row *above* the ship's row (unit_chrome icon + unit type name, no ship
+info) — confirmed by the golden's one example, a Caravel carrying a
+Colonist passenger plus a full (100-unit, colored not grey) Trade Goods
+stack.
+
+Building the row list surfaced two genuine, reachable-outside-reports
+`col1_bridge_apply` bugs, both caught only because the golden's ships
+happened to exercise them:
+
+- **Fortified land units at a colony dock get "boarded" onto the docked
+  ship.** `col1_find_ship_root`'s transport-chain walk (already known to
+  reuse same-tile stacking order, not just genuine manifests — see the
+  Colony report pitfall above) had no discriminator at all — every
+  same-tile land unit got boarded regardless of its own orders. The
+  golden's Privateer, docked at New Amsterdam, was picking up a Fortified
+  Dragoon and a Fortified Artillery as phantom passengers. Fix: skip a
+  unit whose raw `orders` is Fortify/Fortified before walking the chain —
+  a unit fortified in place is definitionally not aboard a ship (confirmed
+  against the same save's one genuine passenger, a Sentry-orders Colonist
+  — never Fortified). Doesn't catch every theoretical false positive (a
+  Sentried land unit merely standing at the dock would still slip
+  through), but it's real, low-risk, and fixes the concrete case.
+- **`cargo_hold[]`/`cargo_item_*[]` past `holds_occupied` can be stale.**
+  The Merchantman and Privateer both showed phantom goods icons (Furs,
+  Tools) that don't exist in the golden. Both have `holds_occupied == 0`
+  in the raw save, yet their `cargo_hold[]` arrays still carried old
+  nonzero bytes — `docs/savegame.md` already documented "`holds_occupied`
+  = goods only" but the goods-import loop never gated on it, just checked
+  each of the 6 slots for `0 < amt < 255` independently. DOS apparently
+  never clears the trailing array bytes on unload, only the occupied
+  count. Fix: only import the first `holds_occupied` slots (clamped to
+  `COLONIZE_UNIT_CARGO_MAX`).
+
+Two more pitfalls specific to this report:
+
+- **Body text needs FONTTINY, not FONTSMAL** — same family of mistake as
+  Congress page 1's body (see above), rediscovered independently here:
+  the ship/cargo/location text rendered in FONTSMAL came out both
+  noticeably wider than the golden's ~2px/char text *and* upper-case only
+  (FONTSMAL apparently has no distinct lower-case glyphs at this size, or
+  at least renders as if it doesn't) even though the underlying strings
+  (`NAMES.TXT` unit names) are stored mixed-case. Switching to
+  `view->title_font` fixed both symptoms at once. Worth checking width
+  *and* case against the golden before assuming a report body's font,
+  not just width.
+- **`unit_chrome_blit_unit_for_palette`'s nearest-match can't always find
+  a good orange.** REPORT7.PIK's 256-color palette has no entry within
+  useful distance of ICONS.SS-native's saturated Dutch orange
+  `(255,113,0)` — nearest is `(203,105,48)` (squared RGB distance 5072),
+  a visibly duller shade, confirmed by direct palette probe. The golden
+  screenshot still shows the pure saturated orange, meaning DOS's real
+  per-report palette for chrome elements isn't simply "nearest-match into
+  this PIK's own stored 256 colors" the way every other report's chrome
+  has matched close enough to look right — there's some other mechanism
+  (reserved/dynamic palette slots for chrome, most likely) not identified
+  this session. Left as the nearest-match result (recognizably orange,
+  right position/letter, just duller) rather than guessing at a palette
+  architecture change — flagging here in case a future report hits the
+  same gap harder (e.g. a background with *no* orange-family color at
+  all) and it's worth resolving properly with a live DOSBox-X palette
+  trace.
