@@ -114,18 +114,22 @@ void founding_fathers_sync_from_col1(const ColonizeCol1Save* col1) {
       continue;
     }
 
-    unsigned spent = 0u;
-    for (unsigned c = 0u; c < count; ++c) {
-      spent += ff_bells_threshold_at_elect_count(col1, n, c);
-    }
-    if (total <= spent) {
-      s_ff_bells_since_elect[n] = 0;
-    } else if (total <= need) {
-      /* Authentic DOS: +0xc is the live pool, not lifetime cumulative. */
+    if (total <= need) {
+      /* Authentic DOS: +0xc is the live pool, not lifetime cumulative — check
+       * this first. A save with several FFs already elected has a "spent"
+       * sum (below) that grows past any plausible live pool almost
+       * immediately (thresholds compound with each election), so testing
+       * total<=spent before this would zero out a perfectly good live pool
+       * on nearly every multi-FF save. Only fall through to the cumulative
+       * interpretation once total can't possibly be a live pool on its own. */
       s_ff_bells_since_elect[n] = (uint16_t)total;
     } else {
+      unsigned spent = 0u;
+      for (unsigned c = 0u; c < count; ++c) {
+        spent += ff_bells_threshold_at_elect_count(col1, n, c);
+      }
       /* Linux cumulative minus thresholds consumed at past elects. */
-      s_ff_bells_since_elect[n] = (uint16_t)(total - spent);
+      s_ff_bells_since_elect[n] = (total <= spent) ? 0 : (uint16_t)(total - spent);
     }
   }
 }

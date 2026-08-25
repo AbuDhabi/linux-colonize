@@ -7282,8 +7282,14 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
   }
 
   if (game->in_report) {
-    const bool ok_clicked = input->mouse_left_clicked &&
-      reports_ok_button_hit(game->report_id, game->congress_page2, input->mouse_x, input->mouse_y);
+    /* Congress page 2 has no OK button (golden: full-bleed photo, no chrome)
+     * — any click closes it, not just a hit on a drawn box. */
+    const bool page2_click_anywhere =
+      game->report_id == COLONIZE_REPORT_CONGRESS && game->congress_page2 &&
+      input->mouse_left_clicked;
+    const bool ok_clicked = page2_click_anywhere ||
+      (input->mouse_left_clicked &&
+       reports_ok_button_hit(game->report_id, game->congress_page2, input->mouse_x, input->mouse_y));
     if (input->last_key == COLONIZE_KEY_ESCAPE || input->last_key == COLONIZE_KEY_ENTER ||
         ok_clicked) {
       /* Continental Congress is two pages: closing page 1 (any means — Esc,
