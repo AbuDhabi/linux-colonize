@@ -662,12 +662,12 @@ int colony_prod_colony_bells_ff(
       continue;
     }
     bell_workers++;
-    int w = colony_prod_bells_worker(bn, c->profession, sol_bonus);
-    /* Thomas Jefferson: liberty bell production of statesmen +50% (wiki). */
-    if (w > 0 && statesmen_bonus_pct > 0) {
-      w = w * (100 + statesmen_bonus_pct) / 100;
-    }
-    bells += w;
+    /* NOT Jefferson-folded here — manufacturing_worker_calc_1d4c.md's own
+     * Statesman-body trace (`15eb:1f18`) is exactly `v = base; if (skill)
+     * v <<= 1`, nothing else; no Jefferson/Press/Paine call anywhere in
+     * Statesman's own per-worker body. Those three apply once, colony-wide,
+     * below — see the comment there. */
+    bells += colony_prod_bells_worker(bn, c->profession, sol_bonus);
   }
   /* No bell workers to fold sol_bonus into individually — apply it to the
    * Town Hall passive directly instead (nothing else it could attach to). */
@@ -676,6 +676,28 @@ int colony_prod_colony_bells_ff(
     if (bells < 0) {
       bells = 0;
     }
+  }
+  /*
+   * Jefferson → Paine → Press/Newspaper, applied once to the *combined*
+   * passive+worker total, in that order — matches
+   * nation_crosses_bells_1f72.md's literal FUN_15eb_1f72 order
+   * (`bells=1; Jefferson; Paine; AI-subsidy; +=byte[0xa892]; Newspaper/
+   * Press`), generalized from "just the passive" (as read, combine point
+   * with per-worker totals unresolved there) to "passive+workers combined"
+   * (empirically confirmed 2026-08-25: exact match against 7 player-
+   * reported colonies — dutch-reports.SAV, Jefferson+Paine(35% tax) both
+   * owned, mixed Newspaper/Press/none — after moving Jefferson from a
+   * per-worker fold to here and moving Paine before Press/Newspaper
+   * instead of after; previously under-counted every colony by 1-2).
+   * `byte[0xa892]` itself is still not identified/ported — none of the 7
+   * data points needed it once the order above was corrected, but a
+   * colony configuration this fit didn't cover could still expose it.
+   */
+  if (statesmen_bonus_pct > 0) {
+    bells = bells * (100 + statesmen_bonus_pct) / 100;
+  }
+  if (all_bells_bonus_pct > 0) {
+    bells = bells * (100 + all_bells_bonus_pct) / 100;
   }
   /* FUN_15eb_1f72 (nation_crosses_bells_1f72.md ~67-68): Newspaper xor
    * Printing Press, not both — a Newspaper colony always has_building[]
@@ -690,10 +712,6 @@ int colony_prod_colony_bells_ff(
   }
   if (bonus_pct > 0) {
     bells = bells * (100 + bonus_pct) / 100;
-  }
-  /* Thomas Paine: bells increased by current tax rate % (multiplicative w/ media). */
-  if (all_bells_bonus_pct > 0) {
-    bells = bells * (100 + all_bells_bonus_pct) / 100;
   }
   return bells;
 }

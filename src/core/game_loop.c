@@ -3051,7 +3051,7 @@ static void render_pedia_screen(const ColonizeGameState* game, ColonizeFramebuff
     if (page.category == PEDIA_CAT_UNIT) {
       const ColonizeFont* chrome_font = game->colony_font_ok ? &game->colony_font
         : (game->menu_font_ok ? &game->menu_font : NULL);
-      unit_chrome_blit_unit(
+      unit_chrome_blit_unit_for_palette(
         framebuffer,
         chrome_font,
         &game->unit_icons,
@@ -3062,7 +3062,8 @@ static void render_pedia_screen(const ColonizeGameState* game, ColonizeFramebuff
         game->human_nation,
         UNITS_ORDER_NONE,
         false,
-        false
+        false,
+        (game->pedia_wood_ok && game->pedia_wood.has_palette) ? &game->pedia_wood.palette : NULL
       );
     } else {
       ss_blit_sprite(&game->unit_icons, page.icon_sprite, framebuffer, preview_x, preview_y);
@@ -3202,7 +3203,7 @@ static void europe_render_transit_box(
     if (sh > row_h) {
       row_h = sh;
     }
-    unit_chrome_blit_unit(
+    unit_chrome_blit_unit_for_palette(
       framebuffer,
       font,
       &game->unit_icons,
@@ -3213,7 +3214,8 @@ static void europe_render_transit_box(
       game->human_nation,
       UNITS_ORDER_NONE,
       ships[i].cargo_count > 0,
-      false
+      false,
+      (game->europe_ok && game->europe.background.has_palette) ? &game->europe.background.palette : NULL
     );
     if (i == selected_index) {
       europe_draw_box_border(framebuffer, x - 1, y - 1, sw + 2, sh + 2, 14);
@@ -3604,7 +3606,7 @@ static void render_europe_screen(const ColonizeGameState* game, ColonizeFramebuf
         if (dtype < 0) {
           dtype = 0;
         }
-        unit_chrome_blit_unit(
+        unit_chrome_blit_unit_for_palette(
           framebuffer,
           font,
           &game->unit_icons,
@@ -3615,7 +3617,8 @@ static void render_europe_screen(const ColonizeGameState* game, ColonizeFramebuf
           game->human_nation,
           orders,
           stacked,
-          false
+          false,
+          (game->europe_ok && game->europe.background.has_palette) ? &game->europe.background.palette : NULL
         );
         if (eu->menu == EUROPE_MENU_DOCK && eu->menu_dock_index == i) {
           int fx = 0;
@@ -7189,6 +7192,19 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
         if (!u->active || !units_orders_follow_goto(u->orders) || !units_is_on_map(u)) {
           continue;
         }
+        /* This pacer only ever runs outside turn_processor_active() (see
+         * the early return above) — i.e. only during the human's own
+         * turn. AI/native units resolve their own goto orders exclusively
+         * inside turn_processor_advance(), during their own turn; a unit
+         * that's mid-multi-turn goto (e.g. a ship sailing a multi-turn
+         * ocean crossing) legitimately still carries that order in a
+         * loaded save, but shouldn't visibly keep sliding across the map
+         * while it's the human's turn. Player-reported: loading a save
+         * captured mid-human-turn showed other Europeans' units moving on
+         * their own before the human ended their turn. */
+        if (u->nation_id != game->human_nation) {
+          continue;
+        }
         if (u->orders == UNITS_ORDER_TRADE_ROUTE) {
           game_trade_route_retarget(game, u);
         }
@@ -10182,7 +10198,8 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
       map_origin_x,
       map_origin_y,
       game->world_map_ok ? &game->world_map : NULL,
-      game_fog_nation(game)
+      game_fog_nation(game),
+      game->map_palette_ok ? &game->map_palette : NULL
     );
   }
 
@@ -10224,7 +10241,8 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
       map_origin_y,
       blink_on,
       game->world_map_ok ? &game->world_map : NULL,
-      game_fog_nation(game)
+      game_fog_nation(game),
+      game->map_palette_ok ? &game->map_palette : NULL
     );
   }
 
@@ -10376,6 +10394,7 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
       game->europe.gold,
       game->europe.tax_percent,
       game->europe.nation_name,
+      game->map_palette_ok ? &game->map_palette : NULL,
       framebuffer
     );
   }
@@ -10456,6 +10475,7 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
         &popup_cols,
         COLONIZE_COL_BASIC,
         COLONIZE_COL_SELECT,
+        game->map_palette_ok ? &game->map_palette : NULL,
         framebuffer
       );
     }

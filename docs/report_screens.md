@@ -317,3 +317,36 @@ x/y/nation/type, one raw record consumed per drawn icon) instead of
 trusting the bridged pool's `.orders` for display. Sprite/type selection
 is unaffected by the bug and still comes from the pool. Worth a real fix
 with a live DOSBox-X trace if this bites another screen.
+
+## Follow-up: the palette fix generalized project-wide, plus a colony-icon flag bug found the same way
+
+The unit-chrome palette fix above wasn't report-only — every screen that
+draws `unit_chrome_blit_unit` (map, colony screen, Europe, Colonizopedia
+preview, Combat Analysis) had the same magenta-box bug, since none of
+their own backgrounds' palettes preserve ICONS.SS-native's index 5/13
+either. Generalized: `unit_chrome_blit_unit_for_palette()` (unit_chrome.c)
+takes the caller's own active output palette and does the nearest-match
+lookup itself; `unit_chrome_blit_unit`/`_colored` are unchanged/still the
+raw-index defaults. Every call site across `map_panel.c`, `colony_screen.c`,
+`game_loop.c`, `units.c`, `combat_analysis.c` now passes its actual active
+palette (`game->map_palette`, `view->frame.palette`, `game->europe.
+background.palette`, `game->pedia_wood.palette`) — reports.c's Colony
+report switched to the same shared function, dropping its own duplicate.
+
+Same investigation surfaced a second, unrelated palette-coupled bug:
+ICONS.SS #0-3's colony settlement markers carry a small baked-in **blue**
+flag (native RGB (65,89,166)/(52,73,158), 15 fixed pixels, identical
+across all 4 fortification tiers) that DOS recolors to the owning nation
+(`FUN_112b_0c64`, the colony-map-chrome decompile, reads the same
+`@COUNTRY`/DS:0x848 table `unit_chrome`'s own nation-color constants do —
+not independently confirmed beyond that, no live trace available for the
+exact per-nation shade formula). The port never recolored it — every
+nation's colonies showed the same stored blue. Fixed similarly:
+`unit_chrome_nation_flag_shades_for_palette()` derives a light/dark index
+pair per nation (light = the same native fill color as the chrome box;
+dark = light scaled ~82%, matching the original blue's own two-shade
+ratio — not DOS-confirmed, closest reproducible approximation),
+`colonies_blit_settlement_icon()` (colony.h) draws the icon then
+overpaints those 15 fixed pixels. Every colony-icon draw site (world map,
+map info-panel, Colony report both pages) now goes through it instead of
+a bare `ss_blit_sprite`.

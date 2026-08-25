@@ -129,4 +129,44 @@ void unit_chrome_blit_unit_colored(
   int letter_override
 );
 
+/*
+ * Preferred entry point for any screen that knows its own active output
+ * palette (the palette the framebuffer is actually converted to RGB
+ * through — e.g. the map's `game->map_palette`/TERRAIN.SS, the colony
+ * screen's `view->frame.palette`/WOODPANL.PIK, a report's own background
+ * palette). Looks up the nearest available match to each of the 4
+ * European nations' *true* fill/letter color (see k_nation_fill_rgb_native
+ * in unit_chrome.c) within `active_palette` and draws with that instead of
+ * unit_chrome_nation_color()'s raw ICONS.SS-native index, which is only
+ * correct when the active palette happens to still be native-compatible —
+ * true for nothing except ICONS.SS itself. `active_palette` NULL, or
+ * nation_id outside 0..3 (natives — no reported color issue there),
+ * falls back to unit_chrome_blit_unit's plain default behavior.
+ */
+void unit_chrome_blit_unit_for_palette(
+  ColonizeFramebuffer8* fb,
+  const ColonizeFont* font,
+  const ColonizeSpriteSheet* sheet,
+  int sprite_index,
+  int x,
+  int y,
+  int display_type_index,
+  int nation_id,
+  int orders_index,
+  bool show_stack,
+  bool aboard,
+  const ColonizePalette* active_palette
+);
+
+/*
+ * Nation light/dark palette indices (nearest match within active_palette,
+ * -1/-1 if active_palette is NULL or nation_id isn't a 0..3 European) for
+ * recoloring ICONS.SS #0-3's stored blue colony-flag pixels to the owning
+ * nation. See unit_chrome.c for the full explanation and
+ * colony_map_icon_flag_pixels (colony.h) for the fixed pixel mask.
+ */
+void unit_chrome_nation_flag_shades_for_palette(
+  int nation_id, const ColonizePalette* active_palette, int* out_light, int* out_dark
+);
+
 #endif

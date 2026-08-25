@@ -1073,7 +1073,8 @@ void units_render_on_map(
   int origin_y,
   bool selected_visible,
   const ColonizeWorldMap* fog_map, /* nullable — skip tiles unseen by fog_nation */
-  int fog_nation
+  int fog_nation,
+  const ColonizePalette* active_palette
 );
 
 #endif

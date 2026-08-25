@@ -227,12 +227,13 @@ static void combat_analysis_blit_side(
   const ColonizeSpriteSheet* icons,
   const CombatAnalysisSideChrome* chrome,
   int x,
-  int y
+  int y,
+  const ColonizePalette* active_palette
 ) {
   if (!fb || !chrome || !icons || chrome->sprite < 0 || chrome->sprite >= icons->sprite_count) {
     return;
   }
-  unit_chrome_blit_unit(
+  unit_chrome_blit_unit_for_palette(
     fb,
     font,
     icons,
@@ -243,7 +244,8 @@ static void combat_analysis_blit_side(
     chrome->nation_id,
     chrome->orders,
     false,
-    chrome->aboard
+    chrome->aboard,
+    active_palette
   );
 }
 
@@ -255,6 +257,7 @@ void combat_analysis_render(
   const ColonizePopupColors* colors,
   uint8_t text_color,
   uint8_t select_color,
+  const ColonizePalette* active_palette,
   ColonizeFramebuffer8* framebuffer
 ) {
   (void)select_color;
@@ -299,8 +302,12 @@ void combat_analysis_render(
   const int def_icon_x = ix + iw - 6 - icon_w - UNIT_CHROME_SPRITE_DX;
   char str_buf[16];
 
-  combat_analysis_blit_side(framebuffer, font, unit_icons, &dlg->atk_chrome, atk_icon_x, y_hdr);
-  combat_analysis_blit_side(framebuffer, font, unit_icons, &dlg->def_chrome, def_icon_x, y_hdr);
+  combat_analysis_blit_side(
+    framebuffer, font, unit_icons, &dlg->atk_chrome, atk_icon_x, y_hdr, active_palette
+  );
+  combat_analysis_blit_side(
+    framebuffer, font, unit_icons, &dlg->def_chrome, def_icon_x, y_hdr, active_palette
+  );
 
   /* Header numbers = NAMES baseline (0x8d06 / -0x72fa), not roll weights. */
   snprintf(str_buf, sizeof(str_buf), "%d", dlg->eng.atk_flags.base_combat);

@@ -290,7 +290,7 @@ window is non-zero. Do not freshen mid-turn lag. **Blank templates only:**
 | Plane | Status | Notes |
 |-------|--------|-------|
 | `tile` | `mapped` | Terrain bitfield |
-| `mask` | `mapped` | Occupancy + density rebuilt on export (`col1_bridge_sync_map_*`; `FUN_684c_08c0` / `137f_015e`); purchased sticky / layer2. Smcol/nawagers: `suppress` clears exhausted / far-ocean primes (not LCR). Nawagers: forest prime pattern is land pattern shifted **+4 columns** (clearing forest can reveal a different prime) |
+| `mask` | `mapped` | Occupancy + density rebuilt on export (`col1_bridge_sync_map_*`; `FUN_684c_08c0` / `137f_015e`); purchased sticky / layer2. Smcol/nawagers: `suppress` clears exhausted / far-ocean primes (not LCR). Nawagers: forest prime pattern is land pattern shifted **+4 columns** (clearing forest can reveal a different prime). Road is bit `0x08` only — bit `0x04` is village/capital occupancy, unrelated (both correctly separated in the layer2 derivation right below the import site). **2026-08-25 fix:** the `map->improve[]` road-flag import checked `mask & 0x0c` (`0x04|0x08` combined) instead of `mask & 0x08` alone, so any tile with the occupancy bit set — including plain ocean — got falsely flagged as roaded. Player-reported on `dutch-reports.SAV`: (47,31)/(53,32)/(55,34)/(55,37), all `mask=0x04`, all ocean, all wrongly roaded on load. `col1_bridge_apply` fixed to `mask & 0x08`. |
 | `path` | `mapped` | Region + visitor. Nawagers: low nibble = path region (oceans/continents numbered independently; >15 → `0xF`); high nibble = last visitor (`0xF` unvisited; LCR cleared only on occupy, not 8-neighbor reveal) |
 | `seen` | `mapped` | Fog / score nibbles (nawagers: hi bits Euro visibility; lo nibble colony-site AI score) |
 

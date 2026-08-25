@@ -1615,7 +1615,13 @@ static void reports_render_colony_sidebar(
 ) {
   const int icon = reports_colony_fort_icon(c->buildings.fortification);
   if (view && view->icons_ok && icon >= 0 && icon < view->icons.sprite_count) {
-    ss_blit_sprite(&view->icons, icon, fb, REPORTS_COLONY_ICON_X, row_top - 3);
+    const ColonizePalette* active_palette =
+      (view->background_ok[COLONIZE_REPORT_COLONY] && view->backgrounds[COLONIZE_REPORT_COLONY].has_palette)
+        ? &view->backgrounds[COLONIZE_REPORT_COLONY].palette
+        : NULL;
+    colonies_blit_settlement_icon(
+      &view->icons, icon, fb, REPORTS_COLONY_ICON_X, row_top - 3, c->nation_id, active_palette
+    );
   }
   const int sol_pct = colony ? colony_prod_sol_percent(col1, colony) : reports_colony_rebel_pct(c);
   snprintf(line, line_sz, "%u", (unsigned)c->population);
@@ -1628,57 +1634,6 @@ static void reports_render_colony_sidebar(
     line, reports_colony_pop_color(sol_pct)
   );
   reports_draw_line(font, fb, REPORTS_COLONY_NAME_X, row_top, c->name, REPORTS_COLONY_LABEL_COLOR);
-}
-
-/* unit_chrome_nation_color()/unit_chrome_letter_color()'s indices (europe
- * 0..3: England/France/Spain/Dutch) are tuned against ICONS.SS's own native
- * palette, not any particular report background's — see
- * unit_chrome_blit_unit_colored's doc comment. RGB here is that native
- * palette's fill (k_european_fill) and Fortify/Fortified-letter
- * (k_european_names - 8) color per nation, dumped once from ICONS.SS
- * directly (probe: idx112/9/14/13 fill, idx4/1/6/5 letter). */
-static const uint8_t k_reports_nation_fill_rgb[4][3] = {
-  {243, 0, 0}, {85, 85, 255}, {255, 255, 85}, {255, 113, 0}
-};
-static const uint8_t k_reports_nation_letter_rgb[4][3] = {
-  {170, 0, 0}, {0, 0, 170}, {170, 85, 0}, {170, 73, 0}
-};
-
-/* Nearest palette index for an RGB triple within a report's own background
- * palette (same technique as reports_remap_sheet_to_palette's LUT build) —
- * only ever a handful of calls per report render, no need to cache. */
-static int reports_nearest_palette_index(const ColonizePalette* pal, const uint8_t rgb[3]) {
-  int best = 0;
-  int best_d = 1 << 30;
-  for (int i = 0; i < 256; ++i) {
-    const int dr = (int)pal->rgb[i][0] - rgb[0];
-    const int dg = (int)pal->rgb[i][1] - rgb[1];
-    const int db = (int)pal->rgb[i][2] - rgb[2];
-    const int d = dr * dr + dg * dg + db * db;
-    if (d < best_d) {
-      best_d = d;
-      best = i;
-    }
-  }
-  return best;
-}
-
-/* Unit-chrome fill/letter override for this report's own active palette
- * (out_fill/out_letter set to -1, meaning "use unit_chrome's own default",
- * if nation_id is out of the 4-European range or the report background
- * has no palette). */
-static void reports_colony_chrome_colors(
-  const ColonizeReportsView* view, int nation_id, int* out_fill, int* out_letter
-) {
-  *out_fill = -1;
-  *out_letter = -1;
-  if (!view || nation_id < 0 || nation_id >= 4 || !view->background_ok[COLONIZE_REPORT_COLONY] ||
-      !view->backgrounds[COLONIZE_REPORT_COLONY].has_palette) {
-    return;
-  }
-  const ColonizePalette* pal = &view->backgrounds[COLONIZE_REPORT_COLONY].palette;
-  *out_fill = reports_nearest_palette_index(pal, k_reports_nation_fill_rgb[nation_id]);
-  *out_letter = reports_nearest_palette_index(pal, k_reports_nation_letter_rgb[nation_id]);
 }
 
 static void reports_render_colony_garrisons(
@@ -1739,8 +1694,11 @@ static void reports_render_colony_garrisons(
        * (colony_p1.png: garrisoned units show 'F', not 'S'). Sprite/type
        * selection is unaffected by this bug and still comes from the pool. */
       bool* raw_used = col1->head.unit_count > 0 ? calloc(col1->head.unit_count, sizeof(bool)) : NULL;
-      int fill_override, letter_override;
-      reports_colony_chrome_colors(view, human, &fill_override, &letter_override);
+      const ColonizePalette* active_palette =
+        (view && view->background_ok[COLONIZE_REPORT_COLONY] &&
+         view->backgrounds[COLONIZE_REPORT_COLONY].has_palette)
+          ? &view->backgrounds[COLONIZE_REPORT_COLONY].palette
+          : NULL;
       int slot = 0;
       for (int u = 0; u < COLONIZE_UNITS_MAX && slot < 8; ++u) {
         const ColonizeUnit* unit = &units->units[u];
@@ -1784,9 +1742,9 @@ static void reports_render_colony_garrisons(
           }
         }
         const int x = REPORTS_COLONY_UNIT_X + slot * REPORTS_COLONY_UNIT_PITCH;
-        unit_chrome_blit_unit_colored(
+        unit_chrome_blit_unit_for_palette(
           fb, font, &view->icons, sprite, x, row_top - 3,
-          display_type, unit->nation_id, orders, false, false, fill_override, letter_override
+          display_type, unit->nation_id, orders, false, false, active_palette
         );
         slot++;
       }

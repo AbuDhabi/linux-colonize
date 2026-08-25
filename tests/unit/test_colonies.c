@@ -1112,7 +1112,7 @@ int main(void) {
       uint8_t pixels[16 * 16];
       memset(pixels, 0, sizeof(pixels));
       ColonizeFramebuffer8 fb = {.width = 16, .height = 16, .pixels = pixels};
-      colonies_render_on_map(&pool, &icons, &fb, NULL, land2_x, land2_y, 1, 1, 16, 16, 0, 0, NULL, 0);
+      colonies_render_on_map(&pool, &icons, &fb, NULL, land2_x, land2_y, 1, 1, 16, 16, 0, 0, NULL, 0, NULL);
 
       int cyan = 0;
       int opaque = 0;

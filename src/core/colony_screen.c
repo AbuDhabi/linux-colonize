@@ -1993,7 +1993,7 @@ static void colony_screen_draw_transports(
     const int x = COLONY_TRANSPORT_X + 4 + i * COLONY_TRANSPORT_PITCH;
     const int y = COLONY_TRANSPORT_ICON_Y;
     if (type && type->icon_sprite >= 0 && view->icons_ok) {
-      unit_chrome_blit_unit(
+      unit_chrome_blit_unit_for_palette(
         framebuffer,
         font,
         &view->icons,
@@ -2004,7 +2004,8 @@ static void colony_screen_draw_transports(
         u->nation_id,
         u->orders,
         view->docked_transport_count > 1,
-        false
+        false,
+        (view->frame_ok && view->frame.has_palette) ? &view->frame.palette : NULL
       );
       if (view->transport_unit_id == u->id) {
         colony_screen_draw_chrome_selection(view, framebuffer, type->icon_sprite, x, y);
@@ -2052,7 +2053,7 @@ static void colony_screen_draw_transports(
         }
         const int sprite = units_map_sprite(units, pass->id);
         if (sprite >= 0 && view->icons_ok) {
-          unit_chrome_blit_unit(
+          unit_chrome_blit_unit_for_palette(
             framebuffer,
             font,
             &view->icons,
@@ -2063,7 +2064,8 @@ static void colony_screen_draw_transports(
             pass->nation_id,
             pass->orders,
             false,
-            true
+            true,
+            (view->frame_ok && view->frame.has_palette) ? &view->frame.palette : NULL
           );
         }
       }
@@ -2392,7 +2394,7 @@ static void colony_screen_draw_multifunction(
       if (!u || sprite < 0) {
         continue;
       }
-      unit_chrome_blit_unit(
+      unit_chrome_blit_unit_for_palette(
         framebuffer,
         font,
         &view->icons,
@@ -2403,7 +2405,8 @@ static void colony_screen_draw_multifunction(
         u->nation_id,
         u->orders,
         false,
-        u->aboard_ship_id >= 0
+        u->aboard_ship_id >= 0,
+        (view->frame_ok && view->frame.has_palette) ? &view->frame.palette : NULL
       );
       if (view->multi_unit_selected_id == u->id) {
         colony_screen_draw_chrome_selection(view, framebuffer, sprite, slots[i].x, slots[i].y);

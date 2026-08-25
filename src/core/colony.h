@@ -621,6 +621,26 @@ void colonies_trade_stop_set_cargos(
 /* ICONS.SS settlement marker #0–3 by fortification (none/stockade/fort/fortress). */
 int colonies_settlement_icon(const ColonizeColonyPool* pool, const ColonizeColony* colony);
 
+/*
+ * Draw ICONS.SS settlement marker `sprite` (0-3) at (px,py) — the sprite's
+ * own top-left, not a tile origin — then recolor its stored blue flag
+ * pixels to `nation_id`'s own color (nearest match within
+ * `active_palette`; no-op if `active_palette` is NULL or nation_id isn't
+ * 0..3). Every colony-icon draw site should go through this, not a plain
+ * ss_blit_sprite, so the flag always matches the owning nation. See
+ * unit_chrome_nation_flag_shades_for_palette (unit_chrome.h) for why a
+ * palette-aware recolor is needed at all.
+ */
+void colonies_blit_settlement_icon(
+  const ColonizeSpriteSheet* icons,
+  int sprite,
+  ColonizeFramebuffer8* framebuffer,
+  int px,
+  int py,
+  int nation_id,
+  const ColonizePalette* active_palette
+);
+
 void colonies_render_on_map(
   const ColonizeColonyPool* pool,
   const ColonizeSpriteSheet* icons,
@@ -635,7 +655,8 @@ void colonies_render_on_map(
   int origin_x,
   int origin_y,
   const ColonizeWorldMap* fog_map,
-  int fog_nation
+  int fog_nation,
+  const ColonizePalette* active_palette
 );
 
 #endif

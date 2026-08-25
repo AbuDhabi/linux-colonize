@@ -12,6 +12,92 @@ static const uint8_t k_european_names[4] = {12, 9, 14, 13};
 static const uint8_t k_european_fill[4] = {112, 9, 14, 13};
 static const uint8_t k_tribe_colors[8] = {97, 149, 54, 87, 67, 111, 118, 71};
 
+/*
+ * k_european_fill/k_european_names above are tuned against ICONS.SS's own
+ * *native* palette (confirmed via a direct native-palette dump: index 13
+ * really is a saturated Dutch orange (255,113,0), index 5 — the
+ * Sentry/Fortified letter color, k_european_names[nation]-8 — a matching
+ * darker (170,73,0)); every England/France/Spain index (112/9/14, and
+ * their -8 letter equivalents 4/1/6) happens to already be identical
+ * between ICONS-native and every other screen's own background palette,
+ * so only Dutch (13/5) ever actually differs. But *every* other screen's
+ * background palette (TERRAIN.SS for the map, WOODPANL.PIK for the colony
+ * screen, EUROPE.PIK, every REPORT*.PIK) repurposes indices 5/13 back to
+ * plain EGA magenta (or, for COLONY.PIK specifically, leaves them
+ * unpopulated/black) — a raw-index box fill only looks right when the
+ * active output palette happens to still be ICONS.SS-native-compatible
+ * there, which none of them are. This table is that native RGB, so a
+ * caller who knows the *actual* active output palette can look up the
+ * nearest available match in it instead of trusting the raw index blindly.
+ * See unit_chrome_blit_unit_for_palette.
+ */
+static const uint8_t k_nation_fill_rgb_native[4][3] = {
+  {243, 0, 0}, {85, 85, 255}, {255, 255, 85}, {255, 113, 0}
+};
+static const uint8_t k_nation_letter_rgb_native[4][3] = {
+  {170, 0, 0}, {0, 0, 170}, {170, 85, 0}, {170, 73, 0}
+};
+
+static int unit_chrome_nearest_palette_index(const ColonizePalette* pal, const uint8_t rgb[3]) {
+  int best = 0;
+  int best_d = 1 << 30;
+  for (int i = 0; i < 256; ++i) {
+    const int dr = (int)pal->rgb[i][0] - rgb[0];
+    const int dg = (int)pal->rgb[i][1] - rgb[1];
+    const int db = (int)pal->rgb[i][2] - rgb[2];
+    const int d = dr * dr + dg * dg + db * db;
+    if (d < best_d) {
+      best_d = d;
+      best = i;
+    }
+  }
+  return best;
+}
+
+/*
+ * ICONS.SS #0-3 (colony settlement fortification markers) each carry an
+ * identical 14-pixel two-shade flag (a light body + a darker pole/shadow
+ * edge — native RGB (65,89,166)/(52,73,158), a plain highlight/shadow pair
+ * of the same blue hue), always at the same (dx,dy) offsets regardless of
+ * fortification tier — dumped directly from ICONS.SS, see
+ * colony_map_icon_flag_pixels. DOS recolors this flag to the owning
+ * nation (confirmed indirectly: FUN_112b_0c64, the colony-map-chrome
+ * decompile, reads the same @COUNTRY/DS:0x848 nation-color table
+ * unit_chrome's own k_european_names does) — currently every nation's
+ * colony shows the same stored blue. Derive a light/dark pair for a given
+ * nation the same way (same k_nation_fill_rgb_native "light" color as the
+ * chrome box; "dark" scaled by the same ~0.82 per-channel ratio the
+ * original blue's own two shades already have — no DOS-confirmed source
+ * for the exact per-nation dark shade, this is the closest reproducible
+ * approximation), nearest-matched into whatever palette is actually
+ * active (same reasoning as unit_chrome_blit_unit_for_palette).
+ */
+void unit_chrome_nation_flag_shades_for_palette(
+  int nation_id, const ColonizePalette* active_palette, int* out_light, int* out_dark
+) {
+  if (out_light) {
+    *out_light = -1;
+  }
+  if (out_dark) {
+    *out_dark = -1;
+  }
+  if (!active_palette || nation_id < 0 || nation_id >= 4) {
+    return;
+  }
+  const uint8_t* light_rgb = k_nation_fill_rgb_native[nation_id];
+  const uint8_t dark_rgb[3] = {
+    (uint8_t)((int)light_rgb[0] * 82 / 100),
+    (uint8_t)((int)light_rgb[1] * 82 / 100),
+    (uint8_t)((int)light_rgb[2] * 82 / 100)
+  };
+  if (out_light) {
+    *out_light = unit_chrome_nearest_palette_index(active_palette, light_rgb);
+  }
+  if (out_dark) {
+    *out_dark = unit_chrome_nearest_palette_index(active_palette, dark_rgb);
+  }
+}
+
 /* Fallback @ORDERS letters if NAMES.TXT is unavailable. */
 static const char k_default_order_letters[UNIT_CHROME_ORDERS_MAX] = {
   '-', 'S', 'T', 'G', 'L', 'F', 'F', 'B', 'P', 'R', '-', '-', '-', '-', '-', '-'
@@ -426,5 +512,32 @@ void unit_chrome_blit_unit(
   unit_chrome_blit_unit_colored(
     fb, font, sheet, sprite_index, x, y, display_type_index, nation_id, orders_index, show_stack,
     aboard, -1, -1
+  );
+}
+
+void unit_chrome_blit_unit_for_palette(
+  ColonizeFramebuffer8* fb,
+  const ColonizeFont* font,
+  const ColonizeSpriteSheet* sheet,
+  int sprite_index,
+  int x,
+  int y,
+  int display_type_index,
+  int nation_id,
+  int orders_index,
+  bool show_stack,
+  bool aboard,
+  const ColonizePalette* active_palette
+) {
+  int fill_override = -1;
+  int letter_override = -1;
+  if (active_palette && nation_id >= 0 && nation_id < 4) {
+    fill_override = unit_chrome_nearest_palette_index(active_palette, k_nation_fill_rgb_native[nation_id]);
+    letter_override =
+      unit_chrome_nearest_palette_index(active_palette, k_nation_letter_rgb_native[nation_id]);
+  }
+  unit_chrome_blit_unit_colored(
+    fb, font, sheet, sprite_index, x, y, display_type_index, nation_id, orders_index, show_stack,
+    aboard, fill_override, letter_override
   );
 }
