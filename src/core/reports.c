@@ -1311,15 +1311,16 @@ static void reports_draw_right(
   reports_draw_line(font, fb, right_x - w, y, text, color);
 }
 
-/* Black drop shadow, offset +1,+1 — golden-confirmed on Indian's tribe
- * name/level line (indian.png: a 1px black outline trails the colored
- * text down-right). Same two-pass idea as popup_draw_text_shadowed, kept
- * local since that one calls font_draw_text_unbold and every other report
- * draws with reports_draw_line's bold font_draw_text. */
+/* Black drop shadow, offset +0,+1 (straight down, no horizontal shift —
+ * a +1,+1 diagonal offset was tried first and looked odd, player-reported)
+ * — Indian's tribe name/level line (indian.png shows a 1px black trailing
+ * edge). Same two-pass idea as popup_draw_text_shadowed, kept local since
+ * that one calls font_draw_text_unbold and every other report draws with
+ * reports_draw_line's bold font_draw_text. */
 static void reports_draw_line_shadowed(
   const ColonizeFont* font, ColonizeFramebuffer8* fb, int x, int y, const char* text, uint8_t color
 ) {
-  reports_draw_line(font, fb, x + 1, y + 1, text, 0);
+  reports_draw_line(font, fb, x, y + 1, text, 0);
   reports_draw_line(font, fb, x, y, text, color);
 }
 
@@ -3137,7 +3138,9 @@ static void reports_render_score(
    * zero villages burned and independence undeclared, but DOS appears to
    * fold every other component silently into Total Score rather than list
    * them; nothing in score.png suggests those rows ever appear here). */
-  snprintf(line, line_sz, "Gold:  (%ug) +%d", (unsigned)(col1->nation[human].gold), sc.treasury);
+  /* "$" — same coin-glyph convention as the map sidebar's own gold line
+   * (map_panel.c: "Gold: %d$"), not a literal "g" suffix. */
+  snprintf(line, line_sz, "Gold:  (%u$) +%d", (unsigned)(col1->nation[human].gold), sc.treasury);
   reports_draw_line(
     body_font, fb, REPORTS_SCORE_LEFT_X, REPORTS_SCORE_GOLD_Y, line, REPORTS_SCORE_GREEN_COLOR
   );
