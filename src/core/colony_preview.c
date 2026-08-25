@@ -131,6 +131,11 @@ void colony_preview_compute(
       const int cargo = colony_yield_job_cargo(c->field_job);
       if (yld > 0 && cargo >= 0 && cargo < COLONIZE_CARGO_COUNT) {
         out->goods[cargo] += yld;
+        /* Field-worker-only, deliberately excluding the town-commons
+         * auto-yield added above (before this loop runs) — see the header
+         * comment on `field_gross` in colony_preview.h. A plain memcpy of
+         * `goods[]` here would double-count that secondary good. */
+        out->field_gross[cargo] += yld;
         if (c->field_job == COLONIZE_JOB_FISHERMAN) {
           out->food_fish += yld;
         }
@@ -198,7 +203,7 @@ void colony_preview_compute(
       scratch.stock[i] += out->goods[i];
     }
     ColonizeColonyProdDelta craft_delta;
-    colony_craft_preview(pool, &scratch, out->shortfall, &craft_delta, sol_b);
+    colony_craft_preview(pool, &scratch, out->shortfall, &craft_delta, sol_b, out->craft_gross);
     for (int i = 0; i < COLONIZE_CARGO_COUNT; ++i) {
       out->goods[i] += craft_delta.goods[i];
     }

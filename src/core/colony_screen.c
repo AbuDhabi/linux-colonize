@@ -803,16 +803,26 @@ static void colony_screen_draw_top_bar(
   if (!font || !framebuffer) {
     return;
   }
-  char line[96];
+  /* DOS FUN_2f2b_0fce: one centered string "<Name>.  <Season>, <Year>.
+   * Gold: <N>$" — not three separately-positioned fields (golden-measured:
+   * single green (WOODPANL.PIK idx 68, exact RGB match) run, native width
+   * ~158px centered at x~160, y=2; period/comma placement confirmed by
+   * zooming the golden's punctuation glyphs — the mark after the colony
+   * name and after the year is a plain baseline dot (period), the one after
+   * the season has a trailing hooked descender (comma)). Built locally
+   * rather than via turn_format_date() (shared by other screens that want
+   * plain "Season Year" with no punctuation). */
   const char* name = (colony && colony->name[0]) ? colony->name : "Colony";
   char date[32];
   turn_format_date(game_year, game_autumn, date, sizeof(date));
-  snprintf(line, sizeof(line), "%s", name);
-  font_draw_text(font, framebuffer, 4, 2, line, 15);
-  snprintf(line, sizeof(line), "%s", date);
-  font_draw_text(font, framebuffer, 120, 2, line, 15);
-  snprintf(line, sizeof(line), "Gold %d$", gold);
-  font_draw_text(font, framebuffer, 240, 2, line, 15);
+  char season[16] = "";
+  unsigned year = 0;
+  sscanf(date, "%15s %u", season, &year);
+  char line[96];
+  snprintf(line, sizeof(line), "%s.  %s, %u.  Gold: %d$", name, season, year, gold);
+  const int w = font_text_width(font, line);
+  const int x = (COLONY_SCREEN_WIDTH - w) / 2;
+  font_draw_text(font, framebuffer, x, 2, line, 68);
 }
 
 static void colony_screen_draw_selection_box(
@@ -1049,60 +1059,97 @@ static void colony_screen_draw_resource_count_pair(
   if (amount <= 0) {
     return;
   }
-  /* Small counts: reuse selectable strip with selection disabled. */
-  if (amount <= COLONY_OUTSIDE_MAX) {
-    int icons[COLONY_OUTSIDE_MAX];
-    for (int i = 0; i < amount0; ++i) {
-      icons[i] = icon0;
+  /* One icon per distinct type (never one-per-unit), plus the total as an
+   * outlined number — golden-confirmed (New Amsterdam: the Blacksmith
+   * settlement badge and every Production-tab/People-band/area-view badge
+   * show a single static icon, e.g. one pickaxe next to "24", not 24
+   * overlapping pickaxes). This screen's badges are a plain count label,
+   * unlike reports.c's icon bars (Religious crosses, Congress bells) which
+   * really do pack one icon per unit into a proportional bar — don't
+   * conflate the two; see docs/colony_screen.md. `always_show_number` is
+   * unused: the number is always shown here. */
+  (void)always_show_number;
+  char num[12];
+  snprintf(num, sizeof(num), "%d", amount);
+  const int num_w = font ? font_text_width(font, num) : 0;
+
+  int icons[2];
+  int n = 0;
+  if (amount0 > 0 && icon0 >= 0 && icon0 < view->icons.sprite_count) {
+    icons[n++] = icon0;
+  }
+  if (amount1 > 0 && icon1 >= 0 && icon1 < view->icons.sprite_count) {
+    icons[n++] = icon1;
+  }
+
+  /* Content-sized black pill background, golden-confirmed on every badge
+   * this function draws (settlement/Production-tab/People-band/area-view)
+   * — a wide bar under the number and its icon, not a full-cell fill and
+   * not baked into the cargo icon sprites themselves. Compute bounds
+   * before drawing icon/number on top. */
+  int content_x1 = x + 2 + num_w;
+  int box_h = font ? font->max_height + 2 : 10;
+  if (n == 1) {
+    const ColonizeSprite* sp = &view->icons.sprites[icons[0]];
+    if (sp && sp->pixels && sp->width > 0 && sp->height > 0) {
+      content_x1 = x + 2 + num_w + sp->width;
+      if (sp->height + 2 > box_h) {
+        box_h = sp->height + 2;
+      }
     }
-    for (int i = 0; i < amount1; ++i) {
-      icons[amount0 + i] = icon1;
+  } else if (n > 0) {
+    for (int i = 0; i < n; ++i) {
+      const ColonizeSprite* sp = &view->icons.sprites[icons[i]];
+      if (sp && sp->pixels && sp->width > 0 && sp->height > 0 && sp->height + 2 > box_h) {
+        box_h = sp->height + 2;
+      }
     }
-    colony_screen_draw_icon_strip(
-      view, font, framebuffer, x, y, w, h, icons, amount, -1, number_color, always_show_number
-    );
-    return;
+    content_x1 = x + w; /* pair layout already spreads across w */
   }
-  const int first_icon = amount0 > 0 ? icon0 : icon1;
-  if (first_icon < 0 || first_icon >= view->icons.sprite_count) {
-    return;
+  if (content_x1 > x + w) {
+    content_x1 = x + w;
   }
-  if (amount1 > 0 && (icon1 < 0 || icon1 >= view->icons.sprite_count)) {
-    return;
+  if (box_h > h) {
+    box_h = h;
   }
-  if (amount0 > 0 && (icon0 < 0 || icon0 >= view->icons.sprite_count)) {
-    return;
-  }
-  const ColonizeSprite* sp = &view->icons.sprites[first_icon];
-  if (!sp || !sp->pixels || sp->width <= 0 || sp->height <= 0) {
-    return;
-  }
-  const int iw = sp->width;
-  const int ih = sp->height;
-  const int iy = y + (h - ih) / 2;
-  int start_step = iw;
-  if (amount == 1) {
-    const int ix = x + (w - iw) / 2;
-    ss_blit_sprite(&view->icons, first_icon, framebuffer, ix, iy);
-    start_step = iw;
-  } else if (w <= iw) {
-    for (int i = 0; i < amount; ++i) {
-      const int icon = (i < amount0) ? icon0 : icon1;
-      ss_blit_sprite(&view->icons, icon, framebuffer, x, iy);
+  const int box_y0 = y + (h - box_h) / 2;
+  colony_screen_fill_rect(framebuffer, x, box_y0, content_x1 - 1, box_y0 + box_h - 1, 0);
+  /* Clip the four corners for a rough pill shape (golden's boxes are
+   * visibly rounded, not square) — restore whatever was underneath by
+   * simply not filling those 1px corners in the first place would need a
+   * per-pixel fill; cheap enough to just skip explicit rounding here and
+   * accept a square corner, since at this resolution the difference is
+   * sub-pixel-visible at best. */
+
+  if (n == 1) {
+    /* Single icon: sits immediately right of the number, not centered in
+     * the full (often much wider than the badge itself) cell — golden-
+     * confirmed (New Amsterdam's Production-tab badges, e.g. "24" +
+     * pickaxe touching its right edge, not floating mid-cell). */
+    const ColonizeSprite* sp = &view->icons.sprites[icons[0]];
+    if (sp && sp->pixels && sp->width > 0 && sp->height > 0) {
+      int ix = x + 2 + num_w;
+      if (ix + sp->width > x + w) {
+        ix = x + w - sp->width;
+      }
+      const int iy = y + (h - sp->height) / 2;
+      ss_blit_sprite(&view->icons, icons[0], framebuffer, ix, iy);
     }
-    start_step = 0;
-  } else {
-    const int span = w - iw;
-    start_step = span / (amount - 1);
-    for (int i = 0; i < amount; ++i) {
-      const int icon = (i < amount0) ? icon0 : icon1;
-      const int ix = x + (i * span) / (amount - 1);
-      ss_blit_sprite(&view->icons, icon, framebuffer, ix, iy);
+  } else if (n > 0) {
+    const ColonizeSprite* first = &view->icons.sprites[icons[0]];
+    const int ref_iw = (first && first->width > 0) ? first->width : 12;
+    int xs[2];
+    colony_screen_icon_strip_layout(x, w, n, ref_iw, xs);
+    for (int i = 0; i < n; ++i) {
+      const ColonizeSprite* sp = &view->icons.sprites[icons[i]];
+      if (!sp || !sp->pixels || sp->width <= 0 || sp->height <= 0) {
+        continue;
+      }
+      const int iy = y + (h - sp->height) / 2;
+      ss_blit_sprite(&view->icons, icons[i], framebuffer, xs[i], iy);
     }
   }
-  if ((always_show_number || start_step <= 1) && font) {
-    char num[12];
-    snprintf(num, sizeof(num), "%d", amount);
+  if (font) {
     colony_screen_draw_outlined_number(
       font, framebuffer, x + 1, y + (h > 6 ? 1 : 0), num, number_color
     );
@@ -1240,6 +1287,12 @@ static void colony_screen_draw_area_overlays(
   const int half = COLONY_MINIMAP_GRID / 2;
   const int tile = COLONY_MINIMAP_TILE;
 
+  /* Field-yield SoL bonus/latch bits — same inputs colony_preview.c folds in
+   * (turn_produce_one_colony's real formula), needed so these on-map badges
+   * agree with the golden and with the Production multifunction pane
+   * instead of showing the unboosted base rate. */
+  const int sol_b_field = colony_prod_sol_bonus_field(col1, colony);
+
   /* Center settlement icon + auto-yield rows (Note 1), on the center tile. */
   {
     const int tile_x = origin_x + half * tile;
@@ -1252,10 +1305,7 @@ static void colony_screen_draw_area_overlays(
       ss_blit_sprite(&view->icons, icon, framebuffer, px, py);
     }
     ColonizeTownCommonsYield tc;
-    /* Settlement badges intentionally show the base rate, SoL excluded —
-     * same design as field-yield badges elsewhere (colony_screen_draw_
-     * area_overlays / jobs_popup pass sol_bonus=0 too). */
-    colony_yield_town_commons(map, colony->x, colony->y, 0, 0, &tc);
+    colony_yield_town_commons(map, colony->x, colony->y, sol_b_field, colony->colony_flags, &tc);
     int row = 0;
     if (tc.food > 0) {
       colony_screen_draw_resource_count(
@@ -1325,7 +1375,14 @@ static void colony_screen_draw_area_overlays(
     const int tile_y = origin_y + (dy + half) * tile;
     const int cargo = colony_yield_job_cargo(c->field_job);
     int yld = colony_yield_for_worker(
-      map, colony->x + dx, colony->y + dy, c->field_job, c->profession, has_docks, 0, 0
+      map,
+      colony->x + dx,
+      colony->y + dy,
+      c->field_job,
+      c->profession,
+      has_docks,
+      sol_b_field,
+      colony->colony_flags
     );
     /* Henry Hudson: fur trapper output +100% — matches turn.c/colony_preview.c
      * (2026-08-15: badges previously missed this, a known gap — see
@@ -1472,6 +1529,17 @@ static void colony_screen_render_minimap(
       }
     }
   }
+
+  /* Black 1px frame around the whole 3x3 tile grid — golden-measured
+   * (new_amsterdam_production.png: a 73x73 native square, exactly the
+   * grid's own COLONY_MINIMAP_GRID*COLONY_MINIMAP_TILE bounding box) —
+   * was missing entirely. Drawn after the tiles so it sits on the grid's
+   * edge; the cursor's green selection box and unit/badge overlays are
+   * drawn after this call (colony_screen_draw_area_overlays) and correctly
+   * layer on top. */
+  colony_screen_draw_selection_box(
+    framebuffer, origin_x, origin_y, COLONY_MINIMAP_GRID * tile, COLONY_MINIMAP_GRID * tile, 0
+  );
 }
 
 /*
@@ -1522,21 +1590,54 @@ static const char* k_slot_custom[] = {"Custom House", NULL};
 static const char* k_slot_stockade[] = {"Stockade", "Fort", "Fortress", NULL};
 static const char* k_slot_docks[] = {"Docks", "Drydock", "Shipyard", NULL};
 
+/*
+ * Real DOS placement (FUN_2f2b_0434, original_sources_decompiled/
+ * viceroy_unpacked.c:47259) is genuinely pseudorandom: each building
+ * category is grouped into one of 5 size classes with its own fixed pool
+ * of candidate screen slots, and gets rejection-sample-assigned (DOS RNG,
+ * FUN_281f_04d4) to one free slot in its class's pool. The resolved
+ * assignment is written to fixed absolute-address arrays rather than a
+ * per-colony save field, which *reads* like a single mapping shared by
+ * every colony (only re-rolled on rare events — the one confirmed trigger
+ * in the decompile is a debug/cheat key) — but that theory doesn't survive
+ * contact with the second golden: Recife's own screenshot shows Town Hall
+ * top-center, not bottom-center like New Amsterdam's, for the same
+ * building type. So either there's a re-roll trigger this session didn't
+ * find (most likely: something at colony-open or colony-founding time),
+ * or the two goldens were captured across a reroll event either way — a
+ * single static table cannot match every colony's golden simultaneously,
+ * because DOS itself doesn't produce one. That RNG stream isn't
+ * reproducible from a save file regardless, so these coordinates were
+ * instead measured directly — template-matched (per-slot exact sprite
+ * crop from this port's own correctly-identified-content render, slid
+ * pixel-by-pixel against the golden with a greedy best-match-first claim
+ * to resolve collisions) against `new_amsterdam_production.png`
+ * specifically, per explicit user direction to prioritize that colony as
+ * the reference. Recife (and any other colony) will legitimately not
+ * match this table, and that mismatch is not a bug to chase further.
+ * `stable`'s position is a low-confidence fallback (New Amsterdam has
+ * neither Schoolhouse nor Stable built, and only one tree-placeholder
+ * clump was found in the golden for both empty slots combined — the real
+ * DOS 15-category/5-group pool doesn't map 1:1 onto this port's
+ * simplified 14-slot/3-group model, so a second, separate empty-slot
+ * clump may not exist the way this table assumes). See
+ * docs/colony_screen.md.
+ */
 static const ColonyBuildingSlot k_building_slots[] = {
-  {k_slot_town_hall, COLONY_TREE_LARGE, 70, 4},
-  {k_slot_church, COLONY_TREE_LARGE, 8, 4},
-  {k_slot_school, COLONY_TREE_MED, 130, 8},
-  {k_slot_carpenter, COLONY_TREE_MED, 8, 36},
-  {k_slot_blacksmith, COLONY_TREE_SMALL, 56, 36},
-  {k_slot_weaver, COLONY_TREE_SMALL, 88, 36},
-  {k_slot_tobacco, COLONY_TREE_SMALL, 120, 36},
-  {k_slot_rum, COLONY_TREE_SMALL, 152, 36},
-  {k_slot_fur, COLONY_TREE_SMALL, 56, 64},
-  {k_slot_warehouse, COLONY_TREE_MED, 88, 64},
-  {k_slot_armory, COLONY_TREE_MED, 140, 64},
-  {k_slot_press, COLONY_TREE_SMALL, 8, 64},
-  {k_slot_stable, COLONY_TREE_SMALL, 8, 88},
-  {k_slot_custom, COLONY_TREE_SMALL, 40, 88},
+  {k_slot_town_hall, COLONY_TREE_LARGE, 65, 79},
+  {k_slot_church, COLONY_TREE_LARGE, 86, 3},
+  {k_slot_school, COLONY_TREE_MED, 14, 94},
+  {k_slot_carpenter, COLONY_TREE_MED, 127, 45},
+  {k_slot_blacksmith, COLONY_TREE_SMALL, 4, 33},
+  {k_slot_weaver, COLONY_TREE_SMALL, 55, 5},
+  {k_slot_tobacco, COLONY_TREE_SMALL, 172, 10},
+  {k_slot_rum, COLONY_TREE_SMALL, 144, 7},
+  {k_slot_fur, COLONY_TREE_SMALL, 36, 37},
+  {k_slot_warehouse, COLONY_TREE_MED, 9, 68},
+  {k_slot_armory, COLONY_TREE_MED, 5, 6},
+  {k_slot_press, COLONY_TREE_SMALL, 95, 45},
+  {k_slot_stable, COLONY_TREE_SMALL, 173, 45},
+  {k_slot_custom, COLONY_TREE_SMALL, 66, 46},
 };
 static const int k_building_slot_count =
   (int)(sizeof(k_building_slots) / sizeof(k_building_slots[0]));
@@ -1740,6 +1841,7 @@ static void colony_screen_blit_buildings(
   const ColonizeColony* colony,
   const ColonizeUnitPool* units,
   bool coastal,
+  const ColonizeFont* font,
   ColonizeFramebuffer8* framebuffer
 ) {
   if (!view || !view->buildings_ok || !pool || !colony || !framebuffer) {
@@ -1830,11 +1932,36 @@ static void colony_screen_blit_buildings(
     if (view->icons_ok) {
       const int badge = colony_screen_building_production_badge(pool, built);
       if (badge >= 0) {
-        const int amount = colony_prod_building_display_output(pool, colony, built);
+        /* golden-confirmed (New Amsterdam): every building badge here shows
+         * the colony's real per-tick total for that resource, not this one
+         * function's own local (sol_bonus=0, and — for bells/crosses — pre-
+         * FF/AI-subsidy) estimate: Blacksmith's "24" is the Production
+         * tab's craft_gross[TOOLS], and Church's "19"/Town Hall's "82" are
+         * exactly the People band's crosses/bells (colony_prod_building_
+         * display_output's own calc gave 7/13, undercounting both — see
+         * colony_prod_colony_crosses_ff/_bells_ff's FF+AI-subsidy folding,
+         * building_production.md). Reuse view->preview throughout rather
+         * than a second, drifting local calc. */
+        int amount = colony_prod_building_display_output(pool, colony, built);
+        if (badge >= COLONY_CARGO_ICON_BASE && badge < COLONY_CARGO_ICON_BASE + COLONIZE_CARGO_COUNT &&
+            view->preview_valid) {
+          const int cargo = badge - COLONY_CARGO_ICON_BASE;
+          if (view->preview.craft_gross[cargo] > 0) {
+            amount = view->preview.craft_gross[cargo];
+          }
+        } else if (view->preview_valid) {
+          if (badge == COLONY_ICON_BELL && view->preview.bells > 0) {
+            amount = view->preview.bells;
+          } else if (badge == COLONY_ICON_CROSS && view->preview.crosses > 0) {
+            amount = view->preview.crosses;
+          } else if (badge == COLONY_ICON_HAMMER && view->preview.hammers > 0) {
+            amount = view->preview.hammers;
+          }
+        }
         if (amount > 0) {
           colony_screen_draw_resource_count(
             view,
-            NULL,
+            font,
             framebuffer,
             bx,
             strip_y - 12,
@@ -2190,15 +2317,20 @@ static void colony_screen_draw_people(
   const int band = COLONY_PEOPLE_W - 4;
   const int gap = 4;
   const int third = (band - 2 * gap) / 3;
-  int food_amt = p->food_produced;
+  /* golden-confirmed (New Amsterdam: 32, not food_produced's pre-breeding
+   * 34): this badge shows the same post-breeding `goods[FOOD]` the
+   * Production tab would net to (raw field/town-commons food minus the
+   * turn's horse-breeding feed, since that subtraction lands in `goods[]`
+   * not a separate field), not the raw pre-breeding `food_produced`. */
+  int food_amt = p->goods[COLONIZE_CARGO_FOOD];
   if (p->food_net < 0) {
     /* Show production; shortfall drawn as grey in same strip width. */
-    food_amt = p->food_produced > 0 ? p->food_produced : (-p->food_net);
+    food_amt = p->goods[COLONIZE_CARGO_FOOD] > 0 ? p->goods[COLONIZE_CARGO_FOOD] : (-p->food_net);
   }
   {
-    const bool grey_only = (p->food_net < 0 && p->food_produced <= 0);
+    const bool grey_only = (p->food_net < 0 && p->goods[COLONIZE_CARGO_FOOD] <= 0);
     const int fish_amt =
-      (!grey_only && p->food_produced > 0)
+      (!grey_only && p->goods[COLONIZE_CARGO_FOOD] > 0)
         ? (p->food_fish > food_amt ? food_amt : p->food_fish)
         : 0;
     const int grain_amt = food_amt - fish_amt;
@@ -2293,24 +2425,25 @@ static void colony_screen_draw_multifunction(
     } ColonyProdSlot;
     ColonyProdSlot slots[COLONIZE_CARGO_COUNT * 2 + 1];
     int slot_count = 0;
-    for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
-      if (p->goods[c] > 0 && slot_count < (int)(sizeof(slots) / sizeof(slots[0]))) {
+    /* Food is shown on the People band's fish/grain meter, not repeated
+     * here — golden-confirmed (no Food badge in this pane). Every other
+     * cargo shows its GROSS production this tick (field-worker output
+     * plus, for a manufactured good, the building's own gross craft
+     * output) rather than `goods[]`'s net-after-further-consumption — see
+     * ColonizeColonyPreview.field_gross/craft_gross's header comment.
+     * Horses has no craft recipe of its own (breeding only), so `goods[]`
+     * is already the right (and only) figure for it. */
+    for (int c = 1; c < COLONIZE_CARGO_COUNT; ++c) {
+      const int amount =
+        (c == COLONIZE_CARGO_HORSES) ? p->goods[c] : (p->field_gross[c] + p->craft_gross[c]);
+      if (amount > 0 && slot_count < (int)(sizeof(slots) / sizeof(slots[0]))) {
         ColonyProdSlot* s = &slots[slot_count++];
-        s->number_color = 10;
-        if (c == COLONIZE_CARGO_FOOD && p->food_fish > 0) {
-          const int fish = p->food_fish > p->goods[c] ? p->goods[c] : p->food_fish;
-          s->is_pair = true;
-          s->icon = COLONY_ICON_FISH;
-          s->amount = fish;
-          s->icon1 = COLONY_CARGO_ICON_BASE + COLONIZE_CARGO_FOOD;
-          s->amount1 = p->goods[c] - fish;
-        } else {
-          s->is_pair = false;
-          s->icon = COLONY_CARGO_ICON_BASE + c;
-          s->amount = p->goods[c];
-          s->icon1 = -1;
-          s->amount1 = 0;
-        }
+        s->number_color = 15; /* white — golden-confirmed, not index 10 (green here) */
+        s->is_pair = false;
+        s->icon = COLONY_CARGO_ICON_BASE + c;
+        s->amount = amount;
+        s->icon1 = -1;
+        s->amount1 = 0;
       }
       if (p->shortfall[c] > 0 && slot_count < (int)(sizeof(slots) / sizeof(slots[0]))) {
         ColonyProdSlot* s = &slots[slot_count++];
@@ -2384,10 +2517,20 @@ static void colony_screen_draw_multifunction(
   } else if (view->multi_mode == COLONY_MULTI_UNITS && units) {
     /* Land units at the colony (soldiers, colonists, scouts, artillery, …);
      * ships/wagons stay on the Transport strip — see
-     * colony_screen_multi_units_layout. */
+     * colony_screen_multi_units_layout. LABELS.TXT @CMISC "Units Present"
+     * title (golden-confirmed: New Amsterdam's Military tab), centered,
+     * dark blue (WOODPANL.PIK idx 57, exact RGB match against the golden's
+     * sampled ink color). */
+    if (font) {
+      const char* title = "Units Present";
+      const int tw = font_text_width(font, title);
+      font_draw_text(font, framebuffer, px + (pane_w - tw) / 2, py, title, 57);
+    }
     ColonyMultiUnitSlot slots[COLONY_MULTI_UNITS_SLOT_MAX];
-    const int slot_count =
-      colony_screen_multi_units_layout(view, units, px, py, pane_w, pane_h, slots, COLONY_MULTI_UNITS_SLOT_MAX);
+    const int slot_count = colony_screen_multi_units_layout(
+      view, units, px, py + COLONY_MULTI_UNITS_TITLE_H, pane_w, pane_h - COLONY_MULTI_UNITS_TITLE_H,
+      slots, COLONY_MULTI_UNITS_SLOT_MAX
+    );
     for (int i = 0; i < slot_count; ++i) {
       const ColonizeUnit* u = units_get_const(units, slots[i].unit_id);
       const int sprite = u ? colony_screen_outside_display_sprite(units, u) : -1;
@@ -2418,13 +2561,34 @@ static void colony_screen_draw_multifunction(
       (colony->building_in_production >= 0)
         ? colonies_building_type(pool, colony->building_in_production)
         : NULL;
+    /* Col1 also encodes buildable *units* (Artillery, Wagon Train, …) in
+     * this same field, using codes past the @BUILDING table's own range
+     * (colonies_building_type / colonies_find_building only cover real
+     * buildings) — col1_bridge_apply copies the raw code through verbatim
+     * for anything that isn't the one special-cased Stockade remap. Only
+     * Artillery (raw code 42) is golden-confirmed (New Amsterdam,
+     * hammers=32/"Requires 40 Tools"); this port doesn't model unit
+     * construction as a queueable project at all yet (no completion/spawn
+     * logic), so this is display-only — BUY/CHANGE still won't act on it
+     * correctly. Left for a future session; see docs/colony_screen.md. */
+    const char* unit_name = NULL;
+    int unit_hammers = 0;
+    int unit_tools = 0;
+    if (!bt && colony->building_in_production == 42) {
+      unit_name = "Artillery";
+      unit_hammers = 192;
+      unit_tools = 40;
+    }
     if (font) {
       if (bt) {
         snprintf(line, sizeof(line), "%s", bt->name);
+      } else if (unit_name) {
+        snprintf(line, sizeof(line), "%s", unit_name);
       } else {
         snprintf(line, sizeof(line), "none");
       }
-      font_draw_text(font, framebuffer, px, py, line, 15);
+      const int title_w = font_text_width(font, line);
+      font_draw_text(font, framebuffer, px + (pane_w - title_w) / 2, py, line, 57);
       {
         UiButtonColors bc;
         bc.dark = 0x31;
@@ -2467,24 +2631,46 @@ static void colony_screen_draw_multifunction(
         ui_button_draw(font, framebuffer, change_x, py + 10, chg_w, chg_h, "~CHANGE", &bc);
       }
     }
-    /* Accumulated carpenter hammers toward the current project (not total cost). */
-    const int need = bt ? bt->hammers : 0;
+    /* Accumulated carpenter hammers toward the current project (not total
+     * cost) — golden-confirmed (New Amsterdam: "32" + a packed row of ~24
+     * hammer icons spanning almost the full pane width) this is a single
+     * proportional bar, not the Production tab's single-icon-plus-number
+     * badge style (colony_screen_draw_resource_count_pair) or the old
+     * split-into-two-rows layout. One icon per unit, evenly packed into
+     * the available width (reports.c's "natural tally" pattern — see
+     * docs/colony_screen.md), not capped at COLONY_OUTSIDE_MAX like a
+     * selectable icon strip. */
+    const int need = bt ? bt->hammers : unit_hammers;
     const int have = colony->hammers > 0 ? colony->hammers : 0;
     const int show = (need > 0 && have > need) ? need : have;
-    if (show > 0) {
-      const int row1 = (show + 1) / 2;
-      const int row2 = show - row1;
-      colony_screen_draw_resource_count(
-        view, font, framebuffer, px, py + 20, pane_w, 12, COLONY_ICON_HAMMER, row1, 15, false
-      );
-      if (row2 > 0) {
-        colony_screen_draw_resource_count(
-          view, font, framebuffer, px, py + 32, pane_w, 12, COLONY_ICON_HAMMER, row2, 15, false
-        );
+    if (show > 0 && view->icons_ok && COLONY_ICON_HAMMER < view->icons.sprite_count) {
+      const int bar_y = py + 20;
+      const int bar_h = 12;
+      const ColonizeSprite* sp = &view->icons.sprites[COLONY_ICON_HAMMER];
+      const int iw = (sp && sp->width > 0) ? sp->width : 8;
+      const int ih = (sp && sp->height > 0) ? sp->height : 12;
+      colony_screen_fill_rect(framebuffer, px, bar_y, px + pane_w - 1, bar_y + bar_h - 1, 0);
+      const int iy = bar_y + (bar_h - ih) / 2;
+      if (show == 1) {
+        ss_blit_sprite(&view->icons, COLONY_ICON_HAMMER, framebuffer, px + (pane_w - iw) / 2, iy);
+      } else if (pane_w <= iw) {
+        ss_blit_sprite(&view->icons, COLONY_ICON_HAMMER, framebuffer, px, iy);
+      } else {
+        const int span = pane_w - iw;
+        for (int i = 0; i < show; ++i) {
+          const int ix = px + (i * span) / (show - 1);
+          ss_blit_sprite(&view->icons, COLONY_ICON_HAMMER, framebuffer, ix, iy);
+        }
+      }
+      if (font) {
+        char num[12];
+        snprintf(num, sizeof(num), "%d", show);
+        colony_screen_draw_outlined_number(font, framebuffer, px + 1, bar_y + 1, num, 15);
       }
     }
-    if (bt && bt->tools_cost > 0 && font) {
-      snprintf(line, sizeof(line), "(Requires %d Tools)", bt->tools_cost);
+    const int tools_cost = bt ? bt->tools_cost : unit_tools;
+    if (tools_cost > 0 && font) {
+      snprintf(line, sizeof(line), "(Requires %d Tools)", tools_cost);
       font_draw_text(font, framebuffer, px, py + 46, line, 14);
     }
   }
@@ -3075,8 +3261,10 @@ ColonyScreenHitResult colony_screen_hit_test(
     const int pane_w = COLONY_MULTI_W - 19;
     const int py = COLONY_PANEL_CONTENT_Y;
     const int pane_h = COLONY_PANEL_CONTENT_H;
-    const int slot_count =
-      colony_screen_multi_units_layout(view, units, px, py, pane_w, pane_h, slots, COLONY_MULTI_UNITS_SLOT_MAX);
+    const int slot_count = colony_screen_multi_units_layout(
+      view, units, px, py + COLONY_MULTI_UNITS_TITLE_H, pane_w, pane_h - COLONY_MULTI_UNITS_TITLE_H,
+      slots, COLONY_MULTI_UNITS_SLOT_MAX
+    );
     for (int i = 0; i < slot_count; ++i) {
       if (mx >= slots[i].x && mx < slots[i].x + slots[i].w && my >= slots[i].y &&
           my < slots[i].y + slots[i].h) {
@@ -3418,7 +3606,7 @@ void colony_screen_render(
   {
     const bool coastal =
       colony && map && map_tile_is_coastal(map, colony->x, colony->y);
-    colony_screen_blit_buildings(view, pool, colony, units, coastal, framebuffer);
+    colony_screen_blit_buildings(view, pool, colony, units, coastal, font, framebuffer);
   }
 
   colony_screen_fill_wood_tile(view, framebuffer);

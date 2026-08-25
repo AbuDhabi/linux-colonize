@@ -36,7 +36,10 @@
 #define COLONY_BOTTOM_PANEL_HEIGHT 72
 #define COLONY_BOTTOM_PANEL_Y (COLONY_SCREEN_HEIGHT - COLONY_BOTTOM_PANEL_HEIGHT)
 
-#define COLONY_TOP_BAR_H 11
+#define COLONY_TOP_BAR_H 7 /* golden-measured (new_amsterdam_production.png): separator row at
+   native y=7, content starts y=8 — was 11 (4px too tall), pushing the
+   settlement/minimap panels down; both are positioned off COLONY_MIDDLE_Y
+   below, so this one constant fixes both. */
 #define COLONY_TOP_SEPARATOR_Y COLONY_TOP_BAR_H
 #define COLONY_MIDDLE_Y (COLONY_TOP_SEPARATOR_Y + 1)
 #define COLONY_BOTTOM_SEPARATOR_Y (COLONY_BOTTOM_PANEL_Y - 1)
@@ -181,6 +184,10 @@ typedef struct ColonyScreenHitResult {
  * 3-column grid (thin — no paging/scroll).
  */
 #define COLONY_MULTI_UNITS_SLOT_MAX COLONY_OUTSIDE_MAX
+/* "Units Present" title (LABELS.TXT @CMISC) reserves this much height above
+ * the roster grid — golden-confirmed, matched at both the draw and
+ * hit-test call sites so click regions never drift from what's drawn. */
+#define COLONY_MULTI_UNITS_TITLE_H 8
 
 typedef struct ColonyMultiUnitSlot {
   int unit_id;

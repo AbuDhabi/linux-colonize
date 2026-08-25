@@ -209,7 +209,8 @@ void colony_craft_preview(
   ColonizeColony* scratch,
   int shortfall[COLONIZE_CARGO_COUNT],
   ColonizeColonyProdDelta* delta,
-  int sol_bonus
+  int sol_bonus,
+  int gross_out[COLONIZE_CARGO_COUNT]
 ) {
   if (!pool || !scratch || !scratch->active) {
     return;
@@ -219,6 +220,9 @@ void colony_craft_preview(
   }
   if (delta) {
     memset(delta, 0, sizeof(*delta));
+  }
+  if (gross_out) {
+    memset(gross_out, 0, sizeof(int) * COLONIZE_CARGO_COUNT);
   }
 
   bool done_pair[COLONIZE_CARGO_COUNT][COLONIZE_CARGO_COUNT];
@@ -273,6 +277,9 @@ void colony_craft_preview(
     if (delta) {
       delta->goods[rec->in_cargo] -= actual_in;
       delta->goods[rec->out_cargo] += actual_out;
+    }
+    if (gross_out) {
+      gross_out[rec->out_cargo] += actual_out;
     }
   }
 }
