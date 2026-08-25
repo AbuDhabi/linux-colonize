@@ -337,14 +337,103 @@ one).
 Recife (and any other colony) will legitimately not match this table —
 confirmed not a further bug to chase, per the finding above.
 
-## Left unresolved
+### Building placement, take 2: porting the algorithm's *shape*, not its data
 
-- **Building placement doesn't generalize past New Amsterdam** (see above) —
-  by design, not an oversight. A truly general fix would mean either
-  extracting DOS's real static slot-pool tables and porting the RNG-driven
-  algorithm itself (accepting it'll never reproduce any *specific* golden,
-  since the seed isn't recoverable), or accepting per-colony mismatches as
-  permanent. Revisit if this bothers gameplay more than aesthetics.
+The New Amsterdam-only measured table above was superseded the same session.
+Player asked directly whether positions are stored in the save or reseeded —
+neither turned out to be quite right, and chasing the real answer down
+found the actual mechanism: `FUN_2f2b_0434` opens by calling `FUN_15eb_1476`,
+which reseeds DOS's RNG from **the colony's own map coordinates**,
+`(colony.y<<8)|colony.x` (plus a second term, DS `0x8d80` /
+`save_format_map.md`'s `boot_timer`, itself read back from the save's own
+global-state block on load — not a live clock read). That's why positions
+are stable across reloads *and* full restarts (same colony ⇒ same reseed ⇒
+same rolls) while differing between colonies (different map position ⇒
+different reseed) — confirming the single-shared-table read above was wrong
+in a *different* way than first thought.
+
+This meant the real algorithm was finally fully understood and, in
+principle, portable — `dos_rng`/`dos_rng_range` already exist in this
+codebase and colony (x,y) is already a stored field. What was still missing
+was DOS's actual static data: the 5 group-size candidate-slot pools. Getting
+those needed live memory inspection, and that's where it stalled for good:
+
+- The decompile's `FUN_SSSS_OOOO` naming looks like literal segment:offset
+  but isn't — confirmed via `tools/address_mapping.csv`, `FUN_2f2b_0434` is
+  actually `OVL03_L0000` offset `0x434`, an overlay loaded to a runtime
+  segment picked by DOS at load time, unrelated to the literal `2f2b`.
+- A breakpoint on the literal `2f2b:0434` (player-tested, live DOSBox-X):
+  never fired.
+- A breakpoint on `INT 21h AH=4Bh` (the standard DOS overlay-load call,
+  player-tested): never fired either — this game's overlay manager isn't
+  the standard MS-DOS one.
+- `tools/viceroy_v2_output_layout.json` has per-overlay `loadSegment`
+  values from the original `rtlink_decode` work, but they're relative to
+  an overlay *area* base, not an absolute runtime segment — still missing
+  the one live-only piece.
+- Static file extraction using `docs/viceroy_tables.md`'s DS→file-offset
+  formula (which works for the map/terrain tables) landed on unrelated
+  code — that anchor is specific to a different segment's data, confirmed
+  by decoding straight into an `int 21h` opcode at the target address.
+- A DOSBox-X save state was considered as a fallback (dump full RAM, search
+  for the tables by pattern instead of needing an exact address) but its
+  `Memory` component turned out to be DOSBox-X's own paged serialization,
+  not a flat dump (17MB file for 4MB configured RAM) — parsing that format
+  from scratch was judged not worth it for a cosmetic-only fix, and the
+  player agreed to stop chasing exact DOS fidelity here.
+
+**Landed on**: port the algorithm's *shape*, not DOS's actual data. Same
+structure as the real mechanism — size-class grouping, per-class candidate
+pool, RNG-reseeded-from-colony-xy, reject-sampled assignment — but the pools
+are this port's own invented screen real estate (specifically, the 14
+positions from the superseded New-Amsterdam-only table above, regrouped by
+size class instead of by specific building), and the seed XORs in an
+arbitrary salt (`0x434`) in place of DOS's unrecoverable second term.
+Result: every colony now gets a full, non-overlapping, size-correct,
+per-colony-stable-and-cross-colony-different layout — a *valid* output of
+the same kind of process DOS runs, just not *the same* output DOS would
+produce for that colony. `colony_screen_assign_slot_positions()` (shared by
+the draw path and both hit-test call sites, so clicks always match what's
+drawn) is the implementation; see its own comment and
+`k_building_slots[]`'s for the full detail. Revisit only if DOS's actual
+static tables ever become recoverable (a working live-memory technique for
+this game's overlay scheme would be the prerequisite) and exact fidelity
+starts to matter more than it does today.
+
+### Follow-up: parchment fill coverage, reserved dock/fence corner
+
+Two more player-reported gaps against `new_amsterdam_production.png`:
+
+1. **Parchment fill left a 5px strip of bare wood-panel chrome along the
+   bottom and looked seam-y along the right edge.** `colony_screen_fill_parch`
+   was tiling to `COLONY_VIEWPORT_W`/`_H` (202×114), both stale leftovers
+   from before the top-bar-height fix above shifted `COLONY_MIDDLE_Y` up —
+   the actually-available parchment area (`COLONY_MIDDLE_Y` to
+   `COLONY_BOTTOM_SEPARATOR_Y`, left edge to the minimap section) is 200×119.
+   Rather than resize `COLONY_VIEWPORT_W/H` themselves (used elsewhere for
+   building/hit-test math, already tuned), added `COLONY_PARCH_FILL_W/H` —
+   fill-only extent, computed from the same section/separator constants so
+   it can't drift out of sync again.
+
+2. **The random building pool could place a building on top of the
+   docks/drydock/shipyard slot.** That slot isn't random — it's drawn
+   separately, fixed at the settlement's bottom-right corner (`coast_x`/
+   `coast_y`/`fence_x`/`fence_y` in `colony_screen_draw_area_overlays`),
+   because that's where the coastline art actually is. Player-verified via
+   live DOS: drydock's sprite center sits around native (188,66), shipyard's
+   around (142,90) — both inside that corner box, consistent with one fixed
+   top-left-anchored slot whose apparent center shifts a little with each
+   tier's sprite. One pool point (`k_group_med_slots`'s old `{127,45}`, plus
+   `k_group_small_slots`'s old `{173,45}`) landed inside that box by
+   coincidence of the earlier New-Amsterdam-measured data, producing a
+   building rendered half-overlapping the coast/shore art. Fixed two ways:
+   relocated both points clear of the corner, and added
+   `colony_screen_slot_reserved()` — a runtime reject check (footprint vs. a
+   `COLONY_RESERVED_*` box derived from the same corner math) wired into the
+   rejection-sampling loop, so a future pool edit that strays back into the
+   corner gets skipped instead of silently overlapping again.
+
+## Left unresolved
 - **Two golden-confirmed building badges reuse the same displayed number**
   (Town Hall and Printing Press both showed "82" in New Amsterdam — Town
   Hall's is definitely bells, per the People band cross-check documented
