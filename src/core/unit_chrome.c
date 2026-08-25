@@ -211,7 +211,28 @@ void unit_chrome_selection_frame(
   *out_h = (bottom - top) + 2;
 }
 
-void unit_chrome_draw(
+/*
+ * Shared implementation behind unit_chrome_draw() and the *_colored()
+ * override variants. fill_override/letter_override < 0 means "use the
+ * normal nation-color computation" (unit_chrome_draw's public behavior,
+ * unchanged); >= 0 substitutes a caller-supplied raw palette index for
+ * that specific active output palette instead.
+ *
+ * Why an override exists at all: unit_chrome_nation_color()'s indices
+ * (k_european_fill/k_european_names) are tuned against ICONS.SS's own
+ * *native* palette (confirmed: index 13 there is a true (255,113,0)
+ * Dutch orange, index 5 a matching (170,73,0) darker shade for the
+ * Fortify/Fortified letter) — exactly right for screens whose active
+ * output palette matches that native one closely enough. Report screens
+ * (REPORT*.PIK) don't: their own embedded palettes repurpose slots 5/13
+ * back to plain EGA magenta, so a raw index-13/5 fill drawn straight to
+ * a report framebuffer comes out magenta instead of orange (found via
+ * colony_p1.png: Dutch garrison badges are solid (255,113,0) with a
+ * (170,73,0) letter in the golden, matching ICONS.SS-native exactly, but
+ * REPORT6.PIK's own palette has no close match to either — best available
+ * is a muted (211,101,32)-ish index). See reports.c's Colony report
+ * (F6) garrison row for the call site that supplies the override. */
+static void unit_chrome_draw_impl(
   ColonizeFramebuffer8* fb,
   const ColonizeFont* font,
   int icon_x,
@@ -222,7 +243,9 @@ void unit_chrome_draw(
   int nation_id,
   int orders_index,
   bool show_stack,
-  bool aboard
+  bool aboard,
+  int fill_override,
+  int letter_override
 ) {
   if (!fb || !fb->pixels) {
     return;
@@ -245,7 +268,8 @@ void unit_chrome_draw(
 
   const int sprite_w = icon_w > 0 ? icon_w : 16;
   const int sprite_h = icon_h > 0 ? icon_h : 16;
-  const uint8_t fill = unit_chrome_nation_color(nation_id);
+  const uint8_t fill =
+    fill_override >= 0 ? (uint8_t)fill_override : unit_chrome_nation_color(nation_id);
 
   int right_x = icon_x + sprite_w;
   const int span = box_w + sprite_w;
@@ -303,7 +327,8 @@ void unit_chrome_draw(
    * Center the glyph's ink (not the full advance cell) in the outline rect.
    * FONTTINY '-' is a 3×1 dash in a 4×6 cell; cell-centering looked off.
    */
-  const uint8_t ink = unit_chrome_letter_color(nation_id, orders_index);
+  const uint8_t ink =
+    letter_override >= 0 ? (uint8_t)letter_override : unit_chrome_letter_color(nation_id, orders_index);
   int ink_x0 = 0;
   int ink_y0 = 0;
   int ink_x1 = text_w - 1;
@@ -323,6 +348,68 @@ void unit_chrome_draw(
   font_draw_text(font, fb, tx, ty, letter_buf, ink);
 }
 
+void unit_chrome_draw(
+  ColonizeFramebuffer8* fb,
+  const ColonizeFont* font,
+  int icon_x,
+  int icon_y,
+  int icon_w,
+  int icon_h,
+  int display_type_index,
+  int nation_id,
+  int orders_index,
+  bool show_stack,
+  bool aboard
+) {
+  unit_chrome_draw_impl(
+    fb, font, icon_x, icon_y, icon_w, icon_h, display_type_index, nation_id, orders_index,
+    show_stack, aboard, -1, -1
+  );
+}
+
+void unit_chrome_blit_unit_colored(
+  ColonizeFramebuffer8* fb,
+  const ColonizeFont* font,
+  const ColonizeSpriteSheet* sheet,
+  int sprite_index,
+  int x,
+  int y,
+  int display_type_index,
+  int nation_id,
+  int orders_index,
+  bool show_stack,
+  bool aboard,
+  int fill_override,
+  int letter_override
+) {
+  if (!fb || !sheet || sprite_index < 0 || sprite_index >= sheet->sprite_count) {
+    return;
+  }
+  const ColonizeSprite* sp = &sheet->sprites[sprite_index];
+  const int iw = sp->width > 0 ? sp->width : 16;
+  const int ih = sp->height > 0 ? sp->height : 16;
+
+  /* Orders box at tile origin; sprite (+ silhouette) shifted right. */
+  const int sx = x + UNIT_CHROME_SPRITE_DX;
+  ss_blit_sprite_color(sheet, sprite_index, fb, sx + UNIT_CHROME_SHADOW_DX, y, 0);
+  unit_chrome_draw_impl(
+    fb,
+    font,
+    x,
+    y,
+    iw,
+    ih,
+    display_type_index,
+    nation_id,
+    orders_index,
+    show_stack,
+    aboard,
+    fill_override,
+    letter_override
+  );
+  ss_blit_sprite(sheet, sprite_index, fb, sx, y);
+}
+
 void unit_chrome_blit_unit(
   ColonizeFramebuffer8* fb,
   const ColonizeFont* font,
@@ -336,28 +423,8 @@ void unit_chrome_blit_unit(
   bool show_stack,
   bool aboard
 ) {
-  if (!fb || !sheet || sprite_index < 0 || sprite_index >= sheet->sprite_count) {
-    return;
-  }
-  const ColonizeSprite* sp = &sheet->sprites[sprite_index];
-  const int iw = sp->width > 0 ? sp->width : 16;
-  const int ih = sp->height > 0 ? sp->height : 16;
-
-  /* Orders box at tile origin; sprite (+ silhouette) shifted right. */
-  const int sx = x + UNIT_CHROME_SPRITE_DX;
-  ss_blit_sprite_color(sheet, sprite_index, fb, sx + UNIT_CHROME_SHADOW_DX, y, 0);
-  unit_chrome_draw(
-    fb,
-    font,
-    x,
-    y,
-    iw,
-    ih,
-    display_type_index,
-    nation_id,
-    orders_index,
-    show_stack,
-    aboard
+  unit_chrome_blit_unit_colored(
+    fb, font, sheet, sprite_index, x, y, display_type_index, nation_id, orders_index, show_stack,
+    aboard, -1, -1
   );
-  ss_blit_sprite(sheet, sprite_index, fb, sx, y);
 }

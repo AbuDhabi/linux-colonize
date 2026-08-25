@@ -97,4 +97,36 @@ void unit_chrome_blit_unit(
   bool aboard
 );
 
+/*
+ * Same as unit_chrome_blit_unit, but fill_override/letter_override (each
+ * -1 for "use the normal nation-color computation", matching
+ * unit_chrome_blit_unit exactly) let the caller substitute raw palette
+ * indices for the orders-box fill and its letter ink.
+ *
+ * Needed because unit_chrome_nation_color()/unit_chrome_letter_color()'s
+ * indices are tuned against ICONS.SS's own *native* palette (its index 13
+ * really is a saturated Dutch orange, index 5 a matching darker shade for
+ * the letter) — correct for screens whose active output palette is close
+ * to that native one, but not for report screens (REPORT*.PIK), whose own
+ * embedded palettes repurpose those exact slots back to plain EGA magenta.
+ * See reports.c's Colony report (F6) garrison row for the call site that
+ * looks up the closest-available match in the active report palette and
+ * passes it here instead.
+ */
+void unit_chrome_blit_unit_colored(
+  ColonizeFramebuffer8* fb,
+  const ColonizeFont* font,
+  const ColonizeSpriteSheet* sheet,
+  int sprite_index,
+  int x,
+  int y,
+  int display_type_index,
+  int nation_id,
+  int orders_index,
+  bool show_stack,
+  bool aboard,
+  int fill_override,
+  int letter_override
+);
+
 #endif

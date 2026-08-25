@@ -10,7 +10,7 @@
  * See docs/report_screens.md for the full report-porting workflow this tool
  * is part of (grid_overlay.sh / render_diff.sh live in scripts/).
  *
- *   render_report <data_dir> <save.SAV> <out.ppm> [report_id] [congress_page2] [labor_detail_job] [economic_page]
+ *   render_report <data_dir> <save.SAV> <out.ppm> [report_id] [congress_page2] [labor_detail_job] [economic_page] [colony_page]
  *
  *   data_dir        usually "COLONIZE"
  *   save.SAV        a Col1 .SAV to load (report content needs one)
@@ -24,6 +24,8 @@
  *                   (ignored otherwise); default -1
  *   economic_page   0 = European Trade, N>=1 = Cargo in Port page N (ignored
  *                   otherwise); default 0
+ *   colony_page     Colony report page index — see reports_colony_page_count
+ *                   (ignored otherwise); default 0
  *
  * Also prints the founding-fathers bells pool/need to stderr (useful when
  * working on the Congress bells bar) after seeding the pool the same way
@@ -34,10 +36,14 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "core/col1_bridge.h"
 #include "core/col1_save.h"
+#include "core/colony.h"
 #include "core/ff.h"
 #include "core/founding_fathers.h"
 #include "core/reports.h"
+#include "core/unit_chrome.h"
+#include "core/units.h"
 #include "platform/platform.h"
 
 int main(int argc, char** argv) {
@@ -56,6 +62,7 @@ int main(int argc, char** argv) {
   const bool congress_page2 = argc > 5 && atoi(argv[5]) != 0;
   const int labor_detail_job = argc > 6 ? atoi(argv[6]) : -1;
   const int economic_page = argc > 7 ? atoi(argv[7]) : 0;
+  const int colony_page = argc > 8 ? atoi(argv[8]) : 0;
 
   char err[256];
   ColonizeReportsView view;
@@ -101,6 +108,43 @@ int main(int argc, char** argv) {
     }
   }
 
+  /* Colony report (F6) needs real map/units/colonies pools (garrison unit
+   * sprites, bell production, Town Hall workers) — build them the same way
+   * col1_bridge_apply() does on a live save load. */
+  ColonizeWorldMap map;
+  ColonizeUnitPool units_pool;
+  ColonizeColonyPool colonies_pool;
+  memset(&map, 0, sizeof(map));
+  memset(&units_pool, 0, sizeof(units_pool));
+  memset(&colonies_pool, 0, sizeof(colonies_pool));
+  colonies_init(&colonies_pool);
+  bool bridge_ok = false;
+  ColonizeMsgCatalog names;
+  memset(&names, 0, sizeof(names));
+  char names_path[512];
+  if (dos_compat_normalize_asset_path(data_dir, "NAMES.TXT", names_path, sizeof(names_path)) &&
+      assets_msg_load_file(&names, names_path)) {
+    unit_chrome_load_orders(&names);
+    units_load_types(&units_pool, &names);
+    colonies_load_buildings(&colonies_pool, &names);
+    ColonizeCol1BridgeResult bridge_result;
+    /* Same pre-bridge reset game_apply_col1_save() does in game_loop.c. */
+    if (europe_ok) {
+      europe.harbor_ships = 0;
+      europe.dock_count = 0;
+    }
+    if (europe_ok &&
+        col1_bridge_apply(
+          &save, &map, &units_pool, &colonies_pool, &europe, &bridge_result, err, sizeof(err)
+        )) {
+      bridge_ok = true;
+    } else {
+      fprintf(stderr, "col1_bridge_apply warning: %s\n", err);
+    }
+  } else {
+    fprintf(stderr, "NAMES.TXT load warning (colony report will be text-only)\n");
+  }
+
   /* Report body text uses menu_font (FONTSMAL) in the live game; report
    * TITLES and Congress page 1's body both actually use view.title_font
    * (FONTTINY) once loaded — reports_render() picks that automatically. */
@@ -124,9 +168,10 @@ int main(int argc, char** argv) {
     congress_page2,
     labor_detail_job,
     economic_page,
-    NULL,
-    NULL,
-    NULL,
+    colony_page,
+    bridge_ok ? &colonies_pool : NULL,
+    bridge_ok ? &units_pool : NULL,
+    bridge_ok ? &map : NULL,
     europe_ok ? &europe : NULL,
     &save,
     human,

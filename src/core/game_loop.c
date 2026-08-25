@@ -156,6 +156,7 @@ struct ColonizeGameState {
   bool congress_page2; /* Continental Congress is two pages; closing p1 shows p2 */
   int labor_detail_job; /* -1 = Labor report grid; >=0 = zoomed job id detail view */
   int economic_page; /* 0 = European Trade; >=1 = Cargo in Port page N */
+  int colony_page; /* 0..k-1 = Military Garrisons; k..2k-1 = Sons of Liberty */
   ColonizeHofEntry hof_entries[COLONIZE_HOF_MAX]; /* ranked desc; session + HOF.TXT */
   int hof_count;
   bool in_hall_of_fame; /* title-menu "View Hall of Fame" screen (reports_render_hall_of_fame) */
@@ -2794,6 +2795,7 @@ static void game_open_report(ColonizeGameState* game, ColonizeReportId id) {
   game->congress_page2 = false;
   game->labor_detail_job = -1;
   game->economic_page = 0;
+  game->colony_page = 0;
   game->in_pedia = false;
   game->in_europe = false;
   game->in_colony = false;
@@ -7331,6 +7333,19 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
         }
         game->economic_page = 0;
       }
+      /* Colony report is Military Garrisons + Sons of Liberty, each
+       * paginated over this nation's colonies — same OK/Esc/Enter
+       * page-advance shape as Economic above. */
+      if (game->report_id == COLONIZE_REPORT_COLONY) {
+        const int page_count = reports_colony_page_count(
+          game->col1_ok ? &game->col1 : NULL, game->human_nation
+        );
+        if (game->colony_page + 1 < page_count) {
+          game->colony_page++;
+          return true;
+        }
+        game->colony_page = 0;
+      }
       game->in_report = false;
       diag_info("Left report screen.");
       if (game->report_exits_to_menu) {
@@ -9741,6 +9756,7 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
       game->congress_page2,
       game->labor_detail_job,
       game->economic_page,
+      game->colony_page,
       &game->colonies,
       game->units_ok ? &game->units : NULL,
       game->world_map_ok ? &game->world_map : NULL,
