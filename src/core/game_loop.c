@@ -4621,8 +4621,11 @@ static void game_select_unit(ColonizeGameState* game, int unit_id) {
   game->map_cursor_x = u->x;
   game->map_cursor_y = u->y;
   game_set_view_center(game, u->x, u->y);
-  const ColonizeUnitType* ut = units_type(&game->units, u->type_index);
-  snprintf(game->status, sizeof(game->status), "Selected %s", ut ? ut->name : "unit");
+  /* units_display_name folds profession into the label (e.g. a toolless
+   * Pioneer-professioned Colonist reads "Hardy Pioneer", not "Colonists")
+   * — same identity mismatch reported for the Naval report's passenger
+   * label, fixed there the same way. */
+  snprintf(game->status, sizeof(game->status), "Selected %s", units_display_name(&game->units, u));
 }
 
 static bool game_friendly_colony_at(const ColonizeGameState* game, int x, int y) {
@@ -4941,8 +4944,10 @@ static void game_after_unit_action(ColonizeGameState* game) {
   if (turn_select_next_unit(&game->units, game->human_nation)) {
     game_center_on_selected_unit(game);
     const ColonizeUnit* next = units_get_const(&game->units, game->units.selected_id);
-    const ColonizeUnitType* ut = next ? units_type(&game->units, next->type_index) : NULL;
-    snprintf(game->status, sizeof(game->status), "Selected %s", ut ? ut->name : "unit");
+    snprintf(
+      game->status, sizeof(game->status), "Selected %s",
+      next ? units_display_name(&game->units, next) : "unit"
+    );
     return;
   }
   game_select_tile(game, exhausted_x, exhausted_y);
@@ -7057,23 +7062,26 @@ static bool game_apply_map_menu_action(ColonizeGameState* game, MapMenuAction ac
       }
       return true;
     }
-    case MAP_MENU_ACTION_NO_ORDERS:
+    case MAP_MENU_ACTION_NO_ORDERS: {
       /* "No Orders (space bar)" — this is the *actual* reachable path for a
        * physical Space press (map_menu_orders_hotkey resolves plain Space
        * to this action before the plain-map COLONIZE_KEY_SPACE check ever
-       * runs), so this is the one that needs DOS's real Wait/Skip
-       * semantics: cycle to the next human unit still needing orders, only
-       * ending the turn once none remain. Calling game_do_end_turn
-       * directly here (the bug) skipped that cycle outright — pressing
-       * Space to dismiss one idle unit (e.g. a wagon train) force-ended
-       * the turn immediately instead of moving on to the next one,
-       * visibly starting rival nations' moves while human units still had
-       * pending orders. Player-reported; a same-shaped fix was tried
-       * earlier at the plain-map COLONIZE_KEY_SPACE handler, but that
-       * handler turned out to be unreachable for Space specifically since
-       * this hotkey table always claims it first. */
+       * runs). Space means "done with this unit for the turn": spend its
+       * remaining moves (so turn_select_next_unit's moves_left>0 filter
+       * won't offer it again until next turn's refresh), then advance to
+       * the next unit needing orders, ending the turn once none remain.
+       * This is distinct from W/MAP_MENU_ACTION_WAIT_UNIT, which defers
+       * the unit without touching its moves so it comes back up later in
+       * the same turn's cycle — the two must not share one code path
+       * (player-reported regression: they had become identical). */
+      ColonizeUnit* u =
+        game->units.selected_id >= 0 ? units_get(&game->units, game->units.selected_id) : NULL;
+      if (u) {
+        u->moves_left = 0;
+      }
       game_wait_next_unit(game);
       return true;
+    }
     case MAP_MENU_ACTION_PEDIA_CARGO:
       game_open_pedia_list(game, PEDIA_CAT_CARGO);
       return true;
@@ -9202,17 +9210,20 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
   }
 
   if (input->last_key == COLONIZE_KEY_SPACE) {
-    /* Wait/Skip: cycle to the next human unit still needing orders, only
-     * ending the turn once none remain (game_wait_next_unit — the same
-     * DOS Space semantics already used everywhere else Space fires, e.g.
-     * after Fortify/Sentry). This plain map-key handler used to call
-     * game_do_end_turn directly instead, skipping that cycle entirely —
-     * harmless before the turn-activation-queue fix (nothing depended on
-     * Space stepping through units), but once the map correctly stops on
-     * an idle unit awaiting orders, pressing Space to skip past it instead
-     * force-ended the turn immediately, visibly starting rival nations'
-     * moves while human units (Privateer, Caravel, ...) still had pending
-     * orders. Player-reported. */
+    /* No Orders: spend the selected unit's remaining moves (it won't be
+     * offered again until next turn's refresh), then cycle to the next
+     * human unit still needing orders, ending the turn once none remain.
+     * Mirrors the MAP_MENU_ACTION_NO_ORDERS case, which is the actually
+     * reachable path for a physical Space press (map_menu_orders_hotkey
+     * claims it first) — kept in sync here as a defensive fallback should
+     * this plain-key branch ever become reachable. Must NOT reduce to a
+     * bare game_wait_next_unit() call: that is W/Wait's semantics (defer
+     * without spending moves), not Space's. */
+    ColonizeUnit* u =
+      game->units.selected_id >= 0 ? units_get(&game->units, game->units.selected_id) : NULL;
+    if (u) {
+      u->moves_left = 0;
+    }
     game_wait_next_unit(game);
     return true;
   }

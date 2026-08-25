@@ -1944,6 +1944,33 @@ static int reports_naval_goods_icon(int cargo_type, int amount) {
   return (grey ? REPORTS_NAVAL_CARGO_GREY_BASE : REPORTS_NAVAL_CARGO_ICON_BASE) + cargo_type;
 }
 
+/* Plural expert-profession label for a passenger row (golden: naval.png's
+ * one passenger example reads "Colonists", the @UNIT plural, matching
+ * `base_name` for a no-profession Free Colonist) — same identity
+ * `units_display_name` exists for elsewhere (singular, combat-log style),
+ * but the report needs NAMES.TXT's own plural @JOB expert names
+ * ("Hardy Pioneers" etc.) to match that convention instead. Player-
+ * reported: a toolless Pioneer-professioned Colonist (dutch-reports.SAV,
+ * (44,39)) should read as a Hardy Pioneer, not a generic Colonist, even
+ * without tools equipped — profession names the unit regardless of
+ * carried equipment. */
+static const char* reports_naval_passenger_label(int profession, const char* base_name) {
+  switch (profession) {
+    case UNITS_JOB_PIONEER:
+      return "Hardy Pioneers";
+    case UNITS_JOB_SOLDIER:
+      return "Veteran Soldiers";
+    case UNITS_JOB_SCOUT:
+      return "Seasoned Scouts";
+    case UNITS_JOB_DRAGOON:
+      return "Veteran Dragoons";
+    case UNITS_JOB_MISSIONARY:
+      return "Jesuit Missionaries";
+    default:
+      return (base_name && base_name[0]) ? base_name : "Colonists";
+  }
+}
+
 /* Builds the flat ship/passenger row list (on-mapboard ships from `units`,
  * Europe-side ships from `europe`'s harbor/expected/bound lists — a ship
  * mid-Atlantic exists only in the latter, never in `units`, until it
@@ -1985,7 +2012,7 @@ static int reports_naval_build_rows(
         r->pass_nation = pax->nation_id;
         r->pass_orders = pax->orders;
         const ColonizeUnitType* pt = units_type(units, pax->type_index);
-        r->pass_label = (pt && pt->name[0]) ? pt->name : "Colonists";
+        r->pass_label = reports_naval_passenger_label(pax->profession, pt ? pt->name : NULL);
         reports_naval_location(colonies, u->x, u->y, r->location, sizeof(r->location));
       }
       if (n >= max_rows) {
@@ -2045,7 +2072,9 @@ static int reports_naval_build_rows(
           r->pass_type = s->cargo_types[c];
           r->pass_nation = human;
           r->pass_orders = 1; /* Sentry — aboard, matching the docked/undirected passenger look */
-          r->pass_label = (pt && pt->name[0]) ? pt->name : reports_job_name(s->cargo_professions[c]);
+          r->pass_label = reports_naval_passenger_label(
+            s->cargo_professions[c], pt ? pt->name : NULL
+          );
           snprintf(r->location, sizeof(r->location), "%s", lanes[lane].loc);
         }
         if (n >= max_rows) {
