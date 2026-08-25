@@ -694,27 +694,27 @@ static const ColonizeSpriteSheet* reports_ff_portrait_sheet(const char* data_dir
 #define REPORTS_CONGRESS_ICON_ARTILLERY 9 /* @UNIT Artillery icon 10 */
 #define REPORTS_CONGRESS_ICON_MANOWAR 127 /* @UNIT Man-O-War icon 128 */
 
-#define REPORTS_CONGRESS_TEXT1_Y 13 /* "Next Continental Congress Session: (...)" */
+#define REPORTS_CONGRESS_TEXT1_Y 25 /* "Next Continental Congress Session: (...)" */
 #define REPORTS_CONGRESS_BELLS_X 6
-#define REPORTS_CONGRESS_BELLS_Y 35
+#define REPORTS_CONGRESS_BELLS_Y 36
 #define REPORTS_CONGRESS_BELLS_RIGHT_MARGIN 20 /* measured; pool rarely reaches need, like crosses */
 #define REPORTS_CONGRESS_BELLS_MAX_W (320 - REPORTS_CONGRESS_BELLS_X - REPORTS_CONGRESS_BELLS_RIGHT_MARGIN)
 #define REPORTS_CONGRESS_BELLS_H 10
 
 #define REPORTS_CONGRESS_TEXT2_Y 59 /* "Rebel Sentiment: XX%  Tory Sentiment: YY%" */
 #define REPORTS_CONGRESS_SENT_X 4
-#define REPORTS_CONGRESS_SENT_Y 67
+#define REPORTS_CONGRESS_SENT_Y 71
 #define REPORTS_CONGRESS_SENT_W 285 /* measured; always full (rounded rebel:tory split) */
 #define REPORTS_CONGRESS_SENT_H 9
 #define REPORTS_CONGRESS_SENT_SLOTS 50 /* rounding budget for the flag/crown split */
 
-#define REPORTS_CONGRESS_TEXT3_Y 78 /* "<Nation> Expeditionary Force:" */
+#define REPORTS_CONGRESS_TEXT3_Y 92 /* "<Nation> Expeditionary Force:" */
 #define REPORTS_CONGRESS_FORCE_Y 102
 #define REPORTS_CONGRESS_FORCE_H 13
 /* Natural (unstretched) tally width per unit, px ×10 — measured avg ~2.2px/unit. */
 #define REPORTS_CONGRESS_FORCE_STEP_X10 22
 
-#define REPORTS_CONGRESS_FF_HEADER_Y 116 /* "Founding Fathers:" */
+#define REPORTS_CONGRESS_FF_HEADER_Y 125 /* "Founding Fathers:" */
 #define REPORTS_CONGRESS_FF_COL_X0 8
 #define REPORTS_CONGRESS_FF_COL_STEP 78 /* FUN_3f41_0ae6: unaff_BP-0x68 += 0x4e */
 
