@@ -939,9 +939,31 @@ bool col1_bridge_apply(
     if (u) {
       u->nation_id = src->nation_id;
       /* COL1 moves are spent-ish; treat 0 as full refresh for playability.
-       * (Full moves_spent import would retune Brave AI vs TURN goldens.) */
+       * (Full moves_spent import would retune Brave AI vs TURN goldens —
+       * left as literal moves_left for land/Brave units, matching
+       * docs/savegame.md's "Land/Brave moves still exported as moves_left".) */
       const ColonizeUnitType* ut = units_type(units, ti);
-      u->moves_left = (src->moves == 0 && ut) ? ut->movement : (int)src->moves;
+      if (src->moves == 0) {
+        u->moves_left = ut ? ut->movement : 0;
+      } else if (ut && ut->domain == COLONIZE_UNIT_DOMAIN_SEA) {
+        /* Ships/aboard export `moves` as moves *spent* this turn, not
+         * remaining (docs/savegame.md) — unlike land/Brave units. Reading
+         * it as moves_left directly (the old behavior, still correct for
+         * land/Brave below) could leave a ship that had already used up
+         * its turn's movement looking like it had plenty left on a
+         * mid-turn load. Player-reported (dutch-reports.SAV): a
+         * Merchantman with raw moves=15 (spent) — far past its ~5-6
+         * tile/turn allowance — read as moves_left=15 outright, so it
+         * never registered as exhausted for this turn. */
+        int total = ut->movement;
+        if (founding_fathers_nation_has(save, src->nation_id, FF_FERDINAND_MAGELLAN)) {
+          total += 1;
+        }
+        const int spent = (int)src->moves;
+        u->moves_left = total > spent ? total - spent : 0;
+      } else {
+        u->moves_left = (int)src->moves;
+      }
       u->orders = (int)src->orders;
       /*
        * Col1 Braves store goto (0,0) with orders=0 meaning "no goto". Runtime
