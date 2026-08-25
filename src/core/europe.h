@@ -300,6 +300,15 @@ void europe_refill_pool_slot(EuropeScreen* eu, int slot, unsigned* rng_state);
 bool europe_train(EuropeScreen* eu, int train_index);
 bool europe_purchase(EuropeScreen* eu, int purchase_index);
 
+/*
+ * Push a save-loaded Europe-dock colonist straight onto the dock (append at
+ * back, present, default sentry) — for col1_bridge_apply restoring a human
+ * nation's waiting-in-Europe colonists on load. Unlike europe_recruit_from_
+ * pool/europe_train/europe_purchase this charges no gold and posts no status
+ * message. Returns false if the dock is full.
+ */
+bool europe_dock_push_load(EuropeScreen* eu, const char* name, int profession);
+
 bool europe_pop_dock_immigrant(EuropeScreen* eu, char* out_name, size_t out_name_size);
 /* Pop with profession; returns false if empty. */
 bool europe_pop_dock_immigrant_ex(

@@ -178,6 +178,19 @@ static bool europe_dock_push_front(
   return true;
 }
 
+bool europe_dock_push_load(EuropeScreen* eu, const char* name, int profession) {
+  if (!eu || eu->dock_count >= EUROPE_DOCK_MAX) {
+    return false;
+  }
+  EuropeDockImmigrant* slot = &eu->dock[eu->dock_count++];
+  memset(slot, 0, sizeof(*slot));
+  snprintf(slot->name, sizeof(slot->name), "%s", name ? name : "Colonists");
+  slot->profession = profession;
+  slot->present = true;
+  slot->sentry = true;
+  return true;
+}
+
 static int europe_type_is_treasure(const ColonizeUnitPool* units, int type_tag) {
   if (!units || type_tag < 0) {
     return 0;

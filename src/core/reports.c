@@ -947,15 +947,26 @@ static const int8_t k_labor_layout[REPORTS_LABOR_COLS][REPORTS_LABOR_ROWS] = {
  * backgrounds[RELIGIOUS]'s palette, same as the report's other ICONS.SS
  * uses) — moderate confidence on the near-identical planter/processor pairs
  * (sugar/tobacco/cotton share art with distiller/tobacconist/weaver, which
- * looks right thematically); Hardy Pioneer (101) and Veteran Soldier (102)
- * are exact, reused from UNITS_ICON_HARDY_PIONEER/VETERAN_SOLDIER. Indian
- * Converts (113) is a known-weak match — it's one of ICONS.SS's five
- * head-only native portraits (113-117), not a full standing figure like the
- * golden's; no better candidate found in ICONS.SS. */
+ * looks right thematically).
+ *
+ * Pioneer/Soldier/Scout/Missionary specifically use each profession's
+ * *working-in-a-colony* pose, not its on-map equipped pose (UNITS_ICON_
+ * HARDY_PIONEER/VETERAN_SOLDIER/SEASONED_SCOUT, 101-103, look right at a
+ * glance but are the map sprites with musket/tools/horse — wrong for this
+ * report): Hardy Pioneer (58) and Veteran Soldier (59) are exactly
+ * UNITS_ICON_HARDY_PIONEER_WORK/VETERAN_SOLDIER_WORK; 73-77 is evidently the
+ * same "unit type base icon" sequence one slot further back (Pioneer,
+ * Soldier, Scout, Dragoon, Missionary) — Jesuit Missionary uses 77 from
+ * that row. Seasoned Scout uses 60 — a small dedicated working-colonist
+ * portrait distinct from the base/veteran map sprites (75/103). Indian
+ * Converts (66) is a real standing
+ * native figure — the earlier pick (113) was one of ICONS.SS's five
+ * head-only Indian *relationship/attitude* portraits (used by the Indian
+ * report), not a colonist at all. */
 static const int16_t k_labor_icon[28] = {
   81,  82,  83, 84,  85,  86,  87,  88, /* 0-7   farm/forest/mine experts */
   89,  90,  91, 92,  93,  94,  95,  96, 97, /* 8-16  fisherman..preacher */
-  98,  -1, 100, 101, 102, 99,  -1, 105, 106, 107, 113 /* 17-27 statesman.. */
+  98,  -1, 100, 58,  59,  60,  -1, 77,  106, 107, 66 /* 17-27 statesman.. */
 };
 
 static int reports_labor_icon_for_job(int job) {
@@ -969,6 +980,25 @@ static int reports_labor_icon_for_job(int job) {
  * bucketed separately so the detail view's "Off Mapboard (Europe) / On
  * Mapboard / In Colonies" breakdown and the grid's per-cell total share one
  * scan of the save. */
+/* profession byte -> report job id: clamp to the counts[64] table, and fold
+ * UNITS_JOB_NONE (28, "no expert skill" — DOS's raw encoding for a plain,
+ * unspecialized colonist) into Free Colonists (19). Without this fold every
+ * unspecialized colonist's job byte (28) fell outside the report's 0..27
+ * job-id table and was silently dropped from every bucket — Free Colonists
+ * read 0 even in a save full of them. */
+static int reports_labor_normalize_job(int job) {
+  if (job == UNITS_JOB_NONE) {
+    return UNITS_JOB_COLONIST;
+  }
+  if (job < 0) {
+    return 0;
+  }
+  if (job >= 64) {
+    return 63;
+  }
+  return job;
+}
+
 static void reports_labor_job_counts(
   const ColonizeCol1Save* col1,
   int human,
@@ -992,13 +1022,7 @@ static void reports_labor_job_counts(
       const int pop = c->population > COLONIZE_COL1_COLONY_POP_MAX ? COLONIZE_COL1_COLONY_POP_MAX
                                                                    : (int)c->population;
       for (int p = 0; p < pop; ++p) {
-        int job = c->profession[p];
-        if (job < 0) {
-          job = 0;
-        }
-        if (job >= 64) {
-          job = 63;
-        }
+        const int job = reports_labor_normalize_job(c->profession[p]);
         colony_counts[job]++;
         total++;
       }
@@ -1015,6 +1039,7 @@ static void reports_labor_job_counts(
       if (job < 0 || job >= 64) {
         job = u->type < 64 ? u->type : 0;
       }
+      job = reports_labor_normalize_job(job);
       if (reports_unit_in_europe(u->x, u->y)) {
         europe_counts[job]++;
       } else {
@@ -1105,13 +1130,27 @@ static void reports_render_labor_grid(
       const int cy = REPORTS_LABOR_ROW0_Y + row * REPORTS_LABOR_ROW_STEP;
       const int icon = reports_labor_icon_for_job(job);
       if (view && view->icons_ok && icon >= 0 && icon < view->icons.sprite_count) {
+        /* Two-pixel drop shadow, same convention as unit_chrome_blit_unit:
+         * a same-shape black underlay 2px to the sprite's left, drawn first. */
+        ss_blit_sprite_color(&view->icons, icon, fb, cx - 2, cy, 0);
         ss_blit_sprite(&view->icons, icon, fb, cx, cy);
       }
       const int count = colony_counts[job] + mapboard_counts[job] + europe_counts[job];
       char num[16];
       snprintf(num, sizeof(num), "%d", count);
-      reports_draw_line(font, fb, cx + REPORTS_LABOR_TEXT_DX, cy, reports_job_name(job), 14);
-      reports_draw_line(font, fb, cx + REPORTS_LABOR_TEXT_DX, cy + 9, num, 14);
+      const char* name = reports_job_name(job);
+      const int text_x = cx + REPORTS_LABOR_TEXT_DX;
+      reports_draw_line(font, fb, text_x, cy, name, 14);
+      /* Count is centered under the name (golden: white "19" centered under
+       * "Free Colonists", not left-aligned under it) and a paler/whiter 15
+       * (not 14 — the name's yellow) in this palette. */
+      int num_x = text_x;
+      if (font) {
+        const int name_w = font_text_width(font, name);
+        const int num_w = font_text_width(font, num);
+        num_x = text_x + (name_w - num_w) / 2;
+      }
+      reports_draw_line(font, fb, num_x, cy + 9, num, 15);
     }
   }
 }
@@ -1147,6 +1186,7 @@ static void reports_render_labor_detail(
   const int header_y = y + REPORTS_LABOR_ROW_STEP / 2;
   const int icon = reports_labor_icon_for_job(job);
   if (view && view->icons_ok && icon >= 0 && icon < view->icons.sprite_count) {
+    ss_blit_sprite_color(&view->icons, icon, fb, 4 - 2, header_y, 0);
     ss_blit_sprite(&view->icons, icon, fb, 4, header_y);
   }
   snprintf(line, line_sz, "%s: %d", reports_job_name(job), sum);
@@ -1182,14 +1222,7 @@ static void reports_render_labor_detail(
                                                                  : (int)c->population;
     int n = 0;
     for (int p = 0; p < pop; ++p) {
-      int j = c->profession[p];
-      if (j < 0) {
-        j = 0;
-      }
-      if (j >= 64) {
-        j = 63;
-      }
-      if (j == job) {
+      if (reports_labor_normalize_job(c->profession[p]) == job) {
         n++;
       }
     }
