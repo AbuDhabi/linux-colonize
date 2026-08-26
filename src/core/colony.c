@@ -2549,9 +2549,16 @@ void colonies_render_on_map(
       }
     }
 
-    /* Colony name label below tile. */
+    /* Colony name label below tile: white ink, black shadow. FONTINTR
+     * already bakes a soft AA shadow into shade 2/3 of every glyph
+     * (font_draw_text's color==15 path, FF_COLOR_MAP) — that shadow just
+     * renders grey/brown, not black. Recolor it in place via
+     * font_draw_text_shaded rather than layering a second, separate
+     * manual shadow on top (player-caught: an earlier pass added one,
+     * doubling up). */
     if (font) {
-      font_draw_text(font, framebuffer, px, py + tile_h + 1, c->name, 15);
+      static const uint8_t kShade[4] = {0, 15, 0, 0};
+      font_draw_text_shaded(font, framebuffer, px, py + tile_h + 1, c->name, kShade);
     }
   }
 }

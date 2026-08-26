@@ -5302,6 +5302,88 @@ int main(void) {
     units_set_combat_human_nation(-1);
   }
 
+  /* Colony-tile visibility: a colony square never shows a non-selected
+   * (idle garrison) unit — only the active/selected unit, and only while
+   * it's actually visible (blink on, or mid-move). Player-reported bug on
+   * the overland map; see units_top_on_map_tile. */
+  {
+    int tx = -1;
+    int ty = -1;
+    for (int y = 5; y < (int)map.height - 5 && tx < 0; ++y) {
+      for (int x = 5; x < (int)map.width - 5; ++x) {
+        if (!map_tile_is_land(&map, x, y)) {
+          continue;
+        }
+        bool occupied = false;
+        for (int i = 0; i < pool.unit_count; ++i) {
+          if (pool.units[i].active && pool.units[i].x == x && pool.units[i].y == y) {
+            occupied = true;
+            break;
+          }
+        }
+        if (!occupied) {
+          tx = x;
+          ty = y;
+          break;
+        }
+      }
+    }
+    if (tx < 0) {
+      fprintf(stderr, "colony-tile visibility test: no free land tile found\n");
+      ss_free(&icons);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    const int saved_selected = pool.selected_id;
+    const int garrison = units_spawn_allow_stack(&pool, pioneer, tx, ty);
+    const int active = units_spawn_allow_stack(&pool, pioneer, tx, ty);
+    pool.selected_id = active;
+
+    /* Baseline (no colony here): blink-off still shows the non-selected
+     * garrison unit, same as any other stacked tile. */
+    int top = units_top_on_map_tile(&pool, tx, ty, false, &map);
+    if (top != garrison) {
+      fprintf(
+        stderr, "non-colony blink-off expected garrison unit %d, got %d\n", garrison, top
+      );
+      ss_free(&icons);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+
+    map_occupancy_set_layer2(&map, tx, ty, MAP_OCCUPANCY_HAS_CITY, true);
+
+    /* Colony tile, blink-off: nothing shows — not even the garrison unit. */
+    top = units_top_on_map_tile(&pool, tx, ty, false, &map);
+    if (top != -1) {
+      fprintf(stderr, "colony tile blink-off should hide garrison unit, got %d\n", top);
+      ss_free(&icons);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+
+    /* Colony tile, blink-on: the selected unit shows normally. */
+    top = units_top_on_map_tile(&pool, tx, ty, true, &map);
+    if (top != active) {
+      fprintf(
+        stderr, "colony tile blink-on expected selected unit %d, got %d\n", active, top
+      );
+      ss_free(&icons);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+
+    map_occupancy_set_layer2(&map, tx, ty, MAP_OCCUPANCY_HAS_CITY, false);
+    units_despawn(&pool, garrison);
+    units_despawn(&pool, active);
+    pool.selected_id = saved_selected;
+    fprintf(stderr, "unit_units: colony-tile garrison visibility ok\n");
+  }
+
   fprintf(
     stderr,
     "units tests ok (types=%d pioneer@%d,%d caravel_icon=%d edge=%d,%d)\n",

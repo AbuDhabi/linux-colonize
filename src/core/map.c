@@ -1429,6 +1429,13 @@ bool map_tile_has_road(const ColonizeWorldMap* map, int x, int y) {
   return (map->improve[y * map->width + x] & MAP_IMPROVE_ROAD) != 0;
 }
 
+bool map_tile_has_city(const ColonizeWorldMap* map, int x, int y) {
+  if (!map || !map->layer2 || x < 0 || y < 0 || x >= map->width || y >= map->height) {
+    return false;
+  }
+  return (map->layer2[y * map->width + x] & MAP_OCCUPANCY_HAS_CITY) != 0;
+}
+
 bool map_tile_is_plowed(const ColonizeWorldMap* map, int x, int y) {
   if (!map || !map->improve || x < 0 || y < 0 || x >= map->width || y >= map->height) {
     return false;

@@ -10403,7 +10403,7 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
       &game->colonies,
       game->unit_icons_ok ? &game->unit_icons : NULL,
       framebuffer,
-      game->menu_font_ok ? &game->menu_font : NULL,
+      game->intro_font_ok ? &game->intro_font : NULL,
       view_x,
       view_y,
       view_cols,
