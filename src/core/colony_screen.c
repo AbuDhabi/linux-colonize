@@ -3475,7 +3475,6 @@ static void colony_screen_draw_construction_popup(
   const ColonizeFont* font,
   ColonizeFramebuffer8* framebuffer
 ) {
-  (void)colony;
   if (!view || !view->construction_open || !framebuffer || !framebuffer->pixels) {
     return;
   }
@@ -3538,15 +3537,28 @@ static void colony_screen_draw_construction_popup(
       const char* uname = NULL;
       int uh = 0;
       int ut = 0;
+      /* Player-reported: hammers shown here are what's still *needed*, i.e.
+       * the requirement adjusted down by the colony's already-banked
+       * hammers (min 0) — hammers carry over to whatever project is picked,
+       * unlike tools, which are never adjusted away in this popup. */
+      const int stored_hammers = colony ? colony->hammers : 0;
       if (bt) {
+        int hammers_left = bt->hammers - stored_hammers;
+        if (hammers_left < 0) {
+          hammers_left = 0;
+        }
         if (bt->tools_cost > 0) {
-          snprintf(label, sizeof(label), "%s (%dH, %dT)", bt->name, bt->hammers, bt->tools_cost);
+          snprintf(label, sizeof(label), "%s (%dH, %dT)", bt->name, hammers_left, bt->tools_cost);
         } else {
-          snprintf(label, sizeof(label), "%s (%dH)", bt->name, bt->hammers);
+          snprintf(label, sizeof(label), "%s (%dH)", bt->name, hammers_left);
         }
       } else if (colonies_unit_build_info(bid, &uname, &uh, &ut)) {
         /* Artillery (colonies_unit_build_info) — not a real @BUILDING row. */
-        snprintf(label, sizeof(label), "%s (%dH, %dT)", uname, uh, ut);
+        int hammers_left = uh - stored_hammers;
+        if (hammers_left < 0) {
+          hammers_left = 0;
+        }
+        snprintf(label, sizeof(label), "%s (%dH, %dT)", uname, hammers_left, ut);
       } else {
         snprintf(label, sizeof(label), "%s (%dH)", "?", 0);
       }

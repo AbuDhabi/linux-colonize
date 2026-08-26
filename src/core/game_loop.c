@@ -1080,34 +1080,29 @@ static void game_do_buy_construction(ColonizeGameState* game, int colony_id) {
     colony_screen_set_status(csv, game->status);
     return;
   }
-  const int gold_before = game->europe.gold;
   const ColonizeBuildingType* bt =
     colonies_building_type(&game->colonies, colony->building_in_production);
   const char* uname = NULL;
-  int utools = 0;
-  const bool is_unit =
-    !bt && colonies_unit_build_info(colony->building_in_production, &uname, NULL, &utools);
-  const int tools = bt ? bt->tools_cost : utools;
-  if (colonies_construction_tools_needed(&game->colonies, colony) > 0) {
-    set_status(game, "Need tools", NULL);
-  } else if (game->europe.gold < colonies_construction_gold_cost(&game->colonies, colony)) {
+  if (!bt) {
+    colonies_unit_build_info(colony->building_in_production, &uname, NULL, NULL);
+  }
+  const char* name = bt ? bt->name : (uname ? uname : "building");
+  /* Player-corrected: Buy is NOT instant — it only tops hammers/tools up to
+   * the completion threshold (colonies_buy_construction, DOS's
+   * FUN_2f2b_5e44 formula). Actual completion happens next turn's
+   * construction processing (turn_run_colony_building_completion /
+   * turn_run_colony_unit_construction), same as a colony that reached the
+   * threshold through ordinary Carpenter production. */
+  const int gold_cost = colonies_construction_gold_cost(&game->colonies, colony, game->europe.difficulty);
+  if (game->europe.gold < gold_cost) {
     set_status(game, "Need gold", NULL);
-  } else if (colonies_buy_construction(&game->colonies, colony_id, &game->europe.gold)) {
-    /* Real building: colonies_buy_construction already completed it. A
-     * unit-type project (Artillery — colonies_unit_build_info) only got
-     * hammers/tools topped up there (no ColonizeUnitPool to spawn with) —
-     * finish it here now that we have one. */
-    if (is_unit) {
-      colonies_try_complete_unit_construction(&game->colonies, colony_id, &game->units);
-    }
-    snprintf(
-      game->status,
-      sizeof(game->status),
-      "Bought %s (-%d$, -%d tools)",
-      bt ? bt->name : (uname ? uname : "building"),
-      gold_before - game->europe.gold,
-      tools
-    );
+    colony_screen_set_status(csv, game->status);
+    return;
+  }
+  if (colonies_buy_construction(
+        &game->colonies, colony_id, game->europe.difficulty, &game->europe.gold
+      )) {
+    snprintf(game->status, sizeof(game->status), "Bought materials for %s (-%d$)", name, gold_cost);
     colony_screen_close_construction(csv);
   } else {
     set_status(game, "Cannot buy", NULL);
@@ -1126,17 +1121,6 @@ static void game_request_buy_construction_confirm(ColonizeGameState* game) {
     colony_screen_set_status(csv, game->status);
     return;
   }
-  if (colonies_construction_tools_needed(&game->colonies, colony) > 0) {
-    set_status(game, "Need tools", NULL);
-    colony_screen_set_status(csv, game->status);
-    return;
-  }
-  const int gold_cost = colonies_construction_gold_cost(&game->colonies, colony);
-  if (game->europe.gold < gold_cost) {
-    set_status(game, "Need gold", NULL);
-    colony_screen_set_status(csv, game->status);
-    return;
-  }
   const ColonizeBuildingType* bt =
     colonies_building_type(&game->colonies, colony->building_in_production);
   const char* uname = NULL;
@@ -1144,6 +1128,37 @@ static void game_request_buy_construction_confirm(ColonizeGameState* game) {
     colonies_unit_build_info(colony->building_in_production, &uname, NULL, NULL);
   }
   const char* bname = (bt && bt->name[0]) ? bt->name : (uname ? uname : "building");
+  /* One uniform Buy, whether or not tools are short — DOS's own
+   * FUN_2f2b_5e44 formula (colonies_construction_gold_cost) already sums
+   * hammers+tools into one gold figure; the popup never differs by cause,
+   * just "Complete it" / "Never mind" (@BUYME1) if affordable, or the
+   * informational @BUYME0 sibling if not. Buy itself only tops the
+   * resources up — it does not complete the project (player-corrected). */
+  const int gold_cost = colonies_construction_gold_cost(&game->colonies, colony, game->europe.difficulty);
+  if (game->europe.gold < gold_cost) {
+    set_status(game, "Need gold", NULL);
+    colony_screen_set_status(csv, game->status);
+    PopupMsgTokens gtok;
+    memset(&gtok, 0, sizeof(gtok));
+    gtok.string0 = bname;
+    gtok.number0 = gold_cost;
+    gtok.has_number0 = true;
+    gtok.number1 = game->europe.gold;
+    gtok.has_number1 = true;
+    char gbody[AI_POPUP_BODY_LEN];
+    char gfallback[160];
+    snprintf(
+      gfallback,
+      sizeof(gfallback),
+      "Cost to complete %s: %d$. Treasury: %d$.",
+      bname,
+      gold_cost,
+      game->europe.gold
+    );
+    popup_msg_fill(&game->messages, "BUYME0", &gtok, gfallback, gbody, sizeof(gbody));
+    ai_popup_enqueue_ok(&game->ai_popups, AI_POPUP_TAG_INFO, NULL, gbody);
+    return;
+  }
   PopupMsgTokens tok;
   memset(&tok, 0, sizeof(tok));
   tok.string0 = bname;
@@ -6275,6 +6290,51 @@ static void game_do_end_turn(ColonizeGameState* game) {
   }
 }
 
+/*
+ * Non-mutating "does any human unit still need orders" check — same intent
+ * as turn_select_next_unit's own scan (moves_left>0, on-map, human-owned)
+ * plus the guard loop's standing-order skip (Fortified/Sentry/etc. —
+ * units_orders_skip_turn), but without turn_select_next_unit's side effect
+ * of actually changing pool->selected_id, and without turn_human_units_
+ * exhausted's mismatch: that one only checks moves_left>0, so a colony full
+ * of Fortified units (moves_left>0, never actually offered for selection)
+ * makes it report "not exhausted" forever — exactly the case player-
+ * reported as "End Turn text not present when it should be".
+ */
+static bool game_units_pending_orders(const ColonizeGameState* game) {
+  if (!game || !game->units_ok) {
+    return false;
+  }
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    const ColonizeUnit* u = &game->units.units[i];
+    if (!u->active || u->nation_id != game->human_nation || u->moves_left <= 0) {
+      continue;
+    }
+    if (!units_is_on_map(u)) {
+      continue;
+    }
+    if (units_orders_skip_turn(u)) {
+      continue;
+    }
+    return true;
+  }
+  return false;
+}
+
+/*
+ * Player-requested: flashing "End Turn" sidebar prompt + click-to-confirm.
+ * True once turn_select_next_unit has already come up empty this turn
+ * (view_pieces_mode) and no unit needs orders — the state game_wait_next_unit
+ * lands in right before either auto-ending the turn (game_options.end_of_turn
+ * off) or just re-setting the "End of Turn" status text forever with no way
+ * to actually confirm it (end_of_turn on — this is exactly the gap the
+ * sidebar click fixes: an explicit click *is* the confirmation).
+ */
+static bool game_end_turn_prompt_active(const ColonizeGameState* game) {
+  return game && game->units_ok && game->view_pieces_mode &&
+         !turn_processor_active(&game->turn_proc) && !game_units_pending_orders(game);
+}
+
 static void game_wait_next_unit(ColonizeGameState* game) {
   if (!game || !game->units_ok) {
     return;
@@ -9180,6 +9240,11 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
                 &ty
               )) {
             game_set_view_center(game, tx, ty);
+          } else if (game_end_turn_prompt_active(game)) {
+            /* Player-requested: click the sidebar to End Turn once the
+             * flashing prompt is up (no units left needing orders) — the
+             * click itself is the confirmation. */
+            game_do_end_turn(game);
           }
         }
         return true;
@@ -10070,6 +10135,40 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
 
   if (game->in_colony) {
     render_colony_screen(game, framebuffer);
+    /* Player-reported: BUY (and any other ai_popups-routed colony-screen
+     * confirm) silently did nothing — the popup really was enqueued and
+     * open (and blocking input, per ai_popups.open gating in the input
+     * handler), just never drawn: this branch jumped straight to
+     * render_log_sample, skipping the map-rendering path's ai_popup_render
+     * call entirely. */
+    if (game->ai_popups.open) {
+      ColonizePopupColors popup_cols;
+      popup_colors_from_ui(&popup_cols);
+      const ColonizeFont* popup_font = game->intro_font_ok ? &game->intro_font
+                                        : (game->menu_font_ok ? &game->menu_font
+                                                               : (game->colony_font_ok
+                                                                    ? &game->colony_font
+                                                                    : NULL));
+      /* Player-reported: wrong colors — this framebuffer is about to be
+       * expanded through the colony screen's own palette (render_colony
+       * sets it below), not the map's. The map branch's wood tile
+       * (menu_opentile / map_panel's) is a sprite sheet remapped for the
+       * map palette; reusing it here painted the popup background with
+       * indices meant for different RGB entries. Use the colony screen's
+       * own wood tile (already remapped for its palette) instead. */
+      const ColonizeSpriteSheet* wood =
+        game->colony_screen_ok && game->colony_screen.wood_tile_ok ? &game->colony_screen.wood_tile
+                                                                     : NULL;
+      ai_popup_render(
+        (AiPopupState*)&game->ai_popups,
+        popup_font,
+        wood,
+        &popup_cols,
+        COLONIZE_COL_BASIC,
+        COLONIZE_COL_SELECT,
+        framebuffer
+      );
+    }
     goto render_log_sample;
   }
 
@@ -10658,6 +10757,9 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
       game->europe.tax_percent,
       game->europe.nation_name,
       game->map_palette_ok ? &game->map_palette : NULL,
+      /* ~2.5Hz blink (400ms half-period), same feel as other flashing UI
+       * in this port (e.g. the turn-processor indicator). */
+      game_end_turn_prompt_active(game) && (game->elapsed_ms / 400) % 2 == 0,
       framebuffer
     );
   }

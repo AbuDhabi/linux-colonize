@@ -1038,3 +1038,125 @@ dense enough to need numbers lost its hammer icons altogether. Fixed:
 icons now always draw for every row regardless of density; the per-row
 number (when dense) is drawn in a second pass afterward, on top, same
 z-order reasoning as the earlier "number in front of icons" fix.
+
+## 2026-08-26 fix: overflow hammer rows, CHANGE popup hammer adjustment, BUY popups on refusal
+
+1. **Hammers stored beyond the project's requirement fill all four rows.**
+   Already correct by construction (`show` clamps to `need`, and the four
+   row capacities sum to exactly `need`) — verified with a 250/192 override
+   (Fort Orange, Artillery): all four rows read "48". No code change.
+2. **CHANGE popup hammers now show what's still needed, not the raw
+   requirement.** `colony_screen_draw_construction_popup` took `colony` but
+   never used it (`(void)colony`). Now subtracts the colony's banked
+   `hammers` from each listed option's requirement (min 0) — tools are
+   never adjusted this way, since (per point 3 below) DOS never lets gold
+   or banked hammers substitute for missing tools. Verified against
+   NAMES.TXT raw costs at hammers=32 (Fort Orange): Fort 120→88, Magazine
+   120→88, Schoolhouse 64→32, Warehouse Expansion 80→48, Weaver's/
+   Tobacconist's Shop 64→32, Fur Trading Post 56→24, Church 64→32,
+   Artillery 192→160, Wagon Train 40→8 — all match raw−32 exactly.
+3. **BUY now always raises a popup, matching what DOS actually does —
+   not a hammers+tools sum.** Checked GAME.TXT directly: DOS has *two*
+   pairs of message keys for this button, and this port's interactive BUY
+   path had wired neither for the failure cases (status-bar text only,
+   silently). `@NEEDTOOLS`/`@NEEDTOOLS0` — tools shortfall blocks Buy
+   outright, gold is never a substitute (same key turn.c's EOT "hammers
+   ready, tools short" notice already used); `@BUYME0`/`@BUYME1` — gold
+   cost is hammers-only (unchanged formula), `@BUYME0` is the informational
+   (OK-only) sibling of the existing `@BUYME1` Yes/No confirm, used when
+   gold is short instead of a silent refusal. `game_request_buy_construction_confirm`
+   now raises the matching popup on every path (tools-short → NEEDTOOLS/0,
+   gold-short → BUYME0, affordable → BUYME1 as before).
+
+## 2026-08-26 correction: BUY is one uniform Yes/No, tools-price summed into gold cost
+
+Player correction to the previous entry's GAME.TXT read: `@NEEDTOOLS`/
+`@NEEDTOOLS0` is not what the interactive Buy button uses — that pair
+stays exactly where it was (turn.c's EOT "hammers ready, tools short"
+notice). Buy itself is uniform regardless of a tools shortfall: one
+`@BUYME1` Yes/No ("Complete it." / "Never mind.") when affordable, or the
+informational `@BUYME0` sibling when not — never a different popup shape
+for the tools-short case. Cost is hammers-remaining (1 gold each,
+unchanged) *plus* tools-remaining priced at the colony's current Europe
+buy/ask price (`europe.cargo[COLONIZE_CARGO_TOOLS].ask`), summed into one
+number. Confirming ("Complete it") now tops the colony's tools stock up
+to the requirement (paying the gold for it) before completing, instead of
+refusing outright when tools were short. `game_do_buy_construction` and
+`game_request_buy_construction_confirm` both updated to match; the
+tools-short-blocks-Buy-outright branch (info popup, no purchase path) is
+removed from both.
+
+## 2026-08-26 fix: BUY popup wrong-palette background, completion confirmation
+
+1. **BUY popup background colors wrong.** The colony-screen `ai_popups` render
+   fix (previous entry) used the map screen's wood tile (`menu_opentile` /
+   `map_panel.wood_tile`) — a sprite sheet remapped for the *map's* palette,
+   not the colony screen's. Since this framebuffer gets expanded through
+   the colony screen's own palette, those indices painted the wrong RGB.
+   Switched to `game->colony_screen.wood_tile` (already remapped for that
+   palette) when `game->in_colony`.
+2. **"Only tops up hammers/tools, builds next turn" — was already instant,
+   just silent.** Harness-verified (`colonies_buy_construction` →
+   `colonies_try_complete_building`/`colonies_try_complete_unit_construction`):
+   `has_building[]`/spawn and `hammers=0`/tools-deducted all happen
+   synchronously inside the same click, same as a natural EOT completion.
+   What was missing: EOT completion raises turn.c's `@BUILT` popup
+   ("X colony produces Y."); BUY only set a quiet status-bar line, easy to
+   read as "nothing happened, must finish next turn". `game_do_buy_construction`
+   now raises the same `@BUILT` popup on success.
+3. **Sidebar click-to-End-Turn + flashing prompt (View Pieces mode).** New:
+   once `turn_select_next_unit` comes up empty (no unit needs orders) and
+   `game_options.end_of_turn` is on, the port had no way to actually confirm
+   the end of turn at all — `game_wait_next_unit` just kept re-setting the
+   "End of Turn" status text forever, since it only reaches `game_do_end_turn`
+   when that option is *off* (auto-end). `map_panel_render` gained an
+   `end_turn_flash_on` param (caller-resolved bool, ~2.5Hz blink) drawing
+   "End Turn" in the sidebar's unit-info slot when no unit is selected; a
+   left-click anywhere in the sidebar (that isn't a minimap hit) while the
+   prompt is active now calls `game_do_end_turn` directly — the click itself
+   is the confirmation the option demands.
+
+## 2026-08-27 correction: BUY defers completion to next turn; real gold formula; End Turn prompt fixed
+
+1. **BUY is not instant — player-corrected, reverted the previous "instant
+   complete" behavior.** `colonies_buy_construction` no longer calls
+   `colonies_try_complete_building` / spawns a unit; it only tops hammers to
+   the threshold and tools to the requirement (matching DOS's own
+   `FUN_2f2b_5e44`, which does the same — verified by reading its clean
+   decompile, no completion/spawn call anywhere in that function). New
+   `turn_run_colony_building_completion` (sibling to the existing
+   `turn_run_colony_unit_construction`) runs unconditionally every turn's
+   EOT SETUP and completes any colony already sitting at/above threshold —
+   covers a BUY-topped project next turn, and also fixes a latent gap where
+   `turn_produce_one_colony`'s inline completion check only fires on a tick
+   that *adds* new hammers (misses an idle-Carpenter or Autumn-frozen
+   colony already at threshold). Harness-verified: buy tops Fort to
+   120H/100T without setting `has_building`; a follow-up call to the new
+   pass then completes it and zeroes hammers.
+2. **Real gold formula — was "severely underestimated".** Read
+   `FUN_2f2b_5e44`'s clean decompile
+   (`original_sources_decompiled/viceroy_unpacked.c:52683`) directly:
+   `hammers_deficit × 13`, plus `tools_deficit × (per-nation table byte +
+   4)` when tools are short, the whole sum **doubled** if the colony hasn't
+   banked any hammers at all yet (`colony->hammers == 0`) — a steep premium
+   for rushing an unstarted project. The ×13 rate and doubling rule are
+   read straight off the disassembly (high confidence). The per-nation
+   tools-price table byte itself (`nation[id] + 0x13c×idx − 0x779e`, an
+   unresolved external thunk) couldn't be pinned to a named field with
+   confidence in the time available — approximated as `difficulty + 4`
+   (this port's existing 0-8 difficulty byte), same shape/magnitude as the
+   confirmed term, clearly flagged as approximate in code comments. Also
+   fixed `hammers_purchased` (Col1 +0x98) to accumulate the hammers
+   *deficit* (matches DOS: `local_c = hammers_need − hammers`), not the
+   gold spent — those two only used to be numerically equal back when the
+   rate was a flat 1:1.
+3. **Sidebar "End Turn" prompt not appearing.** The previous fix gated it on
+   `turn_human_units_exhausted`, which only checks `moves_left > 0` — a
+   colony with Fortified/Sentried units (moves_left>0, but never actually
+   offered for selection) made it report "not exhausted" forever, so the
+   prompt never showed even in a genuine View Pieces "nothing left to
+   control" state. Replaced with a non-mutating scan
+   (`game_units_pending_orders`) mirroring `turn_select_next_unit` +
+   its guard loop's standing-order skip (`units_orders_skip_turn`) exactly,
+   without turn_select_next_unit's side effect of changing the unit
+   selection.

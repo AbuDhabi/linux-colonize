@@ -1692,6 +1692,52 @@ void turn_run_colony_unit_construction(ColonizeTurnContext* ctx) {
   }
 }
 
+/*
+ * Player-requested: BUY only tops hammers/tools up to the completion
+ * threshold — it must NOT complete the project itself (colonies_buy_construction
+ * no longer calls colonies_try_complete_building). Completion happens here,
+ * once per turn, unconditionally (no Spring/Autumn gate, no "did hammers
+ * change this tick" gate — turn_produce_one_colony's own inline complete
+ * check only fires when the colony *produces* new hammers that tick, which
+ * misses a colony already sitting at/above threshold from a BUY with an
+ * idle Carpenter or on a frozen Autumn tick). Sibling to
+ * turn_run_colony_unit_construction above — same one-pass-per-turn shape,
+ * real buildings instead of units. colonies_try_complete_building's own
+ * has_building[] guard makes this safe to also run on a turn where the
+ * inline per-colony-production path in turn_produce_one_colony already
+ * completed the same project (second call just returns false).
+ */
+void turn_run_colony_building_completion(ColonizeTurnContext* ctx) {
+  if (!ctx || !ctx->colonies) {
+    return;
+  }
+  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+    ColonizeColony* col = &ctx->colonies->colonies[i];
+    if (!col->active || col->building_in_production < 0) {
+      continue;
+    }
+    const ColonizeBuildingType* bt = colonies_building_type(ctx->colonies, col->building_in_production);
+    if (!bt || bt->hammers <= 0 || col->hammers < bt->hammers) {
+      continue;
+    }
+    if (!colonies_try_complete_building(ctx->colonies, col->id)) {
+      continue;
+    }
+    if (ctx->europe && col->nation_id == ctx->human_nation) {
+      snprintf(ctx->europe->status, sizeof(ctx->europe->status), "%s completed.", bt->name);
+      if (ctx->ai_popups) {
+        char body[AI_POPUP_BODY_LEN];
+        PopupMsgTokens tok;
+        memset(&tok, 0, sizeof(tok));
+        tok.string0 = col->name[0] ? col->name : "colony";
+        tok.string1 = bt->name;
+        popup_msg_fill(ctx->messages, "BUILT", &tok, ctx->europe->status, body, sizeof(body));
+        ai_popup_enqueue_ok(ctx->ai_popups, AI_POPUP_TAG_INFO, NULL, body);
+      }
+    }
+  }
+}
+
 int turn_run_coastal_fort_fire(ColonizeTurnContext* ctx) {
   if (!ctx || !ctx->units || !ctx->colonies || !ctx->map) {
     return 0;
@@ -2628,6 +2674,10 @@ bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ct
        * no ColonizeUnitPool access (colonies_try_complete_building never
        * needed one; spawning a unit does), so this is its own pass. */
       turn_run_colony_unit_construction(ctx);
+      /* BUY-topped-up (or otherwise carpenter-idle/Autumn-frozen) real
+       * buildings sitting at/above threshold — turn_produce_one_colony's
+       * inline complete check only fires on a tick that adds new hammers. */
+      turn_run_colony_building_completion(ctx);
       /* FUN_364b_03f6 coastal Fort/Fortress fire after production. */
       (void)turn_run_coastal_fort_fire(ctx);
       turn_run_nation_ticks(ctx, &proc->result);
