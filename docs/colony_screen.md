@@ -598,6 +598,54 @@ Dropped the `coastal` gate (and the now-unused `coastal` parameter/
 Orange, the one inland colony in `dutch-reports.SAV`'s 17: the coast art
 now renders there too.
 
+### Follow-up session: fence unit filter, Lumber Mill badge, resource-count widget revert
+
+Three more player-caught bugs, one of them undoing part of the "Badge
+widget" fix above:
+
+1. **Fortification strip showed Artillery.** The Stockade/Fort/Fortress
+   strip (`colony_screen_blit_buildings()`'s fence draw + its hit-test
+   counterpart) drew every non-transport on-tile unit, same list
+   `colony_screen_multi_units_layout()` deliberately uses for the Units-
+   Present/Military tab (which *does* want Artillery there). DOS's fence
+   strip is colonist figures only. Added
+   `colony_screen_unit_is_artillery()` and skip it at both the fence draw
+   and fence hit-test sites; `colony_screen_multi_units_layout()` and the
+   People-band "outside" row are untouched (both correctly still include
+   Artillery).
+2. **Lumber Mill workers got no Hammers badge.**
+   `colony_screen_building_production_badge()` matched building names via
+   `strstr(name, "Carpenter")` — true for "Carpenter's Shop", false for its
+   upgrade "Lumber Mill", so the per-building Hammers badge silently
+   disappeared the moment that building leveled up. Added
+   `|| strstr(name, "Lumber Mill")`.
+3. **Resource-count badges: the "Badge widget" fix above was itself a
+   misreading.** That earlier pass concluded DOS badges draw one static
+   icon plus a deliberately-painted content-sized black background rect,
+   based on the numbered goldens alone. Two new "numberless" reference
+   captures (`new_amsterdam_production_numberless.png`, `recife_..._
+   numberless.png` — screenshots with the player's "always show numbers"
+   toggle off) prove that reading wrong: comparing numbered vs numberless
+   goldens side by side shows the toggle affects *only* the area-view
+   field-tile badges (`colony_screen_draw_area_overlays`'s per-tile yield
+   numbers) — every resource-count badge this function draws (settlement/
+   Production-tab/People-band/area-view) shows its number in both
+   captures, unconditionally, confirming that half of the "Badge widget"
+   fix was right. What was wrong: the badge is **not** a single icon.
+   `colony_screen_draw_resource_count_pair()` reverted to blitting
+   `amount` real copies of the icon, evenly spread (and mostly overlapping,
+   for anything beyond a handful) across the cell — exactly
+   `colony_screen_draw_icon_strip()`'s Note-1 approach, same as before the
+   "Badge widget" session, minus that session's number-visibility
+   heuristic (kept unconditional here, matching point 1 above). The
+   explicit black background rect is gone entirely: what looked like a
+   painted pill in the goldens is actually the natural result of many
+   black-bordered icon copies overlapping almost completely at any
+   non-trivial amount — real, and it scales with `amount` (a bigger stock
+   badge smears wider), which the fixed-width single-icon-plus-box version
+   never did. Re-verified against both goldens (numbered and numberless)
+   for New Amsterdam and Recife — no regression on any badge checked.
+
 ## Left unresolved
 - **Two golden-confirmed building badges reuse the same displayed number**
   (Town Hall and Printing Press both showed "82" in New Amsterdam — Town
