@@ -1924,6 +1924,13 @@ static int europe_custom_house_bit_enabled(uint16_t bits, int cargo_type) {
   return (bits >> cargo_type) & 1u;
 }
 
+bool europe_custom_house_cargo_enabled(uint16_t custom_house_bits, int cargo_type) {
+  if (cargo_type < 0 || cargo_type >= COLONIZE_CARGO_COUNT) {
+    return false;
+  }
+  return europe_custom_house_bit_enabled(custom_house_bits, cargo_type) != 0;
+}
+
 int europe_custom_house_autosell(
   EuropeScreen* eu,
   ColonizeColonyPool* pool,

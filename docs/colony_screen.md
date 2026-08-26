@@ -760,6 +760,44 @@ migrate there. Re-rendered the Labor and Colony reports against
   check its other claims against, rather than leaving the contradiction
   sitting in two docs.
 
+## 2026-08-26 fix: cargo strip digit colors + position, worker-blocked buildings
+
+Player-reported, checked against `new_amsterdam_production.png` at pixel level:
+
+1. **Cargo icon/number position**: icons sat 1px too high, numbers 2px too
+   high relative to the golden. Fixed: icon blit `y` is now
+   `COLONY_CARGO_STRIP_Y + 1`; number draw `y` is now `COLONY_CARGO_NUM_Y +
+   2`.
+2. **Number colors**: the port drew every digit in one flat color (white,
+   or green/red keyed off an unrelated this-turn production delta). Golden
+   pixel-sampling (exact RGB match against `WOODPANL.PIK`'s palette, not
+   nearest-color) found DOS actually splits each stock number into two
+   independently-colored runs: **(a)** a 3-digit stock's hundreds digit is
+   always gold (palette index 148, `(227,195,40)`), regardless of cargo —
+   confirmed on Food=159 ("1"/"59") and Muskets=130 ("1"/"30"); **(b)** the
+   remaining (tens+units) digits are green (index 10) when this cargo is
+   currently toggled on in the colony's Custom House per-cargo sell mask —
+   `europe_custom_house_cargo_enabled()`, a new public wrapper around
+   `europe.c`'s existing (already-implemented) autosell bit-check — and
+   navy (index 61, `(24,28,125)`) otherwise. Cross-checked against all 16
+   New Amsterdam cargoes: Sugar/Tobacco/Cotton/Furs/Lumber/Ore/Silver/Rum/
+   Cigars/Cloth/Coats green (toggled on); Food/Horses/TradeGoods/Tools/
+   Muskets navy (Food/Horses/Tools/Muskets structurally ineligible per
+   `europe_custom_house_cargo_eligible`'s denylist; TradeGoods eligible but
+   not toggled on in this particular save) — exact match, both hue and
+   per-cargo assignment. This is the "per-cargo UI chrome" that
+   `europe.h`'s `europe_custom_house_autosell` doc comment had flagged
+   PARKed. The this-turn-delta suffix mode (`"159+5"`) is unrelated to any
+   golden capture and was left as a single flat color, unchanged.
+3. **Colonists blocked from Custom House / Printing Press / Newspaper**:
+   these three have no worker slot at all (no `@JOB` entry — Custom House
+   is a colony-wide autosell trigger, Printing Press/Newspaper a colony-
+   wide bell multiplier), but `colonies_assign_workplace` let a colonist be
+   dragged onto them anyway. Fixed with a name-match guard (matches
+   `colony_screen_building_production_badge`'s own Printing-Press
+   exclusion), applied at the single choke point every assignment path
+   (human drag/drop, AI worker placement) already goes through.
+
 ## Final match quality
 
 All six renders (`build/render_colony` against `dutch-reports.SAV`) are a

@@ -534,6 +534,17 @@ int europe_ai_colony_dump_sell(
  */
 int europe_cargo_export_eligible(int cargo_type);
 
+/*
+ * Is `cargo_type` currently toggled on in this colony's Custom House
+ * per-cargo mask (europe_custom_house_autosell's own enable check,
+ * exposed read-only) — bits==0 (nothing configured) reads as "no cargo
+ * enabled", matching autosell's own behavior. Colony-screen cargo strip
+ * uses this to color a cargo's stock number (green = will be auto-sold
+ * this EOT, matching the DOS golden) — the "per-cargo UI chrome" this
+ * header's europe_custom_house_autosell comment had PARKed.
+ */
+bool europe_custom_house_cargo_enabled(uint16_t custom_house_bits, int cargo_type);
+
 int europe_buy_cargo(EuropeScreen* eu, int harbor_index, int cargo_type, int amount);
 int europe_best_sell_hold(const EuropeScreen* eu, int harbor_index);
 

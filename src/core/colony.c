@@ -998,6 +998,18 @@ bool colonies_assign_workplace(
   if (!col->has_building[building_type]) {
     return false;
   }
+  {
+    /* Custom House, Printing Press and Newspaper have no worker slot at
+     * all — no `@JOB` entry, colony-wide passive/multiplier buildings only
+     * (player-reported: port let a colonist be dragged onto them anyway).
+     * Match colony_screen_building_production_badge's own Printing-Press
+     * exclusion. */
+    const char* bn = pool->building_types[building_type].name;
+    if (bn && (strstr(bn, "Custom House") != NULL || strstr(bn, "Printing Press") != NULL ||
+               strstr(bn, "Newspaper") != NULL)) {
+      return false;
+    }
+  }
   /* @MORETHANTHREE: at most 3 colonists per building (manual ch. 6 / schools
    * teacher+students). No-op reassignment (already working there) is fine. */
   if (c->building_type != building_type &&

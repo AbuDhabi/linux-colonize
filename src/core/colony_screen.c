@@ -8,6 +8,7 @@
 #include "core/colony_production.h"
 #include "core/colony_yield.h"
 #include "core/dos_rng.h"
+#include "core/europe.h"
 #include "core/founding_fathers.h"
 #include "core/popup_msg.h"
 #include "core/turn.h"
@@ -2578,13 +2579,25 @@ static void colony_screen_draw_cargo_strip(
     return;
   }
 
+  /*
+   * Digit colors, golden-measured (New Amsterdam, exact RGB match against
+   * WOODPANL.PIK's palette, not a nearest-color guess): a 3-digit stock's
+   * hundreds digit is always gold, independent of the cargo; the rest of
+   * the digits are green when this cargo is currently toggled on in the
+   * colony's Custom House per-cargo mask (will be auto-sold this EOT) and
+   * navy otherwise — the "per-cargo UI chrome" europe.h's
+   * europe_custom_house_autosell comment had PARKed. Player-reported: the
+   * port was instead drawing every digit in one flat color (white/green/
+   * red keyed off an unrelated this-turn production delta). */
+  const uint8_t kHundredsColor = 148;
   for (int i = 0; i < COLONIZE_CARGO_COUNT; ++i) {
     const int slot_x = COLONY_CARGO_SLOT_X0 + i * COLONY_CARGO_PITCH;
     const int sprite = COLONY_CARGO_ICON_BASE + i;
     if (view && view->icons_ok && sprite < view->icons.sprite_count) {
       const ColonizeSprite* spr = &view->icons.sprites[sprite];
       const int icon_x = slot_x + (COLONY_CARGO_SLOT_W - spr->width) / 2;
-      ss_blit_sprite(&view->icons, sprite, framebuffer, icon_x, COLONY_CARGO_STRIP_Y);
+      /* Player-reported: 1px lower than before. */
+      ss_blit_sprite(&view->icons, sprite, framebuffer, icon_x, COLONY_CARGO_STRIP_Y + 1);
     }
 
     if (font) {
@@ -2593,15 +2606,37 @@ static void colony_screen_draw_cargo_strip(
       if (view && view->last_delta_valid) {
         delta = view->last_delta.goods[i];
       }
+      /* Player-reported: 2px lower than before. */
+      const int num_y = COLONY_CARGO_NUM_Y + 2;
       if (delta != 0) {
+        /* This-turn production delta suffix — a separate, not golden-
+         * verified display mode; left as a single flat color (unaffected
+         * by this fix) rather than guessing how it'd interact with the
+         * hundreds/Custom-House split above. */
         snprintf(amount, sizeof(amount), "%d%+d", colony->stock[i], delta);
-      } else {
-        snprintf(amount, sizeof(amount), "%d", colony->stock[i]);
+        const int tw = colony_screen_text_width(font, amount);
+        const int tx = slot_x + (COLONY_CARGO_SLOT_W - tw) / 2;
+        const uint8_t col = delta > 0 ? 10 : 12;
+        font_draw_text(font, framebuffer, tx, num_y, amount, col);
+        continue;
       }
+      snprintf(amount, sizeof(amount), "%d", colony->stock[i]);
       const int tw = colony_screen_text_width(font, amount);
       const int tx = slot_x + (COLONY_CARGO_SLOT_W - tw) / 2;
-      const uint8_t col = delta > 0 ? 10 : (delta < 0 ? 12 : 15);
-      font_draw_text(font, framebuffer, tx, COLONY_CARGO_NUM_Y, amount, col);
+      const uint8_t base_col =
+        europe_custom_house_cargo_enabled(colony->custom_house_bits, i) ? 10 : 61;
+      const size_t len = strlen(amount);
+      if (len > 2) {
+        char hundreds[16];
+        const size_t hlen = len - 2;
+        memcpy(hundreds, amount, hlen);
+        hundreds[hlen] = '\0';
+        font_draw_text(font, framebuffer, tx, num_y, hundreds, kHundredsColor);
+        const int hw = colony_screen_text_width(font, hundreds);
+        font_draw_text(font, framebuffer, tx + hw, num_y, amount + hlen, base_col);
+      } else {
+        font_draw_text(font, framebuffer, tx, num_y, amount, base_col);
+      }
     }
   }
 }
