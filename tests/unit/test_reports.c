@@ -72,6 +72,29 @@ int main(void) {
     return 1;
   }
 
+  /*
+   * Founding Father names now resolve live from NAMES.TXT @FATHERS after
+   * reports_load (2026-08-26 fix — was a hand-typed static table only).
+   * Check first/last rows against the real asset text.
+   */
+  if (strcmp(reports_ff_display_name(0), "Adam Smith") != 0) {
+    fprintf(stderr, "FF 0 want 'Adam Smith' got '%s'\n", reports_ff_display_name(0));
+    reports_free(&view);
+    return 1;
+  }
+  if (strcmp(reports_ff_display_name(24), "Bartolome de las Casas") != 0) {
+    fprintf(
+      stderr, "FF 24 want 'Bartolome de las Casas' got '%s'\n", reports_ff_display_name(24)
+    );
+    reports_free(&view);
+    return 1;
+  }
+  if (reports_ff_display_name(-1) == NULL || reports_ff_display_name(25) == NULL) {
+    fprintf(stderr, "FF name out-of-range should return a placeholder, not NULL\n");
+    reports_free(&view);
+    return 1;
+  }
+
   uint8_t pixels[320 * 200];
   ColonizeFramebuffer8 fb = {.width = 320, .height = 200, .pixels = pixels};
   reports_render(
@@ -358,6 +381,16 @@ int main(void) {
 
   fprintf(stderr, "report screens ok (%d backgrounds + Col1 data + score)\n", COLONIZE_REPORT_COUNT);
   reports_free(&view);
+
+  /* After free (no assets loaded), FF names must still resolve — the
+   * hand-typed static table fallback, not a stale/dangling live pointer. */
+  if (strcmp(reports_ff_display_name(0), "Adam Smith") != 0) {
+    fprintf(
+      stderr, "FF 0 after reports_free want 'Adam Smith' got '%s'\n", reports_ff_display_name(0)
+    );
+    return 1;
+  }
+
   diag_shutdown();
   return 0;
 }
