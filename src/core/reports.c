@@ -526,6 +526,26 @@ static const char* reports_ff_name(int idx) {
   return live ? live : k_ff_names[idx];
 }
 
+/*
+ * NAMES.TXT @TRIBES column 0. Unlike the single-shot ff/job/cargo lookups
+ * above (used-immediately, one at a time), the Indian Adviser builds a
+ * whole `rows[]` array of these before drawing — reports_names_field's one
+ * shared scratch buffer would have every row alias the last tribe parsed.
+ * A per-index buffer here keeps each tribe's name independently alive.
+ */
+static const char* reports_tribe_name(int t) {
+  static char live[COLONIZE_COL1_INDIAN_COUNT][40];
+  if (t < 0 || t >= (int)COLONIZE_COL1_INDIAN_COUNT) {
+    return "Tribe";
+  }
+  const char* field = reports_names_field("TRIBES", t, 0);
+  if (field) {
+    snprintf(live[t], sizeof(live[t]), "%s", field);
+    return live[t];
+  }
+  return k_tribe_names[t];
+}
+
 const char* reports_ff_display_name(int idx) {
   return reports_ff_name(idx);
 }
@@ -536,6 +556,10 @@ const char* reports_job_display_name(int job) {
 
 const char* reports_cargo_display_name(int cargo) {
   return reports_cargo_name(cargo);
+}
+
+const char* reports_tribe_display_name(int t) {
+  return reports_tribe_name(t);
 }
 
 /*
@@ -553,18 +577,47 @@ static bool reports_ff_owned_by_nation(const ColonizeCol1Nation* nat, int ff_ind
   return (nat->founding_fathers[ff_index / 8] >> (ff_index % 8)) & 1;
 }
 
+/*
+ * NAMES.TXT @NATIONALITY (row = nation). Dedicated per-nation buffer, not
+ * the shared ff/job/cargo scratch one — Foreign Affairs stores this into a
+ * `rows[]` array (r->leader / r->adjective, two calls per row) before
+ * drawing, same aliasing hazard as reports_tribe_name.
+ */
 static const char* reports_nation_adjective(int nation) {
+  static char live[COLONIZE_COL1_NATION_COUNT][20];
   if (nation < 0 || nation >= (int)COLONIZE_COL1_NATION_COUNT) {
     return "";
+  }
+  const char* field = reports_names_field("NATIONALITY", nation, 0);
+  if (field) {
+    snprintf(live[nation], sizeof(live[nation]), "%s", field);
+    return live[nation];
   }
   return k_euro_short[nation];
 }
 
+/* NAMES.TXT @LEVELS column 0 (row = tech, capped 0..3). Own buffer for the
+ * same reason as reports_nation_adjective — used inside the Indian
+ * Adviser's rows[] builder alongside reports_tribe_name. */
 static const char* reports_tribe_level(uint8_t tech) {
+  static char live[4][20];
   if (tech > 3) {
     tech = 3;
   }
+  const char* field = reports_names_field("LEVELS", tech, 0);
+  if (field) {
+    snprintf(live[tech], sizeof(live[tech]), "%s", field);
+    return live[tech];
+  }
   return k_tribe_levels[tech];
+}
+
+const char* reports_nation_adjective_display_name(int nation) {
+  return reports_nation_adjective(nation);
+}
+
+const char* reports_tribe_level_display_name(uint8_t tech) {
+  return reports_tribe_level(tech);
 }
 
 static bool reports_unit_in_europe(int x, int y) {
@@ -2687,7 +2740,7 @@ static int reports_indian_build_rows(
     }
     IndianRow* r = &rows[n++];
     r->nation_id = nation_id;
-    r->name = k_tribe_names[t];
+    r->name = reports_tribe_name(t);
     r->color = k_indian_tribe_colors[t];
     r->level = reports_tribe_level(ind->tech);
     r->villages = villages;

@@ -125,6 +125,74 @@ int main(void) {
     return 1;
   }
 
+  /* Tribe names now resolve live from NAMES.TXT @TRIBES column 0 — a
+   * separate per-index buffer (not the shared ff/job/cargo scratch one),
+   * since the Indian Adviser stores several of these into rows[] at once. */
+  if (strcmp(reports_tribe_display_name(0), "Incas") != 0) {
+    fprintf(stderr, "tribe 0 want 'Incas' got '%s'\n", reports_tribe_display_name(0));
+    reports_free(&view);
+    return 1;
+  }
+  if (strcmp(reports_tribe_display_name(7), "Tupi") != 0) {
+    fprintf(stderr, "tribe 7 want 'Tupi' got '%s'\n", reports_tribe_display_name(7));
+    reports_free(&view);
+    return 1;
+  }
+  /* Both must stay correct at once — proves the per-index buffer isn't
+   * aliased the way a single shared scratch buffer would be. */
+  const char* t0 = reports_tribe_display_name(0);
+  const char* t7 = reports_tribe_display_name(7);
+  if (strcmp(t0, "Incas") != 0 || strcmp(t7, "Tupi") != 0) {
+    fprintf(stderr, "tribe names 0/7 aliased: got '%s'/'%s'\n", t0, t7);
+    reports_free(&view);
+    return 1;
+  }
+
+  /* Nation adjectives now resolve live from NAMES.TXT @NATIONALITY —
+   * same per-index-buffer aliasing check as tribe names (Foreign Affairs
+   * stores this into rows[] too). */
+  if (strcmp(reports_nation_adjective_display_name(0), "English") != 0) {
+    fprintf(
+      stderr,
+      "nation 0 want 'English' got '%s'\n",
+      reports_nation_adjective_display_name(0)
+    );
+    reports_free(&view);
+    return 1;
+  }
+  if (strcmp(reports_nation_adjective_display_name(3), "Dutch") != 0) {
+    fprintf(
+      stderr, "nation 3 want 'Dutch' got '%s'\n", reports_nation_adjective_display_name(3)
+    );
+    reports_free(&view);
+    return 1;
+  }
+  const char* n0 = reports_nation_adjective_display_name(0);
+  const char* n3 = reports_nation_adjective_display_name(3);
+  if (strcmp(n0, "English") != 0 || strcmp(n3, "Dutch") != 0) {
+    fprintf(stderr, "nation adjectives 0/3 aliased: got '%s'/'%s'\n", n0, n3);
+    reports_free(&view);
+    return 1;
+  }
+
+  /* Tribe tech levels now resolve live from NAMES.TXT @LEVELS column 0. */
+  if (strcmp(reports_tribe_level_display_name(0), "Semi-Nomadic") != 0) {
+    fprintf(
+      stderr,
+      "level 0 want 'Semi-Nomadic' got '%s'\n",
+      reports_tribe_level_display_name(0)
+    );
+    reports_free(&view);
+    return 1;
+  }
+  if (strcmp(reports_tribe_level_display_name(3), "Civilized") != 0) {
+    fprintf(
+      stderr, "level 3 want 'Civilized' got '%s'\n", reports_tribe_level_display_name(3)
+    );
+    reports_free(&view);
+    return 1;
+  }
+
   uint8_t pixels[320 * 200];
   ColonizeFramebuffer8 fb = {.width = 320, .height = 200, .pixels = pixels};
   reports_render(
@@ -431,6 +499,28 @@ int main(void) {
   if (strcmp(reports_cargo_display_name(0), "Food") != 0) {
     fprintf(
       stderr, "cargo 0 after reports_free want 'Food' got '%s'\n", reports_cargo_display_name(0)
+    );
+    return 1;
+  }
+  if (strcmp(reports_tribe_display_name(0), "Incas") != 0) {
+    fprintf(
+      stderr, "tribe 0 after reports_free want 'Incas' got '%s'\n", reports_tribe_display_name(0)
+    );
+    return 1;
+  }
+  if (strcmp(reports_nation_adjective_display_name(0), "English") != 0) {
+    fprintf(
+      stderr,
+      "nation 0 after reports_free want 'English' got '%s'\n",
+      reports_nation_adjective_display_name(0)
+    );
+    return 1;
+  }
+  if (strcmp(reports_tribe_level_display_name(0), "Semi-Nomadic") != 0) {
+    fprintf(
+      stderr,
+      "level 0 after reports_free want 'Semi-Nomadic' got '%s'\n",
+      reports_tribe_level_display_name(0)
     );
     return 1;
   }

@@ -71,14 +71,18 @@ const char* reports_title(ColonizeReportId id);
 const char* reports_background_name(ColonizeReportId id);
 
 /*
- * Founding Father / job-expert / cargo display name by index. Live from
- * NAMES.TXT (@FATHERS / @JOB / @CARGO) after a successful reports_load;
- * falls back to a hand-typed static table otherwise (no assets loaded,
- * e.g. tests).
+ * Founding Father / job-expert / cargo / tribe / nation-adjective / tribe-
+ * tech-level display name by index. Live from NAMES.TXT (@FATHERS / @JOB /
+ * @CARGO / @TRIBES / @NATIONALITY / @LEVELS) after a successful
+ * reports_load; falls back to a hand-typed static table otherwise (no
+ * assets loaded, e.g. tests).
  */
 const char* reports_ff_display_name(int idx);
 const char* reports_job_display_name(int job);
 const char* reports_cargo_display_name(int cargo);
+const char* reports_tribe_display_name(int t);
+const char* reports_nation_adjective_display_name(int nation);
+const char* reports_tribe_level_display_name(uint8_t tech);
 
 /* Map F2–F10 → report id; returns false for F1 / non-report keys. */
 bool reports_id_from_fkey(int fkey_number /*1..10*/, ColonizeReportId* out_id);
