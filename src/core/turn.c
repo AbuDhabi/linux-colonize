@@ -895,7 +895,15 @@ static void turn_produce_one_colony(
         colony->nation_id == human_nation && turn_report_ok_food(col1)) {
       const int stock = colony->stock[COLONIZE_CARGO_FOOD];
       const int food_shortfall = consumed - field_food; /* DOS 8e32 when >0 */
-      if (stock < need && !was_starving) {
+      /*
+       * bugs.md item 5: DOS's literal FOOD1/FOOD2 latch fires on stock<need
+       * alone, even at food_shortfall<=0 (production covers or beats
+       * consumption) — a colony merely flatlining at 0 net-zero food would
+       * re-trigger "depleted" every turn. Require actively losing food
+       * (shortfall>0) to match FOODLOW's own "surplus never warns" rule
+       * below and stop the false-positive nag.
+       */
+      if (stock < need && food_shortfall > 0 && !was_starving) {
         if (colony->name[0]) {
           snprintf(
             europe->status, sizeof(europe->status), "Food depleted in %s.", colony->name

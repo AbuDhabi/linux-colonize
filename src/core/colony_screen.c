@@ -880,7 +880,9 @@ static void colony_screen_draw_top_bar(
   snprintf(line, sizeof(line), "%s.  %s, %u.  Gold: %d$", name, season, year, gold);
   const int w = font_text_width(font, line);
   const int x = (COLONY_SCREEN_WIDTH - w) / 2;
-  font_draw_text(font, framebuffer, x, 2, line, 68);
+  /* bugs.md item 1: golden (new_amsterdam_production.png) ink top edge
+   * measures native y=1, not 2 — title sat 1px too low. */
+  font_draw_text(font, framebuffer, x, 1, line, 68);
 }
 
 static void colony_screen_draw_selection_box(
@@ -2753,8 +2755,10 @@ static void colony_screen_draw_transports(
       const int goods_holds = units_goods_hold_count(units, view->transport_unit_id);
       open_holds = goods_holds < 0 ? 0 : (goods_holds > max_holds ? max_holds : goods_holds);
       for (int i = 0; i < open_holds; ++i) {
-        const int x = COLONY_HOLD_X + 4 + i * COLONY_HOLD_PITCH;
-        const int y = COLONY_HOLD_Y;
+        /* bugs.md item 10: loaded-cargo goods icon sat 10px too high, 3px
+         * too far left vs. its hold slot; nudged to match. */
+        const int x = COLONY_HOLD_X + 4 + i * COLONY_HOLD_PITCH + 3;
+        const int y = COLONY_HOLD_Y + 10;
         const int amt = ship->hold_goods_amount[i];
         const int gtype = ship->hold_goods_type[i];
         if (amt > 0 && amt < 255 && gtype >= 0 && gtype < COLONIZE_CARGO_COUNT) {
