@@ -1083,17 +1083,28 @@ static void game_do_buy_construction(ColonizeGameState* game, int colony_id) {
   const int gold_before = game->europe.gold;
   const ColonizeBuildingType* bt =
     colonies_building_type(&game->colonies, colony->building_in_production);
-  const int tools = bt ? bt->tools_cost : 0;
+  const char* uname = NULL;
+  int utools = 0;
+  const bool is_unit =
+    !bt && colonies_unit_build_info(colony->building_in_production, &uname, NULL, &utools);
+  const int tools = bt ? bt->tools_cost : utools;
   if (colonies_construction_tools_needed(&game->colonies, colony) > 0) {
     set_status(game, "Need tools", NULL);
   } else if (game->europe.gold < colonies_construction_gold_cost(&game->colonies, colony)) {
     set_status(game, "Need gold", NULL);
   } else if (colonies_buy_construction(&game->colonies, colony_id, &game->europe.gold)) {
+    /* Real building: colonies_buy_construction already completed it. A
+     * unit-type project (Artillery — colonies_unit_build_info) only got
+     * hammers/tools topped up there (no ColonizeUnitPool to spawn with) —
+     * finish it here now that we have one. */
+    if (is_unit) {
+      colonies_try_complete_unit_construction(&game->colonies, colony_id, &game->units);
+    }
     snprintf(
       game->status,
       sizeof(game->status),
       "Bought %s (-%d$, -%d tools)",
-      bt ? bt->name : "building",
+      bt ? bt->name : (uname ? uname : "building"),
       gold_before - game->europe.gold,
       tools
     );
@@ -1128,7 +1139,11 @@ static void game_request_buy_construction_confirm(ColonizeGameState* game) {
   }
   const ColonizeBuildingType* bt =
     colonies_building_type(&game->colonies, colony->building_in_production);
-  const char* bname = (bt && bt->name[0]) ? bt->name : "building";
+  const char* uname = NULL;
+  if (!bt) {
+    colonies_unit_build_info(colony->building_in_production, &uname, NULL, NULL);
+  }
+  const char* bname = (bt && bt->name[0]) ? bt->name : (uname ? uname : "building");
   PopupMsgTokens tok;
   memset(&tok, 0, sizeof(tok));
   tok.string0 = bname;
@@ -8331,8 +8346,16 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
           const int bid = csv->buildable_ids[hit.index];
           if (colonies_set_construction(&game->colonies, game->colony_view_id, bid)) {
             const ColonizeBuildingType* bt = colonies_building_type(&game->colonies, bid);
+            const char* uname = NULL;
+            /* colonies_building_type() is NULL for Artillery's unit-build
+             * raw code (colonies_unit_build_info) — not a real @BUILDING
+             * row. */
+            if (!bt) {
+              colonies_unit_build_info(bid, &uname, NULL, NULL);
+            }
             snprintf(
-              game->status, sizeof(game->status), "Building %s", bt ? bt->name : "project"
+              game->status, sizeof(game->status), "Building %s",
+              bt ? bt->name : (uname ? uname : "project")
             );
           } else {
             const ColonizeColony* col_ref =

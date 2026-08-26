@@ -1658,6 +1658,40 @@ void turn_run_colony_production(
   }
 }
 
+void turn_run_colony_unit_construction(ColonizeTurnContext* ctx) {
+  if (!ctx || !ctx->colonies || !ctx->units) {
+    return;
+  }
+  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+    ColonizeColony* col = &ctx->colonies->colonies[i];
+    if (!col->active || col->building_in_production < 0) {
+      continue;
+    }
+    const char* name = NULL;
+    if (!colonies_unit_build_info(col->building_in_production, &name, NULL, NULL)) {
+      continue;
+    }
+    const int uid = colonies_try_complete_unit_construction(ctx->colonies, col->id, ctx->units);
+    if (uid < 0) {
+      continue;
+    }
+    if (ctx->europe && col->nation_id == ctx->human_nation) {
+      snprintf(ctx->europe->status, sizeof(ctx->europe->status), "%s completed.", name);
+      /* DOS @BUILT — same "%STRING0 colony produces {%STRING1}." wording
+       * turn_produce_one_colony's real-building completion path uses. */
+      if (ctx->ai_popups) {
+        char body[AI_POPUP_BODY_LEN];
+        PopupMsgTokens tok;
+        memset(&tok, 0, sizeof(tok));
+        tok.string0 = col->name[0] ? col->name : "colony";
+        tok.string1 = name;
+        popup_msg_fill(ctx->messages, "BUILT", &tok, ctx->europe->status, body, sizeof(body));
+        ai_popup_enqueue_ok(ctx->ai_popups, AI_POPUP_TAG_INFO, NULL, body);
+      }
+    }
+  }
+}
+
 int turn_run_coastal_fort_fire(ColonizeTurnContext* ctx) {
   if (!ctx || !ctx->units || !ctx->colonies || !ctx->map) {
     return 0;
@@ -2590,6 +2624,10 @@ bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ct
         ctx->messages,
         ctx->rng
       );
+      /* Artillery construction completion — turn_run_colony_production has
+       * no ColonizeUnitPool access (colonies_try_complete_building never
+       * needed one; spawning a unit does), so this is its own pass. */
+      turn_run_colony_unit_construction(ctx);
       /* FUN_364b_03f6 coastal Fort/Fortress fire after production. */
       (void)turn_run_coastal_fort_fire(ctx);
       turn_run_nation_ticks(ctx, &proc->result);

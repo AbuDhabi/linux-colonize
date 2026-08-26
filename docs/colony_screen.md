@@ -890,6 +890,86 @@ Player-reported, two items, both follow-ups on 2026-08-26's work above:
    this file, "golden-confirmed" means pixel-matched; here it means "the
    player explicitly asked for something DOS doesn't do."
 
+## 2026-08-27 fix: Construction tab (BUY alignment, tools line, hammer rows), Artillery construction
+
+Player-reported, five items:
+
+1. **BUY moved up 4px to align with CHANGE** (which had already moved on
+   its own follow-up earlier) — both buttons now sit on the same row.
+   Hit-test region followed (`[10,26)` → `[6,22)` relative to
+   `COLONY_PANEL_CONTENT_Y`).
+2. **Artillery is now a real, completable construction project**, not
+   display-only. `colonies_unit_build_info()` (colony.h/.c) is the new
+   single source of truth for its name/hammers/tools_cost (192H/40T,
+   golden-confirmed on the one save that had it queued) — @UNIT's own
+   NAMES.TXT row is a Europe *purchase* price, not a colony hammers cost,
+   so this pair isn't independently cross-checked against it.
+   `colonies_list_buildable()` now offers it (as raw code
+   `COLONIZE_UNIT_BUILD_ARTILLERY` = 42, past the real @BUILDING table's
+   range — matches how col1_bridge_apply already round-trips this code)
+   when the colony has an Armory, Magazine, or Arsenal;
+   `colonies_set_construction()` accepts the code under the same gate.
+   Completion needed a new function, not a branch in
+   `colonies_try_complete_building()`: that one only ever sets
+   `has_building[]`, but a unit-type project has to spawn an actual map
+   unit, which needs a `ColonizeUnitPool` colony.c's existing building-
+   completion path never took (real buildings never spawn anything). New
+   `colonies_try_complete_unit_construction(pool, colony_id, units)` — same
+   hammers/tools gate as the building path, spawns via
+   `units_spawn_allow_stack` + `units_set_nation`, deducts tools, resets
+   hammers (which is itself the re-fire guard — a unit is never "owned" so
+   there's no `has_building[]`-style dedup to fall back on). Turn-loop side
+   needed its own pass too (`turn_run_colony_unit_construction`, called
+   right after `turn_run_colony_production` in `turn_processor_advance`) —
+   `turn_produce_one_colony` has no units-pool parameter, so it can't reach
+   the new function directly the way it reaches
+   `colonies_try_complete_building`. Verified end-to-end against
+   `dutch-reports.SAV`'s Fort Orange (bip=42, Armory-having): buildable
+   list includes it, force-filling hammers to 192 and calling the new
+   completion function spawned a real "Artillery" unit at the colony's
+   tile under the colony's nation, tools stock dropped by 40, hammers
+   reset to 0; a colony without an Armory chain correctly can't select it.
+3. **BUY popup** (cost confirm → gold/tools deduction) turned out to
+   already exist and work for real buildings
+   (`game_request_buy_construction_confirm` / `game_do_buy_construction` /
+   `colonies_buy_construction`, wired through `GAME_MAP_CONFIRM_BUY_
+   CONSTRUCTION`) — the "still won't act on it correctly" gap the old
+   Artillery comment flagged was specifically about *unit* projects, fixed
+   alongside item 2 above: `colonies_buy_construction()` now recognizes a
+   unit-type project (`colonies_unit_build_info`) and tops hammers/tools up
+   to the completion threshold instead of calling
+   `colonies_try_complete_building` (which would always fail on a unit code
+   — `colonies_building_type` returns NULL for it); `game_do_buy_
+   construction` then calls `colonies_try_complete_unit_construction`
+   itself right after (it has a `ColonizeUnitPool` `colonies_buy_
+   construction` doesn't take), so BUY actually spawns the Artillery in the
+   same click for a unit project, same as a real building completing
+   immediately.
+4. **"(Requires N Tools)" text**: moved up 6px (`py+46` sat 1px past
+   `COLONY_PANEL_CONTENT_H`'s bottom edge, clipped by the box) and
+   centered horizontally (`font_text_width`-based). Color: grey when the
+   colony's tools stock already covers the cost, white when short. Tried
+   grey=palette index 7 first — `font.c`'s `draw_ff_glyph` hardcodes
+   `color==7` to the exact same "unbold white" AA blend as `color==15`
+   (`FF_COLOR_MAP`, comment literally says "ink 15 or 7"), so 7 rendered
+   indistinguishable from white; switched to index 8 (plain solid-ink dark
+   grey, not special-cased) which reads as genuinely different from the
+   white insufficient-tools state.
+5. **Hammer counters: four rows of one-fourth the total need each,
+   filling row 0 first then row 1 etc. — a deliberate UI improvement, not
+   a DOS-accurate change** (same category as the Production tab's surplus-
+   split departure noted above: this port is not trying to match DOS pixel-
+   for-pixel in this one construction-progress display). Each row's
+   capacity is `need/4` with the remainder spread across the first rows
+   (so all four capacities always sum to exactly `need`); a row only draws
+   once every row before it is full. Verified against two real cases:
+   Fort Orange (Artillery, 64/192 hammers) shows a full row 0 (48/48) plus
+   a partial row 1 (16/48), rows 2-3 empty; Quebec (College, 156/160
+   hammers) shows all four rows nearly full (40/40/40/36). The old single
+   packed-row style is still what a barely-started project looks like
+   (only row 0 has anything) — same visual, just now conceptually one of
+   four quarters instead of the whole bar.
+
 ## Final match quality
 
 All six renders (`build/render_colony` against `dutch-reports.SAV`) are a
