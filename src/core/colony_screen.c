@@ -1393,6 +1393,25 @@ static const ColonyPlacementOverride k_colony_overrides[] = {
 static const int k_colony_override_count =
   (int)(sizeof(k_colony_overrides) / sizeof(k_colony_overrides[0]));
 
+/*
+ * Every colony now gets one of these two golden-verified layouts — not
+ * just New Amsterdam and Recife themselves. Player's ask: since both
+ * layouts are now known-good (no overlaps, exact golden match on their
+ * source colony), reuse them everywhere instead of the general RNG-pool
+ * algorithm, to see how two *real* arrangements read against other
+ * colonies' actual built/unbuilt mixes. New Amsterdam/Recife keep their
+ * own exact table (matches `k_colony_overrides[]` order: index 0, 1); any
+ * other colony gets one of the two picked deterministically from its own
+ * (x,y) — stable across reloads, arbitrary-looking across colonies. The
+ * general algorithm doesn't disappear: it still resolves any category
+ * either table leaves at COLONY_OVERRIDE_NONE (church's slot on both, for
+ * instance), and colony_screen_assign_slot_positions() falls back to it
+ * for a HIDDEN category too if this *other* colony actually has it built
+ * (HIDDEN only ever meant "no room in this table for the tree filler" —
+ * it must never swallow a real building).
+ */
+#define COLONY_LAYOUT_PICK_SALT 0x9e17u
+
 static const ColonyPlacementOverride* colony_screen_find_override(const ColonizeColony* colony) {
   if (!colony) {
     return NULL;
@@ -1402,7 +1421,11 @@ static const ColonyPlacementOverride* colony_screen_find_override(const Colonize
       return &k_colony_overrides[i];
     }
   }
-  return NULL;
+  ColonizeDosRng rng;
+  const uint32_t xy = ((uint32_t)colony->y << 8) | (uint32_t)colony->x;
+  dos_rng_seed(&rng, xy ^ COLONY_LAYOUT_PICK_SALT);
+  const int pick = dos_rng_range(&rng, 0, k_colony_override_count - 1);
+  return &k_colony_overrides[pick];
 }
 
 /* Shared by the draw path and both hit-test call sites so clicks always
@@ -1891,6 +1914,61 @@ static bool colony_screen_slot_overlaps_placed(
 }
 
 /*
+ * One group's worth of the rejection-sampling fallback chain: same-group
+ * dup + reserved corner + cross-group overlap, then drop the overlap
+ * check, then drop reserved too, then accept any free same-group slot —
+ * guarantees a pick even if the pool is fully boxed in, while preferring
+ * a clean one. Shared by the main per-category loop and the HIDDEN-but-
+ * actually-built fallback below (a category a golden layout's table marks
+ * unbuildable-here can still be genuinely built in some *other* colony
+ * reusing that layout — see colony_screen_find_override()). */
+static int colony_screen_pick_pool_slot(
+  int group,
+  const ColonyPoint* const pools[COLONY_GROUP_COUNT],
+  const int pool_counts[COLONY_GROUP_COUNT],
+  bool taken[COLONY_GROUP_COUNT][8],
+  const ColonyPlacedRect* placed,
+  int placed_count,
+  ColonizeDosRng* rng
+) {
+  const int n = pool_counts[group];
+  int pick = -1;
+  for (int guard = 0; guard < n * 4 && pick < 0; ++guard) {
+    const int c = dos_rng_range(rng, 0, n - 1);
+    if (!taken[group][c] && !colony_screen_slot_reserved(group, pools[group][c].x, pools[group][c].y) &&
+        !colony_screen_slot_overlaps_placed(group, pools[group][c].x, pools[group][c].y, placed, placed_count)) {
+      pick = c;
+    }
+  }
+  if (pick < 0) {
+    for (int c = 0; c < n; ++c) {
+      if (!taken[group][c] && !colony_screen_slot_reserved(group, pools[group][c].x, pools[group][c].y) &&
+          !colony_screen_slot_overlaps_placed(group, pools[group][c].x, pools[group][c].y, placed, placed_count)) {
+        pick = c;
+        break;
+      }
+    }
+  }
+  if (pick < 0) {
+    for (int c = 0; c < n; ++c) {
+      if (!taken[group][c] && !colony_screen_slot_reserved(group, pools[group][c].x, pools[group][c].y)) {
+        pick = c;
+        break;
+      }
+    }
+  }
+  if (pick < 0) {
+    for (int c = 0; c < n; ++c) {
+      if (!taken[group][c]) {
+        pick = c;
+        break;
+      }
+    }
+  }
+  return pick < 0 ? 0 : pick;
+}
+
+/*
  * Fills xs[]/ys[] (each sized k_building_slot_count) with this colony's
  * building positions: same algorithm shape as DOS (see block comment
  * above) — reseed a DOS-LCG RNG from this colony's fixed map (x,y), then
@@ -1900,7 +1978,13 @@ static bool colony_screen_slot_overlaps_placed(
  * across colonies, cheap enough to recompute on every call (14 slots) —
  * no caching needed.
  */
-static void colony_screen_assign_slot_positions(const ColonizeColony* colony, int* xs, int* ys) {
+static int colony_screen_best_built(
+  const ColonizeColonyPool* pool, const ColonizeColony* colony, const char* const* names, size_t name_count
+);
+
+static void colony_screen_assign_slot_positions(
+  const ColonizeColonyPool* pool, const ColonizeColony* colony, int* xs, int* ys
+) {
   const ColonyPoint* pools[COLONY_GROUP_COUNT] = {
     k_group_large_slots, k_group_med_slots, k_group_small_slots
   };
@@ -1954,48 +2038,8 @@ static void colony_screen_assign_slot_positions(const ColonizeColony* colony, in
       continue; /* filled in from ovr->pos[] below */
     }
     const int group = colony_screen_slot_group(k_building_slots[i].tree_sprite);
-    const int n = pool_counts[group];
-    int pick = -1;
-    /* Progressively relax: same-group dup + reserved corner + cross-group
-     * overlap, then drop the overlap check, then drop reserved too, then
-     * accept any free same-group slot — guarantees a pick even if the
-     * pool is fully boxed in, while preferring a clean one. */
-    for (int guard = 0; guard < n * 4 && pick < 0; ++guard) {
-      const int c = dos_rng_range(&rng, 0, n - 1);
-      if (!taken[group][c] && !colony_screen_slot_reserved(group, pools[group][c].x, pools[group][c].y) &&
-          !colony_screen_slot_overlaps_placed(group, pools[group][c].x, pools[group][c].y, placed, placed_count)) {
-        pick = c;
-      }
-    }
-    if (pick < 0) {
-      for (int c = 0; c < n; ++c) {
-        if (!taken[group][c] && !colony_screen_slot_reserved(group, pools[group][c].x, pools[group][c].y) &&
-            !colony_screen_slot_overlaps_placed(group, pools[group][c].x, pools[group][c].y, placed, placed_count)) {
-          pick = c;
-          break;
-        }
-      }
-    }
-    if (pick < 0) {
-      for (int c = 0; c < n; ++c) {
-        if (!taken[group][c] &&
-            !colony_screen_slot_reserved(group, pools[group][c].x, pools[group][c].y)) {
-          pick = c;
-          break;
-        }
-      }
-    }
-    if (pick < 0) {
-      for (int c = 0; c < n; ++c) {
-        if (!taken[group][c]) {
-          pick = c;
-          break;
-        }
-      }
-    }
-    if (pick < 0) {
-      pick = 0;
-    }
+    const int pick =
+      colony_screen_pick_pool_slot(group, pools, pool_counts, taken, placed, placed_count, &rng);
     taken[group][pick] = true;
     xs[i] = pools[group][pick].x;
     ys[i] = pools[group][pick].y;
@@ -2009,8 +2053,31 @@ static void colony_screen_assign_slot_positions(const ColonizeColony* colony, in
   if (ovr) {
     for (int i = 0; i < k_building_slot_count && i < 14; ++i) {
       if (ovr->pos[i][0] == COLONY_OVERRIDE_HIDDEN) {
-        xs[i] = COLONY_SLOT_HIDDEN;
-        ys[i] = COLONY_SLOT_HIDDEN;
+        /* HIDDEN means "this table has no room for the tree filler" — it
+         * must never swallow a real building. If some *other* colony
+         * reusing this layout actually has the category built, give it a
+         * genuine slot via the same fallback the general algorithm uses. */
+        size_t n = 0;
+        while (k_building_slots[i].chain && k_building_slots[i].chain[n]) {
+          ++n;
+        }
+        const int built = pool ? colony_screen_best_built(pool, colony, k_building_slots[i].chain, n) : -1;
+        if (built < 0) {
+          xs[i] = COLONY_SLOT_HIDDEN;
+          ys[i] = COLONY_SLOT_HIDDEN;
+        } else {
+          const int group = colony_screen_slot_group(k_building_slots[i].tree_sprite);
+          const int pick =
+            colony_screen_pick_pool_slot(group, pools, pool_counts, taken, placed, placed_count, &rng);
+          taken[group][pick] = true;
+          xs[i] = pools[group][pick].x;
+          ys[i] = pools[group][pick].y;
+          if (placed_count < 14) {
+            int w, h;
+            colony_screen_group_footprint_wh(group, &w, &h);
+            placed[placed_count++] = (ColonyPlacedRect){xs[i], ys[i], w, h};
+          }
+        }
       } else if (ovr->pos[i][0] != COLONY_OVERRIDE_NONE) {
         xs[i] = ovr->pos[i][0];
         ys[i] = ovr->pos[i][1];
@@ -2235,7 +2302,6 @@ static void colony_screen_blit_buildings(
   const ColonizeColonyPool* pool,
   const ColonizeColony* colony,
   const ColonizeUnitPool* units,
-  bool coastal,
   const ColonizeFont* font,
   bool debug_rects,
   ColonizeFramebuffer8* framebuffer
@@ -2248,7 +2314,7 @@ static void colony_screen_blit_buildings(
   const int slot_oy = COLONY_VIEWPORT_Y;
   int slot_x[32];
   int slot_y[32];
-  colony_screen_assign_slot_positions(colony, slot_x, slot_y);
+  colony_screen_assign_slot_positions(pool, colony, slot_x, slot_y);
   for (int i = 0; i < k_building_slot_count; ++i) {
     const ColonyBuildingSlot* slot = &k_building_slots[i];
     size_t n = 0;
@@ -2407,7 +2473,11 @@ static void colony_screen_blit_buildings(
     if (debug_rects) {
       colony_screen_debug_building_rect(view, framebuffer, docks, coast_x, coast_y);
     }
-  } else if (coastal) {
+  } else {
+    /* DOS draws this placeholder in every colony's dock corner, coastal or
+     * not — inland colonies just never get to replace it with a real
+     * Docks/Drydock/Shipyard (player-caught: this port was gating it on
+     * `coastal`, leaving inland colonies with a blank corner instead). */
     colony_screen_blit_slot(view, COLONY_COAST_PLACEHOLDER, coast_x, coast_y, framebuffer);
     if (debug_rects) {
       colony_screen_debug_building_rect(view, framebuffer, COLONY_COAST_PLACEHOLDER, coast_x, coast_y);
@@ -3527,7 +3597,7 @@ ColonyScreenHitResult colony_screen_hit_test(
    * from what's drawn (same per-colony-deterministic assignment). */
   int slot_x[32];
   int slot_y[32];
-  colony_screen_assign_slot_positions(colony, slot_x, slot_y);
+  colony_screen_assign_slot_positions(pool, colony, slot_x, slot_y);
 
   if (view->message_kind != COLONY_MSG_NONE) {
     if (mx < view->message_dialog_x || my < view->message_dialog_y ||
@@ -4036,11 +4106,7 @@ void colony_screen_render(
   colony_screen_draw_top_bar(colony, game_year, game_autumn, gold, font, framebuffer);
 
   colony_screen_fill_parch(view, framebuffer);
-  {
-    const bool coastal =
-      colony && map && map_tile_is_coastal(map, colony->x, colony->y);
-    colony_screen_blit_buildings(view, pool, colony, units, coastal, font, debug_building_rects, framebuffer);
-  }
+  colony_screen_blit_buildings(view, pool, colony, units, font, debug_building_rects, framebuffer);
 
   colony_screen_fill_wood_tile(view, framebuffer);
   if (colony && map && terrain) {

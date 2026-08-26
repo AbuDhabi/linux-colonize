@@ -668,9 +668,12 @@ int main(void) {
     return 1;
   }
 
-  /* Fence (BUILDING.SS #16) bottom-right of the buildings section. */
-  const int fence_x = COLONY_VIEWPORT_X + COLONY_VIEWPORT_W - 73;
-  const int fence_y = COLONY_VIEWPORT_Y + COLONY_VIEWPORT_H - 18;
+  /* Fence (BUILDING.SS #16), bottom-right of the buildings section. Every
+   * colony now uses one of the two golden layouts (New Amsterdam/Recife),
+   * both of which fix this corner at the same absolute (123,106) —
+   * see colony_screen_docks_fence_anchor(). */
+  const int fence_x = 123;
+  const int fence_y = 106;
   bool fence_pixel = false;
   for (int y = fence_y; y < fence_y + 18 && !fence_pixel; ++y) {
     for (int x = fence_x; x < fence_x + 73; ++x) {
@@ -835,8 +838,8 @@ int main(void) {
 
   /* Coastal colonies without Docks show empty coast placeholder (#45) above the fence. */
   if (sample_coastal) {
-    const int coast_x = COLONY_VIEWPORT_X + COLONY_VIEWPORT_W - 75;
-    const int coast_y = fence_y - 48;
+    const int coast_x = 123;
+    const int coast_y = 55;
     bool coast_pixel = false;
     for (int y = coast_y; y < coast_y + 48 && !coast_pixel; ++y) {
       for (int x = coast_x; x < coast_x + 75; ++x) {
@@ -1397,15 +1400,17 @@ int main(void) {
     }
 
     const int carpenter = colonies_find_building(&pool, "Carpenter's Shop");
-    /* Carpenter's MED pool slot is (9,68) (k_group_med_slots) for this test
-     * colony's RNG draw; (20,68) is an interior point. */
+    /* Every colony now reuses one of the two golden layouts (New Amsterdam/
+     * Recife — see colony_screen_find_override()); this test colony's (x,y)
+     * happens to draw the New Amsterdam one, putting carpenter at (127,45)
+     * (k_group_med_slots); (140,46) is an interior point. */
     hit = colony_screen_hit_test(
       &view,
       &pool,
       sample,
       &units,
-      COLONY_VIEWPORT_X + 20,
-      COLONY_VIEWPORT_Y + 68
+      COLONY_VIEWPORT_X + 140,
+      COLONY_VIEWPORT_Y + 46
     );
     if (hit.kind != COLONY_HIT_BUILDING || hit.index != carpenter) {
       fprintf(
