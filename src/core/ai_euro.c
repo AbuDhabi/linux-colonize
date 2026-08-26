@@ -14527,13 +14527,17 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
   int missionary_contacted = 0;
 
   /*
-   * LCR (FUN_65dd_0004 thin transcription): Scout standing on rumour clears
-   * it and rolls a manual outcome; de Soto keeps outcomes positive. AI
-   * nations have no modeled EuropeScreen recruit pool, so Fountain of Youth
-   * is a no-op for them (see units_resolve_lcr_rumour).
+   * LCR (FUN_65dd_0004 thin transcription): any land unit standing on a
+   * rumour clears it and rolls a manual outcome — Scouts get a better-
+   * weighted table (units_resolve_lcr_rumour), de Soto keeps outcomes
+   * positive. AI nations have no modeled EuropeScreen recruit pool, so
+   * Fountain of Youth is a no-op for them (see units_resolve_lcr_rumour).
+   * Not gated on is_scout: that was this port's own over-restriction
+   * (player-caught) — any AI land unit walking onto an LCR triggers it in
+   * DOS, Scout is just better at it.
    * Cite: units_resolve_lcr_rumour; Colonization.pdf Lost City Rumours.
    */
-  if (is_scout && ctx->map && map_tile_has_rumour(ctx->map, u->x, u->y)) {
+  if (ctx->map && map_tile_has_rumour(ctx->map, u->x, u->y)) {
     if (units_resolve_lcr_rumour(
           ctx->units,
           u->id,

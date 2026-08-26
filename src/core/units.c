@@ -2402,6 +2402,58 @@ static void units_lcr_credit_gold(
   }
 }
 
+typedef struct ColonizeLcrWeight {
+  ColonizeLcrOutcome outcome;
+  int weight; /* out of 100 */
+} ColonizeLcrWeight;
+
+/*
+ * Base weights are exactly the old hardcoded 25/20/15/12/10/8/5/3/2 cumulative
+ * thresholds (unchanged outcome odds for a plain, non-Scout explorer). Scout
+ * and Seasoned Scout tiers are this port's own approximation of
+ * Colonization.pdf's "Better at exploring rumors…" — not the real DOS weight
+ * table (full case/redirect graph PARKED, see the block comment above
+ * ColonizeLcrOutcome), just a close, clearly-tiered stand-in: each step
+ * trims the bad outcomes (Nothing, Vanishes) and grows the good ones
+ * (Treasure/Gift/Survivors/FoY/Cibola), Seasoned Scout more than plain
+ * Scout. Each table sums to exactly 100.
+ */
+static const ColonizeLcrWeight k_lcr_weights_base[] = {
+  {COLONIZE_LCR_NOTHING, 25},          {COLONIZE_LCR_SMALL_TREASURE, 20},
+  {COLONIZE_LCR_CHIEFS_GIFT, 15},      {COLONIZE_LCR_BURIAL_MOUNDS, 12},
+  {COLONIZE_LCR_TRESPASS_ANGER, 10},   {COLONIZE_LCR_SURVIVORS_JOIN, 8},
+  {COLONIZE_LCR_FOUNTAIN_OF_YOUTH, 5}, {COLONIZE_LCR_VANISHES, 3},
+  {COLONIZE_LCR_CIBOLA, 2}
+};
+static const ColonizeLcrWeight k_lcr_weights_scout[] = {
+  {COLONIZE_LCR_NOTHING, 10},          {COLONIZE_LCR_SMALL_TREASURE, 25},
+  {COLONIZE_LCR_CHIEFS_GIFT, 18},      {COLONIZE_LCR_BURIAL_MOUNDS, 11},
+  {COLONIZE_LCR_TRESPASS_ANGER, 8},    {COLONIZE_LCR_SURVIVORS_JOIN, 11},
+  {COLONIZE_LCR_FOUNTAIN_OF_YOUTH, 9}, {COLONIZE_LCR_VANISHES, 1},
+  {COLONIZE_LCR_CIBOLA, 7}
+};
+static const ColonizeLcrWeight k_lcr_weights_seasoned_scout[] = {
+  {COLONIZE_LCR_NOTHING, 5},            {COLONIZE_LCR_SMALL_TREASURE, 25},
+  {COLONIZE_LCR_CHIEFS_GIFT, 20},       {COLONIZE_LCR_BURIAL_MOUNDS, 10},
+  {COLONIZE_LCR_TRESPASS_ANGER, 6},     {COLONIZE_LCR_SURVIVORS_JOIN, 12},
+  {COLONIZE_LCR_FOUNTAIN_OF_YOUTH, 11}, {COLONIZE_LCR_VANISHES, 0},
+  {COLONIZE_LCR_CIBOLA, 11}
+};
+
+static ColonizeLcrOutcome units_lcr_roll_outcome(
+  ColonizeDosRng* rng, const ColonizeLcrWeight* table, int n
+) {
+  const int roll = dos_rng_range(rng, 1, 100);
+  int acc = 0;
+  for (int i = 0; i < n; ++i) {
+    acc += table[i].weight;
+    if (roll <= acc) {
+      return table[i].outcome;
+    }
+  }
+  return table[n - 1].outcome;
+}
+
 bool units_resolve_lcr_rumour(
   ColonizeUnitPool* pool,
   int unit_id,
@@ -2412,10 +2464,14 @@ bool units_resolve_lcr_rumour(
   int human_nation
 ) {
   /*
-   * FUN_65dd_0004 thin transcription: Scout on a procedural rumour tile
-   * clears it and rolls one of the manual-documented outcomes (treasure /
-   * Fountain of Youth / Cibola / survivors join / burial mounds / vanish /
-   * nothing). de Soto (FF 7) keeps its "always positive" framing — extended
+   * FUN_65dd_0004 thin transcription: any land unit standing on a
+   * procedural rumour tile clears it and rolls one of the manual-documented
+   * outcomes (treasure / Fountain of Youth / Cibola / survivors join /
+   * burial mounds / vanish / nothing) — Scout / Seasoned Scout get a
+   * better-weighted table (k_lcr_weights_scout/_seasoned_scout; player-
+   * caught this was previously hard-gated to Scouts only, silently no-
+   * opping for every other unit type). de Soto (FF 7) keeps its "always
+   * positive" framing — extended
    * sight is a separate always-on FF effect (see founding_fathers.h); here
    * it restricts the draw to the non-hostile subset instead of a bare
    * reveal-only shortcut. Deep DOS RNG weights / native-attack combat
@@ -2433,12 +2489,19 @@ bool units_resolve_lcr_rumour(
   if (!u || !u->active || !map || !units_is_on_map(u)) {
     return false;
   }
+  /*
+   * Any land unit can trigger a rumour (map_procedural_rumour_at already
+   * gates to land tiles, so a ship can never even reach one) — Scouts and
+   * Seasoned Scouts just roll a better outcome table, per Colonization.pdf
+   * ("Better at exploring rumors…"). Player-caught: this was previously
+   * hard-gated to Scouts only, so any other unit (a lone Pioneer, a Soldier
+   * escorting a wagon train, …) silently walked over an LCR tile with zero
+   * effect — the ai_euro.c AI caller has the matching `is_scout &&`
+   * pre-check relaxed too. */
   const ColonizeUnitType* t = units_type(pool, u->type_index);
-  const bool is_scout =
+  const bool is_seasoned_scout = t && strstr(t->name, "Seasoned Scout") != NULL;
+  const bool is_scout = is_seasoned_scout ||
     (t && strstr(t->name, "Scout") != NULL) || u->profession == UNITS_JOB_SCOUT;
-  if (!is_scout) {
-    return false;
-  }
   if (!map_tile_has_rumour(map, u->x, u->y)) {
     return false;
   }
@@ -2467,28 +2530,19 @@ bool units_resolve_lcr_rumour(
     const int n = (int)(sizeof(k_positive) / sizeof(k_positive[0]));
     outcome = k_positive[dos_rng_range(rng, 1, n) - 1];
   } else {
-    /* Thin buckets; decomp rolls local_8=max(local_2e, RNG(1,9)) with rerolls. */
-    const int roll = dos_rng_range(rng, 1, 100);
-    const int woi = col1 && col1->head.game_options.woi;
-    if (roll <= 25) {
-      outcome = COLONIZE_LCR_NOTHING;
-    } else if (roll <= 45) {
-      outcome = COLONIZE_LCR_SMALL_TREASURE;
-    } else if (roll <= 60) {
-      outcome = COLONIZE_LCR_CHIEFS_GIFT;
-    } else if (roll <= 72) {
-      outcome = COLONIZE_LCR_BURIAL_MOUNDS;
-    } else if (roll <= 82) {
-      outcome = COLONIZE_LCR_TRESPASS_ANGER;
-    } else if (roll <= 90) {
-      outcome = COLONIZE_LCR_SURVIVORS_JOIN;
-    } else if (roll <= 95) {
-      outcome = COLONIZE_LCR_FOUNTAIN_OF_YOUTH;
-    } else if (roll <= 98) {
-      outcome = COLONIZE_LCR_VANISHES;
-    } else {
-      outcome = COLONIZE_LCR_CIBOLA;
+    /* Thin buckets; decomp rolls local_8=max(local_2e, RNG(1,9)) with
+     * rerolls. Table picked by explorer skill — see k_lcr_weights_*. */
+    const ColonizeLcrWeight* table = k_lcr_weights_base;
+    int table_n = (int)(sizeof(k_lcr_weights_base) / sizeof(k_lcr_weights_base[0]));
+    if (is_seasoned_scout) {
+      table = k_lcr_weights_seasoned_scout;
+      table_n = (int)(sizeof(k_lcr_weights_seasoned_scout) / sizeof(k_lcr_weights_seasoned_scout[0]));
+    } else if (is_scout) {
+      table = k_lcr_weights_scout;
+      table_n = (int)(sizeof(k_lcr_weights_scout) / sizeof(k_lcr_weights_scout[0]));
     }
+    outcome = units_lcr_roll_outcome(rng, table, table_n);
+    const int woi = col1 && col1->head.game_options.woi;
     /* FUN_65dd_0004: case 1 → case 2 during WoI (103508). */
     if (woi && outcome == COLONIZE_LCR_TRESPASS_ANGER) {
       outcome = COLONIZE_LCR_SURVIVORS_JOIN;

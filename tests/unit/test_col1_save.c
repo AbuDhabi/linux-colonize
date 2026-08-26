@@ -1753,6 +1753,89 @@ int main(void) {
     fprintf(stderr, "col1 FUN_75c2_0840 validate ok\n");
   }
 
+  /*
+   * Player-reported: already-explored Lost City Rumours still showed on the
+   * overland map after loading dutch-reports.SAV. Root cause: rumours are
+   * purely procedural (map_procedural_rumour_at, a hash of position + seed)
+   * with no dedicated "already explored" bit in the Col1 format itself —
+   * map_clear_rumour only ever sets our own runtime-only layer2 bit
+   * (MAP_LAYER2_RUMOUR_CLEARED), which starts zero on every fresh import.
+   * Fix: col1_bridge_apply now also seeds that bit from the Col1 `path`
+   * field's own visitor-history nibble (0xf = nobody has ever occupied this
+   * tile) — resolving a rumour always means a unit physically stood on it,
+   * so "has anyone ever visited" implies "any rumour here was already
+   * triggered". Assert the general invariant this fix guarantees: no tile
+   * anyone has ever visited can still report an active rumour.
+   */
+  {
+    founding_fathers_reset();
+    ColonizeCol1Save orig;
+    col1_save_init(&orig);
+    if (!col1_save_read_file(
+          "original_saves/report-screen-goldens/dutch-reports.SAV", &orig, err, sizeof(err)
+        )) {
+      fprintf(stderr, "dutch-reports.SAV read failed: %s\n", err);
+      return 1;
+    }
+    ColonizeWorldMap map;
+    memset(&map, 0, sizeof(map));
+    ColonizeUnitPool units;
+    units_reset(&units);
+    units.type_count = 23;
+    for (int t = 0; t < units.type_count; ++t) {
+      snprintf(units.types[t].name, sizeof(units.types[t].name), "T%d", t);
+      units.types[t].movement = 1;
+      units.types[t].domain =
+        (t >= 13 && t <= 18) ? COLONIZE_UNIT_DOMAIN_SEA : COLONIZE_UNIT_DOMAIN_LAND;
+      units.types[t].cargo = (t >= 13 && t <= 18) ? 6 : 0;
+    }
+    ColonizeColonyPool colonies;
+    colonies_init(&colonies);
+    EuropeScreen europe;
+    memset(&europe, 0, sizeof(europe));
+    europe.cargo_count = 16;
+    ColonizeCol1BridgeResult br;
+    if (!col1_bridge_apply(&orig, &map, &units, &colonies, &europe, &br, err, sizeof(err))) {
+      fprintf(stderr, "dutch-reports.SAV bridge apply failed: %s\n", err);
+      col1_save_free(&orig);
+      return 1;
+    }
+    int visited_tiles = 0;
+    int stale_rumours = 0;
+    for (int y = 0; y < (int)map.height; ++y) {
+      for (int x = 0; x < (int)map.width; ++x) {
+        if ((map_get_layer3(&map, x, y) >> 4) == 0x0fu) {
+          continue; /* never visited */
+        }
+        visited_tiles++;
+        if (map_tile_has_rumour(&map, x, y)) {
+          stale_rumours++;
+        }
+      }
+    }
+    if (visited_tiles == 0) {
+      fprintf(stderr, "dutch-reports.SAV LCR test: no visited tiles found (fixture stale?)\n");
+      map_free(&map);
+      col1_save_free(&orig);
+      return 1;
+    }
+    if (stale_rumours != 0) {
+      fprintf(
+        stderr,
+        "dutch-reports.SAV LCR test: %d already-visited tile(s) still report a rumour\n",
+        stale_rumours
+      );
+      map_free(&map);
+      col1_save_free(&orig);
+      return 1;
+    }
+    map_free(&map);
+    col1_save_free(&orig);
+    fprintf(
+      stderr, "dutch-reports.SAV: no stale rumours on any of %d visited tiles ok\n", visited_tiles
+    );
+  }
+
   diag_shutdown();
   return 0;
 }

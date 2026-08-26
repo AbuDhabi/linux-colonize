@@ -682,6 +682,28 @@ bool col1_bridge_apply(
     if (map->layer3 && save->map.path) {
       map->layer3[i] = save->map.path[i];
     }
+    /*
+     * Lost City Rumours are purely procedural (map_procedural_rumour_at:
+     * a hash of position + prime_resource_seed) with no dedicated
+     * "already explored" bit anywhere in the Col1 tile/mask format —
+     * map_clear_rumour instead sets our own runtime-only layer2 bit
+     * (MAP_LAYER2_RUMOUR_CLEARED) the moment a unit resolves one live.
+     * That bit starts zero on every fresh import, so a save carrying a
+     * rumour some unit already stood on and resolved in DOS shows it as
+     * freshly unexplored again. Player-reported: dutch-reports.SAV — every
+     * already-explored rumour mound still stood on load.
+     * Fix: reuse path's own visitor-history nibble (0xf = nobody has ever
+     * occupied this tile) as the "already explored" signal, same source
+     * units_resolve_lcr_rumour's own live occupancy tracking (units_map_
+     * set_owner_nibble) writes to — resolving a rumour always means a
+     * unit stood right on top of it, so "has anyone ever visited" implies
+     * "any rumour here was already triggered". Harmless to set on a
+     * non-rumour tile too: map_has_rumour_at's hash check still gates
+     * everything downstream of this bit.
+     */
+    if (map->layer2 && save->map.path && (save->map.path[i] >> 4) != 0x0fu) {
+      map->layer2[i] = (uint8_t)(map->layer2[i] | MAP_LAYER2_RUMOUR_CLEARED);
+    }
   }
   if (save->map.seen) {
     map_seen_from_col1(map, save->map.seen, save->map.tile_count);
