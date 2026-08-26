@@ -24,6 +24,23 @@ void colony_craft_one_colony(
  * screen's Production tab badges want this uncollapsed-by-further-
  * consumption figure, not `delta->goods[]`'s net (see
  * ColonizeColonyPreview.craft_gross's header comment in colony_preview.h).
+ *
+ * `shortfall[]` now carries entries on *both* sides of a recipe, not just
+ * the output: `shortfall[out_cargo]` is the usual "output not made for lack
+ * of input" figure; `shortfall[in_cargo]` (added alongside it, same array)
+ * is the new symmetric "input the staffed worker(s) wanted but the
+ * warehouse didn't have" figure — player-caught (New Amsterdam Weaver's
+ * House, dutch-reports.SAV): DOS shows a shortfall indicator on the raw
+ * good's own row too (Cotton), using the exact same visual the output
+ * shortfall (Cloth) uses, not just on the manufactured good.
+ *
+ * `capacity_out` (optional, NULL to skip) receives each out_cargo's full
+ * *uncapped* worker capacity this tick — `total_out` before the stock
+ * clamp, i.e. what every staffed worker could produce if input were never
+ * short. Settlement badges want this (a worker's maximum potential output,
+ * matching DOS), not `gross_out`'s stock-clamped actual — player-caught:
+ * the Weaver's House badge showed 5 (this tick's actual, cotton-limited
+ * output) instead of 10 (both staffed workers' real capacity).
  */
 void colony_craft_preview(
   const ColonizeColonyPool* pool,
@@ -31,7 +48,8 @@ void colony_craft_preview(
   int shortfall[COLONIZE_CARGO_COUNT],
   ColonizeColonyProdDelta* delta,
   int sol_bonus,
-  int gross_out[COLONIZE_CARGO_COUNT]
+  int gross_out[COLONIZE_CARGO_COUNT],
+  int capacity_out[COLONIZE_CARGO_COUNT]
 );
 
 /*

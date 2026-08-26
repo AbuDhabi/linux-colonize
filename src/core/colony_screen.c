@@ -2252,7 +2252,12 @@ static int colony_screen_building_production_badge(
   if (!name) {
     return -1;
   }
-  if (strstr(name, "Town Hall") || strstr(name, "Printing") || strstr(name, "Newspaper")) {
+  /* Printing Press / Newspaper are colony-wide bell *multipliers* — a
+   * separate building slot (k_slot_press) nobody can ever be assigned to
+   * work (no @JOB for them). Player-caught: matching them here drew a bell
+   * badge on the Press/Newspaper sprite itself, duplicating Town Hall's own
+   * badge — only Town Hall has a worker slot and a bell count to show. */
+  if (strstr(name, "Town Hall")) {
     return COLONY_ICON_BELL;
   }
   if (strstr(name, "Church") || strstr(name, "Cathedral")) {
@@ -2413,18 +2418,26 @@ static void colony_screen_blit_buildings(
          * the colony's real per-tick total for that resource, not this one
          * function's own local (sol_bonus=0, and — for bells/crosses — pre-
          * FF/AI-subsidy) estimate: Blacksmith's "24" is the Production
-         * tab's craft_gross[TOOLS], and Church's "19"/Town Hall's "82" are
+         * tab's craft_capacity[TOOLS], and Church's "19"/Town Hall's "82" are
          * exactly the People band's crosses/bells (colony_prod_building_
          * display_output's own calc gave 7/13, undercounting both — see
          * colony_prod_colony_crosses_ff/_bells_ff's FF+AI-subsidy folding,
          * building_production.md). Reuse view->preview throughout rather
-         * than a second, drifting local calc. */
+         * than a second, drifting local calc.
+         *
+         * craft_capacity (not craft_gross): a manufacturing badge shows the
+         * staffed worker's maximum *potential* output, not this tick's
+         * stock-clamped actual — player-caught (Weaver's House, dutch-
+         * reports.SAV): a shortfall of cotton makes craft_gross[CLOTH] read
+         * 5 (what actually got made) where DOS shows 10 (what the worker
+         * can make, cotton permitting) — the shortfall itself already shows
+         * separately on the Production tab. */
         int amount = colony_prod_building_display_output(pool, colony, built);
         if (badge >= COLONY_CARGO_ICON_BASE && badge < COLONY_CARGO_ICON_BASE + COLONIZE_CARGO_COUNT &&
             view->preview_valid) {
           const int cargo = badge - COLONY_CARGO_ICON_BASE;
-          if (view->preview.craft_gross[cargo] > 0) {
-            amount = view->preview.craft_gross[cargo];
+          if (view->preview.craft_capacity[cargo] > 0) {
+            amount = view->preview.craft_capacity[cargo];
           }
         } else if (view->preview_valid) {
           if (badge == COLONY_ICON_BELL && view->preview.bells > 0) {
@@ -2807,7 +2820,6 @@ static void colony_screen_draw_people(
   const int meter_h = 12;
   const int band = COLONY_PEOPLE_W - 4;
   const int gap = 4;
-  const int third = (band - 2 * gap) / 3;
   /* golden-confirmed (New Amsterdam: 32, not food_produced's pre-breeding
    * 34): this badge shows the same post-breeding `goods[FOOD]` the
    * Production tab would net to (raw field/town-commons food minus the
@@ -2818,6 +2830,57 @@ static void colony_screen_draw_people(
     /* Show production; shortfall drawn as grey in same strip width. */
     food_amt = p->goods[COLONIZE_CARGO_FOOD] > 0 ? p->goods[COLONIZE_CARGO_FOOD] : (-p->food_net);
   }
+  const bool surplus_active = p->food_net > 0;
+  /*
+   * Columns, in DOS reading order: fish/grain, (new) net food surplus,
+   * crosses, bells. Player-reported placement ("between food-produced-and-
+   * eaten and crosses") and player-reported sizing (width mostly
+   * proportional to each column's amount, not a flat 1/n split, with a
+   * floor so a small amount like a 2-surplus still reads). The surplus
+   * column only exists when there's a surplus to show — a deficit already
+   * shows via the fish/grain pair's own grey shortfall mode. */
+  const int slot_count = surplus_active ? 4 : 3;
+  long weight[4];
+  int wi = 0;
+  const int food_weight_idx = wi;
+  weight[wi++] = food_amt > 0 ? food_amt : 1;
+  int surplus_weight_idx = -1;
+  if (surplus_active) {
+    surplus_weight_idx = wi;
+    weight[wi++] = p->food_net;
+  }
+  const int cross_weight_idx = wi;
+  weight[wi++] = p->crosses > 0 ? p->crosses : 1;
+  const int bell_weight_idx = wi;
+  weight[wi++] = p->bells > 0 ? p->bells : 1;
+
+  const int min_w = 14; /* floor: smallest column still fits an icon + number */
+  const int avail = band - (slot_count - 1) * gap;
+  long weight_sum = 0;
+  for (int i = 0; i < slot_count; ++i) {
+    weight_sum += weight[i];
+  }
+  int width[4];
+  int width_sum = 0;
+  for (int i = 0; i < slot_count; ++i) {
+    width[i] = weight_sum > 0 ? (int)((long)avail * weight[i] / weight_sum) : avail / slot_count;
+    if (width[i] < min_w) {
+      width[i] = min_w;
+    }
+    width_sum += width[i];
+  }
+  /* Rounding remainder (positive or negative, from the min-width floor)
+   * goes to the heaviest column — bells, golden-confirmed as the largest
+   * New Amsterdam value, so it's the safest place to absorb slack. */
+  const int diff = avail - width_sum;
+  if (diff != 0) {
+    width[bell_weight_idx] += diff;
+    if (width[bell_weight_idx] < min_w) {
+      width[bell_weight_idx] = min_w;
+    }
+  }
+
+  int meter_x = COLONY_PEOPLE_X + 2;
   {
     const bool grey_only = (p->food_net < 0 && p->goods[COLONIZE_CARGO_FOOD] <= 0);
     const int fish_amt =
@@ -2833,9 +2896,9 @@ static void colony_screen_draw_people(
       view,
       font,
       framebuffer,
-      COLONY_PEOPLE_X + 2,
+      meter_x,
       meter_y,
-      third,
+      width[food_weight_idx],
       meter_h,
       fish_icon,
       fish_amt,
@@ -2844,32 +2907,32 @@ static void colony_screen_draw_people(
       (p->food_net < 0) ? 12 : 15,
       false
     );
+    meter_x += width[food_weight_idx] + gap;
+  }
+  if (surplus_active) {
+    colony_screen_draw_resource_count(
+      view,
+      font,
+      framebuffer,
+      meter_x,
+      meter_y,
+      width[surplus_weight_idx],
+      meter_h,
+      COLONY_CARGO_ICON_BASE + COLONIZE_CARGO_FOOD,
+      p->food_net,
+      15,
+      false
+    );
+    meter_x += width[surplus_weight_idx] + gap;
   }
   colony_screen_draw_resource_count(
-    view,
-    font,
-    framebuffer,
-    COLONY_PEOPLE_X + 2 + third + gap,
-    meter_y,
-    third,
-    meter_h,
-    COLONY_ICON_CROSS,
-    p->crosses,
-    15,
-    false
+    view, font, framebuffer, meter_x, meter_y, width[cross_weight_idx], meter_h,
+    COLONY_ICON_CROSS, p->crosses, 15, false
   );
+  meter_x += width[cross_weight_idx] + gap;
   colony_screen_draw_resource_count(
-    view,
-    font,
-    framebuffer,
-    COLONY_PEOPLE_X + 2 + 2 * (third + gap),
-    meter_y,
-    third,
-    meter_h,
-    COLONY_ICON_BELL,
-    p->bells,
-    15,
-    false
+    view, font, framebuffer, meter_x, meter_y, width[bell_weight_idx], meter_h, COLONY_ICON_BELL,
+    p->bells, 15, false
   );
 }
 
@@ -3118,8 +3181,9 @@ static void colony_screen_draw_multifunction(
         ui_button_measure(font, "~BUY", &buy_w, &buy_h);
         ui_button_measure(font, "~CHANGE", &chg_w, &chg_h);
         ui_button_draw(font, framebuffer, px, py + 10, buy_w, buy_h, "~BUY", &bc);
-        const int change_x = COLONY_MULTI_X + COLONY_MULTI_W - chg_w - 4;
-        ui_button_draw(font, framebuffer, change_x, py + 10, chg_w, chg_h, "~CHANGE", &bc);
+        /* Player-reported: 10px left, 4px up from the original placement. */
+        const int change_x = COLONY_MULTI_X + COLONY_MULTI_W - chg_w - 4 - 10;
+        ui_button_draw(font, framebuffer, change_x, py + 10 - 4, chg_w, chg_h, "~CHANGE", &bc);
       }
     }
     /* Accumulated carpenter hammers toward the current project (not total
@@ -3140,7 +3204,9 @@ static void colony_screen_draw_multifunction(
       const ColonizeSprite* sp = &view->icons.sprites[COLONY_ICON_HAMMER];
       const int iw = (sp && sp->width > 0) ? sp->width : 8;
       const int ih = (sp && sp->height > 0) ? sp->height : 12;
-      colony_screen_fill_rect(framebuffer, px, bar_y, px + pane_w - 1, bar_y + bar_h - 1, 0);
+      /* No black backing rect here (player-reported) — every other resource
+       * counter in this screen (Production tab, People band) draws straight
+       * onto the pane background; this one shouldn't be different. */
       const int iy = bar_y + (bar_h - ih) / 2;
       if (show == 1) {
         ss_blit_sprite(&view->icons, COLONY_ICON_HAMMER, framebuffer, px + (pane_w - iw) / 2, iy);
