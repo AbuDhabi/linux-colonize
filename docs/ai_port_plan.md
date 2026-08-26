@@ -1152,6 +1152,28 @@ item's own 2026-08-24 entry for the full derivation. Ported, real
   the same "createFunction fails at the cited offset" wall. `ctest` not
   re-run (doc-only pass, zero `src/` touched, confirmed via `git status`).
   Full trace: `euro_unit_act.md`'s 2026-08-24 fourth-pass update.
+  **2026-08-26 — third negative pass on the parked fort/colony `0x40` bit,
+  a different search method than the first two, still no candidate.**
+  Tried the row's own suggested next step (a raw byte-pattern grep for an
+  inline `OR ,0x40` near colony/fort code) via the flattened export instead
+  of raw `.asm`: every literal `| 0x40` in `viceroy_unpacked.c` (55 sites)
+  checked by hand. All either CRT/stdio internals (Watcom's `_flag` byte at
+  struct offset `0x27bb` — file I/O, not game state; register-flag
+  reconstruction idioms; a critical-section byte) or unrelated known
+  fields (`0x5382`-`0x5387` king/independence bits, `0x3148`/unit-record
+  bits, `0x8d4e+3` settlement flags already covered elsewhere) — **zero**
+  land on the layer2 tile array. Cross-checked the other direction too:
+  traced the layer2 array's own base/stride (`FUN_137f_012a`, `DS:0x160`
+  + `DS:0x853a`-stride) and grepped all 118 uses of the stride constant
+  for a bypass write straight into that array outside the already-ruled-
+  out `FUN_137f_015e`/`FUN_281f_068c` wrapper family — none found either.
+  **Net: three independent search strategies (XREF sweep of the setter
+  wrapper, literal-mask text grep, array-base bypass check) have now all
+  come back negative for this one bit.** Stays PARKED; a live DOSBox-X
+  write-breakpoint on the layer2 array (`BPM` at `0x160`+offset while
+  founding/besieging a fort) is the only remaining avenue that hasn't been
+  tried. No `src/` change, `ctest` not run (doc-only, confirmed via
+  `git status`).
 
 - [x] **T1.9 — Indian mid-game quiet scoring (goods/missions/capital
   pull) formula mapping.** R2 used to flag this as blocked on "a
