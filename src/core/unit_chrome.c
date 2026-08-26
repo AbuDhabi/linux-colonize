@@ -453,7 +453,12 @@ void unit_chrome_draw(
   );
 }
 
-void unit_chrome_blit_unit_colored(
+/* Shared impl behind unit_chrome_blit_unit_colored and unit_chrome_blit's
+ * ORDERS mode — the only difference is the shadow tint (every existing
+ * caller wants plain black; unit_chrome_blit lets a caller ask for
+ * something else, unused today but plumbed through for consistency with
+ * the SHADOW mode's own shadow_color param). */
+static void unit_chrome_blit_unit_colored_shadow(
   ColonizeFramebuffer8* fb,
   const ColonizeFont* font,
   const ColonizeSpriteSheet* sheet,
@@ -466,7 +471,8 @@ void unit_chrome_blit_unit_colored(
   bool show_stack,
   bool aboard,
   int fill_override,
-  int letter_override
+  int letter_override,
+  int shadow_color
 ) {
   if (!fb || !sheet || sprite_index < 0 || sprite_index >= sheet->sprite_count) {
     return;
@@ -477,7 +483,7 @@ void unit_chrome_blit_unit_colored(
 
   /* Orders box at tile origin; sprite (+ silhouette) shifted right. */
   const int sx = x + UNIT_CHROME_SPRITE_DX;
-  ss_blit_sprite_color(sheet, sprite_index, fb, sx + UNIT_CHROME_SHADOW_DX, y, 0);
+  ss_blit_sprite_color(sheet, sprite_index, fb, sx + UNIT_CHROME_SHADOW_DX, y, (uint8_t)shadow_color);
   unit_chrome_draw_impl(
     fb,
     font,
@@ -494,6 +500,27 @@ void unit_chrome_blit_unit_colored(
     letter_override
   );
   ss_blit_sprite(sheet, sprite_index, fb, sx, y);
+}
+
+void unit_chrome_blit_unit_colored(
+  ColonizeFramebuffer8* fb,
+  const ColonizeFont* font,
+  const ColonizeSpriteSheet* sheet,
+  int sprite_index,
+  int x,
+  int y,
+  int display_type_index,
+  int nation_id,
+  int orders_index,
+  bool show_stack,
+  bool aboard,
+  int fill_override,
+  int letter_override
+) {
+  unit_chrome_blit_unit_colored_shadow(
+    fb, font, sheet, sprite_index, x, y, display_type_index, nation_id, orders_index, show_stack,
+    aboard, fill_override, letter_override, 0
+  );
 }
 
 void unit_chrome_blit_unit(
@@ -540,4 +567,42 @@ void unit_chrome_blit_unit_for_palette(
     fb, font, sheet, sprite_index, x, y, display_type_index, nation_id, orders_index, show_stack,
     aboard, fill_override, letter_override
   );
+}
+
+void unit_chrome_blit(
+  ColonizeFramebuffer8* fb,
+  const ColonizeFont* font,
+  const ColonizeSpriteSheet* sheet,
+  int sprite_index,
+  int x,
+  int y,
+  UnitChromeDrawMode mode,
+  int shadow_color,
+  int display_type_index,
+  int nation_id,
+  int orders_index,
+  bool show_stack,
+  bool aboard,
+  int fill_override,
+  int letter_override
+) {
+  if (!fb || !sheet || sprite_index < 0 || sprite_index >= sheet->sprite_count) {
+    return;
+  }
+  switch (mode) {
+    case UNIT_CHROME_PLAIN_SPRITE:
+      ss_blit_sprite(sheet, sprite_index, fb, x, y);
+      return;
+    case UNIT_CHROME_SPRITE_WITH_SHADOW:
+      ss_blit_sprite_color(sheet, sprite_index, fb, x + UNIT_CHROME_SHADOW_DX, y, (uint8_t)shadow_color);
+      ss_blit_sprite(sheet, sprite_index, fb, x, y);
+      return;
+    case UNIT_CHROME_SPRITE_ORDERS:
+    default:
+      unit_chrome_blit_unit_colored_shadow(
+        fb, font, sheet, sprite_index, x, y, display_type_index, nation_id, orders_index, show_stack,
+        aboard, fill_override, letter_override, shadow_color
+      );
+      return;
+  }
 }

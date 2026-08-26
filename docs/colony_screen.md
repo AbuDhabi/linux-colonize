@@ -646,6 +646,74 @@ widget" fix above:
    never did. Re-verified against both goldens (numbered and numberless)
    for New Amsterdam and Recife — no regression on any badge checked.
 
+### Explicit shadow for colonist/on-tile-unit figures, then: a real 3-mode component
+
+Investigated a report of "brownish" settlement-view colonist shadows vs
+"black" minimap ones first — sampled shadow pixels at every colonist draw
+site (People band, building workers, fence dragoon, minimap field workers)
+against golden: all landed on the same near-black (12,12,12), matching
+golden exactly, no brown found anywhere in `dutch-reports.SAV`. Player
+confirmed exact hue doesn't matter (greyish is fine) — the ask was just to
+make sure every such figure actually has *some* shadow, explicitly, rather
+than relying on whatever's baked into each sprite's own art (inconsistent:
+some working-colonist sprites bake in a dark blob, others don't).
+
+First pass added a colony_screen-local `colony_screen_blit_icon_shadowed()`
+with a 1px-left shadow. Player caught that: DOS's shadow (and
+`UNIT_CHROME_SHADOW_DX`, the map view's own convention) is 2px, and pointed
+out the deeper problem — sprite blitting across the codebase is ad hoc
+(colony_screen.c hand-rolling its own one-off shadow helper is exactly
+that), and asked for a real shared component instead: a named draw mode per
+call site rather than each screen improvising its own blit sequence.
+
+Added to `unit_chrome.h`/`.c` — every screen's unit/colonist sprite draw
+collapses into exactly one of three modes:
+
+- `UNIT_CHROME_PLAIN_SPRITE` — just the sprite.
+- `UNIT_CHROME_SPRITE_WITH_SHADOW` — sprite + the same 2px-left black
+  silhouette underlay `UNIT_CHROME_SHADOW_DX` already uses for the map/
+  orders mode (tinted by a caller-supplied `shadow_color`, 0 = black —
+  every caller today passes 0), no orders box.
+- `UNIT_CHROME_SPRITE_ORDERS` — shadow + nation-color orders/allegiance box
+  + sprite; identical to what `unit_chrome_blit_unit_colored` already drew.
+
+One dispatcher, `unit_chrome_blit(fb, font, sheet, sprite_index, x, y, mode,
+shadow_color, display_type_index, nation_id, orders_index, show_stack,
+aboard, fill_override, letter_override)`, picks the draw path by `mode`;
+params outside a given mode's own list are ignored (pass 0/false/-1/NULL).
+ORDERS internally shares the exact same code `unit_chrome_blit_unit_colored`
+runs (factored into a private `unit_chrome_blit_unit_colored_shadow` both
+now call) — no behavior change for any existing `unit_chrome_blit_unit*`
+caller, and `unit_chrome_blit_unit`/`_colored`/`_for_palette` stay as the
+ergonomic ORDERS-only entry points (no need to pass ORDERS-irrelevant params
+just to draw a garrisoned/on-map unit the way every caller already does).
+
+`colony_screen_blit_icon()` and `colony_screen_blit_icon_shadowed()` now
+just forward to `unit_chrome_blit()` (PLAIN_SPRITE / SPRITE_WITH_SHADOW
+respectively) instead of open-coding `ss_blit_sprite(_color)` — fixes the
+1px→2px shadow bug and the ad-hoc-blitting complaint together. Applied
+everywhere a colonist/on-tile-unit icon is blit standalone:
+`colony_screen_draw_icon_strip()`'s loop (building-worker Note-1 strip +
+fence/fortification strip), the People band's colonist row and its
+outside-unit row, and the minimap's per-tile field-worker icon. Left alone
+(already correct, and already routed through the shared ORDERS impl): the
+Units-Present/Military tab and Transport strip
+(`unit_chrome_blit_unit_for_palette`).
+
+Follow-up: migrated `reports.c`'s three hand-rolled 2px-shadow call pairs
+(`ss_blit_sprite_color(..., 0)` + `ss_blit_sprite`, each a manual copy of
+the same shadow convention — Labor report's profession-icon grid and its
+per-job detail header, plus the Colony report's Town-Hall-worker row) onto
+`unit_chrome_blit(..., UNIT_CHROME_SPRITE_WITH_SHADOW, ...)`, same
+mechanical swap as `colony_screen_blit_icon_shadowed`. Checked
+`map_panel.c` too: its actual unit draws already go through
+`unit_chrome_blit_unit_for_palette` (sharing this same core impl since the
+refactor above) — its three other raw `ss_blit_sprite` calls are a village-
+tech icon on the map and two cargo-hold sidebar listings (passenger sprite,
+goods icon), none of which are shadowed in DOS either, so nothing to
+migrate there. Re-rendered the Labor and Colony reports against
+`dutch-reports.SAV` after the swap — unchanged.
+
 ## Left unresolved
 - **Two golden-confirmed building badges reuse the same displayed number**
   (Town Hall and Printing Press both showed "82" in New Amsterdam — Town

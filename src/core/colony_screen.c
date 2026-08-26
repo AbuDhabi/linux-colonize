@@ -894,7 +894,32 @@ static void colony_screen_blit_icon(
   if (!view || !view->icons_ok || !framebuffer || sprite < 0 || sprite >= view->icons.sprite_count) {
     return;
   }
-  ss_blit_sprite(&view->icons, sprite, framebuffer, x, y);
+  unit_chrome_blit(
+    framebuffer, NULL, &view->icons, sprite, x, y, UNIT_CHROME_PLAIN_SPRITE, 0, 0, -1, 0, false, false,
+    -1, -1
+  );
+}
+
+/*
+ * Colonist/on-tile-unit figures only (not buildings, cargo, or badge
+ * icons): the same black 2px-left shadow silhouette unit_chrome uses for
+ * units on the overland map (UNIT_CHROME_SHADOW_DX) — same amount of
+ * shadow, just without the orders/allegiance box this screen doesn't draw
+ * on its own figures. */
+static void colony_screen_blit_icon_shadowed(
+  const ColonyScreenView* view,
+  int sprite,
+  ColonizeFramebuffer8* framebuffer,
+  int x,
+  int y
+) {
+  if (!view || !view->icons_ok || !framebuffer || sprite < 0 || sprite >= view->icons.sprite_count) {
+    return;
+  }
+  unit_chrome_blit(
+    framebuffer, NULL, &view->icons, sprite, x, y, UNIT_CHROME_SPRITE_WITH_SHADOW, 0, 0, -1, 0, false,
+    false, -1, -1
+  );
 }
 
 static void colony_screen_blit_cargo(
@@ -1013,7 +1038,7 @@ static void colony_screen_draw_icon_strip(
       continue;
     }
     const int iy = y + (h - sp->height) / 2;
-    ss_blit_sprite(&view->icons, icon, framebuffer, xs[i], iy);
+    colony_screen_blit_icon_shadowed(view, icon, framebuffer, xs[i], iy);
     if (selected_index == i) {
       colony_screen_draw_icon_selection(view, framebuffer, icon, xs[i], iy);
     }
@@ -1573,7 +1598,7 @@ static void colony_screen_draw_area_overlays(
         const int ih = sp ? sp->height : 12;
         const int ix = tile_x + (tile - iw) / 2;
         const int iy = tile_y + tile - ih - 1;
-        colony_screen_blit_icon(view, sprite, framebuffer, ix, iy);
+        colony_screen_blit_icon_shadowed(view, sprite, framebuffer, ix, iy);
         if (view->selected_colonist == who) {
           colony_screen_draw_selection_box(framebuffer, tile_x, tile_y, tile, tile, 10);
         }
@@ -2735,7 +2760,7 @@ static void colony_screen_draw_people(
     const int sprite =
       units_working_colonist_sprite(units, c->unit_type_index, c->profession);
     if (sprite >= 0) {
-      colony_screen_blit_icon(view, sprite, framebuffer, x, y_people);
+      colony_screen_blit_icon_shadowed(view, sprite, framebuffer, x, y_people);
       if (view->selected_colonist == i) {
         colony_screen_draw_icon_selection(view, framebuffer, sprite, x, y_people);
       }
@@ -2762,7 +2787,7 @@ static void colony_screen_draw_people(
       }
       const int sprite = colony_screen_outside_display_sprite(units, u);
       if (sprite >= 0) {
-        colony_screen_blit_icon(view, sprite, framebuffer, x, y_people);
+        colony_screen_blit_icon_shadowed(view, sprite, framebuffer, x, y_people);
         if (view->selected_outside_unit == u->id) {
           colony_screen_draw_icon_selection(view, framebuffer, sprite, x, y_people);
         }
