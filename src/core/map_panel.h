@@ -121,12 +121,16 @@ void map_panel_render(
   int tax_percent,
   const char* nation_name,
   const ColonizePalette* active_palette,
-  /* Player-requested: flashing "End Turn" prompt in the sidebar once no
-   * more units need orders this turn (View Pieces mode). Caller passes
-   * false whenever the prompt shouldn't show at all (units still pending,
-   * a dialog is up, ...) and toggles true/false on its own timer for the
-   * blink while it should. */
-  bool end_turn_flash_on,
+  /*
+   * Player-requested: flashing "End Turn" prompt at the bottom of the
+   * sidebar once no more units need orders this turn (View Pieces mode).
+   * end_turn_active: false whenever the prompt shouldn't show at all
+   * (units still pending, a dialog is up, ...). end_turn_blink_white:
+   * while active, alternates the text between white and black on the
+   * caller's own timer (ignored when !end_turn_active).
+   */
+  bool end_turn_active,
+  bool end_turn_blink_white,
   ColonizeFramebuffer8* framebuffer
 );
 
