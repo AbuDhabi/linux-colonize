@@ -3438,7 +3438,7 @@ static int ai_euro_try_lumberjack_field_assign(
     return 0;
   }
   if (u->x == bx && u->y == by) {
-    const int idx = colonies_admit_unit(ctx->colonies, best_cid, ctx->units, u->id);
+    const int idx = colonies_admit_unit(ctx->colonies, best_cid, ctx->units, u->id, ctx->col1_ok ? ctx->col1 : NULL);
     if (idx < 0) {
       return 0;
     }
@@ -3554,7 +3554,7 @@ static int ai_euro_try_miner_field_assign(
     return 0;
   }
   if (u->x == bx && u->y == by) {
-    const int idx = colonies_admit_unit(ctx->colonies, best_cid, ctx->units, u->id);
+    const int idx = colonies_admit_unit(ctx->colonies, best_cid, ctx->units, u->id, ctx->col1_ok ? ctx->col1 : NULL);
     if (idx < 0) {
       return 0;
     }
@@ -3817,7 +3817,7 @@ static int ai_euro_try_farmer_field_assign(
     return 0;
   }
   if (u->x == bx && u->y == by) {
-    const int idx = colonies_admit_unit(ctx->colonies, best_cid, ctx->units, u->id);
+    const int idx = colonies_admit_unit(ctx->colonies, best_cid, ctx->units, u->id, ctx->col1_ok ? ctx->col1 : NULL);
     if (idx < 0) {
       return 0;
     }
@@ -3943,7 +3943,7 @@ static int ai_euro_try_fisherman_field_assign(
     return 0;
   }
   if (u->x == bx && u->y == by) {
-    const int idx = colonies_admit_unit(ctx->colonies, best_cid, ctx->units, u->id);
+    const int idx = colonies_admit_unit(ctx->colonies, best_cid, ctx->units, u->id, ctx->col1_ok ? ctx->col1 : NULL);
     if (idx < 0) {
       return 0;
     }
@@ -4077,7 +4077,7 @@ static int ai_euro_try_planter_field_assign(
     return 0;
   }
   if (u->x == bx && u->y == by) {
-    const int idx = colonies_admit_unit(ctx->colonies, best_cid, ctx->units, u->id);
+    const int idx = colonies_admit_unit(ctx->colonies, best_cid, ctx->units, u->id, ctx->col1_ok ? ctx->col1 : NULL);
     if (idx < 0) {
       return 0;
     }
@@ -4217,7 +4217,7 @@ static int ai_euro_try_expert_workplace_assign(
     return 0;
   }
   if (u->x == bx && u->y == by) {
-    const int idx = colonies_admit_unit(ctx->colonies, best_cid, ctx->units, u->id);
+    const int idx = colonies_admit_unit(ctx->colonies, best_cid, ctx->units, u->id, ctx->col1_ok ? ctx->col1 : NULL);
     if (idx < 0) {
       return 0;
     }
@@ -5842,7 +5842,7 @@ static void ai_euro_join_colony(ColonizeTurnContext* ctx, ColonizeUnit* u, int c
   if (!ctx || !ctx->colonies || !u) {
     return;
   }
-  (void)colonies_admit_unit(ctx->colonies, colony_id, ctx->units, u->id);
+  (void)colonies_admit_unit(ctx->colonies, colony_id, ctx->units, u->id, ctx->col1_ok ? ctx->col1 : NULL);
 }
 
 /*

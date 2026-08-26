@@ -276,6 +276,18 @@ int founding_fathers_revere_auto_arm(
 void founding_fathers_tick(ColonizeTurnContext* ctx);
 
 /*
+ * La Salle immediate hook: call right when a colony's population changes
+ * (join/admit/birth) so a colony reaching pop 3 gets its free Stockade the
+ * same moment it happens, not only at the next founding_fathers_tick.
+ * No-op (returns 0) when col1 is NULL or the nation doesn't own La Salle.
+ */
+int founding_fathers_la_salle_check(
+  ColonizeColonyPool* colonies,
+  const ColonizeCol1Save* col1,
+  int nation_id
+);
+
+/*
  * Apply Continental Congress debate CHOICE (AI_POPUP_TAG_FF_CONGRESS).
  * choice_id = FF index. Cite: FUN_4345_06d2 category debate; ai_popup.
  */

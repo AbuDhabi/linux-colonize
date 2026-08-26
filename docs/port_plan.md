@@ -245,8 +245,32 @@ tiers, promote/demote/capture, plunder, coastal fort fire, Combat Analysis
   bonuses, Man-O-War vs Frigate/Privateer, bombard. Cross-check
   [combat.md](combat.md) status matrix; deep `−0x6790` AI scoring stays D1.
 - [ ] **P5.4 [auto]** Colony capture/recapture mechanics during WoI
-  (Tory/rebel population effects, `@CAPTURED*`, fort damage), plus the
-  undefended-colony token militia (was W1.8, `units_try_capture_foreign_colony`).
+  (Tory/rebel population effects, `@CAPTURED*`, fort damage). **Undefended-
+  colony token militia fixed 2026-08-26 (was W1.8):** `units_try_move`
+  used to walk straight into any Euro colony with zero live defenders
+  (colonists but no soldier) and let `units_try_capture_foreign_colony`
+  capture it for free — no roll, no chance to lose. Traced DOS
+  `FUN_5fef_1b0e`'s "no live defender, `colony_at_xy>=0`" branch
+  (viceroy_unpacked.c ~100417-100432): it always fields a defender — a
+  weak civilian stand-in from a random colonist's profession
+  (`FUN_281f_04d4` RNG over `+0x1f` colonist_count, `FUN_281f_0c54`
+  job read, `FUN_281f_02c6` profession→ICONS.SS index), *unless* the
+  nation owns Paul Revere and has >49 muskets (`FUN_281f_07b4` FF-bit
+  test + `+0xb8` muskets stock), in which case it's the real armed
+  Soldier override instead — confirming Revere's already-ported
+  `founding_fathers_revere_auto_arm` mechanic **is** this same DOS
+  branch's special case, not a separate one. Added
+  `units_spawn_colony_temp_defender` (`units.c`, mirrors the already-
+  ported village empty-dwelling Brave arm) as the fallback inside
+  `units_revere_defend_colony_tile` when Revere doesn't apply: phantom
+  Free-Colonist-type defender, fights via the normal
+  `units_resolve_land_combat_ff` path, always despawned after regardless
+  of outcome (win or lose), never touches the colony's real
+  `colonist_count`. New regression: `test_units.c` "undefended colony
+  token militia". Full `ctest`: 42/42 active, no regressions (this path
+  is gated on `g_units_ff_col1` being set, same precondition Revere
+  already required, so the pre-existing free-capture test scenario —
+  which never wires that global — is unaffected).
 - [ ] **P5.5 [auto]** Foreign intervention force: arrival, control
   (player-controlled per DOS), Man-O-War spawn placement (was W4.2 —
   attempt static first, **[live]** fallback).
@@ -312,10 +336,19 @@ KINGGALLEON2 (non-Cortes galleon share string) PARK.
   (4 golden suites disabled), same as baseline; added a de Soto Scout-type
   gate regression test + reworked the case-5-latch seed search for the new
   RNG call shape.
-- [ ] **P7.2 [auto]** Each LCR outcome fully applied: Fountain of Youth
-  (docks immigrant pick popup), Cibola/small treasure gold amounts by
-  difficulty, burial mounds anger + `@SCREWED`, survivors join
-  (colonist/unit spawn), unit vanishes, `@LOSTCITY*`/`@BURIAL*` bodies.
+- [ ] **P7.2 [auto]** Each LCR outcome fully applied. **Status
+  2026-08-26 (checked, this "Now" framing was stale):** all 9
+  `units_lcr_roll_outcome` cases in `units.c` (`units_apply_lcr_outcome`
+  area, ~2658-2790) are wired with real `@LOSTCITY*`/`@BURIAL*`/`@SCREWED`
+  bodies — Cibola/small-treasure/chief's-gift/burial-mounds gold amounts
+  (Cibola includes `+difficulty`), survivors-join colonist spawn,
+  trespass/burial-mounds native-anger relation delta, unit-vanishes
+  despawn are all real, not stubs. **One genuine remaining thin spot:**
+  Fountain of Youth's 8 free immigrants call `europe_immigrant_from_pool`
+  with `rng=NULL` (deterministic first-filled slot) instead of a player
+  pick-among-pool popup — PEDIA doesn't require a picker for FoY
+  specifically (that's a Brewster thing), so this may not even be a real
+  gap; flagging rather than closing outright.
 - [ ] **P7.3 [auto]** Treasure train: move rules (1 MP, no boarding
   except Galleon), cash-in at coastal colony w/ Galleon absent →
   king's offer (`@KINGGALLEON1`, share % by difficulty), Cortes free,
@@ -334,9 +367,25 @@ Deep `2820` (village trade/haggle) and `4528` (deep settlement battle) PARK.
 **Village trade is deferred (D2)** — do not open `2820`.
 
 - [ ] **P8.1 [auto]** Teach: one-shot per village, skill by village type
-  (`@LEARN*` full set incl. `@LEARNCRIMINAL`/`@LEARNALREADY`), Scout →
-  Seasoned, expert refuses, alarm-band refusals — finish the
-  "MissingWire" rows in [popup_audit.md](popup_audit.md).
+  (`@LEARN*` full set), Scout → Seasoned, expert refuses, alarm-band
+  refusals — finish the "MissingWire" rows in
+  [popup_audit.md](popup_audit.md). **`@LEARNCRIMINAL` wired 2026-08-26:**
+  a Petty Criminal adjacent to a village is now refused outright
+  (`ai_contact_is_petty_criminal` gate in `ai_contact_teach_skill`,
+  before the existing Free-Colonist/Scout learner check), one-shot not
+  consumed — was previously silently ignored (fell through
+  `ai_contact_is_teachable_learner`'s name filter with no popup at all).
+  New regression: `test_ai_contact.c` "LEARNCRIMINAL". **`@LEARNALREADY`
+  checked, deliberately left alone:** the already-taught-village silent
+  skip is an existing, documented design choice (preserves gift/trade
+  chrome the same turn — see `indian_contact.md`), not an oversight; a
+  popup here risks changing that intent, so not touched without the
+  user's call. **`@LEARNSTAY`/`@LEARNLATER`/`@LEARNDONE`** (DOS's actual
+  accept/decline CHOICE around teaching, vs. this port's instant-apply)
+  and **`@LEARNSLOW`** (Indentured Servant learner, not currently
+  recognized as teachable at all) stay open — real behavior-shape
+  questions needing a decompile trace of the `5bfb` teach dispatch
+  before porting, not safe to guess from GAME.TXT text alone.
 - [ ] **P8.2 [auto]** Alarm model for the player: per-village + tribe
   alarm accrual from proximity/land use/missions/combat, decay, thresholds
   for attitude words in F9 and `@INDIANCOMMENT`/`HELLO*` bands, Pocahontas
@@ -381,13 +430,32 @@ Paine, Penn, Pocahontas, Revere, Sepulveda, Washington, Las Casas
   Adam Smith's 1.5× factory throughput **is** wired at the production
   math, not just the build gate — closes that P9.2 uncertainty early.
   See [founding_fathers.md](founding_fathers.md).
-- [ ] **P9.2 [auto]** Port missing/thin player-facing effects: Fugger
-  (lift all boycotts), Coronado (reveal colonies + radius), La Salle
-  (auto-Stockade at pop 3, existing + future), Magellan (+1 naval MP,
-  west-edge sail time), John Paul Jones (free Frigate for the **player**),
-  Adam Smith (factory tier 1.5× — verify wired in production, not just
-  build gating), Stuyvesant (Custom House build gate + P4.4), Minuit
-  (Indian land free — with P8.5).
+- [ ] **P9.2 [auto]** Port missing/thin player-facing effects. **Status
+  2026-08-26 (see [founding_fathers.md](founding_fathers.md) for the full
+  per-FF table):** Fugger, Coronado, Magellan (+1 naval MP; west-edge sail
+  time PARK, no decomp evidence), John Paul Jones, Adam Smith (factory
+  1.5× confirmed wired in production, not just build gate), Stuyvesant
+  (build gate + autosell; per-cargo UI stays P4.4), Minuit — all already
+  **Done**, no further work found needed here. **La Salle fixed this
+  pass:** was elect-time-only (future colonies / colonies growing into
+  pop 3 later never got the free Stockade); now re-swept every
+  `founding_fathers_tick` while owned, matching the Las Casas re-tick
+  shape — closes the "existing + future" PEDIA text gap. **Follow-up same
+  day (user-reported):** the tick-only fix still granted it "next turn"
+  from the player's seat; DOS shows it the instant a colony hits pop 3.
+  Added `founding_fathers_la_salle_check`, called from `colonies_admit_unit`
+  (`colony.c`) right when a join crosses the threshold — synchronous, no
+  turn wait. Threaded a `col1` param through all 10 `colonies_admit_unit`
+  call sites (`ai.c`, `ai_euro.c`, `game_loop.c`) to make this possible.
+  EOT-driven growth (food-surplus birth) needed no change — it and
+  `founding_fathers_tick` already run in the same `turn_processor_start`
+  pass, before the player sees the next turn. Checked and
+  closed as non-issues: Drake's two ×1.5 call sites are confirmed to be
+  two genuinely different combat formulas (general naval engine vs
+  coastal-fort-fire), not a dedup candidate; Jones's frigate not being
+  human-restricted is confirmed byte-faithful to DOS (`FUN_4345_0342`
+  `param_2==0xe` branch has no nation-0 guard — same shared dispatch
+  every FF case uses). No further P9.2 work found needed this pass.
 - [ ] **P9.3 [auto]** Verify each wired effect with a unit test if none
   exists (`test_founding_fathers.c` covers a subset).
 - [ ] **P9.4 [auto]** FF election chrome: `@WHICHFREEDOM` / `@FREEDOM`
@@ -696,7 +764,8 @@ W4.3/W4.4 → deferred; W5.x → D4; W5.5 → D1/D3.
   failure set before/after, `unit_ai_euro_28c8_job_score` is the only test
   whose status changed). Wiring stays out of scope here — W3.1.
 
-- [ ] **W1.8 — Undefended Euro colony: missing token-militia combat.**
+- [x] **W1.8 — Undefended Euro colony: missing token-militia combat —
+  closed 2026-08-26 (see P5.4 above for the full fix writeup).**
   Found 2026-08-24 while tracing W1.4's village temp-defender mechanic.
   DOS `FUN_5fef_1b0e`'s "no live defender found" branch spawns a temp
   defender whenever the target tile is a **Euro colony** with zero live

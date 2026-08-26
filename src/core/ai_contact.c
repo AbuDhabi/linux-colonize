@@ -1121,6 +1121,14 @@ static void ai_contact_bump_u16_cap100(uint16_t* v, int amount) {
  * @TRIBES flavor goods are trade chrome (ai_contact_tribe_flavor_good); teach uses
  * cargo / nation_id outdoor maps below.
  */
+/* @LEARNCRIMINAL: "we doubt that you will ever be more than a common
+ * criminal. The %s will teach you nothing." Petty Criminals are refused
+ * outright, distinct from the alarm-based @LEARNMAD refusal. */
+static int ai_contact_is_petty_criminal(const ColonizeUnitPool* units, const ColonizeUnit* u) {
+  const char* name = units_display_name(units, u);
+  return name && strstr(name, "Criminal") != NULL;
+}
+
 static int ai_contact_is_teachable_learner(const ColonizeUnitPool* units, const ColonizeUnit* u) {
   const char* name = units_display_name(units, u);
   if (!name) {
@@ -1314,6 +1322,26 @@ static void ai_contact_teach_skill(ColonizeTurnContext* ctx, int nation_id) {
       ColonizeUnit* other = units_get(ctx->units, oid);
       if (!other || other->nation_id < 0 || other->nation_id > 3) {
         continue;
+      }
+      if (ai_contact_is_petty_criminal(ctx->units, other)) {
+        /* Refused outright, one-shot not consumed (a Free Colonist could
+         * still learn here later). Cite: GAME.TXT @LEARNCRIMINAL. */
+        char body[AI_POPUP_BODY_LEN];
+        PopupMsgTokens tok;
+        memset(&tok, 0, sizeof(tok));
+        tok.string0 = ai_contact_tribe_name(nation_id);
+        popup_msg_fill(
+          ctx->messages,
+          "LEARNCRIMINAL",
+          &tok,
+          "We doubt that you will ever be more than a common criminal. We will teach you nothing.",
+          body,
+          sizeof(body)
+        );
+        ai_contact_human_chrome(
+          ctx, other->nation_id, AI_POPUP_TAG_CONTACT_TEACH, nation_id, "Teach", body
+        );
+        break; /* one refuse pulse per tribe per call */
       }
       if (!ai_contact_is_teachable_learner(ctx->units, other)) {
         continue;

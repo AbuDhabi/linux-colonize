@@ -1275,6 +1275,60 @@ int main(void) {
   }
 
   /*
+   * @LEARNCRIMINAL (fixed 2026-08-26): a Petty Criminal is refused outright,
+   * distinct from the alarm-based @LEARNMAD refusal, and does not consume
+   * the village's one-shot teach — a Free Colonist could still learn later.
+   * Cite: GAME.TXT @LEARNCRIMINAL.
+   */
+  {
+    char status_lc[128];
+    status_lc[0] = '\0';
+    ctx.status = status_lc;
+    ctx.status_size = sizeof(status_lc);
+    ctx.human_nation = 0;
+    col1.tribe[0].nation_id = 4;
+    col1.tribe[0].state.learned = 0;
+    col1.tribe[0].mission = 0xff;
+    col1.tribe[0].alarm[0].friction = 5;
+    ind->euro_diplo[0] = 1;
+    ind->alarm_by_player[0] = 5;
+    col1.nation[0].gold = 0;
+    col1.nation[0].relation_by_indian[0] = 80;
+
+    euro->x = 12;
+    euro->y = 12; /* clear Free Colonist from tribe adjacency */
+    units.type_count = 5;
+    snprintf(units.types[4].name, sizeof(units.types[4].name), "Petty Criminal");
+    units.types[4].movement = 1;
+    units.types[4].attack = 0;
+    units.types[4].defense = 1;
+    const int crim_id = units_spawn_allow_stack(&units, 4, 6, 5);
+    ColonizeUnit* crim = units_get(&units, crim_id);
+    if (!crim) {
+      return fail("spawn Petty Criminal for teach");
+    }
+    crim->nation_id = 0;
+    crim->profession = UNITS_JOB_NONE;
+
+    ai_contact_indian_meet_trade(&ctx, 4);
+    if (col1.tribe[0].state.learned) {
+      return fail("LEARNCRIMINAL refuse should not consume the village one-shot");
+    }
+    if (crim->profession != UNITS_JOB_NONE) {
+      return fail("LEARNCRIMINAL refuse should not touch the criminal's profession");
+    }
+    if (strstr(status_lc, "teach you nothing") == NULL) {
+      fprintf(stderr, "unit_ai_contact: LEARNCRIMINAL status '%s'\n", status_lc);
+      return fail("Petty Criminal should be refused with @LEARNCRIMINAL status");
+    }
+    units_despawn(&units, crim_id);
+    euro->x = 6;
+    euro->y = 5;
+    ctx.status = NULL;
+    ctx.status_size = 0;
+  }
+
+  /*
    * Auto gift (2154 tables + 5bfb gates): gold≥20 Large; Generous needs
    * ask[0]-bid[0]≥1, gold≥0x4b, and delta≥RNG. Cite: indian_meet_scoring_2154.md.
    */

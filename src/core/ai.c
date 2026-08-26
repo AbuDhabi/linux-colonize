@@ -1685,7 +1685,7 @@ static void ai_join_unit_to_colony(ColonizeTurnContext* ctx, ColonizeUnit* u, in
     return;
   }
   ai_place_unit_fields(u, col->x, col->y, UNITS_ORDER_NONE, col->x, col->y);
-  (void)colonies_admit_unit(ctx->colonies, colony_id, ctx->units, u->id);
+  (void)colonies_admit_unit(ctx->colonies, colony_id, ctx->units, u->id, ctx->col1_ok ? ctx->col1 : NULL);
 }
 
 /*
