@@ -974,10 +974,14 @@ int main(void) {
       return 1;
     }
 
+    /* Food's digit color is navy (61, Custom-House-ineligible) not white —
+     * see colony_screen_draw_cargo_strip's Custom-House color fix — and the
+     * row moved 2px down; check presence of the digits, not a specific
+     * color, same as the icon check above. */
     bool amount_pixel = false;
-    for (int y = COLONY_CARGO_NUM_Y; y < COLONY_CARGO_NUM_Y + 6 && !amount_pixel; ++y) {
+    for (int y = COLONY_CARGO_NUM_Y; y < COLONY_CARGO_NUM_Y + 10 && !amount_pixel; ++y) {
       for (int x = food_slot_x; x < food_slot_x + COLONY_CARGO_SLOT_W; ++x) {
-        if (pixels[y * 320 + x] == 15) {
+        if (pixels[y * 320 + x] != 0 && pixels[y * 320 + x] != 56) {
           amount_pixel = true;
           break;
         }
