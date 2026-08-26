@@ -25,15 +25,17 @@ static const char* k_report_files[COLONIZE_REPORT_COUNT] = {
 };
 
 /*
- * `k_ff_names` below is a hand-typed copy of NAMES.TXT `@FATHERS` column 0
- * (byte-diffed against it once, per founding_fathers.md P9.1) — correct
- * today, but silently stale if the user ever mods NAMES.TXT, since nothing
- * re-reads it live. `g_reports_ff_names` is that live source, loaded once
- * in reports_load; reports_ff_name prefers it and only falls back to the
- * static table when assets aren't available (tests, missing data dir).
+ * `k_ff_names` / `k_job_names` / `k_cargo_names` below are hand-typed copies
+ * of NAMES.TXT `@FATHERS` column 0 / `@JOB` column 2 / `@CARGO` column 0 —
+ * correct today (byte-checked once, e.g. founding_fathers.md P9.1), but
+ * silently stale if the user ever mods NAMES.TXT, since nothing re-read
+ * them live. `g_reports_names` is that live source (one NAMES.TXT parse,
+ * shared by all three), loaded once in reports_load; reports_ff_name /
+ * reports_job_name / reports_cargo_name prefer it and only fall back to
+ * the static tables when assets aren't available (tests, missing data dir).
  */
-static ColonizeMsgCatalog g_reports_ff_names;
-static bool g_reports_ff_names_ok = false;
+static ColonizeMsgCatalog g_reports_names;
+static bool g_reports_names_ok = false;
 
 static const char* k_report_titles[COLONIZE_REPORT_COUNT] = {
   "RELIGIOUS ADVISER REPORT",
@@ -160,9 +162,9 @@ void reports_free(ColonizeReportsView* view) {
   ff_free(&view->title_font);
   pik_free(&view->congress_page1_bg);
   memset(view, 0, sizeof(*view));
-  if (g_reports_ff_names_ok) {
-    assets_msg_free(&g_reports_ff_names);
-    g_reports_ff_names_ok = false;
+  if (g_reports_names_ok) {
+    assets_msg_free(&g_reports_names);
+    g_reports_names_ok = false;
   }
 }
 
@@ -245,17 +247,17 @@ bool reports_load(ColonizeReportsView* view, const char* data_dir, char* err, si
 
   /* NAMES.TXT @FATHERS live names (reports_ff_name) — best-effort, falls back
    * to the hand-typed k_ff_names table when missing (tests, old data dirs). */
-  if (g_reports_ff_names_ok) {
-    assets_msg_free(&g_reports_ff_names);
-    g_reports_ff_names_ok = false;
+  if (g_reports_names_ok) {
+    assets_msg_free(&g_reports_names);
+    g_reports_names_ok = false;
   }
   char names_path[512];
-  assets_msg_init(&g_reports_ff_names);
+  assets_msg_init(&g_reports_names);
   if (dos_compat_normalize_asset_path(data_dir, "NAMES.TXT", names_path, sizeof(names_path)) &&
-      assets_msg_load_file(&g_reports_ff_names, names_path)) {
-    g_reports_ff_names_ok = true;
+      assets_msg_load_file(&g_reports_names, names_path)) {
+    g_reports_names_ok = true;
   } else {
-    assets_msg_free(&g_reports_ff_names);
+    assets_msg_free(&g_reports_names);
   }
 
   /* Cross counter (Religious report) reuses the game's standard resource-count
@@ -446,52 +448,94 @@ static int reports_clamp_nation(int human_nation) {
   return human_nation;
 }
 
+/*
+ * `col`-th (0-based) comma-separated field of the `row`-th (0-based,
+ * comment/blank lines skipped) data line in `section` of g_reports_names.
+ * Returns NULL when the live catalog, the section, the row, or the field
+ * isn't available — callers fall back to their own static table.
+ * Static return buffer: use/copy before the next call (matches the existing
+ * ai_contact_tribe_flavor_good idiom — no caller here needs two at once).
+ */
+static const char* reports_names_field(const char* section, int row, int col) {
+  if (!g_reports_names_ok || row < 0) {
+    return NULL;
+  }
+  const ColonizeMsgSection* sec = assets_msg_find(&g_reports_names, section);
+  if (!sec) {
+    return NULL;
+  }
+  int r = 0;
+  for (int i = 0; i < sec->line_count; ++i) {
+    const char* line = sec->lines[i];
+    if (!line || line[0] == '\0' || line[0] == ';') {
+      continue;
+    }
+    if (r != row) {
+      r++;
+      continue;
+    }
+    const char* p = line;
+    for (int c = 0; c < col; ++c) {
+      p = strchr(p, ',');
+      if (!p) {
+        return NULL;
+      }
+      ++p;
+    }
+    while (*p == ' ' || *p == '\t') {
+      ++p;
+    }
+    const char* end = strchr(p, ',');
+    size_t n = end ? (size_t)(end - p) : strlen(p);
+    static char live[64];
+    if (n >= sizeof(live)) {
+      n = sizeof(live) - 1;
+    }
+    memcpy(live, p, n);
+    live[n] = '\0';
+    while (n > 0 && (live[n - 1] == ' ' || live[n - 1] == '\t')) {
+      live[--n] = '\0';
+    }
+    return live[0] ? live : NULL;
+  }
+  return NULL;
+}
+
 static const char* reports_job_name(int job) {
   if (job < 0 || job >= k_job_count) {
     return "Colonist";
   }
-  return k_job_names[job];
+  /* @JOB: name(0), expert_name(1), school_tier(2), europe_hire_cost(3). */
+  const char* live = reports_names_field("JOB", job, 1);
+  return live ? live : k_job_names[job];
+}
+
+static const char* reports_cargo_name(int cargo) {
+  if (cargo < 0 || cargo >= (int)COLONIZE_COL1_CARGO_TYPES) {
+    return "cargo";
+  }
+  const char* live = reports_names_field("CARGO", cargo, 0);
+  return live ? live : k_cargo_names[cargo];
 }
 
 static const char* reports_ff_name(int idx) {
   if (idx < 0 || idx >= (int)COLONIZE_COL1_FF_COUNT) {
     return "(none)";
   }
-  if (g_reports_ff_names_ok) {
-    const ColonizeMsgSection* fathers = assets_msg_find(&g_reports_ff_names, "FATHERS");
-    if (fathers) {
-      int row = 0;
-      for (int i = 0; i < fathers->line_count; ++i) {
-        const char* line = fathers->lines[i];
-        if (!line || line[0] == '\0' || line[0] == ';') {
-          continue;
-        }
-        if (row == idx) {
-          static char live[64];
-          const char* comma = strchr(line, ',');
-          size_t n = comma ? (size_t)(comma - line) : strlen(line);
-          if (n >= sizeof(live)) {
-            n = sizeof(live) - 1;
-          }
-          memcpy(live, line, n);
-          live[n] = '\0';
-          while (n > 0 && (live[n - 1] == ' ' || live[n - 1] == '\t')) {
-            live[--n] = '\0';
-          }
-          if (live[0]) {
-            return live;
-          }
-          break;
-        }
-        row++;
-      }
-    }
-  }
-  return k_ff_names[idx];
+  const char* live = reports_names_field("FATHERS", idx, 0);
+  return live ? live : k_ff_names[idx];
 }
 
 const char* reports_ff_display_name(int idx) {
   return reports_ff_name(idx);
+}
+
+const char* reports_job_display_name(int job) {
+  return reports_job_name(job);
+}
+
+const char* reports_cargo_display_name(int cargo) {
+  return reports_cargo_name(cargo);
 }
 
 /*
@@ -1448,7 +1492,7 @@ static void reports_render_economic_trade(
   for (int c = 0; c < (int)COLONIZE_COL1_CARGO_TYPES; ++c) {
     const int row_top = REPORTS_ECON1_ROW0_Y + c * REPORTS_ECON1_ROW_STEP;
     const int text_y = row_top + 2;
-    reports_draw_line(font, fb, REPORTS_ECON1_LABEL_X, text_y, k_cargo_names[c], REPORTS_ECON_LABEL_COLOR);
+    reports_draw_line(font, fb, REPORTS_ECON1_LABEL_X, text_y, reports_cargo_name(c), REPORTS_ECON_LABEL_COLOR);
 
     const int32_t tons = nat ? nat->trade.tons[c] : 0;
     const int32_t g = nat ? nat->trade.gold[c] : 0;

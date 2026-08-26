@@ -95,6 +95,36 @@ int main(void) {
     return 1;
   }
 
+  /* Job expert names now resolve live from NAMES.TXT @JOB column 2. */
+  if (strcmp(reports_job_display_name(0), "Expert Farmers") != 0) {
+    fprintf(
+      stderr, "job 0 want 'Expert Farmers' got '%s'\n", reports_job_display_name(0)
+    );
+    reports_free(&view);
+    return 1;
+  }
+  if (strcmp(reports_job_display_name(27), "Indian Converts") != 0) {
+    fprintf(
+      stderr, "job 27 want 'Indian Converts' got '%s'\n", reports_job_display_name(27)
+    );
+    reports_free(&view);
+    return 1;
+  }
+
+  /* Cargo names now resolve live from NAMES.TXT @CARGO column 0. */
+  if (strcmp(reports_cargo_display_name(0), "Food") != 0) {
+    fprintf(stderr, "cargo 0 want 'Food' got '%s'\n", reports_cargo_display_name(0));
+    reports_free(&view);
+    return 1;
+  }
+  if (strcmp(reports_cargo_display_name(15), "Muskets") != 0) {
+    fprintf(
+      stderr, "cargo 15 want 'Muskets' got '%s'\n", reports_cargo_display_name(15)
+    );
+    reports_free(&view);
+    return 1;
+  }
+
   uint8_t pixels[320 * 200];
   ColonizeFramebuffer8 fb = {.width = 320, .height = 200, .pixels = pixels};
   reports_render(
@@ -382,11 +412,25 @@ int main(void) {
   fprintf(stderr, "report screens ok (%d backgrounds + Col1 data + score)\n", COLONIZE_REPORT_COUNT);
   reports_free(&view);
 
-  /* After free (no assets loaded), FF names must still resolve — the
+  /* After free (no assets loaded), names must still resolve — the
    * hand-typed static table fallback, not a stale/dangling live pointer. */
   if (strcmp(reports_ff_display_name(0), "Adam Smith") != 0) {
     fprintf(
       stderr, "FF 0 after reports_free want 'Adam Smith' got '%s'\n", reports_ff_display_name(0)
+    );
+    return 1;
+  }
+  if (strcmp(reports_job_display_name(0), "Expert Farmers") != 0) {
+    fprintf(
+      stderr,
+      "job 0 after reports_free want 'Expert Farmers' got '%s'\n",
+      reports_job_display_name(0)
+    );
+    return 1;
+  }
+  if (strcmp(reports_cargo_display_name(0), "Food") != 0) {
+    fprintf(
+      stderr, "cargo 0 after reports_free want 'Food' got '%s'\n", reports_cargo_display_name(0)
     );
     return 1;
   }
