@@ -3616,15 +3616,20 @@ int main(void) {
   }
 
   {
-    /* lcr_case5_bonus_used: first trespass roll → burial (FUN_65dd_0004:103608). */
+    /* lcr_case5_bonus_used: first trespass roll → burial (FUN_65dd_0004:103608).
+     * Non-Scout unit deliberately: Scout/Seasoned Scout now roll from their
+     * own better-weighted table (units_resolve_lcr_rumour), which shifts
+     * where a raw roll=75 lands — this test wants the plain (unmodified,
+     * pre-existing) base-table thresholds specifically, so use a unit type
+     * that always gets that table. */
     ColonizeCol1Save c5col1;
     memset(&c5col1, 0, sizeof(c5col1));
     for (int i = 0; i < COLONIZE_COL1_FF_COUNT; ++i) {
       c5col1.head.founding_father[i] = -1;
     }
-    const int scout_ti5 = units_find_type(&pool, "Scouts");
-    if (scout_ti5 < 0) {
-      fprintf(stderr, "case5 latch scout type missing\n");
+    const int case5_ti = units_find_type(&pool, "Colonists");
+    if (case5_ti < 0) {
+      fprintf(stderr, "case5 latch colonist type missing\n");
       return 1;
     }
     uint32_t trespass_seed = 0;
@@ -3667,7 +3672,7 @@ int main(void) {
     }
     ColonizeDosRng rng1;
     dos_rng_seed(&rng1, trespass_seed);
-    const int sc1 = units_spawn_allow_stack(&pool, scout_ti5, rx1, ry1);
+    const int sc1 = units_spawn_allow_stack(&pool, case5_ti, rx1, ry1);
     ColonizeUnit* u1 = units_get(&pool, sc1);
     if (!u1) {
       fprintf(stderr, "case5 latch scout spawn failed\n");
@@ -3685,7 +3690,7 @@ int main(void) {
     map.layer2[ry2 * map.width + rx2] &= (uint8_t)~MAP_LAYER2_RUMOUR_CLEARED;
     ColonizeDosRng rng2;
     dos_rng_seed(&rng2, trespass_seed);
-    const int sc2 = units_spawn_allow_stack(&pool, scout_ti5, rx2, ry2);
+    const int sc2 = units_spawn_allow_stack(&pool, case5_ti, rx2, ry2);
     ColonizeUnit* u2 = units_get(&pool, sc2);
     if (!u2) {
       fprintf(stderr, "case5 latch scout2 spawn failed\n");
