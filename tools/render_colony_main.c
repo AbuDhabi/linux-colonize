@@ -39,7 +39,8 @@ int main(int argc, char** argv) {
   if (argc < 6) {
     fprintf(
       stderr,
-      "usage: %s <data_dir> <save.SAV> <colony_name> <multi_mode:0=prod,1=units,2=construct> <out.ppm>\n",
+      "usage: %s <data_dir> <save.SAV> <colony_name> <multi_mode:0=prod,1=units,2=construct> "
+      "<out.ppm> [debug_rects:0|1]\n",
       argv[0]
     );
     return 1;
@@ -49,6 +50,7 @@ int main(int argc, char** argv) {
   const char* colony_name = argv[3];
   const int multi_mode = atoi(argv[4]);
   const char* out_path = argv[5];
+  const bool debug_rects = argc > 6 && atoi(argv[6]) != 0;
 
   char err[256];
 
@@ -176,6 +178,7 @@ int main(int argc, char** argv) {
     bridge_result.autumn,
     (int)nat->gold,
     font_ok ? &font : NULL,
+    debug_rects,
     &fb
   );
 

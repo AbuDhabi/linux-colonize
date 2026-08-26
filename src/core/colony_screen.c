@@ -1269,6 +1269,149 @@ static void colony_screen_blit_scaled_15_where_dest(
   }
 }
 
+static void colony_screen_debug_building_rect(
+  const ColonyScreenView* view, ColonizeFramebuffer8* framebuffer, int sprite, int x, int y
+);
+
+/*
+ * Approximate collage positions inside the PARCH buildings section.
+ * Exact DOS placement is not recovered yet; this is a readable bring-up layout.
+ *
+ * BUILDING.SS notes:
+ *   #16 — full pre-stockade fence (bottom-right of buildings section)
+ *   #45 — empty coastal placeholder (trees + shore); docks/drydock/shipyard replace it
+ *   #42–44,46–47 — empty-slot tree clumps (large/med/small)
+ *
+ * Classic bottom-right stack: coast/docks (75×48) above fence/stockade (73×18).
+ */
+enum {
+  COLONY_FENCE_SPRITE = 16,
+  COLONY_TREE_LARGE = 42,
+  COLONY_TREE_MED = 43,
+  COLONY_TREE_SMALL = 44,
+  COLONY_COAST_PLACEHOLDER = 45,
+  COLONY_FENCE_W = 73,
+  COLONY_FENCE_H = 18,
+  COLONY_COAST_W = 75,
+  COLONY_COAST_H = 48,
+  COLONY_BUILDING_WORKERS_MAX = 3
+};
+
+/*
+ * Golden-exact overrides for New Amsterdam and Recife (dutch-reports.SAV),
+ * the two colonies with reference screenshots. Casuistry, not a general
+ * solution — this placeholder algorithm is meant to be replaced by a real
+ * port of DOS's own tables later (see the block comment above
+ * colony_screen_assign_slot_positions); until then, these two colonies
+ * should look exactly like their goldens so the rest of the colony-screen
+ * work can be tuned against real DOS pixels instead of this port's
+ * invented layout. Positions came from brute-force template matching each
+ * real building's actual sprite against the golden PNGs (BUILDING.SS
+ * sprite, palette-converted, slid over the downscaled-to-native golden
+ * until pixel-SAD is minimized — exact-zero score for most). Only *built*
+ * structures are overridden; unbuilt categories (drawn as a decorative
+ * tree-clump placeholder) keep the general algorithm — template matching
+ * them was inconclusive (DOS scatters filler trees pretty freely, not from
+ * the same fixed per-class pool used for real buildings), and they're not
+ * interactive, so exact placement doesn't matter the way it does for a
+ * real building. docks_x/y and fence_x/y (both colonies: (123,55) and
+ * (123,106)) matched exactly too, including on Recife's *unbuilt* coast
+ * placeholder — strong evidence that corner is a genuinely fixed screen
+ * slot, not random; a good candidate to promote to the general formula
+ * later. Indices in `pos[]` follow k_building_slots[] order (0 town_hall …
+ * 13 custom); -1 = no override, use the algorithm. */
+#define COLONY_OVERRIDE_NONE (-1)
+typedef struct ColonyPlacementOverride {
+  int x, y; /* colony's fixed map position, keys the override */
+  int pos[14][2]; /* k_building_slots order; {-1,-1} = not overridden */
+  int docks_x, docks_y, fence_x, fence_y; /* -1 = use the formula default */
+} ColonyPlacementOverride;
+
+static const ColonyPlacementOverride k_colony_overrides[] = {
+  { /* New Amsterdam */
+    50, 43,
+    {
+      {66, 87},   /* town_hall */
+      {-1, -1},   /* church (unbuilt) */
+      {15, 102},  /* school (unbuilt, but tree matched exactly) */
+      {128, 53},  /* carpenter */
+      {8, 41},    /* blacksmith */
+      {56, 13},   /* weaver */
+      {173, 18},  /* tobacco */
+      {145, 15},  /* rum */
+      {37, 45},   /* fur */
+      {10, 76},   /* warehouse */
+      {6, 14},    /* armory */
+      {96, 53},   /* press */
+      {-1, -1},   /* stable (unbuilt, no confident match) */
+      {67, 54},   /* custom */
+    },
+    123, 55, 123, 106
+  },
+  { /* Recife */
+    41, 38,
+    {
+      {87, 11},   /* town_hall */
+      {-1, -1},   /* church (unbuilt) */
+      {-1, -1},   /* school (unbuilt) */
+      {128, 53},  /* carpenter */
+      {173, 18},  /* blacksmith */
+      {67, 54},   /* weaver */
+      {96, 53},   /* tobacco */
+      {8, 41},    /* rum */
+      {145, 15},  /* fur */
+      {-1, -1},   /* warehouse (unbuilt) */
+      {-1, -1},   /* armory (unbuilt) */
+      {-1, -1},   /* press (unbuilt) */
+      {-1, -1},   /* stable (unbuilt) */
+      {-1, -1},   /* custom (unbuilt) */
+    },
+    123, 55, 123, 106
+  },
+};
+static const int k_colony_override_count =
+  (int)(sizeof(k_colony_overrides) / sizeof(k_colony_overrides[0]));
+
+static const ColonyPlacementOverride* colony_screen_find_override(const ColonizeColony* colony) {
+  if (!colony) {
+    return NULL;
+  }
+  for (int i = 0; i < k_colony_override_count; ++i) {
+    if (k_colony_overrides[i].x == colony->x && k_colony_overrides[i].y == colony->y) {
+      return &k_colony_overrides[i];
+    }
+  }
+  return NULL;
+}
+
+/* Shared by the draw path and both hit-test call sites so clicks always
+ * match what's drawn (mirrors colony_screen_assign_slot_positions). */
+static void colony_screen_docks_fence_anchor(
+  const ColonizeColony* colony,
+  int fence_w,
+  int fence_h,
+  int* fence_x,
+  int* fence_y,
+  int* coast_x,
+  int* coast_y
+) {
+  *fence_x = COLONY_VIEWPORT_X + COLONY_VIEWPORT_W - fence_w;
+  *fence_y = COLONY_VIEWPORT_Y + COLONY_VIEWPORT_H - fence_h;
+  *coast_x = COLONY_VIEWPORT_X + COLONY_VIEWPORT_W - COLONY_COAST_W;
+  *coast_y = *fence_y - COLONY_COAST_H;
+  const ColonyPlacementOverride* ovr = colony_screen_find_override(colony);
+  if (ovr) {
+    if (ovr->fence_x != COLONY_OVERRIDE_NONE) {
+      *fence_x = ovr->fence_x;
+      *fence_y = ovr->fence_y;
+    }
+    if (ovr->docks_x != COLONY_OVERRIDE_NONE) {
+      *coast_x = ovr->docks_x;
+      *coast_y = ovr->docks_y;
+    }
+  }
+}
+
 static void colony_screen_draw_area_overlays(
   ColonyScreenView* view,
   const ColonizeColonyPool* pool,
@@ -1277,6 +1420,7 @@ static void colony_screen_draw_area_overlays(
   const ColonizeWorldMap* map,
   const ColonizeCol1Save* col1,
   const ColonizeFont* font,
+  bool debug_rects,
   ColonizeFramebuffer8* framebuffer
 ) {
   if (!view || !colony || !map || !framebuffer) {
@@ -1543,29 +1687,6 @@ static void colony_screen_render_minimap(
   );
 }
 
-/*
- * Approximate collage positions inside the PARCH buildings section.
- * Exact DOS placement is not recovered yet; this is a readable bring-up layout.
- *
- * BUILDING.SS notes:
- *   #16 — full pre-stockade fence (bottom-right of buildings section)
- *   #45 — empty coastal placeholder (trees + shore); docks/drydock/shipyard replace it
- *   #42–44,46–47 — empty-slot tree clumps (large/med/small)
- *
- * Classic bottom-right stack: coast/docks (75×48) above fence/stockade (73×18).
- */
-enum {
-  COLONY_FENCE_SPRITE = 16,
-  COLONY_TREE_LARGE = 42,
-  COLONY_TREE_MED = 43,
-  COLONY_TREE_SMALL = 44,
-  COLONY_COAST_PLACEHOLDER = 45,
-  COLONY_FENCE_W = 73,
-  COLONY_FENCE_H = 18,
-  COLONY_COAST_W = 75,
-  COLONY_COAST_H = 48,
-  COLONY_BUILDING_WORKERS_MAX = 3
-};
 
 typedef struct ColonyBuildingSlot {
   const char* const* chain;
@@ -1763,6 +1884,16 @@ static void colony_screen_assign_slot_positions(const ColonizeColony* colony, in
     xs[i] = pools[group][pick].x;
     ys[i] = pools[group][pick].y;
   }
+
+  const ColonyPlacementOverride* ovr = colony_screen_find_override(colony);
+  if (ovr) {
+    for (int i = 0; i < k_building_slot_count && i < 14; ++i) {
+      if (ovr->pos[i][0] != COLONY_OVERRIDE_NONE) {
+        xs[i] = ovr->pos[i][0];
+        ys[i] = ovr->pos[i][1];
+      }
+    }
+  }
 }
 
 static int colony_screen_find_built(
@@ -1958,6 +2089,24 @@ static int colony_screen_building_production_badge(
   return -1;
 }
 
+/* DEBUG menu "Building Rects": violet (EGA bright magenta, WOODPANL.PIK
+ * idx 13 — not used anywhere else on this screen) outline around a
+ * building sprite's actual bounds, so placement can be tweaked by eye. */
+#define COLONY_DEBUG_RECT_COLOR 13
+
+static void colony_screen_debug_building_rect(
+  const ColonyScreenView* view, ColonizeFramebuffer8* framebuffer, int sprite, int x, int y
+) {
+  if (!view || sprite < 0 || sprite >= view->buildings.sprite_count) {
+    return;
+  }
+  const ColonizeSprite* spr = &view->buildings.sprites[sprite];
+  if (!spr || spr->width <= 0 || spr->height <= 0) {
+    return;
+  }
+  colony_screen_draw_selection_box(framebuffer, x, y, spr->width, spr->height, COLONY_DEBUG_RECT_COLOR);
+}
+
 static void colony_screen_blit_buildings(
   ColonyScreenView* view,
   const ColonizeColonyPool* pool,
@@ -1965,6 +2114,7 @@ static void colony_screen_blit_buildings(
   const ColonizeUnitPool* units,
   bool coastal,
   const ColonizeFont* font,
+  bool debug_rects,
   ColonizeFramebuffer8* framebuffer
 ) {
   if (!view || !view->buildings_ok || !pool || !colony || !framebuffer) {
@@ -1983,11 +2133,17 @@ static void colony_screen_blit_buildings(
       ++n;
     }
     const int built = colony_screen_best_built(pool, colony, slot->chain, n);
+    const int drawn_sprite = built >= 0 ? built : slot->tree_sprite;
     if (built >= 0) {
       colony_screen_blit_slot(view, built, slot_ox + slot_x[i], slot_oy + slot_y[i], framebuffer);
     } else {
       colony_screen_blit_slot(
         view, slot->tree_sprite, slot_ox + slot_x[i], slot_oy + slot_y[i], framebuffer
+      );
+    }
+    if (debug_rects) {
+      colony_screen_debug_building_rect(
+        view, framebuffer, drawn_sprite, slot_ox + slot_x[i], slot_oy + slot_y[i]
       );
     }
 
@@ -2116,22 +2272,32 @@ static void colony_screen_blit_buildings(
       }
     }
   }
-  const int fence_x = COLONY_VIEWPORT_X + COLONY_VIEWPORT_W - fence_w;
-  const int fence_y = COLONY_VIEWPORT_Y + COLONY_VIEWPORT_H - fence_h;
-  const int coast_x = COLONY_VIEWPORT_X + COLONY_VIEWPORT_W - COLONY_COAST_W;
-  const int coast_y = fence_y - COLONY_COAST_H;
+  int fence_x, fence_y, coast_x, coast_y;
+  colony_screen_docks_fence_anchor(colony, fence_w, fence_h, &fence_x, &fence_y, &coast_x, &coast_y);
 
   const int docks = colony_screen_best_built(pool, colony, k_slot_docks, 3);
   if (docks >= 0) {
     colony_screen_blit_slot(view, docks, coast_x, coast_y, framebuffer);
+    if (debug_rects) {
+      colony_screen_debug_building_rect(view, framebuffer, docks, coast_x, coast_y);
+    }
   } else if (coastal) {
     colony_screen_blit_slot(view, COLONY_COAST_PLACEHOLDER, coast_x, coast_y, framebuffer);
+    if (debug_rects) {
+      colony_screen_debug_building_rect(view, framebuffer, COLONY_COAST_PLACEHOLDER, coast_x, coast_y);
+    }
   }
 
   if (fort >= 0) {
     colony_screen_blit_slot(view, fort, fence_x, fence_y, framebuffer);
+    if (debug_rects) {
+      colony_screen_debug_building_rect(view, framebuffer, fort, fence_x, fence_y);
+    }
   } else {
     colony_screen_blit_slot(view, COLONY_FENCE_SPRITE, fence_x, fence_y, framebuffer);
+    if (debug_rects) {
+      colony_screen_debug_building_rect(view, framebuffer, COLONY_FENCE_SPRITE, fence_x, fence_y);
+    }
   }
 
   /* Outside units: Note 1 strip centered on the fortification. */
@@ -3451,8 +3617,10 @@ ColonyScreenHitResult colony_screen_hit_test(
         fence_h = spr->height;
       }
     }
-    const int fence_x = COLONY_VIEWPORT_X + COLONY_VIEWPORT_W - fence_w;
-    const int fence_y = COLONY_VIEWPORT_Y + COLONY_VIEWPORT_H - fence_h;
+    int fence_x, fence_y, coast_x_unused, coast_y_unused;
+    colony_screen_docks_fence_anchor(
+      colony, fence_w, fence_h, &fence_x, &fence_y, &coast_x_unused, &coast_y_unused
+    );
     int icons[COLONY_OUTSIDE_MAX];
     int map_i[COLONY_OUTSIDE_MAX];
     int n = 0;
@@ -3503,8 +3671,10 @@ ColonyScreenHitResult colony_screen_hit_test(
         fence_h = spr->height;
       }
     }
-    const int fence_x = COLONY_VIEWPORT_X + COLONY_VIEWPORT_W - fence_w;
-    const int fence_y = COLONY_VIEWPORT_Y + COLONY_VIEWPORT_H - fence_h;
+    int fence_x, fence_y, coast_x_unused, coast_y_unused;
+    colony_screen_docks_fence_anchor(
+      colony, fence_w, fence_h, &fence_x, &fence_y, &coast_x_unused, &coast_y_unused
+    );
     if (mx >= fence_x && my >= fence_y && mx < fence_x + fence_w && my < fence_y + fence_h) {
       hit.kind = COLONY_HIT_FENCE;
       return hit;
@@ -3714,6 +3884,7 @@ void colony_screen_render(
   uint16_t game_autumn,
   int gold,
   const ColonizeFont* font,
+  bool debug_building_rects,
   ColonizeFramebuffer8* framebuffer
 ) {
   if (!framebuffer || !framebuffer->pixels) {
@@ -3739,13 +3910,15 @@ void colony_screen_render(
   {
     const bool coastal =
       colony && map && map_tile_is_coastal(map, colony->x, colony->y);
-    colony_screen_blit_buildings(view, pool, colony, units, coastal, font, framebuffer);
+    colony_screen_blit_buildings(view, pool, colony, units, coastal, font, debug_building_rects, framebuffer);
   }
 
   colony_screen_fill_wood_tile(view, framebuffer);
   if (colony && map && terrain) {
     colony_screen_render_minimap(map, terrain, phys0, colony->x, colony->y, framebuffer);
-    colony_screen_draw_area_overlays(view, pool, colony, units, map, col1, font, framebuffer);
+    colony_screen_draw_area_overlays(
+      view, pool, colony, units, map, col1, font, debug_building_rects, framebuffer
+    );
   }
   if (view && view->bottom_panel_ok) {
     pik_blit(&view->bottom_panel, framebuffer, 0, COLONY_BOTTOM_PANEL_Y);

@@ -433,6 +433,50 @@ Two more player-reported gaps against `new_amsterdam_production.png`:
    rejection-sampling loop, so a future pool edit that strays back into the
    corner gets skipped instead of silently overlapping again.
 
+### DEBUG menu: Building Rects
+
+`MAP_MENU_ACTION_DEBUG_BUILDING_RECTS` (DEBUG pulldown, default off, port-only
+— `COLONIZE_DEBUG_MENU`) draws a violet outline (`COLONY_DEBUG_RECT_COLOR` =
+13, WOODPANL.PIK's bright EGA magenta — not used anywhere else on this
+screen) around every colony building sprite's actual bounds: the 14 random-
+pool slots plus the fixed docks/fence corner. `game->debug_building_rects`
+threads through `colony_screen_render()`'s new parameter into
+`colony_screen_blit_buildings()` and `colony_screen_draw_area_overlays()`.
+`build/render_colony` also takes it as an optional 6th CLI arg
+(`... out.ppm 1`) for headless iteration without launching the game. Reason:
+placement is more than cosmetic — buildings are clickable (workers, badges,
+Change/Buy), so getting their clickable bounds visibly right matters, not
+just their look.
+
+### Golden-exact overrides: New Amsterdam and Recife
+
+Per-colony casuistry, not a general fix — deliberately narrow, since this
+whole placement algorithm (see above) is a placeholder for a real DOS port
+later. For the two colonies with reference screenshots, every *built*
+structure now sits at its exact golden pixel position, found by brute-force
+template matching: dump each `BUILDING.SS` sprite through the same
+palette (`colony_screen_load`'s `view.frame.palette`), slide it over the
+golden PNG (downscaled 2×→native) computing sum-of-absolute-difference per
+candidate position, keep the global-minimum position. Most built structures
+matched at an exact **zero** score; the few non-zero ones (Town Hall,
+Fort/Stockade) are still the clear global minimum, just partly occluded by
+worker-icon/badge overlays drawn on top. `ColonyPlacementOverride` in
+`colony_screen.c` keys on the colony's fixed `(x,y)` (New Amsterdam
+50,43; Recife 41,38) and overrides only the `k_building_slots[]` indices
+with a confident match — `colony_screen_assign_slot_positions()` runs the
+normal algorithm first, then overwrites. Unbuilt categories (drawn as a
+tree-clump placeholder) are deliberately left on the general algorithm:
+template-matching them was inconclusive — DOS scatters filler trees more
+freely than the fixed per-class pool used for real buildings — and they
+aren't interactive, so exact placement doesn't carry the same bar. One
+notable side-finding promoted into the shared code (not colony-specific):
+the docks/fence corner anchor (`colony_screen_docks_fence_anchor()`) matched
+the same `(123,55)`/`(123,106)` exactly for *both* colonies, including on
+Recife's unbuilt coast placeholder — good evidence it's a genuinely fixed
+screen slot rather than random, a candidate to become the real formula
+(replacing the viewport-relative right-anchor math) once verified on a
+third colony.
+
 ## Left unresolved
 - **Two golden-confirmed building badges reuse the same displayed number**
   (Town Hall and Printing Press both showed "82" in New Amsterdam — Town

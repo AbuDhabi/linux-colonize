@@ -194,6 +194,7 @@ struct ColonizeGameState {
   int debug_mouse_x;       /* last pointer in 320×200 framebuffer space */
   int debug_mouse_y;
   bool debug_show_mouse_coords; /* DEBUG menu toggle; default on */
+  bool debug_building_rects; /* DEBUG menu toggle: colony-screen building sprite bounds; default off */
   bool debug_show_strategy; /* CHEAT Show Strategy: per-nation top AI goal overlay */
   bool debug_show_colony_sites; /* CHEAT Show Colony Sites: ai_goals_best_found_tile overlay */
   uint16_t debug_flags_mask; /* CHEAT Debug Info Flags (@OPTIONS, 7 bits); bits 1/3 shadow
@@ -3766,6 +3767,7 @@ static void render_colony_screen(const ColonizeGameState* game, ColonizeFramebuf
     game->game_autumn,
     game->europe.gold,
     font,
+    game->debug_building_rects,
     framebuffer
   );
   if (game->howmuch.open || game->name_entry.open) {
@@ -7203,6 +7205,15 @@ static bool game_apply_map_menu_action(ColonizeGameState* game, MapMenuAction ac
         sizeof(game->status),
         "Mouse coords: %s",
         game->debug_show_mouse_coords ? "on" : "off"
+      );
+      return true;
+    case MAP_MENU_ACTION_DEBUG_BUILDING_RECTS:
+      game->debug_building_rects = !game->debug_building_rects;
+      snprintf(
+        game->status,
+        sizeof(game->status),
+        "Building rects: %s",
+        game->debug_building_rects ? "on" : "off"
       );
       return true;
     case MAP_MENU_ACTION_CHEAT_REVEAL_MAP:

@@ -515,6 +515,7 @@ int main(void) {
     0,
     1000,
     font_ok ? &font : NULL,
+    false,
     &fb
   );
 
@@ -724,6 +725,7 @@ int main(void) {
       0,
       1000,
       font_ok ? &font : NULL,
+      false,
       &fb
     );
     if (view.outside_unit_count < 1) {
@@ -1173,6 +1175,7 @@ int main(void) {
       0,
       1000,
       font_ok ? &font : NULL,
+      false,
       &fb
     );
     int ox = 0, oy = 0;
@@ -1254,6 +1257,7 @@ int main(void) {
       0,
       1000,
       font_ok ? &font : NULL,
+      false,
       &fb
     );
     int prod_sum = 0;
@@ -1301,6 +1305,7 @@ int main(void) {
       0,
       1000,
       font_ok ? &font : NULL,
+      false,
       &fb
     );
     int cons_sum = 0;

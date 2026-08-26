@@ -415,6 +415,7 @@ void colony_screen_render(
   uint16_t game_autumn,
   int gold,
   const ColonizeFont* font,
+  bool debug_building_rects, /* DEBUG menu "Building Rects": violet outline on every building sprite */
   ColonizeFramebuffer8* framebuffer
 );
 

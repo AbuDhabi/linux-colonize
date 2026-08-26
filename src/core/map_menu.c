@@ -461,6 +461,9 @@ static MapMenuAction map_menu_classify(const char* section, const char* label) {
     if (strcmp(label, "Show Mouse Coords") == 0) {
       return MAP_MENU_ACTION_DEBUG_TOGGLE_MOUSE_COORDS;
     }
+    if (strcmp(label, "Building Rects") == 0) {
+      return MAP_MENU_ACTION_DEBUG_BUILDING_RECTS;
+    }
     return MAP_MENU_ACTION_UNIMPLEMENTED;
   }
 
@@ -544,6 +547,7 @@ static bool map_menu_action_enabled(MapMenuAction action) {
     case MAP_MENU_ACTION_REPORT_SCORE:
     case MAP_MENU_ACTION_DEBUG_SPRITE_VIEWER:
     case MAP_MENU_ACTION_DEBUG_TOGGLE_MOUSE_COORDS:
+    case MAP_MENU_ACTION_DEBUG_BUILDING_RECTS:
     case MAP_MENU_ACTION_CHEAT_CREATE_UNIT:
     case MAP_MENU_ACTION_CHEAT_DEBUG_FLAGS:
     case MAP_MENU_ACTION_CHEAT_REVEAL_MAP:
@@ -795,6 +799,7 @@ static bool map_menu_load_debug(MapMenuBar* bar) {
   menu->visible = true;
   map_menu_append_item(menu, "Sprite Viewer", MAP_MENU_ACTION_DEBUG_SPRITE_VIEWER);
   map_menu_append_item(menu, "Show Mouse Coords", MAP_MENU_ACTION_DEBUG_TOGGLE_MOUSE_COORDS);
+  map_menu_append_item(menu, "Building Rects", MAP_MENU_ACTION_DEBUG_BUILDING_RECTS);
   bar->menu_count++;
   return true;
 }
@@ -1718,6 +1723,8 @@ const char* map_menu_action_name(MapMenuAction action) {
       return "Sprite Viewer";
     case MAP_MENU_ACTION_DEBUG_TOGGLE_MOUSE_COORDS:
       return "Show Mouse Coords";
+    case MAP_MENU_ACTION_DEBUG_BUILDING_RECTS:
+      return "Building Rects";
     default:
       return "unknown";
   }
