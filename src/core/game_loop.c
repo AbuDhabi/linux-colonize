@@ -10593,6 +10593,7 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
       : (game->menu_font_ok ? &game->menu_font : NULL);
     units_render_on_map(
       &game->units,
+      game->colonies_ok || game->colonies.colony_count > 0 ? &game->colonies : NULL,
       &game->unit_icons,
       chrome_font,
       framebuffer,

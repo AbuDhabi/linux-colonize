@@ -4134,14 +4134,26 @@ int main(void) {
       ua->nation_id = 0;
       ub->nation_id = 1;
       ua->moves_left = 4;
+      /*
+       * bugs.md: unarmed transports (Caravel attack=0 in @UNIT) must bounce
+       * off a foreign ship, not fight — "Only Privateers and Frigates can
+       * attack enemy ships" (GAME.TXT). Confirm the bounce before arming the
+       * type below to exercise the actual-combat path.
+       */
+      const ColonizeEnterReason unarmed_r =
+        units_enter_probe(&pool, ua->type_index, &map, wx2, wy2, a, NULL);
+      if (unarmed_r != COLONIZE_ENTER_BOUNCE_FOREIGN) {
+        fprintf(stderr, "enter-probe unarmed naval bounce expected got %d\n", (int)unarmed_r);
+        return 1;
+      }
+      pool.types[caravel_t].attack = 99;
+      pool.types[caravel_t].defense = 1;
       const ColonizeEnterReason r =
         units_enter_probe(&pool, ua->type_index, &map, wx2, wy2, a, NULL);
       if (r != COLONIZE_ENTER_COMBAT_NAVAL) {
         fprintf(stderr, "enter-probe naval combat expected got %d\n", (int)r);
         return 1;
       }
-      pool.types[caravel_t].attack = 99;
-      pool.types[caravel_t].defense = 1;
       if (!units_try_move(&pool, a, &map, wx2, wy2, NULL, NULL)) {
         fprintf(stderr, "enter-probe naval move combat failed\n");
         return 1;

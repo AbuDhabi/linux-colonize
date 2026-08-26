@@ -1074,9 +1074,26 @@ int units_top_on_map_tile(
   const ColonizeWorldMap* map
 );
 
+/*
+ * bugs.md: "your units/colonies need to have sight of the tiles for you to
+ * detect AI movements, even if those tiles aren't under fog of war." Live
+ * sight, not the permanent explored/fog flag: true if any active on-map
+ * unit of nation_id is within Chebyshev 1 of (x,y), or any active colony of
+ * nation_id is within Chebyshev 2 — same radii map_reveal_radius uses to
+ * grow the permanent explored set in the first place.
+ */
+bool units_nation_sees_tile_now(
+  const ColonizeUnitPool* pool,
+  const ColonizeColonyPool* colonies,
+  int nation_id,
+  int x,
+  int y
+);
+
 /* selected_visible: when false, hide the selected unit (blink off frame). */
 void units_render_on_map(
   const ColonizeUnitPool* pool,
+  const ColonizeColonyPool* colonies,
   const ColonizeSpriteSheet* nation_sheet,
   const ColonizeFont* font,
   ColonizeFramebuffer8* framebuffer,

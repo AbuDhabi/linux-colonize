@@ -2205,14 +2205,24 @@ static void ai_king_tax_event(ColonizeTurnContext* ctx) {
   int bid_buf[COLONIZE_CARGO_COUNT];
   const int* bids = NULL;
   const uint16_t candidate_mask = ai_king_teaparty_candidate_mask(ctx, bid_buf, &bids);
-  const int picked = ctx->rng
+  int picked = ctx->rng
     ? ai_king_pick_dump_goods_cargo(nat->boycott_bitmap, candidate_mask, ctx->rng, bids)
     : -1;
+  if (picked < 0 && ctx->rng && ai_king_human_popups(ctx)) {
+    /*
+     * bugs.md: a tax hike must always be a real Kiss-the-ring/Tea-party
+     * choice for the human, never a silent announcement — relax the
+     * bid>0 and boycott-exclusion filters as a last resort so some cargo
+     * is always nameable (all cargos already boycotted is the only case
+     * this can still miss, and re-threatening one then is harmless).
+     */
+    const uint16_t all_cargos = (uint16_t)((1u << COLONIZE_CARGO_COUNT) - 1u);
+    picked = ai_king_pick_dump_goods_cargo(0, all_cargos, ctx->rng, NULL);
+  }
 
   if (picked < 0) {
-    /* No eligible village-goods candidate — DOS just pings and the hike
-     * stands silently. Still surface an OK popup so a human player isn't
-     * left with an unexplained rate change. */
+    /* Only reachable with no RNG (tests) or popups disabled for this
+     * nation — DOS's own choice UI has nothing to drive here either. */
     if (ai_king_human_popups(ctx)) {
       char body[AI_POPUP_BODY_LEN];
       snprintf(body, sizeof(body), "The King raises taxes to %u%%.", nat->tax_rate);

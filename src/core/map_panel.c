@@ -852,6 +852,11 @@ void map_panel_render(
         if (!map_tile_seen_by(map, u->x, u->y, human_nation)) {
           continue;
         }
+        /* bugs.md: minimap dots for foreign units need live sight too. */
+        if (u->nation_id != human_nation &&
+            !units_nation_sees_tile_now(units, colonies, human_nation, u->x, u->y)) {
+          continue;
+        }
         const int lx = u->x - origin_x;
         const int ly = u->y - origin_y;
         if (lx < 0 || ly < 0 || lx >= mw || ly >= mh) {

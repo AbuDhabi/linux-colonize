@@ -2755,10 +2755,10 @@ static void colony_screen_draw_transports(
       const int goods_holds = units_goods_hold_count(units, view->transport_unit_id);
       open_holds = goods_holds < 0 ? 0 : (goods_holds > max_holds ? max_holds : goods_holds);
       for (int i = 0; i < open_holds; ++i) {
-        /* bugs.md item 10: loaded-cargo goods icon sat 10px too high, 3px
-         * too far left vs. its hold slot; nudged to match. */
+        /* bugs.md: loaded-cargo goods icon nudged +3px x/+10px y, then
+         * player-reported 4px too low after that — net +6px y. */
         const int x = COLONY_HOLD_X + 4 + i * COLONY_HOLD_PITCH + 3;
-        const int y = COLONY_HOLD_Y + 10;
+        const int y = COLONY_HOLD_Y + 6;
         const int amt = ship->hold_goods_amount[i];
         const int gtype = ship->hold_goods_type[i];
         if (amt > 0 && amt < 255 && gtype >= 0 && gtype < COLONIZE_CARGO_COUNT) {

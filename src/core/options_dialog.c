@@ -380,7 +380,9 @@ bool options_dialog_handle_input(OptionsDialog* dlg, const ColonizeInputState* i
     if (input->mouse_x < dlg->dialog_x || input->mouse_y < dlg->dialog_y ||
         input->mouse_x >= dlg->dialog_x + dlg->dialog_w ||
         input->mouse_y >= dlg->dialog_y + dlg->dialog_h) {
-      options_finish(dlg, true);
+      /* bugs.md: clicking away should commit, like Enter — only Esc/right-
+       * click truly discard. */
+      options_finish(dlg, false);
       return true;
     }
     const int idx = options_option_at_y(dlg, input->mouse_y);
