@@ -2685,10 +2685,10 @@ int main(void) {
         return fail("MoW with cargo should step toward human coast water");
       }
     }
-    /* Place MoW on coast water adjacent to human colony → unload onto colony
-     * tile (prefer seize/attack path score 100 over adjacent coastal land).
-     * Single passenger + moves≥1 → unload that one (multi-unload capped by
-     * cargo). */
+    /* Place MoW on coast water adjacent to human colony → unload onto adjacent
+     * foundable/coastal land (colony tile is last-resort fallback only —
+     * king_ref 2026-08-24 adjacent-first). Single passenger + moves≥1 → unload
+     * that one (multi-unload capped by cargo). */
     {
       ColonizeUnit* mow = units_get(&units, mow_id);
       if (!mow || !mow->active || mow->cargo_count <= 0) {
@@ -2707,7 +2707,7 @@ int main(void) {
           u->y = 1;
         }
       }
-      /* Soft coastal land (4,4)/(4,6) must not win over colony tile (5,5). */
+      /* Soft coastal land (4,4)/(4,6) must win over colony tile (5,5). */
       map.terrain[4 * 16 + 4] = 1;
       map.terrain[6 * 16 + 4] = 1;
       const int cargo_before = mow->cargo_count;
@@ -2745,25 +2745,30 @@ int main(void) {
           return fail("MoW coastal unload should place crown land ashore");
         }
       }
-      /* Unload+seize: passenger prefers the human colony tile itself. */
+      /* Adjacent-first: passenger lands on soft coast, not the colony tile. */
       {
+        int on_adj = 0;
         int on_colony = 0;
         for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
           const ColonizeUnit* u = &units.units[i];
           if (!u->active || u->nation_id != 1 || units_is_sea(&units, u->id)) {
             continue;
           }
-          if (u->type_index == ty_regular && u->x == 5 && u->y == 5 &&
-              u->aboard_ship_id < 0) {
+          if (u->type_index != ty_regular || u->aboard_ship_id >= 0) {
+            continue;
+          }
+          if (u->x == 5 && u->y == 5) {
             on_colony = 1;
-            break;
+          } else if ((u->x == 4 && u->y == 4) || (u->x == 4 && u->y == 6) ||
+                     (u->x == 5 && u->y == 4) || (u->x == 5 && u->y == 6)) {
+            on_adj = 1;
           }
         }
-        if (!on_colony) {
-          return fail("MoW unload should prefer human colony tile (seize path)");
+        if (!on_adj) {
+          return fail("MoW unload should prefer adjacent coastal land over colony tile");
         }
+        (void)on_colony; /* 06a6 hunt may still walk onto colony same beat */
       }
-      /* Same-beat capture is allowed but not required (unit index order). */
     }
     /*
      * Multi-unload deepen (MoW×6 seize): board 3 Regulars, moves_left=2 →
@@ -2976,11 +2981,11 @@ int main(void) {
       }
     }
     /*
-     * Coast-adjacent unload prefers human colony tile over soft coastal land
-     * (fandom man-o-war → ports). Ship already on coast water (4,5) next to
-     * colony (5,5); soft land at (4,4)/(6,4) must not win (score 100 > 50/40).
-     * Sail-toward-coast from further out is covered by the MoW AI_SAIL case
-     * above; dest picker rejects soft-coast dumps when not yet port-adjacent.
+     * Coast-adjacent unload prefers soft coastal/foundable land over the human
+     * colony tile (king_ref 2026-08-24 adjacent-first; colony is fallback only).
+     * Ship already on coast water (4,5) next to colony (5,5); soft land at
+     * (4,4)/(4,6) must win. Sail-toward-coast from further out is covered by
+     * the MoW AI_SAIL case above.
      */
     {
       ColonizeUnit* mow = units_get(&units, mow_id);
@@ -3058,15 +3063,26 @@ int main(void) {
         if (!pax || !pax->active || pax->aboard_ship_id >= 0) {
           return fail("post-sail unload should put Regular ashore");
         }
-        if (pax->x != 5 || pax->y != 5) {
-          fprintf(stderr, "unit_ai_king: post-sail pax at (%d,%d) (want colony 5,5)\n",
+        if (pax->x == 5 && pax->y == 5) {
+          fprintf(stderr, "unit_ai_king: post-sail pax at colony (%d,%d) "
+                          "(want adjacent coastal land)\n",
                   pax->x, pax->y);
-          return fail("post-sail unload should prefer human colony tile");
+          return fail("post-sail unload should prefer adjacent coastal land over colony");
+        }
+        {
+          const int adx = pax->x - 4;
+          const int ady = pax->y - 5;
+          const int adj =
+              adx >= -1 && adx <= 1 && ady >= -1 && ady <= 1 && (adx != 0 || ady != 0);
+          if (!adj || !map_tile_is_land(&map, pax->x, pax->y)) {
+            fprintf(stderr,
+                    "unit_ai_king: post-sail pax at (%d,%d) (want land adj to ship 4,5)\n",
+                    pax->x, pax->y);
+            return fail("post-sail unload should land on adjacent coastal land");
+          }
         }
       }
-      if (colonies.colonies[0].nation_id != 1) {
-        return fail("post-sail unload onto colony should seize (owner → crown)");
-      }
+      /* Same-beat seize is via 06a6 hunt (or later beat), not unload dest. */
     }
     /*
      * Dragoon coastal unload when cargo allows (no Regular in hold):

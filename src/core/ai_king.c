@@ -1619,6 +1619,42 @@ static void ai_king_try_capture_at(ColonizeTurnContext* ctx, ColonizeUnit* u, in
 }
 
 /*
+ * After a land step onto a colony tile: seize if still human-owned, and always
+ * apply post-seize fortify when the tile is (now) crown-owned.
+ *
+ * units_try_move may flip ownership first via units_try_capture_foreign_colony;
+ * ai_king_try_capture_at then sees nation_id==crown and would skip fortify.
+ * Call this instead of bare try_capture_at after any successful step/combat
+ * enter onto a colony. Cap-2 / already-fortified are no-ops in the helpers.
+ */
+static void ai_king_after_step_onto_colony(ColonizeTurnContext* ctx, ColonizeUnit* u,
+                                           int crown, int human) {
+  if (!ctx || !u || !ctx->colonies || crown < 0) {
+    return;
+  }
+  const int cid = colonies_id_at(ctx->colonies, u->x, u->y);
+  if (cid < 0) {
+    return;
+  }
+  ai_king_try_capture_at(ctx, u, crown, human);
+  if (!u->active) {
+    return;
+  }
+  const ColonizeColony* c = &ctx->colonies->colonies[cid];
+  if (!c->active || c->nation_id != crown) {
+    return;
+  }
+  if (units_foreign_unit_at(ctx->units, u->x, u->y, u->id, u->nation_id) >= 0) {
+    return;
+  }
+  if (u->orders == UNITS_ORDER_FORTIFY || u->orders == UNITS_ORDER_FORTIFIED) {
+    return;
+  }
+  ai_king_fortify_garrison_at(ctx, u, crown, u->x, u->y);
+  ai_king_fortify_artillery_at(ctx, u, crown, u->x, u->y);
+}
+
+/*
  * Same-beat seize/fortify for passengers just put ashore (unit-index order may
  * have skipped them while aboard with moves_left==0). Cite: fandom REF seize
  * landing + fortify one Regular (else Dragoon/Cont.Cav) after capture / multi-unload.
@@ -4178,7 +4214,7 @@ static void ai_king_war_act(ColonizeTurnContext* ctx) {
             units_resolve_naval_combat(ctx->units, u->id, foe, ctx->rng);
           } else if (units_resolve_land_combat(ctx->units, u->id, foe, ctx->rng)) {
             units_try_move(ctx->units, u->id, ctx->map, nx, ny, ctx->colonies, ctx->rng);
-            ai_king_try_capture_at(ctx, u, crown, human);
+            ai_king_after_step_onto_colony(ctx, u, crown, human);
           }
           if (!u->active || u->moves_left >= ml0) {
             break;
@@ -4190,7 +4226,7 @@ static void ai_king_war_act(ColonizeTurnContext* ctx) {
       if (!units_try_move(ctx->units, u->id, ctx->map, nx, ny, ctx->colonies, ctx->rng)) {
         break;
       }
-      ai_king_try_capture_at(ctx, u, crown, human);
+      ai_king_after_step_onto_colony(ctx, u, crown, human);
       if (u->moves_left >= ml0) {
         break;
       }
