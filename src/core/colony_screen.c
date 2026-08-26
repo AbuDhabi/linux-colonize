@@ -1060,97 +1060,61 @@ static void colony_screen_draw_resource_count_pair(
   if (amount <= 0) {
     return;
   }
-  /* One icon per distinct type (never one-per-unit), plus the total as an
-   * outlined number — golden-confirmed (New Amsterdam: the Blacksmith
-   * settlement badge and every Production-tab/People-band/area-view badge
-   * show a single static icon, e.g. one pickaxe next to "24", not 24
-   * overlapping pickaxes). This screen's badges are a plain count label,
-   * unlike reports.c's icon bars (Religious crosses, Congress bells) which
-   * really do pack one icon per unit into a proportional bar — don't
-   * conflate the two; see docs/colony_screen.md. `always_show_number` is
-   * unused: the number is always shown here. */
-  (void)always_show_number;
-  char num[12];
-  snprintf(num, sizeof(num), "%d", amount);
-  const int num_w = font ? font_text_width(font, num) : 0;
-
-  int icons[2];
-  int n = 0;
-  if (amount0 > 0 && icon0 >= 0 && icon0 < view->icons.sprite_count) {
-    icons[n++] = icon0;
+  /* One icon per unit of resource, spread across [x,x+w) (Note 1) — golden-
+   * confirmed via the newer "numberless" reference captures (`new_amsterdam
+   * _production_numberless.png` / `recife_..._numberless.png`): DOS really
+   * does repeat the icon `amount` times, not draw one static icon. What a
+   * prior pass read off the (number-mode) goldens as a deliberately painted
+   * "content-sized black background pill" was actually just this: dozens of
+   * black-bordered icon copies overlapping almost completely, so only the
+   * last (topmost) one's art is visible and everything else fuses into a
+   * black smear — real, and it *scales with amount* (a bigger stock badge
+   * genuinely smears wider), which a fixed single-icon-plus-box never did.
+   * That box is gone; `amount` copies are blit for real, exactly like
+   * `colony_screen_draw_icon_strip` does for worker/unit strips, except this
+   * function's number is unconditional — confirmed against *both* the
+   * numbered and numberless goldens that resource-count badges (settlement/
+   * Production-tab/People-band/area-view) always show their number
+   * regardless of amount; the "always show numbers" toggle only changes the
+   * area-view field-tile badges (a different code path), not these. See
+   * docs/colony_screen.md. */
+  const int first_icon = amount0 > 0 ? icon0 : icon1;
+  if (first_icon < 0 || first_icon >= view->icons.sprite_count) {
+    return;
   }
-  if (amount1 > 0 && icon1 >= 0 && icon1 < view->icons.sprite_count) {
-    icons[n++] = icon1;
+  if (amount1 > 0 && (icon1 < 0 || icon1 >= view->icons.sprite_count)) {
+    return;
   }
-
-  /* Content-sized black pill background, golden-confirmed on every badge
-   * this function draws (settlement/Production-tab/People-band/area-view)
-   * — a wide bar under the number and its icon, not a full-cell fill and
-   * not baked into the cargo icon sprites themselves. Compute bounds
-   * before drawing icon/number on top. */
-  int content_x1 = x + 2 + num_w;
-  int box_h = font ? font->max_height + 2 : 10;
-  if (n == 1) {
-    const ColonizeSprite* sp = &view->icons.sprites[icons[0]];
-    if (sp && sp->pixels && sp->width > 0 && sp->height > 0) {
-      content_x1 = x + 2 + num_w + sp->width;
-      if (sp->height + 2 > box_h) {
-        box_h = sp->height + 2;
-      }
+  if (amount0 > 0 && (icon0 < 0 || icon0 >= view->icons.sprite_count)) {
+    return;
+  }
+  const ColonizeSprite* sp = &view->icons.sprites[first_icon];
+  if (!sp || !sp->pixels || sp->width <= 0 || sp->height <= 0) {
+    return;
+  }
+  const int iw = sp->width;
+  const int ih = sp->height;
+  const int iy = y + (h - ih) / 2;
+  if (amount == 1) {
+    const int ix = x + (w - iw) / 2;
+    ss_blit_sprite(&view->icons, first_icon, framebuffer, ix, iy);
+  } else if (w <= iw) {
+    for (int i = 0; i < amount; ++i) {
+      const int icon = (i < amount0) ? icon0 : icon1;
+      ss_blit_sprite(&view->icons, icon, framebuffer, x, iy);
     }
-  } else if (n > 0) {
-    for (int i = 0; i < n; ++i) {
-      const ColonizeSprite* sp = &view->icons.sprites[icons[i]];
-      if (sp && sp->pixels && sp->width > 0 && sp->height > 0 && sp->height + 2 > box_h) {
-        box_h = sp->height + 2;
-      }
-    }
-    content_x1 = x + w; /* pair layout already spreads across w */
-  }
-  if (content_x1 > x + w) {
-    content_x1 = x + w;
-  }
-  if (box_h > h) {
-    box_h = h;
-  }
-  const int box_y0 = y + (h - box_h) / 2;
-  colony_screen_fill_rect(framebuffer, x, box_y0, content_x1 - 1, box_y0 + box_h - 1, 0);
-  /* Clip the four corners for a rough pill shape (golden's boxes are
-   * visibly rounded, not square) — restore whatever was underneath by
-   * simply not filling those 1px corners in the first place would need a
-   * per-pixel fill; cheap enough to just skip explicit rounding here and
-   * accept a square corner, since at this resolution the difference is
-   * sub-pixel-visible at best. */
-
-  if (n == 1) {
-    /* Single icon: sits immediately right of the number, not centered in
-     * the full (often much wider than the badge itself) cell — golden-
-     * confirmed (New Amsterdam's Production-tab badges, e.g. "24" +
-     * pickaxe touching its right edge, not floating mid-cell). */
-    const ColonizeSprite* sp = &view->icons.sprites[icons[0]];
-    if (sp && sp->pixels && sp->width > 0 && sp->height > 0) {
-      int ix = x + 2 + num_w;
-      if (ix + sp->width > x + w) {
-        ix = x + w - sp->width;
-      }
-      const int iy = y + (h - sp->height) / 2;
-      ss_blit_sprite(&view->icons, icons[0], framebuffer, ix, iy);
-    }
-  } else if (n > 0) {
-    const ColonizeSprite* first = &view->icons.sprites[icons[0]];
-    const int ref_iw = (first && first->width > 0) ? first->width : 12;
-    int xs[2];
-    colony_screen_icon_strip_layout(x, w, n, ref_iw, xs);
-    for (int i = 0; i < n; ++i) {
-      const ColonizeSprite* sp = &view->icons.sprites[icons[i]];
-      if (!sp || !sp->pixels || sp->width <= 0 || sp->height <= 0) {
-        continue;
-      }
-      const int iy = y + (h - sp->height) / 2;
-      ss_blit_sprite(&view->icons, icons[i], framebuffer, xs[i], iy);
+  } else {
+    const int span = w - iw;
+    for (int i = 0; i < amount; ++i) {
+      const int icon = (i < amount0) ? icon0 : icon1;
+      const int ix = x + (i * span) / (amount - 1);
+      ss_blit_sprite(&view->icons, icon, framebuffer, ix, iy);
     }
   }
+  (void)always_show_number; /* number is unconditional here — see comment above */
   if (font) {
+    char num[12];
+    snprintf(num, sizeof(num), "%d", amount);
     colony_screen_draw_outlined_number(
       font, framebuffer, x + 1, y + (h > 6 ? 1 : 0), num, number_color
     );
@@ -2185,6 +2149,20 @@ static int colony_screen_outside_display_sprite(
   return sprite;
 }
 
+/* True for Artillery (and other non-colonist land ordnance) — player-caught:
+ * the fortification (Stockade/Fort/Fortress) strip drawn on the fence
+ * corner is a row of walking colonist figures in DOS, never an artillery
+ * piece; Artillery still belongs on-tile (outside_unit_ids) for the Units-
+ * Present / Military tab (colony_screen_multi_units_layout, which wants it
+ * deliberately), just not on this one strip. */
+static bool colony_screen_unit_is_artillery(const ColonizeUnitPool* units, const ColonizeUnit* u) {
+  if (!units || !u) {
+    return false;
+  }
+  const ColonizeUnitType* type = units_type(units, u->type_index);
+  return type && strstr(type->name, "Artillery") != NULL;
+}
+
 int colony_screen_multi_units_layout(
   const ColonyScreenView* view,
   const ColonizeUnitPool* units,
@@ -2255,7 +2233,7 @@ static int colony_screen_building_production_badge(
   if (strstr(name, "Church") || strstr(name, "Cathedral")) {
     return COLONY_ICON_CROSS;
   }
-  if (strstr(name, "Carpenter")) {
+  if (strstr(name, "Carpenter") || strstr(name, "Lumber Mill")) {
     return COLONY_ICON_HAMMER;
   }
   if (strstr(name, "Rum")) {
@@ -2503,7 +2481,7 @@ static void colony_screen_blit_buildings(
     int selected = -1;
     for (int i = 0; i < view->outside_unit_count && n < COLONY_OUTSIDE_MAX; ++i) {
       const ColonizeUnit* u = units_get_const(units, view->outside_unit_ids[i]);
-      if (!u) {
+      if (!u || colony_screen_unit_is_artillery(units, u)) {
         continue;
       }
       const int sprite = colony_screen_outside_display_sprite(units, u);
@@ -3822,7 +3800,10 @@ ColonyScreenHitResult colony_screen_hit_test(
     int n = 0;
     for (int i = 0; i < view->outside_unit_count && n < COLONY_OUTSIDE_MAX; ++i) {
       const ColonizeUnit* u = units_get_const(units, view->outside_unit_ids[i]);
-      const int sprite = u ? colony_screen_outside_display_sprite(units, u) : -1;
+      if (!u || colony_screen_unit_is_artillery(units, u)) {
+        continue;
+      }
+      const int sprite = colony_screen_outside_display_sprite(units, u);
       if (sprite < 0) {
         continue;
       }
