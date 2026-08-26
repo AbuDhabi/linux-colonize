@@ -166,6 +166,18 @@ int turn_run_coastal_fort_fire(ColonizeTurnContext* ctx);
  */
 void turn_run_colony_unit_construction(ColonizeTurnContext* ctx);
 
+/*
+ * Real-building construction completion for every active colony whose
+ * banked hammers/tools already meet the current project's cost — including
+ * a project a BUY topped up but didn't complete (colonies_buy_construction
+ * only tops hammers/tools; this is where the actual completion happens,
+ * once per turn, unconditionally). Call alongside
+ * turn_run_colony_unit_construction in EOT SETUP. Safe to call even when
+ * turn_produce_one_colony's own inline completion already fired this turn
+ * (colonies_try_complete_building's has_building[] guard no-ops the retry).
+ */
+void turn_run_colony_building_completion(ColonizeTurnContext* ctx);
+
 /* Crosses → dock immigrant; liberty bells counters (human + AI Euro Col1). */
 void turn_run_nation_ticks(ColonizeTurnContext* ctx, ColonizeTurnResult* out);
 

@@ -48,19 +48,25 @@ static int unit_hammers_purchased_buy(void) {
   c->hammers = 14;
   c->hammers_purchased = 0;
   pool.colony_count = 1;
-  int gold = 200;
-  const int expect = 64 - 14;
-  if (!colonies_buy_construction(&pool, 0, &gold)) {
+  int gold = 2000;
+  /* FUN_2f2b_5e44: hammers_deficit(50) * 13, no doubling (colony->hammers
+   * != 0 before the buy), no tools term (tools_cost 0). */
+  const int deficit = 64 - 14;
+  const int expect_cost = deficit * 13;
+  if (!colonies_buy_construction(&pool, 0, /*difficulty=*/0, &gold)) {
     fprintf(stderr, "hammers_purchased: buy failed\n");
     return 1;
   }
-  if (c->hammers_purchased != (uint16_t)expect || gold != 200 - expect) {
-    fprintf(stderr, "hammers_purchased=%u gold=%d expect=%d\n",
-            (unsigned)c->hammers_purchased, gold, expect);
+  if (c->hammers_purchased != (uint16_t)deficit || gold != 2000 - expect_cost) {
+    fprintf(stderr, "hammers_purchased=%u gold=%d expect_deficit=%d expect_cost=%d\n",
+            (unsigned)c->hammers_purchased, gold, deficit, expect_cost);
     return 1;
   }
-  if ((c->colony_flags & COLONIZE_COLONY_FLAG_BUILD_COMPLETE) == 0) {
-    fprintf(stderr, "expected build_complete flag after BUY\n");
+  /* Buy only tops hammers up to the threshold — it does NOT complete the
+   * project (player-corrected: completion happens next turn). */
+  if (c->hammers != 64 || c->has_building[0]) {
+    fprintf(stderr, "expected hammers topped (64) and NOT completed yet: hammers=%d has_building=%d\n",
+            c->hammers, c->has_building[0]);
     return 1;
   }
   fprintf(stderr, "unit_colonies: hammers_purchased buy ok\n");

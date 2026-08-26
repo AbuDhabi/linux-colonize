@@ -1597,14 +1597,32 @@ static bool colonies_construction_cost(
 
 int colonies_construction_gold_cost(
   const ColonizeColonyPool* pool,
-  const ColonizeColony* colony
+  const ColonizeColony* colony,
+  int difficulty
 ) {
-  int hammers = 0;
-  if (!colonies_construction_cost(pool, colony, &hammers, NULL)) {
+  int hammers_need = 0;
+  int tools_cost = 0;
+  if (!colonies_construction_cost(pool, colony, &hammers_need, &tools_cost)) {
     return 0;
   }
-  const int rem = hammers - colony->hammers;
-  return rem > 0 ? rem : 0;
+  int hammers_deficit = hammers_need - colony->hammers;
+  if (hammers_deficit < 0) {
+    hammers_deficit = 0;
+  }
+  int tools_deficit = tools_cost - colony->stock[COLONIZE_CARGO_TOOLS];
+  if (tools_deficit < 0) {
+    tools_deficit = 0;
+  }
+  /* See the doc comment in colony.h for the FUN_2f2b_5e44 citation and what
+   * is/isn't independently verified here. */
+  int cost = hammers_deficit * 13;
+  if (tools_deficit > 0) {
+    cost += tools_deficit * (difficulty + 4);
+  }
+  if (colony->hammers == 0) {
+    cost *= 2;
+  }
+  return cost;
 }
 
 int colonies_construction_tools_needed(
@@ -1715,56 +1733,44 @@ int colonies_try_complete_unit_construction(
   return uid;
 }
 
-bool colonies_buy_construction(ColonizeColonyPool* pool, int colony_id, int* gold) {
+bool colonies_buy_construction(ColonizeColonyPool* pool, int colony_id, int difficulty, int* gold) {
   ColonizeColony* col = colonies_get_mut(pool, colony_id);
   if (!col || !pool || !gold || col->building_in_production < 0) {
     return false;
   }
   int hammers_need = 0;
   int tools_cost = 0;
-  const bool is_unit = colonies_unit_build_info(
-    col->building_in_production, NULL, &hammers_need, &tools_cost
-  );
-  if (!is_unit) {
-    const ColonizeBuildingType* bt = colonies_building_type(pool, col->building_in_production);
-    if (!bt || bt->hammers <= 0) {
-      return false;
-    }
-    hammers_need = bt->hammers;
-    tools_cost = bt->tools_cost;
-  }
-  if (tools_cost > 0 && col->stock[COLONIZE_CARGO_TOOLS] < tools_cost) {
+  if (!colonies_construction_cost(pool, col, &hammers_need, &tools_cost)) {
     return false;
   }
-  const int gold_cost = colonies_construction_gold_cost(pool, col);
+  int hammers_deficit = hammers_need - col->hammers;
+  if (hammers_deficit < 0) {
+    hammers_deficit = 0;
+  }
+  int tools_deficit = tools_cost - col->stock[COLONIZE_CARGO_TOOLS];
+  if (tools_deficit < 0) {
+    tools_deficit = 0;
+  }
+  const int gold_cost = colonies_construction_gold_cost(pool, col, difficulty);
   if (*gold < gold_cost) {
     return false;
   }
-  const int prev_hammers = col->hammers;
   *gold -= gold_cost;
-  /* FUN_2f2b_5e44: accumulate remainder hammers bought with gold (+0x98). */
-  if (gold_cost > 0) {
-    const unsigned sum = (unsigned)col->hammers_purchased + (unsigned)gold_cost;
+  /* FUN_2f2b_5e44: accumulate hammers *deficit* (not gold spent — the two
+   * only used to be numerically equal back when gold_cost was 1:1 with
+   * hammers; not any more) into +0x98. */
+  if (hammers_deficit > 0) {
+    const unsigned sum = (unsigned)col->hammers_purchased + (unsigned)hammers_deficit;
     col->hammers_purchased = sum > 0xffffu ? 0xffffu : (uint16_t)sum;
   }
+  /* Tops hammers/tools only — does NOT complete the project (matches
+   * FUN_2f2b_5e44, which never touches has_building[]/spawns a unit
+   * itself). Completion happens next turn via turn_run_colony_building_
+   * completion / turn_run_colony_unit_construction. */
   col->hammers = hammers_need;
-  /* Unit-type project: colonies_try_complete_building would always fail
-   * (colonies_building_type returns NULL for a unit code) — this only tops
-   * hammers/tools up to the completion threshold. The caller (game_loop.c,
-   * with a ColonizeUnitPool this function doesn't take) must follow up with
-   * colonies_try_complete_unit_construction to actually spawn. */
-  if (!is_unit && !colonies_try_complete_building(pool, colony_id)) {
-    *gold += gold_cost;
-    col->hammers = prev_hammers;
-    if (gold_cost > 0) {
-      col->hammers_purchased =
-        (uint16_t)(col->hammers_purchased >= (uint16_t)gold_cost
-                     ? col->hammers_purchased - (uint16_t)gold_cost
-                     : 0);
-    }
-    return false;
+  if (tools_deficit > 0) {
+    col->stock[COLONIZE_CARGO_TOOLS] += tools_deficit;
   }
-  col->colony_flags |= COLONIZE_COLONY_FLAG_BUILD_COMPLETE;
   return true;
 }
 

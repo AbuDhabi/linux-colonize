@@ -1988,14 +1988,17 @@ int main(void) {
     const ColonizeBuildingType* wbt = colonies_building_type(&pool, whe);
     col->hammers = 20;
     col->stock[COLONIZE_CARGO_TOOLS] = wbt->tools_cost;
-    int gold = 500;
-    const int expect_cost = wbt->hammers - 20;
-    if (colonies_construction_gold_cost(&pool, col) != expect_cost) {
+    int gold = 2000;
+    /* FUN_2f2b_5e44: hammers_deficit * 13, no tools term (tools already
+     * prefilled to requirement above), no doubling (hammers != 0). */
+    const int expect_deficit = wbt->hammers - 20;
+    const int expect_cost = expect_deficit * 13;
+    if (colonies_construction_gold_cost(&pool, col, /*difficulty=*/0) != expect_cost) {
       fprintf(
         stderr,
         "gold cost expected %d got %d\n",
         expect_cost,
-        colonies_construction_gold_cost(&pool, col)
+        colonies_construction_gold_cost(&pool, col, /*difficulty=*/0)
       );
       if (font_ok) {
         ff_free(&font);
@@ -2009,20 +2012,29 @@ int main(void) {
       colony_screen_free(&view);
       return 1;
     }
-    /* building_in_production stays == whe after completion — DOS never
-     * clears it (player-confirmed 2026-08-17, colony_prod02 golden). */
-    if (!colonies_buy_construction(&pool, cid, &gold) || gold != 500 - expect_cost ||
-        !col->has_building[whe] || col->stock[COLONIZE_CARGO_TOOLS] != 0 ||
+    /* Buy only tops hammers up to the threshold (player-corrected) — it does
+     * NOT complete the project; has_building[] stays false until next
+     * turn's construction processing. building_in_production is untouched
+     * either way (DOS never clears it — player-confirmed 2026-08-17,
+     * colony_prod02 golden). hammers_purchased tracks the hammers
+     * *deficit*, not the gold spent (they stopped being equal once the
+     * gold formula went from 1:1 to the real ×13 rate). */
+    if (!colonies_buy_construction(&pool, cid, /*difficulty=*/0, &gold) ||
+        gold != 2000 - expect_cost || col->has_building[whe] ||
+        col->hammers != wbt->hammers || col->stock[COLONIZE_CARGO_TOOLS] != wbt->tools_cost ||
         col->building_in_production != whe ||
-        col->hammers_purchased != (uint16_t)expect_cost) {
+        col->hammers_purchased != (uint16_t)expect_deficit) {
       fprintf(
         stderr,
-        "buy construction failed gold=%d has=%d tools=%d proj=%d purchased=%u expect=%d\n",
+        "buy construction failed gold=%d has=%d hammers=%d tools=%d proj=%d purchased=%u "
+        "expect_deficit=%d expect_cost=%d\n",
         gold,
         col->has_building[whe] ? 1 : 0,
+        col->hammers,
         col->stock[COLONIZE_CARGO_TOOLS],
         col->building_in_production,
         (unsigned)col->hammers_purchased,
+        expect_deficit,
         expect_cost
       );
       if (font_ok) {

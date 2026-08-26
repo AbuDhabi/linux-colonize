@@ -463,10 +463,24 @@ int colonies_list_buildable(
   const ColoniesBuildableOpts* opts
 );
 
-/* Gold to finish current project (remaining hammers), or 0 if none. */
+/*
+ * Gold to rush-buy the current project's remaining hammers+tools, or 0 if
+ * none/nothing missing. DOS formula (FUN_2f2b_5e44, clean decompile —
+ * original_sources_decompiled/viceroy_unpacked.c:52683):
+ *   hammers_deficit × 13, plus tools_deficit × (per-nation table byte + 4)
+ *   when tools are short, the whole sum DOUBLED outright if the colony
+ *   hasn't banked any hammers at all yet (colony->hammers == 0) — DOS
+ *   charges a steep premium for rushing an unstarted project. The ×13 and
+ *   doubling are read directly off the disassembly; the per-nation tools
+ *   table byte itself wasn't pinned to a named field with confidence and is
+ *   approximated here as `difficulty + 4` (this port's existing 0-8
+ *   difficulty byte, same shape/magnitude as the confirmed term) — flagged
+ *   as an approximation, not a verified value.
+ */
 int colonies_construction_gold_cost(
   const ColonizeColonyPool* pool,
-  const ColonizeColony* colony
+  const ColonizeColony* colony,
+  int difficulty
 );
 /* Tools still needed from warehouse for current project (0 if none/affordable). */
 int colonies_construction_tools_needed(
@@ -493,14 +507,17 @@ int colonies_try_complete_unit_construction(
   ColonizeUnitPool* units
 );
 /*
- * Buy remaining hammers with *gold (1 gold each). For a real building, also
- * try_complete. For a unit-type project (colonies_unit_build_info), only
- * tops up hammers/tools to completion threshold — the caller must follow up
- * with colonies_try_complete_unit_construction (needs a ColonizeUnitPool
- * this function doesn't take) to actually spawn.
- * Fails if no project, insufficient gold, or short tools. Updates *gold on success.
+ * Rush-buy the current project: tops hammers up to the completion
+ * threshold and tools up to the requirement (deducting colonies_construction_
+ * gold_cost's formula from *gold), same as DOS's FUN_2f2b_5e44 — it does
+ * NOT complete the project. Completion only happens through the normal
+ * per-turn checks (turn_run_colony_building_completion /
+ * turn_run_colony_unit_construction, both unconditional once-per-turn
+ * passes), matching DOS: rushing a project just fills the tank, and the
+ * next turn's construction processing notices it's full and finishes the
+ * job. Fails if no project or insufficient gold. Updates *gold on success.
  */
-bool colonies_buy_construction(ColonizeColonyPool* pool, int colony_id, int* gold);
+bool colonies_buy_construction(ColonizeColonyPool* pool, int colony_id, int difficulty, int* gold);
 
 /* Warehouse capacity per cargo type (100 base; +100 Warehouse; +100 Expansion). Food 199. */
 int colonies_warehouse_capacity(
