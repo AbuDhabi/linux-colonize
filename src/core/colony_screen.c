@@ -59,6 +59,8 @@ void colony_screen_reset_ui(ColonyScreenView* view) {
   view->dock_orders_selection = 0;
   view->dock_orders_count = 0;
   view->dock_orders_title[0] = '\0';
+  view->custom_house_open = false;
+  view->custom_house_count = 0;
   view->message_kind = COLONY_MSG_NONE;
   view->message_text[0] = '\0';
   view->message_selection = 0;
@@ -229,6 +231,7 @@ void colony_screen_open_construction(
   colony_screen_close_eject(view);
   colony_screen_close_message(view);
   colony_screen_close_dock_orders(view);
+  colony_screen_close_custom_house(view);
   view->buildable_count = colonies_list_buildable(
     pool, colony_id, view->buildable_ids, COLONY_BUILDABLE_MAX, buildable_opts
   );
@@ -280,6 +283,54 @@ void colony_screen_close_dock_orders(ColonyScreenView* view) {
   view->dock_orders_count = 0;
 }
 
+void colony_screen_close_custom_house(ColonyScreenView* view) {
+  if (!view) {
+    return;
+  }
+  view->custom_house_open = false;
+  view->custom_house_count = 0;
+}
+
+void colony_screen_open_custom_house(
+  ColonyScreenView* view,
+  const ColonizeColony* colony,
+  const ColonizeMsgCatalog* messages
+) {
+  if (!view || !colony) {
+    return;
+  }
+  colony_screen_close_jobs(view);
+  colony_screen_close_construction(view);
+  colony_screen_close_eject(view);
+  colony_screen_close_message(view);
+  colony_screen_close_dock_orders(view);
+  PopupMsgTokens tok;
+  memset(&tok, 0, sizeof(tok));
+  popup_msg_fill(
+    messages,
+    "CUSTOM",
+    &tok,
+    "Which cargos shall our Custom House export?",
+    view->custom_house_title,
+    sizeof(view->custom_house_title)
+  );
+  /* Every cargo but Food gets a row (col1_save.h's ColonizeCol1CustomHouse
+   * bitfield has all 16, Food included, so the save format itself treats
+   * this as a full checklist) — player-reported: filtering to only
+   * europe_cargo_export_eligible()'s autosell denylist left Tools and
+   * Muskets (and Horses) missing from the popup. That denylist still gates
+   * europe_custom_house_autosell()'s actual EOT sell — toggling one of
+   * those rows on here just never has an effect, same as DOS's own
+   * checklist presumably allows (the bit exists either way). */
+  view->custom_house_count = 0;
+  for (int c = 1;
+       c < COLONIZE_CARGO_COUNT && view->custom_house_count < COLONIZE_CARGO_COUNT;
+       ++c) {
+    view->custom_house_cargo_ids[view->custom_house_count++] = c;
+  }
+  view->custom_house_open = true;
+}
+
 void colony_screen_open_message_ok(ColonyScreenView* view, const char* text) {
   if (!view) {
     return;
@@ -288,6 +339,7 @@ void colony_screen_open_message_ok(ColonyScreenView* view, const char* text) {
   colony_screen_close_construction(view);
   colony_screen_close_eject(view);
   colony_screen_close_dock_orders(view);
+  colony_screen_close_custom_house(view);
   view->message_kind = COLONY_MSG_OK;
   snprintf(view->message_text, sizeof(view->message_text), "%s", text ? text : "");
   view->message_choice0[0] = '\0';
@@ -311,6 +363,7 @@ void colony_screen_open_abandon_confirm(
   colony_screen_close_construction(view);
   colony_screen_close_eject(view);
   colony_screen_close_dock_orders(view);
+  colony_screen_close_custom_house(view);
   view->message_kind = COLONY_MSG_CONFIRM;
   snprintf(
     view->message_text,
@@ -348,6 +401,7 @@ void colony_screen_open_eject(
   colony_screen_close_construction(view);
   colony_screen_close_message(view);
   colony_screen_close_dock_orders(view);
+  colony_screen_close_custom_house(view);
   view->eject_colonist_index = colonist_index;
   view->eject_unit_id = -1;
   view->eject_role_count = colonies_list_eject_roles(
@@ -373,6 +427,7 @@ void colony_screen_open_jobs(
   colony_screen_close_construction(view);
   colony_screen_close_eject(view);
   colony_screen_close_dock_orders(view);
+  colony_screen_close_custom_house(view);
   view->jobs_tile_index = tile_index;
   view->job_count = 0;
   int dx = 0;
@@ -409,6 +464,7 @@ void colony_screen_open_dock_orders(
   colony_screen_close_construction(view);
   colony_screen_close_eject(view);
   colony_screen_close_message(view);
+  colony_screen_close_custom_house(view);
 
   const ColonizeUnitType* type = units_type(units, u->type_index);
   PopupMsgTokens tok;
@@ -3001,18 +3057,39 @@ static void colony_screen_draw_multifunction(
   const int py = COLONY_PANEL_CONTENT_Y;
   const int pane_h = COLONY_PANEL_CONTENT_H;
   if (view->multi_mode == COLONY_MULTI_PRODUCTION && view->preview_valid) {
-    /* Cargo goods + shortfalls + hammers (not crosses/bells). Pack every
-     * produced type into the pane: one slot per goods/shortfall/hammers row. */
+    /* Cargo goods + shortfalls + hammers (not crosses/bells). One slot per
+     * cargo type — player-reported (New Amsterdam golden, pixel-checked):
+     * a resource's produced/shortfall/potential numbers belong in a single
+     * cell together, not scattered across separate grid cells:
+     *   1. produced, nothing downstream wants it: one plain number.
+     *   2. not produced, something wants it: one grey/red "short" number.
+     *   3. produced, but less than something downstream wants: produced
+     *      (white) + short (red) together, one cell, two side-by-side
+     *      boxes with a spacer.
+     *   4. produced in surplus of what's used: used + stored together,
+     *      one cell, two side-by-side boxes with a spacer (both white).
+     * Cases 3 and 4 share the same side-by-side rendering — the only
+     * difference is the second box's icon/color (grey+red vs the same
+     * cargo icon in white again).
+     *
+     * 2026-08-27, player-directed departure from DOS pixel-fidelity: case 4
+     * now applies to *every* cargo a craft recipe draws on this tick, not
+     * just Lumber->hammers (the golden only shows the split for Lumber —
+     * Ore/Tools stay plain single numbers there even though the Blacksmith/
+     * Armory visibly consume part of them). Explicitly not matching DOS
+     * here — the player asked for the split everywhere as a UI
+     * improvement, this pane only, not a "we got DOS wrong" fix.
+     */
     const ColonizeColonyPreview* p = &view->preview;
     typedef struct ColonyProdSlot {
-      int icon;
-      int amount;
-      int icon1;
+      int icon0;
+      int amount0;
+      uint8_t color0;
+      int icon1; /* < 0 => single value, cases 1/2 */
       int amount1;
-      uint8_t number_color;
-      bool is_pair;
+      uint8_t color1;
     } ColonyProdSlot;
-    ColonyProdSlot slots[COLONIZE_CARGO_COUNT * 2 + 1];
+    ColonyProdSlot slots[COLONIZE_CARGO_COUNT + 1];
     int slot_count = 0;
     /* Food is shown on the People band's fish/grain meter, not repeated
      * here — golden-confirmed (no Food badge in this pane). Every other
@@ -3023,35 +3100,95 @@ static void colony_screen_draw_multifunction(
      * Horses has no craft recipe of its own (breeding only), so `goods[]`
      * is already the right (and only) figure for it. */
     for (int c = 1; c < COLONIZE_CARGO_COUNT; ++c) {
-      const int amount =
-        (c == COLONIZE_CARGO_HORSES) ? p->goods[c] : (p->field_gross[c] + p->craft_gross[c]);
-      if (amount > 0 && slot_count < (int)(sizeof(slots) / sizeof(slots[0]))) {
-        ColonyProdSlot* s = &slots[slot_count++];
-        s->number_color = 15; /* white — golden-confirmed, not index 10 (green here) */
-        s->is_pair = false;
-        s->icon = COLONY_CARGO_ICON_BASE + c;
-        s->amount = amount;
-        s->icon1 = -1;
-        s->amount1 = 0;
+      if (slot_count >= (int)(sizeof(slots) / sizeof(slots[0]))) {
+        break;
       }
-      if (p->shortfall[c] > 0 && slot_count < (int)(sizeof(slots) / sizeof(slots[0]))) {
+      const int produced =
+        (c == COLONIZE_CARGO_HORSES) ? p->goods[c] : (p->field_gross[c] + p->craft_gross[c]);
+      const int short_amt = p->shortfall[c];
+
+      if (c == COLONIZE_CARGO_LUMBER && short_amt <= 0 && p->hammers > 0 && produced > 0) {
+        /* Case 4: Lumber->Hammers isn't a colony_craft_preview() recipe
+         * (the Carpenter's hammers bank is `colony_prod_colony_hammers`, a
+         * separate computation), so it never earns a shortfall[] entry —
+         * but it's the one real surplus-of-what's-used case in this game.
+         * Player-reported (New Amsterdam golden): 22 Lumber = 16 spent on
+         * this tick's hammers + 6 left over, shown as two adjacent white
+         * counters, not one plain "22". */
+        int used = p->hammers;
+        if (used > produced) {
+          used = produced;
+        }
+        const int stored = produced - used;
+        if (stored > 0) {
+          ColonyProdSlot* s = &slots[slot_count++];
+          s->icon0 = COLONY_CARGO_ICON_BASE + c;
+          s->amount0 = used;
+          s->color0 = 15;
+          s->icon1 = COLONY_CARGO_ICON_BASE + c;
+          s->amount1 = stored;
+          s->color1 = 15;
+          continue;
+        }
+      }
+
+      if (short_amt <= 0 && produced > 0) {
+        /* Case 4, general form: some *other* cargo's craft recipe (not
+         * Lumber's hammers — that's the special case above) drew on this
+         * tick's production as its raw input. Not DOS-accurate — DOS shows
+         * Ore/Tools here as one plain number even when the Blacksmith/
+         * Armory visibly consume part of it (checked against the golden:
+         * 28 Ore, 24 Tools, both single) — a deliberate departure from
+         * pixel-fidelity, player-requested: the Production tab is
+         * explicitly not staying 1:1 with DOS here, splitting every
+         * resource this way as a UI improvement. `goods[c]` is already the
+         * net-of-consumption warehouse delta, so `produced - goods[c]` is
+         * exactly what got drawn off this tick and `goods[c]` itself is
+         * exactly what's left to store — no separate bookkeeping needed. */
+        const int used = produced - p->goods[c];
+        const int stored = p->goods[c];
+        if (used > 0 && stored > 0) {
+          ColonyProdSlot* s = &slots[slot_count++];
+          s->icon0 = COLONY_CARGO_ICON_BASE + c;
+          s->amount0 = used;
+          s->color0 = 15;
+          s->icon1 = COLONY_CARGO_ICON_BASE + c;
+          s->amount1 = stored;
+          s->color1 = 15;
+          continue;
+        }
+      }
+
+      if (short_amt > 0) {
+        /* Cases 2/3: produced (white, 0 if nothing produced) paired with
+         * the shortfall (red) in one cell — not summed into one number,
+         * not two separate cells. */
         ColonyProdSlot* s = &slots[slot_count++];
-        s->is_pair = false;
-        s->icon = COLONY_CARGO_GREY_BASE + c;
-        s->amount = p->shortfall[c];
+        s->icon0 = produced > 0 ? COLONY_CARGO_ICON_BASE + c : -1;
+        s->amount0 = produced;
+        s->color0 = 15;
+        s->icon1 = COLONY_CARGO_GREY_BASE + c;
+        s->amount1 = short_amt;
+        s->color1 = 12;
+      } else if (produced > 0) {
+        /* Case 1. */
+        ColonyProdSlot* s = &slots[slot_count++];
+        s->icon0 = COLONY_CARGO_ICON_BASE + c;
+        s->amount0 = produced;
+        s->color0 = 15;
         s->icon1 = -1;
         s->amount1 = 0;
-        s->number_color = 12;
+        s->color1 = 0;
       }
     }
     if (p->hammers > 0 && slot_count < (int)(sizeof(slots) / sizeof(slots[0]))) {
       ColonyProdSlot* s = &slots[slot_count++];
-      s->is_pair = false;
-      s->icon = COLONY_ICON_HAMMER;
-      s->amount = p->hammers;
+      s->icon0 = COLONY_ICON_HAMMER;
+      s->amount0 = p->hammers;
+      s->color0 = 15;
       s->icon1 = -1;
       s->amount1 = 0;
-      s->number_color = 15;
+      s->color1 = 0;
     }
     if (slot_count > 0 && pane_w > 0 && pane_h > 0) {
       /* Prefer a single column; add columns when rows would be shorter than icons. */
@@ -3070,35 +3207,27 @@ static void colony_screen_draw_multifunction(
         const int sx = px + col * cell_w;
         const int sy = py + row * cell_h;
         const ColonyProdSlot* s = &slots[i];
-        if (s->is_pair) {
-          colony_screen_draw_resource_count_pair(
-            view,
-            font,
-            framebuffer,
-            sx,
-            sy,
-            cell_w,
-            cell_h,
-            s->icon,
-            s->amount,
-            s->icon1,
-            s->amount1,
-            s->number_color,
-            false
+        if (s->icon1 < 0 || s->icon0 < 0) {
+          /* Single value: cases 1/2 outright, and case 2's "nothing
+           * produced" collapses here too rather than splitting an empty
+           * left half. */
+          const int icon = s->icon1 < 0 ? s->icon0 : s->icon1;
+          const int amount = s->icon1 < 0 ? s->amount0 : s->amount1;
+          const uint8_t color = s->icon1 < 0 ? s->color0 : s->color1;
+          colony_screen_draw_resource_count(
+            view, font, framebuffer, sx, sy, cell_w, cell_h, icon, amount, color, false
           );
         } else {
+          /* Cases 3/4: two independent boxes sharing this cell's width,
+           * with the gap between them the spacer the player asked for —
+           * produced/used on the left, shortfall/stored on the right. */
+          const int half = cell_w / 2;
           colony_screen_draw_resource_count(
-            view,
-            font,
-            framebuffer,
-            sx,
-            sy,
-            cell_w,
-            cell_h,
-            s->icon,
-            s->amount,
-            s->number_color,
-            false
+            view, font, framebuffer, sx, sy, half, cell_h, s->icon0, s->amount0, s->color0, false
+          );
+          colony_screen_draw_resource_count(
+            view, font, framebuffer, sx + half, sy, cell_w - half, cell_h, s->icon1, s->amount1,
+            s->color1, false
           );
         }
       }
@@ -3481,6 +3610,126 @@ static void colony_screen_draw_jobs_popup(
   }
 }
 
+/* colony.h's COLONIZE_CARGO_* order — see reports.c's k_cargo_names for the
+ * same list (kept as its own local copy, matching this file's existing
+ * per-module convention rather than a shared header array). */
+static const char* const k_custom_house_cargo_names[COLONIZE_CARGO_COUNT] = {
+  "Food",   "Sugar",  "Tobacco",     "Cotton", "Furs",    "Lumber", "Ore",    "Silver",
+  "Horses", "Rum",    "Cigars",      "Cloth",  "Coats",   "Trade Goods",
+  "Tools",  "Muskets"
+};
+
+/* DOS's own Custom House checklist uses a filled/hollow circle as its
+ * checkbox (GAME.TXT @CUSTOM's @checkbox directive) — this pixel font has
+ * no usable circle/bullet glyph (same gap as '[' ']', see below), so draw
+ * one directly: an 8-pixel ring, filled in with 5 more interior pixels
+ * when checked. (cx, cy) is the circle's center. */
+static void colony_screen_draw_bullet(
+  ColonizeFramebuffer8* fb, int cx, int cy, bool filled, uint8_t color
+) {
+  if (!fb || !fb->pixels) {
+    return;
+  }
+  static const int8_t kRing[8][2] = {
+    {0, -2}, {-1, -1}, {1, -1}, {-2, 0}, {2, 0}, {-1, 1}, {1, 1}, {0, 2}
+  };
+  static const int8_t kInterior[5][2] = {{0, -1}, {-1, 0}, {0, 0}, {1, 0}, {0, 1}};
+  for (int i = 0; i < 8; ++i) {
+    const int x = cx + kRing[i][0];
+    const int y = cy + kRing[i][1];
+    if (x >= 0 && y >= 0 && x < fb->width && y < fb->height) {
+      fb->pixels[y * fb->width + x] = color;
+    }
+  }
+  if (filled) {
+    for (int i = 0; i < 5; ++i) {
+      const int x = cx + kInterior[i][0];
+      const int y = cy + kInterior[i][1];
+      if (x >= 0 && y >= 0 && x < fb->width && y < fb->height) {
+        fb->pixels[y * fb->width + x] = color;
+      }
+    }
+  }
+}
+
+static void colony_screen_draw_custom_house_popup(
+  ColonyScreenView* view,
+  const ColonizeColony* colony,
+  const ColonizeFont* font,
+  ColonizeFramebuffer8* framebuffer
+) {
+  if (!view || !view->custom_house_open || !colony || !framebuffer || !framebuffer->pixels) {
+    return;
+  }
+  const int rows = view->custom_house_count;
+  const int line_h = font ? (font->max_height + 2) : 8;
+  const int pad = 4;
+  int dialog_h = POPUP_FRAME_INSET * 2 + pad + line_h + rows * line_h + pad;
+  if (dialog_h > framebuffer->height - 8) {
+    dialog_h = framebuffer->height - 8;
+  }
+  /* GAME.TXT @CUSTOM's own @width=190 — the title ("Which cargos shall our
+   * Custom House export?") is the widest line, not any cargo name. */
+  int dialog_w = 130;
+  if (font) {
+    const int title_w = font_text_width(font, view->custom_house_title) + pad * 2;
+    if (title_w > dialog_w) {
+      dialog_w = title_w;
+    }
+  }
+  if (dialog_w > framebuffer->width - 8) {
+    dialog_w = framebuffer->width - 8;
+  }
+  const int dialog_x = (framebuffer->width - dialog_w) / 2;
+  const int dialog_y = 20;
+
+  ColonizePopupColors colors;
+  popup_colors_from_ui(&colors);
+  int inner_x = 0, inner_y = 0, inner_w = 0, inner_h = 0;
+  popup_draw(
+    framebuffer,
+    dialog_x,
+    dialog_y,
+    dialog_w,
+    dialog_h,
+    view->wood_tile_ok ? &view->wood_tile : NULL,
+    &colors,
+    &inner_x,
+    &inner_y,
+    &inner_w,
+    &inner_h
+  );
+  view->custom_house_dialog_x = dialog_x;
+  view->custom_house_dialog_y = dialog_y;
+  view->custom_house_dialog_w = dialog_w;
+  view->custom_house_dialog_h = dialog_h;
+  view->custom_house_line_h = line_h;
+
+  if (font && inner_w > 0) {
+    font_draw_text(font, framebuffer, inner_x + pad, inner_y + pad, view->custom_house_title, 15);
+  }
+  const int list_y0 = inner_y + pad + line_h;
+  view->custom_house_list_y0 = list_y0;
+
+  /* Uniform dark green (player-reported: not the brighter green some rows
+   * used before — the state is the bullet's job now, not the text color). */
+  const uint8_t kRowColor = 2;
+  for (int i = 0; i < rows; ++i) {
+    const int row_y = list_y0 + i * line_h;
+    const int cargo = view->custom_house_cargo_ids[i];
+    const bool on = europe_custom_house_cargo_enabled(colony->custom_house_bits, cargo);
+    const char* name = (cargo >= 0 && cargo < COLONIZE_CARGO_COUNT)
+      ? k_custom_house_cargo_names[cargo]
+      : "?";
+    colony_screen_draw_bullet(
+      framebuffer, inner_x + pad + 2, row_y + line_h / 2, on, kRowColor
+    );
+    if (font) {
+      font_draw_text(font, framebuffer, inner_x + pad + 7, row_y + 1, name, kRowColor);
+    }
+  }
+}
+
 static void colony_screen_draw_eject_popup(
   ColonyScreenView* view,
   const ColonizeFont* font,
@@ -3721,6 +3970,24 @@ ColonyScreenHitResult colony_screen_hit_test(
         } else {
           hit.kind = COLONY_HIT_MESSAGE_NO;
         }
+        return hit;
+      }
+    }
+    return hit;
+  }
+
+  if (view->custom_house_open) {
+    if (mx < view->custom_house_dialog_x || my < view->custom_house_dialog_y ||
+        mx >= view->custom_house_dialog_x + view->custom_house_dialog_w ||
+        my >= view->custom_house_dialog_y + view->custom_house_dialog_h) {
+      hit.kind = COLONY_HIT_CUSTOM_HOUSE_OUTSIDE;
+      return hit;
+    }
+    if (view->custom_house_line_h > 0 && my >= view->custom_house_list_y0) {
+      const int idx = (my - view->custom_house_list_y0) / view->custom_house_line_h;
+      if (idx >= 0 && idx < view->custom_house_count) {
+        hit.kind = COLONY_HIT_CUSTOM_HOUSE_ROW;
+        hit.index = idx;
         return hit;
       }
     }
@@ -4254,6 +4521,9 @@ void colony_screen_render(
   }
   if (view && view->eject_open) {
     colony_screen_draw_eject_popup(view, font, framebuffer);
+  }
+  if (view && view->custom_house_open && colony) {
+    colony_screen_draw_custom_house_popup(view, colony, font, framebuffer);
   }
   if (view && view->dock_orders_open) {
     colony_screen_draw_dock_orders_popup(view, font, framebuffer);

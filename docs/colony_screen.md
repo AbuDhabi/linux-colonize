@@ -760,6 +760,56 @@ migrate there. Re-rendered the Labor and Colony reports against
   check its other claims against, rather than leaving the contradiction
   sitting in two docs.
 
+## 2026-08-26 fix: Custom House popup + Production tab cell grouping
+
+Player-reported, two items:
+
+1. **Clicking the Custom House opens its per-cargo autosell checklist.**
+   Previously a plain click fell through to the worker-assignment path
+   (`game_colony_assign_building_drop`) like any other building, which now
+   always fails for Custom House (see the "worker-blocked buildings" fix
+   below) — so a click just silently did nothing. New popup
+   (`colony_screen_open/close/draw_custom_house`, `COLONY_HIT_CUSTOM_HOUSE_
+   ROW/_OUTSIDE`): lists every export-eligible cargo
+   (`europe_cargo_export_eligible`'s existing denylist — not Food/Horses/
+   Tools/Muskets), colored green/white by
+   `europe_custom_house_cargo_enabled()` (the same read this session's
+   cargo-strip fix already added), row click toggles the bit via new
+   `colonies_toggle_custom_house_cargo()` and the popup stays open (a
+   checklist, not pick-one-and-close like the Jobs popup). Title pulled
+   live from GAME.TXT `@CUSTOM` ("Which cargos shall our Custom House
+   export?", `@checkbox`/`@smallfont` — the DOS catalog entry actually
+   documents this as a checkbox popup) via `popup_msg_fill`, falling back
+   to the same string if the catalog isn't loaded. Tried a literal
+   `[X]`/`[ ]` checkbox prefix first — this pixel font doesn't have usable
+   `[`/`]` glyphs (rendered as unrelated garbage shapes) — dropped it in
+   favor of the green/white color alone, which was already legible on its
+   own in a render check.
+2. **Production tab: group each resource's numbers into one cell.**
+   Player-specified rule set, golden-checked pixel-by-pixel against New
+   Amsterdam's Production-tab crop (`new_amsterdam_production.png`):
+   - produced, nothing downstream wants it → one plain number.
+   - not produced, something wants it → one grey/red "short" number.
+   - produced, less than downstream wants → produced (white) + short (red)
+     together in one cell, two side-by-side boxes with a spacer — same
+     rendering as the surplus case below, not overlapping icons (2026-08-26
+     follow-up: player asked for the same split-with-spacer style used for
+     surplus; confirmed: Cotton "5 | 5", Horses "2 | 2", Cloth "5 | 5" —
+     previously each of these was two separate grid cells, then briefly an
+     overlapping-icon pair before this follow-up).
+   - produced in surplus of what's used → two adjacent white counters (used
+     + stored) in one cell with a spacer. The only real case of this in the
+     game is Lumber→Hammers, which isn't a `colony_craft_preview()` recipe
+     (hammers banking is `colony_prod_colony_hammers`, computed separately)
+     so it never earned a `shortfall[]` entry — special-cased directly in
+     `colony_screen_draw_multifunction` using `min(hammers, field_gross
+     [LUMBER])` as the "used" split; golden-confirmed 22 Lumber = 16 used +
+     6 stored, not a plain "22". Ore and Tools are *also* partially consumed
+     downstream in this same save (by the Blacksmith and Armory
+     respectively) but the golden shows them as plain single numbers (28,
+     24) — confirmed craft-recipe consumption alone does *not* trigger the
+     split, only Lumber's stock-banked-hammers path does.
+
 ## 2026-08-26 fix: cargo strip digit colors + position, worker-blocked buildings
 
 Player-reported, checked against `new_amsterdam_production.png` at pixel level:
@@ -797,6 +847,48 @@ Player-reported, checked against `new_amsterdam_production.png` at pixel level:
    `colony_screen_building_production_badge`'s own Printing-Press
    exclusion), applied at the single choke point every assignment path
    (human drag/drop, AI worker placement) already goes through.
+
+## 2026-08-27 fix: Custom House checklist content/style, Production tab intentionally diverges from DOS
+
+Player-reported, two items, both follow-ups on 2026-08-26's work above:
+
+1. **Custom House popup was missing rows and using the wrong color scheme.**
+   It listed only `europe_cargo_export_eligible()`'s autosell-denylist
+   survivors, so Horses/Tools/Muskets (and Food) never appeared — but
+   `col1_save.h`'s `ColonizeCol1CustomHouse` bitfield has all 16 cargoes,
+   Food included, so the save format itself treats this as a full
+   checklist; the denylist is what `europe_custom_house_autosell()` checks
+   at EOT sell time, not what the checklist should offer. Fixed: the popup
+   now lists every cargo but Food (15 rows) — toggling Horses/Tools/Muskets
+   on is harmless (europe_custom_house_autosell still won't act on them)
+   but the row exists like DOS's own bit layout implies it should. Also
+   fixed the row style: text was green-when-on/white-when-off; player
+   wanted one uniform (darker) color and a real DOS-style checkbox
+   instead — GAME.TXT's `@CUSTOM` section literally has an `@checkbox`
+   directive. Implemented `colony_screen_draw_bullet()` (an 8-pixel ring,
+   filled with 5 more when checked) since this pixel font has no usable
+   circle glyph, same gap as the `[`/`]` characters found earlier; rows now
+   all draw in one dark green (palette index 2) with the bullet carrying
+   the on/off state instead of the text color.
+2. **Production tab's surplus split (case 4) now applies to every cargo,
+   not just Lumber — a deliberate, explicit departure from DOS pixel-
+   fidelity.** Player-confirmed: DOS itself does *not* split Ore or Tools
+   here even though the Blacksmith/Armory visibly consume part of each
+   (golden: New Amsterdam's Ore reads plain "28", Tools plain "24") — the
+   player asked for the split everywhere anyway, as a UI improvement this
+   pane specifically opts out of matching DOS for. `used = produced -
+   goods[c]`, `stored = goods[c]` (the net warehouse delta already *is*
+   what's left over, no separate bookkeeping needed) whenever there's no
+   shortfall and some of this tick's production got drawn off by another
+   recipe. New Amsterdam: Ore now "24 | 4", Tools now "10 | 14" (previously
+   plain "28"/"24"). Lumber's hammers-consumption path stays its own
+   special case — `colony_prod_colony_hammers` isn't a
+   `colony_craft_preview()` recipe, so it doesn't update `goods[LUMBER]`
+   the way a real recipe would, and the generic formula can't see it.
+   **This is the one place in the colony screen that's intentionally not
+   trying to match DOS's actual on-screen behavior** — everywhere else in
+   this file, "golden-confirmed" means pixel-matched; here it means "the
+   player explicitly asked for something DOS doesn't do."
 
 ## Final match quality
 

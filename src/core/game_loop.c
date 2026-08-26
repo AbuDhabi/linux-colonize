@@ -8292,9 +8292,34 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
         colony_screen_close_jobs(csv);
         break;
       case COLONY_HIT_BUILDING: {
-        game_colony_assign_building_drop(game, hit.index);
+        /* Custom House has no worker slot (colonies_assign_workplace
+         * refuses it) — a plain click opens its per-cargo autosell
+         * checklist instead of trying (and failing) to assign a colonist. */
+        const ColonizeBuildingType* bt = colonies_building_type(&game->colonies, hit.index);
+        if (bt && bt->name && strcmp(bt->name, "Custom House") == 0) {
+          ColonizeColony* col = colonies_get_mut(&game->colonies, game->colony_view_id);
+          if (col && hit.index >= 0 && hit.index < COLONIZE_BUILDING_TYPES_MAX &&
+              col->has_building[hit.index]) {
+            colony_screen_open_custom_house(csv, col, &game->messages);
+          } else {
+            set_status(game, "Build it first", NULL);
+            colony_screen_set_status(csv, game->status);
+          }
+        } else {
+          game_colony_assign_building_drop(game, hit.index);
+        }
         break;
       }
+      case COLONY_HIT_CUSTOM_HOUSE_ROW:
+        if (hit.index >= 0 && hit.index < csv->custom_house_count) {
+          colonies_toggle_custom_house_cargo(
+            &game->colonies, game->colony_view_id, csv->custom_house_cargo_ids[hit.index]
+          );
+        }
+        break;
+      case COLONY_HIT_CUSTOM_HOUSE_OUTSIDE:
+        colony_screen_close_custom_house(csv);
+        break;
       case COLONY_HIT_CONSTRUCTION_CLEAR:
         colonies_clear_construction(&game->colonies, game->colony_view_id);
         colony_screen_close_construction(csv);
