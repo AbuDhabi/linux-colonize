@@ -168,7 +168,7 @@ void colony_preview_compute(
   {
     bool has_stable = false;
     for (int i = 0; i < pool->building_type_count && i < COLONIZE_BUILDING_TYPES_MAX; ++i) {
-      if (colony->has_building[i] && pool->building_types[i].name &&
+      if (colony->has_building[i] &&
           strstr(pool->building_types[i].name, "Stable") != NULL) {
         has_stable = true;
         break;

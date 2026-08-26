@@ -2093,7 +2093,7 @@ int europe_ai_colony_dump_sell(
     total += gained;
     if (col1 && nation < (int)COLONIZE_COL1_NATION_COUNT) {
       col1->nation[nation].gold += (uint32_t)gained;
-      if (c < COLONIZE_COL1_CARGO_TYPES) {
+      if ((unsigned)c < COLONIZE_COL1_CARGO_TYPES) {
         col1->nation[nation].trade.tons[c] += amount;
         col1->nation[nation].trade.gold[c] += gained;
       }
