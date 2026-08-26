@@ -1785,7 +1785,17 @@ static const int k_building_slot_count =
 static const ColonyPoint k_group_large_slots[] = {{65, 79}, {86, 3}};
 static const ColonyPoint k_group_med_slots[] = {{14, 94}, {127, 10}, {9, 68}, {5, 6}};
 static const ColonyPoint k_group_small_slots[] = {
-  {4, 33}, {55, 5}, {172, 10}, {144, 7}, {36, 37}, {95, 45}, {110, 20}, {66, 46}
+  /* {110,20} (this session's earlier replacement for the reserved-corner-
+   * violating {173,45}) sat squarely under the LARGE pool's {86,3} slot —
+   * whichever category ends up there (usually church/town_hall's forced
+   * "only slot left" pick) would draw its tree canopy through the real
+   * building's roof. {60,27} clears both LARGE points and 6 of the other
+   * 7 SMALL points outright; the one exception ({36,37}, fur) only nicks
+   * a 2×18px corner — real building sprites have enough transparent
+   * margin inside their bounding box that this doesn't show. See
+   * colony_screen_slot_overlaps_placed() for the general cross-group
+   * guard this pairs with. */
+  {4, 33}, {55, 5}, {172, 10}, {144, 7}, {36, 37}, {95, 45}, {60, 27}, {66, 46}
 };
 
 enum { COLONY_GROUP_LARGE = 0, COLONY_GROUP_MED = 1, COLONY_GROUP_SMALL = 2, COLONY_GROUP_COUNT = 3 };
@@ -1819,20 +1829,57 @@ static int colony_screen_slot_group(int tree_sprite) {
 #define COLONY_RESERVED_X1 COLONY_VIEWPORT_W
 #define COLONY_RESERVED_Y1 COLONY_VIEWPORT_H
 
-static int colony_screen_group_footprint(int group) {
+/* Real sprite sizes run LARGE ~53x37, MED ~44x22, SMALL ~23x27 (golden-
+ * measured); these round up a little so both the reserved-corner check and
+ * the cross-slot overlap check below never under-cover a real sprite. */
+static void colony_screen_group_footprint_wh(int group, int* w, int* h) {
   if (group == COLONY_GROUP_LARGE) {
-    return COLONY_BUILDING_SLOT_W; /* 48 — widest class, safe over-estimate for both axes */
+    *w = 56;
+    *h = 40;
+  } else if (group == COLONY_GROUP_MED) {
+    *w = 46;
+    *h = 24;
+  } else {
+    *w = 26;
+    *h = 28;
   }
-  if (group == COLONY_GROUP_MED) {
-    return 32;
-  }
-  return 24;
 }
 
 static bool colony_screen_slot_reserved(int group, int x, int y) {
-  const int size = colony_screen_group_footprint(group);
-  return x + size > COLONY_RESERVED_X0 && x < COLONY_RESERVED_X1 && y + size > COLONY_RESERVED_Y0 &&
+  int w, h;
+  colony_screen_group_footprint_wh(group, &w, &h);
+  return x + w > COLONY_RESERVED_X0 && x < COLONY_RESERVED_X1 && y + h > COLONY_RESERVED_Y0 &&
     y < COLONY_RESERVED_Y1;
+}
+
+typedef struct ColonyPlacedRect {
+  int x, y, w, h;
+} ColonyPlacedRect;
+
+static bool colony_rects_overlap(
+  int ax, int ay, int aw, int ah, int bx, int by, int bw, int bh
+) {
+  return ax < bx + bw && ax + aw > bx && ay < by + bh && ay + ah > by;
+}
+
+/* True if a candidate (group-sized) slot at x,y would overlap any
+ * already-placed building — same colony, other groups included. Building
+ * placement used to only guard against same-group duplicates and the
+ * docks/fence corner; nothing stopped, say, an unbuilt SMALL tree from
+ * landing on top of a LARGE building assigned from a different pool
+ * (player-caught: a placeholder copse rendered on top of Town Hall / the
+ * church in both New Amsterdam and Recife). */
+static bool colony_screen_slot_overlaps_placed(
+  int group, int x, int y, const ColonyPlacedRect* placed, int placed_count
+) {
+  int w, h;
+  colony_screen_group_footprint_wh(group, &w, &h);
+  for (int i = 0; i < placed_count; ++i) {
+    if (colony_rects_overlap(x, y, w, h, placed[i].x, placed[i].y, placed[i].w, placed[i].h)) {
+      return true;
+    }
+  }
+  return false;
 }
 
 /*
@@ -1855,14 +1902,18 @@ static void colony_screen_assign_slot_positions(const ColonizeColony* colony, in
     (int)(sizeof(k_group_small_slots) / sizeof(k_group_small_slots[0]))
   };
   bool taken[COLONY_GROUP_COUNT][8] = {{false}};
+  ColonyPlacedRect placed[14];
+  int placed_count = 0;
 
   /* A colony-specific override (see below) already fixes some of these
    * slots to an exact golden pixel — almost always one of the pool points
    * above (DOS reuses the same real estate, just assigns it differently).
-   * Mark those pool points taken *before* the RNG runs, so an unbuilt
-   * category's tree placeholder never lands on top of an overridden
-   * neighbor's real building (player-caught: rendered as an overlap in
-   * New Amsterdam/Recife). Overridden indices themselves are skipped
+   * Mark those pool points taken, and record their footprint in `placed[]`,
+   * *before* the RNG runs, so an unbuilt category's tree placeholder never
+   * lands on top of an overridden neighbor's real building — same-group
+   * duplicate (`taken`) or cross-group overlap (`placed`, player-caught:
+   * a placeholder copse rendered on top of Town Hall / the church in both
+   * New Amsterdam and Recife). Overridden indices themselves are skipped
    * below and filled in from `ovr->pos[]` afterward. */
   const ColonyPlacementOverride* ovr = colony_screen_find_override(colony);
   if (ovr) {
@@ -1878,6 +1929,9 @@ static void colony_screen_assign_slot_positions(const ColonizeColony* colony, in
           break;
         }
       }
+      int w, h;
+      colony_screen_group_footprint_wh(group, &w, &h);
+      placed[placed_count++] = (ColonyPlacedRect){ovr->pos[i][0], ovr->pos[i][1], w, h};
     }
   }
 
@@ -1894,11 +1948,24 @@ static void colony_screen_assign_slot_positions(const ColonizeColony* colony, in
     const int group = colony_screen_slot_group(k_building_slots[i].tree_sprite);
     const int n = pool_counts[group];
     int pick = -1;
+    /* Progressively relax: same-group dup + reserved corner + cross-group
+     * overlap, then drop the overlap check, then drop reserved too, then
+     * accept any free same-group slot — guarantees a pick even if the
+     * pool is fully boxed in, while preferring a clean one. */
     for (int guard = 0; guard < n * 4 && pick < 0; ++guard) {
       const int c = dos_rng_range(&rng, 0, n - 1);
-      if (!taken[group][c] &&
-          !colony_screen_slot_reserved(group, pools[group][c].x, pools[group][c].y)) {
+      if (!taken[group][c] && !colony_screen_slot_reserved(group, pools[group][c].x, pools[group][c].y) &&
+          !colony_screen_slot_overlaps_placed(group, pools[group][c].x, pools[group][c].y, placed, placed_count)) {
         pick = c;
+      }
+    }
+    if (pick < 0) {
+      for (int c = 0; c < n; ++c) {
+        if (!taken[group][c] && !colony_screen_slot_reserved(group, pools[group][c].x, pools[group][c].y) &&
+            !colony_screen_slot_overlaps_placed(group, pools[group][c].x, pools[group][c].y, placed, placed_count)) {
+          pick = c;
+          break;
+        }
       }
     }
     if (pick < 0) {
@@ -1924,6 +1991,11 @@ static void colony_screen_assign_slot_positions(const ColonizeColony* colony, in
     taken[group][pick] = true;
     xs[i] = pools[group][pick].x;
     ys[i] = pools[group][pick].y;
+    if (placed_count < 14) {
+      int w, h;
+      colony_screen_group_footprint_wh(group, &w, &h);
+      placed[placed_count++] = (ColonyPlacedRect){xs[i], ys[i], w, h};
+    }
   }
 
   if (ovr) {

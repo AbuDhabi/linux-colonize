@@ -492,6 +492,29 @@ unbuilt neighbor's tree. Fixed by marking any pool point that exactly
 matches an override as `taken` before the RNG runs, so unbuilt categories
 only draw from what's actually still free.
 
+**Second follow-up fix (player-caught): a placeholder copse still
+overlapped a real building — same one in both colonies (Town Hall in
+Recife, the church in New Amsterdam).** The exact-pool-point `taken`
+bookkeeping above only prevents a *same-group* duplicate; it did nothing
+for a *different*-group overlap, and that's exactly what this was: an
+unbuilt SMALL category, forced onto the pool's one remaining free point
+because the other 7 SMALL slots were all claimed by overrides, and that
+last point (`{110,20}`, itself only added this session as a replacement
+for the earlier reserved-corner violator) happened to sit under wherever
+the LARGE pool's `{86,3}` slot ends up (Town Hall or church, whichever
+didn't get the override). Fixed two ways: `colony_screen_slot_overlaps_placed()`
+now tracks every already-placed slot's rectangle (overrides seeded in
+first) and rejects a candidate that overlaps *any* of them, not just
+same-group ones — a real, general improvement, not casuistry, since this
+same silent cross-group collision could happen to any sufficiently
+built-up colony; and `{110,20}` itself got relocated to `{60,27}`, clear
+of both LARGE points and 6 of the other 7 SMALL points outright (a brute-
+force check over the *whole* pool found zero fully-clean spots for a 14th
+box — this layout is that tightly packed — so `{60,27}`'s one remaining
+nick, a 2×18px corner against fur's slot, is the best available; real
+sprites have enough transparent margin in their bounding box that it
+doesn't show, unlike the canopy-through-a-roof the old spot produced).
+
 ## Left unresolved
 - **Two golden-confirmed building badges reuse the same displayed number**
   (Town Hall and Printing Press both showed "82" in New Amsterdam — Town
