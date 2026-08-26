@@ -545,6 +545,59 @@ bad, so the conflict was never actually avoided on its own. Hid Recife's
 `custom` (the category that happened to land on the bad point) the same
 way as New Amsterdam's `stable`.
 
+### Every colony now reuses one of these two layouts
+
+Player's ask, once both were verified overlap-free and golden-exact: stop
+generating a synthetic per-colony arrangement altogether and have *every*
+colony draw one of these two real ones, to see how they read against other
+colonies' actual built/unbuilt mixes. `colony_screen_find_override()` no
+longer returns `NULL` for a colony that isn't New Amsterdam or Recife —
+it picks between the two tables with a `dos_rng` draw seeded from that
+colony's own `(x,y)` (a different salt than the position-assignment RNG,
+though that no longer matters much once a layout applies). Stable per
+colony across reloads, an even-ish mix across colonies (16 sample colonies
+from `dutch-reports.SAV`: 11 New Amsterdam-style, 5 Recife-style).
+
+The general RNG-pool algorithm didn't go away — both tables still leave
+some categories at `COLONY_OVERRIDE_NONE` (church on both, several more on
+Recife's), and it fills those in exactly as before, now seeded by
+`colony_screen_pick_pool_slot()` (the fallback chain factored out of the
+old inline loop so it could be reused — see next paragraph). It also
+still runs the reserved-corner and cross-group overlap checks, so a
+non-source colony's *different* mix of built categories still can't
+collide with itself.
+
+The one real risk in reusing someone else's table: `HIDDEN` (New
+Amsterdam's `stable`, Recife's `custom`) means *that specific colony's
+source layout has no room for this placeholder* — it says nothing about
+whether some *other* colony reusing the table actually has the category
+built. A built category must never just vanish. Verified against
+`dutch-reports.SAV`'s Jamestown/Quebec/Fort Orange/New Holland (all have
+`stables: 1`, all draw New Amsterdam's layout): `colony_screen_assign_
+slot_positions()` now takes `pool` too, and when it hits a `HIDDEN` slot
+checks `colony_screen_best_built()` for real; if built, it falls back to
+`colony_screen_pick_pool_slot()` for a genuine (still collision-checked)
+position instead of hiding it. In practice this never shows visually
+anyway — `BUILDING.SS`'s Stable sprite (#17) is a degenerate 1×1 pixel in
+this asset set (no dedicated art), and `colony_screen_blit_slot()`/the
+hit-test loop both already skip anything `width <= 2`, same guard that's
+been there since before this session.
+
+### Dock corner placeholder: DOS shows it inland too
+
+Player-caught: `colony_screen_blit_buildings()` only drew
+`COLONY_COAST_PLACEHOLDER` (#45, trees + shore) when Docks/Drydock/
+Shipyard wasn't built *and* the colony sat on a coastal tile
+(`map_tile_is_coastal`) — an inland colony (can never build Docks in the
+first place) got a blank corner instead. Player confirmed DOS draws this
+placeholder in every colony's dock corner regardless of geography — it's
+not meant as a literal "there's water here" cue, just the generic "future
+building" filler, same as every other unbuilt category's tree clump.
+Dropped the `coastal` gate (and the now-unused `coastal` parameter/
+`map_tile_is_coastal` call that computed it) — verified against Fort
+Orange, the one inland colony in `dutch-reports.SAV`'s 17: the coast art
+now renders there too.
+
 ## Left unresolved
 - **Two golden-confirmed building badges reuse the same displayed number**
   (Town Hall and Printing Press both showed "82" in New Amsterdam — Town
