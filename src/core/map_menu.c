@@ -22,7 +22,9 @@ enum {
   MAP_MENU_COL_RULE_ITEM = COLONIZE_COL_BASIC, /* green item divider (PEDIA ---) */
   MAP_MENU_COL_ITEM = COLONIZE_COL_BASIC,
   MAP_MENU_COL_ITEM_DISABLED = COLONIZE_COL_GREY,
-  MAP_MENU_COL_HOVER = 1
+  /* bugs.md: was literal index 1 (blue under the map palette); @COLORS
+   * "select" (light brown selection fill) is the right semantic color. */
+  MAP_MENU_COL_HOVER = COLONIZE_COL_SELECT
 };
 
 static void map_menu_strip_all_markers(char* text) {
@@ -1561,7 +1563,10 @@ void map_menu_render(
       continue;
     }
     if (i == bar->hover_item && open->items[i].enabled) {
-      map_menu_fill_rect(framebuffer, dx + 1, iy, dx + dw - 2, iy + item_h - 1, MAP_MENU_COL_HOVER);
+      /* bugs.md: hover fill sat 1px too low vs. its label row. */
+      map_menu_fill_rect(
+        framebuffer, dx + 1, iy - 1, dx + dw - 2, iy + item_h - 2, MAP_MENU_COL_HOVER
+      );
     }
     const uint8_t color =
       open->items[i].enabled ? MAP_MENU_COL_ITEM : MAP_MENU_COL_ITEM_DISABLED;

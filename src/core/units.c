@@ -1785,6 +1785,34 @@ static void units_sweep_stack_after_loss(
   }
 }
 
+/* Nearest active colony of nation_id to (x,y) by squared distance; NULL if none. */
+static const ColonizeColony* units_nearest_own_colony(
+  const ColonizeColonyPool* colonies,
+  int nation_id,
+  int x,
+  int y
+) {
+  if (!colonies) {
+    return NULL;
+  }
+  const ColonizeColony* best = NULL;
+  long best_d = -1;
+  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+    const ColonizeColony* c = &colonies->colonies[i];
+    if (!c->active || c->nation_id != nation_id) {
+      continue;
+    }
+    const long dx = c->x - x;
+    const long dy = c->y - y;
+    const long d = dx * dx + dy * dy;
+    if (best_d < 0 || d < best_d) {
+      best_d = d;
+      best = c;
+    }
+  }
+  return best;
+}
+
 /* Naval: damage-not-always-sink when margin close; else plunder+despawn. */
 static int units_apply_naval_loss_outcome(
   ColonizeUnitPool* pool,
@@ -1819,15 +1847,35 @@ static int units_apply_naval_loss_outcome(
         lose->turns_worked = (uint8_t)thresh;
       }
     }
+    /*
+     * bugs.md: "Ship returns to {colony} for repairs" — actually send it
+     * home to its nearest own port instead of leaving it stranded at the
+     * combat tile, so Drydock repair (units_tick_drydock_repair) can ever
+     * reach it and the popup's destination claim is true.
+     */
+    const ColonizeColony* home =
+      units_nearest_own_colony(g_units_combat_colonies, lose->nation_id, lose->x, lose->y);
+    if (home && (home->x != lose->x || home->y != lose->y)) {
+      const int old_x = lose->x;
+      const int old_y = lose->y;
+      lose->x = home->x;
+      lose->y = home->y;
+      units_occupancy_refresh_tile(pool, old_x, old_y, -1);
+      units_occupancy_refresh_tile(pool, home->x, home->y, -1);
+    }
     if (human) {
-      units_combat_enqueue_section(
-        AI_POPUP_TAG_COMBAT_SHIP,
-        "SHIPDAMAGE",
-        lose->nation_id,
-        win->nation_id,
-        lt ? lt->name : "Ship",
-        wt ? wt->name : NULL,
-        "Ship damaged."
+      PopupMsgTokens tok;
+      memset(&tok, 0, sizeof(tok));
+      tok.string0 = units_combat_nation_label(col1, lose->nation_id);
+      tok.string1 = lt ? lt->name : "Ship";
+      tok.string2 = home && home->name[0] ? home->name : "port";
+      char fb[AI_POPUP_BODY_LEN];
+      snprintf(
+        fb, sizeof(fb), "%s %s damaged! Ship returns to %s for repairs.",
+        tok.string0, tok.string1, tok.string2
+      );
+      units_combat_enqueue_tok(
+        AI_POPUP_TAG_COMBAT_SHIP, "SHIPDAMAGE", lose->nation_id, win->nation_id, 0, &tok, fb
       );
     }
     return 1;
@@ -1835,14 +1883,18 @@ static int units_apply_naval_loss_outcome(
 
   (void)units_plunder_ship_holds(pool, winner_id, loser_id);
   if (human) {
-    units_combat_enqueue_section(
-      AI_POPUP_TAG_COMBAT_SHIP,
-      "SHIPSUNK",
-      win->nation_id,
-      lose->nation_id,
-      lt ? lt->name : "Ship",
-      wt ? wt->name : NULL,
-      "Ship sunk."
+    PopupMsgTokens tok;
+    memset(&tok, 0, sizeof(tok));
+    tok.string0 = units_combat_nation_label(col1, lose->nation_id);
+    tok.string1 = lt ? lt->name : "Ship";
+    tok.string2 = units_combat_nation_label(col1, win->nation_id);
+    tok.string3 = wt ? wt->name : "Ship";
+    char fb[AI_POPUP_BODY_LEN];
+    snprintf(
+      fb, sizeof(fb), "%s %s sunk by %s %s!", tok.string0, tok.string1, tok.string2, tok.string3
+    );
+    units_combat_enqueue_tok(
+      AI_POPUP_TAG_COMBAT_SHIP, "SHIPSUNK", win->nation_id, lose->nation_id, 0, &tok, fb
     );
   }
   units_despawn(pool, loser_id);
@@ -3527,8 +3579,16 @@ ColonizeEnterReason units_enter_probe(
       const int foe_nation = fu ? fu->nation_id : -1;
       if (mover && !units_at_war_for_move(mover_nation, foe_nation)) {
         g_units_last_enter_reason = COLONIZE_ENTER_BOUNCE_PEACE;
+      } else if (mover && !units_is_combat_role(pool, mover)) {
+        /*
+         * bugs.md: unarmed transports (Caravel/Merchantman/Galleon, attack=0
+         * in @UNIT) must not be able to initiate ship combat — GAME.TXT:
+         * "Only Privateers and Frigates can attack enemy ships." Bounce
+         * instead of fighting; the foreign ship's own attack stat is
+         * irrelevant here, only the mover's.
+         */
+        g_units_last_enter_reason = COLONIZE_ENTER_BOUNCE_FOREIGN;
       } else {
-        /* Ships fight on contact (attack may be 0 in @UNIT for transports). */
         g_units_last_enter_reason = COLONIZE_ENTER_COMBAT_NAVAL;
       }
       return g_units_last_enter_reason;
@@ -6633,8 +6693,45 @@ int units_top_on_map_tile(
   return top;
 }
 
+bool units_nation_sees_tile_now(
+  const ColonizeUnitPool* pool,
+  const ColonizeColonyPool* colonies,
+  int nation_id,
+  int x,
+  int y
+) {
+  if (!pool) {
+    return false;
+  }
+  if (nation_id < 0 || nation_id > 3) {
+    return true; /* matches map_tile_seen_by: out-of-range = no fog / show all */
+  }
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    const ColonizeUnit* u = &pool->units[i];
+    if (!units_is_on_map(u) || u->nation_id != nation_id) {
+      continue;
+    }
+    if (abs(u->x - x) <= 1 && abs(u->y - y) <= 1) {
+      return true;
+    }
+  }
+  if (colonies) {
+    for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+      const ColonizeColony* c = &colonies->colonies[i];
+      if (!c->active || c->nation_id != nation_id) {
+        continue;
+      }
+      if (abs(c->x - x) <= 2 && abs(c->y - y) <= 2) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 void units_render_on_map(
   const ColonizeUnitPool* pool,
+  const ColonizeColonyPool* colonies,
   const ColonizeSpriteSheet* nation_sheet,
   const ColonizeFont* font,
   ColonizeFramebuffer8* framebuffer,
@@ -6687,6 +6784,16 @@ void units_render_on_map(
     }
     const ColonizeUnit* top = units_get_const(pool, top_id);
     if (!top) {
+      continue;
+    }
+    /*
+     * bugs.md: a foreign unit only draws while a live friendly unit/colony
+     * currently has sight of its tile — explored-but-unwatched ground shows
+     * terrain (fog_map check above) but not who's moving on it now. Own
+     * units are never gated (you always know where your own units are).
+     */
+    if (top->nation_id != fog_nation &&
+        !units_nation_sees_tile_now(pool, colonies, fog_nation, top->x, top->y)) {
       continue;
     }
 
