@@ -40,6 +40,24 @@ void font_draw_text_hotkey(
   uint8_t hotkey_color
 );
 
+/*
+ * Like font_draw_text, but with full control over each of the 4 baked-in AA
+ * shade levels (shade_colors[0], background, is unused — glyph pixels are
+ * only ever shade 1-3) instead of font_draw_text's hardcoded white/grey
+ * blend for color 15/7 (FF_COLOR_MAP). Use to recolor a font's own soft-AA
+ * "shadow" shades — e.g. FONTINTR's built-in grey/brown edge — to something
+ * else (solid black, say) without layering on a second, separate shadow
+ * pass.
+ */
+void font_draw_text_shaded(
+  const ColonizeFont* font,
+  ColonizeFramebuffer8* framebuffer,
+  int x,
+  int y,
+  const char* text,
+  const uint8_t shade_colors[4]
+);
+
 /* Pixel width of text as drawn (honors '~' / '#' markup; missing FF glyphs use builtin 6px). */
 int font_text_width(const ColonizeFont* font, const char* text);
 

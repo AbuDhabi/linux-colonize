@@ -6395,13 +6395,20 @@ static int units_count_on_map_tile(const ColonizeUnitPool* pool, int x, int y) {
   return n;
 }
 
-/* Prefer selected unit on the tile; else highest id (drawn last previously). */
-static int units_top_on_map_tile(
+/*
+ * Prefer selected unit on the tile; else highest id (drawn last previously)
+ * — except on a colony tile, where DOS never shows an idle garrison unit at
+ * all, only the active/selected unit while it's actually visible (blinking
+ * on, or mid-move). A non-selected unit sitting in a colony square is
+ * otherwise invisible, same as it is inside the settlement view. */
+int units_top_on_map_tile(
   const ColonizeUnitPool* pool,
   int x,
   int y,
-  bool selected_visible
+  bool selected_visible,
+  const ColonizeWorldMap* map
 ) {
+  const bool on_colony = map_tile_has_city(map, x, y);
   int top = -1;
   int top_id = -1;
   for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
@@ -6414,6 +6421,9 @@ static int units_top_on_map_tile(
     }
     if (u->id == pool->selected_id) {
       return u->id;
+    }
+    if (on_colony) {
+      continue;
     }
     if (u->id > top_id) {
       top_id = u->id;
@@ -6471,7 +6481,7 @@ void units_render_on_map(
       }
     }
 
-    const int top_id = units_top_on_map_tile(pool, unit->x, unit->y, selected_visible);
+    const int top_id = units_top_on_map_tile(pool, unit->x, unit->y, selected_visible, fog_map);
     if (top_id < 0) {
       continue;
     }

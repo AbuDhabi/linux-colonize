@@ -122,7 +122,8 @@ static void draw_ff_glyph(
   int y,
   unsigned char ch,
   uint8_t color,
-  bool unbold_colored
+  bool unbold_colored,
+  const uint8_t* shade_colors
 ) {
   if (ch >= 128 || font->char_widths[ch] == 0) {
     return;
@@ -146,7 +147,11 @@ static void draw_ff_glyph(
         const uint8_t shade = (uint8_t)((byte >> shift) & 0x03u);
         if (shade != 0) {
           uint8_t pixel;
-          if (color == 15 || color == 7) {
+          if (shade_colors) {
+            /* Caller-supplied per-shade palette — bypasses the color==15/7
+             * hardcoded FF_COLOR_MAP AA blend entirely (font_draw_text_shaded). */
+            pixel = shade_colors[shade];
+          } else if (color == 15 || color == 7) {
             pixel = FF_COLOR_MAP[shade];
           } else if (unbold_colored && shade != 1) {
             /* Skip soft AA shades — thin colored captions (FONTINTR). */
@@ -340,7 +345,7 @@ void font_draw_text_unbold(
       continue;
     }
     if (font && font->section_data && ch < 128 && font->char_widths[ch] != 0) {
-      draw_ff_glyph(font, framebuffer, cx, y, ch, color, true);
+      draw_ff_glyph(font, framebuffer, cx, y, ch, color, true, NULL);
       cx += font->char_widths[ch];
       continue;
     }
@@ -390,7 +395,7 @@ void font_draw_text_hotkey(
     /* Some .FF faces (notably FONTSMAL) omit punctuation such as '/'.
      * Skipping those glyphs advanced 0px and jammed digits into "57" for "5/7". */
     if (font && font->section_data && ch < 128 && font->char_widths[ch] != 0) {
-      draw_ff_glyph(font, framebuffer, cx, y, ch, use, false);
+      draw_ff_glyph(font, framebuffer, cx, y, ch, use, false, NULL);
       cx += font->char_widths[ch];
       continue;
     }
@@ -399,6 +404,43 @@ void font_draw_text_hotkey(
       ch = '?';
     }
     draw_builtin_glyph(framebuffer, cx, y, ch, use);
+    cx += 6;
+  }
+}
+
+void font_draw_text_shaded(
+  const ColonizeFont* font,
+  ColonizeFramebuffer8* framebuffer,
+  int x,
+  int y,
+  const char* text,
+  const uint8_t shade_colors[4]
+) {
+  if (!framebuffer || !text || !shade_colors) {
+    return;
+  }
+
+  const int line_step = font ? (font->max_height + 2) : 8;
+  int cx = x;
+  for (const char* p = text; *p; ++p) {
+    unsigned char ch = (unsigned char)*p;
+    if (ch == '\n') {
+      y += line_step;
+      cx = x;
+      continue;
+    }
+    if (ch == '~' || ch == '#') {
+      continue;
+    }
+    if (font && font->section_data && ch < 128 && font->char_widths[ch] != 0) {
+      draw_ff_glyph(font, framebuffer, cx, y, ch, shade_colors[1], false, shade_colors);
+      cx += font->char_widths[ch];
+      continue;
+    }
+    if (ch < 32 || ch > 126) {
+      ch = '?';
+    }
+    draw_builtin_glyph(framebuffer, cx, y, ch, shade_colors[1]);
     cx += 6;
   }
 }

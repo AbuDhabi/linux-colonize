@@ -1057,6 +1057,23 @@ bool units_deploy_colonist(
 int units_map_sprite(const ColonizeUnitPool* pool, int unit_id);
 /* Col1 @UNIT index after equipment remap (Scout/Soldier/Dragoon/Pioneer). */
 int units_display_type_index(const ColonizeUnitPool* pool, int unit_id);
+/*
+ * Which unit (if any) draws on the map at (x,y): prefers the selected unit
+ * (subject to selected_visible's blink-off hide), else highest id — except
+ * on a colony tile (map_tile_has_city), which never shows a non-selected
+ * garrison unit at all, only the active/selected one while it's actually
+ * visible. -1 = nothing drawn. Exposed (not just used internally by
+ * units_render_on_map) so this rule is directly testable without a
+ * framebuffer/sprite sheet.
+ */
+int units_top_on_map_tile(
+  const ColonizeUnitPool* pool,
+  int x,
+  int y,
+  bool selected_visible,
+  const ColonizeWorldMap* map
+);
+
 /* selected_visible: when false, hide the selected unit (blink off frame). */
 void units_render_on_map(
   const ColonizeUnitPool* pool,

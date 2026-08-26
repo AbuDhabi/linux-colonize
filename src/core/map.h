@@ -212,6 +212,8 @@ bool map_tile_has_river(const ColonizeWorldMap* map, int x, int y);
 bool map_tile_has_major_river(const ColonizeWorldMap* map, int x, int y);
 
 bool map_tile_has_road(const ColonizeWorldMap* map, int x, int y);
+/* MAP_OCCUPANCY_HAS_CITY on layer2 — a colony (any nation's) sits here. */
+bool map_tile_has_city(const ColonizeWorldMap* map, int x, int y);
 bool map_tile_is_plowed(const ColonizeWorldMap* map, int x, int y);
 void map_tile_set_road(ColonizeWorldMap* map, int x, int y, bool on);
 void map_tile_set_plowed(ColonizeWorldMap* map, int x, int y, bool on);
