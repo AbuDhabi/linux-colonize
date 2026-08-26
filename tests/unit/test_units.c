@@ -3616,12 +3616,14 @@ int main(void) {
   }
 
   {
-    /* lcr_case5_bonus_used: first trespass roll → burial (FUN_65dd_0004:103608).
-     * Non-Scout unit deliberately: Scout/Seasoned Scout now roll from their
-     * own better-weighted table (units_resolve_lcr_rumour), which shifts
-     * where a raw roll=75 lands — this test wants the plain (unmodified,
-     * pre-existing) base-table thresholds specifically, so use a unit type
-     * that always gets that table. */
+    /* lcr_case5_bonus_used: first vanish (raw case 5) roll → burial
+     * (FUN_65dd_0004:103608). Non-Scout, no FF: units_lcr_roll_outcome's
+     * base roll is a single un-rerolled pass (P7.1's real state machine —
+     * old flat RNG(1,100) percentage table is gone), so the very first
+     * dos_rng_range(rng,1,9) call landing on 5 is enough to hit raw case 5
+     * directly (skill 0 means the case-5 "kicker" at 103476-103483 is a
+     * trivial RNG(1,1), always sticks). Brute-force via the real resolve
+     * call so this stays correct regardless of the exact RNG call shape. */
     ColonizeCol1Save c5col1;
     memset(&c5col1, 0, sizeof(c5col1));
     for (int i = 0; i < COLONIZE_COL1_FF_COUNT; ++i) {
@@ -3636,12 +3638,12 @@ int main(void) {
     for (uint32_t s = 1; s < 50000u && trespass_seed == 0; ++s) {
       ColonizeDosRng probe;
       dos_rng_seed(&probe, s);
-      if (dos_rng_range(&probe, 1, 100) == 75) {
+      if (dos_rng_range(&probe, 1, 9) == 5) {
         trespass_seed = s;
       }
     }
     if (trespass_seed == 0) {
-      fprintf(stderr, "case5 latch could not find trespass RNG seed\n");
+      fprintf(stderr, "case5 latch could not find raw-case-5 RNG seed\n");
       return 1;
     }
     int rx1 = -1;
@@ -3704,6 +3706,96 @@ int main(void) {
     units_despawn(&pool, sc1);
     units_despawn(&pool, sc2);
     fprintf(stderr, "unit_units: lcr_case5_bonus_used latch ok\n");
+  }
+
+  {
+    /*
+     * P7.1: de Soto's LCR bonus is gated on the explorer being Scout-type
+     * (FUN_65dd_0004:103454-103458 — the FF7 check only fires when
+     * local_36!=0, and local_36 starts 0 for any non-Scout unit type).
+     * A Colonist should therefore roll byte-identically (same RNG
+     * consumption, same side effects) whether or not the nation owns de
+     * Soto, since de_soto_reroll can never become true for it. Regression
+     * test for that gate: run the same seed on the same tile with de Soto
+     * off, then on, and require identical gold/colonist-join/vanish side
+     * effects both times. */
+    int rtx = -1;
+    int rty = -1;
+    for (int y = 0; y < (int)map.height && rtx < 0; ++y) {
+      for (int x = 0; x < (int)map.width; ++x) {
+        if (map_tile_has_rumour(&map, x, y)) {
+          rtx = x;
+          rty = y;
+          break;
+        }
+      }
+    }
+    if (colonist < 0 || rtx < 0) {
+      fprintf(stderr, "de Soto gate test: missing colonist type or rumour tile\n");
+      return 1;
+    }
+    const uint32_t probe_seed = 4242;
+    uint32_t gold_delta[2] = {0, 0};
+    int colonist_delta[2] = {0, 0};
+    bool vanished[2] = {false, false};
+    for (int pass = 0; pass < 2; ++pass) {
+      ColonizeCol1Save pcol1;
+      memset(&pcol1, 0, sizeof(pcol1));
+      for (int i = 0; i < COLONIZE_COL1_FF_COUNT; ++i) {
+        pcol1.head.founding_father[i] = -1;
+      }
+      if (pass == 1) {
+        pcol1.head.founding_father[FF_HERNANDO_DE_SOTO] = 0;
+        pcol1.nation[0].founding_fathers[FF_HERNANDO_DE_SOTO / 8] |=
+          (uint8_t)(1u << (FF_HERNANDO_DE_SOTO % 8));
+      }
+      ColonizeDosRng prng;
+      dos_rng_seed(&prng, probe_seed);
+      const int uid = units_spawn_allow_stack(&pool, colonist, rtx, rty);
+      ColonizeUnit* pu = units_get(&pool, uid);
+      if (!pu) {
+        fprintf(stderr, "de Soto gate test: spawn failed (pass %d)\n", pass);
+        return 1;
+      }
+      pu->nation_id = 0;
+      const uint32_t gold_before = pcol1.nation[0].gold;
+      int colonist_before = 0;
+      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+        if (pool.units[i].active && pool.units[i].type_index == colonist) {
+          colonist_before++;
+        }
+      }
+      if (!units_resolve_lcr_rumour(&pool, uid, &map, &pcol1, &prng, NULL, 0)) {
+        fprintf(stderr, "de Soto gate test: resolve failed (pass %d)\n", pass);
+        return 1;
+      }
+      ColonizeUnit* after = units_get(&pool, uid);
+      vanished[pass] = !after || !after->active;
+      gold_delta[pass] = pcol1.nation[0].gold - gold_before;
+      int colonist_after = 0;
+      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+        if (pool.units[i].active && pool.units[i].type_index == colonist) {
+          colonist_after++;
+        }
+      }
+      colonist_delta[pass] = colonist_after - colonist_before;
+      if (!vanished[pass]) {
+        units_despawn(&pool, uid);
+      }
+      map.layer2[rty * map.width + rtx] &= (uint8_t)~MAP_LAYER2_RUMOUR_CLEARED;
+    }
+    if (vanished[0] != vanished[1] || gold_delta[0] != gold_delta[1] ||
+        colonist_delta[0] != colonist_delta[1]) {
+      fprintf(
+        stderr,
+        "de Soto gate test: non-Scout outcome differs with/without de Soto "
+        "(vanish %d/%d gold %u/%u colonist-delta %d/%d)\n",
+        vanished[0], vanished[1], gold_delta[0], gold_delta[1],
+        colonist_delta[0], colonist_delta[1]
+      );
+      return 1;
+    }
+    fprintf(stderr, "unit_units: LCR de Soto Scout-type gate ok\n");
   }
 
   /*

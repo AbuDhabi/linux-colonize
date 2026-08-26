@@ -751,6 +751,43 @@ int colony_prod_colony_hammers(
   return hammers_total;
 }
 
+/* See colony_production.h for the full FUN_15eb_1f72 derivation. */
+ColonyProdHorseBreed colony_prod_horse_breed(
+  int horses_stock,
+  int population,
+  int food_gross_this_turn,
+  int warehouse_cap,
+  bool colony_has_stable
+) {
+  ColonyProdHorseBreed r;
+  r.bred = 0;
+  r.shortfall = 0;
+
+  int potential = 0;
+  if (horses_stock >= 2) {
+    const int divisor = colony_has_stable ? 25 : 50;
+    potential = ((horses_stock + divisor - 1) / divisor) * 2;
+  }
+
+  const int consumption = population * 2;
+  int food_avail = food_gross_this_turn - consumption;
+  if (food_avail < 0) {
+    food_avail = 0;
+  }
+  const int food_cap = (food_avail + 1) / 2;
+  const int capped = potential < food_cap ? potential : food_cap;
+
+  int headroom = warehouse_cap - horses_stock;
+  if (headroom < 0) {
+    headroom = 0;
+  }
+  const int bred = capped < headroom ? capped : headroom;
+
+  r.bred = bred;
+  r.shortfall = potential - bred;
+  return r;
+}
+
 const char* colony_prod_highest_manufacturing_tier_name(
   const ColonizeColonyPool* pool,
   const ColonizeColony* colony,

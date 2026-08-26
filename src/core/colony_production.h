@@ -236,6 +236,63 @@ int colony_prod_colony_hammers(
   int* out_lumber_use
 );
 
+/*
+ * Horse breeding — FUN_15eb_1f72 tail (viceroy_unpacked.c ~12649-12690,
+ * raw .asm at 15eb:2300-2392). The *shape* of the formula (herd-size-based
+ * growth potential, gated on a Stable, then capped by this turn's food
+ * surplus and by warehouse headroom) is read directly from the decompile;
+ * the exact quantity DOS actually applies to the horses stock was pinned
+ * down against real DOS ground truth (`golden_colony_prod01`/`02`, Col1
+ * `.SAV` fixtures produced by running one turn in original DOS) — the
+ * static asm reading alone pointed at the *uncapped* potential feeding the
+ * colony's shared production gross/reserve pipeline (`FUN_364b_0688` Phase
+ * B), which turned out to overshoot every one of 13 checked Dutch colonies
+ * across both goldens by exactly `potential - capped`; the *capped* figure
+ * matches all 13 exactly. (The pipeline detail responsible for that
+ * capping — which overlay-swapped callee actually consumes `local_22`
+ * versus `local_e` — is not fully resolved statically; the applied
+ * *result* is, byte-for-byte, against real DOS saves, which is the
+ * stronger form of confirmation here.) Colony offset +0xaa (cargo id 8) is
+ * the horses stock word.
+ *
+ *   potential = horses_stock < 2 ? 0
+ *             : ceil(horses_stock / divisor) * 2
+ *   divisor   = colony_has_stable ? 25 : 50
+ *               (FUN_15eb_038e building-catalog index 0x11 = 17 = Stable
+ *               in NAMES.TXT @BUILDING order — confirmed against this same
+ *               function's already-ported Church(0x25)/Cathedral(0x26)/
+ *               Printing Press(0x13)/Newspaper(0x14) FUN_15eb_038e checks,
+ *               same indexing convention, see building_production.md)
+ *   food_avail = max(0, food_gross_this_turn - population*2)
+ *   food_cap   = ceil(food_avail / 2)
+ *   capped     = min(potential, food_cap)
+ *   headroom   = max(0, warehouse_cap - horses_stock)
+ *   bred       = min(capped, headroom)                    -- DOS local_22
+ *
+ * `bred` is applied to BOTH the horses stock (+bred) and the food stock
+ * (-bred, one horse "costs" one food, in addition to ordinary population
+ * consumption) — golden-confirmed 2026-08-26, see building_production.md's
+ * dated horse-breeding entry for the full derivation and the 13-colony
+ * verification table.
+ *
+ * `shortfall` (potential - bred) is DOS's own report-only figure (scratch
+ * 0x8e6a) — "N more could have bred but for the food/warehouse limit" —
+ * feeds the Production tab's shortfall pairing only, never applied to any
+ * stock.
+ */
+typedef struct ColonyProdHorseBreed {
+  int bred;       /* apply to both horses stock (+) and food stock (-) */
+  int shortfall;   /* potential - bred; UI/report only */
+} ColonyProdHorseBreed;
+
+ColonyProdHorseBreed colony_prod_horse_breed(
+  int horses_stock,
+  int population,
+  int food_gross_this_turn,
+  int warehouse_cap,
+  bool colony_has_stable
+);
+
 /* Primary goods output for a colonist in a workplace (for settlement badges). */
 const char* colony_prod_highest_manufacturing_tier_name(
   const ColonizeColonyPool* pool,

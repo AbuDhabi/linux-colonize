@@ -2349,8 +2349,10 @@ bool units_try_native_settlement_fallout(
  * FUN_65dd_0004 outcome kinds (GAME.TXT @LOSTCITY1..9 / @BURIAL1..3 /
  * @SCREWED). viceroy:103463-103618: roll local_8=max(local_2e, RNG(1,9)) with
  * reroll loops; local_c=RNG(1,100)+local_36*10 gates case redirects; de Soto
- * (FF#7) bumps local_36 when Scout (type 5). Not a flat weight table — full
- * case/redirect graph PARKED; Linux uses thin buckets below.
+ * (FF#7) bumps local_36 when Scout (type 5). P7.1 (2026-08-26): the real
+ * case-selection state machine is now ported — see the block comment above
+ * units_lcr_roll_outcome() for exactly what's faithful vs still PARKed
+ * (terrain-qualify tests, two DS offsets, the case1/7/8/9 numeric identity).
  */
 typedef enum ColonizeLcrOutcome {
   COLONIZE_LCR_NOTHING = 0,     /* @LOSTCITY6 */
@@ -2364,8 +2366,12 @@ typedef enum ColonizeLcrOutcome {
   COLONIZE_LCR_CIBOLA           /* @LOSTCITY2 */
 } ColonizeLcrOutcome;
 
-/* FUN_4cc6_0356-shaped nearest-tribe scan; -1 if none. */
-static int units_lcr_nearest_tribe_nation(const ColonizeCol1Save* col1, int x, int y) {
+/* FUN_4cc6_0356-shaped nearest-tribe scan; -1 if none. out_dist (optional)
+ * receives the winning tile-distance (manhattan, matching the rest of this
+ * file's distance style) — used by the case-8 proximity gate below. */
+static int units_lcr_nearest_tribe_dist(
+  const ColonizeCol1Save* col1, int x, int y, int* out_dist
+) {
   if (!col1 || !col1->tribe) {
     return -1;
   }
@@ -2381,7 +2387,14 @@ static int units_lcr_nearest_tribe_nation(const ColonizeCol1Save* col1, int x, i
       best = tr->nation_id;
     }
   }
+  if (out_dist) {
+    *out_dist = best_d;
+  }
   return best;
+}
+
+static int units_lcr_nearest_tribe_nation(const ColonizeCol1Save* col1, int x, int y) {
+  return units_lcr_nearest_tribe_dist(col1, x, y, NULL);
 }
 
 /* Credits both the persisted Col1 nation gold and the live Europe screen
@@ -2402,56 +2415,179 @@ static void units_lcr_credit_gold(
   }
 }
 
-typedef struct ColonizeLcrWeight {
-  ColonizeLcrOutcome outcome;
-  int weight; /* out of 100 */
-} ColonizeLcrWeight;
-
 /*
- * Base weights are exactly the old hardcoded 25/20/15/12/10/8/5/3/2 cumulative
- * thresholds (unchanged outcome odds for a plain, non-Scout explorer). Scout
- * and Seasoned Scout tiers are this port's own approximation of
- * Colonization.pdf's "Better at exploring rumors…" — not the real DOS weight
- * table (full case/redirect graph PARKED, see the block comment above
- * ColonizeLcrOutcome), just a close, clearly-tiered stand-in: each step
- * trims the bad outcomes (Nothing, Vanishes) and grows the good ones
- * (Treasure/Gift/Survivors/FoY/Cibola), Seasoned Scout more than plain
- * Scout. Each table sums to exactly 100.
+ * P7.1: real FUN_65dd_0004 case-selection state machine (viceroy:103462-
+ * 103618), replacing the old flat percentage table. Faithfully ported:
+ *   - `skill` (decomp local_36): 0 = not a Scout-type unit, 1 = Scout,
+ *     2 = Scout with the Seasoned Scout expert skill (103450-103453).
+ *   - `de_soto_reroll` (decomp bVar4): FF7 (Hernando de Soto) owned AND the
+ *     unit is Scout-type — de Soto's LCR bonus in this function is gated on
+ *     unit type, not universal (103454-103458). When true, `skill` gets one
+ *     more bump (103457) and a "Nothing" result (or a miss on the case-5/8
+ *     kicker below) rerolls the whole attempt instead of being accepted
+ *     (103617, 103480/103488/103553).
+ *   - base roll: `floor` ratchets 1→2→3 across reroll attempts within one
+ *     call, `raw = max(floor, RNG(1,9))` (103464-103472).
+ *   - `gate` = RNG(1,100) + skill*10 (103473-103474), used by every
+ *     downgrade threshold below.
+ *   - case-5/case-8 "kicker": a fresh raw==5 or raw==8 only sticks
+ *     1-in-(skill+1) of the time (103476-103491) — higher skill makes a
+ *     bad initial roll less likely to lock in immediately.
+ *   - case 1: local_10 terrain qualify test (FUN_281f_078c) is unresolved
+ *     (no tool in this project decodes its return value) — PARKED, treated
+ *     as always non-qualifying, so case 1 always takes the gate-based
+ *     downgrade to 5/6 (103493-103507); WoI still forces 1→2 unconditionally
+ *     (103508-103510), which now cascades into case 2's own handling.
+ *   - case 2: same terrain PARK, but de Soto's own kicker here IS decomp-
+ *     real and ported (bVar4 && RNG(0,2)==0 forces the qualifying branch,
+ *     103520-103522); otherwise gate-based downgrade to 5/8/6
+ *     (103524-103534). The two global "already explored" rate-limit
+ *     counters DOS also ORs into this same downgrade condition (*0x1dc6
+ *     total-LCRs-ever, *0x1dc7 survivors-spawned-ever, 103524) are not
+ *     save-format fields anywhere in this project's Col1 mirror and are
+ *     PARKed too — with terrain already forced non-qualifying they can only
+ *     matter on the de Soto branch, and skipping them just makes that branch
+ *     slightly more generous.
+ *   - case 8: silent native-shrine trespass. Real trigger is proximity (a
+ *     tribe within 3 tiles, 103554-103556) and de Soto rerolls away from it
+ *     entirely (103552-103553); magnitude is difficulty *and* skill scaled
+ *     (`RNG(1,6) + ((difficulty - skill) + 1) * 5`, 103557-103559). DOS
+ *     always displays this as a plain "Nothing" (local_8 forced to 6 right
+ *     after, 103568) with the alarm hit folded in silently — this port
+ *     keeps it visibly `COLONIZE_LCR_TRESPASS_ANGER` (existing @LOSTCITY8
+ *     popup) instead of going silent, so a currently-shipped visible
+ *     outcome doesn't disappear; that display choice is a P7.2-territory
+ *     call, not a P7.1 weight/frequency one.
+ *   - case 5 (unconverted): the already-shipped `lcr_case5_bonus_used`
+ *     one-shot (103608-103612) still applies first; de Soto never accepts a
+ *     bare Vanishes (103614-103616).
+ *   - Colony-count-based case-5 downgrade (103597-103607, DS offsets
+ *     -0x6bf0/-0x6d68 not identified anywhere in this project) stays PARK.
+ *
+ * Case-number → outcome mapping: 2/3/4/5/6 match what this file already had
+ * wired (WoI redirect + case-5 latch citations); 1, 7, 8, 9 are corrected/
+ * assigned from reading the dispatch bodies directly (viceroy:103724-103742
+ * — case 1's own 8x `FUN_291f_0d2c`≡`FUN_38fd_4884` immigrant loop is the
+ * exact call this file already cites for Fountain of Youth, not trespass;
+ * case 8's village-alarm block is the real trespass mechanic; case 9 spawns
+ * via a distinct type-0 path fitting Cibola's treasure train; case 7 is left
+ * as the simple gold-only remainder, Chief's Gift). This revises the prior
+ * "case 1 = trespass" guess baked into the old WoI-redirect comment — flag
+ * for a future pass if that turns out to matter.
  */
-static const ColonizeLcrWeight k_lcr_weights_base[] = {
-  {COLONIZE_LCR_NOTHING, 25},          {COLONIZE_LCR_SMALL_TREASURE, 20},
-  {COLONIZE_LCR_CHIEFS_GIFT, 15},      {COLONIZE_LCR_BURIAL_MOUNDS, 12},
-  {COLONIZE_LCR_TRESPASS_ANGER, 10},   {COLONIZE_LCR_SURVIVORS_JOIN, 8},
-  {COLONIZE_LCR_FOUNTAIN_OF_YOUTH, 5}, {COLONIZE_LCR_VANISHES, 3},
-  {COLONIZE_LCR_CIBOLA, 2}
-};
-static const ColonizeLcrWeight k_lcr_weights_scout[] = {
-  {COLONIZE_LCR_NOTHING, 10},          {COLONIZE_LCR_SMALL_TREASURE, 25},
-  {COLONIZE_LCR_CHIEFS_GIFT, 18},      {COLONIZE_LCR_BURIAL_MOUNDS, 11},
-  {COLONIZE_LCR_TRESPASS_ANGER, 8},    {COLONIZE_LCR_SURVIVORS_JOIN, 11},
-  {COLONIZE_LCR_FOUNTAIN_OF_YOUTH, 9}, {COLONIZE_LCR_VANISHES, 1},
-  {COLONIZE_LCR_CIBOLA, 7}
-};
-static const ColonizeLcrWeight k_lcr_weights_seasoned_scout[] = {
-  {COLONIZE_LCR_NOTHING, 5},            {COLONIZE_LCR_SMALL_TREASURE, 25},
-  {COLONIZE_LCR_CHIEFS_GIFT, 20},       {COLONIZE_LCR_BURIAL_MOUNDS, 10},
-  {COLONIZE_LCR_TRESPASS_ANGER, 6},     {COLONIZE_LCR_SURVIVORS_JOIN, 12},
-  {COLONIZE_LCR_FOUNTAIN_OF_YOUTH, 11}, {COLONIZE_LCR_VANISHES, 0},
-  {COLONIZE_LCR_CIBOLA, 11}
-};
-
 static ColonizeLcrOutcome units_lcr_roll_outcome(
-  ColonizeDosRng* rng, const ColonizeLcrWeight* table, int n
+  ColonizeCol1Save* col1,
+  ColonizeDosRng* rng,
+  int nation,
+  int x,
+  int y,
+  int skill,
+  bool de_soto_reroll,
+  bool woi
 ) {
-  const int roll = dos_rng_range(rng, 1, 100);
-  int acc = 0;
-  for (int i = 0; i < n; ++i) {
-    acc += table[i].weight;
-    if (roll <= acc) {
-      return table[i].outcome;
+  int floor_val = 0;
+  for (;;) {
+    floor_val = floor_val + 1;
+    if (floor_val > 3) {
+      floor_val = 3;
+    }
+    const int r9 = dos_rng_range(rng, 1, 9);
+    int raw = (floor_val > r9) ? floor_val : r9;
+    const int gate = dos_rng_range(rng, 1, 100) + skill * 10;
+
+    if (raw == 5 || raw == 8) {
+      const int kick = dos_rng_range(rng, 1, skill + 1);
+      if (kick != 1) {
+        if (de_soto_reroll) {
+          continue;
+        }
+        raw = 6;
+      }
+    }
+
+    if (raw == 1) {
+      /* Terrain-qualify gate (local_10/local_6, FUN_281f_078c) is
+       * unresolved — no tool in this project decodes its return value.
+       * PARK stand-in: an unbiased coin flip, matching the real test's
+       * shape (a 3-bit tile sub-field, `(local_10&7)>3`, roughly half the
+       * 0-7 range) rather than the earlier "always fails" default, which
+       * made case 1 (Fountain of Youth) unreachable outside de Soto and
+       * regressed a previously-working outcome. */
+      const bool qualifies_1 = dos_rng_range(rng, 0, 1) == 1;
+      if (!qualifies_1 && !de_soto_reroll) {
+        raw = (gate < 11) ? 5 : 6;
+      }
+      if (woi) {
+        raw = 2;
+      }
+    }
+
+    if (raw == 2) {
+      /* Same terrain PARK as case 1 (different local_10 sub-test, same
+       * unresolved lookup); de Soto's own kicker here IS decomp-real
+       * (bVar4 && RNG(0,2)==0, 103520-103522) and ORs into it, matching
+       * the real code's OR structure. */
+      bool qualifies = dos_rng_range(rng, 0, 1) == 1;
+      if (de_soto_reroll && dos_rng_range(rng, 0, 2) == 0) {
+        qualifies = true;
+      }
+      if (!qualifies) {
+        if (gate < 11) {
+          raw = 5;
+        } else if (gate < 25) {
+          raw = 8;
+        } else {
+          raw = 6;
+        }
+      }
+    }
+
+    bool trespass_alarm = false;
+    if (raw == 8) {
+      if (de_soto_reroll) {
+        continue;
+      }
+      int dist = 0x7fffffff;
+      const int tribe = units_lcr_nearest_tribe_dist(col1, x, y, &dist);
+      if (tribe >= 0 && dist < 3) {
+        const int difficulty = col1 ? col1->head.difficulty : 0;
+        const int mag = dos_rng_range(rng, 1, 6) + ((difficulty - skill) + 1) * 5;
+        if (col1 && nation >= 0 && nation < 4) {
+          ai_diplo_indian_relation_delta(col1, tribe, nation, -mag);
+        }
+        trespass_alarm = true;
+      }
+      raw = 6;
+    }
+
+    if (raw == 5) {
+      if (col1 && nation >= 0 && nation < 4 && !col1->player[nation].lcr_case5_bonus_used) {
+        col1->player[nation].lcr_case5_bonus_used = 1;
+        raw = 4;
+      } else if (de_soto_reroll) {
+        raw = 6;
+      }
+    }
+
+    if (raw == 6 && de_soto_reroll) {
+      continue;
+    }
+
+    if (trespass_alarm) {
+      return COLONIZE_LCR_TRESPASS_ANGER;
+    }
+    switch (raw) {
+    case 1: return COLONIZE_LCR_FOUNTAIN_OF_YOUTH;
+    case 2: return COLONIZE_LCR_SURVIVORS_JOIN;
+    case 3: return COLONIZE_LCR_SMALL_TREASURE;
+    case 4: return COLONIZE_LCR_BURIAL_MOUNDS;
+    case 5: return COLONIZE_LCR_VANISHES;
+    case 7: return COLONIZE_LCR_CHIEFS_GIFT;
+    case 9: return COLONIZE_LCR_CIBOLA;
+    case 6:
+    default: return COLONIZE_LCR_NOTHING;
     }
   }
-  return table[n - 1].outcome;
 }
 
 bool units_resolve_lcr_rumour(
@@ -2464,44 +2600,20 @@ bool units_resolve_lcr_rumour(
   int human_nation
 ) {
   /*
-   * FUN_65dd_0004 thin transcription: any land unit standing on a
-   * procedural rumour tile clears it and rolls one of the manual-documented
-   * outcomes (treasure / Fountain of Youth / Cibola / survivors join /
-   * burial mounds / vanish / nothing) — Scout / Seasoned Scout get a
-   * better-weighted table (k_lcr_weights_scout/_seasoned_scout; player-
-   * caught this was previously hard-gated to Scouts only, silently no-
-   * opping for every other unit type). de Soto (FF 7) keeps its "always
-   * positive" framing — extended
-   * sight is a separate always-on FF effect (see founding_fathers.h); here
-   * it restricts the draw to the non-hostile subset instead of a bare
-   * reveal-only shortcut. Deep DOS RNG weights / native-attack combat
-   * Deep DOS RNG weights / native-attack combat resolution stay PARKed — see
-   * per-outcome comments below. Decomp case IDs (FUN_65dd_0004 local_8):
-   *   1 trespass (@LOSTCITY8), 2 survivors (@LOSTCITY9), 3 small treasure,
-   *   4 burial (@LOSTCITY4), 5 trespass→4 latch, 6 nothing, 7 treasure variant,
-   *   8 chief gift, 9 Cibola/FoY — reroll loops PARKED; port uses thin buckets.
-   * lcr_case5_bonus_used (player+0x30 bit6): FUN_65dd_0004 one-shot — first
-   * case-5 roll becomes case-4 (burial mounds instead of trespass anger).
-   * Cite: viceroy_unpacked.c:103608-103612 (sets bit 0x40, local_8=4).
-   * Full DOS case/weight table otherwise PARKED.
+   * FUN_65dd_0004: any land unit standing on a procedural rumour tile
+   * clears it and rolls one of the manual-documented outcomes (treasure /
+   * Fountain of Youth / Cibola / survivors join / burial mounds / vanish /
+   * nothing / trespass anger). Player-caught: this was previously
+   * hard-gated to Scouts only, so any other unit (a lone Pioneer, a Soldier
+   * escorting a wagon train, …) silently walked over an LCR tile with zero
+   * effect — the ai_euro.c AI caller has the matching `is_scout &&`
+   * pre-check relaxed too; every unit type still rolls, Scouts/Seasoned
+   * Scouts just roll with a higher skill tier (see units_lcr_roll_outcome).
    */
   ColonizeUnit* u = units_get(pool, unit_id);
   if (!u || !u->active || !map || !units_is_on_map(u)) {
     return false;
   }
-  /*
-   * Any land unit can trigger a rumour (map_procedural_rumour_at already
-   * gates to land tiles, so a ship can never even reach one) — Scouts and
-   * Seasoned Scouts just roll a better outcome table, per Colonization.pdf
-   * ("Better at exploring rumors…"). Player-caught: this was previously
-   * hard-gated to Scouts only, so any other unit (a lone Pioneer, a Soldier
-   * escorting a wagon train, …) silently walked over an LCR tile with zero
-   * effect — the ai_euro.c AI caller has the matching `is_scout &&`
-   * pre-check relaxed too. */
-  const ColonizeUnitType* t = units_type(pool, u->type_index);
-  const bool is_seasoned_scout = t && strstr(t->name, "Seasoned Scout") != NULL;
-  const bool is_scout = is_seasoned_scout ||
-    (t && strstr(t->name, "Scout") != NULL) || u->profession == UNITS_JOB_SCOUT;
   if (!map_tile_has_rumour(map, u->x, u->y)) {
     return false;
   }
@@ -2511,49 +2623,35 @@ bool units_resolve_lcr_rumour(
   const int x = u->x;
   const int y = u->y;
   const int nation = u->nation_id;
-  const bool de_soto = col1 && nation >= 0 && nation < 4 &&
+  const bool de_soto_owned = col1 && nation >= 0 && nation < 4 &&
     founding_fathers_de_soto_lcr_always_positive(col1, nation);
-  if (de_soto) {
+  if (de_soto_owned) {
+    /* Extended sight is a separate always-on FF effect in DOS (see
+     * founding_fathers.c FF_HERNANDO_DE_SOTO); kept ungated by unit type
+     * here, unlike the LCR-selection bonus below. */
     map_reveal_radius(map, x, y, nation, 1);
   }
 
-  ColonizeLcrOutcome outcome;
-  if (de_soto) {
-    /* Positive-only draw: treasure / gift / FoY / Cibola / survivors. */
-    static const ColonizeLcrOutcome k_positive[] = {
-      COLONIZE_LCR_SMALL_TREASURE,
-      COLONIZE_LCR_CHIEFS_GIFT,
-      COLONIZE_LCR_SURVIVORS_JOIN,
-      COLONIZE_LCR_FOUNTAIN_OF_YOUTH,
-      COLONIZE_LCR_CIBOLA
-    };
-    const int n = (int)(sizeof(k_positive) / sizeof(k_positive[0]));
-    outcome = k_positive[dos_rng_range(rng, 1, n) - 1];
-  } else {
-    /* Thin buckets; decomp rolls local_8=max(local_2e, RNG(1,9)) with
-     * rerolls. Table picked by explorer skill — see k_lcr_weights_*. */
-    const ColonizeLcrWeight* table = k_lcr_weights_base;
-    int table_n = (int)(sizeof(k_lcr_weights_base) / sizeof(k_lcr_weights_base[0]));
-    if (is_seasoned_scout) {
-      table = k_lcr_weights_seasoned_scout;
-      table_n = (int)(sizeof(k_lcr_weights_seasoned_scout) / sizeof(k_lcr_weights_seasoned_scout[0]));
-    } else if (is_scout) {
-      table = k_lcr_weights_scout;
-      table_n = (int)(sizeof(k_lcr_weights_scout) / sizeof(k_lcr_weights_scout[0]));
-    }
-    outcome = units_lcr_roll_outcome(rng, table, table_n);
-    const int woi = col1 && col1->head.game_options.woi;
-    /* FUN_65dd_0004: case 1 → case 2 during WoI (103508). */
-    if (woi && outcome == COLONIZE_LCR_TRESPASS_ANGER) {
-      outcome = COLONIZE_LCR_SURVIVORS_JOIN;
-    }
+  /*
+   * Explorer skill tier (decomp local_36, viceroy:103450-103458): Scout
+   * unit type (NAMES.TXT @UNIT row 5, "Scouts") = 1, + Seasoned Scout
+   * expert profession = 2, + de Soto (FF7, but ONLY when already
+   * Scout-type — de Soto's LCR bonus never fires for a non-Scout explorer
+   * in this decomp) = +1 more. See units_lcr_roll_outcome for how `skill`
+   * and `de_soto_reroll` (decomp bVar4) drive the case-selection loop.
+   */
+  const int scout_type = units_find_type(pool, "Scouts");
+  int skill = (scout_type >= 0 && u->type_index == scout_type) ? 1 : 0;
+  if (skill != 0 && u->profession == UNITS_JOB_SCOUT) {
+    skill += 1;
   }
-
-  if (outcome == COLONIZE_LCR_TRESPASS_ANGER && col1 && nation >= 0 && nation < 4 &&
-      !col1->player[nation].lcr_case5_bonus_used) {
-    col1->player[nation].lcr_case5_bonus_used = 1;
-    outcome = COLONIZE_LCR_BURIAL_MOUNDS;
+  const bool de_soto_reroll = skill != 0 && de_soto_owned;
+  if (de_soto_reroll) {
+    skill += 1;
   }
+  const bool woi = col1 && col1->head.game_options.woi;
+  const ColonizeLcrOutcome outcome =
+    units_lcr_roll_outcome(col1, rng, nation, x, y, skill, de_soto_reroll, woi);
 
   PopupMsgTokens tok;
   memset(&tok, 0, sizeof(tok));
