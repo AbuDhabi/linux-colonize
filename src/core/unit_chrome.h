@@ -169,4 +169,55 @@ void unit_chrome_nation_flag_shades_for_palette(
   int nation_id, const ColonizePalette* active_palette, int* out_light, int* out_dark
 );
 
+/*
+ * Every screen that blits a unit/colonist sprite standalone (not part of a
+ * tile/building draw) does it in one of exactly three ways. Name the mode
+ * at the call site instead of open-coding "which blit call(s) do I need
+ * here" per screen — that's how the settlement-view colonist shadow ended
+ * up 1px (an ad-hoc colony_screen-local helper) instead of the map's 2px:
+ * nothing forced it to match the existing convention.
+ *
+ *   UNIT_CHROME_PLAIN_SPRITE       — just the sprite, no shadow, no box.
+ *   UNIT_CHROME_SPRITE_WITH_SHADOW — sprite + the same 2px-left black-
+ *                                    silhouette underlay the map/orders
+ *                                    mode uses (UNIT_CHROME_SHADOW_DX),
+ *                                    tinted `shadow_color`, no orders box.
+ *   UNIT_CHROME_SPRITE_ORDERS      — shadow + nation-color orders/
+ *                                    allegiance box + sprite (DOS
+ *                                    FUN_112b_01ba); everything
+ *                                    unit_chrome_blit_unit_colored draws.
+ */
+typedef enum UnitChromeDrawMode {
+  UNIT_CHROME_PLAIN_SPRITE = 0,
+  UNIT_CHROME_SPRITE_WITH_SHADOW = 1,
+  UNIT_CHROME_SPRITE_ORDERS = 2
+} UnitChromeDrawMode;
+
+/*
+ * Single entry point for all three modes above. Params outside a given
+ * mode's own list are ignored (pass 0/false/-1/NULL) — `font` only matters
+ * for ORDERS (its letter glyph); `shadow_color` only for SHADOW/ORDERS
+ * (pass 0 for plain black, matching every existing caller); everything
+ * from `display_type_index` on is ORDERS-only and matches
+ * unit_chrome_blit_unit_colored's own params exactly (fill_override/
+ * letter_override: -1 = auto nation color).
+ */
+void unit_chrome_blit(
+  ColonizeFramebuffer8* fb,
+  const ColonizeFont* font,
+  const ColonizeSpriteSheet* sheet,
+  int sprite_index,
+  int x,
+  int y,
+  UnitChromeDrawMode mode,
+  int shadow_color,
+  int display_type_index,
+  int nation_id,
+  int orders_index,
+  bool show_stack,
+  bool aboard,
+  int fill_override,
+  int letter_override
+);
+
 #endif

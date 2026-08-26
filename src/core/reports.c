@@ -1131,10 +1131,10 @@ static void reports_render_labor_grid(
       const int cy = REPORTS_LABOR_ROW0_Y + row * REPORTS_LABOR_ROW_STEP;
       const int icon = reports_labor_icon_for_job(job);
       if (view && view->icons_ok && icon >= 0 && icon < view->icons.sprite_count) {
-        /* Two-pixel drop shadow, same convention as unit_chrome_blit_unit:
-         * a same-shape black underlay 2px to the sprite's left, drawn first. */
-        ss_blit_sprite_color(&view->icons, icon, fb, cx - 2, cy, 0);
-        ss_blit_sprite(&view->icons, icon, fb, cx, cy);
+        unit_chrome_blit(
+          fb, NULL, &view->icons, icon, cx, cy, UNIT_CHROME_SPRITE_WITH_SHADOW, 0, 0, -1, 0, false,
+          false, -1, -1
+        );
       }
       const int count = colony_counts[job] + mapboard_counts[job] + europe_counts[job];
       char num[16];
@@ -1181,8 +1181,10 @@ static void reports_render_labor_detail(
   const int header_y = y + REPORTS_LABOR_ROW_STEP / 2;
   const int icon = reports_labor_icon_for_job(job);
   if (view && view->icons_ok && icon >= 0 && icon < view->icons.sprite_count) {
-    ss_blit_sprite_color(&view->icons, icon, fb, 4 - 2, header_y, 0);
-    ss_blit_sprite(&view->icons, icon, fb, 4, header_y);
+    unit_chrome_blit(
+      fb, NULL, &view->icons, icon, 4, header_y, UNIT_CHROME_SPRITE_WITH_SHADOW, 0, 0, -1, 0, false,
+      false, -1, -1
+    );
   }
   snprintf(line, line_sz, "%s: %d", reports_job_name(job), sum);
   reports_draw_line(font, fb, 22, header_y, line, 14);
@@ -1852,8 +1854,8 @@ static void reports_render_colony_sol(
     reports_draw_line(font, fb, REPORTS_COLONY_BELL_NUM_X, row_top, line, REPORTS_COLONY_LABEL_COLOR);
 
     /* Colonists currently working the Town Hall — same drop-shadow icon
-     * convention as the Labor report's profession icons (units_job_icon_sprite +
-     * ss_blit_sprite_color 2px-left black underlay). */
+     * convention as the Labor report's profession icons
+     * (units_job_icon_sprite + unit_chrome_blit's SPRITE_WITH_SHADOW mode). */
     if (colony && town_hall_idx >= 0 && view && view->icons_ok) {
       int slot = 0;
       for (int p = 0; p < colony->colonist_count && slot < REPORTS_COLONY_WORKER_MAX; ++p) {
@@ -1866,8 +1868,10 @@ static void reports_render_colony_sol(
           continue;
         }
         const int x = REPORTS_COLONY_WORKER_X + slot * REPORTS_COLONY_WORKER_PITCH;
-        ss_blit_sprite_color(&view->icons, sprite, fb, x - 2, row_top - 3, 0);
-        ss_blit_sprite(&view->icons, sprite, fb, x, row_top - 3);
+        unit_chrome_blit(
+          fb, NULL, &view->icons, sprite, x, row_top - 3, UNIT_CHROME_SPRITE_WITH_SHADOW, 0, 0, -1, 0,
+          false, false, -1, -1
+        );
         slot++;
       }
     }
