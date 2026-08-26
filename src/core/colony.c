@@ -1031,6 +1031,22 @@ bool colonies_assign_workplace(
   return true;
 }
 
+bool colonies_toggle_custom_house_cargo(ColonizeColonyPool* pool, int colony_id, int cargo_type) {
+  ColonizeColony* col = colonies_get_mut(pool, colony_id);
+  if (!col || !pool) {
+    return false;
+  }
+  if (cargo_type < 0 || cargo_type >= COLONIZE_CARGO_COUNT) {
+    return false;
+  }
+  const int ch = colonies_find_building(pool, "Custom House");
+  if (ch < 0 || !col->has_building[ch]) {
+    return false;
+  }
+  col->custom_house_bits = (uint16_t)(col->custom_house_bits ^ (1u << cargo_type));
+  return true;
+}
+
 bool colonies_assign_field(
   ColonizeColonyPool* pool,
   int colony_id,

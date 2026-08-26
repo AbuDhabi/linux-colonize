@@ -167,7 +167,9 @@ typedef enum ColonyScreenHit {
   COLONY_HIT_MESSAGE_YES,
   COLONY_HIT_MESSAGE_NO,
   COLONY_HIT_MESSAGE_OK,
-  COLONY_HIT_MESSAGE_OUTSIDE
+  COLONY_HIT_MESSAGE_OUTSIDE,
+  COLONY_HIT_CUSTOM_HOUSE_ROW,
+  COLONY_HIT_CUSTOM_HOUSE_OUTSIDE
 } ColonyScreenHit;
 
 typedef enum ColonyMessageKind {
@@ -275,6 +277,20 @@ typedef struct ColonyScreenView {
   int dock_orders_list_y0;
   int dock_orders_line_h;
 
+  /* Custom House per-cargo autosell checklist — clicking the Custom House
+   * building opens this; each row toggles one cargo's bit and the popup
+   * stays open (a checklist, not a pick-one-and-close list like Jobs). */
+  bool custom_house_open;
+  char custom_house_title[96]; /* GAME.TXT @CUSTOM, tokens/braces stripped */
+  int custom_house_cargo_ids[COLONIZE_CARGO_COUNT];
+  int custom_house_count;
+  int custom_house_dialog_x;
+  int custom_house_dialog_y;
+  int custom_house_dialog_w;
+  int custom_house_dialog_h;
+  int custom_house_list_y0;
+  int custom_house_line_h;
+
   ColonyMessageKind message_kind;
   char message_text[240];
   char message_choice0[48];
@@ -335,6 +351,18 @@ void colony_screen_open_eject(
   int colonist_index
 );
 void colony_screen_close_eject(ColonyScreenView* view);
+
+/* Custom House per-cargo autosell checklist. Lists every export-eligible
+ * cargo (europe_cargo_export_eligible) regardless of current toggle state —
+ * row draw reads the toggle live off `colony->custom_house_bits`. Title
+ * comes from GAME.TXT @CUSTOM ("Which cargos shall our Custom House
+ * export?") when `messages` is given; a plain fallback otherwise. */
+void colony_screen_open_custom_house(
+  ColonyScreenView* view,
+  const ColonizeColony* colony,
+  const ColonizeMsgCatalog* messages
+);
+void colony_screen_close_custom_house(ColonyScreenView* view);
 
 /* GAME.TXT @COLONYUNIT title + @UNITOPTIONS (land) / @SHIPOPTIONS (sea) —
  * only currently-legal actions are listed (DOS FUN_2f2b_5746 omits, not

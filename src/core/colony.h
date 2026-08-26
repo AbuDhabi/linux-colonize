@@ -290,6 +290,15 @@ bool colonies_assign_workplace(
   int building_type
 );
 
+/*
+ * Toggle `cargo_type` in this colony's Custom House per-cargo autosell mask
+ * (custom_house_bits — see europe_custom_house_autosell). Player-facing:
+ * clicking the Custom House opens a checklist of eligible cargoes; this is
+ * what a row-click flips. False (no-op) without a built Custom House, or
+ * for a cargo outside 0..COLONIZE_CARGO_COUNT.
+ */
+bool colonies_toggle_custom_house_cargo(ColonizeColonyPool* pool, int colony_id, int cargo_type);
+
 /* True if building name is Schoolhouse / College / University. */
 bool colonies_is_school_building(
   const ColonizeColonyPool* pool,
