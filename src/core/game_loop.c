@@ -5074,50 +5074,6 @@ static int game_owned_unit_at(const ColonizeGameState* game, int x, int y) {
   return -1;
 }
 
-static void game_find_next_colony(ColonizeGameState* game) {
-  if (!game || game->colonies.colony_count <= 0) {
-    set_status(game, "No colonies founded yet", NULL);
-    return;
-  }
-  int best_id = -1;
-  int best_x = 9999;
-  int best_y = 9999;
-  int next_id = -1;
-  int next_x = 9999;
-  int next_y = 9999;
-  const int cx = game->map_cursor_x;
-  const int cy = game->map_cursor_y;
-  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
-    const ColonizeColony* c = &game->colonies.colonies[i];
-    if (!c->active) {
-      continue;
-    }
-    if (best_id < 0 || c->y < best_y || (c->y == best_y && c->x < best_x)) {
-      best_id = c->id;
-      best_x = c->x;
-      best_y = c->y;
-    }
-    const bool after =
-      (c->y > cy) || (c->y == cy && c->x > cx);
-    if (after &&
-        (next_id < 0 || c->y < next_y || (c->y == next_y && c->x < next_x))) {
-      next_id = c->id;
-      next_x = c->x;
-      next_y = c->y;
-    }
-  }
-  const ColonizeColony* target =
-    colonies_get(&game->colonies, next_id >= 0 ? next_id : best_id);
-  if (!target) {
-    set_status(game, "No colonies founded yet", NULL);
-    return;
-  }
-  game->map_cursor_x = target->x;
-  game->map_cursor_y = target->y;
-  game_set_view_center(game, target->x, target->y);
-  snprintf(game->status, sizeof(game->status), "Find Colony: %s", target->name);
-}
-
 static bool game_nation_has_ff(const ColonizeGameState* game, int nation, int ff_index) {
   if (!game || !game->col1_ok || nation < 0 || nation >= (int)COLONIZE_COL1_NATION_COUNT ||
       ff_index < 0 || ff_index >= (int)COLONIZE_COL1_FF_COUNT) {
@@ -8371,7 +8327,7 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
          * refuses it) — a plain click opens its per-cargo autosell
          * checklist instead of trying (and failing) to assign a colonist. */
         const ColonizeBuildingType* bt = colonies_building_type(&game->colonies, hit.index);
-        if (bt && bt->name && strcmp(bt->name, "Custom House") == 0) {
+        if (bt && strcmp(bt->name, "Custom House") == 0) {
           ColonizeColony* col = colonies_get_mut(&game->colonies, game->colony_view_id);
           if (col && hit.index >= 0 && hit.index < COLONIZE_BUILDING_TYPES_MAX &&
               col->has_building[hit.index]) {

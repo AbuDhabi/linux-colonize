@@ -3275,7 +3275,6 @@ void reports_render(
   }
 
   int y = 0;
-  const int step = reports_line_step(font);
   char line[160];
   reports_render_body_start(view, id, font, framebuffer, &y);
 

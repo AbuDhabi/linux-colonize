@@ -3528,7 +3528,7 @@ static void colony_screen_draw_construction_popup(
         framebuffer, inner_x + 1, row_y - 1, inner_x + inner_w - 1, row_y + line_h - 1, 138
       );
     }
-    char label[56];
+    char label[80];
     if (i == 0) {
       snprintf(label, sizeof(label), "Clear project");
     } else {

@@ -3395,7 +3395,7 @@ static bool units_is_combat_role(const ColonizeUnitPool* pool, const ColonizeUni
 
 static bool units_is_wagon_type(const ColonizeUnitPool* pool, int type_index) {
   const ColonizeUnitType* t = units_type(pool, type_index);
-  return t && t->name && strstr(t->name, "Wagon") != NULL;
+  return t && strstr(t->name, "Wagon") != NULL;
 }
 
 static bool units_at_war_for_move(int a, int b) {

@@ -109,60 +109,6 @@ static void sound_push_event(SoundSong* song, uint32_t tick, uint8_t status, uin
   }
 }
 
-/* FUN_1000_01fd F3: per-tick CC7 ramp while vol_delta != 0. */
-static void sound_env_step_volume(
-  SoundSong* song,
-  uint32_t tick,
-  uint8_t channel,
-  uint8_t* volume,
-  int8_t* vol_delta,
-  uint8_t vol_period,
-  uint8_t* vol_count
-) {
-  if (!vol_delta || *vol_delta == 0 || vol_period == 0) {
-    return;
-  }
-  if (*vol_count > 0) {
-    (*vol_count)--;
-  }
-  if (*vol_count != 0) {
-    return;
-  }
-  *vol_count = vol_period;
-  int next = (int)(*volume) + (int)(*vol_delta);
-  if (next > 0x7f || next < 0) {
-    *vol_delta = 0;
-    /* Driver: if high byte of add looked like >= 0xb0 treat as floor 0, else 0x7f. */
-    *volume = (next < 0 || (uint8_t)next >= 0xb0) ? 0 : 0x7f;
-  } else {
-    *volume = (uint8_t)next;
-  }
-  sound_push_event(song, tick, 0xb0, 7, *volume & 0x7f, channel);
-}
-
-static void sound_advance_time(
-  SoundSong* song,
-  uint32_t* time,
-  uint32_t ticks,
-  uint8_t channel,
-  uint8_t* volume,
-  int8_t* vol_delta,
-  uint8_t vol_period,
-  uint8_t* vol_count
-) {
-  if (ticks == 0) {
-    return;
-  }
-  if (!vol_delta || *vol_delta == 0 || vol_period == 0) {
-    *time += ticks;
-    return;
-  }
-  for (uint32_t i = 0; i < ticks && *time < SOUND_MAX_TRACK_TICKS; ++i) {
-    (*time)++;
-    sound_env_step_volume(song, *time, channel, volume, vol_delta, vol_period, vol_count);
-  }
-}
-
 static uint8_t sound_note_gate(uint8_t dur, uint8_t artic_abs, uint8_t artic_sub) {
   uint8_t gate;
   if (artic_abs != 0) {

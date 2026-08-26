@@ -356,7 +356,7 @@ bool cheat_list_open_debug_flags(
   {
     /* Multi-select only saves on Enter (Esc / click-outside cancels and
      * discards toggles) — say so, matching the TRADE cargo picker hint. */
-    char with_hint[COLONIZE_MSG_LINE_LEN];
+    char with_hint[COLONIZE_MSG_LINE_LEN + 32];
     snprintf(with_hint, sizeof(with_hint), "%s (Space toggle, Enter OK)", dlg->prompt);
     str_copy_trunc(dlg->prompt, sizeof(dlg->prompt), with_hint);
   }
