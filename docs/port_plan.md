@@ -157,6 +157,26 @@ stays deferred (D4).
   regressions — live-parsed values match the static tables exactly for
   the shipped asset, as expected. `k_report_titles`'s own hardcoding
   stays correct per the note above (no live source exists for those).
+  **Tribe names also fixed same day:** `k_tribe_names` (Indian Adviser
+  F9 rows) resolves live from `NAMES.TXT @TRIBES` column 0 too — but
+  *not* via the shared `reports_names_field` scratch buffer directly,
+  since F9 builds a whole `rows[]` array of these before drawing (one
+  shared buffer would alias every row to the last tribe parsed); a
+  dedicated `reports_tribe_name` gives each of the 8 tribe indices its
+  own small buffer instead. Public `reports_tribe_display_name` +
+  regressions (tribe 0/7, an aliasing check reading both back at once,
+  post-`reports_free` fallback). **Nation adjectives + tribe tech levels,
+  same pass:** `reports_nation_adjective` (`NAMES.TXT @NATIONALITY`) and
+  `reports_tribe_level` (`@LEVELS` column 0) had the identical
+  rows[]-array-then-draw shape (Foreign Affairs `r->leader`/`r->adjective`,
+  Indian Adviser `r->level` next to `r->name`) — same per-index-buffer fix,
+  same aliasing-regression-test shape. Public
+  `reports_nation_adjective_display_name`/`reports_tribe_level_display_name`.
+  All four (FF/job/cargo already done, now +tribe/nation/level) share one
+  `NAMES.TXT` parse via `g_reports_names`. `ctest`: 42/42 across every
+  step, no regressions — this closes P2.2's "hardcoded, not live" gap for
+  every report-display string table in `reports.c` except the screen
+  titles (confirmed not live-loadable, see note above).
 - [ ] **P2.3 [auto]** F1 Religious Advisor (crosses, immigration, recruit
   pool) to DOS layout.
 - [ ] **P2.4 [auto]** F2 Continental Congress / F3 as DOS splits them

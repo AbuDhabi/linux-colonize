@@ -25,6 +25,7 @@ Living status:
 - [docs/manual_gap.md](docs/manual_gap.md) — feature Done / Partial / Missing
 - [docs/ai_transcription.md](docs/ai_transcription.md) — AI FUN inventory / unpark
 - [docs/original_index.md](docs/original_index.md) — decomp / data navigation
+- [bugs.md](bugs.md) - user reported bugs
 
 ## Requirements
 
