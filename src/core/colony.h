@@ -420,16 +420,19 @@ const char* colonies_eject_role_name(int role);
  * Col1 also stores a couple of buildable *units* as `building_in_production`
  * raw codes past the real @BUILDING table's range — NAMES.TXT's @BUILDING
  * section never lists them (Artillery lives in @UNIT instead), so
- * colonies_building_type() returns NULL for these. Only Artillery is
- * modeled (player-requested: buildable with an Armory or an upgrade).
+ * colonies_building_type() returns NULL for these. Artillery (player-
+ * requested: buildable with an Armory or an upgrade) and Wagon Train
+ * (player-requested: buildable in any colony, no gate) are modeled.
  */
 #define COLONIZE_UNIT_BUILD_ARTILLERY 42
+#define COLONIZE_UNIT_BUILD_WAGON_TRAIN 43
 
 /*
  * True + fills name/hammers/tools_cost if raw_code is a known unit-type
  * construction project (192 hammers / 40 tools for Artillery — golden-
- * confirmed, New Amsterdam); false for a real building_type index or
- * anything else.
+ * confirmed, New Amsterdam; 40 hammers / 0 tools for Wagon Train — the
+ * well-known DOS value, not independently re-derived); false for a real
+ * building_type index or anything else.
  */
 bool colonies_unit_build_info(int raw_code, const char** name, int* hammers, int* tools_cost);
 
