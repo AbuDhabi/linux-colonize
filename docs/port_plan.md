@@ -18,6 +18,7 @@ Status detail still lives with its owners:
 | Feature Done/Partial/Missing | [manual_gap.md](manual_gap.md) |
 | Popup inventory / authenticity | [popups.md](popups.md), [popup_audit.md](popup_audit.md) |
 | Combat mechanics | [combat.md](combat.md) |
+| Report screen (F2–F10 + HoF) DOS FUN map / layout | [reports.md](reports.md), [report_screens.md](report_screens.md) |
 | SoL / independence | [sons_of_liberty.md](sons_of_liberty.md) |
 | Indians | [indians.md](indians.md) |
 | Production formulas | [building_production.md](building_production.md), [terrain_yields.md](terrain_yields.md) |
@@ -94,22 +95,39 @@ section from the user's feedback.
 
 ### P2 — Report screens (F1–F10 + Hall of Fame)
 
-**Now:** [`reports.c`](../src/core/reports.c) renders every report as
-flat text lines ("Done" in `manual_gap.md` only in the sense that each
-F-key opens *something*). Two reports carry a literal "(Click on item to
-zoom — not wired)". No report uses DOS layout, columns, icons, or the
-`LABELS.TXT` headings beyond HoF.
+**Now (corrected 2026-08-26 by P2.1's RE pass — see [docs/reports.md](reports.md)):**
+this paragraph was stale.
+[`reports.c`](../src/core/reports.c) already renders every F2–F10 report to
+golden-screenshot-derived DOS pixel layout (columns, icons, sprite chrome,
+paging) — a matching golden PNG exists for all nine in
+`original_saves/report-screen-goldens/`. Only Labor (F4) has a click-to-zoom
+in DOS at all, and it's wired (grid cell → that profession's detail page);
+no report jumps to the colony/map screen on click in DOS itself. The real
+remaining gap: report titles/column headers/body strings are hardcoded
+English typed from the goldens, not resolved live from `LABELS.TXT` at
+runtime (P2.2's "heading from LABELS.TXT" is therefore still open).
 
 **Target:** each report matches the DOS screen in content, column layout
 and interaction (scroll, click-to-zoom to colony / unit where DOS does),
 using `LABELS.TXT` strings and existing sprite sheets. Pixel-exact chrome
 stays deferred (D4).
 
-- [ ] **P2.1 [auto]** RE the DOS report renderers: locate the per-report
-  functions (F1 Religious … F10 Score) in `viceroy_unpacked.c` /
-  `FUNCTION_CATALOG.md`, record for each: data source, column set,
-  ordering, scroll model, click targets, strings used. Write
-  `docs/reports.md` as the owner doc (layout tables + FUN map).
+- [x] **P2.1 [auto] — RE complete 2026-08-26; `docs/reports.md` written.**
+  Located every F2–F10
+  report's DOS renderer in `FUNCTION_CATALOG.md`/`viceroy_unpacked.c`
+  (Religious `FUN_3f41_06d0`, Congress `FUN_3f41_0618`+`FUN_4345_06d2`,
+  Labor `FUN_3f41_10d8`/`0d3e`, Economic `FUN_3f41_1710`/`1550`, Colony
+  `FUN_3f41_1bec`, Naval `FUN_3f41_1ed8`, Foreign `FUN_3f41_2548`, Indian
+  `FUN_3f41_010a`, Score `FUN_41f2_0092`/family) plus Hall of Fame
+  (`FUN_41f2_0f56`), and recorded data source/columns/ordering/scroll/click/
+  strings for each against `src/core/reports.c`. **Real finding: this
+  track's own "Now" framing above is stale** — every F2–F10 report already
+  has golden-derived pixel layouts (`original_saves/report-screen-goldens/`
+  has a matching PNG for all nine), not "flat text lines," and only Labor's
+  click-to-zoom exists in DOS at all (grid→its own detail page; no report
+  jumps to the colony/map screen) — so P2.2's "click-to-zoom plumbing into
+  game_loop (colony screen / center unit)" describes behavior DOS's own
+  renderers don't have.
 - [ ] **P2.2 [auto]** Shared report scaffolding: heading from
   `LABELS.TXT`, column helper, scroll, click-to-zoom plumbing into
   `game_loop` (colony screen / center unit).
@@ -173,7 +191,23 @@ House, horse breeding, food→colonist growth details.
   assignment, turns-to-train, `@NOTEACHER`/`@TRAINFAIL*` popups full.
 - [ ] **P4.4 [auto]** Custom House (Stuyvesant): auto-sell at EOT with
   boycott + WoI rules.
-- [ ] **P4.5 [auto]** Horses: breeding formula, stable, food interplay.
+- [x] **P4.5 [auto] — closed 2026-08-26.** Found `FUN_15eb_1f72`'s horse-
+  breeding tail (viceroy_unpacked.c ~12649-12690, raw asm 15eb:2300-2392):
+  `potential = ceil(horses/divisor)*2` (divisor 25 with a Stable else 50,
+  `FUN_15eb_038e(0x11)`), capped by this turn's food surplus
+  (`ceil(max(0,food_gross-pop*2)/2)`) and by warehouse headroom — the
+  applied amount adds to horses stock and debits food 1:1. The static asm
+  read alone pointed at applying the *uncapped* potential to horses
+  (a pipeline detail not fully resolved statically); real DOS ground truth
+  (`golden_colony_prod01`/`02`, 13/13 Dutch colonies) proved the *capped*
+  figure is what DOS actually applies, so the port uses that — see
+  `colony_prod_horse_breed` in `colony_production.h`/`.c` for the full
+  derivation. Replaces the old "manual/fandom" flat-cap-6-or-8
+  approximation in `turn.c`/`colony_preview.c`. New direct unit test
+  (`test_turn.c`, `colony_prod_horse_breed direct`) plus both goldens now
+  pass. `ctest --test-dir build_p45`: 42/42 active tests green (4 golden
+  AI suites intentionally disabled) — `golden_colony_prod01`/`02` flipped
+  from failing to passing by this fix; no other regressions.
 - [ ] **P4.6 [auto]** Food surplus → new colonist at 200, starvation
   warnings/deaths, `@STARVE*` full path.
 - [ ] **P4.7 [auto]** Warehouse/Warehouse Expansion caps + `@WAREHOUSEFULL`
@@ -258,9 +292,26 @@ reroll loops PARK); treasure train spawn/tick/cash, Cortes conquest
 treasure, king's galleon transport with Cortes free, ransom on capture.
 KINGGALLEON2 (non-Cortes galleon share string) PARK.
 
-- [ ] **P7.1 [auto]** LCR outcome weights + reroll loops from `65dd`
-  (difficulty, de Soto, unit type Scout vs other, already-explored
-  latch), so outcome frequencies match DOS.
+- [x] **P7.1 [auto]** (2026-08-26) LCR outcome weights + reroll loops from
+  `65dd` (difficulty, de Soto, unit type Scout vs other, already-explored
+  latch), so outcome frequencies match DOS. Real state machine ported
+  (`units_lcr_roll_outcome` in `src/core/units.c`, replacing the flat
+  percentage table): skill tier from unit type (`Scouts`)/profession
+  (Seasoned Scout), de Soto gated on Scout-type per decomp (not universal —
+  a real correction), base `RNG(1,9)`/floor-ratchet roll + `RNG(1,100)+
+  skill*10` gate, case-5/8 skill-scaled "kicker", de-Soto reroll-until-not-
+  Nothing loop, case-8 hidden trespass now difficulty+skill-scaled and
+  proximity-gated (kept visible as `TRESPASS_ANGER` for continuity — P7.2
+  call). Also revised case 1 from `TRESPASS_ANGER`→`FOUNTAIN_OF_YOUTH`
+  (decomp's own 8x immigrant loop is literally on case 1, matching this
+  file's existing FoY citation; WoI redirect is now FoY→Survivors, not
+  Trespass→Survivors) — flagged in code comments for a second look. Terrain
+  qualify test (`FUN_281f_078c`) stays unresolved; PARKed as an unbiased
+  coin flip (previously "always fails", which made case 1 unreachable
+  outside de Soto and broke an existing test — fixed). ctest: 42/42 active
+  (4 golden suites disabled), same as baseline; added a de Soto Scout-type
+  gate regression test + reworked the case-5-latch seed search for the new
+  RNG call shape.
 - [ ] **P7.2 [auto]** Each LCR outcome fully applied: Fountain of Youth
   (docks immigrant pick popup), Cibola/small treasure gold amounts by
   difficulty, burial mounds anger + `@SCREWED`, survivors join
@@ -312,9 +363,24 @@ Paine, Penn, Pocahontas, Revere, Sepulveda, Washington, Las Casas
 (verify depth). Not found outside `founding_fathers.c`/`reports.c`:
 **Fugger, Coronado, La Salle, Magellan (turn.c only), Jones (ai_ only)**.
 
-- [ ] **P9.1 [auto]** Write a per-FF status table into a new
+- [x] **P9.1 [auto]** Write a per-FF status table into a new
   `docs/founding_fathers.md` (effect, DOS FUN, port symbol, test) — it
   does not exist today; `fandom_col1994.md` is Tier-3 evidence only.
+  **Done 2026-08-26.** All 25 Fathers tabulated, sourced from
+  `COLONIZE/PEDIA.TXT` `@FATHER0`–`24` (Tier 1, not fandom) with DOS FUN
+  addresses, port symbols and test coverage from a direct code read;
+  `NAMES.TXT` `@FATHERS` weight table diffed byte-exact against
+  `founding_fathers.c`. Confirmed accurate: the wired-17 list and the
+  Fugger/Coronado/La Salle/Jones "core-files-only" claim (all 4 are
+  correctly elect-only, no ongoing gate needed). Corrected: Magellan is
+  wired in 3 places, not "turn.c only" (also `col1_bridge.c`). Found and
+  filed as open items (not fixed — P9.2 territory): La Salle only
+  sweeps at elect, not per-turn, for "future" colonies reaching pop 3;
+  Drake has 2 call sites computing the same bonus (dedup candidate);
+  Jones's frigate isn't code-restricted to the human nation. Confirmed
+  Adam Smith's 1.5× factory throughput **is** wired at the production
+  math, not just the build gate — closes that P9.2 uncertainty early.
+  See [founding_fathers.md](founding_fathers.md).
 - [ ] **P9.2 [auto]** Port missing/thin player-facing effects: Fugger
   (lift all boycotts), Coronado (reveal colonies + radius), La Salle
   (auto-Stockade at pop 3, existing + future), Magellan (+1 naval MP,

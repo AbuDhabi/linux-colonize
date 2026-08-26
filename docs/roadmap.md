@@ -215,6 +215,7 @@ Do not prioritize over gameplay/determinism.
 | Acceptance order / fidelity bar | [project_goals.md](project_goals.md) |
 | Move-enter authority | [move_enter.md](move_enter.md) |
 | Combat mechanics | [combat.md](combat.md) |
+| Report screen (F2–F10 + HoF) DOS FUN map / layout | [reports.md](reports.md) (owner doc — pending creation, see port_plan.md P2.1), [report_screens.md](report_screens.md) (porting how-to) |
 | EOT / between-player turns | [turn_between_players.md](turn_between_players.md) |
 | Decomp / data navigation | [original_index.md](original_index.md) |
 

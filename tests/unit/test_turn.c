@@ -4143,6 +4143,63 @@ int main(void) {
   }
 
   /*
+   * colony_prod_horse_breed direct unit checks — DOS-confirmed 2026-08-26
+   * against real golden_colony_prod01/02 fixtures (COLONY00->01, actual
+   * one-turn DOS runs). Two of the 13 exactly-matching colonies from that
+   * verification, locked in here as a formula-level regression independent
+   * of the full colony/map simulation below.
+   */
+  {
+    /* Fort Nassau (golden_colony_prod01): stock=176 pop=13 food_gross=37
+     * wcap=200 no Stable -> potential=ceil(176/50)*2=8, food_avail=37-26=11,
+     * food_cap=(11+1)/2=6, capped=min(8,6)=6, headroom=200-176=24,
+     * bred=min(6,24)=6 -> stock 176+6=182 (golden expected). */
+    ColonyProdHorseBreed b =
+      colony_prod_horse_breed(176, 13, 37, 200, false);
+    if (b.bred != 6 || b.shortfall != 2) {
+      fprintf(
+        stderr,
+        "colony_prod_horse_breed Fort Nassau want bred=6 shortfall=2 got bred=%d shortfall=%d\n",
+        b.bred, b.shortfall
+      );
+      return 1;
+    }
+    /* Quebec (golden_colony_prod01): stock=51 pop=5 food_gross=9 wcap=100
+     * with Stable -> potential=ceil(51/25)*2=6, food_avail=max(0,9-10)=0,
+     * food_cap=0, capped=0, bred=0 -> stock unchanged (golden expected). */
+    b = colony_prod_horse_breed(51, 5, 9, 100, true);
+    if (b.bred != 0 || b.shortfall != 6) {
+      fprintf(
+        stderr,
+        "colony_prod_horse_breed Quebec want bred=0 shortfall=6 got bred=%d shortfall=%d\n",
+        b.bred, b.shortfall
+      );
+      return 1;
+    }
+    /* horses < 2 -> no growth at all, regardless of food/warehouse room. */
+    b = colony_prod_horse_breed(1, 1, 50, 100, true);
+    if (b.bred != 0 || b.shortfall != 0) {
+      fprintf(
+        stderr,
+        "colony_prod_horse_breed <2 horses want bred=0 shortfall=0 got bred=%d shortfall=%d\n",
+        b.bred, b.shortfall
+      );
+      return 1;
+    }
+    /* Warehouse headroom binds even when food would allow more. */
+    b = colony_prod_horse_breed(99, 0, 100, 100, true);
+    if (b.bred != 1) {
+      fprintf(
+        stderr,
+        "colony_prod_horse_breed warehouse-headroom want bred=1 got bred=%d\n",
+        b.bred
+      );
+      return 1;
+    }
+    fprintf(stderr, "colony_prod_horse_breed direct ok\n");
+  }
+
+  /*
    * Horse breed: ≥2 horses + food surplus → +horses, −food; Stable raises cap.
    */
   {

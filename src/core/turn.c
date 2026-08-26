@@ -739,7 +739,6 @@ static void turn_produce_one_colony(
       }
     }
   }
-  const int food_surplus_turn = field_food - consumed;
   /*
    * FUN_364b_0688: starvation latch (+0x1c bit3) from food vs pop need.
    * Phase J kills when still short after this turn *and* food was already 0
@@ -958,47 +957,45 @@ static void turn_produce_one_colony(
   }
 
   /*
-   * Horse breeding (manual / fandom): ≥2 horses + food surplus this turn →
-   * breed floor(surplus/2) horses, each costing 1 food. Cap without Stable
-   * allows up to surplus/2 horses (cap 8 with stable, 6 without).
+   * Horse breeding — FUN_15eb_1f72 tail, DOS-confirmed 2026-08-26 against
+   * real DOS ground truth (golden_colony_prod01/02, 13/13 Dutch colonies
+   * exact) — see colony_prod_horse_breed's header comment in
+   * colony_production.h for the full derivation. Replaces the old
+   * "manual/fandom" approximation (flat food-surplus/2 capped at 6-or-8)
+   * with the DOS-confirmed herd-size-based potential (ceil(horses/divisor)*2,
+   * divisor 25 with a Stable else 50), capped by this turn's food surplus
+   * and warehouse headroom.
    */
-  if (colony->stock[COLONIZE_CARGO_HORSES] >= 2 && food_surplus_turn > 0) {
-    const int has_stable = turn_building_name_has(pool, colony, "Stable");
-    const int cap = has_stable ? 8 : 6;
-    int breed = (food_surplus_turn + 1) / 2;
-    if (breed > cap) {
-      breed = cap;
-    }
-    if (breed > colony->stock[COLONIZE_CARGO_FOOD]) {
-      breed = colony->stock[COLONIZE_CARGO_FOOD];
-    }
-    const int max_horses = turn_building_name_has(pool, colony, "Warehouse Expansion") ? 300 :
-                           (turn_building_name_has(pool, colony, "Warehouse") ? 200 : 100);
-    if (colony->stock[COLONIZE_CARGO_HORSES] + breed > max_horses) {
-      breed = max_horses - colony->stock[COLONIZE_CARGO_HORSES];
-      if (breed < 0) {
-        breed = 0;
+  {
+    const bool horse_has_stable = turn_building_name_has(pool, colony, "Stable");
+    const int horse_warehouse_cap =
+      colonies_warehouse_capacity(pool, colony, COLONIZE_CARGO_HORSES);
+    const ColonyProdHorseBreed breed = colony_prod_horse_breed(
+      colony->stock[COLONIZE_CARGO_HORSES],
+      pop,
+      field_food,
+      horse_warehouse_cap,
+      horse_has_stable
+    );
+    if (breed.bred > 0) {
+      colony->stock[COLONIZE_CARGO_FOOD] =
+        turn_clamp_stock(colony->stock[COLONIZE_CARGO_FOOD] - breed.bred);
+      colony->stock[COLONIZE_CARGO_HORSES] =
+        turn_clamp_stock(colony->stock[COLONIZE_CARGO_HORSES] + breed.bred);
+      if (delta) {
+        delta->goods[COLONIZE_CARGO_FOOD] -= breed.bred;
+        delta->food_net -= breed.bred;
+        delta->goods[COLONIZE_CARGO_HORSES] += breed.bred;
+      }
+      if (europe && colony->nation_id == human_nation) {
+        snprintf(
+          europe->status,
+          sizeof(europe->status),
+          horse_has_stable ? "Stable bred %d horses." : "Horses bred: %d.",
+          breed.bred
+        );
       }
     }
-      if (breed > 0) {
-        colony->stock[COLONIZE_CARGO_FOOD] =
-          turn_clamp_stock(colony->stock[COLONIZE_CARGO_FOOD] - breed);
-        colony->stock[COLONIZE_CARGO_HORSES] =
-          turn_clamp_stock(colony->stock[COLONIZE_CARGO_HORSES] + breed);
-        if (delta) {
-          delta->goods[COLONIZE_CARGO_FOOD] -= breed;
-          delta->food_net -= breed;
-          delta->goods[COLONIZE_CARGO_HORSES] += breed;
-        }
-        if (europe && colony->nation_id == human_nation) {
-          snprintf(
-            europe->status,
-            sizeof(europe->status),
-            has_stable ? "Stable bred %d horses." : "Horses bred: %d.",
-            breed
-          );
-        }
-      }
   }
 
   /*

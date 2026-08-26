@@ -159,11 +159,13 @@ void colony_preview_compute(
 
   /* Horse breeding (turn.c turn_produce_one_colony) — must show up in the
    * Production tab's Horses row and reduce the Food row by the same amount,
-   * or the preview misses a real stock change that happens every EOT tick. */
+   * or the preview misses a real stock change that happens every EOT tick.
+   * DOS-confirmed 2026-08-26 against real DOS ground truth (see
+   * colony_prod_horse_breed's header comment in colony_production.h). */
   int horse_shortfall = 0; /* folded into out->shortfall[HORSES] after
                              * colony_craft_preview below, which memsets
                              * out->shortfall at its own start. */
-  if (colony->stock[COLONIZE_CARGO_HORSES] >= 2 && out->food_net > 0) {
+  {
     bool has_stable = false;
     for (int i = 0; i < pool->building_type_count && i < COLONIZE_BUILDING_TYPES_MAX; ++i) {
       if (colony->has_building[i] && pool->building_types[i].name &&
@@ -172,51 +174,20 @@ void colony_preview_compute(
         break;
       }
     }
-    const int cap = has_stable ? 8 : 6;
-    int breed = (out->food_net + 1) / 2;
-    if (breed > cap) {
-      breed = cap;
-    }
-    int food_avail = colony->stock[COLONIZE_CARGO_FOOD] + out->food_net;
-    if (breed > food_avail) {
-      breed = food_avail > 0 ? food_avail : 0;
-    }
-    bool has_warehouse = false;
-    bool has_warehouse_expansion = false;
-    for (int i = 0; i < pool->building_type_count && i < COLONIZE_BUILDING_TYPES_MAX; ++i) {
-      if (!colony->has_building[i] || !pool->building_types[i].name) {
-        continue;
-      }
-      if (strstr(pool->building_types[i].name, "Warehouse Expansion") != NULL) {
-        has_warehouse_expansion = true;
-      } else if (strstr(pool->building_types[i].name, "Warehouse") != NULL) {
-        has_warehouse = true;
-      }
-    }
-    const int max_horses = has_warehouse_expansion ? 300 : (has_warehouse ? 200 : 100);
-    if (colony->stock[COLONIZE_CARGO_HORSES] + breed > max_horses) {
-      breed = max_horses - colony->stock[COLONIZE_CARGO_HORSES];
-      if (breed < 0) {
-        breed = 0;
-      }
-    }
-    if (breed > 0) {
-      out->goods[COLONIZE_CARGO_HORSES] += breed;
-      out->goods[COLONIZE_CARGO_FOOD] -= breed;
-      out->food_net -= breed;
-      /*
-       * Player-reported (approximate — this whole breed formula is already
-       * flagged "manual/fandom" in turn.c, not DOS-disassembly-confirmed):
-       * DOS pairs the Horses row with a shortfall-style second number, same
-       * visual as a manufacturing shortfall (Cloth/Cotton) — "N more could
-       * have bred but for the food surplus." The half-rounded breed rate
-       * only ever spends about half of `food_net` (this turn's un-bred
-       * remainder stays in `food_net` right above), so approximate the
-       * shortfall as that same leftover — the surplus that, spent instead
-       * of banked, could have bred roughly that many more. */
-      if (out->food_net > 0) {
-        horse_shortfall = out->food_net;
-      }
+    const int warehouse_cap =
+      colonies_warehouse_capacity(pool, colony, COLONIZE_CARGO_HORSES);
+    const ColonyProdHorseBreed breed = colony_prod_horse_breed(
+      colony->stock[COLONIZE_CARGO_HORSES],
+      pop,
+      out->food_produced,
+      warehouse_cap,
+      has_stable
+    );
+    if (breed.bred > 0) {
+      out->goods[COLONIZE_CARGO_HORSES] += breed.bred;
+      out->goods[COLONIZE_CARGO_FOOD] -= breed.bred;
+      out->food_net -= breed.bred;
+      horse_shortfall = breed.shortfall; /* DOS scratch 0x8e6a, report-only */
     }
   }
 
