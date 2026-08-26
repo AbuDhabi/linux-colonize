@@ -3393,11 +3393,6 @@ static bool units_is_combat_role(const ColonizeUnitPool* pool, const ColonizeUni
   return t && t->attack > 0;
 }
 
-static bool units_is_wagon_type(const ColonizeUnitPool* pool, int type_index) {
-  const ColonizeUnitType* t = units_type(pool, type_index);
-  return t && strstr(t->name, "Wagon") != NULL;
-}
-
 static bool units_at_war_for_move(int a, int b) {
   if (a < 0 || b < 0 || a == b) {
     return false;
@@ -4125,9 +4120,13 @@ bool units_try_move(
     (void)units_board_sentries_from_tile(pool, unit_id, ox, oy);
   }
 
-  /* Wagon / ship-stack on Euro settlement: DOS 465b:08f8 exhaust MP. */
+  /*
+   * Transports (wagons, cargo ships) on a Euro settlement forfeit remaining
+   * MP for the turn — DOS 465b:08f8 exhaust MP. bugs.md item 7: was gated on
+   * wagon type only, so ships could still move again after entering a colony.
+   */
   if (colonies && colonies_id_at(colonies, dest_x, dest_y) >= 0 &&
-      units_is_wagon_type(pool, unit->type_index)) {
+      units_is_transport(pool, unit_id)) {
     unit->moves_left = 0;
   }
 

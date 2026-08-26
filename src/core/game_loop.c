@@ -4381,6 +4381,16 @@ static void game_commit_new_campaign(ColonizeGameState* game) {
         game->world_map_ok = map_load_mp(map_path, &game->world_map, err, sizeof(err));
       }
     }
+    /*
+     * bugs.md item 2: map_load_mp marks scenario .MP maps fully explored
+     * (no fog plane in the file) — fine for the pre-game-start default load,
+     * but a real Original Americas/AMER2 campaign start must begin fogged
+     * like NEW WORLD/CUSTOMIZE (map_generate's map_alloc zero-inits `seen`).
+     * Clear it here; the landfall reveal below uncovers the starting area.
+     */
+    if (game->world_map_ok && game->world_map.seen) {
+      memset(game->world_map.seen, 0, game->world_map.tile_count);
+    }
     snprintf(map_label, sizeof(map_label), "%s", ng->map_file[0] ? ng->map_file : "AMER2.MP");
   }
 
@@ -4496,7 +4506,12 @@ static void game_commit_new_campaign(ColonizeGameState* game) {
       dos_rng_seed(&game->move_rng, ai.rng_seed ? ai.rng_seed : 1u);
     }
     game->ai_rng_seed = ai.rng_seed ? ai.rng_seed : 1u;
-    /* NEW WORLD fog: reveal around owned units and colonies (scenario .MP is all-seen). */
+    /*
+     * Reveal around owned units and colonies. Was NEW WORLD/CUSTOMIZE-only in
+     * practice — scenario .MP starts (Original Americas/AMER2) used to load
+     * fully explored, so this loop was a no-op there (bugs.md item 2, fixed
+     * by clearing `seen` after map_load_mp above).
+     */
     if (game->world_map_ok) {
       for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
         const ColonizeUnit* u = &game->units.units[i];
@@ -5124,6 +5139,34 @@ static void game_enter_colony_at_cursor(ColonizeGameState* game) {
 }
 
 /*
+ * bugs.md item 6: a colonist admitted via 'B' had no field_job/building_type
+ * — invisible on the settlement grid and minimap, and not producing anything.
+ * No general auto-assignment exists yet (docs/terrain_yields.md: DOS's own
+ * work-plot scorer FUN_15eb_28c8 is unported), so give the new hire a plain
+ * default workplace rather than leaving them idle: first building with an
+ * open slot, Town Hall preferred (always a starter, generic Bells labor).
+ */
+static void game_auto_assign_new_colonist(ColonizeGameState* game, int colony_id, int colonist_index) {
+  const int town_hall = colonies_find_building(&game->colonies, "Town Hall");
+  if (town_hall >= 0 &&
+      colonies_assign_workplace(&game->colonies, colony_id, colonist_index, town_hall)) {
+    return;
+  }
+  const ColonizeColony* col = colonies_get(&game->colonies, colony_id);
+  if (!col) {
+    return;
+  }
+  for (int bi = 0; bi < game->colonies.building_type_count; ++bi) {
+    if (bi == town_hall || !col->has_building[bi]) {
+      continue;
+    }
+    if (colonies_assign_workplace(&game->colonies, colony_id, colonist_index, bi)) {
+      return;
+    }
+  }
+}
+
+/*
  * ORDERS Join Colony: admit selected land unit on an owned colony tile into
  * the population; otherwise open the colony screen at the cursor (legacy).
  */
@@ -5147,6 +5190,7 @@ static void game_join_colony_order(ColonizeGameState* game) {
         &game->colonies, cid, &game->units, sid, game->col1_ok ? &game->col1 : NULL
       );
       if (ci >= 0) {
+        game_auto_assign_new_colonist(game, cid, ci);
         game->units.selected_id = -1;
         snprintf(
           game->status,

@@ -247,18 +247,19 @@ static void ai_contact_msg_body(
   popup_msg_fill(messages, section, tok, fallback_body, out, out_size);
 }
 
-static int ai_contact_nation_pop_total(const ColonizeTurnContext* ctx, int nation_id) {
-  int sum = 0;
+/* Settlement count (villages/camps/cities), not braves — bugs.md item 3. */
+static int ai_contact_nation_settlement_count(const ColonizeTurnContext* ctx, int nation_id) {
+  int count = 0;
   if (!ctx || !ctx->col1 || !ctx->col1->tribe) {
     return 0;
   }
   for (uint16_t ti = 0; ti < ctx->col1->head.tribe_count; ++ti) {
     const ColonizeCol1Tribe* t = &ctx->col1->tribe[ti];
     if ((int)t->nation_id == nation_id) {
-      sum += (int)t->population;
+      ++count;
     }
   }
-  return sum;
+  return count;
 }
 
 static int ai_contact_welcome_pending(const AiPopupState* st, int e, int nation_id) {
@@ -544,23 +545,25 @@ static void ai_contact_enqueue_welcome(ColonizeTurnContext* ctx, int e, int nati
     return;
   }
   const char* tribe = ai_contact_tribe_name(nation_id);
-  const int pop = ai_contact_nation_pop_total(ctx, nation_id);
+  const int settlements = ai_contact_nation_settlement_count(ctx, nation_id);
+  const int shown = settlements > 0 ? settlements : 1;
   PopupMsgTokens welcome_tok;
   memset(&welcome_tok, 0, sizeof(welcome_tok));
   welcome_tok.string0 = tribe;
-  welcome_tok.string1 = "braves";
-  welcome_tok.number0 = pop > 0 ? pop : 1;
+  welcome_tok.string1 = shown == 1 ? "village" : "villages";
+  welcome_tok.number0 = shown;
   welcome_tok.has_number0 = true;
   char fb[AI_POPUP_BODY_LEN];
   snprintf(
     fb,
     sizeof(fb),
-    "The %s tribe welcomes you. We are a glorious nation of %d braves. "
+    "The %s tribe welcomes you. We are a glorious nation of %d %s. "
     "To celebrate our friendship, we generously offer you the land you now "
     "occupy as a gift. Will you accept our treaty and live with us in peace "
     "as brothers?",
     tribe,
-    welcome_tok.number0
+    welcome_tok.number0,
+    welcome_tok.string1
   );
   char body[AI_POPUP_BODY_LEN];
   ai_contact_msg_body(
