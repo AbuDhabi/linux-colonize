@@ -210,7 +210,8 @@ void colony_craft_preview(
   int shortfall[COLONIZE_CARGO_COUNT],
   ColonizeColonyProdDelta* delta,
   int sol_bonus,
-  int gross_out[COLONIZE_CARGO_COUNT]
+  int gross_out[COLONIZE_CARGO_COUNT],
+  int capacity_out[COLONIZE_CARGO_COUNT]
 ) {
   if (!pool || !scratch || !scratch->active) {
     return;
@@ -223,6 +224,9 @@ void colony_craft_preview(
   }
   if (gross_out) {
     memset(gross_out, 0, sizeof(int) * COLONIZE_CARGO_COUNT);
+  }
+  if (capacity_out) {
+    memset(capacity_out, 0, sizeof(int) * COLONIZE_CARGO_COUNT);
   }
 
   bool done_pair[COLONIZE_CARGO_COUNT][COLONIZE_CARGO_COUNT];
@@ -256,6 +260,11 @@ void colony_craft_preview(
     if (total_out <= 0 || total_in <= 0) {
       continue;
     }
+    if (capacity_out) {
+      /* Full worker capacity, uncapped by available stock — see the header
+       * comment above. */
+      capacity_out[rec->out_cargo] += total_out;
+    }
 
     int actual_in = scratch->stock[rec->in_cargo];
     if (actual_in > total_in) {
@@ -264,6 +273,9 @@ void colony_craft_preview(
     if (actual_in <= 0) {
       if (shortfall) {
         shortfall[rec->out_cargo] += total_out;
+        /* Symmetric input-side shortfall: the raw good's own row shows the
+         * same "wanted but didn't have" indicator, not just the output. */
+        shortfall[rec->in_cargo] += total_in;
       }
       continue;
     }
@@ -271,6 +283,9 @@ void colony_craft_preview(
     const int actual_out = total_out * actual_in / total_in;
     if (shortfall && actual_out < total_out) {
       shortfall[rec->out_cargo] += total_out - actual_out;
+    }
+    if (shortfall && actual_in < total_in) {
+      shortfall[rec->in_cargo] += total_in - actual_in;
     }
     scratch->stock[rec->in_cargo] -= actual_in;
     scratch->stock[rec->out_cargo] += actual_out;

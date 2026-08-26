@@ -29,10 +29,12 @@ typedef struct ColonizeColonyPreview {
    * output, even though `goods[ORE]` is only 4 once the Blacksmith's own
    * 24-ore draw nets it down; Tools badge reads 24 = the Blacksmith's gross
    * output, even though `goods[TOOLS]` is only 14 once the Armory's 10-tool
-   * draw nets it down further). `field_gross` is field-tile worker output
-   * only (colonists actually assigned a field job) — deliberately excludes
-   * the town-commons auto-yield (shown only on the minimap's center-tile
-   * badge, not duplicated here) and any craft output. `craft_gross` is each
+   * draw nets it down further). `field_gross` is field-tile worker output,
+   * plus the town-commons secondary yield (e.g. New Amsterdam's Cotton,
+   * entirely center-tile — no colonist works it, but the Production tab
+   * still needs a nonzero gross to pair with the Weaver's input shortfall,
+   * player-reported) — excludes only the town-commons FOOD yield (shown
+   * via the People band, not this tab) and any craft output. `craft_gross` is each
    * recipe's actual (stock-clamped) production this tick, keyed by
    * out_cargo. A raw good that's also a craft out_cargo (none currently
    * are) would need both summed; every other cargo needs exactly one of
@@ -41,6 +43,17 @@ typedef struct ColonizeColonyPreview {
    */
   int field_gross[COLONIZE_CARGO_COUNT];
   int craft_gross[COLONIZE_CARGO_COUNT];
+  /*
+   * Each out_cargo's full worker capacity this tick — `craft_gross` above,
+   * but *before* the stock clamp (what every staffed worker could produce
+   * if the recipe's input were never short). Settlement badges want this
+   * (a worker's maximum potential output, matching DOS), not the stock-
+   * clamped actual — player-caught (New Amsterdam Weaver's House,
+   * dutch-reports.SAV): the badge showed 5 (this tick's cotton-limited
+   * actual output) instead of 10 (the staffed worker's real capacity).
+   * Equal to `craft_gross` whenever there's no shortfall.
+   */
+  int craft_capacity[COLONIZE_CARGO_COUNT];
 } ColonizeColonyPreview;
 
 void colony_preview_compute(

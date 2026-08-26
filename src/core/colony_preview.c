@@ -73,6 +73,13 @@ void colony_preview_compute(
     if (tc.secondary_amount > 0 && tc.secondary_cargo >= 0 &&
         tc.secondary_cargo < COLONIZE_CARGO_COUNT) {
       out->goods[tc.secondary_cargo] += tc.secondary_amount;
+      /* Also into field_gross: New Amsterdam's Cotton is entirely a
+       * town-commons secondary yield (no colonist works a cotton tile), yet
+       * the Production tab must still pair it with the Weaver's shortfall
+       * (5 produced / 5 shortfall, player-reported) — the tab's craft-input
+       * side needs a nonzero gross figure to show alongside the shortfall
+       * or the pairing looks like a shortfall out of nowhere. */
+      out->field_gross[tc.secondary_cargo] += tc.secondary_amount;
     }
 
     /* Docks (or an upgrade: Drydock/Shipyard) gates Fisherman yield to 0 —
@@ -153,6 +160,9 @@ void colony_preview_compute(
   /* Horse breeding (turn.c turn_produce_one_colony) — must show up in the
    * Production tab's Horses row and reduce the Food row by the same amount,
    * or the preview misses a real stock change that happens every EOT tick. */
+  int horse_shortfall = 0; /* folded into out->shortfall[HORSES] after
+                             * colony_craft_preview below, which memsets
+                             * out->shortfall at its own start. */
   if (colony->stock[COLONIZE_CARGO_HORSES] >= 2 && out->food_net > 0) {
     bool has_stable = false;
     for (int i = 0; i < pool->building_type_count && i < COLONIZE_BUILDING_TYPES_MAX; ++i) {
@@ -194,6 +204,19 @@ void colony_preview_compute(
       out->goods[COLONIZE_CARGO_HORSES] += breed;
       out->goods[COLONIZE_CARGO_FOOD] -= breed;
       out->food_net -= breed;
+      /*
+       * Player-reported (approximate — this whole breed formula is already
+       * flagged "manual/fandom" in turn.c, not DOS-disassembly-confirmed):
+       * DOS pairs the Horses row with a shortfall-style second number, same
+       * visual as a manufacturing shortfall (Cloth/Cotton) — "N more could
+       * have bred but for the food surplus." The half-rounded breed rate
+       * only ever spends about half of `food_net` (this turn's un-bred
+       * remainder stays in `food_net` right above), so approximate the
+       * shortfall as that same leftover — the surplus that, spent instead
+       * of banked, could have bred roughly that many more. */
+      if (out->food_net > 0) {
+        horse_shortfall = out->food_net;
+      }
     }
   }
 
@@ -203,10 +226,15 @@ void colony_preview_compute(
       scratch.stock[i] += out->goods[i];
     }
     ColonizeColonyProdDelta craft_delta;
-    colony_craft_preview(pool, &scratch, out->shortfall, &craft_delta, sol_b, out->craft_gross);
+    colony_craft_preview(
+      pool, &scratch, out->shortfall, &craft_delta, sol_b, out->craft_gross, out->craft_capacity
+    );
     for (int i = 0; i < COLONIZE_CARGO_COUNT; ++i) {
       out->goods[i] += craft_delta.goods[i];
     }
+    /* colony_craft_preview memsets out->shortfall at its own start, so the
+     * horse-breeding shortfall computed above has to be folded in after. */
+    out->shortfall[COLONIZE_CARGO_HORSES] += horse_shortfall;
   }
 
   /* Jefferson / Paine / Penn — must match turn.c's EOT tick (colony_prod_colony_bells_ff /
