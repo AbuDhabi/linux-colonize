@@ -1160,3 +1160,12 @@ removed from both.
    its guard loop's standing-order skip (`units_orders_skip_turn`) exactly,
    without turn_select_next_unit's side effect of changing the unit
    selection.
+
+## 2026-08-27 fix: End Turn prompt moved to sidebar bottom, flashes white/black
+
+Player-requested: 1) pinned to the bottom of the sidebar instead of inline
+with the flowing unit-info text; 2) flashes white(15)/black(0), always
+drawn while active — not a show/hide blink like before. `map_panel_render`
+split the one `end_turn_flash_on` bool into `end_turn_active` (show at all)
++ `end_turn_blink_white` (color phase), drawn as its own block pinned to
+`framebuffer->height - line_h - 2`, after all other sidebar content.

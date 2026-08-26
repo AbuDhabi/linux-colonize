@@ -10759,7 +10759,8 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
       game->map_palette_ok ? &game->map_palette : NULL,
       /* ~2.5Hz blink (400ms half-period), same feel as other flashing UI
        * in this port (e.g. the turn-processor indicator). */
-      game_end_turn_prompt_active(game) && (game->elapsed_ms / 400) % 2 == 0,
+      game_end_turn_prompt_active(game),
+      (game->elapsed_ms / 400) % 2 == 0,
       framebuffer
     );
   }

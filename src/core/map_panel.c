@@ -767,7 +767,8 @@ void map_panel_render(
   int tax_percent,
   const char* nation_name,
   const ColonizePalette* active_palette,
-  bool end_turn_flash_on,
+  bool end_turn_active,
+  bool end_turn_blink_white,
   ColonizeFramebuffer8* framebuffer
 ) {
   if (!framebuffer || !framebuffer->pixels) {
@@ -985,15 +986,6 @@ void map_panel_render(
       }
     }
   } else {
-    /* Player-requested: flashing "End Turn" prompt once no more units need
-     * orders this turn — DOS-style click target, same spot the unit
-     * nameplate/icon would otherwise occupy. Caller already resolves the
-     * blink phase (on/off) into this one bool, so drawing here is just
-     * "show it or don't" each frame. */
-    if (end_turn_flash_on) {
-      font_draw_text(font, framebuffer, text_x, text_y, "End Turn", MAP_PANEL_COL_TEXT);
-      text_y += line_h;
-    }
     char line[64];
     snprintf(
       line,
@@ -1202,5 +1194,15 @@ void map_panel_render(
         text_y += 14;
       }
     }
+  }
+
+  /* Player-requested: "End Turn" prompt pinned to the bottom of the
+   * sidebar (not inline with the flowing unit-info text), flashing white
+   * (15) / black (0) — not a show/hide blink, the text is always drawn
+   * while active, just alternating color. */
+  if (end_turn_active) {
+    const uint8_t flash_color = end_turn_blink_white ? 15 : 0;
+    const int end_turn_y = framebuffer->height - line_h - 2;
+    font_draw_text(font, framebuffer, text_x, end_turn_y, "End Turn", flash_color);
   }
 }
