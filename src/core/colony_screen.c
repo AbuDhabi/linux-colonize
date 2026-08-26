@@ -1334,9 +1334,11 @@ enum {
  * themselves are right, only DOS's per-colony *assignment* differs from
  * this port's synthetic one. */
 #define COLONY_OVERRIDE_NONE (-1)
+#define COLONY_OVERRIDE_HIDDEN (-2) /* don't draw this (unbuilt) placeholder at all */
+#define COLONY_SLOT_HIDDEN (-30000) /* sentinel xs[]/ys[] value for a hidden slot */
 typedef struct ColonyPlacementOverride {
   int x, y; /* colony's fixed map position, keys the override */
-  int pos[14][2]; /* k_building_slots order; {-1,-1} = not overridden */
+  int pos[14][2]; /* k_building_slots order; {-1,-1} = not overridden, {-2,-2} = hidden */
   int docks_x, docks_y, fence_x, fence_y; /* -1 = use the formula default (already viewport-absolute) */
 } ColonyPlacementOverride;
 
@@ -1356,7 +1358,10 @@ static const ColonyPlacementOverride k_colony_overrides[] = {
       {9, 68},    /* warehouse */
       {5, 6},     /* armory */
       {95, 45},   /* press */
-      {-1, -1},   /* stable (unbuilt, no confident match) */
+      {-2, -2},   /* stable (unbuilt; every SMALL pool point is claimed by
+                     the other 7 — real DOS evidently fits it somewhere,
+                     this port's pool doesn't have the slack; hide rather
+                     than force an overlap onto a real building) */
       {66, 46},   /* custom */
     },
     123, 55, 123, 106
@@ -1377,7 +1382,10 @@ static const ColonyPlacementOverride k_colony_overrides[] = {
       {-1, -1},   /* armory (unbuilt) */
       {-1, -1},   /* press (unbuilt) */
       {-1, -1},   /* stable (unbuilt) */
-      {-1, -1},   /* custom (unbuilt) */
+      {-2, -2},   /* custom (unbuilt; exactly 3 SMALL points remain free for
+                     3 unbuilt categories here — no slack, so the one bad
+                     point always gets forced onto whichever is processed
+                     last. Same fix as New Amsterdam's stable: hide it. */
     },
     123, 55, 123, 106
   },
@@ -1918,8 +1926,8 @@ static void colony_screen_assign_slot_positions(const ColonizeColony* colony, in
   const ColonyPlacementOverride* ovr = colony_screen_find_override(colony);
   if (ovr) {
     for (int i = 0; i < k_building_slot_count && i < 14; ++i) {
-      if (ovr->pos[i][0] == COLONY_OVERRIDE_NONE) {
-        continue;
+      if (ovr->pos[i][0] == COLONY_OVERRIDE_NONE || ovr->pos[i][0] == COLONY_OVERRIDE_HIDDEN) {
+        continue; /* HIDDEN doesn't occupy pool real estate — nothing to mark/reserve */
       }
       const int group = colony_screen_slot_group(k_building_slots[i].tree_sprite);
       const int n = pool_counts[group];
@@ -2000,7 +2008,10 @@ static void colony_screen_assign_slot_positions(const ColonizeColony* colony, in
 
   if (ovr) {
     for (int i = 0; i < k_building_slot_count && i < 14; ++i) {
-      if (ovr->pos[i][0] != COLONY_OVERRIDE_NONE) {
+      if (ovr->pos[i][0] == COLONY_OVERRIDE_HIDDEN) {
+        xs[i] = COLONY_SLOT_HIDDEN;
+        ys[i] = COLONY_SLOT_HIDDEN;
+      } else if (ovr->pos[i][0] != COLONY_OVERRIDE_NONE) {
         xs[i] = ovr->pos[i][0];
         ys[i] = ovr->pos[i][1];
       }
@@ -2245,6 +2256,9 @@ static void colony_screen_blit_buildings(
       ++n;
     }
     const int built = colony_screen_best_built(pool, colony, slot->chain, n);
+    if (built < 0 && slot_x[i] == COLONY_SLOT_HIDDEN) {
+      continue; /* per-colony override: no pool slot fits this placeholder cleanly — skip it */
+    }
     const int drawn_sprite = built >= 0 ? built : slot->tree_sprite;
     if (built >= 0) {
       colony_screen_blit_slot(view, built, slot_ox + slot_x[i], slot_oy + slot_y[i], framebuffer);
@@ -3962,6 +3976,9 @@ ColonyScreenHitResult colony_screen_hit_test(
         ++n;
       }
       const int built = colony_screen_best_built(pool, colony, slot->chain, n);
+      if (built < 0 && slot_x[i] == COLONY_SLOT_HIDDEN) {
+        continue; /* per-colony override: this placeholder isn't drawn */
+      }
       const int sprite = (built >= 0) ? built : slot->tree_sprite;
       if (sprite < 0 || sprite >= view->buildings.sprite_count) {
         continue;

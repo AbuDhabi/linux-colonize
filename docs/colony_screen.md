@@ -515,6 +515,36 @@ nick, a 2×18px corner against fur's slot, is the best available; real
 sprites have enough transparent margin in their bounding box that it
 doesn't show, unlike the canopy-through-a-roof the old spot produced).
 
+**Third follow-up fix (player-caught): `{60,27}` still showed as an extra
+copse in both colonies.** The "2×18px corner" estimate above was checked
+against only one neighbor (fur) by hand — a fuller check shows it also
+clips weaver's slot (New Amsterdam) / the same point reused for a
+different category (Recife), and a follow-up brute-force confirmed there
+is no 14th box anywhere in this pool that's fully clean against the other
+13 — real DOS sprites clearly tolerate bounding-box overlap that a coarse
+rectangle can't (transparent margins, irregular silhouettes); this port's
+box-based algorithm structurally can't match that without per-sprite pixel
+masks, well beyond a placeholder's scope. Rather than keep hunting for a
+coordinate that provably doesn't exist, added a third override state —
+`COLONY_OVERRIDE_HIDDEN` (`{-2,-2}`) — that skips drawing/hit-testing a
+specific unbuilt category outright instead of forcing it onto a bad slot.
+Applied to New Amsterdam's `stable` (all 8 SMALL pool points end up
+claimed by its other 7 built categories — none left, forced or not).
+`COLONY_SLOT_HIDDEN` is a plain sentinel value in `xs[]`/`ys[]` (not a new
+drawn state) — `colony_screen_blit_buildings()` and the whole-building
+hit-test loop both skip an index when its slot lands on it and the
+category is unbuilt (a *built* category can never be hidden — the check
+is gated on `built < 0`).
+
+**Fourth follow-up fix (player-caught): Recife still had it too.** Wrong
+arithmetic in the third fix's writeup — Recife has 3 unbuilt SMALL
+categories (press, stable, custom) and exactly 3 SMALL pool points free
+after its 5 built ones, not 2-of-3 with slack as assumed; with the count
+exactly matching, all 3 free points get used regardless of which one is
+bad, so the conflict was never actually avoided on its own. Hid Recife's
+`custom` (the category that happened to land on the bad point) the same
+way as New Amsterdam's `stable`.
+
 ## Left unresolved
 - **Two golden-confirmed building badges reuse the same displayed number**
   (Town Hall and Printing Press both showed "82" in New Amsterdam — Town
