@@ -979,3 +979,62 @@ and Construction tab all match numerically and stylistically. The one
 remaining large visual gap is the buildings-section layout positions (first
 item above) — content-correct, position-wrong. Everything else left open is
 a small, isolated, independently-flagged detail.
+
+## 2026-08-26 fix: Wagon Train construction, hammer-row spacing/z-order
+
+1. **Wagon Train buildable anywhere.** Same `colonies_unit_build_info` /
+   `COLONIZE_UNIT_BUILD_*` raw-code scheme as Artillery. NAMES.TXT's
+   `@UNIT` table orders Artillery then Wagon Train right after the real
+   `@BUILDING` table's last index (41, Iron Works) — Artillery is raw code
+   42 (golden-confirmed already), so Wagon Train is 43 by the same file-
+   order logic. Cost (40 hammers, 0 tools) is the well-known DOS value, not
+   independently re-derived (no save with a Wagon Train mid-construction
+   was available to golden-check against, same caveat as Artillery's
+   hammers figure). No building gate: `colonies_set_construction` and
+   `colonies_list_buildable` admit it unconditionally. Verified via harness
+   across all 17 colonies in `dutch-reports.SAV`: listed as buildable in
+   every one, `set_construction` succeeds, spawns correctly through the
+   existing generic `colonies_try_complete_unit_construction` /
+   `turn_run_colony_unit_construction` path (no changes needed there — both
+   were already written generically off `colonies_unit_build_info`).
+2. **Hammer-row area 3px lower.** Player-reported: row 0 was overlapping
+   the BUY/CHANGE buttons above it. `area_y` moved from `py+16` to `py+19`.
+3. **Hammer count number drawn on top, not behind.** It was drawn before
+   the icon-row loop, so row 0's icons (which can start right at the
+   pane's left edge, under the number) painted over it. Moved the number
+   draw to after the loop.
+4. **Incomplete rows no longer stretch to fill the pane.** The per-icon x
+   position was `px + (i * span) / (filled - 1)` — denominator was the
+   *current* fill count, so every new hammer re-spread the whole row across
+   the full pane width (a bar redrawing itself wider each tick, not a
+   progress bar). Denominator changed to `row_capacity - 1` (the row's
+   fixed total slot count), so positions are stable: hammers now pack in
+   from the left and only reach the right edge once that row is actually
+   full. Pixel-verified on New Amsterdam (32/192 Artillery, row 0 capacity
+   48): filled pixels run from the pane's left edge to ~65% across, not to
+   the far edge.
+
+## 2026-08-26 fix: hammer-row numbers now consistent across all 4 rows
+
+Player-reported: numbers should be all-or-nothing across rows, not mixed.
+Previously only one number was drawn — the running total, always pinned at
+row 0's position regardless of what row 0 actually held (misleading when
+row 0 was already full and the total exceeded it, as with Fort Orange's
+64/192 Artillery: row 0 read "64" while only holding 48). Replaced with a
+single density check for the whole bar (`max_row_capacity * iw > pane_w`,
+i.e. would that many hammer icons overlap past legibility) computed once
+from the fullest row; if dense, every row with `filled > 0` shows its own
+count as a number instead of icons — if not dense, every row stays
+icons-only, no numbers anywhere. Verified: Fort Orange's 64/192 Artillery
+(row capacity 48, dense) now shows "48" then "16", one number per non-empty
+row; a 40-hammer Wagon Train project (row capacity 10, 10×8px=80px fits the
+92px pane, not dense) stays pure icons.
+
+## 2026-08-26 fix: dense-row numbers were replacing icons, not overlaying them
+
+Player-reported regression from the previous fix: the dense branch skipped
+icon drawing entirely (`continue` right after the number), so a project
+dense enough to need numbers lost its hammer icons altogether. Fixed:
+icons now always draw for every row regardless of density; the per-row
+number (when dense) is drawn in a second pass afterward, on top, same
+z-order reasoning as the earlier "number in front of icons" fix.

@@ -3363,17 +3363,24 @@ static void colony_screen_draw_multifunction(
       const ColonizeSprite* sp = &view->icons.sprites[COLONY_ICON_HAMMER];
       const int iw = (sp && sp->width > 0) ? sp->width : 8;
       const int ih = (sp && sp->height > 0) ? sp->height : 12;
-      const int area_y = py + 16;
+      /* Player-reported: 3px lower (row 0 was overlapping the BUY/CHANGE
+       * buttons above it). */
+      const int area_y = py + 19;
       const int area_h = 24; /* leaves room above (buttons) and below (tools line) in the box */
       const int row_h = area_h / 4;
       const int base = need / 4;
       const int rem = need % 4;
+      /* Player-reported: either every row with hammers shows a number, or
+       * none do — never a mix. One density check for the whole bar (all
+       * four rows share ~the same capacity, off by at most 1), based on the
+       * fullest row: if that many icons can't fit without overlapping,
+       * icons stop being individually countable, so every non-empty row
+       * gets a number instead of icons; otherwise every row stays icons-only
+       * with no numbers at all. */
+      const int max_row_capacity = base + (rem > 0 ? 1 : 0);
+      const bool dense = max_row_capacity > 0 && max_row_capacity * iw > pane_w;
+      int row_filled[4] = {0, 0, 0, 0};
       int remaining = show;
-      if (font) {
-        char num[12];
-        snprintf(num, sizeof(num), "%d", show);
-        colony_screen_draw_outlined_number(font, framebuffer, px + 1, area_y + 1, num, 15);
-      }
       for (int r = 0; r < 4; ++r) {
         const int row_capacity = base + (r < rem ? 1 : 0);
         int filled = remaining;
@@ -3381,6 +3388,7 @@ static void colony_screen_draw_multifunction(
           filled = row_capacity;
         }
         remaining -= filled;
+        row_filled[r] = filled;
         if (filled <= 0 || row_capacity <= 0) {
           continue;
         }
@@ -3389,16 +3397,33 @@ static void colony_screen_draw_multifunction(
          * straight onto the pane background like every other resource
          * counter here. */
         const int iy = row_y + (row_h - ih) / 2;
-        if (filled == 1) {
-          ss_blit_sprite(&view->icons, COLONY_ICON_HAMMER, framebuffer, px + (pane_w - iw) / 2, iy);
-        } else if (pane_w <= iw) {
+        /* Player-reported: this is a progress bar, not a stretched fill —
+         * icon slot positions are fixed by the row's total capacity, not by
+         * how many are currently filled, so hammers pack in from the left
+         * and only reach the right edge once the row is actually full
+         * (instead of re-spreading across the whole width on every icon
+         * added). */
+        if (row_capacity <= 1 || pane_w <= iw) {
           ss_blit_sprite(&view->icons, COLONY_ICON_HAMMER, framebuffer, px, iy);
         } else {
           const int span = pane_w - iw;
           for (int i = 0; i < filled; ++i) {
-            const int ix = px + (i * span) / (filled - 1);
+            const int ix = px + (i * span) / (row_capacity - 1);
             ss_blit_sprite(&view->icons, COLONY_ICON_HAMMER, framebuffer, ix, iy);
           }
+        }
+      }
+      /* Dense rows also get a number, drawn last so it sits on top of that
+       * row's (overlapping, hard-to-count) icons instead of replacing them —
+       * player-reported: numbers had been replacing the icons outright. */
+      if (dense && font) {
+        for (int r = 0; r < 4; ++r) {
+          if (row_filled[r] <= 0) {
+            continue;
+          }
+          char num[12];
+          snprintf(num, sizeof(num), "%d", row_filled[r]);
+          colony_screen_draw_outlined_number(font, framebuffer, px + 1, area_y + r * row_h, num, 15);
         }
       }
     }

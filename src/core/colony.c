@@ -1464,6 +1464,18 @@ bool colonies_unit_build_info(int raw_code, const char** name, int* hammers, int
     }
     return true;
   }
+  if (raw_code == COLONIZE_UNIT_BUILD_WAGON_TRAIN) {
+    if (name) {
+      *name = "Wagon Train";
+    }
+    if (hammers) {
+      *hammers = 40;
+    }
+    if (tools_cost) {
+      *tools_cost = 0;
+    }
+    return true;
+  }
   return false;
 }
 
@@ -1479,6 +1491,14 @@ bool colonies_set_construction(ColonizeColonyPool* pool, int colony_id, int buil
   ColonizeColony* col = colonies_get_mut(pool, colony_id);
   if (building_type == COLONIZE_UNIT_BUILD_ARTILLERY) {
     if (!col || !colonies_has_armory_chain(pool, col)) {
+      return false;
+    }
+    col->building_in_production = building_type;
+    return true;
+  }
+  if (building_type == COLONIZE_UNIT_BUILD_WAGON_TRAIN) {
+    /* Buildable anywhere, no building gate. */
+    if (!col) {
       return false;
     }
     col->building_in_production = building_type;
@@ -1985,6 +2005,11 @@ int colonies_list_buildable(
    * the last one spawns, same as any other repeatable unit purchase). */
   if (n < out_max && colonies_has_armory_chain(pool, col)) {
     out_ids[n++] = COLONIZE_UNIT_BUILD_ARTILLERY;
+  }
+  /* Wagon Train (colonies_unit_build_info) — player-requested: buildable in
+   * any colony, no gate, same no-dedup reasoning as Artillery above. */
+  if (n < out_max) {
+    out_ids[n++] = COLONIZE_UNIT_BUILD_WAGON_TRAIN;
   }
   return n;
 }
