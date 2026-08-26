@@ -416,6 +416,23 @@ int colonies_list_eject_roles(
 
 const char* colonies_eject_role_name(int role);
 
+/*
+ * Col1 also stores a couple of buildable *units* as `building_in_production`
+ * raw codes past the real @BUILDING table's range — NAMES.TXT's @BUILDING
+ * section never lists them (Artillery lives in @UNIT instead), so
+ * colonies_building_type() returns NULL for these. Only Artillery is
+ * modeled (player-requested: buildable with an Armory or an upgrade).
+ */
+#define COLONIZE_UNIT_BUILD_ARTILLERY 42
+
+/*
+ * True + fills name/hammers/tools_cost if raw_code is a known unit-type
+ * construction project (192 hammers / 40 tools for Artillery — golden-
+ * confirmed, New Amsterdam); false for a real building_type index or
+ * anything else.
+ */
+bool colonies_unit_build_info(int raw_code, const char** name, int* hammers, int* tools_cost);
+
 /* Set construction target; building_type must be unowned and meet min_population. */
 bool colonies_set_construction(ColonizeColonyPool* pool, int colony_id, int building_type);
 bool colonies_clear_construction(ColonizeColonyPool* pool, int colony_id);
@@ -459,7 +476,25 @@ int colonies_construction_tools_needed(
  */
 bool colonies_try_complete_building(ColonizeColonyPool* pool, int colony_id);
 /*
- * Buy remaining hammers with *gold (1 gold each), then try_complete.
+ * Unit-type construction completion (colonies_unit_build_info) — same
+ * hammers/tools gate and bookkeeping as colonies_try_complete_building, but
+ * spawns the map unit at the colony tile instead of setting has_building[]
+ * (needs `units`, which colonies_try_complete_building doesn't take, since
+ * a real building never spawns anything). Returns the new unit id on
+ * success, -1 otherwise (no project, not a unit-type project, or short on
+ * hammers/tools/spawn).
+ */
+int colonies_try_complete_unit_construction(
+  ColonizeColonyPool* pool,
+  int colony_id,
+  ColonizeUnitPool* units
+);
+/*
+ * Buy remaining hammers with *gold (1 gold each). For a real building, also
+ * try_complete. For a unit-type project (colonies_unit_build_info), only
+ * tops up hammers/tools to completion threshold — the caller must follow up
+ * with colonies_try_complete_unit_construction (needs a ColonizeUnitPool
+ * this function doesn't take) to actually spawn.
  * Fails if no project, insufficient gold, or short tools. Updates *gold on success.
  */
 bool colonies_buy_construction(ColonizeColonyPool* pool, int colony_id, int* gold);

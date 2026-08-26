@@ -3279,23 +3279,19 @@ static void colony_screen_draw_multifunction(
       (colony->building_in_production >= 0)
         ? colonies_building_type(pool, colony->building_in_production)
         : NULL;
-    /* Col1 also encodes buildable *units* (Artillery, Wagon Train, …) in
-     * this same field, using codes past the @BUILDING table's own range
+    /* Col1 also encodes buildable *units* (only Artillery modeled) in this
+     * same field, using codes past the @BUILDING table's own range
      * (colonies_building_type / colonies_find_building only cover real
      * buildings) — col1_bridge_apply copies the raw code through verbatim
-     * for anything that isn't the one special-cased Stockade remap. Only
-     * Artillery (raw code 42) is golden-confirmed (New Amsterdam,
-     * hammers=32/"Requires 40 Tools"); this port doesn't model unit
-     * construction as a queueable project at all yet (no completion/spawn
-     * logic), so this is display-only — BUY/CHANGE still won't act on it
-     * correctly. Left for a future session; see docs/colony_screen.md. */
+     * for anything that isn't the one special-cased Stockade remap.
+     * colonies_unit_build_info is the single source of truth for name/
+     * hammers/tools_cost, shared with colonies_set_construction/_list_
+     * buildable/_buy_construction/_try_complete_unit_construction. */
     const char* unit_name = NULL;
     int unit_hammers = 0;
     int unit_tools = 0;
-    if (!bt && colony->building_in_production == 42) {
-      unit_name = "Artillery";
-      unit_hammers = 192;
-      unit_tools = 40;
+    if (!bt) {
+      colonies_unit_build_info(colony->building_in_production, &unit_name, &unit_hammers, &unit_tools);
     }
     if (font) {
       if (bt) {
@@ -3344,55 +3340,85 @@ static void colony_screen_draw_multifunction(
         int chg_h = 0;
         ui_button_measure(font, "~BUY", &buy_w, &buy_h);
         ui_button_measure(font, "~CHANGE", &chg_w, &chg_h);
-        ui_button_draw(font, framebuffer, px, py + 10, buy_w, buy_h, "~BUY", &bc);
-        /* Player-reported: 10px left, 4px up from the original placement. */
+        /* Player-reported: BUY aligned vertically with CHANGE (both 4px up
+         * from the original placement). */
+        ui_button_draw(font, framebuffer, px, py + 10 - 4, buy_w, buy_h, "~BUY", &bc);
         const int change_x = COLONY_MULTI_X + COLONY_MULTI_W - chg_w - 4 - 10;
         ui_button_draw(font, framebuffer, change_x, py + 10 - 4, chg_w, chg_h, "~CHANGE", &bc);
       }
     }
-    /* Accumulated carpenter hammers toward the current project (not total
-     * cost) — golden-confirmed (New Amsterdam: "32" + a packed row of ~24
-     * hammer icons spanning almost the full pane width) this is a single
-     * proportional bar, not the Production tab's single-icon-plus-number
-     * badge style (colony_screen_draw_resource_count_pair) or the old
-     * split-into-two-rows layout. One icon per unit, evenly packed into
-     * the available width (reports.c's "natural tally" pattern — see
-     * docs/colony_screen.md), not capped at COLONY_OUTSIDE_MAX like a
-     * selectable icon strip. */
+    /* Accumulated carpenter hammers toward the current project, as four
+     * rows of one-fourth of the total need each — player-requested (was a
+     * single packed row spanning the pane width, golden-confirmed for that
+     * shape, but the player asked for a 4-row quartile layout instead, a
+     * deliberate UI improvement over DOS here same as the Production tab's
+     * surplus-split departure). Hammers fill row 0 first, then row 1, etc.
+     * — not a proportional bar, an actual fill order. Each row's capacity
+     * is need/4 (remainder spread across the first rows so all four
+     * capacities sum to exactly `need`). */
     const int need = bt ? bt->hammers : unit_hammers;
     const int have = colony->hammers > 0 ? colony->hammers : 0;
     const int show = (need > 0 && have > need) ? need : have;
-    if (show > 0 && view->icons_ok && COLONY_ICON_HAMMER < view->icons.sprite_count) {
-      const int bar_y = py + 20;
-      const int bar_h = 12;
+    if (need > 0 && view->icons_ok && COLONY_ICON_HAMMER < view->icons.sprite_count) {
       const ColonizeSprite* sp = &view->icons.sprites[COLONY_ICON_HAMMER];
       const int iw = (sp && sp->width > 0) ? sp->width : 8;
       const int ih = (sp && sp->height > 0) ? sp->height : 12;
-      /* No black backing rect here (player-reported) — every other resource
-       * counter in this screen (Production tab, People band) draws straight
-       * onto the pane background; this one shouldn't be different. */
-      const int iy = bar_y + (bar_h - ih) / 2;
-      if (show == 1) {
-        ss_blit_sprite(&view->icons, COLONY_ICON_HAMMER, framebuffer, px + (pane_w - iw) / 2, iy);
-      } else if (pane_w <= iw) {
-        ss_blit_sprite(&view->icons, COLONY_ICON_HAMMER, framebuffer, px, iy);
-      } else {
-        const int span = pane_w - iw;
-        for (int i = 0; i < show; ++i) {
-          const int ix = px + (i * span) / (show - 1);
-          ss_blit_sprite(&view->icons, COLONY_ICON_HAMMER, framebuffer, ix, iy);
-        }
-      }
+      const int area_y = py + 16;
+      const int area_h = 24; /* leaves room above (buttons) and below (tools line) in the box */
+      const int row_h = area_h / 4;
+      const int base = need / 4;
+      const int rem = need % 4;
+      int remaining = show;
       if (font) {
         char num[12];
         snprintf(num, sizeof(num), "%d", show);
-        colony_screen_draw_outlined_number(font, framebuffer, px + 1, bar_y + 1, num, 15);
+        colony_screen_draw_outlined_number(font, framebuffer, px + 1, area_y + 1, num, 15);
+      }
+      for (int r = 0; r < 4; ++r) {
+        const int row_capacity = base + (r < rem ? 1 : 0);
+        int filled = remaining;
+        if (filled > row_capacity) {
+          filled = row_capacity;
+        }
+        remaining -= filled;
+        if (filled <= 0 || row_capacity <= 0) {
+          continue;
+        }
+        const int row_y = area_y + r * row_h;
+        /* No black backing rect (player-reported, earlier fix) — draws
+         * straight onto the pane background like every other resource
+         * counter here. */
+        const int iy = row_y + (row_h - ih) / 2;
+        if (filled == 1) {
+          ss_blit_sprite(&view->icons, COLONY_ICON_HAMMER, framebuffer, px + (pane_w - iw) / 2, iy);
+        } else if (pane_w <= iw) {
+          ss_blit_sprite(&view->icons, COLONY_ICON_HAMMER, framebuffer, px, iy);
+        } else {
+          const int span = pane_w - iw;
+          for (int i = 0; i < filled; ++i) {
+            const int ix = px + (i * span) / (filled - 1);
+            ss_blit_sprite(&view->icons, COLONY_ICON_HAMMER, framebuffer, ix, iy);
+          }
+        }
       }
     }
     const int tools_cost = bt ? bt->tools_cost : unit_tools;
     if (tools_cost > 0 && font) {
       snprintf(line, sizeof(line), "(Requires %d Tools)", tools_cost);
-      font_draw_text(font, framebuffer, px, py + 46, line, 14);
+      const int line_w = font_text_width(font, line);
+      /* Player-reported: 6px higher (fits inside the box now — the old
+       * py+46 sat 1px past COLONY_PANEL_CONTENT_H's bottom edge) and
+       * centered horizontally. Grey when the colony already has enough
+       * tools in store, white (the "needs attention" color used elsewhere
+       * in this screen) when short. Index 8 (dark grey), not 7 — font.c's
+       * draw_ff_glyph hardcodes color==7 to the same white AA blend as
+       * color==15 (FF_COLOR_MAP, "unbold white"), so 7 renders
+       * indistinguishable from white here; 8 hits the plain solid-ink path
+       * instead. */
+      const bool tools_ok = colony->stock[COLONIZE_CARGO_TOOLS] >= tools_cost;
+      font_draw_text(
+        font, framebuffer, px + (pane_w - line_w) / 2, py + 46 - 6, line, tools_ok ? 8 : 15
+      );
     }
   }
 }
@@ -3484,18 +3510,20 @@ static void colony_screen_draw_construction_popup(
     } else {
       const int bid = view->buildable_ids[i - 1];
       const ColonizeBuildingType* bt = colonies_building_type(pool, bid);
-      if (bt && bt->tools_cost > 0) {
-        snprintf(
-          label, sizeof(label), "%s (%dH, %dT)", bt->name, bt->hammers, bt->tools_cost
-        );
+      const char* uname = NULL;
+      int uh = 0;
+      int ut = 0;
+      if (bt) {
+        if (bt->tools_cost > 0) {
+          snprintf(label, sizeof(label), "%s (%dH, %dT)", bt->name, bt->hammers, bt->tools_cost);
+        } else {
+          snprintf(label, sizeof(label), "%s (%dH)", bt->name, bt->hammers);
+        }
+      } else if (colonies_unit_build_info(bid, &uname, &uh, &ut)) {
+        /* Artillery (colonies_unit_build_info) — not a real @BUILDING row. */
+        snprintf(label, sizeof(label), "%s (%dH, %dT)", uname, uh, ut);
       } else {
-        snprintf(
-          label,
-          sizeof(label),
-          "%s (%dH)",
-          bt ? bt->name : "?",
-          bt ? bt->hammers : 0
-        );
+        snprintf(label, sizeof(label), "%s (%dH)", "?", 0);
       }
     }
     if (font) {
@@ -4144,8 +4172,10 @@ ColonyScreenHitResult colony_screen_hit_test(
   /* Multifunction pane / Construction BUY+CHANGE. */
   if (mx >= COLONY_MULTI_X && mx < COLONY_MULTI_BTN_X && my >= COLONY_PANEL_CONTENT_Y &&
       my < COLONY_CARGO_STRIP_Y) {
+    /* Player-reported: BUY moved up 4px to align with CHANGE — hit region
+     * follows (was [10,26), now [6,22)). */
     if (view->multi_mode == COLONY_MULTI_CONSTRUCTION &&
-        my >= COLONY_PANEL_CONTENT_Y + 10 && my < COLONY_PANEL_CONTENT_Y + 26) {
+        my >= COLONY_PANEL_CONTENT_Y + 6 && my < COLONY_PANEL_CONTENT_Y + 22) {
       const int mid = COLONY_MULTI_X + COLONY_MULTI_W / 2;
       if (mx < mid) {
         hit.kind = COLONY_HIT_MULTI_BUY;

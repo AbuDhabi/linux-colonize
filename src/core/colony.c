@@ -1440,8 +1440,50 @@ bool colonies_capture(ColonizeColonyPool* pool, int colony_id, int new_nation_id
   return true;
 }
 
+static bool colonies_has_building_named(
+  const ColonizeColonyPool* pool,
+  const ColonizeColony* col,
+  const char* name
+);
+
+bool colonies_unit_build_info(int raw_code, const char** name, int* hammers, int* tools_cost) {
+  if (raw_code == COLONIZE_UNIT_BUILD_ARTILLERY) {
+    /* Golden-confirmed (New Amsterdam, dutch-reports.SAV): hammers=192 the
+     * one time this port shows an Artillery project — @UNIT's own row
+     * (NAMES.TXT) doesn't carry a hammers/tools construction cost field at
+     * all (that's a purchase-price row, Europe money not colony hammers),
+     * so this pair isn't independently cross-checked against NAMES.TXT. */
+    if (name) {
+      *name = "Artillery";
+    }
+    if (hammers) {
+      *hammers = 192;
+    }
+    if (tools_cost) {
+      *tools_cost = 40;
+    }
+    return true;
+  }
+  return false;
+}
+
+/* Armory or an upgrade (Magazine/Arsenal) — player-requested Artillery
+ * construction gate. */
+static bool colonies_has_armory_chain(const ColonizeColonyPool* pool, const ColonizeColony* col) {
+  return colonies_has_building_named(pool, col, "Armory") ||
+         colonies_has_building_named(pool, col, "Magazine") ||
+         colonies_has_building_named(pool, col, "Arsenal");
+}
+
 bool colonies_set_construction(ColonizeColonyPool* pool, int colony_id, int building_type) {
   ColonizeColony* col = colonies_get_mut(pool, colony_id);
+  if (building_type == COLONIZE_UNIT_BUILD_ARTILLERY) {
+    if (!col || !colonies_has_armory_chain(pool, col)) {
+      return false;
+    }
+    col->building_in_production = building_type;
+    return true;
+  }
   if (!col || !pool) {
     return false;
   }
@@ -1503,19 +1545,45 @@ bool colonies_destroy_building(ColonizeColonyPool* pool, int colony_id, int buil
   return true;
 }
 
+/* Shared by colonies_construction_gold_cost/_tools_needed/_buy_construction:
+ * the current project's hammers/tools_cost, whether it's a real building or
+ * a unit-type project (colonies_unit_build_info). False if there's no
+ * project or its cost can't be resolved either way. */
+static bool colonies_construction_cost(
+  const ColonizeColonyPool* pool,
+  const ColonizeColony* colony,
+  int* hammers,
+  int* tools_cost
+) {
+  if (!pool || !colony || colony->building_in_production < 0) {
+    return false;
+  }
+  const char* uname = NULL;
+  if (colonies_unit_build_info(colony->building_in_production, &uname, hammers, tools_cost)) {
+    return true;
+  }
+  const ColonizeBuildingType* bt = colonies_building_type(pool, colony->building_in_production);
+  if (!bt || bt->hammers <= 0) {
+    return false;
+  }
+  if (hammers) {
+    *hammers = bt->hammers;
+  }
+  if (tools_cost) {
+    *tools_cost = bt->tools_cost;
+  }
+  return true;
+}
+
 int colonies_construction_gold_cost(
   const ColonizeColonyPool* pool,
   const ColonizeColony* colony
 ) {
-  if (!pool || !colony || colony->building_in_production < 0) {
+  int hammers = 0;
+  if (!colonies_construction_cost(pool, colony, &hammers, NULL)) {
     return 0;
   }
-  const ColonizeBuildingType* bt =
-    colonies_building_type(pool, colony->building_in_production);
-  if (!bt || bt->hammers <= 0) {
-    return 0;
-  }
-  const int rem = bt->hammers - colony->hammers;
+  const int rem = hammers - colony->hammers;
   return rem > 0 ? rem : 0;
 }
 
@@ -1523,16 +1591,12 @@ int colonies_construction_tools_needed(
   const ColonizeColonyPool* pool,
   const ColonizeColony* colony
 ) {
-  if (!pool || !colony || colony->building_in_production < 0) {
-    return 0;
-  }
-  const ColonizeBuildingType* bt =
-    colonies_building_type(pool, colony->building_in_production);
-  if (!bt || bt->tools_cost <= 0) {
+  int tools_cost = 0;
+  if (!colonies_construction_cost(pool, colony, NULL, &tools_cost) || tools_cost <= 0) {
     return 0;
   }
   const int have = colony->stock[COLONIZE_CARGO_TOOLS];
-  const int need = bt->tools_cost - have;
+  const int need = tools_cost - have;
   return need > 0 ? need : 0;
 }
 
@@ -1588,17 +1652,68 @@ bool colonies_try_complete_building(ColonizeColonyPool* pool, int colony_id) {
   return true;
 }
 
+int colonies_try_complete_unit_construction(
+  ColonizeColonyPool* pool,
+  int colony_id,
+  ColonizeUnitPool* units
+) {
+  ColonizeColony* col = colonies_get_mut(pool, colony_id);
+  if (!col || !units || col->building_in_production < 0) {
+    return -1;
+  }
+  const char* name = NULL;
+  int hammers_need = 0;
+  int tools_cost = 0;
+  if (!colonies_unit_build_info(col->building_in_production, &name, &hammers_need, &tools_cost)) {
+    return -1;
+  }
+  if (hammers_need <= 0 || col->hammers < hammers_need) {
+    return -1;
+  }
+  if (tools_cost > 0 && col->stock[COLONIZE_CARGO_TOOLS] < tools_cost) {
+    return -1;
+  }
+  const int type_index = units_find_type(units, name);
+  if (type_index < 0) {
+    return -1;
+  }
+  const int uid = units_spawn_allow_stack(units, type_index, col->x, col->y);
+  if (uid < 0) {
+    return -1;
+  }
+  ColonizeUnit* u = units_get(units, uid);
+  if (u) {
+    units_set_nation(u, col->nation_id);
+  }
+  if (tools_cost > 0) {
+    col->stock[COLONIZE_CARGO_TOOLS] -= tools_cost;
+  }
+  /* Unlike colonies_try_complete_building, no has_building[]/re-fire guard
+   * needed: a unit is never "owned" by the colony, and resetting hammers to
+   * 0 here is itself the guard (next call reads hammers_need > 0 again). */
+  col->hammers = 0;
+  return uid;
+}
+
 bool colonies_buy_construction(ColonizeColonyPool* pool, int colony_id, int* gold) {
   ColonizeColony* col = colonies_get_mut(pool, colony_id);
   if (!col || !pool || !gold || col->building_in_production < 0) {
     return false;
   }
-  const ColonizeBuildingType* bt =
-    colonies_building_type(pool, col->building_in_production);
-  if (!bt || bt->hammers <= 0) {
-    return false;
+  int hammers_need = 0;
+  int tools_cost = 0;
+  const bool is_unit = colonies_unit_build_info(
+    col->building_in_production, NULL, &hammers_need, &tools_cost
+  );
+  if (!is_unit) {
+    const ColonizeBuildingType* bt = colonies_building_type(pool, col->building_in_production);
+    if (!bt || bt->hammers <= 0) {
+      return false;
+    }
+    hammers_need = bt->hammers;
+    tools_cost = bt->tools_cost;
   }
-  if (bt->tools_cost > 0 && col->stock[COLONIZE_CARGO_TOOLS] < bt->tools_cost) {
+  if (tools_cost > 0 && col->stock[COLONIZE_CARGO_TOOLS] < tools_cost) {
     return false;
   }
   const int gold_cost = colonies_construction_gold_cost(pool, col);
@@ -1612,8 +1727,13 @@ bool colonies_buy_construction(ColonizeColonyPool* pool, int colony_id, int* gol
     const unsigned sum = (unsigned)col->hammers_purchased + (unsigned)gold_cost;
     col->hammers_purchased = sum > 0xffffu ? 0xffffu : (uint16_t)sum;
   }
-  col->hammers = bt->hammers;
-  if (!colonies_try_complete_building(pool, colony_id)) {
+  col->hammers = hammers_need;
+  /* Unit-type project: colonies_try_complete_building would always fail
+   * (colonies_building_type returns NULL for a unit code) — this only tops
+   * hammers/tools up to the completion threshold. The caller (game_loop.c,
+   * with a ColonizeUnitPool this function doesn't take) must follow up with
+   * colonies_try_complete_unit_construction to actually spawn. */
+  if (!is_unit && !colonies_try_complete_building(pool, colony_id)) {
     *gold += gold_cost;
     col->hammers = prev_hammers;
     if (gold_cost > 0) {
@@ -1858,6 +1978,13 @@ int colonies_list_buildable(
     if (colonies_building_is_buildable(pool, col, i, opts)) {
       out_ids[n++] = i;
     }
+  }
+  /* Artillery (colonies_unit_build_info) — player-requested: buildable with
+   * an Armory or an upgrade. Not a real @BUILDING row so it's never "owned"
+   * (no has_building[] dedup — the colony can queue another one right after
+   * the last one spawns, same as any other repeatable unit purchase). */
+  if (n < out_max && colonies_has_armory_chain(pool, col)) {
+    out_ids[n++] = COLONIZE_UNIT_BUILD_ARTILLERY;
   }
   return n;
 }

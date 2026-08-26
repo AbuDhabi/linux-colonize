@@ -156,6 +156,16 @@ void turn_run_colony_production(
  */
 int turn_run_coastal_fort_fire(ColonizeTurnContext* ctx);
 
+/*
+ * Unit-type construction completion (Artillery — colonies_unit_build_info)
+ * for every active colony. Call after turn_run_colony_production in EOT
+ * SETUP; needs ctx->units, which colony production itself doesn't have
+ * access to, so colonies_try_complete_unit_construction can't be reached
+ * from inside turn_produce_one_colony the way colonies_try_complete_
+ * building is. No-op (not an error) for colonies not building a unit.
+ */
+void turn_run_colony_unit_construction(ColonizeTurnContext* ctx);
+
 /* Crosses → dock immigrant; liberty bells counters (human + AI Euro Col1). */
 void turn_run_nation_ticks(ColonizeTurnContext* ctx, ColonizeTurnResult* out);
 
