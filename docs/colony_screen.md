@@ -477,6 +477,21 @@ screen slot rather than random, a candidate to become the real formula
 (replacing the viewport-relative right-anchor math) once verified on a
 third colony.
 
+**Follow-up fix (player-caught): every overridden building sat 1px
+right/8px down from its real spot, and one unbuilt tree placeholder
+visibly overlapped a real building.** Both from the same bug: the matcher
+searches the *full* 320×200 golden frame and returns absolute coordinates,
+but `pos[]` is documented (and used, via `slot_ox + slot_x[i]`) as
+viewport-relative — every override value needed `COLONY_VIEWPORT_X/Y`
+(1,8) subtracted first, and it wasn't. Once corrected, most values landed
+exactly on an existing `k_group_*_slots` pool point — real DOS reuses the
+same candidate pool, just assigns it differently — which also explains the
+overlap: the general algorithm's RNG had no idea a given pool point was
+already claimed by an override and could hand the identical point to an
+unbuilt neighbor's tree. Fixed by marking any pool point that exactly
+matches an override as `taken` before the RNG runs, so unbuilt categories
+only draw from what's actually still free.
+
 ## Left unresolved
 - **Two golden-confirmed building badges reuse the same displayed number**
   (Town Hall and Printing Press both showed "82" in New Amsterdam — Town

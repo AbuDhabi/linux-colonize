@@ -1319,47 +1319,60 @@ enum {
  * placeholder — strong evidence that corner is a genuinely fixed screen
  * slot, not random; a good candidate to promote to the general formula
  * later. Indices in `pos[]` follow k_building_slots[] order (0 town_hall …
- * 13 custom); -1 = no override, use the algorithm. */
+ * 13 custom); -1 = no override, use the algorithm.
+ *
+ * `pos[]` values are relative to the viewport origin (added to slot_ox/
+ * slot_oy — COLONY_VIEWPORT_X/Y — same as the general algorithm's pool
+ * points), NOT absolute framebuffer coordinates. The matcher searched the
+ * full 320×200 golden frame and returned absolute hits; every value here
+ * has already had (COLONY_VIEWPORT_X, COLONY_VIEWPORT_Y) = (1,8)
+ * subtracted out (an earlier pass skipped that and every override sat 1px
+ * right/8px down from its real golden spot — player-caught). Once
+ * corrected, most values landed exactly on an existing `k_group_*_slots`
+ * pool point (real DOS reuses the same candidate pool this port's general
+ * algorithm draws from) — nice independent confirmation the pools
+ * themselves are right, only DOS's per-colony *assignment* differs from
+ * this port's synthetic one. */
 #define COLONY_OVERRIDE_NONE (-1)
 typedef struct ColonyPlacementOverride {
   int x, y; /* colony's fixed map position, keys the override */
   int pos[14][2]; /* k_building_slots order; {-1,-1} = not overridden */
-  int docks_x, docks_y, fence_x, fence_y; /* -1 = use the formula default */
+  int docks_x, docks_y, fence_x, fence_y; /* -1 = use the formula default (already viewport-absolute) */
 } ColonyPlacementOverride;
 
 static const ColonyPlacementOverride k_colony_overrides[] = {
   { /* New Amsterdam */
     50, 43,
     {
-      {66, 87},   /* town_hall */
+      {65, 79},   /* town_hall */
       {-1, -1},   /* church (unbuilt) */
-      {15, 102},  /* school (unbuilt, but tree matched exactly) */
-      {128, 53},  /* carpenter */
-      {8, 41},    /* blacksmith */
-      {56, 13},   /* weaver */
-      {173, 18},  /* tobacco */
-      {145, 15},  /* rum */
-      {37, 45},   /* fur */
-      {10, 76},   /* warehouse */
-      {6, 14},    /* armory */
-      {96, 53},   /* press */
+      {14, 94},   /* school (unbuilt, but tree matched exactly) */
+      {127, 45},  /* carpenter */
+      {4, 33},    /* blacksmith */
+      {55, 5},    /* weaver */
+      {172, 10},  /* tobacco */
+      {144, 7},   /* rum */
+      {36, 37},   /* fur */
+      {9, 68},    /* warehouse */
+      {5, 6},     /* armory */
+      {95, 45},   /* press */
       {-1, -1},   /* stable (unbuilt, no confident match) */
-      {67, 54},   /* custom */
+      {66, 46},   /* custom */
     },
     123, 55, 123, 106
   },
   { /* Recife */
     41, 38,
     {
-      {87, 11},   /* town_hall */
+      {86, 3},    /* town_hall */
       {-1, -1},   /* church (unbuilt) */
       {-1, -1},   /* school (unbuilt) */
-      {128, 53},  /* carpenter */
-      {173, 18},  /* blacksmith */
-      {67, 54},   /* weaver */
-      {96, 53},   /* tobacco */
-      {8, 41},    /* rum */
-      {145, 15},  /* fur */
+      {127, 45},  /* carpenter */
+      {172, 10},  /* blacksmith */
+      {66, 46},   /* weaver */
+      {95, 45},   /* tobacco */
+      {4, 33},    /* rum */
+      {144, 7},   /* fur */
       {-1, -1},   /* warehouse (unbuilt) */
       {-1, -1},   /* armory (unbuilt) */
       {-1, -1},   /* press (unbuilt) */
@@ -1843,6 +1856,31 @@ static void colony_screen_assign_slot_positions(const ColonizeColony* colony, in
   };
   bool taken[COLONY_GROUP_COUNT][8] = {{false}};
 
+  /* A colony-specific override (see below) already fixes some of these
+   * slots to an exact golden pixel — almost always one of the pool points
+   * above (DOS reuses the same real estate, just assigns it differently).
+   * Mark those pool points taken *before* the RNG runs, so an unbuilt
+   * category's tree placeholder never lands on top of an overridden
+   * neighbor's real building (player-caught: rendered as an overlap in
+   * New Amsterdam/Recife). Overridden indices themselves are skipped
+   * below and filled in from `ovr->pos[]` afterward. */
+  const ColonyPlacementOverride* ovr = colony_screen_find_override(colony);
+  if (ovr) {
+    for (int i = 0; i < k_building_slot_count && i < 14; ++i) {
+      if (ovr->pos[i][0] == COLONY_OVERRIDE_NONE) {
+        continue;
+      }
+      const int group = colony_screen_slot_group(k_building_slots[i].tree_sprite);
+      const int n = pool_counts[group];
+      for (int c = 0; c < n; ++c) {
+        if (pools[group][c].x == ovr->pos[i][0] && pools[group][c].y == ovr->pos[i][1]) {
+          taken[group][c] = true;
+          break;
+        }
+      }
+    }
+  }
+
   ColonizeDosRng rng;
   const uint32_t xy = colony ? (((uint32_t)colony->y << 8) | (uint32_t)colony->x) : 0;
   /* 0x434 salts this port's synthetic roll away from DOS's own (unrecoverable
@@ -1850,6 +1888,9 @@ static void colony_screen_assign_slot_positions(const ColonizeColony* colony, in
   dos_rng_seed(&rng, xy ^ 0x434u);
 
   for (int i = 0; i < k_building_slot_count; ++i) {
+    if (ovr && ovr->pos[i][0] != COLONY_OVERRIDE_NONE) {
+      continue; /* filled in from ovr->pos[] below */
+    }
     const int group = colony_screen_slot_group(k_building_slots[i].tree_sprite);
     const int n = pool_counts[group];
     int pick = -1;
@@ -1885,7 +1926,6 @@ static void colony_screen_assign_slot_positions(const ColonizeColony* colony, in
     ys[i] = pools[group][pick].y;
   }
 
-  const ColonyPlacementOverride* ovr = colony_screen_find_override(colony);
   if (ovr) {
     for (int i = 0; i < k_building_slot_count && i < 14; ++i) {
       if (ovr->pos[i][0] != COLONY_OVERRIDE_NONE) {
