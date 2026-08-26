@@ -326,7 +326,8 @@ Deep DOS notes: [`coastal_fort_fire.md`](../original_sources_annotated/turn/coas
 | Combat Analysis | Done | Options-gated dual column |
 | Coastal fort fire | Done | Miss→MP drain; close hit→bit7; Drydock repair + `@REFIT` Done thin; temp unit/VGA PARKED |
 | Outcome popups `@EUROPE*` / `@SHIP*` / `@LOOT*` / `@CAPTURED*` / `@BURNED*` | Done | Playable matrix; Europe `@LOOTCASH` separate — [popups.md](popups.md) |
-| Village settlement battle `4528` | Done thin | Warn→Attack/Leave; empty-tile temp Brave from adjacent (stay put) + pop drain / destroy; fallout `@LOOT`/`@LOOT2`; deep mid-body/VGA PARKED. 2026-08-24: `1b0e`'s "no live defender" arm re-verified field-for-field (tribe struct `+7` muskets / `+10` horse_breeding → `units_spawn_village_temp_defender`) — confirmed already correct, not a stub. Sibling arm (undefended **Euro** colony, not a village) spawns a *different* temp defender DOS-side that Linux has no equivalent of — filed [port_plan.md](port_plan.md) W1.8, not this row |
+| Village settlement battle `4528` | Done thin | Warn→Attack/Leave; empty-tile temp Brave from adjacent (stay put) + pop drain / destroy; fallout `@LOOT`/`@LOOT2`; deep mid-body/VGA PARKED. 2026-08-24: `1b0e`'s "no live defender" arm re-verified field-for-field (tribe struct `+7` muskets / `+10` horse_breeding → `units_spawn_village_temp_defender`) — confirmed already correct, not a stub. Sibling arm (undefended **Euro** colony, not a village) spawns a *different* temp defender — see next row, closed 2026-08-26 |
+| Undefended Euro colony token-militia | Done | `units_spawn_colony_temp_defender` (`units.c`) — phantom civilian defender fielded whenever a Euro colony has colonists but no live defender and Paul Revere's armed-soldier override doesn't apply; was previously a free capture. See [port_plan.md](port_plan.md) P5.4 (was W1.8) for the full DOS trace |
 | Euro mid combat scoring `20e6` | Done thin | Settlement/siege peels + adjacent toughness; deep −0x6790 matrix PARKED |
 | VGA-identical combat chrome | PARKED | — |
 
@@ -351,7 +352,6 @@ Deep DOS notes: [`coastal_fort_fire.md`](../original_sources_annotated/turn/coas
 | Village raid / settlement deep `2820` + VGA | `ai_contact.c`, [move_enter.md](move_enter.md), [indians.md](indians.md) |
 | Deep Euro combat −0x6790 / full explore ring — **2026-08-24: confirmed still open, owned by `ai_port_plan.md` unpark #4 / W1.1, not duplicated here** | `ai_euro.c` / [move_scoring_land.md](../original_sources_annotated/ai/move_scoring_land.md) |
 | Fort-fire temp unit + camera / VGA chrome | `units_coastal_fort_fire_pulse` |
-| Undefended Euro colony token-militia combat (sibling of the village temp-defender arm) — new 2026-08-24, [port_plan.md](port_plan.md) W1.8 | `units_try_capture_foreign_colony` |
 | VGA-identical combat chrome | — |
 
 ---

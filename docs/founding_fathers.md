@@ -46,7 +46,7 @@ comment naming why.
 | 6 | Francisco de Coronado | "When he joins the Congress, all existing colonies and the area around them become visible on the map." | `FUN_4345_0342` apply | `effect_coronado_reveal` (`founding_fathers.c`): `map_reveal_radius` around every owned colony, radius `FF_CORONADO_REVEAL_RADIUS=2`. Elect-only, correctly — no per-turn ongoing effect in DOS beyond the initial reveal. | `test_founding_fathers.c` ~399-409 (no-map fallback), ~447-589 (deep reveal + radius bound) | **Done (elect-only)** |
 | 7 | Hernando de Soto | "Results of exploring Lost City Rumors are always positive, and all units have an extended sighting radius." | `FUN_4345_0342` apply (elect reveal); LCR: `FUN_65dd_0004` via `FUN_2a1f_0178` | Elect: `effect_desoto_reveal` (one-time land-unit reveal radius `FF_DESOTO_REVEAL_RADIUS=1`). LCR gate: `founding_fathers_de_soto_lcr_always_positive` → `units_resolve_lcr_rumour` (thin positive-only; full `65dd` outcome-weight table PARKED per P7.1). | `test_founding_fathers.c`; `test_units.c` ~3569-3571 (LCR-adjacent) | **Thin** — ownership gate + partial LCR positivity done; full `65dd` weighted-outcome table is P7's PARK, not re-tracked here |
 | 8 | Henry Hudson | "Hudson increases the output of all Fur trappers by 100%." | `FUN_4345_0342` apply (gate); fur-trapper yield doubling in colony harvest | `colony_preview.c` ~135 and `turn.c` ~634 and `colony_screen.c` ~1626/3668: `if (yld>0 && field_job==FUR_TRAPPER && has(HUDSON)) yld *= 2;` — 4 call sites, all consistent. | `test_founding_fathers.c` ~641 (deep hook); `test_turn.c` ~1858 | **Done** |
-| 9 | Sieur De La Salle | "La Salle gives all existing and future colonies a stockade when the population of the colony reaches 3." | `FUN_4345_0342` apply | `effect_la_salle_stockades` (`founding_fathers.c`): elect sweep grants Stockade to every owned colony at pop≥3 (`FF_LA_SALLE_STOCKADE_POP=3`). **Future** colonies reaching pop 3 while La Salle is owned: no ongoing tick found — only the one-shot elect sweep runs (unlike Las Casas, which re-runs every `founding_fathers_tick`). See Open items. | `test_founding_fathers.c` | **Thin** — elect-time sweep only; "future colonies" half of the PEDIA text (a colony founded *after* election, or one that grows to pop 3 later) is not re-checked on subsequent turns |
+| 9 | Sieur De La Salle | "La Salle gives all existing and future colonies a stockade when the population of the colony reaches 3." | `FUN_4345_0342` apply | `effect_la_salle_stockades` (`founding_fathers.c`): elect sweep grants Stockade to every owned colony at pop≥3 (`FF_LA_SALLE_STOCKADE_POP=3`). **2026-08-26:** also re-swept every `founding_fathers_tick` while owned (same shape as Las Casas), so a colony founded after election, or one that grows into pop 3 later, gets the free Stockade too. **2026-08-26 (same day, follow-up):** the tick-only version still read as "next turn" from the player's seat — user confirmed DOS shows it the instant the colony hits pop 3, no wait. Added `founding_fathers_la_salle_check` (public one-colony-pool sweep, gated on ownership) called directly from `colonies_admit_unit` (`colony.c`, all 10 call sites in `ai.c`/`ai_euro.c`/`game_loop.c` now pass `col1`) right after the population bump, so walking a colonist into a colony grants the Stockade synchronously, same input. EOT-driven growth (the food-surplus birth in `turn_produce_one_colony`) was already effectively instant — it and `founding_fathers_tick` both run inside the same `turn_processor_start` pass, before the player ever sees the next turn, so no separate fix was needed there. | `test_founding_fathers.c` ("La Salle ownership tick", "La Salle immediate grant") | **Done** — elect sweep + per-turn ownership tick + synchronous admit-time grant all wired |
 
 ## Military
 
@@ -91,27 +91,31 @@ follow-up; none were touched here.
    `col1_bridge.c` ~991 (Col1 save-load path re-derives ship `moves_left`
    from raw `moves` with the same +1). All three are consistent with each
    other; this is a doc-accuracy note, not a bug.
-2. **La Salle only re-checks at election, not every turn.** PEDIA text says
-   "existing **and future** colonies" get a Stockade at pop 3. The port's
-   `effect_la_salle_stockades` runs once at elect; a colony founded after
-   election, or one that crosses pop 3 later, is never swept again (unlike
-   Las Casas, which explicitly re-ticks). Candidate P9.2 fix: add a
-   La Salle sweep to `founding_fathers_tick` the same way Las Casas has
-   one.
-3. **Drake privateer bonus has two call sites computing the same ×1.5**
-   (`combat_strength.c` ~171 live combat path, `units.c` ~1961
-   `units_apply_drake_privateer_bonus`). Both gate correctly on ownership
-   and both compute `strength*3/2` / `(strength>>1)+strength`, so this
-   isn't wrong, but it's worth confirming one isn't dead code before P9.2
-   touches this area (a dedup, not a fidelity fix).
-4. **Jones's `effect_jones_frigate` isn't restricted to the human/player
-   nation in code**, contrary to how P9.2's task text frames it ("free
-   Frigate for the **player**"). It runs for whichever nation elects Jones
-   (human or AI) via the shared `apply_effect` dispatch — this may be
-   correct DOS behavior (PEDIA text doesn't say "player only" either), but
-   the port_plan.md wording implies a player-only intent that the code
-   doesn't currently enforce either way. Flagging for whoever picks up
-   P9.2 to confirm against decomp rather than assume.
+2. **Fixed 2026-08-26.** La Salle now re-sweeps every `founding_fathers_tick`
+   while owned (added alongside the existing Las Casas re-tick), so future
+   colonies and colonies growing into pop 3 later also get the free
+   Stockade — was previously elect-time-only.
+3. **Checked 2026-08-26 — not a dedup candidate after all, confirmed both
+   needed.** `combat_strength.c` ~171 (`combat_unit_base_x8`) is the
+   general ship-to-ship engine: raw defense → ×8 scale → veteran → Drake
+   → holds penalty, used for regular naval combat. `units.c` ~1948
+   (`units_drake_scale_strength`), called once from `units_fort_vs_ship`
+   (~3274), is a **separate, self-contained coastal-fort-fire formula**
+   that never routes through `combat_unit_base_x8` at all — it scales the
+   bare type `defense` value directly, no ×8/veteran step. Different
+   combat path, different formula shape, same Drake ×1.5 semantics
+   applied independently to each — not duplicate code, no merge needed.
+4. **Confirmed 2026-08-26 — not a bug, matches DOS.** Read
+   `FUN_4345_0342` (`viceroy_unpacked.c` ~73044, `param_2==0xe` branch,
+   the FF-apply dispatch's Jones case) directly: it calls
+   `FUN_281f_095c(0x11, param_1, …)` (spawn Frigate, type `0x11`) with no
+   `param_1==0`/human-only guard anywhere in that branch or the
+   surrounding function — same shared dispatch every other FF case uses,
+   unconditional on which nation is electing. DOS itself grants Jones's
+   free Frigate to whichever nation (human or AI) elects him; the port's
+   `effect_jones_frigate` matches this exactly. P9.2's "for the player"
+   task wording was simply imprecise, not a spec the code was failing to
+   meet — no fix needed.
 5. **Brewster's "player selects which pool immigrant moves to the docks"**
    is explicitly unported (pick-among-pool UI PARK, per existing code
    comment) — only the "no criminals/servants" half of the PEDIA effect is

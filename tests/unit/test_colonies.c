@@ -745,7 +745,7 @@ int main(void) {
     if (ou && before) {
       ou->nation_id = before->nation_id;
     }
-    const int admitted = colonies_admit_unit(&pool, cid, &units, uid);
+    const int admitted = colonies_admit_unit(&pool, cid, &units, uid, NULL);
     CHECK(admitted == pop0, "admit returns new colonist index");
     CHECK(colonies_get(&pool, cid)->colonist_count == pop0 + 1, "pop +1 after admit");
     {
@@ -775,7 +775,7 @@ int main(void) {
       if (ou2 && col) {
         ou2->nation_id = col->nation_id;
       }
-      const int ad2 = colonies_admit_unit(&pool, cid, &units, uid2);
+      const int ad2 = colonies_admit_unit(&pool, cid, &units, uid2, NULL);
       CHECK(ad2 >= 0, "admit before pioneer eject");
       CHECK(colonies_get(&pool, cid)->stock[COLONIZE_CARGO_TOOLS] >= 100, "tools in stock after admit");
       const int pej =
@@ -802,7 +802,7 @@ int main(void) {
         ou3->nation_id = col->nation_id;
         ou3->profession = UNITS_JOB_PIONEER;
       }
-      const int ad3 = colonies_admit_unit(&pool, cid, &units, uid3);
+      const int ad3 = colonies_admit_unit(&pool, cid, &units, uid3, NULL);
       CHECK(ad3 >= 0, "admit hardy pioneer");
       CHECK(
         colonies_get(&pool, cid)->colonists[ad3].profession == UNITS_JOB_PIONEER,
@@ -826,7 +826,7 @@ int main(void) {
         units_map_sprite(&units, sej) == UNITS_ICON_SOLDIER,
         "hardy+muskets uses non-veteran soldier icon"
       );
-      const int ad4 = colonies_admit_unit(&pool, cid, &units, sej);
+      const int ad4 = colonies_admit_unit(&pool, cid, &units, sej, NULL);
       CHECK(ad4 >= 0, "re-admit armed hardy");
       CHECK(
         colonies_get(&pool, cid)->colonists[ad4].profession == UNITS_JOB_PIONEER,
@@ -867,7 +867,7 @@ int main(void) {
       if (oum && col) {
         oum->nation_id = col->nation_id;
       }
-      const int adm = colonies_admit_unit(&pool, cid, &units, uidm);
+      const int adm = colonies_admit_unit(&pool, cid, &units, uidm, NULL);
       CHECK(adm >= 0, "admit before missionary eject");
       const int n1 = colonies_list_eject_roles(&pool, cid, adm, roles, COLONIZE_EJECT_ROLE_COUNT);
       has_miss = 0;

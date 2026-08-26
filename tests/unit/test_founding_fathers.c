@@ -803,6 +803,92 @@ int main(void) {
       }
     }
 
+    /* La Salle ownership tick (fixed 2026-08-26): PEDIA says "existing AND
+     * future" colonies get the free Stockade at pop 3. A colony founded
+     * after La Salle's election (or one that only grows into pop 3 later)
+     * must still get it on a later turn tick, without re-electing. */
+    {
+      ColonizeColony* future = &colonies.colonies[1];
+      memset(future, 0, sizeof(*future));
+      future->id = 1;
+      future->active = true;
+      future->nation_id = 0;
+      future->x = 6;
+      future->y = 6;
+      future->population = 2; /* below La Salle's pop-3 threshold */
+      colonies.colony_count = 2;
+
+      /* No FF due this tick — isolate the ownership sweep from debate/elect. */
+      dnat->liberty_bells_total = 0;
+      dnat->liberty_bells_last_turn = 0;
+      ff_tick(&deep_ctx);
+      if (future->has_building[0]) {
+        free(deep_col1.colony);
+        map_free(&map);
+        return fail("La Salle ownership tick must not grant Stockade below pop 3");
+      }
+      if (dnat->founding_father_count != 11) {
+        free(deep_col1.colony);
+        map_free(&map);
+        return fail("La Salle ownership tick must not invent extra elects");
+      }
+
+      future->population = 3; /* grows into the threshold on a later turn */
+      ff_tick(&deep_ctx);
+      if (!future->has_building[0]) {
+        free(deep_col1.colony);
+        map_free(&map);
+        return fail("La Salle ownership tick must grant Stockade once colony reaches pop 3");
+      }
+    }
+
+    /* La Salle immediate grant (fixed 2026-08-26): from the player's seat
+     * the Stockade appears the moment the colony reaches pop 3 — walking a
+     * colonist in must not need a turn tick first. colonies_admit_unit now
+     * runs the same check itself when handed a col1 with La Salle owned. */
+    {
+      ColonizeColony* now3 = &colonies.colonies[2];
+      memset(now3, 0, sizeof(*now3));
+      now3->id = 2;
+      now3->active = true;
+      now3->nation_id = 0;
+      now3->x = 9;
+      now3->y = 9;
+      now3->population = 2; /* one join away from the pop-3 threshold */
+      now3->colonist_count = 2;
+      now3->colonists[0].active = true;
+      now3->colonists[1].active = true;
+      colonies.colony_count = 3;
+
+      const int walker_id = units_spawn_allow_stack(&units, 0, 9, 9); /* type 0: Free Colonist */
+      if (walker_id < 0) {
+        free(deep_col1.colony);
+        map_free(&map);
+        return fail("La Salle immediate-grant walker spawn");
+      }
+      ColonizeUnit* walker = units_get(&units, walker_id);
+      walker->nation_id = 0;
+
+      const int admitted = colonies_admit_unit(&colonies, 2, &units, walker_id, &deep_col1);
+      if (admitted < 0) {
+        free(deep_col1.colony);
+        map_free(&map);
+        return fail("La Salle immediate-grant admit");
+      }
+      if (now3->population != 3) {
+        free(deep_col1.colony);
+        map_free(&map);
+        return fail("La Salle immediate-grant admit should bring colony to pop 3");
+      }
+      if (!now3->has_building[0]) {
+        free(deep_col1.colony);
+        map_free(&map);
+        return fail(
+          "La Salle must grant Stockade the instant a colony reaches pop 3, not next turn"
+        );
+      }
+    }
+
     free(deep_col1.colony);
     map_free(&map);
   }

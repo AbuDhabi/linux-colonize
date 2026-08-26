@@ -1103,7 +1103,8 @@ int colonies_admit_unit(
   ColonizeColonyPool* pool,
   int colony_id,
   ColonizeUnitPool* units,
-  int unit_id
+  int unit_id,
+  const ColonizeCol1Save* col1
 ) {
   ColonizeColony* col = colonies_get_mut(pool, colony_id);
   const ColonizeUnit* unit = units_get_const(units, unit_id);
@@ -1152,6 +1153,9 @@ int colonies_admit_unit(
   c->field_job = -1;
   const int idx = col->colonist_count++;
   col->population = col->colonist_count;
+  /* La Salle: this join may have just crossed pop 3 — grant the free
+   * Stockade the same moment, not next turn (see founding_fathers.h). */
+  (void)founding_fathers_la_salle_check(pool, col1, col->nation_id);
   /* Col1 +0x8e / +0x1e: LABOR join co-decrements demand counters (~87701). */
   if (col->labor_shortage > 0) {
     col->labor_shortage--;

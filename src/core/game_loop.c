@@ -5143,7 +5143,9 @@ static void game_join_colony_order(ColonizeGameState* game) {
         colonies_emit_full_chrome(col, &game->ai_popups, &game->messages);
         return;
       }
-      const int ci = colonies_admit_unit(&game->colonies, cid, &game->units, sid);
+      const int ci = colonies_admit_unit(
+        &game->colonies, cid, &game->units, sid, game->col1_ok ? &game->col1 : NULL
+      );
       if (ci >= 0) {
         game->units.selected_id = -1;
         snprintf(
@@ -5210,7 +5212,8 @@ static int game_colony_selected_colonist(ColonizeGameState* game) {
     return -1;
   }
   const int ci = colonies_admit_unit(
-    &game->colonies, game->colony_view_id, &game->units, csv->selected_outside_unit
+    &game->colonies, game->colony_view_id, &game->units, csv->selected_outside_unit,
+    game->col1_ok ? &game->col1 : NULL
   );
   if (ci < 0) {
     return -1;

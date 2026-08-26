@@ -864,6 +864,25 @@ static int effect_la_salle_stockades(ColonizeColonyPool* colonies, int nation_id
   return touched;
 }
 
+/*
+ * Public immediate-effect hook: call right when a colony's population
+ * changes (join/admit/birth), not just once per turn tick. PEDIA says
+ * "gives... a stockade when the population of the colony reaches 3" —
+ * from the player's seat that reads as instant, not "next turn," so this
+ * runs the same sweep `founding_fathers_tick` uses but on demand. Cheap
+ * (single ownership check + a pass over one nation's colonies).
+ */
+int founding_fathers_la_salle_check(
+  ColonizeColonyPool* colonies,
+  const ColonizeCol1Save* col1,
+  int nation_id
+) {
+  if (!col1 || !founding_fathers_nation_has(col1, nation_id, FF_SIEUR_DE_LA_SALLE)) {
+    return 0;
+  }
+  return effect_la_salle_stockades(colonies, nation_id);
+}
+
 /* Bolivar: SoL +20% is display-time via founding_fathers_bolivar_sol_bonus
  * (FUN_15eb_0274). Elect records FF only — no rebel_dividend mutation. */
 
@@ -1400,5 +1419,18 @@ void founding_fathers_tick(ColonizeTurnContext* ctx) {
       continue;
     }
     (void)effect_las_casas_assimilate(ctx->colonies, ctx->units, n);
+  }
+
+  /* La Salle ownership tick: PEDIA says "existing AND future" colonies get a
+   * Stockade at population 3+. The elect-time sweep (apply_effect) only
+   * catches colonies that already exist at election; re-sweep every turn
+   * while owned so a colony founded later, or one that grows into pop 3
+   * later, still gets the free Stockade (same re-tick shape as Las Casas
+   * above — docs/founding_fathers.md Open item 2). */
+  for (int n = 0; n < (int)COLONIZE_COL1_NATION_COUNT; ++n) {
+    if (!founding_fathers_nation_has(col1, n, FF_SIEUR_DE_LA_SALLE)) {
+      continue;
+    }
+    (void)effect_la_salle_stockades(ctx->colonies, n);
   }
 }

@@ -357,12 +357,15 @@ typedef struct ColonizeUnitPool ColonizeUnitPool;
 /*
  * Admit a land unit on the colony tile into the colony (despawn map unit).
  * Transfers founder-style loot into the warehouse. Returns colonist index or -1.
+ * `col1` is optional: when non-NULL, also runs the La Salle immediate-Stockade
+ * check (founding_fathers_la_salle_check) if this join crosses pop 3.
  */
 int colonies_admit_unit(
   ColonizeColonyPool* pool,
   int colony_id,
   ColonizeUnitPool* units,
-  int unit_id
+  int unit_id,
+  const ColonizeCol1Save* col1
 );
 /*
  * Remove a colonist onto the colony map tile as the given role (spends warehouse

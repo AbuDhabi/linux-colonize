@@ -5132,6 +5132,117 @@ int main(void) {
       fprintf(stderr, "unit_units: village temp Brave + pop drain ok\n");
     }
 
+    /*
+     * Undefended Euro colony: token militia defender (W1.8 / P5.4 fix,
+     * 2026-08-26). A colony with colonists but no standing soldier and no
+     * Paul Revere must still fight back with a weak civilian stand-in —
+     * not hand over a free capture. Phantom: never touches the colony's
+     * real colonist_count, never lingers on the map afterward.
+     */
+    {
+      const int soldier2 = units_find_type(&pool, "Soldiers");
+      if (soldier2 < 0) {
+        fprintf(stderr, "colony-temp-defender soldier type missing\n");
+        return 1;
+      }
+      int cx = -1, cy = -1;
+      for (int y = 2; y < (int)map.height - 3 && cx < 0; ++y) {
+        for (int x = 2; x < (int)map.width - 3 && cx < 0; ++x) {
+          if (map_tile_is_land(&map, x, y) && map_tile_is_land(&map, x + 1, y) &&
+              units_id_at(&pool, x, y) < 0 && units_id_at(&pool, x + 1, y) < 0) {
+            cx = x + 1;
+            cy = y;
+          }
+        }
+      }
+      if (cx < 0) {
+        fprintf(stderr, "colony-temp-defender no land pair\n");
+        return 1;
+      }
+      ColonizeColonyPool colonies;
+      colonies_init(&colonies);
+      if (!colonies_load_names(&colonies, "COLONIZE/COLONY.TXT") ||
+          !colonies_load_buildings(&colonies, &names)) {
+        fprintf(stderr, "colony-temp-defender colonies init failed\n");
+        return 1;
+      }
+      const int cid = colonies_found(&colonies, &map, cx, cy, 1, -1, UNITS_JOB_NONE, 0, 0, 0);
+      if (cid < 0) {
+        fprintf(stderr, "colony-temp-defender found rival colony failed\n");
+        return 1;
+      }
+      ColonizeColony* col = colonies_get_mut(&colonies, cid);
+      if (!col) {
+        fprintf(stderr, "colony-temp-defender colony fetch failed\n");
+        return 1;
+      }
+      col->nation_id = 1;
+      col->population = 1;
+      col->colonist_count = 1;
+      col->colonists[0].active = true;
+
+      ColonizeCol1Save c1;
+      memset(&c1, 0, sizeof(c1));
+      c1.player[0].control = 0;
+      c1.player[1].control = 1;
+      /* No Revere owned, no muskets stock — Revere override must not apply. */
+
+      const int aid = units_spawn(&pool, soldier2, cx - 1, cy);
+      ColonizeUnit* a = units_get(&pool, aid);
+      if (!a) {
+        fprintf(stderr, "colony-temp-defender attacker spawn failed\n");
+        return 1;
+      }
+      a->nation_id = 0;
+      a->moves_left = 5;
+      pool.types[soldier2].attack = 8;
+      pool.types[soldier2].defense = 1;
+
+      units_set_ff_col1(&c1);
+      units_set_combat_human_nation(0);
+      units_set_occupancy_map(&map);
+
+      if (!units_try_move(&pool, aid, &map, cx, cy, &colonies, NULL)) {
+        fprintf(
+          stderr,
+          "colony-temp-defender attack should win (enter=%d combat=%d)\n",
+          (int)units_last_enter_reason(),
+          units_last_combat_outcome()
+        );
+        units_set_ff_col1(NULL);
+        return 1;
+      }
+      if (units_last_combat_outcome() <= 0) {
+        fprintf(stderr, "colony-temp-defender expected a real combat win, not a free capture\n");
+        units_set_ff_col1(NULL);
+        return 1;
+      }
+      col = colonies_get_mut(&colonies, cid);
+      if (!col || col->nation_id != 0) {
+        fprintf(stderr, "colony-temp-defender attacker should capture colony\n");
+        units_set_ff_col1(NULL);
+        return 1;
+      }
+      if (col->colonist_count != 1 || !col->colonists[0].active) {
+        fprintf(stderr, "colony-temp-defender phantom must not touch real colonist_count\n");
+        units_set_ff_col1(NULL);
+        return 1;
+      }
+      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+        const ColonizeUnit* u = &pool.units[i];
+        if (u->active && u->id != aid && u->x == cx && u->y == cy) {
+          fprintf(stderr, "colony-temp-defender phantom should not remain on the tile\n");
+          units_set_ff_col1(NULL);
+          return 1;
+        }
+      }
+
+      units_despawn(&pool, aid);
+      units_set_ff_col1(NULL);
+      units_set_combat_human_nation(-1);
+      fprintf(stderr, "unit_units: undefended colony token militia ok\n");
+    }
+
     /* Treasure ransom Accept credits gold; Refuse does not. */
     {
       ai_popup_clear(&pops);

@@ -3734,10 +3734,45 @@ static bool units_colony_has_soldier_on_tile(
 }
 
 /*
+ * W1.8 / P5.4: undefended-Euro-colony token militia. DOS FUN_5fef_1b0e's
+ * "no live defender found" branch, colony_at_xy>=0 half (viceroy_unpacked.c
+ * ~100417-100432): picks a random colonist (FUN_281f_04d4 RNG(0,+0x1f-1),
+ * +0x1f already named colonist_count elsewhere), reads their job
+ * (FUN_281f_0c54) and maps profession→ICONS.SS index (FUN_281f_02c6) for a
+ * weak civilian stand-in — a phantom, not a real colonist, so it never
+ * touches the colony's actual population. Mirrors the already-ported
+ * village empty-dwelling Brave arm (units_spawn_village_temp_defender).
+ */
+static int units_spawn_colony_temp_defender(ColonizeUnitPool* pool, const ColonizeColony* col) {
+  if (!pool || !col || !col->active || col->colonist_count <= 0) {
+    return -1;
+  }
+  int ti = units_find_type(pool, "Free Colonist");
+  if (ti < 0) {
+    ti = units_find_type(pool, "Colonists");
+  }
+  if (ti < 0) {
+    return -1;
+  }
+  const int id = units_spawn_allow_stack(pool, ti, col->x, col->y);
+  ColonizeUnit* u = units_get(pool, id);
+  if (!u) {
+    return -1;
+  }
+  u->nation_id = col->nation_id;
+  return id;
+}
+
+/*
  * PEDIA Paul Revere: when stepping onto a foreign colony with no map unit and
  * no standing soldiers, auto-arm a colonist from warehouse muskets and fight.
- * Returns true if move may continue (no fight, or attacker won). False if
- * attacker lost / despawned. Requires g_units_ff_col1.
+ * When Revere doesn't apply (not owned, or muskets short — same
+ * `FUN_281f_07b4`/`+0xb8` gate the decomp itself uses to *override* the
+ * defender type, not to skip defense), DOS still fields a weak civilian
+ * militia stand-in rather than granting a free capture — see
+ * units_spawn_colony_temp_defender. Returns true if move may continue (no
+ * fight, or attacker won). False if attacker lost / despawned. Requires
+ * g_units_ff_col1.
  */
 static bool units_revere_defend_colony_tile(
   ColonizeUnitPool* pool,
@@ -3764,16 +3799,30 @@ static bool units_revere_defend_colony_tile(
   }
   const bool has_soldier =
     units_colony_has_soldier_on_tile(pool, dest_x, dest_y, col->nation_id);
-  if (!founding_fathers_revere_should_auto_arm(
+  int def_id = -1;
+  if (founding_fathers_revere_should_auto_arm(
         g_units_ff_col1, col->nation_id, has_soldier, col->stock[COLONIZE_CARGO_MUSKETS]
       )) {
-    return true;
+    def_id = founding_fathers_revere_auto_arm(colonies, pool, cid);
   }
-  const int def_id = founding_fathers_revere_auto_arm(colonies, pool, cid);
+  bool def_is_temp = false;
   if (def_id < 0) {
-    return true; /* eject failed — leave tile open (no invented defense) */
+    def_id = units_spawn_colony_temp_defender(pool, col);
+    def_is_temp = def_id >= 0;
   }
-  if (!units_resolve_land_combat_ff(pool, attacker_id, def_id, rng, g_units_ff_col1)) {
+  if (def_id < 0) {
+    return true; /* nobody home at all (pop 0) — nothing to defend with */
+  }
+  const bool won = units_resolve_land_combat_ff(pool, attacker_id, def_id, rng, g_units_ff_col1);
+  /* Phantom defender always vanishes after the fight, win or lose — a real
+   * Revere-armed colonist (def_is_temp false) stays if it won. */
+  if (def_is_temp) {
+    ColonizeUnit* d = units_get(pool, def_id);
+    if (d && d->active) {
+      units_despawn(pool, def_id);
+    }
+  }
+  if (!won) {
     return false;
   }
   return units_get(pool, attacker_id) != NULL;
