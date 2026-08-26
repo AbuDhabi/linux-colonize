@@ -130,7 +130,23 @@ stays deferred (D4).
   renderers don't have.
 - [ ] **P2.2 [auto]** Shared report scaffolding: heading from
   `LABELS.TXT`, column helper, scroll, click-to-zoom plumbing into
-  `game_loop` (colony screen / center unit).
+  `game_loop` (colony screen / center unit). **Screen titles checked
+  2026-08-26: not achievable as stated** — grepped every `COLONIZE/*.TXT`
+  asset for "Religious Advisor"/"Labor Advisor"/etc., zero hits; these
+  titles aren't shipped as text anywhere (drawn as art/font glyphs in
+  DOS), so `k_report_titles` staying hardcoded in `reports.c` is correct,
+  not a gap. **Founding Father names fixed 2026-08-26** (a different,
+  real instance of this row's "hardcoded, not live" problem):
+  `reports_ff_name` (`reports.c`) now resolves from `NAMES.TXT @FATHERS`
+  live (loaded once in `reports_load`, mirrors the `assets_msg_find`
+  pattern already used in `ai_contact.c`), falling back to the existing
+  `k_ff_names` static table when assets aren't loaded — was a hand-typed
+  copy that would've silently drifted from a modded `NAMES.TXT`. New
+  public `reports_ff_display_name` wrapper + `test_reports.c` regression
+  (checks idx 0/24 against real `NAMES.TXT` text, and the post-`reports_free`
+  fallback path). Job names (`k_job_names`) and cargo names
+  (`k_cargo_names`) have the identical hardcoded-but-real-data shape and
+  are a same-idiom follow-up, not done this pass.
 - [ ] **P2.3 [auto]** F1 Religious Advisor (crosses, immigration, recruit
   pool) to DOS layout.
 - [ ] **P2.4 [auto]** F2 Continental Congress / F3 as DOS splits them

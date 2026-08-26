@@ -70,6 +70,13 @@ bool reports_load(ColonizeReportsView* view, const char* data_dir, char* err, si
 const char* reports_title(ColonizeReportId id);
 const char* reports_background_name(ColonizeReportId id);
 
+/*
+ * Founding Father display name by index (0..COLONIZE_COL1_FF_COUNT-1).
+ * Live from NAMES.TXT @FATHERS after a successful reports_load; falls back
+ * to a hand-typed static table otherwise (no assets loaded, e.g. tests).
+ */
+const char* reports_ff_display_name(int idx);
+
 /* Map F2–F10 → report id; returns false for F1 / non-report keys. */
 bool reports_id_from_fkey(int fkey_number /*1..10*/, ColonizeReportId* out_id);
 

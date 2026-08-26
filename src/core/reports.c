@@ -1,3 +1,4 @@
+#include "core/assets.h"
 #include "core/colony_production.h"
 #include "core/combat_strength.h"
 #include "core/founding_fathers.h"
@@ -22,6 +23,17 @@ static const char* k_report_files[COLONIZE_REPORT_COUNT] = {
   "REPORT9.PIK", /* Indian Adviser */
   "WOODPANL.PIK" /* Colonization Score — full-screen wood */
 };
+
+/*
+ * `k_ff_names` below is a hand-typed copy of NAMES.TXT `@FATHERS` column 0
+ * (byte-diffed against it once, per founding_fathers.md P9.1) — correct
+ * today, but silently stale if the user ever mods NAMES.TXT, since nothing
+ * re-reads it live. `g_reports_ff_names` is that live source, loaded once
+ * in reports_load; reports_ff_name prefers it and only falls back to the
+ * static table when assets aren't available (tests, missing data dir).
+ */
+static ColonizeMsgCatalog g_reports_ff_names;
+static bool g_reports_ff_names_ok = false;
 
 static const char* k_report_titles[COLONIZE_REPORT_COUNT] = {
   "RELIGIOUS ADVISER REPORT",
@@ -148,6 +160,10 @@ void reports_free(ColonizeReportsView* view) {
   ff_free(&view->title_font);
   pik_free(&view->congress_page1_bg);
   memset(view, 0, sizeof(*view));
+  if (g_reports_ff_names_ok) {
+    assets_msg_free(&g_reports_ff_names);
+    g_reports_ff_names_ok = false;
+  }
 }
 
 /* Nearest-color remap of a sprite sheet's own palette onto dst_pal (see
@@ -225,6 +241,21 @@ bool reports_load(ColonizeReportsView* view, const char* data_dir, char* err, si
   if (!view->loaded) {
     snprintf(err, err_size, "no report backgrounds loaded");
     return false;
+  }
+
+  /* NAMES.TXT @FATHERS live names (reports_ff_name) — best-effort, falls back
+   * to the hand-typed k_ff_names table when missing (tests, old data dirs). */
+  if (g_reports_ff_names_ok) {
+    assets_msg_free(&g_reports_ff_names);
+    g_reports_ff_names_ok = false;
+  }
+  char names_path[512];
+  assets_msg_init(&g_reports_ff_names);
+  if (dos_compat_normalize_asset_path(data_dir, "NAMES.TXT", names_path, sizeof(names_path)) &&
+      assets_msg_load_file(&g_reports_ff_names, names_path)) {
+    g_reports_ff_names_ok = true;
+  } else {
+    assets_msg_free(&g_reports_ff_names);
   }
 
   /* Cross counter (Religious report) reuses the game's standard resource-count
@@ -426,7 +457,41 @@ static const char* reports_ff_name(int idx) {
   if (idx < 0 || idx >= (int)COLONIZE_COL1_FF_COUNT) {
     return "(none)";
   }
+  if (g_reports_ff_names_ok) {
+    const ColonizeMsgSection* fathers = assets_msg_find(&g_reports_ff_names, "FATHERS");
+    if (fathers) {
+      int row = 0;
+      for (int i = 0; i < fathers->line_count; ++i) {
+        const char* line = fathers->lines[i];
+        if (!line || line[0] == '\0' || line[0] == ';') {
+          continue;
+        }
+        if (row == idx) {
+          static char live[64];
+          const char* comma = strchr(line, ',');
+          size_t n = comma ? (size_t)(comma - line) : strlen(line);
+          if (n >= sizeof(live)) {
+            n = sizeof(live) - 1;
+          }
+          memcpy(live, line, n);
+          live[n] = '\0';
+          while (n > 0 && (live[n - 1] == ' ' || live[n - 1] == '\t')) {
+            live[--n] = '\0';
+          }
+          if (live[0]) {
+            return live;
+          }
+          break;
+        }
+        row++;
+      }
+    }
+  }
   return k_ff_names[idx];
+}
+
+const char* reports_ff_display_name(int idx) {
+  return reports_ff_name(idx);
 }
 
 /*
