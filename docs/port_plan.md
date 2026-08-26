@@ -144,9 +144,19 @@ stays deferred (D4).
   copy that would've silently drifted from a modded `NAMES.TXT`. New
   public `reports_ff_display_name` wrapper + `test_reports.c` regression
   (checks idx 0/24 against real `NAMES.TXT` text, and the post-`reports_free`
-  fallback path). Job names (`k_job_names`) and cargo names
-  (`k_cargo_names`) have the identical hardcoded-but-real-data shape and
-  are a same-idiom follow-up, not done this pass.
+  fallback path). **Job names + cargo names also fixed same day
+  (follow-up on the identical shape):** `reports_job_name`/
+  `reports_cargo_name` now resolve from `NAMES.TXT @JOB` column 2 /
+  `@CARGO` column 0 the same way, sharing one `NAMES.TXT` parse
+  (`g_reports_names`, generalized from the FF-only cache via a new
+  `reports_names_field(section,row,col)` helper — `k_job_names`/
+  `k_cargo_names` stay as the no-assets fallback). Public
+  `reports_job_display_name`/`reports_cargo_display_name` wrappers +
+  `test_reports.c` regressions (job 0/27, cargo 0/15, plus the
+  post-`reports_free` fallback path for both). `ctest`: 42/42, no
+  regressions — live-parsed values match the static tables exactly for
+  the shipped asset, as expected. `k_report_titles`'s own hardcoding
+  stays correct per the note above (no live source exists for those).
 - [ ] **P2.3 [auto]** F1 Religious Advisor (crosses, immigration, recruit
   pool) to DOS layout.
 - [ ] **P2.4 [auto]** F2 Continental Congress / F3 as DOS splits them
