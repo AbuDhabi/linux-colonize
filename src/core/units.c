@@ -549,6 +549,8 @@ int units_cortes_cash_coastal_treasures(
 
 static const char* units_combat_nation_label(const ColonizeCol1Save* col1, int nation_id);
 
+static void units_play_event_sound(int id);
+
 static int units_king_galleon_treasure_value(const ColonizeUnit* treasure) {
   const unsigned lo = (unsigned)(treasure->hold_goods_amount[0] & 0xff);
   const unsigned hi = (unsigned)(treasure->hold_goods_amount[1] & 0xff);
@@ -595,6 +597,7 @@ static void units_king_galleon_credit(
   ColonizeCol1Nation* nat = &col1->nation[nation_id];
   nat->gold += (uint32_t)(net > 0 ? net : 0);
   nat->royal_money += share; /* DOS nation+0x22 += Crown share */
+  units_play_event_sound(0x5a); /* FUN_5fef_1908: cheering + fireworks (COLDIG 15) */
   if (europe) {
     europe->gold = (int)nat->gold;
   }
@@ -1532,6 +1535,7 @@ void units_combat_notify_colony_burned(
   if (!colony_name || !colony_name[0]) {
     return;
   }
+  units_play_event_sound(0x53); /* FUN_5fef_0f14 raid tail: burning (COLDIG 19) */
   const int human =
     (victim_nation >= 0 && victim_nation <= 3 && col1 &&
      col1->player[victim_nation].control == 0) ||
