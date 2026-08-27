@@ -1294,10 +1294,10 @@ W4.3/W4.4 → deferred; W5.x → D4; W5.5 → D1/D3.
   `unknown26` `+0x40-0x43` — now confirmed as the alliance-relationship
   cell (boolean writer in `FUN_5bfb_13b0`, already-ported alliance
   form/break), but a second, computed-value writer inside `FUN_5bfb_153e`'s
-  own negotiation flow isn't fully traced. `unknown05` — confirmed to sit
-  inside a real bit-array accessor's addressable range, but the only
-  caller found is `WARNING`-flagged/corrupted with unrecovered literal
-  args, a genuine dead end not a "grep harder" gap.
+  own negotiation flow isn't fully traced. `unknown05` — **resolved
+  2026-08-27** (static, asm PUSH-immediate reads): bits 17-32 of the
+  woodcut/splash once-only array that `event` is bits 1-16 of; only the
+  demo-autoplay loop reaches ids ≥14. See `mysteries_catalog.md`.
 
 - [ ] **W1.7 — Colonist work-plot auto-assign (`FUN_15eb_28c8`) golden +
   wire.** RE is complete

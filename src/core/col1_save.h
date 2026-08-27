@@ -265,14 +265,32 @@ typedef struct ColonizeCol1Head {
     uint16_t price_group_state[16];
   };
   ColonizeCol1EventFlags event;
-  uint8_t unknown05[2]; /* head pad after event; no gameplay cite — save R/W */
+  /*
+   * DS:0x540c-0x540d — continuation of `event` above. `event` + these two
+   * bytes form one 32-bit once-only "woodcut/splash already shown" bit
+   * array at DS:0x540a, addressed 1-based by FUN_12fd_000e (set/clear) /
+   * FUN_12fd_0048 (test) and consumed by FUN_12fd_006c(id): if bit(id) set
+   * return 1, else set it and display. ids 1-10 dispatch through an
+   * internal jump table (the 16 named woodcut flags above); ids 11+ go to
+   * FUN_6f30_0062(id) (splash picture by index). Highest id in normal play
+   * is 13 (indian_raid, FUN_5fef); ids 14-25 are only reached by the demo
+   * autoplay loop in FUN_130d (DS:0x828 set, every 12th turn: INC
+   * DS:0x150 up to 25, dispatch until one actually displays). So
+   * unknown05[0] = ids 17-24 seen, unknown05[1] bit0 = id 25; bits 26-32
+   * unused. Cleared with `event` by the new-game memset(0x540a,0,4).
+   * Static resolution 2026-08-27; not renamed (col1_json key stability).
+   */
+  uint8_t unknown05[2];
 } ColonizeCol1Head;
 
 typedef struct ColonizeCol1Player {
   char name[24];
   char country_name[24];
-  uint8_t unknown06_lo : 6; /* bits0-5 @ player+0x30; no reader/writer cite in either
-                                decompiled export — opaque */
+  uint8_t unknown06_lo : 6; /* bits0-5 @ player+0x30 (DS:0x543e); confirmed dead
+                                2026-08-27 — every touch of 0x543e in all 3
+                                decompiled exports + raw asm uses only masks 0x40
+                                (lcr_case5_bonus_used) or 0x80 (named_new_world).
+                                Kept for save round-trip; not renamed (col1_json). */
   uint8_t lcr_case5_bonus_used : 1; /* bit6 @ player+0x30 (nation*0x34+0x543e in DOS
                                         terms); per-nation one-shot in FUN_65dd_0004
                                         (LCR/native-encounter result table) — first
@@ -585,19 +603,24 @@ typedef struct ColonizeCol1Nation {
    *     a separate decrementing grace/waiver counter read by 4528 before a
    *     periodic gold cost. ai_euro.c already deliberately keeps its own
    *     scratch copy instead of reusing this union, for exactly this reason.
-   *   +0x40-0x43 ("treaty_timer[4]"): narrowed 2026-08-24 — real DOS
-   *     content is a per-(nation_a,nation_b) pair, symmetric byte cell
-   *     written by FUN_5bfb_13b0 (form/break alliance, already ported as
-   *     ai_diplo_form_alliance_ctx/break_alliance_ctx) as a plain boolean
-   *     1/0 "are these two nations allied," plus a second, not-fully-traced
-   *     write from FUN_5bfb_153e's own negotiation flow that stores a
-   *     computed (non-boolean) value under a separate gate. So it's the
-   *     alliance-relationship cell, not a total mystery, but not a
-   *     confirmed countdown either — this file's own treaty_timer[4] as an
-   *     actual decrementing expiry counter (ai_diplo_ally_treaty_timer_bump
-   *     / ai_diplo_treaty_timers) remains a functional Linux invention
-   *     layered on top, same as before.
-   * See docs/mysteries_catalog.md Meta-mystery section.
+   *   +0x40-0x43 ("treaty_timer[4]"): resolved 2026-08-24 — a genuine
+   *     per-(nation_a,nation_b) symmetric diplomatic cooldown counter:
+   *     FUN_5bfb_13b0 writes 1 (alliance formed) / 0 (broken);
+   *     FUN_5bfb_153e's tail writes (difficulty-6)*-2, halved if the
+   *     nation owns Benjamin Franklin (FF bit 0x13 via FUN_15eb_3960);
+   *     FUN_521d_6d8e decrements it every turn and, at 0, may relapse the
+   *     pair into war (relation bit 0x08 latch, 1-in-3); FUN_465b_0000
+   *     reads it as a nonzero "skip encounter escalation" gate. Linux
+   *     treaty_timer[4] decrement matches; the expiry action is a Linux
+   *     simplification.
+   *   +0x46/+0x47: int16 last_colony_founded_turn (DS -0x77b2) — written
+   *     = turn by the found-colony order body FUN_479b_076e, read by the
+   *     unit desirability score FUN_521d_052c (`+= (turn-stamp)>>4` when
+   *     founding urgency is nonzero). Linux diplo_flag[2..3] overlay it;
+   *     DOS value unused by Linux. Resolved 2026-08-27.
+   *   +0x4b: confirmed dead 2026-08-27 (no literal touch anywhere).
+   * All 12 bytes now have a DOS meaning; see docs/mysteries_catalog.md
+   * Meta-mystery section.
    */
   union {
     uint8_t unknown26[12];
