@@ -15,9 +15,78 @@ Loot outcomes (sibling path, not direct callees inside `4528`):
 **Port status:** head warn CHOICE + ship abort + Linux raid/fallout arms
 **Done** thin; full body now recovered clean (see below) — VGA chrome still open.
 
-## 2026-08-21 — major structural correction: this function's own "if human
-## Euro" framing (below) has the polarity backwards, and the real branch
-## split changes what's actually AI-reachable here
+## 2026-08-27 — two retractions: `0x543f` polarity is `0`=human after all,
+## and the tail switch IS a real 9-way action dispatch (417e's caller found)
+
+Found while chasing `FUN_4d56_417e`'s caller (`indian_incite_417e.md`,
+"Caller: FOUND"). Both corrections are static-only and overturn the two
+sections below them.
+
+**1. Polarity: `nation*0x34+0x543f == 0` means HUMAN-controlled** (the
+2026-08-21 section directly below got this backwards; its own cited
+dispatcher lines actually prove the opposite). Five independent facts:
+- `col1_save.h:293` / `save_format_map.md`: `control /* 0 player, 1 AI,
+  2 withdrawn */` — the same byte; `turn.c:133` and `difficulty.md`
+  (human starting gold, `control==0`) already rely on `0`=human.
+- The dispatcher's `== '\0'` branch (`viceroy_unpacked.c:6409-6421`)
+  sets `*0x5396` (`curr_nation_map_view`) to this nation and calls
+  `FUN_281f_062c` = **Human Move/View Pieces** (`turn_between_players.md`
+  thunk table); the `== '\x01'` branch calls `FUN_281f_0638` =
+  `FUN_521d_6d8e`, the **Euro AI dispatcher**.
+- `417e`'s live capture: a player-driven Incite entered with `param_3=0`
+  (English, the human) and passed the `param_3<4 && byte==0` Mode-1 gate.
+- `417e`'s `byte!=0` branch (Mode 2) targets `*0x5398` (the human) — only
+  sensible for an AI inciter.
+- This function's `byte==0` branch is the one with the cancelable CHOICE
+  and `uStack_56 = FUN_1000_935a(dialog)` (read the pick back).
+So: the CHOICE-building `if` block = human; the `else`
+`switch(unit_type)` = **AI-controlled mover's automatic decision** —
+which is exactly the "does the AI get an equivalent" mechanic T1.7
+was looking for. `ai_king.c`'s `FUN_43f7_2244` header and
+`ai_diplo.c:1544`'s comment carry the same inverted wording; Linux code
+itself (`turn_run_european_ai_stubs`, `control==0` = human) is right.
+
+**2. The tail `switch(uStack_56)` cases call 8 different OVL13 functions,
+not one shared OVL11 utility.** The "all resolve to segment 11 offset 0"
+result came from decoding the unpatched `0000:` placeholder segment of the
+resident `FUN_1000_a5xx` stubs; the offsets *are* the real targets, all in
+this same overlay (same mechanism as the already-trusted
+`1000:a641 → FUN_4d56_2820`). Real table (`viceroy_overlays.asm:57460-57600`):
+
+| code | set by (human menu string / AI rule) | thunk | target | identity |
+|-----:|---|---|---|---|
+| 1 | `*0x932a` (wagon/ship, relation <75) / AI type `0xc` Wagon | `a63c` | `OVL13::2820` = `FUN_4d56_2820` | Trade (confirmed) |
+| 2 | `*0x932c` (wagon/ship, relation ≥75) | `a5e8` | `OVL13::359c` = `FUN_4d56_359c` | trade variant, not chased |
+| 3 | `*0x932e` (Missionary, village has no mission) / AI Missionary, no mission | `a5dc` | `OVL13::1c5a` (inside canonical `FUN_4d56_1b3a`'s range) | Establish Mission — body loops tribes matching `mission&0xf == nation` |
+| 4 | `*0x9330` (Missionary, foreign mission) / AI Missionary, foreign mission | `a594` | `OVL13::1ec4` | Denounce Heresy |
+| 5 | `*0x9332` (colonist with learnable profession, `FUN_1000_8d68 != 0x1b`) / AI default: unit state `0x1c`/`0x19`, relation ≤74 | `a618` | `OVL13::3646` | Live Among Natives / learn skill (by menu position; not chased) |
+| 6 | `*0x9334` (unit type 5 Scout) / AI type 5 | `a60c` | `OVL13::39ea` | Speak With Chief (by menu position; not chased) |
+| 7 | `*0x9336` (Missionary, MET bit) / AI Missionary passing the incite gate | `a5b8` | `OVL13::417e` = **`FUN_4d56_417e`** | **Incite Indians (confirmed, live capture + push-order match)** |
+| 8 | `*0x9338` (non-Missionary, MET bit, non-combat, non-ship) | `a5f4` | `OVL13::3e20` | Demand Tribute? (by elimination; not chased) |
+| 9 | `*0x933a` (combat-capable land unit) / AI types 1/4/0xb | — | `FUN_1000_8bf6` = `FUN_281f_0a06`, args `(nation, tribe, 4)`, then `iStack_5a=0` | Attack (opens hostilities) |
+| 10 | `*0x933c` | — | falls to `default` | Leave/cancel |
+
+Return: `iStack_5a` (1 default, 2 for cases 2/3/6-hit, 0 for 9); `2` when
+the mover's nation is not the current-turn nation (`*0x539c`).
+
+**AI-side rule set (the `else` branch), now the correct reading:**
+- types 1/4/0xb (Soldier/Dragoon/Artillery) → 9 Attack, unconditionally.
+- type 3 Missionary → 7 Incite if: tribe relation to human <75 **and**
+  human has met the tribe (`&0x20`) **and** own wealth rank < human's
+  (`0x917c` vs `human-0x6e84`) **and** own gold ≥1500 **and**
+  (`RNG(0,4)!=0` or village has no mission); else 3 Establish Mission if
+  no mission; else 4 Denounce if foreign mission; else nothing.
+- type 5 Scout → 6.
+- type 0xc Wagon → 1 Trade.
+- anything else → 5 only if `FUN_1000_8d68(unit) >= 0` (skilled query),
+  unit state byte `+0x315b` is `0x1c` or `0x19`, and relation ≤74.
+
+The 2026-08-21 "DOS's own AI gets no mechanical effect from this
+function" conclusion is therefore withdrawn; `ai_port_plan.md` T1.7 /
+T4.5 updated the same day.
+
+## 2026-08-21 — [RETRACTED 2026-08-27, see section above] structural
+## correction claiming `0`=AI / `1`=human polarity
 
 Started from `ai_port_plan.md` T1.7's leftover ("does AI get an equivalent
 of this mechanic") and ended up re-deriving the whole function's control
@@ -509,8 +578,9 @@ Reproduce: `tools/address_mapping.csv` → `FUN_4d56_4528` → `OVL13_L0000:4528
 at that address (Ghidra didn't auto-create one — cross-overlay call target,
 same reason covered in `docs/rtlink_decode_v2_gap.md`), decompile.
 
-## Case-dispatch tail (`switch(uStack_56)`, cases 1-9) — resolved, not a
-## hidden action tree (2026-08-13)
+## [RETRACTED 2026-08-27 — see top section: the 8 thunks resolve to 8
+## different OVL13 functions] Case-dispatch tail — "resolved, not a
+## hidden action tree" (2026-08-13)
 
 The tail switch (last section of the full body above) calls
 `thunk_FUN_1000_a63c`/`a5e8`/`a5dc`/`a594`/`a618`/`a60c`/`a5b8`/`a5f4` per

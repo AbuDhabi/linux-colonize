@@ -780,6 +780,16 @@ item's own 2026-08-24 entry for the full derivation. Ported, real
   treating as closed for practical purposes even though the checkbox
   above stays unchecked (the case-3 formula and this correction are the
   full extent of what's decodable/needed here).
+  **2026-08-27 retraction:** the polarity flip above (`0`=AI) was wrong —
+  `0`=human (`col1_save.h` `control`, `turn.c:133`, the dispatcher's
+  `==0` branch calls `FUN_281f_062c` Human Move/View Pieces). The
+  `switch(unit_type)` block IS the AI-mover's automatic decision, and
+  its 8 tail thunks go to 8 distinct OVL13 functions (Trade / Establish
+  Mission / Denounce / Learn / Speak / **Incite `417e`** / tribute? /
+  Attack), not one OVL11 utility. Full table + AI rule set in
+  `indian_settlement_4528.md`'s 2026-08-27 section. Linux gap this
+  reopens: AI Missionary Incite (T4.5) and AI Missionary Denounce; AI
+  military Attack is covered by `ai_euro_land_try_adjacent_village_seize`.
 
 - [ ] **T1.8 — `FUN_6662_0f74` pathfinding subsystem.** Confirmed clean but
   large: `0015bc`/`0015c1` are two separate BFS flood-fill searches (16×16
@@ -2479,12 +2489,20 @@ way it did when this file was first written.
   there — see `indian_trade_2820.md`) — the actual port is now
   reading-and-transcribing already-recovered code, not a fresh RE hunt.
 
-- [ ] **T4.5 — Incite (`417e`) Mode-2 trigger/caller.** Low value: Mode-1
-  (human path) is fully ported and byte-faithful; whether an AI-vs-AI or
-  AI-internal Mode-2 auto-incite is even a real mechanic is unconfirmed
-  (the one capture that looked like it turned out to be a mis-decoded
-  stack offset — see fulldraft memory passes 17–18). Optional; skip unless
-  specifically requested.
+- [x] **T4.5 — Incite (`417e`) Mode-2 trigger/caller.** **Caller found
+  2026-08-27, static-only** (`indian_incite_417e.md` "Caller: FOUND"):
+  `FUN_4d56_4528` tail switch `case 7`, reached through OVL13's local
+  thunk `4c36` → resident `FUN_1000_a5b8` (`CALLF ensure-loaded; JMPF
+  0000:417e`) — the stub earlier written off as a false lead. Mode 2 is a
+  real mechanic: AI Missionary at a village, gate = tribe relation to
+  human <75 ∧ human MET ∧ AI wealth rank < human's ∧ AI gold ≥1500 ∧
+  (RNG(0,4)≠0 ∨ no mission) → incite the village against the human,
+  else establish mission / denounce heresy. **Port of the AI auto-incite
+  itself still open** (new item, low-medium value): hook at the AI
+  Missionary CONTACT-goal arrival in `ai_euro.c`, reuse
+  `ai_contact_incite_price(..., is_missionary=1)` with `target=human`,
+  needs a chrome-free `ai_contact_apply_incite` variant and
+  `turn_rank_euro_nations` for the rank compare.
 
 - [ ] **T4.6 — `VR_B465X` hang dump.** Explicitly parked **by policy**
   (R0). Do not resume without a new, stated reason — this was a deliberate

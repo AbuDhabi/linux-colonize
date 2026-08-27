@@ -68,6 +68,94 @@ from somewhere inside `OVL13_L0000` that Ghidra's sweep never disassembled
 above can resolve. Not chased further — would need a live hang-dump or a
 much deeper manual byte walk of `OVL13_L0000`'s undisassembled gaps.
 
+## Caller: FOUND (2026-08-27) — `FUN_4d56_4528` tail switch, `case 7`
+
+Static-only, no live session. The earlier "false lead" dismissal of the
+resident stub `1000:a5bd JMPF 0x0000:417e` was wrong: that stub is the
+**second half of `FUN_1000_a5b8`** (`viceroy_overlays.asm:57488-57491`):
+
+```
+ram:1000:a5b8   CALLF  FUN_1000_1e7b        ; RTLink "ensure overlay loaded"
+ram:1000:a5bd   JMPF   0000:417e            ; segment patched at load time
+```
+
+— exactly the same shape as the already-trusted `1000:a641 → 0000:2820`
+(`FUN_4d56_2820`, trade) and `1000:a629 → 0000:2154` stubs. The `0000`
+segment is RTLink's load-time-patched placeholder, not a literal target,
+so the "file-offset lookup doesn't match" check was checking the wrong
+thing. `FUN_1000_a5b8` has one XREF: `OVL13_L0000::4c36`, a 5-byte
+`JMPF` in OVL13's own local thunk table (`thunk_FUN_1000_a5b8`,
+`viceroy_overlays.asm:130872-130874`), and *that* has one caller:
+`OVL13_L0000::4b80` — **`caseD_7` of the `switchD_OVL13_L0000::004bdb`
+jump table inside `FUN_4d56_4528`** (`viceroy_overlays.asm:130748-130754`):
+
+```
+caseD_7:
+  PUSH word ptr [BP-0x2]      ; uStack_4  = tribe record's +2 byte (settlement type/id)  -> param_4
+  PUSH word ptr [BP-0x68]     ; uStack_6a = mover's nation (unit+0x3147 & 0xf)           -> param_3
+  PUSH word ptr [BP+0x6]      ; param_2   = mover unit index                             -> param_2
+  PUSH CS ; CALL thunk_FUN_1000_a5b8
+```
+
+Push order matches the live capture bit-for-bit (`param_2=38` unit,
+`param_3=0` English, `param_4=11`). Ghidra's `.c` rendering of this
+case (`thunk_FUN_1000_a5b8(0,param_2)`) dropped two of the three real
+args, which is why the decompile never looked like a match. Why the
+Ghidra reference manager and the `rtlink_decode` jump-table both came
+up empty: the call chain is *near call → local JMPF thunk → resident
+CALLF/JMPF stub*, neither hop is a cross-overlay jump-table entry, and
+the resident stub's target segment is patched at runtime.
+
+**Both modes now have a concrete trigger** (see `indian_settlement_4528.md`,
+2026-08-27 section, for the full 9-case target table):
+
+- **Mode 1 (human):** `4528`'s human branch (`nation*0x34+0x543f == 0`,
+  i.e. `control==0` in `col1_save.h` terms) builds the village-meet
+  CHOICE; menu entry string `*0x9336` carries option code **7** and is
+  added only for a Missionary (unit type 3) with `FUN_1000_8c28(nation,
+  tribe)&0x40` (MET) set. `uStack_56 = FUN_1000_935a(dialog)` = the
+  picked code → `case 7` → `417e(unit, nation, tribe+2)`. This is the
+  "Incite Indians" order.
+- **Mode 2 (AI nation):** `4528`'s non-human branch, `switch(unit_type)`
+  `case 3` (Missionary). Gate, all of:
+  1. `FUN_1000_84fc(*0x8d52, *0x5398) < 0x4b` — tribe's relation score
+     toward the **human player** (`0x5398` = `human_player` /
+     `VICEROY_DS_FOCUS_NATION`) below 75;
+  2. `FUN_1000_8c28(*0x5398, tribe) & 0x20` — human has the tribe's
+     contact bit;
+  3. `wealth_rank[AI nation] (0x917c) < wealth_rank[human]` (`-0x6e84`
+     indexed by human id) — the AI nation ranks **poorer** than the human
+     (`FUN_5bfb_00f8` table, Linux `turn_rank_euro_nations`);
+  4. AI nation gold (`nation*0x13c-0x77ce/-0x77cc`, 32-bit) `>= 0x5dc`
+     (1500);
+  5. `RNG(0,4) != 0` (`FUN_1000_86c4` = `FUN_281f_04d4`, 4-in-5) **or**
+     the village has no mission yet (`tribe+5 < 0`).
+  → `uStack_56 = 7` → `417e(unit, ai_nation, tribe+2)`. Inside `417e`
+  the `0x543f != 0` test then selects Mode 2: `nation_B = *0x5398` (the
+  human), no menu, no confirm; diplo gate + relation `>= 0x4b` gate +
+  affordability, then pay and push the tribe against the human.
+  If the gate fails: no mission at village → `case 3` → establish
+  mission (`thunk_FUN_1000_a5dc` → `OVL13::1c5a`); mission owned by
+  another nation → `case 4` → denounce heresy (`thunk_FUN_1000_a594` →
+  `OVL13::1ec4`); own mission → exit, nothing.
+
+So Mode 2 is a **real mechanic**: an AI Euro nation that is poorer than
+the human, has ≥1500 gold, and walks a Missionary into a village that is
+already cool (<75) toward the human, bribes that village onto the
+warpath against the human 4 times in 5 (always, if the village has no
+mission yet). This closes `ai_port_plan.md` T4.5's "is Mode 2 even real"
+question. **Not ported yet** — Linux AI missionaries only establish
+missions (`ai_euro.c` Missionary CONTACT goal); an AI auto-incite hook
+would sit where the AI missionary reaches its CONTACT target, reuse
+`ai_contact_incite_price(..., is_missionary=1, ...)` with
+`target = human`, and need a chrome-free variant of
+`ai_contact_apply_incite`.
+
+**Retraction note:** the "Caller: still not found" section above and the
+"Caller hunt closed out (2026-08-13)" paragraph below are superseded by
+this section; kept for the record of what was tried.
+
+
 ## Parameter / global semantics (cross-referenced against `4528`)
 
 `4528` (already fully ported, `indian_settlement_4528.md`) uses the exact
@@ -188,10 +276,8 @@ this further.
 - `param_4`'s precise role — best guess above (tribe's own class, for
   the same-class discount and the diplomacy check), not confirmed
   against the dialog text.
-- The caller — still not found via static methods (see below); a live
-  capture traced it to RTLink's own generic overlay-call trampoline
-  (infrastructure, not game logic), so the real trigger context is
-  still open.
+- ~~The caller~~ — **found 2026-08-27** (`FUN_4d56_4528` tail switch
+  `case 7`, both modes; see "Caller: FOUND" above).
 - Whether the `+100` relation push is toward war/alarm specifically vs.
   some other effect — not traced past the call site.
 
@@ -412,10 +498,10 @@ confirmed by checking the real harness code before concluding either way.
 - The DOS `apply(CUR_INDIAN_ALT, nation_B, 100, 0)` relation-push call
   (exact semantics/magnitude unconfirmed) — implemented as a flat +10
   `alarm_by_player[target]` bump.
-- Only the "Mode 1" (human, menu-driven) path is wired. Mode 2's
-  AI-nation-shortcut reading (`param_3>=4` or a per-nation flag set) was
-  never actually confirmed by a live capture — not ported; AI nations
-  don't autonomously incite in this port yet.
+- Only the "Mode 1" (human, menu-driven) path is wired. Mode 2 (AI
+  nation auto-incite against the human) is now **confirmed real and its
+  trigger/gate fully known** (2026-08-27, "Caller: FOUND" above) — still
+  not ported; AI nations don't autonomously incite in this port yet.
 
 Verified: `unit_ai_contact` (existing dedicated test: menu enqueues target
 choices for an affordable inciter, picking one drains ≥500 gold from the
