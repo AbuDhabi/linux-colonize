@@ -618,7 +618,7 @@ static void write_colony(FILE* f, const ColonizeCol1Colony* c) {
   wi(f, &n, "hammers_purchased", c->hammers_purchased);
   W_U16ARR(f, &n, "stock", c->stock, COLONIZE_COL1_CARGO_TYPES);
   W_U8ARR(f, &n, "visible_to_euro", c->visible_to_euro, 4);
-  W_U8ARR(f, &n, "unknown13_pad", c->unknown13_pad, 4);
+  W_U8ARR(f, &n, "fortification_on_map", c->fortification_on_map, 4);
   wu(f, &n, "rebel_dividend", c->rebel_dividend);
   wu(f, &n, "rebel_divisor", c->rebel_divisor);
   fputc('}', f);
@@ -696,11 +696,11 @@ static void read_colony(const JsonValue* o, ColonizeCol1Colony* c) {
       if (it && it->type == JV_NUM) c->visible_to_euro[i] = (uint8_t)it->num;
     }
   }
-  arr = json_obj_get(o, "unknown13_pad");
+  arr = json_obj_get(o, "fortification_on_map");
   if (arr && arr->type == JV_ARR) {
     for (size_t i = 0; i < 4 && i < json_arr_len(arr); ++i) {
       JsonValue* it = json_arr_at(arr, i);
-      if (it && it->type == JV_NUM) c->unknown13_pad[i] = (uint8_t)it->num;
+      if (it && it->type == JV_NUM) c->fortification_on_map[i] = (uint8_t)it->num;
     }
   }
   if (json_get_u64(o, "rebel_dividend", &u)) c->rebel_dividend = (uint32_t)u;

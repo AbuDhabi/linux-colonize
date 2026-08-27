@@ -1375,7 +1375,7 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_281f_07aa` | 32450 | 10 | thunk | Far thunk → FUN_13f1_00a6 (reveal ±5 around colony into explore plane) | inferred |  |
 | `FUN_281f_07b4` | 32460 | 10 | thunk | Far thunk → FUN_15eb_3960 (nation feature/FF bit test (table −0x77f1)) | inferred |  |
 | `FUN_281f_07be` | 32470 | 10 | thunk | Far thunk → FUN_15eb_0a76 (colony index at map xy) | inferred |  |
-| `FUN_281f_07c8` | 32480 | 10 | thunk | Far thunk → FUN_364b_1b4c (refresh colony warehouse-capacity slots) | inferred |  |
+| `FUN_281f_07c8` | 32480 | 10 | thunk | Far thunk → FUN_364b_1b4c (snapshot pop/fort_on_map[nation] on tile reveal) | inferred |  |
 | `FUN_281f_07d6` | 32490 | 10 | thunk | Far thunk → FUN_1427_09ac (stack_or_nation_flag) | known | ai/move_spent.c; ai/unit_mp.c |
 | `FUN_281f_07e0` | 32500 | 10 | mapgen | unit_index_on_tile | known | ai/accessors.c |
 | `FUN_281f_07ea` | 32510 | 10 | thunk | Far thunk → FUN_1427_04d6 (reorder tile stack by type priority) | inferred |  |
@@ -1729,7 +1729,7 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_291f_096c` | 35960 | 10 | thunk | Far thunk → FUN_6b7e_0218 (restore camera center/zoom for nation slot) | inferred |  |
 | `FUN_291f_097a` | 35970 | 10 | thunk | Far thunk → FUN_364b_0114 (complete construction; apply upgrades/flags; reset hammers) | inferred |  |
 | `FUN_291f_0988` | 35980 | 10 | thunk | Far thunk → FUN_364b_033a (area pass: set map feature 4 on ocean/hills tiles worked by jobs 6/7) | inferred |  |
-| `FUN_291f_0996` | 35990 | 10 | thunk | Far thunk → FUN_364b_1b76 (gate: colony warehouse/trade slot usable for nation) | inferred |  |
+| `FUN_291f_0996` | 35990 | 10 | thunk | Far thunk → FUN_364b_1b76 (gate: colony known to nation via pop_on_map) | inferred |  |
 | `FUN_291f_09a4` | 36000 | 10 | thunk | Far thunk → FUN_364b_1b1a (bind colony; place unit into colonist slot) | inferred |  |
 | `FUN_291f_09b2` | 36010 | 10 | thunk | Far thunk → FUN_364b_1ba8 (found colony: bump 539e; init colony record via DS:0x8542) | inferred |  |
 | `FUN_291f_09c0` | 36020 | 10 | thunk | Far thunk → FUN_364b_0636 (customs-house auto-sell gate for cargo type) | inferred |  |
@@ -2288,8 +2288,8 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_364b_0688` | 57152 | 803 | colony | Colony EOT production/stock/SoL/construction tick (DS:0x8542) | inferred | turn/colony_eot_production.md |
 | `FUN_364b_1aec` | 57955 | 15 | colony | Bind colony; assign unit into workplace via 2f3e | inferred |  |
 | `FUN_364b_1b1a` | 57970 | 16 | colony | Bind colony; place unit into colonist slot (0c36) | inferred |  |
-| `FUN_364b_1b4c` | 57986 | 15 | colony | Refresh colony warehouse-capacity slots from pop/buildings | inferred |  |
-| `FUN_364b_1b76` | 58001 | 14 | colony | Gate: colony warehouse/trade slot usable for nation | inferred |  |
+| `FUN_364b_1b4c` | 57986 | 15 | colony | Fog snapshot: pop_on_map[nation]=population, fort_on_map[nation]=stockade-chain depth (0x5e00/0x5e04) | known |  |
+| `FUN_364b_1b76` | 58001 | 14 | colony | Gate: colony owned by or already seen (pop_on_map!=0) by nation; 0x53a2 bypass | known |  |
 | `FUN_364b_1ba8` | 58015 | 253 | colony | Found colony: bump 539e, init colony record via DS:0x8542 | inferred |  |
 
 ### Segment `3844` (3 defs) — turn — Euro EOT treasure / ship-ready unit chrome
