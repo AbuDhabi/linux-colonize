@@ -117,7 +117,6 @@ bool units_load_types(ColonizeUnitPool* pool, const ColonizeMsgCatalog* names) {
         !units_parse_int_field(&p, &guns) || !units_parse_int_field(&p, &hull)) {
       continue;
     }
-    (void)size;
     (void)tools;
     (void)guns;
 
@@ -130,6 +129,7 @@ bool units_load_types(ColonizeUnitPool* pool, const ColonizeMsgCatalog* names) {
     t->defense = defense;
     t->cargo = cargo;
     t->cost = cost;
+    t->space = size;
     t->domain = hull > 0 ? COLONIZE_UNIT_DOMAIN_SEA : COLONIZE_UNIT_DOMAIN_LAND;
   }
 
@@ -5385,6 +5385,310 @@ static bool units_greedy_next_step(
   return true;
 }
 
+/* ======================================================================
+ * FUN_6662_0f74 far tier — coarse-grid waypoint pathing (2026-08-27 port).
+ *
+ * DOS keeps two quarter-resolution walkability bitmaps (DS:0x85e8 land,
+ * DS:0x86f6 sea; 15 rows x 18 cols, stride 0x12, cell = 4x4 tiles, sample
+ * point = (4cx+1, 4cy+1)) built once per game by FUN_OVL21_L0040__0007d8:
+ * each cell byte is an 8-bit mask of the directions (DS:0xb4/0xbe order)
+ * whose neighbour cell is reachable in that domain. Linux rebuilds the
+ * same tables lazily per map (terrain is static): a cell holds the domain
+ * when any tile of its 2x2 sample block does (the FUN_OVL20_L0000__000000
+ * probe's own test), and bit d is set when a windowed flood between the two
+ * sample points succeeds (the FUN_6662_0906 Chebyshev<8 / 0015bc check the
+ * populator runs per direction — approximated with a domain-only BFS in a
+ * 16x16 window). The populator's own body is not decompiled; this is the
+ * consumer-side reconstruction, flagged as such (euro_unit_act.md).
+ *
+ *   FUN_6662_09ae  snap (x,y) to a walkable cell: its own cell when the
+ *                  probe passes, else the nearest walkable neighbour cell
+ *                  by DOS distance (FUN_124c_0040) from cell centre to (x,y).
+ *   0015c1         U = snap(unit), G = snap(goal); BFS over the coarse grid
+ *                  from G (cost 1) until U pops; among U's neighbours pick
+ *                  the lowest cost, ties by octile distance to the goal
+ *                  (FUN_1000_856a); the 000000 probe turns that cell into a
+ *                  real tile -> waypoint (DS:0xa14e/0xa14c).
+ *   0f74 far arm   flood (0015bc) toward the waypoint; if that fails, toward
+ *                  the probed centre of U (DS:0xa572/0xa574 * 4 + 1); then
+ *                  the scored 8-neighbour fallback.
+ * The DOS sea probe also requires continent id 1; Linux water tiles carry no
+ * continent id (map_continent_id_at -> -1), so that term is dropped.
+ * ====================================================================== */
+#define UNITS_COARSE_ROWS 15
+#define UNITS_COARSE_COLS 18
+typedef struct UnitsCoarseGrid {
+  const ColonizeWorldMap* map;
+  int width;
+  int height;
+  uint8_t mask[2][UNITS_COARSE_ROWS][UNITS_COARSE_COLS];
+  uint8_t walk[2][UNITS_COARSE_ROWS][UNITS_COARSE_COLS];
+} UnitsCoarseGrid;
+static UnitsCoarseGrid s_units_coarse;
+
+static int units_coarse_domain_tile(const ColonizeWorldMap* map, int x, int y, int sea) {
+  if (x < 0 || y < 0 || x >= (int)map->width || y >= (int)map->height) {
+    return 0;
+  }
+  const int water = map_tile_is_water(map, x, y) || map_tile_is_high_seas(map, x, y);
+  return sea ? water : !water;
+}
+
+/* FUN_OVL20_L0000__000000: 2x2 probe at (4cx+1.., 4cy+1..); writes the tile. */
+static int units_coarse_probe(
+  const ColonizeWorldMap* map, int cx, int cy, int sea, int* out_x, int* out_y
+) {
+  for (int r = cx * 4 + 1; r <= cx * 4 + 2; ++r) {
+    for (int c = cy * 4 + 1; c <= cy * 4 + 2; ++c) {
+      if (units_coarse_domain_tile(map, r, c, sea)) {
+        if (out_x) {
+          *out_x = r;
+        }
+        if (out_y) {
+          *out_y = c;
+        }
+        return 1;
+      }
+    }
+  }
+  return 0;
+}
+
+/* Windowed domain-only BFS between two tiles (populator's 0906 check). */
+static int units_coarse_connected(const ColonizeWorldMap* map, int ax, int ay, int bx, int by, int sea) {
+  static const int k_dx[8] = {0, 1, 1, 1, 0, -1, -1, -1};
+  static const int k_dy[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
+  uint8_t seen[16][16];
+  memset(seen, 0, sizeof(seen));
+  const int ox = (ax < bx ? ax : bx) - 4;
+  const int oy = (ay < by ? ay : by) - 4;
+  int qx[256];
+  int qy[256];
+  int head = 0;
+  int tail = 0;
+  qx[tail] = ax;
+  qy[tail] = ay;
+  tail++;
+  seen[ax - ox][ay - oy] = 1;
+  while (head < tail) {
+    const int x = qx[head];
+    const int y = qy[head];
+    head++;
+    if (x == bx && y == by) {
+      return 1;
+    }
+    for (int d = 0; d < 8; ++d) {
+      const int nx = x + k_dx[d];
+      const int ny = y + k_dy[d];
+      const int lx = nx - ox;
+      const int ly = ny - oy;
+      if (lx < 0 || ly < 0 || lx >= 16 || ly >= 16 || seen[lx][ly]) {
+        continue;
+      }
+      if (!units_coarse_domain_tile(map, nx, ny, sea)) {
+        continue;
+      }
+      seen[lx][ly] = 1;
+      if (tail < 256) {
+        qx[tail] = nx;
+        qy[tail] = ny;
+        tail++;
+      }
+    }
+  }
+  return 0;
+}
+
+static void units_coarse_build(const ColonizeWorldMap* map) {
+  static const int k_dx[8] = {0, 1, 1, 1, 0, -1, -1, -1};
+  static const int k_dy[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
+  UnitsCoarseGrid* g = &s_units_coarse;
+  if (g->map == map && g->width == (int)map->width && g->height == (int)map->height) {
+    return;
+  }
+  memset(g, 0, sizeof(*g));
+  g->map = map;
+  g->width = (int)map->width;
+  g->height = (int)map->height;
+  for (int sea = 0; sea < 2; ++sea) {
+    for (int cx = 0; cx < UNITS_COARSE_ROWS; ++cx) {
+      for (int cy = 0; cy < UNITS_COARSE_COLS; ++cy) {
+        g->walk[sea][cx][cy] = (uint8_t)units_coarse_probe(map, cx, cy, sea, NULL, NULL);
+      }
+    }
+    for (int cx = 0; cx < UNITS_COARSE_ROWS; ++cx) {
+      for (int cy = 0; cy < UNITS_COARSE_COLS; ++cy) {
+        if (!g->walk[sea][cx][cy]) {
+          continue;
+        }
+        int ax = 0;
+        int ay = 0;
+        (void)units_coarse_probe(map, cx, cy, sea, &ax, &ay);
+        uint8_t m = 0;
+        for (int d = 0; d < 8; ++d) {
+          const int nx = cx + k_dx[d];
+          const int ny = cy + k_dy[d];
+          if (nx < 0 || ny < 0 || nx >= UNITS_COARSE_ROWS || ny >= UNITS_COARSE_COLS ||
+              !g->walk[sea][nx][ny]) {
+            continue;
+          }
+          int bx = 0;
+          int by = 0;
+          (void)units_coarse_probe(map, nx, ny, sea, &bx, &by);
+          if (units_coarse_connected(map, ax, ay, bx, by, sea)) {
+            m |= (uint8_t)(1u << d);
+          }
+        }
+        g->mask[sea][cx][cy] = m;
+      }
+    }
+  }
+}
+
+/* FUN_124c_0040 (ai_dos_dist): max(|dx|,|dy|) + min(|dx|,|dy|)/2. */
+static int units_coarse_dos_dist(int dx, int dy) {
+  if (dx < 0) dx = -dx;
+  if (dy < 0) dy = -dy;
+  return dx > dy ? dx + (dy >> 1) : dy + (dx >> 1);
+}
+
+/* FUN_6662_09ae */
+static int units_coarse_snap(
+  const ColonizeWorldMap* map, int x, int y, int sea, int* out_cx, int* out_cy
+) {
+  static const int k_dx[8] = {0, 1, 1, 1, 0, -1, -1, -1};
+  static const int k_dy[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
+  const UnitsCoarseGrid* g = &s_units_coarse;
+  const int cx = x >> 2;
+  const int cy = y >> 2;
+  if (cx < 0 || cy < 0 || cx >= UNITS_COARSE_ROWS || cy >= UNITS_COARSE_COLS) {
+    return 0;
+  }
+  int pick = -1;
+  if (g->mask[sea][cx][cy] != 0 && units_coarse_probe(map, cx, cy, sea, NULL, NULL)) {
+    pick = 8; /* stay */
+  }
+  if (pick < 0) {
+    int best = 99;
+    for (int d = 0; d < 8; ++d) {
+      const int nx = cx + k_dx[d];
+      const int ny = cy + k_dy[d];
+      if (nx < 0 || ny < 0 || nx >= UNITS_COARSE_ROWS || ny >= UNITS_COARSE_COLS ||
+          g->mask[sea][nx][ny] == 0) {
+        continue;
+      }
+      const int dist = units_coarse_dos_dist(x - (nx * 4 + 1), y - (ny * 4 + 1));
+      if (dist < best && units_coarse_probe(map, nx, ny, sea, NULL, NULL)) {
+        best = dist;
+        pick = d;
+      }
+    }
+  }
+  if (pick < 0) {
+    return 0;
+  }
+  *out_cx = pick == 8 ? cx : cx + k_dx[pick];
+  *out_cy = pick == 8 ? cy : cy + k_dy[pick];
+  return 1;
+}
+
+/* FUN_OVL20_L0000__0015c1: coarse waypoint toward (gx,gy). Also reports the
+ * snapped unit cell (DS:0xa572/0xa574) for 0f74's fallback. */
+static int units_coarse_waypoint(
+  const ColonizeWorldMap* map, int ux, int uy, int gx, int gy, int sea,
+  int* out_x, int* out_y, int* out_ucx, int* out_ucy
+) {
+  static const int k_dx[8] = {0, 1, 1, 1, 0, -1, -1, -1};
+  static const int k_dy[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
+  units_coarse_build(map);
+  const UnitsCoarseGrid* g = &s_units_coarse;
+  int ucx = 0;
+  int ucy = 0;
+  int gcx = 0;
+  int gcy = 0;
+  if (!units_coarse_snap(map, ux, uy, sea, &ucx, &ucy)) {
+    return 0;
+  }
+  *out_ucx = ucx;
+  *out_ucy = ucy;
+  if (!units_coarse_snap(map, gx, gy, sea, &gcx, &gcy)) {
+    return 0;
+  }
+  uint8_t cost[UNITS_COARSE_ROWS][UNITS_COARSE_COLS];
+  memset(cost, 0, sizeof(cost));
+  uint8_t qr[256];
+  uint8_t qc[256];
+  int head = 0;
+  int tail = 0;
+  cost[gcx][gcy] = 1;
+  qr[tail] = (uint8_t)gcx;
+  qc[tail] = (uint8_t)gcy;
+  tail++;
+  int found = 0;
+  while (head < tail) {
+    const int cx = qr[head];
+    const int cy = qc[head];
+    head++;
+    if (cx == ucx && cy == ucy) {
+      found = 1;
+      break;
+    }
+    const uint8_t m = g->mask[sea][cx][cy];
+    for (int d = 0; d < 8; ++d) {
+      if ((m & (1u << d)) == 0) {
+        continue;
+      }
+      const int nx = cx + k_dx[d];
+      const int ny = cy + k_dy[d];
+      if (nx < 0 || ny < 0 || nx >= UNITS_COARSE_ROWS || ny >= UNITS_COARSE_COLS ||
+          cost[nx][ny] != 0) {
+        continue;
+      }
+      cost[nx][ny] = (uint8_t)(cost[cx][cy] + 1);
+      if (tail < 256) {
+        qr[tail] = (uint8_t)nx;
+        qc[tail] = (uint8_t)ny;
+        tail++;
+      }
+    }
+  }
+  if (!found) {
+    return 0;
+  }
+  int best_d = -1;
+  int best_cost = 99;
+  int best_dist = 0;
+  const uint8_t um = g->mask[sea][ucx][ucy];
+  for (int d = 0; d < 8; ++d) {
+    if ((um & (1u << d)) == 0) {
+      continue;
+    }
+    const int nx = ucx + k_dx[d];
+    const int ny = ucy + k_dy[d];
+    if (nx < 0 || ny < 0 || nx >= UNITS_COARSE_ROWS || ny >= UNITS_COARSE_COLS ||
+        cost[nx][ny] == 0) {
+      continue;
+    }
+    const int dist = units_octile(nx * 4 + 1, ny * 4 + 1, gx, gy);
+    if (cost[nx][ny] < best_cost || (cost[nx][ny] == best_cost && dist < best_dist)) {
+      best_cost = cost[nx][ny];
+      best_dist = dist;
+      best_d = d;
+    }
+  }
+  if (best_d < 0) {
+    return 0;
+  }
+  const int wcx = ucx + k_dx[best_d];
+  const int wcy = ucy + k_dy[best_d];
+  int wx = wcx * 4 + 1;
+  int wy = wcy * 4 + 1;
+  (void)units_coarse_probe(map, wcx, wcy, sea, &wx, &wy);
+  *out_x = wx;
+  *out_y = wy;
+  return 1;
+}
+
 bool units_next_goto_step(
   const ColonizeUnitPool* pool,
   int unit_id,
@@ -5437,29 +5741,33 @@ bool units_next_goto_step(
     return units_greedy_next_step(pool, unit_id, map, colonies, rng, gx, gy, out_x, out_y);
   }
 
-  /* Far: uniform BFS first step, else greedy. */
-  if (units_bfs_next_step(pool, unit_id, map, colonies, gx, gy, out_x, out_y)) {
-    return true;
-  }
-  /* Intermediate waypoint within flood range, then flood. */
+  /*
+   * Far (FUN_6662_0f74 LAB_10e1): coarse-grid waypoint (0015c1), flood
+   * (0015bc) toward it; on a flood miss, flood toward the probed centre of
+   * the unit's own snapped cell; then the scored 8-neighbour fallback.
+   * units_bfs_next_step (the earlier whole-map substitute) is retired from
+   * this tier but kept compiled for reference.
+   */
   {
-    int wx = u->x + (adx > 6 ? units_sign_i(gx - u->x) * 6 : (gx - u->x));
-    int wy = u->y + (ady > 6 ? units_sign_i(gy - u->y) * 6 : (gy - u->y));
-    if (wx < 0) {
-      wx = 0;
-    }
-    if (wy < 0) {
-      wy = 0;
-    }
-    if (wx >= (int)map->width) {
-      wx = (int)map->width - 1;
-    }
-    if (wy >= (int)map->height) {
-      wy = (int)map->height - 1;
-    }
-    if (units_flood_next_step(pool, unit_id, map, colonies, wx, wy, out_x, out_y)) {
+    const int sea = units_is_sea(pool, unit_id) ? 1 : 0;
+    int wx = 0;
+    int wy = 0;
+    int ucx = -1;
+    int ucy = -1;
+    const int have_wp = units_coarse_waypoint(map, u->x, u->y, gx, gy, sea, &wx, &wy, &ucx, &ucy);
+    if (have_wp && units_flood_next_step(pool, unit_id, map, colonies, wx, wy, out_x, out_y)) {
       return true;
     }
+    if (ucx >= 0) {
+      int fx = ucx * 4 + 1;
+      int fy = ucy * 4 + 1;
+      (void)units_coarse_probe(map, ucx, ucy, sea, &fx, &fy);
+      if ((fx != u->x || fy != u->y) &&
+          units_flood_next_step(pool, unit_id, map, colonies, fx, fy, out_x, out_y)) {
+        return true;
+      }
+    }
+    (void)units_bfs_next_step;
   }
   return units_greedy_next_step(pool, unit_id, map, colonies, rng, gx, gy, out_x, out_y);
 }

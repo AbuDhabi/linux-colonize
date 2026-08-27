@@ -1771,6 +1771,22 @@ int main(void) {
     ctx_r3.col1_ok = true;
     ctx_r3.rng = &rng_r3;
     ctx_r3.turn_number = &turn_r3;
+    /* 13b0 (2026-08-27) only runs on a 3180 encounter: adjacent units. */
+    static ColonizeUnitPool units_r3;
+    units_reset(&units_r3);
+    units_r3.type_count = 1;
+    snprintf(units_r3.types[0].name, sizeof(units_r3.types[0].name), "Soldier");
+    units_r3.types[0].movement = 1;
+    units_r3.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+    {
+      const int ua = units_spawn(&units_r3, 0, 5, 5);
+      const int ub = units_spawn(&units_r3, 0, 6, 5);
+      ColonizeUnit* pa = units_get(&units_r3, ua);
+      ColonizeUnit* pb = units_get(&units_r3, ub);
+      if (pa) pa->nation_id = 0;
+      if (pb) pb->nation_id = 1;
+    }
+    ctx_r3.units = &units_r3;
     ctx_r3.human_nation = 0;
     ctx_r3.status = status;
     ctx_r3.status_size = sizeof(status);
@@ -3672,5 +3688,107 @@ int main(void) {
   }
 
   fprintf(stderr, "unit_ai_diplo: ok\n");
+  /*
+   * FUN_5bfb_153e phase 1 (2026-08-27, real terms): human self 0 vs target 1,
+   * target colony with an adjacent target unit and no garrison -> the border
+   * probe asserts worthy=1 with a nonzero score; the DS:0x53c8 stamp refreshes.
+   */
+  {
+    ColonizeWorldMap wmap;
+    memset(&wmap, 0, sizeof(wmap));
+    wmap.width = 16;
+    wmap.height = 16;
+    wmap.tile_count = 256;
+    wmap.terrain = calloc(256, 1);
+    wmap.layer2 = calloc(256, 1);
+    wmap.layer3 = calloc(256, 1);
+    if (!wmap.terrain || !wmap.layer2 || !wmap.layer3) {
+      return fail("153e alloc map");
+    }
+    for (int i = 0; i < 256; ++i) {
+      wmap.terrain[i] = 1;
+      wmap.layer3[i] = 1; /* continent 1 */
+    }
+    static ColonizeUnitPool wunits;
+    units_reset(&wunits);
+    wunits.type_count = 1;
+    snprintf(wunits.types[0].name, sizeof(wunits.types[0].name), "Soldiers");
+    wunits.types[0].movement = 1;
+    wunits.types[0].attack = 2;
+    wunits.types[0].defense = 2;
+    wunits.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+    const int wsid = units_spawn(&wunits, 0, 9, 8);
+    ColonizeUnit* wsol = units_get(&wunits, wsid);
+    if (!wsol) {
+      return fail("153e spawn soldier");
+    }
+    wsol->nation_id = 1;
+    static ColonizeColonyPool wcol;
+    colonies_init(&wcol);
+    ColonizeColony* tc = &wcol.colonies[0];
+    tc->id = 0;
+    tc->active = true;
+    tc->nation_id = 1;
+    tc->x = 8;
+    tc->y = 8;
+    tc->population = 2;
+    tc->colonist_count = 2;
+    tc->building_in_production = -1;
+    ColonizeColony* sc = &wcol.colonies[1];
+    sc->id = 1;
+    sc->active = true;
+    sc->nation_id = 0;
+    sc->x = 2;
+    sc->y = 2;
+    sc->population = 2;
+    sc->colonist_count = 2;
+    sc->building_in_production = -1;
+    wcol.colony_count = 2;
+    wcol.next_id = 2;
+    ColonizeCol1Save w;
+    col1_save_init(&w);
+    memset(w.nation, 0, sizeof(w.nation));
+    memset(w.head.nation_relation, 0, sizeof(w.head.nation_relation));
+    w.head.turn = 100; /* past the (difficulty-10)*-10 no-war threshold */
+    w.head.difficulty = 1;
+    w.head.human_player = 0;
+    w.nation[0].gold = 5000;
+    w.stuff.colony_counts[0] = 1;
+    w.stuff.colony_counts[1] = 1;
+    w.stuff.field_combat_totals[1] = 10;
+    w.nation[0].euro_relation[1] = AI_DIPLO_MET;
+    w.nation[1].euro_relation[0] = AI_DIPLO_MET;
+    ColonizeTurnContext wctx;
+    memset(&wctx, 0, sizeof(wctx));
+    wctx.col1 = &w;
+    wctx.col1_ok = true;
+    wctx.map = &wmap;
+    wctx.units = &wunits;
+    wctx.colonies = &wcol;
+    wctx.human_nation = 0;
+    const Ai153eWorthinessScore ws = ai_diplo_153e_worthiness_score(&wctx, 0, 1, -1, 1);
+    free(wmap.terrain);
+    free(wmap.layer2);
+    free(wmap.layer3);
+    if (!ws.handled) {
+      return fail("153e: forced gate should run phase 1");
+    }
+    if (!ws.worthy || ws.score <= 0) {
+      fprintf(stderr, "unit_ai_diplo: 153e worthy=%d score=%d\n", ws.worthy, ws.score);
+      return fail("153e: unguarded target colony with adjacent target unit should be worthy");
+    }
+    if (w.head.nation_relation[1] != 100) {
+      return fail("153e: DS:0x53c8[target] must be stamped with the turn");
+    }
+    if (ai_diplo_00f8_top_ranked_nation(&w) != 0) {
+      return fail("153e: nation 0 (5000 gold) should top the 00f8 rank table");
+    }
+    /* AI self never scores (13b0 branch). */
+    const Ai153eWorthinessScore wa = ai_diplo_153e_worthiness_score(&wctx, 1, 0, -1, 1);
+    if (!wa.handled || wa.worthy || wa.score != 0) {
+      return fail("153e: AI self must take the 13b0 branch (handled, no score)");
+    }
+  }
+
   return 0;
 }
