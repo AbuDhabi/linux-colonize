@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="2000" height="980" viewBox="0 0 2000 980">
+<svg xmlns="http://www.w3.org/2000/svg" width="2000" height="1000" viewBox="0 0 2000 1000">
   <title>AI FUN_* call map (port status)</title>
-  <desc>From docs/ai_transcription.md — green=done/ported, yellow=partial, red=unported/missing</desc>
+  <desc>From docs/ai_transcription.md — green=done/ported, yellow=partial, red=unported/missing. Updated 2026-08-27.</desc>
   <defs>
     <marker id="arrow" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
       <polygon points="0 0, 10 3.5, 0 7" fill="#495057"/>
@@ -15,7 +15,7 @@
   </defs>
   <rect width="100%" height="100%" fill="#f8f9fa"/>
   <text x="24" y="28" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="20" font-weight="700" fill="#212529">AI function call map</text>
-  <text x="24" y="48" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="12" fill="#495057">Source: docs/ai_transcription.md + annotated callgraphs · arrows = known DOS/Linux call edges</text>
+  <text x="24" y="48" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="12" fill="#495057">Source: docs/ai_transcription.md · updated 2026-08-27 · arrows = known DOS/Linux call edges</text>
   <g font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="11">
     <rect x="1180" y="16" width="14" height="14" rx="2" fill="#d8f5d0" stroke="#2b8a3e"/>
     <text x="1200" y="27" fill="#212529">done / ported</text>
@@ -33,9 +33,9 @@
   <text x="780" y="110" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="12" font-weight="700" fill="#868e96">Contact / meet</text>
   <text x="1040" y="110" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="12" font-weight="700" fill="#868e96">Diplomacy</text>
   <text x="1510" y="110" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="12" font-weight="700" fill="#868e96">King / REF</text>
-  <rect x="20" y="690" width="1960" height="270" rx="10" fill="#fff" stroke="#dee2e6" stroke-width="1.5"/>
-  <text x="40" y="718" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="14" font-weight="700" fill="#495057">Callers not identified (or outside the EOT call web)</text>
-  <text x="40" y="736" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="11" fill="#868e96">Inventory nodes without a solid place in the web above. Small internal chains among contact helpers are shown; they are not attached to 1816/EOT.</text>
+  <rect x="20" y="690" width="1960" height="290" rx="10" fill="#fff" stroke="#dee2e6" stroke-width="1.5"/>
+  <text x="40" y="718" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="14" font-weight="700" fill="#495057">Outside EOT web / callers thin or disputed</text>
+  <text x="40" y="736" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="11" fill="#868e96">Init-only, helper chains, or UI-adjacent symbols. 12d0 and 0f74 moved into the main web after 2026-08-18/27 ports.</text>
   <line x1="520.0" y1="55.0" x2="250.0" y2="157.0" stroke="#495057" stroke-width="1.4" marker-end="url(#arrow)"/>
   <line x1="640.0" y1="82.0" x2="630.0" y2="130.0" stroke="#495057" stroke-width="1.4" marker-end="url(#arrow)"/>
   <line x1="760.0" y1="55.0" x2="1510.0" y2="157.0" stroke="#495057" stroke-width="1.4" marker-end="url(#arrow)"/>
@@ -49,6 +49,7 @@
   <line x1="145.0" y1="454.0" x2="145.0" y2="490.0" stroke="#495057" stroke-width="1.4" marker-end="url(#arrow)"/>
   <line x1="250.0" y1="517.0" x2="270.0" y2="517.0" stroke="#495057" stroke-width="1.4" marker-end="url(#arrow)"/>
   <line x1="250.0" y1="427.0" x2="270.0" y2="607.0" stroke="#495057" stroke-width="1.4" marker-end="url(#arrow)"/>
+  <line x1="145.0" y1="454.0" x2="145.0" y2="580.0" stroke="#495057" stroke-width="1.4" marker-end="url(#arrow)"/>
   <line x1="250.0" y1="427.0" x2="1270.0" y2="517.0" stroke="#495057" stroke-width="1.4" marker-end="url(#arrow)"/>
   <line x1="630.0" y1="184.0" x2="630.0" y2="220.0" stroke="#495057" stroke-width="1.4" marker-end="url(#arrow)"/>
   <line x1="630.0" y1="184.0" x2="630.0" y2="310.0" stroke="#495057" stroke-width="1.4" marker-end="url(#arrow)"/>
@@ -68,6 +69,8 @@
   <line x1="1145.0" y1="490.0" x2="1145.0" y2="364.0" stroke="#495057" stroke-width="1.4" marker-end="url(#arrow)"/>
   <line x1="1145.0" y1="490.0" x2="1145.0" y2="454.0" stroke="#495057" stroke-width="1.4" marker-end="url(#arrow)"/>
   <line x1="1145.0" y1="490.0" x2="895.0" y2="274.0" stroke="#868e96" stroke-width="1.4" stroke-dasharray="5 4" marker-end="url(#arrowd)"/>
+  <line x1="1250.0" y1="517.0" x2="1270.0" y2="427.0" stroke="#495057" stroke-width="1.4" marker-end="url(#arrow)"/>
+  <line x1="1250.0" y1="427.0" x2="1270.0" y2="427.0" stroke="#495057" stroke-width="1.4" marker-end="url(#arrow)"/>
   <line x1="1145.0" y1="184.0" x2="1145.0" y2="220.0" stroke="#495057" stroke-width="1.4" marker-end="url(#arrow)"/>
   <line x1="1620.0" y1="184.0" x2="1620.0" y2="220.0" stroke="#495057" stroke-width="1.4" marker-end="url(#arrow)"/>
   <line x1="1620.0" y1="184.0" x2="1620.0" y2="310.0" stroke="#495057" stroke-width="1.4" marker-end="url(#arrow)"/>
@@ -77,9 +80,11 @@
   <line x1="1730.0" y1="157.0" x2="1750.0" y2="337.0" stroke="#495057" stroke-width="1.4" marker-end="url(#arrow)"/>
   <line x1="1855.0" y1="310.0" x2="1855.0" y2="274.0" stroke="#495057" stroke-width="1.4" marker-end="url(#arrow)"/>
   <line x1="1620.0" y1="184.0" x2="1855.0" y2="490.0" stroke="#495057" stroke-width="1.4" marker-end="url(#arrow)"/>
+  <line x1="1620.0" y1="364.0" x2="1620.0" y2="580.0" stroke="#868e96" stroke-width="1.4" stroke-dasharray="5 4" marker-end="url(#arrowd)"/>
   <line x1="250.0" y1="157.0" x2="1750.0" y2="517.0" stroke="#868e96" stroke-width="1.4" stroke-dasharray="5 4" marker-end="url(#arrowd)"/>
-  <line x1="620.0" y1="806.0" x2="640.0" y2="806.0" stroke="#495057" stroke-width="1.4" marker-end="url(#arrow)"/>
-  <line x1="920.0" y1="806.0" x2="940.0" y2="806.0" stroke="#495057" stroke-width="1.4" marker-end="url(#arrow)"/>
+  <line x1="400.0" y1="810.0" x2="420.0" y2="810.0" stroke="#495057" stroke-width="1.4" marker-end="url(#arrow)"/>
+  <line x1="1160.0" y1="810.0" x2="1180.0" y2="810.0" stroke="#495057" stroke-width="1.4" marker-end="url(#arrow)"/>
+  <line x1="1180.0" y1="910.0" x2="1160.0" y2="910.0" stroke="#868e96" stroke-width="1.4" stroke-dasharray="5 4" marker-end="url(#arrowd)"/>
   <g filter="url(#shadow)">
     <rect x="520" y="28" width="240" height="54" rx="6" fill="#e7f5ff" stroke="#1971c2" stroke-width="1.8"/>
     <text x="530" y="46" font-family="DejaVu Sans Mono, Consolas, monospace" font-size="12" font-weight="700" fill="#0b3d66">EOT pipeline</text>
@@ -88,21 +93,21 @@
   </g>
   <g filter="url(#shadow)">
     <rect x="40" y="130" width="210" height="54" rx="6" fill="#d8f5d0" stroke="#2b8a3e" stroke-width="1.8"/>
-    <text x="50" y="148" font-family="DejaVu Sans Mono, Consolas, monospace" font-size="12" font-weight="700" fill="#1e5c2b">FUN_521d_6d8e</text>
-    <text x="50" y="166" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="11" fill="#343a40">Euro dispatcher shell:</text>
-    <text x="50" y="180" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="11" fill="#343a40">done; calls below partial</text>
+    <text x="50" y="148" font-family="DejaVu Sans Mono, Consolas, monospace" font-size="12" font-weight="700" fill="#1b5e20">FUN_521d_6d8e</text>
+    <text x="50" y="166" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="11" fill="#343a40">Euro AI dispatcher shell</text>
+    <text x="50" y="180" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="11" fill="#343a40">(byte-faithful; callees vary)</text>
   </g>
   <g filter="url(#shadow)">
     <rect x="40" y="220" width="210" height="54" rx="6" fill="#fff3bf" stroke="#e67700" stroke-width="1.8"/>
     <text x="50" y="238" font-family="DejaVu Sans Mono, Consolas, monospace" font-size="12" font-weight="700" fill="#7a4100">FUN_521d_0a60</text>
-    <text x="50" y="256" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="11" fill="#343a40">Unit/colony goal writer</text>
-    <text x="50" y="270" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="11" fill="#343a40">+ orders engine</text>
+    <text x="50" y="256" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="11" fill="#343a40">Goal writer + consumption</text>
+    <text x="50" y="270" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="11" fill="#343a40">orders (live structural)</text>
   </g>
   <g filter="url(#shadow)">
-    <rect x="40" y="310" width="210" height="54" rx="6" fill="#fff3bf" stroke="#e67700" stroke-width="1.8"/>
-    <text x="50" y="328" font-family="DejaVu Sans Mono, Consolas, monospace" font-size="12" font-weight="700" fill="#7a4100">FUN_521d_5d04</text>
-    <text x="50" y="346" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="11" fill="#343a40">Nation planning / hire</text>
-    <text x="50" y="360" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="11" fill="#343a40">/ treasury</text>
+    <rect x="40" y="310" width="210" height="54" rx="6" fill="#d8f5d0" stroke="#2b8a3e" stroke-width="1.8"/>
+    <text x="50" y="328" font-family="DejaVu Sans Mono, Consolas, monospace" font-size="12" font-weight="700" fill="#1b5e20">FUN_521d_5d04</text>
+    <text x="50" y="346" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="11" fill="#343a40">Nation planning / hire /</text>
+    <text x="50" y="360" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="11" fill="#343a40">treasury — live structural</text>
   </g>
   <g filter="url(#shadow)">
     <rect x="40" y="400" width="210" height="54" rx="6" fill="#fff3bf" stroke="#e67700" stroke-width="1.8"/>
@@ -113,8 +118,8 @@
   <g filter="url(#shadow)">
     <rect x="40" y="490" width="210" height="54" rx="6" fill="#fff3bf" stroke="#e67700" stroke-width="1.8"/>
     <text x="50" y="508" font-family="DejaVu Sans Mono, Consolas, monospace" font-size="12" font-weight="700" fill="#7a4100">FUN_521d_20e6</text>
-    <text x="50" y="526" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="11" fill="#343a40">Direction / move scoring</text>
-    <text x="50" y="540" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="11" fill="#343a40">(all unit kinds)</text>
+    <text x="50" y="526" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="11" fill="#343a40">Move scoring — land</text>
+    <text x="50" y="540" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="11" fill="#343a40">structural port 2026-08-27</text>
   </g>
   <g filter="url(#shadow)">
     <rect x="270" y="220" width="210" height="54" rx="6" fill="#fff3bf" stroke="#e67700" stroke-width="1.8"/>
@@ -139,6 +144,12 @@
     <text x="280" y="598" font-family="DejaVu Sans Mono, Consolas, monospace" font-size="12" font-weight="700" fill="#7a4100">FUN_465b_0000</text>
     <text x="280" y="616" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="11" fill="#343a40">Terrain MP /</text>
     <text x="280" y="630" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="11" fill="#343a40">move_spent_add</text>
+  </g>
+  <g filter="url(#shadow)">
+    <rect x="40" y="580" width="210" height="54" rx="6" fill="#d8f5d0" stroke="#2b8a3e" stroke-width="1.8"/>
+    <text x="50" y="598" font-family="DejaVu Sans Mono, Consolas, monospace" font-size="12" font-weight="700" fill="#1b5e20">FUN_6662_0f74</text>
+    <text x="50" y="616" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="11" fill="#343a40">Land pathing (goto tiers +</text>
+    <text x="50" y="630" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="11" fill="#343a40">wiggle + far coarse)</text>
   </g>
   <g filter="url(#shadow)">
     <rect x="520" y="130" width="220" height="54" rx="6" fill="#fff3bf" stroke="#e67700" stroke-width="1.8"/>
@@ -190,8 +201,8 @@
   <g filter="url(#shadow)">
     <rect x="780" y="400" width="230" height="54" rx="6" fill="#d8f5d0" stroke="#2b8a3e" stroke-width="1.8"/>
     <text x="790" y="418" font-family="DejaVu Sans Mono, Consolas, monospace" font-size="12" font-weight="700" fill="#1b5e20">FUN_4d56_2820</text>
-    <text x="790" y="436" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="11" fill="#343a40">AI-buy-offer price +</text>
-    <text x="790" y="450" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="11" fill="#343a40">trade dispatch</text>
+    <text x="790" y="436" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="11" fill="#343a40">Sell + buy trade (incl.</text>
+    <text x="790" y="450" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="11" fill="#343a40">LAB_002e92 haggle)</text>
   </g>
   <g filter="url(#shadow)">
     <rect x="780" y="490" width="230" height="54" rx="6" fill="#fff3bf" stroke="#e67700" stroke-width="1.8"/>
@@ -230,7 +241,14 @@
   <g filter="url(#shadow)">
     <rect x="1040" y="490" width="210" height="54" rx="6" fill="#fff3bf" stroke="#e67700" stroke-width="1.8"/>
     <text x="1050" y="508" font-family="DejaVu Sans Mono, Consolas, monospace" font-size="12" font-weight="700" fill="#7a4100">FUN_5bfb_153e</text>
-    <text x="1050" y="526" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="11" fill="#343a40">Large war-declare body</text>
+    <text x="1050" y="526" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="11" fill="#343a40">War-declare body +</text>
+    <text x="1050" y="540" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="11" fill="#343a40">worthiness (ref; not live)</text>
+  </g>
+  <g filter="url(#shadow)">
+    <rect x="1270" y="400" width="210" height="54" rx="6" fill="#d8f5d0" stroke="#2b8a3e" stroke-width="1.8"/>
+    <text x="1280" y="418" font-family="DejaVu Sans Mono, Consolas, monospace" font-size="12" font-weight="700" fill="#1b5e20">FUN_5bfb_12d0</text>
+    <text x="1280" y="436" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="11" fill="#343a40">Wake border garrisons</text>
+    <text x="1280" y="450" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="11" fill="#343a40">(orders 5/6→0)</text>
   </g>
   <g filter="url(#shadow)">
     <rect x="1270" y="490" width="210" height="54" rx="6" fill="#fff3bf" stroke="#e67700" stroke-width="1.8"/>
@@ -272,6 +290,12 @@
     <text x="1520" y="540" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="11" fill="#343a40">(fold on declare)</text>
   </g>
   <g filter="url(#shadow)">
+    <rect x="1510" y="580" width="220" height="54" rx="6" fill="#d8f5d0" stroke="#2b8a3e" stroke-width="1.8"/>
+    <text x="1520" y="598" font-family="DejaVu Sans Mono, Consolas, monospace" font-size="12" font-weight="700" fill="#1b5e20">FUN_38fd_5930</text>
+    <text x="1520" y="616" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="11" fill="#343a40">@KINGNEWWAR peer cancel</text>
+    <text x="1520" y="630" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="11" fill="#343a40">+ gold/vets (Done 8/27)</text>
+  </g>
+  <g filter="url(#shadow)">
     <rect x="1750" y="220" width="210" height="54" rx="6" fill="#fff3bf" stroke="#e67700" stroke-width="1.8"/>
     <text x="1760" y="238" font-family="DejaVu Sans Mono, Consolas, monospace" font-size="12" font-weight="700" fill="#7a4100">FUN_43f7_060a</text>
     <text x="1760" y="256" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="11" fill="#343a40">Landing / garrison</text>
@@ -296,103 +320,64 @@
     <text x="1760" y="540" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="11" fill="#343a40">merc/peacetime gift</text>
   </g>
   <g filter="url(#shadow)">
-    <rect x="40" y="770" width="280" height="88" rx="6" fill="#d8f5d0" stroke="#2b8a3e" stroke-width="1.8"/>
+    <rect x="40" y="770" width="360" height="80" rx="6" fill="#d8f5d0" stroke="#2b8a3e" stroke-width="1.8"/>
     <text x="50" y="788" font-family="DejaVu Sans Mono, Consolas, monospace" font-size="12" font-weight="700" fill="#1b5e20">FUN_6a09_0006</text>
     <text x="50" y="806" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="11" fill="#343a40">Tribe capitals/satellites/</text>
     <text x="50" y="820" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="11" fill="#343a40">Brave spawn (new-game init)</text>
-    <text x="50" y="836" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="10.5" fill="#1b5e20">caller: FUN_2a1f_087c (mapgen</text>
-    <text x="50" y="850" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="10.5" fill="#1b5e20">dispatch) — confirmed, not EOT loop</text>
-  </g>
-  <line x1="320.0" y1="806.0" x2="340.0" y2="806.0" stroke="#495057" stroke-width="1.4" marker-end="url(#arrow)"/>
-  <g filter="url(#shadow)">
-    <rect x="340" y="770" width="280" height="88" rx="6" fill="#fff3bf" stroke="#e67700" stroke-width="1.8"/>
-    <text x="350" y="788" font-family="DejaVu Sans Mono, Consolas, monospace" font-size="12" font-weight="700" fill="#7a4100">FUN_4d56_0038</text>
-    <text x="350" y="806" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="11" fill="#343a40">Settlement-record CREATE</text>
-    <text x="350" y="820" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="11" fill="#343a40">(full-field init, 0x54ec array)</text>
-    <text x="350" y="836" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="10.5" fill="#7a4100">caller: FUN_6a09_0006 ONLY</text>
-    <text x="350" y="850" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="10.5" fill="#7a4100">(sole call site, both bin copies)</text>
+    <text x="50" y="834" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="11" fill="#343a40">caller: FUN_2a1f_087c</text>
   </g>
   <g filter="url(#shadow)">
-    <rect x="640" y="770" width="280" height="72" rx="6" fill="#fff3bf" stroke="#e67700" stroke-width="1.8"/>
-    <text x="650" y="788" font-family="DejaVu Sans Mono, Consolas, monospace" font-size="12" font-weight="700" fill="#7a4100">FUN_4d56_00e0</text>
-    <text x="650" y="806" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="11" fill="#343a40">Chains to 01e2 / 14fe</text>
+    <rect x="420" y="770" width="360" height="80" rx="6" fill="#fff3bf" stroke="#e67700" stroke-width="1.8"/>
+    <text x="430" y="788" font-family="DejaVu Sans Mono, Consolas, monospace" font-size="12" font-weight="700" fill="#7a4100">FUN_4d56_0038</text>
+    <text x="430" y="806" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="11" fill="#343a40">Settlement-record CREATE</text>
+    <text x="430" y="820" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="11" fill="#343a40">caller: FUN_6a09_0006 ONLY</text>
   </g>
   <g filter="url(#shadow)">
-    <rect x="940" y="770" width="280" height="72" rx="6" fill="#fff3bf" stroke="#e67700" stroke-width="1.8"/>
-    <text x="950" y="788" font-family="DejaVu Sans Mono, Consolas, monospace" font-size="12" font-weight="700" fill="#7a4100">FUN_4d56_01e2</text>
-    <text x="950" y="806" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="11" fill="#343a40">Thin wrapper → 14fe</text>
-    <text x="950" y="820" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="11" fill="#343a40">(caller of wrapper unclear)</text>
+    <rect x="800" y="770" width="360" height="80" rx="6" fill="#fff3bf" stroke="#e67700" stroke-width="1.8"/>
+    <text x="810" y="788" font-family="DejaVu Sans Mono, Consolas, monospace" font-size="12" font-weight="700" fill="#7a4100">FUN_4d56_00e0</text>
+    <text x="810" y="806" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="11" fill="#343a40">Chains to 01e2 / 14fe</text>
+    <text x="810" y="820" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="11" fill="#343a40">(sibling of 0038, not callee)</text>
   </g>
   <g filter="url(#shadow)">
-    <rect x="1240" y="770" width="280" height="72" rx="6" fill="#fff3bf" stroke="#e67700" stroke-width="1.8"/>
-    <text x="1250" y="788" font-family="DejaVu Sans Mono, Consolas, monospace" font-size="12" font-weight="700" fill="#7a4100">FUN_4d56_3582</text>
-    <text x="1250" y="806" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="11" fill="#343a40">Small helper after 2820</text>
-    <text x="1250" y="820" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="11" fill="#343a40">(friction floor)</text>
-  </g>
-  <line x1="1145.0" y1="454.0" x2="1145.0" y2="756.0" stroke="#495057" stroke-width="1.4"/>
-  <line x1="1145.0" y1="756.0" x2="1660.0" y2="756.0" stroke="#495057" stroke-width="1.4"/>
-  <line x1="1660.0" y1="756.0" x2="1660.0" y2="770.0" stroke="#495057" stroke-width="1.4" marker-end="url(#arrow)"/>
-  <line x1="1250.0" y1="503.0" x2="1250.0" y2="478.0" stroke="#868e96" stroke-width="1.4" stroke-dasharray="5 4"/>
-  <line x1="1250.0" y1="478.0" x2="1720.0" y2="478.0" stroke="#868e96" stroke-width="1.4" stroke-dasharray="5 4"/>
-  <line x1="1720.0" y1="478.0" x2="1720.0" y2="770.0" stroke="#868e96" stroke-width="1.4" stroke-dasharray="5 4" marker-end="url(#arrowd)"/>
-  <g filter="url(#shadow)">
-    <rect x="1540" y="770" width="280" height="88" rx="6" fill="#ffc9c9" stroke="#c92a2a" stroke-width="1.8"/>
-    <text x="1550" y="788" font-family="DejaVu Sans Mono, Consolas, monospace" font-size="12" font-weight="700" fill="#7f1d1d">FUN_5bfb_12d0</text>
-    <text x="1550" y="806" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="11" fill="#343a40">2 confirmed paths, via thunk</text>
-    <text x="1550" y="820" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="11" fill="#343a40">2a1f_060a: direct calls from</text>
-    <text x="1550" y="834" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="11" fill="#343a40">13b0 (solid) + 153e's jump</text>
-    <text x="1550" y="848" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="11" fill="#343a40">table idx 1 (dashed); unported</text>
+    <rect x="1180" y="770" width="360" height="80" rx="6" fill="#fff3bf" stroke="#e67700" stroke-width="1.8"/>
+    <text x="1190" y="788" font-family="DejaVu Sans Mono, Consolas, monospace" font-size="12" font-weight="700" fill="#7a4100">FUN_4d56_01e2</text>
+    <text x="1190" y="806" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="11" fill="#343a40">Thin wrapper → 14fe</text>
   </g>
   <g filter="url(#shadow)">
-    <rect x="40" y="865" width="280" height="88" rx="6" fill="#fff3bf" stroke="#e67700" stroke-width="1.8"/>
-    <text x="50" y="883" font-family="DejaVu Sans Mono, Consolas, monospace" font-size="12" font-weight="700" fill="#7a4100">FUN_124c_0040</text>
-    <text x="50" y="901" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="11" fill="#343a40">Shared distance helper —</text>
-    <text x="50" y="915" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="11" fill="#343a40">5 confirmed callers (1427/</text>
-    <text x="50" y="929" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="11" fill="#343a40">15eb UI, 5952 tick, 4cc6 ai,</text>
-    <text x="50" y="943" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="11" fill="#343a40">6662 pathing); none is 20e6</text>
+    <rect x="1560" y="770" width="360" height="80" rx="6" fill="#fff3bf" stroke="#e67700" stroke-width="1.8"/>
+    <text x="1570" y="788" font-family="DejaVu Sans Mono, Consolas, monospace" font-size="12" font-weight="700" fill="#7a4100">FUN_4d56_3582</text>
+    <text x="1570" y="806" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="11" fill="#343a40">Small helper after 2820</text>
+    <text x="1570" y="820" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="11" fill="#343a40">(friction floor)</text>
   </g>
   <g filter="url(#shadow)">
-    <rect x="340" y="865" width="280" height="88" rx="6" fill="#e9ecef" stroke="#868e96" stroke-width="1.8" stroke-dasharray="4 3"/>
-    <text x="350" y="883" font-family="DejaVu Sans Mono, Consolas, monospace" font-size="12" font-weight="700" fill="#495057">FUN_4d56_021a — NOT REAL</text>
-    <text x="350" y="901" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="11" fill="#343a40">No such symbol in decomp or</text>
-    <text x="350" y="915" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="11" fill="#343a40">address_mapping.csv. Nearest:</text>
-    <text x="350" y="929" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="11" fill="#343a40">tail of FUN_4d56_01e2 (~0213),</text>
-    <text x="350" y="943" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="11" fill="#343a40">then unrecognized bytes — TBD</text>
-  </g>
-  <line x1="1240.0" y1="887.0" x2="1220.0" y2="887.0" stroke="#495057" stroke-width="1.4" marker-end="url(#arrow)"/>
-  <line x1="1240.0" y1="875.0" x2="1240.0" y2="852.0" stroke="#495057" stroke-width="1.4"/>
-  <line x1="1240.0" y1="852.0" x2="780.0" y2="852.0" stroke="#495057" stroke-width="1.4"/>
-  <line x1="780.0" y1="852.0" x2="780.0" y2="865.0" stroke="#495057" stroke-width="1.4" marker-end="url(#arrow)"/>
-  <g filter="url(#shadow)">
-    <rect x="640" y="865" width="280" height="88" rx="6" fill="#ffc9c9" stroke="#c92a2a" stroke-width="1.8"/>
-    <text x="650" y="883" font-family="DejaVu Sans Mono, Consolas, monospace" font-size="12" font-weight="700" fill="#7f1d1d">FUN_6662_0f74</text>
-    <text x="650" y="901" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="11" fill="#343a40">Land pathing algorithm.</text>
-    <text x="650" y="915" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="11" fill="#343a40">Callers confirmed: 479b_0972</text>
-    <text x="650" y="929" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="11" fill="#343a40">(5b66 case body) + 4720_015c</text>
-    <text x="650" y="943" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="11" fill="#343a40">(ui naval-order) — unported</text>
+    <rect x="40" y="870" width="360" height="80" rx="6" fill="#fff3bf" stroke="#e67700" stroke-width="1.8"/>
+    <text x="50" y="888" font-family="DejaVu Sans Mono, Consolas, monospace" font-size="12" font-weight="700" fill="#7a4100">FUN_124c_0040</text>
+    <text x="50" y="906" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="11" fill="#343a40">DOS distance helper</text>
+    <text x="50" y="920" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="11" fill="#343a40">(5 callers; not used by 20e6)</text>
   </g>
   <g filter="url(#shadow)">
-    <rect x="940" y="865" width="280" height="88" rx="6" fill="#ffc9c9" stroke="#c92a2a" stroke-width="1.8"/>
-    <text x="950" y="883" font-family="DejaVu Sans Mono, Consolas, monospace" font-size="12" font-weight="700" fill="#7f1d1d">FUN_4720_049e</text>
-    <text x="950" y="901" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="11" fill="#343a40">@VIOLATE tension notify.</text>
-    <text x="950" y="915" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="11" fill="#343a40">Callers confirmed: 479b_0972,</text>
-    <text x="950" y="929" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="11" fill="#343a40">4720_015c (both ui/ai order</text>
-    <text x="950" y="943" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="11" fill="#343a40">paths) + 2b5a (player UI)</text>
+    <rect x="420" y="870" width="360" height="80" rx="6" fill="#e9ecef" stroke="#868e96" stroke-width="1.8"/>
+    <text x="430" y="888" font-family="DejaVu Sans Mono, Consolas, monospace" font-size="12" font-weight="700" fill="#495057">FUN_4d56_021a — NOT REAL</text>
+    <text x="430" y="906" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="11" fill="#343a40">Unverified label; quiet</text>
+    <text x="430" y="920" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="11" fill="#343a40">dir-pick lives in 01e2/14fe</text>
   </g>
   <g filter="url(#shadow)">
-    <rect x="1240" y="865" width="280" height="88" rx="6" fill="#fff3bf" stroke="#e67700" stroke-width="1.8"/>
-    <text x="1250" y="883" font-family="DejaVu Sans Mono, Consolas, monospace" font-size="12" font-weight="700" fill="#7a4100">FUN_479b_076e…</text>
-    <text x="1250" y="901" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="11" fill="#343a40">Real 5b66 case bodies</text>
-    <text x="1250" y="915" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="11" fill="#343a40">(~390 lines total). 0972 calls</text>
-    <text x="1250" y="929" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="11" fill="#343a40">both 6662_0f74 and 4720_049e</text>
+    <rect x="800" y="870" width="360" height="80" rx="6" fill="#ffc9c9" stroke="#c92a2a" stroke-width="1.8"/>
+    <text x="810" y="888" font-family="DejaVu Sans Mono, Consolas, monospace" font-size="12" font-weight="700" fill="#7f1d1d">FUN_4720_049e</text>
+    <text x="810" y="906" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="11" fill="#343a40">@VIOLATE tension notify</text>
+    <text x="810" y="920" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="11" fill="#343a40">(callers known; not wired)</text>
   </g>
   <g filter="url(#shadow)">
-    <rect x="1540" y="865" width="280" height="88" rx="6" fill="#ffc9c9" stroke="#c92a2a" stroke-width="1.8"/>
-    <text x="1550" y="883" font-family="DejaVu Sans Mono, Consolas, monospace" font-size="12" font-weight="700" fill="#7f1d1d">FUN_0000_4fa8</text>
-    <text x="1550" y="901" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="11" fill="#343a40">Sole caller confirmed:</text>
-    <text x="1550" y="915" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="11" fill="#343a40">FUN_1000_8aac (tail JMPF).</text>
-    <text x="1550" y="929" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="11" fill="#343a40">Reached from 20e6 via 8aac,</text>
-    <text x="1550" y="943" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="11" fill="#343a40">case 2 (transport-chain insert)</text>
+    <rect x="1180" y="870" width="360" height="80" rx="6" fill="#fff3bf" stroke="#e67700" stroke-width="1.8"/>
+    <text x="1190" y="888" font-family="DejaVu Sans Mono, Consolas, monospace" font-size="12" font-weight="700" fill="#7a4100">FUN_479b_076e…</text>
+    <text x="1190" y="906" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="11" fill="#343a40">Real 5b66 case bodies</text>
+    <text x="1190" y="920" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="11" fill="#343a40">(~390 lines total)</text>
+  </g>
+  <g filter="url(#shadow)">
+    <rect x="1560" y="870" width="360" height="80" rx="6" fill="#ffc9c9" stroke="#c92a2a" stroke-width="1.8"/>
+    <text x="1570" y="888" font-family="DejaVu Sans Mono, Consolas, monospace" font-size="12" font-weight="700" fill="#7f1d1d">FUN_0000_4fa8</text>
+    <text x="1570" y="906" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="11" fill="#343a40">CRT util via 1000_8aac;</text>
+    <text x="1570" y="920" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="11" fill="#343a40">20e6 transport-chain case</text>
   </g>
   <text x="780" y="670" font-family="DejaVu Sans, Helvetica, Arial, sans-serif" font-size="10" fill="#868e96">Note: 1816 does not call 2154/2820/4528 directly — reached via contact / unit-act paths.</text>
 </svg>
