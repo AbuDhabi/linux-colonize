@@ -2688,10 +2688,13 @@ void ai_diplo_indian_alarm_delta(
     v = 100;
   }
   col1->indian[idx].alarm_by_player[euro_nation] = (uint16_t)v;
-  if (delta < 0 && v < 0x4b) {
-    /* FUN_4cc6_00f2: 281f_0a10(tribe+4, euro, 2) — war ends as the tribe cools. */
-    col1->indian[idx].euro_diplo[euro_nation] =
-      (uint8_t)(col1->indian[idx].euro_diplo[euro_nation] & (uint8_t)~COL1_INDIAN_WAR_BIT);
+  if (delta < 0) {
+    /* FUN_4cc6_00f2: 281f_0a10(tribe+4, euro, 4) on any cooling; (…, 2) below 75. */
+    uint8_t* d = &col1->indian[idx].euro_diplo[euro_nation];
+    *d = (uint8_t)(*d & (uint8_t)~COL1_INDIAN_ATTACK_CONFIRMED_BIT);
+    if (v < 0x4b) {
+      *d = (uint8_t)(*d & (uint8_t)~COL1_INDIAN_WAR_BIT);
+    }
   }
   ai_diplo_indian_tension_tier_update(col1, indian_nation, euro_nation, old_v, v, delta);
 }

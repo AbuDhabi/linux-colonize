@@ -401,7 +401,7 @@ work.
 | `@DECLAREWAR` | Done | DIPLO_* CHOICE structural; war-declared OK popup body now the real GAME.TXT line via `popup_msg_fill` (boycott/hostility chrome may override); also `13b0` treaty-cancel-without-peace notice (2026-08-27) |
 | `@CANCELTREATY` | Done (structural) | `FUN_5bfb_13b0` treaty cancel notice via `ai_diplo_13b0_treaty_tick` (2026-08-27); tag not in shipped GAME.TXT (`0x1898`, DS-only) → fallback text |
 | `@HAVETREATY` | Partial | FA / diplo lines — thin DIPLO_FA or status; full 3f41 PARKED |
-| `@WHACKINDIANS` | Partial | contact/raid/mission — structural OK/status; deep/VGA PARKED |
+| `@WHACKINDIANS` | Done (structural) | `FUN_465b_0000` → `ai_contact_try_whack_confirm` (2026-08-27): Yes/No before the first attack on a calm tribe, asked once (bit 0x04); real GAME.TXT body via `popup_msg_fill` |
 | `@VILLAGEHAPPY` | Partial | contact/raid/mission — structural OK/status; deep/VGA PARKED |
 | `@VILLAGESAVAGE` | Partial | contact/raid/mission — structural OK/status; deep/VGA PARKED |
 | `@VILLAGEMEDIUM` | Partial | contact/raid/mission — structural OK/status; deep/VGA PARKED |

@@ -2396,6 +2396,28 @@ is genuinely stuck mid-session.
   direct API callers/tests still work; retiring it is the second pass.
   `ctest` 46/46, `golden_ai_turns` unchanged.
 
+- [x] **T1.21 — `FUN_465b_0000` `@WHACKINDIANS` attack-village/Brave confirm
+  (2026-08-27).** Human land combat unit moving onto a native unit's tile,
+  tribe alarm toward the human `< 0x4b`, pair `euro_diplo` bit `0x04`
+  clear → "Shall we attack the {tribe}, Your Excellency?" Yes/No before
+  the move; Yes sets bit `0x04` (`COL1_INDIAN_ATTACK_CONFIRMED_BIT`, asked
+  once) and resumes the move, No aborts. `FUN_4cc6_00f2` clears bit `0x04`
+  on any cooling delta (and `0x02` below 75) — mirrored in
+  `ai_diplo_indian_alarm_delta`. `ai_contact_try_whack_confirm` +
+  `AI_POPUP_TAG_CONTACT_WHACK`, hooked in `game_try_unit_move` ahead of
+  `units_try_move`; village tiles keep the separate `4528` Attack/Leave
+  warn. Test in `test_ai_contact.c`. `ctest` 46/46.
+
+- [ ] **T2.4 — Retire the Linux-only Euro alliance machinery (cleanup).**
+  Dead since T1.20: no AI path sets `AI_DIPLO_ALLY` any more (DOS has no
+  Euro×Euro alliances; `13b0` is treaty sign/cancel). Still present:
+  `ai_diplo_form/break_alliance[_ctx]`, ally treaty timers, ally aid/prize,
+  the `DIPLO_ALLIANCE` CHOICE apply, ~64 refs in `ai_diplo.c` and ~130
+  assertions in `test_ai_diplo.c`, plus `ai_king_ai_peacetime_gift`'s
+  "self or ally" beneficiary test (now effectively "self"). Zero gameplay
+  effect either way — do it as one deliberate deletion pass when the diplo
+  file is next touched, not piecemeal.
+
 ## Tier 3 — Confirm with the user before flipping
 
 The engineering/verification for these can happen autonomously (do that
@@ -2683,6 +2705,17 @@ way it did when this file was first written.
   `ai_contact_incite_price(..., is_missionary=1)` with `target=human`,
   needs a chrome-free `ai_contact_apply_incite` variant and
   `turn_rank_euro_nations` for the rank compare.
+  **2026-08-27 — ported.** `ai_contact_ai_incite_human` (`ai_contact.c`),
+  hooked at the top of the AI Missionary branch of
+  `ai_contact_missionary_convert` (the `4528` non-human `case 3 → 7`
+  slot): alarm(tribe→human) `< 0x4b`, human MET the tribe,
+  `euro_power_rank[ai] < euro_power_rank[human]` (literal DOS compare on
+  the `5bfb_00f8` table — whether that means "poorer" is not
+  independently confirmed), AI gold ≥ 1500, `RNG(0,4) != 0` ∨ no mission;
+  then `417e` Mode 2: AI×human MET gate, pay `ai_contact_incite_price`,
+  alarm(tribe→human) `+10` (same effect the human Mode-1 apply uses).
+  Chrome-free (DOS shows no dialog for Mode 2). Test in
+  `test_ai_contact.c`. `ctest` 46/46, `golden_ai_turns` unchanged.
 
 - [ ] **T4.6 — `VR_B465X` hang dump.** Explicitly parked **by policy**
   (R0). Do not resume without a new, stated reason — this was a deliberate

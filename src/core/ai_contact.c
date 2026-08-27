@@ -799,6 +799,64 @@ void ai_contact_village_open_hostilities(
  * FUN_4d56_4528 human warn CHOICE before combatish village enter.
  * Relation-banded body (0x1710…0x172e stand-in). Cite: indian_settlement_4528.md.
  */
+int ai_contact_whack_pending(const AiPopupState* st, int unit_id) {
+  if (!st) {
+    return 0;
+  }
+  for (int i = 0; i < st->queue_count; ++i) {
+    if (st->queue[i].tag == AI_POPUP_TAG_CONTACT_WHACK && st->queue[i].nation_a == unit_id) {
+      return 1;
+    }
+  }
+  return st->open && st->current.tag == AI_POPUP_TAG_CONTACT_WHACK &&
+         st->current.nation_a == unit_id;
+}
+
+int ai_contact_try_whack_confirm(
+  ColonizeTurnContext* ctx,
+  int euro_nation,
+  int indian_nation,
+  int unit_id,
+  int dest_x,
+  int dest_y
+) {
+  if (!ctx || !ctx->col1_ok || !ctx->col1 || !ctx->ai_popups || euro_nation < 0 ||
+      euro_nation > 3 || indian_nation < 4 || indian_nation > 11) {
+    return 0;
+  }
+  if (ctx->col1->player[euro_nation].control != 0) {
+    return 0; /* DOS: 0x543f[nation] == 0 — human only */
+  }
+  ColonizeCol1Indian* ind = &ctx->col1->indian[indian_nation - 4];
+  if (ai_diplo_indian_alarm(ctx->col1, indian_nation, euro_nation) >= 0x4b) {
+    return 0; /* already hostile: no question */
+  }
+  if (ind->euro_diplo[euro_nation] & COL1_INDIAN_ATTACK_CONFIRMED_BIT) {
+    return 0;
+  }
+  if (ai_contact_whack_pending(ctx->ai_popups, unit_id)) {
+    return 1;
+  }
+  const char* tribe = ai_contact_tribe_name(indian_nation);
+  PopupMsgTokens tok;
+  memset(&tok, 0, sizeof(tok));
+  tok.string0 = tribe;
+  char fb[AI_POPUP_BODY_LEN];
+  snprintf(fb, sizeof(fb), "Shall we attack the %s, Your Excellency?", tribe);
+  char body[AI_POPUP_BODY_LEN];
+  popup_msg_fill(ctx->messages, "WHACKINDIANS", &tok, fb, body, sizeof(body));
+  static const char* labels[] = {"Yes", "No"};
+  static const int ids[] = {1, 0};
+  const int payload = dest_x | (dest_y << 8);
+  if (!ai_popup_enqueue_choice_ctx(
+        ctx->ai_popups, AI_POPUP_TAG_CONTACT_WHACK, unit_id, indian_nation, payload, tribe, body,
+        labels, ids, 2
+      )) {
+    return 0;
+  }
+  return 1;
+}
+
 int ai_contact_try_village_raid_warn(
   ColonizeTurnContext* ctx,
   int euro_nation,
@@ -2978,6 +3036,65 @@ void ai_contact_try_village_beg_food(ColonizeTurnContext* ctx, int nation_id) {
  *  - mid (40..54) convert: Jesuit-grade only (PEDIA @JOB24 / Brebeuf).
  * Teach/convert widgets Done structural; deep 2820 PARKED.
  */
+/*
+ * FUN_4d56_4528 non-human branch, unit type 3 (Missionary) → case 7 →
+ * FUN_4d56_417e Mode 2 (static port 2026-08-27, T4.5). Gate, all of:
+ * alarm(tribe → human) < 0x4b; human has MET the tribe; wealth rank of the
+ * AI nation < the human's on the FUN_5bfb_00f8 table (compared literally on
+ * ctx->euro_power_rank); AI gold >= 1500; RNG(0,4) != 0 or the village has
+ * no mission. Then 417e Mode 2: target = human, no menu/confirm, diplo gate
+ * + alarm(tribe → human) < 0x4b again + affordability, pay, push the tribe
+ * against the human (+10 alarm — same effect as the human Mode 1 apply).
+ * Returns 1 when the incite fired (the village keeps its mission state).
+ */
+int ai_contact_ai_incite_human(
+  ColonizeTurnContext* ctx,
+  ColonizeCol1Indian* ind,
+  ColonizeCol1Tribe* t,
+  int nation_id,
+  int e,
+  int is_missionary
+) {
+  if (!ctx || !ctx->col1_ok || !ctx->col1 || !ctx->rng || !ind || !t || e < 0 || e > 3 ||
+      nation_id < 4 || nation_id > 11) {
+    return 0;
+  }
+  const int human = ctx->human_nation;
+  if (human < 0 || human > 3 || human == e || ai_contact_euro_is_human(ctx, e)) {
+    return 0;
+  }
+  if (ai_diplo_indian_alarm(ctx->col1, nation_id, human) >= 0x4b) {
+    return 0;
+  }
+  if ((ind->euro_diplo[human] & COL1_INDIAN_MET_BIT) == 0) {
+    return 0;
+  }
+  if (!ctx->euro_power_rank_ok || ctx->euro_power_rank[e] >= ctx->euro_power_rank[human]) {
+    return 0; /* wealth_rank[ai] < wealth_rank[human] (0x917c table) */
+  }
+  if (ctx->col1->nation[e].gold < 1500u) {
+    return 0;
+  }
+  if (dos_rng_range(ctx->rng, 0, 4) == 0 && t->mission != COL1_TRIBE_MISSION_NONE) {
+    return 0;
+  }
+  /* 417e Mode 2 body: diplo gate (human at peace with the AI? DOS 8c28 & 0x20 = met)
+   * then relation gate again, then pay. */
+  if ((ctx->col1->nation[e].euro_relation[human] & AI_DIPLO_MET) == 0) {
+    return 0;
+  }
+  const uint32_t price = ai_contact_incite_price(
+    ctx, ind, nation_id, e, human, is_missionary, t->state.capital ? 1 : 0
+  );
+  ColonizeCol1Nation* nat = &ctx->col1->nation[e];
+  if (nat->gold < price) {
+    return 0;
+  }
+  nat->gold -= price;
+  ai_diplo_indian_alarm_delta(ctx->col1, nation_id, human, 10);
+  return 1;
+}
+
 static void ai_contact_missionary_convert(ColonizeTurnContext* ctx, int nation_id) {
   if (!ctx || !ctx->units || !ctx->col1_ok || !ctx->col1 || !ctx->col1->tribe) {
     return;
@@ -3031,6 +3148,12 @@ static void ai_contact_missionary_convert(ColonizeTurnContext* ctx, int nation_i
           refuse_fb
         );
         break; /* one refuse pulse per tribe per call */
+      }
+
+      /* 4528 non-human Missionary: case 7 auto-incite against the human first. */
+      if (!ai_contact_euro_is_human(ctx, e) &&
+          ai_contact_ai_incite_human(ctx, ind, t, nation_id, e, 1)) {
+        break;
       }
 
       /* Own mission keep — convert once (no re-crosses). */

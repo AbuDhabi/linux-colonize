@@ -431,6 +431,7 @@ static void game_request_noport_found_confirm(ColonizeGameState* game, int uid);
 static bool game_try_found_colony_at_cursor(ColonizeGameState* game);
 static void game_fill_turn_context(ColonizeGameState* game, ColonizeTurnContext* ctx);
 static void game_apply_ai_popup_result(ColonizeGameState* game);
+static bool game_try_unit_move(ColonizeGameState* game, int dest_x, int dest_y);
 static void game_after_unit_action(ColonizeGameState* game);
 static void activate_menu_selection(ColonizeGameState* game);
 static void game_wait_next_unit(ColonizeGameState* game);
@@ -1727,6 +1728,29 @@ static void game_apply_ai_popup_result(ColonizeGameState* game) {
       }
     } else {
       set_status(game, "Left the village alone", NULL);
+    }
+    ai_popup_consume_result(&game->ai_popups);
+    return;
+  }
+  if (game->ai_popups.result_tag == AI_POPUP_TAG_CONTACT_WHACK) {
+    const int unit_id = game->ai_popups.result_nation_a;
+    const int indian_nation = game->ai_popups.result_nation_b;
+    const int dest_x = game->ai_popups.result_payload & 0xff;
+    const int dest_y = (game->ai_popups.result_payload >> 8) & 0xff;
+    if (!game->ai_popups.result_cancelled && game->ai_popups.result_choice_id == 1 &&
+        game->col1_ok && indian_nation >= 4 && indian_nation <= 11) {
+      ColonizeUnit* u = units_get(&game->units, unit_id);
+      if (u && u->nation_id >= 0 && u->nation_id <= 3) {
+        /* switchD_2000:da9f::caseD_10(attacker, tribe, 4): asked once. */
+        game->col1.indian[indian_nation - 4].euro_diplo[u->nation_id] |=
+          COL1_INDIAN_ATTACK_CONFIRMED_BIT;
+        game->units.selected_id = unit_id;
+        ai_popup_consume_result(&game->ai_popups);
+        (void)game_try_unit_move(game, dest_x, dest_y);
+        return;
+      }
+    } else {
+      set_status(game, "Attack called off", NULL);
     }
     ai_popup_consume_result(&game->ai_popups);
     return;
@@ -4898,6 +4922,21 @@ static bool game_try_unit_move(ColonizeGameState* game, int dest_x, int dest_y) 
         return true;
       }
       break;
+    }
+  }
+
+  /* FUN_465b_0000 @WHACKINDIANS: first attack on a not-yet-hostile tribe's unit asks once. */
+  if (game->col1_ok && !units_is_sea(&game->units, sid) &&
+      combat_unit_is_combat_role(&game->units, sid)) {
+    const int foe_id = units_id_at(&game->units, dest_x, dest_y);
+    const ColonizeUnit* foe = foe_id >= 0 ? units_get_const(&game->units, foe_id) : NULL;
+    if (foe && foe->nation_id >= 4 && foe->nation_id <= 11 && foe->nation_id != selected->nation_id) {
+      ColonizeTurnContext ctx;
+      game_fill_turn_context(game, &ctx);
+      if (ai_contact_try_whack_confirm(&ctx, selected->nation_id, foe->nation_id, sid, dest_x, dest_y)) {
+        set_status(game, "Attack?", NULL);
+        return true;
+      }
     }
   }
 

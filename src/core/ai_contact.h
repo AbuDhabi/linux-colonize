@@ -118,6 +118,36 @@ int ai_contact_try_village_raid_warn(
 );
 
 /*
+ * FUN_465b_0000 @WHACKINDIANS (static port 2026-08-27): a human land unit
+ * moving onto a tile held by a native unit, while that tribe's alarm toward
+ * the human is < 0x4b and the pair's euro_diplo bit 0x04 is clear, gets a
+ * "Shall we attack the {tribe}, Your Excellency?" Yes/No first. Yes sets the
+ * bit (asked once until the tribe cools, FUN_4cc6_00f2 clears it) and the
+ * move resumes; No aborts. Returns 1 if the CHOICE was enqueued (move
+ * deferred), 0 if no confirmation is needed.
+ */
+int ai_contact_try_whack_confirm(
+  ColonizeTurnContext* ctx,
+  int euro_nation,
+  int indian_nation,
+  int unit_id,
+  int dest_x,
+  int dest_y
+);
+int ai_contact_whack_pending(const AiPopupState* st, int unit_id);
+
+/* FUN_4d56_417e Mode 2 — AI Missionary at a village incites the tribe against
+ * the human (see ai_contact.c header). Exposed for tests. */
+int ai_contact_ai_incite_human(
+  ColonizeTurnContext* ctx,
+  ColonizeCol1Indian* ind,
+  ColonizeCol1Tribe* t,
+  int nation_id,
+  int e,
+  int is_missionary
+);
+
+/*
  * Open hostilities for a village Attack choice (peace clear + at-war relation
  * floor + alarm/friction burn band). Cite: welcome-reject / FUN_4cc6_00f2 thin.
  */
