@@ -96,7 +96,7 @@ int main(void) {
   for (int i = 0; i < 8; ++i) {
     col1.indian[i].alarm_by_player[0] = 50; /* relation 50 */
     col1.indian[i].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
-    col1.indian[i].alarm_by_player[1] = 60; /* relation 40 */
+    col1.indian[i].alarm_by_player[1] = 80; /* DOS bands: relation 40 */
     col1.indian[i].euro_diplo[1] |= COL1_INDIAN_MET_BIT;
     col1.indian[i].alarm_by_player[2] = 0; /* relation 100 */ /* untouched by war(0,1) */
     col1.indian[i].euro_diplo[2] |= COL1_INDIAN_MET_BIT;
@@ -215,16 +215,19 @@ int main(void) {
     if (ai_diplo_indian_relation(&col1, 4 + (i), 0) != 45) {
       return fail("declare_war should −5 Indian relations for nation 0");
     }
-    /* 40 − 5 = 35 < 40 → thin hostile extra −10 → 25 */
-    if (ai_diplo_indian_relation(&col1, 4 + (i), 1) != 25) {
+    /* 20 − 5 = 15 < 16 (very-low, DOS bands) → thin hostile extra −10 → 5 */
+    if (ai_diplo_indian_relation(&col1, 4 + (i), 1) != 5) {
       return fail("declare_war should −5 then hostile −10 Indian relations for nation 1");
     }
     if (ai_diplo_indian_relation(&col1, 4 + (i), 2) != 100) {
       return fail("war(0,1) must not change Indian relations of nation 2");
     }
   }
-  if (ai_diplo_indian_read(&col1, 0, 0) != 45 || !ai_diplo_indian_at_war(&col1, 0, 0)) {
-    return fail("indian_read/at_war: nation 0 slot0 should be at war (rel<50)");
+  if (ai_diplo_indian_read(&col1, 0, 0) != 45 || ai_diplo_indian_at_war(&col1, 0, 0)) {
+    return fail("indian_read/at_war: nation 0 slot0 rel 45 is not at war (DOS band: rel<26)");
+  }
+  if (!ai_diplo_indian_at_war(&col1, 1, 0)) {
+    return fail("indian_at_war: nation 1 slot0 should be at war (rel 5 < 26)");
   }
   if (ai_diplo_indian_at_war(&col1, 2, 0)) {
     return fail("indian_at_war: nation 2 slot0 should be peaceful (rel=100)");
@@ -354,7 +357,7 @@ int main(void) {
     /* Peace with all Euros so upkeep/privateer do not fire; only harassment. */
     ai_diplo_make_peace(&col1, 0, 1);
     for (int i = 0; i < 8; ++i) {
-      col1.indian[i].alarm_by_player[0] = 60; /* relation 40 */ /* at war vs Indians, not very-low */
+      col1.indian[i].alarm_by_player[0] = 80; /* DOS bands: relation 40 */ /* at war vs Indians, not very-low */
       col1.indian[i].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
     }
     col1.nation[0].unknown26[8] = 0;
@@ -388,7 +391,7 @@ int main(void) {
     }
     /* Very-low deepen: relation < 40 → sticky 2. */
     for (int i = 0; i < 8; ++i) {
-      col1.indian[i].alarm_by_player[0] = 70; /* relation 30 */
+      col1.indian[i].alarm_by_player[0] = 90; /* DOS bands: relation 30 */
       col1.indian[i].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
     }
     ai_diplo_indian_hostility_sync(&col1, 0);
@@ -821,7 +824,7 @@ int main(void) {
       col1.indian[i].alarm_by_player[3] = 10; /* relation 90 */
       col1.indian[i].euro_diplo[3] |= COL1_INDIAN_MET_BIT;
     }
-    col1.indian[0].alarm_by_player[3] = 60; /* relation 40 */ /* at-war slot: no feeler */
+    col1.indian[0].alarm_by_player[3] = 80; /* DOS bands: relation 40 */ /* at-war slot: no feeler */
     col1.indian[0].euro_diplo[3] |= COL1_INDIAN_MET_BIT;
     col1.indian[1].alarm_by_player[3] = 5; /* relation 95 */ /* near floor: clamp to 96 */
     col1.indian[1].euro_diplo[3] |= COL1_INDIAN_MET_BIT;
@@ -830,7 +833,7 @@ int main(void) {
     col1.nation[3].unknown26[8] = 1;
     col1.nation[3].gold = 50; /* harassment will −2 (slot0 at war) */
     ai_diplo_euro_balance(&ctx_f, 3);
-    if (ai_diplo_indian_relation(&col1, 4 + (0), 3) != 40) {
+    if (ai_diplo_indian_relation(&col1, 4 + (0), 3) != 20) {
       return fail("peace feeler must not heal indian_at_war slots");
     }
     /* 2026-08-27: feeler heal retired (no DOS counterpart) — slots unchanged. */
@@ -890,7 +893,7 @@ int main(void) {
       col1.indian[i].euro_diplo[3] |= COL1_INDIAN_MET_BIT;
     }
     /* 45 −5 = 40 (≥40 → no hostile extra) → sticky at-war (==1), not deep. */
-    col1.indian[0].alarm_by_player[3] = 55; /* relation 45 */
+    col1.indian[0].alarm_by_player[3] = 78; /* DOS bands: relation 45 */
     col1.indian[0].euro_diplo[3] |= COL1_INDIAN_MET_BIT;
     ai_diplo_declare_war(&col1, 2, 3);
     /* declare: 90→85 mid; 45→40; sticky at-war */
@@ -905,7 +908,7 @@ int main(void) {
     if (ai_diplo_indian_relation(&col1, 4 + (3), 3) != 85) {
       return fail("make_peace must not move Indian alarm (feeler retired)");
     }
-    if (ai_diplo_indian_relation(&col1, 4 + (0), 3) != 40) {
+    if (ai_diplo_indian_relation(&col1, 4 + (0), 3) != 17) {
       return fail("make_peace feeler must not heal indian_at_war slots");
     }
     /* Idempotent: already peaceful + sticky elevated must not re-nudge. */
@@ -935,7 +938,7 @@ int main(void) {
       col1.indian[i].alarm_by_player[3] = 10; /* relation 90 */
       col1.indian[i].euro_diplo[3] |= COL1_INDIAN_MET_BIT;
     }
-    col1.indian[0].alarm_by_player[3] = 70; /* relation 30 */ /* very-low → sticky deep after hit */
+    col1.indian[0].alarm_by_player[3] = 90; /* DOS bands: relation 30 */ /* very-low → sticky deep after hit */
     col1.indian[0].euro_diplo[3] |= COL1_INDIAN_MET_BIT;
     ai_diplo_declare_war(&col1, 2, 3);
     /* mid 90→85; 30→15 (extra); sticky==2 */
@@ -949,7 +952,7 @@ int main(void) {
     if (ai_diplo_indian_relation(&col1, 4 + (3), 3) != 85) {
       return fail("make_peace must not feeler-nudge when sticky==2");
     }
-    if (ai_diplo_indian_relation(&col1, 4 + (0), 3) != 15) {
+    if (ai_diplo_indian_relation(&col1, 4 + (0), 3) != 0) { /* 10 −5 −10 → floor 0 */
       return fail("sticky2 make_peace must leave very-low slot untouched");
     }
   }
@@ -979,7 +982,7 @@ int main(void) {
     ctx_st.status = status;
     ctx_st.status_size = sizeof(status);
     for (int i = 0; i < 8; ++i) {
-      st.indian[i].alarm_by_player[0] = 60; /* relation 40 */
+      st.indian[i].alarm_by_player[0] = 80; /* DOS bands: relation 40 */
       st.indian[i].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
     }
     st.nation[0].unknown26[8] = 0;
@@ -1003,7 +1006,7 @@ int main(void) {
     /* AI nation tick must not overwrite human status. */
     snprintf(status, sizeof(status), "keep");
     for (int i = 0; i < 8; ++i) {
-      st.indian[i].alarm_by_player[1] = 70; /* relation 30 */
+      st.indian[i].alarm_by_player[1] = 90; /* DOS bands: relation 30 */
       st.indian[i].euro_diplo[1] |= COL1_INDIAN_MET_BIT;
     }
     st.nation[1].unknown26[8] = 0;
@@ -1324,7 +1327,7 @@ int main(void) {
     /* R6/R12: Indian −5 war-hit status when boycott chrome quiet and sticky rises. */
     ai_diplo_make_peace(&st, 0, 2);
     for (int i = 0; i < 8; ++i) {
-      st.indian[i].alarm_by_player[0] = 50; /* relation 50 */
+      st.indian[i].alarm_by_player[0] = 70; /* relation 30: −5 → 25 crosses the DOS at-war band (<26) */
       st.indian[i].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
     }
     st.nation[0].unknown26[8] = 0;
@@ -1333,7 +1336,7 @@ int main(void) {
     st.nation[2].gold = 200;
     status[0] = '\0';
     ai_diplo_declare_war_ctx(&ctx_st, 0, 2);
-    if (ai_diplo_indian_relation(&st, 4 + (0), 0) != 45) {
+    if (ai_diplo_indian_relation(&st, 4 + (0), 0) != 25) {
       return fail("declare_war_ctx should still −5 Indian relations (smoke-verified)");
     }
     if (strcmp(status, "Natives grow hostile.") != 0) {
@@ -1387,7 +1390,7 @@ int main(void) {
     ctx_sp.status_size = sizeof(status);
 
     /* Deep sticky: slot0 very-low; mid slots would be feeler-eligible if not blocked. */
-    sp.indian[0].alarm_by_player[0] = 70; /* relation 30 */
+    sp.indian[0].alarm_by_player[0] = 90; /* DOS bands: relation 30 */
     sp.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
     for (int i = 1; i < 8; ++i) {
       sp.indian[i].alarm_by_player[0] = 20; /* relation 80 */
@@ -1411,7 +1414,7 @@ int main(void) {
     }
 
     /* indian_relation getter mirrors relation_by_indian / delta indexing. */
-    if (ai_diplo_indian_relation(&sp, 4, 0) != 30 ||
+    if (ai_diplo_indian_relation(&sp, 4, 0) != 10 ||
         ai_diplo_indian_relation(&sp, 5, 0) != 80) {
       return fail("ai_diplo_indian_relation should read indian_nation 4..11 cells");
     }
@@ -1752,7 +1755,7 @@ int main(void) {
       r3.indian[i].euro_diplo[1] |= COL1_INDIAN_MET_BIT;
     }
     /* Deep sticky: very-low slot keeps sticky==2 across matrix tick. */
-    r3.indian[0].alarm_by_player[0] = 70; /* relation 30 */
+    r3.indian[0].alarm_by_player[0] = 90; /* DOS bands: relation 30 */
     r3.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
     r3.nation[0].unknown26[8] = 2;
     char status[128];
@@ -1773,7 +1776,7 @@ int main(void) {
       r3.nation[0].gold = 600;
       r3.nation[1].gold = 600;
       /* Keep deep sticky (harassment −2g; relation stays <40). */
-      r3.indian[0].alarm_by_player[0] = 70; /* relation 30 */
+      r3.indian[0].alarm_by_player[0] = 90; /* DOS bands: relation 30 */
       r3.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
       ai_diplo_euro_balance(&ctx_r3, 0);
       if (ai_diplo_read(&r3, 0, 1) & AI_DIPLO_ALLY) {
@@ -1789,7 +1792,7 @@ int main(void) {
       for (int seed = 1; seed < 500 && !saw_refuse; ++seed) {
         r3.nation[0].gold = 600;
         r3.nation[1].gold = 600;
-        r3.indian[0].alarm_by_player[0] = 70; /* relation 30 */
+        r3.indian[0].alarm_by_player[0] = 90; /* DOS bands: relation 30 */
         r3.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
         r3.nation[0].unknown26[8] = 2;
         ai_diplo_clear_both(&r3, 0, 1, AI_DIPLO_ALLY);
@@ -1798,7 +1801,7 @@ int main(void) {
         for (int n = 0; n < 80 && !saw_refuse; ++n) {
           r3.nation[0].gold = 600;
           r3.nation[1].gold = 600;
-          r3.indian[0].alarm_by_player[0] = 70; /* relation 30 */
+          r3.indian[0].alarm_by_player[0] = 90; /* DOS bands: relation 30 */
           r3.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
           ai_diplo_euro_balance(&ctx_r3, 0);
           if (ai_diplo_read(&r3, 0, 1) & AI_DIPLO_ALLY) {
@@ -1901,7 +1904,7 @@ int main(void) {
       fg.indian[i].alarm_by_player[0] = 0; /* relation 100 */
       fg.indian[i].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
     }
-    fg.indian[0].alarm_by_player[0] = 70; /* relation 30 */ /* keep sticky deep */
+    fg.indian[0].alarm_by_player[0] = 90; /* DOS bands: relation 30 */ /* keep sticky deep */
     fg.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
     fg.nation[0].unknown26[8] = 2;
     if (ai_diplo_indian_hostility_sticky(&fg, 0) != 2) {
@@ -2259,9 +2262,9 @@ int main(void) {
     snprintf(r10.player[1].country_name, sizeof(r10.player[1].country_name), "France");
     /* Near at-war floor: −5 → 47 → sticky at-war. */
     for (int i = 0; i < 8; ++i) {
-      r10.indian[i].alarm_by_player[0] = 48; /* relation 52 */
+      r10.indian[i].alarm_by_player[0] = 72; /* relation 28: −5 → 23 crosses the DOS at-war band */
       r10.indian[i].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
-      r10.indian[i].alarm_by_player[1] = 48; /* relation 52 */
+      r10.indian[i].alarm_by_player[1] = 72; /* relation 28: −5 → 23 crosses the DOS at-war band */
       r10.indian[i].euro_diplo[1] |= COL1_INDIAN_MET_BIT;
     }
     r10.nation[0].unknown26[8] = 0;
@@ -2282,7 +2285,7 @@ int main(void) {
     ctx_r10.status = status_r10;
     ctx_r10.status_size = sizeof(status_r10);
     ai_diplo_break_alliance_ctx(&ctx_r10, 0, 1);
-    if (ai_diplo_indian_relation(&r10, 4 + (0), 0) != 47) {
+    if (ai_diplo_indian_relation(&r10, 4 + (0), 0) != 23) {
       return fail("break_alliance should −5 Indian relations");
     }
     if (ai_diplo_indian_hostility_sticky(&r10, 0) != 1) {
@@ -2642,9 +2645,9 @@ int main(void) {
       status_w2[0] = '\0';
       ai_diplo_make_peace(&w2, 0, 1);
       for (int i = 0; i < 8; ++i) {
-        w2.indian[i].alarm_by_player[0] = 48; /* relation 52 */
+        w2.indian[i].alarm_by_player[0] = 72; /* relation 28: −5 → 23 crosses the DOS at-war band */
         w2.indian[i].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
-        w2.indian[i].alarm_by_player[1] = 48; /* relation 52 */
+        w2.indian[i].alarm_by_player[1] = 72; /* relation 28: −5 → 23 crosses the DOS at-war band */
         w2.indian[i].euro_diplo[1] |= COL1_INDIAN_MET_BIT;
       }
       w2.nation[0].unknown26[8] = 0;
@@ -3314,7 +3317,7 @@ int main(void) {
     for (int i = 0; i < 4; ++i) {
       ns.player[i].control = 0;
     }
-    ns.indian[0].alarm_by_player[0] = 70; /* relation 30 */ /* very-low → deepen */
+    ns.indian[0].alarm_by_player[0] = 90; /* DOS bands: relation 30 */ /* very-low → deepen */
     ns.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
     for (int i = 1; i < 8; ++i) {
       ns.indian[i].alarm_by_player[0] = 20; /* relation 80 */

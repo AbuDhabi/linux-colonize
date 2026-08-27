@@ -371,6 +371,10 @@ therefore now has one store:
 - Retired as fiction: peaceful drift (+1/turn), peace feeler (+2), the
   relation ±1 arm of `ai_contact_indian_relation_tick`, the raid −3/−5 double
   push, the trade `alarm--` double push.
-- Still thin: "at war with tribe" = met ∧ alarm > 50. DOS uses a diplo war bit
-  (`FUN_1000_8c28 & 2`) plus `alarm > 0x4a` in 153e; Linux has no WAR bit on
-  `euro_diplo` yet — candidate follow-up.
+- "At war with tribe" (same day, second pass) = met ∧ (`euro_diplo & 0x02`
+  ∨ alarm > 0x4a), i.e. `FUN_5bfb_153e`'s own test. Bit `0x02` = WAR on
+  `euro_diplo` (`COL1_INDIAN_WAR_BIT`): DOS sets it only in `FUN_5bfb_13b0`
+  (`@SMITEINDIANS`/`@SMITEEUROPE` — pay an AI nation to declare war;
+  unported) and clears it in `FUN_4cc6_00f2` when alarm cools below 75
+  (mirrored in `ai_diplo_indian_alarm_delta`). Linux sticky bands moved to
+  the DOS scale: at-war relation < 26, very-low < 16.

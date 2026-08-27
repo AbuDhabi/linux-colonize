@@ -1779,7 +1779,7 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_291f_0c5a` | 36460 | 10 | thunk | Far thunk → FUN_38fd_1aba (hit-test Europe regions to panel/mode code) | inferred |  |
 | `FUN_291f_0c68` | 36470 | 10 | thunk | Far thunk → FUN_38fd_0d48 (market cargo cell layout / scaling helper) | inferred |  |
 | `FUN_291f_0c76` | 36480 | 10 | thunk | Far thunk → FUN_38fd_081c (init harbor unit count + Europe selection state) | inferred |  |
-| `FUN_291f_0c84` | 36490 | 10 | thunk | Far thunk → FUN_38fd_5930 (Europe EOT FF cargo gift / grant) | inferred |  |
+| `FUN_291f_0c84` | 36490 | 10 | thunk | Far thunk → FUN_38fd_5930 (`@KINGNEWWAR` Crown new-war event) | known (2026-08-27) |  |
 | `FUN_291f_0ca0` | 36500 | 10 | thunk | Far thunk → FUN_38fd_4f6e (Europe keyboard/hotkey input dispatcher) | inferred |  |
 | `FUN_291f_0cae` | 36510 | 10 | thunk | Far thunk → FUN_38fd_2edc (loading-panel ship click / selection handler) | inferred |  |
 | `FUN_291f_0cbc` | 36520 | 10 | thunk | Far thunk → FUN_38fd_0058 (market dynamics: adjust euro_price[] / pressure from colony ledgers) | inferred |  |
@@ -2381,7 +2381,7 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_38fd_5580` | 68094 | 20 | trade | Clear drag-pending flag; refresh market strip | inferred |  |
 | `FUN_38fd_55b6` | 68114 | 134 | trade | Europe screen entry + main event loop | inferred | turn/europe_finish_bridge.md; docs/assets.md |
 | `FUN_38fd_584a` | 68248 | 57 | trade | Recruit-passage / immigration pressure score | inferred |  |
-| `FUN_38fd_5930` | 68305 | 115 | trade | Europe EOT FF cargo gift / grant | inferred |  |
+| `FUN_38fd_5930` | 68305 | 115 | king | `@KINGNEWWAR`: Crown cancels human's peace with a random peace peer, grants gold + Veteran Soldiers scaled by field-combat gap, sets relation bit 0x10; Franklin suppresses; human-only, Europe-EOT king slot | known (2026-08-27) | ai_king_new_war_event |
 | `FUN_38fd_5be8` | 68420 | 119 | trade | King audience tax event (cut or raise by favor score; applies via FUN_38fd_3dc8) | inferred | docs/savegame.md |
 | `FUN_38fd_5e52` | 68539 | 88 | trade | Europe nation end-of-turn (market + tax + pool) | inferred | turn/europe_nation_eot.md; docs/savegame.md |
 | `FUN_38fd_6024` | 68627 | 755 | trade | New-game init Europe market state (all 4 nations) | inferred | docs/savegame.md |

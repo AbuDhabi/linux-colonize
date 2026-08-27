@@ -199,7 +199,7 @@ Export often **zeros** unnamed colony bytes on rebuild ([savegame.md](savegame.m
 | `artillery_count` / `boycott_bitmap` | — | `mapped` | |
 | `royal_money` + `unknown24_pad[4]` | 8 | `mapped` | `int32` @ +0x22 REF budget; `unknown24_pad` = write-only int32 cumulative treasure income (`FUN_5fef_1908` `-0x77d2 += net`, found 2026-08-27); no reader. (Was: confirmed dead 2026-08-19) |
 | `return_from_europe_x/y` | 2 | `mapped` | `FUN_48d3_007a` |
-| `euro_relation[4]` | 4 | `mapped` | −0x77c4 / `FUN_15b3_*` peer flags (ai_diplo: WAR`0x01` PEACE`0x02` ALLY`0x04` MET`0x40`). Smcol’s attitude?/status/piracy bitfield **disagrees** — prefer DOS |
+| `euro_relation[4]` | 4 | `mapped` | −0x77c4 peer flags, **re-derived from DOS writers 2026-08-27 (T1.19)**: MET `0x20`, WAR `0x02`, PEACE `0x40`, planner war-intent `0x01` (`6d8e`), crown-arms `0x10` (`38fd_5930`); `0x04`/`0x08`/`0x80` seen in saves, `0x04` = attack-village-confirmed on Indian pairs; directional (a→b ≠ b→a). Linux `ai_diplo.h` now matches (was WAR`0x01`/PEACE`0x02`/MET`0x40`). `ALLY 0x04` is Linux-only on Euro pairs |
 | `relation_by_indian[8]` | 8 | `mapped` | |
 | `treaty_timer` / sticky / privateer | 12 | `partial` | Linux stand-ins in `unknown26[]` (`ai_diplo.c`); flags are **not** here. DOS layout fully known 2026-08-27: +0x40-43 diplo cooldown, +0x44/45 recruit RNG, +0x46/47 int16 last-colony-founded turn (`FUN_479b_076e`→`FUN_521d_052c`), +0x48-4a crosses/hammers carry, +0x4b dead |
 | `trade` (240) | 240 | `mapped` | euro_price / nr / gold / tons |

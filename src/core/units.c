@@ -5003,8 +5003,9 @@ static bool units_flood_next_step(
           if (u->nation_id <= 3 && g_units_ff_col1 && map->improve &&
               map->improve[(size_t)ny * (size_t)map->width + (size_t)nx] != 0) {
             const int owner = (int)((map_get_layer3(map, nx, ny) >> 4) & 0x0fu);
+            /* DOS 88d6: euro_relation & 0x40 = PEACE (bit map re-derived 2026-08-27). */
             if (owner >= 0 && owner <= 3 && owner != u->nation_id &&
-                (g_units_ff_col1->nation[u->nation_id].euro_relation[owner] & AI_DIPLO_MET) != 0) {
+                (g_units_ff_col1->nation[u->nation_id].euro_relation[owner] & AI_DIPLO_PEACE) != 0) {
               if (u->nation_id != g_units_combat_human_nation) {
                 continue;
               }

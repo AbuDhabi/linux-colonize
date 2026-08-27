@@ -37,14 +37,19 @@ Linux Euro×Euro stand-in (316-byte / `0x13c` nation record):
 `15b3` peer flags — reading them as WAR false-commissioned Privateers on
 seed-100 TURN1→2 while `euro_relation[]` stayed zero (peace).
 
-### Bit constants (Linux)
+### Bit constants (DOS-derived 2026-08-27, T1.19 — Linux `ai_diplo.h` matches)
 
-| Bit | Name | Notes |
+| Bit | Name | DOS writers |
 |-----|------|-------|
-| `0x01` | WAR | |
-| `0x02` | PEACE | |
-| `0x04` | ALLY | DOS `13b0` often discusses bit `0x40` for alliance chrome — do not conflate with MET |
-| `0x40` | MET | Meet / known |
+| `0x01` | WAR_INTENT | `521d_6d8e` planner (1-in-4 while `0x08` up, cooldown 0); `465b` clears after the attack |
+| `0x02` | WAR | attack sites `465b_0000`/`5fef_1b0e`/`684c_08c0`/`6cb2_24b8`; `5bfb_13b0` paid `@SMITE*`; cleared `43f7_0108` (`0xb`), `3844_0442` (`0xbb`) |
+| `0x04` | ALLY (Linux-only on Euro pairs) | DOS uses `0x04` only on Indian pairs: "attack this village?" confirmed (`465b` CHOICE `0x13ad`), cleared by `4cc6_00f2` on cooling |
+| `0x10` | crown-arms | `38fd_5930` |
+| `0x20` | MET | `5bfb_022e` first contact, `5bfb_3180`, `43f7_0108` (`0x60` toward human + REF) |
+| `0x40` | PEACE | `5bfb_0182`, `13b0` peace branch, `3844_0442`; cleared at every attack site |
+
+Real saves carry `00/20/22/60/a0/e0/e2/e8`; bits are directional. `13b0` is the
+paid `@SMITEINDIANS`/`@SMITEEUROPE` war-hire dialog, not an alliance offer.
 
 ## `6d8e` §4 vs opportunistic `5bfb`
 

@@ -23,6 +23,17 @@ void ai_king_nation_turn(ColonizeTurnContext* ctx);
 void ai_king_ai_peacetime_gift(ColonizeTurnContext* ctx, int nation_id);
 
 /*
+ * FUN_38fd_5930 — @KINGNEWWAR (static port 2026-08-27). Human nation only,
+ * runs in the Europe-EOT king slot when the tax event did not fire: with
+ * every met peer at peace, none met-but-unpeaced, and our land strength >=
+ * theirs, a difficulty-gated roll picks a random peace peer; the Crown grants
+ * gold + N Veteran Soldiers (both scaled by the field-combat gap, capped by
+ * difficulty), clears PEACE both ways and sets AI_DIPLO_CROWN_ARMED (0x10).
+ * Franklin (FF 19) suppresses it. Returns 1 when it fired.
+ */
+int ai_king_new_war_event(ColonizeTurnContext* ctx);
+
+/*
  * Apply human choice from map AI popup:
  *   KING_AUDIENCE Accept/Refuse (38fd_5be8; Refuse → @TEAPARTY OK /
  *     KING_DUMP_GOODS then @TEAPARTY),

@@ -11,10 +11,24 @@
  * Thin map: original_sources_annotated/ai/euro_diplo.md
  */
 
-#define AI_DIPLO_WAR 0x01
-#define AI_DIPLO_PEACE 0x02
+/*
+ * nation.euro_relation[peer] bit map — re-derived 2026-08-27 from the DOS
+ * writers (T1.19): 0x20 MET (FUN_5bfb_022e/3180 first contact), 0x40 PEACE
+ * (FUN_5bfb_0182 / 13b0 peace branch / 3844_0442; cleared at every attack
+ * site), 0x02 WAR (FUN_465b_0000, 5fef_1b0e, 684c_08c0, 6cb2_24b8 attacks;
+ * 13b0 paid @SMITE*), 0x01 planner war-intent (FUN_521d_6d8e, 1-in-4 roll
+ * while bit 0x08 is up; cleared by 465b after the attack), 0x10 crown-arms
+ * event (FUN_38fd_5930). Same encoding as indian.euro_diplo. Real saves show
+ * 00/20/22/60/a0/e0/e2/e8 and the bits are directional (a→b ≠ b→a).
+ * AI_DIPLO_ALLY (0x04) is Linux-only on Euro pairs (DOS uses 0x04 only on
+ * Indian pairs as "attack-village confirmed"); TREASURE_* likewise Linux.
+ */
+#define AI_DIPLO_WAR 0x02
+#define AI_DIPLO_PEACE 0x40
 #define AI_DIPLO_ALLY 0x04
-#define AI_DIPLO_MET 0x40
+#define AI_DIPLO_MET 0x20
+#define AI_DIPLO_WAR_INTENT 0x01
+#define AI_DIPLO_CROWN_ARMED 0x10 /* FUN_38fd_5930 @KINGNEWWAR: Crown cancelled our peace with this peer */
 /*
  * FUN_4720_049e Treasure Train tension bump (euro_unit_act.md). DOS sets
  * the real bit 0x80 here (confirmed transient alert, set/cleared

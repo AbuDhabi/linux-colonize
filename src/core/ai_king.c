@@ -3676,6 +3676,130 @@ void ai_king_ai_peacetime_gift(ColonizeTurnContext* ctx, int nation_id) {
  * Idle Artillery on crown/captured colony → FORTIFY (Euro after-siege pattern;
  * Colonization.pdf fortify defense; euro_unit_act Artillery fortify).
  */
+int ai_king_new_war_event(ColonizeTurnContext* ctx) {
+  if (!ctx || !ctx->col1_ok || !ctx->col1 || !ctx->rng || !ctx->turn_number) {
+    return 0;
+  }
+  ColonizeCol1Save* col1 = ctx->col1;
+  const int human = ctx->human_nation;
+  if (human < 0 || human >= 4 || col1->player[human].control != 0) {
+    return 0;
+  }
+  if (founding_fathers_nation_has(col1, human, FF_BENJAMIN_FRANKLIN)) {
+    return 0; /* FUN_281f_07b4(nation, 0x13) */
+  }
+  const int difficulty = (int)col1->head.difficulty;
+  const int turn = (int)*ctx->turn_number;
+  if ((difficulty + 2) * turn <= 799) {
+    return 0;
+  }
+  const int crown = ai_king_crown_nation(human);
+  int peace_n = 0;
+  int met_no_peace = 0;
+  long strength_peers = 0;
+  long strength_self = 0;
+  for (int p = 0; p < 4; ++p) {
+    if (p == human || p == crown || (col1->nation[p].nation_flags & 0x04) != 0) {
+      continue; /* self / REF nation / independent */
+    }
+    /* Raw byte, not ai_diplo_read: DOS reads DS:-0x77c4 directly and an unmet
+     * pair is 0 there (ai_diplo_read synthesizes PEACE|MET for unwritten pairs). */
+    const uint8_t rel = col1->nation[human].euro_relation[p];
+    if (rel & AI_DIPLO_PEACE) {
+      peace_n++;
+    }
+    if ((rel & (AI_DIPLO_PEACE | AI_DIPLO_MET)) == AI_DIPLO_MET) {
+      met_no_peace++;
+      /* DOS sums the two -0x6be4 strengths 14x (loop 1..14, per-continent shape). */
+      strength_peers += 14L * (long)col1->stuff.land_combat_strength[p];
+      strength_self += 14L * (long)col1->stuff.land_combat_strength[human];
+    }
+  }
+  if (peace_n == 0 || met_no_peace != 0 || strength_peers > strength_self) {
+    return 0;
+  }
+  if (dos_rng_range(ctx->rng, 0, (4 - peace_n) * 20) > difficulty) {
+    return 0;
+  }
+  int peer = -1;
+  for (int tries = 0; tries < 64 && peer < 0; ++tries) {
+    int cand;
+    do {
+      cand = dos_rng_range(ctx->rng, 0, 3);
+    } while (cand == human);
+    if ((col1->nation[human].euro_relation[cand] & AI_DIPLO_PEACE) != 0 &&
+        (col1->nation[cand].nation_flags & 0x04) == 0) {
+      peer = cand;
+    }
+  }
+  if (peer < 0) {
+    return 0;
+  }
+  int count = 1;
+  int gold = (difficulty + 1) * 100;
+  const int fc_self = (int)col1->stuff.field_combat_totals[human];
+  const int fc_peer = (int)col1->stuff.field_combat_totals[peer];
+  if (fc_self < fc_peer) {
+    const int gap = fc_peer - fc_self;
+    count = (gap >> 3) + 1;
+    gold += gap * 25;
+  }
+  if (count > 6 - difficulty) {
+    count = 6 - difficulty;
+  }
+  if (gold > (5 - difficulty) * 500) {
+    gold = (5 - difficulty) * 500;
+  }
+  if (count < 0) {
+    count = 0;
+  }
+
+  static const char* k_titles[5] = {"Discoverer", "Explorer", "Conquistador", "Governor", "Viceroy"};
+  const char* peer_name =
+    col1->player[peer].country_name[0] ? col1->player[peer].country_name : "rival";
+  if (ctx->ai_popups) {
+    PopupMsgTokens tok;
+    memset(&tok, 0, sizeof(tok));
+    tok.string0 = k_titles[difficulty >= 0 && difficulty < 5 ? difficulty : 0];
+    tok.string1 = col1->player[human].name[0] ? col1->player[human].name : "Governor";
+    tok.string2 = peer_name;
+    tok.number0 = gold;
+    tok.has_number0 = true;
+    tok.number1 = count;
+    tok.has_number1 = true;
+    char fallback[AI_POPUP_BODY_LEN];
+    snprintf(
+      fallback,
+      sizeof(fallback),
+      "The Crown has declared war on the %s and cancelled your peace. It sends %d$ and %d "
+      "Veteran Soldier units.",
+      peer_name,
+      gold,
+      count
+    );
+    char body[AI_POPUP_BODY_LEN];
+    popup_msg_fill(ctx->messages, "KINGNEWWAR", &tok, fallback, body, sizeof(body));
+    (void)ai_popup_enqueue_ok_ctx(
+      ctx->ai_popups, AI_POPUP_TAG_KING_TAX, human, peer, gold, "New War", body
+    );
+  }
+  col1->nation[human].gold += (uint32_t)gold;
+  /* FUN_281f_095c(type 1 Soldier, nation, -20,-20) x count, profession 0x15 = Veteran:
+   * the units appear in Europe — Linux puts them on the docks. */
+  if (ctx->europe) {
+    for (int i = 0; i < count; ++i) {
+      if (!europe_dock_push_load(ctx->europe, "Veteran Soldier", UNITS_JOB_SOLDIER)) {
+        break;
+      }
+    }
+  }
+  ai_diplo_clear_both(col1, human, peer, AI_DIPLO_PEACE);
+  ai_diplo_or_both(col1, human, peer, AI_DIPLO_CROWN_ARMED);
+  /* DOS also stamps DS:0x53c8[peer] = turn (head.nation_relation) — that slot
+   * is a derived mirror in this port, so the stamp is not written. */
+  return 1;
+}
+
 static void ai_king_war_act(ColonizeTurnContext* ctx) {
   if (!ctx || !ctx->units || !ctx->map || !ctx->col1_ok || !ctx->col1) {
     return;
@@ -4713,7 +4837,12 @@ void ai_king_nation_turn(ColonizeTurnContext* ctx) {
   const int sol = ai_king_sol_percent(ctx, ctx->human_nation);
 
   if (!ai_king_independence_declared(ctx->col1_ok ? ctx->col1 : NULL)) {
+    const int popups_before = ctx->ai_popups ? ctx->ai_popups->queue_count : 0;
     ai_king_tax_event(ctx);
+    /* 38fd Europe-EOT king slot: @KINGNEWWAR only when the tax event stayed quiet. */
+    if (!ctx->ai_popups || ctx->ai_popups->queue_count == popups_before) {
+      (void)ai_king_new_war_event(ctx);
+    }
     /*
      * Peacetime Spring 1790 anniversary (year_end_chrome 0x6fe): @SOONRETIRING0
      * once before the 1800 @SCORED latch. Cite: turn/year_end_chrome.md.

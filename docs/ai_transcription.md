@@ -297,6 +297,7 @@ Thin map: [`euro_diplo.md`](../original_sources_annotated/ai/euro_diplo.md).
 | `FUN_43f7_2022` / `1eca` | ~98 / ~66 | War act + Continental promote | `ai_king_war_act` (`1eca` cap/fortify/own-tile gate **Done** full port; rest of `2022` war-act **partial**) | **partial** |
 | `FUN_43f7_2424` | ~61 | Nation SoL + peace/war dispatch | `ai_king_nation_turn` | **partial** (structural) |
 | `FUN_43f7_10f0` / `1528` / `160a` / `2022` / `2244` | — | Intervene / announce / rename / merc | `ai_king` thin 10f0/1528/160a; `2022` rebel merc real formula **Done**; `2244` peacetime AI-only self/ally-gift twin **Done** (`ai_king_ai_peacetime_gift`, called from `ai_euro_nation_turn`); letter cinematic / VGA PARKED | **partial** |
+| `FUN_38fd_5930` | 125 | `@KINGNEWWAR` Crown cancels peace with a random peer, grants gold + Veteran Soldiers, sets relation bit `0x10` | `ai_king_new_war_event` (Europe-EOT king slot after a quiet tax event) | **Done** 2026-08-27 (static; docks stand in for DOS's in-Europe unit spawn; `0x53c8` stamp not mirrored) |
 
 Thin map: [`king_ref.md`](../original_sources_annotated/ai/king_ref.md). Unit: `unit_ai_king`.
 
