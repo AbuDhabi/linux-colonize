@@ -2704,17 +2704,13 @@ bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ct
           ctx->units
         );
       }
-      proc->nation_cursor = 0;
-      {
-        const int next = turn_next_euro_ai(ctx, 0);
-        if (next >= 0) {
-          proc->nation_cursor = next;
-          proc->step = TURN_PROC_EURO;
-        } else {
-          proc->nation_cursor = 4;
-          proc->step = TURN_PROC_INDIAN;
-        }
-      }
+      /*
+       * DOS order (FUN_130d_0290 mid-pass → 281f_0676 → 4d56_1b3a phase 2):
+       * every Indian nation turn (4d56_1816 per slot) runs BEFORE the Euro
+       * 0..3 loop. See turn/mid_pass_indian_rank.md.
+       */
+      proc->nation_cursor = 4;
+      proc->step = TURN_PROC_INDIAN;
       break;
     }
     case TURN_PROC_EURO: {
@@ -2775,8 +2771,7 @@ bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ct
         if (next >= 0) {
           proc->nation_cursor = next;
         } else {
-          proc->nation_cursor = 4;
-          proc->step = TURN_PROC_INDIAN;
+          proc->step = TURN_PROC_FINISH;
         }
       }
       break;
@@ -2800,7 +2795,13 @@ bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ct
       if (n < 11) {
         proc->nation_cursor = n + 1;
       } else {
-        proc->step = TURN_PROC_FINISH;
+        const int next = turn_next_euro_ai(ctx, 0);
+        if (next >= 0) {
+          proc->nation_cursor = next;
+          proc->step = TURN_PROC_EURO;
+        } else {
+          proc->step = TURN_PROC_FINISH;
+        }
       }
       break;
     }

@@ -1005,6 +1005,21 @@ int main(void) {
       fprintf(stderr, "indicator should be off after setup\n");
       return 1;
     }
+    /* DOS order: Indian nations (4..11) run in the mid-pass before Euro AI. */
+    if (!turn_processor_advance(&proc, &ctx) || !turn_processor_show_indicator(&proc)) {
+      fprintf(stderr, "indicator should show during indian AI step\n");
+      return 1;
+    }
+    if (active != 4) {
+      fprintf(stderr, "expected first indian nation active got %d\n", active);
+      return 1;
+    }
+    for (int i = 0; i < 7; ++i) {
+      if (!turn_processor_advance(&proc, &ctx)) {
+        fprintf(stderr, "indian steps should keep processor active\n");
+        return 1;
+      }
+    }
     if (!turn_processor_advance(&proc, &ctx) || !turn_processor_show_indicator(&proc)) {
       fprintf(stderr, "indicator should show during euro AI step\n");
       return 1;

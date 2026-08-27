@@ -61,7 +61,7 @@ Order EN→FR→SP→DU; skip `human_nation` and withdrawn (`player.control==2`)
 
 | Step | Linux | DOS |
 |------|-------|-----|
-| Nation turn | `ai_indian_nation_turn` (`1816`-shaped) | Mid-pass `1b3a` in `130d`; full `1816` **live** via overlay thunk / forged Return Vector `1930:1554` (`2A02`, overlay `0x0C`) — year-loop `FUN_*` still open ([`vr_1554.md`](../tools/brave_dump/vr_1554.md)) |
+| Nation turn | `ai_indian_nation_turn` (`1816`-shaped) | Mid-pass `1b3a` in `130d` calls `1816(slot)` for each Indian slot (tribe flag bit7 clear) **before** the Euro loop ([`mid_pass_indian_rank.md`](../original_sources_annotated/turn/mid_pass_indian_rank.md)) |
 
 ### `TURN_PROC_FINISH` (no indicator)
 
@@ -142,7 +142,7 @@ Major thunks (catalog):
 | EURO Drydock repair | colony EOT | `units_tick_drydock_repair` | **Done** — clears combat-damage bit7 on finished ships at own Drydock; `@REFIT` chrome Done thin; after ship-build tick |
 | EURO fog reveal | `281f_07a0` in `00f2` | `turn_reveal_fog_for_nation` | **Partial** — human FINISH **Done** thin; AI EURO PARKED (T2 golden) |
 | EURO AI | `521d_6d8e` after `00f2` | `ai_euro_nation_turn` | **Partial structural** (T2 early; deep `20e6` mapped/PARKED) |
-| INDIAN | `4d56_1b3a` mid only; `1816` XREF open | `ai_indian_nation_turn` | **Partial structural** — [`mid_pass_indian_rank.md`](../original_sources_annotated/turn/mid_pass_indian_rank.md); Euro rank `5bfb_00f8` **Done** thin |
+| INDIAN | `4d56_1b3a` mid-pass → `1816(slot)` ×8 | `ai_indian_nation_turn` | **Partial structural** — [`mid_pass_indian_rank.md`](../original_sources_annotated/turn/mid_pass_indian_rank.md); Euro rank `5bfb_00f8` **Done** thin |
 | FINISH king | `43f7_2424` in `00f2` | `ai_king_nation_turn` | **Partial structural** |
 | FINISH market | `38fd_0058` / `5e52` family | `europe_tick_market_prices` | **Partial** — attrition + colony→`price_group` half + phases 2–3 pressure **Done** thin |
 | FINISH human refresh | return to Move Pieces | MP + select next | **Done** |
@@ -157,7 +157,7 @@ Major thunks (catalog):
 | Human slot | Inside nation loop | Pipeline is **post-human only** |
 | Calendar | After nations | **First** in SETUP |
 | King | Per-nation inside `00f2` | Once in **FINISH** |
-| Indians | Mid-pass `1b3a` | Full `1816`-shaped **INDIAN** phase |
+| Indians | Mid-pass `1b3a` → `1816` ×8, **before** Euro loop | **INDIAN** phase runs before EURO (matched 2026-08-27) |
 | `00f2` | Atomic per Euro | Split across SETUP / EURO / FINISH |
 
 Manual “natives first” order is **not** what either DOS `130d` (as resolved) or
@@ -181,12 +181,11 @@ Linux runs; Linux is Euro AI then Indians.
 - **`MULTINEXT` / `TIMECHANGE` / `SEASONS`**: string table only — **reconfirmed**
   no FUN_* XREF ([`mid_pass_indian_rank.md`](../original_sources_annotated/turn/mid_pass_indian_rank.md)).
   Calendar from `@TIMECHANGE` + `130d` year/autumn math.
-- **`FUN_4d56_1816`**: body **live** (hang dumps); entry = resident thunk
-  `0x1C9A0` → overlay loader → `JMPF 1816`; far ret forged **`1930:1554`**
-  by **`1930:2A02`** (overlay id **`0x0C`**). Year-loop `FUN_*` still open —
-  probe [`vr_1554.md`](../tools/brave_dump/vr_1554.md) / `VR_2A02`. Map:
+- **`FUN_4d56_1816`**: **caller resolved 2026-08-27** (static) — `4d56_1b3a`
+  phase 2 via overlay-local stub `4d56:4c2c` → record `281f:23b0`. DOS runs
+  all Indian turns in the mid-pass before Euro 0..3; Linux INDIAN phase
+  reordered before EURO to match (2026-08-27). Map:
   [`mid_pass_indian_rank.md`](../original_sources_annotated/turn/mid_pass_indian_rank.md).
-  Linux still runs `1816`-shaped nation turns.
 - **`FUN_3844_0442`**: **UI mapped**
   ([`year_end_chrome.md`](../original_sources_annotated/turn/year_end_chrome.md));
   B/C1(+fleet+REF pool+map+latch)/C2/D(+auto-declare)/E(+richest) status

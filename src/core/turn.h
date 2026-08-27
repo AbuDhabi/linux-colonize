@@ -98,8 +98,8 @@ typedef struct ColonizeColonyProdDelta {
 typedef enum ColonizeTurnProcStep {
   TURN_PROC_IDLE = 0,
   TURN_PROC_SETUP,  /* calendar + production + nation ticks (no indicator) */
-  TURN_PROC_EURO,   /* one European AI nation per advance */
-  TURN_PROC_INDIAN, /* one native nation per advance */
+  TURN_PROC_EURO,   /* one European AI nation per advance (after INDIAN, DOS order) */
+  TURN_PROC_INDIAN, /* one native nation per advance (4d56_1b3a mid-pass → 1816) */
   TURN_PROC_FINISH  /* king stub + human refresh (no indicator) */
 } ColonizeTurnProcStep;
 
