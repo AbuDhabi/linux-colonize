@@ -85,8 +85,9 @@ unconfirmed against DOS. Congress page 2's FF portrait slot table has only
 - Ordering: crosses bar always first; summary lines conditional.
 - Scroll/paging: none.
 - Click targets: none (shared OK button only).
-- Strings: title "RELIGIOUS ADVISER REPORT" (hardcoded English); FF names
-  from the port's `k_ff_names[]` (NAMES.TXT @FATHERS order).
+- Strings: title "RELIGIOUS ADVISER REPORT" resolves live (`reports_title`);
+  FF names live from `NAMES.TXT @FATHERS` (`reports_ff_name`, `k_ff_names[]`
+  is the no-assets fallback).
 - Port status: Done (golden `religious.png`) —
   `reports_render_religious` (`reports.c:873`).
 
@@ -113,7 +114,8 @@ unconfirmed against DOS. Congress page 2's FF portrait slot table has only
 - Scroll/paging: 2 pages; any dismiss on page 1 advances to page 2 instead
   of leaving the report; page 2 closes on any click.
 - Click targets: none inside a page; page-advance only.
-- Strings: title "CONTINENTAL CONGRESS ACTIVITIES"; body lines hardcoded
+- Strings: title "CONTINENTAL CONGRESS ACTIVITIES" resolves live
+  (`reports_title`); body lines hardcoded
   English, need FONTTINY not FONTSMAL.
 - Port status: Done (golden `continental_p1.png`/`continental_p2.png`,
   2026-08-25 per roadmap.md) — `reports_render_congress_page1`/`_page2`
@@ -142,7 +144,8 @@ unconfirmed against DOS. Congress page 2's FF portrait slot table has only
 - Click targets: the only click-to-zoom in any report — grid cell -> detail
   (`reports_labor_cell_hit`, wired via `game->labor_detail_job` in
   `game_loop.c`). Esc/Enter/OK on the detail view returns to the grid.
-- Strings: title "LABOR ADVISER REPORT"; job names via
+- Strings: title "LABOR ADVISER REPORT" resolves live (`reports_title`);
+  job names (live from `NAMES.TXT @JOB`) via
   `reports_job_name()`; "(Click on item to zoom)" hardcoded, matches golden.
 - Port status: Done (golden `labor.png`/`labor_detail.png`) —
   `reports_render_labor_grid`/`_detail` (`reports.c:1340`/`1392`). Real gap

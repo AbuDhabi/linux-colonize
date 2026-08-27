@@ -169,7 +169,8 @@ than assume the lead was dry. Batch-decompiled all 81 directly
 (`tools/CatalogSweep.java`), then for every one that showed any
 `WARNING:` text, cross-checked whether the warning's cited address
 actually falls inside that function's own body vs. a callee it inlines
-(`tools/CatalogSweep2.java`, same fix as the resident-pocket lesson
+(`tools/CatalogSweep2.java`; both were one-off Ghidra scripts, since
+removed from `tools/` — same fix as the resident-pocket lesson
 above):
 
 | Bucket | Count | Meaning |

@@ -81,8 +81,9 @@ lesson below needs more context):
   `tools/address_mapping.csv` before assuming it needs a live dump — many
   "unlabeled" globals turn out to already be named for a sibling function.
 - **Before asking the user for a fresh live DOSBox-X capture, byte-pattern-
-  search the existing `dosbox-x-dumps/*` saves (`tools/find_memory` or
-  equivalent) for the table/value you need.** As of 2026-08-22 this has
+  search the existing `dosbox-x-dumps/*` saves (a throwaway byte-pattern
+  script — there is no checked-in `tools/find_memory`; `tools/brave_dump/
+  parse_*_dump.py` show the dump layout) for the table/value you need.** As of 2026-08-22 this has
   closed 6 of 8 Tier 4 items that were originally filed as "needs a live
   session" (`T4.1`, `T4.2`, `T4.3`, `T4.4`, `T4.7`, `T4.8`) — every one of
   them turned out to already be sitting in one of the ~24 existing dumps,
@@ -1617,7 +1618,7 @@ item's own 2026-08-24 entry for the full derivation. Ported, real
   columns are already captured (every `dosbox-x-dumps/*` save has them,
   same table `T4.1` closed), so this is pure formula-mapping + port, no
   live capture needed. Not attempted yet. Full data:
-  [`terrain_yields.md`](../terrain_yields.md) "DS:0x2f76 terrain-class
+  [`terrain_yields.md`](terrain_yields.md) "DS:0x2f76 terrain-class
   record" table.
   **2026-08-21 — both columns' raw bytes extracted and cross-checked
   (20/20 dump instances agree; `+0xe`'s formula independently re-derived
@@ -2288,7 +2289,7 @@ CLAUDE.md's "hard to reverse" guidance.
 
 Confirmed genuinely blocked without a live capture (register/stack trace,
 memory dump, or hang-dump). **As of 2026-08-22, 6 of the 8 items ever filed
-here closed without any live session at all** — `tools/find_memory`-style
+here closed without any live session at all** — ad-hoc
 byte-pattern search against the existing `dosbox-x-dumps/*` saves found
 every one of them already sitting in static data. Before working (or
 asking the user to work) any `[ ]` item below, search the existing dumps
