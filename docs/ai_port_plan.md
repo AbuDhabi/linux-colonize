@@ -1197,6 +1197,7 @@ item's own 2026-08-24 entry for the full derivation. Ported, real
   44/44. Method lesson: a runtime plane that is also a save layer can be
   decoded from save statistics — check that before hunting writers.
 
+  **2026-08-27 — far tier ported (`units.c`).** Coarse 15×18 quarter-resolution walkability grids (DS:0x85e8 land / 0x86f6 sea, 8-bit direction masks) are rebuilt lazily per map from terrain (`units_coarse_build`; the populator `0007d8` body is not decompiled — cell = any domain tile in the 2×2 sample block, bit d = windowed domain BFS between sample points, documented as a consumer-side reconstruction). `0009ae` = `units_coarse_snap`, `0015c1` = `units_coarse_waypoint` (BFS from the goal cell, pick U's lowest-cost neighbour, octile tie-break, `000000` probe), `0f74`'s far arm = flood toward the waypoint, else toward U's probed centre, else greedy. `units_bfs_next_step` retired from the tier (kept compiled). Sea probe's continent==1 term dropped (Linux water has no continent id). `ctest` 46/46, goldens unchanged.
 - [x] **T1.9 — Indian mid-game quiet scoring (goods/missions/capital
   pull) formula mapping.** R2 used to flag this as blocked on "a
   `2244`-style overlay re-recovery... canonical boundary looks wrong" for
@@ -1308,6 +1309,7 @@ item's own 2026-08-24 entry for the full derivation. Ported, real
   Full trace: `quiet_brave_scoring.c`'s 2026-08-22 later update. `ctest`
   not run (doc-only).
 
+  **2026-08-27 — wired (`ai.c` `ai_native_foreign_euro_pull`).** The `LAB_521d_52aa` arm replaces the picker's blanket foreign-owner reject for Euro-owned tiles: gate = owner<4, Indian side not at PEACE with it (`indian[].euro_diplo & 0x40`) or a Privateer on either side, and (!WoI or owner is the human). Formula per the trace (`1b0e` strength via `combat_land_engage`/open-field base, stack cost/military terms, colony ×3, village <<1, crown-at-home >>1, 1000 clamp, `-999` under 12 else `+e8*4`). Stance-4 term inert for Indian nations (Euro-only table). `golden_ai_turns` unchanged (no such tile in TURN1→2).
 - [x] **T1.10 — Resolve `DS:0x945a` / `FUN_1d1d_0ec6` division (profession/
   dock query family).** New, split out of **T2.1**'s 2026-08-20 finding.
   `5d04`'s structural hire-ladder tail is inert-by-construction today
@@ -2502,6 +2504,7 @@ CLAUDE.md's "hard to reverse" guidance.
   unchanged (same 3 parked Brave diffs). The thin hire matrix below it is
   still the live behavior until the tail's two iterator stubs go real.
 
+  **2026-08-27, later — hire-ladder tail callees made real (`ai_euro_5d04_cb_*`).** Europe stack iteration = the nation's units at Europe coords; type/profession reads and equip writes by name (fixtures use synthetic pools), expert gate, `03d0` urgency, `38fd_0718` recruit spawn, market ask/bid from the EuropeScreen (col1 `euro_price` fallback), hold-0 unload/sell (boycott-aware, tax-adjusted), cargo buy+load, Artillery spawn, ship departure = board the dock stack (the dispatcher's own 48d3_048e teleport follows), `0x5238` = new `ColonizeUnitType.space`, `0xa0db/0xa0da` = per-turn own-colony muskets/tools-need counts (6d8e prelude). Misports fixed: RNG rolls that were really market prices, `found_flags` vs pioneer count. Two loop guards (DOS drops departed ships from its list; Linux does not). Still thin: `0a2e`/`0c14` market volume only for the human market; recruit-pool refill is a plain RNG pick (`38fd_46d4` remap table unported); `DS:0x945a` = 0. `ctest` 46/46, mid01/late01 green.
 - [ ] **T3.2 — Wire `153e` worthiness-score port live**, once T2.2's delta
   catalog exists. Changes default war-declare eligibility scoring.
   **2026-08-27 — deliberately NOT flipped.** Every term is a neutral stub
@@ -2537,6 +2540,7 @@ CLAUDE.md's "hard to reverse" guidance.
   mirror is gone (no readers existed), `ai_diplo_declare_war` zeroes both
   slots like the attack sites, `ai_king_new_war_event` writes the turn.
 
+  **2026-08-27, latest — every term real; exported as `ai_diplo_153e_worthiness_score`.** `-0x6d68` = `colony_counts`, `-0x6a4e`/`-0x6ada` computed per continent (exposed combat / colonist-class count), `0x53c8` = `head.nation_relation` (16-turn cooldown forces the talk + clears CROWN_ARMED; stamp refreshed), `0xa153` = top of the `FUN_5bfb_00f8` rank table (`ai_diplo_00f8_top_ranked_nation`), `FUN_5bfb_0000` = per-colony border probe (stack opcodes 0xa/0xb), Franklin, self-treasury clamp, `uStack_ae` bit 0x02 = WAR (not PEACE). Not a live trigger by construction: DOS only reaches phase 1 for a human self via `FUN_5bfb_3180` (encounter dialog, phases 2–4 unported). Bonus: `10ec` gained its asm `[0xa153]==human` gate, and `13b0` now requires a real adjacent-unit/colony encounter (was every balance) — that removed the 12 `euro_relation 0x40` diffs from `golden_ai_turns`.
 - [ ] **T3.3 — Re-enable `golden_ai_turns`/`golden_ai_joint`.** **2026-08-27
   partial:** `golden_ai_mid01` and `golden_ai_late01` pass again and are
   re-enabled as gates (`CMakeLists.txt`). `golden_ai_turns` still fails on
@@ -2565,6 +2569,7 @@ policy, not by blocker) is closed — `T4.9` too, statically. Don't resume
 speculatively, but don't assume "Tier 4" still means "needs the user" the
 way it did when this file was first written.
 
+  **2026-08-27, latest:** `golden_ai_turns` is down to exactly the 3 parked TURN1→2 Brave diffs (the 12 relation diffs were the 13b0 cadence bug, fixed). Still DISABLED — flip is the user's call.
 - [x] **T4.1 — `DS:0x2f76..0x2f88`ish terrain-cost/toughness table.**
   **2026-08-20: stale, corrected — narrower than stated.** `map.c` already
   carries live captured values for offsets `+0` (`k_map_dos_terr_cost`,

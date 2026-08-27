@@ -1,4 +1,5 @@
 #include "core/ai.h"
+#include "core/combat_strength.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -2984,6 +2985,143 @@ static int ai_quiet_fog_explore_ex(
   return score;
 }
 
+/*
+ * LAB_521d_52aa — foreign-Euro "attack pull" arm of the quiet dir loop
+ * (T1.9, wired 2026-08-27; trace: original_sources_annotated/ai/
+ * quiet_brave_scoring.c `quiet_score_colony_pull`). Reached for a candidate
+ * tile owned by a Euro nation (owner < 4, != mover) when the mover's Indian
+ * side is not at PEACE with that owner (FUN_281f_0a38 & 0x40 on the 23000
+ * Indian table = indian[].euro_diplo) — or either unit is a Privateer — and
+ * (not WoI, or the owner is the human / not a Euro slot). The mover needs a
+ * nonzero @UNIT attack byte (DS:0x5236; Braves = 1).
+ *
+ *   e8 = ((field0 + 1) / max(1, field2)) * strength / max(1, cost)
+ *        field0 = Σ cost over the mover's own stack (1 for a lone Brave),
+ *        field2 = # military land {1,4,6,7,8,9} in that stack (0 -> 1),
+ *        strength = FUN_5fef_1b0e attack strength vs the tile
+ *   *3 if a Euro colony sits there; <<1 if a native village does;
+ *   Missionary (0xb) with neither -> 0; crown nation at home (0x8db8==0)
+ *   with neither -> >>1; (@UNIT flag 0x10 && G-table stance 4) -> *3 —
+ *   the stance table is Euro-only in Linux (ai_euro_continent_stance_at
+ *   returns 0 for nations >= 4), so that last term never fires for Braves.
+ *   clamp: >999 or <0 -> 1000; then score -= 999 when e8 < 12 for a land
+ *   unit, else score += max(1, e8) * 4.
+ *
+ * The col1/colonies pointers come from the nation-turn entry (module
+ * statics — the picker's signature is shared with the fixture path).
+ */
+static const ColonizeColonyPool* s_ai_native_colonies = NULL;
+static const ColonizeCol1Save* s_ai_native_col1 = NULL;
+static int s_ai_native_home_dist = 0; /* DS:0x8db8 for the unit being scored */
+
+static int ai_native_foreign_euro_pull_open(
+  const ColonizeWorldMap* map, const ColonizeUnitPool* units, int x, int y, int nation_id,
+  int dest_x, int dest_y, int owner
+) {
+  if (owner < 0 || owner > 3 || owner == nation_id || !s_ai_native_col1) {
+    return 0;
+  }
+  const ColonizeCol1Save* col1 = s_ai_native_col1;
+  const int mover = ai_unit_index_on_tile(units, x, y);
+  const int dest_unit = ai_unit_index_on_tile(units, dest_x, dest_y);
+  const int mover_type = mover >= 0 ? units->units[mover].type_index : -1;
+  const int dest_type = dest_unit >= 0 ? units->units[dest_unit].type_index : -1;
+  int at_peace = 0;
+  if (nation_id >= 4 && nation_id <= 11) {
+    at_peace = (col1->indian[nation_id - 4].euro_diplo[owner] & COL1_INDIAN_PEACE_BIT) != 0;
+  } else if (nation_id >= 0 && nation_id < 4) {
+    at_peace = (col1->nation[nation_id].euro_relation[owner] & 0x40) != 0;
+  }
+  if (at_peace && mover_type != 0x10 && dest_type != 0x10) {
+    return 0;
+  }
+  if (col1->head.game_options.woi && owner != (int)col1->head.human_player) {
+    return 0;
+  }
+  (void)map;
+  return 1;
+}
+
+static int ai_native_foreign_euro_pull(
+  const ColonizeWorldMap* map, const ColonizeUnitPool* units, int x, int y, int nation_id,
+  int dest_x, int dest_y, int score
+) {
+  const int mover = ai_unit_index_on_tile(units, x, y);
+  if (mover < 0) {
+    return score;
+  }
+  const ColonizeUnit* u = &units->units[mover];
+  const ColonizeUnitType* t = units_type(units, u->type_index);
+  if (!t || t->attack == 0) {
+    return score;
+  }
+  ColonizeCombatStrengthCtx sctx;
+  sctx.units = units;
+  sctx.map = map;
+  sctx.colonies = s_ai_native_colonies;
+  sctx.col1 = s_ai_native_col1;
+  /* FUN_5fef_1b0e vs the tile: engage the stack there when it has one, else
+   * the open-field attacker formula ((stash 0 + 4) * base >> 2) * 3 >> 1. */
+  int strength;
+  const int dest_unit = ai_unit_index_on_tile(units, dest_x, dest_y);
+  if (dest_unit >= 0) {
+    ColonizeCombatEngageResult r;
+    memset(&r, 0, sizeof(r));
+    combat_land_engage(&sctx, mover, dest_unit, &r);
+    strength = r.atk_strength;
+  } else {
+    strength = ((4 * combat_unit_base_x8(&sctx, mover, 1, NULL)) >> 2) * 3 >> 1;
+  }
+  int stack_cost = 0;
+  int stack_military = 0;
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    const ColonizeUnit* o = &units->units[i];
+    if (!o->active || o->aboard_ship_id >= 0 || o->x != x || o->y != y) {
+      continue;
+    }
+    const ColonizeUnitType* ot = units_type(units, o->type_index);
+    stack_cost += ot ? ot->cost : 0;
+    if (o->type_index == 1 || o->type_index == 4 ||
+        (o->type_index >= 6 && o->type_index <= 9)) {
+      stack_military++;
+    }
+  }
+  if (stack_military < 1) {
+    stack_military = 1;
+  }
+  int divisor = t->cost;
+  if (divisor < 1) {
+    divisor = 1;
+  }
+  int e8 = ((stack_cost + 1) / stack_military) * strength / divisor;
+  int bonus = 0;
+  if (s_ai_native_colonies && colonies_id_at(s_ai_native_colonies, dest_x, dest_y) >= 0) {
+    e8 *= 3;
+    bonus = 1;
+  }
+  if (ai_map_inset(map, dest_x, dest_y) && (ai_layer2_at(map, dest_x, dest_y) & 2u) != 0) {
+    e8 <<= 1;
+    bonus = 1;
+  }
+  if (u->type_index == 0xb && !bonus) {
+    e8 = 0;
+  }
+  if (s_ai_native_col1 && nation_id == (int)s_ai_native_col1->head.crown_nation_id && !bonus &&
+      s_ai_native_home_dist == 0) {
+    e8 >>= 1;
+  }
+  if (e8 > 999 || e8 < 0) {
+    e8 = 1000;
+  }
+  if (e8 < 0xc && (u->type_index < 0xd || u->type_index > 0x12)) {
+    return score - 999;
+  }
+  if (e8 < 1) {
+    e8 = 1;
+  }
+  return score + e8 * 4;
+}
+
 static int ai_native_pick_dir_asm(
   AiRng* rng,
   const ColonizeWorldMap* map,
@@ -3057,7 +3195,10 @@ static int ai_native_pick_dir_asm(
       continue;
     }
     const int own = ai_owner_nibble(map, nx, ny);
-    if (own >= 0 && own != nation_id) {
+    const int foreign_euro_pull =
+      own >= 0 && own != nation_id &&
+      ai_native_foreign_euro_pull_open(map, units, x, y, nation_id, nx, ny, own);
+    if (own >= 0 && own != nation_id && !foreign_euro_pull) {
       rejected++;
       continue;
     }
@@ -3123,7 +3264,10 @@ static int ai_native_pick_dir_asm(
     int face_delta = 0;
     int fog_p8 = 0;
     int fog_m2 = 0;
-    if (ai_lab_54f5_gate(map, units, nx, ny, nation_id)) {
+    if (foreign_euro_pull) {
+      /* LAB_521d_52aa arm (T1.9) — replaces the 54f5 facing/fog terms. */
+      score = ai_native_foreign_euro_pull(map, units, x, y, nation_id, nx, ny, score);
+    } else if (ai_lab_54f5_gate(map, units, nx, ny, nation_id)) {
       gate = 1;
       if (last_dir >= 0 && last_dir <= 7) {
         int diff = last_dir - d;
@@ -3738,6 +3882,7 @@ static void ai_native_nation_pulse(
         );
       }
       const int last_dir = (u->last_dir >= 0 && u->last_dir <= 7) ? u->last_dir : 0;
+      s_ai_native_home_dist = ai_dos_dist(u->x - hx, u->y - hy); /* DS:0x8db8 */
       const int dir = ai_native_pick_dir(
         rng, map, units, u->x, u->y, nation_id, hx, hy, last_dir, tech
       );
@@ -3883,6 +4028,8 @@ void ai_indian_nation_turn(ColonizeTurnContext* ctx, int nation_id) {
   }
 
   /* §7–8 quiet 14fe act loop (+ seed-100 overlays). */
+  s_ai_native_colonies = ctx->colonies;
+  s_ai_native_col1 = ctx->col1_ok ? ctx->col1 : NULL;
   ai_native_nation_pulse(
     ctx->units, ctx->map, ctx->col1_ok ? ctx->col1 : NULL, rng, nation_id, false
   );

@@ -73,6 +73,35 @@
 #define AI_DIPLO_TREASURE_ALERT 0x80
 #define AI_DIPLO_TREASURE_STRONGER 0x08
 
+
+/*
+ * FUN_5bfb_153e phase 1 — negotiation worthiness score for the human-self
+ * diplomacy encounter (FUN_5bfb_3180 caller). Real terms as of 2026-08-27:
+ * G-table continent tallies (colonies / land units / exposed combat /
+ * skilled), the per-colony FUN_5bfb_0000 border probe, the DS:0x53c8
+ * cooldown stamp (refreshed to `turn` as a side effect), DS:0xa153 top-
+ * ranked nation, Franklin, the treasury clamp. Only the AI-self entry
+ * branch (13b0) runs for AI nations — DOS never scores an AI self here.
+ * The commit / demand / flavor phases (raw ~594+) are not ported.
+ */
+typedef struct Ai153eWorthinessScore {
+  int handled;         /* raw uStack_8e - did the phase run to completion */
+  int worthy;           /* raw bVar12/iStack_a8 at phase end */
+  int dominance_bonus;  /* raw iStack_ce */
+  int score;             /* raw uStack_68 - feeds the (unported) commit phase */
+  int at_war;            /* raw uStack_ae: euro_relation[target][self] bit 0x02,
+                             direct (non-accessor) read = WAR (T1.19 bit map;
+                             the older "consistent with PEACE" reading is retired) */
+  int old_stamp;         /* raw local_8c: DS:0x53c8[target] before the refresh */
+} Ai153eWorthinessScore;
+
+Ai153eWorthinessScore ai_diplo_153e_worthiness_score(
+  ColonizeTurnContext* ctx, int self, int target, int encounter_unit, int forced_gate
+);
+
+/* FUN_5bfb_00f8 rank table: DS:0xa153, the top-ranked Euro nation (-1 if no col1). */
+int ai_diplo_00f8_top_ranked_nation(const ColonizeCol1Save* col1);
+
 uint8_t ai_diplo_read(const ColonizeCol1Save* col1, int nation_a, int nation_b);
 void ai_diplo_write(ColonizeCol1Save* col1, int nation_a, int nation_b, uint8_t value);
 void ai_diplo_or_both(ColonizeCol1Save* col1, int nation_a, int nation_b, uint8_t bits);

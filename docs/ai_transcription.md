@@ -84,6 +84,8 @@ dispatcher (`ai_euro_dispatcher_turn`), including VR_SEED=100.
 | [`turn.c`](../src/core/turn.c) | `TURN_PROC_EURO` / `INDIAN` / king → AI entries |
 | [`tests/golden/test_ai_turns.c`](../tests/golden/test_ai_turns.c) | **T2 gate:** `TURN1`→`TURN7` field-diff (`golden_ai_turns`; full dispatcher; fixture optional) |
 
+**Status (2026-08-27): 153e / 5d04 tail / T1.9 / 0f74 far tier ported real (see ai_port_plan.md T3.2 / T3.1 / T1.9 / T1.8); `golden_ai_turns` now fails only on the 3 parked Braves.** Older note follows.
+
 **Status (2026-08-19): PARKED / DISABLED, not TURN1→7.** `golden_ai_turns`,
 `golden_ai_mid01`, `golden_ai_late01`, and the `golden_ai_joint` aggregate are
 now `DISABLED` in `CMakeLists.txt` — `ctest` skips them by default. Policy
