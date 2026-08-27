@@ -360,11 +360,15 @@ Linux-side present layout and intended constraints (living):
   Wait-for-next-unit, End of Turn option, autosave hooks (slots 9 / 8),
   turn-owner indicator (`FUN_1984_00aa`: 5×3 at 315,197; shown only during AI/Indian
   EOT phases; `@COUNTRY` / `@TRIBES` colors)
-- Music (`src/core/sound.c`): GSOUND.COL voice bytecode → MIDI events (~60 Hz ticks);
-  FluidSynth with SC-55-preferring SoundFont search; ED chords, F3 volume envelope,
-  BB pitch-bend RPN; BGM + event (`0x40..`) tables; Pick Music preview + title/map BGM
-  via `COLONIZE_SOUND_PLAYBACK_ENABLED`; `COLDIG.BIN` SFX still deferred. Interpreter
-  notes: `original_sources_annotated/sound/gsound_interpreter.md`.
+- Music (`src/core/gsound_vm.c` + `src/core/sound.c`, rewritten 2026-08-27): the
+  `GSOUND.COL` driver is emulated literally (9 voice blocks, channel 9 drums, `CD..D4`
+  jumps, mini-x86 for the song handlers) and ticked from the audio callback at the real
+  PIT rate; `sound.c` mirrors the DOS BGM scheduler (pool categories, fade-then-pump,
+  auto-advance) and adds FluidSynth with an SC-55-preferring SoundFont search. Pick
+  Music preview + title/map BGM via `COLONIZE_SOUND_PLAYBACK_ENABLED`. `COLDIG.BIN`
+  digital SFX are decoded, queued and mixed (ids `0x40..0x5c`); most gameplay push
+  sites are still unwired (`docs/port_plan.md` P3.7). Interpreter notes:
+  `original_sources_annotated/sound/gsound_interpreter.md`.
 
 ## End-of-turn recovery checklist
 

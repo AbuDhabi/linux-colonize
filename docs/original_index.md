@@ -293,7 +293,7 @@ screen wiring: [assets.md](assets.md). Official 3.0 notes: `COLONIZE/README.TXT`
 |------|---------|
 | `GSOUND.COL` | General MIDI driver — **used by Linux port** |
 | `ASOUND.COL` / `PSOUND.COL` / `RSOUND.COL` | AdLib / SB / Roland (not used yet) |
-| `COLDIG.BIN` | Digital SFX — deferred |
+| `COLDIG.BIN` | Digital SFX — decoded and played (2026-08-27); see [assets.md](assets.md) |
 | `AMERICA.MOV` | Short map-tooling motion blob (not the LEVN voyage) |
 | `CONFIG.COL` | INSTALL sound-card config |
 

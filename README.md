@@ -10,10 +10,13 @@ Version: **0.1-alpha**.
 
 Strong on shell, map art, navigation, reports / pedia, Col1 save/load, units /
 naval passengers, founding a colony, and Europe buy/sell/recruit/hire.
-Structural Indian contact, diplomacy, king/REF, FF election, trade routes, and
-early Euro AI are in. Next playability work is leftover FF KINGGALLEON2, deep
-mid-planner `20e6`, production / combat depth, and endgame polish. VGA dialog
-chrome, Congress UI, COLDIG SFX, and full 1:1 AI remain later.
+Structural Indian contact, diplomacy, king/REF, FF election and trade routes
+are in, and the Euro AI is past the structural stage — the `20e6` land planner
+and the `5d04` mid-planner both landed in August 2026. Music runs through a literal
+`GSOUND.COL` driver emulator, and `COLDIG.BIN` digital sound effects play
+(most push sites still to be wired). Next playability work is leftover FF
+KINGGALLEON2, production / combat depth, the remaining sound cues, and endgame
+polish. VGA dialog chrome and full 1:1 AI remain later.
 
 Living status:
 
