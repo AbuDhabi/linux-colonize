@@ -236,11 +236,14 @@ stays deferred (D4).
 
 ### P3 — Passable music
 
-**Now:** `GSOUND.COL` General MIDI songs decoded and played through the
-port's own sequencer + FluidSynth (`sound.c`, `pick_music.c`); Pick Music,
-Sound Options, BGM/event ids, situational Military sting all in. "Passable"
-here means: tracks play on the right cues, loop cleanly, don't glitch, and a
-default SoundFont path works out of the box.
+**Now (updated 2026-08-27):** `GSOUND.COL` is emulated literally
+(`gsound_vm.c`) and driven in real time by `sound.c` + FluidSynth; Pick Music,
+Sound Options, the corrected BGM id table, the DOS BGM scheduler, the
+situational Military sting and `COLDIG.BIN` digital SFX playback are all in.
+"Passable" here means: tracks play on the right cues, end/advance as DOS does,
+don't glitch, and a default SoundFont path works out of the box. The music half
+of this track is effectively closed pending the user's listen test (P3.5); the
+open work is cue/SFX *wiring* (P3.2, P3.7).
 
 - [x] **P3.1 [auto] — closed 2026-08-26, already done, just uncross-
   referenced.** Audit cue coverage: every DOS BGM/event id push site
@@ -307,6 +310,24 @@ default SoundFont path works out of the box.
   (Jine, vs 0.07 for OST-vs-DOSBox) / 0.09 / 0.15 / 0.17. P3.3's "FF loop
   emulation / restart fallback" description is obsolete. Details:
   [assets.md](assets.md) "Music / sound".
+- [ ] **P3.7 [auto] — new 2026-08-27, partially done.** Wire the
+  remaining `COLDIG.BIN` event-sound push sites. The "no reachable DOS
+  trigger" verdict is **retracted**: ids `0x40..0x5c` are pushed in `AX`
+  (`mov ax,N; callf FUN_281f_04c0`), which Ghidra drops — see
+  [assets.md](assets.md) "COLDIG.BIN" for the full id → COLDIG sample →
+  DOS push site table. Playback (sample table at driver image `0x1C7B`,
+  35 entries, 11025/19050 Hz unsigned 8-bit, 16-slot queue, mixed after
+  the synth) is **done**. **Wired so far:** `0x40` attack fire, `0x4a`/`0x4b`
+  combat won (`0x4b` when natives involved), `0x53` colony burned, `0x54`
+  found colony + colony enter, `0x58` fortify/sentry, `0x5a` King's Galleon
+  credit. **Still to wire:** `0x4d`/`0x4e`/`0x4f`/`0x5b` raid loot outcomes
+  (`5fef_0f14`), `0x4d`/`0x57` naval capture / ship sunk (`5fef_0352`),
+  `0x52` wagon-train move (`465b_0000`), `0x56` tax raise / tea party
+  (`38fd_3dc8`), the remaining `5fef_1b0e` unit-class variants
+  (`0x41`/`0x42`/`0x43`/`0x44`/`0x45`/`0x48`/`0x49`), and the `0x8020` /
+  `0x8024` chord stings (war declaration `5bfb_153e`, assign colonist
+  `2f2b_2f3e`). Ids `0x4c`, `0x50`, `0x51`, `0x55`, `0x5c` have no located
+  DOS push site yet — do not invent one.
 - [ ] **P3.5 [user]** Listen test with the user on a handful of tracks vs
   DOSBox reference (`ripped_sound/*.wav` are fresh renders with correct
   titles). Anything "sounds wrong but recognizable" is D5, not here.
@@ -1102,7 +1123,7 @@ mostly in contact (`@LEARN*`, `@RAID*`, `@CHIEF*`), Europe
 | D3 | Known-seed determinism with DOS | [seed100_brave.md](seed100_brave.md), T4.3 | None required for playability |
 | D4 | Pixel-perfect graphics / VGA-identical chrome (dialogs, TRADE/FA editors, Congress, king letter, `DECLARAT.PIK`, map digit colors) | old W5.1–W5.3, T5.x | Content + layout correct (P2, P11); frames may stay port-drawn |
 | D5 | Fully faithful music (SC-55 timbre parity, per-driver quirks) | [assets.md](assets.md) | P3 "passable" bar |
-| D6 | Present-but-unused digital SFX (`COLDIG.BIN`) | [assets.md](assets.md) | Not planned; user notes it is used in some versions — revisit only with a version that triggers it |
+| ~~D6~~ | ~~Present-but-unused digital SFX (`COLDIG.BIN`)~~ | [assets.md](assets.md) | **Undeferred 2026-08-27** — the triggers were real all along (ids passed in `AX`). Playback is wired; leftover push sites are now P3.7 |
 
 Also parked with these: MAPEDIT catalog track (old W5.4), `VR_B465X` hang
 dump (T4.6, by policy). (`unknown13_pad`/old W4.4 closed 2026-08-27 — static.)

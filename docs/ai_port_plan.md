@@ -2899,9 +2899,11 @@ visual fidelity, not just RE.
   FA `3f41` full widget body, chief portrait `FUN_281f_04ac`).
 - [ ] **T5.2 — Letter cinematic** (`43f7` `160a`).
 - [ ] **T5.3 — Congress UI / F3 portrait grid.**
-- [ ] **Not planned:** `COLDIG.BIN` digital SFX — investigated at length,
-  no reachable DOS trigger found; treat as settled, not a queue item
-  (`roadmap.md` phase 5).
+- ~~**Not planned:** `COLDIG.BIN` digital SFX — no reachable DOS trigger
+  found~~ **Retracted 2026-08-27.** The triggers exist; they are event ids
+  passed in `AX`, which Ghidra's decompile drops. Playback is wired and the
+  remaining push sites are tracked as `port_plan.md` P3.7 — not an AI-queue
+  item either way.
 
 ---
 

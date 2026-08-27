@@ -35,25 +35,49 @@ Full bar: [project_goals.md](project_goals.md).
 now carries priority tracks P1–P11 (UI, reports, music, colony production,
 War of Independence, Europe trade, rumours/treasure, basic Indian
 interactions, FF effects, save interop, popups). Rival-AI parity, 1:1 Indian
-AI, seed determinism, pixel-exact art, faithful music and `COLDIG.BIN` SFX are
-**deferred** (port_plan.md D1–D6). The phase table below is kept for
-archaeology; the P-tracks are the working order.
+AI, seed determinism and pixel-exact art are **deferred** (port_plan.md
+D1–D6). Music and `COLDIG.BIN` SFX were deferred at the time of writing but
+have since been largely closed — see "Audio (2026-08-27)" below. The phase
+table below is kept for archaeology; the P-tracks are the working order.
 
 The port is strong on **shell, map art, navigation, reports / pedia, Col1
 save/load, basic units / naval passengers, founding a colony, and Europe
 buy/sell/recruit/hire**. Structural Indian contact (including player dialogs),
 Euro/Indian diplomacy, king/REF (audience/confirm/merc), FF election, trade
 routes (Create/Edit/Begin), and early Euro AI (seed-100 T2 + thin expand/war)
-are in (Sepulveda/Cortes/de Witt effects **Done**). Next playability work is
-leftover **FF** KINGGALLEON2, deep mid-planner `20e6`, production / combat depth,
-and endgame polish — not waiting on missing combat/capture prerequisites. VGA
-dialog chrome, Congress UI, COLDIG SFX, and full 1:1 AI bodies remain later.
+are in (Sepulveda/Cortes/de Witt effects **Done**). The two mid-planner
+blockers this paragraph used to name closed on 2026-08-27: the `20e6` land
+arms are structurally ported (`ai_port_plan.md` T1.18) and `5d04` is wired
+live with its hire-ladder tail callees made real (T3.1). Next playability work
+is leftover **FF** KINGGALLEON2, production / combat depth, the remaining
+`COLDIG` sound cues, and endgame polish — not waiting on missing
+combat/capture prerequisites. VGA
+dialog chrome and full 1:1 AI bodies remain later; Congress UI is now
+**Done** (2026-08-25, see Phase 4).
 Snapshot source: [manual_gap.md](manual_gap.md) takeaway.
 
 **Maintained (not blocking):** Col1 save RE P0–P6 is **Done**
 ([save_format_map.md](save_format_map.md)); keep interop green. VICEROY light
 catalog (Layers A–C) is **closed**; Layer D deep extracts only on demand;
 MAPEDIT parked ([catalog_peel_ranking.md](catalog_peel_ranking.md)).
+
+**Audio (2026-08-27).** Two long-standing "deferred" audio items closed in the
+same pass:
+
+- **Music.** The "bad remix" complaint was traced to the *song-id table*, not
+  the decoder: Pick Music entry *n* is not `0x20+n`, so every A/B comparison
+  had been made against the wrong track. The hand-written decoder was replaced
+  by a literal `GSOUND.COL` driver emulator (`src/core/gsound_vm.c`) plus a
+  mirror of the DOS BGM scheduler. A/B against DOSBox-X captures and OST rips
+  now reads dtw 0.04–0.17 (OST-vs-DOSBox itself is 0.07). Remaining: a listen
+  test with the user (port_plan.md P3.5).
+- **`COLDIG.BIN` digital SFX.** The earlier "settled negative — no reachable
+  DOS trigger" verdict was **wrong** and is retracted: event ids `0x40..0x5c`
+  are pushed with the id in `AX`, which Ghidra's decompile drops. Sample table,
+  decode, queueing and mixing are done, and 8 push sites are wired. The rest of
+  the push sites are the open work (port_plan.md P3.7).
+
+Both are owned by [assets.md](assets.md) "Music / sound".
 
 ---
 
@@ -66,7 +90,7 @@ MAPEDIT parked ([catalog_peel_ranking.md](catalog_peel_ranking.md)).
 | **2 Contact & conflict** | Partial | Land/naval combat + capture + Indian meet/trade/raid usable for a human game without deep PARK blockers |
 | **3 Mid-game AI** | Partial / active | Euro mid-planner (`5d04` / land `20e6`) + Indian large bodies advance; `golden_ai_joint` **PARKED / DISABLED** 2026-08-19 — no chance of staying green before AI transcription is complete, see ai_transcription.md R0 |
 | **4 Independence & endgame** | Partial | WoI bell→intervention + Europe closed post-declare **Done** (2026-08-22); FF weighted pick **Done**; REF/WoI win/lose latches **Done** thin; KINGGALLEON2 / 65dd weights / Magellan west-sail PARK |
-| **5 Fidelity & polish** | Later | VGA dialog chrome, COLDIG SFX, VIEW modes, pixel layout, T3 AI goldens, remaining PARKED deep bodies |
+| **5 Fidelity & polish** | Later | VGA dialog chrome, VIEW modes, pixel layout, T3 AI goldens, remaining PARKED deep bodies (COLDIG SFX moved out — playback wired 2026-08-27, remaining push sites tracked in port_plan.md P3.7) |
 
 ```mermaid
 flowchart LR
@@ -137,11 +161,15 @@ regression gate again.
 
 **Now:**
 
-- Euro deep land `20e6` / remaining mid-planner (`5d04`) — unpark #4 / R5 Phase 3
-  in [ai_transcription.md](ai_transcription.md)
+- ~~Euro deep land `20e6` / remaining mid-planner (`5d04`)~~ — **Done
+  2026-08-27** (`ai_port_plan.md` T1.18 / T3.1). Both are structurally ported
+  and wired; thin spots are listed per-item in that doc's T1.18 entry, and
+  `golden_ai_mid01` / `golden_ai_late01` are green again as a result
 - Indian large bodies (`2154` / `2820` / `4528`) toward R5 Phase 4 — same doc
-- Joint mid/late goldens (`JOINT_MIDTURN`, `golden_ai_joint`) — R5 in
-  [ai_transcription.md](ai_transcription.md)
+- Joint mid/late goldens — `golden_ai_mid01` / `golden_ai_late01` are
+  **re-enabled and green** (2026-08-27); `golden_ai_turns` is down to the 3
+  parked TURN1→2 Brave diffs and `golden_ai_joint` waits on it. Flipping
+  those two back on is the user's call (`ai_port_plan.md` T3.3)
 - Seed-100 / early fidelity debt (R0) only as it blocks mid-planner claims —
   [seed100_brave.md](seed100_brave.md)
 - **Found and fixed:** `units_display_name()` missing `Colonists`→`Free
@@ -189,9 +217,12 @@ Do not prioritize over gameplay/determinism.
 **Parked until later:**
 
 - VGA-identical dialog / TRADE / FA / king letter chrome
-- Digital SFX (`COLDIG.BIN`) — **wired 2026-08-27** (event ids `0x40..0x5c`
-  are pushed in AX; see [assets.md](assets.md) "COLDIG.BIN"); remaining
-  push sites (raid loot, naval outcome, tax, galleon) still to wire
+- Digital SFX (`COLDIG.BIN`) — no longer parked; **playback wired
+  2026-08-27** (event ids `0x40..0x5c` are pushed in AX; see
+  [assets.md](assets.md) "COLDIG.BIN"). Remaining push sites (raid loot
+  outcomes, naval sink/capture, wagon move, tax raise, `5fef_1b0e`
+  unit-class variants, `0x8020`/`0x8024` chord stings) are tracked as
+  [port_plan.md](port_plan.md) P3.7, not here
 - Pixel-exact layout and style
 - Blanket T3 AI goldens and remaining deep PARKED bodies (full `2820`/`4528`,
   letter cinematic, hang-dump RE)

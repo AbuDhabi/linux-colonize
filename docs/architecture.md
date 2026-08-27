@@ -90,7 +90,7 @@ Cluster table (not every file). Paths are under `src/core/` unless noted.
 | **Assets / art** | `assets`, `madspack`, `pik`, `ss`, `ff`, `font`, `debug_atlas` | Catalogs + MADSPACK decode |
 | **UI primitives** | `popup`, `popup_msg`, `ui_button`, `ui_drag`, `ui_colors`, dialogs (`save_load`, `options`, `pick_music`, …) | Wood/list modals |
 | **Screens** | `new_game`, `pedia`, `reports`, `founding_fathers` | Wizard / advisors / FF |
-| **Audio** | `sound.c/.h` | MIDI/SFX logic (FluidSynth when present) |
+| **Audio** | `gsound_vm.c/.h`, `sound.c/.h` | Literal `GSOUND.COL` driver emulation + DOS BGM scheduler, `COLDIG.BIN` SFX mixing, FluidSynth when present |
 | **RNG / util** | `dos_rng`, `strutil`, `version.h` | DOS LCG fidelity |
 | **Platform** | `src/platform/platform.h`, `linux_sdl2/sdl_runtime.c`, `dos_compat/` | Contract + SDL2 + stubs |
 | **Baked tables** | `src/data/viceroy_tables.c/.h` | Extracted VICEROY lookups |
@@ -222,13 +222,14 @@ greenfield redesign or a mandated `game_loop` rewrite phase.
 - **Col1** remains the interoperability path; remove or quarantine legacy COLZ
   when convenient, without blocking gameplay work.
 - Keep headless smoke/unit suites as architecture checks for simulation
-  regressions. The joint AI golden gate (`golden_ai_joint`, and
-  `golden_ai_turns`/`golden_ai_mid01`/`golden_ai_late01` under it) is
-  **PARKED / DISABLED** as of 2026-08-19 — it chases bit-exact DOS parity
-  against an AI planner that is still only structurally/T0-T1 ported, so a
-  red run means "porting incomplete", not "regression"; see
-  [ai_transcription.md](ai_transcription.md) R0. Re-enable it as a real
-  architecture check only once AI transcription is complete.
+  regressions. The joint AI golden gate (`golden_ai_joint`) and
+  `golden_ai_turns` under it are **PARKED / DISABLED** as of 2026-08-19 —
+  they chase bit-exact DOS parity against an AI planner that is still only
+  structurally/T0-T1 ported, so a red run means "porting incomplete", not
+  "regression"; see [ai_transcription.md](ai_transcription.md) R0. Re-enable
+  them as real architecture checks only once AI transcription is complete.
+  `golden_ai_mid01` / `golden_ai_late01` came back off that list on
+  2026-08-27 and do run as regression gates today.
 
 ### Explicitly not intended (unless decided elsewhere)
 

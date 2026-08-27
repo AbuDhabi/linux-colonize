@@ -510,7 +510,7 @@ RNG is the exact DOS libc LCG (`FUN_1d1d_0e04` / `FUN_19ef_0032` in `src/core/do
 | `.MOV` | Short motion / script tables (e.g. `AMERICA.MOV`; not the LEVN voyage) |
 | `.MP` | Map data |
 | `.DAT` | Tables / path data |
-| `.BIN` | Large binary blobs (e.g. `COLDIG.BIN` digital SFX — not yet played) |
+| `.BIN` | Large binary blobs (e.g. `COLDIG.BIN` digital SFX — decoded and played, see Music / sound) |
 
 ## Music / sound
 
@@ -527,7 +527,7 @@ ticks that VM in real time from the audio callback and mirrors the DOS BGM sched
 | `PSOUND.COL` | P | PAS / SB-family |
 | `RSOUND.COL` | R | Roland / MT-32-style |
 | `CONFIG.COL` | — | 20-byte INSTALL card config |
-| `COLDIG.BIN` | — | Digital SFX (deferred) |
+| `COLDIG.BIN` | — | Digital SFX — 35 samples, **decoded and played** (2026-08-27) |
 
 DOS play path: numeric sound IDs through the driver jump table (`FUN_2059_000a`), gated by
 Background / Event / SFX (`FUN_12d8_000e`). IDs `0x20..0x3f` are background music;
@@ -602,7 +602,7 @@ Gold A/B reference: `original_music_dumps/jine_the_cavalry.wav` (DOSBox-X captur
 `build/dump_gsound_wav --ab && .venv-sound/bin/python3 tools/compare_music_ab.py`
 (2026-08-27: dtw 0.04 / 0.09 / 0.15 / 0.17, drift ≤ 1.1 s). `build/dump_gsound_wav --midi`
 writes every BGM id to `ripped_sound/` as WAV + Type-0 MIDI.
-AdLib / MT-32 drivers and `COLDIG.BIN` SFX remain out of scope.
+AdLib / MT-32 drivers remain out of scope. `COLDIG.BIN` SFX are in (see below).
 
 Song names for the Pick Music UI are only in `GAME.TXT` `@PICKMUSIC` (plus Independence /
 Military / Indian sublists). Options are `@SOUNDOPTIONS` and Col1 `tut2` bits.
@@ -621,7 +621,7 @@ overlay-affected `VICEROY.EXE` decompile):
 |-------|----------------------|---------------------|
 | `< 0x10` (only 9 entries, ids 0–8) | `0x2A5C` | **Channel reset/silence**, not player-audible content — e.g. id 4's handler resets MIDI channels 6–7 (`CC121`/`CC123` all-notes-off + reset-controllers), id 1's handler mutes two specific voice slots. `sound_play` already treats id 0/1 as "stop" (`src/core/sound.c`). |
 | `0x20..0x3f` BGM | `0x2A6E` | The 12 Pick-Music tracks + named submenus (Independence/Military/Indian) **and** situational ids outside those submenus (`0x24`, `0x25`, `0x3e`) pushed directly by DOS gameplay code via `FUN_281f_048e`→`FUN_129f_02cc`. Confirmed real trigger: combat (`FUN_5fef`, land+naval) pushes `0x32` ("Military" sublist track 1) when an engagement begins — ported as `units_combat_music_sting()` (`units.c`), gated through `units_set_combat_music_hooks` (kept as a function-pointer hook so `units.c` stays linkable without `sound.c` in standalone `unit_*` test binaries). Other confirmed-real-but-unmapped-to-a-precise-trigger call sites: segments `65dd` (LCR), `75c2` (save/load), `48d3` (Europe exit), `364b` (colony), `38fd`/`3844` (trade) — left unwired pending closer per-site tracing. |
-| `0x40..0x5c` "event music" | `0x2AC4` | Engine-ready (`sound.c` loads/decodes/renders this range identically to BGM, gated by `event_music` option) but **no confirmed DOS trigger site was found** despite an extensive search of every numeric-id call site reachable from `FUN_2059_000a`. Left unwired — do not invent a trigger. |
+| `0x40..0x5c` "event music" | `0x2AC4` | **Triggers found 2026-08-27** — pushed with the id in **AX** (`mov ax,N; callf FUN_281f_04c0`), which Ghidra drops from the decompile, so the earlier "no confirmed trigger" verdict was a decompiler artifact. Each handler queues a `COLDIG.BIN` sample and starts a short MIDI sting on channels 7/8. Decode + playback + mixing are done; per-id push sites and their port wiring status are in the "COLDIG.BIN" table below. |
 | `≥0x8020` (7 entries, ids `0x8020..0x8026`) | `0x2AB6` | Short pre-scripted multi-voice MIDI chord stings (writes directly into the same voice-struct engine used for BGM playback — not digital audio). No confirmed DOS caller found (the one literal `0x8025` reference elsewhere in `VICEROY.EXE` turned out to be an unrelated dialog-box parameter, not a sound id). Left unwired. |
 
 The `sound_effects` option flag (`ColonizeSoundOptions.sound_effects`, DS offset `0xa2` in

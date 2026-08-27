@@ -54,9 +54,9 @@ modals (GAME.TXT `@SECTION`s vs port Done/Partial/Missing): [popups.md](popups.m
 | Menu bar, right panel, minimap | Done | `map_menu.c`, `map_panel.c` |
 | Colonizopedia | Done | `pedia.c` |
 | Reports F1–F10 | Done | `reports.c` |
-| Pick Music + BGM | Done | `sound.c`, `pick_music.c`; Sound Options popup (Background/Event/Sound Effects) **Done**, `options_dialog.c` |
+| Pick Music + BGM | Done | `gsound_vm.c` (literal `GSOUND.COL` driver emulator) + `sound.c`, `pick_music.c`; Sound Options popup (Background/Event/Sound Effects) **Done**, `options_dialog.c`. Song-id table corrected 2026-08-27 (Pick Music *n* is not `0x20+n`) — see [assets.md](assets.md) Music / sound |
 | Situational "Military" BGM cue on combat | Done thin | `units_combat_music_sting` (`units.c`) — DOS-evidenced (segment `5fef`), see [assets.md](assets.md) Music / sound |
-| Digital SFX (`COLDIG.BIN`) | Missing | Investigated at length (RE trace across `GSOUND.COL`/`PSOUND.COL`, `VICEROY.EXE`'s own EMS calls); no reachable trigger found — see [assets.md](assets.md). Not the same system as the "Sound Effects" option, which gates real but different plumbing |
+| Digital SFX (`COLDIG.BIN`) | Partial | **Wired 2026-08-27** — the earlier "no reachable trigger" verdict was wrong: event ids `0x40..0x5c` are pushed in **AX**, which the decompile drops. Sample table, decode, queueing and mixing are done (`sound.c`, `gsound_vm.c`); 8 of ~24 push sites are wired (attack fire, combat won, colony burned, found colony / colony enter, fortify, sentry, King's Galleon). Unwired: raid loot outcomes, naval sink/capture, wagon move, tax raise, the remaining `5fef_1b0e` unit-class variants, and the `0x8020`/`0x8024` chord stings. See [assets.md](assets.md) "COLDIG.BIN" |
 | Col1 save / load | Done | Playable I/O: `col1_save.c`, `col1_bridge.c`. **Not** a complete field map — see [save_format_map.md](save_format_map.md) |
 
 ### Units and map orders

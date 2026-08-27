@@ -25,9 +25,15 @@ Exercise one subsystem (or a tight cluster) with concrete expected outcomes.
 
 Examples: `golden_mapgen_seed100`, `golden_colony_prod01`/`02`.
 
-**AI goldens PARKED (2026-08-19):** `golden_ai_turns`, `golden_ai_mid01`,
-`golden_ai_late01`, and the aggregate `golden_ai_joint` are `DISABLED` in
-CMake — `ctest` skips them by default. They chase turn-for-turn DOS parity
+**AI goldens partly re-enabled (2026-08-27).** `golden_ai_mid01` and
+`golden_ai_late01` pass again after the Indian alarm-store consolidation and
+the `5d04` live wire, and are back on as regression gates — they run in a
+default `ctest`. Only `golden_ai_turns` and the aggregate `golden_ai_joint`
+(which depends on it) are still `DISABLED` in CMake; `golden_ai_turns` fails
+on 3 TURN1→2 Braves, the parked seed-100 quiet-pulse divergence
+([`docs/seed100_brave.md`](../docs/seed100_brave.md)), not a planner
+regression. The parking rationale below still applies to those two: they chase
+turn-for-turn DOS parity
 against an AI planner that is still only structurally/T0-T1 ported (not T3
 1:1); every remaining unported/stubbed callee is a guaranteed future diff,
 so a red run there means "AI transcription incomplete", not "regression".
