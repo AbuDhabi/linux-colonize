@@ -294,9 +294,25 @@ default SoundFont path works out of the box.
   hard failure) — only the "document in README" half was missing (README
   didn't mention soundfonts at all). Added a "Music / MIDI soundfont"
   README section describing the search order and the override env var.
+- [x] **P3.6 [auto] — 2026-08-27 music rewrite.** Root cause of "bad
+  remix": the id table. Pick Music entry *n* is **not** `0x20+n` — the DOS
+  handler (`2b5a:264c`) maps 9–12 to `0x39,0x38,0x3a,0x3b` and the
+  sublists to `0x29..`, `0x2e..`, `0x32/33/35/36`; every A/B reference was
+  compared against the wrong song. Replaced the hand-written decoder with
+  a literal driver emulator (`gsound_vm.c`: 9 voice blocks, channel 9 =
+  drums, single-slot `FA/F9`, `CD..D4` are jumps, mini-x86 for song
+  handlers incl. random/warm-restart variants) and mirrored the DOS BGM
+  scheduler (pool categories, fade-then-pump, auto-advance at song end —
+  all songs end, none loop). `compare_music_ab.py` now reads dtw 0.04
+  (Jine, vs 0.07 for OST-vs-DOSBox) / 0.09 / 0.15 / 0.17. P3.3's "FF loop
+  emulation / restart fallback" description is obsolete. Details:
+  [assets.md](assets.md) "Music / sound".
 - [ ] **P3.5 [user]** Listen test with the user on a handful of tracks vs
-  DOSBox reference. Anything "sounds wrong but recognizable" is D5, not
-  here.
+  DOSBox reference (`ripped_sound/*.wav` are fresh renders with correct
+  titles). Anything "sounds wrong but recognizable" is D5, not here.
+  Follow-ups: colony / Europe screens should call `sound_set_bgm(2)` /
+  `(3)` on entry (DOS `FUN_281f_0498(2/3)`); verify title id `0x33`;
+  `0x34` never ends (E6/E8 segment machinery) — check against DOS.
 
 ### P4 — Player colony production, complete
 
