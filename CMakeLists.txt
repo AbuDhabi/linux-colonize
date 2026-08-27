@@ -955,6 +955,18 @@ target_link_libraries(unit_ai_euro_war PRIVATE colonize_core)
 
 add_test(NAME unit_ai_euro_war COMMAND unit_ai_euro_war WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
+add_executable(unit_ai_euro_20e6
+  tests/unit/test_ai_euro_20e6.c
+)
+
+target_include_directories(unit_ai_euro_20e6 PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
+target_link_libraries(unit_ai_euro_20e6 PRIVATE colonize_core)
+
+add_test(NAME unit_ai_euro_20e6 COMMAND unit_ai_euro_20e6 WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+
 add_executable(unit_ai_euro_28c8_job_score
   tests/unit/test_ai_euro_28c8_job_score.c
 )

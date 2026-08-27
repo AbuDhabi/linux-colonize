@@ -2233,6 +2233,23 @@ is genuinely stuck mid-session.
 
 ---
 
+- [x] **T1.18 — `FUN_521d_20e6` land arms, structural port (2026-08-27).**
+  Closed same session. Prior passes kept re-deriving the `FUN_1000_8aac`
+  wall and closing sub-items as "no code to ship"; the bulk of the land
+  path never depended on it. Ported from the clean raw C
+  (`move_scoring_20e6_full.md`): prologue locals, `iStack_6a` explorer flag
+  (all clauses), LAB_277a SCOUT/PATROL, LAB_2912→2a59 explore-ring scoring
+  (colony pull, village penalty bands, explorer bonus, site reservation),
+  LAB_4d2e→5183 8-direction wander scorer, epilogue commit. `DS:0x523d`
+  resolved as the NAMES @UNIT bit-string (MSB-first; Brave `0x38`
+  cross-check). Test `unit_ai_euro_20e6`; full `ctest` green.
+  **Left thin, each marked in code:** LAB_52aa attack-odds core (raw is
+  register-garbage → `combat_strength` ratio, war-only), explore-plane low
+  nibble (seen bit), `−0x6168` rival strength (0), `0x4c` village arms,
+  colonist labor loop (LAB_2c..), ship band. None of these need a live
+  session; the odds core would need a clean re-disassembly of LAB_52aa
+  (~raw line 2100) if byte-fidelity is ever wanted.
+
 ## Tier 3 — Confirm with the user before flipping
 
 The engineering/verification for these can happen autonomously (do that
