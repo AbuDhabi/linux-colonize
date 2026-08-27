@@ -1870,7 +1870,7 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_2a1f_015e` | 37320 | 10 | mapgen | Far thunk → FUN_5f7a_0662 (dispatch colony native-trade session) | inferred |  |
 | `FUN_2a1f_016c` | 37330 | 10 | mapgen | Far thunk → FUN_4d56_4528 (Indian settlement enter/raid contact) | inferred | ai/indian_settlement_4528.md; ai/move_spent.c §3 |
 | `FUN_2a1f_0178` | 37340 | 10 | mapgen | Far thunk → FUN_65dd_0004 (lost-city/rumour RNG outcome resolve) | inferred |  |
-| `FUN_2a1f_0186` | 37350 | 10 | mapgen | Far thunk → FUN_5fef_1908 (treasure capture: ransom/gold/remove) | inferred |  |
+| `FUN_2a1f_0186` | 37350 | 10 | king | Far thunk → FUN_5fef_1908 (King's Galleon treasure offer) | known (2026-08-27) |  |
 | `FUN_2a1f_0192` | 37360 | 10 | mapgen | Far thunk → FUN_5bfb_3180 (adj ship/unit combat loot around (x,y)) | inferred |  |
 | `FUN_2a1f_01a0` | 37370 | 10 | ui | EMS thunk → FUN_4720_0006 (ship cargo free-space / embark probe) | inferred |  |
 | `FUN_2a1f_01ae` | 37380 | 10 | mapgen | Far thunk → FUN_4720_015c (Naval-move validity check; set DS:0x9e4e reason) | inferred |  |
@@ -2703,7 +2703,7 @@ Thin map: [ai/king_ref.md](ai/king_ref.md). Linux: `src/core/ai_king.c`.
 | `FUN_5fef_0f14` | 99738 | 302 | combat | Indian raid loot from colony (goods/building/unit/gold) + tension | inferred | ai/indian_raid_loot.md |
 | `FUN_5fef_16ea` | 100040 | 24 | combat | Remap specialty id after combat demotion (vet→colonist path) | inferred |  |
 | `FUN_5fef_172c` | 100064 | 94 | combat | Post-combat soldier/dragoon specialty or type change (promote/strip) | inferred |  |
-| `FUN_5fef_1908` | 100158 | 93 | combat | Treasure capture: ransom dialog, credit gold, remove treasure unit | inferred |  |
+| `FUN_5fef_1908` | 100158 | 93 | king | King's Galleon treasure transport offer: @KINGGALLEON2/3 CHOICE (tag built at runtime from DS:0x1bed), Crown share → royal_money, rest → gold, @LOOTCASH; WoI → @CASHTREASURE full value; destroys Treasure | known (2026-08-27) | ai/euro_unit_act.md |
 | `FUN_5fef_1b0e` | 100251 | 1063 | combat | Main combat engagement: odds, RNG, win/lose tails for move-into | inferred |  |
 | `FUN_5fef_31ea` | 101314 | 224 | combat | Nested post-win Indian fallout: treasure spawn, war, tension | inferred |  |
 | `FUN_5fef_36fe` | 101538 | 122 | combat | Nested empty-tile combat chrome: clear colony/village UI at xy | inferred |  |

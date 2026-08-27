@@ -4023,6 +4023,12 @@ static int ai_contact_auto_trade(
   if (!ctx || !ctx->col1_ok || !ctx->col1 || !ind || !unit || unit->nation_id != e) {
     return 0;
   }
+  /*
+   * FUN_4d56_2820 LAB_002bbc AI branch: iStack_5e = (FUN_1000_84fc(...) > 0x31)
+   * ? refuse : accept. 84fc -> 15dc_00e0 reads indian[idx].alarm_by_player[e]
+   * (DS:0x5ad6 + idx*0x4e + 0x46), high = hostile — this >= 50 gate IS that
+   * DOS refuse gate (indian_trade_2820.md 2026-08-27).
+   */
   if (!ind->euro_diplo[e] || ind->alarm_by_player[e] >= 50) {
     return 0;
   }

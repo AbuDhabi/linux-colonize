@@ -374,6 +374,48 @@ int units_cortes_cash_coastal_treasures(
   ColonizeCol1Save* col1,
   int nation_id
 );
+
+/*
+ * FUN_5fef_1908 Crown share % for the King's Galleon transport offer:
+ * Cortes (FF 10) → current tax rate; otherwise max((difficulty+10)*5, 2*tax);
+ * both capped at 90. DS strings "KINGGALLEON"+"3"/"2" at 0x1bed/0x1bf9/0x1bfb.
+ */
+int units_king_galleon_share_pct(const ColonizeCol1Save* col1, int nation_id);
+
+/*
+ * FUN_465b_0000 trigger + FUN_5fef_1908 body, human nation only (DOS gates on
+ * DS:0x543f == 0): each own Treasure standing on an own coastal colony tile.
+ * WoI declared → cash full value at once (@CASHTREASURE). Else, if the nation
+ * owns a Galleon and lacks Cortes → no offer (it can ship it itself). Else
+ * enqueue the @KINGGALLEON3 (Cortes) / @KINGGALLEON2 CHOICE with payload =
+ * treasure unit id; the apply step below does the cash. Returns the number
+ * of treasures cashed or offered. DOS runs this on the move onto the tile;
+ * Linux runs it at human turn end (same place the Cortes auto-cash lived).
+ */
+int units_king_galleon_offer_coastal_treasures(
+  ColonizeUnitPool* pool,
+  const ColonizeColonyPool* colonies,
+  const ColonizeWorldMap* map,
+  EuropeScreen* europe,
+  ColonizeCol1Save* col1,
+  int nation_id,
+  AiPopupState* popups,
+  const ColonizeMsgCatalog* game_txt
+);
+
+/*
+ * Apply the pending AI_POPUP_TAG_KING_GALLEON result: choice 1 → Crown share
+ * to nation.royal_money (DOS nation+0x22), remainder to gold, @LOOTCASH
+ * notify, Treasure despawned. Refuse/cancel → Treasure stays. Returns true
+ * when the result was for this tag (consumed).
+ */
+bool units_king_galleon_apply_popup(
+  ColonizeUnitPool* pool,
+  EuropeScreen* europe,
+  ColonizeCol1Save* col1,
+  AiPopupState* popups,
+  const ColonizeMsgCatalog* game_txt
+);
 bool units_despawn(ColonizeUnitPool* pool, int unit_id);
 int units_id_at(const ColonizeUnitPool* pool, int x, int y);
 /* First on-map unit at (x,y) that is neither except_unit_id nor

@@ -818,9 +818,173 @@ static int unit_combat_music_sting(void) {
   return 0;
 }
 
+
+/* FUN_465b_0000 → FUN_5fef_1908 King's Galleon offer (@KINGGALLEON2/3, @CASHTREASURE). */
+static int unit_king_galleon_offer(void) {
+  ColonizeMsgCatalog names;
+  assets_msg_init(&names);
+  if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT")) {
+    fprintf(stderr, "galleon: NAMES.TXT load failed\n");
+    return 1;
+  }
+  ColonizeUnitPool pool;
+  memset(&pool, 0, sizeof(pool));
+  if (!units_load_types(&pool, &names)) {
+    fprintf(stderr, "galleon: units_load_types failed\n");
+    assets_msg_free(&names);
+    return 1;
+  }
+  const int treasure_ti = units_find_type(&pool, "Treasure");
+  const int galleon_ti = units_find_type(&pool, "Galleon");
+  if (treasure_ti < 0 || galleon_ti < 0) {
+    fprintf(stderr, "galleon: types missing\n");
+    assets_msg_free(&names);
+    return 1;
+  }
+  ColonizeWorldMap map;
+  char err[128];
+  if (!map_alloc(&map, 8, 8, err, sizeof(err))) {
+    fprintf(stderr, "galleon: map_alloc failed: %s\n", err);
+    assets_msg_free(&names);
+    return 1;
+  }
+  for (int i = 0; i < 8 * 8; ++i) {
+    map.terrain[i] = 2; /* plains */
+  }
+  for (int y = 0; y < 8; ++y) {
+    map.terrain[y * map.width + 0] = 25; /* ocean column */
+  }
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  const int cx = 1;
+  const int cy = 3;
+  if (!map_tile_is_coastal(&map, cx, cy)) {
+    fprintf(stderr, "galleon: (1,3) should be coastal\n");
+    map_free(&map);
+    assets_msg_free(&names);
+    return 1;
+  }
+  const int cid = colonies_found(&colonies, &map, cx, cy, 0, -1, UNITS_JOB_NONE, 0, 0, 0);
+  if (cid < 0) {
+    fprintf(stderr, "galleon: colonies_found failed\n");
+    map_free(&map);
+    assets_msg_free(&names);
+    return 1;
+  }
+  ColonizeCol1Save c1;
+  memset(&c1, 0, sizeof(c1));
+  c1.player[0].control = 0;
+  memset(c1.head.founding_father, -1, sizeof(c1.head.founding_father)); /* unclaimed */
+  c1.nation[0].gold = 100;
+  c1.nation[0].tax_rate = 20;
+  c1.head.difficulty = 2; /* Conquistador: (2+10)*5 = 60 > 2*20 */
+  AiPopupState pops;
+  ai_popup_clear(&pops);
+
+  /* No Cortes: share = max(60, 40) = 60. */
+  if (units_king_galleon_share_pct(&c1, 0) != 60) {
+    fprintf(stderr, "galleon: share want 60 got %d\n", units_king_galleon_share_pct(&c1, 0));
+    goto fail;
+  }
+  c1.nation[0].tax_rate = 45; /* 2*45 = 90 wins; cap holds at 90 */
+  if (units_king_galleon_share_pct(&c1, 0) != 90) {
+    fprintf(stderr, "galleon: share cap want 90\n");
+    goto fail;
+  }
+  c1.nation[0].tax_rate = 20;
+  c1.nation[0].founding_fathers[FF_HERNAN_CORTES / 8] |= (uint8_t)(1u << (FF_HERNAN_CORTES % 8));
+  if (units_king_galleon_share_pct(&c1, 0) != 20) {
+    fprintf(stderr, "galleon: Cortes share want tax 20\n");
+    goto fail;
+  }
+  c1.nation[0].founding_fathers[FF_HERNAN_CORTES / 8] = 0;
+
+  const int tid = units_spawn_allow_stack(&pool, treasure_ti, cx, cy);
+  ColonizeUnit* t = units_get(&pool, tid);
+  t->nation_id = 0;
+  t->hold_goods_amount[0] = 1000 & 0xff;
+  t->hold_goods_amount[1] = (1000 >> 8) & 0xff;
+
+  /* Owning a Galleon without Cortes → no offer. */
+  const int gid = units_spawn_allow_stack(&pool, galleon_ti, 0, 3);
+  units_get(&pool, gid)->nation_id = 0;
+  if (units_king_galleon_offer_coastal_treasures(&pool, &colonies, &map, NULL, &c1, 0, &pops, NULL) != 0 ||
+      pops.queue_count != 0) {
+    fprintf(stderr, "galleon: own Galleon should suppress the offer\n");
+    goto fail;
+  }
+  units_despawn(&pool, gid);
+
+  /* Offer enqueued; Refuse leaves the Treasure. */
+  if (units_king_galleon_offer_coastal_treasures(&pool, &colonies, &map, NULL, &c1, 0, &pops, NULL) != 1 ||
+      pops.queue_count != 1 || pops.queue[0].tag != AI_POPUP_TAG_KING_GALLEON ||
+      pops.queue[0].payload != tid) {
+    fprintf(stderr, "galleon: KINGGALLEON2 CHOICE not enqueued\n");
+    goto fail;
+  }
+  /* Re-running while queued must not stack a duplicate. */
+  (void)units_king_galleon_offer_coastal_treasures(&pool, &colonies, &map, NULL, &c1, 0, &pops, NULL);
+  if (pops.queue_count != 1) {
+    fprintf(stderr, "galleon: duplicate offer queued\n");
+    goto fail;
+  }
+  pops.has_result = true;
+  pops.result_tag = AI_POPUP_TAG_KING_GALLEON;
+  pops.result_nation_a = 0;
+  pops.result_payload = tid;
+  pops.result_choice_id = 0;
+  pops.result_cancelled = false;
+  if (!units_king_galleon_apply_popup(&pool, NULL, &c1, &pops, NULL)) {
+    fprintf(stderr, "galleon: apply should consume tag\n");
+    goto fail;
+  }
+  if (c1.nation[0].gold != 100 || !units_get(&pool, tid) || !units_get(&pool, tid)->active) {
+    fprintf(stderr, "galleon: Refuse must leave gold/treasure untouched\n");
+    goto fail;
+  }
+  /* Accept: 60% share → 600 to royal_money, 400 to gold, Treasure gone. */
+  pops.result_choice_id = 1;
+  (void)units_king_galleon_apply_popup(&pool, NULL, &c1, &pops, NULL);
+  if (c1.nation[0].gold != 500 || c1.nation[0].royal_money != 600) {
+    fprintf(stderr, "galleon: Accept want gold 500 royal 600 got %u/%d\n", c1.nation[0].gold,
+            c1.nation[0].royal_money);
+    goto fail;
+  }
+  {
+    const ColonizeUnit* gone = units_get_const(&pool, tid);
+    if (gone && gone->active) {
+      fprintf(stderr, "galleon: Treasure should be despawned\n");
+      goto fail;
+    }
+  }
+  /* WoI declared: full value, no CHOICE. */
+  c1.head.game_options.woi = 1;
+  const int tid2 = units_spawn_allow_stack(&pool, treasure_ti, cx, cy);
+  units_get(&pool, tid2)->nation_id = 0;
+  units_get(&pool, tid2)->hold_goods_amount[0] = 200 & 0xff;
+  units_get(&pool, tid2)->hold_goods_amount[1] = 0;
+  ai_popup_clear(&pops);
+  if (units_king_galleon_offer_coastal_treasures(&pool, &colonies, &map, NULL, &c1, 0, &pops, NULL) != 1 ||
+      c1.nation[0].gold != 700 || c1.nation[0].royal_money != 600) {
+    fprintf(stderr, "galleon: WoI should cash full value at once (gold %u)\n", c1.nation[0].gold);
+    goto fail;
+  }
+  fprintf(stderr, "unit_units: King's Galleon offer ok\n");
+  map_free(&map);
+  assets_msg_free(&names);
+  return 0;
+fail:
+  map_free(&map);
+  assets_msg_free(&names);
+  return 1;
+}
+
 int main(void) {
   diag_init(0, NULL);
 
+  if (unit_king_galleon_offer() != 0) {
+    return 1;
+  }
   if (unit_clearcut_lumber() != 0) {
     diag_shutdown();
     return 1;

@@ -1085,3 +1085,40 @@ to spawn cargo directly on the contacting unit instead of a colony
 warehouse, and to drop the hard-bargain-specific 2x-drain expectations.
 Full `ctest` 41/41 green after rebuild.
 - Second entry into `2820` after `4528` blob (~86762) — confirm args
+
+## 2026-08-27 — AI refuse gate resolved statically (T4.9 closed)
+
+The `aiStack_d6[0] > 0x31` "polarity contradiction" was a storage
+mis-mapping. `FUN_1000_84fc` → `FUN_15dc_00e0` reads
+`word DS:[0x5b1c + (a*0x27 + b)*2]`. Stride `0x27` words = 78 bytes =
+`sizeof(ColonizeCol1Indian)`, and `FUN_15dc_0006` (`viceroy_unpacked.c:9229`)
+sets `*0x8d4e = idx*0x4e + 0x5ad6`, so `0x5b1c = 0x5ad6 + 70` =
+`indian[idx].alarm_by_player[euro]` — the accessor is the **nation-level
+alarm word**, not `nation.relation_by_indian` (DOS never reads `-0x77c0`;
+that byte array is a Linux-only construct).
+
+Polarity, from the writers of the same table:
+- map-gen (`:107764`): `alarm[e] = RNG(0,14) + (AI nation ? 2*difficulty : 0)`;
+- first contact (`:96624`, `FUN_5bfb_*`): clamp `alarm[e] <= 20`;
+- `FUN_4cc6_00f2` (= `FUN_1000_8f5c`, the "relation_delta"): clamp 0..100;
+  on a *negative* delta, `281f_0a10` (clear-bit thunk → `15b3_00d0`) drops
+  bit 4 and, when the new value is `< 75`, the war bit 2; on a 5-point
+  tier crossing redraws the `@ATTITUDE` labels (Content…War).
+
+So **high = hostile**. `> 0x31` = `alarm_by_player[e] > 49` → refuse —
+which is exactly `ai_contact_auto_trade`'s existing outer gate
+`alarm_by_player[e] >= 50` (previously described here as "unrelated").
+The DOS refuse gate is therefore already wired; nothing to add.
+
+Remaining fidelity gaps (refinements, not blockers):
+- post-trade alarm delta: DOS `c4 = RNG(0,1) + ((bid[good] - 2*tier + 4) >> 2)`,
+  accept → `alarm += -2*c4` (if `c4 > 0`), refuse → `alarm += -4*(c4+1)`
+  plus `tribe.contact_state[e] -= 2*0x8dc4` (floored 0); Linux does a flat
+  `alarm--` + `relation_by_indian += 2`;
+- refuse also sets `tribe+7 = 0xff` and `tribe+8 = 0xff` (muskets/horses)
+  or `= cargo` otherwise.
+- cross-cutting: Linux `ai_diplo_indian_relation`/`_delta` (~40 call sites)
+  store on `nation.relation_by_indian` with inverted polarity where DOS
+  stores on `alarm_by_player`; the two Linux fields drift independently.
+  Candidate Tier 2 consolidation, not done here (behavior change across
+  many sites — user call).

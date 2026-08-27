@@ -79,7 +79,8 @@ typedef enum AiPopupTag {
   AI_POPUP_TAG_KING_SCORED = 37, /* peacetime 1800 @SCORED That's all / Keep playing */
   AI_POPUP_TAG_CONTACT_INCITE = 38, /* FUN_4d56_417e Incite Indians: pick target nation, pay */
   AI_POPUP_TAG_CONTACT_BEGFOOD = 39, /* FUN_5bfb_022e already-met adjacency: @INDIANBEGFOOD Give/Refuse */
-  AI_POPUP_TAG_CONTACT_TRADE_OFFER = 40 /* FUN_4d56_2820 LAB_002e92 human buy-offer: Accept/Decline a locked price */
+  AI_POPUP_TAG_CONTACT_TRADE_OFFER = 40, /* FUN_4d56_2820 LAB_002e92 human buy-offer: Accept/Decline a locked price */
+  AI_POPUP_TAG_KING_GALLEON = 41 /* FUN_5fef_1908 @KINGGALLEON2/3 Crown transports coastal Treasure: Accept/Refuse */
 } AiPopupTag;
 
 typedef struct AiPopupRequest {

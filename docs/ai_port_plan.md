@@ -1185,6 +1185,17 @@ item's own 2026-08-24 entry for the full derivation. Ported, real
   founding/besieging a fort) is the only remaining avenue that hasn't been
   tried. No `src/` change, `ctest` not run (doc-only, confirmed via
   `git status`).
+  **2026-08-27 — closed statically, no `BPM` needed: layer2 `0x40` =
+  plowed.** The DOS layer2 plane is the save's `mask` layer, so the bit
+  was readable from existing saves: zero in every mapgen/early save,
+  land-only, open-land classes 2–6 only, grows with Pioneer work across a
+  game's autosaves — and `col1_bridge.c` had been importing that very bit
+  as `MAP_IMPROVE_PLOWED` all along. `88d6`'s `& 0x48` = road|plowed
+  ("improved tile"), not a fortification marker. Term wired in
+  `units_flood_next_step` (AI reject / human +8, MET-gated, skipped
+  without col1); `MAP_LAYER2_FA_ROAD` → `MAP_LAYER2_PLOWED`. `ctest`
+  44/44. Method lesson: a runtime plane that is also a save layer can be
+  decoded from save statistics — check that before hunting writers.
 
 - [x] **T1.9 — Indian mid-game quiet scoring (goods/missions/capital
   pull) formula mapping.** R2 used to flag this as blocked on "a
@@ -1493,7 +1504,7 @@ item's own 2026-08-24 entry for the full derivation. Ported, real
   41/41 green (the 4 golden AI suites remain separately Disabled per
   `T3.3`, unrelated, unaffected).
 
-- [ ] **T1.13 — KINGGALLEON2 (non-Cortes royal-galleon share) re-attempt.**
+- [x] **T1.13 — KINGGALLEON2 (non-Cortes royal-galleon share) re-attempt.**
   Unpark #3, still PARKED "if evidence appears." Prior passes found the
   narrative-vs-condition reading contradictory and `FUN_48d3_06ba` a false
   lead (same-segment neighbor, not the target). Re-run with overlay-clean
@@ -1597,6 +1608,30 @@ item's own 2026-08-24 entry for the full derivation. Ported, real
   the same method that pinned `417e`'s real caller args). Doc-only pass,
   no `src/` touched, `ctest` not run.
 
+  **2026-08-27 — FOUND and ported, static-only.** Every text search
+  missed it because the tag is assembled at runtime: `FUN_5fef_1908`
+  (catalogued as "Treasure ransom/loot", and explicitly ruled out on
+  2026-08-20 on that basis) does `strcpy(buf, DS:0x1bed "KINGGALLEON");
+  strcat(buf, has_FF(10 Cortes) ? DS:0x1bf9 "3" : DS:0x1bfb "2")`, runs the
+  CHOICE, and returns untouched on decline. Share: `pct = tax; if !Cortes:
+  pct = max((difficulty+10)*5, 2*tax); cap 90` → `royal_money(+0x22) +=
+  value*pct/100`, `gold += rest`, `nation+0x26 += rest` (so `unknown24_pad`
+  is *not* dead — write-only accumulator), then `@LOOTCASH`; WoI declared →
+  no King, full value, `@CASHTREASURE`. Trigger is `FUN_465b_0000`
+  (`viceroy_unpacked.c:75800`): **human** nation only (`0x543f==0`),
+  Treasure moved onto own colony with flags bit `0x40` (coastal), skipped
+  when the per-nation unit-type count table (`-0x6db4`, stride 0x13)
+  says the nation owns a Galleon (type `0xf`) and it lacks Cortes. The
+  key unlock was general: the "unrecoverable numeric popup ids" are **DS
+  addresses of GAME.TXT tag-name strings** (`0x1866`="INDIANCITY",
+  `0x1340`="MERCENARIES", …; EXE offset = 121248 + addr) — see
+  `popup_string_resolver.md` + `docs/popup_tag_ids.md`. Port:
+  `units_king_galleon_share_pct` / `_offer_coastal_treasures` /
+  `_apply_popup` (`units.c`), tag `AI_POPUP_TAG_KING_GALLEON`, wired at
+  human turn end (`turn.c`, replaces the Cortes-only auto-cash there) and
+  applied in `game_loop.c`; AI callers of
+  `units_cortes_cash_coastal_treasures` untouched (DOS never runs this
+  for AI). Test in `test_units.c`. `ctest` 44/44.
 - [x] **T1.14 — Decode `DS:0x2f76` record columns `+3` (colony-founding
   neighbor score) and `+4` (village/growth threshold term); identify what
   `+0xe` actually is.** New 2026-08-21, surfaced incidentally while closing
@@ -2293,8 +2328,8 @@ here closed without any live session at all** — ad-hoc
 byte-pattern search against the existing `dosbox-x-dumps/*` saves found
 every one of them already sitting in static data. Before working (or
 asking the user to work) any `[ ]` item below, search the existing dumps
-first — see the method note above. Only `T4.5`/`T4.6` remain genuinely
-open, and `T4.6` is parked by policy, not by blocker. Don't resume
+first — see the method note above. As of 2026-08-27 every item here except `T4.6` (parked by
+policy, not by blocker) is closed — `T4.9` too, statically. Don't resume
 speculatively, but don't assume "Tier 4" still means "needs the user" the
 way it did when this file was first written.
 
@@ -2559,7 +2594,7 @@ way it did when this file was first written.
   cross-reference like case 4 had). Full trace:
   `move_scoring_20e6_full.md`'s 2026-08-21 update.
 
-- [ ] **T4.9 — `2820`'s AI refuse-gate scale for `FUN_1000_84fc`
+- [x] **T4.9 — `2820`'s AI refuse-gate scale for `FUN_1000_84fc`
   (`aiStack_d6[0] > 0x31` → refuse-with-penalty).** New 2026-08-22, split
   out of **T1.16** now that its own full rewrite landed. `aiStack_d6[0]` is
   `FUN_1000_84fc`'s return, elsewhere equated to `ai_diplo_indian_relation`
@@ -2578,6 +2613,31 @@ way it did when this file was first written.
   currently always succeeds once the pre-existing outer
   `alarm_by_player>=50` gate (untouched, unrelated) is clear. Full trace:
   `indian_trade_2820.md`'s 2026-08-22 "user decision" addendum.
+  **2026-08-27 — resolved, static-only, no live session needed.** The
+  "contradiction" was a storage mis-mapping, not a polarity mystery.
+  `FUN_1000_84fc` → `FUN_15dc_00e0` = `word DS:[0x5b1c + (a*0x27+b)*2]`;
+  stride `0x27` words = 78 bytes = `sizeof(ColonizeCol1Indian)`, and
+  `FUN_15dc_0006` (`viceroy_unpacked.c:9229`) sets
+  `*0x8d4e = idx*0x4e + 0x5ad6`, so `0x5b1c = 0x5ad6 + 70` =
+  **`indian[idx].alarm_by_player[euro]`** — *not* `nation.relation_by_indian`
+  (DOS never touches `-0x77c0`; that byte array is Linux-only). Polarity
+  from the writers: map-gen (`:107764`) seeds it `RNG(0,14)` (+2×difficulty
+  for AI nations), first contact (`:96624`) clamps it ≤20, and
+  `FUN_4cc6_00f2` (the "relation_delta") clamps to 0..100 and on a
+  *negative* delta calls `281f_0a10` (= clear-bit `15b3_00d0`) to drop
+  bit 4 and, below 75, the war bit 2. So **high = hostile**, and the "peace
+  baseline 96 / refuse-talk <40" convention belongs to Linux's separate
+  `relation_by_indian` field, not this accessor. `aiStack_d6[0] > 0x31`
+  therefore = `alarm_by_player[e] > 49` — **already wired**: the
+  `ai_contact_auto_trade` outer gate `alarm_by_player[e] >= 50` that the
+  earlier note called "unrelated" is exactly this DOS gate. Side finding
+  (new Tier 2 candidate, not done): Linux `ai_diplo_indian_relation`/
+  `_delta` (~40 call sites) store on `nation.relation_by_indian` with
+  inverted polarity where DOS stores on `alarm_by_player`; the two Linux
+  fields drift independently. Also DOS's post-trade delta is
+  `alarm += -2*c4` on accept / `-4*(c4+1)` on refuse with
+  `c4 = RNG(0,1) + ((bid - 2*tier + 4) >> 2)`, where Linux does a flat
+  `alarm--` — refinement, not a blocker.
 
 ---
 

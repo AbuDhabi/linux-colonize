@@ -2446,3 +2446,51 @@ with the wider naval cargo band inside `20e6` / `0a60`.
   targets resolved," not an open hire-economy item)
 - Ocean naval `20e6` + full line-by-line still R5 / PARKED
 - `SYMBOL_MAP` + catalog `links` updated
+
+**2026-08-27 — layer2 bit `0x40` identified from save data, `88d6` term
+wired; the parked "live `BPM` is the only avenue" verdict retracted.**
+No writer XREF was ever needed: the DOS layer2 plane *is* the Col1 save's
+`mask` layer, so the bit's meaning is readable straight off existing
+saves. A throwaway probe over every `.SAV` in the tree: `mask & 0x40` is
+**zero on every mapgen/TURN1–7/SEED100 save**, present only in late-game
+saves (25–41 tiles), **land-only**, restricted to open-land terrain
+classes 2–6 (never forest ≥8, never ocean), and monotonically growing
+across one game's successive autosaves (COLONY02→10: 32→41) in step with
+the road bit. That is Pioneer improvement — mask `0x40` = **plowed**,
+exactly smcol's mask-layer naming, and exactly what this project's own
+`col1_bridge.c` already imported/exported as `MAP_IMPROVE_PLOWED` (the AI
+thread never cross-checked the save-side code). So `88d6`'s gate
+`layer2 & 0x48` = road | plowed = "improved tile"; the fort/colony
+reading came from the function's *name*, not its bytes. Why the three
+literal-`|0x40` sweeps found nothing: the plow completion presumably sets
+it through a computed mask, and the search space was the wrong one anyway.
+Wired in `units_flood_next_step` (`units.c`): improved tile whose layer3
+last-visitor nibble is a foreign Euro nation the mover has MET
+(`euro_relation & 0x40`) → AI mover hard-reject, human mover `+8`, per
+the `0015bc` shape above; skipped (never guessed) when `g_units_ff_col1`
+is unset. `MAP_LAYER2_FA_ROAD` renamed `MAP_LAYER2_PLOWED`; the bridge no
+longer mirrors road into `0x40`. `ctest` 44/44 green.
+
+
+**2026-08-27 — KINGGALLEON2 found: it was `FUN_5fef_1908` all along.**
+The 2026-08-20 pass dismissed `FUN_465b_0000:75800` → `FUN_2a1f_0186` →
+`FUN_5fef_1908` because the catalog called it "Treasure ransom/loot". Its
+body is the King's Galleon offer: `strcpy(local_52, DS:0x1bed)` where
+`0x1bed` = `"KINGGALLEON"`, then `strcat` with `DS:0x1bf9`=`"3"` if
+`FUN_281f_07b4(nation, 10)` (FF #10 = Hernan Cortes) else `DS:0x1bfb`=`"2"`
+— the tag is built at runtime, which is why no `KINGGALLEON2` literal exists
+anywhere. Then sound `0x3e`, `FUN_281f_03fe` (run dialog → choice), `!= 1`
+→ return (Treasure stays). Share `pct = nation.tax_rate(+1)`; non-Cortes
+`pct = max((difficulty+10)*5, 2*tax)`; cap `0x5a`. `share = value*pct/100`
+(`value = unit+0x315b * 100`); `%NUMBER0..2 = value, pct, value-share`;
+`@LOOTCASH` (`DS:0x1bfd`) with `%STRING0` nation, `%STRING1` `-0x7c74[nation]`;
+`royal_money(+0x22) += share`; then common tail `gold(+0x2a) += net`,
+`+0x26 += net` (the "dead" `unknown24_pad` — a write-only cumulative
+treasure-income accumulator), destroy unit. WoI branch (`0x5382 & 1`):
+`@CASHTREASURE` (`DS:0x1be0`), full value, no choice. Trigger in `465b`:
+human only (`0x543f[nation]==0`), unit type `0x0a`, `colony_id_at ≥ 0`,
+colony flags (`+0x1c`) bit `0x40` coastal; if `-0x6da5[nation*0x13]`
+(per-nation unit-type counts, base `-0x6db4`, type `0xf` = Galleon) is
+nonzero and not WoI and not Cortes → skipped. Ported (see `ai_port_plan.md`
+T1.13). `combat.md`'s "ransom" attribution of `5fef_1908` is wrong; the
+real DOS source of the capture-ransom CHOICE is now unidentified.

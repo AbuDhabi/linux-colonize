@@ -665,17 +665,13 @@ bool col1_bridge_apply(
       map->improve[i] = flags;
       /*
        * Col1 mask low bits carry village/capital occupancy (same as runtime
-       * layer2 & 3). Road in mask is 0x08; DOS AI scoring also checks layer2
-       * bit 0x40 for roads — mirror improve road into that bit.
+       * layer2 & 3). Road is mask 0x08 (kept in improve[], since layer2
+       * 0x08 is the runtime rumour-cleared stand-in); plowed is mask 0x40
+       * and stays at its real bit.
        */
       if (map->layer2) {
-        /* Occupancy + density from Col1 mask; road → FA bit (not rumour 0x08). */
-        uint8_t l2 = (uint8_t)(m & (uint8_t)(0x03u | 0x04u | MAP_LAYER2_PURCHASED |
-                                              MAP_LAYER2_PACIFIC));
-        if ((m & 0x08u) != 0) {
-          l2 = (uint8_t)(l2 | MAP_LAYER2_FA_ROAD);
-        }
-        map->layer2[i] = l2;
+        map->layer2[i] = (uint8_t)(m & (uint8_t)(0x03u | 0x04u | MAP_LAYER2_PURCHASED |
+                                                  MAP_LAYER2_PACIFIC | MAP_LAYER2_PLOWED));
       }
     }
     /* Col1 path = continent (lo) | owner/visitor (hi); runtime layer3 same. */

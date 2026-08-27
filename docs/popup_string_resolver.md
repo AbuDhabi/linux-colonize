@@ -131,3 +131,34 @@ See `decomp_inventory.md`'s "Method: asking the user to identify things
 is a legitimate RE tool" for the general lesson — recognize-from-
 gameplay is often a faster path than a full id→text table, worth trying
 before or alongside a longer capture session.
+
+
+## 2026-08-27 — RESOLVED: the numeric ids are DS addresses of tag-name strings
+
+The "numeric message id" pushed into `DS:0x1f5c` is simply the **DS
+address of a NUL-terminated GAME.TXT tag name** living in the EXE's data
+segment. EXE file offset = `121248 + id` (same DS→file formula the
+2026-08-27 mysteries sweep established). Checked directly against
+`COLONIZE/VICEROY.EXE`:
+
+| id | string | id | string |
+|---|---|---|---|
+| `0x1866` | `INDIANCITY` | `0x1340` | `MERCENARIES` |
+| `0x14c8` | `INDIANBURN` | `0x181c` | `INDIANBEGFOOD` |
+| `0x1858` | `INDIANCOMMENT` | `0x1871` | `INDIANWAGONS` |
+| `0x13cb` | `CANCELPEACE` | `0x13d7` | `DECLAREWAR` |
+| `0x156a` | `BADHAGGLE1` | `0x157c` | `BADHAGGLE0` |
+| `0x1575` | `TRADE0` | `0x1bed` | `KINGGALLEON` (+`0x1bf9` `"3"`, `0x1bfb` `"2"`) |
+
+So the dialog engine opens GAME.TXT and looks the `@TAG` up by name; the
+"resource open" seen at step 3 above is that lookup. The full table of
+every tag-shaped string in `DS:0x1000..0x2000` (357 strings, 250 of them
+present as `@TAG`s in the shipped GAME.TXT; the rest are NAMES.TXT
+sections, directive keywords, etc.) is in
+[`popup_tag_ids.md`](popup_tag_ids.md). Two consequences:
+
+- every "unrecoverable binary popup string" note in the AI docs can now
+  be resolved by a lookup — no live capture needed;
+- tags can be **assembled at runtime** (`KINGGALLEON` + `"2"`/`"3"`),
+  so a grep for the full tag name can miss a real site; grep for the
+  base-name address instead.

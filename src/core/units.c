@@ -547,6 +547,218 @@ int units_cortes_cash_coastal_treasures(
   return cashed;
 }
 
+static const char* units_combat_nation_label(const ColonizeCol1Save* col1, int nation_id);
+
+static int units_king_galleon_treasure_value(const ColonizeUnit* treasure) {
+  const unsigned lo = (unsigned)(treasure->hold_goods_amount[0] & 0xff);
+  const unsigned hi = (unsigned)(treasure->hold_goods_amount[1] & 0xff);
+  return (int)(lo | (hi << 8));
+}
+
+int units_king_galleon_share_pct(const ColonizeCol1Save* col1, int nation_id) {
+  if (!col1 || nation_id < 0 || nation_id > 3) {
+    return 0;
+  }
+  /* FUN_5fef_1908: local_5a = nation.tax; if !Cortes: max((diff+10)*5, tax*2); cap 0x5a. */
+  int pct = (int)col1->nation[nation_id].tax_rate;
+  if (!founding_fathers_nation_has(col1, nation_id, FF_HERNAN_CORTES)) {
+    const int by_diff = ((int)col1->head.difficulty + 10) * 5;
+    const int by_tax = pct * 2;
+    pct = by_diff < by_tax ? by_tax : by_diff;
+  }
+  if (pct > 90) {
+    pct = 90;
+  }
+  if (pct < 0) {
+    pct = 0;
+  }
+  return pct;
+}
+
+static void units_king_galleon_credit(
+  ColonizeUnitPool* pool,
+  EuropeScreen* europe,
+  ColonizeCol1Save* col1,
+  int nation_id,
+  int treasure_id,
+  int pct,
+  AiPopupState* popups,
+  const ColonizeMsgCatalog* game_txt
+) {
+  ColonizeUnit* treasure = units_get(pool, treasure_id);
+  if (!treasure || !treasure->active || treasure->nation_id != nation_id) {
+    return;
+  }
+  const int value = units_king_galleon_treasure_value(treasure);
+  const int share = (value * pct) / 100;
+  const int net = value - share;
+  ColonizeCol1Nation* nat = &col1->nation[nation_id];
+  nat->gold += (uint32_t)(net > 0 ? net : 0);
+  nat->royal_money += share; /* DOS nation+0x22 += Crown share */
+  if (europe) {
+    europe->gold = (int)nat->gold;
+  }
+  if (popups) {
+    PopupMsgTokens tok;
+    memset(&tok, 0, sizeof(tok));
+    tok.string0 = units_combat_nation_label(col1, nation_id);
+    tok.string1 = europe && europe->port_city[0] ? europe->port_city : "Europe";
+    tok.number0 = value;
+    tok.has_number0 = true;
+    tok.number1 = pct;
+    tok.has_number1 = true;
+    tok.number2 = net;
+    tok.has_number2 = true;
+    char body[AI_POPUP_BODY_LEN];
+    char fb[AI_POPUP_BODY_LEN];
+    snprintf(
+      fb,
+      sizeof(fb),
+      "Treasure worth %d$ arrives safely. Crown takes %d%% share. %d$ added to treasury.",
+      value,
+      pct,
+      net
+    );
+    if (game_txt) {
+      popup_msg_fill(game_txt, pct > 0 ? "LOOTCASH" : "CASHTREASURE", &tok, fb, body, sizeof(body));
+    } else {
+      snprintf(body, sizeof(body), "%s", fb);
+    }
+    ai_popup_enqueue_ok(popups, AI_POPUP_TAG_INFO, NULL, body);
+  }
+  (void)units_despawn(pool, treasure_id);
+}
+
+int units_king_galleon_offer_coastal_treasures(
+  ColonizeUnitPool* pool,
+  const ColonizeColonyPool* colonies,
+  const ColonizeWorldMap* map,
+  EuropeScreen* europe,
+  ColonizeCol1Save* col1,
+  int nation_id,
+  AiPopupState* popups,
+  const ColonizeMsgCatalog* game_txt
+) {
+  if (!pool || !colonies || !map || !col1 || nation_id < 0 || nation_id > 3) {
+    return 0;
+  }
+  const bool woi = col1->head.game_options.woi != 0;
+  const bool cortes = founding_fathers_nation_has(col1, nation_id, FF_HERNAN_CORTES);
+  /* FUN_465b_0000: per-nation unit-type count table (-0x6db4, stride 0x13), type 0xf = Galleon. */
+  bool has_galleon = false;
+  int ids[COLONIZE_UNITS_MAX];
+  int n = 0;
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    const ColonizeUnit* u = &pool->units[i];
+    if (!u->active || u->nation_id != nation_id) {
+      continue;
+    }
+    const ColonizeUnitType* ty = units_type(pool, u->type_index);
+    if (!ty || !ty->name[0]) {
+      continue;
+    }
+    if (strstr(ty->name, "Galleon") != NULL) {
+      has_galleon = true;
+    } else if (u->aboard_ship_id < 0 && strstr(ty->name, "Treasure") != NULL) {
+      ids[n++] = u->id;
+    }
+  }
+  if (!woi && !cortes && has_galleon) {
+    return 0;
+  }
+  int handled = 0;
+  for (int i = 0; i < n; ++i) {
+    const ColonizeUnit* treasure = units_get_const(pool, ids[i]);
+    if (!treasure || !treasure->active) {
+      continue;
+    }
+    const int cid = colonies_id_at(colonies, treasure->x, treasure->y);
+    const ColonizeColony* c = cid >= 0 ? colonies_get(colonies, cid) : NULL;
+    if (!c || !c->active || c->nation_id != nation_id || !map_tile_is_coastal(map, c->x, c->y)) {
+      continue;
+    }
+    if (units_king_galleon_treasure_value(treasure) <= 0) {
+      continue;
+    }
+    if (woi) {
+      /* FUN_5fef_1908 else-branch: no King, full value, @CASHTREASURE. */
+      units_king_galleon_credit(pool, europe, col1, nation_id, ids[i], 0, popups, game_txt);
+      handled++;
+      continue;
+    }
+    if (!popups) {
+      continue;
+    }
+    /* Don't stack a second offer for the same Treasure while one is queued. */
+    bool queued = false;
+    for (int q = 0; q < popups->queue_count; ++q) {
+      if (popups->queue[q].tag == AI_POPUP_TAG_KING_GALLEON && popups->queue[q].payload == ids[i]) {
+        queued = true;
+        break;
+      }
+    }
+    if (queued) {
+      continue;
+    }
+    static const char* k_titles[5] = {"Discoverer", "Explorer", "Conquistador", "Governor", "Viceroy"};
+    const int d = (int)col1->head.difficulty;
+    PopupMsgTokens tok;
+    memset(&tok, 0, sizeof(tok));
+    tok.string0 = k_titles[d >= 0 && d < 5 ? d : 0];
+    tok.string1 = col1->player[nation_id].name[0] ? col1->player[nation_id].name
+                                                  : units_combat_nation_label(col1, nation_id);
+    tok.string2 = europe && europe->port_city[0] ? europe->port_city : "Europe";
+    tok.number0 = (int)col1->nation[nation_id].tax_rate;
+    tok.has_number0 = true;
+    char body[AI_POPUP_BODY_LEN];
+    char fb[AI_POPUP_BODY_LEN];
+    snprintf(
+      fb,
+      sizeof(fb),
+      "The Crown offers to transport your treasure home once its assessors have taken "
+      "a %d%% share.",
+      units_king_galleon_share_pct(col1, nation_id)
+    );
+    if (game_txt) {
+      popup_msg_fill(game_txt, cortes ? "KINGGALLEON3" : "KINGGALLEON2", &tok, fb, body, sizeof(body));
+    } else {
+      snprintf(body, sizeof(body), "%s", fb);
+    }
+    const char* choices[2] = {"Very well, and let the Crown claim its rightful share.",
+                              "No, I would sooner kiss your royal pinky ring."};
+    const int cids[2] = {1, 0};
+    (void)ai_popup_enqueue_choice_ctx(
+      popups, AI_POPUP_TAG_KING_GALLEON, nation_id, -1, ids[i], NULL, body, choices, cids, 2
+    );
+    handled++;
+  }
+  return handled;
+}
+
+bool units_king_galleon_apply_popup(
+  ColonizeUnitPool* pool,
+  EuropeScreen* europe,
+  ColonizeCol1Save* col1,
+  AiPopupState* popups,
+  const ColonizeMsgCatalog* game_txt
+) {
+  if (!popups || popups->result_tag != AI_POPUP_TAG_KING_GALLEON) {
+    return false;
+  }
+  if (!pool || !col1 || popups->result_cancelled || popups->result_choice_id != 1) {
+    return true; /* FUN_5fef_1908: choice != 1 → return, Treasure untouched */
+  }
+  const int nation = popups->result_nation_a;
+  if (nation < 0 || nation > 3) {
+    return true;
+  }
+  units_king_galleon_credit(
+    pool, europe, col1, nation, popups->result_payload,
+    units_king_galleon_share_pct(col1, nation), popups, game_txt
+  );
+  return true;
+}
+
 bool units_is_on_map(const ColonizeUnit* unit) {
   /* id < 0 = cleared/ghost slot (tests may flip active without respawn). */
   return unit && unit->active && unit->id >= 0 && unit->aboard_ship_id < 0;
@@ -4769,24 +4981,41 @@ static bool units_flood_next_step(
          * settlement tile with none), so this is a real, previously-
          * unmodeled gap for this flood-fill tier specifically — not
          * threaded into `units_enter_probe`/`units_can_enter` itself, which
-         * stays scoped to real move-execution legality. The paired `+8`
-         * soft-penalty-vs-hard-reject asymmetry for merely being *near* an
-         * enemy fort/colony (DOS `FUN_1000_88d6`) is intentionally NOT
-         * wired here yet: its own gate reads `layer2_byte(cand) & 0x48`
-         * (`0x08` is the known FA_ROAD/Col1-road bit; `0x40`'s real DOS
-         * meaning is still unidentified — no invented guess per project
-         * convention, see that update for the traced function body).
+         * stays scoped to real move-execution legality.
+         *
+         * Paired term, DOS `FUN_1000_88d6` (2026-08-27): its gate
+         * `layer2_byte(cand) & 0x48` is road (0x08) | plowed (0x40) — mask
+         * bit 0x40 = plowed is what this project's own col1_bridge already
+         * imports/exports as MAP_IMPROVE_PLOWED; save evidence: the bit is
+         * absent in every mapgen/early save and grows with Pioneer work on
+         * open-land classes only (euro_unit_act.md 2026-08-27). So the term
+         * is "improved tile whose last-visitor owner nibble is a foreign
+         * Euro nation we have MET": AI mover → hard reject, human mover →
+         * +8. Needs the col1 nation records for the MET bit; without them
+         * (g_units_ff_col1 unset) the term is skipped, never guessed.
          */
+        int fort_penalty = 0;
         if (u->nation_id >= 0) {
           const int occupant = map_tile_tribe_or_presence(map, nx, ny);
           if (occupant >= 0 && occupant != u->nation_id) {
             continue;
           }
+          if (u->nation_id <= 3 && g_units_ff_col1 && map->improve &&
+              map->improve[(size_t)ny * (size_t)map->width + (size_t)nx] != 0) {
+            const int owner = (int)((map_get_layer3(map, nx, ny) >> 4) & 0x0fu);
+            if (owner >= 0 && owner <= 3 && owner != u->nation_id &&
+                (g_units_ff_col1->nation[u->nation_id].euro_relation[owner] & AI_DIPLO_MET) != 0) {
+              if (u->nation_id != g_units_combat_human_nation) {
+                continue;
+              }
+              fort_penalty = 8;
+            }
+          }
         }
         const int edge = flood_low_move
                            ? 3
                            : map_dos_terr_cost_byte(map_dos_terr_class_at(map, nx, ny)) * 3;
-        const int nc = base + (edge > 0 ? edge : 1);
+        const int nc = base + (edge > 0 ? edge : 1) + fort_penalty;
         if (nc < cost[nly][nlx]) {
           cost[nly][nlx] = nc;
           const int next_t = (qt + 1) % UNITS_FLOOD_QMAX;

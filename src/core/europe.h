@@ -398,8 +398,8 @@ void europe_tick_voyages(EuropeScreen* eu, const ColonizeUnitPool* units);
  * Cite: Colonization.pdf Treasure Trains; GAME.TXT @LOOTCASH (Crown takes
  * NUMBER1% share, remainder to treasury); @KINGGALLEON3 (Cortes: share =
  * current tax rate). Fee = eu->tax_percent — same Crown cut as
- * europe_sell_proceeds. PARK: KINGGALLEON2 non-Cortes royal-galleon "extra"
- * share beyond tax (no % in GAME.TXT / PDF / fandom).
+ * europe_sell_proceeds. KINGGALLEON2 non-Cortes share lives in
+ * units_king_galleon_share_pct (FUN_5fef_1908), not here.
  * Returns gold credited (0 if value <= 0).
  */
 int europe_cash_treasure(EuropeScreen* eu, int treasure_value);
