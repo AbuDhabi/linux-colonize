@@ -5468,32 +5468,60 @@ static int units_coarse_domain_tile(const ColonizeWorldMap* map, int x, int y, i
   return sea ? water : !water;
 }
 
-/* FUN_OVL20_L0000__000000: 2x2 probe at (4cx+1.., 4cy+1..); writes the tile. */
-static int units_coarse_probe(
+/* Body id a coarse cell probe compares (FUN_1000_88a4 on the sample tile):
+ * land -> continent id; sea -> the DOS ocean-body nibble (1 = the main
+ * ocean, lakes differ) — Linux keeps that nibble in layer3 for water too
+ * when it came from a save; a zero nibble is read as the main ocean. */
+static int units_coarse_body_id(const ColonizeWorldMap* map, int x, int y, int sea) {
+  if (!sea) {
+    return map_continent_id_at(map, x, y);
+  }
+  const int nib = (int)(map_get_layer3(map, x, y) & 0x0fu);
+  return nib == 0 ? 1 : nib;
+}
+
+/* FUN_OVL21_L0040__000758 / FUN_OVL20_L0000__000000: 2x2 probe at
+ * (4cx+1.., 4cy+1..); returns the body id of the first domain tile (sea
+ * tiles must be body 1, the main ocean) or -1; writes the tile. */
+static int units_coarse_probe_id(
   const ColonizeWorldMap* map, int cx, int cy, int sea, int* out_x, int* out_y
 ) {
   for (int r = cx * 4 + 1; r <= cx * 4 + 2; ++r) {
     for (int c = cy * 4 + 1; c <= cy * 4 + 2; ++c) {
-      if (units_coarse_domain_tile(map, r, c, sea)) {
-        if (out_x) {
-          *out_x = r;
-        }
-        if (out_y) {
-          *out_y = c;
-        }
-        return 1;
+      if (!units_coarse_domain_tile(map, r, c, sea)) {
+        continue;
       }
+      const int id = units_coarse_body_id(map, r, c, sea);
+      if (sea && id != 1) {
+        continue;
+      }
+      if (out_x) {
+        *out_x = r;
+      }
+      if (out_y) {
+        *out_y = c;
+      }
+      return id;
     }
   }
-  return 0;
+  return -1;
+}
+static int units_coarse_probe(
+  const ColonizeWorldMap* map, int cx, int cy, int sea, int* out_x, int* out_y
+) {
+  return units_coarse_probe_id(map, cx, cy, sea, out_x, out_y) >= 0;
 }
 
-/* Windowed domain-only BFS between two tiles (populator's 0906 check). */
+/* Windowed domain-only BFS between two tiles: the populator's `0906`
+ * relay must answer 0 < cost < 8 (asm OVL21_L0040:8b3-8bb), i.e. a path of
+ * 1..7 steps. */
 static int units_coarse_connected(const ColonizeWorldMap* map, int ax, int ay, int bx, int by, int sea) {
   static const int k_dx[8] = {0, 1, 1, 1, 0, -1, -1, -1};
   static const int k_dy[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
   uint8_t seen[16][16];
+  uint8_t dist[16][16];
   memset(seen, 0, sizeof(seen));
+  memset(dist, 0, sizeof(dist));
   const int ox = (ax < bx ? ax : bx) - 4;
   const int oy = (ay < by ? ay : by) - 4;
   int qx[256];
@@ -5509,7 +5537,11 @@ static int units_coarse_connected(const ColonizeWorldMap* map, int ax, int ay, i
     const int y = qy[head];
     head++;
     if (x == bx && y == by) {
-      return 1;
+      const int dd = dist[x - ox][y - oy];
+      return dd > 0 && dd < 8;
+    }
+    if (dist[x - ox][y - oy] >= 7) {
+      continue;
     }
     for (int d = 0; d < 8; ++d) {
       const int nx = x + k_dx[d];
@@ -5523,6 +5555,7 @@ static int units_coarse_connected(const ColonizeWorldMap* map, int ax, int ay, i
         continue;
       }
       seen[lx][ly] = 1;
+      dist[lx][ly] = (uint8_t)(dist[x - ox][y - oy] + 1);
       if (tail < 256) {
         qx[tail] = nx;
         qy[tail] = ny;
@@ -5557,9 +5590,11 @@ static void units_coarse_build(const ColonizeWorldMap* map) {
         }
         int ax = 0;
         int ay = 0;
-        (void)units_coarse_probe(map, cx, cy, sea, &ax, &ay);
-        uint8_t m = 0;
-        for (int d = 0; d < 8; ++d) {
+        const int id_a = units_coarse_probe_id(map, cx, cy, sea, &ax, &ay);
+        /* asm OVL21_L0040:853-915: directions 0..3 only, the reverse bit
+         * ((d+4)&7) is written on the neighbour; both cells must probe to
+         * the same body id. */
+        for (int d = 0; d < 4; ++d) {
           const int nx = cx + k_dx[d];
           const int ny = cy + k_dy[d];
           if (nx < 0 || ny < 0 || nx >= UNITS_COARSE_ROWS || ny >= UNITS_COARSE_COLS ||
@@ -5568,12 +5603,14 @@ static void units_coarse_build(const ColonizeWorldMap* map) {
           }
           int bx = 0;
           int by = 0;
-          (void)units_coarse_probe(map, nx, ny, sea, &bx, &by);
+          if (units_coarse_probe_id(map, nx, ny, sea, &bx, &by) != id_a) {
+            continue;
+          }
           if (units_coarse_connected(map, ax, ay, bx, by, sea)) {
-            m |= (uint8_t)(1u << d);
+            g->mask[sea][cx][cy] |= (uint8_t)(1u << d);
+            g->mask[sea][nx][ny] |= (uint8_t)(1u << ((d + 4) & 7));
           }
         }
-        g->mask[sea][cx][cy] = m;
       }
     }
   }
@@ -5788,6 +5825,15 @@ bool units_next_goto_step(
     int wy = 0;
     int ucx = -1;
     int ucy = -1;
+    /* UNITS_FAR_BFS=1: diagnostic fallback to the pre-2026-08-27 whole-map BFS tier. */
+    static int s_far_bfs = -1;
+    if (s_far_bfs < 0) {
+      const char* e = getenv("UNITS_FAR_BFS");
+      s_far_bfs = (e && e[0] == '1') ? 1 : 0;
+    }
+    if (s_far_bfs && units_bfs_next_step(pool, unit_id, map, colonies, gx, gy, out_x, out_y)) {
+      return true;
+    }
     const int have_wp = units_coarse_waypoint(map, u->x, u->y, gx, gy, sea, &wx, &wy, &ucx, &ucy);
     if (have_wp && units_flood_next_step(pool, unit_id, map, colonies, wx, wy, out_x, out_y)) {
       return true;

@@ -93,6 +93,9 @@ typedef struct Ai153eWorthinessScore {
                              direct (non-accessor) read = WAR (T1.19 bit map;
                              the older "consistent with PEACE" reading is retired) */
   int old_stamp;         /* raw local_8c: DS:0x53c8[target] before the refresh */
+  int own_border;        /* raw local_8: Σ border-probe value where the human's units matched */
+  int border_value;      /* raw local_b2: Σ (doubled off-continent) target-matched probe value */
+  int any_border;        /* raw local_62: any target-matched colony probe */
 } Ai153eWorthinessScore;
 
 Ai153eWorthinessScore ai_diplo_153e_worthiness_score(
@@ -101,6 +104,15 @@ Ai153eWorthinessScore ai_diplo_153e_worthiness_score(
 
 /* FUN_5bfb_00f8 rank table: DS:0xa153, the top-ranked Euro nation (-1 if no col1). */
 int ai_diplo_00f8_top_ranked_nation(const ColonizeCol1Save* col1);
+
+/*
+ * FUN_5bfb_3180 Euro x Euro branch -> FUN_5bfb_153e phases 2-4: the human's
+ * unit `unit_id` stands next to a unit of AI nation `target`. Runs phase 1
+ * (unmet pair / 16-turn cooldown gate) and, when it opens, drives the
+ * encounter dialog through ctx->ai_popups (AI_POPUP_TAG_DIPLO_TALK).
+ * Returns 1 when a talk started.
+ */
+int ai_diplo_153e_encounter(ColonizeTurnContext* ctx, int human, int target, int unit_id);
 
 uint8_t ai_diplo_read(const ColonizeCol1Save* col1, int nation_a, int nation_b);
 void ai_diplo_write(ColonizeCol1Save* col1, int nation_a, int nation_b, uint8_t value);

@@ -491,12 +491,15 @@ static uint8_t ai_layer2_at(const ColonizeWorldMap* map, int x, int y) {
   return map->layer2[y * map->width + x];
 }
 
-/* FUN_281f_0754 / mask &0x0a: tribe (0x02) or road (Col1 mask 0x08).
- * Bridge stores road as layer2 0x40 — treat it as the DOS road bit for tests. */
+/* FUN_281f_0754 / mask &0x0a: village (0x02) or road (Col1 mask 0x08).
+ * 2026-08-27: the road half now reads the real improvement plane
+ * (map_tile_has_road) — layer2 bit 0x08 is Linux's rumour-cleared stand-in
+ * and bit 0x40 is plowed, neither is a road; reading them here made the
+ * river/road "+1" pair term fire on 2 of the 3 parked seed-100 Braves. */
 static int ai_mask_fa_flags(const ColonizeWorldMap* map, int x, int y) {
   const uint8_t l2 = ai_layer2_at(map, x, y);
-  int fa = (int)(l2 & 0x0au);
-  if ((l2 & 0x40u) != 0) {
+  int fa = (int)(l2 & 0x02u);
+  if (map_tile_has_road(map, x, y)) {
     fa |= 0x08;
   }
   return fa;
@@ -3021,6 +3024,16 @@ static int ai_native_foreign_euro_pull_open(
   if (owner < 0 || owner > 3 || owner == nation_id || !s_ai_native_col1) {
     return 0;
   }
+  /*
+   * 2026-08-27, later: seed-100 TURN2->3 golden (Aztec Brave at (47,15) next
+   * to an unmet Dutch unit at (47,14)) shows DOS does NOT pull a quiet Brave
+   * toward a foreign Euro tile — the arm belongs to the Euro land path of
+   * 20e6, and the Brave quiet arm rejects foreign-owned tiles as the port
+   * always did. Keep the arm for Euro movers only.
+   */
+  if (nation_id >= 4) {
+    return 0;
+  }
   const ColonizeCol1Save* col1 = s_ai_native_col1;
   const int mover = ai_unit_index_on_tile(units, x, y);
   const int dest_unit = ai_unit_index_on_tile(units, dest_x, dest_y);
@@ -3142,7 +3155,10 @@ static int ai_native_pick_dir_asm(
   /* All 13 seed-100 init peels (+ Apache fog probe) for AI_LCG_AUDIT term diffs. */
   const int dump_miss =
     ai_lcg_audit_enabled() &&
-    ((nation_id == 4 && x == 11 && y == 30) || (nation_id == 4 && x == 6 && y == 34) ||
+    ((nation_id == 4 && x == 12 && y == 23) || (nation_id == 8 && x == 8 && y == 42) ||
+     (nation_id == 6 && x == 47 && y == 15) ||
+     (nation_id == 10 && x == 49 && y == 41) ||
+     (nation_id == 4 && x == 11 && y == 30) || (nation_id == 4 && x == 6 && y == 34) ||
      (nation_id == 6 && x == 48 && y == 4) || (nation_id == 6 && x == 25 && y == 7) ||
      (nation_id == 7 && x == 46 && y == 56) || (nation_id == 8 && x == 13 && y == 48) ||
      (nation_id == 8 && x == 17 && y == 33) || (nation_id == 8 && x == 9 && y == 43) ||
@@ -3290,7 +3306,8 @@ static int ai_native_pick_dir_asm(
       fprintf(
         stderr,
         "AI_SCORE_DUMP asm d=%d dest=(%d,%d) base=%d terr=%+d gate=%d face=%+d "
-        "fog8=%+d fogm2=%+d total=%d far=(%d,%d) far_ocean=%d far_inset=%d\n",
+        "fog8=%+d fogm2=%+d total=%d far=(%d,%d) far_ocean=%d far_inset=%d "
+        "l2u=%02x l2d=%02x tu=%02x td=%02x\n",
         d,
         nx,
         ny,
@@ -3304,7 +3321,11 @@ static int ai_native_pick_dir_asm(
         far_x,
         far_y,
         ai_is_ocean_hs(map, far_x, far_y),
-        ai_map_inset(map, far_x, far_y)
+        ai_map_inset(map, far_x, far_y),
+        ai_layer2_at(map, x, y),
+        ai_layer2_at(map, nx, ny),
+        ai_terrain_at(map, x, y),
+        ai_terrain_at(map, nx, ny)
       );
     }
     if (score > best_score) {

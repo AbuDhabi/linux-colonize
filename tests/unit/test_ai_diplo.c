@@ -16,6 +16,7 @@
  * R3 alliance longevity Foreign Affairs OK ("holds") defensive smoke +
  * Marathon4 R1 Privateer commission is status-only (no INFO OK popup). */
 #include "core/ai_diplo.h"
+#include "core/ai_popup.h"
 #include "core/col1_save.h"
 #include "core/colony.h"
 #include "core/dos_rng.h"
@@ -3787,6 +3788,120 @@ int main(void) {
     const Ai153eWorthinessScore wa = ai_diplo_153e_worthiness_score(&wctx, 1, 0, -1, 1);
     if (!wa.handled || wa.worthy || wa.score != 0) {
       return fail("153e: AI self must take the 13b0 branch (handled, no score)");
+    }
+  }
+
+  /*
+   * FUN_5bfb_153e phases 2-4 (2026-08-27): an unmet AI Euro unit next to the
+   * human's unit opens the encounter dialog — greeting OK first, then the
+   * partition-treaty CHOICE (WORTHY); accepting it signs PEACE both ways and
+   * stamps the DS:0x53c8 cooldown.
+   */
+  {
+    ColonizeWorldMap emap;
+    memset(&emap, 0, sizeof(emap));
+    emap.width = 16;
+    emap.height = 16;
+    emap.tile_count = 256;
+    emap.terrain = calloc(256, 1);
+    emap.layer2 = calloc(256, 1);
+    emap.layer3 = calloc(256, 1);
+    if (!emap.terrain || !emap.layer2 || !emap.layer3) {
+      return fail("153e talk alloc map");
+    }
+    for (int i = 0; i < 256; ++i) {
+      emap.terrain[i] = 1;
+      emap.layer3[i] = 1;
+    }
+    static ColonizeUnitPool eunits;
+    units_reset(&eunits);
+    eunits.type_count = 1;
+    snprintf(eunits.types[0].name, sizeof(eunits.types[0].name), "Scouts");
+    eunits.types[0].movement = 4;
+    eunits.types[0].attack = 1;
+    eunits.types[0].defense = 1;
+    eunits.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+    const int ha = units_spawn(&eunits, 0, 5, 5);
+    const int hb = units_spawn(&eunits, 0, 6, 5);
+    ColonizeUnit* pa = units_get(&eunits, ha);
+    ColonizeUnit* pb = units_get(&eunits, hb);
+    if (!pa || !pb) {
+      return fail("153e talk spawn");
+    }
+    pa->nation_id = 0;
+    pb->nation_id = 1;
+    static ColonizeColonyPool ecol;
+    colonies_init(&ecol);
+    ColonizeCol1Save e;
+    col1_save_init(&e);
+    memset(e.nation, 0, sizeof(e.nation));
+    memset(e.head.nation_relation, 0, sizeof(e.head.nation_relation));
+    e.head.turn = 30;
+    e.head.difficulty = 2;
+    e.head.human_player = 0;
+    e.nation[0].gold = 1000;
+    e.nation[1].gold = 1000;
+    snprintf(e.player[0].country_name, sizeof(e.player[0].country_name), "England");
+    snprintf(e.player[1].country_name, sizeof(e.player[1].country_name), "France");
+    AiPopupState epop;
+    ai_popup_init(&epop);
+    ColonizeDosRng erng;
+    dos_rng_seed(&erng, 5);
+    ColonizeTurnContext ectx;
+    memset(&ectx, 0, sizeof(ectx));
+    ectx.col1 = &e;
+    ectx.col1_ok = true;
+    ectx.map = &emap;
+    ectx.units = &eunits;
+    ectx.colonies = &ecol;
+    ectx.human_nation = 0;
+    ectx.ai_popups = &epop;
+    ectx.rng = &erng;
+    const int started = ai_diplo_153e_encounter(&ectx, 0, 1, pa->id);
+    if (!started || epop.queue_count < 2) {
+      fprintf(stderr, "unit_ai_diplo: 153e talk started=%d queued=%d\n", started, epop.queue_count);
+      free(emap.terrain);
+      free(emap.layer2);
+      free(emap.layer3);
+      return fail("153e talk: unmet adjacent AI Euro must open the greeting + partition CHOICE");
+    }
+    if (epop.queue[0].tag != AI_POPUP_TAG_DIPLO_TALK || epop.queue[0].kind != AI_POPUP_KIND_OK ||
+        epop.queue[1].kind != AI_POPUP_KIND_CHOICE) {
+      free(emap.terrain);
+      free(emap.layer2);
+      free(emap.layer3);
+      return fail("153e talk: expected greeting OK then a CHOICE");
+    }
+    /* Drive the talk: answer every CHOICE with option 1 (SIEGES: stay,
+     * TRIBUTE: refuse, WORTHY: Yes) until the queue drains. */
+    for (int guard = 0; guard < 12 && epop.queue_count > 0; ++guard) {
+      AiPopupRequest front = epop.queue[0];
+      memmove(&epop.queue[0], &epop.queue[1], sizeof(epop.queue[0]) * (size_t)(epop.queue_count - 1));
+      epop.queue_count--;
+      if (front.kind != AI_POPUP_KIND_CHOICE) {
+        continue;
+      }
+      epop.has_result = true;
+      epop.result_cancelled = false;
+      epop.result_tag = AI_POPUP_TAG_DIPLO_TALK;
+      epop.result_choice_id = 1;
+      epop.result_nation_a = 0;
+      epop.result_nation_b = 1;
+      epop.result_payload = front.payload;
+      ai_diplo_apply_popup_result(&ectx, &epop);
+      epop.has_result = false;
+    }
+    free(emap.terrain);
+    free(emap.layer2);
+    free(emap.layer3);
+    if (!(e.nation[0].euro_relation[1] & AI_DIPLO_PEACE) || !(e.nation[1].euro_relation[0] & AI_DIPLO_PEACE)) {
+      return fail("153e talk: accepting the partition treaty must sign PEACE both ways");
+    }
+    if (e.head.nation_relation[1] != 30 + 0x10) {
+      return fail("153e talk: partition must stamp DS:0x53c8[target] = turn + 16");
+    }
+    if (ai_diplo_153e_encounter(&ectx, 0, 1, pa->id)) {
+      return fail("153e talk: a second encounter the same turn must not reopen the talk");
     }
   }
 

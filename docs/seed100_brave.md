@@ -1,5 +1,7 @@
 # Seed-100 Brave / early-AI notes
 
+**2026-08-27: TURN1→2 green.** Two of the three parked Braves were the road term reading layer2 bit 0x08 (rumour-cleared stand-in) as a road (`ai_mask_fa_flags`, ai.c); the third passed once the T1.9 foreign-Euro pull was restricted to Euro movers. Remaining TURN2→3 red is a Euro Soldier goal choice, see ai_port_plan.md T1.9.
+
 Durable notes for `golden_mapgen_seed100` + `golden_ai_turns` (VR_SEED=100).
 Companion status: [ai_transcription.md](ai_transcription.md),
 [`original_sources_annotated/ai/move_scoring.md`](../original_sources_annotated/ai/move_scoring.md).
