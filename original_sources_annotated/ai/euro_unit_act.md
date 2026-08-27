@@ -2494,3 +2494,14 @@ colony flags (`+0x1c`) bit `0x40` coastal; if `-0x6da5[nation*0x13]`
 nonzero and not WoI and not Cortes → skipped. Ported (see `ai_port_plan.md`
 T1.13). `combat.md`'s "ransom" attribution of `5fef_1908` is wrong; the
 real DOS source of the capture-ransom CHOICE is now unidentified.
+
+
+**2026-08-27 — `@VIOLATE` thread closed: the tag is dead.** The DOS popup
+ids are DS addresses of tag-name strings (`docs/popup_tag_ids.md`), and a
+raw scan of `VICEROY.EXE` finds no `VIOLAT` string at all — DOS can never
+display `@VIOLATE`; it is orphaned GAME.TXT text. `FUN_4720_049e`'s ids
+resolve to `0x13ba` `@HAVETREATY`, `0x13c5` `@SNEAK`, `0x13cb`
+`@CANCELPEACE`, `0x13d7` `@DECLAREWAR` — i.e. the two-nation encounter →
+treaty-check → cancel-peace / declare-war flow that `ai_diplo`'s
+`DIPLO_WAR` CHOICE already covers structurally. Nothing to port for
+`@VIOLATE`.

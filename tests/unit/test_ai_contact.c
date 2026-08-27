@@ -5564,6 +5564,105 @@ int main(void) {
     fprintf(stderr, "unit_ai_contact: 417e Mode 2 auto-incite ok\n");
   }
 
+  /* FUN_4d56_2820 LAB_002e92: empty-handed AI wagon buys the tribe's own goods. */
+  {
+    int wagon_ti = units_find_type(&units, "Wagon Train");
+    if (wagon_ti < 0) {
+      wagon_ti = units.type_count++;
+      memset(&units.types[wagon_ti], 0, sizeof(units.types[wagon_ti]));
+      snprintf(units.types[wagon_ti].name, sizeof(units.types[wagon_ti].name), "Wagon Train");
+      units.types[wagon_ti].movement = 1;
+      units.types[wagon_ti].cargo = 2;
+    }
+    const int wid = units_spawn_allow_stack(&units, wagon_ti, col1.tribe[0].x + 1, col1.tribe[0].y);
+    ColonizeUnit* w = units_get(&units, wid);
+    if (!w) {
+      return fail("2e92: wagon spawn");
+    }
+    w->nation_id = 1;
+    for (int i = 0; i < COLONIZE_UNIT_CARGO_MAX; ++i) {
+      w->hold_goods_type[i] = 0;
+      w->hold_goods_amount[i] = 0;
+    }
+    ColonizeTurnContext bctx;
+    memset(&bctx, 0, sizeof(bctx));
+    bctx.col1 = &col1;
+    bctx.col1_ok = true;
+    bctx.units = &units;
+    bctx.map = &map;
+    bctx.colonies = &colonies;
+    bctx.human_nation = 0;
+    col1.player[1].control = 1;
+    col1.nation[1].gold = 5000;
+    ind->euro_diplo[1] |= COL1_INDIAN_MET_BIT;
+    ind->alarm_by_player[1] = 10;
+    ind->tech = 9;
+    for (int c = 0; c < 16; ++c) {
+      ind->tons[c] = 300;
+    }
+    const uint32_t gold_b = col1.nation[1].gold;
+    const int alarm_b = ind->alarm_by_player[1];
+    if (!ai_contact_auto_buy_2e92(&bctx, ind, 4, 1, w)) {
+      return fail("2e92: AI wagon with a free hold and gold should buy");
+    }
+    if (col1.nation[1].gold >= gold_b) {
+      return fail("2e92: purchase should debit AI gold");
+    }
+    if (w->hold_goods_amount[0] != 100) {
+      return fail("2e92: wagon hold should receive 100 (land qty)");
+    }
+    const int bought = w->hold_goods_type[0];
+    if (bought == 0 || bought == 13 || bought == 14 || bought == 15) {
+      return fail("2e92: food/trade goods/tools/muskets are never offered");
+    }
+    if (ind->tons[bought] != 200) {
+      return fail("2e92: tribe tons should drop by qty");
+    }
+    if (ind->alarm_by_player[1] <= alarm_b) {
+      return fail("2e92: purchase raises alarm by price/25+1 (FUN_4cc6_00f2 positive delta)");
+    }
+    /* Full holds: no purchase. */
+    for (int i = 0; i < COLONIZE_UNIT_CARGO_MAX; ++i) {
+      w->hold_goods_type[i] = 1;
+      w->hold_goods_amount[i] = 100;
+    }
+    if (ai_contact_auto_buy_2e92(&bctx, ind, 4, 1, w)) {
+      return fail("2e92: unit without a free hold must not buy");
+    }
+    units_despawn(&units, wid);
+    col1.player[1].control = 0;
+    fprintf(stderr, "unit_ai_contact: 2820 LAB_002e92 auto-buy ok\n");
+  }
+
+  /* @BUY0 haggle arm: cheap offers / unlucky rolls exhaust patience, else -25% re-ask. */
+  {
+    ColonizeDosRng hr;
+    dos_rng_seed(&hr, 3u);
+    int price = 8;
+    int ad = 0;
+    if (ai_contact_2e92_haggle(0, 50, &hr, &price, &ad) != 0 || ad != 2) {
+      return fail("haggle: price < 11 must be refused with alarm +2");
+    }
+    int saw_counter = 0;
+    int saw_refuse = 0;
+    for (int i = 0; i < 200 && !(saw_counter && saw_refuse); ++i) {
+      price = 400;
+      const int r = ai_contact_2e92_haggle(0, 200, &hr, &price, &ad);
+      if (r) {
+        saw_counter = 1;
+        if (price != 300) {
+          return fail("haggle: counter should drop the price by a quarter");
+        }
+      } else {
+        saw_refuse = 1;
+      }
+    }
+    if (!saw_counter || !saw_refuse) {
+      return fail("haggle: both outcomes should occur over a stream at difficulty 0");
+    }
+    fprintf(stderr, "unit_ai_contact: 2820 haggle ok\n");
+  }
+
   col1_save_free(&col1);
   fprintf(stderr, "unit_ai_contact: ok (last_raid_kind=%d)\n", ai_contact_last_raid_kind());
 

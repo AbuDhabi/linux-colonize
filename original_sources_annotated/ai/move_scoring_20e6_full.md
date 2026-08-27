@@ -3206,3 +3206,27 @@ LAB_OVL14_L0000__005a78:
 }
 
 ```
+
+
+## 2026-08-27 — `LAB_52aa` attack-odds core: exact shape from the asm
+
+The C is register-garbage, the asm (`viceroy_overlays.asm:139036+`) is not:
+
+```
+iStack_7e = 1
+base = FUN_1000_9c04(unit, x, y, 0, 0)       ; = FUN_291f_0a14 → FUN_5fef_1b0e probe mode
+d    = 8aac(foe, 2); if (d < 1) d = 1        ; FUN_0000_4fa8 case 2 on the target unit
+odds = ((8aac(foe, 0) + 1) / d) * base       ; IDIV then IMUL (16-bit)
+odds /= max(unit_type[0x5239], 1)            ; NAMES @UNIT column +6 (Colonists 1, Soldiers 2)
+… then the transcribed modifiers: ×3 own-colony tile (8886), ×2 village
+(88e0), Artillery-in-the-open → 0, (REF nation == 2 ∧ !settlement ∧
+!iStack_2e) → /2, (flags & 0x10 ∧ stance 4) → ×3, Soldier/Dragoon vs a
+colony: sum of 8aac(adjacent Spanish-owned units?, 0xb) ≤ 8aac(unit, 0xb)
+→ skip tile; clamp 0..999→1000; < 12 → −999 else += odds×4.
+```
+
+Still open before a byte-exact port: what `FUN_5fef_1b0e` returns in
+probe mode (the odds base) and what `4fa8` cases 0 / 2 / 0xb read on a unit
+record (the doc's "case 2 = transport-chain splice" verdict cannot be what
+a divisor uses — re-check that case against this call). The Linux
+`combat_strength` substitution stays, now with the exact target shape.

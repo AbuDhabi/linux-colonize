@@ -433,7 +433,7 @@ work.
 | `@INDIANBRIBE` | Partial | contact/raid/mission — structural OK/status; deep/VGA PARKED |
 | `@NOPLOW` | Done thin | plow on already-plowed ai_popup OK |
 | `@NOROAD` | Done thin | road where road exists ai_popup OK |
-| `@VIOLATE` | Not wired | Real text (`COLONIZE/GAME.TXT`): "{%STRING0} violate {%STRING1} territory near {%STRING2}! Colonists are outraged!" — passive territorial-trespass notify (violator/owner nation, place name), no response options shown (same shape as `@SNEAK`, not the FA negotiation-menu shape). 2026-08-15: likely trigger found — `FUN_4720_049e` (Euro `5b66` case `0xb`/`0xc` move-driver, see `euro_unit_act.md`), a "two different-nation units meet" handler with several PEACE-flag-gated outcomes. Best candidate refined on a later pass: catalog ids `0x13cb`/`0x13d7`, the one outcome that names *two* nations (matches `%STRING0`/`%STRING1`); `%STRING2` (place) isn't set by an explicit arg call anywhere in the function, plausibly auto-filled from tile context by the dialog engine. Tried treating the hex ids as raw `GAME.TXT` byte offsets — doesn't land on relevant text, so they're indices into a compiled/packed resource this project can't decode directly, not raw file offsets. Violator-vs-owner slot order and the exact id↔tag mapping remain unconfirmed; would need a live capture to close out. First real lead on this tag's trigger regardless. |
+| `@VIOLATE` | Dead (DOS) | 2026-08-27: no `VIOLATE` tag-name string exists in `VICEROY.EXE` DS (`docs/popup_tag_ids.md` method), so DOS never displays this text — orphaned GAME.TXT entry. The earlier `FUN_4720_049e` lead resolves to `@HAVETREATY`/`@SNEAK`/`@CANCELPEACE`/`@DECLAREWAR` (encounter → war-declare flow, covered by `DIPLO_WAR`). Nothing to port. |
 | `@HALF` | Partial | order/gate — status or bounce; no modal |
 | `@NOLOOT` | Partial | alias unused; village burn uses `@LOOT2` |
 | `@LOOT` | Done | Cortes/conquest treasure fallout |
@@ -506,15 +506,15 @@ work.
 | `@BADCARGO` | Missing | deep village trade 2820 PARKED |
 | `@BADHAGGLE0` | Missing | deep village trade 2820 PARKED |
 | `@BADHAGGLE1` | Missing | deep village trade 2820 PARKED |
-| `@BADHAGGLE2` | Missing | deep village trade 2820 PARKED |
+| `@BADHAGGLE2` | Done (structural) | `2820` buy-side haggle refusal → `ai_contact_2e92_haggle` (2026-08-27) |
 | `@BADHAGGLE3` | Missing | deep village trade 2820 PARKED |
 | `@BRING` | Missing | deep village trade 2820 PARKED |
 | `@DEFICIT` | Missing | deep village trade 2820 PARKED |
-| `@BUYWHICH` | Missing | deep village trade 2820 PARKED |
+| `@BUYWHICH` | Done (structural) | `2820` `LAB_002e92` human pick of 3 tribe goods → `ai_contact_enqueue_buywhich` (2026-08-27) |
 | `@TRADEWHICH` | Missing | deep village trade 2820 PARKED |
-| `@BUY0` | Missing | deep village trade 2820 PARKED |
-| `@BUY1` | Missing | deep village trade 2820 PARKED |
-| `@NOTENOUGH` | Missing | deep village trade 2820 PARKED |
+| `@BUY0` | Done (structural) | `2820` `LAB_002e92` Accept/"Never mind" at the tribe's price → `ai_contact_apply_buywhich`/`apply_buy0` (2026-08-27); Haggle arm PARKED |
+| `@BUY1` | Done (structural) | `2820` buy-side haggle re-ask (tag built at runtime `"BUY"+digit`) (2026-08-27) |
+| `@NOTENOUGH` | Done (structural) | `2820` `LAB_002e92` can't-afford line on Accept (2026-08-27) |
 | `@LEARNMASTER` | Done thin | Already-expert learner refuse; `popup_msg_fill`; does not consume village one-shot |
 | `@LEARNCRIMINAL` | Partial | CONTACT_TEACH OK; not full LEARN scripts |
 | `@LEARNALREADY` | Partial | CONTACT_TEACH OK; not full LEARN scripts |

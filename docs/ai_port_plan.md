@@ -2418,6 +2418,42 @@ is genuinely stuck mid-session.
   effect either way — do it as one deliberate deletion pass when the diplo
   file is next touched, not piecemeal.
 
+- [x] **T1.22 — `FUN_4d56_2820` `LAB_002e92`: the tribe sells its own goods
+  (2026-08-27).** Candidates = the 16 cargo slots sorted by the `2154` bid
+  table (`FUN_1000_a0c0` = `FUN_1cf8_000a` insertion sort on `DS:0x9e78`),
+  top three excluding muskets/food/tools/trade goods. AI picks the highest
+  `DS:0x84BC` throttle byte (`k_2820_throttle`, from the 2026-08-22 capture);
+  human gets `@BUYWHICH` → `@BUY0` Accept/"Never mind" (Haggle arm still
+  PARKED), `@NOTENOUGH` when broke. Price byte-exact per the doc formula.
+  Accept: gold−, `tribe.last_sold`, `indian.tons[cargo] −= qty`, unit hold
+  `+= qty`, alarm `+= price/25+1`. **Flagged:** qty is `DS:0x8dc4`, a
+  shared scratch never assigned inside `2820` (captured 50 mid-negotiation);
+  ported as 100 with the literal `>>2` for ships. `ai_contact_auto_buy_2e92`
+  (AI, from `ai_contact_auto_trade`'s empty-hold branch),
+  `ai_contact_enqueue_buywhich`/`apply_buywhich`/`apply_buy0` (human, tags
+  43/44). Test in `test_ai_contact.c`. `ctest` 46/46.
+  **Same day — Haggle arm added** (`iStack_5e == 2`): `ai_contact_2e92_haggle`
+  — roll `RNG(0, bid/25+8)`; `price < 11` or roll `<= difficulty+1` →
+  refuse (alarm +2, `sticky_trade_good = 0xfe`, `@BADHAGGLE2`); else
+  `price -= price>>2` (floor 10), 1-in-(8−difficulty) alarm +1, re-ask with
+  `@BUY1` (tag built at runtime as `"BUY"+digit`, like DOS's
+  `FUN_0000_d9b4`+`'0'+iStack_88`). Only `2820`'s sell-side hard-bargain
+  (`306c`) remains PARKED.
+
+- [x] **T1.23 — `@VIOLATE` trigger (`FUN_4720_049e`) — closed as a dead
+  tag (2026-08-27).** No `VIOLAT` string exists in `VICEROY.EXE`'s DS, so
+  DOS never shows `@VIOLATE`. `4720_049e` pushes `@HAVETREATY`/`@SNEAK`/
+  `@CANCELPEACE`/`@DECLAREWAR` — the encounter → war-declare flow already
+  covered by `DIPLO_WAR`. Doc-only.
+
+- [ ] **T1.24 — `20e6` `LAB_52aa` attack-odds core, byte-exact.** Shape
+  recovered from the asm 2026-08-27 (`move_scoring_20e6_full.md` tail):
+  `odds = ((4fa8(foe,0)+1) / max(4fa8(foe,2),1)) × 5fef_1b0e(unit,x,y,0,0)
+  / max(@UNIT col+6, 1)` then the known modifiers. Blockers: `5fef_1b0e`'s
+  probe-mode return value and `4fa8` cases 0/2/0xb on a unit record (the
+  "case 2 = transport-chain splice" reading conflicts with its use as a
+  divisor here — re-verify). Static work, medium size.
+
 ## Tier 3 — Confirm with the user before flipping
 
 The engineering/verification for these can happen autonomously (do that

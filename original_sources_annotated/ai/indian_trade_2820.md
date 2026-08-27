@@ -1122,3 +1122,22 @@ Remaining fidelity gaps (refinements, not blockers):
   stores on `alarm_by_player`; the two Linux fields drift independently.
   Candidate Tier 2 consolidation, not done here (behavior change across
   many sites — user call).
+
+
+## 2026-08-27 — `LAB_002e92` ported (tribe sells to an empty-handed unit)
+
+`ai_contact_auto_buy_2e92` (AI) / `ai_contact_enqueue_buywhich` +
+`apply_buywhich` + `apply_buy0` (human) in `ai_contact.c`. `-25000` =
+`DS:0x9e58` ask table, `-0x6188` = `DS:0x9e78` bid table (from
+`indian_meet_scoring_2154.md`); `FUN_1000_a0c0` is the `FUN_1cf8_000a`
+insertion sort over keys+payload, so `acStack_98` ends up ordered by bid and
+`(&cStack_89)[-i]` walks it from the top. `-0x7b44` → fixed `DS:0x84BC`
+throttle bytes (captured 2026-08-22) as `k_2820_throttle`. Price formula
+transcribed as-is. Open: `DS:0x8dc4` quantity source (ported 100, ships
+`>>2`), the Haggle arm (`iStack_5e == 2`) and `@BRING` (the "we need X and
+Y" line when nothing is sellable) — not ported.
+
+**Haggle arm (same day):** `iStack_5e == 2` ported as `ai_contact_2e92_haggle`
+(refuse: alarm +2, `tribe+7 = 0xfe`, `@BADHAGGLE2` `0x15b8`; counter: −25%
+floor 10, 1-in-(8−diff) alarm +1, re-ask via `@BUY1`). `@BADHAGGLE0/1`
+(`0x157c`/`0x156a`) are the sell-side lines and stay with `306c` (PARKED).
