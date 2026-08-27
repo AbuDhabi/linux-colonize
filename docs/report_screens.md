@@ -643,6 +643,10 @@ Each block: a 16x16 headband portrait (`ICONS.SS` #113) + `"<PluralTribeName>:"`
 colored per-tribe, right-aligned tribe level (Semi-Nomadic/Agrarian/Advanced/
 Civilized) same color, then a black fixed-column stats line — Villages
 (always shown) / Missions / Muskets / Horse Herds (each skipped when 0).
+**"Missions" and "Horse Herds" now resolve live from `LABELS.TXT` `@MISC`
+(2026-08-27, indices 28/45) — "Villages" and "Muskets" alone have no match
+anywhere in that file (only "Villages Burned" and the `NAMES.TXT` cargo
+name "Muskets" exist), so those two stay hardcoded.**
 
 **The real find this report needed**: golden's Muskets numbers (150, 700)
 don't match `ColonizeCol1Indian.muskets` directly (0, 5) by any obvious

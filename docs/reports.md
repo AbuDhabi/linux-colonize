@@ -36,10 +36,15 @@ test. There is no DOS mechanic for clicking a report row to jump to the
 colony/map screen or center a unit — Colony/Naval/Foreign/Economic/Indian
 are read-only paginated tables in the decompile.
 
-Open gaps: titles/column headers in `reports.c` are hardcoded English
+Open gaps: column headers/body strings in `reports.c` are hardcoded English
 strings matched by eye against goldens, not resolved live from
 `LABELS.TXT`/`GAME.TXT` (unlike popup bodies, `popup_string_resolver.md`) —
-content is correct today but not string-table-driven. Hall of Fame has no
+content is correct today but not string-table-driven. **Screen titles are
+the exception, fixed 2026-08-26**: `reports_title` now resolves live from
+`LABELS.TXT` `@MISC` (all 9 titles are real shipped strings there — an
+earlier pass's "not shipped as text anywhere" conclusion was a spelling
+mismatch in its own search, not a real absence; see `port_plan.md` P2.2).
+Hall of Fame has no
 golden screenshot at all, unlike every F2-F10 report, so its layout is
 unconfirmed against DOS. Congress page 2's FF portrait slot table has only
 10 of 25 positions confirmed. F9's headband-portrait variant selection
@@ -50,7 +55,7 @@ unconfirmed against DOS. Congress page 2's FF portrait slot table has only
 - Plate bring-up: `FUN_3f41_0000` (load art+palette into the "2da8" UI box)
   -> `reports_load()`/`reports_render()`.
 - Footer/title strip: `FUN_3f41_008a` (default y=0xb8) -> centered
-  FONTTINY.FF title in `reports_render_body_start()` (`reports.c:311`),
+  FONTTINY.FF title in `reports_render_body_start()` (`reports.c:421`),
   native y=5 for every report except Foreign (y=2, golden override) and
   Score (own layout).
 - OK button: bottom-right, native (286,184)-(316,198)
@@ -83,7 +88,7 @@ unconfirmed against DOS. Congress page 2's FF portrait slot table has only
 - Strings: title "RELIGIOUS ADVISER REPORT" (hardcoded English); FF names
   from the port's `k_ff_names[]` (NAMES.TXT @FATHERS order).
 - Port status: Done (golden `religious.png`) —
-  `reports_render_religious` (`reports.c:634`).
+  `reports_render_religious` (`reports.c:873`).
 
 ## F3 - Continental Congress
 
@@ -112,7 +117,7 @@ unconfirmed against DOS. Congress page 2's FF portrait slot table has only
   English, need FONTTINY not FONTSMAL.
 - Port status: Done (golden `continental_p1.png`/`continental_p2.png`,
   2026-08-25 per roadmap.md) — `reports_render_congress_page1`/`_page2`
-  (`reports.c:731`/`902`).
+  (`reports.c:970`/`1141`).
 
 ## F4 - Labor Adviser
 
@@ -140,7 +145,7 @@ unconfirmed against DOS. Congress page 2's FF portrait slot table has only
 - Strings: title "LABOR ADVISER REPORT"; job names via
   `reports_job_name()`; "(Click on item to zoom)" hardcoded, matches golden.
 - Port status: Done (golden `labor.png`/`labor_detail.png`) —
-  `reports_render_labor_grid`/`_detail` (`reports.c:1101`/`1153`). Real gap
+  `reports_render_labor_grid`/`_detail` (`reports.c:1340`/`1392`). Real gap
   found and fixed while porting: `UNITS_JOB_NONE` (28) must fold into Free
   Colonists (19) or unspecialized colonists silently drop out of every
   bucket.
@@ -166,10 +171,14 @@ unconfirmed against DOS. Congress page 2's FF portrait slot table has only
 - Scroll/paging: 1 + ceil(colony_count/17) pages
   (`reports_economic_page_count`).
 - Click targets: none; OK/Esc/Enter advances page, wraps to map from last.
-- Strings: title "ECONOMIC ADVISER REPORT"; column headers and subtitle
-  "European Trade" hardcoded.
+- Strings: title "ECONOMIC ADVISER REPORT" resolves live (`reports_title`).
+  **Fixed 2026-08-27**: "Tons"/"Gold"/"Bid Price"/"Ask Price" column
+  headers now also resolve live from `LABELS.TXT` `@MISC` (#58/#59/#203/
+  #204) via `reports_labels_field`, same as the report titles. Both page
+  subtitles also resolve live now: "European Trade" (`@MISC` #206) and
+  "Cargo in Port" (`@MISC` #207).
 - Port status: Done (golden `economic_p1.png`/`economic_p2.png`) —
-  `reports_render_economic_trade`/`_cargo` (`reports.c:1349`/`1441`).
+  `reports_render_economic_trade`/`_cargo` (`reports.c:1588`/`1700`).
 
 ## F6 - Colony Adviser
 
@@ -193,10 +202,13 @@ unconfirmed against DOS. Congress page 2's FF portrait slot table has only
 - Scroll/paging: 2*ceil(colony_count/9) pages — first half Military
   Garrisons, second half Sons of Liberty (`reports_colony_page_count`).
 - Click targets: none; OK/Esc/Enter advances page.
-- Strings: title "COLONY ADVISER REPORT"; colony/building names from save.
+- Strings: title "COLONY ADVISER REPORT" and the two page subtitles
+  ("Military Garrisons" `@MISC` #208, "Sons of Liberty" `@MISC` #209) all
+  resolve live (**fixed 2026-08-27**, same `reports_labels_field` pattern
+  as F5); colony/building names from save.
 - Port status: Done (golden `colony_p1.png`/`colony_p2.png`) —
   `reports_render_colony_sidebar`/`_garrisons`/`_sol`
-  (`reports.c:1617`/`1651`/`1769`). Surfaced two real project-wide bugs
+  (`reports.c:1878`/`1912`/`2032`). Surfaced two real project-wide bugs
   fixed during porting: magenta nation-color box on report backgrounds
   (`unit_chrome` palette), unrecolored colony-icon flag — see
   `report_screens.md`.
@@ -218,10 +230,12 @@ unconfirmed against DOS. Congress page 2's FF portrait slot table has only
   naval types.
 - Scroll/paging: 7 rows/page (`reports_naval_page_count`).
 - Click targets: none; OK/Esc/Enter advances page.
-- Strings: title "NAVAL ADVISER REPORT"; body needs FONTTINY not FONTSMAL
-  (FONTSMAL rendered upper-case-only and too wide at this size).
+- Strings: title "NAVAL ADVISER REPORT" and the 4 column headers ("Ship"/
+  "Cargo"/"Location"/"Destination", `@MISC` #61-64, a clean consecutive
+  block) all resolve live (**fixed 2026-08-27**); body needs FONTTINY not
+  FONTSMAL (FONTSMAL rendered upper-case-only and too wide at this size).
 - Port status: Done (golden `naval.png`) — `reports_render_naval`
-  (`reports.c:2152`). Two real pre-existing `col1_bridge_apply` bugs found
+  (`reports.c:2417`). Two real pre-existing `col1_bridge_apply` bugs found
   and fixed while building this report's row list: Fortified land units at
   a colony dock were being "boarded" onto the docked ship; `cargo_hold[]`
   bytes past `holds_occupied` can be stale, producing phantom cargo —
@@ -254,10 +268,16 @@ unconfirmed against DOS. Congress page 2's FF portrait slot table has only
   Naval/Economic/Colony); 4 fixed blocks always fit.
 - Click targets: none.
 - Strings: title "FOREIGN AFFAIRS REPORT" (drawn ~3px higher than the
-  shared default — a real REPORT8.PIK-specific override); "Peace"/"War"/
-  "Rebels:"/"Tories:"/"(Withdrawn from New World)" hardcoded.
+  shared default — a real REPORT8.PIK-specific override, resolves live
+  via `reports_title`); "Rebels:"/"Tories:" hardcoded (no bare-word match
+  in `LABELS.TXT` — only "Rebel"/"Tory" singular/adjective forms exist,
+  wrong grammatical shape for these labels). "Peace"/"War" **fixed
+  2026-08-27**, now resolve live (`@MISC` #102/#101). "(Withdrawn from New
+  World)" **fixed 2026-08-26** — resolves live from `LABELS.TXT` `@MISC`
+  index 190 (was cited here as raw line "#205", same line-number-vs-index
+  mix-up the title fix corrected elsewhere).
 - Port status: Done (golden `foreign.png`) — `reports_render_foreign`
-  (`reports.c:2380`).
+  (`reports.c:2653`).
 
 ## F9 - Indian Adviser
 
@@ -286,7 +306,7 @@ unconfirmed against DOS. Congress page 2's FF portrait slot table has only
   @TRIBES col 0 (plural, not the singular/adjective col 1 used elsewhere);
   tribe-level words hardcoded.
 - Port status: Done (golden `indian.png`) — `reports_render_indian`
-  (`reports.c:2592`). The muskets x50 formula and mission-nation filter
+  (`reports.c:2874`). The muskets x50 formula and mission-nation filter
   were both real, previously-undocumented DOS behavior found only by
   reading the decompile line-by-line.
 
@@ -327,7 +347,7 @@ unconfirmed against DOS. Congress page 2's FF portrait slot table has only
   index 68 (WOODPANL.PIK-specific, not the usual report-plate 14/15/97).
 - Port status: Done (golden `score.png`) — `reports_render_score`/
   `reports_score_collect_citizen_jobs`/`reports_score_draw_citizen_icons`
-  (`reports.c:3043`/`2779`/`3002`). Golden's citizen breakdown (142
+  (`reports.c:3335`/`3071`/`3294`). Golden's citizen breakdown (142
   colony-pop + 16 field-colonist points = 158) required the exact
   "profession byte 0-27 or nothing" rule above; flipped one pre-existing
   unit test's expected value (a Pioneer with sentinel profession byte 28
@@ -345,20 +365,26 @@ unconfirmed against DOS. Congress page 2's FF portrait slot table has only
   ranked from a text file (`game_hof_path`/`_load`/`_save`/`_insert`)
   analogous to DOS's `HALLFAME.DAT`; entries also appended on Retire
   (`reports_compute_score` -> `game_hof_insert`/`_save`, `game_loop.c:7651`).
-- Columns/layout: title "COLONIZATION HALL OF FAME" (LABELS.TXT #207, the
-  one confirmed-real DOS label string in this file), "Esc / Enter returns
+- Columns/layout: title "COLONIZATION HALL OF FAME" (`LABELS.TXT` `@MISC`
+  index 192 — the "#207" this doc used to cite was always a raw grep line
+  number, not an `@MISC` index; corrected 2026-08-26), "Esc / Enter returns
   to menu", header row "Leader / Nation / Score / A.D.", up to
   `COLONIZE_HOF_ROW_MAX` (10) ranked rows,
   `"%2d.  %-24s %-10s %6d  %d"`.
 - Ordering: rank descending by score (`game_hof_insert`).
 - Scroll/paging: none — hard-capped at 10 rows.
 - Click targets: none.
-- Strings: only the title is a confirmed real DOS label (#207); header row
-  and "Esc / Enter returns to menu" are port-invented English, not
-  verified against a DOS golden.
+- Strings: **fixed 2026-08-26** — title and 3 of the header row's 4 words
+  ("Leader" #197, "Score" #198, "A.D." #194) now resolve live from
+  `LABELS.TXT` `@MISC` (`reports_render_hall_of_fame`, same
+  `reports_labels_field` helper P2.2's title fix added), falling back to
+  the old literal text when assets aren't loaded — byte-identical output
+  today since the live and static text already matched. Only "Nation"
+  (no match anywhere in `LABELS.TXT`) and "Esc / Enter returns to menu"
+  stay hardcoded — genuinely unconfirmed against DOS.
 - Port status: Done thin — functions and persists correctly, but no golden
   screenshot exists for this screen (unlike every F2-F10 report), so exact
   DOS column widths/positions/chrome are unconfirmed.
-  `reports_render_hall_of_fame` (`reports.c:3191`).
+  `reports_render_hall_of_fame` (`reports.c:3483`).
 </content>
 </invoke>

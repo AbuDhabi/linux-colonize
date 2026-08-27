@@ -3540,7 +3540,9 @@ static void units_try_capture_foreign_colony(
 }
 
 /* Boarding helpers are defined later; enter_probe needs the embark probe. */
-int units_find_boardable_ship(const ColonizeUnitPool* pool, int x, int y, int nation_id);
+int units_find_boardable_ship(
+  const ColonizeUnitPool* pool, int x, int y, int nation_id, bool require_galleon
+);
 
 ColonizeEnterReason units_enter_probe(
   const ColonizeUnitPool* pool,
@@ -3676,7 +3678,9 @@ ColonizeEnterReason units_enter_probe(
      * Land → ocean/HS: embark if own ship on dest has room (FUN_4720_015c /
      * 0006). Otherwise domain deny.
      */
-    if (mover_nation >= 0 && units_find_boardable_ship(pool, x, y, mover_nation) >= 0) {
+    const bool board_needs_galleon = type && type->name[0] && strstr(type->name, "Treasure") != NULL;
+    if (mover_nation >= 0 &&
+        units_find_boardable_ship(pool, x, y, mover_nation, board_needs_galleon) >= 0) {
       g_units_last_enter_reason = COLONIZE_ENTER_BOARD;
       return g_units_last_enter_reason;
     }
@@ -3957,7 +3961,11 @@ bool units_try_move(
       units_despawn(pool, village_temp);
       village_temp = -1;
     }
-    const int ship_id = units_find_boardable_ship(pool, dest_x, dest_y, unit->nation_id);
+    const ColonizeUnitType* mover_ty = units_type(pool, unit->type_index);
+    const bool board_needs_galleon =
+      mover_ty && mover_ty->name[0] && strstr(mover_ty->name, "Treasure") != NULL;
+    const int ship_id =
+      units_find_boardable_ship(pool, dest_x, dest_y, unit->nation_id, board_needs_galleon);
     if (ship_id < 0) {
       g_units_last_enter_reason = COLONIZE_ENTER_BLOCKED_DOMAIN;
       return false;
@@ -5958,7 +5966,9 @@ bool units_board_stacked(ColonizeUnitPool* pool, int land_unit_id, int ship_id) 
   return true;
 }
 
-int units_find_boardable_ship(const ColonizeUnitPool* pool, int x, int y, int nation_id) {
+int units_find_boardable_ship(
+  const ColonizeUnitPool* pool, int x, int y, int nation_id, bool require_galleon
+) {
   if (!pool || nation_id < 0) {
     return -1;
   }
@@ -5972,6 +5982,13 @@ int units_find_boardable_ship(const ColonizeUnitPool* pool, int x, int y, int na
     }
     if (ship->x != x || ship->y != y) {
       continue;
+    }
+    if (require_galleon) {
+      /* Treasure Trains may only board a Galleon (Colonization.pdf; P7.3). */
+      const ColonizeUnitType* sty = units_type(pool, ship->type_index);
+      if (!sty || !sty->name[0] || strstr(sty->name, "Galleon") == NULL) {
+        continue;
+      }
     }
     const int cap = units_ship_capacity(pool, ship->id);
     if (cap > 0 && ship->cargo_count < cap) {

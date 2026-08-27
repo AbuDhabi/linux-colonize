@@ -55,6 +55,47 @@ int main(void) {
     }
   }
 
+  /*
+   * reports_title live LABELS.TXT resolution (2026-08-26 fix): each id's
+   * title should now come from the real asset, not just the hardcoded
+   * k_report_titles fallback (which happens to already match byte-for-byte,
+   * so this only proves the live path, not just that the fallback exists).
+   */
+  static const struct {
+    ColonizeReportId id;
+    const char* title;
+  } expect_title[] = {
+    {COLONIZE_REPORT_RELIGIOUS, "RELIGIOUS ADVISER REPORT"},
+    {COLONIZE_REPORT_CONGRESS, "CONTINENTAL CONGRESS ACTIVITIES"},
+    {COLONIZE_REPORT_LABOR, "LABOR ADVISER REPORT"},
+    {COLONIZE_REPORT_ECONOMIC, "ECONOMIC ADVISER REPORT"},
+    {COLONIZE_REPORT_COLONY, "COLONY ADVISER REPORT"},
+    {COLONIZE_REPORT_NAVAL, "NAVAL ADVISER REPORT"},
+    {COLONIZE_REPORT_FOREIGN, "FOREIGN AFFAIRS REPORT"},
+    {COLONIZE_REPORT_INDIAN, "INDIAN ADVISER REPORT"},
+    {COLONIZE_REPORT_SCORE, "COLONIZATION SCORE"}
+  };
+  for (size_t i = 0; i < sizeof(expect_title) / sizeof(expect_title[0]); ++i) {
+    const char* got = reports_title(expect_title[i].id);
+    if (!got || strcmp(got, expect_title[i].title) != 0) {
+      fprintf(
+        stderr,
+        "reports_title id=%d got='%s' want='%s'\n",
+        (int)expect_title[i].id,
+        got ? got : "(null)",
+        expect_title[i].title
+      );
+      reports_free(&view);
+      return 1;
+    }
+  }
+  /* Out-of-range id still falls back safely. */
+  if (strcmp(reports_title((ColonizeReportId)999), "REPORT") != 0) {
+    fprintf(stderr, "reports_title out-of-range should return \"REPORT\"\n");
+    reports_free(&view);
+    return 1;
+  }
+
   ColonizeReportId mapped = COLONIZE_REPORT_COUNT;
   if (reports_id_from_fkey(1, &mapped)) {
     fprintf(stderr, "F1 should not map to a report plate\n");

@@ -763,20 +763,26 @@ typedef struct ColonizeCol1Stuff {
   uint8_t veteran_teach_threshold[4];
   uint8_t field_combat_totals[4]; /* DS:0x942c — land combat not in colony / not A|G */
   uint8_t unit_type_counts[4][19]; /* DS:0x924c — nation × unit-type (FUN_4962_0018) */
-  /* File 140..716 — was unknown36[577]; DS-named save chunks (FUN_75c2_0288). */
-  uint8_t unknown_ds_947e[16];
+  /* File 140..716 — was unknown36[577]; DS-named save chunks (FUN_75c2_0288).
+   * The 8 fields below were renamed off generic unknown_ds_XXXX names
+   * 2026-08-26 — semantics confirmed in save_format_map.md's "Stuff" table
+   * (FUN_4962_0018/FUN_4962_06b6 raw-.asm register traces), a cosmetic
+   * rename-only follow-up flagged in mysteries_catalog.md; JSON key strings
+   * in tools/col1_json.c kept stable (unchanged "unknown_ds_XXXX_hex"), same
+   * convention as the earlier unknown31b/31c_pad rename. */
+  uint8_t village_counts_by_continent[16]; /* DS:0x947e */
   uint8_t unknown_ds_95f2[16]; /* AI flag bytes — FUN_4d56_4528 / 5952_035e */
-  uint8_t unknown_ds_94a6[64];
+  uint8_t land_unit_counts_by_continent[64]; /* DS:0x94a6 */
   uint8_t unknown_ds_94e6[64]; /* FUN_5952_035e tallies */
-  uint8_t unknown_ds_95b2[64];
-  uint8_t unknown_ds_9526[64];
-  uint8_t unknown_ds_918c[64];
-  uint8_t unknown_ds_9572[64];
+  uint8_t field_combat_strength_by_continent[64]; /* DS:0x95b2 */
+  uint8_t skilled_unit_counts_by_continent[64]; /* DS:0x9526 */
+  uint8_t unit_value_sum_by_continent[64]; /* DS:0x918c */
+  uint8_t combat_value_sum_by_continent[64]; /* DS:0x9572 */
   uint8_t unknown_ds_944e[8]; /* pop word totals sibling (FUN_4962_0018 ADD) */
   uint8_t ui_toggle_336; /* DS:0x336 — FUN_2f2b_* (smcol: show_colony_prod_quantities) */
   uint8_t tribe_data_9184[8];
-  uint8_t unknown_ds_9622[8];
-  uint8_t unknown_ds_962a[8];
+  uint8_t tribe_population_totals[8]; /* DS:0x9622 */
+  uint8_t tribe_village_counts[8]; /* DS:0x962a */
   uint8_t tribe_dwellings_91cc[128];
   uint16_t x; /* DS:0x8540 — focus tile */
   uint16_t y; /* DS:0x853e */

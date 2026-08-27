@@ -37,6 +37,21 @@ static const char* k_report_files[COLONIZE_REPORT_COUNT] = {
 static ColonizeMsgCatalog g_reports_names;
 static bool g_reports_names_ok = false;
 
+/*
+ * `k_report_titles` (below reports_title) is a hand-typed copy of LABELS.TXT
+ * `@MISC`'s "<X> ADVISER REPORT" / "CONTINENTAL CONGRESS ACTIVITIES" /
+ * "COLONIZATION SCORE" lines — byte-checked correct against the real asset
+ * 2026-08-26 (P2.2's earlier "these titles aren't shipped as text anywhere"
+ * finding was itself wrong: an earlier grep searched for "Religious
+ * Advisor" — American spelling, no "REPORT" suffix — the real asset spells
+ * it "RELIGIOUS ADVISER REPORT"). `g_reports_labels` is the live source
+ * (one LABELS.TXT parse), loaded once in reports_load; reports_title
+ * prefers it and only falls back to `k_report_titles` when assets aren't
+ * available (tests, missing data dir) — same shape as `g_reports_names`.
+ */
+static ColonizeMsgCatalog g_reports_labels;
+static bool g_reports_labels_ok = false;
+
 static const char* k_report_titles[COLONIZE_REPORT_COUNT] = {
   "RELIGIOUS ADVISER REPORT",
   "CONTINENTAL CONGRESS ACTIVITIES",
@@ -166,6 +181,10 @@ void reports_free(ColonizeReportsView* view) {
     assets_msg_free(&g_reports_names);
     g_reports_names_ok = false;
   }
+  if (g_reports_labels_ok) {
+    assets_msg_free(&g_reports_labels);
+    g_reports_labels_ok = false;
+  }
 }
 
 /* Nearest-color remap of a sprite sheet's own palette onto dst_pal (see
@@ -260,6 +279,21 @@ bool reports_load(ColonizeReportsView* view, const char* data_dir, char* err, si
     assets_msg_free(&g_reports_names);
   }
 
+  /* LABELS.TXT live report titles (reports_title) — same best-effort/
+   * fallback shape as the NAMES.TXT block above. */
+  if (g_reports_labels_ok) {
+    assets_msg_free(&g_reports_labels);
+    g_reports_labels_ok = false;
+  }
+  char labels_path[512];
+  assets_msg_init(&g_reports_labels);
+  if (dos_compat_normalize_asset_path(data_dir, "LABELS.TXT", labels_path, sizeof(labels_path)) &&
+      assets_msg_load_file(&g_reports_labels, labels_path)) {
+    g_reports_labels_ok = true;
+  } else {
+    assets_msg_free(&g_reports_labels);
+  }
+
   /* Cross counter (Religious report) reuses the game's standard resource-count
    * icon (ICONS.SS #56), remapped to REPORT2.PIK's palette. */
   char ss_path[512];
@@ -303,11 +337,54 @@ bool reports_load(ColonizeReportsView* view, const char* data_dir, char* err, si
   return true;
 }
 
+/*
+ * 0-based line index within LABELS.TXT `@MISC` for each report title,
+ * `k_report_titles` order (Religious/Congress/Labor/Economic/Colony/Naval/
+ * Foreign/Indian/Score). Computed 2026-08-26 by counting non-blank,
+ * non-comment `@MISC` lines directly (`COLONIZE/LABELS.TXT`) — re-derive
+ * the same way if the asset ever changes.
+ */
+static const int k_report_title_labels_index[COLONIZE_REPORT_COUNT] = {
+  30, 37, 49, 50, 51, 52, 93, 29, 114
+};
+
+/*
+ * Nth non-blank, non-comment (';') line of `section` in g_reports_labels —
+ * LABELS.TXT has no comma columns (unlike NAMES.TXT/reports_names_field),
+ * just one string per line. NULL when the live catalog, section, or index
+ * isn't available. Static return buffer: use/copy before the next call.
+ */
+static const char* reports_labels_field(const char* section, int index) {
+  if (!g_reports_labels_ok || index < 0) {
+    return NULL;
+  }
+  const ColonizeMsgSection* sec = assets_msg_find(&g_reports_labels, section);
+  if (!sec) {
+    return NULL;
+  }
+  int i2 = 0;
+  for (int i = 0; i < sec->line_count; ++i) {
+    const char* line = sec->lines[i];
+    if (!line || line[0] == '\0' || line[0] == ';') {
+      continue;
+    }
+    if (i2 != index) {
+      i2++;
+      continue;
+    }
+    static char live[64];
+    str_copy_trunc(live, sizeof(live), line);
+    return live;
+  }
+  return NULL;
+}
+
 const char* reports_title(ColonizeReportId id) {
   if (id < 0 || id >= COLONIZE_REPORT_COUNT) {
     return "REPORT";
   }
-  return k_report_titles[id];
+  const char* live = reports_labels_field("MISC", k_report_title_labels_index[id]);
+  return live ? live : k_report_titles[id];
 }
 
 const char* reports_background_name(ColonizeReportId id) {
@@ -1521,19 +1598,39 @@ static void reports_render_economic_trade(
 ) {
   font = (view && view->title_font_ok) ? &view->title_font : font;
   if (font) {
-    static const char kSubtitle[] = "European Trade";
+    /* LABELS.TXT @MISC index 206 (2026-08-27 fix, same helper as the
+     * column headers below). */
+    const char* live = reports_labels_field("MISC", 206);
+    const char* kSubtitle = live ? live : "European Trade";
     const int w = font_text_width(font, kSubtitle);
     reports_draw_line(font, fb, (fb->width - w) / 2, y - 1, kSubtitle, REPORTS_ECON_LABEL_COLOR);
   }
 
-  reports_draw_right(font, fb, REPORTS_ECON1_TONS_RIGHT, REPORTS_ECON1_HEADER_Y, "Tons", REPORTS_ECON_LABEL_COLOR);
-  reports_draw_right(font, fb, REPORTS_ECON1_GOLD_RIGHT, REPORTS_ECON1_HEADER_Y, "Gold", REPORTS_ECON_LABEL_COLOR);
-  reports_draw_right(
-    font, fb, REPORTS_ECON1_BID_RIGHT, REPORTS_ECON1_HEADER_Y, "Bid Price", REPORTS_ECON_LABEL_COLOR
-  );
-  reports_draw_right(
-    font, fb, REPORTS_ECON1_ASK_RIGHT, REPORTS_ECON1_HEADER_Y, "Ask Price", REPORTS_ECON_LABEL_COLOR
-  );
+  /* Column headers live from LABELS.TXT @MISC (2026-08-27 fix, same
+   * reports_labels_field helper as the report titles / Hall of Fame
+   * header): Tons #58, Gold #59, Bid Price #203, Ask Price #204. */
+  {
+    const char* tons_w = reports_labels_field("MISC", 58);
+    const char* gold_w = reports_labels_field("MISC", 59);
+    const char* bid_w = reports_labels_field("MISC", 203);
+    const char* ask_w = reports_labels_field("MISC", 204);
+    reports_draw_right(
+      font, fb, REPORTS_ECON1_TONS_RIGHT, REPORTS_ECON1_HEADER_Y, tons_w ? tons_w : "Tons",
+      REPORTS_ECON_LABEL_COLOR
+    );
+    reports_draw_right(
+      font, fb, REPORTS_ECON1_GOLD_RIGHT, REPORTS_ECON1_HEADER_Y, gold_w ? gold_w : "Gold",
+      REPORTS_ECON_LABEL_COLOR
+    );
+    reports_draw_right(
+      font, fb, REPORTS_ECON1_BID_RIGHT, REPORTS_ECON1_HEADER_Y, bid_w ? bid_w : "Bid Price",
+      REPORTS_ECON_LABEL_COLOR
+    );
+    reports_draw_right(
+      font, fb, REPORTS_ECON1_ASK_RIGHT, REPORTS_ECON1_HEADER_Y, ask_w ? ask_w : "Ask Price",
+      REPORTS_ECON_LABEL_COLOR
+    );
+  }
 
   const int table_bottom = REPORTS_ECON1_ROW0_Y + REPORTS_ECON1_ROWS * REPORTS_ECON1_ROW_STEP;
   for (int i = 0; i <= REPORTS_ECON1_ROWS; ++i) {
@@ -1613,7 +1710,9 @@ static void reports_render_economic_cargo(
 ) {
   font = (view && view->title_font_ok) ? &view->title_font : font;
   if (font) {
-    static const char kSubtitle[] = "Cargo in Port";
+    /* LABELS.TXT @MISC index 207 (2026-08-27 fix). */
+    const char* live = reports_labels_field("MISC", 207);
+    const char* kSubtitle = live ? live : "Cargo in Port";
     const int w = font_text_width(font, kSubtitle);
     reports_draw_line(font, fb, (fb->width - w) / 2, y - 1, kSubtitle, REPORTS_ECON_LABEL_COLOR);
   }
@@ -1825,7 +1924,9 @@ static void reports_render_colony_garrisons(
 ) {
   font = (view && view->title_font_ok) ? &view->title_font : font;
   if (font) {
-    static const char kSubtitle[] = "Military Garrisons";
+    /* LABELS.TXT @MISC index 208 (2026-08-27 fix). */
+    const char* live = reports_labels_field("MISC", 208);
+    const char* kSubtitle = live ? live : "Military Garrisons";
     const int w = font_text_width(font, kSubtitle);
     reports_draw_line(font, fb, (fb->width - w) / 2, y - 1, kSubtitle, REPORTS_COLONY_LABEL_COLOR);
   }
@@ -1942,7 +2043,9 @@ static void reports_render_colony_sol(
 ) {
   font = (view && view->title_font_ok) ? &view->title_font : font;
   if (font) {
-    static const char kSubtitle[] = "Sons of Liberty";
+    /* LABELS.TXT @MISC index 209 (2026-08-27 fix). */
+    const char* live = reports_labels_field("MISC", 209);
+    const char* kSubtitle = live ? live : "Sons of Liberty";
     const int w = font_text_width(font, kSubtitle);
     reports_draw_line(font, fb, (fb->width - w) / 2, y - 1, kSubtitle, REPORTS_COLONY_LABEL_COLOR);
   }
@@ -2326,19 +2429,26 @@ static void reports_render_naval(
    * also turned out to be upper-case-only at this size); same pitfall as
    * Congress page 1's body (docs/report_screens.md). */
   font = (view && view->title_font_ok) ? &view->title_font : font;
+  /* Column headers live from LABELS.TXT @MISC (2026-08-27 fix): Ship #61,
+   * Cargo #62, Location #63, Destination #64 — a clean consecutive block. */
+  const char* ship_w = reports_labels_field("MISC", 61);
+  const char* cargo_w = reports_labels_field("MISC", 62);
+  const char* location_w = reports_labels_field("MISC", 63);
+  const char* dest_w = reports_labels_field("MISC", 64);
   reports_naval_draw_centered(
-    font, fb, 0, REPORTS_NAVAL_DIV1_X, REPORTS_NAVAL_HEADER_Y, "Ship", REPORTS_NAVAL_HEADER_COLOR
-  );
-  reports_naval_draw_centered(
-    font, fb, REPORTS_NAVAL_DIV1_X, REPORTS_NAVAL_DIV2_X, REPORTS_NAVAL_HEADER_Y, "Cargo",
+    font, fb, 0, REPORTS_NAVAL_DIV1_X, REPORTS_NAVAL_HEADER_Y, ship_w ? ship_w : "Ship",
     REPORTS_NAVAL_HEADER_COLOR
   );
   reports_naval_draw_centered(
-    font, fb, REPORTS_NAVAL_DIV2_X, REPORTS_NAVAL_DIV3_X, REPORTS_NAVAL_HEADER_Y, "Location",
-    REPORTS_NAVAL_HEADER_COLOR
+    font, fb, REPORTS_NAVAL_DIV1_X, REPORTS_NAVAL_DIV2_X, REPORTS_NAVAL_HEADER_Y,
+    cargo_w ? cargo_w : "Cargo", REPORTS_NAVAL_HEADER_COLOR
   );
   reports_naval_draw_centered(
-    font, fb, REPORTS_NAVAL_DIV3_X, fb->width, REPORTS_NAVAL_HEADER_Y, "Destination",
+    font, fb, REPORTS_NAVAL_DIV2_X, REPORTS_NAVAL_DIV3_X, REPORTS_NAVAL_HEADER_Y,
+    location_w ? location_w : "Location", REPORTS_NAVAL_HEADER_COLOR
+  );
+  reports_naval_draw_centered(
+    font, fb, REPORTS_NAVAL_DIV3_X, fb->width, REPORTS_NAVAL_HEADER_Y, dest_w ? dest_w : "Destination",
     REPORTS_NAVAL_HEADER_COLOR
   );
 
@@ -2420,7 +2530,8 @@ static void reports_render_naval(
  * rule, "<Leader>'s <Adjective>:" (leader name yellow, adjective cream —
  * two draw calls split at the leader segment's measured width, same idiom
  * as a two-color same-line label elsewhere in this file), then either a
- * centered "(Withdrawn from New World)" (LABELS.TXT #205) for a nation
+ * centered "(Withdrawn from New World)" (LABELS.TXT @MISC index 190,
+ * live-resolved) for a nation
  * with player.control==2, or a 2-column grid of "<peer country>: Peace|War"
  * for every OTHER non-withdrawn nation (own-nation and withdrawn peers are
  * skipped — confirmed against the golden: every block lists exactly its 2
@@ -2578,7 +2689,11 @@ static void reports_render_foreign(
 
     const int body_y = block_top + REPORTS_FOREIGN_BODY_DY;
     if (r->withdrawn) {
-      const char* msg = "(Withdrawn from New World)";
+      /* LABELS.TXT @MISC index 190 (was cited as raw line "#205" — same
+       * line-number-vs-index mix-up P2.2's title fix corrected elsewhere;
+       * now actually live-resolved, 2026-08-26). */
+      const char* live = reports_labels_field("MISC", 190);
+      const char* msg = live ? live : "(Withdrawn from New World)";
       const int w = font ? font_text_width(font, msg) : 0;
       reports_draw_line(font, fb, (fb->width - w) / 2, body_y, msg, REPORTS_FOREIGN_LABEL_COLOR);
       continue;
@@ -2590,7 +2705,12 @@ static void reports_render_foreign(
       snprintf(line, sizeof(line), "%s:", k_euro_country[r->peer_nation[p]]);
       reports_draw_line(font, fb, col_x, row_y, line, REPORTS_FOREIGN_LABEL_COLOR);
       const int label_w = font ? font_text_width(font, line) : 0;
-      snprintf(line, sizeof(line), " %s", r->peer_war[p] ? "War" : "Peace");
+      /* "War"/"Peace" live from LABELS.TXT @MISC #101/#102 (2026-08-27 fix). */
+      const char* war_w = reports_labels_field("MISC", 101);
+      const char* peace_w = reports_labels_field("MISC", 102);
+      snprintf(
+        line, sizeof(line), " %s", r->peer_war[p] ? (war_w ? war_w : "War") : (peace_w ? peace_w : "Peace")
+      );
       reports_draw_line(
         font, fb, col_x + label_w, row_y, line,
         r->peer_war[p] ? REPORTS_FOREIGN_WAR_COLOR : REPORTS_FOREIGN_PEACE_COLOR
@@ -2784,11 +2904,20 @@ static void reports_render_indian(
     reports_draw_line_shadowed(font, fb, REPORTS_INDIAN_NAME_X, name_y, name_buf, r->color);
     reports_draw_right_shadowed(font, fb, REPORTS_INDIAN_LEVEL_RIGHT, name_y, r->level, r->color);
 
+    /*
+     * "Missions" (@MISC #28) and "Horse Herds" (@MISC #45) are real
+     * LABELS.TXT words, live-resolved 2026-08-27. "Villages" and
+     * "Muskets" alone have no match anywhere in LABELS.TXT (checked —
+     * only "Villages Burned" and cargo-name "Muskets" via NAMES.TXT
+     * exist, neither the bare word this row needs), so those two stay
+     * hardcoded.
+     */
     char buf[32];
     snprintf(buf, sizeof(buf), "%d Villages", r->villages);
     reports_draw_line(font, fb, REPORTS_INDIAN_VILLAGES_X, stats_y, buf, REPORTS_INDIAN_TEXT_COLOR);
     if (r->missions > 0) {
-      snprintf(buf, sizeof(buf), "%d Missions", r->missions);
+      const char* missions_w = reports_labels_field("MISC", 28);
+      snprintf(buf, sizeof(buf), "%d %s", r->missions, missions_w ? missions_w : "Missions");
       reports_draw_line(font, fb, REPORTS_INDIAN_MISSIONS_X, stats_y, buf, REPORTS_INDIAN_TEXT_COLOR);
     }
     if (r->muskets > 0) {
@@ -2796,7 +2925,8 @@ static void reports_render_indian(
       reports_draw_line(font, fb, REPORTS_INDIAN_MUSKETS_X, stats_y, buf, REPORTS_INDIAN_TEXT_COLOR);
     }
     if (r->horse_herds > 0) {
-      snprintf(buf, sizeof(buf), "%d Horse Herds", r->horse_herds);
+      const char* horses_w = reports_labels_field("MISC", 45);
+      snprintf(buf, sizeof(buf), "%d %s", r->horse_herds, horses_w ? horses_w : "Horse Herds");
       reports_draw_line(font, fb, REPORTS_INDIAN_HORSES_X, stats_y, buf, REPORTS_INDIAN_TEXT_COLOR);
     }
   }
@@ -3367,12 +3497,34 @@ void reports_render_hall_of_fame(
 
   const int step = reports_line_step(font);
   int y = 4;
-  reports_draw_line(font, fb, 8, y, "COLONIZATION HALL OF FAME", 15); /* LABELS.TXT #207 */
+  /*
+   * LABELS.TXT @MISC live strings (2026-08-26 fix — was all hardcoded
+   * despite the title's own long-standing "#207" citation, which was
+   * always a raw grep line number, not an @MISC index — the real 0-based
+   * @MISC index is 192): title index 192, "Leader"/"Score"/"A.D." at
+   * 197/198/194. "Nation" has no match
+   * anywhere in LABELS.TXT (checked) — stays hardcoded, real gap or DOS
+   * genuinely doesn't have that word here, unconfirmed either way (no
+   * golden exists for this screen). Field widths (26/12/7) reproduce the
+   * pre-fix literal's exact spacing byte-for-byte when live text matches
+   * the fallback, since neither this row's real column widths nor its
+   * "Esc / Enter returns to menu" line are DOS-confirmed regardless.
+   */
+  const char* title = reports_labels_field("MISC", 192);
+  reports_draw_line(font, fb, 8, y, title ? title : "COLONIZATION HALL OF FAME", 15);
   y += step;
   reports_draw_line(font, fb, 8, y, "Esc / Enter returns to menu", 14);
   y += step + 4;
 
-  reports_draw_line(font, fb, 8, y, "     Leader                    Nation      Score  A.D.", 15);
+  const char* leader_w = reports_labels_field("MISC", 197);
+  const char* score_w = reports_labels_field("MISC", 198);
+  const char* ad_w = reports_labels_field("MISC", 194);
+  char header[80];
+  snprintf(
+    header, sizeof(header), "     %-26s%-12s%-7s%s", leader_w ? leader_w : "Leader", "Nation",
+    score_w ? score_w : "Score", ad_w ? ad_w : "A.D."
+  );
+  reports_draw_line(font, fb, 8, y, header, 15);
   y += step;
 
   char line[160];

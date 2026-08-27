@@ -2689,6 +2689,49 @@ int main(void) {
     units_despawn(&pool, tid);
   }
 
+  /*
+   * P7.3: Treasure Trains may only board a Galleon, not any ship
+   * (Colonization.pdf). units_find_boardable_ship's require_galleon param
+   * (2026-08-26 fix — was unconditional, any ship with room qualified).
+   */
+  {
+    const int caravel_t = units_find_type(&pool, "Caravel");
+    const int galleon_t = units_find_type(&pool, "Galleon");
+    if (caravel_t < 0 || galleon_t < 0) {
+      fprintf(stderr, "boardable-ship: Caravel/Galleon type missing\n");
+      return 1;
+    }
+    const int caravel_id = units_spawn(&pool, caravel_t, 20, 20);
+    ColonizeUnit* caravel = units_get(&pool, caravel_id);
+    if (!caravel) {
+      fprintf(stderr, "boardable-ship: Caravel spawn failed\n");
+      return 1;
+    }
+    caravel->nation_id = 1;
+    /* Only a Caravel present: plain search finds it, Galleon-only search does not. */
+    if (units_find_boardable_ship(&pool, 20, 20, 1, false) != caravel_id) {
+      fprintf(stderr, "boardable-ship: plain search should find the Caravel\n");
+      return 1;
+    }
+    if (units_find_boardable_ship(&pool, 20, 20, 1, true) >= 0) {
+      fprintf(stderr, "boardable-ship: Galleon-only search must reject a Caravel\n");
+      return 1;
+    }
+    const int galleon_id = units_spawn_allow_stack(&pool, galleon_t, 20, 20);
+    ColonizeUnit* galleon = units_get(&pool, galleon_id);
+    if (!galleon) {
+      fprintf(stderr, "boardable-ship: Galleon spawn failed\n");
+      return 1;
+    }
+    galleon->nation_id = 1;
+    if (units_find_boardable_ship(&pool, 20, 20, 1, true) != galleon_id) {
+      fprintf(stderr, "boardable-ship: Galleon-only search should now find the Galleon\n");
+      return 1;
+    }
+    units_despawn(&pool, caravel_id);
+    units_despawn(&pool, galleon_id);
+  }
+
   /* Native settlement conquer: tribe remove + Cortes peels FUN_5fef_31ea gold. */
   {
     ColonizeCol1Save col1;

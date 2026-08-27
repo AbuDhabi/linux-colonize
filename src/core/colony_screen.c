@@ -3037,6 +3037,7 @@ static void colony_screen_draw_multifunction(
   const ColonizeColony* colony,
   const ColonizeUnitPool* units,
   const ColonizeFont* font,
+  const ColonizeMsgCatalog* labels,
   ColonizeFramebuffer8* framebuffer
 ) {
   if (!view || !framebuffer) {
@@ -3239,12 +3240,19 @@ static void colony_screen_draw_multifunction(
   } else if (view->multi_mode == COLONY_MULTI_UNITS && units) {
     /* Land units at the colony (soldiers, colonists, scouts, artillery, …);
      * ships/wagons stay on the Transport strip — see
-     * colony_screen_multi_units_layout. LABELS.TXT @CMISC "Units Present"
-     * title (golden-confirmed: New Amsterdam's Military tab), centered,
-     * dark blue (WOODPANL.PIK idx 57, exact RGB match against the golden's
-     * sampled ink color). */
+     * colony_screen_multi_units_layout. LABELS.TXT @CMISC index 1 "Units
+     * Present" title (golden-confirmed: New Amsterdam's Military tab),
+     * live-resolved 2026-08-27 (was hardcoded — colony_screen_render
+     * gained a `labels` param for this), centered, dark blue (WOODPANL.PIK
+     * idx 57, exact RGB match against the golden's sampled ink color). */
     if (font) {
       const char* title = "Units Present";
+      if (labels) {
+        const ColonizeMsgSection* cmisc = assets_msg_find(labels, "CMISC");
+        if (cmisc && cmisc->line_count > 1 && cmisc->lines[1][0]) {
+          title = cmisc->lines[1];
+        }
+      }
       const int tw = font_text_width(font, title);
       font_draw_text(font, framebuffer, px + (pane_w - tw) / 2, py, title, 57);
     }
@@ -4529,6 +4537,7 @@ void colony_screen_render(
   int gold,
   const ColonizeFont* font,
   bool debug_building_rects,
+  const ColonizeMsgCatalog* labels,
   ColonizeFramebuffer8* framebuffer
 ) {
   if (!framebuffer || !framebuffer->pixels) {
@@ -4577,7 +4586,7 @@ void colony_screen_render(
   if (view) {
     colony_screen_draw_people(view, colony, units, col1, font, framebuffer);
     colony_screen_draw_transports(view, units, font, framebuffer);
-    colony_screen_draw_multifunction(view, pool, colony, units, font, framebuffer);
+    colony_screen_draw_multifunction(view, pool, colony, units, font, labels, framebuffer);
   }
 
   if (colony) {

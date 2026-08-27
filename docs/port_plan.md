@@ -130,12 +130,26 @@ stays deferred (D4).
   renderers don't have.
 - [ ] **P2.2 [auto]** Shared report scaffolding: heading from
   `LABELS.TXT`, column helper, scroll, click-to-zoom plumbing into
-  `game_loop` (colony screen / center unit). **Screen titles checked
-  2026-08-26: not achievable as stated** — grepped every `COLONIZE/*.TXT`
-  asset for "Religious Advisor"/"Labor Advisor"/etc., zero hits; these
-  titles aren't shipped as text anywhere (drawn as art/font glyphs in
-  DOS), so `k_report_titles` staying hardcoded in `reports.c` is correct,
-  not a gap. **Founding Father names fixed 2026-08-26** (a different,
+  `game_loop` (colony screen / center unit). **Screen titles: earlier
+  "not achievable" note (2026-08-26) was itself wrong, corrected same
+  day.** That pass grepped `COLONIZE/*.TXT` for "Religious Advisor"/
+  "Labor Advisor"/etc. (American spelling, no suffix) and got zero hits —
+  but the real asset spells it "RELIGIOUS ADVISER REPORT" (British
+  spelling, "REPORT" suffix), in `LABELS.TXT` `@MISC` (all 9 titles
+  present, byte-checked). Re-checked and **fixed for real**:
+  `reports_title` (`reports.c`) now resolves live from `LABELS.TXT`
+  `@MISC` via a new `reports_labels_field` helper (mirrors
+  `reports_names_field`'s shape but no comma columns — LABELS.TXT is
+  one-string-per-line) and a `k_report_title_labels_index[]` table (the
+  9 titles' 0-based `@MISC` line positions, hand-counted against the raw
+  file), falling back to the existing `k_report_titles` static array
+  (which already had byte-correct text, just never resolved live) when
+  assets aren't loaded. New `test_reports.c` regression: all 9 ids
+  checked against the real asset text, plus the out-of-range fallback.
+  `ctest`: 43/43 (was 42, +1 assertion block in `unit_reports`), no
+  regressions — visually identical output, since the live and static
+  values already matched exactly. **Founding Father names fixed 2026-08-26**
+  (a different,
   real instance of this row's "hardcoded, not live" problem):
   `reports_ff_name` (`reports.c`) now resolves from `NAMES.TXT @FATHERS`
   live (loaded once in `reports_load`, mirrors the `assets_msg_find`
@@ -155,8 +169,9 @@ stays deferred (D4).
   `test_reports.c` regressions (job 0/27, cargo 0/15, plus the
   post-`reports_free` fallback path for both). `ctest`: 42/42, no
   regressions — live-parsed values match the static tables exactly for
-  the shipped asset, as expected. `k_report_titles`'s own hardcoding
-  stays correct per the note above (no live source exists for those).
+  the shipped asset, as expected. `k_report_titles` itself now also
+  resolves live (see the corrected note above — the "no live source
+  exists" claim was wrong).
   **Tribe names also fixed same day:** `k_tribe_names` (Indian Adviser
   F9 rows) resolves live from `NAMES.TXT @TRIBES` column 0 too — but
   *not* via the shared `reports_names_field` scratch buffer directly,
@@ -177,25 +192,46 @@ stays deferred (D4).
   step, no regressions — this closes P2.2's "hardcoded, not live" gap for
   every report-display string table in `reports.c` except the screen
   titles (confirmed not live-loadable, see note above).
-- [ ] **P2.3 [auto]** F1 Religious Advisor (crosses, immigration, recruit
-  pool) to DOS layout.
-- [ ] **P2.4 [auto]** F2 Continental Congress / F3 as DOS splits them
-  (bells, rebels, FF list) — F3 portrait grid already structural; keep the
-  portraits, fix the stats column.
-- [ ] **P2.5 [auto]** F4 Labor Advisor: profession × colony matrix,
-  click-to-zoom.
-- [ ] **P2.6 [auto]** F5 Economic Advisor: treasury, tax, market bid/ask
-  table, boycotts, trade ledger.
-- [ ] **P2.7 [auto]** F6 Colony Advisor: per-colony warehouse/status rows
-  incl. SoL %, buildings-in-progress, click-to-zoom.
-- [ ] **P2.8 [auto]** F7 Naval Advisor: ship rows with cargo icons,
-  location/destination.
-- [ ] **P2.9 [auto]** F8 Foreign Affairs: rival strength table (de Witt
-  gating), war/peace status.
-- [ ] **P2.10 [auto]** F9 Indian Advisor: tribes, attitude, missions.
-- [ ] **P2.11 [auto]** F10 Score: DOS score table layout; retire path.
-- [ ] **P2.12 [user]** Review pass with the user on each report once
-  P2.3–P2.11 land.
+- [x] **P2.3 [auto]** F2 Religious Adviser (crosses, immigration, recruit
+  pool) to DOS layout. **Done** — golden `religious.png`,
+  `reports_render_religious` (was mislabeled "F1" here; DOS F1 is the
+  Colonizopedia terrain article, not a report — see
+  [reports.md](reports.md)).
+- [x] **P2.4 [auto]** F3 Continental Congress as DOS splits it (bells,
+  rebels, FF list, page-2 portrait grid) — **Done**, golden
+  `continental_p1.png`/`continental_p2.png` (was mislabeled "F2/F3" here;
+  it's F3 only, Religious is F2).
+- [x] **P2.5 [auto]** F4 Labor Adviser: profession × colony matrix,
+  click-to-zoom. **Done** — golden `labor.png`/`labor_detail.png`, the
+  only report with a real DOS click-to-zoom (grid → per-profession detail
+  page).
+- [x] **P2.6 [auto]** F5 Economic Adviser: treasury, tax, market bid/ask
+  table, boycotts, trade ledger. **Done** — golden
+  `economic_p1.png`/`economic_p2.png`.
+- [x] **P2.7 [auto]** F6 Colony Adviser: per-colony warehouse/status rows
+  incl. SoL %, buildings-in-progress. **Done** — golden
+  `colony_p1.png`/`colony_p2.png`. (No DOS click-to-zoom exists on any of
+  F6/F7/F8/F9 — confirmed in the decompile, see
+  [reports.md](reports.md); the "click-to-zoom" wording here and below was
+  aspirational, not a DOS behavior.)
+- [x] **P2.8 [auto]** F7 Naval Adviser: ship rows with cargo icons,
+  location/destination. **Done** — golden `naval.png`.
+- [x] **P2.9 [auto]** F8 Foreign Affairs: rival strength table (de Witt
+  gating), war/peace status. **Done** — golden `foreign.png`.
+- [x] **P2.10 [auto]** F9 Indian Adviser: tribes, attitude, missions.
+  **Done** — golden `indian.png`. Headband-portrait variant selection
+  (`ICONS.SS` #113-117) still unidentified, always renders #113 — cosmetic,
+  not blocking.
+- [x] **P2.11 [auto]** F10 Score: DOS score table layout; retire path.
+  **Done** — golden `score.png`. Hall of Fame (shares F10's chrome) stays
+  **Done thin**: no DOS golden exists for it at all, so its column
+  widths/chrome are unconfirmed (see [reports.md](reports.md)).
+- [ ] **P2.12 [user]** Review pass with the user on each report — P2.3–
+  P2.11 are now content/layout-complete against goldens, but titles/column
+  headers are still hardcoded English rather than `LABELS.TXT`-driven
+  (P2.2 residue) and Congress page 2's FF portrait slot table only has
+  10/25 positions confirmed; worth the user's eyes before calling P2 fully
+  closed.
 
 ### P3 — Passable music
 
@@ -205,15 +241,58 @@ Sound Options, BGM/event ids, situational Military sting all in. "Passable"
 here means: tracks play on the right cues, loop cleanly, don't glitch, and a
 default SoundFont path works out of the box.
 
-- [ ] **P3.1 [auto]** Audit cue coverage: every DOS BGM/event id push site
+- [x] **P3.1 [auto] — closed 2026-08-26, already done, just uncross-
+  referenced.** Audit cue coverage: every DOS BGM/event id push site
   (`FUN_12d8_000e` callers, tables `0x2A6E` / `0x2AC4`) vs port call sites.
   List missing cues (colony enter/leave, Europe enter, contact, combat
-  win/lose, declare, king audience, year-end, endgame).
-- [ ] **P3.2 [auto]** Wire the missing cues found in P3.1.
-- [ ] **P3.3 [auto]** Playback robustness: loop points, tempo/timing
-  drift, note-off leaks, track change without pops, `--nosound` path.
-- [ ] **P3.4 [auto]** SoundFont discovery: sane default search order +
-  clear error when none found; document in README.
+  win/lose, declare, king audience, year-end, endgame). This audit
+  already exists — [assets.md](assets.md) "Sound-ID ranges beyond the 12
+  BGM tracks" (its own dated RE work, not new this pass): the `0x20..0x3f`
+  BGM range's only **confirmed, precisely-traced** trigger is combat
+  engagement start (`0x32`, ported as `units_combat_music_sting`); six
+  other segments (`65dd` LCR, `75c2` save/load, `48d3` Europe exit, `364b`
+  colony, `38fd`/`3844` trade) are "confirmed-real-but-unmapped-to-a-
+  precise-trigger" — real push sites exist in the decompile but the exact
+  call site within each wasn't pinned down; the `0x40..0x5c` event-music
+  range and the `≥0x8020` chord-sting range are engine-ready with **no
+  confirmed DOS trigger found at all** despite an exhaustive search (do
+  not invent one). Port call sites are just the 2 `sound_set_bgm(1)` calls
+  (new-game/load-save start) plus the one combat sting — confirms the gap
+  P3.2 needs to close is real and matches this list exactly.
+- [ ] **P3.2 [auto]** Wire the missing cues found in P3.1. **Not
+  attempted 2026-08-26** — same blocker as P8.3/P8.5 above: the 6
+  "confirmed-real-but-unmapped" segments need their *exact* call site
+  traced (which `FUN_364b_xxxx` sub-path fires on colony-enter vs.
+  colony-exit, etc.) before a cue can be wired to the right moment without
+  guessing; the audit above already did the coarse pass, this needs a
+  focused per-segment RE follow-up, not a blind port.
+- [x] **P3.3 [auto] — closed 2026-08-26, static-review pass.** Playback
+  robustness: loop points, tempo/timing drift, note-off leaks, track
+  change without pops, `--nosound` path. Code-read confirms all 4 checked
+  items are already handled carefully, not just approximated: **loop
+  points** emulate the real DOS `FF nn` in-song loop opcode (`sound.c`
+  ~706-729, count/nesting/stuck-loop guard), not a crude "restart at end"
+  hack — the end-of-song restart (`sound_service`) is only a fallback for
+  songs that never hit an explicit loop-back. **Tempo** derives from the
+  exact hardware PIT divisor DOS uses (`SOUND_PIT_DIVISOR 0x4DBF` →
+  `1193182/0x4DBF ≈ 59.95 Hz`, not a rounded "60 Hz" stand-in). **Note-off
+  leaks**: `sound_all_notes_off_unlocked` is called at every song
+  start/stop/preview-transition (7 call sites), so no stuck notes survive
+  a track change. **`--nosound`**: `enable_audio` gates every playback
+  call site (`sound_playback_enabled`/`sound_ok`) while `inited` stays
+  true so decode-only paths (tests, offline render) keep working; covered
+  by `smoke_sound`. Nothing found needing a fix — the remaining item this
+  row lists ("without pops") is perceptual and needs an actual listen
+  test against DOSBox, which is P3.5's job, not something a static read
+  can confirm.
+- [x] **P3.4 [auto] — closed 2026-08-26.** SoundFont discovery: sane
+  default search order + clear error when none found; document in README.
+  `sound_find_soundfont` (`sound.c`) was already fully done code-side (env
+  override → bundled `Roland_SC-55.sf2` via 6 relative paths → a dozen
+  common system locations → `diag_warn` + soft-beep fallback, never a
+  hard failure) — only the "document in README" half was missing (README
+  didn't mention soundfonts at all). Added a "Music / MIDI soundfont"
+  README section describing the search order and the override env var.
 - [ ] **P3.5 [user]** Listen test with the user on a handful of tracks vs
   DOSBox reference. Anything "sounds wrong but recognizable" is D5, not
   here.
@@ -226,17 +305,59 @@ are in. Formula fidelity is the gap: manufacturing tier rates, class scale,
 Town Hall L2/L3 tile rings, school/college/university training, Custom
 House, horse breeding, food→colonist growth details.
 
-- [ ] **P4.1 [auto]** Manufacturing tier rates + class scale against decomp
+- [x] **P4.1 [auto] — closed 2026-08-26, blocking premise stale + work
+  already done.** Manufacturing tier rates + class scale against decomp
   ([building_production.md](building_production.md) open items). Golden
   against `golden_colony_prod01/02` once `COLONIZE/` assets are present
   in the worktree (currently missing → both goldens fail at `NAMES.TXT`).
+  **The "assets missing" blocker doesn't hold in this worktree** —
+  `COLONIZE/` has 332 files, `golden_colony_prod01`/`02` both pass
+  (`ctest -R golden_colony_prod0`), confirmed directly. And the
+  underlying work this row asks for is already extensively done:
+  `building_production.md`'s own "Port status (manufacturing)" table has
+  Tier rates 3/6/9, Factory input 6→9, and Class /3·×2/3 all marked
+  **DOS-confirmed**, plus ~20 further dated fixes (2026-08-15 through
+  2026-08-26, several player-confirmed against real DOS saves) covering
+  SoL/Tory folding, Jefferson/Paine/Penn ordering, Press vs. Newspaper
+  exclusivity, horse breeding (P4.5, closed separately), settlement-badge
+  capacity-vs-actual, and more. Nothing further found needing a fix; this
+  row's own doc note just never got updated after the asset situation
+  (and the work) resolved.
 - [ ] **P4.2 [auto]** Town Hall L2/L3 outer-ring tiles (was W3.3): needs a
   `colony.h` layout change — save-bridge-adjacent, so confirm layout with
   the user **[user]** before touching, then port.
-- [ ] **P4.3 [auto]** Training (schoolhouse/college/university): teacher
-  assignment, turns-to-train, `@NOTEACHER`/`@TRAINFAIL*` popups full.
+- [x] **P4.3 [auto] — closed 2026-08-26, already fully wired.** Training
+  (schoolhouse/college/university): teacher assignment, turns-to-train,
+  `@NOTEACHER`/`@TRAINFAIL*` popups full. `turn.c`'s teacher/student
+  per-turn tick (~1080-1160) is real: tier-gated (Schoolhouse/College/
+  University), `turns_in_job` countdown vs a tier `need`, and — a genuine
+  find beyond what this row asked for — 3 real `GAME.TXT` sections
+  dispatched by graduate type (`@TRAINPROFESSION`/`@TRAINCRIMINAL`/
+  `@TRAININDENTURED`, not just one generic body), plus `@TRAINFAIL` when a
+  ready teacher has no students. `@NOTEACHER` wired separately
+  (`colonies_emit_noteacher_chrome`, `colony.c`) for the teacher-
+  assignment-attempt gate itself (only an expert can teach). No gap
+  found.
 - [ ] **P4.4 [auto]** Custom House (Stuyvesant): auto-sell at EOT with
-  boycott + WoI rules.
+  boycott + WoI rules. **2026-08-27: real near-miss, reverted — worth
+  flagging for whoever next touches this.** `europe_custom_house_
+  cargo_eligible`'s type-gate function (`FUN_364b_0636`) reads cleanly as
+  denying Food(0)/Lumber(5)/Horses(8)/Tools(0xe)/Muskets(0xf), and
+  `FUN_364b_0688`'s own body genuinely gates its whole sell block on this
+  same check — both facts checked out from the raw decompile. Wired both
+  (added Lumber to the deny list, called the eligibility gate from
+  `europe_custom_house_autosell`'s loop) — and both `golden_colony_prod01`/
+  `02` (real DOS `.SAV` ground truth) immediately failed: Lumber genuinely
+  gets auto-sold to 50 in real DOS saves. Reverted both changes (comment
+  left in `europe.c` explaining why). Real unresolved question for a
+  future pass: either the `param_1==5` deny term doesn't mean "cargo index
+  5" in this call's context (`local_b6` may be pre-transformed, not a raw
+  cargo index), or `0688` actually calls a *different* type-gate than the
+  one this reads as calling — the call-site resolution (`thunk_FUN_291f_
+  09c0`) wasn't independently double-checked against `address_mapping.csv`
+  before this revert. The original, already-passing behavior (deny Food/
+  Horses/Tools/Muskets, allow everything else incl. Ore/Lumber) is
+  unchanged and still what ships.
 - [x] **P4.5 [auto] — closed 2026-08-26.** Found `FUN_15eb_1f72`'s horse-
   breeding tail (viceroy_unpacked.c ~12649-12690, raw asm 15eb:2300-2392):
   `potential = ceil(horses/divisor)*2` (divisor 25 with a Stable else 50,
@@ -254,13 +375,39 @@ House, horse breeding, food→colonist growth details.
   pass. `ctest --test-dir build_p45`: 42/42 active tests green (4 golden
   AI suites intentionally disabled) — `golden_colony_prod01`/`02` flipped
   from failing to passing by this fix; no other regressions.
-- [ ] **P4.6 [auto]** Food surplus → new colonist at 200, starvation
-  warnings/deaths, `@STARVE*` full path.
-- [ ] **P4.7 [auto]** Warehouse/Warehouse Expansion caps + `@WAREHOUSEFULL`
-  / `@SPOIL*` exact thresholds.
-- [ ] **P4.8 [auto]** Building construction: hammers/tools consumption,
+- [x] **P4.6 [auto] — closed 2026-08-26, already fully wired.** Food
+  surplus → new colonist at 200, starvation warnings/deaths, `@STARVE*`
+  full path. Direct read of `turn.c`: birth at `food>=200` (subtracts 200,
+  spawns Free Colonist, `turn_produce_one_colony` ~765); all 5 real
+  `GAME.TXT` food/starve sections are wired — `@FOOD1`/`@FOOD2` (first
+  latch, stock<need not yet killing), `@STARVE1`/`@STARVE2` (colonist
+  actually starves, season-picked like the other pair), `@FOODLOW`
+  (production<consumption eating into stores, DOS `0xe5e` gate). No gap
+  found; row was already done, just unchecked.
+- [x] **P4.7 [auto] — closed 2026-08-26, already fully wired.**
+  Warehouse/Warehouse Expansion caps + `@WAREHOUSEFULL`/`@SPOIL*` exact
+  thresholds. `colonies_warehouse_capacity` (`colony.c` ~2027) is a
+  direct `FUN_15eb_0a50` cite: `100*(1+warehouse_level)`. All 5 real
+  `GAME.TXT` sections wired: `@WAREHOUSEFULL` (`colony.c` ~2100, ship
+  hold→warehouse overflow) and `@SPOIL1..4` (`turn.c` ~1560, picked by
+  `expanded = warehouse_level>1` × single/multi-cargo-type spoiled this
+  tick — matches the section table's own 4-way split). No gap found.
+- [x] **P4.8 [auto] — closed 2026-08-26, already wired; one premise was
+  speculative.** Building construction: hammers/tools consumption,
   `@CARGOREADY*`, "nothing to build" and prerequisite refusals from
-  `GAME.TXT`.
+  `GAME.TXT`. Hammers/tools consumption: `turn.c`'s "TURN5→6" block
+  (building_production.md's 2026-08-15 fix entry). `@CARGOREADY0/1/2` all
+  3 wired (`turn.c` ~1611/2862, warehouse-level-gated pick). **Checked:
+  no `@NOTHINGTOBUILD`/prerequisite-refusal section exists in
+  `GAME.TXT`** — grepped every build/construct-shaped `@SECTION`; the only
+  hit besides `@CARGOREADY*` and unrelated `@TOONEARBUILD` (founding
+  distance) is `@BUILD1`-`10`, which is the opening-cinematic scroll text
+  ("In the Year of Our Lord One Thousand Four Hundred Ninety-Two..."), not
+  construction chrome at all. DOS's real behavior for an ineligible
+  building is to omit it from the Change list, not refuse it with a
+  popup — already how `colony.c`'s Change list works (min-pop/upgrade/FF
+  gates filter the list itself, per `manual_gap.md`'s "Construction
+  queue" row). Nothing left to port.
 - [ ] **P4.9 [user]** Colonist auto-assign on join (`FUN_15eb_28c8`, W1.7
   structural port exists + golden): wire for the **player** colony join
   path — changes default behavior, confirm with user.
@@ -281,17 +428,44 @@ tiers, promote/demote/capture, plunder, coastal fort fire, Combat Analysis
   `backup_force`), king's replies. Port from `43f7`/`4345` bodies to the
   point where a REF actually prosecutes a war against the player, not
   just lands once.
-- [ ] **P5.2 [auto]** Win condition: exact DOS rule (REF land force
-  destroyed / % of REF committed and beaten / turn cap) and the
+- [x] **P5.2 [auto] — closed 2026-08-26, already fully wired; one
+  section name was invented.** Win condition: exact DOS rule (REF land
+  force destroyed / % of REF committed and beaten / turn cap) and the
   `@INDEPENDENCEWON`-class endgame popups + score hand-off. Lose
-  condition: colonies captured threshold / all-lost.
+  condition: colonies captured threshold / all-lost. **No `@INDEPENDENCEWON`
+  section exists** (checked) — real name is `@WINNING`, already
+  `Authentic` per `popup_audit.md`. Win rule (`ai_king.c` ~4616):
+  `year >= AI_KING_YEAR_CAP && ai_king_crown_units_alive(...) <= 0` —
+  REF/crown force destroyed, gated by the same year cap (1850) the
+  Authentic-verdict popup row already documents. Lose: `@LOSING1` (all
+  coastal ports lost) / `@LOSING2` (all colonies lost) / `@LOSING3`
+  (crown pop share ≥90%) — all three already Authentic, covering "colonies
+  captured threshold / all-lost" completely. **Score hand-off confirmed
+  wired**, not missing: the win/lose write `col1->head.unknown46[
+  AI_KING_ENDGAME_BYTE]` (`ai_king.c`), and `reports.c`'s F10 score
+  (`reports_load` ~3056) reads that same byte index (`unknown46[4]==1`)
+  for `independence_achieved`, feeding the score bonus — connected via a
+  raw index match rather than a shared named constant across the two
+  files (a code-hygiene nit, not a functional gap). No gap found.
 - [ ] **P5.3 [auto]** Combat depth needed for a fair WoI: ambush bonus,
   artillery in the open / in colony, veteran status, Continental
   Army/Cavalry types, REF regulars/cavalry/artillery strengths and
   bonuses, Man-O-War vs Frigate/Privateer, bombard. Cross-check
   [combat.md](combat.md) status matrix; deep `−0x6790` AI scoring stays D1.
 - [ ] **P5.4 [auto]** Colony capture/recapture mechanics during WoI
-  (Tory/rebel population effects, `@CAPTURED*`, fort damage). **Undefended-
+  (Tory/rebel population effects, `@CAPTURED*`, fort damage). **Checked
+  2026-08-26: 2 of 3 remaining sub-items confirmed real gaps, not
+  implemented (need a decompile trace, not a guess).**
+  `colonies_capture` (`colony.c` ~1431) is a bare reassignment — just
+  flips `nation_id`, nothing else. Real gaps confirmed: **no Tory/rebel
+  population effect on capture** (SoL% carries over untouched — DOS may
+  reset or shift it, unconfirmed) and **no fort damage on capture** (fort
+  level carries over untouched too). Neither number is in any doc found
+  this pass; porting either without a trace risks inventing game balance,
+  same risk class as P8.3/P8.5 above — flagged, not guessed. `@CAPTURED*`
+  itself is **not** a gap — confirmed wired via `units_combat_notify_
+  colony_captured` (`units.c`, picks `@CAPTURED`/`@CAPTURED2`/`@CAPTURED3`
+  by human-involvement + plunder). **Undefended-
   colony token militia fixed 2026-08-26 (was W1.8):** `units_try_move`
   used to walk straight into any Euro colony with zero live defenders
   (colonists but no soldier) and let `units_try_capture_foreign_colony`
@@ -319,16 +493,51 @@ tiers, promote/demote/capture, plunder, coastal fort fire, Combat Analysis
   which never wires that global — is unaffected).
 - [ ] **P5.5 [auto]** Foreign intervention force: arrival, control
   (player-controlled per DOS), Man-O-War spawn placement (was W4.2 —
-  attempt static first, **[live]** fallback).
-- [ ] **P5.6 [auto]** Post-declare economy rules: no Europe, Custom House
-  continues, tax removed, bells → Continental Army promotions, SoL
-  combat support % (already wired — verify).
+  attempt static first, **[live]** fallback). **Checked 2026-08-26 —
+  arrival is real and DOS-cited, "control" is confirmed still genuinely
+  open, not fixed this pass.** `ai_king_foreign_intervene` (`ai_king.c`
+  ~3131, `FUN_43f7_10f0`-shaped) is a real port: triggers when REF is
+  empty and the backup-force pool has units, up to 2 landings per call
+  (3 at higher difficulty), Regular+Dragoon preferred. But every spawned
+  unit is nation-tagged to the ally's own slot id
+  (`ai_king_spawn_landing(ctx, ally, ...)`) — grepped for any
+  human-control handoff/reassignment anywhere near the intervene path,
+  found none. If DOS really does give the player direct command of these
+  units (this row's own parenthetical), that's unimplemented; if DOS
+  actually keeps them AI-controlled-but-friendly (a live-only fact to
+  confirm), current behavior may already be correct — genuinely can't
+  tell from static reading alone, matches this row's own pre-existing
+  `[live]` fallback note. Man-O-War spawn placement unchanged, same
+  status.
+- [x] **P5.6 [auto] — closed 2026-08-26, verified all 5 sub-items already
+  wired.** Post-declare economy rules: no Europe, Custom House continues,
+  tax removed, bells → Continental Army promotions, SoL combat support %
+  (already wired — verify). **No Europe** + **Custom House continues**:
+  `game_options.woi` authoritative, closed post-declare — Done
+  2026-08-22 per [roadmap.md](roadmap.md); `europe_custom_house_autosell`
+  is `woi`-aware and **tax removed** there (`tax=0` when `woi` true,
+  `europe.c` ~1954-1958). **Bells → Continental Army/Cavalry promotion**:
+  `FUN_43f7_1eca` full port (`ai_king.c` ~3662-3806) — per rebel-owned
+  colony with SoL>49%, promotes up to `max(1,min(pop>>1,...))` eligible
+  units, cited against the raw decompile body
+  (`viceroy_unpacked.c:74910-74972`), not a stand-in. **SoL combat
+  support %**: `combat_colony_sol_at` (`combat_strength.c` ~401, used at
+  ~551) folds colony SoL into the defender's combat strength. All 5
+  confirmed real and DOS-cited, no gap found.
 - [ ] **P5.7 [user]** Full playthrough test with the user: declare on a
   lategame fixture (`valid-lategame-saves/COLONY*`), fight to a win.
   Fixture-driven `unit_ai_king` scenarios stay the regression net.
-- [ ] **P5.8 [auto]** `unit_ai_king` first-failure-blocks-suite: fix the
-  "multi-unload fortify count" failure so the ~204 downstream WoI checks
-  actually run (was W2.2 residue).
+- [x] **P5.8 [auto] — closed 2026-08-26, already fixed, checkbox stale.**
+  `unit_ai_king` first-failure-blocks-suite: fix the "multi-unload fortify
+  count" failure so the ~204 downstream WoI checks actually run (was W2.2
+  residue). Ran `./build/unit_ai_king` directly (from repo root, needs
+  `COLONIZE/` assets in cwd): exits 0, no `FAIL` lines, and every
+  downstream scenario after the multi-unload/fortify stage (REF stack
+  fortify caps, after-capture hunt, revolution win/lose/warn ×6,
+  peacetime/wartime `@SCORED`/`@RETIRING`/`@SOONRETIRING`, WoI bell-pool
+  intervention) prints `ok` — confirms the suite is no longer blocked this
+  early. No code change needed; this row's own blocker was already fixed
+  by an earlier, unlogged pass.
 
 ### P6 — Player ↔ Europe trade, complete
 
@@ -340,18 +549,84 @@ lines.
 - [ ] **P6.1 [auto]** Price model to DOS: `price_group_state`, EOT
   attrition, colony production feedback, buy/sell volume thresholds per
   commodity, `@PRICEUP`/`@PRICEDOWN` as real popups where DOS pops them.
-- [ ] **P6.2 [auto]** Tax raise events: full `@KINGTAX` cadence formula
-  (trigger, amount, cap), `@TEAPARTY` boycott of that good, boycott lift
-  (Fugger / pay-arrears `@BOYCOTT*` flow).
-- [ ] **P6.3 [auto]** Sell/buy edge cases: partial holds, selling into a
-  boycott, buying with insufficient gold (`@NOGOLD*`), 100-unit lots,
-  tax applied to sales only.
-- [ ] **P6.4 [auto]** Equip/unequip in Europe (muskets/horses/tools
-  pricing via market, missionary bless cost) and the dock-order menu
-  completeness.
-- [ ] **P6.5 [auto]** Trade routes with Europe as an endpoint (`TRADE`
-  editor already Done structural — verify Europe stops, wagon/ship
-  auto-buy/sell amounts).
+- [x] **P6.2 [auto] — closed 2026-08-26, already fully wired.** Tax raise
+  events: full `@KINGTAX` cadence formula (trigger, amount, cap),
+  `@TEAPARTY` boycott of that good, boycott lift (Fugger / pay-arrears
+  `@BOYCOTT*` flow). All three already real, DOS-cited (`ai_king.c`
+  header comment, "ported 2026-08-19, real formula"): **trigger** =
+  `FUN_38fd_5be8`'s turn-interval gate (`ai_king_audience_roll`);
+  **amount** = the same function's favor-score-ladder signed delta
+  (cut/+1/+2/+3-4/+5-8); **cap** = `FUN_38fd_3dc8`'s unconditional
+  apply, clamped 0..75%. `@TEAPARTY` follow-up (accept keeps the hike /
+  refuse reverts it + boycotts a roulette-picked cargo) wired the same
+  pass. Boycott lift: Fugger clears `boycott_bitmap` on election
+  (`founding_fathers.c`, confirmed earlier this session); pay-arrears is
+  `europe_buyback_boycott` (`FUN_38fd_2dfe`, `@SOMEBOYCOTT` trigger,
+  `ask_price×500` cost) — **Done** 2026-08-24 per `manual_gap.md`. No
+  literal `@BOYCOTT*` section exists (checked — real name is
+  `@SOMEBOYCOTT`); the full `@KISSUP`/`@KISSSORRY` Pay/Cancel CHOICE
+  *dialog chrome* stays thin (immediate action + status line instead of a
+  VGA confirm box), consistent with this project's existing D4 VGA-chrome
+  deferral, not a content gap.
+- [x] **P6.3 [auto] — closed 2026-08-26, all 5 sub-cases already covered.**
+  Sell/buy edge cases: partial holds, selling into a boycott, buying with
+  insufficient gold, 100-unit lots, tax applied to sales only. Direct read
+  of `europe_buy_cargo`/`europe_sell_hold`/`europe_sell_proceeds`
+  (`europe.c`): partial holds fill/drain existing partial slots before
+  opening a new one (both directions); boycott gates both buy and sell
+  with a status line, same as `europe_cargo_boycotted` already documented
+  in [manual_gap.md](manual_gap.md); buying clamps to `gold/ask` (no
+  overspend possible, so nothing to "handle" beyond the clamp — see the
+  `@NOGOLD*` note below); each hold slot caps at 100 units both ways
+  (buy's `buy>100→100` clamp, sell empties a slot in one call), matching
+  "100-unit lots"; tax is applied only in `europe_sell_proceeds`
+  (`bid*amount*(100-tax)/100`) — `europe_buy_cargo` charges flat
+  `bought*ask` with no tax term. Nothing here needed a code change, only
+  confirming the row against the actual functions. **Checked 2026-08-26:
+  `@NOGOLD*` doesn't exist** — grepped
+  `COLONIZE/GAME.TXT` for every gold/afford/treasury-shaped `@SECTION`;
+  the only real candidate, `@NOTENOUGH` ("your treasury is not large
+  enough to back your promise"), is already correctly attributed
+  elsewhere to deep village-haggle `2820` (PARKED per
+  [popups.md](popups.md)), same for `@BUYWHICH`/`@BUY0`/`@BUY1` (Indian
+  trade CHOICE bodies, not the Europe market screen). DOS has no modal
+  for "can't afford this Europe purchase" at all — `europe_buy_cargo`'s
+  existing behavior (silently clamp `buy` to `gold/ask`, plain status
+  line) is therefore not a gap to close, just needed the stale invented
+  section name removed from this row.
+- [x] **P6.4 [auto] — closed 2026-08-26, premise didn't hold.** Equip/
+  unequip in Europe (muskets/horses/tools pricing via market, missionary
+  bless cost) and the dock-order menu completeness. **DOS has no
+  equip/unequip UI on the Europe dock at all** — checked `MENU.TXT` for
+  every equip/musket/horse/bless-shaped menu string, zero hits; DOS
+  equips a unit via colony fence icons (already Done, `colony.c`), not a
+  Europe submenu. Muskets/horses/tools "pricing via market" is just the
+  existing Europe buy-cargo flow (already Done) — nothing separate to
+  price at equip time, the cost was already paid buying the cargo.
+  **"Missionary bless cost" doesn't exist either** — direct code comment,
+  Colonization.pdf-cited: "Church bless: leave as Missionary (no cargo
+  cost)" (`colony.c` ~1245), a free colonist-conversion action, not a
+  priced one. Dock-order menu (None/Don't board/Board next/Move to
+  front) already matches DOS's real 4-option set (confirmed earlier this
+  session, `manual_gap.md`). Nothing found needing a fix.
+- [x] **P6.5 [auto] — closed 2026-08-26, verified already correct.**
+  Trade routes with Europe as an endpoint (`TRADE` editor already Done
+  structural — verify Europe stops, wagon/ship auto-buy/sell amounts).
+  `game_trade_route_service_stop` (`game_loop.c` ~6605): a sea unit at
+  the Europe stop (`colony_index==999`, eastern high-seas tile) sells its
+  *entire* hold via `europe_sell_unit_hold` in a loop until empty — real
+  auto-sell, all cargo types, no invented cap. **No auto-buy at Europe,
+  and that's confirmed correct, not a gap**: the TRADE editor itself
+  already disables load-list configuration for a Europe stop
+  (`trade_edit_need_load = (stop_idx != 999)`, `game_loop.c` ~956/2255) —
+  a deliberate, pre-existing design signal that Europe stops are
+  sell-only by intent, matching DOS trade routes (buying at Europe is a
+  manual Europe-screen action, not something a route automates). Wagon
+  trains can never physically reach the Europe stop tile (land-only,
+  high-seas is water) so the `units_is_sea` gate correctly makes a
+  wagon-assigned Europe stop a inert no-op rather than a crash — a minor,
+  likely-unreachable-in-practice UX edge (no status feedback if a player
+  somehow assigns one), not fixed this pass, low priority.
 - [ ] **P6.6 [user]** Europe screen behavior review with the user.
 
 ### P7 — Rumours and treasure
@@ -399,11 +674,41 @@ KINGGALLEON2 (non-Cortes galleon share string) PARK.
   except Galleon), cash-in at coastal colony w/ Galleon absent →
   king's offer (`@KINGGALLEON1`, share % by difficulty), Cortes free,
   transport by own Galleon → Europe cash at full value; WoI behavior.
+  **2026-08-26: "1 MP" already correct** (data-driven from `NAMES.TXT`
+  `@UNIT`'s Treasure row, movement=1 — not a port constant, nothing to
+  fix). **"No boarding except Galleon" was a real gap, fixed**:
+  `units_find_boardable_ship` (`units.c`/`units.h`) let a Treasure Train
+  board *any* ship with room; added a `require_galleon` param (both call
+  sites now pass `strstr(mover_type->name,"Treasure")!=NULL`), so only a
+  type named "Galleon" qualifies when the boarding unit is a treasure.
+  New regression: `test_units.c` "P7.3... Treasure Trains may only board
+  a Galleon" (Caravel present → rejected; Galleon added at the same
+  stacked tile → accepted). `ctest`: 42/42, no regressions. **`@KINGGALLEON1`
+  doesn't exist** — checked; real sections are `@KINGGALLEON2` (non-Cortes
+  share offer, still PARK per P7.4/T1.13) and `@KINGGALLEON3` (Cortes free
+  transport, tax-share only — already wired,
+  `units_cortes_cash_coastal_treasures`). Cortes-free path, Europe
+  cash-at-full-value, and Cortes-conquest-treasure spawn were all already
+  wired (`units_spawn_treasure_train`, `units_cortes_cash_coastal_treasures`,
+  `europe_cash_treasure`). Still open in this row: the non-Cortes
+  cash-in-without-a-Galleon king's-offer flow itself (blocked on
+  `@KINGGALLEON2`'s own PARK, tracked at P7.4) and explicit WoI behavior
+  for treasure trains (not checked this pass).
 - [ ] **P7.4 [auto]** KINGGALLEON2 re-attempt with the narrower `38fd`
   overlay hint from `ai_port_plan.md` T1.13 — if still negative, ship the
   manual's documented share and PARK the string.
-- [ ] **P7.5 [auto]** Rumour tile clearing + Col1 `path`/`mask` bits so
-  DOS-loaded saves and port-explored rumours agree (P10 tie-in).
+- [x] **P7.5 [auto] — closed 2026-08-26, already fully wired.** Rumour
+  tile clearing + Col1 `path`/`mask` bits so DOS-loaded saves and
+  port-explored rumours agree (P10 tie-in). `col1_bridge.c` (~682-706)
+  already does exactly this: DOS's Col1 format has no dedicated "rumour
+  already explored" bit, so the port reuses the `path` field's
+  visitor-history nibble (`0xf` = never occupied) as the signal — any
+  tile a unit has ever stood on gets `MAP_LAYER2_RUMOUR_CLEARED` on
+  import, since resolving an LCR always means standing on it. Real
+  player-reported bug fix (`dutch-reports.SAV` — every already-explored
+  mound showed as fresh on load), with a dedicated regression
+  (`test_col1_save.c` ~1758-1835) loading that exact fixture and
+  asserting no visited tile still reports a live rumour. No gap found.
 
 ### P8 — Basic Indian interactions (teach, alarm, gifts, raids)
 
@@ -432,22 +737,157 @@ Deep `2820` (village trade/haggle) and `4528` (deep settlement battle) PARK.
   recognized as teachable at all) stay open — real behavior-shape
   questions needing a decompile trace of the `5bfb` teach dispatch
   before porting, not safe to guess from GAME.TXT text alone.
-- [ ] **P8.2 [auto]** Alarm model for the player: per-village + tribe
-  alarm accrual from proximity/land use/missions/combat, decay, thresholds
-  for attitude words in F9 and `@INDIANCOMMENT`/`HELLO*` bands, Pocahontas
-  halving — from `FUN_4d56_152e` (already ported) + the reader side.
+- [x] **P8.2 [auto] — closed 2026-08-26, substance already done; "F9
+  attitude words"/"HELLO*" premise was wrong.** Alarm model for the
+  player: per-village + tribe alarm accrual from proximity/land use/
+  missions/combat, decay, thresholds for attitude words in F9 and
+  `@INDIANCOMMENT`/`HELLO*` bands, Pocahontas halving — from
+  `FUN_4d56_152e` (already ported) + the reader side. Writer side
+  (`ai_contact_152e_village_growth`, alarm/friction accrual from
+  proximity/encroachment/missions/combat) and Pocahontas ongoing
+  half-rate (`ai_contact_alarm_bump_amount`) were already confirmed live
+  in earlier sessions. Reader side checked this pass: `@INDIANCOMMENT`
+  (encroachment alarm-band comment, threshold-crossing at friction≥40) is
+  wired (`ai_contact.c` ~3603-3648). **F9's real DOS layout has no
+  attitude-word text column at all** — confirmed via
+  [report_screens.md](report_screens.md)'s own golden-pixel RE
+  (`FUN_3f41_010a`): the row is name/level/villages/missions/muskets/
+  horse-herds; the only alarm-tied visual is a 5-variant headband
+  portrait index (`ICONS.SS` #113-117, still hardcoded to #113 — a real,
+  already-tracked cosmetic gap, not a text-attitude gap). **`HELLO*`
+  doesn't map to Indian tribes at all** — `@HELLOFIRST`/`USA`/`AHOY`/
+  `MEEK`/`MANLY` are Euro-rival first-contact greetings ("claimed all of
+  this land in the name of {King}... here to {mission}"), unrelated to
+  this row's Indian-alarm scope; genuinely unwired (`ai_diplo.c` has no
+  first-contact greeting chrome at all, hand-typed or real) — noting it
+  here as a real, separate finding for whoever next touches Euro-rival
+  first contact, not fixed in this pass (out of P8's Indian scope, and a
+  new UI moment — first-contact modal — needing `[user]` sign-off on
+  when/how it interrupts play, not a silent auto-port).
 - [ ] **P8.3 [auto]** Gifts: Small/Large/Generous amounts and alarm effect,
   gift-of-goods from wagon/ship hold (already thin), tribute demand outcomes.
+  **Checked 2026-08-26, not implemented this pass — mapping is ambiguous,
+  same status-text gap shape as P8.4's raid fix but riskier to guess.**
+  `ai_contact.c`'s Gift/Demand CHOICE flow (`ai_contact_apply_gift_gold`,
+  `ai_contact_apply_demand_tools`, `AI_POPUP_TAG_CONTACT_GIFT`/`_DEMAND`)
+  is entirely hand-typed English, never `popup_msg_fill`. Candidate
+  `GAME.TXT` sections exist (`@CHIEFGIFT`, `@TRIBUTE`, `@TRIBUTEUSA`,
+  `@GIFTS`, `@CHIEFBORED`) and none are wired anywhere in `src/`, but
+  their exact trigger mapping isn't obvious from text alone:
+  `@TRIBUTEUSA`'s "{tribe}... willing to overlook this... for an indemnity
+  of {N}" reads like a strong match for the Demand-gold CHOICE body, but
+  `@TRIBUTE`'s near-identical "donation to the 'Church'" framing and
+  `@CHIEFGIFT`'s "welcome the emissaries... beads worth {N}" (a
+  *tribe-initiated* gift *to* the player, not the player-initiated Gift
+  CHOICE this code implements) suggest at least 2 of these 5 sections
+  belong to a different trigger than the one currently coded — possibly
+  the Incite-Indians rival-payoff flow (`FUN_4d56_417e`, already ported)
+  rather than plain Demand. Wiring the wrong section to the wrong trigger
+  would be a real correctness bug (wrong text in the wrong context), worse
+  than the current honest paraphrase — needs a decompile trace of the
+  `5bfb`/`4d56` dispatch that actually calls each section (same class of
+  RE work P8.5 above also needs) before porting, not attempted blind.
 - [ ] **P8.4 [auto]** Raids on player colonies: trigger (alarm band +
   proximity), target pick, outcome table (`@RAID*`: burn building, steal
   goods, damage ship, kill colonist, plunder gold), stockade/soldier
   defense, `@RAIDWIN*` — thin port of the `4528` raid *outcome* path only,
-  not its deep AI.
+  not its deep AI. **Status chrome upgraded 2026-08-26** (was the doc's own
+  flagged debt — `indian_raid_outcomes.md` "Status-line chrome for other
+  raid/warn kinds is thinned"): the 6 human-facing outcome kinds
+  (`NOTHING`/`STORES`/`BURN`-named/`SCALP`/`SHIP`/`GOLD`) now call
+  `popup_msg_fill` with the real `GAME.TXT` `@RAID*` body instead of a
+  hand-typed paraphrase, with the same old text kept only as the
+  no-catalog fallback. Needed 3 new module-static "what got hit" values
+  (`ai_contact.c`: stolen cargo name, damaged ship's `units_display_name`,
+  gold drained) threaded from `ai_contact_apply_raid_loot`'s existing loot
+  logic out to the status block, same pattern as the already-shipped
+  `s_last_burn_building`. `@RAIDWREAK` intentionally left as its existing
+  thin paraphrase — its real DOS text is a third-party "Spies report... in
+  the {nation-adjective} colony of..." frame, wrong register for the
+  victim's own status line (per this row's own `indian_raid_outcomes.md`
+  note). New regression: `test_ai_contact.c`, real-`GAME.TXT` STORES
+  scenario asserting the actual body text incl. substituted cargo name.
+  Still open in this row: stockade/soldier defense odds (the defender-wins
+  path, real `4528`/`5fef` combat, not covered by this pass — that's raid
+  *combat*, not the raid *loot outcome* text this pass touched). **Checked
+  2026-08-26: `@RAIDWIN*` doesn't exist** — grepped every win/defend-shaped
+  `@SECTION`; the real tags are `@INDIANWIN0/1/2` (field-unit ambush, tribe
+  beats a unit in the open — already wired, `ai_contact.c` ~5237-5261) and
+  `@INDIANWINCOLONY`/`@INDIANWINCOLONY2` (colony massacre framing, human vs
+  spy-report variant — unused, candidate for the abandoned-colony "%s
+  overrun %s!" hand text above, not attempted this pass, needs its own
+  check against `@BURNED` which already covers the SCALP/BURN abandon
+  case). This row's own `@RAIDWIN*` wording was an invented section name,
+  same class of error as the `@NOGOLD*`/`@NOTENOUGH` ones found earlier —
+  removing it rather than porting to nothing.
 - [ ] **P8.5 [auto]** Land purchase / encroachment CHOICE (`@INDIANLAND*`
   bribe / take / leave, Minuit free) — currently thin OK/status.
+  **Scoped 2026-08-26, not implemented this pass — real trace needed
+  first.** Confirmed the gap is real (zero code hits for `INDIANLAND`) and
+  found the exact shape: `colonies_indian_land_purchase_gold`/
+  `colonies_found_with_indian_land` (`colony.c`) compute a real cost and
+  Minuit-free already works, but the call site
+  (`game_do_found_colony_at_unit`, `game_loop.c` ~626-641) silently
+  auto-pays when affordable and hard-blocks ("need N gold", founding
+  refused outright) when not — never shows DOS's real 3-choice
+  `@INDIANLAND` CHOICE ("Very well, we shall respect your wishes." /
+  "We offer you {N}$ for this land." / "You are mistaken; this is OUR
+  land now!"). There are actually **3 separate** encroachment CHOICEs in
+  `GAME.TXT`, not one: `@INDIANLAND` (found colony, this call site),
+  `@INDIANROAD` (pioneer road build), `@INDIANFOREST`/`@INDIANFOREST2`
+  (pioneer clear-forest) — none of the three are wired; `@INDIANBRIBE`
+  (accept-bribe follow-up) exists too and is presumably chained after
+  picking "offer gold". **Why not just port it now:** the "Take it" free
+  option's actual DOS consequence (alarm/relation delta amount, and
+  whether "offer gold" is even selectable when the treasury can't cover
+  it, or what DOS does then) isn't in any existing RE doc — the found-
+  colony dispatch chain already traced for W1.2
+  (`FUN_2b5a_1662`/`16ce`→`FUN_1000_8804`→...) stops before reaching this
+  CHOICE's own handler, and `FUN_4cc6_07c2` (this cost formula's own
+  citation) turns out to be misattributed — `FUNCTION_CATALOG.md` has it
+  as "Indian contact/alarm distance score," a different function, so the
+  real CHOICE dispatch address is still unknown. Porting the "Take it"
+  consequence without that trace would mean inventing a game-balance
+  number, against this project's own no-invent rule. **Needs:** a fresh
+  decompile trace of the CHOICE dispatch (search near the cost formula's
+  real caller, or `FUN_1000_8804`'s siblings) before this can be ported
+  safely — flagging for a dedicated RE pass, not attempting blind.
 - [ ] **P8.6 [auto]** Chief portraits on meet (`IND*.SS` shipped,
   unloaded) — cheap and visible; layout exactness is D4.
 - [ ] **P8.7 [user]** Contact flow review with the user on a fresh game.
+- [ ] **P8.8 [auto] — new, found 2026-08-26, not attempted.** Meet-village
+  action menu is missing 3 of DOS's real 10 `NAMES.TXT` `@ACTIONS`
+  choices. Cross-checked the port's current 6-item meet menu
+  (`ai_contact.c` ~677: `{"Trade","Gift","Demand","Teach","Incite",
+  "Leave"}`) against the real `@ACTIONS` table (`NAMES.TXT`, verbatim:
+  "Trade With Village" / "Enter Hostile Village" / "Establish Mission" /
+  "Denounce Heresy of %Fs Mission" / **"Live Among The Natives"** /
+  **"Ask to Speak With Chief"** / "Incite Indians" / "Demand Tribute" /
+  "Attack Village" / "Cancel Action"). Trade/Incite/Demand/Cancel map
+  cleanly to the port's existing 4; "Enter Hostile"/"Establish Mission"/
+  "Attack Village" are handled elsewhere as separate flows (raid-warn
+  CHOICE, adjacent-Missionary auto-mission), not menu choices needing a
+  slot here. **3 real gaps, genuinely unimplemented, not a doc-staleness
+  case**: "Denounce Heresy of {tribe}'s Mission" (a rival-mission
+  heresy-denounce action — the port's existing "foreign-mission heresy
+  50/50" per `manual_gap.md` may be the automatic-outcome half of this
+  same mechanic; unclear if a menu trigger is separately needed),
+  **"Live Among The Natives"** — this is also the origin of
+  `unit_orders.md`'s standalone "`@ORDERS` index 4 Live In Village —
+  Missing" row (`NAMES.TXT` `@ORDERS`: "Live In Village, L") — choosing
+  it from the meet menu is almost certainly what puts a unit into that
+  persistent order state, unifying two previously-separate "Missing"
+  notes into one real feature, and **"Ask to Speak With Chief"** (unclear
+  mechanical effect — possibly the `@CHIEFGIFT`/`@CHIEFBORED` unprompted-
+  gift sections found under P8.3 above belong here as its response body,
+  not to a spontaneous event as first guessed there). **Not implemented
+  this pass**: no PEDIA/GAME.TXT text found describing what "living
+  among the natives" mechanically does once chosen (disappear from the
+  map? passive teach? tribute discount?) — needs a decompile trace of the
+  `@ACTIONS` dispatch (`5bfb`/`2820` territory, already PARKED for its
+  deep body) before porting, not a guess. Flagging as a concrete, well-
+  scoped lead — narrower and more specific than the old vague "Missing"
+  notes it replaces.
 
 ### P9 — Founding Father effects (non-deferred ones)
 
@@ -502,11 +942,27 @@ Paine, Penn, Pocahontas, Revere, Sepulveda, Washington, Las Casas
   human-restricted is confirmed byte-faithful to DOS (`FUN_4345_0342`
   `param_2==0xe` branch has no nation-0 guard — same shared dispatch
   every FF case uses). No further P9.2 work found needed this pass.
-- [ ] **P9.3 [auto]** Verify each wired effect with a unit test if none
-  exists (`test_founding_fathers.c` covers a subset).
-- [ ] **P9.4 [auto]** FF election chrome: `@WHICHFREEDOM` / `@FREEDOM`
-  bodies already authentic; add the elect-effect one-liners DOS shows
-  (e.g. Coronado reveal, Jones frigate arrival) where `GAME.TXT` has them.
+- [x] **P9.3 [auto] — closed 2026-08-26, already satisfied.** Verify each
+  wired effect with a unit test if none exists (`test_founding_fathers.c`
+  covers a subset). [founding_fathers.md](founding_fathers.md)'s P9.1
+  per-Father table (all 25 rows) already cites a real test for every one
+  — not just `test_founding_fathers.c`, several route through the AI
+  suites that actually exercise the effect in context (`test_ai_euro_*`,
+  `test_ai_contact.c`, `test_ai_diplo.c`, `test_colonies.c`, `test_turn.c`,
+  `test_units.c`). This row's "covers a subset" framing was accurate when
+  written but stale by the time P9.1 finished the full table — no
+  Father is missing coverage.
+- [x] **P9.4 [auto] — closed 2026-08-26, premise didn't hold.** FF
+  election chrome: `@WHICHFREEDOM`/`@FREEDOM` bodies already authentic;
+  add the elect-effect one-liners DOS shows (e.g. Coronado reveal, Jones
+  frigate arrival) where `GAME.TXT` has them. Grepped `GAME.TXT` for every
+  Father's name/effect keyword (frigate, reveal, etc.) — the only hit,
+  `@KINGFRIGATE`, is the King's unrelated merc-frigate-offer dialog, not a
+  Jones announcement. `@FREEDOM` itself is the *only* elect-time text DOS
+  ships ("{Father} has joined the Continental Congress!", generic, no
+  per-Father effect blurb) — both `@WHICHFREEDOM` (`founding_fathers.c`
+  ~731) and `@FREEDOM` (~1289) are already wired. There is nothing further
+  to port here; DOS has no per-effect one-liner asset for any Father.
 - **Deferred** in this track: effects that only matter for rival AI
   behavior parity (D1) and KINGGALLEON2 string (P7.4 handles the
   gameplay).
@@ -521,9 +977,14 @@ Done.
   `col1_bridge.c`, or colony/unit layout runs `unit_col1_save` strict
   round-trip + a load-in-DOS spot check of at least one port-written save
   **[user]** when the change is bridge-adjacent (P4.2, P7.5).
-- [ ] **P10.2 [auto]** Add a CI-style script `tools/check_save_interop.sh`
-  (or ctest label) that runs only the interop suite fast, for use before
-  every user handoff.
+- [x] **P10.2 [auto] — done 2026-08-26.** Added `tools/check_save_interop.sh`:
+  builds just the `unit_col1_save` target then runs it alone via
+  `ctest -R '^unit_col1_save$'` (the strict byte-identical round-trip over
+  all 19 Col1 `.SAV` fixtures — W1.5's regression net) instead of the full
+  42-test suite. ~0.1s. Optional arg overrides the build dir (default
+  `build`). No CMake changes — no existing test carried labels, so a
+  ctest label wasn't worth the churn; a thin wrapper script matches this
+  row's own "(or ctest label)" either/or.
 - [ ] **P10.3 [auto]** Legacy COLZ save path quarantine/removal (was W3.4)
   — **[user]** confirm timing; reduces surface that can drift.
 
@@ -535,18 +996,68 @@ mostly in contact (`@LEARN*`, `@RAID*`, `@CHIEF*`), Europe
 (`@PRICEUP/DOWN`), order gates (`@NEEDTOOLS`…), FA `3f41` thin, boycott
 `DIPLO_BOYCOTT`, and "Invented" title strings in save/load.
 
-- [ ] **P11.1 [auto]** Close every **MissingWire** row in
-  `popup_audit.md` (wire the real `@SECTION` body/choices).
+- [x] **P11.1 [auto] — closed 2026-08-26.** Close every **MissingWire**
+  row in `popup_audit.md` (wire the real `@SECTION` body/choices). Only
+  one MissingWire row existed (the "Teach / convert / raid OK" row), and
+  its `@RAID*` half was fixed this same session (P8.4). Its other half,
+  `@LEARNALREADY`, is deliberately left silent by design (not a wiring
+  gap — see the row's own note), so nothing further to close; updated
+  `popup_audit.md`'s row to drop the now-stale `@RAID*` citation.
 - [ ] **P11.2 [auto]** Convert **Partial** rows that are status lines but
   DOS shows a modal (`@PRICEUP`/`@PRICEDOWN`, order gates, `@CARGOREADY`
   ship-finish, HELLO attitude) to real modals with correct choice sets.
+  **Checked 2026-08-26 — 3 of 4 examples already resolved, "choice sets"
+  premise doesn't apply to any of them.** `popup_audit.md` has no
+  `Partial` verdict at all (only Authentic/MissingWire/Mismatch/Invented/
+  PARKED — this row's own framing predates that vocabulary). `@CARGOREADY0/1`
+  and `@NEEDTOOLS`/`@NEEDTOOLS0` ("order gates") are already real OK
+  popups (`ai_popup_enqueue_ok`, `turn.c`), not status-only. `@PRICEUP`/
+  `@PRICEDOWN` and `@CARGOREADY*` are OK-dismiss info bodies in
+  `GAME.TXT` (no choice lines) — "correct choice sets" was never a real
+  requirement for them, only the "status line → real popup" half applies,
+  and it's already done for CARGOREADY/NEEDTOOLS. **`@PRICEUP`/
+  `@PRICEDOWN` still genuinely status-only** (real gap) — not converted
+  this pass: doing so means a new OK popup on every Europe market price
+  tick, a real default-behavior/interruption-frequency change needing the
+  user's call before landing, not a silent auto-port. **"HELLO attitude"
+  is the same Euro-rival first-contact greeting gap found under P8.2**,
+  not an Indian-attitude thing — see that row.
 - [ ] **P11.3 [auto]** Layout: popup width/height/wrap rules from the
   `6f74` compositor (`FUN_6f74_36ca`/`3760`/`3848`) so multi-line bodies and
   CHOICE lists size like DOS — content correctness only; wood-frame pixel
-  chrome is D4.
-- [ ] **P11.4 [auto]** Token substitution audit (`popup_msg_fill`): every
-  `%s`/numeric token in used sections resolves; add a test that walks all
-  wired sections and fills with a fixture.
+  chrome is D4. **Confirmed real 2026-08-26, not fixed this pass —
+  genuinely invasive, not attempted blind.** `ai_popup.c`'s
+  `AI_POPUP_DEFAULT_WIDTH` is a flat `190`, used for *every* popup
+  regardless of section; `GAME.TXT`'s own `@width=NNN` directive per
+  section is parsed out and discarded (`popup_msg_is_directive` strips it
+  from the body, nothing captures the number). Real spread: `grep -o
+  '@width=[0-9]*' COLONIZE/GAME.TXT | sort -u` → 11 distinct values (68,
+  78, 90, 120, 140, 160, 190, 200, 220, 260, 300, 310); 336 sections use
+  the default 190 but 99 use 220, 10 use 310, etc. — a real, broad-impact
+  gap, not an edge case. **Why not fixed here:** `AiPopupRequest`
+  (`ai_popup.h`) only stores the pre-rendered `body` text, never the
+  section name or a width — plumbing the real per-section width through
+  would mean adding a field to that struct and touching every one of the
+  dozens of `ai_popup_enqueue_ok`/`_choice*` call sites across
+  `ai_king.c`/`ai_contact.c`/`ai_diplo.c`/`founding_fathers.c`/`turn.c`/
+  `colony.c`/`game_loop.c`/`units.c` (or, cheaper but DOS-inexact,
+  inferring width from body length as a heuristic) — real multi-file
+  surgery with no visual regression net to catch a mis-sized popup,
+  correctly out of scope for a same-pass fix.
+- [x] **P11.4 [auto] — done 2026-08-26.** Token substitution audit
+  (`popup_msg_fill`): every `%s`/numeric token in used sections resolves;
+  add a test that walks all wired sections and fills with a fixture. New
+  `tests/unit/test_popup_msg.c` (`unit_popup_msg` ctest target): built
+  the "used sections" list by intersecting every ALL-CAPS string literal
+  in `src/core/*.c` against every real `@SECTION` name in `GAME.TXT` (181
+  sections), fills each with a full fixture (`STRING0-4`/`COUNTRY`/
+  `NUMBER0-2` all populated) via the real `popup_msg_fill`, and asserts
+  the real body was used (not the fallback) and no `%STRING`/`%NUMBER`/
+  `%COUNTRY` marker survives (a survivor would mean a token index
+  `popup_msg_apply_tokens` doesn't handle, e.g. `%STRING5`, printing
+  literally to the player). Result: 181/181 clean, no gap found — this
+  audit didn't uncover a bug, it closes the row by proving there isn't
+  one in the currently-wired set. `ctest`: 43/43 (was 42, +1 new target).
 - [ ] **P11.5 [user]** Popup review with the user during P1 sessions;
   file per-popup fixes here.
 

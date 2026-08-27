@@ -1723,6 +1723,58 @@ int main(void) {
   }
 
   /*
+   * Same STORES scenario, but with real COLONIZE/GAME.TXT loaded: the
+   * status line should now come from the real @RAIDSTORES body (2026-08-26
+   * fix — was always the hand-typed thin line, even with assets present)
+   * — "Large quantities of {cargo} stolen. Colonists outraged!" — with the
+   * actually-drained cargo name (Muskets, per this scenario's warehouse)
+   * substituted in, not a fixed placeholder.
+   */
+  {
+    euro->x = 10;
+    euro->y = 10;
+    brave->x = 5;
+    brave->y = 5;
+    brave->moves_left = 3;
+    brave->nation_id = 4;
+    ind->alarm_by_player[0] = 50;
+    col1.tribe[0].alarm[0].friction = 50;
+    col1.tribe[0].mission = 0xff;
+    col1.nation[0].gold = 0;
+    col1.nation[0].relation_by_indian[0] = 40;
+    c->active = true;
+    c->nation_id = 0;
+    c->x = 5;
+    c->y = 5;
+    c->population = 1;
+    c->colonist_count = 1;
+    c->building_in_production = -1;
+    snprintf(c->name, sizeof(c->name), "Roanoke");
+    memset(c->stock, 0, sizeof(c->stock));
+    c->stock[COLONIZE_CARGO_MUSKETS] = 3;
+    status[0] = '\0';
+    ctx.status = status;
+    ctx.status_size = sizeof(status);
+    ctx.human_nation = 0;
+    ColonizeMsgCatalog game_txt_raid;
+    assets_msg_init(&game_txt_raid);
+    (void)assets_msg_load_file(&game_txt_raid, "COLONIZE/GAME.TXT");
+    ctx.messages = &game_txt_raid;
+    ai_contact_indian_raids(&ctx, 4);
+    ctx.messages = NULL;
+    assets_msg_free(&game_txt_raid);
+    if (ai_contact_last_raid_kind() != AI_RAID_STORES) {
+      return fail("real-GAME.TXT STORES scenario should still pick AI_RAID_STORES");
+    }
+    if (strstr(status, "Large quantities of Muskets stolen") == NULL ||
+        strstr(status, "Colonists outraged") == NULL ||
+        strstr(status, "Roanoke") == NULL) {
+      fprintf(stderr, "unit_ai_contact: real @RAIDSTORES status '%s'\n", status);
+      return fail("STORES raid with GAME.TXT loaded should use the real @RAIDSTORES body");
+    }
+  }
+
+  /*
    * STORES goods-value pick (FUN_5fef_016c stand-in): food+silver warehouse
    * at mid alarm → drain silver (higher value), not food. Cite:
    * indian_raid_outcomes.md @RAIDSTORES; peel FUN_5fef_016c.

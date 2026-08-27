@@ -20,9 +20,27 @@
 
 static int s_last_raid_kind = AI_RAID_NOTHING;
 static char s_last_burn_building[48];
+static char s_last_stores_cargo[48];
+static char s_last_ship_type[48];
+static int s_last_gold_drained;
 
 int ai_contact_last_raid_kind(void) {
   return s_last_raid_kind;
+}
+
+/* @CARGO display names (colony.h / NAMES.TXT) — same table as ai_king.c's
+ * ai_king_cargo_name, duplicated locally to avoid a cross-module dependency
+ * for this one status-line lookup. */
+static const char* ai_contact_cargo_name(int cargo_idx) {
+  static const char* const names[COLONIZE_CARGO_COUNT] = {
+    "Food",        "Sugar",  "Tobacco", "Cotton", "Furs",  "Lumber",
+    "Ore",         "Silver", "Horses",  "Rum",    "Cigars", "Cloth",
+    "Coats",       "Trade Goods", "Tools", "Muskets"
+  };
+  if (cargo_idx < 0 || cargo_idx >= COLONIZE_CARGO_COUNT) {
+    return "goods";
+  }
+  return names[cargo_idx];
 }
 
 static int ai_contact_dist(int x0, int y0, int x1, int y1) {
@@ -4828,6 +4846,9 @@ static void ai_contact_apply_raid_loot(
   }
   s_last_raid_kind = (int)kind;
   s_last_burn_building[0] = '\0';
+  s_last_stores_cargo[0] = '\0';
+  s_last_ship_type[0] = '\0';
+  s_last_gold_drained = 0;
 
   switch (kind) {
   case AI_RAID_NOTHING:
@@ -4850,6 +4871,7 @@ static void ai_contact_apply_raid_loot(
         half = c->stock[cargo];
       }
       c->stock[cargo] -= half;
+      snprintf(s_last_stores_cargo, sizeof(s_last_stores_cargo), "%s", ai_contact_cargo_name(cargo));
     }
     break;
   }
@@ -4914,6 +4936,7 @@ static void ai_contact_apply_raid_loot(
           drain = nat->gold;
         }
         nat->gold -= (uint16_t)drain;
+        s_last_gold_drained = (int)drain;
       }
     }
     break;
@@ -4930,6 +4953,7 @@ static void ai_contact_apply_raid_loot(
         if (ai_contact_dist(u->x, u->y, c->x, c->y) > 2) {
           continue;
         }
+        snprintf(s_last_ship_type, sizeof(s_last_ship_type), "%s", units_display_name(ctx->units, u));
         if (u->moves_left > 0) {
           u->moves_left = 0;
         }
@@ -5444,9 +5468,13 @@ void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id) {
            * @INDIANWAR when peace broken; @INDIANSURPRISE when not yet at war.
            */
           if (ai_contact_euro_is_human(ctx, target_euro)) {
-            char raid_line[96];
+            char raid_line[AI_POPUP_BODY_LEN];
             const char* raid_body = NULL;
             const char* tribe = ai_contact_tribe_name(nation_id);
+            PopupMsgTokens raid_tok;
+            memset(&raid_tok, 0, sizeof(raid_tok));
+            raid_tok.string0 = tribe;
+            raid_tok.string1 = c->name[0] ? c->name : NULL;
             if (abandoned && abandoned_name[0]) {
               if (kind == AI_RAID_SCALP || kind == AI_RAID_BURN) {
                 units_combat_notify_colony_burned(
@@ -5464,14 +5492,12 @@ void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id) {
                 raid_body = raid_line;
               }
             } else if (kind == AI_RAID_NOTHING) {
-              /* GAME.TXT @RAIDNOTHING: "{tribe} raiding party wiped out in {colony}!" */
+              /* GAME.TXT @RAIDNOTHING: "{tribe} raiding party wiped out in {colony}! Colonists jubilant!" */
               if (c->name[0]) {
-                snprintf(
-                  raid_line,
-                  sizeof(raid_line),
-                  "%s raiding party wiped out in %s!",
-                  tribe,
-                  c->name
+                popup_msg_fill(
+                  ctx->messages, "RAIDNOTHING", &raid_tok,
+                  "%STRING0 raiding party wiped out in %STRING1!",
+                  raid_line, sizeof(raid_line)
                 );
               } else {
                 snprintf(
@@ -5511,14 +5537,13 @@ void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id) {
               }
               raid_body = raid_line;
             } else if (kind == AI_RAID_SHIP) {
-              /* GAME.TXT @RAIDSHIP thin. */
+              /* GAME.TXT @RAIDSHIP: "{tribe}... in {colony}! {ship} damaged. Colonists appalled!" */
               if (c->name[0]) {
-                snprintf(
-                  raid_line,
-                  sizeof(raid_line),
-                  "%s raiding party attacks harbor in %s!",
-                  tribe,
-                  c->name
+                raid_tok.string2 = s_last_ship_type[0] ? s_last_ship_type : "A ship";
+                popup_msg_fill(
+                  ctx->messages, "RAIDSHIP", &raid_tok,
+                  "%STRING0 raiding party attacks harbor in %STRING1!",
+                  raid_line, sizeof(raid_line)
                 );
               } else {
                 snprintf(
@@ -5530,14 +5555,12 @@ void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id) {
               }
               raid_body = raid_line;
             } else if (kind == AI_RAID_SCALP) {
-              /* GAME.TXT @RAIDSCALP thin (WINCOLONY when abandon handled above). */
+              /* GAME.TXT @RAIDSCALP (WINCOLONY when abandon handled above). */
               if (c->name[0]) {
-                snprintf(
-                  raid_line,
-                  sizeof(raid_line),
-                  "%s raiding party takes scalps in %s!",
-                  tribe,
-                  c->name
+                popup_msg_fill(
+                  ctx->messages, "RAIDSCALP", &raid_tok,
+                  "%STRING0 raiding party takes scalps in %STRING1!",
+                  raid_line, sizeof(raid_line)
                 );
               } else {
                 snprintf(
@@ -5549,14 +5572,14 @@ void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id) {
               }
               raid_body = raid_line;
             } else if (kind == AI_RAID_GOLD) {
-              /* GAME.TXT @RAIDGOLD thin. */
+              /* GAME.TXT @RAIDGOLD: "{tribe}... in {colony}! Merchants report {N}$ plundered." */
               if (c->name[0]) {
-                snprintf(
-                  raid_line,
-                  sizeof(raid_line),
-                  "%s raiding party seizes strongboxes in %s!",
-                  tribe,
-                  c->name
+                raid_tok.number0 = s_last_gold_drained;
+                raid_tok.has_number0 = true;
+                popup_msg_fill(
+                  ctx->messages, "RAIDGOLD", &raid_tok,
+                  "%STRING0 raiding party seizes strongboxes in %STRING1!",
+                  raid_line, sizeof(raid_line)
                 );
               } else {
                 snprintf(
@@ -5568,12 +5591,12 @@ void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id) {
               }
               raid_body = raid_line;
             } else if (kind == AI_RAID_BURN && s_last_burn_building[0]) {
-              snprintf(
-                raid_line,
-                sizeof(raid_line),
-                "The %s burn your %s.",
-                tribe,
-                s_last_burn_building
+              /* GAME.TXT @RAIDBURN: "{tribe}... in {colony}! {building} destroyed..." */
+              raid_tok.string2 = s_last_burn_building;
+              popup_msg_fill(
+                ctx->messages, "RAIDBURN", &raid_tok,
+                "The %STRING0 burn your %STRING2.",
+                raid_line, sizeof(raid_line)
               );
               raid_body = raid_line;
             } else if (kind == AI_RAID_BURN) {
@@ -5596,14 +5619,13 @@ void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id) {
               }
               raid_body = raid_line;
             } else if (kind == AI_RAID_STORES) {
-              /* GAME.TXT @RAIDSTORES thin. */
+              /* GAME.TXT @RAIDSTORES: "{tribe}... in {colony}! Large quantities of {cargo} stolen." */
               if (c->name[0]) {
-                snprintf(
-                  raid_line,
-                  sizeof(raid_line),
-                  "%s raiding party attacks stores in %s!",
-                  tribe,
-                  c->name
+                raid_tok.string2 = s_last_stores_cargo[0] ? s_last_stores_cargo : "goods";
+                popup_msg_fill(
+                  ctx->messages, "RAIDSTORES", &raid_tok,
+                  "%STRING0 raiding party attacks stores in %STRING1!",
+                  raid_line, sizeof(raid_line)
                 );
               } else {
                 snprintf(

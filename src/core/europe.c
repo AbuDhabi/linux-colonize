@@ -1893,6 +1893,18 @@ int europe_sell_hold(EuropeScreen* eu, int harbor_index, int hold_index) {
  * FUN_364b_0636: Custom House may auto-sell this cargo type.
  * Deny Food(0), Horses(8), Tools(0xe), Muskets(0xf).
  * Ore(6) extra DOS deny path not mapped — allow Ore (no invent).
+ *
+ * **2026-08-27: a same-day attempt to also deny Lumber(5) here (matching a
+ * `param_1 != 5` term this function's raw decompile appears to have) was
+ * reverted — both `golden_colony_prod01`/`02` (real DOS `.SAV` ground
+ * truth) show Lumber genuinely auto-sold down to 50, contradicting that
+ * reading. The `param_1==5` deny term is real in the decompile but must
+ * gate something other than plain cargo-index-5 in this calling context
+ * (`local_b6` in `FUN_364b_0688`'s loop may not be a raw cargo index the
+ * way the other four terms' values are), or a second, different type-gate
+ * function is the real one `0688` calls — not re-investigated this pass.
+ * Golden evidence overrides the static read; leaving the deny list at its
+ * original 4 entries, unchanged from before this attempt.
  */
 static int europe_custom_house_cargo_eligible(int cargo_type) {
   if (cargo_type == COLONIZE_CARGO_FOOD ||
