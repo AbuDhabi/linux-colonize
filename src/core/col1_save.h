@@ -395,11 +395,21 @@ typedef struct ColonizeCol1Colony {
   uint8_t depletion_counter; /* +0x97; INC, wrap at 50 */
   uint16_t hammers_purchased; /* +0x98; FUN_2f2b_5e44 BUY adds remainder */
   uint16_t stock[COLONIZE_COL1_CARGO_TYPES];
-  uint8_t visible_to_euro[4]; /* +0xba; smcol population_on_map — fog pop per Euro; founding writes 1 (FUN_364b_1ba8) */
-  uint8_t unknown13_pad[4]; /* +0xbe; smcol fortification_on_map[4] (0..3); founding 0; lategame fixtures non-zero.
-                                Writer confirmed 2026-08-19 (live DOSBox-X trace): fires from a periodic timer-tick
-                                ISR (segment 124C, alternating-tick dispatch), not founding/player-action — absent
-                                from the 3 decompiled exports for that reason. Exact store opcode not pinned. */
+  uint8_t visible_to_euro[4]; /* +0xba; smcol population_on_map — pop of this colony as each Euro last
+                                 saw it. DOS array form: [idx*0xca + 0x5e00 + nation] (never via the
+                                 0x8542 pointer, hence invisible to +0xba grep). Writers: founding
+                                 FUN_364b_1ba8 (=1); tile-reveal FUN_13f1_000a → FUN_364b_1b4c (=live
+                                 population); FUN_13f1_00a6 ±5 reveal (=1 if 0); map/unit-chrome draw
+                                 (FUN_112b_01ba, FUN_1000_9150/9d32/a05e/a07a/a0a4) =1 if 0 for foreign
+                                 colonies. Reader: FUN_364b_1b76 gate (foreign colony known to human)
+                                 + FUN_112b_01ba pop badge. 0x53a2 show_entire_map bypasses. */
+  uint8_t fortification_on_map[4]; /* +0xbe; was unknown13_pad. smcol fortification_on_map — stockade
+                                 chain depth (0..3) as each Euro last saw it. Same array form
+                                 (0x5e04). Writers: founding =0; FUN_364b_1b4c = FUN_15eb_03d6(idx,0)
+                                 (count owned buildings along parent chain from building 0 =
+                                 Stockade→Fort→Fortress) on every tile-reveal for that nation;
+                                 FUN_13f1_00a6 =0 on first sight. No DOS reader found (draw code
+                                 recounts live via FUN_15eb_035e). Resolved statically 2026-08-27. */
   uint32_t rebel_dividend;
   uint32_t rebel_divisor;
 } ColonizeCol1Colony;

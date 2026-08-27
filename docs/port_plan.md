@@ -1088,7 +1088,7 @@ mostly in contact (`@LEARN*`, `@RAID*`, `@CHIEF*`), Europe
 | D6 | Present-but-unused digital SFX (`COLDIG.BIN`) | [assets.md](assets.md) | Not planned; user notes it is used in some versions — revisit only with a version that triggers it |
 
 Also parked with these: MAPEDIT catalog track (old W5.4), `VR_B465X` hang
-dump (T4.6, by policy), `unknown13_pad` tick-handler live watch (old W4.4).
+dump (T4.6, by policy). (`unknown13_pad`/old W4.4 closed 2026-08-27 — static.)
 
 ---
 
@@ -1289,10 +1289,8 @@ W4.3/W4.4 → deferred; W5.x → D4; W5.5 → D1/D3.
   independently-displayed result at all (always converts to 4 or 6 first).
   **Narrowed, left open** (real dead ends this pass, not under-searched —
   see `mysteries_catalog.md` for exact stopping points): `unknown13_pad`
-  tick-handler install site — Ghidra's own XREF index (not just grep)
-  confirms zero absolute-address writers into `DS:0xa660`/`0xa664`, so the
-  writer (if findable statically) needs indexed/computed-address tracing,
-  same class of problem as the readers; stays **W4.4** for a live watch.
+  — **superseded 2026-08-27**: resolved statically (colony array literal
+  `0x5e04`, writer `FUN_364b_1b4c`); W4.4 closed.
   `unknown26` `+0x40-0x43` — now confirmed as the alliance-relationship
   cell (boolean writer in `FUN_5bfb_13b0`, already-ported alliance
   form/break), but a second, computed-value writer inside `FUN_5bfb_153e`'s
@@ -1444,10 +1442,10 @@ up empty. Live-debug workflow quirks: [dosbox_debugging.md](dosbox_debugging.md)
   T4.5 (incite Mode-2 caller, low value), T4.9 (`2820` AI refuse-gate
   scale/polarity), T4.6 (`VR_B465X` hang dump — parked **by policy**, do
   not resume without a stated reason).
-- [ ] **W4.4 — `unknown13_pad` tick-handler install (live watch).** Only
-  after W1.6's static grep of `DS:0xa660`/`0xa664` writers comes up empty:
-  live write-watch those cells to find what installs the colony-screen
-  tick handler.
+- [x] **W4.4 — `unknown13_pad` (closed 2026-08-27, static).** Writer is
+  `FUN_364b_1b4c` on tile reveal, addressed via colony array literal
+  `0x5e04`, not the `0x8542` pointer. Renamed `fortification_on_map`. See
+  `mysteries_catalog.md`. ISR/`0xa660` lead retracted.
 
 ---
 
