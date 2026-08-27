@@ -1958,7 +1958,7 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_2a1f_0634` | 38190 | 10 | mapgen | Far thunk → FUN_5bfb_0000 (cargo/treasury census outs for diplomacy) | inferred |  |
 | `FUN_2a1f_0642` | 38200 | 10 | mapgen | Far thunk → FUN_5bfb_1092 (diplomacy short 1–2 option dialog present) | inferred |  |
 | `FUN_2a1f_0650` | 38210 | 10 | mapgen | Far thunk → FUN_5bfb_0182 (set diplomacy bit0x40 + human peace/teach dialogs) | inferred |  |
-| `FUN_2a1f_065e` | 38220 | 10 | mapgen | Far thunk → FUN_5bfb_13b0 (form or break alliance between two nations) | inferred |  |
+| `FUN_2a1f_065e` | 38220 | 10 | mapgen | Far thunk → FUN_5bfb_13b0 (AI treaty sign/cancel) | known (2026-08-27) |  |
 | `FUN_2a1f_066c` | 38230 | 10 | mapgen | Far thunk → FUN_5bfb_022e (Indian unit contact/meet body) | inferred |  |
 | `FUN_2a1f_067a` | 38240 | 10 | mapgen | Far thunk → FUN_5bfb_10ec (Euro A↔B war/ally eligibility by military balance) | inferred |  |
 | `FUN_2a1f_0688` | 38250 | 10 | mapgen | Far thunk → FUN_6f74_37cc (set tertiary side-art DS:0x1f60 then flush/run) | inferred |  |
@@ -2677,9 +2677,9 @@ Thin map: [ai/king_ref.md](ai/king_ref.md). Linux: `src/core/ai_king.c`.
 | `FUN_5bfb_022e` | 96565 | 540 | ai | Indian unit contact/meet body (first contact, gifts, demand) | inferred | FUN_2a1f_066c |
 | `FUN_5bfb_102a` | 97105 | 24 | ai | Diplomacy multi-line dialog present (N option pumps) | inferred | FUN_2a1f_0618 |
 | `FUN_5bfb_1092` | 97129 | 22 | ai | Diplomacy short 1–2 option dialog present | inferred | FUN_2a1f_0642 |
-| `FUN_5bfb_10ec` | 97151 | 63 | ai | Euro A↔B war/ally eligibility by military balance | inferred | FUN_2a1f_067a |
+| `FUN_5bfb_10ec` | 97151 | 63 | ai | Euro A↔B "war-worthy": turn>39, colony_pop_totals>7 either, neither independent, focus-nation strength clauses, met-unpeaced rival count vs continent presence/defense ratio (−0x6b1a/−0x6b5a/−0x6a8e) | known (2026-08-27) | ai_euro_10ec_war_worthy |
 | `FUN_5bfb_12d0` | 97214 | 46 | ai | Clear armed-unit goto/orders adjacent to a colony | inferred | FUN_2a1f_060a |
-| `FUN_5bfb_13b0` | 97260 | 61 | ai | Form or break alliance (bit0x40) between two nations | inferred | FUN_2a1f_065e |
+| `FUN_5bfb_13b0` | 97260 | 61 | ai | AI-initiated peace-treaty sign/cancel: cadence (a+turn+b)%3 unless unmet; skip on WAR; not war-worthy (10ec either way) ∧ no PEACE → @SIGNTREATY, PEACE both ways, 12d0 both ways, cooldown=1; else PEACE∨unmet → @DECLAREWAR/@CANCELTREATY, cooldown=0, clear PEACE (no WAR bit) | known (2026-08-27) | ai_diplo_13b0_treaty_tick; called from 153e entry for AI selves |
 | `FUN_5bfb_153e` | 97321 | 1112 | ai | Large diplomacy/war-declaration body (trade/military score) | inferred | FUN_2a1f_05fc |
 | `FUN_5bfb_312e` | 98433 | 24 | ai | Unit combat-power factor (type/HP modifiers) | inferred | FUN_2a1f_0626 |
 | `FUN_5bfb_3180` | 98457 | 352 | ai | Adjacent ship/unit combat loot resolution around (x,y) | inferred | FUN_2a1f_0192 |

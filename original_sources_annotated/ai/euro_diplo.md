@@ -49,7 +49,9 @@ seed-100 TURN1→2 while `euro_relation[]` stayed zero (peace).
 | `0x40` | PEACE | `5bfb_0182`, `13b0` peace branch, `3844_0442`; cleared at every attack site |
 
 Real saves carry `00/20/22/60/a0/e0/e2/e8`; bits are directional. `13b0` is the
-paid `@SMITEINDIANS`/`@SMITEEUROPE` war-hire dialog, not an alliance offer.
+AI-initiated treaty sign/cancel (`@SIGNTREATY`/`@CANCELTREATY`/`@DECLAREWAR`),
+not an alliance offer; the paid `@SMITE*` war-hire lives in `153e`'s FA
+negotiation. See `ai_port_plan.md` T1.20.
 
 ## `6d8e` §4 vs opportunistic `5bfb`
 

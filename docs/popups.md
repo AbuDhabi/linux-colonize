@@ -398,7 +398,8 @@ work.
 | `@SNEAK` | Done | User-confirmed real (2026-08-14): AI Euro attacks outright at peace, war declared as a side effect of the attack (not a prerequisite) — already correctly implemented in `ai_euro_try_attack` (`src/core/ai_euro.c`). Fixed: was silently calling bare `ai_diplo_declare_war` (no notification); now `ai_diplo_declare_war_ctx` + real GAME.TXT "Sneak attack by the treacherous %STRING0!" status when human is a party. Covered by `unit_ai_diplo` (`test_ai_diplo.c`, direct `popup_msg_fill` check against real GAME.TXT — end-to-end dispatcher assertion too flaky, `ai_diplo_euro_balance`'s own opportunistic declare can win the race within the same turn). |
 | `@CANCELPEACE` | Done | DIPLO_* CHOICE structural; 10ec AI→human war-declare CHOICE prompt body now the real GAME.TXT line via `popup_msg_fill` |
 | `@SIGNTREATY` | Done | DIPLO_* CHOICE structural; peace-concluded OK popup body now the real GAME.TXT line via `popup_msg_fill` (Tools-embargo-lift chrome may override) |
-| `@DECLAREWAR` | Done | DIPLO_* CHOICE structural; war-declared OK popup body now the real GAME.TXT line via `popup_msg_fill` (boycott/hostility chrome may override) |
+| `@DECLAREWAR` | Done | DIPLO_* CHOICE structural; war-declared OK popup body now the real GAME.TXT line via `popup_msg_fill` (boycott/hostility chrome may override); also `13b0` treaty-cancel-without-peace notice (2026-08-27) |
+| `@CANCELTREATY` | Done (structural) | `FUN_5bfb_13b0` treaty cancel notice via `ai_diplo_13b0_treaty_tick` (2026-08-27); tag not in shipped GAME.TXT (`0x1898`, DS-only) → fallback text |
 | `@HAVETREATY` | Partial | FA / diplo lines — thin DIPLO_FA or status; full 3f41 PARKED |
 | `@WHACKINDIANS` | Partial | contact/raid/mission — structural OK/status; deep/VGA PARKED |
 | `@VILLAGEHAPPY` | Partial | contact/raid/mission — structural OK/status; deep/VGA PARKED |

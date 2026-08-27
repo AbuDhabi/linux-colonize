@@ -10875,6 +10875,88 @@ static int ai_euro_20e6_combat_value_on(const ColonizeTurnContext* ctx, int nati
 }
 
 /* DS:0x95f2 continent_presence_flags bit 0x04: a foreign colony sits on cid. */
+static int ai_euro_10ec_land_units_on(const ColonizeTurnContext* ctx, int nation, int cid) {
+  int n = 0;
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    const ColonizeUnit* o = units_get_const(ctx->units, i);
+    if (!o || !o->active || o->nation_id != nation || units_is_sea(ctx->units, i)) {
+      continue;
+    }
+    if (map_continent_id_at(ctx->map, o->x, o->y) == cid) {
+      n++;
+    }
+  }
+  return n > 255 ? 255 : n; /* −0x6b5a byte table */
+}
+
+int ai_euro_10ec_war_worthy(const ColonizeTurnContext* ctx, int a, int b) {
+  if (!ctx || !ctx->col1_ok || !ctx->col1 || !ctx->units || !ctx->map || !ctx->turn_number ||
+      a < 0 || a > 3 || b < 0 || b > 3 || a == b) {
+    return 0;
+  }
+  const ColonizeCol1Save* col1 = ctx->col1;
+  const int focus = ctx->human_nation; /* DS:0x5398 */
+  if ((int)*ctx->turn_number <= 0x27) {
+    return 0;
+  }
+  if (col1->stuff.colony_pop_totals[a] <= 7 && col1->stuff.colony_pop_totals[b] <= 7) {
+    return 0; /* −0x6bf4 */
+  }
+  if ((col1->nation[a].nation_flags & 0x04) || (col1->nation[b].nation_flags & 0x04)) {
+    return 0; /* independent */
+  }
+  if (focus >= 0 && focus < 4) {
+    /* For each of a/b: met-but-unpeaced with the focus nation only passes when the
+     * focus nation is no stronger (−0x6be4 word, −0x6bf0 byte). DOS compares
+     * b's word but a's −0x6bf0 byte in the second clause (verbatim). */
+    const int fa = col1->nation[a].euro_relation[focus] & (AI_DIPLO_PEACE | AI_DIPLO_MET);
+    if (fa == AI_DIPLO_MET &&
+        !(col1->stuff.land_combat_strength[focus] <= col1->stuff.land_combat_strength[a] &&
+          col1->stuff.census_pop_proxy[focus] <= col1->stuff.census_pop_proxy[a])) {
+      return 0;
+    }
+    const int fb = col1->nation[b].euro_relation[focus] & (AI_DIPLO_PEACE | AI_DIPLO_MET);
+    if (fb == AI_DIPLO_MET &&
+        !(col1->stuff.land_combat_strength[focus] <= col1->stuff.land_combat_strength[b] &&
+          col1->stuff.census_pop_proxy[focus] <= col1->stuff.census_pop_proxy[a])) {
+      return 0;
+    }
+  }
+  int rivals = 0;
+  for (int n = 0; n < 4; ++n) {
+    if (n != a && n != b &&
+        (col1->nation[a].euro_relation[n] & (AI_DIPLO_PEACE | AI_DIPLO_MET)) == AI_DIPLO_MET) {
+      rivals++;
+    }
+  }
+  if ((col1->nation[a].euro_relation[b] & (AI_DIPLO_PEACE | AI_DIPLO_MET)) != AI_DIPLO_MET) {
+    rivals++;
+  }
+  int local_4 = 0; /* any shared continent */
+  int local_8 = 0; /* a's defense value where both present */
+  int local_6 = 1; /* b's (units + defense)/2 + 1 */
+  for (int cid = 1; cid < 0xf; ++cid) {
+    const int a_col = ai_euro_20e6_own_colonies_on(ctx, a, cid);
+    const int a_units = ai_euro_10ec_land_units_on(ctx, a, cid);
+    const int a_def = ai_euro_20e6_combat_value_on(ctx, a, cid);
+    const int b_def = ai_euro_20e6_combat_value_on(ctx, b, cid);
+    if (a_col != 0 && (uint8_t)((a_units >> 1) + (a_def >> 1)) < b_def) {
+      return 0; /* a is dwarfed where it has colonies */
+    }
+    const int b_units = ai_euro_10ec_land_units_on(ctx, b, cid);
+    if (a_def != 0 && b_units != 0) {
+      local_8 += a_def;
+      local_6 += (b_units + b_def) >> 1;
+      local_4 = 1;
+    }
+  }
+  const int unknown34 = 0; /* −0x6a9a[a*3] — Linux unknown34_pad, unresolved */
+  if ((rivals - unknown34) + 4 <= (local_8 << 2) / local_6 || local_4 == 0) {
+    return 1;
+  }
+  return 0;
+}
+
 static int ai_euro_20e6_foreign_colony_on(const ColonizeTurnContext* ctx, int nation, int cid) {
   if (!ctx->colonies || cid < 0) {
     return 0;

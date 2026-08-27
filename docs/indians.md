@@ -373,7 +373,7 @@ therefore now has one store:
   push, the trade `alarm--` double push.
 - "At war with tribe" (same day, second pass) = met ∧ (`euro_diplo & 0x02`
   ∨ alarm > 0x4a), i.e. `FUN_5bfb_153e`'s own test. Bit `0x02` = WAR on
-  `euro_diplo` (`COL1_INDIAN_WAR_BIT`): DOS sets it only in `FUN_5bfb_13b0`
+  `euro_diplo` (`COL1_INDIAN_WAR_BIT`): DOS sets it only in `FUN_5bfb_153e`'s FA branch
   (`@SMITEINDIANS`/`@SMITEEUROPE` — pay an AI nation to declare war;
   unported) and clears it in `FUN_4cc6_00f2` when alarm cools below 75
   (mirrored in `ai_diplo_indian_alarm_delta`). Linux sticky bands moved to
