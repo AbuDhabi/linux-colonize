@@ -42,20 +42,21 @@ field's address, not a decode of the original.
 
 ## B. Semantic-RE dead ends (named function, meaning still guessed/unfound)
 
-- **`FUN_4d56_417e` (Incite Indians) — Mode-2 caller only.** Formula
-  traced (`table[-0x69d6]*8 + (table[-0x6e7c]>>2&0xfe - 2*table[-0x69d6])`);
-  on 2026-08-14 both tables *identified* (village-count-by-type,
-  Σ combat-strength-by-type) — and **since then wired for real**:
-  `ai_contact_incite_price()` (`ai_contact.c`) computes both as live
-  per-tribe-type sums (village count over `col1->tribe`,
-  `combat_unit_base_x8` over Braves), the old `indian.tech` stand-in is
-  gone. The earlier "stale-doc mismatch" note here is also resolved —
-  the `ai_contact.c` header comment now matches the code (2026-08-24).
-  **What's still open: the AI Mode-2 caller** — never found despite three
-  static methods + two live DOSBox-X hang-dump captures (trampoline at
-  resident `0x1261f` is RTLink's generic overlay dispatcher, not game
-  logic — doesn't pin the trigger). Tracked as `ai_port_plan.md` T4.5
-  (low value; Mode-1 human path is complete and byte-faithful).
+- **`FUN_4d56_417e` (Incite Indians) — RESOLVED 2026-08-27, static-only.**
+  Caller is `FUN_4d56_4528`'s tail `switch(uStack_56)` `case 7`
+  (`OVL13::4b80 → thunk OVL13::4c36 → FUN_1000_a5b8 → JMPF 0000:417e`);
+  the `1000:a5bd JMPF 0x0000:417e` stub previously dismissed as a "false
+  lead" was the real resident thunk (`0000` = RTLink load-time-patched
+  segment, same shape as the trusted `1000:a641 → 2820` stub). Push order
+  matches the live capture exactly. Mode 1 = human picks the Missionary
+  "Incite Indians" menu entry (`*0x9336`); Mode 2 = **real**: AI
+  Missionary entering a village, gated on tribe-relation-to-human <75,
+  human MET bit, AI poorer than human (`0x917c` rank), AI gold ≥1500,
+  RNG(0,4)≠0 or no mission. Side effects: the 4528 doc's 2026-08-21
+  polarity flip (`0`=AI) and its "all 8 tail thunks resolve to one OVL11
+  utility" claim were both wrong — retracted in
+  `indian_settlement_4528.md` (2026-08-27 section, full 9-case target
+  table). Mode 2 still unported (`ai_port_plan.md` T4.5).
 
 - **`FUN_5fef_0000`** (best-defender-unit-at-tile scoring walk, resident,
   99111/98). Hand-transcribed from clean disassembly (decompiler pcode

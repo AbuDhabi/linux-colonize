@@ -2992,8 +2992,10 @@ void ai_contact_try_village_beg_food(ColonizeTurnContext* ctx, int nation_id) {
  *    unnamed tables identified as live per-tribe-type sums (village count,
  *    Σ combat_unit_base_x8 over Braves) and wired for real in
  *    ai_contact_incite_price above; only the human-driven Mode-1 path is
- *    wired, no AI-nation auto-incite (Mode-2) caller found yet — see
- *    docs/ai_port_plan.md T4.5).
+ *    wired. Mode-2 (AI Missionary auto-incites the village against the
+ *    human) is confirmed real since 2026-08-27 — caller is FUN_4d56_4528
+ *    tail-switch case 7, gate documented in indian_incite_417e.md
+ *    "Caller: FOUND" — but not ported; see docs/ai_port_plan.md T4.5).
  *  - alarmed (≥55 refuse-talk gate) → refuse convert/heresy; no crosses
  *  - mid (40..54) convert: Jesuit-grade only (PEDIA @JOB24 / Brebeuf).
  * Teach/convert widgets Done structural; deep 2820 PARKED.
