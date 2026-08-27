@@ -643,20 +643,34 @@ unsigned 8-bit. Stream opcode `C3 n` is the same trigger. `sound.c` loads the fi
 callback queues samples, and `sound_render_s16` mixes them after the synth. Dump with
 `build/dump_gsound_wav --sfx` → `ripped_sound/sfx/sfxNN.wav`.
 
-| Event id | COLDIG | DOS push site | Port |
-|---|---|---|---|
-| `0x40`/`0x41` | 31 / 32 | `5fef_1b0e` attack fire (0x41 artillery class) | `units.c` engagement (0x40) |
-| `0x43`/`0x49` | 27 / 34 | `5fef_1b0e` (unit-class variants) | — |
-| `0x44`/`0x45` | 18 / 17 | `5fef_1b0e` tail | — |
-| `0x4a`/`0x4b` | 28 / 33 | `5fef_1b0e` win; 0x4b when natives involved | `units.c` win |
-| `0x4b,0x4d,0x4e,0x4f,0x53,0x5b` | 33,10,6,11+32,19,22+31 | `5fef_0f14` Indian raid loot outcomes | — |
-| `0x4d`/`0x57` | 10 / 16 | `5fef_0352` naval outcome / capture | — |
-| `0x52` | 12 | `465b_0000` move (unit class 0xc, human) | — |
-| `0x54` | 13 | found colony `479b_076e`, colony screen `2f2b_6cd4`, nation EOT `3844` | found colony, colony enter |
-| `0x56` | 9 | `38fd_3dc8` tax raise | — |
-| `0x58` | 21 | fortify / sentry (`2b5a_1112`, `2f2b_5746`) | fortify, sentry |
-| `0x5a` | 15 | `5fef_1908` King's Galleon (via `FUN_281f_04b6`) | — |
-| `0x8020` / `0x8024` | — (chord stings) | war declaration `5bfb_153e`, assign colonist `2f2b_2f3e` | — |
+Sample contents (user listen test 2026-08-27): 0–4 single shots/fireworks; 5–7 screaming +
+shots; 8, 19 burning; 9 cheering; 10, 15 cheering + fireworks; 11 screaming + shooting;
+12 wagon wheels; 13 hammering then cheering; 14 shooting + galloping; 16 sinking; 17 shot
+glancing; 18 shot; 20 animal shot; 21 pump-action; 22 gunfight; 23–34 shots (25–26 cannon).
+
+| Event id | COLDIG | Sound | DOS push site | Port |
+|---|---|---|---|---|
+| `0x40`/`0x41` | 31 / 32 | shot | `5fef_1b0e` attack fire (0x41 artillery class) | `units.c` engagement (0x40) |
+| `0x42`/`0x48` | 30 / 29 | shots | `5fef_1b0e` variants | — |
+| `0x43`/`0x49` | 27 / 34 | shots | `5fef_1b0e` (unit-class variants) | — |
+| `0x44`/`0x45` | 18 / 17 | shot / glancing shot | `5fef_1b0e` tail (miss?) | — |
+| `0x4a`/`0x4b` | 28 / 33 | shots | `5fef_1b0e` win; 0x4b when natives involved | `units.c` win |
+| `0x4c` | 14 | shooting + galloping | — | — |
+| `0x4d` | 10 | cheering + fireworks | `5fef_0352` naval capture; raid loot | — |
+| `0x4e` | 6 | screaming | `5fef_0f14` raid: colonists killed | — |
+| `0x4f` | 11+32 | screaming + shooting | `5fef_0f14` raid loot goods | — |
+| `0x50`/`0x51` | 7+8 / 5+14 | screaming, burning / screaming, galloping | — | — |
+| `0x52` | 12 | wagon wheels | `465b_0000` wagon-train move (human) | — |
+| `0x53` | 19 | burning | `5fef_0f14`/`1b0e` tail: colony burned | colony burned notify |
+| `0x54` | 13 | hammering + cheering | found colony `479b_076e`, colony screen `2f2b_6cd4`, nation EOT `3844` | found colony, colony enter |
+| `0x55` | 20 | animal shot | — | — |
+| `0x56` | 9 | cheering | `38fd_3dc8` tax raise / tea party | — |
+| `0x57` | 16 | sinking | `5fef_0352` ship sunk | — |
+| `0x58` | 21 | pump-action | fortify / sentry (`2b5a_1112`, `2f2b_5746`) | fortify, sentry |
+| `0x5a` | 15 | cheering + fireworks | `5fef_1908` King's Galleon (via `FUN_281f_04b6`) | galleon credit |
+| `0x5b` | 22+31 | gunfight | `5fef_0f14` raid repelled | — |
+| `0x5c` | 8 | burning | — | — |
+| `0x8020` / `0x8024` | — (chord stings) | | war declaration `5bfb_153e`, assign colonist `2f2b_2f3e` | — |
 
 Event ids bypass the BGM scheduler (`sound_play` dispatches them directly), gated by the
 Event Music option in the driver and by Sound Effects for the PCM part.
