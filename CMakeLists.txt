@@ -82,6 +82,7 @@ add_library(colonize_core STATIC
   src/core/ai_king.c
   src/core/ai_popup.c
   src/core/sound.c
+  src/core/gsound_vm.c
   src/core/madspack.c
   src/core/pik.c
   src/core/ss.c
@@ -247,6 +248,7 @@ add_executable(smoke_game_flow
   src/core/ai_king.c
   src/core/ai_popup.c
   src/core/sound.c
+  src/core/gsound_vm.c
   src/core/madspack.c
   src/core/pik.c
   src/core/ss.c
@@ -309,6 +311,7 @@ add_executable(unit_new_game
   src/core/ai_king.c
   src/core/ai_popup.c
   src/core/sound.c
+  src/core/gsound_vm.c
   src/core/madspack.c
   src/core/pik.c
   src/core/ss.c
@@ -382,6 +385,7 @@ add_executable(unit_hall_of_fame
   src/core/ai_king.c
   src/core/ai_popup.c
   src/core/sound.c
+  src/core/gsound_vm.c
   src/core/madspack.c
   src/core/pik.c
   src/core/ss.c
@@ -450,6 +454,7 @@ add_executable(smoke_pick_music
   src/core/pick_music.c
   src/core/popup.c
   src/core/sound.c
+  src/core/gsound_vm.c
   src/core/font.c
   src/core/assets.c
   src/core/ss.c
@@ -1104,6 +1109,7 @@ set_tests_properties(golden_ai_joint PROPERTIES DISABLED TRUE)
 add_executable(smoke_sound
   tests/smoke/test_sound.c
   src/core/sound.c
+  src/core/gsound_vm.c
   src/platform/diagnostics.c
   src/core/strutil.c
   src/platform/dos_compat/dos_compat.c
@@ -1125,6 +1131,7 @@ add_test(NAME smoke_sound COMMAND smoke_sound WORKING_DIRECTORY ${CMAKE_SOURCE_D
 add_executable(dump_gsound_wav
   tools/dump_gsound_wav.c
   src/core/sound.c
+  src/core/gsound_vm.c
   src/platform/diagnostics.c
   src/core/strutil.c
   src/platform/dos_compat/dos_compat.c

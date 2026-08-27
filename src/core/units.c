@@ -3138,7 +3138,7 @@ void units_set_combat_music_hooks(
 /*
  * DOS combat engagement (segment 5fef, reached after an attacker/defender
  * tile-adjacency check succeeds) pushes literal id 0x32 — @PICKMUSIC
- * Military sublist, first song (docs/assets.md) — into the BGM-change path
+ * Indian sublist, first song "Indian Victory" (docs/assets.md) — into the BGM-change path
  * (FUN_281f_048e -> FUN_129f_02cc) once a land or naval attack begins. The
  * real driver only restarts playback when the id actually changes
  * (FUN_129f_0318 "cmp [0x9c],id; jz done"); mirror that via the active-id

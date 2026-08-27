@@ -10,21 +10,17 @@
 #include "core/ui_colors.h"
 
 /*
- * Song id table (GAME.TXT order within each section).
- *
- * Main list = BGM tracks 1..12 → ids 0x21..0x2c (same mapping as sound_set_bgm).
- * Menu order matches the OST listing after Introduction (Bird Song … Nightingale).
- *
- * Submenu ids continue through the remaining BGM slots, skipping Introduction (0x33):
- *   Independence 0x2d..0x31, Military 0x32/0x34..0x36, Indian 0x37..0x3a.
- * Nation anthems / FOY / ending occupy other ids and are not in Pick Music.
+ * Song id table (GAME.TXT order within each section), from the DOS Pick Music
+ * handler (2b5a:264c jump table + sublist offsets 0x28 / 0x2d / 0x31 with the
+ * Indian list skipping 0x34). Verified against DOSBox captures of Jine the
+ * Cavalry (0x25) and Hole In The Wall (0x3a).
  */
 static const int k_main_song_ids[] = {
-  0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28, 0x29, 0x2a, 0x2b, 0x2c
+  0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x39, 0x38, 0x3a, 0x3b
 };
-static const int k_independence_song_ids[] = {0x2d, 0x2e, 0x2f, 0x30, 0x31};
-static const int k_military_song_ids[] = {0x32, 0x34, 0x35, 0x36};
-static const int k_indian_song_ids[] = {0x37, 0x38, 0x39, 0x3a};
+static const int k_independence_song_ids[] = {0x29, 0x2a, 0x2b, 0x2c, 0x2d};
+static const int k_military_song_ids[] = {0x2e, 0x2f, 0x30, 0x31};
+static const int k_indian_song_ids[] = {0x32, 0x33, 0x35, 0x36};
 
 void pick_music_init(PickMusicDialog* dlg) {
   if (!dlg) {

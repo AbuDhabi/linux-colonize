@@ -42,10 +42,10 @@ int main(void) {
     assets_msg_free(&game_txt);
     return 1;
   }
-  if (strcmp(dlg.options[0].label, "Bird Song") != 0 || dlg.options[0].song_id != 0x21) {
+  if (strcmp(dlg.options[0].label, "Bird Song") != 0 || dlg.options[0].song_id != 0x20) {
     fprintf(
       stderr,
-      "first song expected Bird Song/0x21 got '%s'/0x%02x\n",
+      "first song expected Bird Song/0x20 got '%s'/0x%02x\n",
       dlg.options[0].label,
       dlg.options[0].song_id
     );
@@ -75,10 +75,10 @@ int main(void) {
     assets_msg_free(&game_txt);
     return 1;
   }
-  if (strcmp(dlg.options[0].label, "Love Forever") != 0 || dlg.options[0].song_id != 0x2d) {
+  if (strcmp(dlg.options[0].label, "Love Forever") != 0 || dlg.options[0].song_id != 0x29) {
     fprintf(
       stderr,
-      "independence first expected Love Forever/0x2d got '%s'/0x%02x\n",
+      "independence first expected Love Forever/0x29 got '%s'/0x%02x\n",
       dlg.options[0].label,
       dlg.options[0].song_id
     );

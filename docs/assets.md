@@ -515,7 +515,10 @@ RNG is the exact DOS libc LCG (`FUN_1d1d_0e04` / `FUN_19ef_0032` in `src/core/do
 ## Music / sound
 
 There are **no** standalone `.MID` / `.XMI` song files. Music lives inside the MZ sound
-drivers. The Linux port loads **`GSOUND.COL`** (General MIDI) via [`src/core/sound.c`](../src/core/sound.c):
+drivers. The Linux port loads **`GSOUND.COL`** (General MIDI) and **emulates the driver
+literally** in [`src/core/gsound_vm.c`](../src/core/gsound_vm.c); [`src/core/sound.c`](../src/core/sound.c)
+ticks that VM in real time from the audio callback and mirrors the DOS BGM scheduler
+(segment `129f`).
 
 | Driver | Card letter | Role |
 |--------|-------------|------|
@@ -528,35 +531,63 @@ drivers. The Linux port loads **`GSOUND.COL`** (General MIDI) via [`src/core/sou
 
 DOS play path: numeric sound IDs through the driver jump table (`FUN_2059_000a`), gated by
 Background / Event / SFX (`FUN_12d8_000e`). IDs `0x20..0x3f` are background music;
-`0x40..0x5c` event music; IDs `< 0x10` are system (stop). Title intro uses **`0x33`**.
-Map BGM track *n* maps to ID `0x20+n` (track 1 → `0x21`).
+`0x40..0x5c` event music; IDs `< 0x10` are system (0 = hard stop, 1 = fade out).
 
-### GSOUND stream format (RE from `GSOUND.COL` MZ)
+### Song ids (verified 2026-08-27)
 
-Banner string: `Coloniz GMID09-12-94`. Voice bytecode is interpreted by a jump table at
-image offset `0xEF2` for opcodes `0xBB..0xFF`. Timing uses PIT divisor **`0x4DBF`**
-(~**60 Hz** ticks). Summary:
+The DOS Pick Music handler (`2b5a:264c` jump table + sublist offsets) and the tune table in
+`FUN_129f_0008` give the **real** id ↔ title mapping. Earlier docs assumed entry *n* → `0x20+n`;
+that was wrong for 5 of the 12 main tunes and every sublist, which is why the port sounded
+like "a different song". Verified by chroma-DTW against a DOSBox-X capture (Jine the Cavalry =
+`0x25`, DTW cost 0.04) and the OST rips in `reference_music/` (which match DOSBox exactly).
 
-| Bytes | Meaning |
-|-------|---------|
-| `note, dur` with `note ≤ 0xBA` | Note or rest (`note==0`); duration in ticks |
-| `ED n note×n dur` | Chord (≤4 notes); same gate/dur |
-| `F4 vv` | Set velocity for following notes |
-| `F8 pp` | Program change (GM patch) |
-| `F1 vv` | CC 7 volume |
-| `F0 vv` | CC 10 pan |
-| `F3 period delta` | Volume envelope (per-tick CC7 ramp) |
-| `BB n` | RPN pitch-bend range (CC101=0, CC100=0, CC6=n) |
-| `C2 vv` | CC 91 reverb (**not** program change) |
-| `C1 vv` | CC 93 chorus |
-| `F6` / `F7` | Gate / articulation |
-| `FA addr` / `F9` | Call / return (DS-relative) |
-| `FF nn` | Loop (`nn==0` sets label; else repeat) |
-| `BE a b` / `BF n` | Writes unread tempo product (IRQ still ~60 Hz) |
-| `C4`..`EB` | Song ALU / conditional jumps (must skip correct sizes) |
+| Pick Music entry | id | | entry | id |
+|---|---|---|---|---|
+| 1 Bird Song | `0x20` | | 7 Joe Clark | `0x26` |
+| 2 Smoky Tune | `0x21` | | 8 Little Fiddle | `0x27` |
+| 3 Cornwall | `0x22` | | 9 Hornpipe | `0x39` |
+| 4 Shady Grove | `0x23` | | 10 Bonny Morn | `0x38` |
+| 5 Fiddler's Dance | `0x24` | | 11 Hole In The Wall | `0x3a` |
+| 6 Jine the Cavalry | `0x25` | | 12 Nightingale | `0x3b` |
 
-Event music ids `0x40..0x5C` use table `0x2AC4` (`FUN_1000_19bc`). Interpreter notes:
-[`original_sources_annotated/sound/gsound_interpreter.md`](../original_sources_annotated/sound/gsound_interpreter.md).
+Independence `0x29..0x2d` (Love Forever … Independence Way), Military `0x2e..0x31`
+(Reveille, Successful Campaign, Morelli's Lesson, To Arms), Indian `0x32,0x33,0x35,0x36`
+(Indian Victory, Natives, Tenochtitlan, Pizarro at Cuzco). `0x28`, `0x34`, `0x37`, `0x3c..0x3f`
+are not in Pick Music (`0x28` is drawn by the Europe pool; `0x3c` picks random patches in its
+handler). The combat cue `0x32` is therefore **Indian Victory**. The title-screen id `0x33`
+(= Natives) is inherited from older notes and unverified.
+
+### DOS BGM scheduler (`FUN_129f_00f6` / `0318` / `02cc`)
+
+* `DS:0x9a` is a **tune pool**, not a track: 1 = map (tunes 1–7: Bird Song … Bonny Morn,
+  Hole, Nightingale), 2 = colony (8–12: Fiddler's, Jine, Joe Clark, Little Fiddle,
+  Hornpipe), 3 = Europe (`0x28` + Independence), 4 = Military, 5/6/7 = one-shot Natives /
+  Tenochtitlan / Pizarro then the general pool (all 12, 1-in-8 chance of the 13–23 set).
+  `sound_set_bgm(pool)` mirrors `FUN_129f_0318`: a pool change fades the current song.
+* All songs **end** (no `FD` loop except `0x34`); when the driver reports no voice active
+  the pump draws the next random tune from the pool, never repeating the last id.
+* `sound_play(id)` = `FUN_129f_02cc`: queue + fade, pump starts it when idle.
+  Pick Music selection plays immediately and becomes the current BGM (`FUN_281f_04c0`).
+
+### GSOUND driver facts (from `gsound.asm` / raw ndisasm of the MZ image)
+
+* PIT divisor `DS:0081 = 0x4DBF` → **59.95 Hz** ticks; a note lasts exactly `dur` ticks
+  (`SUB [bx],1 / JBE parse`); gate = `F6` abs or `dur − F7`; `F7 ≥ 0x80` ties repeated notes.
+* Nine voice blocks (`DS:0x8096 + 0x28·i`) map to MIDI channels **1..9** in that order;
+  the block at `0x80BE` is channel **9 (GM percussion)** — songs `0x27..0x31`, `0x36`, `0x3d`
+  put their drum track there (`call 0x15e0`). Melodic tracks take the first free of
+  channels 1–6 (`0x14cd`); event music uses 7–8 (`0x15c1`).
+* Song handlers are x86 stubs (`call 0x18cf` fade-old-voices, `mov cx,stream / call alloc`);
+  some use the PRNG (`0x3c`), warm-restart variants via `DS:E6/E8/EA` (`0x25`, `0x34`) or
+  `C4` code call-outs (`0x20` pokes note bytes). `gsound_vm.c` runs them with a mini x86.
+* Opcodes: `≤BA note,dur`; `ED n notes dur` chord; `F4` vel; `F8` prog; `F0/F1/F2` pan/vol/bend;
+  `F3/F5/EF` vol/pitch/pan envelopes; `BB n` RPN bend range; `C0/C1/C2` bank/chorus/reverb;
+  `C5..CC` conditional **call** (single return slot `+0x22`), `CD..D4` conditional **jump**;
+  `D5..E9` byte ALU on `DS:0x5C+r`; `E7/EA/EB/EC` self-modify the stream; `FA/F9` call/ret
+  (one slot, not a stack); `FB/FC/FD` jump / set loop / loop-to-start; `FE/FF` counted loops.
+  `BE/BF/BC/BD` write tempo words nobody reads — timing is the PIT only.
+* Song switch: old voices get `+0x26 = 0xFF` and fade 2 CC7 units/tick (`0x1819`) while the
+  new song starts on free voices — a real cross-fade, reproduced.
 
 MicroProse GM drivers of this era were written for **Roland Sound Canvas / SC-55**.
 Closest practical playback: FluidSynth + an SC-55-character SoundFont.
@@ -566,28 +597,19 @@ Closest practical playback: FluidSynth + an SC-55-character SoundFont.
 GPL-3+ bank by deemster; see [`COPYRIGHT.Roland_SC-55`](../data/soundfonts/COPYRIGHT.Roland_SC-55))
 → system SC-55 / GeneralUser GS → FluidR3 / distro defaults. For an alternate SC-55
 character, point `COLONIZE_SOUNDFONT` at [Trevor0402’s SC-55 SoundFont](https://github.com/trevor0402/SC55Soundfont).
-Gold A/B reference: DOSBox Staging `mididevice=soundcanvas` (Nuked SC-55 + user ROMs).
+Gold A/B reference: `original_music_dumps/jine_the_cavalry.wav` (DOSBox-X capture) and
+`reference_music/wav/*` (OST rips, verified identical to DOSBox timing). Run
+`build/dump_gsound_wav --ab && .venv-sound/bin/python3 tools/compare_music_ab.py`
+(2026-08-27: dtw 0.04 / 0.09 / 0.15 / 0.17, drift ≤ 1.1 s). `build/dump_gsound_wav --midi`
+writes every BGM id to `ripped_sound/` as WAV + Type-0 MIDI.
 AdLib / MT-32 drivers and `COLDIG.BIN` SFX remain out of scope.
 
 Song names for the Pick Music UI are only in `GAME.TXT` `@PICKMUSIC` (plus Independence /
 Military / Indian sublists). Options are `@SOUNDOPTIONS` and Col1 `tut2` bits.
 
 **Pick Music (GAME menu):** implemented in [`src/core/pick_music.c`](../src/core/pick_music.c) as a
-shared wood **popup** (`popup_draw` + `WOODTILE.SS`) over the map. Main-list songs map to BGM
-tracks **1–12** (ids `0x21..0x2c`) in `@PICKMUSIC` order (Bird Song … Nightingale). Submenu
-ids continue through remaining BGM slots, skipping Introduction **`0x33`**: Independence
-`0x2d..0x31`, Military `0x32`/`0x34..0x36`, Indian `0x37..0x3a`. Selecting a song calls
-`sound_play_preview` and updates the status line. Esc / click-outside stops the preview.
-
-Title/map BGM via `sound_play` / `sound_set_bgm` is enabled (`COLONIZE_SOUND_PLAYBACK_ENABLED`).
-`--nosound` skips the SDL device (and Pick Music previews). `smoke_sound` /
-`smoke_pick_music` cover load + dialog + golden decode checks.
-
-**Sound Options (GAME menu):** `@SOUNDOPTIONS` — Background Music / Event Music / Sound
-Effects checkboxes — implemented as a wood checkbox dialog (`options_dialog_open_sound` /
-`options_dialog_apply_sound`, `src/core/options_dialog.c`), reachable via `MAP_MENU_ACTION_
-SOUND_OPTIONS`. Applies to `sound_get_options`/`sound_set_options` (`ColonizeSoundOptions`)
-and persists to Col1 `head.tut2.{background_music,event_music,sound_effects}`.
+shared wood **popup** (`popup_draw` + `WOODTILE.SS`) over the map, using the id table above.
+Selecting a song plays it at once as the current BGM (closing the dialog does not stop it).
 
 ### Sound-ID ranges beyond the 12 BGM tracks (RE notes)
 

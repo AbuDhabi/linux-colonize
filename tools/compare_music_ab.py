@@ -51,10 +51,10 @@ AB = os.path.join(ROOT, "build", "music-ab")
 SR = 22050
 
 SONGS = [
-    ("0x21", "Bird Song"),
-    ("0x26", "Jine the Cavalry"),
-    ("0x2b", "Hole In The Wall"),
-    ("0x37", "Indian Victory"),
+    ("0x20", "Bird Song"),
+    ("0x25", "Jine the Cavalry"),
+    ("0x3a", "Hole In The Wall"),
+    ("0x32", "Indian Victory"),
 ]
 
 

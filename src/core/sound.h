@@ -23,12 +23,12 @@
 #define SOUND_EVENT_ID_BASE 0x40
 #define SOUND_TITLE_ID 0x33
 /*
- * Situational "Military" BGM cue (@PICKMUSIC Military sublist, first song).
- * DOS combat engagement code (segment 5fef) pushes this literal id into the
- * BGM-change path (FUN_281f_048e -> FUN_129f_02cc) when a land/naval attack
- * begins; the real driver only restarts playback when the id actually
- * changes (see sound_active_song_id), so callers should gate on that rather
- * than calling sound_play() unconditionally on every attack.
+ * Combat cue: DOS engagement code (segment 5fef) pushes literal id 0x32 into
+ * the BGM-change path (FUN_281f_048e -> FUN_129f_02cc) when a land/naval
+ * attack begins. Under the DOS Pick Music table 0x32 is "Indian Victory"
+ * (Indian sublist, first song). The driver only restarts playback when the
+ * id actually changes (see sound_active_song_id), so callers should gate on
+ * that rather than calling sound_play() unconditionally on every attack.
  */
 #define SOUND_MILITARY_BGM_ID 0x32
 
@@ -61,7 +61,13 @@ void sound_play(int id);
 void sound_play_preview(int id);
 void sound_stop_preview(void);
 
-/* BGM channel (FUN_129f_*): track 1..N maps to sound id SOUND_BGM_ID_BASE+track. */
+/*
+ * BGM tune pool (DOS DS:0x9a "category", FUN_129f_0318): 1 = map (calm tunes),
+ * 2 = colony (fiddle tunes), 3 = Europe (0x28 + Independence set), 4 = Military
+ * set, 5/6/7 = one-shot Natives / Tenochtitlan / Pizarro then the general pool.
+ * A change fades the current song; the pump then draws a random tune from the
+ * pool (never the one just played) and keeps drawing when each song ends.
+ */
 void sound_set_bgm(int track);
 void sound_stop_bgm(void);
 void sound_service(void);
