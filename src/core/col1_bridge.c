@@ -1668,11 +1668,11 @@ bool col1_bridge_capture(
         const ColonizeUnitType* ut_goto = units_type(units, src->type_index);
         const bool transport = ut_goto && ut_goto->cargo > 0;
         const bool follow = units_orders_follow_goto(src->orders);
-        const bool europe = col1_coord_is_europe((uint8_t)src->x, (uint8_t)src->y);
+        const bool in_europe = col1_coord_is_europe((uint8_t)src->x, (uint8_t)src->y);
         const bool native = (src->nation_id & 0xF) >= 4;
         const bool goto_none = src->goto_x == UNITS_GOTO_NONE || src->goto_y == UNITS_GOTO_NONE ||
                                src->goto_x < 0 || src->goto_y < 0;
-        if (transport && !follow && !europe) {
+        if (transport && !follow && !in_europe) {
           dst->goto_x = dst->x;
           dst->goto_y = dst->y;
         } else if (goto_none || (native && !follow)) {

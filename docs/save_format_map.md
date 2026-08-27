@@ -228,7 +228,7 @@ Export often **zeros** unnamed colony bytes on rebuild ([savegame.md](savegame.m
 | `contact_state[4]` | 8 | `mapped` | +0x2e; FSM 0/1/2 |
 | `euro_relation_accum[4]` | 4 | `mapped` | +0x36; spill → `FUN_281f_0d6c` |
 | `euro_diplo[4]` | 4 | `mapped` | +0x3a; met `0x20` / peace `0x40` (was `met_by_player`) |
-| `unknown33[8]` | 8 | `opaque` | +0x3e; unused by DOS contact |
+| `unknown33_pad[8]` | 8 | `opaque` | +0x3e; was `unknown33`; confirmed dead 2026-08-24 (zero literal touches of `0x8d4e+0x3e..+0x45` in any DOS export). Linux peace bit moved to `euro_diplo[4]` |
 
 ### Stuff (727)
 

@@ -166,7 +166,7 @@ trustworthy source, not a correction.
    (`@INDIANWELCOME`). Ships are skipped (natives do not hail vessels; DOS
    meet gates ocean). DOS ORs met bit `0x20` before the dialog — Linux sets
    `met_by_player` when welcome is shown.
-   - **Yes** → `FUN_5bfb_0182` stand-in: peace bit `unknown33[euro] |= 0x40`,
+   - **Yes** → `FUN_5bfb_0182` stand-in: peace bit `euro_diplo[euro] |= 0x40` (`COL1_INDIAN_PEACE_BIT`; was parked on `unknown33`),
      relation floor so refuse-talk (`< 40`) cannot fire next tick; OK
      `@INDIANPEACE`; if pre-accept relation `< 0x19` also OK `@INDIANCOME`.
      **Ends here** (DOS `goto LAB_5bfb_1005`) — no Meet CHOICE / gift chain.

@@ -103,9 +103,10 @@ paging) — a matching golden PNG exists for all nine in
 `original_saves/report-screen-goldens/`. Only Labor (F4) has a click-to-zoom
 in DOS at all, and it's wired (grid cell → that profession's detail page);
 no report jumps to the colony/map screen on click in DOS itself. The real
-remaining gap: report titles/column headers/body strings are hardcoded
-English typed from the goldens, not resolved live from `LABELS.TXT` at
-runtime (P2.2's "heading from LABELS.TXT" is therefore still open).
+remaining gap (narrowed 2026-08-26 by P2.2): report titles and every
+name table (FF/job/cargo/tribe/nation/level) now resolve live from
+`LABELS.TXT`/`NAMES.TXT`; column headers and body strings are still
+hardcoded English typed from the goldens.
 
 **Target:** each report matches the DOS screen in content, column layout
 and interaction (scroll, click-to-zoom to colony / unit where DOS does),
@@ -190,8 +191,8 @@ stays deferred (D4).
   All four (FF/job/cargo already done, now +tribe/nation/level) share one
   `NAMES.TXT` parse via `g_reports_names`. `ctest`: 42/42 across every
   step, no regressions — this closes P2.2's "hardcoded, not live" gap for
-  every report-display string table in `reports.c` except the screen
-  titles (confirmed not live-loadable, see note above).
+  every report-display string table in `reports.c`, screen titles included
+  (see the corrected note above). Residue: column headers / body strings.
 - [x] **P2.3 [auto]** F2 Religious Adviser (crosses, immigration, recruit
   pool) to DOS layout. **Done** — golden `religious.png`,
   `reports_render_religious` (was mislabeled "F1" here; DOS F1 is the
@@ -227,9 +228,9 @@ stays deferred (D4).
   **Done thin**: no DOS golden exists for it at all, so its column
   widths/chrome are unconfirmed (see [reports.md](reports.md)).
 - [ ] **P2.12 [user]** Review pass with the user on each report — P2.3–
-  P2.11 are now content/layout-complete against goldens, but titles/column
-  headers are still hardcoded English rather than `LABELS.TXT`-driven
-  (P2.2 residue) and Congress page 2's FF portrait slot table only has
+  P2.11 are now content/layout-complete against goldens, but column headers /
+  body strings are still hardcoded English rather than `LABELS.TXT`-driven
+  (P2.2 residue; titles and name tables already resolve live) and Congress page 2's FF portrait slot table only has
   10/25 positions confirmed; worth the user's eyes before calling P2 fully
   closed.
 

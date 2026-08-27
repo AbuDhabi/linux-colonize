@@ -839,7 +839,7 @@ their owner, `FUN_4d56_1816` (the Indian nation's per-turn tick):
   "how many muskets/horses will natives still buy this stretch" throttle,
   not a simple counter.
 
-`ColonizeCol1Indian.unknown33[8]` (currently "opaque in DOS") is unused
+`ColonizeCol1Indian.unknown33_pad[8]` (confirmed dead in DOS 2026-08-24) is unused
 padding large enough to host both new counters (`musket_sell_throttle`,
 `horse_sell_throttle`, 1 byte each, or the int32-at-+10 companion if that
 turns out to matter for the price formula too) without a save-format
