@@ -203,6 +203,9 @@ bool units_try_native_settlement_fallout(
   ColonizeDosRng* rng
 );
 
+/* Reset the two FUN_65dd_0004 session counters (DS:0x1dc6 rumours explored,
+ * DS:0x1dc7 Cibola finds) — never saved in DOS either; tests only. */
+void units_lcr_reset_session_counters(void);
 /*
  * FUN_65dd_0004 thin transcription: Scout on rumour tile clears it via
  * map_clear_rumour, then rolls one of the manual-documented outcomes

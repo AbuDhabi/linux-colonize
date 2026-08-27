@@ -2398,13 +2398,14 @@ bool units_try_native_settlement_fallout(
 }
 
 /*
- * FUN_65dd_0004 outcome kinds (GAME.TXT @LOSTCITY1..9 / @BURIAL1..3 /
- * @SCREWED). viceroy:103463-103618: roll local_8=max(local_2e, RNG(1,9)) with
- * reroll loops; local_c=RNG(1,100)+local_36*10 gates case redirects; de Soto
- * (FF#7) bumps local_36 when Scout (type 5). P7.1 (2026-08-26): the real
- * case-selection state machine is now ported — see the block comment above
- * units_lcr_roll_outcome() for exactly what's faithful vs still PARKed
- * (terrain-qualify tests, two DS offsets, the case1/7/8/9 numeric identity).
+ * FUN_65dd_0004 outcome kinds. The dialog tag is literally built from the
+ * case number: DOS strcpy's DS:0x1dae ("LOSTCITY", VICEROY.EXE@128846) into
+ * a local and appends `local_8` (FUN_281f_0182), so case N == @LOSTCITYN
+ * one-to-one; DS:0x1db7 = "BURIAL" + variant and DS:0x1dbe = "SCREWED" sit
+ * right after it, and the two session counters below (DS:0x1dc6/0x1dc7)
+ * are the very next bytes. This settles the case-identity question the
+ * P7.1 pass flagged: case 2 = Cibola (spawns unit type 10 = Treasure with
+ * +0x315b = value/100), case 9 = survivors (spawns type 0 = Colonist).
  */
 typedef enum ColonizeLcrOutcome {
   COLONIZE_LCR_NOTHING = 0,     /* @LOSTCITY6 */
@@ -2418,9 +2419,24 @@ typedef enum ColonizeLcrOutcome {
   COLONIZE_LCR_CIBOLA           /* @LOSTCITY2 */
 } ColonizeLcrOutcome;
 
+/*
+ * DS:0x1dc6 / DS:0x1dc7 — two byte counters that live in the EXE's data
+ * segment right after the "SCREWED" string, never saved: total rumours
+ * explored this process (any nation) and total Cibola finds this process.
+ * FUN_65dd_0004 is their only reader/writer. Case 1 (Fountain of Youth)
+ * needs >= 4 rumours explored; case 2 (Cibola) is capped at 7 per session.
+ */
+static uint8_t s_lcr_explored_total = 0;
+static uint8_t s_lcr_cibola_total = 0;
+
+void units_lcr_reset_session_counters(void) {
+  s_lcr_explored_total = 0;
+  s_lcr_cibola_total = 0;
+}
+
 /* FUN_4cc6_0356-shaped nearest-tribe scan; -1 if none. out_dist (optional)
  * receives the winning tile-distance (manhattan, matching the rest of this
- * file's distance style) — used by the case-8 proximity gate below. */
+ * file's distance style) — DOS leaves it in DS:0x8db8. */
 static int units_lcr_nearest_tribe_dist(
   const ColonizeCol1Save* col1, int x, int y, int* out_dist
 ) {
@@ -2445,10 +2461,6 @@ static int units_lcr_nearest_tribe_dist(
   return best;
 }
 
-static int units_lcr_nearest_tribe_nation(const ColonizeCol1Save* col1, int x, int y) {
-  return units_lcr_nearest_tribe_dist(col1, x, y, NULL);
-}
-
 /* Credits both the persisted Col1 nation gold and the live Europe screen
  * cache (only the latter is what the human player can spend mid-session). */
 static void units_lcr_credit_gold(
@@ -2467,76 +2479,77 @@ static void units_lcr_credit_gold(
   }
 }
 
+/* Everything the FUN_65dd_0004 roll loop decides before the dispatch tail:
+ * the outcome plus its magnitudes, so the apply step below is side-effect
+ * only (DOS interleaves the Cibola spawn into the loop; same result). */
+typedef struct ColonizeLcrRoll {
+  ColonizeLcrOutcome outcome;
+  int gate;              /* local_c: RNG(1,100)+skill*10, reused by burial */
+  int gold;              /* local_12: flat gold (cases 3/7) */
+  int treasure_hundreds; /* local_34: Cibola treasure-train value / 100 */
+  int trespass_tribe;    /* case 8: tribe nation hit by the hidden alarm, -1 */
+  int trespass_mag;      /* local_38 */
+} ColonizeLcrRoll;
+
 /*
- * P7.1: real FUN_65dd_0004 case-selection state machine (viceroy:103462-
- * 103618), replacing the old flat percentage table. Faithfully ported:
- *   - `skill` (decomp local_36): 0 = not a Scout-type unit, 1 = Scout,
- *     2 = Scout with the Seasoned Scout expert skill (103450-103453).
- *   - `de_soto_reroll` (decomp bVar4): FF7 (Hernando de Soto) owned AND the
- *     unit is Scout-type — de Soto's LCR bonus in this function is gated on
- *     unit type, not universal (103454-103458). When true, `skill` gets one
- *     more bump (103457) and a "Nothing" result (or a miss on the case-5/8
- *     kicker below) rerolls the whole attempt instead of being accepted
- *     (103617, 103480/103488/103553).
- *   - base roll: `floor` ratchets 1→2→3 across reroll attempts within one
- *     call, `raw = max(floor, RNG(1,9))` (103464-103472).
- *   - `gate` = RNG(1,100) + skill*10 (103473-103474), used by every
- *     downgrade threshold below.
- *   - case-5/case-8 "kicker": a fresh raw==5 or raw==8 only sticks
- *     1-in-(skill+1) of the time (103476-103491) — higher skill makes a
- *     bad initial roll less likely to lock in immediately.
- *   - case 1: local_10 terrain qualify test (FUN_281f_078c) is unresolved
- *     (no tool in this project decodes its return value) — PARKED, treated
- *     as always non-qualifying, so case 1 always takes the gate-based
- *     downgrade to 5/6 (103493-103507); WoI still forces 1→2 unconditionally
- *     (103508-103510), which now cascades into case 2's own handling.
- *   - case 2: same terrain PARK, but de Soto's own kicker here IS decomp-
- *     real and ported (bVar4 && RNG(0,2)==0 forces the qualifying branch,
- *     103520-103522); otherwise gate-based downgrade to 5/8/6
- *     (103524-103534). The two global "already explored" rate-limit
- *     counters DOS also ORs into this same downgrade condition (*0x1dc6
- *     total-LCRs-ever, *0x1dc7 survivors-spawned-ever, 103524) are not
- *     save-format fields anywhere in this project's Col1 mirror and are
- *     PARKed too — with terrain already forced non-qualifying they can only
- *     matter on the de Soto branch, and skipping them just makes that branch
- *     slightly more generous.
- *   - case 8: silent native-shrine trespass. Real trigger is proximity (a
- *     tribe within 3 tiles, 103554-103556) and de Soto rerolls away from it
- *     entirely (103552-103553); magnitude is difficulty *and* skill scaled
- *     (`RNG(1,6) + ((difficulty - skill) + 1) * 5`, 103557-103559). DOS
- *     always displays this as a plain "Nothing" (local_8 forced to 6 right
- *     after, 103568) with the alarm hit folded in silently — this port
- *     keeps it visibly `COLONIZE_LCR_TRESPASS_ANGER` (existing @LOSTCITY8
- *     popup) instead of going silent, so a currently-shipped visible
- *     outcome doesn't disappear; that display choice is a P7.2-territory
- *     call, not a P7.1 weight/frequency one.
- *   - case 5 (unconverted): the already-shipped `lcr_case5_bonus_used`
- *     one-shot (103608-103612) still applies first; de Soto never accepts a
- *     bare Vanishes (103614-103616).
- *   - Colony-count-based case-5 downgrade (103597-103607, DS offsets
- *     -0x6bf0/-0x6d68 not identified anywhere in this project) stays PARK.
- *
- * Case-number → outcome mapping: 2/3/4/5/6 match what this file already had
- * wired (WoI redirect + case-5 latch citations); 1, 7, 8, 9 are corrected/
- * assigned from reading the dispatch bodies directly (viceroy:103724-103742
- * — case 1's own 8x `FUN_291f_0d2c`≡`FUN_38fd_4884` immigrant loop is the
- * exact call this file already cites for Fountain of Youth, not trespass;
- * case 8's village-alarm block is the real trespass mechanic; case 9 spawns
- * via a distinct type-0 path fitting Cibola's treasure train; case 7 is left
- * as the simple gold-only remainder, Chief's Gift). This revises the prior
- * "case 1 = trespass" guess baked into the old WoI-redirect comment — flag
- * for a future pass if that turns out to matter.
+ * Real FUN_65dd_0004 case-selection state machine (viceroy:103462-103618).
+ *   - `skill` (local_36): 0 = not Scout-type, 1 = Scout, 2 = Seasoned Scout.
+ *   - `de_soto_reroll` (bVar4): FF7 owned AND Scout-type (103454-103458);
+ *     bumps `skill` once more and rerolls any "Nothing" instead of
+ *     accepting it (103617, 103480/103488/103553).
+ *   - `floor` ratchets 1→2→3 across reroll attempts, `raw = max(floor,
+ *     RNG(1,9))` (103464-103472); `gate` = RNG(1,100)+skill*10 (103473).
+ *   - case-5/8 "kicker": a fresh 5 or 8 sticks 1-in-(skill+1) (103476-91).
+ *   - Terrain qualify (local_10 = FUN_281f_078c = terrain_class_at, the
+ *     pedia class: 0-7 clear, 8-23 forest with type = &7, 27 mountain,
+ *     28 hill): case 1 needs class < 24 with (class&7) > 3, i.e.
+ *     grassland/savannah/marsh/swamp or their forests (103494-103495);
+ *     case 2 needs mountain/hill or (class&7)==1 desert/scrub (103514-15).
+ *   - case 1 also needs >= 4 rumours explored this session (DS:0x1dc6);
+ *     otherwise (unless de Soto) gate<11→5 else 6 (103500-103507). WoI
+ *     then forces 1→2 unconditionally (103508-103510).
+ *   - case 2: de Soto's own kicker (RNG(0,2)==0 forces qualify, 103520-22);
+ *     needs DS:0x1dc6 != 0 (byte wrap only) and < 7 Cibolas found this
+ *     session (DS:0x1dc7); else gate<11→5, <25→8, else 6 (103524-103534).
+ *     On success: treasure = ((skill+2)*10 + RNG(1,20)) hundred gold as a
+ *     Treasure unit on the tile (103536-103548).
+ *   - case 8: de Soto rerolls it away (103552); a village within 3 tiles
+ *     (DS:0x8db8 distance from the nearest-village scan) takes a relation
+ *     hit of RNG(1,6) + ((difficulty - skill) + 1) * 5, gated on that
+ *     tribe having met the nation (FUN_281f_0a38 & 0x20); then the case is
+ *     forced to 6 (103554-103568) — DOS shows plain "Nothing" for this.
+ *   - case 3: 3d8*10, times (skill+2)/2 when skill (103571-103578).
+ *   - case 7: 4d10*2 (103580-103586).
+ *   - case 5 (103597-103612): nation with < 5 census pop (DS:0x9410) and
+ *     < 3 colonies (DS:0x9298) → 6; a Pioneer (type 2) with census < 9 →
+ *     6 half the time; then the per-nation one-shot `lcr_case5_bonus_used`
+ *     turns it into 4 (burial mounds) REGARDLESS of the two gates above
+ *     (the latch check is last in the block); de Soto never accepts a bare
+ *     Vanishes (103614-103616).
+ * Not ported: the case-8 "met" gate (no per-tribe contact flag in the Col1
+ * mirror — treated as met). Case 8 stays visibly `TRESPASS_ANGER` here
+ * (P7.2 display call) where DOS goes silent.
  */
-static ColonizeLcrOutcome units_lcr_roll_outcome(
+static void units_lcr_roll_outcome(
+  ColonizeLcrRoll* out,
   ColonizeCol1Save* col1,
+  const ColonizeWorldMap* map,
   ColonizeDosRng* rng,
   int nation,
   int x,
   int y,
   int skill,
   bool de_soto_reroll,
-  bool woi
+  bool woi,
+  bool is_pioneer
 ) {
+  memset(out, 0, sizeof(*out));
+  out->trespass_tribe = -1;
+  const int cls = map ? map_dos_terr_class_at(map, x, y) : -1;
+  const int census = (col1 && nation >= 0 && nation < 4)
+    ? col1->stuff.census_pop_proxy[nation] : 0;
+  const int colonies = (col1 && nation >= 0 && nation < 4)
+    ? col1->stuff.colony_counts[nation] : 0;
   int floor_val = 0;
   for (;;) {
     floor_val = floor_val + 1;
@@ -2546,27 +2559,28 @@ static ColonizeLcrOutcome units_lcr_roll_outcome(
     const int r9 = dos_rng_range(rng, 1, 9);
     int raw = (floor_val > r9) ? floor_val : r9;
     const int gate = dos_rng_range(rng, 1, 100) + skill * 10;
+    out->gate = gate;
+    out->gold = 0;
+    out->treasure_hundreds = 0;
+    out->trespass_tribe = -1;
+    out->trespass_mag = 0;
 
-    if (raw == 5 || raw == 8) {
-      const int kick = dos_rng_range(rng, 1, skill + 1);
-      if (kick != 1) {
-        if (de_soto_reroll) {
-          continue;
-        }
-        raw = 6;
+    if (raw == 5 && dos_rng_range(rng, 1, skill + 1) != 1) {
+      if (de_soto_reroll) {
+        continue;
       }
+      raw = 6;
+    }
+    if (raw == 8 && dos_rng_range(rng, 1, skill + 1) != 1) {
+      if (de_soto_reroll) {
+        continue;
+      }
+      raw = 6;
     }
 
     if (raw == 1) {
-      /* Terrain-qualify gate (local_10/local_6, FUN_281f_078c) is
-       * unresolved — no tool in this project decodes its return value.
-       * PARK stand-in: an unbiased coin flip, matching the real test's
-       * shape (a 3-bit tile sub-field, `(local_10&7)>3`, roughly half the
-       * 0-7 range) rather than the earlier "always fails" default, which
-       * made case 1 (Fountain of Youth) unreachable outside de Soto and
-       * regressed a previously-working outcome. */
-      const bool qualifies_1 = dos_rng_range(rng, 0, 1) == 1;
-      if (!qualifies_1 && !de_soto_reroll) {
+      const bool qualifies = cls >= 0 && cls < 24 && (cls & 7) > 3;
+      if ((!qualifies || s_lcr_explored_total < 4) && !de_soto_reroll) {
         raw = (gate < 11) ? 5 : 6;
       }
       if (woi) {
@@ -2575,15 +2589,11 @@ static ColonizeLcrOutcome units_lcr_roll_outcome(
     }
 
     if (raw == 2) {
-      /* Same terrain PARK as case 1 (different local_10 sub-test, same
-       * unresolved lookup); de Soto's own kicker here IS decomp-real
-       * (bVar4 && RNG(0,2)==0, 103520-103522) and ORs into it, matching
-       * the real code's OR structure. */
-      bool qualifies = dos_rng_range(rng, 0, 1) == 1;
+      bool qualifies = cls == 27 || cls == 28 || (cls >= 0 && cls < 24 && (cls & 7) == 1);
       if (de_soto_reroll && dos_rng_range(rng, 0, 2) == 0) {
         qualifies = true;
       }
-      if (!qualifies) {
+      if (!qualifies || s_lcr_explored_total == 0 || s_lcr_cibola_total > 6) {
         if (gate < 11) {
           raw = 5;
         } else if (gate < 25) {
@@ -2591,10 +2601,12 @@ static ColonizeLcrOutcome units_lcr_roll_outcome(
         } else {
           raw = 6;
         }
+      } else {
+        out->treasure_hundreds = (skill + 2) * 10 + dos_rng_range(rng, 1, 20);
+        s_lcr_cibola_total++;
       }
     }
 
-    bool trespass_alarm = false;
     if (raw == 8) {
       if (de_soto_reroll) {
         continue;
@@ -2603,41 +2615,62 @@ static ColonizeLcrOutcome units_lcr_roll_outcome(
       const int tribe = units_lcr_nearest_tribe_dist(col1, x, y, &dist);
       if (tribe >= 0 && dist < 3) {
         const int difficulty = col1 ? col1->head.difficulty : 0;
-        const int mag = dos_rng_range(rng, 1, 6) + ((difficulty - skill) + 1) * 5;
-        if (col1 && nation >= 0 && nation < 4) {
-          ai_diplo_indian_relation_delta(col1, tribe, nation, -mag);
-        }
-        trespass_alarm = true;
+        out->trespass_mag = dos_rng_range(rng, 1, 6) + ((difficulty - skill) + 1) * 5;
+        out->trespass_tribe = tribe;
       }
       raw = 6;
     }
 
+    if (raw == 3) {
+      int g = dos_rng_range(rng, 1, 8);
+      g += dos_rng_range(rng, 1, 8);
+      g += dos_rng_range(rng, 1, 8);
+      out->gold = g * 10;
+      if (skill != 0) {
+        out->gold = ((skill + 2) * out->gold) >> 1;
+      }
+    }
+    if (raw == 7) {
+      int g = dos_rng_range(rng, 1, 10);
+      g += dos_rng_range(rng, 1, 10);
+      g += dos_rng_range(rng, 1, 10);
+      g += dos_rng_range(rng, 1, 10);
+      out->gold = g * 2;
+    }
+
     if (raw == 5) {
+      if (census < 5 && colonies < 3) {
+        raw = 6;
+      }
+      if (is_pioneer && census < 9 && dos_rng_range(rng, 1, 2) == 1) {
+        raw = 6;
+      }
       if (col1 && nation >= 0 && nation < 4 && !col1->player[nation].lcr_case5_bonus_used) {
         col1->player[nation].lcr_case5_bonus_used = 1;
         raw = 4;
-      } else if (de_soto_reroll) {
-        raw = 6;
       }
     }
-
+    if (raw == 5 && de_soto_reroll) {
+      raw = 6;
+    }
     if (raw == 6 && de_soto_reroll) {
       continue;
     }
 
-    if (trespass_alarm) {
-      return COLONIZE_LCR_TRESPASS_ANGER;
+    if (out->trespass_tribe >= 0) {
+      out->outcome = COLONIZE_LCR_TRESPASS_ANGER;
+      return;
     }
     switch (raw) {
-    case 1: return COLONIZE_LCR_FOUNTAIN_OF_YOUTH;
-    case 2: return COLONIZE_LCR_SURVIVORS_JOIN;
-    case 3: return COLONIZE_LCR_SMALL_TREASURE;
-    case 4: return COLONIZE_LCR_BURIAL_MOUNDS;
-    case 5: return COLONIZE_LCR_VANISHES;
-    case 7: return COLONIZE_LCR_CHIEFS_GIFT;
-    case 9: return COLONIZE_LCR_CIBOLA;
+    case 1: out->outcome = COLONIZE_LCR_FOUNTAIN_OF_YOUTH; return;
+    case 2: out->outcome = COLONIZE_LCR_CIBOLA; return;
+    case 3: out->outcome = COLONIZE_LCR_SMALL_TREASURE; return;
+    case 4: out->outcome = COLONIZE_LCR_BURIAL_MOUNDS; return;
+    case 5: out->outcome = COLONIZE_LCR_VANISHES; return;
+    case 7: out->outcome = COLONIZE_LCR_CHIEFS_GIFT; return;
+    case 9: out->outcome = COLONIZE_LCR_SURVIVORS_JOIN; return;
     case 6:
-    default: return COLONIZE_LCR_NOTHING;
+    default: out->outcome = COLONIZE_LCR_NOTHING; return;
     }
   }
 }
@@ -2702,9 +2735,24 @@ bool units_resolve_lcr_rumour(
     skill += 1;
   }
   const bool woi = col1 && col1->head.game_options.woi;
-  const ColonizeLcrOutcome outcome =
-    units_lcr_roll_outcome(col1, rng, nation, x, y, skill, de_soto_reroll, woi);
+  const int pioneer_type = units_find_type(pool, "Pioneers");
+  const bool is_pioneer = pioneer_type >= 0 && u->type_index == pioneer_type;
+  /* DS:0x1dc6++ happens before the roll loop (103459). */
+  s_lcr_explored_total++;
+  ColonizeLcrRoll roll;
+  units_lcr_roll_outcome(
+    &roll, col1, map, rng, nation, x, y, skill, de_soto_reroll, woi, is_pioneer
+  );
+  const ColonizeLcrOutcome outcome = roll.outcome;
 
+  /*
+   * Dispatch tail (103620-103757). The numeric FUN_281f_048e arguments the
+   * mysteries catalog once took for message ids are sound/event ids
+   * (FUN_129f_02cc): 0x37 Fountain of Youth, 0x3c Cibola, 0x33 burial
+   * prompt, 0x24 burial treasure with no tribe nearby, 0x32 SCREWED (the
+   * same military sting units_combat_music_sting plays); FUN_281f_0498/04ac
+   * (2, case) pick a BGM track for the gold cases. Sound chrome PARK.
+   */
   PopupMsgTokens tok;
   memset(&tok, 0, sizeof(tok));
   switch (outcome) {
@@ -2714,7 +2762,7 @@ bool units_resolve_lcr_rumour(
     );
     break;
   case COLONIZE_LCR_SMALL_TREASURE: {
-    const int gold = dos_rng_range(rng, 3, 24) * 10; /* ~30..240 */
+    const int gold = roll.gold;
     units_lcr_credit_gold(col1, europe, human_nation, nation, gold);
     tok.has_number0 = true;
     tok.number0 = gold;
@@ -2725,7 +2773,7 @@ bool units_resolve_lcr_rumour(
     break;
   }
   case COLONIZE_LCR_CHIEFS_GIFT: {
-    const int gold = dos_rng_range(rng, 1, 20) * 4; /* ~4..80 */
+    const int gold = roll.gold;
     units_lcr_credit_gold(col1, europe, human_nation, nation, gold);
     tok.has_number0 = true;
     tok.number0 = gold;
@@ -2736,8 +2784,9 @@ bool units_resolve_lcr_rumour(
     break;
   }
   case COLONIZE_LCR_FOUNTAIN_OF_YOUTH:
-    /* 8 free dock immigrants (FUN_65dd_0004 8x FUN_291f_0d2c). Human only —
-     * AI nations have no modeled EuropeScreen recruit pool (PARK). */
+    /* 8 free dock immigrants (8x FUN_291f_0d2c, 103727-103731) after
+     * FUN_281f_0524(8), the once-only discovery event. Human only — AI
+     * nations have no modeled EuropeScreen recruit pool (PARK). */
     if (europe && nation == human_nation) {
       for (int i = 0; i < 8; ++i) {
         /* FoY funnels through 4884, not 5e52's 04d4 slot roll — out of scope
@@ -2751,10 +2800,8 @@ bool units_resolve_lcr_rumour(
     );
     break;
   case COLONIZE_LCR_CIBOLA: {
-    /* Seven Cities of Cibola: big find, needs a Galleon home (treasure
-     * train, same mechanic as Cortes conquest treasure). */
-    const int gold =
-      (dos_rng_range(rng, 1, 6) + (col1 ? col1->head.difficulty : 0) + 5) * 100;
+    /* Case 2 (103536-103548): Treasure unit with +0x315b = hundreds. */
+    const int gold = roll.treasure_hundreds * 100;
     (void)units_spawn_treasure_train(pool, x, y, nation, gold);
     tok.has_number1 = true;
     tok.number1 = gold;
@@ -2765,7 +2812,8 @@ bool units_resolve_lcr_rumour(
     break;
   }
   case COLONIZE_LCR_SURVIVORS_JOIN: {
-    /* "Desperate survivors... swear allegiance" — a free colonist joins. */
+    /* Case 9 (103718-103723): spawn unit type 0 (Colonist) on the tile,
+     * nation name substituted (FUN_291f_0ac8). */
     const int ct = units_find_type(pool, "Colonists");
     if (ct >= 0) {
       const int nid = units_spawn_allow_stack(pool, ct, x, y);
@@ -2782,9 +2830,9 @@ bool units_resolve_lcr_rumour(
     break;
   }
   case COLONIZE_LCR_TRESPASS_ANGER: {
-    const int tribe = units_lcr_nearest_tribe_nation(col1, x, y);
+    const int tribe = roll.trespass_tribe;
     if (col1 && tribe >= 0 && nation >= 0 && nation < 4) {
-      ai_diplo_indian_relation_delta(col1, tribe, nation, -15);
+      ai_diplo_indian_relation_delta(col1, tribe, nation, -roll.trespass_mag);
     }
     tok.string0 = units_combat_nation_label(col1, tribe);
     units_combat_enqueue_tok(
@@ -2801,24 +2849,44 @@ bool units_resolve_lcr_rumour(
     units_despawn(pool, unit_id);
     break;
   case COLONIZE_LCR_BURIAL_MOUNDS: {
-    /* @LOSTCITY4 (Search / Stay clear) auto-resolves as Search — full
-     * interactive CHOICE + native-attack combat resolve PARKED. */
-    const int tribe = units_lcr_nearest_tribe_nation(col1, x, y);
-    const int sub = dos_rng_range(rng, 1, 100);
-    if (sub <= 40) {
+    /*
+     * @LOSTCITY4 (Search / Stay clear) auto-resolves as Search (DOS
+     * local_3c==1; interactive CHOICE PARK). Post-choice block 103653-
+     * 103715: the nearest village's tribe claims the mounds when
+     * RNG(1, (dist+5) << skill) < 4 and it has met the nation (0a38 &
+     * 0x20 — no per-tribe contact flag here, treated as met). Variant by
+     * the loop's `gate`: <25 → BURIAL1 empty; <50, or <65 with no claim →
+     * BURIAL2 3d8*10 gold; else BURIAL3 Treasure unit worth
+     * (RNG(1,8) + (skill+5)*2)*2 hundred. A claim adds @SCREWED and +100
+     * relation hit (FUN_281f_0d6c(tribe, nation, 100)) — DOS does not kill
+     * the unit here; the angry tribe does that on its own turn.
+     */
+    int dist = 0x7fffffff;
+    const int near_tribe = units_lcr_nearest_tribe_dist(col1, x, y, &dist);
+    int screwed_tribe = -1;
+    if (near_tribe >= 0 && dist < 0x7fffffff) {
+      const int span = (dist + 5) << skill;
+      if (dos_rng_range(rng, 1, span < 1 ? 1 : span) < 4) {
+        screwed_tribe = near_tribe;
+      }
+    }
+    if (roll.gate < 25) {
       units_combat_enqueue_tok(
         AI_POPUP_TAG_INFO, "BURIAL1", nation, -1, 0, &tok, "The mounds are cold and empty."
       );
-    } else if (sub <= 70) {
-      const int gold = dos_rng_range(rng, 2, 12) * 10;
+    } else if (roll.gate < 50 || (screwed_tribe < 0 && roll.gate < 65)) {
+      int g = dos_rng_range(rng, 1, 8);
+      g += dos_rng_range(rng, 1, 8);
+      g += dos_rng_range(rng, 1, 8);
+      const int gold = g * 10;
       units_lcr_credit_gold(col1, europe, human_nation, nation, gold);
       tok.has_number0 = true;
       tok.number0 = gold;
       units_combat_enqueue_tok(
         AI_POPUP_TAG_INFO, "BURIAL2", nation, -1, gold, &tok, "Within, you find trinkets."
       );
-    } else if (sub <= 80) {
-      const int gold = (dos_rng_range(rng, 1, 6) + 8) * 100;
+    } else {
+      const int gold = (dos_rng_range(rng, 1, 8) + (skill + 5) * 2) * 2 * 100;
       (void)units_spawn_treasure_train(pool, x, y, nation, gold);
       tok.has_number1 = true;
       tok.number1 = gold;
@@ -2826,20 +2894,18 @@ bool units_resolve_lcr_rumour(
         AI_POPUP_TAG_INFO, "BURIAL3", nation, -1, gold, &tok,
         "Within, you find incredible treasure!"
       );
-    } else {
-      if (col1 && tribe >= 0 && nation >= 0 && nation < 4) {
-        ai_diplo_indian_relation_delta(col1, tribe, nation, -25);
+    }
+    if (screwed_tribe >= 0) {
+      PopupMsgTokens stok;
+      memset(&stok, 0, sizeof(stok));
+      if (col1 && nation >= 0 && nation < 4) {
+        ai_diplo_indian_relation_delta(col1, screwed_tribe, nation, -100);
       }
-      tok.string0 = units_combat_nation_label(col1, tribe);
+      stok.string0 = units_combat_nation_label(col1, screwed_tribe);
       units_combat_enqueue_tok(
-        AI_POPUP_TAG_INFO, "SCREWED", nation, -1, 0, &tok,
+        AI_POPUP_TAG_INFO, "SCREWED", nation, -1, 0, &stok,
         "These are sacred burial grounds! You must die!"
       );
-      /* Thin "you must die": 50/50 the expedition is lost outright rather
-       * than resolving full native-attack combat (PARK). */
-      if (dos_rng_range(rng, 1, 2) == 1) {
-        units_despawn(pool, unit_id);
-      }
     }
     break;
   }

@@ -2746,7 +2746,7 @@ Thin map: [ai/king_ref.md](ai/king_ref.md). Linux: `src/core/ai_king.c`.
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_65dd_0004` | 103399 | 362 | combat | Resolve unit combat outcome from RNG cases on selected unit | inferred |  |
+| `FUN_65dd_0004` | 103399 | 362 | map | Lost City Rumour resolve: RNG(1,9) case loop + terrain/session-counter gates → @LOSTCITY{case} / @BURIAL{1-3} / @SCREWED (strings DS:0x1dae/0x1db7/0x1dbe; counters DS:0x1dc6/0x1dc7) | known | src/core/units.c units_lcr_roll_outcome |
 
 ### Segment `6662` (7 defs) — ui — Goto pathfinding BFS + path-cost overlay
 

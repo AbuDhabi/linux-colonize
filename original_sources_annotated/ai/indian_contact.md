@@ -325,8 +325,9 @@ when FF + peace.
 
 **de Soto LCR:** **Done** thin — `units_resolve_lcr_rumour` clears rumour via
 `map_clear_rumour`; with FF 7 positive-only draw + extended sight. Full
-FUN_65dd_0004 case/redirect graph **PARKED** (viceroy:103463-103618: not a flat
-weight table — `RNG(1,9)` case roll + `local_c` thresholds + reroll loops).
+FUN_65dd_0004 case/redirect graph **Done 2026-08-27** (`units_lcr_roll_outcome`,
+`src/core/units.c`; static read only — see `docs/mysteries_catalog.md` 65dd entry
+for the terrain/counter/case-identity resolution).
 
 ### Teach-skill profession map (Linux)
 
