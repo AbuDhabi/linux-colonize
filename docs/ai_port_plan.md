@@ -2344,10 +2344,57 @@ is genuinely stuck mid-session.
   `00/20/22/60/a0/e0/e2/e8`, directional. `ai_diplo.h` defines swapped to
   DOS values (+ `AI_DIPLO_WAR_INTENT 0x01`), `88d6` gate re-pointed to
   PEACE; no raw masks anywhere in `src/`/tests so nothing else moved.
-  `ctest` 46/46, goldens (which diff `euro_relation`) unchanged. Side
-  note: `13b0` is not an "alliance offer" — it's the paid `@SMITEINDIANS`/
-  `@SMITEEUROPE` war-hire; Linux's `AI_POPUP_TAG_DIPLO_ALLIANCE` mechanic
-  is a mislabel of it (unported as such; low priority).
+  `ctest` 46/46, goldens (which diff `euro_relation`) unchanged.
+  **Attribution fix (later same day):** the paid `@SMITEINDIANS`/
+  `@SMITEEUROPE` branch is in `FUN_5bfb_153e` (its two-line header fooled
+  the function-finder), inside the human-initiated FA negotiation
+  (`FUN_291f_016a` dialog pick → target; `@NOCONTACT` if unmet,
+  `@ALREADYSMITE` if already at war; price `clamp(gold/50 ×
+  (field_combat[target]+land_strength[target]) / 50, 10, 200) × 50`,
+  halved for Franklin; pay → gold human→AI, AI clears PEACE / sets WAR
+  with target, `@MERCENARY`; `@UNFORTUNATE` if the AI can't afford). FA
+  UI is PARKED policy, so not ported. `FUN_5bfb_13b0` itself is the
+  AI-initiated **treaty sign/cancel** — see **T1.20**.
+
+- [x] **T1.20 — Replace the invented "alliance offer" with `FUN_5bfb_13b0`
+  treaty sign/cancel.** `13b0(a,b)` (85 lines, `viceroy_unpacked.c:97260`):
+  skip if WoI; cadence `(a+turn+b)%3==0` unless the pair is unmet; skip if
+  WAR bit either way. `eligible = FUN_5bfb_10ec(a,b) || 10ec(b,a)`. If
+  not eligible and no PEACE: `@SIGNTREATY`, set PEACE both ways,
+  `FUN_5bfb_12d0` (clear armed-unit gotos near colonies) both ways,
+  diplomatic cooldown (`nation+0x40+peer`) = 1 both ways. Else if PEACE or
+  unmet: `@DECLAREWAR` (`0x18a5`) if no PEACE, `@CANCELTREATY` otherwise;
+  cooldowns = 0; clear PEACE (no WAR bit — war starts when someone
+  attacks). `10ec(a,b)` "war-worthy": turn > 39, focus nation ≠ `0xa153`,
+  either nation's `-0x6bf4` byte > 7, neither independent, and for each
+  of a/b: not (met-unpeaced with the focus nation) or (focus nation's
+  `land_combat_strength` ≤ theirs and `-0x6bf0` ≤); then count met-
+  unpeaced rivals (+1 if a,b themselves aren't at peace), scan continents
+  1..14 with the G-table tallies (`-0x6b1a`/`-0x6b5a`/`-0x6a8e`, mapped in
+  `euro_g_table_0a60.md`): return 0 if a's presence is dwarfed on any
+  continent; accumulate `local_8` (a's `-0x6a8e`) and `local_6`
+  (b's `(−0x6b5a + −0x6a8e)/2`); worthy if
+  `count − (−0x6a9a)[a*3] + 4 <= 4·local_8/local_6` or no shared
+  continent. Linux today: 1-in-40 "offers an alliance" CHOICE +
+  `AI_DIPLO_ALLY` machinery (form/break/timers/prize) — all invented. The
+  port replaces the offer with treaty sign/cancel (SIGNTREATY is a notice,
+  not a CHOICE) and needs `10ec` on the already-ported continent tallies;
+  the ALLY machinery can then be retired in a second pass.
+  **2026-08-27 — first pass done.** `ai_euro_10ec_war_worthy` (`ai_euro.c`,
+  on the 20e6 continent accessors + a land-unit-per-continent helper;
+  `−0x6a9a` reads 0 — it's `unknown34_pad`, another "confirmed dead" table
+  DOS does read; `0xa153` gate skipped) and `ai_diplo_13b0_treaty_tick`
+  (`ai_diplo.c`), spliced over the 1-in-40 alliance offer in
+  `ai_diplo_euro_balance`. Caller found: `13b0` is `153e`'s own entry
+  branch for AI selves (`:97406`: `if (self > 3 || 0x543f[self]) 13b0(self,
+  peer)`), so it runs wherever `153e` does — per peer per balance. Linux
+  choices: unmet pairs get the bit effects (DOS signs PEACE on unmet pairs;
+  real saves carry `0xa0`) but no notice; the `unit_units` target links
+  `ai_diplo.c` without `ai_euro.c`, so `10ec` has a weak never-worthy
+  fallback there. ALLY machinery (form/break/timers/prize/embargo lift)
+  left in place for now — nothing in `euro_balance` creates ALLY any more,
+  direct API callers/tests still work; retiring it is the second pass.
+  `ctest` 46/46, `golden_ai_turns` unchanged.
 
 ## Tier 3 — Confirm with the user before flipping
 
@@ -2392,8 +2439,15 @@ CLAUDE.md's "hard to reverse" guidance.
   caps `6−diff` / `(5−diff)·500`; Veteran Soldiers (type 1, profession
   `0x15`) spawned in Europe → Linux pushes them on the docks; clear PEACE
   both ways, set `AI_DIPLO_CROWN_ARMED 0x10`; DOS also stamps
-  `DS:0x53c8[peer]=turn` (`head.nation_relation`, a derived mirror here —
-  not written). Test in `test_ai_king.c`; `ctest` 46/46.
+  `DS:0x53c8[peer]=turn` (`head.nation_relation`). Test in `test_ai_king.c`;
+  `ctest` 46/46.
+  **Follow-ups done same session:** (a) `ai_diplo_read` no longer
+  synthesizes `PEACE|MET` for never-written pairs — it returns the raw
+  byte like DOS (`-0x77c4`, unmet = 0); one fixture that relied on the
+  default (alliance near-parity) now marks the pair met+peace explicitly.
+  (b) `head.nation_relation` is now DOS's Crown-war stamp: the WAR/ALLY
+  mirror is gone (no readers existed), `ai_diplo_declare_war` zeroes both
+  slots like the attack sites, `ai_king_new_war_event` writes the turn.
 
 - [ ] **T3.3 — Re-enable `golden_ai_turns`/`golden_ai_joint`.** **2026-08-27
   partial:** `golden_ai_mid01` and `golden_ai_late01` pass again and are

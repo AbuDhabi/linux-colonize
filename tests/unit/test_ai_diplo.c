@@ -1748,6 +1748,8 @@ int main(void) {
     /* Near-parity via gold/50: score 12 each — ally-eligible band. */
     r3.nation[0].gold = 600;
     r3.nation[1].gold = 600;
+    r3.nation[0].euro_relation[1] = AI_DIPLO_MET; /* met, no treaty yet (raw; unmet is 0 now) */
+    r3.nation[1].euro_relation[0] = AI_DIPLO_MET;
     for (int i = 0; i < 8; ++i) {
       r3.indian[i].alarm_by_player[0] = 0; /* relation 100 */
       r3.indian[i].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
@@ -1803,6 +1805,7 @@ int main(void) {
           r3.nation[1].gold = 600;
           r3.indian[0].alarm_by_player[0] = 90; /* DOS bands: relation 30 */
           r3.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
+          status[0] = '\0'; /* the refuse line never overwrites an existing status */
           ai_diplo_euro_balance(&ctx_r3, 0);
           if (ai_diplo_read(&r3, 0, 1) & AI_DIPLO_ALLY) {
             return fail("sticky==2 refuse-status loop must not form alliance");
@@ -1822,18 +1825,22 @@ int main(void) {
       r3.indian[i].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
     }
     r3.nation[0].unknown26[8] = 0;
-    int allied = 0;
-    for (int n = 0; n < 200; ++n) {
+    /* FUN_5bfb_13b0 (2026-08-27): not war-worthy (turn <= 39) and no PEACE →
+     * @SIGNTREATY sets PEACE both ways within the (a+turn+b)%3 cadence. */
+    int treaty = 0;
+    for (int n = 0; n < 6; ++n) {
       r3.nation[0].gold = 600;
       r3.nation[1].gold = 600;
       ai_diplo_euro_balance(&ctx_r3, 0);
-      if (ai_diplo_read(&r3, 0, 1) & AI_DIPLO_ALLY) {
-        allied = 1;
+      if ((r3.nation[0].euro_relation[1] & AI_DIPLO_PEACE) &&
+          (r3.nation[1].euro_relation[0] & AI_DIPLO_PEACE)) {
+        treaty = 1;
         break;
       }
+      turn_r3++;
     }
-    if (!allied) {
-      return fail("without sticky==2, near-parity should eventually form_alliance");
+    if (!treaty) {
+      return fail("without sticky==2, 13b0 should sign a peace treaty");
     }
 
     /* Sugar embargo: set on declare, lift on peace (same bit1 as king refuse). */

@@ -1,4 +1,5 @@
 #include "core/ai_diplo.h"
+#include "core/ai_euro.h"
 
 #include "core/ai_popup.h"
 #include "core/colony.h"
@@ -960,13 +961,12 @@ static void ai_diplo_mirror_relation_summary(ColonizeCol1Save* col1, int nation)
       ally = 1;
     }
   }
-  if (war) {
-    col1->head.nation_relation[nation] = -50;
-  } else if (ally) {
-    col1->head.nation_relation[nation] = 40;
-  } else {
-    col1->head.nation_relation[nation] = 0;
-  }
+  /* head.nation_relation (DS:0x53c8) is NOT a relation summary: DOS uses it as
+   * the per-nation Crown-war turn stamp (FUN_38fd_5930 writes turn; every
+   * attack/declare site zeroes both nations' slots). The old WAR/ALLY mirror
+   * was dropped 2026-08-27; see ai_diplo_declare_war / ai_king_new_war_event. */
+  (void)war;
+  (void)ally;
   /* Keep player.diplomacy as a coarse OR of peer flags (UI crumb). */
   uint8_t agg = 0;
   for (int peer = 0; peer < 4; ++peer) {
@@ -992,10 +992,8 @@ uint8_t ai_diplo_read(const ColonizeCol1Save* col1, int nation_a, int nation_b) 
   if (!f) {
     return 0;
   }
-  /* Unmet / never written: treat as peaceful known (PEACE|MET). */
-  if (*f == 0) {
-    return (uint8_t)(AI_DIPLO_PEACE | AI_DIPLO_MET);
-  }
+  /* Raw byte. 2026-08-27: the old "unwritten = PEACE|MET" synthesis is gone —
+   * DOS reads DS:-0x77c4 directly and an unmet pair is 0 there. */
   return *f;
 }
 
@@ -1077,6 +1075,11 @@ void ai_diplo_declare_war(ColonizeCol1Save* col1, int nation_a, int nation_b) {
     return;
   }
   const int already = ai_diplo_at_war(col1, nation_a, nation_b);
+  /* DOS attack/declare sites (5fef_1b0e, 684c_08c0, 6cb2_24b8): DS:0x53c8[a]=[b]=0. */
+  if (nation_a >= 0 && nation_a < 4 && nation_b >= 0 && nation_b < 4) {
+    col1->head.nation_relation[nation_a] = 0;
+    col1->head.nation_relation[nation_b] = 0;
+  }
   ai_diplo_clear_both(col1, nation_a, nation_b, (uint8_t)(AI_DIPLO_PEACE | AI_DIPLO_ALLY));
   ai_diplo_or_both(col1, nation_a, nation_b, (uint8_t)(AI_DIPLO_WAR | AI_DIPLO_MET));
   /* Thin 153e-shaped sting: gold drain + tax bump both sides (relation via mirror). */
@@ -2136,6 +2139,93 @@ int ai_diplo_military_score(const ColonizeTurnContext* ctx, int nation_id) {
   return score;
 }
 
+
+/*
+ * FUN_5bfb_13b0 — AI-initiated treaty sign/cancel (static port 2026-08-27,
+ * T1.20). Replaces the invented 1-in-40 "alliance offer". DOS: skip if WoI;
+ * cadence (a+turn+b)%3==0 unless unmet; skip if WAR either way. If neither
+ * side is war-worthy (FUN_5bfb_10ec) and no PEACE → @SIGNTREATY, PEACE both
+ * ways, wake border garrisons both ways, cooldown=1. Else if PEACE or unmet
+ * → @DECLAREWAR (no PEACE) / @CANCELTREATY, cooldown=0, clear PEACE (war
+ * proper starts when someone attacks). Notices only — no CHOICE.
+ */
+/* Weak fallback for link units built without ai_euro.c (unit_units): never war-worthy. */
+__attribute__((weak)) int ai_euro_10ec_war_worthy(const ColonizeTurnContext* ctx, int a, int b) {
+  (void)ctx;
+  (void)a;
+  (void)b;
+  return 0;
+}
+
+static void ai_diplo_13b0_treaty_tick(ColonizeTurnContext* ctx, int a, int b) {
+  if (!ctx || !ctx->col1_ok || !ctx->col1 || !ctx->turn_number || a < 0 || a > 3 || b < 0 ||
+      b > 3 || a == b) {
+    return;
+  }
+  ColonizeCol1Save* col1 = ctx->col1;
+  if (col1->head.game_options.woi) {
+    return;
+  }
+  const uint8_t rel_ab = col1->nation[a].euro_relation[b];
+  const uint8_t rel_ba = col1->nation[b].euro_relation[a];
+  if ((a + (int)*ctx->turn_number + b) % 3 != 0 && (rel_ab & AI_DIPLO_MET)) {
+    return;
+  }
+  if ((rel_ab & AI_DIPLO_WAR) || (rel_ba & AI_DIPLO_WAR)) {
+    return;
+  }
+  /* Linux choice: an unmet pair still gets the bit effects (DOS does sign
+   * PEACE on unmet pairs — real saves carry 0xa0), but no notice/status, so
+   * a never-contacted nation can't narrate over the human's own status line. */
+  const int notify = ai_diplo_involves_human(ctx, a, b) && (rel_ab & AI_DIPLO_MET) != 0;
+  const char* na = ai_diplo_rival_name(col1, a);
+  const char* nb = ai_diplo_rival_name(col1, b);
+  PopupMsgTokens tok;
+  memset(&tok, 0, sizeof(tok));
+  tok.string0 = na;
+  tok.string1 = nb;
+  char body[AI_POPUP_BODY_LEN];
+  const int worthy = ai_euro_10ec_war_worthy(ctx, a, b) || ai_euro_10ec_war_worthy(ctx, b, a);
+  if (!worthy) {
+    if ((rel_ab & AI_DIPLO_PEACE) == 0) {
+      char fb[AI_POPUP_BODY_LEN];
+      snprintf(fb, sizeof(fb), "The %s and %s have signed a peace treaty.", na, nb);
+      popup_msg_fill(ctx->messages, "SIGNTREATY", &tok, fb, body, sizeof(body));
+      ai_diplo_or_both(col1, a, b, AI_DIPLO_PEACE);
+      ai_diplo_wake_border_garrisons(ctx, a, b);
+      ai_diplo_wake_border_garrisons(ctx, b, a);
+      col1->nation[a].treaty_timer[b] = 1;
+      col1->nation[b].treaty_timer[a] = 1;
+      if (ctx->ai_popups && notify) {
+        (void)ai_popup_enqueue_ok_ctx(ctx->ai_popups, AI_POPUP_TAG_DIPLO_PEACE, a, b, 0, "Treaty", body);
+      }
+      if (ctx->status && ctx->status_size > 0 && notify) {
+        snprintf(ctx->status, ctx->status_size, "%s", body);
+      }
+    }
+    return;
+  }
+  if ((rel_ab & AI_DIPLO_PEACE) || (rel_ab & AI_DIPLO_MET) == 0) {
+    char fb[AI_POPUP_BODY_LEN];
+    if ((rel_ab & AI_DIPLO_PEACE) == 0) {
+      snprintf(fb, sizeof(fb), "The %s and %s are now at war.", na, nb);
+      popup_msg_fill(ctx->messages, "DECLAREWAR", &tok, fb, body, sizeof(body));
+    } else {
+      snprintf(fb, sizeof(fb), "The %s cancel their treaty with the %s.", na, nb);
+      popup_msg_fill(ctx->messages, "CANCELTREATY", &tok, fb, body, sizeof(body));
+    }
+    col1->nation[a].treaty_timer[b] = 0;
+    col1->nation[b].treaty_timer[a] = 0;
+    ai_diplo_clear_both(col1, a, b, AI_DIPLO_PEACE);
+    if (ctx->ai_popups && notify) {
+      (void)ai_popup_enqueue_ok_ctx(ctx->ai_popups, AI_POPUP_TAG_DIPLO_BREAK, a, b, 0, "Treaty", body);
+    }
+    if (ctx->status && ctx->status_size > 0 && notify) {
+      snprintf(ctx->status, ctx->status_size, "%s", body);
+    }
+  }
+}
+
 void ai_diplo_euro_balance(ColonizeTurnContext* ctx, int nation_id) {
   if (!ctx || !ctx->col1_ok || !ctx->col1 || nation_id < 0 || nation_id >= 4) {
     return;
@@ -2453,68 +2543,16 @@ void ai_diplo_euro_balance(ColonizeTurnContext* ctx, int nation_id) {
       continue;
     }
 
-    /* 10ec/13b0 ally eligibility. */
-    if (self > 10 && other > 10 && abs(self - other) < 15) {
-      /* Stored flags only — ai_diplo_read invents PEACE|MET for unmet 0. */
-      const uint8_t* raw_f = ai_diplo_flag_byte_const(ctx->col1, nation_id, peer);
-      const uint8_t stored = raw_f ? *raw_f : 0;
-      if ((stored & AI_DIPLO_ALLY) == 0) {
-        /*
-         * Sticky→pressure deepen (unpark #5): sticky==2 refuses new alliances
-         * this balance — deep native hostility blocks the improve-relations /
-         * treaty path. Source: fandom Indians — alarmed/hostile may refuse
-         * trade/gifts; contact friction <40 inverted. Existing ALLY kept.
-         * Raw form_alliance API still available for tests / scripted paths.
-         */
-        if (sticky_now == AI_DIPLO_STICKY_DEEP) {
-          if (ctx->human_nation == nation_id && ctx->status && ctx->status_size > 0 &&
-              ctx->rng && dos_rng_range(ctx->rng, 1, 40) == 1) {
-            /* Status only — no GAME.TXT native-unrest dialog. */
-            snprintf(ctx->status, ctx->status_size,
-                     "Native unrest precludes new alliances.");
-          }
-        } else if (stored == 0) {
-          /*
-           * Unmet peer (euro_relation==0): do not invent PEACE|MET|ALLY.
-           * Seed-100 early TURN goldens keep flags clear until real contact.
-           * Cite: docs/ai_transcription.md joint diplo fields; euro_diplo.md.
-           */
-        } else if (ctx->rng && dos_rng_range(ctx->rng, 1, 40) == 1) {
-          /*
-           * Human-offer path (FUN_5bfb_13b0): AI nation offers alliance to the
-           * human peer → CHOICE Accept/Refuse (apply via ai_diplo_apply_popup_result).
-           * AI↔AI still auto-forms via form_alliance_ctx.
-           */
-          if (ctx->ai_popups && peer == ctx->human_nation) {
-            char body[AI_POPUP_BODY_LEN];
-            snprintf(
-              body,
-              sizeof(body),
-              "%s offers an alliance.",
-              ai_diplo_rival_name(ctx->col1, nation_id)
-            );
-            if (ctx->status && ctx->status_size > 0) {
-              snprintf(ctx->status, ctx->status_size, "%s", body);
-            }
-            const char* labels[] = {"Accept", "Refuse"};
-            const int ids[] = {1, 2};
-            (void)ai_popup_enqueue_choice_ctx(
-              ctx->ai_popups,
-              AI_POPUP_TAG_DIPLO_ALLIANCE,
-              nation_id,
-              peer,
-              0,
-              "Alliance",
-              body,
-              labels,
-              ids,
-              2
-            );
-          } else {
-            ai_diplo_form_alliance_ctx(ctx, nation_id, peer);
-          }
-        }
-      }
+    /* FUN_5bfb_13b0: AI-initiated treaty sign/cancel (replaces the invented
+     * near-parity alliance offer, 2026-08-27). Sticky deep native unrest still
+     * refuses new treaties this balance (Linux layer, kept). */
+    if (ai_diplo_indian_hostility_sticky(ctx->col1, nation_id) != AI_DIPLO_STICKY_DEEP) {
+      ai_diplo_13b0_treaty_tick(ctx, nation_id, peer);
+    } else if (self > 10 && other > 10 && abs(self - other) < 15 &&
+               ctx->human_nation == nation_id && ctx->status && ctx->status_size > 0 &&
+               ctx->rng && dos_rng_range(ctx->rng, 1, 40) == 1) {
+      /* Linux-only chrome, kept behind its original near-parity gate. */
+      snprintf(ctx->status, ctx->status_size, "Native unrest precludes new alliances.");
     }
   }
 }

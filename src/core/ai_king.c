@@ -3795,8 +3795,7 @@ int ai_king_new_war_event(ColonizeTurnContext* ctx) {
   }
   ai_diplo_clear_both(col1, human, peer, AI_DIPLO_PEACE);
   ai_diplo_or_both(col1, human, peer, AI_DIPLO_CROWN_ARMED);
-  /* DOS also stamps DS:0x53c8[peer] = turn (head.nation_relation) — that slot
-   * is a derived mirror in this port, so the stamp is not written. */
+  col1->head.nation_relation[peer] = (int16_t)turn; /* DS:0x53c8[peer] = turn */
   return 1;
 }
 

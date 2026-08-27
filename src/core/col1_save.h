@@ -209,7 +209,8 @@ typedef struct ColonizeCol1Head {
   uint16_t turn_loop_running; /* 0x53c2; Esc clears (FUN_2b5a_3104); main loop sets */
   uint16_t map_modal_active; /* 0x53c4; map modal pump gate */
   uint16_t no_unit_selected; /* 0x53c6; View-idle when active_unit < 0 */
-  int16_t nation_relation[4];
+  int16_t nation_relation[4]; /* DS:0x53c8 — NOT a relation summary: per-nation Crown-war
+     turn stamp (FUN_38fd_5930 writes turn; attack/declare sites zero both). 2026-08-27 */
   int16_t rebel_sentiment_report; /* DS:0x53d0; congress UI 0..100 */
   /* Was unknown45_pad[8]; resolved 2026-08-19 as four int16 slots, all
    * -1/0xffff = none, all reset together in FUN_75c2_235c (new game). */
