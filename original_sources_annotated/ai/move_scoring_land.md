@@ -7,9 +7,17 @@ Section map for decomp **88975–89375** (`LAB_521d_5183` … mid-gate
 Parent: [`move_scoring.md`](move_scoring.md). Act entry: [`euro_unit_act.md`](euro_unit_act.md)
 (`5b66` → `2a1f_04f4` → `20e6`). Ship band: [`move_scoring_ship.md`](move_scoring_ship.md).
 
-**Port status:** mapped; Linux `ai_euro_score_move` settlement/siege peels +
-`ai_euro_land_best_adjacent_foe` Done thin. Deep −0x6790 / full explore ring
-**PARKED**. Full clean whole-function recovery (2215 lines, zero warnings,
+**Port status (2026-08-27): structural port of the land arms shipped** —
+`src/core/ai_euro.c` block "FUN_521d_20e6 — structural land port":
+prologue locals (`Ai20e6Unit`), `iStack_6a` explorer flag, LAB_277a
+SCOUT/PATROL, LAB_2912→2a59 explore ring with the raw scoring, LAB_4d2e→5183
+8-direction wander scorer, epilogue one-tile commit. The `0x9870` G-table
+read is `ai_euro_continent_stance_at`; `0x523d` is now known (NAMES @UNIT
+bit-string, MSB-first — see `move_scoring_20e6_full.md` 2026-08-27).
+Remaining thin/OPEN: LAB_52aa attack-odds core, `0x4c` village arms,
+colonist labor loop (LAB_2c..), `0x42`/`0x65` (closed dead, T1.2), ship
+band. Older note: mapped; Linux `ai_euro_score_move` settlement/siege peels +
+`ai_euro_land_best_adjacent_foe` Done thin. Full clean whole-function recovery (2215 lines, zero warnings,
 2026-08-14, supersedes the canonical export's tail — see its own header for
 what changed): [`move_scoring_20e6_full.md`](move_scoring_20e6_full.md).
 
@@ -273,7 +281,10 @@ assumed from the corrupted export's line numbers), then checking that.
 |----------|-------------|-----------------|
 | Adjacent foe pick | `ai_euro_land_best_adjacent_foe` (+ settlement prefer) | Defended case Done |
 | `0x46` undefended colony | `ai_euro_land_try_adjacent_colony_seize` — **Done** full port: combat-capable land unit (attack>1) adjacent to a foreign, at-war Euro colony tile with **no defending unit** walks in and captures it outright (Colonization capture-by-move), then fortifies to hold the prize (own addition — prevents the unrelated "on own colony, no quota → admit as LABOR" beachhead gate from absorbing the conqueror into the workforce next outer-wave pass). Decomp scans all 8 neighbors via `euro_settlement_owner`; Linux additionally gates on war state (decomp has no live peacetime-seize case). Covered by `unit_land_adjacent_colony_seize` in `test_ai_euro_war.c`. |
-| Step toward goal | `ai_euro_score_move` + continent/FoW/LCR/rumour thin | Full explore ring `2912` score matrix |
+| Step toward goal | goal-directed: `ai_euro_score_move` (thin Manhattan); idle: `ai_euro_20e6_wander_step` (**2026-08-27 structural port** of LAB_4d2e→5183) | attack-odds core of LAB_52aa (raw is register-garbage; ratio stand-in) |
+| Explore ring | `ai_euro_land_explore_scan_target` — **2026-08-27 structural port** of the 2912→2a59 scoring (colony pull, village penalty, explorer bonus, site reservation) | explore-plane low nibble (seen-bit stand-in), −0x6168 rival strength (0) |
+| SCOUT/PATROL `0x56` | `ai_euro_20e6_patrol_arm` — **Done** 2026-08-27 | — |
+| Explorer flag `iStack_6a` | `ai_euro_20e6_explorer_flag` — **Done** 2026-08-27 (all clauses) | `FUN_521d_0600` via `ai_goals_composite_unit_priority` |
 | Found / contact opcodes | Goals via `0a60` / peels | Live `0x42`/`0x65` writes inside `20e6` |
 | Missionary `0x4c` | Thin mission contact | Full `2a1f_059c` dir + tribe gate |
 | Debug `077e` | — | Ignore (AI debug overlay) |

@@ -944,6 +944,49 @@ this need a live DOSBox-X session — is still answered "no, resolved from
 existing dumps," just with a corrected answer for case 6 specifically) but
 added a pointer there to this section.
 
+## 2026-08-27 — structural port of the land arms (shipped)
+
+Ported arm by arm from the raw C below into `src/core/ai_euro.c` (block
+"FUN_521d_20e6 — structural land port", wired through
+`ai_euro_move_scoring_gate`'s idle branch; test `tests/unit/test_ai_euro_20e6.c`):
+
+| Raw lines (approx) | Arm | Linux |
+|---|---|---|
+| 1006-1090 | prologue locals (`uStack_62`/`iStack_2e`/`iStack_2c`/`iStack_74`/`uStack_2a`/`uStack_ac`/`iStack_a0`) | `ai_euro_20e6_prologue` → `Ai20e6Unit` |
+| 1095-1180 | `iStack_6a` explorer flag, every clause | `ai_euro_20e6_explorer_flag` |
+| 1260-1275 | LAB_277a SCOUT/PATROL `0x56` / goto colony | `ai_euro_20e6_patrol_arm` |
+| 1320-1480 | LAB_2912→2a59 explore ring scoring | `ai_euro_land_explore_scan_target` (replaces 2026-08-15 thin scan) |
+| 1940-2180 | LAB_4d2e→5183 8-dir scorer, land branch | `ai_euro_20e6_wander_step` |
+| 2213-2275 | epilogue commit (dir → one-shot goto / stay) | gate tail |
+
+Resolved while porting:
+
+- **`DS:0x523d` = the trailing bit-string column of `NAMES.TXT @UNIT`, read
+  MSB-first.** Braves `00111000` → `0x38`, exactly the value
+  `quiet_brave_scoring.c` cites for type 19 from the raw asm — independent
+  cross-check. So `0x523d & 1` = Privateer/Frigate/MoW (`00000001`/
+  `10000001`), `& 4` = Scouts + Soldiers/Dragoons/Regulars/Cavalry,
+  `& 0x30` clear = Colonists/Pioneers/Treasure/Wagon (the "use the founding
+  score table for wander" set). Table: `k_20e6_type_flags` in `ai_euro.c`.
+  `ai_euro_0a60_unit_can_pursue_goal`'s "unrecoverable resource data" note
+  is superseded.
+- `FUN_1000_XXXX` resident stubs = `FUN_281f_(XXXX − 0x81f0)` thunks
+  (checked on 8912→0722, 893a→074a, 897c→078c, 8886→0696, 8bd6→09e6,
+  8afc→090c, 8aac→08bc); `FUNCTION_CATALOG.md` names the real bodies from
+  there. `0x5236` = NAMES @UNIT "combat" column (record base `0x5233`;
+  `0x5237` = cargo, consistent with every ship-capacity read in this file).
+- `0x9870` (`uStack_2a`) is the `−0x6790` G-table (`0x10000 − 0x6790`),
+  i.e. `ai_euro_continent_stance_at`.
+
+Deliberate substitutions (documented at each use site in the code):
+attack-odds core of LAB_52aa (raw C is register-garbage around the
+`FUN_1000_8aac` calls — `combat_strength` ratio + the transcribed ×3/×2/
+Artillery/stance-4 modifiers, taken at war only instead of DOS's "not yet
+MET" first-contact attack); explore-plane low nibble → per-nation seen bit
+(unseen = 4); coarse fog `0x9faa` far-probe → seen bit; `−0x6168` rival
+strength → 0. Not ported: `0x4c` village arms, colonist labor loop, ship
+band, `0x42`/`0x65` (T1.2 dead).
+
 ## Raw recovered C
 
 ```c
