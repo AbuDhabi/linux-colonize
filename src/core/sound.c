@@ -263,7 +263,7 @@ static bool sound_init_fluidsynth(const char* data_dir) {
     return false;
   }
   fluid_settings_setnum(g_sound.fluid_settings, "synth.sample-rate", 44100.0);
-  fluid_settings_setnum(g_sound.fluid_settings, "synth.gain", 0.6);
+  fluid_settings_setnum(g_sound.fluid_settings, "synth.gain", 0.3); /* halved 2026-08-27 per listen test */
   g_sound.fluid_synth = new_fluid_synth(g_sound.fluid_settings);
   if (!g_sound.fluid_synth) {
     delete_fluid_settings(g_sound.fluid_settings);
