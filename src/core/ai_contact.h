@@ -136,6 +136,19 @@ int ai_contact_try_whack_confirm(
 );
 int ai_contact_whack_pending(const AiPopupState* st, int unit_id);
 
+/* @BUY0 haggle arm (pure). Returns 1 = re-ask at *io_price, 0 = tribe refuses. Exposed for tests. */
+int ai_contact_2e92_haggle(int difficulty, int bid, ColonizeDosRng* rng, int* io_price, int* out_alarm_delta);
+
+/* FUN_4d56_2820 LAB_002e92 AI branch — empty-handed AI unit buys the tribe's
+ * own goods (see ai_contact.c). Exposed for tests. Returns 1 on purchase. */
+int ai_contact_auto_buy_2e92(
+  ColonizeTurnContext* ctx,
+  ColonizeCol1Indian* ind,
+  int nation_id,
+  int e,
+  ColonizeUnit* unit
+);
+
 /* FUN_4d56_417e Mode 2 — AI Missionary at a village incites the tribe against
  * the human (see ai_contact.c header). Exposed for tests. */
 int ai_contact_ai_incite_human(

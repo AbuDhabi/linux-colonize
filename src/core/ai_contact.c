@@ -4119,8 +4119,8 @@ static int ai_contact_auto_trade(
   }
   const int hold = ai_contact_unit_trade_goods_hold(unit);
   if (hold < 0) {
-    /* LAB_002e92 territory (tribe's own production goods) — PARKED. */
-    return 0;
+    /* LAB_002e92: empty-handed AI unit buys the tribe's own goods (2026-08-27). */
+    return ai_contact_auto_buy_2e92(ctx, ind, nation_id, e, unit);
   }
   unit->hold_goods_amount[hold]--;
   if (unit->hold_goods_amount[hold] <= 0) {
@@ -4183,6 +4183,406 @@ static int ai_contact_auto_trade(
  * (caller falls back to the old silent path on 0 — e.g. `unit` carries no
  * TRADE_GOODS, or no tribe/econ to price against).
  */
+/*
+ * FUN_4d56_2820 LAB_002e92 — the tribe sells its OWN goods to an empty-handed
+ * unit (static port 2026-08-27). Candidates: the 16 cargo slots sorted by
+ * the 2154 bid table (FUN_1000_a0c0 insertion sort on DS:0x9e78), top three
+ * excluding muskets(15)/food(0)/tools(14)/trade goods(13). AI picks the one
+ * with the highest DS:0x84BC throttle byte; the human gets @BUYWHICH. Price
+ * (uStack_62): 200, or (tech-8)*-50 for cargo>7; +throttle*(2*diff+15) for
+ * cargo>6; +RNG(0,price); -4*bid; +4*alarm; *qty/100; +(diff+RNG(0,2))*10;
+ * floor 50. Accept: gold-=price, tribe.last_sold=cargo, indian.tons[cargo]-=
+ * qty, unit hold += qty, alarm += price/25+1 (FUN_4cc6_00f2 positive delta).
+ * qty = DS:0x8dc4, a shared scratch DOS never sets inside 2820 (captured 50
+ * mid-negotiation); ported as 100 (ships >>2 = 25 per the literal code) — flagged.
+ */
+static const uint8_t k_2820_throttle[16] = {0x00, 0x05, 0x02, 0x03, 0x04, 0x01, 0x04, 0x13,
+                                            0x02, 0x0a, 0x0a, 0x0e, 0x09, 0x02, 0x01, 0x02};
+
+static int ai_contact_2e92_candidates(const AiContactMeetEcon2154* econ, int goods[3], int bids[3]) {
+  int order[16];
+  for (int i = 0; i < 16; ++i) {
+    order[i] = i;
+  }
+  /* Stable insertion sort ascending by bid (DOS sorts keys+payload together). */
+  for (int i = 1; i < 16; ++i) {
+    const int v = order[i];
+    int j = i - 1;
+    while (j >= 0 && econ->bid[order[j]] > econ->bid[v]) {
+      order[j + 1] = order[j];
+      j--;
+    }
+    order[j + 1] = v;
+  }
+  int n = 0;
+  for (int k = 15; k >= 0 && n < 3; --k) {
+    const int c = order[k];
+    if (c == 15 || c == 0 || c == 14 || c == 13) {
+      continue;
+    }
+    goods[n] = c;
+    bids[n] = (int)econ->bid[c];
+    n++;
+  }
+  return n;
+}
+
+static int ai_contact_2e92_qty(const ColonizeTurnContext* ctx, const ColonizeUnit* unit) {
+  int qty = 100;
+  if (unit && ctx && ctx->units && units_is_sea(ctx->units, unit->id)) {
+    qty >>= 2; /* `if (0xc < type < 0x13) *0x8dc4 >>= 2` — literal */
+  }
+  return qty;
+}
+
+static int ai_contact_2e92_price(
+  ColonizeTurnContext* ctx,
+  const ColonizeCol1Indian* ind,
+  int nation_id,
+  int e,
+  int cargo,
+  int bid,
+  int qty,
+  ColonizeDosRng* rng
+) {
+  const int diff = (int)ctx->col1->head.difficulty;
+  int price = 200;
+  if (cargo > 7) {
+    price = ((int)ind->tech - 8) * -0x32;
+  }
+  if (cargo > 6) {
+    price += (int)k_2820_throttle[cargo & 15] * (diff * 2 + 15);
+  }
+  price += dos_rng_range(rng, 0, price);
+  price += bid * -4;
+  price += ai_diplo_indian_alarm(ctx->col1, nation_id, e) * 4;
+  price = (int)(((long)qty * (long)price) / 100);
+  price += (diff + dos_rng_range(rng, 0, 2)) * 10;
+  if (price < 0x32) {
+    price = 0x32;
+  }
+  return price;
+}
+
+static int ai_contact_2e92_unit_can_take(const ColonizeTurnContext* ctx, const ColonizeUnit* unit) {
+  if (!ctx || !ctx->units || !unit) {
+    return 0;
+  }
+  const ColonizeUnitType* ty = units_type(ctx->units, unit->type_index);
+  if (!ty || ty->cargo <= 0) {
+    return 0;
+  }
+  /* DOS: max_holds[type] - unit+0x3150 >= 1 (unit+0x3150 = holds in use). */
+  int used = 0;
+  for (int i = 0; i < COLONIZE_UNIT_CARGO_MAX; ++i) {
+    if (unit->hold_goods_amount[i] > 0) {
+      used++;
+    }
+  }
+  const int cap = ty->cargo > COLONIZE_UNIT_CARGO_MAX ? COLONIZE_UNIT_CARGO_MAX : ty->cargo;
+  return (cap - used) >= 1;
+}
+
+static void ai_contact_2e92_give_goods(ColonizeUnit* unit, int cargo, int qty) {
+  for (int i = 0; i < COLONIZE_UNIT_CARGO_MAX; ++i) {
+    if (unit->hold_goods_amount[i] <= 0) {
+      unit->hold_goods_type[i] = cargo;
+      unit->hold_goods_amount[i] = qty;
+      return;
+    }
+  }
+}
+
+static ColonizeCol1Tribe* ai_contact_2e92_tribe(ColonizeTurnContext* ctx, int nation_id) {
+  if (!ctx->col1->tribe) {
+    return NULL;
+  }
+  for (uint16_t ti = 0; ti < ctx->col1->head.tribe_count; ++ti) {
+    if ((int)ctx->col1->tribe[ti].nation_id == nation_id) {
+      return &ctx->col1->tribe[ti];
+    }
+  }
+  return NULL;
+}
+
+/* Accept branch (iStack_5e == 1): returns 1 on purchase, 0 when unaffordable. */
+static int ai_contact_2e92_settle(
+  ColonizeTurnContext* ctx,
+  ColonizeCol1Indian* ind,
+  ColonizeCol1Tribe* t,
+  int nation_id,
+  int e,
+  ColonizeUnit* unit,
+  int cargo,
+  int price,
+  int qty
+) {
+  ColonizeCol1Nation* nat = &ctx->col1->nation[e];
+  if (nat->gold < (uint32_t)price) {
+    return 0;
+  }
+  nat->gold -= (uint32_t)price;
+  if (t) {
+    t->last_sold = (uint8_t)(cargo == 9 ? 0xff : cargo); /* literal `if (cargo == 9) +9 = 0xff` */
+  }
+  ind->tons[cargo & 15] = (int16_t)(ind->tons[cargo & 15] - qty);
+  ai_contact_2e92_give_goods(unit, cargo, qty);
+  ai_diplo_indian_alarm_delta(ctx->col1, nation_id, e, price / 0x19 + 1);
+  return 1;
+}
+
+/* AI-controlled unit (iStack_8 == 0): silent auto-buy. Returns 1 on purchase. */
+int ai_contact_auto_buy_2e92(
+  ColonizeTurnContext* ctx,
+  ColonizeCol1Indian* ind,
+  int nation_id,
+  int e,
+  ColonizeUnit* unit
+) {
+  if (!ctx || !ctx->col1_ok || !ctx->col1 || !ind || !unit || e < 0 || e > 3) {
+    return 0;
+  }
+  if (!ai_contact_2e92_unit_can_take(ctx, unit)) {
+    return 0;
+  }
+  ColonizeCol1Tribe* t = ai_contact_2e92_tribe(ctx, nation_id);
+  if (!t) {
+    return 0;
+  }
+  AiContactMeetEcon2154 econ;
+  if (!ai_contact_meet_economics_2154(ctx, nation_id, t, &econ)) {
+    return 0;
+  }
+  int goods[3];
+  int bids[3];
+  const int n = ai_contact_2e92_candidates(&econ, goods, bids);
+  if (n <= 0) {
+    return 0;
+  }
+  /* AI pick: max throttle byte among the three (first wins ties, DOS `<`). */
+  int best = 0;
+  int best_w = -1;
+  for (int k = 0; k < n; ++k) {
+    const int w = (int)k_2820_throttle[goods[k] & 15];
+    if (w > best_w) {
+      best_w = w;
+      best = k;
+    }
+  }
+  ColonizeDosRng local;
+  ai_contact_local_rng(ctx, nation_id, &local);
+  const int qty = ai_contact_2e92_qty(ctx, unit);
+  const int price = ai_contact_2e92_price(ctx, ind, nation_id, e, goods[best], bids[best], qty, &local);
+  return ai_contact_2e92_settle(ctx, ind, t, nation_id, e, unit, goods[best], price, qty);
+}
+
+/* Human: @BUYWHICH (3 goods) → @BUY0 Accept/Refuse. Returns 1 when a CHOICE was queued. */
+static int ai_contact_enqueue_buywhich(
+  ColonizeTurnContext* ctx,
+  ColonizeCol1Indian* ind,
+  int nation_id,
+  int e,
+  ColonizeUnit* unit
+) {
+  if (!ctx || !ctx->ai_popups || !ind || !unit || !ai_contact_euro_is_human(ctx, e)) {
+    return 0;
+  }
+  if (!ai_contact_2e92_unit_can_take(ctx, unit)) {
+    return 0;
+  }
+  ColonizeCol1Tribe* t = ai_contact_2e92_tribe(ctx, nation_id);
+  if (!t) {
+    return 0;
+  }
+  AiContactMeetEcon2154 econ;
+  if (!ai_contact_meet_economics_2154(ctx, nation_id, t, &econ)) {
+    return 0;
+  }
+  int goods[3];
+  int bids[3];
+  const int n = ai_contact_2e92_candidates(&econ, goods, bids);
+  if (n <= 0) {
+    return 0;
+  }
+  PopupMsgTokens tok;
+  memset(&tok, 0, sizeof(tok));
+  tok.string0 = ai_contact_cargo_name(goods[0]);
+  tok.string1 = n > 1 ? ai_contact_cargo_name(goods[1]) : "";
+  tok.string2 = n > 2 ? ai_contact_cargo_name(goods[2]) : "";
+  char fb[AI_POPUP_BODY_LEN];
+  snprintf(fb, sizeof(fb), "The %s have %s, %s and %s available. Which would you like to buy?",
+           ai_contact_tribe_name(nation_id), tok.string0, tok.string1, tok.string2);
+  char body[AI_POPUP_BODY_LEN];
+  popup_msg_fill(ctx->messages, "BUYWHICH", &tok, fb, body, sizeof(body));
+  const char* labels[3];
+  int ids[3];
+  for (int k = 0; k < n; ++k) {
+    labels[k] = ai_contact_cargo_name(goods[k]);
+    ids[k] = goods[k] + 1; /* 1..16; 0 = cancel */
+  }
+  return ai_popup_enqueue_choice_ctx(
+    ctx->ai_popups, AI_POPUP_TAG_CONTACT_BUYWHICH, e, nation_id, unit->id, "Trade", body, labels,
+    ids, n
+  );
+}
+
+/*
+ * @BUY0 Haggle arm (iStack_5e == 2): roll RNG(0, bid/25+8); if price < 11 or
+ * roll <= difficulty+1 the tribe loses patience (returns 0: alarm +2,
+ * sticky_trade_good = 0xfe, @BADHAGGLE2); else price -= price>>2 (floor 10),
+ * a 1-in-(8-difficulty) roll adds alarm +1, and the offer is re-asked with
+ * the @BUY1 "grow tired" text (returns 1, *io_price updated).
+ */
+int ai_contact_2e92_haggle(int difficulty, int bid, ColonizeDosRng* rng, int* io_price, int* out_alarm_delta) {
+  int price = *io_price;
+  const int roll = dos_rng_range(rng, 0, bid / 0x19 + 8);
+  *out_alarm_delta = 0;
+  if (price < 0xb || roll <= difficulty + 1) {
+    *out_alarm_delta = 2;
+    return 0;
+  }
+  int quarter = price >> 2;
+  if (quarter < 1) {
+    quarter = 1;
+  }
+  price -= quarter;
+  if (price < 10) {
+    price = 10;
+  }
+  if (dos_rng_range(rng, 1, 8 - difficulty) == 1) {
+    *out_alarm_delta = 1;
+  }
+  *io_price = price;
+  return 1;
+}
+
+static void ai_contact_enqueue_buy0(
+  ColonizeTurnContext* ctx, int nation_id, int e, ColonizeUnit* unit, int cargo, int price, int qty,
+  int round
+) {
+  PopupMsgTokens tok;
+  memset(&tok, 0, sizeof(tok));
+  const ColonizeUnitType* ty = units_type(ctx->units, unit->type_index);
+  tok.string0 = ai_contact_cargo_name(cargo);
+  tok.string1 = ty ? ty->name : "unit";
+  tok.number0 = price;
+  tok.has_number0 = true;
+  int fair = price >> 1;
+  if (fair < 10) {
+    fair = 10;
+  }
+  tok.number1 = fair;
+  tok.has_number1 = true;
+  tok.number2 = qty;
+  tok.has_number2 = true;
+  char tag[8];
+  snprintf(tag, sizeof(tag), "BUY%d", round > 0 ? 1 : 0); /* FUN_0000_d9b4 + '0'+iStack_88 */
+  char fb[AI_POPUP_BODY_LEN];
+  snprintf(fb, sizeof(fb), "\"%sWe shall fill up your %s with %d %s in exchange for %d$. Is this acceptable?\"",
+           round > 0 ? "We grow tired of your constant haggling. " : "", tok.string1, qty, tok.string0,
+           price);
+  char body[AI_POPUP_BODY_LEN];
+  popup_msg_fill(ctx->messages, tag, &tok, fb, body, sizeof(body));
+  char accept[AI_POPUP_CHOICE_LEN];
+  char haggle[AI_POPUP_CHOICE_LEN];
+  snprintf(accept, sizeof(accept), "We will gladly pay %d$", price);
+  snprintf(haggle, sizeof(haggle), "A fairer price would be %d$", fair);
+  const char* labels[3] = {accept, haggle, "Never mind"};
+  const int ids[3] = {1, 2, 0};
+  (void)ai_popup_enqueue_choice_ctx(
+    ctx->ai_popups, AI_POPUP_TAG_CONTACT_BUY0, e, nation_id,
+    (unit->id & 0xffff) | (cargo << 16) | ((price > 0x7ff ? 0x7ff : price) << 20) | (round > 0 ? (1 << 31) : 0),
+    "Trade", body, labels, ids, 3
+  );
+}
+
+static void ai_contact_apply_buywhich(
+  ColonizeTurnContext* ctx, ColonizeCol1Indian* ind, int nation_id, int e, int unit_id, int cargo
+) {
+  if (!ctx || !ctx->ai_popups || !ctx->units || cargo < 0 || cargo > 15) {
+    return;
+  }
+  ColonizeUnit* unit = units_get(ctx->units, unit_id);
+  ColonizeCol1Tribe* t = ai_contact_2e92_tribe(ctx, nation_id);
+  if (!unit || !t) {
+    return;
+  }
+  AiContactMeetEcon2154 econ;
+  if (!ai_contact_meet_economics_2154(ctx, nation_id, t, &econ)) {
+    return;
+  }
+  ColonizeDosRng local;
+  ai_contact_local_rng(ctx, nation_id, &local);
+  const int qty = ai_contact_2e92_qty(ctx, unit);
+  const int price = ai_contact_2e92_price(ctx, ind, nation_id, e, cargo, (int)econ.bid[cargo], qty, &local);
+  ai_contact_enqueue_buy0(ctx, nation_id, e, unit, cargo, price, qty, 0);
+}
+
+static void ai_contact_apply_buy0(
+  ColonizeTurnContext* ctx, ColonizeCol1Indian* ind, int nation_id, int e, int payload, int choice
+) {
+  if (!ctx || !ctx->units) {
+    return;
+  }
+  const int unit_id = payload & 0xffff;
+  const int cargo = (payload >> 16) & 0xf;
+  int price = (payload >> 20) & 0x7ff; /* 11 bits: 0..2047 */
+  const int round = (payload >> 31) & 1;
+  if (choice != 1 && choice != 2) {
+    return; /* Never mind */
+  }
+  ColonizeUnit* unit = units_get(ctx->units, unit_id);
+  ColonizeCol1Tribe* t = ai_contact_2e92_tribe(ctx, nation_id);
+  if (!unit) {
+    return;
+  }
+  const int qty = ai_contact_2e92_qty(ctx, unit);
+  if (choice == 2) {
+    ColonizeDosRng local;
+    ai_contact_local_rng(ctx, nation_id, &local);
+    AiContactMeetEcon2154 econ;
+    int bid = 0;
+    if (t && ai_contact_meet_economics_2154(ctx, nation_id, t, &econ)) {
+      bid = (int)econ.bid[cargo];
+    }
+    int alarm_delta = 0;
+    const int again = ai_contact_2e92_haggle((int)ctx->col1->head.difficulty, bid, &local, &price, &alarm_delta);
+    if (alarm_delta) {
+      ai_diplo_indian_alarm_delta(ctx->col1, nation_id, e, alarm_delta);
+    }
+    if (!again) {
+      if (t) {
+        t->sticky_trade_good = 0xfe; /* tribe+7 = 0xfe: refused outright */
+      }
+      PopupMsgTokens tok;
+      memset(&tok, 0, sizeof(tok));
+      tok.string0 = ai_contact_cargo_name(cargo);
+      char fb[AI_POPUP_BODY_LEN];
+      snprintf(fb, sizeof(fb), "\"Our patience with your haggling is exhausted. Come back when you are ready to pay.\"");
+      char body[AI_POPUP_BODY_LEN];
+      popup_msg_fill(ctx->messages, "BADHAGGLE2", &tok, fb, body, sizeof(body));
+      ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_REFUSE, nation_id, "Trade", body);
+      return;
+    }
+    if (ctx->ai_popups) {
+      ai_contact_enqueue_buy0(ctx, nation_id, e, unit, cargo, price, qty, round + 1);
+    }
+    return;
+  }
+  if (!ai_contact_2e92_settle(ctx, ind, t, nation_id, e, unit, cargo, price, qty)) {
+    PopupMsgTokens tok;
+    memset(&tok, 0, sizeof(tok));
+    tok.number0 = (int)ctx->col1->nation[e].gold;
+    tok.has_number0 = true;
+    char fb[AI_POPUP_BODY_LEN];
+    snprintf(fb, sizeof(fb), "\"Sadly, your treasury (%d$) is not large enough to back your promise.\"",
+             tok.number0);
+    char body[AI_POPUP_BODY_LEN];
+    popup_msg_fill(ctx->messages, "NOTENOUGH", &tok, fb, body, sizeof(body));
+    ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_REFUSE, nation_id, "Trade", body);
+  }
+}
+
 static int ai_contact_enqueue_trade_price_choice(
   ColonizeTurnContext* ctx,
   ColonizeCol1Indian* ind,
@@ -5951,6 +6351,16 @@ void ai_contact_apply_popup_result(ColonizeTurnContext* ctx, const AiPopupState*
    * applies the locked price via ai_contact_apply_trade_offer; Decline (or
    * cancel) is a no-op pass. Cite: indian_trade_2820.md.
    */
+  if (popup->result_tag == AI_POPUP_TAG_CONTACT_BUYWHICH) {
+    if (popup->result_choice_id > 0) {
+      ai_contact_apply_buywhich(ctx, ind, nation_id, e, popup->result_payload, popup->result_choice_id - 1);
+    }
+    return;
+  }
+  if (popup->result_tag == AI_POPUP_TAG_CONTACT_BUY0) {
+    ai_contact_apply_buy0(ctx, ind, nation_id, e, popup->result_payload, popup->result_choice_id);
+    return;
+  }
   if (popup->result_tag == AI_POPUP_TAG_CONTACT_TRADE_OFFER) {
     ai_contact_apply_trade_offer(
       ctx, ind, nation_id, e, popup->result_payload,
@@ -6098,6 +6508,10 @@ void ai_contact_apply_popup_result(ColonizeTurnContext* ctx, const AiPopupState*
       }
       if (ai_contact_enqueue_trade_price_choice(ctx, ind, nation_id, e, other)) {
         break;
+      }
+      if (other && ai_contact_unit_trade_goods_hold(other) < 0 &&
+          ai_contact_enqueue_buywhich(ctx, ind, nation_id, e, other)) {
+        break; /* LAB_002e92 human: @BUYWHICH → @BUY0 */
       }
       if (!ai_contact_auto_trade(ctx, ind, nation_id, e, other, -1)) {
         ai_contact_human_chrome(
