@@ -7392,7 +7392,7 @@ static int unit_unload_sticky_brave_threatened(void) {
     col1.player[i].diplomacy = 0;
   }
   col1.nation[nation].gold = 100;
-  col1.indian[0].alarm_by_player[nation] = 75; /* relation 25 */
+  col1.indian[0].alarm_by_player[nation] = 90; /* relation 25 */
   col1.indian[0].euro_diplo[nation] |= COL1_INDIAN_MET_BIT;
   col1.nation[nation].indian_hostility_sticky = 2;
 

@@ -21235,7 +21235,7 @@ static int unit_seasoned_sticky_fog_deepen(void) {
    * when a contacted Indian slot is very-low (0 < relation < 40). Unmet r==0
    * is cleared to sticky=0.
    */
-  col1.indian[0].alarm_by_player[nation] = 80; /* relation 20 */
+  col1.indian[0].alarm_by_player[nation] = 90; /* relation 20 */
   col1.indian[0].euro_diplo[nation] |= COL1_INDIAN_MET_BIT;
   col1.nation[nation].indian_hostility_sticky = 2;
 

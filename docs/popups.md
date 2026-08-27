@@ -581,7 +581,7 @@ work.
 | `@USEDUPTOOLS` | Done thin | pioneer tools demotion ai_popup OK; VGA PARKED |
 | `@EVASIVE` | Partial | order/gate — status or bounce; no modal |
 | `@KINGMERCY` | Partial | king/REF — structural ai_popup OK/CHOICE or thin; VGA PARKED |
-| `@KINGNEWWAR` | Partial | king/REF — structural ai_popup OK/CHOICE or thin; VGA PARKED |
+| `@KINGNEWWAR` | Done (structural) | `FUN_38fd_5930` → `ai_king_new_war_event` (2026-08-27): real gate/roll/grant formula, OK popup with title/name/peer/gold/count tokens; VGA PARKED |
 | `@KINGVICTORY` | Partial | king/REF — structural ai_popup OK/CHOICE or thin; VGA PARKED |
 | `@KINGWIFE` | Partial | king/REF — structural ai_popup OK/CHOICE or thin; VGA PARKED |
 | `@KINGWAR` | Partial | king/REF — structural ai_popup OK/CHOICE or thin; VGA PARKED |

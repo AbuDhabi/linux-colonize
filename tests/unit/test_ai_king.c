@@ -94,7 +94,80 @@ static int count_nation_land(const ColonizeUnitPool* units, int nation_id) {
   return n;
 }
 
+
+/* FUN_38fd_5930 @KINGNEWWAR: Crown cancels peace with a random peer, grants gold + vets. */
+static int test_king_new_war_event(void) {
+  ColonizeCol1Save c;
+  col1_save_init(&c);
+  c.head.difficulty = 0;
+  for (int i = 0; i < 4; ++i) {
+    c.player[i].control = (i == 0) ? 0 : 1;
+    memset(&c.nation[i], 0, sizeof(c.nation[i]));
+  }
+  memset(c.head.founding_father, -1, sizeof(c.head.founding_father));
+  snprintf(c.player[2].country_name, sizeof(c.player[2].country_name), "Spain");
+  /* Human 0 at peace with 2 only (1 is the Crown/REF slot for human 0); 3 unmet. */
+  ai_diplo_or_both(&c, 0, 2, (uint8_t)(AI_DIPLO_MET | AI_DIPLO_PEACE));
+  c.nation[0].gold = 50;
+  uint32_t turn = 500; /* (0+2)*500 > 799 */
+  AiPopupState pops;
+  ai_popup_clear(&pops);
+  ColonizeDosRng rng;
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.col1 = &c;
+  ctx.col1_ok = true;
+  ctx.rng = &rng;
+  ctx.turn_number = &turn;
+  ctx.human_nation = 0;
+  ctx.ai_popups = &pops;
+  int fired = 0;
+  dos_rng_seed(&rng, 100u); /* one continuous stream (LCG warm-up bias on tiny seeds) */
+  for (int i = 0; i < 4000 && !fired; ++i) {
+    fired = ai_king_new_war_event(&ctx);
+  }
+  if (!fired) {
+    return fail("KINGNEWWAR should fire for some seed (roll <= difficulty)");
+  }
+  if (c.nation[0].gold != 150) {
+    fprintf(stderr, "unit_ai_king: newwar gold %u\n", (unsigned)c.nation[0].gold);
+    return fail("KINGNEWWAR should grant (difficulty+1)*100 gold when combat totals are equal");
+  }
+  if ((c.nation[0].euro_relation[2] & AI_DIPLO_PEACE) || (c.nation[2].euro_relation[0] & AI_DIPLO_PEACE)) {
+    return fail("KINGNEWWAR should clear PEACE both ways");
+  }
+  if (!(ai_diplo_read(&c, 0, 2) & AI_DIPLO_CROWN_ARMED) || !(ai_diplo_read(&c, 0, 2) & AI_DIPLO_MET)) {
+    return fail("KINGNEWWAR should set CROWN_ARMED (0x10) and keep MET");
+  }
+  if (pops.queue_count != 1 || pops.queue[0].tag != AI_POPUP_TAG_KING_TAX ||
+      pops.queue[0].payload != 100) {
+    return fail("KINGNEWWAR should enqueue one OK popup carrying the gold grant");
+  }
+  /* Franklin suppresses it entirely. */
+  ai_diplo_or_both(&c, 0, 2, AI_DIPLO_PEACE);
+  c.nation[0].founding_fathers[FF_BENJAMIN_FRANKLIN / 8] |= (uint8_t)(1u << (FF_BENJAMIN_FRANKLIN % 8));
+  c.nation[0].gold = 50;
+  for (int i = 0; i < 2000; ++i) {
+    if (ai_king_new_war_event(&ctx)) {
+      return fail("Franklin must suppress KINGNEWWAR");
+    }
+  }
+  /* A met-but-unpeaced peer blocks it. */
+  c.nation[0].founding_fathers[FF_BENJAMIN_FRANKLIN / 8] = 0;
+  c.nation[0].euro_relation[3] = AI_DIPLO_MET; /* raw: met, no peace (or_both would default PEACE) */
+  for (int i = 0; i < 2000; ++i) {
+    if (ai_king_new_war_event(&ctx)) {
+      return fail("a met-but-unpeaced peer must block KINGNEWWAR");
+    }
+  }
+  fprintf(stderr, "unit_ai_king: KINGNEWWAR ok\n");
+  return 0;
+}
+
 int main(void) {
+  if (test_king_new_war_event() != 0) {
+    return 1;
+  }
   ColonizeCol1Save col1;
   col1_save_init(&col1);
   col1.head.difficulty = 0;

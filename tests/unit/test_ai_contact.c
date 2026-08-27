@@ -1692,18 +1692,17 @@ int main(void) {
     brave->y = 5;
     brave->moves_left = 3;
     brave->nation_id = 4;
-    ind->alarm_by_player[0] = 50;
+    ind->alarm_by_player[0] = 76; /* at war (DOS band: alarm > 0x4a), below the 80 burn band */
     col1.tribe[0].alarm[0].friction = 50;
     col1.tribe[0].mission = 0xff;
     col1.nation[0].gold = 0; /* no GOLD arm */
-/* alarm pinned above (was relation write) */
     col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
     c->active = true;
     c->nation_id = 0;
     c->x = 5;
     c->y = 5;
-    c->population = 1; /* no SCALP fallback */
-    c->colonist_count = 1;
+    c->population = 2; /* pop 1 + alarm >= 70 would be abandoned outright */
+    c->colonist_count = 2;
     c->building_in_production = -1;
     snprintf(c->name, sizeof(c->name), "Roanoke");
     memset(c->stock, 0, sizeof(c->stock));
@@ -1741,7 +1740,7 @@ int main(void) {
     brave->y = 5;
     brave->moves_left = 3;
     brave->nation_id = 4;
-    ind->alarm_by_player[0] = 50;
+    ind->alarm_by_player[0] = 76; /* at war (DOS band), below burn 80 */
     col1.tribe[0].alarm[0].friction = 50;
     col1.tribe[0].mission = 0xff;
     col1.nation[0].gold = 0;
@@ -1751,8 +1750,8 @@ int main(void) {
     c->nation_id = 0;
     c->x = 5;
     c->y = 5;
-    c->population = 1;
-    c->colonist_count = 1;
+    c->population = 2; /* pop 1 + alarm >= 70 would abandon */
+    c->colonist_count = 2;
     c->building_in_production = -1;
     snprintf(c->name, sizeof(c->name), "Roanoke");
     memset(c->stock, 0, sizeof(c->stock));

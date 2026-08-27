@@ -761,6 +761,8 @@ typedef struct ColonizeCol1Indian {
   uint16_t alarm_by_player[4];
 } ColonizeCol1Indian;
 
+#define COL1_INDIAN_WAR_BIT 0x02u /* FUN_5bfb_13b0 sets after a paid "smite" declaration;
+                                     FUN_4cc6_00f2 clears when alarm cools below 75 */
 #define COL1_INDIAN_MET_BIT 0x20u
 #define COL1_INDIAN_PEACE_BIT 0x40u
 

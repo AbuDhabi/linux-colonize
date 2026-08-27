@@ -2307,8 +2307,47 @@ is genuinely stuck mid-session.
   to the native calls; retired the invented drift/feeler/tick-±1 and two
   double-pushes; first contact clamps alarm ≤20 (`:96624`). ~230 test
   assertions rewritten (`test_ai_diplo.c`, `test_ai_contact.c`). `ctest`
-  44/44. See `docs/indians.md` "single alarm store". Follow-up: Linux
-  "at war with tribe" is still the thin `alarm > 50`; DOS has a diplo war bit.
+  44/44. See `docs/indians.md` "single alarm store".
+  **Second pass same day — at-war rule made DOS-shaped.** `ai_diplo_indian_at_war`
+  = met ∧ (`euro_diplo & 0x02` ∨ alarm > 0x4a) per `153e`; new
+  `COL1_INDIAN_WAR_BIT`; `13b0` resolved via the tag table as the paid
+  "smite" war declaration (`@SMITEINDIANS`/`@SMITEEUROPE`/`@UNFORTUNATE`/
+  `@MERCENARY`) — the only DOS setter of that bit; `4cc6_00f2` clears it
+  below 75 (mirrored). Sticky bands re-scaled (at-war <26, very-low <16),
+  ~30 more test fixtures re-banded. `ctest` 46/46, `golden_ai_turns` still
+  the same 3 Brave diffs. **New RE lead (not chased): Linux's Euro×Euro
+  bit map (`AI_DIPLO_WAR 0x01 / PEACE 0x02 / MET 0x40`) looks wrong** —
+  `13b0` clears `0x40` then sets `0x02` on the (payer, target) Euro pair
+  before `@MERCENARY` "declare war", and `43f7_1a26` (independence) sets
+  `0x22` toward the REF nation and clears `0x40`; i.e. DOS `0x02` = WAR,
+  `0x40` = PEACE, `0x20` = MET on `euro_relation`, same encoding as
+  `euro_diplo`. Filed as **T1.19**.
+
+- [x] **T1.19 — Re-verify the Euro×Euro `euro_relation` bit map.** Evidence
+  above (`13b0`, `43f7_1a26`) says `0x02`=WAR, `0x40`=PEACE, `0x20`=MET;
+  Linux `ai_diplo.h` says WAR `0x01`, PEACE `0x02`, MET `0x40`. Check every
+  literal-mask call into the OR-set/AND-clear wrappers (T1.11's list:
+  `2/4/0x10/0x20/0x22/0x40/0x60/0xb/0xbb`) against real saves'
+  `euro_relation` bytes (a nation at declared war vs. at peace), then fix
+  the defines + the `88d6` flood term's MET test. Save-format-visible, so
+  worth doing before more diplo work.
+  **2026-08-27 — done, same session.** Writers pin it: MET `0x20` (`5bfb_022e`
+  first contact, `5bfb_3180`, `43f7_0108` `0x60` toward human+REF), PEACE
+  `0x40` (`5bfb_0182`, `13b0` peace branch `@…188d`, `3844_0442` post-
+  independence; cleared at every attack site and by `465b`), WAR `0x02`
+  (`465b_0000` when attacking a human at peace, `5fef_1b0e`/`684c_08c0`/
+  `6cb2_24b8` sneak-attack sites, `13b0` paid smite; cleared by `43f7_0108`
+  `0xb`/`3844` `0xbb`), `0x01` planner war-intent (`6d8e`: 1-in-4 while bit
+  `0x08` up and cooldown 0; `465b` clears after the attack), `0x04` on
+  Indian pairs = "attack this village?" confirmed once (`465b` CHOICE
+  `0x13ad`; `4cc6_00f2` clears on cooling), `0x10` crown-arms. Real saves:
+  `00/20/22/60/a0/e0/e2/e8`, directional. `ai_diplo.h` defines swapped to
+  DOS values (+ `AI_DIPLO_WAR_INTENT 0x01`), `88d6` gate re-pointed to
+  PEACE; no raw masks anywhere in `src/`/tests so nothing else moved.
+  `ctest` 46/46, goldens (which diff `euro_relation`) unchanged. Side
+  note: `13b0` is not an "alliance offer" — it's the paid `@SMITEINDIANS`/
+  `@SMITEEUROPE` war-hire; Linux's `AI_POPUP_TAG_DIPLO_ALLIANCE` mechanic
+  is a mislabel of it (unported as such; low priority).
 
 ## Tier 3 — Confirm with the user before flipping
 
@@ -2336,6 +2375,25 @@ CLAUDE.md's "hard to reverse" guidance.
   live wire would be a trigger that can never fire. Prerequisites before
   this is worth flipping: port `38fd_5930` (sets the bit) and un-stub at
   least the G-table/relation terms; then re-run the T2.2 catalog.
+  **2026-08-27, later — `38fd_5930` ported (`ai_king_new_war_event`,
+  `@KINGNEWWAR`), and it settles the question the other way:** the event
+  is gated `0x543f[nation]==0` (human only) and runs from the `38fd`
+  Europe-EOT king slot when the tax event stays quiet, so bit `0x10` only
+  ever lands on (human, peer) pairs — while `153e` early-exits for
+  `self == human`. The bit is therefore never a live term for an AI self:
+  wiring `153e` today would be all-neutral-stubs by construction. Stays
+  unflipped; real prerequisite is un-stubbing the score terms themselves.
+  Port detail: Franklin (FF 19) suppresses; gate `(difficulty+2)*turn > 799`;
+  every met non-REF, non-independent peer must be at PEACE (raw byte —
+  DOS reads `-0x77c4` directly, unmet = 0) and Σ`land_combat_strength`
+  (`-0x6be4`) of met-unpeaced peers ≤ own; roll `RNG(0,(4−peace_n)·20) ≤
+  difficulty`; random peace peer; `gold=(diff+1)·100`, `count=1`, +
+  `field_combat_totals` gap (`-0x6bd4`): `count=(gap>>3)+1`, `gold+=gap·25`;
+  caps `6−diff` / `(5−diff)·500`; Veteran Soldiers (type 1, profession
+  `0x15`) spawned in Europe → Linux pushes them on the docks; clear PEACE
+  both ways, set `AI_DIPLO_CROWN_ARMED 0x10`; DOS also stamps
+  `DS:0x53c8[peer]=turn` (`head.nation_relation`, a derived mirror here —
+  not written). Test in `test_ai_king.c`; `ctest` 46/46.
 
 - [ ] **T3.3 — Re-enable `golden_ai_turns`/`golden_ai_joint`.** **2026-08-27
   partial:** `golden_ai_mid01` and `golden_ai_late01` pass again and are

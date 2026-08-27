@@ -87,9 +87,9 @@
 #define AI_DIPLO_INDIAN_DRIFT_CAP 160u
 #define AI_DIPLO_WAR_INDIAN_HIT 5
 /* At-war gate: relation < 50 (same band as contact alarm≥50 mission block). */
-#define AI_DIPLO_INDIAN_AT_WAR_REL 50
+#define AI_DIPLO_INDIAN_AT_WAR_REL 26 /* alarm > 0x4a (FUN_5bfb_153e hostile tier) */
 /* Very-low deepen: relation < 40 (contact peaceful-gift friction < 40 inverted). */
-#define AI_DIPLO_INDIAN_VERY_LOW_REL 40
+#define AI_DIPLO_INDIAN_VERY_LOW_REL 16 /* alarm >= 85: sticky deepen band (Linux) */
 #define AI_DIPLO_INDIAN_HOSTILE_EXTRA 10
 #define AI_DIPLO_INDIAN_HARASS_GOLD 2u
 /* Peace feeler / first-meet content floor. Seed-100 TURN3+ write 96 on meet
@@ -745,8 +745,14 @@ uint8_t ai_diplo_indian_read(const ColonizeCol1Save* col1, int euro_nation, int 
 
 int ai_diplo_indian_at_war(const ColonizeCol1Save* col1, int euro_nation, int indian_idx) {
   const uint8_t r = ai_diplo_indian_read(col1, euro_nation, indian_idx);
-  /* Unmet (0) is not at war — only contacted low relations. */
-  return r > 0 && r < AI_DIPLO_INDIAN_AT_WAR_REL;
+  if (r == 0) {
+    return 0; /* unmet */
+  }
+  /* FUN_5bfb_153e: alarm > 0x4a, or the diplo WAR bit (FUN_1000_8c28 & 2). */
+  if ((col1->indian[indian_idx].euro_diplo[euro_nation] & COL1_INDIAN_WAR_BIT) != 0) {
+    return 1;
+  }
+  return r < AI_DIPLO_INDIAN_AT_WAR_REL;
 }
 
 int ai_diplo_indian_any_at_war(const ColonizeCol1Save* col1, int euro_nation) {
@@ -2644,6 +2650,11 @@ void ai_diplo_indian_alarm_delta(
     v = 100;
   }
   col1->indian[idx].alarm_by_player[euro_nation] = (uint16_t)v;
+  if (delta < 0 && v < 0x4b) {
+    /* FUN_4cc6_00f2: 281f_0a10(tribe+4, euro, 2) — war ends as the tribe cools. */
+    col1->indian[idx].euro_diplo[euro_nation] =
+      (uint8_t)(col1->indian[idx].euro_diplo[euro_nation] & (uint8_t)~COL1_INDIAN_WAR_BIT);
+  }
   ai_diplo_indian_tension_tier_update(col1, indian_nation, euro_nation, old_v, v, delta);
 }
 
