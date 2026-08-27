@@ -256,17 +256,21 @@ screen:
 
 ### Units tab: missing "Units Present" title
 
-`LABELS.TXT` `@CMISC` has this exact string, but nothing in `colony_screen.c`
-ever loaded `LABELS.TXT` or drew it. Given the scope of plumbing a whole new
-message-catalog load through `colony_screen_load()`/`ColonyScreenView` for a
-single static label, it was hardcoded as a literal string instead (matching
-this project's occasional precedent for stable, simple UI labels that don't
-vary by save). Centered, dark blue (`WOODPANL.PIK` idx 57, exact RGB match
-against the golden's sampled ink `(65,89,166)`). Reserves a fixed
-`COLONY_MULTI_UNITS_TITLE_H` (8px) band above the roster grid — applied
-identically at both the draw call and the hit-test call
-(`colony_screen_hit_test`) via the same shared `colony_screen_multi_units_
-layout()` so click regions never drift from what's drawn.
+`LABELS.TXT` `@CMISC` index 1 has this exact string. **Fixed 2026-08-27**:
+turned out cheaper than this row's own earlier assessment feared — no need
+to plumb a catalog through `colony_screen_load()`/`ColonyScreenView` (that
+would persist across frames unnecessarily); `colony_screen_render` is
+already called fresh every frame, so it just gained a `labels` parameter
+(6 call sites total: `game_loop.c`, `tools/render_colony_main.c`, 5 in
+`test_colony_screen.c`, all passing `NULL` except the real game loop),
+threaded one level down to `colony_screen_draw_multifunction`. Falls back
+to the same hardcoded literal when `labels` is NULL. Centered, dark blue
+(`WOODPANL.PIK` idx 57, exact RGB match against the golden's sampled ink
+`(65,89,166)`). Reserves a fixed `COLONY_MULTI_UNITS_TITLE_H` (8px) band
+above the roster grid — applied identically at both the draw call and the
+hit-test call (`colony_screen_hit_test`) via the same shared
+`colony_screen_multi_units_layout()` so click regions never drift from
+what's drawn.
 
 ## Follow-up session: top bar height, minimap border, building placement
 
@@ -754,11 +758,15 @@ migrate there. Re-rendered the Labor and Colony reports against
   golden coverage for those too; flagging in case a future pass finds the
   same gap elsewhere.
 - **`docs/building_production.md`'s "UI: settlement badges vs Production
-  tab" table** is now stale in two places (the settlement-badges SoL
-  exclusion, and implicitly the Production-tab-shows-net description) —
-  worth a follow-up edit pass now that real Colony-screen goldens exist to
-  check its other claims against, rather than leaving the contradiction
-  sitting in two docs.
+  tab" table** was stale in two places. **Settlement-badges SoL exclusion
+  fixed 2026-08-27**: its "callers... pass `sol_bonus=0`" blanket claim
+  for settlement badges corrected — both badge types now fold SoL in, per
+  the fixes above. The "Production-tab-shows-net" half wasn't a literal
+  claim findable in that table as currently worded (its "Every cargo
+  good / shortfall + hammers" row doesn't say net vs. gross either way) —
+  left as-is rather than editing a claim that isn't actually there; still
+  worth a fuller cross-check against goldens if this table's other rows
+  are ever revisited.
 
 ## 2026-08-26 fix: Custom House popup + Production tab cell grouping
 

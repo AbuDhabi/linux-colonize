@@ -445,6 +445,7 @@ void colony_screen_render(
   int gold,
   const ColonizeFont* font,
   bool debug_building_rects, /* DEBUG menu "Building Rects": violet outline on every building sprite */
+  const ColonizeMsgCatalog* labels, /* LABELS.TXT, optional — NULL falls back to hardcoded English */
   ColonizeFramebuffer8* framebuffer
 );
 

@@ -3798,6 +3798,7 @@ static void render_colony_screen(const ColonizeGameState* game, ColonizeFramebuf
     game->europe.gold,
     font,
     game->debug_building_rects,
+    game->labels_ok ? &game->labels : NULL,
     framebuffer
   );
   if (game->howmuch.open || game->name_entry.open) {

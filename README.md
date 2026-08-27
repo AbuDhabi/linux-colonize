@@ -55,3 +55,20 @@ Useful flags:
 | `--nosound` | — | Disable audio |
 
 Release preset: `cmake --preset release` then `cmake --build --preset release`.
+
+## Music / MIDI soundfont
+
+Songs play through FluidSynth over a GM/GS soundfont. `sound_find_soundfont`
+(`src/core/sound.c`) picks one automatically, in order:
+
+1. `$COLONIZE_SOUNDFONT` (env var), if set and readable.
+2. The bundled default, `data/soundfonts/Roland_SC-55.sf2` (GPL-3+, see
+   `data/soundfonts/COPYRIGHT.Roland_SC-55`) — tried relative to the working
+   directory, the executable's own directory, and `--data-dir`.
+3. Common system soundfont locations (e.g.
+   `/usr/share/sounds/sf2/FluidR3_GM.sf2`, ScummVM's bundled SC-55, etc.).
+
+If none are found, the game logs a warning and falls back to a soft
+(non-FluidSynth) beep path rather than failing — set `COLONIZE_SOUNDFONT` to
+point at any GM-compatible `.sf2` file to override. `--nosound` skips audio
+entirely.

@@ -10,7 +10,7 @@ bool col1_stuff_census_window_is_blank(const ColonizeCol1Stuff* stuff) {
   }
   /* File offs 12..139 (+944e sibling): all zero ⇒ blank template. */
   const uint8_t* p = (const uint8_t*)&stuff->all_unit_counts[0];
-  const uint8_t* end = (const uint8_t*)&stuff->unknown_ds_947e[0];
+  const uint8_t* end = (const uint8_t*)&stuff->village_counts_by_continent[0];
   for (; p < end; ++p) {
     if (*p != 0) {
       return false;

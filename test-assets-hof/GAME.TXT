@@ -1,0 +1,9 @@
+@BEGINMENU
+@width=160
+{COLONIZATION} Version test
+@options
+Start a Game in NEW WORLD
+Start a Game in AMERICA
+LOAD Game
+View Hall of Fame
+Exit to DOS

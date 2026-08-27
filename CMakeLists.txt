@@ -834,6 +834,21 @@ target_include_directories(smoke_assets PRIVATE
 
 add_test(NAME smoke_assets COMMAND smoke_assets)
 
+add_executable(unit_popup_msg
+  tests/unit/test_popup_msg.c
+  src/core/popup_msg.c
+  src/core/assets.c
+  src/core/strutil.c
+  src/platform/diagnostics.c
+  src/platform/dos_compat/dos_compat.c
+)
+
+target_include_directories(unit_popup_msg PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
+add_test(NAME unit_popup_msg COMMAND unit_popup_msg WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+
 add_executable(smoke_pik
   tests/smoke/test_pik.c
   src/core/madspack.c

@@ -827,8 +827,12 @@ bool units_board_stacked(ColonizeUnitPool* pool, int land_unit_id, int ship_id);
 /*
  * Own ship on (x,y) with free passenger capacity, or -1.
  * Cite: FUN_4720_0006 / 015c land→ocean embark probe.
+ * require_galleon: Treasure Trains may only board a Galleon (Colonization.pdf
+ * / P7.3) — pass true when the boarding unit's type name contains "Treasure".
  */
-int units_find_boardable_ship(const ColonizeUnitPool* pool, int x, int y, int nation_id);
+int units_find_boardable_ship(
+  const ColonizeUnitPool* pool, int x, int y, int nation_id, bool require_galleon
+);
 /*
  * Board same-nation on-map land units with Sentry on (x,y) onto ship until full.
  * Used when a ship leaves a colony or stacked ocean tile. Returns count boarded.

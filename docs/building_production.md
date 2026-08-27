@@ -261,7 +261,7 @@ input(worker, building) = output × (factory ? 6/9 : 1)   ; input folds sol_bonu
                                                           ; player-confirmed)
 ```
 
-Note `sol_bonus` folds in *before* tier/skill scaling — it is not a flat post-hoc add on either output or input, and callers that want the un-modified base rate (settlement badges) pass `sol_bonus=0` for both.
+Note `sol_bonus` folds in *before* tier/skill scaling — it is not a flat post-hoc add on either output or input. **Corrected 2026-08-27** (was stale): settlement/area-view badges do *not* pass `sol_bonus=0` any more — both the minimap field-tile badges and the per-building settlement badges were found to golden-mismatch by excluding SoL and were fixed to fold it in the same way the Production tab does (`colony_screen.md` "Area-view... field-tile badges" / "Settlement... badges: same SoL gap"). `sol_bonus=0` remains correct only for callers that genuinely want the un-modified base rate (e.g. a rate lookup independent of the current colony's SoL state), not as a blanket "badges" rule.
 
 ---
 

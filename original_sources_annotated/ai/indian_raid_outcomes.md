@@ -103,27 +103,39 @@ approach / `@RAID*` loot via `5fef`-shaped helpers).
    harbor deep; full DOS dialog chrome; `@RAIDBURN` non-Town-Hall **built**
    building loot when stock empty (no safe `colonies_*` destroy API for
    workplace colonists). **Done thin:** `colonies_destroy_building` + human
-   status naming the building. Status-line chrome for other raid/warn kinds is
-   **thinned**. Cite: `indian_contact.md` PORT DEBT; `docs/ai_transcription.md`
-   FUN_4d56_2820.
+   status naming the building. **Status-line chrome upgraded 2026-08-26**
+   (was thinned paraphrase for every kind): 6 of 7 kinds now pull the real
+   `GAME.TXT` `@RAID*` body via `popup_msg_fill` (old paraphrase kept only
+   as the no-catalog fallback) — see the updated table below. Cite:
+   `indian_contact.md` PORT DEBT; `docs/ai_transcription.md` FUN_4d56_2820.
 
 ## `@RAID*` message tags (`COLONIZE/GAME.TXT`)
 
-UI strings, not numeric tables. Linux uses the **kind enum** to pick loot:
+UI strings, not numeric tables. Linux uses the **kind enum** to pick loot.
+**2026-08-26: 6 of 7 kinds now render the real `GAME.TXT` body** (via
+`popup_msg_fill`, `ai_contact.c`'s human-status block) instead of the old
+hand-typed paraphrase, which now only serves as the fallback when no
+message catalog is loaded. `@RAIDWREAK` is the deliberate exception (its
+real DOS text is a third-party "Spies report... {nation-adjective} colony
+of..." frame — wrong register for the raid's own victim, so it keeps the
+paraphrase on purpose):
 
-| Tag | Kind | Linux loot stand-in |
-|-----|------|---------------------|
-| `@RAIDNOTHING` | NOTHING | No stock change; thin status **"%s raiding party wiped out in %s!"** (tribe + colony; `GAME.TXT`) |
-| `@RAIDWREAK` | WREAK | Multi: food + tools + friction bump; thin status **"%s raiding party wreaks havoc in %s!"** |
-| `@RAIDSTORES` | STORES | Decrement highest-value lootable cargo stock; thin status **"%s raiding party attacks stores in %s!"** |
-| `@RAIDBURN` | BURN | Kind gated on construction **or** lumber stock **or** non-Town-Hall built building; clear production / drain lumber; `colonies_destroy_building` when stock empty; human status names building when destroyed, else **"%s raiding party burns buildings in %s!"** |
-| `@RAIDSCALP` | SCALP | Population −1 if pop > 1; thin status **"%s raiding party takes scalps in %s!"** |
-| `@RAIDSHIP` | SHIP | Coastal harbor: zero nearby Euro ship MP; dump 1 hold cargo ton; status **"%s raiding party attacks harbor in %s!"** when colony named |
-| `@RAIDGOLD` | GOLD | Nation gold −N (treasury raid); thin status **"%s raiding party seizes strongboxes in %s!"** when colony named |
+| Tag | Kind | Linux loot stand-in | Human status |
+|-----|------|---------------------|---------------|
+| `@RAIDNOTHING` | NOTHING | No stock change | Real body: "{tribe} raiding party wiped out in {colony}! Colonists jubilant!" |
+| `@RAIDWREAK` | WREAK | Multi: food + tools + friction bump | **Kept thin on purpose** — "{tribe} raiding party wreaks havoc in {colony}!" (real body's "Spies report... {adjective} colony" framing doesn't fit the victim's own status line) |
+| `@RAIDSTORES` | STORES | Decrement highest-value lootable cargo stock | Real body incl. the actually-drained cargo's name: "{tribe}... in {colony}! Large quantities of {cargo} stolen. Colonists outraged!" |
+| `@RAIDBURN` | BURN | Kind gated on construction **or** lumber stock **or** non-Town-Hall built building; clear production / drain lumber; `colonies_destroy_building` when stock empty | Real body only when a building was actually destroyed (named, via `s_last_burn_building`); construction-cleared/lumber-drained sub-cases keep the paraphrase (no object to name — real `@RAIDBURN` text assumes a destroyed building) |
+| `@RAIDSCALP` | SCALP | Population −1 if pop > 1 | Real body: "{tribe} raiding party takes scalps in {colony}! Colonists scream for revenge!" |
+| `@RAIDSHIP` | SHIP | Coastal harbor: zero nearby Euro ship MP; dump 1 hold cargo ton | Real body incl. the actual ship's `units_display_name` (via new `s_last_ship_type`): "{tribe}... in {colony}! {ship} damaged. Colonists appalled!" |
+| `@RAIDGOLD` | GOLD | Nation gold −N (treasury raid) | Real body incl. the actual amount drained (via new `s_last_gold_drained`, `%NUMBER0$`): "{tribe}... in {colony}! Merchants report {N}$ plundered. Colonists enraged!" |
 
 ## Exit criteria for deeper extract
 
 - Sectioned `4528` with threat / combat / loot / dialog clusters named
 - `5fef_0f14` line-faithful goods picker
-- Status chrome **thinned**; dialog **widgets** **Done** structural (`ai_popup`)
-- Full `4528` / `5fef` line-faithful bodies still PARKED
+- Status chrome: 6/7 kinds now render the real `GAME.TXT` body (2026-08-26,
+  see table above); dialog **widgets** **Done** structural (`ai_popup`)
+- Full `4528` / `5fef` line-faithful bodies still PARKED; stockade/soldier
+  defense odds + `@RAIDWIN*` (defender wins the fight) not yet ported —
+  this pass only touched the loot-outcome status text

@@ -2161,7 +2161,7 @@ Bigger in scope than Tier 1 items but not blocked on anything static tooling
 can't reach. Pick up after Tier 1 thins out, or interleave if a Tier 1 item
 is genuinely stuck mid-session.
 
-- [ ] **T2.1 — Verify `ai_euro_5d04_nation_planning_structural` against
+- [x] **T2.1 — Verify `ai_euro_5d04_nation_planning_structural` against
   live behavior.** The full structural port of `5d04` exists
   (`ai_euro.c`) but is reference-only; the live `ai_euro_nation_planning`
   only took the treasury-bump formula from it. Before this can become a
@@ -2188,9 +2188,15 @@ is genuinely stuck mid-session.
   see `ai-5d04-structural-port` memory). **Not yet a Tier 3 candidate**:
   wiring it live today is a safe no-op, so there's nothing to confirm
   with the user yet — revisit once those remaining stubs go real, i.e.
-  after **T1.10**.
+  after **T1.10**. **2026-08-26: T1.10 is now closed** (its own last
+  entry: "T2.1's 'empty by construction' delta-catalog verdict is
+  unaffected") — the blocking condition this row named is satisfied and
+  the verdict didn't change, so this row's own Tier 2 task (verify +
+  catalog deltas) is complete; checking it off. Whether to actually wire
+  `5d04` live stays a separate Tier 3 user-confirm decision (`T3.1`),
+  unaffected by closing this row.
 
-- [ ] **T2.2 — Verify `ai_diplo_153e_worthiness_score_structural`
+- [x] **T2.2 — Verify `ai_diplo_153e_worthiness_score_structural`
   against live behavior.** Same shape as T2.1: structural reference port
   exists (`ai_diplo.c`), not wired live. Catalog deltas vs. current
   behavior before it's ready for a Tier 3 decision.
@@ -2220,6 +2226,10 @@ is genuinely stuck mid-session.
   policy one; wiring `153e` live either way (as-is, or with
   `peace_bit_0x10` explicitly zeroed) is `T3.2`'s own user-confirm
   decision. Full `ctest` green (comment-only change, verified anyway).
+  **2026-08-26:** this row's own Tier 2 task (verify + catalog deltas) is
+  complete per its own text above — checking it off. `T3.2` (the actual
+  wire-live decision) stays a separate, unaffected Tier 3 user-confirm
+  item.
 
 ---
 

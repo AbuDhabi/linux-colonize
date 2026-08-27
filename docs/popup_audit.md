@@ -50,7 +50,7 @@ choices from data where a real `@SECTION` exists.
 | Meet / gift / demand CHOICE | (deep HELLO/trade PARKED) | PARKED / Invented body | Keep structural CHOICE; no new invent |
 | Teach refuse OK | `@LEARNMAD` | Authentic | Both mid (40-54) and hostile (≥55) alarm bands |
 | Teach already-expert OK | `@LEARNMASTER` | Authentic | Refuses without consuming the village's one-shot teach |
-| Teach / convert / raid OK (remainder) | `@LEARNALREADY`/`@RAID*` / … | MissingWire / PARKED | Prefer msg_body where clear; else status. `@LEARNALREADY` (already-taught village, non-capital) deliberately stays silent — see `indian_contact.md` "preserve gift/trade chrome" note; not touched here, a real design tension not an oversight |
+| Teach / convert / raid OK (remainder) | `@LEARNALREADY` / … | MissingWire / PARKED | Prefer msg_body where clear; else status. `@LEARNALREADY` (already-taught village, non-capital) deliberately stays silent — see `indian_contact.md` "preserve gift/trade chrome" note; not touched here, a real design tension not an oversight. **`@RAID*` fixed 2026-08-26** (was cited here as MissingWire): 6 of 7 kinds now render the real `GAME.TXT` body via `popup_msg_fill` — see `port_plan.md` P8.4 / `indian_raid_outcomes.md` |
 | Teach: Petty Criminal refuse | `@LEARNCRIMINAL` | Authentic (2026-08-26) | `ai_contact_teach_skill` refuses outright, one-shot not consumed (`ai_contact.c` `ai_contact_is_petty_criminal`) |
 
 ## Diplo (`ai_diplo.c`)

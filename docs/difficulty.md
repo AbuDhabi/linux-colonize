@@ -287,7 +287,7 @@ bit3 remains food starvation.
 |--------|-------------|------|
 | AI colony food `+= difficulty>>1` | [`colony_eot_production.md`](../original_sources_annotated/turn/colony_eot_production.md) | **Wired** (`turn_produce_one_colony`) |
 | Rival SoL threshold `(8-diff)*10` | [`year_end_chrome.md`](../original_sources_annotated/turn/year_end_chrome.md) | Thin fixed thresholds |
-| Score→gold rebate `FUN_41f2_0b70` | FUNCTION_CATALOG | PARK |
+| Score→gold rebate `FUN_41f2_0b70` | FUNCTION_CATALOG; direct read 2026-08-26 (`viceroy_unpacked.c:72415-72548`) | PARK, but partially decoded this pass: difficulty-scaled multiplier table read clean — `{4,5,6,8,10}` for difficulty 0-4 (`*(byte*)0x53a6+4`, `+1` more past diff 2, `+1` more past diff 3) — and the final shape is `gold = ((multiplier * score_component) / 100) >> 1` (a flat halving after the percent scale). A separate loop derives a 0-23 "tier" index (`(tier²)/3 < gold_pre_halve`) used only to size the on-screen treasure-chest coin animation, not the gold amount itself. **Not closed**: `score_component` comes from calling into the shared score composer `FUN_41f2_0092` (the same function `reports_compute_score`/F10 already mirrors) with a render-flag argument, not a plain score int — the decompiler's `undefined1 *` return type for that call vs. this function's `int` assignment of it is a real type mismatch worth resolving before trusting the value, not a quick follow-on. Triggered at Retire, alongside the Hall of Fame insert (`FUN_41f2_0f56`) — endgame-only, low play-frequency. Flagging for a dedicated pass, not attempting the rest blind. |
 | Tory floor production penalty | ~11880; [sons_of_liberty.md](sons_of_liberty.md) | **Wired** (`colony_prod_sol_bonus`) |
 
 ---

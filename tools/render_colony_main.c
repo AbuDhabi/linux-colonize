@@ -179,6 +179,7 @@ int main(int argc, char** argv) {
     (int)nat->gold,
     font_ok ? &font : NULL,
     debug_rects,
+    NULL, /* LABELS.TXT not loaded here; fallback text is byte-identical to the live text */
     &fb
   );
 
