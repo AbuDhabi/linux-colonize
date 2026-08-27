@@ -2864,14 +2864,17 @@ bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ct
           );
           ai_popup_enqueue_ok(ctx->ai_popups, AI_POPUP_TAG_INFO, NULL, body);
         }
-        if (ctx->europe && ctx->col1_ok && ctx->col1) {
-          (void)units_cortes_cash_coastal_treasures(
+        if (ctx->col1_ok && ctx->col1) {
+          /* FUN_465b_0000 → FUN_5fef_1908 King's Galleon offer (human only). */
+          (void)units_king_galleon_offer_coastal_treasures(
             ctx->units,
             ctx->colonies,
             ctx->map,
             ctx->europe,
             ctx->col1,
-            ctx->human_nation
+            ctx->human_nation,
+            ctx->ai_popups,
+            ctx->messages
           );
         }
       }

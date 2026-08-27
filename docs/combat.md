@@ -204,7 +204,7 @@ dwelling. Deep `4528` mid-body / VGA still **PARKED**.
 
 ### Land win (`units_resolve_land_combat_ff`)
 
-- Treasure: LE16 hold gold (`FUN_5fef_1908`); human → Accept/Refuse ransom CHOICE
+- Treasure: LE16 hold gold; human → Accept/Refuse ransom CHOICE (DOS source unidentified — `FUN_5fef_1908` was miscited here; it is the King's Galleon offer, see `euro_unit_act.md` 2026-08-27)
   (`AI_POPUP_TAG_COMBAT_RANSOM`) before credit; AI → silent full credit + `@LOOTCAPTURE`
 - Loser: `units_apply_land_loss_outcome` (`FUN_5fef_0352`)
   - Artillery: first loss → damage bit7; second → despawn
@@ -392,7 +392,7 @@ Deep DOS notes: [`coastal_fort_fire.md`](../original_sources_annotated/turn/coas
 | `FUN_5fef_0ec0` | `units_sweep_stack_after_loss` |
 | `FUN_5fef_016c` | `units_plunder_ship_holds` |
 | `FUN_5fef_16ea` / `172c` | demote / chance promote |
-| `FUN_5fef_1908` | treasure loot gold |
+| `FUN_5fef_1908` | **not combat** — King's Galleon treasure offer (@KINGGALLEON2/3), see `euro_unit_act.md` 2026-08-27 |
 | `FUN_5fef_31ea` | native settlement fallout |
 | `FUN_636c_0000` / `2a1f_0704` | Combat Analysis |
 | `FUN_364b_03f6` | coastal fort fire |

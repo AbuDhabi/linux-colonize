@@ -2648,6 +2648,11 @@ void ai_diplo_indian_relation_delta(
   /*
    * FUN_4cc6_00f2 / FUN_15dc_00e0-shaped scalar store on Euro nation record.
    * Full Indian×Euro 15b3 bilateral matrix is PORT DEBT (see euro_diplo.md).
+   * NOTE (2026-08-27): DOS's 15dc_00e0/4cc6_00f2 actually operate on
+   * indian[idx].alarm_by_player[euro] (DS:0x5ad6+idx*0x4e+0x46, 0..100,
+   * high = hostile). This Linux field (relation_by_indian, high = friendly)
+   * is a separate store DOS never reads; consolidation is a Tier 2 candidate
+   * (indian_trade_2820.md 2026-08-27).
    */
   if (!col1 || euro_nation < 0 || euro_nation >= 4) {
     return;

@@ -197,7 +197,7 @@ Export often **zeros** unnamed colony bytes on rebuild ([savegame.md](savegame.m
 | `ff_count_end_prob` | 2 | `community` | smcol; cleared on independence; no FF-prob reader |
 | `rebel_sentiment` + `rebellion_pct_last_notified` + `unknown23_pad[3]` | 5 | `mapped` | nation+0x19; `rebellion_pct_last_notified` (was `unknown23_pad[0]`) resolved 2026-08-19: independence-news dedup latch |
 | `artillery_count` / `boycott_bitmap` | — | `mapped` | |
-| `royal_money` + `unknown24_pad[4]` | 8 | `mapped` | `int32` @ +0x22 REF budget; `unknown24_pad` confirmed dead 2026-08-19 (zeroed at new-game init only, no other touch) |
+| `royal_money` + `unknown24_pad[4]` | 8 | `mapped` | `int32` @ +0x22 REF budget; `unknown24_pad` = write-only int32 cumulative treasure income (`FUN_5fef_1908` `-0x77d2 += net`, found 2026-08-27); no reader. (Was: confirmed dead 2026-08-19) |
 | `return_from_europe_x/y` | 2 | `mapped` | `FUN_48d3_007a` |
 | `euro_relation[4]` | 4 | `mapped` | −0x77c4 / `FUN_15b3_*` peer flags (ai_diplo: WAR`0x01` PEACE`0x02` ALLY`0x04` MET`0x40`). Smcol’s attitude?/status/piracy bitfield **disagrees** — prefer DOS |
 | `relation_by_indian[8]` | 8 | `mapped` | |

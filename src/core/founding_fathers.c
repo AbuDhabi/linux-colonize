@@ -351,16 +351,11 @@ bool founding_fathers_cortes_free_king_galleon(const ColonizeCol1Save* col1, int
    * europe_cash_treasure); "for no extra charge" — do NOT invent KINGGALLEON2
    * non-Cortes royal-galleon extra %. AI/human stand-in: coastal own-colony
    * Treasure → europe_cash_treasure via units_cortes_cash_coastal_treasures.
-   * KINGGALLEON2 RE exhausted 2026-08-22 — 38fd Crown CHOICE callee not found
-   * (euro_unit_act.md / ai_port_plan T1.13). Phase 3: 38fd CHOICE 3 STRING /
-   * 0 NUMBER negative. Phase 4 (2026-08-22): Europe harbor tick / treasure-
-   * sell / europe_cash_treasure path searched — no Crown-initiated Galleon
-   * offer dispatch (zero KINGGALLEON2 hits in viceroy export; Cortes path is
-   * @KINGGALLEON3 tax-share only). Phase 5 (2026-08-22): 38fd overlay sweep
-   * for CHOICE(3 STRING, 0 NUMBER) + callee chain from harbor/treasure pending
-   * — no match; zero KINGGALLEON/GALLEON2 string refs in viceroy exports.
-   * Stays PARK until evidence.
-   * PARK: voyage chrome / KINGGALLEON2 share.
+   * KINGGALLEON2 resolved 2026-08-27: FUN_5fef_1908 builds "KINGGALLEON"+"2"/"3"
+   * at runtime (DS 0x1bed/0x1bfb/0x1bf9); non-Cortes share =
+   * max((difficulty+10)*5, 2*tax) cap 90 — see units_king_galleon_share_pct.
+   * This Cortes-only auto-cash stays for the AI callers; the human path is
+   * units_king_galleon_offer_coastal_treasures (CHOICE, DOS-shaped).
    */
   return founding_fathers_nation_has(col1, nation, FF_HERNAN_CORTES);
 }

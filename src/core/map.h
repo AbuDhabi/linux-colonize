@@ -43,8 +43,12 @@
 #define MAP_LAYER2_PACIFIC 0x20u /* western ocean strip (mapgen) */
 /* Layer2 stand-in: procedural LCR consumed — NOT Col1 road (mask 0x08). */
 #define MAP_LAYER2_RUMOUR_CLEARED 0x08u
-/* DOS AI FA also checks layer2 bit 0x40 for roads (mask road is 0x08). */
-#define MAP_LAYER2_FA_ROAD 0x40u
+/*
+ * Col1 mask bit 0x40 = plowed (same bit col1_bridge maps to MAP_IMPROVE_PLOWED).
+ * DOS FUN_1000_88d6's `layer2 & 0x48` = road | plowed ("improved tile").
+ * Was misnamed MAP_LAYER2_FA_ROAD (a road mirror) until 2026-08-27.
+ */
+#define MAP_LAYER2_PLOWED 0x40u
 
 typedef struct ColonizeWorldMap {
   uint8_t width;
