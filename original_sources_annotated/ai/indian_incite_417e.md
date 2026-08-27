@@ -511,3 +511,17 @@ outputs, since the test only asserts the ≥500 floor and gold-isolation, not
 an exact price) + full `ctest` (42/43, same pre-existing unrelated
 `unit_ai_euro_expand` baseline failure, no regression). Clean build, no
 warnings.
+
+
+## 2026-08-27 — Mode 2 ported
+
+`ai_contact_ai_incite_human` (`src/core/ai_contact.c`) implements the
+`4528` non-human Missionary gate (all five clauses above) and the `417e`
+Mode-2 body (MET gate, price via `ai_contact_incite_price(..., target =
+human)`, pay, alarm(tribe → human) += 10). Hooked ahead of the
+establish-mission / denounce-heresy arms in `ai_contact_missionary_convert`,
+matching the `case 7` priority in the `4528` switch. Open caveat kept: the
+`wealth_rank[ai] < wealth_rank[human]` compare is applied literally on
+`ctx->euro_power_rank` (`turn_rank_euro_nations`, 0 = strongest); DOS's
+`0x917c` table polarity vs. that Linux table was not independently
+re-verified.

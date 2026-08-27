@@ -5472,7 +5472,100 @@ int main(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
+  /* FUN_465b_0000 @WHACKINDIANS: ask once while alarm < 0x4b and bit 0x04 clear. */
+  {
+    AiPopupState wp;
+    ai_popup_clear(&wp);
+    ColonizeTurnContext wctx;
+    memset(&wctx, 0, sizeof(wctx));
+    wctx.col1 = &col1;
+    wctx.col1_ok = true;
+    wctx.ai_popups = &wp;
+    col1.player[0].control = 0;
+    ind->alarm_by_player[0] = 20;
+    ind->euro_diplo[0] = (uint8_t)(ind->euro_diplo[0] & ~COL1_INDIAN_ATTACK_CONFIRMED_BIT);
+    if (!ai_contact_try_whack_confirm(&wctx, 0, 4, 7, 5, 6) || wp.queue_count != 1 ||
+        wp.queue[0].tag != AI_POPUP_TAG_CONTACT_WHACK || wp.queue[0].nation_a != 7 ||
+        wp.queue[0].payload != (5 | (6 << 8))) {
+      return fail("WHACKINDIANS should enqueue a Yes/No CHOICE for a calm tribe");
+    }
+    if (!ai_contact_try_whack_confirm(&wctx, 0, 4, 7, 5, 6) || wp.queue_count != 1) {
+      return fail("WHACKINDIANS must not stack a second CHOICE while one is pending");
+    }
+    ai_popup_clear(&wp);
+    ind->euro_diplo[0] |= COL1_INDIAN_ATTACK_CONFIRMED_BIT;
+    if (ai_contact_try_whack_confirm(&wctx, 0, 4, 7, 5, 6) || wp.queue_count != 0) {
+      return fail("WHACKINDIANS must not ask again once confirmed (bit 0x04)");
+    }
+    ai_diplo_indian_alarm_delta(&col1, 4, 0, -1); /* cooling below 75 clears the bit */
+    if (ind->euro_diplo[0] & COL1_INDIAN_ATTACK_CONFIRMED_BIT) {
+      return fail("FUN_4cc6_00f2 negative delta below 75 should clear bit 0x04");
+    }
+    ind->alarm_by_player[0] = 80;
+    if (ai_contact_try_whack_confirm(&wctx, 0, 4, 7, 5, 6) || wp.queue_count != 0) {
+      return fail("WHACKINDIANS must not ask when the tribe is already hostile (alarm >= 0x4b)");
+    }
+    col1.player[0].control = 1;
+    ind->alarm_by_player[0] = 20;
+    if (ai_contact_try_whack_confirm(&wctx, 0, 4, 7, 5, 6)) {
+      return fail("WHACKINDIANS is human-only");
+    }
+    col1.player[0].control = 0;
+    fprintf(stderr, "unit_ai_contact: WHACKINDIANS ok\n");
+  }
+
+
+  /* FUN_4d56_417e Mode 2: AI Missionary incites the tribe against the human. */
+  {
+    ColonizeDosRng irng;
+    dos_rng_seed(&irng, 5u);
+    ColonizeTurnContext ictx;
+    memset(&ictx, 0, sizeof(ictx));
+    ictx.col1 = &col1;
+    ictx.col1_ok = true;
+    ictx.units = &units;
+    ictx.map = &map;
+    ictx.colonies = &colonies;
+    ictx.rng = &irng;
+    ictx.human_nation = 0;
+    ictx.euro_power_rank_ok = true;
+    ictx.euro_power_rank[0] = 3; /* human richest → rank 3 on this table */
+    ictx.euro_power_rank[1] = 0;
+    col1.player[0].control = 0;
+    col1.player[1].control = 1;
+    col1.nation[1].gold = 100000; /* price is data-dependent; well above any incite price */
+    col1.nation[1].euro_relation[0] = AI_DIPLO_MET;
+    ind->alarm_by_player[0] = 20;
+    ind->euro_diplo[0] |= COL1_INDIAN_MET_BIT;
+    col1.tribe[0].mission = COL1_TRIBE_MISSION_NONE;
+    const int alarm0 = ind->alarm_by_player[0];
+    const uint32_t gold0 = col1.nation[1].gold;
+    if (!ai_contact_ai_incite_human(&ictx, ind, &col1.tribe[0], 4, 1, 1)) {
+      return fail("417e Mode 2 should fire for a poorer AI with 1500+ gold vs a calm tribe");
+    }
+    if (ind->alarm_by_player[0] != alarm0 + 10 || col1.nation[1].gold >= gold0) {
+      return fail("417e Mode 2 should pay the incite price and push alarm toward the human +10");
+    }
+    ind->alarm_by_player[0] = 80;
+    if (ai_contact_ai_incite_human(&ictx, ind, &col1.tribe[0], 4, 1, 1)) {
+      return fail("417e Mode 2 must not fire once the tribe is already hostile (>= 0x4b)");
+    }
+    ind->alarm_by_player[0] = 20;
+    ictx.euro_power_rank[1] = 3; /* AI not poorer */
+    if (ai_contact_ai_incite_human(&ictx, ind, &col1.tribe[0], 4, 1, 1)) {
+      return fail("417e Mode 2 requires wealth_rank[ai] < wealth_rank[human]");
+    }
+    ictx.euro_power_rank[1] = 0;
+    col1.nation[1].gold = 1000;
+    if (ai_contact_ai_incite_human(&ictx, ind, &col1.tribe[0], 4, 1, 1)) {
+      return fail("417e Mode 2 requires AI gold >= 1500");
+    }
+    col1.player[1].control = 0;
+    fprintf(stderr, "unit_ai_contact: 417e Mode 2 auto-incite ok\n");
+  }
+
   col1_save_free(&col1);
   fprintf(stderr, "unit_ai_contact: ok (last_raid_kind=%d)\n", ai_contact_last_raid_kind());
+
   return 0;
 }
