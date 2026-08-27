@@ -46,6 +46,15 @@
  * than reuse a bit whose real DOS role points the other way; fully
  * mapping it would need `153e`'s own `iStack_a8`/negotiation-flow depth,
  * out of scope for this specific bit-semantics pass.
+ *
+ * 2026-08-27 static close: DOS bit 0x08 = "amicable-negotiation latch".
+ * Set only at 153e's common tail (viceroy_unpacked.c:98415) when the pair
+ * is already MET and (peace kept or target weaker). Consumed by
+ * FUN_521d_6d8e: when the pair's cooldown (unknown26 +0x40..) reads 0 and
+ * the latch is set, 1-in-3 per turn → `rel = (rel & 0xb7) | WAR` (clears
+ * 0x08|0x40, declares war) — a random relapse after a truce cools off.
+ * Also listed by the foreign-affairs report (string 0x42). Linux still
+ * uses 0x08 as the TREASURE_STRONGER stand-in; not reconciled here.
  */
 #define AI_DIPLO_TREASURE_ALERT 0x80
 #define AI_DIPLO_TREASURE_STRONGER 0x08

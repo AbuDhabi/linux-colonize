@@ -122,16 +122,16 @@ as peels land.
 | `nation_relation[4]` | 8 | `mapped` | |
 | `rebel_sentiment_report` + `crown_nation_id`/`rival_nation_slot_1`/`_2`/`sol_pct_last_notified` (was `unknown45_pad[8]`) | 10 | `mapped` | DS:`0x53d0`; the 4 int16 slots resolved 2026-08-19 (crown nation, 2 lazy rival-nation caches, SoL-report dedup) |
 | `expeditionary_force` / `backup_force` | 16 | `mapped` | |
-| `unknown46` / `price_group_state[16]` | 32 | `partial` | DOS market saturation/demand pool (not price) @`0x53ea`, formula traced 2026-08-19 (`FUN_38fd_0058`): seeded `RNG(600,1000)`, topped up per-turn from a per-nation demand table; Linux king bytes 0–5 overlay words 0–2. Only **rum/cigars/cloth/coats** confirmed as a live price group by code (index-9-12 floor-at-1 special case) — was previously only a smcol/experimental guess (SG also lists sugar/tobacco/cotton/fur, but experiments say those move independently); formula connecting this pool to `euro_price[16]` not traced |
+| `unknown46` / `price_group_state[16]` | 32 | `partial` | DOS market saturation/demand pool (not price) @`0x53ea`, formula traced 2026-08-19 (`FUN_38fd_0058`): seeded `RNG(600,1000)`, topped up per-turn from a per-nation demand table; Linux king bytes 0–5 overlay words 0–2. Only **rum/cigars/cloth/coats** confirmed as a live price group by code (index-9-12 floor-at-1 special case) — was previously only a smcol/experimental guess (SG also lists sugar/tobacco/cotton/fur, but experiments say those move independently); pool→`euro_price[16]` link traced 2026-08-27 in the same function's tail: group target `3*sum(group)/pool`, sign-of-(price−target) pushes `trade.nr` by `avg(rise,fall)*100` at EOT, direct clamp otherwise; Linux `europe_tick_market_prices` already implements it. `mapped` in substance |
 | `event` | 2 | `mapped` | Woodcut / discovery flags |
-| `unknown05` | 2 | `opaque` | Save R/W; no gameplay cite |
+| `unknown05` | 2 | `mapped` | DS:`0x540c`; bits 17-32 of the same once-only woodcut/splash bit array that `event` is bits 1-16 of (accessor `FUN_12fd_000e`/`0048`, dispatcher `FUN_12fd_006c`). Only the demo-autoplay loop (`FUN_130d`, DS:`0x828`, counter DS:`0x150` → 25) reaches ids 14-25; normal play tops out at id 13. Resolved statically 2026-08-27 |
 
 ### Players (52 × 4)
 
 | Field | Size | Status | Notes |
 |-------|------|--------|-------|
 | `name` / `country_name` | 48 | `mapped` | |
-| `unknown06_lo` / `lcr_case5_bonus_used` / `named_new_world` | 1 | `partial` | bit7 discovery one-shot (`FUN_4720_049e`); bit6 per-nation LCR case5→4 upgrade latch wired in `units_resolve_lcr_rumour` (`FUN_65dd_0004` outcome table ported 2026-08-27); bits0-5 opaque, no cite |
+| `unknown06_lo` / `lcr_case5_bonus_used` / `named_new_world` | 1 | `partial` | bit7 discovery one-shot (`FUN_4720_049e`); bit6 per-nation LCR case5→4 upgrade latch wired in `units_resolve_lcr_rumour` (`FUN_65dd_0004` outcome table ported 2026-08-27); bits0-5 confirmed dead 2026-08-27 (only masks 0x40/0x80 ever touch DS:0x543e) |
 | `control` / `founded_colonies` / `diplomacy` | 3 | `mapped` | control 0/1/2 |
 
 ### Other (24) — prefix trailer
@@ -201,7 +201,7 @@ Export often **zeros** unnamed colony bytes on rebuild ([savegame.md](savegame.m
 | `return_from_europe_x/y` | 2 | `mapped` | `FUN_48d3_007a` |
 | `euro_relation[4]` | 4 | `mapped` | −0x77c4 / `FUN_15b3_*` peer flags (ai_diplo: WAR`0x01` PEACE`0x02` ALLY`0x04` MET`0x40`). Smcol’s attitude?/status/piracy bitfield **disagrees** — prefer DOS |
 | `relation_by_indian[8]` | 8 | `mapped` | |
-| `treaty_timer` / sticky / privateer | 12 | `partial` | Linux stand-ins in `unknown26[]` (`ai_diplo.c`); flags are **not** here |
+| `treaty_timer` / sticky / privateer | 12 | `partial` | Linux stand-ins in `unknown26[]` (`ai_diplo.c`); flags are **not** here. DOS layout fully known 2026-08-27: +0x40-43 diplo cooldown, +0x44/45 recruit RNG, +0x46/47 int16 last-colony-founded turn (`FUN_479b_076e`→`FUN_521d_052c`), +0x48-4a crosses/hammers carry, +0x4b dead |
 | `trade` (240) | 240 | `mapped` | euro_price / nr / gold / tons |
 
 ### Tribe (18 × T)
