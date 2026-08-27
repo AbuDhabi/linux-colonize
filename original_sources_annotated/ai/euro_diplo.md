@@ -288,7 +288,7 @@ API / behavior:
 6. `ai_diplo_form_alliance` / `_ctx` — ALLY flags + 25 gold each + treaty timer ≥8 if 0; lift Horses+Muskets+…+Tools if no Euro wars remain; `_ctx` statuses `"Alliance formed with %s"` on first form; prefer `"Alliance with %s costs gold."` when human treasury drains
 7. `ai_diplo_break_alliance` — clear ALLY + −20 gold trust penalty + Indian −5/sticky sync if was allied
 8. `ai_diplo_fa_gift` — 15g + timer +2 when donor ≥100 and peer < donor×2 (FA UI still PARKED); else longevity +1; sticky2 skips gift
-9. `ai_diplo_indian_relation_delta` / `ai_diplo_indian_relation` — `4cc6_00f2` / `15dc_00e0` scalar (not full Indian `15b3`)
+9. `ai_diplo_indian_alarm_delta` / `ai_diplo_indian_alarm` — `4cc6_00f2` / `15dc_00e0` on `indian.alarm_by_player` (2026-08-27; `ai_diplo_indian_relation*` = 100−alarm view)
 10. First `declare_war` — all 16 `@CARGO` `boycott_bitmap` bits both sides (incl. Cotton); colony-gap ≥2 → extra 25g rich sting; fatigue timer seed 8 if 0
 11. Indian matrix helpers — read / relation / at_war / any_at_war / sticky sync (0/1/2) + feeler skip on sticky2 (self-gated) + sticky2 refuse new alliances + sticky2 skip FA gift + human status + harassment gold floor + war −5 relation floor 0
 12. `ai_diplo_at_war_with` / `ai_diplo_at_war_with_any` — war-turn helpers (pair alias + any-Euro gate for feeler/drift/lift)

@@ -10044,7 +10044,8 @@ static int unit_missionary_contact(void) {
     col1.player[i].diplomacy = 0;
     /* Content-floor Indian relations — memset 0 reads as at-war (<50). */
     for (int ind = 0; ind < 8; ++ind) {
-      col1.nation[i].relation_by_indian[ind] = 100;
+      col1.indian[ind].alarm_by_player[i] = 0; /* relation 100 */
+      col1.indian[ind].euro_diplo[i] |= COL1_INDIAN_MET_BIT;
     }
   }
   col1.head.tribe_count = 2;
@@ -21234,7 +21235,8 @@ static int unit_seasoned_sticky_fog_deepen(void) {
    * when a contacted Indian slot is very-low (0 < relation < 40). Unmet r==0
    * is cleared to sticky=0.
    */
-  col1.nation[nation].relation_by_indian[0] = 20;
+  col1.indian[0].alarm_by_player[nation] = 80; /* relation 20 */
+  col1.indian[0].euro_diplo[nation] |= COL1_INDIAN_MET_BIT;
   col1.nation[nation].indian_hostility_sticky = 2;
 
   ai_goals_reset();

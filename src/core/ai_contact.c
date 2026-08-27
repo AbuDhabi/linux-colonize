@@ -423,16 +423,12 @@ static void ai_contact_apply_welcome_accept(
   (void)ind;
   const uint8_t rel_before = ai_diplo_indian_relation(ctx->col1, nation_id, e);
   ai_contact_set_peace(ctx->col1, nation_id, e);
-  /* Peaceful meet baseline 96 (seed-100 TURN3+); refuse-talk is relation < 40. */
-  {
-    const uint8_t cur = ai_diplo_indian_relation(ctx->col1, nation_id, e);
-    const int target = 96;
-    if ((int)cur != target) {
-      ai_diplo_indian_relation_delta(ctx->col1, nation_id, e, target - (int)cur);
-    }
+  /* relation_by_indian = DOS 0x60 MET|PEACE flag byte (every DOS save: 96 once met). */
+  ctx->col1->nation[e].relation_by_indian[nation_id - 4] = 96u;
+  /* FUN_5bfb first contact (viceroy_unpacked.c:96624): alarm clamped <= 20. */
+  if (ind->alarm_by_player[e] > 20u) {
+    ind->alarm_by_player[e] = 20u;
   }
-  /* Fresh peace: clear alarm/friction toward this Euro (fandom first contact). */
-  ind->alarm_by_player[e] = 0;
   if (ctx->col1->tribe) {
     for (uint16_t ti = 0; ti < ctx->col1->head.tribe_count; ++ti) {
       ColonizeCol1Tribe* t = &ctx->col1->tribe[ti];
@@ -511,18 +507,7 @@ static void ai_contact_apply_welcome_reject(
    * hostile floor (1), not unmet 0 — seed-100 early goldens keep r==0/sticky
    * clear until first contact. Cite: FUN_4cc6_00f2; indian_contact.md.
    */
-  {
-    const uint8_t cur = ai_diplo_indian_relation(ctx->col1, nation_id, e);
-    const int target = 1;
-    if ((int)cur > target) {
-      ai_diplo_indian_relation_delta(ctx->col1, nation_id, e, target - (int)cur);
-    } else if ((int)cur < target) {
-      ai_diplo_indian_relation_delta(ctx->col1, nation_id, e, target - (int)cur);
-    }
-  }
-  if (ind->alarm_by_player[e] < 80u) {
-    ind->alarm_by_player[e] = 80u;
-  }
+  ai_diplo_indian_alarm_delta(ctx->col1, nation_id, e, 100); /* DOS +100 hostility */
   if (ctx->col1->tribe) {
     for (uint16_t ti = 0; ti < ctx->col1->head.tribe_count; ++ti) {
       ColonizeCol1Tribe* t = &ctx->col1->tribe[ti];
@@ -791,13 +776,7 @@ void ai_contact_village_open_hostilities(
   ColonizeCol1Indian* ind = &ctx->col1->indian[indian_nation - 4];
   /* Same at-war floor as welcome reject (FUN_4cc6_00f2 thin). */
   ai_contact_clear_peace(ctx->col1, indian_nation, euro_nation);
-  {
-    const uint8_t cur = ai_diplo_indian_relation(ctx->col1, indian_nation, euro_nation);
-    const int target = 1;
-    if ((int)cur != target) {
-      ai_diplo_indian_relation_delta(ctx->col1, indian_nation, euro_nation, target - (int)cur);
-    }
-  }
+  ai_diplo_indian_alarm_delta(ctx->col1, indian_nation, euro_nation, 100); /* DOS +100 hostility */
   if (ind->alarm_by_player[euro_nation] < 80u) {
     ind->alarm_by_player[euro_nation] = 80u;
   }
@@ -846,9 +825,9 @@ int ai_contact_try_village_raid_warn(
     return 0;
   }
   const char* tribe = ai_contact_tribe_name(indian_nation);
-  const int rel = (int)ai_diplo_indian_relation(ctx->col1, indian_nation, euro_nation);
+  const int alarm = ai_diplo_indian_alarm(ctx->col1, indian_nation, euro_nation);
   char body[AI_POPUP_BODY_LEN];
-  if (rel >= 0x4b) {
+  if (alarm <= 25) { /* relation >= 75 */
     snprintf(
       body,
       sizeof(body),
@@ -856,14 +835,14 @@ int ai_contact_try_village_raid_warn(
       "Attack the village, or leave in peace?",
       tribe
     );
-  } else if (rel >= 0x32) {
+  } else if (alarm <= 50) { /* relation >= 50 */
     snprintf(
       body,
       sizeof(body),
       "The %s eye your weapons with suspicion. Attack their village, or withdraw?",
       tribe
     );
-  } else if (rel >= 0x19) {
+  } else if (alarm <= 75) { /* relation >= 25 */
     snprintf(
       body,
       sizeof(body),
@@ -951,10 +930,10 @@ int ai_contact_try_ship_village(ColonizeTurnContext* ctx, int euro_nation, int x
     return 1;
   }
 
-  const int rel = (int)ai_diplo_indian_relation(ctx->col1, indian_nation, euro_nation);
+  const int alarm = ai_diplo_indian_alarm(ctx->col1, indian_nation, euro_nation);
   const int friction = (int)tribe->alarm[euro_nation].friction;
-  /* ASM: relation >= 0x4b OR friction >= 0x40 → MADAT (peace floor 96 hits this). */
-  if (rel >= 0x4b || friction >= 0x40 || ai_diplo_indian_at_war(ctx->col1, euro_nation, indian_nation - 4)) {
+  /* ASM: FUN_1000_84fc (alarm) >= 0x4b OR friction >= 0x40 → MADAT. */
+  if (alarm >= 0x4b || friction >= 0x40 || ai_diplo_indian_at_war(ctx->col1, euro_nation, indian_nation - 4)) {
     char body[AI_POPUP_BODY_LEN];
     PopupMsgTokens tok;
     memset(&tok, 0, sizeof(tok));
@@ -977,7 +956,7 @@ int ai_contact_try_ship_village(ColonizeTurnContext* ctx, int euro_nation, int x
   /* Narrow mid-relation window: thin Meet CHOICE (land path stand-in). */
   /* Mid band ≥0x32..<0x4b: cooler ship voice, still fall through (Series T). */
   int mid_wary = 0;
-  if (rel >= 0x32 && rel < 0x4b && friction < 0x40) {
+  if (alarm > 25 && alarm <= 50 && friction < 0x40) {
     char wary[AI_POPUP_BODY_LEN];
     snprintf(
       wary,
@@ -1745,8 +1724,7 @@ static uint32_t ai_contact_incite_price(
    * threshold on this exact scale, cross-confirmed via euro_g_table_0a60's
    * independent use of the same FUN_281f_030c/relation<0x4b check);
    * ai_diplo_indian_relation is 0-255. */
-  const int relation =
-    (int)ai_diplo_indian_relation(col1, nation_id, inciter) * 100 / 255;
+  const int relation = (int)ai_diplo_indian_relation(col1, nation_id, inciter); /* 0..100 */
   (void)target; /* alarm_by_player no longer used — real formula has no target term here */
   /* Base-combine op resolved byte-exact, 2026-08-14: read the actual
    * decompiled bodies of FUN_1d1d_0f60/FUN_1d1d_0ec6 (viceroy_unpacked.c
@@ -3422,10 +3400,11 @@ void ai_contact_indian_woi_defect(ColonizeTurnContext* ctx, int nation_id) {
 
   int eligible = ind->woi_defect_forced != 0;
   if (!eligible) {
-    const int rel = (int)ai_diplo_indian_relation(ctx->col1, nation_id, human);
-    if (rel >= 25) {
+    /* FUN_281f_030c = alarm toward the rebel nation: >= 25 and RNG(1,400) >= alarm. */
+    const int alarm = ai_diplo_indian_alarm(ctx->col1, nation_id, human);
+    if (alarm >= 25) {
       const int roll = dos_rng_range(ctx->rng, 1, 400);
-      eligible = roll >= rel;
+      eligible = roll >= alarm;
     }
   }
   if (!eligible) {
@@ -3440,8 +3419,14 @@ void ai_contact_indian_woi_defect(ColonizeTurnContext* ctx, int nation_id) {
 
   ind->woi_defect_resolved = 1;
   const int crown = ai_king_crown_nation(human);
-  ai_diplo_indian_relation_delta(ctx->col1, nation_id, human, 100);
-  ai_diplo_indian_relation_delta(ctx->col1, nation_id, crown, -100);
+  /*
+   * FUN_4cc6_00f2(tribe, declaring, +100) / (tribe, crown, -100) are ALARM
+   * deltas: the tribe turns fully hostile to the rebels and content with the
+   * Crown (Tory natives). The earlier port had this inverted via the
+   * relation_by_indian mis-mapping (2026-08-27).
+   */
+  ai_diplo_indian_alarm_delta(ctx->col1, nation_id, human, 100);
+  ai_diplo_indian_alarm_delta(ctx->col1, nation_id, crown, -100);
 
   const int tech = ind->tech;
   int muskets = ind->muskets;
@@ -3730,38 +3715,15 @@ void ai_contact_indian_relation_tick(ColonizeTurnContext* ctx, int nation_id) {
   }
   ColonizeCol1Indian* ind = &ctx->col1->indian[nation_id - 4];
 
-  /* FUN_4cc6_00f2 / 4962_06b6-shaped: met → ±1 by alarm band. */
+  /*
+   * The former "relation ±1 by alarm band" arm is gone (2026-08-27): it moved
+   * a Linux-only scalar; DOS alarm has no per-turn drift (seed-100 TURN3-7
+   * saves) — the real ±1 is the 152e accumulator in ai.c. Friction part kept.
+   */
   for (int e = 0; e < 4; ++e) {
     if (ctx->col1->player[e].control == 2) {
       continue;
     }
-    int delta = 0;
-    if (ind->euro_diplo[e]) {
-      if (ind->alarm_by_player[e] > 40) {
-        /*
-         * Hot band: −1 unless peaceful meet floor is locked (seed-100 keeps
-         * relation 96 while alarm wobbles 34–35). Cite: TURN6→7 goldens.
-         */
-        const uint8_t r = ai_diplo_indian_relation(ctx->col1, nation_id, e);
-        if ((ind->euro_diplo[e] & COL1_INDIAN_PEACE_BIT) != 0 &&
-            r >= 96) {
-          delta = 0;
-        } else {
-          delta = -1;
-        }
-      } else {
-        /*
-         * Cool band: climb toward peaceful meet floor 96; do not bump past it
-         * (seed-100 TURN3 keeps 96 after Euro-side unload welcome in the same
-         * EOT before this tick). Cite: test-saves-ai/TURN3; indian_contact.md.
-         */
-        const uint8_t r = ai_diplo_indian_relation(ctx->col1, nation_id, e);
-        if (r > 0 && r < 96) {
-          delta = 1;
-        }
-      }
-    }
-    ai_diplo_indian_relation_delta(ctx->col1, nation_id, e, delta);
     /*
      * Goods/relation tick deepen (fandom Alarm cools / rises with band):
      *  - met + alarm cool (<40) → tribe friction −1 (floor 0; <40 band)
@@ -3883,7 +3845,7 @@ static int ai_contact_2820_ai_sell_price(
    * (same 0-255->0-100 convention used throughout this project, e.g.
    * indian_incite_417e.md's price formula).
    */
-  const int relation_100 = relation * 100 / 255;
+  const int relation_100 = relation; /* DOS alarm 0..100, quartiled by FUN_1000_8c50 */
   int quartile;
   if (relation_100 < 25) {
     quartile = 0;
@@ -3974,10 +3936,10 @@ static int ai_contact_auto_trade_price(ColonizeTurnContext* ctx, int nation_id, 
   }
   ColonizeDosRng local;
   ai_contact_local_rng(ctx, nation_id, &local);
-  const int relation = (int)ai_diplo_indian_relation(ctx->col1, nation_id, e);
+  const int alarm = ai_diplo_indian_alarm(ctx->col1, nation_id, e); /* aiStack_d6[0] */
   return ai_contact_2820_ai_sell_price(
     &local, (int)econ.ask[COLONIZE_CARGO_TRADE_GOODS], 1,
-    ctx->col1->head.difficulty, relation
+    ctx->col1->head.difficulty, alarm
   );
 }
 
@@ -4052,9 +4014,8 @@ static int ai_contact_auto_trade(
       nat->gold += (uint32_t)price;
     }
   }
-  if (ind->alarm_by_player[e] > 0) {
-    ind->alarm_by_player[e]--;
-  }
+  /* Alarm relief lands once, via the relation_delta(+2) below (single store;
+   * DOS: alarm += -2*c4, c4 = RNG(0,1) + ((bid - 2*tier + 4) >> 2)). */
   if (ctx->col1->tribe) {
     for (uint16_t ti = 0; ti < ctx->col1->head.tribe_count; ++ti) {
       ColonizeCol1Tribe* t = &ctx->col1->tribe[ti];
@@ -5461,8 +5422,9 @@ void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id) {
           const int was_at_war =
             ai_diplo_indian_at_war(ctx->col1, target_euro, nation_id - 4);
           if (kind != AI_RAID_NOTHING && max_alarm >= 55) {
-            const int host = (max_alarm >= 80) ? -5 : -3;
-            ai_diplo_indian_relation_delta(ctx->col1, nation_id, target_euro, host);
+            /* Hostility already lands on alarm_by_player via the kind bump above
+             * (single store since 2026-08-27); the former extra −3/−5 relation
+             * push would double-count. */
             if (had_peace) {
               ai_contact_clear_peace(ctx->col1, nation_id, target_euro);
             }

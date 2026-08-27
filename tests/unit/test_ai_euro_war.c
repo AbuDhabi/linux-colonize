@@ -990,7 +990,8 @@ static int unit_indian_war_capital_hunt(void) {
   col1.head.difficulty = 0;
   col1.nation[nation].gold = 100;
   /* At war with Indian slot 0 (nation 4). */
-  col1.nation[nation].relation_by_indian[0] = 20;
+  col1.indian[0].alarm_by_player[nation] = 80; /* relation 20 */
+  col1.indian[0].euro_diplo[nation] |= COL1_INDIAN_MET_BIT;
   ai_diplo_indian_hostility_sync(&col1, nation);
 
   ColonizeCol1Tribe tribes[2];
@@ -7391,7 +7392,8 @@ static int unit_unload_sticky_brave_threatened(void) {
     col1.player[i].diplomacy = 0;
   }
   col1.nation[nation].gold = 100;
-  col1.nation[nation].relation_by_indian[0] = 25;
+  col1.indian[0].alarm_by_player[nation] = 75; /* relation 25 */
+  col1.indian[0].euro_diplo[nation] |= COL1_INDIAN_MET_BIT;
   col1.nation[nation].indian_hostility_sticky = 2;
 
   uint32_t turn = 12;

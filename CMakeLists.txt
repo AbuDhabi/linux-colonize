@@ -1049,8 +1049,14 @@ add_test(NAME golden_ai_late01 COMMAND golden_ai_late01 WORKING_DIRECTORY ${CMAK
 # mean something; re-enable for real (flip DISABLED off) only once the full
 # port has landed and this is back to a legitimate regression gate, not a
 # progress tracker.
+# 2026-08-27 (T3.3, partial): golden_ai_mid01 / golden_ai_late01 pass again
+# after the Indian alarm-store consolidation and the 5d04 live wire, so they
+# are back on as regression gates. golden_ai_turns stays DISABLED: it fails
+# only on 3 TURN1→2 Braves — the parked seed-100 quiet-pulse divergence
+# (docs/seed100_brave.md), not a planner regression — and golden_ai_joint
+# depends on it.
 set_tests_properties(
-  golden_ai_turns golden_ai_mid01 golden_ai_late01
+  golden_ai_turns
   PROPERTIES DISABLED TRUE
 )
 

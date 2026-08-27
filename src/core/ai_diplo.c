@@ -683,29 +683,14 @@ static void ai_diplo_ally_longevity_timer(ColonizeCol1Save* col1, int from, int 
  * fandom alarm cools without encroachment.
  */
 static void ai_diplo_indian_peaceful_drift(ColonizeCol1Save* col1, int nation_id) {
-  if (!col1 || nation_id < 0 || nation_id >= 4) {
-    return;
-  }
-  if (ai_diplo_at_war_with_any(col1, nation_id)) {
-    return;
-  }
-  ColonizeCol1Nation* nat = &col1->nation[nation_id];
-  for (int i = 0; i < 8; ++i) {
-    uint8_t r = nat->relation_by_indian[i];
-    if (r == 0) {
-      continue; /* unmet — not a drift candidate */
-    }
-    /*
-     * Seed-100 early goldens hold peaceful meet at 96 through TURN7 — do not
-     * auto-climb past the meet floor here (feeler/trade own further gains).
-     */
-    if (r >= AI_DIPLO_INDIAN_PEACE_MEET) {
-      continue;
-    }
-    if (r < AI_DIPLO_INDIAN_DRIFT_CAP) {
-      nat->relation_by_indian[i] = (uint8_t)(r + 1u);
-    }
-  }
+  /*
+   * Retired 2026-08-27: DOS has no per-turn Indian alarm decay (alarm_by_player
+   * is byte-stable across seed-100 TURN3..7 saves; the only ±1 moves are the
+   * FUN_4d56_152e accumulator, ported in ai.c). Kept as a no-op so the tick
+   * shape/callers stay put.
+   */
+  (void)col1;
+  (void)nation_id;
 }
 
 /*
@@ -719,35 +704,10 @@ static void ai_diplo_indian_peaceful_drift(ColonizeCol1Save* col1, int nation_id
  * Full gift dialog / 15b3 bilateral write PARKED.
  */
 static int ai_diplo_indian_peace_feeler(ColonizeCol1Save* col1, int nation_id) {
-  if (!col1 || nation_id < 0 || nation_id >= 4) {
-    return 0;
-  }
-  if (ai_diplo_at_war_with_any(col1, nation_id)) {
-    return 0;
-  }
-  /*
-   * Sticky==2 (very-low deepen) refuses the improve-relations feeler at every
-   * call site (matrix tick + make_peace restore). Source: fandom Indians —
-   * alarmed/hostile may refuse trade/gifts; contact friction <40 inverted.
-   */
-  if (ai_diplo_indian_hostility_sticky(col1, nation_id) == AI_DIPLO_STICKY_DEEP) {
-    return 0;
-  }
-  ColonizeCol1Nation* nat = &col1->nation[nation_id];
-  int healed = 0;
-  for (int i = 0; i < 8; ++i) {
-    uint8_t r = nat->relation_by_indian[i];
-    if (r < AI_DIPLO_INDIAN_AT_WAR_REL || r >= AI_DIPLO_INDIAN_CONTENT_FLOOR) {
-      continue;
-    }
-    unsigned next = (unsigned)r + (unsigned)AI_DIPLO_INDIAN_FEELER_HEAL;
-    if (next > AI_DIPLO_INDIAN_CONTENT_FLOOR) {
-      next = AI_DIPLO_INDIAN_CONTENT_FLOOR;
-    }
-    nat->relation_by_indian[i] = (uint8_t)next;
-    healed = 1;
-  }
-  return healed;
+  /* Retired 2026-08-27 with the drift above — no DOS counterpart (see there). */
+  (void)col1;
+  (void)nation_id;
+  return 0;
 }
 
 /* Indians dislike Euro×Euro war: −5 on all 8 Indian relation slots (both sides). */
@@ -776,7 +736,11 @@ uint8_t ai_diplo_indian_read(const ColonizeCol1Save* col1, int euro_nation, int 
   if (!col1 || euro_nation < 0 || euro_nation >= 4 || indian_idx < 0 || indian_idx >= 8) {
     return 0;
   }
-  return col1->nation[euro_nation].relation_by_indian[indian_idx];
+  if ((col1->indian[indian_idx].euro_diplo[euro_nation] & COL1_INDIAN_MET_BIT) == 0) {
+    return 0; /* unmet */
+  }
+  const int r = 100 - ai_diplo_indian_alarm(col1, 4 + indian_idx, euro_nation);
+  return (uint8_t)(r < 1 ? 1 : r);
 }
 
 int ai_diplo_indian_at_war(const ColonizeCol1Save* col1, int euro_nation, int indian_idx) {
@@ -805,7 +769,7 @@ uint8_t ai_diplo_indian_hostility_sticky(const ColonizeCol1Save* col1, int euro_
 }
 
 /*
- * Sync unknown26[8] from relation_by_indian matrix (unpark #5 sticky deepen).
+ * Sync unknown26[8] from the Indian alarm matrix (via ai_diplo_indian_read).
  *  0 — no Indian at-war slots (all unmet r==0 or relation ≥ 50)
  *  1 — any contacted indian_at_war (0 < relation < 50)
  *  2 — deepen when already hostile and any slot very low (0 < relation < 40)
@@ -865,13 +829,10 @@ void ai_diplo_indian_capital_surrender(
   }
   ind->euro_diplo[euro_nation] =
     (uint8_t)(ind->euro_diplo[euro_nation] | COL1_INDIAN_PEACE_BIT);
-  {
-    const uint8_t cur = ai_diplo_indian_relation(col1, indian_nation, euro_nation);
-    if (cur < AI_DIPLO_INDIAN_PEACE_MEET) {
-      ai_diplo_indian_relation_delta(
-        col1, indian_nation, euro_nation, (int)(AI_DIPLO_INDIAN_PEACE_MEET - cur)
-      );
-    }
+  /* relation_by_indian is the DOS 0x60 MET|PEACE flag byte, not a scalar. */
+  col1->nation[euro_nation].relation_by_indian[idx] = (uint8_t)AI_DIPLO_INDIAN_PEACE_MEET;
+  if (ind->alarm_by_player[euro_nation] > 20u) {
+    ind->alarm_by_player[euro_nation] = 20u; /* FUN_5bfb first-contact clamp (:96624) */
   }
   ai_diplo_indian_hostility_sync(col1, euro_nation);
 }
@@ -2619,6 +2580,7 @@ static void ai_diplo_indian_tension_tier_update(
   int new_relation,
   int delta
 ) {
+  /* Operands are DOS alarm values (0..100), not the Linux relation view. */
   if (!col1 || !col1->indian_tension || !col1->tribe || delta >= 0) {
     return;
   }
@@ -2639,40 +2601,59 @@ static void ai_diplo_indian_tension_tier_update(
   }
 }
 
-void ai_diplo_indian_relation_delta(
+static int ai_diplo_indian_slot(const ColonizeCol1Save* col1, int indian_nation, int euro_nation) {
+  if (!col1 || euro_nation < 0 || euro_nation >= 4) {
+    return -1;
+  }
+  const int idx = indian_nation - 4;
+  return (idx < 0 || idx >= 8) ? -1 : idx;
+}
+
+int ai_diplo_indian_alarm(const ColonizeCol1Save* col1, int indian_nation, int euro_nation) {
+  const int idx = ai_diplo_indian_slot(col1, indian_nation, euro_nation);
+  if (idx < 0) {
+    return 0;
+  }
+  const int a = (int)col1->indian[idx].alarm_by_player[euro_nation];
+  return a > 100 ? 100 : a;
+}
+
+void ai_diplo_indian_alarm_delta(
   ColonizeCol1Save* col1,
   int indian_nation,
   int euro_nation,
   int delta
 ) {
   /*
-   * FUN_4cc6_00f2 / FUN_15dc_00e0-shaped scalar store on Euro nation record.
-   * Full Indian×Euro 15b3 bilateral matrix is PORT DEBT (see euro_diplo.md).
-   * NOTE (2026-08-27): DOS's 15dc_00e0/4cc6_00f2 actually operate on
-   * indian[idx].alarm_by_player[euro] (DS:0x5ad6+idx*0x4e+0x46, 0..100,
-   * high = hostile). This Linux field (relation_by_indian, high = friendly)
-   * is a separate store DOS never reads; consolidation is a Tier 2 candidate
-   * (indian_trade_2820.md 2026-08-27).
+   * FUN_4cc6_00f2: table[0x5b1c + (tribe*0x27+euro)*2] = clamp(old + delta, 0, 100);
+   * on a 5-point tier crossing after a negative delta, clamp the tribes'
+   * DS:0x54f6 tension slots (ai_diplo_indian_tension_tier_update). DOS also
+   * clears diplo bit 4 / war bit 2 (281f_0a10) on a negative delta once
+   * below 75 — not mirrored here (Linux war state lives in euro_diplo).
    */
-  if (!col1 || euro_nation < 0 || euro_nation >= 4) {
+  const int idx = ai_diplo_indian_slot(col1, indian_nation, euro_nation);
+  if (idx < 0) {
     return;
   }
-  int idx = indian_nation - 4;
-  if (idx < 0 || idx >= 8) {
-    return;
-  }
-  const int old_v = (int)col1->nation[euro_nation].relation_by_indian[idx];
-  /* Floor 0 / cap 255 — war −5 (+ optional −10 deepen) must not underflow.
-   * Source: FUN_4cc6_00f2 / 15dc_00e0 scalar clamp; fandom relation band. */
+  const int old_v = (int)col1->indian[idx].alarm_by_player[euro_nation];
   int v = old_v + delta;
   if (v < 0) {
     v = 0;
   }
-  if (v > 255) {
-    v = 255;
+  if (v > 100) {
+    v = 100;
   }
-  col1->nation[euro_nation].relation_by_indian[idx] = (uint8_t)v;
+  col1->indian[idx].alarm_by_player[euro_nation] = (uint16_t)v;
   ai_diplo_indian_tension_tier_update(col1, indian_nation, euro_nation, old_v, v, delta);
+}
+
+void ai_diplo_indian_relation_delta(
+  ColonizeCol1Save* col1,
+  int indian_nation,
+  int euro_nation,
+  int delta
+) {
+  ai_diplo_indian_alarm_delta(col1, indian_nation, euro_nation, -delta);
 }
 
 uint8_t ai_diplo_indian_relation(
@@ -2680,15 +2661,10 @@ uint8_t ai_diplo_indian_relation(
   int indian_nation,
   int euro_nation
 ) {
-  /* Read-only getter for contact/king; same indexing as relation_delta. */
-  if (!col1 || euro_nation < 0 || euro_nation >= 4) {
+  if (ai_diplo_indian_slot(col1, indian_nation, euro_nation) < 0) {
     return 0;
   }
-  int idx = indian_nation - 4;
-  if (idx < 0 || idx >= 8) {
-    return 0;
-  }
-  return col1->nation[euro_nation].relation_by_indian[idx];
+  return (uint8_t)(100 - ai_diplo_indian_alarm(col1, indian_nation, euro_nation));
 }
 
 void ai_diplo_apply_popup_result(ColonizeTurnContext* ctx, const AiPopupState* popup) {

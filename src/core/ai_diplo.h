@@ -118,7 +118,26 @@ void ai_diplo_fa_gift(ColonizeCol1Save* col1, int from, int to);
 /* Alias → ai_diplo_treaty_timers (6d8e timer pass). */
 void ai_diplo_euro_timers(ColonizeTurnContext* ctx, int nation_id);
 
-/* FUN_4cc6_00f2 / 15dc_00e0-shaped Indian relation scalar (not full 15b3). */
+/*
+ * DOS-native Indian nation alarm (FUN_15dc_00e0 read / FUN_4cc6_00f2 write):
+ * indian[idx].alarm_by_player[euro], 0..100, HIGH = HOSTILE. Map-gen seeds
+ * RNG(0,14); first contact clamps <= 20; no per-turn decay (TURN3-7 saves).
+ * Use these at sites transcribed from DOS (152e, 1816, 2820, 417e, 0x4b gates).
+ */
+int ai_diplo_indian_alarm(const ColonizeCol1Save* col1, int indian_nation, int euro_nation);
+void ai_diplo_indian_alarm_delta(
+  ColonizeCol1Save* col1,
+  int indian_nation,
+  int euro_nation,
+  int delta
+);
+
+/*
+ * Linux-side "relation" view of the same store: relation = 100 - alarm
+ * (high = friendly), delta d == alarm_delta(-d). Kept for the fandom-derived
+ * sites written in relation terms. nation.relation_by_indian is NOT this
+ * scalar — in every DOS save it is the 0x60 (MET|PEACE) flag byte.
+ */
 void ai_diplo_indian_relation_delta(
   ColonizeCol1Save* col1,
   int indian_nation,
@@ -134,12 +153,10 @@ uint8_t ai_diplo_indian_relation(
   int euro_nation
 );
 
-/* Thin Indian×Euro matrix cell: relation_by_indian[indian_idx] (0..7). */
+/* Relation (100-alarm) for a met slot, 0 when unmet (euro_diplo MET bit clear). */
 uint8_t ai_diplo_indian_read(const ColonizeCol1Save* col1, int euro_nation, int indian_idx);
 
-/* Thin stand-in: at war with Indian nation when relation < 50.
- * Fuller Indian×Euro 15b3 matrix Done structural (unpark #5); deep/VGA PARKED;
- * sticky unknown26[8]. */
+/* Thin stand-in: at war with Indian nation when met and relation < 50 (alarm > 50). */
 int ai_diplo_indian_at_war(const ColonizeCol1Save* col1, int euro_nation, int indian_idx);
 
 /* True if any of 8 Indian slots is at war (relation < 50). Contact/diplo helper. */

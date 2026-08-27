@@ -139,16 +139,17 @@ int main(void) {
   ctx.rng_seed = 42;
 
   /* Meet: adjacent Euro → euro_diplo + relation bump; peaceful friction decay. */
-  const uint8_t rel0 = col1.nation[0].relation_by_indian[0];
+  ind->alarm_by_player[0] = 33; /* first contact clamps alarm <= 20 (FUN_5bfb :96624) */
   ai_contact_indian_meet_trade(&ctx, 4);
   if (!ind->euro_diplo[0]) {
     return fail("meet should set euro_diplo[0]");
   }
-  if (col1.nation[0].relation_by_indian[0] <= rel0) {
-    return fail("meet should bump relation_by_indian");
+  if (col1.nation[0].relation_by_indian[0] != 96 || ind->alarm_by_player[0] > 20) {
+    return fail("meet should set relation_by_indian=0x60 flag and clamp alarm <= 20");
   }
   /* Peaceful meet-trade needs relation ≥40 (very-low refuse gate). */
-  col1.nation[0].relation_by_indian[0] = 80;
+  col1.indian[0].alarm_by_player[0] = 20; /* relation 80 */
+  col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
   /* Move Euro away so colony raid is not pre-empted by adjacent combat. */
   euro->x = 10;
   euro->y = 10;
@@ -175,7 +176,7 @@ int main(void) {
   brave->moves_left = 3;
 
   const int food0 = c->stock[COLONIZE_CARGO_FOOD];
-  const uint8_t rel_pre_raid = col1.nation[0].relation_by_indian[0];
+  const uint8_t rel_pre_raid = ai_diplo_indian_relation(&col1, 4 + (0), 0);
   ai_contact_indian_raids(&ctx, 4);
   const int kind = ai_contact_last_raid_kind();
   if (kind < AI_RAID_NOTHING || kind > AI_RAID_GOLD) {
@@ -204,7 +205,7 @@ int main(void) {
   }
   /* High-friction successful raid → Indian×Euro hostility via relation_delta. */
   if (ai_contact_last_raid_kind() != AI_RAID_NOTHING &&
-      col1.nation[0].relation_by_indian[0] >= rel_pre_raid) {
+      ai_diplo_indian_relation(&col1, 4 + (0), 0) >= rel_pre_raid) {
     return fail("high-friction raid should escalate Indian×Euro hostility");
   }
 
@@ -661,7 +662,7 @@ int main(void) {
   col1.tribe[0].mission = 0xff;
   col1.tribe[0].alarm[0].friction = 10;
   ind->alarm_by_player[0] = 10;
-  col1.nation[0].relation_by_indian[0] = 80; /* above very-low refuse */
+  col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT; /* met (was relation 80; alarm pinned above) */ /* above very-low refuse */
   {
     char status_ok[128];
     status_ok[0] = '\0';
@@ -872,7 +873,7 @@ int main(void) {
     col1.tribe[0].mission = 0xff;
     col1.tribe[0].alarm[0].friction = 40;
     ind->alarm_by_player[0] = 40;
-    col1.nation[0].relation_by_indian[0] = 80;
+    col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT; /* met (was relation 80; alarm pinned above) */
     const uint16_t crosses_plain = col1.nation[0].current_crosses;
     ai_contact_indian_meet_trade(&ctx, 4);
     if (col1.tribe[0].mission != 0xff) {
@@ -896,7 +897,7 @@ int main(void) {
     /* Floor of mid band: convert −2 → 38; pacify meet skips (<40). */
     col1.tribe[0].alarm[0].friction = 40;
     ind->alarm_by_player[0] = 40;
-    col1.nation[0].relation_by_indian[0] = 80;
+    col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT; /* met (was relation 80; alarm pinned above) */
     const uint16_t crosses_m = col1.nation[0].current_crosses;
     ai_contact_indian_meet_trade(&ctx, 4);
     if ((col1.tribe[0].mission & COL1_TRIBE_MISSION_NATION_MASK) != 0 ||
@@ -947,7 +948,7 @@ int main(void) {
     col1.tribe[0].mission = 0xff;
     col1.tribe[0].alarm[0].friction = 40;
     ind->alarm_by_player[0] = 40;
-    col1.nation[0].relation_by_indian[0] = 80;
+    col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT; /* met (was relation 80; alarm pinned above) */
     const uint16_t crosses_br = col1.nation[0].current_crosses;
     ai_contact_indian_meet_trade(&ctx, 4);
     if ((col1.tribe[0].mission & COL1_TRIBE_MISSION_NATION_MASK) != 0 ||
@@ -987,7 +988,7 @@ int main(void) {
   col1.tribe[0].last_sold = (uint8_t)COLONIZE_CARGO_FURS;
   col1.tribe[0].alarm[0].friction = 5;
   ind->alarm_by_player[0] = 5;
-  col1.nation[0].relation_by_indian[0] = 80;
+  col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT; /* met (was relation 80; alarm pinned above) */
   ai_contact_indian_meet_trade(&ctx, 4);
   if (!col1.tribe[0].state.learned) {
     return fail("teach-skill should set tribe.state.learned");
@@ -1016,7 +1017,7 @@ int main(void) {
     ind->alarm_by_player[0] = 5;
     ind->euro_diplo[0] = 1;
     col1.nation[0].gold = 0; /* no gift overwrite */
-    col1.nation[0].relation_by_indian[0] = 80;
+    col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT; /* met (was relation 80; alarm pinned above) */
     ai_contact_indian_meet_trade(&ctx, 4);
     if (euro->profession != UNITS_JOB_NONE) {
       return fail("already-learned should not re-teach profession");
@@ -1038,7 +1039,7 @@ int main(void) {
   memset(iroq, 0, sizeof(*iroq));
   iroq->alarm_by_player[0] = 5;
   col1.tribe[0].alarm[0].friction = 5;
-  col1.nation[0].relation_by_indian[3] = 80; /* Iroquois idx 3 */
+  col1.indian[3].euro_diplo[0] |= COL1_INDIAN_MET_BIT; /* met (was relation 80; alarm pinned above) */ /* Iroquois idx 3 */
   ai_contact_indian_meet_trade(&ctx, 7);
   if (!col1.tribe[0].state.learned) {
     return fail("teach-skill nation map should set tribe.state.learned");
@@ -1060,7 +1061,7 @@ int main(void) {
     memset(arawak, 0, sizeof(*arawak));
     arawak->alarm_by_player[0] = 5;
     col1.tribe[0].alarm[0].friction = 5;
-    col1.nation[0].relation_by_indian[2] = 80; /* Arawak idx 2 */
+    col1.indian[2].euro_diplo[0] |= COL1_INDIAN_MET_BIT; /* met (was relation 80; alarm pinned above) */ /* Arawak idx 2 */
     ai_contact_indian_meet_trade(&ctx, 6);
     if (!col1.tribe[0].state.learned) {
       return fail("teach-skill Arawak should set tribe.state.learned");
@@ -1088,7 +1089,7 @@ int main(void) {
     memset(cherokee, 0, sizeof(*cherokee));
     cherokee->alarm_by_player[0] = 5;
     col1.tribe[0].alarm[0].friction = 5;
-    col1.nation[0].relation_by_indian[4] = 80; /* Cherokee idx 4 */
+    col1.indian[4].euro_diplo[0] |= COL1_INDIAN_MET_BIT; /* met (was relation 80; alarm pinned above) */ /* Cherokee idx 4 */
     col1.nation[0].gold = 0; /* no gift overwrite of teach status */
     ai_contact_indian_meet_trade(&ctx, 8);
     if (!col1.tribe[0].state.learned) {
@@ -1118,7 +1119,7 @@ int main(void) {
     memset(apache, 0, sizeof(*apache));
     apache->alarm_by_player[0] = 5;
     col1.tribe[0].alarm[0].friction = 5;
-    col1.nation[0].relation_by_indian[5] = 80; /* Apache idx 5 */
+    col1.indian[5].euro_diplo[0] |= COL1_INDIAN_MET_BIT; /* met (was relation 80; alarm pinned above) */ /* Apache idx 5 */
     ai_contact_indian_meet_trade(&ctx, 9);
     if (!col1.tribe[0].state.learned) {
       return fail("teach-skill Apache should set tribe.state.learned");
@@ -1147,7 +1148,7 @@ int main(void) {
     col1.tribe[0].nation_id = 4;
     ind->alarm_by_player[0] = 5;
     col1.tribe[0].alarm[0].friction = 5;
-    col1.nation[0].relation_by_indian[0] = 80;
+    col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT; /* met (was relation 80; alarm pinned above) */
     char status_sc[128];
     status_sc[0] = '\0';
     ctx.status = status_sc;
@@ -1220,7 +1221,7 @@ int main(void) {
     ind->euro_diplo[0] = 1;
     ind->alarm_by_player[0] = 20; /* mid via tribe friction */
     col1.nation[0].gold = 0;
-    col1.nation[0].relation_by_indian[0] = 80;
+    col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT; /* met (was relation 80; alarm pinned above) */
     ai_contact_indian_meet_trade(&ctx, 4);
     if (col1.tribe[0].state.learned) {
       return fail("mid-alarm teach refuse should not set learned");
@@ -1257,7 +1258,7 @@ int main(void) {
     ind->euro_diplo[0] = 1;
     ind->alarm_by_player[0] = 5;
     col1.nation[0].gold = 0;
-    col1.nation[0].relation_by_indian[0] = 80;
+    col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT; /* met (was relation 80; alarm pinned above) */
     ai_contact_indian_meet_trade(&ctx, 4);
     if (col1.tribe[0].state.learned) {
       return fail("LEARNMASTER refuse should not consume the village one-shot");
@@ -1293,7 +1294,7 @@ int main(void) {
     ind->euro_diplo[0] = 1;
     ind->alarm_by_player[0] = 5;
     col1.nation[0].gold = 0;
-    col1.nation[0].relation_by_indian[0] = 80;
+    col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT; /* met (was relation 80; alarm pinned above) */
 
     euro->x = 12;
     euro->y = 12; /* clear Free Colonist from tribe adjacency */
@@ -1341,7 +1342,8 @@ int main(void) {
   col1.tribe[0].state.learned = 1;
   col1.tribe[0].state.capital = 0;
   col1.nation[0].gold = 50; /* ≥20 Large; <0x4b no Generous */
-  col1.nation[0].relation_by_indian[0] = 80;
+/* alarm pinned above (was relation write) */
+  col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
   euro->x = 6;
   euro->y = 5;
   brave->x = 5;
@@ -1569,7 +1571,8 @@ int main(void) {
     col1.tribe[0].state.learned = 1;
     col1.tribe[0].mission = 0xff;
     col1.nation[0].gold = 5; /* < 10 */
-    col1.nation[0].relation_by_indian[0] = 80;
+/* alarm pinned above (was relation write) */
+    col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
     euro->x = 6;
     euro->y = 5;
     brave->x = 5;
@@ -1594,7 +1597,7 @@ int main(void) {
   ind->euro_diplo[0] = 0;
   ind->euro_diplo[0] = (uint8_t)(ind->euro_diplo[0] & ~0x40u);
   col1.nation[0].gold = 15; /* ≥10 no refuse; <20 no gift drain */
-  col1.nation[0].relation_by_indian[0] = 0;
+  col1.indian[0].euro_diplo[0] = (uint8_t)(col1.indian[0].euro_diplo[0] & ~COL1_INDIAN_MET_BIT); /* unmet (was relation 0) */
   status[0] = '\0';
   ai_contact_indian_meet_trade(&ctx, 4);
   if (!ind->euro_diplo[0]) {
@@ -1693,7 +1696,8 @@ int main(void) {
     col1.tribe[0].alarm[0].friction = 50;
     col1.tribe[0].mission = 0xff;
     col1.nation[0].gold = 0; /* no GOLD arm */
-    col1.nation[0].relation_by_indian[0] = 40;
+/* alarm pinned above (was relation write) */
+    col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
     c->active = true;
     c->nation_id = 0;
     c->x = 5;
@@ -1741,7 +1745,8 @@ int main(void) {
     col1.tribe[0].alarm[0].friction = 50;
     col1.tribe[0].mission = 0xff;
     col1.nation[0].gold = 0;
-    col1.nation[0].relation_by_indian[0] = 40;
+/* alarm pinned above (was relation write) */
+    col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
     c->active = true;
     c->nation_id = 0;
     c->x = 5;
@@ -1790,7 +1795,8 @@ int main(void) {
     col1.tribe[0].alarm[0].friction = 50;
     col1.tribe[0].mission = 0xff;
     col1.nation[0].gold = 0;
-    col1.nation[0].relation_by_indian[0] = 40;
+/* alarm pinned above (was relation write) */
+    col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
     c->active = true;
     c->nation_id = 0;
     c->x = 5;
@@ -1945,7 +1951,8 @@ int main(void) {
     col1.tribe[0].alarm[0].friction = 10; /* gift-band */
     col1.tribe[0].state.learned = 1;
     col1.tribe[0].mission = 0xff;
-    col1.nation[0].relation_by_indian[0] = 80;
+/* alarm pinned above (was relation write) */
+    col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
     euro->x = 6;
     euro->y = 5;
     brave->x = 5;
@@ -2111,9 +2118,9 @@ int main(void) {
     brave->x = 5;
     brave->y = 5;
     brave->moves_left = 3;
-    ind->alarm_by_player[0] = 65;
+    ind->alarm_by_player[0] = 45; /* raid gate >=40, below thin at-war (alarm > 50) */
     col1.tribe[0].alarm[0].friction = 65;
-    col1.nation[0].relation_by_indian[0] = 80; /* not at-war */
+    col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT; /* not at-war */
     ind->euro_diplo[0] = (uint8_t)(ind->euro_diplo[0] & (uint8_t)~COL1_INDIAN_PEACE_BIT);
     c->active = true;
     c->nation_id = 0;
@@ -2141,7 +2148,8 @@ int main(void) {
     brave->x = 5;
     brave->y = 5;
     ind->euro_diplo[0] |= COL1_INDIAN_PEACE_BIT;
-    col1.nation[0].relation_by_indian[0] = 80;
+    col1.indian[0].alarm_by_player[0] = 20; /* relation 80 */
+    col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
     ind->alarm_by_player[0] = 65;
     col1.tribe[0].alarm[0].friction = 65;
     c->stock[COLONIZE_CARGO_FOOD] = 20;
@@ -2181,7 +2189,7 @@ int main(void) {
     ind->euro_diplo[0] = 1;
     ind->alarm_by_player[0] = 50;
     col1.nation[0].gold = 100;
-    col1.nation[0].relation_by_indian[0] = 80;
+    col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT; /* met (was relation 80; alarm pinned above) */
     c->active = true;
     c->nation_id = 0;
     c->x = 5;
@@ -2227,7 +2235,7 @@ int main(void) {
     ind->euro_diplo[0] = 1;
     ind->alarm_by_player[0] = 20;
     col1.nation[0].gold = 5;
-    col1.nation[0].relation_by_indian[0] = 80;
+    col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT; /* met (was relation 80; alarm pinned above) */
     c->active = true;
     c->nation_id = 0;
     c->x = 5;
@@ -2328,7 +2336,7 @@ int main(void) {
     ind->euro_diplo[0] = 1;
     ind->alarm_by_player[0] = 20;
     col1.nation[0].gold = 50;
-    col1.nation[0].relation_by_indian[0] = 80;
+    col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT; /* met (was relation 80; alarm pinned above) */
     c->active = true;
     c->nation_id = 0;
     c->x = 5;
@@ -2416,7 +2424,7 @@ int main(void) {
     col1.tribe[0].alarm[0].friction = 10;
     ind->euro_diplo[0] = 1;
     ind->alarm_by_player[0] = 10;
-    col1.nation[0].relation_by_indian[0] = 30;
+    col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT; /* met (was relation 30; alarm pinned above) */
     col1.nation[0].gold = 100;
     status[0] = '\0';
     ctx.status = status;
@@ -2462,7 +2470,7 @@ int main(void) {
     col1.tribe[0].mission = 0; /* own mission — flee chrome (not convert refuse) */
     col1.tribe[0].alarm[0].friction = 60;
     ind->alarm_by_player[0] = 60;
-    col1.nation[0].relation_by_indian[0] = 80;
+    col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT; /* met (was relation 80; alarm pinned above) */
     const int mx0 = flee_m->x;
     const int my0 = flee_m->y;
     char status_flee[128];
@@ -2513,12 +2521,13 @@ int main(void) {
     brave->y = 8;
     brave->moves_left = 3;
     brave->nation_id = 4;
-    ind->alarm_by_player[0] = 50;
-    ind->alarm_by_player[1] = 50; /* equal friction band */
+    /* Equal tribe friction; nation-level alarm breaks the tie (single store). */
+    ind->alarm_by_player[0] = 10; /* less hostile (relation 90) */
+    ind->alarm_by_player[1] = 80; /* prefer this target (relation 20) */
     col1.tribe[0].alarm[0].friction = 50;
     col1.tribe[0].alarm[1].friction = 50;
-    col1.nation[0].relation_by_indian[0] = 90; /* less hostile */
-    col1.nation[1].relation_by_indian[0] = 20; /* prefer this target */
+    col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
+    col1.indian[0].euro_diplo[1] |= COL1_INDIAN_MET_BIT;
     ColonizeColony* c0 = &colonies.colonies[0];
     ColonizeColony* c1 = &colonies.colonies[1];
     c0->id = 0;
@@ -2571,14 +2580,15 @@ int main(void) {
     brave->y = 8;
     brave->moves_left = 3;
     brave->nation_id = 4;
-    ind->alarm_by_player[0] = 60;
-    ind->alarm_by_player[1] = 45;
+    /* Single store: at-war (thin) = nation alarm > 50; tribe friction is separate. */
+    ind->alarm_by_player[0] = 45; /* not at war, higher friction */
+    ind->alarm_by_player[1] = 60; /* at war, lower friction */
     col1.tribe[0].alarm[0].friction = 60;
     col1.tribe[0].alarm[1].friction = 45;
     col1.tribe[0].alarm[0].attacks = 0;
     col1.tribe[0].alarm[1].attacks = 0;
-    col1.nation[0].relation_by_indian[0] = 80; /* not at war */
-    col1.nation[1].relation_by_indian[0] = 30; /* at war */
+    col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
+    col1.indian[0].euro_diplo[1] |= COL1_INDIAN_MET_BIT;
     ColonizeColony* c0 = &colonies.colonies[0];
     ColonizeColony* c1 = &colonies.colonies[1];
     c0->active = true;
@@ -2631,7 +2641,7 @@ int main(void) {
     ind->alarm_by_player[0] = 65;
     col1.tribe[0].alarm[0].friction = 65;
     col1.tribe[0].alarm[0].attacks = 0;
-    col1.nation[0].relation_by_indian[0] = 40; /* at-war band */
+    col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT; /* met (was relation 40; alarm pinned above) */ /* at-war band */
     ColonizeColony* c_food = &colonies.colonies[0];
     ColonizeColony* c_mil = &colonies.colonies[1];
     c_food->id = 0;
@@ -2692,7 +2702,7 @@ int main(void) {
     col1.tribe[0].mission = 0; /* mission present */
     col1.tribe[0].alarm[0].friction = 55; /* mid — should be ignored */
     col1.tribe[0].alarm[0].attacks = 0;
-    col1.nation[0].relation_by_indian[0] = 40;
+    col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT; /* met; alarm 10 pinned above */
     ColonizeColony* c_ms = &colonies.colonies[0];
     c_ms->active = true;
     c_ms->nation_id = 0;
@@ -2808,7 +2818,8 @@ int main(void) {
     col1.tribe[0].alarm[0].friction = 65;
     col1.tribe[0].alarm[0].attacks = 0;
     col1.tribe[0].mission = 0xff;
-    col1.nation[0].relation_by_indian[0] = 40;
+/* alarm pinned above (was relation write) */
+    col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
     ColonizeColony* c_plain = &colonies.colonies[0];
     ColonizeColony* c_tools = &colonies.colonies[1];
     c_plain->id = 0;
@@ -2868,7 +2879,8 @@ int main(void) {
     col1.tribe[0].alarm[0].friction = 65;
     col1.tribe[0].alarm[0].attacks = 0;
     col1.tribe[0].mission = 0xff;
-    col1.nation[0].relation_by_indian[0] = 40;
+/* alarm pinned above (was relation write) */
+    col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
     col1.nation[0].gold = 100; /* GOLD kind eligible; approach uses silver */
     ColonizeColony* c_plain = &colonies.colonies[0];
     ColonizeColony* c_silver = &colonies.colonies[1];
@@ -2928,7 +2940,8 @@ int main(void) {
     col1.tribe[0].alarm[0].friction = 55;
     col1.tribe[0].alarm[0].attacks = 0;
     col1.tribe[0].mission = 0xff;
-    col1.nation[0].relation_by_indian[0] = 40;
+/* alarm pinned above (was relation write) */
+    col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
     col1.nation[0].gold = 100;
     ColonizeColony* c_tools = &colonies.colonies[0];
     ColonizeColony* c_silver = &colonies.colonies[1];
@@ -3011,7 +3024,8 @@ int main(void) {
     col1.tribe[0].mission = 0xff;
     col1.tribe[0].alarm[0].friction = 65;
     col1.tribe[0].alarm[0].attacks = 0;
-    col1.nation[0].relation_by_indian[0] = 40;
+/* alarm pinned above (was relation write) */
+    col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
     col1.nation[0].gold = 0; /* no GOLD */
     col1.head.founding_father[FF_POCAHONTAS] = -1;
     ColonizeColony* c_burn = &colonies.colonies[0];
@@ -3072,12 +3086,12 @@ int main(void) {
       ind->alarm_by_player[e] = 0;
       col1.tribe[0].alarm[e].friction = 0;
       col1.tribe[0].alarm[e].attacks = 0;
-      col1.nation[e].relation_by_indian[0] = 100; /* peaceful baseline */
+      col1.indian[0].euro_diplo[e] |= COL1_INDIAN_MET_BIT; /* met (was relation 100; alarm pinned above) */ /* peaceful baseline */
       col1.nation[e].gold = 0;
     }
     ind->alarm_by_player[1] = 75; /* ≥70 abandon gate targets nation 1 */
     col1.tribe[0].alarm[1].friction = 75;
-    col1.nation[1].relation_by_indian[0] = 40;
+    col1.indian[0].euro_diplo[1] |= COL1_INDIAN_MET_BIT; /* met (was relation 40; alarm pinned above) */
     col1.head.founding_father[FF_POCAHONTAS] = -1;
     ColonizeColony* c_fbrn = &colonies.colonies[0];
     memset(c_fbrn, 0, sizeof(*c_fbrn));
@@ -3139,7 +3153,7 @@ int main(void) {
      * touch nation 0) are not hijacked by this block's higher alarm. */
     ind->alarm_by_player[1] = 0;
     col1.tribe[0].alarm[1].friction = 0;
-    col1.nation[1].relation_by_indian[0] = 0;
+    col1.indian[0].euro_diplo[1] = (uint8_t)(col1.indian[0].euro_diplo[1] & ~COL1_INDIAN_MET_BIT); /* unmet (was relation 0) */
   }
 
   /*
@@ -3163,7 +3177,8 @@ int main(void) {
     col1.tribe[0].mission = 0xff;
     col1.tribe[0].alarm[0].friction = 65;
     col1.tribe[0].alarm[0].attacks = 0;
-    col1.nation[0].relation_by_indian[0] = 40;
+/* alarm pinned above (was relation write) */
+    col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
     col1.nation[0].gold = 0;
     col1.head.founding_father[FF_POCAHONTAS] = -1;
     colonies.building_type_count = 2;
@@ -3241,7 +3256,7 @@ int main(void) {
     euro->active = true;
     ind->alarm_by_player[0] = 0;
     col1.tribe[0].alarm[0].friction = 0;
-    col1.nation[0].relation_by_indian[0] = 50;
+    col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT; /* met (was relation 50; alarm pinned above) */
     colonies.colonies[0].active = false;
     const int lead_id = units_spawn_allow_stack(&units, 0, 9, 5);
     ColonizeUnit* lead = units_get(&units, lead_id);
@@ -3296,7 +3311,7 @@ int main(void) {
     euro->active = true;
     ind->alarm_by_player[0] = 55;
     col1.tribe[0].alarm[0].friction = 55;
-    col1.nation[0].relation_by_indian[0] = 40;
+    col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT; /* met (was relation 40; alarm pinned above) */
     ColonizeColony* c_tgt = &colonies.colonies[0];
     c_tgt->active = true;
     c_tgt->nation_id = 0;
@@ -3384,7 +3399,7 @@ int main(void) {
      */
     ind->alarm_by_player[0] = 55;
     col1.tribe[0].alarm[0].friction = 55;
-    col1.nation[0].relation_by_indian[0] = 40;
+    col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT; /* met (was relation 40; alarm pinned above) */
     c_tgt->active = true;
     c_tgt->nation_id = 0;
     c_tgt->x = 12;
@@ -3421,7 +3436,7 @@ int main(void) {
      */
     ind->alarm_by_player[0] = 55;
     col1.tribe[0].alarm[0].friction = 55;
-    col1.nation[0].relation_by_indian[0] = 40;
+    col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT; /* met (was relation 40; alarm pinned above) */
     c_tgt->active = true;
     c_tgt->nation_id = 0;
     c_tgt->x = 12;
@@ -3488,7 +3503,8 @@ int main(void) {
     col1.tribe[0].mission = 0xff;
     col1.tribe[0].alarm[0].friction = 50;
     col1.tribe[0].alarm[0].attacks = 0;
-    col1.nation[0].relation_by_indian[0] = 40;
+/* alarm pinned above (was relation write) */
+    col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
     col1.head.founding_father[FF_POCAHONTAS] = -1;
     ColonizeColony* c_fr = &colonies.colonies[0];
     c_fr->active = true;
@@ -3667,7 +3683,7 @@ int main(void) {
     col1.tribe[0].alarm[0].friction = 18; /* Accept should clear */
     col1.tribe[0].state.learned = 1; /* skip teach side-queue */
     col1.tribe[0].mission = 0xff;
-    col1.nation[0].relation_by_indian[0] = 0;
+    col1.indian[0].euro_diplo[0] = (uint8_t)(col1.indian[0].euro_diplo[0] & ~COL1_INDIAN_MET_BIT); /* unmet (was relation 0) */
     col1.nation[0].gold = 30;
     ColonizeColony* c_pop = &colonies.colonies[0];
     c_pop->active = true;
@@ -3723,8 +3739,8 @@ int main(void) {
     if (ai_diplo_indian_relation(&col1, 4, 0) < 40) {
       return fail("WELCOME Yes should raise relation above refuse band");
     }
-    if (ind->alarm_by_player[0] != 0 || col1.tribe[0].alarm[0].friction != 0) {
-      return fail("WELCOME Yes should clear alarm/friction toward Euro");
+    if (ind->alarm_by_player[0] > 20 || col1.tribe[0].alarm[0].friction != 0) {
+      return fail("WELCOME Yes should clamp alarm <= 20 (FUN_5bfb :96624) and clear friction");
     }
     /* Land grant: occupied tile stamped purchased + euro owner nibble. */
     {
@@ -3805,7 +3821,8 @@ int main(void) {
     ai_popup_clear(&pop);
     ind->euro_diplo[0] = 1;
     ind->euro_diplo[0] = (uint8_t)(ind->euro_diplo[0] | 0x40);
-    col1.nation[0].relation_by_indian[0] = 100;
+    col1.indian[0].alarm_by_player[0] = 0; /* relation 100 */
+    col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
     ind->alarm_by_player[0] = 10;
     ColonizeUnit* land0 = units_get(&units, units_id_at(&units, 6, 5));
     if (!land0) {
@@ -3887,8 +3904,8 @@ int main(void) {
      * Cite: indian_trade_2820.md 2026-08-22 addendum.
      */
     {
-      const uint8_t rel_before = col1.nation[0].relation_by_indian[0];
       ind->alarm_by_player[0] = 47;
+      const uint8_t rel_before = ai_diplo_indian_relation(&col1, 4 + (0), 0);
       col1.tribe[0].alarm[0].friction = 20;
       land0->hold_goods_type[0] = COLONIZE_CARGO_TRADE_GOODS;
       land0->hold_goods_amount[0] = 3;
@@ -3910,11 +3927,11 @@ int main(void) {
                 land0->hold_goods_amount[0]);
         return fail("mid-alarm trade should drain exactly 1 TRADE_GOODS");
       }
-      if (col1.nation[0].relation_by_indian[0] != rel_before + 2) {
+      if (ai_diplo_indian_relation(&col1, 4 + (0), 0) != rel_before + 2) {
         return fail("mid-alarm trade should still bump relation +2 (no hard-bargain arm)");
       }
-      if (ind->alarm_by_player[0] != 46) {
-        return fail("mid-alarm trade should still decay alarm_by_player by 1");
+      if (ind->alarm_by_player[0] != 45) {
+        return fail("mid-alarm trade should still relieve alarm by 2 (single store: relation +2)");
       }
       if (strstr(st_pop, "Trade accepted") == NULL) {
         fprintf(stderr, "unit_ai_contact: mid-alarm status '%s'\n", st_pop);
@@ -3931,7 +3948,7 @@ int main(void) {
       ColonizeCol1Indian* az = &col1.indian[1];
       az->euro_diplo[0] = 1;
       az->alarm_by_player[0] = 10;
-      col1.nation[0].relation_by_indian[1] = 80; /* Aztec×Euro meet floor */
+      col1.indian[1].euro_diplo[0] |= COL1_INDIAN_MET_BIT; /* met (was relation 80; alarm pinned above) */ /* Aztec×Euro meet floor */
       col1.tribe[0].nation_id = 5; /* Aztec ore */
       brave2->nation_id = 5; /* real per-unit adjacency now needs the physical Brave to match */
       col1.tribe[0].alarm[0].friction = 20;
@@ -3980,7 +3997,7 @@ int main(void) {
         ColonizeCol1Indian* ind_m = &col1.indian[cases[ci].tribe_nation - 4];
         ind_m->euro_diplo[0] = 1;
         ind_m->alarm_by_player[0] = 10;
-        col1.nation[0].relation_by_indian[cases[ci].tribe_nation - 4] = 80;
+        col1.indian[cases[ci].tribe_nation - 4].euro_diplo[0] |= COL1_INDIAN_MET_BIT; /* met (alarm pinned above) */
         col1.tribe[0].nation_id = (uint8_t)cases[ci].tribe_nation;
         brave2->nation_id = cases[ci].tribe_nation;
         col1.tribe[0].alarm[0].friction = 20;
@@ -4037,8 +4054,8 @@ int main(void) {
       col1.tribe[0].x = 5;
       col1.tribe[0].y = 5;
       ind->alarm_by_player[0] = 10;
-      col1.nation[0].relation_by_indian[0] = 80;
-      const uint8_t rel_sea = col1.nation[0].relation_by_indian[0];
+      col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT; /* met (was relation 80; alarm pinned above) */
+      const uint8_t rel_sea = ai_diplo_indian_relation(&col1, 4 + (0), 0);
       ai_popup_clear(&pop);
       pop.has_result = true;
       pop.result_cancelled = false;
@@ -4054,7 +4071,7 @@ int main(void) {
       if (ship->hold_goods_amount[0] != 2) {
         return fail("sea-trade should drain 1 TRADE_GOODS from ship hold");
       }
-      if (col1.nation[0].relation_by_indian[0] != (uint8_t)(rel_sea + 2)) {
+      if (ai_diplo_indian_relation(&col1, 4 + (0), 0) != (uint8_t)(rel_sea + 2)) {
         return fail("sea-trade should bump relation like land trade");
       }
       if (strstr(st_pop, "Trade") == NULL) {
@@ -4086,7 +4103,7 @@ int main(void) {
       wag->hold_goods_type[0] = COLONIZE_CARGO_TRADE_GOODS;
       wag->hold_goods_amount[0] = 2;
       ind->alarm_by_player[0] = 12;
-      col1.nation[0].relation_by_indian[0] = 70;
+      col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT; /* met (was relation 70; alarm pinned above) */
       ai_popup_clear(&pop);
       pop.has_result = true;
       pop.result_cancelled = false;
@@ -4102,8 +4119,8 @@ int main(void) {
       if (wag->hold_goods_amount[0] != 1) {
         return fail("wagon-trade should drain 1 TRADE_GOODS from wagon hold");
       }
-      if (col1.nation[0].relation_by_indian[0] != 72) {
-        return fail("wagon-trade should bump relation +2");
+      if (ai_diplo_indian_relation(&col1, 4 + (0), 0) != 90) {
+        return fail("wagon-trade should bump relation +2 (alarm 12 -> 10)");
       }
       units_despawn(&units, wag_id);
     }
@@ -4163,7 +4180,7 @@ int main(void) {
     {
       ai_popup_clear(&pop);
       ind->alarm_by_player[0] = 55;
-      col1.nation[0].relation_by_indian[0] = 80;
+      col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT; /* met (was relation 80; alarm pinned above) */
       col1.tribe[0].last_bought = (uint8_t)COLONIZE_CARGO_TRADE_GOODS;
       col1.tribe[0].last_sold = (uint8_t)COLONIZE_CARGO_FURS;
       st_pop[0] = '\0';
@@ -4221,7 +4238,7 @@ int main(void) {
       col1.tribe[0].alarm[0].friction = 0;
       col1.tribe[0].state.learned = 1;
       col1.tribe[0].mission = 0xff;
-      col1.nation[0].relation_by_indian[0] = 0;
+      col1.indian[0].euro_diplo[0] = (uint8_t)(col1.indian[0].euro_diplo[0] & ~COL1_INDIAN_MET_BIT); /* unmet (was relation 0) */
       st_pop[0] = '\0';
       ai_contact_indian_meet_trade(&ctx, 4);
       if (!ind->euro_diplo[0]) {
@@ -4249,7 +4266,7 @@ int main(void) {
       ind->euro_diplo[0] = (uint8_t)(ind->euro_diplo[0] & ~0x40u);
       ind->alarm_by_player[0] = 0;
       col1.tribe[0].alarm[0].attacks = 0;
-      col1.nation[0].relation_by_indian[0] = 10;
+      /* unmet: euro_diplo zeroed above (transform MET line dropped) */
       for (int ui = 0; ui < COLONIZE_UNITS_MAX; ++ui) {
         ColonizeUnit* u = &units.units[ui];
         if (u->active && u->nation_id == 4) {
@@ -4303,7 +4320,7 @@ int main(void) {
       ind->euro_diplo[0] = 1;
       ind->euro_diplo[0] = (uint8_t)(ind->euro_diplo[0] | 0x40); /* peace */
       ind->alarm_by_player[0] = 10;
-      col1.nation[0].relation_by_indian[0] = 100;
+      col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT; /* met (was relation 100; alarm pinned above) */
       for (int ui = 0; ui < COLONIZE_UNITS_MAX; ++ui) {
         ColonizeUnit* u = &units.units[ui];
         if (u->active && (u->nation_id == 4 || (u->nation_id == 0 && units_is_sea(&units, u->id) == 0))) {
@@ -4382,7 +4399,8 @@ int main(void) {
       col1.tribe[0].state.learned = 1;
       col1.tribe[0].mission = 0xff;
       col1.nation[0].gold = 50;
-      col1.nation[0].relation_by_indian[0] = 80;
+/* alarm pinned above (was relation write) */
+      col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
       st_pop[0] = '\0';
       pop.has_result = true;
       pop.result_cancelled = false;
@@ -4506,7 +4524,7 @@ int main(void) {
       ind->alarm_by_player[0] = 0;
       ind->alarm_by_player[1] = 0;
       col1.nation[0].gold = 5000;
-      col1.nation[0].relation_by_indian[0] = 128;
+      col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT; /* met (was relation 50; alarm pinned above) */
       ai_popup_clear(&pop);
       pop.has_result = true;
       pop.result_cancelled = false;
@@ -4590,7 +4608,8 @@ int main(void) {
     {
       ind->muskets = 40;
       ind->horse_herds = 40;
-      col1.nation[0].relation_by_indian[0] = 128;
+      col1.indian[0].alarm_by_player[0] = 50; /* relation 50 */
+      col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
 
       col1.nation[0].gold = 1000000;
       col1.nation[1].gold = 1000000;
@@ -4698,7 +4717,8 @@ int main(void) {
       col1.tribe[0].state.learned = 1;
       col1.tribe[0].mission = 0xff;
       col1.nation[0].gold = 80;
-      col1.nation[0].relation_by_indian[0] = 80;
+/* alarm pinned above (was relation write) */
+      col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
       c->active = true;
       c->nation_id = 0;
       c->x = 5;
@@ -4800,7 +4820,8 @@ int main(void) {
       col1.tribe[0].state.learned = 1;
       col1.tribe[0].mission = 0xff;
       col1.nation[0].gold = 100;
-      col1.nation[0].relation_by_indian[0] = 80;
+      col1.indian[0].alarm_by_player[0] = 20; /* relation 80 */
+      col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
       c->active = true;
       c->nation_id = 0;
       c->x = 5;
@@ -4920,7 +4941,8 @@ int main(void) {
       col1.tribe[0].state.learned = 0;
       col1.tribe[0].last_sold = 0;
       col1.tribe[0].mission = 0xff;
-      col1.nation[0].relation_by_indian[1] = 80; /* Aztec idx 1 */
+      col1.indian[1].alarm_by_player[0] = 20; /* relation 80 */ /* Aztec idx 1 */
+      col1.indian[1].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
       col1.nation[0].gold = 0;
       st_pop[0] = '\0';
       pop.has_result = true;
@@ -4985,7 +5007,8 @@ int main(void) {
       col1.tribe[0].alarm[0].friction = 10;
       col1.tribe[0].mission = 0xff;
       col1.tribe[0].state.learned = 1;
-      col1.nation[0].relation_by_indian[0] = 80;
+/* alarm pinned above (was relation write) */
+      col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
       const uint16_t crosses_m = col1.nation[0].current_crosses;
       st_pop[0] = '\0';
       ai_contact_indian_meet_trade(&ctx, 4);
@@ -5011,7 +5034,8 @@ int main(void) {
       ai_popup_clear(&pop);
       ind->euro_diplo[0] = 1;
       ind->euro_diplo[0] = (uint8_t)(ind->euro_diplo[0] | 0x40);
-      col1.nation[0].relation_by_indian[0] = 100;
+      col1.indian[0].alarm_by_player[0] = 0; /* relation 100 */
+      col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
       ind->alarm_by_player[0] = 10;
       st_pop[0] = '\0';
       if (!ai_contact_try_village_meet(&ctx, 0, 4, 0, 0)) {
@@ -5066,7 +5090,8 @@ int main(void) {
     col1.tribe[0].alarm[0].attacks = 5;
     col1.tribe[0].nation_id = 4;
     ind->euro_diplo[0] = (uint8_t)(ind->euro_diplo[0] & ~0x40u);
-    col1.nation[0].relation_by_indian[0] = 20;
+/* alarm pinned above (was relation write) */
+    col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
     ai_contact_indian_capital_surrender(&col1, 4, 0);
     if (ind->alarm_by_player[0] != 0 || col1.tribe[0].alarm[0].friction != 0) {
       return fail("capital surrender should clear alarm/friction");
@@ -5103,7 +5128,8 @@ int main(void) {
     ctx.ai_popups = &pop;
     col1.player[0].control = 0;
     ind->euro_diplo[0] = (uint8_t)(COL1_INDIAN_MET_BIT | 0x40u);
-    col1.nation[0].relation_by_indian[0] = 60;
+    col1.indian[0].alarm_by_player[0] = 40; /* relation 60 */
+    col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
     ind->alarm_by_player[0] = 10;
     col1.tribe[0].alarm[0].friction = 10;
     ai_popup_clear(&pop);
@@ -5159,8 +5185,8 @@ int main(void) {
     col1.tribe[0].nation_id = 4;
     col1.tribe[0].alarm[0].friction = 10;
     ind->euro_diplo[0] = (uint8_t)(COL1_INDIAN_MET_BIT | 0x01u | 0x40u);
-    col1.nation[0].relation_by_indian[0] = 60; /* mid band */
-    ind->alarm_by_player[0] = 10;
+    col1.indian[0].alarm_by_player[0] = 40; /* mid band (single store) */
+    col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
     st_ship[0] = '\0';
     ai_popup_clear(&pop);
     if (!ai_contact_try_ship_village(&ctx, 0, 5, 5)) {
@@ -5186,10 +5212,11 @@ int main(void) {
       return fail("ship mid-band should still enqueue Meet CHOICE");
     }
 
-    /* Relation 80 (≥75) → MADAT; no wary. */
+    /* ASM: FUN_1000_84fc (alarm) >= 0x4b → MADAT; no wary. */
     ai_popup_clear(&pop);
     st_ship[0] = '\0';
-    col1.nation[0].relation_by_indian[0] = 80;
+    col1.indian[0].alarm_by_player[0] = 80;
+    col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
     col1.tribe[0].alarm[0].friction = 10;
     if (!ai_contact_try_ship_village(&ctx, 0, 5, 5)) {
       return fail("ship rel80 should handle village");
@@ -5210,7 +5237,8 @@ int main(void) {
     /* Friction mad path still aborts. */
     ai_popup_clear(&pop);
     st_ship[0] = '\0';
-    col1.nation[0].relation_by_indian[0] = 60;
+    col1.indian[0].alarm_by_player[0] = 40; /* relation 60 */
+    col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
     col1.tribe[0].alarm[0].friction = 64;
     if (!ai_contact_try_ship_village(&ctx, 0, 5, 5)) {
       return fail("ship friction mad should handle village");
@@ -5263,8 +5291,11 @@ int main(void) {
       ind->horse_herds = 8;
       /* relation_by_indian is indexed [euro_nation].[indian_idx]; human=0,
        * crown fold=1 for human=0, tribe nation_id=4 → indian_idx=0. */
-      col1.nation[0].relation_by_indian[0] = 80;
-      col1.nation[1].relation_by_indian[0] = 50; /* crown fold for human=0 */
+      /* FUN_281f_030c = alarm toward the rebel nation; eligibility needs >= 25. */
+      col1.indian[0].alarm_by_player[0] = 30;
+      col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
+      col1.indian[0].alarm_by_player[1] = 50; /* crown fold for human=0 */
+      col1.indian[0].euro_diplo[1] |= COL1_INDIAN_MET_BIT;
       status_woi[0] = '\0';
       /*
        * "Mission clear" side-effect (FUN_2a1f_0398 / FUN_4cc6_0000, wired
@@ -5281,16 +5312,17 @@ int main(void) {
         } else {
           return fail("WoI defect hit should clear this tribe's human missions");
         }
-        if (col1.nation[0].relation_by_indian[0] != 180) {
-          return fail("WoI defect hit should add +100 relation vs human");
+        /* FUN_4cc6_00f2(+100 vs rebels, -100 vs Crown) are ALARM deltas: Tory natives. */
+        if (ai_diplo_indian_alarm(&col1, 4, 0) != 100) {
+          return fail("WoI defect hit should max alarm vs the rebel nation");
         }
-        if (col1.nation[1].relation_by_indian[0] != 0) {
+        if (ai_diplo_indian_alarm(&col1, 4, 1) != 0) {
           fprintf(
             stderr,
-            "unit_ai_contact: WoI crown relation=%u want 0\n",
-            (unsigned)col1.nation[1].relation_by_indian[0]
+            "unit_ai_contact: WoI crown alarm=%d want 0\n",
+            ai_diplo_indian_alarm(&col1, 4, 1)
           );
-          return fail("WoI defect hit should floor relation vs crown at 0");
+          return fail("WoI defect hit should zero alarm vs the Crown");
         }
         if (ind->muskets != 40 || ind->horse_herds != 8 || ind->horse_breeding != 200) {
           fprintf(
@@ -5307,9 +5339,8 @@ int main(void) {
         }
         saw_defect = 1;
       } else {
-        if (col1.nation[0].relation_by_indian[0] != 80 ||
-            col1.nation[1].relation_by_indian[0] != 50) {
-          return fail("WoI defect miss should leave relation untouched");
+        if (ai_diplo_indian_alarm(&col1, 4, 0) != 30 || ai_diplo_indian_alarm(&col1, 4, 1) != 50) {
+          return fail("WoI defect miss should leave alarm untouched");
         }
         if (ind->muskets != 10 || ind->horse_herds != 8 || ind->horse_breeding != 0) {
           return fail("WoI defect miss should leave musket/horse windfall untouched");
@@ -5337,9 +5368,10 @@ int main(void) {
     ind->tech = 15;
     ind->muskets = 10;
     ind->horse_herds = 8;
-    col1.nation[0].relation_by_indian[0] = 80;
+    col1.indian[0].alarm_by_player[0] = 20; /* relation 80 */
+    col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
     ai_contact_indian_woi_defect(&ctx, 4);
-    if (col1.nation[0].relation_by_indian[0] != 80 || ind->muskets != 10) {
+    if (ai_diplo_indian_relation(&col1, 4 + (0), 0) != 80 || ind->muskets != 10) {
       return fail("WoI defect should skip an already-resolved tribe");
     }
 
@@ -5351,9 +5383,10 @@ int main(void) {
     ind->tech = 15;
     ind->muskets = 10;
     ind->horse_herds = 8;
-    col1.nation[0].relation_by_indian[0] = 80;
+    col1.indian[0].alarm_by_player[0] = 20; /* relation 80 */
+    col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
     ai_contact_indian_woi_defect(&ctx, 4);
-    if (ind->woi_defect_resolved || col1.nation[0].relation_by_indian[0] != 80) {
+    if (ind->woi_defect_resolved || ai_diplo_indian_relation(&col1, 4 + (0), 0) != 80) {
       return fail("WoI defect should no-op before independence is declared");
     }
     col1.head.unknown46[0] = 0;
@@ -5386,8 +5419,9 @@ int main(void) {
     col1.tribe[0].nation_id = 4;
     col1.tribe[0].state.capital = 0;
     col1.tribe[0].alarm[0].friction = 20;
-    col1.nation[0].relation_by_indian[0] = 128; /* mid-range, away from clamp edges */
-    const uint8_t rel_before_accept = col1.nation[0].relation_by_indian[0];
+    col1.indian[0].alarm_by_player[0] = 50; /* relation 50 */ /* mid-range, away from clamp edges */
+    col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
+    const uint8_t rel_before_accept = ai_diplo_indian_relation(&col1, 4 + (0), 0);
 
     ai_popup_clear(&pop);
     pop.has_result = true;
@@ -5404,14 +5438,15 @@ int main(void) {
     if (col1.tribe[0].alarm[0].friction <= 20) {
       return fail("BEGFOOD accept should scale friction up");
     }
-    if (col1.nation[0].relation_by_indian[0] <= rel_before_accept) {
+    if (ai_diplo_indian_relation(&col1, 4 + (0), 0) <= rel_before_accept) {
       return fail("BEGFOOD accept should improve relations");
     }
 
     colonies.colonies[0].stock[COLONIZE_CARGO_FOOD] = 100;
     col1.tribe[0].alarm[0].friction = 20;
-    col1.nation[0].relation_by_indian[0] = 128;
-    const uint8_t rel_before_decline = col1.nation[0].relation_by_indian[0];
+    col1.indian[0].alarm_by_player[0] = 50; /* relation 50 */
+    col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
+    const uint8_t rel_before_decline = ai_diplo_indian_relation(&col1, 4 + (0), 0);
 
     ai_popup_clear(&pop);
     pop.has_result = true;
@@ -5428,7 +5463,7 @@ int main(void) {
     if (col1.tribe[0].alarm[0].friction != 0) {
       return fail("BEGFOOD decline should reset friction to 0");
     }
-    if (col1.nation[0].relation_by_indian[0] >= rel_before_decline) {
+    if (ai_diplo_indian_relation(&col1, 4 + (0), 0) >= rel_before_decline) {
       return fail("BEGFOOD decline should worsen relations");
     }
     fprintf(stderr, "unit_ai_contact: BEGFOOD accept/decline ok\n");

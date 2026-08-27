@@ -350,3 +350,27 @@ Annotated deep dives (do not duplicate here):
 | Settlement enter `4528` | [`indian_settlement_4528.md`](../original_sources_annotated/ai/indian_settlement_4528.md) |
 | Nation turn shell | [`indian_nation_turn.c`](../original_sources_annotated/ai/indian_nation_turn.c) |
 | Quiet Brave scoring | [`quiet_brave_scoring.c`](../original_sources_annotated/ai/quiet_brave_scoring.c) |
+
+
+### 2026-08-27 — single alarm store (relation/alarm consolidation)
+
+`FUN_1000_84fc` / `FUN_15dc_00e0` (read) and `FUN_4cc6_00f2` (write) operate
+on `indian[idx].alarm_by_player[euro]` — 0..100, high = hostile, map-gen seed
+`RNG(0,14)` (+2×difficulty for AI nations), first contact clamps ≤20, **no
+per-turn decay** (byte-stable across seed-100 TURN3..7). `nation.relation_by_indian`
+is a flag byte (`0x60` once met) in every DOS save, never a scalar. Linux
+therefore now has one store:
+
+- `ai_diplo_indian_alarm` / `ai_diplo_indian_alarm_delta` — DOS-native; used at
+  sites transcribed from DOS (152e accumulator ±1, 1816 WoI defect ±100 —
+  direction was inverted before: the tribe turns *hostile to the rebels*,
+  content with the Crown; 2820/417e price operands; `0x4b` MADAT gates).
+- `ai_diplo_indian_relation` = `100 − alarm`, `_delta(d)` = `alarm_delta(−d)` —
+  the Linux-side view for fandom-derived sites (thresholds <40 refuse-talk,
+  <50 thin at-war, raids/attacks −5, trade +2).
+- Retired as fiction: peaceful drift (+1/turn), peace feeler (+2), the
+  relation ±1 arm of `ai_contact_indian_relation_tick`, the raid −3/−5 double
+  push, the trade `alarm--` double push.
+- Still thin: "at war with tribe" = met ∧ alarm > 50. DOS uses a diplo war bit
+  (`FUN_1000_8c28 & 2`) plus `alarm > 0x4a` in 153e; Linux has no WAR bit on
+  `euro_diplo` yet — candidate follow-up.
