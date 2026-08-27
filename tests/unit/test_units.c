@@ -3869,6 +3869,11 @@ int main(void) {
     for (int i = 0; i < COLONIZE_COL1_FF_COUNT; ++i) {
       dcol1.head.founding_father[i] = -1;
     }
+    /* FUN_65dd_0004:103597 downgrades Vanishes to Nothing for a nation
+     * with < 5 census pop and < 3 colonies — give nation 0 an established
+     * footprint so the vanish branch is reachable at all. */
+    dcol1.stuff.census_pop_proxy[0] = 20;
+    dcol1.stuff.colony_counts[0] = 3;
     bool saw_gold = false;
     bool saw_fountain = false;
     bool saw_treasure = false;

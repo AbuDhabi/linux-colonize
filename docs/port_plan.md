@@ -657,6 +657,19 @@ KINGGALLEON2 (non-Cortes galleon share string) PARK.
   (4 golden suites disabled), same as baseline; added a de Soto Scout-type
   gate regression test + reworked the case-5-latch seed search for the new
   RNG call shape.
+  **2026-08-27 follow-up — every P7.1 PARK closed statically:** terrain
+  qualify = `terrain_class_at` pedia class (case 1 wet classes, case 2
+  desert/scrub/hill/mountain); `0x1dc6/0x1dc7` session counters (FoY needs
+  ≥4 rumours explored, Cibola capped at 7 per process) as statics +
+  `units_lcr_reset_session_counters`; case-5 colony gates use
+  `stuff.census_pop_proxy`/`colony_counts` (+ Pioneer 50% mercy); case 3 =
+  3d8×10×(skill+2)/2, case 7 = 4d10×2, Cibola = ((skill+2)×10+RNG(1,20))
+  hundred, Burial3 = (RNG(1,8)+(skill+5)×2)×2 hundred, burial variant by
+  the loop's `gate` (<25/<50|<65/else) and tribe claim `RNG(1,(dist+5)<<
+  skill)<4` → SCREWED +100 relation (no kill). **Case 2/9 identity was
+  swapped in the port** (dialog tag is literally "LOSTCITY"+case; case 2
+  spawns unit type 10 Treasure, case 9 type 0 Colonist) — fixed. See
+  mysteries_catalog.md 65dd entry. ctest 44/44.
 - [ ] **P7.2 [auto]** Each LCR outcome fully applied. **Status
   2026-08-26 (checked, this "Now" framing was stale):** all 9
   `units_lcr_roll_outcome` cases in `units.c` (`units_apply_lcr_outcome`
