@@ -32,18 +32,20 @@ uses place. Not a save DS:0x917c writer (RMW layout PARKED).
 |------|-------|
 | Lines | **81684–81738** (~55) |
 | Thunk | `FUN_281f_0676` |
-| Does **not** call `2154` / `2820` / `4528` / `1816` |
+| Does **not** call `2154` / `2820` / `4528`; **does** call `1816` (phase 2, see below) |
 
 ### Phases
 
 | # | Role |
 |---|------|
 | 1 | Clear `DS:0x5b04` tables — 8 Indian × 4 Euro words |
-| 2 | For Indian nations 0..7: if tribe flags clear bit7, `FUN_41f2_0266` (growth/message chrome probe) |
+| 2 | For Indian slots 0..7: if `DS:0x5ad9 + 0x4e*slot` (tribe flags) bit7 clear → **`FUN_4d56_1816(slot)`** — the full Indian nation turn. Ghidra labels the call `FUN_41f2_0266`; that is a misresolve (see "Dispatcher — resolved") |
 | 3 | For each colony: bind; for each worked ring tile with owner nibble: if tile owner is Indian (>3) and ≠ colony owner, and no tribe presence → `281f_0704` stamp ownership toward colony nation |
 
 **Linux:** ownership/growth folded into `ai_indian_nation_turn` /
-`ai_grow_villages` — not a separate mid-pass. Reshape.
+`ai_grow_villages` — not a separate mid-pass. Reshape. Note the DOS order:
+all eight Indian nation turns run **inside the mid-pass, before** the Euro
+0..3 loop; Linux `TURN_PROC_INDIAN` now runs before `TURN_PROC_EURO` too (2026-08-27).
 
 Related: [`indian_contact.md`](../ai/indian_contact.md).
 
@@ -65,10 +67,57 @@ Linux: `ai_indian_nation_turn` in `TURN_PROC_INDIAN`.
 | Static Ghidra | Definition-only @81543 — no `CALLF`/`JMPF` to `4d56:1816`; no `281f_*` thunk to `1816` |
 | Mid-pass | `281f_0676` → **`1b3a` only** (tables); does not call `1816` |
 
-### Still open — dispatcher XREF
+### Dispatcher — resolved 2026-08-27 (static)
 
-Who **invokes** the thunk is **not** yet a recovered year-loop `FUN_*`.
-Static map ([`vr_1554.md`](../../tools/brave_dump/vr_1554.md)):
+```
+FUN_130d_0290 mid-pass
+  → CALLF 281f:0676            (resident thunk)
+  → FUN_4d56_1b3a phase 2
+      for slot 0..7:
+        if !(byte[DS:0x5ad9 + 0x4e*slot] & 0x80):
+          PUSH slot; PUSH CS; CALL 4d56:4c2c      ; emulated far call
+  → 4d56:4c2c  JMPF 1a1f:03b0   (overlay-local export stub, raw seg 1a1f = Ghidra 2a1f)
+  → bank record 281f:23b0 (file 0x1C9A0): CALLF loader; JMPF 0000:1816 ; ovl 0x0C
+  → FUN_4d56_1816(slot)
+```
+
+Why it was invisible: overlay `0x0C` reaches its own public routines through a
+15-entry `JMPF` stub table at `4d56:4c22..4c6c` (5-byte stride). The stubs'
+`JMPF` targets are reloc-`0000` records, so Ghidra resolved the near call at
+`4d56:1b84` to an unrelated label inside `FUN_41f2_0266` and never created a
+function at `2a1f:03b0` (`address_mapping.csv` therefore lists no record).
+Raw bytes at `4d56:1b76`: `ff 76 f0 0e e8 a5 30 83 c4 02` =
+`PUSH [BP-10]; PUSH CS; CALL 4c2c; ADD SP,2`.
+
+The live hang `dump_1930_2` already agreed: pre-loader `[SS:SP]` =
+`CC81:1B87` = `4d56:1b84 + 3`, `[SS:SP+4]` = slot `0`, `DS:5394` = 3 (still
+the last Euro slot — the mid-pass runs before the Euro loop). Earlier notes
+dismissed it as alias noise by mapping `CC81` onto a `CC89` load from a
+different dump.
+
+Full stub-table map (all `PUSH CS; CALL` sites in `4d56`, Ghidra targets
+for these are wrong):
+
+| Stub | Record | Real target | Callers in `4d56` |
+|------|--------|-------------|-------------------|
+| `4c22` | `281f:1248` | `4d56:00e0` | `0209` |
+| `4c27` | `281f:23a4` | `4d56:1ec4` | `4b70` |
+| `4c2c` | `281f:23b0` | **`4d56:1816`** | **`1b84` (in `1b3a`)** |
+| `4c31` | `281f:23bc` | `4d56:14fe` | `1ac4` (in `1816` act loop) |
+| `4c36` | `281f:23c8` | `4d56:417e` | `4b80` (in `4528`) |
+| `4c3b` | `281f:23d4` | `4d56:021a` | `1506` |
+| `4c40` | `281f:23e0` | `4d56:152e` | `19b5` (in `1816` growth loop) |
+| `4c45` | `281f:23ec` | `4d56:1c5a` | `4b5d` |
+| `4c4a` | `281f:23f8` | `4d56:359c` | `4b39` |
+| `4c4f` | `281f:2404` | `4d56:3e20` | `4bb4` |
+| `4c54` | `281f:2410` | `4d56:0000` | `0086` |
+| `4c59` | `281f:241c` | `4d56:39ea` | `4b90` |
+| `4c5e` | `281f:2428` | `4d56:3646` | `3aae`, `4ba4` |
+| `4c63` | `281f:2434` | `4d56:2154` | `28df`, `36ac`, `4060` |
+| `4c68` | `281f:244c` | `4d56:2820` | `363e`, `3ac4`, `4b23` |
+
+Historical static map that led to the forge-edge probes
+([`vr_1554.md`](../../tools/brave_dump/vr_1554.md)):
 
 | Fact | Detail |
 |------|--------|
@@ -80,13 +129,13 @@ Static map ([`vr_1554.md`](../../tools/brave_dump/vr_1554.md)):
 No static `CALLF *:2430` in dumps; thunk-entry hang stack was alias noise
 ([`vr_1930.md`](../../tools/brave_dump/vr_1930.md)).
 
-Do **not** invent a `130d → 1816` edge. Order vs Euro EOT remains
-**hypothesis**. Unknown parent/order can skew LCG timing; it does **not**
-explain seed-100 **spent-only** holdouts (post-`465b` `0x3149` —
-[`docs/seed100_brave.md`](../../docs/seed100_brave.md)).
+Edge is now proven above: `130d → 0676 → 1b3a → 1816(slot)`, Indians
+**before** the Euro 0..3 loop each year tick. This fixes the parent/order
+question; it still does **not** explain seed-100 **spent-only** holdouts
+(post-`465b` `0x3149` — [`docs/seed100_brave.md`](../../docs/seed100_brave.md)).
 
-**Narrowed edge:** RETF peels abandoned (v7–v12). v13 = forge `2A4D` skip
-`1930:238B` + `CCx81` — [`vr_1554.md`](../../tools/brave_dump/vr_1554.md).
+The `VR_2A02` forge-edge probe series (v1–v16, [`vr_1554.md`](../../tools/brave_dump/vr_1554.md))
+is closed — no further live work needed for this XREF.
 
 ## Calendar string table (reconfirmed)
 

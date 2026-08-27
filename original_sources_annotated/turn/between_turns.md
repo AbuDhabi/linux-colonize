@@ -30,8 +30,11 @@ FUN_130d_0290 year_turn_loop          [thunk 281f_0546]
        mid (if !0x829):
          clear all moves_spent (0x3149)
          rank euros          281f_0550 → 5bfb_00f8
-         mid_turn_indian     281f_0676 → 4d56_1b3a   (NOT full 1816)
-         /* ? for i in 0..7: 1816(i) — hypothesis only; see mid_pass doc */
+         mid_turn_indian     281f_0676 → 4d56_1b3a
+           ├─ clear 0x5b04 tables
+           ├─ for slot 0..7: if !(tribe_flags[slot] & 0x80):
+           │    4d56_1816(slot)   via stub 4d56:4c2c → record 281f:23b0
+           └─ colony ring ownership stamps (281f_0704)
        for nation 0..3:
          DS:0x5394 = nation
          if control != withdrawn:
@@ -41,7 +44,6 @@ FUN_130d_0290 year_turn_loop          [thunk 281f_0546]
          if control == human:
            merc offer        281f_0668 → 43f7_2244
            Move Pieces       281f_062c → 2b5a_3b68
-       /* ? or 1816 loop here (after Euro) — alt hypothesis */
        calendar tick (year / autumn @TIMECHANGE shape)
        year_end_chrome       281f_061e → 3844_0442
      } while DS:0x53c2
@@ -91,11 +93,11 @@ game_do_end_turn
          turn_run_colony_production          (~364b_0688 all colonies)
          turn_run_coastal_fort_fire          (364b_03f6)
          turn_run_nation_ticks               (bells/crosses/FF)
+       TURN_PROC_INDIAN (nations 4..11)     — DOS mid-pass order
+         ai_indian_nation_turn               (~4d56_1816-shaped)
        TURN_PROC_EURO (one nation / frame)
          MP refresh + treasure tick          (~3844_0004)
          ai_euro_nation_turn                 (~521d_6d8e)
-       TURN_PROC_INDIAN (nations 4..11)
-         ai_indian_nation_turn               (~4d56_1816-shaped)
        TURN_PROC_FINISH
          ai_king_nation_turn                 (~43f7_2424; DOS was inside 00f2)
          europe_tick_market_prices           (~38fd_0058; sibling of 5e52)
@@ -114,7 +116,7 @@ game_do_end_turn
 | Calendar | After nation pass | First in SETUP |
 | `3844_00f2` | Per Euro before act | Split across SETUP / EURO / FINISH |
 | `43f7_2424` | Inside `00f2` | FINISH `ai_king_nation_turn` |
-| Indians | Mid-pass `4d56_1b3a` only | Full `1816`-shaped turns 4..11 |
+| Indians | Mid-pass `4d56_1b3a` → `1816(slot)` ×8 **before** Euro loop | Full `1816`-shaped turns 4..11 in INDIAN phase, **before** EURO (reordered 2026-08-27) |
 | `3844_0442` | Every year tick | B/C1(+REF pool)/C2/D/E status **Done** thin; HoF PARKED |
 
 ## Pointers (planner guts — do not duplicate)
@@ -153,12 +155,11 @@ Planner guts (not EOT orchestration, but contact siblings):
 ## Open RE
 
 - `MULTINEXT` / `TIMECHANGE` / `SEASONS`: string table only — **reconfirmed** no FUN_* XREF ([`mid_pass_indian_rank.md`](mid_pass_indian_rank.md))
-- `FUN_4d56_1816`: **live** via overlay thunk `0x1C9A0` → loader → `JMPF 1816`;
-  far ret always forged **`1930:1554`** (`2A02` XCHG; epilogue `JMP 1446`).
-  Ghidra definition-only; **dispatcher** narrowed to forge edge overlay
-  **`0x0C`** / `VR_2A02` — not a proven `130d` edge.
-  See [`mid_pass_indian_rank.md`](mid_pass_indian_rank.md),
-  [`vr_1554.md`](../../tools/brave_dump/vr_1554.md)
+- `FUN_4d56_1816`: **resolved 2026-08-27** — called from `4d56_1b3a` phase 2
+  (`PUSH CS; CALL 4c2c` stub → record `281f:23b0`), i.e. `130d → 0676 → 1b3a
+  → 1816(slot)` for each Indian slot with tribe flag bit7 clear. Ghidra's
+  `FUN_41f2_0266` label on that call is a misresolve.
+  See [`mid_pass_indian_rank.md`](mid_pass_indian_rank.md)
 - Demo autoplay / independence splash (`130d_019e` / `0222`): PARKED; thin LAB in [`year_loop.c`](year_loop.c)
 - `FUN_3844_0442` dialogs: **UI mapped** in [`year_end_chrome.md`](year_end_chrome.md); port PARKED
 - Deep AI bodies (`20e6` land/ship, `2820`, `4528`, `2154`, loot): **mapped**; port PARKED — see

@@ -17,7 +17,15 @@ init at `indian_state+7/+8/+10` traced in `indian_trade_2820.md`'s "AI
 buy-offer price formula" section — same code, read twice from two
 different angles, matches exactly).
 
-**Flagging, not correcting, item 5:** the clean recovery's tribe loop
+**Item 5 resolved 2026-08-27:** the `thunk_FUN_1000_a5d0` call at
+`4d56:19b5` is `PUSH CS; CALL 4c40` → stub `JMPF 1a1f:03e0` → record
+`281f:23e0` → **`FUN_4d56_152e`** (village growth) — item 5's original
+citation was right; the `OVL11_L0000:0` clamp reading below came from
+following a reloc-`0000` JMPF into the wrong overlay. Same for the act
+loop's `thunk_FUN_1000_a5ac` (`4d56:1ac4` → stub `4c31` → `14fe`). Full
+stub map: `turn/mid_pass_indian_rank.md`. Original flag kept for history:
+
+**Flagging, not correcting, item 5 (superseded):** the clean recovery's tribe loop
 (`for tribe in tribes: if tribe.nation == active_nation: call
 thunk_FUN_1000_a5d0(...)`) — the call this doc's item 5 attributes to
 `41f2_0280`/`152e` (village growth) — resolves, via the same
@@ -103,7 +111,7 @@ missions slow hostility.
 
 | Symbol | Thunk | Real callers (decomp) | Not |
 |--------|-------|----------------------|-----|
-| `FUN_4d56_1b3a` | `281f_0676` | Mid-turn helper: clear `0x5b04` tables, tribe `41f2_0266`, colony ownership probes | Does **not** call `2154` |
+| `FUN_4d56_1b3a` | `281f_0676` | Mid-turn: clear `0x5b04` tables, **`1816(slot)` for each Indian slot** (stub `4c2c`; Ghidra shows `41f2_0266`), colony ownership probes | Does **not** call `2154` |
 | `FUN_4d56_2154` | `2a1f_0434` | From **`5bfb_022e`** meet path — fills `0x9e*` gift/demand tables | **Done** scorer [`indian_meet_scoring_2154.md`](indian_meet_scoring_2154.md); not raid |
 | `FUN_4d56_2820` | `2a1f_044c` | Heavy decision + nested trade `2aac…311e`; also ~86766 | **Mapped** [`indian_trade_2820.md`](indian_trade_2820.md); port PARKED |
 | `FUN_4d56_4528` | `2a1f_016c` | Settlement enter/raid; from **move foreign** / contact (`move_spent` §3) | **Mapped** head [`indian_settlement_4528.md`](indian_settlement_4528.md); mid-body PARKED (decomp soup) |

@@ -149,14 +149,17 @@ field's address, not a decode of the original.
   a `0x15ae` "can't afford" branch. Linux `ai_contact.c:5859/5972` already
   ports this branch.
 - `original_sources_annotated/turn/between_turns.md` — `FUN_4d56_1816`'s
-  dispatcher forge-edge narrowed to overlay `0x0C`/`VR_2A02` but **not
-  proven** to be the `130d` edge specifically (best current guess, not
-  confirmed). **Static ceiling reached 2026-08-27**: `address_mapping.csv`
-  lists `4d56:1816` as `before-first-function` (no resident stub),
-  `vr_1554.md` already shows the thunk bank record has no static
-  `CALLF` to its reloc seg, and the year loop's only far call is
-  `2042:0676` (mid-pass `1b3a`). Provable only with the `VR_2A02` hang
-  probe (live DOSBox-X). Not a static mystery any more — a live task.
+  dispatcher — **resolved statically 2026-08-27**: `130d_0290` mid-pass →
+  `281f_0676` → `FUN_4d56_1b3a` phase 2 → `PUSH slot; PUSH CS; CALL 4d56:4c2c`
+  (overlay-local `JMPF 1a1f:03b0` stub) → bank record `281f:23b0` (file
+  `0x1C9A0`) → `1816(slot)`, for slots 0..7 with tribe flag bit7 clear.
+  Ghidra mislabeled that call `FUN_41f2_0266`. The "static ceiling" claim
+  was wrong on two counts: the record *does* have a static reference (the
+  stub, whose raw seg `1a1f` = Ghidra `2a1f`, not `2042`), and the
+  `dump_1930_2` far return `CC81:1B87` was genuine (`1b84`+3), not alias
+  noise. Method: scan the raw EXE for `EA/9A` whose linear address hits the
+  record, then look for `0E E8` (PUSH CS; CALL) into the overlay's stub table.
+  Full stub map in `turn/mid_pass_indian_rank.md`.
 
 ## D. Meta-mystery
 

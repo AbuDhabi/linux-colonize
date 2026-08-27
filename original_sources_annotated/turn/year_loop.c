@@ -142,13 +142,15 @@ void year_turn_loop(void) {
         /* units[unit_i].moves_spent = 0; */
       }
       /* Restore human/focus nation from 0x5398 / override 0x53a4. */
-      mid_turn_indian_tables(); /* FUN_4d56_1b3a — tables only */
+      mid_turn_indian_tables(); /* FUN_4d56_1b3a */
       /*
-       * FUN_4d56_1816 (full Indian nation turn) is LIVE but not called from
-       * resolved 130d text: overlay thunk 0x1C9A0 → loader → JMPF 1816; far
-       * ret forged to 1930:1554 by 1930:2A02 (overlay id 0x0C). Year-loop
-       * FUN_* still open — do not invent a 130d call edge. See
-       * mid_pass_indian_rank.md / tools/brave_dump/vr_1554.md.
+       * 1b3a phase 2 runs the full Indian nation turn for every slot 0..7
+       * whose tribe flag (DS:0x5ad9 + 0x4e*slot) bit7 is clear:
+       *   PUSH slot; PUSH CS; CALL 4d56:4c2c → JMPF 1a1f:03b0 → record
+       *   281f:23b0 → FUN_4d56_1816(slot)
+       * So DOS Indian turns happen here, BEFORE the Euro 0..3 loop below.
+       * Ghidra shows the call as FUN_41f2_0266 (reloc-0000 JMPF misresolve).
+       * See mid_pass_indian_rank.md.
        */
     }
 

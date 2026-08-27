@@ -1343,7 +1343,7 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_281f_0652` | 32130 | 10 | thunk | Far thunk → FUN_6f74_37a2 (set secondary side-art then flush dialog) | inferred |  |
 | `FUN_281f_065e` | 32140 | 10 | thunk | Far thunk → FUN_15b3_024e (nation alt-name ptr; no independence remap) | inferred |  |
 | `FUN_281f_0668` | 32150 | 10 | thunk | Far thunk → FUN_43f7_2244 (human-turn mercenary hire offer) | inferred |  |
-| `FUN_281f_0676` | 32160 | 10 | thunk | Far thunk → FUN_4d56_1b3a (mid-turn Indian action) | inferred |  |
+| `FUN_281f_0676` | 32160 | 10 | thunk | Far thunk → FUN_4d56_1b3a (mid-turn Indian pass; calls 1816 per slot) | known | turn/mid_pass_indian_rank.md |
 | `FUN_281f_0682` | 32170 | 10 | mapgen | tile_owner_or_presence | known | ai/accessors.c |
 | `FUN_281f_068c` | 32180 | 10 | thunk | Far thunk → FUN_137f_015e (OR or AND-clear layer2 bits at tile) | inferred |  |
 | `FUN_281f_0696` | 32190 | 10 | mapgen | euro_settlement_owner thunk | known | ai/accessors.c |
@@ -2605,8 +2605,8 @@ Thin map: [ai/king_ref.md](ai/king_ref.md). Linux: `src/core/ai_king.c`.
 | `FUN_4d56_01e2` | 81352 | 19 | ai | Thin wrapper to 14fe | inferred | docs/ai_transcription.md |
 | `FUN_4d56_14fe` | 81371 | 16 | ai | Indian unit act / dispatches growth 152e | inferred | ai/indian_nation_turn.c; src/core/ai.c |
 | `FUN_4d56_152e` | 81387 | 156 | ai | Village growth accumulator to pop++ | known | ai/indian_nation_turn.c; src/core/ai.c |
-| `FUN_4d56_1816` | 81543 | 141 | ai | Indian nation turn (live via thunk 0x1C9A0 → JMPF; forged ret 1930:1554 via 2A02 overlay 0x0C; year-loop FUN_* open) | known | ai/indian_nation_turn.c; turn/mid_pass_indian_rank.md; tools/brave_dump/vr_1554.md; src/core/ai.c |
-| `FUN_4d56_1b3a` | 81684 | 59 | ai | Mid-turn: clear 0x5b04 tables, tribe probes, colony ownership — does **not** call 2154 | known | turn/mid_pass_indian_rank.md; ai/indian_contact.md |
+| `FUN_4d56_1816` | 81543 | 141 | ai | Indian nation turn; called per slot from 4d56_1b3a via stub 4d56:4c2c → record 281f:23b0 (thunk file 0x1C9A0); Ghidra mislabels the call 41f2_0266 | known | ai/indian_nation_turn.c; turn/mid_pass_indian_rank.md; tools/brave_dump/vr_1554.md; src/core/ai.c |
+| `FUN_4d56_1b3a` | 81684 | 59 | ai | Mid-turn: clear 0x5b04 tables, 1816(slot) for slots 0..7 (tribe flag bit7 clear), colony ownership — does **not** call 2154 | known | turn/mid_pass_indian_rank.md; ai/indian_contact.md |
 | `FUN_4d56_2154` | 81743 | 321 | ai | Meet economics: tribe neighborhood → DS:0x9e* gift/demand tables (from 5bfb_022e) | known | ai/indian_meet_scoring_2154.md; ai/indian_contact.md |
 | `FUN_4d56_2820` | 82064 | 222 | ai | Heavy Indian decision / raid-scale logic | inferred | ai/indian_trade_2820.md; indian_trade_helpers.c |
 | `FUN_4d56_2aac` | 82286 | 39 | ai | Indian trade dispatch: route selected good → 2e92/2bbc/2b92 or refuse | inferred | ai/indian_trade_2820.md |

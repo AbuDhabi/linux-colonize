@@ -70,8 +70,10 @@ void step_unit_in_dir(int unit_index, int dir) {
  * Ghidra: FUN_4d56_14fe | indian_unit_act
  *
  * Also the behavioral target of Ghidra abs `func_0x00042191` from the 1816 act
- * loop. ASM shows PUSH CS; CALL into a label Ghidra places inside FUN_41f2_0266
- * (colony UI) — overlay/segment collision. Structure of 14fe is authoritative:
+ * loop: 4d56:1ac4 is PUSH CS; CALL 4c31 — overlay-local stub JMPF 1a1f:03bc →
+ * bank record 281f:23bc → 14fe. Ghidra places the label inside FUN_41f2_0266
+ * because the record's JMPF has a reloc-0000 segment (see
+ * turn/mid_pass_indian_rank.md for the full stub map). Structure of 14fe:
  *
  *   dir = indian_pick_dir(unit)
  *   if dir == 8: unit_exhaust_mp(unit); return
