@@ -632,19 +632,34 @@ immediately or gets deferred to the next idle-pump poll**, not a separate audio 
 the player-visible effect; the immediate-vs-deferred nuance is DOS-internal scheduling with
 no equivalent complexity in the port's single-threaded playback and was not replicated.
 
-**`COLDIG.BIN` (digital/PCM "sound effects"):** confirmed real (raw 8-bit PCM, loaded via
-EMS with a signed↔unsigned `XOR 0x80` conversion pass) and **structurally identical in both
-`GSOUND.COL` and `PSOUND.COL`** (the Sound Blaster/PAS driver, i.e. real DMA-capable
-hardware — ruling out "GM hardware just can't do digital audio" as the explanation). Despite
-a full-disassembly search of both driver binaries for every reference to the loader's buffer/
-size/EMS-handle control variables, and a check of `VICEROY.EXE`'s own direct EMS calls
-(segment `210d` — confirmed to be RTLink's generic overlay-paging, unrelated to sound), no
-reachable code path was found that ever plays the loaded buffer back. Two of the driver's
-five registered entry-point callback slots (`DS:0xa660`/`0xa664`) are populated at load time
-and never called anywhere in the ~125k-line `VICEROY.EXE` decompile. Working theory: shared
-driver-template capability that shipped but was never wired into this game. AdLib / MT-32
-drivers and `COLDIG.BIN` playback remain out of scope; do not invent a trigger without new
-evidence (e.g. from an un-RE'd overlay path).
+**`COLDIG.BIN` digital SFX — wired 2026-08-27.** Earlier notes ("no reachable trigger,
+settled negative") were wrong: the game pushes event ids `0x40..0x5c` with the id in **AX**
+(`mov ax,N; callf FUN_281f_04c0` → `FUN_12d8_000e`), which Ghidra's decompile drops. Each
+event handler in `GSOUND.COL` does `mov ax,N; call 0x30c4` → `FUN_1000_27b4(N)` (queue COLDIG
+sample N, 16-slot ring, played back to back) and then starts a short MIDI sting on channels
+7/8. Sample table is static in the driver image at `0x1C7B` (`offset32,len32`, 35 entries,
+exactly covering the 993 755-byte file); samples 0–4 play at 11025 Hz, 5–34 at 19050 Hz,
+unsigned 8-bit. Stream opcode `C3 n` is the same trigger. `sound.c` loads the file, the VM
+callback queues samples, and `sound_render_s16` mixes them after the synth. Dump with
+`build/dump_gsound_wav --sfx` → `ripped_sound/sfx/sfxNN.wav`.
+
+| Event id | COLDIG | DOS push site | Port |
+|---|---|---|---|
+| `0x40`/`0x41` | 31 / 32 | `5fef_1b0e` attack fire (0x41 artillery class) | `units.c` engagement (0x40) |
+| `0x43`/`0x49` | 27 / 34 | `5fef_1b0e` (unit-class variants) | — |
+| `0x44`/`0x45` | 18 / 17 | `5fef_1b0e` tail | — |
+| `0x4a`/`0x4b` | 28 / 33 | `5fef_1b0e` win; 0x4b when natives involved | `units.c` win |
+| `0x4b,0x4d,0x4e,0x4f,0x53,0x5b` | 33,10,6,11+32,19,22+31 | `5fef_0f14` Indian raid loot outcomes | — |
+| `0x4d`/`0x57` | 10 / 16 | `5fef_0352` naval outcome / capture | — |
+| `0x52` | 12 | `465b_0000` move (unit class 0xc, human) | — |
+| `0x54` | 13 | found colony `479b_076e`, colony screen `2f2b_6cd4`, nation EOT `3844` | found colony, colony enter |
+| `0x56` | 9 | `38fd_3dc8` tax raise | — |
+| `0x58` | 21 | fortify / sentry (`2b5a_1112`, `2f2b_5746`) | fortify, sentry |
+| `0x5a` | 15 | `5fef_1908` King's Galleon (via `FUN_281f_04b6`) | — |
+| `0x8020` / `0x8024` | — (chord stings) | war declaration `5bfb_153e`, assign colonist `2f2b_2f3e` | — |
+
+Event ids bypass the BGM scheduler (`sound_play` dispatches them directly), gated by the
+Event Music option in the driver and by Sound Effects for the PCM part.
 
 ## Discovery Order
 

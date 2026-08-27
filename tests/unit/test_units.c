@@ -731,6 +731,9 @@ static int g_music_sting_last_id = -1;
 static int g_music_sting_active_id = -1;
 
 static void unit_music_sting_play_mock(int id) {
+  if (id >= SOUND_EVENT_ID_BASE) {
+    return; /* event SFX (attack fire, win) bypass the BGM scheduler in sound.c */
+  }
   g_music_sting_play_calls++;
   g_music_sting_last_id = id;
   g_music_sting_active_id = id; /* mirrors sound.c: playing sets the active id */

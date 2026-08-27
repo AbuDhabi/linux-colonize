@@ -13,6 +13,7 @@
  * --rename-only renames existing song_XX.wav / 0xXX*.wav without re-rendering.
  * --ab dumps the four reference songs into build/music-ab as 0xID_port.wav
  *   at reference lengths (for tools/compare_music_ab.py).
+ * --sfx writes every COLDIG.BIN digital sample as <out-dir>/sfx/sfxNN.wav.
  */
 #include <ctype.h>
 #include <math.h>
@@ -434,6 +435,7 @@ int main(int argc, char** argv) {
   bool want_csv = false;
   bool rename_only = false;
   bool ab_mode = false;
+  bool sfx_mode = false;
   int songs[64];
   int song_count = 0;
   int ab_seconds[64];
@@ -457,6 +459,8 @@ int main(int argc, char** argv) {
       ab_mode = true;
     } else if (strcmp(argv[i], "--csv") == 0) {
       want_csv = true;
+    } else if (strcmp(argv[i], "--sfx") == 0) {
+      sfx_mode = true;
     } else if (argv[i][0] == '-') {
       fprintf(stderr, "unknown flag %s\n", argv[i]);
       return 1;
@@ -564,6 +568,43 @@ int main(int argc, char** argv) {
   if (!sound_init(data_dir, true) || !sound_ok()) {
     fprintf(stderr, "sound_init / GSOUND failed (data_dir=%s)\n", data_dir);
     return 1;
+  }
+
+  if (sfx_mode) {
+    char dir[512];
+    snprintf(dir, sizeof(dir), "%s/sfx", out_dir);
+    mkdir(out_dir, 0755);
+    mkdir(dir, 0755);
+    const int n = sound_sfx_count();
+    int written = 0;
+    for (int i = 0; i < n; ++i) {
+      const uint8_t* pcm = NULL;
+      uint32_t len = 0;
+      int rate = 0;
+      if (!sound_sfx_sample(i, &pcm, &len, &rate)) {
+        continue;
+      }
+      int16_t* buf = (int16_t*)malloc((size_t)len * 2u * sizeof(int16_t));
+      if (!buf) {
+        break;
+      }
+      for (uint32_t k = 0; k < len; ++k) {
+        const int16_t v = (int16_t)(((int)pcm[k] - 128) * 256);
+        buf[k * 2] = v;
+        buf[k * 2 + 1] = v;
+      }
+      char path[600];
+      snprintf(path, sizeof(path), "%s/sfx%02d.wav", dir, i);
+      if (write_wav_s16_stereo(path, buf, (int)len, rate)) {
+        fprintf(stderr, "sfx %2d len=%u rate=%d %.2fs -> %s\n", i, len, rate, (double)len / rate, path);
+        written++;
+      }
+      free(buf);
+    }
+    fprintf(stderr, "wrote %d/%d samples\n", written, n);
+    sound_shutdown();
+    diag_shutdown();
+    return written > 0 ? 0 : 1;
   }
 
   if (song_count == 0) {

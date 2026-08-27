@@ -24,11 +24,24 @@ typedef void (*GsoundMidiFn)(void* user, uint8_t status, uint8_t d1, uint8_t d2)
 
 typedef struct GsoundVm GsoundVm;
 
+/* Digital sample trigger (driver FUN_1000_27b4): index into the COLDIG.BIN table. */
+typedef void (*GsoundSfxFn)(void* user, int sfx_index);
+
 /* img = MZ load image (header stripped). Returns NULL on bad image. */
 GsoundVm* gsound_vm_create(const uint8_t* img, size_t img_size);
 void gsound_vm_destroy(GsoundVm* vm);
 
 void gsound_vm_set_midi(GsoundVm* vm, GsoundMidiFn fn, void* user);
+void gsound_vm_set_sfx(GsoundVm* vm, GsoundSfxFn fn, void* user);
+
+/*
+ * COLDIG.BIN sample table lives in the driver image at 0x1C7B as
+ * (offset32, length32) pairs; the driver counts entries until one runs past
+ * the file size (0x260c). Returns the count and fills up to max entries.
+ */
+int gsound_vm_sfx_table(const GsoundVm* vm, size_t coldig_size, uint32_t* offs, uint32_t* lens, int max);
+/* Driver FUN_1000_27b4: samples 0..4 play at 11025 Hz, the rest at 19050 Hz. */
+int gsound_vm_sfx_rate(int sfx_index);
 
 /* Driver install: reset MIDI channels 0..9 like the resident init does. */
 void gsound_vm_reset_channels(GsoundVm* vm);

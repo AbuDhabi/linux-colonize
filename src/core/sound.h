@@ -80,6 +80,12 @@ int sound_active_song_id(void);
 /* Fill interleaved S16 samples for the SDL audio callback (thread-safe). */
 void sound_render_s16(int16_t* dst, int frames, int channels, int sample_rate);
 
+/* COLDIG.BIN digital samples (driver FUN_1000_27b4 queue). */
+int sound_sfx_count(void);
+void sound_play_sfx(int index);
+/* Raw unsigned 8-bit PCM of one sample (pointer valid until sound_shutdown). */
+bool sound_sfx_sample(int index, const uint8_t** out_pcm, uint32_t* out_len, int* out_rate);
+
 /* Test helpers: song count recovered from GSOUND.COL; decode one song to events. */
 int sound_gsound_song_count(void);
 bool sound_gsound_has_song(int id);
