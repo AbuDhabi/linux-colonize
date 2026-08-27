@@ -683,6 +683,7 @@ static bool game_do_found_colony_at_unit(ColonizeGameState* game, int uid) {
     );
   }
   game_open_found_name_entry(game, cid);
+  sound_play(0x54); /* DOS FUN_479b_076e: found-colony hammering (COLDIG sample 13) */
   return true;
 }
 
@@ -5182,6 +5183,10 @@ static void game_enter_colony_at_cursor(ColonizeGameState* game) {
   game->in_pedia = false;
   game->in_report = false;
   game->colony_view_id = cid;
+  /* DOS FUN_2f2b_6cd4 colony bring-up: event 0x54 (COLDIG hammering) and the
+   * colony tune pool (FUN_281f_0498(2)); back on the map the pool is 1 again. */
+  sound_play(0x54);
+  sound_set_bgm(2);
   colony_screen_reset_ui(&game->colony_screen);
   const ColonizeColony* col = colonies_get(&game->colonies, cid);
   if (col && col->colonist_count > 0) {
@@ -7779,6 +7784,7 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
         return true;
       }
       game->in_colony = false;
+      sound_set_bgm(1); /* back on the map: DOS FUN_281f_0498(1) tune pool */
       game->colony_view_id = -1;
       diag_info("Left colony screen.");
       return true;

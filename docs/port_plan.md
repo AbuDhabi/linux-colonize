@@ -1491,8 +1491,9 @@ gameplay/determinism. Most rows need the user's visual-fidelity judgement.
   endgame. Known first customer: the TURN2→3 `(40,20)` Brave W-vs-NW
   quiet-scoring divergence (`ai_port_plan.md` T4.3, peel deliberately
   withheld).
-- **Not planned:** `COLDIG.BIN` digital SFX — settled negative, do not
-  revisit without new evidence ([roadmap.md](roadmap.md) Phase 5).
+- ~~**Not planned:** `COLDIG.BIN` digital SFX — settled negative~~ **Retracted
+  2026-08-27**: triggers exist (AX-passed event ids, invisible in the
+  decompile); playback wired, see [assets.md](assets.md) "COLDIG.BIN".
 
 ---
 

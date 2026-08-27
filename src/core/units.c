@@ -3144,6 +3144,20 @@ void units_set_combat_music_hooks(
  * (FUN_129f_0318 "cmp [0x9c],id; jz done"); mirror that via the active-id
  * hook so a combat-heavy turn does not restart the track on every attack.
  */
+/* DOS event ids (segment 5fef / 2b5a, `mov ax,N; callf FUN_281f_04c0`): the
+ * GSOUND handler for each plays a COLDIG.BIN sample plus a short MIDI sting. */
+enum {
+  UNITS_SFX_ATTACK_FIRE = 0x40, /* 0x41 for artillery-class attackers */
+  UNITS_SFX_COMBAT_WON = 0x4a,  /* 0x4b when natives are involved */
+  UNITS_SFX_ORDER_FORTIFY = 0x58,
+};
+
+static void units_play_event_sound(int id) {
+  if (g_units_combat_sound_play) {
+    g_units_combat_sound_play(id);
+  }
+}
+
 static void units_combat_music_sting(void) {
   if (!g_units_combat_sound_play) {
     return;
@@ -3192,6 +3206,7 @@ bool units_resolve_land_combat_ff(
     return false;
   }
   units_combat_music_sting();
+  units_play_event_sound(UNITS_SFX_ATTACK_FIRE);
 
   /*
    * FUN_5fef_1b0e / FUN_157e: attacker 004a(mode=1); defender 015e + peels.
@@ -3415,6 +3430,7 @@ bool units_resolve_naval_combat_ff(
     return false;
   }
   units_combat_music_sting();
+  units_play_event_sound(UNITS_SFX_ATTACK_FIRE);
 
   /* FUN_157e_004a + 1b0e difficulty peels for both sides. */
   ColonizeCombatStrengthCtx sctx = units_combat_strength_ctx(col1);
@@ -4151,6 +4167,9 @@ static bool units_revere_defend_colony_tile(
     return true; /* nobody home at all (pop 0) — nothing to defend with */
   }
   const bool won = units_resolve_land_combat_ff(pool, attacker_id, def_id, rng, g_units_ff_col1);
+  if (won) {
+    units_play_event_sound(UNITS_SFX_COMBAT_WON);
+  }
   /* Phantom defender always vanishes after the fight, win or lose — a real
    * Revere-armed colonist (def_is_temp false) stays if it won. */
   if (def_is_temp) {
@@ -4290,6 +4309,9 @@ bool units_try_move(
       won = units_resolve_naval_combat_ff(pool, unit_id, foe, rng, g_units_ff_col1);
     } else {
       won = units_resolve_land_combat_ff(pool, unit_id, foe, rng, g_units_ff_col1);
+    }
+    if (won) {
+      units_play_event_sound(village_temp >= 0 ? 0x4b : UNITS_SFX_COMBAT_WON);
     }
     if (village_temp >= 0 && foe == village_temp) {
       ColonizeCol1Save* mut = (ColonizeCol1Save*)g_units_ff_col1;
@@ -4577,7 +4599,11 @@ bool units_order_fortify(ColonizeUnitPool* pool, int unit_id) {
   if (u->orders == UNITS_ORDER_FORTIFIED) {
     return true;
   }
-  return units_set_orders(pool, unit_id, UNITS_ORDER_FORTIFY);
+  const bool ok = units_set_orders(pool, unit_id, UNITS_ORDER_FORTIFY);
+  if (ok) {
+    units_play_event_sound(UNITS_SFX_ORDER_FORTIFY);
+  }
+  return ok;
 }
 
 bool units_order_anchor(
@@ -4621,7 +4647,11 @@ bool units_order_anchor(
 }
 
 bool units_order_sentry(ColonizeUnitPool* pool, int unit_id) {
-  return units_set_orders(pool, unit_id, UNITS_ORDER_SENTRY);
+  const bool ok = units_set_orders(pool, unit_id, UNITS_ORDER_SENTRY);
+  if (ok) {
+    units_play_event_sound(UNITS_SFX_ORDER_FORTIFY);
+  }
+  return ok;
 }
 
 bool units_order_trade_route(ColonizeUnitPool* pool, int unit_id) {

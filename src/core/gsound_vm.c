@@ -74,6 +74,8 @@ struct GsoundVm {
   uint8_t ds[GS_DS_SIZE];
   GsoundMidiFn midi;
   void* midi_user;
+  GsoundSfxFn sfx;
+  void* sfx_user;
 
   uint8_t chord_flag; /* DS:5A */
   uint8_t cur_channel; /* DS:81FE */
@@ -225,7 +227,10 @@ static void voice_tick(GsoundVm* vm, uint16_t vaddr) {
       case 0xC2:
         emit_cc(vm, ch, 91, b1);
         break;
-      case 0xC3: /* host patch queue (FUN_1000_01bf) — no MIDI effect */
+      case 0xC3: /* FUN_1000_01bf → digital sample b1 when host enabled DS:7C */
+        if (vm->sfx) {
+          vm->sfx(vm->sfx_user, (int8_t)b1);
+        }
         break;
       case 0xC4: /* call code at CS:imm16 */
         run_x86(vm, rd16(ds + (uint16_t)(p + 1)));
@@ -778,7 +783,10 @@ static bool native_call(GsoundVm* vm, X86* r, uint16_t target) {
     case 0x190f: soft_stop_all(vm); return true;
     case 0x1912: soft_stop_78(vm); return true;
     case 0x2a55: ds16w(vm, GS_EA, 0); return true;
-    case 0x30c4: /* host digital SFX trigger (far call 0000:27b4) — no MIDI */
+    case 0x30c4: /* digital sample AX via far call 0000:27b4 (FUN_1000_27b4) */
+      if (vm->sfx) {
+        vm->sfx(vm->sfx_user, (int)r->ax);
+      }
       return true;
     case 0x13a7:
     case 0x1403:
@@ -893,6 +901,43 @@ void gsound_vm_set_midi(GsoundVm* vm, GsoundMidiFn fn, void* user) {
     vm->midi = fn;
     vm->midi_user = user;
   }
+}
+
+void gsound_vm_set_sfx(GsoundVm* vm, GsoundSfxFn fn, void* user) {
+  if (vm) {
+    vm->sfx = fn;
+    vm->sfx_user = user;
+  }
+}
+
+#define GS_SFX_TABLE 0x1C7B
+
+int gsound_vm_sfx_table(const GsoundVm* vm, size_t coldig_size, uint32_t* offs, uint32_t* lens, int max) {
+  if (!vm) {
+    return 0;
+  }
+  int n = 0;
+  for (;;) {
+    const size_t e = GS_SFX_TABLE + (size_t)n * 8u;
+    if (e + 8 > vm->img_size) {
+      break;
+    }
+    const uint32_t off = (uint32_t)rd16(vm->img + e) | ((uint32_t)rd16(vm->img + e + 2) << 16);
+    const uint32_t len = (uint32_t)rd16(vm->img + e + 4) | ((uint32_t)rd16(vm->img + e + 6) << 16);
+    if (len == 0 || (uint64_t)off + len > coldig_size) {
+      break;
+    }
+    if (n < max) {
+      offs[n] = off;
+      lens[n] = len;
+    }
+    n++;
+  }
+  return n;
+}
+
+int gsound_vm_sfx_rate(int sfx_index) {
+  return sfx_index < 5 ? 11025 : 19050;
 }
 
 void gsound_vm_reset_channels(GsoundVm* vm) {

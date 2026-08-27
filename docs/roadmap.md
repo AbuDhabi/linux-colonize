@@ -189,10 +189,9 @@ Do not prioritize over gameplay/determinism.
 **Parked until later:**
 
 - VGA-identical dialog / TRADE / FA / king letter chrome
-- Digital SFX (`COLDIG.BIN`) — investigated at length; no reachable DOS trigger
-  found in either sound driver or `VICEROY.EXE` itself (see
-  [assets.md](assets.md) Music/sound). Likely unused shared-driver capability,
-  not a fidelity gap — do not revisit without new evidence
+- Digital SFX (`COLDIG.BIN`) — **wired 2026-08-27** (event ids `0x40..0x5c`
+  are pushed in AX; see [assets.md](assets.md) "COLDIG.BIN"); remaining
+  push sites (raid loot, naval outcome, tax, galleon) still to wire
 - Pixel-exact layout and style
 - Blanket T3 AI goldens and remaining deep PARKED bodies (full `2820`/`4528`,
   letter cinematic, hang-dump RE)

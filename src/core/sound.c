@@ -29,6 +29,9 @@
 #define SOUND_GSOUND_IMG_HDR 512
 #define SOUND_TICK_HZ GSOUND_TICK_HZ
 #define SOUND_MAX_TRACK_TICKS 14400u /* 4 minutes @ ~60 Hz */
+#define SOUND_SFX_MAX 64
+#define SOUND_SFX_QUEUE 16 /* driver ring DS:1B71..1C71 = 16 slots */
+#define SOUND_SFX_GAIN 96.0 /* 8-bit PCM → s16, ~37% full scale beside the halved synth */
 
 typedef struct SoundMidiEvent {
   uint32_t tick;
@@ -76,6 +79,18 @@ typedef struct SoundState {
   double samples_to_tick; /* audio frames left before the next PIT tick */
 
   SoundSong decoded; /* one-entry cache for the offline event API */
+
+  /* COLDIG.BIN digital samples: driver plays queued samples one after another. */
+  uint8_t* sfx_data;
+  size_t sfx_size;
+  int sfx_count;
+  uint32_t sfx_off[SOUND_SFX_MAX];
+  uint32_t sfx_len[SOUND_SFX_MAX];
+  int sfx_queue[SOUND_SFX_QUEUE];
+  int sfx_queue_len;
+  int sfx_playing; /* -1 = idle */
+  double sfx_pos;  /* source sample position */
+  int sfx_last_index; /* diagnostics */
 
 #if defined(COLONIZE_HAS_FLUIDSYNTH)
   fluid_settings_t* fluid_settings;
@@ -351,6 +366,99 @@ static void sound_vm_midi_cb(void* user, uint8_t status, uint8_t d1, uint8_t d2)
   sound_apply_midi_unlocked(status, d1, d2);
 }
 
+static void sound_load_coldig(const char* data_dir) {
+  char path[512];
+  g_sound.sfx_count = 0;
+  g_sound.sfx_playing = -1;
+  if (!dos_compat_normalize_asset_path(data_dir, "COLDIG.BIN", path, sizeof(path))) {
+    diag_info("sound: COLDIG.BIN not found; digital SFX off");
+    return;
+  }
+  FILE* f = fopen(path, "rb");
+  if (!f) {
+    return;
+  }
+  fseek(f, 0, SEEK_END);
+  const long sz = ftell(f);
+  fseek(f, 0, SEEK_SET);
+  if (sz <= 0) {
+    fclose(f);
+    return;
+  }
+  g_sound.sfx_data = (uint8_t*)malloc((size_t)sz);
+  if (!g_sound.sfx_data || fread(g_sound.sfx_data, 1, (size_t)sz, f) != (size_t)sz) {
+    free(g_sound.sfx_data);
+    g_sound.sfx_data = NULL;
+    fclose(f);
+    return;
+  }
+  fclose(f);
+  g_sound.sfx_size = (size_t)sz;
+  g_sound.sfx_count =
+    gsound_vm_sfx_table(g_sound.vm, g_sound.sfx_size, g_sound.sfx_off, g_sound.sfx_len, SOUND_SFX_MAX);
+  if (g_sound.sfx_count > SOUND_SFX_MAX) {
+    g_sound.sfx_count = SOUND_SFX_MAX;
+  }
+  diag_info("sound: COLDIG.BIN %ld bytes, %d samples", sz, g_sound.sfx_count);
+}
+
+/* FUN_1000_27b4: queue a sample; rejected when the 16-slot ring is full. */
+static void sound_vm_sfx_cb(void* user, int index) {
+  (void)user;
+  if (index < 0 || index >= g_sound.sfx_count || !g_sound.opts.sound_effects) {
+    return;
+  }
+  if (g_sound.sfx_playing < 0) {
+    g_sound.sfx_playing = index;
+    g_sound.sfx_pos = 0.0;
+    return;
+  }
+  if (g_sound.sfx_queue_len < SOUND_SFX_QUEUE) {
+    g_sound.sfx_queue[g_sound.sfx_queue_len++] = index;
+  }
+}
+
+static void sound_sfx_stop_all_unlocked(void) {
+  g_sound.sfx_playing = -1;
+  g_sound.sfx_queue_len = 0;
+}
+
+/* Mix the running sample into an interleaved s16 buffer (linear resampling). */
+static void sound_sfx_mix_unlocked(int16_t* dst, int frames, int channels, int sample_rate) {
+  int i = 0;
+  while (i < frames && g_sound.sfx_playing >= 0) {
+    const int idx = g_sound.sfx_playing;
+    const uint8_t* src = g_sound.sfx_data + g_sound.sfx_off[idx];
+    const uint32_t len = g_sound.sfx_len[idx];
+    const double step = (double)gsound_vm_sfx_rate(idx) / (double)sample_rate;
+    for (; i < frames; ++i) {
+      const double pos = g_sound.sfx_pos;
+      const uint32_t p0 = (uint32_t)pos;
+      if (p0 + 1 >= len) {
+        g_sound.sfx_playing = -1;
+        g_sound.sfx_pos = 0.0;
+        if (g_sound.sfx_queue_len > 0) {
+          g_sound.sfx_playing = g_sound.sfx_queue[0];
+          memmove(g_sound.sfx_queue, g_sound.sfx_queue + 1, (size_t)(g_sound.sfx_queue_len - 1) * sizeof(int));
+          g_sound.sfx_queue_len--;
+        }
+        break;
+      }
+      const double frac = pos - (double)p0;
+      const double a = (double)src[p0] - 128.0;
+      const double b = (double)src[p0 + 1] - 128.0;
+      const int32_t v = (int32_t)((a + (b - a) * frac) * SOUND_SFX_GAIN);
+      for (int c = 0; c < channels; ++c) {
+        int32_t m = (int32_t)dst[(size_t)i * (size_t)channels + (size_t)c] + v;
+        if (m > 32767) m = 32767;
+        if (m < -32768) m = -32768;
+        dst[(size_t)i * (size_t)channels + (size_t)c] = (int16_t)m;
+      }
+      g_sound.sfx_pos += step;
+    }
+  }
+}
+
 /* ---- offline decode (tests / dump tool) --------------------------------- */
 
 static void sound_decode_cb(void* user, uint8_t status, uint8_t d1, uint8_t d2) {
@@ -450,7 +558,9 @@ bool sound_init(const char* data_dir, bool enable_audio) {
   }
   if (g_sound.vm) {
     gsound_vm_set_midi(g_sound.vm, sound_vm_midi_cb, NULL);
+    gsound_vm_set_sfx(g_sound.vm, sound_vm_sfx_cb, NULL);
     gsound_vm_reset_channels(g_sound.vm);
+    sound_load_coldig(dir);
   }
 
   g_sound.inited = true;
@@ -483,6 +593,8 @@ void sound_shutdown(void) {
 #endif
   gsound_vm_destroy(g_sound.vm);
   g_sound.vm = NULL;
+  free(g_sound.sfx_data);
+  g_sound.sfx_data = NULL;
   free(g_sound.decoded.events);
   g_sound.decoded.events = NULL;
   free(g_sound.gsound_img);
@@ -532,6 +644,7 @@ static void sound_dispatch_gated_unlocked(int id) {
   gsound_vm_play(g_sound.vm, id);
   if (id == 0) {
     sound_all_notes_off_unlocked();
+    sound_sfx_stop_all_unlocked();
   }
 }
 
@@ -643,6 +756,10 @@ void sound_play(int id) {
     /* System ids act at once (FUN_12d8_000e forwards ids < 0x10 unconditionally). */
     g_sound.pending_id = -1;
     g_sound.current_id = -1;
+    sound_dispatch_gated_unlocked(id);
+  } else if (id >= SOUND_EVENT_ID_BASE) {
+    /* Event ids go straight to the driver (FUN_281f_04c0 → FUN_12d8_000e):
+     * a COLDIG sample + MIDI sting on channels 7/8, BGM state untouched. */
     sound_dispatch_gated_unlocked(id);
   } else {
     sound_queue_unlocked(id);
@@ -826,6 +943,32 @@ void sound_render_s16(int16_t* dst, int frames, int channels, int sample_rate) {
     g_sound.samples_to_tick -= (double)n;
     done += n;
   }
+  if (g_sound.sfx_data) {
+    sound_sfx_mix_unlocked(dst, frames, channels, sample_rate);
+  }
+  pthread_mutex_unlock(&g_sound.lock);
+}
+
+int sound_sfx_count(void) {
+  return g_sound.inited ? g_sound.sfx_count : 0;
+}
+
+bool sound_sfx_sample(int index, const uint8_t** out_pcm, uint32_t* out_len, int* out_rate) {
+  if (!g_sound.inited || !g_sound.sfx_data || index < 0 || index >= g_sound.sfx_count) {
+    return false;
+  }
+  if (out_pcm) *out_pcm = g_sound.sfx_data + g_sound.sfx_off[index];
+  if (out_len) *out_len = g_sound.sfx_len[index];
+  if (out_rate) *out_rate = gsound_vm_sfx_rate(index);
+  return true;
+}
+
+void sound_play_sfx(int index) {
+  if (!g_sound.inited) {
+    return;
+  }
+  pthread_mutex_lock(&g_sound.lock);
+  sound_vm_sfx_cb(NULL, index);
   pthread_mutex_unlock(&g_sound.lock);
 }
 
