@@ -2437,8 +2437,18 @@ is genuinely stuck mid-session.
   refuse (alarm +2, `sticky_trade_good = 0xfe`, `@BADHAGGLE2`); else
   `price -= price>>2` (floor 10), 1-in-(8−difficulty) alarm +1, re-ask with
   `@BUY1` (tag built at runtime as `"BUY"+digit`, like DOS's
-  `FUN_0000_d9b4`+`'0'+iStack_88`). Only `2820`'s sell-side hard-bargain
-  (`306c`) remains PARKED.
+  `FUN_0000_d9b4`+`'0'+iStack_88`).
+  **Sell-side hard-bargain (`LAB_002bbc` human loop, the old "`306c`")
+  also done, same day:** `@TRADE0` is now Accept / "A fairer price would be
+  N" / gift; `ai_contact_2820_sell_price_ex` keeps DOS's loop scaffolding
+  (`c4 = RNG(0,1) + ((ask − tier + 4) >> 2)`, `fair = (ask+1)·4 + price`);
+  haggle = `ai_contact_2820_sell_haggle` (`RNG(1, c4<<3) > difficulty` →
+  `c4−−`, `price += RNG(ask/2+1, ask·2+1)·qty/100`, `fair = max(fair,
+  price+10)`, re-ask with `@TRADE1`; else `sticky_trade_good = cargo`,
+  alarm `+tier/2+1`, `@BADHAGGLE0`); gift (round 0) hands the goods over
+  (`last_bought`, friction/attacks relief, alarm `−4·(c4+1)`); accept now
+  applies DOS's `−2·c4` alarm instead of a flat −2. Nothing of `2820`
+  remains PARKED except the `0x8dc4` quantity source.
 
 - [x] **T1.23 — `@VIOLATE` trigger (`FUN_4720_049e`) — closed as a dead
   tag (2026-08-27).** No `VIOLAT` string exists in `VICEROY.EXE`'s DS, so
@@ -2446,13 +2456,33 @@ is genuinely stuck mid-session.
   `@CANCELPEACE`/`@DECLAREWAR` — the encounter → war-declare flow already
   covered by `DIPLO_WAR`. Doc-only.
 
-- [ ] **T1.24 — `20e6` `LAB_52aa` attack-odds core, byte-exact.** Shape
+- [x] **T1.24 — `20e6` `LAB_52aa` attack-odds core, byte-exact.** Shape
   recovered from the asm 2026-08-27 (`move_scoring_20e6_full.md` tail):
   `odds = ((4fa8(foe,0)+1) / max(4fa8(foe,2),1)) × 5fef_1b0e(unit,x,y,0,0)
   / max(@UNIT col+6, 1)` then the known modifiers. Blockers: `5fef_1b0e`'s
   probe-mode return value and `4fa8` cases 0/2/0xb on a unit record (the
   "case 2 = transport-chain splice" reading conflicts with its use as a
   divisor here — re-verify). Static work, medium size.
+  **2026-08-27 — done, same session.** Both blockers fell statically:
+  `8aac` is `FUN_281f_08bc → FUN_1427_0d38` (the stack query dispatcher),
+  *not* `4fa8` — the "case 2 = chain splice" verdict belonged to the wrong
+  function. Its jump table (`CS:0xd78`) decoded from the raw bytes:
+  case 0 = Σ `@UNIT` col9 (`0x5239`) over the stack, case 2 = count of
+  military land types `{1,4,6,7,8,9}`, case 0xb = Σ `157e_004a(unit, 1)`
+  over stack units whose ship-ness matches the tile, case 3 = Pioneers,
+  case 0xa = vehicles (`0x5236 > 1`), case 0xd = Σ holds (`0x5237`).
+  `5fef_1b0e` probe mode (`param_4=param_5=0`) returns
+  `(local_92 << 3) / (local_a8 + 1)` = attacker strength (with the `0x8d04`
+  stash + peels) over defender engagement strength — exactly
+  `combat_land_engage`/`combat_naval_engage`. `@UNIT` record layout
+  corrected from the shipped rows: `0x5230` icon(w), `0x5232` move, `0x5233`
+  attack, `0x5234` defense, **`0x5235` holds** (not `0x5237`), `0x5236`
+  c6 (0 natives / 1 land / 99 vehicles), `0x5237..0x523a` c7–c10, `0x523d`
+  bits. Col9 is 0 for every land type ⇒ on land `odds = (1/max(mil,1))·base`,
+  i.e. the AI never attacks a stack with ≥2 military units. Wired in
+  `ai_euro_20e6_attack_term` (`ai_euro_20e6_unit_col9`); still substituted:
+  the `REF nation == 2` halving and the case-0xb adjacent-Spanish skip.
+  `ctest` 46/46, `golden_ai_turns` unchanged.
 
 ## Tier 3 — Confirm with the user before flipping
 

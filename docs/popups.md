@@ -153,7 +153,7 @@ fragment. Related sections are listed in the first column.
 | `@RAID*` outcomes | Raid / ambush | Partial | `CONTACT_RAID` OK; deep `4528` PARKED |
 | Village attitude / HELLO | Enter settlement | Partial | Thin snippets / status |
 | `@CHIEF*` | Chief portrait meet | Missing | — |
-| `@TRADE0`/`1`, haggle `@BADHAGGLE*` | Deep village trade | Missing | `2820` PARKED |
+| `@TRADE0`/`1`, haggle `@BADHAGGLE*` | Deep village trade | Done (structural) | `2820` LAB_002bbc/002e92 human loops ported 2026-08-27 (`ai_contact_2820_sell_haggle`, `ai_contact_2e92_haggle`); VGA PARKED |
 | Bribe / encroachment CHOICE | Road/forest / alarm | Missing | Thin OK/status; CHOICE PARKED |
 
 ### 7. Euro diplomacy
@@ -501,11 +501,11 @@ work.
 | `@CHIEFBORED` | Missing | chief portrait dialogs missing |
 | `@CHIEFKILL` | Missing | chief portrait dialogs missing |
 | `@KILLWAGONS` | Missing | chief portrait dialogs missing |
-| `@TRADE0` | Missing | deep village trade 2820 PARKED |
-| `@TRADE1` | Missing | deep village trade 2820 PARKED |
+| `@TRADE0` | Done (structural) | `2820` sell offer: Accept / fairer price / gift → `ai_contact_enqueue_trade_offer_round` (2026-08-27) |
+| `@TRADE1` | Done (structural) | `2820` sell counter-offer re-ask after a successful haggle (2026-08-27) |
 | `@BADCARGO` | Missing | deep village trade 2820 PARKED |
-| `@BADHAGGLE0` | Missing | deep village trade 2820 PARKED |
-| `@BADHAGGLE1` | Missing | deep village trade 2820 PARKED |
+| `@BADHAGGLE0` | Done (structural) | `2820` sell-side patience exhausted → `sticky_trade_good = cargo`, alarm +tier/2+1 (2026-08-27) |
+| `@BADHAGGLE1` | Done (structural) | `2820` revisit gate `tribe+7 == cargo` → refuse line, no trade (2026-08-27); `0xfe` skips the buy offer silently |
 | `@BADHAGGLE2` | Done (structural) | `2820` buy-side haggle refusal → `ai_contact_2e92_haggle` (2026-08-27) |
 | `@BADHAGGLE3` | Missing | deep village trade 2820 PARKED |
 | `@BRING` | Missing | deep village trade 2820 PARKED |

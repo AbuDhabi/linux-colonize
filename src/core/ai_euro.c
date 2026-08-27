@@ -10598,6 +10598,19 @@ static const int8_t k_20e6_ring20_dy[20] = {-1, -1, 0, 1, 1, 1, 0, -1, -2, -2, -
 static uint8_t s_20e6_explorers[16];
 
 /* DOS unit+0x3146 type index (NAMES.TXT @UNIT order) from a Linux unit. */
+/* NAMES.TXT @UNIT column 9 (DS:0x5239): 0 for land types; ships Caravel 0,
+ * Merchantman 1, Galleon 4, Privateer 4, Frigate 12, Man-O-War 32. */
+static int ai_euro_20e6_unit_col9(int dos_type) {
+  switch (dos_type) {
+    case 0xe: return 1;
+    case 0xf: return 4;
+    case 0x10: return 4;
+    case 0x11: return 12;
+    case 0x12: return 32;
+    default: return 0;
+  }
+}
+
 static int ai_euro_20e6_dos_type(const ColonizeUnitPool* units, const ColonizeUnit* u) {
   const ColonizeUnitType* t = units ? units_type(units, u->type_index) : NULL;
   if (!t) {
@@ -11280,14 +11293,21 @@ static int ai_euro_land_explore_scan_target(
 }
 
 /*
- * LAB_521d_52aa attack term. The raw C here is register-garbage around the
- * FUN_1000_8aac calls (see block header), so the visible modifiers are kept
- * and the odds core comes from combat_strength: odds = own attack×8 vs foe
- * defence×8 scaled to DOS's 0..1000 band. Modifiers transcribed: ×3 when the
- * target is a Euro settlement, ×2 Indian settlement, Artillery never attacks
- * in the open, ×3 when flags&0x10 and stance==4, clamp 0..1000, <12 → −999,
- * else +odds×4. Returns 0 when the tile must be skipped (DOS falls through
- * to LAB_5183 without scoring it).
+ * LAB_521d_52aa attack term — odds core byte-shaped from the asm
+ * (viceroy_overlays.asm:139036+, 2026-08-27; the C there is register-garbage):
+ *   base = FUN_1000_9c04(unit, x, y, 0, 0)          = FUN_5fef_1b0e probe mode:
+ *          (atk_strength << 3) / (def_strength + 1)  (combat_land/naval_engage)
+ *   a    = FUN_1000_8aac(foe, 0) + 1                 = Σ @UNIT col9 over the foe stack + 1
+ *   d    = max(FUN_1000_8aac(foe, 2), 1)             = # military land types {1,4,6,7,8,9} in it
+ *   odds = ((a / d) * base) / max(@UNIT col9[own type], 1)
+ * (8aac = FUN_281f_08bc → FUN_1427_0d38, the stack query dispatcher, cases
+ * decoded from its jump table; col9 = DS:0x5239, zero for every land type
+ * and 0/1/4/4/12/32 for Caravel..Man-O-War — so on land a=1 and any foe
+ * stack with two or more military units makes odds 0.) Then the transcribed
+ * modifiers: ×3 own-colony tile, ×2 village, Artillery in the open → 0,
+ * ×3 when flags&0x10 and stance==4, clamp 0..1000, <12 → −999 else +odds×4.
+ * Still substituted: the "REF nation == 2" halving and the Soldier/Dragoon
+ * vs colony adjacent-Spanish-strength skip (8aac case 0xb) — not wired.
  */
 static int ai_euro_20e6_attack_term(
   ColonizeTurnContext* ctx, const ColonizeUnit* u, const Ai20e6Unit* s, int nx, int ny, int foe_id, int* score
@@ -11300,9 +11320,45 @@ static int ai_euro_20e6_attack_term(
   sctx.map = ctx->map;
   sctx.colonies = ctx->colonies;
   sctx.col1 = ctx->col1;
-  const int own = combat_unit_base_x8(&sctx, u->id, 1, NULL);
-  const int foe = foe_id >= 0 ? combat_engagement_strength(&sctx, foe_id, u->id, NULL) : 8;
-  int odds = (own * 100) / (own + (foe > 0 ? foe : 1));
+  /* base = 1b0e probe: (atk << 3) / (def + 1). No foe on the tile → a bare
+   * settlement/empty tile: defence strength 0 (DOS spawns a temp defender there;
+   * kept as the previous stand-in). */
+  int base;
+  if (foe_id >= 0) {
+    ColonizeCombatEngageResult er;
+    memset(&er, 0, sizeof(er));
+    if (s->is_ship) {
+      combat_naval_engage(&sctx, u->id, foe_id, &er);
+    } else {
+      combat_land_engage(&sctx, u->id, foe_id, &er);
+    }
+    base = (er.atk_strength << 3) / (er.def_strength + 1);
+  } else {
+    base = (combat_unit_base_x8(&sctx, u->id, 1, NULL) << 3) / 1;
+  }
+  /* 8aac(foe, 0) + 1 and max(8aac(foe, 2), 1) over the whole foe stack at (nx, ny). */
+  int col9_sum = 0;
+  int mil = 0;
+  if (foe_id >= 0) {
+    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+      const ColonizeUnit* o = units_get_const(ctx->units, i);
+      if (!o || !o->active || o->aboard_ship_id >= 0 || o->x != nx || o->y != ny) {
+        continue;
+      }
+      const int t = ai_euro_20e6_dos_type(ctx->units, o);
+      col9_sum += ai_euro_20e6_unit_col9(t);
+      if (t == 1 || t == 4 || t == 6 || t == 7 || t == 8 || t == 9) {
+        mil++;
+      }
+    }
+  }
+  const int a = col9_sum + 1;
+  const int d = mil < 1 ? 1 : mil;
+  int odds = (a / d) * base;
+  {
+    const int own_c9 = ai_euro_20e6_unit_col9(s->dos_type);
+    odds /= own_c9 < 1 ? 1 : own_c9;
+  }
   int settlement = 0;
   if (ai_euro_20e6_colony_owner_at(ctx, nx, ny) >= 0) {
     odds *= 3;
