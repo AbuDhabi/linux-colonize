@@ -143,7 +143,7 @@ static void ai_contact_bind_names(const ColonizeTurnContext* ctx) {
   s_contact_names = (ctx && ctx->names) ? ctx->names : NULL;
 }
 
-static const char* ai_contact_tribe_name(int nation_id) {
+const char* ai_contact_tribe_name(int nation_id) {
   static char live[32];
   static const char* k_names[8] = {
       "Inca", "Aztec", "Arawak", "Iroquois", "Cherokee", "Apache", "Sioux", "Tupi"

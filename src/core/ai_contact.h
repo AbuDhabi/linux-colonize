@@ -184,6 +184,8 @@ int ai_contact_try_ship_village(ColonizeTurnContext* ctx, int euro_nation, int x
 
 /* FUN_5bfb_0182 peace bit on indian.euro_diplo[euro] (COL1_INDIAN_PEACE_BIT). */
 int ai_contact_indian_has_peace(const ColonizeCol1Save* col1, int indian_nation, int euro_nation);
+/* Tribe display name for Indian nation ids 4..11. */
+const char* ai_contact_tribe_name(int nation_id);
 
 /*
  * Fandom capital-destroy surrender: when a capital village falls, reset that

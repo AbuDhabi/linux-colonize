@@ -5024,6 +5024,31 @@ static void game_after_unit_action(ColonizeGameState* game) {
       }
     }
     /*
+     * FUN_5bfb_3180 Euro x Euro branch: an adjacent unit of another Euro
+     * nation opens the FUN_5bfb_153e encounter (WoI clear; AI nations only).
+     */
+    if (!game->col1.head.game_options.woi) {
+      for (int dy = -1; dy <= 1; ++dy) {
+        for (int dx = -1; dx <= 1; ++dx) {
+          if (dx == 0 && dy == 0) {
+            continue;
+          }
+          const int oid = units_id_at(&game->units, u->x + dx, u->y + dy);
+          const ColonizeUnit* o = oid >= 0 ? units_get_const(&game->units, oid) : NULL;
+          if (!o || !o->active || o->nation_id < 0 || o->nation_id > 3 ||
+              o->nation_id == u->nation_id) {
+            continue;
+          }
+          ColonizeTurnContext ctx;
+          game_fill_turn_context(game, &ctx);
+          if (ai_diplo_153e_encounter(&ctx, u->nation_id, o->nation_id, u->id)) {
+            dy = 2;
+            break;
+          }
+        }
+      }
+    }
+    /*
      * Already-met village Meet is enqueued from adjacent step (no enter).
      * Exact-tile Meet kept only if a unit somehow stands on the dwelling.
      */
