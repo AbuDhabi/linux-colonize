@@ -136,6 +136,9 @@ int ai_contact_try_whack_confirm(
 );
 int ai_contact_whack_pending(const AiPopupState* st, int unit_id);
 
+/* @TRADE0 sell-side haggle arm (pure). Exposed for tests. */
+int ai_contact_2820_sell_haggle(int difficulty, int ask, int qty, ColonizeDosRng* rng, int* io_c4, int* io_price, int* io_fair);
+
 /* @BUY0 haggle arm (pure). Returns 1 = re-ask at *io_price, 0 = tribe refuses. Exposed for tests. */
 int ai_contact_2e92_haggle(int difficulty, int bid, ColonizeDosRng* rng, int* io_price, int* out_alarm_delta);
 

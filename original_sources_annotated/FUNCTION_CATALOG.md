@@ -288,7 +288,7 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_1427_0c9a` | 8097 | 26 | mapdraw | Build euro visibility bitmask at tile (owner+adj) | inferred | original_sources_annotated/ai/unit_mp.c |
 | `FUN_1427_0ce6` | 8123 | 21 | ai | unit_post_move_chrome | known | ai/unit_mp.c |
 | `FUN_1427_0d1e` | 8144 | 17 | mapdraw | Set unit nation low-nibble (3147 & 0xf) | inferred | original_sources_annotated/ai/unit_mp.c |
-| `FUN_1427_0d38` | 8161 | 297 | mapdraw | Unit/stack cargo+combat query dispatcher (opcode arg) | inferred |  |
+| `FUN_1427_0d38` | 8161 | 297 | ai | Stack query dispatcher (walk stack from unit, Σ/count by opcode; table CS:0xd78): 0 Σ@UNIT col9 (0x5239); 2 # military land {1,4,6,7,8,9}; 3 # Pioneers; 0xa # vehicles (0x5236>1, non-ship); 0xb Σ 157e_004a(unit,1) for units whose ship-ness matches the tile; 0xd Σ holds (0x5237) over ships; 0xe ships w/ bit 0x80 or Artillery; 1/7/8/9 → 0 | known (2026-08-27) | reached as FUN_1000_8aac; ai_euro_20e6_attack_term |
 | `FUN_1427_0f0e` | 8458 | 11 | mapdraw | Continent_id at unit's tile (137f_02a0) | inferred |  |
 | `FUN_1427_0f30` | 8469 | 22 | mapdraw | Destroy entire transport stack via 0824 | inferred |  |
 | `FUN_1427_0f64` | 8491 | 10 | mapdraw | Get profession low nibble (unit+0x17 / 315b) | inferred |  |

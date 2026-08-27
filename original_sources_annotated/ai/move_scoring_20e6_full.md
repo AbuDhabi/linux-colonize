@@ -3230,3 +3230,15 @@ probe mode (the odds base) and what `4fa8` cases 0 / 2 / 0xb read on a unit
 record (the doc's "case 2 = transport-chain splice" verdict cannot be what
 a divisor uses — re-check that case against this call). The Linux
 `combat_strength` substitution stays, now with the exact target shape.
+
+**Resolved (same day):** `FUN_1000_8aac` = `FUN_281f_08bc` → `FUN_1427_0d38`
+(stack query dispatcher; the `4fa8` analysis was a different accessor). Cases
+from its `CS:0xd78` table (bodies ndisasm'd from the raw bytes Ghidra left
+undisassembled): 0 = Σ `0x5239` (@UNIT col9) over the stack; 2 = # of types
+{1,4,6,7,8,9}; 3 = # Pioneers; 0xa = # vehicles (`0x5236 > 1`, non-ship);
+0xb = Σ `157e_004a(unit, 1)` over stack units whose ship-ness matches the
+tile (`13e4_0074`); 0xd = Σ `0x5237` over ships; 0xe = ships with bit 0x80
+or Artillery. `1b0e` probe returns `(atk << 3) / (def + 1)`. @UNIT layout
+corrected: `0x5235` = holds (Wagon 2, Caravel 2, Merchantman 4, Galleon 6,
+Privateer 2, Frigate 4, MoW 6), `0x5236` = c6 (0/1/99), `0x5239` = c9 (ship
+strength weight 0/1/4/4/12/32; 0 on land). Wired in `ai_euro_20e6_attack_term`.

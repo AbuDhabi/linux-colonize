@@ -1141,3 +1141,10 @@ Y" line when nothing is sellable) — not ported.
 (refuse: alarm +2, `tribe+7 = 0xfe`, `@BADHAGGLE2` `0x15b8`; counter: −25%
 floor 10, 1-in-(8−diff) alarm +1, re-ask via `@BUY1`). `@BADHAGGLE0/1`
 (`0x157c`/`0x156a`) are the sell-side lines and stay with `306c` (PARKED).
+
+**Sell-side loop (same day):** `LAB_002bbc` human branch ported in full —
+`ai_contact_2820_sell_price_ex` (price + `c4`/`fair`/`tier2` scaffolding),
+`ai_contact_2820_sell_haggle` (`iStack_5e == 2`), gift arm (`iStack_5e == 3
+&& iStack_88 == 0`), `@TRADE0`/`@TRADE1`/`@BADHAGGLE0`. The "`306c`" label
+this doc used for the hard-bargain was a goto inside this same loop, not a
+separate function (see the 2026-08-22 correction above).
