@@ -2296,6 +2296,20 @@ is genuinely stuck mid-session.
   session; the odds core would need a clean re-disassembly of LAB_52aa
   (~raw line 2100) if byte-fidelity is ever wanted.
 
+- [x] **T2.3 — Consolidate Indian relation onto the DOS alarm store.** New
+  2026-08-27 from T4.9's finding, done same day. `ai_diplo_indian_relation*`
+  were backed by `nation.relation_by_indian` (a `0x60` flag byte in every DOS
+  save, never a scalar) with inverted polarity; DOS reads/writes
+  `indian.alarm_by_player`. Added `ai_diplo_indian_alarm[_delta]` (DOS
+  semantics, clamp 0..100, tension-tier clamp on negative alarm delta) and
+  made the relation API a `100−alarm` view; switched DOS-transcribed sites
+  (152e, 1816 — direction was inverted, 2820/417e prices, MADAT/0x4b gates)
+  to the native calls; retired the invented drift/feeler/tick-±1 and two
+  double-pushes; first contact clamps alarm ≤20 (`:96624`). ~230 test
+  assertions rewritten (`test_ai_diplo.c`, `test_ai_contact.c`). `ctest`
+  44/44. See `docs/indians.md` "single alarm store". Follow-up: Linux
+  "at war with tribe" is still the thin `alarm > 50`; DOS has a diplo war bit.
+
 ## Tier 3 — Confirm with the user before flipping
 
 The engineering/verification for these can happen autonomously (do that
@@ -2303,14 +2317,32 @@ part under Tier 2 above); the actual switch-flip is a deliberate,
 user-visible behavior or policy change — confirm before doing it, per
 CLAUDE.md's "hard to reverse" guidance.
 
-- [ ] **T3.1 — Wire `5d04` structural port live** (replace/extend
+- [x] **T3.1 — Wire `5d04` structural port live** (replace/extend
   `ai_euro_nation_planning`), once T2.1's delta catalog exists. This
   changes default AI economic/hire behavior.
+  **2026-08-27 — wired.** `ai_euro_nation_planning` now calls
+  `ai_euro_5d04_nation_planning_structural` (treasury bump + flag cascade +
+  ship-buy ladder + hire-ladder tail) instead of the treasury bump alone.
+  Zero observable delta as T2.1 predicted: full `ctest` incl. the
+  re-enabled `golden_ai_mid01`/`golden_ai_late01` green, `golden_ai_turns`
+  unchanged (same 3 parked Brave diffs). The thin hire matrix below it is
+  still the live behavior until the tail's two iterator stubs go real.
 
 - [ ] **T3.2 — Wire `153e` worthiness-score port live**, once T2.2's delta
   catalog exists. Changes default war-declare eligibility scoring.
+  **2026-08-27 — deliberately NOT flipped.** Every term is a neutral stub
+  except diplo bit `0x10`, and no Linux code ever sets that bit (its DOS
+  writer `FUN_38fd_5930`, the crown-arms-a-rival event, is unported) — a
+  live wire would be a trigger that can never fire. Prerequisites before
+  this is worth flipping: port `38fd_5930` (sets the bit) and un-stub at
+  least the G-table/relation terms; then re-run the T2.2 catalog.
 
-- [ ] **T3.3 — Re-enable `golden_ai_turns`/`golden_ai_joint`.** Explicitly
+- [ ] **T3.3 — Re-enable `golden_ai_turns`/`golden_ai_joint`.** **2026-08-27
+  partial:** `golden_ai_mid01` and `golden_ai_late01` pass again and are
+  re-enabled as gates (`CMakeLists.txt`). `golden_ai_turns` still fails on
+  exactly 3 TURN1→2 Braves (parked seed-100 quiet-pulse divergence,
+  `seed100_brave.md`), so it and `golden_ai_joint` (depends on it) stay
+  disabled. Explicitly
   parked 2026-08-19 (`ai_transcription.md` top status note, `roadmap.md`
   phase 3) until the AI planner reaches T3 1:1 for in-scope planners —
   re-enabling early just chases "porting incomplete" symptoms. Don't flip

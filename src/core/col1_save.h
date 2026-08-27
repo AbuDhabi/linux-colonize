@@ -579,7 +579,9 @@ typedef struct ColonizeCol1Nation {
   uint8_t return_from_europe_x; /* +0x32; FUN_48d3_007a landfall */
   uint8_t return_from_europe_y;
   uint8_t euro_relation[4]; /* −0x77c4 peer bytes / FUN_15b3_* */
-  uint8_t relation_by_indian[8];
+  uint8_t relation_by_indian[8]; /* +0x38; NOT a scalar: in every DOS save it is
+     exactly 0x60 (MET|PEACE) once contacted, else 0 — a flag byte. The real
+     Indian×Euro scalar is indian[].alarm_by_player (2026-08-27). */
   /*
    * Linux diplo stand-ins (exact DS PARKED, deliberately NOT touched this
    * pass — this union is live, load-bearing gameplay code across

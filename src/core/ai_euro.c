@@ -8293,15 +8293,16 @@ static void ai_euro_nation_planning(ColonizeTurnContext* ctx, int nation_id) {
   ColonizeCol1Nation* nat = &ctx->col1->nation[nation_id];
   AiEuroInventory* inv = ai_goals_inventory(nation_id);
   const int diff = ctx->col1->head.difficulty;
-  ai_euro_5d04_treasury_bump(ctx, nation_id);
-  /* `compute_flags` is pure now (see split above) — safe to call and
-   * discard. `apply_naval_gold_floors` and the full-port orchestrator
-   * are deliberate future-wiring pieces, intentionally NOT called here
-   * yet (reference-only, address-taken below just to keep the compiler
-   * from flagging them dead code). */
-  (void)ai_euro_5d04_compute_flags(ctx, nation_id);
+  /*
+   * T3.1 (2026-08-27): the structural 5d04 orchestrator is now the live
+   * entry (treasury bump + flag cascade + ship-buy ladder + hire-ladder
+   * tail). T2.1 established the swap is a no-op by construction while the
+   * tail's two list-iterator stubs return "none" — goldens mid01/late01
+   * and the unit suites confirm zero delta. `apply_naval_gold_floors` stays
+   * reference-only (address-taken to keep it compiled).
+   */
+  ai_euro_5d04_nation_planning_structural(ctx, nation_id);
   (void)ai_euro_5d04_apply_naval_gold_floors;
-  (void)ai_euro_5d04_nation_planning_structural;
 
   /*
    * NEW WORLD wagon / mid-game hire matrix — thin 5d04 slice (full ~748 PARKED).
@@ -11123,7 +11124,7 @@ static int ai_euro_land_explore_scan_target(
             d += 1;
           }
           if (d < 6) {
-            const int rel = (int)ai_diplo_indian_relation(ctx->col1, (int)v->nation_id, nation_id);
+            const int rel = ai_diplo_indian_alarm(ctx->col1, (int)v->nation_id, nation_id);
             const int quart = rel < 25 ? 0 : rel < 50 ? 1 : rel < 75 ? 2 : 3;
             int base = ((int)v->population + quart + 3) * 2;
             if (vcid != s.cid) {
@@ -11369,7 +11370,7 @@ static int ai_euro_20e6_wander_step(ColonizeTurnContext* ctx, ColonizeUnit* u, A
         continue;
       }
     } else {
-      const int rel_score = (int)ai_diplo_indian_relation(ctx->col1, owner, nation);
+      const int rel_score = ai_diplo_indian_alarm(ctx->col1, owner, nation); /* 84fc > 0x4a */
       const int rel = ai_euro_20e6_diplo(ctx->col1, nation, owner);
       if (rel_score > 0x4a || (rel & AI_DIPLO_WAR)) {
         if (rel & AI_DIPLO_WAR) {
