@@ -3,6 +3,7 @@
 
 #include "core/assets.h"
 #include "core/colony.h"
+#include "core/combat_strength.h"
 #include "core/col1_save.h"
 #include "core/dos_rng.h"
 #include "core/founding_fathers.h"
@@ -2790,125 +2791,152 @@ static int ai_king_weakest_port(ColonizeTurnContext* ctx, int nation_id, int* ou
 }
 
 /*
- * Spawn one crown land unit on colony tile (0982 wave / empty-hold fallback).
- * Returns 1 on success, else 0.
+ * FUN_43f7_060a: colony garrison score for the REF landing pick.
+ *   (muskets + 50) / 100 + 1, + Σ land units on the tile (004a attack ×8 >> 4),
+ *   ×2 with a Fortress, ×1.5 with a Fort, min 1.
  */
-static int ai_king_spawn_wave_land(ColonizeTurnContext* ctx, int nation_id, int x, int y,
-                                   const char* type_name, const char* alt_name) {
-  if (!ctx || !ctx->units || nation_id < 0) {
-    return 0;
+static int ai_king_0982_garrison_score(const ColonizeTurnContext* ctx, const ColonizeColony* c) {
+  int g = (c->stock[COLONIZE_CARGO_MUSKETS] + 50) / 100 + 1;
+  ColonizeCombatStrengthCtx cs;
+  memset(&cs, 0, sizeof(cs));
+  cs.units = ctx->units;
+  cs.map = ctx->map;
+  cs.colonies = ctx->colonies;
+  cs.col1 = ctx->col1;
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    const ColonizeUnit* u = &ctx->units->units[i];
+    if (!u->active || u->x != c->x || u->y != c->y || !units_is_on_map(u) ||
+        units_is_sea(ctx->units, u->id)) {
+      continue;
+    }
+    g += combat_unit_base_x8(&cs, u->id, 1, NULL) >> 4;
   }
-  int lty = units_find_type(ctx->units, type_name);
-  if (lty < 0 && alt_name) {
-    lty = units_find_type(ctx->units, alt_name);
+  const int fortress = colonies_find_building(ctx->colonies, "Fortress");
+  const int fort = colonies_find_building(ctx->colonies, "Fort");
+  if (fortress >= 0 && c->has_building[fortress]) {
+    g <<= 1;
+  } else if (fort >= 0 && c->has_building[fort]) {
+    g = (g * 3) >> 1;
   }
-  if (lty < 0) {
-    return 0;
+  return g < 1 ? 1 : g;
+}
+
+/* 08bc stack query stand-in: Σ defense (004a mode 0 ×8 >> 4) of units at (x,y). */
+static int ai_king_0982_tile_strength(const ColonizeTurnContext* ctx, int x, int y) {
+  ColonizeCombatStrengthCtx cs;
+  memset(&cs, 0, sizeof(cs));
+  cs.units = ctx->units;
+  cs.map = ctx->map;
+  cs.colonies = ctx->colonies;
+  cs.col1 = ctx->col1;
+  int s = 0;
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    const ColonizeUnit* u = &ctx->units->units[i];
+    if (u->active && u->x == x && u->y == y && units_is_on_map(u)) {
+      s += combat_unit_base_x8(&cs, u->id, 0, NULL) >> 4;
+    }
   }
-  const int uid = units_spawn_allow_stack(ctx->units, lty, x, y);
-  if (uid < 0) {
-    return 0;
-  }
-  ColonizeUnit* u = units_get(ctx->units, uid);
-  if (u) {
-    units_set_nation(u, nation_id);
-    u->orders = UNITS_ORDER_AI_MOVE;
-    u->goto_x = x;
-    u->goto_y = y;
-  }
-  return 1;
+  return s;
 }
 
 /*
- * Prefer boarding a REF land unit into MoW cargo (units_board_stacked; same-tile
- * spawn like euro Europe hire). On board failure, place on colony tile.
- * Cite: docs/fandom_col1994.md REF “man-o-war with 6 units”; units_board.
- * Returns 1 on spawn (boarded or colony fallback), else 0.
+ * FUN_43f7_0512: purge every non-crown unit at (x,y). Human units get the
+ * @SEIZURELAND / @SEIZURESEA notice (%STRING0 = unit type name).
  */
-static int ai_king_mow_embark_land(ColonizeTurnContext* ctx, int nation_id, int ship_id,
-                                   int land_x, int land_y, const char* type_name,
-                                   const char* alt_name) {
-  if (!ctx || !ctx->units || nation_id < 0) {
-    return 0;
-  }
-  ColonizeUnit* ship = (ship_id >= 0) ? units_get(ctx->units, ship_id) : NULL;
-  const int cap = (ship_id >= 0) ? units_ship_capacity(ctx->units, ship_id) : 0;
-  if (ship && cap > 0 && ship->cargo_count < cap) {
-    int lty = units_find_type(ctx->units, type_name);
-    if (lty < 0 && alt_name) {
-      lty = units_find_type(ctx->units, alt_name);
+static void ai_king_0982_purge_tile(ColonizeTurnContext* ctx, int crown, int x, int y) {
+  for (int i = COLONIZE_UNITS_MAX - 1; i >= 0; --i) {
+    ColonizeUnit* u = &ctx->units->units[i];
+    if (!u->active || u->x != x || u->y != y || !units_is_on_map(u) || u->nation_id == crown) {
+      continue;
     }
-    if (lty >= 0) {
-      const int uid = units_spawn_allow_stack(ctx->units, lty, ship->x, ship->y);
-      if (uid >= 0) {
-        ColonizeUnit* u = units_get(ctx->units, uid);
-        if (u) {
-          units_set_nation(u, nation_id);
-        }
-        if (units_board_stacked(ctx->units, uid, ship_id)) {
-          return 1;
-        }
-        /* Board failed — do not leave a land unit on water. */
-        if (u) {
-          u->x = land_x;
-          u->y = land_y;
-          u->orders = UNITS_ORDER_AI_MOVE;
-          u->goto_x = land_x;
-          u->goto_y = land_y;
-          u->aboard_ship_id = -1;
-        }
-        return 1;
+    if (u->nation_id == ctx->human_nation && ai_king_human_popups(ctx)) {
+      const ColonizeUnitType* t = units_type(ctx->units, u->type_index);
+      const bool sea = units_is_sea(ctx->units, u->id);
+      if (!map_tile_is_water(ctx->map, x, y) || sea) {
+        PopupMsgTokens tok;
+        memset(&tok, 0, sizeof(tok));
+        tok.string0 = t ? t->name : "unit";
+        char body[AI_POPUP_BODY_LEN];
+        popup_msg_fill(
+          ctx->messages, sea ? "SEIZURESEA" : "SEIZURELAND", &tok,
+          "The Royal Expeditionary Force has seized our %STRING0!", body, sizeof(body)
+        );
+        (void)ai_popup_enqueue_ok_ctx(
+          ctx->ai_popups, AI_POPUP_TAG_INFO, ctx->human_nation, crown, 0, "Seizure", body
+        );
       }
     }
+    if (units_is_sea(ctx->units, u->id)) {
+      (void)units_despawn_ship_with_cargo(
+        ctx->units, u->id, NULL, NULL, 0, NULL, NULL, 0, NULL, NULL, 0
+      );
+    } else {
+      (void)units_despawn(ctx->units, u->id);
+    }
   }
-  return ai_king_spawn_wave_land(ctx, nation_id, land_x, land_y, type_name, alt_name);
 }
 
-/*
- * Spawn one land type from REF pools at (x,y). When target_fortified and
- * Artillery type exists with force[3]>0, prefer Artillery (thin siege spawn).
- * Returns 1 on success.
- */
-static int ai_king_spawn_wave_land_from_pools(ColonizeTurnContext* ctx, int nation_id, int x,
-                                              int y, uint16_t* force, int target_fortified) {
-  static const char* names[4] = {"Regular", "Dragoon", "Man-O-War", "Artillery"};
-  if (!force) {
-    return 0;
-  }
-  /* Thin Artillery siege spawn bias (fandom REF includes Artillery; type gate). */
-  if (target_fortified && force[3] > 0 && ai_king_artillery_type(ctx->units) >= 0) {
-    if (ai_king_spawn_wave_land(ctx, nation_id, x, y, "Artillery", "Cannon")) {
-      force[3]--;
-      return 1;
+static int ai_king_0982_crown_mow_alive(const ColonizeTurnContext* ctx, int crown) {
+  int n = 0;
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    const ColonizeUnit* u = &ctx->units->units[i];
+    if (u->active && u->nation_id == crown && ai_king_is_mow(ctx->units, u)) {
+      n++;
     }
   }
-  for (int k = 0; k < 4; ++k) {
-    if (k == 2 || force[k] == 0) {
-      continue;
-    }
-    const char* alt = (k == 0) ? "Soldier" : ((k == 1) ? "Scout" : ((k == 3) ? "Cannon" : NULL));
-    if (!ai_king_spawn_wave_land(ctx, nation_id, x, y, names[k], alt)) {
-      continue;
-    }
-    force[k]--;
-    return 1;
-  }
-  return 0;
+  return n;
 }
 
+/* 0982 pool index → NAMES type (43f7_0082 crown class map). */
+static int ai_king_0982_spawn_pool_unit(ColonizeTurnContext* ctx, int crown, int k, int x, int y) {
+  static const char* names[4] = {"Regulars", "Dragoons", "Man-O-War", "Artillery"};
+  static const char* alts[4] = {"Soldiers", "Scouts", "Galleon", "Cannon"};
+  int ty = units_find_type(ctx->units, names[k]);
+  if (ty < 0) {
+    ty = units_find_type(ctx->units, alts[k]);
+  }
+  if (ty < 0) {
+    return -1;
+  }
+  const int uid = units_spawn_allow_stack(ctx->units, ty, x, y);
+  ColonizeUnit* u = units_get(ctx->units, uid);
+  if (!u) {
+    return -1;
+  }
+  units_set_nation(u, crown);
+  u->orders = UNITS_ORDER_AI_MOVE;
+  u->goto_x = x;
+  u->goto_y = y;
+  /* 0982: the landed unit's moves are spent this beat (02d0 animate + 0948). */
+  u->moves_left = 0;
+  return uid;
+}
+
+#define AI_KING_0982_MAX_LANDING 31 /* DS:0x5333 */
+#define AI_KING_0982_MAX_TARGETS 10
+
 /*
- * FUN_43f7_0982 (pools>0) / 06a6 (empty): REF wave arms.
- * Thin 1528: status arrival line when 0982 spawns (chrome UI PARKED).
- * MoW cargo: when force[2] drained, board up to units_ship_capacity land
- * units into the MoW (Regulars force[0] first, then Dragoons force[1]) via
- * units_board_stacked / cargo_ids. Coastal multi-unload (≤moves/capacity)
- * remains in war_act. Cite: fandom REF “man-o-war with 6 units”;
- * COLONIZE_UNIT_CARGO_MAX.
- * Second MoW: when difficulty ≥ AI_KING_SECOND_MOW_DIFF and force[2] still
- * allows, spawn a second Man-O-War stand-in same beat (existing 0982 path).
- * Thin Artillery siege: when target colony is fortified and Artillery type
- * exists, prefer force[3] Artillery for the non-MoW land spawn / empty-hold
- * guarantee (deep siege scoring PARKED).
+ * FUN_43f7_2022 crown branch: pools>0 → FUN_43f7_0982 invasion wave, else
+ * FUN_43f7_06a6 irregulars. 0982 (viceroy_unpacked.c 73935-74266):
+ *   - MoW pool (force[2]) empty → +1 only while the crown has no Man-O-War
+ *     alive, and no landing this turn.
+ *   - exhaust = total < 5 || total == force[2] → every pool wiped at the end.
+ *   - human coastal colonies scored colonists×(125−SoL) − 75×tile strength
+ *     (min 100−SoL), weakest first; garrison need = 060a − attack-capable
+ *     crown units already adjacent. Three relaxing passes pick the first
+ *     colony the pools can cover (Dragoon/Artillery each capped at
+ *     max(1, need>>3), or 1 when Regulars ≥ Dragoons+Artillery); passes ≥1
+ *     cap need at DS:0x5333 = 31.
+ *   - landing water tile = the colony neighbour with the most free land
+ *     neighbours on the colony's continent (a human ship stack there counts
+ *     as 1). Non-crown units on it are seized (0512), the MoW spawns there
+ *     (@INVASION), then max(3, need) land units land on the weakest adjacent
+ *     land tiles (Chebyshev 1 from the colony, same continent, no village),
+ *     seizing whatever stands there — Dragoons first up to the cap (2 max
+ *     when Regulars > 1), then Artillery, then Regulars.
+ * Thin: 08bc stack strength = Σ defense×8>>4; the 4d56 crown ship act that
+ * takes an emptied MoW home is stood in for by despawning idle empty crown
+ * MoWs at wave start while land pools remain (so the MoW pool can regrow).
  */
 static void ai_king_ref_wave(ColonizeTurnContext* ctx) {
   if (!ctx || !ctx->col1_ok || !ctx->col1 || !ctx->units || !ctx->map) {
@@ -2918,185 +2946,292 @@ static void ai_king_ref_wave(ColonizeTurnContext* ctx) {
     return;
   }
   const int crown = ai_king_crown_nation(ctx->human_nation);
+  const int human = ctx->human_nation;
   uint16_t* force = ctx->col1->head.expeditionary_force;
-  const int total = (int)force[0] + (int)force[1] + (int)force[2] + (int)force[3];
+  int total = (int)force[0] + (int)force[1] + (int)force[2] + (int)force[3];
 
   if (total <= 0) {
     /* 06a6 irregulars near player colony — crown nation_id, never human. */
     int hx = 0;
     int hy = 0;
-    if (ai_king_weakest_port(ctx, ctx->human_nation, &hx, &hy) < 0) {
+    if (ai_king_weakest_port(ctx, human, &hx, &hy) < 0) {
       return;
     }
     (void)ai_king_spawn_landing(ctx, crown, hx, hy + 1, "Regular", "Soldier", false);
     return;
   }
 
-  /* 0982: Man-O-War + board REF land into ship cargo (unload at coast in war_act). */
-  int tx = 0;
-  int ty = 0;
-  const int cid = ai_king_weakest_port(ctx, ctx->human_nation, &tx, &ty);
-  if (cid < 0) {
-    return;
-  }
-  int target_fortified = 0;
-  if (ctx->colonies && cid >= 0 && cid < COLONIZE_COLONIES_MAX) {
-    const ColonizeColony* c = &ctx->colonies->colonies[cid];
-    target_fortified = colonies_has_fortification(ctx->colonies, c) ? 1 : 0;
-  }
-  int spawned = 0;
-  int mow_spawned = 0;
-  int mow_sid = -1;
-  int ship_ty = units_find_type(ctx->units, "Man-O-War");
-  if (ship_ty < 0) {
-    ship_ty = units_find_type(ctx->units, "Galleon");
-  }
-  static const int dx[8] = {0, 1, 1, 1, 0, -1, -1, -1};
-  static const int dy[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
-  int sx = tx;
-  int sy = ty;
-  int sx2 = tx;
-  int sy2 = ty;
-  int found_water = 0;
-  int found_water2 = 0;
-  for (int d = 0; d < 8; ++d) {
-    const int nx = tx + dx[d];
-    const int ny = ty + dy[d];
-    if (map_tile_is_water(ctx->map, nx, ny)) {
-      if (!found_water) {
-        sx = nx;
-        sy = ny;
-        found_water = 1;
-      } else if (!found_water2) {
-        sx2 = nx;
-        sy2 = ny;
-        found_water2 = 1;
+  /* Thin 4d56 ship act: an emptied Man-O-War sails home for the next wave. */
+  if ((int)force[0] + (int)force[1] + (int)force[3] > 0) {
+    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+      ColonizeUnit* u = &ctx->units->units[i];
+      if (u->active && u->nation_id == crown && ai_king_is_mow(ctx->units, u) &&
+          u->cargo_count == 0 && u->turns_worked > 0) {
+        (void)units_despawn(ctx->units, u->id);
+      } else if (u->active && u->nation_id == crown && ai_king_is_mow(ctx->units, u)) {
+        u->turns_worked = (uint8_t)(u->turns_worked + 1);
       }
-    }
-  }
-  if (ship_ty >= 0 && force[2] > 0) {
-    const int sid = units_spawn_allow_stack(ctx->units, ship_ty, sx, sy);
-    if (sid >= 0) {
-      ColonizeUnit* ship = units_get(ctx->units, sid);
-      if (ship) {
-        units_set_nation(ship, crown);
-        ship->orders = UNITS_ORDER_AI_SAIL;
-        ship->goto_x = sx;
-        ship->goto_y = sy;
-      }
-      force[2]--;
-      spawned = 1;
-      mow_spawned = 1;
-      mow_sid = sid;
-    }
-  }
-  /*
-   * Second MoW stand-in: high difficulty + naval pool remaining.
-   * Same 0982 spawn path; stack on first water tile if only one adjacent.
-   * Source: fandom REF Men-O-War by difficulty; deep multi-ship chrome PARKED.
-   */
-  if (mow_spawned && ship_ty >= 0 && force[2] > 0 &&
-      ctx->col1->head.difficulty >= AI_KING_SECOND_MOW_DIFF) {
-    const int wx = found_water2 ? sx2 : sx;
-    const int wy = found_water2 ? sy2 : sy;
-    const int sid2 = units_spawn_allow_stack(ctx->units, ship_ty, wx, wy);
-    if (sid2 >= 0) {
-      ColonizeUnit* ship2 = units_get(ctx->units, sid2);
-      if (ship2) {
-        units_set_nation(ship2, crown);
-        ship2->orders = UNITS_ORDER_AI_SAIL;
-        ship2->goto_x = wx;
-        ship2->goto_y = wy;
-      }
-      force[2]--;
-      spawned = 1;
     }
   }
 
-  if (mow_spawned) {
-    /*
-     * Board REF land into MoW cargo_ids up to real ship capacity (MoW=6).
-     * Regulars (force[0]) first, then Dragoons (force[1]). Drain force[] only
-     * — never invent units beyond the pool. war_act unloads at coast/colony.
-     * Cite: fandom REF “Men-O-War, Regulars, Cavalry”; “man-o-war with 6
-     * units”; units_board_stacked / units_ship_capacity.
-     */
-    int slots = 0;
-    if (mow_sid >= 0) {
-      slots = units_ship_capacity(ctx->units, mow_sid);
+  bool exhaust = false;
+  bool landed = false;
+  if (force[2] == 0) {
+    if (ai_king_0982_crown_mow_alive(ctx, crown) == 0) {
+      force[2]++;
     }
-    if (slots <= 0) {
-      slots = COLONIZE_UNIT_CARGO_MAX;
+    return;
+  }
+  if (total < 5 || total == (int)force[2]) {
+    exhaust = true;
+  }
+  if (total != (int)force[2] && ctx->colonies) {
+    /* Score human coastal colonies (≤10), weakest first. */
+    int score[AI_KING_0982_MAX_TARGETS];
+    int cidx[AI_KING_0982_MAX_TARGETS];
+    int n = 0;
+    for (int i = 0; i < COLONIZE_COLONIES_MAX && n < AI_KING_0982_MAX_TARGETS; ++i) {
+      const ColonizeColony* c = &ctx->colonies->colonies[i];
+      if (!c->active || c->nation_id != human) {
+        continue;
+      }
+      if (!map_tile_is_coastal(ctx->map, c->x, c->y)) {
+        continue;
+      }
+      const int inv = 100 - ai_king_colony_sol_at(ctx, human, c->x, c->y);
+      int sc = c->colonist_count * (inv + 25) - 75 * ai_king_0982_tile_strength(ctx, c->x, c->y);
+      if (sc < inv) {
+        sc = inv;
+      }
+      score[n] = sc;
+      cidx[n] = i;
+      n++;
     }
-    int landed = 0;
-    while (slots > 0 && force[0] > 0) {
-      if (!ai_king_mow_embark_land(ctx, crown, mow_sid, tx, ty, "Regular", "Soldier")) {
+    for (int a = 1; a < n; ++a) {
+      for (int b = a; b > 0 && score[b] < score[b - 1]; --b) {
+        int t = score[b]; score[b] = score[b - 1]; score[b - 1] = t;
+        t = cidx[b]; cidx[b] = cidx[b - 1]; cidx[b - 1] = t;
+      }
+    }
+    static const int dx[8] = {0, 1, 1, 1, 0, -1, -1, -1};
+    static const int dy[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
+    int garrison[AI_KING_0982_MAX_TARGETS];
+    for (int i = 0; i < n; ++i) {
+      const ColonizeColony* c = &ctx->colonies->colonies[cidx[i]];
+      int g = ai_king_0982_garrison_score(ctx, c);
+      for (int d = 0; d < 8; ++d) {
+        const int nx = c->x + dx[d];
+        const int ny = c->y + dy[d];
+        if (map_tile_is_water(ctx->map, nx, ny)) {
+          continue;
+        }
+        for (int k = 0; k < COLONIZE_UNITS_MAX && g > 0; ++k) {
+          const ColonizeUnit* u = &ctx->units->units[k];
+          if (!u->active || u->nation_id != crown || u->x != nx || u->y != ny ||
+              !units_is_on_map(u)) {
+            continue;
+          }
+          const ColonizeUnitType* t = units_type(ctx->units, u->type_index);
+          if (t && t->attack > 0) {
+            g--;
+          }
+        }
+      }
+      garrison[i] = g;
+    }
+    /* Pick: three relaxing passes over the weakest-first list. */
+    int pick = -1;
+    int need = 0;
+    for (int pass = 0; pass < 3 && pick < 0; ++pass) {
+      for (int i = 0; i < n; ++i) {
+        int g = garrison[i] < 1 ? 1 : garrison[i];
+        int cap = g >> 3;
+        if (cap < 1) {
+          cap = 1;
+        }
+        if ((int)force[1] + (int)force[3] <= (int)force[0]) {
+          cap = 1;
+        }
+        const int cd = (int)force[1] < cap ? (int)force[1] : cap;
+        const int ca = (int)force[3] < cap ? (int)force[3] : cap;
+        if (pass != 0 && g > AI_KING_0982_MAX_LANDING) {
+          g = AI_KING_0982_MAX_LANDING;
+        }
+        if (pass < 2 && (int)force[0] + cd + ca < g) {
+          continue;
+        }
+        pick = i;
+        need = g;
         break;
       }
-      force[0]--;
-      slots--;
-      spawned = 1;
-      landed++;
     }
-    while (slots > 0 && force[1] > 0) {
-      if (!ai_king_mow_embark_land(ctx, crown, mow_sid, tx, ty, "Dragoon", "Scout")) {
-        break;
+    if (pick >= 0) {
+      if (need > AI_KING_0982_MAX_LANDING) {
+        need = AI_KING_0982_MAX_LANDING;
       }
-      force[1]--;
-      slots--;
-      spawned = 1;
-      landed++;
-    }
-    /* Guarantee ≥1 land same beat if Regular+Dragoon pools were empty. */
-    if (landed == 0) {
-      if (ai_king_spawn_wave_land_from_pools(ctx, crown, tx, ty, force, target_fortified)) {
-        spawned = 1;
+      const ColonizeColony* c = &ctx->colonies->colonies[cidx[pick]];
+      const int continent = map_continent_id_at(ctx->map, c->x, c->y);
+      /* Landing water tile: most free land neighbours on the colony continent. */
+      int best = 0;
+      int lx = -1;
+      int ly = -1;
+      for (int d = 0; d < 8; ++d) {
+        const int wx = c->x + dx[d];
+        const int wy = c->y + dy[d];
+        if (!map_tile_is_water(ctx->map, wx, wy)) {
+          continue;
+        }
+        int free_land = 0;
+        for (int e = 0; e < 8; ++e) {
+          const int nx = wx + dx[e];
+          const int ny = wy + dy[e];
+          if (map_tile_is_water(ctx->map, nx, ny)) {
+            continue;
+          }
+          if (map_continent_id_at(ctx->map, nx, ny) != continent) {
+            continue;
+          }
+          /* 06be tile_tribe_owner: settlement bit only, units do not block. */
+          if (map_tile_has_city(ctx->map, nx, ny) ||
+              (ctx->colonies && colonies_id_at(ctx->colonies, nx, ny) >= 0)) {
+            continue;
+          }
+          free_land++;
+        }
+        if (free_land > 0) {
+          const int foe = units_foreign_unit_at(ctx->units, wx, wy, -1, crown);
+          if (foe >= 0) {
+            free_land = 1; /* a human ship stack there: lowest priority */
+          }
+        }
+        if (free_land > best) {
+          best = free_land;
+          lx = wx;
+          ly = wy;
+        }
       }
-    }
-  } else {
-    /* No MoW this beat: one land pool type (Artillery prefer if fortified). */
-    if (ai_king_spawn_wave_land_from_pools(ctx, crown, tx, ty, force, target_fortified)) {
-      spawned = 1;
+      if (best > 0) {
+        ai_king_0982_purge_tile(ctx, crown, lx, ly);
+        force[2]--;
+        int ship_ty = units_find_type(ctx->units, "Man-O-War");
+        if (ship_ty < 0) {
+          ship_ty = units_find_type(ctx->units, "Galleon");
+        }
+        const int sid = ship_ty >= 0 ? units_spawn_allow_stack(ctx->units, ship_ty, lx, ly) : -1;
+        ColonizeUnit* ship = units_get(ctx->units, sid);
+        if (ship) {
+          units_set_nation(ship, crown);
+          ship->orders = UNITS_ORDER_AI_SAIL;
+          ship->goto_x = lx;
+          ship->goto_y = ly;
+          ship->turns_worked = 0;
+          landed = true;
+          exhaust = false;
+          /* @INVASION (thin 1528 announce; VGA chrome PARKED). */
+          PopupMsgTokens tok;
+          memset(&tok, 0, sizeof(tok));
+          tok.string0 = c->name[0] ? c->name : "your colony";
+          char fallback[AI_POPUP_BODY_LEN];
+          snprintf(fallback, sizeof(fallback), "Royal Expeditionary Force lands near %s!",
+                   tok.string0);
+          char body[AI_POPUP_BODY_LEN];
+          popup_msg_fill(ctx->messages, "INVASION", &tok, fallback, body, sizeof(body));
+          if (ctx->status && ctx->status_size) {
+            snprintf(ctx->status, ctx->status_size, "%s", body);
+          }
+          if (ai_king_human_popups(ctx)) {
+            (void)ai_popup_enqueue_ok_ctx(
+              ctx->ai_popups, AI_POPUP_TAG_KING_ARRIVAL, human, crown, 0,
+              "Royal Expeditionary Force", body
+            );
+          }
+
+          /* Land units: caps recomputed from the raw garrison (74150-74162). */
+          int cap = garrison[pick] >> 3;
+          if (cap < 1) {
+            cap = 1;
+          }
+          if (force[0] > 1 && cap > 2) {
+            cap = 2;
+          }
+          if ((int)force[1] + (int)force[3] <= (int)force[0]) {
+            cap = 1;
+          }
+          if (need < 3) {
+            need = 3;
+          }
+          int used_d = 0;
+          int used_a = 0;
+          /* Candidate land tiles around the ship, weakest stack first. */
+          int cx[8];
+          int cy[8];
+          int cs[8];
+          int nc = 0;
+          for (int e = 0; e < 8; ++e) {
+            const int nx = lx + dx[e];
+            const int ny = ly + dy[e];
+            if (map_tile_is_water(ctx->map, nx, ny) ||
+                map_tile_has_city(ctx->map, nx, ny) ||
+                (ctx->colonies && colonies_id_at(ctx->colonies, nx, ny) >= 0) ||
+                abs(nx - c->x) > 1 || abs(ny - c->y) > 1 ||
+                map_continent_id_at(ctx->map, nx, ny) != continent) {
+              continue;
+            }
+            cx[nc] = nx;
+            cy[nc] = ny;
+            cs[nc] = ai_king_0982_tile_strength(ctx, nx, ny);
+            nc++;
+          }
+          for (int a = 1; a < nc; ++a) {
+            for (int b = a; b > 0 && cs[b] < cs[b - 1]; --b) {
+              int t = cs[b]; cs[b] = cs[b - 1]; cs[b - 1] = t;
+              t = cx[b]; cx[b] = cx[b - 1]; cx[b - 1] = t;
+              t = cy[b]; cy[b] = cy[b - 1]; cy[b - 1] = t;
+            }
+          }
+          /* DOS lands on every tile whose stack is no stronger than the weakest. */
+          int usable = 0;
+          while (usable < nc && cs[usable] <= cs[0]) {
+            usable++;
+          }
+          for (int t = 0; t < usable; ++t) {
+            ai_king_0982_purge_tile(ctx, crown, cx[t], cy[t]);
+          }
+          int slot = 0;
+          while (need > 0 && usable > 0) {
+            int k;
+            if (used_d < cap && force[1] > 0) {
+              k = 1;
+              used_d++;
+            } else if (used_a < cap && force[3] > 0) {
+              k = 3;
+              used_a++;
+            } else if (force[0] > 0) {
+              k = 0;
+            } else {
+              break;
+            }
+            const int uid = ai_king_0982_spawn_pool_unit(ctx, crown, k, cx[slot], cy[slot]);
+            if (uid < 0) {
+              break;
+            }
+            map_reveal_radius(ctx->map, cx[slot], cy[slot], crown, 2);
+            force[k]--;
+            need--;
+            slot = (slot + 1) % usable;
+          }
+        }
+      }
     }
   }
-  ai_king_set_ref_present(ctx->col1, 1);
-  /* Tax residual grow while at war (1d42 crumb). */
-  force[0] += 1;
-  /*
-   * Thin 1528 announce — GAME.TXT @INVASION (VGA chrome PARKED).
-   * Only overwrite when a unit actually spawned — leaves thin 2564 congress
-   * status intact if the wave beat is empty.
-   */
-  if (spawned) {
-    const char* colony_nm = "your colony";
-    if (ctx->colonies && cid >= 0 && cid < COLONIZE_COLONIES_MAX) {
-      const ColonizeColony* c = &ctx->colonies->colonies[cid];
-      if (c->active && c->name[0] != '\0') {
-        colony_nm = c->name;
-      }
-    }
-    PopupMsgTokens tok;
-    memset(&tok, 0, sizeof(tok));
-    tok.string0 = colony_nm;
-    char fallback[AI_POPUP_BODY_LEN];
-    snprintf(
-      fallback,
-      sizeof(fallback),
-      "Royal Expeditionary Force lands near %s!",
-      colony_nm
-    );
-    char body[AI_POPUP_BODY_LEN];
-    popup_msg_fill(ctx->messages, "INVASION", &tok, fallback, body, sizeof(body));
-    if (ctx->status && ctx->status_size) {
-      snprintf(ctx->status, ctx->status_size, "%s", body);
-    }
-    if (ai_king_human_popups(ctx)) {
-      (void)ai_popup_enqueue_ok_ctx(
-        ctx->ai_popups, AI_POPUP_TAG_KING_ARRIVAL, ctx->human_nation,
-        ai_king_crown_nation(ctx->human_nation), 0, "Royal Expeditionary Force",
-        body
-      );
-    }
+  if (landed) {
+    ai_king_set_ref_present(ctx->col1, 1);
+  }
+  if (exhaust) {
+    force[0] = 0;
+    force[1] = 0;
+    force[2] = 0;
+    force[3] = 0;
   }
 }
 
@@ -4404,7 +4539,31 @@ static void ai_king_war_act(ColonizeTurnContext* ctx) {
          * visiting the port) is not a blocker; units_try_move stacks onto it.
          * units_id_at here froze whole REF columns behind their own lead unit
          * for 28 turns in the 2026-08-28 headless WoI run. */
-        const int foe = units_foreign_unit_at(ctx->units, nx, ny, u->id, u->nation_id);
+        int foe = units_foreign_unit_at(ctx->units, nx, ny, u->id, u->nation_id);
+        if (foe >= 0 && ctx->colonies) {
+          /*
+           * A human colony is fought through its armed defender; visiting
+           * third-nation units (a rival's Privateer/Artillery in a Dutch port
+           * on the real 2026-08-28 fixture) are not defenders and must not
+           * freeze the column — an undefended port is simply entered and
+           * captured (DOS 0512 seizes whatever stands there).
+           */
+          const int hcid = colonies_id_at(ctx->colonies, nx, ny);
+          const ColonizeColony* hc = hcid >= 0 ? &ctx->colonies->colonies[hcid] : NULL;
+          if (hc && hc->active && hc->nation_id == human && !units_is_sea(ctx->units, u->id)) {
+            const int def = ai_king_human_defender_at(ctx, human, nx, ny);
+            if (def >= 0) {
+              foe = def;
+            } else {
+              u->x = nx;
+              u->y = ny;
+              u->moves_left = 0;
+              ai_king_after_step_onto_colony(ctx, u, crown, human);
+              advanced = 1;
+              break;
+            }
+          }
+        }
         if (foe >= 0) {
           const ColonizeUnit* f = units_get_const(ctx->units, foe);
           if (!f || f->nation_id != human) {
