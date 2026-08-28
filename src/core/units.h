@@ -25,6 +25,10 @@ void units_set_ff_col1(const ColonizeCol1Save* col1);
 
 /* Optional live map for has_unit occupancy maintenance (spawn/move/despawn). */
 void units_set_occupancy_map(ColonizeWorldMap* map);
+/* Recompute the has_unit presence bit on every tile from the pool (owner nibble restamped only where units stand). */
+void units_occupancy_rebuild(ColonizeUnitPool* pool);
+/* Presence bit refresh for the two tiles of a direct x/y write (DOS UNITFLAG clear+set). */
+void units_occupancy_notify_moved(ColonizeUnitPool* pool, int old_x, int old_y, int new_x, int new_y);
 
 /*
  * Optional post-win native settlement fallout context for

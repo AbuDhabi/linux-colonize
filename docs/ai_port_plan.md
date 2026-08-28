@@ -2488,8 +2488,31 @@ is genuinely stuck mid-session.
   the `REF nation == 2` halving and the case-0xb adjacent-Spanish skip.
   `ctest` 46/46, `golden_ai_turns` unchanged.
 
-- [ ] **T1.23 — TURN3→4 two-Brave residue (presence-bit lifecycle).**
-  See T3.3's 2026-08-28 note. Linux stamps the layer3 owner nibble on every
+- [ ] **T1.23 — Brave residue after the presence-bit lifecycle fix.**
+  **2026-08-28, later — lifecycle fixed, residue grew (honest result).**
+  DOS saves prove the layer2 presence bit (UNITFLAG 0x01) is exact at every
+  save (no bit without a unit, no unit without a bit, TURN1–7), while the
+  layer3 owner nibble is stamped at placement and *kept* after the unit
+  leaves (Dutch ship's whole route reads 3 at TURN4; Braves stamp too). Linux
+  now matches that: `units_occupancy_notify_moved` on every direct x/y
+  mover (Brave steps, seed-100 snapshot overlay, ship/unit teleports in
+  ai.c / ai_euro.c / ai_contact.c / ai_king.c, ship unload) plus a bit-only
+  `units_occupancy_rebuild` safety net at each nation step (must not restamp
+  nibbles — a save-loaded unit keeps the foreign stamp under it until it
+  moves). With exact bits `golden_ai_turns` reads: TURN1→2 ok, 2→3 ok,
+  **3→4 red (n=6 (39,19), n=7 (49,46), n=7 (43,51))**, **4→5 red (n=10
+  (49,42), n=9 (35,52))**, 5→6 ok, 6→7 ok. The old 2-diff state was leaning on
+  stale bits (e.g. the n=10 `−2` far-probe came from a bit the n=7 Brave had
+  left behind at (49,46) — DOS clears it, and with 4..11 slot order n=7 moves
+  first there too). The DOS-shaped reject read (`ai_tile_tribe_or_presence`
+  instead of the bare nibble) now makes TURN3→4 green but costs TURN5→6
+  (n=7 (43,53)) and regresses `golden_woi_ref01` (a Brave parks where the REF
+  needs to pass — the known third-nation freeze), so the bare read stays.
+  Next: the remaining diffs are quiet-scorer RNG/peel calibration made
+  against stale bits, not lifecycle; re-derive the mid-turn peels
+  (`seed100_brave.md`) with exact bits, and fix the REF third-nation freeze
+  before switching the reject read.
+  Earlier note: see T3.3's 2026-08-28 note. Linux stamps the layer3 owner nibble on every
   tile a unit enters (`units_map_set_owner_nibble`) and never clears it;
   DOS reads presence through `FUN_137f_0314` (layer2 bit 0x01 → nibble) and
   `FUN_137f_03e4` (bit 0x02 → nibble). Make the Brave dest reject and the

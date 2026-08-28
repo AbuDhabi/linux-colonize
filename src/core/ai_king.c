@@ -4555,8 +4555,13 @@ static void ai_king_war_act(ColonizeTurnContext* ctx) {
             if (def >= 0) {
               foe = def;
             } else {
-              u->x = nx;
-              u->y = ny;
+              {
+                const int step_ox = u->x;
+                const int step_oy = u->y;
+                u->x = nx;
+                u->y = ny;
+                units_occupancy_notify_moved(ctx->units, step_ox, step_oy, nx, ny);
+              }
               u->moves_left = 0;
               ai_king_after_step_onto_colony(ctx, u, crown, human);
               advanced = 1;

@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 
 #include "core/ai.h"
 #include "core/ai_diplo.h"
@@ -2783,6 +2784,9 @@ bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ct
       const int n = proc->nation_cursor;
       proc->show_indicator = true;
       turn_set_active_nation(ctx, n);
+      if (ctx->units) {
+        units_occupancy_rebuild(ctx->units); /* presence bits exact before this nation reads them */
+      }
       /*
        * AI fog reveal (00f2 / 281f_07a0) PARKED for golden_ai_turns T2 —
        * revealing rivals early changes found-tile / unit paths. Human FINISH
@@ -2861,6 +2865,9 @@ bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ct
       const int n = proc->nation_cursor;
       proc->show_indicator = true;
       turn_set_active_nation(ctx, n);
+      if (ctx->units) {
+        units_occupancy_rebuild(ctx->units);
+      }
       if (ctx->units) {
         turn_refresh_moves_for_nation(
           ctx->units,
