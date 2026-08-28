@@ -44,6 +44,7 @@ static int unit_clearcut_lumber(void) {
   }
 
   ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map)); /* map_alloc frees the old buffers first */
   char err[128];
   if (!map_alloc(&map, 8, 8, err, sizeof(err))) {
     fprintf(stderr, "clearcut: map_alloc failed: %s\n", err);
@@ -214,6 +215,7 @@ static int unit_useduptools(void) {
   }
 
   ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map)); /* map_alloc frees the old buffers first */
   char err[128];
   if (!map_alloc(&map, 8, 8, err, sizeof(err))) {
     fprintf(stderr, "usedup: map_alloc failed: %s\n", err);
@@ -524,6 +526,7 @@ static int unit_pioneer_order_gates(void) {
   }
 
   ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map)); /* map_alloc frees the old buffers first */
   char err[128];
   if (!map_alloc(&map, 8, 8, err, sizeof(err))) {
     fprintf(stderr, "ordgate: map_alloc failed: %s\n", err);
@@ -743,6 +746,185 @@ static int unit_music_sting_active_id_mock(void) {
   return g_music_sting_active_id;
 }
 
+static int g_event_sfx_calls = 0;
+
+static void unit_event_sfx_play_mock(int id) {
+  if (id >= SOUND_EVENT_ID_BASE) {
+    g_event_sfx_calls++;
+  }
+}
+
+static int unit_event_sfx_active_id_mock(void) {
+  return -1;
+}
+
+/*
+ * bugs.md: cannon fire landed on top of the prices-fall / immigration popups.
+ * DOS FUN_5fef_1b0e only plays the fire/win event sounds when its `param_4`
+ * visible flag is set — FUN_465b_0000 passes 1 when either side is human
+ * (`0x543f == 0`), the AI move scorer at 521d:52aa passes 0. Combat between
+ * two AI nations must therefore be silent; human-involved combat must not.
+ */
+static int unit_combat_sfx_visibility(void) {
+  ColonizeUnitPool pool;
+  memset(&pool, 0, sizeof(pool));
+  pool.type_count = 2;
+  snprintf(pool.types[0].name, sizeof(pool.types[0].name), "Soldiers");
+  pool.types[0].attack = 99;
+  pool.types[0].defense = 99;
+  pool.types[0].movement = 1;
+  snprintf(pool.types[1].name, sizeof(pool.types[1].name), "Soldiers");
+  pool.types[1].attack = 0;
+  pool.types[1].defense = 0;
+  pool.types[1].movement = 1;
+
+  ColonizeCol1Save col1;
+  memset(&col1, 0, sizeof(col1));
+  col1.player[0].control = 0; /* human */
+  col1.player[1].control = 1; /* AI */
+  col1.player[2].control = 1; /* AI */
+
+  units_set_combat_music_hooks(unit_event_sfx_play_mock, unit_event_sfx_active_id_mock);
+  units_set_ff_col1(&col1);
+
+  int rc = 0;
+  /* AI vs AI: silent. */
+  g_event_sfx_calls = 0;
+  {
+    const int aid = units_spawn_allow_stack(&pool, 0, 5, 5);
+    const int did = units_spawn_allow_stack(&pool, 1, 6, 5);
+    units_get(&pool, aid)->nation_id = 1;
+    units_get(&pool, did)->nation_id = 2;
+    ColonizeDosRng rng;
+    dos_rng_seed(&rng, 7);
+    units_resolve_land_combat_ff(&pool, aid, did, &rng, &col1);
+    if (g_event_sfx_calls != 0) {
+      fprintf(stderr, "combat_sfx: AI-vs-AI played %d event sounds (want 0)\n",
+              g_event_sfx_calls);
+      rc = 1;
+    }
+  }
+  /* Human attacker: audible. */
+  if (rc == 0) {
+    g_event_sfx_calls = 0;
+    const int aid = units_spawn_allow_stack(&pool, 0, 5, 6);
+    const int did = units_spawn_allow_stack(&pool, 1, 6, 6);
+    units_get(&pool, aid)->nation_id = 0;
+    units_get(&pool, did)->nation_id = 1;
+    ColonizeDosRng rng;
+    dos_rng_seed(&rng, 8);
+    units_resolve_land_combat_ff(&pool, aid, did, &rng, &col1);
+    if (g_event_sfx_calls == 0) {
+      fprintf(stderr, "combat_sfx: human attack must stay audible\n");
+      rc = 1;
+    }
+  }
+  /* Human defender: audible. */
+  if (rc == 0) {
+    g_event_sfx_calls = 0;
+    const int aid = units_spawn_allow_stack(&pool, 0, 5, 7);
+    const int did = units_spawn_allow_stack(&pool, 1, 6, 7);
+    units_get(&pool, aid)->nation_id = 2;
+    units_get(&pool, did)->nation_id = 0;
+    ColonizeDosRng rng;
+    dos_rng_seed(&rng, 9);
+    units_resolve_land_combat_ff(&pool, aid, did, &rng, &col1);
+    if (g_event_sfx_calls == 0) {
+      fprintf(stderr, "combat_sfx: human defence must stay audible\n");
+      rc = 1;
+    }
+  }
+
+  units_set_ff_col1(NULL);
+  units_set_combat_music_hooks(NULL, NULL);
+  if (rc == 0) {
+    fprintf(stderr, "unit_units: combat SFX visibility gate ok\n");
+  }
+  return rc;
+}
+
+/*
+ * bugs.md: "I can't move a ship onto a sea lane either way." DOS
+ * FUN_4720_015c (~76048) only raises reason 5 when the ship is ALREADY on a
+ * high-seas tile and steps further east without a Go To / Trade Route order;
+ * entering the lane from ordinary ocean is always legal, and a Go To may
+ * target a lane tile (which then sails the ship to Europe, game_loop.c).
+ */
+static int unit_sea_lane_entry(void) {
+  ColonizeUnitPool pool;
+  memset(&pool, 0, sizeof(pool));
+  pool.type_count = 1;
+  snprintf(pool.types[0].name, sizeof(pool.types[0].name), "Caravel");
+  pool.types[0].movement = 4;
+  pool.types[0].domain = COLONIZE_UNIT_DOMAIN_SEA;
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  char err[128];
+  if (!map_alloc(&map, 8, 8, err, sizeof(err))) {
+    fprintf(stderr, "sea_lane: map_alloc failed: %s\n", err);
+    return 1;
+  }
+  for (int i = 0; i < 8 * 8; ++i) {
+    map.terrain[i] = 25; /* ocean */
+  }
+  for (int y = 0; y < 8; ++y) {
+    map.terrain[y * 8 + 6] = 26; /* high seas / sea lane */
+    map.terrain[y * 8 + 7] = 26;
+  }
+
+  const int id = units_spawn_allow_stack(&pool, 0, 5, 3);
+  ColonizeUnit* u = units_get(&pool, id);
+  if (!u) {
+    map_free(&map);
+    fprintf(stderr, "sea_lane: spawn failed\n");
+    return 1;
+  }
+  u->nation_id = 0;
+  u->moves_left = 4;
+
+  int rc = 0;
+  if (!units_can_enter(&pool, u->type_index, &map, 6, 3, id, NULL)) {
+    fprintf(stderr, "sea_lane: ocean->lane must be allowed\n");
+    rc = 1;
+  }
+  if (rc == 0 && !units_set_goto(&pool, id, &map, 6, 3, NULL)) {
+    fprintf(stderr, "sea_lane: Go To onto a lane tile must be accepted\n");
+    rc = 1;
+  }
+  units_clear_orders(&pool, id);
+  u = units_get(&pool, id);
+  u->x = 6;
+  u->y = 3;
+  u->orders = UNITS_ORDER_NONE;
+  if (rc == 0 && units_can_enter(&pool, u->type_index, &map, 7, 3, id, NULL)) {
+    fprintf(stderr, "sea_lane: lane->east without a sail order must be denied\n");
+    rc = 1;
+  }
+  if (rc == 0 && units_last_enter_reason() != COLONIZE_ENTER_BLOCKED_HS_SAIL) {
+    fprintf(stderr, "sea_lane: lane->east deny should be reason 5\n");
+    rc = 1;
+  }
+  u->orders = UNITS_ORDER_GOTO;
+  u->goto_x = 7;
+  u->goto_y = 3;
+  if (rc == 0 && !units_can_enter(&pool, u->type_index, &map, 7, 3, id, NULL)) {
+    fprintf(stderr, "sea_lane: lane->east with Go To must be allowed\n");
+    rc = 1;
+  }
+  u->orders = UNITS_ORDER_NONE;
+  if (rc == 0 && !units_can_enter(&pool, u->type_index, &map, 5, 3, id, NULL)) {
+    fprintf(stderr, "sea_lane: lane->west back to ocean must be allowed\n");
+    rc = 1;
+  }
+
+  map_free(&map);
+  if (rc == 0) {
+    fprintf(stderr, "unit_units: sea-lane entry rules ok\n");
+  }
+  return rc;
+}
+
 /*
  * Combat engagement (units_resolve_land_combat_ff / _naval_combat_ff) should
  * push SOUND_MILITARY_BGM_ID through the units_set_combat_music_hooks play
@@ -845,6 +1027,7 @@ static int unit_king_galleon_offer(void) {
     return 1;
   }
   ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map)); /* map_alloc frees the old buffers first */
   char err[128];
   if (!map_alloc(&map, 8, 8, err, sizeof(err))) {
     fprintf(stderr, "galleon: map_alloc failed: %s\n", err);
@@ -1013,6 +1196,14 @@ int main(void) {
     return 1;
   }
   if (unit_pioneer_order_gates() != 0) {
+    diag_shutdown();
+    return 1;
+  }
+  if (unit_combat_sfx_visibility() != 0) {
+    diag_shutdown();
+    return 1;
+  }
+  if (unit_sea_lane_entry() != 0) {
     diag_shutdown();
     return 1;
   }
