@@ -126,6 +126,7 @@ void turn_refresh_moves_for_nation(
   }
   /* FF combat context for units_try_move (Washington / Drake / Revere). */
   units_set_ff_col1(col1);
+  colonies_set_col1_context((ColonizeCol1Save*)col1);
   units_set_occupancy_map(map);
   if (col1) {
     int human = -1;
@@ -2184,6 +2185,18 @@ void turn_tally_professions(
   }
 }
 
+/*
+ * FUN_43f7_2424 war dispatch: once independence is declared the crown slot
+ * is the REF, driven by ai_king_nation_turn's 2022 branch (wave + war_act),
+ * not the ordinary Euro unit AI. Running ai_euro_nation_turn on it first
+ * spent every landed Regular's moves before war_act ever saw them (found
+ * 2026-08-28 by a headless WoI run: 40 turns, zero attacks).
+ */
+static bool turn_euro_nation_is_ref(const ColonizeTurnContext* ctx, int n) {
+  return ctx && ctx->col1_ok && ctx->col1 && ai_king_independence_declared(ctx->col1) &&
+         n == ai_king_crown_nation(ctx->human_nation);
+}
+
 void turn_run_european_ai_stubs(ColonizeTurnContext* ctx) {
   if (!ctx || !ctx->units) {
     return;
@@ -2196,7 +2209,7 @@ void turn_run_european_ai_stubs(ColonizeTurnContext* ctx) {
     if (ctx->col1_ok && ctx->col1) {
       control = ctx->col1->player[n].control;
     }
-    if (control == 2) {
+    if (control == 2 && !turn_euro_nation_is_ref(ctx, n)) {
       continue; /* withdrawn */
     }
     turn_set_active_nation(ctx, n);
@@ -2225,6 +2238,9 @@ void turn_run_european_ai_stubs(ColonizeTurnContext* ctx) {
       ctx->ai_popups,
       ctx->messages
     );
+    if (turn_euro_nation_is_ref(ctx, n)) {
+      continue; /* REF: ai_king_nation_turn (war_act) moves these units. */
+    }
     ai_euro_nation_turn(ctx, n);
   }
 }
@@ -2424,9 +2440,10 @@ void turn_run_year_end_chrome(ColonizeTurnContext* ctx, ColonizeTurnResult* out)
   }
 
   const int woi = ctx->col1_ok && ctx->col1 && ctx->col1->head.game_options.woi != 0;
-  /* unknown46[4]==1 = independence achieved (reports); also skip re-fire. */
+  /* Endgame latch WON = independence achieved (reports); also skip re-fire. */
   const int already_won =
-    ctx->col1_ok && ctx->col1 && ctx->col1->head.unknown46[4] == 1;
+    ctx->col1_ok && ctx->col1 &&
+    ai_king_latch_get(ctx->col1, AI_KING_ENDGAME_BYTE) == AI_KING_ENDGAME_WON;
 
   /*
    * Section C1 thin: WoI + (no crown colonies | force) + fleet thin + REF pool
@@ -2478,7 +2495,7 @@ void turn_run_year_end_chrome(ColonizeTurnContext* ctx, ColonizeTurnResult* out)
     if (colony_gate && (fleet_thin || force) && (ref_thin || force)) {
       out->year_end_victory = true;
       if (ctx->col1_ok && ctx->col1) {
-        ctx->col1->head.unknown46[4] = 1;
+        ai_king_latch_set(ctx->col1, AI_KING_ENDGAME_BYTE, AI_KING_ENDGAME_WON);
         ctx->col1->head.game_options.independence_chrome = 1; /* 0x5382|8 */
         ctx->col1->head.show_entire_map = 1; /* LAB_0b4a → DS:0x53a2 */
         ctx->col1->head.game_options.calendar_latch = 1; /* LAB_0b4a when stopped */
@@ -2581,6 +2598,9 @@ void turn_run_year_end_chrome(ColonizeTurnContext* ctx, ColonizeTurnResult* out)
 static bool turn_euro_ai_should_run(const ColonizeTurnContext* ctx, int nation_id) {
   if (!ctx || nation_id < 0 || nation_id >= 4 || nation_id == ctx->human_nation) {
     return false;
+  }
+  if (turn_euro_nation_is_ref(ctx, nation_id)) {
+    return true; /* crown slot is withdrawn (control 2) but its REF units still need moves */
   }
   uint8_t control = 1;
   if (ctx->col1_ok && ctx->col1) {
@@ -2765,7 +2785,9 @@ bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ct
           }
         }
       }
-      ai_euro_nation_turn(ctx, n);
+      if (!turn_euro_nation_is_ref(ctx, n)) {
+        ai_euro_nation_turn(ctx, n);
+      }
       {
         const int next = turn_next_euro_ai(ctx, n + 1);
         if (next >= 0) {
@@ -2812,8 +2834,26 @@ bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ct
       /* FUN_38fd_0058 EOT market attrition / rise-fall for Europe screen. */
       if (ctx->europe) {
         europe_tick_market_prices(
-          ctx->europe, ctx->col1_ok ? ctx->col1 : NULL, ctx->colonies
+          ctx->europe, ctx->col1_ok ? ctx->col1 : NULL, ctx->colonies, ctx->human_nation,
+          ctx->turn_number ? *ctx->turn_number : 0u
         );
+        /* FUN_38fd_0058 phase 4: 0xfa8 @PRICEUP / 0xfb0 @PRICEDOWN OK dialog
+         * (FUN_281f_0652(tag, 2)) for the human nation only. */
+        if (ctx->ai_popups && ctx->europe->price_event_cargo >= 0) {
+          const int c = ctx->europe->price_event_cargo;
+          PopupMsgTokens tok;
+          memset(&tok, 0, sizeof(tok));
+          tok.string0 = ctx->europe->cargo[c].name;
+          tok.string1 = ctx->europe->port_city;
+          tok.number0 = ctx->europe->cargo[c].bid;
+          tok.has_number0 = true;
+          char body[AI_POPUP_BODY_LEN];
+          popup_msg_fill(
+            ctx->messages, ctx->europe->price_event_dir > 0 ? "PRICEUP" : "PRICEDOWN", &tok,
+            ctx->europe->status, body, sizeof(body)
+          );
+          (void)ai_popup_enqueue_ok(ctx->ai_popups, AI_POPUP_TAG_INFO, NULL, body);
+        }
       }
       turn_set_active_nation(ctx, ctx->human_nation);
       turn_reveal_fog_for_nation(ctx, ctx->human_nation);

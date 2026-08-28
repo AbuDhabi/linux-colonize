@@ -53,4 +53,28 @@ bool game_hof_entry(const ColonizeGameState* game, int index, ColonizeHofEntryVi
 /* True while the title-menu "View Hall of Fame" screen is open (Esc/Enter closes it). */
 bool game_in_hall_of_fame(const ColonizeGameState* game);
 
+/*
+ * Headless play-smoke probes (tests/smoke/test_play_smoke.c). Read-only;
+ * enough to drive new-game → landfall → found colony → colony screen →
+ * Europe → save from a key script without reaching into the state struct.
+ */
+bool game_in_colony_screen(const ColonizeGameState* game);
+bool game_in_europe_screen(const ColonizeGameState* game);
+/* Any modal that swallows input (AI popup, name entry, save/load, ...). */
+bool game_modal_open(const ColonizeGameState* game);
+/* AI popup queued but not presented yet: feed one idle frame before keys. */
+bool game_ai_popup_pending(const ColonizeGameState* game);
+/* AiPopupTag of the open AI popup, or -1 when none is open. */
+int game_ai_popup_tag(const ColonizeGameState* game);
+bool game_save_dialog_open(const ColonizeGameState* game);
+bool game_turn_busy(const ColonizeGameState* game);
+uint32_t game_turn_number(const ColonizeGameState* game);
+int game_colony_count(const ColonizeGameState* game);
+bool game_colony_pos(const ColonizeGameState* game, int index, int* x, int* y);
+int game_selected_unit(const ColonizeGameState* game);
+/* False when id is not an active unit. is_sea/moves_left/x/y may be NULL. */
+bool game_unit_info(
+  const ColonizeGameState* game, int unit_id, int* x, int* y, bool* is_sea, int* moves_left
+);
+
 #endif

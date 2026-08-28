@@ -1,3 +1,4 @@
+#include "core/ai_king.h"
 #include "core/assets.h"
 #include "core/colony_production.h"
 #include "core/combat_strength.h"
@@ -379,6 +380,22 @@ static const char* reports_labels_field(const char* section, int index) {
   return NULL;
 }
 
+/*
+ * `@MISC` word copied into the caller's buffer (so two words can be composed
+ * into one line without aliasing reports_labels_field's static buffer);
+ * `fallback` when the live catalog isn't loaded.
+ */
+static const char* reports_misc_word(int index, const char* fallback, char* out, size_t out_sz) {
+  const char* live = reports_labels_field("MISC", index);
+  str_copy_trunc(out, out_sz, live ? live : fallback);
+  return out;
+}
+
+const char* reports_misc_display_word(int index, const char* fallback) {
+  static char buf[64];
+  return reports_misc_word(index, fallback ? fallback : "", buf, sizeof(buf));
+}
+
 const char* reports_title(ColonizeReportId id) {
   if (id < 0 || id >= COLONIZE_REPORT_COUNT) {
     return "REPORT";
@@ -512,10 +529,12 @@ static void reports_render_ok_button(const ColonizeFont* font, ColonizeFramebuff
   if (!font) {
     return;
   }
-  const int tw = font_text_width(font, "OK");
+  char ok_w[16];
+  reports_misc_word(46, "OK", ok_w, sizeof(ok_w));
+  const int tw = font_text_width(font, ok_w);
   const int tx = REPORTS_OK_X + (REPORTS_OK_W - tw) / 2;
   const int ty = REPORTS_OK_Y + (REPORTS_OK_H - font->max_height) / 2;
-  reports_draw_line(font, fb, tx, ty, "OK", 14);
+  reports_draw_line(font, fb, tx, ty, ok_w, 14);
 }
 
 static int reports_clamp_nation(int human_nation) {
@@ -987,10 +1006,15 @@ static void reports_render_congress_page1(
   const ColonizeCol1Nation* nat = &col1->nation[human];
   const int step = reports_line_step(font);
 
+  /* LABELS.TXT @MISC: #112 "Next Continental Congress Session", #69 "Rebel",
+   * #70 "Tory", #71 "Sentiment", #85 "Expeditionary Force", #89 "Founding
+   * Fathers" — composed with the golden's punctuation/spacing. */
+  char w1[48], w2[48], w3[48];
   snprintf(
     line,
     line_sz,
-    "Next Continental Congress Session:  (%s)",
+    "%s:  (%s)",
+    reports_misc_word(112, "Next Continental Congress Session", w1, sizeof(w1)),
     nat->next_founding_father >= 0 ? reports_ff_name(nat->next_founding_father) : "none"
   );
   reports_draw_line(font, fb, 8, REPORTS_CONGRESS_TEXT1_Y, line, 15);
@@ -1023,7 +1047,15 @@ static void reports_render_congress_page1(
 
   const unsigned rebel_pct = nat->rebel_sentiment > 100 ? 100 : nat->rebel_sentiment;
   snprintf(
-    line, line_sz, "Rebel Sentiment: %u%%  Tory Sentiment: %u%%", rebel_pct, 100 - rebel_pct
+    line,
+    line_sz,
+    "%s %s: %u%%  %s %s: %u%%",
+    reports_misc_word(69, "Rebel", w1, sizeof(w1)),
+    reports_misc_word(71, "Sentiment", w3, sizeof(w3)),
+    rebel_pct,
+    reports_misc_word(70, "Tory", w2, sizeof(w2)),
+    w3,
+    100 - rebel_pct
   );
   reports_draw_line(font, fb, 8, REPORTS_CONGRESS_TEXT2_Y, line, 15);
 
@@ -1044,7 +1076,13 @@ static void reports_render_congress_page1(
     );
   }
 
-  snprintf(line, line_sz, "%s Expeditionary Force:", reports_nation_adjective(human));
+  snprintf(
+    line,
+    line_sz,
+    "%s %s:",
+    reports_nation_adjective(human),
+    reports_misc_word(85, "Expeditionary Force", w1, sizeof(w1))
+  );
   reports_draw_line(font, fb, 8, REPORTS_CONGRESS_TEXT3_Y, line, 15);
 
   {
@@ -1079,7 +1117,8 @@ static void reports_render_congress_page1(
     }
   }
 
-  reports_draw_line(font, fb, 8, REPORTS_CONGRESS_FF_HEADER_Y, "Founding Fathers:", 15);
+  snprintf(line, line_sz, "%s:", reports_misc_word(89, "Founding Fathers", w1, sizeof(w1)));
+  reports_draw_line(font, fb, 8, REPORTS_CONGRESS_FF_HEADER_Y, line, 15);
   {
     int shown = 0;
     int y = REPORTS_CONGRESS_FF_HEADER_Y + step;
@@ -1356,8 +1395,10 @@ static void reports_render_labor_grid(
   reports_labor_job_counts(col1, human, colonies, colony_counts, mapboard_counts, europe_counts, &total);
   /* Centered, matching every other report's centered-title convention. */
   if (font) {
-    const int w = font_text_width(font, "(Click on item to zoom)");
-    reports_draw_line(font, fb, (fb->width - w) / 2, y, "(Click on item to zoom)", 14);
+    char hint[48];
+    reports_misc_word(56, "(Click on item to zoom)", hint, sizeof(hint));
+    const int w = font_text_width(font, hint);
+    reports_draw_line(font, fb, (fb->width - w) / 2, y, hint, 14);
   }
 
   for (int col = 0; col < REPORTS_LABOR_COLS; ++col) {
@@ -1430,15 +1471,17 @@ static void reports_render_labor_detail(
 
   const int bd_x_label = 165;
   const int bd_x_value = 295;
-  snprintf(line, line_sz, "Off Mapboard (Europe):");
+  /* LABELS.TXT @MISC #53/#54/#55. */
+  char w[48];
+  snprintf(line, line_sz, "%s:", reports_misc_word(53, "Off Mapboard (Europe)", w, sizeof(w)));
   reports_draw_line(font, fb, bd_x_label, header_y, line, 14);
   snprintf(line, line_sz, "%d", europe_n);
   reports_draw_line(font, fb, bd_x_value, header_y, line, 14);
-  snprintf(line, line_sz, "On Mapboard:");
+  snprintf(line, line_sz, "%s:", reports_misc_word(54, "On Mapboard", w, sizeof(w)));
   reports_draw_line(font, fb, bd_x_label, header_y + REPORTS_LABOR_ROW_STEP / 2, line, 14);
   snprintf(line, line_sz, "%d", mapboard_n);
   reports_draw_line(font, fb, bd_x_value, header_y + REPORTS_LABOR_ROW_STEP / 2, line, 14);
-  snprintf(line, line_sz, "In Colonies:");
+  snprintf(line, line_sz, "%s:", reports_misc_word(55, "In Colonies", w, sizeof(w)));
   reports_draw_line(font, fb, bd_x_label, header_y + REPORTS_LABOR_ROW_STEP, line, 14);
   snprintf(line, line_sz, "%d", colony_n);
   reports_draw_line(font, fb, bd_x_value, header_y + REPORTS_LABOR_ROW_STEP, line, 14);
@@ -2719,9 +2762,11 @@ static void reports_render_foreign(
 
     const int peer_rows = (r->peer_count + 1) / 2;
     const int rebels_y = body_y + peer_rows * REPORTS_FOREIGN_LINE_STEP;
-    snprintf(line, sizeof(line), "Rebels: %d", r->rebels);
+    /* LABELS.TXT @MISC #86 "Rebels" / #87 "Tories" (plural forms are real). */
+    char w[32];
+    snprintf(line, sizeof(line), "%s: %d", reports_misc_word(86, "Rebels", w, sizeof(w)), r->rebels);
     reports_draw_line(font, fb, REPORTS_FOREIGN_COL1_X, rebels_y, line, REPORTS_FOREIGN_LABEL_COLOR);
-    snprintf(line, sizeof(line), "Tories: %d", r->tories);
+    snprintf(line, sizeof(line), "%s: %d", reports_misc_word(87, "Tories", w, sizeof(w)), r->tories);
     reports_draw_line(font, fb, REPORTS_FOREIGN_COL2_X, rebels_y, line, REPORTS_FOREIGN_LABEL_COLOR);
   }
 }
@@ -2906,11 +2951,10 @@ static void reports_render_indian(
 
     /*
      * "Missions" (@MISC #28) and "Horse Herds" (@MISC #45) are real
-     * LABELS.TXT words, live-resolved 2026-08-27. "Villages" and
-     * "Muskets" alone have no match anywhere in LABELS.TXT (checked —
-     * only "Villages Burned" and cargo-name "Muskets" via NAMES.TXT
-     * exist, neither the bare word this row needs), so those two stay
-     * hardcoded.
+     * LABELS.TXT words, live-resolved 2026-08-27. "Muskets" is the
+     * NAMES.TXT @CARGO name (reports_cargo_name, 2026-08-28). "Villages"
+     * alone has no match anywhere in LABELS.TXT (only "Villages Burned"),
+     * so it stays hardcoded.
      */
     char buf[32];
     snprintf(buf, sizeof(buf), "%d Villages", r->villages);
@@ -2921,7 +2965,7 @@ static void reports_render_indian(
       reports_draw_line(font, fb, REPORTS_INDIAN_MISSIONS_X, stats_y, buf, REPORTS_INDIAN_TEXT_COLOR);
     }
     if (r->muskets > 0) {
-      snprintf(buf, sizeof(buf), "%d Muskets", r->muskets);
+      snprintf(buf, sizeof(buf), "%d %s", r->muskets, reports_cargo_name(COLONIZE_CARGO_MUSKETS));
       reports_draw_line(font, fb, REPORTS_INDIAN_MUSKETS_X, stats_y, buf, REPORTS_INDIAN_TEXT_COLOR);
     }
     if (r->horse_herds > 0) {
@@ -3169,7 +3213,7 @@ void reports_compute_score(
     out->intervention_bells = (int)founding_fathers_intervention_bells(human);
 
     /*
-     * Independence: WoI latch head.unknown46[0] (ai_king). Declare year not
+     * Independence: WoI latch game_options.woi (ai_king). Declare year not
      * separately latched yet — early-revolution % stays 0 until a year field
      * is wired. Achieve stays false until revolution victory sequence.
      * AI "withdrawn" (control==2) still counts toward foreign recognition.
@@ -3183,7 +3227,8 @@ void reports_compute_score(
       }
     }
     out->independence_declared = col1->head.game_options.woi != 0;
-    out->independence_achieved = col1->head.unknown46[4] == 1;
+    out->independence_achieved =
+      ai_king_latch_get(col1, AI_KING_ENDGAME_BYTE) == AI_KING_ENDGAME_WON;
     out->declare_year = 0;
   } else {
     out->year = 0;
@@ -3384,12 +3429,17 @@ static void reports_render_score(
     );
   }
 
+  /* LABELS.TXT @MISC: #59 "Gold", #121 "Total Score", #115 "Citizens",
+   * #134 "Continental Congress", #69 "Rebel" + #71 "Sentiment". */
+  char w1[48], w2[48];
   if (!col1) {
-    snprintf(line, line_sz, "Gold                    %d", sc.treasury);
+    snprintf(line, line_sz, "%-24s%d", reports_misc_word(59, "Gold", w1, sizeof(w1)), sc.treasury);
     reports_draw_line(
       body_font, fb, REPORTS_SCORE_LEFT_X, REPORTS_SCORE_GOLD_Y, line, REPORTS_SCORE_GREEN_COLOR
     );
-    snprintf(line, line_sz, "Total Score             %d", sc.total);
+    snprintf(
+      line, line_sz, "%-24s%d", reports_misc_word(121, "Total Score", w1, sizeof(w1)), sc.total
+    );
     reports_draw_line(
       body_font, fb, REPORTS_SCORE_LEFT_X, REPORTS_SCORE_TOTAL_Y, line, REPORTS_SCORE_TITLE_COLOR
     );
@@ -3397,7 +3447,14 @@ static void reports_render_score(
   }
 
   /* Citizens line + icon strip. */
-  snprintf(line, line_sz, "%s Citizens:  +%d", nation_adj, sc.citizens);
+  snprintf(
+    line,
+    line_sz,
+    "%s %s:  +%d",
+    nation_adj,
+    reports_misc_word(115, "Citizens", w1, sizeof(w1)),
+    sc.citizens
+  );
   reports_draw_line(
     body_font, fb, REPORTS_SCORE_LEFT_X, REPORTS_SCORE_CITIZENS_Y, line, REPORTS_SCORE_GREEN_COLOR
   );
@@ -3410,7 +3467,14 @@ static void reports_render_score(
   }
 
   /* Continental Congress line + 4-column Founding Father name grid. */
-  snprintf(line, line_sz, "%s Continental Congress:  +%d", nation_adj, sc.congress);
+  snprintf(
+    line,
+    line_sz,
+    "%s %s:  +%d",
+    nation_adj,
+    reports_misc_word(134, "Continental Congress", w1, sizeof(w1)),
+    sc.congress
+  );
   reports_draw_line(
     body_font, fb, REPORTS_SCORE_LEFT_X, REPORTS_SCORE_CONGRESS_Y, line, REPORTS_SCORE_GREEN_COLOR
   );
@@ -3436,15 +3500,29 @@ static void reports_render_score(
    * them; nothing in score.png suggests those rows ever appear here). */
   /* "$" — same coin-glyph convention as the map sidebar's own gold line
    * (map_panel.c: "Gold: %d$"), not a literal "g" suffix. */
-  snprintf(line, line_sz, "Gold:  (%u$) +%d", (unsigned)(col1->nation[human].gold), sc.treasury);
+  snprintf(
+    line,
+    line_sz,
+    "%s:  (%u$) +%d",
+    reports_misc_word(59, "Gold", w1, sizeof(w1)),
+    (unsigned)(col1->nation[human].gold),
+    sc.treasury
+  );
   reports_draw_line(
     body_font, fb, REPORTS_SCORE_LEFT_X, REPORTS_SCORE_GOLD_Y, line, REPORTS_SCORE_GREEN_COLOR
   );
-  snprintf(line, line_sz, "Rebel Sentiment:  +%d", sc.rebel_sentiment);
+  snprintf(
+    line,
+    line_sz,
+    "%s %s:  +%d",
+    reports_misc_word(69, "Rebel", w1, sizeof(w1)),
+    reports_misc_word(71, "Sentiment", w2, sizeof(w2)),
+    sc.rebel_sentiment
+  );
   reports_draw_line(
     body_font, fb, REPORTS_SCORE_LEFT_X, REPORTS_SCORE_REBEL_Y, line, REPORTS_SCORE_GREEN_COLOR
   );
-  snprintf(line, line_sz, "Total Score: %d", sc.total);
+  snprintf(line, line_sz, "%s: %d", reports_misc_word(121, "Total Score", w1, sizeof(w1)), sc.total);
   reports_draw_line(
     body_font, fb, REPORTS_SCORE_LEFT_X, REPORTS_SCORE_TOTAL_Y, line, REPORTS_SCORE_TITLE_COLOR
   );

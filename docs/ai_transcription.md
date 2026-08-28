@@ -929,9 +929,17 @@ WoI latch `head.game_options.woi` (DOS `0x5382` bit0, mapped); legacy
 `unknown46[0]` kept in sync on declare only. REF-present
 `unknown46[1]`; crown/intervene use non-human Euro nation_ids. Thin Cont. Army
 in hunter check + capital rally after `1eca`; refuse clear when `boycott_bitmap==0`;
-second MoW at `difficulty≥2`; capture status chrome **Done**. Thin map:
+second MoW at `difficulty≥2`; capture status chrome **Done**. **2026-08-28:
+first end-to-end WoI against real assets** — `golden_woi_ref01` (real Dutch
+fixture, passive human) sees Regulars land t1, first capture t2, all colonies
+lost + `@LOSING` latch by t24; five defects fixed to get there (plural @UNIT
+names vs exact `units_find_type`, crown slot never move-refreshed, Euro AI
+spending the REF's moves before `war_act`, own-stack "blocking" in the hunt
+step, capture refused while a demoted defender/civilian shared the tile) and
+the king latches moved off `unknown46` (= DOS `price_group_state`, see
+`king_ref.md` "headless WoI run"). Thin map:
 [`king_ref.md`](../original_sources_annotated/ai/king_ref.md). Unit:
-`unit_ai_king`.
+`unit_ai_king` + `golden_woi_ref01`.
 
 **2026-08-24 — real bug fixed, not a PARK.** `ai_king_seed_backup_force_1a26`
 had the two foreign-intervention pools index-swapped vs. DOS (`backup_force[2]`

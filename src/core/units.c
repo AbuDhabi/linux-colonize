@@ -156,6 +156,25 @@ int units_find_type(const ColonizeUnitPool* pool, const char* name) {
       return i;
     }
   }
+  /*
+   * NAMES.TXT @UNIT ships plural / abbreviated type names ("Regulars",
+   * "Dragoons", "Soldiers", "Scouts", "Cont. Cav.") while the AI asks for
+   * the singular ("Regular", "Dragoon", ...). Against the real asset the
+   * exact match above never hit for those — the REF land pools silently
+   * never spawned (found 2026-08-28 by a headless WoI run). Accept a
+   * trailing "s" / "." difference on either side.
+   */
+  const size_t n = strlen(name);
+  for (int i = 0; i < pool->type_count; ++i) {
+    const char* t = pool->types[i].name;
+    const size_t tn = strlen(t);
+    if (tn == n + 1 && strncmp(t, name, n) == 0 && (t[n] == 's' || t[n] == '.')) {
+      return i;
+    }
+    if (n == tn + 1 && strncmp(t, name, tn) == 0 && (name[tn] == 's' || name[tn] == '.')) {
+      return i;
+    }
+  }
   return -1;
 }
 
@@ -736,6 +755,66 @@ int units_king_galleon_offer_coastal_treasures(
     handled++;
   }
   return handled;
+}
+
+void units_fountain_youth_enqueue_pick(
+  EuropeScreen* europe, AiPopupState* popups, const ColonizeMsgCatalog* game_txt, int human,
+  int remaining
+) {
+  if (!europe || !popups || remaining <= 0) {
+    return;
+  }
+  for (int i = 0; i < EUROPE_POOL_SIZE; ++i) {
+    if (!europe->pool[i].filled) {
+      europe_refill_pool_slot(europe, i, NULL);
+    }
+  }
+  const char* labels[EUROPE_POOL_SIZE];
+  int ids[EUROPE_POOL_SIZE];
+  for (int i = 0; i < EUROPE_POOL_SIZE; ++i) {
+    labels[i] = europe->pool[i].name[0] ? europe->pool[i].name : "Colonist";
+    ids[i] = i;
+  }
+  /* @RECRUIT with %NUMBER0 = 0: 4884(1,0) zeroes the passage before drawing
+   * the same list; the FoY tail carries no section of its own. */
+  PopupMsgTokens tok;
+  memset(&tok, 0, sizeof(tok));
+  tok.number0 = 0;
+  tok.has_number0 = true;
+  char body[AI_POPUP_BODY_LEN];
+  const char* fb = "The following individuals will accompany us to the New World. Whom shall we recruit?";
+  if (game_txt) {
+    popup_msg_fill(game_txt, "RECRUIT", &tok, fb, body, sizeof(body));
+  } else {
+    snprintf(body, sizeof(body), "%s", fb);
+  }
+  (void)ai_popup_enqueue_choice_ctx(
+    popups, AI_POPUP_TAG_FOUNTAIN_YOUTH, human, -1, remaining, NULL, body, labels, ids,
+    EUROPE_POOL_SIZE
+  );
+}
+
+bool units_fountain_youth_apply_popup(
+  EuropeScreen* europe, AiPopupState* popups, const ColonizeMsgCatalog* game_txt
+) {
+  if (!popups || popups->result_tag != AI_POPUP_TAG_FOUNTAIN_YOUTH) {
+    return false;
+  }
+  if (!europe) {
+    return true;
+  }
+  const int remaining = popups->result_payload;
+  int slot = popups->result_cancelled ? 0 : popups->result_choice_id;
+  if (slot < 0 || slot >= EUROPE_POOL_SIZE) {
+    slot = 0;
+  }
+  (void)europe_recruit_free_from_pool(europe, slot);
+  if (remaining - 1 > 0) {
+    units_fountain_youth_enqueue_pick(
+      europe, popups, game_txt, popups->result_nation_a, remaining - 1
+    );
+  }
+  return true;
 }
 
 bool units_king_galleon_apply_popup(
@@ -3004,10 +3083,15 @@ bool units_resolve_lcr_rumour(
      * FUN_281f_0524(8), the once-only discovery event. Human only — AI
      * nations have no modeled EuropeScreen recruit pool (PARK). */
     if (europe && nation == human_nation) {
-      for (int i = 0; i < 8; ++i) {
-        /* FoY funnels through 4884, not 5e52's 04d4 slot roll — out of scope
-         * here; keep deterministic first-filled pick (rng=NULL). */
-        (void)europe_immigrant_from_pool(europe, NULL);
+      if (g_units_combat_popups) {
+        /* Real 4884(1,0) ×8: the player picks each of the eight (2026-08-28). */
+        units_fountain_youth_enqueue_pick(
+          europe, g_units_combat_popups, g_units_combat_game_txt, human_nation, 8
+        );
+      } else {
+        for (int i = 0; i < 8; ++i) {
+          (void)europe_immigrant_from_pool(europe, NULL); /* no UI: first-filled */
+        }
       }
     }
     units_combat_enqueue_tok(
@@ -3827,13 +3911,19 @@ static void units_try_capture_foreign_colony(
   if (units_foreign_at(pool, u->x, u->y, unit_id, u->nation_id) >= 0) {
     return;
   }
-  const int plunder = units_colony_plunder_stock_sum(col);
+  int plunder = units_colony_plunder_stock_sum(col);
   const int old_nat = col->nation_id;
   ColonizeColony snap = *col;
-  if (!colonies_capture(colonies, cid, u->nation_id)) {
+  int share = 0;
+  if (!colonies_capture_ex(colonies, cid, u->nation_id, &share)) {
     return;
   }
   (void)old_nat;
+  /* DOS @CAPTURED %NUMBER0 is the treasury share (FUN_5fef_1b0e tail), not
+   * a warehouse sum — the sum stays only as the no-save fallback. */
+  if (g_units_ff_col1) {
+    plunder = share;
+  }
   units_combat_notify_colony_captured(g_units_ff_col1, &snap, u->nation_id, plunder);
 }
 

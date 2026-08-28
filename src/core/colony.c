@@ -1490,7 +1490,86 @@ bool colonies_abandon(ColonizeColonyPool* pool, int colony_id) {
   return true;
 }
 
-bool colonies_capture(ColonizeColonyPool* pool, int colony_id, int new_nation_id) {
+static ColonizeCol1Save* g_colonies_col1 = NULL;
+
+void colonies_set_col1_context(ColonizeCol1Save* col1) {
+  g_colonies_col1 = col1;
+}
+
+/*
+ * FUN_5fef_1b0e colony-capture tail (viceroy_unpacked.c ~100905-101030),
+ * Euro→Euro only. In DOS order: crown capture during WoI sets 0x5382|0x40
+ * (REF unit threshold); colony_counts/colony_pop_totals move with the
+ * colony; colony nation byte swaps; rebel dividend (+0xc2) = old*2/3;
+ * peacetime: loser's treasury share gold*pop/(pop + Σ pop of the loser's
+ * remaining colonies) moves to the captor (the @CAPTURED %NUMBER0);
+ * nation_relation words of both zeroed; WAR bit set between them when not
+ * already at war (DOS toggles the single byte; mirrored both ways here).
+ * @HOWTOWIN once-latch (0x5386 bit0) is left to ai_king's declare path.
+ */
+static int colonies_capture_col1_effects(
+  ColonizeCol1Save* col1, const ColonizeColony* col, int old_nation, int new_nation
+) {
+  if (!col1 || !col1->colony || old_nation < 0 || old_nation > 3 || new_nation < 0 ||
+      new_nation > 3) {
+    return 0;
+  }
+  const int pop = col->colonist_count > 0 ? col->colonist_count : 0;
+  const bool woi = col1->head.game_options.woi != 0;
+  if (woi && new_nation == (int)col1->head.crown_nation_id) {
+    col1->head.game_options.ref_unit_threshold = 1;
+  }
+  if (col1->stuff.colony_counts[old_nation] > 0) {
+    col1->stuff.colony_counts[old_nation]--;
+  }
+  col1->stuff.colony_counts[new_nation]++;
+  col1->stuff.colony_pop_totals[old_nation] =
+    (uint8_t)(col1->stuff.colony_pop_totals[old_nation] > pop
+                ? col1->stuff.colony_pop_totals[old_nation] - pop
+                : 0);
+  col1->stuff.colony_pop_totals[new_nation] =
+    (uint8_t)(col1->stuff.colony_pop_totals[new_nation] + pop > 255
+                ? 255
+                : col1->stuff.colony_pop_totals[new_nation] + pop);
+  for (uint16_t i = 0; i < col1->head.colony_count; ++i) {
+    ColonizeCol1Colony* c = &col1->colony[i];
+    if ((int)c->x == col->x && (int)c->y == col->y) {
+      c->nation_id = (uint8_t)new_nation;
+      c->rebel_dividend = (uint32_t)(((uint64_t)c->rebel_dividend * 2u) / 3u);
+      break;
+    }
+  }
+  int plunder = 0;
+  if (!woi) {
+    int total = pop;
+    for (uint16_t i = 0; i < col1->head.colony_count; ++i) {
+      const ColonizeCol1Colony* c = &col1->colony[i];
+      if ((int)c->nation_id == old_nation) {
+        total += c->population;
+      }
+    }
+    if (total < 1) {
+      total = 1;
+    }
+    const uint32_t gold = col1->nation[old_nation].gold;
+    plunder = (int)(((uint64_t)gold * (uint64_t)pop) / (uint64_t)total);
+    col1->nation[old_nation].gold -= (uint32_t)plunder;
+    col1->nation[new_nation].gold += (uint32_t)plunder;
+  }
+  col1->head.nation_relation[old_nation] = 0;
+  col1->head.nation_relation[new_nation] = 0;
+  if ((ai_diplo_read(col1, old_nation, new_nation) & AI_DIPLO_WAR) == 0) {
+    ai_diplo_or_both(col1, old_nation, new_nation, AI_DIPLO_WAR);
+  }
+  return plunder;
+}
+
+bool colonies_capture_ex(
+  ColonizeColonyPool* pool, int colony_id, int new_nation_id, int* plunder_gold
+) {
+  if (plunder_gold) {
+    *plunder_gold = 0;
+  }
   ColonizeColony* col = colonies_get_mut(pool, colony_id);
   if (!col || !col->active) {
     return false;
@@ -1502,8 +1581,19 @@ bool colonies_capture(ColonizeColonyPool* pool, int colony_id, int new_nation_id
   if (new_nation_id >= 4) {
     return colonies_abandon(pool, colony_id);
   }
+  const int old_nation = col->nation_id;
   col->nation_id = new_nation_id;
+  if (old_nation != new_nation_id) {
+    const int plunder = colonies_capture_col1_effects(g_colonies_col1, col, old_nation, new_nation_id);
+    if (plunder_gold) {
+      *plunder_gold = plunder;
+    }
+  }
   return true;
+}
+
+bool colonies_capture(ColonizeColonyPool* pool, int colony_id, int new_nation_id) {
+  return colonies_capture_ex(pool, colony_id, new_nation_id, NULL);
 }
 
 static bool colonies_has_building_named(

@@ -13,7 +13,7 @@ Shared stubs/helpers: [`common/`](common/) (e.g. `platform_cursor_stubs.c`).
 
 ## Smoke
 
-Examples: `smoke_game_flow`, `smoke_assets`, `smoke_popup`, `smoke_sound`.
+Examples: `smoke_game_flow`, `smoke_play` (real assets: new game → landfall → colony → Europe → save), `smoke_assets`, `smoke_popup`, `smoke_sound`.
 Keep these short and low-dependency.
 
 ## Unit

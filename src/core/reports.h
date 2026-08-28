@@ -83,6 +83,8 @@ const char* reports_cargo_display_name(int cargo);
 const char* reports_tribe_display_name(int t);
 const char* reports_nation_adjective_display_name(int nation);
 const char* reports_tribe_level_display_name(uint8_t tech);
+/* LABELS.TXT @MISC line `index` (0-based, non-blank lines) or `fallback`. Static buffer. */
+const char* reports_misc_display_word(int index, const char* fallback);
 
 /* Map F2–F10 → report id; returns false for F1 / non-report keys. */
 bool reports_id_from_fkey(int fkey_number /*1..10*/, ColonizeReportId* out_id);

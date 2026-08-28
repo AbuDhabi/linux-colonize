@@ -139,8 +139,9 @@ mapping below is working from trustworthy source.
 | Scout vs Artillery | Land | `force_defender_wins` |
 
 Crown nation = DS:`0x53d2` (Linux: peer of human Euro slot, same as
-`ai_king_crown_nation`). WoI / `ref_present` read `game_options` and the
-`unknown46[0]/[1]` ai_king stand-ins.
+`ai_king_crown_nation`). WoI / `ref_present` read the real `game_options`
+bits (the old `unknown46[0]/[1]` stand-ins were retired 2026-08-28 — that
+array is DOS `price_group_state`, see king_ref.md).
 
 `combat_unit_toughness` = always `015e` (AI scoring).
 
@@ -239,10 +240,16 @@ Combat loss remaps **unit type** (not merely profession). Cite:
 
 ### Colony capture
 
-After successful enter: `units_try_capture_foreign_colony` → `colonies_capture` +
+After successful enter: `units_try_capture_foreign_colony` → `colonies_capture_ex` +
 `units_combat_notify_colony_captured` (`@CAPTURED` / `2` / `3`). Euro→Euro: nation
-swap. Indian capturer: `colonies_abandon` + `@BURNED` on raid burn paths. Also AI
-euro / king REF / raid paths.
+swap **plus the `FUN_5fef_1b0e` capture tail (ported 2026-08-28,
+`colonies_capture_col1_effects`)**: rebel dividend ×2/3, colony/pop tallies
+move, peacetime treasury share `gold×pop/(pop+Σ loser pop)` to the captor (=
+`@CAPTURED %NUMBER0`; no plunder under WoI), `nation_relation` words zeroed,
+WAR set, crown capture under WoI sets `0x5382|0x40`. No building/fort damage in
+DOS. Indian capturer: `colonies_abandon` + `@BURNED` on raid burn paths. Also AI
+euro / king REF / raid paths (all through `colonies_capture`, same effects when
+`colonies_set_col1_context` has a save).
 
 ---
 

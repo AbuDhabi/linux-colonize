@@ -7,14 +7,19 @@
 
 #include "platform/platform.h"
 
-#define COLONIZE_MSG_MAX_LINES 64
 #define COLONIZE_MSG_LINE_LEN 160
 #define COLONIZE_MSG_SECTION_LEN 48
 
+/*
+ * Lines grow on demand: LABELS.TXT @MISC alone is 223 lines, and the old
+ * fixed 64-line cap silently dropped everything past it (every @MISC index
+ * ≥ 64 fell back to hardcoded text until 2026-08-28).
+ */
 typedef struct ColonizeMsgSection {
   char name[COLONIZE_MSG_SECTION_LEN];
-  char lines[COLONIZE_MSG_MAX_LINES][COLONIZE_MSG_LINE_LEN];
+  char (*lines)[COLONIZE_MSG_LINE_LEN];
   int line_count;
+  int line_capacity;
 } ColonizeMsgSection;
 
 typedef struct ColonizeMsgCatalog {

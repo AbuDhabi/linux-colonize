@@ -410,6 +410,19 @@ int units_king_galleon_offer_coastal_treasures(
  * notify, Treasure despawned. Refuse/cancel → Treasure stays. Returns true
  * when the result was for this tag (consumed).
  */
+/*
+ * Fountain of Youth (FUN_65dd_0004 case 1): DOS runs the Recruit picker
+ * FUN_38fd_4884(1,0) eight times — free passage, player picks among the 3
+ * pool slots each time. Enqueue one @RECRUIT CHOICE (payload = picks left);
+ * the apply hook recruits the chosen slot and chains the next pick.
+ */
+void units_fountain_youth_enqueue_pick(
+  EuropeScreen* europe, AiPopupState* popups, const ColonizeMsgCatalog* game_txt, int human,
+  int remaining
+);
+bool units_fountain_youth_apply_popup(
+  EuropeScreen* europe, AiPopupState* popups, const ColonizeMsgCatalog* game_txt
+);
 bool units_king_galleon_apply_popup(
   ColonizeUnitPool* pool,
   EuropeScreen* europe,

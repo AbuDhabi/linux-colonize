@@ -240,7 +240,9 @@ typedef struct ColonizeCol1Head {
   uint16_t backup_force[4];
   /*
    * DS:0x53ea — DOS uint16 price_group_state[16] (FUN_38fd_0058).
-   * Linux king stand-ins overlay first 6 bytes of the same 32 (ai_king.c):
+   * Linux king latches used to overlay the first bytes of this array — moved
+   * 2026-08-28 to game_options bits + the human nation's unknown23_pad (see
+   * ai_king_latch_get in ai_king.h); nothing but the market tick writes here now.
    *   [0] WoI  [1] REF  [2] boycott  [3] merc  [4] unused  [5] congress
    * Those bytes collide with DOS price words 0–2 until stand-ins migrate to
    * game_options.woi / ref_present (0x5382).
@@ -561,7 +563,8 @@ typedef struct ColonizeCol1Nation {
      diplomatic relations update to the other 3 nations. Bytes +0x1b..+0x1d
      (unknown23_pad[1..3]) never touched anywhere in any of the 3 decompiled
      exports — kept as pad below. See docs/mysteries_catalog.md. */
-  uint8_t unknown23_pad[3];
+  uint8_t unknown23_pad[3]; /* DOS-dead; bytes 0-1 of the HUMAN nation host the Linux king
+     latches since 2026-08-28 (ai_king_latch_get/set, ai_king.h): endgame + once-flags. */
   uint16_t artillery_count;
   uint16_t boycott_bitmap;
   int32_t royal_money; /* nation+0x22; FUN_43f7_1d42 REF budget */

@@ -14,6 +14,7 @@
 #include "core/europe.h"
 #include "core/founding_fathers.h"
 #include "core/map.h"
+#include "core/ai_king.h"
 #include "core/turn.h"
 #include "core/units.h"
 #include "platform/diagnostics.h"
@@ -4337,13 +4338,13 @@ int main(void) {
       return 1;
     }
     /* Same fixture: WoI + no crown colonies → C1 victory. */
-    if (!out.year_end_victory || col1.head.unknown46[4] != 1 ||
+    if (!out.year_end_victory || ai_king_latch_get(&col1, 4) != 1 ||
         col1.head.show_entire_map != 1 || strstr(status, "Victory") == NULL) {
       fprintf(
         stderr,
         "year-end victory want latch+map+status got victory=%d u46[4]=%u map=%u '%s'\n",
         out.year_end_victory,
-        (unsigned)col1.head.unknown46[4],
+        (unsigned)ai_king_latch_get(&col1, 4),
         (unsigned)col1.head.show_entire_map,
         status
       );

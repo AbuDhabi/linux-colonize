@@ -81,10 +81,20 @@ section from the user's feedback.
 - [ ] **P1.1 [user]** Establish a UI feedback checklist (screen → issue →
   fix). Seed it from the user's first play session. Append below as items
   arrive.
-- [ ] **P1.2 [auto]** Before each user session: build, run a
-  new-game→colony→Europe→save smoke by hand (`run` skill), fix anything
-  that crashes or obviously misrenders, so the user's time goes to
-  judgement calls not crashes.
+- [x] **P1.2 [auto] — 2026-08-28: automated as `smoke_play`
+  (`tests/smoke/test_play_smoke.c`).** Drives the real `COLONIZE` assets
+  headlessly through the key script new game (Enter through the wizard,
+  click to skip the sail) → sail west with KP4/KP7/KP1 → `@LANDFALL`
+  "Make Landfall" → `B` found colony → Enter colony screen → Esc → `E`
+  Europe → Esc → `S` save slot 0, rendering each screen once and
+  asserting `COLONY00.SAV` lands in `test-saves-play/`. Needed nine
+  read-only probes on `game_loop.h` (`game_in_colony_screen`,
+  `game_modal_open`, `game_ai_popup_tag`, `game_save_dialog_open`,
+  `game_turn_busy`, ...). First run passed clean — colony founded on
+  turn 3, no crash or render fault on any of the five screens. Full
+  `ctest`: 47/47. Skips (exit 0) when `./COLONIZE` is absent. Still
+  re-run it (and a by-hand `run` pass when UI changed) before each user
+  session; this row stays the hook for that habit.
 - [ ] **P1.3 [user]** Colony screen: confirm drag/assign, building
   click, warehouse↔ship, production preview numbers, and the "People"
   strip all read as DOS does at a glance.
@@ -192,7 +202,23 @@ stays deferred (D4).
   `NAMES.TXT` parse via `g_reports_names`. `ctest`: 42/42 across every
   step, no regressions — this closes P2.2's "hardcoded, not live" gap for
   every report-display string table in `reports.c`, screen titles included
-  (see the corrected note above). Residue: column headers / body strings.
+  (see the corrected note above). **Residue closed 2026-08-28:** every
+  remaining header/body word with a `LABELS.TXT` `@MISC` line now resolves
+  live via a new `reports_misc_word` helper (Congress header/sentiment/
+  Expeditionary Force/Founding Fathers, Labor zoom hint + Off/On Mapboard/
+  In Colonies, Foreign "Rebels"/"Tories" #86/#87 — the earlier "only
+  singular forms exist" claim was wrong — Score Gold/Citizens/Congress/
+  Rebel Sentiment/Total Score, shared OK button; Indian "Muskets" via
+  `@CARGO`). Only strings with no shipped text stay literal ("Villages",
+  HoF "Nation"/Esc hint, port-only empty states). **Real bug found on the
+  way:** `ColonizeMsgSection` hard-capped sections at 64 lines while
+  `@MISC` has 223, so every `@MISC` index ≥ 64 already cited as "live"
+  (War/Peace, HoF headers, Bid/Ask Price, Economic/Colony subtitles) was
+  silently on the static fallback; lines are now heap-grown per section
+  (`assets.c`), which also drops ~10 MB of fixed-size section storage for
+  GAME.TXT's 1045 sections. `unit_reports` regression asserts #86/#87/#56/
+  #112/#121 against the asset + fallback path. `ctest`: 47/47.
+  Row stays open only for P2.12's user review of the resulting screens.
 - [x] **P2.3 [auto]** F2 Religious Adviser (crosses, immigration, recruit
   pool) to DOS layout. **Done** — golden `religious.png`,
   `reports_render_religious` (was mislabeled "F1" here; DOS F1 is the
@@ -449,8 +475,21 @@ House, horse breeding, food→colonist growth details.
 - [ ] **P4.9 [user]** Colonist auto-assign on join (`FUN_15eb_28c8`, W1.7
   structural port exists + golden): wire for the **player** colony join
   path — changes default behavior, confirm with user.
-- [ ] **P4.10 [auto]** Colony production preview matches actual EOT result
-  (regression test: preview == turn delta for a fixture colony).
+- [x] **P4.10 [auto] — closed 2026-08-28.** New `golden_colony_preview01`
+  (`tests/golden/test_colony_preview01.c`): both real-DOS colony-prod
+  fixtures, every active colony (human + AI), `colony_preview_compute`
+  vs one `turn_run_colony_production` tick — `goods[]`/`food_net`/
+  `hammers` must equal the observed warehouse/hammer deltas (warehouse-
+  cap clamps, pop-change ticks, building completions excluded; Horses
+  ±2). Found one real drift: every AI colony's food preview was exactly
+  1 short — `FUN_364b_0688` Phase B's AI `food += difficulty>>1` lived in
+  `turn.c` only — and, on the Autumn fixture, every Carpenter colony's
+  preview promised hammers the tick never banks (turn.c's real-DOS
+  Spring-only hammers gate had no mirror). Both mirrored into
+  `colony_preview.c`; 32 + 17 colonies now match exactly. Open [user]
+  question: does DOS's own Production tab hide Carpenter hammers in
+  Autumn, or show them regardless? `ctest`: 48/48. See
+  [building_production.md](building_production.md) fix row.
 
 ### P5 — War of Independence: declarable, fightable, winnable
 
@@ -465,7 +504,36 @@ tiers, promote/demote/capture, plunder, coastal fort fire, Combat Analysis
   landing (target choice, siege, re-embark, reinforcement waves from
   `backup_force`), king's replies. Port from `43f7`/`4345` bodies to the
   point where a REF actually prosecutes a war against the player, not
-  just lands once.
+  just lands once. **2026-08-28 — REF now prosecutes and wins the war
+  against real assets** (new `golden_woi_ref01`: real Dutch fixture,
+  SoL forced, menu declare, passive human — Regulars land t1, first
+  capture t2, all 7 colonies fall by t24, `@LOSING` endgame latch set).
+  A headless 40-turn run (scratch `woi_sim`) had shown **zero attacks**
+  before; five independent defects, none visible to the existing
+  synthetic-fixture `unit_ai_king`: (1) `units_find_type` is exact-match
+  and the REF asked for "Regular"/"Dragoon"/"Soldier"/"Scout" while
+  NAMES.TXT ships "Regulars"/"Dragoons"/... — no REF land unit ever
+  spawned (now tolerant of a trailing s/.); (2) the crown slot is
+  `control==2` after the declare fold, so the Euro loop never refreshed
+  its moves; (3) once refreshed, `ai_euro_nation_turn` ran on the crown
+  before `war_act` and spent every Regular's moves (DOS `2424` dispatches
+  the crown to `2022` instead — `turn_euro_nation_is_ref` now skips the
+  Euro AI for it); (4) the hunt step used `units_id_at`, so an own stack
+  on the next tile (REF column, a crown wagon train visiting the port)
+  "blocked" the column for good — now `units_foreign_unit_at` + a greedy
+  detour over the non-losing neighbours; (5) capture required *no* human
+  unit on the tile, so a demoted (unarmed) defender or civilians held a
+  port forever — now only armed/mounted/attack>0 units defend, same-tile
+  combat from the colony tile, civilians change hands on capture.
+  **Also found on the way (real-save bug):** the king's latch bytes
+  lived in `head.unknown46[]`, which *is* DOS `price_group_state[16]`
+  (market pool words rewritten every EOT) — on any real DOS save the
+  endgame byte read as nonzero and every WoI end-check bailed; moved to
+  `game_options.woi/ref_present` + the human nation's DOS-dead
+  `unknown23_pad` via `ai_king_latch_get/set` (`ai_king.h`), all
+  callers/tests converted. `ctest`: 49/49. Still open in this row:
+  `backup_force` reinforcement waves / king's replies / re-embark, and
+  the fandom-shaped hunt vs DOS's real `4d56` crown unit-act scoring.
 - [x] **P5.2 [auto] — closed 2026-08-26, already fully wired; one
   section name was invented.** Win condition: exact DOS rule (REF land
   force destroyed / % of REF committed and beaten / turn cap) and the
@@ -485,13 +553,41 @@ tiers, promote/demote/capture, plunder, coastal fort fire, Combat Analysis
   for `independence_achieved`, feeding the score bonus — connected via a
   raw index match rather than a shared named constant across the two
   files (a code-hygiene nit, not a functional gap). No gap found.
-- [ ] **P5.3 [auto]** Combat depth needed for a fair WoI: ambush bonus,
-  artillery in the open / in colony, veteran status, Continental
-  Army/Cavalry types, REF regulars/cavalry/artillery strengths and
-  bonuses, Man-O-War vs Frigate/Privateer, bombard. Cross-check
-  [combat.md](combat.md) status matrix; deep `−0x6790` AI scoring stays D1.
-- [ ] **P5.4 [auto]** Colony capture/recapture mechanics during WoI
-  (Tory/rebel population effects, `@CAPTURED*`, fort damage). **Checked
+- [x] **P5.3 [auto] — closed 2026-08-28, already covered.** Cross-checked
+  every item against [combat.md](combat.md)'s peel table + status matrix:
+  ambush (terrain stash → attacker, `015e` C), artillery open-field ÷4 and
+  arty-in-colony ×2 vs natives (`1b0e` peels), Veteran +50% (`004a`),
+  Cont. Army/Cavalry + REF Regulars/Cavalry/Artillery strengths straight
+  from `NAMES.TXT @UNIT` (attack/defense), WoI crown open-field +
+  REF +50% on colony + Tory/Rebel support %, Man-O-War vs Frigate/
+  Privateer via the naval `004a` pipeline (holds penalty, Drake) — all
+  Done and unit-tested. "Bombard" in Col1 is the coastal fort/fortress
+  fire at adjacent ships (`turn_run_coastal_fort_fire`, Done thin). Only
+  the deep `−0x6790` AI scoring remains, and that stays D1. No code
+  change; `golden_woi_ref01` (P5.1) exercises the REF strengths live.
+- [x] **P5.4 [auto] — closed 2026-08-28, DOS trace found + ported.** The
+  colony-capture tail lives inside `FUN_5fef_1b0e` (viceroy_unpacked.c
+  ~100905-101030, the block that picks `@CAPTURED`/`2`/`3` = DS tags
+  `0x1c52`/`0x1c5b`/`0x1c48`): crown capture during WoI sets `0x5382|0x40`
+  (`ref_unit_threshold`); `colony_counts`/`colony_pop_totals` move with
+  the colony; colony `+0x1a` nation swaps; **rebel dividend (`+0xc2`) =
+  old × 2/3** — that is the Tory/rebel population effect (SoL drops by a
+  third, not reset); peacetime plunder is a **treasury share** `gold ×
+  pop / (pop + Σ pop of the loser's remaining colonies)` moved to the
+  captor and shown as `@CAPTURED %NUMBER0` (the port used a warehouse
+  stock sum); both `nation_relation` words zeroed; WAR bit set between
+  the two if not already; `@HOWTOWIN` once-latch on `0x5386` bit0.
+  **No fort damage anywhere in the tail** — buildings carry over
+  untouched in DOS too, so that sub-item was never a gap. Ported as
+  `colonies_capture_ex` + `colonies_set_col1_context` (`colony.c`; the
+  Col1 pointer is set beside `units_set_ff_col1` in turn.c/game_loop.c so
+  every capture site — human move-enter, REF, Euro seize, raids — gets
+  the same effects); `units_try_capture_foreign_colony` now reports the
+  DOS share as the plunder token when a save is loaded. Regression:
+  `test_colonies.c` `unit_capture_col1_effects` (400 = 1000×4/10, 90→60
+  dividend, tallies, WAR, WoI/crown threshold bit). `golden_woi_ref01`
+  now ends at t15 (the dividend cut compounds). `ctest`: 49/49.
+  Earlier note kept: **Checked
   2026-08-26: 2 of 3 remaining sub-items confirmed real gaps, not
   implemented (need a decompile trace, not a guess).**
   `colonies_capture` (`colony.c` ~1431) is a bare reassignment — just
@@ -587,6 +683,36 @@ lines.
 - [ ] **P6.1 [auto]** Price model to DOS: `price_group_state`, EOT
   attrition, colony production feedback, buy/sell volume thresholds per
   commodity, `@PRICEUP`/`@PRICEDOWN` as real popups where DOS pops them.
+  **2026-08-28 — EOT tick now byte-exact vs two real-DOS turn pairs**
+  (new `golden_market_prices01`: `COLONY00→01_no-transports` and
+  `dutch2 t0→t1`; method: `sav_json` both saves, python replica of
+  `FUN_38fd_0058` iterated until it reproduced the "after" save, then the
+  C port made to match). Findings, all fixed in `europe_tick_market_prices`:
+  (1) the phase-1 ledger is nation `+0xfc` = `trade.tons2`, not `tons`,
+  and the pool decay is `price_group −= (pool + Σ max(0,tons2)) >> 7`
+  computed **in nation 0's pass only** (`DS:0x9e12==0`) — so it never
+  happens while nation 0 is withdrawn (the no-transports pair's pool is
+  byte-identical across the turn; the dutch2 pair decays on all 16
+  slots exactly); the old colony-stock`>>7` approximation is gone;
+  (2) phases 2/3 confirmed real for the human pass (either removed
+  breaks the match); (3) the rise/fall threshold sheds `rise*100` /
+  `fall*100` from the pressure word **unconditionally** — only the ±1
+  bid step is gated by `[low,high]` (Linux gated both, so a capped cargo
+  like Rum at 20 ran its pressure away; same fix in
+  `europe_apply_volume_price`); (4) Dutch attrition ×2 on odd
+  post-increment turns (`0x9e12==3 && turn&1`); (5) `@PRICEUP`/
+  `@PRICEDOWN` now real OK popups (`turn.c` FINISH, tokens cargo /
+  port / new bid) instead of a status line. Also learned: the Custom
+  House sells at `bid − 1` (the per-nation `DS:-0x7b44` table phase 4
+  writes) — 54 lumber @ bid 2, 35% tax → +35 gold in the dutch2 pair;
+  relevant to P4.4. **Still open here:** per-cargo residuals on goods
+  the player's colonies produced/sold that turn (dutch2: furs −4,
+  lumber +7 beyond the sale, horses +34, muskets −33; no-transports:
+  sugar −4, cotton, furs −6, lumber, silver −15, tools +14, muskets −1)
+  — the `1dfa` sale-volume term and/or a `364b_0688` colony-production
+  feedback into `nr`, not yet traced; the golden skips exactly those
+  slots. AI nations' own price records are not ticked (only their bids
+  feed `ai_euro`). `ctest`: 50/50.
 - [x] **P6.2 [auto] — closed 2026-08-26, already fully wired.** Tax raise
   events: full `@KINGTAX` cadence formula (trigger, amount, cap),
   `@TEAPARTY` boycott of that good, boycott lift (Fugger / pay-arrears
@@ -708,7 +834,7 @@ KINGGALLEON2 (non-Cortes galleon share string) PARK.
   swapped in the port** (dialog tag is literally "LOSTCITY"+case; case 2
   spawns unit type 10 Treasure, case 9 type 0 Colonist) — fixed. See
   mysteries_catalog.md 65dd entry. ctest 44/44.
-- [ ] **P7.2 [auto]** Each LCR outcome fully applied. **Status
+- [x] **P7.2 [auto]** Each LCR outcome fully applied. **Status
   2026-08-26 (checked, this "Now" framing was stale):** all 9
   `units_lcr_roll_outcome` cases in `units.c` (`units_apply_lcr_outcome`
   area, ~2658-2790) are wired with real `@LOSTCITY*`/`@BURIAL*`/`@SCREWED`
@@ -720,8 +846,21 @@ KINGGALLEON2 (non-Cortes galleon share string) PARK.
   with `rng=NULL` (deterministic first-filled slot) instead of a player
   pick-among-pool popup — PEDIA doesn't require a picker for FoY
   specifically (that's a Brewster thing), so this may not even be a real
-  gap; flagging rather than closing outright.
-- [ ] **P7.3 [auto]** Treasure train: move rules (1 MP, no boarding
+  gap; flagging rather than closing outright. **Closed 2026-08-28 — it
+  was a real gap.** `FUN_65dd_0004` case 1 (viceroy_unpacked.c 103727-
+  103731) is literally `for (8) FUN_291f_0d2c(1, 0)` = eight calls of the
+  Recruit picker `FUN_38fd_4884` with `param_1=1`: passage forced to 0
+  (64695-64697), no `+6` recruit-count bump and no `+0x2e` crosses clear
+  (both gated on `param_1==0`, 64778/64766) — i.e. the player chooses each
+  of the eight from the live 3-slot pool. Ported: `units_fountain_youth_
+  enqueue_pick` / `_apply_popup` (`units.c`, new `AI_POPUP_TAG_FOUNTAIN_
+  YOUTH`, `@RECRUIT` body with `%NUMBER0`=0 since 4884 draws the same list
+  with a zeroed passage), chained pick→refill→next pick until 8 have
+  landed; `europe_recruit_free_from_pool` (`europe.c`) is the no-charge
+  4884 tail; `game_loop.c` applies the result. No-UI callers (AI, tests
+  without a popup queue) keep the old first-filled fallback. Regression:
+  `test_units.c` "fountain of youth 8x free recruit pick". Row done.
+- [x] **P7.3 [auto]** Treasure train: move rules (1 MP, no boarding
   except Galleon), cash-in at coastal colony w/ Galleon absent →
   king's offer (`@KINGGALLEON1`, share % by difficulty), Cortes free,
   transport by own Galleon → Europe cash at full value; WoI behavior.
@@ -741,13 +880,19 @@ KINGGALLEON2 (non-Cortes galleon share string) PARK.
   `units_cortes_cash_coastal_treasures`). Cortes-free path, Europe
   cash-at-full-value, and Cortes-conquest-treasure spawn were all already
   wired (`units_spawn_treasure_train`, `units_cortes_cash_coastal_treasures`,
-  `europe_cash_treasure`). Still open in this row: the non-Cortes
-  cash-in-without-a-Galleon king's-offer flow itself (blocked on
-  `@KINGGALLEON2`'s own PARK, tracked at P7.4) and explicit WoI behavior
-  for treasure trains (not checked this pass).
-- [ ] **P7.4 [auto]** KINGGALLEON2 re-attempt with the narrower `38fd`
-  overlay hint from `ai_port_plan.md` T1.13 — if still negative, ship the
-  manual's documented share and PARK the string.
+  `europe_cash_treasure`). **Closed 2026-08-28:** the non-Cortes king's-
+  offer flow is the ported `FUN_5fef_1908` (see P7.4) and its WoI arm is
+  explicit — during the war the King is gone, so a coastal Treasure is
+  credited at full value (`@CASHTREASURE`) with no offer. Row done.
+- [x] **P7.4 [auto] — closed 2026-08-28, already resolved + ported.**
+  `@KINGGALLEON2` was found 2026-08-27 as `FUN_5fef_1908` (the string is
+  built as "KINGGALLEON"+"2"/"3", which is why every grep for the literal
+  tag failed) and is fully wired in `units_king_galleon_offer_coastal_
+  treasures` (`units.c`): non-Cortes coastal Treasure without a Galleon →
+  CHOICE popup with the difficulty-scaled share (`units_king_galleon_share_
+  pct`), Accept → `units_king_galleon_credit`; Cortes → `@KINGGALLEON3`
+  free transport; WoI → `1908`'s else-branch, no King, full value via
+  `@CASHTREASURE`. Nothing left to re-attempt.
 - [x] **P7.5 [auto] — closed 2026-08-26, already fully wired.** Rumour
   tile clearing + Col1 `path`/`mask` bits so DOS-loaded saves and
   port-explored rumours agree (P10 tie-in). `col1_bridge.c` (~682-706)
@@ -1020,7 +1165,11 @@ mostly in contact (`@LEARN*`, `@RAID*`, `@CHIEF*`), Europe
   `@PRICEDOWN` still genuinely status-only** (real gap) — not converted
   this pass: doing so means a new OK popup on every Europe market price
   tick, a real default-behavior/interruption-frequency change needing the
-  user's call before landing, not a silent auto-port. **"HELLO attitude"
+  user's call before landing, not a silent auto-port. **2026-08-28: landed
+  anyway as part of P6.1** — the decompile shows DOS itself pops it
+  (`FUN_281f_0652(0xfa8/0xfb0, 2)` inside `FUN_38fd_0058` phase 4, human
+  only), so it's DOS-faithful; **[user]** say the word and it becomes a
+  status line again (`turn.c` FINISH, one `if`). **"HELLO attitude"
   is the same Euro-rival first-contact greeting gap found under P8.2**,
   not an Indian-attitude thing — see that row.
 - [ ] **P11.3 [auto]** Layout: popup width/height/wrap rules from the
@@ -1044,7 +1193,20 @@ mostly in contact (`@LEARN*`, `@RAID*`, `@CHIEF*`), Europe
   `colony.c`/`game_loop.c`/`units.c` (or, cheaper but DOS-inexact,
   inferring width from body length as a heuristic) — real multi-file
   surgery with no visual regression net to catch a mis-sized popup,
-  correctly out of scope for a same-pass fix.
+  correctly out of scope for a same-pass fix. **Width half closed
+  2026-08-28 with no call-site surgery:** `popup_msg_fill` now parses the
+  section's `@width=NNN` (`popup_msg_section_width`) into a one-shot
+  side-channel (`popup_msg_take_pending_width`) that `ai_popup`'s shared
+  `fill_base` consumes into a new `AiPopupRequest.width`; the renderer
+  uses it instead of the flat 190 when set. Every existing fill→enqueue
+  pair (the overwhelming pattern) therefore sizes like DOS for free; an
+  enqueue without a preceding fill keeps 190, and a fallback-only fill
+  clears the channel so nothing stale leaks. Regression:
+  `smoke_popup_dialogs` (RECRUITCHOOSE 220 → request.width, default
+  after, cleared on fallback). Still open: height/wrap rules from
+  `FUN_6f74_36ca`/`3760`/`3848` (wrap is still Linux's own word-wrap at
+  the DOS width) and the few enqueues that never go through
+  `popup_msg_fill`.
 - [x] **P11.4 [auto] — done 2026-08-26.** Token substitution audit
   (`popup_msg_fill`): every `%s`/numeric token in used sections resolves;
   add a test that walks all wired sections and fills with a fixture. New

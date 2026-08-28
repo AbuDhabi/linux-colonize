@@ -239,6 +239,9 @@ void assets_msg_free(ColonizeMsgCatalog* catalog) {
   if (!catalog) {
     return;
   }
+  for (int i = 0; i < catalog->section_count; ++i) {
+    free(catalog->sections[i].lines);
+  }
   free(catalog->sections);
   catalog->sections = NULL;
   catalog->section_count = 0;
@@ -312,8 +315,16 @@ bool assets_msg_load_file(ColonizeMsgCatalog* catalog, const char* path) {
     if (!current) {
       continue;
     }
-    if (current->line_count >= COLONIZE_MSG_MAX_LINES) {
-      continue;
+    if (current->line_count >= current->line_capacity) {
+      const int next = current->line_capacity == 0 ? 16 : current->line_capacity * 2;
+      char (*grown)[COLONIZE_MSG_LINE_LEN] =
+        realloc(current->lines, (size_t)next * sizeof(*grown));
+      if (!grown) {
+        fclose(f);
+        return false;
+      }
+      current->lines = grown;
+      current->line_capacity = next;
     }
     str_copy_trunc(current->lines[current->line_count], COLONIZE_MSG_LINE_LEN, line);
     current->line_count++;

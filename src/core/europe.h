@@ -235,6 +235,10 @@ typedef struct EuropeScreen {
   int last_exit_y;
   bool last_exit_east;
   bool last_exit_valid;
+  /* Last EOT tick rise/fall (@PRICEUP/@PRICEDOWN, FUN_38fd_0058 phase 4):
+   * cargo index or -1; dir +1 rose / -1 fell. turn.c turns it into the OK popup. */
+  int price_event_cargo;
+  int price_event_dir;
   bool open_on_dock; /* set when Expected→Harbor this tick */
   /* William Brewster: exclude Petty Criminals / Indentured Servants from pool. */
   bool brewster_no_criminals;
@@ -288,6 +292,8 @@ int europe_compute_recruit_passage(
 );
 
 bool europe_recruit_from_pool(EuropeScreen* eu, int pool_index);
+/* FUN_38fd_4884(1,0): pool pick at no passage, no recruit-count bump (Fountain of Youth). */
+bool europe_recruit_free_from_pool(EuropeScreen* eu, int pool_index);
 /*
  * Crosses / unrest: move one pool slot to docks; refill. DOS `5e52` phase 5
  * picks the slot via `FUN_281f_04d4` RNG(0,2) before rerolling it, not
@@ -446,7 +452,9 @@ void europe_apply_volume_price(EuropeScreen* eu, int cargo_type, int amount, int
 void europe_tick_market_prices(
   EuropeScreen* eu,
   struct ColonizeCol1Save* col1,
-  struct ColonizeColonyPool* colonies
+  struct ColonizeColonyPool* colonies,
+  int human_nation,
+  uint32_t turn
 );
 /*
  * FUN_38fd_584a score: (pop+units)<<1 if <4000, +8, cap 4000;

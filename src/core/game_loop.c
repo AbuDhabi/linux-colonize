@@ -1887,6 +1887,7 @@ static void game_apply_ai_popup_result(ColonizeGameState* game) {
       const int euro = u ? u->nation_id : game->human_nation;
       ai_contact_village_open_hostilities(&ctx, indian_nation, euro);
       units_set_ff_col1(game->col1_ok ? &game->col1 : NULL);
+      colonies_set_col1_context(game->col1_ok ? &game->col1 : NULL);
       units_set_combat_human_nation(game->human_nation);
       units_set_combat_popups(&game->ai_popups, &game->messages);
       units_set_occupancy_map(&game->world_map);
@@ -1950,6 +1951,13 @@ static void game_apply_ai_popup_result(ColonizeGameState* game) {
     ai_popup_consume_result(&game->ai_popups);
     return;
   }
+  if (game->ai_popups.result_tag == AI_POPUP_TAG_FOUNTAIN_YOUTH) {
+    (void)units_fountain_youth_apply_popup(
+      game->europe_ok ? &game->europe : NULL, &game->ai_popups, &game->messages
+    );
+    ai_popup_consume_result(&game->ai_popups);
+    return;
+  }
   if (game->ai_popups.result_tag == AI_POPUP_TAG_KING_GALLEON) {
     if (game->col1_ok && game->units_ok) {
       (void)units_king_galleon_apply_popup(
@@ -1991,6 +1999,7 @@ static void game_apply_ai_popup_result(ColonizeGameState* game) {
       game_fill_turn_context(game, &ctx);
       ai_contact_village_open_hostilities(&ctx, indian_nation, u->nation_id);
       units_set_ff_col1(game->col1_ok ? &game->col1 : NULL);
+      colonies_set_col1_context(game->col1_ok ? &game->col1 : NULL);
       units_set_combat_human_nation(game->human_nation);
       units_set_combat_popups(&game->ai_popups, &game->messages);
       units_set_occupancy_map(&game->world_map);
@@ -4990,6 +4999,7 @@ static bool game_try_unit_move(ColonizeGameState* game, int dest_x, int dest_y) 
   }
   /* FF + native settlement fallout for human combat (same as turn_refresh). */
   units_set_ff_col1(game->col1_ok ? &game->col1 : NULL);
+      colonies_set_col1_context(game->col1_ok ? &game->col1 : NULL);
   units_set_combat_human_nation(game->human_nation);
   units_set_combat_popups(&game->ai_popups, &game->messages);
   units_set_occupancy_map(&game->world_map);
@@ -11429,5 +11439,97 @@ bool game_hof_entry(const ColonizeGameState* game, int index, ColonizeHofEntryVi
   out->score = e->score;
   out->year = e->year;
   out->difficulty = e->difficulty;
+  return true;
+}
+
+/* --- Headless play-smoke probes (see game_loop.h). --- */
+
+bool game_in_colony_screen(const ColonizeGameState* game) {
+  return game && game->in_colony;
+}
+
+bool game_in_europe_screen(const ColonizeGameState* game) {
+  return game && game->in_europe;
+}
+
+bool game_modal_open(const ColonizeGameState* game) {
+  if (!game) {
+    return false;
+  }
+  return game->ai_popups.open || game->name_entry.open || game->howmuch.open ||
+         game->save_load.open || game->cheat_list.open || game->unit_stack.open ||
+         game->options_dlg.open || game->pick_music.open || game->combat_analysis.open;
+}
+
+bool game_ai_popup_pending(const ColonizeGameState* game) {
+  return game && ai_popup_busy(&game->ai_popups) && !game->ai_popups.open;
+}
+
+int game_ai_popup_tag(const ColonizeGameState* game) {
+  if (!game || !game->ai_popups.open) {
+    return -1;
+  }
+  return (int)game->ai_popups.current.tag;
+}
+
+bool game_save_dialog_open(const ColonizeGameState* game) {
+  return game && game->save_load.open;
+}
+
+bool game_turn_busy(const ColonizeGameState* game) {
+  return game && turn_processor_active(&game->turn_proc);
+}
+
+uint32_t game_turn_number(const ColonizeGameState* game) {
+  return game ? game->turn_number : 0;
+}
+
+int game_colony_count(const ColonizeGameState* game) {
+  return (game && game->colonies_ok) ? game->colonies.colony_count : 0;
+}
+
+bool game_colony_pos(const ColonizeGameState* game, int index, int* x, int* y) {
+  if (!game || !game->colonies_ok || index < 0 || index >= game->colonies.colony_count) {
+    return false;
+  }
+  const ColonizeColony* col = &game->colonies.colonies[index];
+  if (!col->active) {
+    return false;
+  }
+  if (x) {
+    *x = col->x;
+  }
+  if (y) {
+    *y = col->y;
+  }
+  return true;
+}
+
+int game_selected_unit(const ColonizeGameState* game) {
+  return (game && game->units_ok) ? game->units.selected_id : -1;
+}
+
+bool game_unit_info(
+  const ColonizeGameState* game, int unit_id, int* x, int* y, bool* is_sea, int* moves_left
+) {
+  if (!game || !game->units_ok) {
+    return false;
+  }
+  const ColonizeUnit* u = units_get_const(&game->units, unit_id);
+  if (!u || !u->active) {
+    return false;
+  }
+  if (x) {
+    *x = u->x;
+  }
+  if (y) {
+    *y = u->y;
+  }
+  if (is_sea) {
+    *is_sea = units_is_sea(&game->units, unit_id);
+  }
+  if (moves_left) {
+    *moves_left = u->moves_left;
+  }
   return true;
 }

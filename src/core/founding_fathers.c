@@ -1,3 +1,4 @@
+#include "core/ai_king.h"
 #include "core/founding_fathers.h"
 
 #include "core/ai_diplo.h"
@@ -22,7 +23,6 @@
  */
 
 /* King tax-refuse stand-in byte (ai_king unknown46[2]). */
-#define FF_KING_BOYCOTT_BYTE 2
 
 /* DOS nation+0xc — bells since last FF elect; not stored in ColonizeCol1Nation. */
 static uint16_t s_ff_bells_since_elect[COLONIZE_COL1_NATION_COUNT];
@@ -1105,7 +1105,7 @@ static void apply_effect(
       /* Manual/wiki: clear all Europe boycotts (no back taxes). */
       nat->boycott_bitmap = 0;
       if (nation_id == human_nation && col1) {
-        col1->head.unknown46[FF_KING_BOYCOTT_BYTE] = 0;
+        ai_king_latch_set(col1, AI_KING_BOYCOTT_BYTE, 0);
       }
       break;
     case FF_PETER_MINUIT:

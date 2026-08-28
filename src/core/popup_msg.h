@@ -53,6 +53,17 @@ void popup_msg_apply_tokens(
  * Convenience: find section in catalog, build body with tokens.
  * Falls back to fallback if section missing or empty. Always NUL-terminates.
  */
+/*
+ * GAME.TXT `@width=NNN` of a section (DOS 6f74 compositor dialog width in
+ * 320-px screen units), 0 when the section has no directive.
+ */
+int popup_msg_section_width(const ColonizeMsgSection* section);
+/*
+ * Width side-channel (port_plan P11.3): popup_msg_fill records the section's
+ * @width; the next ai_popup enqueue takes it (and clears it) so every
+ * existing fill→enqueue call site sizes like DOS without a signature change.
+ */
+int popup_msg_take_pending_width(void);
 void popup_msg_fill(
   const ColonizeMsgCatalog* catalog,
   const char* section_name,

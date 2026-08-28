@@ -619,6 +619,8 @@ void europe_reset_campaign_nation(EuropeScreen* eu, int nation) {
   eu->menu_dock_index = -1;
   eu->last_exit_valid = false;
   eu->open_on_dock = false;
+  eu->price_event_cargo = -1;
+  eu->price_event_dir = 0;
   eu->immigration_score = 0;
   eu->immigration_pressure = 0;
   eu->boycott_bitmap = 0;
@@ -790,6 +792,30 @@ bool europe_recruit_from_pool(EuropeScreen* eu, int pool_index) {
     eu->recruit_passage
   );
   europe_bump_recruit_count(eu);
+  europe_refill_pool_slot(eu, pool_index, NULL);
+  return true;
+}
+
+bool europe_recruit_free_from_pool(EuropeScreen* eu, int pool_index) {
+  if (!eu || pool_index < 0 || pool_index >= EUROPE_POOL_SIZE) {
+    return false;
+  }
+  if (!eu->pool[pool_index].filled) {
+    europe_refill_pool_slot(eu, pool_index, NULL);
+  }
+  if (eu->dock_count >= EUROPE_DOCK_MAX) {
+    europe_set_status(eu, "Docks are full.");
+    return false;
+  }
+  /* FUN_38fd_4884 with param_1 != 0: passage forced to 0, the +6 recruit
+   * counter and the +0x2e crosses word are left alone (64695-64697, 64778). */
+  EuropeDockImmigrant* slot = &eu->dock[eu->dock_count++];
+  memset(slot, 0, sizeof(*slot));
+  snprintf(slot->name, sizeof(slot->name), "%s", eu->pool[pool_index].name);
+  slot->profession = eu->pool[pool_index].profession;
+  slot->present = true;
+  slot->sentry = true;
+  snprintf(eu->status, sizeof(eu->status), "%s joins the docks.", slot->name);
   europe_refill_pool_slot(eu, pool_index, NULL);
   return true;
 }
@@ -1405,13 +1431,17 @@ void europe_apply_volume_price(EuropeScreen* eu, int cargo_type, int amount, int
   nr += attrition;
   const int rise = q->rise;
   const int fall = q->fall;
-  if (rise > 0 && nr <= -(rise * 100) && q->bid < q->high) {
-    nr += rise * 100;
-    q->bid += 1;
+  if (rise > 0 && nr <= -(rise * 100)) {
+    nr += rise * 100; /* shed regardless; bid step gated (see tick) */
+    if (q->bid < q->high) {
+      q->bid += 1;
+    }
   }
-  if (fall > 0 && nr >= fall * 100 && q->bid > q->low) {
+  if (fall > 0 && nr >= fall * 100) {
     nr -= fall * 100;
-    q->bid -= 1;
+    if (q->bid > q->low) {
+      q->bid -= 1;
+    }
   }
   nr -= attrition;
   /* Only clamp when @CARGO low/high were loaded (high > low). */
@@ -1439,55 +1469,61 @@ void europe_apply_volume_price(EuropeScreen* eu, int cargo_type, int amount, int
 void europe_tick_market_prices(
   EuropeScreen* eu,
   struct ColonizeCol1Save* col1,
-  struct ColonizeColonyPool* colonies
+  struct ColonizeColonyPool* colonies,
+  int human_nation,
+  uint32_t turn
 ) {
   /*
-   * FUN_38fd_0058(..., 0xffff) nation EOT:
-   *   phase 1 — colony/price_group half (Done thin)
-   *   phase 2 — cargos 9..12 pressure nudge (*100)
-   *   phase 3 — cargos 1..4 pressure nudge (no *100; year bias on fur)
-   *   phase 4 — nr += attrition (kept), rise/fall ±1 bid
-   * Cite: viceroy_unpacked.c ~58787–58984; turn/europe_nation_eot.md.
+   * FUN_38fd_0058(0, 0xffff) — the human's 5e52 phase-3 call, with nation 0's
+   * pass folded in. Validated 2026-08-28 against two real-DOS turn pairs
+   * (golden_market_prices01; python replica iterated until both matched):
+   *   phase 1 — ledger[g] = price_group[g] (signed) + Σ_n max(0, tons2[n][g])
+   *             (nation +0xfc, NOT tons); in nation 0's pass only, and only
+   *             while nation 0 is not withdrawn: price_group[g] -= ledger>>7.
+   *             The colony-stock approximation that used to sit here is gone.
+   *   phase 2 — cargos 9..12: sign(bid − 3·Σ/L) · (rise+fall)/2 · 100
+   *   phase 3 — cargos 1..4: sign · (rise+fall)/2 (no ×100; fur year bias)
+   *   phase 4 — nr += attrition (Dutch ×2 on odd post-increment turns),
+   *             rise/fall ±1 bid within [low, high]; @PRICEUP/@PRICEDOWN.
+   * Column roles (NAMES.TXT @CARGO): rise=c6, fall=c7, attrition=c8 — the
+   * same fields europe_load_tables already fills. AI nations' own records
+   * are not ticked here (their bids only feed ai_euro purchases).
+   * Cite: viceroy_unpacked.c 58741–59005; turn/europe_nation_eot.md.
    */
+  (void)colonies;
   if (!eu) {
     return;
   }
-  if (col1 && colonies) {
-    for (int c = 0; c < 16; ++c) {
-      unsigned sum = 0;
-      for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
-        const ColonizeColony* col = &colonies->colonies[i];
-        if (!col->active || col->nation_id < 0 || col->nation_id > 3) {
-          continue;
-        }
-        if (c < COLONIZE_CARGO_COUNT && col->stock[c] > 0) {
-          sum += (unsigned)col->stock[c];
-        }
-      }
-      unsigned pg = col1->head.price_group_state[c];
-      const unsigned decay = sum >> 7;
-      if (decay >= pg) {
-        pg = 0;
-      } else {
-        pg -= decay;
-      }
-      col1->head.price_group_state[c] = (uint16_t)pg;
-    }
-  }
+  eu->price_event_cargo = -1;
+  eu->price_event_dir = 0;
 
-  /* Phases 2–3: ledger from price_group + nation trade.tons (floor 1). */
+  /* Phase 1 — pool decay + ledger. */
+  long ledger[16];
   if (col1) {
-    long ledger[16];
+    const bool nation0_active = col1->player[0].control != 2;
     for (int c = 0; c < 16; ++c) {
-      long s = (long)col1->head.price_group_state[c];
+      long s = (long)(int16_t)col1->head.price_group_state[c];
       for (int n = 0; n < (int)COLONIZE_COL1_NATION_COUNT; ++n) {
-        const int32_t t = col1->nation[n].trade.tons[c];
+        const int32_t t = col1->nation[n].trade.tons2[c];
         if (t > 0) {
           s += (long)t;
         }
       }
+      if (nation0_active) {
+        /* Nation 0 decays in its own pass; a later human pass sees the
+         * decayed pool, nation 0 itself (as human) the pre-decay copy. */
+        const long decayed = (long)(int16_t)col1->head.price_group_state[c] - (s >> 7);
+        col1->head.price_group_state[c] = (uint16_t)(int16_t)decayed;
+        if (human_nation != 0) {
+          s -= (s >> 7);
+        }
+      }
       ledger[c] = s;
     }
+  }
+
+  /* Phases 2–3. */
+  if (col1) {
 
     /* Phase 2 — Rum..Coats (9..12): pressure += sign * mid * 100. */
     {
@@ -1575,20 +1611,31 @@ void europe_tick_market_prices(
 
   int last_rise = -1;
   int last_fall = -1;
+  /* DOS: `0x9e12 == 3 && (turn & 1)` — the Netherlands' market recovers twice
+   * as fast on odd turns (turn already incremented for this EOT). */
+  const bool dutch_double = (human_nation == 3) && ((turn & 1u) != 0u);
   for (int c = 0; c < eu->cargo_count && c < EUROPE_CARGO_MAX; ++c) {
     EuropeCargoQuote* q = &eu->cargo[c];
-    int nr = (int)eu->trade_nr[c] + q->attrition;
+    int nr = (int)eu->trade_nr[c] + (dutch_double ? q->attrition * 2 : q->attrition);
     const int rise = q->rise;
     const int fall = q->fall;
-    if (rise > 0 && nr <= -(rise * 100) && q->bid < q->high) {
+    /* DOS: the pressure word always sheds rise*100 / fall*100 at the
+     * threshold; only the ±1 bid step is gated by [low, high]. Gating the
+     * shed on the bid too (the old code) let a capped cargo's pressure run
+     * away — golden_market_prices01 caught it on Rum at the 20 cap. */
+    if (rise > 0 && nr <= -(rise * 100)) {
       nr += rise * 100;
-      q->bid += 1;
-      last_rise = c;
+      if (q->bid < q->high) {
+        q->bid += 1;
+        last_rise = c;
+      }
     }
-    if (fall > 0 && nr >= fall * 100 && q->bid > q->low) {
+    if (fall > 0 && nr >= fall * 100) {
       nr -= fall * 100;
-      q->bid -= 1;
-      last_fall = c;
+      if (q->bid > q->low) {
+        q->bid -= 1;
+        last_fall = c;
+      }
     }
     if (q->high > q->low) {
       if (q->bid < q->low) {
@@ -1619,6 +1666,13 @@ void europe_tick_market_prices(
    * STRING0 = cargo name (-0x6840 @CARGO table), STRING1 = nation home-port
    * city (-0x7c74 table == eu->port_city), NUMBER0 = new bid.
    */
+  if (last_rise >= 0) {
+    eu->price_event_cargo = last_rise;
+    eu->price_event_dir = 1;
+  } else if (last_fall >= 0) {
+    eu->price_event_cargo = last_fall;
+    eu->price_event_dir = -1;
+  }
   if (last_rise >= 0) {
     const char* nm =
       (eu->cargo[last_rise].name[0]) ? eu->cargo[last_rise].name : "Goods";

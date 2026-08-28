@@ -429,6 +429,17 @@ bool colonies_abandon(ColonizeColonyPool* pool, int colony_id);
 
 /* Capture colony for a new European owner (T0 military / REF / raids). */
 bool colonies_capture(ColonizeColonyPool* pool, int colony_id, int new_nation_id);
+/*
+ * Col1 context for colonies_capture's DOS side effects (FUN_5fef_1b0e capture
+ * tail): rebel dividend ×2/3, per-nation colony/pop tallies, treasury share
+ * plunder (peacetime), war-relation reset, crown-capture REF-threshold bit.
+ * NULL = plain owner swap (tests without a save).
+ */
+void colonies_set_col1_context(ColonizeCol1Save* col1);
+/* Owner swap + DOS side effects; *plunder_gold (may be NULL) = treasury share moved. */
+bool colonies_capture_ex(
+  ColonizeColonyPool* pool, int colony_id, int new_nation_id, int* plunder_gold
+);
 
 /* Fill out_roles with affordable eject roles for this colonist; returns count. */
 int colonies_list_eject_roles(

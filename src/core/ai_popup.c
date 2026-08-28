@@ -4,6 +4,7 @@
 #include <string.h>
 
 #include "core/map_menu.h"
+#include "core/popup_msg.h"
 
 void ai_popup_init(AiPopupState* st) {
   if (!st) {
@@ -37,6 +38,8 @@ static void ai_popup_fill_base(
   memset(req, 0, sizeof(*req));
   req->kind = kind;
   req->tag = tag;
+  /* P11.3: the @width of whatever popup_msg_fill last resolved (0 = default). */
+  req->width = popup_msg_take_pending_width();
   req->nation_a = nation_a;
   req->nation_b = nation_b;
   req->payload = payload;
@@ -372,7 +375,7 @@ void ai_popup_render(
   const int pad_y = 4;
   const int title_gap = req->title[0] ? 2 : 0;
 
-  int dialog_w = AI_POPUP_DEFAULT_WIDTH;
+  int dialog_w = req->width > 0 ? req->width : AI_POPUP_DEFAULT_WIDTH;
   if (dialog_w > framebuffer->width - 8) {
     dialog_w = framebuffer->width - 8;
   }

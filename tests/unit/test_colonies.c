@@ -3,6 +3,7 @@
 
 #include "core/assets.h"
 #include "core/ai_popup.h"
+#include "core/ai_diplo.h"
 #include "core/col1_save.h"
 #include "core/colony.h"
 #include "core/colony_craft.h"
@@ -562,6 +563,77 @@ static int unit_needschool_chrome(void) {
 
   fprintf(stderr, "unit_colonies: NEEDCOLLEGE/NEEDUNIVERSITY chrome ok\n");
   return 0;
+}
+
+/*
+ * colonies_capture_ex with a Col1 context — FUN_5fef_1b0e capture tail:
+ * peacetime treasury share gold*pop/(pop + loser's remaining pop) moves to
+ * the captor, rebel dividend ×2/3, colony/pop tallies move, WAR set.
+ */
+static int unit_capture_col1_effects(void) {
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  ColonizeColony* a = &pool.colonies[0];
+  ColonizeColony* b = &pool.colonies[1];
+  a->active = true;
+  a->id = 0;
+  a->x = 10;
+  a->y = 10;
+  a->nation_id = 0;
+  a->colonist_count = 4;
+  snprintf(a->name, sizeof(a->name), "Alpha");
+  b->active = true;
+  b->id = 1;
+  b->x = 20;
+  b->y = 20;
+  b->nation_id = 0;
+  b->colonist_count = 6;
+  pool.colony_count = 2;
+
+  ColonizeCol1Save col1;
+  ColonizeCol1Colony recs[2];
+  memset(&col1, 0, sizeof(col1));
+  memset(recs, 0, sizeof(recs));
+  col1.colony = recs;
+  col1.head.colony_count = 2;
+  recs[0].x = 10;
+  recs[0].y = 10;
+  recs[0].nation_id = 0;
+  recs[0].population = 4;
+  recs[0].rebel_dividend = 90;
+  recs[0].rebel_divisor = 100;
+  recs[1].x = 20;
+  recs[1].y = 20;
+  recs[1].nation_id = 0;
+  recs[1].population = 6;
+  col1.nation[0].gold = 1000;
+  col1.nation[1].gold = 5;
+  col1.stuff.colony_counts[0] = 2;
+  col1.stuff.colony_pop_totals[0] = 10;
+  col1.head.crown_nation_id = 1;
+
+  colonies_set_col1_context(&col1);
+  int plunder = -1;
+  CHECK(colonies_capture_ex(&pool, 0, 1, &plunder), "capture_ex ok");
+  CHECK(a->nation_id == 1, "runtime owner swapped");
+  CHECK(recs[0].nation_id == 1, "col1 record owner swapped");
+  CHECK(plunder == 400, "plunder = 1000*4/(4+6)");
+  CHECK(col1.nation[0].gold == 600 && col1.nation[1].gold == 405, "treasury share moved");
+  CHECK(recs[0].rebel_dividend == 60, "rebel dividend 90 -> 60 (x2/3)");
+  CHECK(col1.stuff.colony_counts[0] == 1 && col1.stuff.colony_counts[1] == 1, "colony tallies");
+  CHECK(col1.stuff.colony_pop_totals[0] == 6 && col1.stuff.colony_pop_totals[1] == 4, "pop tallies");
+  CHECK((ai_diplo_read(&col1, 0, 1) & AI_DIPLO_WAR) != 0, "capture sets WAR");
+  CHECK(col1.head.game_options.ref_unit_threshold == 0, "peacetime: no REF threshold bit");
+
+  /* WoI + crown captor: no plunder, REF threshold bit set. */
+  col1.head.game_options.woi = 1;
+  plunder = -1;
+  CHECK(colonies_capture_ex(&pool, 1, 1, &plunder), "woi capture_ex ok");
+  CHECK(plunder == 0, "woi: no treasury share");
+  CHECK(col1.nation[0].gold == 600, "woi: loser gold untouched");
+  CHECK(col1.head.game_options.ref_unit_threshold == 1, "woi crown capture sets 0x5382|0x40");
+  colonies_set_col1_context(NULL);
+  return failures ? 1 : 0;
 }
 
 int main(void) {
@@ -1506,6 +1578,9 @@ int main(void) {
       return 1;
     }
     if (unit_needschool_chrome() != 0) {
+      return 1;
+    }
+    if (unit_capture_col1_effects() != 0) {
       return 1;
     }
     if (unit_hammers_purchased_buy() != 0) {
