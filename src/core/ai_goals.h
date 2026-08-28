@@ -232,10 +232,12 @@ int ai_goals_colony_balance_flags(
  * coastal_bonus: Linux second+ colony port bias (0 = DOS-faithful).
  * Returns 1 and writes out_x/out_y, or 0 if none.
  */
+struct ColonizeUnitPool;
 int ai_goals_pick_founding_tile_ex(
   const ColonizeWorldMap* map,
   const ColonizeColonyPool* colonies,
   const ColonizeCol1Save* col1,
+  const struct ColonizeUnitPool* units, /* optional: DOS 06ae occupant rule */
   int nation_id,
   int x,
   int y,

@@ -2488,6 +2488,21 @@ is genuinely stuck mid-session.
   the `REF nation == 2` halving and the case-0xb adjacent-Spanish skip.
   `ctest` 46/46, `golden_ai_turns` unchanged.
 
+- [ ] **T1.23 — TURN3→4 two-Brave residue (presence-bit lifecycle).**
+  See T3.3's 2026-08-28 note. Linux stamps the layer3 owner nibble on every
+  tile a unit enters (`units_map_set_owner_nibble`) and never clears it;
+  DOS reads presence through `FUN_137f_0314` (layer2 bit 0x01 → nibble) and
+  `FUN_137f_03e4` (bit 0x02 → nibble). Make the Brave dest reject and the
+  far-probe `−2` term read DOS-shaped presence (and keep TURN1→2 / TURN4→5
+  green — the init-pulse peels were tuned against the bare nibble).
+  Also open from the same pass, lower priority: the ship-band unload
+  placement is still landfall-scripted (`ai_euro_unload_settle`) although
+  the per-cargo `06ae(nation, ship_x, ship_y, founder_bit, is_wagon)` rule
+  is now known (`20e6` ship band, decomp ~89587); `0a60`'s FOUND/CONTACT
+  goal producers write *ocean* tiles next to villages / own colonies as ship
+  goals (decomp ~87800–88060), not land sites — `ai_euro_colony_goals` is
+  still the thin stand-in.
+
 ## Tier 3 — Confirm with the user before flipping
 
 The engineering/verification for these can happen autonomously (do that
@@ -2556,6 +2571,59 @@ CLAUDE.md's "hard to reverse" guidance.
   this back on piecemeal; do it once Tier 1/2 above has meaningfully closed
   the gap, and confirm with the user first since it changes what `ctest`
   gates on by default.
+  **2026-08-28 — alignment pass: 5 of 6 steps green (TURN1→2, 2→3, 4→5,
+  5→6, 6→7); only TURN3→4 is red, on exactly two Braves.** Every diff was
+  closed by porting the DOS behaviour, no new peels:
+  - **Phase order relative to the human slot** (`turn.c`): DOS `130d` runs
+    mid-pass Indians → EN → FR → SP → DU with the human's Move Pieces
+    *inside* the loop, so after the human ends their turn the order is Euro
+    slots above the human → Indians → slots below. Linux ran Indians first
+    for everyone; seed-100 (human = England, slot 0) needs FR/SP/DU before
+    the Indians (the Dutch TURN2→3 landing meets an Aztec Brave that only
+    steps away in the Indian pass). `mid_pass_indian_rank.md`'s "before the
+    Euro loop" reading was right for the year tick, wrong relative to the
+    save point.
+  - **Landing costs the whole move** (`s_unloaded_this_turn`, ai_euro.c):
+    `ai_euro_try_first_colony_land`'s SENTRY wake re-armed a Soldier that had
+    just been dropped from a ship (French TURN2→3).
+  - **`FUN_5bfb_3180` neighbour scan ported** (`ai_contact_encounter_scan`):
+    the "other nation" of a neighbour tile is the unit standing there, else
+    the tribe owner when layer2 bit 0x02 is set (`FUN_137f_03e4`); used by
+    the AI landing path and the human move path.
+  - **First-colony target = the seed tile** (`ai_euro_06ae_first_colony_from_landfall`):
+    the seeds (49,14)/(50,37)/(45,52) *are* the DOS targets; the Linux-only
+    coastal +40 / west-bias re-score was pulling every target one tile off
+    (New Amsterdam founded on (48,14) instead of (49,14)). Picker kept only
+    as the fallback for an unfoundable seed.
+  - **`06ae` occupant rule** (`ai_goals_pick_founding_tile_ex`, new `units`
+    param): an own lone unit blocks a candidate unless its wagon-ness differs
+    from the unit being placed (`FUN_281f_08bc(unit)==1 && (type==0xb)!=wagon`);
+    foreign presence blocks; stay never gated. (This is why the Dutch Soldier
+    lands on (48,14) after the Pioneer took (49,14).)
+  - **AI first project = Docks** for a size-1 coastal town (all three seed-100
+    AI towns), picked in the founding turn: `colonies_found` no longer forces
+    a Stockade the town cannot build (DOS init leaves 0xff), the AI chain
+    tries Docks before Warehouse while below Stockade size, and
+    `ai_euro_found_with_unit` runs the pick immediately.
+  - **Human dock immigrant survives capture**: `col1_bridge_apply` now
+    creates the (236,236) mirror unit turn.c's immigrant path creates, and
+    `europe_remove_dock_mirror_unit` drops it when the colonist boards /
+    deploys. That also fixed `needed_crosses` (DOS 584a counts the dock
+    colonist: 9→10 at TURN5→6).
+  - Harness: `AI_TURNS_ALL=1` keeps going past a failing step,
+    `AI_TURNS_ONLY=t` runs one step.
+  **Residue (T1.23):** TURN3→4 Braves n=6 (38,20)→(39,19) and n=7
+  (48,46)→(49,46). Both only diverge under the (correct) new phase order;
+  RNG is per-nation reseeded, so it is Euro *state* leaking into quiet
+  scoring: the n=7 case is a rejected dest (accepted 4→3, shifting later
+  rolls) from a stale layer3 presence stamp the Spanish ship left behind —
+  `ai_owner_nibble` reads the bare nibble, DOS `FUN_281f_06d2` gates it on
+  the layer2 presence/settlement bits; the n=6 case is a `−2` far-probe
+  presence term for the Dutch ship at (43,16) that DOS evidently does not
+  apply. Switching the reject to `ai_tile_tribe_or_presence` was tried and
+  broke TURN2→3 + TURN4→5 (Linux's presence bits are not maintained the DOS
+  way), so it was reverted — fix the presence-bit lifecycle first.
+  Still DISABLED; flip needs the user once TURN3→4 is green.
 
 ---
 

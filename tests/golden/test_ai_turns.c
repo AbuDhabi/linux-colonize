@@ -7,6 +7,10 @@
  * regression". Do not chase individual TURN-step diffs to green until the
  * underlying AI transcription is actually done; re-enable
  * (set_tests_properties ... DISABLED FALSE) only then.
+ *
+ * 2026-08-28: TURN1→2, 2→3, 4→5, 5→6, 6→7 pass; TURN3→4 fails on two Braves
+ * (docs/ai_port_plan.md T1.23). Diagnostics: AI_TURNS_ALL=1 runs every step
+ * instead of stopping at the first failure, AI_TURNS_ONLY=t runs one step.
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -418,10 +422,24 @@ static int run_step(int from_turn) {
 }
 
 int main(void) {
+  /* AI_TURNS_ALL=1: keep going past a failing step (diagnostic overview). */
+  const int run_all = getenv("AI_TURNS_ALL") != NULL;
+  /* AI_TURNS_ONLY=t: run just TURNt→t+1 (diagnostic). */
+  const int only = getenv("AI_TURNS_ONLY") ? atoi(getenv("AI_TURNS_ONLY")) : 0;
+  int failed = 0;
   for (int t = 1; t <= 6; ++t) {
-    if (run_step(t) != 0) {
-      return 1;
+    if (only && t != only) {
+      continue;
     }
+    if (run_step(t) != 0) {
+      failed = 1;
+      if (!run_all) {
+        return 1;
+      }
+    }
+  }
+  if (failed) {
+    return 1;
   }
   printf("golden_ai_turns: all TURN1→TURN7 steps ok\n");
   return 0;

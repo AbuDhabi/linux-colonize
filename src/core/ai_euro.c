@@ -24,6 +24,13 @@ static int s_sticky_count = 0;
 /* First-colony: unit stepped onto found this dispatcher_turn — defer found. */
 static uint8_t s_deferred_found[COLONIZE_UNITS_MAX];
 /*
+ * Unit disembarked from a ship during this dispatcher call. DOS: landing
+ * consumes the whole move allowance (TURN2→3 English Soldier lands at (50,38)
+ * with moves 0 / orders 0 and does not act again that turn). Guards the
+ * first-colony walk's SENTRY wake from re-arming a same-turn landing.
+ */
+static uint8_t s_unloaded_this_turn[COLONIZE_UNITS_MAX];
+/*
  * Last chosen land-move direction per unit (0..7, dx/dy index below) —
  * DOS `unit+0x314f`, written by FUN_521d_20e6 at its commit point
  * (LAB_521d_589e) and read back in the facing/momentum band (LAB_521d_54f5,
@@ -534,6 +541,8 @@ static int ai_euro_ocean_3558_empty_cruise_tip(
 static int ai_euro_06ae_first_colony_from_landfall(
   const ColonizeWorldMap* map,
   const ColonizeColonyPool* colonies,
+  const ColonizeUnitPool* units,
+  int nation_id,
   int landfall_x,
   int landfall_y,
   int* out_x,
@@ -571,11 +580,24 @@ static int ai_euro_06ae_first_colony_from_landfall(
   if (fx < 0 || fy < 0 || fx >= (int)map->width || fy >= (int)map->height) {
     return 0;
   }
+  /*
+   * 2026-08-28: the seed *is* the DOS target (seed-100 TURN4: New Amsterdam
+   * founded on (49,14), the French Soldier walks onto (50,37), the Spanish
+   * Pioneer pursues (45,52)) — the neighbour re-score below (coastal +40,
+   * west bias) is Linux-only and was pulling every target one tile off.
+   * Keep the picker purely as the fallback for an unfoundable seed.
+   */
+  if (!colonies || colonies_can_found(colonies, map, fx, fy)) {
+    *out_x = fx;
+    *out_y = fy;
+    return 1;
+  }
   return ai_goals_pick_founding_tile_ex(
     map,
     colonies,
     /*col1=*/NULL,
-    /*nation_id=*/0,
+    units,
+    nation_id,
     fx,
     fy,
     /*score_extras=*/0,
@@ -770,29 +792,15 @@ static int ai_euro_unload_pax_at(
   }
   ai_euro_set_goto(pax, orders, goto_x, goto_y);
   pax->moves_left = 0;
-  /*
-   * Euro-side first contact while Braves still adjacent (Indian meet runs
-   * after pulse moves them). Seed-100 Dutch TURN2→3: unload (48,14) beside
-   * Arawak Brave (47,15) → relation 96 before Brave steps to (47,16).
-   * Cite: FUN_5bfb_022e; docs/ai_transcription.md joint diplo fields.
-   */
-  if (ctx->col1_ok && ctx->col1) {
-    static const int dx[8] = {0, 1, 1, 1, 0, -1, -1, -1};
-    static const int dy[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
-    for (int d = 0; d < 8; ++d) {
-      const int nx = pax->x + dx[d];
-      const int ny = pax->y + dy[d];
-      const int oid = units_id_at(ctx->units, nx, ny);
-      if (oid < 0) {
-        continue;
-      }
-      const ColonizeUnit* other = units_get(ctx->units, oid);
-      if (!other || other->nation_id < 4 || other->nation_id > 11) {
-        continue;
-      }
-      (void)ai_contact_try_first_welcome(ctx, pax->nation_id, other->nation_id);
-    }
+  if (pax->id >= 0 && pax->id < COLONIZE_UNITS_MAX) {
+    s_unloaded_this_turn[pax->id] = 1;
   }
+  /*
+   * FUN_5bfb_3180 after landfall: Indian first contact from an adjacent
+   * Brave or tribe-owned land (seed-100 Dutch TURN2→3: Soldier lands (48,14)
+   * next to Aztec-owned ground → relation 96). Cite: FUN_5bfb_022e.
+   */
+  (void)ai_contact_encounter_scan(ctx, pax->nation_id, pax->x, pax->y);
   return 1;
 }
 
@@ -903,7 +911,7 @@ static int ai_euro_try_post_found_coast_cruise(
     int lx = 0;
     int ly = 0;
     if (!ai_euro_recover_landfall_from_ship(u->x, u->y, &lx, &ly) ||
-        !ai_euro_06ae_first_colony_from_landfall(ctx->map, ctx->colonies, lx, ly, &fx, &fy)) {
+        !ai_euro_06ae_first_colony_from_landfall(ctx->map, ctx->colonies, ctx->units, nation_id, lx, ly, &fx, &fy)) {
       return 0;
     }
     int pioneer_on_found = 0;
@@ -1314,8 +1322,15 @@ static void ai_euro_prefer_peace_construction(ColonizeTurnContext* ctx, int nati
   if (stockade_id < 0 && fort_id < 0 && fortress_id < 0 && warehouse_id < 0 && docks_id < 0) {
     return;
   }
-  /* Defense chain before storage/docks so Fort % live after Stockade. */
+  /*
+   * Defense chain before storage/docks so Fort % live after Stockade. Docks
+   * ahead of Warehouse: every seed-100 AI first town (New Amsterdam TURN4,
+   * Quebec TURN5, Isabella TURN6 — size 1, coastal, no Stockade possible)
+   * starts on Docks in the DOS saves.
+   */
   const int prefer_def[] = {stockade_id, fort_id, fortress_id, warehouse_id, docks_id};
+  /* Size < 3 (no Stockade yet): Docks first, per the DOS saves above. */
+  const int prefer_young[] = {docks_id, warehouse_id};
   /* Near-cap + Warehouse owned: Expansion before Docks (still after Fort chain). */
   const int prefer_exp[] = {
     stockade_id, fort_id, fortress_id, warehouse_id, whe_id, docks_id
@@ -1339,10 +1354,14 @@ static void ai_euro_prefer_peace_construction(ColonizeTurnContext* ctx, int nati
       warehouse_id >= 0 && warehouse_id < COLONIZE_BUILDING_TYPES_MAX && c->has_building[warehouse_id];
     const int use_exp =
       has_wh && whe_id >= 0 && ai_euro_colony_near_warehouse_cap(ctx->colonies, c);
-    const int* prefer = use_exp ? prefer_exp : prefer_def;
+    const int stockade_min =
+      stockade_id >= 0 ? ctx->colonies->building_types[stockade_id].min_population : 0;
+    const int young = !has_stockade && stockade_min > 0 && pop < stockade_min;
+    const int* prefer = use_exp ? prefer_exp : (young ? prefer_young : prefer_def);
     const size_t nprefer =
       use_exp ? (sizeof(prefer_exp) / sizeof(prefer_exp[0]))
-              : (sizeof(prefer_def) / sizeof(prefer_def[0]));
+              : (young ? (sizeof(prefer_young) / sizeof(prefer_young[0]))
+                       : (sizeof(prefer_def) / sizeof(prefer_def[0])));
     int buildable[COLONIZE_BUILDING_TYPES_MAX];
     const int n =
       colonies_list_buildable(ctx->colonies, c->id, buildable, COLONIZE_BUILDING_TYPES_MAX, &opts);
@@ -2836,6 +2855,7 @@ static int ai_euro_pick_founding_tile(
     map,
     colonies,
     col1,
+    /*units=*/NULL,
     nation_id,
     x,
     y,
@@ -5836,6 +5856,10 @@ static void ai_euro_found_with_unit(ColonizeTurnContext* ctx, ColonizeUnit* foun
       }
     }
   }
+  /* DOS: a new AI town already carries its first project in the same turn
+   * (seed-100 TURN4–6 saves: Docks). Idle-queue-only pick, so re-running it
+   * here after the planning-phase call is harmless for existing towns. */
+  ai_euro_prefer_peace_construction(ctx, nation_id);
 }
 
 static void ai_euro_join_colony(ColonizeTurnContext* ctx, ColonizeUnit* u, int colony_id) {
@@ -10338,7 +10362,7 @@ static void ai_euro_colony_goals(ColonizeTurnContext* ctx, int nation_id) {
           int lx = 0;
           int ly = 0;
           if (ai_euro_recover_landfall_from_ship(u->x, u->y, &lx, &ly) &&
-              ai_euro_06ae_first_colony_from_landfall(ctx->map, ctx->colonies, lx, ly, &fx, &fy)) {
+              ai_euro_06ae_first_colony_from_landfall(ctx->map, ctx->colonies, ctx->units, nation_id, lx, ly, &fx, &fy)) {
             have = 1;
           }
         } else if (ai_euro_pick_founding_tile(
@@ -13963,14 +13987,14 @@ static void ai_euro_unload_settle(ColonizeTurnContext* ctx, ColonizeUnit* ship, 
     int found_y = 0;
     int lf_x = lf_x0;
     int lf_y = lf_y0;
-    int have_found = ai_euro_06ae_first_colony_from_landfall(ctx->map, ctx->colonies, lf_x, lf_y, &found_x, &found_y);
+    int have_found = ai_euro_06ae_first_colony_from_landfall(ctx->map, ctx->colonies, ctx->units, nation_id, lf_x, lf_y, &found_x, &found_y);
     if (!have_found) {
       int rx = 0;
       int ry = 0;
       if (ai_euro_recover_landfall_from_ship(ship->x, ship->y, &rx, &ry)) {
         lf_x = rx;
         lf_y = ry;
-        have_found = ai_euro_06ae_first_colony_from_landfall(ctx->map, ctx->colonies, lf_x, lf_y, &found_x, &found_y);
+        have_found = ai_euro_06ae_first_colony_from_landfall(ctx->map, ctx->colonies, ctx->units, nation_id, lf_x, lf_y, &found_x, &found_y);
       }
     }
 
@@ -14329,7 +14353,7 @@ static int ai_euro_resolve_first_found_tile(
   int live_y = 0;
   if (lf_x >= 0 &&
       ai_euro_06ae_first_colony_from_landfall(
-        ctx->map, ctx->colonies, lf_x, lf_y, &live_x, &live_y
+        ctx->map, ctx->colonies, ctx->units, nation_id, lf_x, lf_y, &live_x, &live_y
       )) {
     *out_x = live_x;
     *out_y = live_y;
@@ -14394,7 +14418,7 @@ static int ai_euro_try_first_colony_land(ColonizeTurnContext* ctx, ColonizeUnit*
   {
     int discard_x = 0;
     int discard_y = 0;
-    if (lf_x < 0 || !ai_euro_06ae_first_colony_from_landfall(ctx->map, ctx->colonies, lf_x, lf_y, &discard_x, &discard_y)) {
+    if (lf_x < 0 || !ai_euro_06ae_first_colony_from_landfall(ctx->map, ctx->colonies, ctx->units, nation_id, lf_x, lf_y, &discard_x, &discard_y)) {
       for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
         const ColonizeUnit* sh = &ctx->units->units[i];
         if (!sh->active || sh->nation_id != nation_id || !units_is_sea(ctx->units, sh->id)) {
@@ -14484,6 +14508,9 @@ static int ai_euro_try_first_colony_land(ColonizeTurnContext* ctx, ColonizeUnit*
 
   /* Sentry beachhead / approach peels skip overnight MP — wake for found walk. */
   if (u->moves_left <= 0 || units_orders_skip_turn(u)) {
+    if (u->id >= 0 && u->id < COLONIZE_UNITS_MAX && s_unloaded_this_turn[u->id]) {
+      return 1; /* landed this turn: DOS leaves it with moves 0 until next turn */
+    }
     (void)units_wake(ctx->units, u->id);
     u = units_get(ctx->units, u->id);
     if (!u || !u->active) {
@@ -15146,7 +15173,7 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
       {
         int fx_try = 0;
         int fy_try = 0;
-        if (plx < 0 || !ai_euro_06ae_first_colony_from_landfall(ctx->map, ctx->colonies, plx, ply, &fx_try, &fy_try)) {
+        if (plx < 0 || !ai_euro_06ae_first_colony_from_landfall(ctx->map, ctx->colonies, ctx->units, nation_id, plx, ply, &fx_try, &fy_try)) {
           int rx = 0;
           int ry = 0;
           if (ai_euro_recover_landfall_from_ship(u->x, u->y, &rx, &ry)) {
@@ -15181,7 +15208,7 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
           ai_euro_colony_count(ctx->colonies, nation_id) == 0) {
         int fx = 0;
         int fy = 0;
-        if (ai_euro_06ae_first_colony_from_landfall(ctx->map, ctx->colonies, plx, ply, &fx, &fy)) {
+        if (ai_euro_06ae_first_colony_from_landfall(ctx->map, ctx->colonies, ctx->units, nation_id, plx, ply, &fx, &fy)) {
           int pioneer_aboard = 0;
           int any_cargo_settler = 0;
           int soldier_ashore = 0;
@@ -15446,7 +15473,7 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
       }
       int fx = 0;
       int fy = 0;
-      if (lf_x < 0 || !ai_euro_06ae_first_colony_from_landfall(ctx->map, ctx->colonies, lf_x, lf_y, &fx, &fy)) {
+      if (lf_x < 0 || !ai_euro_06ae_first_colony_from_landfall(ctx->map, ctx->colonies, ctx->units, nation_id, lf_x, lf_y, &fx, &fy)) {
         int rx = 0;
         int ry = 0;
         if (ai_euro_recover_landfall_from_ship(u->x, u->y, &rx, &ry)) {
@@ -15454,7 +15481,7 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
           lf_y = ry;
         }
       }
-      if (lf_x >= 0 && ai_euro_06ae_first_colony_from_landfall(ctx->map, ctx->colonies, lf_x, lf_y, &fx, &fy)) {
+      if (lf_x >= 0 && ai_euro_06ae_first_colony_from_landfall(ctx->map, ctx->colonies, ctx->units, nation_id, lf_x, lf_y, &fx, &fy)) {
         if (pioneer_aboard && soldier_ashore) {
           ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, fx, fy + 2);
           u->moves_left = 0;
@@ -15585,7 +15612,7 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
       int ly = 0;
       if (ai_euro_recover_landfall_from_ship(u->x, u->y, &lx, &ly) ||
           ai_euro_recover_landfall_from_ship(u->goto_x, u->goto_y, &lx, &ly)) {
-        if (ai_euro_06ae_first_colony_from_landfall(ctx->map, ctx->colonies, lx, ly, &fx, &fy)) {
+        if (ai_euro_06ae_first_colony_from_landfall(ctx->map, ctx->colonies, ctx->units, nation_id, lx, ly, &fx, &fy)) {
           if (u->goto_x == fx && u->goto_y == fy + 2) {
             u->moves_left = 0;
           }
@@ -16751,6 +16778,7 @@ void ai_euro_dispatcher_turn(ColonizeTurnContext* ctx, int nation_id) {
   s_sticky_unit = -1;
   s_sticky_count = 0;
   memset(s_deferred_found, 0, sizeof(s_deferred_found));
+  memset(s_unloaded_this_turn, 0, sizeof(s_unloaded_this_turn));
   memset(s_founded_colony_turn, 0, sizeof(s_founded_colony_turn));
   /*
    * 0a60 goal-consumption shadow state: reset every call rather than kept
@@ -16871,7 +16899,7 @@ void ai_euro_dispatcher_turn(ColonizeTurnContext* ctx, int nation_id) {
               int fx = 0;
               int fy = 0;
               if (u->goto_x >= 0 && u->goto_y >= 0 &&
-                  ai_euro_06ae_first_colony_from_landfall(ctx->map, ctx->colonies, u->goto_x, u->goto_y, &fx, &fy) &&
+                  ai_euro_06ae_first_colony_from_landfall(ctx->map, ctx->colonies, ctx->units, nation_id, u->goto_x, u->goto_y, &fx, &fy) &&
                   u->x == fx && u->y == fy + 1) {
                 continue;
               }
@@ -16887,7 +16915,7 @@ void ai_euro_dispatcher_turn(ColonizeTurnContext* ctx, int nation_id) {
               int lf_x = u->goto_x;
               int lf_y = u->goto_y;
               if (lf_x < 0 || lf_y < 0 ||
-                  !ai_euro_06ae_first_colony_from_landfall(ctx->map, ctx->colonies, lf_x, lf_y, &fx, &fy)) {
+                  !ai_euro_06ae_first_colony_from_landfall(ctx->map, ctx->colonies, ctx->units, nation_id, lf_x, lf_y, &fx, &fy)) {
                 for (int si = 0; si < COLONIZE_UNITS_MAX; ++si) {
                   const ColonizeUnit* sh = &ctx->units->units[si];
                   if (!sh->active || sh->nation_id != nation_id ||
@@ -16904,7 +16932,7 @@ void ai_euro_dispatcher_turn(ColonizeTurnContext* ctx, int nation_id) {
                 }
               }
               if (lf_x >= 0 && lf_y >= 0 &&
-                  ai_euro_06ae_first_colony_from_landfall(ctx->map, ctx->colonies, lf_x, lf_y, &fx, &fy) &&
+                  ai_euro_06ae_first_colony_from_landfall(ctx->map, ctx->colonies, ctx->units, nation_id, lf_x, lf_y, &fx, &fy) &&
                   u->x == fx && u->y == fy) {
                 continue;
               }
@@ -16919,7 +16947,7 @@ void ai_euro_dispatcher_turn(ColonizeTurnContext* ctx, int nation_id) {
             int fy = 0;
             int ok = 0;
             if (lf_x < 0 || lf_y < 0 ||
-                !ai_euro_06ae_first_colony_from_landfall(ctx->map, ctx->colonies, lf_x, lf_y, &fx, &fy)) {
+                !ai_euro_06ae_first_colony_from_landfall(ctx->map, ctx->colonies, ctx->units, nation_id, lf_x, lf_y, &fx, &fy)) {
               for (int si = 0; si < COLONIZE_UNITS_MAX; ++si) {
                 const ColonizeUnit* sh = &ctx->units->units[si];
                 if (!sh->active || sh->nation_id != nation_id ||
@@ -16936,7 +16964,7 @@ void ai_euro_dispatcher_turn(ColonizeTurnContext* ctx, int nation_id) {
               }
             }
             if (lf_x >= 0 && lf_y >= 0 &&
-                ai_euro_06ae_first_colony_from_landfall(ctx->map, ctx->colonies, lf_x, lf_y, &fx, &fy)) {
+                ai_euro_06ae_first_colony_from_landfall(ctx->map, ctx->colonies, ctx->units, nation_id, lf_x, lf_y, &fx, &fy)) {
               if (u->x == fx && u->y == fy) {
                 ok = 1;
               } else if (guard == 0) {

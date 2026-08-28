@@ -157,11 +157,16 @@ Major thunks (catalog):
 | Human slot | Inside nation loop | Pipeline is **post-human only** |
 | Calendar | After nations | **First** in SETUP |
 | King | Per-nation inside `00f2` | Once in **FINISH** |
-| Indians | Mid-pass `1b3a` → `1816` ×8, **before** Euro loop | **INDIAN** phase runs before EURO (matched 2026-08-27) |
+| Indians | Mid-pass `1b3a` → `1816` ×8, **before** the EN..DU loop — but the human's Move Pieces sits *inside* that loop | Pipeline starts after the human: **EURO** slots above the human → **INDIAN** → EURO slots below (2026-08-28; no human slot → Indians first) |
 | `00f2` | Atomic per Euro | Split across SETUP / EURO / FINISH |
 
 Manual “natives first” order is **not** what either DOS `130d` (as resolved) or
-Linux runs; Linux is Euro AI then Indians.
+Linux runs. Relative to the human's end of turn the DOS order is: Euro slots
+above the human, then the mid-pass Indian turns, then the slots below the
+human (seed-100, human = England: FR → SP → DU → Indians → EN). Linux
+`turn_processor_advance` splits `TURN_PROC_EURO` around `TURN_PROC_INDIAN`
+the same way (2026-08-28; the 2026-08-27 "Indians before every Euro" order
+broke the Dutch TURN2→3 first contact).
 
 ---
 

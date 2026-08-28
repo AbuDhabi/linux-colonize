@@ -756,10 +756,19 @@ int colonies_found(
     slot->population = 0;
   }
 
-  /* Default first project so carpenter hammers have a target (0 accumulated). */
+  /*
+   * Default first project so carpenter hammers have a target (0 accumulated).
+   * Only when the colony can actually build it: Stockade needs 3 colonists
+   * (@BUILDING min_colony), and DOS never shows a size-1 town building one —
+   * seed-100 TURN4–6 AI towns (New Amsterdam / Quebec / Isabella) all start
+   * on Docks instead. Otherwise leave the queue empty like the DOS record
+   * init (FUN_364b_1ba8: building_in_production = 0xff).
+   */
   {
     const int stockade = colonies_find_building(pool, "Stockade");
-    if (stockade >= 0 && !slot->has_building[stockade]) {
+    if (stockade >= 0 && !slot->has_building[stockade] &&
+        (pool->building_types[stockade].min_population <= 0 ||
+         slot->population >= pool->building_types[stockade].min_population)) {
       slot->building_in_production = stockade;
       slot->hammers = 0;
     }

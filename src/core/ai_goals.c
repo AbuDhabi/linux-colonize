@@ -3,6 +3,7 @@
 #include "core/colony.h"
 #include "core/col1_save.h"
 #include "core/map.h"
+#include "core/units.h"
 
 #include <limits.h>
 #include <stdlib.h>
@@ -318,6 +319,7 @@ int ai_goals_pick_founding_tile_ex(
   const ColonizeWorldMap* map,
   const ColonizeColonyPool* colonies,
   const ColonizeCol1Save* col1,
+  const struct ColonizeUnitPool* units,
   int nation_id,
   int x,
   int y,
@@ -330,7 +332,6 @@ int ai_goals_pick_founding_tile_ex(
   if (!map || !out_x || !out_y) {
     return 0;
   }
-  (void)wagon_filter; /* DOS own-tile wagon type filter — thin: colonies_can_found */
   int best_dir = -1;
   int best_score = INT_MIN;
   int any = 0;
@@ -365,6 +366,36 @@ int ai_goals_pick_founding_tile_ex(
     }
     if (!ok && dir == 8) {
       continue;
+    }
+    /*
+     * DOS 06ae occupant gate (FUN_281f_06d2 tribe-or-presence, then
+     * FUN_281f_08bc(unit) == 1 singleton check): a neighbour holding a
+     * foreign presence is skipped; an own unit there only passes when it is
+     * a lone unit whose wagon-ness differs from the unit being placed
+     * (type 0x0b == wagon XOR wagon_filter). Stay (dir 8) is never gated.
+     * Seed-100 TURN2→3: the Dutch Soldier lands at (48,14) because the
+     * Pioneer already dropped on (49,14) blocks that tile.
+     */
+    if (dir != 8 && units) {
+      const int oid = units_id_at(units, nx, ny);
+      if (oid >= 0) {
+        const ColonizeUnit* ou = units_get_const(units, oid);
+        if (!ou || ou->nation_id != nation_id) {
+          continue;
+        }
+        int on_tile = 0;
+        for (int ui = 0; ui < COLONIZE_UNITS_MAX; ++ui) {
+          const ColonizeUnit* tu = &units->units[ui];
+          if (tu->active && tu->aboard_ship_id < 0 && tu->x == nx && tu->y == ny) {
+            on_tile++;
+          }
+        }
+        const ColonizeUnitType* ot = units_type(units, ou->type_index);
+        const int ou_is_wagon = ot && strstr(ot->name, "Wagon") != NULL;
+        if (on_tile != 1 || (ou_is_wagon != 0) == (wagon_filter != 0)) {
+          continue;
+        }
+      }
     }
 
     /* Base: terrain-class founding byte @ DS:0x2f77. */
@@ -474,6 +505,7 @@ int ai_goals_pick_founding_tile(
     map,
     colonies,
     col1,
+    /*units=*/NULL,
     nation_id,
     x,
     y,
