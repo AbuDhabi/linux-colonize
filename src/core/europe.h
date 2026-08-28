@@ -72,8 +72,10 @@
 #define EUROPE_TEXT_GREEN 10
 
 /* Voyage delays — Unverified vs DOS (manual: 1–4 turns; east usually shorter). */
-#define EUROPE_VOYAGE_EAST_TURNS 2
-#define EUROPE_VOYAGE_WEST_TURNS 4
+/* FUN_48d3_0002: a crossing takes 1 turn; 2 when RNG(1,100)>89, the nation
+ * has >2 ships and does not own Magellan (FF 5). Same roll both directions
+ * (48d3_007a sail-to-Europe, 48d3_0346 sail-from-Europe). */
+#define EUROPE_VOYAGE_TURNS_MAX 2
 
 typedef struct EuropeCargoQuote {
   char name[32];
@@ -274,8 +276,13 @@ void europe_free(EuropeScreen* eu);
 void europe_reset_campaign(EuropeScreen* eu);
 void europe_reset_campaign_nation(EuropeScreen* eu, int nation);
 
-/* Voyage turns (east shorter). ship_movement ≥6 shaves one turn (Unverified). */
-int europe_voyage_turns(bool exit_east, int ship_movement);
+/*
+ * FUN_48d3_0002 voyage roll. rng NULL → 1 (no roll). The x<3 west-edge
+ * branch in DOS only burns RNG(0,1)+an FF test and discards both — there
+ * is no west-edge sail penalty in the shipped code (PEDIA's Magellan
+ * "west edge" line describes the 10% delay this FF removes).
+ */
+int europe_voyage_turns_roll(struct ColonizeDosRng* rng, bool magellan, int ship_count);
 
 /*
  * DOS `FUN_38fd_4884` real Recruit passage formula (was a linear
@@ -301,6 +308,9 @@ bool europe_recruit_free_from_pool(EuropeScreen* eu, int pool_index);
  * (fixture / no-rng callers). Cite: europe_nation_eot.md "Phase 5".
  */
 bool europe_immigrant_from_pool(EuropeScreen* eu, struct ColonizeDosRng* rng);
+/* Brewster (FF 20) arrival: FUN_38fd_4884(0,1) pick applied — free
+ * dock transfer of pool[pool_index], then crosses zeroed (no +6 bump). */
+bool europe_brewster_pick_from_pool(EuropeScreen* eu, int pool_index);
 void europe_refill_pool_slot(EuropeScreen* eu, int slot, unsigned* rng_state);
 
 bool europe_train(EuropeScreen* eu, int train_index);
@@ -347,14 +357,14 @@ bool europe_enqueue_expected(
   int exit_x,
   int exit_y,
   bool exit_east,
-  int ship_movement
+  int voyage_turns
 );
 
 /* Harbor→Bound for New World; auto-boards sentry dockers into free holds. */
 bool europe_set_sail_from_harbor(
   EuropeScreen* eu,
   int harbor_index,
-  int ship_movement,
+  int voyage_turns,
   const ColonizeUnitPool* units
 );
 
@@ -472,6 +482,9 @@ int europe_compute_immigration_score(
  * Caller adds church crosses to current_crosses first.
  * Cite: europe_nation_eot.md; TURN1–7 goldens.
  */
+/* Returns 1 when an immigrant was moved to the docks, 2 when Brewster is
+ * owned and the caller must offer the @RECRUITCHOOSE pick instead
+ * (units_brewster_enqueue_pick / europe_brewster_pick_from_pool), else 0. */
 int europe_tick_immigration_pressure(
   EuropeScreen* eu,
   const struct ColonizeColonyPool* colonies,

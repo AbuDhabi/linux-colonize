@@ -817,6 +817,80 @@ bool units_fountain_youth_apply_popup(
   return true;
 }
 
+void units_brewster_enqueue_pick(
+  EuropeScreen* europe, AiPopupState* popups, const ColonizeMsgCatalog* game_txt, int human
+) {
+  if (!europe || !popups) {
+    return;
+  }
+  if (ai_popup_busy(popups)) {
+    return; /* one outstanding pick at a time; the tick re-offers next turn */
+  }
+  for (int i = 0; i < EUROPE_POOL_SIZE; ++i) {
+    if (!europe->pool[i].filled) {
+      europe_refill_pool_slot(europe, i, NULL);
+    }
+  }
+  const char* labels[EUROPE_POOL_SIZE];
+  int ids[EUROPE_POOL_SIZE];
+  for (int i = 0; i < EUROPE_POOL_SIZE; ++i) {
+    labels[i] = europe->pool[i].name[0] ? europe->pool[i].name : "Colonist";
+    ids[i] = i;
+  }
+  PopupMsgTokens tok;
+  memset(&tok, 0, sizeof(tok));
+  tok.country = europe->nation_name[0] ? europe->nation_name : "Europe";
+  tok.string0 = "Europe";
+  char body[AI_POPUP_BODY_LEN];
+  const char* fb =
+    "Religious unrest causes increased emigration. Colonists now available in Europe. "
+    "Whom shall we recruit?";
+  if (game_txt) {
+    popup_msg_fill(game_txt, "RECRUITCHOOSE", &tok, fb, body, sizeof(body));
+  } else {
+    snprintf(body, sizeof(body), "%s", fb);
+  }
+  (void)ai_popup_enqueue_choice_ctx(
+    popups, AI_POPUP_TAG_BREWSTER_PICK, human, -1, 0, NULL, body, labels, ids, EUROPE_POOL_SIZE
+  );
+}
+
+bool units_brewster_apply_popup(
+  EuropeScreen* europe, AiPopupState* popups, ColonizeUnitPool* units
+) {
+  if (!popups || popups->result_tag != AI_POPUP_TAG_BREWSTER_PICK) {
+    return false;
+  }
+  if (!europe || popups->result_cancelled) {
+    return true; /* 4884: local_58 < 0 → nothing moves, crosses kept */
+  }
+  const int slot = popups->result_choice_id;
+  if (slot < 0 || slot >= EUROPE_POOL_SIZE) {
+    return true;
+  }
+  const int human = popups->result_nation_a;
+  if (!europe_brewster_pick_from_pool(europe, slot)) {
+    return true;
+  }
+  /* Mirror the dock immigrant as the Europe-map unit (Col1 capture), same
+   * shape as turn.c's random-pick path. */
+  if (units && europe->dock_count > 0 && human >= 0 && human < 4) {
+    const EuropeDockImmigrant* d = &europe->dock[europe->dock_count - 1];
+    const int tid = units_find_type(units, "Colonists");
+    const int id = units_spawn_allow_stack(units, tid >= 0 ? tid : 0, 236, 236);
+    ColonizeUnit* u = units_get(units, id);
+    if (u) {
+      units_set_nation(u, human);
+      u->orders = UNITS_ORDER_SENTRY;
+      u->profession = d->profession;
+      u->goto_x = 0;
+      u->goto_y = 0;
+      u->moves_left = 0;
+    }
+  }
+  return true;
+}
+
 bool units_king_galleon_apply_popup(
   ColonizeUnitPool* pool,
   EuropeScreen* europe,
@@ -932,6 +1006,63 @@ bool units_is_sea(const ColonizeUnitPool* pool, int unit_id) {
   }
   const ColonizeUnitType* type = units_type(pool, unit->type_index);
   return type && type->domain == COLONIZE_UNIT_DOMAIN_SEA;
+}
+
+static bool units_unit_is_sea(const ColonizeUnitPool* pool, const ColonizeUnit* u) {
+  const ColonizeUnitType* type = u ? units_type(pool, u->type_index) : NULL;
+  return type && type->domain == COLONIZE_UNIT_DOMAIN_SEA;
+}
+
+int units_sight_radius(
+  const ColonizeUnitPool* pool, const ColonizeUnit* u, const ColonizeCol1Save* col1
+) {
+  if (!pool || !u) {
+    return 1;
+  }
+  int radius = 1;
+  const bool ship = units_unit_is_sea(pool, u);
+  /* 13f1:030e — @UNIT rows 0xf/0x10/0x11 (Galleon, Privateer, Frigate). */
+  if (u->type_index == units_find_type(pool, "Galleon") ||
+      u->type_index == units_find_type(pool, "Privateer") ||
+      u->type_index == units_find_type(pool, "Frigate")) {
+    radius = 2;
+  }
+  /* 13f1:0321 — FF 7 (de Soto) and not a ship (type outside 0xd..0x12). */
+  if (!ship && col1 && u->nation_id >= 0 && u->nation_id < 4 &&
+      founding_fathers_nation_has(col1, u->nation_id, FF_HERNANDO_DE_SOTO)) {
+    radius = 2;
+  }
+  /* 13f1:034b — Scouts (row 5) +1. */
+  if (u->type_index == units_find_type(pool, "Scouts")) {
+    radius += 1;
+  }
+  return radius;
+}
+
+void units_reveal_sight(
+  ColonizeWorldMap* map, const ColonizeUnitPool* pool, const ColonizeUnit* u,
+  const ColonizeCol1Save* col1
+) {
+  if (!map || !pool || !u || !units_is_on_map(u) || u->nation_id < 0 || u->nation_id > 3) {
+    return;
+  }
+  map_reveal_sight(
+    map, u->x, u->y, u->nation_id, units_sight_radius(pool, u, col1), units_unit_is_sea(pool, u)
+  );
+}
+
+int units_count_sea_for_nation(const ColonizeUnitPool* pool, int nation_id) {
+  if (!pool) {
+    return 0;
+  }
+  int n = 0;
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    const ColonizeUnit* u = &pool->units[i];
+    if (u->active && u->nation_id == nation_id && units_unit_is_sea(pool, u)) {
+      n++;
+    }
+  }
+  return n;
 }
 
 bool units_on_high_seas(const ColonizeWorldMap* map, int x, int y) {
@@ -3005,12 +3136,9 @@ bool units_resolve_lcr_rumour(
   const int nation = u->nation_id;
   const bool de_soto_owned = col1 && nation >= 0 && nation < 4 &&
     founding_fathers_de_soto_lcr_always_positive(col1, nation);
-  if (de_soto_owned) {
-    /* Extended sight is a separate always-on FF effect in DOS (see
-     * founding_fathers.c FF_HERNANDO_DE_SOTO); kept ungated by unit type
-     * here, unlike the LCR-selection bonus below. */
-    map_reveal_radius(map, x, y, nation, 1);
-  }
+  /* Sight around the explorer: the per-move FUN_13f1_02f8 radius (de Soto's
+   * extended sight lives in units_sight_radius, not in the LCR tail). */
+  units_reveal_sight(map, pool, u, col1);
 
   /*
    * Explorer skill tier (decomp local_36, viceroy:103450-103458): Scout

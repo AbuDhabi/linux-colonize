@@ -559,11 +559,32 @@ int main(void) {
   }
 
   /* Voyage: enqueue Expected → tick → harbor; set_sail → Bound. */
-  if (europe_voyage_turns(true, 4) != EUROPE_VOYAGE_EAST_TURNS ||
-      europe_voyage_turns(false, 4) != EUROPE_VOYAGE_WEST_TURNS) {
+  /* FUN_48d3_0002: 1 turn; 2 only on RNG>89 with >2 ships and no Magellan. */
+  if (europe_voyage_turns_roll(NULL, false, 9) != 1) {
     fprintf(stderr, "voyage turns unexpected\n");
     europe_free(&eu);
     return 1;
+  }
+  {
+    ColonizeDosRng vr;
+    ColonizeDosRng vm;
+    ColonizeDosRng vf;
+    dos_rng_seed(&vr, 7u);
+    dos_rng_seed(&vm, 7u);
+    dos_rng_seed(&vf, 7u);
+    int two = 0;
+    int two_magellan = 0;
+    int two_few_ships = 0;
+    for (int i = 0; i < 400; ++i) {
+      two += europe_voyage_turns_roll(&vr, false, 3) == 2;
+      two_magellan += europe_voyage_turns_roll(&vm, true, 3) == 2;
+      two_few_ships += europe_voyage_turns_roll(&vf, false, 2) == 2;
+    }
+    if (two == 0 || two > 100 || two_magellan != 0 || two_few_ships != 0) {
+      fprintf(stderr, "voyage roll gate wrong: %d/%d/%d\n", two, two_magellan, two_few_ships);
+      europe_free(&eu);
+      return 1;
+    }
   }
   eu.harbor_ships = 0;
   eu.expected_ships = 0;
@@ -575,17 +596,15 @@ int main(void) {
     const int pax_types[2] = {0, 0};
     const int pax_profs[2] = {21, 20}; /* soldier then pioneer in cargo */
     if (!europe_enqueue_expected(
-          &eu, 14, "Caravel", pax_types, pax_profs, 2, NULL, NULL, 50, 10, true, 4
+          &eu, 14, "Caravel", pax_types, pax_profs, 2, NULL, NULL, 50, 10, true, 1
         ) ||
-        eu.expected_ships != 1 || eu.expected[0].turns_left != EUROPE_VOYAGE_EAST_TURNS) {
+        eu.expected_ships != 1 || eu.expected[0].turns_left != 1) {
       fprintf(stderr, "enqueue_expected failed\n");
       europe_free(&eu);
       return 1;
     }
   }
-  for (int t = 0; t < EUROPE_VOYAGE_EAST_TURNS; ++t) {
-    europe_tick_voyages(&eu, NULL);
-  }
+  europe_tick_voyages(&eu, NULL);
   if (eu.expected_ships != 0 || eu.harbor_ships != 1 || !eu.open_on_dock) {
     fprintf(
       stderr,
@@ -630,7 +649,7 @@ int main(void) {
   eu.dock[2].present = true;
   eu.dock[2].sentry = true;
   eu.dock[2].profession = 26;
-  if (!europe_set_sail_from_harbor(&eu, 0, 4, NULL) || eu.bound_ships != 1 ||
+  if (!europe_set_sail_from_harbor(&eu, 0, 1, NULL) || eu.bound_ships != 1 ||
       eu.harbor_ships != 0) {
     fprintf(stderr, "set_sail failed: %s\n", eu.status);
     europe_free(&eu);
@@ -787,7 +806,7 @@ int main(void) {
     const int pax_types[1] = {treasure_ti};
     const int pax_profs[1] = {-1};
     if (!europe_enqueue_expected(
-          &eu, 16, "Galleon", pax_types, pax_profs, 1, NULL, NULL, 50, 10, true, 6
+          &eu, 16, "Galleon", pax_types, pax_profs, 1, NULL, NULL, 50, 10, true, 1
         )) {
       fprintf(stderr, "treasure enqueue_expected failed\n");
       assets_msg_free(&names);

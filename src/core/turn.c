@@ -39,7 +39,7 @@ static void turn_reveal_fog_for_nation(ColonizeTurnContext* ctx, int nation_id) 
       if (!u->active || u->nation_id != nation_id || !units_is_on_map(u)) {
         continue;
       }
-      map_reveal_radius(ctx->map, u->x, u->y, nation_id, 1);
+      units_reveal_sight(ctx->map, ctx->units, u, ctx->col1_ok ? ctx->col1 : NULL);
     }
   }
   if (ctx->colonies) {
@@ -1902,10 +1902,18 @@ void turn_run_nation_ticks(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
       }
       ctx->europe->current_crosses = (uint16_t)cur;
     }
-    if (europe_tick_immigration_pressure(
-          ctx->europe, ctx->colonies, ctx->units, ctx->col1_ok ? ctx->col1 : NULL, ctx->human_nation,
-          ctx->rng
-        )) {
+    const int imm = europe_tick_immigration_pressure(
+      ctx->europe, ctx->colonies, ctx->units, ctx->col1_ok ? ctx->col1 : NULL, ctx->human_nation,
+      ctx->rng
+    );
+    if (imm == 2) {
+      /* Brewster: player picks from the pool (@RECRUITCHOOSE); applied via
+       * units_brewster_apply_popup in game_loop, crosses kept until then. */
+      units_brewster_enqueue_pick(ctx->europe, ctx->ai_popups, ctx->messages, ctx->human_nation);
+      if (ctx->status && ctx->status_size > 0) {
+        snprintf(ctx->status, ctx->status_size, "Religious unrest: choose an immigrant.");
+      }
+    } else if (imm == 1) {
       const char* name = "";
       if (ctx->europe->dock_count > 0) {
         name = ctx->europe->dock[ctx->europe->dock_count - 1].name;
@@ -2058,15 +2066,12 @@ void turn_run_nation_ticks(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
         u->col1_unknown15 = (uint8_t)(u->col1_unknown15 | 0x40u);
         u->goto_x = x;
         u->goto_y = y;
-        /* FUN_48d3_0002 landfall duration: 1; 2 if Magellan owned + RNG>89 + docks>2. */
-        int dur = 1;
-        const int docks = ctx->europe ? ctx->europe->dock_count + ctx->europe->harbor_ships : 0;
+        /* FUN_48d3_0002 voyage duration (same roll as every Europe crossing). */
         const bool magellan = ctx->col1_ok && ctx->col1 &&
           founding_fathers_nation_has(ctx->col1, ctx->human_nation, FF_FERDINAND_MAGELLAN);
-        if (ctx->rng && magellan && docks > 2 &&
-            dos_rng_range(ctx->rng, 1, 100) > 89) {
-          dur = 2;
-        }
+        const int dur = europe_voyage_turns_roll(
+          ctx->rng, magellan, units_count_sea_for_nation(ctx->units, ctx->human_nation)
+        );
         u->turns_worked = (uint8_t)dur;
         if (ctx->status && ctx->status_size > 0) {
           snprintf(ctx->status, ctx->status_size, "Immigrant ship arrives.");

@@ -8,6 +8,7 @@
 #include "core/col1_save.h"
 #include "core/colony.h"
 #include "core/dos_rng.h"
+#include "core/founding_fathers.h"
 #include "core/ss.h"
 #include "core/strutil.h"
 #include "core/units.h"
@@ -565,16 +566,24 @@ static void europe_apply_nation_names(EuropeScreen* eu, int nation, const Coloni
   str_copy_trunc(eu->nation_name, sizeof(eu->nation_name), k_nations[nation]);
 }
 
-int europe_voyage_turns(bool exit_east, int ship_movement) {
-  int t = exit_east ? EUROPE_VOYAGE_EAST_TURNS : EUROPE_VOYAGE_WEST_TURNS;
-  if (ship_movement >= 6) {
-    t -= 1;
+int europe_voyage_turns_roll(ColonizeDosRng* rng, bool magellan, int ship_count) {
+  if (!rng) {
+    return 1;
   }
+  /* 48d3:0042 RNG(1,100) always rolled; >0x59 && ship_counts>2 && !FF5 → 2. */
+  const int roll = dos_rng_range(rng, 1, 100);
+  if (roll > 89 && ship_count > 2 && !magellan) {
+    return 2;
+  }
+  return 1;
+}
+
+static int europe_clamp_voyage_turns(int t) {
   if (t < 1) {
-    t = 1;
+    return 1;
   }
-  if (t > 4) {
-    t = 4;
+  if (t > EUROPE_VOYAGE_TURNS_MAX) {
+    return EUROPE_VOYAGE_TURNS_MAX;
   }
   return t;
 }
@@ -820,6 +829,21 @@ bool europe_recruit_free_from_pool(EuropeScreen* eu, int pool_index) {
   return true;
 }
 
+bool europe_brewster_pick_from_pool(EuropeScreen* eu, int pool_index) {
+  if (!eu || !europe_recruit_free_from_pool(eu, pool_index)) {
+    return false;
+  }
+  /* 4884 tail with param_1==0: +0x2e crosses zeroed after the pick; no +6
+   * recruit-count bump (param_2!=0 skips it). */
+  eu->current_crosses = 0;
+  eu->immigration_pressure = 0;
+  eu->crosses_immigrant_seen = true;
+  eu->open_on_dock = false;
+  europe_refresh_recruit_passage(eu);
+  snprintf(eu->status, sizeof(eu->status), "Immigrant arrives in Europe.");
+  return true;
+}
+
 bool europe_immigrant_from_pool(EuropeScreen* eu, ColonizeDosRng* rng) {
   if (!eu || eu->dock_count >= EUROPE_DOCK_MAX) {
     return false;
@@ -1005,7 +1029,7 @@ bool europe_enqueue_expected(
   int exit_x,
   int exit_y,
   bool exit_east,
-  int ship_movement
+  int voyage_turns
 ) {
   if (!eu) {
     return false;
@@ -1036,7 +1060,7 @@ bool europe_enqueue_expected(
   slot->exit_x = exit_x;
   slot->exit_y = exit_y;
   slot->exit_east = exit_east;
-  slot->turns_left = europe_voyage_turns(exit_east, ship_movement);
+  slot->turns_left = europe_clamp_voyage_turns(voyage_turns);
   eu->last_exit_x = exit_x;
   eu->last_exit_y = exit_y;
   eu->last_exit_east = exit_east;
@@ -1094,7 +1118,7 @@ static void europe_board_sentry_dockers(
 bool europe_set_sail_from_harbor(
   EuropeScreen* eu,
   int harbor_index,
-  int ship_movement,
+  int voyage_turns,
   const ColonizeUnitPool* units
 ) {
   if (!eu || harbor_index < 0 || harbor_index >= eu->harbor_ships) {
@@ -1114,7 +1138,7 @@ bool europe_set_sail_from_harbor(
     ship.exit_x = eu->last_exit_x;
     ship.exit_y = eu->last_exit_y;
   }
-  ship.turns_left = europe_voyage_turns(exit_east, ship_movement);
+  ship.turns_left = europe_clamp_voyage_turns(voyage_turns);
   for (int i = harbor_index + 1; i < eu->harbor_ships; ++i) {
     eu->harbor[i - 1] = eu->harbor[i];
   }
@@ -1806,6 +1830,18 @@ int europe_tick_immigration_pressure(
 
   /* Phase 5: needed < current → dock immigrant; clear current. */
   if (need > 0 && (int)eu->current_crosses > need) {
+    /*
+     * 5e52 ~68577: FF 0x14 (Brewster) owned → FUN_38fd_4884(0,1) instead of
+     * the random 04d4(0,2) pool pick: the player chooses (@RECRUITCHOOSE),
+     * crosses are only zeroed once a pick lands (4884 tail, param_1==0), so
+     * a cancelled dialog re-asks next turn. Caller enqueues the CHOICE and
+     * europe_brewster_pick_from_pool applies it.
+     */
+    if ((col1 && founding_fathers_nation_has(col1, nation_id, FF_WILLIAM_BREWSTER)) ||
+        eu->brewster_no_criminals) {
+      eu->brewster_no_criminals = true;
+      return 2;
+    }
     eu->current_crosses = 0;
     eu->immigration_pressure = 0;
     eu->crosses_immigrant_seen = true;

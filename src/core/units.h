@@ -420,6 +420,18 @@ void units_fountain_youth_enqueue_pick(
   EuropeScreen* europe, AiPopupState* popups, const ColonizeMsgCatalog* game_txt, int human,
   int remaining
 );
+/*
+ * 5e52 Brewster branch → FUN_38fd_4884(0,1): @RECRUITCHOOSE with the 3 pool
+ * names (%COUNTRY = nation, %STRING0 = Europe), passage 0. Apply moves the
+ * chosen pool entry to the docks, zeroes crosses and mirrors it as the
+ * Europe-map unit; cancel leaves everything (DOS re-asks next turn).
+ */
+void units_brewster_enqueue_pick(
+  EuropeScreen* europe, AiPopupState* popups, const ColonizeMsgCatalog* game_txt, int human
+);
+bool units_brewster_apply_popup(
+  EuropeScreen* europe, AiPopupState* popups, ColonizeUnitPool* units
+);
 bool units_fountain_youth_apply_popup(
   EuropeScreen* europe, AiPopupState* popups, const ColonizeMsgCatalog* game_txt
 );
@@ -447,6 +459,22 @@ ColonizeUnit* units_get(ColonizeUnitPool* pool, int unit_id);
 const ColonizeUnit* units_get_const(const ColonizeUnitPool* pool, int unit_id);
 const ColonizeUnitType* units_type(const ColonizeUnitPool* pool, int type_index);
 bool units_is_sea(const ColonizeUnitPool* pool, int unit_id);
+/*
+ * FUN_13f1_02f8 sight radius: 1; Galleon/Privateer/Frigate 2; de Soto (FF 7)
+ * makes every non-ship unit 2; Scouts +1 on top. FUN_13f1_02b4 then reveals
+ * through map_reveal_sight (outer ring domain-gated). col1 may be NULL.
+ */
+int units_sight_radius(
+  const ColonizeUnitPool* pool, const ColonizeUnit* u, const ColonizeCol1Save* col1
+);
+void units_reveal_sight(
+  ColonizeWorldMap* map,
+  const ColonizeUnitPool* pool,
+  const ColonizeUnit* u,
+  const ColonizeCol1Save* col1
+);
+/* Live ships of one nation (DOS -0x6be8 ship_counts[nation] equivalent). */
+int units_count_sea_for_nation(const ColonizeUnitPool* pool, int nation_id);
 bool units_is_on_map(const ColonizeUnit* unit);
 
 /* Equipment the unit carries into a new colony warehouse when founding. */

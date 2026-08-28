@@ -89,7 +89,7 @@ Both are owned by [assets.md](assets.md) "Music / sound".
 | **1 Colony–Europe loop** | Mostly done | Found/assign/produce/sail/buy-sell/pioneer/trade-routes structural playable |
 | **2 Contact & conflict** | Partial | Land/naval combat + capture + Indian meet/trade/raid usable for a human game without deep PARK blockers |
 | **3 Mid-game AI** | Partial / active | Euro mid-planner (`5d04` / land `20e6`) + Indian large bodies advance; `golden_ai_joint` **PARKED / DISABLED** 2026-08-19 — no chance of staying green before AI transcription is complete, see ai_transcription.md R0 |
-| **4 Independence & endgame** | Partial | WoI bell→intervention + Europe closed post-declare **Done** (2026-08-22); FF weighted pick **Done**; REF/WoI win/lose latches **Done** thin; KINGGALLEON2 / 65dd weights / Magellan west-sail PARK |
+| **4 Independence & endgame** | Partial | WoI bell→intervention + Europe closed post-declare **Done** (2026-08-22); FF weighted pick **Done**; REF/WoI win/lose latches **Done** thin; all 25 Fathers wired (2026-08-28); KINGGALLEON2 / 65dd Done |
 | **5 Fidelity & polish** | Later | VGA dialog chrome, VIEW modes, pixel layout, T3 AI goldens, remaining PARKED deep bodies (COLDIG SFX moved out — playback wired 2026-08-27, remaining push sites tracked in port_plan.md P3.7) |
 
 ```mermaid
@@ -197,9 +197,10 @@ Finish a campaign: FF leftovers, king/REF, win/lose/retire.
 
 **Now (Phase 5, 2026-08-22):**
 
-- **KINGGALLEON2** — still **PARK** (Phase 5: 38fd overlay + string search negative)
+- **KINGGALLEON2** — **Done** (2026-08-27: `FUN_5fef_1908`, popup ids are DS tag addresses)
 - **10f0** — landing scorer, per-call caps, Veteran `0x15` — **Done** Phase 5; foreign MoW ship **PARK**
-- **65dd LCR** — decomp case table documented; WoI case-1→2 redirect + case5 latch **Done**; full weight reroll loops **PARK**
+- **65dd LCR** — **Done** (2026-08-27 full static port, `units_lcr_roll_outcome`)
+- **FF leftovers** — **Done** (2026-08-28): de Soto sight radius (`13f1_02f8`), Magellan voyage roll (`48d3_0002`, replaces invented 2/4-turn crossings), Brewster pick-among-pool (`4884(0,1)`); no Father PARKed
 - **Year-end D** — `rebel_sentiment` when set, else `ai_king_sol_percent`; continent table at DOS `−0x6bf0` **PARK**
 - **Lategame codec** — **Done** (W1.5, 2026-08-24): all Col1 `.SAV` fixtures (starters + lategame + `TURN`) byte-identical on re-encode; the "not yet" here was a stale doc note — fixed same-day it was written (`753662d`, 2026-08-22), just never updated. See [save_format_map.md](save_format_map.md) / [savegame.md](savegame.md) Phase 5
 - Bell-pool + bridge load + F3 Congress structural — **Done** (Phase 4)
