@@ -1403,8 +1403,13 @@ static void ai_europe_exit_to_map(
     }
   }
 
-  ship->x = sx;
-  ship->y = sy;
+  {
+    const int ship_ox = ship->x;
+    const int ship_oy = ship->y;
+    ship->x = sx;
+    ship->y = sy;
+    units_occupancy_notify_moved(ctx->units, ship_ox, ship_oy, sx, sy);
+  }
   for (int i = 0; i < ship->cargo_count; ++i) {
     ColonizeUnit* pax = units_get(ctx->units, ship->cargo_ids[i]);
     if (pax) {
@@ -3210,6 +3215,14 @@ static int ai_native_pick_dir_asm(
       rejected++;
       continue;
     }
+    /*
+     * DOS FUN_281f_06d2 tribe_or_presence: settlement owner (layer2 bit 0x02)
+     * else the nation of a unit standing there (bit 0x01) — never the bare
+     * layer3 nibble, which DOS leaves behind after a unit moves on (seed-100
+     * TURN4: the Dutch ship's whole route still reads 3). Only correct now
+     * that every mover keeps the presence bit exact
+     * (units_occupancy_notify_moved / units_occupancy_rebuild).
+     */
     const int own = ai_owner_nibble(map, nx, ny);
     const int foreign_euro_pull =
       own >= 0 && own != nation_id &&
@@ -3771,6 +3784,7 @@ static void ai_seed100_apply_brave_marks(
         u->turns_worked == s->turns_worked) {
       continue;
     }
+    units_occupancy_notify_moved(units, u->x, u->y, s->nx, s->ny);
     u->x = s->nx;
     u->y = s->ny;
     u->moves_left = s->moves;
@@ -3934,8 +3948,13 @@ static void ai_native_nation_pulse(
           steps
         );
       }
-      u->x = nx;
-      u->y = ny;
+      {
+        const int step_ox = u->x;
+        const int step_oy = u->y;
+        u->x = nx;
+        u->y = ny;
+        units_occupancy_notify_moved(units, step_ox, step_oy, nx, ny);
+      }
       u->moves_left = spent + cost;
       /*
        * FUN_465b LAB_465b_05ca: ocean/HS flag change AND

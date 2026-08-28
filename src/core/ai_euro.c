@@ -15065,8 +15065,13 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
         placed = 1;
       }
       if (placed) {
-        u->x = hx;
-        u->y = hy;
+        {
+          const int tel_ox = u->x;
+          const int tel_oy = u->y;
+          u->x = hx;
+          u->y = hy;
+          units_occupancy_notify_moved(ctx->units, tel_ox, tel_oy, hx, hy);
+        }
         ai_euro_sync_aboard_cargo_xy(ctx->units, u);
         int wx = 4;
         int wy = 13;
@@ -15661,8 +15666,13 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
                 u->moves_left = 0;
               }
             } else if (goto_tip) {
-              u->x = wx;
-              u->y = wy;
+              {
+                const int tel_ox = u->x;
+                const int tel_oy = u->y;
+                u->x = wx;
+                u->y = wy;
+                units_occupancy_notify_moved(ctx->units, tel_ox, tel_oy, wx, wy);
+              }
               ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, wx, wy);
               u->moves_left = 0;
             }

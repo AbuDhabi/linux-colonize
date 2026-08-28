@@ -3711,8 +3711,13 @@ static int ai_contact_flee_one_tile(
   if (best_x < 0) {
     return 0;
   }
-  u->x = best_x;
-  u->y = best_y;
+  {
+    const int mv_ox = u->x;
+    const int mv_oy = u->y;
+    u->x = best_x;
+    u->y = best_y;
+    units_occupancy_notify_moved(ctx->units, mv_ox, mv_oy, best_x, best_y);
+  }
   u->orders = UNITS_ORDER_AI_MOVE;
   u->goto_x = best_x;
   u->goto_y = best_y;
@@ -6102,8 +6107,13 @@ static int ai_contact_displace_scout(
   if (best_x < 0) {
     return 0;
   }
-  scout->x = best_x;
-  scout->y = best_y;
+  {
+    const int mv_ox = scout->x;
+    const int mv_oy = scout->y;
+    scout->x = best_x;
+    scout->y = best_y;
+    units_occupancy_notify_moved(ctx->units, mv_ox, mv_oy, best_x, best_y);
+  }
   scout->orders = UNITS_ORDER_AI_MOVE;
   scout->goto_x = best_x;
   scout->goto_y = best_y;

@@ -1257,6 +1257,44 @@ static void units_claim_tile_owner_from_stack(
   units_map_set_owner_nibble(map, x, y, nation);
 }
 
+void units_occupancy_notify_moved(ColonizeUnitPool* pool, int old_x, int old_y, int new_x, int new_y) {
+  if (!pool || !g_units_occupancy_map) {
+    return;
+  }
+  if (old_x >= 0 && old_y >= 0 && old_x < 200 && old_y < 200) {
+    units_occupancy_refresh_tile(pool, old_x, old_y, -1);
+  }
+  if (new_x >= 0 && new_y >= 0 && new_x < 200 && new_y < 200) {
+    units_occupancy_refresh_tile(pool, new_x, new_y, -1);
+  }
+}
+
+void units_occupancy_rebuild(ColonizeUnitPool* pool) {
+  ColonizeWorldMap* map = g_units_occupancy_map;
+  if (!pool || !map || !map->layer2) {
+    return;
+  }
+  /*
+   * Presence bit (DOS UNITFLAG, layer2 0x01) recomputed from the pool as a
+   * safety net for movers that bypass units_occupancy_notify_moved. Only the
+   * bit: the layer3 owner nibble is stamped at placement (DOS FUN_1427_02ca)
+   * and otherwise left alone — DOS keeps old stamps (seed-100 TURN4: the
+   * Dutch ship's whole route still reads 3) and a save-loaded unit standing
+   * on a foreign-stamped tile keeps that stamp until it moves.
+   */
+  for (size_t i = 0; i < map->tile_count; ++i) {
+    map->layer2[i] = (uint8_t)(map->layer2[i] & (uint8_t)~MAP_OCCUPANCY_HAS_UNIT);
+  }
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    const ColonizeUnit* u = &pool->units[i];
+    if (!u->active || u->aboard_ship_id >= 0 || !units_is_on_map(u) || u->x >= 200 ||
+        u->y >= 200) {
+      continue;
+    }
+    map_occupancy_set_layer2(map, u->x, u->y, MAP_OCCUPANCY_HAS_UNIT, true);
+  }
+}
+
 static void units_occupancy_refresh_tile(ColonizeUnitPool* pool, int x, int y, int except_id) {
   if (!g_units_occupancy_map || !pool) {
     return;
@@ -7012,6 +7050,7 @@ bool units_unload_passenger(
   pax->aboard_ship_id = -1;
   pax->x = dest_x;
   pax->y = dest_y;
+  units_occupancy_refresh_tile(pool, dest_x, dest_y, -1);
   pax->orders = 0;
   /*
    * Shore-step MP (FUN_465b ADD). Aboard sentry often has moves_left==0 as a
