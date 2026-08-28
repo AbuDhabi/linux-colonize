@@ -64,6 +64,10 @@ The retired seed-100 `ai_euro_early_turn` fixture remains available via
 `AI_EURO_EARLY_FIXTURE=1` for regression bisect only. Default path is the full
 dispatcher (`ai_euro_dispatcher_turn`), including VR_SEED=100.
 
+To run the full port deterministically against the DOS VR_SEED patch, start with
+`--seed 100` (see `docs/assets.md`, "Fixed seed"); the flag overrides every
+timer-word read, including mapgen and per-nation reseeds.
+
 ---
 
 ## Current Linux surface (Full T0/T1)

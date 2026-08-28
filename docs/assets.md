@@ -501,6 +501,8 @@ Pipeline: land-mask blobs → diagonal coast cleanup (masks 6/9) → latitude/te
 
 RNG is the exact DOS libc LCG (`FUN_1d1d_0e04` / `FUN_19ef_0032` in `src/core/dos_rng.c`). NEW WORLD: seed → draw customize axes with **`range(0,3)`** → **reseed with the same tick** → `map_generate` (`FUN_684c_08c0`, ending in `LAB_684c_1b4c` HS-rim landfalls per nation). Tribe placement (`FUN_6a09_0006`) **reseeds to `rng_seed`** at entry (matches DOS `6a09` / VR_SEED timer word; not post-mapgen and not a post-axes restore). Golden check: `golden_mapgen_seed100` vs [`original_saves/mapgen/SEED100.SAV`](../original_saves/mapgen/SEED100.SAV) (axes `(0,0,0,2,2)` from seed 100). AI Europeans start in Europe harbor sentinels on NEW WORLD with landfall `goto` on the western rim of eastern high seas; Europe exit (`FUN_48d3_048e` / dispatcher) places near that goto — not southern ice from sentinel Y. AMERICA keeps on-map `@SCENARIO` fleets.
 
+**Fixed seed (`--seed N`):** the port has one chokepoint for the DOS timer word (`game_pick_rng_seed` in `src/core/game_loop.c`, mirroring `FUN_281f_04ca` ← DS:0x83a6). `--seed N` overrides every timer-word read: NEW WORLD/CUSTOMIZE mapgen + `FUN_6a09` tribe reseed, Brave pulses, per-nation `ai_nation_reseed`, and the load-save LCG continuation. `--seed 100` reproduces the VR_SEED golden series, so DOS (VR_SEED patch) and the port can be run side by side to find divergence. Sound `pick_rng` is a fixed private constant (no game-state effect). Without `--seed` the fallback is `elapsed_ms`.
+
 | Extension | Typical use |
 |-----------|-------------|
 | `.PIK` | Packed pictures / backgrounds |

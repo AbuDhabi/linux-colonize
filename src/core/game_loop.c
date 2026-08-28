@@ -2966,6 +2966,14 @@ static const char* render_mode_name(const ColonizeGameState* game) {
   return "map";
 }
 
+/* CLI --seed: fixed campaign RNG (DOS DS:0x83a6 timer word; VR_SEED = 100). */
+static uint32_t game_pick_rng_seed(const ColonizeGameState* game, uint32_t fallback) {
+  if (game && game->config.rng_seed) {
+    return game->config.rng_seed;
+  }
+  return fallback ? fallback : 1u;
+}
+
 static bool game_apply_col1_save(ColonizeGameState* game, ColonizeCol1Save* loaded, char* err, size_t err_size) {
   ColonizeCol1BridgeResult result;
   europe_reset_campaign(&game->europe);
@@ -3019,13 +3027,14 @@ static bool game_apply_col1_save(ColonizeGameState* game, ColonizeCol1Save* load
   sound_set_bgm(1);
   /* Continue LCG for FUN_465b / AI nation turns. VR_SEED fixtures use seed 100;
    * prefer that when the save looks like a seed-100 NEW WORLD start (turn<=6,
-   * 34 tribes), else fall back to turn/year. */
+   * 34 tribes), else fall back to turn/year. --seed overrides all of that. */
   {
     uint32_t seed = game->turn_number ? game->turn_number
                                       : (game->game_year ? game->game_year : 1u);
     if (game->col1_ok && game->col1.head.tribe_count == 34 && game->col1.head.turn <= 6) {
       seed = 100u;
     }
+    seed = game_pick_rng_seed(game, seed);
     dos_rng_seed(&game->move_rng, seed);
     game->ai_rng_seed = seed;
   }
@@ -4156,8 +4165,11 @@ ColonizeGameState* game_create(const ColonizeGameConfig* config) {
   game->game_autumn = 0;
   game->human_nation = 0;
   game->active_turn_nation = 0;
-  dos_rng_seed(&game->move_rng, 1u);
-  game->ai_rng_seed = 1u;
+  {
+    const uint32_t seed = game_pick_rng_seed(game, 1u);
+    dos_rng_seed(&game->move_rng, seed);
+    game->ai_rng_seed = seed;
+  }
   game->pedia_category = PEDIA_CAT_TERRAIN;
   game->pedia_index = 0;
   game->pedia_hover_entry = -1;
@@ -4633,7 +4645,7 @@ static void game_commit_new_campaign(ColonizeGameState* game) {
       ng->path == NEW_GAME_PATH_CUSTOMIZE) {
     uint32_t seed = ng->gen_params.seed;
     if (seed == 0) {
-      seed = game->elapsed_ms ? game->elapsed_ms : 1u;
+      seed = game_pick_rng_seed(game, game->elapsed_ms);
     }
     ng->gen_params.seed = seed;
     /*
@@ -4781,7 +4793,7 @@ static void game_commit_new_campaign(ColonizeGameState* game) {
     ai.map_stem = stem[0] ? stem : NULL;
     ai.human_start_x = sx;
     ai.human_start_y = sy;
-    ai.rng_seed = game->elapsed_ms ? game->elapsed_ms : 1u;
+    ai.rng_seed = game_pick_rng_seed(game, game->elapsed_ms);
     if (ng->path == NEW_GAME_PATH_NEW_WORLD || ng->path == NEW_GAME_PATH_CUSTOMIZE) {
       ai.rng_seed = ng->gen_params.seed ? ng->gen_params.seed : ai.rng_seed;
     }
