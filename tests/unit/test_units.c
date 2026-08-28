@@ -2385,7 +2385,7 @@ int main(void) {
     /* Town commons: plains → food + cotton; forest → food + furs (not lumber). */
     {
       ColonizeTownCommonsYield tc;
-      colony_yield_town_commons(&tmap, px, py, 0, 0, &tc);
+      colony_yield_town_commons(&tmap, px, py, 0, 0, 2, &tc);
       if (tc.food <= 0 || tc.secondary_cargo != COLONIZE_CARGO_COTTON) {
         fprintf(
           stderr,
@@ -2399,7 +2399,7 @@ int main(void) {
         assets_msg_free(&names);
         return 1;
       }
-      colony_yield_town_commons(&tmap, fx, fy, 0, 0, &tc);
+      colony_yield_town_commons(&tmap, fx, fy, 0, 0, 2, &tc);
       if (tc.food <= 0 || tc.secondary_cargo != COLONIZE_CARGO_FURS) {
         fprintf(
           stderr,

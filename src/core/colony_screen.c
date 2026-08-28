@@ -1542,7 +1542,10 @@ static void colony_screen_draw_area_overlays(
       ss_blit_sprite(&view->icons, icon, framebuffer, px, py);
     }
     ColonizeTownCommonsYield tc;
-    colony_yield_town_commons(map, colony->x, colony->y, sol_b_field, colony->colony_flags, &tc);
+    colony_yield_town_commons(
+      map, colony->x, colony->y, sol_b_field, colony->colony_flags,
+      col1 ? (int)col1->head.difficulty : 4, &tc
+    );
     int row = 0;
     if (tc.food > 0) {
       colony_screen_draw_resource_count(

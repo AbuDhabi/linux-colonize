@@ -90,6 +90,7 @@ void colony_yield_town_commons(
   int y,
   int sol_bonus,
   uint8_t colony_flags,
+  int difficulty,
   ColonizeTownCommonsYield* out
 );
 

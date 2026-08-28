@@ -534,6 +534,11 @@ static void turn_produce_one_colony(
   }
 
   int field_food = 0;
+  /* DOS 0xa896: ore/silver deposit "depletion units" tallied in FUN_15eb_18ec,
+   * rolled down in the FUN_364b_0688 epilogue (see bottom of this function). */
+  int depl_tx[2 * COLONIZE_COLONY_FIELD_TILES];
+  int depl_ty[2 * COLONIZE_COLONY_FIELD_TILES];
+  int depl_n = 0;
   int field_lumber = 0;
   int field_ore = 0;
 
@@ -541,7 +546,10 @@ static void turn_produce_one_colony(
   if (map) {
     const int sol_b_field = colony_prod_sol_bonus_field(col1, colony);
     ColonizeTownCommonsYield tc;
-    colony_yield_town_commons(map, colony->x, colony->y, sol_b_field, colony->colony_flags, &tc);
+    colony_yield_town_commons(
+      map, colony->x, colony->y, sol_b_field, colony->colony_flags,
+      col1 ? (int)col1->head.difficulty : 4, &tc
+    );
     if (tc.food > 0) {
       colony->stock[COLONIZE_CARGO_FOOD] =
         turn_clamp_stock(colony->stock[COLONIZE_CARGO_FOOD] + tc.food);
@@ -580,7 +588,6 @@ static void turn_produce_one_colony(
         }
       }
     }
-    int mine_depleted = 0;
     bool worked_colonist[32];
     memset(worked_colonist, 0, sizeof(worked_colonist));
     for (int ti = 0; ti < COLONIZE_COLONY_FIELD_TILES; ++ti) {
@@ -652,47 +659,30 @@ static void turn_produce_one_colony(
         field_ore += add;
       }
       /*
-       * Col1 +0x97: INC per ore/silver field yield *from a special-resource
-       * deposit tile* — wrap at 50 → MAP_LAYER2_SUPPRESS on that tile
-       * (FUN_364b_033a feature 4). Chrome: GAME.TXT @DEPLETION (DOS 0xd75).
-       * A depletable deposit is what's being "used up"; an ordinary
-       * hills/mountain tile with no bonus resource isn't. Player-confirmed
-       * 2026-08-16 (colony-prod-tests real DOS save): every Dutch colony
-       * mining plain ore/silver tiles ended the turn at depletion_counter
-       * 0, not incremented — the old code counted any ore/silver yield.
+       * Col1 +0x97 depletion units — FUN_15eb_18ec ~11913-11923 (DS 0xa896):
+       *   Minerals deposit (res 6)  + Ore Miner    → +1
+       *   Minerals deposit (res 6)  + Silver Miner → +2
+       *   Silver deposit   (res 12) + Silver Miner → +1
+       * Nothing else counts (an ordinary hills/mountain tile, or res 13 ore
+       * under an Ore Miner, never depletes — player-confirmed 2026-08-16:
+       * plain ore/silver tiles ended a real DOS turn at counter 0). The roll
+       * and wrap live in the epilogue below (DOS ~57932), not here.
        */
-      if (add > 0 &&
-          (cargo == COLONIZE_CARGO_ORE || cargo == COLONIZE_CARGO_SILVER) &&
-          map_resource_type_for_yield(map, colony->x + dx, colony->y + dy) >= 0) {
-        colony->depletion_counter =
-          (uint8_t)(colony->depletion_counter + 1u);
-        if (colony->depletion_counter > 0x31u) {
-          colony->depletion_counter =
-            (uint8_t)(colony->depletion_counter - 0x32u);
-          if (map) {
-            /* Production API takes const map; deplete mutates layer2. */
-            map_occupancy_set_layer2(
-              (ColonizeWorldMap*)(uintptr_t)map,
-              colony->x + dx,
-              colony->y + dy,
-              MAP_LAYER2_SUPPRESS,
-              true
-            );
-          }
-          mine_depleted = 1;
+      {
+        const int res = map_resource_type_for_yield(map, colony->x + dx, colony->y + dy);
+        int units = 0;
+        if (res == 6 && cargo == COLONIZE_CARGO_ORE) {
+          units = 1;
+        } else if (res == 6 && cargo == COLONIZE_CARGO_SILVER) {
+          units = 2;
+        } else if (res == 12 && cargo == COLONIZE_CARGO_SILVER) {
+          units = 1;
         }
-      }
-    }
-    if (mine_depleted && europe && colony->nation_id == human_nation) {
-      const char* cname = colony->name[0] ? colony->name : "colony";
-      snprintf(europe->status, sizeof(europe->status), "Mine depleted near %s.", cname);
-      if (ai_popups) {
-        char body[AI_POPUP_BODY_LEN];
-        PopupMsgTokens tok;
-        memset(&tok, 0, sizeof(tok));
-        tok.string0 = cname;
-        popup_msg_fill(messages, "DEPLETION", &tok, europe->status, body, sizeof(body));
-        ai_popup_enqueue_ok(ai_popups, AI_POPUP_TAG_INFO, NULL, body);
+        while (units-- > 0 && depl_n < (int)(2 * COLONIZE_COLONY_FIELD_TILES)) {
+          depl_tx[depl_n] = colony->x + dx;
+          depl_ty[depl_n] = colony->y + dy;
+          depl_n++;
+        }
       }
     }
   }
@@ -1627,6 +1617,56 @@ static void turn_produce_one_colony(
             break;
           }
         }
+      }
+    }
+  }
+
+  /*
+   * FUN_364b_0688 ~57932 (Deep Q): per depletion unit, `rng(0, diff+1) != 0`
+   * bumps Col1 +0x97; wrap at 50 → MAP_LAYER2_SUPPRESS (FUN_364b_033a
+   * feature 4) + @DEPLETION. Discoverer thus depletes at 1/2 rate, Viceroy
+   * at 5/6. Rolled here, after the cargo-ready chrome, to keep the DOS rng
+   * order. No rng / col1 (unit tests) → deterministic bump.
+   */
+  if (depl_n > 0) {
+    int diff = col1 ? (int)col1->head.difficulty : 4;
+    if (diff < 0) {
+      diff = 0;
+    }
+    if (diff > 4) {
+      diff = 4;
+    }
+    int mine_depleted = 0;
+    for (int u = 0; u < depl_n; ++u) {
+      if (rng && dos_rng_range(rng, 0, diff + 1) == 0) {
+        continue;
+      }
+      colony->depletion_counter = (uint8_t)(colony->depletion_counter + 1u);
+      if (colony->depletion_counter > 0x31u) {
+        colony->depletion_counter = (uint8_t)(colony->depletion_counter - 0x32u);
+        if (map) {
+          /* Production API takes const map; deplete mutates layer2. */
+          map_occupancy_set_layer2(
+            (ColonizeWorldMap*)(uintptr_t)map,
+            depl_tx[u],
+            depl_ty[u],
+            MAP_LAYER2_SUPPRESS,
+            true
+          );
+        }
+        mine_depleted = 1;
+      }
+    }
+    if (mine_depleted && europe && colony->nation_id == human_nation) {
+      const char* cname = colony->name[0] ? colony->name : "colony";
+      snprintf(europe->status, sizeof(europe->status), "Mine depleted near %s.", cname);
+      if (ai_popups) {
+        char body[AI_POPUP_BODY_LEN];
+        PopupMsgTokens tok;
+        memset(&tok, 0, sizeof(tok));
+        tok.string0 = cname;
+        popup_msg_fill(messages, "DEPLETION", &tok, europe->status, body, sizeof(body));
+        ai_popup_enqueue_ok(ai_popups, AI_POPUP_TAG_INFO, NULL, body);
       }
     }
   }
