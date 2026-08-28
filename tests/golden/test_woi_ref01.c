@@ -159,6 +159,21 @@ int main(void) {
   for (int t = 1; t <= 40; ++t) {
     status[0] = '\0';
     turn_end(&ctx);
+    if (getenv("WOI_DEBUG")) {
+      fprintf(stderr, "[woi t%d] status='%s'\n", t, status);
+      for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+        const ColonizeColony* c = &colonies.colonies[i];
+        if (c->active && c->nation_id == human) {
+          fprintf(stderr, "  human colony %s (%d,%d) pop=%d\n", c->name, c->x, c->y, c->population);
+          for (int k = 0; k < COLONIZE_UNITS_MAX; ++k) {
+            const ColonizeUnit* u = &units.units[k];
+            if (u->active && u->aboard_ship_id < 0 && abs(u->x - c->x) <= 2 && abs(u->y - c->y) <= 2) {
+              fprintf(stderr, "    near: id=%d n=%d %s (%d,%d) ord=%d mv=%d\n", u->id, u->nation_id, units_display_name(&units, u), u->x, u->y, u->orders, u->moves_left);
+            }
+          }
+        }
+      }
+    }
     if (first_regular_turn < 0 && count_type(&units, crown, "Regulars") > 0) {
       first_regular_turn = t;
     }
@@ -189,7 +204,13 @@ int main(void) {
     fprintf(stderr, "REF captured nothing by turn 12 (t%d)\n", first_capture_turn);
     rc = 1;
   }
-  if (all_lost_turn < 0) {
+  /*
+   * The war may end before every colony falls: @LOSING3 (crown controls
+   * >= 90% of the colony population) surrenders with towns still standing —
+   * 2026-08-28 the Recife run ends that way at t8. Only an unfinished war
+   * (no LOST latch) counts as a stalled REF.
+   */
+  if (all_lost_turn < 0 && ai_king_latch_get(&save, AI_KING_ENDGAME_BYTE) != AI_KING_ENDGAME_LOST) {
     fprintf(stderr, "passive human still holds %d colonies after 40 turns\n",
             count_colonies(&colonies, human));
     rc = 1;

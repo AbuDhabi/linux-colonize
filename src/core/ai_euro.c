@@ -1,5 +1,6 @@
 #include "core/ai_euro.h"
 
+#include "core/ai.h"
 #include "core/ai_contact.h"
 #include "core/ai_diplo.h"
 #include "core/ai_goals.h"
@@ -9658,7 +9659,8 @@ static void ai_euro_colony_goals(ColonizeTurnContext* ctx, int nation_id) {
   AiEuroInventory* inv = ai_goals_inventory(nation_id);
   ai_goals_clear_work_queue();
 
-  /* A: urgency seed (coarse-fog wipe skipped — Linux fog is separate). */
+  /* A: urgency seed; FUN_1d1d_0dae(0x9faa,0,0x10e) coarse-plane wipe + restamp. */
+  ai_coarse_fog_euro_restamp(ctx->units, ctx->colonies, nation_id);
   const int urgency = inv ? inv->urgency : 0;
 
   /* B: own units — CONTACT from adjacent foreign; work queue only for bindable. */

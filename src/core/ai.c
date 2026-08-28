@@ -76,6 +76,46 @@ static void ai_coarse_fog_mark_tribe(int x, int y) {
   }
 }
 
+/*
+ * DS:0x9faa is FUN_521d_0a60's scratch: cleared at every Euro nation's 0a60
+ * entry (memset 0x10e) and re-stamped with that nation's units
+ * ((y>>2)+(x>>2)*18 |= 1 or 5) and colonies (|= 2). Mapgen (FUN_6a09) writes
+ * its tribe marks into the same bytes, so the init pulse sees those, but by
+ * the first mid-turn Brave pulse the plane only holds the *last* Euro
+ * nation's stamps — the far-probe +8 fires almost everywhere. Linux kept the
+ * mapgen tribe marks forever (2026-08-28 fix).
+ */
+void ai_coarse_fog_euro_restamp(
+  const ColonizeUnitPool* units, const ColonizeColonyPool* colonies, int nation_id
+) {
+  ai_coarse_fog_clear();
+  if (units) {
+    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+      const ColonizeUnit* u = &units->units[i];
+      if (!u->active || u->nation_id != nation_id || u->aboard_ship_id >= 0 || u->x >= 200 ||
+          u->y >= 200) {
+        continue;
+      }
+      const int ix = ai_coarse_fog_explore_index(u->x, u->y);
+      if (ix >= 0 && ix < AI_COARSE_FOG_SIZE) {
+        s_ai_coarse_fog[ix] |= 1; /* 0a60: |= 5 (or 0x01 via 0xfc+5) — nonzero either way */
+      }
+    }
+  }
+  if (colonies) {
+    for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+      const ColonizeColony* c = &colonies->colonies[i];
+      if (!c->active || c->nation_id != nation_id) {
+        continue;
+      }
+      const int ix = ai_coarse_fog_explore_index(c->x, c->y);
+      if (ix >= 0 && ix < AI_COARSE_FOG_SIZE) {
+        s_ai_coarse_fog[ix] |= 2;
+      }
+    }
+  }
+}
+
 /* +8 path: explore-index byte == 0. */
 static int ai_coarse_fog_unseen(int x, int y) {
   const int ix = ai_coarse_fog_explore_index(x, y);
@@ -3223,7 +3263,7 @@ static int ai_native_pick_dir_asm(
      * that every mover keeps the presence bit exact
      * (units_occupancy_notify_moved / units_occupancy_rebuild).
      */
-    const int own = ai_owner_nibble(map, nx, ny);
+    const int own = ai_tile_tribe_or_presence(map, nx, ny);
     const int foreign_euro_pull =
       own >= 0 && own != nation_id &&
       ai_native_foreign_euro_pull_open(map, units, x, y, nation_id, nx, ny, own);
