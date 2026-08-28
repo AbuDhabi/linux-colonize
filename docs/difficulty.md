@@ -37,7 +37,7 @@ Save field: `ColonizeCol1Head.difficulty` (`uint8_t`, clamp 0..4). Runtime:
 
 | System | Effect | Port |
 |--------|--------|------|
-| Human starting gold | Discoverer **1000**, Explorer **300**, Conquistador+ **0** | **Wrong** — hardcodes 1000 |
+| Human starting gold | Discoverer **1000**, Explorer **300**, Conquistador+ **0** | **Wired** 2026-08-28 (`ai_starting_gold`, `ai.c`) |
 | Starter skills | Easy → Veteran Soldier; French Hardy always; Spanish Veteran always | Wired |
 | FF liberty-bell thresholds | Harder → higher human need, lower AI need; WoI `diff*1500+2000` | Wired |
 | King tax cadence | First year `1536-diff`; interval `22-2*diff` | Wired |
@@ -76,8 +76,9 @@ nation Europe block (`0x84fc` → `nation*0x13c`), clear `nation.gold` (`+0x2a` 
 
 AI nations stay at **0**.
 
-**Port today:** [`ai.c`](../src/core/ai.c) / [`europe.c`](../src/core/europe.c) always
-set human gold to **1000** regardless of difficulty (divergence).
+**Port:** [`ai.c`](../src/core/ai.c) `ai_starting_gold` (new game, both the Col1 nation
+record and the Europe screen). `europe_reset_campaign_nation` still seeds 1000 but
+the new-game path overwrites it; loaded saves take gold from the save.
 
 ---
 
@@ -327,7 +328,7 @@ Combat odds **are** difficulty-sensitive for human Euro sides
 | Viceroy first tax year | Fandom **1534** | `1536-diff` → **1532** |
 | Easy starters | Both Hardy + Veteran for all ([assets.md](assets.md) old prose) | Hardy **French-only**; easy grants Veteran broadly |
 | Tory caps 10…6 | — | Decomp `10-diff` + manual (fandom matched) |
-| Starting gold | Port always **1000** | `FUN_38fd_6024`: **1000 / 300 / 0** |
+| Starting gold | Port always **1000** (fixed 2026-08-28) | `FUN_38fd_6024`: **1000 / 300 / 0** |
 
 ---
 
@@ -337,7 +338,7 @@ Combat odds **are** difficulty-sensitive for human Euro sides
 |---------|--------|
 | Wizard / names | [`new_game.c`](../src/core/new_game.c) |
 | Save / runtime byte | [`col1_save.h`](../src/core/col1_save.h), [`game_loop.c`](../src/core/game_loop.c) |
-| Starting gold (should follow table) | [`ai.c`](../src/core/ai.c), [`europe.c`](../src/core/europe.c) — **flat 1000 today** |
+| Starting gold | [`ai.c`](../src/core/ai.c) `ai_starting_gold` |
 | Starter skills | [`units.c`](../src/core/units.c) `units_starter_skills` |
 | FF bells | [`founding_fathers.c`](../src/core/founding_fathers.c) |
 | Tax / REF / intervene | [`ai_king.c`](../src/core/ai_king.c) |
