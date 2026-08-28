@@ -2152,7 +2152,21 @@ int main(void) {
     ind->alarm_by_player[0] = 65;
     col1.tribe[0].alarm[0].friction = 65;
     c->stock[COLONIZE_CARGO_FOOD] = 20;
-    ai_contact_indian_raids(&ctx, 4);
+    /*
+     * FUN_5fef_0f14 wall gate (2026-08-28): even a bare colony repels the
+     * party on rand(0,12)-1 < 1 (1/13) → @RAIDNOTHING and no war. Retry a
+     * few pulses so the assertion tests the raid arm, not that roll.
+     */
+    for (int attempt = 0; attempt < 12; ++attempt) {
+      brave->moves_left = 3;
+      brave->x = 5;
+      brave->y = 5;
+      ai_contact_indian_raids(&ctx, 4);
+      if (ai_contact_last_raid_kind() != AI_RAID_NOTHING) {
+        break;
+      }
+      turn++; /* the pulse's local RNG is keyed on the turn — advance it */
+    }
     if (ai_contact_indian_has_peace(&col1, 4, 0)) {
       return fail("high-friction raid should clear peace bit (@INDIANWAR)");
     }

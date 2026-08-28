@@ -136,6 +136,8 @@ paraphrase on purpose):
 - `5fef_0f14` line-faithful goods picker
 - Status chrome: 6/7 kinds now render the real `GAME.TXT` body (2026-08-26,
   see table above); dialog **widgets** **Done** structural (`ai_popup`)
-- Full `4528` / `5fef` line-faithful bodies still PARKED; stockade/soldier
-  defense odds + `@RAIDWIN*` (defender wins the fight) not yet ported —
-  this pass only touched the loot-outcome status text
+- Full `4528` / `5fef` line-faithful bodies still PARKED. **Walls gate
+  ported 2026-08-28** (`FUN_5fef_0f14` head → `ai_contact_pick_raid_kind`:
+  Stockade/Fort/Fortress chain count vs `rand(0,12)-1` → `@RAIDNOTHING`;
+  early-game kind demotion) — `@RAIDWIN*` does not exist (P8.4 note); the
+  defender-wins text is `@RAIDNOTHING` itself

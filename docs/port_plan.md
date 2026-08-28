@@ -825,7 +825,7 @@ Deep `2820` (village trade/haggle) and `4528` (deep settlement battle) PARK.
   `@EXTORTPOOR` / `@EXTORTNO` / `@EXTORTLAUGH`, alarm bump `difficulty+1`
   (×2 on success, 0 on POOR). Decode in
   [indian_actions_menu.md](../original_sources_annotated/ai/indian_actions_menu.md).
-- [ ] **P8.4 [auto]** Raids on player colonies: trigger (alarm band +
+- [x] **P8.4 [auto]** Raids on player colonies: trigger (alarm band +
   proximity), target pick, outcome table (`@RAID*`: burn building, steal
   goods, damage ship, kill colonist, plunder gold), stockade/soldier
   defense, `@RAIDWIN*` — thin port of the `4528` raid *outcome* path only,
@@ -845,9 +845,14 @@ Deep `2820` (village trade/haggle) and `4528` (deep settlement battle) PARK.
   victim's own status line (per this row's own `indian_raid_outcomes.md`
   note). New regression: `test_ai_contact.c`, real-`GAME.TXT` STORES
   scenario asserting the actual body text incl. substituted cargo name.
-  Still open in this row: stockade/soldier defense odds (the defender-wins
-  path, real `4528`/`5fef` combat, not covered by this pass — that's raid
-  *combat*, not the raid *loot outcome* text this pass touched). **Checked
+  **Defence half closed 2026-08-28 (static):** `FUN_5fef_0f14`'s head is
+  the walls gate — `FUN_281f_0ab0(0)` counts the Stockade→Fort→Fortress
+  chain, `rand(0,12)-1 (+difficulty-2 vs a human)` `< walls*3+1` →
+  `@RAIDNOTHING` "raiding party wiped out" (bare 1/13, Stockade 4/13, Fort
+  7/13, Fortress 10/13) — ported into `ai_contact_pick_raid_kind`, with the
+  early-game building/unit-kind demotion (turn < (2-difficulty)*40 on
+  Discoverer/Explorer). The soldier fight was already the real combat
+  engine + P5.4 militia. See indian_actions_menu.md "Thin spots". **Checked
   2026-08-26: `@RAIDWIN*` doesn't exist** — grepped every win/defend-shaped
   `@SECTION`; the real tags are `@INDIANWIN0/1/2` (field-unit ambush, tribe
   beats a unit in the open — already wired, `ai_contact.c` ~5237-5261) and

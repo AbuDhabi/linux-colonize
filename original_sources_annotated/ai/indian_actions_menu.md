@@ -245,16 +245,33 @@ gift/demand text. The Indian "demand" is Demand Tribute above
 (`@EXTORTSTUFF/POOR/NO/LAUGH`); `@CHIEFGIFT`/`@CHIEFBORED` belong to Ask to
 Speak With Chief.
 
-## Thin spots / open
+## Thin spots / open (updated same day)
 
-- `FUN_4cc6_03f8` (nearby-Euro threat nation + score per village) is not
-  ported into the heresy roll — its term is 0. Everything else in `a594` is
-  literal.
-- The a618 RNG reseed base `DS:0x8d80` is unnamed; Linux seeds from the
-  village position only (same "stable per village" property).
-- Establish Mission's `%STRING1` default when no own colony exists is the
-  DS:0x838c table (`-0x7c74`); Linux uses `player.country_name`.
-- Attack Village from the menu reuses the old raid-warn commit path; combat
-  odds are unchanged (P8.4's open half).
-- `FUN_1000_8d68` ("default profession for unit type" ≥ 0) is approximated
-  by the colonist-class name test in `ai_contact_classify_unit`.
+- `FUN_4cc6_03f8` (nearby-Euro presence per village) **ported** into the
+  heresy roll as `ai_contact_4cc6_03f8` — ring threat sums, colony score by
+  buildings/pop/tech/difficulty/distance, continent halving, French and
+  Pocahontas halving, mission-owner scaling of the best score. The
+  building count reads the 48 building bits (`colony+0x84..0x89`), Linux
+  `has_building[]`.
+- The a618 RNG reseed base `DS:0x8d80` is `boot_timer` (save row 608,
+  written at boot from the clock, not the seed) — DOS's "stable per
+  village" skill only holds within a session; Linux seeds from the village
+  position, so it is stable across sessions. Nothing left to name.
+- `FUN_1000_8d68` = `FUN_15eb_0902` = `DS:0x30e[unit type]` default
+  profession `{19,21,20,24,23,22,-1,23,-1,21,-1…}`; ≥ 0 only for
+  Colonists/Soldiers/Pioneers/Missionaries/Dragoons/Scouts/Cont. Cavalry/
+  Cont. Army — equivalent to the port's colonist-class test once the other
+  gates apply. Documented in `ai_contact_classify_unit`.
+- Establish Mission's `%STRING1` fallback table (`-0x7c74` = `DS:0x838c`)
+  holds non-string words in the unpacked image (`0x14bc` → `MENUCOLR.SS`);
+  probably overlay-relative. Linux keeps `player.country_name`. Cosmetic.
+- P8.4 raid defence (the "stockade/soldier defense odds" half) — the
+  `FUN_5fef_0f14` head is now ported into `ai_contact_pick_raid_kind`:
+  walls = `FUN_281f_0ab0(0)` = Stockade→Fort→Fortress chain count,
+  `r = rand(0,12) - 1 (+ difficulty-2 for a human victim)`, `r < walls*3+1`
+  → `@RAIDNOTHING`; plus the early-game demotion (Discoverer/Explorer,
+  turn < (2-difficulty)*40: building/unit kinds → nothing). The
+  soldier-vs-brave fight itself was already the real combat engine
+  (`units_resolve_land_combat` with the colony multipliers; undefended
+  colony = the P5.4 token militia). Still PARKED: the rest of `0f14`'s
+  kind ladder / `09fc` building probes.

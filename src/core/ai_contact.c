@@ -709,6 +709,13 @@ static void ai_contact_classify_unit(
   const int colonist_class =
     !out->is_ship && !out->is_wagon && !out->is_scout && !out->is_missionary &&
     strstr(tname, "Treasure") == NULL && strstr(tname, "Artillery") == NULL;
+  /*
+   * FUN_1000_8d68 → FUN_15eb_0902: DS:0x30e default profession by unit type
+   * = {19,21,20,24,23,22,-1,23,-1,21,-1…} — ≥ 0 only for Colonists, Soldiers,
+   * Pioneers, Missionaries, Dragoons, Scouts, Cont. Cavalry, Cont. Army. With
+   * the attack < 2 / not-Scout / not-Missionary gates that is exactly the
+   * colonist-class name test above (Regulars/Cavalry fall to attack ≥ 2).
+   */
   out->can_live_among = colonist_class && out->attack < 2 && !is_convert;
 }
 
@@ -5473,9 +5480,44 @@ static AiRaidKind ai_contact_pick_raid_kind(
   if (max_alarm < 45) {
     return AI_RAID_NOTHING;
   }
+  /*
+   * FUN_5fef_0f14 head — the colony's walls decide first (static port
+   * 2026-08-28): walls = FUN_281f_0ab0(0) = owned buildings along the
+   * Stockade → Fort → Fortress chain (0..3); r = rand(0,12) - 1, plus
+   * difficulty-2 when the victim is human; r < walls*3 + 1 → kind 0
+   * (@RAIDNOTHING "raiding party wiped out"). Bare colony: 1/13; Stockade
+   * 4/13; Fort 7/13; Fortress 10/13 before the difficulty shift.
+   */
+  if (c && ctx && ctx->colonies && rng) {
+    int walls = 0;
+    static const char* k_chain[3] = {"Stockade", "Fort", "Fortress"};
+    for (int i = 0; i < 3; ++i) {
+      const int b = colonies_find_building(ctx->colonies, k_chain[i]);
+      if (b >= 0 && b < COLONIZE_BUILDING_TYPES_MAX && c->has_building[b]) {
+        walls++;
+      }
+    }
+    int r = dos_rng_range(rng, 0, 12) - 1;
+    if (ai_contact_euro_is_human(ctx, target_euro) && ctx->col1) {
+      r += (int)ctx->col1->head.difficulty - 2;
+    }
+    if (r < walls * 3 + 1) {
+      return AI_RAID_NOTHING;
+    }
+  }
+  /*
+   * Same head, early-game grace: on Discoverer/Explorer, before turn
+   * (2-difficulty)*40, DOS demotes the building (2) and unit (3) kinds to
+   * nothing. Applied below to BURN / WREAK / SHIP / SCALP-by-roll.
+   */
+  int early_grace = 0;
+  if (ctx && ctx->col1 && ctx->turn_number && ctx->col1->head.difficulty < 2u) {
+    const int limit = (2 - (int)ctx->col1->head.difficulty) * 40;
+    early_grace = (int)*ctx->turn_number < limit;
+  }
   const int roll = rng ? dos_rng_range(rng, 0, 99) : (max_alarm % 100);
   if (max_alarm >= 85 && roll < 15 && ai_contact_colony_has_wreak_target(c)) {
-    return AI_RAID_WREAK;
+    return early_grace ? AI_RAID_NOTHING : AI_RAID_WREAK;
   }
   if (max_alarm >= 70 && roll < 25 && c && c->population > 1) {
     return AI_RAID_SCALP;
@@ -5483,7 +5525,7 @@ static AiRaidKind ai_contact_pick_raid_kind(
   /* BURN: construction, lumber, or destroyable built building. */
   if (max_alarm >= 60 && roll < 20 &&
       ai_contact_colony_has_burn_target(ctx ? ctx->colonies : NULL, c)) {
-    return AI_RAID_BURN;
+    return early_grace ? AI_RAID_NOTHING : AI_RAID_BURN;
   }
   if (max_alarm >= 55 && roll < 15 && ctx && ctx->col1_ok && ctx->col1 &&
       target_euro >= 0 && target_euro < 4 &&
@@ -5497,7 +5539,7 @@ static AiRaidKind ai_contact_pick_raid_kind(
     for (int d = 0; d < 8; ++d) {
       if (map_tile_is_water(ctx->map, c->x + dx[d], c->y + dy[d])) {
         if (roll < 10) {
-          return AI_RAID_SHIP;
+          return early_grace ? AI_RAID_NOTHING : AI_RAID_SHIP;
         }
         break;
       }
@@ -7502,11 +7544,148 @@ static void ai_contact_demand_tribute(
 }
 
 /*
+ * FUN_4cc6_03f8 — strongest nearby Euro presence for a village: returns the
+ * owning nation of the best-scoring colony within DOS distance < 7 (or -1)
+ * and its score. Ring pass: for the 20 work-ring tiles, sum the attack
+ * column of that tile's land units with attack > 1 into threat[owner];
+ * halved when the tile holds a Euro settlement, halved again on the outer
+ * ring (|dx| ≥ 2 or |dy| ≥ 2). Colony pass: human owner → (building weight,
+ * divisor) by difficulty {1/2, 3/4, 1/1, 3/2, 2/1}, AI → (1,1);
+ * built = Σ built-building bits × weight / divisor; pop6 = min(6, pop);
+ * score = ((2*max(0,pop-6) + min(tech, pop>>1) + pop6 + difficulty +
+ * ((built-8)>>2)) * 2 - dist - 1) / (dist + 4); halved if the colony sits
+ * on another continent; += threat[owner]; halved for the French; halved
+ * when the owner has Pocahontas. Tail: with a mission in the village, the
+ * best score is scaled by who owns it: same nation → Jesuit ×1/2, plain
+ * ×3/4; other nation → Jesuit ×2, plain ×3/2.
+ */
+static int ai_contact_4cc6_03f8(
+  ColonizeTurnContext* ctx,
+  int nation_id,
+  const ColonizeCol1Tribe* v,
+  int* out_score
+) {
+  *out_score = 0;
+  if (!ctx || !ctx->col1 || !v) {
+    return -1;
+  }
+  const ColonizeCol1Save* col1 = ctx->col1;
+  const int vx = (int)v->x;
+  const int vy = (int)v->y;
+  const int vcont = ctx->map ? map_continent_id_at(ctx->map, vx, vy) : -1;
+  const int tech = (int)col1->indian[nation_id - 4].tech;
+  int threat[4] = {0, 0, 0, 0};
+  if (ctx->units && ctx->map) {
+    for (int k = 0; k < 20; ++k) {
+      const int tx = vx + k_ring20_dx[k];
+      const int ty = vy + k_ring20_dy[k];
+      if (!map_coords_inset(ctx->map, tx, ty) || map_tile_is_water(ctx->map, tx, ty)) {
+        continue;
+      }
+      int owner = -1;
+      int sum = 0;
+      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+        const ColonizeUnit* u = units_get_const(ctx->units, i);
+        if (!u || !u->active || u->x != tx || u->y != ty || u->aboard_ship_id >= 0) {
+          continue;
+        }
+        if (owner < 0) {
+          owner = u->nation_id;
+        }
+        if (u->nation_id != owner || units_is_sea(ctx->units, i)) {
+          continue;
+        }
+        const ColonizeUnitType* t = units_type(ctx->units, u->type_index);
+        if (t && t->attack > 1) {
+          sum += t->attack;
+        }
+      }
+      if (owner < 0 || owner > 3) {
+        continue;
+      }
+      if (ctx->colonies && colonies_id_at(ctx->colonies, tx, ty) >= 0) {
+        sum >>= 1;
+      }
+      if (abs((int)k_ring20_dx[k]) >= 2 || abs((int)k_ring20_dy[k]) >= 2) {
+        sum >>= 1;
+      }
+      threat[owner] += sum;
+    }
+  }
+  int best = -1;
+  int best_score = 0;
+  if (ctx->colonies) {
+    for (int ci = 0; ci < COLONIZE_COLONIES_MAX; ++ci) {
+      const ColonizeColony* c = &ctx->colonies->colonies[ci];
+      if (!c->active || c->nation_id < 0 || c->nation_id > 3) {
+        continue;
+      }
+      const int d = ai_contact_dist(vx, vy, c->x, c->y);
+      if (d >= 7) {
+        continue;
+      }
+      const int owner = c->nation_id;
+      int weight = 1;
+      int divisor = 1;
+      int diff = 0;
+      if (ai_contact_euro_is_human(ctx, owner)) {
+        diff = (int)col1->head.difficulty;
+        static const int k_w[5] = {1, 3, 1, 3, 2};
+        static const int k_d[5] = {2, 4, 1, 2, 1};
+        if (diff >= 0 && diff <= 4) {
+          weight = k_w[diff];
+          divisor = k_d[diff];
+        }
+      }
+      int built = 0;
+      for (int b = 0; b < COLONIZE_BUILDING_TYPES_MAX && b < 48; ++b) {
+        if (c->has_building[b]) {
+          built += weight;
+        }
+      }
+      built /= divisor;
+      const int pop = c->population;
+      const int pop6 = pop < 6 ? pop : 6;
+      int half = pop >> 1;
+      if (tech < half) {
+        half = tech;
+      }
+      int score = (((pop6 - pop) * -2 + half + pop6 + diff + ((built - 8) >> 2)) * 2 - d - 1) / (d + 4);
+      if (ctx->map && map_continent_id_at(ctx->map, c->x, c->y) != vcont) {
+        score >>= 1;
+      }
+      score += threat[owner];
+      if (owner == 1) {
+        score >>= 1;
+      }
+      if (founding_fathers_nation_has(col1, owner, FF_POCAHONTAS)) {
+        score >>= 1;
+      }
+      if (best_score < score) {
+        best_score = score;
+        best = owner;
+      }
+    }
+  }
+  if (best_score > 0 && best >= 0 && v->mission != COL1_TRIBE_MISSION_NONE) {
+    const int owner = (int)(v->mission & COL1_TRIBE_MISSION_NATION_MASK);
+    const int jesuit = (v->mission & COL1_TRIBE_MISSION_JESUIT_BIT) != 0;
+    if (owner == best) {
+      best_score = jesuit ? (best_score >> 1) : (best_score - (best_score >> 2));
+    } else {
+      best_score = jesuit ? (best_score << 1) : (best_score + (best_score >> 1));
+    }
+  }
+  *out_score = best_score;
+  return best;
+}
+
+/*
  * thunk_FUN_1000_a594 — "Denounce Heresy of {rival}'s Mission". Per village
- * of the tribe: mission weight = population, ×2 Jesuit, ×2 capital, credited
- * to the mission owner's side (foreign → pro_me, mine → mine). The
- * FUN_4cc6_03f8 nearby-Euro-threat term (nation + score per village) is not
- * ported (thin, 0). Then pro_me += alarm[foreign] << (capital ? 4 : 0),
+ * of the tribe: (n, s) = FUN_4cc6_03f8 (nearby Euro presence): n == rival →
+ * pro_me += s; n == me → mine += s; else s seeds that village's mission
+ * weight; mission weight += population, ×2 Jesuit, ×2 capital, credited to
+ * the mission owner's side (mine → mine, else pro_me). Then pro_me += alarm[foreign] << (capital ? 4 : 0),
  * mine += alarm[me] >> (capital ? 29 : 1); capital: both += rand(1,20) and
  * both deltas ×2; my Jesuit: pro_me ×2, delta ×2; rival Jesuit: mine ×2,
  * delta ×2. rand(1, mine+pro_me) > pro_me → @HERESY1 (missionary burned,
@@ -7535,10 +7714,23 @@ static void ai_contact_denounce_heresy(
   if (col1->tribe) {
     for (uint16_t ti = 0; ti < col1->head.tribe_count; ++ti) {
       const ColonizeCol1Tribe* v = &col1->tribe[ti];
-      if ((int)v->nation_id != nation_id || v->mission == COL1_TRIBE_MISSION_NONE) {
+      if ((int)v->nation_id != nation_id) {
         continue;
       }
-      int c = (int)v->population;
+      int c = 0;
+      int sc = 0;
+      const int n = ai_contact_4cc6_03f8(ctx, nation_id, v, &sc);
+      if (n == foreign) {
+        pro_me += sc;
+      } else if (n == e) {
+        mine += sc;
+      } else {
+        c = sc;
+      }
+      if (v->mission == COL1_TRIBE_MISSION_NONE) {
+        continue;
+      }
+      c += (int)v->population;
       if (v->mission & COL1_TRIBE_MISSION_JESUIT_BIT) {
         c *= 2;
       }
