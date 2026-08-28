@@ -5291,6 +5291,12 @@ static void game_after_unit_action(ColonizeGameState* game) {
         snprintf(game->status, sizeof(game->status), "%s", contact);
       }
     }
+    /* FUN_5bfb_3180: adjacent Brave or tribe-owned land also opens contact. */
+    {
+      ColonizeTurnContext sctx;
+      game_fill_turn_context(game, &sctx);
+      (void)ai_contact_encounter_scan(&sctx, u->nation_id, u->x, u->y);
+    }
     /*
      * FUN_5bfb_3180 Euro x Euro branch: an adjacent unit of another Euro
      * nation opens the FUN_5bfb_153e encounter (WoI clear; AI nations only).
@@ -6095,7 +6101,7 @@ static void game_europe_sail_harbor(ColonizeGameState* game, int hidx) {
       hs->type_index = resolved;
     }
   }
-  europe_set_sail_from_harbor(eu, hidx, game_voyage_turns(game), &game->units);
+  europe_set_sail_from_harbor(eu, hidx, game_voyage_turns(game), &game->units, game->human_nation);
 }
 
 static bool game_europe_drag_drop(ColonizeGameState* game, int mx, int my) {
@@ -10109,7 +10115,9 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
         set_status(game, "Cannot deploy here", immigrant);
       } else {
         char name[40];
+        const int prof = game->europe.dock_count > 0 ? game->europe.dock[0].profession : -1;
         europe_pop_dock_immigrant(&game->europe, name, sizeof(name));
+        europe_remove_dock_mirror_unit(&game->units, game->human_nation, prof);
         snprintf(
           game->status,
           sizeof(game->status),

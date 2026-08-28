@@ -951,6 +951,28 @@ bool col1_bridge_apply(
       if (europe && src->nation_id == (uint8_t)local.human_nation) {
         const char* name = col1_bridge_europe_dock_job_name(europe, (int)src->profession);
         europe_dock_push_load(europe, name, (int)src->profession);
+        /*
+         * Keep the runtime shape turn.c's immigrant path creates: dock entry
+         * plus a mirror unit at Europe (236,236) — capture only walks the
+         * unit pool, so without the mirror a loaded dock colonist vanished
+         * from the next save (seed-100 TURN5→6 lost the human's immigrant).
+         */
+        {
+          const int tid = units_find_type(units, "Colonists");
+          const int id = units_spawn_allow_stack(units, tid >= 0 ? tid : 0, 236, 236);
+          ColonizeUnit* mu = units_get(units, id);
+          if (mu) {
+            units_set_nation(mu, (int)src->nation_id);
+            mu->orders = UNITS_ORDER_SENTRY;
+            mu->profession = (int)src->profession;
+            mu->goto_x = 0;
+            mu->goto_y = 0;
+            mu->moves_left = 0;
+            if (id_by_index) {
+              id_by_index[i] = id;
+            }
+          }
+        }
         continue;
       }
     }

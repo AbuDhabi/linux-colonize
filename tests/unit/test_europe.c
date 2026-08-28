@@ -649,7 +649,7 @@ int main(void) {
   eu.dock[2].present = true;
   eu.dock[2].sentry = true;
   eu.dock[2].profession = 26;
-  if (!europe_set_sail_from_harbor(&eu, 0, 1, NULL) || eu.bound_ships != 1 ||
+  if (!europe_set_sail_from_harbor(&eu, 0, 1, NULL, 0) || eu.bound_ships != 1 ||
       eu.harbor_ships != 0) {
     fprintf(stderr, "set_sail failed: %s\n", eu.status);
     europe_free(&eu);

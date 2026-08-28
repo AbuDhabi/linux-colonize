@@ -950,6 +950,30 @@ bool europe_recruit(EuropeScreen* eu) {
   return true;
 }
 
+void europe_remove_dock_mirror_unit(ColonizeUnitPool* units, int nation_id, int profession) {
+  if (!units || nation_id < 0 || nation_id > 3) {
+    return;
+  }
+  int fallback = -1;
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    const ColonizeUnit* u = &units->units[i];
+    if (!u->active || u->nation_id != nation_id || u->x != 236 || u->y != 236 ||
+        u->aboard_ship_id >= 0 || units_is_sea(units, u->id)) {
+      continue;
+    }
+    if (u->profession == profession) {
+      (void)units_disband(units, u->id);
+      return;
+    }
+    if (fallback < 0) {
+      fallback = u->id;
+    }
+  }
+  if (fallback >= 0) {
+    (void)units_disband(units, fallback);
+  }
+}
+
 bool europe_pop_dock_immigrant(EuropeScreen* eu, char* out_name, size_t out_name_size) {
   return europe_pop_dock_immigrant_ex(eu, out_name, out_name_size, NULL);
 }
@@ -1078,7 +1102,8 @@ bool europe_enqueue_expected(
 static void europe_board_sentry_dockers(
   EuropeScreen* eu,
   EuropeHarborShip* ship,
-  const ColonizeUnitPool* units,
+  ColonizeUnitPool* units,
+  int nation_id,
   int cargo_cap
 ) {
   if (!eu || !ship || cargo_cap <= 0) {
@@ -1107,6 +1132,8 @@ static void europe_board_sentry_dockers(
     ship->cargo_types[ship->cargo_count] = type_tag;
     ship->cargo_professions[ship->cargo_count] = eu->dock[di].profession;
     ship->cargo_count++;
+    /* The dock immigrant's (236,236) mirror unit leaves the pool with it. */
+    europe_remove_dock_mirror_unit(units, nation_id, eu->dock[di].profession);
     for (int j = di + 1; j < eu->dock_count; ++j) {
       eu->dock[j - 1] = eu->dock[j];
     }
@@ -1119,7 +1146,8 @@ bool europe_set_sail_from_harbor(
   EuropeScreen* eu,
   int harbor_index,
   int voyage_turns,
-  const ColonizeUnitPool* units
+  ColonizeUnitPool* units,
+  int nation_id
 ) {
   if (!eu || harbor_index < 0 || harbor_index >= eu->harbor_ships) {
     return false;
@@ -1131,7 +1159,7 @@ bool europe_set_sail_from_harbor(
   EuropeHarborShip ship;
   europe_copy_ship(&ship, &eu->harbor[harbor_index]);
   const int cargo_cap = europe_ship_cargo_cap(&ship, units);
-  europe_board_sentry_dockers(eu, &ship, units, cargo_cap);
+  europe_board_sentry_dockers(eu, &ship, units, nation_id, cargo_cap);
   bool exit_east = eu->last_exit_valid ? eu->last_exit_east : true;
   ship.exit_east = exit_east;
   if (eu->last_exit_valid) {
@@ -1748,6 +1776,9 @@ int europe_compute_immigration_score(
       }
     }
   }
+  /* DOS counts every unit record of the nation, including colonists waiting
+   * on the Europe docks — those are the (236,236) mirror units in the pool
+   * (seed-100 TURN5→6: needed 9→10 once the first immigrant landed). */
   int score = pop + units_n;
   if (score < 4000) {
     score <<= 1;

@@ -1,5 +1,7 @@
 # Seed-100 Brave / early-AI notes
 
+**2026-08-28: TURN1→2, 2→3, 4→5, 5→6, 6→7 green; TURN3→4 red on two Braves** — n=6 (38,20) should step NE to (39,19), n=7 (48,46) should step E to (49,46). Both are Euro-state leaks into quiet scoring now that Euro slots above the human act before the Indians (DOS order): a stale layer3 presence stamp rejecting a dest at (46,53) (shifts later n=7 rolls) and a far-probe `−2` for the Dutch ship at (43,16). See ai_port_plan.md T1.23.
+
 **2026-08-27: TURN1→2 green.** Two of the three parked Braves were the road term reading layer2 bit 0x08 (rumour-cleared stand-in) as a road (`ai_mask_fa_flags`, ai.c); the third passed once the T1.9 foreign-Euro pull was restricted to Euro movers. Remaining TURN2→3 red is a Euro Soldier goal choice, see ai_port_plan.md T1.9.
 
 Durable notes for `golden_mapgen_seed100` + `golden_ai_turns` (VR_SEED=100).

@@ -652,6 +652,43 @@ int ai_contact_try_first_welcome(ColonizeTurnContext* ctx, int euro_nation, int 
   return 1;
 }
 
+int ai_contact_encounter_scan(ColonizeTurnContext* ctx, int euro_nation, int x, int y) {
+  if (!ctx || !ctx->col1_ok || !ctx->col1 || !ctx->map || euro_nation < 0 || euro_nation > 3) {
+    return 0;
+  }
+  /* DOS DS:0xb4 / DS:0xbe direction tables (N, NE, E, SE, S, SW, W, NW). */
+  static const int dx[8] = {0, 1, 1, 1, 0, -1, -1, -1};
+  static const int dy[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
+  int opened = 0;
+  for (int d = 0; d < 8; ++d) {
+    const int nx = x + dx[d];
+    const int ny = y + dy[d];
+    if (nx < 0 || ny < 0 || nx >= ctx->map->width || ny >= ctx->map->height) {
+      continue;
+    }
+    int other = -1;
+    /* FUN_137f_03e4 tile_tribe_owner: owner nibble only when bit 0x02 set. */
+    const int i = ny * ctx->map->width + nx;
+    if (ctx->map->layer2 && ctx->map->layer3 && (ctx->map->layer2[i] & 0x02u) != 0) {
+      const int hi = (ctx->map->layer3[i] >> 4) & 0x0f;
+      other = hi == 0x0f ? -1 : hi;
+    }
+    /* FUN_281f_07e0 unit_index_on_tile overrides the land owner. */
+    const int oid = ctx->units ? units_id_at(ctx->units, nx, ny) : -1;
+    if (oid >= 0) {
+      const ColonizeUnit* ou = units_get_const(ctx->units, oid);
+      if (ou) {
+        other = ou->nation_id;
+      }
+    }
+    if (other < 4 || other > 11) {
+      continue;
+    }
+    opened += ai_contact_try_first_welcome(ctx, euro_nation, other);
+  }
+  return opened;
+}
+
 static int ai_contact_meet_choice_pending(const AiPopupState* st, int e, int nation_id) {
   if (!st) {
     return 0;

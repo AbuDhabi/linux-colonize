@@ -82,6 +82,14 @@ void ai_contact_try_village_beg_food(ColonizeTurnContext* ctx, int nation_id);
  * call started first contact. indian_nation is Col1 id 4..11.
  */
 int ai_contact_try_first_welcome(ColonizeTurnContext* ctx, int euro_nation, int indian_nation);
+/*
+ * FUN_5bfb_3180 Indian-side neighbour scan for a Euro land unit at (x,y):
+ * for each of the 8 neighbours the "other nation" is the unit standing there,
+ * else the tile's tribe land owner (FUN_137f_03e4: layer2 bit 0x02 → layer3
+ * owner nibble). Any Indian nation ≠ self opens first contact
+ * (ai_contact_try_first_welcome). Returns number of welcomes opened.
+ */
+int ai_contact_encounter_scan(ColonizeTurnContext* ctx, int euro_nation, int x, int y);
 
 /*
  * Village-enter Meet CHOICE (already-met human Euro on tribe tile). Enqueues

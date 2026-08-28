@@ -325,6 +325,12 @@ bool europe_purchase(EuropeScreen* eu, int purchase_index);
  */
 bool europe_dock_push_load(EuropeScreen* eu, const char* name, int profession);
 
+/*
+ * Drop the (236,236) Europe-map mirror unit that shadows a dock immigrant
+ * (turn.c immigrant spawn / col1_bridge load create one per dock entry so
+ * Col1 capture keeps the colonist). Prefers the matching profession.
+ */
+void europe_remove_dock_mirror_unit(ColonizeUnitPool* units, int nation_id, int profession);
 bool europe_pop_dock_immigrant(EuropeScreen* eu, char* out_name, size_t out_name_size);
 /* Pop with profession; returns false if empty. */
 bool europe_pop_dock_immigrant_ex(
@@ -365,7 +371,8 @@ bool europe_set_sail_from_harbor(
   EuropeScreen* eu,
   int harbor_index,
   int voyage_turns,
-  const ColonizeUnitPool* units
+  ColonizeUnitPool* units,
+  int nation_id
 );
 
 /* Expected↔Bound reverse (keeps remaining turns). */

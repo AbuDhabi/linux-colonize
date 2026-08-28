@@ -2623,6 +2623,38 @@ static int turn_next_euro_ai(const ColonizeTurnContext* ctx, int start) {
   return -1;
 }
 
+/*
+ * DOS FUN_130d_0290 runs, per year tick: mid-pass Indian turns (4d56_1b3a →
+ * 1816 per slot), then the Euro 0..3 loop with the human's Move Pieces inside
+ * it. Linux's pipeline starts after the human ends their turn, so relative
+ * to that point the DOS order is: Euro slots above the human → Indians → Euro
+ * slots below the human. Seed-100 golden (human = slot 0): the Dutch
+ * TURN2→3 landing meets an Aztec Brave that only moves away in the Indian
+ * pass that follows. No human slot (headless sims) keeps Indians first.
+ */
+static int turn_human_slot(const ColonizeTurnContext* ctx) {
+  return (ctx && ctx->human_nation >= 0 && ctx->human_nation < 4) ? ctx->human_nation : -1;
+}
+
+/* Next Euro AI slot strictly above the human (pre-Indian pass), or -1. */
+static int turn_next_euro_ai_above_human(const ColonizeTurnContext* ctx, int start) {
+  const int h = turn_human_slot(ctx);
+  if (h < 0) {
+    return -1;
+  }
+  return turn_next_euro_ai(ctx, start > h + 1 ? start : h + 1);
+}
+
+/* Next Euro AI slot below the human (post-Indian pass), or -1. */
+static int turn_next_euro_ai_below_human(const ColonizeTurnContext* ctx, int start) {
+  const int h = turn_human_slot(ctx);
+  const int next = turn_next_euro_ai(ctx, start);
+  if (next < 0 || (h >= 0 && next > h)) {
+    return -1;
+  }
+  return next;
+}
+
 static void turn_finish_status(ColonizeTurnContext* ctx, const ColonizeTurnResult* result) {
   if (!ctx || !ctx->status || ctx->status_size == 0 || !ctx->game_year || !ctx->game_autumn ||
       !ctx->turn_number) {
@@ -2730,12 +2762,21 @@ bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ct
         );
       }
       /*
-       * DOS order (FUN_130d_0290 mid-pass → 281f_0676 → 4d56_1b3a phase 2):
-       * every Indian nation turn (4d56_1816 per slot) runs BEFORE the Euro
-       * 0..3 loop. See turn/mid_pass_indian_rank.md.
+       * DOS order relative to the human's end-of-turn (see
+       * turn_human_slot): Euro slots above the human first, then the
+       * 4d56_1b3a mid-pass Indian turns, then the slots below the human.
+       * See turn/mid_pass_indian_rank.md, turn/year_loop.c.
        */
-      proc->nation_cursor = 4;
-      proc->step = TURN_PROC_INDIAN;
+      {
+        const int next = turn_next_euro_ai_above_human(ctx, 0);
+        if (next >= 0) {
+          proc->nation_cursor = next;
+          proc->step = TURN_PROC_EURO;
+        } else {
+          proc->nation_cursor = 4;
+          proc->step = TURN_PROC_INDIAN;
+        }
+      }
       break;
     }
     case TURN_PROC_EURO: {
@@ -2794,11 +2835,24 @@ bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ct
         ai_euro_nation_turn(ctx, n);
       }
       {
-        const int next = turn_next_euro_ai(ctx, n + 1);
-        if (next >= 0) {
-          proc->nation_cursor = next;
+        const int h = turn_human_slot(ctx);
+        if (h >= 0 && n > h) {
+          /* Pre-Indian pass (slots above the human). */
+          const int next = turn_next_euro_ai_above_human(ctx, n + 1);
+          if (next >= 0) {
+            proc->nation_cursor = next;
+          } else {
+            proc->nation_cursor = 4;
+            proc->step = TURN_PROC_INDIAN;
+          }
         } else {
-          proc->step = TURN_PROC_FINISH;
+          /* Post-Indian pass (slots below the human, or every slot without one). */
+          const int next = turn_next_euro_ai_below_human(ctx, n + 1);
+          if (next >= 0) {
+            proc->nation_cursor = next;
+          } else {
+            proc->step = TURN_PROC_FINISH;
+          }
         }
       }
       break;
@@ -2822,7 +2876,7 @@ bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ct
       if (n < 11) {
         proc->nation_cursor = n + 1;
       } else {
-        const int next = turn_next_euro_ai(ctx, 0);
+        const int next = turn_next_euro_ai_below_human(ctx, 0);
         if (next >= 0) {
           proc->nation_cursor = next;
           proc->step = TURN_PROC_EURO;

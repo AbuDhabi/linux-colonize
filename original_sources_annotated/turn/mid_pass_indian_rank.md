@@ -46,6 +46,12 @@ uses place. Not a save DS:0x917c writer (RMW layout PARKED).
 `ai_grow_villages` — not a separate mid-pass. Reshape. Note the DOS order:
 all eight Indian nation turns run **inside the mid-pass, before** the Euro
 0..3 loop; Linux `TURN_PROC_INDIAN` now runs before `TURN_PROC_EURO` too (2026-08-27).
+**2026-08-28 correction for the Linux pipeline:** "before the Euro loop" is
+per year tick; the human's Move Pieces is *inside* that loop, so seen from
+the human's end of turn the order is Euro slots above the human → Indians →
+slots below. Linux now splits `TURN_PROC_EURO` around `TURN_PROC_INDIAN`
+accordingly (`turn.c` `turn_human_slot`). The `DS:5394 = 3` dump evidence
+is consistent with either reading.
 
 Related: [`indian_contact.md`](../ai/indian_contact.md).
 

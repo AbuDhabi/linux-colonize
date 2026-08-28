@@ -779,7 +779,10 @@ int main(void) {
   CHECK(col->colonists[0].profession == UNITS_JOB_PIONEER, "founder profession preserved");
   CHECK(col->colonists[0].building_type == town_hall, "founder works in Town Hall");
   CHECK(col->stock[COLONIZE_CARGO_TOOLS] == 100, "founder tools enter stockpile");
-  CHECK(col->building_in_production == stockade, "found defaults Stockade project");
+  /* Stockade needs 3 colonists (@BUILDING min_colony); a size-1 town starts
+   * with an empty queue like the DOS record init (FUN_364b_1ba8: 0xff). */
+  CHECK(col->building_in_production < 0, "found leaves the project empty below Stockade size");
+  (void)stockade;
   CHECK(col->hammers == 0, "new colony starts with zero accumulated hammers");
   CHECK(
     units_working_colonist_sprite(NULL, pioneer_type, UNITS_JOB_PIONEER) ==
