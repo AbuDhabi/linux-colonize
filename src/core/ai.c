@@ -22,6 +22,21 @@
 #include "platform/diagnostics.h"
 #include "platform/platform.h"
 
+/*
+ * FUN_38fd_6024 (viceroy_unpacked.c ~68666-68677): human starting treasury
+ * by difficulty — Discoverer 1000, Explorer 300, Conquistador+ 0. AI nations
+ * always start at 0. See docs/difficulty.md.
+ */
+static uint32_t ai_starting_gold(int difficulty) {
+  if (difficulty <= 0) {
+    return 1000u;
+  }
+  if (difficulty == 1) {
+    return 300u;
+  }
+  return 0u;
+}
+
 static const char* k_new_country[4] = {
   "New England", "New France", "New Spain", "New Netherlands"
 };
@@ -277,7 +292,7 @@ static bool ai_setup_col1_template(const AiNewGameParams* p, char* err, size_t e
     const char* leader = (i == human) ? p->leader_name : k_default_leaders[i];
     ai_set_nation_identity(p->col1, i, i == human ? 0 : 1, leader, k_new_country[i]);
     p->col1->head.nation_relation[i] = -1;
-    p->col1->nation[i].gold = (i == human) ? 1000u : 0u;
+    p->col1->nation[i].gold = (i == human) ? ai_starting_gold(p->difficulty) : 0u;
     p->col1->nation[i].current_crosses = 0u;
     p->col1->nation[i].needed_crosses = (i == human) ? 9u : 8u;
     memset(p->col1->nation[i].euro_relation, 0, sizeof(p->col1->nation[i].euro_relation));
@@ -334,7 +349,7 @@ static bool ai_setup_col1_template(const AiNewGameParams* p, char* err, size_t e
   }
 
   if (p->europe) {
-    p->europe->gold = 1000;
+    p->europe->gold = (int)ai_starting_gold(p->difficulty);
   }
   *p->col1_ok = true;
   return true;

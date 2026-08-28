@@ -1006,7 +1006,26 @@ int main(void) {
       fprintf(stderr, "indicator should be off after setup\n");
       return 1;
     }
-    /* DOS order: Indian nations (4..11) run in the mid-pass before Euro AI. */
+    /*
+     * DOS order relative to the human's slot (turn/year_loop.c,
+     * mid_pass_indian_rank.md): Euro slots above the human first, then the
+     * 4d56_1b3a mid-pass Indian turns (4..11), then Euro slots below the
+     * human. Human is England (0) here, so France (1) leads.
+     */
+    if (!turn_processor_advance(&proc, &ctx) || !turn_processor_show_indicator(&proc)) {
+      fprintf(stderr, "indicator should show during euro AI step\n");
+      return 1;
+    }
+    if (active != 1) {
+      fprintf(stderr, "expected france active got %d\n", active);
+      return 1;
+    }
+    for (int i = 0; i < 2; ++i) {
+      if (!turn_processor_advance(&proc, &ctx)) {
+        fprintf(stderr, "euro steps should keep processor active\n");
+        return 1;
+      }
+    }
     if (!turn_processor_advance(&proc, &ctx) || !turn_processor_show_indicator(&proc)) {
       fprintf(stderr, "indicator should show during indian AI step\n");
       return 1;
@@ -1020,14 +1039,6 @@ int main(void) {
         fprintf(stderr, "indian steps should keep processor active\n");
         return 1;
       }
-    }
-    if (!turn_processor_advance(&proc, &ctx) || !turn_processor_show_indicator(&proc)) {
-      fprintf(stderr, "indicator should show during euro AI step\n");
-      return 1;
-    }
-    if (active != 1) {
-      fprintf(stderr, "expected france active got %d\n", active);
-      return 1;
     }
   }
 
