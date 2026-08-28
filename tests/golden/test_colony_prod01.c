@@ -533,7 +533,7 @@ static int run_pair(const char* path_in, const char* path_exp, const char* label
       int y_farm = colony_yield_for_worker(&map, 42, 56, 0, fo->colonists[0].profession, true, 2, fo->colony_flags);
       int y_fish = colony_yield_for_worker(&map, 41, 55, 8, fo->colonists[2].profession, true, 2, fo->colony_flags);
       ColonizeTownCommonsYield tc;
-      colony_yield_town_commons(&map, 42, 55, 2, fo->colony_flags, &tc);
+      colony_yield_town_commons(&map, 42, 55, 2, fo->colony_flags, 2, &tc);
       fprintf(stderr, "DEBUG Fort Orange: y_farm=%d, y_fish=%d, center=%d, prof0=%d, prof2=%d, flags=0x%02x\n",
               y_farm, y_fish, tc.food, fo->colonists[0].profession, fo->colonists[2].profession, fo->colony_flags);
       break;
@@ -826,7 +826,7 @@ static int run_pair(const char* path_in, const char* path_exp, const char* label
         int y5 = colony_yield_for_worker(&map, vl->x + k_fdx[5], vl->y + k_fdy[5], 8, vl->colonists[5].profession, true, 2, vl->colony_flags);
         int y6 = colony_yield_for_worker(&map, vl->x + k_fdx[6], vl->y + k_fdy[6], 8, vl->colonists[6].profession, true, 2, vl->colony_flags);
         ColonizeTownCommonsYield vtc;
-        colony_yield_town_commons(&map, vl->x, vl->y, 2, vl->colony_flags, &vtc);
+        colony_yield_town_commons(&map, vl->x, vl->y, 2, vl->colony_flags, 2, &vtc);
         fprintf(stderr, "DEBUG Vlissingen: y0=%d y5=%d y6=%d center=%d flags=0x%02x pop=%d\n",
                 y0, y5, y6, vtc.food, vl->colony_flags, vl->colonist_count);
       }

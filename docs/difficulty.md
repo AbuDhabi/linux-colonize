@@ -51,6 +51,9 @@ Save field: `ColonizeCol1Head.difficulty` (`uint8_t`, clamp 0..4). Runtime:
 | Score villages burned | `-(diff+1)*burned` | Wired |
 | Tory / inefficient gov | Thresh `10-diff`; full mod `−⌊tories/thresh⌋` + sol latches | **Wired** — see [sons_of_liberty.md](sons_of_liberty.md) |
 | AI colony food | `+= difficulty>>1` | **Wired** |
+| Town commons food | `+2` Discoverer / `+1` Explorer (all nations; `FUN_15eb_1f72` ~12519) | **Wired** 2026-08-28 (`colony_yield_town_commons`) |
+| Town commons secondary | `+1` Discoverer only (`FUN_15eb_1f72` ~12568) | **Wired** 2026-08-28 |
+| Ore/silver depletion | per unit `rng(0,diff+1)!=0` bumps `+0x97` (`FUN_364b_0688` ~57932); Discoverer 1/2 rate … Viceroy 5/6 | **Wired** 2026-08-28 (`turn_produce_one_colony` epilogue) |
 | Rival SoL pressure | Threshold `(8-diff)*10` | thin / PARK |
 | End-game score→gold rebate | `FUN_41f2_0b70` difficulty multiplier | **PARK** |
 | Combat strength (human Euro) | `str -= (diff-4)`; Discoverer −25% vs AI Euro | Wired — [combat.md](combat.md) |
@@ -261,6 +264,21 @@ after the score snapshot — **PARK** in the port (`reports_compute_score` has n
 global score×difficulty multiplier).
 
 ---
+
+## Production: easy-difficulty handouts (2026-08-28)
+
+`FUN_15eb_1f72` (town-commons composer) reads `DS:0x53a6` twice: commons food
+gets `+2` at Discoverer / `+1` at Explorer right after the terrain-class split,
+and the secondary commodity gets `+1` at Discoverer. No nation gate. Depletion:
+`FUN_364b_0688`'s epilogue rolls `rng(0, diff+1)` once per depletion unit
+(units tallied in `FUN_15eb_18ec`: Minerals+Ore Miner 1, Minerals+Silver Miner
+2, Silver deposit+Silver Miner 1) and bumps `+0x97` only on a nonzero roll.
+None of this is exercised by the goldens (colony_prod01 = difficulty 2,
+colony_prod02 = 4) — asm-read only. Side note from the same read: the decomp
+adds the river bits to the *secondary* only and `layer2 & 0x40` to food, but
+removing the port's river-on-food term breaks three real captures by −1
+(Montreal, St. Louis, Fort Orange), so the port keeps river on food; the
+`0x40` label is what's suspect, not the captures.
 
 ## Production: Tory / inefficient government
 

@@ -2443,7 +2443,7 @@ int main(void) {
            * mined down (2026-08-16 real-DOS fix), not any ore-yielding
            * tile — the site must actually carry the bonus resource.
            */
-          if (yld > 0 && map_resource_type_for_yield(&map, x + dx, y + dy) >= 0) {
+          if (yld > 0 && map_resource_type_for_yield(&map, x + dx, y + dy) == 6) {
             cx = x;
             cy = y;
             fx = x + dx;

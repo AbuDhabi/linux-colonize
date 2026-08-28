@@ -46,7 +46,7 @@ static int check_commons(
   const char* label
 ) {
   ColonizeTownCommonsYield tc;
-  colony_yield_town_commons(map, x, y, 0, 0, &tc);
+  colony_yield_town_commons(map, x, y, 0, 0, 2, &tc);
   if (tc.food != expect_food || tc.secondary_cargo != expect_cargo ||
       tc.secondary_amount != expect_amt) {
     fprintf(
@@ -77,7 +77,7 @@ static int check_commons_sol(
   const char* label
 ) {
   ColonizeTownCommonsYield tc;
-  colony_yield_town_commons(map, x, y, 0, colony_flags, &tc);
+  colony_yield_town_commons(map, x, y, 0, colony_flags, 2, &tc);
   if (tc.secondary_cargo != expect_cargo || tc.secondary_amount != expect_amt) {
     fprintf(
       stderr,

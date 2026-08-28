@@ -670,6 +670,7 @@ void colony_yield_town_commons(
   int y,
   int sol_bonus,
   uint8_t colony_flags,
+  int difficulty,
   ColonizeTownCommonsYield* out
 ) {
   if (out) {
@@ -685,6 +686,17 @@ void colony_yield_town_commons(
   const bool timber = (res == 10 || res == 11);
 
   int food = colony_yield_town_commons_food_base(pedia);
+  /*
+   * Difficulty handout — FUN_15eb_1f72 ~12519-12522 (DS 0x53a6), right after
+   * the class split: +2 on Discoverer, +1 on Explorer, nothing above. No
+   * nation gate (AI colonies get it too). Never exercised by the goldens
+   * (colony_prod01 is difficulty 2, colony_prod02 is 4); asm-read only.
+   */
+  if (difficulty == 0) {
+    food += 2;
+  } else if (difficulty == 1) {
+    food += 1;
+  }
   /*
    * Plow applies to commons food on cleared land: +1, not +2.
    * Player-confirmed 2026-08-18 via two real, un-synthesized
@@ -762,11 +774,14 @@ void colony_yield_town_commons(
    * short (base 2 + assumed-road 1 = 3). The prod01 fixtures were
    * re-derived to match instead (their terrain pedia is a free synthetic
    * parameter, same move already made once for Bahia's ore-miner tile).
-   * A difficulty term (`+1` at diff==0/Discoverer only) is omitted:
-   * colony_prod01's save is difficulty 2 (Governor) and colony_prod02's is
-   * 4 (Viceroy) — neither is 0, so it's still unexercised either way.
+   * Difficulty term (FUN_15eb_1f72 ~12568): `+1` at Discoverer only.
+   * colony_prod01's save is difficulty 2 and colony_prod02's is 4 — neither
+   * is 0, so it stays unexercised by the goldens; asm-read only.
    */
   int sec = colony_yield_base_for_pedia(pedia, sec_job);
+  if (difficulty == 0) {
+    sec += 1;
+  }
   if (map_tile_has_river(map, x, y)) {
     sec += map_tile_has_major_river(map, x, y) ? 2 : 1;
   }
