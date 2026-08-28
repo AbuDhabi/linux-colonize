@@ -34,7 +34,7 @@ EOT → 291f_0a66 → 43f7_2424  (SoL refresh + dispatch)
 | `2564` / `1a26` | Declare gate / crown setup | `ai_king_try_declare` (auto when no `ai_popups`; else `@DECLARE` CHOICE Never/Yes → `ai_king_apply_popup_result` / `ai_king_do_declare`; `unknown46[5]`) |
 | `160a` | Independence rename cinematic | thin rename on declare (`country_name`); letter-anim PARKED |
 | `060a` | Garrison score / landing pick | `ai_king_weakest_port` |
-| `0982` | REF wave MoW + pools | `ai_king_ref_wave` (pools>0; thin MoW cargo unload) |
+| `0982` | REF invasion wave | `ai_king_ref_wave` — **full port 2026-08-28** (see "`0982` REF wave — ported" below) |
 | `06a6` | Irregulars when REF empty | `ai_king_ref_wave` (else) |
 | `1528` | REF arrival announce | `@INVASION` status + `ai_popup` OK `KING_ARRIVAL` when queue attached |
 | `10f0` | Foreign landing when REF empty + `backup_force` (≤2/call; third @diff≥2; prefer Regular+Dragoon) | `ai_king_foreign_intervene`. Slot mix **Done** Phase 4; coastal roulette + 8-neighbor scorer + per-call caps + Veteran 0x15 **Done** Phase 5. **PARK:** foreign MoW ship |
@@ -172,7 +172,46 @@ exists (smoke-asserted; fandom REF man-o-war → ports). At `difficulty ≥ 2`, 
 stand-in same beat (same 0982 path; stack if only one water tile). Deep
 multi-ship formation chrome remains PARKED.
 
-### MoW cargo board (`0982` / `units_ship_capacity`)
+### `0982` REF wave — ported 2026-08-28 (replaces the cargo-board write-up below)
+
+`ai_king_ref_wave` now follows `FUN_43f7_0982` (viceroy_unpacked.c
+73935-74266) instead of the fandom MoW-cargo shape:
+
+- **MoW pool gate** (73990): `force[2]==0` → `+1` only while the crown has
+  no Man-O-War alive (`-0x6da2` type-count byte), and nothing lands.
+- **Exhaust** (73997, 74258): `total<5 || total==force[2]` → all four pools
+  wiped at the end unless a landing happened this beat.
+- **Target** (74002-74046): human coastal colonies (≤10) scored
+  `colonists×(125−SoL) − 75×tile strength`, min `100−SoL`, sorted weakest
+  first; garrison need = `060a` (`(muskets+50)/100+1 + Σ attack×8>>4`,
+  Fortress ×2 / Fort ×1.5) minus attack-capable crown units already
+  adjacent. Three relaxing passes (74047-74089): Dragoon/Artillery each
+  capped at `max(1, need>>3)` (1 when Regulars ≥ Dragoons+Artillery); pass
+  ≥1 caps need at `DS:0x5333 = 31`; the first colony the pools can cover
+  wins.
+- **Landing tile** (74094-74136): colony neighbour water tile with the most
+  free land neighbours on the colony's continent (a human ship stack there
+  counts 1). Non-crown units on it are seized (`0512` → `@SEIZURESEA` /
+  `@SEIZURELAND`), the MoW spawns there, `@INVASION`.
+- **Land units** (74150-74251): `max(3, need)` units on the weakest adjacent
+  land tiles (Chebyshev 1 from the colony, same continent, no settlement
+  bit — units standing there do not block, they are seized). Order:
+  Dragoons up to the cap (2 max when Regulars > 1), then Artillery, then
+  Regulars; every landed unit's moves are spent.
+- **Thin**: `08bc` stack strength = Σ defense×8>>4; the `4d56` crown ship act
+  that takes an emptied MoW home is stood in for by despawning idle empty
+  crown MoWs at wave start while land pools remain (so the pool regrows).
+  The invented `force[0]+=1` per-turn "tax crumb" is gone (1d42 only grows
+  pools on tax events).
+- **War-act fix found by the headless run**: a third nation's units parked
+  inside the target port made `units_foreign_unit_at` return a non-human
+  foe and the column sidestepped forever; the step loop now fights the human
+  defender if any, else enters and captures an undefended port.
+
+`golden_woi_ref01` (real Dutch fixture): Regulars t1, first capture t3, all
+7 colonies lost t10.
+
+### (superseded) MoW cargo board (`0982` / `units_ship_capacity`)
 
 When the wave drains `expeditionary_force[2]` and spawns a Man-O-War, board
 REF land into the ship hold via `units_board_stacked` / `cargo_ids` up to
@@ -606,7 +645,7 @@ greedy detour (DOS crown units go through the `4d56` unit-act dispatcher),
   era as the `caseD_10`/case-7/`−0x77c4` mischaracterizations already
   corrected elsewhere this session. `1eca` is **fully done**, nothing
   left here.
-- MoW hold fill + multi-unload — **Done** (`0982` boards Regular-then-Dragoon into `cargo_ids` up to `units_ship_capacity` / MoW×6; second MoW @diff≥2; wartime unload up to `min(moves_left, capacity)` at coast prefer colony tile (1 MP/pax) + same-beat seize/fortify + AI_SAIL→coast; **full unload + moves left → next human coast**; **after next-coast sail prefer unload if already adjacent**; idle empty MoW coastal patrol). Embark UI chrome — **PARKED**
+- `0982` REF wave — **full port 2026-08-28** (see section above; the cargo-board shape below is superseded — wartime MoW unload/patrol code in `war_act` still serves ships that carry cargo). Old note: MoW hold fill + multi-unload — (`0982` boards Regular-then-Dragoon into `cargo_ids` up to `units_ship_capacity` / MoW×6; second MoW @diff≥2; wartime unload up to `min(moves_left, capacity)` at coast prefer colony tile (1 MP/pax) + same-beat seize/fortify + AI_SAIL→coast; **full unload + moves left → next human coast**; **after next-coast sail prefer unload if already adjacent**; idle empty MoW coastal patrol). Embark UI chrome — **PARKED**
 - REF deep multi-step land combat / full siege scoring — **PARKED** (thin hunt/capture/garrison cap-2/Artillery/Cont. structural Done above; deeper combat scoring UI still PARKED). Multi-garrison chrome **PARKED**.
 - Dump-goods refuse second cargo (`38fd_3dc8` RNG OR + all bitmap cargo names in status) — **Done**; Europe `bid>0` eligibility + price-weight — **Done**; dump modal CHOICE (`KING_DUMP_GOODS`) — **Done**; `@TEAPARTY` follow-up OK + thin stock dump — **Done** thin; refuse sync when `boycott_bitmap==0` (Fugger/external clear) Done
 - `160a` letter cinematic — **PARKED** (thin rename + OK chain Done)

@@ -199,6 +199,7 @@ Finish a campaign: FF leftovers, king/REF, win/lose/retire.
 
 - **KINGGALLEON2** — **Done** (2026-08-27: `FUN_5fef_1908`, popup ids are DS tag addresses)
 - **10f0** — landing scorer, per-call caps, Veteran `0x15` — **Done** Phase 5; foreign MoW ship **PARK**
+- **0982 REF wave** — **Done** (2026-08-28 full port: pool gate/regrow, exhaust, 060a need, weakest-colony pick, 0x5333 cap, 0512 seizure, direct landing); `golden_woi_ref01` capture t3 / all lost t10
 - **65dd LCR** — **Done** (2026-08-27 full static port, `units_lcr_roll_outcome`)
 - **FF leftovers** — **Done** (2026-08-28): de Soto sight radius (`13f1_02f8`), Magellan voyage roll (`48d3_0002`, replaces invented 2/4-turn crossings), Brewster pick-among-pool (`4884(0,1)`); no Father PARKed
 - **Year-end D** — `rebel_sentiment` when set, else `ai_king_sol_percent`; continent table at DOS `−0x6bf0` **PARK**

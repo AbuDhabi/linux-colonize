@@ -500,7 +500,7 @@ scorer, merc offer, Continental Army muster, win/lose latches — all
 tiers, promote/demote/capture, plunder, coastal fort fire, Combat Analysis
 — playable bar Done. Gaps are depth and the REF's own campaign behavior.
 
-- [ ] **P5.1 [auto]** REF campaign loop: turn-by-turn REF behavior after
+- [x] **P5.1 [auto] — closed 2026-08-28 (0982 faithful; 4d56 residue → D1).** REF campaign loop: turn-by-turn REF behavior after
   landing (target choice, siege, re-embark, reinforcement waves from
   `backup_force`), king's replies. Port from `43f7`/`4345` bodies to the
   point where a REF actually prosecutes a war against the player, not
@@ -534,6 +534,18 @@ tiers, promote/demote/capture, plunder, coastal fort fire, Combat Analysis
   callers/tests converted. `ctest`: 49/49. Still open in this row:
   `backup_force` reinforcement waves / king's replies / re-embark, and
   the fandom-shaped hunt vs DOS's real `4d56` crown unit-act scoring.
+  **2026-08-28 (later) — `FUN_43f7_0982` ported in full** (user chose the
+  faithful port over layering): MoW-pool gate/regrow, exhaust rule,
+  `060a` garrison need, weakest-colony scoring, three relaxing passes with
+  the `DS:0x5333=31` cap, landing-tile pick, `0512` seizure, direct land
+  placement `max(3, need)` with Dragoon/Artillery caps — replacing the
+  fandom MoW-cargo / second-MoW / Artillery-bias wave (those
+  `unit_ai_king` blocks rewritten to DOS semantics). Also fixed: REF column
+  froze when a *third* nation's units sat inside the target port (step loop
+  now fights the human defender or enters an undefended port). See
+  king_ref.md "`0982` REF wave — ported". `golden_woi_ref01`: capture t3,
+  all lost t10. Still thin: MoW return-home (`4d56` crown ship act) is a
+  despawn stand-in; `4d56` land scoring stays D1; king's reply chrome P11.
 - [x] **P5.2 [auto] — closed 2026-08-26, already fully wired; one
   section name was invented.** Win condition: exact DOS rule (REF land
   force destroyed / % of REF committed and beaten / turn cap) and the

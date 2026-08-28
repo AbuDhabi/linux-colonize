@@ -848,47 +848,48 @@ int main(void) {
     return fail("REF/irregular must not spawn as human nation");
   }
   /*
-   * MoW cargo board (units_ship_capacity / cargo_ids; fandom man-o-war×6):
-   * declare seeds force[2]>0 + force[0]≥6 → same-beat MoW + ≥6 land Regulars
-   * (aboard and/or coastal multi-unload ≤moves). MoW on water adjacent to
-   * target colony. PARK: 160a letter cinematic (thin rename Done).
+   * FUN_43f7_0982: declare seeds force[2]>0 → same-beat Man-O-War on water
+   * adjacent to the weakest coastal colony and max(3, min(garrison, 31))
+   * land units on the adjacent land tiles (no cargo boarding — DOS lands
+   * straight onto the tiles beside the ship).
    */
   {
     const int crown_sea = count_nation_sea(&units, 1);
     const int crown_land = count_nation_land(&units, 1);
-    if (crown_sea < 1 || crown_land < 6) {
-      fprintf(stderr, "unit_ai_king: post-declare MoW cargo sea=%d land=%d (want ≥1 ship + ≥6 land)\n",
+    if (crown_sea < 1 || crown_land < 3) {
+      fprintf(stderr, "unit_ai_king: post-declare 0982 sea=%d land=%d (want ≥1 ship + ≥3 land)\n",
               crown_sea, crown_land);
-      return fail("0982 MoW spawn should board ≥6 land into hold (or ship+land)");
+      return fail("0982 should spawn a MoW and at least 3 land units");
     }
     int mow_on_adj_water = 0;
-    int mow_hold = 0;
+    int land_adjacent = 0;
     for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
       const ColonizeUnit* u = &units.units[i];
-      if (!u->active || u->nation_id != 1 || !units_is_sea(&units, u->id)) {
+      if (!u->active || u->nation_id != 1) {
         continue;
       }
-      if (u->type_index != ty_mow) {
-        continue;
-      }
-      if (!map_tile_is_water(&map, u->x, u->y)) {
-        fprintf(stderr, "unit_ai_king: MoW at (%d,%d) not on water\n", u->x, u->y);
-        return fail("0982 MoW must spawn on water tile");
-      }
-      /* Adjacent to Jamestown (5,5). */
-      if (abs(u->x - 5) <= 1 && abs(u->y - 5) <= 1 && !(u->x == 5 && u->y == 5)) {
-        mow_on_adj_water = 1;
-      }
-      /* war_act may multi-unload ≤moves same beat — hold may shrink. */
-      if (u->cargo_count > mow_hold) {
-        mow_hold = u->cargo_count;
+      if (u->type_index == ty_mow) {
+        if (!map_tile_is_water(&map, u->x, u->y)) {
+          fprintf(stderr, "unit_ai_king: MoW at (%d,%d) not on water\n", u->x, u->y);
+          return fail("0982 MoW must spawn on water tile");
+        }
+        if (abs(u->x - 5) <= 1 && abs(u->y - 5) <= 1) {
+          mow_on_adj_water = 1;
+        }
+      } else if (!units_is_sea(&units, u->id) && abs(u->x - 5) <= 1 && abs(u->y - 5) <= 1) {
+        if (u->aboard_ship_id >= 0) {
+          return fail("0982 lands units on tiles, never as cargo");
+        }
+        land_adjacent++;
       }
     }
     if (!mow_on_adj_water) {
       return fail("0982 MoW must spawn on water adjacent to target colony");
     }
-    /* Boarded 6 (crown_land≥6); multi-unload ≤moves may empty or shrink hold. */
-    (void)mow_hold;
+    if (land_adjacent < 3) {
+      fprintf(stderr, "unit_ai_king: 0982 land adjacent=%d\n", land_adjacent);
+      return fail("0982 must land ≥3 units beside the colony");
+    }
   }
   /*
    * Thin 1528: successful 0982 spawn writes @INVASION status (VGA PARKED).
@@ -2217,146 +2218,83 @@ int main(void) {
    * Deep multi-step siege scoring PARKED.
    */
   {
+    /*
+     * FUN_43f7_0982 MoW-pool gate: force[2]==0 → +1 only while the crown has
+     * no Man-O-War alive, and nothing lands this beat (73990-73994).
+     */
     colonies.building_type_count = 1;
     snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name),
              "Stockade");
     colonies.colonies[0].nation_id = 0;
     colonies.colonies[0].has_building[0] = true;
     memset(col1.head.expeditionary_force, 0, sizeof(col1.head.expeditionary_force));
-    col1.head.expeditionary_force[3] = 2; /* Artillery only */
-    col1.head.backup_force[0] = 0;
-    col1.head.backup_force[1] = 0;
-    col1.head.backup_force[2] = 0;
-    col1.head.backup_force[3] = 0;
+    col1.head.expeditionary_force[3] = 2; /* Artillery only, no MoW */
+    memset(col1.head.backup_force, 0, sizeof(col1.head.backup_force));
     for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
       ColonizeUnit* u = &units.units[i];
-      if (u->active && u->nation_id == 1) {
+      if (u->active && u->nation_id == 1 && units_is_sea(&units, u->id)) {
+        u->active = false;
+      } else if (u->active && u->nation_id == 1) {
         u->moves_left = 0;
+        if (u->x == 5 && u->y == 5) {
+          u->x = 1;
+          u->y = 1;
+        }
       }
     }
-    const int art_before = col1.head.expeditionary_force[3];
-    int art_units_before = 0;
-    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-      const ColonizeUnit* u = &units.units[i];
-      if (u->active && u->nation_id == 1 && u->type_index == ty_artillery) {
-        art_units_before++;
+    {
+      const int art_before = count_nation_land(&units, 1);
+      ai_king_nation_turn(&ctx);
+      if (col1.head.expeditionary_force[2] != 1 || col1.head.expeditionary_force[3] != 2) {
+        fprintf(stderr, "unit_ai_king: pools after MoW-empty beat %u/%u/%u/%u\n",
+                (unsigned)col1.head.expeditionary_force[0], (unsigned)col1.head.expeditionary_force[1],
+                (unsigned)col1.head.expeditionary_force[2], (unsigned)col1.head.expeditionary_force[3]);
+        return fail("0982: empty MoW pool must regrow +1 and land nothing");
       }
-    }
-    ai_king_nation_turn(&ctx);
-    int art_units_after = 0;
-    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-      const ColonizeUnit* u = &units.units[i];
-      if (u->active && u->nation_id == 1 && u->type_index == ty_artillery) {
-        art_units_after++;
+      if (count_nation_land(&units, 1) != art_before || count_nation_sea(&units, 1) != 0) {
+        return fail("0982: no landing while the MoW pool is empty");
       }
-    }
-    if (art_units_after <= art_units_before) {
-      return fail("fortified target should prefer Artillery wave spawn");
-    }
-    if (col1.head.expeditionary_force[3] >= art_before) {
-      return fail("Artillery siege spawn should drain force[3]");
     }
     /*
-     * Competing pools: fortified + force[0]>0 + force[3]>0 → prefer Artillery
-     * (drain force[3]; force[0] only gets wartime residual +1, not a land drain).
-     * Unfortified → Regular first (force[3] untouched).
+     * Next beat: MoW pool 1 → ship + landing. Dragoon/Artillery share is
+     * capped at max(1, garrison>>3) (=1 here), Regulars fill the rest — none
+     * left, so exactly one Artillery lands (74192-74199).
      */
     {
-      colonies.colonies[0].nation_id = 0;
-      colonies.building_type_count = 1;
-      snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name),
-               "Stockade");
-      colonies.colonies[0].has_building[0] = true;
-      if (!colonies_has_fortification(&colonies, &colonies.colonies[0])) {
-        return fail("Artillery bias competing setup requires fortified port");
-      }
-      memset(col1.head.expeditionary_force, 0, sizeof(col1.head.expeditionary_force));
-      col1.head.expeditionary_force[0] = 3; /* Regular live — must lose to Artillery bias */
-      col1.head.expeditionary_force[3] = 2;
-      col1.head.backup_force[0] = 0;
-      col1.head.backup_force[1] = 0;
-      col1.head.backup_force[2] = 0;
-      col1.head.backup_force[3] = 0;
-      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-        ColonizeUnit* u = &units.units[i];
-        if (u->active && u->nation_id == 1) {
-          u->moves_left = 0;
-        }
-      }
-      const uint16_t reg_before_bias = col1.head.expeditionary_force[0];
-      const uint16_t art_before_bias = col1.head.expeditionary_force[3];
-      int art_units_before_bias = 0;
+      int art_units_before = 0;
       for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
         const ColonizeUnit* u = &units.units[i];
         if (u->active && u->nation_id == 1 && u->type_index == ty_artillery) {
-          art_units_before_bias++;
+          art_units_before++;
+        }
+        if (u->active && u->nation_id == 1) {
+          units.units[i].moves_left = 0;
         }
       }
       ai_king_nation_turn(&ctx);
-      int art_units_after_bias = 0;
+      int art_units_after = 0;
       for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
         const ColonizeUnit* u = &units.units[i];
         if (u->active && u->nation_id == 1 && u->type_index == ty_artillery) {
-          art_units_after_bias++;
+          art_units_after++;
         }
       }
-      if (art_units_after_bias <= art_units_before_bias) {
-        return fail("fortified competing pools should spawn Artillery (siege bias)");
+      if (art_units_after != art_units_before + 1) {
+        fprintf(stderr, "unit_ai_king: Artillery %d→%d (want +1)\n", art_units_before,
+                art_units_after);
+        return fail("0982: one Artillery lands under the cap");
       }
-      if (col1.head.expeditionary_force[3] >= art_before_bias) {
-        return fail("fortified competing pools should drain force[3]");
+      if (col1.head.expeditionary_force[3] != 1 || col1.head.expeditionary_force[2] != 0) {
+        return fail("0982: landing drains force[3] and the MoW pool");
       }
-      /* Residual wartime force[0]+=1 only — no Regular land drain this beat. */
-      if (col1.head.expeditionary_force[0] != reg_before_bias + 1) {
-        fprintf(stderr,
-                "unit_ai_king: fortified bias force[0] %u→%u (want residual +1 only)\n",
-                (unsigned)reg_before_bias, (unsigned)col1.head.expeditionary_force[0]);
-        return fail("fortified Artillery bias must not drain Regular pool");
+      if (count_nation_sea(&units, 1) != 1) {
+        return fail("0982: exactly one Man-O-War per beat");
       }
-
-      /* Unfortified negative: Regular wins when Stockade cleared. */
-      colonies.colonies[0].has_building[0] = false;
-      if (colonies_has_fortification(&colonies, &colonies.colonies[0])) {
-        return fail("unfortified Artillery-bias negative requires clear Stockade");
-      }
-      memset(col1.head.expeditionary_force, 0, sizeof(col1.head.expeditionary_force));
-      col1.head.expeditionary_force[0] = 3;
-      col1.head.expeditionary_force[3] = 2;
-      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-        ColonizeUnit* u = &units.units[i];
-        if (u->active && u->nation_id == 1) {
-          u->moves_left = 0;
-        }
-      }
-      const uint16_t art_before_open = col1.head.expeditionary_force[3];
-      const uint16_t reg_before_open = col1.head.expeditionary_force[0];
-      int art_open_before = 0;
-      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-        const ColonizeUnit* u = &units.units[i];
-        if (u->active && u->nation_id == 1 && u->type_index == ty_artillery) {
-          art_open_before++;
-        }
-      }
-      ai_king_nation_turn(&ctx);
-      int art_open_after = 0;
-      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-        const ColonizeUnit* u = &units.units[i];
-        if (u->active && u->nation_id == 1 && u->type_index == ty_artillery) {
-          art_open_after++;
-        }
-      }
-      if (col1.head.expeditionary_force[3] != art_before_open) {
-        return fail("unfortified wave must leave force[3] Artillery untouched");
-      }
-      if (art_open_after != art_open_before) {
-        return fail("unfortified wave must not prefer Artillery spawn");
-      }
-      /* Drain Regular then residual +1 → same pool count. */
-      if (col1.head.expeditionary_force[0] != reg_before_open) {
-        fprintf(stderr,
-                "unit_ai_king: unfortified force[0] %u→%u (want drain+residual net 0)\n",
-                (unsigned)reg_before_open, (unsigned)col1.head.expeditionary_force[0]);
-        return fail("unfortified wave should drain Regular (net residual cancels)");
+    }
+    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+      ColonizeUnit* u = &units.units[i];
+      if (u->active && u->nation_id == 1 && units_is_sea(&units, u->id)) {
+        u->active = false;
       }
     }
     /* Artillery hunt prefer fortified: closer unfortified unit vs fortified colony. */
@@ -4079,13 +4017,13 @@ int main(void) {
   }
 
   /*
-   * Second MoW @ difficulty≥2 when naval pool allows (0982 path).
-   * Gap smoke: difficulty < 2 must not spawn the second even if force[2]≥2.
+   * FUN_43f7_0982 lands exactly one Man-O-War per beat whatever the
+   * difficulty, and max(3, min(garrison, 31)) land units beside the colony.
    */
   {
     colonies.colonies[0].nation_id = 0;
-    /* Negative path first: low difficulty → one MoW only. */
-    col1.head.difficulty = 1;
+    colonies.colonies[0].active = true;
+    col1.head.difficulty = 2;
     memset(col1.head.expeditionary_force, 0, sizeof(col1.head.expeditionary_force));
     memset(col1.head.backup_force, 0, sizeof(col1.head.backup_force));
     col1.head.expeditionary_force[0] = 3;
@@ -4096,63 +4034,38 @@ int main(void) {
         u->active = false;
       } else if (u->active && u->nation_id == 1) {
         u->moves_left = 0;
-      }
-    }
-    {
-      const int sea_before = count_nation_sea(&units, 1);
-      status[0] = '\0';
-      ai_king_nation_turn(&ctx);
-      const int sea_spawned = count_nation_sea(&units, 1) - sea_before;
-      if (sea_spawned != 1) {
-        fprintf(stderr, "unit_ai_king: low-diff MoW sea_spawned=%d (want 1)\n",
-                sea_spawned);
-        return fail("diff<2 + force[2]≥2 must not spawn second MoW");
-      }
-      if (col1.head.expeditionary_force[2] != 1) {
-        return fail("diff<2 second-MoW gate should leave one naval pool entry");
-      }
-    }
-    /* Positive path: difficulty≥2 → second MoW same beat. */
-    /*
-     * Low-diff war_act may capture Jamestown (unload/seize). Restore human
-     * ownership so 0982 weakest_port still finds a target; freeze crown land
-     * so the same-beat positive path is not blocked by a missing port.
-     */
-    colonies.colonies[0].nation_id = 0;
-    colonies.colonies[0].active = true;
-    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-      ColonizeUnit* u = &units.units[i];
-      if (u->active && u->nation_id == 1 && units_is_sea(&units, u->id)) {
-        u->active = false;
-      } else if (u->active && u->nation_id == 1) {
-        u->moves_left = 0;
-        /* Keep capture troops off the human capital tile for this spawn probe. */
         if (u->x == 5 && u->y == 5) {
           u->x = 1;
           u->y = 1;
         }
       }
     }
-    col1.head.difficulty = 2;
-    col1.head.expeditionary_force[0] = 3;
-    col1.head.expeditionary_force[2] = 2;
     {
       const int sea_before = count_nation_sea(&units, 1);
+      const int land_before = count_nation_land(&units, 1);
       status[0] = '\0';
       ai_king_nation_turn(&ctx);
       const int sea_spawned = count_nation_sea(&units, 1) - sea_before;
-      if (sea_spawned < 2) {
-        fprintf(stderr, "unit_ai_king: second MoW sea_spawned=%d (want ≥2)\n", sea_spawned);
-        return fail("diff≥2 + force[2]≥2 should spawn second MoW");
+      const int landed = count_nation_land(&units, 1) - land_before;
+      if (sea_spawned != 1 || col1.head.expeditionary_force[2] != 1) {
+        fprintf(stderr, "unit_ai_king: 0982 sea_spawned=%d force2=%u\n", sea_spawned,
+                (unsigned)col1.head.expeditionary_force[2]);
+        return fail("0982 spawns one Man-O-War per beat");
+      }
+      if (landed != 3 || col1.head.expeditionary_force[0] != 0) {
+        fprintf(stderr, "unit_ai_king: 0982 landed=%d force0=%u\n", landed,
+                (unsigned)col1.head.expeditionary_force[0]);
+        return fail("0982 lands max(3, garrison) Regulars from the pool");
       }
     }
     col1.head.difficulty = 0;
   }
 
   /*
-   * MoW hold Regular+Dragoon mix (0982 cargo_ids board): force[0]=1, force[1]=2,
-   * force[2]=1 → ship + 1 Regular + 2 Dragoons boarded (pool-limited; cap=6).
-   * Source: fandom REF Men-O-War / Regulars / Cavalry; units_board_stacked.
+   * 0982 composition: Dragoons/Artillery each capped at max(1, garrison>>3)
+   * (=1 here) when Regulars < Dragoons+Artillery, Regulars fill the rest.
+   * force[0]=1, force[1]=2, force[2]=1 → 1 Dragoon + 1 Regular, then the
+   * Regular pool is empty and the beat stops (pool-limited, never invented).
    */
   {
     colonies.colonies[0].nation_id = 0;
@@ -4163,18 +4076,18 @@ int main(void) {
     col1.head.expeditionary_force[2] = 1; /* MoW */
     for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
       ColonizeUnit* u = &units.units[i];
-      if (!u->active || u->nation_id != 1) {
-        continue;
-      }
-      u->moves_left = 0;
-      if (u->x == 5 && u->y == 5) {
-        u->x = 1;
-        u->y = 1;
+      if (u->active && u->nation_id == 1 && units_is_sea(&units, u->id)) {
+        u->active = false;
+      } else if (u->active && u->nation_id == 1) {
+        u->moves_left = 0;
+        if (u->x == 5 && u->y == 5) {
+          u->x = 1;
+          u->y = 1;
+        }
       }
     }
     int reg_before = 0;
     int drg_before = 0;
-    int sea_before = count_nation_sea(&units, 1);
     for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
       const ColonizeUnit* u = &units.units[i];
       if (!u->active || u->nation_id != 1 || units_is_sea(&units, u->id)) {
@@ -4187,8 +4100,8 @@ int main(void) {
       }
     }
     ai_king_nation_turn(&ctx);
-    if (count_nation_sea(&units, 1) <= sea_before) {
-      return fail("Regular+Dragoon MoW hold should spawn Man-O-War");
+    if (count_nation_sea(&units, 1) != 1) {
+      return fail("0982 mix beat should spawn the Man-O-War");
     }
     int reg_after = 0;
     int drg_after = 0;
@@ -4197,47 +4110,33 @@ int main(void) {
       if (!u->active || u->nation_id != 1 || units_is_sea(&units, u->id)) {
         continue;
       }
+      if (u->aboard_ship_id >= 0) {
+        return fail("0982 never boards land units as cargo");
+      }
       if (u->type_index == ty_regular) {
         reg_after++;
       } else if (u->type_index == ty_dragoon) {
         drg_after++;
       }
     }
-    if (reg_after < reg_before + 1) {
-      fprintf(stderr, "unit_ai_king: MoW hold Regular %d→%d (want +1)\n", reg_before,
-              reg_after);
-      return fail("MoW hold should board Regular first when force[0]>0");
+    if (drg_after != drg_before + 1 || reg_after != reg_before + 1) {
+      fprintf(stderr, "unit_ai_king: 0982 mix Regular %d→%d Dragoon %d→%d (want +1/+1)\n",
+              reg_before, reg_after, drg_before, drg_after);
+      return fail("0982 mix: one Dragoon under the cap, then the last Regular");
     }
-    if (drg_after < drg_before + 2) {
-      fprintf(stderr, "unit_ai_king: MoW hold Dragoon %d→%d (want +2)\n", drg_before,
-              drg_after);
-      return fail("MoW hold should fill remaining slots with Dragoon from force[1]");
-    }
-    /*
-     * Pool-limited embark: force totals 3 → board exactly 3 (do not invent
-     * beyond force[]). Capacity remains 6 when pools allow (see ×6 block).
-     */
-    {
-      const int embarked =
-          (reg_after - reg_before) + (drg_after - drg_before);
-      if (embarked != 3) {
-        fprintf(stderr, "unit_ai_king: MoW hold embarked=%d (want 3 from force)\n",
-                embarked);
-        return fail("MoW hold Regular+Dragoon mix should embark exactly force total");
-      }
-    }
-    /* force[1] fully drained; force[0] drained then tax residual +1 (1d42 crumb). */
-    if (col1.head.expeditionary_force[1] != 0) {
-      fprintf(stderr, "unit_ai_king: after mix unload force1=%u (want 0)\n",
-              (unsigned)col1.head.expeditionary_force[1]);
-      return fail("MoW Regular+Dragoon unload should drain force[1] Dragoons");
+    if (col1.head.expeditionary_force[0] != 0 || col1.head.expeditionary_force[1] != 1 ||
+        col1.head.expeditionary_force[2] != 0) {
+      fprintf(stderr, "unit_ai_king: 0982 mix pools %u/%u/%u\n",
+              (unsigned)col1.head.expeditionary_force[0], (unsigned)col1.head.expeditionary_force[1],
+              (unsigned)col1.head.expeditionary_force[2]);
+      return fail("0982 mix should leave one Dragoon in the pool");
     }
   }
 
   /*
-   * MoW×6 capacity board (fandom “man-o-war with 6 units”):
-   * force[0]=4, force[1]=2, force[2]=1 → ship capacity 6 filled from pools
-   * via cargo_ids (war_act may multi-unload ≤moves → hold may shrink).
+   * 0982 Regular-heavy beat: force[0]=4, force[1]=2, force[2]=1 → Regulars ≥
+   * Dragoons+Artillery forces the cap to 1, so the landing is 1 Dragoon +
+   * Regulars up to max(3, garrison).
    */
   {
     colonies.colonies[0].nation_id = 0;
@@ -4248,66 +4147,28 @@ int main(void) {
     col1.head.expeditionary_force[2] = 1; /* MoW */
     for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
       ColonizeUnit* u = &units.units[i];
-      if (!u->active || u->nation_id != 1) {
-        continue;
-      }
-      u->moves_left = 0;
-      if (units_is_sea(&units, u->id)) {
-        /* Drop passengers then clear prior MoWs so cargo check is unambiguous. */
-        while (u->cargo_count > 0) {
-          const int pid = u->cargo_ids[0];
-          ColonizeUnit* p = units_get(&units, pid);
-          if (p) {
-            p->aboard_ship_id = -1;
-            p->active = false;
-          }
-          for (int j = 1; j < u->cargo_count; ++j) {
-            u->cargo_ids[j - 1] = u->cargo_ids[j];
-          }
-          u->cargo_count--;
-        }
+      if (u->active && u->nation_id == 1 && units_is_sea(&units, u->id)) {
         u->active = false;
-      } else if (u->x == 5 && u->y == 5) {
-        u->x = 1;
-        u->y = 1;
+      } else if (u->active && u->nation_id == 1) {
+        u->moves_left = 0;
+        if (u->x == 5 && u->y == 5) {
+          u->x = 1;
+          u->y = 1;
+        }
       }
     }
     const int land_before = count_nation_land(&units, 1);
-    const int sea_before = count_nation_sea(&units, 1);
     ai_king_nation_turn(&ctx);
-    if (count_nation_sea(&units, 1) <= sea_before) {
-      return fail("MoW×6 board should spawn Man-O-War");
+    const int landed = count_nation_land(&units, 1) - land_before;
+    const int drg_used = 2 - (int)col1.head.expeditionary_force[1];
+    const int reg_used = 4 - (int)col1.head.expeditionary_force[0];
+    if (landed < 3 || drg_used != 1 || reg_used != landed - 1) {
+      fprintf(stderr, "unit_ai_king: 0982 heavy landed=%d drg_used=%d reg_used=%d\n", landed,
+              drg_used, reg_used);
+      return fail("0982 Regular-heavy beat: 1 Dragoon + Regulars");
     }
-    const int land_spawned = count_nation_land(&units, 1) - land_before;
-    if (land_spawned < 6) {
-      fprintf(stderr, "unit_ai_king: MoW×6 land_spawned=%d (want ≥6)\n", land_spawned);
-      return fail("MoW×6 should board 6 land from force pools (capacity)");
-    }
-    int best_cargo = 0;
-    int ashore = 0;
-    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-      const ColonizeUnit* u = &units.units[i];
-      if (!u->active || u->nation_id != 1) {
-        continue;
-      }
-      if (units_is_sea(&units, u->id) && u->type_index == ty_mow) {
-        if (u->cargo_count > best_cargo) {
-          best_cargo = u->cargo_count;
-        }
-      } else if (u->aboard_ship_id < 0) {
-        ashore++;
-      }
-    }
-    /* Boarded 6; multi-unload ≤moves (4) may leave hold 2 + 4 ashore from hold. */
-    if (best_cargo + ashore < 6 && land_spawned < 6) {
-      fprintf(stderr, "unit_ai_king: MoW×6 cargo=%d ashore=%d land_spawned=%d\n",
-              best_cargo, ashore, land_spawned);
-      return fail("MoW×6 should fill cargo_ids via units_board (cap 6)");
-    }
-    if (land_spawned != 6) {
-      fprintf(stderr, "unit_ai_king: MoW×6 land_spawned=%d (want 6; no invent)\n",
-              land_spawned);
-      return fail("MoW×6 must board exactly force[] / capacity (no invent)");
+    if (col1.head.expeditionary_force[2] != 0) {
+      return fail("0982 Regular-heavy beat drains the MoW pool");
     }
   }
 
