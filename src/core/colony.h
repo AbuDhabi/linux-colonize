@@ -232,6 +232,36 @@ int colonies_found(
 );
 
 /*
+ * Tribal-land owner of a tile: index into col1->tribe of the nearest village
+ * (same continent) whose tech-tier radius covers (x,y); -1 when the tile is
+ * not tribal land. FUN_15eb_26e4 / FUN_15dc_006a rule. Ignores the
+ * purchased bit — pair with colonies_indian_land_purchase_gold for that.
+ */
+int colonies_indian_land_owner_tribe(
+  const ColonizeCol1Save* col1,
+  const ColonizeWorldMap* map,
+  int x,
+  int y
+);
+
+/*
+ * Pay for tribal land at (x,y): debit *gold by cost (when gold non-NULL),
+ * INC indian.lands_bought (FUN_479b_00ca), stamp the purchased bit on the
+ * Col1 mask (0x10) and map layer2 (MAP_LAYER2_PURCHASED) — the
+ * FUN_281f_068c(...,0x10,1) / FUN_15eb_0668 write every DOS "offer gold"
+ * arm (@INDIANLAND/@INDIANROAD/@INDIANFOREST → @INDIANBRIBE) performs.
+ */
+void colonies_indian_land_pay(
+  ColonizeCol1Save* col1,
+  const ColonizeWorldMap* map,
+  int x,
+  int y,
+  int nation_id,
+  uint32_t* gold,
+  int cost
+);
+
+/*
  * Gold to buy Indian homeland tile (FUN_4cc6_07c2). Manual/wiki Minuit:
  * Indians no longer demand payment → 0 via founding_fathers_nation_has(FF 2).
  * Returns 0 outside homeland radius (village 1 / capital city 2; pdf Indian Land),

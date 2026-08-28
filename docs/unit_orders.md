@@ -32,7 +32,7 @@ from `NAMES.TXT` (fallback table in `unit_chrome.c`: `- S T G L F F B P R`).
 | 1 | Sentry | `S` | yes | Skip selection; auto-board when ship leaves tile |
 | 2 | Trade Route | `T` | yes | Goto-following; does **not** clear on stop arrival |
 | 3 | Go To | `G` | yes | Human pathing; clears on arrival or player cancel |
-| 4 | Live In Village | `L` | data only | Unused in port (no `UNITS_ORDER_*`) |
+| 4 | Live In Village | `L` | data only | Not a persistent order in DOS either: the village-menu "Live Among The Natives" action (`thunk_FUN_1000_a618`) applies at once — ported 2026-08-28, see `indian_actions_menu.md` |
 | 5 | Fortify | `F` | yes | In progress; overnight → 6 |
 | 6 | Fortified | `F` | yes | Skip selection until woken; combat defense is context-dependent ([combat.md](combat.md)) |
 | 7 | Build Colony | `B` | macro only | Founding is **immediate**; byte never assigned |
@@ -184,7 +184,7 @@ stateDiagram-v2
 | Command | When | Expected (DOS) | Linux | Status |
 |---------|------|----------------|-------|--------|
 | Pillage | Military on foreign colony / improvements | Full `2b5a` body; menu item often hidden in `0b34` | Thin loot ≤100 richest non-food / clear plow+road; **menu always hidden** (DOS-faithful); API reachable | Partial |
-| Live In Village (4) | — | `@ORDERS` letter **L** | No issuer / no tick | Missing |
+| Live In Village (4) | — | `@ORDERS` letter **L** | Immediate menu action, no tick | Done 2026-08-28 (`ai_contact_live_among_natives`) |
 
 ---
 

@@ -409,7 +409,7 @@ atlas. Most named fields were already absorbed in P2 or superseded by DOS peels.
 - Trade-route load/unload blob order — smcol swapped vs `FUN_647e`
 - `euro_relation` attitude/status/piracy bitfield — conflicts with `FUN_15b3` WAR/PEACE/ALLY/MET
 - Head `tile_selection_mode` / `manual_save_flag` / `end_of_turn_sign` — port has `map_mode` + `turn_loop_running` / `map_modal_active` / `no_unit_selected` from DS
-- Tribe `BLCS.brave_missing` vs port `state.artillery` — keep DOS name until re-cited
+- Tribe `BLCS.brave_missing` vs port tribe `+3` bit 0x01 — port names it `state.needs_colonist` (FUN_4d56_152e clear site; was mislabelled `artillery` and the needs-colonist reader sat on bit 0x10 until 2026-08-28; 0x10 is `state.tribute_paid`, the `thunk_FUN_1000_a5f4` @EXTORTSTUFF once-latch)
 - Colony AI / specialty / capitol bytes smcol still calls `unknown*` — port ahead
 
 ---

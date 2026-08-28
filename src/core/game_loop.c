@@ -426,7 +426,7 @@ static char game_key_letter(ColonizeKey key) {
 }
 
 static void set_status(ColonizeGameState* game, const char* prefix, const char* detail);
-static bool game_do_found_colony_at_unit(ColonizeGameState* game, int uid);
+static bool game_do_found_colony_at_unit(ColonizeGameState* game, int uid, bool land_resolved);
 static void game_request_noport_found_confirm(ColonizeGameState* game, int uid);
 static bool game_try_found_colony_at_cursor(ColonizeGameState* game);
 static void game_fill_turn_context(ColonizeGameState* game, ColonizeTurnContext* ctx);
@@ -597,7 +597,122 @@ static void game_emit_warehouse_full(
  * Land / Peter Minuit (FF 2). smoke_game_flow has no tribe fixture; covered by
  * unit_founding_fathers + unit_ai_euro_expand indian-land cases.
  */
-static bool game_do_found_colony_at_unit(ColonizeGameState* game, int uid) {
+/*
+ * DOS encroachment CHOICE kinds — the three GAME.TXT sections that share one
+ * dialog shape ("respect" / "offer {N} gold" / "take it"): @INDIANLAND
+ * (found colony, FUN_479b tile-buy site), @INDIANFOREST (pioneer clear order,
+ * thunk_FUN_1000_91fc), @INDIANROAD (pioneer road order, thunk_FUN_1000_9304).
+ * Cite: original_sources_annotated/ai/indian_actions_menu.md §encroachment.
+ */
+typedef enum GameIndianLandKind {
+  GAME_INDIAN_LAND_FOUND = 0,
+  GAME_INDIAN_LAND_FOREST = 1,
+  GAME_INDIAN_LAND_ROAD = 2
+} GameIndianLandKind;
+
+/* DOS FUN_1000_935a CHOICE results are 1-based: 1 respect, 2 offer gold, 3 take. */
+enum {
+  GAME_INDIAN_LAND_RESPECT = 1,
+  GAME_INDIAN_LAND_OFFER = 2,
+  GAME_INDIAN_LAND_TAKE = 3
+};
+
+/*
+ * Enqueue the encroachment CHOICE when DOS would: tile is tribal land with a
+ * real price (Minuit / already-purchased → 0 → no dialog), the human is at
+ * PEACE (relation bit 0x40, FUN_1000_8c28) with the owning tribe, and for
+ * FOREST the tile is a forest class (8..23). "Offer gold" is greyed out in
+ * DOS when the treasury cannot cover it (func_0x000193a6(dlg, 2, 1)); this
+ * port drops the row instead. "Take it" has no immediate consequence in any
+ * of the three DOS sites — encroachment friction accrues through the
+ * already-ported FUN_4d56_152e village growth pass. Returns true when a
+ * dialog was queued (caller must stop and wait for the result).
+ */
+static bool game_request_indian_land_choice(
+  ColonizeGameState* game,
+  GameIndianLandKind kind,
+  int uid,
+  int x,
+  int y
+) {
+  if (!game || !game->col1_ok || !game->world_map_ok || uid < 0) {
+    return false;
+  }
+  const int hn = game->human_nation;
+  if (hn < 0 || hn > 3) {
+    return false;
+  }
+  ColonizeCol1Save* col1 = &game->col1;
+  if (kind == GAME_INDIAN_LAND_FOREST) {
+    const int cls = map_dos_terr_class_at(&game->world_map, x, y);
+    if (cls < 8 || cls > 23) {
+      return false;
+    }
+  }
+  const int tribe_i = colonies_indian_land_owner_tribe(col1, &game->world_map, x, y);
+  if (tribe_i < 0 || !col1->tribe) {
+    return false;
+  }
+  const int tribe_nation = (int)col1->tribe[tribe_i].nation_id;
+  if (tribe_nation < 4 || tribe_nation > 11) {
+    return false;
+  }
+  if (!ai_contact_indian_has_peace(col1, tribe_nation, hn)) {
+    return false;
+  }
+  col1->nation[hn].gold = (uint32_t)(game->europe.gold < 0 ? 0 : game->europe.gold);
+  const int price = colonies_indian_land_purchase_gold(col1, &game->world_map, x, y, hn);
+  if (price <= 0) {
+    return false;
+  }
+  static const char* k_section[3] = {"INDIANLAND", "INDIANFOREST", "INDIANROAD"};
+  static const char* k_fallback[3] = {
+    "\"You are trespassing on %s land. We patiently ask that you leave immediately.\"",
+    "\"This forest and the creatures it supports are necessary to sustain the %s way of life. We patiently ask you not to destroy it.\"",
+    "\"We are worried that building a road here might disrupt the %s way of life. We patiently ask you to stop.\""
+  };
+  ColonizeTurnContext ctx;
+  game_fill_turn_context(game, &ctx);
+  const char* tribe = ai_contact_tribe_name(tribe_nation);
+  char fb[AI_POPUP_BODY_LEN];
+  snprintf(fb, sizeof(fb), k_fallback[kind], tribe);
+  PopupMsgTokens tok;
+  memset(&tok, 0, sizeof(tok));
+  tok.string0 = tribe;
+  tok.number1 = price;
+  tok.has_number1 = true;
+  char body[AI_POPUP_BODY_LEN];
+  popup_msg_fill(&game->messages, k_section[kind], &tok, fb, body, sizeof(body));
+  char choice_buf[AI_POPUP_CHOICE_MAX][AI_POPUP_CHOICE_LEN];
+  const ColonizeMsgSection* sec = assets_msg_find(&game->messages, k_section[kind]);
+  const int nch = popup_msg_choices(sec, choice_buf, AI_POPUP_CHOICE_MAX);
+  char offer_fb[AI_POPUP_CHOICE_LEN];
+  snprintf(offer_fb, sizeof(offer_fb), "We offer you %d gold for this land.", price);
+  const char* labels[3];
+  int ids[3];
+  int n = 0;
+  labels[n] = nch >= 3 ? choice_buf[0] : "Very well, we shall respect your wishes.";
+  ids[n++] = GAME_INDIAN_LAND_RESPECT;
+  if ((uint32_t)price <= col1->nation[hn].gold) {
+    if (nch >= 3) {
+      /* Substitute {%NUMBER1$} inside the label row. */
+      static char offer_lbl[AI_POPUP_CHOICE_LEN];
+      popup_msg_apply_tokens(offer_lbl, sizeof(offer_lbl), choice_buf[1], &tok);
+      labels[n] = offer_lbl;
+    } else {
+      labels[n] = offer_fb;
+    }
+    ids[n++] = GAME_INDIAN_LAND_OFFER;
+  }
+  labels[n] = nch >= 3 ? choice_buf[2] : "You are mistaken; this is OUR land now!";
+  ids[n++] = GAME_INDIAN_LAND_TAKE;
+  const int payload = (x & 0xff) | ((y & 0xff) << 8);
+  return ai_popup_enqueue_choice_ctx(
+    &game->ai_popups, AI_POPUP_TAG_INDIAN_LAND, uid, (int)kind, payload, tribe, body, labels, ids, n
+  );
+}
+
+static bool game_do_found_colony_at_unit(ColonizeGameState* game, int uid, bool land_resolved) {
   if (!game || !game->world_map_ok || uid < 0) {
     return false;
   }
@@ -628,18 +743,21 @@ static bool game_do_found_colony_at_unit(ColonizeGameState* game, int uid) {
   ColonizeCol1Save* col1 = game->col1_ok ? &game->col1 : NULL;
   uint32_t* gold = NULL;
   int land_cost = 0;
-  if (col1 && hn >= 0 && hn < 4) {
-    /* Live treasury is europe.gold; sync into col1 before land charge. */
-    col1->nation[hn].gold = (uint32_t)(game->europe.gold < 0 ? 0 : game->europe.gold);
-    gold = &col1->nation[hn].gold;
-    land_cost = colonies_indian_land_purchase_gold(col1, &game->world_map, cx, cy, hn);
-    if (land_cost > 0 && *gold < (uint32_t)land_cost) {
-      char detail[48];
-      snprintf(detail, sizeof(detail), "need %d gold", land_cost);
-      set_status(game, "Indian land", detail);
-      return false;
-    }
+  /*
+   * @INDIANLAND: DOS asks respect / offer gold / take before founding on
+   * tribal land (FUN_479b tile-buy site). land_resolved = the CHOICE already
+   * ran (paid via colonies_indian_land_pay, or "take it") — found free.
+   */
+  if (!land_resolved && game_request_indian_land_choice(game, GAME_INDIAN_LAND_FOUND, uid, cx, cy)) {
+    return true;
   }
+  /*
+   * No dialog (not at peace with the owner, Minuit, already bought, AI-free
+   * tile): DOS founds without charging — the tile-buy only ever runs inside
+   * the @INDIANLAND "offer gold" arm. The old "need N gold" hard block and
+   * silent auto-pay are gone with it.
+   */
+  (void)col1;
 
   const int cid = colonies_found_with_indian_land(
     &game->colonies,
@@ -800,7 +918,7 @@ static bool game_try_found_colony_at_cursor(ColonizeGameState* game) {
     game_request_noport_found_confirm(game, uid);
     return true;
   }
-  return game_do_found_colony_at_unit(game, uid);
+  return game_do_found_colony_at_unit(game, uid, false);
 }
 
 static void game_enqueue_yes_no(
@@ -1008,7 +1126,7 @@ static void game_apply_map_confirm(ColonizeGameState* game) {
       game_do_buy_construction(game, payload);
       break;
     case GAME_MAP_CONFIRM_FOUND_INLAND:
-      (void)game_do_found_colony_at_unit(game, payload);
+      (void)game_do_found_colony_at_unit(game, payload, false);
       break;
     default:
       break;
@@ -1684,6 +1802,75 @@ static void game_apply_ai_popup_result(ColonizeGameState* game) {
     return;
   }
   /*
+   * @INDIANLAND / @INDIANFOREST / @INDIANROAD result (DOS 1-based): 1 respect
+   * → cancel the order; 2 offer gold → colonies_indian_land_pay + @INDIANBRIBE,
+   * then proceed; 3 take → proceed unpaid (no immediate DOS consequence).
+   */
+  if (game->ai_popups.result_tag == AI_POPUP_TAG_INDIAN_LAND) {
+    const int uid = game->ai_popups.result_nation_a;
+    const int kind = game->ai_popups.result_nation_b;
+    const int x = game->ai_popups.result_payload & 0xff;
+    const int y = (game->ai_popups.result_payload >> 8) & 0xff;
+    const int choice = game->ai_popups.result_cancelled ? GAME_INDIAN_LAND_RESPECT
+                                                        : game->ai_popups.result_choice_id;
+    ai_popup_consume_result(&game->ai_popups);
+    if (choice == GAME_INDIAN_LAND_RESPECT) {
+      set_status(game, "We respect their wishes", NULL);
+      return;
+    }
+    const int hn = game->human_nation;
+    if (choice == GAME_INDIAN_LAND_OFFER && game->col1_ok && hn >= 0 && hn < 4) {
+      ColonizeCol1Save* col1 = &game->col1;
+      col1->nation[hn].gold = (uint32_t)(game->europe.gold < 0 ? 0 : game->europe.gold);
+      const int price = colonies_indian_land_purchase_gold(col1, &game->world_map, x, y, hn);
+      if (price > 0 && col1->nation[hn].gold >= (uint32_t)price) {
+        colonies_indian_land_pay(col1, &game->world_map, x, y, hn, &col1->nation[hn].gold, price);
+        game->europe.gold = (int)col1->nation[hn].gold;
+        char body[AI_POPUP_BODY_LEN];
+        popup_msg_fill(
+          &game->messages,
+          "INDIANBRIBE",
+          NULL,
+          "\"Very well, we withdraw our objection.\"",
+          body,
+          sizeof(body)
+        );
+        ai_popup_enqueue_ok(&game->ai_popups, AI_POPUP_TAG_INFO, NULL, body);
+      }
+    }
+    switch (kind) {
+      case GAME_INDIAN_LAND_FOUND:
+        (void)game_do_found_colony_at_unit(game, uid, true);
+        break;
+      case GAME_INDIAN_LAND_FOREST:
+      case GAME_INDIAN_LAND_ROAD: {
+        char msg[96];
+        msg[0] = '\0';
+        game->units.selected_id = uid;
+        const bool ok =
+          kind == GAME_INDIAN_LAND_FOREST
+            ? units_pioneer_plow(
+                &game->units, uid, &game->world_map, msg, sizeof(msg), &game->colonies,
+                &game->ai_popups, &game->messages
+              )
+            : units_pioneer_road(
+                &game->units, uid, &game->world_map, msg, sizeof(msg), &game->colonies,
+                &game->ai_popups, &game->messages
+              );
+        if (!ok) {
+          set_status(game, msg[0] ? msg : "Cannot work here", NULL);
+        } else {
+          set_status(game, msg, NULL);
+          game_wait_next_unit(game);
+        }
+        break;
+      }
+      default:
+        break;
+    }
+    return;
+  }
+  /*
    * FUN_4d56_4528 village raid warn: Leave aborts; Attack opens hostilities then
    * commits the deferred move (combat if Brave on tile; empty → fallout).
    */
@@ -1772,6 +1959,55 @@ static void game_apply_ai_popup_result(ColonizeGameState* game) {
         &game->ai_popups,
         &game->messages
       );
+    }
+    ai_popup_consume_result(&game->ai_popups);
+    return;
+  }
+  /*
+   * Village menu "Attack Village" (@ACTIONS row 9): commit the deferred move
+   * onto the adjacent village tile — same path as the old Attack/Leave warn.
+   */
+  if (game->ai_popups.result_tag == AI_POPUP_TAG_CONTACT_MEET &&
+      !game->ai_popups.result_cancelled &&
+      game->ai_popups.result_choice_id == AI_CONTACT_CHOICE_ATTACK) {
+    const int unit_id = ai_contact_meet_payload_unit(game->ai_popups.result_payload);
+    const int indian_nation = game->ai_popups.result_nation_b;
+    ColonizeUnit* u = unit_id >= 0 ? units_get(&game->units, unit_id) : NULL;
+    int dest_x = -1;
+    int dest_y = -1;
+    if (u && u->active && game->col1_ok && game->col1.tribe) {
+      for (uint16_t ti = 0; ti < game->col1.head.tribe_count; ++ti) {
+        const ColonizeCol1Tribe* t = &game->col1.tribe[ti];
+        if ((int)t->nation_id == indian_nation && abs((int)t->x - u->x) <= 1 &&
+            abs((int)t->y - u->y) <= 1) {
+          dest_x = t->x;
+          dest_y = t->y;
+          break;
+        }
+      }
+    }
+    if (dest_x >= 0) {
+      ColonizeTurnContext ctx;
+      game_fill_turn_context(game, &ctx);
+      ai_contact_village_open_hostilities(&ctx, indian_nation, u->nation_id);
+      units_set_ff_col1(game->col1_ok ? &game->col1 : NULL);
+      units_set_combat_human_nation(game->human_nation);
+      units_set_combat_popups(&game->ai_popups, &game->messages);
+      units_set_occupancy_map(&game->world_map);
+      units_set_combat_colonies(&game->colonies);
+      units_set_native_fallout_context(game->col1_ok ? &game->col1 : NULL, &game->world_map, -1);
+      game->units.selected_id = unit_id;
+      if (units_try_move(
+            &game->units, unit_id, &game->world_map, dest_x, dest_y, &game->colonies, &game->move_rng
+          )) {
+        snprintf(game->status, sizeof(game->status), "Village attacked (%d,%d)", dest_x, dest_y);
+        game_after_unit_action(game);
+      } else if (units_last_combat_outcome() < 0) {
+        set_status(game, "Combat lost", NULL);
+        game_after_unit_action(game);
+      } else {
+        set_status(game, "Attack failed", NULL);
+      }
     }
     ai_popup_consume_result(&game->ai_popups);
     return;
@@ -4810,7 +5046,7 @@ static bool game_try_unit_move(ColonizeGameState* game, int dest_x, int dest_y) 
         if (game->col1_ok) {
           ColonizeTurnContext ctx;
           game_fill_turn_context(game, &ctx);
-          if (ai_contact_try_ship_village(&ctx, selected->nation_id, dest_x, dest_y)) {
+          if (ai_contact_try_ship_village_unit(&ctx, selected->nation_id, dest_x, dest_y, sid)) {
             return true;
           }
         }
@@ -4898,25 +5134,37 @@ static bool game_try_unit_move(ColonizeGameState* game, int dest_x, int dest_y) 
       }
       ColonizeTurnContext ctx;
       game_fill_turn_context(game, &ctx);
-      if (combat_unit_is_combat_role(&game->units, sid)) {
-        if (ai_contact_try_village_raid_warn(
-              &ctx, selected->nation_id, (int)t->nation_id, sid, dest_x, dest_y
-            )) {
-          set_status(game, "Village…", NULL);
-          return true;
-        }
-      } else if (ai_contact_try_village_meet(
-                   &ctx,
-                   selected->nation_id,
-                   (int)t->nation_id,
-                   selected->profession == UNITS_JOB_MISSIONARY,
-                   t->state.capital
-                 )) {
-        /* Peaceful Meet/Trade from adjacent — spend a step, stay put. */
-        const int cost = units_move_cost(&game->units, sid, &game->world_map, dest_x, dest_y);
-        selected->moves_left -= cost > 0 ? cost : 1;
-        if (selected->moves_left < 0) {
-          selected->moves_left = 0;
+      /*
+       * FUN_4d56_4528 human arm: every land unit gets the same NAMES.TXT
+       * @ACTIONS menu, rows gated per unit (armed → Demand Tribute / Attack
+       * Village; the old invented Attack/Leave "raid warn" is retired).
+       * Attack Village is committed in game_apply_ai_popup_result; the
+       * move is deferred for combat-role units so it can still be made.
+       */
+      const int combatish = combat_unit_is_combat_role(&game->units, sid);
+      if (!ai_contact_try_village_meet_unit(
+            &ctx,
+            selected->nation_id,
+            (int)t->nation_id,
+            selected->profession == UNITS_JOB_MISSIONARY,
+            t->state.capital,
+            sid
+          ) && combatish &&
+          ai_contact_try_village_raid_warn(
+            &ctx, selected->nation_id, (int)t->nation_id, sid, dest_x, dest_y
+          )) {
+        /* Unmet / at-war tribe: the menu is refused, keep the warn CHOICE. */
+        set_status(game, "Village…", NULL);
+        return true;
+      }
+      if (ai_contact_meet_pending_for_unit(&game->ai_popups, sid)) {
+        if (!combatish) {
+          /* Peaceful Meet from adjacent — spend a step, stay put. */
+          const int cost = units_move_cost(&game->units, sid, &game->world_map, dest_x, dest_y);
+          selected->moves_left -= cost > 0 ? cost : 1;
+          if (selected->moves_left < 0) {
+            selected->moves_left = 0;
+          }
         }
         set_status(game, "Village…", NULL);
         game_after_unit_action(game);
@@ -5063,12 +5311,13 @@ static void game_after_unit_action(ColonizeGameState* game) {
         }
         ColonizeTurnContext ctx;
         game_fill_turn_context(game, &ctx);
-        if (ai_contact_try_village_meet(
+        if (ai_contact_try_village_meet_unit(
               &ctx,
               u->nation_id,
               (int)t->nation_id,
               u->profession == UNITS_JOB_MISSIONARY,
-              t->state.capital
+              t->state.capital,
+              u->id
             )) {
           break;
         }
@@ -6978,6 +7227,15 @@ static bool game_apply_map_menu_action(ColonizeGameState* game, MapMenuAction ac
       const int sid = game->units.selected_id;
       char msg[96];
       msg[0] = '\0';
+      {
+        /* @INDIANFOREST: thunk_FUN_1000_91fc asks when the clear order is given. */
+        const ColonizeUnit* pu = units_get_const(&game->units, sid);
+        if (pu && pu->active && pu->orders != UNITS_ORDER_CLEAR_PLOW &&
+            units_is_pioneer(&game->units, sid) && pu->tools >= 20 &&
+            game_request_indian_land_choice(game, GAME_INDIAN_LAND_FOREST, sid, pu->x, pu->y)) {
+          return true;
+        }
+      }
       if (!game->world_map_ok || !game->units_ok ||
           !units_pioneer_plow(
             &game->units,
@@ -7000,6 +7258,16 @@ static bool game_apply_map_menu_action(ColonizeGameState* game, MapMenuAction ac
       const int sid = game->units.selected_id;
       char msg[96];
       msg[0] = '\0';
+      {
+        /* @INDIANROAD: thunk_FUN_1000_9304 asks when the road order is given. */
+        const ColonizeUnit* pu = units_get_const(&game->units, sid);
+        if (pu && pu->active && pu->orders != UNITS_ORDER_BUILD_ROAD &&
+            units_is_pioneer(&game->units, sid) && pu->tools >= 20 &&
+            !map_tile_has_road(&game->world_map, pu->x, pu->y) &&
+            game_request_indian_land_choice(game, GAME_INDIAN_LAND_ROAD, sid, pu->x, pu->y)) {
+          return true;
+        }
+      }
       if (!game->world_map_ok || !game->units_ok ||
           !units_pioneer_road(
             &game->units,
