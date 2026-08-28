@@ -71,4 +71,9 @@ int col1_kill_indian_nation(
   int nation_id
 );
 
+/* FUN_521d_0a60 entry: wipe + restamp the DS:0x9faa coarse plane for this Euro nation. */
+void ai_coarse_fog_euro_restamp(
+  const ColonizeUnitPool* units, const ColonizeColonyPool* colonies, int nation_id
+);
+
 #endif

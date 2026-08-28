@@ -2512,6 +2512,22 @@ is genuinely stuck mid-session.
   against stale bits, not lifecycle; re-derive the mid-turn peels
   (`seed100_brave.md`) with exact bits, and fix the REF third-nation freeze
   before switching the reject read.
+  **2026-08-28, latest — DOS-shaped reject read now live, TURN3→4 green.**
+  The `golden_woi_ref01` "regression" was not a freeze: with the Braves in
+  DOS positions the REF reaches @LOSING3 (crown ≥90% of colony population)
+  at t8 with Recife still standing — a legitimate DOS surrender; the test now
+  accepts a LOST latch with towns remaining. Also ported: `DS:0x9faa` is
+  `0a60`'s scratch (wiped + restamped per Euro nation with its units/colonies;
+  mapgen tribe marks live in the same bytes and are gone after the first Euro
+  turn) — `ai_coarse_fog_euro_restamp`, neutral on the goldens but the
+  far-probe +8 now reads the DOS plane. Residue: **TURN4→5 n=10
+  (48,41)→(49,42) [Linux S, 1 point apart], n=9 (36,52)→(35,52) [Linux SW; own
+  Brave's presence at (33,52) gives −2]; TURN5→6 n=7 (43,52)→(43,53) [Linux
+  SE, +8 far-probe at (47,56)]**. Every term checked reads the same state
+  DOS would (presence exact, coarse plane exact, indices ascending 4..11),
+  so these are RNG-order (accepted-count) differences upstream in the same
+  nation's pulse, or terrain/river terms — needs a DOS LCG trace
+  (`AI_LCG_AUDIT` vs a DOSBox-X capture), not more static reading.
   Earlier note: see T3.3's 2026-08-28 note. Linux stamps the layer3 owner nibble on every
   tile a unit enters (`units_map_set_owner_nibble`) and never clears it;
   DOS reads presence through `FUN_137f_0314` (layer2 bit 0x01 → nibble) and
