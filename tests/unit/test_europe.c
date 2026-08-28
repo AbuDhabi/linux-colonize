@@ -975,7 +975,7 @@ int main(void) {
     europe_apply_volume_price(&tick, tg, 50, 0);
     const int nr1 = tick.trade_nr[tg];
     const int attr = tick.cargo[tg].attrition;
-    europe_tick_market_prices(&tick, NULL, NULL);
+    europe_tick_market_prices(&tick, NULL, NULL, 0, 0u);
     if (tick.trade_nr[tg] != (int16_t)(nr1 + attr)) {
       fprintf(
         stderr,
@@ -1005,7 +1005,7 @@ int main(void) {
     tick.cargo[tg].attrition = 0;
     tick.trade_nr[tg] = 100; /* ≥ fall*100 → bid−1 */
     tick.status[0] = '\0';
-    europe_tick_market_prices(&tick, NULL, NULL);
+    europe_tick_market_prices(&tick, NULL, NULL, 0, 0u);
     /* Real DOS wording, GAME.TXT @PRICEDOWN (COLONIZE/GAME.TXT:1687-1689):
        "The price of {cargo} in {port} has fallen to {bid}." */
     if (tick.cargo[tg].bid != 9 || strstr(tick.status, "has fallen to 9") == NULL ||
@@ -1040,11 +1040,16 @@ int main(void) {
     ColonizeCol1Save col1;
     memset(&col1, 0, sizeof(col1));
     col1.head.price_group_state[COLONIZE_CARGO_FOOD] = 10;
+    /* DOS 0058 phase 1 (2026-08-28, golden_market_prices01): ledger = pool +
+     * Σ max(0, nation tons2); decay = ledger >> 7 in nation 0's pass. Colony
+     * stock is not part of it. 10 + 246 = 256 >> 7 = 2. */
+    col1.nation[0].trade.tons2[COLONIZE_CARGO_FOOD] = 246;
+    col1.nation[1].trade.tons2[COLONIZE_CARGO_FOOD] = -500; /* negative ledgers clamp to 0 */
 
     EuropeScreen tick;
     memset(&tick, 0, sizeof(tick));
     tick.cargo_count = COLONIZE_CARGO_COUNT;
-    europe_tick_market_prices(&tick, &col1, &pool);
+    europe_tick_market_prices(&tick, &col1, &pool, 0, 0u);
     if (col1.head.price_group_state[COLONIZE_CARGO_FOOD] != 8) {
       fprintf(
         stderr,
@@ -1091,7 +1096,7 @@ int main(void) {
     /* Sugar bid 50 >> ratio → +mid (4, no *100). */
     tick.cargo[COLONIZE_CARGO_SUGAR].bid = 50;
 
-    europe_tick_market_prices(&tick, &col1, NULL);
+    europe_tick_market_prices(&tick, &col1, NULL, 0, 0u);
     /* Phase2 ±400 then phase4 rise/fall absorbs ±(mid*100) into bid. */
     if (tick.cargo[COLONIZE_CARGO_RUM].bid != 19 || tick.trade_nr[COLONIZE_CARGO_RUM] != 0) {
       fprintf(

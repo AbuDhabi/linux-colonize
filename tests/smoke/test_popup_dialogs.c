@@ -1,3 +1,4 @@
+#include "core/ai_popup.h"
 #include "core/assets.h"
 #include "core/howmuch_dialog.h"
 #include "core/name_entry_dialog.h"
@@ -161,6 +162,38 @@ int main(void) {
       return fail("DECLARE Never choice must keep 'God save the King'");
     }
     assets_msg_free(&game_txt);
+  }
+
+  /* P11.3: GAME.TXT @width rides popup_msg_fill's side-channel into the next
+   * ai_popup enqueue (RECRUITCHOOSE is one of the 99 @width=220 sections;
+   * a fallback-only fill leaves the default). */
+  {
+    ColonizeMsgCatalog wtxt;
+    assets_msg_init(&wtxt);
+    if (assets_msg_load_file(&wtxt, "COLONIZE/GAME.TXT")) {
+      const ColonizeMsgSection* rc = assets_msg_find(&wtxt, "RECRUITCHOOSE");
+      if (!rc || popup_msg_section_width(rc) != 220) {
+        return fail("RECRUITCHOOSE @width should parse as 220");
+      }
+      char body[256];
+      PopupMsgTokens wtok;
+      memset(&wtok, 0, sizeof(wtok));
+      wtok.string0 = "Amsterdam";
+      popup_msg_fill(&wtxt, "RECRUITCHOOSE", &wtok, "fb", body, sizeof(body));
+      AiPopupState wst;
+      ai_popup_init(&wst);
+      if (!ai_popup_enqueue_ok(&wst, AI_POPUP_TAG_INFO, NULL, body) || wst.queue[0].width != 220) {
+        return fail("enqueue after fill should carry @width=220");
+      }
+      if (!ai_popup_enqueue_ok(&wst, AI_POPUP_TAG_INFO, NULL, "plain") || wst.queue[1].width != 0) {
+        return fail("second enqueue without a fill should take the default width");
+      }
+      popup_msg_fill(&wtxt, "NOSUCHSECTION_XYZ", &wtok, "fb", body, sizeof(body));
+      if (popup_msg_take_pending_width() != 0) {
+        return fail("fallback fill must clear the pending width");
+      }
+      assets_msg_free(&wtxt);
+    }
   }
 
   printf("smoke_popup_dialogs ok\n");

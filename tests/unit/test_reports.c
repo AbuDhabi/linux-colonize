@@ -234,6 +234,26 @@ int main(void) {
     return 1;
   }
 
+  /* Body words resolve live from LABELS.TXT @MISC (P2.2 residue, 2026-08-28):
+   * #86 "Rebels" / #87 "Tories" (Foreign Affairs), #56 labor zoom hint,
+   * #112 congress header, #121 score total; out-of-range → fallback. */
+  if (strcmp(reports_misc_display_word(86, "x"), "Rebels") != 0 ||
+      strcmp(reports_misc_display_word(87, "x"), "Tories") != 0 ||
+      strcmp(reports_misc_display_word(56, "x"), "(Click on item to zoom)") != 0 ||
+      strcmp(reports_misc_display_word(112, "x"), "Next Continental Congress Session") != 0 ||
+      strcmp(reports_misc_display_word(121, "x"), "Total Score") != 0 ||
+      strcmp(reports_misc_display_word(9999, "fb"), "fb") != 0) {
+    fprintf(
+      stderr,
+      "misc words: 86='%s' 87='%s' 56='%s'\n",
+      reports_misc_display_word(86, "x"),
+      reports_misc_display_word(87, "x"),
+      reports_misc_display_word(56, "x")
+    );
+    reports_free(&view);
+    return 1;
+  }
+
   uint8_t pixels[320 * 200];
   ColonizeFramebuffer8 fb = {.width = 320, .height = 200, .pixels = pixels};
   reports_render(
@@ -563,6 +583,11 @@ int main(void) {
       "level 0 after reports_free want 'Semi-Nomadic' got '%s'\n",
       reports_tribe_level_display_name(0)
     );
+    return 1;
+  }
+
+  if (strcmp(reports_misc_display_word(86, "Rebels"), "Rebels") != 0) {
+    fprintf(stderr, "misc word 86 after reports_free should fall back to 'Rebels'\n");
     return 1;
   }
 

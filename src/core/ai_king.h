@@ -12,6 +12,122 @@
  * Replaces turn_run_king_stub body.
  */
 
+
+/* King latch ids (storage: real 0x5382 bits for WoI / REF-present; the
+ * human nation's DOS-dead unknown23_pad[] for the port-only latches —
+ * see ai_king_latch_get in ai_king.c). */
+#define AI_KING_WOI_BYTE 0
+#define AI_KING_REF_PRESENT_BYTE 1
+#define AI_KING_BOYCOTT_BYTE 2
+#define AI_KING_MERC_HIRED_BYTE 3
+/* Endgame latch: 0 none, 1 revolution won, 2 revolution lost (was rename-reserved). */
+#define AI_KING_ENDGAME_BYTE 4
+#define AI_KING_ENDGAME_NONE 0
+#define AI_KING_ENDGAME_WON 1
+#define AI_KING_ENDGAME_LOST 2
+#define AI_KING_ENDGAME_PEACE_1800 3
+#define AI_KING_CONGRESS_BYTE 5
+/* Mid-war @WARN1 once-per-episode (ports==1); clear when ports>1. */
+#define AI_KING_WARN1_BYTE 6
+/* Mid-war @WARN2 once-per-episode (colonies==1); clear when colonies>1. */
+#define AI_KING_WARN2_BYTE 7
+/* Peacetime Spring 1790 @SOONRETIRING0 once. */
+#define AI_KING_SOONRETIRE0_BYTE 8
+/* Wartime 1840 @SOONRETIRING1 once. */
+#define AI_KING_SOONRETIRE1_BYTE 9
+/* Mid-war @WARN3 once-per-episode (crown pop share 50–89%); clear when <50%. */
+#define AI_KING_WARN3_BYTE 10
+
+
+/*
+ * King latch storage (2026-08-28). These used to live in head.unknown46[],
+ * which is really DOS price_group_state[16] (the Europe market pool words,
+ * rewritten every EOT by europe_tick_market_prices) — on any real DOS save
+ * byte 4 held live market data, so the endgame latch read as "already
+ * ended" and every WoI end-check bailed. WoI / REF-present use their real
+ * 0x5382 bits; the port-only latches pack into the human nation's
+ * unknown23_pad[3] (nation+0x1b..+0x1d), confirmed never touched by DOS.
+ */
+static inline uint8_t* ai_king_latch_pad(ColonizeCol1Save* col1) {
+  int n = (int)col1->head.human_player;
+  if (n < 0 || n >= (int)COLONIZE_COL1_NATION_COUNT) {
+    n = 0;
+  }
+  return col1->nation[n].unknown23_pad;
+}
+
+static inline int ai_king_latch_bit(int which) {
+  switch (which) {
+    case AI_KING_BOYCOTT_BYTE: return 0x01;
+    case AI_KING_MERC_HIRED_BYTE: return 0x02;
+    case AI_KING_CONGRESS_BYTE: return 0x04;
+    case AI_KING_WARN1_BYTE: return 0x08;
+    case AI_KING_WARN2_BYTE: return 0x10;
+    case AI_KING_WARN3_BYTE: return 0x20;
+    case AI_KING_SOONRETIRE0_BYTE: return 0x40;
+    case AI_KING_SOONRETIRE1_BYTE: return 0x80;
+    default: return 0;
+  }
+}
+
+static inline int ai_king_latch_get(const ColonizeCol1Save* col1, int which) {
+  if (!col1) {
+    return 0;
+  }
+  if (which == AI_KING_WOI_BYTE) {
+    return col1->head.game_options.woi ? 1 : 0;
+  }
+  if (which == AI_KING_REF_PRESENT_BYTE) {
+    return col1->head.game_options.ref_present ? 1 : 0;
+  }
+  const uint8_t* pad = ai_king_latch_pad((ColonizeCol1Save*)col1);
+  if (which == AI_KING_ENDGAME_BYTE) {
+    return pad[0] & 0x03;
+  }
+  const int bit = ai_king_latch_bit(which);
+  return (bit && (pad[1] & bit)) ? 1 : 0;
+}
+
+static inline void ai_king_latch_set(ColonizeCol1Save* col1, int which, int value) {
+  if (!col1) {
+    return;
+  }
+  if (which == AI_KING_WOI_BYTE) {
+    col1->head.game_options.woi = value ? 1 : 0;
+    return;
+  }
+  if (which == AI_KING_REF_PRESENT_BYTE) {
+    col1->head.game_options.ref_present = value ? 1 : 0;
+    return;
+  }
+  uint8_t* pad = ai_king_latch_pad(col1);
+  if (which == AI_KING_ENDGAME_BYTE) {
+    pad[0] = (uint8_t)((pad[0] & ~0x03) | (value & 0x03));
+    return;
+  }
+  const int bit = ai_king_latch_bit(which);
+  if (!bit) {
+    return;
+  }
+  if (value) {
+    pad[1] |= (uint8_t)bit;
+  } else {
+    pad[1] &= (uint8_t)~bit;
+  }
+}
+
+/* Clear WoI / REF-present / every port latch (tests, new game). */
+static inline void ai_king_latch_clear(ColonizeCol1Save* col1) {
+  if (!col1) {
+    return;
+  }
+  col1->head.game_options.woi = 0;
+  col1->head.game_options.ref_present = 0;
+  uint8_t* pad = ai_king_latch_pad(col1);
+  pad[0] = 0;
+  pad[1] = 0;
+}
+
 void ai_king_nation_turn(ColonizeTurnContext* ctx);
 
 /*

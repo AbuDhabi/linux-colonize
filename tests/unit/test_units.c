@@ -5819,6 +5819,66 @@ int main(void) {
     fprintf(stderr, "unit_units: colony-tile garrison visibility ok\n");
   }
 
+  /*
+   * P7.2 Fountain of Youth = 8× FUN_38fd_4884(1,0): a 3-way @RECRUIT CHOICE
+   * per pick, free passage, no recruit-count bump, chained until 8 landed.
+   */
+  {
+    EuropeScreen feu;
+    char eerr[256];
+    if (!europe_load(&feu, "COLONIZE", eerr, sizeof(eerr))) {
+      fprintf(stderr, "fountain: europe_load failed: %s\n", eerr);
+      return 1;
+    }
+    feu.gold = 123;
+    feu.dock_count = 0;
+    const uint8_t rc0 = feu.recruit_count;
+    AiPopupState fpops;
+    ai_popup_init(&fpops);
+    units_fountain_youth_enqueue_pick(&feu, &fpops, NULL, 0, 8);
+    int picks = 0;
+    for (int guard = 0; guard < 20 && ai_popup_busy(&fpops); ++guard) {
+      if (!fpops.open && !ai_popup_try_present_next(&fpops)) {
+        break;
+      }
+      if (fpops.current.choice_count != 3 || fpops.current.tag != AI_POPUP_TAG_FOUNTAIN_YOUTH) {
+        fprintf(stderr, "fountain: pick %d want 3-way FOUNTAIN_YOUTH choice\n", picks);
+        return 1;
+      }
+      ColonizeInputState in = {0};
+      in.last_key = COLONIZE_KEY_DOWN; /* pick slot 1 each time */
+      ai_popup_handle_input(&fpops, &in);
+      in.last_key = COLONIZE_KEY_ENTER;
+      ai_popup_handle_input(&fpops, &in);
+      if (!fpops.has_result) {
+        fprintf(stderr, "fountain: no result after Enter\n");
+        return 1;
+      }
+      if (!units_fountain_youth_apply_popup(&feu, &fpops, NULL)) {
+        fprintf(stderr, "fountain: apply rejected\n");
+        return 1;
+      }
+      ai_popup_consume_result(&fpops);
+      picks++;
+    }
+    if (picks != 8 || feu.dock_count != 8 || feu.gold != 123 || feu.recruit_count != rc0 ||
+        ai_popup_busy(&fpops)) {
+      fprintf(
+        stderr, "fountain: picks=%d dock=%d gold=%d rc=%u/%u busy=%d\n", picks, feu.dock_count,
+        feu.gold, feu.recruit_count, rc0, ai_popup_busy(&fpops)
+      );
+      return 1;
+    }
+    for (int i = 0; i < EUROPE_POOL_SIZE; ++i) {
+      if (!feu.pool[i].filled) {
+        fprintf(stderr, "fountain: pool slot %d not refilled\n", i);
+        return 1;
+      }
+    }
+    europe_free(&feu);
+    fprintf(stderr, "fountain of youth 8x free recruit pick ok\n");
+  }
+
   fprintf(
     stderr,
     "units tests ok (types=%d pioneer@%d,%d caravel_icon=%d edge=%d,%d)\n",

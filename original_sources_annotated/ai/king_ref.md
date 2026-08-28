@@ -47,7 +47,7 @@ EOT → 291f_0a66 → 43f7_2424  (SoL refresh + dispatch)
 | DOS | Linux stand-in |
 |-----|----------------|
 | `0x5382` bit0 war | `head.game_options.woi` (mapped); `unknown46[0]` legacy sync only |
-| `0x5382` bit1 REF present | `head.unknown46[1]` (thin) |
+| `0x5382` bit1 REF present | `head.game_options.ref_present` (real bit; `ai_king_latch_get(AI_KING_REF_PRESENT_BYTE)`) |
 | Tax boycott flag | `head.unknown46[2]` — presentation/Fugger-sync only since 2026-08-19 (real `38fd_5be8`/`38fd_3dc8` audience no longer gated by it; see "Tax audience" section below) |
 | `head.unknown46[3]` | unused — removed with the old invented once-per-war merc gate; `2022` rebel troop-gift is now a real recurring per-turn roll, no latch |
 | Independence rename | `player[human].country_name` → `"United Colonies"` (+ `europe.nation_name` if present); `unknown46[4]` endgame latch (0 none / 1 won / 2 lost / peace-1800) |
@@ -533,6 +533,54 @@ extras fall through to hunt. Adjacent uncaptured colony or human unit still
 hunts. Cite: Colonization.pdf Defending a Colony ("fortify soldiers,
 dragoons…"); king_ref thin multi-garrison (cap 2). Multi-garrison chrome
 **PARKED**.
+
+### Headless WoI run — 2026-08-28 (five fixes + latch relocation)
+
+Scratch driver (`woi_sim`, same harness as `golden_woi_ref01`): real
+`COLONY00-dutch2-t0.SAV`, human colony SoL forced to 100, menu declare, 40×
+`turn_end` with a passive human. **Before:** zero attacks, zero captures.
+**After:** Regulars land t1, first capture t2, all 7 colonies fall by t24,
+`@LOSING` endgame latch set. The defects, each real against shipped assets
+and each invisible to `unit_ai_king`'s synthetic NAMES fixture:
+
+1. `units_find_type` was exact-match; `0982`/`06a6`/`10f0` spawn helpers ask
+   for "Regular"/"Dragoon"/"Soldier"/"Scout"/"Cont. Cav" while `NAMES.TXT`
+   `@UNIT` ships "Regulars"/"Dragoons"/"Soldiers"/"Scouts"/"Cont. Cav." — only
+   Artillery and Man-O-War ever matched, so the land pools never drained.
+   Fix in `units_find_type` (accept a trailing `s`/`.` either side).
+2. `1a26`'s fold sets the crown slot `control = 2`; `turn_euro_ai_should_run`
+   then excluded it, so REF units never got a moves refresh (`mp=0` forever).
+3. With the refresh restored, `ai_euro_nation_turn` ran on the crown *before*
+   the king slot and spent every Regular's moves. DOS `2424` dispatches the
+   crown to `2022` instead of the ordinary Euro turn — `turn_euro_nation_is_ref`
+   (turn.c) now refreshes the crown but skips the Euro AI for it during WoI.
+4. `war_act`'s hunt step used `units_id_at` on the next tile, treating an own
+   stack (the REF column itself, a crown wagon train visiting the Dutch port,
+   the REF's own artillery on a besieged colony tile) as a blocker → whole
+   columns frozen. Now `units_foreign_unit_at` + a greedy detour over the
+   neighbours that do not lose ground toward `goto`.
+5. `ai_king_try_capture_at` required *no* human unit on the tile;
+   `units_try_move` lets the winner in beside a demoted loser, so a colonist
+   left on the tile held the port forever. Now only armed/mounted/attack>0
+   units defend (`ai_king_human_defender_at`), a unit standing on the target
+   fights the remaining defender from the tile, and civilians on the tile
+   change hands with the colony (DOS conquest). Artillery and ships still
+   cannot capture.
+
+**Latch relocation (real-save bug):** every `head.unknown46[N]` king byte sat
+inside DOS `price_group_state[16]` (0x53ea, rewritten each EOT by the market
+tick). On any real DOS save `unknown46[4]` held a live market byte, so
+`ai_king_check_revolution_end` returned at its "already resolved" gate and
+F10 read a random `independence_achieved`. Storage now: WoI / REF-present on
+their real `0x5382` bits; endgame + the eight port-only once-latches packed
+into the human nation's DOS-dead `unknown23_pad[0..1]` (see the
+`ai_king_latch_*` inlines in `ai_king.h`). `unknown46[]` is untouched by the
+king code from here on (`golden_woi_ref01` asserts the market words survive a
+declare byte-for-byte).
+
+Still fandom-shaped here, not byte-traced: the hunt target scoring, the
+greedy detour (DOS crown units go through the `4d56` unit-act dispatcher),
+`backup_force` reinforcement cadence and re-embark.
 
 ## Linux `ai_king_nation_turn` checklist
 

@@ -150,6 +150,16 @@ void colony_preview_compute(
     }
   }
 
+  /* FUN_364b_0688 Phase B: AI Euro food += difficulty>>1 — same subsidy
+   * turn.c applies before consumption (golden_colony_preview01 caught every
+   * AI colony's preview one food short of the actual tick without it). */
+  if (col1 && colony->nation_id >= 0 && colony->nation_id < (int)COLONIZE_COL1_NATION_COUNT &&
+      col1->player[colony->nation_id].control != 0) {
+    int diff = (int)col1->head.difficulty;
+    diff = diff < 0 ? 0 : (diff > 4 ? 4 : diff);
+    out->goods[COLONIZE_CARGO_FOOD] += diff >> 1;
+  }
+
   out->food_produced = out->goods[COLONIZE_CARGO_FOOD];
   if (out->food_fish > out->food_produced) {
     out->food_fish = out->food_produced;
@@ -245,7 +255,12 @@ void colony_preview_compute(
      * delivered yet, and 0 lumber on hand means 0 hammers, not a free
      * hammers_add. */
     int hammers_add = colony_prod_colony_hammers(pool, colony, sol_b, NULL);
-    if (hammers_add > 0) {
+    /* Spring-only, same gate as turn.c (real-DOS Autumn save: every colony's
+     * hammers byte-for-byte unchanged) — golden_colony_preview01 on the
+     * Autumn fixture showed the preview promising +16 hammers that never
+     * arrive. Whether DOS's own Production tab hides them in Autumn is
+     * unconfirmed; matching the tick is the P4.10 bar. */
+    if (hammers_add > 0 && (!col1 || col1->head.autumn == 0)) {
       int hammers = hammers_add;
       if (hammers > colony->stock[COLONIZE_CARGO_LUMBER]) {
         hammers = colony->stock[COLONIZE_CARGO_LUMBER];

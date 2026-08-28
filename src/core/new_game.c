@@ -327,14 +327,15 @@ static void new_game_load_choice_section(NewGameWizard* ng, const char* section_
       }
     }
   } else {
-    const char* content[COLONIZE_MSG_MAX_LINES];
+    enum { NEW_GAME_CONTENT_MAX = 64 };
+    const char* content[NEW_GAME_CONTENT_MAX];
     int content_count = 0;
     for (int i = 0; i < section->line_count; ++i) {
       const char* line = section->lines[i];
       if (!line || line[0] == '\0' || new_game_is_directive(line) || new_game_line_is_filler(line)) {
         continue;
       }
-      if (content_count < COLONIZE_MSG_MAX_LINES) {
+      if (content_count < NEW_GAME_CONTENT_MAX) {
         content[content_count++] = line;
       }
     }

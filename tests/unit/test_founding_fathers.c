@@ -8,6 +8,7 @@
 #include "core/europe.h"
 #include "core/founding_fathers.h"
 #include "core/map.h"
+#include "core/ai_king.h"
 #include "core/turn.h"
 #include "core/units.h"
 
@@ -174,7 +175,7 @@ int main(void) {
   nat->liberty_bells_total = 161;
   nat->next_founding_father = FF_JAKOB_FUGGER;
   nat->boycott_bitmap = (uint16_t)((1u << 1) | (1u << 4) | (1u << 2));
-  col1.head.unknown46[2] = 1;
+  ai_king_latch_set(&col1, 2, 1);
   const uint32_t gold_before = nat->gold;
   ff_tick(&ctx);
   if (col1.head.founding_father[1] != 0 || nat->founding_father_count != 2) {
@@ -186,7 +187,7 @@ int main(void) {
   if (nat->boycott_bitmap != 0) {
     return fail("Fugger did not clear all boycott bits");
   }
-  if (col1.head.unknown46[2] != 0) {
+  if (ai_king_latch_get(&col1, 2) != 0) {
     return fail("Fugger did not clear human unknown46[2] king refuse");
   }
 
@@ -952,7 +953,7 @@ int main(void) {
     ai->liberty_bells_total = 193;
     ai->next_founding_father = 1;
     ai->boycott_bitmap = (uint16_t)((1u << 1) | (1u << 4) | (1u << 7));
-    ai_col1.head.unknown46[2] = 1;
+    ai_king_latch_set(&ai_col1, 2, 1);
     const uint32_t ai_gold_before = ai->gold;
     ff_tick(&ai_ctx);
     if (ai_col1.head.founding_father[1] != 1 || ai->founding_father_count != 2) {
@@ -964,7 +965,7 @@ int main(void) {
     if (ai->boycott_bitmap != 0) {
       return fail("AI Fugger did not clear all boycott bits");
     }
-    if (ai_col1.head.unknown46[2] != 1) {
+    if (ai_king_latch_get(&ai_col1, 2) != 1) {
       return fail("AI Fugger cleared human unknown46[2]");
     }
   }

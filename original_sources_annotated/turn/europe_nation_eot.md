@@ -91,12 +91,13 @@ trustworthy source.
 
 | DOS | Linux |
 |-----|-------|
-| EOT all-cargo | `europe_tick_market_prices` | phases 2–3 pressure **Done** thin + attrition |
-| Post buy/sell | `europe_apply_volume_price` |
-| Colony → `0x53ea` half | **Done** thin — `europe_tick_market_prices(eu, col1, colonies)` decays `head.price_group_state[c]` by colony stock sum `>> 7` |
-| Phase 2 cargos 9..12 | **Done** thin — `trade_nr += sign * mid * 100` |
-| Phase 3 cargos 1..4 | **Done** thin — `trade_nr += mid * sign`; fur year &lt;1700/&lt;1600 |
-| Phase 4 rise/fall status | **Done** thin (2026-08-24: real GAME.TXT `@PRICEUP`/`@PRICEDOWN` wording — `"The price of {cargo} in {port_city} has risen/fallen to {bid}."`, `COLONIZE/GAME.TXT:1683-1689` — was a generic "Market price rose/fell." placeholder); modal CHOICE dialog chrome still PARKED |
+| EOT all-cargo | `europe_tick_market_prices` | **Done, byte-exact vs 2 real DOS turn pairs (2026-08-28, `golden_market_prices01`)** |
+| Post buy/sell | `europe_apply_volume_price` (threshold shed fixed 2026-08-28; volume term itself still unvalidated) |
+| Phase 1 pool decay | **Done exact** — ledger `= price_group (signed) + Σ_n max(0, trade.tons2[n][c])` (`+0xfc` — the earlier "nation ledgers" were read as `tons`; wrong field), `price_group −= ledger >> 7` **only in nation 0's pass** (`0x9e12==0`, so never while nation 0 is withdrawn — the no-transports pair proves it); the colony-stock approximation is gone |
+| Phase 2 cargos 9..12 | **Done exact** — `trade_nr += sign * mid * 100` (confirmed real for the human pass) |
+| Phase 3 cargos 1..4 | **Done exact** — `trade_nr += mid * sign`; fur year &lt;1700/&lt;1600 |
+| Phase 4 attrition / rise / fall | **Done exact** — `nr += attrition` (×2 for `0x9e12==3` on odd post-increment turns); threshold sheds `rise*100`/`fall*100` unconditionally, only the bid ±1 is gated by `[low,high]` (Linux used to gate both); `@PRICEUP`/`@PRICEDOWN` now real OK popups via `EuropeScreen.price_event_*` → `turn.c` FINISH |
+| Phase 4 AI-only arms | **Not ported** (AI records aren't ticked): `high += (diff−4)*2 + (turn−600)/100` for cargos ≥14, bid caps for Horses/Tools/Muskets `((diff−4)*−3>>1)+3`, per-nation `DS:-0x7b44` table `= bid − 1` (this is the Custom House sale price — P4.4) |
 
 ---
 

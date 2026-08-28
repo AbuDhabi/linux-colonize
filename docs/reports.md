@@ -36,11 +36,23 @@ test. There is no DOS mechanic for clicking a report row to jump to the
 colony/map screen or center a unit — Colony/Naval/Foreign/Economic/Indian
 are read-only paginated tables in the decompile.
 
-Open gaps: column headers/body strings in `reports.c` are hardcoded English
-strings matched by eye against goldens, not resolved live from
-`LABELS.TXT`/`GAME.TXT` (unlike popup bodies, `popup_string_resolver.md`) —
-content is correct today but not string-table-driven. **Screen titles are
-the exception, fixed 2026-08-26**: `reports_title` now resolves live from
+Open gaps (narrowed 2026-08-28): every column header / body word that has a
+`LABELS.TXT` `@MISC` line now resolves live (`reports_misc_word` /
+`reports_misc_display_word`, same fallback shape as the titles) — Congress
+header/sentiment/Expeditionary Force/Founding Fathers lines, Labor's zoom
+hint and Off/On Mapboard/In Colonies breakdown, Foreign's "Rebels"/"Tories",
+Indian's "Muskets" (NAMES.TXT `@CARGO`), Score's Gold/Citizens/Continental
+Congress/Rebel Sentiment/Total Score, and the shared OK button. Still
+hardcoded, each with no shipped string: "Villages" (Indian), "(no Col1 save
+loaded)"/"No tribes contacted yet." (port-only states), Hall of Fame's
+"Nation" + Esc hint. **Real bug fixed the same day:** `ColonizeMsgSection`
+capped every section at 64 lines (`COLONIZE_MSG_MAX_LINES`), while `@MISC`
+is 223 lines — every `@MISC` index ≥ 64 (#101/#102 War/Peace, #190,
+#192–#198 HoF, #203/#204 Bid/Ask, #206–#209 Economic/Colony page
+subtitles) had silently been taking the static fallback since it was
+"fixed"; the fallback text happened to match, so no golden moved. Lines are
+now heap-grown per section (`assets.c`). **Screen titles were the first
+strings fixed, 2026-08-26**: `reports_title` now resolves live from
 `LABELS.TXT` `@MISC` (all 9 titles are real shipped strings there — an
 earlier pass's "not shipped as text anywhere" conclusion was a spelling
 mismatch in its own search, not a real absence; see `port_plan.md` P2.2).
@@ -115,8 +127,10 @@ unconfirmed against DOS. Congress page 2's FF portrait slot table has only
   of leaving the report; page 2 closes on any click.
 - Click targets: none inside a page; page-advance only.
 - Strings: title "CONTINENTAL CONGRESS ACTIVITIES" resolves live
-  (`reports_title`); body lines hardcoded
-  English, need FONTTINY not FONTSMAL.
+  (`reports_title`); "Next Continental Congress Session" (#112),
+  "Rebel"/"Tory"/"Sentiment" (#69/#70/#71), "Expeditionary Force" (#85)
+  and "Founding Fathers" (#89) resolve live from `@MISC` (2026-08-28),
+  composed with the golden's ":"/spacing; need FONTTINY not FONTSMAL.
 - Port status: Done (golden `continental_p1.png`/`continental_p2.png`,
   2026-08-25 per roadmap.md) — `reports_render_congress_page1`/`_page2`
   (`reports.c:970`/`1141`).
@@ -146,7 +160,9 @@ unconfirmed against DOS. Congress page 2's FF portrait slot table has only
   `game_loop.c`). Esc/Enter/OK on the detail view returns to the grid.
 - Strings: title "LABOR ADVISER REPORT" resolves live (`reports_title`);
   job names (live from `NAMES.TXT @JOB`) via
-  `reports_job_name()`; "(Click on item to zoom)" hardcoded, matches golden.
+  `reports_job_name()`; "(Click on item to zoom)" (`@MISC` #56) and the
+  detail page's "Off Mapboard (Europe)"/"On Mapboard"/"In Colonies"
+  (#53/#54/#55) resolve live (2026-08-28).
 - Port status: Done (golden `labor.png`/`labor_detail.png`) —
   `reports_render_labor_grid`/`_detail` (`reports.c:1340`/`1392`). Real gap
   found and fixed while porting: `UNITS_JOB_NONE` (28) must fold into Free
@@ -272,9 +288,10 @@ unconfirmed against DOS. Congress page 2's FF portrait slot table has only
 - Click targets: none.
 - Strings: title "FOREIGN AFFAIRS REPORT" (drawn ~3px higher than the
   shared default — a real REPORT8.PIK-specific override, resolves live
-  via `reports_title`); "Rebels:"/"Tories:" hardcoded (no bare-word match
-  in `LABELS.TXT` — only "Rebel"/"Tory" singular/adjective forms exist,
-  wrong grammatical shape for these labels). "Peace"/"War" **fixed
+  via `reports_title`); "Rebels"/"Tories" **fixed 2026-08-28** — resolve
+  live from `@MISC` #86/#87 (the earlier "only singular forms exist" note
+  was wrong: the plurals are there, past the 64-line cap that hid them).
+  "Peace"/"War" **fixed
   2026-08-27**, now resolve live (`@MISC` #102/#101). "(Withdrawn from New
   World)" **fixed 2026-08-26** — resolves live from `LABELS.TXT` `@MISC`
   index 190 (was cited here as raw line "#205", same line-number-vs-index
@@ -307,7 +324,9 @@ unconfirmed against DOS. Congress page 2's FF portrait slot table has only
 - Click targets: none.
 - Strings: title "INDIAN ADVISER REPORT"; tribe names from NAMES.TXT
   @TRIBES col 0 (plural, not the singular/adjective col 1 used elsewhere);
-  tribe-level words hardcoded.
+  tribe-level words live from `@LEVELS` (`reports_tribe_level`, 2026-08-26);
+  "Missions"/"Horse Herds" from `@MISC`, "Muskets" from `@CARGO`
+  (2026-08-28); "Villages" stays hardcoded (no bare-word string shipped).
 - Port status: Done (golden `indian.png`) — `reports_render_indian`
   (`reports.c:2874`). The muskets x50 formula and mission-nation filter
   were both real, previously-undocumented DOS behavior found only by
@@ -348,6 +367,8 @@ unconfirmed against DOS. Congress page 2's FF portrait slot table has only
   report); dismisses on click anywhere, same as Congress page 2.
 - Strings: title/subtitle/Total Score use ink index 149, everything else
   index 68 (WOODPANL.PIK-specific, not the usual report-plate 14/15/97).
+  "Gold"/"Citizens"/"Continental Congress"/"Rebel Sentiment"/"Total Score"
+  resolve live from `@MISC` #59/#115/#134/#69+#71/#121 (2026-08-28).
 - Port status: Done (golden `score.png`) — `reports_render_score`/
   `reports_score_collect_citizen_jobs`/`reports_score_draw_citizen_icons`
   (`reports.c:3335`/`3071`/`3294`). Golden's citizen breakdown (142

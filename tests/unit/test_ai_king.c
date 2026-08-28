@@ -171,7 +171,7 @@ int main(void) {
   ColonizeCol1Save col1;
   col1_save_init(&col1);
   col1.head.difficulty = 0;
-  memset(col1.head.unknown46, 0, sizeof(col1.head.unknown46));
+  ai_king_latch_clear(&col1);
   memset(col1.head.expeditionary_force, 0, sizeof(col1.head.expeditionary_force));
   memset(col1.head.backup_force, 0, sizeof(col1.head.backup_force));
   for (int i = 0; i < 4; ++i) {
@@ -318,8 +318,8 @@ int main(void) {
   col1.colony[0].rebel_dividend = 40;
   col1.colony[0].rebel_divisor = 100;
   col1.head.game_options.woi = 0;
-  col1.head.unknown46[0] = 0;
-  col1.head.unknown46[5] = 0;
+  ai_king_latch_set(&col1, 0, 0);
+  ai_king_latch_set(&col1, 5, 0);
   {
     /* Off-interval turn: no audience at all (interval=22 @ diff0,
      * year<=1600 baked into ai_king_audience_roll; 43 % 22 != 0). */
@@ -351,8 +351,8 @@ int main(void) {
       return fail("tax_rate>85 should skip the audience roll entirely");
     }
     col1.head.game_options.woi = 0;
-    col1.head.unknown46[0] = 0;
-    col1.head.unknown46[5] = 0;
+    ai_king_latch_set(&col1, 0, 0);
+    ai_king_latch_set(&col1, 5, 0);
   }
   {
     /* Cut branch (score<100): rebel_sentiment=0, tax=50, SoL=0, turn=44,
@@ -485,8 +485,8 @@ int main(void) {
      */
     turn = 44;
     col1.head.game_options.woi = 0;
-    col1.head.unknown46[0] = 0;
-    col1.head.unknown46[5] = 0;
+    ai_king_latch_set(&col1, 0, 0);
+    ai_king_latch_set(&col1, 5, 0);
     col1.head.rebel_sentiment_report = 101;
     col1.nation[0].tax_rate = 20;
     europe.tax_percent = 20;
@@ -670,7 +670,7 @@ int main(void) {
   col1.colony[0].rebel_dividend = 60;
   col1.colony[0].rebel_divisor = 100;
   col1.nation[0].boycott_bitmap = 0;
-  col1.head.unknown46[2] = 0;
+  ai_king_latch_set(&col1, 2, 0);
   col1.nation[0].liberty_bells_total = 0;
   col1.head.king_audience_streak = 0;
   memset(col1.head.expeditionary_force, 0, sizeof(col1.head.expeditionary_force));
@@ -701,10 +701,10 @@ int main(void) {
     );
     return fail("2424 tail must cache nation SoL in rebel_sentiment_report");
   }
-  if (col1.head.unknown46[0] != 0) {
+  if (ai_king_latch_get(&col1, 0) != 0) {
     return fail("SoL 45 should not declare WoI");
   }
-  if (col1.head.unknown46[5] != 0) {
+  if (ai_king_latch_get(&col1, 5) != 0) {
     return fail("SoL 45 should not set congress confirm unknown46[5]");
   }
   if (!strstr(status, "Sons of Liberty") || !strstr(status, "45")) {
@@ -712,7 +712,7 @@ int main(void) {
     return fail("SoL 40-49 should set restless status line");
   }
   /* unknown46 consistency: restless chrome must not set WoI or congress. */
-  if (col1.head.unknown46[0] != 0 || col1.head.unknown46[5] != 0) {
+  if (ai_king_latch_get(&col1, 0) != 0 || ai_king_latch_get(&col1, 5) != 0) {
     return fail("restless SoL chrome must leave WoI/congress unknown46 clear");
   }
   /* Optional tax mention when tax_rate already in refuse band (≥20). */
@@ -735,8 +735,8 @@ int main(void) {
     col1.nation[0].liberty_bells_total = 50;
     col1.nation[0].founding_father_count = 4;
     col1.head.sol_pct_last_notified = 3; /* previous decile 30-39% */
-    col1.head.unknown46[0] = 0;
-    col1.head.unknown46[5] = 0;
+    ai_king_latch_set(&col1, 0, 0);
+    ai_king_latch_set(&col1, 5, 0);
     status[0] = '\0';
     ai_king_nation_turn(&ctx);
     if (!strstr(status, "Congress notes")) {
@@ -765,10 +765,10 @@ int main(void) {
       }
     }
     ai_king_nation_turn(&ctx);
-    if (col1.head.unknown46[0] != 0) {
+    if (ai_king_latch_get(&col1, 0) != 0) {
       return fail("SoL 49 must not set WoI unknown46[0]");
     }
-    if (col1.head.unknown46[5] != 0) {
+    if (ai_king_latch_get(&col1, 5) != 0) {
       return fail("SoL 49 must not set congress unknown46[5]");
     }
   }
@@ -801,10 +801,10 @@ int main(void) {
   snprintf(europe.nation_name, sizeof(europe.nation_name), "England");
 
   ai_king_nation_turn(&ctx);
-  if (col1.head.unknown46[0] == 0) {
+  if (ai_king_latch_get(&col1, 0) == 0) {
     return fail("declare should set WoI flag unknown46[0]");
   }
-  if (col1.head.unknown46[5] == 0) {
+  if (ai_king_latch_get(&col1, 5) == 0) {
     return fail("declare should set congress confirm unknown46[5]");
   }
   /* Thin 160a: rename stand-in (letter cinematic PARKED). Status may be overwritten by 1528.
@@ -905,7 +905,7 @@ int main(void) {
     return fail("0982 wave should set thin 1528 @INVASION (or same-turn capture) status");
   }
   /* Pools seeded on declare then drained; still expect REF-present stand-in. */
-  if (col1.head.unknown46[1] == 0) {
+  if (ai_king_latch_get(&col1, 1) == 0) {
     return fail("wave should set REF-present unknown46[1]");
   }
   /* Declare should seed thin backup_force (10f0 stand-in). */
@@ -4355,10 +4355,10 @@ int main(void) {
      * picks cargo index 3 (Cotton).
      */
     turn = 44;
-    col1.head.unknown46[0] = 0;
+    ai_king_latch_set(&col1, 0, 0);
     col1.head.game_options.woi = 0;
-    col1.head.unknown46[2] = 0;
-    col1.head.unknown46[5] = 0;
+    ai_king_latch_set(&col1, 2, 0);
+    ai_king_latch_set(&col1, 5, 0);
     col1.head.rebel_sentiment_report = 100;
     col1.nation[0].tax_rate = 10;
     europe.tax_percent = 10;
@@ -4507,9 +4507,9 @@ int main(void) {
     /* Keep GAME.TXT loaded for @DECLARE congress CHOICE (+ merc uses messages). */
 
     /* Congress CHOICE: gate met → enqueue @DECLARE, no WoI until Confirm. */
-    col1.head.unknown46[0] = 0;
+    ai_king_latch_set(&col1, 0, 0);
     col1.head.game_options.woi = 0;
-    col1.head.unknown46[5] = 0;
+    ai_king_latch_set(&col1, 5, 0);
     col1.colony[0].rebel_dividend = 60;
     col1.colony[0].rebel_divisor = 100;
     col1.nation[0].liberty_bells_total = 200;
@@ -4522,7 +4522,7 @@ int main(void) {
     /* Avoid another tax audience this beat: off tax interval. */
     year = 1537;
     ai_king_nation_turn(&ctx);
-    if (col1.head.unknown46[0] != 0) {
+    if (ai_king_latch_get(&col1, 0) != 0) {
       assets_msg_free(&game_txt);
       return fail("ai_popups congress must defer WoI until Confirm");
     }
@@ -4572,7 +4572,7 @@ int main(void) {
     pop.result_payload = 60;
     ai_king_apply_popup_result(&ctx, &pop);
     ai_popup_consume_result(&pop);
-    if (col1.head.unknown46[0] == 0 || col1.head.unknown46[5] == 0) {
+    if (ai_king_latch_get(&col1, 0) == 0 || ai_king_latch_get(&col1, 5) == 0) {
       assets_msg_free(&game_txt);
       return fail("apply Confirm should declare WoI + congress unknown46[5]");
     }
@@ -4812,7 +4812,7 @@ int main(void) {
      * WoI + REF empty + backup; merc flag already set so no Hire CHOICE spam.
      */
     {
-      col1.head.unknown46[0] = 1;
+      ai_king_latch_set(&col1, 0, 1);
       col1.head.game_options.woi = 1;
       memset(col1.head.expeditionary_force, 0, sizeof(col1.head.expeditionary_force));
       colonies.colonies[0].nation_id = 0;
@@ -4857,9 +4857,9 @@ int main(void) {
      * Force single-colony SoL (earlier 1eca block may leave colony_count=2).
      */
     {
-      col1.head.unknown46[0] = 0;
+      ai_king_latch_set(&col1, 0, 0);
       col1.head.game_options.woi = 0;
-      col1.head.unknown46[5] = 0;
+      ai_king_latch_set(&col1, 5, 0);
       col1.head.colony_count = 1;
       col1.colony[0].nation_id = 0;
       col1.colony[0].population = 4;
@@ -4874,7 +4874,7 @@ int main(void) {
         return fail("restless+ai_popups SoL setup want 45");
       }
       ai_king_nation_turn(&ctx);
-      if (col1.head.unknown46[0] != 0 || col1.head.unknown46[5] != 0) {
+      if (ai_king_latch_get(&col1, 0) != 0 || ai_king_latch_get(&col1, 5) != 0) {
         return fail("restless+ai_popups must leave WoI/congress clear");
       }
       if (!strstr(status, "Sons of Liberty") || !strstr(status, "45")) {
@@ -4900,11 +4900,11 @@ int main(void) {
   {
     ColonizeCol1Save end;
     col1_save_init(&end);
-    end.head.unknown46[0] = 1;
+    ai_king_latch_set(&end, 0, 1);
     end.head.game_options.woi = 1;
-    end.head.unknown46[1] = 1; /* REF already invading */
+    ai_king_latch_set(&end, 1, 1); /* REF already invading */
     end.head.game_options.ref_present = 1;
-    end.head.unknown46[4] = 0;
+    ai_king_latch_set(&end, 4, 0);
     end.head.year = 1785;
     end.player[0].control = 0;
     snprintf(end.player[0].name, sizeof(end.player[0].name), "Washington");
@@ -4961,9 +4961,9 @@ int main(void) {
     ectx.ai_popups = &pop;
 
     ai_king_nation_turn(&ectx);
-    if (end.head.unknown46[4] != 2) {
+    if (ai_king_latch_get(&end, 4) != 2) {
       fprintf(stderr, "unit_ai_king: rev-lose2 endgame=%d status='%s'\n",
-              end.head.unknown46[4], estatus);
+              ai_king_latch_get(&end, 4), estatus);
       assets_msg_free(&game_txt);
       free(emap.terrain);
       free(emap.layer2);
@@ -5008,11 +5008,11 @@ int main(void) {
   {
     ColonizeCol1Save end;
     col1_save_init(&end);
-    end.head.unknown46[0] = 1;
+    ai_king_latch_set(&end, 0, 1);
     end.head.game_options.woi = 1;
-    end.head.unknown46[1] = 1; /* REF already invading */
+    ai_king_latch_set(&end, 1, 1); /* REF already invading */
     end.head.game_options.ref_present = 1;
-    end.head.unknown46[4] = 0;
+    ai_king_latch_set(&end, 4, 0);
     end.head.year = 1785;
     end.player[0].control = 0;
     snprintf(end.player[0].name, sizeof(end.player[0].name), "Washington");
@@ -5078,9 +5078,9 @@ int main(void) {
     ectx.ai_popups = &pop;
 
     ai_king_nation_turn(&ectx);
-    if (end.head.unknown46[4] != 2) {
+    if (ai_king_latch_get(&end, 4) != 2) {
       fprintf(stderr, "unit_ai_king: rev-lose1 endgame=%d status='%s'\n",
-              end.head.unknown46[4], estatus);
+              ai_king_latch_get(&end, 4), estatus);
       assets_msg_free(&game_txt);
       free(emap.terrain);
       free(emap.layer2);
@@ -5126,13 +5126,13 @@ int main(void) {
   {
     ColonizeCol1Save end;
     col1_save_init(&end);
-    end.head.unknown46[0] = 1;
+    ai_king_latch_set(&end, 0, 1);
     end.head.game_options.woi = 1;
-    end.head.unknown46[1] = 1;
+    ai_king_latch_set(&end, 1, 1);
     end.head.game_options.ref_present = 1;
-    end.head.unknown46[4] = 0;
-    end.head.unknown46[6] = 0;
-    end.head.unknown46[7] = 0;
+    ai_king_latch_set(&end, 4, 0);
+    ai_king_latch_set(&end, 6, 0);
+    ai_king_latch_set(&end, 7, 0);
     end.head.year = 1600;
     end.player[0].control = 0;
     snprintf(end.player[0].name, sizeof(end.player[0].name), "Washington");
@@ -5212,23 +5212,23 @@ int main(void) {
     ectx.ai_popups = &pop;
 
     ai_king_nation_turn(&ectx);
-    if (end.head.unknown46[4] != 0) {
+    if (ai_king_latch_get(&end, 4) != 0) {
       fprintf(stderr, "unit_ai_king: warn1 endgame=%d status='%s'\n",
-              end.head.unknown46[4], estatus);
+              ai_king_latch_get(&end, 4), estatus);
       assets_msg_free(&game_txt);
       free(emap.terrain);
       free(emap.layer2);
       free(emap.layer3);
       return fail("warn1 must not latch endgame");
     }
-    if (end.head.unknown46[6] != 1) {
+    if (ai_king_latch_get(&end, 6) != 1) {
       assets_msg_free(&game_txt);
       free(emap.terrain);
       free(emap.layer2);
       free(emap.layer3);
       return fail("warn1 should set unknown46[6] episode latch");
     }
-    if (end.head.unknown46[7] != 1) {
+    if (ai_king_latch_get(&end, 7) != 1) {
       assets_msg_free(&game_txt);
       free(emap.terrain);
       free(emap.layer2);
@@ -5282,7 +5282,7 @@ int main(void) {
       const int q0 = pop.queue_count;
       estatus[0] = '\0';
       ai_king_nation_turn(&ectx);
-      if (end.head.unknown46[6] != 1 || end.head.unknown46[7] != 1) {
+      if (ai_king_latch_get(&end, 6) != 1 || ai_king_latch_get(&end, 7) != 1) {
         assets_msg_free(&game_txt);
         free(emap.terrain);
         free(emap.layer2);
@@ -5317,7 +5317,7 @@ int main(void) {
       cp.colony_count = 2;
       estatus[0] = '\0';
       ai_king_nation_turn(&ectx);
-      if (end.head.unknown46[6] != 0 || end.head.unknown46[7] != 0) {
+      if (ai_king_latch_get(&end, 6) != 0 || ai_king_latch_get(&end, 7) != 0) {
         assets_msg_free(&game_txt);
         free(emap.terrain);
         free(emap.layer2);
@@ -5329,7 +5329,7 @@ int main(void) {
       const int q1 = pop.queue_count;
       estatus[0] = '\0';
       ai_king_nation_turn(&ectx);
-      if (end.head.unknown46[6] != 1 || end.head.unknown46[7] != 1) {
+      if (ai_king_latch_get(&end, 6) != 1 || ai_king_latch_get(&end, 7) != 1) {
         assets_msg_free(&game_txt);
         free(emap.terrain);
         free(emap.layer2);
@@ -5371,12 +5371,12 @@ int main(void) {
   {
     ColonizeCol1Save end;
     col1_save_init(&end);
-    end.head.unknown46[0] = 1;
+    ai_king_latch_set(&end, 0, 1);
     end.head.game_options.woi = 1;
-    end.head.unknown46[1] = 1;
+    ai_king_latch_set(&end, 1, 1);
     end.head.game_options.ref_present = 1;
-    end.head.unknown46[4] = 0;
-    end.head.unknown46[10] = 0;
+    ai_king_latch_set(&end, 4, 0);
+    ai_king_latch_set(&end, 10, 0);
     end.head.year = 1600;
     end.player[0].control = 0;
     snprintf(end.player[0].name, sizeof(end.player[0].name), "Washington");
@@ -5471,14 +5471,14 @@ int main(void) {
     ectx.ai_popups = &pop;
 
     ai_king_nation_turn(&ectx);
-    if (end.head.unknown46[4] != 0) {
+    if (ai_king_latch_get(&end, 4) != 0) {
       assets_msg_free(&game_txt);
       free(emap.terrain);
       free(emap.layer2);
       free(emap.layer3);
       return fail("warn3 must not latch endgame");
     }
-    if (end.head.unknown46[10] != 1) {
+    if (ai_king_latch_get(&end, 10) != 1) {
       assets_msg_free(&game_txt);
       free(emap.terrain);
       free(emap.layer2);
@@ -5529,7 +5529,7 @@ int main(void) {
     cp.colonies[2].population = 10; /* 10/50 = 20% */
     estatus[0] = '\0';
     ai_king_nation_turn(&ectx);
-    if (end.head.unknown46[10] != 0) {
+    if (ai_king_latch_get(&end, 10) != 0) {
       assets_msg_free(&game_txt);
       free(emap.terrain);
       free(emap.layer2);
@@ -5540,7 +5540,7 @@ int main(void) {
     const int q1 = pop.queue_count;
     estatus[0] = '\0';
     ai_king_nation_turn(&ectx);
-    if (end.head.unknown46[10] != 1) {
+    if (ai_king_latch_get(&end, 10) != 1) {
       assets_msg_free(&game_txt);
       free(emap.terrain);
       free(emap.layer2);
@@ -5576,11 +5576,11 @@ int main(void) {
   {
     ColonizeCol1Save end;
     col1_save_init(&end);
-    end.head.unknown46[0] = 1;
+    ai_king_latch_set(&end, 0, 1);
     end.head.game_options.woi = 1;
-    end.head.unknown46[1] = 1;
+    ai_king_latch_set(&end, 1, 1);
     end.head.game_options.ref_present = 1;
-    end.head.unknown46[4] = 0;
+    ai_king_latch_set(&end, 4, 0);
     end.head.year = 1785;
     end.player[0].control = 0;
     snprintf(end.player[0].name, sizeof(end.player[0].name), "Washington");
@@ -5665,9 +5665,9 @@ int main(void) {
     ectx.ai_popups = &pop;
 
     ai_king_nation_turn(&ectx);
-    if (end.head.unknown46[4] != 2) {
+    if (ai_king_latch_get(&end, 4) != 2) {
       fprintf(stderr, "unit_ai_king: lose3 endgame=%d status='%s'\n",
-              end.head.unknown46[4], estatus);
+              ai_king_latch_get(&end, 4), estatus);
       assets_msg_free(&game_txt);
       free(emap.terrain);
       free(emap.layer2);
@@ -5713,11 +5713,11 @@ int main(void) {
   {
     ColonizeCol1Save end;
     col1_save_init(&end);
-    end.head.unknown46[0] = 1;
+    ai_king_latch_set(&end, 0, 1);
     end.head.game_options.woi = 1;
-    end.head.unknown46[1] = 1;
+    ai_king_latch_set(&end, 1, 1);
     end.head.game_options.ref_present = 1;
-    end.head.unknown46[4] = 0;
+    ai_king_latch_set(&end, 4, 0);
     end.head.year = 1850;
     end.player[0].control = 0;
     snprintf(end.player[0].name, sizeof(end.player[0].name), "Washington");
@@ -5784,9 +5784,9 @@ int main(void) {
     ectx.ai_popups = &pop;
 
     ai_king_nation_turn(&ectx);
-    if (end.head.unknown46[4] != 1) {
+    if (ai_king_latch_get(&end, 4) != 1) {
       fprintf(stderr, "unit_ai_king: rev-win endgame=%d status='%s'\n",
-              end.head.unknown46[4], estatus);
+              ai_king_latch_get(&end, 4), estatus);
       assets_msg_free(&game_txt);
       free(emap.terrain);
       free(emap.layer2);
@@ -5834,11 +5834,11 @@ int main(void) {
   {
     ColonizeCol1Save end;
     col1_save_init(&end);
-    end.head.unknown46[0] = 1;
+    ai_king_latch_set(&end, 0, 1);
     end.head.game_options.woi = 1;
-    end.head.unknown46[1] = 1;
+    ai_king_latch_set(&end, 1, 1);
     end.head.game_options.ref_present = 1;
-    end.head.unknown46[4] = 0;
+    ai_king_latch_set(&end, 4, 0);
     end.head.year = 1850;
     end.player[0].control = 0;
     snprintf(end.player[0].name, sizeof(end.player[0].name), "Washington");
@@ -5915,16 +5915,16 @@ int main(void) {
     ectx.ai_popups = &pop;
 
     ai_king_nation_turn(&ectx);
-    if (end.head.unknown46[4] != 2) {
+    if (ai_king_latch_get(&end, 4) != 2) {
       fprintf(stderr, "unit_ai_king: retiring2 endgame=%d status='%s'\n",
-              end.head.unknown46[4], estatus);
+              ai_king_latch_get(&end, 4), estatus);
       assets_msg_free(&game_txt);
       free(emap.terrain);
       free(emap.layer2);
       free(emap.layer3);
       return fail("1850 + crown alive should latch revolution lost via @RETIRING2");
     }
-    if (end.head.unknown46[1] != 0) {
+    if (ai_king_latch_get(&end, 1) != 0) {
       assets_msg_free(&game_txt);
       free(emap.terrain);
       free(emap.layer2);
@@ -5970,11 +5970,11 @@ int main(void) {
   {
     ColonizeCol1Save end;
     col1_save_init(&end);
-    end.head.unknown46[0] = 0;
+    ai_king_latch_set(&end, 0, 0);
     end.head.game_options.woi = 0;
-    end.head.unknown46[1] = 0;
+    ai_king_latch_set(&end, 1, 0);
     end.head.game_options.ref_present = 0;
-    end.head.unknown46[4] = 0;
+    ai_king_latch_set(&end, 4, 0);
     end.head.year = 1800;
     end.player[0].control = 0;
     snprintf(end.player[0].name, sizeof(end.player[0].name), "Washington");
@@ -6020,9 +6020,9 @@ int main(void) {
     ectx.ai_popups = &pop;
 
     ai_king_nation_turn(&ectx);
-    if (end.head.unknown46[4] != 3) {
+    if (ai_king_latch_get(&end, 4) != 3) {
       fprintf(stderr, "unit_ai_king: scored endgame=%d status='%s'\n",
-              end.head.unknown46[4], estatus);
+              ai_king_latch_get(&end, 4), estatus);
       assets_msg_free(&game_txt);
       return fail("year≥1800 peacetime should latch PEACE_1800");
     }
@@ -6092,10 +6092,10 @@ int main(void) {
   {
     ColonizeCol1Save end;
     col1_save_init(&end);
-    end.head.unknown46[0] = 0;
+    ai_king_latch_set(&end, 0, 0);
     end.head.game_options.woi = 0;
-    end.head.unknown46[4] = 0;
-    end.head.unknown46[8] = 0;
+    ai_king_latch_set(&end, 4, 0);
+    ai_king_latch_set(&end, 8, 0);
     end.head.year = 1790;
     end.head.difficulty = 0;
     end.player[0].control = 0;
@@ -6133,7 +6133,7 @@ int main(void) {
     ectx.ai_popups = &pop;
 
     ai_king_nation_turn(&ectx);
-    if (end.head.unknown46[8] != 1) {
+    if (ai_king_latch_get(&end, 8) != 1) {
       assets_msg_free(&game_txt);
       return fail("1790 spring should set unknown46[8] @SOONRETIRING0 latch");
     }
@@ -6182,12 +6182,12 @@ int main(void) {
   {
     ColonizeCol1Save end;
     col1_save_init(&end);
-    end.head.unknown46[0] = 1;
+    ai_king_latch_set(&end, 0, 1);
     end.head.game_options.woi = 1;
-    end.head.unknown46[1] = 1;
+    ai_king_latch_set(&end, 1, 1);
     end.head.game_options.ref_present = 1;
-    end.head.unknown46[4] = 0;
-    end.head.unknown46[9] = 0;
+    ai_king_latch_set(&end, 4, 0);
+    ai_king_latch_set(&end, 9, 0);
     end.head.year = 1840;
     end.player[0].control = 0;
     snprintf(end.player[0].name, sizeof(end.player[0].name), "Washington");
@@ -6262,7 +6262,7 @@ int main(void) {
     ectx.ai_popups = &pop;
 
     ai_king_nation_turn(&ectx);
-    if (end.head.unknown46[9] != 1) {
+    if (ai_king_latch_get(&end, 9) != 1) {
       assets_msg_free(&game_txt);
       free(emap.terrain);
       free(emap.layer2);
@@ -6333,7 +6333,7 @@ int main(void) {
    * function, is what skips the human — see ai.c's ai_euro_nation_turn).
    */
   {
-    col1.head.unknown46[0] = 0; /* peacetime */
+    ai_king_latch_set(&col1, 0, 0); /* peacetime */
     col1.head.game_options.woi = 0;
     ColonizeDosRng gift_rng;
     dos_rng_seed(&gift_rng, 13u);
@@ -6354,7 +6354,7 @@ int main(void) {
     fprintf(stderr, "unit_ai_king: 2244 peacetime AI self-gift ok\n");
 
     /* Post-WoI: must no-op even on the same hit-shaped seed. */
-    col1.head.unknown46[0] = 1;
+    ai_king_latch_set(&col1, 0, 1);
     col1.head.game_options.woi = 1;
     dos_rng_seed(&gift_rng, 13u);
     col1.nation[1].gold = 1000000;
@@ -6363,7 +6363,7 @@ int main(void) {
     if (col1.nation[1].gold != gift_gold_before2) {
       return fail("2244 must no-op once WoI is declared");
     }
-    col1.head.unknown46[0] = 0;
+    ai_king_latch_set(&col1, 0, 0);
     col1.head.game_options.woi = 0;
     ctx.rng = NULL; /* restore — later code in this test assumes no RNG */
   }
@@ -6410,8 +6410,8 @@ int main(void) {
   const uint8_t tax_final = col1.nation[0].tax_rate;
   const int crown_final = count_nation(&units, 1);
   const int intervene_final = count_nation(&units, 2);
-  const int boycott_final = col1.head.unknown46[2];
-  const int merc_final = col1.head.unknown46[3];
+  const int boycott_final = ai_king_latch_get(&col1, 2);
+  const int merc_final = ai_king_latch_get(&col1, 3);
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);

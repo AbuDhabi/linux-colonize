@@ -1,6 +1,7 @@
 #include "core/popup_msg.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "core/strutil.h"
@@ -175,6 +176,28 @@ void popup_msg_apply_tokens(
   }
 }
 
+static int g_popup_msg_pending_width = 0;
+
+int popup_msg_section_width(const ColonizeMsgSection* section) {
+  if (!section) {
+    return 0;
+  }
+  for (int i = 0; i < section->line_count; ++i) {
+    const char* line = section->lines[i];
+    if (line && strncmp(line, "@width=", 7) == 0) {
+      const int w = atoi(line + 7);
+      return w > 0 ? w : 0;
+    }
+  }
+  return 0;
+}
+
+int popup_msg_take_pending_width(void) {
+  const int w = g_popup_msg_pending_width;
+  g_popup_msg_pending_width = 0;
+  return w;
+}
+
 void popup_msg_fill(
   const ColonizeMsgCatalog* catalog,
   const char* section_name,
@@ -191,6 +214,7 @@ void popup_msg_fill(
   raw[0] = '\0';
   const ColonizeMsgSection* sec =
     (catalog && section_name) ? assets_msg_find(catalog, section_name) : NULL;
+  g_popup_msg_pending_width = sec ? popup_msg_section_width(sec) : 0;
   if (sec) {
     popup_msg_section_body(sec, raw, sizeof(raw), true);
   }

@@ -86,7 +86,8 @@ typedef enum AiPopupTag {
   AI_POPUP_TAG_CONTACT_BUY0 = 44, /* FUN_4d56_2820 LAB_002e92 @BUY0: Accept/Refuse the tribe's price */
   AI_POPUP_TAG_DIPLO_TALK = 45, /* FUN_5bfb_153e phases 2-4: human x AI Euro encounter dialog (payload = stage) */
   AI_POPUP_TAG_INDIAN_LAND = 46, /* @INDIANLAND/@INDIANROAD/@INDIANFOREST encroachment CHOICE (nation_a = unit, nation_b = kind, payload = x|y<<8) */
-  AI_POPUP_TAG_CONTACT_LEARNSTAY = 47 /* thunk_FUN_1000_a618 @LEARNSTAY Yes/No (payload = unit | skill<<16) */
+  AI_POPUP_TAG_CONTACT_LEARNSTAY = 47, /* thunk_FUN_1000_a618 @LEARNSTAY Yes/No (payload = unit | skill<<16) */
+  AI_POPUP_TAG_FOUNTAIN_YOUTH = 48 /* FUN_65dd_0004 case 1: 8× free FUN_38fd_4884(1,0) Recruit pick (payload = picks left) */
 } AiPopupTag;
 
 typedef struct AiPopupRequest {
@@ -100,6 +101,7 @@ typedef struct AiPopupRequest {
   char choices[AI_POPUP_CHOICE_MAX][AI_POPUP_CHOICE_LEN];
   int choice_ids[AI_POPUP_CHOICE_MAX];
   int choice_count;
+  int width; /* GAME.TXT @width (0 = AI_POPUP_DEFAULT_WIDTH); taken from popup_msg_fill's side-channel */
 } AiPopupRequest;
 
 typedef struct AiPopupState {

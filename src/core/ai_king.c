@@ -65,28 +65,6 @@
  * Crown nation_id: non-human Euro slot (1 if human==0 else 0).
  */
 
-#define AI_KING_WOI_BYTE 0
-#define AI_KING_REF_PRESENT_BYTE 1
-#define AI_KING_BOYCOTT_BYTE 2
-#define AI_KING_MERC_HIRED_BYTE 3
-/* Endgame latch: 0 none, 1 revolution won, 2 revolution lost (was rename-reserved). */
-#define AI_KING_ENDGAME_BYTE 4
-#define AI_KING_ENDGAME_NONE 0
-#define AI_KING_ENDGAME_WON 1
-#define AI_KING_ENDGAME_LOST 2
-#define AI_KING_ENDGAME_PEACE_1800 3
-#define AI_KING_CONGRESS_BYTE 5
-/* Mid-war @WARN1 once-per-episode (ports==1); clear when ports>1. */
-#define AI_KING_WARN1_BYTE 6
-/* Mid-war @WARN2 once-per-episode (colonies==1); clear when colonies>1. */
-#define AI_KING_WARN2_BYTE 7
-/* Peacetime Spring 1790 @SOONRETIRING0 once. */
-#define AI_KING_SOONRETIRE0_BYTE 8
-/* Wartime 1840 @SOONRETIRING1 once. */
-#define AI_KING_SOONRETIRE1_BYTE 9
-/* Mid-war @WARN3 once-per-episode (crown pop share 50–89%); clear when <50%. */
-#define AI_KING_WARN3_BYTE 10
-
 #define AI_KING_INDEP_COUNTRY "United Colonies"
 #define AI_KING_YEAR_CAP 1850
 #define AI_KING_PEACE_YEAR_CAP 1800
@@ -1124,6 +1102,39 @@ static int ai_king_ref_hunt_target(const ColonizeTurnContext* ctx, int human, in
 }
 
 /* True if any human land unit is adjacent to (x,y). */
+/* Chebyshev distance (map "MD" used throughout this file's hunt code). */
+static int ai_king_md(int ax, int ay, int bx, int by) {
+  const int dx = abs(ax - bx);
+  const int dy = abs(ay - by);
+  return dx > dy ? dx : dy;
+}
+
+/*
+ * Human land unit on (x,y) that can still defend a colony: armed / mounted
+ * colonist, or a type with an attack value (Artillery, Cont. Army, ...).
+ * Unarmed colonists, wagon trains and treasure do not hold a colony — DOS
+ * captures once the last soldier loses, the civilians change hands.
+ */
+static int ai_king_human_defender_at(const ColonizeTurnContext* ctx, int human, int x, int y) {
+  if (!ctx || !ctx->units || human < 0) {
+    return -1;
+  }
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    const ColonizeUnit* f = &ctx->units->units[i];
+    if (!f->active || f->nation_id != human || !units_is_on_map(f) || f->x != x || f->y != y) {
+      continue;
+    }
+    if (units_is_sea(ctx->units, f->id)) {
+      continue;
+    }
+    const ColonizeUnitType* ft = units_type(ctx->units, f->type_index);
+    if (f->muskets > 0 || f->horses > 0 || (ft && ft->attack > 0)) {
+      return f->id;
+    }
+  }
+  return -1;
+}
+
 static int ai_king_adjacent_human_unit(const ColonizeTurnContext* ctx, int human, int x,
                                        int y) {
   if (!ctx || !ctx->units || human < 0) {
@@ -1579,8 +1590,16 @@ static void ai_king_try_capture_at(ColonizeTurnContext* ctx, ColonizeUnit* u, in
     return;
   }
   ColonizeColony* c = colonies_get_mut(ctx->colonies, cid);
-  if (c && c->nation_id == human &&
-      units_foreign_unit_at(ctx->units, u->x, u->y, u->id, u->nation_id) < 0) {
+  if (c && c->nation_id == human && ai_king_human_defender_at(ctx, human, u->x, u->y) < 0 &&
+      !units_is_sea(ctx->units, u->id) && !ai_king_is_artillery(ctx->units, u)) {
+    /* Civilians left in the port change hands with it (DOS conquest). */
+    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+      ColonizeUnit* f = &ctx->units->units[i];
+      if (f->active && f->nation_id == human && units_is_on_map(f) && f->x == u->x &&
+          f->y == u->y && !units_is_sea(ctx->units, f->id)) {
+        units_set_nation(f, crown);
+      }
+    }
     /* Source: conquest / colonies_capture — Euro owner swap; no gold fiction. */
     char cname[COLONIZE_COLONY_NAME_MAX];
     snprintf(cname, sizeof(cname), "%s", c->name[0] ? c->name : "your colony");
@@ -1720,7 +1739,7 @@ static void ai_king_set_ref_present(ColonizeCol1Save* col1, int on) {
   if (!col1) {
     return;
   }
-  col1->head.unknown46[AI_KING_REF_PRESENT_BYTE] = on ? 1 : 0;
+  ai_king_latch_set(col1, AI_KING_REF_PRESENT_BYTE, on ? 1 : 0);
   col1->head.game_options.ref_present = on ? 1 : 0;
 }
 
@@ -1728,7 +1747,7 @@ static void ai_king_set_boycott(ColonizeCol1Save* col1, int on) {
   if (!col1) {
     return;
   }
-  col1->head.unknown46[AI_KING_BOYCOTT_BYTE] = on ? 1 : 0;
+  ai_king_latch_set(col1, AI_KING_BOYCOTT_BYTE, on ? 1 : 0);
 }
 
 /*
@@ -1741,11 +1760,11 @@ static void ai_king_sync_boycott_refuse(ColonizeCol1Save* col1, int human) {
   if (!col1 || human < 0 || human >= 4) {
     return;
   }
-  if (col1->head.unknown46[AI_KING_BOYCOTT_BYTE] == 0) {
+  if (ai_king_latch_get(col1, AI_KING_BOYCOTT_BYTE) == 0) {
     return;
   }
   if (col1->nation[human].boycott_bitmap == 0) {
-    col1->head.unknown46[AI_KING_BOYCOTT_BYTE] = 0;
+    ai_king_latch_set(col1, AI_KING_BOYCOTT_BYTE, 0);
   }
 }
 
@@ -1875,7 +1894,7 @@ static void ai_king_set_independence(ColonizeCol1Save* col1, int on) {
     return;
   }
   /* Legacy Linux mirror; authoritative latch is game_options.woi. */
-  col1->head.unknown46[AI_KING_WOI_BYTE] = on ? 1 : 0;
+  ai_king_latch_set(col1, AI_KING_WOI_BYTE, on ? 1 : 0);
   col1->head.game_options.woi = on ? 1 : 0;
   if (on) {
     col1->head.event.colony_burning = 1; /* chrome hint */
@@ -2309,7 +2328,7 @@ static void ai_king_do_declare(ColonizeTurnContext* ctx, int human) {
   ai_king_set_independence(ctx->col1, 1); /* WoI: unknown46[0] if not already */
   ai_king_write_rival_nation_slots(ctx->col1, human);
   /* FUN_43f7_2564 congress-confirm stand-in. */
-  ctx->col1->head.unknown46[AI_KING_CONGRESS_BYTE] = 1;
+  ai_king_latch_set(ctx->col1, AI_KING_CONGRESS_BYTE, 1);
   const int diff = ctx->col1->head.difficulty;
   ctx->col1->head.expeditionary_force[0] = (uint16_t)(8 + diff * 4);
   ctx->col1->head.expeditionary_force[1] = (uint16_t)(4 + diff * 2);
@@ -4331,36 +4350,85 @@ static void ai_king_war_act(ColonizeTurnContext* ctx) {
         break;
       }
       if (u->x == tx && u->y == ty) {
+        /* On the target tile: a human colony still holding a defender is
+         * fought from the tile itself (units_try_move already let the
+         * winner in beside a demoted loser); capture once none is left. */
+        const int def = ai_king_human_defender_at(ctx, human, u->x, u->y);
+        if (def >= 0 && !units_is_sea(ctx->units, u->id)) {
+          const int ml0 = u->moves_left;
+          (void)units_resolve_land_combat(ctx->units, u->id, def, ctx->rng);
+          if (!u->active) {
+            break;
+          }
+          if (u->moves_left >= ml0) {
+            u->moves_left = 0; /* attack ends the beat either way */
+          }
+        }
         ai_king_try_capture_at(ctx, u, crown, human);
         break;
       }
-      const int sdx = (tx > u->x) - (tx < u->x);
-      const int sdy = (ty > u->y) - (ty < u->y);
-      const int nx = u->x + sdx;
-      const int ny = u->y + sdy;
+      /*
+       * Greedy detour: straight step first, then the neighbours that do not
+       * lose ground toward goto (a coast inlet / mountain / own-blocked
+       * tile in the straight line froze whole REF columns for the rest of
+       * the war in the 2026-08-28 headless run — no pathfinder here).
+       */
+      static const int ddx[8] = {0, 1, 1, 1, 0, -1, -1, -1};
+      static const int ddy[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
+      const int cur_md = ai_king_md(u->x, u->y, tx, ty);
+      int order[8];
+      int n_order = 0;
+      {
+        const int sdx = (tx > u->x) - (tx < u->x);
+        const int sdy = (ty > u->y) - (ty < u->y);
+        for (int d = 0; d < 8; ++d) {
+          if (ddx[d] == sdx && ddy[d] == sdy) {
+            order[n_order++] = d;
+          }
+        }
+        for (int d = 0; d < 8; ++d) {
+          if (ddx[d] == sdx && ddy[d] == sdy) {
+            continue;
+          }
+          if (ai_king_md(u->x + ddx[d], u->y + ddy[d], tx, ty) <= cur_md) {
+            order[n_order++] = d;
+          }
+        }
+      }
       const int ml0 = u->moves_left;
-      const int foe = units_id_at(ctx->units, nx, ny);
-      if (foe >= 0) {
-        const ColonizeUnit* f = units_get_const(ctx->units, foe);
-        if (f && f->nation_id == human) {
+      int advanced = 0;
+      for (int oi = 0; oi < n_order && u->active && u->moves_left > 0; ++oi) {
+        const int nx = u->x + ddx[order[oi]];
+        const int ny = u->y + ddy[order[oi]];
+        /* Foreign occupant only — an own stack (REF column, crown wagon train
+         * visiting the port) is not a blocker; units_try_move stacks onto it.
+         * units_id_at here froze whole REF columns behind their own lead unit
+         * for 28 turns in the 2026-08-28 headless WoI run. */
+        const int foe = units_foreign_unit_at(ctx->units, nx, ny, u->id, u->nation_id);
+        if (foe >= 0) {
+          const ColonizeUnit* f = units_get_const(ctx->units, foe);
+          if (!f || f->nation_id != human) {
+            continue; /* non-human stack: sidestep */
+          }
+          if (oi > 0 && ai_king_md(nx, ny, tx, ty) >= cur_md) {
+            continue; /* only fight sideways when it is the straight line */
+          }
           if (units_is_sea(ctx->units, u->id)) {
             units_resolve_naval_combat(ctx->units, u->id, foe, ctx->rng);
           } else if (units_resolve_land_combat(ctx->units, u->id, foe, ctx->rng)) {
             units_try_move(ctx->units, u->id, ctx->map, nx, ny, ctx->colonies, ctx->rng);
             ai_king_after_step_onto_colony(ctx, u, crown, human);
           }
-          if (!u->active || u->moves_left >= ml0) {
-            break;
-          }
-          continue;
+          advanced = 1;
+          break;
         }
-        break; /* blocked by non-human stack */
+        if (units_try_move(ctx->units, u->id, ctx->map, nx, ny, ctx->colonies, ctx->rng)) {
+          ai_king_after_step_onto_colony(ctx, u, crown, human);
+          advanced = 1;
+          break;
+        }
       }
-      if (!units_try_move(ctx->units, u->id, ctx->map, nx, ny, ctx->colonies, ctx->rng)) {
-        break;
-      }
-      ai_king_after_step_onto_colony(ctx, u, crown, human);
-      if (u->moves_left >= ml0) {
+      if (!advanced || !u->active || u->moves_left >= ml0) {
         break;
       }
     }
@@ -4515,7 +4583,7 @@ static void ai_king_check_revolution_end(ColonizeTurnContext* ctx, int ref_alrea
   if (!ai_king_independence_declared(ctx->col1)) {
     return;
   }
-  if (ctx->col1->head.unknown46[AI_KING_ENDGAME_BYTE] != AI_KING_ENDGAME_NONE) {
+  if (ai_king_latch_get(ctx->col1, AI_KING_ENDGAME_BYTE) != AI_KING_ENDGAME_NONE) {
     return; /* already resolved */
   }
   const int human = ctx->human_nation;
@@ -4530,14 +4598,14 @@ static void ai_king_check_revolution_end(ColonizeTurnContext* ctx, int ref_alrea
   const char* leader = (pl->name[0] != '\0') ? pl->name : "Your Excellency";
   /* Reclaiming ports clears the mid-war warn episode so a later drop to one can re-fire. */
   if (ports > 1) {
-    ctx->col1->head.unknown46[AI_KING_WARN1_BYTE] = 0;
+    ai_king_latch_set(ctx->col1, AI_KING_WARN1_BYTE, 0);
   }
   /*
    * Mid-war warn: exactly one coastal port left while REF already invading.
    * GAME.TXT @WARN1. Once per episode (unknown46[6]); does not latch endgame.
    */
   if (ports == 1 && ref_already &&
-      ctx->col1->head.unknown46[AI_KING_WARN1_BYTE] == 0) {
+      ai_king_latch_get(ctx->col1, AI_KING_WARN1_BYTE) == 0) {
     PopupMsgTokens tok;
     memset(&tok, 0, sizeof(tok));
     tok.has_number0 = true;
@@ -4566,19 +4634,19 @@ static void ai_king_check_revolution_end(ColonizeTurnContext* ctx, int ref_alrea
         ctx->ai_popups, AI_POPUP_TAG_INFO, human, crown, 1, "Port Warning", body
       );
     }
-    ctx->col1->head.unknown46[AI_KING_WARN1_BYTE] = 1;
+    ai_king_latch_set(ctx->col1, AI_KING_WARN1_BYTE, 1);
   }
   const int colonies = ai_king_human_colonies(ctx, human);
   /* Reclaiming colonies clears the mid-war colony-warn episode. */
   if (colonies > 1) {
-    ctx->col1->head.unknown46[AI_KING_WARN2_BYTE] = 0;
+    ai_king_latch_set(ctx->col1, AI_KING_WARN2_BYTE, 0);
   }
   /*
    * Mid-war warn: exactly one colony left while REF already invading.
    * GAME.TXT @WARN2 (%NUMBER1). Once per episode (unknown46[7]); no endgame latch.
    */
   if (colonies == 1 && ref_already &&
-      ctx->col1->head.unknown46[AI_KING_WARN2_BYTE] == 0) {
+      ai_king_latch_get(ctx->col1, AI_KING_WARN2_BYTE) == 0) {
     PopupMsgTokens tok;
     memset(&tok, 0, sizeof(tok));
     tok.has_number1 = true;
@@ -4600,12 +4668,12 @@ static void ai_king_check_revolution_end(ColonizeTurnContext* ctx, int ref_alrea
         ctx->ai_popups, AI_POPUP_TAG_INFO, human, crown, 1, "Colony Warning", body
       );
     }
-    ctx->col1->head.unknown46[AI_KING_WARN2_BYTE] = 1;
+    ai_king_latch_set(ctx->col1, AI_KING_WARN2_BYTE, 1);
   }
   const int pop_pct = ai_king_woi_pop_share_pct(ctx, human, crown);
   /* Reclaiming population share clears the mid-war pop-warn episode. */
   if (pop_pct < AI_KING_WARN3_PCT_MIN) {
-    ctx->col1->head.unknown46[AI_KING_WARN3_BYTE] = 0;
+    ai_king_latch_set(ctx->col1, AI_KING_WARN3_BYTE, 0);
   }
   /*
    * Mid-war warn: crown controls 50–89% of human+crown colony population.
@@ -4613,7 +4681,7 @@ static void ai_king_check_revolution_end(ColonizeTurnContext* ctx, int ref_alrea
    */
   if (ref_already && pop_pct >= AI_KING_WARN3_PCT_MIN &&
       pop_pct < AI_KING_LOSING3_PCT &&
-      ctx->col1->head.unknown46[AI_KING_WARN3_BYTE] == 0) {
+      ai_king_latch_get(ctx->col1, AI_KING_WARN3_BYTE) == 0) {
     PopupMsgTokens tok;
     memset(&tok, 0, sizeof(tok));
     tok.has_number2 = true;
@@ -4640,7 +4708,7 @@ static void ai_king_check_revolution_end(ColonizeTurnContext* ctx, int ref_alrea
         body
       );
     }
-    ctx->col1->head.unknown46[AI_KING_WARN3_BYTE] = 1;
+    ai_king_latch_set(ctx->col1, AI_KING_WARN3_BYTE, 1);
   }
   /*
    * Lose: REF already invading (end_checks_armed). Prefer @LOSING2 when no
@@ -4648,7 +4716,7 @@ static void ai_king_check_revolution_end(ColonizeTurnContext* ctx, int ref_alrea
    * colonies may still exist. Cite: docs/fandom_col1994.md Independence.
    */
   if (colonies <= 0 && ref_already) {
-    ctx->col1->head.unknown46[AI_KING_ENDGAME_BYTE] = AI_KING_ENDGAME_LOST;
+    ai_king_latch_set(ctx->col1, AI_KING_ENDGAME_BYTE, AI_KING_ENDGAME_LOST);
     PopupMsgTokens tok;
     memset(&tok, 0, sizeof(tok));
     tok.string0 = country;
@@ -4676,7 +4744,7 @@ static void ai_king_check_revolution_end(ColonizeTurnContext* ctx, int ref_alrea
     return;
   }
   if (ports <= 0 && ref_already) {
-    ctx->col1->head.unknown46[AI_KING_ENDGAME_BYTE] = AI_KING_ENDGAME_LOST;
+    ai_king_latch_set(ctx->col1, AI_KING_ENDGAME_BYTE, AI_KING_ENDGAME_LOST);
     PopupMsgTokens tok;
     memset(&tok, 0, sizeof(tok));
     tok.string0 = country;
@@ -4708,7 +4776,7 @@ static void ai_king_check_revolution_end(ColonizeTurnContext* ctx, int ref_alrea
    * GAME.TXT @LOSING3.
    */
   if (pop_pct >= AI_KING_LOSING3_PCT && ref_already) {
-    ctx->col1->head.unknown46[AI_KING_ENDGAME_BYTE] = AI_KING_ENDGAME_LOST;
+    ai_king_latch_set(ctx->col1, AI_KING_ENDGAME_BYTE, AI_KING_ENDGAME_LOST);
     PopupMsgTokens tok;
     memset(&tok, 0, sizeof(tok));
     tok.string0 = country;
@@ -4737,8 +4805,8 @@ static void ai_king_check_revolution_end(ColonizeTurnContext* ctx, int ref_alrea
   }
   const int year = (int)ctx->col1->head.year;
   if (year >= AI_KING_YEAR_CAP && ai_king_crown_units_alive(ctx, crown) <= 0) {
-    ctx->col1->head.unknown46[AI_KING_ENDGAME_BYTE] = AI_KING_ENDGAME_WON;
-    ctx->col1->head.unknown46[AI_KING_REF_PRESENT_BYTE] = 0;
+    ai_king_latch_set(ctx->col1, AI_KING_ENDGAME_BYTE, AI_KING_ENDGAME_WON);
+    ai_king_latch_set(ctx->col1, AI_KING_REF_PRESENT_BYTE, 0);
     ctx->col1->head.game_options.ref_present = 0;
     /* GAME.TXT @WINNING — STRING0 leader, STRING1 country. */
     PopupMsgTokens tok;
@@ -4774,8 +4842,8 @@ static void ai_king_check_revolution_end(ColonizeTurnContext* ctx, int ref_alrea
    * alive → Congress sues for peace. GAME.TXT @RETIRING2.
    */
   if (year >= AI_KING_YEAR_CAP && ai_king_crown_units_alive(ctx, crown) > 0) {
-    ctx->col1->head.unknown46[AI_KING_ENDGAME_BYTE] = AI_KING_ENDGAME_LOST;
-    ctx->col1->head.unknown46[AI_KING_REF_PRESENT_BYTE] = 0;
+    ai_king_latch_set(ctx->col1, AI_KING_ENDGAME_BYTE, AI_KING_ENDGAME_LOST);
+    ai_king_latch_set(ctx->col1, AI_KING_REF_PRESENT_BYTE, 0);
     ctx->col1->head.game_options.ref_present = 0;
     const char* estate = ai_king_richest_colony_name(ctx, human);
     PopupMsgTokens tok;
@@ -4828,7 +4896,7 @@ void ai_king_nation_turn(ColonizeTurnContext* ctx) {
   const int end_checks_armed =
     ctx->col1_ok && ctx->col1 &&
     ai_king_independence_declared(ctx->col1) &&
-    ctx->col1->head.unknown46[AI_KING_REF_PRESENT_BYTE] != 0;
+    ai_king_latch_get(ctx->col1, AI_KING_REF_PRESENT_BYTE) != 0;
   /* External boycott clear (Fugger/diplo) → drop refuse even mid-war / off-tax years. */
   if (ctx->col1_ok && ctx->col1) {
     ai_king_sync_boycott_refuse(ctx->col1, ctx->human_nation);
@@ -4847,8 +4915,8 @@ void ai_king_nation_turn(ColonizeTurnContext* ctx) {
      * once before the 1800 @SCORED latch. Cite: turn/year_end_chrome.md.
      */
     if (ctx->col1_ok && ctx->col1 &&
-        ctx->col1->head.unknown46[AI_KING_ENDGAME_BYTE] == AI_KING_ENDGAME_NONE &&
-        ctx->col1->head.unknown46[AI_KING_SOONRETIRE0_BYTE] == 0 &&
+        ai_king_latch_get(ctx->col1, AI_KING_ENDGAME_BYTE) == AI_KING_ENDGAME_NONE &&
+        ai_king_latch_get(ctx->col1, AI_KING_SOONRETIRE0_BYTE) == 0 &&
         (int)ctx->col1->head.year == AI_KING_SOONRETIRE0_YEAR &&
         !(ctx->game_autumn && *ctx->game_autumn != 0)) {
       const int human = ctx->human_nation;
@@ -4884,16 +4952,16 @@ void ai_king_nation_turn(ColonizeTurnContext* ctx) {
           body
         );
       }
-      ctx->col1->head.unknown46[AI_KING_SOONRETIRE0_BYTE] = 1;
+      ai_king_latch_set(ctx->col1, AI_KING_SOONRETIRE0_BYTE, 1);
     }
     /*
      * Peacetime calendar end (manual pp.10–12 / 1800–1850): without WoI,
      * year≥1800 latches once. Cite: docs/manual_gap.md Auto-end.
      */
     if (ctx->col1_ok && ctx->col1 &&
-        ctx->col1->head.unknown46[AI_KING_ENDGAME_BYTE] == AI_KING_ENDGAME_NONE &&
+        ai_king_latch_get(ctx->col1, AI_KING_ENDGAME_BYTE) == AI_KING_ENDGAME_NONE &&
         (int)ctx->col1->head.year >= AI_KING_PEACE_YEAR_CAP) {
-      ctx->col1->head.unknown46[AI_KING_ENDGAME_BYTE] = AI_KING_ENDGAME_PEACE_1800;
+      ai_king_latch_set(ctx->col1, AI_KING_ENDGAME_BYTE, AI_KING_ENDGAME_PEACE_1800);
       /* GAME.TXT @SCORED — peacetime calendar end (invent Colonial Era Ends demoted). */
       PopupMsgTokens tok;
       memset(&tok, 0, sizeof(tok));
@@ -5003,8 +5071,8 @@ void ai_king_nation_turn(ColonizeTurnContext* ctx) {
      * Any season while WoI; does not latch endgame.
      */
     if (ctx->col1_ok && ctx->col1 &&
-        ctx->col1->head.unknown46[AI_KING_ENDGAME_BYTE] == AI_KING_ENDGAME_NONE &&
-        ctx->col1->head.unknown46[AI_KING_SOONRETIRE1_BYTE] == 0 &&
+        ai_king_latch_get(ctx->col1, AI_KING_ENDGAME_BYTE) == AI_KING_ENDGAME_NONE &&
+        ai_king_latch_get(ctx->col1, AI_KING_SOONRETIRE1_BYTE) == 0 &&
         (int)ctx->col1->head.year == AI_KING_SOONRETIRE1_YEAR) {
       const int human = ctx->human_nation;
       const char* leader =
@@ -5039,7 +5107,7 @@ void ai_king_nation_turn(ColonizeTurnContext* ctx) {
           body
         );
       }
-      ctx->col1->head.unknown46[AI_KING_SOONRETIRE1_BYTE] = 1;
+      ai_king_latch_set(ctx->col1, AI_KING_SOONRETIRE1_BYTE, 1);
     }
     ai_king_ref_wave(ctx);
     ai_king_war_act(ctx);
