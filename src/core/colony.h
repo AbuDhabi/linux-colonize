@@ -140,6 +140,15 @@ typedef struct ColonizeColony {
    */
   uint8_t colony_flags;
   /*
+   * DOS DS:0x34a: the building that just finished construction here, stored
+   * as index+1 so a zeroed colony means "nothing to reveal". FUN_2f2b_6cd4
+   * (colony-screen bring-up) only runs the "new building appears" reveal —
+   * clear bit, redraw, set bit, redraw — and only then pushes event 0x54
+   * (COLDIG 13 hammering + cheering), when DS:0x34a >= 0. Set by
+   * colonies_try_complete_building, consumed on colony-screen open.
+   */
+  int pending_build_reveal;
+  /*
    * Col1 +0x90 cargo-produced mask (bit per cargo). Cleared then OR'd during
    * colony EOT production (FUN_364b_0688). Haul prefers produced surplus.
    */

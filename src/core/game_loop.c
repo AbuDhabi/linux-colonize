@@ -5477,9 +5477,22 @@ static void game_enter_colony_at_cursor(ColonizeGameState* game) {
   game->in_pedia = false;
   game->in_report = false;
   game->colony_view_id = cid;
-  /* DOS FUN_2f2b_6cd4 colony bring-up: event 0x54 (COLDIG hammering) and the
-   * colony tune pool (FUN_281f_0498(2)); back on the map the pool is 1 again. */
-  sound_play(0x54);
+  /*
+   * DOS FUN_2f2b_6cd4 colony bring-up: the colony tune pool
+   * (FUN_281f_0498(2)); back on the map the pool is 1 again. Event 0x54
+   * (COLDIG 13 hammering + cheering) is NOT played on every open — DOS
+   * gates it on DS:0x34a >= 0, the building that just finished
+   * construction, and plays it with that building's reveal animation
+   * (bugs.md: "celebratory SFX should not be played every time the colony
+   * UI is opened"). Founding keeps its own 0x54 (FUN_479b_076e).
+   */
+  {
+    ColonizeColony* reveal = colonies_get_mut(&game->colonies, cid);
+    if (reveal && reveal->pending_build_reveal > 0) {
+      reveal->pending_build_reveal = 0;
+      sound_play(0x54);
+    }
+  }
   sound_set_bgm(2);
   colony_screen_reset_ui(&game->colony_screen);
   const ColonizeColony* col = colonies_get(&game->colonies, cid);
@@ -6500,6 +6513,110 @@ static void game_europe_restore_pax_treasure_gold(
     pax->hold_goods_amount[1] = (treasure_gold[i] >> 8) & 0xff;
   }
 }
+
+/*
+ * Sail a ship on a sea-lane (high seas) tile back to Europe with everything
+ * aboard — the shared tail for the H command and for a Go To order whose
+ * destination is a sea-lane tile (bugs.md: "a go-to order should be possible
+ * for a ship into the high seas / sea lane tile ... the ship should
+ * automatically return to Europe on landing on that special tile").
+ * Caller guarantees a live sea unit on a high-seas tile.
+ */
+static void game_ship_sail_to_europe(ColonizeGameState* game, int sid) {
+  ColonizeUnit* ship = units_get(&game->units, sid);
+  if (!ship || !units_is_sea(&game->units, sid)) {
+    return;
+  }
+  const int exit_x = ship->x;
+  const int exit_y = ship->y;
+  const bool exit_east = exit_x >= (int)game->world_map.width / 2;
+  int type_index = -1;
+  char ship_name[32];
+  int cargo_types[EUROPE_SHIP_CARGO_MAX];
+  int cargo_profs[EUROPE_SHIP_CARGO_MAX];
+  int cargo_count = 0;
+  int hold_types[EUROPE_SHIP_CARGO_MAX];
+  int hold_amts[EUROPE_SHIP_CARGO_MAX];
+  int cargo_treasure_gold[EUROPE_SHIP_CARGO_MAX];
+  memset(hold_types, 0, sizeof(hold_types));
+  memset(hold_amts, 0, sizeof(hold_amts));
+  memset(cargo_treasure_gold, 0, sizeof(cargo_treasure_gold));
+  game_europe_capture_pax_professions(
+    &game->units, sid, cargo_profs, EUROPE_SHIP_CARGO_MAX
+  );
+  game_europe_capture_pax_treasure_gold(
+    &game->units, sid, cargo_treasure_gold, EUROPE_SHIP_CARGO_MAX
+  );
+  if (!units_despawn_ship_with_cargo(
+        &game->units,
+        sid,
+        &type_index,
+        ship_name,
+        sizeof(ship_name),
+        cargo_types,
+        &cargo_count,
+        EUROPE_SHIP_CARGO_MAX,
+        hold_types,
+        hold_amts,
+        EUROPE_SHIP_CARGO_MAX
+      )) {
+    set_status(game, "Failed to sail ship", NULL);
+  } else {
+    const int voyage_turns = game_voyage_turns(game);
+    if (!europe_enqueue_expected(
+          &game->europe,
+          type_index,
+          ship_name,
+          cargo_types,
+          cargo_profs,
+          cargo_count,
+          hold_types,
+          hold_amts,
+          exit_x,
+          exit_y,
+          exit_east,
+          voyage_turns
+        )) {
+      /* Lane full — put the ship back on the map with passengers. */
+      const int restored = units_spawn_ship_with_cargo(
+        &game->units,
+        type_index,
+        exit_x,
+        exit_y,
+        cargo_types,
+        cargo_count,
+        hold_types,
+        hold_amts
+      );
+      if (restored >= 0) {
+        game_europe_restore_pax_treasure_gold(
+          &game->units, restored, cargo_treasure_gold, cargo_count
+        );
+        game->units.selected_id = restored;
+      }
+      set_status(game, "Europe lane is full", NULL);
+    } else {
+      game_europe_fill_expected_treasure_gold(
+        &game->europe, cargo_treasure_gold, cargo_count
+      );
+      if (cargo_count > 0) {
+        snprintf(
+          game->status,
+          sizeof(game->status),
+          "%s sailed to Europe (+%d aboard)",
+          ship_name,
+          cargo_count
+        );
+      } else {
+        snprintf(game->status, sizeof(game->status), "%s sailed to Europe", ship_name);
+      }
+      diag_info(
+        "Sailed %s to Europe (exit %d,%d cargo=%d)", ship_name, exit_x, exit_y, cargo_count
+      );
+    }
+  }
+}
+
 
 /*
  * Spawn every Bound-for-New-World ship whose voyage has finished. Called after
@@ -7799,11 +7916,27 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
         if (active->orders == UNITS_ORDER_TRADE_ROUTE) {
           game_trade_route_retarget(game, active);
         }
+        /* Sea-lane destination: a ship whose Go To ends on a high-seas tile
+         * sails for Europe the moment it lands there (bugs.md). Manual
+         * arrow-key steps onto the lane deliberately do NOT — only a queued
+         * order does, same as DOS's `0x314c == 2/3` sail intent. */
+        const bool goto_ship_to_lane = active->orders == UNITS_ORDER_GOTO &&
+          units_is_sea(&game->units, active_id) && game->europe_ok &&
+          active->goto_x < UNITS_GOTO_NONE && active->goto_y < UNITS_GOTO_NONE &&
+          map_tile_is_high_seas(&game->world_map, active->goto_x, active->goto_y);
         const bool stepped = units_advance_goto_one_step(
           &game->units, active_id, &game->world_map, &game->colonies, &game->move_rng
         );
         ColonizeUnit* again = units_get(&game->units, active_id);
-        if (stepped) {
+        const bool sailed_for_europe =
+          goto_ship_to_lane && again && again->active && units_is_on_map(again) &&
+          map_tile_is_high_seas(&game->world_map, again->x, again->y);
+        if (sailed_for_europe) {
+          game_ship_sail_to_europe(game, active_id);
+          if (turn_select_next_unit(&game->units, game->human_nation)) {
+            game->view_pieces_mode = false;
+          }
+        } else if (stepped) {
           if (again && again->orders == UNITS_ORDER_TRADE_ROUTE) {
             game_trade_route_retarget(game, again);
           }
@@ -9885,94 +10018,7 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
     } else if (!units_on_high_seas(&game->world_map, ship->x, ship->y)) {
       set_status(game, "Ship must be on high seas", NULL);
     } else {
-      const int exit_x = ship->x;
-      const int exit_y = ship->y;
-      const bool exit_east = exit_x >= (int)game->world_map.width / 2;
-      int type_index = -1;
-      char ship_name[32];
-      int cargo_types[EUROPE_SHIP_CARGO_MAX];
-      int cargo_profs[EUROPE_SHIP_CARGO_MAX];
-      int cargo_count = 0;
-      int hold_types[EUROPE_SHIP_CARGO_MAX];
-      int hold_amts[EUROPE_SHIP_CARGO_MAX];
-      int cargo_treasure_gold[EUROPE_SHIP_CARGO_MAX];
-      memset(hold_types, 0, sizeof(hold_types));
-      memset(hold_amts, 0, sizeof(hold_amts));
-      memset(cargo_treasure_gold, 0, sizeof(cargo_treasure_gold));
-      game_europe_capture_pax_professions(
-        &game->units, sid, cargo_profs, EUROPE_SHIP_CARGO_MAX
-      );
-      game_europe_capture_pax_treasure_gold(
-        &game->units, sid, cargo_treasure_gold, EUROPE_SHIP_CARGO_MAX
-      );
-      if (!units_despawn_ship_with_cargo(
-            &game->units,
-            sid,
-            &type_index,
-            ship_name,
-            sizeof(ship_name),
-            cargo_types,
-            &cargo_count,
-            EUROPE_SHIP_CARGO_MAX,
-            hold_types,
-            hold_amts,
-            EUROPE_SHIP_CARGO_MAX
-          )) {
-        set_status(game, "Failed to sail ship", NULL);
-      } else {
-        const int voyage_turns = game_voyage_turns(game);
-        if (!europe_enqueue_expected(
-              &game->europe,
-              type_index,
-              ship_name,
-              cargo_types,
-              cargo_profs,
-              cargo_count,
-              hold_types,
-              hold_amts,
-              exit_x,
-              exit_y,
-              exit_east,
-              voyage_turns
-            )) {
-          /* Lane full — put the ship back on the map with passengers. */
-          const int restored = units_spawn_ship_with_cargo(
-            &game->units,
-            type_index,
-            exit_x,
-            exit_y,
-            cargo_types,
-            cargo_count,
-            hold_types,
-            hold_amts
-          );
-          if (restored >= 0) {
-            game_europe_restore_pax_treasure_gold(
-              &game->units, restored, cargo_treasure_gold, cargo_count
-            );
-            game->units.selected_id = restored;
-          }
-          set_status(game, "Europe lane is full", NULL);
-        } else {
-          game_europe_fill_expected_treasure_gold(
-            &game->europe, cargo_treasure_gold, cargo_count
-          );
-          if (cargo_count > 0) {
-            snprintf(
-              game->status,
-              sizeof(game->status),
-              "%s sailed to Europe (+%d aboard)",
-              ship_name,
-              cargo_count
-            );
-          } else {
-            snprintf(game->status, sizeof(game->status), "%s sailed to Europe", ship_name);
-          }
-          diag_info(
-            "Sailed %s to Europe (exit %d,%d cargo=%d)", ship_name, exit_x, exit_y, cargo_count
-          );
-        }
-      }
+      game_ship_sail_to_europe(game, sid);
     }
   }
 

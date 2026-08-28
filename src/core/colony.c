@@ -1815,6 +1815,7 @@ bool colonies_try_complete_building(ColonizeColonyPool* pool, int colony_id) {
   if (bt->tools_cost > 0 && col->stock[COLONIZE_CARGO_TOOLS] < bt->tools_cost) {
     return false;
   }
+  col->pending_build_reveal = bid + 1; /* DS:0x34a — colony-screen reveal + 0x54 */
   if (bt->tools_cost > 0) {
     col->stock[COLONIZE_CARGO_TOOLS] -= bt->tools_cost;
   }

@@ -36,7 +36,7 @@ Status: **Done** / **Partial** / **Missing** / **PARKED**.
 | Land | Road pair (both FA `&0x0a`) | Cost **1** | `map_move_cost_step` both roads → 1; else dest road still halves | Done |
 | Land | River both + cardinal | Cost **1** | Both river + axis → 1; else dest river still halves | Done |
 | Land | Ocean / HS (25/26) | Embark if own ship has room (`4720`); else domain deny | `BOARD` via `units_find_boardable_ship`; else domain deny | Done |
-| Ship | Ocean / HS | OK (`4720`); HS eastward without sail → reason **5** | Water OK; HS east without goto/sail → deny | Done |
+| Ship | Ocean / HS | OK (`4720`); **already on HS** + eastward without sail order → reason **5** | Same (`units_can_enter`); entering the lane from ocean is always legal, and a Go To may target a lane tile → `game_ship_sail_to_europe` on arrival | Done |
 | Ship | Map edge | Reason **4** | Out-of-bounds → edge | Partial |
 | Ship | Own colony land | Dock | `can_enter` + disembark | Done |
 | Ship | Foreign Euro dock | Peace / de Witt | de Witt peace berth | Partial |
@@ -101,3 +101,22 @@ Village deep `2820` VGA trade, full `465b` foreign diplo/war UI, Euro mid-planne
 - [assets.md](assets.md) — map keys, landfall note
 - [ai_transcription.md](ai_transcription.md) — AI move / combat
 - [`original_sources_annotated/ai/move_spent.c`](../original_sources_annotated/ai/move_spent.c)
+
+## Sea lane (high seas) — corrected 2026-08-28
+
+`FUN_4720_015c` (viceroy_unpacked.c ~76048) raises reason **5** only when
+**all** of these hold: destination terrain class `0x1a` (high seas), the
+ship's *current* tile is also `0x1a`, the step is eastward
+(`ship.x < dest.x`), and the ship's order (`+0x314c`) is neither 3 (Go To)
+nor 2 (Trade Route). The port tested the destination alone, so the first
+step from ocean onto the lane was denied, and because `units_set_goto`
+validates with the same probe *before* the order is set, a Go To aimed at a
+lane tile was refused too (bugs.md: "I can't move a ship onto a sea lane
+either way").
+
+Arrival behaviour: a **Go To** whose destination is a lane tile sails the
+ship to Europe the moment it lands there (`game_ship_sail_to_europe`, the
+same tail the `H` command uses — passengers, holds and treasure ride
+along). Plain arrow-key steps onto the lane do not: DOS's own sail intent
+is exactly the order byte the reason-5 gate reads.
+

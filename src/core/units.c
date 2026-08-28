@@ -3374,6 +3374,33 @@ static void units_play_event_sound(int id) {
   }
 }
 
+/*
+ * FUN_5fef_1b0e only animates and plays the fire/win event sounds when its
+ * `param_4` "visible" flag is set: FUN_465b_0000 (~75692) passes 1 when the
+ * attacker is the viewport nation or either side is human (`0x543f == 0`),
+ * while the AI move scorer at 521d:52aa (~88888) passes 0 and resolves the
+ * same combat silently. The port played the cannonade for every AI-vs-AI
+ * battle resolved during end-of-turn, so cannon fire landed on top of
+ * unrelated popups (bugs.md: prices-fall / immigration popups).
+ * No col1 context (unit tests, standalone smokes) → audible, as before.
+ */
+static bool units_combat_is_visible(const ColonizeUnitPool* pool, int a_id, int b_id) {
+  const ColonizeCol1Save* col1 = g_units_ff_col1;
+  if (!col1) {
+    return true;
+  }
+  const ColonizeUnit* a = units_get_const(pool, a_id);
+  const ColonizeUnit* b = units_get_const(pool, b_id);
+  const int sides[2] = {a ? a->nation_id : -1, b ? b->nation_id : -1};
+  for (int i = 0; i < 2; ++i) {
+    const int n = sides[i];
+    if (n >= 0 && n < (int)COLONIZE_COL1_NATION_COUNT && col1->player[n].control == 0) {
+      return true;
+    }
+  }
+  return false;
+}
+
 static void units_combat_music_sting(void) {
   if (!g_units_combat_sound_play) {
     return;
@@ -3421,8 +3448,11 @@ bool units_resolve_land_combat_ff(
   if (!at || !dt) {
     return false;
   }
-  units_combat_music_sting();
-  units_play_event_sound(UNITS_SFX_ATTACK_FIRE);
+  const bool combat_audible = units_combat_is_visible(pool, attacker_id, defender_id);
+  if (combat_audible) {
+    units_combat_music_sting();
+    units_play_event_sound(UNITS_SFX_ATTACK_FIRE);
+  }
 
   /*
    * FUN_5fef_1b0e / FUN_157e: attacker 004a(mode=1); defender 015e + peels.
@@ -3645,8 +3675,11 @@ bool units_resolve_naval_combat_ff(
   if (!at || !dt) {
     return false;
   }
-  units_combat_music_sting();
-  units_play_event_sound(UNITS_SFX_ATTACK_FIRE);
+  const bool combat_audible = units_combat_is_visible(pool, attacker_id, defender_id);
+  if (combat_audible) {
+    units_combat_music_sting();
+    units_play_event_sound(UNITS_SFX_ATTACK_FIRE);
+  }
 
   /* FUN_157e_004a + 1b0e difficulty peels for both sides. */
   ColonizeCombatStrengthCtx sctx = units_combat_strength_ctx(col1);
@@ -4136,10 +4169,16 @@ ColonizeEnterReason units_enter_probe(
 
   if (sea) {
     /*
-     * 4720 reason 5: eastward high-seas step without sail/goto intent.
-     * Cite: FUN_4720_015c / docs/move_enter.md.
+     * 4720 reason 5 (FUN_4720_015c ~76048): deny only when the ship is
+     * ALREADY on a high-seas tile (`uVar9 == 0x1a`) and steps further east
+     * off the map without a Go To / Trade Route order. Entering the sea
+     * lane from ordinary ocean is always legal — the port used to test the
+     * destination alone, which blocked every first step onto the lane and
+     * also made units_set_goto refuse a sea-lane destination outright
+     * (bugs.md: "I can't move a ship onto a sea lane either way").
      */
-    if (mover && map_tile_is_high_seas(map, x, y) && x > mover->x &&
+    if (mover && map_tile_is_high_seas(map, x, y) &&
+        map_tile_is_high_seas(map, mover->x, mover->y) && x > mover->x &&
         !units_orders_follow_goto(mover->orders)) {
       g_units_last_enter_reason = COLONIZE_ENTER_BLOCKED_HS_SAIL;
       return g_units_last_enter_reason;
@@ -4389,7 +4428,7 @@ static bool units_revere_defend_colony_tile(
     return true; /* nobody home at all (pop 0) — nothing to defend with */
   }
   const bool won = units_resolve_land_combat_ff(pool, attacker_id, def_id, rng, g_units_ff_col1);
-  if (won) {
+  if (won && units_combat_is_visible(pool, attacker_id, def_id)) {
     units_play_event_sound(UNITS_SFX_COMBAT_WON);
   }
   /* Phantom defender always vanishes after the fight, win or lose — a real
@@ -4532,7 +4571,7 @@ bool units_try_move(
     } else {
       won = units_resolve_land_combat_ff(pool, unit_id, foe, rng, g_units_ff_col1);
     }
-    if (won) {
+    if (won && units_combat_is_visible(pool, unit_id, foe)) {
       units_play_event_sound(village_temp >= 0 ? 0x4b : UNITS_SFX_COMBAT_WON);
     }
     if (village_temp >= 0 && foe == village_temp) {

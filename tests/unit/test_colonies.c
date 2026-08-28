@@ -105,11 +105,28 @@ static int unit_warehouse_capitol_levels(void) {
   c->warehouse_level = 0;
   c->building_in_production = 0;
   c->hammers = 10;
+  /*
+   * DOS DS:0x34a — the just-finished building the colony screen reveals
+   * (and the only thing that lets FUN_2f2b_6cd4 push event 0x54). Idle
+   * colonies must carry "none" so opening the screen is silent (bugs.md:
+   * celebratory SFX on every colony open).
+   */
+  if (c->pending_build_reveal != 0) {
+    fprintf(stderr, "pending_build_reveal want 0 (none) before completion, got %d\n",
+            c->pending_build_reveal);
+    return 1;
+  }
   if (!colonies_try_complete_building(&pool, 0) || c->warehouse_level != 1) {
     fprintf(stderr, "Warehouse complete warehouse_level=%u\n",
             (unsigned)c->warehouse_level);
     return 1;
   }
+  if (c->pending_build_reveal != 1) {
+    fprintf(stderr, "pending_build_reveal want 1 (building 0 + 1), got %d\n",
+            c->pending_build_reveal);
+    return 1;
+  }
+  c->pending_build_reveal = 0; /* colony screen consumes it on open */
   if (colonies_warehouse_capacity(&pool, c, COLONIZE_CARGO_TOOLS) != 200) {
     fprintf(stderr, "after Warehouse cap want 200\n");
     return 1;

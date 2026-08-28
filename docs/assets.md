@@ -650,11 +650,11 @@ glancing; 18 shot; 20 animal shot; 21 pump-action; 22 gunfight; 23–34 shots (2
 
 | Event id | COLDIG | Sound | DOS push site | Port |
 |---|---|---|---|---|
-| `0x40`/`0x41` | 31 / 32 | shot | `5fef_1b0e` attack fire (0x41 artillery class) | `units.c` engagement (0x40) |
+| `0x40`/`0x41` | 31 / 32 | shot | `5fef_1b0e` attack fire (0x41 artillery class), **only when `param_4` (visible) is set** — `465b_0000` passes 1 for the viewport nation or a human side, the AI scorer `521d:52aa` passes 0 | `units.c` engagement (0x40), gated by `units_combat_is_visible` (2026-08-28 — AI-vs-AI combat was audible, cannon fire landed over unrelated popups) |
 | `0x42`/`0x48` | 30 / 29 | shots | `5fef_1b0e` variants | — |
 | `0x43`/`0x49` | 27 / 34 | shots | `5fef_1b0e` (unit-class variants) | — |
 | `0x44`/`0x45` | 18 / 17 | shot / glancing shot | `5fef_1b0e` tail (miss?) | — |
-| `0x4a`/`0x4b` | 28 / 33 | shots | `5fef_1b0e` win; 0x4b when natives involved | `units.c` win |
+| `0x4a`/`0x4b` | 28 / 33 | shots | `5fef_1b0e` win; 0x4b when natives involved | `units.c` win (same visibility gate) |
 | `0x4c` | 14 | shooting + galloping | — | — |
 | `0x4d` | 10 | cheering + fireworks | `5fef_0352` naval capture; raid loot | — |
 | `0x4e` | 6 | screaming | `5fef_0f14` raid: colonists killed | — |
@@ -662,7 +662,7 @@ glancing; 18 shot; 20 animal shot; 21 pump-action; 22 gunfight; 23–34 shots (2
 | `0x50`/`0x51` | 7+8 / 5+14 | screaming, burning / screaming, galloping | — | — |
 | `0x52` | 12 | wagon wheels | `465b_0000` wagon-train move (human) | — |
 | `0x53` | 19 | burning | `5fef_0f14`/`1b0e` tail: colony burned | colony burned notify |
-| `0x54` | 13 | hammering + cheering | found colony `479b_076e`, colony screen `2f2b_6cd4`, nation EOT `3844` | found colony, colony enter |
+| `0x54` | 13 | hammering + cheering | found colony `479b_076e`; colony screen `2f2b_6cd4` **only when `DS:0x34a >= 0`** (the building that just finished, revealed by clear-bit/redraw/set-bit/redraw); nation EOT `3844` | found colony; colony open **gated** on `ColonizeColony.pending_build_reveal` (2026-08-28 — was every open) |
 | `0x55` | 20 | animal shot | — | — |
 | `0x56` | 9 | cheering | `38fd_3dc8` tax raise / tea party | — |
 | `0x57` | 16 | sinking | `5fef_0352` ship sunk | — |
