@@ -1951,6 +1951,14 @@ static void game_apply_ai_popup_result(ColonizeGameState* game) {
     ai_popup_consume_result(&game->ai_popups);
     return;
   }
+  if (game->ai_popups.result_tag == AI_POPUP_TAG_BREWSTER_PICK) {
+    (void)units_brewster_apply_popup(
+      game->europe_ok ? &game->europe : NULL, &game->ai_popups,
+      game->units_ok ? &game->units : NULL
+    );
+    ai_popup_consume_result(&game->ai_popups);
+    return;
+  }
   if (game->ai_popups.result_tag == AI_POPUP_TAG_FOUNTAIN_YOUTH) {
     (void)units_fountain_youth_apply_popup(
       game->europe_ok ? &game->europe : NULL, &game->ai_popups, &game->messages
@@ -4802,7 +4810,9 @@ static void game_commit_new_campaign(ColonizeGameState* game) {
         if (!u->active || u->nation_id != game->human_nation || !units_is_on_map(u)) {
           continue;
         }
-        map_reveal_radius(&game->world_map, u->x, u->y, game->human_nation, 1);
+        units_reveal_sight(
+          &game->world_map, &game->units, u, game->col1_ok ? &game->col1 : NULL
+        );
       }
       for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
         const ColonizeColony* c = &game->colonies.colonies[i];
@@ -5243,7 +5253,7 @@ static void game_after_unit_action(ColonizeGameState* game) {
     return;
   }
   if (game->world_map_ok && u->nation_id >= 0 && u->nation_id <= 3 && units_is_on_map(u)) {
-    map_reveal_radius(&game->world_map, u->x, u->y, u->nation_id, 1);
+    units_reveal_sight(&game->world_map, &game->units, u, game->col1_ok ? &game->col1 : NULL);
     if (game->col1_ok && u->nation_id == game->human_nation) {
       game_try_prompt_landho(game);
     }
@@ -6046,6 +6056,15 @@ static bool game_colony_drag_drop(
   return true;
 }
 
+/* FUN_48d3_0002 via 291f_0aee: shared by both crossing directions. */
+static int game_voyage_turns(ColonizeGameState* game) {
+  const int hn = game->human_nation;
+  const bool magellan = game->col1_ok && hn >= 0 && hn < 4 &&
+    founding_fathers_nation_has(&game->col1, hn, FF_FERDINAND_MAGELLAN);
+  const int ships = game->units_ok ? units_count_sea_for_nation(&game->units, hn) : 0;
+  return europe_voyage_turns_roll(&game->move_rng, magellan, ships);
+}
+
 static void game_europe_sail_harbor(ColonizeGameState* game, int hidx) {
   EuropeScreen* eu = &game->europe;
   if (eu->harbor_ships <= 0 || hidx < 0 || hidx >= eu->harbor_ships) {
@@ -6063,12 +6082,7 @@ static void game_europe_sail_harbor(ColonizeGameState* game, int hidx) {
       hs->type_index = resolved;
     }
   }
-  int movement = 5;
-  const ColonizeUnitType* ut = units_type(&game->units, hs->type_index);
-  if (ut) {
-    movement = ut->movement;
-  }
-  europe_set_sail_from_harbor(eu, hidx, movement, &game->units);
+  europe_set_sail_from_harbor(eu, hidx, game_voyage_turns(game), &game->units);
 }
 
 static bool game_europe_drag_drop(ColonizeGameState* game, int mx, int my) {
@@ -7517,8 +7531,7 @@ static bool game_apply_map_menu_action(ColonizeGameState* game, MapMenuAction ac
             )) {
           set_status(game, "Failed to sail ship", NULL);
         } else {
-          const ColonizeUnitType* ut = units_type(&game->units, type_index);
-          const int movement = ut ? ut->movement : 5;
+          const int voyage_turns = game_voyage_turns(game);
           if (!europe_enqueue_expected(
                 &game->europe,
                 type_index,
@@ -7531,7 +7544,7 @@ static bool game_apply_map_menu_action(ColonizeGameState* game, MapMenuAction ac
                 exit_x,
                 exit_y,
                 exit_east,
-                movement
+                voyage_turns
               )) {
             const int restored = units_spawn_ship_with_cargo(
               &game->units,
@@ -9907,8 +9920,7 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
           )) {
         set_status(game, "Failed to sail ship", NULL);
       } else {
-        const ColonizeUnitType* ut = units_type(&game->units, type_index);
-        const int movement = ut ? ut->movement : 5;
+        const int voyage_turns = game_voyage_turns(game);
         if (!europe_enqueue_expected(
               &game->europe,
               type_index,
@@ -9921,7 +9933,7 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
               exit_x,
               exit_y,
               exit_east,
-              movement
+              voyage_turns
             )) {
           /* Lane full — put the ship back on the map with passengers. */
           const int restored = units_spawn_ship_with_cargo(

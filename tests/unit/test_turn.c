@@ -4107,6 +4107,73 @@ int main(void) {
       }
       fprintf(stderr, "immigration 584a AI/EN scale ok\n");
     }
+    /* 5e52 Brewster branch → FUN_38fd_4884(0,1): tick returns 2, nothing
+     * docks, crosses kept; the CHOICE apply moves the pick + zeroes crosses;
+     * cancel leaves everything so next turn re-asks. */
+    {
+      ColonizeCol1Save bcol;
+      memset(&bcol, 0, sizeof(bcol));
+      for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
+        bcol.head.founding_father[i] = -1;
+      }
+      bcol.head.founding_father[FF_WILLIAM_BREWSTER] = 0;
+      col->nation_id = 0;
+      eu.dock_count = 0;
+      eu.brewster_no_criminals = false;
+      europe_tick_immigration_pressure(&eu, &pool, &units, &bcol, 0, NULL);
+      eu.current_crosses = (uint16_t)(eu.needed_crosses + 10);
+      const uint16_t kept = eu.current_crosses;
+      if (europe_tick_immigration_pressure(&eu, &pool, &units, &bcol, 0, NULL) != 2 ||
+          eu.dock_count != 0 || eu.current_crosses != kept || !eu.brewster_no_criminals) {
+        fprintf(stderr, "brewster tick want 2/no dock/crosses kept\n");
+        return 1;
+      }
+      AiPopupState pops;
+      memset(&pops, 0, sizeof(pops));
+      units_brewster_enqueue_pick(&eu, &pops, NULL, 0);
+      if (pops.queue_count != 1 || pops.queue[0].tag != AI_POPUP_TAG_BREWSTER_PICK ||
+          pops.queue[0].choice_count != EUROPE_POOL_SIZE) {
+        fprintf(stderr, "brewster pick popup not queued (%d)\n", pops.queue_count);
+        return 1;
+      }
+      pops.has_result = true;
+      pops.result_tag = AI_POPUP_TAG_BREWSTER_PICK;
+      pops.result_nation_a = 0;
+      pops.result_cancelled = true;
+      if (!units_brewster_apply_popup(&eu, &pops, &units) || eu.dock_count != 0 ||
+          eu.current_crosses != kept) {
+        fprintf(stderr, "brewster cancel must keep crosses/dock\n");
+        return 1;
+      }
+      if (units.type_count < 1) {
+        snprintf(units.types[0].name, sizeof(units.types[0].name), "Colonists");
+        units.types[0].movement = 1;
+        units.type_count = 1;
+      }
+      int before_units = 0;
+      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+        before_units += units.units[i].active ? 1 : 0;
+      }
+      char want[64];
+      snprintf(want, sizeof(want), "%s", eu.pool[2].name);
+      pops.result_cancelled = false;
+      pops.result_choice_id = 2;
+      if (!units_brewster_apply_popup(&eu, &pops, &units) || eu.dock_count != 1 ||
+          eu.current_crosses != 0 || strcmp(eu.dock[0].name, want) != 0) {
+        fprintf(stderr, "brewster pick apply: dock=%d crosses=%u '%s' want '%s'\n",
+                eu.dock_count, (unsigned)eu.current_crosses, eu.dock[0].name, want);
+        return 1;
+      }
+      int after_units = 0;
+      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+        after_units += units.units[i].active ? 1 : 0;
+      }
+      if (after_units != before_units + 1) {
+        fprintf(stderr, "brewster pick must mirror one Europe-map unit\n");
+        return 1;
+      }
+      fprintf(stderr, "brewster pick-among-pool ok\n");
+    }
   }
 
   /* §C rare Merchantman: year≥1600, turn%8==0, peacetime. */

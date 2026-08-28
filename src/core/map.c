@@ -818,6 +818,35 @@ void map_reveal_radius(ColonizeWorldMap* map, int x, int y, int nation_id, int r
   }
 }
 
+void map_reveal_sight(
+  ColonizeWorldMap* map, int x, int y, int nation_id, int radius, bool is_ship
+) {
+  if (!map || radius < 0) {
+    return;
+  }
+  const int home_continent = is_ship ? -1 : map_continent_id_at(map, x, y);
+  for (int dy = -radius; dy <= radius; ++dy) {
+    for (int dx = -radius; dx <= radius; ++dx) {
+      const int tx = x + dx;
+      const int ty = y + dy;
+      const bool outer = dx < -1 || dx > 1 || dy < -1 || dy > 1;
+      if (outer) {
+        if (tx < 0 || ty < 0 || tx >= map->width || ty >= map->height) {
+          continue;
+        }
+        const bool water = map_tile_is_water(map, tx, ty) || map_tile_is_high_seas(map, tx, ty);
+        if (water != is_ship) {
+          continue;
+        }
+        if (!is_ship && map_continent_id_at(map, tx, ty) != home_continent) {
+          continue;
+        }
+      }
+      map_reveal_tile(map, tx, ty, nation_id);
+    }
+  }
+}
+
 void map_reveal_all(ColonizeWorldMap* map, int nation_id) {
   if (!map || !map->seen) {
     return;

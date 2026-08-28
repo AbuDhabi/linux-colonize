@@ -808,9 +808,10 @@ static int effect_desoto_reveal(
 /*
  * Magellan: permanent naval +1 — bump current sea moves_left once on elect;
  * turn_refresh_moves_for_nation adds +1 each turn while owned (see turn.c).
- * FUN_48d3_0002 also gates landfall goto duration 2 (RNG>89, docks>2) on
- * Magellan ownership — wired in turn.c rare immigrant spawn. Wiki "west-edge
- * Europe sail shortcut" not found in viceroy (only 48d3:77575 07b4 FF#5); PARK.
+ * FUN_48d3_0002 (europe_voyage_turns_roll): every Europe crossing is 1 turn,
+ * or 2 when RNG(1,100)>89 && ship_counts[nation]>2 && !Magellan — Magellan
+ * removes the delay. The DOS x<3 "west edge" branch only burns RNG + an FF
+ * test and discards both, so PEDIA's west-edge wording has no separate code.
  */
 static int effect_magellan_sea_moves(ColonizeUnitPool* units, int nation_id) {
   if (!units) {
@@ -883,7 +884,7 @@ int founding_fathers_la_salle_check(
 
 /*
  * Brewster: no Petty Criminals / Indentured Servants in Europe recruit pool
- * or dock. (Player pick among pool→dock UI still PARKED.)
+ * or dock. (Pick-among-pool arrival lives in europe.c / units.c.)
  */
 static void effect_brewster_filter_pool(EuropeScreen* europe) {
   if (!europe) {
@@ -1135,12 +1136,11 @@ static void apply_effect(
       (void)effect_coronado_reveal(map, colonies, nation_id);
       break;
     case FF_HERNANDO_DE_SOTO:
-      /* docs/fandom_col1994.md: LCR always positive + extended sight.
-       * Partial: extended sight via land-unit reveal on elect.
-       * LCR gate: units_resolve_lcr_rumour ← FUN_65dd_0004 via FUN_2a1f_0178
-       * (465b move-spent path); FF bit 7 reroll loop at 65dd:00a6.
-       * Full 65dd outcome weights / burial / FoY table PARKED — see
-       * original_sources_annotated/ai/indian_contact.md. */
+      /* PEDIA @FATHER7: LCR always positive + extended sight. Ongoing sight:
+       * FUN_13f1_02f8 (units_sight_radius) makes every non-ship unit radius 2
+       * while owned; this elect-time sweep just applies it once immediately.
+       * LCR: units_resolve_lcr_rumour ← FUN_65dd_0004 (full port, reroll loop
+       * at 65dd:00a6 on FF bit 7). */
       (void)effect_desoto_reveal(map, units, nation_id);
       break;
     case FF_HENRY_HUDSON:
@@ -1210,9 +1210,10 @@ static void apply_effect(
       effect_franklin_nw_peace(col1, nation_id);
       break;
     case FF_WILLIAM_BREWSTER:
-      /* Manual/wiki: no criminals/servants on docks + recruit pool.
-       * effect_brewster_filter_pool (pool refill + Indentured dock→Free).
-       * Pick-among-pool UI PARKED. */
+      /* PEDIA @FATHER20: no criminals/servants on docks + recruit pool
+       * (effect_brewster_filter_pool); pick-among-pool = 5e52's Brewster
+       * branch → FUN_38fd_4884(0,1) @RECRUITCHOOSE, ported as
+       * europe_tick_immigration_pressure()==2 + units_brewster_enqueue_pick. */
       if (nation_id == human_nation) {
         effect_brewster_filter_pool(europe);
       }

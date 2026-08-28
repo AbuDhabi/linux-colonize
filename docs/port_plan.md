@@ -1062,7 +1062,7 @@ Deep `2820` (village trade/haggle) and `4528` (deep settlement battle) PARK.
   Adam Smith's 1.5× factory throughput **is** wired at the production
   math, not just the build gate — closes that P9.2 uncertainty early.
   See [founding_fathers.md](founding_fathers.md).
-- [ ] **P9.2 [auto]** Port missing/thin player-facing effects. **Status
+- [x] **P9.2 [auto] — closed 2026-08-28.** Port missing/thin player-facing effects. **Status
   2026-08-26 (see [founding_fathers.md](founding_fathers.md) for the full
   per-FF table):** Fugger, Coronado, Magellan (+1 naval MP; west-edge sail
   time PARK, no decomp evidence), John Paul Jones, Adam Smith (factory
@@ -1088,6 +1088,27 @@ Deep `2820` (village trade/haggle) and `4528` (deep settlement battle) PARK.
   human-restricted is confirmed byte-faithful to DOS (`FUN_4345_0342`
   `param_2==0xe` branch has no nation-0 guard — same shared dispatch
   every FF case uses). No further P9.2 work found needed this pass.
+  **2026-08-28 close-out (static, asm-backed):** three real gaps found by
+  re-reading the FF-bit call sites instead of the doc table. (1) **de Soto
+  sight** was elect-only: `FUN_13f1_02f8` (Ghidra dropped the `15eb_3960`
+  result; the `CODE_17` listing has it) = radius 1, Galleon/Privateer/
+  Frigate 2, de Soto → every non-ship 2, Scouts +1; `FUN_13f1_0158` reveals
+  the outer ring only for the unit's own domain (water / same continent).
+  Ported as `units_sight_radius` + `map_reveal_sight`, wired at all unit
+  reveal sites. (2) **Magellan / voyages:** the port's 2-turn-east /
+  4-turn-west crossing was invented; DOS `FUN_48d3_0002` (both directions
+  via `291f_0aee`) is 1 turn, or 2 on `RNG>89 && ships>2 && !Magellan` —
+  `europe_voyage_turns_roll`; the immigrant-Merchantman landfall had the
+  polarity inverted (Magellan *caused* the delay) and gated on docks. The
+  `x<3` west-edge branch discards its RNG/FF results (asm), so the "west
+  edge shortcut" PARK is closed as the same roll. (3) **Brewster pick**:
+  `5e52` FF-0x14 branch → `FUN_38fd_4884(0,1)` = `@RECRUITCHOOSE` free
+  pick; `europe_tick_immigration_pressure`→2, `AI_POPUP_TAG_BREWSTER_PICK`,
+  `units_brewster_apply_popup`; cancel keeps crosses (re-asks next turn).
+  Also refreshed [founding_fathers.md](founding_fathers.md) rows 5/7/10/20
+  (stale `65dd` + `KINGGALLEON2` PARKs). `ctest`: 50/50 active. **No
+  Father has a PARK left**; only P4.4's Custom-House per-cargo UI and
+  Franklin's FA chrome (P11) remain, both outside this track.
 - [x] **P9.3 [auto] — closed 2026-08-26, already satisfied.** Verify each
   wired effect with a unit test if none exists (`test_founding_fathers.c`
   covers a subset). [founding_fathers.md](founding_fathers.md)'s P9.1

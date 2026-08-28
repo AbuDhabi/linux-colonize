@@ -93,6 +93,15 @@ void map_clamp_coords_inset(const ColonizeWorldMap* map, int* x, int* y);
 bool map_tile_seen_by(const ColonizeWorldMap* map, int x, int y, int nation_id);
 void map_reveal_tile(ColonizeWorldMap* map, int x, int y, int nation_id);
 void map_reveal_radius(ColonizeWorldMap* map, int x, int y, int nation_id, int radius);
+/*
+ * FUN_13f1_0158 unit sight reveal: every tile with |dx|<2 and |dy|<2 is
+ * revealed; the outer ring (radius ≥ 2) only reveals tiles of the unit's
+ * own domain — water for ships, land on the unit's own continent for land
+ * units (13e4_0074 water test + 137f_02a0 continent id).
+ */
+void map_reveal_sight(
+  ColonizeWorldMap* map, int x, int y, int nation_id, int radius, bool is_ship
+);
 void map_reveal_all(ColonizeWorldMap* map, int nation_id);
 /* Copy Col1 seen[] into map->seen (same byte layout). */
 void map_seen_from_col1(ColonizeWorldMap* map, const uint8_t* col1_seen, size_t count);
