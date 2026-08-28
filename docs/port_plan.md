@@ -768,26 +768,21 @@ KINGGALLEON2 (non-Cortes galleon share string) PARK.
 Deep `2820` (village trade/haggle) and `4528` (deep settlement battle) PARK.
 **Village trade is deferred (D2)** — do not open `2820`.
 
-- [ ] **P8.1 [auto]** Teach: one-shot per village, skill by village type
-  (`@LEARN*` full set), Scout → Seasoned, expert refuses, alarm-band
-  refusals — finish the "MissingWire" rows in
-  [popup_audit.md](popup_audit.md). **`@LEARNCRIMINAL` wired 2026-08-26:**
-  a Petty Criminal adjacent to a village is now refused outright
-  (`ai_contact_is_petty_criminal` gate in `ai_contact_teach_skill`,
-  before the existing Free-Colonist/Scout learner check), one-shot not
-  consumed — was previously silently ignored (fell through
-  `ai_contact_is_teachable_learner`'s name filter with no popup at all).
-  New regression: `test_ai_contact.c` "LEARNCRIMINAL". **`@LEARNALREADY`
-  checked, deliberately left alone:** the already-taught-village silent
-  skip is an existing, documented design choice (preserves gift/trade
-  chrome the same turn — see `indian_contact.md`), not an oversight; a
-  popup here risks changing that intent, so not touched without the
-  user's call. **`@LEARNSTAY`/`@LEARNLATER`/`@LEARNDONE`** (DOS's actual
-  accept/decline CHOICE around teaching, vs. this port's instant-apply)
-  and **`@LEARNSLOW`** (Indentured Servant learner, not currently
-  recognized as teachable at all) stay open — real behavior-shape
-  questions needing a decompile trace of the `5bfb` teach dispatch
-  before porting, not safe to guess from GAME.TXT text alone.
+- [x] **P8.1 [auto] — done 2026-08-28 (static).** Teach is now the DOS
+  "Live Among The Natives" menu action (`thunk_FUN_1000_a618`, ported as
+  `ai_contact_live_among_natives`): `@LEARNSTAY` Yes/No CHOICE →
+  `@LEARNDONE` / `@LEARNLATER`; `@LEARNSLOW` random refusal in the 25..49
+  alarm quartile (`rand(1,1000) < 200*difficulty+100`); `@TEACHCONVERT` for
+  Indian Converts; `@LEARNMAD` at quartile ≥ 2 (+3 alarm, silent when
+  met-but-no-peace); `@LEARNALREADY` only when taught && !capital;
+  `@LEARNMASTER` / `@LEARNCRIMINAL` kept. Taught skill = the 2154 bid
+  table with DOS tech trims, Fur-Trapper→Seasoned-Scout on `(x+y)%3==0`,
+  Farmer→Fisherman ocean roll (was: last-sold cargo / nation default). The
+  earlier "needs a decompile trace of the 5bfb teach dispatch" blocker was
+  an asm read of the `PUSH imm16` suffixes Ghidra dropped. Full decode:
+  [indian_actions_menu.md](../original_sources_annotated/ai/indian_actions_menu.md).
+  Human teach is menu-only now; the per-turn auto-teach pulse stays for AI
+  nations. Tests: `test_ai_contact.c` "@ACTIONS village menu".
 - [x] **P8.2 [auto] — closed 2026-08-26, substance already done; "F9
   attitude words"/"HELLO*" premise was wrong.** Alarm model for the
   player: per-village + tribe alarm accrual from proximity/land use/
@@ -815,29 +810,21 @@ Deep `2820` (village trade/haggle) and `4528` (deep settlement battle) PARK.
   first contact, not fixed in this pass (out of P8's Indian scope, and a
   new UI moment — first-contact modal — needing `[user]` sign-off on
   when/how it interrupts play, not a silent auto-port).
-- [ ] **P8.3 [auto]** Gifts: Small/Large/Generous amounts and alarm effect,
-  gift-of-goods from wagon/ship hold (already thin), tribute demand outcomes.
-  **Checked 2026-08-26, not implemented this pass — mapping is ambiguous,
-  same status-text gap shape as P8.4's raid fix but riskier to guess.**
-  `ai_contact.c`'s Gift/Demand CHOICE flow (`ai_contact_apply_gift_gold`,
-  `ai_contact_apply_demand_tools`, `AI_POPUP_TAG_CONTACT_GIFT`/`_DEMAND`)
-  is entirely hand-typed English, never `popup_msg_fill`. Candidate
-  `GAME.TXT` sections exist (`@CHIEFGIFT`, `@TRIBUTE`, `@TRIBUTEUSA`,
-  `@GIFTS`, `@CHIEFBORED`) and none are wired anywhere in `src/`, but
-  their exact trigger mapping isn't obvious from text alone:
-  `@TRIBUTEUSA`'s "{tribe}... willing to overlook this... for an indemnity
-  of {N}" reads like a strong match for the Demand-gold CHOICE body, but
-  `@TRIBUTE`'s near-identical "donation to the 'Church'" framing and
-  `@CHIEFGIFT`'s "welcome the emissaries... beads worth {N}" (a
-  *tribe-initiated* gift *to* the player, not the player-initiated Gift
-  CHOICE this code implements) suggest at least 2 of these 5 sections
-  belong to a different trigger than the one currently coded — possibly
-  the Incite-Indians rival-payoff flow (`FUN_4d56_417e`, already ported)
-  rather than plain Demand. Wiring the wrong section to the wrong trigger
-  would be a real correctness bug (wrong text in the wrong context), worse
-  than the current honest paraphrase — needs a decompile trace of the
-  `5bfb`/`4d56` dispatch that actually calls each section (same class of
-  RE work P8.5 above also needs) before porting, not attempted blind.
+- [x] **P8.3 [auto] — closed 2026-08-28 (static).** The suspected
+  mis-mapping was real and is now resolved: `@TRIBUTE` / `@TRIBUTEUSA` /
+  `@GIFTS` / `@WANTSTUFF*` are **Euro-rival** diplomacy text (resident
+  `FUN_1d1d_07e4(…,0x1916)` builds `TRIBUTE`+`USA`), not Indian gift/demand;
+  `@CHIEFGIFT` / `@CHIEFBORED` belong to "Ask to Speak With Chief". DOS has
+  **no** player-initiated gold-gift village action at all (goods gifts =
+  the 2820 trade gift arm, already ported) — the port's invented Gift row
+  is removed from the menu (handler kept, unreachable). "Demand Tribute" is
+  `thunk_FUN_1000_a5f4`, ported as `ai_contact_demand_tribute`: continent
+  strength roll (exposed Euro combat vs Brave combat, Spanish/Cortes ×1.5),
+  `@EXTORTSTUFF` (10 of the village's top bid good into the nearest colony,
+  once per village — `tribe.state.tribute_paid`, DOS +3 bit 0x10) /
+  `@EXTORTPOOR` / `@EXTORTNO` / `@EXTORTLAUGH`, alarm bump `difficulty+1`
+  (×2 on success, 0 on POOR). Decode in
+  [indian_actions_menu.md](../original_sources_annotated/ai/indian_actions_menu.md).
 - [ ] **P8.4 [auto]** Raids on player colonies: trigger (alarm band +
   proximity), target pick, outcome table (`@RAID*`: burn building, steal
   goods, damage ship, kill colonist, plunder gold), stockade/soldier
@@ -871,84 +858,42 @@ Deep `2820` (village trade/haggle) and `4528` (deep settlement battle) PARK.
   case). This row's own `@RAIDWIN*` wording was an invented section name,
   same class of error as the `@NOGOLD*`/`@NOTENOUGH` ones found earlier —
   removing it rather than porting to nothing.
-- [ ] **P8.5 [auto]** Land purchase / encroachment CHOICE (`@INDIANLAND*`
-  bribe / take / leave, Minuit free) — currently thin OK/status.
-  **Scoped 2026-08-26, not implemented this pass — real trace needed
-  first.** Confirmed the gap is real (zero code hits for `INDIANLAND`) and
-  found the exact shape: `colonies_indian_land_purchase_gold`/
-  `colonies_found_with_indian_land` (`colony.c`) compute a real cost and
-  Minuit-free already works, but the call site
-  (`game_do_found_colony_at_unit`, `game_loop.c` ~626-641) silently
-  auto-pays when affordable and hard-blocks ("need N gold", founding
-  refused outright) when not — never shows DOS's real 3-choice
-  `@INDIANLAND` CHOICE ("Very well, we shall respect your wishes." /
-  "We offer you {N}$ for this land." / "You are mistaken; this is OUR
-  land now!"). There are actually **3 separate** encroachment CHOICEs in
-  `GAME.TXT`, not one: `@INDIANLAND` (found colony, this call site),
-  `@INDIANROAD` (pioneer road build), `@INDIANFOREST`/`@INDIANFOREST2`
-  (pioneer clear-forest) — none of the three are wired; `@INDIANBRIBE`
-  (accept-bribe follow-up) exists too and is presumably chained after
-  picking "offer gold". **Why not just port it now:** the "Take it" free
-  option's actual DOS consequence (alarm/relation delta amount, and
-  whether "offer gold" is even selectable when the treasury can't cover
-  it, or what DOS does then) isn't in any existing RE doc — the found-
-  colony dispatch chain already traced for W1.2
-  (`FUN_2b5a_1662`/`16ce`→`FUN_1000_8804`→...) stops before reaching this
-  CHOICE's own handler, and `FUN_4cc6_07c2` (this cost formula's own
-  citation) turns out to be misattributed — `FUNCTION_CATALOG.md` has it
-  as "Indian contact/alarm distance score," a different function, so the
-  real CHOICE dispatch address is still unknown. Porting the "Take it"
-  consequence without that trace would mean inventing a game-balance
-  number, against this project's own no-invent rule. **Needs:** a fresh
-  decompile trace of the CHOICE dispatch (search near the cost formula's
-  real caller, or `FUN_1000_8804`'s siblings) before this can be ported
-  safely — flagging for a dedicated RE pass, not attempting blind.
+- [x] **P8.5 [auto] — done 2026-08-28 (static).** All three DOS
+  encroachment CHOICEs found and ported: `@INDIANLAND` (found colony,
+  `game_do_found_colony_at_unit`), `@INDIANFOREST` (clear order,
+  `thunk_FUN_1000_91fc`) and `@INDIANROAD` (road order,
+  `thunk_FUN_1000_9304`) via `game_request_indian_land_choice` +
+  `AI_POPUP_TAG_INDIAN_LAND`. Findings that dissolved the old blocker:
+  "Take it" has **no** immediate consequence in any site (friction is the
+  already-ported 152e pass — nothing to invent); "offer gold" is greyed
+  when unaffordable (`func_0x000193a6(dlg,2,1)`; port drops the row);
+  the dialog only appears at PEACE (`8c28 & 0x40`) with a real price, and
+  outside it DOS founds/clears/builds **free** — the port's silent auto-pay
+  and "need N gold" hard block are gone. "Offer gold" →
+  `colonies_indian_land_pay` (debit, `lands_bought++`, purchased bit) +
+  `@INDIANBRIBE`. Also fixed while there: tribal-land radius is the tech
+  tier (`FUN_15dc_006a`: Inca 3 / Aztec 2 / others 1) with a same-continent
+  filter, not "capital ? 2 : 1" (`colonies_tile_indian_homeland`).
 - [ ] **P8.6 [auto]** Chief portraits on meet (`IND*.SS` shipped,
   unloaded) — cheap and visible; layout exactness is D4.
 - [ ] **P8.7 [user]** Contact flow review with the user on a fresh game.
-- [ ] **P8.8 [auto] — new, found 2026-08-26, not attempted.** Meet-village
-  action menu is missing 3 of DOS's real 10 `NAMES.TXT` `@ACTIONS`
-  choices. Cross-checked the port's current 6-item meet menu
-  (`ai_contact.c` ~677: `{"Trade","Gift","Demand","Teach","Incite",
-  "Leave"}`) against the real `@ACTIONS` table (`NAMES.TXT`, verbatim:
-  "Trade With Village" / "Enter Hostile Village" / "Establish Mission" /
-  "Denounce Heresy of %Fs Mission" / **"Live Among The Natives"** /
-  **"Ask to Speak With Chief"** / "Incite Indians" / "Demand Tribute" /
-  "Attack Village" / "Cancel Action"). Trade/Incite/Demand/Cancel map
-  cleanly to the port's existing 4; "Enter Hostile"/"Establish Mission"/
-  "Attack Village" are handled elsewhere as separate flows (raid-warn
-  CHOICE, adjacent-Missionary auto-mission), not menu choices needing a
-  slot here. **3 real gaps, genuinely unimplemented, not a doc-staleness
-  case**: "Denounce Heresy of {tribe}'s Mission" (a rival-mission
-  heresy-denounce action — the port's existing "foreign-mission heresy
-  50/50" per `manual_gap.md` may be the automatic-outcome half of this
-  same mechanic; unclear if a menu trigger is separately needed),
-  **"Live Among The Natives"** — this is also the origin of
-  `unit_orders.md`'s standalone "`@ORDERS` index 4 Live In Village —
-  Missing" row (`NAMES.TXT` `@ORDERS`: "Live In Village, L") — choosing
-  it from the meet menu is almost certainly what puts a unit into that
-  persistent order state, unifying two previously-separate "Missing"
-  notes into one real feature, and **"Ask to Speak With Chief"** (unclear
-  mechanical effect — possibly the `@CHIEFGIFT`/`@CHIEFBORED` unprompted-
-  gift sections found under P8.3 above belong here as its response body,
-  not to a spontaneous event as first guessed there). **Not implemented
-  this pass**: no PEDIA/GAME.TXT text found describing what "living
-  among the natives" mechanically does once chosen (disappear from the
-  map? passive teach? tribute discount?) — needs a decompile trace of the
-  `@ACTIONS` dispatch (`5bfb`/`2820` territory, already PARKED for its
-  deep body) before porting, not a guess. Flagging as a concrete, well-
-  scoped lead — narrower and more specific than the old vague "Missing"
-  notes it replaces.
-
-### P9 — Founding Father effects (non-deferred ones)
-
-**Now:** election/debate/pool Done; effects wired for Bolivar, Brebeuf,
-Brewster, Cortes, de Soto, de Witt, Drake, Franklin, Hudson, Jefferson,
-Paine, Penn, Pocahontas, Revere, Sepulveda, Washington, Las Casas
-(assimilate), Minuit/Smith/Stuyvesant referenced from `colony.c`/`ai_euro.c`
-(verify depth). Not found outside `founding_fathers.c`/`reports.c`:
-**Fugger, Coronado, La Salle, Magellan (turn.c only), Jones (ai_ only)**.
-
+- [x] **P8.8 [auto] — done 2026-08-28 (static).** The meet menu is now
+  DOS's real `NAMES.TXT` `@ACTIONS` list with the real per-unit gating
+  (`FUN_4d56_4528` human arm, overlay 13 `0x478a..0x4bdb`): wagon/ship →
+  Trade / Enter Hostile Village (`a5e8`: rand(0,500) vs alarm →
+  `@KILLWAGONS` / `@MADATWAGONS` / `@GRUDGEWAGONS`); Scouts → Ask to Speak
+  With Chief (`a60c`: `@CHIEFHOWDY` + guides/tales/gift/bored, Arawak kill
+  roll, `@CHIEFKILL` unless Coronado); Missionaries → Establish Mission
+  (`a5dc`, `@MISSION0..3`, Sepulveda/Las Casas/Pocahontas/French count
+  terms) or Denounce Heresy of {rival}'s Mission (`a594`, weighted roll →
+  `@HERESY0/1`, replaces the invented 50/50 for human units); colonists →
+  Live Among The Natives (P8.1); armed → Demand Tribute (P8.3) / Attack
+  Village (commits the move in `game_loop`). Body = `@VILLAGEHAPPY/SAVAGE/
+  MEDIUM/BAD/WAR` by alarm band with the `@LEVELS` noun. The invented
+  Attack/Leave "raid warn" CHOICE is retired for met tribes (kept only as
+  the unmet fallback). `@ORDERS` "Live In Village" is this same action
+  (immediate, not a persistent order). Thin: `FUN_4cc6_03f8`'s nearby-threat
+  term in the heresy roll is 0; see the doc's "Thin spots".
 - [x] **P9.1 [auto]** Write a per-FF status table into a new
   `docs/founding_fathers.md` (effect, DOS FUN, port symbol, test) — it
   does not exist today; `fandom_col1994.md` is Tier-3 evidence only.

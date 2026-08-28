@@ -5,6 +5,7 @@
 #include "core/assets.h"
 #include "core/colony.h"
 #include "core/col1_save.h"
+#include "core/colony_production.h"
 #include "core/colony_yield.h"
 #include "core/combat_strength.h"
 #include "core/dos_rng.h"
@@ -70,14 +71,41 @@ static void ai_contact_set_status(ColonizeTurnContext* ctx, const char* msg) {
   snprintf(ctx->status, ctx->status_size, "%s", msg);
 }
 
-/* Meet dialog choice ids (FUN_5bfb_022e / 5bfb_102a stand-in; widgets unparked). */
+/*
+ * Village action menu choice ids. The menu itself is DOS's NAMES.TXT
+ * @ACTIONS list (FUN_4d56_4528 human arm, overlay 13 0x478a..0x4bdb):
+ *   1 Trade With Village      → TRADE
+ *   2 Enter Hostile Village   → ENTER_HOSTILE (thunk_FUN_1000_a5e8)
+ *   3 Establish Mission       → MISSION (thunk_FUN_1000_a5dc)
+ *   4 Denounce Heresy of …    → HERESY (thunk_FUN_1000_a594)
+ *   5 Live Among The Natives  → TEACH (thunk_FUN_1000_a618, param_5 = 0)
+ *   6 Ask to Speak With Chief → CHIEF (thunk_FUN_1000_a60c)
+ *   7 Incite Indians          → INCITE (FUN_4d56_417e)
+ *   8 Demand Tribute          → DEMAND (thunk_FUN_1000_a5f4)
+ *   9 Attack Village          → ATTACK (game_loop commits the move)
+ *  10 Cancel Action           → LEAVE
+ * GIFT has no DOS @ACTIONS row (a gold gift is not a village action; goods
+ * gifts live inside the 2820 trade flow) — kept only for the legacy
+ * gift-amount CHOICE path, never listed. Cite: indian_actions_menu.md.
+ */
 enum {
   AI_CONTACT_CHOICE_TRADE = 1,
   AI_CONTACT_CHOICE_GIFT = 2,
   AI_CONTACT_CHOICE_DEMAND = 3,
   AI_CONTACT_CHOICE_TEACH = 4,
   AI_CONTACT_CHOICE_LEAVE = 5,
-  AI_CONTACT_CHOICE_INCITE = 6
+  AI_CONTACT_CHOICE_INCITE = 6,
+  AI_CONTACT_CHOICE_MISSION = 7,
+  AI_CONTACT_CHOICE_HERESY = 8,
+  AI_CONTACT_CHOICE_CHIEF = 9,
+  AI_CONTACT_CHOICE_ENTER_HOSTILE = 10,
+  AI_CONTACT_CHOICE_ATTACK_VILLAGE = AI_CONTACT_CHOICE_ATTACK
+};
+
+/* @LEARNSTAY CHOICE ids (thunk_FUN_1000_a618): 1 = "Then I shall become…". */
+enum {
+  AI_CONTACT_LEARNSTAY_YES = 1,
+  AI_CONTACT_LEARNSTAY_NO = 2
 };
 
 /* Village raid warn CHOICE ids (FUN_4d56_4528; Attack Village ACTIONS). */
@@ -643,87 +671,321 @@ static int ai_contact_meet_choice_pending(const AiPopupState* st, int e, int nat
   return 0;
 }
 
+/*
+ * Acting-unit classification for the DOS @ACTIONS gating. DOS reads the
+ * unit-type byte (0x3146: 5 = Scouts, 3 = Missionaries, 0xc = Wagon Train,
+ * 0xd..0x12 = ships), the type's attack column (0x5236) and the profession
+ * byte (0x315b: 0x1b = Indian Convert). Linux keys the same facts off the
+ * @UNIT type name / domain.
+ */
+typedef struct AiContactUnitClass {
+  int is_ship;
+  int is_wagon;
+  int is_scout;
+  int is_missionary;
+  int attack;
+  int can_live_among; /* FUN_1000_8d68 ≥ 0 && attack < 2 && !scout && profession != Convert */
+} AiContactUnitClass;
+
+static void ai_contact_classify_unit(
+  const ColonizeUnitPool* units,
+  const ColonizeUnit* u,
+  AiContactUnitClass* out
+) {
+  memset(out, 0, sizeof(*out));
+  if (!units || !u) {
+    return;
+  }
+  const ColonizeUnitType* t = units_type(units, u->type_index);
+  const char* tname = t ? t->name : "";
+  out->is_ship = units_is_sea(units, u->id) ? 1 : 0;
+  out->is_wagon = strstr(tname, "Wagon") != NULL;
+  out->is_scout = combat_type_is_scout_name(tname);
+  out->is_missionary = strstr(tname, "Mission") != NULL;
+  out->attack = t ? t->attack : 0;
+  const char* dname = units_display_name(units, u);
+  const int is_convert =
+    u->profession == COLONIZE_PROF_CONVERT || (dname && strstr(dname, "Convert") != NULL);
+  const int colonist_class =
+    !out->is_ship && !out->is_wagon && !out->is_scout && !out->is_missionary &&
+    strstr(tname, "Treasure") == NULL && strstr(tname, "Artillery") == NULL;
+  out->can_live_among = colonist_class && out->attack < 2 && !is_convert;
+}
+
+/* Meet payload: bit0 is_missionary, bit1 is_capital, bits 2.. = unit id + 1. */
+static int ai_contact_meet_payload(int is_missionary, int is_capital, int unit_id) {
+  return (is_missionary ? 1 : 0) | (is_capital ? 2 : 0) | ((unit_id + 1) << 2);
+}
+
+int ai_contact_meet_payload_unit(int payload) {
+  return (payload >> 2) - 1;
+}
+
+/* NAMES.TXT @LEVELS column 1 by tribe tech (DS:0x9634 + tech*6): Camp/Village/City. */
+static const char* ai_contact_level_noun(const ColonizeTurnContext* ctx, int tech) {
+  static const char* k_fallback[4] = {"camp", "village", "city", "city"};
+  static char live[32];
+  if (tech < 0) {
+    tech = 0;
+  }
+  if (tech > 3) {
+    tech = 3;
+  }
+  if (ctx && ctx->names) {
+    const ColonizeMsgSection* sec = assets_msg_find(ctx->names, "LEVELS");
+    if (sec) {
+      int row = 0;
+      for (int i = 0; i < sec->line_count; ++i) {
+        const char* line = sec->lines[i];
+        if (!line || !line[0] || line[0] == ';' || line[0] == '@') {
+          continue;
+        }
+        if (row == tech) {
+          const char* c1 = strchr(line, ',');
+          if (c1) {
+            c1++;
+            while (*c1 == ' ') {
+              c1++;
+            }
+            size_t n = 0;
+            while (c1[n] && c1[n] != ',' && n + 1 < sizeof(live)) {
+              live[n] = c1[n];
+              n++;
+            }
+            while (n > 0 && live[n - 1] == ' ') {
+              n--;
+            }
+            live[n] = '\0';
+            if (n > 0) {
+              return live;
+            }
+          }
+          break;
+        }
+        row++;
+      }
+    }
+  }
+  return k_fallback[tech];
+}
+
+/* NAMES.TXT @ACTIONS row (0-based). %F = the rival nation adjective. */
+static const char* ai_contact_action_label(
+  const ColonizeTurnContext* ctx,
+  int row,
+  const char* rival_adj,
+  char* out,
+  size_t out_size
+) {
+  static const char* k_fallback[10] = {
+    "Trade With Village",   "Enter Hostile Village",  "Establish Mission",
+    "Denounce Heresy of %Fs Mission", "Live Among The Natives", "Ask to Speak With Chief",
+    "Incite Indians",       "Demand Tribute",         "Attack Village",
+    "Cancel Action"
+  };
+  const char* src = (row >= 0 && row < 10) ? k_fallback[row] : "";
+  if (ctx && ctx->names) {
+    const ColonizeMsgSection* sec = assets_msg_find(ctx->names, "ACTIONS");
+    if (sec) {
+      int r = 0;
+      for (int i = 0; i < sec->line_count; ++i) {
+        const char* line = sec->lines[i];
+        if (!line || !line[0] || line[0] == ';' || line[0] == '@') {
+          continue;
+        }
+        if (r == row) {
+          src = line;
+          break;
+        }
+        r++;
+      }
+    }
+  }
+  size_t n = 0;
+  for (const char* c = src; *c && n + 1 < out_size; ++c) {
+    if (c[0] == '%' && c[1] == 'F') {
+      const char* a = rival_adj ? rival_adj : "foreign";
+      while (*a && n + 1 < out_size) {
+        out[n++] = *a++;
+      }
+      c++;
+      continue;
+    }
+    out[n++] = *c;
+  }
+  out[n] = '\0';
+  return out;
+}
+
+/*
+ * FUN_4d56_4528 human arm (overlay 13 LAB_478a..0x4bdb): the village action
+ * menu. Body = GAME.TXT "VILLAGE" + {WAR ≥75 | BAD ≥50 | MEDIUM ≥25 or a
+ * tribe.alarm[e] word ≥ 0x80 | SAVAGE (Arawak, slot 2) | HAPPY} with
+ * %STRING0 = @LEVELS noun, %STRING1 = tribe. Rows are enabled exactly as
+ * the DOS gating does (see ai_contact_classify_unit); no unit known (legacy
+ * callers) → Trade / Live Among / Incite / Cancel.
+ */
 static void ai_contact_enqueue_village_meet(
   ColonizeTurnContext* ctx,
   int e,
   int nation_id,
   int is_missionary,
-  int is_capital
+  int is_capital,
+  int unit_id
 ) {
-  if (!ctx || !ctx->ai_popups) {
+  if (!ctx || !ctx->ai_popups || !ctx->col1) {
     return;
   }
   const char* tribe = ai_contact_tribe_name(nation_id);
+  const ColonizeCol1Indian* ind = &ctx->col1->indian[nation_id - 4];
+  const int alarm = ai_diplo_indian_alarm(ctx->col1, nation_id, e);
+  const ColonizeUnit* u = (ctx->units && unit_id >= 0) ? units_get_const(ctx->units, unit_id) : NULL;
+  if (u && !u->active) {
+    u = NULL;
+  }
+  /* Village record: the one the unit is stepping into (adjacent), else first of the tribe. */
+  const ColonizeCol1Tribe* village = NULL;
+  if (ctx->col1->tribe) {
+    for (uint16_t ti = 0; ti < ctx->col1->head.tribe_count; ++ti) {
+      const ColonizeCol1Tribe* t = &ctx->col1->tribe[ti];
+      if ((int)t->nation_id != nation_id) {
+        continue;
+      }
+      if (!village) {
+        village = t;
+      }
+      if (u && ai_contact_dist(t->x, t->y, u->x, u->y) <= 1) {
+        village = t;
+        break;
+      }
+    }
+  }
+  const char* section = "VILLAGEHAPPY";
+  if (alarm >= 0x4b) {
+    section = "VILLAGEWAR";
+  } else if (alarm >= 0x32) {
+    section = "VILLAGEBAD";
+  } else {
+    int word = 0;
+    if (village) {
+      word = (int)village->alarm[e].friction | ((int)village->alarm[e].attacks << 8);
+    }
+    if (alarm >= 0x19 || word >= 0x80) {
+      section = "VILLAGEMEDIUM";
+    } else if (nation_id == 6) {
+      section = "VILLAGESAVAGE";
+    }
+  }
+  PopupMsgTokens tok;
+  memset(&tok, 0, sizeof(tok));
+  tok.string0 = ai_contact_level_noun(ctx, (int)ind->tech);
+  tok.string1 = tribe;
+  char fb[AI_POPUP_BODY_LEN];
+  snprintf(fb, sizeof(fb), "Your expedition has reached a %s of %s.", tok.string0, tribe);
   char body[AI_POPUP_BODY_LEN];
-  snprintf(
-    body,
-    sizeof(body),
-    "You enter a %s village. How do you wish to greet the natives?",
-    tribe
-  );
+  popup_msg_fill(ctx->messages, section, &tok, fb, body, sizeof(body));
   char title[AI_POPUP_TITLE_LEN];
   snprintf(title, sizeof(title), "%s", tribe);
-  static const char* labels[] = {"Trade", "Gift", "Demand", "Teach", "Incite", "Leave"};
-  static const int ids[] = {
-    AI_CONTACT_CHOICE_TRADE,
-    AI_CONTACT_CHOICE_GIFT,
-    AI_CONTACT_CHOICE_DEMAND,
-    AI_CONTACT_CHOICE_TEACH,
-    AI_CONTACT_CHOICE_INCITE,
-    AI_CONTACT_CHOICE_LEAVE
-  };
-  /* Carry the acting unit's/village's real status through to the Incite
-   * sub-flow (bit0=is_missionary, bit1=is_capital) — see
-   * ai_contact_incite_price / indian_incite_417e.md. Unused by the other
-   * five Meet CHOICE arms. */
-  const int meet_payload = (is_missionary ? 1 : 0) | (is_capital ? 2 : 0);
+
+  const char* labels[AI_POPUP_CHOICE_MAX];
+  int ids[AI_POPUP_CHOICE_MAX];
+  static char lbl[AI_POPUP_CHOICE_MAX][AI_POPUP_CHOICE_LEN];
+  int n = 0;
+  const int met = ind->euro_diplo[e] != 0;
+  const int foreign_owner =
+    (village && village->mission != COL1_TRIBE_MISSION_NONE)
+      ? (int)(village->mission & COL1_TRIBE_MISSION_NATION_MASK)
+      : -1;
+  const char* rival_adj = (foreign_owner >= 0 && foreign_owner <= 3) ? ai_contact_euro_name(foreign_owner) : NULL;
+#define AI_CONTACT_MENU_ADD(row, id)                                                    \
+  do {                                                                                  \
+    if (n < AI_POPUP_CHOICE_MAX) {                                                      \
+      labels[n] = ai_contact_action_label(ctx, (row), rival_adj, lbl[n], sizeof(lbl[n])); \
+      ids[n] = (id);                                                                    \
+      n++;                                                                              \
+    }                                                                                   \
+  } while (0)
+  if (u) {
+    AiContactUnitClass cls;
+    ai_contact_classify_unit(ctx->units, u, &cls);
+    if (cls.is_wagon || cls.is_ship) {
+      AI_CONTACT_MENU_ADD(alarm < 0x4b ? 0 : 1, alarm < 0x4b ? AI_CONTACT_CHOICE_TRADE : AI_CONTACT_CHOICE_ENTER_HOSTILE);
+    }
+    if (cls.is_scout) {
+      AI_CONTACT_MENU_ADD(5, AI_CONTACT_CHOICE_CHIEF);
+    }
+    int attack_listed = 0;
+    if (!cls.is_ship && cls.attack > 1) {
+      AI_CONTACT_MENU_ADD(8, AI_CONTACT_CHOICE_ATTACK_VILLAGE);
+      attack_listed = 1;
+    }
+    if (met) {
+      if (cls.is_missionary) {
+        if (foreign_owner < 0) {
+          AI_CONTACT_MENU_ADD(2, AI_CONTACT_CHOICE_MISSION);
+        } else if (foreign_owner != e) {
+          AI_CONTACT_MENU_ADD(3, AI_CONTACT_CHOICE_HERESY);
+        }
+        AI_CONTACT_MENU_ADD(6, AI_CONTACT_CHOICE_INCITE);
+      } else {
+        if (cls.can_live_among) {
+          AI_CONTACT_MENU_ADD(4, AI_CONTACT_CHOICE_TEACH);
+        }
+        if (cls.attack != 0 && !cls.is_ship) {
+          AI_CONTACT_MENU_ADD(7, AI_CONTACT_CHOICE_DEMAND);
+        }
+      }
+      if (!attack_listed && cls.attack != 0 && !cls.is_ship) {
+        AI_CONTACT_MENU_ADD(8, AI_CONTACT_CHOICE_ATTACK_VILLAGE);
+      }
+    }
+  } else {
+    AI_CONTACT_MENU_ADD(0, AI_CONTACT_CHOICE_TRADE);
+    AI_CONTACT_MENU_ADD(4, AI_CONTACT_CHOICE_TEACH);
+    AI_CONTACT_MENU_ADD(6, AI_CONTACT_CHOICE_INCITE);
+  }
+  AI_CONTACT_MENU_ADD(9, AI_CONTACT_CHOICE_LEAVE);
+#undef AI_CONTACT_MENU_ADD
   ai_popup_enqueue_choice_ctx(
     ctx->ai_popups,
     AI_POPUP_TAG_CONTACT_MEET,
     e,
     nation_id,
-    meet_payload,
+    ai_contact_meet_payload(is_missionary, is_capital, unit_id),
     title,
     body,
     labels,
     ids,
-    6
+    n
   );
-  {
-    char st[96];
-    /*
-     * GAME.TXT @INDIANHELLO1 / @INDIANHELLO2 thin: cool alarm → worthy welcome;
-     * hot mid+ → ruthless greeting. Cite: indian_contact.md meet §1.
-     */
-    const ColonizeCol1Indian* ind = &ctx->col1->indian[nation_id - 4];
-    const int hot = ind && ind->alarm_by_player[e] >= 40;
-    if (hot) {
-      snprintf(
-        st,
-        sizeof(st),
-        "The %s tribe greets the most ruthless of the %s.",
-        tribe,
-        ai_contact_euro_name(e)
-      );
-    } else {
-      snprintf(
-        st,
-        sizeof(st),
-        "The %s tribe welcomes the most worthy of the %s.",
-        tribe,
-        ai_contact_euro_name(e)
-      );
-    }
-    ai_contact_set_status(ctx, st);
-  }
+  ai_contact_set_status(ctx, body);
 }
 
-int ai_contact_try_village_meet(
+int ai_contact_meet_pending_for_unit(const AiPopupState* st, int unit_id) {
+  if (!st || unit_id < 0) {
+    return 0;
+  }
+  for (int i = 0; i < st->queue_count; ++i) {
+    if (st->queue[i].tag == AI_POPUP_TAG_CONTACT_MEET && st->queue[i].kind == AI_POPUP_KIND_CHOICE &&
+        ai_contact_meet_payload_unit(st->queue[i].payload) == unit_id) {
+      return 1;
+    }
+  }
+  if (st->open && st->current.tag == AI_POPUP_TAG_CONTACT_MEET &&
+      st->current.kind == AI_POPUP_KIND_CHOICE &&
+      ai_contact_meet_payload_unit(st->current.payload) == unit_id) {
+    return 1;
+  }
+  return 0;
+}
+
+int ai_contact_try_village_meet_unit(
   ColonizeTurnContext* ctx,
   int euro_nation,
   int indian_nation,
   int is_missionary,
-  int is_capital
+  int is_capital,
+  int unit_id
 ) {
   if (!ctx || !ctx->col1_ok || !ctx->col1 || euro_nation < 0 || euro_nation > 3) {
     return 0;
@@ -740,15 +1002,30 @@ int ai_contact_try_village_meet(
   if (!ind->euro_diplo[euro_nation]) {
     return 0;
   }
-  if (ai_diplo_indian_at_war(ctx->col1, euro_nation, indian_nation - 4)) {
+  /*
+   * DOS shows the menu at any alarm (the @VILLAGEWAR body + "Enter Hostile
+   * Village" row exist for exactly that); only the legacy no-unit callers
+   * keep the old at-war refusal so their raid-warn fallback still runs.
+   */
+  if (unit_id < 0 && ai_diplo_indian_at_war(ctx->col1, euro_nation, indian_nation - 4)) {
     return 0;
   }
   if (ai_contact_meet_choice_pending(ctx->ai_popups, euro_nation, indian_nation) ||
       ai_contact_welcome_pending(ctx->ai_popups, euro_nation, indian_nation)) {
     return 0;
   }
-  ai_contact_enqueue_village_meet(ctx, euro_nation, indian_nation, is_missionary, is_capital);
+  ai_contact_enqueue_village_meet(ctx, euro_nation, indian_nation, is_missionary, is_capital, unit_id);
   return 1;
+}
+
+int ai_contact_try_village_meet(
+  ColonizeTurnContext* ctx,
+  int euro_nation,
+  int indian_nation,
+  int is_missionary,
+  int is_capital
+) {
+  return ai_contact_try_village_meet_unit(ctx, euro_nation, indian_nation, is_missionary, is_capital, -1);
 }
 
 static int ai_contact_village_warn_pending(const AiPopupState* st, int unit_id) {
@@ -952,6 +1229,16 @@ int ai_contact_try_village_raid_warn(
  * village meet. Ship never enters the tile. Cite: indian_settlement_4528.md.
  */
 int ai_contact_try_ship_village(ColonizeTurnContext* ctx, int euro_nation, int x, int y) {
+  return ai_contact_try_ship_village_unit(ctx, euro_nation, x, y, -1);
+}
+
+int ai_contact_try_ship_village_unit(
+  ColonizeTurnContext* ctx,
+  int euro_nation,
+  int x,
+  int y,
+  int unit_id
+) {
   if (!ctx || !ctx->col1_ok || !ctx->col1 || !ctx->col1->tribe || euro_nation < 0 ||
       euro_nation > 3) {
     return 0;
@@ -1035,7 +1322,7 @@ int ai_contact_try_ship_village(ColonizeTurnContext* ctx, int euro_nation, int x
 
   /* Ship contact never carries a Missionary; capital status is real
    * (the specific village record was already resolved above). */
-  if (ai_contact_try_village_meet(ctx, euro_nation, indian_nation, 0, tribe->state.capital)) {
+  if (ai_contact_try_village_meet_unit(ctx, euro_nation, indian_nation, 0, tribe->state.capital, unit_id)) {
     return 1;
   }
   if (!mid_wary) {
@@ -6478,6 +6765,965 @@ void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id) {
   }
 }
 
+
+/* ======================================================================
+ * DOS village action handlers (overlay 13 thunks behind FUN_4d56_4528's
+ * @ACTIONS switch). Static port 2026-08-28 from viceroy_overlays.c /
+ * viceroy_overlays.asm; see original_sources_annotated/ai/indian_actions_menu.md.
+ * ====================================================================== */
+
+/* FUN_1000_8c50 → FUN_15dc_00a2: alarm quartile 0..3 (<25 / <50 / <75 / else). */
+static int ai_contact_alarm_quartile(int alarm) {
+  if (alarm < 25) {
+    return 0;
+  }
+  if (alarm < 50) {
+    return 1;
+  }
+  if (alarm < 75) {
+    return 2;
+  }
+  return 3;
+}
+
+static ColonizeDosRng* ai_contact_action_rng(ColonizeTurnContext* ctx, int nation_id, ColonizeDosRng* local) {
+  if (ctx && ctx->rng) {
+    return ctx->rng;
+  }
+  ai_contact_local_rng(ctx, nation_id, local);
+  return local;
+}
+
+/* The acting unit of a village menu result (payload bits 2.. = id + 1). */
+static ColonizeUnit* ai_contact_menu_unit(ColonizeTurnContext* ctx, const AiPopupState* popup, int e) {
+  if (!ctx || !ctx->units || !popup) {
+    return NULL;
+  }
+  const int uid = ai_contact_meet_payload_unit(popup->result_payload);
+  if (uid < 0) {
+    return NULL;
+  }
+  ColonizeUnit* u = units_get(ctx->units, uid);
+  if (!u || !u->active || u->nation_id != e) {
+    return NULL;
+  }
+  return u;
+}
+
+/* The village the unit is acting on: adjacent (or same tile) village of the tribe. */
+static ColonizeCol1Tribe* ai_contact_menu_village(ColonizeTurnContext* ctx, int nation_id, const ColonizeUnit* u) {
+  if (!ctx || !ctx->col1 || !ctx->col1->tribe) {
+    return NULL;
+  }
+  ColonizeCol1Tribe* first = NULL;
+  for (uint16_t ti = 0; ti < ctx->col1->head.tribe_count; ++ti) {
+    ColonizeCol1Tribe* t = &ctx->col1->tribe[ti];
+    if ((int)t->nation_id != nation_id) {
+      continue;
+    }
+    if (!first) {
+      first = t;
+    }
+    if (u && ai_contact_dist(t->x, t->y, u->x, u->y) <= 1) {
+      return t;
+    }
+  }
+  return first;
+}
+
+/* NAMES.TXT @JOB column 1 (DS:0x8ea4 + job*8): "Expert Farmers" … */
+static const char* ai_contact_job_expert_name(const ColonizeTurnContext* ctx, int job) {
+  static char live[40];
+  if (ctx && ctx->names && job >= 0) {
+    const ColonizeMsgSection* sec = assets_msg_find(ctx->names, "JOB");
+    if (sec) {
+      int row = 0;
+      for (int i = 0; i < sec->line_count; ++i) {
+        const char* line = sec->lines[i];
+        if (!line || !line[0] || line[0] == ';' || line[0] == '@') {
+          continue;
+        }
+        if (row == job) {
+          const char* c1 = strchr(line, ',');
+          if (c1) {
+            c1++;
+            while (*c1 == ' ') {
+              c1++;
+            }
+            size_t n = 0;
+            while (c1[n] && c1[n] != ',' && n + 1 < sizeof(live)) {
+              live[n] = c1[n];
+              n++;
+            }
+            while (n > 0 && live[n - 1] == ' ') {
+              n--;
+            }
+            live[n] = '\0';
+            if (n > 0) {
+              return live;
+            }
+          }
+          break;
+        }
+        row++;
+      }
+    }
+  }
+  if (job >= 0 && job < COLONIZE_FIELD_JOB_COUNT) {
+    return colony_yield_job_name(job);
+  }
+  if (job == UNITS_JOB_SCOUT) {
+    return "Seasoned Scouts";
+  }
+  return "colonists";
+}
+
+/* NAMES.TXT @JOB column 0 (DS:0x8ea2 + job*8): "Farmer" … / "Scout". */
+static const char* ai_contact_job_name(int job) {
+  if (job >= 0 && job < COLONIZE_FIELD_JOB_COUNT) {
+    return colony_yield_job_name(job);
+  }
+  if (job == UNITS_JOB_SCOUT) {
+    return "Scout";
+  }
+  return "colonist";
+}
+
+/* DS:0x8394 difficulty titles (%STRING0 of the @EXTORT* bodies). */
+static const char* ai_contact_difficulty_title(const ColonizeCol1Save* col1) {
+  static const char* k_titles[5] = {"Discoverer", "Explorer", "Conquistador", "Governor", "Viceroy"};
+  unsigned d = col1 ? (unsigned)col1->head.difficulty : 0u;
+  if (d > 4u) {
+    d = 4u;
+  }
+  return k_titles[d];
+}
+
+/* FUN_1000_8804 → FUN_15eb_0142: nearest colony of `e` (continent -1 = any). */
+static int ai_contact_nearest_own_colony(
+  const ColonizeTurnContext* ctx,
+  int e,
+  int x,
+  int y,
+  int continent
+) {
+  if (!ctx || !ctx->colonies) {
+    return -1;
+  }
+  int best = -1;
+  int best_d = 9999;
+  for (int ci = 0; ci < COLONIZE_COLONIES_MAX; ++ci) {
+    const ColonizeColony* c = &ctx->colonies->colonies[ci];
+    if (!c->active || c->nation_id != e) {
+      continue;
+    }
+    if (continent >= 0 && ctx->map && map_continent_id_at(ctx->map, c->x, c->y) != continent) {
+      continue;
+    }
+    const int d = ai_contact_dist(c->x, c->y, x, y);
+    if (d < best_d) {
+      best_d = d;
+      best = ci;
+    }
+  }
+  return best;
+}
+
+/*
+ * Live recompute of the FUN_4962_0018 / FUN_4962_06b6 census bytes the
+ * tribute roll reads: -0x6a4e (Euro exposed land combat on a continent),
+ * -0x6be4 (Euro land combat total), -0x6e34 (Brave combat on a continent),
+ * -0x6e7c (Brave combat total). Byte tables in DOS — capped at 255; the
+ * nation total is a word. combat value = FUN_157e_004a(unit, mode 1).
+ */
+static int ai_contact_land_combat_sum(
+  const ColonizeTurnContext* ctx,
+  int nation,
+  int continent,
+  int exposed_only,
+  int cap
+) {
+  if (!ctx || !ctx->units) {
+    return 0;
+  }
+  ColonizeCombatStrengthCtx sctx;
+  sctx.units = ctx->units;
+  sctx.map = ctx->map;
+  sctx.colonies = ctx->colonies;
+  sctx.col1 = ctx->col1;
+  int sum = 0;
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    const ColonizeUnit* u = units_get_const(ctx->units, i);
+    if (!u || !u->active || u->nation_id != nation || u->aboard_ship_id >= 0 ||
+        units_is_sea(ctx->units, i)) {
+      continue;
+    }
+    if (exposed_only) {
+      if (u->orders == UNITS_ORDER_FORTIFY || u->orders == UNITS_ORDER_FORTIFIED) {
+        continue;
+      }
+      if (ctx->colonies && colonies_id_at(ctx->colonies, u->x, u->y) >= 0) {
+        continue;
+      }
+    }
+    if (continent >= 0 && ctx->map && map_continent_id_at(ctx->map, u->x, u->y) != continent) {
+      continue;
+    }
+    sum += combat_unit_base_x8(&sctx, i, 1, NULL);
+    if (sum >= cap) {
+      return cap;
+    }
+  }
+  return sum;
+}
+
+/* DS:0xc8 / DS:0xde — the 20-tile colony work ring (5x5 minus centre and corners). */
+static const int8_t k_ring20_dx[20] = {0, 1, 0, -1, -1, 1, 1, -1, 0, 2, 0, -2, -1, 1, -1, 1, -2, -2, 2, 2};
+static const int8_t k_ring20_dy[20] = {-1, 0, 1, 0, -1, -1, 1, 1, -2, 0, 2, 0, -2, -2, 2, 2, -1, 1, -1, 1};
+
+/*
+ * thunk_FUN_1000_a618 skill pick (the "what does this village teach" half,
+ * param_5 = 1 preview). Weights = the FUN_4d56_2154 bid[] table (DS:0x9e78,
+ * ai_contact_meet_economics_2154) with fisherman zeroed, then tech trims:
+ * tech<1 zero FurTrader/OreMiner, Farmer/2; tech<2 zero Weaver/Tobacconist/
+ * SilverMiner, Farmer -= Farmer/4; tech<3 zero Distiller; tech==3 Silver
+ * += Silver/2. Weighted draw rand(1,Σ). FurTrapper(4) with (x+y)%3==0 →
+ * Seasoned Scout (0x16). Farmer(0) → Fisherman(8) when rand(1,20) < ocean
+ * tiles in the 20-ring. DOS reseeds the RNG from the village position
+ * (FUN_1000_86ba(x*256+y + DS:0x8d80)) so the answer is stable per village;
+ * the DS:0x8d80 base is not named — this port seeds from the position alone.
+ */
+static int ai_contact_a618_skill(ColonizeTurnContext* ctx, int nation_id, const ColonizeCol1Tribe* t) {
+  if (!ctx || !ctx->col1 || !t) {
+    return COLONIZE_JOB_FARMER;
+  }
+  AiContactMeetEcon2154 econ;
+  int w[16];
+  if (ai_contact_meet_economics_2154(ctx, nation_id, t, &econ)) {
+    for (int i = 0; i < 16; ++i) {
+      w[i] = (int)econ.bid[i];
+    }
+  } else {
+    memset(w, 0, sizeof(w));
+    const int fb = ai_contact_taught_profession(t);
+    if (fb >= 0 && fb < 16) {
+      w[fb] = 1;
+    } else {
+      w[0] = 1;
+    }
+  }
+  const unsigned tech = (unsigned)ctx->col1->indian[nation_id - 4].tech;
+  w[8] = 0;
+  if (tech < 1u) {
+    w[12] = 0;
+    w[6] = 0;
+    w[0] >>= 1;
+  }
+  if (tech < 2u) {
+    w[11] = 0;
+    w[10] = 0;
+    w[7] = 0;
+    w[0] -= w[0] >> 2;
+  }
+  if (tech < 3u) {
+    w[9] = 0;
+  }
+  if (tech == 3u) {
+    w[7] += w[7] >> 1;
+  }
+  ColonizeDosRng rng;
+  dos_rng_seed(&rng, (uint32_t)((int)t->y * 256 + (int)t->x));
+  int sum = 0;
+  for (int i = 0; i < 16; ++i) {
+    sum += w[i];
+  }
+  int skill = 0;
+  if (sum > 0) {
+    int r = dos_rng_range(&rng, 1, sum);
+    skill = -1;
+    do {
+      skill++;
+      r -= w[skill];
+    } while (r > 0 && skill < 15);
+  }
+  if (skill == 4 && (((int)t->x + (int)t->y) % 3) == 0) {
+    skill = UNITS_JOB_SCOUT; /* 0x16 */
+  }
+  if (skill == 0 && ctx->map) {
+    int ocean = 0;
+    for (int k = 0; k < 20; ++k) {
+      const int ox = (int)t->x + k_ring20_dx[k];
+      const int oy = (int)t->y + k_ring20_dy[k];
+      if (map_coords_inset(ctx->map, ox, oy) && map_tile_is_water(ctx->map, ox, oy)) {
+        ocean++;
+      }
+    }
+    if (dos_rng_range(&rng, 1, 20) < ocean) {
+      skill = 8;
+    }
+  }
+  return skill;
+}
+
+/* thunk_FUN_1000_a618 LAB_398c "DONE": profession = skill, village learned bit, @LEARNDONE. */
+static void ai_contact_learnstay_apply(
+  ColonizeTurnContext* ctx,
+  int e,
+  int nation_id,
+  ColonizeUnit* u,
+  ColonizeCol1Tribe* t,
+  int skill
+) {
+  if (!ctx || !u || !t) {
+    return;
+  }
+  u->profession = skill;
+  t->state.learned = 1;
+  PopupMsgTokens tok;
+  memset(&tok, 0, sizeof(tok));
+  tok.string0 = ai_contact_tribe_name(nation_id);
+  tok.string1 = ai_contact_job_name(skill);
+  char fb[AI_POPUP_BODY_LEN];
+  snprintf(fb, sizeof(fb), "\"Congratulations, Young One. You have learned the ways of the %s and become a master %s.\"", tok.string0, tok.string1);
+  char body[AI_POPUP_BODY_LEN];
+  popup_msg_fill(ctx->messages, "LEARNDONE", &tok, fb, body, sizeof(body));
+  ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_TEACH, nation_id, "Teach", body);
+}
+
+/*
+ * thunk_FUN_1000_a618 (param_5 = 0) — "Live Among The Natives". Alarm
+ * quartile ≥ 2 → @LEARNMAD (+3 alarm; silent when met-but-no-peace, rel &
+ * 0x60 == 0x20). Petty Criminal → @LEARNCRIMINAL. Indian Convert →
+ * @TEACHCONVERT. Any skilled profession → @LEARNMASTER. Free Colonist /
+ * Indentured Servant: village already taught && !capital → @LEARNALREADY;
+ * quartile 1 && rand(1,1000) < 200*difficulty+100 → @LEARNSLOW; human →
+ * @LEARNSTAY CHOICE (Yes → DONE, No → @LEARNLATER); AI → DONE at once.
+ */
+static void ai_contact_live_among_natives(
+  ColonizeTurnContext* ctx,
+  int e,
+  int nation_id,
+  ColonizeUnit* u,
+  ColonizeCol1Tribe* t
+) {
+  if (!ctx || !ctx->col1 || !u || !t) {
+    return;
+  }
+  ColonizeDosRng local;
+  ColonizeDosRng* rng = ai_contact_action_rng(ctx, nation_id, &local);
+  const int human = ai_contact_euro_is_human(ctx, e);
+  const int skill = ai_contact_a618_skill(ctx, nation_id, t);
+  const int alarm = ai_diplo_indian_alarm(ctx->col1, nation_id, e);
+  const int band = ai_contact_alarm_quartile(alarm);
+  const char* tribe = ai_contact_tribe_name(nation_id);
+  PopupMsgTokens tok;
+  memset(&tok, 0, sizeof(tok));
+  tok.string0 = tribe;
+  tok.string1 = ai_contact_job_name(skill);
+  const char* section = NULL;
+  const char* fb = NULL;
+
+  if (band > 1) {
+    ai_diplo_indian_alarm_delta(ctx->col1, nation_id, e, 3);
+    const uint8_t rel = ctx->col1->indian[nation_id - 4].euro_diplo[e];
+    if ((rel & 0x60u) == 0x20u) {
+      return; /* met, no peace → DOS returns before the popup */
+    }
+    section = "LEARNMAD";
+    fb = "\"Your ill manners infuriate us, Young One. You fail to understand our ways, so we doubt you will ever learn anything from us.\"";
+  } else if (ai_contact_is_petty_criminal(ctx->units, u)) {
+    section = "LEARNCRIMINAL";
+    fb = "\"Your ill manners offend us, Young One, and we doubt that you will ever be more than a common criminal. The %s will teach you nothing.\"";
+  } else {
+    const char* dname = units_display_name(ctx->units, u);
+    const int is_convert = u->profession == COLONIZE_PROF_CONVERT || (dname && strstr(dname, "Convert") != NULL);
+    const int is_indentured = dname && strstr(dname, "Indentured") != NULL;
+    if (is_convert) {
+      char body[AI_POPUP_BODY_LEN];
+      popup_msg_fill(ctx->messages, "TEACHCONVERT", NULL, "Indian converts already know the Indian ways.", body, sizeof(body));
+      ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_TEACH, nation_id, "Teach", body);
+      return;
+    }
+    if (u->profession != UNITS_JOB_NONE && !is_indentured) {
+      tok.string1 = ai_contact_learner_skill_name(ctx->units, u);
+      section = "LEARNMASTER";
+      fb = "\"We are glad to have a master %s living among us, Old One. However, we can only teach new skills to colonists who do not yet have one.\"";
+    } else if (t->state.learned && !t->state.capital) {
+      section = "LEARNALREADY";
+      fb = "\"The %s of this village have already shared their skills with young Europeans. Go and learn from them if you will, for we have nothing else to teach.\"";
+    } else {
+      int slow = 0;
+      if (band > 0) {
+        const int roll = dos_rng_range(rng, 1, 1000);
+        if (roll < 200 * (int)ctx->col1->head.difficulty + 100) {
+          slow = 1;
+        }
+      }
+      if (slow) {
+        section = "LEARNSLOW";
+        fb = "\"You are unskilled and uncouth, Young One, and have difficulty understanding our ways. We see scarce hope for you, although you are welcome to remain in our village.\"";
+      } else if (human && ctx->ai_popups) {
+        char body[AI_POPUP_BODY_LEN];
+        char fbs[AI_POPUP_BODY_LEN];
+        snprintf(fbs, sizeof(fbs), "\"You are unskilled, Young One, and your ways are strange. If you wish, however, we %s will show you how to become a master %s.\"", tribe, tok.string1);
+        popup_msg_fill(ctx->messages, "LEARNSTAY", &tok, fbs, body, sizeof(body));
+        char choice_buf[AI_POPUP_CHOICE_MAX][AI_POPUP_CHOICE_LEN];
+        const ColonizeMsgSection* sec = assets_msg_find(ctx->messages, "LEARNSTAY");
+        const int nch = popup_msg_choices(sec, choice_buf, AI_POPUP_CHOICE_MAX);
+        static char yes_lbl[AI_POPUP_CHOICE_LEN];
+        if (nch >= 2) {
+          popup_msg_apply_tokens(yes_lbl, sizeof(yes_lbl), choice_buf[0], &tok);
+        } else {
+          snprintf(yes_lbl, sizeof(yes_lbl), "Then I shall become a master %s.", tok.string1);
+        }
+        const char* labels[2] = {yes_lbl, nch >= 2 ? choice_buf[1] : "Not right now, thanks."};
+        const int ids[2] = {AI_CONTACT_LEARNSTAY_YES, AI_CONTACT_LEARNSTAY_NO};
+        char title[AI_POPUP_TITLE_LEN];
+        snprintf(title, sizeof(title), "%s", tribe);
+        /* payload: unit id | skill << 16 */
+        const int payload = (u->id & 0xffff) | (skill << 16);
+        if (ai_popup_enqueue_choice_ctx(
+              ctx->ai_popups, AI_POPUP_TAG_CONTACT_LEARNSTAY, e, nation_id, payload, title, body, labels, ids, 2
+            )) {
+          ai_contact_set_status(ctx, body);
+          return;
+        }
+        ai_contact_learnstay_apply(ctx, e, nation_id, u, t, skill);
+        return;
+      } else {
+        ai_contact_learnstay_apply(ctx, e, nation_id, u, t, skill);
+        return;
+      }
+    }
+  }
+  char fbs[AI_POPUP_BODY_LEN];
+  if (strstr(fb, "%s")) {
+    snprintf(fbs, sizeof(fbs), fb, strcmp(section, "LEARNMASTER") == 0 ? tok.string1 : tribe);
+  } else {
+    snprintf(fbs, sizeof(fbs), "%s", fb);
+  }
+  char body[AI_POPUP_BODY_LEN];
+  popup_msg_fill(ctx->messages, section, &tok, fbs, body, sizeof(body));
+  ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_TEACH, nation_id, "Teach", body);
+}
+
+/*
+ * thunk_FUN_1000_a60c — "Ask to Speak With Chief" (Scouts only). seasoned =
+ * profession 0x16. alarm < 75: thr = rand(0, seasoned ? 140 : 100); good
+ * branch when alarm < 25 || alarm/4 < thr: Arawak (slot 2) rand(0,
+ * (8-difficulty) << seasoned) == 0 → kill; @CHIEFHOWDY (village skill +
+ * three most-wanted goods); then alarm < thr && !scouted → scouted, rand(1,3):
+ * 1 plain Scout → Seasoned + @CHIEFGUIDES/@WELLSEASONED (seasoned → tales);
+ * 2 → @CHIEFAREA + fog reveal radius 6; 3 → @CHIEFGIFT gold = (tech+1) *
+ * rand(1,6) * (Σ3 rand(1,10-difficulty)) * 4. Else @CHIEFBORED. Kill path
+ * (alarm ≥ 75 / bad roll): FF 6 (Coronado) owned → bored instead; else
+ * @CHIEFKILL + unit destroyed.
+ */
+static void ai_contact_speak_with_chief(
+  ColonizeTurnContext* ctx,
+  int e,
+  int nation_id,
+  ColonizeUnit* u,
+  ColonizeCol1Tribe* t
+) {
+  if (!ctx || !ctx->col1 || !u || !t) {
+    return;
+  }
+  ColonizeDosRng local;
+  ColonizeDosRng* rng = ai_contact_action_rng(ctx, nation_id, &local);
+  ColonizeCol1Save* col1 = ctx->col1;
+  ColonizeCol1Indian* ind = &col1->indian[nation_id - 4];
+  const int human = ai_contact_euro_is_human(ctx, e);
+  const int seasoned = u->profession == UNITS_JOB_SCOUT;
+  const int alarm = ai_diplo_indian_alarm(col1, nation_id, e);
+  const int diff = (int)col1->head.difficulty;
+  const char* tribe = ai_contact_tribe_name(nation_id);
+  PopupMsgTokens tok;
+  memset(&tok, 0, sizeof(tok));
+  tok.string0 = tribe;
+  char body[AI_POPUP_BODY_LEN];
+  char fb[AI_POPUP_BODY_LEN];
+  int kill = 1;
+
+  if (alarm < 0x4b) {
+    const int thr = dos_rng_range(rng, 0, seasoned ? 140 : 100);
+    if (alarm < 0x19 || (alarm >> 2) < thr) {
+      kill = 0;
+      if (nation_id == 6) {
+        const int hi = (8 - diff) << (seasoned ? 1 : 0);
+        if (dos_rng_range(rng, 0, hi) == 0) {
+          kill = 1;
+        }
+      }
+      if (!kill) {
+        if (human) {
+          /* @CHIEFHOWDY: village skill + the three most-wanted goods (ask[] top). */
+          const int skill = ai_contact_a618_skill(ctx, nation_id, t);
+          AiContactMeetEcon2154 econ;
+          int want[3] = {-1, -1, -1};
+          if (ai_contact_meet_economics_2154(ctx, nation_id, t, &econ)) {
+            int ask[16];
+            int order[16];
+            for (int i = 0; i < 16; ++i) {
+              ask[i] = (int)econ.ask[i];
+              order[i] = i;
+            }
+            if (t->last_bought < 16) {
+              ask[t->last_bought] = 0;
+            }
+            if (t->last_sold < 16) {
+              ask[t->last_sold] = 0;
+            }
+            for (int i = 1; i < 16; ++i) {
+              const int v = order[i];
+              int j = i - 1;
+              while (j >= 0 && ask[order[j]] > ask[v]) {
+                order[j + 1] = order[j];
+                j--;
+              }
+              order[j + 1] = v;
+            }
+            want[0] = order[15];
+            want[1] = order[14];
+            want[2] = order[13];
+          }
+          PopupMsgTokens ht;
+          memset(&ht, 0, sizeof(ht));
+          ht.string0 = ai_contact_job_expert_name(ctx, skill);
+          ht.string1 = want[0] >= 0 ? ai_contact_cargo_name(want[0]) : "trade goods";
+          ht.string2 = want[1] >= 0 ? ai_contact_cargo_name(want[1]) : "tools";
+          ht.string3 = want[2] >= 0 ? ai_contact_cargo_name(want[2]) : "muskets";
+          snprintf(fb, sizeof(fb), "\"Greetings, travelers. We are a peaceful village known for our %s. We would gladly trade with you if you bring us some badly needed %s. We would also pay well for %s or %s.\"", ht.string0, ht.string1, ht.string2, ht.string3);
+          popup_msg_fill(ctx->messages, "CHIEFHOWDY", &ht, fb, body, sizeof(body));
+          ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_MEET, nation_id, "Chief", body);
+        }
+        if (alarm < thr && !t->state.scouted) {
+          t->state.scouted = 1;
+          int r = dos_rng_range(rng, 1, 3);
+          if (r == 1 && !seasoned) {
+            tok.string1 = ai_contact_level_noun(ctx, (int)ind->tech);
+            u->profession = UNITS_JOB_SCOUT;
+            if (human) {
+              snprintf(fb, sizeof(fb), "\"We gladly welcome you to our %s. In honor of the strange tales you have shared with us, the %s shall provide you with guides to aid your passage through our lands.\"", tok.string1, tribe);
+              popup_msg_fill(ctx->messages, "CHIEFGUIDES", &tok, fb, body, sizeof(body));
+              ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_MEET, nation_id, "Chief", body);
+              popup_msg_fill(ctx->messages, "WELLSEASONED", NULL, "Our Scouts have improved to Seasoned status.", body, sizeof(body));
+              ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_MEET, nation_id, "Chief", body);
+            }
+            return;
+          }
+          if (r == 3) {
+            const int r1 = dos_rng_range(rng, 1, 10 - diff);
+            const int r2 = dos_rng_range(rng, 1, 10 - diff);
+            const int r3 = dos_rng_range(rng, 1, 10 - diff);
+            const int r6 = dos_rng_range(rng, 1, 6);
+            const int gold = ((int)ind->tech + 1) * r6 * (r1 + r2 + r3) * 4;
+            tok.string1 = ai_contact_euro_name(e);
+            tok.number0 = gold;
+            tok.has_number0 = true;
+            if (human) {
+              snprintf(fb, sizeof(fb), "\"The %s welcome the emissaries of the %s tribe. Please take these valuable beads (worth %d gold) back to your chieftain as a peace offering.\"", tribe, tok.string1, gold);
+              popup_msg_fill(ctx->messages, "CHIEFGIFT", &tok, fb, body, sizeof(body));
+              ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_MEET, nation_id, "Chief", body);
+            }
+            col1->nation[e].gold += (uint32_t)gold;
+            return;
+          }
+          /* r == 2, or a seasoned scout rolling 1: tales of nearby lands. */
+          if (human) {
+            popup_msg_fill(ctx->messages, "CHIEFAREA", &tok, "\"The %s are pleased to welcome travelers from afar. Come sit by the fire and we shall tell you tales of nearby lands.\"", body, sizeof(body));
+            ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_MEET, nation_id, "Chief", body);
+          }
+          if (ctx->map) {
+            /* FUN_1000_8986 → FUN_13f1_02b4(unit, DX = 6): 13x13 reveal. */
+            for (int dy = -6; dy <= 6; ++dy) {
+              for (int dx = -6; dx <= 6; ++dx) {
+                const int rx = u->x + dx;
+                const int ry = u->y + dy;
+                if (map_coords_inset(ctx->map, rx, ry)) {
+                  map_reveal_tile(ctx->map, rx, ry, e);
+                }
+              }
+            }
+          }
+          return;
+        }
+        /* bored */
+        tok.string1 = ai_contact_euro_name(e);
+        snprintf(fb, sizeof(fb), "\"The %s are always pleased to welcome %s travelers.\"", tribe, tok.string1);
+        popup_msg_fill(ctx->messages, "CHIEFBORED", &tok, fb, body, sizeof(body));
+        ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_MEET, nation_id, "Chief", body);
+        return;
+      }
+    }
+  }
+  /* LAB_3a22: kill unless FF 6 (Coronado) is owned. */
+  if (!founding_fathers_nation_has(col1, e, FF_FRANCISCO_CORONADO)) {
+    snprintf(fb, sizeof(fb), "\"You have broken sacred taboos of the %s tribe! We shall tie you up for target practice.\"", tribe);
+    popup_msg_fill(ctx->messages, "CHIEFKILL", &tok, fb, body, sizeof(body));
+    ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_MEET, nation_id, "Chief", body);
+    units_despawn(ctx->units, u->id);
+    return;
+  }
+  tok.string1 = ai_contact_euro_name(e);
+  snprintf(fb, sizeof(fb), "\"The %s are always pleased to welcome %s travelers.\"", tribe, tok.string1);
+  popup_msg_fill(ctx->messages, "CHIEFBORED", &tok, fb, body, sizeof(body));
+  ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_MEET, nation_id, "Chief", body);
+}
+
+/*
+ * thunk_FUN_1000_a5f4 — "Demand Tribute". euro = exposed land combat on the
+ * unit's continent + (land combat total >> 1); Spanish ×1.5; Cortes (FF 10)
+ * ×1.5. indian = (Brave combat on continent + (Brave total >> 1)) * 2 +
+ * alarm/2. win = rand(0,indian) < rand(0,euro) && an own colony exists on
+ * the continent. alarm bump = human ? difficulty+1 : 1. (win || indian <
+ * euro) && alarm < 75: (win || alarm < 50): village not yet extorted && win →
+ * bit 0x10, bump ×2, @EXTORTSTUFF: 10 of the village's top bid[] good into
+ * the nearest colony; else @EXTORTPOOR, bump 0. alarm 50..74 → @EXTORTNO.
+ * Otherwise @EXTORTLAUGH. Ends with FUN_4cc6_00f2(+bump).
+ */
+static void ai_contact_demand_tribute(
+  ColonizeTurnContext* ctx,
+  int e,
+  int nation_id,
+  ColonizeUnit* u,
+  ColonizeCol1Tribe* t
+) {
+  if (!ctx || !ctx->col1 || !u || !t) {
+    return;
+  }
+  ColonizeDosRng local;
+  ColonizeDosRng* rng = ai_contact_action_rng(ctx, nation_id, &local);
+  ColonizeCol1Save* col1 = ctx->col1;
+  const int human = ai_contact_euro_is_human(ctx, e);
+  const int continent = ctx->map ? map_continent_id_at(ctx->map, u->x, u->y) : -1;
+  const int alarm = ai_diplo_indian_alarm(col1, nation_id, e);
+  const char* tribe = ai_contact_tribe_name(nation_id);
+
+  int euro = ai_contact_land_combat_sum(ctx, e, continent, 1, 255) +
+             (ai_contact_land_combat_sum(ctx, e, -1, 0, 0xffff) >> 1);
+  if (e == 2) {
+    euro += euro >> 1;
+  }
+  if (founding_fathers_nation_has(col1, e, FF_HERNAN_CORTES)) {
+    euro += euro >> 1;
+  }
+  const int indian =
+    (ai_contact_land_combat_sum(ctx, nation_id, continent, 0, 255) +
+     (ai_contact_land_combat_sum(ctx, nation_id, -1, 0, 255) >> 1)) * 2 + (alarm >> 1);
+  int bump = human ? (int)col1->head.difficulty + 1 : 1;
+  const int r_e = dos_rng_range(rng, 0, euro);
+  const int r_i = dos_rng_range(rng, 0, indian);
+  const int cid = ai_contact_nearest_own_colony(ctx, e, u->x, u->y, continent);
+  const int win = cid >= 0 && r_i < r_e;
+
+  PopupMsgTokens tok;
+  memset(&tok, 0, sizeof(tok));
+  char body[AI_POPUP_BODY_LEN];
+  char fb[AI_POPUP_BODY_LEN];
+  const char* title = ai_contact_difficulty_title(col1);
+  if ((win || indian < euro) && alarm < 0x4b) {
+    if (win || alarm < 0x32) {
+      if (!t->state.tribute_paid && win) {
+        bump <<= 1;
+        t->state.tribute_paid = 1;
+        int good = 13;
+        int top_bid = 0;
+        AiContactMeetEcon2154 econ;
+        if (ai_contact_meet_economics_2154(ctx, nation_id, t, &econ)) {
+          int order[16];
+          for (int i = 0; i < 16; ++i) {
+            order[i] = i;
+          }
+          for (int i = 1; i < 16; ++i) {
+            const int v = order[i];
+            int j = i - 1;
+            while (j >= 0 && econ.bid[order[j]] > econ.bid[v]) {
+              order[j + 1] = order[j];
+              j--;
+            }
+            order[j + 1] = v;
+          }
+          good = order[15];
+          top_bid = (int)econ.bid[15]; /* DS:0x9e96 literal — the muskets slot, always 0 after 2154 */
+        }
+        ColonizeColony* c = colonies_get_mut(ctx->colonies, cid);
+        int qty = 10;
+        if (c) {
+          const int cap = colonies_warehouse_capacity(ctx->colonies, c, good);
+          int room = cap - c->stock[good];
+          int lim = top_bid * 3 + 10;
+          if (lim > 100) {
+            lim = 100;
+          }
+          if (lim < room) {
+            room = lim;
+          }
+          if (room < 10) {
+            room = 10;
+          }
+          qty = room;
+          c->stock[good] += qty;
+        }
+        tok.string0 = title;
+        tok.string1 = tribe;
+        tok.number0 = qty;
+        tok.has_number0 = true;
+        tok.string2 = ai_contact_cargo_name(good);
+        tok.string3 = c ? c->name : "your colony";
+        snprintf(fb, sizeof(fb), "\"Great %s, we bow before the might of your strange weapons. The humble and peaceloving %s shall gladly deliver %d %s to %s.\"", title, tribe, qty, tok.string2, tok.string3);
+        popup_msg_fill(ctx->messages, "EXTORTSTUFF", &tok, fb, body, sizeof(body));
+        ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_DEMAND, nation_id, "Tribute", body);
+      } else {
+        tok.string0 = title;
+        tok.string1 = tribe;
+        snprintf(fb, sizeof(fb), "\"Mighty %s, we tremble before you. Alas, the humble and peaceloving %s have no gifts worthy of your magnificence.\"", title, tribe);
+        popup_msg_fill(ctx->messages, "EXTORTPOOR", &tok, fb, body, sizeof(body));
+        ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_DEMAND, nation_id, "Tribute", body);
+        bump = 0;
+      }
+    } else {
+      tok.string0 = title;
+      tok.string1 = col1->player[e].name;
+      tok.string2 = tribe;
+      snprintf(fb, sizeof(fb), "\"You must think us very foolish indeed, %s %s. The %s will not be taken in by your tricks and treachery.\"", title, tok.string1, tribe);
+      popup_msg_fill(ctx->messages, "EXTORTNO", &tok, fb, body, sizeof(body));
+      ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_DEMAND, nation_id, "Tribute", body);
+    }
+  } else {
+    tok.string0 = tribe;
+    snprintf(fb, sizeof(fb), "\"We laugh at your puny threats. Do not try our patience, for %s warriors are known for their ferocity in times of war.\"", tribe);
+    popup_msg_fill(ctx->messages, "EXTORTLAUGH", &tok, fb, body, sizeof(body));
+    ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_DEMAND, nation_id, "Tribute", body);
+  }
+  if (bump != 0) {
+    ai_diplo_indian_alarm_delta(col1, nation_id, e, bump);
+  }
+}
+
+/*
+ * thunk_FUN_1000_a594 — "Denounce Heresy of {rival}'s Mission". Per village
+ * of the tribe: mission weight = population, ×2 Jesuit, ×2 capital, credited
+ * to the mission owner's side (foreign → pro_me, mine → mine). The
+ * FUN_4cc6_03f8 nearby-Euro-threat term (nation + score per village) is not
+ * ported (thin, 0). Then pro_me += alarm[foreign] << (capital ? 4 : 0),
+ * mine += alarm[me] >> (capital ? 29 : 1); capital: both += rand(1,20) and
+ * both deltas ×2; my Jesuit: pro_me ×2, delta ×2; rival Jesuit: mine ×2,
+ * delta ×2. rand(1, mine+pro_me) > pro_me → @HERESY1 (missionary burned,
+ * rival's alarm −delta, mine +delta); else @HERESY0 (mission flips to me,
+ * mine −delta, rival's +delta). The missionary unit is consumed either way.
+ */
+static void ai_contact_denounce_heresy(
+  ColonizeTurnContext* ctx,
+  int e,
+  int nation_id,
+  ColonizeUnit* u,
+  ColonizeCol1Tribe* t
+) {
+  if (!ctx || !ctx->col1 || !u || !t || t->mission == COL1_TRIBE_MISSION_NONE) {
+    return;
+  }
+  ColonizeDosRng local;
+  ColonizeDosRng* rng = ai_contact_action_rng(ctx, nation_id, &local);
+  ColonizeCol1Save* col1 = ctx->col1;
+  const int foreign = (int)(t->mission & COL1_TRIBE_MISSION_NATION_MASK);
+  if (foreign < 0 || foreign > 3 || foreign == e) {
+    return;
+  }
+  int mine = 0;
+  int pro_me = 0;
+  if (col1->tribe) {
+    for (uint16_t ti = 0; ti < col1->head.tribe_count; ++ti) {
+      const ColonizeCol1Tribe* v = &col1->tribe[ti];
+      if ((int)v->nation_id != nation_id || v->mission == COL1_TRIBE_MISSION_NONE) {
+        continue;
+      }
+      int c = (int)v->population;
+      if (v->mission & COL1_TRIBE_MISSION_JESUIT_BIT) {
+        c *= 2;
+      }
+      if (v->state.capital) {
+        c <<= 1;
+      }
+      if ((int)(v->mission & COL1_TRIBE_MISSION_NATION_MASK) == e) {
+        mine += c;
+      } else {
+        pro_me += c;
+      }
+    }
+  }
+  const int jesuit_me = ai_contact_is_jesuit_grade(col1, ctx->units, u);
+  const int rival_jesuit = (t->mission & COL1_TRIBE_MISSION_JESUIT_BIT) != 0;
+  const unsigned cap_shift = t->state.capital ? 4u : 0u;
+  pro_me += ai_diplo_indian_alarm(col1, nation_id, foreign) << cap_shift;
+  mine += ai_diplo_indian_alarm(col1, nation_id, e) >> ((1u - cap_shift) & 0x1fu);
+  int d_me = ai_contact_alarm_quartile(mine) + 1;
+  int d_them = ai_contact_alarm_quartile(pro_me) + 1;
+  if (t->state.capital) {
+    pro_me += dos_rng_range(rng, 1, 20);
+    mine += dos_rng_range(rng, 1, 20);
+    d_them *= 2;
+    d_me *= 2;
+  }
+  if (jesuit_me) {
+    pro_me <<= 1;
+    d_them <<= 1;
+  }
+  if (rival_jesuit) {
+    mine <<= 1;
+    d_me <<= 1;
+  }
+  PopupMsgTokens tok;
+  memset(&tok, 0, sizeof(tok));
+  tok.string0 = ai_contact_euro_name(e);
+  tok.string1 = ai_contact_euro_name(foreign);
+  tok.string2 = ai_contact_tribe_name(nation_id);
+  char body[AI_POPUP_BODY_LEN];
+  char fb[AI_POPUP_BODY_LEN];
+  const int roll = dos_rng_range(rng, 1, mine + pro_me > 0 ? mine + pro_me : 1);
+  if (pro_me < roll) {
+    snprintf(fb, sizeof(fb), "%s missionaries denounce heresy of %s. Loyal %s worshipers burn the %s at the stake!", tok.string0, tok.string1, tok.string2, tok.string0);
+    popup_msg_fill(ctx->messages, "HERESY1", &tok, fb, body, sizeof(body));
+    ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_CONVERT, nation_id, "Mission", body);
+    d_them = -d_them;
+  } else {
+    snprintf(fb, sizeof(fb), "%s missionaries denounce heresy of %s. %s converts burn %s mission and erect a new, %s one!", tok.string0, tok.string1, tok.string2, tok.string1, tok.string0);
+    popup_msg_fill(ctx->messages, "HERESY0", &tok, fb, body, sizeof(body));
+    ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_CONVERT, nation_id, "Mission", body);
+    t->mission = (uint8_t)(jesuit_me ? ((unsigned)e | COL1_TRIBE_MISSION_JESUIT_BIT) : (unsigned)e);
+    d_me = -d_me;
+  }
+  units_despawn(ctx->units, u->id);
+  ai_diplo_indian_alarm_delta(col1, nation_id, foreign, d_them);
+  ai_diplo_indian_alarm_delta(col1, nation_id, e, d_me);
+}
+
+/*
+ * thunk_FUN_1000_a5dc — "Establish Mission". count = own missions with the
+ * tribe; Sepulveda (FF 23) ×2; Las Casas (FF 24) >>1; Pocahontas (FF 16)
+ * >>1; French >>1. base = count*8 − {25,15,10,5}[alarm quartile]; capital:
+ * base += sign(base)*8. Text = "MISSION" + n, n = quartile raised to 1 when
+ * base > −6, 2 when base > 0, 3 when base > 9. Mission owner = me; Jesuit
+ * bit when profession 0x18 (Jesuit) or Brebeuf (FF 22). Unit consumed;
+ * FUN_4cc6_00f2(+base).
+ */
+static void ai_contact_establish_mission(
+  ColonizeTurnContext* ctx,
+  int e,
+  int nation_id,
+  ColonizeUnit* u,
+  ColonizeCol1Tribe* t
+) {
+  if (!ctx || !ctx->col1 || !u || !t || t->mission != COL1_TRIBE_MISSION_NONE) {
+    return;
+  }
+  ColonizeCol1Save* col1 = ctx->col1;
+  int count = 0;
+  if (col1->tribe) {
+    for (uint16_t ti = 0; ti < col1->head.tribe_count; ++ti) {
+      const ColonizeCol1Tribe* v = &col1->tribe[ti];
+      if ((int)v->nation_id == nation_id && v->mission != COL1_TRIBE_MISSION_NONE &&
+          (int)(v->mission & COL1_TRIBE_MISSION_NATION_MASK) == e) {
+        count++;
+      }
+    }
+  }
+  if (founding_fathers_nation_has(col1, e, FF_JUAN_DE_SEPULVEDA)) {
+    count <<= 1;
+  }
+  if (founding_fathers_nation_has(col1, e, FF_BARTOLOME_DE_LAS_CASAS)) {
+    count >>= 1;
+  }
+  if (founding_fathers_nation_has(col1, e, FF_POCAHONTAS)) {
+    count >>= 1;
+  }
+  if (e == 1) {
+    count >>= 1;
+  }
+  const int alarm = ai_diplo_indian_alarm(col1, nation_id, e);
+  int band = ai_contact_alarm_quartile(alarm);
+  static const int k_sub[4] = {0x19, 0xf, 10, 5};
+  int base = count * 8 - k_sub[band];
+  if (t->state.capital) {
+    base += (base > 0 ? 1 : (base < 0 ? -1 : 0)) * 8;
+  }
+  if (base > -6 && band < 1) {
+    band = 1;
+  }
+  if (base > 0 && band < 2) {
+    band = 2;
+  }
+  if (base > 9) {
+    band = 3;
+  }
+  char section[16];
+  snprintf(section, sizeof(section), "MISSION%d", band);
+  const int cid = ai_contact_nearest_own_colony(ctx, e, t->x, t->y, -1);
+  const ColonizeColony* c = cid >= 0 ? colonies_get(ctx->colonies, cid) : NULL;
+  PopupMsgTokens tok;
+  memset(&tok, 0, sizeof(tok));
+  tok.string0 = ai_contact_euro_name(e);
+  tok.string1 = c ? c->name : col1->player[e].country_name;
+  tok.string2 = (ctx->game_autumn && *ctx->game_autumn != 0) ? "Autumn" : "Spring";
+  tok.number0 = ctx->game_year ? (int)*ctx->game_year : 0;
+  tok.has_number0 = true;
+  tok.string3 = ai_contact_tribe_name(nation_id);
+  char fb[AI_POPUP_BODY_LEN];
+  snprintf(fb, sizeof(fb), "%s %s mission founded in %s, %d.", tok.string0, tok.string1, tok.string2, tok.number0);
+  char body[AI_POPUP_BODY_LEN];
+  popup_msg_fill(ctx->messages, section, &tok, fb, body, sizeof(body));
+  ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_CONVERT, nation_id, "Mission", body);
+  t->mission = (uint8_t)e;
+  if (u->profession == UNITS_JOB_MISSIONARY || founding_fathers_nation_has(col1, e, FF_JEAN_DE_BREBEUF)) {
+    t->mission = (uint8_t)(t->mission | COL1_TRIBE_MISSION_JESUIT_BIT);
+  }
+  units_despawn(ctx->units, u->id);
+  ai_diplo_indian_alarm_delta(col1, nation_id, e, base);
+}
+
+/*
+ * thunk_FUN_1000_a5e8 — "Enter Hostile Village" (wagon / ship, alarm ≥ 75).
+ * r = rand(0,500): r ≤ alarm → @KILLWAGONS + unit destroyed; r ≤ 2·alarm →
+ * @MADATWAGONS; else @GRUDGEWAGONS and the trade runs. Returns 1 when the
+ * caller should continue into the Trade arm.
+ */
+static int ai_contact_enter_hostile_village(
+  ColonizeTurnContext* ctx,
+  int e,
+  int nation_id,
+  ColonizeUnit* u
+) {
+  if (!ctx || !ctx->col1 || !u) {
+    return 0;
+  }
+  ColonizeDosRng local;
+  ColonizeDosRng* rng = ai_contact_action_rng(ctx, nation_id, &local);
+  const int alarm = ai_diplo_indian_alarm(ctx->col1, nation_id, e);
+  const int r = dos_rng_range(rng, 0, 500);
+  PopupMsgTokens tok;
+  memset(&tok, 0, sizeof(tok));
+  tok.string0 = ai_contact_tribe_name(nation_id);
+  char body[AI_POPUP_BODY_LEN];
+  char fb[AI_POPUP_BODY_LEN];
+  if (r <= alarm) {
+    snprintf(fb, sizeof(fb), "The %s seize your goods and kill your traders!", tok.string0);
+    popup_msg_fill(ctx->messages, "KILLWAGONS", &tok, fb, body, sizeof(body));
+    ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_REFUSE, nation_id, "Trade", body);
+    units_despawn(ctx->units, u->id);
+    return 0;
+  }
+  if (r <= alarm * 2) {
+    snprintf(fb, sizeof(fb), "The %s refuse to deal with you.", tok.string0);
+    popup_msg_fill(ctx->messages, "MADATWAGONS", &tok, fb, body, sizeof(body));
+    ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_REFUSE, nation_id, "Trade", body);
+    return 0;
+  }
+  snprintf(fb, sizeof(fb), "The %s grudgingly agree to trade.", tok.string0);
+  popup_msg_fill(ctx->messages, "GRUDGEWAGONS", &tok, fb, body, sizeof(body));
+  ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_MEET, nation_id, "Trade", body);
+  return 1;
+}
+
 void ai_contact_apply_popup_result(ColonizeTurnContext* ctx, const AiPopupState* popup) {
   if (!ctx || !popup || !popup->has_result) {
     return;
@@ -6603,17 +7849,41 @@ void ai_contact_apply_popup_result(ColonizeTurnContext* ctx, const AiPopupState*
     return;
   }
 
+  /* @LEARNSTAY (thunk_FUN_1000_a618): Yes → DONE; No → @LEARNLATER. */
+  if (popup->result_tag == AI_POPUP_TAG_CONTACT_LEARNSTAY) {
+    const int uid = popup->result_payload & 0xffff;
+    const int skill = popup->result_payload >> 16;
+    ColonizeUnit* lu = ctx->units ? units_get(ctx->units, uid) : NULL;
+    ColonizeCol1Tribe* lt = ai_contact_menu_village(ctx, nation_id, lu);
+    if (popup->result_choice_id == AI_CONTACT_LEARNSTAY_YES && lu && lu->active && lt) {
+      ai_contact_learnstay_apply(ctx, e, nation_id, lu, lt, skill);
+    } else {
+      char body[AI_POPUP_BODY_LEN];
+      popup_msg_fill(ctx->messages, "LEARNLATER", NULL, "\"Very well. Perhaps another time.\"", body, sizeof(body));
+      ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_TEACH, nation_id, "Teach", body);
+    }
+    return;
+  }
+
   /*
-   * Meet CHOICE chain (FUN_5bfb_022e / 5bfb_102a stand-in): Trade / Gift /
-   * Demand / Teach call existing thin handlers; Leave dismisses. Follow-up
-   * OK popups enqueue from those handlers' human chrome.
+   * Village action menu result (NAMES.TXT @ACTIONS, FUN_4d56_4528 human arm).
+   * Trade keeps the 2820 port; the unit-scoped DOS actions dispatch on the
+   * acting unit carried in the payload. Attack Village is committed by
+   * game_loop (it moves the unit); Leave dismisses.
    */
   if (popup->result_tag != AI_POPUP_TAG_CONTACT_MEET) {
     return;
   }
+  ColonizeUnit* menu_unit = ai_contact_menu_unit(ctx, popup, e);
+  ColonizeCol1Tribe* menu_village = ai_contact_menu_village(ctx, nation_id, menu_unit);
   int near_x = 0;
   int near_y = 0;
   ColonizeUnit* other = ai_contact_find_adjacent_euro(ctx, nation_id, e, &near_x, &near_y);
+  if (menu_unit) {
+    other = menu_unit;
+    near_x = menu_unit->x;
+    near_y = menu_unit->y;
+  }
   if (!other && ctx->col1->tribe) {
     for (uint16_t ti = 0; ti < ctx->col1->head.tribe_count; ++ti) {
       const ColonizeCol1Tribe* t = &ctx->col1->tribe[ti];
@@ -6644,6 +7914,12 @@ void ai_contact_apply_popup_result(ColonizeTurnContext* ctx, const AiPopupState*
       );
     }
     break;
+  case AI_CONTACT_CHOICE_ENTER_HOSTILE:
+    /* thunk_FUN_1000_a5e8: survive the roll → the Trade arm (a63c) runs. */
+    if (!menu_unit || !ai_contact_enter_hostile_village(ctx, e, nation_id, menu_unit)) {
+      break;
+    }
+    /* FALLTHROUGH */
   case AI_CONTACT_CHOICE_TRADE:
     /*
      * Human buy-offer (FUN_4d56_2820 LAB_002e92 human branch). Alarmed /
@@ -6737,6 +8013,11 @@ void ai_contact_apply_popup_result(ColonizeTurnContext* ctx, const AiPopupState*
     break;
   }
   case AI_CONTACT_CHOICE_DEMAND: {
+    /* "Demand Tribute" — thunk_FUN_1000_a5f4 on the acting unit. */
+    if (menu_unit && menu_village) {
+      ai_contact_demand_tribute(ctx, e, nation_id, menu_unit, menu_village);
+      break;
+    }
     /*
      * Mid-band + human popups → tools/gold amount CHOICE (FUN_5bfb_102a).
      * Alarmed (≥55) → gift_or_demand refuse OK "The %s refuse demands."
@@ -6771,9 +8052,32 @@ void ai_contact_apply_popup_result(ColonizeTurnContext* ctx, const AiPopupState*
     break;
   }
   case AI_CONTACT_CHOICE_TEACH:
-    /* Follow-up OK from teach_skill human chrome (FUN_5bfb_022e teach arm). */
-    ai_contact_teach_skill(ctx, nation_id);
+    /* "Live Among The Natives" — thunk_FUN_1000_a618 on the acting unit. */
+    if (menu_unit && menu_village) {
+      ai_contact_live_among_natives(ctx, e, nation_id, menu_unit, menu_village);
+    } else {
+      ai_contact_teach_skill(ctx, nation_id);
+    }
     break;
+  case AI_CONTACT_CHOICE_CHIEF:
+    if (menu_unit && menu_village) {
+      ai_contact_speak_with_chief(ctx, e, nation_id, menu_unit, menu_village);
+    }
+    break;
+  case AI_CONTACT_CHOICE_HERESY:
+    if (menu_unit && menu_village) {
+      ai_contact_denounce_heresy(ctx, e, nation_id, menu_unit, menu_village);
+    }
+    break;
+  case AI_CONTACT_CHOICE_MISSION:
+    if (menu_unit && menu_village) {
+      ai_contact_establish_mission(ctx, e, nation_id, menu_unit, menu_village);
+    }
+    break;
+  case AI_CONTACT_CHOICE_ATTACK_VILLAGE:
+    /* Committed by game_loop (needs the move engine); nothing to do here. */
+    break;
+
   case AI_CONTACT_CHOICE_INCITE: {
     /*
      * FUN_4d56_417e Mode 1: show the "whom would you like us to attack"

@@ -969,11 +969,11 @@ static void write_tribe(FILE* f, const ColonizeCol1Tribe* t) {
   {
     int m = 0;
     fputc('{', f);
-    wb(f, &m, "artillery", t->state.artillery);
+    wb(f, &m, "needs_colonist", t->state.needs_colonist);
     wb(f, &m, "learned", t->state.learned);
     wb(f, &m, "capital", t->state.capital);
     wb(f, &m, "scouted", t->state.scouted);
-    wb(f, &m, "needs_colonist", t->state.needs_colonist);
+    wb(f, &m, "tribute_paid", t->state.tribute_paid);
     wu(f, &m, "unused09", t->state.unused09);
     fputc('}', f);
   }
@@ -1000,11 +1000,11 @@ static void read_tribe(const JsonValue* o, ColonizeCol1Tribe* t) {
   JsonValue* st = json_obj_get(o, "state");
   if (st) {
     bool b;
-    if (json_get_bool(st, "artillery", &b)) t->state.artillery = b;
+    if (json_get_bool(st, "needs_colonist", &b)) t->state.needs_colonist = b;
     if (json_get_bool(st, "learned", &b)) t->state.learned = b;
     if (json_get_bool(st, "capital", &b)) t->state.capital = b;
     if (json_get_bool(st, "scouted", &b)) t->state.scouted = b;
-    if (json_get_bool(st, "needs_colonist", &b)) t->state.needs_colonist = b;
+    if (json_get_bool(st, "tribute_paid", &b)) t->state.tribute_paid = b;
     if (json_get_u64(st, "unused09", &u)) t->state.unused09 = (uint8_t)u;
   }
   if (json_get_u64(o, "population", &u)) t->population = (uint8_t)u;

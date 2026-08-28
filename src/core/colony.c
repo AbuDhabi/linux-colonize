@@ -443,9 +443,15 @@ static int colonies_dos_dist(int dx, int dy) {
   return (dx >> 1) + dy;
 }
 
-/* FUN_4cc6_0356 stand-in: nearest tribe index; *out_dist = DOS distance. */
+/*
+ * FUN_4cc6_0356: nearest village index; *out_dist = DOS distance (DS:0x8db8).
+ * DOS filters by continent (param_4 = FUN_137f_02a0 of the queried tile):
+ * villages on another landmass never claim a tile. Continent unknown (-1,
+ * NULL map) → no filter, same as DOS's param_4 < 0 arm.
+ */
 static int colonies_nearest_tribe(
   const ColonizeCol1Save* col1,
+  const ColonizeWorldMap* map,
   int x,
   int y,
   int* out_dist
@@ -458,8 +464,15 @@ static int colonies_nearest_tribe(
     }
     return -1;
   }
+  const int continent = map ? map_continent_id_at(map, x, y) : -1;
   for (uint16_t i = 0; i < col1->head.tribe_count; ++i) {
     const ColonizeCol1Tribe* t = &col1->tribe[i];
+    if (continent >= 0 && map) {
+      const int tc = map_continent_id_at(map, (int)t->x, (int)t->y);
+      if (tc >= 0 && tc != continent) {
+        continue;
+      }
+    }
     const int d = colonies_dos_dist(x - (int)t->x, y - (int)t->y);
     if (d <= best_d) {
       best_d = d;
@@ -473,18 +486,37 @@ static int colonies_nearest_tribe(
 }
 
 /*
- * Manual Indian Land: camps/villages home radius 1; cities (capital) radius 2.
- * Tile needs purchase when within that radius of the nearest village.
+ * FUN_15eb_26e4 5x5 native-contact cache rule (viceroy_unpacked.c ~12850):
+ * a tile is tribal land when the nearest village (same continent) lies within
+ * FUN_15dc_006a(tribe) = tech tier: tech 0/1 → 1, tech 2 → 2, tech 3 → 3.
+ * (Was "capital ? 2 : 1" from the manual; DOS keys the radius on the
+ * tribe's civilization level, not on the capital flag.)
  */
+static int colonies_indian_land_radius(const ColonizeCol1Save* col1, const ColonizeCol1Tribe* t) {
+  if (!col1 || !t) {
+    return 1;
+  }
+  const int idx = (int)t->nation_id - 4;
+  if (idx < 0 || idx >= (int)COLONIZE_COL1_INDIAN_COUNT) {
+    return 1;
+  }
+  const unsigned tech = (unsigned)col1->indian[idx].tech;
+  if (tech <= 1u) {
+    return 1;
+  }
+  return tech == 2u ? 2 : 3;
+}
+
 static int colonies_tile_indian_homeland(
   const ColonizeCol1Save* col1,
+  const ColonizeWorldMap* map,
   int x,
   int y,
   int* out_tribe,
   int* out_dist
 ) {
   int dist = 9999;
-  const int ti = colonies_nearest_tribe(col1, x, y, &dist);
+  const int ti = colonies_nearest_tribe(col1, map, x, y, &dist);
   if (out_tribe) {
     *out_tribe = ti;
   }
@@ -494,7 +526,7 @@ static int colonies_tile_indian_homeland(
   if (ti < 0 || !col1 || !col1->tribe) {
     return 0;
   }
-  const int radius = col1->tribe[ti].state.capital ? 2 : 1;
+  const int radius = colonies_indian_land_radius(col1, &col1->tribe[ti]);
   return dist <= radius ? 1 : 0;
 }
 
@@ -526,7 +558,7 @@ int colonies_indian_land_purchase_gold(
   }
   int tribe_i = -1;
   int dist = 9999;
-  if (!colonies_tile_indian_homeland(col1, x, y, &tribe_i, &dist)) {
+  if (!colonies_tile_indian_homeland(col1, map, x, y, &tribe_i, &dist)) {
     return 0;
   }
   /* Colonization.pdf / FUN_4cc6_07c2: Peter Minuit (FF 2) → cost 0. */
@@ -572,6 +604,61 @@ int colonies_indian_land_purchase_gold(
   return cost >> 1;
 }
 
+int colonies_indian_land_owner_tribe(
+  const ColonizeCol1Save* col1,
+  const ColonizeWorldMap* map,
+  int x,
+  int y
+) {
+  int tribe_i = -1;
+  if (!colonies_tile_indian_homeland(col1, map, x, y, &tribe_i, NULL)) {
+    return -1;
+  }
+  return tribe_i;
+}
+
+void colonies_indian_land_pay(
+  ColonizeCol1Save* col1,
+  const ColonizeWorldMap* map,
+  int x,
+  int y,
+  int nation_id,
+  uint32_t* gold,
+  int cost
+) {
+  if (!col1) {
+    return;
+  }
+  (void)nation_id;
+  if (gold && cost > 0) {
+    *gold = (*gold >= (uint32_t)cost) ? (*gold - (uint32_t)cost) : 0u;
+  }
+  /* Mirror FUN_479b_00ca: INC indian[+5] lands-bought after spend. */
+  int tribe_i = -1;
+  if (colonies_tile_indian_homeland(col1, map, x, y, &tribe_i, NULL) && tribe_i >= 0) {
+    const int indian_idx = (int)col1->tribe[tribe_i].nation_id - 4;
+    if (indian_idx >= 0 && indian_idx < (int)COLONIZE_COL1_INDIAN_COUNT) {
+      uint8_t* bought = &col1->indian[indian_idx].lands_bought;
+      if (*bought < 0xffu) {
+        (*bought)++;
+      }
+    }
+  }
+  /* FUN_281f_068c(..., 0x10, 1) — purchased tribal land on the tile. */
+  if (col1->map.mask && col1->head.map_size_x > 0) {
+    const size_t idx = (size_t)y * (size_t)col1->head.map_size_x + (size_t)x;
+    if (idx < col1->map.tile_count) {
+      col1->map.mask[idx] = (uint8_t)(col1->map.mask[idx] | 0x10u);
+    }
+  }
+  if (map && map->layer2 && map_coords_inset(map, x, y)) {
+    const size_t idx = (size_t)y * (size_t)map->width + (size_t)x;
+    if (idx < map->tile_count) {
+      ((ColonizeWorldMap*)map)->layer2[idx] = (uint8_t)(map->layer2[idx] | MAP_LAYER2_PURCHASED);
+    }
+  }
+}
+
 int colonies_found_with_indian_land(
   ColonizeColonyPool* pool,
   const ColonizeWorldMap* map,
@@ -592,32 +679,7 @@ int colonies_found_with_indian_land(
       if (*gold < (uint32_t)cost) {
         return -1;
       }
-      *gold -= (uint32_t)cost;
-      /* Mirror FUN_479b_00ca: INC indian[+5] lands-bought after spend. */
-      int tribe_i = -1;
-      if (colonies_tile_indian_homeland(col1, x, y, &tribe_i, NULL) && tribe_i >= 0) {
-        const int indian_idx = (int)col1->tribe[tribe_i].nation_id - 4;
-        if (indian_idx >= 0 && indian_idx < (int)COLONIZE_COL1_INDIAN_COUNT) {
-          uint8_t* bought = &col1->indian[indian_idx].lands_bought;
-          if (*bought < 0xffu) {
-            (*bought)++;
-          }
-        }
-      }
-      /* FUN_281f_068c(..., 0x10, 1) — purchased tribal land on founding tile. */
-      if (col1->map.mask && col1->head.map_size_x > 0) {
-        const size_t idx = (size_t)y * (size_t)col1->head.map_size_x + (size_t)x;
-        if (idx < col1->map.tile_count) {
-          col1->map.mask[idx] = (uint8_t)(col1->map.mask[idx] | 0x10u);
-        }
-      }
-      if (map && map->layer2 && map_coords_inset(map, x, y)) {
-        const size_t idx = (size_t)y * (size_t)map->width + (size_t)x;
-        if (idx < map->tile_count) {
-          ((ColonizeWorldMap*)map)->layer2[idx] =
-            (uint8_t)(map->layer2[idx] | MAP_LAYER2_PURCHASED);
-        }
-      }
+      colonies_indian_land_pay(col1, map, x, y, nation_id, gold, cost);
     }
   }
   return colonies_found(

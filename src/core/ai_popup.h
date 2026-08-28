@@ -84,7 +84,9 @@ typedef enum AiPopupTag {
   AI_POPUP_TAG_CONTACT_WHACK = 42, /* FUN_465b_0000 @WHACKINDIANS "Shall we attack the X?" Yes/No before first native attack */
   AI_POPUP_TAG_CONTACT_BUYWHICH = 43, /* FUN_4d56_2820 LAB_002e92 @BUYWHICH: pick one of 3 tribe goods */
   AI_POPUP_TAG_CONTACT_BUY0 = 44, /* FUN_4d56_2820 LAB_002e92 @BUY0: Accept/Refuse the tribe's price */
-  AI_POPUP_TAG_DIPLO_TALK = 45 /* FUN_5bfb_153e phases 2-4: human x AI Euro encounter dialog (payload = stage) */
+  AI_POPUP_TAG_DIPLO_TALK = 45, /* FUN_5bfb_153e phases 2-4: human x AI Euro encounter dialog (payload = stage) */
+  AI_POPUP_TAG_INDIAN_LAND = 46, /* @INDIANLAND/@INDIANROAD/@INDIANFOREST encroachment CHOICE (nation_a = unit, nation_b = kind, payload = x|y<<8) */
+  AI_POPUP_TAG_CONTACT_LEARNSTAY = 47 /* thunk_FUN_1000_a618 @LEARNSTAY Yes/No (payload = unit | skill<<16) */
 } AiPopupTag;
 
 typedef struct AiPopupRequest {

@@ -103,6 +103,30 @@ int ai_contact_try_village_meet(
 );
 
 /*
+ * Same, with the acting unit: the menu rows follow DOS's per-unit gating
+ * (wagon/ship → Trade or Enter Hostile; Scout → Speak With Chief; Missionary
+ * → Establish Mission / Denounce Heresy + Incite; colonist → Live Among;
+ * armed → Demand Tribute / Attack Village). unit_id -1 = legacy rows.
+ */
+int ai_contact_try_village_meet_unit(
+  ColonizeTurnContext* ctx,
+  int euro_nation,
+  int indian_nation,
+  int is_missionary,
+  int is_capital,
+  int unit_id
+);
+
+/* Village-menu "Attack Village" choice id — game_loop commits the move. */
+#define AI_CONTACT_CHOICE_ATTACK 11
+
+/* Acting unit id packed in a CONTACT_MEET result payload (-1 if none). */
+int ai_contact_meet_payload_unit(int payload);
+
+/* True while a village menu for this unit is queued or open. */
+int ai_contact_meet_pending_for_unit(const AiPopupState* st, int unit_id);
+
+/*
  * FUN_4d56_4528 human village-enter warn CHOICE (Attack / Leave) for combatish
  * land units. Defers the move: nation_a=unit_id, nation_b=indian, payload=
  * dest_x|(dest_y<<8). Cite: indian_settlement_4528.md head; game_loop apply.
@@ -181,6 +205,13 @@ void ai_contact_village_open_hostilities(
  * Ship does not enter the tile. Returns 1 if (x,y) is a village and handled.
  */
 int ai_contact_try_ship_village(ColonizeTurnContext* ctx, int euro_nation, int x, int y);
+int ai_contact_try_ship_village_unit(
+  ColonizeTurnContext* ctx,
+  int euro_nation,
+  int x,
+  int y,
+  int unit_id
+);
 
 /* FUN_5bfb_0182 peace bit on indian.euro_diplo[euro] (COL1_INDIAN_PEACE_BIT). */
 int ai_contact_indian_has_peace(const ColonizeCol1Save* col1, int indian_nation, int euro_nation);

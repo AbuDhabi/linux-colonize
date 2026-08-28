@@ -138,8 +138,15 @@ pop cap **15**. Empty-tile Attack (`FUN_5fef_1b0e`): temp Brave fight from the
 when `population < 2` (so a pop-3 camp survives two successful raids). Map Braves
 that patrol nearby are separate — killing one does not burn the dwelling.
 
-Homeland purchase radius (manual Indian Land): non-capital **1**, capital
-**2** (`colony.c`).
+Homeland (tribal-land) radius: the tribe's tech tier — `FUN_15dc_006a`:
+tech 0/1 → **1**, tech 2 (Aztec) → **2**, tech 3 (Inca) → **3**, nearest
+village on the **same continent** (`FUN_4cc6_0356` / the 5x5 native cache).
+Was the manual's "capital 2" rule until 2026-08-28 (`colony.c`
+`colonies_tile_indian_homeland`). Founding / clearing / road-building on
+such a tile at PEACE with the owner raises the DOS `@INDIANLAND` /
+`@INDIANFOREST` / `@INDIANROAD` CHOICE (respect / offer gold / take it);
+outside that dialog nothing is charged — see
+[indian_actions_menu.md](../original_sources_annotated/ai/indian_actions_menu.md).
 
 **Teach skill is always free** (no gold changes hands either way — corrected
 2026-08-13, was never wired to charge). Non-capital villages teach **one**
@@ -149,6 +156,16 @@ nation's colonist learns there, the offer is gone for everyone. The tribe's
 `ai_contact_teach_skill` (`ai_contact.c`) implements this via
 `tribe.state.learned` (one-shot, shared — matches "total across all
 nations") gated by `!tribe.state.capital` (capital bypasses the gate).
+
+**Human teach is the "Live Among The Natives" menu action** (2026-08-28,
+`ai_contact_live_among_natives` = `thunk_FUN_1000_a618`): `@LEARNSTAY`
+Yes/No, `@LEARNSLOW` random refusal in the 25..49 alarm quartile,
+`@LEARNMAD` (+3 alarm) at quartile ≥ 2, `@TEACHCONVERT`, `@LEARNMASTER`,
+`@LEARNCRIMINAL`, `@LEARNALREADY`. The taught skill is DOS's weighted draw
+over the 2154 bid table (tech-trimmed; Fur Trapper → Seasoned Scout on
+`(x+y)%3==0`; Farmer → Fisherman by an ocean-ring roll), seeded from the
+village position so each village always offers the same skill. The
+per-turn auto-teach pulse now runs for AI nations only.
 
 Key tribe fields: `x`/`y`, `nation_id`, `state.{capital,learned,scouted,…}`,
 `population`, `mission` (`0xff` none; low nibble Euro id; bit `0x10` Jesuit),

@@ -47,10 +47,16 @@ choices from data where a real `@SECTION` exists.
 | Ship unmet | `@DONTKNOWSHIPS` | Authentic | — |
 | Ship mad | `@MADATSHIPS` | Authentic | — |
 | Colony encroachment OK | `@INDIANCOMMENT` | Authentic | Tribe/colony tokens |
-| Meet / gift / demand CHOICE | (deep HELLO/trade PARKED) | PARKED / Invented body | Keep structural CHOICE; no new invent |
+| Village action menu CHOICE | `@VILLAGEHAPPY/SAVAGE/MEDIUM/BAD/WAR` + NAMES `@ACTIONS` rows | Authentic (2026-08-28) | `ai_contact_enqueue_village_meet`: DOS `FUN_4d56_4528` human arm, per-unit row gating; invented Gift row + hand-typed "welcomes the most worthy" body gone — [indian_actions_menu.md](../original_sources_annotated/ai/indian_actions_menu.md) |
+| Live Among The Natives | `@LEARNSTAY` / `@LEARNLATER` / `@LEARNDONE` / `@LEARNSLOW` / `@TEACHCONVERT` | Authentic (2026-08-28) | `ai_contact_live_among_natives` (`thunk_FUN_1000_a618`); LEARNSTAY is a real Yes/No CHOICE (`AI_POPUP_TAG_CONTACT_LEARNSTAY`) |
+| Ask to Speak With Chief | `@CHIEFHOWDY` / `@CHIEFGUIDES` + `@WELLSEASONED` / `@CHIEFAREA` / `@CHIEFGIFT` / `@CHIEFBORED` / `@CHIEFKILL` | Authentic (2026-08-28) | `ai_contact_speak_with_chief` (`thunk_FUN_1000_a60c`) |
+| Demand Tribute | `@EXTORTSTUFF` / `@EXTORTPOOR` / `@EXTORTNO` / `@EXTORTLAUGH` | Authentic (2026-08-28) | `ai_contact_demand_tribute` (`thunk_FUN_1000_a5f4`) |
+| Denounce Heresy / Establish Mission (menu) | `@HERESY0` / `@HERESY1` / `@MISSION0..3` | Authentic (2026-08-28) | `ai_contact_denounce_heresy` (`a594`), `ai_contact_establish_mission` (`a5dc`); AI convert pulse unchanged |
+| Enter Hostile Village | `@KILLWAGONS` / `@MADATWAGONS` / `@GRUDGEWAGONS` | Authentic (2026-08-28) | `ai_contact_enter_hostile_village` (`a5e8`) then the 2820 trade arm |
+| Encroachment CHOICE | `@INDIANLAND` / `@INDIANFOREST` / `@INDIANROAD` → `@INDIANBRIBE` | Authentic (2026-08-28) | `game_loop.c` `game_request_indian_land_choice` (`AI_POPUP_TAG_INDIAN_LAND`); "offer gold" row dropped when unaffordable (DOS greys it) |
 | Teach refuse OK | `@LEARNMAD` | Authentic | Both mid (40-54) and hostile (≥55) alarm bands |
 | Teach already-expert OK | `@LEARNMASTER` | Authentic | Refuses without consuming the village's one-shot teach |
-| Teach / convert / raid OK (remainder) | `@LEARNALREADY` / … | MissingWire / PARKED | Prefer msg_body where clear; else status. `@LEARNALREADY` (already-taught village, non-capital) deliberately stays silent — see `indian_contact.md` "preserve gift/trade chrome" note; not touched here, a real design tension not an oversight. **`@RAID*` fixed 2026-08-26** (was cited here as MissingWire): 6 of 7 kinds now render the real `GAME.TXT` body via `popup_msg_fill` — see `port_plan.md` P8.4 / `indian_raid_outcomes.md` |
+| Teach / convert / raid OK (remainder) | `@LEARNALREADY` / … | Authentic for the menu path (2026-08-28) | `@LEARNALREADY` now shows from the Live Among menu action (DOS: taught && !capital); the AI-only auto pulse still skips silently — see `indian_contact.md` "preserve gift/trade chrome" note; not touched here, a real design tension not an oversight. **`@RAID*` fixed 2026-08-26** (was cited here as MissingWire): 6 of 7 kinds now render the real `GAME.TXT` body via `popup_msg_fill` — see `port_plan.md` P8.4 / `indian_raid_outcomes.md` |
 | Teach: Petty Criminal refuse | `@LEARNCRIMINAL` | Authentic (2026-08-26) | `ai_contact_teach_skill` refuses outright, one-shot not consumed (`ai_contact.c` `ai_contact_is_petty_criminal`) |
 
 ## Diplo (`ai_diplo.c`)

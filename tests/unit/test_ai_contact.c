@@ -5044,23 +5044,30 @@ int main(void) {
           pop.queue[0].kind != AI_POPUP_KIND_CHOICE) {
         return fail("village meet should enqueue CONTACT_MEET CHOICE");
       }
-      if (pop.queue[0].choice_count < 5) {
-        return fail("village Meet CHOICE should offer Trade/Gift/Demand/Teach/Leave");
+      /*
+       * No acting unit (legacy caller) → Trade / Live Among The Natives /
+       * Incite Indians / Cancel Action (NAMES.TXT @ACTIONS rows 1/5/7/10).
+       * Body = GAME.TXT @VILLAGEHAPPY.. (FUN_4d56_4528 human arm), not the
+       * old hand-typed "welcomes the most worthy" line.
+       */
+      if (pop.queue[0].choice_count != 4) {
+        fprintf(stderr, "unit_ai_contact: village menu rows %d\n", pop.queue[0].choice_count);
+        return fail("legacy village menu should offer Trade/Live Among/Incite/Cancel");
       }
-      if (strstr(st_pop, "welcomes") == NULL || strstr(st_pop, "worthy") == NULL) {
+      if (strstr(st_pop, "expedition has reached") == NULL) {
         fprintf(stderr, "unit_ai_contact: village status '%s'\n", st_pop);
-        return fail("cool village meet should set @INDIANHELLO1 worthy status");
+        return fail("cool village meet should set the @VILLAGEHAPPY body");
       }
-      /* Hot mid alarm → ruthless HELLO2. */
+      /* Mid alarm (25..49) → @VILLAGEMEDIUM, still enqueued. */
       ai_popup_clear(&pop);
       ind->alarm_by_player[0] = 45;
       st_pop[0] = '\0';
       if (!ai_contact_try_village_meet(&ctx, 0, 4, 0, 0)) {
         return fail("hot village meet should still enqueue");
       }
-      if (strstr(st_pop, "ruthless") == NULL) {
+      if (strstr(st_pop, "expedition has reached") == NULL) {
         fprintf(stderr, "unit_ai_contact: hot village status '%s'\n", st_pop);
-        return fail("hot village meet should set @INDIANHELLO2 ruthless status");
+        return fail("mid-alarm village meet should set the @VILLAGEMEDIUM body");
       }
       ind->alarm_by_player[0] = 10;
       /* Unmet must not use village meet (WELCOME path). */
@@ -5690,6 +5697,409 @@ int main(void) {
       return fail("sell haggle: a raise should occur over a stream at difficulty 0 with c4=3");
     }
     fprintf(stderr, "unit_ai_contact: 2820 sell haggle ok\n");
+  }
+
+  /*
+   * NAMES.TXT @ACTIONS village menu + the overlay-13 action thunks
+   * (FUN_4d56_4528 human arm; indian_actions_menu.md, static port 2026-08-28).
+   */
+  {
+    ColonizeMsgCatalog game_txt;
+    assets_msg_init(&game_txt);
+    (void)assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT");
+    ctx.messages = &game_txt;
+    AiPopupState pop;
+    ai_popup_init(&pop);
+    ctx.ai_popups = &pop;
+    char st_menu[AI_POPUP_BODY_LEN];
+    st_menu[0] = '\0';
+    ctx.status = st_menu;
+    ctx.status_size = sizeof(st_menu);
+    ctx.human_nation = 0;
+    ctx.rng = NULL;
+    for (int ui = 0; ui < COLONIZE_UNITS_MAX; ++ui) {
+      ColonizeUnit* u = &units.units[ui];
+      if (u->active) {
+        units_despawn(&units, u->id);
+      }
+    }
+    col1.tribe[0].x = 5;
+    col1.tribe[0].y = 5;
+    col1.tribe[0].nation_id = 4;
+    col1.tribe[0].mission = 0xff;
+    col1.tribe[0].population = 4;
+    col1.tribe[0].state.learned = 0;
+    col1.tribe[0].state.capital = 0;
+    col1.tribe[0].state.scouted = 0;
+    col1.tribe[0].state.tribute_paid = 0;
+    col1.tribe[0].alarm[0].friction = 0;
+    col1.tribe[0].alarm[0].attacks = 0;
+    col1.indian[0].tech = 0;
+    ind->euro_diplo[0] = (uint8_t)(COL1_INDIAN_MET_BIT | COL1_INDIAN_PEACE_BIT);
+    ind->alarm_by_player[0] = 10;
+    col1.nation[0].gold = 0;
+    /* Unit types: 0 Brave, 1 Free Colonist (existing); add Scout / Soldier / Wagon / Missionary. */
+    units.type_count = 6;
+    snprintf(units.types[2].name, sizeof(units.types[2].name), "Scouts");
+    units.types[2].domain = COLONIZE_UNIT_DOMAIN_LAND;
+    units.types[2].cargo = 0;
+    units.types[2].movement = 4;
+    units.types[2].attack = 1;
+    units.types[2].defense = 1;
+    snprintf(units.types[3].name, sizeof(units.types[3].name), "Soldiers");
+    units.types[3].domain = COLONIZE_UNIT_DOMAIN_LAND;
+    units.types[3].cargo = 0;
+    units.types[3].movement = 1;
+    units.types[3].attack = 2;
+    units.types[3].defense = 2;
+    snprintf(units.types[4].name, sizeof(units.types[4].name), "Wagon Train");
+    units.types[4].domain = COLONIZE_UNIT_DOMAIN_LAND;
+    units.types[4].cargo = 0;
+    units.types[4].movement = 2;
+    units.types[4].attack = 0;
+    units.types[4].defense = 1;
+    snprintf(units.types[5].name, sizeof(units.types[5].name), "Missionaries");
+    units.types[5].domain = COLONIZE_UNIT_DOMAIN_LAND;
+    units.types[5].cargo = 0;
+    units.types[5].movement = 2;
+    units.types[5].attack = 0;
+    units.types[5].defense = 1;
+
+    /* Scout → Ask to Speak With Chief + Demand Tribute + Attack Village + Cancel; no Trade / Live Among. */
+    const int scout_id = units_spawn_allow_stack(&units, 2, 6, 5);
+    ColonizeUnit* scout = units_get(&units, scout_id);
+    if (!scout) {
+      return fail("menu: spawn scout");
+    }
+    scout->nation_id = 0;
+    scout->profession = UNITS_JOB_NONE;
+    if (!ai_contact_try_village_meet_unit(&ctx, 0, 4, 0, 0, scout_id)) {
+      return fail("menu: scout meet should enqueue");
+    }
+    if (pop.queue_count != 1 || pop.queue[0].tag != AI_POPUP_TAG_CONTACT_MEET) {
+      return fail("menu: scout meet CHOICE");
+    }
+    {
+      const AiPopupRequest* q = &pop.queue[0];
+      int has_chief = 0;
+      int has_trade = 0;
+      int has_live = 0;
+      int has_demand = 0;
+      int has_attack = 0;
+      for (int i = 0; i < q->choice_count; ++i) {
+        has_chief |= q->choice_ids[i] == 9;
+        has_trade |= q->choice_ids[i] == 1;
+        has_live |= q->choice_ids[i] == 4;
+        has_demand |= q->choice_ids[i] == 3;
+        has_attack |= q->choice_ids[i] == AI_CONTACT_CHOICE_ATTACK;
+      }
+      if (!has_chief || has_trade || has_live || !has_demand || !has_attack) {
+        fprintf(stderr, "unit_ai_contact: scout rows chief=%d trade=%d live=%d demand=%d attack=%d\n",
+                has_chief, has_trade, has_live, has_demand, has_attack);
+        return fail("menu: scout rows should be Chief/Demand/Attack/Cancel");
+      }
+      if (strstr(st_menu, "expedition has reached") == NULL) {
+        fprintf(stderr, "unit_ai_contact: menu body '%s'\n", st_menu);
+        return fail("menu: body should be the @VILLAGE* section");
+      }
+      if (ai_contact_meet_payload_unit(q->payload) != scout_id) {
+        return fail("menu: payload should carry the acting unit id");
+      }
+    }
+    /* Speak With Chief: alarm 10 (<25) → never the kill arm; scouted latch set or bored. */
+    {
+      AiPopupState res;
+      ai_popup_init(&res);
+      res.has_result = true;
+      res.result_cancelled = false;
+      res.result_choice_id = 9; /* AI_CONTACT_CHOICE_CHIEF */
+      res.result_tag = AI_POPUP_TAG_CONTACT_MEET;
+      res.result_nation_a = 0;
+      res.result_nation_b = 4;
+      res.result_payload = pop.queue[0].payload;
+      ai_popup_clear(&pop);
+      st_menu[0] = '\0';
+      const uint32_t gold_before = col1.nation[0].gold;
+      ai_contact_apply_popup_result(&ctx, &res);
+      if (!scout->active) {
+        return fail("chief: alarm 10 scout must survive (kill arm needs alarm >= 75 or Arawak roll)");
+      }
+      if (st_menu[0] == '\0') {
+        return fail("chief: should set a @CHIEF* status");
+      }
+      if (strstr(st_menu, "target practice") != NULL) {
+        return fail("chief: @CHIEFKILL impossible at alarm 10 for a non-Arawak tribe");
+      }
+      /* Guides / area / gift all latch scouted; bored (alarm >= roll) does not. */
+      if (col1.tribe[0].state.scouted) {
+        if (scout->profession != UNITS_JOB_SCOUT && col1.nation[0].gold == gold_before &&
+            strstr(st_menu, "tales") == NULL) {
+          fprintf(stderr, "unit_ai_contact: chief status '%s'\n", st_menu);
+          return fail("chief: scouted latch set without guides/gift/tales outcome");
+        }
+      } else if (strstr(st_menu, "pleased to welcome") == NULL) {
+        fprintf(stderr, "unit_ai_contact: chief status '%s'\n", st_menu);
+        return fail("chief: not scouted → @CHIEFBORED");
+      }
+      units_despawn(&units, scout_id);
+    }
+
+    /* Free Colonist → Live Among The Natives + Cancel only; Live Among → @LEARNSTAY CHOICE. */
+    const int col_id = units_spawn_allow_stack(&units, 1, 6, 5);
+    ColonizeUnit* colonist = units_get(&units, col_id);
+    if (!colonist) {
+      return fail("menu: spawn colonist");
+    }
+    colonist->nation_id = 0;
+    colonist->profession = UNITS_JOB_NONE;
+    ai_popup_clear(&pop);
+    if (!ai_contact_try_village_meet_unit(&ctx, 0, 4, 0, 0, col_id)) {
+      return fail("menu: colonist meet should enqueue");
+    }
+    if (pop.queue[0].choice_count != 2 || pop.queue[0].choice_ids[0] != 4 || pop.queue[0].choice_ids[1] != 5) {
+      fprintf(stderr, "unit_ai_contact: colonist rows %d\n", pop.queue[0].choice_count);
+      return fail("menu: colonist rows should be Live Among / Cancel");
+    }
+    {
+      AiPopupState res;
+      ai_popup_init(&res);
+      res.has_result = true;
+      res.result_cancelled = false;
+      res.result_choice_id = 4; /* AI_CONTACT_CHOICE_TEACH = Live Among */
+      res.result_tag = AI_POPUP_TAG_CONTACT_MEET;
+      res.result_nation_a = 0;
+      res.result_nation_b = 4;
+      res.result_payload = pop.queue[0].payload;
+      ai_popup_clear(&pop);
+      st_menu[0] = '\0';
+      ai_contact_apply_popup_result(&ctx, &res);
+      /* alarm 10 → quartile 0 → no SLOW roll → human gets the @LEARNSTAY Yes/No. */
+      if (pop.queue_count != 1 || pop.queue[0].tag != AI_POPUP_TAG_CONTACT_LEARNSTAY ||
+          pop.queue[0].kind != AI_POPUP_KIND_CHOICE || pop.queue[0].choice_count != 2) {
+        fprintf(stderr, "unit_ai_contact: learnstay queue %d status '%s'\n", pop.queue_count, st_menu);
+        return fail("live among: unskilled colonist at peace should get @LEARNSTAY CHOICE");
+      }
+      if (colonist->profession != UNITS_JOB_NONE || col1.tribe[0].state.learned) {
+        return fail("live among: nothing applied before the CHOICE is answered");
+      }
+      if (strstr(st_menu, "master") == NULL) {
+        fprintf(stderr, "unit_ai_contact: learnstay body '%s'\n", st_menu);
+        return fail("live among: @LEARNSTAY body should name the master skill");
+      }
+      /* No → @LEARNLATER, still untaught. */
+      AiPopupState ans;
+      ai_popup_init(&ans);
+      ans.has_result = true;
+      ans.result_cancelled = false;
+      ans.result_choice_id = 2; /* AI_CONTACT_LEARNSTAY_NO */
+      ans.result_tag = AI_POPUP_TAG_CONTACT_LEARNSTAY;
+      ans.result_nation_a = 0;
+      ans.result_nation_b = 4;
+      ans.result_payload = pop.queue[0].payload;
+      ai_popup_clear(&pop);
+      st_menu[0] = '\0';
+      ai_contact_apply_popup_result(&ctx, &ans);
+      if (colonist->profession != UNITS_JOB_NONE || col1.tribe[0].state.learned ||
+          strstr(st_menu, "another time") == NULL) {
+        fprintf(stderr, "unit_ai_contact: learnlater status '%s'\n", st_menu);
+        return fail("live among: No → @LEARNLATER, nothing applied");
+      }
+      /* Yes → DONE: profession = village skill, learned latch, @LEARNDONE. */
+      ans.result_choice_id = 1; /* AI_CONTACT_LEARNSTAY_YES */
+      st_menu[0] = '\0';
+      ai_contact_apply_popup_result(&ctx, &ans);
+      if (colonist->profession == UNITS_JOB_NONE || !col1.tribe[0].state.learned ||
+          strstr(st_menu, "Congratulations") == NULL) {
+        fprintf(stderr, "unit_ai_contact: learndone prof=%d learned=%d status '%s'\n",
+                colonist->profession, (int)col1.tribe[0].state.learned, st_menu);
+        return fail("live among: Yes → skill applied + learned + @LEARNDONE");
+      }
+      /* Village already taught (non-capital): a second unskilled colonist → @LEARNALREADY. */
+      colonist->profession = UNITS_JOB_NONE;
+      ai_popup_clear(&pop);
+      if (!ai_contact_try_village_meet_unit(&ctx, 0, 4, 0, 0, col_id)) {
+        return fail("menu: second colonist meet");
+      }
+      res.result_payload = pop.queue[0].payload;
+      ai_popup_clear(&pop);
+      st_menu[0] = '\0';
+      ai_contact_apply_popup_result(&ctx, &res);
+      if (colonist->profession != UNITS_JOB_NONE || strstr(st_menu, "already shared") == NULL) {
+        fprintf(stderr, "unit_ai_contact: learnalready status '%s'\n", st_menu);
+        return fail("live among: taught village → @LEARNALREADY");
+      }
+      col1.tribe[0].state.learned = 0;
+      units_despawn(&units, col_id);
+    }
+
+    /* Soldier → Demand Tribute: one of the four @EXTORT* bodies; laugh/no bumps alarm. */
+    {
+      const int sol_id = units_spawn_allow_stack(&units, 3, 6, 5);
+      ColonizeUnit* sol = units_get(&units, sol_id);
+      if (!sol) {
+        return fail("menu: spawn soldier");
+      }
+      sol->nation_id = 0;
+      sol->profession = UNITS_JOB_NONE;
+      ai_popup_clear(&pop);
+      if (!ai_contact_try_village_meet_unit(&ctx, 0, 4, 0, 0, sol_id)) {
+        return fail("menu: soldier meet should enqueue");
+      }
+      {
+        const AiPopupRequest* q = &pop.queue[0];
+        int has_live = 0;
+        int has_demand = 0;
+        int has_attack = 0;
+        for (int i = 0; i < q->choice_count; ++i) {
+          has_live |= q->choice_ids[i] == 4;
+          has_demand |= q->choice_ids[i] == 3;
+          has_attack |= q->choice_ids[i] == AI_CONTACT_CHOICE_ATTACK;
+        }
+        if (has_live || !has_demand || !has_attack) {
+          return fail("menu: soldier rows should be Demand Tribute / Attack Village / Cancel");
+        }
+      }
+      AiPopupState res;
+      ai_popup_init(&res);
+      res.has_result = true;
+      res.result_cancelled = false;
+      res.result_choice_id = 3; /* AI_CONTACT_CHOICE_DEMAND = Demand Tribute */
+      res.result_tag = AI_POPUP_TAG_CONTACT_MEET;
+      res.result_nation_a = 0;
+      res.result_nation_b = 4;
+      res.result_payload = pop.queue[0].payload;
+      ai_popup_clear(&pop);
+      st_menu[0] = '\0';
+      ai_contact_apply_popup_result(&ctx, &res);
+      if (strstr(st_menu, "laugh at your puny") == NULL && strstr(st_menu, "tremble before you") == NULL &&
+          strstr(st_menu, "bow before the might") == NULL && strstr(st_menu, "very foolish") == NULL) {
+        fprintf(stderr, "unit_ai_contact: tribute status '%s'\n", st_menu);
+        return fail("demand tribute: status should be one of the @EXTORT* bodies");
+      }
+      if (strstr(st_menu, "bow before the might") != NULL && !col1.tribe[0].state.tribute_paid) {
+        return fail("demand tribute: @EXTORTSTUFF must latch tribe.state.tribute_paid (DOS +3 bit 0x10)");
+      }
+      units_despawn(&units, sol_id);
+    }
+
+    /* Missionary + foreign (French) mission → Denounce Heresy / Incite / Cancel; heresy consumes the unit. */
+    {
+      col1.tribe[0].mission = 1; /* French, plain */
+      const int mis_id = units_spawn_allow_stack(&units, 5, 6, 5);
+      ColonizeUnit* mis = units_get(&units, mis_id);
+      if (!mis) {
+        return fail("menu: spawn missionary");
+      }
+      mis->nation_id = 0;
+      mis->profession = UNITS_JOB_NONE;
+      ai_popup_clear(&pop);
+      if (!ai_contact_try_village_meet_unit(&ctx, 0, 4, 1, 0, mis_id)) {
+        return fail("menu: missionary meet should enqueue");
+      }
+      {
+        const AiPopupRequest* q = &pop.queue[0];
+        int has_heresy = 0;
+        int has_mission = 0;
+        int has_incite = 0;
+        for (int i = 0; i < q->choice_count; ++i) {
+          has_heresy |= q->choice_ids[i] == 8;
+          has_mission |= q->choice_ids[i] == 7;
+          has_incite |= q->choice_ids[i] == 6;
+          if (q->choice_ids[i] == 8 && strstr(q->choices[i], "French") == NULL) {
+            fprintf(stderr, "unit_ai_contact: heresy row '%s'\n", q->choices[i]);
+            return fail("menu: Denounce Heresy row should name the rival (%F)");
+          }
+        }
+        if (!has_heresy || has_mission || !has_incite) {
+          return fail("menu: missionary rows should be Denounce Heresy / Incite / Cancel");
+        }
+      }
+      AiPopupState res;
+      ai_popup_init(&res);
+      res.has_result = true;
+      res.result_cancelled = false;
+      res.result_choice_id = 8; /* AI_CONTACT_CHOICE_HERESY */
+      res.result_tag = AI_POPUP_TAG_CONTACT_MEET;
+      res.result_nation_a = 0;
+      res.result_nation_b = 4;
+      res.result_payload = pop.queue[0].payload;
+      ai_popup_clear(&pop);
+      st_menu[0] = '\0';
+      ai_contact_apply_popup_result(&ctx, &res);
+      if (mis->active) {
+        return fail("heresy: the missionary is consumed either way (FUN_1000_89f8 after the roll)");
+      }
+      if (strstr(st_menu, "denounce heresy") == NULL) {
+        fprintf(stderr, "unit_ai_contact: heresy status '%s'\n", st_menu);
+        return fail("heresy: status should be @HERESY0/@HERESY1");
+      }
+      if (strstr(st_menu, "erect a new") != NULL && (col1.tribe[0].mission & 0x0f) != 0) {
+        return fail("heresy: @HERESY0 must flip the mission to the denouncer");
+      }
+      if (strstr(st_menu, "at the stake") != NULL && (col1.tribe[0].mission & 0x0f) != 1) {
+        return fail("heresy: @HERESY1 must leave the rival mission in place");
+      }
+      /* No mission → Establish Mission row; establishing consumes the unit and sets the owner. */
+      col1.tribe[0].mission = 0xff;
+      const int mis2_id = units_spawn_allow_stack(&units, 5, 6, 5);
+      ColonizeUnit* mis2 = units_get(&units, mis2_id);
+      if (!mis2) {
+        return fail("menu: spawn missionary 2");
+      }
+      mis2->nation_id = 0;
+      mis2->profession = UNITS_JOB_NONE;
+      ai_popup_clear(&pop);
+      if (!ai_contact_try_village_meet_unit(&ctx, 0, 4, 1, 0, mis2_id)) {
+        return fail("menu: missionary 2 meet should enqueue");
+      }
+      if (pop.queue[0].choice_ids[0] != 7) {
+        return fail("menu: no mission → Establish Mission first row");
+      }
+      res.result_choice_id = 7;
+      res.result_payload = pop.queue[0].payload;
+      ai_popup_clear(&pop);
+      st_menu[0] = '\0';
+      ai_contact_apply_popup_result(&ctx, &res);
+      if (mis2->active || (col1.tribe[0].mission & 0x0f) != 0 || strstr(st_menu, "mission founded") == NULL) {
+        fprintf(stderr, "unit_ai_contact: mission status '%s'\n", st_menu);
+        return fail("establish mission: unit consumed, owner = us, @MISSIONn body");
+      }
+      col1.tribe[0].mission = 0xff;
+    }
+
+    /* Wagon: alarm < 75 → Trade With Village; alarm ≥ 75 → Enter Hostile Village. */
+    {
+      const int wag_id = units_spawn_allow_stack(&units, 4, 6, 5);
+      ColonizeUnit* wag = units_get(&units, wag_id);
+      if (!wag) {
+        return fail("menu: spawn wagon");
+      }
+      wag->nation_id = 0;
+      wag->profession = UNITS_JOB_NONE;
+      ai_popup_clear(&pop);
+      if (!ai_contact_try_village_meet_unit(&ctx, 0, 4, 0, 0, wag_id)) {
+        return fail("menu: wagon meet should enqueue");
+      }
+      if (pop.queue[0].choice_count != 2 || pop.queue[0].choice_ids[0] != 1) {
+        return fail("menu: wagon rows should be Trade / Cancel");
+      }
+      ind->alarm_by_player[0] = 80;
+      ai_popup_clear(&pop);
+      if (!ai_contact_try_village_meet_unit(&ctx, 0, 4, 0, 0, wag_id)) {
+        return fail("menu: hostile wagon meet should still enqueue (DOS shows @VILLAGEWAR)");
+      }
+      if (pop.queue[0].choice_count != 2 || pop.queue[0].choice_ids[0] != 10) {
+        return fail("menu: hostile wagon rows should be Enter Hostile Village / Cancel");
+      }
+      ind->alarm_by_player[0] = 10;
+      units_despawn(&units, wag_id);
+    }
+
+    ctx.ai_popups = NULL;
+    ctx.status = NULL;
+    ctx.status_size = 0;
+    ctx.messages = NULL;
+    assets_msg_free(&game_txt);
   }
 
   col1_save_free(&col1);
