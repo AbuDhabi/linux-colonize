@@ -15,6 +15,7 @@ typedef struct CliConfig {
   bool windowed;
   bool no_sound;
   int window_scale;
+  uint32_t rng_seed;
 } CliConfig;
 
 static CliConfig cli_defaults(void) {
@@ -24,6 +25,7 @@ static CliConfig cli_defaults(void) {
   cfg.windowed = true;
   cfg.no_sound = false;
   cfg.window_scale = 2;
+  cfg.rng_seed = 0;
   return cfg;
 }
 
@@ -45,6 +47,8 @@ static bool parse_args(int argc, char** argv, CliConfig* cfg) {
       if (cfg->window_scale < 1) {
         cfg->window_scale = 1;
       }
+    } else if (strcmp(arg, "--seed") == 0 && i + 1 < argc) {
+      cfg->rng_seed = (uint32_t)strtoul(argv[++i], NULL, 0);
     } else {
       fprintf(stderr, "Unknown argument: %s\n", arg);
       return false;
@@ -66,10 +70,11 @@ int main(int argc, char** argv) {
 
   diag_info("CLI data_dir=%s", cli.data_dir);
   diag_info("CLI save_dir=%s", cli.save_dir);
-  diag_info("CLI windowed=%s scale=%d nosound=%s",
+  diag_info("CLI windowed=%s scale=%d nosound=%s seed=%u",
     cli.windowed ? "yes" : "no",
     cli.window_scale,
-    cli.no_sound ? "yes" : "no");
+    cli.no_sound ? "yes" : "no",
+    cli.rng_seed);
   diag_info(
     "NOTE: UI uses GAME.TXT @BEGINMENU + VICEROY.PAL; "
     "MADSPACK .PIK/.SS art and the MAPEDIT-faithful map compositor are live."
@@ -93,7 +98,8 @@ int main(int argc, char** argv) {
 
   ColonizeGameConfig game_cfg = {
     .data_dir = cli.data_dir,
-    .save_dir = cli.save_dir
+    .save_dir = cli.save_dir,
+    .rng_seed = cli.rng_seed
   };
 
   ColonizeGameState* game = game_create(&game_cfg);

@@ -56,6 +56,7 @@ Useful flags:
 | `--scale N` | `2` | Window scale |
 | `--fullscreen` | — | Fullscreen |
 | `--nosound` | — | Disable audio |
+| `--seed N` | — | Fixed RNG seed (debug; like VR_SEED) |
 
 Release preset: `cmake --preset release` then `cmake --build --preset release`.
 

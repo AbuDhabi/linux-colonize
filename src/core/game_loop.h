@@ -9,6 +9,8 @@
 typedef struct ColonizeGameConfig {
   const char* data_dir;
   const char* save_dir;
+  /* Fixed campaign RNG seed (DOS timer word; VR_SEED = 100). 0 = use elapsed_ms. */
+  uint32_t rng_seed;
 } ColonizeGameConfig;
 
 typedef struct ColonizeGameState ColonizeGameState;
