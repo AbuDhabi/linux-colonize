@@ -2947,21 +2947,26 @@ bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ct
           ctx->turn_number ? *ctx->turn_number : 0u
         );
         /* FUN_38fd_0058 phase 4: 0xfa8 @PRICEUP / 0xfb0 @PRICEDOWN OK dialog
-         * (FUN_281f_0652(tag, 2)) for the human nation only. */
-        if (ctx->ai_popups && ctx->europe->price_event_cargo >= 0) {
-          const int c = ctx->europe->price_event_cargo;
-          PopupMsgTokens tok;
-          memset(&tok, 0, sizeof(tok));
-          tok.string0 = ctx->europe->cargo[c].name;
-          tok.string1 = ctx->europe->port_city;
-          tok.number0 = ctx->europe->cargo[c].bid;
-          tok.has_number0 = true;
-          char body[AI_POPUP_BODY_LEN];
-          popup_msg_fill(
-            ctx->messages, ctx->europe->price_event_dir > 0 ? "PRICEUP" : "PRICEDOWN", &tok,
-            ctx->europe->status, body, sizeof(body)
-          );
-          (void)ai_popup_enqueue_ok(ctx->ai_popups, AI_POPUP_TAG_INFO, NULL, body);
+         * (FUN_281f_0652(tag, 2)) for the human nation only. DOS calls this
+         * inline once per cargo that crosses threshold — a turn where two
+         * different goods both move gets two separate dialogs, not one;
+         * queue every entry (previously only the last event survived). */
+        if (ctx->ai_popups) {
+          for (int i = 0; i < ctx->europe->price_event_count; ++i) {
+            const int c = ctx->europe->price_event_cargo[i];
+            PopupMsgTokens tok;
+            memset(&tok, 0, sizeof(tok));
+            tok.string0 = ctx->europe->cargo[c].name;
+            tok.string1 = ctx->europe->port_city;
+            tok.number0 = ctx->europe->cargo[c].bid;
+            tok.has_number0 = true;
+            char body[AI_POPUP_BODY_LEN];
+            popup_msg_fill(
+              ctx->messages, ctx->europe->price_event_dir[i] > 0 ? "PRICEUP" : "PRICEDOWN", &tok,
+              ctx->europe->status, body, sizeof(body)
+            );
+            (void)ai_popup_enqueue_ok(ctx->ai_popups, AI_POPUP_TAG_INFO, NULL, body);
+          }
         }
       }
       turn_set_active_nation(ctx, ctx->human_nation);

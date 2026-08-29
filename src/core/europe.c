@@ -628,8 +628,7 @@ void europe_reset_campaign_nation(EuropeScreen* eu, int nation) {
   eu->menu_dock_index = -1;
   eu->last_exit_valid = false;
   eu->open_on_dock = false;
-  eu->price_event_cargo = -1;
-  eu->price_event_dir = 0;
+  eu->price_event_count = 0;
   eu->immigration_score = 0;
   eu->immigration_pressure = 0;
   eu->boycott_bitmap = 0;
@@ -1651,8 +1650,7 @@ void europe_tick_market_prices(
   if (!eu) {
     return;
   }
-  eu->price_event_cargo = -1;
-  eu->price_event_dir = 0;
+  eu->price_event_count = 0;
   if (col1) {
     eu->difficulty = col1->head.difficulty > 8 ? 8 : col1->head.difficulty;
   }
@@ -1788,6 +1786,11 @@ void europe_tick_market_prices(
       if (q->bid < q->high) {
         q->bid += 1;
         last_rise = c;
+        if (eu->price_event_count < EUROPE_CARGO_MAX) {
+          eu->price_event_cargo[eu->price_event_count] = c;
+          eu->price_event_dir[eu->price_event_count] = 1;
+          eu->price_event_count++;
+        }
       }
     }
     if (fall > 0 && nr >= fall * 100) {
@@ -1795,6 +1798,11 @@ void europe_tick_market_prices(
       if (q->bid > q->low) {
         q->bid -= 1;
         last_fall = c;
+        if (eu->price_event_count < EUROPE_CARGO_MAX) {
+          eu->price_event_cargo[eu->price_event_count] = c;
+          eu->price_event_dir[eu->price_event_count] = -1;
+          eu->price_event_count++;
+        }
       }
     }
     if (q->high > q->low) {
@@ -1818,21 +1826,18 @@ void europe_tick_market_prices(
     eu->trade_nr[c] = (int16_t)nr;
   }
   /*
-   * Phase 4 dialog crumbs 0xfa8/0xfb0 -> status line (full CHOICE dialog
-   * chrome still PARKED, same precedent as @KISSUP). Real DOS wording from
-   * GAME.TXT @PRICEUP/@PRICEDOWN (COLONIZE/GAME.TXT:1683-1689):
+   * Phase 4 dialog crumbs 0xfa8/0xfb0 -> price_event_cargo[]/dir[] (queued
+   * in loop order above, one entry per cargo that actually crossed
+   * threshold this tick — DOS calls FUN_281f_0652 inline per cargo, so two
+   * different cargos changing the same turn both get their own OK dialog;
+   * turn.c walks the full list). The status line below stays a single-line
+   * summary (rise wins ties, matching the old behaviour) — cosmetic only.
+   * Real DOS wording from GAME.TXT @PRICEUP/@PRICEDOWN (COLONIZE/GAME.TXT:1683-1689):
    *   "The price of {%STRING0} in %STRING1 has risen to {%NUMBER0$}."
    *   "The price of {%STRING0} in %STRING1 has fallen to {%NUMBER0$}."
    * STRING0 = cargo name (-0x6840 @CARGO table), STRING1 = nation home-port
    * city (-0x7c74 table == eu->port_city), NUMBER0 = new bid.
    */
-  if (last_rise >= 0) {
-    eu->price_event_cargo = last_rise;
-    eu->price_event_dir = 1;
-  } else if (last_fall >= 0) {
-    eu->price_event_cargo = last_fall;
-    eu->price_event_dir = -1;
-  }
   if (last_rise >= 0) {
     const char* nm =
       (eu->cargo[last_rise].name[0]) ? eu->cargo[last_rise].name : "Goods";

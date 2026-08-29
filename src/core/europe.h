@@ -237,10 +237,16 @@ typedef struct EuropeScreen {
   int last_exit_y;
   bool last_exit_east;
   bool last_exit_valid;
-  /* Last EOT tick rise/fall (@PRICEUP/@PRICEDOWN, FUN_38fd_0058 phase 4):
-   * cargo index or -1; dir +1 rose / -1 fell. turn.c turns it into the OK popup. */
-  int price_event_cargo;
-  int price_event_dir;
+  /* This EOT tick's rise/fall events (@PRICEUP/@PRICEDOWN, FUN_38fd_0058
+   * phase 4): DOS calls FUN_281f_0652(0xfa8/0xfb0) inline, once per cargo
+   * that crosses its threshold, inside the same 0..15 loop — so two
+   * different cargos changing the same turn both get their own dialog.
+   * turn.c walks price_event_cargo[0..price_event_count) in order and
+   * queues one OK popup per entry (dir +1 rose / -1 fell); collapsing this
+   * to a single "last event" dropped every popup but the last. */
+  int price_event_cargo[EUROPE_CARGO_MAX];
+  int price_event_dir[EUROPE_CARGO_MAX];
+  int price_event_count;
   bool open_on_dock; /* set when Expected→Harbor this tick */
   /* William Brewster: exclude Petty Criminals / Indentured Servants from pool. */
   bool brewster_no_criminals;
