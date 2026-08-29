@@ -5,6 +5,7 @@
 
 #include "core/map_menu.h"
 #include "core/popup_msg.h"
+#include "platform/platform.h"
 
 void ai_popup_init(AiPopupState* st) {
   if (!st) {
@@ -36,6 +37,8 @@ static void ai_popup_fill_base(
   const char* body
 ) {
   memset(req, 0, sizeof(*req));
+  req->portrait_tribe = -1;
+  req->portrait_tier = -1;
   req->kind = kind;
   req->tag = tag;
   /* P11.3: the @width of whatever popup_msg_fill last resolved (0 = default). */
@@ -355,6 +358,119 @@ static int ai_popup_wrap_body(
   return count;
 }
 
+/* ---- Chief portraits (P8.6): IND{tribe}A{tier}.SS, lazy, palette-remapped ---- */
+static char g_portrait_dir[512];
+static ColonizePalette g_portrait_palette;
+static bool g_portrait_palette_ok;
+static ColonizeSpriteSheet g_portrait_sheets[8][4];
+static uint8_t g_portrait_state[8][4]; /* 0 untried, 1 loaded, 2 failed */
+
+int ai_popup_portrait_tier_from_alarm(int alarm) {
+  /* FUN_15dc_00a2 */
+  if (alarm < 0x19) {
+    return 0;
+  }
+  if (alarm < 0x32) {
+    return 1;
+  }
+  if (alarm < 0x4b) {
+    return 2;
+  }
+  return 3;
+}
+
+void ai_popup_set_portrait_source(const char* data_dir, const ColonizePalette* palette) {
+  for (int t = 0; t < 8; ++t) {
+    for (int a = 0; a < 4; ++a) {
+      if (g_portrait_state[t][a] == 1) {
+        ss_free(&g_portrait_sheets[t][a]);
+      }
+      g_portrait_state[t][a] = 0;
+    }
+  }
+  g_portrait_dir[0] = '\0';
+  g_portrait_palette_ok = false;
+  if (!data_dir || !palette) {
+    return;
+  }
+  snprintf(g_portrait_dir, sizeof(g_portrait_dir), "%s", data_dir);
+  g_portrait_palette = *palette;
+  g_portrait_palette_ok = true;
+}
+
+void ai_popup_set_last_portrait(AiPopupState* st, int tribe, int tier) {
+  if (!st || st->queue_count <= 0 || tribe < 0 || tribe > 7) {
+    return;
+  }
+  AiPopupRequest* req = &st->queue[st->queue_count - 1];
+  req->portrait_tribe = tribe;
+  req->portrait_tier = tier < 0 ? 0 : (tier > 3 ? 3 : tier);
+}
+
+/* Nearest-colour remap of the sheet's own palette onto the popup palette
+ * (same per-file pattern as reports.c / colony_screen.c / europe.c). */
+static void ai_popup_remap_sheet(ColonizeSpriteSheet* sheet, const ColonizePalette* dst) {
+  if (!sheet || !dst || !sheet->has_palette) {
+    return;
+  }
+  uint8_t lut[256];
+  for (int i = 0; i < 256; ++i) {
+    if (i == COLONIZE_SS_TRANSPARENT) {
+      lut[i] = (uint8_t)COLONIZE_SS_TRANSPARENT;
+      continue;
+    }
+    const int sr = sheet->palette.rgb[i][0];
+    const int sg = sheet->palette.rgb[i][1];
+    const int sb = sheet->palette.rgb[i][2];
+    int best = 0;
+    int best_d = 1 << 30;
+    for (int j = 0; j < 256; ++j) {
+      if (j == COLONIZE_SS_TRANSPARENT) {
+        continue;
+      }
+      const int dr = sr - dst->rgb[j][0];
+      const int dg = sg - dst->rgb[j][1];
+      const int db = sb - dst->rgb[j][2];
+      const int d = dr * dr + dg * dg + db * db;
+      if (d < best_d) {
+        best_d = d;
+        best = j;
+      }
+    }
+    lut[i] = (uint8_t)best;
+  }
+  for (int k = 0; k < sheet->sprite_count; ++k) {
+    ColonizeSprite* spr = &sheet->sprites[k];
+    if (!spr->pixels) {
+      continue;
+    }
+    const int n = spr->width * spr->height;
+    for (int q = 0; q < n; ++q) {
+      spr->pixels[q] = lut[spr->pixels[q]];
+    }
+  }
+}
+
+static const ColonizeSpriteSheet* ai_popup_portrait_sheet(int tribe, int tier) {
+  if (tribe < 0 || tribe > 7 || tier < 0 || tier > 3 || !g_portrait_dir[0] ||
+      !g_portrait_palette_ok) {
+    return NULL;
+  }
+  if (g_portrait_state[tribe][tier] == 0) {
+    char name[16];
+    char path[600];
+    char err[128];
+    snprintf(name, sizeof(name), "IND%dA%d.SS", tribe, tier);
+    g_portrait_state[tribe][tier] = 2;
+    if (dos_compat_normalize_asset_path(g_portrait_dir, name, path, sizeof(path)) &&
+        ss_load(path, &g_portrait_sheets[tribe][tier], err, sizeof(err))) {
+      ai_popup_remap_sheet(&g_portrait_sheets[tribe][tier], &g_portrait_palette);
+      g_portrait_state[tribe][tier] = 1;
+    }
+  }
+  return g_portrait_state[tribe][tier] == 1 ? &g_portrait_sheets[tribe][tier] : NULL;
+}
+
 void ai_popup_render(
   AiPopupState* st,
   const ColonizeFont* font,
@@ -399,7 +515,24 @@ void ai_popup_render(
     dialog_h = framebuffer->height - 8;
   }
 
-  int dialog_x = (framebuffer->width - dialog_w) / 2;
+  /* Chief portrait: full-height figure standing left of the dialog; the pair
+   * is centred together (DOS meet chrome, FUN_6f74_0042 → compositor). */
+  const ColonizeSpriteSheet* portrait =
+    ai_popup_portrait_sheet(req->portrait_tribe, req->portrait_tier);
+  int portrait_w = 0;
+  int portrait_h = 0;
+  if (portrait && portrait->sprite_count > 0 && portrait->sprites[0].pixels) {
+    portrait_w = portrait->sprites[0].width;
+    portrait_h = portrait->sprites[0].height;
+    if (portrait_w + 4 + dialog_w > framebuffer->width - 4) {
+      portrait = NULL;
+      portrait_w = 0;
+      portrait_h = 0;
+    }
+  }
+  const int portrait_gap = portrait ? 4 : 0;
+  int dialog_x = (framebuffer->width - (dialog_w + portrait_w + portrait_gap)) / 2 + portrait_w +
+                 portrait_gap;
   int dialog_y = (framebuffer->height - dialog_h) / 2;
   if (dialog_y < MAP_MENU_BAR_H + 2) {
     dialog_y = MAP_MENU_BAR_H + 2;
@@ -437,6 +570,17 @@ void ai_popup_render(
   st->dialog_w = dialog_w;
   st->dialog_h = dialog_h;
   st->line_h = line_h;
+
+  if (portrait) {
+    int py = (framebuffer->height - portrait_h) / 2;
+    if (py < MAP_MENU_BAR_H) {
+      py = MAP_MENU_BAR_H;
+    }
+    if (py + portrait_h > framebuffer->height) {
+      py = framebuffer->height - portrait_h;
+    }
+    ss_blit_sprite(portrait, 0, framebuffer, dialog_x - portrait_gap - portrait_w, py);
+  }
 
   int text_y = inner_y + pad_y;
   if (req->title[0] && font) {

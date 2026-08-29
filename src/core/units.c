@@ -2360,6 +2360,7 @@ static int units_apply_naval_loss_outcome(
     units_combat_enqueue_tok(
       AI_POPUP_TAG_COMBAT_SHIP, "SHIPSUNK", win->nation_id, lose->nation_id, 0, &tok, fb
     );
+    units_play_event_sound(0x57); /* UNITS_SFX_SHIP_SUNK: FUN_5fef_0352 (COLDIG 16 sinking) */
   }
   units_despawn(pool, loser_id);
   return 0;
@@ -3404,7 +3405,10 @@ enum {
   UNITS_SFX_ATTACK_FIRE = 0x40, /* 0x41 for artillery-class attackers */
   UNITS_SFX_COMBAT_WON = 0x4a,  /* 0x4b when natives are involved */
   UNITS_SFX_ORDER_FORTIFY = 0x58,
+  UNITS_SFX_SHIP_SUNK = 0x57, /* FUN_5fef_0352 (COLDIG 16 sinking) */
 };
+
+static void units_play_event_sound(int id);
 
 static void units_play_event_sound(int id) {
   if (g_units_combat_sound_play) {
@@ -3489,7 +3493,20 @@ bool units_resolve_land_combat_ff(
   const bool combat_audible = units_combat_is_visible(pool, attacker_id, defender_id);
   if (combat_audible) {
     units_combat_music_sting();
-    units_play_event_sound(UNITS_SFX_ATTACK_FIRE);
+    /* FUN_5fef_1b0e 5fef:2271: a human attacker on an Indian (nation ≥ 4)
+     * pushes `0x3b + attacker unit type` — Regulars 0x41, Cont. Cav. 0x42,
+     * Cavalry 0x43, Cont. Army 0x44, Artillery 0x46, Braves 0x4e… — so the
+     * "unit-class variants" are just the type index. Ids below 0x40 would
+     * land in the BGM range; DOS lets them through, the port keeps the
+     * generic fire for those. Other pairings use the plain 0x40. */
+    int fire_id = UNITS_SFX_ATTACK_FIRE;
+    if (def->nation_id >= 4 && atk->nation_id >= 0 && atk->nation_id <= 3) {
+      const int typed = 0x3b + atk->type_index;
+      if (typed >= 0x40 && typed <= 0x5c) {
+        fire_id = typed;
+      }
+    }
+    units_play_event_sound(fire_id);
   }
 
   /*
