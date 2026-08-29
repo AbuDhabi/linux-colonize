@@ -447,6 +447,78 @@ int main(void) {
     }
   }
 
+  /*
+   * Tile stack (DOS FUN_1427_04d6 order + FUN_281f_02ee chain walk): every unit
+   * standing on the tile plus everyone aboard a transport standing there, the
+   * transport listed first.
+   */
+  {
+    ColonizeMsgCatalog names;
+    memset(&names, 0, sizeof(names));
+    char names_path[512];
+    if (dos_compat_normalize_asset_path("COLONIZE", "NAMES.TXT", names_path, sizeof(names_path)) &&
+        assets_msg_load_file(&names, names_path)) {
+      ColonizeUnitPool pool;
+      memset(&pool, 0, sizeof(pool));
+      if (!units_load_types(&pool, &names)) {
+        assets_msg_free(&names);
+        free(pixels);
+        map_free(&map);
+        map_panel_free(&panel);
+        assets_msg_free(&labels);
+        return fail("units_load_types failed");
+      }
+
+      /* Caravel (@UNIT 13) with a Soldier (1) and a Pioneer (2) aboard, plus a
+       * loose Colonist (0) standing on the same tile. */
+      const int ship = units_spawn_allow_stack(&pool, 13, 7, 9);
+      const int soldier = units_spawn_allow_stack(&pool, 1, 7, 9);
+      const int pioneer = units_spawn_allow_stack(&pool, 2, 7, 9);
+      const int loose = units_spawn_allow_stack(&pool, 0, 7, 9);
+      if (ship < 0 || soldier < 0 || pioneer < 0 || loose < 0) {
+        assets_msg_free(&names);
+        free(pixels);
+        map_free(&map);
+        map_panel_free(&panel);
+        assets_msg_free(&labels);
+        return fail("stack spawn failed");
+      }
+      units_get(&pool, soldier)->aboard_ship_id = ship;
+      units_get(&pool, pioneer)->aboard_ship_id = ship;
+
+      int ids[COLONIZE_UNITS_MAX];
+      const int n = map_panel_collect_stack(&pool, 7, 9, ids, COLONIZE_UNITS_MAX);
+      if (n != 4) {
+        fprintf(stderr, "stack should list carried units too, got %d\n", n);
+        assets_msg_free(&names);
+        free(pixels);
+        map_free(&map);
+        map_panel_free(&panel);
+        assets_msg_free(&labels);
+        return 1;
+      }
+      if (ids[0] != ship) {
+        fprintf(stderr, "transport should sort to the head of the stack\n");
+        assets_msg_free(&names);
+        free(pixels);
+        map_free(&map);
+        map_panel_free(&panel);
+        assets_msg_free(&labels);
+        return 1;
+      }
+      /* A neighbouring tile must not pick any of them up. */
+      if (map_panel_collect_stack(&pool, 8, 9, ids, COLONIZE_UNITS_MAX) != 0) {
+        assets_msg_free(&names);
+        free(pixels);
+        map_free(&map);
+        map_panel_free(&panel);
+        assets_msg_free(&labels);
+        return fail("stack leaked onto a neighbouring tile");
+      }
+      assets_msg_free(&names);
+    }
+  }
+
   free(pixels);
   map_free(&map);
   map_panel_free(&panel);

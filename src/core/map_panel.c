@@ -182,13 +182,8 @@ bool map_panel_load(MapPanel* panel, const char* data_dir, const ColonizeMsgCata
       diag_warn("map_panel: WOODTILE.SS: %s", err);
     }
   }
-  if (dos_compat_normalize_asset_path(data_dir, "NAMEPLAT.SS", path, sizeof(path))) {
-    if (ss_load(path, &panel->nameplat, err, sizeof(err))) {
-      panel->nameplat_ok = true;
-    } else {
-      diag_warn("map_panel: NAMEPLAT.SS: %s", err);
-    }
-  }
+  /* NAMEPLAT.SS belongs to the Europe / colony screens: DOS FUN_49dd_0424
+   * draws the selected unit straight onto the wood panel, no plate. */
   return true;
 }
 
@@ -197,7 +192,6 @@ void map_panel_free(MapPanel* panel) {
     return;
   }
   ss_free(&panel->wood_tile);
-  ss_free(&panel->nameplat);
   memset(panel, 0, sizeof(*panel));
 }
 
@@ -564,19 +558,43 @@ static const char* map_panel_order_label(const ColonizeMsgCatalog* names, int or
   return buf;
 }
 
-static int map_panel_count_units_at(const ColonizeUnitPool* units, int x, int y) {
-  int n = 0;
-  if (!units) {
-    return 0;
-  }
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-    const ColonizeUnit* u = &units->units[i];
-    if (units_is_on_map(u) && u->x == x && u->y == y) {
-      n++;
-    }
-  }
-  return n;
-}
+/*
+ * ---------------------------------------------------------------------------
+ * Information sidebar body — DOS FUN_49dd_0424 (`Compose map unit/tile status
+ * panel`), reached from the map through FUN_281f_055e.
+ *
+ * Fixed geometry taken from the DOS frame (all values are literals in the
+ * function's prologue / row loops):
+ *
+ *   text column      x = 0xf2 (242)          [bp-0x6e]
+ *   first text row   y = 0x33 (51)           [bp-0x72], just under the minimap
+ *   line pitch       font height + 1         [bp-0x06]
+ *   icon-row pitch   0x12 (18)               unit chrome rows
+ *   text beside icon x = 242 + 0x12 = 260    [bp-0x86]
+ *   stack cutoff     y >= 0xb8 (184)         draw the "more units" marker, stop
+ *   End-of-Turn row  y = min(y, 0xc6 - font height)
+ * ---------------------------------------------------------------------------
+ */
+
+/* Text column and the indented column beside a 16px unit-chrome icon. */
+#define MAP_PANEL_TEXT_X (MAP_PANEL_X + MAP_PANEL_TEXT_MARGIN)
+#define MAP_PANEL_ICON_INDENT 0x12
+/* First sidebar text row (DOS literal 0x33), just below the minimap frame. */
+#define MAP_PANEL_TEXT_TOP 0x33
+/* One unit-chrome row. */
+#define MAP_PANEL_ROW_H 0x12
+/* Stop listing the tile stack once a row would start at/after this y. */
+#define MAP_PANEL_STACK_Y_LIMIT 0xb8
+/* "End of Turn" never sits lower than this minus one text line. */
+#define MAP_PANEL_EOT_Y_MAX 0xc6
+/* Grey (partially loaded) commodity icons; colored set is CARGO_ICON_BASE. */
+#define MAP_PANEL_CARGO_GREY_BASE 38
+/* DOS: a hold shows the colored icon at 100, the grey one below that. */
+#define MAP_PANEL_CARGO_FULL 100
+/* @UNIT type indices the panel special-cases (DOS compares 0x3146 literally). */
+#define MAP_PANEL_UNIT_PIONEERS 2
+#define MAP_PANEL_UNIT_TREASURE 10
+#define MAP_PANEL_UNIT_WAGON 12
 
 static int map_panel_draw_line(
   const ColonizeFont* font,
@@ -595,152 +613,380 @@ static int map_panel_draw_line(
   return 1;
 }
 
-/* Empty cargo-hold recess (COL1 sidebar shows vacant holds as inset boxes). */
-static void map_panel_draw_empty_hold(ColonizeFramebuffer8* fb, int x, int y, int w, int h) {
-  if (!fb || w < 3 || h < 3) {
-    return;
+static int map_panel_draw_line_color(
+  const ColonizeFont* font,
+  ColonizeFramebuffer8* fb,
+  int x,
+  int* y,
+  int line_h,
+  int y_limit,
+  const char* text,
+  uint8_t color
+) {
+  if (!text || !text[0] || *y + line_h > y_limit) {
+    return 0;
   }
-  for (int dy = 0; dy < h; ++dy) {
-    for (int dx = 0; dx < w; ++dx) {
-      uint8_t c = 8; /* mid recess */
-      if (dy == 0 || dx == 0) {
-        c = 0; /* top/left shadow */
-      } else if (dy == h - 1 || dx == w - 1) {
-        c = 15; /* bottom/right highlight */
+  font_draw_text(font, fb, x, *y, text, color);
+  *y += line_h;
+  return 1;
+}
+
+/* NAMES.TXT @NATIONALITY for Europeans, @TRIBES short name for natives — the
+ * DOS 16-entry pointer table at DS:0x97f0 the unit line indexes by nibble. */
+static const char* map_panel_nationality(const ColonizeMsgCatalog* names, int nation_id) {
+  static const char* k_euro[] = {"English", "French", "Spanish", "Dutch"};
+  if (nation_id >= 0 && nation_id < 4) {
+    const char* line = map_panel_section_line(names, "NATIONALITY", nation_id);
+    if (line && line[0]) {
+      static char buf[32];
+      map_panel_csv_field(line, buf, sizeof(buf));
+      if (buf[0]) {
+        return buf;
       }
-      map_panel_put(fb, x + dx, y + dy, c);
     }
+    return k_euro[nation_id];
   }
+  return map_panel_tribe_short(names, nation_id);
+}
+
+static const char* map_panel_unit_type_name(const ColonizeUnitPool* units, const ColonizeUnit* u) {
+  const ColonizeUnitType* t = (units && u) ? units_type(units, u->type_index) : NULL;
+  return (t && t->name[0]) ? t->name : "Unit";
 }
 
 /*
- * COL1 information sidebar: "With:" then hold icons (passengers from ICONS.SS
- * unit sprites; goods from ICONS.SS #22–37; empty holds as recessed slots).
+ * DOS DS:0x30e, indexed by @UNIT type: the default @JOB for that type, -1 when
+ * the type carries no profession at all (FUN_15eb_0902). The sidebar only
+ * reaches the profession line when this is >= 0, which is what keeps ships,
+ * wagons, artillery and treasure trains from borrowing the byte they store
+ * something else in.
  */
-static void map_panel_draw_with_holds(
+static bool map_panel_type_has_profession(int type_index) {
+  static const signed char k_default_job[] = {19, 21, 20, 24, 23, 22, -1, 23, -1, 21, -1, -1,
+                                              -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 0};
+  if (type_index < 0 || type_index >= (int)(sizeof(k_default_job) / sizeof(k_default_job[0]))) {
+    return false;
+  }
+  return k_default_job[type_index] >= 0;
+}
+
+/*
+ * Profession line under the unit type — DOS FUN_49dd_0386 resolves the @JOB
+ * record, but FUN_15eb_0002 first gates out the five non-expert professions
+ * (none / Colonist / Ind. Servant / Criminal / Convert), so a plain colonist
+ * gets no second line at all. The plural @JOB field is the one drawn.
+ */
+static const char* map_panel_profession_name(
+  const ColonizeMsgCatalog* names, int type_index, int profession
+) {
+  if (!map_panel_type_has_profession(type_index)) {
+    return NULL;
+  }
+  if (profession < 0 || profession == UNITS_JOB_NONE || profession == 19 || profession == 25 ||
+      profession == 26 || profession == 27) {
+    return NULL;
+  }
+  const char* line = map_panel_section_line(names, "JOB", profession);
+  if (!line) {
+    return NULL;
+  }
+  const char* p = strchr(line, ',');
+  if (!p) {
+    return NULL;
+  }
+  ++p;
+  static char buf[40];
+  map_panel_csv_field(p, buf, sizeof(buf));
+  return buf[0] ? buf : NULL;
+}
+
+/* NAMES.TXT @CARGO name, for the Pioneers tool line (DS:0x97dc). */
+static const char* map_panel_cargo_name(const ColonizeMsgCatalog* names, int cargo) {
+  static const char* k_tools = "Tools";
+  const char* line = map_panel_section_line(names, "CARGO", cargo);
+  if (!line) {
+    return k_tools;
+  }
+  static char buf[32];
+  map_panel_csv_field(line, buf, sizeof(buf));
+  return buf[0] ? buf : k_tools;
+}
+
+/*
+ * Type-specific detail line: DOS gives Pioneers their tool count (0x3159) and
+ * a Treasure Train its gold (0x315b x 100) in the highlight ink, between the
+ * profession and the orders.
+ */
+static bool map_panel_type_detail(
   const ColonizeUnitPool* units,
-  const ColonizeUnit* ship,
+  const ColonizeUnit* u,
+  const ColonizeMsgCatalog* names,
+  char* out,
+  size_t out_size
+) {
+  (void)units;
+  if (u->type_index == MAP_PANEL_UNIT_PIONEERS && u->tools > 0) {
+    snprintf(out, out_size, "(%d %s)", u->tools, map_panel_cargo_name(names, COLONIZE_CARGO_TOOLS));
+    return true;
+  }
+  if (u->type_index == MAP_PANEL_UNIT_TREASURE) {
+    snprintf(out, out_size, "(Gold: %d)", u->profession * 100);
+    return true;
+  }
+  return false;
+}
+
+/*
+ * DOS FUN_1427_04d6 (the sidebar calls it with param_2 == 0 through
+ * FUN_281f_07ea): the tile's unit chain is re-ordered before it is walked —
+ * transports first, then Treasure (@UNIT 10), then by descending @UNIT "size"
+ * class 6 → 1. Ranking a copied id list reproduces the same visible order
+ * without touching the pool.
+ */
+static int map_panel_stack_rank(const ColonizeUnitPool* units, const ColonizeUnit* u) {
+  const ColonizeUnitType* t = units ? units_type(units, u->type_index) : NULL;
+  if (t && t->cargo > 0) {
+    return 1000;
+  }
+  if (u->type_index == MAP_PANEL_UNIT_TREASURE) {
+    return 500;
+  }
+  return t ? t->space : 0;
+}
+
+/*
+ * Every unit the sidebar lists for a tile: the ones standing on it plus the
+ * ones aboard a transport standing on it. COL1 keeps carried units in the same
+ * per-tile chain, so FUN_281f_02ee / FUN_281f_02e4 walk straight through them
+ * and each passenger gets its own row under its ship — which is how "units
+ * loaded onto a ship" are shown. `units_is_on_map` deliberately excludes
+ * passengers, so they have to be gathered through their carrier here.
+ */
+int map_panel_collect_stack(
+  const ColonizeUnitPool* units, int x, int y, int* out_ids, int max
+) {
+  if (!units || !out_ids || max <= 0) {
+    return 0;
+  }
+  int n = 0;
+  for (int i = 0; i < COLONIZE_UNITS_MAX && n < max; ++i) {
+    const ColonizeUnit* u = &units->units[i];
+    if (!u->active || u->id < 0) {
+      continue;
+    }
+    if (u->aboard_ship_id >= 0) {
+      const ColonizeUnit* ship = units_get_const(units, u->aboard_ship_id);
+      if (!ship || !units_is_on_map(ship) || ship->x != x || ship->y != y) {
+        continue;
+      }
+    } else if (!units_is_on_map(u) || u->x != x || u->y != y) {
+      continue;
+    }
+    out_ids[n++] = u->id;
+  }
+
+  /* Stable insertion sort, rank descending. */
+  for (int i = 1; i < n; ++i) {
+    const int id = out_ids[i];
+    const ColonizeUnit* u = units_get_const(units, id);
+    const int rank = u ? map_panel_stack_rank(units, u) : 0;
+    int j = i - 1;
+    while (j >= 0) {
+      const ColonizeUnit* p = units_get_const(units, out_ids[j]);
+      if ((p ? map_panel_stack_rank(units, p) : 0) >= rank) {
+        break;
+      }
+      out_ids[j + 1] = out_ids[j];
+      --j;
+    }
+    out_ids[j + 1] = id;
+  }
+  return n;
+}
+
+/*
+ * DOS FUN_49dd_01aa: commodity holds only — passengers are chain entries, not
+ * hold slots (FUN_15eb_2ff2 reads packed goods nibbles). Icons are sorted by
+ * Europe price × amount descending, with Tools/Muskets forced to weight 0 and
+ * Horses to 1 so military stores sort last, and a hold below 100 draws the
+ * grey icon instead of the colored one.
+ */
+static int map_panel_cargo_weight(
+  const ColonizeCol1Save* col1, int nation_id, int gtype, int amount
+) {
+  if (gtype == COLONIZE_CARGO_TOOLS || gtype == COLONIZE_CARGO_MUSKETS) {
+    return 0;
+  }
+  int price = 1;
+  if (gtype != COLONIZE_CARGO_HORSES) {
+    if (col1 && nation_id >= 0 && nation_id < 4 && gtype >= 0 &&
+        gtype < (int)COLONIZE_COL1_CARGO_TYPES) {
+      price = (int)col1->nation[nation_id].trade.euro_price[gtype];
+    }
+    price <<= 4;
+  }
+  return price * amount;
+}
+
+static int map_panel_draw_cargo_icons(
+  const ColonizeUnit* carrier,
+  const ColonizeCol1Save* col1,
+  const ColonizeSpriteSheet* icons,
+  ColonizeFramebuffer8* fb,
+  int x,
+  int y,
+  int x_limit
+) {
+  if (!carrier || !icons) {
+    return x;
+  }
+  int slot[COLONIZE_UNIT_CARGO_MAX];
+  int weight[COLONIZE_UNIT_CARGO_MAX];
+  int n = 0;
+  for (int i = 0; i < COLONIZE_UNIT_CARGO_MAX; ++i) {
+    const int amt = carrier->hold_goods_amount[i];
+    const int gtype = carrier->hold_goods_type[i];
+    if (amt <= 0 || amt >= 255 || gtype < 0 || gtype >= COLONIZE_CARGO_COUNT) {
+      continue;
+    }
+    slot[n] = i;
+    weight[n] = map_panel_cargo_weight(col1, carrier->nation_id, gtype, amt);
+    n++;
+  }
+  for (int i = 1; i < n; ++i) {
+    const int s = slot[i];
+    const int w = weight[i];
+    int j = i - 1;
+    while (j >= 0 && weight[j] < w) {
+      slot[j + 1] = slot[j];
+      weight[j + 1] = weight[j];
+      --j;
+    }
+    slot[j + 1] = s;
+    weight[j + 1] = w;
+  }
+
+  for (int i = 0; i < n; ++i) {
+    const int amt = carrier->hold_goods_amount[slot[i]];
+    const int gtype = carrier->hold_goods_type[slot[i]];
+    const int sprite =
+      (amt >= MAP_PANEL_CARGO_FULL ? MAP_PANEL_CARGO_ICON_BASE : MAP_PANEL_CARGO_GREY_BASE) + gtype;
+    if (sprite < 0 || sprite >= icons->sprite_count) {
+      continue;
+    }
+    const ColonizeSprite* sp = &icons->sprites[sprite];
+    const int w = sp->width > 0 ? sp->width : 8;
+    if (x + w > x_limit) {
+      break;
+    }
+    ss_blit_sprite(icons, sprite, fb, x, y);
+    x += w + 1;
+  }
+  return x;
+}
+
+/*
+ * Orders line. DOS resolves a destination-bearing order (goto, @ORDERS 3)
+ * through FUN_49dd_02d0, which names the colony on the target tile if there is
+ * one and falls back to the target's terrain.
+ */
+static void map_panel_orders_text(
+  const ColonizeUnitPool* units,
+  const ColonizeUnit* u,
+  const ColonizeColonyPool* colonies,
+  const ColonizeWorldMap* map,
+  const ColonizeMsgCatalog* names,
+  char* out,
+  size_t out_size
+) {
+  (void)units;
+  const char* label = map_panel_order_label(names, u->orders);
+  if (u->orders != UNITS_ORDER_GOTO || u->goto_x == UNITS_GOTO_NONE ||
+      u->goto_y == UNITS_GOTO_NONE) {
+    snprintf(out, out_size, "%s", label);
+    return;
+  }
+  const ColonizeColony* dest =
+    colonies ? colonies_get(colonies, colonies_id_at(colonies, u->goto_x, u->goto_y)) : NULL;
+  if (dest && dest->active && dest->name[0]) {
+    snprintf(out, out_size, "%s %s", label, dest->name);
+    return;
+  }
+  char tname[40];
+  map_panel_terrain_name(
+    names, map_pedia_terrain_index_at(map, u->goto_x, u->goto_y), tname, sizeof(tname)
+  );
+  snprintf(out, out_size, "%s %s", label, tname);
+}
+
+/* One tile-stack row: chrome icon at the text column, then the row's text
+ * (cargo icons instead, for a loaded transport). Advances *y by one row. */
+static void map_panel_draw_stack_row(
+  const ColonizeUnitPool* units,
+  const ColonizeUnit* u,
+  const ColonizeColonyPool* colonies,
+  const ColonizeWorldMap* map,
+  const ColonizeCol1Save* col1,
   const ColonizeSpriteSheet* icons,
   const ColonizeFont* font,
-  const char* with_label,
+  const ColonizeMsgCatalog* names,
+  const ColonizePalette* active_palette,
   ColonizeFramebuffer8* fb,
-  int text_x,
-  int* text_y,
-  int line_h,
-  int y_limit
+  int stack_n,
+  int* y
 ) {
-  if (!ship || !units || !text_y) {
-    return;
+  const int sprite = units_map_sprite(units, u->id);
+  int x = MAP_PANEL_TEXT_X;
+  if (icons && sprite >= 0) {
+    unit_chrome_blit_unit_for_palette(
+      fb,
+      font,
+      icons,
+      sprite,
+      x,
+      *y,
+      units_display_type_index(units, u->id),
+      u->nation_id,
+      u->orders,
+      false, /* DOS passes 0 here: every unit in the stack gets its own row */
+      u->aboard_ship_id >= 0,
+      active_palette
+    );
   }
+  (void)stack_n;
+  x += MAP_PANEL_ICON_INDENT;
 
-  int goods_slots = 0;
-  for (int i = 0; i < COLONIZE_UNIT_CARGO_MAX; ++i) {
-    if (ship->hold_goods_amount[i] > 0 && ship->hold_goods_amount[i] < 255) {
-      goods_slots++;
+  const ColonizeUnitType* type = units_type(units, u->type_index);
+  const int text_y = *y + 2;
+  const int right = MAP_PANEL_X + MAP_PANEL_W - 2;
+  char line[72];
+
+  /* DOS row precedence: Pioneers' tools, then profession, then Treasure gold,
+   * then a loaded transport's holds, else the orders / destination text. */
+  const char* prof = map_panel_profession_name(names, u->type_index, u->profession);
+  int goods = 0;
+  for (int g = 0; g < COLONIZE_UNIT_CARGO_MAX; ++g) {
+    if (u->hold_goods_amount[g] > 0 && u->hold_goods_amount[g] < 255) {
+      goods++;
     }
   }
-
-  int cap = units_ship_capacity(units, ship->id);
-  if (cap <= 0) {
-    /* Wagons / incomplete @UNIT rows: size hold row from contents. */
-    cap = ship->cargo_count + goods_slots;
+  if (u->type_index == MAP_PANEL_UNIT_PIONEERS && u->tools > 0) {
+    map_panel_type_detail(units, u, names, line, sizeof(line));
+    font_draw_text(font, fb, x, text_y, line, MAP_PANEL_COL_EMPHASIS);
+  } else if (prof) {
+    font_draw_text(font, fb, x, text_y, prof, MAP_PANEL_COL_EMPHASIS);
+  } else if (u->type_index == MAP_PANEL_UNIT_TREASURE) {
+    map_panel_type_detail(units, u, names, line, sizeof(line));
+    font_draw_text(font, fb, x, text_y, line, MAP_PANEL_COL_EMPHASIS);
+  } else if (type && type->cargo > 0 && goods > 0) {
+    /* Loaded transport: its holds are drawn inline, exactly as DOS does with
+     * thunk_FUN_2a1f_028a on this row. */
+    map_panel_draw_cargo_icons(u, col1, icons, fb, x, *y, right);
+  } else {
+    map_panel_orders_text(units, u, colonies, map, names, line, sizeof(line));
+    font_draw_text(font, fb, x, text_y, line, MAP_PANEL_COL_TEXT);
   }
-  if (cap <= 0 && ship->cargo_count <= 0 && goods_slots <= 0) {
-    return;
-  }
-  const int used = ship->cargo_count + goods_slots;
-  if (cap < used) {
-    cap = used;
-  }
-  if (cap > COLONIZE_UNIT_CARGO_MAX) {
-    cap = COLONIZE_UNIT_CARGO_MAX;
-  }
-
-  char line[32];
-  snprintf(line, sizeof(line), "%s", with_label ? with_label : "With:");
-  if (!map_panel_draw_line(font, fb, text_x, text_y, line_h, y_limit, line)) {
-    return;
-  }
-
-  const int panel_right = MAP_PANEL_X + MAP_PANEL_W - 2;
-  const int hold_h = 14;
-  const int hold_w = 12;
-  const int pitch = 13;
-  if (*text_y + hold_h > y_limit) {
-    return;
-  }
-
-  int x = text_x;
-  int y = *text_y;
-  int drawn = 0;
-
-  for (int i = 0; i < ship->cargo_count && drawn < cap; ++i) {
-    const ColonizeUnit* pax = units_get_const(units, ship->cargo_ids[i]);
-    const int sprite = (pax && icons) ? units_map_sprite(units, pax->id) : -1;
-
-    if (x + hold_w > panel_right) {
-      x = text_x;
-      y += hold_h + 1;
-      if (y + hold_h > y_limit) {
-        break;
-      }
-    }
-
-    if (sprite >= 0 && icons && sprite < icons->sprite_count) {
-      ss_blit_sprite(icons, sprite, fb, x, y);
-      const ColonizeSprite* sp = &icons->sprites[sprite];
-      const int step = sp->width > 0 ? sp->width + 1 : pitch;
-      x += step > pitch ? step : pitch;
-    } else {
-      const char* name = units_display_name(units, pax);
-      font_draw_text(font, fb, x, y + 2, name ? name : "?", MAP_PANEL_COL_TEXT);
-      x = panel_right;
-    }
-    drawn++;
-  }
-
-  for (int i = 0; i < COLONIZE_UNIT_CARGO_MAX && drawn < cap; ++i) {
-    const int amt = ship->hold_goods_amount[i];
-    if (amt <= 0 || amt >= 255) {
-      continue;
-    }
-    const int gtype = ship->hold_goods_type[i];
-    if (gtype < 0 || gtype >= COLONIZE_CARGO_COUNT) {
-      continue;
-    }
-    if (x + hold_w > panel_right) {
-      x = text_x;
-      y += hold_h + 1;
-      if (y + hold_h > y_limit) {
-        break;
-      }
-    }
-    const int sprite = MAP_PANEL_CARGO_ICON_BASE + gtype;
-    if (icons && sprite >= 0 && sprite < icons->sprite_count) {
-      ss_blit_sprite(icons, sprite, fb, x, y);
-      const ColonizeSprite* sp = &icons->sprites[sprite];
-      const int step = sp->width > 0 ? sp->width + 1 : pitch;
-      x += step > pitch ? step : pitch;
-    } else {
-      x += pitch;
-    }
-    drawn++;
-  }
-
-  while (drawn < cap) {
-    if (x + hold_w > panel_right) {
-      x = text_x;
-      y += hold_h + 1;
-      if (y + hold_h > y_limit) {
-        break;
-      }
-    }
-    map_panel_draw_empty_hold(fb, x, y, hold_w, hold_h);
-    x += pitch;
-    drawn++;
-  }
-
-  *text_y = y + hold_h + 2;
+  *y += MAP_PANEL_ROW_H;
 }
 
 void map_panel_render(
@@ -902,61 +1148,91 @@ void map_panel_render(
     framebuffer, MAP_PANEL_X, panel_y, framebuffer->height - 1, MAP_PANEL_COL_LINE
   );
 
-  int text_y = section_bottom + 2;
-  const int text_x = MAP_PANEL_X + MAP_PANEL_TEXT_MARGIN;
-  const int line_h = font ? (font->max_height + 2) : 8;
-  const int y_limit = framebuffer->height - 4;
+  const int text_x = MAP_PANEL_TEXT_X;
+  const int indent_x = text_x + MAP_PANEL_ICON_INDENT;
+  const int panel_right = MAP_PANEL_X + MAP_PANEL_W - 2;
+  /* DOS line pitch is the font's own height + 1 (DS:0x89e → height byte). */
+  const int line_h = font ? (font->max_height + 1) : 8;
+  const int y_limit = framebuffer->height - 2;
+  int text_y = MAP_PANEL_TEXT_TOP;
+  if (text_y < section_bottom + 2) {
+    text_y = section_bottom + 2;
+  }
 
-  char date[48];
-  turn_format_date(game_year, game_autumn, date, sizeof(date));
-  char gold_line[64];
-  snprintf(gold_line, sizeof(gold_line), "Gold: %d$  Tax: %d%%", gold, tax_percent);
-  map_panel_draw_line(font, framebuffer, text_x, &text_y, line_h, y_limit, date);
-  map_panel_draw_line(font, framebuffer, text_x, &text_y, line_h, y_limit, gold_line);
-  text_y += 2;
+  /*
+   * Header, drawn in every mode (DOS keeps composing these two rows even
+   * while an AI nation is moving):
+   *   "<Season> <Year>"
+   *   "Gold:<n>$  Tax: <n>%"   — note the DOS spacing: the gold amount butts
+   *   straight against its label (FUN_281f_016e then FUN_281f_00d8, no
+   *   separator), two spaces before "Tax:", one after it.
+   */
+  {
+    char date[48];
+    turn_format_date(game_year, game_autumn, date, sizeof(date));
+    map_panel_draw_line(font, framebuffer, text_x, &text_y, line_h, y_limit, date);
+
+    const char* gold_label = "Gold:";
+    const char* tax_label = "Tax:";
+    if (labels) {
+      const ColonizeMsgSection* ct = assets_msg_find(labels, "CTITLE");
+      if (ct && ct->line_count > 9) {
+        gold_label = ct->lines[1];
+        tax_label = ct->lines[9];
+      }
+    }
+    char gold_line[64];
+    snprintf(gold_line, sizeof(gold_line), "%s%d$  %s %d%%", gold_label, gold, tax_label, tax_percent);
+    map_panel_draw_line(font, framebuffer, text_x, &text_y, line_h, y_limit, gold_line);
+  }
+
+  /* Half-line gap between the header and the unit/tile body. */
+  text_y += line_h / 2;
 
   const ColonizeUnit* selected =
     (units && selected_unit_id >= 0) ? units_get_const(units, selected_unit_id) : NULL;
+  if (selected && !selected->active) {
+    selected = NULL;
+  }
   const int info_x = selected ? selected->x : cursor_x;
   const int info_y = selected ? selected->y : cursor_y;
+  const bool tile_seen = map ? map_tile_seen_by(map, info_x, info_y, human_nation) : true;
 
   if (selected) {
-    if (panel && panel->nameplat_ok && panel->nameplat.sprite_count > 0) {
-      ss_blit_sprite(&panel->nameplat, 0, framebuffer, text_x, text_y);
-    }
+    /*
+     * Selected-unit block. DOS lays it out as one 18px icon row whose right
+     * column carries Moves/Locat, then full-width lines underneath:
+     *   [chrome]  Moves: n
+     *             Locat: (x, y)
+     *   <Nationality> <Type>
+     *   <Profession>                (highlight ink, expert skills only)
+     *   <Orders>
+     */
+    const int icon_y = text_y;
     const int sel_sprite = units_map_sprite(units, selected->id);
     if (icons && sel_sprite >= 0) {
-      const int ix = text_x + 2;
-      const int iy = text_y + 1;
-      const int stack_n = map_panel_count_units_at(units, selected->x, selected->y);
       unit_chrome_blit_unit_for_palette(
         framebuffer,
         font,
         icons,
         sel_sprite,
-        ix,
-        iy,
+        text_x,
+        icon_y,
         units_display_type_index(units, selected->id),
         selected->nation_id,
         selected->orders,
-        stack_n > 1,
+        false,
         selected->aboard_ship_id >= 0,
         active_palette
       );
     }
-    const char* uname = units_display_name(units, selected);
-    font_draw_text(font, framebuffer, text_x + 20, text_y + 3, uname, MAP_PANEL_COL_TEXT);
-    text_y += 16;
 
-    char line[64];
-    if (selected->tools > 0) {
-      snprintf(line, sizeof(line), "Tools: %d", selected->tools);
-      map_panel_draw_line(font, framebuffer, text_x, &text_y, line_h, y_limit, line);
-    }
+    int side_y = icon_y + 2;
+    char line[72];
     char mp_text[16];
     units_format_mp(selected->moves_left, mp_text, sizeof(mp_text));
     snprintf(line, sizeof(line), "%s %s", panel ? panel->label_moves : "Moves:", mp_text);
-    map_panel_draw_line(font, framebuffer, text_x, &text_y, line_h, y_limit, line);
+    map_panel_draw_line(font, framebuffer, indent_x, &side_y, line_h, y_limit, line);
     snprintf(
       line,
       sizeof(line),
@@ -965,59 +1241,52 @@ void map_panel_render(
       selected->x,
       selected->y
     );
-    map_panel_draw_line(font, framebuffer, text_x, &text_y, line_h, y_limit, line);
-    /* COL1: transport holds under With: as unit/cargo icons (LABELS.TXT @INFO). */
-    {
-      int goods = 0;
-      for (int g = 0; g < COLONIZE_UNIT_CARGO_MAX; ++g) {
-        if (selected->hold_goods_amount[g] > 0 && selected->hold_goods_amount[g] < 255) {
-          goods++;
-        }
-      }
-      if (units_is_sea(units, selected->id) || selected->cargo_count > 0 || goods > 0 ||
-          units_ship_capacity(units, selected->id) > 0) {
-        map_panel_draw_with_holds(
-          units,
-          selected,
-          icons,
-          font,
-          panel ? panel->label_with : "With:",
-          framebuffer,
-          text_x,
-          &text_y,
-          line_h,
-          y_limit
-        );
-      }
-    }
-  } else {
-    char line[64];
+    map_panel_draw_line(font, framebuffer, indent_x, &side_y, line_h, y_limit, line);
+
+    text_y = icon_y + MAP_PANEL_ROW_H;
+
     snprintf(
       line,
       sizeof(line),
-      "%s (%d,%d)",
-      panel ? panel->label_locat : "Locat:",
-      cursor_x,
-      cursor_y
+      "%s %s",
+      map_panel_nationality(names, selected->nation_id),
+      map_panel_unit_type_name(units, selected)
     );
     map_panel_draw_line(font, framebuffer, text_x, &text_y, line_h, y_limit, line);
-  }
 
-  /* Tile details under Locat (manual Information Sidebar). */
-  if (map && map->terrain && info_x >= 0 && info_y >= 0 && info_x < map->width &&
-      info_y < map->height) {
+    const char* prof =
+      map_panel_profession_name(names, selected->type_index, selected->profession);
+    if (prof) {
+      map_panel_draw_line_color(
+        font, framebuffer, text_x, &text_y, line_h, y_limit, prof, MAP_PANEL_COL_EMPHASIS
+      );
+    }
+    if (map_panel_type_detail(units, selected, names, line, sizeof(line))) {
+      map_panel_draw_line_color(
+        font, framebuffer, text_x, &text_y, line_h, y_limit, line, MAP_PANEL_COL_EMPHASIS
+      );
+    }
+
+    map_panel_orders_text(units, selected, colonies, map, names, line, sizeof(line));
+    map_panel_draw_line(font, framebuffer, text_x, &text_y, line_h, y_limit, line);
+  } else {
+    /*
+     * View-Pieces / no selection: cursor position, then the tile's owner
+     * (only on explored land — DOS skips the line over water and fog).
+     */
     char line[72];
+    snprintf(
+      line, sizeof(line), "%s (%d,%d)", panel ? panel->label_locat : "Locat:", cursor_x, cursor_y
+    );
+    map_panel_draw_line(font, framebuffer, text_x, &text_y, line_h, y_limit, line);
 
-    if (map_tile_is_land(map, info_x, info_y)) {
+    if (tile_seen && map && map_tile_is_land(map, info_x, info_y)) {
       const ColonizeColony* col_here =
         colonies ? colonies_get(colonies, colonies_id_at(colonies, info_x, info_y)) : NULL;
       const ColonizeCol1Tribe* tribe = map_panel_tribe_at(col1, info_x, info_y);
       if (col_here && col_here->active) {
         snprintf(
-          line,
-          sizeof(line),
-          "%s",
-          map_panel_euro_country(col1, nation_name, col_here->nation_id)
+          line, sizeof(line), "%s", map_panel_euro_country(col1, nation_name, col_here->nation_id)
         );
         map_panel_draw_line(font, framebuffer, text_x, &text_y, line_h, y_limit, line);
       } else if (tribe) {
@@ -1027,7 +1296,6 @@ void map_panel_render(
         const char* wild = "Wilderness";
         if (labels) {
           const ColonizeMsgSection* misc = assets_msg_find(labels, "MISC");
-          /* LABELS @MISC: Wilderness is among the early lines — search. */
           if (misc) {
             for (int i = 0; i < misc->line_count; ++i) {
               if (strcmp(misc->lines[i], "Wilderness") == 0) {
@@ -1040,43 +1308,81 @@ void map_panel_render(
         map_panel_draw_line(font, framebuffer, text_x, &text_y, line_h, y_limit, wild);
       }
     }
+  }
 
-    {
-      char tname[40];
-      map_panel_terrain_name(names, map_pedia_terrain_index_at(map, info_x, info_y), tname, sizeof(tname));
-      snprintf(line, sizeof(line), "(%s)", tname);
-      map_panel_draw_line(font, framebuffer, text_x, &text_y, line_h, y_limit, line);
-    }
-
-    if (map_panel_tile_plowed(map, col1, info_x, info_y)) {
-      map_panel_draw_line(font, framebuffer, text_x, &text_y, line_h, y_limit, "(Plowed)");
-    }
-    if (map_panel_tile_road(map, col1, info_x, info_y)) {
-      map_panel_draw_line(font, framebuffer, text_x, &text_y, line_h, y_limit, "(Road)");
-    }
-    if (map_tile_has_major_river(map, info_x, info_y)) {
-      map_panel_draw_line(font, framebuffer, text_x, &text_y, line_h, y_limit, "(Major River)");
-    } else if (map_tile_has_river(map, info_x, info_y)) {
-      map_panel_draw_line(font, framebuffer, text_x, &text_y, line_h, y_limit, "(River)");
-    }
-    {
-      const int rtype = map_resource_type_at(map, info_x, info_y);
-      if (rtype >= 0) {
-        char rname[40];
-        map_panel_resource_name(names, rtype, rname, sizeof(rname));
-        snprintf(line, sizeof(line), "(%s)", rname);
+  /* Tile details. DOS draws a single "(Unexplored)" line for fogged tiles and
+   * the terrain/feature stack for explored ones. */
+  if (map && map->terrain && info_x >= 0 && info_y >= 0 && info_x < map->width &&
+      info_y < map->height) {
+    char line[72];
+    if (!tile_seen) {
+      map_panel_draw_line(font, framebuffer, text_x, &text_y, line_h, y_limit, "(Unexplored)");
+    } else {
+      {
+        char tname[40];
+        map_panel_terrain_name(
+          names, map_pedia_terrain_index_at(map, info_x, info_y), tname, sizeof(tname)
+        );
+        snprintf(line, sizeof(line), "(%s)", tname);
         map_panel_draw_line(font, framebuffer, text_x, &text_y, line_h, y_limit, line);
       }
-    }
-    if (map_tile_has_rumour(map, info_x, info_y)) {
-      map_panel_draw_line(font, framebuffer, text_x, &text_y, line_h, y_limit, "(Lost City Rumor)");
-    }
 
-    /* Colony / native camp under the tile. */
+      if (map_panel_tile_plowed(map, col1, info_x, info_y)) {
+        map_panel_draw_line(font, framebuffer, text_x, &text_y, line_h, y_limit, "(Plowed)");
+      }
+      if (map_panel_tile_road(map, col1, info_x, info_y)) {
+        map_panel_draw_line(font, framebuffer, text_x, &text_y, line_h, y_limit, "(Road)");
+      }
+      if (map_tile_has_major_river(map, info_x, info_y)) {
+        map_panel_draw_line(font, framebuffer, text_x, &text_y, line_h, y_limit, "(Major River)");
+      } else if (map_tile_has_river(map, info_x, info_y)) {
+        map_panel_draw_line(font, framebuffer, text_x, &text_y, line_h, y_limit, "(River)");
+      }
+      {
+        const int rtype = map_resource_type_at(map, info_x, info_y);
+        if (rtype >= 0) {
+          char rname[40];
+          map_panel_resource_name(names, rtype, rname, sizeof(rname));
+          snprintf(line, sizeof(line), "(%s)", rname);
+          map_panel_draw_line(font, framebuffer, text_x, &text_y, line_h, y_limit, line);
+        }
+      }
+      if (map_tile_has_rumour(map, info_x, info_y)) {
+        map_panel_draw_line(font, framebuffer, text_x, &text_y, line_h, y_limit, "(Lost City Rumor)");
+      }
+    }
+  }
+
+  /* Half-line gap, then the selected transport's holds: "With:" and the
+   * commodity icons on the SAME row, starting one pixel past the label
+   * (FUN_49dd_0424 takes the drawn label's width back from FUN_281f_0132).
+   * Passengers are not icons here — they are rows in the stack list below. */
+  text_y += line_h / 2;
+  if (selected && icons) {
+    const ColonizeUnitType* stype = units_type(units, selected->type_index);
+    int goods = 0;
+    for (int g = 0; g < COLONIZE_UNIT_CARGO_MAX; ++g) {
+      if (selected->hold_goods_amount[g] > 0 && selected->hold_goods_amount[g] < 255) {
+        goods++;
+      }
+    }
+    if (stype && stype->cargo > 0 && goods > 0 && text_y + MAP_PANEL_ROW_H <= y_limit) {
+      const char* with = panel ? panel->label_with : "With:";
+      font_draw_text(font, framebuffer, text_x, text_y + 2, with, MAP_PANEL_COL_TEXT);
+      const int label_w = font ? font_text_width(font, with) : 24;
+      map_panel_draw_cargo_icons(
+        selected, col1, icons, framebuffer, text_x + label_w + 1, text_y, panel_right
+      );
+      text_y += MAP_PANEL_ROW_H;
+    }
+  }
+
+  if (tile_seen) {
+    /* Colony under the cursor. */
     if (colonies) {
       const int cid = colonies_id_at(colonies, info_x, info_y);
       const ColonizeColony* col = colonies_get(colonies, cid);
-      if (col && col->active) {
+      if (col && col->active && text_y + MAP_PANEL_ROW_H <= y_limit) {
         int colony_icon = MAP_PANEL_COLONY_ICON_NONE;
         const int fortress = colonies_find_building(colonies, "Fortress");
         const int fort = colonies_find_building(colonies, "Fort");
@@ -1088,32 +1394,28 @@ void map_panel_render(
         } else if (stockade >= 0 && col->has_building[stockade]) {
           colony_icon = 0;
         }
-        int label_x = text_x + 18;
+        int label_x = indent_x;
         if (icons && icons->sprite_count > MAP_PANEL_COLONY_ICON_NONE) {
           colonies_blit_settlement_icon(
             icons, colony_icon, framebuffer, text_x, text_y, col->nation_id, active_palette
           );
-          const ColonizeSprite* sp = &icons->sprites[colony_icon];
-          if (sp->width > 0) {
-            label_x = text_x + sp->width + 2;
-          }
         }
-        snprintf(line, sizeof(line), "%s", col->name[0] ? col->name : "Colony");
-        font_draw_text(font, framebuffer, label_x, text_y + 2, line, MAP_PANEL_COL_TEXT);
-        text_y += 16;
-        /* Cargo summary stub: first non-zero stock. */
-        for (int c = 0; c < COLONIZE_CARGO_COUNT && text_y + line_h <= y_limit; ++c) {
-          if (col->stock[c] > 0) {
-            snprintf(line, sizeof(line), "  cargo %d", col->stock[c]);
-            map_panel_draw_line(font, framebuffer, text_x, &text_y, line_h, y_limit, line);
-            break;
-          }
-        }
+        font_draw_text(
+          font,
+          framebuffer,
+          label_x,
+          text_y + 2,
+          col->name[0] ? col->name : "Colony",
+          MAP_PANEL_COL_TEXT
+        );
+        text_y += MAP_PANEL_ROW_H;
       }
     }
+
+    /* Native settlement under the cursor. */
     {
       const ColonizeCol1Tribe* tribe = map_panel_tribe_at(col1, info_x, info_y);
-      if (tribe) {
+      if (tribe && text_y + MAP_PANEL_ROW_H <= y_limit) {
         const char* tshort = map_panel_tribe_short(names, tribe->nation_id);
         const char* settlement = "Camp";
         int tech = 0;
@@ -1123,7 +1425,6 @@ void map_panel_render(
                    ? (col1 && col1->indian[tribe->nation_id - 4].tech)
                    : 0;
           if (levels && tech >= 0 && tech < levels->line_count) {
-            /* tech-level, singular, plural */
             const char* lp = strchr(levels->lines[tech], ',');
             if (lp) {
               ++lp;
@@ -1152,62 +1453,124 @@ void map_panel_render(
           tech = MAP_PANEL_TRIBE_ICON_COUNT - 1;
         }
         const int tribe_icon = MAP_PANEL_TRIBE_ICON_BASE + tech;
-        int label_x = text_x + 18;
         if (icons && icons->sprite_count > tribe_icon) {
           ss_blit_sprite(icons, tribe_icon, framebuffer, text_x, text_y);
-          const ColonizeSprite* sp = &icons->sprites[tribe_icon];
-          if (sp->width > 0) {
-            label_x = text_x + sp->width + 2;
-          }
         }
+        char line[72];
         snprintf(line, sizeof(line), "%s %s", tshort, settlement);
-        font_draw_text(font, framebuffer, label_x, text_y + 2, line, MAP_PANEL_COL_TEXT);
-        text_y += 16;
+        font_draw_text(font, framebuffer, indent_x, text_y + 2, line, MAP_PANEL_COL_TEXT);
+        text_y += MAP_PANEL_ROW_H;
       }
     }
 
-    /* Units on the selected tile with order label. */
+    /*
+     * Tile stack. In Move Pieces the selected unit is skipped (it already has
+     * its own block above); in View Pieces every unit on the tile is listed.
+     * A foreign-owned stack collapses to a single "<Nationality> <Type>" row
+     * for whatever is on top, and only when the tile's visibility bit for the
+     * human nation is set. Listing stops at y >= 0xb8 with a "more" marker.
+     */
     if (units) {
-      const int tile_n = map_panel_count_units_at(units, info_x, info_y);
-      for (int i = 0; i < COLONIZE_UNITS_MAX && text_y + 14 <= y_limit; ++i) {
-        const ColonizeUnit* u = &units->units[i];
-        if (!units_is_on_map(u) || u->x != info_x || u->y != info_y) {
-          continue;
+      int ids[COLONIZE_UNITS_MAX];
+      const int stack_n = map_panel_collect_stack(units, info_x, info_y, ids, COLONIZE_UNITS_MAX);
+      const ColonizeUnit* top = stack_n > 0 ? units_get_const(units, ids[0]) : NULL;
+      const bool own_stack = top && top->nation_id == human_nation;
+
+      if (top && !own_stack) {
+        const bool visible =
+          human_nation < 0 || human_nation > 3 || (top->col1_vis_mask & (1u << human_nation)) != 0;
+        if (visible && text_y + MAP_PANEL_ROW_H <= y_limit) {
+          const int sprite = units_map_sprite(units, top->id);
+          if (icons && sprite >= 0) {
+            unit_chrome_blit_unit_for_palette(
+              framebuffer,
+              font,
+              icons,
+              sprite,
+              text_x,
+              text_y,
+              units_display_type_index(units, top->id),
+              top->nation_id,
+              top->orders,
+              stack_n > 1,
+              top->aboard_ship_id >= 0,
+              active_palette
+            );
+          }
+          char line[72];
+          snprintf(
+            line,
+            sizeof(line),
+            "%s %s",
+            map_panel_nationality(names, top->nation_id),
+            map_panel_unit_type_name(units, top)
+          );
+          font_draw_text(font, framebuffer, indent_x, text_y + 2, line, MAP_PANEL_COL_TEXT);
+          text_y += MAP_PANEL_ROW_H;
         }
-        const int sprite = units_map_sprite(units, u->id);
-        if (icons && sprite >= 0) {
-          unit_chrome_blit_unit_for_palette(
-            framebuffer,
-            font,
+      } else if (top) {
+        for (int i = 0; i < stack_n; ++i) {
+          const ColonizeUnit* u = units_get_const(units, ids[i]);
+          if (!u) {
+            continue;
+          }
+          if (selected && u->id == selected->id) {
+            continue; /* already shown as the selected-unit block */
+          }
+          if (text_y >= MAP_PANEL_STACK_Y_LIMIT || text_y + MAP_PANEL_ROW_H > y_limit) {
+            const char* more = "(More)";
+            if (labels) {
+              const ColonizeMsgSection* ct = assets_msg_find(labels, "CTITLE");
+              if (ct && ct->line_count > 6) {
+                more = ct->lines[6];
+              }
+            }
+            font_draw_text(font, framebuffer, text_x, text_y, more, MAP_PANEL_COL_TEXT);
+            text_y += line_h;
+            break;
+          }
+          map_panel_draw_stack_row(
+            units,
+            u,
+            colonies,
+            map,
+            col1,
             icons,
-            sprite,
-            text_x,
-            text_y,
-            units_display_type_index(units, u->id),
-            u->nation_id,
-            u->orders,
-            tile_n > 1,
-            u->aboard_ship_id >= 0,
-            active_palette
+            font,
+            names,
+            active_palette,
+            framebuffer,
+            stack_n,
+            &text_y
           );
         }
-        const char* orders = map_panel_order_label(names, u->orders);
-        snprintf(
-          line, sizeof(line), "%s %s", units_display_name(units, u), orders
-        );
-        font_draw_text(font, framebuffer, text_x + 18, text_y + 2, line, MAP_PANEL_COL_TEXT);
-        text_y += 14;
       }
     }
   }
 
-  /* Player-requested: "End Turn" prompt pinned to the bottom of the
-   * sidebar (not inline with the flowing unit-info text), flashing white
-   * (15) / black (0) — not a show/hide blink, the text is always drawn
-   * while active, just alternating color. */
+  text_y += line_h;
+
+  /*
+   * "End of Turn" (LABELS @MISC). DOS keeps it in the text flow rather than
+   * pinned to the panel's foot: y is the running text cursor, clamped so the
+   * row never starts below 0xc6 minus one line. It alternates white / black on
+   * the same blink the map's tile cursor uses (DS:0x929c, toggled by
+   * FUN_1984_010a, which redraws just this strip).
+   */
   if (end_turn_active) {
     const uint8_t flash_color = end_turn_blink_white ? 15 : 0;
-    const int end_turn_y = framebuffer->height - line_h - 2;
-    font_draw_text(font, framebuffer, text_x, end_turn_y, "End Turn", flash_color);
+    int eot_y = text_y;
+    const int eot_max = MAP_PANEL_EOT_Y_MAX - line_h;
+    if (eot_y > eot_max) {
+      eot_y = eot_max;
+    }
+    const char* eot = "End of Turn";
+    if (labels) {
+      const ColonizeMsgSection* misc = assets_msg_find(labels, "MISC");
+      if (misc && misc->line_count > 2) {
+        eot = misc->lines[2];
+      }
+    }
+    font_draw_text(font, framebuffer, text_x, eot_y, eot, flash_color);
   }
 }

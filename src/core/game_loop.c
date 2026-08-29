@@ -10042,9 +10042,9 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
               )) {
             game_set_view_center(game, tx, ty);
           } else if (game_end_turn_prompt_active(game)) {
-            /* Player-requested: click the sidebar to End Turn once the
-             * flashing prompt is up (no units left needing orders) — the
-             * click itself is the confirmation. */
+            /* DOS FUN_2b5a_3752: while the End of Turn prompt is up the next
+             * click IS the confirmation — the handler tests DS:0x53c6 before
+             * it dispatches the click anywhere else. */
             game_do_end_turn(game);
           }
         }
@@ -10126,6 +10126,14 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
       }
 
       if (!input->mouse_left_clicked) {
+        return true;
+      }
+
+      /* DOS FUN_2b5a_3752 tests DS:0x53c6 ahead of every other click action,
+       * so a click on the map viewport confirms the End of Turn prompt too —
+       * not just one on the right panel. */
+      if (game_end_turn_prompt_active(game)) {
+        game_do_end_turn(game);
         return true;
       }
 
@@ -11490,10 +11498,11 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
       game->europe.tax_percent,
       game->europe.nation_name,
       game->map_palette_ok ? &game->map_palette : NULL,
-      /* ~2.5Hz blink (400ms half-period), same feel as other flashing UI
-       * in this port (e.g. the turn-processor indicator). */
+      /* DOS drives the End of Turn text off DS:0x929c — the same flag
+       * FUN_1984_010a toggles for the map's tile cursor, so the two blink
+       * together (250ms half-period here). */
       game_end_turn_prompt_active(game),
-      (game->elapsed_ms / 400) % 2 == 0,
+      (game->elapsed_ms / 250u) % 2u == 0u,
       framebuffer
     );
   }
