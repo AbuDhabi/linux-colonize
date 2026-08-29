@@ -117,7 +117,7 @@ static int unit_wander_step_is_adjacent(void) {
     return fail("spawn soldier");
   }
   s->nation_id = nation;
-  s->moves_left = 1;
+  s->moves_left = 1 * UNITS_MP_PER_TILE;
   s->orders = 0;
 
   ai_euro_dispatcher_turn(&f.ctx, nation);
@@ -171,7 +171,7 @@ static int unit_patrol_returns_to_colony(void) {
     return fail("spawn soldier");
   }
   s->nation_id = nation;
-  s->moves_left = 1;
+  s->moves_left = 1 * UNITS_MP_PER_TILE;
   s->orders = 0;
   const int before = cheb(8, 8, 4, 4);
 

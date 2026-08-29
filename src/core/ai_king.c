@@ -1428,7 +1428,7 @@ static int ai_king_mow_try_unload(ColonizeTurnContext* ctx, ColonizeUnit* ship,
   if (cap <= 0) {
     cap = COLONIZE_UNIT_CARGO_MAX;
   }
-  int budget = ship->moves_left;
+  int budget = ship->moves_left / UNITS_MP_PER_TILE; /* 1 MP per pax, in thirds */
   if (budget > cap) {
     budget = cap;
   }
@@ -1445,7 +1445,10 @@ static int ai_king_mow_try_unload(ColonizeTurnContext* ctx, ColonizeUnit* ship,
                                 ctx->colonies)) {
       break;
     }
-    ship->moves_left--;
+    ship->moves_left -= UNITS_MP_PER_TILE;
+    if (ship->moves_left < 0) {
+      ship->moves_left = 0;
+    }
     n++;
   }
   if (n > 0) {

@@ -1144,7 +1144,7 @@ int main(void) {
       prey->nation_id = 0;
       prey->moves_left = 0;
       hunter->nation_id = 1;
-      hunter->moves_left = 1;
+      hunter->moves_left = 1 * UNITS_MP_PER_TILE;
       hunter->orders = UNITS_ORDER_NONE;
       hunter->goto_x = -1;
       hunter->goto_y = -1;
@@ -1218,7 +1218,7 @@ int main(void) {
         a->moves_left = 0;
         a->orders = UNITS_ORDER_NONE;
         b->nation_id = 1;
-        b->moves_left = 1;
+        b->moves_left = 1 * UNITS_MP_PER_TILE;
         b->orders = UNITS_ORDER_NONE;
       }
       ai_king_nation_turn(&ctx);
@@ -1308,7 +1308,7 @@ int main(void) {
           return fail("REF stack unit lookup");
         }
         ex->nation_id = 1;
-        ex->moves_left = 1;
+        ex->moves_left = 1 * UNITS_MP_PER_TILE;
         ex->orders = UNITS_ORDER_NONE;
         ex->goto_x = -1;
         ex->goto_y = -1;
@@ -1356,7 +1356,7 @@ int main(void) {
           return fail("REF stack third unit lookup");
         }
         th->nation_id = 1;
-        th->moves_left = 1;
+        th->moves_left = 1 * UNITS_MP_PER_TILE;
         th->orders = UNITS_ORDER_NONE;
         th->goto_x = -1;
         th->goto_y = -1;
@@ -1460,7 +1460,7 @@ int main(void) {
         decoy->nation_id = 0;
         decoy->moves_left = 0;
         h->nation_id = 1;
-        h->moves_left = 1;
+        h->moves_left = 1 * UNITS_MP_PER_TILE;
         h->orders = UNITS_ORDER_NONE;
         h->goto_x = -1;
         h->goto_y = -1;
@@ -1540,7 +1540,7 @@ int main(void) {
         return fail("idle fortify unit lookup");
       }
       idle->nation_id = 1;
-      idle->moves_left = 2;
+      idle->moves_left = 2 * UNITS_MP_PER_TILE;
       idle->orders = UNITS_ORDER_NONE;
       idle->goto_x = -1;
       idle->goto_y = -1;
@@ -1594,7 +1594,7 @@ int main(void) {
           return fail("idle fortify extras unit lookup");
         }
         ex->nation_id = 1;
-        ex->moves_left = 1;
+        ex->moves_left = 1 * UNITS_MP_PER_TILE;
         ex->orders = UNITS_ORDER_NONE;
         ex->goto_x = -1;
         ex->goto_y = -1;
@@ -1648,7 +1648,7 @@ int main(void) {
           return fail("idle fortify third unit lookup");
         }
         th->nation_id = 1;
-        th->moves_left = 1;
+        th->moves_left = 1 * UNITS_MP_PER_TILE;
         th->orders = UNITS_ORDER_NONE;
         th->goto_x = -1;
         th->goto_y = -1;
@@ -1714,7 +1714,7 @@ int main(void) {
           return fail("capital garrison unit lookup");
         }
         g->nation_id = 1;
-        g->moves_left = 2;
+        g->moves_left = 2 * UNITS_MP_PER_TILE;
         g->orders = UNITS_ORDER_NONE;
         g->goto_x = -1;
         g->goto_y = -1;
@@ -1741,7 +1741,7 @@ int main(void) {
           return fail("capital stay setup");
         }
         g->orders = UNITS_ORDER_FORTIFIED;
-        g->moves_left = 2;
+        g->moves_left = 2 * UNITS_MP_PER_TILE;
         g->goto_x = -1;
         g->goto_y = -1;
         /* Distant human prey that would otherwise attract a hunter. */
@@ -1880,7 +1880,7 @@ int main(void) {
           return fail("Cont. Cav idle garrison unit lookup");
         }
         cav->nation_id = 1;
-        cav->moves_left = 2;
+        cav->moves_left = 2 * UNITS_MP_PER_TILE;
         cav->orders = UNITS_ORDER_NONE;
         cav->goto_x = -1;
         cav->goto_y = -1;
@@ -1920,7 +1920,7 @@ int main(void) {
             return fail("cav stack extras unit lookup");
           }
           ex->nation_id = 1;
-          ex->moves_left = 1;
+          ex->moves_left = 1 * UNITS_MP_PER_TILE;
           ex->orders = UNITS_ORDER_NONE;
           ex->goto_x = -1;
           ex->goto_y = -1;
@@ -2005,12 +2005,12 @@ int main(void) {
           return fail("Regular-prefer garrison unit lookup");
         }
         r->nation_id = 1;
-        r->moves_left = 2;
+        r->moves_left = 2 * UNITS_MP_PER_TILE;
         r->orders = UNITS_ORDER_NONE;
         r->goto_x = -1;
         r->goto_y = -1;
         d->nation_id = 1;
-        d->moves_left = 2;
+        d->moves_left = 2 * UNITS_MP_PER_TILE;
         d->orders = UNITS_ORDER_NONE;
         d->goto_x = -1;
         d->goto_y = -1;
@@ -2109,7 +2109,7 @@ int main(void) {
         return fail("Artillery idle fortify setup");
       }
       art->orders = UNITS_ORDER_NONE;
-      art->moves_left = 2;
+      art->moves_left = 2 * UNITS_MP_PER_TILE;
       art->goto_x = -1;
       art->goto_y = -1;
       colonies.colonies[0].nation_id = 1;
@@ -2133,7 +2133,7 @@ int main(void) {
         return fail("Artillery fortified-stay setup");
       }
       art->orders = UNITS_ORDER_FORTIFIED;
-      art->moves_left = 2;
+      art->moves_left = 2 * UNITS_MP_PER_TILE;
       art->goto_x = -1;
       art->goto_y = -1;
       /* Bait: distant fortified human colony so hunt would otherwise leave. */
@@ -2299,7 +2299,7 @@ int main(void) {
       decoy->nation_id = 0;
       decoy->moves_left = 0;
       art->nation_id = 1;
-      art->moves_left = 1;
+      art->moves_left = 1 * UNITS_MP_PER_TILE;
       art->orders = UNITS_ORDER_NONE;
       art->goto_x = -1;
       art->goto_y = -1;
@@ -2356,7 +2356,7 @@ int main(void) {
         }
         art->x = 9;
         art->y = 5;
-        art->moves_left = 1;
+        art->moves_left = 1 * UNITS_MP_PER_TILE;
         art->orders = UNITS_ORDER_NONE;
         art->goto_x = -1;
         art->goto_y = -1;
@@ -2433,7 +2433,7 @@ int main(void) {
       openu->nation_id = 0;
       openu->moves_left = 0;
       drg->nation_id = 1;
-      drg->moves_left = 1;
+      drg->moves_left = 1 * UNITS_MP_PER_TILE;
       drg->orders = UNITS_ORDER_NONE;
       drg->goto_x = -1;
       drg->goto_y = -1;
@@ -2504,7 +2504,7 @@ int main(void) {
       openu->nation_id = 0;
       openu->moves_left = 0;
       cav->nation_id = 1; /* crown Cont. Cav hunter */
-      cav->moves_left = 1;
+      cav->moves_left = 1 * UNITS_MP_PER_TILE;
       cav->orders = UNITS_ORDER_NONE;
       cav->goto_x = -1;
       cav->goto_y = -1;
@@ -2565,7 +2565,7 @@ int main(void) {
         openu->nation_id = 0;
         openu->moves_left = 0;
         army->nation_id = 1;
-        army->moves_left = 1;
+        army->moves_left = 1 * UNITS_MP_PER_TILE;
         army->orders = UNITS_ORDER_NONE;
         army->goto_x = -1;
         army->goto_y = -1;
@@ -2637,7 +2637,7 @@ int main(void) {
         return fail("MoW sail unit lookup");
       }
       mow->nation_id = 1;
-      mow->moves_left = 4;
+      mow->moves_left = 4 * UNITS_MP_PER_TILE;
       mow->orders = UNITS_ORDER_NONE;
       mow->goto_x = -1;
       mow->goto_y = -1;
@@ -2674,7 +2674,7 @@ int main(void) {
       }
       mow->x = 4;
       mow->y = 5;
-      mow->moves_left = 2;
+      mow->moves_left = 2 * UNITS_MP_PER_TILE;
       mow->orders = UNITS_ORDER_NONE;
       /* Ensure colony tile is free of blocking foreign units for unload. */
       for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
@@ -2749,7 +2749,7 @@ int main(void) {
       }
     }
     /*
-     * Multi-unload deepen (MoW×6 seize): board 3 Regulars, moves_left=2 →
+     * Multi-unload deepen (MoW×6 seize): board 3 Regulars, moves_left=2 * UNITS_MP_PER_TILE →
      * unload exactly 2 this beat (cap by moves; leftover 1 stays aboard).
      * Cite: fandom man-o-war×6 / units_unload_passenger; no invent.
      */
@@ -2787,7 +2787,7 @@ int main(void) {
       }
       mow->x = 4;
       mow->y = 5;
-      mow->moves_left = 2;
+      mow->moves_left = 2 * UNITS_MP_PER_TILE;
       mow->orders = UNITS_ORDER_NONE;
       map.terrain[4 * 16 + 4] = 1;
       map.terrain[6 * 16 + 4] = 1;
@@ -2827,7 +2827,7 @@ int main(void) {
       if (mow->cargo_count != 1) {
         fprintf(stderr, "unit_ai_king: multi-unload cargo=%d (want 1 leftover)\n",
                 mow->cargo_count);
-        return fail("MoW multi-unload should dump 2 of 3 when moves_left=2");
+        return fail("MoW multi-unload should dump 2 of 3 when moves_left=2 * UNITS_MP_PER_TILE");
       }
       int ashore_after = 0;
       for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
@@ -2917,7 +2917,7 @@ int main(void) {
       mow = units_get(&units, mow_id);
       mow->x = 4;
       mow->y = 5;
-      mow->moves_left = 3;
+      mow->moves_left = 3 * UNITS_MP_PER_TILE;
       mow->orders = UNITS_ORDER_NONE;
       mow->goto_x = -1;
       mow->goto_y = -1;
@@ -2989,7 +2989,7 @@ int main(void) {
       mow = units_get(&units, mow_id);
       mow->x = 4;
       mow->y = 5;
-      mow->moves_left = 3;
+      mow->moves_left = 3 * UNITS_MP_PER_TILE;
       mow->orders = UNITS_ORDER_NONE;
       mow->goto_x = UNITS_GOTO_NONE;
       mow->goto_y = UNITS_GOTO_NONE;
@@ -3100,7 +3100,7 @@ int main(void) {
       }
       mow->x = 4;
       mow->y = 5;
-      mow->moves_left = 2;
+      mow->moves_left = 2 * UNITS_MP_PER_TILE;
       mow->orders = UNITS_ORDER_NONE;
       /* Only colony tile (5,5) enterable from ship — soft coast → water. */
       map.terrain[4 * 16 + 4] = 25;
@@ -3181,7 +3181,7 @@ int main(void) {
       }
       mow->x = 2;
       mow->y = 5;
-      mow->moves_left = 4;
+      mow->moves_left = 4 * UNITS_MP_PER_TILE;
       mow->orders = UNITS_ORDER_NONE;
       mow->goto_x = -1;
       mow->goto_y = -1;
@@ -3620,12 +3620,12 @@ int main(void) {
         return fail("Cont. capital-rally unit lookup");
       }
       ca->nation_id = 0;
-      ca->moves_left = 2;
+      ca->moves_left = 2 * UNITS_MP_PER_TILE;
       ca->orders = UNITS_ORDER_NONE;
       ca->goto_x = -1;
       ca->goto_y = -1;
       cav->nation_id = 0;
-      cav->moves_left = 2;
+      cav->moves_left = 2 * UNITS_MP_PER_TILE;
       cav->orders = UNITS_ORDER_NONE;
       cav->goto_x = -1;
       cav->goto_y = -1;
@@ -3662,7 +3662,7 @@ int main(void) {
       }
       ca->x = 5;
       ca->y = 5;
-      ca->moves_left = 2;
+      ca->moves_left = 2 * UNITS_MP_PER_TILE;
       ca->orders = UNITS_ORDER_NONE;
       ca->goto_x = -1;
       ca->goto_y = -1;
@@ -3702,7 +3702,7 @@ int main(void) {
       }
       cav->x = 5;
       cav->y = 5;
-      cav->moves_left = 2;
+      cav->moves_left = 2 * UNITS_MP_PER_TILE;
       cav->orders = UNITS_ORDER_NONE;
       cav->goto_x = -1;
       cav->goto_y = -1;
@@ -3784,13 +3784,13 @@ int main(void) {
       }
       ca->x = 9;
       ca->y = 5;
-      ca->moves_left = 2;
+      ca->moves_left = 2 * UNITS_MP_PER_TILE;
       ca->orders = UNITS_ORDER_NONE;
       ca->goto_x = -1;
       ca->goto_y = -1;
       cav->x = 9;
       cav->y = 5;
-      cav->moves_left = 2;
+      cav->moves_left = 2 * UNITS_MP_PER_TILE;
       cav->orders = UNITS_ORDER_NONE;
       cav->goto_x = -1;
       cav->goto_y = -1;
@@ -3877,7 +3877,7 @@ int main(void) {
         return fail("capital MD bias unit lookup");
       }
       h->nation_id = 1;
-      h->moves_left = 1;
+      h->moves_left = 1 * UNITS_MP_PER_TILE;
       h->orders = UNITS_ORDER_NONE;
       h->goto_x = -1;
       h->goto_y = -1;
@@ -3960,7 +3960,7 @@ int main(void) {
         return fail("Artillery capital MD unit lookup");
       }
       art->nation_id = 1;
-      art->moves_left = 1;
+      art->moves_left = 1 * UNITS_MP_PER_TILE;
       art->orders = UNITS_ORDER_NONE;
       art->goto_x = -1;
       art->goto_y = -1;

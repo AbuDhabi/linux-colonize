@@ -1116,26 +1116,18 @@ bool col1_bridge_apply(
     ColonizeUnit* u = units_get(units, id);
     if (u) {
       u->nation_id = src->nation_id;
-      /* COL1 moves are spent-ish; treat 0 as full refresh for playability.
-       * (Full moves_spent import would retune Brave AI vs TURN goldens —
-       * left as literal moves_left for land/Brave units, matching
-       * docs/savegame.md's "Land/Brave moves still exported as moves_left".) */
+      /*
+       * Col1 +0x05 = DOS moves_spent in thirds (FUN_465b_0000). Euro units:
+       * moves_left = max_mp - spent (0 = full refresh). Natives keep the
+       * literal byte — ai.c's Brave engine tracks DOS spent in moves_left
+       * itself (max 3), matching the TURN goldens.
+       */
       const ColonizeUnitType* ut = units_type(units, ti);
-      if (src->moves == 0) {
-        u->moves_left = ut ? ut->movement : 0;
-      } else if (ut && ut->domain == COLONIZE_UNIT_DOMAIN_SEA) {
-        /* Ships/aboard export `moves` as moves *spent* this turn, not
-         * remaining (docs/savegame.md) — unlike land/Brave units. Reading
-         * it as moves_left directly (the old behavior, still correct for
-         * land/Brave below) could leave a ship that had already used up
-         * its turn's movement looking like it had plenty left on a
-         * mid-turn load. Player-reported (dutch-reports.SAV): a
-         * Merchantman with raw moves=15 (spent) — far past its ~5-6
-         * tile/turn allowance — read as moves_left=15 outright, so it
-         * never registered as exhausted for this turn. */
-        int total = ut->movement;
-        if (founding_fathers_nation_has(save, src->nation_id, FF_FERDINAND_MAGELLAN)) {
-          total += 1;
+      if (src->nation_id <= 3) {
+        int total = units_type_max_mp(ut);
+        if (ut && ut->domain == COLONIZE_UNIT_DOMAIN_SEA &&
+            founding_fathers_nation_has(save, src->nation_id, FF_FERDINAND_MAGELLAN)) {
+          total += UNITS_MP_PER_TILE;
         }
         const int spent = (int)src->moves;
         u->moves_left = total > spent ? total - spent : 0;
@@ -1788,27 +1780,34 @@ bool col1_bridge_capture(
       }
       {
         /*
-         * Col1 +0x05 is moves_spent for ships/wagons/aboard (COLONY00 = 0 when
-         * full). Land/Brave export keeps moves_left so AI TURN goldens stay
-         * stable until a full spent-semantics migration.
+         * Col1 +0x05 = moves_spent in thirds. Euro units export
+         * max_mp - moves_left (idle transports / aboard units always 0, like
+         * COLONY00); natives export the literal byte (Brave engine keeps DOS
+         * spent in moves_left).
          */
         const ColonizeUnitType* ut = units_type(units, src->type_index);
         const bool transport = ut && ut->cargo > 0;
-        if (src->aboard_ship_id >= 0 || transport) {
-          const int max_mp = ut && ut->movement > 0 ? ut->movement : 1;
+        if (src->nation_id >= 0 && src->nation_id <= 3) {
+          const int max_mp = units_max_mp(units, src->id);
           int spent = 0;
-          /* Idle transports (no goto/sail): always export full MP like COLONY00. */
-          if (src->aboard_ship_id >= 0 || src->orders == UNITS_ORDER_SENTRY ||
-              src->orders == UNITS_ORDER_NONE || !units_orders_follow_goto(src->orders)) {
+          if (src->aboard_ship_id >= 0 ||
+              (transport && (src->orders == UNITS_ORDER_SENTRY ||
+                             src->orders == UNITS_ORDER_NONE ||
+                             !units_orders_follow_goto(src->orders)))) {
+            /* Idle transports (no goto/sail): always export full MP like COLONY00. */
             spent = 0;
           } else if (
-            src->orders == UNITS_ORDER_AI_MOVE && src->goto_x == src->x &&
+            transport && src->orders == UNITS_ORDER_AI_MOVE && src->goto_x == src->x &&
             src->goto_y == src->y
           ) {
             /* Station-keep tip (TURN5 FR 52,43): COL1 moves spent = 0. */
             spent = 0;
           } else if (src->moves_left <= 0) {
-            spent = max_mp;
+            /* DOS clears a nation's spent bytes when its day ends (the TURN
+             * goldens show 0 on every exhausted land unit); ships on a goto
+             * keep their spent byte (savegame.md). Exhausted land units
+             * therefore export 0 (= full on reload, as before). */
+            spent = transport ? max_mp : 0;
           } else if (src->moves_left < max_mp) {
             spent = max_mp - src->moves_left;
           }

@@ -169,9 +169,9 @@ void turn_refresh_moves_for_nation(
       if (nation_id >= 4) {
         u->moves_left = 0;
       } else {
-        u->moves_left = type->movement;
+        u->moves_left = units_type_max_mp(type);
         if (magellan && units_is_sea(pool, u->id)) {
-          u->moves_left += 1;
+          u->moves_left += UNITS_MP_PER_TILE;
         }
       }
     }

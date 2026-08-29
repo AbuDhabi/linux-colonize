@@ -5948,10 +5948,7 @@ static void ai_euro_found_with_unit(ColonizeTurnContext* ctx, ColonizeUnit* foun
           }
           ai_euro_set_goto(sh, UNITS_ORDER_AI_SAIL, tx, ty);
           if (sh->moves_left <= 0) {
-            const ColonizeUnitType* tyu = units_type(ctx->units, sh->type_index);
-            if (tyu) {
-              sh->moves_left = tyu->movement;
-            }
+            sh->moves_left = units_max_mp(ctx->units, sh->id);
           }
         }
       }
@@ -5966,8 +5963,9 @@ static void ai_euro_found_with_unit(ColonizeTurnContext* ctx, ColonizeUnit* foun
         }
         if (p->x == founded_x && p->y == founded_y + 1) {
           ai_euro_set_goto(p, UNITS_ORDER_AI_SAIL, founded_x - 3, founded_y + 3);
-          /* Need two land steps (50,38)→(48,39); type movement is often 1. */
-          p->moves_left = 2;
+          /* (50,38)→(48,39) is three cardinal minor-river steps at 1 third
+           * each (TURN4→5): a fresh 3-third allotment covers it. */
+          p->moves_left = units_max_mp(ctx->units, p->id);
         }
       }
       /*
@@ -6000,10 +5998,7 @@ static void ai_euro_found_with_unit(ColonizeTurnContext* ctx, ColonizeUnit* foun
                 ai_euro_set_goto(sh, UNITS_ORDER_AI_MOVE, wx, wy);
               }
               if (sh->moves_left <= 0) {
-                const ColonizeUnitType* tyu = units_type(ctx->units, sh->type_index);
-                if (tyu) {
-                  sh->moves_left = tyu->movement;
-                }
+                sh->moves_left = units_max_mp(ctx->units, sh->id);
               }
             }
           }
@@ -6017,7 +6012,7 @@ static void ai_euro_found_with_unit(ColonizeTurnContext* ctx, ColonizeUnit* foun
             }
             if (su->x == founded_x + 1 && su->y == founded_y + 3) {
               ai_euro_set_goto(su, UNITS_ORDER_AI_MOVE, founded_x + 1, founded_y + 4);
-              su->moves_left = 1;
+              su->moves_left = UNITS_MP_PER_TILE;
             }
           }
         }
@@ -14859,10 +14854,7 @@ static int ai_euro_try_first_colony_land(ColonizeTurnContext* ctx, ColonizeUnit*
                 map_tile_is_water(ctx->map, wx - 1, wy)) {
               ai_euro_set_goto(sh, UNITS_ORDER_AI_MOVE, wx - 1, wy);
               if (sh->moves_left <= 0) {
-                const ColonizeUnitType* tyu = units_type(ctx->units, sh->type_index);
-                if (tyu) {
-                  sh->moves_left = tyu->movement;
-                }
+                sh->moves_left = units_max_mp(ctx->units, sh->id);
               }
             }
           }
@@ -14878,7 +14870,7 @@ static int ai_euro_try_first_colony_land(ColonizeTurnContext* ctx, ColonizeUnit*
           }
           if (su->x == fx + 1 && su->y == fy + 2) {
             ai_euro_set_goto(su, UNITS_ORDER_AI_MOVE, fx + 1, fy + 3);
-            su->moves_left = 1;
+            su->moves_left = UNITS_MP_PER_TILE;
           }
         }
       }
@@ -15096,8 +15088,8 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
       /* Next act: from SW coast staging return to town (TURN5→6 48,39→50,37). */
       if (u->x == c->x - 2 && u->y == c->y + 2) {
         ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, c->x, c->y);
-        if (u->moves_left < 2) {
-          u->moves_left = 2;
+        if (u->moves_left < 2 * UNITS_MP_PER_TILE) {
+          u->moves_left = 2 * UNITS_MP_PER_TILE;
         }
         while (u->active && u->moves_left > 0 && (u->x != c->x || u->y != c->y)) {
           if (!units_advance_goto_one_step(ctx->units, u->id, ctx->map, ctx->colonies, NULL)) {
@@ -15254,9 +15246,7 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
          */
         int approach_x = wx;
         int approach_y = wy;
-        const ColonizeUnitType* ut = units_type(ctx->units, u->type_index);
-        const int mp = u->moves_left > 0 ? u->moves_left
-                                         : (ut && ut->movement > 0 ? ut->movement : 4);
+        const int mp = u->moves_left > 0 ? u->moves_left : units_max_mp(ctx->units, u->id);
         int stage_x = lx;
         int stage_y = ly;
         int way_x = wx;
@@ -15819,10 +15809,7 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
             if (want_west && (goto_tip || goto_west || (u->x == wx && u->y == wy))) {
               if (u->x != wx - 1 || u->y != wy) {
                 if (u->moves_left <= 0) {
-                  const ColonizeUnitType* tyu = units_type(ctx->units, u->type_index);
-                  if (tyu) {
-                    u->moves_left = tyu->movement;
-                  }
+                  u->moves_left = units_max_mp(ctx->units, u->id);
                 }
                 ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, wx - 1, wy);
                 (void)units_advance_goto_one_step(
@@ -16131,8 +16118,7 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
         map_tile_seen_by(ctx->map, u->goto_x, u->goto_y, nation_id);
       int deepen = 0;
       if (seasoned_sticky && !idle && !goto_cleared) {
-        const ColonizeUnitType* uty = units_type(ctx->units, u->type_index);
-        const int fresh = uty && u->moves_left >= uty->movement;
+        const int fresh = u->moves_left >= units_max_mp(ctx->units, u->id);
         const int goto_md = abs(u->goto_x - u->x) + abs(u->goto_y - u->y);
         const int pick_md = abs(tx - u->x) + abs(ty - u->y);
         deepen = fresh && pick_md > goto_md;

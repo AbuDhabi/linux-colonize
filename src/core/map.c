@@ -1725,6 +1725,38 @@ int map_move_cost_at(const ColonizeWorldMap* map, int x, int y) {
  *   else dest road/river halves (Linux pathfinding / prior goldens).
  * Cite: move_spent.c; map_dos_terr_cost_byte. Full DOS *3 PARKED until MP scale.
  */
+int map_move_spent_thirds(
+  const ColonizeWorldMap* map,
+  int from_x,
+  int from_y,
+  int to_x,
+  int to_y
+) {
+  if (!map || !map_tile_is_land(map, to_x, to_y)) {
+    return 3;
+  }
+  const int cost_byte = map_dos_terr_cost_byte(map_dos_terr_class_at(map, to_x, to_y));
+  int spent = cost_byte * 3;
+  const bool fa_from = map_tile_has_road(map, from_x, from_y) || map_tile_has_city(map, from_x, from_y);
+  const bool fa_to = map_tile_has_road(map, to_x, to_y) || map_tile_has_city(map, to_x, to_y);
+  if (fa_from && fa_to) {
+    spent = 1;
+  }
+  if (map_tile_has_river(map, from_x, from_y) && map_tile_has_river(map, to_x, to_y) &&
+      (from_x == to_x || from_y == to_y)) {
+    spent = 1;
+  }
+  /* 465b:00e4 — FUN_281f_06be tile_tribe_owner(dest) >= 0 → min(spent, 3). */
+  if (map_tile_has_city(map, to_x, to_y) && map_tile_tribe_or_presence(map, to_x, to_y) >= 0 &&
+      spent > 3) {
+    spent = 3;
+  }
+  if (spent > 100) {
+    spent = 1;
+  }
+  return spent < 1 ? 1 : spent;
+}
+
 int map_move_cost_step(
   const ColonizeWorldMap* map,
   int from_x,

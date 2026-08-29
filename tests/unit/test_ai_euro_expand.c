@@ -88,7 +88,7 @@ static int unit_second_wave(void) {
     return fail("spawn pioneer");
   }
   pioneer->nation_id = nation;
-  pioneer->moves_left = 3;
+  pioneer->moves_left = 3 * UNITS_MP_PER_TILE;
   pioneer->orders = 0;
 
   ai_goals_reset();
@@ -328,7 +328,7 @@ static int unit_scout_explore(void) {
     return fail("spawn scout");
   }
   scout->nation_id = nation;
-  scout->moves_left = 4;
+  scout->moves_left = 4 * UNITS_MP_PER_TILE;
   scout->orders = 0;
 
   ColonizeCol1Save col1;
@@ -484,7 +484,7 @@ static int unit_pioneer_tools_delivery(void) {
     return fail("spawn pioneer on colony");
   }
   pioneer->nation_id = nation;
-  pioneer->moves_left = 3;
+  pioneer->moves_left = 3 * UNITS_MP_PER_TILE;
   pioneer->orders = 0;
 
   ai_goals_reset();
@@ -2624,7 +2624,7 @@ static int unit_scout_fog_prefer_unseen(void) {
     return fail("fog-scout spawn");
   }
   scout->nation_id = nation;
-  scout->moves_left = 4;
+  scout->moves_left = 4 * UNITS_MP_PER_TILE;
   scout->orders = 0;
 
   ColonizeCol1Save col1;
@@ -2781,7 +2781,7 @@ static int unit_multistep_military(void) {
     return fail("multistep spawn soldier");
   }
   soldier->nation_id = nation;
-  soldier->moves_left = 4;
+  soldier->moves_left = 4 * UNITS_MP_PER_TILE;
   soldier->orders = 0;
 
   ColonizeCol1Save col1;
@@ -2917,7 +2917,7 @@ static int unit_de_witt_wagon_foreign_trade(void) {
     return fail("de Witt wagon spawn");
   }
   wagon->nation_id = nation;
-  wagon->moves_left = 3;
+  wagon->moves_left = 3 * UNITS_MP_PER_TILE;
   wagon->orders = 0;
 
   ColonizeCol1Save col1;
@@ -2998,7 +2998,7 @@ static int unit_de_witt_wagon_foreign_trade(void) {
   wagon->orders = 0;
   wagon->goto_x = UNITS_GOTO_NONE;
   wagon->goto_y = UNITS_GOTO_NONE;
-  wagon->moves_left = 3;
+  wagon->moves_left = 3 * UNITS_MP_PER_TILE;
   turn_refresh_moves_for_nation(&units, nation, &col1, &map, NULL, NULL, NULL);
   ai_euro_dispatcher_turn(&ctx, nation);
   wagon = units_get(&units, wid);
@@ -3021,7 +3021,7 @@ static int unit_de_witt_wagon_foreign_trade(void) {
   wagon->orders = 0;
   wagon->goto_x = UNITS_GOTO_NONE;
   wagon->goto_y = UNITS_GOTO_NONE;
-  wagon->moves_left = 3;
+  wagon->moves_left = 3 * UNITS_MP_PER_TILE;
   const int home_tg_before = home->stock[COLONIZE_CARGO_TRADE_GOODS];
   turn_refresh_moves_for_nation(&units, nation, &col1, &map, NULL, NULL, NULL);
   ai_euro_dispatcher_turn(&ctx, nation);
@@ -4142,7 +4142,7 @@ static int unit_transport_europe_sell_trade_goods(void) {
     return fail("eu-sell spawn ship");
   }
   ship->nation_id = nation;
-  ship->moves_left = 4;
+  ship->moves_left = 4 * UNITS_MP_PER_TILE;
   ship->orders = 0;
   ship->hold_goods_type[0] = COLONIZE_CARGO_TRADE_GOODS;
   ship->hold_goods_amount[0] = amt;
@@ -4263,7 +4263,7 @@ static int unit_privateer_europe_sell_silver(void) {
     return fail("priv-eu-sell spawn");
   }
   ship->nation_id = nation;
-  ship->moves_left = 8;
+  ship->moves_left = 8 * UNITS_MP_PER_TILE;
   ship->orders = 0;
   ship->hold_goods_type[0] = COLONIZE_CARGO_SILVER;
   ship->hold_goods_amount[0] = amt;
@@ -4387,7 +4387,7 @@ static int unit_transport_europe_sell_multi_cargo(void) {
     return fail("eu-multi-sell spawn ship");
   }
   ship->nation_id = nation;
-  ship->moves_left = 4;
+  ship->moves_left = 4 * UNITS_MP_PER_TILE;
   ship->orders = 0;
   ship->hold_goods_type[0] = COLONIZE_CARGO_SUGAR;
   ship->hold_goods_amount[0] = sugar_amt;
@@ -4523,7 +4523,7 @@ static int unit_transport_europe_sell_skip_boycott(void) {
     return fail("eu-boycott-sell spawn ship");
   }
   ship->nation_id = nation;
-  ship->moves_left = 4;
+  ship->moves_left = 4 * UNITS_MP_PER_TILE;
   ship->orders = 0;
   ship->hold_goods_type[0] = COLONIZE_CARGO_SUGAR;
   ship->hold_goods_amount[0] = sugar_amt;
@@ -7340,7 +7340,7 @@ static int unit_cargo_produced_mask_haul_prefer(void) {
     return fail("produced-mask spawn wagon");
   }
   wagon->nation_id = nation;
-  wagon->moves_left = 2;
+  wagon->moves_left = 2 * UNITS_MP_PER_TILE;
   wagon->orders = 0;
 
   ai_goals_reset();
@@ -7470,7 +7470,7 @@ static int unit_specialty_cargo_haul_prefer(void) {
     return fail("specialty spawn wagon");
   }
   wagon->nation_id = nation;
-  wagon->moves_left = 2;
+  wagon->moves_left = 2 * UNITS_MP_PER_TILE;
   wagon->orders = 0;
 
   ai_goals_reset();
@@ -7618,7 +7618,7 @@ static int unit_specialty_flag_a_haul_match(void) {
     return fail("flag_a spawn wagon");
   }
   wagon->nation_id = nation;
-  wagon->moves_left = 2;
+  wagon->moves_left = 2 * UNITS_MP_PER_TILE;
   wagon->orders = 0;
   if (units_load_goods(&units, wid, COLONIZE_CARGO_TOOLS, 20) <= 0) {
     free(map.terrain);
@@ -7749,7 +7749,7 @@ static int unit_cargo_idle_turns_haul_prefer(void) {
     return fail("cargo-idle spawn wagon");
   }
   wagon->nation_id = nation;
-  wagon->moves_left = 2;
+  wagon->moves_left = 2 * UNITS_MP_PER_TILE;
   wagon->orders = 0;
   if (units_load_goods(&units, wid, COLONIZE_CARGO_TOOLS, 20) <= 0) {
     free(map.terrain);
@@ -7891,7 +7891,7 @@ static int unit_labor_shortage_join(void) {
   }
   col->nation_id = nation;
   col->orders = 0;
-  col->moves_left = 1;
+  col->moves_left = 1 * UNITS_MP_PER_TILE;
 
   ai_goals_reset();
 
@@ -7995,7 +7995,7 @@ static int unit_labor_bind_food_short(void) {
   }
   col->nation_id = nation;
   col->orders = 0;
-  col->moves_left = 1;
+  col->moves_left = 1 * UNITS_MP_PER_TILE;
 
   ai_goals_reset();
   /* Distant FOUND lure — founders would prefer this without LABOR bind. */
@@ -8116,7 +8116,7 @@ static int unit_wagon_tools_delivery(void) {
   }
   wagon->nation_id = nation;
   wagon->orders = 0;
-  wagon->moves_left = 2;
+  wagon->moves_left = 2 * UNITS_MP_PER_TILE;
   wagon->hold_goods_type[0] = COLONIZE_CARGO_TOOLS;
   wagon->hold_goods_amount[0] = 20;
 
@@ -8258,7 +8258,7 @@ static int unit_colony_flags_starvation_labor(void) {
   }
   col->nation_id = nation;
   col->orders = 0;
-  col->moves_left = 1;
+  col->moves_left = 1 * UNITS_MP_PER_TILE;
 
   ai_goals_reset();
   ColonizeCol1Save col1;
@@ -8365,7 +8365,7 @@ static int unit_colony_ai_flags_mow_colony_alt(void) {
     return fail("ai-flags spawn MoW");
   }
   ship->nation_id = foe;
-  ship->moves_left = 4;
+  ship->moves_left = 4 * UNITS_MP_PER_TILE;
 
   ai_goals_reset();
   ColonizeCol1Save col1;
@@ -8475,7 +8475,7 @@ static int unit_build_ai_flags_wants_construction(void) {
   }
   col->nation_id = nation;
   col->orders = 0;
-  col->moves_left = 1;
+  col->moves_left = 1 * UNITS_MP_PER_TILE;
 
   ai_goals_reset();
   ColonizeCol1Save col1;
@@ -8591,7 +8591,7 @@ static int unit_construction_labor_stockade(void) {
   }
   pioneer->nation_id = nation;
   pioneer->orders = 0;
-  pioneer->moves_left = 3;
+  pioneer->moves_left = 3 * UNITS_MP_PER_TILE;
 
   ai_goals_reset();
   ai_goals_upsert_primary(nation, 12, 12, AI_GOAL_FOUND, 5);
@@ -8731,7 +8731,7 @@ static int unit_master_carpenter_construction_labor(void) {
   }
   carpenter->nation_id = nation;
   carpenter->orders = 0;
-  carpenter->moves_left = 3;
+  carpenter->moves_left = 3 * UNITS_MP_PER_TILE;
   carpenter->profession = 13; /* @JOB Carpenter */
 
   ai_goals_reset();
@@ -8870,7 +8870,7 @@ static int unit_lumberjack_warehouse_labor(void) {
   }
   lumber->nation_id = nation;
   lumber->orders = 0;
-  lumber->moves_left = 3;
+  lumber->moves_left = 3 * UNITS_MP_PER_TILE;
   lumber->profession = 5; /* @JOB Lumberjack */
 
   ai_goals_reset();
@@ -9013,7 +9013,7 @@ static int unit_stockade_threat_labor(void) {
   }
   colonist->nation_id = nation;
   colonist->orders = 0;
-  colonist->moves_left = 3;
+  colonist->moves_left = 3 * UNITS_MP_PER_TILE;
 
   /* Foe soldier MD≤3 from colony (threat). */
   const int fid = units_spawn(&units, 1, 4, 6);
@@ -9178,7 +9178,7 @@ static int unit_scout_sticky_closer_ring(void) {
     return fail("sticky-ring spawn scout");
   }
   scout->nation_id = nation;
-  scout->moves_left = 4;
+  scout->moves_left = 4 * UNITS_MP_PER_TILE;
   scout->orders = 0;
 
   ColonizeCol1Save col1;
@@ -9334,7 +9334,7 @@ static int unit_scout_fog_explore_no_contact(void) {
     return fail("fog-explore spawn");
   }
   scout->nation_id = nation;
-  scout->moves_left = 4;
+  scout->moves_left = 4 * UNITS_MP_PER_TILE;
   scout->orders = 0;
 
   ColonizeCol1Save col1;
@@ -9481,7 +9481,7 @@ static int unit_seasoned_scout_deeper_fog(void) {
     return fail("seasoned-fog spawn");
   }
   scout->nation_id = nation;
-  scout->moves_left = 4;
+  scout->moves_left = 4 * UNITS_MP_PER_TILE;
   scout->orders = 0;
   scout->horses = 50;
   scout->profession = UNITS_JOB_SCOUT; /* → display "Seasoned Scout" */
@@ -9640,7 +9640,7 @@ static int unit_scout_fog_prefer_rumour(void) {
     return fail("rumour-fog spawn");
   }
   scout->nation_id = nation;
-  scout->moves_left = 4;
+  scout->moves_left = 4 * UNITS_MP_PER_TILE;
   scout->orders = 0;
 
   ColonizeCol1Save col1;
@@ -9761,7 +9761,7 @@ static int unit_treasure_coast(void) {
     return fail("treasure spawn");
   }
   treasure->nation_id = nation;
-  treasure->moves_left = 1;
+  treasure->moves_left = 1 * UNITS_MP_PER_TILE;
   treasure->orders = 0;
 
   ai_goals_reset();
@@ -10033,7 +10033,7 @@ static int unit_missionary_contact(void) {
     return fail("missionary spawn");
   }
   miss->nation_id = nation;
-  miss->moves_left = 2;
+  miss->moves_left = 2 * UNITS_MP_PER_TILE;
   miss->orders = 0;
 
   ColonizeCol1Save col1;
@@ -10191,7 +10191,7 @@ static int unit_missionary_flee_skip(void) {
     return fail("miss-flee spawn");
   }
   miss->nation_id = nation;
-  miss->moves_left = 2;
+  miss->moves_left = 2 * UNITS_MP_PER_TILE;
   miss->orders = 0;
 
   ColonizeCol1Save col1;
@@ -10319,7 +10319,7 @@ static int unit_food_emergency_labor(void) {
   }
   pioneer->nation_id = nation;
   pioneer->orders = 0;
-  pioneer->moves_left = 3;
+  pioneer->moves_left = 3 * UNITS_MP_PER_TILE;
 
   ai_goals_reset();
   ai_goals_upsert_primary(nation, 14, 14, AI_GOAL_FOUND, 5);
@@ -10447,7 +10447,7 @@ static int unit_expert_farmer_food_labor(void) {
   farmer->nation_id = nation;
   farmer->profession = 0; /* @JOB Farmer */
   farmer->orders = 0;
-  farmer->moves_left = 3;
+  farmer->moves_left = 3 * UNITS_MP_PER_TILE;
 
   ai_goals_reset();
   ai_goals_upsert_primary(nation, 14, 14, AI_GOAL_FOUND, 5);
@@ -10574,7 +10574,7 @@ static int unit_free_colonist_food_labor(void) {
   }
   col->nation_id = nation;
   col->orders = 0;
-  col->moves_left = 3;
+  col->moves_left = 3 * UNITS_MP_PER_TILE;
 
   ai_goals_reset();
   ai_goals_upsert_primary(nation, 14, 14, AI_GOAL_FOUND, 5);
@@ -10696,7 +10696,7 @@ static int unit_tools_short_pioneer_labor(void) {
   }
   pioneer->nation_id = nation;
   pioneer->orders = 0;
-  pioneer->moves_left = 3;
+  pioneer->moves_left = 3 * UNITS_MP_PER_TILE;
 
   ai_goals_reset();
   ai_goals_upsert_primary(nation, 14, 14, AI_GOAL_FOUND, 5);
@@ -10835,7 +10835,7 @@ static int unit_treasure_board_sail(void) {
     return fail("treasure-sail spawn treasure");
   }
   treasure->nation_id = nation;
-  treasure->moves_left = 1;
+  treasure->moves_left = 1 * UNITS_MP_PER_TILE;
   treasure->orders = 0;
 
   const int sid = units_spawn(&units, 1, 3, 4);
@@ -10847,7 +10847,7 @@ static int unit_treasure_board_sail(void) {
     return fail("treasure-sail spawn ship");
   }
   ship->nation_id = nation;
-  ship->moves_left = 4;
+  ship->moves_left = 4 * UNITS_MP_PER_TILE;
   ship->orders = 0;
 
   ai_goals_reset();
@@ -11147,7 +11147,7 @@ static int unit_wagon_haul_tools_short(void) {
     return fail("wagon-haul spawn");
   }
   wagon->nation_id = nation;
-  wagon->moves_left = 2;
+  wagon->moves_left = 2 * UNITS_MP_PER_TILE;
   wagon->orders = 0;
 
   ai_goals_reset();
@@ -11277,7 +11277,7 @@ static int unit_scout_sticky_fog_deeper_unseen(void) {
     return fail("sticky-fog spawn scout");
   }
   scout->nation_id = nation;
-  scout->moves_left = 4;
+  scout->moves_left = 4 * UNITS_MP_PER_TILE;
   scout->orders = 0;
 
   ColonizeCol1Save col1;
@@ -11431,7 +11431,7 @@ static int unit_ship_trade_haul_tools_short(void) {
     return fail("ship-haul spawn");
   }
   ship->nation_id = nation;
-  ship->moves_left = 4;
+  ship->moves_left = 4 * UNITS_MP_PER_TILE;
   ship->orders = 0;
 
   ai_goals_reset();
@@ -11564,7 +11564,7 @@ static int unit_ship_trade_haul_muskets_short(void) {
     return fail("ship-muskets spawn");
   }
   ship->nation_id = nation;
-  ship->moves_left = 4;
+  ship->moves_left = 4 * UNITS_MP_PER_TILE;
   ship->orders = 0;
   ship->hold_goods_type[0] = COLONIZE_CARGO_MUSKETS;
   ship->hold_goods_amount[0] = 10;
@@ -11706,7 +11706,7 @@ static int unit_ship_europe_export_silver(void) {
     return fail("ship-export spawn");
   }
   ship->nation_id = nation;
-  ship->moves_left = 4;
+  ship->moves_left = 4 * UNITS_MP_PER_TILE;
   ship->orders = 0;
   ship->hold_goods_type[0] = COLONIZE_CARGO_SILVER;
   ship->hold_goods_amount[0] = 50;
@@ -11816,7 +11816,7 @@ static int unit_privateer_europe_loot_sail(void) {
     return fail("priv-loot-sail spawn");
   }
   ship->nation_id = nation;
-  ship->moves_left = 8;
+  ship->moves_left = 8 * UNITS_MP_PER_TILE;
   ship->orders = 0;
   ship->hold_goods_type[0] = COLONIZE_CARGO_SILVER;
   ship->hold_goods_amount[0] = 40;
@@ -11950,7 +11950,7 @@ static int unit_ship_europe_export_load_silver(void) {
     return fail("ship-export-load spawn");
   }
   ship->nation_id = nation;
-  ship->moves_left = 4;
+  ship->moves_left = 4 * UNITS_MP_PER_TILE;
   ship->orders = 0;
 
   ai_goals_reset();
@@ -12093,7 +12093,7 @@ static int unit_galleon_europe_export_load_silver(void) {
     return fail("galleon-export-load spawn");
   }
   ship->nation_id = nation;
-  ship->moves_left = 4;
+  ship->moves_left = 4 * UNITS_MP_PER_TILE;
   ship->orders = 0;
 
   ai_goals_reset();
@@ -12236,7 +12236,7 @@ static int unit_merchantman_europe_export_load_silver(void) {
     return fail("mm-export-load spawn");
   }
   ship->nation_id = nation;
-  ship->moves_left = 4;
+  ship->moves_left = 4 * UNITS_MP_PER_TILE;
   ship->orders = 0;
 
   ai_goals_reset();
@@ -12367,7 +12367,7 @@ static int unit_galleon_trade_haul_tools_short(void) {
     return fail("galleon-haul spawn");
   }
   ship->nation_id = nation;
-  ship->moves_left = 4;
+  ship->moves_left = 4 * UNITS_MP_PER_TILE;
   ship->orders = 0;
 
   ai_goals_reset();
@@ -12498,7 +12498,7 @@ static int unit_improve_timer_pioneer_gate(void) {
   }
   pioneer->nation_id = nation;
   pioneer->orders = 0;
-  pioneer->moves_left = 1;
+  pioneer->moves_left = 1 * UNITS_MP_PER_TILE;
   pioneer->tools = 100;
   pioneer->profession = UNITS_JOB_PIONEER;
 
@@ -12552,7 +12552,7 @@ static int unit_improve_timer_pioneer_gate(void) {
   }
   pioneer->x = 4;
   pioneer->y = 3;
-  pioneer->moves_left = 1;
+  pioneer->moves_left = 1 * UNITS_MP_PER_TILE;
   pioneer->orders = 0;
   pioneer->tools = 100;
   /*
@@ -12566,7 +12566,7 @@ static int unit_improve_timer_pioneer_gate(void) {
   for (int t = 0; t < 8 && !any_plow; ++t) {
     pioneer = units_get(&units, pid);
     if (pioneer && pioneer->active) {
-      pioneer->moves_left = 1;
+      pioneer->moves_left = 1 * UNITS_MP_PER_TILE;
     }
     turn++;
     ai_euro_dispatcher_turn(&ctx, nation);
@@ -12661,7 +12661,7 @@ static int unit_pioneer_plow_improve(void) {
   }
   pioneer->nation_id = nation;
   pioneer->orders = 0;
-  pioneer->moves_left = 1;
+  pioneer->moves_left = 1 * UNITS_MP_PER_TILE;
   pioneer->tools = 100;
   pioneer->profession = UNITS_JOB_PIONEER; /* Hardy */
 
@@ -12812,7 +12812,7 @@ static int unit_lumberjack_field_assign(void) {
   }
   lumber->nation_id = nation;
   lumber->orders = 0;
-  lumber->moves_left = 3;
+  lumber->moves_left = 3 * UNITS_MP_PER_TILE;
   lumber->profession = 5; /* @JOB Lumberjack */
 
   ai_goals_reset();
@@ -13051,7 +13051,7 @@ static int unit_indian_land_found(void) {
     }
     founder->nation_id = nation;
     founder->orders = 0;
-    founder->moves_left = 3;
+    founder->moves_left = 3 * UNITS_MP_PER_TILE;
 
     ai_goals_reset();
     turn = 41;
@@ -13128,7 +13128,7 @@ static int unit_indian_land_found(void) {
     }
     founder->nation_id = nation;
     founder->orders = 0;
-    founder->moves_left = 3;
+    founder->moves_left = 3 * UNITS_MP_PER_TILE;
 
     char status[128];
     memset(status, 0, sizeof(status));
@@ -13202,7 +13202,7 @@ static int unit_indian_land_found(void) {
     }
     founder->nation_id = nation;
     founder->orders = 0;
-    founder->moves_left = 3;
+    founder->moves_left = 3 * UNITS_MP_PER_TILE;
 
     ai_goals_reset();
     turn = 43;
@@ -13300,7 +13300,7 @@ static int unit_ore_miner_field_assign(void) {
   }
   miner->nation_id = nation;
   miner->orders = 0;
-  miner->moves_left = 3;
+  miner->moves_left = 3 * UNITS_MP_PER_TILE;
   miner->profession = 6; /* @JOB Ore Miner */
 
   ai_goals_reset();
@@ -13427,7 +13427,7 @@ static int unit_silver_miner_field_assign(void) {
   }
   miner->nation_id = nation;
   miner->orders = 0;
-  miner->moves_left = 3;
+  miner->moves_left = 3 * UNITS_MP_PER_TILE;
   miner->profession = COLONIZE_JOB_SILVER_MINER;
 
   ai_goals_reset();
@@ -13552,7 +13552,7 @@ static int unit_farmer_field_assign(void) {
   }
   farmer->nation_id = nation;
   farmer->orders = 0;
-  farmer->moves_left = 3;
+  farmer->moves_left = 3 * UNITS_MP_PER_TILE;
   farmer->profession = 0; /* @JOB Farmer */
 
   ai_goals_reset();
@@ -13675,7 +13675,7 @@ static int unit_pioneer_road_on_plowed(void) {
   }
   pioneer->nation_id = nation;
   pioneer->orders = 0;
-  pioneer->moves_left = 1;
+  pioneer->moves_left = 1 * UNITS_MP_PER_TILE;
   pioneer->tools = 100;
   pioneer->profession = UNITS_JOB_PIONEER;
 
@@ -13711,7 +13711,7 @@ static int unit_pioneer_road_on_plowed(void) {
   for (int t = 0; t < 8 && !roaded; ++t) {
     pioneer = units_get(&units, pid);
     if (pioneer && pioneer->active) {
-      pioneer->moves_left = 1;
+      pioneer->moves_left = 1 * UNITS_MP_PER_TILE;
     }
     turn++;
     ai_euro_dispatcher_turn(&ctx, nation);
@@ -13815,7 +13815,7 @@ static int unit_fisherman_field_assign(void) {
   }
   fisher->nation_id = nation;
   fisher->orders = 0;
-  fisher->moves_left = 3;
+  fisher->moves_left = 3 * UNITS_MP_PER_TILE;
   fisher->profession = COLONIZE_JOB_FISHERMAN;
 
   ai_goals_reset();
@@ -13942,7 +13942,7 @@ static int unit_sugar_planter_field_assign(void) {
   }
   planter->nation_id = nation;
   planter->orders = 0;
-  planter->moves_left = 3;
+  planter->moves_left = 3 * UNITS_MP_PER_TILE;
   planter->profession = COLONIZE_JOB_SUGAR_PLANTER;
 
   ai_goals_reset();
@@ -14069,7 +14069,7 @@ static int unit_tobacco_planter_field_assign(void) {
   }
   planter->nation_id = nation;
   planter->orders = 0;
-  planter->moves_left = 3;
+  planter->moves_left = 3 * UNITS_MP_PER_TILE;
   planter->profession = COLONIZE_JOB_TOBACCO_PLANTER;
 
   ai_goals_reset();
@@ -14196,7 +14196,7 @@ static int unit_cotton_planter_field_assign(void) {
   }
   planter->nation_id = nation;
   planter->orders = 0;
-  planter->moves_left = 3;
+  planter->moves_left = 3 * UNITS_MP_PER_TILE;
   planter->profession = COLONIZE_JOB_COTTON_PLANTER;
 
   ai_goals_reset();
@@ -14323,7 +14323,7 @@ static int unit_fur_trapper_field_assign(void) {
   }
   trapper->nation_id = nation;
   trapper->orders = 0;
-  trapper->moves_left = 3;
+  trapper->moves_left = 3 * UNITS_MP_PER_TILE;
   trapper->profession = COLONIZE_JOB_FUR_TRAPPER;
 
   ai_goals_reset();
@@ -18579,7 +18579,7 @@ static int unit_wagon_haul_muskets_short(void) {
     return fail("wagon-muskets spawn");
   }
   wagon->nation_id = nation;
-  wagon->moves_left = 2;
+  wagon->moves_left = 2 * UNITS_MP_PER_TILE;
   wagon->orders = 0;
   /* Prefill MUSKETS cargo so haul prefers muskets-short colony. */
   if (units_load_goods(&units, wid, COLONIZE_CARGO_MUSKETS, 10) <= 0) {
@@ -18701,7 +18701,7 @@ static int unit_wagon_haul_lumber_short(void) {
     return fail("wagon-lumber spawn");
   }
   wagon->nation_id = nation;
-  wagon->moves_left = 2;
+  wagon->moves_left = 2 * UNITS_MP_PER_TILE;
   wagon->orders = 0;
   if (units_load_goods(&units, wid, COLONIZE_CARGO_LUMBER, 20) <= 0) {
     free(map.terrain);
@@ -18822,7 +18822,7 @@ static int unit_wagon_haul_ore_short(void) {
     return fail("wagon-ore spawn");
   }
   wagon->nation_id = nation;
-  wagon->moves_left = 2;
+  wagon->moves_left = 2 * UNITS_MP_PER_TILE;
   wagon->orders = 0;
   if (units_load_goods(&units, wid, COLONIZE_CARGO_ORE, 20) <= 0) {
     free(map.terrain);
@@ -18977,7 +18977,7 @@ static int unit_wagon_europe_export_feeder(void) {
     return fail("wagon-export spawn");
   }
   wagon->nation_id = nation;
-  wagon->moves_left = 2;
+  wagon->moves_left = 2 * UNITS_MP_PER_TILE;
   wagon->orders = 0;
 
   ai_goals_reset();
@@ -19110,7 +19110,7 @@ static int unit_wagon_europe_export_unload(void) {
     return fail("wagon-export-unload spawn");
   }
   wagon->nation_id = nation;
-  wagon->moves_left = 2;
+  wagon->moves_left = 2 * UNITS_MP_PER_TILE;
   wagon->orders = 0;
   if (units_load_goods(&units, wid, COLONIZE_CARGO_SILVER, 80) <= 0) {
     free(map.terrain);
@@ -19238,7 +19238,7 @@ static int unit_wagon_haul_food_short(void) {
     return fail("wagon-food-haul spawn");
   }
   wagon->nation_id = nation;
-  wagon->moves_left = 2;
+  wagon->moves_left = 2 * UNITS_MP_PER_TILE;
   wagon->orders = 0;
   if (units_load_goods(&units, wid, COLONIZE_CARGO_FOOD, 8) <= 0) {
     free(map.terrain);
@@ -19359,7 +19359,7 @@ static int unit_wagon_food_delivery(void) {
   }
   wagon->nation_id = nation;
   wagon->orders = 0;
-  wagon->moves_left = 2;
+  wagon->moves_left = 2 * UNITS_MP_PER_TILE;
   wagon->hold_goods_type[0] = COLONIZE_CARGO_FOOD;
   wagon->hold_goods_amount[0] = 8;
 
@@ -19496,7 +19496,7 @@ static int unit_wagon_food_load_haul(void) {
     return fail("wagon-food-load spawn");
   }
   wagon->nation_id = nation;
-  wagon->moves_left = 2;
+  wagon->moves_left = 2 * UNITS_MP_PER_TILE;
   wagon->orders = 0;
 
   ai_goals_reset();
@@ -19633,7 +19633,7 @@ static int unit_wagon_food_prefer_over_tools(void) {
     return fail("wagon-food-prefer spawn");
   }
   wagon->nation_id = nation;
-  wagon->moves_left = 2;
+  wagon->moves_left = 2 * UNITS_MP_PER_TILE;
   wagon->orders = 0;
 
   ai_goals_reset();
@@ -19764,7 +19764,7 @@ static int unit_ship_food_delivery(void) {
   }
   ship->nation_id = nation;
   ship->orders = 0;
-  ship->moves_left = 4;
+  ship->moves_left = 4 * UNITS_MP_PER_TILE;
   ship->hold_goods_type[0] = COLONIZE_CARGO_FOOD;
   ship->hold_goods_amount[0] = 8;
 
@@ -19896,7 +19896,7 @@ static int unit_blacksmith_workplace_assign(void) {
   }
   smith->nation_id = nation;
   smith->orders = 0;
-  smith->moves_left = 3;
+  smith->moves_left = 3 * UNITS_MP_PER_TILE;
   smith->profession = 14; /* @JOB Blacksmith */
 
   ai_goals_reset();
@@ -20027,7 +20027,7 @@ static int unit_gunsmith_workplace_assign(void) {
   }
   gun->nation_id = nation;
   gun->orders = 0;
-  gun->moves_left = 3;
+  gun->moves_left = 3 * UNITS_MP_PER_TILE;
   gun->profession = 15; /* @JOB Gunsmith */
 
   ai_goals_reset();
@@ -20162,7 +20162,7 @@ static int unit_fur_trader_workplace_assign(void) {
   }
   trader->nation_id = nation;
   trader->orders = 0;
-  trader->moves_left = 3;
+  trader->moves_left = 3 * UNITS_MP_PER_TILE;
   trader->profession = 12; /* @JOB Fur Trader */
 
   ai_goals_reset();
@@ -20297,7 +20297,7 @@ static int unit_distiller_workplace_assign(void) {
   }
   distiller->nation_id = nation;
   distiller->orders = 0;
-  distiller->moves_left = 3;
+  distiller->moves_left = 3 * UNITS_MP_PER_TILE;
   distiller->profession = 9; /* @JOB Distiller */
 
   ai_goals_reset();
@@ -20430,7 +20430,7 @@ static int unit_weaver_workplace_assign(void) {
   }
   weaver->nation_id = nation;
   weaver->orders = 0;
-  weaver->moves_left = 3;
+  weaver->moves_left = 3 * UNITS_MP_PER_TILE;
   weaver->profession = 11; /* @JOB Weaver */
 
   ai_goals_reset();
@@ -20565,7 +20565,7 @@ static int unit_tobacconist_workplace_assign(void) {
   }
   tob->nation_id = nation;
   tob->orders = 0;
-  tob->moves_left = 3;
+  tob->moves_left = 3 * UNITS_MP_PER_TILE;
   tob->profession = 10; /* @JOB Tobacconist */
 
   ai_goals_reset();
@@ -20695,7 +20695,7 @@ static int unit_statesman_workplace_assign(void) {
   }
   statesman->nation_id = nation;
   statesman->orders = 0;
-  statesman->moves_left = 3;
+  statesman->moves_left = 3 * UNITS_MP_PER_TILE;
   statesman->profession = 17; /* @JOB Statesman */
 
   ai_goals_reset();
@@ -20825,7 +20825,7 @@ static int unit_preacher_workplace_assign(void) {
   }
   preacher->nation_id = nation;
   preacher->orders = 0;
-  preacher->moves_left = 3;
+  preacher->moves_left = 3 * UNITS_MP_PER_TILE;
   preacher->profession = 16; /* @JOB Preacher */
 
   ai_goals_reset();
@@ -20959,7 +20959,7 @@ static int unit_teacher_workplace_assign(void) {
   }
   teacher->nation_id = nation;
   teacher->orders = 0;
-  teacher->moves_left = 3;
+  teacher->moves_left = 3 * UNITS_MP_PER_TILE;
   teacher->profession = 18; /* @JOB Teacher */
 
   ai_goals_reset();
@@ -21094,7 +21094,7 @@ static int unit_carpenter_workplace_assign(void) {
   }
   carpenter->nation_id = nation;
   carpenter->orders = 0;
-  carpenter->moves_left = 3;
+  carpenter->moves_left = 3 * UNITS_MP_PER_TILE;
   carpenter->profession = 13; /* @JOB Carpenter */
 
   ai_goals_reset();
@@ -21229,7 +21229,7 @@ static int unit_seasoned_sticky_fog_deepen(void) {
     return fail("seasoned-sticky spawn");
   }
   scout->nation_id = nation;
-  scout->moves_left = 4;
+  scout->moves_left = 4 * UNITS_MP_PER_TILE;
   scout->orders = UNITS_ORDER_AI_MOVE;
   scout->goto_x = 5;
   scout->goto_y = 8; /* prior nearer fog — Seasoned+sticky must re-aim deeper */

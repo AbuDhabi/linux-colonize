@@ -826,8 +826,8 @@ static int effect_magellan_sea_moves(ColonizeUnitPool* units, int nation_id) {
     if (!units_is_sea(units, u->id)) {
       continue;
     }
-    if (u->moves_left < 0x7fffffff) {
-      u->moves_left++;
+    if (u->moves_left < 0x7fffffff - UNITS_MP_PER_TILE) {
+      u->moves_left += UNITS_MP_PER_TILE;
     }
     bumped++;
   }

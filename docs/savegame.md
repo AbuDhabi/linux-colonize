@@ -176,7 +176,11 @@ Full opaque-field inventory and RE phases: **[save_format_map.md](save_format_ma
   transports. Idle on-map fleets export `goto==xy`; ships/aboard export `moves`
   as **moves_spent** (0 when full MP). Stale landfall with `orders=0` made DOS
   peel the caravel out of `transport_chain` (sidebar unloaded, land units left
-  behind). Land/Brave `moves` still exported as moves_left (TURN golden compat).
+  behind). 2026-08-29: `moves` is DOS spent thirds for every Euro unit —
+  import `moves_left = max_mp − moves`, export `max_mp − moves_left`, with
+  exhausted land units exporting 0 (DOS clears spent at the end of the
+  nation's day; the TURN goldens show 0 there). Natives still round-trip the
+  literal byte (the Brave engine keeps DOS spent in `moves_left`, max 3).
   Euro unit tiles stamp `map.path` / layer3 **owner** high nibble (`FUN_1427_02ca`
   / `FUN_137f_0228`) on spawn/move and capture — unowned ocean under a human
   fleet (`path=fx`) peels cargo on DOS select/move; COLONY00 / working patch F

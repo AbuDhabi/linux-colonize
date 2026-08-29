@@ -201,7 +201,7 @@ int units_spawn_allow_stack(ColonizeUnitPool* pool, int type_index, int x, int y
   slot->type_index = type_index;
   slot->x = x;
   slot->y = y;
-  slot->moves_left = type->movement;
+  slot->moves_left = units_type_max_mp(type);
   slot->active = true;
   slot->nation_id = 0;
   slot->col1_vis_mask = 0; /* FUN_1427_0992: owner bit via units_set_nation */
@@ -4472,6 +4472,43 @@ bool units_can_enter(
   return r == COLONIZE_ENTER_OK || r == COLONIZE_ENTER_DOCK;
 }
 
+int units_type_max_mp(const ColonizeUnitType* type) {
+  const int tiles = type && type->movement > 0 ? type->movement : 1;
+  return tiles * UNITS_MP_PER_TILE;
+}
+
+int units_max_mp(const ColonizeUnitPool* pool, int unit_id) {
+  const ColonizeUnit* u = units_get_const(pool, unit_id);
+  const ColonizeUnitType* type = u ? units_type(pool, u->type_index) : NULL;
+  int mp = units_type_max_mp(type);
+  /* FUN_1427_065a: +3 for ship types when the nation's capability bit 5 is
+   * set — Magellan (the only naval +1 in the game). */
+  if (u && type && type->domain == COLONIZE_UNIT_DOMAIN_SEA && g_units_ff_col1 &&
+      u->nation_id >= 0 && u->nation_id <= 3 &&
+      founding_fathers_nation_has(g_units_ff_col1, u->nation_id, FF_FERDINAND_MAGELLAN)) {
+    mp += UNITS_MP_PER_TILE;
+  }
+  return mp;
+}
+
+void units_format_mp(int thirds, char* out, size_t out_size) {
+  if (!out || out_size == 0) {
+    return;
+  }
+  if (thirds < 0) {
+    thirds = 0;
+  }
+  const int whole = thirds / UNITS_MP_PER_TILE;
+  const int rem = thirds % UNITS_MP_PER_TILE;
+  if (rem == 0) {
+    snprintf(out, out_size, "%d", whole);
+  } else if (whole == 0) {
+    snprintf(out, out_size, "%d/3", rem);
+  } else {
+    snprintf(out, out_size, "%d %d/3", whole, rem);
+  }
+}
+
 int units_move_cost(
   const ColonizeUnitPool* pool,
   int unit_id,
@@ -4480,16 +4517,17 @@ int units_move_cost(
   int dest_y
 ) {
   if (!map) {
-    return 1;
+    return UNITS_MP_PER_TILE;
   }
   if (units_is_sea(pool, unit_id)) {
-    return 1;
+    /* DOS: terr_cost[ocean] = 1 -> 3 thirds per sea tile. */
+    return UNITS_MP_PER_TILE;
   }
   const ColonizeUnit* u = units_get_const(pool, unit_id);
   if (!u) {
-    return map_move_cost_at(map, dest_x, dest_y);
+    return map_move_cost_at(map, dest_x, dest_y) * UNITS_MP_PER_TILE;
   }
-  return map_move_cost_step(map, u->x, u->y, dest_x, dest_y);
+  return map_move_spent_thirds(map, u->x, u->y, dest_x, dest_y);
 }
 
 bool units_can_afford_move_cost(const ColonizeUnitPool* pool, int unit_id, int cost) {
@@ -4501,9 +4539,7 @@ bool units_can_afford_move_cost(const ColonizeUnitPool* pool, int unit_id, int c
     return true;
   }
   /* Full allotment remaining (DOS: spent MP byte == 0) → always allow. */
-  const ColonizeUnitType* type = units_type(pool, unit->type_index);
-  const int max_mp = type && type->movement > 0 ? type->movement : 1;
-  if (unit->moves_left >= max_mp) {
+  if (unit->moves_left >= units_max_mp(pool, unit_id)) {
     return true;
   }
   /* Partial overspend needs an RNG roll in units_try_move — not guaranteed. */
@@ -4849,8 +4885,7 @@ bool units_try_move(
     if (village_nation >= 4 && unit->nation_id >= 0 && unit->nation_id <= 3) {
       const int cost = units_move_cost(pool, unit_id, map, dest_x, dest_y);
       const int remaining = unit->moves_left;
-      const ColonizeUnitType* type = units_type(pool, unit->type_index);
-      const int max_mp = type && type->movement > 0 ? type->movement : 1;
+      const int max_mp = units_max_mp(pool, unit_id);
       if (cost > remaining && remaining < max_mp && rng) {
         const int roll = dos_rng_range(rng, 1, cost > 0 ? cost : 1);
         if (roll > remaining) {
@@ -4915,8 +4950,7 @@ bool units_try_move(
   const int cost =
     units_move_cost(pool, unit_id, map, dest_x, dest_y) + combat_attack_mp_surcharge;
   const int remaining = unit->moves_left;
-  const ColonizeUnitType* type = units_type(pool, unit->type_index);
-  const int max_mp = type && type->movement > 0 ? type->movement : 1;
+  const int max_mp = units_max_mp(pool, unit_id);
   const bool full_mp = remaining >= max_mp;
 
   bool allow = false;
@@ -5293,7 +5327,7 @@ bool units_wake(ColonizeUnitPool* pool, int unit_id) {
   units_clear_orders(pool, unit_id);
   const ColonizeUnitType* type = units_type(pool, u->type_index);
   if (type) {
-    u->moves_left = type->movement;
+    u->moves_left = units_max_mp(pool, unit_id);
   }
   return prev == UNITS_ORDER_SENTRY || prev == UNITS_ORDER_FORTIFY ||
          prev == UNITS_ORDER_FORTIFIED || prev == UNITS_ORDER_GOTO;
@@ -5494,8 +5528,10 @@ static bool units_flood_next_step(
    * gate (accessor unidentified), the DS:0xa370 cost cap register (BX at
    * entry — convention unresolved; Linux caps at "reached").
    */
+  /* DS:0x5234 is in thirds (NAMES movement * 3): `< 4` is true only for
+   * 1-tile units (Colonist/Soldier/Pioneer/Brave...), not the 2-tile Wagon. */
   const ColonizeUnitType* flood_type = units_type(pool, u->type_index);
-  const bool flood_low_move = flood_type != NULL && flood_type->movement < 4;
+  const bool flood_low_move = units_type_max_mp(flood_type) < 4;
   const bool unit_sea = units_unit_is_sea(pool, u);
   const int origin_x = gx - UNITS_FLOOD_W / 2;
   const int origin_y = gy - UNITS_FLOOD_W / 2;
@@ -5868,8 +5904,9 @@ static bool units_greedy_next_step(
      * practice, so this bonus can't actually change the `<2` branch —
      * negligible real-world effect either way).
      */
-    const ColonizeUnitType* type = units_type(pool, u->type_index);
-    const int max_mp = type && type->movement > 0 ? type->movement : 1;
+    /* FUN_281f_090c returns thirds (>= 3 for every type), so `max_mp < 2`
+     * never holds in DOS — the penalty is always terr_cost*3. Kept literal. */
+    const int max_mp = units_max_mp(pool, unit_id);
     const bool is_human_unit =
       g_units_combat_human_nation >= 0 && u->nation_id == g_units_combat_human_nation;
     const int cheb_cur = units_chebyshev(u->x, u->y, gx, gy);
@@ -6423,9 +6460,7 @@ bool units_next_goto_step(
         }
       }
       if (hit) {
-        const ColonizeUnitType* type = units_type(pool, u->type_index);
-        const int max_mp = type && type->movement > 0 ? type->movement : 1;
-        const bool moved_this_turn = u->moves_left < max_mp;
+        const bool moved_this_turn = u->moves_left < units_max_mp(pool, unit_id);
         const bool reversal =
           moved_this_turn && unit_id >= 0 && unit_id < COLONIZE_UNITS_MAX &&
           units_dir8_index(*out_x - u->x, *out_y - u->y) == (s_units_goto_last_dir[unit_id] ^ 4);
@@ -7353,12 +7388,11 @@ bool units_unload_passenger(
    * leave a free full refill. Cite: 4720_015c; move_spent.c.
    */
   {
-    const ColonizeUnitType* type = units_type(pool, pax->type_index);
     int remaining = pax->moves_left;
     if (remaining <= 0) {
-      remaining = type && type->movement > 0 ? type->movement : 1;
+      remaining = units_max_mp(pool, pax_id);
     }
-    int cost = map_move_cost_step(map, ship->x, ship->y, dest_x, dest_y);
+    int cost = map_move_spent_thirds(map, ship->x, ship->y, dest_x, dest_y);
     if (cost < 1) {
       cost = 1;
     }
@@ -8217,9 +8251,8 @@ void units_end_turn(ColonizeUnitPool* pool) {
     if (!u->active) {
       continue;
     }
-    const ColonizeUnitType* type = units_type(pool, u->type_index);
-    if (type) {
-      u->moves_left = type->movement;
+    if (units_type(pool, u->type_index)) {
+      u->moves_left = units_max_mp(pool, u->id);
     }
   }
 }

@@ -101,7 +101,7 @@ int main(void) {
   units_reset(&units);
   units.type_count = 2;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Brave");
-  units.types[0].movement = 3;
+  units.types[0].movement = 1; /* NAMES @UNIT; DOS max MP = 3 thirds */
   units.types[0].attack = 2;
   units.types[0].defense = 1;
   snprintf(units.types[1].name, sizeof(units.types[1].name), "Free Colonist");
@@ -3376,6 +3376,7 @@ int main(void) {
     colonies.colony_count = 0;
     brave->x = 5;
     brave->y = 5;
+    brave->moves_left = 3; /* the deepen case spent this turn's 3 thirds */
     const int near2 = units_spawn_allow_stack(&units, 0, 6, 5);
     const int far2 = units_spawn_allow_stack(&units, 0, 5, 7);
     near_lead = units_get(&units, near2);

@@ -81,7 +81,7 @@ static int unit_clearcut_lumber(void) {
   }
   u->nation_id = 0;
   u->tools = 100;
-  u->moves_left = 1;
+  u->moves_left = 1 * UNITS_MP_PER_TILE;
   u->profession = UNITS_JOB_NONE;
   u->orders = UNITS_ORDER_NONE;
   u->turns_worked = 0;
@@ -110,7 +110,7 @@ static int unit_clearcut_lumber(void) {
   }
   int guard = 0;
   while (u->orders == UNITS_ORDER_CLEAR_PLOW && guard++ < 16) {
-    u->moves_left = 1;
+    u->moves_left = 1 * UNITS_MP_PER_TILE;
     if (!units_pioneer_work_tick(
           &pool, pid, &map, msg, sizeof(msg), &colonies, &pops, &game_txt
         )) {
@@ -239,7 +239,7 @@ static int unit_useduptools(void) {
   }
   u->nation_id = 0;
   u->tools = 20;
-  u->moves_left = 1;
+  u->moves_left = 1 * UNITS_MP_PER_TILE;
   u->profession = UNITS_JOB_NONE;
   u->orders = UNITS_ORDER_BUILD_ROAD;
   u->turns_worked = 0;
@@ -265,7 +265,7 @@ static int unit_useduptools(void) {
    * than assuming one call finishes the road.
    */
   for (int tick = 0; tick < 10 && u->orders == UNITS_ORDER_BUILD_ROAD; ++tick) {
-    u->moves_left = 1;
+    u->moves_left = 1 * UNITS_MP_PER_TILE;
     if (!units_pioneer_work_tick(
           &pool, pid, &map, msg, sizeof(msg), NULL, &pops, &game_txt
         )) {
@@ -561,7 +561,7 @@ static int unit_pioneer_order_gates(void) {
       return 1;
     }
     cu->nation_id = 0;
-    cu->moves_left = 1;
+    cu->moves_left = 1 * UNITS_MP_PER_TILE;
     ai_popup_init(&pops);
     msg[0] = '\0';
     if (units_pioneer_plow(
@@ -603,7 +603,7 @@ static int unit_pioneer_order_gates(void) {
     }
     pu->nation_id = 0;
     pu->tools = 100;
-    pu->moves_left = 1;
+    pu->moves_left = 1 * UNITS_MP_PER_TILE;
     ai_popup_init(&pops);
     msg[0] = '\0';
     if (units_pioneer_plow(
@@ -647,7 +647,7 @@ static int unit_pioneer_order_gates(void) {
     }
     pu->nation_id = 0;
     pu->tools = 100;
-    pu->moves_left = 1;
+    pu->moves_left = 1 * UNITS_MP_PER_TILE;
     ai_popup_init(&pops);
     msg[0] = '\0';
     if (units_pioneer_road(&pool, pid, &map, msg, sizeof(msg), NULL, &pops, &game_txt)) {
@@ -881,7 +881,7 @@ static int unit_sea_lane_entry(void) {
     return 1;
   }
   u->nation_id = 0;
-  u->moves_left = 4;
+  u->moves_left = 4 * UNITS_MP_PER_TILE;
 
   int rc = 0;
   if (!units_can_enter(&pool, u->type_index, &map, 6, 3, id, NULL)) {
@@ -1321,7 +1321,7 @@ static int unit_flood_river_pair_step(void) {
     return 1;
   }
   u->nation_id = 0;
-  u->moves_left = 1;
+  u->moves_left = 1 * UNITS_MP_PER_TILE;
   u->orders = UNITS_ORDER_GOTO;
   u->goto_x = 2;
   u->goto_y = 4;
@@ -1963,8 +1963,8 @@ int main(void) {
       assets_msg_free(&names);
       return 1;
     }
-    lf_cargo->moves_left = 3;
-    lf_boat->moves_left = 4;
+    lf_cargo->moves_left = 3 * UNITS_MP_PER_TILE;
+    lf_boat->moves_left = 4 * UNITS_MP_PER_TILE;
     if (units_try_move(&pool, lf_ship, &map, lx, ly, NULL, NULL)) {
       fprintf(stderr, "ship must not enter plain land via try_move\n");
       map_free(&map);
@@ -1993,7 +1993,7 @@ int main(void) {
       return 1;
     }
     /* Shore step charges passenger MP (sentry 0 → allotment − cost). */
-    if (lf_cargo->moves_left >= 3) {
+    if (lf_cargo->moves_left >= 3 * UNITS_MP_PER_TILE) {
       fprintf(
         stderr,
         "landfall must consume passenger MP got %d\n",
@@ -2265,7 +2265,7 @@ int main(void) {
       assets_msg_free(&names);
       return 1;
     }
-    pu->moves_left = 1; /* pioneer max is 1 — full allotment */
+    pu->moves_left = 1 * UNITS_MP_PER_TILE; /* pioneer max is 1 — full allotment */
     if (!units_try_move(&pool, pid, &tmap, fx, fy, NULL, NULL) || pu->moves_left != 0) {
       fprintf(
         stderr,
@@ -2290,9 +2290,9 @@ int main(void) {
       return 1;
     }
     pool.types[pioneer].movement = 2;
-    pu_partial->moves_left = 1;
+    pu_partial->moves_left = 1 * UNITS_MP_PER_TILE;
     if (units_try_move(&pool, pid_partial, &tmap, fx, fy, NULL, NULL) ||
-        pu_partial->moves_left != 1) {
+        pu_partial->moves_left != 1 * UNITS_MP_PER_TILE) {
       fprintf(
         stderr,
         "phase7 partial-MP without RNG should fail uncharged (moves=%d)\n",
@@ -2327,7 +2327,7 @@ int main(void) {
       /* Reset for fail case. */
       pu_partial->x = ox;
       pu_partial->y = oy;
-      pu_partial->moves_left = 1;
+      pu_partial->moves_left = 1 * UNITS_MP_PER_TILE;
       dos_rng_seed(&rng, 5006u); /* first range(1,2) → 2 → fail */
       if (units_try_move(&pool, pid_partial, &tmap, fx, fy, NULL, &rng) ||
           pu_partial->x != ox || pu_partial->y != oy || pu_partial->moves_left != 0) {
@@ -2376,8 +2376,9 @@ int main(void) {
       assets_msg_free(&names);
       return 1;
     }
-    pu2->moves_left = 2;
-    if (!units_try_move(&pool, pid2, &tmap, fx, fy, NULL, NULL) || pu2->moves_left != 1) {
+    pu2->moves_left = 2 * UNITS_MP_PER_TILE;
+    if (!units_try_move(&pool, pid2, &tmap, fx, fy, NULL, NULL) ||
+        pu2->moves_left != 2 * UNITS_MP_PER_TILE - 1) {
       fprintf(stderr, "phase7 roaded forest move failed (moves_left=%d)\n", pu2->moves_left);
       map_free(&tmap);
       map_free(&map);
@@ -2397,7 +2398,7 @@ int main(void) {
     }
     map_tile_set_road(&tmap, px, py, false);
     char pmsg[64];
-    pu3->moves_left = 1;
+    pu3->moves_left = 1 * UNITS_MP_PER_TILE;
     /*
      * Plains road: real DS:0x2f78 threshold byte + 2 (5 turns for
      * non-Hardy, since the live 2026-08-20 capture landed
@@ -2457,7 +2458,7 @@ int main(void) {
         return 1;
       }
       pu4->nation_id = 0;
-      pu4->moves_left = 1;
+      pu4->moves_left = 1 * UNITS_MP_PER_TILE;
       pu4->tools = 100;
       bool road4_ok = true;
       while (!map_tile_has_road(&tmap, rx, ry)) {
@@ -2487,7 +2488,7 @@ int main(void) {
       units_despawn(&pool, pid4);
     }
 
-    pu3->moves_left = 1;
+    pu3->moves_left = 1 * UNITS_MP_PER_TILE;
     pu3->tools = 100;
     pu3->orders = UNITS_ORDER_NONE;
     pu3->turns_worked = 0;
@@ -2837,7 +2838,7 @@ int main(void) {
     }
     ColonizeUnit* su = units_get(&pool, sid);
     su->nation_id = 0;
-    su->moves_left = 3;
+    su->moves_left = 3 * UNITS_MP_PER_TILE;
     if (!units_order_fortify(&pool, sid) || su->orders != UNITS_ORDER_FORTIFY ||
         su->moves_left != 0) {
       fprintf(stderr, "fortify order failed orders=%d mp=%d\n", su->orders, su->moves_left);
@@ -2971,7 +2972,7 @@ int main(void) {
     }
     sh = units_get(&pool, ship);
     if (sh) {
-      sh->moves_left = 4;
+      sh->moves_left = 4 * UNITS_MP_PER_TILE;
     }
     if (!units_order_anchor(&pool, ship, &cpool) || !sh || sh->orders != UNITS_ORDER_FORTIFY) {
       fprintf(stderr, "anchor order failed orders=%d\n", sh ? sh->orders : -1);
@@ -3003,7 +3004,7 @@ int main(void) {
       return 1;
     }
     mu->nation_id = 0;
-    mu->moves_left = 1;
+    mu->moves_left = 1 * UNITS_MP_PER_TILE;
     map_tile_set_road(&map, px, py, true);
     char pmsg[64];
     if (!units_pillage(&pool, mil, &map, NULL, pmsg, sizeof(pmsg)) ||
@@ -3058,9 +3059,9 @@ int main(void) {
       return 1;
     }
     a->nation_id = 0;
-    a->moves_left = 3;
+    a->moves_left = 3 * UNITS_MP_PER_TILE;
     d->nation_id = 4;
-    d->moves_left = 1;
+    d->moves_left = 1 * UNITS_MP_PER_TILE;
     ColonizeDosRng rng;
     dos_rng_seed(&rng, 1);
     if (!units_try_move(&pool, aid, &map, dx, dy, NULL, &rng)) {
@@ -3123,7 +3124,7 @@ int main(void) {
       fprintf(stderr, "follow unit lookup failed\n");
       return 1;
     }
-    ua->moves_left = 4;
+    ua->moves_left = 4 * UNITS_MP_PER_TILE;
     if (!units_follow_unit(&pool, a, b)) {
       fprintf(stderr, "units_follow_unit failed\n");
       return 1;
@@ -4080,7 +4081,7 @@ int main(void) {
       return 1;
     }
     foe->nation_id = 1;
-    foe->moves_left = 4;
+    foe->moves_left = 4 * UNITS_MP_PER_TILE;
     if (units_coastal_fort_fire_pulse(&pool, &colonies, &map, &fcol1, NULL, -1, NULL, 0) != 0) {
       fprintf(stderr, "ship-slow: fort should miss high-def ship\n");
       pool.types[caravel_ti].defense = old_def;
@@ -4587,7 +4588,7 @@ int main(void) {
       }
       p->nation_id = 0;
       br->nation_id = 4;
-      p->moves_left = 3;
+      p->moves_left = 3 * UNITS_MP_PER_TILE;
       const ColonizeEnterReason r =
         units_enter_probe(&pool, p->type_index, &map, dx, dy, pid, NULL);
       if (r != COLONIZE_ENTER_BOUNCE_FOREIGN) {
@@ -4618,7 +4619,7 @@ int main(void) {
       }
       s->nation_id = 0;
       br->nation_id = 4;
-      s->moves_left = 3;
+      s->moves_left = 3 * UNITS_MP_PER_TILE;
       const ColonizeEnterReason r =
         units_enter_probe(&pool, s->type_index, &map, dx, dy, sid, NULL);
       if (r != COLONIZE_ENTER_COMBAT_LAND) {
@@ -4688,7 +4689,7 @@ int main(void) {
         return 1;
       }
       s->nation_id = 0;
-      s->moves_left = 5;
+      s->moves_left = 5 * UNITS_MP_PER_TILE;
       if (!units_try_move(&pool, sid, &map, dx, dy, &colonies, NULL)) {
         fprintf(stderr, "enter-probe capture move failed reason=%d\n", (int)units_last_enter_reason());
         return 1;
@@ -4734,7 +4735,7 @@ int main(void) {
       }
       ua->nation_id = 0;
       ub->nation_id = 1;
-      ua->moves_left = 4;
+      ua->moves_left = 4 * UNITS_MP_PER_TILE;
       /*
        * bugs.md: unarmed transports (Caravel attack=0 in @UNIT) must bounce
        * off a foreign ship, not fight — "Only Privateers and Frigates can
@@ -4789,13 +4790,13 @@ int main(void) {
       }
       sua->nation_id = 0;
       sub->nation_id = 1;
-      sua->moves_left = 8; /* full MP: attack + ocean step cost (1) + 3 surcharge = 4 spent. */
+      sua->moves_left = 8 * UNITS_MP_PER_TILE; /* full MP: attack + ocean step (3 thirds) + 3 surcharge = 6 spent. */
       if (!units_try_move(&pool, sa, &map, wx2, wy2, NULL, NULL)) {
         fprintf(stderr, "ship-slow move combat failed\n");
         return 1;
       }
       sua = units_get(&pool, sa);
-      if (!sua || sua->moves_left != 4) {
+      if (!sua || sua->moves_left != 8 * UNITS_MP_PER_TILE - (UNITS_MP_PER_TILE + 3)) {
         fprintf(
           stderr,
           "ship-slow expected 4 moves left after win, got %d\n",
@@ -4871,8 +4872,8 @@ int main(void) {
     }
     land->nation_id = 0;
     ship->nation_id = 0;
-    land->moves_left = 3;
-    ship->moves_left = 4;
+    land->moves_left = 3 * UNITS_MP_PER_TILE;
+    ship->moves_left = 4 * UNITS_MP_PER_TILE;
 
     const ColonizeEnterReason br =
       units_enter_probe(&pool, land->type_index, &map, wx, wy, land_id, NULL);
@@ -4913,7 +4914,7 @@ int main(void) {
     land->moves_left = 0;
     ship->x = wx;
     ship->y = wy;
-    ship->moves_left = 4;
+    ship->moves_left = 4 * UNITS_MP_PER_TILE;
     if (!units_try_move(&pool, ship_id, &map, wx2, wy2, NULL, NULL)) {
       fprintf(stderr, "sentry-board ship move failed reason=%d\n", (int)units_last_enter_reason());
       return 1;
@@ -4963,7 +4964,7 @@ int main(void) {
         return 1;
       }
       boat->nation_id = 0;
-      boat->moves_left = 4;
+      boat->moves_left = 4 * UNITS_MP_PER_TILE;
       /* Loaded or empty: village must not become landfall. */
       const ColonizeEnterReason vr =
         units_enter_probe(&pool, boat->type_index, &map, vx, vy, sid, NULL);
@@ -5649,7 +5650,7 @@ int main(void) {
         return 1;
       }
       a->nation_id = 0;
-      a->moves_left = 3;
+      a->moves_left = 3 * UNITS_MP_PER_TILE;
       pool.types[soldier].attack = 8;
       pool.types[brave].attack = 1;
       pool.types[brave].defense = 1;
@@ -5706,7 +5707,7 @@ int main(void) {
         free(c1.tribe);
         return 1;
       }
-      a->moves_left = 3;
+      a->moves_left = 3 * UNITS_MP_PER_TILE;
       if (!units_try_move(&pool, aid, &map, vx, vy, NULL, NULL) ||
           units_last_combat_outcome() <= 0) {
         fprintf(stderr, "village-temp second attack failed\n");
@@ -5724,7 +5725,7 @@ int main(void) {
         free(c1.tribe);
         return 1;
       }
-      a->moves_left = 3;
+      a->moves_left = 3 * UNITS_MP_PER_TILE;
       if (!units_try_move(&pool, aid, &map, vx, vy, NULL, NULL) ||
           units_last_combat_outcome() <= 0) {
         fprintf(stderr, "village-temp destroy attack failed\n");
@@ -5807,7 +5808,7 @@ int main(void) {
         return 1;
       }
       a->nation_id = 0;
-      a->moves_left = 5;
+      a->moves_left = 5 * UNITS_MP_PER_TILE;
       pool.types[soldier2].attack = 8;
       pool.types[soldier2].defense = 1;
 
@@ -6034,7 +6035,7 @@ int main(void) {
       const int sid_miss = units_spawn_allow_stack(&pool, car, wx, wy);
       ColonizeUnit* ship = units_get(&pool, sid_miss);
       ship->nation_id = 1;
-      ship->moves_left = 4;
+      ship->moves_left = 4 * UNITS_MP_PER_TILE;
       ship->col1_unknown15 = 0;
       ship->turns_worked = 0;
       /* Fort atk=4 (tier1, 0 arty); ship defense 99 → fort miss, MP drain only. */
@@ -6073,7 +6074,7 @@ int main(void) {
       const int sid_hit = units_spawn_allow_stack(&pool, car, wx, wy);
       ship = units_get(&pool, sid_hit);
       ship->nation_id = 1;
-      ship->moves_left = 4;
+      ship->moves_left = 4 * UNITS_MP_PER_TILE;
       ship->col1_unknown15 = 0;
       ship->turns_worked = 0;
       pool.types[car].defense = 3; /* fort atk 4 wins; 3*2 > 4 → damage-not-sink */

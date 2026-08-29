@@ -744,17 +744,33 @@ tiers, promote/demote/capture, plunder, coastal fort fire, Combat Analysis
   support %**: `combat_colony_sol_at` (`combat_strength.c` ~401, used at
   ~551) folds colony SoL into the defender's combat strength. All 5
   confirmed real and DOS-cited, no gap found.
-- [ ] **P5.8 [auto] — Land MP in thirds.** DOS spends land MP in thirds
-  (`unit+0x3149`, road/colony pair or cardinal minor-river pair = 1 third,
-  terrain cost ×3 otherwise — the 0015bc/465b formula), so a 1-MP Pioneer
-  walks three river tiles a turn; Linux land `moves_left` is whole `@UNIT
-  movement` units with `map_move_cost_step` = 1 for such steps, so it
-  stops after one. Surfaced 2026-08-29 by `golden_ai_turns` TURN4→5 unit 4
-  (DOS (50,38)→(48,39) in three river steps, Linux stops at (48,38)) once
-  the pathfinder picked DOS's own path. Touches `turn.c` MP reset,
-  `units_can_afford_move_cost`, `units_try_move`'s spend, the col1 bridge
-  (`moves` import/export for land units) and the Brave engine's 3-thirds
-  allotment (already thirds — `ai.c`). Scope + goldens before flipping.
+- [x] **P5.8 [auto] — MP in thirds (closed 2026-08-29, same day).** Every
+  unit's `moves_left` is now DOS thirds: `units_type_max_mp` = `@UNIT
+  movement × 3` (the DS:0x5234 byte — NAMES `Braves` = 1 but the table byte
+  is 3, Magellan ships +3), `units_max_mp` adds the Magellan bonus,
+  `units_move_cost` / `map_move_spent_thirds` is the `FUN_465b_0000` cost
+  head (`terr_cost × 3`; road/colony `layer2 & 0x0a` on both tiles or minor
+  river on both + cardinal → 1; tribe-settlement destination caps at 3; sea
+  tile 3). Touched: spawn/`units_wake`/turn refresh/`units_refresh_all`
+  writers, `units_can_afford_move_cost`/`units_try_move` (unchanged logic,
+  thirds in), shore-step charge in `units_unload_passenger`, Magellan elect
+  bump (+3), coastal landfall order (−3), REF MoW multi-unload budget
+  (`moves_left / 3` pax), AI ship/land allotments (`ai.c`, `ai_euro.c` incl.
+  the TURN4→5 pioneer hack now = a plain 3-third allotment), map panel
+  "Moves:" shows `1`, `2/3`, `1 1/3` (`units_format_mp`), col1 bridge: Euro
+  units import `moves` as spent thirds (`max − spent`) and export
+  `max − moves_left` (exhausted land units export 0 — DOS clears spent at
+  the end of a nation's day; ships on a goto keep theirs), natives keep the
+  literal byte (Brave engine already tracks DOS spent, max 3). The
+  pathfinder's `movement < 4` / `max_mp < 2` gates now read the thirds value
+  as DOS does (Wagon Train is no longer "low move"; the `< 2` arm never
+  fires). Tests: 7 unit binaries retuned (`N` tiles → `N * UNITS_MP_PER_TILE`),
+  `test_ai_contact` Brave type movement 3 → 1 (NAMES). `ctest` 48/48;
+  `golden_ai_turns` output byte-identical to the pre-pathfinding baseline —
+  the TURN4→5 pioneer now lands on (48,39) via DOS's own three river steps.
+  Not modelled: 465b's ocean↔high-seas force-to-max (Linux handles the
+  Europe sail elsewhere), the partial-MP gamble for units the AI moves with
+  a NULL rng (pathing still pre-filters on `units_can_afford_move_cost`).
 - [ ] **P5.7 [user]** Full playthrough test with the user: declare on a
   lategame fixture (`valid-lategame-saves/COLONY*`), fight to a win.
   Fixture-driven `unit_ai_king` scenarios stay the regression net.

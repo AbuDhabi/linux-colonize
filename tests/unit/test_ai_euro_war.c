@@ -105,7 +105,7 @@ static int unit_mid_hire_mil(void) {
     return fail("spawn soldier");
   }
   soldier->nation_id = nation;
-  soldier->moves_left = 1;
+  soldier->moves_left = 1 * UNITS_MP_PER_TILE;
   soldier->orders = 0;
 
   /* Europe-dock Caravel with free cargo — expect at-war Soldier hire/board. */
@@ -272,7 +272,7 @@ static int unit_naval_war_hunt(void) {
   }
   warship->nation_id = nation;
   warship->orders = 0;
-  warship->moves_left = 4;
+  warship->moves_left = 4 * UNITS_MP_PER_TILE;
 
   const int foe_id = units_spawn(&units, 0, foe_x, foe_y);
   ColonizeUnit* foe_ship = units_get(&units, foe_id);
@@ -425,7 +425,7 @@ static int unit_naval_flee_fort_fire(void) {
   }
   ship->nation_id = nation;
   ship->orders = 0;
-  ship->moves_left = 4;
+  ship->moves_left = 4 * UNITS_MP_PER_TILE;
 
   ColonizeCol1Save col1;
   col1_save_init(&col1);
@@ -533,7 +533,7 @@ static int unit_privateer_war_hunt(void) {
   priv->orders = UNITS_ORDER_AI_SAIL;
   priv->goto_x = 0;
   priv->goto_y = own_y;
-  priv->moves_left = 4;
+  priv->moves_left = 4 * UNITS_MP_PER_TILE;
 
   const int foe_id = units_spawn(&units, 0, foe_x, foe_y);
   ColonizeUnit* foe_ship = units_get(&units, foe_id);
@@ -707,7 +707,7 @@ static int unit_privateer_station_keep_hunt(void) {
   priv->orders = UNITS_ORDER_AI_SAIL;
   priv->goto_x = own_x;
   priv->goto_y = own_y;
-  priv->moves_left = 4;
+  priv->moves_left = 4 * UNITS_MP_PER_TILE;
 
   const int foe_id = units_spawn(&units, 0, foe_x, foe_y);
   ColonizeUnit* foe_ship = units_get(&units, foe_id);
@@ -839,7 +839,7 @@ static int unit_land_war_hunt(void) {
   }
   soldier->nation_id = nation;
   soldier->orders = 0;
-  soldier->moves_left = 1;
+  soldier->moves_left = 1 * UNITS_MP_PER_TILE;
 
   const int foe_id = units_spawn(&units, 0, foe_x, foe_y);
   ColonizeUnit* foe_soldier = units_get(&units, foe_id);
@@ -981,7 +981,7 @@ static int unit_indian_war_capital_hunt(void) {
   }
   soldier->nation_id = nation;
   soldier->orders = 0;
-  soldier->moves_left = 3;
+  soldier->moves_left = 3 * UNITS_MP_PER_TILE;
 
   ColonizeCol1Save col1;
   col1_save_init(&col1);
@@ -1114,7 +1114,7 @@ static int unit_land_war_hunt_multistep(void) {
   }
   soldier->nation_id = nation;
   soldier->orders = 0;
-  soldier->moves_left = 3;
+  soldier->moves_left = 3 * UNITS_MP_PER_TILE;
 
   const int foe_id = units_spawn(&units, 0, foe_x, foe_y);
   ColonizeUnit* foe_soldier = units_get(&units, foe_id);
@@ -1248,7 +1248,7 @@ static int unit_continental_army_land_hunt(void) {
   }
   army->nation_id = nation;
   army->orders = 0;
-  army->moves_left = 3;
+  army->moves_left = 3 * UNITS_MP_PER_TILE;
 
   const int foe_id = units_spawn(&units, 0, foe_x, foe_y);
   ColonizeUnit* foe_army = units_get(&units, foe_id);
@@ -1382,7 +1382,7 @@ static int unit_continental_cavalry_land_hunt(void) {
   }
   cav->nation_id = nation;
   cav->orders = 0;
-  cav->moves_left = 3;
+  cav->moves_left = 3 * UNITS_MP_PER_TILE;
 
   const int foe_id = units_spawn(&units, 0, foe_x, foe_y);
   ColonizeUnit* foe_cav = units_get(&units, foe_id);
@@ -1525,7 +1525,7 @@ static int unit_sticky_contact_rehunt(void) {
   }
   soldier->nation_id = nation;
   soldier->orders = UNITS_ORDER_FORTIFIED; /* skip land_try_adjacent_attack */
-  soldier->moves_left = 2;
+  soldier->moves_left = 2 * UNITS_MP_PER_TILE;
 
   const int foe_id = units_spawn(&units, 0, foe_x, foe_y);
   ColonizeUnit* foe_u = units_get(&units, foe_id);
@@ -1654,7 +1654,7 @@ static int unit_land_adjacent_combat_chain(void) {
   }
   soldier->nation_id = nation;
   soldier->orders = 0;
-  soldier->moves_left = 3;
+  soldier->moves_left = 3 * UNITS_MP_PER_TILE;
 
   const int foe_a = units_spawn(&units, 0, 6, 5);
   ColonizeUnit* fa = units_get(&units, foe_a);
@@ -1798,7 +1798,7 @@ static int unit_land_adjacent_colony_seize(void) {
   }
   soldier->nation_id = nation;
   soldier->orders = 0;
-  soldier->moves_left = 3;
+  soldier->moves_left = 3 * UNITS_MP_PER_TILE;
 
   ColonizeCol1Save col1;
   col1_save_init(&col1);
@@ -2123,7 +2123,7 @@ static int unit_land_adjacent_foe_prefer_weak(void) {
   }
   soldier->nation_id = nation;
   soldier->orders = 0;
-  soldier->moves_left = 1; /* one adjacent fight only — no re-hunt onto fortified */
+  soldier->moves_left = 1 * UNITS_MP_PER_TILE; /* one adjacent fight only — no re-hunt onto fortified */
 
   /* Strong fortified foe to the north (first octant dir) — should NOT be preferred. */
   const int strong_id = units_spawn(&units, 0, own_x, own_y - 1);
@@ -2277,7 +2277,7 @@ static int unit_land_adjacent_foe_prefer_treasure(void) {
   }
   soldier->nation_id = nation;
   soldier->orders = 0;
-  soldier->moves_left = 1;
+  soldier->moves_left = 1 * UNITS_MP_PER_TILE;
 
   const int scout_id = units_spawn(&units, 1, own_x, own_y - 1); /* N first */
   ColonizeUnit* scout = units_get(&units, scout_id);
@@ -2425,7 +2425,7 @@ static int unit_land_hunt_prefer_treasure(void) {
   }
   soldier->nation_id = nation;
   soldier->orders = 0;
-  soldier->moves_left = 3;
+  soldier->moves_left = 3 * UNITS_MP_PER_TILE;
 
   const int scout_id = units_spawn(&units, 1, 7, 5); /* MD=2 */
   ColonizeUnit* scout = units_get(&units, scout_id);
@@ -2572,7 +2572,7 @@ static int unit_land_hunt_prefer_weak(void) {
   }
   soldier->nation_id = nation;
   soldier->orders = 0;
-  soldier->moves_left = 3;
+  soldier->moves_left = 3 * UNITS_MP_PER_TILE;
 
   const int strong_id = units_spawn(&units, 0, 7, 5); /* MD=2 Soldier */
   ColonizeUnit* strong = units_get(&units, strong_id);
@@ -2727,7 +2727,7 @@ static int unit_land_adjacent_foe_prefer_open_over_stockade(void) {
   }
   soldier->nation_id = nation;
   soldier->orders = 0;
-  soldier->moves_left = 1;
+  soldier->moves_left = 1 * UNITS_MP_PER_TILE;
 
   /* Stockade defender to the north (first dir) — tougher (def 4→8). */
   const int stock_id = units_spawn(&units, 0, own_x, own_y - 1);
@@ -2870,7 +2870,7 @@ static int unit_land_adjacent_foe_prefer_non_veteran(void) {
   }
   soldier->nation_id = nation;
   soldier->orders = 0;
-  soldier->moves_left = 1;
+  soldier->moves_left = 1 * UNITS_MP_PER_TILE;
   soldier->profession = UNITS_JOB_NONE;
 
   /* Veteran to the north (first octant) — tougher via +50%. */
@@ -3011,7 +3011,7 @@ static int unit_naval_adjacent_foe_prefer_non_drake(void) {
   }
   own->nation_id = nation;
   own->orders = 0;
-  own->moves_left = 1;
+  own->moves_left = 1 * UNITS_MP_PER_TILE;
 
   const int drake_id = units_spawn(&units, 1, own_x, own_y - 1);
   ColonizeUnit* drake_u = units_get(&units, drake_id);
@@ -3171,7 +3171,7 @@ static int unit_artillery_adjacent_prefer_stockade(void) {
   }
   art->nation_id = nation;
   art->orders = 0;
-  art->moves_left = 1;
+  art->moves_left = 1 * UNITS_MP_PER_TILE;
 
   const int open_id = units_spawn(&units, 1, own_x, own_y - 1); /* N open */
   ColonizeUnit* open = units_get(&units, open_id);
@@ -3318,7 +3318,7 @@ static int unit_artillery_siege_hunt_prefer_stockade(void) {
   }
   art->nation_id = nation;
   art->orders = 0;
-  art->moves_left = 1;
+  art->moves_left = 1 * UNITS_MP_PER_TILE;
 
   ColonizeCol1Save col1;
   col1_save_init(&col1);
@@ -3440,7 +3440,7 @@ static int unit_dragoon_hunt_prefer_open(void) {
   }
   drag->nation_id = nation;
   drag->orders = 0;
-  drag->moves_left = 4;
+  drag->moves_left = 4 * UNITS_MP_PER_TILE;
 
   ColonizeCol1Save col1;
   col1_save_init(&col1);
@@ -3549,7 +3549,7 @@ static int unit_naval_adjacent_foe_prefer_weak(void) {
   }
   own->nation_id = nation;
   own->orders = 0;
-  own->moves_left = 1;
+  own->moves_left = 1 * UNITS_MP_PER_TILE;
 
   const int strong_id = units_spawn(&units, 0, own_x, own_y - 1);
   ColonizeUnit* strong = units_get(&units, strong_id);
@@ -3686,7 +3686,7 @@ static int unit_naval_adjacent_foe_prefer_loaded(void) {
   }
   own->nation_id = nation;
   own->orders = 0;
-  own->moves_left = 1;
+  own->moves_left = 1 * UNITS_MP_PER_TILE;
 
   const int empty_id = units_spawn(&units, 1, own_x, own_y - 1);
   ColonizeUnit* empty = units_get(&units, empty_id);
@@ -3836,7 +3836,7 @@ static int unit_privateer_prefer_cargo_prey(void) {
   }
   own->nation_id = nation;
   own->orders = 0;
-  own->moves_left = 1;
+  own->moves_left = 1 * UNITS_MP_PER_TILE;
 
   /* Frigate N (lower def) — toughness-only pick would prefer this. */
   const int frig_id = units_spawn(&units, 1, own_x, own_y - 1);
@@ -3985,7 +3985,7 @@ static int unit_frigate_prefer_warship(void) {
   }
   own->nation_id = nation;
   own->orders = 0;
-  own->moves_left = 1;
+  own->moves_left = 1 * UNITS_MP_PER_TILE;
 
   /* Merchantman N (lower def, cargo) — toughness-only pick would prefer this. */
   const int merch_id = units_spawn(&units, 1, own_x, own_y - 1);
@@ -4126,7 +4126,7 @@ static int unit_peace_fortify_border_wake(void) {
   }
   soldier->nation_id = nation;
   soldier->orders = UNITS_ORDER_FORTIFIED;
-  soldier->moves_left = 3;
+  soldier->moves_left = 3 * UNITS_MP_PER_TILE;
 
   /* Foreign Soldier at MD=2 — peace border threat. */
   const int foe_id = units_spawn(&units, 0, 6, 4);
@@ -4266,7 +4266,7 @@ static int unit_peace_dragoon_border_wake(void) {
   }
   dragoon->nation_id = nation;
   dragoon->orders = UNITS_ORDER_FORTIFIED;
-  dragoon->moves_left = 4;
+  dragoon->moves_left = 4 * UNITS_MP_PER_TILE;
 
   const int foe_id = units_spawn(&units, 0, 6, 4);
   ColonizeUnit* foe_u = units_get(&units, foe_id);
@@ -4409,7 +4409,7 @@ static int unit_peace_artillery_border_wake(void) {
   }
   arty->nation_id = nation;
   arty->orders = UNITS_ORDER_FORTIFIED;
-  arty->moves_left = 1;
+  arty->moves_left = 1 * UNITS_MP_PER_TILE;
 
   const int foe_id = units_spawn(&units, 1, 6, 4);
   ColonizeUnit* foe_u = units_get(&units, foe_id);
@@ -4548,7 +4548,7 @@ static int unit_peace_regular_border_wake(void) {
   }
   reg->nation_id = nation;
   reg->orders = UNITS_ORDER_FORTIFIED;
-  reg->moves_left = 3;
+  reg->moves_left = 3 * UNITS_MP_PER_TILE;
 
   const int foe_id = units_spawn(&units, 1, 6, 4);
   ColonizeUnit* foe_u = units_get(&units, foe_id);
@@ -4697,7 +4697,7 @@ static int unit_peace_continental_army_border_wake(void) {
   }
   army->nation_id = nation;
   army->orders = UNITS_ORDER_FORTIFIED;
-  army->moves_left = 3;
+  army->moves_left = 3 * UNITS_MP_PER_TILE;
 
   const int foe_id = units_spawn(&units, 1, 6, 4);
   ColonizeUnit* foe_u = units_get(&units, foe_id);
@@ -4841,7 +4841,7 @@ static int unit_peace_continental_cavalry_border_wake(void) {
   }
   cav->nation_id = nation;
   cav->orders = UNITS_ORDER_FORTIFIED;
-  cav->moves_left = 3;
+  cav->moves_left = 3 * UNITS_MP_PER_TILE;
 
   const int foe_id = units_spawn(&units, 1, 6, 4);
   ColonizeUnit* foe_u = units_get(&units, foe_id);
@@ -5302,7 +5302,7 @@ static int unit_fortify_wake_hunt(void) {
   }
   soldier->nation_id = nation;
   soldier->orders = UNITS_ORDER_FORTIFIED;
-  soldier->moves_left = 3;
+  soldier->moves_left = 3 * UNITS_MP_PER_TILE;
 
   ColonizeCol1Save col1;
   col1_save_init(&col1);
@@ -5438,7 +5438,7 @@ static int unit_g_stance_own3_prio7(void) {
     return fail("g3 spawn soldier");
   }
   soldier->nation_id = nation;
-  soldier->moves_left = 1;
+  soldier->moves_left = 1 * UNITS_MP_PER_TILE;
   soldier->orders = 0;
 
   ColonizeCol1Save col1;
@@ -5554,7 +5554,7 @@ static int unit_g_stance_own4_prio8(void) {
     return fail("g4 spawn soldier");
   }
   soldier->nation_id = nation;
-  soldier->moves_left = 1;
+  soldier->moves_left = 1 * UNITS_MP_PER_TILE;
   soldier->orders = 0;
 
   ColonizeCol1Save col1;
@@ -5648,7 +5648,7 @@ static int unit_naval_multistep_sail(void) {
   }
   warship->nation_id = nation;
   warship->orders = 0;
-  warship->moves_left = 4;
+  warship->moves_left = 4 * UNITS_MP_PER_TILE;
 
   const int foe_id = units_spawn(&units, 0, 14, 8);
   ColonizeUnit* foe_ship = units_get(&units, foe_id);
@@ -6265,7 +6265,7 @@ static int unit_soldier_board_empty_transport(void) {
   }
   soldier->nation_id = nation;
   soldier->orders = 0;
-  soldier->moves_left = 1;
+  soldier->moves_left = 1 * UNITS_MP_PER_TILE;
   soldier->muskets = 50; /* armed Soldier display name */
 
   const int sid = units_spawn(&units, 1, 3, 4);
@@ -6416,7 +6416,7 @@ static int unit_dragoon_board_empty_transport(void) {
   }
   dragoon->nation_id = nation;
   dragoon->orders = 0;
-  dragoon->moves_left = 1;
+  dragoon->moves_left = 1 * UNITS_MP_PER_TILE;
   dragoon->muskets = 50;
   dragoon->horses = 50;
 
@@ -6562,7 +6562,7 @@ static int unit_regular_board_empty_transport(void) {
   }
   reg->nation_id = nation;
   reg->orders = 0;
-  reg->moves_left = 1;
+  reg->moves_left = 1 * UNITS_MP_PER_TILE;
   reg->muskets = 50;
 
   const int sid = units_spawn(&units, 1, 3, 4);
@@ -6708,7 +6708,7 @@ static int unit_continental_army_board_empty_transport(void) {
   }
   reg->nation_id = nation;
   reg->orders = 0;
-  reg->moves_left = 1;
+  reg->moves_left = 1 * UNITS_MP_PER_TILE;
   reg->muskets = 50;
 
   const int sid = units_spawn(&units, 1, 3, 4);
@@ -6860,7 +6860,7 @@ static int unit_continental_cavalry_board_empty_transport(void) {
   }
   cav->nation_id = nation;
   cav->orders = 0;
-  cav->moves_left = 1;
+  cav->moves_left = 1 * UNITS_MP_PER_TILE;
   cav->muskets = 50;
 
   const int sid = units_spawn(&units, 1, 3, 4);
@@ -7007,7 +7007,7 @@ static int unit_artillery_board_empty_transport(void) {
   }
   art->nation_id = nation;
   art->orders = 0;
-  art->moves_left = 1;
+  art->moves_left = 1 * UNITS_MP_PER_TILE;
 
   const int sid = units_spawn(&units, 1, 3, 4);
   ColonizeUnit* galleon = units_get(&units, sid);
@@ -7162,7 +7162,7 @@ static int unit_unload_military_threatened(void) {
   }
   galleon->nation_id = nation;
   galleon->orders = 0;
-  galleon->moves_left = 4;
+  galleon->moves_left = 4 * UNITS_MP_PER_TILE;
   galleon->cargo_count = 0;
 
   if (!units_board(&units, uid, sid)) {
@@ -7360,7 +7360,7 @@ static int unit_unload_sticky_brave_threatened(void) {
   }
   galleon->nation_id = nation;
   galleon->orders = 0;
-  galleon->moves_left = 4;
+  galleon->moves_left = 4 * UNITS_MP_PER_TILE;
   galleon->cargo_count = 0;
 
   if (!units_board(&units, uid, sid)) {
@@ -7602,7 +7602,7 @@ static int unit_unload_dragoon_threatened(void) {
   }
   galleon->nation_id = nation;
   galleon->orders = 0;
-  galleon->moves_left = 4;
+  galleon->moves_left = 4 * UNITS_MP_PER_TILE;
   galleon->cargo_count = 0;
 
   if (!units_board(&units, uid, sid)) {
@@ -7772,7 +7772,7 @@ static int unit_unload_regular_threatened(void) {
   }
   ship->nation_id = nation;
   ship->orders = 0;
-  ship->moves_left = 4;
+  ship->moves_left = 4 * UNITS_MP_PER_TILE;
   ship->cargo_count = 0;
   if (!units_board(&units, uid, sid)) {
     free(map.terrain);
@@ -7951,7 +7951,7 @@ static int unit_unload_continental_army_threatened(void) {
   }
   ship->nation_id = nation;
   ship->orders = 0;
-  ship->moves_left = 4;
+  ship->moves_left = 4 * UNITS_MP_PER_TILE;
   ship->cargo_count = 0;
   if (!units_board(&units, uid, sid)) {
     free(map.terrain);
@@ -8125,7 +8125,7 @@ static int unit_unload_continental_cavalry_threatened(void) {
   }
   ship->nation_id = nation;
   ship->orders = 0;
-  ship->moves_left = 4;
+  ship->moves_left = 4 * UNITS_MP_PER_TILE;
   ship->cargo_count = 0;
   if (!units_board(&units, uid, sid)) {
     free(map.terrain);
@@ -8268,10 +8268,10 @@ static int unit_garrison_quota_one_fortify(void) {
     return fail("garrison-quota spawn");
   }
   s0->nation_id = nation;
-  s0->moves_left = 1;
+  s0->moves_left = 1 * UNITS_MP_PER_TILE;
   s0->orders = 0;
   s1->nation_id = nation;
-  s1->moves_left = 1;
+  s1->moves_left = 1 * UNITS_MP_PER_TILE;
   s1->orders = 0;
 
   ai_goals_reset();
@@ -8395,7 +8395,7 @@ static int unit_peace_soldier_fortify_colony(void) {
     return fail("peace-fortify spawn");
   }
   sol->nation_id = nation;
-  sol->moves_left = 1;
+  sol->moves_left = 1 * UNITS_MP_PER_TILE;
   sol->orders = 0;
 
   ai_goals_reset();
@@ -8509,7 +8509,7 @@ static int unit_peace_dragoon_fortify_colony(void) {
     return fail("peace-dragoon-fortify spawn");
   }
   drag->nation_id = nation;
-  drag->moves_left = 4;
+  drag->moves_left = 4 * UNITS_MP_PER_TILE;
   drag->orders = 0;
 
   ai_goals_reset();
@@ -8622,7 +8622,7 @@ static int unit_peace_regular_fortify_colony(void) {
     return fail("peace-regular-fortify spawn");
   }
   reg->nation_id = nation;
-  reg->moves_left = 3;
+  reg->moves_left = 3 * UNITS_MP_PER_TILE;
   reg->orders = 0;
 
   ai_goals_reset();
@@ -8735,7 +8735,7 @@ static int unit_peace_continental_fortify_colony(void) {
     return fail("peace-cont-fortify spawn");
   }
   army->nation_id = nation;
-  army->moves_left = 3;
+  army->moves_left = 3 * UNITS_MP_PER_TILE;
   army->orders = 0;
 
   ai_goals_reset();
@@ -8848,7 +8848,7 @@ static int unit_peace_continental_cavalry_fortify_colony(void) {
     return fail("peace-cont-cav-fortify spawn");
   }
   cav->nation_id = nation;
-  cav->moves_left = 4;
+  cav->moves_left = 4 * UNITS_MP_PER_TILE;
   cav->orders = 0;
 
   ai_goals_reset();
@@ -8961,7 +8961,7 @@ static int unit_peace_artillery_fortify_colony(void) {
     return fail("peace-art-fortify spawn");
   }
   art->nation_id = nation;
-  art->moves_left = 1;
+  art->moves_left = 1 * UNITS_MP_PER_TILE;
   art->orders = 0;
 
   ai_goals_reset();
@@ -9074,7 +9074,7 @@ static int unit_peace_cannon_fortify_colony(void) {
     return fail("peace-cannon-fortify spawn");
   }
   art->nation_id = nation;
-  art->moves_left = 1;
+  art->moves_left = 1 * UNITS_MP_PER_TILE;
   art->orders = 0;
 
   ai_goals_reset();
@@ -9188,7 +9188,7 @@ static int unit_artillery_fortify_colony(void) {
     return fail("art-fortify spawn");
   }
   art->nation_id = nation;
-  art->moves_left = 1;
+  art->moves_left = 1 * UNITS_MP_PER_TILE;
   art->orders = 0;
 
   ai_goals_reset();
@@ -9328,7 +9328,7 @@ static int unit_war_transport_threatened_colony(void) {
   }
   galleon->nation_id = nation;
   galleon->orders = 0;
-  galleon->moves_left = 4;
+  galleon->moves_left = 4 * UNITS_MP_PER_TILE;
   galleon->cargo_count = 0;
 
   /* Foe soldier adjacent to own colony (threat MD≤3). */
@@ -9523,7 +9523,7 @@ static int unit_war_cargo_fortress_prefer(void) {
   }
   galleon->nation_id = nation;
   galleon->orders = 0;
-  galleon->moves_left = 4;
+  galleon->moves_left = 4 * UNITS_MP_PER_TILE;
   galleon->hold_goods_type[0] = COLONIZE_CARGO_MUSKETS;
   galleon->hold_goods_amount[0] = 50;
 
@@ -9667,7 +9667,7 @@ static int unit_mow_war_transport_threatened(void) {
   }
   mow->nation_id = nation;
   mow->orders = 0;
-  mow->moves_left = 4;
+  mow->moves_left = 4 * UNITS_MP_PER_TILE;
   mow->cargo_count = 0;
 
   /* Foe soldier adjacent to own colony (threat MD≤3). */
@@ -9850,7 +9850,7 @@ static int unit_frigate_war_transport_threatened(void) {
   }
   frig->nation_id = nation;
   frig->orders = 0;
-  frig->moves_left = 4;
+  frig->moves_left = 4 * UNITS_MP_PER_TILE;
   frig->cargo_count = 0;
 
   /* Foe soldier adjacent to own colony (threat MD≤3). */
@@ -10015,7 +10015,7 @@ static int unit_naval_ambush(void) {
   }
   own->nation_id = nation;
   own->orders = 0;
-  own->moves_left = 5;
+  own->moves_left = 5 * UNITS_MP_PER_TILE;
 
   const int foe_id = units_spawn(&units, 1, own_x, own_y - 1);
   ColonizeUnit* foe = units_get(&units, foe_id);

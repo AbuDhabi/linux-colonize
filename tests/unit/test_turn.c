@@ -926,7 +926,7 @@ int main(void) {
     );
     return 1;
   }
-  if (u->moves_left != 4) {
+  if (u->moves_left != 4 * UNITS_MP_PER_TILE) {
     fprintf(stderr, "human MP not refreshed got %d\n", u->moves_left);
     return 1;
   }
@@ -939,7 +939,7 @@ int main(void) {
   const int uid2 = units_spawn_allow_stack(&units, 0, 6, 6);
   ColonizeUnit* u2 = units_get(&units, uid2);
   u2->nation_id = 0;
-  u2->moves_left = 2;
+  u2->moves_left = 2 * UNITS_MP_PER_TILE;
   u->moves_left = 0;
   units.selected_id = uid;
   if (!turn_select_next_unit(&units, 0) || units.selected_id != uid2) {
