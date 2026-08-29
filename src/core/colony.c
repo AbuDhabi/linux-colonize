@@ -43,6 +43,57 @@ static int colony_map_icon(const ColonizeColonyPool* pool, const ColonizeColony*
   return COLONY_MAP_ICON_NONE;
 }
 
+int colonies_fortification_tier(const ColonizeColonyPool* pool, const ColonizeColony* c) {
+  switch (colony_map_icon(pool, c)) {
+    case COLONY_MAP_ICON_FORTRESS:
+      return 3;
+    case COLONY_MAP_ICON_FORT:
+      return 2;
+    case COLONY_MAP_ICON_STOCKADE:
+      return 1;
+    default:
+      return 0;
+  }
+}
+
+void colonies_fog_snapshot(ColonizeColonyPool* pool, int colony_id, int nation_id) {
+  ColonizeColony* c = colonies_get_mut(pool, colony_id);
+  if (!c || !c->active || nation_id < 0 || nation_id > 3) {
+    return;
+  }
+  c->pop_on_map[nation_id] = (uint8_t)(c->population > 255 ? 255 : (c->population < 0 ? 0 : c->population));
+  c->fort_on_map[nation_id] = (uint8_t)colonies_fortification_tier(pool, c);
+}
+
+bool colonies_known_to(const ColonizeColony* c, int nation_id, bool show_entire_map) {
+  if (!c || nation_id < 0 || nation_id > 3) {
+    return true;
+  }
+  return c->nation_id == nation_id || show_entire_map || c->pop_on_map[nation_id] != 0;
+}
+
+void colonies_reveal_founded(ColonizeWorldMap* map, ColonizeColonyPool* pool, int colony_id) {
+  const ColonizeColony* c = colonies_get(pool, colony_id);
+  if (!map || !c || !c->active || c->nation_id < 0 || c->nation_id > 3) {
+    return;
+  }
+  const int nation = c->nation_id;
+  for (int y = c->y - 5; y <= c->y + 5; ++y) {
+    for (int x = c->x - 5; x <= c->x + 5; ++x) {
+      if (!map_coords_inset(map, x, y)) {
+        continue;
+      }
+      map_reveal_tile(map, x, y, nation);
+      const int other = colonies_id_at(pool, x, y);
+      ColonizeColony* oc = colonies_get_mut(pool, other);
+      if (oc && oc->active && oc->pop_on_map[nation] == 0) {
+        oc->pop_on_map[nation] = 1;
+        oc->fort_on_map[nation] = 0;
+      }
+    }
+  }
+}
+
 int colonies_settlement_icon(const ColonizeColonyPool* pool, const ColonizeColony* colony) {
   return colony_map_icon(pool, colony);
 }

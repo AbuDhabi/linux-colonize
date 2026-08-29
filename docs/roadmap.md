@@ -143,8 +143,9 @@ PARKED deep/VGA bodies.
 - Combat depth beyond T0 (ship-slow, deeper `5fef`) — [combat.md](combat.md)
 - Production / EOT formula fidelity (food, spoilage, bells/crosses) —
   [manual_gap.md](manual_gap.md), [turn_between_players.md](turn_between_players.md)
-- Fog / exploration leftovers (Zoom + Hidden Terrain VIEW modes are **Done**
-  per [manual_gap.md](manual_gap.md); remaining fog depth is polish)
+- Fog / exploration: **Done** 2026-08-29 (full DOS reveal/vis-bit/snapshot
+  model — [manual_gap.md](manual_gap.md) Fog row); only the Pacific
+  WOODCUT.PIK splash is a thin info popup
 - Indian meet/trade/raid: structural Done; deep `2820`/`4528` stay PARKED until
   playability needs them — [ai_transcription.md](ai_transcription.md)
 

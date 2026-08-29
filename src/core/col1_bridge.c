@@ -771,6 +771,8 @@ bool col1_bridge_apply(
     }
     dst->labor_shortage = src->labor_shortage;
     dst->garrison_quota = src->garrison_quota;
+    memcpy(dst->pop_on_map, src->visible_to_euro, sizeof(dst->pop_on_map));
+    memcpy(dst->fort_on_map, src->fortification_on_map, sizeof(dst->fort_on_map));
     dst->specialty_cargo = src->specialty_cargo;
     dst->cargo_idle_turns = src->cargo_idle_turns;
     dst->improve_timer = src->improve_timer;
@@ -1569,8 +1571,10 @@ bool col1_bridge_capture(
       dst->capitol_level = src->capitol_level > (uint8_t)dst->buildings.capitol
                              ? src->capitol_level
                              : (uint8_t)dst->buildings.capitol;
-      if (src->nation_id >= 0 && src->nation_id < 4) {
-        dst->visible_to_euro[src->nation_id] = 1;
+      memcpy(dst->visible_to_euro, src->pop_on_map, sizeof(dst->visible_to_euro));
+      memcpy(dst->fortification_on_map, src->fort_on_map, sizeof(dst->fortification_on_map));
+      if (src->nation_id >= 0 && src->nation_id < 4 && dst->visible_to_euro[src->nation_id] == 0) {
+        dst->visible_to_euro[src->nation_id] = 1; /* FUN_13f1_00a6 seed for the owner */
       }
       {
         uint16_t bits = src->custom_house_bits;
@@ -1637,12 +1641,12 @@ bool col1_bridge_capture(
       dst->type = (uint8_t)(src->type_index < 0 ? 0 : src->type_index);
       dst->nation_id = (uint8_t)(src->nation_id & 0xF);
       {
-        /* DOS fog draw: (0x10<<viewer) & vis_mask. Export owner bit only for
-         * euros; natives stay 0 until observed (P6 pollute fix). */
+        /* DOS fog draw: (0x10<<viewer) & vis_mask. Live mask (reveal marks,
+         * move resets); Euro owner bit always present, natives 0 until observed. */
         const int nat = src->nation_id & 0xF;
-        uint8_t vis = 0;
+        uint8_t vis = (uint8_t)(src->col1_vis_mask & 0x0Fu);
         if (nat >= 0 && nat < 4) {
-          vis = (uint8_t)(1u << (nat & 3));
+          vis = (uint8_t)(vis | (1u << (nat & 3)));
         }
         dst->vis_mask = vis;
       }

@@ -114,6 +114,15 @@ typedef struct ColonizeColony {
    */
   uint8_t garrison_quota;
   /*
+   * Col1 +0xba / +0xbe fog-of-war snapshots per European viewer (smcol
+   * population_on_map / fortification_on_map). Written by the tile-reveal
+   * writer FUN_364b_1b4c whenever a nation's sight touches this tile, and
+   * seeded to pop=1/fort=0 by FUN_13f1_00a6 (±5 reveal on founding). pop 0 =
+   * that nation has never observed the colony (FUN_364b_1b76 gate).
+   */
+  uint8_t pop_on_map[4];
+  uint8_t fort_on_map[4];
+  /*
    * Col1 +0x8d specialty cargo index (`0xff` = none). FUN_5952_0306 set/clear
    * from warehouse stock vs capacity + boycott. Haul prefers this cargo.
    */
@@ -245,6 +254,22 @@ int colonies_found(
   int muskets,
   int horses
 );
+
+/*
+ * FUN_13f1_00a6 (via FUN_364b_1ba8 found): reveal the ±5 square around a new
+ * colony for its nation and seed pop_on_map=1/fort_on_map=0 on every colony
+ * inside it that the nation has not observed yet. map may be NULL (no-op).
+ */
+void colonies_reveal_founded(ColonizeWorldMap* map, ColonizeColonyPool* pool, int colony_id);
+/* FUN_364b_1b4c: nation's fog snapshot of colony := live population / fort tier. */
+void colonies_fog_snapshot(ColonizeColonyPool* pool, int colony_id, int nation_id);
+/* Stockade→Fort→Fortress tier 0..3 (FUN_15eb_03d6 chain count). */
+int colonies_fortification_tier(const ColonizeColonyPool* pool, const ColonizeColony* c);
+/*
+ * FUN_364b_1b76: colony is known to nation — own colony, Complete Map
+ * (show_entire_map), or a nonzero pop_on_map snapshot. nation outside 0..3 = known.
+ */
+bool colonies_known_to(const ColonizeColony* c, int nation_id, bool show_entire_map);
 
 /*
  * Tribal-land owner of a tile: index into col1->tribe of the nearest village

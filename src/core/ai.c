@@ -1723,6 +1723,7 @@ static void ai_found_colony_with_unit(ColonizeTurnContext* ctx, ColonizeUnit* fo
   if (cid < 0) {
     return;
   }
+  colonies_reveal_founded(ctx->map, ctx->colonies, cid); /* FUN_13f1_00a6 */
   const int saved_sel = ctx->units->selected_id;
   units_despawn(ctx->units, founder->id);
   ctx->units->selected_id = saved_sel;

@@ -812,10 +812,17 @@ void map_reveal_radius(ColonizeWorldMap* map, int x, int y, int nation_id, int r
   }
 }
 
-void map_reveal_sight(
-  ColonizeWorldMap* map, int x, int y, int nation_id, int radius, bool is_ship
+void map_reveal_sight_each(
+  ColonizeWorldMap* map,
+  int x,
+  int y,
+  int nation_id,
+  int radius,
+  bool is_ship,
+  MapRevealTileFn fn,
+  void* ctx
 ) {
-  if (!map || radius < 0) {
+  if (!map || radius < 0 || !map_coords_inset(map, x, y)) {
     return;
   }
   const int home_continent = is_ship ? -1 : map_continent_id_at(map, x, y);
@@ -823,11 +830,11 @@ void map_reveal_sight(
     for (int dx = -radius; dx <= radius; ++dx) {
       const int tx = x + dx;
       const int ty = y + dy;
+      if (!map_coords_inset(map, tx, ty)) {
+        continue;
+      }
       const bool outer = dx < -1 || dx > 1 || dy < -1 || dy > 1;
       if (outer) {
-        if (tx < 0 || ty < 0 || tx >= map->width || ty >= map->height) {
-          continue;
-        }
         const bool water = map_tile_is_water(map, tx, ty) || map_tile_is_high_seas(map, tx, ty);
         if (water != is_ship) {
           continue;
@@ -837,8 +844,41 @@ void map_reveal_sight(
         }
       }
       map_reveal_tile(map, tx, ty, nation_id);
+      if (fn) {
+        fn(ctx, tx, ty, outer);
+      }
     }
   }
+}
+
+void map_reveal_sight(
+  ColonizeWorldMap* map, int x, int y, int nation_id, int radius, bool is_ship
+) {
+  map_reveal_sight_each(map, x, y, nation_id, radius, is_ship, NULL, NULL);
+}
+
+bool map_nation_watches_tile(const ColonizeWorldMap* map, int x, int y, int nation_id) {
+  if (!map || !map->layer2 || !map->layer3 || nation_id < 0 || !map_coords_inset(map, x, y)) {
+    return false;
+  }
+  for (int q = 0; q < 8; ++q) {
+    const int nx = x + mapedit_neigh8_dx[q];
+    const int ny = y + mapedit_neigh8_dy[q];
+    if (nx < 0 || ny < 0 || nx >= map->width || ny >= map->height) {
+      continue;
+    }
+    const size_t i = (size_t)ny * map->width + (size_t)nx;
+    const uint8_t occ = map->layer2[i];
+    const int owner = (map->layer3[i] >> 4) & 0x0f;
+    /* FUN_137f_0314: unit present + owner nibble; FUN_137f_0358: colony (owner < 4). */
+    if ((occ & MAP_OCCUPANCY_HAS_UNIT) != 0 && owner == nation_id) {
+      return true;
+    }
+    if ((occ & MAP_OCCUPANCY_HAS_CITY) != 0 && owner < 4 && owner == nation_id) {
+      return true;
+    }
+  }
+  return false;
 }
 
 void map_reveal_all(ColonizeWorldMap* map, int nation_id) {

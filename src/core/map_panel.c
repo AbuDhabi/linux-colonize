@@ -852,9 +852,9 @@ void map_panel_render(
         if (!map_tile_seen_by(map, u->x, u->y, human_nation)) {
           continue;
         }
-        /* bugs.md: minimap dots for foreign units need live sight too. */
-        if (u->nation_id != human_nation &&
-            !units_nation_sees_tile_now(units, colonies, human_nation, u->x, u->y)) {
+        /* Same vis-bit gate as the main map (FUN_2f2b_6372). */
+        if (u->nation_id != human_nation && human_nation >= 0 && human_nation <= 3 &&
+            (u->col1_vis_mask & (1u << human_nation)) == 0) {
           continue;
         }
         const int lx = u->x - origin_x;

@@ -453,6 +453,7 @@ static void game_apply_howmuch_result(ColonizeGameState* game);
 static void game_apply_save_load_result(ColonizeGameState* game);
 static void game_apply_cheat_list_result(ColonizeGameState* game);
 static void game_select_unit(ColonizeGameState* game, int unit_id);
+static void game_reveal_sight_for_unit(ColonizeGameState* game, const ColonizeUnit* u);
 static bool game_load_col1_slot(ColonizeGameState* game, int slot, char* err, size_t err_size);
 static bool game_save_col1_slot(ColonizeGameState* game, int slot, char* err, size_t err_size);
 static void game_do_buy_construction(ColonizeGameState* game, int colony_id);
@@ -787,6 +788,7 @@ static bool game_do_found_colony_at_unit(ColonizeGameState* game, int uid, bool 
   if (gold) {
     game->europe.gold = (int)*gold;
   }
+  colonies_reveal_founded(&game->world_map, &game->colonies, cid); /* FUN_13f1_00a6 */
   const ColonizeColony* col = colonies_get(&game->colonies, cid);
   if (land_cost > 0) {
     snprintf(
@@ -4833,8 +4835,8 @@ static void game_commit_new_campaign(ColonizeGameState* game) {
         if (!u->active || u->nation_id != game->human_nation || !units_is_on_map(u)) {
           continue;
         }
-        units_reveal_sight(
-          &game->world_map, &game->units, u, game->col1_ok ? &game->col1 : NULL
+        (void)units_reveal_sight(
+          &game->world_map, &game->units, &game->colonies, u, game->col1_ok ? &game->col1 : NULL
         );
       }
       for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
@@ -5002,6 +5004,8 @@ static void game_select_unit(ColonizeGameState* game, int unit_id) {
   game->map_cursor_x = u->x;
   game->map_cursor_y = u->y;
   game_set_view_center(game, u->x, u->y);
+  /* FUN_2b5a_0e52: selecting a piece re-reveals around it (281f_07a0). */
+  game_reveal_sight_for_unit(game, u);
   /* units_display_name folds profession into the label (e.g. a toolless
    * Pioneer-professioned Colonist reads "Hardy Pioneer", not "Colonists")
    * — same identity mismatch reported for the Naval report's passenger
@@ -5270,6 +5274,38 @@ static bool game_try_unit_move(ColonizeGameState* game, int dest_x, int dest_y) 
   return true;
 }
 
+/*
+ * FUN_281f_07a0 for one of the human's / any Euro unit plus the human-only
+ * chrome that hangs off it: @LANDHO naming and the DISCOVERY OF THE PACIFIC
+ * OCEAN woodcut (FUN_13f1_0158 DS:0x1e8 arm → FUN_12fd_006c(6), once per
+ * game through the event bit).
+ */
+static void game_reveal_sight_for_unit(ColonizeGameState* game, const ColonizeUnit* u) {
+  if (!game || !u || !game->world_map_ok || !units_is_on_map(u)) {
+    return;
+  }
+  const bool pacific = units_reveal_sight(
+    &game->world_map, &game->units, &game->colonies, u, game->col1_ok ? &game->col1 : NULL
+  );
+  if (!game->col1_ok || u->nation_id != game->human_nation) {
+    return;
+  }
+  game_try_prompt_landho(game);
+  if (pacific && !game->col1.head.event.discovery_of_the_pacific_ocean) {
+    game->col1.head.event.discovery_of_the_pacific_ocean = 1;
+    char body[AI_POPUP_BODY_LEN];
+    popup_msg_fill(
+      &game->messages,
+      "PACIFIC",
+      NULL,
+      "Discovery of the Pacific Ocean!",
+      body,
+      sizeof(body)
+    );
+    (void)ai_popup_enqueue_ok(&game->ai_popups, AI_POPUP_TAG_INFO, NULL, body);
+  }
+}
+
 /* After spending moves: keep unit, advance to next with moves, or tile-select. */
 static void game_after_unit_action(ColonizeGameState* game) {
   if (!game || !game->units_ok) {
@@ -5281,10 +5317,7 @@ static void game_after_unit_action(ColonizeGameState* game) {
     return;
   }
   if (game->world_map_ok && u->nation_id >= 0 && u->nation_id <= 3 && units_is_on_map(u)) {
-    units_reveal_sight(&game->world_map, &game->units, u, game->col1_ok ? &game->col1 : NULL);
-    if (game->col1_ok && u->nation_id == game->human_nation) {
-      game_try_prompt_landho(game);
-    }
+    game_reveal_sight_for_unit(game, u);
   }
   /* LCR: Scout on rumour clears + rolls a manual outcome (Fountain of Youth,
    * Cibola, treasure, burial mounds, …); de Soto keeps outcomes positive. */
