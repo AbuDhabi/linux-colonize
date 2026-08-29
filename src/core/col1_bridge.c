@@ -1151,6 +1151,7 @@ bool col1_bridge_apply(
     const ColonizeCol1Nation* nat = &save->nation[local.human_nation];
     europe->gold = (int)nat->gold;
     europe->tax_percent = nat->tax_rate;
+    europe->difficulty = save->head.difficulty > 8 ? 8 : save->head.difficulty;
     europe->boycott_bitmap = nat->boycott_bitmap;
     europe->current_crosses = nat->current_crosses;
     europe->needed_crosses =
@@ -1177,7 +1178,7 @@ bool col1_bridge_apply(
         if (burden < 0) {
           burden = 0;
         }
-        europe->cargo[i].ask = europe->cargo[i].bid + burden + 1;
+        europe->cargo[i].ask = europe->cargo[i].bid + burden; /* FUN_38fd_0016 */
       }
     }
   }

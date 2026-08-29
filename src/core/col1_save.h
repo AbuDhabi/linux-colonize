@@ -569,8 +569,12 @@ typedef struct ColonizeCol1Nation {
   uint16_t boycott_bitmap;
   int32_t royal_money; /* nation+0x22; FUN_43f7_1d42 REF budget */
   uint8_t unknown24_pad[4]; /* nation+0x26; 2026-08-27 correction: WRITTEN by
-     FUN_5fef_1908 (King's Galleon treasure cash, `-0x77d2 += net`) as a
-     write-only cumulative treasure-income accumulator; no reader found.
+     FUN_5fef_1908 (King's Galleon treasure cash, `-0x77d2 += net`) and
+     (2026-08-28) by FUN_364b_0688's Custom House arm (`+= net` of every
+     sale, with the tax going to royal_money) — a write-only cumulative
+     net-income accumulator; no reader found. Linux mirrors the Custom
+     House write (europe_custom_house_autosell). */
+  /* (history)
      Earlier note (kept for history): confirmed dead 2026-08-19 — no
      reader or writer at all in any of the 3 decompiled exports outside
      new-game init (`FUN_38fd_6024` zeroes it via two `undefined2` clears

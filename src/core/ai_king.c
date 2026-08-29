@@ -117,11 +117,10 @@
  * CHOICE Done (pick API + Europe bid>0 weight for auto; KING_DUMP_GOODS for
  * human; VGA PARKED).
  */
-/* 10f0: dual landing base; third when difficulty ≥ 2 (REF pressure stand-in).
- * Done Phase 5: pop-weighted coastal pick + 8-neighbor scorer; per-call caps;
- * Veteran 0x15 on spawn; slot_2 mix (Phase 4). PARK: foreign MoW ship. */
-#define AI_KING_INTERVENE_LANDINGS_BASE 2
-#define AI_KING_INTERVENE_DIFF_THIRD 2
+/* 10f0 (re-read 2026-08-28): the intervention force is the HUMAN's — one
+ * Man-O-War on the best water tile by the colony + Cont. Cav. ≤2 /
+ * Artillery ≤2 / Cont. Army = 6 − those, pool-capped, Veteran 0x15. The old
+ * "dual/third landing by difficulty" shape was a stand-in and is gone. */
 /* 0982: second MoW same beat when difficulty ≥ 2 and force[2] still > 0. */
 #define AI_KING_SECOND_MOW_DIFF 2
 /*
@@ -2676,83 +2675,84 @@ static int ai_king_10f0_pick_colony(const ColonizeTurnContext* ctx, int human, i
   return best_i;
 }
 
-/* FUN_43f7_10f0 ~74339: 8-neighbor landing tile scorer. */
-static bool ai_king_10f0_tile_owner_ok(const ColonizeTurnContext* ctx, int ally, int x, int y) {
-  if (!ctx || !ctx->units) {
-    return true;
-  }
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-    const ColonizeUnit* u = &ctx->units->units[i];
-    if (!u->active || u->x != x || u->y != y) {
-      continue;
-    }
-    if (u->nation_id != ally) {
-      return false;
-    }
-  }
-  return true;
-}
-
-static int ai_king_10f0_score_tile(const ColonizeTurnContext* ctx, int ally, int cx, int cy,
-                                     int tx, int ty) {
+/*
+ * FUN_43f7_10f0 74339–74377: Man-O-War spawn tile = the 8-neighbour of the
+ * colony that is WATER (`281f_0768` = `13e4_0074`, terrain 0x19/0x1a) with
+ * no unit on it or only the human's (`281f_0682` < 0 || == human), no REF
+ * Man-O-War (−999), scored 1 + the number of ITS neighbours that are land
+ * on the colony's continent (`0722` == colony's) without a colony (`06be`
+ * < 0). DOS also wants `281f_06b4`(tile) == 1 — the layer3 low nibble, i.e.
+ * the sea region the open ocean carries; test maps don't fill layer3, so a
+ * region-1 tile is preferred but not required.
+ */
+static int ai_king_10f0_score_tile(const ColonizeTurnContext* ctx, int human, int cx, int cy,
+                                   int tx, int ty) {
   static const int dx[8] = {-1, 0, 1, -1, 1, -1, 0, 1};
   static const int dy[8] = {-1, -1, -1, 0, 0, 1, 1, 1};
-  if (!ctx || !ctx->map || !map_tile_is_land(ctx->map, tx, ty)) {
-    return -1;
-  }
-  if (map_continent_id_at(ctx->map, tx, ty) != map_continent_id_at(ctx->map, cx, cy)) {
-    return -1;
-  }
-  if (!ai_king_10f0_tile_owner_ok(ctx, ally, tx, ty)) {
+  if (!ctx || !ctx->map || !map_coords_inset(ctx->map, tx, ty) ||
+      !map_tile_is_water(ctx->map, tx, ty)) {
     return -1;
   }
   int score = 1;
   for (int i = 0; i < COLONIZE_UNITS_MAX && ctx->units; ++i) {
     const ColonizeUnit* u = &ctx->units->units[i];
-    if (!u->active || u->x != tx || u->y != ty) {
+    if (!u->active || u->x != tx || u->y != ty || u->aboard_ship_id >= 0) {
       continue;
     }
+    if (u->nation_id != human) {
+      return -1;
+    }
     if (u->type_index == 0x12) {
-      return -999;
+      score -= 999;
     }
   }
+  if (score < 0) {
+    return score;
+  }
+  const int colony_region = map_continent_id_at(ctx->map, cx, cy);
   for (int d = 0; d < 8; ++d) {
     const int nx = tx + dx[d];
     const int ny = ty + dy[d];
     if (!map_coords_inset(ctx->map, nx, ny) || !map_tile_is_land(ctx->map, nx, ny)) {
       continue;
     }
-    if (map_continent_id_at(ctx->map, nx, ny) != map_continent_id_at(ctx->map, cx, cy)) {
+    if (map_continent_id_at(ctx->map, nx, ny) != colony_region) {
       continue;
     }
-    if (ai_king_10f0_tile_owner_ok(ctx, ally, nx, ny)) {
-      score++;
+    if (ctx->colonies && colonies_id_at(ctx->colonies, nx, ny) >= 0) {
+      continue;
     }
+    score++;
   }
   return score;
 }
 
-static bool ai_king_10f0_pick_spawn(const ColonizeTurnContext* ctx, int human, int ally, int cx,
-                                    int cy, int* out_x, int* out_y) {
+static bool ai_king_10f0_pick_spawn(const ColonizeTurnContext* ctx, int human, int cx, int cy,
+                                    int* out_x, int* out_y) {
   static const int dx[8] = {-1, 0, 1, -1, 1, -1, 0, 1};
   static const int dy[8] = {-1, -1, -1, 0, 0, 1, 1, 1};
   if (!ctx || !out_x || !out_y) {
     return false;
   }
-  int best = -1;
-  int bx = cx;
-  int by = cy;
-  for (int d = 0; d < 8; ++d) {
-    const int tx = cx + dx[d];
-    const int ty = cy + dy[d];
-    const int sc = ai_king_10f0_score_tile(ctx, ally, cx, cy, tx, ty);
-    if (sc > best) {
-      best = sc;
-      bx = tx;
-      by = ty;
+  int best = 0;
+  int bx = -1;
+  int by = -1;
+  for (int pass = 0; pass < 2 && bx < 0; ++pass) {
+    for (int d = 0; d < 8; ++d) {
+      const int tx = cx + dx[d];
+      const int ty = cy + dy[d];
+      if (pass == 0 && ctx->map && map_continent_id_at(ctx->map, tx, ty) != 1) {
+        continue; /* 281f_06b4 == 1: open-ocean region first */
+      }
+      const int sc = ai_king_10f0_score_tile(ctx, human, cx, cy, tx, ty);
+      if (sc > best) {
+        best = sc;
+        bx = tx;
+        by = ty;
+      }
     }
   }
-  if (best <= 0) {
+  if (bx < 0) {
     return false;
   }
   *out_x = bx;
@@ -3236,42 +3236,49 @@ static void ai_king_ref_wave(ColonizeTurnContext* ctx) {
 }
 
 /*
- * Try one foreign landing from backup pool k; drain on success.
- * k==2 (Man-O-War / backup_force[2], DOS 0x53e6) is never passed by any
- * caller — verified against FUN_43f7_10f0 (viceroy_unpacked.c:74417-74449):
- * DOS's own land-troop spawn loop explicitly skips `local_52==2` there too
- * (that pool gates ai_king_merc_offer / FUN_43f7_2022 instead — see
- * ai_king_seed_backup_force_1a26). DOS *does* additionally spawn one unit
- * of type 0x12 (Man-O-War) at the land tile once per successful call
- * (:74378-74382, decrementing 0x53e6) whose real placement semantics
- * (a naval type placed at the same land tile scored for troop landings)
- * aren't resolved from static reading alone — PARK, no invented ship spawn
- * here; needs live DOSBox-X to confirm before porting.
- * Returns 1 if a unit spawned, else 0.
+ * FUN_43f7_10f0 land-troop loop (viceroy_unpacked.c:74417-74449) skips
+ * pool index 2 (Man-O-War / 0x53e6) — that pool is spent by the single
+ * Man-O-War spawn at :74378-74382 instead. The "naval type on a land tile"
+ * puzzle of the earlier note is resolved: the scored tile is WATER
+ * (`281f_0768` = `13e4_0074`, terrain 0x19/0x1a), so the ship placement is
+ * plain — see ai_king_10f0_score_tile.
  */
-static int ai_king_intervene_one(ColonizeTurnContext* ctx, int ally, int sx, int sy,
-                                 uint16_t* backup, int k, bool veteran_10f0) {
-  static const char* names[4] = {"Regular", "Dragoon", "Man-O-War", "Artillery"};
-  if (!backup || k < 0 || k > 3 || backup[k] == 0) {
-    return 0;
+/*
+ * FUN_43f7_0082(pool k, nation): unit type for a 10f0 landing. For the human
+ * at war: 0 → Cont. Army (9), 1 → Cont. Cav. (7), 2 → Man-O-War (0x12),
+ * 3 → Artillery (0xb). Names are the NAMES.TXT @UNIT rows; the singular
+ * fallbacks cover the test pools.
+ */
+static int ai_king_10f0_spawn_unit(ColonizeTurnContext* ctx, int human, int k, int x, int y) {
+  static const char* names[4][4] = {
+    {"Cont. Army", "Continental Army", "Regular", "Soldier"},
+    {"Cont. Cav.", "Continental Cavalry", "Dragoon", "Scout"},
+    {"Man-O-War", "Frigate", NULL, NULL},
+    {"Artillery", NULL, NULL, NULL},
+  };
+  if (!ctx || !ctx->units || k < 0 || k > 3) {
+    return -1;
   }
-  const char* alt = NULL;
-  const char* primary = names[k];
-  if (k == 0) {
-    alt = "Soldier";
-  } else if (k == 1) {
-    alt = "Scout";
-  } else if (k == 2) {
-    /* Unreachable (see function doc above) — kept only so an accidental
-     * future k==2 call fails soft instead of mis-landing a ship as infantry. */
-    primary = "Regular";
-    alt = "Soldier";
+  int ty = -1;
+  for (int i = 0; i < 4 && ty < 0 && names[k][i]; ++i) {
+    ty = units_find_type(ctx->units, names[k][i]);
   }
-  if (ai_king_spawn_landing(ctx, ally, sx, sy, primary, alt, veteran_10f0) < 0) {
-    return 0;
+  if (ty < 0) {
+    return -1;
   }
-  backup[k]--;
-  return 1;
+  const int uid = units_spawn_allow_stack(ctx->units, ty, x, y);
+  if (uid < 0) {
+    return -1;
+  }
+  ColonizeUnit* u = units_get(ctx->units, uid);
+  if (u) {
+    units_set_nation(u, human);
+    if (k != 2) {
+      u->profession = UNITS_JOB_SOLDIER; /* DOS unit+0x15 = 0x15 Veteran Soldier */
+    }
+    u->orders = 0; /* player-controlled: no AI orders */
+  }
+  return uid;
 }
 
 /*
@@ -3310,59 +3317,52 @@ static void ai_king_foreign_intervene(ColonizeTurnContext* ctx) {
   if (ally1 < 0) {
     return;
   }
-  if (!ai_king_10f0_pick_spawn(ctx, human, ally1, hx, hy, &sx, &sy)) {
-    sx = hx;
-    sy = hy + 1;
+  /*
+   * FUN_43f7_10f0 74378–74449, resolved 2026-08-28 (was P5.5 "control"):
+   * every unit is spawned for DS:0x5398 — the HUMAN's nation — so the
+   * intervention force is player-controlled. A Man-O-War (type 0x12) lands
+   * on the best water tile next to the colony (pool 0x53e6 −1), then the
+   * land troops: Cont. Cav. ≤ 2 (0x53e4), Artillery ≤ 2 (0x53e8), Cont.
+   * Army = 6 − those (0x53e2), each capped by its pool; +0x15 = Veteran;
+   * unloaded at the colony (`0948`); 5×5 reveal around the colony.
+   */
+  if (!ai_king_10f0_pick_spawn(ctx, human, hx, hy, &sx, &sy)) {
+    return; /* DOS: no scored tile → nothing lands this turn */
   }
-  int landings = 0;
-  const int diff = ctx->col1->head.difficulty;
-  const int max_landings =
-      (diff >= AI_KING_INTERVENE_DIFF_THIRD) ? (AI_KING_INTERVENE_LANDINGS_BASE + 1)
-                                            : AI_KING_INTERVENE_LANDINGS_BASE;
-
-  /* Prefer Regular + Dragoon mix when both pools live (decomp mix path). */
-  if (backup[0] > 0 && backup[1] > 0) {
-    landings += ai_king_intervene_one(ctx, ally1, sx, sy, backup, 0, true);
-    if (landings < max_landings) {
-      const int ally2 = ai_king_intervention_nation_slot(ctx, human, 1);
-      const int ally = (ally2 >= 0 && ally2 != ally1) ? ally2 : ally1;
-      landings += ai_king_intervene_one(ctx, ally, sx, sy, backup, 1, true);
-    }
+  const int mow = ai_king_10f0_spawn_unit(ctx, human, 2, sx, sy);
+  if (mow < 0) {
+    return;
   }
-
-  /* FUN_43f7_10f0 ~74402: per-call pool caps (Regular≤2, Dragoon≤2). */
-  int cap_reg = backup[0] > 0 ? (int)backup[0] : 0;
-  if (cap_reg > 2) {
-    cap_reg = 2;
+  if (backup[2] > 0) {
+    backup[2]--;
   }
-  int cap_drg = backup[1] > 0 ? (int)backup[1] : 0;
-  if (cap_drg > 2) {
-    cap_drg = 2;
+  if (ctx->map) {
+    map_reveal_tile(ctx->map, sx, sy, human);
   }
-  /* Land-troop pools only — index 2 (Man-O-War/0x53e6) deliberately excluded,
-   * matching DOS's own loop (see ai_king_intervene_one doc above). */
+  int landings = 1;
+  int caps[4] = {0, 0, 0, 0};
+  caps[1] = backup[1] > 2 ? 2 : (int)backup[1];
+  caps[3] = backup[3] > 2 ? 2 : (int)backup[3];
+  caps[0] = 6 - (caps[1] + caps[3]);
   static const int pool_k[3] = {0, 1, 3};
-  int caps[4] = {cap_reg, cap_drg, 0, 0};
-  caps[3] = 6 - cap_reg - cap_drg;
-  if (caps[3] < 0) {
-    caps[3] = 0;
-  }
-  for (int pi = 0; pi < 3 && landings < max_landings; ++pi) {
+  bool ok = true;
+  for (int pi = 0; pi < 3 && ok; ++pi) {
     const int k = pool_k[pi];
-    if (backup[k] == 0) {
-      continue;
-    }
     int n = caps[k];
     if (n > (int)backup[k]) {
       n = (int)backup[k];
     }
-    const int ally = (k == 1 && landings > 0)
-                       ? ai_king_intervention_nation_slot(ctx, human, 1)
-                       : ally1;
-    const int who = ally >= 0 ? ally : ally1;
-    for (int s = 0; s < n && landings < max_landings; ++s) {
-      landings += ai_king_intervene_one(ctx, who, sx, sy, backup, k, true);
+    for (int s = 0; s < n; ++s) {
+      if (ai_king_10f0_spawn_unit(ctx, human, k, hx, hy) < 0) {
+        ok = false;
+        break;
+      }
+      backup[k]--;
+      landings++;
     }
+  }
+  if (ctx->map) {
+    map_reveal_radius(ctx->map, hx, hy, human, 2);
   }
 
   if (landings > 0) {

@@ -402,8 +402,29 @@ House, horse breeding, food→colonist growth details.
   (`colonies_emit_noteacher_chrome`, `colony.c`) for the teacher-
   assignment-attempt gate itself (only an expert can teach). No gap
   found.
-- [ ] **P4.4 [auto]** Custom House (Stuyvesant): auto-sell at EOT with
-  boycott + WoI rules. **2026-08-27: real near-miss, reverted — worth
+- [x] **P4.4 [auto] — closed 2026-08-28, static.** The 2026-08-27 puzzle
+  resolved: `FUN_364b_0688` picks the type gate by controller — human
+  colonies use `281f_0cfe` → `15eb_0302` (colony `+0x8a` bit per cargo ==
+  `custom_house_bits`, which Linux already honoured); only AI colonies go
+  through `thunk_291f_09c0` → `364b_0636` (checked in `address_mapping.csv`
+  this time), so the Lumber deny term is real but never applied to the
+  human. Ported the whole arm: AI gate now denies Lumber too (Ore extra
+  arm still not modelled); human Custom House shut while `colony+0x1b & 3`
+  (enemy armed ship / MoW adjacent); sale price is `euro_price − 1`
+  (`38fd_0040`) — confirmed on the dutch2 pair (54 lumber @1, 35% → +36
+  treasury, +35 `trade.gold`); tax rounding `gross − gross·tax/100`; tax
+  → `royal_money`, net → nation `+0x26`; the `1dfa` ledger without the
+  `0058` step (see P6.1); human sale is a real OK popup (DOS assembles it
+  from load-time word pointers `DS:0x2e18/0x2e1a` not yet resolved, so the
+  body is the port's summary line). Spill-over fix: DOS sells at
+  `euro_price − 1` and buys at `euro_price + burden` everywhere
+  (`38fd_0040`/`0016`; 1494 screenshot Food 0/8, Lumber 1/6, Silver
+  19/20) — Linux had both +1. `europe_sell_price`/`europe_buy_price` added,
+  `ask = bid + burden`, harbor sell / dump-sell / F5 / market strip /
+  sale popups all moved over; `unit_europe`/`unit_turn`/`unit_ai_euro_expand`
+  expectations updated. `ctest` 50/50. Per-cargo Custom House toggle UI
+  unchanged (already `colonies_toggle_custom_house_cargo`).
+  **2026-08-27 history: real near-miss, reverted — worth
   flagging for whoever next touches this.** `europe_custom_house_
   cargo_eligible`'s type-gate function (`FUN_364b_0636`) reads cleanly as
   denying Food(0)/Lumber(5)/Horses(8)/Tools(0xe)/Muskets(0xf), and
@@ -637,9 +658,25 @@ tiers, promote/demote/capture, plunder, coastal fort fire, Combat Analysis
   is gated on `g_units_ff_col1` being set, same precondition Revere
   already required, so the pre-existing free-capture test scenario —
   which never wires that global — is unaffected).
-- [ ] **P5.5 [auto]** Foreign intervention force: arrival, control
-  (player-controlled per DOS), Man-O-War spawn placement (was W4.2 —
-  attempt static first, **[live]** fallback). **Checked 2026-08-26 —
+- [x] **P5.5 [auto] — closed 2026-08-28, static.** `FUN_43f7_10f0` re-read
+  end to end: every unit is spawned via `281f_095c(type, DS:0x5398, …)`
+  and `0x5398` is the focus (human) nation — the force is **player-
+  controlled**, not ally-tagged (the old port gave it to the ally slot).
+  Man-O-War placement (old W4.2 "[live]") is static after all: the 8-neighbour
+  scorer wants a WATER tile (`281f_0768` → `13e4_0074`, terrain 0x19/0x1a)
+  with no foreign unit (`0682`), −999 for a REF Man-O-War, score = 1 + its
+  land neighbours on the colony's continent without a colony (`0722`/`06be`);
+  the ship (type 0x12, pool `0x53e6` −1) lands there, then the troops:
+  Cont. Cav. ≤2 (`0x53e4`), Artillery ≤2 (`0x53e8`), Cont. Army = 6 − those
+  (`0x53e2`), each pool-capped, `+0x15` Veteran, unloaded at the colony
+  (`0948`), 5×5 reveal. Unit types from `43f7_0082`. The Linux caps were
+  also inverted (Regular ≤2 / Artillery remainder). `0x53d4` still names the
+  intervening nation for `@INTERVENE`. `ai_king_foreign_intervene` rewritten,
+  `unit_ai_king` 10f0 blocks replaced (7 human units incl. MoW at sea; pools
+  2/1/0/0; small-pool case). The `@MERCS` arm (`param_1 != 0`, counts from
+  `-0x61ba`, no pool drain) stays with `ai_king_do_merc_hire_at`. Thin spot:
+  `281f_06b4 == 1` (open-ocean layer3 region) preferred, not required.
+  **History — checked 2026-08-26 —
   arrival is real and DOS-cited, "control" is confirmed still genuinely
   open, not fixed this pass.** `ai_king_foreign_intervene` (`ai_king.c`
   ~3131, `FUN_43f7_10f0`-shaped) is a real port: triggers when REF is
@@ -692,7 +729,8 @@ volume-price T0 (`FUN_38fd_0058` ±1 bids) Done thin; boycotts enforced on
 the Europe screen; tax audience Done; price change notices are status
 lines.
 
-- [ ] **P6.1 [auto]** Price model to DOS: `price_group_state`, EOT
+- [x] **P6.1 [auto] — closed 2026-08-28** (every listed sub-item now
+  DOS-exact or explained; see the two dated notes below). Price model to DOS: `price_group_state`, EOT
   attrition, colony production feedback, buy/sell volume thresholds per
   commodity, `@PRICEUP`/`@PRICEDOWN` as real popups where DOS pops them.
   **2026-08-28 — EOT tick now byte-exact vs two real-DOS turn pairs**
@@ -725,6 +763,20 @@ lines.
   feedback into `nr`, not yet traced; the golden skips exactly those
   slots. AI nations' own price records are not ticked (only their bids
   feed `ai_euro`). `ctest`: 50/50.
+  **2026-08-28 (with P4.4) — `1dfa`/`1d80` traced and ported exact**
+  (`europe_apply_trade_volume`; formula in
+  `turn/europe_nation_eot.md`): the lumber "+7 beyond the sale" is the
+  `1d44` difficulty term (`(difficulty−2)·16·amt/100` for the human,
+  `−0.32·amt` for AI sellers), and every seller's sale lands on **all
+  four** nation records (Dutch ×2/3) — the dutch2 pair's lumber (+93 on
+  nations 0–2, +61 Dutch) is reproduced exactly from 54 human + 12 + 18
+  AI tons (`unit_europe` 1dfa block). Residue that remains on the golden
+  skip list is therefore the AI nations' own Europe sales/purchases in
+  those turns (AI sim isn't replayed by the golden), not an untraced
+  formula; the furs/horses/muskets/tools slots follow the same rule
+  (`tons2` deltas in the pair match). Also: the sell price is
+  `euro_price − 1` and the buy price `euro_price + burden` (fixed
+  screen-wide, see P4.4).
 - [x] **P6.2 [auto] — closed 2026-08-26, already fully wired.** Tax raise
   events: full `@KINGTAX` cadence formula (trigger, amount, cap),
   `@TEAPARTY` boycott of that good, boycott lift (Fugger / pay-arrears

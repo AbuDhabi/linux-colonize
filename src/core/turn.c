@@ -1481,7 +1481,14 @@ static void turn_produce_one_colony(
    * bids; col1 optional (WoI tax skip + nation gold).
    */
   if (europe) {
-    (void)europe_custom_house_autosell(europe, pool, colony, col1, human_nation);
+    const int ch_total = europe_custom_house_autosell(europe, pool, colony, col1, human_nation);
+    /* FUN_364b_0688: the human's sale is a real message box (0056/006a/…/07d4
+     * assembled: colony, amount, cargo, gross, tax%, tax, net). The word
+     * pointers (DS:0x2e18/0x2e1a) are load-time strings not yet resolved, so
+     * the body is the port's own summary line — one popup per colony. */
+    if (ch_total > 0 && colony->nation_id == human_nation && ai_popups) {
+      ai_popup_enqueue_ok(ai_popups, AI_POPUP_TAG_INFO, NULL, europe->status);
+    }
     /* Phase O: AI dump-sell surplus for gold before spoilage clamp. */
     (void)europe_ai_colony_dump_sell(europe, pool, colony, col1, human_nation);
   }

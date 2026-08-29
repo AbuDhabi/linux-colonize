@@ -2333,9 +2333,12 @@ int main(void) {
     ColonizeCol1Save col1;
     memset(&col1, 0, sizeof(col1));
     col1.nation[0].boycott_bitmap = (uint16_t)(1u << COLONIZE_CARGO_TOBACCO);
+    col1.nation[0].tax_rate = 20; /* 1dfa ledger reads the seller's nation tax */
 
     const int gained = europe_custom_house_autosell(&eu, &pool, col, &col1, 0);
-    /* 70 × 10 × 80/100 = 560; boycott bit ignored. */
+    /* Sells at euro_price − 1 = 9: gross 630, tax 20% = 126 → 504
+     * (FUN_364b_0688 rounding: gross − gross·tax/100); boycott bit ignored;
+     * tax goes to royal_money. */
     if (col->stock[COLONIZE_CARGO_TOBACCO] != 50 || col->stock[COLONIZE_CARGO_FOOD] != 200) {
       fprintf(
         stderr,
@@ -2345,24 +2348,39 @@ int main(void) {
       );
       return 1;
     }
-    if (gained != 560 || eu.gold != 560 || col1.nation[0].gold != 560u) {
+    if (gained != 504 || eu.gold != 504 || col1.nation[0].gold != 504u ||
+        col1.nation[0].royal_money != 126 || col1.nation[0].trade.tons[COLONIZE_CARGO_TOBACCO] != 70 ||
+        col1.nation[0].trade.tons2[COLONIZE_CARGO_TOBACCO] != 70 ||
+        col1.nation[0].trade.gold[COLONIZE_CARGO_TOBACCO] != 504) {
       fprintf(
         stderr,
-        "custom house gold gained=%d eu=%d nat=%u (want 560)\n",
+        "custom house gold gained=%d eu=%d nat=%u royal=%d (want 504/126)\n",
         gained,
         eu.gold,
-        (unsigned)col1.nation[0].gold
+        (unsigned)col1.nation[0].gold,
+        (int)col1.nation[0].royal_money
       );
       return 1;
     }
+
+    /* Blockade: enemy armed ship next to the colony shuts the Custom House
+     * (FUN_364b_0688 colony +0x1b & 3). */
+    col->stock[COLONIZE_CARGO_TOBACCO] = 120;
+    col->ai_flags = 0x01;
+    if (europe_custom_house_autosell(&eu, &pool, col, &col1, 0) != 0 ||
+        col->stock[COLONIZE_CARGO_TOBACCO] != 120) {
+      fprintf(stderr, "custom house should be blockaded\n");
+      return 1;
+    }
+    col->ai_flags = 0;
 
     col->stock[COLONIZE_CARGO_TOBACCO] = 120;
     eu.gold = 0;
     col1.nation[0].gold = 0;
     col1.head.game_options.woi = 1; /* WoI — tax 0 */
     const int gained_woi = europe_custom_house_autosell(&eu, &pool, col, &col1, 0);
-    if (gained_woi != 700 || eu.gold != 700) {
-      fprintf(stderr, "custom house WoI gained=%d eu=%d (want 700)\n", gained_woi, eu.gold);
+    if (gained_woi != 630 || eu.gold != 630) {
+      fprintf(stderr, "custom house WoI gained=%d eu=%d (want 630)\n", gained_woi, eu.gold);
       return 1;
     }
 
@@ -2402,10 +2420,10 @@ int main(void) {
     ColonizeTurnResult prod;
     memset(&prod, 0, sizeof(prod));
     turn_run_colony_production(&pool, NULL, &col1, &eu, 0, &prod, NULL, NULL, NULL);
-    if (col->stock[COLONIZE_CARGO_TOBACCO] != 50 || eu.gold != 700) {
+    if (col->stock[COLONIZE_CARGO_TOBACCO] != 50 || eu.gold != 630) {
       fprintf(
         stderr,
-        "produce+CH tobacco=%d gold=%d (want 50/700)\n",
+        "produce+CH tobacco=%d gold=%d (want 50/630)\n",
         col->stock[COLONIZE_CARGO_TOBACCO],
         eu.gold
       );
@@ -3630,12 +3648,12 @@ int main(void) {
     memset(&col1, 0, sizeof(col1));
     col1.nation[1].tax_rate = 20;
 
-    /* Direct API: tobacco 400 + muskets rem 80; horses→word; muskets 1 batch. */
+    /* Direct API at euro_price−1 = 9, tax 20: tobacco 50→450−90=360 + muskets rem 10→90−18=72; horses→word; muskets 1 batch. */
     const int gained = europe_ai_colony_dump_sell(&eu, &pool, ai, &col1, 0);
-    if (gained != 480 || col1.nation[1].gold != 480u) {
+    if (gained != 432 || col1.nation[1].gold != 432u) {
       fprintf(
         stderr,
-        "dump-sell gained=%d gold=%u (want 480)\n",
+        "dump-sell gained=%d gold=%u (want 432)\n",
         gained,
         (unsigned)col1.nation[1].gold
       );
@@ -3676,8 +3694,8 @@ int main(void) {
       );
       return 1;
     }
-    if (col1.nation[1].gold != 480u) {
-      fprintf(stderr, "produce+dump gold=%u (want 480)\n", (unsigned)col1.nation[1].gold);
+    if (col1.nation[1].gold != 432u) {
+      fprintf(stderr, "produce+dump gold=%u (want 432)\n", (unsigned)col1.nation[1].gold);
       return 1;
     }
     if (human->stock[COLONIZE_CARGO_TOBACCO] != 100 || col1.nation[0].gold != 0u) {

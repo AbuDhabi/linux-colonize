@@ -41,11 +41,13 @@ int main(void) {
     return 1;
   }
 
-  /* Food: start_lo=1, burden=7 → ask = bid + burden + 1 = 9 */
-  if (strcmp(eu.cargo[0].name, "Food") != 0 || eu.cargo[0].bid != 1 || eu.cargo[0].ask != 9) {
+  /* Food: start_lo=1, burden=7 → ask = euro_price + burden = 8, sell = 0
+   * (DOS 1494 Europe screen shows Food 0/8). */
+  if (strcmp(eu.cargo[0].name, "Food") != 0 || eu.cargo[0].bid != 1 || eu.cargo[0].ask != 8 ||
+      europe_sell_price(&eu, 0) != 0 || europe_buy_price(&eu, 0) != 8) {
     fprintf(
       stderr,
-      "Food quote expected bid=1 ask=9 got name='%s' bid=%d ask=%d\n",
+      "Food quote expected bid=1 ask=8 got name='%s' bid=%d ask=%d\n",
       eu.cargo[0].name,
       eu.cargo[0].bid,
       eu.cargo[0].ask
@@ -218,13 +220,13 @@ int main(void) {
     return 1;
   }
 
-  /* Sell sugar at tax 0: bid*100. */
+  /* Sell sugar at tax 0: (euro_price − 1)*100 (FUN_38fd_0040). */
   eu.selected_harbor = 0;
   eu.tax_percent = 0;
   const int sugar_bid = eu.cargo[COLONIZE_CARGO_SUGAR].bid;
   const int gold_pre_sell = eu.gold;
   const int gained = europe_sell_hold(&eu, 0, 0);
-  const int expect_gain = sugar_bid * 100;
+  const int expect_gain = (sugar_bid - 1) * 100;
   if (gained != expect_gain || eu.gold != gold_pre_sell + expect_gain ||
       eu.harbor[0].hold_goods_amount[0] != 0) {
     fprintf(
@@ -266,8 +268,9 @@ int main(void) {
   eu.harbor[0].hold_goods_type[1] = COLONIZE_CARGO_SUGAR;
   eu.harbor[0].hold_goods_amount[1] = 40;
   const int taxed = europe_sell_proceeds(&eu, COLONIZE_CARGO_SUGAR, 40);
-  if (taxed != (sugar_bid * 40 * 50) / 100) {
-    fprintf(stderr, "taxed proceeds expected %d got %d\n", (sugar_bid * 40 * 50) / 100, taxed);
+  const int want_taxed = europe_net_after_tax((sugar_bid - 1) * 40, 50);
+  if (taxed != want_taxed) {
+    fprintf(stderr, "taxed proceeds expected %d got %d\n", want_taxed, taxed);
     europe_free(&eu);
     return 1;
   }
@@ -880,7 +883,7 @@ int main(void) {
     ship->hold_goods_amount[0] = 50;
     eu.tax_percent = 50;
     const int sugar_bid = eu.cargo[COLONIZE_CARGO_SUGAR].bid;
-    const int expect = (sugar_bid * 50 * 50) / 100;
+    const int expect = europe_net_after_tax((sugar_bid - 1) * 50, 50);
     const int gold0 = eu.gold;
     const int gained = europe_sell_unit_hold(&eu, &units, sid, 0);
     if (gained != expect || eu.gold != gold0 + expect ||
@@ -952,10 +955,10 @@ int main(void) {
     }
     /* Direct volume apply: sell 400 (<<1 = 800) drops bid past fall*100. */
     europe_apply_volume_price(&vol, sugar, 400, 0);
-    if (vol.cargo[sugar].bid != 3 || vol.cargo[sugar].ask != 5) {
+    if (vol.cargo[sugar].bid != 3 || vol.cargo[sugar].ask != 4) {
       fprintf(
         stderr,
-        "volume: after sell-400 Sugar bid/ask=%d/%d want 3/5 nr=%d\n",
+        "volume: after sell-400 Sugar bid/ask=%d/%d want 3/4 nr=%d\n",
         vol.cargo[sugar].bid,
         vol.cargo[sugar].ask,
         (int)vol.trade_nr[sugar]
@@ -979,6 +982,67 @@ int main(void) {
     }
     fprintf(stderr, "europe volume price rise/fall ok\n");
     europe_free(&vol);
+  }
+
+  /*
+   * FUN_38fd_1dfa exact ledger, replaying the real-DOS dutch2 t169→t170
+   * lumber sales (original_saves/colony-prod-tests, Viceroy, human = Dutch
+   * slot 3): 54 by the human, 12 + 18 by AI nations. DOS moved every
+   * non-Dutch nr[Lumber] by +93 and the Dutch one by +61; lumber has
+   * volatility 0 and attrition 0, so the sale terms are the whole delta.
+   */
+  {
+    EuropeScreen led;
+    if (!europe_load(&led, "COLONIZE", err, sizeof(err))) {
+      fprintf(stderr, "europe_load (ledger): %s\n", err);
+      europe_free(&eu);
+      return 1;
+    }
+    ColonizeCol1Save col1;
+    memset(&col1, 0, sizeof(col1));
+    col1.head.difficulty = 4;
+    col1.nation[3].tax_rate = 35;
+    const int lumber = COLONIZE_CARGO_LUMBER;
+    led.cargo[lumber].bid = 2; /* sells at 1 */
+    /* Non-Dutch human view first: human = slot 0 sells 54 at Viceroy. */
+    led.trade_nr[lumber] = 0;
+    europe_apply_trade_volume(&led, &col1, 0, 0, lumber, 54, 0, 0);
+    europe_apply_trade_volume(&led, &col1, 1, 0, lumber, 12, 0, 0);
+    europe_apply_trade_volume(&led, &col1, 2, 0, lumber, 18, 0, 0);
+    if (led.trade_nr[lumber] != 93) {
+      fprintf(stderr, "1dfa non-Dutch lumber nr want 93 got %d\n", (int)led.trade_nr[lumber]);
+      europe_free(&led);
+      europe_free(&eu);
+      return 1;
+    }
+    /* Dutch human (slot 3): every contribution ×2/3, per seller. */
+    led.trade_nr[lumber] = 0;
+    europe_apply_trade_volume(&led, &col1, 3, 3, lumber, 54, 0, 0);
+    europe_apply_trade_volume(&led, &col1, 0, 3, lumber, 12, 0, 0);
+    europe_apply_trade_volume(&led, &col1, 1, 3, lumber, 18, 0, 0);
+    if (led.trade_nr[lumber] != 61 || col1.nation[3].trade.tons[lumber] != 54 ||
+        col1.nation[3].trade.tons2[lumber] != 54 || col1.nation[3].trade.gold[lumber] != 35) {
+      fprintf(
+        stderr,
+        "1dfa Dutch lumber nr want 61 got %d (tons %d tons2 %d gold %d want 54/54/35)\n",
+        (int)led.trade_nr[lumber],
+        (int)col1.nation[3].trade.tons[lumber],
+        (int)col1.nation[3].trade.tons2[lumber],
+        (int)col1.nation[3].trade.gold[lumber]
+      );
+      europe_free(&led);
+      europe_free(&eu);
+      return 1;
+    }
+    /* Treasury side of the same sale: 54 gross, 35% → 54 − 18 = 36. */
+    if (europe_net_after_tax(54, 35) != 36) {
+      fprintf(stderr, "net_after_tax(54,35) want 36 got %d\n", europe_net_after_tax(54, 35));
+      europe_free(&led);
+      europe_free(&eu);
+      return 1;
+    }
+    fprintf(stderr, "europe 1dfa sale ledger (dutch2 pair) ok\n");
+    europe_free(&led);
   }
 
   /* EOT attrition tick: Trade Goods attrition=+4 kept on nr (0058 all-cargo). */
@@ -1007,7 +1071,7 @@ int main(void) {
       europe_free(&eu);
       return 1;
     }
-    if (tick.cargo[tg].ask != tick.cargo[tg].bid + tick.cargo[tg].burden + 1) {
+    if (tick.cargo[tg].ask != tick.cargo[tg].bid + tick.cargo[tg].burden) {
       fprintf(stderr, "tick: ask/burden after EOT\n");
       europe_free(&tick);
       europe_free(&eu);
