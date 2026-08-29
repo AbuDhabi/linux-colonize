@@ -80,6 +80,7 @@ choices from data where a real `@SECTION` exists.
 |------|---------|---------|--------|
 | Tax audience CHOICE | `@KINGTAX` + `@TAXOPTIONS` | Authentic | Kiss pinky / Hold Tea Party |
 | Tea party / refuse OK | `@TEAPARTY` | Authentic | Wired on refuse (no dump CHOICE) + dump-goods apply; thin `3dc8` stock dump |
+| Crown frigate offer CHOICE | `@KINGFRIGATE` | Authentic | 2026-08-29 `ai_king_frigate_offer` (FUN_3844_00f2 tail): Yes → Frigate sails from Europe + `@KINGTAX` +10%; No → nothing |
 | Independence letter | `@INDEPENDENCE` | Authentic | — |
 | Declare independence CHOICE | `@DECLARE` | Authentic | Never / Yes; STRING0 = motherland |
 | Merc offer CHOICE | `@MERCENARIES` | Authentic | No thank you / Pay |

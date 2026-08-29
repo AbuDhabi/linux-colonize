@@ -2331,6 +2331,8 @@ void ai_euro_nation_turn(ColonizeTurnContext* ctx, int nation_id) {
    * called for ctx->human_nation — see turn_run_european_ai_stubs).
    */
   ai_king_ai_peacetime_gift(ctx, nation_id);
+  /* FUN_3844_00f2 tail: @KINGFRIGATE auto-accept for AI nations. */
+  ai_king_frigate_offer(ctx, nation_id);
 
   if (!ctx->map) {
     return;

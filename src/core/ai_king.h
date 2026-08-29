@@ -139,6 +139,14 @@ void ai_king_nation_turn(ColonizeTurnContext* ctx);
 void ai_king_ai_peacetime_gift(ColonizeTurnContext* ctx, int nation_id);
 
 /*
+ * FUN_3844_00f2 tail — @KINGFRIGATE. Every 8th peacetime turn, a nation
+ * with no Frigate whose colonies are harassed by foreign warships is
+ * offered one (human: Yes/No CHOICE, +10% tax on Yes; AI: auto-accept).
+ * Call once per Euro nation EOT.
+ */
+void ai_king_frigate_offer(ColonizeTurnContext* ctx, int nation);
+
+/*
  * FUN_38fd_5930 — @KINGNEWWAR (static port 2026-08-27). Human nation only,
  * runs in the Europe-EOT king slot when the tax event did not fire: with
  * every met peer at peace, none met-but-unpeaced, and our land strength >=
