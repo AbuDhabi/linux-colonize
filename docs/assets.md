@@ -653,26 +653,39 @@ glancing; 18 shot; 20 animal shot; 21 pump-action; 22 gunfight; 23–34 shots (2
 | Event id | COLDIG | Sound | DOS push site | Port |
 |---|---|---|---|---|
 | `0x40`/`0x41` | 31 / 32 | shot | `5fef_1b0e` attack fire (0x41 artillery class), **only when `param_4` (visible) is set** — `465b_0000` passes 1 for the viewport nation or a human side, the AI scorer `521d:52aa` passes 0 | `units.c` engagement (0x40), gated by `units_combat_is_visible` (2026-08-28 — AI-vs-AI combat was audible, cannon fire landed over unrelated popups) |
-| `0x42`/`0x48` | 30 / 29 | shots | `5fef_1b0e` variants | — |
-| `0x43`/`0x49` | 27 / 34 | shots | `5fef_1b0e` (unit-class variants) | — |
-| `0x44`/`0x45` | 18 / 17 | shot / glancing shot | `5fef_1b0e` tail (miss?) | — |
+| `0x42`/`0x48` | 30 / 29 | shots | `5fef_1b0e` 5fef:2271: human attacker vs Indian (nation ≥ 4) pushes `0x3b + attacker unit type` — Cont. Cav. (7) / Treasure (0xd) | `units.c` engagement (2026-08-29): typed id when defender is Indian |
+| `0x43`/`0x49` | 27 / 34 | shots | same rule: Cavalry (8) / Wagon Train (0xc)… — the "unit-class variants" are the attacker's type index | same |
+| `0x44`/`0x45` | 18 / 17 | shot / glancing shot | `5fef_1b0e` 5fef:28b0 tail: `0x44` when `local_86` set else `0x45` (hit vs glancing), and `0x44` = Cont. Army (9) via the typed rule | typed rule only; the 28b0 tail branch not yet mapped to a Linux combat outcome |
 | `0x4a`/`0x4b` | 28 / 33 | shots | `5fef_1b0e` win; 0x4b when natives involved | `units.c` win (same visibility gate) |
-| `0x4c` | 14 | shooting + galloping | — | — |
-| `0x4d` | 10 | cheering + fireworks | `5fef_0352` naval capture; raid loot | — |
-| `0x4e` | 6 | screaming | `5fef_0f14` raid: colonists killed | — |
-| `0x4f` | 11+32 | screaming + shooting | `5fef_0f14` raid loot goods | — |
-| `0x50`/`0x51` | 7+8 / 5+14 | screaming, burning / screaming, galloping | — | — |
-| `0x52` | 12 | wagon wheels | `465b_0000` wagon-train move (human) | — |
+| `0x4c` | 14 | shooting + galloping | typed rule: Frigate (0x11) attacking natives | typed rule |
+| `0x4d` | 10 | cheering + fireworks | `5fef_0352` naval capture; raid loot | raid loot gold (`ai_contact.c` @RAIDGOLD, 2026-08-29); naval capture has no Linux path yet |
+| `0x4e` | 6 | screaming | `5fef_0f14` raid: colonists killed | @RAIDSCALP (2026-08-29) |
+| `0x4f` | 11+32 | screaming + shooting | `5fef_0f14` raid loot goods | @RAIDSTORES (2026-08-29) |
+| `0x50`/`0x51` | 7+8 / 5+14 | screaming, burning / screaming, galloping | typed rule: Mounted Braves (0x15) / Mounted Warriors (0x16) — but the rule is gated on a *human* attacker, so these fire only for captured/converted native types | typed rule |
+| `0x52` | 12 | wagon wheels | `465b_0000` wagon-train move (human) | `game_loop.c` human move success, type "Wagon Train" (2026-08-29) |
 | `0x53` | 19 | burning | `5fef_0f14`/`1b0e` tail: colony burned | colony burned notify |
 | `0x54` | 13 | hammering + cheering | found colony `479b_076e`; colony screen `2f2b_6cd4` **only when `DS:0x34a >= 0`** (the building that just finished, revealed by clear-bit/redraw/set-bit/redraw); nation EOT `3844` | found colony; colony open **gated** on `ColonizeColony.pending_build_reveal` (2026-08-28 — was every open) |
-| `0x55` | 20 | animal shot | — | — |
-| `0x56` | 9 | cheering | `38fd_3dc8` tax raise / tea party | — |
-| `0x57` | 16 | sinking | `5fef_0352` ship sunk | — |
+| `0x55` | 20 | animal shot | typed rule: type 0x1a | typed rule |
+| `0x56` | 9 | cheering | `38fd_3dc8` tax raise / tea party | `ai_king.c` @TEAPARTY + raise-taxes popup (2026-08-29) |
+| `0x57` | 16 | sinking | `5fef_0352` ship sunk | `units.c` @SHIPSUNK via the combat sound hook (2026-08-29) |
 | `0x58` | 21 | pump-action | fortify / sentry (`2b5a_1112`, `2f2b_5746`) | fortify, sentry |
 | `0x5a` | 15 | cheering + fireworks | `5fef_1908` King's Galleon (via `FUN_281f_04b6`) | galleon credit |
-| `0x5b` | 22+31 | gunfight | `5fef_0f14` raid repelled | — |
-| `0x5c` | 8 | burning | — | — |
-| `0x8020` / `0x8024` | — (chord stings) | | war declaration `5bfb_153e`, assign colonist `2f2b_2f3e` | — |
+| `0x5b` | 22+31 | gunfight | `5fef_0f14` raid repelled | @RAIDNOTHING (2026-08-29) |
+| `0x5c` | 8 | burning | typed rule: type 0x21 (past the unit table — unreachable) | — |
+| `0x8020` / `0x8024` | — (chord stings) | | war declaration `5bfb_153e`, assign colonist `2f2b_2f3e` | not representable: the GSOUND event table stops below `0x8020` (`gsound_vm_play`), so these need a driver-side chord path first |
+
+**BGM cues pushed by gameplay code (2026-08-29 asm sweep of every `281f_04c0`/`04b6`
+call):** `75c2_235c` new-game init → `0x39` Hornpipe once (ported: game_loop new-game start);
+`38fd_3dc8` King's audience → `0x3e` (ported: `ai_king.c` audience CHOICE); `43f7_10f0`
+intervention → `0x3f` after `@INTERVENE` (ported); `41f2_0b70` Retire → `0x24`/`0x25`/`0x21`
+by the coin-animation tier (≥23 / >6 / else) — not ported (tier derivation still PARK, see
+difficulty.md); `364b_0000` colony-screen open plays a caller-supplied id (`Stack[0x10] > 0`,
+the 2f2b callers' pushed value not yet read); `2b5a_2464` Pick Music. Pool switches
+`281f_04b6(n)` → `129f_034c` (`DS:0x9a = n`, restart if changed): `1` map at colony EOT
+(`364b_0688`, when `0xa897`) and for a human *loser* of a naval fight (`5fef_0352`), `4`
+Military for a human naval *winner*, `2` colony pool on building complete (`364b_0114`) and
+after the King's Galleon popup (`5fef_1908`). The port's `sound_set_bgm(1/2)` covers the
+map/colony switches; the naval `1`/`4` beat is not wired (`units.c` only has the play hook).
 
 Event ids bypass the BGM scheduler (`sound_play` dispatches them directly), gated by the
 Event Music option in the driver and by Sound Effects for the PCM part.

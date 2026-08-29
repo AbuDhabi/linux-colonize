@@ -1,6 +1,7 @@
 #include "core/ai_contact.h"
 
 #include "core/ai_diplo.h"
+#include "core/sound.h"
 #include "core/ai_king.h"
 #include "core/assets.h"
 #include "core/colony.h"
@@ -161,6 +162,14 @@ static void ai_contact_human_chrome(
     ai_popup_enqueue_ok_ctx(
       ctx->ai_popups, tag, e, nation_b, 0, title ? title : "Natives", body
     );
+    /* FUN_6f74_0042: DS:0x1f5c = the contact tribe → IND{tribe}A{tier}.SS
+     * portrait beside the dialog, tier from the alarm band (P8.6). */
+    if (nation_b >= 0 && nation_b <= 7 && ctx->col1) {
+      const int alarm = ai_diplo_indian_alarm(ctx->col1, nation_b, e);
+      ai_popup_set_last_portrait(
+        ctx->ai_popups, nation_b, ai_popup_portrait_tier_from_alarm(alarm)
+      );
+    }
   }
 }
 
@@ -6542,6 +6551,7 @@ void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id) {
             } else if (kind == AI_RAID_NOTHING) {
               /* GAME.TXT @RAIDNOTHING: "{tribe} raiding party wiped out in {colony}! Colonists jubilant!" */
               if (c->name[0]) {
+                sound_play(0x5b); /* FUN_5fef_0f14 raid repelled (gunfight) */
                 popup_msg_fill(
                   ctx->messages, "RAIDNOTHING", &raid_tok,
                   "%STRING0 raiding party wiped out in %STRING1!",
@@ -6605,6 +6615,7 @@ void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id) {
             } else if (kind == AI_RAID_SCALP) {
               /* GAME.TXT @RAIDSCALP (WINCOLONY when abandon handled above). */
               if (c->name[0]) {
+                sound_play(0x4e); /* FUN_5fef_0f14 colonists killed (screaming) */
                 popup_msg_fill(
                   ctx->messages, "RAIDSCALP", &raid_tok,
                   "%STRING0 raiding party takes scalps in %STRING1!",
@@ -6624,6 +6635,7 @@ void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id) {
               if (c->name[0]) {
                 raid_tok.number0 = s_last_gold_drained;
                 raid_tok.has_number0 = true;
+                sound_play(0x4d); /* FUN_5fef_0f14 loot gold (cheering + fireworks) */
                 popup_msg_fill(
                   ctx->messages, "RAIDGOLD", &raid_tok,
                   "%STRING0 raiding party seizes strongboxes in %STRING1!",
@@ -6670,6 +6682,7 @@ void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id) {
               /* GAME.TXT @RAIDSTORES: "{tribe}... in {colony}! Large quantities of {cargo} stolen." */
               if (c->name[0]) {
                 raid_tok.string2 = s_last_stores_cargo[0] ? s_last_stores_cargo : "goods";
+                sound_play(0x4f); /* FUN_5fef_0f14 loot goods (screaming + shooting) */
                 popup_msg_fill(
                   ctx->messages, "RAIDSTORES", &raid_tok,
                   "%STRING0 raiding party attacks stores in %STRING1!",

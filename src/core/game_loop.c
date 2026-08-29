@@ -4235,6 +4235,7 @@ ColonizeGameState* game_create(const ColonizeGameConfig* config) {
     fill_fallback_palette(&game->palette);
     diag_warn("Using fallback generated palette.");
   }
+  ai_popup_set_portrait_source(game->resolved_data_dir, &game->palette);
 
   char game_txt[512];
   if (dos_compat_normalize_asset_path(game->resolved_data_dir, "GAME.TXT", game_txt, sizeof(game_txt))) {
@@ -4851,6 +4852,7 @@ static void game_commit_new_campaign(ColonizeGameState* game) {
   }
 
   sound_set_bgm(1);
+  sound_play(0x39); /* FUN_75c2_235c new-game init: Hornpipe first (75c2:2474) */
   new_game_cancel(ng);
   game->in_menu = false;
   game->view_pieces_mode = false;
@@ -5249,6 +5251,10 @@ static bool game_try_unit_move(ColonizeGameState* game, int dest_x, int dest_y) 
       game_after_unit_action(game);
       return true;
     }
+  }
+  if (selected->type_index >= 0 && selected->type_index < game->units.type_count &&
+      strcmp(game->units.types[selected->type_index].name, "Wagon Train") == 0) {
+    sound_play(0x52); /* FUN_465b_0000 wagon-train move (COLDIG 12 wagon wheels) */
   }
   snprintf(game->status, sizeof(game->status), "Moved unit to (%d,%d)", dest_x, dest_y);
   game_after_unit_action(game);

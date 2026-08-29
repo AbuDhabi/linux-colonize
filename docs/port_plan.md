@@ -139,7 +139,7 @@ stays deferred (D4).
   jumps to the colony/map screen) — so P2.2's "click-to-zoom plumbing into
   game_loop (colony screen / center unit)" describes behavior DOS's own
   renderers don't have.
-- [ ] **P2.2 [auto]** Shared report scaffolding: heading from
+- [x] **P2.2 [auto] — closed 2026-08-29** (all sub-items landed 2026-08-26/28; only P2.12's user review remains). Shared report scaffolding: heading from
   `LABELS.TXT`, column helper, scroll, click-to-zoom plumbing into
   `game_loop` (colony screen / center unit). **Screen titles: earlier
   "not achievable" note (2026-08-26) was itself wrong, corrected same
@@ -289,7 +289,18 @@ open work is cue/SFX *wiring* (P3.2, P3.7).
   not invent one). Port call sites are just the 2 `sound_set_bgm(1)` calls
   (new-game/load-save start) plus the one combat sting — confirms the gap
   P3.2 needs to close is real and matches this list exactly.
-- [ ] **P3.2 [auto]** Wire the missing cues found in P3.1. **Not
+- [ ] **P3.2 [auto]** **2026-08-29: the "unmapped" segments are mapped** —
+  a whole-EXE asm sweep of every `281f_04c0`/`04b6` call (id in `AX`,
+  which Ghidra drops) pins each: `75c2` = new-game init → `0x39` Hornpipe
+  (ported), `38fd` = King's audience `3dc8` → `0x3e` (ported), `43f7` =
+  intervention → `0x3f` (ported), `364b` = colony-screen open with a
+  caller-supplied id (callers' pushed value still unread) + pool switches
+  `04b6(1/2)` (already `sound_set_bgm`), `3844` = nation EOT `0x54`
+  (already), `48d3` Europe exit and `65dd` LCR have **no** `04c0`/`04b6`
+  call at all — they must go through another helper (`281f_048e`?), so
+  P3.1's list was partly wrong. Table in assets.md "BGM cues pushed by
+  gameplay code". Left: Retire tune (needs the PARKed coin tier), colony
+  open id, naval pool 1/4 switch, `48d3`/`65dd` via `048e`. **Not
   attempted 2026-08-26** — same blocker as P8.3/P8.5 above: the 6
   "confirmed-real-but-unmapped" segments need their *exact* call site
   traced (which `FUN_364b_xxxx` sub-path fires on colony-enter vs.
@@ -336,7 +347,22 @@ open work is cue/SFX *wiring* (P3.2, P3.7).
   (Jine, vs 0.07 for OST-vs-DOSBox) / 0.09 / 0.15 / 0.17. P3.3's "FF loop
   emulation / restart fallback" description is obsolete. Details:
   [assets.md](assets.md) "Music / sound".
-- [ ] **P3.7 [auto] — new 2026-08-27, partially done.** Wire the
+- [ ] **P3.7 [auto] — new 2026-08-27, partially done.** **2026-08-29 pass
+  (2):** the `5fef_1b0e` "unit-class variants" resolved from the asm
+  (`5fef:2271`): a human attacker on an Indian pushes `0x3b + attacker unit
+  type`, so `0x41..0x51` are just type indices (Regulars 0x41 … Braves
+  0x4e); ported in `units.c` engagement (typed id when the defender's
+  nation ≥ 4, generic `0x40` otherwise). `0x44`/`0x45` hit/glance tail
+  (`5fef:28b0`) still unmapped to a Linux outcome. **2026-08-29 pass (1):**
+  wired `0x57` ship sunk (`units.c` @SHIPSUNK, combat sound hook), `0x4d`/
+  `0x4e`/`0x4f`/`0x5b` raid outcomes (@RAIDGOLD/@RAIDSCALP/@RAIDSTORES/
+  @RAIDNOTHING in `ai_contact.c`), `0x52` wagon-train move (human move
+  success), `0x56` tax raise / tea party (`ai_king.c`). Still open: the
+  `5fef_1b0e` unit-class variants (the `mov ax,N; callf 281f_04c0` pattern
+  does not appear inside 1b0e's asm range — the pushes must go through a
+  local helper; needs a fresh asm pass), `0x4d` naval *capture* (no Linux
+  capture path), and the `0x8020`/`0x8024` chords (below the GSOUND event
+  table's range — driver work first, see assets.md). Original text: Wire the
   remaining `COLDIG.BIN` event-sound push sites. The "no reachable DOS
   trigger" verdict is **retracted**: ids `0x40..0x5c` are pushed in `AX`
   (`mov ax,N; callf FUN_281f_04c0`), which Ghidra drops — see
@@ -1088,8 +1114,14 @@ Deep `2820` (village trade/haggle) and `4528` (deep settlement battle) PARK.
   `@INDIANBRIBE`. Also fixed while there: tribal-land radius is the tech
   tier (`FUN_15dc_006a`: Inca 3 / Aztec 2 / others 1) with a same-continent
   filter, not "capital ? 2 : 1" (`colonies_tile_indian_homeland`).
-- [ ] **P8.6 [auto]** Chief portraits on meet (`IND*.SS` shipped,
-  unloaded) — cheap and visible; layout exactness is D4.
+- [x] **P8.6 [auto] — done 2026-08-29, static.** `FUN_6f74_0042`: when
+  `DS:0x1f5c` (the contact tribe, set from `0x8d52` at every Indian contact
+  dialog) is < 8 the compositor loads `IND{tribe}A{tier}.SS`, tier =
+  `15dc_00a2(alarm_by_player[tribe][nation])` (<25/50/75 → 0/1/2, else 3).
+  Port: `AiPopupRequest.portrait_tribe/tier`, lazy per-sheet cache remapped
+  onto the game palette (`ai_popup.c`), figure drawn full-height left of the
+  dialog with the pair centred; attached in `ai_contact_human_chrome` for
+  every tribe-addressed popup. Layout exactness (DOS x/y) stays D4.
 - [ ] **P8.7 [user]** Contact flow review with the user on a fresh game.
 - [x] **P8.8 [auto] — done 2026-08-28 (static).** The meet menu is now
   DOS's real `NAMES.TXT` `@ACTIONS` list with the real per-unit gating
@@ -1234,7 +1266,7 @@ mostly in contact (`@LEARN*`, `@RAID*`, `@CHIEF*`), Europe
   `@LEARNALREADY`, is deliberately left silent by design (not a wiring
   gap — see the row's own note), so nothing further to close; updated
   `popup_audit.md`'s row to drop the now-stale `@RAID*` citation.
-- [ ] **P11.2 [auto]** Convert **Partial** rows that are status lines but
+- [x] **P11.2 [auto] — closed 2026-08-29** (every example is a real modal now; the only residue is the [user] call on @PRICEUP/@PRICEDOWN frequency and the P8.2 HELLO row). Convert **Partial** rows that are status lines but
   DOS shows a modal (`@PRICEUP`/`@PRICEDOWN`, order gates, `@CARGOREADY`
   ship-finish, HELLO attitude) to real modals with correct choice sets.
   **Checked 2026-08-26 — 3 of 4 examples already resolved, "choice sets"

@@ -35,7 +35,7 @@ Col1 layouts: `ColonizeCol1Tribe` / `ColonizeCol1Indian` — field atlas in
 | `ICONS.SS` **109–112** | Unit blit indices from `@UNIT` icons **110–113** (1-based → 0-based on load) — Braves / Armed / Mtd. Braves / Mtd. Warriors |
 | Minimap | Tribe dots palette **12** ([assets.md](assets.md)) |
 | `REPORT9.PIK` | F9 Indian Adviser |
-| `IND0A0.SS`…`IND7A3.SS` | Shipped 8 nations × 4 frames. **Not loaded** by the Linux port today (meet / VGA chrome **PARKED**). Present under `COLONIZE/` for DOS fidelity |
+| `IND0A0.SS`…`IND7A3.SS` | Shipped 8 nations × 4 alarm tiers (`FUN_15dc_00a2` bands of `alarm_by_player`). **Loaded 2026-08-29** as the chief portrait beside every tribe-addressed contact popup (`ai_popup.c`, `FUN_6f74_0042`); exact DOS placement is D4 |
 
 Draw order on the main map: colonies → villages → units so stacked units stay
 visible ([assets.md](assets.md)).

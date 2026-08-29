@@ -103,6 +103,11 @@ typedef struct AiPopupRequest {
   int choice_ids[AI_POPUP_CHOICE_MAX];
   int choice_count;
   int width; /* GAME.TXT @width (0 = AI_POPUP_DEFAULT_WIDTH); taken from popup_msg_fill's side-channel */
+  /* Chief portrait (FUN_6f74_0042): IND{tribe}A{tier}.SS drawn beside the
+   * dialog when portrait_tribe is 0..7; tier = alarm band (FUN_15dc_00a2:
+   * <25 → 0, <50 → 1, <75 → 2, else 3). -1 = none. */
+  int portrait_tribe;
+  int portrait_tier;
 } AiPopupRequest;
 
 typedef struct AiPopupState {
@@ -191,5 +196,17 @@ void ai_popup_render(
 
 /* Clear has_result after game_loop applies it. */
 void ai_popup_consume_result(AiPopupState* st);
+
+/*
+ * Chief portraits (P8.6). data_dir + the framebuffer palette the sheets are
+ * remapped onto; sheets load lazily on first render. Call once after the
+ * palette is loaded. NULL disables portraits.
+ */
+void ai_popup_set_portrait_source(const char* data_dir, const struct ColonizePalette* palette);
+/* Attach IND{tribe}A{tier} to the most recently enqueued request (no-op when
+ * the queue is empty or tribe is outside 0..7). */
+void ai_popup_set_last_portrait(AiPopupState* st, int tribe, int tier);
+/* FUN_15dc_00a2 alarm → portrait tier. */
+int ai_popup_portrait_tier_from_alarm(int alarm);
 
 #endif

@@ -1,5 +1,6 @@
 #include "core/ai_king.h"
 #include "core/ai_diplo.h"
+#include "core/sound.h"
 
 #include "core/assets.h"
 #include "core/colony.h"
@@ -318,6 +319,7 @@ static void ai_king_enqueue_teaparty_ok(ColonizeTurnContext* ctx, int human, int
 
   char body[AI_POPUP_BODY_LEN];
   popup_msg_fill(ctx->messages, "TEAPARTY", &tok, fallback, body, sizeof(body));
+  sound_play(0x56); /* FUN_38fd_3dc8 tea party (COLDIG 9 cheering) */
   (void)ai_popup_enqueue_ok_ctx(
     ctx->ai_popups,
     AI_POPUP_TAG_KING_TAX,
@@ -2245,6 +2247,7 @@ static void ai_king_tax_event(ColonizeTurnContext* ctx) {
     if (ai_king_human_popups(ctx)) {
       char body[AI_POPUP_BODY_LEN];
       snprintf(body, sizeof(body), "The King raises taxes to %u%%.", nat->tax_rate);
+      sound_play(0x56); /* FUN_38fd_3dc8 tax raise (COLDIG 9 cheering) */
       (void)ai_popup_enqueue_ok_ctx(ctx->ai_popups, AI_POPUP_TAG_KING_TAX, human,
                                     ai_king_crown_nation(human), (int)nat->tax_rate,
                                     "Royal Tax", body);
@@ -2289,6 +2292,7 @@ static void ai_king_tax_event(ColonizeTurnContext* ctx) {
       labels[0] = "Kiss pinky ring.";
       labels[1] = "Hold 'Tea Party.'";
     }
+    sound_play(0x3e); /* FUN_38fd_3dc8 38fd:4022/4068: royal-audience tune */
     if (ai_popup_enqueue_choice_ctx(ctx->ai_popups, AI_POPUP_TAG_KING_AUDIENCE, human,
                                     ai_king_crown_nation(human),
                                     ai_king_teaparty_payload(applied, picked),
@@ -3432,6 +3436,7 @@ static void ai_king_foreign_intervene(ColonizeTurnContext* ctx) {
         ctx->ai_popups, AI_POPUP_TAG_KING_ARRIVAL, human, ally1, landings,
         "Foreign Intervention", body
       );
+      sound_play(0x3f); /* FUN_43f7_10f0 43f7:1465: intervention tune after @INTERVENE */
     }
   }
 }
