@@ -126,7 +126,7 @@ int main(void) {
     /* Shared connectivity: base + mask (N=8,S=4,W=2,E=1); 0-based PHYS0 indices. */
     {1, 1, 0, 2, {69, 48}},
     {2, 11, 4, 1, {32}},
-    {43, 68, 0, 1, {32}},
+    {43, 68, 0, 0, {0}}, /* one-tile island: layer3 0x0e is continent id 14, not a peak */
     {5, 21, 1, 1, {48}},
     {4, 20, 8, 0, {0}},
     {8, 14, 8, 1, {103}}, /* scrub + lost-city rumour */
