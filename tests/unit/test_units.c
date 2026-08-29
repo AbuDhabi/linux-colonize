@@ -1282,8 +1282,82 @@ static int unit_fog_vis_mask_and_snapshot(void) {
   return 0;
 }
 
+/*
+ * FUN_OVL20_L0000__0015bc neighbour pick (viceroy_overlays.c:86760-86840):
+ * score = flood cost[cand] + edge(unit->cand), where a cardinal step
+ * between two river tiles costs 1 (else 3 for a `movement < 4` unit).
+ * Pioneer at (4,2), goal (2,4), minor river on (4,2),(3,2),(2,2),(2,3),(2,4):
+ * (3,2) costs 4+1 = 5 along the river; (3,3) costs 4+3 = 7 diagonally.
+ * DOS steps west onto the river; picking by cost[] alone would take (3,3).
+ */
+static int unit_flood_river_pair_step(void) {
+  ColonizeUnitPool pool;
+  memset(&pool, 0, sizeof(pool));
+  pool.type_count = 1;
+  snprintf(pool.types[0].name, sizeof(pool.types[0].name), "Pioneers");
+  pool.types[0].movement = 1;
+  pool.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  char err[128];
+  if (!map_alloc(&map, 8, 8, err, sizeof(err))) {
+    fprintf(stderr, "river_pair: map_alloc failed: %s\n", err);
+    return 1;
+  }
+  for (int i = 0; i < 8 * 8; ++i) {
+    map.terrain[i] = 2; /* plains */
+  }
+  static const int k_river[5][2] = {{4, 2}, {3, 2}, {2, 2}, {2, 3}, {2, 4}};
+  for (int i = 0; i < 5; ++i) {
+    map.terrain[k_river[i][1] * 8 + k_river[i][0]] = 2 | 0x40; /* minor river */
+  }
+
+  const int id = units_spawn_allow_stack(&pool, 0, 4, 2);
+  ColonizeUnit* u = units_get(&pool, id);
+  if (!u) {
+    map_free(&map);
+    fprintf(stderr, "river_pair: spawn failed\n");
+    return 1;
+  }
+  u->nation_id = 0;
+  u->moves_left = 1;
+  u->orders = UNITS_ORDER_GOTO;
+  u->goto_x = 2;
+  u->goto_y = 4;
+
+  int rc = 0;
+  int nx = -1;
+  int ny = -1;
+  if (!units_next_goto_step(&pool, id, &map, NULL, NULL, &nx, &ny)) {
+    fprintf(stderr, "river_pair: no step found\n");
+    rc = 1;
+  } else if (nx != 3 || ny != 2) {
+    fprintf(stderr, "river_pair: expected (3,2) along the river, got (%d,%d)\n", nx, ny);
+    rc = 1;
+  }
+  /* Without the river the diagonal (3,3) wins (4+3 = 7 vs (3,2) 7+3). */
+  for (int i = 0; i < 5; ++i) {
+    map.terrain[k_river[i][1] * 8 + k_river[i][0]] = 2;
+  }
+  if (rc == 0 && (!units_next_goto_step(&pool, id, &map, NULL, NULL, &nx, &ny) || nx != 3 || ny != 3)) {
+    fprintf(stderr, "river_pair: plain map should step (3,3), got (%d,%d)\n", nx, ny);
+    rc = 1;
+  }
+
+  map_free(&map);
+  if (rc == 0) {
+    fprintf(stderr, "unit_units: flood river-pair neighbour pick ok\n");
+  }
+  return rc;
+}
+
 int main(void) {
   diag_init(0, NULL);
+
+  if (unit_flood_river_pair_step() != 0) {
+    return 1;
+  }
 
   if (unit_king_galleon_offer() != 0) {
     return 1;
