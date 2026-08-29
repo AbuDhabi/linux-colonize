@@ -915,8 +915,130 @@ bool col1_bridge_apply(
     }
   }
 
+  /*
+   * Human ships in transit (DOS sentinel lanes, see capture): passengers
+   * chained to a Bound/Expected ship stay aboard as EuropeHarborShip cargo,
+   * not dock immigrants. Mark them consumed before the main walk.
+   */
+  bool* consumed = NULL;
+  if (save->head.unit_count > 0) {
+    consumed = calloc((size_t)save->head.unit_count, sizeof(bool));
+    if (!consumed) {
+      free(id_by_index);
+      COL1_FAIL(err, err_size, "oom unit consumed map");
+    }
+  }
+  if (europe && local.human_nation >= 0) {
+    const uint8_t n = (uint8_t)local.human_nation;
+    const uint8_t xy_bound = (uint8_t)(232 + n);
+    const uint8_t xy_expected = (uint8_t)(244 + n);
+    for (int i = 0; i < (int)save->head.unit_count; ++i) {
+      const ColonizeCol1Unit* src = &save->unit[i];
+      if (src->nation_id != n || src->type < 13 || src->type > 18 ||
+          (src->x != xy_bound && src->x != xy_expected)) {
+        continue;
+      }
+      const bool bound = src->x == xy_bound;
+      const int ti = col1_unit_type_to_runtime(units, src->type);
+      const ColonizeUnitType* ut = units_type(units, ti);
+      int pax_types[EUROPE_SHIP_CARGO_MAX];
+      int pax_profs[EUROPE_SHIP_CARGO_MAX];
+      int pax_gold[EUROPE_SHIP_CARGO_MAX];
+      int pax_n = 0;
+      memset(pax_gold, 0, sizeof(pax_gold));
+      /* Chain is pax0→…→ship: walk prev from the ship, then reverse. */
+      {
+        int tmp_t[EUROPE_SHIP_CARGO_MAX];
+        int tmp_p[EUROPE_SHIP_CARGO_MAX];
+        int tmp_g[EUROPE_SHIP_CARGO_MAX];
+        int k = 0;
+        int p = src->transport_chain.prev_unit_idx;
+        for (int guard = 0; guard < (int)save->head.unit_count && p >= 0 &&
+                            p < (int)save->head.unit_count && k < EUROPE_SHIP_CARGO_MAX;
+             ++guard) {
+          const ColonizeCol1Unit* pu = &save->unit[p];
+          if (pu->type >= 13 && pu->type <= 18) {
+            break;
+          }
+          tmp_t[k] = col1_unit_type_to_runtime(units, pu->type);
+          tmp_p[k] = (int)pu->profession;
+          tmp_g[k] = pu->type == 0x0a ? (int)pu->profession * 100 : 0;
+          consumed[p] = true;
+          k++;
+          p = pu->transport_chain.prev_unit_idx;
+        }
+        for (int j = k - 1; j >= 0; --j) {
+          pax_types[pax_n] = tmp_t[j];
+          pax_profs[pax_n] = tmp_p[j];
+          pax_gold[pax_n] = tmp_g[j];
+          pax_n++;
+        }
+      }
+      int hold_types[EUROPE_SHIP_CARGO_MAX];
+      int hold_amts[EUROPE_SHIP_CARGO_MAX];
+      memset(hold_types, 0, sizeof(hold_types));
+      memset(hold_amts, 0, sizeof(hold_amts));
+      {
+        const uint8_t items[6] = {src->cargo_item_0, src->cargo_item_1, src->cargo_item_2,
+                                  src->cargo_item_3, src->cargo_item_4, src->cargo_item_5};
+        for (int h = 0; h < EUROPE_SHIP_CARGO_MAX && h < 6 && h < (int)src->holds_occupied; ++h) {
+          const int amt = src->cargo_hold[h];
+          if (amt > 0 && amt < 255) {
+            hold_types[h] = (int)items[h];
+            hold_amts[h] = amt;
+          }
+        }
+      }
+      const int turns = src->turns_worked > 0 ? (int)src->turns_worked : 1;
+      const int exit_x = (int)src->goto_x;
+      const int exit_y = (int)src->goto_y;
+      const bool exit_east = map->width > 0 ? exit_x >= map->width / 2 : true;
+      EuropeHarborShip* slot = NULL;
+      if (bound) {
+        if (europe->bound_ships < EUROPE_HARBOR_MAX) {
+          slot = &europe->bound[europe->bound_ships++];
+        }
+      } else if (europe_enqueue_expected(
+                   europe, ti, ut ? ut->name : "Ship", pax_types, pax_profs, pax_n,
+                   hold_types, hold_amts, exit_x, exit_y, exit_east, turns
+                 )) {
+        slot = &europe->expected[europe->expected_ships - 1];
+        slot->turns_left = turns;
+      }
+      if (!slot) {
+        continue;
+      }
+      if (bound) {
+        memset(slot, 0, sizeof(*slot));
+        slot->type_index = ti;
+        snprintf(slot->name, sizeof(slot->name), "%s", ut ? ut->name : "Ship");
+        for (int c = 0; c < pax_n; ++c) {
+          slot->cargo_types[c] = pax_types[c];
+          slot->cargo_professions[c] = pax_profs[c];
+        }
+        slot->cargo_count = pax_n;
+        for (int h = 0; h < EUROPE_SHIP_CARGO_MAX; ++h) {
+          slot->hold_goods_type[h] = hold_types[h];
+          slot->hold_goods_amount[h] = hold_amts[h];
+        }
+        slot->turns_left = turns;
+        slot->exit_x = exit_x;
+        slot->exit_y = exit_y;
+        slot->exit_east = exit_east;
+      }
+      for (int c = 0; c < pax_n; ++c) {
+        slot->cargo_treasure_gold[c] = pax_gold[c];
+      }
+      consumed[i] = true;
+      local.skipped_europe_units++;
+    }
+  }
+
   for (int i = 0; i < (int)save->head.unit_count; ++i) {
     const ColonizeCol1Unit* src = &save->unit[i];
+    if (consumed && consumed[i]) {
+      continue;
+    }
     if (col1_coord_is_europe(src->x, src->y)) {
       local.skipped_europe_units++;
       /* Human ships stay in Europe harbor UI; AI fleets stay as live Europe units. */
@@ -1151,10 +1273,19 @@ bool col1_bridge_apply(
     }
   }
   free(id_by_index);
+  free(consumed);
 
   /* Europe / nation */
   if (europe) {
     const ColonizeCol1Nation* nat = &save->nation[local.human_nation];
+    /* FUN_48d3_007a landfall stamp → Bound ships without an exit tile. */
+    if (!europe->last_exit_valid && (nat->return_from_europe_x || nat->return_from_europe_y) &&
+        nat->return_from_europe_x < 200 && nat->return_from_europe_y < 200) {
+      europe->last_exit_x = nat->return_from_europe_x;
+      europe->last_exit_y = nat->return_from_europe_y;
+      europe->last_exit_east = map->width > 0 ? europe->last_exit_x >= map->width / 2 : true;
+      europe->last_exit_valid = true;
+    }
     europe->gold = (int)nat->gold;
     europe->tax_percent = nat->tax_rate;
     europe->difficulty = save->head.difficulty > 8 ? 8 : save->head.difficulty;
@@ -1611,9 +1742,14 @@ bool col1_bridge_capture(
         live++;
       }
     }
+    /* Human Europe-screen ships (harbor / Expected / Bound) live only in the
+     * EuropeScreen lists, not the pool — reserve room to write them back. */
+    const int europe_ships =
+      europe ? (europe->harbor_ships + europe->expected_ships + europe->bound_ships) : 0;
+    const int capacity = live + europe_ships * (1 + EUROPE_SHIP_CARGO_MAX);
     ColonizeCol1Unit* neu = NULL;
-    if (live > 0) {
-      neu = calloc((size_t)live, sizeof(ColonizeCol1Unit));
+    if (capacity > 0) {
+      neu = calloc((size_t)capacity, sizeof(ColonizeCol1Unit));
       if (!neu) {
         COL1_FAIL(err, err_size, "oom units export");
       }
@@ -1841,6 +1977,137 @@ bool col1_bridge_capture(
         neu[last].transport_chain.next_unit_idx = (int16_t)ship_ci;
         neu[ship_ci].transport_chain.prev_unit_idx = (int16_t)last;
         neu[ship_ci].transport_chain.next_unit_idx = -1;
+      }
+    }
+
+    /*
+     * Human Europe-screen ships. DOS keeps them as unit records at the
+     * nation's Europe sentinel diagonal (FUN_48d3_007a / 0346 / 03d0):
+     *   228+n  in port (harbor)
+     *   232+n  sailing to the New World (Bound), goto = landfall
+     *   244+n  sailing to Europe (Expected), goto = the exit tile
+     * with `turns_worked` (+0x16) = voyage turns left and passengers chained
+     * pax0→pax1→…→ship, sharing x/y/goto/turns. Harbor passengers were
+     * already disembarked to the docks on arrival (their (236,236) mirror
+     * units are in the pool), so only Expected/Bound carry cargo here.
+     */
+    if (europe && human_nation >= 0 && human_nation < 4) {
+      const uint8_t n = (uint8_t)human_nation;
+      const struct {
+        const EuropeHarborShip* list;
+        int count;
+        uint8_t xy;
+      } lanes[3] = {
+        {europe->harbor, europe->harbor_ships, (uint8_t)(228 + n)},
+        {europe->bound, europe->bound_ships, (uint8_t)(232 + n)},
+        {europe->expected, europe->expected_ships, (uint8_t)(244 + n)},
+      };
+      for (int li = 0; li < 3; ++li) {
+        for (int si = 0; si < lanes[li].count; ++si) {
+          const EuropeHarborShip* ship = &lanes[li].list[si];
+          int ship_ti = ship->type_index;
+          if (ship_ti < 0) {
+            ship_ti = units_find_type(units, ship->name);
+          }
+          if (ship_ti < 0 || written + 1 + ship->cargo_count > capacity) {
+            continue;
+          }
+          const bool in_port = lanes[li].xy == (uint8_t)(228 + n);
+          const uint8_t gx = (uint8_t)(in_port ? 0 : ship->exit_x);
+          const uint8_t gy = (uint8_t)(in_port ? 0 : ship->exit_y);
+          const uint8_t turns = (uint8_t)(in_port ? 0 : (ship->turns_left < 0 ? 0 : ship->turns_left));
+          int last = -1;
+          for (int c = 0; c < ship->cargo_count && c < EUROPE_SHIP_CARGO_MAX; ++c) {
+            int pti = ship->cargo_types[c];
+            if (pti == -2) {
+              pti = units_find_type(units, "Artillery");
+            }
+            if (pti < 0) {
+              continue;
+            }
+            ColonizeCol1Unit* px = &neu[written];
+            memset(px, 0, sizeof(*px));
+            px->x = lanes[li].xy;
+            px->y = lanes[li].xy;
+            px->type = (uint8_t)pti;
+            px->nation_id = n;
+            px->vis_mask = (uint8_t)(1u << n);
+            px->ai_plan = COL1_UNIT_UNKNOWN16_HI_DEFAULT;
+            px->origin = 0xff;
+            px->orders = 1; /* sentry aboard */
+            px->goto_x = gx;
+            px->goto_y = gy;
+            px->turns_worked = turns;
+            {
+              const ColonizeUnitType* put = units_type(units, pti);
+              const bool treasure = put && strcmp(put->name, "Treasure") == 0;
+              const int prof = ship->cargo_professions[c];
+              if (treasure) {
+                const int gold = ship->cargo_treasure_gold[c];
+                px->profession = (uint8_t)(gold > 0 ? (gold / 100 > 255 ? 255 : gold / 100) : 0);
+              } else {
+                px->profession = (uint8_t)(prof < 0 ? 0 : prof);
+              }
+            }
+            px->transport_chain.prev_unit_idx = (int16_t)last;
+            px->transport_chain.next_unit_idx = -1;
+            if (last >= 0) {
+              neu[last].transport_chain.next_unit_idx = (int16_t)written;
+            }
+            last = written;
+            written++;
+          }
+          ColonizeCol1Unit* dst = &neu[written];
+          memset(dst, 0, sizeof(*dst));
+          dst->x = lanes[li].xy;
+          dst->y = lanes[li].xy;
+          dst->type = (uint8_t)ship_ti;
+          dst->nation_id = n;
+          dst->vis_mask = (uint8_t)(1u << n);
+          dst->ai_plan = COL1_UNIT_UNKNOWN16_HI_DEFAULT;
+          dst->orders = 0;
+          dst->goto_x = gx;
+          dst->goto_y = gy;
+          dst->turns_worked = turns;
+          {
+            int gi = 0;
+            for (int h = 0; h < EUROPE_SHIP_CARGO_MAX && gi < 6; ++h) {
+              const int amt = ship->hold_goods_amount[h];
+              int t = ship->hold_goods_type[h];
+              if (amt <= 0) {
+                continue;
+              }
+              if (t < 0) {
+                t = 0;
+              }
+              if (t > 15) {
+                t = 15;
+              }
+              dst->cargo_hold[gi] = (uint8_t)(amt > 255 ? 255 : amt);
+              switch (gi) {
+                case 0: dst->cargo_item_0 = (uint8_t)t; break;
+                case 1: dst->cargo_item_1 = (uint8_t)t; break;
+                case 2: dst->cargo_item_2 = (uint8_t)t; break;
+                case 3: dst->cargo_item_3 = (uint8_t)t; break;
+                case 4: dst->cargo_item_4 = (uint8_t)t; break;
+                default: dst->cargo_item_5 = (uint8_t)t; break;
+              }
+              gi++;
+            }
+            dst->holds_occupied = (uint8_t)gi;
+          }
+          dst->transport_chain.prev_unit_idx = (int16_t)last;
+          dst->transport_chain.next_unit_idx = -1;
+          if (last >= 0) {
+            neu[last].transport_chain.next_unit_idx = (int16_t)written;
+          }
+          written++;
+        }
+      }
+      /* FUN_48d3_007a stamps the sail-to-Europe exit as the return landfall. */
+      if (europe->last_exit_valid) {
+        save->nation[n].return_from_europe_x = (uint8_t)europe->last_exit_x;
+        save->nation[n].return_from_europe_y = (uint8_t)europe->last_exit_y;
       }
     }
 

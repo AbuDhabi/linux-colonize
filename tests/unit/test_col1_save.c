@@ -783,6 +783,128 @@ int main(void) {
         return 1;
       }
     }
+    /*
+     * P10.1 port-written save net: apply → capture must not lose records.
+     * Colony/unit counts must survive (32-colony cap truncated 33-colony
+     * lategame saves; human Europe harbor/Expected/Bound ships lived only in
+     * the EuropeScreen and vanished from the unit list), and a second apply
+     * of the captured save must see the same Europe ship lanes.
+     */
+    {
+      ColonizeCol1Save cap;
+      col1_save_init(&cap);
+      if (!col1_save_read_file(fix->path, &cap, err, sizeof(err))) {
+        fprintf(stderr, "recapture reread failed %s\n", fix->path);
+        return 1;
+      }
+      if (!col1_bridge_capture(&cap, &map, &units, &colonies, &europe, br.year, br.autumn,
+                               br.turn_number, br.human_nation, br.cursor_x, br.cursor_y,
+                               units.selected_id, err, sizeof(err))) {
+        fprintf(stderr, "recapture failed %s: %s\n", fix->path, err);
+        return 1;
+      }
+      if (cap.head.colony_count != orig.head.colony_count ||
+          cap.head.unit_count != orig.head.unit_count) {
+        fprintf(
+          stderr,
+          "recapture lost records %s: colonies %u->%u units %u->%u\n",
+          fix->path,
+          orig.head.colony_count,
+          cap.head.colony_count,
+          orig.head.unit_count,
+          cap.head.unit_count
+        );
+        return 1;
+      }
+      ColonizeWorldMap map2;
+      memset(&map2, 0, sizeof(map2));
+      ColonizeUnitPool units2;
+      units_reset(&units2);
+      units2.type_count = units.type_count;
+      memcpy(units2.types, units.types, sizeof(units.types));
+      ColonizeColonyPool colonies2;
+      colonies_init(&colonies2);
+      EuropeScreen europe2;
+      memset(&europe2, 0, sizeof(europe2));
+      europe2.cargo_count = 16;
+      ColonizeCol1BridgeResult br2;
+      founding_fathers_reset();
+      if (!col1_bridge_apply(&cap, &map2, &units2, &colonies2, &europe2, &br2, err, sizeof(err))) {
+        fprintf(stderr, "recapture re-apply failed %s: %s\n", fix->path, err);
+        return 1;
+      }
+      if (europe2.harbor_ships != europe.harbor_ships ||
+          europe2.expected_ships != europe.expected_ships ||
+          europe2.bound_ships != europe.bound_ships) {
+        fprintf(
+          stderr,
+          "recapture Europe lanes drift %s: harbor %d->%d expected %d->%d bound %d->%d\n",
+          fix->path,
+          europe.harbor_ships,
+          europe2.harbor_ships,
+          europe.expected_ships,
+          europe2.expected_ships,
+          europe.bound_ships,
+          europe2.bound_ships
+        );
+        return 1;
+      }
+      /* COLONY04: human (3) Merchantman at 247 = sailing to Europe, 1 turn left. */
+      if (strstr(fix->path, "lategame-saves/COLONY04.SAV") &&
+          (europe.expected_ships != 1 || europe.expected[0].turns_left != 1 ||
+           europe.expected[0].exit_x != 55 || europe.expected[0].exit_y != 48)) {
+        fprintf(stderr, "COLONY04 expected lane wrong: n=%d turns=%d exit=(%d,%d)\n",
+                europe.expected_ships, europe.expected[0].turns_left,
+                europe.expected[0].exit_x, europe.expected[0].exit_y);
+        return 1;
+      }
+      /* COLONY06: human (3) fleet in port at 231 (Galleon + 2 passengers on chain). */
+      if (strstr(fix->path, "lategame-saves/COLONY06.SAV")) {
+        if (europe.harbor_ships < 2) {
+          fprintf(stderr, "COLONY06 harbor lane wrong: n=%d\n", europe.harbor_ships);
+          return 1;
+        }
+        /* Bound lane (232+n): no fixture carries one — sail a harbor ship
+         * out, capture, re-apply, expect it back in Bound with its voyage. */
+        if (!europe_set_sail_from_harbor(&europe, 0, 2, &units, br.human_nation)) {
+          fprintf(stderr, "COLONY06 set sail failed\n");
+          return 1;
+        }
+        if (!col1_bridge_capture(&cap, &map, &units, &colonies, &europe, br.year, br.autumn,
+                                 br.turn_number, br.human_nation, br.cursor_x, br.cursor_y,
+                                 units.selected_id, err, sizeof(err))) {
+          fprintf(stderr, "COLONY06 bound capture failed: %s\n", err);
+          return 1;
+        }
+        ColonizeWorldMap map3;
+        memset(&map3, 0, sizeof(map3));
+        ColonizeUnitPool units3;
+        units_reset(&units3);
+        units3.type_count = units.type_count;
+        memcpy(units3.types, units.types, sizeof(units.types));
+        ColonizeColonyPool colonies3;
+        colonies_init(&colonies3);
+        EuropeScreen europe3;
+        memset(&europe3, 0, sizeof(europe3));
+        europe3.cargo_count = 16;
+        ColonizeCol1BridgeResult br3;
+        founding_fathers_reset();
+        if (!col1_bridge_apply(&cap, &map3, &units3, &colonies3, &europe3, &br3, err, sizeof(err))) {
+          fprintf(stderr, "COLONY06 bound re-apply failed: %s\n", err);
+          return 1;
+        }
+        if (europe3.bound_ships != 1 || europe3.bound[0].turns_left != 2 ||
+            europe3.harbor_ships != europe.harbor_ships) {
+          fprintf(stderr, "COLONY06 bound lane wrong: bound=%d turns=%d harbor=%d/%d\n",
+                  europe3.bound_ships, europe3.bound[0].turns_left, europe3.harbor_ships,
+                  europe.harbor_ships);
+          return 1;
+        }
+        map_free(&map3);
+      }
+      map_free(&map2);
+      col1_save_free(&cap);
+    }
     fprintf(
       stderr,
       "fixture %s ok (units=%d year=%u gold=%d colonies=%u)\n",

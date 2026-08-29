@@ -174,7 +174,7 @@ Export often **zeros** unnamed colony bytes on rebuild ([savegame.md](savegame.m
 
 | Field | Size | Status | Notes |
 |-------|------|--------|-------|
-| `x` / `y` / `type` / `nation_id` | — | `mapped` | Europe sentinels ≥200 (fixtures often `228+nation` diagonal; nawagers also notes 235/239/243 travel states) |
+| `x` / `y` / `type` / `nation_id` | — | `mapped` | Europe sentinels ≥200, resolved 2026-08-29 from `FUN_48d3_007a/0346/03d0`: `228+n` in port, `232+n` sailing to New World (`goto` = landfall), `244+n` sailing to Europe (`goto` = exit tile), `236+n` seen on dock land units; `turns_worked` (+0x16) = voyage turns left while in transit. nawagers' 235/239/243 = nation 3 on those diagonals. Linux capture/apply honor all three ship lanes (savegame.md "Human Europe ships") |
 | `vis_mask` | 4 bits | `mapped` | euro owner `1<<n` (`FUN_1427_0992`); natives 0 on spawn/capture |
 | 8 named bits (was `unknown15_lo`/`ship_damaged`) | 1 | `mapped` | bit7 `ship_damaged` (`FUN_1427_13b0`); bit0 dead; bits1/2/3/5/6 resolved 2026-08-19 (roam-reeval, stack founders/military, garrison-request, bound-in-transit); bit4 `wander_dest_chosen` partial — see mysteries_catalog.md |
 | `moves` / `orders` / `goto_*` | — | `mapped` | |

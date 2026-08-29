@@ -186,6 +186,28 @@ Full opaque-field inventory and RE phases: **[save_format_map.md](save_format_ma
 - Discovery: live play opens `@LANDHO` then sets `discovery_of_the_new_world` +
   `named_new_world` on confirm; capture/load still uses
   `col1_bridge_sync_new_world_discovery` as a safety net.
+- **Human Europe ships (2026-08-29, P10.1).** The Europe screen's
+  `harbor[]` / `expected[]` / `bound[]` lists are the only home of a human
+  ship once it sails for Europe (`units_despawn_ship_with_cargo`), so capture
+  used to drop them from the unit list. DOS keeps them as unit records on
+  the nation's Europe sentinel diagonal (`FUN_48d3_007a` sail-to-Europe,
+  `0346` sail-from-Europe, `03d0` per-turn tick): `228+n` in port,
+  `232+n` sailing to the New World (`goto` = landfall), `244+n` sailing to
+  Europe (`goto` = exit tile); unit `+0x16` (`turns_worked`) = voyage
+  turns left; passengers chained `pax0→…→ship` with the same x/y/goto/turns,
+  `orders=1`; Treasure `profession` = gold/100. Capture writes all three
+  lanes that way (harbor passengers are already dock immigrants with their
+  `(236,236)` mirror units, so only Expected/Bound carry cargo);
+  `return_from_europe_x/y` ← `last_exit`. Apply classifies human ships by
+  lane: `244+n` → Expected, `232+n` → Bound, with chained passengers kept
+  aboard as `cargo_types`/`cargo_professions`; anything else at Europe
+  coords stays the old harbor path (passengers to the docks, matching the
+  Linux arrival model). Guarded by `unit_col1_save`'s recapture block
+  (colony/unit counts survive apply→capture on all 19 fixtures; COLONY04
+  Expected lane, COLONY06 harbor + synthetic Bound round-trip).
+- **Colony cap** raised 32 → 48 (`COLONIZE_COLONIES_MAX`): DOS's founding
+  gate is `colony_count < 0x30`; five 33-colony lategame fixtures were
+  silently truncated to 32 on apply.
 - `post_map` connectivity still rebuilt on blank templates; `boot_timer` /
   `save_path_blob` stay zero / RMW-preserved
 
