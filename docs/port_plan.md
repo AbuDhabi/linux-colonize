@@ -418,9 +418,15 @@ House, horse breeding, food→colonist growth details.
   capacity-vs-actual, and more. Nothing further found needing a fix; this
   row's own doc note just never got updated after the asset situation
   (and the work) resolved.
-- [ ] **P4.2 [auto]** Town Hall L2/L3 outer-ring tiles (was W3.3): needs a
-  `colony.h` layout change — save-bridge-adjacent, so confirm layout with
-  the user **[user]** before touching, then port.
+- [x] **P4.2 [auto] — closed 2026-08-29.** Town Hall L2/L3 outer-ring
+  tiles (was W3.3). User decision: DOS's 20-slot colony tile table is a
+  legacy layout leftover — the game only ever uses the 8-tile ring, so the
+  runtime stays at 8. Bridge now preserves the 12 outer bytes opaquely
+  (`ColonizeColony.col1_outer_tiles`, filled on `col1_bridge_apply`, written
+  back by `col1_bridge_capture`; new colonies init to `0xff`). Evidence:
+  every one of ~195 real DOS `.SAV` fixtures has all 12 outer slots `0xff`,
+  so DOS never writes them; the W3.3 "12/20 tiles for L2/L3" claim is
+  retracted. `unit_col1_save` 48/48 green.
 - [x] **P4.3 [auto] — closed 2026-08-26, already fully wired.** Training
   (schoolhouse/college/university): teacher assignment, turns-to-train,
   `@NOTEACHER`/`@TRAINFAIL*` popups full. `turn.c`'s teacher/student
@@ -1253,8 +1259,10 @@ Done.
   `build`). No CMake changes — no existing test carried labels, so a
   ctest label wasn't worth the churn; a thin wrapper script matches this
   row's own "(or ctest label)" either/or.
-- [ ] **P10.3 [auto]** Legacy COLZ save path quarantine/removal (was W3.4)
-  — **[user]** confirm timing; reduces surface that can drift.
+- [x] **P10.3 [auto] — done 2026-08-29.** Legacy COLZ save path removed
+  (was W3.4): `savegame_write`/`savegame_read`, `ColonizeSaveHeader`/
+  `ColonizeSavePayload` and the two `smoke_savegame*` tests deleted; no
+  gameplay code called them. `savegame.h` is Col1-only now. ctest 48/48.
 
 ### P11 — Popups: right text, options, layout
 
@@ -1704,12 +1712,12 @@ Verification can happen autonomously; the flip is a user decision
   T3.3. Only after AI transcription reaches T3 1:1 for in-scope planners;
   expect a large alignment/bug-fix phase immediately after (that phase is
   Tier 5's last row).
-- [ ] **W3.3 — Town Hall level-2/3 outer-ring colony tiles.** DOS colonies
+- [x] **W3.3 (→ P4.2, closed 2026-08-29) — Town Hall level-2/3 outer-ring colony tiles.** DOS colonies
   with Town Hall L2/L3 work 12/20 tiles; `ColonizeColony` hardcodes 8 (the
   byte-exact DOS default tier — confirmed, see
   `colonist_work_plot_28c8.md`). Supporting L2/L3 needs a `colony.h`
   layout change (save-bridge-adjacent) — scope + confirm before touching.
-- [ ] **W3.4 — Quarantine/remove legacy COLZ save path.**
+- [x] **W3.4 (→ P10.3, done 2026-08-29) — Quarantine/remove legacy COLZ save path.**
   [architecture.md](architecture.md) already sanctions "when convenient";
   still user-visible surface, so confirm timing.
 

@@ -7,9 +7,6 @@
 #include "core/savegame.h"
 #include "platform/diagnostics.h"
 
-#define COLONIZE_SAVE_MAGIC 0x5a4c4f43u
-#define COLONIZE_SAVE_VERSION 1u
-
 static bool ensure_dir(const char* path, char* err_buf, size_t err_buf_size) {
   struct stat st;
   if (stat(path, &st) == 0) {
@@ -53,10 +50,6 @@ const char* savegame_default_dir(void) {
   diag_info("Default save directory resolved to: %s", save_dir);
   resolved = true;
   return save_dir;
-}
-
-static void path_for_slot(char* out, size_t out_size, const char* save_dir, const char* slot_name) {
-  snprintf(out, out_size, "%s/%s.sav", save_dir, slot_name);
 }
 
 bool savegame_colony_slot_path(
@@ -176,105 +169,5 @@ bool savegame_probe_col1_slot(
   out->year = head.year;
   out->autumn = head.autumn;
   out->turn = head.turn;
-  return true;
-}
-
-bool savegame_write(
-  const char* save_dir,
-  const char* slot_name,
-  const ColonizeSavePayload* payload,
-  char* err_buf,
-  size_t err_buf_size
-) {
-  if (!save_dir || !slot_name || !payload) {
-    snprintf(err_buf, err_buf_size, "Invalid savegame_write arguments.");
-    return false;
-  }
-  if (!ensure_dir(save_dir, err_buf, err_buf_size)) {
-    return false;
-  }
-
-  char path[640];
-  path_for_slot(path, sizeof(path), save_dir, slot_name);
-  diag_info("savegame_write path=%s turn=%u map_seed=%u random_seed=%u",
-    path, payload->turn_number, payload->map_seed, payload->random_seed);
-  FILE* f = fopen(path, "wb");
-  if (!f) {
-    snprintf(err_buf, err_buf_size, "Failed to open %s for write: %s", path, strerror(errno));
-    diag_error("%s", err_buf);
-    return false;
-  }
-
-  ColonizeSaveHeader header = {
-    .magic = COLONIZE_SAVE_MAGIC,
-    .version = COLONIZE_SAVE_VERSION,
-    .payload_size = (uint32_t)sizeof(*payload)
-  };
-
-  bool ok = fwrite(&header, sizeof(header), 1, f) == 1 && fwrite(payload, sizeof(*payload), 1, f) == 1;
-  if (fclose(f) != 0) {
-    snprintf(err_buf, err_buf_size, "Failed to close savegame %s: %s", path, strerror(errno));
-    diag_error("%s", err_buf);
-    return false;
-  }
-  if (!ok) {
-    snprintf(err_buf, err_buf_size, "Failed to write savegame %s.", path);
-    diag_error("%s", err_buf);
-    return false;
-  }
-  diag_info("savegame_write succeeded: %s (%zu bytes payload)", path, sizeof(*payload));
-  if (err_buf && err_buf_size > 0) {
-    err_buf[0] = '\0';
-  }
-  return true;
-}
-
-bool savegame_read(
-  const char* save_dir,
-  const char* slot_name,
-  ColonizeSavePayload* out_payload,
-  char* err_buf,
-  size_t err_buf_size
-) {
-  if (!save_dir || !slot_name || !out_payload) {
-    snprintf(err_buf, err_buf_size, "Invalid savegame_read arguments.");
-    return false;
-  }
-
-  char path[640];
-  path_for_slot(path, sizeof(path), save_dir, slot_name);
-  diag_info("savegame_read path=%s", path);
-  FILE* f = fopen(path, "rb");
-  if (!f) {
-    snprintf(err_buf, err_buf_size, "Failed to open %s for read: %s", path, strerror(errno));
-    diag_error("%s", err_buf);
-    return false;
-  }
-
-  ColonizeSaveHeader header = {0};
-  if (fread(&header, sizeof(header), 1, f) != 1) {
-    fclose(f);
-    snprintf(err_buf, err_buf_size, "Failed to read savegame header %s.", path);
-    return false;
-  }
-  if (header.magic != COLONIZE_SAVE_MAGIC || header.version != COLONIZE_SAVE_VERSION || header.payload_size != sizeof(*out_payload)) {
-    fclose(f);
-    snprintf(err_buf, err_buf_size, "Incompatible savegame format in %s.", path);
-    diag_error("%s (magic=0x%x version=%u payload_size=%u expected_payload=%zu)",
-      err_buf, header.magic, header.version, header.payload_size, sizeof(*out_payload));
-    return false;
-  }
-  if (fread(out_payload, sizeof(*out_payload), 1, f) != 1) {
-    fclose(f);
-    snprintf(err_buf, err_buf_size, "Failed to read savegame payload %s.", path);
-    diag_error("%s", err_buf);
-    return false;
-  }
-  fclose(f);
-  diag_info("savegame_read succeeded: turn=%u map_seed=%u random_seed=%u",
-    out_payload->turn_number, out_payload->map_seed, out_payload->random_seed);
-  if (err_buf && err_buf_size > 0) {
-    err_buf[0] = '\0';
-  }
   return true;
 }

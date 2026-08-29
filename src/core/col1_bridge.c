@@ -796,6 +796,10 @@ bool col1_bridge_apply(
     for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES; ++t) {
       dst->tiles[t] = -1;
     }
+    /* Slots 8..19 are unused by DOS; preserve raw for byte-exact write-back. */
+    for (int t = (int)COLONIZE_COL1_COLONY_TILE_RING; t < (int)COLONIZE_COL1_COLONY_TILES; ++t) {
+      dst->col1_outer_tiles[t - (int)COLONIZE_COL1_COLONY_TILE_RING] = src->tiles[t];
+    }
     for (int p = 0; p < pop; ++p) {
       ColonizeColonist* col = &dst->colonists[p];
       col->active = true;
@@ -1544,8 +1548,11 @@ bool col1_bridge_capture(
         }
         dst->stock[c] = (uint16_t)s;
       }
-      for (int ti = 0; ti < (int)COLONIZE_COL1_COLONY_TILES; ++ti) {
+      for (int ti = 0; ti < (int)COLONIZE_COL1_COLONY_TILE_RING; ++ti) {
         dst->tiles[ti] = (int8_t)-1; /* DOS empty = 0xff */
+      }
+      for (int ti = (int)COLONIZE_COL1_COLONY_TILE_RING; ti < (int)COLONIZE_COL1_COLONY_TILES; ++ti) {
+        dst->tiles[ti] = src->col1_outer_tiles[ti - (int)COLONIZE_COL1_COLONY_TILE_RING];
       }
       for (int rti = 0; rti < COLONIZE_COLONY_FIELD_TILES; ++rti) {
         const int who = (int)src->tiles[rti];
