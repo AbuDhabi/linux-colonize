@@ -3833,6 +3833,19 @@ int main(void) {
     /* Synthetic Meet CHOICE Trade still works when player initiates (apply). */
     ai_popup_clear(&pop);
     ind->euro_diplo[0] = 1;
+    /*
+     * FUN_4d56_2820 shell zeroes ask[] for the three highest-bid goods; with
+     * every bid 0 that hits muskets/tools/trade goods (stable sort), so give
+     * every tribe stock (2154 bid += tons) like a real village has.
+     */
+    for (int ni = 0; ni < 8; ++ni) {
+      for (int c = 1; c < 8; ++c) {
+        col1.indian[ni].tons[c] = 300;
+      }
+    }
+    col1.tribe[0].last_bought = 0xffu;
+    col1.tribe[0].last_sold = 0xffu;
+    col1.tribe[0].sticky_trade_good = 0xffu;
     ind->euro_diplo[0] = (uint8_t)(ind->euro_diplo[0] | 0x40);
     col1.indian[0].alarm_by_player[0] = 0; /* relation 100 */
     col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
@@ -3872,8 +3885,8 @@ int main(void) {
     if (trade_price <= 0) {
       return fail("Trade price CHOICE accept should carry a positive locked price");
     }
-    if (land0->hold_goods_amount[0] != goods0 - 1) {
-      return fail("Trade accept should drain 1 TRADE_GOODS from the contacting unit's own hold");
+    if (land0->hold_goods_amount[0] != 0) {
+      return fail("Trade accept should remove the whole hold slot (FUN_1000_8cdc)");
     }
     /*
      * 2026-08-22: LAB_002bbc (the real DOS branch this stand-in approximates)
@@ -3888,22 +3901,14 @@ int main(void) {
       );
       return fail("Trade accept should CREDIT the locked price to the Euro nation's gold");
     }
-    if (pop.queue_count < 1) {
-      return fail("Trade accept should enqueue Trade accepted OK");
-    }
-    if (strstr(st_pop, "Trade") == NULL) {
-      fprintf(stderr, "unit_ai_contact: trade status '%s'\n", st_pop);
-      return fail("Trade accept should set Trade accepted status");
-    }
-    if (strstr(st_pop, "Jewelled Relics") == NULL) {
-      fprintf(stderr, "unit_ai_contact: trade flavor status '%s'\n", st_pop);
-      return fail("Trade accept should name @TRIBES flavor good (Inca Jewelled Relics)");
-    }
     if (col1.tribe[0].last_bought != (uint8_t)COLONIZE_CARGO_TRADE_GOODS) {
       return fail("Trade accept should set tribe.last_bought to trade goods");
     }
-    if (col1.tribe[0].last_sold != (uint8_t)COLONIZE_CARGO_SILVER) {
-      return fail("Trade accept should set Inca last_sold to silver (teach map)");
+    if (col1.tribe[0].sticky_trade_good != 0xffu) {
+      return fail("Trade accept should idle sticky_trade_good (tribe+7 = 0xff)");
+    }
+    if (ind->tons[COLONIZE_CARGO_TRADE_GOODS] != goods0) {
+      return fail("Trade accept should add the sold quantity to indian.tons[cargo]");
     }
 
     /*
@@ -3918,6 +3923,7 @@ int main(void) {
      */
     {
       ind->alarm_by_player[0] = 47;
+      col1.tribe[0].last_bought = 0xffu; /* 2820: a tribe refuses the good it bought last */
       const uint8_t rel_before = ai_diplo_indian_relation(&col1, 4 + (0), 0);
       col1.tribe[0].alarm[0].friction = 20;
       land0->hold_goods_type[0] = COLONIZE_CARGO_TRADE_GOODS;
@@ -3935,20 +3941,16 @@ int main(void) {
       if (apply_trade_offer_choice(&ctx, &pop, 0, 4, 1) <= 0) {
         return fail("mid-alarm trade price CHOICE accept failed");
       }
-      if (land0->hold_goods_amount[0] != goods_mid - 1) {
+      if (land0->hold_goods_amount[0] != 0) {
         fprintf(stderr, "unit_ai_contact: mid-alarm goods %d->%d\n", goods_mid,
                 land0->hold_goods_amount[0]);
-        return fail("mid-alarm trade should drain exactly 1 TRADE_GOODS");
+        return fail("mid-alarm trade should remove the whole hold");
       }
       if (ai_diplo_indian_relation(&col1, 4 + (0), 0) < rel_before + 2) {
         return fail("mid-alarm trade should bump relation by at least +2 (DOS accept: alarm -= 2*c4)");
       }
       if (ind->alarm_by_player[0] > 45) {
         return fail("mid-alarm trade should relieve alarm by at least 2 (-2*c4)");
-      }
-      if (strstr(st_pop, "Trade accepted") == NULL) {
-        fprintf(stderr, "unit_ai_contact: mid-alarm status '%s'\n", st_pop);
-        return fail("mid-alarm trade should set plain Trade accepted status");
       }
       ind->alarm_by_player[0] = 10; /* restore peaceful for later arms */
     }
@@ -3963,6 +3965,7 @@ int main(void) {
       az->alarm_by_player[0] = 10;
       col1.indian[1].euro_diplo[0] |= COL1_INDIAN_MET_BIT; /* met (was relation 80; alarm pinned above) */ /* Aztec×Euro meet floor */
       col1.tribe[0].nation_id = 5; /* Aztec ore */
+      col1.tribe[0].last_bought = 0xffu; /* 2820: a tribe refuses the good it bought last */
       brave2->nation_id = 5; /* real per-unit adjacency now needs the physical Brave to match */
       col1.tribe[0].alarm[0].friction = 20;
       land0->hold_goods_type[0] = COLONIZE_CARGO_TRADE_GOODS;
@@ -3980,10 +3983,10 @@ int main(void) {
       if (apply_trade_offer_choice(&ctx, &pop, 0, 5, 1) <= 0) {
         return fail("ore trade price CHOICE accept failed");
       }
-      if (land0->hold_goods_amount[0] != goods_ore - 1) {
+      if (land0->hold_goods_amount[0] != 0) {
         fprintf(stderr, "unit_ai_contact: ore trade goods %d->%d\n", goods_ore,
                 land0->hold_goods_amount[0]);
-        return fail("ore trade should drain exactly 1 TRADE_GOODS");
+        return fail("ore trade should remove the whole hold");
       }
       col1.tribe[0].nation_id = 4; /* restore Inca */
       brave2->nation_id = 4;
@@ -4012,6 +4015,7 @@ int main(void) {
         ind_m->alarm_by_player[0] = 10;
         col1.indian[cases[ci].tribe_nation - 4].euro_diplo[0] |= COL1_INDIAN_MET_BIT; /* met (alarm pinned above) */
         col1.tribe[0].nation_id = (uint8_t)cases[ci].tribe_nation;
+        col1.tribe[0].last_bought = 0xffu; /* 2820: a tribe refuses the good it bought last */
         brave2->nation_id = cases[ci].tribe_nation;
         col1.tribe[0].alarm[0].friction = 20;
         land0->hold_goods_type[0] = COLONIZE_CARGO_TRADE_GOODS;
@@ -4029,10 +4033,10 @@ int main(void) {
         if (apply_trade_offer_choice(&ctx, &pop, 0, cases[ci].nation_b, 1) <= 0) {
           return fail("Series M trade price CHOICE accept failed");
         }
-        if (land0->hold_goods_amount[0] != goods_m - 1) {
+        if (land0->hold_goods_amount[0] != 0) {
           fprintf(stderr, "unit_ai_contact: %s trade goods %d->%d\n",
                   cases[ci].label, goods_m, land0->hold_goods_amount[0]);
-          return fail("Series M trade should drain exactly 1 TRADE_GOODS");
+          return fail("Series M trade should remove the whole hold");
         }
         ind_m->alarm_by_player[0] = 10;
       }
@@ -4064,6 +4068,7 @@ int main(void) {
       ship->nation_id = 0;
       ship->hold_goods_type[0] = COLONIZE_CARGO_TRADE_GOODS;
       ship->hold_goods_amount[0] = 3;
+      col1.tribe[0].last_bought = 0xffu; /* 2820: a tribe refuses the good it bought last */
       col1.tribe[0].x = 5;
       col1.tribe[0].y = 5;
       ind->alarm_by_player[0] = 10;
@@ -4081,15 +4086,11 @@ int main(void) {
       if (apply_trade_offer_choice(&ctx, &pop, 0, 4, 1) <= 0) {
         return fail("sea-trade price CHOICE accept failed");
       }
-      if (ship->hold_goods_amount[0] != 2) {
-        return fail("sea-trade should drain 1 TRADE_GOODS from ship hold");
+      if (ship->hold_goods_amount[0] != 0) {
+        return fail("sea-trade should remove the whole ship hold");
       }
       if (ai_diplo_indian_relation(&col1, 4 + (0), 0) < (uint8_t)(rel_sea + 2)) {
         return fail("sea-trade should bump relation like land trade");
-      }
-      if (strstr(st_pop, "Trade") == NULL) {
-        fprintf(stderr, "unit_ai_contact: sea-trade status '%s'\n", st_pop);
-        return fail("sea-trade should set Trade accepted status");
       }
       units_despawn(&units, ship_id);
     }
@@ -4115,6 +4116,7 @@ int main(void) {
       wag->nation_id = 0;
       wag->hold_goods_type[0] = COLONIZE_CARGO_TRADE_GOODS;
       wag->hold_goods_amount[0] = 2;
+      col1.tribe[0].last_bought = 0xffu; /* 2820: a tribe refuses the good it bought last */
       ind->alarm_by_player[0] = 12;
       col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT; /* met (was relation 70; alarm pinned above) */
       ai_popup_clear(&pop);
@@ -4129,8 +4131,8 @@ int main(void) {
       if (apply_trade_offer_choice(&ctx, &pop, 0, 4, 1) <= 0) {
         return fail("wagon-trade price CHOICE accept failed");
       }
-      if (wag->hold_goods_amount[0] != 1) {
-        return fail("wagon-trade should drain 1 TRADE_GOODS from wagon hold");
+      if (wag->hold_goods_amount[0] != 0) {
+        return fail("wagon-trade should remove the whole wagon hold");
       }
       if (ai_diplo_indian_relation(&col1, 4 + (0), 0) < 90) {
         return fail("wagon-trade should bump relation by at least +2 (alarm 12 -> <=10)");
@@ -4187,15 +4189,36 @@ int main(void) {
     }
 
     /*
-     * Trade CHOICE haggle refuse (alarm≥50 gate): OK "The %s refuse to trade."
-     * Cite: FUN_4d56_2aac refuse; fandom Alarm; deep 2820 PARKED.
+     * FUN_4d56_2820 human gates + phases (structural port 2026-08-29):
+     *  a) tribe.last_bought == cargo → @BADCARGO (CONTACT_REFUSE OK), no trade
+     *  b) tribe.sticky_trade_good == cargo → @BADHAGGLE1
+     *  c) two holds → CONTACT_TRADE_PICK CHOICE; pick → @TRADE0; accept →
+     *     that hold removed (others compacted), gold credited, tons += qty,
+     *     then LAB_002e92: @BUYWHICH → @BUY0 accept → gold debited, goods in.
      */
     {
+      if (units.type_count < 4) {
+        units.type_count = 4;
+      }
+      snprintf(units.types[3].name, sizeof(units.types[3].name), "Wagon Train");
+      units.types[3].domain = COLONIZE_UNIT_DOMAIN_LAND;
+      units.types[3].movement = 3;
+      units.types[3].cargo = 4;
+      const int wag_id = units_spawn_allow_stack(&units, 3, 6, 5);
+      ColonizeUnit* wag = units_get(&units, wag_id);
+      if (!wag) {
+        return fail("2820 gates: wagon spawn");
+      }
+      wag->nation_id = 0;
+      wag->hold_goods_type[0] = COLONIZE_CARGO_FURS;
+      wag->hold_goods_amount[0] = 100;
+      ind->alarm_by_player[0] = 10;
+      col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
+      col1.tribe[0].last_bought = (uint8_t)COLONIZE_CARGO_FURS;
+      col1.tribe[0].last_sold = 0xffu;
+      col1.tribe[0].sticky_trade_good = 0xffu;
+      /* a) @BADCARGO */
       ai_popup_clear(&pop);
-      ind->alarm_by_player[0] = 55;
-      col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT; /* met (was relation 80; alarm pinned above) */
-      col1.tribe[0].last_bought = (uint8_t)COLONIZE_CARGO_TRADE_GOODS;
-      col1.tribe[0].last_sold = (uint8_t)COLONIZE_CARGO_FURS;
       st_pop[0] = '\0';
       pop.has_result = true;
       pop.result_cancelled = false;
@@ -4204,21 +4227,138 @@ int main(void) {
       pop.result_nation_a = 0;
       pop.result_nation_b = 4;
       ai_contact_apply_popup_result(&ctx, &pop);
-      if (pop.queue_count < 1 ||
-          pop.queue[pop.queue_count - 1].kind != AI_POPUP_KIND_OK ||
-          pop.queue[pop.queue_count - 1].tag != AI_POPUP_TAG_CONTACT_REFUSE) {
-        return fail("Trade refuse should enqueue CONTACT_REFUSE OK");
+      if (pop.queue_count < 1 || pop.queue[pop.queue_count - 1].kind != AI_POPUP_KIND_OK ||
+          pop.queue[pop.queue_count - 1].tag != AI_POPUP_TAG_CONTACT_REFUSE ||
+          strstr(st_pop, "enough") == NULL) {
+        fprintf(stderr, "unit_ai_contact: badcargo status '%s'\n", st_pop);
+        return fail("2820: last_bought == cargo should refuse with @BADCARGO");
       }
-      if (strstr(st_pop, "refuse") == NULL || strstr(st_pop, "trade") == NULL ||
-          strstr(st_pop, "The ") == NULL) {
-        fprintf(stderr, "unit_ai_contact: trade-refuse status '%s'\n", st_pop);
-        return fail("Trade refuse should set tribe-named refuse-to-trade status");
+      if (wag->hold_goods_amount[0] != 100) {
+        return fail("2820: @BADCARGO must not touch the hold");
       }
-      /* FUN_4d56_2af6: abort clears last-goods flags. */
-      if (col1.tribe[0].last_bought != 0xffu || col1.tribe[0].last_sold != 0xffu) {
-        return fail("Trade refuse should clear tribe last_bought/last_sold");
+      /* b) @BADHAGGLE1 (furs may sit in the tribe's top-3 bids → ask 0; use trade goods) */
+      col1.tribe[0].last_bought = 0xffu;
+      wag->hold_goods_type[0] = COLONIZE_CARGO_TRADE_GOODS;
+      col1.tribe[0].sticky_trade_good = (uint8_t)COLONIZE_CARGO_TRADE_GOODS;
+      ai_popup_clear(&pop);
+      st_pop[0] = '\0';
+      pop.has_result = true;
+      pop.result_cancelled = false;
+      pop.result_choice_id = 1;
+      pop.result_tag = AI_POPUP_TAG_CONTACT_MEET;
+      pop.result_nation_a = 0;
+      pop.result_nation_b = 4;
+      ai_contact_apply_popup_result(&ctx, &pop);
+      if (pop.queue_count < 1 || pop.queue[pop.queue_count - 1].tag != AI_POPUP_TAG_CONTACT_REFUSE ||
+          strstr(st_pop, "already told") == NULL) {
+        fprintf(stderr, "unit_ai_contact: badhaggle1 status '%s'\n", st_pop);
+        return fail("2820: sticky_trade_good == cargo should refuse with @BADHAGGLE1");
       }
+      /* c) hold pick → sell → buy */
+      col1.tribe[0].sticky_trade_good = 0xffu;
+      wag->hold_goods_type[1] = COLONIZE_CARGO_TRADE_GOODS;
+      wag->hold_goods_amount[1] = 50;
+      ai_popup_clear(&pop);
+      pop.has_result = true;
+      pop.result_cancelled = false;
+      pop.result_choice_id = 1;
+      pop.result_tag = AI_POPUP_TAG_CONTACT_MEET;
+      pop.result_nation_a = 0;
+      pop.result_nation_b = 4;
+      ai_contact_apply_popup_result(&ctx, &pop);
+      if (pop.queue_count < 1 || pop.queue[pop.queue_count - 1].kind != AI_POPUP_KIND_CHOICE ||
+          pop.queue[pop.queue_count - 1].tag != AI_POPUP_TAG_CONTACT_TRADE_PICK ||
+          pop.queue[pop.queue_count - 1].choice_count != 3) {
+        return fail("2820: two holds should queue the hold-pick CHOICE (2 holds + Cancel)");
+      }
+      ai_popup_clear(&pop);
+      pop.has_result = true;
+      pop.result_cancelled = false;
+      pop.result_choice_id = 2; /* second hold: 50 trade goods */
+      pop.result_tag = AI_POPUP_TAG_CONTACT_TRADE_PICK;
+      pop.result_nation_a = 0;
+      pop.result_nation_b = 4;
+      pop.result_payload = wag_id;
+      ai_contact_apply_popup_result(&ctx, &pop);
+      if (pop.queue_count < 1 || pop.queue[pop.queue_count - 1].tag != AI_POPUP_TAG_CONTACT_TRADE_OFFER ||
+          pop.queue[pop.queue_count - 1].choice_count != 4) {
+        return fail("2820: hold pick should queue @TRADE0 (accept / fairer / gift / never mind)");
+      }
+      const uint32_t gold_c = col1.nation[0].gold;
+      const int16_t tons_tg_c = ind->tons[COLONIZE_CARGO_TRADE_GOODS];
+      const int price_c = apply_trade_offer_choice(&ctx, &pop, 0, 4, 1);
+      if (price_c <= 0) {
+        return fail("2820: hold-2 sale accept failed");
+      }
+      if (wag->hold_goods_type[0] != COLONIZE_CARGO_TRADE_GOODS || wag->hold_goods_amount[0] != 100 ||
+          wag->hold_goods_amount[1] != 0) {
+        return fail("2820: selling hold 2 must remove only that slot and keep hold 1");
+      }
+      if (col1.nation[0].gold != gold_c + (uint32_t)price_c) {
+        return fail("2820: sale should credit the locked price");
+      }
+      if (ind->tons[COLONIZE_CARGO_TRADE_GOODS] != tons_tg_c + 50) {
+        return fail("2820: sale should add qty to indian.tons[cargo]");
+      }
+      if (col1.tribe[0].last_bought != (uint8_t)COLONIZE_CARGO_TRADE_GOODS) {
+        return fail("2820: sale should set last_bought = the sold cargo");
+      }
+      int bw = -1;
+      for (int qi = 0; qi < pop.queue_count; ++qi) {
+        if (pop.queue[qi].tag == AI_POPUP_TAG_CONTACT_BUYWHICH) {
+          bw = qi;
+        }
+      }
+      if (bw < 0) {
+        return fail("2820: after a sale the tribe should offer its goods (@BUYWHICH)");
+      }
+      const int buy_id = pop.queue[bw].choice_ids[0];
+      ai_popup_clear(&pop);
+      pop.has_result = true;
+      pop.result_cancelled = false;
+      pop.result_choice_id = buy_id;
+      pop.result_tag = AI_POPUP_TAG_CONTACT_BUYWHICH;
+      pop.result_nation_a = 0;
+      pop.result_nation_b = 4;
+      pop.result_payload = wag_id;
+      ai_contact_apply_popup_result(&ctx, &pop);
+      if (pop.queue_count < 1 || pop.queue[pop.queue_count - 1].tag != AI_POPUP_TAG_CONTACT_BUY0) {
+        return fail("2820: @BUYWHICH pick should queue @BUY0");
+      }
+      const int buy_payload = pop.queue[pop.queue_count - 1].payload;
+      const int bought_c = buy_id - 1;
+      const int16_t tons_bought_c = ind->tons[bought_c];
+      col1.nation[0].gold = 100000;
+      ai_popup_clear(&pop);
+      pop.has_result = true;
+      pop.result_cancelled = false;
+      pop.result_choice_id = 1; /* We will gladly pay */
+      pop.result_tag = AI_POPUP_TAG_CONTACT_BUY0;
+      pop.result_nation_a = 0;
+      pop.result_nation_b = 4;
+      pop.result_payload = buy_payload;
+      ai_contact_apply_popup_result(&ctx, &pop);
+      if (col1.nation[0].gold >= 100000u) {
+        return fail("2820: @BUY0 accept should debit gold");
+      }
+      if (wag->hold_goods_type[1] != bought_c || wag->hold_goods_amount[1] != 50) {
+        fprintf(stderr, "unit_ai_contact: buy hold type=%d amount=%d\n", wag->hold_goods_type[1],
+                wag->hold_goods_amount[1]);
+        return fail("2820: @BUY0 accept should fill a hold with qty = the sold hold's amount (DS:0x8dc4)");
+      }
+      if (ind->tons[bought_c] != tons_bought_c - 50) {
+        return fail("2820: purchase should take qty from indian.tons[cargo]");
+      }
+      if (col1.tribe[0].last_sold != (uint8_t)(bought_c == 9 ? 0xff : bought_c)) {
+        return fail("2820: purchase should set last_sold");
+      }
+      units_despawn(&units, wag_id);
+      col1.tribe[0].last_bought = 0xffu;
+      col1.tribe[0].last_sold = 0xffu;
+      col1.tribe[0].sticky_trade_good = 0xffu;
+      col1.nation[0].gold = 30;
       ind->alarm_by_player[0] = 0; /* restore peaceful for later popup arms */
+      fprintf(stderr, "unit_ai_contact: 2820 gates + sell/buy phases ok\n");
     }
 
     /*

@@ -350,7 +350,7 @@ Aligned with [manual_gap.md](manual_gap.md) §Indians — no new fidelity claims
 |------|--------|-------|
 | Villages on map + Braves | Partial | Placement + icons; quiet pulse / growth — [seed100_brave.md](seed100_brave.md), [ai_transcription.md](ai_transcription.md) |
 | First contact WELCOME | Done structural | `ai_contact_*`; thin land grant |
-| Meet / trade / gift / teach | Partial | Widgets Done thin; deep `2820` / VGA **PARKED** |
+| Meet / trade / gift / teach | Partial | Village trade `2820` **Done structural** (2026-08-29: hold pick, sell/haggle/gift, `@BADCARGO`/`@BRING`, post-sale buy); gift/teach widgets thin; VGA chrome PARKED |
 | Missions / convert / heresy | Partial | Structural; incite/WARPATH **Done** thin (`indian_incite_417e.md`) |
 | Alarm / raids / wars | Partial | Structural `@RAID*`; village enter warn→Attack Done thin; deep `2820` PARKED |
 | Capital surrender / Cortes treasure | Done thin | `ai_diplo_*` / `units_*` fallout |

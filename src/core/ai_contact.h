@@ -11,12 +11,9 @@
  * FUN_4d56_1816 phases (prelude / relation), FUN_5bfb_022e meet,
  * FUN_4d56_4528 / FUN_5fef_0f14 raid outcomes, FUN_4d56_359c scout stub.
  *
- * PARK deep FUN_4d56_2820 (~1.4k; thunk 2a1f_044c): full meet/raid decision
- * matrix + nested trade 2aac…311e (dispatch / buy / hard-bargain / demand).
- * Linux keeps thin trade-goods→alarm (colony / ship / wagon hold) + Trade
- * CHOICE refuse/concluded chrome + gift/demand / teach / convert / @RAID*
- * stand-ins only — no 2820 body port
- * (Marathon2 R6 / R5 / R4 / prior R14 PARK).
+ * FUN_4d56_2820 (thunk 2a1f_044c) village trade: structural port 2026-08-29
+ * (hold pick → LAB_002bbc sell loop → LAB_002e92 buy loop, all GAME.TXT
+ * trade sections). See original_sources_annotated/ai/indian_trade_2820.md.
  *
  * Jesuit-grade convert: PEDIA @JOB24 name/prof 24, or nation owns Brebeuf
  * (docs/fandom_col1994.md — all missionaries function as experts). Mid-band

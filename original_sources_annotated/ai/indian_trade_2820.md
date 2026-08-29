@@ -1148,3 +1148,61 @@ floor 10, 1-in-(8−diff) alarm +1, re-ask via `@BUY1`). `@BADHAGGLE0/1`
 && iStack_88 == 0`), `@TRADE0`/`@TRADE1`/`@BADHAGGLE0`. The "`306c`" label
 this doc used for the hard-bargain was a goto inside this same loop, not a
 separate function (see the 2026-08-22 correction above).
+
+## 2026-08-29 — verification pass against the clean recovery; full rewrite
+
+Re-read the quoted C top to bottom against the shipped `ai_contact.c` port
+(written by earlier sessions). The shape was right, the numbers were not:
+
+- **Quantity.** `iStack_6a` = `FUN_1000_8e58` = `FUN_15eb_3040` = the hold's
+  amount byte (`unit+0x3154+slot`), and `DS:0x8dc4` is the same amount as
+  stashed by the slot remover `FUN_15eb_317c` (`FUN_1000_8cdc`). The port
+  priced qty = 1 and drained 1 unit; DOS prices the whole hold (usually 100)
+  and removes the slot (`FUN_15eb_317c` compacts the rest). Prices were ~100×
+  too low. Fixed: `ai_contact_2820_remove_slot`, price uses the hold amount.
+- **Any cargo, not TRADE_GOODS only.** The per-cargo `LAB_002bbc` table
+  (base 6/7, 13/15/8/14 special cases with `indian.muskets`/`horse_herds`,
+  tier2 = 0 for muskets/horses) is now transcribed; the shell's hold pick
+  (`iStack_7e`: human menu of "qty name" rows + cancel 99 via `func_19372`,
+  AI `RNG(0, holds-1)`) is `AI_POPUP_TAG_CONTACT_TRADE_PICK`.
+- **Shell table prep** (lines 203-218) was missing: `bid[0] = 0`; `ask[0] = 0`
+  when `bid[13] < old bid[0]`; sort by bid; the three highest-bid goods get
+  `ask = 0` (a food slot becomes cloth 0xc). With every bid 0 (synthetic test
+  tribe) the stable sort zeroes muskets/tools/trade goods — real villages
+  have tons, so the unit test now gives them stock.
+- **Human gates** (lines 656-675): `last_bought == cargo || last_sold ==
+  cargo || ask[cargo] == 0` → `@BADCARGO` (STRING1..3 = highest asks after
+  zeroing last_bought/last_sold); `sticky == cargo` → `@BADHAGGLE1`; else
+  the `LAB_002bbc` loop. The old Linux `alarm >= 50 || relation < 40`
+  "refuse to trade" and the `2af6` last-goods clear had no basis here and
+  are gone. `@TRADE0` has four rows (accept / fairer / gift / never mind),
+  `@TRADE1` three; STRING0 is the NAMES `@VALUES` adjective
+  (`(ask - tier2 + 4) / 10`, cap 3).
+- **Sell accept effects**: `tons[cargo] += qty`, `sticky = 0xff`, if `c4 > 0`
+  alarm `-= 2*c4` and `tribe+10+e*2 -= qty` (floor 0, `qty == 100 → 0`),
+  `last_bought = cargo` (0xff for muskets/horses), muskets `+1` per
+  `qty > 24` / `> 49`, horses `horse_breeding += qty>>2` and herds likewise.
+  The old `last_sold = nation's teach cargo` / `friction--` / `relation +2`
+  / "Trade accepted" chrome were inventions and are gone.
+- **AI with cargo** (`iStack_5e = alarm > 0x31 ? 3 : 1`): 3 is the *gift*
+  arm, not a refusal — a hostile tribe takes the cargo for free (alarm
+  `-4*(c4+1)`). Ported. The Brave-adjacency meet pulse (a Linux stand-in;
+  DOS's own callers are the village-enter arms) keeps its TRADE_GOODS-only
+  scope so AI wagons are not stripped of every cargo each turn.
+- **Buy phase order**: `LAB_002e92` is reached only via `goto` after the
+  sell loop (`iStack_c6 != 0`, i.e. not after `@BADHAGGLE0` / cancel) or
+  from the shell with `iStack_c8 < 0`. In the latter case `if (-1 <
+  iStack_c8)` fails, so an **empty-handed unit gets `@BRING` and never a
+  purchase**. The earlier "tribe sells to an empty-handed unit" reading
+  was wrong. Buy qty = `DS:0x8dc4` = the just-sold hold's amount (ships
+  `>> 2`) — resolves the "0x8dc4 quantity source" open item. `@BRING` fires
+  when the sold good is not one of the two highest asks. `@NOTENOUGH` also
+  bumps alarm +1 (`FUN_1000_8f5c(…, 1, 0)`). Session RNG now advances across
+  the popup round trips instead of reseeding per step.
+- **Popup tag collision**: `AI_POPUP_TAG_CONTACT_BUYWHICH` was 43, the same
+  value as `AI_POPUP_TAG_KING_FRIGATE`; moved to 51.
+- `ai_contact_auto_buy_2e92` stays as a test-exposed helper (qty 100 / 25).
+
+Not ported: BGM cue (`FUN_1000_8688` 5/6/7 on `RNG(0,3) == 0`), the exact
+`DS:0x2e0c`/`0x2e0e` vehicle-name pointers ("wagon train"/"ship" used),
+`@BADHAGGLE3`/`@TRADEWHICH`/`@DEFICIT` (not reached by this function).
