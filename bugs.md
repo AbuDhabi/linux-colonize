@@ -2,8 +2,8 @@ This is a user-maintained list of bugs. User puts stuff in, user removes. Agents
 
 | Bug Description | Resolution |
 |-----------------|------------|
-| Price of processed goods (eg. coats, cloth) falls very rapidly, nearly once per turn. It should not fall this fast. | |
-| Turn processing advances even when user is in a popup. In DOS, just about everything except animations pauses until user deals with the popup. | |
+| Price of processed goods (eg. coats, cloth) falls very rapidly, nearly once per turn. It should not fall this fast. | INVESTIGATED, not changed: traced the EOT market formula (europe_tick_market_prices) — it's byte-exact against 2 captured real-DOS turn pairs (golden_market_prices01). Per the actual DOS disassembly (FUN_38fd_0058), Rum/Cigars/Cloth/Coats use a pressure delta scaled ×100 (`sign*mid*100`), while raw goods (sugar/tobacco/cotton/furs) use an unscaled delta (`mid*sign`) against the same ×100 rise/fall threshold — so manufactured goods correct in ~1 qualifying turn where raw goods take ~20-30. That asymmetry is in the original EXE, not a porting bug: once a manufactured good is being sold steadily its price crashes fast and recovers slowly (attrition is small, ~11-13/turn vs the 400 threshold), same as real Colonization folklore. If you're seeing something DOS itself wouldn't do (e.g. a save where the price never recovers at all even after selling stops for many turns), send the save and I'll compare against a live DOS run. |
+| Turn processing advances even when user is in a popup. In DOS, just about everything except animations pauses until user deals with the popup. | FIXED: the per-frame unit goto-pacing / auto-activation-cycle in game_update (game_loop.c) only checked for full-screen overlays (report/menu/Europe/colony/pedia/debug atlas) before letting wall-clock time step units — it didn't check for an open modal popup/dialog (king tax, ship sunk, options, name entry, etc.), so units kept sliding along queued goto orders and the turn kept auto-selecting the next unit while a popup sat on screen. Added `!game_modal_open(game)` to that gate. |
 
 
 
