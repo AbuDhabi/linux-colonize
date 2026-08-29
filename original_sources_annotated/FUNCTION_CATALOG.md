@@ -1830,7 +1830,7 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_291f_0f74` | 36970 | 10 | thunk | Far thunk → FUN_4345_024a (FF election / announcement UI screen) | inferred |  |
 | `FUN_291f_0f82` | 36980 | 10 | thunk | Far thunk → FUN_49dd_02d0 (Resolve tile tip string; orders/colony/terrain) | inferred |  |
 | `FUN_291f_0f8e` | 36990 | 10 | thunk | Far thunk → FUN_41f2_0f56 (high-score table load/insert/save + UI) | inferred |  |
-| `FUN_291f_0f9c` | 37000 | 10 | thunk | Far thunk → FUN_41f2_0b70 (Score→difficulty gold rebate + treasure dialog) | inferred |  |
+| `FUN_291f_0f9c` | 37000 | 10 | thunk | Far thunk → FUN_41f2_0b70 (Colonization Rating + exploits screen) | inferred |  |
 | `FUN_291f_0faa` | 37010 | 10 | thunk | Far thunk → FUN_41f2_000e (Present nation-score report title dialog) | inferred |  |
 | `FUN_291f_0fb8` | 37020 | 10 | thunk | Far thunk → FUN_7314_0000 (close config/name file handle) | inferred |  |
 | `FUN_291f_0fc4` | 37030 | 10 | thunk | Far thunk → FUN_7314_015e (Extract next comma field; advance cursor) | inferred |  |
@@ -2425,9 +2425,9 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_41f2_0266` | 71414 | 329 | ai | Mid-entry of 0092 colonist-score loop (Ghidra split) | inferred |  |
 | `FUN_41f2_0280` | 71743 | 342 | ai | Tribe growth tick from Indian nation turn (4d56_1816) | known | docs/ai_transcription.md |
 | `FUN_41f2_0294` | 72085 | 330 | ai | Mid-label of 0092 nation-score/report (NOT the 152e/0038 callee — Ghidra misresolve 2026-08-24; those call `2a1f:0410`→overlay:0, candidate `4d56:0000`) | inferred | docs/ai_port_plan.md T1.15 |
-| `FUN_41f2_0b70` | 72415 | 137 | ai | Score→difficulty-scaled gold rebate + treasure dialog | inferred |  |
-| `FUN_41f2_0f56` | 72552 | 175 | ai | High-score table load/insert/save + present UI | inferred |  |
-| `FUN_41f2_14a8` | 72727 | 72 | ai | End-game score snapshot → rebate(0b70) + HoF(0f56) | inferred |  |
+| `FUN_41f2_0b70` | 72415 | 137 | ai | Colonization Rating = ((mult×score)/100)>>1, mult {4,5,6,8,10} by difficulty (NOT gold — the "rebate" reading was wrong); tier = max n−1 with n²/3 < mult×score/100 (n 1..24, cap 23); when tier ≥ 0 and !(0x5382&0x10) shows the WOODPAN2 exploits screen (@EXPLOITS, first tier+1 @SCORE rows, SCORE<tier+1>.SS picture, surname-substituted name). Ported 2026-08-29 (reports_score_rating / reports_render_exploits) | verified | docs/reports.md |
+| `FUN_41f2_0f56` | 72552 | 175 | ai | HALLFAME.DAT (6×42-byte records: name[24], nation, declared, achieved, year, season, difficulty, score, rating, tier) load/insert (ranked by rating word 19)/save + 5-entry centered presenter. Ported 2026-08-29 (reports_render_hall_of_fame) | verified | docs/reports.md |
+| `FUN_41f2_14a8` | 72727 | 72 | ai | Retire/end-game chain: 0092(0) score → 0b70(1) (F10 display + rating + exploits) → 0f56(record) HoF. Ported 2026-08-29 (game_retire_after_score) | verified | docs/reports.md |
 
 ### Segment `4345` (13 defs) — trade — Nation trade flags / FF / Europe-market helpers
 

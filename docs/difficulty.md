@@ -55,7 +55,7 @@ Save field: `ColonizeCol1Head.difficulty` (`uint8_t`, clamp 0..4). Runtime:
 | Town commons secondary | `+1` Discoverer only (`FUN_15eb_1f72` ~12568) | **Wired** 2026-08-28 |
 | Ore/silver depletion | per unit `rng(0,diff+1)!=0` bumps `+0x97` (`FUN_364b_0688` ~57932); Discoverer 1/2 rate … Viceroy 5/6 | **Wired** 2026-08-28 (`turn_produce_one_colony` epilogue) |
 | Rival SoL pressure | Threshold `(8-diff)*10` | thin / PARK |
-| End-game score→gold rebate | `FUN_41f2_0b70` difficulty multiplier | **PARK** |
+| End-game Colonization Rating | `FUN_41f2_0b70` difficulty multiplier {4,5,6,8,10} | **Done** 2026-08-29 (`reports_score_rating`) |
 | Combat strength (human Euro) | `str -= (diff-4)`; Discoverer −25% vs AI Euro | Wired — [combat.md](combat.md) |
 | SoL declare gate (50%) | — | Unaffected |
 | Victory / defeat calendar | Chrome names difficulty only | Chrome |
@@ -260,9 +260,13 @@ villages_penalty = -(difficulty + 1) * villages_burned
 ### Final colonization score × difficulty
 
 Manual: colonization score modified by a difficulty factor from the chosen level.
-Decomp `FUN_41f2_0b70` applies a difficulty-scaled gold rebate / treasure dialog
-after the score snapshot — **PARK** in the port (`reports_compute_score` has no
-global score×difficulty multiplier).
+Decomp `FUN_41f2_0b70` — resolved 2026-08-29: it is *not* a gold rebate. It
+computes the **Colonization Rating** shown on the Retire exploits screen and
+used as the Hall of Fame sort key: `rating = ((mult × total) / 100) >> 1` with
+`mult = {4,5,6,8,10}` for Discoverer..Viceroy, and an exploits tier (`largest
+n−1, n in 1..24, with n²/3 < (mult × total)/100`, cap 23) that picks how many
+GAME.TXT `@SCORE` lines / which `SCORE<nn>.SS` picture the screen shows.
+Ported: `reports_score_rating`, `reports_render_exploits`, `game_retire_after_score`.
 
 ---
 
@@ -306,7 +310,7 @@ bit3 remains food starvation.
 |--------|-------------|------|
 | AI colony food `+= difficulty>>1` | [`colony_eot_production.md`](../original_sources_annotated/turn/colony_eot_production.md) | **Wired** (`turn_produce_one_colony`) |
 | Rival SoL threshold `(8-diff)*10` | [`year_end_chrome.md`](../original_sources_annotated/turn/year_end_chrome.md) | Thin fixed thresholds |
-| Score→gold rebate `FUN_41f2_0b70` | FUNCTION_CATALOG; direct read 2026-08-26 (`viceroy_unpacked.c:72415-72548`) | PARK, but partially decoded this pass: difficulty-scaled multiplier table read clean — `{4,5,6,8,10}` for difficulty 0-4 (`*(byte*)0x53a6+4`, `+1` more past diff 2, `+1` more past diff 3) — and the final shape is `gold = ((multiplier * score_component) / 100) >> 1` (a flat halving after the percent scale). A separate loop derives a 0-23 "tier" index (`(tier²)/3 < gold_pre_halve`) used only to size the on-screen treasure-chest coin animation, not the gold amount itself. **Not closed**: `score_component` comes from calling into the shared score composer `FUN_41f2_0092` (the same function `reports_compute_score`/F10 already mirrors) with a render-flag argument, not a plain score int — the decompiler's `undefined1 *` return type for that call vs. this function's `int` assignment of it is a real type mismatch worth resolving before trusting the value, not a quick follow-on. Triggered at Retire, alongside the Hall of Fame insert (`FUN_41f2_0f56`) — endgame-only, low play-frequency. Flagging for a dedicated pass, not attempting the rest blind. |
+| Score→Colonization Rating `FUN_41f2_0b70` | full static port 2026-08-29 (`viceroy_unpacked.c:72415-72548` + `41f2_0092`/`0f56`/`14a8`) | **Done**. The "gold rebate" label was wrong: the value is a percent rating (`((mult*score)/100)>>1`, mult `{4,5,6,8,10}`) fed to `@EXPLOITS` "COLONIZATION RATING: %NUMBER0%" and to the HALLFAME.DAT sort key; the "return-type mismatch" flagged before is just Ghidra typing the score composer's int return as `undefined1*`. See `docs/reports.md` F10 / Hall of Fame. |
 | Tory floor production penalty | ~11880; [sons_of_liberty.md](sons_of_liberty.md) | **Wired** (`colony_prod_sol_bonus`) |
 
 ---

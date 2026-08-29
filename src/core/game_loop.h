@@ -47,6 +47,9 @@ typedef struct ColonizeHofEntryView {
   int score;
   int year;
   int difficulty; /* 0 Discoverer .. 4 Viceroy */
+  int rating; /* Colonization Rating percent (DOS HoF sort key) */
+  bool declared;
+  bool achieved;
 } ColonizeHofEntryView;
 
 int game_hof_count(const ColonizeGameState* game);

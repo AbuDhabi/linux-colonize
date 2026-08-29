@@ -93,7 +93,9 @@ typedef struct ColonizeCol1GameOptions {
                                       intervention force, pending enough
                                       liberty bells" dismissal popup */
   uint16_t independence_chrome : 1; /* 0x08 */
-  uint16_t calendar_latch : 1; /* 0x10 */
+  uint16_t calendar_latch : 1; /* 0x10 — "scoring complete": set once the retire /
+                                  end-game score chain (FUN_41f2_14a8) has run;
+                                  F10 then shows only @MISC #126 */
   uint16_t independence_force : 1; /* 0x20 — bypass REF/event gates */
   uint16_t ref_unit_threshold : 1; /* 0x40 — raises REF unit count thresh */
   uint16_t tutorial_hints : 1;
@@ -201,7 +203,11 @@ typedef struct ColonizeCol1Head {
   uint8_t difficulty; /* 0 Discoverer .. 4 Viceroy */
   /* DS:0x53a7 / 0x53a8 (was unknown43[2]) — King-audience RNG state. Lives
    * near FUN_38fd_5be8, same function thin-ported as KING_AUDIENCE in
-   * ai_king.c. Reset at new game (streak=0, last_pick=random(1,8)). */
+   * ai_king.c. Reset at new game (streak=0, last_pick=random(1,8)).
+   * Dual use (2026-08-29): FUN_43f7_1a26 overwrites the pair at the
+   * Declaration with year/100 and year%100 — the declare year the score
+   * composer FUN_41f2_0092 reads back for the Early Revolution bonus
+   * (reports_score_declare_year). Not renamed: live names, per project rule. */
   uint8_t king_audience_streak; /* 0x53a7 */
   uint8_t king_audience_last_pick; /* 0x53a8; rerolled until != last, avoids text repeat */
   int8_t founding_father[COLONIZE_COL1_FF_COUNT];
