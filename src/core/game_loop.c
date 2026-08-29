@@ -8176,17 +8176,20 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
    * be silently paced just because time passes with the map on screen.
    *
    * Only runs while the map is actually the thing on screen — an overlay
-   * (report/menu/Europe/colony/pedia/debug atlas) covering it shouldn't
-   * let wall-clock time bleed into unit movement at all (that's also why
-   * dt_ms isn't accumulated below while covered, not just skipped — avoids
-   * a catch-up burst of steps the instant the overlay closes). AI/native
+   * (report/menu/Europe/colony/pedia/debug atlas, or any modal popup/
+   * dialog — game_modal_open: king tax, ship-sunk, options, name entry,
+   * etc.) covering it shouldn't let wall-clock time bleed into unit
+   * movement at all (that's also why dt_ms isn't accumulated below while
+   * covered, not just skipped — avoids a catch-up burst of steps the
+   * instant the overlay closes). Matches DOS: everything but animations
+   * pauses while a popup is up (bugs.md). AI/native
    * units and other European nations' units are untouched here: they
    * resolve their own goto orders exclusively inside turn_processor_
    * advance(), during their own turn (see turn_select_next_unit's own
    * human_nation filter).
    */
   const bool map_visible = !game->in_report && !game->in_menu && !game->in_europe &&
-    !game->in_colony && !game->in_pedia && !game->in_debug_atlas;
+    !game->in_colony && !game->in_pedia && !game->in_debug_atlas && !game_modal_open(game);
   if (game->units_ok && game->world_map_ok && map_visible) {
     ColonizeUnit* active =
       game->units.selected_id >= 0 ? units_get(&game->units, game->units.selected_id) : NULL;
