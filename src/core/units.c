@@ -570,6 +570,7 @@ static const char* units_combat_nation_label(const ColonizeCol1Save* col1, int n
 
 static void units_play_event_sound(int id);
 static void units_set_bgm_pool(int pool);
+static bool units_combat_is_visible(const ColonizeUnitPool* pool, int a_id, int b_id);
 
 static int units_king_galleon_treasure_value(const ColonizeUnit* treasure) {
   const unsigned lo = (unsigned)(treasure->hold_goods_amount[0] & 0xff);
@@ -2297,6 +2298,12 @@ static int units_apply_naval_loss_outcome(
   const ColonizeUnitType* wt = units_type(pool, win->type_index);
   const int human =
     show_popups && units_combat_human_involved(col1, lose->nation_id, win->nation_id);
+  /* FUN_5fef_0352 5fef:07db-0803: both combatants are ships and the fight
+   * is visible → 0x4d (COLDIG 10 cheering + fireworks) *before* the
+   * damage / sink / seizure split — a naval-win beat, not a capture cue. */
+  if (show_popups && units_combat_is_visible(pool, winner_id, loser_id)) {
+    units_play_event_sound(0x4d);
+  }
 
   /* Close fight + weaker type attack: set damaged bit and escape (1b0e ship peel). */
   const int lose_atk = lt ? lt->attack : 0;
@@ -3244,6 +3251,10 @@ bool units_resolve_lcr_rumour(
       AI_POPUP_TAG_INFO, "LOSTCITY3", nation, -1, gold, &tok,
       "You find the ruins of a lost civilization."
     );
+    /* FUN_65dd_0004 65dd:04ca: human + gold found (local_12) → pool 2. */
+    if (nation == human_nation && gold != 0) {
+      units_set_bgm_pool(2);
+    }
     break;
   }
   case COLONIZE_LCR_CHIEFS_GIFT: {
@@ -3255,6 +3266,9 @@ bool units_resolve_lcr_rumour(
       AI_POPUP_TAG_INFO, "LOSTCITY7", nation, -1, gold, &tok,
       "A small, friendly tribe offers you a gift."
     );
+    if (nation == human_nation && gold != 0) {
+      units_set_bgm_pool(2); /* 65dd:04ca, same arm as LOSTCITY3 */
+    }
     break;
   }
   case COLONIZE_LCR_FOUNTAIN_OF_YOUTH:
@@ -3327,6 +3341,10 @@ bool units_resolve_lcr_rumour(
       AI_POPUP_TAG_INFO, "LOSTCITY5", nation, -1, 0, &tok,
       "Your expedition has vanished without a trace!"
     );
+    /* 65dd:0778 (case 5): human → tune pool 1 (map) before the unit goes. */
+    if (nation == human_nation) {
+      units_set_bgm_pool(1);
+    }
     units_despawn(pool, unit_id);
     break;
   case COLONIZE_LCR_BURIAL_MOUNDS: {
@@ -3370,6 +3388,10 @@ bool units_resolve_lcr_rumour(
     } else {
       const int gold = (dos_rng_range(rng, 1, 8) + (skill + 5) * 2) * 2 * 100;
       (void)units_spawn_treasure_train(pool, x, y, nation, gold);
+      /* 65dd:0654: human + no tribe claim → 0x24 treasure tune (281f_048e). */
+      if (nation == human_nation && screwed_tribe < 0) {
+        units_play_event_sound(0x24);
+      }
       tok.has_number1 = true;
       tok.number1 = gold;
       units_combat_enqueue_tok(
@@ -3378,6 +3400,10 @@ bool units_resolve_lcr_rumour(
       );
     }
     if (screwed_tribe >= 0) {
+      /* 65dd:06e6: human → 0x32 Military sting ahead of @SCREWED. */
+      if (nation == human_nation) {
+        units_play_event_sound(0x32);
+      }
       PopupMsgTokens stok;
       memset(&stok, 0, sizeof(stok));
       if (col1 && nation >= 0 && nation < 4) {
@@ -4652,6 +4678,17 @@ bool units_try_move(
     }
     if (won && units_combat_is_visible(pool, unit_id, foe)) {
       units_play_event_sound(village_temp >= 0 ? 0x4b : UNITS_SFX_COMBAT_WON);
+      /* FUN_5fef_1b0e 5fef:2546 + 28b0: an Indian attacker (nation ≥ 4)
+       * beating a colony's defender (colony at the defender tile, pop > 1)
+       * sets local_6 and the tail then pushes 0x45 (COLDIG 17 glancing
+       * shot); the 0x44 arm needs a ship attacker, unreachable here. */
+      if (unit->nation_id >= 4 && colonies) {
+        const int cid = colonies_id_at(colonies, dest_x, dest_y);
+        const ColonizeColony* cc = cid >= 0 ? colonies_get(colonies, cid) : NULL;
+        if (cc && cc->population > 1) {
+          units_play_event_sound(0x45);
+        }
+      }
     }
     if (village_temp >= 0 && foe == village_temp) {
       ColonizeCol1Save* mut = (ColonizeCol1Save*)g_units_ff_col1;

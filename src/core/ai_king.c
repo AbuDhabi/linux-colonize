@@ -7,6 +7,7 @@
 #include "core/combat_strength.h"
 #include "core/col1_save.h"
 #include "core/dos_rng.h"
+#include "core/europe.h"
 #include "core/founding_fathers.h"
 #include "core/map.h"
 #include "core/popup_msg.h"
@@ -2169,6 +2170,8 @@ static void ai_king_apply_dump_goods_choice(ColonizeTurnContext* ctx, int human,
  * flag are still set/read for presentation and for the Fugger-clears-
  * boycotts sync, just no longer block the audience interval gate.
  */
+static void ai_king_tax_hike_apply(ColonizeTurnContext* ctx, int human, int delta);
+
 static void ai_king_tax_event(ColonizeTurnContext* ctx) {
   if (!ctx || !ctx->col1_ok || !ctx->col1) {
     return;
@@ -2179,13 +2182,24 @@ static void ai_king_tax_event(ColonizeTurnContext* ctx) {
   }
   /* Fugger / external bitmap clear → drop the boycott presentation flag. */
   ai_king_sync_boycott_refuse(ctx->col1, human);
-  ColonizeCol1Nation* nat = &ctx->col1->nation[human];
 
   int delta = 0;
   if (!ai_king_audience_roll(ctx, human, &delta)) {
     return; /* no audience this turn: interval gate, or degenerate 0% cut */
   }
+  ai_king_tax_hike_apply(ctx, human, delta);
+}
 
+/*
+ * FUN_38fd_3dc8 body for an explicit delta — the audience roll above and
+ * the @KINGFRIGATE acceptance (3844_00f2 → 3dc8(KINGTAX, 10)) both land
+ * here: clamp + apply, then the Kiss-the-ring / Tea-party dialog.
+ */
+static void ai_king_tax_hike_apply(ColonizeTurnContext* ctx, int human, int delta) {
+  if (!ctx || !ctx->col1_ok || !ctx->col1 || human < 0 || human >= 4) {
+    return;
+  }
+  ColonizeCol1Nation* nat = &ctx->col1->nation[human];
   int applied = 0;
   ai_king_audience_apply_delta(nat, delta, &applied);
   if (ctx->europe) {
@@ -3696,6 +3710,182 @@ static void ai_king_merc_offer(ColonizeTurnContext* ctx) {
 }
 
 /*
+ * FUN_3844_00f2 tail (viceroy_unpacked.c:58393-58424) — @KINGFRIGATE.
+ * The nation-EOT census loop above it (58239-58300) scans an 11x11 box
+ * around each of the nation's colonies for foreign armed ships (@UNIT
+ * table byte 0x5236+type*0xe non-zero) within path distance < 6 and sets
+ * colony +0x1b bit 2 (a Frigate) / bit 1 (any other warship); DS:0xa89b
+ * counts Frigate-threatened colonies, DS:0xa89a the rest. Then, when
+ * (a89b != 0 || a89a > 3), the nation owns no Frigate (per-nation
+ * unit-type count table -0x6db4 + 0x11 == 0), WoI is not declared
+ * (0x5382 bit0) and DS:0x538e (turn) & 7 == 0: a human nation gets
+ * @KINGFRIGATE Yes/No behind the 0x3e audience tune, AI nations
+ * auto-accept. Yes → a Frigate spawns sailing from Europe to the nation's
+ * landfall (unit flag 0x40, FUN_291f_0aee voyage roll) and, human only,
+ * FUN_38fd_3dc8(KINGTAX, 10) — the ordinary +10% hike with its tea-party
+ * choice. Threat radius is approximated as Chebyshev ≤ 5 (the 11x11 box);
+ * the extra FUN_2a1f_027e path-distance < 6 refinement is not replicated.
+ */
+static int ai_king_frigate_threat_counts(
+  const ColonizeTurnContext* ctx, int nation, int* out_frigate, int* out_other
+) {
+  int frig = 0;
+  int other = 0;
+  if (!ctx || !ctx->units || !ctx->colonies) {
+    return 0;
+  }
+  for (int ci = 0; ci < COLONIZE_COLONIES_MAX; ++ci) {
+    const ColonizeColony* c = &ctx->colonies->colonies[ci];
+    if (!c->active || c->nation_id != nation) {
+      continue;
+    }
+    int bits = 0;
+    for (int ui = 0; ui < ctx->units->unit_count; ++ui) {
+      const ColonizeUnit* u = &ctx->units->units[ui];
+      if (!u->active || !units_is_on_map(u) || u->nation_id == nation) {
+        continue;
+      }
+      const ColonizeUnitType* t = units_type(ctx->units, u->type_index);
+      if (!t || t->domain != COLONIZE_UNIT_DOMAIN_SEA || t->attack <= 0) {
+        continue;
+      }
+      if (abs(u->x - c->x) > 5 || abs(u->y - c->y) > 5) {
+        continue;
+      }
+      bits |= (t->name[0] && strcmp(t->name, "Frigate") == 0) ? 2 : 1;
+    }
+    if (bits & 2) {
+      frig++;
+    }
+    if (bits & 1) {
+      other++;
+    }
+  }
+  if (out_frigate) {
+    *out_frigate = frig;
+  }
+  if (out_other) {
+    *out_other = other;
+  }
+  return 1;
+}
+
+static int ai_king_frigate_spawn(ColonizeTurnContext* ctx, int nation) {
+  if (!ctx || !ctx->units || !ctx->col1_ok || !ctx->col1 || nation < 0 || nation >= 4) {
+    return -1;
+  }
+  const int ti = units_find_type(ctx->units, "Frigate");
+  if (ti < 0) {
+    return -1;
+  }
+  int x = (int)ctx->col1->nation[nation].return_from_europe_x;
+  int y = (int)ctx->col1->nation[nation].return_from_europe_y;
+  if (x == 0 && y == 0) {
+    x = 236;
+    y = 236;
+  }
+  const int id = units_spawn_allow_stack(ctx->units, ti, x, y);
+  ColonizeUnit* u = units_get(ctx->units, id);
+  if (!u) {
+    return -1;
+  }
+  units_set_nation(u, nation);
+  u->orders = UNITS_ORDER_AI_SAIL;
+  u->col1_unknown15 = (uint8_t)(u->col1_unknown15 | 0x40u);
+  u->goto_x = x;
+  u->goto_y = y;
+  const bool magellan = founding_fathers_nation_has(ctx->col1, nation, FF_FERDINAND_MAGELLAN);
+  const int dur = europe_voyage_turns_roll(
+    ctx->rng, magellan, units_count_sea_for_nation(ctx->units, nation)
+  );
+  u->turns_worked = (uint8_t)dur;
+  return id;
+}
+
+static void ai_king_frigate_accept(ColonizeTurnContext* ctx, int nation) {
+  if (ai_king_frigate_spawn(ctx, nation) < 0) {
+    return;
+  }
+  if (nation == ctx->human_nation) {
+    if (ctx->status && ctx->status_size) {
+      snprintf(ctx->status, ctx->status_size, "A Royal Frigate sails for the New World.");
+    }
+    ai_king_tax_hike_apply(ctx, nation, 10);
+  }
+}
+
+void ai_king_frigate_offer(ColonizeTurnContext* ctx, int nation) {
+  if (!ctx || !ctx->col1_ok || !ctx->col1 || !ctx->units || !ctx->colonies ||
+      nation < 0 || nation >= 4) {
+    return;
+  }
+  if (ai_king_independence_declared(ctx->col1)) {
+    return;
+  }
+  if ((ctx->col1->head.turn & 7u) != 0) {
+    return;
+  }
+  const int ft = units_find_type(ctx->units, "Frigate");
+  for (int ui = 0; ui < ctx->units->unit_count; ++ui) {
+    const ColonizeUnit* u = &ctx->units->units[ui];
+    if (u->active && u->nation_id == nation && u->type_index == ft) {
+      return; /* per-nation Frigate count != 0 */
+    }
+  }
+  int frig = 0;
+  int other = 0;
+  if (!ai_king_frigate_threat_counts(ctx, nation, &frig, &other)) {
+    return;
+  }
+  if (frig == 0 && other <= 3) {
+    return;
+  }
+  if (nation != ctx->human_nation || !ai_king_human_popups(ctx)) {
+    ai_king_frigate_accept(ctx, nation); /* AI nations: FUN_281f_03fe skipped, local_4 = 1 */
+    return;
+  }
+  for (int q = 0; q < ctx->ai_popups->queue_count; ++q) {
+    if (ctx->ai_popups->queue[q].tag == AI_POPUP_TAG_KING_FRIGATE) {
+      return;
+    }
+  }
+  static const char* k_titles[5] = {"Discoverer", "Explorer", "Conquistador", "Governor", "Viceroy"};
+  const int d = (int)ctx->col1->head.difficulty;
+  PopupMsgTokens tok;
+  memset(&tok, 0, sizeof(tok));
+  tok.string0 = k_titles[d >= 0 && d < 5 ? d : 0];
+  tok.string1 = ctx->col1->player[nation].name[0] ? ctx->col1->player[nation].name
+                                                    : "Your Excellency";
+  tok.string2 = ctx->col1->player[nation].country_name[0]
+                  ? ctx->col1->player[nation].country_name
+                  : "Royal";
+  char body[AI_POPUP_BODY_LEN];
+  popup_msg_fill(
+    ctx->messages, "KINGFRIGATE", &tok,
+    "%STRING0 %STRING1.  We note that enemy warships are preying on your undefended "
+    "shipping lanes.  Shall we dispatch a frigate from the %STRING2 navy to assist you?",
+    body, sizeof(body)
+  );
+  char choice_buf[AI_POPUP_CHOICE_MAX][AI_POPUP_CHOICE_LEN];
+  const ColonizeMsgSection* sec = assets_msg_find(ctx->messages, "KINGFRIGATE");
+  const int nch = popup_msg_choices(sec, choice_buf, AI_POPUP_CHOICE_MAX);
+  const char* labels[2];
+  const int ids[] = {AI_KING_CHOICE_ACCEPT, AI_KING_CHOICE_REFUSE};
+  if (nch >= 2) {
+    labels[0] = choice_buf[0];
+    labels[1] = choice_buf[1];
+  } else {
+    labels[0] = "Yes, I fear it is necessary.";
+    labels[1] = "No. We shall attend to our own defense.";
+  }
+  sound_play(0x3e); /* FUN_3844_00f2 3844:0350: audience tune (281f_048e) before the CHOICE */
+  if (!ai_popup_enqueue_choice_ctx(ctx->ai_popups, AI_POPUP_TAG_KING_FRIGATE, nation,
+                                   ai_king_crown_nation(nation), 0, NULL, body, labels, ids, 2)) {
+    ai_king_frigate_accept(ctx, nation); /* queue full: DOS has no "no answer" path */
+  }
+}
+
+/*
  * FUN_43f7_2244 — peacetime AI-nation-only twin of 2022's rebel gift,
  * implemented 2026-08-14 (see king_ref.md "2244/2022 — corrected").
  * Reached via FUN_281f_0668 from the generic per-Euro-nation turn loop
@@ -5080,6 +5270,8 @@ void ai_king_nation_turn(ColonizeTurnContext* ctx) {
     if (!ctx->ai_popups || ctx->ai_popups->queue_count == popups_before) {
       (void)ai_king_new_war_event(ctx);
     }
+    /* FUN_3844_00f2 tail: @KINGFRIGATE every 8th peacetime turn. */
+    ai_king_frigate_offer(ctx, ctx->human_nation);
     /*
      * Peacetime Spring 1790 anniversary (year_end_chrome 0x6fe): @SOONRETIRING0
      * once before the 1800 @SCORED latch. Cite: turn/year_end_chrome.md.
@@ -5348,6 +5540,14 @@ void ai_king_apply_popup_result(ColonizeTurnContext* ctx, const AiPopupState* po
         if (ctx->status && ctx->status_size) {
           snprintf(ctx->status, ctx->status_size, "Mercenaries declined.");
         }
+      }
+      break;
+    case AI_POPUP_TAG_KING_FRIGATE:
+      /* FUN_3844_00f2 tail: Yes → Frigate sails from Europe + 3dc8(KINGTAX, 10). */
+      if (popup->result_choice_id == AI_KING_CHOICE_ACCEPT) {
+        ai_king_frigate_accept(ctx, human);
+      } else if (ctx->status && ctx->status_size) {
+        snprintf(ctx->status, ctx->status_size, "The Crown's frigate is declined.");
       }
       break;
     case AI_POPUP_TAG_KING_CONGRESS:

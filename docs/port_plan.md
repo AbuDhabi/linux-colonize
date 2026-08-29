@@ -289,7 +289,7 @@ open work is cue/SFX *wiring* (P3.2, P3.7).
   not invent one). Port call sites are just the 2 `sound_set_bgm(1)` calls
   (new-game/load-save start) plus the one combat sting — confirms the gap
   P3.2 needs to close is real and matches this list exactly.
-- [ ] **P3.2 [auto]** **2026-08-29: the "unmapped" segments are mapped** —
+- [x] **P3.2 [auto] — closed 2026-08-29 (pass 4).** Last open cues resolved: `364b_0000` is the colony-screen *popup* helper, its sound arg is 0 at all 9 sites (no colony-open id exists); `3844_00f2`'s `0x3e` precedes **@KINGFRIGATE** (Crown frigate offer, now ported — `ai_king_frigate_offer`, +10% tax on Yes, AI auto-accept); LCR `0x24`/`0x32`/pool 1–2 arms mapped and wired in `units_resolve_lcr_rumour`; raid pool 2 / `0x32` were already wired. Only the Retire tune stays PARKed with the coin tier (difficulty.md). Earlier passes: **2026-08-29: the "unmapped" segments are mapped** —
   a whole-EXE asm sweep of every `281f_04c0`/`04b6` call (id in `AX`,
   which Ghidra drops) pins each: `75c2` = new-game init → `0x39` Hornpipe
   (ported), `38fd` = King's audience `3dc8` → `0x3e` (ported), `43f7` =
@@ -353,7 +353,7 @@ open work is cue/SFX *wiring* (P3.2, P3.7).
   (Jine, vs 0.07 for OST-vs-DOSBox) / 0.09 / 0.15 / 0.17. P3.3's "FF loop
   emulation / restart fallback" description is obsolete. Details:
   [assets.md](assets.md) "Music / sound".
-- [ ] **P3.7 [auto] — new 2026-08-27, partially done.** **2026-08-29 pass
+- [x] **P3.7 [auto] — closed 2026-08-29 (pass 3).** `0x44`/`0x45` tail decoded: gated on `local_6` = Indian attacker beat a colony defender (pop > 1); wired as `0x45` in `units_try_move` (the `0x44` arm needs a ship attacker — dead). `0x4d` naval arm: both combatants ships + visible, pushed at the 07db junction *before* the damaged/sunk split — wired at `units_apply_naval_loss_outcome` entry. Remaining ids `0x4c`/`0x50`/`0x51`/`0x55`/`0x5c` have no push site (typed-rule dead ends) — nothing left to wire. **2026-08-29 pass
   (2):** the `5fef_1b0e` "unit-class variants" resolved from the asm
   (`5fef:2271`): a human attacker on an Indian pushes `0x3b + attacker unit
   type`, so `0x41..0x51` are just type indices (Regulars 0x41 … Braves
