@@ -2505,3 +2505,32 @@ resolve to `0x13ba` `@HAVETREATY`, `0x13c5` `@SNEAK`, `0x13cb`
 treaty-check → cancel-peace / declare-war flow that `ai_diplo`'s
 `DIPLO_WAR` CHOICE already covers structurally. Nothing to port for
 `@VIOLATE`.
+
+**2026-08-29 — T1.8 closed: full re-read of the pathfinding subsystem
+from the canonical decompiles, port aligned.** Corrections to earlier
+entries in this section: `FUN_6662_0906` returns the 0015bc flood *cost*
+at the mover (`DS:0xa370`, the value `0015bc` seeds from BX and latches
+when the mover's tile pops) — not a first-step direction; hence the
+populator's `0 < cost < 8` gate and 0009ae's `>= 0` validation. The
+`DS:0x1dd4` "+1" arm (2026-08-22 "cached/favored route") is the road/river
+pair rule: `layer2 & 0xa` (road 0x08 / colony 0x02) on both tiles, or
+minor river (`891c & 0x40`) on both plus a cardinal step, costs 1; the
+populator sets `0x1dd4 = 1` so its own floods are uniform BFS. 0015bc's
+neighbour pick scores `cost[cand] (+8 fort term) + edge(unit→cand)`,
+ties broken by strictly lower octile(goal, cand); the flood window is
+|cand − goal| < 8. Cross-domain candidates need `FUN_1000_8886 >= 0`
+(a settlement) *and* to be the mover's tile or the goal. `0b4e` returns 1
+with the goal untouched when the goal snap fails, and `0f74`'s LAB_10e1
+arm floods toward `DS:0xa14e/0xa14c` whatever 0b4e left there — after a
+near miss only if 0b4e succeeded. Far-flood hits that reverse the last
+step (`unit+0x3149 != 0`, `+0x314f ^ 4 == dir`) fall to the scored tail
+for Euro nations; nations > 3 return the flood result as is (−1 on a
+miss — no scored fallback for Indians). All wired in `units.c`
+(`units_flood_edge`, `units_flood_owner_term`, `units_coarse_reach`,
+`units_flood_next_step`, `units_next_goto_step`). Golden evidence for the
+tail formula: TURN4→5 unit 4's `facing = 4` in TURN5.SAV = a final south
+step, i.e. DOS took three ⅓-MP river steps (50,38)→(49,38)→(48,38)→(48,39);
+Linux now picks the same path but its whole-unit land MP stops it at
+(48,38) — MP thirds are a separate gap (docs/port_plan.md). Open, noted at
+the wire sites: sea continent==1 gate, `FUN_1000_894e` (type ≥ 0x13), the
+BX cost cap, `unit+0x314b != '9'`.

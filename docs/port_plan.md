@@ -744,6 +744,17 @@ tiers, promote/demote/capture, plunder, coastal fort fire, Combat Analysis
   support %**: `combat_colony_sol_at` (`combat_strength.c` ~401, used at
   ~551) folds colony SoL into the defender's combat strength. All 5
   confirmed real and DOS-cited, no gap found.
+- [ ] **P5.8 [auto] — Land MP in thirds.** DOS spends land MP in thirds
+  (`unit+0x3149`, road/colony pair or cardinal minor-river pair = 1 third,
+  terrain cost ×3 otherwise — the 0015bc/465b formula), so a 1-MP Pioneer
+  walks three river tiles a turn; Linux land `moves_left` is whole `@UNIT
+  movement` units with `map_move_cost_step` = 1 for such steps, so it
+  stops after one. Surfaced 2026-08-29 by `golden_ai_turns` TURN4→5 unit 4
+  (DOS (50,38)→(48,39) in three river steps, Linux stops at (48,38)) once
+  the pathfinder picked DOS's own path. Touches `turn.c` MP reset,
+  `units_can_afford_move_cost`, `units_try_move`'s spend, the col1 bridge
+  (`moves` import/export for land units) and the Brave engine's 3-thirds
+  allotment (already thirds — `ai.c`). Scope + goldens before flipping.
 - [ ] **P5.7 [user]** Full playthrough test with the user: declare on a
   lategame fixture (`valid-lategame-saves/COLONY*`), fight to a win.
   Fixture-driven `unit_ai_king` scenarios stay the regression net.
@@ -1413,10 +1424,9 @@ W4.3/W4.4 → deferred; W5.x → D4; W5.5 → D1/D3.
 
 - [ ] **W1.1 — AI transcription (the largest track).** Work
   [ai_port_plan.md](ai_port_plan.md) top to bottom. Open there as of
-  2026-08-24 (later same day): **T1.8** (`0015bc`'s edge-cost formula now
-  wired; `0015c1`/`0009ae` decompile clean and `000000` hand-transcribed
-  but none byte-exact-ported yet, plus the still-unwired fort/colony `+8`
-  mask-bit `0x40` — deprioritized, working substitute ships), **T1.13**
+  2026-08-24 (later same day): **T1.8** (closed 2026-08-29 — 0015bc/0906/
+  09ae/0b4e/0f74 aligned to the decompiles; residue is the land-MP-thirds
+  model, see P5.8 below), **T1.13**
   (KINGGALLEON2, PARKED pending a narrower `38fd`-overlay
   hint), **T1.15** (`152e` worth-cap thunk `2a1f:0410` overlay-id — Ghidra's
   `41f2_0294` label is a misresolve). This row is done when that file's
