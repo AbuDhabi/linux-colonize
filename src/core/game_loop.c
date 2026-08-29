@@ -377,6 +377,8 @@ static void game_bind_combat_analysis(ColonizeGameState* game) {
   combat_analysis_set_presenter(game_combat_analysis_present, game);
   units_set_combat_human_nation(game->human_nation);
   units_set_combat_music_hooks(sound_play, sound_active_song_id);
+  europe_set_sound_hook(sound_play);
+  europe_set_bgm_hook(sound_set_bgm);
 }
 
 static void game_refresh_orders_menu(ColonizeGameState* game) {
@@ -559,6 +561,7 @@ static bool game_try_enter_europe(ColonizeGameState* game) {
   game->in_pedia = false;
   game->in_colony = false;
   game->in_report = false;
+  sound_set_bgm(3); /* FUN_75c2_2778 75c2:27a9: Europe screen → tune pool 3 (281f_0498) */
   snprintf(
     game->europe.status,
     sizeof(game->europe.status),
@@ -3025,6 +3028,7 @@ static bool game_apply_col1_save(ColonizeGameState* game, ColonizeCol1Save* load
     sound_set_options(opts);
   }
   sound_set_bgm(1);
+  sound_play(0x3e); /* FUN_75c2_20e2 75c2:21e0: tune queued after a successful load */
   /* Continue LCG for FUN_465b / AI nation turns. VR_SEED fixtures use seed 100;
    * prefer that when the save looks like a seed-100 NEW WORLD start (turn<=6,
    * 34 tribes), else fall back to turn/year. --seed overrides all of that. */
@@ -6763,6 +6767,7 @@ static void game_finish_end_turn(ColonizeGameState* game, const ColonizeTurnResu
   }
   if (game->europe_ok && game->europe.open_on_dock && !game_europe_blocked_by_woi(game)) {
     game->in_europe = true;
+    sound_set_bgm(3); /* FUN_75c2_2778: Europe pool */
   }
   if (result && result->year_end_defeat) {
     snprintf(game->status, sizeof(game->status), "Defeat: no colonies remain.");

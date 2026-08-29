@@ -457,6 +457,9 @@ int europe_buyback_boycott(
  * buy (`ask`). Real DOS Europe screen at 1494: Food 0/8, Lumber 1/6,
  * Silver 19/20 — see original_screenshots/europe/main_with_caravel_*.png.
  */
+void europe_set_sound_hook(void (*play_fn)(int id));
+void europe_set_bgm_hook(void (*set_bgm_fn)(int pool));
+void europe_notify_immigrant_sound(EuropeScreen* eu);
 int europe_sell_price(const EuropeScreen* eu, int cargo_type);
 int europe_buy_price(const EuropeScreen* eu, int cargo_type);
 /* gross − gross·tax/100 (FUN_364b_0688 Custom House arm; same rounding as

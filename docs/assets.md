@@ -655,17 +655,17 @@ glancing; 18 shot; 20 animal shot; 21 pump-action; 22 gunfight; 23–34 shots (2
 | `0x40`/`0x41` | 31 / 32 | shot | `5fef_1b0e` attack fire (0x41 artillery class), **only when `param_4` (visible) is set** — `465b_0000` passes 1 for the viewport nation or a human side, the AI scorer `521d:52aa` passes 0 | `units.c` engagement (0x40), gated by `units_combat_is_visible` (2026-08-28 — AI-vs-AI combat was audible, cannon fire landed over unrelated popups) |
 | `0x42`/`0x48` | 30 / 29 | shots | `5fef_1b0e` 5fef:2271: human attacker vs Indian (nation ≥ 4) pushes `0x3b + attacker unit type` — Cont. Cav. (7) / Treasure (0xd) | `units.c` engagement (2026-08-29): typed id when defender is Indian |
 | `0x43`/`0x49` | 27 / 34 | shots | same rule: Cavalry (8) / Wagon Train (0xc)… — the "unit-class variants" are the attacker's type index | same |
-| `0x44`/`0x45` | 18 / 17 | shot / glancing shot | `5fef_1b0e` 5fef:28b0 tail: `0x44` when `local_86` set else `0x45` (hit vs glancing), and `0x44` = Cont. Army (9) via the typed rule | typed rule only; the 28b0 tail branch not yet mapped to a Linux combat outcome |
+| `0x44`/`0x45` | 18 / 17 | shot / glancing shot | `5fef_1b0e` 5fef:28b0 tail: attacker-won roll (`local_9e`) and visible → `0x44` if the defender is a ship type (`local_86`) else `0x45`; `0x44` is also Cont. Army (9) via the typed rule | typed rule only; the 28b0 tail branch not yet mapped to a Linux combat outcome |
 | `0x4a`/`0x4b` | 28 / 33 | shots | `5fef_1b0e` win; 0x4b when natives involved | `units.c` win (same visibility gate) |
-| `0x4c` | 14 | shooting + galloping | typed rule: Frigate (0x11) attacking natives | typed rule |
-| `0x4d` | 10 | cheering + fireworks | `5fef_0352` naval capture; raid loot | raid loot gold (`ai_contact.c` @RAIDGOLD, 2026-08-29); naval capture has no Linux path yet |
+| `0x4c` | 14 | shooting + galloping | `0x3b + type` would need attacker type 0x11 (Frigate) — ships cannot attack land units, so this id is unreachable through the typed rule; no other push site located | — |
+| `0x4d` | 10 | cheering + fireworks | `5fef_0352` 5fef:0803: after the `@ARTILLERY2` popup when the loser is a ship type (0xd..0x12) and the fight is visible — a naval-win beat, not a capture; also raid loot | raid loot gold (`ai_contact.c` @RAIDGOLD, 2026-08-29); the 0352 arm not yet mapped to a Linux naval outcome |
 | `0x4e` | 6 | screaming | `5fef_0f14` raid: colonists killed | @RAIDSCALP (2026-08-29) |
 | `0x4f` | 11+32 | screaming + shooting | `5fef_0f14` raid loot goods | @RAIDSTORES (2026-08-29) |
 | `0x50`/`0x51` | 7+8 / 5+14 | screaming, burning / screaming, galloping | typed rule: Mounted Braves (0x15) / Mounted Warriors (0x16) — but the rule is gated on a *human* attacker, so these fire only for captured/converted native types | typed rule |
 | `0x52` | 12 | wagon wheels | `465b_0000` wagon-train move (human) | `game_loop.c` human move success, type "Wagon Train" (2026-08-29) |
 | `0x53` | 19 | burning | `5fef_0f14`/`1b0e` tail: colony burned | colony burned notify |
 | `0x54` | 13 | hammering + cheering | found colony `479b_076e`; colony screen `2f2b_6cd4` **only when `DS:0x34a >= 0`** (the building that just finished, revealed by clear-bit/redraw/set-bit/redraw); nation EOT `3844` | found colony; colony open **gated** on `ColonizeColony.pending_build_reveal` (2026-08-28 — was every open) |
-| `0x55` | 20 | animal shot | typed rule: type 0x1a | typed rule |
+| `0x55` | 20 | animal shot | `0x3b + type` would need type 0x1a (past the land-unit range) — unreachable through the typed rule; no other push site located | — |
 | `0x56` | 9 | cheering | `38fd_3dc8` tax raise / tea party | `ai_king.c` @TEAPARTY + raise-taxes popup (2026-08-29) |
 | `0x57` | 16 | sinking | `5fef_0352` ship sunk | `units.c` @SHIPSUNK via the combat sound hook (2026-08-29) |
 | `0x58` | 21 | pump-action | fortify / sentry (`2b5a_1112`, `2f2b_5746`) | fortify, sentry |
@@ -684,8 +684,19 @@ the 2f2b callers' pushed value not yet read); `2b5a_2464` Pick Music. Pool switc
 `281f_04b6(n)` → `129f_034c` (`DS:0x9a = n`, restart if changed): `1` map at colony EOT
 (`364b_0688`, when `0xa897`) and for a human *loser* of a naval fight (`5fef_0352`), `4`
 Military for a human naval *winner*, `2` colony pool on building complete (`364b_0114`) and
-after the King's Galleon popup (`5fef_1908`). The port's `sound_set_bgm(1/2)` covers the
-map/colony switches; the naval `1`/`4` beat is not wired (`units.c` only has the play hook).
+after the King's Galleon popup (`5fef_1908`). Also (`281f_048e` = queue-next, `281f_0498` = pool switch, 2026-08-29 sweep): `48d3_06ba`
+treasure cash-in → `0x24` (ported: `europe_cash_treasure` via `europe_set_sound_hook`);
+`75c2_20e2` load → `0x3e` (ported); `75c2_2778` Europe screen → pool 3 (ported at both
+Europe-open sites); `38fd_5e52` human immigrant → pool 2 (ported, `europe_notify_immigrant_sound`);
+`65dd_0004` LCR: Fountain of Youth → `0x37`, Cibola → `0x3c`, Burial Mounds → `0x33` (ported in the
+`units.c` LCR switch), plus `0x24` / `0x32` / pool 1–2 arms on the unit-lost / guardian-fight
+branches (not mapped); `4d56_2820` village visit (human, 1-in-3 roll) → pool 5, Inca 7, Aztec 6
+(ported in `ai_contact_speak_with_chief`); `5bfb_022e` first meet → same pools from turn 20 (`04ac` = `129f_0318` restart-if-changed, `0498` = the option-gated wrapper; ported in `ai_contact_enqueue_welcome`);
+`43f7_1d42` after `@KINGBUY` → pool 3 (KINGBUY itself unported); `43f7_10f0` → pool 3 then `0x3f`
+(ported); `3844_00f2` nation EOT → `0x3e` after a nation-name popup (tag not identified);
+`5fef_0f14` raid → pool 2 / `0x32` (not mapped); `41f2_0b70` Retire → `0x24/0x25/0x21` by coin
+tier (PARK). The port's `sound_set_bgm(1/2)` covers the map/colony switches; the naval `1`/`4`
+beat is not wired (`units.c` only has the play hook).
 
 Event ids bypass the BGM scheduler (`sound_play` dispatches them directly), gated by the
 Event Music option in the driver and by Sound Effects for the PCM part.

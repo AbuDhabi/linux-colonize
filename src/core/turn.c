@@ -1962,6 +1962,9 @@ void turn_run_nation_ticks(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
         snprintf(ctx->status, ctx->status_size, "Religious unrest: choose an immigrant.");
       }
     } else if (imm == 1) {
+      if (ctx->europe) {
+        europe_notify_immigrant_sound(ctx->europe); /* FUN_38fd_5e52 38fd:5ecb: pool 2 */
+      }
       const char* name = "";
       if (ctx->europe->dock_count > 0) {
         name = ctx->europe->dock[ctx->europe->dock_count - 1].name;
