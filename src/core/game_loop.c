@@ -1804,7 +1804,10 @@ static void game_apply_ai_popup_result(ColonizeGameState* game) {
             )) {
           /* Ship spends the coastal order (1 MP); passenger charged in unload. */
           if (ship->moves_left > 0) {
-            ship->moves_left--;
+            ship->moves_left -= UNITS_MP_PER_TILE;
+            if (ship->moves_left < 0) {
+              ship->moves_left = 0;
+            }
           }
           game->units.selected_id = pax_id;
           snprintf(game->status, sizeof(game->status), "Landfall at (%d,%d)", dest_x, dest_y);
@@ -5342,7 +5345,10 @@ static bool game_try_unit_move(ColonizeGameState* game, int dest_x, int dest_y) 
           }
           /* Ship spends the coastal order; passenger charged in unload. */
           if (selected->moves_left > 0) {
-            selected->moves_left--;
+            selected->moves_left -= UNITS_MP_PER_TILE;
+            if (selected->moves_left < 0) {
+              selected->moves_left = 0;
+            }
           }
           game->units.selected_id = pax_ready;
           snprintf(game->status, sizeof(game->status), "Landfall at (%d,%d)", dest_x, dest_y);

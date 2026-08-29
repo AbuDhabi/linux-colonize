@@ -302,6 +302,18 @@ int map_dos_terr_lumber_reward_byte(int terr_class);
  * for actual moves (DOS FA road-pair + cardinal river pair → cost 1). Sea → 1.
  */
 int map_move_cost_at(const ColonizeWorldMap* map, int x, int y);
+/*
+ * DOS FUN_465b_0000 cost head in thirds: terr_cost[class(to)]*3; road/colony
+ * (layer2 & 0x0a) on both tiles or minor river on both + cardinal step → 1;
+ * a tribe/settlement-owned destination caps it at 3. Non-land `to` → 3.
+ */
+int map_move_spent_thirds(
+  const ColonizeWorldMap* map,
+  int from_x,
+  int from_y,
+  int to_x,
+  int to_y
+);
 /* DOS 465b-shaped step cost from→to (road both / river both+cardinal → 1). */
 int map_move_cost_step(
   const ColonizeWorldMap* map,

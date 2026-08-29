@@ -953,9 +953,9 @@ void map_panel_render(
       snprintf(line, sizeof(line), "Tools: %d", selected->tools);
       map_panel_draw_line(font, framebuffer, text_x, &text_y, line_h, y_limit, line);
     }
-    snprintf(
-      line, sizeof(line), "%s %d", panel ? panel->label_moves : "Moves:", selected->moves_left
-    );
+    char mp_text[16];
+    units_format_mp(selected->moves_left, mp_text, sizeof(mp_text));
+    snprintf(line, sizeof(line), "%s %s", panel ? panel->label_moves : "Moves:", mp_text);
     map_panel_draw_line(font, framebuffer, text_x, &text_y, line_h, y_limit, line);
     snprintf(
       line,

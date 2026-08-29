@@ -258,7 +258,7 @@ typedef struct ColonizeUnit {
   int type_index;
   int x;
   int y;
-  int moves_left;
+  int moves_left; /* thirds remaining (UNITS_MP_PER_TILE per plains tile) */
   bool active;
   int nation_id; /* 0..3 European, 4..11 native tribes (COL1) */
   int aboard_ship_id; /* -1 = on map; else id of carrying ship */
@@ -562,7 +562,21 @@ bool units_can_enter(
   int mover_id,
   const ColonizeColonyPool* colonies
 );
-/* Destination MP cost (terrain + road/river pair); sea units always 1. */
+/*
+ * Movement points are DOS thirds (FUN_465b_0000 cost head; DS:0x5234 unit
+ * table = @UNIT movement * 3, ships +3 with Magellan): a plains step costs
+ * 3, a road/colony pair or cardinal minor-river pair costs 1, an ocean tile
+ * costs 3. `moves_left` holds thirds remaining. Native Braves (ai.c) keep
+ * their own bookkeeping (moves_left = DOS spent thirds, max 3).
+ */
+#define UNITS_MP_PER_TILE 3
+/* @UNIT movement * 3 (DOS FUN_1427_065a base). */
+int units_type_max_mp(const ColonizeUnitType* type);
+/* Per-unit max MP in thirds: type base + 3 for ships when the nation has Magellan. */
+int units_max_mp(const ColonizeUnitPool* pool, int unit_id);
+/* "1", "2/3", "1 1/3" — DOS panel style. */
+void units_format_mp(int thirds, char* out, size_t out_size);
+/* Destination MP cost in thirds (DOS 465b cost head); sea units always 3. */
 int units_move_cost(
   const ColonizeUnitPool* pool,
   int unit_id,

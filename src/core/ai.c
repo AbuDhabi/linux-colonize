@@ -1487,8 +1487,7 @@ static void ai_europe_exit_to_map(
     }
   }
 
-  const ColonizeUnitType* ut = units_type(ctx->units, ship->type_index);
-  int mp = ut && ut->movement > 0 ? ut->movement : 4;
+  int mp = units_max_mp(ctx->units, ship->id);
 
   int approach_x = west_x;
   int approach_y = west_y;
@@ -1785,26 +1784,25 @@ static void ai_unit_spend_goto(ColonizeTurnContext* ctx, ColonizeUnit* u) {
   if (!ctx || !ctx->units || !ctx->map || !u || !units_orders_follow_goto(u->orders)) {
     return;
   }
-  const ColonizeUnitType* ut = units_type(ctx->units, u->type_index);
   const int gx = u->goto_x;
   const int gy = u->goto_y;
   const int adx = gx > u->x ? gx - u->x : u->x - gx;
   const int ady = gy > u->y ? gy - u->y : u->y - gy;
   const int cheb = adx > ady ? adx : ady;
-  const int type_mp = ut && ut->movement > 0 ? ut->movement : 1;
+  const int type_mp = units_max_mp(ctx->units, u->id);
   /*
    * Early 0a60 land slices sometimes cover >1 tile/turn vs @UNIT movement
    * (DOS thirds / roadless coasts). Allot enough MP to reach this turn's
-   * waypoint; ships keep catalog movement.
+   * waypoint; ships keep catalog movement. Thirds: cheb tiles * 3, cap 8 tiles.
    */
   if (units_is_sea(ctx->units, u->id)) {
     if (u->moves_left <= 0) {
       u->moves_left = type_mp;
     }
   } else {
-    int need = cheb > type_mp ? cheb : type_mp;
-    if (need > 8) {
-      need = 8;
+    int need = cheb * UNITS_MP_PER_TILE > type_mp ? cheb * UNITS_MP_PER_TILE : type_mp;
+    if (need > 8 * UNITS_MP_PER_TILE) {
+      need = 8 * UNITS_MP_PER_TILE;
     }
     u->moves_left = need;
   }

@@ -513,7 +513,7 @@ int main(void) {
     }
     ColonizeUnit* land = units_get(&units, land_id);
     land->nation_id = 0;
-    land->moves_left = 1;
+    land->moves_left = 1 * UNITS_MP_PER_TILE;
 
     const int sol_id = units_spawn_allow_stack(&units, 3, 6, 6);
     if (sol_id < 0) {
@@ -522,7 +522,7 @@ int main(void) {
     }
     ColonizeUnit* soldier = units_get(&units, sol_id);
     soldier->nation_id = 0;
-    soldier->moves_left = 1;
+    soldier->moves_left = 1 * UNITS_MP_PER_TILE;
     const int soldier_type = soldier->type_index;
 
     const int car_id = units_spawn_allow_stack(&units, 2, 4, 5);
@@ -532,7 +532,7 @@ int main(void) {
     }
     ColonizeUnit* caravel = units_get(&units, car_id);
     caravel->nation_id = 0;
-    caravel->moves_left = 4;
+    caravel->moves_left = 4 * UNITS_MP_PER_TILE;
 
     deep_col1.head.colony_count = 1;
     deep_col1.colony = calloc(1, sizeof(ColonizeCol1Colony));
@@ -601,7 +601,7 @@ int main(void) {
       map_free(&map);
       return fail("deep Magellan not elected");
     }
-    if (caravel->moves_left != car_moves + 1) {
+    if (caravel->moves_left != car_moves + UNITS_MP_PER_TILE) {
       free(deep_col1.colony);
       map_free(&map);
       return fail("deep Magellan sea moves +1 missing");
@@ -611,13 +611,13 @@ int main(void) {
       map_free(&map);
       return fail("deep Magellan should not gold-fallback");
     }
-    if (land->moves_left != 1) {
+    if (land->moves_left != 1 * UNITS_MP_PER_TILE) {
       free(deep_col1.colony);
       map_free(&map);
       return fail("deep Magellan bumped land unit");
     }
     turn_refresh_moves_for_nation(&units, 0, &deep_col1, NULL, NULL, NULL, NULL);
-    if (caravel->moves_left != units.types[2].movement + 1) {
+    if (caravel->moves_left != units_type_max_mp(&units.types[2]) + UNITS_MP_PER_TILE) {
       free(deep_col1.colony);
       map_free(&map);
       return fail("deep Magellan permanent refresh +1 missing");
@@ -1284,7 +1284,7 @@ int main(void) {
       }
       ColonizeUnit* ra = units_get(&upool, atk);
       ra->nation_id = 1;
-      ra->moves_left = 3;
+      ra->moves_left = 3 * UNITS_MP_PER_TILE;
 
       units_set_ff_col1(&ccol1);
       /* Deterministic: atk 4×8=32 >= bare-colony def ((2+4)*16)>>2=24 → win. */
@@ -1325,7 +1325,7 @@ int main(void) {
       }
       ColonizeUnit* ra2 = units_get(&upool, atk2);
       ra2->nation_id = 1;
-      ra2->moves_left = 3;
+      ra2->moves_left = 3 * UNITS_MP_PER_TILE;
       units_set_ff_col1(NULL);
       if (!units_try_move(&upool, atk2, &rmap, 6, 6, &rcol, NULL)) {
         map_free(&rmap);
