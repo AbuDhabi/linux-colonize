@@ -302,6 +302,20 @@ static bool ai_setup_col1_template(const AiNewGameParams* p, char* err, size_t e
   p->col1->head.autumn = 0;
   p->col1->head.turn = 0;
   /*
+   * FUN_75c2_235c: price_group_state[16] = FUN_281f_04d4(600, 1000) each.
+   * Without this the EOT market ledger (FUN_38fd_0058 phases 2-3) clamps
+   * every group to 1, the target ratio collapses to 3 and Rum..Coats lose a
+   * point of price every turn from 1492. A private LCG keeps the campaign
+   * RNG stream (map gen / tribe placement goldens) untouched.
+   */
+  {
+    ColonizeDosRng pg_rng;
+    dos_rng_seed(&pg_rng, p->rng_seed ? p->rng_seed ^ 0x53eau : 0x53eau);
+    for (int c = 0; c < 16; ++c) {
+      p->col1->head.price_group_state[c] = (uint16_t)dos_rng_range(&pg_rng, 600, 1000);
+    }
+  }
+  /*
    * DOS's new-game option word is 0xc680:
    * Indian moves, foreign moves, autosave, combat analysis and tutorial help
    * enabled; fast slide and end-of-turn disabled; water cycling enabled
