@@ -858,6 +858,10 @@ int main(void) {
     col->colonists[0].profession = UNITS_JOB_SOLDIER;
     col->colonists[0].building_type = town_hall;
     col->colonists[0].field_job = -1;
+    /* Opaque outer tile slots 8..19 must survive capture/apply byte-exact. */
+    for (int i = 0; i < 12; ++i) {
+      col->col1_outer_tiles[i] = (int8_t)(0x20 + i);
+    }
 
     ColonizeCol1Save save;
     if (!col1_bridge_init_template(&save, map.width, map.height, err, sizeof(err))) {
@@ -905,6 +909,45 @@ int main(void) {
       map_free(&map);
       assets_msg_free(&names);
       return 1;
+    }
+    for (int i = 0; i < 12; ++i) {
+      if ((uint8_t)save.colony[0].tiles[8 + i] != (uint8_t)(0x20 + i)) {
+        fprintf(stderr, "outer tiles: capture lost slot %d (%02x)\n", 8 + i,
+                (unsigned)(uint8_t)save.colony[0].tiles[8 + i]);
+        col1_save_free(&save);
+        map_free(&map);
+        assets_msg_free(&names);
+        return 1;
+      }
+    }
+    {
+      ColonizeColonyPool pool2;
+      colonies_init(&pool2);
+      colonies_load_buildings(&pool2, &names);
+      colonies_load_names(&pool2, "COLONIZE/COLONY.TXT");
+      ColonizeUnitPool units2;
+      units_reset(&units2);
+      units_load_types(&units2, &names);
+      EuropeScreen europe2;
+      memset(&europe2, 0, sizeof(europe2));
+      europe2.cargo_count = 16;
+      ColonizeCol1BridgeResult br2;
+      if (!col1_bridge_apply(&save, &map, &units2, &pool2, &europe2, &br2, err, sizeof(err))) {
+        fprintf(stderr, "outer tiles: apply: %s\n", err);
+        col1_save_free(&save);
+        map_free(&map);
+        assets_msg_free(&names);
+        return 1;
+      }
+      for (int i = 0; i < 12; ++i) {
+        if ((uint8_t)pool2.colonies[0].col1_outer_tiles[i] != (uint8_t)(0x20 + i)) {
+          fprintf(stderr, "outer tiles: apply lost slot %d\n", 8 + i);
+          col1_save_free(&save);
+          map_free(&map);
+          assets_msg_free(&names);
+          return 1;
+        }
+      }
     }
 
     ColonizeColonyPool loaded;

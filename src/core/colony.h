@@ -85,6 +85,12 @@ typedef struct ColonizeColony {
   bool has_building[COLONIZE_BUILDING_TYPES_MAX];
   /* Surrounding field slots: colonist index or -1. Order N,NE,E,SE,S,SW,W,NW. */
   int8_t tiles[COLONIZE_COLONY_FIELD_TILES];
+  /*
+   * Col1 record has 20 tile slots (colony+0x70); DOS only ever uses the
+   * 8-tile ring above. The remaining 12 are legacy layout leftovers — kept
+   * opaque here so a DOS save round-trips byte-exact (0xff when unused).
+   */
+  int8_t col1_outer_tiles[12];
   /* Warehouse + build queue — production ticks in src/core/turn.c. */
   int stock[COLONIZE_CARGO_COUNT];
   int hammers;

@@ -153,6 +153,7 @@ void colonies_init(ColonizeColonyPool* pool) {
     for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES; ++t) {
       pool->colonies[i].tiles[t] = -1;
     }
+    memset(pool->colonies[i].col1_outer_tiles, 0xff, sizeof(pool->colonies[i].col1_outer_tiles));
     pool->colonies[i].specialty_cargo = 0xff; /* Col1 +0x8d none */
   }
 }
@@ -729,6 +730,7 @@ int colonies_found(
   for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES; ++t) {
     slot->tiles[t] = -1;
   }
+  memset(slot->col1_outer_tiles, 0xff, sizeof(slot->col1_outer_tiles));
   snprintf(slot->name, sizeof(slot->name), "%s", colonies_next_name(pool, nation_id));
   colonies_grant_starters(pool, slot);
 

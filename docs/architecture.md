@@ -145,7 +145,7 @@ finish / human MP refresh. Full pipeline map:
 `ai_euro_nation_turn` / Indian / king planners.
 
 **Save:** Col1 is the real interop path (`col1_save` + `col1_bridge` into live
-pools). Legacy COLZ POC remains in `savegame.h` as bring-up residue only —
+pools). The legacy native COLZ POC format was removed 2026-08-29 —
 [savegame.md](savegame.md).
 
 ---
@@ -219,8 +219,7 @@ greenfield redesign or a mandated `game_loop` rewrite phase.
 
 ### Save and tests
 
-- **Col1** remains the interoperability path; remove or quarantine legacy COLZ
-  when convenient, without blocking gameplay work.
+- **Col1** is the only save path (legacy COLZ removed 2026-08-29).
 - Keep headless smoke/unit suites as architecture checks for simulation
   regressions. The joint AI golden gate (`golden_ai_joint`) and
   `golden_ai_turns` under it are **PARKED / DISABLED** as of 2026-08-19 —

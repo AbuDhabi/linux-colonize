@@ -165,28 +165,6 @@ endif()
 
 enable_testing()
 
-add_executable(smoke_savegame
-  tests/smoke/test_savegame.c
-)
-target_link_libraries(smoke_savegame PRIVATE colonize_core)
-
-target_include_directories(smoke_savegame PRIVATE
-  ${CMAKE_CURRENT_SOURCE_DIR}/src
-)
-
-add_test(NAME smoke_savegame COMMAND smoke_savegame)
-
-add_executable(smoke_savegame_incompatible
-  tests/smoke/test_savegame_incompatible.c
-)
-target_link_libraries(smoke_savegame_incompatible PRIVATE colonize_core)
-
-target_include_directories(smoke_savegame_incompatible PRIVATE
-  ${CMAKE_CURRENT_SOURCE_DIR}/src
-)
-
-add_test(NAME smoke_savegame_incompatible COMMAND smoke_savegame_incompatible)
-
 add_executable(unit_col1_save
   tests/unit/test_col1_save.c
 )
