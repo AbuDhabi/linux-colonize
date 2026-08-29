@@ -3436,7 +3436,8 @@ static void ai_king_foreign_intervene(ColonizeTurnContext* ctx) {
         ctx->ai_popups, AI_POPUP_TAG_KING_ARRIVAL, human, ally1, landings,
         "Foreign Intervention", body
       );
-      sound_play(0x3f); /* FUN_43f7_10f0 43f7:1465: intervention tune after @INTERVENE */
+      sound_set_bgm(3); /* FUN_43f7_10f0 43f7:145b: 281f_0498(3) Independence pool… */
+      sound_play(0x3f); /* …then 43f7:1465: intervention tune after @INTERVENE */
     }
   }
 }

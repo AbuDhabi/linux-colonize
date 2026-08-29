@@ -299,8 +299,13 @@ open work is cue/SFX *wiring* (P3.2, P3.7).
   (already), `48d3` Europe exit and `65dd` LCR have **no** `04c0`/`04b6`
   call at all — they must go through another helper (`281f_048e`?), so
   P3.1's list was partly wrong. Table in assets.md "BGM cues pushed by
-  gameplay code". Left: Retire tune (needs the PARKed coin tier), colony
-  open id, naval pool 1/4 switch, `48d3`/`65dd` via `048e`. **Not
+  gameplay code". Second sweep (same day) covered `281f_048e`/`0498` too and wired: treasure
+  cash-in `0x24`, load `0x3e`, Europe screen pool 3, immigrant pool 2, LCR
+  Fountain/Cibola/Burial tunes, village-visit tribe pools 5/6/7. Left:
+  Retire tune (needs the PARKed coin tier), colony open id, naval pool 1/4
+  switch, `3844`
+  nation-EOT `0x3e` popup identity, raid pool/`0x32`. Full table in
+  assets.md. **Not
   attempted 2026-08-26** — same blocker as P8.3/P8.5 above: the 6
   "confirmed-real-but-unmapped" segments need their *exact* call site
   traced (which `FUN_364b_xxxx` sub-path fires on colony-enter vs.
@@ -1289,7 +1294,15 @@ mostly in contact (`@LEARN*`, `@RAID*`, `@CHIEF*`), Europe
   status line again (`turn.c` FINISH, one `if`). **"HELLO attitude"
   is the same Euro-rival first-contact greeting gap found under P8.2**,
   not an Indian-attitude thing — see that row.
-- [ ] **P11.3 [auto]** Layout: popup width/height/wrap rules from the
+- [ ] **P11.3 [auto]** **2026-08-29: blocked on the decompile, not on
+  effort.** The three functions this row names are thin thunks (`36ca` =
+  string measure via `291f_0182`, `3760` = set `DS:0x1f5c`, `3848` = a
+  file read); the real dialog layout is `6f74_2580` → `7b29_44f2` (portrait
+  slot), `7b29_4572`/`459c`, `7b29_45c6` (text/height pass) — and segment
+  `7b29` has no definitions in any of the three decompile exports (call
+  sites only). Needs a fresh Ghidra export of that overlay before wrap/
+  height can be ported; the P8.6 portrait placement (left of dialog, pair
+  centred) is likewise a placeholder until `7b29_44f2` is readable. Layout: popup width/height/wrap rules from the
   `6f74` compositor (`FUN_6f74_36ca`/`3760`/`3848`) so multi-line bodies and
   CHOICE lists size like DOS — content correctness only; wood-frame pixel
   chrome is D4. **Confirmed real 2026-08-26, not fixed this pass —

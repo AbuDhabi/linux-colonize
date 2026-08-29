@@ -1402,6 +1402,23 @@ void europe_tick_voyages(EuropeScreen* eu, const ColonizeUnitPool* units) {
   }
 }
 
+/* Sound hook (unit tests build europe.c without sound.c — same shape as
+ * units_set_combat_music_hooks). */
+static void (*g_europe_sound_play)(int id) = NULL;
+static void (*g_europe_set_bgm)(int pool) = NULL;
+void europe_set_sound_hook(void (*play_fn)(int id)) {
+  g_europe_sound_play = play_fn;
+}
+void europe_set_bgm_hook(void (*set_bgm_fn)(int pool)) {
+  g_europe_set_bgm = set_bgm_fn;
+}
+void europe_notify_immigrant_sound(EuropeScreen* eu) {
+  (void)eu;
+  if (g_europe_set_bgm) {
+    g_europe_set_bgm(2); /* 281f_0498(2) for the human's immigrant beat */
+  }
+}
+
 int europe_cash_treasure(EuropeScreen* eu, int treasure_value) {
   if (!eu || treasure_value <= 0) {
     return 0;
@@ -1445,6 +1462,9 @@ int europe_cash_treasure(EuropeScreen* eu, int treasure_value) {
     credited,
     nation
   );
+  if (g_europe_sound_play) {
+    g_europe_sound_play(0x24); /* FUN_48d3_06ba 48d3:0b8f: Fiddler's Dance queued on the cash-in */
+  }
   return credited;
 }
 

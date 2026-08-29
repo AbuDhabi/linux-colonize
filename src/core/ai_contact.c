@@ -591,6 +591,12 @@ static void ai_contact_enqueue_welcome(ColonizeTurnContext* ctx, int e, int nati
   const char* tribe = ai_contact_tribe_name(nation_id);
   const int settlements = ai_contact_nation_settlement_count(ctx, nation_id);
   const int shown = settlements > 0 ? settlements : 1;
+  /* FUN_5bfb_022e 5bfb:0325: from turn 20 (DS:0x538e ≥ 0x14) the meet
+   * switches the tune pool — 5 Natives, Inca → 7 (Cuzco), Aztec → 6
+   * (Tenochtitlan); 04ac vs 0498 only differ in option gating. */
+  if (ctx->col1 && ctx->col1->head.turn >= 20) {
+    sound_set_bgm(nation_id == 0 ? 7 : (nation_id == 1 ? 6 : 5));
+  }
   PopupMsgTokens welcome_tok;
   memset(&welcome_tok, 0, sizeof(welcome_tok));
   welcome_tok.string0 = tribe;
@@ -7334,6 +7340,12 @@ static void ai_contact_speak_with_chief(
   ColonizeDosRng local;
   ColonizeDosRng* rng = ai_contact_action_rng(ctx, nation_id, &local);
   ColonizeCol1Save* col1 = ctx->col1;
+  /* FUN_4d56_2820 4d56:2855: a human visitor rolls 04d4(0,3); on 0 the
+   * tribe's tune pool takes over — 5 (Natives), Inca → 7 (Pizarro at
+   * Cuzco), Aztec → 6 (Tenochtitlan). */
+  if (ai_contact_euro_is_human(ctx, e) && dos_rng_range(rng, 0, 2) == 0) {
+    sound_set_bgm(nation_id == 0 ? 7 : (nation_id == 1 ? 6 : 5));
+  }
   ColonizeCol1Indian* ind = &col1->indian[nation_id - 4];
   const int human = ai_contact_euro_is_human(ctx, e);
   const int seasoned = u->profession == UNITS_JOB_SCOUT;

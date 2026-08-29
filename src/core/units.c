@@ -3246,6 +3246,7 @@ bool units_resolve_lcr_rumour(
     break;
   }
   case COLONIZE_LCR_FOUNTAIN_OF_YOUTH:
+    units_play_event_sound(0x37); /* FUN_65dd_0004 65dd:04a9 case 1: queued tune (281f_048e) */
     /* 8 free dock immigrants (8x FUN_291f_0d2c, 103727-103731) after
      * FUN_281f_0524(8), the once-only discovery event. Human only — AI
      * nations have no modeled EuropeScreen recruit pool (PARK). */
@@ -3267,6 +3268,7 @@ bool units_resolve_lcr_rumour(
     );
     break;
   case COLONIZE_LCR_CIBOLA: {
+    units_play_event_sound(0x3c); /* FUN_65dd_0004 65dd:04b6 case 2: queued tune (281f_048e) */
     /* Case 2 (103536-103548): Treasure unit with +0x315b = hundreds. */
     const int gold = roll.treasure_hundreds * 100;
     (void)units_spawn_treasure_train(pool, x, y, nation, gold);
@@ -3316,6 +3318,7 @@ bool units_resolve_lcr_rumour(
     units_despawn(pool, unit_id);
     break;
   case COLONIZE_LCR_BURIAL_MOUNDS: {
+    units_play_event_sound(0x33); /* FUN_65dd_0004 65dd:04c0 case 4: queued tune (281f_048e) */
     /*
      * @LOSTCITY4 (Search / Stay clear) auto-resolves as Search (DOS
      * local_3c==1; interactive CHOICE PARK). Post-choice block 103653-
