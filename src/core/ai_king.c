@@ -2353,6 +2353,14 @@ static void ai_king_do_declare(ColonizeTurnContext* ctx, int human) {
   ctx->col1->head.expeditionary_force[2] = (uint16_t)(2 + diff);
   ctx->col1->head.expeditionary_force[3] = (uint16_t)(2 + diff);
   ai_king_seed_backup_force_1a26(ctx, human);
+  /* FUN_43f7_1a26 right after the pool seed: latch the declaration year into
+   * DS:0x53a7/0x53a8 (year/100, year%100 — the king-audience RNG bytes,
+   * dead once the King is gone; FUN_41f2_0092's early-revolution bonus reads
+   * them back) and zero the human's liberty_bells_total so bells accrue
+   * "since declaring" (score's REF-present bells line). */
+  ctx->col1->head.king_audience_streak = (uint8_t)(ctx->col1->head.year / 100);
+  ctx->col1->head.king_audience_last_pick = (uint8_t)(ctx->col1->head.year % 100);
+  ctx->col1->nation[human].liberty_bells_total = 0;
   ai_king_set_ref_present(ctx->col1, 1);
   /*
    * FUN_43f7_0108 (eliminate nation), called from FUN_43f7_1a26 for every

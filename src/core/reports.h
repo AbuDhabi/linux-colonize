@@ -58,6 +58,8 @@ typedef struct ColonizeReportsView {
    * COLONIZE_REPORT_CONGRESS] (CCBKGD.PIK, the hall photo). */
   ColonizePikImage congress_page1_bg;
   bool congress_page1_bg_ok;
+  ColonizePikImage exploits_bg; /* WOODPAN2.PIK — Retire exploits screen (FUN_41f2_0b70) */
+  bool exploits_bg_ok;
   bool loaded;
   ColonizeReportId active;
   char data_dir[512];
@@ -135,28 +137,53 @@ int reports_naval_page_count(
 );
 
 /*
- * Live Colonization Score (manual / FAQ rules) for F10.
- * Independence bonuses apply only once declare/achieve are tracked in save;
- * until then those fields stay 0 and the base total is still shown.
+ * Colonization Score — byte-faithful port of DOS FUN_41f2_0092 (score
+ * composer, F10 + Retire) and FUN_41f2_0b70 (Colonization Rating / exploits
+ * tier). Every component and its gate mirrors the DOS block order:
+ *
+ *   citizens        colony population + qualifying map/Europe units
+ *   congress        +5 per Founding Father (FUN_281f_07b4 over 25 slots)
+ *   treasury        gold / 1000, only when gold >= 1000
+ *   villages_*      villages_burned * (-1 - difficulty)
+ *   rebel_sentiment DS:0x53d0 (rebel_sentiment_report), only when != 0
+ *   early_revolution (1780 - declare_year) * 2 — gated on the independence
+ *                   ACHIEVED bit (0x5382|0x08) and declare_year < 1780;
+ *                   declare_year is the DS:0x53a7/0x53a8 byte pair FUN_43f7_1a26
+ *                   latches at declaration (year/100, year%100)
+ *   bells           min(100, liberty_bells_total / 100) — gated on REF present
+ *                   (0x5382|0x02) and bells >= 100 (bells_total is zeroed at
+ *                   declaration, so this is "bells since declaring")
+ *   recognition     100 >> prior_nations, only once achieved; prior_nations =
+ *                   other Euro powers whose nation_flags bit 0x04 is set
+ *   total           sum, then *(8 + (8 >> prior_nations)) / 8 when recognition
+ *                   != 0 (x2 / x1.5 / x1.25 / x1.125 / x1 for 0..4 prior)
+ *   rating          FUN_41f2_0b70: ((mult * total) / 100) >> 1 with
+ *                   mult = {4,5,6,8,10}[difficulty]; exploits_tier = largest
+ *                   n-1 (n in 1..24) with n*n/3 < (mult*total)/100, capped 23,
+ *                   -1 when none (no exploits screen)
+ *   scoring_complete 0x5382|0x10 — DOS F10 shows only "SCORING COMPLETE"
  */
 typedef struct ColonizeScoreBreakdown {
   int year;
   int difficulty; /* 0 Discoverer .. 4 Viceroy */
   int citizens; /* population score */
   int congress; /* +5 per founding father */
-  int treasury; /* gold / 1000 */
-  int rebel_sentiment; /* 0..100 */
+  int treasury; /* gold / 1000 (0 below 1000 gold) */
+  int rebel_sentiment; /* DS:0x53d0 rebel_sentiment_report, 0..100 */
   int villages_burned;
   int villages_penalty; /* negative: -(difficulty+1) * burned */
-  int intervention_bells; /* +1 each after foreign intervention (stub) */
+  int early_revolution_pts; /* (1780 - declare_year) * 2 once achieved */
+  int bells_pts; /* min(100, bells/100) once REF present */
   int base_total;
   bool independence_declared;
   bool independence_achieved;
-  int declare_year; /* 0 if unknown / not declared */
-  int prior_nations; /* European powers that achieved independence first */
-  int early_revolution_pct; /* max(0, 1780 - declare_year) when declared before 1780 */
-  int foreign_recognition_pct; /* 100 / 50 / 25 / 0 from prior_nations when achieved */
+  bool scoring_complete;
+  int declare_year; /* 0 unless declared */
+  int prior_nations; /* other Euro powers already independent (nation_flags & 4) */
+  int foreign_recognition_pct; /* 100 >> prior_nations once achieved, else 0 */
   int total;
+  int rating; /* FUN_41f2_0b70 Colonization Rating (percent) */
+  int exploits_tier; /* -1 none, else 0..23 = @SCORE lines shown - 1 */
 } ColonizeScoreBreakdown;
 
 void reports_compute_score(
@@ -166,6 +193,18 @@ void reports_compute_score(
   const ColonizeColonyPool* colonies,
   const EuropeScreen* europe
 );
+
+/* DOS FUN_41f2_0092 tail: total after the foreign-recognition multiplier. */
+int reports_score_apply_recognition(int base_total, int prior_nations, bool achieved);
+
+/* DOS FUN_41f2_0b70: Colonization Rating percent + exploits tier for a
+ * total score at a difficulty. *tier_out gets -1 when no exploits line
+ * qualifies. Returns the rating. */
+int reports_score_rating(int total, int difficulty, int* tier_out);
+
+/* Declaration year latched by FUN_43f7_1a26 into DS:0x53a7/0x53a8
+ * (king_audience_streak / king_audience_last_pick reuse); 0 unless WoI. */
+int reports_score_declare_year(const ColonizeCol1Save* col1);
 
 /* congress_page2: true shows Continental Congress page 2 (golden:
  * continental_p2.png); ignored for every id but COLONIZE_REPORT_CONGRESS.
@@ -206,19 +245,28 @@ void reports_render(
 );
 
 /*
- * Title-menu Hall of Fame screen: ranked retired-game scores, full-screen
- * wood (shares COLONIZE_REPORT_SCORE's WOODPANL.PIK — DOS's HALLFAME.DAT
- * writer also opens a WOODPANL screen; see viceroy_unpacked.asm string table
- * around "HALLFAME.DAT" / "INDEPENDENT" / "NAMES"). LABELS.TXT #207
- * "COLONIZATION HALL OF FAME" is the real DOS title string.
+ * Hall of Fame screen (DOS FUN_41f2_0f56 presenter): WOODPANL.PIK, title
+ * LABELS @MISC #192 centered, then up to 5 entries of three centered lines:
+ *   "<n>. <Difficulty> <Leader> of the [Free ]<Nation>"
+ *   "<President, <@INDEPENDENT name> | General, Continental Army |
+ *     Leader, <Nation> Colonies> to A.D. <year>. Score: <score>"
+ *   "--- <@MISC #199> <rating>% ---"
+ * DOS keeps 6 slots in HALLFAME.DAT and shows 5; ranks by Colonization
+ * Rating (word 19 of the 42-byte record), not raw score.
  */
 #define COLONIZE_HOF_ROW_MAX 10
+#define COLONIZE_HOF_SHOWN_MAX 5
 
 typedef struct ColonizeHofRow {
   char leader[32];
-  char nation[24];
+  char nation[24]; /* nation adjective ("Dutch") */
+  char independent_name[48]; /* NAMES.TXT @INDEPENDENT row, "" if unknown */
   int score;
   int year;
+  int difficulty;
+  int rating;
+  bool declared;
+  bool achieved;
 } ColonizeHofRow;
 
 void reports_render_hall_of_fame(
@@ -228,5 +276,32 @@ void reports_render_hall_of_fame(
   const ColonizeFont* font,
   ColonizeFramebuffer8* framebuffer
 );
+
+/*
+ * Retire "exploits" screen (DOS FUN_41f2_0b70 dialog): WOODPAN2.PIK, GAME.TXT
+ * @EXPLOITS header (%NUMBER0 = rating, %STRING0 = nation name), then the
+ * first exploits_tier+1 @SCORE category fields stacked upward from y=195,
+ * the last line's name field (%STRING0 = leader's last name) at y=142, and
+ * SCORE<tier+1>.SS frame 0 at x=100. Caller resolves the text.
+ */
+typedef struct ColonizeExploitsView {
+  char header[3][96]; /* @EXPLOITS lines, tokens applied */
+  int header_count;
+  char categories[24][160]; /* @SCORE line[i] field 0 */
+  int category_count; /* exploits_tier + 1 */
+  char named[96]; /* last @SCORE line field 1 with %STRING0 applied */
+  const ColonizeSpriteSheet* sheet; /* SCORE<tier+1>.SS or NULL */
+} ColonizeExploitsView;
+
+void reports_render_exploits(
+  const ColonizeReportsView* view,
+  const ColonizeExploitsView* ex,
+  const ColonizeFont* font,
+  ColonizeFramebuffer8* framebuffer
+);
+
+/* Nearest-color remap of a freshly loaded SCORE<nn>.SS onto WOODPAN2.PIK's
+ * palette (same treatment ICONS.SS gets for REPORT2.PIK). */
+void reports_remap_exploits_sheet(const ColonizeReportsView* view, ColonizeSpriteSheet* sheet);
 
 #endif

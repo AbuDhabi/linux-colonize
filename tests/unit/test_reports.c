@@ -391,7 +391,8 @@ int main(void) {
     reports_free(&view);
     return 1;
   }
-  if (score.foreign_recognition_pct != 0 || score.early_revolution_pct != 0) {
+  if (score.foreign_recognition_pct != 0 || score.early_revolution_pts != 0 ||
+      score.bells_pts != 0 || score.rating != 0 || score.exploits_tier != -1) {
     fprintf(stderr, "COLONY01 should have no independence bonuses yet\n");
     col1_save_free(&col1);
     reports_free(&view);
@@ -413,16 +414,100 @@ int main(void) {
     }
   }
 
-  /* Foreign recognition multipliers when independence is achieved. */
+  /* FUN_41f2_0092 tail: recognition multiplier (8 + (8 >> prior)) / 8 —
+   * x2, x1.5, x1.25, x1.125, x1 for 0..4 prior nations; none unless achieved. */
   {
-    ColonizeScoreBreakdown b = {0};
-    b.base_total = 100;
-    b.independence_achieved = true;
-    b.prior_nations = 0;
-    b.foreign_recognition_pct = 100;
-    b.total = b.base_total + (b.base_total * b.foreign_recognition_pct) / 100;
-    if (b.total != 200) {
-      fprintf(stderr, "first-independence multiplier broken\n");
+    static const int want[5] = {200, 150, 125, 112, 100};
+    for (int prior = 0; prior < 5; ++prior) {
+      const int got = reports_score_apply_recognition(100, prior, true);
+      if (got != want[prior]) {
+        fprintf(stderr, "recognition prior=%d got %d want %d\n", prior, got, want[prior]);
+        col1_save_free(&col1);
+        reports_free(&view);
+        return 1;
+      }
+    }
+    if (reports_score_apply_recognition(100, 0, false) != 100) {
+      fprintf(stderr, "recognition applied without achievement\n");
+      col1_save_free(&col1);
+      reports_free(&view);
+      return 1;
+    }
+  }
+
+  /* FUN_41f2_0b70 rating: mult {4,5,6,8,10}, ((mult*total)/100)>>1; tier =
+   * largest n-1 with n*n/3 < (mult*total)/100 over n=1..24, cap 23. */
+  {
+    int tier = 99;
+    if (reports_score_rating(1000, 4, &tier) != 50 || tier != 16) {
+      fprintf(stderr, "rating(1000, Viceroy) wrong: tier=%d\n", tier);
+      col1_save_free(&col1);
+      reports_free(&view);
+      return 1;
+    }
+    if (reports_score_rating(1000, 0, &tier) != 20 || tier != 9) {
+      fprintf(stderr, "rating(1000, Discoverer) wrong: tier=%d\n", tier);
+      col1_save_free(&col1);
+      reports_free(&view);
+      return 1;
+    }
+    if (reports_score_rating(5, 0, &tier) != 0 || tier != -1) {
+      fprintf(stderr, "rating(5) should give no exploits tier (got %d)\n", tier);
+      col1_save_free(&col1);
+      reports_free(&view);
+      return 1;
+    }
+    if (reports_score_rating(20000, 4, &tier) != 1000 || tier != 23) {
+      fprintf(stderr, "rating tier cap 23 broken (got %d)\n", tier);
+      col1_save_free(&col1);
+      reports_free(&view);
+      return 1;
+    }
+  }
+
+  /* Full composer on a synthetic post-independence state: achieved, declared
+   * 1776 (latched 0x53a7/0x53a8), one prior nation, REF present with 250
+   * bells since declaring, 2 villages burned at Conquistador. */
+  {
+    ColonizeCol1Save c;
+    memset(&c, 0, sizeof(c));
+    memset(c.head.founding_father, 0xff, sizeof(c.head.founding_father)); /* none elected */
+    c.head.year = 1790;
+    c.head.difficulty = 2;
+    c.head.game_options.woi = 1;
+    c.head.game_options.ref_present = 1;
+    c.head.game_options.independence_chrome = 1;
+    c.head.king_audience_streak = 17;
+    c.head.king_audience_last_pick = 76;
+    c.head.rebel_sentiment_report = 60;
+    c.nation[0].gold = 2500;
+    c.nation[0].liberty_bells_total = 250;
+    c.nation[0].villages_burned = 2;
+    c.nation[1].nation_flags = 0x04;
+    ColonizeScoreBreakdown sc;
+    reports_compute_score(&sc, &c, 0, NULL, NULL);
+    /* early (1780-1776)*2=8, gold 2, rebel 60, bells 2, villages -6 = 66;
+     * x1.5 (one prior) = 99; rating Conquistador mult 6: 5>>1 = 2, tier 2. */
+    if (sc.declare_year != 1776 || sc.early_revolution_pts != 8 || sc.treasury != 2 ||
+        sc.bells_pts != 2 || sc.villages_penalty != -6 || sc.prior_nations != 1 ||
+        sc.foreign_recognition_pct != 50 || sc.base_total != 66 || sc.total != 99 ||
+        sc.rating != 2 || sc.exploits_tier != 2) {
+      fprintf(
+        stderr,
+        "synthetic independence score wrong: dy=%d early=%d gold=%d bells=%d vil=%d prior=%d "
+        "pct=%d base=%d total=%d rating=%d tier=%d\n",
+        sc.declare_year, sc.early_revolution_pts, sc.treasury, sc.bells_pts, sc.villages_penalty,
+        sc.prior_nations, sc.foreign_recognition_pct, sc.base_total, sc.total, sc.rating,
+        sc.exploits_tier
+      );
+      col1_save_free(&col1);
+      reports_free(&view);
+      return 1;
+    }
+    c.head.game_options.calendar_latch = 1; /* 0x5382|0x10 SCORING COMPLETE */
+    reports_compute_score(&sc, &c, 0, NULL, NULL);
+    if (!sc.scoring_complete || sc.total != 0) {
+      fprintf(stderr, "scoring-complete latch should zero the composer\n");
       col1_save_free(&col1);
       reports_free(&view);
       return 1;

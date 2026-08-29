@@ -177,6 +177,7 @@ void reports_free(ColonizeReportsView* view) {
   ss_free(&view->icons);
   ff_free(&view->title_font);
   pik_free(&view->congress_page1_bg);
+  pik_free(&view->exploits_bg);
   memset(view, 0, sizeof(*view));
   if (g_reports_names_ok) {
     assets_msg_free(&g_reports_names);
@@ -260,6 +261,17 @@ bool reports_load(ColonizeReportsView* view, const char* data_dir, char* err, si
   }
   view->loaded = ok_count > 0;
   str_copy_trunc(view->data_dir, sizeof(view->data_dir), data_dir);
+  {
+    /* WOODPAN2.PIK — Retire exploits screen (FUN_41f2_0b70 loads it by name). */
+    char path[512];
+    char pik_err[256];
+    if (dos_compat_normalize_asset_path(data_dir, "WOODPAN2.PIK", path, sizeof(path)) &&
+        pik_load(path, &view->exploits_bg, pik_err, sizeof(pik_err))) {
+      view->exploits_bg_ok = true;
+    } else {
+      diag_warn("Failed to load WOODPAN2.PIK: %s", pik_err);
+    }
+  }
   if (!view->loaded) {
     snprintf(err, err_size, "no report backgrounds loaded");
     return false;
@@ -3072,25 +3084,11 @@ static int reports_count_ff_for_nation(const ColonizeCol1Save* col1, int human) 
   return ff;
 }
 
-/* nation.rebel_sentiment (nation+0x19) is the DOS-maintained empire-wide
- * value the Score screen actually shows — confirmed byte-for-byte against
- * dutch-reports.SAV (94, matching score.png's "Rebel Sentiment: +94"
- * exactly). A pop-weighted recompute from colony rebel_dividend/rebel_divisor
- * looked equivalent but isn't (91 on that same save) — trust the stored
- * field, don't re-derive it. */
-static int reports_rebel_sentiment_pct(const ColonizeCol1Save* col1, int human) {
-  if (!col1) {
-    return 0;
-  }
-  int pct = (int)col1->nation[human].rebel_sentiment;
-  if (pct < 0) {
-    pct = 0;
-  }
-  if (pct > 100) {
-    pct = 100;
-  }
-  return pct;
-}
+/* Rebel Sentiment on this screen is DS:0x53d0 (rebel_sentiment_report),
+ * confirmed byte-for-byte against dutch-reports.SAV (94 = score.png's
+ * "Rebel Sentiment: +94"; nation+0x19 happens to hold the same value there,
+ * a pop-weighted recompute from colony rebel_dividend/rebel_divisor gives 91
+ * — trust the stored field, don't re-derive it). */
 
 #define REPORTS_SCORE_CITIZENS_MAX 1024
 
@@ -3151,27 +3149,65 @@ static int reports_score_collect_citizen_jobs(
   return count;
 }
 
-static int reports_foreign_recognition_pct(int prior_nations, bool achieved) {
-  if (!achieved) {
-    return 0;
+int reports_score_apply_recognition(int base_total, int prior_nations, bool achieved) {
+  if (!achieved || prior_nations < 0) {
+    return base_total;
   }
-  if (prior_nations <= 0) {
-    return 100;
+  /* FUN_41f2_0092 tail: local_56 = 100 >> prior; when non-zero the sum is
+   * scaled by (8 + (8 >> prior)) / 8 via a 32-bit multiply then >> 3. */
+  const int pct = prior_nations >= 31 ? 0 : (100 >> prior_nations);
+  if (pct == 0) {
+    return base_total;
   }
-  if (prior_nations == 1) {
-    return 50;
-  }
-  if (prior_nations == 2) {
-    return 25;
-  }
-  return 0;
+  const int mult = 8 + (prior_nations >= 31 ? 0 : (8 >> prior_nations));
+  return (int)(((long)base_total * (long)mult) >> 3);
 }
 
-static int reports_early_revolution_pct(bool declared, int declare_year) {
-  if (!declared || declare_year <= 0 || declare_year >= 1780) {
+int reports_score_rating(int total, int difficulty, int* tier_out) {
+  if (tier_out) {
+    *tier_out = -1;
+  }
+  if (total <= 0) {
     return 0;
   }
-  return 1780 - declare_year;
+  /* FUN_41f2_0b70: mult = diff+4, +1 past Conquistador, +1 more past Governor
+   * -> {4,5,6,8,10}. */
+  if (difficulty < 0) {
+    difficulty = 0;
+  }
+  if (difficulty > 4) {
+    difficulty = 4;
+  }
+  int mult = difficulty + 4;
+  if (difficulty > 2) {
+    mult = difficulty + 5;
+  }
+  if (difficulty > 3) {
+    mult++;
+  }
+  const int pre = (mult * total) / 100;
+  int tier = -1;
+  for (int n = 1; n < 25; ++n) {
+    if ((n * n) / 3 < pre) {
+      tier = n - 1;
+    }
+  }
+  if (tier > 23) {
+    tier = 23;
+  }
+  if (tier_out) {
+    *tier_out = tier;
+  }
+  return pre >> 1;
+}
+
+int reports_score_declare_year(const ColonizeCol1Save* col1) {
+  if (!col1 || !col1->head.game_options.woi) {
+    return 0;
+  }
+  /* FUN_43f7_1a26: 0x53a7 = year / 100, 0x53a8 = year % 100 (signed chars). */
+  return (int)(int8_t)col1->head.king_audience_streak * 100 +
+         (int)(int8_t)col1->head.king_audience_last_pick;
 }
 
 void reports_compute_score(
@@ -3182,9 +3218,11 @@ void reports_compute_score(
   const EuropeScreen* europe
 ) {
   memset(out, 0, sizeof(*out));
+  out->exploits_tier = -1;
   const int human = reports_clamp_nation(human_nation);
 
   if (col1) {
+    const ColonizeCol1Nation* nat = &col1->nation[human];
     out->year = (int)col1->head.year;
     out->difficulty = (int)col1->head.difficulty;
     if (out->difficulty < 0) {
@@ -3192,6 +3230,24 @@ void reports_compute_score(
     }
     if (out->difficulty > 4) {
       out->difficulty = 4;
+    }
+    out->independence_declared = col1->head.game_options.woi != 0;
+    out->independence_achieved = col1->head.game_options.independence_chrome != 0;
+    out->scoring_complete = col1->head.game_options.calendar_latch != 0;
+    out->declare_year = reports_score_declare_year(col1);
+
+    /* prior_nations: every other Euro power whose nation_flags bit 0x04
+     * (independence achieved) is set — current state, not "before us". */
+    for (int n = 0; n < (int)COLONIZE_COL1_NATION_COUNT; ++n) {
+      if (n != human && (col1->nation[n].nation_flags & 0x04u) != 0) {
+        out->prior_nations++;
+      }
+    }
+
+    /* DOS: with 0x5382|0x10 the report prints only "SCORING COMPLETE" and
+     * composes nothing — every component stays 0. */
+    if (out->scoring_complete) {
+      return;
     }
 
     /* Citizens: colony population + qualifying map/Europe units — see
@@ -3206,33 +3262,26 @@ void reports_compute_score(
     }
 
     out->congress = reports_count_ff_for_nation(col1, human) * 5;
-    out->treasury = (int)(col1->nation[human].gold / 1000u);
-    out->rebel_sentiment = reports_rebel_sentiment_pct(col1, human);
-    out->villages_burned = (int)col1->nation[human].villages_burned;
-    out->villages_penalty = -(out->difficulty + 1) * out->villages_burned;
-    out->intervention_bells = (int)founding_fathers_intervention_bells(human);
-
-    /*
-     * Independence: WoI latch game_options.woi (ai_king). Declare year not
-     * separately latched yet — early-revolution % stays 0 until a year field
-     * is wired. Achieve stays false until revolution victory sequence.
-     * AI "withdrawn" (control==2) still counts toward foreign recognition.
-     */
-    for (int n = 0; n < (int)COLONIZE_COL1_NATION_COUNT; ++n) {
-      if (n == human) {
-        continue;
-      }
-      if (col1->player[n].control == 2) {
-        out->prior_nations++;
+    if (nat->gold >= 1000) {
+      out->treasury = (int)(nat->gold / 1000);
+    }
+    out->villages_burned = (int)nat->villages_burned;
+    out->villages_penalty = out->villages_burned * (-1 - out->difficulty);
+    out->rebel_sentiment = (int)col1->head.rebel_sentiment_report;
+    if (out->independence_achieved && out->declare_year < 1780) {
+      out->early_revolution_pts = (1780 - out->declare_year) * 2;
+    }
+    if (col1->head.game_options.ref_present && nat->liberty_bells_total >= 100) {
+      out->bells_pts = (int)nat->liberty_bells_total / 100;
+      if (out->bells_pts > 100) {
+        out->bells_pts = 100;
       }
     }
-    out->independence_declared = col1->head.game_options.woi != 0;
-    out->independence_achieved =
-      ai_king_latch_get(col1, AI_KING_ENDGAME_BYTE) == AI_KING_ENDGAME_WON;
-    out->declare_year = 0;
+    if (out->independence_achieved) {
+      out->foreign_recognition_pct =
+        out->prior_nations >= 31 ? 0 : (100 >> out->prior_nations);
+    }
   } else {
-    out->year = 0;
-    out->difficulty = 0;
     if (colonies) {
       for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
         const ColonizeColony* c = &colonies->colonies[i];
@@ -3252,20 +3301,12 @@ void reports_compute_score(
     out->treasury = (int)(gold / 1000u);
   }
 
-  out->early_revolution_pct =
-    reports_early_revolution_pct(out->independence_declared, out->declare_year);
-  out->foreign_recognition_pct =
-    reports_foreign_recognition_pct(out->prior_nations, out->independence_achieved);
-
-  out->base_total = out->citizens + out->congress + out->treasury + out->rebel_sentiment +
-                    out->villages_penalty + out->intervention_bells;
-
-  const int bonus_pct = out->early_revolution_pct + out->foreign_recognition_pct;
-  if (bonus_pct > 0 && out->base_total > 0) {
-    out->total = out->base_total + (out->base_total * bonus_pct) / 100;
-  } else {
-    out->total = out->base_total;
-  }
+  out->base_total = out->early_revolution_pts + out->congress + out->villages_penalty +
+                    out->treasury + out->rebel_sentiment + out->bells_pts + out->citizens;
+  out->total = reports_score_apply_recognition(
+    out->base_total, out->prior_nations, out->independence_achieved
+  );
+  out->rating = reports_score_rating(out->total, out->difficulty, &out->exploits_tier);
 }
 
 /*
@@ -3432,6 +3473,16 @@ static void reports_render_score(
   /* LABELS.TXT @MISC: #59 "Gold", #121 "Total Score", #115 "Citizens",
    * #134 "Continental Congress", #69 "Rebel" + #71 "Sentiment". */
   char w1[48], w2[48];
+  if (sc.scoring_complete) {
+    /* FUN_41f2_0092: 0x5382|0x10 -> only @MISC #126 "SCORING COMPLETE",
+     * centered at y=0x61, nothing else composed. */
+    reports_misc_word(126, "SCORING COMPLETE", w1, sizeof(w1));
+    if (body_font) {
+      const int w = font_text_width(body_font, w1);
+      reports_draw_line(body_font, fb, (fb->width - w) / 2, 0x61, w1, REPORTS_SCORE_TITLE_COLOR);
+    }
+    return;
+  }
   if (!col1) {
     snprintf(line, line_sz, "%-24s%d", reports_misc_word(59, "Gold", w1, sizeof(w1)), sc.treasury);
     reports_draw_line(
@@ -3493,39 +3544,109 @@ static void reports_render_score(
     }
   }
 
-  /* Gold / Rebel Sentiment / Total Score — golden shows exactly these three,
-   * no Villages/Intervention/Independence breakout lines (this golden has
-   * zero villages burned and independence undeclared, but DOS appears to
-   * fold every other component silently into Total Score rather than list
-   * them; nothing in score.png suggests those rows ever appear here). */
-  /* "$" — same coin-glyph convention as the map sidebar's own gold line
-   * (map_panel.c: "Gold: %d$"), not a literal "g" suffix. */
+  /*
+   * Component lines in DOS block order (FUN_41f2_0092), each printed only
+   * when its gate holds — the golden (score.png) has exactly Gold / Rebel
+   * Sentiment / Total Score because that save has >= 1000 gold, a non-zero
+   * 0x53d0 and nothing else. Gold's y=150 is the golden's; extra lines push
+   * the block up so Total Score never runs into the y=186 bar.
+   */
+  char lines[8][96];
+  uint8_t colors[8];
+  int n_lines = 0;
+  if (sc.treasury > 0 || col1->nation[human].gold >= 1000) {
+    /* "$" — same coin-glyph convention as the map sidebar's own gold line
+     * (map_panel.c: "Gold: %d$"), not a literal "g" suffix. */
+    snprintf(
+      lines[n_lines],
+      sizeof(lines[0]),
+      "%s:  (%u$) +%d",
+      reports_misc_word(59, "Gold", w1, sizeof(w1)),
+      (unsigned)(col1->nation[human].gold),
+      sc.treasury
+    );
+    colors[n_lines++] = REPORTS_SCORE_GREEN_COLOR;
+  }
+  if (sc.villages_burned != 0) {
+    snprintf(
+      lines[n_lines],
+      sizeof(lines[0]),
+      "%d %s:  %d",
+      sc.villages_burned,
+      reports_misc_word(117, "Villages Burned", w1, sizeof(w1)),
+      sc.villages_penalty
+    );
+    colors[n_lines++] = REPORTS_SCORE_GREEN_COLOR;
+  }
+  if (sc.rebel_sentiment != 0) {
+    snprintf(
+      lines[n_lines],
+      sizeof(lines[0]),
+      "%s %s:  +%d",
+      reports_misc_word(69, "Rebel", w1, sizeof(w1)),
+      reports_misc_word(71, "Sentiment", w2, sizeof(w2)),
+      sc.rebel_sentiment
+    );
+    colors[n_lines++] = REPORTS_SCORE_GREEN_COLOR;
+  }
+  if (sc.independence_achieved && sc.declare_year < 1780) {
+    /* DOS prints the CURRENT season/year in the parenthesis while scoring
+     * from the latched declaration year. */
+    snprintf(
+      lines[n_lines],
+      sizeof(lines[0]),
+      "%s (%s %d):  +%d",
+      reports_misc_word(142, "Early Revolution", w1, sizeof(w1)),
+      col1->head.autumn ? "Autumn" : "Spring",
+      sc.year,
+      sc.early_revolution_pts
+    );
+    colors[n_lines++] = REPORTS_SCORE_GREEN_COLOR;
+  }
+  if (col1->head.game_options.ref_present && col1->nation[human].liberty_bells_total >= 100) {
+    /* DOS label is a runtime pointer (DS:0x97e4) outside the @MISC table;
+     * text unresolved statically. */
+    snprintf(lines[n_lines], sizeof(lines[0]), "Liberty Bells:  +%d", sc.bells_pts);
+    colors[n_lines++] = REPORTS_SCORE_GREEN_COLOR;
+  }
+  if (sc.independence_achieved) {
+    /* "Independence Achieved [(N prior nations)]:  +NN%" (#116 #119 #143). */
+    char prior[48] = "";
+    if (sc.prior_nations != 0) {
+      snprintf(
+        prior,
+        sizeof(prior),
+        " (%d %s)",
+        sc.prior_nations,
+        reports_misc_word(143, "prior nations", w2, sizeof(w2))
+      );
+    }
+    snprintf(
+      lines[n_lines],
+      sizeof(lines[0]),
+      "%s %s%s:  +%d%%",
+      reports_misc_word(116, "Independence", w1, sizeof(w1)),
+      reports_misc_word(119, "Achieved", w2, sizeof(w2)),
+      prior,
+      sc.foreign_recognition_pct
+    );
+    colors[n_lines++] = REPORTS_SCORE_GREEN_COLOR;
+  }
   snprintf(
-    line,
-    line_sz,
-    "%s:  (%u$) +%d",
-    reports_misc_word(59, "Gold", w1, sizeof(w1)),
-    (unsigned)(col1->nation[human].gold),
-    sc.treasury
+    lines[n_lines], sizeof(lines[0]), "%s: %d", reports_misc_word(121, "Total Score", w1, sizeof(w1)), sc.total
   );
-  reports_draw_line(
-    body_font, fb, REPORTS_SCORE_LEFT_X, REPORTS_SCORE_GOLD_Y, line, REPORTS_SCORE_GREEN_COLOR
-  );
-  snprintf(
-    line,
-    line_sz,
-    "%s %s:  +%d",
-    reports_misc_word(69, "Rebel", w1, sizeof(w1)),
-    reports_misc_word(71, "Sentiment", w2, sizeof(w2)),
-    sc.rebel_sentiment
-  );
-  reports_draw_line(
-    body_font, fb, REPORTS_SCORE_LEFT_X, REPORTS_SCORE_REBEL_Y, line, REPORTS_SCORE_GREEN_COLOR
-  );
-  snprintf(line, line_sz, "%s: %d", reports_misc_word(121, "Total Score", w1, sizeof(w1)), sc.total);
-  reports_draw_line(
-    body_font, fb, REPORTS_SCORE_LEFT_X, REPORTS_SCORE_TOTAL_Y, line, REPORTS_SCORE_TITLE_COLOR
-  );
+  colors[n_lines++] = REPORTS_SCORE_TITLE_COLOR;
+  {
+    const int step = REPORTS_SCORE_REBEL_Y - REPORTS_SCORE_GOLD_Y;
+    int y0 = REPORTS_SCORE_GOLD_Y;
+    const int last_max = REPORTS_SCORE_BAR_Y - 8;
+    if (y0 + step * (n_lines - 1) > last_max) {
+      y0 = last_max - step * (n_lines - 1);
+    }
+    for (int i = 0; i < n_lines; ++i) {
+      reports_draw_line(body_font, fb, REPORTS_SCORE_LEFT_X, y0 + i * step, lines[i], colors[i]);
+    }
+  }
 
   /* Bottom progress bar: proportional fill toward a nominal 1000-point
    * score, not toward anything display-labeled — golden's fill measures
@@ -3558,6 +3679,21 @@ static void reports_render_score(
   }
 }
 
+/* Centered text across the 320px screen (DOS FUN_281f_0100 / 01c8). */
+static void reports_draw_centered(
+  const ColonizeFont* font,
+  ColonizeFramebuffer8* fb,
+  int y,
+  const char* text,
+  uint8_t color
+) {
+  if (!fb || !text) {
+    return;
+  }
+  const int w = font ? font_text_width(font, text) : 0;
+  reports_draw_line(font, fb, (fb->width - w) / 2, y, text, color);
+}
+
 void reports_render_hall_of_fame(
   const ColonizeReportsView* view,
   const ColonizeHofRow* entries,
@@ -3572,59 +3708,149 @@ void reports_render_hall_of_fame(
   if (view && view->background_ok[COLONIZE_REPORT_SCORE]) {
     pik_blit(&view->backgrounds[COLONIZE_REPORT_SCORE], fb, 0, 0);
   }
+  const ColonizeFont* body_font = (view && view->title_font_ok) ? &view->title_font : font;
 
-  const int step = reports_line_step(font);
-  int y = 4;
   /*
-   * LABELS.TXT @MISC live strings (2026-08-26 fix — was all hardcoded
-   * despite the title's own long-standing "#207" citation, which was
-   * always a raw grep line number, not an @MISC index — the real 0-based
-   * @MISC index is 192): title index 192, "Leader"/"Score"/"A.D." at
-   * 197/198/194. "Nation" has no match
-   * anywhere in LABELS.TXT (checked) — stays hardcoded, real gap or DOS
-   * genuinely doesn't have that word here, unconfirmed either way (no
-   * golden exists for this screen). Field widths (26/12/7) reproduce the
-   * pre-fix literal's exact spacing byte-for-byte when live text matches
-   * the fallback, since neither this row's real column widths nor its
-   * "Esc / Enter returns to menu" line are DOS-confirmed regardless.
+   * FUN_41f2_0f56 presenter: title (@MISC #192) centered at y=3, then each
+   * of the first 5 entries as three centered lines, line pitch = font
+   * height + 2 starting at y=0x10. Strings from LABELS.TXT @MISC — "of the"
+   * #19, "Free" #191, "President" #195, "General, Continental Army" #196,
+   * "Leader" #197, "Colonies" #95, "to" #193, "A.D." #194, "Score" #198,
+   * "Colonization_Rating" #199 — the difficulty name table and the nation
+   * adjective / @INDEPENDENT name are resolved by the caller.
    */
-  const char* title = reports_labels_field("MISC", 192);
-  reports_draw_line(font, fb, 8, y, title ? title : "COLONIZATION HALL OF FAME", 15);
-  y += step;
-  reports_draw_line(font, fb, 8, y, "Esc / Enter returns to menu", 14);
-  y += step + 4;
-
-  const char* leader_w = reports_labels_field("MISC", 197);
-  const char* score_w = reports_labels_field("MISC", 198);
-  const char* ad_w = reports_labels_field("MISC", 194);
-  char header[80];
-  snprintf(
-    header, sizeof(header), "     %-26s%-12s%-7s%s", leader_w ? leader_w : "Leader", "Nation",
-    score_w ? score_w : "Score", ad_w ? ad_w : "A.D."
+  static const char* k_diff[] = {
+    "Discoverer", "Explorer", "Conquistador", "Governor", "Viceroy"
+  };
+  char w1[64], w2[64], w3[64];
+  reports_draw_centered(
+    body_font, fb, 3, reports_misc_word(192, "COLONIZATION HALL OF FAME", w1, sizeof(w1)),
+    REPORTS_SCORE_TITLE_COLOR
   );
-  reports_draw_line(font, fb, 8, y, header, 15);
-  y += step;
 
-  char line[160];
-  if (entry_count <= 0) {
-    reports_draw_line(font, fb, 8, y, "  No retired games yet.", 14);
-    return;
-  }
-  const int shown = entry_count > COLONIZE_HOF_ROW_MAX ? COLONIZE_HOF_ROW_MAX : entry_count;
-  for (int i = 0; i < shown && y < 190; ++i) {
+  const int step = body_font ? body_font->max_height + 2 : 8;
+  int y = 0x10;
+  char line[200];
+  const int shown = entry_count > COLONIZE_HOF_SHOWN_MAX ? COLONIZE_HOF_SHOWN_MAX : entry_count;
+  for (int i = 0; i < shown; ++i) {
     const ColonizeHofRow* e = &entries[i];
+    const char* diff_name =
+      (e->difficulty >= 0 && e->difficulty <= 4) ? k_diff[e->difficulty] : "?";
     snprintf(
       line,
       sizeof(line),
-      "%2d.  %-24s %-10s %6d  %d",
+      "%d. %s %s %s %s%s%s",
       i + 1,
+      diff_name,
       e->leader,
-      e->nation,
-      e->score,
-      e->year
+      reports_misc_word(19, "of the", w1, sizeof(w1)),
+      e->declared ? reports_misc_word(191, "Free", w2, sizeof(w2)) : "",
+      e->declared ? " " : "",
+      e->nation
     );
-    reports_draw_line(font, fb, 8, y, line, 15);
+    reports_draw_centered(body_font, fb, y, line, REPORTS_SCORE_GREEN_COLOR);
     y += step;
+
+    char title[120];
+    if (e->achieved) {
+      snprintf(
+        title,
+        sizeof(title),
+        "%s, %s",
+        reports_misc_word(195, "President", w1, sizeof(w1)),
+        e->independent_name[0] ? e->independent_name : e->nation
+      );
+    } else if (e->declared) {
+      snprintf(
+        title, sizeof(title), "%s", reports_misc_word(196, "General, Continental Army", w1, sizeof(w1))
+      );
+    } else {
+      snprintf(
+        title,
+        sizeof(title),
+        "%s, %s %s",
+        reports_misc_word(197, "Leader", w1, sizeof(w1)),
+        e->nation,
+        reports_misc_word(95, "Colonies", w2, sizeof(w2))
+      );
+    }
+    snprintf(
+      line,
+      sizeof(line),
+      "%s %s %s %d. %s: %d",
+      title,
+      reports_misc_word(193, "to", w1, sizeof(w1)),
+      reports_misc_word(194, "A.D.", w2, sizeof(w2)),
+      e->year,
+      reports_misc_word(198, "Score", w3, sizeof(w3)),
+      e->score
+    );
+    reports_draw_centered(body_font, fb, y, line, REPORTS_SCORE_GREEN_COLOR);
+    y += step;
+
+    snprintf(
+      line,
+      sizeof(line),
+      "--- %s: %d%% ---",
+      reports_misc_word(199, "Colonization_Rating", w1, sizeof(w1)),
+      e->rating
+    );
+    reports_draw_centered(body_font, fb, y, line, REPORTS_SCORE_TITLE_COLOR);
+    y += step;
+  }
+}
+
+void reports_remap_exploits_sheet(const ColonizeReportsView* view, ColonizeSpriteSheet* sheet) {
+  if (!view || !sheet) {
+    return;
+  }
+  if (view->exploits_bg_ok && view->exploits_bg.has_palette) {
+    reports_remap_sheet_to_palette(sheet, &view->exploits_bg.palette);
+  } else if (view->background_ok[COLONIZE_REPORT_SCORE]) {
+    reports_remap_sheet_to_palette(sheet, &view->backgrounds[COLONIZE_REPORT_SCORE].palette);
+  }
+}
+
+void reports_render_exploits(
+  const ColonizeReportsView* view,
+  const ColonizeExploitsView* ex,
+  const ColonizeFont* font,
+  ColonizeFramebuffer8* fb
+) {
+  if (!fb || !fb->pixels || !ex) {
+    return;
+  }
+  memset(fb->pixels, 0, (size_t)fb->width * (size_t)fb->height);
+  if (view && view->exploits_bg_ok) {
+    pik_blit(&view->exploits_bg, fb, 0, 0);
+  } else if (view && view->background_ok[COLONIZE_REPORT_SCORE]) {
+    pik_blit(&view->backgrounds[COLONIZE_REPORT_SCORE], fb, 0, 0);
+  }
+  const ColonizeFont* body_font = (view && view->title_font_ok) ? &view->title_font : font;
+  /* FUN_41f2_0b70: @EXPLOITS lines from y=5 at font height + 1; @SCORE
+   * category fields at y = 0xc3 - (h+1)*(i+1) (bottom-up); the named line at
+   * y=0x8e; SCORE<tier+1>.SS frame 0 at x=100. */
+  const int h = body_font ? body_font->max_height + 1 : 8;
+  int y = 5;
+  for (int i = 0; i < ex->header_count && i < 3; ++i) {
+    reports_draw_centered(body_font, fb, y, ex->header[i], REPORTS_SCORE_TITLE_COLOR);
+    y += h;
+  }
+  for (int i = 0; i < ex->category_count && i < 24; ++i) {
+    reports_draw_centered(
+      body_font, fb, 0xc3 - h * (i + 1), ex->categories[i], REPORTS_SCORE_GREEN_COLOR
+    );
+  }
+  if (ex->sheet && ex->sheet->sprite_count > 0) {
+    /* SCORE<nn>.SS is a painting of the nn-th @SCORE item (SCORE17 = the
+     * university). DOS blits it at x=100 AFTER the category list, so the
+     * build-up list ends hidden under the reveal; its y comes from the
+     * sheet header (unread here) — sit it right under the @EXPLOITS lines
+     * so a 99px-tall frame clears the named line at y=0x8e. */
+    ss_blit_sprite(ex->sheet, 0, fb, 100, y + 1);
+  }
+  if (ex->named[0]) {
+    reports_draw_centered(body_font, fb, 0x8e, ex->named, REPORTS_SCORE_TITLE_COLOR);
   }
 }
 
