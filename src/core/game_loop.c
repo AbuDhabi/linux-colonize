@@ -4438,6 +4438,9 @@ ColonizeGameState* game_create(const ColonizeGameConfig* config) {
       if (game->terrain.has_palette) {
         game->map_palette = game->terrain.palette;
         game->map_palette_ok = true;
+        /* Chief portraits show over the map: remap onto the map palette, not
+         * VICEROY.PAL (P8.6 "colours too light"). */
+        ai_popup_set_portrait_source(game->resolved_data_dir, &game->map_palette);
       }
       diag_info("Loaded terrain sheet with %d sprites", game->terrain.sprite_count);
     } else {

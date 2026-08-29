@@ -164,10 +164,10 @@ static void ai_contact_human_chrome(
     );
     /* FUN_6f74_0042: DS:0x1f5c = the contact tribe → IND{tribe}A{tier}.SS
      * portrait beside the dialog, tier from the alarm band (P8.6). */
-    if (nation_b >= 0 && nation_b <= 7 && ctx->col1) {
+    if (nation_b >= 4 && nation_b <= 11 && ctx->col1) {
       const int alarm = ai_diplo_indian_alarm(ctx->col1, nation_b, e);
       ai_popup_set_last_portrait(
-        ctx->ai_popups, nation_b, ai_popup_portrait_tier_from_alarm(alarm)
+        ctx->ai_popups, nation_b - 4, ai_popup_portrait_tier_from_alarm(alarm)
       );
     }
   }
@@ -635,6 +635,13 @@ static void ai_contact_enqueue_welcome(ColonizeTurnContext* ctx, int e, int nati
     ids,
     2
   );
+  /* @INDIANWELCOME is a chief audience: IND{tribe}A{tier} portrait (P8.6). */
+  if (nation_id >= 4 && nation_id <= 11) {
+    const int alarm = ai_diplo_indian_alarm(ctx->col1, nation_id, e);
+    ai_popup_set_last_portrait(
+      ctx->ai_popups, nation_id - 4, ai_popup_portrait_tier_from_alarm(alarm)
+    );
+  }
   {
     char st[96];
     snprintf(st, sizeof(st), "The %s offer peace.", tribe);
@@ -1332,6 +1339,10 @@ int ai_contact_try_ship_village_unit(
       sizeof(body)
     );
     ai_contact_human_chrome(ctx, euro_nation, AI_POPUP_TAG_INFO, indian_nation, "Ships", body);
+    /* No chief portrait: this is the King's advisor, not a native audience. */
+    if (ctx->ai_popups) {
+      ai_popup_set_last_portrait(ctx->ai_popups, -1, 0);
+    }
     if (!ai_contact_euro_is_human(ctx, euro_nation)) {
       ai_contact_set_status(ctx, body);
     }
@@ -1355,6 +1366,10 @@ int ai_contact_try_ship_village_unit(
       sizeof(body)
     );
     ai_contact_human_chrome(ctx, euro_nation, AI_POPUP_TAG_INFO, indian_nation, "Ships", body);
+    /* No chief portrait: this is the King's advisor, not a native audience. */
+    if (ctx->ai_popups) {
+      ai_popup_set_last_portrait(ctx->ai_popups, -1, 0);
+    }
     if (!ai_contact_euro_is_human(ctx, euro_nation)) {
       ai_contact_set_status(ctx, body);
     }

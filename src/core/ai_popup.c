@@ -399,11 +399,11 @@ void ai_popup_set_portrait_source(const char* data_dir, const ColonizePalette* p
 }
 
 void ai_popup_set_last_portrait(AiPopupState* st, int tribe, int tier) {
-  if (!st || st->queue_count <= 0 || tribe < 0 || tribe > 7) {
+  if (!st || st->queue_count <= 0 || tribe > 7) {
     return;
   }
   AiPopupRequest* req = &st->queue[st->queue_count - 1];
-  req->portrait_tribe = tribe;
+  req->portrait_tribe = tribe < 0 ? -1 : tribe;
   req->portrait_tier = tier < 0 ? 0 : (tier > 3 ? 3 : tier);
 }
 
@@ -553,27 +553,33 @@ void ai_popup_render(
     dialog_y = MAP_MENU_BAR_H + 2;
   }
 
+  /* Frame = the dialog only (DOS +0x10..+0x16). The portrait is a free-
+   * floating decorator beside it: the combined span (dialog + sprite + 6) is
+   * centred on 160 (DOS +0x18/+0x1c = the save/clip rect, not the frame),
+   * the sprite sits at the span edge and the dialog is pushed past it by
+   * sprite_w + 3. Sprite is blitted after the frame so it overlaps the wood
+   * border rather than widening it. */
+  const int frame_y = dialog_y;
+  const int frame_h = dialog_h;
+  const int frame_w = dialog_w;
   int frame_x;
-  int frame_y = dialog_y;
-  int frame_w;
-  int frame_h = dialog_h;
   int dialog_x;
   int portrait_x = 0;
   int portrait_y = 0;
   if (portrait) {
     int overflow = 0;
-    frame_w = dialog_w + portrait_w + 6;
-    if (frame_w > framebuffer->width) {
-      overflow = frame_w - framebuffer->width;
-      frame_w = framebuffer->width;
+    int span_w = dialog_w + portrait_w + 6;
+    if (span_w > framebuffer->width) {
+      overflow = span_w - framebuffer->width;
+      span_w = framebuffer->width;
     }
-    frame_x = (framebuffer->width - frame_w) / 2;
+    const int span_x = (framebuffer->width - span_w) / 2;
     if (portrait_left) {
-      portrait_x = frame_x;
-      dialog_x = frame_x + portrait_w + 3 - overflow;
+      portrait_x = span_x;
+      dialog_x = span_x + portrait_w + 3 - overflow;
     } else {
-      dialog_x = frame_x;
-      portrait_x = frame_x + dialog_w - overflow;
+      dialog_x = span_x;
+      portrait_x = span_x + dialog_w - overflow;
     }
     portrait_y = (framebuffer->height - (portrait_h + 3)) / 2;
     if (portrait_y < MAP_MENU_BAR_H) {
@@ -582,15 +588,10 @@ void ai_popup_render(
     if (portrait_y + portrait_h > framebuffer->height) {
       portrait_y = framebuffer->height - portrait_h;
     }
-    frame_y = portrait_y < dialog_y ? portrait_y : dialog_y;
-    const int bottom_pic = portrait_y + portrait_h + 2;
-    const int bottom_dlg = dialog_y + dialog_h - 1;
-    frame_h = (bottom_pic > bottom_dlg ? bottom_pic : bottom_dlg) - frame_y + 1;
   } else {
-    frame_w = dialog_w;
-    frame_x = (framebuffer->width - dialog_w) / 2;
-    dialog_x = frame_x;
+    dialog_x = (framebuffer->width - dialog_w) / 2;
   }
+  frame_x = dialog_x;
 
   ColonizePopupColors local_colors;
   if (!colors) {
