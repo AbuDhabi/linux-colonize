@@ -633,7 +633,13 @@ static void sound_dispatch_gated_unlocked(int id) {
   if (!g_sound.vm || id < 0) {
     return;
   }
-  if (id >= 0x10) {
+  if (id >= 0x8020) {
+    /* Chord stings (0x8020 war declaration, 0x8024 assign colonist): the
+     * driver's fourth table; treated like event music for the option gate. */
+    if (!g_sound.opts.event_music) {
+      return;
+    }
+  } else if (id >= 0x10) {
     if ((id & 0x20) != 0 && !g_sound.opts.background_music) {
       return;
     }

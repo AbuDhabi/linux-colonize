@@ -377,6 +377,8 @@ static void game_bind_combat_analysis(ColonizeGameState* game) {
   combat_analysis_set_presenter(game_combat_analysis_present, game);
   units_set_combat_human_nation(game->human_nation);
   units_set_combat_music_hooks(sound_play, sound_active_song_id);
+  units_set_bgm_hook(sound_set_bgm);
+  ai_diplo_set_sound_hook(sound_play);
   europe_set_sound_hook(sound_play);
   europe_set_bgm_hook(sound_set_bgm);
 }
@@ -5917,6 +5919,7 @@ static void game_colony_assign_building_drop(ColonizeGameState* game, int buildi
     } else if (colonies_assign_workplace(
                  &game->colonies, game->colony_view_id, ci, building_index
                )) {
+      sound_play(0x8024); /* FUN_2f2b_2f3e: assign-colonist chord sting */
       const ColonizeBuildingType* bt = colonies_building_type(&game->colonies, building_index);
       snprintf(
         game->status, sizeof(game->status), "Assigned to %s", bt ? bt->name : "building"
@@ -8328,6 +8331,7 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
                        csv->jobs_tile_index,
                        job
                      )) {
+            sound_play(0x8024); /* FUN_2f2b_2f3e: assign-colonist chord sting */
             snprintf(
               game->status,
               sizeof(game->status),
@@ -8894,6 +8898,7 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
           } else if (colonies_assign_field(
                        &game->colonies, game->colony_view_id, ci, csv->jobs_tile_index, job
                      )) {
+            sound_play(0x8024); /* FUN_2f2b_2f3e: assign-colonist chord sting */
             snprintf(
               game->status, sizeof(game->status), "Working as %s", colony_yield_job_name(job)
             );

@@ -569,6 +569,7 @@ int units_cortes_cash_coastal_treasures(
 static const char* units_combat_nation_label(const ColonizeCol1Save* col1, int nation_id);
 
 static void units_play_event_sound(int id);
+static void units_set_bgm_pool(int pool);
 
 static int units_king_galleon_treasure_value(const ColonizeUnit* treasure) {
   const unsigned lo = (unsigned)(treasure->hold_goods_amount[0] & 0xff);
@@ -2362,6 +2363,17 @@ static int units_apply_naval_loss_outcome(
     );
     units_play_event_sound(0x57); /* UNITS_SFX_SHIP_SUNK: FUN_5fef_0352 (COLDIG 16 sinking) */
   }
+  /* FUN_5fef_0352 5fef:0d6c/0d87: a human loser goes back to the map pool
+   * (281f_0498(1)), a human winner gets the Military pool (0498(4)). */
+  if (col1) {
+    if (lose->nation_id >= 0 && lose->nation_id <= 3 &&
+        col1->player[lose->nation_id].control == 0) {
+      units_set_bgm_pool(1);
+    }
+    if (win->nation_id >= 0 && win->nation_id <= 3 && col1->player[win->nation_id].control == 0) {
+      units_set_bgm_pool(4);
+    }
+  }
   units_despawn(pool, loser_id);
   return 0;
 }
@@ -3385,6 +3397,15 @@ bool units_resolve_lcr_rumour(
 
 static ColonizeSoundPlayFn g_units_combat_sound_play = NULL;
 static ColonizeSoundActiveIdFn g_units_combat_sound_active_id = NULL;
+static ColonizeSoundPlayFn g_units_set_bgm = NULL;
+void units_set_bgm_hook(ColonizeSoundPlayFn set_bgm_fn) {
+  g_units_set_bgm = set_bgm_fn;
+}
+static void units_set_bgm_pool(int pool) {
+  if (g_units_set_bgm) {
+    g_units_set_bgm(pool);
+  }
+}
 
 void units_set_combat_music_hooks(
   ColonizeSoundPlayFn play_fn, ColonizeSoundActiveIdFn active_id_fn

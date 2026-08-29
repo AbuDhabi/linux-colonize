@@ -6555,6 +6555,10 @@ void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id) {
                 raid_body = raid_line;
               }
             } else if (kind == AI_RAID_NOTHING) {
+              /* FUN_5fef_0f14 5fef:1299: a wiped-out raid on a human colony
+               * hands the tune pool back to 2; any other outcome pushes the
+               * 0x32 combat sting (5fef:13b2). */
+              sound_set_bgm(2);
               /* GAME.TXT @RAIDNOTHING: "{tribe} raiding party wiped out in {colony}! Colonists jubilant!" */
               if (c->name[0]) {
                 sound_play(0x5b); /* FUN_5fef_0f14 raid repelled (gunfight) */

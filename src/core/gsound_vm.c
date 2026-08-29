@@ -18,6 +18,10 @@
 #define GS_BOUND_SYS 0x00F8
 #define GS_BOUND_BGM 0x00FA
 #define GS_BOUND_EVT 0x00FC
+/* FUN_1000_19bc: ids 0x8020.. index table 0x2AB6 by (id + 0x7fe0) = id − 0x8020;
+ * these are the chord stings (war declaration 0x8020, assign colonist 0x8024). */
+#define GS_TABLE_STING 0x2AB6
+#define GS_BOUND_STING 0x00FE
 
 #define GS_VOICE_STRIDE 0x28
 #define GS_VOICE0 0x8096
@@ -968,7 +972,9 @@ static uint16_t handler_for(const GsoundVm* vm, int id) {
     idx = id - 0x40;
     bound = ds16(vm, GS_BOUND_EVT);
   } else {
-    return 0;
+    table = GS_TABLE_STING;
+    idx = id - 0x8020;
+    bound = ds16(vm, GS_BOUND_STING);
   }
   if (id > bound) {
     return 0;

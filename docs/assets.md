@@ -672,7 +672,7 @@ glancing; 18 shot; 20 animal shot; 21 pump-action; 22 gunfight; 23–34 shots (2
 | `0x5a` | 15 | cheering + fireworks | `5fef_1908` King's Galleon (via `FUN_281f_04b6`) | galleon credit |
 | `0x5b` | 22+31 | gunfight | `5fef_0f14` raid repelled | @RAIDNOTHING (2026-08-29) |
 | `0x5c` | 8 | burning | typed rule: type 0x21 (past the unit table — unreachable) | — |
-| `0x8020` / `0x8024` | — (chord stings) | | war declaration `5bfb_153e`, assign colonist `2f2b_2f3e` | not representable: the GSOUND event table stops below `0x8020` (`gsound_vm_play`), so these need a driver-side chord path first |
+| `0x8020` / `0x8024` | — (chord stings) | | war declaration `5bfb_153e`, assign colonist `2f2b_2f3e` | **wired 2026-08-29**: `FUN_1000_19bc` has a fourth handler table at `0x2AB6` indexed `id − 0x8020` (bound `DS:0xFE`); `gsound_vm.c` now dispatches it, gated by Event Music. `ai_diplo_declare_war_ctx` (human involved, via `ai_diplo_set_sound_hook`) and the three colony-screen assign sites |
 
 **BGM cues pushed by gameplay code (2026-08-29 asm sweep of every `281f_04c0`/`04b6`
 call):** `75c2_235c` new-game init → `0x39` Hornpipe once (ported: game_loop new-game start);
@@ -696,7 +696,7 @@ branches (not mapped); `4d56_2820` village visit (human, 1-in-3 roll) → pool 5
 (ported); `3844_00f2` nation EOT → `0x3e` after a nation-name popup (tag not identified);
 `5fef_0f14` raid → pool 2 / `0x32` (not mapped); `41f2_0b70` Retire → `0x24/0x25/0x21` by coin
 tier (PARK). The port's `sound_set_bgm(1/2)` covers the map/colony switches; the naval `1`/`4`
-beat is not wired (`units.c` only has the play hook).
+beat is wired too (`units_set_bgm_hook`: human loser → pool 1, human winner → pool 4); a wiped-out raid on a human colony → pool 2 (`ai_contact.c` @RAIDNOTHING).
 
 Event ids bypass the BGM scheduler (`sound_play` dispatches them directly), gated by the
 Event Music option in the driver and by Sound Effects for the PCM part.

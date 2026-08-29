@@ -302,8 +302,9 @@ open work is cue/SFX *wiring* (P3.2, P3.7).
   gameplay code". Second sweep (same day) covered `281f_048e`/`0498` too and wired: treasure
   cash-in `0x24`, load `0x3e`, Europe screen pool 3, immigrant pool 2, LCR
   Fountain/Cibola/Burial tunes, village-visit tribe pools 5/6/7. Left:
-  Retire tune (needs the PARKed coin tier), colony open id, naval pool 1/4
-  switch, `3844`
+  Third pass: naval pool 1/4, raid-repelled pool 2, chord stings
+  `0x8020`/`0x8024` (driver table `0x2AB6` added to `gsound_vm.c`). Left:
+  Retire tune (needs the PARKed coin tier), colony open id, `3844`
   nation-EOT `0x3e` popup identity, raid pool/`0x32`. Full table in
   assets.md. **Not
   attempted 2026-08-26** — same blocker as P8.3/P8.5 above: the 6
@@ -366,8 +367,7 @@ open work is cue/SFX *wiring* (P3.2, P3.7).
   `5fef_1b0e` unit-class variants (the `mov ax,N; callf 281f_04c0` pattern
   does not appear inside 1b0e's asm range — the pushes must go through a
   local helper; needs a fresh asm pass), `0x4d` naval *capture* (no Linux
-  capture path), and the `0x8020`/`0x8024` chords (below the GSOUND event
-  table's range — driver work first, see assets.md). Original text: Wire the
+  capture path). Chords `0x8020`/`0x8024` wired later the same day (driver table `0x2AB6`). Original text: Wire the
   remaining `COLDIG.BIN` event-sound push sites. The "no reachable DOS
   trigger" verdict is **retracted**: ids `0x40..0x5c` are pushed in `AX`
   (`mov ax,N; callf FUN_281f_04c0`), which Ghidra drops — see
