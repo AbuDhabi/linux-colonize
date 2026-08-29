@@ -450,14 +450,47 @@ int europe_buyback_boycott(
   EuropeScreen* eu, struct ColonizeCol1Save* col1, int human_nation, int cargo_type
 );
 
+/*
+ * DOS price accessors (FUN_38fd_0040 / FUN_38fd_0016). `bid` stores the
+ * save-canonical `euro_price` word (nation +0x4c); the port PAYS
+ * `euro_price − 1` when you sell and CHARGES `euro_price + burden` when you
+ * buy (`ask`). Real DOS Europe screen at 1494: Food 0/8, Lumber 1/6,
+ * Silver 19/20 — see original_screenshots/europe/main_with_caravel_*.png.
+ */
+int europe_sell_price(const EuropeScreen* eu, int cargo_type);
+int europe_buy_price(const EuropeScreen* eu, int cargo_type);
+/* gross − gross·tax/100 (FUN_364b_0688 Custom House arm; same rounding as
+ * the harbor sale). Returns the net treasury credit. */
+int europe_net_after_tax(int gross, int tax_percent);
 int europe_sell_proceeds(const EuropeScreen* eu, int cargo_type, int amount);
 int europe_sell_hold(EuropeScreen* eu, int harbor_index, int hold_index);
 /*
- * FUN_38fd_0058 peel after buy/sell: apply nr ± (amount<<volatility), then
- * rise/fall ±1 bid within [low,high]; ask = bid+burden+1.
- * sign_for_buy: buy → negative volume (1d80), sell → positive (1dfa).
- * Cite: viceroy_unpacked.c FUN_38fd_1d80/1dfa/0058; NAMES.TXT @CARGO.
+ * FUN_38fd_1dfa (sell) / FUN_38fd_1d80 (buy) volume ledger, exact:
+ *   term = (amount << volatility) + 1d44(amount)
+ *   1d44 = (difficulty − 2)·16·amount/100 when the seller is human,
+ *          −32·amount/100 for an AI seller (C truncation toward zero);
+ *   every nation's nr[cargo] += term (buy: −=), the Dutch record (slot 3)
+ *   gets (term·2)/3; seller's tons/tons2 += amount (buy: −=), and gold[cargo]
+ *   += price·amount·(100−tax)/100.
+ * Only the human's record is live in `eu->trade_nr`; `col1` (optional) gets
+ * the seller's tons/tons2/gold ledgers. Verified 2026-08-28 against the
+ * dutch2 t169→t170 pair: three lumber sellers (54 human @ Viceroy, 12 + 18
+ * AI) → +93 on every non-Dutch nr[5], +61 on the Dutch one.
+ * `immediate_threshold` runs the FUN_38fd_0058(0, cargo) single-cargo
+ * rise/fall step the harbor buy/sell path calls afterwards; the Custom
+ * House / AI dump-sell arms do NOT call it (they only get the EOT tick).
  */
+void europe_apply_trade_volume(
+  EuropeScreen* eu,
+  struct ColonizeCol1Save* col1,
+  int seller_nation,
+  int human_nation,
+  int cargo_type,
+  int amount,
+  int is_buy,
+  int immediate_threshold
+);
+/* Harbor buy/sell wrapper: human seller, immediate FUN_38fd_0058 step. */
 void europe_apply_volume_price(EuropeScreen* eu, int cargo_type, int amount, int is_buy);
 /*
  * FUN_38fd_0058 EOT peel (param_2 < 0): optional col1/colonies apply colony

@@ -4347,9 +4347,10 @@ static int unit_transport_europe_sell_multi_cargo(void) {
   const int bid_sugar = 3;
   const int bid_tobacco = 5;
   const int tax = 10;
+  /* Sells at euro_price − 1 (FUN_38fd_0040); tax = gross − gross·tax/100. */
   const int expect =
-    (bid_sugar * sugar_amt * (100 - tax)) / 100 +
-    (bid_tobacco * tobacco_amt * (100 - tax)) / 100;
+    europe_net_after_tax((bid_sugar - 1) * sugar_amt, tax) +
+    europe_net_after_tax((bid_tobacco - 1) * tobacco_amt, tax);
 
   ColonizeWorldMap map;
   memset(&map, 0, sizeof(map));
@@ -4484,8 +4485,8 @@ static int unit_transport_europe_sell_skip_boycott(void) {
   const int bid_sugar = 3;
   const int bid_tobacco = 5;
   const int tax = 10;
-  const int expect_tobacco = (bid_tobacco * tobacco_amt * (100 - tax)) / 100;
-  const int expect_sugar = (bid_sugar * sugar_amt * (100 - tax)) / 100;
+  const int expect_tobacco = europe_net_after_tax((bid_tobacco - 1) * tobacco_amt, tax);
+  const int expect_sugar = europe_net_after_tax((bid_sugar - 1) * sugar_amt, tax);
 
   ColonizeWorldMap map;
   memset(&map, 0, sizeof(map));

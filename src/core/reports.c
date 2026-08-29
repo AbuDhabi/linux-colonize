@@ -1699,11 +1699,11 @@ static void reports_render_economic_trade(
     int bid;
     int ask;
     if (europe && c < europe->cargo_count) {
-      bid = europe->cargo[c].bid;
-      ask = europe->cargo[c].ask;
+      bid = europe_sell_price(europe, c);
+      ask = europe_buy_price(europe, c);
     } else if (nat) {
-      bid = nat->trade.euro_price[c];
-      ask = bid + 1;
+      bid = nat->trade.euro_price[c] > 0 ? nat->trade.euro_price[c] - 1 : 0;
+      ask = nat->trade.euro_price[c];
     } else {
       bid = 0;
       ask = 0;

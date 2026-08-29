@@ -925,207 +925,120 @@ int main(void) {
   }
 
   /*
-   * 10f0 deepen: REF empty + larger backup_force → up to 2 landings
-   * (prefer Regular+Dragoon mix). Crown-hostile nation 2 when human=0 /
-   * crown=1. 06a6 may also fire. Economy / merc chrome PARKED.
+   * FUN_43f7_10f0 (re-read 2026-08-28, port_plan P5.5): REF empty + backup
+   * pools → the intervention force lands for the HUMAN's own nation
+   * (DS:0x5398), i.e. player-controlled: one Man-O-War on the water tile
+   * next to the colony (pool[2] −1), then Cont. Cav. ≤ 2 (pool[1]),
+   * Artillery ≤ 2 (pool[3]) and Cont. Army = 6 − those (pool[0]), each
+   * capped by its pool, all at the colony. Pools 4/3/1/2 → MoW + 2 Army +
+   * 2 Cav. + 2 Art.; pools left 2/1/0/0. No ally-tagged units.
    */
   memset(col1.head.expeditionary_force, 0, sizeof(col1.head.expeditionary_force));
   /* Crown wave may have captured the port; restore human ownership for landing pick. */
   colonies.colonies[0].nation_id = 0;
-  col1.head.backup_force[0] = 4; /* Regular */
-  col1.head.backup_force[1] = 3; /* Dragoon — mix with Regular */
-  col1.head.backup_force[2] = 0;
-  col1.head.backup_force[3] = 2; /* Artillery */
-  const int backup_total_before = (int)col1.head.backup_force[0] +
-                                  (int)col1.head.backup_force[1] +
-                                  (int)col1.head.backup_force[2] +
-                                  (int)col1.head.backup_force[3];
-  const uint16_t backup_reg_before = col1.head.backup_force[0];
-  const uint16_t backup_drg_before = col1.head.backup_force[1];
-  const int intervene_before = count_nation(&units, 2);
-  const int units_mid = count_active(&units);
-  ai_king_nation_turn(&ctx);
-  const int intervene_spawned = count_nation(&units, 2) - intervene_before;
-  const int backup_total_after = (int)col1.head.backup_force[0] +
-                                 (int)col1.head.backup_force[1] +
-                                 (int)col1.head.backup_force[2] +
-                                 (int)col1.head.backup_force[3];
-  const int backup_drained = backup_total_before - backup_total_after;
-  if (intervene_spawned < 1) {
-    return fail("10f0 should spawn intervention (nation 2) when REF empty");
-  }
-  if (intervene_spawned < 2 && backup_drained < 2) {
-    fprintf(stderr, "unit_ai_king: 10f0 spawned=%d drained=%d (want >=2 either)\n",
-            intervene_spawned, backup_drained);
-    return fail("10f0 deepen should spawn >=2 units or drain backup by 2");
-  }
-  if (count_active(&units) <= units_mid) {
-    return fail("intervention turn should increase unit count");
-  }
-  /* Mix preference: both Regular and Dragoon pools were live → drain one each. */
-  if (col1.head.backup_force[0] != backup_reg_before - 1 ||
-      col1.head.backup_force[1] != backup_drg_before - 1) {
-    return fail("10f0 should prefer Regular+Dragoon mix (drain one of each)");
-  }
-  if (count_nation(&units, 3) < 1) {
-    return fail("10f0 mix should land second unit from rival_nation_slot_2 (nation 3)");
-  }
-  if (count_nation(&units, 0) != 0) {
-    return fail("intervention must not spawn as human nation");
-  }
-
-  /*
-   * 10f0 third-landing negative: difficulty < 2 → at most 2 landings (mix still
-   * duals; no third). Third only at AI_KING_INTERVENE_DIFF_THIRD (≥2).
-   */
-  col1.head.difficulty = 1;
-  memset(col1.head.expeditionary_force, 0, sizeof(col1.head.expeditionary_force));
-  colonies.colonies[0].nation_id = 0;
   col1.head.backup_force[0] = 4;
-  col1.head.backup_force[1] = 4;
-  col1.head.backup_force[2] = 0;
-  col1.head.backup_force[3] = 2;
-  {
-    const int backup_before_lo =
-        (int)col1.head.backup_force[0] + (int)col1.head.backup_force[1] +
-        (int)col1.head.backup_force[2] + (int)col1.head.backup_force[3];
-    const int intervene_before_lo = count_nation(&units, 2);
-    ai_king_nation_turn(&ctx);
-    const int intervene_spawned_lo = count_nation(&units, 2) - intervene_before_lo;
-    const int drained_lo =
-        backup_before_lo - ((int)col1.head.backup_force[0] + (int)col1.head.backup_force[1] +
-                            (int)col1.head.backup_force[2] + (int)col1.head.backup_force[3]);
-    if (intervene_spawned_lo > 2 || drained_lo > 2) {
-      fprintf(stderr,
-              "unit_ai_king: 10f0@diff1 spawned=%d drained=%d (want ≤2 each)\n",
-              intervene_spawned_lo, drained_lo);
-      return fail("10f0 difficulty<2 must not third-landing");
-    }
-    if (intervene_spawned_lo < 1 && drained_lo < 1) {
-      return fail("10f0@diff1 should still land when backup allows");
-    }
-  }
-
-  /*
-   * 10f0 third landing: difficulty≥2 + REF empty + backup pools → up to 3
-   * landings (Regular+Dragoon mix then next pool). Assert mix drain + third.
-   */
-  col1.head.difficulty = 2;
-  memset(col1.head.expeditionary_force, 0, sizeof(col1.head.expeditionary_force));
-  colonies.colonies[0].nation_id = 0;
-  col1.head.backup_force[0] = 3;
   col1.head.backup_force[1] = 3;
-  col1.head.backup_force[2] = 0;
+  col1.head.backup_force[2] = 1;
   col1.head.backup_force[3] = 2;
+  /* A free ocean tile east of the colony: DOS skips a water tile holding a
+   * foreign unit (281f_0682), and the crown wave above parked units on (4,5). */
+  map.terrain[5 * 16 + 6] = 25;
   {
-    const uint16_t reg_before3 = col1.head.backup_force[0];
-    const uint16_t drg_before3 = col1.head.backup_force[1];
-    const int backup_before3 = (int)col1.head.backup_force[0] + (int)col1.head.backup_force[1] +
-                               (int)col1.head.backup_force[2] + (int)col1.head.backup_force[3];
-    const int intervene_before3 = count_nation(&units, 2);
-    int reg_land_before = 0;
-    int drg_land_before = 0;
-    int drg3_land_before = 0;
+    const int human_before = count_nation(&units, 0);
+    const int n2_before = count_nation(&units, 2);
+    const int n3_before = count_nation(&units, 3);
+    const int units_mid = count_active(&units);
+    bool was_active[COLONIZE_UNITS_MAX];
     for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-      const ColonizeUnit* u = &units.units[i];
-      if (!u->active) {
-        continue;
-      }
-      if (u->nation_id == 2) {
-        if (u->type_index == ty_regular) {
-          reg_land_before++;
-        } else if (u->type_index == ty_dragoon) {
-          drg_land_before++;
-        }
-      } else if (u->nation_id == 3 && u->type_index == ty_dragoon) {
-        drg3_land_before++;
-      }
+      was_active[i] = units.units[i].active;
     }
     ai_king_nation_turn(&ctx);
-    const int intervene_spawned3 = count_nation(&units, 2) - intervene_before3;
-    const int backup_after3 = (int)col1.head.backup_force[0] + (int)col1.head.backup_force[1] +
-                              (int)col1.head.backup_force[2] + (int)col1.head.backup_force[3];
-    const int drained3 = backup_before3 - backup_after3;
-    if (intervene_spawned3 < 3 && drained3 < 3) {
-      fprintf(stderr, "unit_ai_king: 10f0@diff2 spawned=%d drained=%d (want >=3 either)\n",
-              intervene_spawned3, drained3);
-      return fail("10f0 difficulty≥2 should spawn/drain up to 3 landings");
-    }
-    /* Mix: both Regular and Dragoon pools live → drain ≥1 of each. */
-    if (col1.head.backup_force[0] > reg_before3 - 1 ||
-        col1.head.backup_force[1] > drg_before3 - 1) {
-      fprintf(stderr,
-              "unit_ai_king: 10f0@diff2 mix pools reg %u→%u drg %u→%u (want ≥1 each)\n",
-              (unsigned)reg_before3, (unsigned)col1.head.backup_force[0],
-              (unsigned)drg_before3, (unsigned)col1.head.backup_force[1]);
-      return fail("10f0@diff2 third landing should keep Regular+Dragoon mix");
-    }
-    {
-      int reg_land_after = 0;
-      int drg_land_after = 0;
-      int drg3_land_after = 0;
+    const int human_spawned = count_nation(&units, 0) - human_before;
+    if (human_spawned != 7) {
+      fprintf(stderr, "unit_ai_king: 10f0 human units +%d (want 7)\n", human_spawned);
       for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
         const ColonizeUnit* u = &units.units[i];
-        if (!u->active) {
-          continue;
-        }
-        if (u->nation_id == 2) {
-          if (u->type_index == ty_regular) {
-            reg_land_after++;
-          } else if (u->type_index == ty_dragoon) {
-            drg_land_after++;
-          }
-        } else if (u->nation_id == 3 && u->type_index == ty_dragoon) {
-          drg3_land_after++;
+        if (u->active && u->x >= 3 && u->x <= 7 && u->y >= 3 && u->y <= 7) {
+          fprintf(stderr, "  unit %d nation %d type %d at %d,%d aboard %d\n", i, u->nation_id,
+                  u->type_index, u->x, u->y, u->aboard_ship_id);
         }
       }
-      if (reg_land_after <= reg_land_before ||
-          (drg_land_after <= drg_land_before && drg3_land_after <= drg3_land_before)) {
-        fprintf(stderr,
-                "unit_ai_king: 10f0@diff2 land types reg %d→%d drg2 %d→%d drg3 %d→%d\n",
-                reg_land_before, reg_land_after, drg_land_before, drg_land_after,
-                drg3_land_before, drg3_land_after);
-        return fail("10f0@diff2 should spawn both Regular and Dragoon (mix)");
+      return fail("10f0 should land MoW + 6 troops for the human nation");
+    }
+    if (count_nation(&units, 2) != n2_before || count_nation(&units, 3) != n3_before) {
+      return fail("10f0 must not spawn ally-tagged units (force is player-controlled)");
+    }
+    if (count_active(&units) <= units_mid) {
+      return fail("intervention turn should increase unit count");
+    }
+    if (col1.head.backup_force[0] != 2 || col1.head.backup_force[1] != 1 ||
+        col1.head.backup_force[2] != 0 || col1.head.backup_force[3] != 0) {
+      fprintf(stderr, "unit_ai_king: 10f0 pools %u/%u/%u/%u (want 2/1/0/0)\n",
+              (unsigned)col1.head.backup_force[0], (unsigned)col1.head.backup_force[1],
+              (unsigned)col1.head.backup_force[2], (unsigned)col1.head.backup_force[3]);
+      return fail("10f0 pool caps: Cav ≤2, Art ≤2, Army = 6 − those, MoW −1");
+    }
+    int mow_at_sea = 0;
+    int army = 0;
+    int cav = 0;
+    int art = 0;
+    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+      const ColonizeUnit* u = &units.units[i];
+      if (!u->active || u->nation_id != 0 || was_active[i]) {
+        continue;
       }
+      if (u->type_index == ty_mow) {
+        if (map_tile_is_water(&map, u->x, u->y) && u->x >= 4 && u->x <= 6 && u->y >= 4 &&
+            u->y <= 6) {
+          mow_at_sea++;
+        }
+      } else if (u->x == 5 && u->y == 5) {
+        if (u->type_index == ty_cont_army) {
+          army++;
+        } else if (u->type_index == ty_cont_cav) {
+          cav++;
+        } else if (u->type_index == ty_artillery) {
+          art++;
+        }
+      }
+      /* Orders: spawned with none; the same turn's colony garrison pass may
+       * fortify Cont. Army in place, so no assertion here. */
+    }
+    if (mow_at_sea != 1 || army != 2 || cav != 2 || art != 2) {
+      fprintf(stderr, "unit_ai_king: 10f0 mow@sea=%d army=%d cav=%d art=%d\n",
+              mow_at_sea, army, cav, art);
+      return fail("10f0 landing composition/placement");
+    }
+  }
+
+  /* Small pools: 1/0/0/0 → MoW (pool[2] already 0, stays 0) + 1 Army. */
+  memset(col1.head.expeditionary_force, 0, sizeof(col1.head.expeditionary_force));
+  colonies.colonies[0].nation_id = 0;
+  col1.head.backup_force[0] = 1;
+  col1.head.backup_force[1] = 0;
+  col1.head.backup_force[2] = 0;
+  col1.head.backup_force[3] = 0;
+  {
+    const int human_before = count_nation(&units, 0);
+    ai_king_nation_turn(&ctx);
+    const int human_spawned = count_nation(&units, 0) - human_before;
+    if (human_spawned != 2 || col1.head.backup_force[0] != 0) {
+      fprintf(stderr, "unit_ai_king: 10f0 small pools +%d pool0=%u\n", human_spawned,
+              (unsigned)col1.head.backup_force[0]);
+      return fail("10f0 small pools should land MoW + 1 Army");
     }
   }
   col1.head.difficulty = 0; /* restore for later checks */
-
-  /*
-   * 10f0 intervene nation pick fallback: when rival slots unset, prefer Euro
-   * with most colonies. human=0 crown=1 → seed nation-3 colony → land as 3.
-   */
-  {
-    col1.head.rival_nation_slot_1 = -1;
-    col1.head.rival_nation_slot_2 = -1;
-    ColonizeColony* c3 = &colonies.colonies[1];
-    c3->id = 1;
-    c3->active = true;
-    c3->nation_id = 3;
-    c3->x = 8;
-    c3->y = 8;
-    c3->population = 2;
-    c3->colonist_count = 2;
-    if (colonies.colony_count < 2) {
-      colonies.colony_count = 2;
+  /* Retire the landed force so the REF hunt / capture probes below see the
+   * same undefended colony they were written against. */
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    ColonizeUnit* u = &units.units[i];
+    if (u->active && u->nation_id == 0 &&
+        (u->type_index == ty_mow || u->type_index == ty_cont_army ||
+         u->type_index == ty_cont_cav || u->type_index == ty_artillery) &&
+        u->x >= 4 && u->x <= 6 && u->y >= 4 && u->y <= 6) {
+      u->active = false;
     }
-    memset(col1.head.expeditionary_force, 0, sizeof(col1.head.expeditionary_force));
-    colonies.colonies[0].nation_id = 0;
-    col1.head.backup_force[0] = 2;
-    col1.head.backup_force[1] = 0;
-    col1.head.backup_force[2] = 0;
-    col1.head.backup_force[3] = 0;
-    const int n2_before = count_nation(&units, 2);
-    const int n3_before = count_nation(&units, 3);
-    ai_king_nation_turn(&ctx);
-    const int n3_spawned = count_nation(&units, 3) - n3_before;
-    const int n2_spawned = count_nation(&units, 2) - n2_before;
-    if (n3_spawned < 1) {
-      fprintf(stderr, "unit_ai_king: intervene nation pick n3=%d n2=%d\n", n3_spawned,
-              n2_spawned);
-      return fail("10f0 should intervene as Euro with most colonies (nation 3)");
-    }
-    c3->active = false; /* don't perturb later weakest-port / hunt picks */
   }
 
   /*
@@ -1141,6 +1054,58 @@ int main(void) {
     col1.head.backup_force[1] = 0;
     col1.head.backup_force[2] = 0;
     col1.head.backup_force[3] = 0;
+    /* A second, inland human colony keeps the war alive after Jamestown
+     * falls (otherwise the same turn ends in @LOSING2 and overwrites the
+     * capture status this block asserts). Deactivated again below. */
+    ColonizeColony* inland = &colonies.colonies[1];
+    inland->id = 1;
+    inland->active = true;
+    inland->nation_id = 0;
+    inland->x = 14;
+    inland->y = 14;
+    for (int y = 14; y >= 1; --y) {
+      bool free_tile = false;
+      for (int x = 14; x >= 8 && !free_tile; --x) {
+        if (!map_tile_is_land(&map, x, y)) {
+          continue;
+        }
+        free_tile = true;
+        for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+          const ColonizeUnit* u = &units.units[i];
+          if (u->active && u->x == x && u->y == y) {
+            free_tile = false;
+            break;
+          }
+        }
+        if (free_tile) {
+          inland->x = x;
+          inland->y = y;
+        }
+      }
+      if (free_tile) {
+        break;
+      }
+    }
+    inland->population = 10; /* > Jamestown: 06a6 irregulars pick the weakest colony */
+    inland->colonist_count = 10;
+    snprintf(inland->name, sizeof(inland->name), "Inland");
+    if (colonies.colony_count < 2) {
+      colonies.colony_count = 2;
+    }
+    /* …coastal (a port must survive Jamestown's fall or @LOSING1 fires)… */
+    map.terrain[inland->y * 16 + inland->x - 1] = 25;
+    /* …with a fortified human Soldier, so the crown wave that lands on the
+     * weakest colony each turn can't take it undefended. */
+    const int inland_guard = units_spawn_allow_stack(&units, ty_soldier, inland->x, inland->y);
+    if (inland_guard < 0) {
+      return fail("capture setup should spawn inland guard");
+    }
+    {
+      ColonizeUnit* g = units_get(&units, inland_guard);
+      g->nation_id = 0;
+      g->moves_left = 0;
+      g->orders = UNITS_ORDER_FORTIFY;
+    }
     /* Park existing crown movers so hunt/capture probes are stable. */
     for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
       ColonizeUnit* u = &units.units[i];
@@ -1192,6 +1157,8 @@ int main(void) {
     if (colonies.colonies[0].nation_id == 0) {
       return fail("REF capture must clear human colony ownership");
     }
+    inland->active = false; /* don't perturb later weakest-port / hunt picks */
+    units.units[inland_guard].active = false;
     /* Thin conquest status (full chrome PARKED): exact phrase + colony name. */
     if (!strstr(status, "The King's forces have captured") || !strstr(status, "Jamestown")) {
       fprintf(stderr, "unit_ai_king: capture status: '%s'\n", status);
@@ -4621,9 +4588,11 @@ int main(void) {
       }
       status[0] = '\0';
       ai_popup_clear(&pop);
-      const int decline_units_before = count_nation(&units, 0);
       const uint32_t decline_gold_before = col1.nation[0].gold;
       ai_king_nation_turn(&ctx);
+      /* Counted after the turn: 10f0 may land the human's own intervention
+       * troops during it; only the Decline apply must add nothing. */
+      const int decline_units_before = count_nation(&units, 0);
       int decline_payload = 0;
       {
         int found_merc = 0;
@@ -6243,7 +6212,7 @@ int main(void) {
     colonies.colonies[0].nation_id = 0;
     founding_fathers_accrue_bells(0, 2u * 0x5dcu + 2000u);
 
-    const int intervene_before = count_nation(&units, 2);
+    const int intervene_before = count_nation(&units, 0);
     const unsigned pool_before = founding_fathers_bells_since_last_elect(0);
     if (pool_before < founding_fathers_bells_needed(&col1, 0)) {
       return fail("WoI bell spend setup pool below threshold");
@@ -6258,7 +6227,7 @@ int main(void) {
     if (founding_fathers_intervention_bells(0) != 1u) {
       return fail("consume_woi_bell_pool must increment intervention_bells");
     }
-    if (count_nation(&units, 2) <= intervene_before) {
+    if (count_nation(&units, 0) <= intervene_before) {
       return fail("WoI bell spend should spawn foreign intervention");
     }
     col1.head.game_options.woi = 0;

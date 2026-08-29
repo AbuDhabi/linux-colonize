@@ -3997,7 +3997,8 @@ static void render_europe_screen(const ColonizeGameState* game, ColonizeFramebuf
      * europe_sell_hold / europe_sell_unit_hold refuse it; see
      * europe_cargo_boycotted). Source: fandom Boycott (Col). */
     const bool boycotted = europe_cargo_boycotted(eu, i);
-    snprintf(line, sizeof(line), "%d/%d", eu->cargo[i].bid, eu->cargo[i].ask);
+    /* DOS shows sell/buy = (euro_price − 1)/(euro_price + burden). */
+    snprintf(line, sizeof(line), "%d/%d", europe_sell_price(eu, i), europe_buy_price(eu, i));
     {
       const int tw = font_text_width(font, line);
       const int th = font ? (font->max_height > 0 ? (int)font->max_height : 6) : 7;
@@ -9079,7 +9080,7 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
         tok.string1 = "ship";
         tok.number0 = max_amt;
         tok.has_number0 = true;
-        tok.number1 = (cargo >= 0 && cargo < eu->cargo_count) ? eu->cargo[cargo].bid : 0;
+        tok.number1 = europe_sell_price(eu, cargo);
         tok.has_number1 = true;
         popup_msg_fill(
           &game->messages, "HOWMUCH4", &tok, "How much to purchase?", prompt, sizeof(prompt)
@@ -9109,7 +9110,7 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
           tok.string2 = eu->port_city[0] ? eu->port_city : "Europe";
           tok.number0 = max_amt;
           tok.has_number0 = true;
-          tok.number1 = (cargo >= 0 && cargo < eu->cargo_count) ? eu->cargo[cargo].bid : 0;
+          tok.number1 = europe_sell_price(eu, cargo);
           tok.has_number1 = true;
           popup_msg_fill(
             &game->messages, "HOWMUCH5", &tok, "How much to sell?", prompt, sizeof(prompt)
@@ -9135,7 +9136,7 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
         tok.string1 = "ship";
         tok.number0 = max_amt;
         tok.has_number0 = true;
-        tok.number1 = (cargo >= 0 && cargo < eu->cargo_count) ? eu->cargo[cargo].bid : 0;
+        tok.number1 = europe_sell_price(eu, cargo);
         tok.has_number1 = true;
         popup_msg_fill(
           &game->messages, "HOWMUCH4", &tok, "How much to purchase?", prompt, sizeof(prompt)

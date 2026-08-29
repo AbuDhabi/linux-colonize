@@ -443,7 +443,7 @@ static bool europe_load_tables(EuropeScreen* eu, const ColonizeMsgCatalog* names
       if (q->volatility > 15) {
         q->volatility = 15;
       }
-      q->ask = q->bid + q->burden + 1;
+      q->ask = q->bid + q->burden;
     }
   }
   memset(eu->trade_nr, 0, sizeof(eu->trade_nr));
@@ -1448,17 +1448,56 @@ int europe_cash_treasure(EuropeScreen* eu, int treasure_value) {
   return credited;
 }
 
-void europe_apply_volume_price(EuropeScreen* eu, int cargo_type, int amount, int is_buy) {
-  /*
-   * Thin FUN_38fd_1d80/1dfa + 0058(0, cargo) peel:
-   *   buy:  nr -= amount << volatility
-   *   sell: nr += amount << volatility
-   * Then 0058 single-cargo: nr += attrition; rise/fall ±1 bid in [low,high];
-   * nr -= attrition (net attrition 0 when param_2 >= 0).
-   * Cite: viceroy_unpacked.c ~58947–58985; NAMES.TXT @CARGO rise/fall.
-   * Defers full 0058 pressure/bid arms; colony→price_group_state half is in
-   * europe_tick_market_prices when col1+colonies are passed.
-   */
+int europe_sell_price(const EuropeScreen* eu, int cargo_type) {
+  /* FUN_38fd_0040: max(euro_price − 1, 0). */
+  if (!eu || cargo_type < 0 || cargo_type >= eu->cargo_count) {
+    return 0;
+  }
+  const int p = eu->cargo[cargo_type].bid - 1;
+  return p < 0 ? 0 : p;
+}
+
+int europe_buy_price(const EuropeScreen* eu, int cargo_type) {
+  /* FUN_38fd_0016: max(euro_price + burden, 0) — cached as `ask`. */
+  if (!eu || cargo_type < 0 || cargo_type >= eu->cargo_count) {
+    return 0;
+  }
+  return eu->cargo[cargo_type].ask < 0 ? 0 : eu->cargo[cargo_type].ask;
+}
+
+int europe_net_after_tax(int gross, int tax_percent) {
+  if (gross <= 0) {
+    return 0;
+  }
+  if (tax_percent < 0) {
+    tax_percent = 0;
+  }
+  if (tax_percent > 100) {
+    tax_percent = 100;
+  }
+  /* FUN_364b_0688: tax = (tax·gross)/100 (32-bit), net = gross − tax. */
+  const long taxed = ((long)tax_percent * (long)gross) / 100L;
+  return gross - (int)taxed;
+}
+
+static int europe_1d44_term(int amount, int seller_is_human, int difficulty) {
+  /* FUN_38fd_1d44: ((human ? difficulty − 2 : −2) · 16 · amount) / 100,
+   * C division (truncates toward zero — the AI −384/100 → −3 case is what
+   * the dutch2 pair needs). */
+  const int k = seller_is_human ? (difficulty - 2) : -2;
+  return (k * 16 * amount) / 100;
+}
+
+void europe_apply_trade_volume(
+  EuropeScreen* eu,
+  struct ColonizeCol1Save* col1,
+  int seller_nation,
+  int human_nation,
+  int cargo_type,
+  int amount,
+  int is_buy,
+  int immediate_threshold
+) {
   if (!eu || amount <= 0 || cargo_type < 0 || cargo_type >= eu->cargo_count ||
       cargo_type >= EUROPE_CARGO_MAX) {
     return;
@@ -1471,12 +1510,51 @@ void europe_apply_volume_price(EuropeScreen* eu, int cargo_type, int amount, int
   if (shift > 15) {
     shift = 15;
   }
-  const int delta = amount << shift;
+  int difficulty = eu->difficulty;
+  if (col1) {
+    difficulty = (int)col1->head.difficulty;
+  }
+  const int seller_is_human = (seller_nation == human_nation);
+  int term = (amount << shift) + europe_1d44_term(amount, seller_is_human, difficulty);
+  /* Only the human's record is live here; DOS also adds it to the other
+   * three nation records (their nr is not ticked on this side). Nation 3
+   * (the Dutch) takes (term·2)/3 regardless of who sold. */
+  if (human_nation == 3) {
+    term = (term * 2) / 3;
+  }
   int nr = (int)eu->trade_nr[cargo_type];
   if (is_buy) {
-    nr -= delta;
+    nr -= term;
   } else {
-    nr += delta;
+    nr += term;
+  }
+  if (col1 && seller_nation >= 0 && seller_nation < (int)COLONIZE_COL1_NATION_COUNT &&
+      (unsigned)cargo_type < COLONIZE_COL1_CARGO_TYPES) {
+    ColonizeCol1NationTrade* t = &col1->nation[seller_nation].trade;
+    const int32_t signed_amt = is_buy ? -(int32_t)amount : (int32_t)amount;
+    t->tons[cargo_type] += signed_amt;
+    t->tons2[cargo_type] += signed_amt;
+    if (is_buy) {
+      /* 1d80: gold[cargo] −= buy_price·amount. */
+      t->gold[cargo_type] -= (int32_t)europe_buy_price(eu, cargo_type) * (int32_t)amount;
+    } else {
+      /* 1dfa: gold[cargo] += (sell_price·amount·(100−tax))/100 — note the
+       * ledger rounds the other way from the treasury credit (54 lumber @1,
+       * 35% → ledger +35, treasury +36). */
+      const int tax = (int)col1->nation[seller_nation].tax_rate;
+      const long gross = (long)europe_sell_price(eu, cargo_type) * (long)amount;
+      t->gold[cargo_type] += (int32_t)((gross * (long)(100 - tax)) / 100L);
+    }
+  }
+  if (!immediate_threshold) {
+    if (nr < -32768) {
+      nr = -32768;
+    }
+    if (nr > 32767) {
+      nr = 32767;
+    }
+    eu->trade_nr[cargo_type] = (int16_t)nr;
+    return;
   }
   /* 0058 single-cargo: temporary attrition then rise/fall thresholds. */
   int attrition = q->attrition;
@@ -1508,7 +1586,7 @@ void europe_apply_volume_price(EuropeScreen* eu, int cargo_type, int amount, int
   if (q->bid < 0) {
     q->bid = 0;
   }
-  q->ask = q->bid + q->burden + 1;
+  q->ask = q->bid + q->burden;
   if (nr < -32768) {
     nr = -32768;
   }
@@ -1516,6 +1594,13 @@ void europe_apply_volume_price(EuropeScreen* eu, int cargo_type, int amount, int
     nr = 32767;
   }
   eu->trade_nr[cargo_type] = (int16_t)nr;
+}
+
+void europe_apply_volume_price(EuropeScreen* eu, int cargo_type, int amount, int is_buy) {
+  /* Harbor buy/sell: human seller (nation unknown here → 1d44 uses
+   * eu->difficulty, Dutch rule off), then FUN_38fd_0058(0, cargo). Callers
+   * with a col1 should use europe_apply_trade_volume directly. */
+  europe_apply_trade_volume(eu, NULL, -1, -1, cargo_type, amount, is_buy, 1);
 }
 
 void europe_tick_market_prices(
@@ -1548,6 +1633,9 @@ void europe_tick_market_prices(
   }
   eu->price_event_cargo = -1;
   eu->price_event_dir = 0;
+  if (col1) {
+    eu->difficulty = col1->head.difficulty > 8 ? 8 : col1->head.difficulty;
+  }
 
   /* Phase 1 — pool decay + ledger. */
   long ledger[16];
@@ -1700,7 +1788,7 @@ void europe_tick_market_prices(
     if (q->bid < 0) {
       q->bid = 0;
     }
-    q->ask = q->bid + q->burden + 1;
+    q->ask = q->bid + q->burden;
     if (nr < -32768) {
       nr = -32768;
     }
@@ -1964,18 +2052,13 @@ int europe_sell_proceeds(const EuropeScreen* eu, int cargo_type, int amount) {
   if (!eu || amount <= 0 || cargo_type < 0 || cargo_type >= eu->cargo_count) {
     return 0;
   }
-  const int bid = eu->cargo[cargo_type].bid;
-  if (bid <= 0) {
+  /* FUN_38fd_1f0c: gross = (euro_price − 1)·amount; tax taken by the caller
+   * as gross − gross·tax/100. */
+  const int price = europe_sell_price(eu, cargo_type);
+  if (price <= 0) {
     return 0;
   }
-  int tax = eu->tax_percent;
-  if (tax < 0) {
-    tax = 0;
-  }
-  if (tax > 100) {
-    tax = 100;
-  }
-  return (bid * amount * (100 - tax)) / 100;
+  return europe_net_after_tax(price * amount, eu->tax_percent);
 }
 
 int europe_sell_hold(EuropeScreen* eu, int harbor_index, int hold_index) {
@@ -2028,7 +2111,18 @@ int europe_sell_hold(EuropeScreen* eu, int harbor_index, int hold_index) {
  * original 4 entries, unchanged from before this attempt.
  */
 static int europe_custom_house_cargo_eligible(int cargo_type) {
-  if (cargo_type == COLONIZE_CARGO_FOOD ||
+  /*
+   * Resolved 2026-08-28: FUN_364b_0688 picks the gate by controller —
+   * human colonies use FUN_281f_0cfe → FUN_15eb_0302 (colony +0x8a bit per
+   * cargo == custom_house_bits), and ONLY AI colonies use FUN_364b_0636
+   * (thunk_FUN_291f_09c0, confirmed via address_mapping.csv). So the
+   * Lumber deny term is real, but it never applied to the human's Custom
+   * House — which is why the real-DOS saves sold lumber. This function is
+   * now the AI-only 0636 gate: deny Food/Lumber/Horses/Tools/Muskets; Ore
+   * has an extra deny arm (building 3 present or DS:0x8de4/0x8de6 set)
+   * that is not modelled here — Ore stays allowed.
+   */
+  if (cargo_type == COLONIZE_CARGO_FOOD || cargo_type == COLONIZE_CARGO_LUMBER ||
       cargo_type == COLONIZE_CARGO_HORSES || cargo_type == COLONIZE_CARGO_TOOLS ||
       cargo_type == COLONIZE_CARGO_MUSKETS) {
     return 0;
@@ -2036,7 +2130,7 @@ static int europe_custom_house_cargo_eligible(int cargo_type) {
   return cargo_type >= 0 && cargo_type < COLONIZE_CARGO_COUNT;
 }
 
-/* FUN_364b_0636 denylist — shared with AI peace Europe export sail. */
+/* FUN_364b_0636 denylist — AI Custom House + AI peace Europe export sail. */
 int europe_cargo_export_eligible(int cargo_type) {
   return europe_custom_house_cargo_eligible(cargo_type);
 }
@@ -2084,10 +2178,16 @@ int europe_custom_house_autosell(
     return 0;
   }
   const int nation = colony->nation_id;
+  const int is_human = (nation == human_nation);
+  /* FUN_364b_0688: a human colony's Custom House is shut while an enemy
+   * armed ship / Man-O-War sits next to it (colony +0x1b & 3). */
+  if (is_human && (colony->ai_flags & 0x03u) != 0u) {
+    return 0;
+  }
   const int woi = col1 && col1->head.game_options.woi != 0;
   int tax = 0;
   if (!woi) {
-    if (nation == human_nation) {
+    if (is_human) {
       tax = eu->tax_percent;
     } else if (col1 && nation >= 0 && nation < (int)COLONIZE_COL1_NATION_COUNT) {
       tax = (int)col1->nation[nation].tax_rate;
@@ -2101,10 +2201,18 @@ int europe_custom_house_autosell(
   if (tax > 100) {
     tax = 100;
   }
+  ColonizeCol1Nation* nat =
+    (col1 && nation >= 0 && nation < (int)COLONIZE_COL1_NATION_COUNT) ? &col1->nation[nation]
+                                                                       : NULL;
 
   int total = 0;
   for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
-    if (!europe_custom_house_bit_enabled(colony->custom_house_bits, c)) {
+    /* Human: per-cargo toggle bits (FUN_15eb_0302). AI: FUN_364b_0636. */
+    if (is_human) {
+      if (!europe_custom_house_bit_enabled(colony->custom_house_bits, c)) {
+        continue;
+      }
+    } else if (!europe_custom_house_cargo_eligible(c)) {
       continue;
     }
     /* FUN_364b_0688: if (99 < stock) sell stock - 50 (leave 50 in warehouse). */
@@ -2118,20 +2226,33 @@ int europe_custom_house_autosell(
     if (c >= eu->cargo_count) {
       continue;
     }
-    const int bid = eu->cargo[c].bid;
-    if (bid <= 0) {
-      continue;
-    }
-    const int gained = (bid * amount * (100 - tax)) / 100;
+    /* Sells at euro_price − 1 (FUN_291f_09ea → FUN_38fd_0040); a zero price
+     * still moves the goods (DOS has no price gate here). */
+    const int price = europe_sell_price(eu, c);
+    const int gross = price * amount;
+    const int gained = europe_net_after_tax(gross, tax);
+    const int tax_paid = gross - gained;
     colony->stock[c] = 50;
     total += gained;
-    if (col1 && nation >= 0 && nation < (int)COLONIZE_COL1_NATION_COUNT) {
-      col1->nation[nation].gold += (uint32_t)gained;
+    if (nat) {
+      nat->gold += (uint32_t)gained;
+      /* nation +0x22 (royal_money) += tax paid; +0x26 write-only cumulative
+       * net trade income (unknown24_pad, int32 LE). */
+      nat->royal_money += tax_paid;
+      uint32_t cum = (uint32_t)nat->unknown24_pad[0] | ((uint32_t)nat->unknown24_pad[1] << 8) |
+                     ((uint32_t)nat->unknown24_pad[2] << 16) |
+                     ((uint32_t)nat->unknown24_pad[3] << 24);
+      cum += (uint32_t)gained;
+      nat->unknown24_pad[0] = (uint8_t)(cum & 0xffu);
+      nat->unknown24_pad[1] = (uint8_t)((cum >> 8) & 0xffu);
+      nat->unknown24_pad[2] = (uint8_t)((cum >> 16) & 0xffu);
+      nat->unknown24_pad[3] = (uint8_t)((cum >> 24) & 0xffu);
     }
-    if (nation == human_nation) {
+    if (is_human) {
       eu->gold += gained;
     }
-    europe_apply_volume_price(eu, c, amount, 0);
+    /* FUN_291f_0a2e → FUN_38fd_1dfa; no FUN_38fd_0058 step here. */
+    europe_apply_trade_volume(eu, col1, nation, human_nation, c, amount, 0, 0);
   }
   if (total > 0 && nation == human_nation) {
     if (colony->name[0]) {
@@ -2202,7 +2323,7 @@ int europe_ai_colony_dump_sell(
     if (c >= eu->cargo_count) {
       continue;
     }
-    const int bid = eu->cargo[c].bid;
+    const int bid = europe_sell_price(eu, c);
     if (bid <= 0) {
       continue;
     }
@@ -2222,16 +2343,13 @@ int europe_ai_colony_dump_sell(
         continue;
       }
     }
-    const int gained = (bid * amount * (100 - tax)) / 100;
+    const int gained = europe_net_after_tax(bid * amount, tax);
     total += gained;
     if (col1 && nation < (int)COLONIZE_COL1_NATION_COUNT) {
       col1->nation[nation].gold += (uint32_t)gained;
-      if ((unsigned)c < COLONIZE_COL1_CARGO_TYPES) {
-        col1->nation[nation].trade.tons[c] += amount;
-        col1->nation[nation].trade.gold[c] += gained;
-      }
     }
-    europe_apply_volume_price(eu, c, amount, 0);
+    /* 291f_0a2e → 38fd_1dfa: ledgers + volume, no 0058 step. */
+    europe_apply_trade_volume(eu, col1, nation, human_nation, c, amount, 0, 0);
   }
   if (total > 0) {
     snprintf(eu->status, sizeof(eu->status), "AI warehouse dump-sold for %d$.", total);

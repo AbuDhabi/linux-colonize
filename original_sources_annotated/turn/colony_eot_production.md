@@ -90,6 +90,22 @@ Scratch: `DS:−0x7238` (gross), `−0x71f6` (reserve). Net: `281f_0b50` → `15
 - Add into `stock[+0x9a+2*c]`; floor 0.
 - Custom House (`09fc(0x12)` + mask): if stock>99 and eligible → sell
   `stock−50` via `0a2e` (leave 50). Linux: `europe_custom_house_autosell`.
+  **Full read 2026-08-28 (57257–57330):**
+  - Human colonies are shut while `colony+0x1b & 3` (enemy armed ship /
+    MoW nearby); AI colonies ignore that.
+  - Gate by controller: human → `281f_0cfe` = `15eb_0302` (colony `+0x8a`
+    bit per cargo = `custom_house_bits`); AI → `291f_09c0` = `364b_0636`
+    (deny Food/Lumber/Horses/Tools/Muskets; Ore also denied when building
+    3 or `0x8de4`/`0x8de6` set). The Lumber term never applied to the human
+    — this was the P4.4 "Lumber sells anyway" contradiction.
+  - Price `291f_09ea` = `38fd_0040` = `euro_price − 1`; gross = price·amt;
+    tax = `(tax_rate·gross)/100` unless WoI (`0x5382&1`); net = gross−tax.
+  - `0aba` treasury += net; `0a2e`→`38fd_1dfa` ledger (see
+    `europe_nation_eot.md`); nation `+0x22` (royal_money) += tax, `+0x26`
+    (cumulative net trade income) += net.
+  - Human only: message box assembled 0056/006a/0074/007e/0088/07d4
+    (colony, amt, cargo, gross, tax%, tax, net) + sound `0x78` when
+    `0xa897` set. Linux: one OK popup from `europe->status` per colony.
 - OR `cargo_produced_mask` (`+0x90`) when net>0; surplus clamp vs warehouse
   `0d3a` → `aiStack_e4[c]` caps.
 
