@@ -18,14 +18,17 @@ int ai_euro_use_full_dispatch(const ColonizeTurnContext* ctx);
  * (docs/ai_port_plan.md T1.17 / docs/port_plan.md W1.7). See ai_euro.c's own
  * header comment above the definition, and
  * original_sources_annotated/turn/colonist_work_plot_28c8.md, for scope and
- * fidelity notes. Reference-only / not wired into any live AI path (Tier 3
- * per docs/port_plan.md); declared here only so
- * tests/unit/test_ai_euro_28c8_job_score.c can verify it directly.
+ * fidelity notes. The structural entry point scores with plain (non-expert)
+ * tile yields so tests/unit/test_ai_euro_28c8_job_score.c stays
+ * hand-auditable; the live AI colony tick (ai_euro_colony_tick_28c8_reassign,
+ * W3.1 2026-08-29, DOS FUN_5952_035e) uses the same scorer with the
+ * colonist's real profession.
  */
 typedef struct AiEuro28c8JobCandidate {
   int job;   /* COLONIZE_JOB_*, or -1 if nothing scored */
   int tile;  /* 0..COLONIZE_COLONY_FIELD_TILES-1 */
   int score;
+  int yield; /* winning tile's raw field yield (DOS DS:0x8dbe) */
 } AiEuro28c8JobCandidate;
 
 int ai_euro_28c8_colonist_job_score_structural(

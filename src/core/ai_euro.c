@@ -3653,19 +3653,42 @@ static int ai_euro_28c8_job_headcount(const ColonizeColony* col, int field_job) 
  * yet), and the first-work hidden-resource discovery roll
  * (FUN_281f_0d78/_0d6c — parked, self-contained, doc's own note).
  */
-int ai_euro_28c8_colonist_job_score_structural(
+/* Coastal or Docks-family building — turn.c's Fisherman gate, same shape. */
+static bool ai_euro_colony_has_docks(
+  const ColonizeColonyPool* pool,
+  const ColonizeWorldMap* map,
+  const ColonizeColony* col
+) {
+  if ((col->colony_flags & COLONIZE_COLONY_FLAG_COASTAL) != 0 ||
+      map_tile_is_coastal(map, col->x, col->y)) {
+    return true;
+  }
+  for (int bi = 0; bi < pool->building_type_count && bi < COLONIZE_BUILDING_TYPES_MAX; ++bi) {
+    if (!col->has_building[bi]) {
+      continue;
+    }
+    const char* bn = pool->building_types[bi].name;
+    if (bn && (strstr(bn, "Docks") != NULL || strstr(bn, "Drydock") != NULL ||
+               strstr(bn, "Shipyard") != NULL)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/*
+ * 28c8 scorer body. `profession` < 0 scores plain tile yields (the
+ * structural/test entry point); otherwise the colonist's real profession
+ * goes through colony_yield_for_worker (DOS 1068 trial-assigns the job, so
+ * 18ec sees the expert) — that is what the live tick uses.
+ */
+static int ai_euro_28c8_score(
   const ColonizeTurnContext* ctx,
-  int colony_id,
+  const ColonizeColony* col,
   int colonist_slot,
+  int profession,
   AiEuro28c8JobCandidate* out_best
 ) {
-  if (!ctx || !ctx->colonies || !ctx->map || !out_best) {
-    return 0;
-  }
-  const ColonizeColony* col = colonies_get(ctx->colonies, colony_id);
-  if (!col || !col->active || colonist_slot < 0 || colonist_slot >= col->colonist_count) {
-    return 0;
-  }
   const ColonizeColonist* self = &col->colonists[colonist_slot];
   if (!self->active) {
     return 0;
@@ -3673,10 +3696,15 @@ int ai_euro_28c8_colonist_job_score_structural(
   const int current_job = self->field_job; /* -1 if not currently field-working */
   const int pop_cap = col->warehouse_level == 0 ? 100 : ((int)col->warehouse_level + 1) * 100;
   const int is_ai = col->nation_id != ctx->human_nation;
+  const bool has_docks =
+    profession >= 0 ? ai_euro_colony_has_docks(ctx->colonies, ctx->map, col) : true;
+  const int sol_b_field =
+    profession >= 0 ? colony_prod_sol_bonus_field(ctx->col1_ok ? ctx->col1 : NULL, col) : 0;
 
   out_best->job = -1;
   out_best->tile = -1;
   out_best->score = -1000000;
+  out_best->yield = 0;
 
   for (int ti = 0; ti < COLONIZE_COLONY_FIELD_TILES; ++ti) {
     if (col->tiles[ti] >= 0 && col->tiles[ti] != colonist_slot) {
@@ -3692,10 +3720,16 @@ int ai_euro_28c8_colonist_job_score_structural(
     const int terr = map_dos_terr_class_at(ctx->map, tx, ty);
     const int penalty = map_dos_terr_labor_penalty_byte(terr);
     for (int job = 0; job < COLONIZE_FIELD_JOB_COUNT; ++job) {
-      int yld = colony_yield_for_tile(ctx->map, tx, ty, job);
+      int yld = profession >= 0
+                  ? colony_yield_for_worker(
+                      ctx->map, tx, ty, job, profession, has_docks, sol_b_field,
+                      col->colony_flags
+                    )
+                  : colony_yield_for_tile(ctx->map, tx, ty, job);
       if (yld <= 0) {
         continue;
       }
+      const int raw_yield = yld;
       if (is_ai) {
         /* AI-only headroom clamp: colony[0x9a+job*2], floor 1 (doc's own
          * reading of the raw asm). */
@@ -3724,10 +3758,142 @@ int ai_euro_28c8_colonist_job_score_structural(
         out_best->score = score;
         out_best->job = job;
         out_best->tile = ti;
+        out_best->yield = raw_yield;
       }
     }
   }
   return out_best->job >= 0 ? 1 : 0;
+}
+
+int ai_euro_28c8_colonist_job_score_structural(
+  const ColonizeTurnContext* ctx,
+  int colony_id,
+  int colonist_slot,
+  AiEuro28c8JobCandidate* out_best
+) {
+  if (!ctx || !ctx->colonies || !ctx->map || !out_best) {
+    return 0;
+  }
+  const ColonizeColony* col = colonies_get(ctx->colonies, colony_id);
+  if (!col || !col->active || colonist_slot < 0 || colonist_slot >= col->colonist_count) {
+    return 0;
+  }
+  return ai_euro_28c8_score(ctx, col, colonist_slot, -1, out_best);
+}
+
+/*
+ * FUN_5952_035e colonist placement block (viceroy_unpacked.c ~94560-94640),
+ * the AI-turn caller of 28c8 (via resident stub FUN_281f_0b6e). Per AI
+ * colony each turn DOS clears every work plot (`colony+0x70..0x83 = 0xff`)
+ * and re-places colonists through 28c8: a food pass first (slots whose
+ * previous job was Farmer, or Fisherman on a fishable colony) until the
+ * food target holds, then two general passes; a winner whose raw yield
+ * (DS:0x8dbe) is < 3 ends the pass. Building workers keep their
+ * workplaces here — DOS's later statesman/carpenter passes in the same
+ * function are the existing expert-workplace heuristics' territory.
+ * Food target: Linux population×2 consumption vs town commons + placed food.
+ */
+static void ai_euro_colony_tick_28c8_reassign(ColonizeTurnContext* ctx, int nation_id) {
+  if (!ctx || !ctx->colonies || !ctx->map || nation_id == ctx->human_nation) {
+    return;
+  }
+  for (int ci = 0; ci < COLONIZE_COLONIES_MAX; ++ci) {
+    ColonizeColony* col = &ctx->colonies->colonies[ci];
+    if (!col->active || col->nation_id != nation_id || col->colonist_count <= 0) {
+      continue;
+    }
+    int prev_job[COLONIZE_COLONY_POP_MAX];
+    bool placed[COLONIZE_COLONY_POP_MAX];
+    const int n = col->colonist_count < COLONIZE_COLONY_POP_MAX ? col->colonist_count
+                                                                : COLONIZE_COLONY_POP_MAX;
+    for (int s = 0; s < n; ++s) {
+      const ColonizeColonist* c = &col->colonists[s];
+      prev_job[s] = c->field_job;
+      /* Building workers and inactive slots are out of scope this tick. */
+      placed[s] = !c->active || c->building_type >= 0;
+    }
+    for (int s = 0; s < n; ++s) {
+      if (placed[s]) {
+        continue;
+      }
+      const int ti = colonies_colonist_tile(col, s);
+      if (ti >= 0) {
+        colonies_clear_field(ctx->colonies, col->id, ti);
+      }
+      col->colonists[s].field_job = -1;
+    }
+
+    const bool fishable = ai_euro_colony_has_docks(ctx->colonies, ctx->map, col);
+    int food_have = 0;
+    {
+      ColonizeTownCommonsYield tc;
+      colony_yield_town_commons(
+        ctx->map, col->x, col->y,
+        colony_prod_sol_bonus_field(ctx->col1_ok ? ctx->col1 : NULL, col), col->colony_flags,
+        ctx->col1_ok && ctx->col1 ? (int)ctx->col1->head.difficulty : 4, &tc
+      );
+      food_have = tc.food > 0 ? tc.food : 0;
+    }
+    const int food_need = col->population * 2;
+
+    /* Pass 1 — food, from the slots that were feeding the colony. */
+    for (int s = 0; s < n && food_have < food_need; ++s) {
+      if (placed[s]) {
+        continue;
+      }
+      const bool was_food = prev_job[s] == COLONIZE_JOB_FARMER ||
+                            (prev_job[s] == COLONIZE_JOB_FISHERMAN && fishable);
+      if (!was_food) {
+        continue;
+      }
+      AiEuro28c8JobCandidate best;
+      col->colonists[s].field_job = prev_job[s]; /* sticky ×2 on the old job */
+      const int ok = ai_euro_28c8_score(ctx, col, s, col->colonists[s].profession, &best);
+      col->colonists[s].field_job = -1;
+      if (!ok || best.yield < 3) {
+        break;
+      }
+      if (colonies_assign_field(ctx->colonies, col->id, s, best.tile, best.job)) {
+        placed[s] = true;
+        if (best.job == COLONIZE_JOB_FARMER || best.job == COLONIZE_JOB_FISHERMAN) {
+          food_have += best.yield;
+        }
+      }
+    }
+
+    /* Pass 2 ×2 — everyone else, best job wins, yield < 3 ends the pass. */
+    for (int pass = 0; pass < 2; ++pass) {
+      for (int s = 0; s < n; ++s) {
+        if (placed[s]) {
+          continue;
+        }
+        AiEuro28c8JobCandidate best;
+        col->colonists[s].field_job = prev_job[s];
+        const int ok = ai_euro_28c8_score(ctx, col, s, col->colonists[s].profession, &best);
+        col->colonists[s].field_job = -1;
+        if (!ok || best.yield < 3) {
+          break;
+        }
+        if (colonies_assign_field(ctx->colonies, col->id, s, best.tile, best.job)) {
+          placed[s] = true;
+        }
+      }
+    }
+
+    /* Leftovers: DOS hands them to its building passes; keep what they had. */
+    for (int s = 0; s < n; ++s) {
+      if (placed[s] || prev_job[s] < 0) {
+        continue;
+      }
+      AiEuro28c8JobCandidate best;
+      col->colonists[s].field_job = prev_job[s];
+      const int ok = ai_euro_28c8_score(ctx, col, s, col->colonists[s].profession, &best);
+      col->colonists[s].field_job = -1;
+      if (ok) {
+        (void)colonies_assign_field(ctx->colonies, col->id, s, best.tile, best.job);
+      }
+    }
+  }
 }
 
 /*
@@ -17044,4 +17210,11 @@ void ai_euro_dispatcher_turn(ColonizeTurnContext* ctx, int nation_id) {
     }
     ++guard;
   } while (any_acted && guard < 64);
+
+  /*
+   * FUN_5952_035e colonist re-placement runs after the unit acts so the
+   * admit-time expert field-assign paths (which need a free tile) still
+   * land; the tick then re-scores everyone with real professions.
+   */
+  ai_euro_colony_tick_28c8_reassign(ctx, nation_id);
 }
