@@ -2561,7 +2561,12 @@ CLAUDE.md's "hard to reverse" guidance.
   still the live behavior until the tail's two iterator stubs go real.
 
   **2026-08-27, later — hire-ladder tail callees made real (`ai_euro_5d04_cb_*`).** Europe stack iteration = the nation's units at Europe coords; type/profession reads and equip writes by name (fixtures use synthetic pools), expert gate, `03d0` urgency, `38fd_0718` recruit spawn, market ask/bid from the EuropeScreen (col1 `euro_price` fallback), hold-0 unload/sell (boycott-aware, tax-adjusted), cargo buy+load, Artillery spawn, ship departure = board the dock stack (the dispatcher's own 48d3_048e teleport follows), `0x5238` = new `ColonizeUnitType.space`, `0xa0db/0xa0da` = per-turn own-colony muskets/tools-need counts (6d8e prelude). Misports fixed: RNG rolls that were really market prices, `found_flags` vs pioneer count. Two loop guards (DOS drops departed ships from its list; Linux does not). Still thin: `0a2e`/`0c14` market volume only for the human market; recruit-pool refill is a plain RNG pick (`38fd_46d4` remap table unported); `DS:0x945a` = 0. `ctest` 46/46, mid01/late01 green.
-- [ ] **T3.2 — Wire `153e` worthiness-score port live**, once T2.2's delta
+- [x] **T3.2 — Wire `153e` worthiness-score port live — closed 2026-08-29
+  as not-a-live-trigger (port_plan.md W3.1).** The analysis below stands:
+  DOS reaches `153e` phase 1 only for a human self via `5bfb_3180`, so an
+  AI-side wire could never fire; the function is fully ported and exercised
+  through `ai_diplo_153e_encounter` instead. Original row:
+  once T2.2's delta
   catalog exists. Changes default war-declare eligibility scoring.
   **2026-08-27 — deliberately NOT flipped.** Every term is a neutral stub
   except diplo bit `0x10`, and no Linux code ever sets that bit (its DOS

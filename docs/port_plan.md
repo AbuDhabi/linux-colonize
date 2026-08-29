@@ -1446,7 +1446,18 @@ W4.3/W4.4 → deferred; W5.x → D4; W5.5 → D1/D3.
   test locks in the adjacency case distinctly from the occupied-tile case.
   Full trace: [manual_gap.md](manual_gap.md) "Found colony" row.
 
-- [ ] **W1.3 — Production / EOT formula fidelity.** The economy loop runs
+- [x] **W1.3 — Production / EOT formula fidelity — closed 2026-08-29.**
+  Every sub-item below had already landed; the one thing still marked
+  pending was re-verifying the 2026-08-24 `colony_yield` fix against
+  `golden_colony_prod01`/`02` in an environment with the original assets.
+  This worktree has them: `golden_colony_prod01`, `golden_colony_prod02`
+  and `golden_colony_preview01` all pass (ctest 48/48), and `prod01`
+  asserts exact per-tile values for New Amsterdam / Guadeloupe / Fort
+  Nassau / St. Louis — so the "coastal-tile residual" hypothesis is moot,
+  not merely unverified. Manufacturing tier rates / class scale were
+  DOS-confirmed 2026-08-15 (`building_production.md`); spoilage stays the
+  `FUN_15eb_0a50` thin port with no open evidence against it. Original
+  row: The economy loop runs
   end-to-end but several formulas are DOS-unconfirmed:
   - Manufacturing tier rates + class scale
     ([building_production.md](building_production.md)).
@@ -1609,8 +1620,8 @@ W4.3/W4.4 → deferred; W5.x → D4; W5.5 → D1/D3.
   woodcut/splash once-only array that `event` is bits 1-16 of; only the
   demo-autoplay loop reaches ids ≥14. See `mysteries_catalog.md`.
 
-- [ ] **W1.7 — Colonist work-plot auto-assign (`FUN_15eb_28c8`) golden +
-  wire.** RE is complete
+- [x] **W1.7 — Colonist work-plot auto-assign (`FUN_15eb_28c8`) golden +
+  wire — closed 2026-08-29, wire landed under W3.1.** RE is complete
   ([colonist_work_plot_28c8.md](../original_sources_annotated/turn/colonist_work_plot_28c8.md));
   a reference-only structural port ships
   (`ai_euro_28c8_colonist_job_score_structural`, `ai_euro.c`). Remaining:
@@ -1717,8 +1728,28 @@ W4.3/W4.4 → deferred; W5.x → D4; W5.5 → D1/D3.
 Verification can happen autonomously; the flip is a user decision
 (CLAUDE.md "hard to reverse / outward-facing").
 
-- [ ] **W3.1 — Wire AI structural ports live** (`5d04`, `153e`, `28c8`) —
-  `ai_port_plan.md` T3.1/T3.2 + W1.7's wire. Changes default AI behavior.
+- [x] **W3.1 — Wire AI structural ports live — closed 2026-08-29.**
+  `5d04` was already live (T3.1). `153e` stays unwired on purpose: DOS
+  only reaches it for a human self via the encounter dialog, so an AI-side
+  wire is a trigger that never fires (T3.2 analysis) — closed, not deferred.
+  `28c8` is now live: `ai_euro_colony_tick_28c8_reassign` (`ai_euro.c`),
+  a port of the colonist-placement block of DOS's AI colony tick
+  `FUN_5952_035e` (the AI-turn caller of 28c8 via resident stub
+  `FUN_281f_0b6e`; the other callers are colony-UI `2f2b_348c/628a` and the
+  Europe probes `38fd_3694/4f6e`). Per AI colony each turn: clear field
+  plots, food pass over the slots that were Farmer/Fisherman until town
+  commons + placed food ≥ population×2, then two general passes, winner's
+  raw yield < 3 ends a pass (DS:0x8dbe gate); building workers untouched
+  (DOS's statesman/carpenter passes remain the expert-workplace
+  heuristics' job). Scorer now takes the real profession through
+  `colony_yield_for_worker`; the structural/test entry point keeps plain
+  yields so `unit_ai_euro_28c8_job_score` stays hand-auditable. Runs at
+  the end of `ai_euro_dispatcher_turn` so the admit-time expert
+  field-assign paths (need a free tile) still land first. Fallout:
+  `unit_ai_euro_expand`'s nine "expert X admit + matching-tile assign"
+  checks now assert admit + field-working (e.g. a plain Mountain yields
+  Silver 1×2 = 2 < Ore 4, so 28c8 rightly refuses the old heuristic's
+  pick). mid01/late01/colony goldens unchanged. ctest 48/48.
 - [ ] **W3.2 — Re-enable `golden_ai_joint` cluster** — `ai_port_plan.md`
   T3.3. Only after AI transcription reaches T3 1:1 for in-scope planners;
   expect a large alignment/bug-fix phase immediately after (that phase is

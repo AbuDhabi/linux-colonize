@@ -12850,17 +12850,24 @@ static int unit_lumberjack_field_assign(void) {
       if (!c->colonists[i].active) {
         continue;
       }
-      if (c->colonists[i].field_job == COLONIZE_JOB_LUMBERJACK &&
+      if (c->colonists[i].profession == COLONIZE_JOB_LUMBERJACK && c->colonists[i].field_job >= 0 &&
           colonies_colonist_tile(c, i) == 0) {
         field_ok = 1;
         break;
       }
     }
+    /*
+     * 2026-08-29 (W3.1): from here down the expert admit scenarios assert
+     * "admitted + field-working" by profession. The end-of-turn
+     * FUN_5952_035e tick (ai_euro_colony_tick_28c8_reassign) re-scores every
+     * field colonist through 28c8, so the exact tile/job is the scorer's
+     * call, not the admit heuristic's.
+     */
     /* Accept any forest field Lumberjack assign if tile 0 race-occupied. */
     if (!field_ok) {
       for (int i = 0; i < c->colonist_count; ++i) {
         if (c->colonists[i].active &&
-            c->colonists[i].field_job == COLONIZE_JOB_LUMBERJACK) {
+            c->colonists[i].profession == COLONIZE_JOB_LUMBERJACK && c->colonists[i].field_job >= 0) {
           field_ok = 1;
           break;
         }
@@ -13326,7 +13333,7 @@ static int unit_ore_miner_field_assign(void) {
   int field_ok = 0;
   if (joined) {
     for (int i = 0; i < c->colonist_count; ++i) {
-      if (c->colonists[i].active && c->colonists[i].field_job == COLONIZE_JOB_ORE_MINER) {
+      if (c->colonists[i].active && c->colonists[i].profession == COLONIZE_JOB_ORE_MINER && c->colonists[i].field_job >= 0) {
         field_ok = 1;
         break;
       }
@@ -13450,10 +13457,19 @@ static int unit_silver_miner_field_assign(void) {
 
   miner = units_get(&units, uid);
   const int joined = (miner == NULL || !miner->active) && c->population > pop0;
+  /*
+   * 2026-08-29 (W3.1): the admit path still targets the mountain, but the
+   * end-of-turn FUN_5952_035e tick re-scores every field colonist through
+   * 28c8 with real professions. A plain Mountain yields Silver 1 (expert
+   * ×2 = 2, under DOS's yield-3 gate) against Ore 4, so the miner ends up
+   * on whichever tile scores best — assert "admitted and field-working",
+   * not the old heuristic's "Silver Miner on the mountain".
+   */
   int field_ok = 0;
   if (joined) {
     for (int i = 0; i < c->colonist_count; ++i) {
-      if (c->colonists[i].active && c->colonists[i].field_job == COLONIZE_JOB_SILVER_MINER) {
+      if (c->colonists[i].active && c->colonists[i].profession == COLONIZE_JOB_SILVER_MINER &&
+          c->colonists[i].field_job >= 0) {
         field_ok = 1;
         break;
       }
@@ -13464,7 +13480,7 @@ static int unit_silver_miner_field_assign(void) {
     free(map.terrain);
     free(map.layer2);
     free(map.layer3);
-    return fail("expected Expert Silver Miner admit + mountains field assign");
+    return fail("expected Expert Silver Miner admit + field assign");
   }
 
   free(map.terrain);
@@ -13569,7 +13585,7 @@ static int unit_farmer_field_assign(void) {
   int field_ok = 0;
   if (joined) {
     for (int i = 0; i < c->colonist_count; ++i) {
-      if (c->colonists[i].active && c->colonists[i].field_job == COLONIZE_JOB_FARMER) {
+      if (c->colonists[i].active && c->colonists[i].profession == COLONIZE_JOB_FARMER && c->colonists[i].field_job >= 0) {
         field_ok = 1;
         break;
       }
@@ -13832,7 +13848,7 @@ static int unit_fisherman_field_assign(void) {
   int field_ok = 0;
   if (joined) {
     for (int i = 0; i < c->colonist_count; ++i) {
-      if (c->colonists[i].active && c->colonists[i].field_job == COLONIZE_JOB_FISHERMAN) {
+      if (c->colonists[i].active && c->colonists[i].profession == COLONIZE_JOB_FISHERMAN && c->colonists[i].field_job >= 0) {
         field_ok = 1;
         break;
       }
@@ -13960,7 +13976,7 @@ static int unit_sugar_planter_field_assign(void) {
   if (joined) {
     for (int i = 0; i < c->colonist_count; ++i) {
       if (c->colonists[i].active &&
-          c->colonists[i].field_job == COLONIZE_JOB_SUGAR_PLANTER) {
+          c->colonists[i].profession == COLONIZE_JOB_SUGAR_PLANTER && c->colonists[i].field_job >= 0) {
         field_ok = 1;
         break;
       }
@@ -14087,7 +14103,7 @@ static int unit_tobacco_planter_field_assign(void) {
   if (joined) {
     for (int i = 0; i < c->colonist_count; ++i) {
       if (c->colonists[i].active &&
-          c->colonists[i].field_job == COLONIZE_JOB_TOBACCO_PLANTER) {
+          c->colonists[i].profession == COLONIZE_JOB_TOBACCO_PLANTER && c->colonists[i].field_job >= 0) {
         field_ok = 1;
         break;
       }
@@ -14214,7 +14230,7 @@ static int unit_cotton_planter_field_assign(void) {
   if (joined) {
     for (int i = 0; i < c->colonist_count; ++i) {
       if (c->colonists[i].active &&
-          c->colonists[i].field_job == COLONIZE_JOB_COTTON_PLANTER) {
+          c->colonists[i].profession == COLONIZE_JOB_COTTON_PLANTER && c->colonists[i].field_job >= 0) {
         field_ok = 1;
         break;
       }
@@ -14341,7 +14357,7 @@ static int unit_fur_trapper_field_assign(void) {
   if (joined) {
     for (int i = 0; i < c->colonist_count; ++i) {
       if (c->colonists[i].active &&
-          c->colonists[i].field_job == COLONIZE_JOB_FUR_TRAPPER) {
+          c->colonists[i].profession == COLONIZE_JOB_FUR_TRAPPER && c->colonists[i].field_job >= 0) {
         field_ok = 1;
         break;
       }
