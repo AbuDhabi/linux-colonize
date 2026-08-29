@@ -1247,10 +1247,21 @@ Deep `2820` (village trade/haggle) and `4528` (deep settlement battle) PARK.
 closed); mapgen matches MAPEDIT for terrain/resources/rumours; `.MP` load
 Done.
 
-- [ ] **P10.1 [auto]** Every slice in P1–P9 that touches `col1_save.h`,
-  `col1_bridge.c`, or colony/unit layout runs `unit_col1_save` strict
-  round-trip + a load-in-DOS spot check of at least one port-written save
-  **[user]** when the change is bridge-adjacent (P4.2, P7.5).
+- [x] **P10.1 [auto] — closed 2026-08-29.** Strict codec round-trip was
+  green (19/19) but nobody had automated the *port-written* half, so
+  `unit_col1_save` now also does apply → capture → re-apply per fixture and
+  asserts nothing is lost. That net caught two real losses on first run:
+  (1) `COLONIZE_COLONIES_MAX` 32 truncated the five 33-colony lategame
+  fixtures — DOS gate is `colony_count < 0x30`, cap now 48; (2) human ships
+  in the Europe harbor / Expected / Bound lanes live only in `EuropeScreen`
+  after `units_despawn_ship_with_cargo`, so Save dropped them (COLONY04
+  −1 unit, COLONY06 −2). Capture now writes them as DOS does (`228+n` port,
+  `232+n` outbound, `244+n` inbound, `turns_worked` = voyage turns,
+  passengers chained) and apply reads the two transit lanes back with
+  passengers aboard instead of dumping them on the docks. Details in
+  [savegame.md](savegame.md) "Human Europe ships". ctest 48/48. Remaining
+  **[user]** half: load one Linux-written save with a ship at sea in DOS
+  and confirm it arrives.
 - [x] **P10.2 [auto] — done 2026-08-26.** Added `tools/check_save_interop.sh`:
   builds just the `unit_col1_save` target then runs it alone via
   `ctest -R '^unit_col1_save$'` (the strict byte-identical round-trip over

@@ -16,7 +16,8 @@ typedef struct ColonizeCol1TradeStop ColonizeCol1TradeStop;
 typedef struct ColonizeUnitPool ColonizeUnitPool;
 typedef struct AiPopupState AiPopupState;
 
-#define COLONIZE_COLONIES_MAX 32
+/* DOS founding gate is `colony_count < 0x30` (viceroy_unpacked.c:58029). */
+#define COLONIZE_COLONIES_MAX 48
 #define COLONIZE_COLONY_NAME_MAX 28
 #define COLONIZE_COLONY_NAMES_MAX 80
 #define COLONIZE_BUILDING_TYPES_MAX 48
