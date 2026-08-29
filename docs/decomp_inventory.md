@@ -345,8 +345,12 @@ Linux-side present layout and intended constraints (living):
 - Main-map right panel + scrolling 1:1 minimap (`src/core/map_panel.c`): viewport **15×12**
   tiles (`x=0..239`); wood strip `x=240..319` (`WOODTILE.SS`) with black left rule and
   minimap-section separator; AMER2 minimap window **56×39** (click-to-center, dark-orange border);
-  `@INFO` unit/date/gold (`NAMEPLAT.SS` / `FONTTINY.FF`); menu bar shares wood + tiny green
-  / yellow hotkeys; nation box at `(315,197)` unchanged; not using `WOODPAN2` / `WOODFRAM`
+  body is a port of **`FUN_49dd_0424`** (date/gold row, selected-unit block, tile
+  features, inline `With:` holds, tile stack incl. units aboard ships, `End of Turn`)
+  on the DOS geometry literals (text x=242, first row y=0x33, 18px icon rows, text
+  beside icon x=260, stack cutoff y=0xb8, EOT clamp 0xc6); menu bar shares wood + tiny
+  green / yellow hotkeys; nation box at `(315,197)`; not using `WOODPAN2` / `WOODFRAM`
+  / `NAMEPLAT` (DOS draws the sidebar unit straight onto the wood)
 - Report / adviser screens: F2–F10 + REPORTS menu (`src/core/reports.c`);
   F1 Terrain Information → Colonizopedia at cursor; F8=`REPORT8.PIK`; F10=`WOODPANL.PIK`;
   F2–F9 filled from Col1 save + runtime pools (crosses, FF, labor, trade, warehouses,
@@ -358,8 +362,9 @@ Linux-side present layout and intended constraints (living):
 - Turn progression (`src/core/turn.c`): `@TIMECHANGE` calendar, colony production,
   nation crosses/bells hooks, EN→FR→SP→DU Euro AI + Indian AI + King/REF,
   Wait-for-next-unit, End of Turn option, autosave hooks (slots 9 / 8),
-  turn-owner indicator (`FUN_1984_00aa`: 5×3 at 315,197; shown only during AI/Indian
-  EOT phases; `@COUNTRY` / `@TRIBES` colors)
+  turn-owner indicator (`FUN_1984_00aa`: 5×3 at 315,197; painted at the head of every
+  nation's EOT — human setup pass included, as in `FUN_3844_00f2`; `@COUNTRY` /
+  `@TRIBES` colors)
 - Music (`src/core/gsound_vm.c` + `src/core/sound.c`, rewritten 2026-08-27): the
   `GSOUND.COL` driver is emulated literally (9 voice blocks, channel 9 drums, `CD..D4`
   jumps, mini-x86 for the song handlers) and ticked from the audio callback at the real

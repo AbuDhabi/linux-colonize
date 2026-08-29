@@ -42,9 +42,7 @@
 
 typedef struct MapPanel {
   ColonizeSpriteSheet wood_tile;
-  ColonizeSpriteSheet nameplat;
   bool wood_ok;
-  bool nameplat_ok;
   char label_moves[32];
   char label_locat[32];
   char label_with[32];
@@ -122,12 +120,13 @@ void map_panel_render(
   const char* nation_name,
   const ColonizePalette* active_palette,
   /*
-   * Player-requested: flashing "End Turn" prompt at the bottom of the
-   * sidebar once no more units need orders this turn (View Pieces mode).
+   * "End of Turn" (LABELS @MISC) — DOS draws it whenever DS:0x53c6 is set,
+   * i.e. once the unit cycle has run dry, in the running text flow rather
+   * than pinned to the panel foot (clamped to 0xc6 minus one text line).
    * end_turn_active: false whenever the prompt shouldn't show at all
    * (units still pending, a dialog is up, ...). end_turn_blink_white:
-   * while active, alternates the text between white and black on the
-   * caller's own timer (ignored when !end_turn_active).
+   * while active, alternates the text between white (15) and black (0);
+   * DOS shares DS:0x929c with the map's tile cursor, so pass that phase.
    */
   bool end_turn_active,
   bool end_turn_blink_white,
@@ -149,6 +148,21 @@ void map_panel_render_tribes_on_map(
   int origin_y,
   const ColonizeWorldMap* fog_map,
   int fog_nation
+);
+
+/*
+ * Units the sidebar lists for a tile, in DOS stack order (FUN_1427_04d6 with
+ * param_2 == 0: transports first, then Treasure, then descending @UNIT size
+ * class). Includes units aboard a transport on the tile — COL1 keeps them in
+ * the same per-tile chain, so each passenger gets its own sidebar row.
+ * Returns the number of ids written.
+ */
+int map_panel_collect_stack(
+  const ColonizeUnitPool* units,
+  int x,
+  int y,
+  int* out_ids,
+  int max
 );
 
 void map_panel_tile_rect(

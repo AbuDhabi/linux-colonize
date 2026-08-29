@@ -2752,7 +2752,11 @@ bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ct
 
   switch (proc->step) {
     case TURN_PROC_SETUP: {
-      proc->show_indicator = false;
+      /* DOS FUN_3844_00f2 opens every nation's EOT with turn_owner_chrome
+       * (281f_0590 → 1984_00aa), the human's own included, so the bottom-right
+       * 5x3 box carries the human colour while their production runs. */
+      turn_set_active_nation(ctx, ctx->human_nation);
+      proc->show_indicator = true;
       proc->year_before = *ctx->game_year;
       turn_advance_calendar(ctx->game_year, ctx->game_autumn, ctx->turn_number);
       proc->result.advanced = true;

@@ -1002,8 +1002,10 @@ int main(void) {
       fprintf(stderr, "setup should leave processor active\n");
       return 1;
     }
-    if (turn_processor_show_indicator(&proc)) {
-      fprintf(stderr, "indicator should be off after setup\n");
+    /* DOS turn_owner_chrome runs at the head of every nation's EOT, the
+     * human's included, so setup paints the box in the human colour. */
+    if (!turn_processor_show_indicator(&proc) || active != 0) {
+      fprintf(stderr, "setup should show the human turn-owner box\n");
       return 1;
     }
     /*

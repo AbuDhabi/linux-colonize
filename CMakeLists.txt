@@ -526,6 +526,16 @@ target_include_directories(render_report PRIVATE
 
 target_link_libraries(render_report PRIVATE colonize_core)
 
+add_executable(render_map_panel
+  tools/render_map_panel_main.c
+)
+
+target_include_directories(render_map_panel PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
+target_link_libraries(render_map_panel PRIVATE colonize_core)
+
 add_executable(render_colony
   tools/render_colony_main.c
 )
