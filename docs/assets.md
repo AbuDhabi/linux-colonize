@@ -103,7 +103,7 @@ Colonization scenario maps (e.g. `AMER2.MP`) are raw binary files:
 
 **Layer 2** (MAPEDIT / VICEROY): bit 1 = settlement ownership (suppresses resources/rumours); bit 2 = depleted resource (silver → PHYS0 **89**). Shipped `.MP` files typically leave this zero; the live game fills it.
 
-**Layer 3**: fog/visibility at runtime. AMER2 also uses **`0x0e`** at `(43,68)` as an isolated mountain peak marker (PHYS0 **32**).
+**Layer 3**: continent id (low nibble) / owner (high nibble) at runtime — never fog. AMER2 `(43,68)` carries `0x0e` because that one-tile island is continent 14; it is **not** a mountain marker (a former port hack drew PHYS0 32 there and painted lone peaks over every continent-14 tile in generated games — removed 2026-08-29).
 
 Each terrain byte (FreeCol `ColonizationMapLoader` / MAPEDIT):
 
@@ -235,7 +235,7 @@ Row `y=0` land tiles display as cleared tundra (sprite 0) with PHYS0 forest spri
 
 MAPEDIT immediates are **1-based** (`0x21`/`0x31`/`0x41` → indices 32/48/64). Debug atlas labels match these 0-based indices.
 
-Layer-3 `0x0e` on AMER2 `(43,68)` is a lone tundra peak drawn as isolated mountain **32** (no hill bit in the terrain byte).
+Hills/mountains come only from the terrain byte; layer 3 never contributes art (the old AMER2 `(43,68)` "lone peak" reading of layer-3 `0x0e` was a continent id).
 
 **Ocean estuaries.** Terrain index 25/26 with `terrain & 0xc0` marks river mouths; MAPEDIT blits IDs **141–148** → indices **140–147** toward land neighbours with bit `0x40`. See [decomp_inventory.md](decomp_inventory.md).
 

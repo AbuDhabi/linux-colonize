@@ -31,7 +31,6 @@
 #define PHYS0_ROAD_ISOLATED 80 /* no road/tribe-connected 8-neigh */
 #define PHYS0_ROAD_DIR0 81     /* +d for MAPEDIT 8-walk d=0..7 (N..NW) */
 #define PHYS0_PLOWED 149
-#define PHYS0_MOUNTAIN_ISOLATED 32 /* layer-3 arctic peak: isolated mountain */
 #define PHYS0_TUNDRA_CANOPY 64 /* isolated forest canopy on y=0 */
 #define PHYS0_LAND_TRANSITION_BASE 104 /* MAPEDIT 0x69+q − 1; N/E/S/W colour-0 masks */
 #define PHYS0_RESOURCE_BASE 89 /* MAPEDIT 0x5a + type − 1 */
@@ -482,11 +481,6 @@ static int phys0_connectivity_sprite(int base, uint8_t mask) {
 static unsigned map_resource_seed(const ColonizeWorldMap* map) {
   return (map && map->prime_resource_seed != 0) ? map->prime_resource_seed
                                                   : MAP_RESOURCE_SEED_DEFAULT;
-}
-
-static bool map_has_special_mountain_marker(const ColonizeWorldMap* map, int x, int y) {
-  /* AMER2 (43,68): layer3 0x0e marks an isolated mountain peak on tundra. */
-  return map_get_layer3(map, x, y) == 0x0eu;
 }
 
 /* MAPEDIT FUN_1a47_06da compare key: forests collapse to type & 7. */
@@ -1135,10 +1129,6 @@ int map_phys0_overlay_count(const ColonizeWorldMap* map, int x, int y) {
   const uint8_t terrain_byte = map_get_terrain(map, x, y);
   int count = map_phys0_coast_layer_count(map, x, y);
 
-  if (map_has_special_mountain_marker(map, x, y)) {
-    ++count;
-  }
-
   if (!map_is_ocean_index(map_decode_terrain_index(terrain_byte))) {
     if (map_byte_is_hill_or_mountain(terrain_byte)) {
       ++count;
@@ -1175,13 +1165,6 @@ int map_phys0_overlay_sprite_at(const ColonizeWorldMap* map, int x, int y, int l
 #endif
   }
   int feature_layer = coast_layers;
-
-  if (map_has_special_mountain_marker(map, x, y)) {
-    if (layer == feature_layer) {
-      return PHYS0_MOUNTAIN_ISOLATED;
-    }
-    ++feature_layer;
-  }
 
   if (!map_is_ocean_index(map_decode_terrain_index(terrain_byte))) {
     if (map_byte_is_hill_or_mountain(terrain_byte)) {
@@ -1249,13 +1232,6 @@ ColonizeMapOverlayKind map_phys0_overlay_kind_at(
     return MAP_OVERLAY_KIND_WATER;
   }
   int feature_layer = coast_layers;
-
-  if (map_has_special_mountain_marker(map, x, y)) {
-    if (layer == feature_layer) {
-      return MAP_OVERLAY_KIND_MOUNTAIN;
-    }
-    ++feature_layer;
-  }
 
   if (!map_is_ocean_index(map_decode_terrain_index(terrain_byte))) {
     if (map_byte_is_hill_or_mountain(terrain_byte)) {
@@ -1329,9 +1305,6 @@ void map_phys0_overlay_offset_at(
   }
   int feature_layer = coast_layers;
 
-  if (map_has_special_mountain_marker(map, x, y)) {
-    ++feature_layer;
-  }
   if (!map_is_ocean_index(map_decode_terrain_index(terrain_byte))) {
     if (map_byte_is_hill_or_mountain(terrain_byte)) {
       ++feature_layer;
@@ -1428,7 +1401,7 @@ int map_pedia_terrain_index_at(const ColonizeWorldMap* map, int x, int y) {
   }
   const uint8_t terrain_byte = map_get_terrain(map, x, y);
   const uint8_t overlay = map_terrain_overlay(terrain_byte);
-  if (overlay_is_mountain(overlay, terrain_byte) || map_has_special_mountain_marker(map, x, y)) {
+  if (overlay_is_mountain(overlay, terrain_byte)) {
     return 27;
   }
   if (overlay_is_hill(overlay, terrain_byte)) {
