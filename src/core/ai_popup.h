@@ -205,7 +205,7 @@ void ai_popup_consume_result(AiPopupState* st);
  */
 void ai_popup_set_portrait_source(const char* data_dir, const struct ColonizePalette* palette);
 /* Attach IND{tribe}A{tier} to the most recently enqueued request (no-op when
- * the queue is empty or tribe is outside 0..7). */
+ * the queue is empty or tribe > 7; tribe < 0 clears the portrait). */
 void ai_popup_set_last_portrait(AiPopupState* st, int tribe, int tier);
 /* FUN_15dc_00a2 alarm → portrait tier. */
 int ai_popup_portrait_tier_from_alarm(int alarm);
