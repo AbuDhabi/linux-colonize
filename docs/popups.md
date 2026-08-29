@@ -501,20 +501,20 @@ work.
 | `@CHIEFBORED` | Missing | chief portrait dialogs missing |
 | `@CHIEFKILL` | Missing | chief portrait dialogs missing |
 | `@KILLWAGONS` | Missing | chief portrait dialogs missing |
-| `@TRADE0` | Done (structural) | `2820` sell offer: Accept / fairer price / gift → `ai_contact_enqueue_trade_offer_round` (2026-08-27) |
-| `@TRADE1` | Done (structural) | `2820` sell counter-offer re-ask after a successful haggle (2026-08-27) |
-| `@BADCARGO` | Missing | deep village trade 2820 PARKED |
+| `@TRADE0` | Done (structural) | `2820` sell offer (any cargo, whole hold, NAMES `@VALUES` adjective): Accept / fairer price / gift / Never mind → `ai_contact_enqueue_trade_offer_round` (2026-08-29 rewrite) |
+| `@TRADE1` | Done (structural) | `2820` sell counter-offer re-ask after a successful haggle (3 options) (2026-08-27) |
+| `@BADCARGO` | Done (structural) | `2820` human gate: `last_bought == cargo` / `last_sold == cargo` / `ask[cargo] == 0` → refuse, names the three highest-ask goods (2026-08-29) |
 | `@BADHAGGLE0` | Done (structural) | `2820` sell-side patience exhausted → `sticky_trade_good = cargo`, alarm +tier/2+1 (2026-08-27) |
 | `@BADHAGGLE1` | Done (structural) | `2820` revisit gate `tribe+7 == cargo` → refuse line, no trade (2026-08-27); `0xfe` skips the buy offer silently |
 | `@BADHAGGLE2` | Done (structural) | `2820` buy-side haggle refusal → `ai_contact_2e92_haggle` (2026-08-27) |
 | `@BADHAGGLE3` | Missing | deep village trade 2820 PARKED |
-| `@BRING` | Missing | deep village trade 2820 PARKED |
+| `@BRING` | Done (structural) | `2820` `LAB_002e92` entry: sold good not in the top-2 asks (or empty-handed unit) → "we are in need of X and Y" (2026-08-29) |
 | `@DEFICIT` | Missing | deep village trade 2820 PARKED |
-| `@BUYWHICH` | Done (structural) | `2820` `LAB_002e92` human pick of 3 tribe goods → `ai_contact_enqueue_buywhich` (2026-08-27) |
+| `@BUYWHICH` | Done (structural) | `2820` `LAB_002e92` human pick of 3 tribe goods → `ai_contact_enqueue_buywhich`; only after a completed sale, qty = the sold hold's amount (2026-08-29) |
 | `@TRADEWHICH` | Missing | deep village trade 2820 PARKED |
-| `@BUY0` | Done (structural) | `2820` `LAB_002e92` Accept/"Never mind" at the tribe's price → `ai_contact_apply_buywhich`/`apply_buy0` (2026-08-27); Haggle arm PARKED |
+| `@BUY0` | Done (structural) | `2820` `LAB_002e92` Accept / fairer / Never mind → `ai_contact_apply_buywhich`/`apply_buy0`; treasury shown in the accept row (2026-08-29) |
 | `@BUY1` | Done (structural) | `2820` buy-side haggle re-ask (tag built at runtime `"BUY"+digit`) (2026-08-27) |
-| `@NOTENOUGH` | Done (structural) | `2820` `LAB_002e92` can't-afford line on Accept (2026-08-27) |
+| `@NOTENOUGH` | Done (structural) | `2820` `LAB_002e92` can't-afford line on Accept, alarm +1 (2026-08-29) |
 | `@LEARNMASTER` | Done thin | Already-expert learner refuse; `popup_msg_fill`; does not consume village one-shot |
 | `@LEARNCRIMINAL` | Partial | CONTACT_TEACH OK; not full LEARN scripts |
 | `@LEARNALREADY` | Partial | CONTACT_TEACH OK; not full LEARN scripts |
