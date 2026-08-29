@@ -1295,6 +1295,12 @@ static uint16_t ai_diplo_wartime_boycott_mask(void) {
                     AI_DIPLO_WAR_TOOLS_EMBARGO_BIT | AI_DIPLO_WAR_MUSKETS_EMBARGO_BIT);
 }
 
+/* Sound hook (unit tests build ai_diplo.c without sound.c). */
+static void (*g_ai_diplo_sound_play)(int id) = NULL;
+void ai_diplo_set_sound_hook(void (*play_fn)(int id)) {
+  g_ai_diplo_sound_play = play_fn;
+}
+
 void ai_diplo_declare_war_ctx(ColonizeTurnContext* ctx, int nation_a, int nation_b) {
   if (!ctx || !ctx->col1) {
     return;
@@ -1314,6 +1320,11 @@ void ai_diplo_declare_war_ctx(ColonizeTurnContext* ctx, int nation_a, int nation
   /* Franklin may no-op declare — only chrome when WAR actually stuck. */
   const int now_war = ai_diplo_at_war(ctx->col1, nation_a, nation_b);
   if (!already && now_war) {
+    if (human >= 0 && human < 4 && (nation_a == human || nation_b == human)) {
+      if (g_ai_diplo_sound_play) {
+        g_ai_diplo_sound_play(0x8020); /* FUN_5bfb_153e 5bfb:2c7c: war-declaration chord sting */
+      }
+    }
     ai_diplo_status_declare_war(ctx, nation_a, nation_b);
     /*
      * Wartime boycott human chrome (102a/1092 stand-in): prefer Sugar/Tobacco/

@@ -72,6 +72,8 @@ void units_set_combat_popups(AiPopupState* popups, const ColonizeMsgCatalog* gam
  */
 typedef void (*ColonizeSoundPlayFn)(int id);
 typedef int (*ColonizeSoundActiveIdFn)(void);
+/* 281f_0498 pool switch from combat (naval win/loss beats). */
+void units_set_bgm_hook(ColonizeSoundPlayFn set_bgm_fn);
 void units_set_combat_music_hooks(
   ColonizeSoundPlayFn play_fn, ColonizeSoundActiveIdFn active_id_fn
 );

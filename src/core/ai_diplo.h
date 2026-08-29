@@ -137,6 +137,7 @@ void ai_diplo_break_alliance(ColonizeCol1Save* col1, int nation_a, int nation_b)
  * prefer "Alliance with %s costs gold." when 25g drains. AI callers keep using
  * declare_war / make_peace / form_alliance / break_alliance without status.
  * FA 3f41 full UI PARKED. */
+void ai_diplo_set_sound_hook(void (*play_fn)(int id));
 void ai_diplo_declare_war_ctx(ColonizeTurnContext* ctx, int nation_a, int nation_b);
 
 /* Player-facing nation name (Col1 country_name if set, else "rival"). */
