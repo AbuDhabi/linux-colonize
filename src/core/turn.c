@@ -26,31 +26,21 @@ static void turn_set_active_nation(ColonizeTurnContext* ctx, int nation_id) {
 }
 
 /*
- * FUN_3844_00f2 per-unit fog reveal (281f_07a0 → 13f1_02f8). Radius 1 thin
- * (deep LOS PARKED). Also reveal own colonies radius 2 (Finish human chrome).
+ * FUN_3844_00f2 per-unit fog reveal (281f_07a0 → 13f1_02f8) for every unit of
+ * the nation, human and AI alike. No colony reveal here: DOS colonies only
+ * reveal once, ±5 at founding (colonies_reveal_founded).
  * Cite: nation_eot.c unit walk; game_loop human fog.
  */
 static void turn_reveal_fog_for_nation(ColonizeTurnContext* ctx, int nation_id) {
-  if (!ctx || !ctx->map || nation_id < 0) {
+  if (!ctx || !ctx->map || !ctx->units || nation_id < 0 || nation_id > 3) {
     return;
   }
-  if (ctx->units) {
-    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-      const ColonizeUnit* u = &ctx->units->units[i];
-      if (!u->active || u->nation_id != nation_id || !units_is_on_map(u)) {
-        continue;
-      }
-      units_reveal_sight(ctx->map, ctx->units, u, ctx->col1_ok ? ctx->col1 : NULL);
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    const ColonizeUnit* u = &ctx->units->units[i];
+    if (!u->active || u->nation_id != nation_id || !units_is_on_map(u)) {
+      continue;
     }
-  }
-  if (ctx->colonies) {
-    for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
-      const ColonizeColony* c = &ctx->colonies->colonies[i];
-      if (!c->active || c->nation_id != nation_id) {
-        continue;
-      }
-      map_reveal_radius(ctx->map, c->x, c->y, nation_id, 2);
-    }
+    (void)units_reveal_sight(ctx->map, ctx->units, ctx->colonies, u, ctx->col1_ok ? ctx->col1 : NULL);
   }
 }
 
@@ -2837,11 +2827,10 @@ bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ct
       if (ctx->units) {
         units_occupancy_rebuild(ctx->units); /* presence bits exact before this nation reads them */
       }
-      /*
-       * AI fog reveal (00f2 / 281f_07a0) PARKED for golden_ai_turns T2 —
-       * revealing rivals early changes found-tile / unit paths. Human FINISH
-       * still reveals. Cite: nation_eot.c; turn_between_players.md.
-       */
+      /* 00f2 unit walk: 281f_07a0 reveal precedes the per-unit ticks. */
+      if (n != ctx->human_nation) {
+        turn_reveal_fog_for_nation(ctx, n);
+      }
       if (ctx->units) {
         turn_refresh_moves_for_nation(
           ctx->units,

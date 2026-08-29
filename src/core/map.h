@@ -102,6 +102,29 @@ void map_reveal_radius(ColonizeWorldMap* map, int x, int y, int nation_id, int r
 void map_reveal_sight(
   ColonizeWorldMap* map, int x, int y, int nation_id, int radius, bool is_ship
 );
+/*
+ * Same walk as map_reveal_sight, but calls `fn(ctx, tx, ty, outer)` for every
+ * tile it reveals (after the seen bit is set). `outer` is FUN_13f1_0158's
+ * local_c: 0 inside the |dx|,|dy|<2 core, 1 on the domain-gated ring. Only
+ * inset tiles (FUN_137f_000a) are ever revealed; a rim centre reveals nothing.
+ */
+typedef void (*MapRevealTileFn)(void* ctx, int x, int y, bool outer);
+void map_reveal_sight_each(
+  ColonizeWorldMap* map,
+  int x,
+  int y,
+  int nation_id,
+  int radius,
+  bool is_ship,
+  MapRevealTileFn fn,
+  void* ctx
+);
+/*
+ * FUN_1427_0bfe: nation currently has a unit or a colony on one of the 8
+ * neighbours of (x,y) — occupancy bit + layer3 owner nibble, tile itself
+ * excluded. This is DOS "live sight" (unit vis bits, coastal fort targets).
+ */
+bool map_nation_watches_tile(const ColonizeWorldMap* map, int x, int y, int nation_id);
 void map_reveal_all(ColonizeWorldMap* map, int nation_id);
 /* Copy Col1 seen[] into map->seen (same byte layout). */
 void map_seen_from_col1(ColonizeWorldMap* map, const uint8_t* col1_seen, size_t count);

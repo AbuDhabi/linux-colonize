@@ -1165,6 +1165,123 @@ fail:
   return 1;
 }
 
+/*
+ * DOS fog model: FUN_13f1_0158 reveal marks unit vis bits (FUN_1427_09ac) and
+ * colony pop/fort snapshots (FUN_364b_1b4c); FUN_1427_0c9a/0968 reset a mover's
+ * mask to "tile owner | who watches the tile"; rim tiles never reveal.
+ */
+static int unit_fog_vis_mask_and_snapshot(void) {
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  char err[128];
+  if (!map_alloc(&map, 12, 12, err, sizeof(err))) {
+    fprintf(stderr, "fog: map_alloc failed: %s\n", err);
+    return 1;
+  }
+  for (int i = 0; i < 12 * 12; ++i) {
+    map.terrain[i] = 2;    /* plains */
+    map.layer3[i] = 0xf1;  /* unowned, continent 1 */
+  }
+  ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
+  units_reset(&units);
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Colonists");
+  units.type_count = 1;
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  units_set_occupancy_map(&map);
+
+  const int a = units_spawn(&units, 0, 3, 3);
+  const int b = units_spawn(&units, 0, 5, 5);
+  const int brave = units_spawn(&units, 0, 3, 5); /* outer ring of a's radius-2 sight */
+  units_set_nation(units_get(&units, a), 0);
+  units_set_nation(units_get(&units, b), 1);
+  units_set_nation(units_get(&units, brave), 6);
+  ColonizeColony* col = &colonies.colonies[0];
+  col->active = true;
+  col->id = 1;
+  col->nation_id = 2;
+  col->x = 4;
+  col->y = 3;
+  col->population = 5;
+  colonies.colony_count = 1;
+  units_occupancy_rebuild(&units);
+
+  /* Reveal radius 1 from a: b (5,5) is outside, colony (4,3) inside. */
+  (void)units_reveal_sight(&map, &units, &colonies, units_get(&units, a), NULL);
+  if ((units_get(&units, b)->col1_vis_mask & 1u) != 0) {
+    fprintf(stderr, "fog: unit outside sight got viewer bit\n");
+    return 1;
+  }
+  if (col->pop_on_map[0] != 5 || col->fort_on_map[0] != 0 || col->pop_on_map[1] != 0) {
+    fprintf(stderr, "fog: colony snapshot wrong (%d/%d/%d)\n", col->pop_on_map[0],
+            col->fort_on_map[0], col->pop_on_map[1]);
+    return 1;
+  }
+  if (colonies_known_to(col, 1, false) || !colonies_known_to(col, 0, false) ||
+      !colonies_known_to(col, 1, true)) {
+    fprintf(stderr, "fog: colonies_known_to gate wrong\n");
+    return 1;
+  }
+  /* Owner stamp: revealed unowned tile (2,2) now carries nation 0 (FUN_137f_0228). */
+  if (((map_get_layer3(&map, 2, 2) >> 4) & 0x0f) != 0) {
+    fprintf(stderr, "fog: reveal did not stamp owner nibble\n");
+    return 1;
+  }
+  /* Rim never reveals (FUN_137f_000a inset gate). */
+  if (map_tile_seen_by(&map, 0, 0, 0) && map_tile_seen_by(&map, 11, 11, 0)) {
+    fprintf(stderr, "fog: rim tile revealed\n");
+    return 1;
+  }
+
+  /* Outer ring (radius 2 via a fake Galleon-less path): use map_reveal_sight_each directly. */
+  map_reveal_sight(&map, 3, 3, 3, 2, false);
+  if (!map_tile_seen_by(&map, 3, 5, 3)) {
+    fprintf(stderr, "fog: same-continent land outer ring not revealed\n");
+    return 1;
+  }
+
+  /* Move b next to a: mask := watchers (nation 0 adjacent) | own bit. */
+  units_vis_mask_after_move(&units, &map, b, 4, 4);
+  const uint8_t mb = units_get(&units, b)->col1_vis_mask;
+  if ((mb & 1u) == 0 || (mb & 2u) == 0) {
+    fprintf(stderr, "fog: mask after move next to watcher = 0x%02x\n", mb);
+    return 1;
+  }
+  /* Move b away again: watcher bit drops, own bit stays. */
+  units_vis_mask_after_move(&units, &map, b, 8, 8);
+  const uint8_t mb2 = units_get(&units, b)->col1_vis_mask;
+  if ((mb2 & 1u) != 0 || (mb2 & 2u) == 0) {
+    fprintf(stderr, "fog: mask after move away = 0x%02x\n", mb2);
+    return 1;
+  }
+  if (!units_nation_sees_tile_now(&units, &colonies, 2, 5, 4) ||
+      units_nation_sees_tile_now(&units, &colonies, 2, 7, 7)) {
+    fprintf(stderr, "fog: colony live sight radius wrong\n");
+    return 1;
+  }
+
+  /* Founding reveal: ±5 for the founder, seeds pop_on_map=1 on unseen colonies. */
+  ColonizeColony* col2 = &colonies.colonies[1];
+  col2->active = true;
+  col2->id = 2;
+  col2->nation_id = 3;
+  col2->x = 8;
+  col2->y = 8;
+  colonies.colony_count = 2;
+  colonies_reveal_founded(&map, &colonies, 2);
+  if (!map_tile_seen_by(&map, 3, 3, 3) || map_tile_seen_by(&map, 1, 9, 3) ||
+      col->pop_on_map[3] != 1 || col2->pop_on_map[3] != 1) {
+    fprintf(stderr, "fog: founding reveal/seed wrong\n");
+    return 1;
+  }
+
+  units_set_occupancy_map(NULL);
+  map_free(&map);
+  fprintf(stderr, "fog vis mask / snapshot ok\n");
+  return 0;
+}
+
 int main(void) {
   diag_init(0, NULL);
 
@@ -1204,6 +1321,10 @@ int main(void) {
     return 1;
   }
   if (unit_sea_lane_entry() != 0) {
+    diag_shutdown();
+    return 1;
+  }
+  if (unit_fog_vis_mask_and_snapshot() != 0) {
     diag_shutdown();
     return 1;
   }

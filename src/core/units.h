@@ -473,11 +473,36 @@ bool units_is_sea(const ColonizeUnitPool* pool, int unit_id);
 int units_sight_radius(
   const ColonizeUnitPool* pool, const ColonizeUnit* u, const ColonizeCol1Save* col1
 );
-void units_reveal_sight(
+/*
+ * FUN_13f1_02f8 → 0158 unit sight reveal with the DOS per-tile side effects
+ * (FUN_13f1_000a): seen bit; unowned non-rumour tiles get the nation's owner
+ * nibble (FUN_137f_0228); units on the tile get this nation's vis bit
+ * (FUN_1427_09ac — natives only inside the |d|<2 core); a colony on the tile
+ * gets its pop/fort snapshot (FUN_364b_1b4c). colonies / col1 may be NULL.
+ * Returns true when the core ring touched a Pacific-strip water tile
+ * (FUN_13f1_0158 DS:0x1e8 arm) — caller decides on the woodcut.
+ */
+bool units_reveal_sight(
   ColonizeWorldMap* map,
-  const ColonizeUnitPool* pool,
+  ColonizeUnitPool* pool,
+  ColonizeColonyPool* colonies,
   const ColonizeUnit* u,
   const ColonizeCol1Save* col1
+);
+/*
+ * FUN_1427_0c9a: vis mask a unit of mover_nation acquires by standing on
+ * (x,y): tile owner nibble's bit (Euro movers only) | every nation watching
+ * the tile (map_nation_watches_tile). Low-nibble form (1<<nation).
+ */
+uint8_t units_vis_mask_for_tile(const ColonizeWorldMap* map, int x, int y, int mover_nation);
+/*
+ * Move commit (FUN_465b_0000 / 48d3): FUN_1427_0968 clears the mover's (and
+ * its cargo's) vis bits, then FUN_1427_0ce6 + 07fe OR the tile mask back in.
+ * The mover's own bit is kept — DOS re-adds it through the reveal that
+ * always follows a move (own tile is in the sight core).
+ */
+void units_vis_mask_after_move(
+  ColonizeUnitPool* pool, const ColonizeWorldMap* map, int unit_id, int x, int y
 );
 /* Live ships of one nation (DOS -0x6be8 ship_counts[nation] equivalent). */
 int units_count_sea_for_nation(const ColonizeUnitPool* pool, int nation_id);
@@ -1172,12 +1197,9 @@ int units_top_on_map_tile(
 );
 
 /*
- * bugs.md: "your units/colonies need to have sight of the tiles for you to
- * detect AI movements, even if those tiles aren't under fog of war." Live
- * sight, not the permanent explored/fog flag: true if any active on-map
- * unit of nation_id is within Chebyshev 1 of (x,y), or any active colony of
- * nation_id is within Chebyshev 2 — same radii map_reveal_radius uses to
- * grow the permanent explored set in the first place.
+ * FUN_1427_0bfe live sight: true if nation_id has an on-map unit or a colony
+ * on one of the 8 neighbours of (x,y) (the tile itself excluded). Pool /
+ * colony based; map_nation_watches_tile is the occupancy-bit form.
  */
 bool units_nation_sees_tile_now(
   const ColonizeUnitPool* pool,

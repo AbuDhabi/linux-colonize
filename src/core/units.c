@@ -1041,16 +1041,112 @@ int units_sight_radius(
   return radius;
 }
 
-void units_reveal_sight(
-  ColonizeWorldMap* map, const ColonizeUnitPool* pool, const ColonizeUnit* u,
+typedef struct UnitsRevealCtx {
+  ColonizeWorldMap* map;
+  ColonizeUnitPool* pool;
+  ColonizeColonyPool* colonies;
+  int nation;
+  bool pacific;
+} UnitsRevealCtx;
+
+/* FUN_13f1_000a tail: owner stamp, unit vis bits, colony snapshot. */
+static void units_reveal_tile_effects(void* vctx, int x, int y, bool outer) {
+  UnitsRevealCtx* ctx = (UnitsRevealCtx*)vctx;
+  ColonizeWorldMap* map = ctx->map;
+  if (!outer && !ctx->pacific && map->layer2 &&
+      (map_tile_is_water(map, x, y) || map_tile_is_high_seas(map, x, y)) &&
+      (map->layer2[y * map->width + x] & MAP_LAYER2_PACIFIC) != 0) {
+    ctx->pacific = true;
+  }
+  if (map->layer3) {
+    const int owner = (map_get_layer3(map, x, y) >> 4) & 0x0f;
+    /* FUN_137f_0200 < 0 (nibble 0xf) and not a rumour spot (FUN_137f_0598). */
+    if (owner == 0x0f && !map_tile_has_rumour(map, x, y)) {
+      units_map_set_owner_nibble(map, x, y, ctx->nation);
+    }
+  }
+  const uint8_t bit = (uint8_t)(1u << (ctx->nation & 3));
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    ColonizeUnit* o = &ctx->pool->units[i];
+    if (!units_is_on_map(o) || o->x != x || o->y != y) {
+      continue;
+    }
+    /* Outer ring only marks European units (FUN_13f1_000a `param_1 == 0 || owner < 4`). */
+    if (outer && (o->nation_id < 0 || o->nation_id > 3)) {
+      continue;
+    }
+    o->col1_vis_mask = (uint8_t)(o->col1_vis_mask | bit);
+  }
+  if (ctx->colonies) {
+    const int cid = colonies_id_at(ctx->colonies, x, y);
+    if (cid >= 0) {
+      colonies_fog_snapshot(ctx->colonies, cid, ctx->nation);
+    }
+  }
+}
+
+bool units_reveal_sight(
+  ColonizeWorldMap* map,
+  ColonizeUnitPool* pool,
+  ColonizeColonyPool* colonies,
+  const ColonizeUnit* u,
   const ColonizeCol1Save* col1
 ) {
   if (!map || !pool || !u || !units_is_on_map(u) || u->nation_id < 0 || u->nation_id > 3) {
+    return false;
+  }
+  UnitsRevealCtx ctx = {map, pool, colonies, u->nation_id, false};
+  map_reveal_sight_each(
+    map,
+    u->x,
+    u->y,
+    u->nation_id,
+    units_sight_radius(pool, u, col1),
+    units_unit_is_sea(pool, u),
+    units_reveal_tile_effects,
+    &ctx
+  );
+  return ctx.pacific;
+}
+
+uint8_t units_vis_mask_for_tile(const ColonizeWorldMap* map, int x, int y, int mover_nation) {
+  uint8_t mask = 0;
+  if (!map) {
+    return 0;
+  }
+  if (mover_nation >= 0 && mover_nation < 4 && map->layer3 && x >= 0 && y >= 0 &&
+      x < map->width && y < map->height) {
+    const int owner = (map_get_layer3(map, x, y) >> 4) & 0x0f;
+    if (owner < 4) { /* 0x10 << nibble, byte-truncated: nibbles ≥ 4 contribute nothing */
+      mask = (uint8_t)(mask | (1u << owner));
+    }
+  }
+  for (int n = 0; n < 4; ++n) {
+    if (map_nation_watches_tile(map, x, y, n)) {
+      mask = (uint8_t)(mask | (1u << n));
+    }
+  }
+  return mask;
+}
+
+void units_vis_mask_after_move(
+  ColonizeUnitPool* pool, const ColonizeWorldMap* map, int unit_id, int x, int y
+) {
+  ColonizeUnit* u = units_get(pool, unit_id);
+  if (!u || !u->active) {
     return;
   }
-  map_reveal_sight(
-    map, u->x, u->y, u->nation_id, units_sight_radius(pool, u, col1), units_unit_is_sea(pool, u)
-  );
+  uint8_t mask = units_vis_mask_for_tile(map, x, y, u->nation_id);
+  if (u->nation_id >= 0 && u->nation_id < 4) {
+    mask = (uint8_t)(mask | (1u << (u->nation_id & 3)));
+  }
+  u->col1_vis_mask = mask;
+  for (int i = 0; i < u->cargo_count; ++i) {
+    ColonizeUnit* pax = units_get(pool, u->cargo_ids[i]);
+    if (pax && pax->active) {
+      pax->col1_vis_mask = mask;
+    }
+  }
 }
 
 int units_count_sea_for_nation(const ColonizeUnitPool* pool, int nation_id) {
@@ -1268,6 +1364,13 @@ void units_occupancy_notify_moved(ColonizeUnitPool* pool, int old_x, int old_y, 
   }
   if (new_x >= 0 && new_y >= 0 && new_x < 200 && new_y < 200) {
     units_occupancy_refresh_tile(pool, new_x, new_y, -1);
+    /* AI teleport/step movers: same vis reset as units_try_move, for the whole arriving stack. */
+    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+      const ColonizeUnit* u = &pool->units[i];
+      if (units_is_on_map(u) && u->aboard_ship_id < 0 && u->x == new_x && u->y == new_y) {
+        units_vis_mask_after_move(pool, g_units_occupancy_map, u->id, new_x, new_y);
+      }
+    }
   }
 }
 
@@ -3196,7 +3299,7 @@ bool units_resolve_lcr_rumour(
     founding_fathers_de_soto_lcr_always_positive(col1, nation);
   /* Sight around the explorer: the per-move FUN_13f1_02f8 radius (de Soto's
    * extended sight lives in units_sight_radius, not in the LCR tail). */
-  units_reveal_sight(map, pool, u, col1);
+  (void)units_reveal_sight(map, pool, NULL, u, col1);
 
   /*
    * Explorer skill tier (decomp local_36, viceroy:103450-103458): Scout
@@ -4859,6 +4962,7 @@ bool units_try_move(
   }
   units_occupancy_refresh_tile(pool, ox, oy, unit_id);
   units_occupancy_refresh_tile(pool, dest_x, dest_y, -1);
+  units_vis_mask_after_move(pool, map, unit_id, dest_x, dest_y);
 
   /* Sentry land units on the departure tile auto-board (colony / ocean stack). */
   if (units_is_sea(pool, unit_id)) {
@@ -7786,6 +7890,9 @@ bool units_nation_sees_tile_now(
     if (!units_is_on_map(u) || u->nation_id != nation_id) {
       continue;
     }
+    if (u->aboard_ship_id >= 0) {
+      continue; /* only the carrier sets the tile's presence bit */
+    }
     if (abs(u->x - x) <= 1 && abs(u->y - y) <= 1) {
       return true;
     }
@@ -7796,7 +7903,7 @@ bool units_nation_sees_tile_now(
       if (!c->active || c->nation_id != nation_id) {
         continue;
       }
-      if (abs(c->x - x) <= 2 && abs(c->y - y) <= 2) {
+      if (abs(c->x - x) <= 1 && abs(c->y - y) <= 1) { /* FUN_137f_0358 neighbour walk */
         return true;
       }
     }
@@ -7862,13 +7969,13 @@ void units_render_on_map(
       continue;
     }
     /*
-     * bugs.md: a foreign unit only draws while a live friendly unit/colony
-     * currently has sight of its tile — explored-but-unwatched ground shows
-     * terrain (fog_map check above) but not who's moving on it now. Own
-     * units are never gated (you always know where your own units are).
+     * DOS map draw (FUN_2f2b_6372): a unit shows only while the viewer's vis
+     * bit is set on it — set when the viewer's sight reveals its tile, reset
+     * to "who watches this tile" on every move. Explored-but-unwatched ground
+     * shows terrain (fog_map check above) but not who's moving on it now.
      */
-    if (top->nation_id != fog_nation &&
-        !units_nation_sees_tile_now(pool, colonies, fog_nation, top->x, top->y)) {
+    if (top->nation_id != fog_nation && fog_nation >= 0 && fog_nation <= 3 &&
+        (top->col1_vis_mask & (1u << fog_nation)) == 0) {
       continue;
     }
 

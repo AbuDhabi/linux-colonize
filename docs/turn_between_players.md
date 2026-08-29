@@ -140,7 +140,7 @@ Major thunks (catalog):
 | EURO treasure | `3844_0004` | `units_tick_treasure_outside_colony` | **Partial** |
 | EURO ship-build ready | `00f2` unit walk | `units_tick_ship_build_ready` | **Partial** — progress/clear construction bit7 + threshold=`defense`/`0x5235` **Done** thin; dialog chrome PARKED |
 | EURO Drydock repair | colony EOT | `units_tick_drydock_repair` | **Done** — clears combat-damage bit7 on finished ships at own Drydock; `@REFIT` chrome Done thin; after ship-build tick |
-| EURO fog reveal | `281f_07a0` in `00f2` | `turn_reveal_fog_for_nation` | **Partial** — human FINISH **Done** thin; AI EURO PARKED (T2 golden) |
+| EURO fog reveal | `281f_07a0` in `00f2` | `turn_reveal_fog_for_nation` | **Done** — every Euro nation's unit walk (human at FINISH, AI at its EURO step), full `13f1_0158` side effects via `units_reveal_sight`; colony radius-2 invention removed (DOS reveals ±5 only at founding) |
 | EURO AI | `521d_6d8e` after `00f2` | `ai_euro_nation_turn` | **Partial structural** (T2 early; deep `20e6` mapped/PARKED) |
 | INDIAN | `4d56_1b3a` mid-pass → `1816(slot)` ×8 | `ai_indian_nation_turn` | **Partial structural** — [`mid_pass_indian_rank.md`](../original_sources_annotated/turn/mid_pass_indian_rank.md); Euro rank `5bfb_00f8` **Done** thin |
 | FINISH king | `43f7_2424` in `00f2` | `ai_king_nation_turn` | **Partial structural** |
@@ -201,7 +201,7 @@ broke the Dutch TURN2→3 first contact).
   under `original_sources_annotated/ai/`; Linux port still PARKED (unpark #4).
 - **Nation EOT arms**: ship-build ready (`defense`/`0x5235` combat) + §C Merc
   (+`48d3_0002` duration) **Done** thin; live census colony+unit tallies
-  **Done** thin; AI fog PARKED (T2).
+  **Done** thin; AI fog reveal **Done** (2026-08-29).
 - **Deep-map pass (docs):** `0688` F–H/K/O–P, `5e52`/`0058` interiors,
   [`coastal_fort_fire.md`](../original_sources_annotated/turn/coastal_fort_fire.md)
   ([combat.md](combat.md) player-facing summary),
