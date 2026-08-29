@@ -1126,7 +1126,7 @@ Deep `2820` (village trade/haggle) and `4528` (deep settlement battle) PARK.
   Port: `AiPopupRequest.portrait_tribe/tier`, lazy per-sheet cache remapped
   onto the game palette (`ai_popup.c`), figure drawn full-height left of the
   dialog with the pair centred; attached in `ai_contact_human_chrome` for
-  every tribe-addressed popup. Layout exactness (DOS x/y) stays D4.
+  every tribe-addressed popup. Placement made DOS-exact with P11.3 (same day): side by tribe, frame spans sprite + dialog.
 - [ ] **P8.7 [user]** Contact flow review with the user on a fresh game.
 - [x] **P8.8 [auto] — done 2026-08-28 (static).** The meet menu is now
   DOS's real `NAMES.TXT` `@ACTIONS` list with the real per-unit gating
@@ -1294,15 +1294,26 @@ mostly in contact (`@LEARN*`, `@RAID*`, `@CHIEF*`), Europe
   status line again (`turn.c` FINISH, one `if`). **"HELLO attitude"
   is the same Euro-rival first-contact greeting gap found under P8.2**,
   not an Indian-attitude thing — see that row.
-- [ ] **P11.3 [auto]** **2026-08-29: blocked on the decompile, not on
-  effort.** The three functions this row names are thin thunks (`36ca` =
-  string measure via `291f_0182`, `3760` = set `DS:0x1f5c`, `3848` = a
-  file read); the real dialog layout is `6f74_2580` → `7b29_44f2` (portrait
-  slot), `7b29_4572`/`459c`, `7b29_45c6` (text/height pass) — and segment
-  `7b29` has no definitions in any of the three decompile exports (call
-  sites only). Needs a fresh Ghidra export of that overlay before wrap/
-  height can be ported; the P8.6 portrait placement (left of dialog, pair
-  centred) is likewise a placeholder until `7b29_44f2` is readable. Layout: popup width/height/wrap rules from the
+- [x] **P11.3 [auto] — closed 2026-08-29, static.** The three cited
+  functions are thin thunks; the real compositor is `FUN_6f74_14c6` (rects)
+  + `FUN_6f74_1198` (wrap) with defaults from `FUN_6f74_06d0`. (Ghidra's
+  `FUN_7b29_44f2/4572/45c6/47ec` are wrapped near calls from `6f74` — `e8
+  da0d` from `6f74:2635` lands on `6f74:0042` — i.e. `6f74_0042/00c2/0116/
+  033c`; the "unmapped-region" rows in `address_mapping.csv` are that
+  mislabel, not a missing overlay.) Rules ported into `ai_popup_render`:
+  content width = `@WIDTH` (default 80), text wraps in `width − 4`
+  (margin `+0x48` = 2), frame adds 3 px per side, line pitch = glyph height
+  + 1 with the 6-px font counted as 5 (`FUN_6f74_0f16`, unless
+  `@SMALLFONT`), outer height = text + 12, centred at (160 − w/2, 100 −
+  h/2) and clamped. Portrait rule (`DS:0x1f5c ≥ 0`): sprite at the frame
+  edge, LEFT for tribes 0/3/5/7 + King (8), RIGHT otherwise; frame widens
+  by `sprite_w + 6`, content shifts by `sprite_w + 3`, sprite top =
+  `100 − (sprite_h + 3)/2`, frame grows to the union — P8.6 placement is
+  now the DOS one. Linux-only extras kept: the title line and the
+  choice-row highlight. Thin spot: Linux `font->max_height` vs DOS font
+  byte 0 assumed equal; word width = `font_text_width` vs DOS `6f74_0538`
+  (per-glyph `281f_01fa` widths + `{`/`}`/`~` markup) — same asset, so
+  expected equal. [user] P11.5 eyeball still owed. Layout: popup width/height/wrap rules from the
   `6f74` compositor (`FUN_6f74_36ca`/`3760`/`3848`) so multi-line bodies and
   CHOICE lists size like DOS — content correctness only; wood-frame pixel
   chrome is D4. **Confirmed real 2026-08-26, not fixed this pass —
