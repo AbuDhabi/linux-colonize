@@ -56,6 +56,26 @@ void ai_euro_nation_turn(ColonizeTurnContext* ctx, int nation_id);
 /* One native nation (4..11): village growth + DOS Brave pulse + contact/raids. */
 void ai_indian_nation_turn(ColonizeTurnContext* ctx, int nation_id);
 
+/*
+ * FUN_4cc6_03f8 (via FUN_281f_0316): which European nation this settlement
+ * feels most threatened by, and how strongly. Returns the nation 0..3, or -1
+ * when nothing scores; *out_score (optional) gets the threat score.
+ *
+ * Two consumers, as in DOS: the per-turn village tick, which turns the score
+ * into settlement alarm, and the map chrome (FUN_112b_0790), which draws
+ * `score/4 + 1` exclamation marks over the village. Cheap enough to call per
+ * visible village per frame — it walks a 20-tile ring and the colony list.
+ */
+int ai_indian_village_threat(
+  const ColonizeCol1Save* col1,
+  const ColonizeWorldMap* map,
+  const ColonizeUnitPool* pool,
+  const ColonizeColonyPool* colonies,
+  int human_nation,
+  int tribe_index,
+  int* out_score
+);
+
 /* King / tax / REF / independence phase (replaces turn_run_king_stub body). */
 void ai_king_nation_turn(ColonizeTurnContext* ctx);
 

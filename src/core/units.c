@@ -7948,6 +7948,22 @@ int units_map_sprite(const ColonizeUnitPool* pool, int unit_id) {
     return (unit->profession == UNITS_JOB_PIONEER) ? UNITS_ICON_HARDY_PIONEER
                                                   : UNITS_ICON_PIONEER;
   }
+  /*
+   * bugs.md: an Indian Convert drew as a plain Free Colonist out on the map
+   * while the colony screen showed it properly. DOS has one icon rule for
+   * both — FUN_112b_0060 routes *every* @UNIT type 0 (Colonists) unit through
+   * FUN_112b_0002(profession), whose jump table sends profession 0x1b to icon
+   * 0x43, i.e. this port's sprite 66, the same one units_job_icon_sprite
+   * already returns. The equipment cases above stand in for DOS's own
+   * type != 0 overrides (Pioneers/Soldiers/Scouts/Dragoons are distinct unit
+   * types there, equipment on a colonist here), so they still come first.
+   */
+  if (type->name[0] && strstr(type->name, "Colonist") != NULL) {
+    const int by_job = units_job_icon_sprite(unit->profession);
+    if (by_job >= 0) {
+      return by_job;
+    }
+  }
   return type->icon_sprite;
 }
 

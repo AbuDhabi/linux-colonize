@@ -5635,6 +5635,65 @@ int main(void) {
     col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
     const uint8_t rel_before_accept = ai_diplo_indian_relation(&col1, 4 + (0), 0);
 
+    /*
+     * bugs.md: the offer row is "We offer you {%NUMBER0} of our {%NUMBER1
+     * food}" and used to render 0 for both. Drive the trigger until it fires
+     * and check the row names the real quarter-share and the real store.
+     */
+    {
+      ColonizeMsgCatalog beg_txt;
+      assets_msg_init(&beg_txt);
+      if (!assets_msg_load_file(&beg_txt, "COLONIZE/GAME.TXT")) {
+        return fail("BEGFOOD offer: GAME.TXT load");
+      }
+      const ColonizeMsgCatalog* saved_msgs = ctx.messages;
+      ColonizeDosRng* saved_rng = ctx.rng;
+      ctx.messages = &beg_txt;
+      ColonizeDosRng beg_rng;
+      int found = -1;
+      for (unsigned seed = 1u; seed <= 400u && found < 0; ++seed) {
+        dos_rng_seed(&beg_rng, seed);
+        ctx.rng = &beg_rng;
+        ai_popup_clear(&pop);
+        colonies.colonies[0].stock[COLONIZE_CARGO_FOOD] = 100;
+        ai_contact_try_village_beg_food(&ctx, 4);
+        for (int i = 0; i < pop.queue_count; ++i) {
+          if (pop.queue[i].tag == AI_POPUP_TAG_CONTACT_BEGFOOD &&
+              pop.queue[i].kind == AI_POPUP_KIND_CHOICE) {
+            found = i;
+            break;
+          }
+        }
+      }
+      if (found < 0) {
+        assets_msg_free(&beg_txt);
+        return fail("BEGFOOD offer should fire for some seed");
+      }
+      int names_amount = 0;
+      for (int ci = 0; ci < pop.queue[found].choice_count; ++ci) {
+        const char* row = pop.queue[found].choices[ci];
+        if (strstr(row, "offer") && strstr(row, "25") && strstr(row, "100")) {
+          names_amount = 1;
+        }
+        if (strstr(row, "offer") && (strstr(row, " 0 ") || strstr(row, "%NUMBER"))) {
+          fprintf(stderr, "unit_ai_contact: BEGFOOD row '%s'\n", row);
+          assets_msg_free(&beg_txt);
+          return fail("BEGFOOD offer must not ask for 0 food or leak a raw token");
+        }
+      }
+      if (!names_amount) {
+        for (int ci = 0; ci < pop.queue[found].choice_count; ++ci) {
+          fprintf(stderr, "unit_ai_contact: BEGFOOD row '%s'\n", pop.queue[found].choices[ci]);
+        }
+        assets_msg_free(&beg_txt);
+        return fail("BEGFOOD offer row should name 25 of 100 food");
+      }
+      assets_msg_free(&beg_txt);
+      ctx.messages = saved_msgs;
+      ctx.rng = saved_rng;
+      colonies.colonies[0].stock[COLONIZE_CARGO_FOOD] = 100;
+    }
+
     ai_popup_clear(&pop);
     pop.has_result = true;
     pop.result_cancelled = false;

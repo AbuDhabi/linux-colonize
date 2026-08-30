@@ -2493,12 +2493,6 @@ static int ai_indian_152e_spawn_colonist_stub(
   return -1;
 }
 
-static bool ai_indian_152e_ff_bit_stub(
-  const ColonizeTurnContext* ctx,
-  int euro_nation,
-  int ff_index
-);
-
 /*
  * FUN_281f_0316 -> FUN_4cc6_03f8 (viceroy_unpacked.c:80991): which European
  * nation this settlement feels most threatened by, and how strongly. Ported
@@ -2538,15 +2532,25 @@ static bool ai_indian_152e_ff_bit_stub(
  * Finally the village's own mission rescales the winner: owned by the threat
  * nation → ×3/4 plain, ×1/2 Jesuit; owned by a rival → ×3/2 plain, ×2 Jesuit.
  */
-static int ai_indian_152e_best_threat_nation_stub(
-  const ColonizeTurnContext* ctx,
-  const ColonizeCol1Tribe* t,
+int ai_indian_village_threat(
+  const ColonizeCol1Save* col1,
+  const ColonizeWorldMap* map,
+  const ColonizeUnitPool* pool,
+  const ColonizeColonyPool* colonies,
+  int human_nation,
+  int tribe_index,
   int* out_score
 ) {
-  *out_score = 0;
-  if (!ctx || !t || !ctx->col1_ok || !ctx->col1 || !ctx->colonies || !ctx->map) {
+  if (out_score) {
+    *out_score = 0;
+  }
+  if (!col1 || !map || !colonies || !col1->tribe) {
     return -1;
   }
+  if (tribe_index < 0 || tribe_index >= (int)col1->head.tribe_count) {
+    return -1;
+  }
+  const ColonizeCol1Tribe* t = &col1->tribe[tribe_index];
 
   /* DS:0xc8 / DS:0xde — the 20-tile ring the threat scan walks. */
   static const int k_ring_dx[20] = {0, 1, 0, -1, -1, 1, 1, -1, 0, 2,
@@ -2556,61 +2560,85 @@ static int ai_indian_152e_best_threat_nation_stub(
 
   const int vx = (int)t->x;
   const int vy = (int)t->y;
-  const int village_continent = map_continent_id_at(ctx->map, vx, vy);
+  const int village_continent = map_continent_id_at(map, vx, vy);
 
   int pressure[4] = {0, 0, 0, 0};
-  if (ctx->units) {
+  if (pool) {
+    /*
+     * One pass over the unit pool bucketed into the ring, rather than 20
+     * passes: this runs per visible village per frame for the map chrome.
+     * `first` is the tile's leading unit whatever its nation — DOS reads the
+     * head of the tile's unit list and abandons the tile when it is not a
+     * European's (`(unit.nation & 0xf) < 4`).
+     */
+    signed char in_ring[5][5];
+    memset(in_ring, 0, sizeof(in_ring));
     for (int i = 0; i < 20; ++i) {
+      in_ring[k_ring_dy[i] + 2][k_ring_dx[i] + 2] = 1;
+    }
+    int first[5][5];
+    int score[5][5];
+    for (int ry = 0; ry < 5; ++ry) {
+      for (int rx = 0; rx < 5; ++rx) {
+        first[ry][rx] = -1;
+        score[ry][rx] = 0;
+      }
+    }
+    for (int ui = 0; ui < COLONIZE_UNITS_MAX; ++ui) {
+      const ColonizeUnit* u = &pool->units[ui];
+      if (!u->active || !units_is_on_map(u)) {
+        continue;
+      }
+      const int rx = u->x - vx + 2;
+      const int ry = u->y - vy + 2;
+      if (rx < 0 || rx > 4 || ry < 0 || ry > 4 || !in_ring[ry][rx]) {
+        continue;
+      }
+      if (first[ry][rx] < 0) {
+        first[ry][rx] = u->nation_id;
+      }
+      if (u->nation_id < 0 || u->nation_id > 3 || units_is_sea(pool, u->id)) {
+        continue;
+      }
+      const ColonizeUnitType* ty_def = units_type(pool, u->type_index);
+      if (ty_def && ty_def->attack > 1) {
+        score[ry][rx] += ty_def->attack;
+      }
+    }
+    for (int i = 0; i < 20; ++i) {
+      const int rx = k_ring_dx[i] + 2;
+      const int ry = k_ring_dy[i] + 2;
+      const int owner = first[ry][rx];
+      int s = score[ry][rx];
+      if (owner < 0 || owner > 3 || s <= 0) {
+        continue;
+      }
       const int tx = vx + k_ring_dx[i];
       const int ty = vy + k_ring_dy[i];
-      if (!map_coords_inset(ctx->map, tx, ty) || map_tile_is_water(ctx->map, tx, ty)) {
+      if (!map_coords_inset(map, tx, ty) || map_tile_is_water(map, tx, ty)) {
         continue;
       }
-      int owner = -1;
-      int score = 0;
-      for (int ui = 0; ui < COLONIZE_UNITS_MAX; ++ui) {
-        const ColonizeUnit* u = &ctx->units->units[ui];
-        if (!u->active || !units_is_on_map(u) || u->x != tx || u->y != ty) {
-          continue;
-        }
-        if (u->nation_id < 0 || u->nation_id > 3) {
-          continue;
-        }
-        if (owner < 0) {
-          owner = u->nation_id; /* DOS keys the tile off its first unit's owner */
-        }
-        if (units_is_sea(ctx->units, u->id)) {
-          continue;
-        }
-        const ColonizeUnitType* ty_def = units_type(ctx->units, u->type_index);
-        if (ty_def && ty_def->attack > 1) {
-          score += ty_def->attack;
-        }
-      }
-      if (owner < 0 || score <= 0) {
-        continue;
-      }
-      if (map_tile_tribe_or_presence(ctx->map, tx, ty) >= 0) {
-        score >>= 1;
+      if (map_tile_tribe_or_presence(map, tx, ty) >= 0) {
+        s >>= 1;
       }
       const int adx = k_ring_dx[i] < 0 ? -k_ring_dx[i] : k_ring_dx[i];
       const int ady = k_ring_dy[i] < 0 ? -k_ring_dy[i] : k_ring_dy[i];
       if (adx >= 2 || ady >= 2) {
-        score >>= 1;
+        s >>= 1;
       }
-      pressure[owner] += score;
+      pressure[owner] += s;
     }
   }
 
   const int indian_idx = (int)t->nation_id - 4;
   const int capitol_x =
-    (indian_idx >= 0 && indian_idx < 8) ? (int)ctx->col1->indian[indian_idx].capitol_x : 0;
-  const int difficulty = (int)ctx->col1->head.difficulty;
+    (indian_idx >= 0 && indian_idx < 8) ? (int)col1->indian[indian_idx].capitol_x : 0;
+  const int difficulty = (int)col1->head.difficulty;
 
   int best_score = 0;
   int best_nation = -1;
   for (int ci = 0; ci < COLONIZE_COLONIES_MAX; ++ci) {
-    const ColonizeColony* c = &ctx->colonies->colonies[ci];
+    const ColonizeColony* c = &colonies->colonies[ci];
     if (!c->active || c->nation_id < 0 || c->nation_id > 3) {
       continue;
     }
@@ -2618,9 +2646,8 @@ static int ai_indian_152e_best_threat_nation_stub(
     if (d >= 7) {
       continue;
     }
-    const int human = (ctx->human_nation >= 0 && ctx->human_nation <= 3)
-                        ? (c->nation_id == ctx->human_nation)
-                        : 0;
+    const int human =
+      (human_nation >= 0 && human_nation <= 3) ? (c->nation_id == human_nation) : 0;
     int mul = 1;
     int div = 1;
     int diff_term = 0;
@@ -2652,16 +2679,15 @@ static int ai_indian_152e_best_threat_nation_stub(
       (capped_pop - pop) * -2 + cap_term + capped_pop + diff_term + ((buildings - 8) >> 2);
     int score = ((base * 2 - d) - 1) / (d + 4);
 
-    if (map_continent_id_at(ctx->map, c->x, c->y) != village_continent) {
+    if (map_continent_id_at(map, c->x, c->y) != village_continent) {
       score >>= 1;
     }
     score += pressure[c->nation_id];
     if (c->nation_id == 1) {
       score >>= 1; /* French: half the native alarm everyone else earns */
     }
-    if (ai_indian_152e_ff_bit_stub(ctx, c->nation_id, 0x10)) {
-      score >>= 1;
-    }
+    /* FUN_281f_07b4(nation, 0x10) — the unresolved FF/feature bit test, false
+     * project-wide (see ai_indian_152e_ff_bit_stub); its halving is inert. */
     if (score > best_score) {
       best_score = score;
       best_nation = c->nation_id;
@@ -2680,8 +2706,26 @@ static int ai_indian_152e_best_threat_nation_stub(
       best_score = jesuit ? (best_score << 1) : (best_score + (best_score >> 1));
     }
   }
-  *out_score = best_score;
+  if (out_score) {
+    *out_score = best_score;
+  }
   return best_nation;
+}
+
+/* ColonizeTurnContext adapter for the village tick. */
+static int ai_indian_152e_best_threat_nation_stub(
+  const ColonizeTurnContext* ctx,
+  int tribe_index,
+  int* out_score
+) {
+  if (out_score) {
+    *out_score = 0;
+  }
+  if (!ctx || !ctx->col1_ok) {
+    return -1;
+  }
+  return ai_indian_village_threat(
+    ctx->col1, ctx->map, ctx->units, ctx->colonies, ctx->human_nation, tribe_index, out_score);
 }
 
 /*
@@ -2829,7 +2873,7 @@ static void ai_indian_152e_village_growth(
   }
 
   int threat_score = 0;
-  const int threat_nation = ai_indian_152e_best_threat_nation_stub(ctx, t, &threat_score);
+  const int threat_nation = ai_indian_152e_best_threat_nation_stub(ctx, tribe_index, &threat_score);
   const int mission_nation = (t->mission != 0xffu) ? (int)(t->mission & 0x0fu) : -1;
 
   if (mission_nation >= 0 || threat_nation >= 0) {

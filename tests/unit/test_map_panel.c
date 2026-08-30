@@ -4,6 +4,7 @@
 
 #include "core/assets.h"
 #include "core/col1_save.h"
+#include "core/colony.h"
 #include "core/map.h"
 #include "core/map_menu.h"
 #include "core/map_panel.h"
@@ -391,6 +392,94 @@ int main(void) {
     }
   }
 
+  /*
+   * Village chrome geometry (FUN_112b_0790, CODE_5:112b:09c4..0b8c): a threat
+   * draws exclamation marks from tile_x+6, each a 3x7 surround with a 1x5 bar
+   * inset (1,1) split by one surround pixel four rows down; the mission cross
+   * follows as a 5x6 pad with a 1x4 vertical and a 3x1 horizontal bar. Both
+   * were wrong before — the mission drew an exclamation mark rather than a
+   * cross, and the marks were centred on a drifting row instead of anchored.
+   */
+  {
+    ColonizeSpriteSheet chrome_icons;
+    memset(&chrome_icons, 0, sizeof(chrome_icons));
+    char cerr[256];
+    if (!ss_load("COLONIZE/ICONS.SS", &chrome_icons, cerr, sizeof(cerr))) {
+      fprintf(stderr, "ICONS.SS for village chrome: %s\n", cerr);
+      return 1;
+    }
+    ColonizeWorldMap cmap;
+    memset(&cmap, 0, sizeof(cmap));
+    if (!map_alloc(&cmap, 32, 32, cerr, sizeof(cerr))) {
+      fprintf(stderr, "village chrome map_alloc: %s\n", cerr);
+      return 1;
+    }
+    for (int i = 0; i < 32 * 32; ++i) {
+      cmap.terrain[i] = 2; /* plains */
+    }
+    map_reveal_all(&cmap, 0);
+
+    ColonizeColonyPool ccol;
+    colonies_init(&ccol);
+    const int ccid = colonies_found(&ccol, &cmap, 12, 10, 0, 0, 0, 0, 0, 0);
+    ColonizeColony* ccolony = colonies_get_mut(&ccol, ccid);
+    ccolony->colonist_count = 10;
+    ccolony->population = 10;
+
+    ColonizeCol1Tribe ctribe;
+    memset(&ctribe, 0, sizeof(ctribe));
+    ctribe.x = 10;
+    ctribe.y = 10;
+    ctribe.nation_id = 4;
+    ctribe.population = 5;
+    ctribe.mission = 0x00;          /* English, plain (not Jesuit) */
+    ctribe.alarm[0].friction = 96;  /* >> 5 = tier 3 */
+    ColonizeCol1Save ccol1;
+    memset(&ccol1, 0, sizeof(ccol1));
+    ccol1.head.tribe_count = 1;
+    ccol1.head.difficulty = 2;
+    ccol1.tribe = &ctribe;
+    ccol1.indian[0].tech = 1;
+
+    uint8_t cpx[32 * 24];
+    memset(cpx, 0xff, sizeof(cpx));
+    ColonizeFramebuffer8 cfb = {.width = 32, .height = 24, .pixels = cpx};
+    map_panel_render_tribes_on_map(&ccol1, NULL, &ccol, &chrome_icons, &cfb,
+                                   10, 10, 2, 2, 16, 16, 0, 0, &cmap, 0);
+    ss_free(&chrome_icons);
+
+#define CHROME_AT(x, y) cpx[(y) * 32 + (x)]
+    /* Alarm mark: bar at x=7 rows 5..7 and 9, surround pixel at row 8. */
+    int mark_ok = CHROME_AT(6, 4) == 0 && CHROME_AT(8, 10) == 0 &&
+                  CHROME_AT(7, 5) == 0x0c && CHROME_AT(7, 7) == 0x0c &&
+                  CHROME_AT(7, 8) == 0 && CHROME_AT(7, 9) == 0x0c;
+    /* Mission cross at pad x=10: vertical at x=12 rows 6..9, horizontal row 7. */
+    const uint8_t cross = (uint8_t)(12u - 8u); /* English (12), plain → −8 */
+    int cross_ok = CHROME_AT(10, 5) == 0 && CHROME_AT(14, 10) == 0 &&
+                   CHROME_AT(12, 6) == cross && CHROME_AT(12, 9) == cross &&
+                   CHROME_AT(11, 7) == cross && CHROME_AT(13, 7) == cross &&
+                   CHROME_AT(11, 6) == 0 && CHROME_AT(13, 8) == 0;
+#undef CHROME_AT
+    map_free(&cmap);
+    if (!mark_ok) {
+      fprintf(stderr, "village alarm mark geometry wrong\n");
+      free(pixels);
+      map_free(&map);
+      map_panel_free(&panel);
+      assets_msg_free(&labels);
+      return 1;
+    }
+    if (!cross_ok) {
+      fprintf(stderr, "village mission cross geometry wrong (should be a cross, not a bang)\n");
+      free(pixels);
+      map_free(&map);
+      map_panel_free(&panel);
+      assets_msg_free(&labels);
+      return 1;
+    }
+    fprintf(stderr, "village chrome: alarm marks + mission cross ok\n");
+  }
+
   /* Tribe settlement (#10 tipis for tech 0) blits on the main map viewport. */
   {
     ColonizeSpriteSheet icons;
@@ -428,7 +517,8 @@ int main(void) {
     uint8_t tile_px[16 * 16];
     memset(tile_px, 0, sizeof(tile_px));
     ColonizeFramebuffer8 tile_fb = {.width = 16, .height = 16, .pixels = tile_px};
-    map_panel_render_tribes_on_map(&col1, &icons, &tile_fb, 3, 4, 1, 1, 16, 16, 0, 0, NULL, 0);
+    map_panel_render_tribes_on_map(
+      &col1, NULL, NULL, &icons, &tile_fb, 3, 4, 1, 1, 16, 16, 0, 0, NULL, 0);
 
     int opaque = 0;
     for (int i = 0; i < 16 * 16; ++i) {

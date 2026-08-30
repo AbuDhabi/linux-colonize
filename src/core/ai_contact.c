@@ -3155,6 +3155,26 @@ static void ai_contact_gift_or_demand(
  * gift sizing" sub-routine (a separate, still-unported piece) is
  * approximated here as a simple quarter of current stock.
  */
+/*
+ * @INDIANBEGFOOD gift: a quarter of the colony's store, at least a ton. The
+ * choice row names it ("We offer you {%NUMBER0} of our {%NUMBER1 food}"), so
+ * label and effect read it from here rather than computing it twice.
+ */
+static int ai_contact_beg_food_gift(const ColonizeColony* c) {
+  if (!c) {
+    return 0;
+  }
+  const int have = c->stock[COLONIZE_CARGO_FOOD];
+  int gift = have / 4;
+  if (gift < 1) {
+    gift = 1;
+  }
+  if (gift > have) {
+    gift = have;
+  }
+  return gift;
+}
+
 static void ai_contact_apply_beg_food(
   ColonizeTurnContext* ctx,
   ColonizeCol1Indian* ind,
@@ -3188,13 +3208,7 @@ static void ai_contact_apply_beg_food(
   }
   ai_contact_bind_names(ctx);
   if (accept) {
-    int gift = c->stock[COLONIZE_CARGO_FOOD] / 4;
-    if (gift < 1) {
-      gift = 1;
-    }
-    if (gift > c->stock[COLONIZE_CARGO_FOOD]) {
-      gift = c->stock[COLONIZE_CARGO_FOOD];
-    }
+    const int gift = ai_contact_beg_food_gift(c);
     c->stock[COLONIZE_CARGO_FOOD] -= gift;
     if (target_tribe) {
       int fr = (int)target_tribe->alarm[e].friction;
@@ -3301,10 +3315,20 @@ void ai_contact_try_village_beg_food(ColonizeTurnContext* ctx, int nation_id) {
     }
     ai_contact_bind_names(ctx);
     if (ai_contact_euro_is_human(ctx, e)) {
+      const ColonizeColony* beg_colony = &ctx->colonies->colonies[best_ci];
       PopupMsgTokens tok;
       memset(&tok, 0, sizeof(tok));
       tok.string0 = ai_contact_tribe_name(nation_id);
-      tok.string1 = ctx->colonies->colonies[best_ci].name;
+      tok.string1 = beg_colony->name;
+      /*
+       * bugs.md: the accept row is "We offer you {%NUMBER0} of our
+       * {%NUMBER1 food}" — without these it offered 0. NUMBER0 is exactly what
+       * accepting hands over, NUMBER1 the colony's whole store.
+       */
+      tok.number0 = ai_contact_beg_food_gift(beg_colony);
+      tok.has_number0 = true;
+      tok.number1 = beg_colony->stock[COLONIZE_CARGO_FOOD];
+      tok.has_number1 = true;
       char body[AI_POPUP_BODY_LEN];
       popup_msg_fill(
         ctx->messages, "INDIANBEGFOOD", &tok,
@@ -3318,11 +3342,16 @@ void ai_contact_try_village_beg_food(ColonizeTurnContext* ctx, int nation_id) {
       const char* labels[2];
       char label_buf[2][AI_POPUP_CHOICE_LEN];
       if (nch >= 2) {
-        labels[0] = choice_buf[0];
-        labels[1] = choice_buf[1];
+        /* The rows carry %NUMBER tokens of their own — fill them. */
+        for (int li = 0; li < 2; ++li) {
+          popup_msg_apply_tokens(label_buf[li], sizeof(label_buf[li]), choice_buf[li], &tok);
+          labels[li] = label_buf[li];
+        }
       } else {
         snprintf(label_buf[0], sizeof(label_buf[0]), "I'm sorry, we gave at the office.");
-        snprintf(label_buf[1], sizeof(label_buf[1]), "We offer you food as a sign of friendship.");
+        snprintf(
+          label_buf[1], sizeof(label_buf[1]),
+          "We offer you %d of our %d food as a sign of friendship.", tok.number0, tok.number1);
         labels[0] = label_buf[0];
         labels[1] = label_buf[1];
       }

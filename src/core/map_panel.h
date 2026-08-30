@@ -136,6 +136,8 @@ void map_panel_render(
 /* Indian village markers on the main map viewport (ICONS.SS #10–13 by tech). */
 void map_panel_render_tribes_on_map(
   const ColonizeCol1Save* col1,
+  const ColonizeUnitPool* units,
+  const ColonizeColonyPool* colonies,
   const ColonizeSpriteSheet* icons,
   ColonizeFramebuffer8* framebuffer,
   int view_x,
