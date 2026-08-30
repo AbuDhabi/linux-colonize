@@ -163,11 +163,11 @@ one exists.
 | `FUN_1984_00aa` | Nation turn-owner 5×3 at (315,197) | [turn.c](../src/core/turn.c) |
 | `FUN_43f7_05f4` | `@COUNTRY` → DS color table | turn / UI colors |
 | `FUN_4d56_152e` | Indian village growth | [ai.c](../src/core/ai.c) (partial); [ai_transcription.md](ai_transcription.md) |
-| `FUN_4d56_1816` | Indian nation turn | **partial** (structural phases + quiet pulse + `ai_contact_*`; deep `2820`/`4528` / VGA PARKED) |
+| `FUN_4d56_1816` | Indian nation turn | **partial** (structural phases + quiet pulse + `ai_contact_*`; `4528` Done 2026-08-27/28, `2820` rewritten 2026-08-29; deep `2820` haggle / VGA PARKED) |
 | `FUN_6a09_0006` | Tribe placement | ai / map gen (T2 seed-100) |
 | `FUN_521d_6d8e` | Euro AI dispatcher | **partial** (`ai_euro.c` skeleton + `ai_euro_early_turn` / `golden_ai_turns`) |
-| `FUN_521d_0a60` / `5d04` | Euro unit goals / planning | **partial** (T0 condensed; deep `20e6` OPEN — unpark #4) |
-| `FUN_521d_20e6` / nested `5b66` | Move scoring / unit act | **partial** (quiet Brave + thin Euro; land/combat `20e6` OPEN) |
+| `FUN_521d_0a60` / `5d04` | Euro unit goals / planning | **partial** (`0a60` goal-consumption tail + `5d04` hire ladder ported; T3.1 closed 2026-08-27) |
+| `FUN_521d_20e6` / nested `5b66` | Move scoring / unit act | **partial** (land arms structurally ported 2026-08-27, T1.18; thin: LAB_52aa attack odds, explore-plane seen nibble, `−0x6168`, `0x4c` village arms) |
 | `FUN_6a9f_0118` | Map viewport tile loop | [map.c](../src/core/map.c) / map_panel |
 | `FUN_15eb_06d2` | Shared world-map / pedia draw entry | map / pedia |
 | `FUN_1427_065a` | Tile display (reads DS `0x5234`) | [viceroy_tables.md](viceroy_tables.md) |

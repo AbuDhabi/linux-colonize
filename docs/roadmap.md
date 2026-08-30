@@ -49,9 +49,9 @@ are in (Sepulveda/Cortes/de Witt effects **Done**). The two mid-planner
 blockers this paragraph used to name closed on 2026-08-27: the `20e6` land
 arms are structurally ported (`ai_port_plan.md` T1.18) and `5d04` is wired
 live with its hire-ladder tail callees made real (T3.1). Next playability work
-is leftover **FF** KINGGALLEON2, production / combat depth, the remaining
-`COLDIG` sound cues, and endgame polish — not waiting on missing
-combat/capture prerequisites. VGA
+is production / combat depth and endgame polish — not waiting on missing
+combat/capture prerequisites. (KINGGALLEON2 closed 2026-08-27 and the
+`COLDIG` cue wiring closed 2026-08-29; both used to be named here.) VGA
 dialog chrome and full 1:1 AI bodies remain later; Congress UI is now
 **Done** (2026-08-25, see Phase 4).
 Snapshot source: [manual_gap.md](manual_gap.md) takeaway.
@@ -71,11 +71,13 @@ same pass:
   mirror of the DOS BGM scheduler. A/B against DOSBox-X captures and OST rips
   now reads dtw 0.04–0.17 (OST-vs-DOSBox itself is 0.07). Remaining: a listen
   test with the user (port_plan.md P3.5).
-- **`COLDIG.BIN` digital SFX.** The earlier "settled negative — no reachable
-  DOS trigger" verdict was **wrong** and is retracted: event ids `0x40..0x5c`
-  are pushed with the id in `AX`, which Ghidra's decompile drops. Sample table,
-  decode, queueing and mixing are done, and 8 push sites are wired. The rest of
-  the push sites are the open work (port_plan.md P3.7).
+- **`COLDIG.BIN` digital SFX — Done 2026-08-29.** The earlier "settled negative
+  — no reachable DOS trigger" verdict was **wrong** and is retracted: event ids
+  `0x40..0x5c` are pushed with the id in `AX`, which Ghidra's decompile drops.
+  Sample table, decode, queueing, mixing **and every reachable push site** are
+  wired (port_plan.md P3.2 / P3.7, both closed); ids `0x4c`/`0x50`/`0x51`/
+  `0x55`/`0x5c` are typed-rule dead ends with no DOS push site. Only the Retire
+  tune's coin tier stays PARKed.
 
 Both are owned by [assets.md](assets.md) "Music / sound".
 
@@ -226,12 +228,11 @@ Do not prioritize over gameplay/determinism.
 **Parked until later:**
 
 - VGA-identical dialog / TRADE / FA / king letter chrome
-- Digital SFX (`COLDIG.BIN`) — no longer parked; **playback wired
-  2026-08-27** (event ids `0x40..0x5c` are pushed in AX; see
-  [assets.md](assets.md) "COLDIG.BIN"). Remaining push sites (raid loot
-  outcomes, naval sink/capture, wagon move, tax raise, `5fef_1b0e`
-  unit-class variants, `0x8020`/`0x8024` chord stings) are tracked as
-  [port_plan.md](port_plan.md) P3.7, not here
+- Digital SFX (`COLDIG.BIN`) — **not parked, Done 2026-08-29**: playback wired
+  2026-08-27 and every reachable push site wired by P3.2 / P3.7 (raid loot
+  outcomes, naval win/sink, wagon move, tax raise, the `5fef_1b0e` unit-class
+  variants and the `0x8020`/`0x8024` chord stings all landed). Only the Retire
+  tune's coin tier remains — see [assets.md](assets.md) "COLDIG.BIN"
 - Pixel-exact layout and style
 - Blanket T3 AI goldens and remaining deep PARKED bodies (full `2820`,
   `4528`'s VGA meet chrome, letter cinematic, hang-dump RE)

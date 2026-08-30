@@ -56,7 +56,7 @@ modals (GAME.TXT `@SECTION`s vs port Done/Partial/Missing): [popups.md](popups.m
 | Reports F1–F10 | Done | `reports.c` |
 | Pick Music + BGM | Done | `gsound_vm.c` (literal `GSOUND.COL` driver emulator) + `sound.c`, `pick_music.c`; Sound Options popup (Background/Event/Sound Effects) **Done**, `options_dialog.c`. Song-id table corrected 2026-08-27 (Pick Music *n* is not `0x20+n`) — see [assets.md](assets.md) Music / sound |
 | Situational "Military" BGM cue on combat | Done thin | `units_combat_music_sting` (`units.c`) — DOS-evidenced (segment `5fef`), see [assets.md](assets.md) Music / sound |
-| Digital SFX (`COLDIG.BIN`) | Partial | **Wired 2026-08-27** — the earlier "no reachable trigger" verdict was wrong: event ids `0x40..0x5c` are pushed in **AX**, which the decompile drops. Sample table, decode, queueing and mixing are done (`sound.c`, `gsound_vm.c`); 8 of ~24 push sites are wired (attack fire, combat won, colony burned, found colony / colony enter, fortify, sentry, King's Galleon). Unwired: raid loot outcomes, naval sink/capture, wagon move, tax raise, the remaining `5fef_1b0e` unit-class variants, and the `0x8020`/`0x8024` chord stings. See [assets.md](assets.md) "COLDIG.BIN" |
+| Digital SFX (`COLDIG.BIN`) | Done | **Wired 2026-08-27, completed 2026-08-29** (`port_plan.md` P3.2 / P3.7 both closed) — the earlier "no reachable trigger" verdict was wrong: event ids `0x40..0x5c` are pushed in **AX**, which the decompile drops. Sample table, decode, queueing and mixing are done (`sound.c`, `gsound_vm.c`), and every reachable push site is wired: attack fire + the `5fef_1b0e` typed unit-class variants, combat won, `0x44`/`0x45` colony-defender tail, `0x4d` naval win, raid outcomes (`0x4d`/`0x4e`/`0x4f`/`0x5b`), ship sunk, wagon move, tax raise / tea party, colony burned, found colony / colony enter, fortify, sentry, King's Galleon, and the `0x8020`/`0x8024` chord stings (driver table `0x2AB6`). Ids `0x4c`/`0x50`/`0x51`/`0x55`/`0x5c` have no reachable DOS push site (typed-rule dead ends). Only the Retire tune's coin tier stays PARKed ([difficulty.md](difficulty.md)). See [assets.md](assets.md) "COLDIG.BIN" |
 | Col1 save / load | Done | Playable I/O: `col1_save.c`, `col1_bridge.c`. **Not** a complete field map — see [save_format_map.md](save_format_map.md) |
 
 ### Units and map orders
@@ -66,7 +66,7 @@ Deep mechanics (expected vs Linux by context): [unit_orders.md](unit_orders.md).
 | Manual feature | Status | Notes |
 |----------------|--------|-------|
 | Move / wait / skip turn | Done | Arrows, Wait, Space |
-| Terrain move costs (forest >1 MP, roads, rivers) | Partial | DOS `terr_cost` table + full-MP / partial overspend; road-pair + cardinal-river pair via `map_move_cost_step` — [move_enter.md](move_enter.md). PARK: unit MP `*3` scale (Brave already `table*3`) |
+| Terrain move costs (forest >1 MP, roads, rivers) | Done | DOS `terr_cost` table + full-MP / partial overspend; road-pair + cardinal-river pair via `map_move_cost_step` — [move_enter.md](move_enter.md). Unit MP is DOS thirds for every unit (`UNITS_MP_PER_TILE = 3`, `movement*3`), the old `*3`-scale PARK closed 2026-08-29 with `ai_port_plan.md` T1.8 |
 | Fortify (F), Sentry (S), Disband, Goto (G) | Done | One **Fortify** (land or ship-in-harbor); **Go-To** drag / **G** Place (land) or Port (ship); **Sentry** / **Disband** (Shift+D with Yes/No). ORDERS items enable/hide from selected unit (Clear↔Plow, Port↔Place). Plain letter hotkeys match menu `~` markers; Alt+letter opens bar menus |
 | Orders box letters on units | Done | `unit_chrome.c` (FUN_112b_01ba): black silhouette (−2px) + nation fill + order letter + stack under-rect; map, sidebar, Europe, colony Units/transport, Colonizopedia. England fill palette 112. F6/F7 icon rows deferred |
 | Pioneer clear / plow / road (P / R) | Done | Multi-turn FUN_479b: clear/plow = `terr_cost+2`, road = `terr_cost`, Hardy halves; −20 tools on complete; clear and plow are separate jobs |
@@ -127,15 +127,15 @@ Topic hub (graphics, units, settlements, alarm, contact): [indians.md](indians.m
 | Manual feature | Status | Notes |
 |----------------|--------|-------|
 | Villages on map + Braves | Partial | Map/minimap icons + placement + quiet pulse / growth / residual overlays (R0 partial: t1 empty, ~50 on t2–t6); see [ai_transcription.md](ai_transcription.md) |
-| Meet menus, trade, teach skills | Partial | Structural auto-meet/trade/teach (`ai_contact_*`); sea/wagon hold trade + gift/demand widgets **Done** thin; deep `2820` / VGA PARKED — [ai_transcription.md](ai_transcription.md) |
-| Missions / convert / incite | Partial | Adjacent Missionary → `tribe.mission` + crosses; convert UI **Done** structural (`@INDIANSCONVERT` colony name); foreign-mission heresy 50/50 **Done** thin; HELLO1/2 greet **Done** thin; raid surprise/war chrome **Done** thin; incite/WARPATH gold **Done** thin (`FUN_4d56_417e` → `ai_contact_apply_incite`, 6th village-meet CHOICE; [`indian_incite_417e.md`](../original_sources_annotated/ai/indian_incite_417e.md)) |
-| Alarm, raid, Indian wars | Partial | Structural contact/raids (`ai_contact_*`, `@RAID*` tribe+colony status + ambush WIN1/2 / surprise / war); colony encroachment **Done** thin; player dialog **Done** structural (`ai_popup`); deep `2820`/`4528` still PARKED |
+| Meet menus, trade, teach skills | Partial | Real DOS `@ACTIONS` meet menu with per-unit gating (`FUN_4d56_4528` human arm, `port_plan.md` P8.8, 2026-08-28) — Trade / hostile-village / Speak With Chief / Establish Mission / Denounce / Live Among / Demand Tribute / Attack; village trade rewritten against the clean `2820` recovery 2026-08-29 (real quantities and buy/sell ordering). Deep `2820` haggle / hard-bargain sub-loops PARKED on the T4.4 live capture; VGA chrome PARKED — [ai_transcription.md](ai_transcription.md) |
+| Missions / convert / incite | Partial | Adjacent Missionary → `tribe.mission` + crosses; convert UI **Done** structural (`@INDIANSCONVERT` colony name); foreign-mission heresy: the human Denounce menu action uses DOS's real weighted roll (`a594` → `ai_contact_denounce_heresy`, `@HERESY0/1`, 2026-08-28), the AI-side auto pulse is still the invented 50/50 (`ai_contact_missionary_convert`); HELLO1/2 greet **Done** thin; raid surprise/war chrome **Done** thin; incite/WARPATH gold **Done** for both arms (`FUN_4d56_417e` → `ai_contact_apply_incite`, 6th village-meet CHOICE; AI Missionary auto-incite `ai_contact_ai_incite_human` 2026-08-27, `ai_port_plan.md` T4.5; [`indian_incite_417e.md`](../original_sources_annotated/ai/indian_incite_417e.md)) |
+| Alarm, raid, Indian wars | Partial | Structural contact/raids (`ai_contact_*`, `@RAID*` tribe+colony status + ambush WIN1/2 / surprise / war); colony encroachment **Done** thin; player dialog **Done** structural (`ai_popup`); `4528` **Done** 2026-08-27/28 (both arms); deep `2820` haggle still PARKED |
 
 ### Combat and diplomacy
 
 | Manual feature | Status | Notes |
 |----------------|--------|-------|
-| Land / naval attack | Done | Playable bar + fort bit7/Drydock + village `4528` warn + `20e6` combat peels Done thin. Deep −0x6790/VGA/`2820` PARKED — [combat.md](combat.md) |
+| Land / naval attack | Done | Playable bar + fort bit7/Drydock + `20e6` combat peels Done thin; the village arm is now the full `4528` action dispatch (P8.8 human menu incl. Attack Village, AI attack via `ai_euro_land_try_adjacent_village_seize`), not the old invented warn CHOICE. Deep −0x6790/VGA/`2820` haggle PARKED — [combat.md](combat.md) |
 | Capture colony | Partial | `colonies_capture` on player enter (empty/cleared foreign Euro) + AI / combat paths; Indian raid abandons — [combat.md](combat.md) |
 | Stockade / fort / fortress defense % | Done | Live land combat via `157e` `local_1a`; coastal Fort/Fortress fire `units_coastal_fort_fire_pulse`. MP ship-slow + close-hit bit7 + Drydock repair Done — [combat.md](combat.md) |
 | Rival war / peace / privateers | Partial | Euro bilateral war/ally/peace + Furs embargo + Privateer spawn (`ai_diplo_*`); Indian×Euro matrix + fuller `153e` **Done** structural (unpark #5); FA `3f41` / 8g prize PARKED |
@@ -144,10 +144,10 @@ Topic hub (graphics, units, settlements, alarm, contact): [indians.md](indians.m
 
 | Manual feature | Status | Notes |
 |----------------|--------|-------|
-| FF election from liberty bells | Partial | Side-table bell pool (DOS +0xc); peacetime threshold elect + WoI pool→intervention (**Done** 2026-08-22); century-weighted debate pick (`4345_06d2`/`015a` **Done**); manual-aligned effects; KINGGALLEON2 PARK (38fd CHOICE search negative); F3 portrait grid **Done** structural; FF pool bridge load smoke **Done** |
+| FF election from liberty bells | Partial | Side-table bell pool (DOS +0xc); peacetime threshold elect + WoI pool→intervention (**Done** 2026-08-22); century-weighted debate pick (`4345_06d2`/`015a` **Done**); manual-aligned effects; KINGGALLEON2 **Done** 2026-08-27 (`FUN_5fef_1908`; the old "38fd CHOICE search negative" PARK was a wrong-segment search); F3 portrait grid **Done** structural; FF pool bridge load smoke **Done** |
 | Pedia / F3 Congress report | Partial | F3 blits joined FF portraits (center-cropped to grid cells) + debating highlight; stats column; debate elect via popup; VGA-identical chrome PARKED |
 | Sons of Liberty %, declare independence | Partial | SoL + auto-declare structural (`ai_king`); player confirm UI **Done** structural (`ai_popup`); `@INDEPENDENCE` letter OK **Done** thin; VGA / DECLARAT.PIK anim PARKED — [sons_of_liberty.md](sons_of_liberty.md) |
-| REF invasion / revolution combat | Partial | REF wave / war act structural; merc hire dialog **Done** structural (`ai_popup`); win/lose latches **Done** thin; `10f0` landing scorer + caps + Veteran 0x15 **Done** Phase 5; `backup_force[2]`/`[3]` index-swap bug fixed 2026-08-24 (was feeding the wrong pool formula into both the Man-O-War/`2022` merc-gate check and the Artillery land-troop drain — `ai_king_seed_backup_force_1a26` / `ai_king_merc_offer`, verified byte-for-byte against `FUN_43f7_10f0`/`FUN_43f7_0082`/`FUN_43f7_2022`); foreign MoW ship + DECLARAT anim **PARK** (DOS spawns unit type 0x12 at the same land tile scored for troop landings — placement semantics unresolved from static reading, needs live DOSBox-X) |
+| REF invasion / revolution combat | Partial | REF wave / war act structural; merc hire dialog **Done** structural (`ai_popup`); win/lose latches **Done** thin; `10f0` landing scorer + caps + Veteran 0x15 **Done** Phase 5; `backup_force[2]`/`[3]` index-swap bug fixed 2026-08-24 (was feeding the wrong pool formula into both the Man-O-War/`2022` merc-gate check and the Artillery land-troop drain — `ai_king_seed_backup_force_1a26` / `ai_king_merc_offer`, verified byte-for-byte against `FUN_43f7_10f0`/`FUN_43f7_0082`/`FUN_43f7_2022`); foreign MoW ship **Done** 2026-08-28 static (`port_plan.md` P5.5: the whole force is spawned player-controlled via `281f_095c(type, DS:0x5398, …)`; the Man-O-War takes the best water 8-neighbour of the colony — no foreign unit, −999 for a REF MoW, score = 1 + its land neighbours on the colony's continent without a colony — then Cont. Cav. ≤2 / Artillery ≤2 / Cont. Army = 6 − those, `+0x15` Veteran, unloaded at the colony, 5×5 reveal); DECLARAT anim still **PARK** |
 | F10 Colonization Score | Done | `FUN_41f2_0092` byte-faithful 2026-08-29 (`reports_compute_score`): every component + gate (gold ≥1000, villages, 0x53d0 rebel, Early Revolution from the 0x53a7/8 declare year ×2, REF-present bells/100 cap 100, Independence Achieved 100>>prior with ×(8+(8>>prior))/8 total, SCORING COMPLETE on 0x5382&0x10); conditional lines rendered in DOS order, `score.png` golden unchanged |
 
 ### AI Europeans
@@ -155,7 +155,7 @@ Topic hub (graphics, units, settlements, alarm, contact): [indians.md](indians.m
 | Manual feature | Status | Notes |
 |----------------|--------|-------|
 | Rival starter fleets + sail to landfall | Done | NEW WORLD: `FUN_684c` HS-rim landfalls + Europe exit via landfall goto (`48d3_048e` / `ai_euro_unit_act`); seed-100 early fixture still gated — [ai_transcription.md](ai_transcription.md) |
-| Unload, found colonies, combat, colony AI | Partial | **T2 early:** unload/found (`golden_ai_turns`); full-dispatch expand/war/scout/tools/fields thin; mid-game `5d04` ship-buy+war/peace shortage hire past colonies≥6 **Done**; Col1 colony AI/flags (incl. SoL latches) + BUY `hammers_purchased` + `depletion_counter` wrap + `warehouse_level`/`capitol_level` **Done**; land `20e6` combat peels **Done** thin (unpark #4 settle/siege; deep −0x6790 PARKED) |
+| Unload, found colonies, combat, colony AI | Partial | **T2 early:** unload/found (`golden_ai_turns`); full-dispatch expand/war/scout/tools/fields thin; mid-game `5d04` ship-buy+war/peace shortage hire past colonies≥6 **Done**; Col1 colony AI/flags (incl. SoL latches) + BUY `hammers_purchased` + `depletion_counter` wrap + `warehouse_level`/`capitol_level` **Done**; land `20e6` arms structurally ported 2026-08-27 (`ai_port_plan.md` T1.18: explorer flag, SCOUT/PATROL, explore-ring scoring, 8-direction wander, epilogue commit — the old "unpark #4" is closed); thin spots left in code: LAB_52aa attack-odds core, explore-plane seen nibble, `−0x6168` rival strength, `0x4c` village arms; deep −0x6790 PARKED |
 
 ### Win / end sequences
 
@@ -179,14 +179,14 @@ is the historical bring-up order (early manual chapters first), then the
 3. **Pioneer terrain work + roads** and real movement costs — phase 7 done
 4. **Unit orders** — ORDERS pulldown Done (fortify/anchor/sentry/disband/goto place+port/pioneer/pillage/dump; trade-route aim+cycle); TRADE stop nibble honor Done (Edit UI thin)
 5. **Fog of war / exploration**
-6. **Combat** (land first; colony defense) — **Playable bar Done**; fort bit7/Drydock + village `4528` warn + `20e6` peels Done thin; deep −0x6790 / VGA / `2820` still PARKED — [combat.md](combat.md)
+6. **Combat** (land first; colony defense) — **Playable bar Done**; fort bit7/Drydock + `20e6` peels Done thin; village arm is the full `4528` dispatch (P8.8); deep −0x6790 / VGA / `2820` haggle still PARKED — [combat.md](combat.md)
 7. **Indian contact UI** — first contact `@INDIANWELCOME` Yes/No →
    `@INDIANPEACE`/`@INDIANCOME` or `@INDIANSHUN`+war (**Done** structural;
    `FUN_5bfb_022e` / `0182`; thin land-grant purchased+owner on occupied tile);
    later meet / trade / teach / gift (**Done** structural `ai_popup`; deep/VGA
    PARKED)
-8. **King audience / declare / merc UI** (**Done** structural) + **FF effect depth** (Sepulveda convert-join + Cortes/de Witt Done; KINGGALLEON2 PARK; F3 Congress **Done** structural)
-9. **Euro mid-planner** (deep `20e6` **OPEN** unpark #4) + **Indian×Euro diplo** (**Done** structural; FA UI PARKED)
+8. **King audience / declare / merc UI** (**Done** structural) + **FF effect depth** (Sepulveda convert-join + Cortes/de Witt Done; KINGGALLEON2 **Done** 2026-08-27; F3 Congress **Done** structural)
+9. **Euro mid-planner** (`20e6` land arms + `5d04` **Done** 2026-08-27, T1.18 / T3.1; deep −0x6790 still open) + **Indian×Euro diplo** (**Done** structural; FA UI PARKED)
 10. **Trade routes** — Create/Edit/Delete + Begin aim/cycle + stop nibble honor + Edit autofill + cargo picker + route select/delete confirms **Done**; VGA TRADE chrome PARKED
 11. **Deep PARKED bodies** (full `2820`/`4528`, VGA dialog chrome, T3 goldens, letter cinematic) + HoF / end sequences — [ai_transcription.md](ai_transcription.md)
 
@@ -203,9 +203,10 @@ next playability work is leftover **FF** KINGGALLEON2, deep mid-planner `20e6`,
 production / combat depth, and VGA / deep AI bodies — not waiting on missing
 combat/capture prerequisites. TRADE Create/Edit/Begin aim+cycle + stop nibble
 honor + Edit autofill + thin cargo picker are in; VGA TRADE chrome,
-KINGGALLEON2 PARK (Phase 5 `38fd` overlay + string search negative), and deep
-`20e6` still open (`10f0` landing scorer / caps / Veteran `0x15` landed —
-Done Phase 5, foreign MoW ship spawn still PARK); and full 1:1 AI bodies
+KINGGALLEON2 (Done 2026-08-27) and the `20e6` land arms (Done 2026-08-27,
+T1.18) are closed — deep −0x6790 remains; `10f0` landing scorer / caps /
+Veteran `0x15` and the foreign MoW ship spawn all landed (Phase 5 / P5.5
+2026-08-28); full 1:1 AI bodies
 remain.
 
 ## See also
