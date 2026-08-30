@@ -45,7 +45,9 @@ typedef enum AiPopupTag {
   AI_POPUP_TAG_KING_ARRIVAL = 4,
   AI_POPUP_TAG_KING_CAPTURE = 5,
   AI_POPUP_TAG_KING_TAX = 6,
-  AI_POPUP_TAG_KING_LETTER = 7, /* thin 160a independence rename (letter cinematic PARKED) */
+  AI_POPUP_TAG_KING_LETTER = 7, /* thin 160a independence rename; game_loop plays the
+                                 * 160a signing cinematic (core/declaration.c) in front
+                                 * of this popup the frame it is presented */
   AI_POPUP_TAG_FF_CONGRESS = 8, /* Continental Congress FF elect chrome */
   AI_POPUP_TAG_KING_DUMP_GOODS = 9, /* refuse dump-goods second cargo CHOICE */
   AI_POPUP_TAG_CONTACT_MEET = 10,

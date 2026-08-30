@@ -46,7 +46,8 @@
  *   skipped (no DOS status/dialog). No once-per-war flag — head.unknown46[3]
  *   is unused for this now (was an invented gate, see king_ref.md).
  * 160a rename: player[human].country_name → "United Colonies"
- *   (letter cinematic PARKED — thin rename + KING_LETTER Done).
+ *   (thin rename + KING_LETTER Done; the 160a signing cinematic itself is
+ *   core/declaration.c, armed from game_loop on the KING_LETTER popup).
  *   unknown46[4] endgame latch: 0 none / 1 won / 2 lost.
  *   On declare + ai_popups: thin rename OK + GAME.TXT @HOWTOWIN INFO
  *   (invent "War of Independence begins!" demoted).
@@ -115,7 +116,7 @@
  * war_act beat up to min(moves_left, capacity) (1 MP/pax); full unload with
  * moves left → AI_SAIL next human coast; after that sail step, if still
  * carrying and now adjacent to the next colony → unload same beat.
- * PARK: 160a letter cinematic; full embark UI chrome; dump-goods boycott modal
+ * PARK: full embark UI chrome; dump-goods boycott modal
  * CHOICE Done (pick API + Europe bid>0 weight for auto; KING_DUMP_GOODS for
  * human; VGA PARKED).
  */
@@ -2406,13 +2407,15 @@ static void ai_king_do_declare(ColonizeTurnContext* ctx, int human) {
     }
   }
   /*
-   * Thin 160a independence rename stand-in (letter-animation cinematic PARKED).
+   * Thin 160a independence rename (the letter animation itself lives in
+   * core/declaration.c and is armed by game_loop off the KING_LETTER popup).
    * Writable Col1 player.country_name (and europe.nation_name if present).
    * Congress status below; same-turn 0982/1528 wave may overwrite if it spawns
    * (wave only writes status when non-empty arrival — leave congress if empty).
    * Human queue: thin rename OK + WoI-begins OK (FUN_43f7_160a / 1a26 chain).
-   * Letter chrome: KING_LETTER body uses DECLARAT-shaped wording (full
-   * DECLARAT.PIK / FONTKING letter-anim still PARKED).
+   * Letter chrome: KING_LETTER body carries the @INDEPENDENCE wording; the
+   * signing animation (DECOIND.PIK + DEC-UPP/LOW/SQIG.SS) is core/declaration.c.
+   * DECLARAT.PIK is an unused leftover — no DOS executable references it.
    */
   snprintf(ctx->col1->player[human].country_name,
            sizeof(ctx->col1->player[human].country_name), "%s", AI_KING_INDEP_COUNTRY);
@@ -2424,7 +2427,7 @@ static void ai_king_do_declare(ColonizeTurnContext* ctx, int human) {
     snprintf(ctx->status, ctx->status_size, "Congress declares independence!");
   }
   if (ai_king_human_popups(ctx)) {
-    /* FUN_43f7_160a rename OK (letter-anim cinematic PARKED — KING_LETTER tag). */
+    /* FUN_43f7_160a rename OK; the cinematic rides on the KING_LETTER tag. */
     const char* leader =
       (human >= 0 && human < 4 && ctx->col1->player[human].name[0] != '\0')
         ? ctx->col1->player[human].name
@@ -4372,7 +4375,7 @@ static void ai_king_war_act(ColonizeTurnContext* ctx) {
      *   cargo == 0 (idle empty) → AI_SAIL coastal patrol toward water adjacent
      *     to nearest human coastal colony. Redirects existing ships only —
      *     do not invent new MoW. Hold fill is units_ship_capacity (MoW×6);
-     *     embark UI chrome PARKED; 160a letter cinematic PARKED.
+     *     embark UI chrome PARKED; 160a letter cinematic Done (core/declaration.c).
      */
     if (ai_king_is_mow(ctx->units, u)) {
       int unloaded = 0;

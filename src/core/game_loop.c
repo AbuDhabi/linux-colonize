@@ -21,6 +21,7 @@
 #include "core/colony_screen.h"
 #include "core/combat_strength.h"
 #include "core/debug_atlas.h"
+#include "core/declaration.h"
 #include "core/dos_rng.h"
 #include "core/europe.h"
 #include "core/ff.h"
@@ -135,6 +136,12 @@ struct ColonizeGameState {
   NameEntryDialog name_entry;
   OptionsDialog options_dlg;
   CombatAnalysisDialog combat_analysis;
+  /*
+   * FUN_43f7_160a signing cinematic (DECOIND.PIK + DEC-UPP/LOW/SQIG.SS).
+   * Runs once, in front of the @INDEPENDENCE letter popup 1a26 queues.
+   */
+  DeclarationCinematic declaration;
+  bool declaration_played;
   GameMapConfirm map_confirm;
   int map_confirm_payload; /* unit id / trade route slot / … */
   int trade_select_mode; /* 0=idle, 1=begin route, 2=edit, 3=delete */
@@ -1621,6 +1628,9 @@ static void game_apply_options_result(ColonizeGameState* game) {
 static bool game_handle_modal_input(ColonizeGameState* game, const ColonizeInputState* input) {
   if (!game || !input) {
     return false;
+  }
+  if (game->declaration.open) {
+    return declaration_handle_input(&game->declaration, input);
   }
   if (game->pick_music.open) {
     const ColonizeFont* pm_font = game->colony_font_ok ? &game->colony_font :
@@ -4788,6 +4798,7 @@ void game_destroy(ColonizeGameState* game) {
   units_set_move_watch(NULL, NULL);
   combat_analysis_set_presenter(NULL, NULL);
   combat_analysis_close(&game->combat_analysis);
+  declaration_close(&game->declaration);
   pik_free(&game->menu_bg);
   pik_free(&game->pedia_wood);
   europe_free(&game->europe);
@@ -8155,6 +8166,41 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
   }
 
   /*
+   * DOS FUN_43f7_1a26 plays the signing cinematic (thunk_FUN_2a1f_009a →
+   * FUN_43f7_160a) as part of the declaration itself, immediately before the
+   * @INDEPENDENCE letter. ai_king queues that letter as a KING_LETTER popup,
+   * so arm the cinematic the frame the popup is presented and let it draw on
+   * top until it is dismissed.
+   */
+  bool declaration_just_opened = false;
+  if (!game->declaration_played && game->ai_popups.open &&
+      game->ai_popups.current.tag == AI_POPUP_TAG_KING_LETTER) {
+    game->declaration_played = true;
+    const int human = game->human_nation;
+    const char* country =
+      (game->col1_ok && human >= 0 && human < 4 &&
+       game->col1.player[human].country_name[0] != '\0')
+        ? game->col1.player[human].country_name
+        : "United Colonies";
+    declaration_just_opened =
+      declaration_open(&game->declaration, game->resolved_data_dir, country);
+  }
+  if (game->declaration.open) {
+    /*
+     * Runs ahead of the normal modal gate, so take input here too — but not
+     * on the opening frame, where a key still held from the popup that armed
+     * it would fast-forward the whole animation before it drew a stroke.
+     */
+    if (!declaration_just_opened) {
+      (void)declaration_handle_input(&game->declaration, input);
+    }
+    if (game->declaration.open) {
+      declaration_update(&game->declaration, dt_ms);
+    }
+    return true;
+  }
+
+  /*
    * Turn activation queue (minimal): DOS gives control to exactly one
    * human unit at a time, in a fixed deterministic order (turn_select_
    * next_unit's ascending-id cycle, already used by the manual Wait/Space
@@ -10777,6 +10823,12 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
     return;
   }
 
+  /* Signing cinematic owns the whole screen (and its own DECOIND palette). */
+  if (game->declaration.open) {
+    declaration_render(&game->declaration, framebuffer, palette);
+    return;
+  }
+
   *palette = (game->in_menu && !game->in_debug_atlas && !game->in_pedia && !game->in_europe &&
               !game->in_colony && !game->in_report && !game->in_hall_of_fame && !game->in_exploits)
     ? game->palette
@@ -11840,7 +11892,8 @@ bool game_modal_open(const ColonizeGameState* game) {
   }
   return game->ai_popups.open || game->name_entry.open || game->howmuch.open ||
          game->save_load.open || game->cheat_list.open || game->unit_stack.open ||
-         game->options_dlg.open || game->pick_music.open || game->combat_analysis.open;
+         game->options_dlg.open || game->pick_music.open || game->combat_analysis.open ||
+         game->declaration.open;
 }
 
 bool game_ai_popup_pending(const ColonizeGameState* game) {
