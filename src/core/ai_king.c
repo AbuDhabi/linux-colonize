@@ -257,6 +257,60 @@ static int ai_king_human_popups(const ColonizeTurnContext* ctx) {
 }
 
 /*
+ * FUN_38fd_3dc8 aiStack_a4[]: for each cargo, the human colony holding the most
+ * of it (DOS also requires the colony flag 0x40). Used both to name the party
+ * and to seize the stock.
+ */
+static ColonizeColony* ai_king_teaparty_colony(
+  const ColonizeTurnContext* ctx,
+  int human,
+  int cargo
+) {
+  if (!ctx || !ctx->colonies || human < 0 || human >= 4) {
+    return NULL;
+  }
+  if (cargo < 0 || cargo >= COLONIZE_CARGO_COUNT) {
+    return NULL;
+  }
+  ColonizeColony* best = NULL;
+  int best_stock = 0;
+  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+    ColonizeColony* c = &ctx->colonies->colonies[i];
+    if (!c->active || c->nation_id != human) {
+      continue;
+    }
+    if (c->stock[cargo] > best_stock) {
+      best_stock = c->stock[cargo];
+      best = c;
+    }
+  }
+  return best;
+}
+
+/*
+ * GAME.TXT %STRING3 for @TAXOPTIONS / @TEAPARTY: DOS builds it at
+ * FUN_38fd_3dc8 (strcpy colony name, strcat " ", strcat cargo name), so the
+ * rendered headline is "<Colony> <Cargo> Party!" — a literal "Tea Party" never
+ * occurs, since Colonization has no Tea cargo.
+ */
+static void ai_king_teaparty_party_name(
+  char* buf,
+  size_t buf_size,
+  const ColonizeColony* colony,
+  int cargo
+) {
+  if (!buf || buf_size == 0) {
+    return;
+  }
+  const char* cargo_nm = ai_king_cargo_name(cargo);
+  if (colony && colony->name[0]) {
+    snprintf(buf, buf_size, "%s %s", colony->name, cargo_nm);
+  } else {
+    snprintf(buf, buf_size, "%s", cargo_nm);
+  }
+}
+
+/*
  * GAME.TXT @TEAPARTY follow-up OK after refuse / dump-goods apply.
  * Thin FUN_38fd_3dc8: dump min(100, stock) from richest human colony of cargo,
  * then enqueue KING_TAX OK with authentic tokens. VGA chrome PARKED.
@@ -270,38 +324,26 @@ static void ai_king_enqueue_teaparty_ok(ColonizeTurnContext* ctx, int human, int
     return;
   }
 
-  ColonizeColony* best = NULL;
-  int best_stock = -1;
-  if (ctx->colonies) {
-    for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
-      ColonizeColony* c = &ctx->colonies->colonies[i];
-      if (!c->active || c->nation_id != human) {
-        continue;
-      }
-      const int st = c->stock[cargo];
-      if (st > best_stock) {
-        best_stock = st;
-        best = c;
-      }
-    }
-  }
+  ColonizeColony* best = ai_king_teaparty_colony(ctx, human, cargo);
 
   int tons = 0;
-  if (best && best_stock > 0) {
-    tons = best_stock > 100 ? 100 : best_stock;
+  if (best) {
+    tons = best->stock[cargo] > 100 ? 100 : best->stock[cargo];
     best->stock[cargo] -= tons;
   }
 
   const char* cargo_nm = ai_king_cargo_name(cargo);
   const char* colony_nm =
     (best && best->name[0]) ? best->name : "the colonies";
+  char party[96];
+  ai_king_teaparty_party_name(party, sizeof(party), best, cargo);
 
   PopupMsgTokens tok;
   memset(&tok, 0, sizeof(tok));
   tok.string0 = cargo_nm;
   tok.string1 = colony_nm;
   tok.string2 = "Europe";
-  tok.string3 = "Tea";
+  tok.string3 = party;
   tok.number0 = tons;
   tok.has_number0 = true;
 
@@ -309,15 +351,19 @@ static void ai_king_enqueue_teaparty_ok(ColonizeTurnContext* ctx, int human, int
   snprintf(
     fallback,
     sizeof(fallback),
-    "Tea Party! Sons of Liberty throw %d tons of %s into the sea at %s! "
+    "%s Party! Sons of Liberty throw %d tons of %s into the sea at %s! "
     "Colonists refuse to pay new tax. Parliament announces boycott of %s. "
     "%s cannot be traded in Europe until boycott is lifted.",
+    party,
     tons,
     cargo_nm,
     colony_nm,
     cargo_nm,
     cargo_nm
   );
+
+  char title[AI_POPUP_BODY_LEN];
+  snprintf(title, sizeof(title), "%s Party", party);
 
   char body[AI_POPUP_BODY_LEN];
   popup_msg_fill(ctx->messages, "TEAPARTY", &tok, fallback, body, sizeof(body));
@@ -328,7 +374,7 @@ static void ai_king_enqueue_teaparty_ok(ColonizeTurnContext* ctx, int human, int
     human,
     ai_king_crown_nation(human),
     ctx->col1 && ctx->col1_ok ? (int)ctx->col1->nation[human].tax_rate : 0,
-    "Tea Party",
+    title,
     body
   );
 }
@@ -2281,7 +2327,12 @@ static void ai_king_tax_hike_apply(ColonizeTurnContext* ctx, int human, int delt
     tok.number1 = (int)nat->tax_rate;
     tok.has_number1 = true;
     tok.string0 = ai_king_cargo_name(picked);
-    tok.string3 = "Tea";
+    /* @TAXOPTIONS "Hold '{%STRING3 Party}.'" — DOS names it after the colony
+     * that will be raided plus the boycotted cargo, not "Tea". */
+    char party[96];
+    ai_king_teaparty_party_name(
+      party, sizeof(party), ai_king_teaparty_colony(ctx, human, picked), picked);
+    tok.string3 = party;
     char body[AI_POPUP_BODY_LEN];
     popup_msg_fill(
       ctx->messages,
@@ -2308,7 +2359,8 @@ static void ai_king_tax_hike_apply(ColonizeTurnContext* ctx, int human, int delt
       labels[1] = choice_buf[1];
     } else {
       labels[0] = "Kiss pinky ring.";
-      labels[1] = "Hold 'Tea Party.'";
+      snprintf(choice_buf[1], sizeof(choice_buf[1]), "Hold '%s Party.'", party);
+      labels[1] = choice_buf[1];
     }
     sound_play(0x3e); /* FUN_38fd_3dc8 38fd:4022/4068: royal-audience tune */
     if (ai_popup_enqueue_choice_ctx(ctx->ai_popups, AI_POPUP_TAG_KING_AUDIENCE, human,
@@ -2584,6 +2636,18 @@ static void ai_king_try_declare(ColonizeTurnContext* ctx) {
   }
   const int sol = ai_king_sol_percent(ctx, human);
   if (sol < AI_KING_DECLARE_SOL_MIN) {
+    return;
+  }
+  /*
+   * bugs.md: DOS never spawns the Never/Yes @DECLARE confirm on its own at a
+   * SoL threshold. FUN_43f7_2564 has no call site in the decompile at all —
+   * it is reached only from the MENU.TXT @GAME "DECLARE INDEPENDENCE" command
+   * (ai_king_menu_declare_independence). Firing it per turn produced a
+   * persistent popup at SoL 50 that the original does not have. Keep the
+   * SoL≥min auto-declare only for the headless/AI path (no popup queue), where
+   * there is nobody to answer a CHOICE.
+   */
+  if (ai_king_human_popups(ctx)) {
     return;
   }
   ai_king_show_declare_choice(ctx, human, sol);

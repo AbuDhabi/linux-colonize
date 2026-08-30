@@ -1170,14 +1170,35 @@ int main(void) {
     /* Warehouse spoilage clamp (FUN_15eb_0a50): tools above base 100 → 100. */
     c->stock[COLONIZE_CARGO_TOOLS] = 150;
     CHECK(colonies_warehouse_capacity(&pool, c, COLONIZE_CARGO_TOOLS) == 100, "base tools cap 100");
-    CHECK(colonies_apply_warehouse_spoilage(&pool, c, NULL, NULL) == 50, "spoil 50 tools over cap");
+    CHECK(
+      colonies_apply_warehouse_spoilage(&pool, c, NULL, NULL, NULL) == 50,
+      "spoil 50 tools over cap"
+    );
     CHECK(c->stock[COLONIZE_CARGO_TOOLS] == 100, "tools clamped to 100");
+
+    /*
+     * Overflow produced this very turn is clamped silently — no reported loss
+     * (FUN_364b_0688 only reports the part that predates production).
+     */
+    {
+      int before_prod[COLONIZE_CARGO_COUNT];
+      for (int ci = 0; ci < COLONIZE_CARGO_COUNT; ++ci) {
+        before_prod[ci] = c->stock[ci];
+      }
+      c->stock[COLONIZE_CARGO_TOOLS] = 150;
+      CHECK(
+        colonies_apply_warehouse_spoilage(&pool, c, before_prod, NULL, NULL) == 0,
+        "production overflow does not spoil"
+      );
+      CHECK(c->stock[COLONIZE_CARGO_TOOLS] == 100, "production overflow still clamped");
+    }
+
     /* Multi-type spoil → type count. */
     c->stock[COLONIZE_CARGO_TOOLS] = 150;
     c->stock[COLONIZE_CARGO_LUMBER] = 150;
     int first = -1, types = 0;
     CHECK(
-      colonies_apply_warehouse_spoilage(&pool, c, &first, &types) == 100,
+      colonies_apply_warehouse_spoilage(&pool, c, NULL, &first, &types) == 100,
       "spoil 100 across two cargos"
     );
     CHECK(types == 2, "spoil type count 2");

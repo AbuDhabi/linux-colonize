@@ -122,6 +122,22 @@ int ai_contact_try_village_meet_unit(
   int unit_id
 );
 
+/*
+ * Same, naming the settlement record being entered (index into col1->tribe).
+ * The row gating that depends on the village itself — Establish Mission vs.
+ * Denounce Heresy — then always describes that village. tribe_index -1 falls
+ * back to "a village of this tribe adjacent to the unit".
+ */
+int ai_contact_try_village_meet_unit_at(
+  ColonizeTurnContext* ctx,
+  int euro_nation,
+  int indian_nation,
+  int is_missionary,
+  int is_capital,
+  int unit_id,
+  int tribe_index
+);
+
 /* Village-menu "Attack Village" choice id — game_loop commits the move. */
 #define AI_CONTACT_CHOICE_ATTACK 11
 

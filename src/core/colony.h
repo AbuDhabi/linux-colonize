@@ -257,11 +257,21 @@ int colonies_found(
 );
 
 /*
- * FUN_13f1_00a6 (via FUN_364b_1ba8 found): reveal the ±5 square around a new
- * colony for its nation and seed pop_on_map=1/fort_on_map=0 on every colony
- * inside it that the nation has not observed yet. map may be NULL (no-op).
+ * FUN_364b_1dd6 founding tail: for each nation 0..3 that owns FF 6 (Coronado —
+ * `FUN_15eb_3960(nation, 6)`), call FUN_13f1_00a6 on the new colony, revealing
+ * the ±5 square around it for that nation and seeding pop_on_map=1 /
+ * fort_on_map=0 on every colony inside it that nation has not observed yet.
+ *
+ * The ±5 sweep is Coronado's effect, not a plain founding effect: without him
+ * founding reveals nothing beyond the founder's own unit sight. col1 may be
+ * NULL (then nobody has Coronado and this is a no-op), as may map.
  */
-void colonies_reveal_founded(ColonizeWorldMap* map, ColonizeColonyPool* pool, int colony_id);
+void colonies_reveal_founded(
+  ColonizeWorldMap* map,
+  ColonizeColonyPool* pool,
+  const ColonizeCol1Save* col1,
+  int colony_id
+);
 /* FUN_364b_1b4c: nation's fog snapshot of colony := live population / fort tier. */
 void colonies_fog_snapshot(ColonizeColonyPool* pool, int colony_id, int nation_id);
 /* Stockade→Fort→Fortress tier 0..3 (FUN_15eb_03d6 chain count). */
@@ -666,15 +676,25 @@ void colonies_specialty_cargo_update(
 );
 
 /*
- * EOT spoilage: clamp each stock to warehouse capacity (FUN_15eb_0a50 /
- * FUN_15eb_0c52). Call after production + Custom House (wiki: auto-sell before
- * spoilage). Returns total units discarded. When out_first_cargo != NULL and any
- * spoil occurs, writes the first spoiled cargo index. When out_type_count != NULL,
- * writes how many distinct cargo types spoiled.
+ * EOT spoilage: clamp each stock (Food excepted) to warehouse capacity
+ * (FUN_364b_0688's cargo loop). Call after production + Custom House (wiki:
+ * auto-sell before spoilage).
+ *
+ * `stock_before` is this colony's per-cargo stock as it stood *before* this
+ * turn's production, COLONIZE_CARGO_COUNT entries, or NULL to treat the whole
+ * overflow as pre-existing. DOS only *reports* the part of the overflow that
+ * predates production — goods a colony simply out-produced its warehouse for
+ * are clamped silently. Returns the reportable total (0 when nothing but
+ * production overflowed, or when the loss is under 2 tons).
+ *
+ * When out_first_cargo != NULL and any reportable spoil occurs, writes the
+ * first such cargo index. When out_type_count != NULL, writes how many
+ * distinct cargo types spoiled reportably.
  */
 int colonies_apply_warehouse_spoilage(
   ColonizeColonyPool* pool,
   ColonizeColony* colony,
+  const int* stock_before,
   int* out_first_cargo,
   int* out_type_count
 );

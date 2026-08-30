@@ -897,7 +897,8 @@ static void ai_contact_enqueue_village_meet(
   int nation_id,
   int is_missionary,
   int is_capital,
-  int unit_id
+  int unit_id,
+  int tribe_index
 ) {
   if (!ctx || !ctx->ai_popups || !ctx->col1) {
     return;
@@ -909,9 +910,18 @@ static void ai_contact_enqueue_village_meet(
   if (u && !u->active) {
     u = NULL;
   }
-  /* Village record: the one the unit is stepping into (adjacent), else first of the tribe. */
+  /*
+   * Village record: the one being entered. Callers that already know it (the
+   * move handler matched a settlement at the destination tile) pass its index
+   * — the fallback scan below can only look for "a village of this tribe next
+   * to the unit", and when the unit happens to stand beside two of them, or
+   * beside none, it can land on a different village whose mission state then
+   * decides the Establish Mission / Denounce Heresy rows for the wrong place.
+   */
   const ColonizeCol1Tribe* village = NULL;
-  if (ctx->col1->tribe) {
+  if (ctx->col1->tribe && tribe_index >= 0 && tribe_index < (int)ctx->col1->head.tribe_count) {
+    village = &ctx->col1->tribe[tribe_index];
+  } else if (ctx->col1->tribe) {
     for (uint16_t ti = 0; ti < ctx->col1->head.tribe_count; ++ti) {
       const ColonizeCol1Tribe* t = &ctx->col1->tribe[ti];
       if ((int)t->nation_id != nation_id) {
@@ -958,8 +968,15 @@ static void ai_contact_enqueue_village_meet(
   static char lbl[AI_POPUP_CHOICE_MAX][AI_POPUP_CHOICE_LEN];
   int n = 0;
   const int met = ind->euro_diplo[e] != 0;
+  /*
+   * DOS row 3/4 gate reads the settlement's mission byte as *signed*:
+   * `+5 < 0` (0x80..0xff) means "no mission", anything else is an owner in the
+   * low nibble. 0xff is only the usual spelling of that, so test the sign —
+   * a mission byte that is neither 0xff nor a real owner must not be allowed
+   * to swallow the Establish Mission row.
+   */
   const int foreign_owner =
-    (village && village->mission != COL1_TRIBE_MISSION_NONE)
+    (village && (int)(int8_t)village->mission >= 0)
       ? (int)(village->mission & COL1_TRIBE_MISSION_NATION_MASK)
       : -1;
   const char* rival_adj = (foreign_owner >= 0 && foreign_owner <= 3) ? ai_contact_euro_name(foreign_owner) : NULL;
@@ -1045,13 +1062,14 @@ int ai_contact_meet_pending_for_unit(const AiPopupState* st, int unit_id) {
   return 0;
 }
 
-int ai_contact_try_village_meet_unit(
+int ai_contact_try_village_meet_unit_at(
   ColonizeTurnContext* ctx,
   int euro_nation,
   int indian_nation,
   int is_missionary,
   int is_capital,
-  int unit_id
+  int unit_id,
+  int tribe_index
 ) {
   if (!ctx || !ctx->col1_ok || !ctx->col1 || euro_nation < 0 || euro_nation > 3) {
     return 0;
@@ -1080,8 +1098,21 @@ int ai_contact_try_village_meet_unit(
       ai_contact_welcome_pending(ctx->ai_popups, euro_nation, indian_nation)) {
     return 0;
   }
-  ai_contact_enqueue_village_meet(ctx, euro_nation, indian_nation, is_missionary, is_capital, unit_id);
+  ai_contact_enqueue_village_meet(
+    ctx, euro_nation, indian_nation, is_missionary, is_capital, unit_id, tribe_index);
   return 1;
+}
+
+int ai_contact_try_village_meet_unit(
+  ColonizeTurnContext* ctx,
+  int euro_nation,
+  int indian_nation,
+  int is_missionary,
+  int is_capital,
+  int unit_id
+) {
+  return ai_contact_try_village_meet_unit_at(
+    ctx, euro_nation, indian_nation, is_missionary, is_capital, unit_id, -1);
 }
 
 int ai_contact_try_village_meet(
@@ -1312,10 +1343,12 @@ int ai_contact_try_ship_village_unit(
   ai_contact_bind_names(ctx);
 
   const ColonizeCol1Tribe* tribe = NULL;
+  int tribe_index = -1;
   for (uint16_t ti = 0; ti < ctx->col1->head.tribe_count; ++ti) {
     const ColonizeCol1Tribe* t = &ctx->col1->tribe[ti];
     if ((int)t->x == x && (int)t->y == y && t->nation_id >= 4 && t->nation_id <= 11) {
       tribe = t;
+      tribe_index = (int)ti;
       break;
     }
   }
@@ -1396,7 +1429,8 @@ int ai_contact_try_ship_village_unit(
 
   /* Ship contact never carries a Missionary; capital status is real
    * (the specific village record was already resolved above). */
-  if (ai_contact_try_village_meet_unit(ctx, euro_nation, indian_nation, 0, tribe->state.capital, unit_id)) {
+  if (ai_contact_try_village_meet_unit_at(
+        ctx, euro_nation, indian_nation, 0, tribe->state.capital, unit_id, tribe_index)) {
     return 1;
   }
   if (!mid_wary) {
@@ -3398,6 +3432,111 @@ int ai_contact_ai_incite_human(
   return 1;
 }
 
+/*
+ * FUN_5bfb_022e's @INDIANSCONVERT arm (viceroy_unpacked.c:96989-97012), the
+ * real way a player gets Indian Converts: a Brave from a settlement that holds
+ * *your* mission walks up to one of your colonies, and
+ *
+ *     chance = indian.tech + 2      (doubled when the mission is Jesuit-grade)
+ *     fires when rng(0,15) < chance
+ *
+ * On success DOS clears that settlement's alarm word for the nation, shows
+ * GAME.TXT @INDIANSCONVERT with %STRING0 = the colony name, and spawns a unit
+ * of type 0 (Colonists) at the colony owned by that nation with profession
+ * 0x1b (Indian Convert). Establishing the mission in the first place is the
+ * @ACTIONS menu's own action, not this.
+ */
+static void ai_contact_mission_convert_visit(ColonizeTurnContext* ctx, int nation_id) {
+  if (!ctx || !ctx->units || !ctx->colonies || !ctx->col1_ok || !ctx->col1 ||
+      !ctx->col1->tribe) {
+    return;
+  }
+  if (nation_id < 4 || nation_id > 11) {
+    return;
+  }
+  ColonizeCol1Indian* ind = &ctx->col1->indian[nation_id - 4];
+  ColonizeDosRng local;
+  ai_contact_local_rng(ctx, nation_id, &local);
+  ColonizeDosRng* rng = ctx->rng ? ctx->rng : &local;
+  const int convert_type = units_find_type(ctx->units, "Colonists");
+  if (convert_type < 0) {
+    return;
+  }
+  static const int dx[8] = {0, 1, 1, 1, 0, -1, -1, -1};
+  static const int dy[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
+
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    ColonizeUnit* brave = &ctx->units->units[i];
+    if (!brave->active || brave->nation_id != nation_id || !units_is_on_map(brave)) {
+      continue;
+    }
+    if (brave->home_tribe_id < 0 ||
+        (uint16_t)brave->home_tribe_id >= ctx->col1->head.tribe_count) {
+      continue;
+    }
+    ColonizeCol1Tribe* home = &ctx->col1->tribe[brave->home_tribe_id];
+    if ((int)(int8_t)home->mission < 0) {
+      continue; /* no mission in the Brave's own settlement */
+    }
+    const int e = (int)(home->mission & COL1_TRIBE_MISSION_NATION_MASK);
+    if (e < 0 || e > 3) {
+      continue;
+    }
+    if (ind->alarm_by_player[e] > 0x4a) {
+      continue; /* DOS reaches this arm only below the war band */
+    }
+    /* The colony the Brave has walked up to. */
+    ColonizeColony* target = NULL;
+    for (int d = 0; d < 8 && !target; ++d) {
+      const int cid = colonies_id_at(ctx->colonies, brave->x + dx[d], brave->y + dy[d]);
+      ColonizeColony* c = colonies_get_mut(ctx->colonies, cid);
+      if (c && c->active && c->nation_id == e) {
+        target = c;
+      }
+    }
+    if (!target) {
+      continue;
+    }
+    int chance = (int)ind->tech + 2;
+    if ((home->mission & COL1_TRIBE_MISSION_JESUIT_BIT) != 0) {
+      chance *= 2;
+    }
+    if (dos_rng_range(rng, 0, 15) >= chance) {
+      continue;
+    }
+
+    const int cid = units_spawn_allow_stack(ctx->units, convert_type, target->x, target->y);
+    ColonizeUnit* convert = cid >= 0 ? units_get(ctx->units, cid) : NULL;
+    if (!convert) {
+      continue;
+    }
+    convert->nation_id = (uint8_t)e;
+    convert->profession = COLONIZE_PROF_CONVERT;
+    home->alarm[e].friction = 0;
+    home->alarm[e].attacks = 0;
+
+    if (ai_contact_euro_is_human(ctx, e)) {
+      PopupMsgTokens tok;
+      memset(&tok, 0, sizeof(tok));
+      tok.string0 = target->name[0] ? target->name : "our colony";
+      char fb[AI_POPUP_BODY_LEN];
+      snprintf(
+        fb,
+        sizeof(fb),
+        "\"The wisdom of your missionaries has convinced some of us to join "
+        "your colony at %s and live among you as converts.\"",
+        tok.string0
+      );
+      char body[AI_POPUP_BODY_LEN];
+      popup_msg_fill(ctx->messages, "INDIANSCONVERT", &tok, fb, body, sizeof(body));
+      ai_contact_human_chrome(
+        ctx, e, AI_POPUP_TAG_CONTACT_CONVERT, nation_id, "Mission", body
+      );
+    }
+    return; /* one convert per tribe per pulse */
+  }
+}
+
 static void ai_contact_missionary_convert(ColonizeTurnContext* ctx, int nation_id) {
   if (!ctx || !ctx->units || !ctx->col1_ok || !ctx->col1 || !ctx->col1->tribe) {
     return;
@@ -3430,6 +3569,18 @@ static void ai_contact_missionary_convert(ColonizeTurnContext* ctx, int nation_i
         continue;
       }
       const int e = other->nation_id;
+      /*
+       * bugs.md: this adjacency pulse is the AI's stand-in for working a
+       * missionary, and only that. A human's missionary establishes a mission
+       * or denounces heresy through the @ACTIONS village menu (rows 3 and 4,
+       * AI_CONTACT_CHOICE_MISSION / _HERESY) — never by merely standing next
+       * to a village, and never with a popup announcing it. Converts reaching
+       * the player's colonies are a separate event
+       * (ai_contact_mission_convert_visit, FUN_5bfb_022e's @INDIANSCONVERT arm).
+       */
+      if (ai_contact_euro_is_human(ctx, e)) {
+        continue;
+      }
       /*
        * Alarmed Indian diplomacy (fandom Alarm; same ≥55 refuse-talk gate):
        * refuse convert / heresy / crosses (status thinned; ai_popup Done).
@@ -5409,10 +5560,8 @@ void ai_contact_indian_meet_trade(ColonizeTurnContext* ctx, int nation_id) {
                 t->alarm[e].friction < 40) {
               t->alarm[e].friction--;
             }
-            if (t->mission == COL1_TRIBE_MISSION_NONE && t->alarm[e].friction < 30) {
-              /* Thin meet offer: nation only (no Jesuit unit on this Brave path). */
-              t->mission = (uint8_t)e;
-            }
+            /* bugs.md: first contact never gifts a mission — a mission exists
+             * only where a Missionary was actually sent (@ACTIONS row 3). */
             break;
           }
         }
@@ -5450,8 +5599,12 @@ void ai_contact_indian_meet_trade(ColonizeTurnContext* ctx, int nation_id) {
     }
   }
 
-  /* 2b. Missionary adjacent to tribe → mission owner + crosses. */
+  /* 2b. AI missionary adjacent to tribe → mission owner + crosses. */
   ai_contact_missionary_convert(ctx, nation_id);
+
+  /* 2c. Brave from a mission settlement visits that nation's colony →
+   * @INDIANSCONVERT + an Indian Convert in the colony (FUN_5bfb_022e). */
+  ai_contact_mission_convert_visit(ctx, nation_id);
 
   /* 2b1. Alarmed tribe + Missionary not converting → flee 1 tile (AI_MOVE). */
   ai_contact_missionary_flee(ctx, nation_id);

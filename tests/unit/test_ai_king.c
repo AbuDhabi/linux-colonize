@@ -4354,6 +4354,18 @@ int main(void) {
       assets_msg_free(&game_txt);
       return fail("ai_popups congress must defer WoI until Confirm");
     }
+    /*
+     * bugs.md: the per-turn tick must never raise the @DECLARE confirm on its
+     * own, however high SoL runs — DOS reaches FUN_43f7_2564 only from the
+     * MENU.TXT @GAME "DECLARE INDEPENDENCE" command.
+     */
+    for (int i = 0; i < pop.queue_count; ++i) {
+      if (pop.queue[i].tag == AI_POPUP_TAG_KING_CONGRESS) {
+        assets_msg_free(&game_txt);
+        return fail("nation turn must not spawn the @DECLARE choice by itself");
+      }
+    }
+    ai_king_menu_declare_independence(&ctx);
     {
       int found_congress = 0;
       int congress_qi = -1;

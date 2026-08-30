@@ -1261,7 +1261,11 @@ static int unit_fog_vis_mask_and_snapshot(void) {
     return 1;
   }
 
-  /* Founding reveal: ±5 for the founder, seeds pop_on_map=1 on unseen colonies. */
+  /*
+   * Founding reveal is Coronado-only (FUN_364b_1dd6 gates FUN_13f1_00a6 on
+   * FF 6 per nation): without him nothing is revealed; with him it is ±5 and
+   * seeds pop_on_map=1 on colonies inside that had not been observed.
+   */
   ColonizeColony* col2 = &colonies.colonies[1];
   col2->active = true;
   col2->id = 2;
@@ -1269,7 +1273,18 @@ static int unit_fog_vis_mask_and_snapshot(void) {
   col2->x = 8;
   col2->y = 8;
   colonies.colony_count = 2;
-  colonies_reveal_founded(&map, &colonies, 2);
+
+  ColonizeCol1Save fog_col1;
+  memset(&fog_col1, 0, sizeof(fog_col1));
+  colonies_reveal_founded(&map, &colonies, &fog_col1, 2);
+  if (col2->pop_on_map[3] != 0) {
+    fprintf(stderr, "fog: founding revealed without Coronado\n");
+    return 1;
+  }
+
+  fog_col1.nation[3].founding_fathers[FF_FRANCISCO_CORONADO / 8] =
+    (uint8_t)(1u << (FF_FRANCISCO_CORONADO % 8));
+  colonies_reveal_founded(&map, &colonies, &fog_col1, 2);
   if (!map_tile_seen_by(&map, 3, 3, 3) || map_tile_seen_by(&map, 1, 9, 3) ||
       col->pop_on_map[3] != 1 || col2->pop_on_map[3] != 1) {
     fprintf(stderr, "fog: founding reveal/seed wrong\n");
@@ -2159,10 +2174,13 @@ int main(void) {
       assets_msg_free(&names);
       return 1;
     }
+    /* bugs.md: docking already put the passenger ashore, with no orders — a
+     * further disembark call has nothing left to do. */
+    const ColonizeUnit* dock_ship_u = units_get_const(&pool, dock_ship);
     const int nd = units_disembark_all(&pool, dock_ship, cx, cy);
     dpax = units_get(&pool, dock_pax);
-    if (nd != 1 || !dpax || dpax->aboard_ship_id >= 0 || dpax->orders != 0 ||
-        dpax->x != cx || dpax->y != cy) {
+    if (nd != 0 || !dock_ship_u || dock_ship_u->cargo_count != 0 || !dpax ||
+        dpax->aboard_ship_id >= 0 || dpax->orders != 0 || dpax->x != cx || dpax->y != cy) {
       fprintf(stderr, "disembark_all state wrong (n=%d)\n", nd);
       map_free(&map);
       assets_msg_free(&names);

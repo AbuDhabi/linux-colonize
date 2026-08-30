@@ -218,17 +218,23 @@ bool ai_popup_handle_input(AiPopupState* st, const ColonizeInputState* input) {
       ai_popup_finish(st, false, 0);
       return true;
     }
+    /*
+     * bugs.md: on a CHOICE dialog only a click on one of the option rows is a
+     * decision. A click anywhere else — body text, dialog chrome, or outside
+     * the dialog entirely — is swallowed and changes nothing (no implicit
+     * cancel, no "pick the highlighted row"). Keyboard ESC still cancels.
+     */
     const int mx = input->mouse_x;
     const int my = input->mouse_y;
-    if (mx < st->dialog_x || my < st->dialog_y || mx >= st->dialog_x + st->dialog_w ||
-        my >= st->dialog_y + st->dialog_h) {
-      ai_popup_finish(st, true, -1);
-      return true;
-    }
-    const int idx = ai_popup_option_at_y(st, my);
-    if (idx >= 0) {
-      st->selection = idx;
-      ai_popup_finish(st, false, st->current.choice_ids[idx]);
+    const bool inside_dialog =
+      mx >= st->dialog_x && my >= st->dialog_y && mx < st->dialog_x + st->dialog_w &&
+      my < st->dialog_y + st->dialog_h;
+    if (inside_dialog) {
+      const int idx = ai_popup_option_at_y(st, my);
+      if (idx >= 0) {
+        st->selection = idx;
+        ai_popup_finish(st, false, st->current.choice_ids[idx]);
+      }
     }
     return true;
   }
