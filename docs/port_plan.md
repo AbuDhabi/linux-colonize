@@ -1826,9 +1826,75 @@ gameplay/determinism. Most rows need the user's visual-fidelity judgement.
   [indians.md](indians.md)), TRADE route editor, FA `3f41` full widget,
   Europe `@KISSUP`/`@KISSSORRY` and price rise/fall CHOICE boxes, boycott/
   market pressure chrome.
-- [ ] **W5.2 — Endgame cinematics:** king letter (`160a`), `DECLARAT.PIK`
-  animation, Congress VGA chrome / F3 grid polish, HoF year-end dialogs,
-  demo autoplay (`130d` tail).
+- [ ] **W5.2 — Endgame cinematics.** Reworked 2026-08-30; only the demo
+  autoplay is still open, and two of the original five rows were wrong.
+  - [x] **King letter (`160a`) — Done 2026-08-30.** Full port of the
+    Declaration signing cinematic as `src/core/declaration.c`
+    (`declaration_open/update/skip_to_end/handle_input/render`), armed from
+    `game_update` the frame the `AI_POPUP_TAG_KING_LETTER` popup is
+    presented so it plays in front of the @INDEPENDENCE letter, exactly
+    where `FUN_43f7_1a26` calls `thunk_FUN_2a1f_009a`. DOS reads: the
+    background is DS:`0x12e8` = **`DECOIND.PIK`**, the glyph sheets are
+    DS:`0x12f0`/`0x12f9` = `DEC-UPP0`/`DEC-LOW0` with the 8th character
+    overwritten by the letter, and DS:`0x1302` = `DEC-SQIG`. The signature
+    text is the human's `player[slot].country_name` (DS:`0x53f6` +
+    slot*0x34 + 0x18 — the "United Colonies" rename 1a26 has just done),
+    `strlwr`'d (`FUN_1d1d_0d46`) then word-initial upper-cased. Layout is
+    DOS-exact: x starts 0x7e and advances by the sheet's own glyph width,
+    y starts 0x94 and rises −3 per upper-case / −2 per lower-case / −1 per
+    space-or-punctuation cell, a space is a 3px gap with no sprite, and the
+    run stops with `DEC-SQIG` the moment x reaches 0xdc (so a long name is
+    cut off and finished with a flourish — that is DOS behaviour, not a
+    bug). Sprite 0 of every sheet is empty and only carries the advance
+    width (DOS reads it at +0x4a of the loaded sheet = record 1); the
+    drawn frames are sprites 1..10 (upper / flourish) and 1..7 (lower),
+    matching DOS's `local_520` literals. Frame period is DOS's 5 ticks of
+    the DS:`0x8338` counter — PIT divisor 0x7a8 (`FUN_0000_a443`),
+    incremented once per tick by the INT 8 handler at `0000:a294`, so
+    1193182/1960 = 608.77 Hz and 8.213 ms/frame. Any key or click
+    fast-forwards, then dismisses. Test: `unit_declaration`.
+  - [x] **`DECLARAT.PIK` animation — retracted 2026-08-30, wrong premise.**
+    `DECLARAT.PIK` is the *signed* parchment and is referenced by **no**
+    executable in the shipped game (`grep -abo DECLARAT COLONIZE/*.EXE`
+    finds nothing) — it is an unused leftover. The cinematic's art is
+    `DECOIND.PIK` + `DEC-UPP*/DEC-LOW*/DEC-SQIG.SS`, covered by the row
+    above. Every "DECLARAT.PIK anim PARKED" note elsewhere in the docs was
+    naming the wrong asset.
+  - [~] **Congress VGA chrome / F3 grid polish — partly closed 2026-08-30.**
+    The liberty-bells bar was blitting all `pool` (four-digit) bell icons
+    across a ~180px bar, which overlapped into a solid black block.
+    `reports_draw_icon_bar` grew a `max_icons` cap and the bells call site
+    passes `w / REPORTS_CONGRESS_BELLS_PITCH` (5), measured off
+    `continental_p1.png`: pool 1135 / need 1849 → w = 180, bell marks at
+    x = 24, 29, 34 … 177, 181 = 36 marks at a ~4.86px pitch. The other two
+    bars are unchanged and already match (REF regulars: 56 icons at a 2px
+    pitch; crosses: 8 icons at ~7.9px). **Still open (W5.3-shaped):** DOS's
+    bell mark is a 2×7 glyph (a brown dot over a 1px grey stroke) that is
+    *not* `ICONS.SS` #62 — no `ICONS.SS` sprite is ≤4px wide — so the port
+    still draws the full 10×12 bell and reads fatter than the golden; and
+    `k_ff_portrait_slots[]` still covers only 10 of 25 page-2 portraits.
+  - [x] **HoF year-end dialogs — already Done, row was stale.** The
+    `FUN_41f2_14a8` retire chain (`@RETIRE` confirm → F10 → `0b70`
+    exploits → `0f56` Hall of Fame → title) and the peacetime
+    `@SCORED`/`@RETIRING`/`@SOONRETIRING` dialogs all landed 2026-08-29,
+    after this row was written. See [manual_gap.md](manual_gap.md)
+    "Hall of Fame" / "Retire → score / HoF".
+  - [ ] **Demo autoplay (`130d` tail) — open, needs an attract mode.**
+    Traced 2026-08-30 (`viceroy_unpacked.asm:6890-7010`). Gated on the demo
+    flag DS:`0x828`; on every turn where `turn % 4 == 0` it does one of
+    three things by `turn % 3`: **0** — advance DS:`0x150` and call
+    `FUN_12fd_006c(id)` for the next woodcut/splash, looping while the call
+    returns non-zero and `id < 0x19` (this is the sole producer of ids
+    14-25, i.e. `unknown05`'s bits); **1** — pick a colony via
+    `FUN_15eb_0142` over the map extents `[0x853c]-2` / `[0x853a]-2` and
+    open it with `FUN_281f_0608`; **2** — `FUN_281f_05fa(human, -1)`. It
+    then latches DS:`0x82b` once scoring is complete (`0x5382 & 1`) or the
+    year passes 0x6bd (1725), and quits the demo when the tick counter
+    passes 0x3840 or that latch is set. The blocker is not the tail itself
+    — it is that the port has no attract mode (no all-AI, no-human-input
+    game driver) and no `FUN_12fd_006c` woodcut-art presenter (woodcut
+    events are text popups today, e.g. `@PACIFIC`). Both are bigger than
+    this row.
 - [ ] **W5.3 — Pixel-exact layout/style pass** (map pop digit colors, DOS
   zoom sprite-blit parity, HoF exact layout, etc.).
 - [ ] **W5.4 — MAPEDIT catalog track**

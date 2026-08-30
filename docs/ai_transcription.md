@@ -304,7 +304,7 @@ Thin map: [`euro_diplo.md`](../original_sources_annotated/ai/euro_diplo.md).
 | `FUN_43f7_0982` / `06a6` | ~335 / ~106 | REF wave / empty irregulars | `ai_king_ref_wave` | **partial** |
 | `FUN_43f7_2022` / `1eca` | ~98 / ~66 | War act + Continental promote | `ai_king_war_act` (`1eca` cap/fortify/own-tile gate **Done** full port; rest of `2022` war-act **partial**) | **partial** |
 | `FUN_43f7_2424` | ~61 | Nation SoL + peace/war dispatch | `ai_king_nation_turn` | **partial** (structural) |
-| `FUN_43f7_10f0` / `1528` / `160a` / `2022` / `2244` | — | Intervene / announce / rename / merc | `ai_king` thin 10f0/1528/160a; `2022` rebel merc real formula **Done**; `2244` peacetime AI-only self/ally-gift twin **Done** (`ai_king_ai_peacetime_gift`, called from `ai_euro_nation_turn`); letter cinematic / VGA PARKED | **partial** |
+| `FUN_43f7_10f0` / `1528` / `160a` / `2022` / `2244` | — | Intervene / announce / rename / merc | `ai_king` thin 10f0/1528; `160a` rename **Done** thin + signing cinematic **Done** 2026-08-30 (`src/core/declaration.c`); `2022` rebel merc real formula **Done**; `2244` peacetime AI-only self/ally-gift twin **Done** (`ai_king_ai_peacetime_gift`, called from `ai_euro_nation_turn`); VGA PARKED (letter cinematic no longer — see W5.2) | **partial** |
 | `FUN_38fd_5930` | 125 | `@KINGNEWWAR` Crown cancels peace with a random peer, grants gold + Veteran Soldiers, sets relation bit `0x10` | `ai_king_new_war_event` (Europe-EOT king slot after a quiet tax event) | **Done** 2026-08-27 (static; docks stand in for DOS's in-Europe unit spawn; `0x53c8` stamp not mirrored) |
 
 Thin map: [`king_ref.md`](../original_sources_annotated/ai/king_ref.md). Unit: `unit_ai_king`.
@@ -401,7 +401,7 @@ leftover push sites are a `port_plan.md` P3.7 item, not an AI-queue one.
 | # | Track | Status |
 |--:|-------|--------|
 | 1 | Indian meet/trade/gift/teach/incite **player dialogs** | **Done** structural (`ai_popup`); village-enter Meet CHOICE **Done** thin (now 6 options: Trade/Gift/Demand/Teach/Incite/Leave); gift-amount CHOICE **Done** thin; deep `2820` **mapped** ([`indian_trade_2820.md`](../original_sources_annotated/ai/indian_trade_2820.md)); VGA PARKED. `ai_contact_teach_skill` correctly free (teaching never costs gold) — **Done** fixed capital-village exemption from the one-shot learn limit same day. `FUN_4d56_417e` (task #5, **closed**) identified and **ported** as Incite Indians / WARPATH (confirmed vs. `GAME.TXT` `@INDIANWARPATH`/`@INDIANWARPATH2` and two live captures) — `ai_contact_incite_price`/`ai_contact_apply_incite`, closes the "incite/WARPATH gold PARKED" gap cited below and elsewhere; Mode-1 human path only, price formula fully byte-faithful (2026-08-14; base-combine op resolved to a real multiply after reading the two DOS platform helpers' decompiled bodies; discount loop uses real `mission`/`state.capital` fields; French get the real 2/3 price break; Missionary/target-capital sub-discounts now wired too, captured at Meet-CHOICE offer time and carried through the payload, no threading gap after all — see `indian_incite_417e.md`) ([`indian_incite_417e.md`](../original_sources_annotated/ai/indian_incite_417e.md)) |
-| 2 | King audience / declare confirm / merc hire **UI** | **Done** structural + MoW×6 / Dragoon garrison / Cont. capital-rally / siege spawn **Done**; dump-goods CHOICE **Done**; VGA / `160a` remain PARKED |
+| 2 | King audience / declare confirm / merc hire **UI** | **Done** structural + MoW×6 / Dragoon garrison / Cont. capital-rally / siege spawn **Done**; dump-goods CHOICE **Done**; `160a` signing cinematic **Done** 2026-08-30 (`src/core/declaration.c`); VGA chrome remains PARKED |
 | 3 | Founding Fathers **deeper effect table** | Cortes/de Witt/Sepulveda/Minuit **Done**; human Congress debate **Done**; KINGGALLEON2 **Done** 2026-08-27 (`FUN_5fef_1908`, tag built at runtime; `units_king_galleon_*`); F3 portrait **Done**; bridge load **Done** |
 | 4 | Euro mid-planner (`5d04` / CONTACT / land `20e6`) | Deep −0x6790 G-table **Done** real formula (2026-08-14, was thin `own≥2/3/4→6/7/8` heuristic) — [`euro_g_table_0a60.md`](../original_sources_annotated/ai/euro_g_table_0a60.md); presence-vs-`continent_tally_b` baseline + defense-value pressure comparison vs each rival/tribe, `ai_euro_refresh_continent_stance`; diplomacy-flag sub-gate approximated (always-count), existing at-war/sticky overrides kept; naval FUN_157e_004a holds/damage + ocean combat approach **Done**; land fort% + siege/open hunt + vet/Drake toughness **Done**; … ocean east-Europe HS bias **Done**; thin Europe ship buy ladder (Caravel/Merchantman/Galleon/Frigate) **Done**; mid-game colonies≥6 ship-buy+war hire **Done**; Col1 `labor_shortage` (+0x8e) LABOR join **Done**; `garrison_quota` (+0x1e) fortify DEC **Done**; `specialty_cargo` (+0x8d) haul prefer **Done**; `cargo_idle_turns` (+0x8f) haul score **Done**; `improve_timer` (+0x8c) pioneer gate **Done**; `build_ai_flags` (+0x1d bit7) wants_construction **Done**; `cargo_produced_mask` (+0x90) haul prefer **Done**; `ai_flags` (+0x1b) MoW→COLONY_ALT **Done**; `colony_flags` (+0x1c) starvation LABOR **Done**; `hammers_purchased` (+0x98) BUY **Done**; `colony_flags` sol_50/sol_100 latch **Done**; `depletion_counter` (+0x97) ore/silver wrap+suppress **Done**; `warehouse_level`/`capitol_level` (+0x95/+0x96) **Done** |
 | 5 | Indian×Euro `15b3` + fuller `153e` | **Done** structural + Privateer spawn **Done** (8g prize PARK); FA `3f41` full UI PARKED |
@@ -777,7 +777,7 @@ Long-form phases: Euro planner + Indian nation act together (shared `20e6` /
 |------------------------|------------------------|
 | Calendar / crosses / founded_colonies | VGA meet/diplo/king wood frames |
 | Colony xy/nation/pop/bip/hammers/name | FA `3f41` full dialog widgets |
-| All units (Euro + Braves): type/nation/xy/orders/goto; Brave moves/spent | Letter cinematic `160a` |
+| All units (Euro + Braves): type/nation/xy/orders/goto; Brave moves/spent | (letter cinematic `160a` moved to the left column 2026-08-30) |
 | Tribe pop / growth_accum / tribe_count | MAPEDIT / `COLDIG` / F3 portraits |
 | `euro_relation[4]` per Euro nation | Privateer 8g treasury fiction |
 | `relation_by_indian[8]` + `indian_hostility_sticky` | Hang dumps as primary path |
@@ -975,7 +975,7 @@ stand-in). `38fd_5be8`'s own delta formula and `38fd_3dc8`'s apply/clamp are
 now also real (2026-08-19, see above), not just the modal shell. VGA-identical
 wood chrome still PARKED.
 
-**Still PARKED:** `160a` letter cinematic; full merc/arrival/hold embark chrome;
+**Still PARKED:** full merc/arrival/hold embark chrome;
 exact `0x5382` Col1 bit rename / T3; DOS's own colony-array goods-seize pile
 (`FUN_38fd_3dc8`'s confiscate-into-royal-stock write, colony+0x5e08 — real
 field never resolved; `ai_king_enqueue_teaparty_ok`'s richest-colony stock

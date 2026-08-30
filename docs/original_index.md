@@ -260,7 +260,7 @@ screen wiring: [assets.md](assets.md). Official 3.0 notes: `COLONIZE/README.TXT`
 | Title / wizard | `OPENMENU.PIK`, `DIFFICUL.PIK`, `NATIONS.PIK`, `CUSTOMIZ.PIK`, `LEVN0001`–`0010.PIK` | Menu, difficulty, nation, customize, voyage |
 | Game chrome | `WOODPANL.PIK`, `WOODPAN2.PIK`, `EUROPE.PIK`, `COLONY.PIK` | Colony / Europe / wood panels |
 | Reports | `REPORT1`–`9.PIK`, `CCBKGD.PIK` | Adviser plates / Congress |
-| Misc | `DECLARAT.PIK`, `CLOS-BKG.PIK`, `KINGLSS*.PIK` | Declaration, closing, king loss |
+| Misc | `DECOIND.PIK` + `DEC-UPP*/DEC-LOW*/DEC-SQIG.SS`, `CLOS-BKG.PIK`, `KINGLSS*.PIK` | Declaration signing cinematic (`FUN_43f7_160a`), closing, king loss. `DECLARAT.PIK` ships but **no executable references it** — unused leftover |
 
 ### Text catalogs
 

@@ -123,6 +123,16 @@ unconfirmed against DOS. Congress page 2's FF portrait slot table has only
   list). Page 2: full-bleed FF group portrait composite, no text.
 - Ordering: fixed bells -> sentiment -> force -> FF list; page 2 portrait
   positions (`k_ff_portrait_slots[]`) only 10/25 confirmed.
+- Bells bar icon count (2026-08-30): the bar's `amount` is a raw four-digit
+  pool, not a unit count, so it is **not** the icon count — spreading all of
+  them filled the bar solid black. `reports_draw_icon_bar` takes a
+  `max_icons` cap and the bells site passes `w / REPORTS_CONGRESS_BELLS_PITCH`
+  (5), measured off `continental_p1.png` (pool 1135 / need 1849 → w = 180;
+  marks at x = 24, 29, 34 … 177, 181 = 36 marks, ~4.86px pitch). The REF and
+  crosses bars keep the plain even spread (their golden pitches are 2px and
+  ~7.9px). **Open:** DOS's bell mark is a 2x7 glyph (brown dot over a 1px
+  grey stroke) and is *not* `ICONS.SS` #62 — no `ICONS.SS` sprite is <=4px
+  wide — so the port's 10x12 bell still reads fatter than the golden.
 - Scroll/paging: 2 pages; any dismiss on page 1 advances to page 2 instead
   of leaving the report; page 2 closes on any click.
 - Click targets: none inside a page; page-advance only.

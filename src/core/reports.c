@@ -797,6 +797,13 @@ static void reports_draw_outlined_number(
  * one ICONS.SS icon, evenly spread across [x, x+w). When start-to-start
  * spacing collapses to <=1px (icons fully overlapping) — or always_show_number
  * is forced — the count is overlaid as a black-outlined number instead.
+ *
+ * max_icons (0 = unbounded) caps how many icons are actually drawn without
+ * changing the number overlaid on the bar. Bars whose amount is a raw
+ * resource total rather than a unit count (Congress liberty bells: a
+ * four-digit pool over a ~180px bar) would otherwise blit thousands of
+ * fully-overlapping sprites and read as a solid block; DOS draws a fixed
+ * number of them instead. See the bells call site for the measurement.
  */
 static void reports_draw_icon_bar(
   const ColonizeReportsView* view,
@@ -808,7 +815,8 @@ static void reports_draw_icon_bar(
   int w,
   int h,
   int amount,
-  bool always_show_number
+  bool always_show_number,
+  int max_icons
 ) {
   if (!view || !view->icons_ok || amount <= 0 || w <= 0 || h <= 0) {
     return;
@@ -820,22 +828,26 @@ static void reports_draw_icon_bar(
   if (!sp->pixels || sp->width <= 0 || sp->height <= 0) {
     return;
   }
+  int drawn = amount;
+  if (max_icons > 0 && drawn > max_icons) {
+    drawn = max_icons;
+  }
   const int iw = sp->width;
   const int ih = sp->height;
   const int iy = y + (h - ih) / 2;
   int start_step = iw;
-  if (amount == 1) {
+  if (drawn == 1) {
     ss_blit_sprite(&view->icons, icon, fb, x + (w - iw) / 2, iy);
   } else if (w <= iw) {
-    for (int i = 0; i < amount; ++i) {
+    for (int i = 0; i < drawn; ++i) {
       ss_blit_sprite(&view->icons, icon, fb, x, iy);
     }
     start_step = 0;
   } else {
     const int span = w - iw;
-    start_step = span / (amount - 1);
-    for (int i = 0; i < amount; ++i) {
-      ss_blit_sprite(&view->icons, icon, fb, x + (i * span) / (amount - 1), iy);
+    start_step = span / (drawn - 1);
+    for (int i = 0; i < drawn; ++i) {
+      ss_blit_sprite(&view->icons, icon, fb, x + (i * span) / (drawn - 1), iy);
     }
   }
   if ((always_show_number || start_step <= 1) && font) {
@@ -923,7 +935,7 @@ static void reports_render_religious(
   }
   reports_draw_icon_bar(
     view, font, fb, REPORTS_CROSS_ICON, REPORTS_CROSS_X, REPORTS_CROSS_Y, w, REPORTS_CROSS_H,
-    (int)current, false
+    (int)current, false, 0
   );
 }
 
@@ -980,6 +992,8 @@ static const ColonizeSpriteSheet* reports_ff_portrait_sheet(const char* data_dir
 #define REPORTS_CONGRESS_BELLS_RIGHT_MARGIN 20 /* measured; pool rarely reaches need, like crosses */
 #define REPORTS_CONGRESS_BELLS_MAX_W (320 - REPORTS_CONGRESS_BELLS_X - REPORTS_CONGRESS_BELLS_RIGHT_MARGIN)
 #define REPORTS_CONGRESS_BELLS_H 10
+/* Measured off continental_p1.png: one bell per 5px of filled bar. */
+#define REPORTS_CONGRESS_BELLS_PITCH 5
 
 #define REPORTS_CONGRESS_TEXT2_Y 59 /* "Rebel Sentiment: XX%  Tory Sentiment: YY%" */
 #define REPORTS_CONGRESS_SENT_X 4
@@ -1042,6 +1056,13 @@ static void reports_render_congress_page1(
       if (w < 1) {
         w = 1; /* pool>0 must still show something (at least the number overlay) */
       }
+      /*
+       * The bells "amount" is a raw pool (four digits), not a unit count, so
+       * it is not the icon count: continental_p1.png (pool 1135, need 1849 →
+       * w = 180) puts bell clappers at x = 24, 29, 34 … 177, 181, i.e. 36
+       * bells at a ~4.86px pitch = one per REPORTS_CONGRESS_BELLS_PITCH of
+       * bar. Spreading all 1135 filled the bar solid black instead.
+       */
       reports_draw_icon_bar(
         view,
         font,
@@ -1052,7 +1073,8 @@ static void reports_render_congress_page1(
         w,
         REPORTS_CONGRESS_BELLS_H,
         (int)pool,
-        true /* golden always shows the pool number, e.g. "1135" */
+        true /* golden always shows the pool number, e.g. "1135" */,
+        w / REPORTS_CONGRESS_BELLS_PITCH
       );
     }
   }
@@ -1124,7 +1146,8 @@ static void reports_render_congress_page1(
         w,
         REPORTS_CONGRESS_FORCE_H,
         amount,
-        true
+        true,
+        0 /* golden pitch is 2px for 56 regulars — unit counts spread as-is */
       );
     }
   }

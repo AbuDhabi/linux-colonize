@@ -809,7 +809,7 @@ sections have no response lines). **Kind CHOICE** lists authentic labels.
 | `KING_TAX` | CHOICE / OK | `@KINGTAX` + `@TAXOPTIONS`; `@TEAPARTY` Done thin | Done |
 | `KING_MERC` | CHOICE / OK | `@MERCENARIES` / `@MERCS` | Done |
 | `KING_CONGRESS` | CHOICE | `@DECLARE` body+choices / `43f7_2564` | Done thin |
-| `KING_LETTER` | OK | `@INDEPENDENCE` / `43f7_160a` | Partial |
+| `KING_LETTER` | OK | `@INDEPENDENCE` / `43f7_160a` | Done — the popup is preceded by the `160a` signing cinematic (`src/core/declaration.c`, 2026-08-30) |
 | `KING_ARRIVAL` | OK | `@INVASION` REF `43f7_1528`; `@INTERVENTION`/`@INTERVENE` `10f0` | Done thin |
 | `KING_CAPTURE` | OK | `@CAPTURED3` REF take | Done thin |
 | `FF_CONGRESS` | CHOICE / OK | `@CONTINENTAL` / `4345_024a` | Done |

@@ -65,6 +65,7 @@ add_library(colonize_core STATIC
   src/core/europe.c
   src/core/colony_screen.c
   src/core/debug_atlas.c
+  src/core/declaration.c
   src/core/units.c
   src/core/colony.c
   src/core/colony_yield.c
@@ -210,6 +211,7 @@ add_executable(smoke_game_flow
   src/core/europe.c
   src/core/colony_screen.c
   src/core/debug_atlas.c
+  src/core/declaration.c
   src/core/units.c
   src/core/colony.c
   src/core/colony_yield.c
@@ -274,6 +276,7 @@ add_executable(unit_new_game
   src/core/europe.c
   src/core/colony_screen.c
   src/core/debug_atlas.c
+  src/core/declaration.c
   src/core/units.c
   src/core/colony.c
   src/core/colony_yield.c
@@ -349,6 +352,7 @@ add_executable(unit_hall_of_fame
   src/core/europe.c
   src/core/colony_screen.c
   src/core/debug_atlas.c
+  src/core/declaration.c
   src/core/units.c
   src/core/colony.c
   src/core/colony_yield.c
@@ -813,6 +817,24 @@ target_include_directories(unit_ff PRIVATE
 
 add_test(NAME unit_ff COMMAND unit_ff WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
+add_executable(unit_declaration
+  tests/unit/test_declaration.c
+  src/core/declaration.c
+  src/core/ss.c
+  src/core/pik.c
+  src/core/madspack.c
+  src/core/assets.c
+  src/platform/diagnostics.c
+  src/core/strutil.c
+  src/platform/dos_compat/dos_compat.c
+)
+
+target_include_directories(unit_declaration PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
+add_test(NAME unit_declaration COMMAND unit_declaration WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+
 add_executable(smoke_ss
   tests/smoke/test_ss.c
   src/core/ss.c
@@ -1227,6 +1249,7 @@ add_executable(smoke_play
   src/core/europe.c
   src/core/colony_screen.c
   src/core/debug_atlas.c
+  src/core/declaration.c
   src/core/units.c
   src/core/colony.c
   src/core/colony_yield.c

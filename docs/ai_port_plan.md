@@ -3013,7 +3013,7 @@ visual fidelity, not just RE.
 
 - [ ] **T5.1 — VGA-identical dialog chrome** (meet/diplo/king wood frames,
   FA `3f41` full widget body, chief portrait `FUN_281f_04ac`).
-- [ ] **T5.2 — Letter cinematic** (`43f7` `160a`).
+- [x] **T5.2 — Letter cinematic** (`43f7` `160a`) — **Done 2026-08-30**, `src/core/declaration.c` (DECOIND.PIK + DEC-UPP/LOW/SQIG.SS quill animation; see port_plan.md W5.2).
 - [ ] **T5.3 — Congress UI / F3 portrait grid.**
 - ~~**Not planned:** `COLDIG.BIN` digital SFX — no reachable DOS trigger
   found~~ **Retracted 2026-08-27.** The triggers exist; they are event ids
