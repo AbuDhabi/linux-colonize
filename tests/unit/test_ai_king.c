@@ -501,6 +501,13 @@ int main(void) {
     }
     europe.cargo[COLONIZE_CARGO_TOBACCO].bid = 500;
     ctx.europe = &europe;
+    /*
+     * bugs.md: the roulette only sees cargos a colony actually holds — you
+     * cannot dump 0 tons in protest — so stock the two the pick may name.
+     */
+    memset(c->stock, 0, sizeof(c->stock));
+    c->stock[COLONIZE_CARGO_TOBACCO] = 120;
+    c->stock[COLONIZE_CARGO_SUGAR] = 30;
     ColonizeDosRng tea_rng;
     dos_rng_seed(&tea_rng, 1u);
     ctx.rng = &tea_rng;
@@ -531,6 +538,26 @@ int main(void) {
     if (!strstr(status, "tea party") || !strstr(status, "20")) {
       fprintf(stderr, "unit_ai_king: auto-teaparty status: '%s'\n", status);
       return fail("no-popups auto path tea-party status should mention the reverted rate");
+    }
+
+    /* Empty warehouses → nothing to throw in the sea, so the hike just stands. */
+    turn = 44;
+    col1.nation[0].tax_rate = 20;
+    europe.tax_percent = 20;
+    col1.nation[0].boycott_bitmap = 0;
+    memset(c->stock, 0, sizeof(c->stock));
+    dos_rng_seed(&tea_rng, 1u);
+    ctx.rng = &tea_rng;
+    status[0] = '\0';
+    ai_king_nation_turn(&ctx);
+    ctx.rng = NULL;
+    if (col1.nation[0].boycott_bitmap != 0) {
+      fprintf(stderr, "unit_ai_king: empty-store boycott_bitmap=0x%x\n",
+              (unsigned)col1.nation[0].boycott_bitmap);
+      return fail("a tea party must not boycott a cargo no colony stores");
+    }
+    if (col1.nation[0].tax_rate == 20) {
+      return fail("with nothing to dump the hike should stand, not revert");
     }
   }
   {
@@ -4199,6 +4226,11 @@ int main(void) {
     autumn = 0;
     status[0] = '\0';
     ai_popup_clear(&pop);
+    /* Every cargo stocked: the roulette then sees the same candidate set the
+     * flat bids describe (bugs.md — only stocked goods are eligible). */
+    for (int ci = 0; ci < COLONIZE_CARGO_COUNT; ++ci) {
+      colonies.colonies[0].stock[ci] = 50;
+    }
     const int expected_cargo = COLONIZE_CARGO_COTTON;
     const int expected_delta = 4;
     /* ai_king_teaparty_payload's own formula (applied*100+cargo) — not

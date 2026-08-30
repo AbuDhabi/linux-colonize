@@ -11410,6 +11410,8 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
   if (game->hidden_terrain_phase == 0 && game->col1_ok && game->unit_icons_ok) {
     map_panel_render_tribes_on_map(
       &game->col1,
+      game->units_ok ? &game->units : NULL,
+      &game->colonies,
       &game->unit_icons,
       framebuffer,
       view_x,

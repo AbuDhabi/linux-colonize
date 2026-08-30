@@ -4,6 +4,7 @@
 
 #include "core/assets.h"
 #include "core/colony.h"
+#include "core/colony_production.h"
 #include "core/colony_yield.h"
 #include "core/combat_analysis.h"
 #include "core/combat_strength.h"
@@ -1259,6 +1260,48 @@ static int unit_fog_vis_mask_and_snapshot(void) {
       units_nation_sees_tile_now(&units, &colonies, 2, 7, 7)) {
     fprintf(stderr, "fog: colony live sight radius wrong\n");
     return 1;
+  }
+
+  /*
+   * bugs.md: an Indian Convert must carry its own sprite on the map, not the
+   * plain Free Colonist one — DOS FUN_112b_0060 routes every @UNIT type 0
+   * through the profession table (FUN_112b_0002 case 0x1b -> icon 0x43 =
+   * sprite 66 here), the same icon the colony screen already used.
+   */
+  {
+    ColonizeUnitPool cpool;
+    memset(&cpool, 0, sizeof(cpool));
+    units_reset(&cpool);
+    cpool.type_count = 1;
+    snprintf(cpool.types[0].name, sizeof(cpool.types[0].name), "Colonists");
+    cpool.types[0].movement = 1;
+    cpool.types[0].icon_sprite = 100; /* Free Colonist */
+    const int plain = units_spawn_allow_stack(&cpool, 0, 3, 3);
+    const int conv = units_spawn_allow_stack(&cpool, 0, 4, 3);
+    ColonizeUnit* cu = units_get(&cpool, conv);
+    if (!cu || plain < 0) {
+      fprintf(stderr, "convert sprite: spawn failed\n");
+      return 1;
+    }
+    cu->profession = COLONIZE_PROF_CONVERT;
+    if (units_map_sprite(&cpool, plain) != 100) {
+      fprintf(stderr, "convert sprite: plain colonist map icon %d want 100\n",
+              units_map_sprite(&cpool, plain));
+      return 1;
+    }
+    if (units_map_sprite(&cpool, conv) != 66) {
+      fprintf(stderr, "convert sprite: convert map icon %d want 66\n",
+              units_map_sprite(&cpool, conv));
+      return 1;
+    }
+    /* Equipment still wins, as it does in DOS's type != 0 overrides. */
+    cu->muskets = UNITS_EQUIP_MUSKETS;
+    if (units_map_sprite(&cpool, conv) != UNITS_ICON_SOLDIER) {
+      fprintf(stderr, "convert sprite: armed convert should draw as a soldier\n");
+      return 1;
+    }
+    cu->muskets = 0;
+    fprintf(stderr, "convert map sprite ok\n");
   }
 
   /*

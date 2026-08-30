@@ -2107,20 +2107,47 @@ static void ai_king_audience_apply_delta(ColonizeCol1Nation* nat, int delta, int
  */
 static uint16_t ai_king_teaparty_candidate_mask(
   const ColonizeTurnContext* ctx,
+  int human,
   int bid_buf[COLONIZE_CARGO_COUNT],
   const int** out_bids
 ) {
-  const uint16_t all_cargos = (uint16_t)((1u << COLONIZE_CARGO_COUNT) - 1u);
-  uint16_t candidate_mask = all_cargos;
+  uint16_t candidate_mask = 0;
   *out_bids = NULL;
+  if (!ctx) {
+    return 0;
+  }
+  /*
+   * bugs.md: a cargo only enters the roulette if one of this nation's colonies
+   * actually holds some of it — you cannot dump 0 tons of anything in protest.
+   * That is DOS's own rule: FUN_38fd_3dc8 fills aiStack_cc[c] with the largest
+   * stock of c across the human's colonies and skips every cargo whose entry
+   * stayed 0 (`... && aiStack_cc[local_ac] != 0`), both when summing the
+   * roulette weights and when walking them. The port had keyed the mask off
+   * Europe's bid instead, which let it name a good no colony was storing.
+   */
+  for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
+    bid_buf[c] = 0;
+  }
+  if (ctx->colonies) {
+    for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+      const ColonizeColony* col = &ctx->colonies->colonies[i];
+      if (!col->active || col->nation_id != human) {
+        continue;
+      }
+      for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
+        if (col->stock[c] > 0) {
+          candidate_mask = (uint16_t)(candidate_mask | (uint16_t)(1u << c));
+        }
+      }
+    }
+  }
+  /* Weights stay the Europe price (DOS's local_7a price roll stand-in). */
   if (ctx->europe) {
     const EuropeScreen* eu = ctx->europe;
-    candidate_mask = 0;
     for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
-      const int bid = (c < eu->cargo_count) ? eu->cargo[c].bid : 0;
-      bid_buf[c] = bid;
-      if (bid > 0) {
-        candidate_mask = (uint16_t)(candidate_mask | (uint16_t)(1u << c));
+      bid_buf[c] = (c < eu->cargo_count) ? eu->cargo[c].bid : 0;
+      if (bid_buf[c] < 1) {
+        bid_buf[c] = 1; /* stocked but unsellable: eligible, just least likely */
       }
     }
     *out_bids = bid_buf;
@@ -2289,20 +2316,18 @@ static void ai_king_tax_hike_apply(ColonizeTurnContext* ctx, int human, int delt
 
   int bid_buf[COLONIZE_CARGO_COUNT];
   const int* bids = NULL;
-  const uint16_t candidate_mask = ai_king_teaparty_candidate_mask(ctx, bid_buf, &bids);
+  const uint16_t candidate_mask = ai_king_teaparty_candidate_mask(ctx, human, bid_buf, &bids);
   int picked = ctx->rng
     ? ai_king_pick_dump_goods_cargo(nat->boycott_bitmap, candidate_mask, ctx->rng, bids)
     : -1;
-  if (picked < 0 && ctx->rng && ai_king_human_popups(ctx)) {
+  if (picked < 0 && ctx->rng && ai_king_human_popups(ctx) && candidate_mask != 0) {
     /*
-     * bugs.md: a tax hike must always be a real Kiss-the-ring/Tea-party
-     * choice for the human, never a silent announcement — relax the
-     * bid>0 and boycott-exclusion filters as a last resort so some cargo
-     * is always nameable (all cargos already boycotted is the only case
-     * this can still miss, and re-threatening one then is harmless).
+     * Every stocked cargo is already boycotted: drop only the boycott
+     * exclusion, never the "a colony actually holds some" one — re-threatening
+     * a good already under boycott is harmless, naming one nobody stores is
+     * not (bugs.md: you cannot dump 0 tons in protest).
      */
-    const uint16_t all_cargos = (uint16_t)((1u << COLONIZE_CARGO_COUNT) - 1u);
-    picked = ai_king_pick_dump_goods_cargo(0, all_cargos, ctx->rng, NULL);
+    picked = ai_king_pick_dump_goods_cargo(0, candidate_mask, ctx->rng, bids);
   }
 
   if (picked < 0) {
