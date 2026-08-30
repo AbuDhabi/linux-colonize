@@ -5906,7 +5906,8 @@ static void ai_euro_found_with_unit(ColonizeTurnContext* ctx, ColonizeUnit* foun
     );
   }
   if (cid >= 0) {
-    colonies_reveal_founded(ctx->map, ctx->colonies, cid); /* FUN_13f1_00a6 */
+    colonies_reveal_founded(
+    ctx->map, ctx->colonies, ctx->col1_ok ? ctx->col1 : NULL, cid); /* FUN_364b_1dd6 Coronado */
     const int founded_x = founder->x;
     const int founded_y = founder->y;
     if (cid >= 0 && cid < COLONIZE_COLONIES_MAX) {

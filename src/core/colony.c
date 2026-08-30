@@ -72,12 +72,13 @@ bool colonies_known_to(const ColonizeColony* c, int nation_id, bool show_entire_
   return c->nation_id == nation_id || show_entire_map || c->pop_on_map[nation_id] != 0;
 }
 
-void colonies_reveal_founded(ColonizeWorldMap* map, ColonizeColonyPool* pool, int colony_id) {
-  const ColonizeColony* c = colonies_get(pool, colony_id);
-  if (!map || !c || !c->active || c->nation_id < 0 || c->nation_id > 3) {
-    return;
-  }
-  const int nation = c->nation_id;
+/* FUN_13f1_00a6 proper: the ±5 sweep for one nation around one colony. */
+static void colonies_reveal_ring5(
+  ColonizeWorldMap* map,
+  ColonizeColonyPool* pool,
+  const ColonizeColony* c,
+  int nation
+) {
   for (int y = c->y - 5; y <= c->y + 5; ++y) {
     for (int x = c->x - 5; x <= c->x + 5; ++x) {
       if (!map_coords_inset(map, x, y)) {
@@ -91,6 +92,31 @@ void colonies_reveal_founded(ColonizeWorldMap* map, ColonizeColonyPool* pool, in
         oc->fort_on_map[nation] = 0;
       }
     }
+  }
+}
+
+void colonies_reveal_founded(
+  ColonizeWorldMap* map,
+  ColonizeColonyPool* pool,
+  const ColonizeCol1Save* col1,
+  int colony_id
+) {
+  const ColonizeColony* c = colonies_get(pool, colony_id);
+  if (!map || !col1 || !c || !c->active || c->nation_id < 0 || c->nation_id > 3) {
+    return;
+  }
+  /*
+   * FUN_364b_1dd6: `for n in 0..3: if FUN_15eb_3960(n, 6) then
+   * FUN_13f1_00a6(new_colony, n)`. Gated on Coronado per nation — every
+   * Coronado owner sees around the new colony, not just its founder.
+   */
+  for (int nation = 0; nation < 4; ++nation) {
+    const int byte_i = FF_FRANCISCO_CORONADO / 8;
+    const int bit_i = FF_FRANCISCO_CORONADO % 8;
+    if (((col1->nation[nation].founding_fathers[byte_i] >> bit_i) & 1) == 0) {
+      continue;
+    }
+    colonies_reveal_ring5(map, pool, c, nation);
   }
 }
 
@@ -2421,6 +2447,7 @@ void colonies_specialty_cargo_update(
 int colonies_apply_warehouse_spoilage(
   ColonizeColonyPool* pool,
   ColonizeColony* colony,
+  const int* stock_before,
   int* out_first_cargo,
   int* out_type_count
 ) {
@@ -2435,19 +2462,36 @@ int colonies_apply_warehouse_spoilage(
   }
   int spoiled = 0;
   int types = 0;
-  for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
+  /* c starts at 1: FUN_364b_0688's loop skips cargo 0 (Food) entirely — food
+   * over capacity is the new-colonist rule, never warehouse spoilage. */
+  for (int c = 1; c < COLONIZE_CARGO_COUNT; ++c) {
     const int cap = colonies_warehouse_capacity(pool, colony, c);
     if (cap <= 0) {
       continue;
     }
-    if (colony->stock[c] > cap) {
+    if (colony->stock[c] <= cap) {
+      continue;
+    }
+    /*
+     * DOS reports a loss only for the part of the overflow that was already
+     * there *before* this turn's production: `if (production < overflow)`.
+     * Either way the stock ends clamped at capacity, so overflow caused purely
+     * by production is a silent clamp with no @SPOIL message. A reported loss
+     * below 2 tons is also dropped (`if (local_74 < 2) local_74 = 0`).
+     */
+    const int before = stock_before ? stock_before[c] : colony->stock[c];
+    int lost = before - cap;
+    if (lost < 2) {
+      lost = 0;
+    }
+    if (lost > 0) {
       if (out_first_cargo && *out_first_cargo < 0) {
         *out_first_cargo = c;
       }
       types++;
-      spoiled += colony->stock[c] - cap;
-      colony->stock[c] = cap;
+      spoiled += lost;
     }
+    colony->stock[c] = cap;
   }
   if (out_type_count) {
     *out_type_count = types;

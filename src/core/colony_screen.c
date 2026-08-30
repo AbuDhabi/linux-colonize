@@ -2769,35 +2769,15 @@ static void colony_screen_draw_transports(
           colony_screen_blit_cargo(view, gtype, partial, framebuffer, x, y);
         }
       }
-      for (int i = 0; i < ship->cargo_count; ++i) {
-        const int slot = open_holds + i;
-        if (slot >= max_holds) {
-          break;
-        }
-        const int x = COLONY_HOLD_X + 4 + slot * COLONY_HOLD_PITCH;
-        const int y = COLONY_HOLD_Y;
-        const ColonizeUnit* pass = units_get_const(units, ship->cargo_ids[i]);
-        if (!pass) {
-          continue;
-        }
-        const int sprite = units_map_sprite(units, pass->id);
-        if (sprite >= 0 && view->icons_ok) {
-          unit_chrome_blit_unit_for_palette(
-            framebuffer,
-            font,
-            &view->icons,
-            sprite,
-            x,
-            y,
-            units_display_type_index(units, pass->id),
-            pass->nation_id,
-            pass->orders,
-            false,
-            true,
-            (view->frame_ok && view->frame.has_palette) ? &view->frame.palette : NULL
-          );
-        }
-      }
+      /*
+       * bugs.md: only goods ever appear in a docked transport's holds. A unit
+       * in a colony is *in the colony*, standing on the dock — whether it will
+       * sail with a ship is not settled until the ship actually leaves, at
+       * which point the sentried units on the tile board it
+       * (units_board_sentries_from_tile). Arriving passengers are put ashore
+       * the moment the ship docks (units_try_move), so a docked ship normally
+       * has no passengers to draw here at all.
+       */
     }
   }
   /* Cover unused holds; with no ship selected, all six are covered. */
@@ -2923,29 +2903,32 @@ static void colony_screen_draw_people(
    * Production tab would net to (raw field/town-commons food minus the
    * turn's horse-breeding feed, since that subtraction lands in `goods[]`
    * not a separate field), not the raw pre-breeding `food_produced`. */
-  int food_amt = p->goods[COLONIZE_CARGO_FOOD];
-  if (p->food_net < 0) {
-    /* Show production; shortfall drawn as grey in same strip width. */
-    food_amt = p->goods[COLONIZE_CARGO_FOOD] > 0 ? p->goods[COLONIZE_CARGO_FOOD] : (-p->food_net);
-  }
-  const bool surplus_active = p->food_net > 0;
+  const int food_amt = p->goods[COLONIZE_CARGO_FOOD];
   /*
-   * Columns, in DOS reading order: fish/grain, (new) net food surplus,
+   * Columns, in DOS reading order: fish/grain produced, the net food counter,
    * crosses, bells. Player-reported placement ("between food-produced-and-
    * eaten and crosses") and player-reported sizing (width mostly
    * proportional to each column's amount, not a flat 1/n split, with a
-   * floor so a small amount like a 2-surplus still reads). The surplus
-   * column only exists when there's a surplus to show — a deficit already
-   * shows via the fish/grain pair's own grey shortfall mode. */
-  const int slot_count = surplus_active ? 4 : 3;
+   * floor so a small amount like a 2-surplus still reads).
+   *
+   * bugs.md: the net counter carries *either* the surplus *or* the shortage —
+   * never both, and nothing at all when the colony eats exactly what it grows.
+   * A shortage is that counter drawn with the grey food icon and a red number,
+   * not the produced-food number turned red: production is what it is, and
+   * recolouring it hides how much is actually short.
+   */
+  const int food_net = p->food_net;
+  const bool net_active = food_net != 0;
+  const int net_amt = food_net > 0 ? food_net : -food_net;
+  const int slot_count = net_active ? 4 : 3;
   long weight[4];
   int wi = 0;
   const int food_weight_idx = wi;
   weight[wi++] = food_amt > 0 ? food_amt : 1;
   int surplus_weight_idx = -1;
-  if (surplus_active) {
+  if (net_active) {
     surplus_weight_idx = wi;
-    weight[wi++] = p->food_net;
+    weight[wi++] = net_amt;
   }
   const int cross_weight_idx = wi;
   weight[wi++] = p->crosses > 0 ? p->crosses : 1;
@@ -2980,16 +2963,9 @@ static void colony_screen_draw_people(
 
   int meter_x = COLONY_PEOPLE_X + 2;
   {
-    const bool grey_only = (p->food_net < 0 && p->goods[COLONIZE_CARGO_FOOD] <= 0);
     const int fish_amt =
-      (!grey_only && p->goods[COLONIZE_CARGO_FOOD] > 0)
-        ? (p->food_fish > food_amt ? food_amt : p->food_fish)
-        : 0;
+      (food_amt > 0) ? (p->food_fish > food_amt ? food_amt : p->food_fish) : 0;
     const int grain_amt = food_amt - fish_amt;
-    const int fish_icon = COLONY_ICON_FISH;
-    const int grain_icon =
-      grey_only ? (COLONY_CARGO_GREY_BASE + COLONIZE_CARGO_FOOD)
-                : (COLONY_CARGO_ICON_BASE + COLONIZE_CARGO_FOOD);
     colony_screen_draw_resource_count_pair(
       view,
       font,
@@ -2998,16 +2974,17 @@ static void colony_screen_draw_people(
       meter_y,
       width[food_weight_idx],
       meter_h,
-      fish_icon,
+      COLONY_ICON_FISH,
       fish_amt,
-      grain_icon,
+      COLONY_CARGO_ICON_BASE + COLONIZE_CARGO_FOOD,
       grain_amt,
-      (p->food_net < 0) ? 12 : 15,
+      15,
       false
     );
     meter_x += width[food_weight_idx] + gap;
   }
-  if (surplus_active) {
+  if (net_active) {
+    const bool shortage = food_net < 0;
     colony_screen_draw_resource_count(
       view,
       font,
@@ -3016,9 +2993,10 @@ static void colony_screen_draw_people(
       meter_y,
       width[surplus_weight_idx],
       meter_h,
-      COLONY_CARGO_ICON_BASE + COLONIZE_CARGO_FOOD,
-      p->food_net,
-      15,
+      shortage ? (COLONY_CARGO_GREY_BASE + COLONIZE_CARGO_FOOD)
+               : (COLONY_CARGO_ICON_BASE + COLONIZE_CARGO_FOOD),
+      net_amt,
+      shortage ? 12 : 15,
       false
     );
     meter_x += width[surplus_weight_idx] + gap;

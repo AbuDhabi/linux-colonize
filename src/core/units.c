@@ -5011,6 +5011,17 @@ bool units_try_move(
   if (colonies && colonies_id_at(colonies, dest_x, dest_y) >= 0 &&
       units_is_transport(pool, unit_id)) {
     unit->moves_left = 0;
+    /*
+     * bugs.md: docking puts everyone ashore. A unit inside a colony is in the
+     * colony, not in a hold — whether it sails again is decided when a ship
+     * next leaves, and the sentried units on the tile board it then (the
+     * auto-board above). They land with no orders and whatever moves they had,
+     * so an arrival can still walk on the turn it lands.
+     */
+    if (units_is_sea(pool, unit_id) && unit->cargo_count > 0) {
+      (void)units_disembark_all(pool, unit_id, dest_x, dest_y);
+      units_occupancy_refresh_tile(pool, dest_x, dest_y, -1);
+    }
   }
 
   if (colonies) {

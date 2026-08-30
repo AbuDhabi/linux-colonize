@@ -1288,11 +1288,14 @@ static bool elect_commit(
       body,
       sizeof(body)
     );
+    /* nation_b carries the elected FF index so the shell can chain the
+     * Continental Congress page 2 + Colonizopedia entry after the OK
+     * (game_apply_ai_popup_result). payload -1 = announce, not debate. */
     (void)ai_popup_enqueue_ok_ctx(
       ctx->ai_popups,
       AI_POPUP_TAG_FF_CONGRESS,
       nation_id,
-      -1,
+      idx,
       -1, /* payload -1: announce OK, not debate apply */
       NULL,
       body

@@ -1487,7 +1487,7 @@ static void turn_produce_one_colony(
     int first_spoil = -1;
     int spoil_types = 0;
     const int spoiled =
-      colonies_apply_warehouse_spoilage(pool, colony, &first_spoil, &spoil_types);
+      colonies_apply_warehouse_spoilage(pool, colony, stock_before, &first_spoil, &spoil_types);
     /* Phase P thin: human spoilage status; multi-type → goods phrasing. */
     if (spoiled > 0 && europe && colony->nation_id == human_nation) {
       const char* wh =
@@ -1569,50 +1569,68 @@ static void turn_produce_one_colony(
         );
         ai_popup_enqueue_ok(ai_popups, AI_POPUP_TAG_INFO, NULL, body);
       }
-    } else if (europe && colony->nation_id == human_nation) {
-      /*
-       * Phase P century tip: stock crosses a 100s boundary upward → @CARGOREADY*.
-       * At exact warehouse cap → CARGOREADY1 (tip) / CARGOREADY2 (expanded).
-       * Once-per-campaign latch DS:0x5387 bit1 → head.tut3.nr6.
-       * Cite: colony_eot_production.md Deep P; viceroy ~57900–57930.
-       */
-      const int latched = col1 && col1->head.tut3.nr6;
-      if (!latched && turn_report_ok_new_cargo(col1)) {
-        for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
-          const int before = stock_before[c];
-          const int after = colony->stock[c];
-          if (after >= 100 && before / 100 < after / 100) {
-            snprintf(
-              europe->status,
-              sizeof(europe->status),
-              "Stockpile crossed %d00.",
-              after / 100
-            );
-            if (col1) {
-              col1->head.tut3.nr6 = 1;
-            }
-            if (ai_popups) {
-              const int cap = colonies_warehouse_capacity(pool, colony, c);
-              const char* cargo_name = NULL;
-              if (c >= 0 && c < europe->cargo_count && europe->cargo[c].name[0]) {
-                cargo_name = europe->cargo[c].name;
-              }
-              const char* sec = "CARGOREADY0";
-              if (cap > 0 && after == cap) {
-                sec = (colony->warehouse_level > 1u) ? "CARGOREADY2" : "CARGOREADY1";
-              }
-              char body[AI_POPUP_BODY_LEN];
-              PopupMsgTokens tok;
-              memset(&tok, 0, sizeof(tok));
-              tok.string0 = colony->name[0] ? colony->name : "colony";
-              tok.string1 = cargo_name ? cargo_name : "cargo";
-              tok.number0 = cap > 0 ? cap : after;
-              tok.has_number0 = true;
-              popup_msg_fill(messages, sec, &tok, europe->status, body, sizeof(body));
-              ai_popup_enqueue_ok(ai_popups, AI_POPUP_TAG_INFO, NULL, body);
-            }
-            break;
-          }
+    }
+
+    /*
+     * Phase P century tip: stock crosses a 100s boundary upward → @CARGOREADY*.
+     * At exact warehouse cap → CARGOREADY1 (tip) / CARGOREADY2 (expanded).
+     *
+     * DOS runs this as its own `if` after the spoil block, once per crossing
+     * cargo, for as long as the "report new cargos available" option is on —
+     * it is not an alternative to spoilage, and it does not latch. The
+     * once-per-campaign latch DS:0x5387 bit1 (head.tut3.nr6) belongs to the
+     * separate @TUTORIAL6 "move a ship in and sell it" hint, emitted below.
+     * Food (cargo 0) never triggers it. Cite: viceroy ~57893–57930.
+     */
+    if (europe && colony->nation_id == human_nation && turn_report_ok_new_cargo(col1)) {
+      for (int c = 1; c < COLONIZE_CARGO_COUNT; ++c) {
+        const int before = stock_before[c];
+        const int after = colony->stock[c];
+        if (after < 100 || before / 100 >= after / 100) {
+          continue;
+        }
+        const int cap = colonies_warehouse_capacity(pool, colony, c);
+        const char* cargo_name = NULL;
+        if (c < europe->cargo_count && europe->cargo[c].name[0]) {
+          cargo_name = europe->cargo[c].name;
+        }
+        snprintf(
+          europe->status,
+          sizeof(europe->status),
+          "New cargo of %s ready at %s.",
+          cargo_name ? cargo_name : "goods",
+          colony->name[0] ? colony->name : "colony"
+        );
+        if (!ai_popups) {
+          continue;
+        }
+        const char* sec = "CARGOREADY0";
+        if (cap > 0 && after == cap) {
+          sec = (colony->warehouse_level > 1u) ? "CARGOREADY2" : "CARGOREADY1";
+        }
+        char body[AI_POPUP_BODY_LEN];
+        PopupMsgTokens tok;
+        memset(&tok, 0, sizeof(tok));
+        tok.string0 = colony->name[0] ? colony->name : "colony";
+        tok.string1 = cargo_name ? cargo_name : "cargo";
+        tok.number0 = cap > 0 ? cap : after;
+        tok.has_number0 = true;
+        popup_msg_fill(messages, sec, &tok, europe->status, body, sizeof(body));
+        ai_popup_enqueue_ok(ai_popups, AI_POPUP_TAG_INFO, NULL, body);
+
+        /* @TUTORIAL6, once per campaign (DS:0x5387 bit1). */
+        if (col1 && !col1->head.tut3.nr6) {
+          col1->head.tut3.nr6 = 1;
+          PopupMsgTokens ttok;
+          memset(&ttok, 0, sizeof(ttok));
+          ttok.number0 = after;
+          ttok.has_number0 = true;
+          ttok.string0 = cargo_name ? cargo_name : "cargo";
+          ttok.string1 = colony->name[0] ? colony->name : "colony";
+          ttok.string2 = europe->nation_name[0] ? europe->nation_name : "Europe";
+          char tbody[AI_POPUP_BODY_LEN];
+          popup_msg_fill(messages, "TUTORIAL6", &ttok, europe->status, tbody, sizeof(tbody));
+          ai_popup_enqueue_ok(ai_popups, AI_POPUP_TAG_INFO, NULL, tbody);
         }
       }
     }

@@ -3,6 +3,7 @@
 #include "core/ai_diplo.h"
 #include "core/ai_popup.h"
 #include "core/assets.h"
+#include "core/colony_production.h"
 #include "core/colony.h"
 #include "core/col1_save.h"
 #include "core/dos_rng.h"
@@ -646,7 +647,11 @@ int main(void) {
   /*
    * Missionary convert pulse: adjacent Missionary + non-hostile →
    * tribe.mission = euro id and nation current_crosses++.
-   * Human success status (teach already had success chrome).
+   *
+   * bugs.md: this pulse is the *AI's* stand-in for working a missionary. The
+   * human establishes a mission through the @ACTIONS village menu, so these
+   * blocks run with the human elsewhere (nation 2) and nation 0 as an AI, and
+   * the human-only case is asserted inert at the end of the block.
    */
   units.type_count = 3;
   snprintf(units.types[2].name, sizeof(units.types[2].name), "Missionary");
@@ -668,7 +673,7 @@ int main(void) {
     status_ok[0] = '\0';
     ctx.status = status_ok;
     ctx.status_size = sizeof(status_ok);
-    ctx.human_nation = 0;
+    ctx.human_nation = 2;
     c->active = true;
     c->nation_id = 0;
     c->x = 5;
@@ -681,15 +686,6 @@ int main(void) {
     }
     if (col1.nation[0].current_crosses != (uint16_t)(crosses0 + 1)) {
       return fail("missionary convert should bump nation current_crosses");
-    }
-    if (strstr(status_ok, "accept") == NULL || strstr(status_ok, "conversion") == NULL ||
-        strstr(status_ok, "The ") == NULL) {
-      fprintf(stderr, "unit_ai_contact: convert-ok status '%s'\n", status_ok);
-      return fail("convert success should set tribe-named accept-conversion status");
-    }
-    if (strstr(status_ok, "Jamestown") == NULL) {
-      fprintf(stderr, "unit_ai_contact: convert-ok status '%s'\n", status_ok);
-      return fail("convert success should name nearest colony (@INDIANSCONVERT)");
     }
     /*
      * Convert once: mission already set → skip pulse (no re-crosses / no
@@ -715,6 +711,25 @@ int main(void) {
         return fail("convert-once should skip accept-conversion status");
       }
     }
+    /*
+     * bugs.md: with nation 0 as the human, the same adjacency must do nothing
+     * at all — no mission, no crosses, no popup. The player's own missionary
+     * only acts through the village @ACTIONS menu.
+     */
+    {
+      col1.tribe[0].mission = 0xff;
+      const uint16_t crosses_h = col1.nation[0].current_crosses;
+      status_ok[0] = '\0';
+      ctx.human_nation = 0;
+      ai_contact_indian_meet_trade(&ctx, 4);
+      if (col1.tribe[0].mission != 0xff || col1.nation[0].current_crosses != crosses_h ||
+          status_ok[0] != '\0') {
+        fprintf(stderr, "unit_ai_contact: human auto-convert status '%s'\n", status_ok);
+        return fail("a human missionary must not auto-establish a mission by adjacency");
+      }
+      col1.tribe[0].mission = 0;
+      ctx.human_nation = 2;
+    }
     ctx.status = NULL;
     ctx.status_size = 0;
   }
@@ -729,7 +744,7 @@ int main(void) {
     status_cv[0] = '\0';
     ctx.status = status_cv;
     ctx.status_size = sizeof(status_cv);
-    ctx.human_nation = 0;
+    ctx.human_nation = 2; /* nation 0 acts as an AI here — see the pulse note above */
     ColonizeDosRng heresy_rng;
     dos_rng_seed(&heresy_rng, 1u); /* first roll 0 → success */
     ctx.rng = &heresy_rng;
@@ -750,10 +765,6 @@ int main(void) {
     }
     if (col1.nation[0].current_crosses != (uint16_t)(crosses_f + 1)) {
       return fail("heresy success should bump crosses");
-    }
-    if (strstr(status_cv, "Heresy") == NULL && strstr(status_cv, "foreign") == NULL) {
-      fprintf(stderr, "unit_ai_contact: heresy-ok status '%s'\n", status_cv);
-      return fail("heresy success should set denounce status");
     }
 
     /* Foreign owner (human) learns mission burned when AI denounces. */
@@ -796,6 +807,7 @@ int main(void) {
       miss->x = 6;
       miss->y = 5;
       ctx.status = status_cv;
+      ctx.human_nation = 2;
     }
 
     /* Fail arm: burn denouncer at the stake. */
@@ -812,10 +824,6 @@ int main(void) {
     }
     if (miss->active) {
       return fail("heresy fail should despawn denouncer missionary");
-    }
-    if (strstr(status_cv, "stake") == NULL && strstr(status_cv, "burn") == NULL) {
-      fprintf(stderr, "unit_ai_contact: heresy-fail status '%s'\n", status_cv);
-      return fail("heresy fail should set burn-at-stake status");
     }
     ctx.rng = NULL;
 
@@ -842,10 +850,6 @@ int main(void) {
     if (col1.nation[0].current_crosses != crosses_a) {
       return fail("alarmed convert refuse should not bump crosses");
     }
-    if (strstr(status_cv, "refuse") == NULL || strstr(status_cv, "conversion") == NULL) {
-      fprintf(stderr, "unit_ai_contact: convert-refuse status '%s'\n", status_cv);
-      return fail("alarmed convert should set refuse-conversion status");
-    }
     /* Restore peaceful band for later tests. */
     col1.tribe[0].alarm[0].friction = 10;
     ind->alarm_by_player[0] = 10;
@@ -863,7 +867,7 @@ int main(void) {
     status_mid[0] = '\0';
     ctx.status = status_mid;
     ctx.status_size = sizeof(status_mid);
-    ctx.human_nation = 0;
+    ctx.human_nation = 2;
     /* Plain Missionary mid-alarm → refuse (not Jesuit-grade). */
     snprintf(units.types[2].name, sizeof(units.types[2].name), "Missionary");
     miss->x = 6;
@@ -881,10 +885,6 @@ int main(void) {
     }
     if (col1.nation[0].current_crosses != crosses_plain) {
       return fail("plain Missionary mid-alarm should not bump crosses");
-    }
-    if (strstr(status_mid, "refuse") == NULL || strstr(status_mid, "conversion") == NULL) {
-      fprintf(stderr, "unit_ai_contact: mid-plain status '%s'\n", status_mid);
-      return fail("plain Missionary mid should set refuse-conversion status");
     }
 
     /* Jesuit Missionary mid → convert with −2. */
@@ -910,10 +910,6 @@ int main(void) {
     if (col1.tribe[0].alarm[0].friction != 38 || ind->alarm_by_player[0] != 38) {
       return fail("mid-range Jesuit convert should decay friction/alarm by 2");
     }
-    if (strstr(status_mid, "accept") == NULL) {
-      fprintf(stderr, "unit_ai_contact: mid-jesuit status '%s'\n", status_mid);
-      return fail("mid-range Jesuit convert should set accept status");
-    }
     /* Restore type name for later Missionary flees. */
     snprintf(units.types[2].name, sizeof(units.types[2].name), "Missionary");
     col1.tribe[0].alarm[0].friction = 10;
@@ -933,7 +929,7 @@ int main(void) {
     status_br[0] = '\0';
     ctx.status = status_br;
     ctx.status_size = sizeof(status_br);
-    ctx.human_nation = 0;
+    ctx.human_nation = 2;
     col1.head.founding_father[FF_JEAN_DE_BREBEUF] = 0;
     col1.nation[0].founding_fathers[FF_JEAN_DE_BREBEUF / 8] |=
       (uint8_t)(1u << (FF_JEAN_DE_BREBEUF % 8));
@@ -960,10 +956,6 @@ int main(void) {
     }
     if (col1.tribe[0].alarm[0].friction != 38 || ind->alarm_by_player[0] != 38) {
       return fail("Brebeuf mid convert should decay friction/alarm by 2");
-    }
-    if (strstr(status_br, "accept") == NULL) {
-      fprintf(stderr, "unit_ai_contact: Brebeuf mid status '%s'\n", status_br);
-      return fail("Brebeuf mid convert should set accept status");
     }
     /* Clear Brebeuf so later tests stay plain-Missionary gated. */
     col1.head.founding_father[FF_JEAN_DE_BREBEUF] = -1;
@@ -5128,8 +5120,10 @@ int main(void) {
     }
 
     /*
-     * Convert success (mission establish): status + CONTACT_CONVERT OK.
-     * Cite: FUN_5bfb_022e convert pulse; human chrome already enqueues.
+     * bugs.md / FUN_5bfb_022e @INDIANSCONVERT: the human gets Converts when a
+     * Brave from a settlement holding *our* mission walks up to one of our
+     * colonies — an Indian Convert appears in that colony and the popup names
+     * it. Adjacency of our own Missionary to a village does nothing.
      */
     {
       ai_popup_clear(&pop);
@@ -5139,48 +5133,105 @@ int main(void) {
           units_despawn(&units, u->id);
         }
       }
-      units.type_count = 3;
+      units.type_count = 4;
       snprintf(units.types[2].name, sizeof(units.types[2].name), "Missionary");
       units.types[2].movement = 1;
-      units.types[2].attack = 0;
-      units.types[2].defense = 1;
-      const int bm = units_spawn_allow_stack(&units, 0, 5, 5);
-      const int mm = units_spawn_allow_stack(&units, 2, 6, 5);
-      ColonizeUnit* bravem = units_get(&units, bm);
-      ColonizeUnit* missm = units_get(&units, mm);
-      if (!bravem || !missm) {
-        return fail("convert OK spawn");
-      }
-      bravem->nation_id = 4;
-      missm->nation_id = 0;
-      ind->euro_diplo[0] = 1;
-      ind->alarm_by_player[0] = 10;
+      snprintf(units.types[3].name, sizeof(units.types[3].name), "Colonists");
+      units.types[3].movement = 1;
+
       col1.tribe[0].nation_id = 4;
       col1.tribe[0].x = 5;
-      col1.tribe[0].y = 5;
+      col1.tribe[0].y = 7;
       col1.tribe[0].alarm[0].friction = 10;
-      col1.tribe[0].mission = 0xff;
+      col1.tribe[0].alarm[0].attacks = 3;
+      col1.tribe[0].mission = 0; /* our mission, plain */
       col1.tribe[0].state.learned = 1;
-/* alarm pinned above (was relation write) */
+      ind->euro_diplo[0] = 1;
+      ind->alarm_by_player[0] = 10;
+      ind->tech = 3;
       col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
-      const uint16_t crosses_m = col1.nation[0].current_crosses;
-      st_pop[0] = '\0';
-      ai_contact_indian_meet_trade(&ctx, 4);
-      if (col1.tribe[0].mission != 0) {
-        return fail("convert OK should establish tribe.mission");
+      c->active = true;
+      c->nation_id = 0;
+      c->x = 5;
+      c->y = 5;
+      snprintf(c->name, sizeof(c->name), "Jamestown");
+
+      /* Our own Missionary beside the village: inert. */
+      const int mm = units_spawn_allow_stack(&units, 2, 5, 6);
+      ColonizeUnit* missm = units_get(&units, mm);
+      if (!missm) {
+        return fail("convert visit spawn missionary");
       }
-      if (col1.nation[0].current_crosses != (uint16_t)(crosses_m + 1)) {
-        return fail("convert OK should bump crosses");
+      missm->nation_id = 0;
+
+      /* A Brave of that settlement, standing next to Jamestown. */
+      const int bm = units_spawn_allow_stack(&units, 0, 6, 5);
+      ColonizeUnit* bravem = units_get(&units, bm);
+      if (!bravem) {
+        return fail("convert visit spawn brave");
+      }
+      bravem->nation_id = 4;
+      bravem->home_tribe_id = 0;
+
+      ColonizeDosRng cv_rng;
+      dos_rng_seed(&cv_rng, 7u);
+      ctx.rng = &cv_rng;
+      st_pop[0] = '\0';
+      int converts = 0;
+      for (int pulse = 0; pulse < 32 && converts == 0; ++pulse) {
+        ai_contact_indian_meet_trade(&ctx, 4);
+        for (int ui = 0; ui < COLONIZE_UNITS_MAX; ++ui) {
+          const ColonizeUnit* u = &units.units[ui];
+          if (u->active && u->nation_id == 0 && u->profession == COLONIZE_PROF_CONVERT &&
+              u->x == c->x && u->y == c->y) {
+            converts++;
+          }
+        }
+      }
+      ctx.rng = NULL;
+      if (converts == 0) {
+        return fail("mission settlement visit should spawn an Indian Convert in the colony");
       }
       if (pop.queue_count < 1 ||
           pop.queue[pop.queue_count - 1].kind != AI_POPUP_KIND_OK ||
           pop.queue[pop.queue_count - 1].tag != AI_POPUP_TAG_CONTACT_CONVERT) {
-        return fail("convert success should enqueue CONTACT_CONVERT OK");
+        return fail("convert visit should enqueue CONTACT_CONVERT OK");
       }
-      if (strstr(st_pop, "accept") == NULL || strstr(st_pop, "conversion") == NULL) {
-        fprintf(stderr, "unit_ai_contact: convert OK status '%s'\n", st_pop);
-        return fail("convert success should set accept-conversion status");
+      if (strstr(pop.queue[pop.queue_count - 1].body, "Jamestown") == NULL) {
+        fprintf(stderr, "unit_ai_contact: convert visit body '%s'\n",
+                pop.queue[pop.queue_count - 1].body);
+        return fail("@INDIANSCONVERT should name the colony the converts join");
       }
+      if (col1.tribe[0].alarm[0].friction != 0 || col1.tribe[0].alarm[0].attacks != 0) {
+        return fail("convert visit should clear the settlement's alarm for that nation");
+      }
+
+      /* No mission → no converts, however many visits. */
+      col1.tribe[0].mission = 0xff;
+      for (int ui = 0; ui < COLONIZE_UNITS_MAX; ++ui) {
+        ColonizeUnit* u = &units.units[ui];
+        if (u->active && u->profession == COLONIZE_PROF_CONVERT) {
+          units_despawn(&units, u->id);
+        }
+      }
+      dos_rng_seed(&cv_rng, 7u);
+      ctx.rng = &cv_rng;
+      for (int pulse = 0; pulse < 32; ++pulse) {
+        ai_contact_indian_meet_trade(&ctx, 4);
+      }
+      ctx.rng = NULL;
+      for (int ui = 0; ui < COLONIZE_UNITS_MAX; ++ui) {
+        const ColonizeUnit* u = &units.units[ui];
+        if (u->active && u->profession == COLONIZE_PROF_CONVERT) {
+          return fail("a settlement with no mission must never send converts");
+        }
+      }
+      if (col1.tribe[0].mission != 0xff) {
+        return fail("a human missionary beside a village must not establish a mission");
+      }
+      units_despawn(&units, mm);
+      units_despawn(&units, bm);
+      col1.tribe[0].y = 5;
     }
 
     /* Village-enter Meet CHOICE: already-met human on tribe → Trade…Leave. */

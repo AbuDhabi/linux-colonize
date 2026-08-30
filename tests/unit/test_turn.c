@@ -111,10 +111,10 @@ static int unit_century_cargoready(void) {
   ColonizeTurnResult prod;
   memset(&prod, 0, sizeof(prod));
   turn_run_colony_production(&pool, NULL, &tipcol, &eu, 0, &prod, &pops, &game_txt, NULL);
-  if (strstr(eu.status, "Stockpile") == NULL || !tipcol.head.tut3.nr6) {
+  if (strstr(eu.status, "New cargo") == NULL || !tipcol.head.tut3.nr6) {
     fprintf(
       stderr,
-      "century tip want Stockpile+latch rum=%d latch=%u '%s'\n",
+      "century tip want New cargo+latch rum=%d latch=%u '%s'\n",
       col->stock[COLONIZE_CARGO_RUM],
       (unsigned)tipcol.head.tut3.nr6,
       eu.status
@@ -140,18 +140,41 @@ static int unit_century_cargoready(void) {
     assets_msg_free(&game_txt);
     return 1;
   }
-  /* Second crossing while latched → no tip. */
+  /*
+   * bugs.md: every 100-unit crossing announces itself again — the latch only
+   * silences the one-off @TUTORIAL6 hint, not @CARGOREADY* itself.
+   */
   col->stock[COLONIZE_CARGO_SUGAR] = 50;
   col->stock[COLONIZE_CARGO_RUM] = 99;
   eu.status[0] = '\0';
   ai_popup_clear(&pops);
   memset(&prod, 0, sizeof(prod));
   turn_run_colony_production(&pool, NULL, &tipcol, &eu, 0, &prod, &pops, &game_txt, NULL);
-  if (strstr(eu.status, "Stockpile") != NULL || pops.queue_count > 0) {
-    fprintf(stderr, "century tip latch must suppress second tip got '%s' q=%d\n", eu.status, pops.queue_count);
+  if (strstr(eu.status, "New cargo") == NULL || pops.queue_count != 1) {
+    fprintf(stderr, "century tip second crossing got '%s' q=%d\n", eu.status, pops.queue_count);
     assets_msg_free(&game_txt);
     return 1;
   }
+  if (strstr(pops.queue[0].body, "pick up this cargo") != NULL) {
+    fprintf(stderr, "century tip @TUTORIAL6 must fire only once\n");
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+
+  /* Option off (report_new_cargos_available) → nothing at all. */
+  tipcol.head.colony_report_options.report_new_cargos_available = 1;
+  col->stock[COLONIZE_CARGO_SUGAR] = 50;
+  col->stock[COLONIZE_CARGO_RUM] = 99;
+  eu.status[0] = '\0';
+  ai_popup_clear(&pops);
+  memset(&prod, 0, sizeof(prod));
+  turn_run_colony_production(&pool, NULL, &tipcol, &eu, 0, &prod, &pops, &game_txt, NULL);
+  if (strstr(eu.status, "New cargo") != NULL || pops.queue_count > 0) {
+    fprintf(stderr, "century tip option-off got '%s' q=%d\n", eu.status, pops.queue_count);
+    assets_msg_free(&game_txt);
+    return 1;
+  }
+  tipcol.head.colony_report_options.report_new_cargos_available = 0;
   fprintf(stderr, "warehouse century tip ok\n");
 
   /* At exact basic warehouse cap → @CARGOREADY1. */

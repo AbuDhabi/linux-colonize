@@ -178,6 +178,10 @@ struct ColonizeGameState {
   bool in_report;
   bool report_exits_to_menu; /* Retire: close score → title menu */
   bool congress_page2; /* Continental Congress is two pages; closing p1 shows p2 */
+  /* A new Founding Father's arrival walks the player through Congress page 2
+   * and then that father's Colonizopedia entry. Holds his index while the
+   * report is up; -1 when nothing is queued. */
+  int ff_pedia_after_report;
   int labor_detail_job; /* -1 = Labor report grid; >=0 = zoomed job id detail view */
   int economic_page; /* 0 = European Trade; >=1 = Cargo in Port page N */
   int colony_page; /* 0..k-1 = Military Garrisons; k..2k-1 = Sons of Liberty */
@@ -453,6 +457,13 @@ static void game_request_noport_found_confirm(ColonizeGameState* game, int uid);
 static bool game_try_found_colony_at_cursor(ColonizeGameState* game);
 static void game_fill_turn_context(ColonizeGameState* game, ColonizeTurnContext* ctx);
 static void game_apply_ai_popup_result(ColonizeGameState* game);
+static void game_open_report(ColonizeGameState* game, ColonizeReportId id);
+static void game_open_pedia_article(
+  ColonizeGameState* game,
+  PediaCategory category,
+  int index,
+  bool return_to_list
+);
 static bool game_try_unit_move(ColonizeGameState* game, int dest_x, int dest_y);
 static void game_after_unit_action(ColonizeGameState* game);
 static void activate_menu_selection(ColonizeGameState* game);
@@ -806,7 +817,8 @@ static bool game_do_found_colony_at_unit(ColonizeGameState* game, int uid, bool 
   if (gold) {
     game->europe.gold = (int)*gold;
   }
-  colonies_reveal_founded(&game->world_map, &game->colonies, cid); /* FUN_13f1_00a6 */
+  colonies_reveal_founded(
+    &game->world_map, &game->colonies, game->col1_ok ? &game->col1 : NULL, cid); /* FUN_364b_1dd6 Coronado */
   const ColonizeColony* col = colonies_get(&game->colonies, cid);
   if (land_cost > 0) {
     snprintf(
@@ -2072,6 +2084,22 @@ static void game_apply_ai_popup_result(ColonizeGameState* game) {
   ai_contact_apply_popup_result(&ctx, &game->ai_popups);
   ai_diplo_apply_popup_result(&ctx, &game->ai_popups);
   founding_fathers_apply_popup_result(&ctx, &game->ai_popups);
+  /*
+   * bugs.md: a Founding Father joining Congress is a three-beat sequence —
+   * the arrival announcement, then the Continental Congress report's second
+   * page (the hall photo), then his Colonizopedia entry. The announce OK
+   * carries the elected index in result_nation_b (founding_fathers.c);
+   * the pedia hand-off happens when the report closes.
+   */
+  if (game->ai_popups.result_tag == AI_POPUP_TAG_FF_CONGRESS &&
+      game->ai_popups.result_payload == -1 && !game->ai_popups.result_cancelled) {
+    const int ff_index = game->ai_popups.result_nation_b;
+    if (ff_index >= 0 && ff_index < PEDIA_FATHER_COUNT) {
+      game_open_report(game, COLONIZE_REPORT_CONGRESS);
+      game->congress_page2 = true;
+      game->ff_pedia_after_report = ff_index;
+    }
+  }
   ai_popup_consume_result(&game->ai_popups);
 }
 
@@ -3168,6 +3196,9 @@ static bool game_save_col1_slot(ColonizeGameState* game, int slot, char* err, si
 static void game_open_report(ColonizeGameState* game, ColonizeReportId id) {
   if (!game) {
     return;
+  }
+  if (id != COLONIZE_REPORT_CONGRESS) {
+    game->ff_pedia_after_report = -1;
   }
   game->in_report = true;
   game->report_id = id;
@@ -4361,6 +4392,7 @@ ColonizeGameState* game_create(const ColonizeGameConfig* config) {
     return NULL;
   }
   game->config = *config;
+  game->ff_pedia_after_report = -1;
   game->turn_number = 1;
   game->map_seed = 73;
   game->colony_view_id = -1;
@@ -5272,13 +5304,15 @@ static bool game_try_unit_move(ColonizeGameState* game, int dest_x, int dest_y) 
     const bool dest_water = map_tile_is_water(&game->world_map, dest_x, dest_y);
     const bool dest_land = map_tile_is_land(&game->world_map, dest_x, dest_y);
     if (dest_land && game_friendly_colony_at(game, dest_x, dest_y)) {
+      /* units_try_move puts passengers ashore on docking (bugs.md), so count
+       * them before the move to report what came off. */
+      const int n = selected->cargo_count;
       if (!units_try_move(
             &game->units, sid, &game->world_map, dest_x, dest_y, colonies, &game->move_rng
           )) {
         set_status(game, units_enter_reason_status(units_last_enter_reason()), NULL);
         return false;
       }
-      const int n = units_disembark_all(&game->units, sid, dest_x, dest_y);
       game->units.selected_id = sid;
       if (n > 0) {
         snprintf(game->status, sizeof(game->status), "Docked; %d disembarked", n);
@@ -5396,13 +5430,14 @@ static bool game_try_unit_move(ColonizeGameState* game, int dest_x, int dest_y) 
        * move is deferred for combat-role units so it can still be made.
        */
       const int combatish = combat_unit_is_combat_role(&game->units, sid);
-      if (!ai_contact_try_village_meet_unit(
+      if (!ai_contact_try_village_meet_unit_at(
             &ctx,
             selected->nation_id,
             (int)t->nation_id,
             selected->profession == UNITS_JOB_MISSIONARY,
             t->state.capital,
-            sid
+            sid,
+            (int)ti
           ) && combatish &&
           ai_contact_try_village_raid_warn(
             &ctx, selected->nation_id, (int)t->nation_id, sid, dest_x, dest_y
@@ -5604,13 +5639,14 @@ static void game_after_unit_action(ColonizeGameState* game) {
         }
         ColonizeTurnContext ctx;
         game_fill_turn_context(game, &ctx);
-        if (ai_contact_try_village_meet_unit(
+        if (ai_contact_try_village_meet_unit_at(
               &ctx,
               u->nation_id,
               (int)t->nation_id,
               u->profession == UNITS_JOB_MISSIONARY,
               t->state.capital,
-              u->id
+              u->id,
+              (int)ti
             )) {
           break;
         }
@@ -8136,6 +8172,65 @@ static bool game_apply_map_menu_action(ColonizeGameState* game, MapMenuAction ac
   }
 }
 
+/*
+ * What a plain left-click on map tile (x,y) means, shared by the "no unit
+ * selected" click path and the short-click end of a go-to drag. Order:
+ * own colony → open it; own units → activate one (stack chooser when the tile
+ * holds several); otherwise just move the tile cursor.
+ *
+ * bugs.md: the short-click case used to only re-centre the view, so with a
+ * unit already blinking there was no way to make a *different* unit the active
+ * one with the mouse.
+ */
+static void game_map_click_dispatch(ColonizeGameState* game, int mx, int my) {
+  const int cid = colonies_id_at(&game->colonies, mx, my);
+  if (cid >= 0) {
+    const ColonizeColony* col = colonies_get(&game->colonies, cid);
+    if (col && col->nation_id == game->human_nation) {
+      game_select_tile(game, mx, my);
+      game_enter_colony_at_cursor(game);
+      return;
+    }
+  }
+
+  if (game->units_ok &&
+      unit_stack_try_open(&game->unit_stack, &game->units, mx, my, game->human_nation)) {
+    set_status(game, "Choose unit from stack", NULL);
+    return;
+  }
+
+  {
+    int stack_ids[UNITS_TILE_STACK_MAX];
+    const int n = game->units_ok ? units_collect_tile_stack(
+                                     &game->units, mx, my, game->human_nation, stack_ids,
+                                     UNITS_TILE_STACK_MAX
+                                   )
+                                 : 0;
+    if (n == 1) {
+      game_select_unit(game, stack_ids[0]);
+      return;
+    }
+  }
+
+  const int owned = game_owned_unit_at(game, mx, my);
+  if (owned >= 0) {
+    game_select_unit(game, owned);
+    return;
+  }
+
+  /* Human unit with no moves: select the tile under it. */
+  if (game->units_ok) {
+    const int any_id = units_id_at(&game->units, mx, my);
+    const ColonizeUnit* any = units_get_const(&game->units, any_id);
+    if (any && any->nation_id == game->human_nation) {
+      game_select_tile(game, mx, my);
+      return;
+    }
+  }
+
+  game_select_tile(game, mx, my);
+}
+
 bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint32_t dt_ms) {
   if (!game || !input) {
     return false;
@@ -8499,6 +8594,12 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
       }
       game->in_report = false;
       diag_info("Left report screen.");
+      if (game->ff_pedia_after_report >= 0) {
+        const int ff_index = game->ff_pedia_after_report;
+        game->ff_pedia_after_report = -1;
+        game_open_pedia_article(game, PEDIA_CAT_FATHER, ff_index, false);
+        return true;
+      }
       if (game->report_exits_to_menu) {
         game->report_exits_to_menu = false;
         /* DOS FUN_41f2_14a8 retire chain: score (F10 just closed) ->
@@ -10133,17 +10234,10 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
             return true;
           }
           if (!game->map_goto_left_tile) {
-            /* Short click: colony enter or pan (legacy). */
-            const int cid = colonies_id_at(&game->colonies, mx, my);
-            if (cid >= 0) {
-              const ColonizeColony* col = colonies_get(&game->colonies, cid);
-              if (col && col->nation_id == game->human_nation) {
-                game_select_tile(game, mx, my);
-                game_enter_colony_at_cursor(game);
-                return true;
-              }
-            }
-            game_set_view_center(game, mx, my);
+            /* Short click (press and release on the same tile) is not a go-to:
+             * it means whatever a plain click on that tile means — open a
+             * colony, or make another of our units the active one. */
+            game_map_click_dispatch(game, mx, my);
             return true;
           }
           if (mx == u->x && my == u->y) {
@@ -10178,13 +10272,12 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
         return true;
       }
 
-      /* DOS FUN_2b5a_3752 tests DS:0x53c6 ahead of every other click action,
-       * so a click on the map viewport confirms the End of Turn prompt too —
-       * not just one on the right panel. */
-      if (game_end_turn_prompt_active(game)) {
-        game_do_end_turn(game);
-        return true;
-      }
+      /*
+       * bugs.md: a click on the map viewport is NEVER an End of Turn
+       * confirmation, even while the prompt blinks — it keeps its normal
+       * meaning (open a colony, pick a unit, start a go-to drag). Only the
+       * right-hand sidebar click (above) confirms the turn; Enter/Space do too.
+       */
 
       /* ORDERS Go to Place: click sets goto destination. */
       if (game->map_goto_place_mode && game->units_ok) {
@@ -10227,53 +10320,7 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
         }
       }
 
-      const int cid = colonies_id_at(&game->colonies, mx, my);
-      if (cid >= 0) {
-        const ColonizeColony* col = colonies_get(&game->colonies, cid);
-        if (col && col->nation_id == game->human_nation) {
-          game_select_tile(game, mx, my);
-          game_enter_colony_at_cursor(game);
-          return true;
-        }
-      }
-
-      if (game->units_ok &&
-          unit_stack_try_open(
-            &game->unit_stack, &game->units, mx, my, game->human_nation
-          )) {
-        set_status(game, "Choose unit from stack", NULL);
-        return true;
-      }
-
-      {
-        int stack_ids[UNITS_TILE_STACK_MAX];
-        const int n = game->units_ok ? units_collect_tile_stack(
-                                         &game->units, mx, my, game->human_nation, stack_ids, UNITS_TILE_STACK_MAX
-                                       )
-                                     : 0;
-        if (n == 1) {
-          game_select_unit(game, stack_ids[0]);
-          return true;
-        }
-      }
-
-      const int owned = game_owned_unit_at(game, mx, my);
-      if (owned >= 0) {
-        game_select_unit(game, owned);
-        return true;
-      }
-
-      /* Human unit with no moves: select the tile under it. */
-      {
-        const int any_id = units_id_at(&game->units, mx, my);
-        const ColonizeUnit* any = units_get_const(&game->units, any_id);
-        if (any && any->nation_id == game->human_nation) {
-          game_select_tile(game, mx, my);
-          return true;
-        }
-      }
-
-      game_select_tile(game, mx, my);
+      game_map_click_dispatch(game, mx, my);
       return true;
     }
   }
