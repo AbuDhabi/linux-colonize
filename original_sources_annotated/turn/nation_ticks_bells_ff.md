@@ -43,6 +43,6 @@ Sources: [`src/core/turn.c`](../../src/core/turn.c)
 | Doc | Use |
 |-----|-----|
 | [`docs/fandom_col1994.md`](../../docs/fandom_col1994.md) §Founding Fathers | Wiki elect + effect digest |
-| [`docs/manual_gap.md`](../../docs/manual_gap.md) | Port fidelity (Congress / KINGGALLEON2 PARK) |
+| [`docs/manual_gap.md`](../../docs/manual_gap.md) | Port fidelity (Congress; KINGGALLEON2 Done 2026-08-27) |
 | [`colony_eot_production.md`](colony_eot_production.md) | `0688` callee table (bells row) |
 | `founding_fathers.h` | Flow comment (`0a22` / `06d2` / `0342`) |

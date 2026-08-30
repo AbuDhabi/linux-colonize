@@ -196,7 +196,7 @@ meet/king cinematic UI.
 | Cluster | Linux entry | Fidelity bar |
 |---------|-------------|--------------|
 | Euro dispatcher + goals + hire | `ai_euro_dispatcher_turn` (`ai_euro.c`) | **6d8e shell itself: done** (sticky anti-spin, wave order, treaty timers, ship follow-up all byte-faithful); overall row is partial only because callees (`5d04`/`0a60`/`5b66`/`20e6`) are; full dispatch **default**, fixture via `AI_EURO_EARLY_FIXTURE=1` |
-| Euro unit act + scoring | `ai_euro_unit_act` / ocean `20e6` branch | **Partial** 5b66 case 0x0b + naval score; land/combat `20e6` **OPEN** (unpark #4) |
+| Euro unit act + scoring | `ai_euro_unit_act` / ocean `20e6` branch | **Partial** 5b66 case 0x0b + naval score; land `20e6` arms ported 2026-08-27 (T1.18) — only the LAB_52aa attack-odds core / deep −0x6790 combat stay open |
 | Diplomacy | `ai_diplo_*` (`ai_diplo.c`) | Bilateral peer bytes + war/ally; see R3.5 |
 | Indian nation + contact | `ai_indian_nation_turn` + `ai_contact_*` | Alarm/relations/missions/meet/trade T0 |
 | Raids | `ai_contact_indian_raids` | `@RAID*` kinds / friction-gated combat + colony loot |
@@ -748,7 +748,7 @@ Thin land adjacent combat chain (drain `moves_left` across foes) **Done**.
 Wagon surplus load prefers FOOD when `food_short>20` **Done**.
 Thin lumber/ore/muskets/horses/food cargo hire stand-in (mirror tools ship/colony)
 **Done**.
-**OPEN (unpark #4):** explore-ring matrix still PARKED; deep −0x6790 G-table
+**OPEN (was unpark #4):** the explore-ring matrix shipped 2026-08-27 (T1.18); deep −0x6790 G-table
 **Done** real formula (2026-08-14, see
 [`euro_g_table_0a60.md`](../original_sources_annotated/ai/euro_g_table_0a60.md));
 land `20e6` settlement/siege peels + adjacent toughness **Done** thin;

@@ -198,7 +198,10 @@ broke the Dutch TURN2→3 first contact).
 - **Demo / independence splash** (`130d_019e` / `0222`): PARKED; thin LAB in
   [`year_loop.c`](../original_sources_annotated/turn/year_loop.c).
 - **Deep AI** (`20e6` / `2820` / `4528` / `2154` / `5fef` loot): section-mapped
-  under `original_sources_annotated/ai/`; Linux port still PARKED (unpark #4).
+  under `original_sources_annotated/ai/`. `20e6` land arms (T1.18) and `4528`
+  are ported 2026-08-27/28 and `2820` was rewritten 2026-08-29; what stays
+  PARKED is the deep −0x6790 combat core, `2820`'s haggle sub-loops (T4.4
+  capture) and `2154`.
 - **Nation EOT arms**: ship-build ready (`defense`/`0x5235` combat) + §C Merc
   (+`48d3_0002` duration) **Done** thin; live census colony+unit tallies
   **Done** thin; AI fog reveal **Done** (2026-08-29).

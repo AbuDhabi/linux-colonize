@@ -150,7 +150,7 @@ fragment. Related sections are listed in the first column.
 | Demand tools/gold | Tribute | Done | `CONTACT_DEMAND` |
 | Teach (`@LEARN*`) | Teach skill result | Partial | `CONTACT_TEACH` OK; Scout→Seasoned uses `@WELLSEASONED`; refuse uses `@LEARNMAD`; already-expert learner uses `@LEARNMASTER` (no one-shot burn) |
 | Mission / convert (`@MISSION*`, `@INDIANSCONVERT`) | Missionary | Partial | `CONTACT_CONVERT` OK |
-| `@RAID*` outcomes | Raid / ambush | Partial | `CONTACT_RAID` OK; deep `4528` PARKED |
+| `@RAID*` outcomes | Raid / ambush | Done | `CONTACT_RAID` + real `GAME.TXT` bodies via `popup_msg_fill` (P8.4, 2026-08-26); `4528` no longer PARKED (2026-08-27/28) |
 | Village attitude / HELLO | Enter settlement | Partial | Thin snippets / status |
 | `@CHIEF*` | Chief portrait meet | Missing | — |
 | `@TRADE0`/`1`, haggle `@BADHAGGLE*` | Deep village trade | Done (structural) | `2820` LAB_002bbc/002e92 human loops ported 2026-08-27 (`ai_contact_2820_sell_haggle`, `ai_contact_2e92_haggle`); VGA PARKED |

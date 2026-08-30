@@ -32,7 +32,7 @@ Status: **Done** / **Partial** / **Missing** / **PARKED**.
 
 | Mover | Dest | DOS | Linux | Status |
 |-------|------|-----|-------|--------|
-| Land | Land (clear/forest/hills/mtn) | Cost `terr_cost[class]*3`; enter if afford / full MP / gamble | DOS `terr_cost` table via `map_move_cost_*` (NAMES MP scale; Brave keeps `*3`); road/river pair→1; full-MP + `range(1,cost)` | Partial (`*3` unit-MP scale PARK) |
+| Land | Land (clear/forest/hills/mtn) | Cost `terr_cost[class]*3`; enter if afford / full MP / gamble | DOS `terr_cost` table via `map_move_cost_*` (NAMES MP scale; Brave keeps `*3`); road/river pair→1; full-MP + `range(1,cost)` | Done (unit MP = DOS thirds for every unit, `UNITS_MP_PER_TILE = 3`; the `*3`-scale PARK closed 2026-08-29 with T1.8) |
 | Land | Road pair (both FA `&0x0a`) | Cost **1** | `map_move_cost_step` both roads → 1; else dest road still halves | Done |
 | Land | River both + cardinal | Cost **1** | Both river + axis → 1; else dest river still halves | Done |
 | Land | Ocean / HS (25/26) | Embark if own ship has room (`4720`); else domain deny | `BOARD` via `units_find_boardable_ship`; else domain deny | Done |
@@ -68,7 +68,7 @@ Status: **Done** / **Partial** / **Missing** / **PARKED**.
 | Land | Foreign Euro + defender | Combat | Combat | Partial |
 | Land | Empty foreign Euro | Capture / Revere | Capture-on-enter + Revere | Done (thin) |
 | Land settler | Native village (no colony) | Illegal squat | Deny | Done |
-| Missionary / combatish | Native village | Meet / raid | Meet from adjacent (stay put); combatish Attack/Leave warn → fight from adjacent (no enter) | Done thin (`2820` VGA PARKED) |
+| Missionary / combatish | Native village | Meet / raid | Meet from adjacent (stay put): real `@ACTIONS` menu per unit type (P8.8); combatish Attack Village commits the move; the invented Attack/Leave warn survives only as the unmet-tribe fallback | Done (`2820` haggle / VGA PARKED) |
 | Wagon | Colony tile | Exhaust MP (`465b:08f8`) | Exhaust on enter | Done |
 
 ---
@@ -89,7 +89,7 @@ Status: **Done** / **Partial** / **Missing** / **PARKED**.
 
 Village deep `2820` VGA trade, full `465b` foreign diplo/war UI, Euro mid-planner
 `20e6`, VGA-identical combat chrome. Coastal fort bit7 + Drydock Done; village
-`4528` warn→Attack Done thin — [combat.md](combat.md).
+`4528` is fully dispatched (human `@ACTIONS` menu P8.8 + AI arm, 2026-08-27/28) — [combat.md](combat.md).
 
 **Playable combat bar Done** — see [combat.md](combat.md) (ransom CHOICE, `@CAPTURED*`/
 `@BURNED*`, unit capture / seizure popups, MP ship-slow).

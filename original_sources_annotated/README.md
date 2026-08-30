@@ -225,8 +225,8 @@ the catalog only mirrors light-label status.
 - **Euro early-settle Layer D:** `6d8e` thunk wiring corrected (`0554`→`5d04`,
   `0578`→`0342`, `050c`→`0a60`, `0488`→`5b66`); goal helpers in `euro_goals.c`;
   sectioned `0a60`; thin maps for `5b66` + Euro/ocean `20e6`/`06ae`. Full
-  `5d04` / `5b66` / land `20e6` mid-planner **OPEN** (unpark #4); ocean/T3 + raid
-  deep bodies still PARKED. See `docs/ai_transcription.md` Unparked queue.
+  `5d04` (T3.1) and the land `20e6` arms (T1.18) ported 2026-08-27; `5b66`,
+  the deep −0x6790 combat core and ocean/T3 bodies still PARKED. See `docs/ai_transcription.md` Unparked queue.
 - **Between-turns Layer D:** `turn/year_loop.c` (`130d_0290`),
   `turn/nation_eot.c` (`3844_00f2`/`0004`), `turn/year_end_chrome.c` (`0442`),
   thin map `turn/between_turns.md`. Bridge doc:

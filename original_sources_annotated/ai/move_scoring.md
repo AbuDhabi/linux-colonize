@@ -56,7 +56,7 @@ Decomp: `viceroy_unpacked.c` **88266–90435** (~2170 lines). Callers: `5b66` vi
 | 88532–88605 | land prelude | Non-ship / mixed gates | partial land score |
 | 88606–88776 | `5888` / `4d2e` / `4f41` / `4ffa` / `506d` | Quiet Brave terrain + base | [`quiet_brave_scoring.c`](quiet_brave_scoring.c) **Done** |
 | 88777–88974 | `54f5` / `52aa` | Facing / fog / military −10 / colony pull | quiet **Done**; Euro-side facing/momentum (`unit+0x314f` last-dir) **Done** 2026-08-14 in `ai_euro_score_move` (`s_euro_last_dir`), mirrors already-ported Brave `quiet_score_facing` |
-| 88975–89375 | `5183`…`2a59` | Euro land / combat / explore arms | **Mapped** [`move_scoring_land.md`](move_scoring_land.md); `0x46` undefended-colony-seize sub-arm **Done**; rest thin; port **PARKED** unpark #4 |
+| 88975–89375 | `5183`…`2a59` | Euro land / combat / explore arms | **Mapped** [`move_scoring_land.md`](move_scoring_land.md); ported 2026-08-27 (T1.18) except the LAB_52aa attack-odds core, explore-plane seen nibble, `−0x6168` rival strength and `0x4c` village arms |
 | 89376–89383 | `304c` | Mid gate → ship or continue | — |
 | **89384–89870** | **`3558`** | **Ship band** — holds, probes, `local_9c`, `06ae` unload, colony sail | **Mapped** [`move_scoring_ship.md`](move_scoring_ship.md) + [`euro_ocean_scoring.c`](euro_ocean_scoring.c); thin Linux; matrix **PARKED** |
 | 89866–89870 | `3fa6` | → `48d3_015e` spiral HS / set sail | partial (`units_find_*_high_seas`) |

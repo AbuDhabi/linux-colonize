@@ -81,8 +81,8 @@ Phase 1 AI-critical symbols + Euro early-settle Layer D + between-turns
 | `FUN_521d_0906` | `probe_adjacent_contact_claim` | `ai/euro_goals.c` | `ai_goals_*` |
 | `FUN_521d_20e6` | `move_scoring` (quiet Done; land/ship **mapped**) | `ai/move_scoring.md` + `move_scoring_land.md` + `move_scoring_ship.md` + `euro_ocean_scoring.c` | quiet + thin `ai_euro_score_*`; deep port PARKED |
 | `FUN_521d_6d8e` | `euro_nation_turn` | `ai/euro_dispatcher.c` | `ai_euro_nation_turn` / `ai_euro_dispatcher_turn` |
-| `FUN_521d_0a60` | `euro_unit_colony_goals` (sectioned; mid-game **OPEN**) | `ai/euro_dispatcher.c` | `ai_euro_colony_goals` + unpark #4 |
-| `FUN_521d_5d04` | `euro_nation_planning` (**OPEN** mid matrix) | `ai/euro_dispatcher.c` | `ai_euro_nation_planning` + unpark #4 |
+| `FUN_521d_0a60` | `euro_unit_colony_goals` (sectioned; goal-consumption tail ported 2026-08-27) | `ai/euro_dispatcher.c` | `ai_euro_colony_goals` |
+| `FUN_521d_5d04` | `euro_nation_planning` (mid matrix wired live 2026-08-27, T3.1) | `ai/euro_dispatcher.c` | `ai_euro_nation_planning` |
 | `FUN_521d_5b66` | `euro_unit_act` (thin map) | `ai/euro_dispatcher.c` + `ai/euro_unit_act.md` | `ai_euro_unit_act` |
 | `thunk_FUN_2a1f_0488` | → `euro_unit_act` / `5b66` | `ai/euro_dispatcher.c` | peels |
 | `thunk_FUN_2a1f_0554` | → `euro_nation_planning` / `5d04` | `ai/euro_dispatcher.c` | — |
@@ -170,7 +170,7 @@ Phase 1 AI-critical symbols + Euro early-settle Layer D + between-turns
 - [x] `ai/brave_spent_callgraph.md`
 - [x] `euro_nation_turn` dispatcher shell (thunk wiring corrected)
 - [x] `ai/euro_goals.c` goal tables + founding helpers
-- [x] `FUN_521d_0a60` sectioned (mid-game **OPEN** — unpark #4)
+- [x] `FUN_521d_0a60` sectioned (goal-consumption tail ported 2026-08-27)
 - [x] `ai/euro_unit_act.md` + Euro/ocean notes in `move_scoring.md`
 - [x] Between-turns Layer D (`turn/year_loop.c`, `nation_eot.c`, `year_end_chrome.c`, `between_turns.md`)
 - [x] Between-turns callee maps (production / Europe EOT / census / landfall / mid-pass / ship-spawn)

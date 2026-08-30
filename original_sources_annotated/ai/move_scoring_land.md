@@ -2,7 +2,7 @@
 
 Section map for decomp **88975–89375** (`LAB_521d_5183` … mid-gate
 `304c`). Quiet Brave / `54f5` bands are Done elsewhere — this file owns the
-**Euro land** arms that remain **OPEN** for unpark #4.
+**Euro land** arms. Ported 2026-08-27 (`ai_port_plan.md` T1.18); still thin: LAB_52aa attack-odds core, explore-plane seen nibble, `−0x6168` rival strength, `0x4c` village arms.
 
 Parent: [`move_scoring.md`](move_scoring.md). Act entry: [`euro_unit_act.md`](euro_unit_act.md)
 (`5b66` → `2a1f_04f4` → `20e6`). Ship band: [`move_scoring_ship.md`](move_scoring_ship.md).
