@@ -86,6 +86,9 @@ static ColonizeKey map_key(SDL_Keycode key) {
     case SDLK_F9: return COLONIZE_KEY_F9;
     case SDLK_F10: return COLONIZE_KEY_F10;
     case SDLK_BACKSPACE: return COLONIZE_KEY_BACKSPACE;
+    case SDLK_DELETE: return COLONIZE_KEY_DELETE;
+    case SDLK_HOME: return COLONIZE_KEY_HOME;
+    case SDLK_END: return COLONIZE_KEY_END;
     default: return COLONIZE_KEY_NONE;
   }
 }
@@ -393,6 +396,7 @@ bool platform_poll_input(ColonizePlatform* platform, ColonizeInputState* out_inp
   out_input->mouse_right_down = platform->mouse_right_down;
   out_input->alt_held = (SDL_GetModState() & KMOD_ALT) != 0;
   out_input->shift_held = (SDL_GetModState() & KMOD_SHIFT) != 0;
+  out_input->ctrl_held = (SDL_GetModState() & KMOD_CTRL) != 0;
   return true;
 }
 
@@ -533,6 +537,32 @@ bool platform_present(
 
 uint32_t platform_ticks_ms(void) {
   return SDL_GetTicks();
+}
+
+bool platform_clipboard_get(char* out, size_t out_size) {
+  if (!out || out_size == 0) {
+    return false;
+  }
+  out[0] = '\0';
+  if (!SDL_HasClipboardText()) {
+    return false;
+  }
+  char* text = SDL_GetClipboardText();
+  if (!text) {
+    return false;
+  }
+  size_t n = strlen(text);
+  if (n + 1 > out_size) {
+    n = out_size - 1;
+  }
+  memcpy(out, text, n);
+  out[n] = '\0';
+  SDL_free(text);
+  return n > 0;
+}
+
+void platform_clipboard_set(const char* text) {
+  SDL_SetClipboardText(text ? text : "");
 }
 
 void platform_sleep_ms(uint32_t ms) {

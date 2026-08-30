@@ -1,6 +1,5 @@
 #include "core/name_entry_dialog.h"
 
-#include <stdio.h>
 #include <string.h>
 
 #include "core/map_menu.h"
@@ -69,7 +68,8 @@ bool name_entry_open(
     prompt && prompt[0] ? prompt : "What shall we name this colony?"
   );
   str_copy_trunc(dlg->name, sizeof(dlg->name), initial_name ? initial_name : "");
-  dlg->name_selected = dlg->name[0] != '\0';
+  /* DOS opens the field with bit 0x80 set — whole text selected. */
+  text_edit_reset(&dlg->edit, dlg->name, true);
   dlg->open = true;
   return true;
 }
@@ -79,44 +79,25 @@ bool name_entry_handle_input(NameEntryDialog* dlg, const ColonizeInputState* inp
     return false;
   }
 
-  if (input->last_key == COLONIZE_KEY_ESCAPE) {
-    name_entry_finish(dlg, true);
+  if (text_edit_handle_mouse(
+        &dlg->edit, dlg->name, dlg->field_font, input, dlg->field_x, dlg->field_y, dlg->field_h
+      )) {
     return true;
   }
-  if (input->last_key == COLONIZE_KEY_ENTER) {
-    name_entry_finish(dlg, false);
-    return true;
+
+  switch (text_edit_handle_input(&dlg->edit, dlg->name, sizeof(dlg->name), input)) {
+    case TEXT_EDIT_ACTION_CANCEL:
+      name_entry_finish(dlg, true);
+      return true;
+    case TEXT_EDIT_ACTION_CONFIRM:
+      name_entry_finish(dlg, false);
+      return true;
+    case TEXT_EDIT_ACTION_EDIT:
+      return true;
+    case TEXT_EDIT_ACTION_NONE:
+      break;
   }
-  if (input->last_key == COLONIZE_KEY_BACKSPACE) {
-    if (dlg->name_selected) {
-      dlg->name[0] = '\0';
-      dlg->name_selected = false;
-    } else {
-      size_t n = strlen(dlg->name);
-      if (n > 0) {
-        dlg->name[n - 1] = '\0';
-      }
-    }
-    return true;
-  }
-  if (input->text_input_len > 0) {
-    if (dlg->name_selected) {
-      dlg->name[0] = '\0';
-      dlg->name_selected = false;
-    }
-    for (int i = 0; i < input->text_input_len; ++i) {
-      const char ch = input->text_input[i];
-      if (ch < 32 || ch >= 127) {
-        continue;
-      }
-      size_t n = strlen(dlg->name);
-      if (n + 1 < sizeof(dlg->name)) {
-        dlg->name[n] = ch;
-        dlg->name[n + 1] = '\0';
-      }
-    }
-    return true;
-  }
+
   if (input->mouse_right_clicked) {
     name_entry_finish(dlg, true);
     return true;
@@ -149,7 +130,9 @@ void name_entry_render(
   const int line_h = font ? (font->max_height + 2) : 8;
   const int pad = 6;
   const int dialog_w = 200;
-  const int dialog_h = POPUP_FRAME_INSET * 2 + pad + line_h * 3 + pad + line_h * 2 + pad;
+  /* Last line_h is the input field; it also carries a frame pad above and below. */
+  const int dialog_h = POPUP_FRAME_INSET * 2 + pad + line_h * 3 + pad + line_h * 2 +
+                       TEXT_EDIT_FRAME_PAD * 2 + pad;
   dlg->dialog_w = dialog_w;
   dlg->dialog_h = dialog_h;
   dlg->dialog_x = (framebuffer->width - dialog_w) / 2;
@@ -177,7 +160,6 @@ void name_entry_render(
     &iw,
     &ih
   );
-  (void)iw;
   (void)ih;
   if (!font) {
     return;
@@ -199,8 +181,23 @@ void name_entry_render(
   }
   ty = iy + pad + line_h * 3 + 2;
   popup_draw_text_shadowed(font, framebuffer, ix + pad, ty, "Name:", text_color);
-  ty += line_h;
-  char shown[NAME_ENTRY_NAME_LEN + 2];
-  snprintf(shown, sizeof(shown), "%s_", dlg->name);
-  popup_draw_text_shadowed(font, framebuffer, ix + pad, ty, shown, select_color);
+  ty += line_h + TEXT_EDIT_FRAME_PAD;
+  dlg->field_font = font;
+  dlg->field_x = ix + pad;
+  dlg->field_y = ty;
+  dlg->field_h = line_h;
+  /* Green input box spanning the popup's inner width, same chrome as the
+   * new-game wizard's leader-name field. */
+  int fx = 0, fy = 0, fw = 0, fh = 0;
+  text_edit_frame_rect(
+    font, dlg->field_x, ty, iw - pad * 2, &fx, &fy, &fw, &fh
+  );
+  text_edit_draw_frame(framebuffer, fx, fy, fw, fh, text_color);
+  TextEditColors edit_colors;
+  text_edit_default_colors(&edit_colors);
+  edit_colors.text = text_color;
+  edit_colors.selection = select_color;
+  text_edit_render(
+    &dlg->edit, dlg->name, font, framebuffer, dlg->field_x, dlg->field_y, line_h, &edit_colors
+  );
 }

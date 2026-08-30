@@ -5,6 +5,7 @@
 
 #include "core/game_loop.h"
 #include "core/savegame.h"
+#include "core/text_edit.h"
 #include "core/sound.h"
 #include "platform/diagnostics.h"
 #include "platform/platform.h"
@@ -95,6 +96,10 @@ int main(int argc, char** argv) {
     diag_shutdown();
     return 1;
   }
+
+  /* Text fields (leader / colony names) cut and paste via the system clipboard. */
+  const TextEditClipboard clipboard = {platform_clipboard_get, platform_clipboard_set};
+  text_edit_set_clipboard(&clipboard);
 
   ColonizeGameConfig game_cfg = {
     .data_dir = cli.data_dir,

@@ -7,12 +7,14 @@
 
 #include "core/font.h"
 #include "core/popup.h"
+#include "core/text_edit.h"
 #include "core/ss.h"
 #include "platform/platform.h"
 
 /*
  * Wood name-entry dialog (@COLONY / @RENAMECOLONY / @LANDHO).
- * Typing + Backspace; Enter confirms; Esc cancels.
+ * Enter confirms; Esc cancels. The field itself is a full caret + selection
+ * editor — see core/text_edit.h.
  */
 
 #define NAME_ENTRY_PROMPT_LEN 240
@@ -30,7 +32,7 @@ typedef struct NameEntryDialog {
   NameEntryKind kind;
   char prompt[NAME_ENTRY_PROMPT_LEN];
   char name[NAME_ENTRY_NAME_LEN];
-  bool name_selected;
+  TextEditState edit;
 
   bool has_result;
   bool result_cancelled;
@@ -42,6 +44,11 @@ typedef struct NameEntryDialog {
   int dialog_y;
   int dialog_w;
   int dialog_h;
+  /* Field geometry / font last rendered with — mouse caret placement. */
+  const ColonizeFont* field_font;
+  int field_x;
+  int field_y;
+  int field_h;
 } NameEntryDialog;
 
 void name_entry_init(NameEntryDialog* dlg);

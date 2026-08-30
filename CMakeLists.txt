@@ -54,6 +54,7 @@ add_library(colonize_core STATIC
   src/core/cheat_list_dialog.c
   src/core/howmuch_dialog.c
   src/core/name_entry_dialog.c
+  src/core/text_edit.c
   src/core/options_dialog.c
   src/core/save_load_dialog.c
   src/core/unit_stack.c
@@ -198,6 +199,7 @@ add_executable(smoke_game_flow
   src/core/popup_msg.c
   src/core/howmuch_dialog.c
   src/core/name_entry_dialog.c
+  src/core/text_edit.c
   src/core/options_dialog.c
   src/core/save_load_dialog.c
   src/core/unit_stack.c
@@ -261,6 +263,7 @@ add_executable(unit_new_game
   src/core/popup_msg.c
   src/core/howmuch_dialog.c
   src/core/name_entry_dialog.c
+  src/core/text_edit.c
   src/core/options_dialog.c
   src/core/save_load_dialog.c
   src/core/unit_stack.c
@@ -335,6 +338,7 @@ add_executable(unit_hall_of_fame
   src/core/popup_msg.c
   src/core/howmuch_dialog.c
   src/core/name_entry_dialog.c
+  src/core/text_edit.c
   src/core/options_dialog.c
   src/core/save_load_dialog.c
   src/core/unit_stack.c
@@ -757,6 +761,18 @@ target_include_directories(unit_reports PRIVATE
 )
 
 add_test(NAME unit_reports COMMAND unit_reports WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+
+add_executable(unit_text_edit
+  tests/unit/test_text_edit.c
+)
+
+target_include_directories(unit_text_edit PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
+target_link_libraries(unit_text_edit PRIVATE colonize_core)
+
+add_test(NAME unit_text_edit COMMAND unit_text_edit WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
 add_executable(unit_map_menu
   tests/unit/test_map_menu.c
@@ -1200,6 +1216,7 @@ add_executable(smoke_play
   src/core/popup_msg.c
   src/core/howmuch_dialog.c
   src/core/name_entry_dialog.c
+  src/core/text_edit.c
   src/core/options_dialog.c
   src/core/save_load_dialog.c
   src/core/unit_stack.c
