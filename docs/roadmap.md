@@ -146,8 +146,13 @@ PARKED deep/VGA bodies.
 - Fog / exploration: **Done** 2026-08-29 (full DOS reveal/vis-bit/snapshot
   model — [manual_gap.md](manual_gap.md) Fog row); only the Pacific
   WOODCUT.PIK splash is a thin info popup
-- Indian meet/trade/raid: structural Done; deep `2820`/`4528` stay PARKED until
-  playability needs them — [ai_transcription.md](ai_transcription.md)
+- Indian meet/trade/raid: structural Done. `4528` is **Done 2026-08-27/28** —
+  full 9-way action dispatch ported on both arms (human `@ACTIONS` menu with
+  per-unit gating, `port_plan.md` P8.8; AI auto-incite `ai_port_plan.md` T4.5;
+  AI village attack via `ai_euro_land_try_adjacent_village_seize`); only its
+  VGA meet chrome stays open. Deep `2820` (haggle / hard-bargain sub-loops)
+  stays PARKED on the T4.4 live capture —
+  [ai_transcription.md](ai_transcription.md)
 
 ### 3 — Mid-game AI (Partial / active)
 
@@ -166,7 +171,8 @@ regression gate again.
   2026-08-27** (`ai_port_plan.md` T1.18 / T3.1). Both are structurally ported
   and wired; thin spots are listed per-item in that doc's T1.18 entry, and
   `golden_ai_mid01` / `golden_ai_late01` are green again as a result
-- Indian large bodies (`2154` / `2820` / `4528`) toward R5 Phase 4 — same doc
+- Indian large bodies (`2154` / `2820`) toward R5 Phase 4 — same doc (`4528`
+  is done, see track 2)
 - Joint mid/late goldens — `golden_ai_mid01` / `golden_ai_late01` are
   **re-enabled and green** (2026-08-27); `golden_ai_turns` is down to the 3
   parked TURN1→2 Brave diffs and `golden_ai_joint` waits on it. Flipping
@@ -227,8 +233,8 @@ Do not prioritize over gameplay/determinism.
   unit-class variants, `0x8020`/`0x8024` chord stings) are tracked as
   [port_plan.md](port_plan.md) P3.7, not here
 - Pixel-exact layout and style
-- Blanket T3 AI goldens and remaining deep PARKED bodies (full `2820`/`4528`,
-  letter cinematic, hang-dump RE)
+- Blanket T3 AI goldens and remaining deep PARKED bodies (full `2820`,
+  `4528`'s VGA meet chrome, letter cinematic, hang-dump RE)
 
 ---
 
