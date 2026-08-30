@@ -146,8 +146,10 @@ PARKED deep/VGA bodies.
 - Production / EOT formula fidelity (food, spoilage, bells/crosses) —
   [manual_gap.md](manual_gap.md), [turn_between_players.md](turn_between_players.md)
 - Fog / exploration: **Done** 2026-08-29 (full DOS reveal/vis-bit/snapshot
-  model — [manual_gap.md](manual_gap.md) Fog row); only the Pacific
-  WOODCUT.PIK splash is a thin info popup
+  model — [manual_gap.md](manual_gap.md) Fog row). Milestone woodcut screens
+  **Done** 2026-08-30 (`FUN_12fd_006c` gate + `FUN_6f30_0062` presenter,
+  `src/core/woodcut.c`) — the Pacific discovery is now the real
+  WOODFRAM/WDCUT06/NAMEPLAT screen, not a thin info popup
 - Indian meet/trade/raid: structural Done. `4528` is **Done 2026-08-27/28** —
   full 9-way action dispatch ported on both arms (human `@ACTIONS` menu with
   per-unit gating, `port_plan.md` P8.8; AI auto-incite `ai_port_plan.md` T4.5;

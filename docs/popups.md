@@ -227,7 +227,7 @@ Cycling and Tutorial Hints remain persisted flags only until final polish.
 |---------------------|------|--------|------|
 | `@LOSTCITY1`…`9`, `@BURIAL*`, `@SCREWED` | Lost City / ruins | Done thin | `units_resolve_lcr_rumour`; @LOSTCITY4 Search/Stay-clear CHOICE auto-resolves as Search (interactive CHOICE PARKED); native-attack combat resolve on `@SCREWED` PARKED (50/50 despawn stand-in) |
 | `@TUTORIAL1`…`19`, `@TUT*` | Tutorial hints option | Missing | — |
-| `WOODCUT.TXT` captions | Discovery woodcut scenes | Missing | Pedia uses woodcut art only |
+| `WOODCUT.TXT` captions | Discovery woodcut scenes | Done | [`woodcut.c`](../src/core/woodcut.c) — `FUN_12fd_006c` once-only gate (DS:`0x540a` = `event` + `unknown05`) + tune table, `FUN_6f30_0062` presenter (WOODFRAM.SS frame, WDCUT`nn`.SS art, NAMEPLAT.SS 3-piece plate, FONT-NP.FF caption). Wired ids: 1 new world (land sighted, `FUN_4720_049e`), 2 building a colony (`479b:0950`), 3/4/5 natives/Aztec/Inca (`5bfb:038a`, by tribe tech class), 6 Pacific (`13f1:0280`), 7 entering a village (`4d56:478a`), 8 Fountain of Youth (`65dd:04a9`), 9 cargo from the New World (`48d3:08bf`, a ship docks in Europe with goods), 10 meeting fellow Europeans (`5bfb:15cf`, MET bit still clear), 11 colony burning + 13 Indian raid (`5fef`). Id 12 COLONY DESTROYED has art but **no** call site in the shipped EXE; ids 14-16 have captions but no art; 17-25 are demo-autoplay only |
 
 ### 12. Cheats (`DEBUG.TXT`)
 

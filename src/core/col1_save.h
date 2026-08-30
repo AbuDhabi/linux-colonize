@@ -288,6 +288,7 @@ typedef struct ColonizeCol1Head {
    * unknown05[0] = ids 17-24 seen, unknown05[1] bit0 = id 25; bits 26-32
    * unused. Cleared with `event` by the new-game memset(0x540a,0,4).
    * Static resolution 2026-08-27; not renamed (col1_json key stability).
+   * Ported 2026-08-30 in core/woodcut.c (gate, tune table and presenter).
    */
   uint8_t unknown05[2];
 } ColonizeCol1Head;

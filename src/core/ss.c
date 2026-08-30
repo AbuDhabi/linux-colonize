@@ -22,6 +22,8 @@ typedef struct SsHeader {
 typedef struct SpriteHeader {
   uint32_t start_offset;
   uint32_t length;
+  int16_t anchor_x;
+  int16_t anchor_y;
   uint16_t width;
   uint16_t height;
 } SpriteHeader;
@@ -50,6 +52,8 @@ static bool parse_sprite_header(const uint8_t* data, SpriteHeader* out) {
   }
   out->start_offset = read_u32(data + 0);
   out->length = read_u32(data + 4);
+  out->anchor_x = (int16_t)read_u16(data + 8);
+  out->anchor_y = (int16_t)read_u16(data + 10);
   out->width = read_u16(data + 12);
   out->height = read_u16(data + 14);
   return true;
@@ -278,6 +282,8 @@ bool ss_load(const char* path, ColonizeSpriteSheet* out_sheet, char* err, size_t
     ColonizeSprite* sprite = &out_sheet->sprites[si];
     sprite->width = sh->width;
     sprite->height = sh->height;
+    sprite->anchor_x = sh->anchor_x;
+    sprite->anchor_y = sh->anchor_y;
 
     if (sh->width == 0 || sh->height == 0) {
       continue;

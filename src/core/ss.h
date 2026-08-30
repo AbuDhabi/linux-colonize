@@ -12,6 +12,15 @@
 typedef struct ColonizeSprite {
   int width;
   int height;
+  /*
+   * Per-sprite anchor from the on-disk header (bytes 8 and 10 of the 16-byte
+   * record), which DOS keeps at +4 / +6 of its in-memory sprite record. The
+   * centering helper FUN_6f30_002e places a sprite at
+   * (anchor_x - width/2, anchor_y - height + 1) — i.e. anchor_x is a
+   * horizontal centre and anchor_y a bottom baseline, both in screen space.
+   */
+  int anchor_x;
+  int anchor_y;
   uint8_t* pixels;
 } ColonizeSprite;
 

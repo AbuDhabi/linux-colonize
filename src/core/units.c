@@ -14,6 +14,7 @@
 #include "core/sound.h"
 #include "core/strutil.h"
 #include "core/unit_chrome.h"
+#include "core/woodcut.h"
 #include "platform/diagnostics.h"
 
 /* Defined later; used by naval hold plunder before combat despawn. */
@@ -3376,6 +3377,10 @@ bool units_resolve_lcr_rumour(
   }
   case COLONIZE_LCR_FOUNTAIN_OF_YOUTH:
     units_play_event_sound(0x37); /* FUN_65dd_0004 65dd:04a9 case 1: queued tune (281f_048e) */
+    /* 65dd:04a9, right after that 0x37: FUN_281f_0524(8), human explorer only. */
+    if (nation == human_nation) {
+      (void)woodcut_fire(col1, WOODCUT_THE_FOUNTAIN_OF_YOUTH);
+    }
     /* 8 free dock immigrants (8x FUN_291f_0d2c, 103727-103731) after
      * FUN_281f_0524(8), the once-only discovery event. Human only — AI
      * nations have no modeled EuropeScreen recruit pool (PARK). */

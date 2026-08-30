@@ -17,6 +17,7 @@
 #include "core/europe.h"
 #include "core/founding_fathers.h"
 #include "core/unit_chrome.h"
+#include "core/woodcut.h"
 #include "platform/diagnostics.h"
 
 static void turn_set_active_nation(ColonizeTurnContext* ctx, int nation_id) {
@@ -1996,6 +1997,14 @@ void turn_run_nation_ticks(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
       }
     }
     europe_tick_voyages(ctx->europe, ctx->units);
+    /*
+     * FUN_48d3_08bf: the human's Europe arrival pass ends with woodcut 9 when
+     * one of the ships that just docked was carrying goods, then sets the
+     * auto-open flag (DS:0x14c = europe.open_on_dock).
+     */
+    if (ctx->europe->docked_with_goods) {
+      (void)woodcut_fire(ctx->col1, WOODCUT_CARGO_FROM_THE_NEW_WORLD);
+    }
   }
 
   /*

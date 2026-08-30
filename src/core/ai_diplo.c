@@ -10,6 +10,7 @@
 #include "core/map.h"
 #include "core/popup_msg.h"
 #include "core/units.h"
+#include "core/woodcut.h"
 
 #include <stddef.h>
 #include <stdio.h>
@@ -2929,6 +2930,8 @@ int ai_diplo_153e_encounter(ColonizeTurnContext* ctx, int human, int target, int
   if ((ai_diplo_read(col1, human, target) & AI_DIPLO_MET) == 0) {
     const ColonizeUnit* u = units_get_const(ctx->units, unit_id);
     hello = (u && units_is_sea(ctx->units, unit_id)) ? "HELLOAHOY" : "HELLOFIRST";
+    /* 5bfb:15cf: the same "MET (0x20) still clear" test gates woodcut 10. */
+    (void)woodcut_fire(col1, WOODCUT_MEETING_FELLOW_EUROPEANS);
   }
   ai_talk_ok(ctx, hello, &tok, "\"Greetings, %STRING0, and welcome to %STRING1.\"");
   k->stage = AI_TALK_ST_THIRD;

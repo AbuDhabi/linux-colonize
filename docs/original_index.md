@@ -233,12 +233,12 @@ screen wiring: [assets.md](assets.md). Official 3.0 notes: `COLONIZE/README.TXT`
 | `PHYS0.SS` | Rivers, hills, mountains, forest, coast, resources |
 | `CURSOR.SS` | Map cursor; #0 used as OS pointer |
 | `ICONS.SS` | Cargo / unit / hold icons |
-| `NAMEPLAT.SS` | Unit portrait plate |
+| `NAMEPLAT.SS` | Woodcut caption plate: 3 sprites (left cap 18px / middle tile 16px / right cap 18px), tiled to the caption width — `FUN_6f30_0062` |
 | `BUILDING.SS` / `BDARK.SS` | Colony buildings |
 | `PARCH.SS` | Colony buildings parchment |
 | `WOODTILE.SS` | Wood fill (menu bar, panel, in-game popups) |
 | `OPENTILE.SS` | Title-menu popup fill |
-| `WOODFRAM.SS` | Colony frame graphic |
+| `WOODFRAM.SS` | Woodcut picture frame, 274x170, anchor (160,184) — `FUN_6f30_0062`, not the colony screen |
 
 ### Bulk `.SS` prefixes (lower priority for day-to-day port work)
 
@@ -249,7 +249,7 @@ screen wiring: [assets.md](assets.md). Official 3.0 notes: `COLONIZE/README.TXT`
 | `CC-00`…`CC-24` | 25 | Founding Fathers portraits |
 | `SCORE*` | ~24 | Score / fame |
 | `OPEN*` | ~15 | Title / opening pieces |
-| `WDCUT*` | ~13 | Woodcut illustrations |
+| `WDCUT*` | 13 | Woodcut illustrations, `WDCUT%02d.SS` by milestone id — [popups.md](popups.md) §11 |
 | `CLOS-*` | ~7 | Closing cinematic |
 | Nation (`ENGLND` / `FRANCE` / `DUTCH` / `SPAIN`) | 8 | Nation art |
 
