@@ -2,6 +2,7 @@
 
 #include "core/ai_diplo.h"
 #include "core/sound.h"
+#include "core/woodcut.h"
 #include "core/ai_king.h"
 #include "core/assets.h"
 #include "core/colony.h"
@@ -597,6 +598,18 @@ static void ai_contact_enqueue_welcome(ColonizeTurnContext* ctx, int e, int nati
   if (ctx->col1 && ctx->col1->head.turn >= 20) {
     sound_set_bgm(nation_id == 0 ? 7 : (nation_id == 1 ? 6 : 5));
   }
+  /*
+   * FUN_5bfb_022e 5bfb:038a, right before the @INDIANWELCOME dialog: the
+   * tribe's own tech class picks the woodcut — Inca (DS:0x8d52 == 0) gets
+   * THE INCA NATION, Aztec (== 1) THE AZTEC EMPIRE, everyone else MEETING
+   * THE NATIVES.
+   */
+  (void)woodcut_fire(
+    ctx->col1,
+    nation_id == 0   ? WOODCUT_THE_INCA_NATION
+    : nation_id == 1 ? WOODCUT_THE_AZTEC_EMPIRE
+                     : WOODCUT_MEETING_THE_NATIVES
+  );
   PopupMsgTokens welcome_tok;
   memset(&welcome_tok, 0, sizeof(welcome_tok));
   welcome_tok.string0 = tribe;
@@ -6826,6 +6839,13 @@ void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id) {
            * @INDIANWAR when peace broken; @INDIANSURPRISE when not yet at war.
            */
           if (ai_contact_euro_is_human(ctx, target_euro)) {
+            /*
+             * FUN_5fef 5fef:22a9 — a native attacker (nation ≥ 4) on a human
+             * Euro defender fires woodcut 13; the burn arms below fire
+             * woodcut 11 (5fef:2b6c / 5fef:305b, both COLONY BURNING — id 12
+             * COLONY DESTROYED has no DOS call site).
+             */
+            (void)woodcut_fire(ctx->col1, WOODCUT_INDIAN_RAID);
             char raid_line[AI_POPUP_BODY_LEN];
             const char* raid_body = NULL;
             const char* tribe = ai_contact_tribe_name(nation_id);
@@ -6835,6 +6855,7 @@ void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id) {
             raid_tok.string1 = c->name[0] ? c->name : NULL;
             if (abandoned && abandoned_name[0]) {
               if (kind == AI_RAID_SCALP || kind == AI_RAID_BURN) {
+                (void)woodcut_fire(ctx->col1, WOODCUT_COLONY_BURNING);
                 units_combat_notify_colony_burned(
                   ctx->col1, abandoned_name, target_euro, tribe
                 );

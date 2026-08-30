@@ -66,6 +66,7 @@ add_library(colonize_core STATIC
   src/core/colony_screen.c
   src/core/debug_atlas.c
   src/core/declaration.c
+  src/core/woodcut.c
   src/core/units.c
   src/core/colony.c
   src/core/colony_yield.c
@@ -212,6 +213,7 @@ add_executable(smoke_game_flow
   src/core/colony_screen.c
   src/core/debug_atlas.c
   src/core/declaration.c
+  src/core/woodcut.c
   src/core/units.c
   src/core/colony.c
   src/core/colony_yield.c
@@ -277,6 +279,7 @@ add_executable(unit_new_game
   src/core/colony_screen.c
   src/core/debug_atlas.c
   src/core/declaration.c
+  src/core/woodcut.c
   src/core/units.c
   src/core/colony.c
   src/core/colony_yield.c
@@ -353,6 +356,7 @@ add_executable(unit_hall_of_fame
   src/core/colony_screen.c
   src/core/debug_atlas.c
   src/core/declaration.c
+  src/core/woodcut.c
   src/core/units.c
   src/core/colony.c
   src/core/colony_yield.c
@@ -646,6 +650,7 @@ add_test(NAME unit_map_panel COMMAND unit_map_panel WORKING_DIRECTORY ${CMAKE_SO
 add_executable(unit_units
   tests/unit/test_units.c
   src/core/units.c
+  src/core/woodcut.c
   src/core/combat_strength.c
   src/core/combat_analysis.c
   src/core/unit_chrome.c
@@ -698,6 +703,7 @@ add_executable(unit_colonies
   src/core/colony_production.c
   src/core/colony_yield.c
   src/core/units.c
+  src/core/woodcut.c
   src/core/combat_strength.c
   src/core/combat_analysis.c
   src/core/unit_chrome.c
@@ -736,6 +742,7 @@ add_executable(unit_reports
   src/core/colony_yield.c
   src/core/colony_production.c
   src/core/units.c
+  src/core/woodcut.c
   src/core/combat_strength.c
   src/core/combat_analysis.c
   src/core/unit_chrome.c
@@ -816,6 +823,25 @@ target_include_directories(unit_ff PRIVATE
 )
 
 add_test(NAME unit_ff COMMAND unit_ff WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+
+add_executable(unit_woodcut
+  tests/unit/test_woodcut.c
+  src/core/woodcut.c
+  src/core/ss.c
+  src/core/font.c
+  src/core/ff.c
+  src/core/madspack.c
+  src/core/assets.c
+  src/platform/diagnostics.c
+  src/core/strutil.c
+  src/platform/dos_compat/dos_compat.c
+)
+
+target_include_directories(unit_woodcut PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
+add_test(NAME unit_woodcut COMMAND unit_woodcut WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
 add_executable(unit_declaration
   tests/unit/test_declaration.c
@@ -1250,6 +1276,7 @@ add_executable(smoke_play
   src/core/colony_screen.c
   src/core/debug_atlas.c
   src/core/declaration.c
+  src/core/woodcut.c
   src/core/units.c
   src/core/colony.c
   src/core/colony_yield.c

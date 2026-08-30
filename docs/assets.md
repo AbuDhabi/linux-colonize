@@ -71,7 +71,7 @@ Colonization uses the same wood dialog chrome for many confirmations and prompts
 | Mid | 1px all sides | `border0` = **134** (WOODTILE mid brown) |
 | Bevel | 1px | `border1` = **128** light on **top + right**; `border2` = **138** dark on **bottom + left** |
 
-Content draws inside the rect inset by `POPUP_FRAME_INSET` (3). Call `popup_draw(...)`; on palettes that differ from WOODPANL (e.g. `OPENMENU.PIK`), use `popup_colors_from_ui` + `popup_colors_remap`. First consumer: title `@BEGINMENU`. Not the same as `WOODFRAM.SS` (colony frame graphic) or map-menu pulldowns. Which game dialogs use this chrome (and port status): [popups.md](popups.md).
+Content draws inside the rect inset by `POPUP_FRAME_INSET` (3). Call `popup_draw(...)`; on palettes that differ from WOODPANL (e.g. `OPENMENU.PIK`), use `popup_colors_from_ui` + `popup_colors_remap`. First consumer: title `@BEGINMENU`. Not the same as `WOODFRAM.SS` (the milestone-woodcut picture frame, `woodcut.c`) or map-menu pulldowns. Which game dialogs use this chrome (and port status): [popups.md](popups.md).
 
 `.SS` sprite sheets (e.g. `TERRAIN.SS`, `CURSOR.SS`) use four MADSPACK sections: header, per-sprite metadata, palette, and linemode-compressed pixel data. Sprites are blitted with transparency at index `0xFD`. `CURSOR.SS` #0 also has stray index `0x09` (light blue) at opposite corners; the SDL color cursor treats those as transparent.
 
@@ -307,7 +307,7 @@ DOS layout: 15×12 main view (see `MENU.TXT` zoom levels) leaves an 80px strip. 
 | Tile details | `NAMES.TXT` / WorldMap `improve` (Col1 mask fallback) / colonies / units | Under Locat: ownership (explored land only), `(Terrain)`, features (plow/road/river/resource/rumour), colony or native camp (`ICONS.SS` **#0–3** / **#10–13**). A fogged tile gets a single `(Unexplored)` line instead |
 | Nation box | Turn indicator at `(315,197)` | 5×3 fill in the acting nation's color (`FUN_1984_00aa`), painted at the head of **every** nation's end-of-turn — the human's own production pass included |
 
-Not used for this panel: `WOODPAN2.PIK` (score/fame chrome), `WOODFRAM.SS` (colony frame). Fog-of-war on the minimap is not drawn yet.
+Not used for this panel: `WOODPAN2.PIK` (score/fame chrome), `WOODFRAM.SS` (milestone-woodcut frame). Fog-of-war on the minimap is not drawn yet.
 
 ### Report / adviser screens
 

@@ -1366,6 +1366,7 @@ void europe_tick_voyages(EuropeScreen* eu, const ColonizeUnitPool* units) {
     return;
   }
   eu->open_on_dock = false;
+  eu->docked_with_goods = false;
   for (int i = 0; i < eu->expected_ships; ++i) {
     if (eu->expected[i].turns_left > 0) {
       eu->expected[i].turns_left--;
@@ -1396,6 +1397,12 @@ void europe_tick_voyages(EuropeScreen* eu, const ColonizeUnitPool* units) {
     europe_disembark_passengers_to_dock(eu, &ship, units);
     eu->harbor[eu->harbor_ships++] = ship;
     eu->open_on_dock = true;
+    for (int g = 0; g < EUROPE_SHIP_CARGO_MAX; ++g) {
+      if (ship.hold_goods_amount[g] > 0) {
+        eu->docked_with_goods = true;
+        break;
+      }
+    }
     europe_refresh_harbor_selection(eu);
     snprintf(eu->status, sizeof(eu->status), "%s has docked in %s.", ship.name, eu->port_city);
   }

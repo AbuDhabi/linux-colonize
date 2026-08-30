@@ -248,6 +248,12 @@ typedef struct EuropeScreen {
   int price_event_dir[EUROPE_CARGO_MAX];
   int price_event_count;
   bool open_on_dock; /* set when Expected→Harbor this tick */
+  /*
+   * FUN_48d3_08bf's `local_a` gate: a ship that docked this tick was carrying
+   * goods, so the caller (human turn only) fires woodcut 9, CARGO FROM THE
+   * NEW WORLD. Reset by every europe_tick_voyages call, like open_on_dock.
+   */
+  bool docked_with_goods;
   /* William Brewster: exclude Petty Criminals / Indentured Servants from pool. */
   bool brewster_no_criminals;
   /*

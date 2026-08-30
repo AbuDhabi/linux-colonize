@@ -53,6 +53,7 @@
 #include "core/unit_chrome.h"
 #include "core/unit_stack.h"
 #include "core/units.h"
+#include "core/woodcut.h"
 #include "core/combat_analysis.h"
 #include "core/version.h"
 #include "platform/diagnostics.h"
@@ -142,6 +143,12 @@ struct ColonizeGameState {
    */
   DeclarationCinematic declaration;
   bool declaration_played;
+  /*
+   * Milestone woodcut screens (FUN_12fd_006c → FUN_6f30_0062). Trigger sites
+   * call woodcut_fire(); the queue is drained here once no other modal owns
+   * the screen, so a woodcut armed deep inside turn processing still shows.
+   */
+  ColonizeWoodcutScreen woodcut;
   GameMapConfirm map_confirm;
   int map_confirm_payload; /* unit id / trade route slot / … */
   int trade_select_mode; /* 0=idle, 1=begin route, 2=edit, 3=delete */
@@ -403,6 +410,7 @@ static void game_bind_combat_analysis(ColonizeGameState* game) {
   ai_diplo_set_sound_hook(sound_play);
   europe_set_sound_hook(sound_play);
   europe_set_bgm_hook(sound_set_bgm);
+  woodcut_set_sound_hooks(sound_play, sound_set_bgm);
 }
 
 static void game_refresh_orders_menu(ColonizeGameState* game) {
@@ -839,6 +847,10 @@ static bool game_do_found_colony_at_unit(ColonizeGameState* game, int uid, bool 
   }
   game_open_found_name_entry(game, cid);
   sound_play(0x54); /* DOS FUN_479b_076e: found-colony hammering (COLDIG sample 13) */
+  /* 479b:0950, immediately after that same 0x54: human-only woodcut 2. */
+  if (hn == game->human_nation && game->col1_ok) {
+    (void)woodcut_fire(&game->col1, WOODCUT_BUILDING_A_COLONY);
+  }
   return true;
 }
 
@@ -1597,6 +1609,13 @@ static void game_try_prompt_landho(ColonizeGameState* game) {
   if (!col1_bridge_human_has_seen_land(&game->world_map, game->human_nation)) {
     return;
   }
+  /*
+   * FUN_4720_049e: the ring scan that first finds land sets the nation's
+   * named_new_world bit and immediately calls FUN_281f_0f6c → FUN_2b5a_001e
+   * → woodcut 1. The @LANDHO naming prompt opens behind it and takes input
+   * once the woodcut is dismissed.
+   */
+  (void)woodcut_fire(&game->col1, WOODCUT_DISCOVERY_OF_THE_NEW_WORLD);
   game_open_landho_name_entry(game);
 }
 
@@ -1640,6 +1659,9 @@ static void game_apply_options_result(ColonizeGameState* game) {
 static bool game_handle_modal_input(ColonizeGameState* game, const ColonizeInputState* input) {
   if (!game || !input) {
     return false;
+  }
+  if (game->woodcut.open) {
+    return woodcut_handle_input(&game->woodcut, input);
   }
   if (game->declaration.open) {
     return declaration_handle_input(&game->declaration, input);
@@ -3105,6 +3127,10 @@ static bool game_apply_col1_save(ColonizeGameState* game, ColonizeCol1Save* load
 }
 
 static bool game_load_col1_slot(ColonizeGameState* game, int slot, char* err, size_t err_size) {
+  /* DOS does not re-fire woodcuts on load (the bits ride in the save); drop
+   * anything the outgoing game had armed but not yet shown. */
+  woodcut_close(&game->woodcut);
+  woodcut_clear_pending();
   ColonizeCol1Save loaded;
   col1_save_init(&loaded);
   if (!savegame_read_col1(game->config.save_dir, slot, &loaded, err, err_size)) {
@@ -4831,6 +4857,8 @@ void game_destroy(ColonizeGameState* game) {
   combat_analysis_set_presenter(NULL, NULL);
   combat_analysis_close(&game->combat_analysis);
   declaration_close(&game->declaration);
+  woodcut_close(&game->woodcut);
+  woodcut_clear_pending();
   pik_free(&game->menu_bg);
   pik_free(&game->pedia_wood);
   europe_free(&game->europe);
@@ -5422,6 +5450,10 @@ static bool game_try_unit_move(ColonizeGameState* game, int dest_x, int dest_y) 
       }
       ColonizeTurnContext ctx;
       game_fill_turn_context(game, &ctx);
+      /* FUN_4d56_4528 human arm opens at 4d56:478a with woodcut 7. */
+      if (selected->nation_id == game->human_nation) {
+        (void)woodcut_fire(&game->col1, WOODCUT_ENTERING_INDIAN_VILLAGE);
+      }
       /*
        * FUN_4d56_4528 human arm: every land unit gets the same NAMES.TXT
        * @ACTIONS menu, rows gated per unit (armed → Demand Tribute / Attack
@@ -5532,18 +5564,10 @@ static void game_reveal_sight_for_unit(ColonizeGameState* game, const ColonizeUn
     return;
   }
   game_try_prompt_landho(game);
-  if (pacific && !game->col1.head.event.discovery_of_the_pacific_ocean) {
-    game->col1.head.event.discovery_of_the_pacific_ocean = 1;
-    char body[AI_POPUP_BODY_LEN];
-    popup_msg_fill(
-      &game->messages,
-      "PACIFIC",
-      NULL,
-      "Discovery of the Pacific Ocean!",
-      body,
-      sizeof(body)
-    );
-    (void)ai_popup_enqueue_ok(&game->ai_popups, AI_POPUP_TAG_INFO, NULL, body);
+  if (pacific) {
+    /* FUN_13f1_0158's DS:0x1e8 arm calls FUN_12fd_006c(6) directly — the
+     * woodcut is the whole notification, there is no popup behind it. */
+    (void)woodcut_fire(&game->col1, WOODCUT_DISCOVERY_OF_THE_PACIFIC_OCEAN);
   }
 }
 
@@ -8261,6 +8285,34 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
   }
 
   /*
+   * Milestone woodcut (FUN_12fd_006c) — full-screen, and ahead of whatever
+   * popup the same event queues behind it: DOS pushes the woodcut first
+   * (FUN_5bfb_022e runs woodcut 3/4/5 before the @INDIANWELCOME dialog,
+   * FUN_5fef the raid woodcut before its @RAID text). The popup queue still
+   * advances underneath — the woodcut only owns the screen and the keyboard
+   * until it is dismissed.
+   */
+  bool woodcut_just_opened = false;
+  if (!game->woodcut.open && !game->declaration.open && !game->in_menu &&
+      woodcut_has_pending()) {
+    const int wid = woodcut_take_pending();
+    woodcut_just_opened = wid >= 0 &&
+      woodcut_open(&game->woodcut, game->resolved_data_dir, wid);
+    if (woodcut_just_opened) {
+      diag_info("Woodcut %d: %s", wid, game->woodcut.caption);
+    }
+  }
+  if (game->woodcut.open) {
+    /* Not on the opening frame: a key still down from the action that armed
+     * it would dismiss the screen before it is ever seen. */
+    if (!woodcut_just_opened) {
+      (void)woodcut_handle_input(&game->woodcut, input);
+    }
+    return true;
+  }
+
+
+  /*
    * DOS FUN_43f7_1a26 plays the signing cinematic (thunk_FUN_2a1f_009a →
    * FUN_43f7_160a) as part of the declaration itself, immediately before the
    * @INDEPENDENCE letter. ai_king queues that letter as a KING_LETTER popup,
@@ -10870,6 +10922,12 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
     return;
   }
 
+  /* A woodcut owns the whole screen (and its own WDCUTnn palette). */
+  if (game->woodcut.open) {
+    woodcut_render(&game->woodcut, framebuffer, palette);
+    return;
+  }
+
   /* Signing cinematic owns the whole screen (and its own DECOIND palette). */
   if (game->declaration.open) {
     declaration_render(&game->declaration, framebuffer, palette);
@@ -11942,7 +12000,7 @@ bool game_modal_open(const ColonizeGameState* game) {
   return game->ai_popups.open || game->name_entry.open || game->howmuch.open ||
          game->save_load.open || game->cheat_list.open || game->unit_stack.open ||
          game->options_dlg.open || game->pick_music.open || game->combat_analysis.open ||
-         game->declaration.open;
+         game->declaration.open || game->woodcut.open;
 }
 
 bool game_ai_popup_pending(const ColonizeGameState* game) {

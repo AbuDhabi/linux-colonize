@@ -21,6 +21,34 @@ This is a user-maintained list of bugs. User puts stuff in, user removes. Agents
 | Cargo Party ie. boycotting a good should always pick a cargo the selected colony has. You can't dump 0 tons of something in protest. | Fixed, and DOS agrees. `FUN_38fd_3dc8` fills `aiStack_cc[c]` with the largest stock of cargo c across the human's colonies and skips every cargo whose entry stayed 0, both when summing the roulette weights and when walking them. The port had keyed the candidate mask off Europe's *bid* instead, so it could name a good no colony was storing — and its last-resort fallback then widened to literally every cargo. The mask now comes from actual colony stock; the Europe price stays the weight; the fallback drops only the boycott exclusion, never the stocked one. `unit_ai_king` now stocks the warehouse for the roulette cases and adds one asserting that empty stores mean no boycott and a standing hike. |
 | Mission icon on Indian villages should be a cross, of a color dependent on nation and missionary skill. Check DOS. It's not an exclamation mark. | Fixed — it is a cross, and the colour rule is nation plus Jesuit. Ghidra drops the register arguments to `FUN_1b9e_000a` (the rect fill: colour and height on the stack, x in AX, y in DX, width in BX), so the geometry came out of the raw instruction stream at CODE_5:112b:0afd..0b8c — a 5x6 black pad, a 1x4 vertical bar at pad+2 and a 3x1 horizontal bar at pad+1 one row down. Colour is the owning nation's from DS:0x848 = {12, 9, 14, 13}, less 8 for a plain mission and full brightness for a Jesuit one (`CMP CX,1; SBB AL,AL; AND AL,0xf8` is -8 exactly when the 0x10 bit is clear). The cross sits just right of the alarm marks, on the same baseline. |
 | Indian alarm icon, the exclamation mark, should be centered, and I'm pretty sure the colors are a bit wrong vs DOS. | Fixed; the whole thing now comes off the disassembly rather than a reading of the decompile. Position is DOS's fixed anchor — first mark at tile_x+6, baseline tile_y+4, each mark stepping 2px (they overlap, being 3px wide) — instead of the previous centred row whose width drifted with the count. Each mark is a 3x7 surround, a 1x5 coloured bar inset (1,1), then one surround-coloured pixel four rows down splitting it into stem and dot. The **count** was wrong too: it is not the alarm tier but the threat score — the loop seeds a counter with `FUN_281f_0316`'s out value and subtracts 4 per pass while it stays >= 0, so `score/4 + 1` marks — and nothing at all is drawn when no nation scores. Colours 0x0a / 0x0b / 0x0e / 0x0c by tier were right, but the final mark is dimmed by 8 whenever that counter has fallen to 2 or less, which was missing; and when the threat is a *different* European, DOS draws a single mark in that nation's own colour (DS:0x848) instead, telling you who they are angry at — also missing. `ai_indian_village_threat` is now public so the renderer reads the same scan the turn tick does (single-pass over the unit pool, cheap enough per visible village per frame). `unit_map_panel` asserts the exact pixel geometry of both the mark and the cross. |
+| Name new world popup fails to stop execution until it is resolved, like other popups. | |
+| Returning a ship to Europe immediately opens the European Status. It should not. Ships ARRIVING in Europe should open the status screen. Check DOS for details. | |
+| Founding Father pedia pages are missing background (should be wood), and the pallette is messed up too. | |
+| The only place that time/turn processing is allowed to proceed is the overland map, and only if there ISN'T an active popup. Yet another example of this bug is turns apparently being able to process while in European Status. Things are allowed to happen in places other than the overland map, but then they are always in response to the player doing something. The game should pretty much never proceed with time/turn processing while player is just viewing another screen or a popup. | |
+| Colonists embarked on ships arriving from or traveling to the new world on the European Status need to be visible alongside ships. Check DOS. | |
+| Colony population numbers missing from colony icons on overland map. Check DOS for where, what's counted and what color. | |
+| If you have a ship with a loaded unit, and you, via the popup menu cancel the orders of that loaded unit, and the unit has remaining moves, that unit should be available to move. This is particularly important in coastal tiles, since this allows disembarking units on board a ship that's out of moves (and hence incapable of triggering the landfall popup). | |
+| Colonists working buildings in colony UI stand too far apart. If the building is wide enough, have them stand centered horizontally on the building, right next to each other as per their sprite widths. If the building is too narrow for that, squeeze them as needed. | |
+|  | |
+| | |
+| | |
+| | |
+| | |
+| | |
+| | |
+| | |
+| | |
+| | |
+| | |
+| | |
+| | |
+| | |
+| | |
+| | |
+| | |
+| | |
+| | |
+| | |
 | | |
 | | |
 | | |
