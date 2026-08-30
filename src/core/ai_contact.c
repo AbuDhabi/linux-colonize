@@ -3501,14 +3501,22 @@ static void ai_contact_mission_convert_visit(ColonizeTurnContext* ctx, int natio
     if ((home->mission & COL1_TRIBE_MISSION_JESUIT_BIT) != 0) {
       chance *= 2;
     }
+    /*
+     * DOS rolls this inside the visit itself — FUN_5bfb_022e runs when a Brave
+     * *moves* next to the colony, so a Brave already parked there does not
+     * re-roll. This pulse only sees standing positions, so cap it at one roll
+     * per Indian nation per turn (return either way) rather than one roll per
+     * adjacent Brave per turn, which turned a single loitering Brave into a
+     * convert factory.
+     */
     if (dos_rng_range(rng, 0, 15) >= chance) {
-      continue;
+      return;
     }
 
     const int cid = units_spawn_allow_stack(ctx->units, convert_type, target->x, target->y);
     ColonizeUnit* convert = cid >= 0 ? units_get(ctx->units, cid) : NULL;
     if (!convert) {
-      continue;
+      return;
     }
     convert->nation_id = (uint8_t)e;
     convert->profession = COLONIZE_PROF_CONVERT;
