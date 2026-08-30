@@ -6,6 +6,7 @@
 #include "core/assets.h"
 #include "core/col1_save.h"
 #include "core/colony.h"
+#include "core/dos_rng.h"
 #include "core/europe.h"
 #include "core/map.h"
 #include "core/map_gen.h"
@@ -892,6 +893,137 @@ static int run_init_and_turns(
   return 0;
 }
 
+
+/*
+ * FUN_4cc6_03f8 (ai_indian_152e_best_threat_nation_stub) via the per-turn
+ * village tick: a European colony inside distance 7 of a settlement makes that
+ * settlement's alarm word for the colony's nation climb; nothing nearby leaves
+ * it alone; and the French (nation 1) earn it at half rate.
+ *
+ * Guards the un-stubbing done for bugs.md "Indian alarm isn't shown" — while
+ * the threat scan reported "no threat" this word never moved, so no amount of
+ * settling or developing ever alarmed anyone.
+ */
+static int run_village_threat_alarm(void) {
+  ColonizeMsgCatalog names;
+  assets_msg_init(&names);
+  if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT")) {
+    fprintf(stderr, "threat: NAMES.TXT load failed\n");
+    return 1;
+  }
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  char maperr[128];
+  if (!map_alloc(&map, 32, 32, maperr, sizeof(maperr))) {
+    fprintf(stderr, "threat: map_alloc failed: %s\n", maperr);
+    return 1;
+  }
+  for (int i = 0; i < 32 * 32; ++i) {
+    map.terrain[i] = 2; /* plains */
+  }
+
+  ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
+  units_reset(&units);
+  units_load_types(&units, &names);
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+
+  ColonizeCol1Save col1;
+  memset(&col1, 0, sizeof(col1));
+  col1.head.difficulty = 2;
+  static ColonizeCol1Tribe tribes[2];
+  memset(tribes, 0, sizeof(tribes));
+  col1.tribe = tribes;
+  col1.head.tribe_count = 2;
+  for (int i = 0; i < 2; ++i) {
+    tribes[i].nation_id = 4;
+    tribes[i].population = 5;
+    tribes[i].mission = 0xff;
+  }
+  tribes[0].x = 10;
+  tribes[0].y = 10; /* near the colony */
+  tribes[1].x = 28;
+  tribes[1].y = 28; /* far from everything */
+  col1.indian[0].tech = 1;
+  col1.indian[0].euro_diplo[0] = COL1_INDIAN_MET_BIT;
+  col1.indian[0].euro_diplo[1] = COL1_INDIAN_MET_BIT;
+
+  const int cid = colonies_found(&colonies, &map, 12, 10, 0, 0, 0, 0, 0, 0);
+  if (cid < 0) {
+    fprintf(stderr, "threat: colony found failed\n");
+    return 1;
+  }
+  ColonizeColony* col = colonies_get_mut(&colonies, cid);
+  col->colonist_count = 8;
+  col->population = 8;
+
+  ColonizeDosRng rng;
+  dos_rng_seed(&rng, 4242u);
+  uint16_t year = 1600;
+  uint16_t autumn = 0;
+  uint32_t turn = 20;
+  char status[128];
+  status[0] = '\0';
+
+  ColonizeTurnContext ctx;
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.col1 = &col1;
+  ctx.col1_ok = true;
+  ctx.map = &map;
+  ctx.units = &units;
+  ctx.colonies = &colonies;
+  ctx.rng = &rng;
+  ctx.human_nation = 0;
+  ctx.status = status;
+  ctx.status_size = sizeof(status);
+  ctx.game_year = &year;
+  ctx.game_autumn = &autumn;
+  ctx.turn_number = &turn;
+
+  for (int t = 0; t < 8; ++t) {
+    ai_indian_nation_turn(&ctx, 4);
+  }
+  const int near_w =
+    (int)tribes[0].alarm[0].friction | ((int)tribes[0].alarm[0].attacks << 8);
+  const int far_w =
+    (int)tribes[1].alarm[0].friction | ((int)tribes[1].alarm[0].attacks << 8);
+  if (near_w <= 0) {
+    fprintf(stderr, "threat: colony next to a village raised no alarm (%d)\n", near_w);
+    return 1;
+  }
+  if (far_w >= near_w) {
+    fprintf(stderr, "threat: distant village alarmed as much as the near one (%d vs %d)\n",
+            far_w, near_w);
+    return 1;
+  }
+
+  /* Same colony flown by the French: half the alarm. */
+  for (int i = 0; i < 2; ++i) {
+    memset(&tribes[i].alarm, 0, sizeof(tribes[i].alarm));
+  }
+  col->nation_id = 1;
+  ctx.human_nation = 1;
+  dos_rng_seed(&rng, 4242u);
+  for (int t = 0; t < 8; ++t) {
+    ai_indian_nation_turn(&ctx, 4);
+  }
+  const int french_w =
+    (int)tribes[0].alarm[1].friction | ((int)tribes[0].alarm[1].attacks << 8);
+  if (french_w <= 0 || french_w >= near_w) {
+    fprintf(stderr, "threat: French alarm %d should be positive and below %d\n",
+            french_w, near_w);
+    return 1;
+  }
+
+  assets_msg_free(&names);
+  map_free(&map);
+  fprintf(stderr, "village threat alarm ok (near=%d far=%d french=%d)\n",
+          near_w, far_w, french_w);
+  return 0;
+}
+
 int main(void) {
   diag_init(0, NULL);
   const char* data = "COLONIZE";
@@ -899,6 +1031,9 @@ int main(void) {
     return 1;
   }
   if (run_init_and_turns(data, true, 2, "AMERICA") != 0) {
+    return 1;
+  }
+  if (run_village_threat_alarm() != 0) {
     return 1;
   }
   return 0;

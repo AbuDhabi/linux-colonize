@@ -466,25 +466,53 @@ static const ColonizeCol1Tribe* map_panel_tribe_at(const ColonizeCol1Save* col1,
   return NULL;
 }
 
+/* One "!" glyph: a coloured stem + dot on a black surround. */
+static void map_panel_draw_bang(
+  ColonizeFramebuffer8* framebuffer, int mx, int my, int mark_h, uint8_t color
+) {
+  for (int dy = -1; dy <= mark_h; ++dy) {
+    for (int dx = -1; dx <= 1; ++dx) {
+      const int x = mx + dx;
+      const int y = my + dy;
+      if (x < 0 || y < 0 || x >= framebuffer->width || y >= framebuffer->height) {
+        continue;
+      }
+      const int on_stem = (dx == 0) && ((dy >= 0 && dy <= mark_h - 3) || dy == mark_h - 1);
+      framebuffer->pixels[y * framebuffer->width + x] = on_stem ? color : 0u;
+    }
+  }
+}
+
 /*
- * Alarm marks over a native settlement (FUN_112b_0790's tribe map chrome).
+ * Native-settlement map chrome: alarm marks and the mission flag
+ * (FUN_112b_0790, viceroy_unpacked.c:2310).
  *
- * Tier is DOS's: the DS:0x54f6 grudge/tension word for this settlement and
- * viewing nation, `>> 5` clamped to 0..3, forced to 3 once
- * indian.alarm_by_player[e] passes 0x4a. DOS then paints the mark in the tier
- * colour — 10 / 11 / 14 / 12 — over a black surround. Tier 0 (content) draws
- * nothing here; the marks are the warning, so an unalarmed village stays
- * clean. Height/lane are the port's; the tier and colour rules are DOS's.
+ * The DS addresses in that function resolve onto the settlement record itself:
+ * the array base is 0x54ec with stride 0x12 (9 words — the same 18-byte record
+ * as ColonizeCol1Tribe), so 0x54ee is `nation_id`, 0x54f1 is `mission`, and
+ * 0x54f6 indexed `(settlement*9 + nation)*2` is `alarm[nation]` — the int16
+ * `friction | attacks<<8` the encroachment tick in ai.c already feeds. (The
+ * earlier pass read the separate DS:0x54f6 grudge table instead, which almost
+ * nothing writes here, which is why the marks never appeared.)
+ *
+ * Alarm tier = that word >> 5, clamped 0..3, forced to 3 once
+ * indian.alarm_by_player passes 0x4a; DOS paints it in the tier colour
+ * 10 / 11 / 14 / 12. The port draws tier+1 marks so the count reads as well as
+ * the colour. Mark shape and placement are the port's.
+ *
+ * Mission flag: drawn whenever the settlement's mission byte is non-negative,
+ * in the owning nation's colour (DS:0x848 = {12, 9, 14, 13}), dimmed by 8 for
+ * a plain mission and full brightness for a Jesuit one.
  */
-static void map_panel_draw_tribe_alarm_marks(
+static void map_panel_draw_tribe_chrome(
   const ColonizeCol1Save* col1,
   ColonizeFramebuffer8* framebuffer,
-  int tribe_index,
   const ColonizeCol1Tribe* t,
   int fog_nation,
   int tile_px,
   int tile_py,
-  int tile_w
+  int tile_w,
+  int tile_h
 ) {
   if (!col1 || !framebuffer || !framebuffer->pixels || fog_nation < 0 || fog_nation > 3) {
     return;
@@ -492,59 +520,45 @@ static void map_panel_draw_tribe_alarm_marks(
   if (t->nation_id < 4 || t->nation_id >= 12) {
     return;
   }
-  int tier = 0;
-  if (col1->indian_tension && tribe_index >= 0 && tribe_index < (int)col1->head.tribe_count) {
-    const int16_t tension = col1->indian_tension[(size_t)tribe_index * 4 + (size_t)fog_nation];
-    if (tension > 0) {
-      tier = tension >> 5;
+  const ColonizeCol1Indian* ind = &col1->indian[t->nation_id - 4];
+
+  /* Mission flag, bottom-left of the tile — visible whoever owns it. */
+  if ((int)(int8_t)t->mission >= 0) {
+    static const uint8_t k_nation_color[4] = {12u, 9u, 14u, 13u};
+    const int owner = (int)(t->mission & COL1_TRIBE_MISSION_NATION_MASK);
+    if (owner >= 0 && owner < 4) {
+      uint8_t color = k_nation_color[owner];
+      if ((t->mission & COL1_TRIBE_MISSION_JESUIT_BIT) == 0 && color >= 8u) {
+        color = (uint8_t)(color - 8u);
+      }
+      map_panel_draw_bang(framebuffer, tile_px + 2, tile_py + tile_h - 6, 4, color);
     }
+  }
+
+  /* Alarm marks, top of the tile — only for a tribe this nation has met. */
+  if (!ind->euro_diplo[fog_nation]) {
+    return;
+  }
+  int tier = ((int)t->alarm[fog_nation].friction | ((int)t->alarm[fog_nation].attacks << 8)) >> 5;
+  if (tier < 0) {
+    tier = 0;
   }
   if (tier > 3) {
     tier = 3;
   }
-  /*
-   * DOS only lifts the tier off alarm at its top band (> 0x4a). The port also
-   * grades the lower bands off alarm_by_player, using the same 0x19 / 0x32 /
-   * 0x4b cuts the village-mood bodies use (@VILLAGEMEDIUM / BAD / WAR) — the
-   * DS:0x54f6 tension table has few writers here, so tension alone would keep
-   * the marks dark until a tribe was already at war.
-   */
-  const int alarm = (int)col1->indian[t->nation_id - 4].alarm_by_player[fog_nation];
-  int alarm_tier = 0;
-  if (alarm >= 0x4b) {
-    alarm_tier = 3;
-  } else if (alarm >= 0x32) {
-    alarm_tier = 2;
-  } else if (alarm >= 0x19) {
-    alarm_tier = 1;
-  }
-  if (alarm_tier > tier) {
-    tier = alarm_tier;
-  }
-  if (tier <= 0) {
-    return;
+  if ((int)ind->alarm_by_player[fog_nation] > 0x4a) {
+    tier = 3;
   }
 
   static const uint8_t k_tier_color[4] = {10u, 11u, 14u, 12u};
   const uint8_t color = k_tier_color[tier];
-  const int mark_h = 5;
+  const int count = tier + 1;
   const int gap = 3;
-  const int total_w = tier * gap - 1;
+  const int total_w = count * gap - 1;
   int mx = tile_px + (tile_w - total_w) / 2;
   const int my = tile_py + 1;
-  for (int m = 0; m < tier; ++m, mx += gap) {
-    /* One "!": a stem and, one pixel below it, the dot — each on black. */
-    for (int dy = -1; dy <= mark_h; ++dy) {
-      for (int dx = -1; dx <= 1; ++dx) {
-        const int x = mx + dx;
-        const int y = my + dy;
-        if (x < 0 || y < 0 || x >= framebuffer->width || y >= framebuffer->height) {
-          continue;
-        }
-        const int on_stem = (dx == 0) && ((dy >= 0 && dy <= mark_h - 3) || dy == mark_h - 1);
-        framebuffer->pixels[y * framebuffer->width + x] = on_stem ? color : 0u;
-      }
-    }
+  for (int m = 0; m < count; ++m, mx += gap) {
+    map_panel_draw_bang(framebuffer, mx, my, 5, color);
   }
 }
 
@@ -596,7 +610,7 @@ void map_panel_render_tribes_on_map(
     const int px = tile_px + (tile_w - sp->width) / 2;
     const int py = tile_py + (tile_h - sp->height) / 2;
     ss_blit_sprite(icons, sprite, framebuffer, px, py);
-    map_panel_draw_tribe_alarm_marks(col1, framebuffer, i, t, fog_nation, tile_px, tile_py, tile_w);
+    map_panel_draw_tribe_chrome(col1, framebuffer, t, fog_nation, tile_px, tile_py, tile_w, tile_h);
   }
 }
 
