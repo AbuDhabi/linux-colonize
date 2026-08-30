@@ -11,6 +11,7 @@
 #include "core/pik.h"
 #include "core/popup.h"
 #include "core/ss.h"
+#include "core/text_edit.h"
 #include "platform/platform.h"
 
 #define NEW_GAME_LEADER_NAME_MAX 32
@@ -105,7 +106,12 @@ typedef struct NewGameWizard {
   int finished_h;
 
   /* Leader name: default text starts selected; first edit clears selection. */
-  bool leader_name_selected;
+  TextEditState leader_edit;
+  /* Leader-name field geometry / font last rendered with (mouse caret). */
+  const ColonizeFont* leader_field_font;
+  int leader_field_x;
+  int leader_field_y;
+  int leader_field_h;
 } NewGameWizard;
 
 void new_game_init(NewGameWizard* ng);

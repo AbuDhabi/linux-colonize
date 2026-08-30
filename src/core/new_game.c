@@ -507,7 +507,8 @@ static void new_game_enter_nation(NewGameWizard* ng) {
 static void new_game_enter_leader_name(NewGameWizard* ng) {
   ng->phase = NEW_GAME_PHASE_LEADER_NAME;
   new_game_seed_leader_name(ng);
-  ng->leader_name_selected = true;
+  /* DOS opens the field with bit 0x80 set — whole text selected. */
+  text_edit_reset(&ng->leader_edit, ng->leader_name, true);
   new_game_load_choice_section(ng, "LEADERNAME");
   if (ng->prompt_line_count == 0) {
     snprintf(ng->prompt_lines[0], sizeof(ng->prompt_lines[0]), "Please Enter Your Name.");
@@ -1055,38 +1056,28 @@ bool new_game_handle_input(NewGameWizard* ng, const ColonizeInputState* input) {
 
   /* Leader name text entry. */
   if (ng->phase == NEW_GAME_PHASE_LEADER_NAME) {
-    if (input->last_key == COLONIZE_KEY_BACKSPACE) {
-      if (ng->leader_name_selected) {
-        ng->leader_name[0] = '\0';
-        ng->leader_name_selected = false;
-      } else {
-        size_t n = strlen(ng->leader_name);
-        if (n > 0) {
-          ng->leader_name[n - 1] = '\0';
-        }
-      }
+    if (text_edit_handle_mouse(
+          &ng->leader_edit,
+          ng->leader_name,
+          ng->leader_field_font,
+          input,
+          ng->leader_field_x,
+          ng->leader_field_y,
+          ng->leader_field_h
+        )) {
       return true;
     }
-    if (input->text_input_len > 0) {
-      if (ng->leader_name_selected) {
-        ng->leader_name[0] = '\0';
-        ng->leader_name_selected = false;
-      }
-      for (int i = 0; i < input->text_input_len; ++i) {
-        char ch = input->text_input[i];
-        if (ch >= 32 && ch < 127) {
-          size_t n = strlen(ng->leader_name);
-          if (n + 1 < sizeof(ng->leader_name)) {
-            ng->leader_name[n] = ch;
-            ng->leader_name[n + 1] = '\0';
-          }
-        }
-      }
-      return true;
-    }
-    if (input->last_key == COLONIZE_KEY_ENTER) {
-      new_game_advance_cinematic(ng);
-      return true;
+    switch (text_edit_handle_input(
+      &ng->leader_edit, ng->leader_name, sizeof(ng->leader_name), input
+    )) {
+      case TEXT_EDIT_ACTION_CONFIRM:
+        new_game_advance_cinematic(ng);
+        return true;
+      case TEXT_EDIT_ACTION_EDIT:
+        return true;
+      case TEXT_EDIT_ACTION_CANCEL:
+      case TEXT_EDIT_ACTION_NONE:
+        break;
     }
     if (input->mouse_left_clicked) {
       new_game_advance_cinematic(ng);
@@ -1427,13 +1418,15 @@ static void new_game_render_list_dialog(
   ng->list_y0 = cy;
 
   if (ng->phase == NEW_GAME_PHASE_LEADER_NAME) {
-    char field[NEW_GAME_LEADER_NAME_MAX + 2];
-    snprintf(field, sizeof(field), "%s_", ng->leader_name);
-    new_game_draw_markup_line_unbold(
-      font, fb, inner_x + pad_x + 1, cy + 1, field, shadow, shadow
-    );
-    new_game_draw_markup_line_unbold(
-      font, fb, inner_x + pad_x, cy, field, text_color, hilite_color
+    ng->leader_field_font = font;
+    ng->leader_field_x = inner_x + pad_x;
+    ng->leader_field_y = cy;
+    ng->leader_field_h = line_h;
+    TextEditColors edit_colors;
+    text_edit_default_colors(&edit_colors);
+    edit_colors.text = text_color;
+    text_edit_render(
+      &ng->leader_edit, ng->leader_name, font, fb, ng->leader_field_x, cy, line_h, &edit_colors
     );
     return;
   }
@@ -1872,9 +1865,7 @@ static void new_game_render_leader_name(
   }
   prompt_clean[po] = '\0';
 
-  const int name_w = new_game_text_width(font, ng->leader_name);
-  const int cursor_w = new_game_text_width(font, "_");
-  const int field_w = name_w + cursor_w;
+  const int field_w = text_edit_field_width(font, ng->leader_name);
   int box_w = field_w * 2;
   if (box_w < 120) {
     box_w = 120;
@@ -1886,39 +1877,31 @@ static void new_game_render_leader_name(
   const int cx = (fb->width - box_w) / 2;
   const int cy = (fb->height - line_h * 2 - 8) / 2;
   const uint8_t green = text_color;
-  /* Dark brown selection (wood panel shadow / earth tone). */
-  uint8_t brown = COLONIZE_COL_SHADOW;
-  if (ng->woodpanl && ng->woodpanl->has_palette) {
-    const ColonizePalette* pal = &ng->woodpanl->palette;
-    int best = 0;
-    int best_d = 1 << 30;
-    for (int i = 0; i < 256; ++i) {
-      const int dr = (int)pal->rgb[i][0] - 72;
-      const int dg = (int)pal->rgb[i][1] - 40;
-      const int db = (int)pal->rgb[i][2] - 16;
-      const int d = dr * dr + dg * dg + db * db;
-      if (d < best_d) {
-        best_d = d;
-        best = i;
-      }
-    }
-    brown = (uint8_t)best;
-  }
   (void)hilite_color;
   const uint8_t shadow = 0;
   new_game_draw_shadowed_line(font, fb, cx, cy, prompt_clean, green, shadow);
 
   const int field_y = cy + line_h + 6;
-  const int pad = 3;
-  new_game_draw_rect_border(
-    fb, cx - pad, field_y - pad, box_w + pad * 2, line_h + pad * 2, green
+  int fx = 0, fy = 0, fw = 0, fh = 0;
+  text_edit_frame_rect(font, cx, field_y, box_w, &fx, &fy, &fw, &fh);
+  text_edit_draw_frame(fb, fx, fy, fw, fh, green);
+  ng->leader_field_font = font;
+  ng->leader_field_x = cx;
+  ng->leader_field_y = field_y;
+  ng->leader_field_h = line_h;
+  TextEditColors edit_colors;
+  text_edit_default_colors(&edit_colors);
+  edit_colors.text = green;
+  text_edit_render(
+    &ng->leader_edit,
+    ng->leader_name,
+    font,
+    fb,
+    ng->leader_field_x,
+    field_y,
+    line_h,
+    &edit_colors
   );
-  const int name_x = cx + pad;
-  if (ng->leader_name_selected && ng->leader_name[0] && name_w > 0) {
-    new_game_fill_rect(fb, name_x - 1, field_y - 1, name_w + 2, line_h - 1, brown);
-  }
-  new_game_draw_shadowed_line(font, fb, name_x, field_y, ng->leader_name, green, shadow);
-  new_game_draw_shadowed_line(font, fb, name_x + name_w, field_y, "_", green, shadow);
 }
 
 /*

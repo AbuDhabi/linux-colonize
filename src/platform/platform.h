@@ -59,7 +59,10 @@ typedef enum ColonizeKey {
   COLONIZE_KEY_F8,
   COLONIZE_KEY_F9,
   COLONIZE_KEY_F10,
-  COLONIZE_KEY_BACKSPACE
+  COLONIZE_KEY_BACKSPACE,
+  COLONIZE_KEY_DELETE,
+  COLONIZE_KEY_HOME,
+  COLONIZE_KEY_END
 } ColonizeKey;
 
 #define COLONIZE_TEXT_INPUT_MAX 16
@@ -77,6 +80,7 @@ typedef struct ColonizeInputState {
   ColonizeKey last_key;
   bool alt_held;           /* Left/Right Alt down this frame */
   bool shift_held;         /* Left/Right Shift down this frame */
+  bool ctrl_held;          /* Left/Right Ctrl down this frame */
   char text_input[COLONIZE_TEXT_INPUT_MAX]; /* printable chars this frame */
   int text_input_len;
 } ColonizeInputState;
@@ -124,6 +128,10 @@ bool platform_present(
 );
 uint32_t platform_ticks_ms(void);
 void platform_sleep_ms(uint32_t ms);
+
+/* System clipboard (text fields' Ctrl+C/X/V). get returns false when empty. */
+bool platform_clipboard_get(char* out, size_t out_size);
+void platform_clipboard_set(const char* text);
 void platform_set_window_title(ColonizePlatform* platform, const char* title);
 
 /*

@@ -477,7 +477,54 @@ Title `@BEGINMENU` no longer jumps straight to the map. Flow (see `src/core/new_
 1. **Start in NEW WORLD** → difficulty → … → sail → **procedural 58×72 map** (`map_generate` with randomized `MapGenParams`; Euro starts via `map_gen_euro_landfall` / `FUN_684c` HS rim)
 2. **Start in AMERICA** → `@AMERICA` (Original Americas = AMER2, or Map Editor `*.MP` list) → same wizard → load that `.MP` + `@SCENARIO` starts
 3. **CUSTOMIZE New World** → `CUSTOMIZ.PIK` 4×3 grid (`FUN_733a_0270`; Land Mass / Form / Temperature / Climate) → same wizard → `map_generate` with user params (`forest_extra` stays 1)
-4. Difficulty (`DIFFICUL.PIK` image regions + 1px border, click to select / Enter or finished to confirm) → nation (`NATIONS.PIK`, same) → leader name on `WOODPANL.PIK` (unbold `FONTINTR` + green+shadow text / green input box) → `@NATION{n}A` / `B` on wood (same unbold `FONTINTR`, green+shadow; body lines flow-wrap to `@width` like DOS `FUN_6f74_1198`, vertically centered) → king audience → `LEVN0001`–`0010.PIK` + `@BUILD1`–`10` yellow captions → map
+4. Difficulty (`DIFFICUL.PIK` image regions + 1px border, click to select / Enter or finished to confirm) → nation (`NATIONS.PIK`, same) → leader name on `WOODPANL.PIK` (unbold `FONTINTR`, green input box; the field itself is the shared text widget — see [Text input fields](#text-input-fields)) → `@NATION{n}A` / `B` on wood (same unbold `FONTINTR`, green+shadow; body lines flow-wrap to `@width` like DOS `FUN_6f74_1198`, vertically centered) → king audience → `LEVN0001`–`0010.PIK` + `@BUILD1`–`10` yellow captions → map
+
+
+### Text input fields
+
+`src/core/text_edit.c` is the single implementation behind every typed field —
+the leader name in the new-game wizard and the `@COLONY` / `@RENAMECOLONY` /
+`@LANDHO` name dialogs. Both callers own the `char[]` and a `TextEditState`
+(caret + selection anchor), hand them to `text_edit_handle_input` each frame and
+to `text_edit_render` at draw time.
+
+Colours come from `NAMES.TXT` `@COLORS` (`src/core/ui_colors.h`), under the
+`WOODPANL` / in-game palette:
+
+| role | @COLORS | index | RGB |
+| --- | --- | --- | --- |
+| text | `basic` | 68 | 85,150,52 (green) |
+| drop shadow | `enhance` | 128 | 121,73,52 (brown-orange) |
+| selection fill | `select` | 138 | 60,32,24 (dark brown) |
+
+Note the field's shadow is the warm `enhance` brown, not the black
+`popup_draw_text_shadowed` puts under the surrounding captions. Both fields are
+boxed by the same 1px green rectangle (`text_edit_draw_frame`, `basic` ink), laid
+out by `text_edit_frame_rect`: a `TEXT_EDIT_FRAME_PAD` (3px) gap on every side of
+the *ink*, measured from the font's real glyph rows plus the drop-shadow row
+rather than from the caller's line height — line height carries interline slack
+that otherwise reads as dead space under the text. The wizard sizes its box to
+the prompt, the popup spans the dialog's inner width.
+
+A field opens with its whole seed text selected, matching DOS: `FUN_6f74_2580`'s
+edit branch keys off bit `0x80` of the field record at dialog `+0x30`, which the
+first keystroke clears by wiping the buffer (the record also holds the max length
+at `+0x06` and a far pointer to the buffer at `+0x0c`).
+
+**Behaviour deliberately diverges from DOS.** The original only supports append,
+Backspace and that one select-all flag — there is no caret to move. Since this is
+UI rather than simulation, the widget is a normal modern text box: arrow keys,
+Ctrl+arrows for word jumps, Home/End, shift+any of those to extend a selection,
+Delete, Ctrl+A/C/X/V, click and drag to place or drag-select. Enter and Esc are
+handed back to the caller (`TEXT_EDIT_ACTION_CONFIRM` / `_CANCEL`) so confirm and
+cancel keep their per-dialog meanings. The caret draws as DOS's trailing
+underscore at the end of the text and as an insertion bar inside it.
+
+Ctrl+C/X/V use the system clipboard: `src/main.c` installs
+`platform_clipboard_get` / `platform_clipboard_set` as hooks via
+`text_edit_set_clipboard`, and the widget falls back to a process-local buffer
+when no hooks are set (tests, headless tools). Covered by
+`tests/unit/test_text_edit.c`.
 
 Enter or left-click **skips** the remaining sail frames (QoL; original is hard to skip). `AMERICA.MOV` is a short motion/script blob for map tooling, **not** the dock voyage cutscene.
 
