@@ -2493,20 +2493,195 @@ static int ai_indian_152e_spawn_colonist_stub(
   return -1;
 }
 
+static bool ai_indian_152e_ff_bit_stub(
+  const ColonizeTurnContext* ctx,
+  int euro_nation,
+  int ff_index
+);
+
 /*
- * FUN_281f_0316 -> FUN_4cc6_03f8 (best-threat Euro nation + score near the
- * tribe) — unresolved. Stub reports "no threat" so the parallel uVar12
- * branch stays inert instead of guessing at a nation/score.
+ * FUN_281f_0316 -> FUN_4cc6_03f8 (viceroy_unpacked.c:80991): which European
+ * nation this settlement feels most threatened by, and how strongly. Ported
+ * 2026-08-30 — it was the stub that kept `t->alarm[e]` at zero forever, so
+ * settling and developing next to a tribe never raised any alarm and the
+ * village map chrome had nothing to show.
+ *
+ * Two passes:
+ *
+ *  1. Military pressure. The 20 tiles of DS:0xc8/0xde around the village (the
+ *     colony work radius: 8 neighbours, the 4 at ±2 orthogonal, the 8
+ *     knight-ish ones). On each in-bounds land tile, sum `type.attack` over
+ *     every Euro-owned unit there whose attack is > 1 and which is not a ship
+ *     (DOS types 0xd..0x12). Halve inside a native settlement, and halve again
+ *     unless the tile is one of the 8 immediate neighbours. Accumulate per
+ *     nation.
+ *
+ *  2. Colonies within distance 7 (FUN_281f_037a = ai_dos_dist). Each scores
+ *
+ *       base  = 2*max(0, pop-6) + min(indian.capitol_x, pop/2) + min(pop, 6)
+ *               + difficulty + ((buildings*c/e - 8) >> 2)
+ *       score = (base*2 - d - 1) / (d + 4)
+ *
+ *     where c/e come from difficulty for a *human* colony only
+ *     ({1,2},{3,4},{1,1},{3,2},{2,1}) and are 1/1 for an AI's. Halve when the
+ *     colony is on a different continent, add that nation's military pressure,
+ *     halve for the French (nation 1 — their standing native-relations bonus),
+ *     halve again on the unresolved FF bit 0x10. The highest-scoring colony
+ *     names the threatening nation.
+ *
+ *     `min(indian.capitol_x, pop/2)` is exactly what the binary computes
+ *     (byte +0 of the Indian record at DS:0x59a0 + nation*0x4e — the record
+ *     stride and the tech-at-+2 mapping both check out against this port's
+ *     ColonizeCol1Indian). It reads like a DOS slip, but since capitol_x is a
+ *     map column it is larger than pop/2 in practice, so it behaves as pop/2.
+ *
+ * Finally the village's own mission rescales the winner: owned by the threat
+ * nation → ×3/4 plain, ×1/2 Jesuit; owned by a rival → ×3/2 plain, ×2 Jesuit.
  */
 static int ai_indian_152e_best_threat_nation_stub(
   const ColonizeTurnContext* ctx,
   const ColonizeCol1Tribe* t,
   int* out_score
 ) {
-  (void)ctx;
-  (void)t;
   *out_score = 0;
-  return -1;
+  if (!ctx || !t || !ctx->col1_ok || !ctx->col1 || !ctx->colonies || !ctx->map) {
+    return -1;
+  }
+
+  /* DS:0xc8 / DS:0xde — the 20-tile ring the threat scan walks. */
+  static const int k_ring_dx[20] = {0, 1, 0, -1, -1, 1, 1, -1, 0, 2,
+                                    0, -2, -1, 1, -1, 1, -2, -2, 2, 2};
+  static const int k_ring_dy[20] = {-1, 0, 1, 0, -1, -1, 1, 1, -2, 0,
+                                    2, 0, -2, -2, 2, 2, -1, 1, -1, 1};
+
+  const int vx = (int)t->x;
+  const int vy = (int)t->y;
+  const int village_continent = map_continent_id_at(ctx->map, vx, vy);
+
+  int pressure[4] = {0, 0, 0, 0};
+  if (ctx->units) {
+    for (int i = 0; i < 20; ++i) {
+      const int tx = vx + k_ring_dx[i];
+      const int ty = vy + k_ring_dy[i];
+      if (!map_coords_inset(ctx->map, tx, ty) || map_tile_is_water(ctx->map, tx, ty)) {
+        continue;
+      }
+      int owner = -1;
+      int score = 0;
+      for (int ui = 0; ui < COLONIZE_UNITS_MAX; ++ui) {
+        const ColonizeUnit* u = &ctx->units->units[ui];
+        if (!u->active || !units_is_on_map(u) || u->x != tx || u->y != ty) {
+          continue;
+        }
+        if (u->nation_id < 0 || u->nation_id > 3) {
+          continue;
+        }
+        if (owner < 0) {
+          owner = u->nation_id; /* DOS keys the tile off its first unit's owner */
+        }
+        if (units_is_sea(ctx->units, u->id)) {
+          continue;
+        }
+        const ColonizeUnitType* ty_def = units_type(ctx->units, u->type_index);
+        if (ty_def && ty_def->attack > 1) {
+          score += ty_def->attack;
+        }
+      }
+      if (owner < 0 || score <= 0) {
+        continue;
+      }
+      if (map_tile_tribe_or_presence(ctx->map, tx, ty) >= 0) {
+        score >>= 1;
+      }
+      const int adx = k_ring_dx[i] < 0 ? -k_ring_dx[i] : k_ring_dx[i];
+      const int ady = k_ring_dy[i] < 0 ? -k_ring_dy[i] : k_ring_dy[i];
+      if (adx >= 2 || ady >= 2) {
+        score >>= 1;
+      }
+      pressure[owner] += score;
+    }
+  }
+
+  const int indian_idx = (int)t->nation_id - 4;
+  const int capitol_x =
+    (indian_idx >= 0 && indian_idx < 8) ? (int)ctx->col1->indian[indian_idx].capitol_x : 0;
+  const int difficulty = (int)ctx->col1->head.difficulty;
+
+  int best_score = 0;
+  int best_nation = -1;
+  for (int ci = 0; ci < COLONIZE_COLONIES_MAX; ++ci) {
+    const ColonizeColony* c = &ctx->colonies->colonies[ci];
+    if (!c->active || c->nation_id < 0 || c->nation_id > 3) {
+      continue;
+    }
+    const int d = ai_dos_dist(vx - c->x, vy - c->y);
+    if (d >= 7) {
+      continue;
+    }
+    const int human = (ctx->human_nation >= 0 && ctx->human_nation <= 3)
+                        ? (c->nation_id == ctx->human_nation)
+                        : 0;
+    int mul = 1;
+    int div = 1;
+    int diff_term = 0;
+    if (human) {
+      diff_term = difficulty;
+      switch (difficulty) {
+        case 0: mul = 1; div = 2; break;
+        case 1: mul = 3; div = 4; break;
+        case 2: mul = 1; div = 1; break;
+        case 3: mul = 3; div = 2; break;
+        default: mul = 2; div = 1; break;
+      }
+    }
+    int buildings = 0;
+    for (int b = 0; b < COLONIZE_BUILDING_TYPES_MAX; ++b) {
+      if (c->has_building[b]) {
+        buildings++;
+      }
+    }
+    buildings = (buildings * mul) / (div > 0 ? div : 1);
+
+    const int pop = c->colonist_count > 0 ? c->colonist_count : c->population;
+    const int capped_pop = pop > 6 ? 6 : pop;
+    int cap_term = pop >> 1;
+    if (capitol_x < cap_term) {
+      cap_term = capitol_x;
+    }
+    const int base =
+      (capped_pop - pop) * -2 + cap_term + capped_pop + diff_term + ((buildings - 8) >> 2);
+    int score = ((base * 2 - d) - 1) / (d + 4);
+
+    if (map_continent_id_at(ctx->map, c->x, c->y) != village_continent) {
+      score >>= 1;
+    }
+    score += pressure[c->nation_id];
+    if (c->nation_id == 1) {
+      score >>= 1; /* French: half the native alarm everyone else earns */
+    }
+    if (ai_indian_152e_ff_bit_stub(ctx, c->nation_id, 0x10)) {
+      score >>= 1;
+    }
+    if (score > best_score) {
+      best_score = score;
+      best_nation = c->nation_id;
+    }
+  }
+
+  if (best_score <= 0) {
+    return -1;
+  }
+  const int mission = (int)(int8_t)t->mission;
+  if (mission >= 0) {
+    const int jesuit = (t->mission & COL1_TRIBE_MISSION_JESUIT_BIT) != 0;
+    if ((mission & 0x0f) == best_nation) {
+      best_score = jesuit ? (best_score >> 1) : (best_score - (best_score >> 2));
+    } else {
+      best_score = jesuit ? (best_score << 1) : (best_score + (best_score >> 1));
+    }
+  }
+  *out_score = best_score;
+  return best_nation;
 }
 
 /*
@@ -2684,8 +2859,16 @@ static void ai_indian_152e_village_growth(
         local_c >>= 1;
       }
       const int alarm = ai_diplo_indian_alarm(col1, nation_id, threat_nation);
-      t->alarm[threat_nation].friction =
-        (uint8_t)((int)t->alarm[threat_nation].friction + local_c + alarm / 5);
+      /* DOS keeps settlement+0xa+e*2 as an int16 (friction | attacks<<8), so
+       * the bump carries out of the low byte instead of wrapping in it. */
+      int w = (int)t->alarm[threat_nation].friction |
+              ((int)t->alarm[threat_nation].attacks << 8);
+      w += local_c + alarm / 5;
+      if (w > 0x7fff) {
+        w = 0x7fff;
+      }
+      t->alarm[threat_nation].friction = (uint8_t)(w & 0xff);
+      t->alarm[threat_nation].attacks = (uint8_t)((w >> 8) & 0xff);
     }
     if (mission_nation >= 0) {
       while (ind->euro_relation_accum[mission_nation] > 7) {
