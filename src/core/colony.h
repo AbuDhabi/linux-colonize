@@ -810,11 +810,18 @@ void colonies_blit_settlement_icon(
   const ColonizePalette* active_palette
 );
 
+/*
+ * DOS FUN_112b_0c64 draws the two labels with two different fonts, from two
+ * separate DS font pointers: the colony name with FONTINTR (DS:0x268a) and the
+ * population badge with FONTTINY (DS:0x89e). Both were loaded at startup by
+ * CODE_153:75c2:2e5b / 2e78 from the DS strings "fontintr" / "fonttiny".
+ */
 void colonies_render_on_map(
   const ColonizeColonyPool* pool,
   const ColonizeSpriteSheet* icons,
   ColonizeFramebuffer8* framebuffer,
-  const ColonizeFont* font,
+  const ColonizeFont* font,     /* FONTINTR — colony name label */
+  const ColonizeFont* pop_font, /* FONTTINY — population badge; NULL falls back to font */
   int view_x,
   int view_y,
   int view_cols,
