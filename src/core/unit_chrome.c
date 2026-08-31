@@ -569,8 +569,21 @@ void unit_chrome_blit_unit_for_palette(
   int letter_override = -1;
   if (active_palette && nation_id >= 0 && nation_id < 4) {
     fill_override = unit_chrome_nearest_palette_index(active_palette, k_nation_fill_rgb_native[nation_id]);
-    letter_override =
-      unit_chrome_nearest_palette_index(active_palette, k_nation_letter_rgb_native[nation_id]);
+    /*
+     * DOS 112b:1996..19b8: only Sentry (1) and Fortified (6) letters take
+     * the nation shade — every other order (No Orders, Go To, Fortify in
+     * progress, …) is ink 0, black. This wrapper used to force the nation
+     * shade for every order, which erased exactly those distinctions on
+     * palette-adapted screens (bugs.md: no-orders wrong colour, fortify vs
+     * fortified indistinguishable). Black is index 0 in every palette, so
+     * no remap is needed for the black case.
+     */
+    if (orders_index == 1 /* Sentry */ || orders_index == 6 /* Fortified */) {
+      letter_override =
+        unit_chrome_nearest_palette_index(active_palette, k_nation_letter_rgb_native[nation_id]);
+    } else {
+      letter_override = 0;
+    }
   }
   unit_chrome_blit_unit_colored(
     fb, font, sheet, sprite_index, x, y, display_type_index, nation_id, orders_index, show_stack,

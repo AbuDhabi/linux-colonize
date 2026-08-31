@@ -1279,8 +1279,10 @@ static void colony_screen_draw_resource_count_pair(
   if (show_number && font) {
     char num[12];
     snprintf(num, sizeof(num), "%d", amount);
+    /* On the first icon's own position — both axes (bugs.md: it sat at the
+     * cell's top edge while the icons centred themselves lower). */
     colony_screen_draw_outlined_number(
-      font, framebuffer, cluster_x + 1, y + (h > 6 ? 1 : 0), num, number_color
+      font, framebuffer, cluster_x + 1, iy, num, number_color
     );
   }
 }
@@ -1728,6 +1730,28 @@ static void colony_screen_draw_area_overlays(
         15,
         false
       );
+    } else if (cargo >= 0) {
+      /* bugs.md: a worker whose job produces nothing here (farmer on sea /
+       * mountain, dockless fisherman, …) shows the job's normal produce
+       * icon with the red slashed-circle (ICONS.SS #64) superimposed —
+       * not an empty tile. */
+      const int icon = (c->field_job == COLONIZE_JOB_FISHERMAN)
+                         ? COLONY_ICON_FISH
+                         : (COLONY_CARGO_ICON_BASE + cargo);
+      if (view->icons_ok && icon >= 0 && icon < view->icons.sprite_count) {
+        const ColonizeSprite* sp = &view->icons.sprites[icon];
+        const int px = tile_x + (tile - sp->width) / 2;
+        const int py = tile_y + (12 - sp->height) / 2;
+        ss_blit_sprite(&view->icons, icon, framebuffer, px, py);
+        if (64 < view->icons.sprite_count) {
+          const ColonizeSprite* slash = &view->icons.sprites[64];
+          ss_blit_sprite(
+            &view->icons, 64, framebuffer,
+            px + (sp->width - slash->width) / 2,
+            py + (sp->height - slash->height) / 2
+          );
+        }
+      }
     }
     if (units) {
       const int sprite =
@@ -3138,7 +3162,7 @@ static void colony_screen_draw_people(
       COLONY_CARGO_ICON_BASE + COLONIZE_CARGO_FOOD,
       grain_amt,
       15,
-      true /* People band: number unconditional in DOS */
+      false /* bugs.md: People band follows the numbers toggle too */
     );
     meter_x += width[food_weight_idx] + gap;
   }
@@ -3156,18 +3180,18 @@ static void colony_screen_draw_people(
                : (COLONY_CARGO_ICON_BASE + COLONIZE_CARGO_FOOD),
       net_amt,
       shortage ? 12 : 15,
-      true
+      false
     );
     meter_x += width[surplus_weight_idx] + gap;
   }
   colony_screen_draw_resource_count(
     view, font, framebuffer, meter_x, meter_y, width[cross_weight_idx], meter_h,
-    COLONY_ICON_CROSS, p->crosses, 15, true
+    COLONY_ICON_CROSS, p->crosses, 15, false
   );
   meter_x += width[cross_weight_idx] + gap;
   colony_screen_draw_resource_count(
     view, font, framebuffer, meter_x, meter_y, width[bell_weight_idx], meter_h, COLONY_ICON_BELL,
-    p->bells, 15, true
+    p->bells, 15, false
   );
 }
 
@@ -3825,7 +3849,17 @@ static void colony_screen_draw_jobs_popup(
         view->selected_colonist < colony->colonist_count) {
       profession = colony->colonists[view->selected_colonist].profession;
     }
-    int yld = (map && colony) ? colony_yield_for_worker(map, tx, ty, job, profession, has_docks, 0, 0) : 0;
+    /* Full production pipeline, like turn.c's field loop — SoL bonus and
+     * the colony's SoL latch bits included; the picker used to skip both
+     * and could disagree with what the assignment then produced (bugs.md:
+     * "verify the popup has the proper amounts"). */
+    const int sol_b_field = colony_prod_sol_bonus_field(col1, colony);
+    int yld = (map && colony)
+                ? colony_yield_for_worker(
+                    map, tx, ty, job, profession, has_docks, sol_b_field,
+                    colony ? colony->colony_flags : 0
+                  )
+                : 0;
     /* Henry Hudson: fur trapper output +100% — same gap/fix as
      * colony_screen_draw_area_overlays above. */
     if (yld > 0 && job == COLONIZE_JOB_FUR_TRAPPER && colony && col1 &&

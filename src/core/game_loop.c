@@ -6828,6 +6828,35 @@ static void game_colony_assign_building_drop(ColonizeGameState* game, int buildi
   colony_screen_set_status(csv, game->status);
 }
 
+/* Docks / Drydock / Shipyard — same check as colony_preview.c / turn.c. */
+static bool game_colony_has_docks(const ColonizeColonyPool* pool, const ColonizeColony* colony) {
+  if (!pool || !colony) {
+    return false;
+  }
+  for (int bi = 0; bi < pool->building_type_count && bi < COLONIZE_BUILDING_TYPES_MAX; ++bi) {
+    if (!colony->has_building[bi]) {
+      continue;
+    }
+    const char* dn = pool->building_types[bi].name;
+    if (dn && (strstr(dn, "Docks") != NULL || strstr(dn, "Drydock") != NULL ||
+               strstr(dn, "Shipyard") != NULL)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/*
+ * DOS FUN_2f2b_3fa6, the area-view tile click (bugs.md):
+ *  - tile worked by the selected colonist  → the field-jobs popup (348c);
+ *  - tile worked by someone else           → just select that colonist;
+ *  - empty tile → assign the selected colonist immediately with a default
+ *    job: a specific field job 1..7 is kept, while Farmer/Fisherman/non-
+ *    field re-derive from the tile (`job > 8 || job == 0 || job == 8`
+ *    re-checks ocean_or_high_seas at 3fa6): Fisherman on water, Farmer on
+ *    land. Water without Docks raises GAME.TXT @NODOCKS instead (the gate
+ *    lives in DOS's assign path 2f3e).
+ */
 static void game_colony_area_tile_drop(
   ColonizeGameState* game,
   ColonizeColony* colony,
@@ -6837,17 +6866,48 @@ static void game_colony_area_tile_drop(
   ColonyScreenView* csv = &game->colony_screen;
   const int who = (int)colony->tiles[tile_index];
   if (who >= 0 && who < colony->colonist_count) {
-    game_colony_select_colonist(game, who);
-    colony_screen_open_jobs(csv, cmap, colony, tile_index);
-  } else {
-    const int ci = game_colony_selected_colonist(game);
-    if (ci < 0) {
-      set_status(game, "Select a colonist first", NULL);
-      colony_screen_set_status(csv, game->status);
-    } else {
+    if (who == csv->selected_colonist) {
       colony_screen_open_jobs(csv, cmap, colony, tile_index);
+    } else {
+      game_colony_select_colonist(game, who);
     }
+    return;
   }
+  const int ci = game_colony_selected_colonist(game);
+  if (ci < 0 || ci >= colony->colonist_count) {
+    set_status(game, "Select a colonist first", NULL);
+    colony_screen_set_status(csv, game->status);
+    return;
+  }
+  int job = (int)colony->colonists[ci].field_job;
+  int dx = 0;
+  int dy = 0;
+  colonies_field_tile_delta(tile_index, &dx, &dy);
+  const bool water =
+    cmap && map_tile_is_water((ColonizeWorldMap*)cmap, colony->x + dx, colony->y + dy);
+  if (job < 1 || job > 7) {
+    job = water ? COLONIZE_JOB_FISHERMAN : COLONIZE_JOB_FARMER;
+  }
+  if (job == COLONIZE_JOB_FISHERMAN && !game_colony_has_docks(&game->colonies, colony)) {
+    char body[AI_POPUP_BODY_LEN];
+    popup_msg_fill(
+      &game->messages, "NODOCKS", NULL,
+      "We cannot operate fishing boats at this colony until we build Docks, "
+      "Your Excellency.",
+      body, sizeof(body)
+    );
+    ai_popup_enqueue_ok(&game->ai_popups, AI_POPUP_TAG_INFO, NULL, body);
+    set_status(game, "No docks", NULL);
+    colony_screen_set_status(csv, game->status);
+    return;
+  }
+  if (colonies_assign_field(&game->colonies, game->colony_view_id, ci, tile_index, job)) {
+    game_colony_assign_job_sound(job);
+    snprintf(game->status, sizeof(game->status), "Working as %s", colony_yield_job_name(job));
+  } else {
+    set_status(game, "Cannot assign field", NULL);
+  }
+  colony_screen_set_status(csv, game->status);
 }
 
 static void game_colony_fence_drop(ColonizeGameState* game, ColonizeColony* colony) {
@@ -9970,7 +10030,19 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
         if (hit.index >= 0 && hit.index < csv->job_count) {
           const int job = csv->job_ids[hit.index];
           const int ci = game_colony_selected_colonist(game);
-          if (ci < 0) {
+          if (job == COLONIZE_JOB_FISHERMAN &&
+              !game_colony_has_docks(&game->colonies, colony)) {
+            /* DOS: picking Fisherman without Docks raises @NODOCKS. */
+            char body[AI_POPUP_BODY_LEN];
+            popup_msg_fill(
+              &game->messages, "NODOCKS", NULL,
+              "We cannot operate fishing boats at this colony until we build "
+              "Docks, Your Excellency.",
+              body, sizeof(body)
+            );
+            ai_popup_enqueue_ok(&game->ai_popups, AI_POPUP_TAG_INFO, NULL, body);
+            set_status(game, "No docks", NULL);
+          } else if (ci < 0) {
             set_status(game, "Select a colonist first", NULL);
           } else if (colonies_assign_field(
                        &game->colonies, game->colony_view_id, ci, csv->jobs_tile_index, job
