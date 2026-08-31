@@ -224,10 +224,13 @@ int main(void) {
     return 1;
   }
 
-  /* COLONIZOPEDIA — 7 categories + divider after Terrain Types. */
-  if (bar.menus[pedia_i].item_count != 8) {
+  /*
+   * COLONIZOPEDIA — 7 categories + divider after Terrain Types (DOS) +
+   * divider before Miscellaneous (port addition, user-requested).
+   */
+  if (bar.menus[pedia_i].item_count != 9) {
     fprintf(
-      stderr, "pedia menu expected 8 items (7 + separator) got %d\n", bar.menus[pedia_i].item_count
+      stderr, "pedia menu expected 9 items (7 + 2 separators) got %d\n", bar.menus[pedia_i].item_count
     );
     map_menu_free(&bar);
     assets_msg_free(&menu_txt);
@@ -244,10 +247,16 @@ int main(void) {
         assets_msg_free(&menu_txt);
         return 1;
       }
-      if (i < 1 || strcmp(bar.menus[pedia_i].items[i - 1].label, "Terrain Types") != 0 ||
-          i + 1 >= bar.menus[pedia_i].item_count ||
-          strcmp(bar.menus[pedia_i].items[i + 1].label, "Colonist Skills") != 0) {
-        fprintf(stderr, "pedia separator not between Terrain Types and Colonist Skills\n");
+      const bool after_terrain = i >= 1 &&
+        strcmp(bar.menus[pedia_i].items[i - 1].label, "Terrain Types") == 0 &&
+        i + 1 < bar.menus[pedia_i].item_count &&
+        strcmp(bar.menus[pedia_i].items[i + 1].label, "Colonist Skills") == 0;
+      const bool before_misc = i >= 1 &&
+        strcmp(bar.menus[pedia_i].items[i - 1].label, "Founding Fathers") == 0 &&
+        i + 1 < bar.menus[pedia_i].item_count &&
+        strcmp(bar.menus[pedia_i].items[i + 1].label, "Miscellaneous") == 0;
+      if (!after_terrain && !before_misc) {
+        fprintf(stderr, "pedia separator %d not at an expected spot\n", i);
         map_menu_free(&bar);
         assets_msg_free(&menu_txt);
         return 1;

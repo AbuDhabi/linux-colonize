@@ -8,6 +8,7 @@
 #include "core/assets.h"
 #include "core/font.h"
 #include "core/pik.h"
+#include "core/ss.h"
 #include "core/ui_colors.h"
 #include "platform/platform.h"
 
@@ -15,9 +16,10 @@
  * Colonizopedia (MENU.TXT @PEDIA / PEDIA.TXT).
  *
  * Category menu items open an encyclopedia *list* on WOODPANL.PIK
- * ("ENCYCLOPEDIA OF COLONIZATION" + green entry titles in up to 3 columns).
- * Clicking an entry opens the article page. Esc from article returns to the
- * list; Esc / (Exit) from the list returns to the map.
+ * ("ENCYCLOPEDIA OF COLONIZATION" + green entry titles in up to 3 columns;
+ * Founding Fathers uses 2). Clicking an entry opens the article page. Any
+ * key or click from an article returns to the list (DOS FUN_281f_03c0);
+ * Esc / (Exit) from the list returns to the map.
  */
 typedef enum PediaCategory {
   PEDIA_CAT_CARGO = 0,
@@ -36,7 +38,8 @@ typedef enum PediaViewMode {
 } PediaViewMode;
 
 #define PEDIA_CARGO_COUNT 16
-#define PEDIA_UNIT_COUNT 24 /* UNIT0–23; 23 is a stub duplicate of Colonists */
+/* UNIT0–22; PEDIA.TXT's @UNIT23 is a stub duplicate of Colonists — dropped. */
+#define PEDIA_UNIT_COUNT 23
 #define PEDIA_TERRAIN_COUNT 29
 #define PEDIA_JOB_COUNT 28
 #define PEDIA_BUILDING_COUNT 42
@@ -142,6 +145,36 @@ PediaListHit pedia_list_hit(
   const ColonizeFont* font,
   int mouse_x,
   int mouse_y
+);
+
+/*
+ * DOS-fidelity article page (FUN_6cb2_05ce/07e6/0eac/1820/1ba8/1f28/203c):
+ * WOODPANL background, centered "ENCYCLOPEDIA OF COLONIZATION" header,
+ * centered "(Name: Category)" title, per-category preview + stats, then the
+ * PEDIA.TXT section body rendered by the popup text rules (^ line breaks,
+ * {} hilite, @width wrap, centered lines). Any key or click dismisses
+ * (handled by the caller).
+ */
+typedef struct PediaArticleAssets {
+  const ColonizeMsgCatalog* pedia;      /* PEDIA.TXT */
+  const ColonizeMsgCatalog* names;      /* NAMES.TXT */
+  const ColonizeMsgCatalog* labels;     /* LABELS.TXT (@MISC strings) */
+  const ColonizePikImage* wood_bg;      /* WOODPANL.PIK */
+  const ColonizeFont* font;             /* FONTTINY */
+  const ColonizeFont* chrome_font;      /* orders-letter font for unit chrome */
+  const ColonizeSpriteSheet* icons;     /* ICONS.SS */
+  const ColonizeSpriteSheet* buildings; /* BUILDING.SS */
+  const ColonizeSpriteSheet* terrain;   /* TERRAIN.SS */
+  const ColonizeSpriteSheet* phys0;     /* PHYS0.SS */
+  const ColonizePalette* palette;       /* active output palette (wood) */
+  int human_nation;
+} PediaArticleAssets;
+
+void pedia_article_render(
+  const PediaArticleAssets* assets,
+  PediaCategory category,
+  int index,
+  ColonizeFramebuffer8* framebuffer
 );
 
 #endif
