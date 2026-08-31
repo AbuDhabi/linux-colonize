@@ -194,9 +194,6 @@ struct ColonizeGameState {
   bool pedia_wood_ok;
   ColonizeSpriteSheet pedia_buildings;
   bool pedia_buildings_ok;
-  ColonizeSpriteSheet pedia_father;
-  bool pedia_father_ok;
-  int pedia_father_loaded; /* -1 or last CC index loaded */
   ColonizeReportsView reports;
   bool reports_ok;
   bool in_report;
@@ -3549,8 +3546,6 @@ static void game_open_debug_atlas(ColonizeGameState* game) {
 }
 
 /* Open Colonizopedia list / article. */
-static void game_pedia_ensure_father_sheet(ColonizeGameState* game, int father_index);
-
 static const ColonizeFont* game_pedia_font(const ColonizeGameState* game) {
   if (game->colony_font_ok) {
     return &game->colony_font;
@@ -3606,19 +3601,6 @@ static void game_open_pedia_article(
   game->pedia_index = index;
   game->pedia_hover_entry = -1;
   snprintf(game->status, sizeof(game->status), "%s", pedia_category_label(category));
-  {
-    PediaPage page;
-    pedia_page(
-      game->pedia_ok ? &game->pedia : NULL,
-      game->names_ok ? &game->names : NULL,
-      game->pedia_category,
-      game->pedia_index,
-      &page
-    );
-    if (page.preview_kind == PEDIA_PREVIEW_FATHER) {
-      game_pedia_ensure_father_sheet(game, page.father_index);
-    }
-  }
 }
 
 /* F1 / REPORTS → Terrain Information: article for the tile under the cursor. */
@@ -3640,31 +3622,6 @@ static void game_open_terrain_pedia_at_cursor(ColonizeGameState* game) {
   );
 }
 
-static void game_pedia_ensure_father_sheet(ColonizeGameState* game, int father_index) {
-  if (!game || father_index < 0 || father_index >= PEDIA_FATHER_COUNT) {
-    return;
-  }
-  if (game->pedia_father_ok && game->pedia_father_loaded == father_index) {
-    return;
-  }
-  if (game->pedia_father_ok) {
-    ss_free(&game->pedia_father);
-    game->pedia_father_ok = false;
-  }
-  game->pedia_father_loaded = -1;
-  char name[32];
-  char path[512];
-  char err[128];
-  snprintf(name, sizeof(name), "CC-%02d.SS", father_index);
-  if (!dos_compat_normalize_asset_path(game->resolved_data_dir, name, path, sizeof(path))) {
-    return;
-  }
-  if (ss_load(path, &game->pedia_father, err, sizeof(err))) {
-    game->pedia_father_ok = true;
-    game->pedia_father_loaded = father_index;
-  }
-}
-
 static void game_handle_report_fkey(ColonizeGameState* game, ColonizeKey key) {
   if (!game || key < COLONIZE_KEY_F1 || key > COLONIZE_KEY_F10) {
     return;
@@ -3677,26 +3634,6 @@ static void game_handle_report_fkey(ColonizeGameState* game, ColonizeKey key) {
   ColonizeReportId id;
   if (reports_id_from_fkey(fnum, &id)) {
     game_open_report(game, id);
-  }
-}
-
-static void blit_pedia_preview_tile(
-  const ColonizeGameState* game,
-  const PediaTerrainPreview* preview,
-  ColonizeFramebuffer8* framebuffer,
-  int pixel_x,
-  int pixel_y
-) {
-  if (!preview) {
-    return;
-  }
-  if (game->terrain_ok && preview->terrain_sprite >= 0) {
-    ss_blit_sprite(&game->terrain, preview->terrain_sprite, framebuffer, pixel_x, pixel_y);
-  }
-  if (game->phys0_ok) {
-    for (int i = 0; i < preview->phys0_count; ++i) {
-      ss_blit_sprite(&game->phys0, preview->phys0_sprites[i], framebuffer, pixel_x, pixel_y);
-    }
   }
 }
 
@@ -3716,116 +3653,27 @@ static void render_pedia_screen(const ColonizeGameState* game, ColonizeFramebuff
     return;
   }
 
-  /*
-   * Articles sit on the same WOODPANL.PIK panel the category list does
-   * (assets.md "Colonizopedia") — a Founding Father page in particular was
-   * drawing its portrait onto bare black, in the map palette (bugs.md).
-   * Blitting the panel here also makes the wood palette the right one for
-   * the whole screen; game_render selects it for any in_pedia view.
-   */
-  memset(framebuffer->pixels, 0, (size_t)framebuffer->width * (size_t)framebuffer->height);
-  if (game->pedia_wood_ok && game->pedia_wood.pixels) {
-    pik_blit(&game->pedia_wood, framebuffer, 0, 0);
-  }
-
-  PediaPage page;
-  pedia_page(
-    game->pedia_ok ? &game->pedia : NULL,
-    game->names_ok ? &game->names : NULL,
-    game->pedia_category,
-    game->pedia_index,
-    &page
-  );
-
-  char hud[128];
-  snprintf(
-    hud,
-    sizeof(hud),
-    "%s  %d/%d  L/R change  Esc %s",
-    page.category_label,
-    page.flat_index,
-    page.flat_count > 0 ? page.flat_count - 1 : 0,
-    game->pedia_return_to_list ? "list" : "exit"
-  );
-  font_draw_text(font, framebuffer, 2, 2, hud, 15);
-  font_draw_text(font, framebuffer, 2, 12, page.title, 14);
-
-  const int preview_x = 8;
-  const int preview_y = 28;
-  int text_x = 120;
-
-  if (page.preview_kind == PEDIA_PREVIEW_TERRAIN) {
-    const int tile = 16;
-    const int grid = 3;
-    text_x = preview_x + grid * tile + 12;
-    for (int gy = 0; gy < grid; ++gy) {
-      for (int gx = 0; gx < grid; ++gx) {
-        const int px = preview_x + gx * tile;
-        const int py = preview_y + gy * tile;
-        for (int y = 0; y < tile; ++y) {
-          for (int x = 0; x < tile; ++x) {
-            const int dx = px + x;
-            const int dy = py + y;
-            if (dx < 0 || dy < 0 || dx >= framebuffer->width || dy >= framebuffer->height) {
-              continue;
-            }
-            framebuffer->pixels[dy * framebuffer->width + dx] =
-              (uint8_t)(((x / 4) ^ (y / 4)) & 1 ? 8 : 0);
-          }
-        }
-        blit_pedia_preview_tile(game, &page.terrain, framebuffer, px, py);
-      }
-    }
-  } else if (page.preview_kind == PEDIA_PREVIEW_ICON && page.icon_sprite >= 0 && game->unit_icons_ok) {
-    if (page.category == PEDIA_CAT_UNIT) {
-      const ColonizeFont* chrome_font = game->colony_font_ok ? &game->colony_font
-        : (game->menu_font_ok ? &game->menu_font : NULL);
-      unit_chrome_blit_unit_for_palette(
-        framebuffer,
-        chrome_font,
-        &game->unit_icons,
-        page.icon_sprite,
-        preview_x,
-        preview_y,
-        page.index,
-        game->human_nation,
-        UNITS_ORDER_NONE,
-        false,
-        false,
-        (game->pedia_wood_ok && game->pedia_wood.has_palette) ? &game->pedia_wood.palette : NULL
-      );
-    } else {
-      ss_blit_sprite(&game->unit_icons, page.icon_sprite, framebuffer, preview_x, preview_y);
-    }
-    text_x = preview_x + 48;
-  } else if (
-    page.preview_kind == PEDIA_PREVIEW_BUILDING && page.building_sprite >= 0 && game->pedia_buildings_ok
-  ) {
-    ss_blit_sprite(
-      &game->pedia_buildings, page.building_sprite, framebuffer, preview_x, preview_y
-    );
-    text_x = preview_x + 72;
-  } else if (page.preview_kind == PEDIA_PREVIEW_FATHER && page.father_index >= 0) {
-    /* Father sheet may be loaded lazily by the update path; try current sheet. */
-    if (game->pedia_father_ok && game->pedia_father_loaded == page.father_index &&
-        game->pedia_father.sprite_count > 0) {
-      ss_blit_sprite(&game->pedia_father, 0, framebuffer, preview_x, preview_y);
-      text_x = preview_x + 80;
-    }
-  }
-
-  const int line_step = font ? (font->max_height + 2) : 10;
-  int text_y = preview_y;
-  for (int i = 0; i < page.body_line_count; ++i) {
-    font_draw_text(font, framebuffer, text_x, text_y, page.body[i], 15);
-    text_y += line_step;
-    if (text_y > framebuffer->height - 12) {
-      break;
-    }
-  }
+  /* DOS-fidelity article page (segment 6cb2 builders — see pedia.c). */
+  const PediaArticleAssets assets = {
+    .pedia = game->pedia_ok ? &game->pedia : NULL,
+    .names = game->names_ok ? &game->names : NULL,
+    .labels = game->labels_ok ? &game->labels : NULL,
+    .wood_bg = game->pedia_wood_ok ? &game->pedia_wood : NULL,
+    .font = font,
+    .chrome_font = game->colony_font_ok ? &game->colony_font
+      : (game->menu_font_ok ? &game->menu_font : NULL),
+    .icons = game->unit_icons_ok ? &game->unit_icons : NULL,
+    .buildings = game->pedia_buildings_ok ? &game->pedia_buildings : NULL,
+    .terrain = game->terrain_ok ? &game->terrain : NULL,
+    .phys0 = game->phys0_ok ? &game->phys0 : NULL,
+    .palette = (game->pedia_wood_ok && game->pedia_wood.has_palette) ? &game->pedia_wood.palette
+                                                                     : NULL,
+    .human_nation = game->human_nation,
+  };
+  pedia_article_render(&assets, game->pedia_category, game->pedia_index, framebuffer);
 
   if (!game->pedia_ok) {
-    font_draw_text(font, framebuffer, text_x, text_y + 4, "(PEDIA.TXT not loaded)", 12);
+    font_draw_text(font, framebuffer, 8, framebuffer->height - 12, "(PEDIA.TXT not loaded)", 12);
   }
 }
 
@@ -4963,7 +4811,6 @@ ColonizeGameState* game_create(const ColonizeGameConfig* config) {
   game->pedia_hover_entry = -1;
   game->pedia_view = PEDIA_VIEW_LIST;
   game->pedia_return_to_list = false;
-  game->pedia_father_loaded = -1;
   game->debug_show_mouse_coords = true;
   game->cheat_create_pending_nation = -1;
   game->cheat_unlock_step = 0;
@@ -5391,7 +5238,6 @@ void game_destroy(ColonizeGameState* game) {
   ss_free(&game->cursor);
   ss_free(&game->unit_icons);
   ss_free(&game->pedia_buildings);
-  ss_free(&game->pedia_father);
   ff_free(&game->menu_font);
   ff_free(&game->intro_font);
   ff_free(&game->colony_font);
@@ -10531,14 +10377,8 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
       return true;
     }
 
-    /* Article view. */
-    if (input->last_key == COLONIZE_KEY_P) {
-      game->in_pedia = false;
-      diag_info("Left Colonizopedia.");
-      return true;
-    }
-    /* bugs.md: a click anywhere dismisses the article, like Escape. */
-    if (input->last_key == COLONIZE_KEY_ESCAPE || input->mouse_left_clicked ||
+    /* Article view: DOS waits for any key or click (FUN_281f_03c0). */
+    if (input->last_key != COLONIZE_KEY_NONE || input->mouse_left_clicked ||
         input->mouse_right_clicked) {
       if (game->pedia_return_to_list) {
         game_open_pedia_list(game, game->pedia_category);
@@ -10547,35 +10387,6 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
         diag_info("Left Colonizopedia.");
       }
       return true;
-    }
-    const int count = pedia_category_count(game->pedia_category);
-    if (count > 0) {
-      if (input->last_key == COLONIZE_KEY_LEFT || input->last_key == COLONIZE_KEY_UP) {
-        if (game->pedia_index > 0) {
-          game->pedia_index--;
-        } else {
-          game->pedia_index = count - 1;
-        }
-      } else if (input->last_key == COLONIZE_KEY_RIGHT || input->last_key == COLONIZE_KEY_DOWN) {
-        game->pedia_index++;
-        if (game->pedia_index >= count) {
-          game->pedia_index = 0;
-        }
-      }
-    }
-    /* Lazy-load founding-father portrait for the current article. */
-    {
-      PediaPage page;
-      pedia_page(
-        game->pedia_ok ? &game->pedia : NULL,
-        game->names_ok ? &game->names : NULL,
-        game->pedia_category,
-        game->pedia_index,
-        &page
-      );
-      if (page.preview_kind == PEDIA_PREVIEW_FATHER) {
-        game_pedia_ensure_father_sheet(game, page.father_index);
-      }
     }
     return true;
   }
@@ -11707,10 +11518,6 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
     ? game->palette
     : (game->in_debug_atlas && debug_atlas_palette(&game->debug_atlas))
       ? *debug_atlas_palette(&game->debug_atlas)
-      : (game->in_pedia && game->pedia_view != PEDIA_VIEW_LIST &&
-         game->pedia_category == PEDIA_CAT_FATHER && game->pedia_father_ok &&
-         game->pedia_father.has_palette)
-        ? game->pedia_father.palette
       : (game->in_pedia && game->pedia_wood_ok && game->pedia_wood.has_palette)
         ? game->pedia_wood.palette
         : (game->in_report && game->reports_ok &&

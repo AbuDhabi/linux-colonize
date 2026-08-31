@@ -614,21 +614,14 @@ add_test(NAME smoke_viceroy_tables COMMAND smoke_viceroy_tables)
 
 add_executable(unit_pedia
   tests/unit/test_pedia.c
-  src/core/pedia.c
-  src/core/assets.c
-  src/core/pik.c
-  src/core/madspack.c
-  src/core/font.c
-  src/core/ff.c
-  src/data/viceroy_tables.c
-  src/platform/diagnostics.c
-  src/core/strutil.c
-  src/platform/dos_compat/dos_compat.c
+  tests/common/platform_cursor_stubs.c
 )
 
 target_include_directories(unit_pedia PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
+
+target_link_libraries(unit_pedia PRIVATE colonize_core)
 
 add_test(NAME unit_pedia COMMAND unit_pedia WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 

@@ -725,6 +725,8 @@ static void map_menu_insert_dos_separators(MapMenuPulldown* menu) {
   }
   if (strcmp(menu->section_name, "PEDIA") == 0) {
     map_menu_insert_sep_after_action(menu, MAP_MENU_ACTION_PEDIA_TERRAIN);
+    /* Port addition (user-requested): set Miscellaneous off from the rest. */
+    map_menu_insert_sep_after_action(menu, MAP_MENU_ACTION_PEDIA_FATHER);
     return;
   }
 }
