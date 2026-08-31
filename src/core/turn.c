@@ -1959,6 +1959,14 @@ void turn_run_nation_ticks(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
       }
       ctx->europe->current_crosses = (uint16_t)cur;
     }
+    /* Keep the col1 nation copy live — the Religious report (F1) reads
+     * nation[human].current/needed_crosses, which only the save/load
+     * bridge used to refresh, so a live campaign showed no crosses at all
+     * (bugs.md). */
+    if (ctx->col1_ok && ctx->col1 && ctx->human_nation >= 0 && ctx->human_nation < 4) {
+      ctx->col1->nation[ctx->human_nation].current_crosses = ctx->europe->current_crosses;
+      ctx->col1->nation[ctx->human_nation].needed_crosses = ctx->europe->needed_crosses;
+    }
     const int imm = europe_tick_immigration_pressure(
       ctx->europe, ctx->colonies, ctx->units, ctx->col1_ok ? ctx->col1 : NULL, ctx->human_nation,
       ctx->rng

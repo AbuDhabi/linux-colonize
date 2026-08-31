@@ -53,6 +53,8 @@ typedef struct ColonizeReportsView {
   bool icons_ok;
   ColonizeFont title_font; /* FONTTINY.FF — report titles (golden: religious.png / labor.png). */
   bool title_font_ok;
+  ColonizeFont intro_font; /* FONTINTR.FF — Indian Adviser tribe name / tech level (golden: indian.png). */
+  bool intro_font_ok;
   /* Congress is two pages: p1 = REPORT3.PIK (this nation's own desk/study —
    * F3's natural REPORT-N slot, unused until now); p2 reuses backgrounds[
    * COLONIZE_REPORT_CONGRESS] (CCBKGD.PIK, the hall photo). */

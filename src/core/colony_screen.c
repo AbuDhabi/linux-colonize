@@ -3669,11 +3669,16 @@ static void colony_screen_draw_construction_popup(
   const int rows = view->buildable_count + 1; /* Clear + projects (Buy is multifunction) */
   const int line_h = font ? (font->max_height + 2) : 8;
   const int pad = 4;
-  int dialog_h = POPUP_FRAME_INSET * 2 + pad + line_h + rows * line_h + pad;
+  /* DOS 2f2b:5c05..5c17: past 14 rows the picker goes two-column, 16 rows
+   * per column (bugs.md styling row). */
+  const int rows_per_col = rows > 14 ? 16 : rows;
+  const int cols = rows > 14 ? 2 : 1;
+  const int drawn_rows = rows < rows_per_col ? rows : rows_per_col;
+  int dialog_h = POPUP_FRAME_INSET * 2 + pad + line_h + drawn_rows * line_h + pad;
   if (dialog_h > framebuffer->height - 8) {
     dialog_h = framebuffer->height - 8;
   }
-  int dialog_w = 200;
+  int dialog_w = cols == 2 ? 300 : 200;
   if (dialog_w > framebuffer->width - 8) {
     dialog_w = framebuffer->width - 8;
   }
@@ -3701,6 +3706,8 @@ static void colony_screen_draw_construction_popup(
   view->construction_dialog_w = dialog_w;
   view->construction_dialog_h = dialog_h;
   view->construction_line_h = line_h;
+  view->construction_rows_per_col = rows_per_col;
+  view->construction_col_w = cols == 2 ? inner_w / 2 : inner_w;
 
   if (font && inner_w > 0) {
     font_draw_text(font, framebuffer, inner_x + pad, inner_y + pad, "Construction", 15);
@@ -3709,11 +3716,18 @@ static void colony_screen_draw_construction_popup(
   view->construction_list_y0 = list_y0;
 
   for (int i = 0; i < rows; ++i) {
-    const int row_y = list_y0 + i * line_h;
+    const int col = rows_per_col > 0 ? i / rows_per_col : 0;
+    const int row_in_col = rows_per_col > 0 ? i % rows_per_col : i;
+    const int col_x = inner_x + col * view->construction_col_w;
+    const int row_y = list_y0 + row_in_col * line_h;
+    if (row_y + line_h > framebuffer->height) {
+      continue;
+    }
     const bool selected = (i == view->construction_selection);
     if (selected) {
       colony_screen_fill_rect(
-        framebuffer, inner_x + 1, row_y - 1, inner_x + inner_w - 1, row_y + line_h - 1, 138
+        framebuffer, col_x + 1, row_y - 1, col_x + view->construction_col_w - 1,
+        row_y + line_h - 1, 138
       );
     }
     char label[80];
@@ -3728,7 +3742,10 @@ static void colony_screen_draw_construction_popup(
       /* Player-reported: hammers shown here are what's still *needed*, i.e.
        * the requirement adjusted down by the colony's already-banked
        * hammers (min 0) — hammers carry over to whatever project is picked,
-       * unlike tools, which are never adjusted away in this popup. */
+       * unlike tools, which are never adjusted away in this popup.
+       * Row text is DOS's own (2f2b:5a68 string build): the full cargo
+       * words — "Name (N Hammers)(M Tools)" — not the earlier "H"/"T"
+       * shorthand (bugs.md styling row). */
       const int stored_hammers = colony ? colony->hammers : 0;
       if (bt) {
         int hammers_left = bt->hammers - stored_hammers;
@@ -3736,9 +3753,12 @@ static void colony_screen_draw_construction_popup(
           hammers_left = 0;
         }
         if (bt->tools_cost > 0) {
-          snprintf(label, sizeof(label), "%s (%dH, %dT)", bt->name, hammers_left, bt->tools_cost);
+          snprintf(
+            label, sizeof(label), "%s (%d Hammers)(%d Tools)", bt->name, hammers_left,
+            bt->tools_cost
+          );
         } else {
-          snprintf(label, sizeof(label), "%s (%dH)", bt->name, hammers_left);
+          snprintf(label, sizeof(label), "%s (%d Hammers)", bt->name, hammers_left);
         }
       } else if (colonies_unit_build_info(bid, &uname, &uh, &ut)) {
         /* Artillery (colonies_unit_build_info) — not a real @BUILDING row. */
@@ -3746,13 +3766,13 @@ static void colony_screen_draw_construction_popup(
         if (hammers_left < 0) {
           hammers_left = 0;
         }
-        snprintf(label, sizeof(label), "%s (%dH, %dT)", uname, hammers_left, ut);
+        snprintf(label, sizeof(label), "%s (%d Hammers)(%d Tools)", uname, hammers_left, ut);
       } else {
-        snprintf(label, sizeof(label), "%s (%dH)", "?", 0);
+        snprintf(label, sizeof(label), "%s (%d Hammers)", "?", 0);
       }
     }
     if (font) {
-      font_draw_text(font, framebuffer, inner_x + pad, row_y + 1, label, 15);
+      font_draw_text(font, framebuffer, col_x + pad, row_y + 1, label, 15);
     }
   }
 }
@@ -4320,9 +4340,27 @@ ColonyScreenHitResult colony_screen_hit_test(
       return hit;
     }
     if (view->construction_line_h > 0 && my >= view->construction_list_y0) {
-      const int idx = (my - view->construction_list_y0) / view->construction_line_h;
+      const int row_in_col = (my - view->construction_list_y0) / view->construction_line_h;
+      int col = 0;
+      if (view->construction_col_w > 0 &&
+          view->construction_rows_per_col > 0) {
+        col = (mx - (view->construction_dialog_x + POPUP_FRAME_INSET)) /
+              view->construction_col_w;
+        if (col < 0) {
+          col = 0;
+        }
+        if (col > 1) {
+          col = 1;
+        }
+      }
       const int rows = view->buildable_count + 1;
-      if (idx >= 0 && idx < rows) {
+      const int idx =
+        col * (view->construction_rows_per_col > 0 ? view->construction_rows_per_col : rows) +
+        row_in_col;
+      if (row_in_col >= 0 &&
+          (view->construction_rows_per_col <= 0 ||
+           row_in_col < view->construction_rows_per_col) &&
+          idx >= 0 && idx < rows) {
         if (idx == 0) {
           hit.kind = COLONY_HIT_CONSTRUCTION_CLEAR;
           hit.index = -1;

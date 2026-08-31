@@ -779,9 +779,16 @@ int main(void) {
   CHECK(col->colonists[0].profession == UNITS_JOB_PIONEER, "founder profession preserved");
   CHECK(col->colonists[0].building_type == town_hall, "founder works in Town Hall");
   CHECK(col->stock[COLONIZE_CARGO_TOOLS] == 100, "founder tools enter stockpile");
-  /* Stockade needs 3 colonists (@BUILDING min_colony); a size-1 town starts
-   * with an empty queue like the DOS record init (FUN_364b_1ba8: 0xff). */
-  CHECK(col->building_in_production < 0, "found leaves the project empty below Stockade size");
+  /* Stockade needs 3 colonists (@BUILDING min_colony); a size-1 coastal
+   * town starts on Docks (bugs.md; seed-100 goldens), a landlocked one on
+   * Warehouse (player-confirmed DOS behaviour). */
+  if (map_tile_is_coastal(&map, land2_x, land2_y)) {
+    const int docks = colonies_find_building(&pool, "Docks");
+    CHECK(col->building_in_production == docks, "coastal size-1 town starts on Docks");
+  } else {
+    const int warehouse = colonies_find_building(&pool, "Warehouse");
+    CHECK(col->building_in_production == warehouse, "landlocked size-1 town starts on Warehouse");
+  }
   (void)stockade;
   CHECK(col->hammers == 0, "new colony starts with zero accumulated hammers");
   CHECK(

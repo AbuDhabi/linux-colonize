@@ -3408,7 +3408,9 @@ bool units_resolve_lcr_rumour(
   }
   case COLONIZE_LCR_SURVIVORS_JOIN: {
     /* Case 9 (103718-103723): spawn unit type 0 (Colonist) on the tile,
-     * nation name substituted (FUN_291f_0ac8). */
+     * nation name substituted (FUN_291f_0ac8). NAMES.TXT @COUNTRY — the
+     * Crown nation ("England"), NOT the player's new-world country_name
+     * ("New England"): survivors swear allegiance to the nation (bugs.md). */
     const int ct = units_find_type(pool, "Colonists");
     if (ct >= 0) {
       const int nid = units_spawn_allow_stack(pool, ct, x, y);
@@ -3417,7 +3419,11 @@ bool units_resolve_lcr_rumour(
         units_set_nation(nu, nation);
       }
     }
-    tok.string0 = units_combat_nation_label(col1, nation);
+    {
+      static const char* const k_crown[4] = {"England", "France", "Spain", "Netherlands"};
+      tok.string0 = (nation >= 0 && nation <= 3) ? k_crown[nation]
+                                                 : units_combat_nation_label(col1, nation);
+    }
     units_combat_enqueue_tok(
       AI_POPUP_TAG_INFO, "LOSTCITY9", nation, -1, 0, &tok,
       "Desperate survivors of a former colony join you."

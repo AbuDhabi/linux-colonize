@@ -840,8 +840,10 @@ int colonies_found(
    * Only when the colony can actually build it: Stockade needs 3 colonists
    * (@BUILDING min_colony), and DOS never shows a size-1 town building one —
    * seed-100 TURN4–6 AI towns (New Amsterdam / Quebec / Isabella) all start
-   * on Docks instead. Otherwise leave the queue empty like the DOS record
-   * init (FUN_364b_1ba8: building_in_production = 0xff).
+   * on Docks instead (bugs.md: a new colony's project should be Docks, not
+   * "none"). Fallbacks: Stockade when the population already qualifies,
+   * else Docks for a coastal site, else Warehouse for a landlocked one
+   * (player-confirmed DOS behaviour for a landlocked 1-pop colony).
    */
   {
     const int stockade = colonies_find_building(pool, "Stockade");
@@ -850,6 +852,19 @@ int colonies_found(
          slot->population >= pool->building_types[stockade].min_population)) {
       slot->building_in_production = stockade;
       slot->hammers = 0;
+    } else if (map && map_tile_is_coastal((ColonizeWorldMap*)map, x, y)) {
+      const int docks = colonies_find_building(pool, "Docks");
+      if (docks >= 0 && !slot->has_building[docks]) {
+        slot->building_in_production = docks;
+        slot->hammers = 0;
+        slot->colony_flags |= COLONIZE_COLONY_FLAG_COASTAL;
+      }
+    } else {
+      const int warehouse = colonies_find_building(pool, "Warehouse");
+      if (warehouse >= 0 && !slot->has_building[warehouse]) {
+        slot->building_in_production = warehouse;
+        slot->hammers = 0;
+      }
     }
   }
 
