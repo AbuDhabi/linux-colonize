@@ -5005,15 +5005,22 @@ bool units_try_move(
    * MP for the turn — DOS 465b:08f8 exhaust MP. bugs.md item 7: was gated on
    * wagon type only, so ships could still move again after entering a colony.
    */
-  if (colonies && colonies_id_at(colonies, dest_x, dest_y) >= 0 &&
-      units_is_transport(pool, unit_id)) {
-    unit->moves_left = 0;
+  if (colonies && colonies_id_at(colonies, dest_x, dest_y) >= 0) {
+    if (units_is_transport(pool, unit_id)) {
+      unit->moves_left = 0;
+    }
     /*
      * bugs.md: docking puts everyone ashore. A unit inside a colony is in the
      * colony, not in a hold — whether it sails again is decided when a ship
      * next leaves, and the sentried units on the tile board it then (the
-     * auto-board above). They land with no orders and whatever moves they had,
+     * auto-board above). They land with no orders and their allotment intact,
      * so an arrival can still walk on the turn it lands.
+     *
+     * Deliberately NOT gated on units_is_transport any more: that predicate
+     * exists for the wagon/ship MP-forfeit rule above and answers "does this
+     * hull have goods holds", which is a different question from "is anyone
+     * riding in it". A ship carrying passengers puts them ashore on docking
+     * whatever its hold count says (bugs.md: "does not always happen").
      */
     if (units_is_sea(pool, unit_id) && unit->cargo_count > 0) {
       (void)units_disembark_all(pool, unit_id, dest_x, dest_y);
@@ -7600,6 +7607,18 @@ int units_disembark_all(ColonizeUnitPool* pool, int ship_id, int x, int y) {
       pax->x = x;
       pax->y = y;
       pax->orders = 0;
+      /*
+       * Restore the allotment, don't just clear the order. Boarding parks a
+       * passenger at moves_left 0 as a "don't offer this one" flag while
+       * DOS's own spent byte is still zero — a full allotment — so a
+       * passenger put ashore in a colony was landing unable to move at all
+       * until the next turn (bugs.md: "possibly with moves if they had any
+       * remaining that turn"). units_unload_passenger already restores it
+       * the same way for its own move charge.
+       */
+      if (pax->moves_left <= 0 && units_type(pool, pax->type_index)) {
+        pax->moves_left = units_max_mp(pool, pax->id);
+      }
       n++;
     }
   }
