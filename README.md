@@ -77,7 +77,8 @@ If none are found, the game logs a warning and falls back to a soft
 (non-FluidSynth) beep path rather than failing — set `COLONIZE_SOUNDFONT` to
 point at any GM-compatible `.sf2` file to override. `--nosound` skips audio
 entirely. The bundled bank is optional and separately licensed (GPL-3+);
-it is not required for the binary to run.
+it is not required to build or to run. Without any soundfont, music uses
+the square-wave fallback (no MIDI).
 
 ## License
 
