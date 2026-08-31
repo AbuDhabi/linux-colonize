@@ -5611,10 +5611,12 @@ int main(void) {
   /*
    * @INDIANBEGFOOD accept/decline (FUN_5bfb_022e already-met adjacency —
    * ai_contact_try_village_beg_food / ai_contact_apply_beg_food). Sign
-   * convention resolved 2026-08-14 via live user gameplay testimony (see
-   * settlement_record_8d4a.md): accept improves relations + friction
-   * scales up, decline worsens relations + friction resets to 0, and the
-   * colony loses food either way (voluntary gift vs. punitive seizure).
+   * convention re-read off the decompile 2026-08-31 (bugs.md): DOS's
+   * `local_c == 2` is the "We offer you ..." row, so *accept* is what
+   * subtracts `colony->food >> 1` (half, not a quarter), zeroes the
+   * settlement's alarm word and walks the nation alarm down; *refuse*
+   * costs no food, scales the settlement alarm word by 1.5 and raises the
+   * nation alarm. The two branches used to be the other way round.
    * Tests the apply side directly (payload = offer-time colony id, same
    * discipline as ai_king_merc's landing tile) rather than fighting the
    * trigger's own RNG/economics gating, matching this file's established
@@ -5637,8 +5639,9 @@ int main(void) {
 
     /*
      * bugs.md: the offer row is "We offer you {%NUMBER0} of our {%NUMBER1
-     * food}" and used to render 0 for both. Drive the trigger until it fires
-     * and check the row names the real quarter-share and the real store.
+     * food}" and used to render 0 for both, then a quarter. Drive the
+     * trigger until it fires and check the row names DOS's half-share and
+     * the real store.
      */
     {
       ColonizeMsgCatalog beg_txt;
@@ -5672,7 +5675,7 @@ int main(void) {
       int names_amount = 0;
       for (int ci = 0; ci < pop.queue[found].choice_count; ++ci) {
         const char* row = pop.queue[found].choices[ci];
-        if (strstr(row, "offer") && strstr(row, "25") && strstr(row, "100")) {
+        if (strstr(row, "offer") && strstr(row, "50") && strstr(row, "100")) {
           names_amount = 1;
         }
         if (strstr(row, "offer") && (strstr(row, " 0 ") || strstr(row, "%NUMBER"))) {
@@ -5686,7 +5689,7 @@ int main(void) {
           fprintf(stderr, "unit_ai_contact: BEGFOOD row '%s'\n", pop.queue[found].choices[ci]);
         }
         assets_msg_free(&beg_txt);
-        return fail("BEGFOOD offer row should name 25 of 100 food");
+        return fail("BEGFOOD offer row should name 50 of 100 food");
       }
       assets_msg_free(&beg_txt);
       ctx.messages = saved_msgs;
@@ -5703,11 +5706,11 @@ int main(void) {
     pop.result_nation_b = 4;
     pop.result_payload = 0; /* colony index */
     ai_contact_apply_popup_result(&ctx, &pop);
-    if (colonies.colonies[0].stock[COLONIZE_CARGO_FOOD] >= 100) {
-      return fail("BEGFOOD accept should give away some food");
+    if (colonies.colonies[0].stock[COLONIZE_CARGO_FOOD] != 50) {
+      return fail("BEGFOOD accept should hand over exactly half the store");
     }
-    if (col1.tribe[0].alarm[0].friction <= 20) {
-      return fail("BEGFOOD accept should scale friction up");
+    if (col1.tribe[0].alarm[0].friction != 0 || col1.tribe[0].alarm[0].attacks != 0) {
+      return fail("BEGFOOD accept should zero the settlement alarm word");
     }
     if (ai_diplo_indian_relation(&col1, 4 + (0), 0) <= rel_before_accept) {
       return fail("BEGFOOD accept should improve relations");
@@ -5728,11 +5731,11 @@ int main(void) {
     pop.result_nation_b = 4;
     pop.result_payload = 0;
     ai_contact_apply_popup_result(&ctx, &pop);
-    if (colonies.colonies[0].stock[COLONIZE_CARGO_FOOD] >= 100) {
-      return fail("BEGFOOD decline should still cost the colony food (punitive seizure)");
+    if (colonies.colonies[0].stock[COLONIZE_CARGO_FOOD] != 100) {
+      return fail("BEGFOOD decline must not cost the colony any food");
     }
-    if (col1.tribe[0].alarm[0].friction != 0) {
-      return fail("BEGFOOD decline should reset friction to 0");
+    if (col1.tribe[0].alarm[0].friction != 30) {
+      return fail("BEGFOOD decline should scale the settlement alarm word by 1.5");
     }
     if (ai_diplo_indian_relation(&col1, 4 + (0), 0) >= rel_before_decline) {
       return fail("BEGFOOD decline should worsen relations");

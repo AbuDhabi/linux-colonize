@@ -2804,6 +2804,19 @@ static int reports_foreign_build_rows(
     (human >= 0 && human < (int)COLONIZE_COL1_NATION_COUNT &&
      reports_ff_owned_by_nation(&col1->nation[human], REPORTS_FOREIGN_DE_WITT_FF)) ||
     col1->head.show_entire_map != 0;
+  /*
+   * The Crown's slot is by definition a nation the player is not playing
+   * (ai_king_crown_nation always returns a peer), so the viewer's own
+   * block can never be the withdrawn one. Guarding here as well as at the
+   * source keeps saves written before col1_save_reset_nation_slots existed
+   * — where the whole head was zero-filled, making England the "Crown" —
+   * from printing "(Withdrawn from New World)" over the player's own
+   * nation (bugs.md).
+   */
+  int crown = (int)col1->head.crown_nation_id;
+  if (crown == human) {
+    crown = -1;
+  }
   int n = 0;
   for (int i = 0; i < (int)COLONIZE_COL1_NATION_COUNT && n < max_rows; ++i) {
     ForeignRow* r = &rows[n++];
@@ -2811,7 +2824,7 @@ static int reports_foreign_build_rows(
     const ColonizeCol1Player* p = &col1->player[i];
     r->leader = p->name[0] ? p->name : reports_nation_adjective(i);
     r->adjective = reports_nation_adjective(i);
-    r->is_crown = (col1->head.crown_nation_id == (int16_t)i);
+    r->is_crown = (crown == i);
     if (r->is_crown) {
       continue;
     }
@@ -2823,7 +2836,7 @@ static int reports_foreign_build_rows(
                     r->peer_count < (int)(COLONIZE_COL1_NATION_COUNT - 1);
          ++j) {
       /* Own slot, the Crown's slot, and never-met peers are all skipped. */
-      if (j == i || col1->head.crown_nation_id == (int16_t)j ||
+      if (j == i || crown == j ||
           (col1->nation[i].euro_relation[j] & REPORTS_FOREIGN_MET_BIT) == 0) {
         continue;
       }
