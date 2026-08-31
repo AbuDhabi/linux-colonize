@@ -1156,6 +1156,7 @@ bool europe_enqueue_expected(
   slot->exit_y = exit_y;
   slot->exit_east = exit_east;
   slot->turns_left = europe_clamp_voyage_turns(voyage_turns);
+  slot->departed_this_turn = true;
   eu->last_exit_x = exit_x;
   eu->last_exit_y = exit_y;
   eu->last_exit_east = exit_east;
@@ -1251,6 +1252,7 @@ bool europe_set_sail_from_harbor(
     ship.exit_y = eu->last_exit_y;
   }
   ship.turns_left = europe_clamp_voyage_turns(voyage_turns);
+  ship.departed_this_turn = true;
   for (int i = harbor_index + 1; i < eu->harbor_ships; ++i) {
     eu->harbor[i - 1] = eu->harbor[i];
   }
@@ -1452,13 +1454,23 @@ void europe_tick_voyages(EuropeScreen* eu, const ColonizeUnitPool* units) {
   }
   eu->open_on_dock = false;
   eu->docked_with_goods = false;
+  /*
+   * A ship that entered its lane during the turn just ending spends this
+   * tick at sea without the counter moving — see EuropeHarborShip's
+   * departed_this_turn. Without it an ordinary 1-turn crossing docked on
+   * the very next turn, where DOS needs two End Turns (bugs.md).
+   */
   for (int i = 0; i < eu->expected_ships; ++i) {
-    if (eu->expected[i].turns_left > 0) {
+    if (eu->expected[i].departed_this_turn) {
+      eu->expected[i].departed_this_turn = false;
+    } else if (eu->expected[i].turns_left > 0) {
       eu->expected[i].turns_left--;
     }
   }
   for (int i = 0; i < eu->bound_ships; ++i) {
-    if (eu->bound[i].turns_left > 0) {
+    if (eu->bound[i].departed_this_turn) {
+      eu->bound[i].departed_this_turn = false;
+    } else if (eu->bound[i].turns_left > 0) {
       eu->bound[i].turns_left--;
     }
   }
