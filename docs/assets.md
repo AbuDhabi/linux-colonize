@@ -6,8 +6,9 @@ dumps, see [original_index.md](original_index.md).
 Original game data (required to play) belongs in a `COLONIZE/` directory next to
 the executable — the same layout as a DOS install. The port creates that folder
 empty on startup if it is missing; copy the shipped MicroProse files into it.
-Override the search root with `--data-dir`. Saves default to the same directory
-(see [savegame.md](savegame.md); override with `--save-dir`).
+Those files are **not** relicensed by this project; you must provide a legally
+obtained copy. Override the search root with `--data-dir`. Saves default to the
+same directory (see [savegame.md](savegame.md); override with `--save-dir`).
 
 ## Text Encoding
 
