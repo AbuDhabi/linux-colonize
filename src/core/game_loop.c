@@ -3954,8 +3954,10 @@ static void europe_render_transit_box(
      * Everyone riding along shows next to their ship — bugs.md: "Colonists
      * embarked on ships arriving from or traveling to the new world on the
      * European Status need to be visible alongside ships." They are still
-     * cargo, so they get no orders chrome and no selection frame of their own;
-     * the ship is what the player clicks.
+     * cargo, so they get no selection frame of their own — the ship is what
+     * the player clicks — but they do carry the Sentry letter: a passenger is
+     * a sentried unit (DOS FUN_38fd_0718 stamps orders 1 on every dock unit,
+     * and boarding preserves it), so "no orders" was wrong (bugs.md).
      */
     for (int c = 0; c < ships[i].cargo_count && c < EUROPE_SHIP_CARGO_MAX; ++c) {
       const int pax_type = europe_pax_type_index(&game->units, ships[i].cargo_types[c]);
@@ -3987,7 +3989,7 @@ static void europe_render_transit_box(
         y,
         pax_type,
         game->human_nation,
-        UNITS_ORDER_NONE,
+        UNITS_ORDER_SENTRY,
         false,
         false,
         (game->europe_ok && game->europe.background.has_palette)
@@ -4320,7 +4322,8 @@ static void render_europe_screen(const ColonizeGameState* game, ColonizeFramebuf
         const int gtype = ship->hold_goods_type[i];
         if (amt > 0 && amt < 255 && gtype >= 0 && gtype < COLONIZE_CARGO_COUNT &&
             game->unit_icons_ok) {
-          const int sprite = EUROPE_CARGO_ICON_BASE + gtype;
+          const int sprite =
+            (amt >= EUROPE_CARGO_FULL ? EUROPE_CARGO_ICON_BASE : EUROPE_CARGO_GREY_BASE) + gtype;
           if (sprite < game->unit_icons.sprite_count) {
             const ColonizeSprite* sp = &game->unit_icons.sprites[sprite];
             const int ix = x + (EUROPE_HOLD_W - sp->width) / 2;
@@ -4372,8 +4375,12 @@ static void render_europe_screen(const ColonizeGameState* game, ColonizeFramebuf
         const int ih = sp->height > 0 ? sp->height : 16;
         const int orders =
           eu->dock[i].sentry ? UNITS_ORDER_SENTRY : UNITS_ORDER_NONE;
-        /* Any dock immigrant shows the multi-unit tab when the queue has >1. */
-        const bool stacked = eu->dock_count > 1;
+        /*
+         * The dock row lays every immigrant out side by side, so no one is
+         * ever hidden behind anyone else: the "more units here" tab belongs
+         * to a map stack and is always wrong here (bugs.md). Singular chrome.
+         */
+        const bool stacked = false;
         int dtype = units_find_type(&game->units, eu->dock[i].name);
         if (dtype < 0) {
           dtype = units_find_type(&game->units, "Colonists");
@@ -6396,6 +6403,40 @@ static void game_colony_drag_begin_outside(ColonizeGameState* game, int unit_id)
   game_ui_drag_set_icon(game, sprite);
 }
 
+/*
+ * DOS `FUN_2f2b_2f3e` (2f2b:33dd..33fc) plays exactly one sound in the whole
+ * assign-colonist path, and it is gated: the 0x8024 chord only fires when the
+ * occupation being handed out is @JOB 0x10 Preacher or @JOB 0x18 Missionary.
+ * It is the church chord, not a generic "assigned" click — everything else,
+ * field work and every other building, is silent. The port played it on all
+ * three assign paths, which is why a Town Hall and a silver mine both sounded
+ * like a church (bugs.md). Field jobs are @JOB 0..8, so they never qualify;
+ * only Church/Cathedral work does.
+ */
+#define GAME_ASSIGN_CHORD 0x8024
+#define GAME_JOB_PREACHER 0x10
+#define GAME_JOB_MISSIONARY 0x18
+
+static void game_colony_assign_job_sound(int job) {
+  if (job == GAME_JOB_PREACHER || job == GAME_JOB_MISSIONARY) {
+    sound_play(GAME_ASSIGN_CHORD);
+  }
+}
+
+/* Church/Cathedral are the only workplaces whose occupation is Preacher. */
+static void game_colony_assign_building_sound(
+  const ColonizeColonyPool* pool,
+  int building_index
+) {
+  const ColonizeBuildingType* bt = colonies_building_type(pool, building_index);
+  if (!bt) {
+    return;
+  }
+  if (strstr(bt->name, "Church") || strstr(bt->name, "Cathedral")) {
+    game_colony_assign_job_sound(GAME_JOB_PREACHER);
+  }
+}
+
 static void game_colony_assign_building_drop(ColonizeGameState* game, int building_index) {
   ColonyScreenView* csv = &game->colony_screen;
   if (building_index < 0) {
@@ -6407,7 +6448,7 @@ static void game_colony_assign_building_drop(ColonizeGameState* game, int buildi
     } else if (colonies_assign_workplace(
                  &game->colonies, game->colony_view_id, ci, building_index
                )) {
-      sound_play(0x8024); /* FUN_2f2b_2f3e: assign-colonist chord sting */
+      game_colony_assign_building_sound(&game->colonies, building_index);
       const ColonizeBuildingType* bt = colonies_building_type(&game->colonies, building_index);
       snprintf(
         game->status, sizeof(game->status), "Assigned to %s", bt ? bt->name : "building"
@@ -7235,6 +7276,11 @@ static void game_europe_deliver_bound_ships(ColonizeGameState* game) {
         ColonizeUnit* pax = units_get(&game->units, ship->cargo_ids[i]);
         if (pax && cargo_professions[i] >= 0) {
           pax->profession = cargo_professions[i];
+          /* FUN_38fd_0718's kit travels with the passenger: a Hardy Pioneer
+           * steps ashore with its 100 Tools, not empty-handed (bugs.md). */
+          europe_apply_dock_unit_kit(
+            pax, europe_dock_unit_dos_type(cargo_professions[i], eu->difficulty, true, NULL)
+          );
         }
       }
     }
@@ -8980,7 +9026,7 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
                        csv->jobs_tile_index,
                        job
                      )) {
-            sound_play(0x8024); /* FUN_2f2b_2f3e: assign-colonist chord sting */
+            game_colony_assign_job_sound(job);
             snprintf(
               game->status,
               sizeof(game->status),
@@ -9547,7 +9593,7 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
           } else if (colonies_assign_field(
                        &game->colonies, game->colony_view_id, ci, csv->jobs_tile_index, job
                      )) {
-            sound_play(0x8024); /* FUN_2f2b_2f3e: assign-colonist chord sting */
+            game_colony_assign_job_sound(job);
             snprintf(
               game->status, sizeof(game->status), "Working as %s", colony_yield_job_name(job)
             );

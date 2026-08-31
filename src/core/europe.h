@@ -46,7 +46,7 @@
 #define EUROPE_HOLD_MAX 6
 #define EUROPE_ICON_EMPTY_HOLD 122 /* ICONS.SS — closed hold cover (colony transport) */
 #define EUROPE_DOCK_X 235
-#define EUROPE_DOCK_Y 140
+#define EUROPE_DOCK_Y 138 /* was 140 — dock row sat 2px low (bugs.md) */
 #define EUROPE_DOCK_PITCH 20
 #define EUROPE_DOCK_UNIT_H 16
 #define EUROPE_BTN_X 268
@@ -60,6 +60,11 @@
 #define EUROPE_MARKET_PITCH 19
 #define EUROPE_MARKET_H EUROPE_MARKET_CELL
 #define EUROPE_CARGO_ICON_BASE 22
+/* Grey (part-load) commodity icons; same split the map sidebar and the colony
+ * transport pane already use — a hold shows the coloured icon only at a full
+ * 100, the grey one below that (bugs.md). */
+#define EUROPE_CARGO_GREY_BASE 38
+#define EUROPE_CARGO_FULL 100
 #define EUROPE_EXIT_X 306 /* same painted Exit as colony / EUROPE.PIK */
 #define EUROPE_EXIT_Y 179
 #define EUROPE_SCREEN_W 320
@@ -343,6 +348,40 @@ bool europe_dock_push_load(EuropeScreen* eu, const char* name, int profession);
  * Col1 capture keeps the colonist). Prefers the matching profession.
  */
 void europe_remove_dock_mirror_unit(ColonizeUnitPool* units, int nation_id, int profession);
+
+/*
+ * DOS FUN_38fd_0718 (the Europe harbor spawn behind every dock arrival):
+ * the @UNIT type a dock immigrant of this @JOB profession is created as.
+ * Pioneer (0x14) -> Pioneers, Missionary (0x18) -> Missionaries, Scout
+ * (0x16) -> Scouts, Soldier (0x15) -> Soldiers, or Dragoons on a
+ * `rng(0, bound + 4) == 0` roll where bound is the difficulty for a human
+ * nation and 1 otherwise; anything else -> Colonists. Returns the DOS type
+ * code 0..5, which europe_dock_unit_type_index maps to a pool type.
+ * Pass rng = NULL to skip the Dragoon roll (plain Soldiers).
+ */
+int europe_dock_unit_dos_type(int profession, int difficulty, bool human, struct ColonizeDosRng* rng);
+
+/* Pool type_index for a DOS @UNIT type code 0..5, or -1. */
+int europe_dock_unit_type_index(const ColonizeUnitPool* units, int dos_type);
+
+/*
+ * Spawn (or re-kit) the Europe-map mirror unit for a dock immigrant, exactly
+ * as FUN_38fd_0718 does: right @UNIT type, orders = Sentry (DOS +0x314c = 1),
+ * profession stamped, and 100 Tools on a Pioneers-type unit (DOS +0x3159 =
+ * 100) — without which a Hardy Pioneer reached the New World empty-handed
+ * (bugs.md). Returns the spawned unit id, or -1.
+ */
+int europe_spawn_dock_mirror_unit(
+  ColonizeUnitPool* units,
+  int nation_id,
+  int profession,
+  int difficulty,
+  bool human,
+  struct ColonizeDosRng* rng
+);
+
+/* The FUN_38fd_0718 kit for an already-spawned unit of a known DOS type. */
+void europe_apply_dock_unit_kit(ColonizeUnit* u, int dos_type);
 bool europe_pop_dock_immigrant(EuropeScreen* eu, char* out_name, size_t out_name_size);
 /* Pop with profession; returns false if empty. */
 bool europe_pop_dock_immigrant_ex(

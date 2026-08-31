@@ -879,17 +879,9 @@ bool units_brewster_apply_popup(
    * shape as turn.c's random-pick path. */
   if (units && europe->dock_count > 0 && human >= 0 && human < 4) {
     const EuropeDockImmigrant* d = &europe->dock[europe->dock_count - 1];
-    const int tid = units_find_type(units, "Colonists");
-    const int id = units_spawn_allow_stack(units, tid >= 0 ? tid : 0, 236, 236);
-    ColonizeUnit* u = units_get(units, id);
-    if (u) {
-      units_set_nation(u, human);
-      u->orders = UNITS_ORDER_SENTRY;
-      u->profession = d->profession;
-      u->goto_x = 0;
-      u->goto_y = 0;
-      u->moves_left = 0;
-    }
+    (void)europe_spawn_dock_mirror_unit(
+      units, human, d->profession, (int)europe->difficulty, true, NULL
+    );
   }
   return true;
 }
@@ -7925,6 +7917,16 @@ static const int16_t k_units_job_icon[UNITS_JOB_NONE + 1] = {
   60,  -1, 77,  106, 107, 66, /* 22-27 scout,dragoon,missionary,servant,criminal,convert */
   100 /* 28 NONE: same as Free Colonists */
 };
+
+bool units_type_has_profession_slot(int type_index) {
+  /* DS:0x30e, one signed byte per @UNIT type; -1 = no profession slot. */
+  static const signed char k_default_job[] = {19, 21, 20, 24, 23, 22, -1, 23, -1, 21, -1, -1,
+                                              -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 0};
+  if (type_index < 0 || type_index >= (int)(sizeof(k_default_job) / sizeof(k_default_job[0]))) {
+    return false;
+  }
+  return k_default_job[type_index] >= 0;
+}
 
 int units_job_icon_sprite(int profession) {
   if (profession < 0 || profession >= (int)(sizeof(k_units_job_icon) / sizeof(k_units_job_icon[0]))) {

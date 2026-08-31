@@ -1172,6 +1172,16 @@ const char* units_display_name(const ColonizeUnitPool* pool, const ColonizeUnit*
 int units_job_icon_sprite(int profession);
 
 /*
+ * DOS DS:0x30e indexed by @UNIT type — the default @JOB that type carries,
+ * -1 when the type has no profession slot at all (FUN_15eb_0902, reached as
+ * FUN_281f_0b78). True for the colonist-carrying types only; ships, wagons,
+ * artillery and treasure trains are false. DOS uses this, not a unit's own
+ * profession byte, to decide who is a person: the census population count
+ * (FUN_4962_0018 → DS:0x9410) and the sidebar profession line both gate on it.
+ */
+bool units_type_has_profession_slot(int type_index);
+
+/*
  * ICONS.SS index for a colonist working inside a colony (no field
  * equipment): units_job_icon_sprite(profession) if it has one, else the
  * @UNIT icon for unit_type_index.

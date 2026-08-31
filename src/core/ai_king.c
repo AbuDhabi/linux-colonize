@@ -5586,6 +5586,27 @@ void ai_king_nation_turn(ColonizeTurnContext* ctx) {
     *ctx->active_turn_nation = ctx->human_nation;
   }
   if (ctx->col1_ok && ctx->col1) {
+    /*
+     * FUN_43f7_2424 (43f7:2478..2492): every nation caches its own SoL into
+     * `nation + 0x19` — the byte the Foreign Affairs report multiplies the
+     * census population by to split Rebels from Tories (3f41:2902 reads
+     * `[nation*0x13c + 0x8821]`, IMULs it by `census_pop_proxy`, IDIVs by
+     * 100). Only the human's copy in DS:0x53d0 was being written here, so
+     * `rebel_sentiment` stayed 0 for the whole campaign and the report showed
+     * 0 Rebels / all Tories even at 100% SoL (bugs.md). DOS writes the byte
+     * for whichever nation it is ticking, human or AI, before the DS:0x53d0
+     * human-only half.
+     */
+    for (int n = 0; n < 4; ++n) {
+      int sol = ai_king_sol_percent(ctx, n);
+      if (sol < 0) {
+        sol = 0;
+      }
+      if (sol > 100) {
+        sol = 100;
+      }
+      ctx->col1->nation[n].rebel_sentiment = (uint8_t)sol;
+    }
     /* FUN_43f7_2424 tail: cache nation SoL for next turn's tax-audience score. */
     ctx->col1->head.rebel_sentiment_report =
       (uint8_t)ai_king_sol_percent(ctx, ctx->human_nation);

@@ -949,6 +949,78 @@ bool europe_recruit(EuropeScreen* eu) {
   return true;
 }
 
+int europe_dock_unit_dos_type(int profession, int difficulty, bool human, ColonizeDosRng* rng) {
+  int type = 0; /* Colonists */
+  if (profession == 0x14) {
+    type = 2; /* Pioneers */
+  } else if (profession == 0x18) {
+    type = 3; /* Missionaries */
+  } else if (profession == 0x16) {
+    type = 5; /* Scouts */
+  } else if (profession == 0x15) {
+    type = 1; /* Soldiers */
+    if (rng) {
+      const int bound = human ? difficulty : 1;
+      if (dos_rng_range(rng, 0, bound + 4) == 0) {
+        type = 4; /* Dragoons */
+      }
+    }
+  }
+  return type;
+}
+
+int europe_dock_unit_type_index(const ColonizeUnitPool* units, int dos_type) {
+  static const char* const k_names[6] = {"Colonists", "Soldiers",  "Pioneers",
+                                         "Missionaries", "Dragoons", "Scouts"};
+  if (!units || dos_type < 0 || dos_type > 5) {
+    return -1;
+  }
+  return units_find_type((ColonizeUnitPool*)units, k_names[dos_type]);
+}
+
+void europe_apply_dock_unit_kit(ColonizeUnit* u, int dos_type) {
+  if (!u) {
+    return;
+  }
+  /* DOS sets only Tools here (+0x3159); muskets/horses ride on the @UNIT
+   * type itself, which is why Soldiers and Dragoons get no byte of their
+   * own in FUN_38fd_0718. */
+  if (dos_type == 2 && u->tools < 100) {
+    u->tools = 100;
+  }
+}
+
+int europe_spawn_dock_mirror_unit(
+  ColonizeUnitPool* units,
+  int nation_id,
+  int profession,
+  int difficulty,
+  bool human,
+  ColonizeDosRng* rng
+) {
+  if (!units || nation_id < 0 || nation_id > 3) {
+    return -1;
+  }
+  const int dos_type = europe_dock_unit_dos_type(profession, difficulty, human, rng);
+  int ti = europe_dock_unit_type_index(units, dos_type);
+  if (ti < 0) {
+    ti = units_find_type(units, "Colonists");
+  }
+  const int id = units_spawn_allow_stack(units, ti >= 0 ? ti : 0, 236, 236);
+  ColonizeUnit* u = units_get(units, id);
+  if (!u) {
+    return -1;
+  }
+  units_set_nation(u, nation_id);
+  u->orders = UNITS_ORDER_SENTRY; /* DOS +0x314c = 1 */
+  u->profession = profession;
+  u->goto_x = 0;
+  u->goto_y = 0;
+  u->moves_left = 0;
+  europe_apply_dock_unit_kit(u, dos_type);
+  return id;
+}
+
 void europe_remove_dock_mirror_unit(ColonizeUnitPool* units, int nation_id, int profession) {
   if (!units || nation_id < 0 || nation_id > 3) {
     return;
@@ -1125,7 +1197,20 @@ static void europe_board_sentry_dockers(
     if (is_artillery) {
       type_tag = -2;
     } else if (units) {
-      const int ti = units_find_type(units, eu->dock[di].name);
+      /*
+       * The dock entry's name is the expert plural ("Hardy Pioneers"), which
+       * matches no @UNIT type, so this used to fall back to Colonists for
+       * every specialist and the passenger landed as a plain colonist with no
+       * kit. Fall back to FUN_38fd_0718's profession -> type rule instead;
+       * the name lookup still wins for purchases that really are typed by
+       * name (Artillery is handled above, Wagon Train and the like by name).
+       */
+      int ti = units_find_type(units, eu->dock[di].name);
+      if (ti < 0) {
+        ti = europe_dock_unit_type_index(
+          units, europe_dock_unit_dos_type(eu->dock[di].profession, eu->difficulty, true, NULL)
+        );
+      }
       type_tag = ti >= 0 ? ti : 0;
     }
     ship->cargo_types[ship->cargo_count] = type_tag;
