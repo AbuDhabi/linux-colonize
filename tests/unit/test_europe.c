@@ -607,6 +607,21 @@ int main(void) {
       return 1;
     }
   }
+  /*
+   * The turn a ship sails is a turn at sea: the first tick only burns the
+   * departure turn, so an ordinary 1-turn crossing needs two End Turns to
+   * dock, which is what DOS does (player-verified, bugs.md).
+   */
+  europe_tick_voyages(&eu, NULL);
+  if (eu.expected_ships != 1 || eu.harbor_ships != 0 || eu.expected[0].turns_left != 1) {
+    fprintf(
+      stderr, "tick 1 should keep the ship at sea: expected=%d harbor=%d turns=%d\n",
+      eu.expected_ships, eu.harbor_ships,
+      eu.expected_ships > 0 ? eu.expected[0].turns_left : -1
+    );
+    europe_free(&eu);
+    return 1;
+  }
   europe_tick_voyages(&eu, NULL);
   if (eu.expected_ships != 0 || eu.harbor_ships != 1 || !eu.open_on_dock) {
     fprintf(

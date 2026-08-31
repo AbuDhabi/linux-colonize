@@ -145,6 +145,20 @@ typedef struct EuropeHarborShip {
   int hold_goods_type[EUROPE_SHIP_CARGO_MAX];
   int hold_goods_amount[EUROPE_SHIP_CARGO_MAX];
   int turns_left; /* 0 when in harbor; >0 while in transit */
+  /*
+   * Set the moment a ship enters a transit lane, cleared (instead of
+   * decrementing turns_left) by the first europe_tick_voyages that sees it.
+   * The turn a ship sails is a turn at sea: in DOS the lane counter written
+   * by FUN_48d3_0002 is 1 for an ordinary crossing, yet ordering a Caravel
+   * home and pressing End Turn twice is what actually docks it (player-
+   * verified) — the departure itself happens inside the same end-of-turn
+   * pass that has already run its FUN_48d3_03d0 decrement step, so the
+   * counter's first tick lands on the *next* turn. Modelling that here
+   * keeps turns_left holding DOS's own 1/2 for the save's turns_worked
+   * byte instead of inflating it. Runtime only; a save taken between the
+   * order and the next tick reloads without the grace turn.
+   */
+  bool departed_this_turn;
   int exit_x;
   int exit_y;
   bool exit_east; /* true = left via east edge (usually shorter) */

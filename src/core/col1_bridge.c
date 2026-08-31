@@ -1005,6 +1005,10 @@ bool col1_bridge_apply(
                  )) {
         slot = &europe->expected[europe->expected_ships - 1];
         slot->turns_left = turns;
+        /* Restoring a save is not a departure — the ship is already at sea,
+         * so it must not collect the departure turn europe_enqueue_expected
+         * hands to a ship that sails this turn. */
+        slot->departed_this_turn = false;
       }
       if (!slot) {
         continue;
