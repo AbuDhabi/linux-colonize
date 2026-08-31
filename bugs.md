@@ -72,6 +72,34 @@ This is a user-maintained list of bugs. User puts reports in. Agents may annotat
 | Recruit popup on European Status can't be operated by mouse, only keyboard. Neither can Purchase and Train popups. Fix that. | FIXED. The Europe input path returned early for every event while a menu was open, so only the key handlers below it ever ran. Popup geometry is now one `europe_menu_layout` shared by the renderer and a new `europe_menu_row_at` hit-test, so the row drawn and the row clicked cannot drift. A left click on a row selects and confirms it in one go, a click off the rows closes the menu, and a right click cancels — the arrangement the rest of the port's lists use. Covers the dock-orders menu too, which had the same problem. |
 | Train Popup on European Status view should list the professions in the same order as DOS. | FIXED. `FUN_38fd_41ce` collects every @JOB with a positive hire cost in job order — which is what this port was displaying — and then hands the cost array and the parallel job-id array to `FUN_291f_0ed0` -> `FUN_1cf8_000a` before drawing a single row. That routine is an ascending sort by cost: it scans for the first descending step, lifts that element out, shifts the tail left, finds the first slot whose key is >= the lifted key, shifts right and drops it in. So the list is cheapest-first, opening on Expert Ore Miners at 600 and ending on Veteran Soldiers at 2000. Transcribed rather than replaced with a qsort because the tie order is observable and is this algorithm's own (an element only moves on a strictly descending step and re-enters *before* every equal key): Carpenters before Fishermen at 1000, Farmers before Distiller at 1100, Pioneers before Tobacconists at 1200. Costs come from NAMES.TXT, so a modded table re-sorts the same way. `unit_europe` guards both the ordering and the first row. |
 | The three European popups use the wrong fonts. Check what DOS uses. | FIXED — FONTINTR, not FONTSMAL. All four of those menus go through DOS's one generic list dialog (`FUN_291f_0182` -> `FUN_6f74_32a4`), which takes its font from the far pointer at DS:0x1f9e/0x1fa0. That global's standing value is DS:0x268a, the FONTINTR handle: startup writes it there (75c2:2306), and the single place that swaps it to FONTTINY (DS:0x89e) restores FONTINTR immediately after. The port already loads FONTINTR as `intro_font` (its own comment calls it the "title/dialog default") but drew these popups in `menu_font` = FONTSMAL. One `europe_menu_font` getter now feeds both the layout and the renderer, so the row pitch the mouse hit-test uses is the row pitch actually drawn. |
+| Orders-allegiance chrome uses incorrect color for the orders symbol. It should be normally black, at least AFAIK. It is a dark orange kind of color instead. | |
+| I'm pretty sure that the multiple-units chrome should also apply to player units carrying passengers. Check DOS. | |
+| When a unit is activated (blinking) on a colony tile and there's more units there (not in the colony; just on the tile), the port shows the first unit of the rest of the units when the active unit is in its off-blink. It should not. Only one unit should be shown, or none (off-blink). It should not blink between two units, because then it is confusing which one is active. | |
+| The selection rectangle in the colony transport view is too large. Units should have selection rectangles closely hugging the sprite presentation. Looks to me they're 2px too far each direction. Almost sure the rectangle size should be the same as for the units in the multipurpose-military view.  | |
+| If there are units in the multipurpose-military view, one of them should always be selected. Same for the population view and transport view. Check DOS for exact "which one is selected" rules. | |
+| Units in the multipurpose-military view are drawn too high up. 20px or so too high. Check DOS. It's also inverted; bottom row is first units, upper row is further units. The lower (first) row should have up to five units, the upper as many as there are (squeezed if necessary). | |
+|  | |
+| | |
+| | |
+| | |
+| | |
+| | |
+| | |
+| | |
+| | |
+| | |
+| | |
+| | |
+| | |
+| | |
+| | |
+| | |
+| | |
+| | |
+| | |
+| | |
+| | |
+| | |
 | | |
 | | |
 | | |
