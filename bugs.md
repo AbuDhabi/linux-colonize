@@ -55,23 +55,23 @@ This is a user-maintained list of bugs. User puts reports in. Agents may annotat
 | Colonists working buildings in colony UI stand too far apart. If the building is wide enough, have them stand centered horizontally on the building, right next to each other as per their sprite widths. If the building is too narrow for that, squeeze them as needed. | Fixed. `colony_screen_icon_strip_layout` spread the icons across the host rect's whole width (first at the left edge, last at the right). The row is now packed shoulder to shoulder — one sprite width per step — and the block centred on the rect; when the sprites do not fit, the step shrinks to `(w - sprite_w) / (count - 1)` so the last one still ends inside, and the caller's count badge still appears once the step collapses to ≤1px. Applies to building workers and, being the same helper, to the outside-units row on the fortification. |
 | Indians begging for food should ask for half of the colony stores. The popup seems to read the amount of food at the colony wrong too. | FIXED, and the two branches of the choice were also the wrong way round. Re-read of DOS `FUN_5bfb_022e`: the choice returns `local_c`, and it is `local_c == 2` — GAME.TXT's second row, "We offer you {%NUMBER0} of our {%NUMBER1 food}" — that subtracts `colony->food >> 1`. So the half **is** the voluntary gift, and NUMBER0 names exactly it (NUMBER1 stays the whole store, which was already right). The port asked for a quarter, and on top of that had accept and refuse swapped: accepting handed over the quarter *and* scaled the settlement's alarm up, while refusing seized half and calmed them. Now DOS-exact — accept: food −= half, the settlement's alarm word toward that European zeroed, nation alarm walked down 5 at a time from −5 (−10 off a capital) until it sits below 0x47 (that is the "floor-loop" an earlier pass left unreconciled); refuse: no food moves at all, settlement alarm word ×1.5, nation alarm up by `((difficulty + 1) >> 1) + 1`, doubled off a capital. The settlement alarm is now read/written as DOS's int16 (friction | attacks<<8) rather than the friction byte alone. `unit_ai_contact` asserts the row reads 50 of 100 and both branches' effects. Still not modelled: DOS halves the refuse bump when its upstream "calm enough" roll passed, and DOS begs at the colony the Brave actually walked next to where this port sweeps per Indian nation and takes the first colony over 74 food. |
 | Foreign Affairs report seems to think that the player nation was withdrawn from the new world. | FIXED. The report is right — DOS prints @MISC 190 "(Withdrawn from New World)" for whichever block matches `head.crown_nation_id` (DS:0x53d2) — but new games were writing that field as 0, i.e. England, so an English player's own block claimed to have withdrawn. It is a "no nation yet" sentinel: both surviving original saves carry `ff ff` there and in the two rival slots beside it (head+98..103, verified by hexdump), and DOS resets all three together at new game in `FUN_75c2_235c`. `col1_save_reset_nation_slots` now does the same from `col1_save_init` and the new-game bridge path, and the report additionally refuses to treat the viewer's own nation as the Crown slot — the Crown is by definition a peer — so saves already written with the zero-filled head read correctly too. Same fix clears the peer-column skip, which was dropping England from every other nation's War/Peace line. |
-| | |
-| | |
-| | |
-| | |
-| | |
-| | |
-| | |
-| | |
-| | |
-| | |
-| | |
-| | |
-| | |
-| | |
-| | |
-| | |
-| | |
+| I think the sound when you assign someone to work a town hall is meant to be when you assign them to a church/cathedral. | |
+| Why can't I fortify a ship in coastals waters? Seems to happen only sometimes. Investigate; I might be wrong. | |
+| Paul Revere is absent from Continental Congress second page even when he's supposed to be present. Francis Drake, too. Double check all the FFs that weren't in the golden save for the reports. | |
+| Clicking a lone fortified (or sentried) unit on the map (not on a colony tile) should cancel the order. Verify against DOS when clicking on units cancels orders. There's doubless a bunch of gates. | |
+| Units on European docks should be printed 2px higher. Also, they should never have the "multiple units on stack" allegiance-orders presentation. Always singular. | |
+| Orders-allegiance chrome, when it uses the "multiple units here" presentation is incorrect for common units, like colonists and soldiers. The background rectangle indicating more units should be upper-left not bottom-right. | |
+| Units loaded onto transports in European Status view should be listed as having Sentry orders on their chrome, not "no orders" like now. | |
+| Ships arrive in Europe from the New World way too fast compared to DOS. Same for reaching the New World from Europe. | |
+| Something is very wrong with the Foreign Affairs report regarding Rebels vs Tories numbers. Despite having a colony with 2 pops and 100% SoL, I had 0 rebels in Foreign Affairs. Foreign affairs seems not to count units loaded onto ships as actual colonists for Rebels vs Tories either, but does appear to count those on European docks. | |
+| Ships docking into colonies should auto-disembark their loaded units. This does not always happen when you sail a loaded ship into a colony. They keep being loaded in overland map, but they should be in no-orders mode in the colony fence, possibly with moves if they had any remaining that turn. I don't know why it sometimes happens but other times does not. | |
+| Hardy Pioneers who appear on docks should always have 100 tools on them. Now they appear without tools. | |
+| Putting a colonist to mine silver produces the church sound effect. WTF. | |
+| Incomplete cargo stacks in ships in European Status view suggest they have a full stack. Ie. they are colored, but should be grey. | |
+| European Status is missing "equip with tools"/"horses"/"arm with muskets" options when clicking a colonist on the docks. Check DOS.| |
+| Recruit popup on European Status can't be operated by mouse, only keyboard. Neither can Purchase and Train popups. Fix that. | |
+| Train Popup on European Status view should list the professions in the same order as DOS. | |
+| The three European popups use the wrong fonts. Check what DOS uses. | |
 | | |
 | | |
 | | |
