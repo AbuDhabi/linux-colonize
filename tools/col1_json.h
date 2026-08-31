@@ -14,7 +14,7 @@
 #include <stdio.h>
 
 #include "core/col1_save.h"
-#include "json_min.h"
+#include "core/json_min.h"
 
 /* Streams a full JSON document for `s` to `f`. */
 void col1_write_json(FILE* f, const ColonizeCol1Save* s);

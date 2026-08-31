@@ -6,6 +6,7 @@
 #include "core/game_loop.h"
 #include "core/savegame.h"
 #include "core/text_edit.h"
+#include "core/settings.h"
 #include "core/sound.h"
 #include "platform/diagnostics.h"
 #include "platform/platform.h"
@@ -17,6 +18,10 @@ typedef struct CliConfig {
   bool no_sound;
   int window_scale;
   uint32_t rng_seed;
+  /* Which display flags the command line actually set; those win over
+   * settings.json, anything else falls back to the stored preference. */
+  bool windowed_from_cli;
+  bool scale_from_cli;
 } CliConfig;
 
 static CliConfig cli_defaults(void) {
@@ -27,6 +32,8 @@ static CliConfig cli_defaults(void) {
   cfg.no_sound = false;
   cfg.window_scale = 2;
   cfg.rng_seed = 0;
+  cfg.windowed_from_cli = false;
+  cfg.scale_from_cli = false;
   return cfg;
 }
 
@@ -39,8 +46,10 @@ static bool parse_args(int argc, char** argv, CliConfig* cfg) {
       cfg->save_dir = argv[++i];
     } else if (strcmp(arg, "--windowed") == 0) {
       cfg->windowed = true;
+      cfg->windowed_from_cli = true;
     } else if (strcmp(arg, "--fullscreen") == 0) {
       cfg->windowed = false;
+      cfg->windowed_from_cli = true;
     } else if (strcmp(arg, "--nosound") == 0) {
       cfg->no_sound = true;
     } else if (strcmp(arg, "--scale") == 0 && i + 1 < argc) {
@@ -48,6 +57,7 @@ static bool parse_args(int argc, char** argv, CliConfig* cfg) {
       if (cfg->window_scale < 1) {
         cfg->window_scale = 1;
       }
+      cfg->scale_from_cli = true;
     } else if (strcmp(arg, "--seed") == 0 && i + 1 < argc) {
       cfg->rng_seed = (uint32_t)strtoul(argv[++i], NULL, 0);
     } else {
@@ -67,6 +77,21 @@ int main(int argc, char** argv) {
   if (!parse_args(argc, argv, &cli)) {
     diag_shutdown();
     return 2;
+  }
+
+  /* settings.json sits next to the executable; a missing file is first run. */
+  char settings_err[256];
+  if (!settings_init(NULL, settings_err, sizeof(settings_err))) {
+    fprintf(stderr, "Warning: %s; using default options.\n", settings_err);
+  }
+  {
+    const ColonizeSettings* prefs = settings_get();
+    if (!cli.windowed_from_cli) {
+      cli.windowed = prefs->windowed;
+    }
+    if (!cli.scale_from_cli) {
+      cli.window_scale = prefs->window_scale;
+    }
   }
 
   diag_info("CLI data_dir=%s", cli.data_dir);
@@ -118,6 +143,7 @@ int main(int argc, char** argv) {
   }
 
   sound_init(cli.data_dir, platform_audio_enabled(platform));
+  sound_set_options(settings_sound_options(settings_get()));
   if (platform_audio_enabled(platform)) {
     platform_audio_resume(platform);
   }

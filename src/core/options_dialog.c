@@ -185,18 +185,23 @@ bool options_dialog_open_colony(
     "Report Sons of Liberty membership",
     "Report rebel majorities"
   };
+  /*
+   * Every DS:0x5384/0x5385 bit is a *suppress* flag: FUN_2b5a_223a sets it
+   * when the checkbox is clear, and the EOT reporters fire on `bit == 0`
+   * (turn_report_ok_*). A fresh save is all-zero, i.e. every report on.
+   */
   uint8_t vals[10] = {0};
   if (opts) {
-    vals[0] = opts->labels_on_buildings ? 1 : 0;
-    vals[1] = opts->labels_on_cargo_and_terrain ? 1 : 0;
-    vals[2] = opts->report_when_colonists_trained ? 1 : 0;
-    vals[3] = opts->report_food_shortages ? 1 : 0;
-    vals[4] = opts->report_raw_materials_shortages ? 1 : 0;
-    vals[5] = opts->report_tools_needed_for_production ? 1 : 0;
-    vals[6] = opts->report_inefficient_government ? 1 : 0;
-    vals[7] = opts->report_new_cargos_available ? 1 : 0;
-    vals[8] = opts->report_sons_of_liberty_membership ? 1 : 0;
-    vals[9] = opts->report_rebel_majorities ? 1 : 0;
+    vals[0] = opts->labels_on_buildings ? 0 : 1;
+    vals[1] = opts->labels_on_cargo_and_terrain ? 0 : 1;
+    vals[2] = opts->report_when_colonists_trained ? 0 : 1;
+    vals[3] = opts->report_food_shortages ? 0 : 1;
+    vals[4] = opts->report_raw_materials_shortages ? 0 : 1;
+    vals[5] = opts->report_tools_needed_for_production ? 0 : 1;
+    vals[6] = opts->report_inefficient_government ? 0 : 1;
+    vals[7] = opts->report_new_cargos_available ? 0 : 1;
+    vals[8] = opts->report_sons_of_liberty_membership ? 0 : 1;
+    vals[9] = opts->report_rebel_majorities ? 0 : 1;
   }
   return options_load_section(
     dlg,
@@ -265,16 +270,17 @@ void options_dialog_apply_colony(
   if (dlg->result_count < 10) {
     return;
   }
-  opts->labels_on_buildings = dlg->result_values[0] ? 1 : 0;
-  opts->labels_on_cargo_and_terrain = dlg->result_values[1] ? 1 : 0;
-  opts->report_when_colonists_trained = dlg->result_values[2] ? 1 : 0;
-  opts->report_food_shortages = dlg->result_values[3] ? 1 : 0;
-  opts->report_raw_materials_shortages = dlg->result_values[4] ? 1 : 0;
-  opts->report_tools_needed_for_production = dlg->result_values[5] ? 1 : 0;
-  opts->report_inefficient_government = dlg->result_values[6] ? 1 : 0;
-  opts->report_new_cargos_available = dlg->result_values[7] ? 1 : 0;
-  opts->report_sons_of_liberty_membership = dlg->result_values[8] ? 1 : 0;
-  opts->report_rebel_majorities = dlg->result_values[9] ? 1 : 0;
+  /* Inverted on the way back out too — see options_dialog_open_colony. */
+  opts->labels_on_buildings = dlg->result_values[0] ? 0 : 1;
+  opts->labels_on_cargo_and_terrain = dlg->result_values[1] ? 0 : 1;
+  opts->report_when_colonists_trained = dlg->result_values[2] ? 0 : 1;
+  opts->report_food_shortages = dlg->result_values[3] ? 0 : 1;
+  opts->report_raw_materials_shortages = dlg->result_values[4] ? 0 : 1;
+  opts->report_tools_needed_for_production = dlg->result_values[5] ? 0 : 1;
+  opts->report_inefficient_government = dlg->result_values[6] ? 0 : 1;
+  opts->report_new_cargos_available = dlg->result_values[7] ? 0 : 1;
+  opts->report_sons_of_liberty_membership = dlg->result_values[8] ? 0 : 1;
+  opts->report_rebel_majorities = dlg->result_values[9] ? 0 : 1;
 }
 
 bool options_dialog_apply_sound(
