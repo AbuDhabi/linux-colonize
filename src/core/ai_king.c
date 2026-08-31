@@ -2430,11 +2430,25 @@ static void ai_king_do_declare(ColonizeTurnContext* ctx, int human) {
   ai_king_write_rival_nation_slots(ctx->col1, human);
   /* FUN_43f7_2564 congress-confirm stand-in. */
   ai_king_latch_set(ctx->col1, AI_KING_CONGRESS_BYTE, 1);
-  const int diff = ctx->col1->head.difficulty;
-  ctx->col1->head.expeditionary_force[0] = (uint16_t)(8 + diff * 4);
-  ctx->col1->head.expeditionary_force[1] = (uint16_t)(4 + diff * 2);
-  ctx->col1->head.expeditionary_force[2] = (uint16_t)(2 + diff);
-  ctx->col1->head.expeditionary_force[3] = (uint16_t)(2 + diff);
+  /*
+   * DOS FUN_43f7_1a26 writes only the foreign-intervention pool
+   * (0x53e2..0x53e8 backup_force) here — the Expeditionary Force itself is
+   * whatever accumulated since the new-game seed (75c2:360b: regulars
+   * 8*diff+15 etc.) plus the tax-event growth; re-seeding it at declare
+   * (an earlier stand-in from when new games started at 0) shrank an
+   * accumulated force. Fallback-seed only if it is still all zero (a save
+   * from a build without the new-game seed).
+   */
+  if (ctx->col1->head.expeditionary_force[0] == 0 &&
+      ctx->col1->head.expeditionary_force[1] == 0 &&
+      ctx->col1->head.expeditionary_force[2] == 0 &&
+      ctx->col1->head.expeditionary_force[3] == 0) {
+    const int diff = ctx->col1->head.difficulty;
+    ctx->col1->head.expeditionary_force[0] = (uint16_t)(8 * diff + 15);
+    ctx->col1->head.expeditionary_force[1] = (uint16_t)(5 * (diff + 1));
+    ctx->col1->head.expeditionary_force[2] = (uint16_t)(3 * diff + 2);
+    ctx->col1->head.expeditionary_force[3] = (uint16_t)(6 * diff + 2);
+  }
   ai_king_seed_backup_force_1a26(ctx, human);
   /* FUN_43f7_1a26 right after the pool seed: latch the declaration year into
    * DS:0x53a7/0x53a8 (year/100, year%100 — the king-audience RNG bytes,

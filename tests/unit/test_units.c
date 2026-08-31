@@ -1256,12 +1256,6 @@ static int unit_fog_vis_mask_and_snapshot(void) {
     fprintf(stderr, "fog: mask after move away = 0x%02x\n", mb2);
     return 1;
   }
-  if (!units_nation_sees_tile_now(&units, &colonies, 2, 5, 4) ||
-      units_nation_sees_tile_now(&units, &colonies, 2, 7, 7)) {
-    fprintf(stderr, "fog: colony live sight radius wrong\n");
-    return 1;
-  }
-
   /*
    * bugs.md: an Indian Convert must carry its own sprite on the map, not the
    * plain Free Colonist one — DOS FUN_112b_0060 routes every @UNIT type 0

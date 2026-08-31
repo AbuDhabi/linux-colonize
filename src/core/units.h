@@ -1220,19 +1220,6 @@ int units_top_on_map_tile(
   const ColonizeWorldMap* map
 );
 
-/*
- * FUN_1427_0bfe live sight: true if nation_id has an on-map unit or a colony
- * on one of the 8 neighbours of (x,y) (the tile itself excluded). Pool /
- * colony based; map_nation_watches_tile is the occupancy-bit form.
- */
-bool units_nation_sees_tile_now(
-  const ColonizeUnitPool* pool,
-  const ColonizeColonyPool* colonies,
-  int nation_id,
-  int x,
-  int y
-);
-
 /* selected_visible: when false, hide the selected unit (blink off frame). */
 void units_render_on_map(
   const ColonizeUnitPool* pool,

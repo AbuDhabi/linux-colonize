@@ -279,23 +279,23 @@ void unit_chrome_selection_frame(
   if (!out_x || !out_y || !out_w || !out_h) {
     return;
   }
-  const int sw = sprite_w > 0 ? sprite_w : 16;
-  const int sh = sprite_h > 0 ? sprite_h : 16;
+  (void)sprite_w;
+  (void)sprite_h;
   /*
-   * One pixel around the colour sprite, and nothing more. Measured off
-   * original_screenshots/europe/main_with_caravel_and_two_colonists.png,
-   * where the selected dock colonist's green frame is 18x18 (x 232..249,
-   * y 137..154) around a 16x16 icon — a 1px margin on the sprite itself,
-   * not on the shadow or the orders badge, both of which sit inside it.
-   * This used to pad by STACK_PAD as well and came out 3px proud on every
-   * side, which is the "2px too far each direction" in bugs.md; it also
-   * left the chrome frames a different size from the plain-icon ones the
-   * colony strips draw.
+   * Fixed 18x18 cell box, independent of the sprite's own width. DOS draws
+   * the selection around the 16x16 icon *cell*, not the sprite: the military
+   * view's box at 2f2b:1f7f..1faa spans x-1..x+16 by y-1..y+16 (18x18
+   * inclusive) whatever unit sits in the slot, and the Europe screenshot
+   * (original_screenshots/europe/main_with_caravel_and_two_colonists.png)
+   * shows the same 18x18 frame around a dock colonist whose colour sprite is
+   * only ~8px wide. The previous sprite-hugging box came out visibly narrow
+   * for anything slimmer than a ship (bugs.md: "selection rectangles now too
+   * narrow ... should be square").
    */
-  *out_x = x + UNIT_CHROME_SPRITE_DX - 1;
+  *out_x = x - 1;
   *out_y = y - 1;
-  *out_w = sw + 2;
-  *out_h = sh + 2;
+  *out_w = 18;
+  *out_h = 18;
 }
 
 /*

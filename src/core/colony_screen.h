@@ -147,6 +147,7 @@ typedef enum ColonyScreenHit {
   COLONY_HIT_EXIT,
   COLONY_HIT_CONSTRUCTION_OUTSIDE,
   COLONY_HIT_AREA_TILE,
+  COLONY_HIT_AREA_INTERIOR, /* area-view centre / non-assignable spot: numbers toggle */
   COLONY_HIT_JOBS_ROW,
   COLONY_HIT_JOBS_CLEAR,
   COLONY_HIT_JOBS_OUTSIDE,
@@ -201,12 +202,29 @@ typedef struct ColonyScreenHitResult {
 /* Units on the lower (first) row of the Units pane before it wraps upward. */
 #define COLONY_MULTI_UNITS_ROW0 5
 
+/*
+ * DOS FUN_2f2b_1e46 / 59a0 geometry (2f2b:1ecc..1ffd, click 2f2b:59a0):
+ * bottom row of 5 full icons at x=0xd5 step 0x12, y=0x9e; up to two
+ * overflow rows above it (y=0x98, then 0x90) of 17 miniature 3x5 unit
+ * sprites at step 5.
+ */
+#define COLONY_MULTI_UNITS_X 0xd5
+#define COLONY_MULTI_UNITS_ROW0_Y 0x9e
+#define COLONY_MULTI_UNITS_ROW0_STEP 0x12
+#define COLONY_MULTI_UNITS_ROW1_Y 0x98
+#define COLONY_MULTI_UNITS_ROW2_Y 0x90
+#define COLONY_MULTI_UNITS_OVERFLOW_STEP 5
+#define COLONY_MULTI_UNITS_OVERFLOW_PER_ROW 0x11
+#define COLONY_MULTI_UNITS_MINI_W 3
+#define COLONY_MULTI_UNITS_MINI_H 5
+
 typedef struct ColonyMultiUnitSlot {
   int unit_id;
   int x;
   int y;
   int w;
   int h;
+  bool mini; /* overflow-row 3x5 miniature (rows past the first 5 units) */
 } ColonyMultiUnitSlot;
 
 typedef struct ColonyScreenView {

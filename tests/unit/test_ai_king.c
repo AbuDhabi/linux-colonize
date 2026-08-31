@@ -4435,6 +4435,10 @@ int main(void) {
         return fail("KING_CONGRESS choices should use @DECLARE Never/Yes labels");
       }
     }
+    /* Earlier subtests left a partial force (no man-o-wars); zero it so the
+     * declare-time fallback seed (DOS 75c2:360b values) provides the fleet
+     * the same-turn wave below needs. */
+    memset(col1.head.expeditionary_force, 0, sizeof(col1.head.expeditionary_force));
     pop.has_result = true;
     pop.result_cancelled = false;
     pop.result_choice_id = 1; /* Confirm (AI_KING_CHOICE_CONFIRM) */

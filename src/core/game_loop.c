@@ -3274,6 +3274,26 @@ static bool game_save_col1_slot(ColonizeGameState* game, int slot, char* err, si
       );
     }
     game->col1.head.difficulty = (uint8_t)game->difficulty;
+    /*
+     * DOS new-game REF seed (75c2:360b..3643, diff = DS:0x53a6): the
+     * Expeditionary Force exists from the first turn — regulars
+     * 8*diff+15, dragoons 5*(diff+1), man-o-wars 3*diff+2, artillery
+     * 6*diff+2 — and grows from tax events. Without it the Continental
+     * Congress page 1 force bars stayed empty for a whole new-game
+     * campaign (bugs.md: "English Expeditionary Force ... is empty");
+     * loaded DOS saves carried theirs, which is why the Dutch golden
+     * seemed to be the only nation implemented.
+     */
+    if (game->col1.head.expeditionary_force[0] == 0 &&
+        game->col1.head.expeditionary_force[1] == 0 &&
+        game->col1.head.expeditionary_force[2] == 0 &&
+        game->col1.head.expeditionary_force[3] == 0) {
+      const int diff = game->col1.head.difficulty;
+      game->col1.head.expeditionary_force[0] = (uint16_t)(8 * diff + 15);
+      game->col1.head.expeditionary_force[1] = (uint16_t)(5 * (diff + 1));
+      game->col1.head.expeditionary_force[2] = (uint16_t)(3 * diff + 2);
+      game->col1.head.expeditionary_force[3] = (uint16_t)(6 * diff + 2);
+    }
     game->col1_ok = true;
     if (game->game_year == 0) {
       game->game_year = 1492;
@@ -4048,17 +4068,186 @@ static const ColonizeFont* europe_menu_font(const ColonizeGameState* game) {
   if (!game) {
     return NULL;
   }
+  /* GAME.TXT @KINGRECRUIT (the Train dialog) carries @smallfont — DOS swaps
+   * the list dialog to FONTTINY for it (bugs.md: "improper fonts"); the
+   * other three stay on FONTINTR, the generic dialog font. */
+  if (game->europe.menu == EUROPE_MENU_TRAIN && game->colony_font_ok) {
+    return &game->colony_font;
+  }
   if (game->intro_font_ok) {
     return &game->intro_font;
   }
   return game->menu_font_ok ? &game->menu_font : NULL;
 }
 
+/*
+ * Title prose for the open menu, GAME.TXT verbatim with the {highlight}
+ * braces kept (drawn in the highlight ink, as DOS does). %NUMBER0 in
+ * @RECRUIT is the passage price.
+ */
+static void europe_menu_title_prose(const ColonizeGameState* game, char* buf, size_t n) {
+  const EuropeScreen* eu = &game->europe;
+  const char* section = NULL;
+  const char* fallback = "";
+  switch (eu->menu) {
+    case EUROPE_MENU_RECRUIT:
+      section = "RECRUIT";
+      fallback = "The following individuals will accompany us to the New World if we "
+                 "will pay their passage ({%NUMBER0 gold}).  Whom shall we recruit?";
+      break;
+    case EUROPE_MENU_TRAIN:
+      section = "KINGRECRUIT";
+      fallback = "The {Royal University} can provide us with specialists if we grease "
+                 "the right palms.  Which skill shall we request?";
+      break;
+    case EUROPE_MENU_PURCHASE:
+      section = "PURCHASE";
+      fallback = "The following items are available.  Which shall we purchase?";
+      break;
+    case EUROPE_MENU_DOCK:
+      section = "EUROPEARM";
+      fallback = "European dock options:";
+      break;
+    default:
+      buf[0] = '\0';
+      return;
+  }
+  /* Join the section's prose lines into one flowing paragraph. */
+  char prose[512];
+  prose[0] = '\0';
+  size_t used = 0;
+  const ColonizeMsgSection* sec = assets_msg_find(&game->messages, section);
+  for (int i = 0; sec && i < sec->line_count; ++i) {
+    const char* ln = sec->lines[i];
+    if (popup_msg_is_directive(ln) || !ln[0]) {
+      continue;
+    }
+    if (used > 0 && used + 1 < sizeof(prose)) {
+      prose[used++] = ' ';
+      prose[used] = '\0';
+    }
+    const size_t len = strlen(ln);
+    if (used + len < sizeof(prose)) {
+      memcpy(prose + used, ln, len + 1);
+      used += len;
+    }
+  }
+  const char* src = prose[0] ? prose : fallback;
+  /* Substitute %NUMBER0 (passage) but KEEP the braces for the ink toggle. */
+  size_t o = 0;
+  for (size_t i = 0; src[i] && o + 1 < n;) {
+    if (strncmp(src + i, "%NUMBER0", 8) == 0) {
+      char num[16];
+      const int len = snprintf(num, sizeof(num), "%d", eu->recruit_passage);
+      if (o + (size_t)len < n) {
+        memcpy(buf + o, num, (size_t)len);
+        o += (size_t)len;
+      }
+      i += 8;
+      continue;
+    }
+    buf[o++] = src[i++];
+  }
+  buf[o] = '\0';
+}
+
+/* Pixel width of a string with the {} markup skipped. */
+static int europe_prose_width(const ColonizeFont* font, const char* s, int len) {
+  char tmp[128];
+  int t = 0;
+  for (int i = 0; i < len && s[i] && t + 1 < (int)sizeof(tmp); ++i) {
+    if (s[i] != '{' && s[i] != '}') {
+      tmp[t++] = s[i];
+    }
+  }
+  tmp[t] = '\0';
+  return font_text_width(font, tmp);
+}
+
+/*
+ * Word-wrap and (when fb != NULL) draw prose at (x,y) within w. {…} spans
+ * take the highlight ink; the state carries across words and lines, like
+ * DOS's dialog text writer. Returns the height used.
+ */
+static int europe_draw_prose(
+  const ColonizeFont* font,
+  ColonizeFramebuffer8* fb,
+  int x,
+  int y,
+  int w,
+  const char* text,
+  uint8_t base_color,
+  uint8_t hi_color
+) {
+  if (!font || !text || w <= 0) {
+    return 0;
+  }
+  const int line_h = font->max_height + 1;
+  const int space_w = font_text_width(font, " ");
+  int cx = 0;
+  int cy = 0;
+  bool hi = false;
+  const char* p = text;
+  while (*p) {
+    while (*p == ' ') {
+      ++p;
+    }
+    if (!*p) {
+      break;
+    }
+    const char* word = p;
+    while (*p && *p != ' ') {
+      ++p;
+    }
+    const int wlen = (int)(p - word);
+    const int ww = europe_prose_width(font, word, wlen);
+    if (cx > 0 && cx + space_w + ww > w) {
+      cx = 0;
+      cy += line_h;
+    } else if (cx > 0) {
+      cx += space_w;
+    }
+    /* Draw the word as same-ink runs, flipping on the braces. */
+    int i = 0;
+    while (i < wlen) {
+      if (word[i] == '{') {
+        hi = true;
+        ++i;
+        continue;
+      }
+      if (word[i] == '}') {
+        hi = false;
+        ++i;
+        continue;
+      }
+      int j = i;
+      while (j < wlen && word[j] != '{' && word[j] != '}') {
+        ++j;
+      }
+      char run[96];
+      const int rl = j - i < (int)sizeof(run) - 1 ? j - i : (int)sizeof(run) - 1;
+      memcpy(run, word + i, (size_t)rl);
+      run[rl] = '\0';
+      if (fb) {
+        font_draw_text(font, fb, x + cx, y + cy, run, hi ? hi_color : base_color);
+      }
+      cx += font_text_width(font, run);
+      i = j;
+    }
+  }
+  return cy + line_h;
+}
+
 typedef struct EuropeMenuLayout {
   int rows;
+  int dialog_x;
+  int dialog_y;
+  int dialog_w;
+  int dialog_h;
   int inner_x;
   int inner_y;
   int inner_w;
+  int title_h;
   int list_y0;
   int line_h;
   int pad;
@@ -4099,16 +4288,28 @@ static bool europe_menu_layout(
   if (dialog_w > fb_w - 8) {
     dialog_w = fb_w - 8;
   }
-  int dialog_h = POPUP_FRAME_INSET * 2 + out->pad + out->line_h + out->rows * out->line_h + out->pad;
+  out->inner_w = dialog_w - POPUP_FRAME_INSET * 2;
+  /* Multi-line GAME.TXT prose title; measure with the menu's own font so
+   * the row hit-test can never drift from the drawn rows. */
+  char prose[512];
+  europe_menu_title_prose(game, prose, sizeof(prose));
+  out->title_h = font ? europe_draw_prose(
+                          font, NULL, 0, 0, out->inner_w - out->pad * 2, prose, 10, 14
+                        )
+                      : out->line_h;
+  /* +line_h at the bottom: the DOS "(F1 for Help)" footer line. */
+  int dialog_h = POPUP_FRAME_INSET * 2 + out->pad + out->title_h + 2 +
+                 out->rows * out->line_h + out->line_h + out->pad;
   if (dialog_h > fb_h - 8) {
     dialog_h = fb_h - 8;
   }
-  const int dialog_x = (fb_w - dialog_w) / 2;
-  const int dialog_y = 16;
-  out->inner_x = dialog_x + POPUP_FRAME_INSET;
-  out->inner_y = dialog_y + POPUP_FRAME_INSET;
-  out->inner_w = dialog_w - POPUP_FRAME_INSET * 2;
-  out->list_y0 = out->inner_y + out->pad + out->line_h;
+  out->dialog_w = dialog_w;
+  out->dialog_h = dialog_h;
+  out->dialog_x = (fb_w - dialog_w) / 2;
+  out->dialog_y = 16;
+  out->inner_x = out->dialog_x + POPUP_FRAME_INSET;
+  out->inner_y = out->dialog_y + POPUP_FRAME_INSET;
+  out->list_y0 = out->inner_y + out->pad + out->title_h + 2;
   return out->inner_w > 0;
 }
 
@@ -4143,45 +4344,6 @@ static void europe_render_menu_popup(
   const int pad = lay.pad;
   const int rows = lay.rows;
 
-  char title[64];
-  switch (eu->menu) {
-    case EUROPE_MENU_RECRUIT:
-      snprintf(title, sizeof(title), "Recruit (passage %d$)", eu->recruit_passage);
-      break;
-    case EUROPE_MENU_TRAIN:
-      snprintf(title, sizeof(title), "%s", "The Royal University");
-      break;
-    case EUROPE_MENU_PURCHASE:
-      snprintf(title, sizeof(title), "%s", "Purchase");
-      break;
-    case EUROPE_MENU_DOCK: {
-      /* GAME.TXT @EUROPEARM. */
-      const ColonizeMsgSection* sec = assets_msg_find(&game->messages, "EUROPEARM");
-      const char* head = NULL;
-      for (int i = 0; sec && i < sec->line_count; ++i) {
-        if (!popup_msg_is_directive(sec->lines[i]) && sec->lines[i][0]) {
-          head = sec->lines[i];
-          break;
-        }
-      }
-      snprintf(title, sizeof(title), "%s", head ? head : "European dock options:");
-      break;
-    }
-    default:
-      return;
-  }
-
-  int dialog_w = 220;
-  if (dialog_w > framebuffer->width - 8) {
-    dialog_w = framebuffer->width - 8;
-  }
-  int dialog_h = POPUP_FRAME_INSET * 2 + pad + line_h + rows * line_h + pad;
-  if (dialog_h > framebuffer->height - 8) {
-    dialog_h = framebuffer->height - 8;
-  }
-  const int dialog_x = (framebuffer->width - dialog_w) / 2;
-  const int dialog_y = 16;
-
   ColonizePopupColors colors;
   popup_colors_from_ui(&colors);
   int inner_x = 0;
@@ -4190,10 +4352,10 @@ static void europe_render_menu_popup(
   int inner_h = 0;
   popup_draw(
     framebuffer,
-    dialog_x,
-    dialog_y,
-    dialog_w,
-    dialog_h,
+    lay.dialog_x,
+    lay.dialog_y,
+    lay.dialog_w,
+    lay.dialog_h,
     (eu->wood_tile_ok) ? &eu->wood_tile : NULL,
     &colors,
     &inner_x,
@@ -4205,11 +4367,21 @@ static void europe_render_menu_popup(
     return;
   }
 
-  font_draw_text(font, framebuffer, inner_x + pad, inner_y + pad, title, 15);
-  const int list_y0 = inner_y + pad + line_h;
+  /*
+   * DOS list-dialog styling (original_screenshots/europe/recruit|train|
+   * purchase.png): the GAME.TXT prose in green with {highlight} words in
+   * the highlight ink, tan rows with the cost right-aligned as
+   * "(Cost: N)", a grey row when the treasury cannot cover it, and the
+   * "(F1 for Help)" footer bottom-right in green.
+   */
+  char prose[512];
+  europe_menu_title_prose(game, prose, sizeof(prose));
+  europe_draw_prose(
+    font, framebuffer, inner_x + pad, inner_y + pad, inner_w - pad * 2, prose, 10, 14
+  );
 
   for (int i = 0; i < rows; ++i) {
-    const int row_y = list_y0 + i * line_h;
+    const int row_y = lay.list_y0 + i * line_h;
     if (row_y + line_h > framebuffer->height) {
       break;
     }
@@ -4219,7 +4391,9 @@ static void europe_render_menu_popup(
       );
     }
     char label[72];
-    uint8_t color = 15;
+    char cost[24];
+    cost[0] = '\0';
+    uint8_t color = 14;
     if (eu->menu == EUROPE_MENU_DOCK) {
       if (i < 0 || i >= eu->dock_menu_count) {
         continue;
@@ -4229,19 +4403,39 @@ static void europe_render_menu_popup(
        * disabled outright (europe_build_dock_menu already dropped those). */
       color = eu->dock_menu_greyed[i] ? 8 : 15;
     } else if (i == 0) {
-      snprintf(label, sizeof(label), "%s", "None");
+      snprintf(label, sizeof(label), "%s",
+               eu->menu == EUROPE_MENU_RECRUIT ? "(None)" : "None");
     } else if (eu->menu == EUROPE_MENU_RECRUIT) {
       const EuropePoolSlot* p = &eu->pool[i - 1];
       snprintf(label, sizeof(label), "%s", p->filled ? p->name : "(empty)");
+      if (eu->gold < eu->recruit_passage) {
+        color = 8; /* cannot pay the passage */
+      }
     } else if (eu->menu == EUROPE_MENU_TRAIN) {
       const EuropeTrainOption* t = &eu->train[i - 1];
-      snprintf(label, sizeof(label), "%s (Cost: %d)", t->expert_name, t->cost);
+      snprintf(label, sizeof(label), "%s", t->expert_name);
+      snprintf(cost, sizeof(cost), "(Cost: %d)", t->cost);
       color = (eu->gold >= t->cost) ? 14 : 8;
     } else if (eu->menu == EUROPE_MENU_PURCHASE) {
       const EuropePurchaseOption* p = &eu->purchase[i - 1];
-      snprintf(label, sizeof(label), "%s (Cost: %d)", p->name, p->gold);
+      snprintf(label, sizeof(label), "%s", p->name);
+      snprintf(cost, sizeof(cost), "(Cost: %d)", p->gold);
+      color = (eu->gold >= p->gold) ? 14 : 8;
     }
-    font_draw_text(font, framebuffer, inner_x + pad, row_y, label, color);
+    font_draw_text(font, framebuffer, inner_x + pad + 6, row_y, label, color);
+    if (cost[0]) {
+      const int cw = font_text_width(font, cost);
+      font_draw_text(font, framebuffer, inner_x + inner_w - pad - cw, row_y, cost, color);
+    }
+  }
+
+  {
+    const char* f1 = "(F1 for Help)";
+    const int fw = font_text_width(font, f1);
+    font_draw_text(
+      font, framebuffer, inner_x + inner_w - pad - fw,
+      lay.list_y0 + rows * line_h, f1, 10
+    );
   }
 }
 
@@ -9767,6 +9961,11 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
         game_colony_area_tile_drop(game, colony, cmap, hit.index);
         break;
       }
+      case COLONY_HIT_AREA_INTERIOR:
+        /* DOS 2f2b:609e — click on the area view's non-assignable centre
+         * flips the game-wide badge-numbers toggle (DS:0x336). */
+        csv->show_production_numbers = !csv->show_production_numbers;
+        break;
       case COLONY_HIT_JOBS_ROW:
         if (hit.index >= 0 && hit.index < csv->job_count) {
           const int job = csv->job_ids[hit.index];
