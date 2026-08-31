@@ -636,9 +636,18 @@ bool new_game_scenario_start(
   int* out_x,
   int* out_y
 ) {
-  /* Defaults: AMER2 England landing. */
-  int xs[4] = {39, 47, 50, 50};
-  int ys[4] = {10, 61, 33, 33};
+  /*
+   * @SCENARIO row is `stem, x0, y0, x1, y1, x2, y2, x3, y3` -- four start
+   * tiles, one per European power (docs/data_vs_hardcoded.md: "Per-scenario
+   * start tiles for four European powers"). All four AMER2 pairs are the
+   * westernmost high-seas tile of their own row, i.e. the Atlantic spot each
+   * nation's starting ship occupies. An earlier parse read the first pair as
+   * two unrelated leading fields, which shifted every nation down one slot and
+   * left nations 2 and 3 sharing a tile -- two AI fleets stacked on the same
+   * water with nowhere to sail.
+   */
+  int xs[4] = {34, 39, 47, 50};
+  int ys[4] = {20, 10, 61, 33};
   if (names_txt && map_stem) {
     const ColonizeMsgSection* section = assets_msg_find(names_txt, "SCENARIO");
     if (section) {
@@ -648,21 +657,20 @@ bool new_game_scenario_start(
           continue;
         }
         char stem[64];
-        int a = 0, b = 0, x0 = 0, y0 = 0, x1 = 0, y1 = 0, x2 = 0, y2 = 0, x3 = 0, y3 = 0;
+        int px[4] = {0, 0, 0, 0};
+        int py[4] = {0, 0, 0, 0};
         int n = sscanf(
           line,
-          "%63[^,], %d, %d, %d, %d, %d, %d, %d, %d, %d, %d",
+          "%63[^,], %d, %d, %d, %d, %d, %d, %d, %d",
           stem,
-          &a,
-          &b,
-          &x0,
-          &y0,
-          &x1,
-          &y1,
-          &x2,
-          &y2,
-          &x3,
-          &y3
+          &px[0],
+          &py[0],
+          &px[1],
+          &py[1],
+          &px[2],
+          &py[2],
+          &px[3],
+          &py[3]
         );
         /* Trim stem spaces */
         size_t sl = strlen(stem);
@@ -672,24 +680,18 @@ bool new_game_scenario_start(
         if (strcasecmp(stem, map_stem) != 0) {
           continue;
         }
-        if (n >= 6) {
-          xs[0] = x0;
-          ys[0] = y0;
-        }
-        if (n >= 8) {
-          xs[1] = x1;
-          ys[1] = y1;
-        }
-        if (n >= 10) {
-          xs[2] = x2;
-          ys[2] = y2;
-        }
-        if (n >= 12) {
-          xs[3] = x3;
-          ys[3] = y3;
-        } else if (n >= 10) {
-          xs[3] = x2;
-          ys[3] = y2;
+        /* Short rows repeat the last parsed pair rather than leaving a stale
+         * default from another scenario. */
+        int last = -1;
+        for (int k = 0; k < 4; ++k) {
+          if (n >= 3 + k * 2) {
+            xs[k] = px[k];
+            ys[k] = py[k];
+            last = k;
+          } else if (last >= 0) {
+            xs[k] = xs[last];
+            ys[k] = ys[last];
+          }
         }
         break;
       }

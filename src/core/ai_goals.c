@@ -235,20 +235,171 @@ const AiWorkSlot* ai_goals_work(int slot) {
   return &s_work[slot];
 }
 
-int ai_goals_best_found_tile(int nation_id, int* out_x, int* out_y) {
-  if (nation_id < 0 || nation_id >= 4 || !out_x || !out_y) {
+/*
+ * Nearest water tile a loaded transport can actually land settlers from.
+ *
+ * Scenario maps (@SCENARIO) start each Euro fleet on the Atlantic high-seas
+ * rim with no landfall target of its own, and the seed-100 landfall tables the
+ * Euro planner keys most of its first-colony geometry off do not resolve
+ * anywhere else. Without a target the ship sits on its spawn tile with the
+ * colonists aboard forever. This is the map-agnostic fallback: ring-scan out
+ * from `from` for a water/high-seas tile that is free and has a land neighbour
+ * a colony could be founded on. Nearest ring wins; inside a ring prefer the
+ * westward tile (America lies west of every Atlantic start), then the one
+ * closest to the starting latitude.
+ */
+int ai_goals_nearest_landing_water(
+  const ColonizeWorldMap* map,
+  const ColonizeUnitPool* units,
+  const ColonizeColonyPool* colonies,
+  int from_x,
+  int from_y,
+  int max_radius,
+  int* out_x,
+  int* out_y
+) {
+  if (!map || !out_x || !out_y || from_x < 0 || from_y < 0) {
     return 0;
   }
-  /* Primaries are priority-ordered; first FOUND/MIL_EXPAND wins. */
-  for (int i = 0; i < AI_PRIMARY_SLOTS; ++i) {
-    const AiGoalSlot* s = &s_goals[nation_id].primary[i];
-    if (s->code == AI_GOAL_FOUND || s->code == AI_GOAL_MIL_EXPAND) {
-      *out_x = s->x;
-      *out_y = s->y;
+  static const int k_dx[8] = {0, 1, 1, 1, 0, -1, -1, -1};
+  static const int k_dy[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
+  if (max_radius < 1) {
+    max_radius = 1;
+  }
+  for (int r = 1; r <= max_radius; ++r) {
+    int best_x = -1;
+    int best_y = -1;
+    int best_key = INT_MAX;
+    for (int y = from_y - r; y <= from_y + r; ++y) {
+      for (int x = from_x - r; x <= from_x + r; ++x) {
+        const int ax = (x > from_x) ? x - from_x : from_x - x;
+        const int ay = (y > from_y) ? y - from_y : from_y - y;
+        if ((ax > ay ? ax : ay) != r) {
+          continue; /* ring edge only */
+        }
+        if (x < 0 || y < 0 || x >= (int)map->width || y >= (int)map->height) {
+          continue;
+        }
+        if (!map_tile_is_water(map, x, y) && !map_tile_is_high_seas(map, x, y)) {
+          continue;
+        }
+        if (units && units_id_at(units, x, y) >= 0) {
+          continue; /* another ship is parked there */
+        }
+        int landable = 0;
+        for (int d = 0; d < 8; ++d) {
+          const int lx = x + k_dx[d];
+          const int ly = y + k_dy[d];
+          if (lx < 0 || ly < 0 || lx >= (int)map->width || ly >= (int)map->height) {
+            continue;
+          }
+          if (!map_tile_is_land(map, lx, ly) || map_tile_is_water(map, lx, ly)) {
+            continue;
+          }
+          if (colonies && !colonies_can_found(colonies, map, lx, ly)) {
+            continue;
+          }
+          landable = 1;
+          break;
+        }
+        if (!landable) {
+          continue;
+        }
+        /* West first, then nearest latitude. */
+        const int key = x * 256 + ay;
+        if (key < best_key) {
+          best_key = key;
+          best_x = x;
+          best_y = y;
+        }
+      }
+    }
+    if (best_x >= 0) {
+      *out_x = best_x;
+      *out_y = best_y;
       return 1;
     }
   }
   return 0;
+}
+
+int ai_goals_best_found_tile(int nation_id, int* out_x, int* out_y) {
+  /* Position-free query (CHEAT colony-site overlay): no distance tiebreak. */
+  return ai_goals_best_found_tile_near(NULL, nation_id, -1, -1, out_x, out_y);
+}
+
+/*
+ * Priority-then-distance FOUND pick.
+ *
+ * The primary table is priority-ordered, so taking the first FOUND slot is
+ * right on priority and blind on distance. Planning routinely fills the table
+ * with a whole band of equal-priority sites (one per tribe village, section F
+ * of the Euro planner), identical for all four nations, so every settler of
+ * every nation marched at the table's first entry however far away it was --
+ * across a strait on some maps, which meant no colony ever got founded. Among
+ * the slots that tie on the top priority, take the one nearest `from`
+ * (FUN_124c_0040 distance, the metric FUN_521d_0a60's own goal scan uses),
+ * preferring the unit's own landmass when the map is known.
+ */
+int ai_goals_best_found_tile_near(
+  const ColonizeWorldMap* map,
+  int nation_id,
+  int from_x,
+  int from_y,
+  int* out_x,
+  int* out_y
+) {
+  if (nation_id < 0 || nation_id >= 4 || !out_x || !out_y) {
+    return 0;
+  }
+  const int have_from = (from_x >= 0 && from_y >= 0);
+  const int from_cont =
+    (map && have_from) ? map_continent_id_at(map, from_x, from_y) : -1;
+
+  int best_x = -1;
+  int best_y = -1;
+  int best_prio = -1;
+  int best_dist = INT_MAX;
+  int best_same_cont = -1;
+  for (int i = 0; i < AI_PRIMARY_SLOTS; ++i) {
+    const AiGoalSlot* s = &s_goals[nation_id].primary[i];
+    if (s->code != AI_GOAL_FOUND && s->code != AI_GOAL_MIL_EXPAND) {
+      continue;
+    }
+    if (!have_from) {
+      *out_x = s->x;
+      *out_y = s->y;
+      return 1; /* priority order alone, as before */
+    }
+    int dx = (int)s->x - from_x;
+    int dy = (int)s->y - from_y;
+    if (dx < 0) {
+      dx = -dx;
+    }
+    if (dy < 0) {
+      dy = -dy;
+    }
+    const int dist = (dx < dy) ? dx / 2 + dy : dy / 2 + dx;
+    const int same_cont =
+      (from_cont >= 0) ? (map_continent_id_at(map, s->x, s->y) == from_cont) : 0;
+    /* Reachable landmass first, then priority, then distance. */
+    if (same_cont > best_same_cont ||
+        (same_cont == best_same_cont &&
+         ((int)s->prio > best_prio ||
+          ((int)s->prio == best_prio && dist < best_dist)))) {
+      best_same_cont = same_cont;
+      best_prio = (int)s->prio;
+      best_dist = dist;
+      best_x = s->x;
+      best_y = s->y;
+    }
+  }
+  if (best_x < 0) {
+    return 0;
+  }
+  *out_x = best_x;
+  *out_y = best_y;
+  return 1;
 }
 
 /*
@@ -348,6 +499,26 @@ int ai_goals_pick_founding_tile_ex(
     /* Arctic never foundable. */
     if (map_pedia_terrain_index_at(map, nx, ny) == 24) {
       continue;
+    }
+    /*
+     * Never the village tile itself (DOS: "Illegal entry into village").
+     * colonies_can_found only knows the layer2 has-city bit, which a
+     * new-game tribe placement never stamps, so on a fresh map this search
+     * happily returned a dwelling as a colony site -- the founder then walked
+     * into the village, which resolves as an attack, and died there.
+     */
+    if (col1 && col1->tribe) {
+      int on_village = 0;
+      for (uint16_t ti = 0; ti < col1->head.tribe_count; ++ti) {
+        const ColonizeCol1Tribe* t = &col1->tribe[ti];
+        if ((int)t->x == nx && (int)t->y == ny && t->nation_id >= 4) {
+          on_village = 1;
+          break;
+        }
+      }
+      if (on_village) {
+        continue;
+      }
     }
     /*
      * Tribe/owner gate (06d2/06be): empty or foundable. Stay (dir 8) may keep

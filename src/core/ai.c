@@ -433,8 +433,25 @@ static bool ai_spawn_euro_fleet(
     }
   }
 
+  /*
+   * AMERICA / TRIBE.TXT: the @SCENARIO tile *is* the ship's Atlantic start, so
+   * using it as the landfall goto leaves the fleet ordered to sail to the tile
+   * it already occupies -- it never moved and never put its colonists ashore.
+   * Aim at real coast instead.
+   */
+  int goto_x = landfall_x;
+  int goto_y = landfall_y;
+  if (p && p->use_tribe_txt && sx == landfall_x && sy == landfall_y) {
+    int wx = 0;
+    int wy = 0;
+    if (ai_goals_nearest_landing_water(map, units, NULL, sx, sy, 24, &wx, &wy)) {
+      goto_x = wx;
+      goto_y = wy;
+    }
+  }
+
   const int ship_id = units_spawn_euro_starter_fleet(
-    units, nation, difficulty, sx, sy, landfall_x, landfall_y
+    units, nation, difficulty, sx, sy, goto_x, goto_y
   );
   return ship_id >= 0;
 }

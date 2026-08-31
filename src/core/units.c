@@ -6531,6 +6531,27 @@ bool units_advance_goto_one_step(
   if (!units_next_goto_step(pool, unit_id, map, colonies, rng, &nx, &ny)) {
     return false;
   }
+  /*
+   * A goto must never turn into an attack by a unit that cannot fight
+   * (@UNIT attack 0: Pioneers, Colonists, Wagon Trains, unarmed transports).
+   * Stepping onto a foreign unit, or onto a native village -- which
+   * units_try_move resolves as an attack even with no unit visible on the tile
+   * -- killed AI settlers walking to their colony site, and would do the same
+   * to a human unit under goto orders. Stop the order instead.
+   */
+  {
+    const ColonizeUnitType* mt = units_type(pool, u->type_index);
+    const int missionary = mt && mt->name[0] && strstr(mt->name, "Missionar") != NULL;
+    if (mt && mt->attack <= 0 && !missionary) {
+      const int occ = units_id_at(pool, nx, ny);
+      const ColonizeUnit* of = occ >= 0 ? units_get_const(pool, occ) : NULL;
+      const int village = units_tribe_nation_at(g_units_ff_col1, nx, ny);
+      if ((of && of->nation_id != u->nation_id) ||
+          (village >= 4 && u->nation_id >= 0 && u->nation_id <= 3)) {
+        return false;
+      }
+    }
+  }
   if (!units_try_move(pool, unit_id, map, nx, ny, colonies, rng)) {
     return false;
   }

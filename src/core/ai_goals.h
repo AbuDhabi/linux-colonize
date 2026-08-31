@@ -73,6 +73,31 @@ int ai_goals_max_primary_prio(int nation_id, int x, int y, int code);
 const AiGoalSlot* ai_goals_primary(int nation_id, int slot);
 const AiWorkSlot* ai_goals_work(int slot);
 int ai_goals_best_found_tile(int nation_id, int* out_x, int* out_y);
+/*
+ * Nearest free water/high-seas tile within `max_radius` of (from_x, from_y)
+ * that has a foundable land neighbour -- the map-agnostic landing target for a
+ * loaded transport with no landfall of its own. Ties break westward.
+ */
+int ai_goals_nearest_landing_water(
+  const ColonizeWorldMap* map,
+  const ColonizeUnitPool* units,
+  const ColonizeColonyPool* colonies,
+  int from_x,
+  int from_y,
+  int max_radius,
+  int* out_x,
+  int* out_y
+);
+/* Same, but tie-broken by distance from (from_x, from_y) and preferring
+ * the landmass that point sits on. Pass from_x < 0 for the plain scan. */
+int ai_goals_best_found_tile_near(
+  const ColonizeWorldMap* map,
+  int nation_id,
+  int from_x,
+  int from_y,
+  int* out_x,
+  int* out_y
+);
 
 /*
  * FUN_521d_001c — invalidate_nearby_secondary_goals.
