@@ -245,6 +245,31 @@ stays deferred (D4).
   location/destination. **Done** — golden `naval.png`.
 - [x] **P2.9 [auto]** F8 Foreign Affairs: rival strength table (de Witt
   gating), war/peace status. **Done** — golden `foreign.png`.
+  **2026-08-31 — the de Witt half was actually missing; now ported, plus
+  three corrections found in the same read** (`FUN_3f41_2548` re-read from
+  raw `.asm` 3f41:2548..2aca, because Ghidra drops this function's pushed
+  values and mis-pairs every label with its number):
+  - **Jan de Witt reveal grid** — six cells per block, two rows of three at
+    x=2/80/160, filling the empty space the user reported: Colonies /
+    Average Colony / Population (row A), Military Power / Naval Power /
+    Merchant Marine (row B). Gate = viewer owns FF #4 **or**
+    `head.show_entire_map`. Formulas + @MISC ids in
+    [reports.md](reports.md) F8. Resolved `unknown_ds_944e` →
+    `avg_colony_pop` (mean colony size, `FUN_4962_0018` divides in place)
+    as a side effect.
+  - **Peer line never wraps** — DOS's x ladder is 2/80/160/240 on one line;
+    the port's 2-column wrap was an invention that would have overflowed
+    the 45px block once the de Witt rows were added.
+  - **Real gates** — the centered "(Withdrawn from New World)" keys off
+    `head.crown_nation_id`, not `player.control`; peers are filtered on
+    `euro_relation` bit 0x20 (met); War/Peace is bit 0x40 (set = peace) in
+    one direction, superseding the old `(ab|ba) & 0x02` empirical fit;
+    `nation_flags` bit 0x04 splices "Free" into the header and drops that
+    block's Rebels/Tories line.
+  - **Bug fix** — a War pair printed "Peace" in the War colour
+    (`reports_labels_field`'s single static buffer aliased between @MISC
+    101 and 102). Golden diff 3580 → 3372 px; the no-de-Witt render is
+    otherwise byte-identical to the pre-change baseline. ctest 52/52.
 - [x] **P2.10 [auto]** F9 Indian Adviser: tribes, attitude, missions.
   **Done** — golden `indian.png`. Headband-portrait variant selection
   (`ICONS.SS` #113-117) still unidentified, always renders #113 — cosmetic,

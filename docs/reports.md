@@ -278,20 +278,66 @@ unconfirmed against DOS. Congress page 2's FF portrait slot table has only
 - DOS FUN: `FUN_3f41_2548` (70787, 247 lines, "euro rivals, war, strength")
   — thunk `FUN_291f_03b8`.
 - Background: `REPORT8.PIK`.
-- Data source: per-nation block, fixed English/French/Spanish/Dutch order —
-  `player[n].control` (2=withdrawn); war/peace read via
-  `nation[a].euro_relation[b]` bit 0x02 in either direction (empirically
-  fit against a golden — `ai_diplo.h`'s documented `AI_DIPLO_WAR` bit 0x01
-  does not reproduce the golden's War pairs; kept report-local, not fed
-  back into the shared AI module); `col1->stuff.census_pop_proxy[nation]`
-  (DS:0x9410) for Rebels/Tories, not summed colony `.population` (which
-  undercounts by every field colonist-type unit).
+- **Fully re-read from `FUN_3f41_2548` on 2026-08-31** (raw `.asm`
+  3f41:2548..2aca — Ghidra drops this function's pushed values and
+  reorders them, so the decompiled C mis-pairs every label with its
+  number). Everything below is that read.
+- Data source: per-nation block, fixed English/French/Spanish/Dutch order.
+  - **Crown slot:** `head.crown_nation_id` (DS:0x53d2) — that block prints
+    a centered "(Withdrawn from New World)" (@MISC 190) and nothing else.
+    This, not `player[n].control`, is DOS's gate; `dutch-reports.SAV` has
+    Spain as both, which is why the old control-based reading fit.
+  - **"Free":** `nation[n].nation_flags` bit `0x04` splices @MISC 191
+    ("Free") into the header between the leader's name and the adjective,
+    and drops that block's Rebels/Tories line.
+  - **War/peace + met:** one byte, one direction —
+    `nation[a].euro_relation[b]` (DOS `FUN_281f_0a38(a, b)`): bit `0x20`
+    = met (an unmet peer is not listed at all), bit `0x40` = at peace,
+    clear = at war. This **supersedes** the old report-local
+    "`(ab|ba) & 0x02` in either direction" empirical fit, which happened
+    to agree on every pair in the golden. `ai_diplo.h`'s `AI_DIPLO_WAR`
+    0x01 is still not this byte's DOS decode and is still untouched.
+  - **Rebels/Tories:** `col1->stuff.census_pop_proxy[nation]` (DS:0x9410),
+    not summed colony `.population` (which undercounts by every field
+    colonist-type unit). `rebels = pop * rebel_sentiment / 100`.
 - Columns/layout: one fixed block per nation, always 4 slots (own nation
-  and withdrawn peers skipped inside a block, not compacted) — header rule,
-  "<Leader>'s <Adjective>:", then either centered "(Withdrawn from New
-  World)" or a 2-column peer-relation grid ("<peer>: Peace|War", columns
-  x=2/80), then "Rebels: N   Tories: N". Block rule y=10/55/100/145, 7px
-  line pitch.
+  and unmet/crown peers skipped inside a block, not compacted). Block rule
+  y=10/55/100/145; `local_60` starts at 13 and every drawn body line
+  advances it by `FONTTINY.height + 1` = 7px:
+
+  | line | y | contents |
+  |------|---|----------|
+  | header | block_top+3 | "<Leader>'s [Free ]<Adjective>:" |
+  | de Witt A | block_top+10 | Colonies / Average Colony / Population |
+  | de Witt B | block_top+17 | Military Power / Naval Power / Merchant Marine |
+  | peers | +7 | up to 3 cells, **one line** |
+  | rebels | +7 | "Rebels: N   Tories: N" (only if a peer was drawn) |
+
+  Without de Witt the two detail rows are absent and the peer line sits at
+  block_top+17, as the golden shows. Cell x for both the detail grid and
+  the peer line is the `.asm`'s `if (x < 0x50) x = 0x50; else x += 0x50`
+  ladder: **2 / 80 / 160 / 240** — a single row, never a 2-column wrap
+  (the earlier "2-column grid" reading came from a golden where every
+  block has only 2 peers).
+- **Jan de Witt detail grid (P2.13, 2026-08-31).** Gated on the *viewing*
+  nation owning FF #4 or on `head.show_entire_map` (DOS
+  `FUN_281f_07b4(viewer, 4) || DS:0x53a2`). Six cells, drawn as one
+  "<label>: <n>" string each in the Rebels/Tories colour, values straight
+  off the DOS census block (`stuff`, written by `FUN_4962_0018`):
+
+  | cell | @MISC | source |
+  |------|-------|--------|
+  | Colonies | 95 | `stuff.colony_counts[n]` (DS:0x9298) |
+  | Average Colony | 97 | `stuff.avg_colony_pop[n]` (DS:0x944e, u16) |
+  | Population | 96 | `stuff.census_pop_proxy[n]` (DS:0x9410) |
+  | Military Power | 98 | `stuff.land_combat_strength[n] >> 3` (DS:0x941c) |
+  | Naval Power | 99 | `(unit_type_counts[n][16] + [17]) * 8` — @UNIT 16 Privateer / 17 Frigate; Man-O-War (18) excluded |
+  | Merchant Marine | 100 | `stuff.ship_cargo_totals[n]` (DS:0x9414) |
+
+  Screen order is **not** @MISC order: row A is 95/97/96, row B is
+  98/99/100, exactly as the `.asm` pushes them. `avg_colony_pop` was
+  `unknown_ds_944e`; resolved the same pass (see
+  [save_format_map.md](save_format_map.md) Stuff row 556).
 - Ordering: fixed English->French->Spanish->Dutch, always 4 block slots.
 - Scroll/paging: none — no `reports_foreign_page_count` exists (unlike
   Naval/Economic/Colony); 4 fixed blocks always fit.
@@ -306,8 +352,12 @@ unconfirmed against DOS. Congress page 2's FF portrait slot table has only
   World)" **fixed 2026-08-26** — resolves live from `LABELS.TXT` `@MISC`
   index 190 (was cited here as raw line "#205", same line-number-vs-index
   mix-up the title fix corrected elsewhere).
-- Port status: Done (golden `foreign.png`) — `reports_render_foreign`
-  (`reports.c:2653`).
+- **Fixed 2026-08-31:** a War pair printed the word "Peace" in the War
+  colour. `reports_labels_field` hands back a single `static char[64]`, so
+  resolving @MISC 101 and 102 into two `const char*` up front left both
+  pointing at "Peace"; both now go through `reports_misc_word`'s
+  caller-owned buffer. Moves the golden diff from 3580 to 3372 px.
+- Port status: Done (golden `foreign.png`) — `reports_render_foreign`.
 
 ## F9 - Indian Adviser
 

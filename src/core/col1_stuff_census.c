@@ -16,8 +16,8 @@ bool col1_stuff_census_window_is_blank(const ColonizeCol1Stuff* stuff) {
       return false;
     }
   }
-  for (size_t i = 0; i < sizeof(stuff->unknown_ds_944e); ++i) {
-    if (stuff->unknown_ds_944e[i] != 0) {
+  for (size_t i = 0; i < sizeof(stuff->avg_colony_pop); ++i) {
+    if (stuff->avg_colony_pop[i] != 0) {
       return false;
     }
   }
@@ -142,8 +142,8 @@ static void col1_stuff_census_write_mean_pop(ColonizeCol1Stuff* stuff) {
     if (stuff->colony_counts[n] > 0) {
       avg = (uint16_t)((unsigned)stuff->colony_pop_totals[n] / (unsigned)stuff->colony_counts[n]);
     }
-    stuff->unknown_ds_944e[n * 2] = (uint8_t)(avg & 0xffu);
-    stuff->unknown_ds_944e[n * 2 + 1] = (uint8_t)((avg >> 8) & 0xffu);
+    stuff->avg_colony_pop[n * 2] = (uint8_t)(avg & 0xffu);
+    stuff->avg_colony_pop[n * 2 + 1] = (uint8_t)((avg >> 8) & 0xffu);
   }
 }
 

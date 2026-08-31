@@ -837,7 +837,17 @@ typedef struct ColonizeCol1Stuff {
   uint8_t skilled_unit_counts_by_continent[64]; /* DS:0x9526 */
   uint8_t unit_value_sum_by_continent[64]; /* DS:0x918c */
   uint8_t combat_value_sum_by_continent[64]; /* DS:0x9572 */
-  uint8_t unknown_ds_944e[8]; /* pop word totals sibling (FUN_4962_0018 ADD) */
+  /*
+   * DS:0x944e — average colony population, per nation, as 4 little-endian
+   * u16 (kept as bytes: the enclosing struct is packed save layout).
+   * Resolved 2026-08-31 (static, FUN_4962_0018 raw .asm): the per-nation
+   * pass ADDs each owned colony's population (colony +0x1f) here, then at
+   * the end of that nation's sweep divides in place by colony_counts[n]
+   * (skipped when that is 0), so what is stored is the *mean* colony size,
+   * not a running total. Sole reader: the Foreign Affairs report's Jan de
+   * Witt detail grid ("Average Colony", @MISC #97) — see reports.c.
+   */
+  uint8_t avg_colony_pop[8];
   uint8_t ui_toggle_336; /* DS:0x336 — FUN_2f2b_* (smcol: show_colony_prod_quantities) */
   uint8_t tribe_data_9184[8];
   uint8_t tribe_population_totals[8]; /* DS:0x9622 */

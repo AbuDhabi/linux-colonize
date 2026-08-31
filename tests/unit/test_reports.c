@@ -562,31 +562,98 @@ int main(void) {
       }
     }
 
-    /* Spanish withdrew (control==2) — golden shows "(Withdrawn from New
-     * World)" instead of relation/population lines. */
-    if (fcol1.player[2].control != 2) {
-      fprintf(stderr, "dutch-reports.SAV Spanish should read withdrawn (control==2)\n");
+    /* Spain is the Crown's slot (head.crown_nation_id, DS:0x53d2) — that is
+     * DOS's actual gate for the centered "(Withdrawn from New World)" block,
+     * not player.control. This save has both, which is why the earlier
+     * control==2 reading fit the golden. */
+    if (fcol1.head.crown_nation_id != 2 || fcol1.player[2].control != 2) {
+      fprintf(
+        stderr,
+        "dutch-reports.SAV Spain should be the crown slot: crown=%d control=%d\n",
+        (int)fcol1.head.crown_nation_id,
+        (int)fcol1.player[2].control
+      );
       col1_save_free(&fcol1);
       reports_free(&view);
       return 1;
     }
 
-    /* French/Dutch are at war (golden: red "War"); English/French (and
-     * every other visible pair) is at peace. euro_relation's 0x02 bit set
-     * in either direction — see reports_render_foreign's block comment
-     * for why this, not ai_diplo.h's AI_DIPLO_WAR bit, matches this raw
-     * save. */
-    const bool fr_du_war =
-      ((fcol1.nation[1].euro_relation[3] | fcol1.nation[3].euro_relation[1]) & 0x02u) != 0;
-    const bool en_fr_war =
-      ((fcol1.nation[0].euro_relation[1] | fcol1.nation[1].euro_relation[0]) & 0x02u) != 0;
-    if (!fr_du_war || en_fr_war) {
-      fprintf(
-        stderr,
-        "dutch-reports.SAV war reading wrong: French/Dutch war=%d English/French war=%d\n",
-        fr_du_war,
-        en_fr_war
-      );
+    /* French/Dutch are at war (golden: red "War"); English/French (and every
+     * other visible pair) is at peace. DOS reads one byte, one direction:
+     * nation[a].euro_relation[b] bit 0x20 = met, bit 0x40 = at peace
+     * (FUN_3f41_2548, 3f41:2867..2896). */
+    static const struct {
+      int a;
+      int b;
+      bool met;
+      bool war;
+    } want_rel[] = {
+      {1, 3, true, true}, /* French sees the Dutch: met, at war */
+      {3, 1, true, true}, /* and the Dutch sees the French the same way */
+      {0, 1, true, false}, /* English/French at peace */
+      {0, 3, true, false}, {3, 0, true, false},
+      {0, 2, false, false}, /* nobody ever met the crown slot */
+    };
+    for (size_t i = 0; i < sizeof(want_rel) / sizeof(want_rel[0]); ++i) {
+      const uint8_t rel = fcol1.nation[want_rel[i].a].euro_relation[want_rel[i].b];
+      const bool met = (rel & 0x20u) != 0;
+      const bool war = met && (rel & 0x40u) == 0;
+      if (met != want_rel[i].met || war != want_rel[i].war) {
+        fprintf(
+          stderr,
+          "dutch-reports.SAV euro_relation[%d][%d]=0x%02x met=%d war=%d want met=%d war=%d\n",
+          want_rel[i].a, want_rel[i].b, rel, met, war, want_rel[i].met, want_rel[i].war
+        );
+        col1_save_free(&fcol1);
+        reports_free(&view);
+        return 1;
+      }
+    }
+
+    /* Jan de Witt detail grid (FUN_3f41_2548's reveal block, 3f41:25e2..27e4):
+     * the six cells read straight off the DOS census block. Values checked
+     * against dutch-reports.SAV for every nation the report draws. */
+    static const struct {
+      int nation;
+      int colonies;
+      int avg_colony;
+      int population;
+      int military;
+      int naval;
+      int merchant;
+    } want_detail[] = {
+      {0, 6, 6, 75, 171, 24, 36}, /* English */
+      {1, 4, 4, 45, 112, 24, 26}, /* French */
+      {3, 7, 6, 54, 45, 8, 8}, /* Dutch */
+    };
+    for (size_t i = 0; i < sizeof(want_detail) / sizeof(want_detail[0]); ++i) {
+      const int n = want_detail[i].nation;
+      const ColonizeCol1Stuff* st = &fcol1.stuff;
+      const int avg =
+        (int)((unsigned)st->avg_colony_pop[n * 2] | ((unsigned)st->avg_colony_pop[n * 2 + 1] << 8));
+      const int naval =
+        ((int)st->unit_type_counts[n][16] + (int)st->unit_type_counts[n][17]) * 8;
+      if (st->colony_counts[n] != want_detail[i].colonies || avg != want_detail[i].avg_colony ||
+          st->census_pop_proxy[n] != want_detail[i].population ||
+          (int)(st->land_combat_strength[n] >> 3) != want_detail[i].military ||
+          naval != want_detail[i].naval ||
+          st->ship_cargo_totals[n] != want_detail[i].merchant) {
+        fprintf(
+          stderr,
+          "de Witt detail nation=%d got %d/%d/%d/%d/%d/%d\n",
+          n, st->colony_counts[n], avg, st->census_pop_proxy[n],
+          (int)(st->land_combat_strength[n] >> 3), naval, st->ship_cargo_totals[n]
+        );
+        col1_save_free(&fcol1);
+        reports_free(&view);
+        return 1;
+      }
+    }
+
+    /* The Dutch (the viewer) do NOT own de Witt in this save, which is what
+     * keeps the golden render free of the detail grid. */
+    if ((fcol1.nation[3].founding_fathers[0] >> 4) & 1) {
+      fprintf(stderr, "dutch-reports.SAV viewer should not own Jan de Witt\n");
       col1_save_free(&fcol1);
       reports_free(&view);
       return 1;
@@ -618,6 +685,42 @@ int main(void) {
       col1_save_free(&fcol1);
       reports_free(&view);
       return 1;
+    }
+
+    /* Electing Jan de Witt for the viewer must light up the detail grid: the
+     * first block's row A lands on block_top+10 (y=20), which is blank
+     * without the FF. Compare that scanline band before/after. */
+    {
+      uint8_t before[320 * 14];
+      memcpy(before, &pixels[20 * 320], sizeof(before));
+      fcol1.nation[3].founding_fathers[0] |= (uint8_t)(1u << 4); /* FF_JAN_DE_WITT */
+      memset(pixels, 0, sizeof(pixels));
+      reports_render(
+        &view, COLONIZE_REPORT_FOREIGN, false, -1, 0, 0, 0, NULL, NULL, NULL, NULL, &fcol1,
+        fcol1.head.human_player, 0, 0, fcol1.head.turn, NULL, &fb
+      );
+      if (memcmp(before, &pixels[20 * 320], sizeof(before)) == 0) {
+        fprintf(stderr, "Jan de Witt should add the Foreign Affairs detail grid\n");
+        col1_save_free(&fcol1);
+        reports_free(&view);
+        return 1;
+      }
+      /* And the Rebels/Tories line must still fit inside the 45px block: it
+       * moves down exactly two line steps, to block_top+31 (y=41). */
+      bool rebels_row_drawn = false;
+      for (int x = 0; x < 320; ++x) {
+        if (pixels[41 * 320 + x] == 145) {
+          rebels_row_drawn = true;
+          break;
+        }
+      }
+      if (!rebels_row_drawn) {
+        fprintf(stderr, "de Witt block should push Rebels/Tories to y=41, still inside the block\n");
+        col1_save_free(&fcol1);
+        reports_free(&view);
+        return 1;
+      }
+      fcol1.nation[3].founding_fathers[0] &= (uint8_t)~(1u << 4);
     }
 
     col1_save_free(&fcol1);
