@@ -177,6 +177,82 @@ void popup_msg_apply_tokens(
 }
 
 static int g_popup_msg_pending_width = 0;
+static int g_popup_msg_pending_graphic = -1;
+
+/*
+ * GAME.TXT section → MSS{n}.SS popup decoration. Every constant
+ * `FUN_281f_0652(tag, index)` pair in VICEROY.EXE, tag resolved through the
+ * DS-string rule (EXE offset 121248 + addr). Dynamic-tag DOS sites are
+ * covered by name family instead: FUN_65dd_0004 latches 3 for every Lost
+ * City Rumour dialog (@LOSTCITYn/@BURIALn/@SCREWED).
+ */
+typedef struct PopupMsgGraphicRow {
+  const char* section;
+  int8_t mss;
+} PopupMsgGraphicRow;
+
+static const PopupMsgGraphicRow k_popup_msg_mss[] = {
+  /* MSS0 — admiral: ships, naval combat, sea trade. */
+  {"TUTORIAL1", 0},   {"TUTORIAL2", 0},   {"TUTORIAL5", 0},  {"TUTORIAL6", 0},
+  {"TUTORIAL11", 0},  {"DISBANDSHIP", 0}, {"TRADENONE", 0},  {"FORTFIRE", 0},
+  {"REFIT", 0},       {"SEIZURE", 0},     {"ROUTELOOP", 0},  {"SHIPRUN", 0},
+  {"SHIPSLOW", 0},    {"CARGOCAPTURE", 0}, {"SHIPDAMAGE", 0}, {"SHIPSUNK", 0},
+  {"EVASIVE", 0},
+  /* MSS1 — continental soldier: land war, king's forces, revolution. */
+  {"TUTORIAL7", 1},   {"TUTORIAL14", 1},  {"HAVETREATY", 1}, {"TEAPARTY", 1},
+  {"FOREIGNNOTAVAIL", 1}, {"AMBUSHHINT", 1}, {"CONSIDER", 1}, {"TORYUPRISING", 1},
+  {"INVASION", 1},    {"INTERVENTION", 1}, {"INDEPENDENCE", 1}, {"KINGBUY", 1},
+  {"KINGMOBILIZE", 1}, {"MERCENARIES", 1}, {"MERCS", 1},     {"REBELDOWN", 1},
+  {"REBELUP", 1},     {"MULTIREV", 1},    {"DECLARE", 1},    {"WHACKINDIANS", 1},
+  {"INDIANBURN", 1},  {"INDIANWARFARE", 1}, {"NOMAYORSDURINGREV", 1},
+  {"DEMOTE", 1},      {"ARTILLERY", 1},   {"ARTILLERY2", 1}, {"HALF", 1},
+  {"HOWTOWIN", 1},    {"INDIANLOSE", 1},  {"INDIANSLAVES", 1}, {"LOOT", 1},
+  {"LOOT2", 1},       {"NOCOLONIESEITHER", 1}, {"SEIZURELAND", 1},
+  {"MOBILIZE2", 1},   {"ALREADYREVOLUTION", 1}, {"LOOTCAPTURE", 1},
+  {"VALOR", 1},       {"EUROPELOSE", 1},  {"BURNED2", 1},    {"CAPTURED", 1},
+  {"INDIANBURNCOLONY", 1}, {"INDIANWINCOLONY", 1},
+  /* MSS2 — courtier: gold, prices, treaties, court news. */
+  {"MULTINEXT", 2},   {"OTHERMIGHT", 2},  {"OTHERLESS", 2},  {"PRICEUP", 2},
+  {"PRICEDOWN", 2},   {"SOMEBOYCOTT", 2}, {"KISSUP", 2},     {"KISSSORRY", 2},
+  {"REALLYBUY", 2},   {"SUCCESSION", 2},  {"LOOTCASH", 2},   {"LOOTFOREIGN", 2},
+  {"SIGNTREATY", 2},  {"CASHTREASURE", 2}, {"DECLAREWAR", 2}, {"BURNED3", 2},
+  {"CAPTURED2", 2},   {"CANCELTREATY", 2},
+  /* MSS3 — frontiersman: terrain work, scouts, rumours. */
+  {"TUTORIAL3", 3},   {"TUTORIAL9", 3},   {"TUTORIAL10", 3}, {"TUTORIAL13", 3},
+  {"NOPLOW", 3},      {"NOROAD", 3},      {"NOPORT", 3},     {"TUTNOSPACES", 3},
+  {"TUTNOLUMBER", 3}, {"USEDUPTOOLS", 3}, {"EXTINCT", 3},    {"KILLWAGONS", 3},
+  {"SCOUTCOLONY", 3}, {"RAIDWREAK", 3},   {"LOSTTHEIRSCOUTS", 3},
+  {"INDIANBURNCOLONY2", 3}, {"INDIANWINCOLONY2", 3},
+  {"LOSTCITY1", 3},   {"LOSTCITY2", 3},   {"LOSTCITY3", 3},  {"LOSTCITY4", 3},
+  {"LOSTCITY5", 3},   {"LOSTCITY6", 3},   {"LOSTCITY7", 3},  {"LOSTCITY8", 3},
+  {"LOSTCITY9", 3},   {"BURIAL1", 3},     {"BURIAL2", 3},    {"BURIAL3", 3},
+  {"SCREWED", 3},
+  /* MSS4 — friar: religion, converts, unrest. */
+  {"TUTORIAL19", 4},  {"DEADCONVERTS", 4}, {"UNREST", 4},
+  /* MSS5 — nun: colony stores, raids on colonies. */
+  {"TUTORIAL4", 5},   {"TUTORIAL8", 5},   {"TUTORIAL12", 5}, {"TUTORIAL15", 5},
+  {"LOBOTOMIZE", 5},  {"WAREHOUSEFULL", 5}, {"BUYME0", 5},   {"BUYME1", 5},
+  {"CLEARCUT", 5},    {"RAIDSTORES", 5},  {"RAIDBURN", 5},   {"RAIDSHIP", 5},
+  {"RAIDGOLD", 5},    {"RAIDNOTHING", 5},
+};
+
+int popup_msg_mss_index_for_section(const char* section_name) {
+  if (!section_name) {
+    return -1;
+  }
+  for (size_t i = 0; i < sizeof(k_popup_msg_mss) / sizeof(k_popup_msg_mss[0]); ++i) {
+    if (strcmp(k_popup_msg_mss[i].section, section_name) == 0) {
+      return k_popup_msg_mss[i].mss;
+    }
+  }
+  return -1;
+}
+
+int popup_msg_take_pending_graphic(void) {
+  const int g = g_popup_msg_pending_graphic;
+  g_popup_msg_pending_graphic = -1;
+  return g;
+}
 
 int popup_msg_section_width(const ColonizeMsgSection* section) {
   if (!section) {
@@ -215,6 +291,9 @@ void popup_msg_fill(
   const ColonizeMsgSection* sec =
     (catalog && section_name) ? assets_msg_find(catalog, section_name) : NULL;
   g_popup_msg_pending_width = sec ? popup_msg_section_width(sec) : 0;
+  /* DOS keys the graphic off the call site, not GAME.TXT content — set it
+   * from the name even when the section is missing and the fallback shows. */
+  g_popup_msg_pending_graphic = popup_msg_mss_index_for_section(section_name);
   if (sec) {
     popup_msg_section_body(sec, raw, sizeof(raw), true);
   }

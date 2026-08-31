@@ -2287,6 +2287,12 @@ static void ai_talk_ok(
     ctx->ai_popups, AI_POPUP_TAG_DIPLO_TALK, s_talk.self, s_talk.target, 0,
     ai_talk_name(ctx, s_talk.target), body
   );
+  /* DOS FUN_2a1f_0688: every 153e audience popup wears the ruler MYR{nation}
+   * — except sections DOS shows via FUN_281f_0652 with their own MSS figure
+   * (e.g. @DECLAREWAR), which keep it. */
+  if (popup_msg_mss_index_for_section(tag) < 0) {
+    ai_popup_set_last_graphic_myr(ctx->ai_popups, s_talk.target);
+  }
 }
 
 /* Enqueue a CHOICE for `stage`; labels from GAME.TXT when present. */
@@ -2312,6 +2318,9 @@ static void ai_talk_choice(
     ctx->ai_popups, AI_POPUP_TAG_DIPLO_TALK, s_talk.self, s_talk.target, stage,
     ai_talk_name(ctx, s_talk.target), body, labels, ids, count
   );
+  if (popup_msg_mss_index_for_section(tag) < 0) {
+    ai_popup_set_last_graphic_myr(ctx->ai_popups, s_talk.target);
+  }
 }
 
 static void ai_talk_advance(ColonizeTurnContext* ctx);
@@ -2549,6 +2558,7 @@ static void ai_talk_advance(ColonizeTurnContext* ctx) {
           ctx->ai_popups, AI_POPUP_TAG_DIPLO_TALK, h, t, AI_TALK_ST_ALLY_PICK,
           ai_talk_name(ctx, t), "\"Against whom shall we ally?\"", labels, picks, n
         );
+        ai_popup_set_last_graphic_myr(ctx->ai_popups, t);
         return;
       }
       case AI_TALK_ST_ALLY_PAY: {

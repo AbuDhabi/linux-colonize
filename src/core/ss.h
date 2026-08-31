@@ -29,6 +29,19 @@ typedef struct ColonizeSpriteSheet {
   int sprite_count;
   ColonizePalette palette;
   bool has_palette;
+  /*
+   * Sheet-level popup-placement words from the 0x98-byte section-0 header
+   * (bytes 0x0e/0x10/0x12; DOS keeps them at +0x10/+0x12/+0x14 of the loaded
+   * picture object). Only the MSSn/MYRn popup decorations set them: the DOS
+   * popup compositor (FUN_6f74_14c6) draws the sprite above the dialog with
+   * its bottom overlapping the dialog top by place_offset_y px;
+   * place_mode 0 = sprite at the dialog's left (horizontal overlap
+   * place_offset_x), 1 = sprite centred over the dialog, 2 = at the right
+   * (overlap place_offset_x). All zero for ordinary sheets.
+   */
+  int place_offset_y;
+  int place_mode;
+  int place_offset_x;
 } ColonizeSpriteSheet;
 
 bool ss_load(const char* path, ColonizeSpriteSheet* out_sheet, char* err, size_t err_size);

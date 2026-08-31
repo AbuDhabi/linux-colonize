@@ -39,10 +39,13 @@ static void ai_popup_fill_base(
   memset(req, 0, sizeof(*req));
   req->portrait_tribe = -1;
   req->portrait_tier = -1;
+  req->graphic_myr = -1;
   req->kind = kind;
   req->tag = tag;
   /* P11.3: the @width of whatever popup_msg_fill last resolved (0 = default). */
   req->width = popup_msg_take_pending_width();
+  /* MSS decoration of that same section (DOS DS:0x1f5e latch; -1 = none). */
+  req->graphic_mss = popup_msg_take_pending_graphic();
   req->nation_a = nation_a;
   req->nation_b = nation_b;
   req->payload = payload;
@@ -370,6 +373,11 @@ static ColonizePalette g_portrait_palette;
 static bool g_portrait_palette_ok;
 static ColonizeSpriteSheet g_portrait_sheets[8][4];
 static uint8_t g_portrait_state[8][4]; /* 0 untried, 1 loaded, 2 failed */
+/* MSS0..5 / MYR0..3 popup decorations, same lazy load + remap. */
+static ColonizeSpriteSheet g_mss_sheets[6];
+static uint8_t g_mss_state[6];
+static ColonizeSpriteSheet g_myr_sheets[4];
+static uint8_t g_myr_state[4];
 
 int ai_popup_portrait_tier_from_alarm(int alarm) {
   /* FUN_15dc_00a2 */
@@ -393,6 +401,18 @@ void ai_popup_set_portrait_source(const char* data_dir, const ColonizePalette* p
       }
       g_portrait_state[t][a] = 0;
     }
+  }
+  for (int i = 0; i < 6; ++i) {
+    if (g_mss_state[i] == 1) {
+      ss_free(&g_mss_sheets[i]);
+    }
+    g_mss_state[i] = 0;
+  }
+  for (int i = 0; i < 4; ++i) {
+    if (g_myr_state[i] == 1) {
+      ss_free(&g_myr_sheets[i]);
+    }
+    g_myr_state[i] = 0;
   }
   g_portrait_dir[0] = '\0';
   g_portrait_palette_ok = false;
@@ -477,6 +497,52 @@ static const ColonizeSpriteSheet* ai_popup_portrait_sheet(int tribe, int tier) {
   return g_portrait_state[tribe][tier] == 1 ? &g_portrait_sheets[tribe][tier] : NULL;
 }
 
+void ai_popup_set_last_graphic_mss(AiPopupState* st, int mss) {
+  if (!st || st->queue_count <= 0 || mss > 5) {
+    return;
+  }
+  st->queue[st->queue_count - 1].graphic_mss = mss < 0 ? -1 : mss;
+}
+
+void ai_popup_set_last_graphic_myr(AiPopupState* st, int nation) {
+  if (!st || st->queue_count <= 0 || nation > 3) {
+    return;
+  }
+  st->queue[st->queue_count - 1].graphic_myr = nation < 0 ? -1 : nation;
+}
+
+static const ColonizeSpriteSheet* ai_popup_graphic_sheet(int mss, int myr) {
+  /* MYR wins when both latches are set (DOS loads it after MSS). */
+  ColonizeSpriteSheet* sheet = NULL;
+  uint8_t* state = NULL;
+  char name[16];
+  if (myr >= 0 && myr <= 3) {
+    sheet = &g_myr_sheets[myr];
+    state = &g_myr_state[myr];
+    snprintf(name, sizeof(name), "MYR%d.SS", myr);
+  } else if (mss >= 0 && mss <= 5) {
+    sheet = &g_mss_sheets[mss];
+    state = &g_mss_state[mss];
+    snprintf(name, sizeof(name), "MSS%d.SS", mss);
+  } else {
+    return NULL;
+  }
+  if (!g_portrait_dir[0] || !g_portrait_palette_ok) {
+    return NULL;
+  }
+  if (*state == 0) {
+    char path[600];
+    char err[128];
+    *state = 2;
+    if (dos_compat_normalize_asset_path(g_portrait_dir, name, path, sizeof(path)) &&
+        ss_load(path, sheet, err, sizeof(err))) {
+      ai_popup_remap_sheet(sheet, &g_portrait_palette);
+      *state = 1;
+    }
+  }
+  return *state == 1 ? sheet : NULL;
+}
+
 void ai_popup_render(
   AiPopupState* st,
   const ColonizeFont* font,
@@ -551,6 +617,31 @@ void ai_popup_render(
     portrait && (req->portrait_tribe == 0 || req->portrait_tribe == 3 || req->portrait_tribe == 5 ||
                  req->portrait_tribe == 7 || req->portrait_tribe == 8);
 
+  /*
+   * MSS/MYR decoration (FUN_6f74_14c6 @ DS:0x1f5e/0x1f60 ≥ 0): the sprite
+   * stands ABOVE the dialog, its bottom overlapping the dialog top by the
+   * sheet's place_offset_y; place_mode 0 = at the dialog's left edge
+   * (horizontal overlap place_offset_x), 1 = centred over it, 2 = at the
+   * right edge. The pair is vertically centred as a unit; DOS drops the
+   * sprite when the combined height reaches 200.
+   */
+  const ColonizeSpriteSheet* graphic =
+    portrait ? NULL : ai_popup_graphic_sheet(req->graphic_mss, req->graphic_myr);
+  int graphic_w = 0;
+  int graphic_h = 0;
+  if (graphic && graphic->sprite_count > 0 && graphic->sprites[0].pixels) {
+    graphic_w = graphic->sprites[0].width;
+    graphic_h = graphic->sprites[0].height;
+  } else {
+    graphic = NULL;
+  }
+  if (graphic) {
+    const int ov_y = graphic->place_offset_y > graphic_h ? graphic_h : graphic->place_offset_y;
+    if (graphic_h - ov_y + dialog_h >= framebuffer->height) {
+      graphic = NULL; /* DOS: too tall together → no decoration (flag |0x40). */
+    }
+  }
+
   int dialog_y = (framebuffer->height - dialog_h) / 2;
   if (dialog_y + dialog_h > framebuffer->height) {
     dialog_y = framebuffer->height - dialog_h;
@@ -565,9 +656,9 @@ void ai_popup_render(
    * the sprite sits at the span edge and the dialog is pushed past it by
    * sprite_w + 3. Sprite is blitted after the frame so it overlaps the wood
    * border rather than widening it. */
-  const int frame_y = dialog_y;
   const int frame_h = dialog_h;
   const int frame_w = dialog_w;
+  int frame_y; /* = dialog_y, after the MSS/MYR block may move it */
   int frame_x;
   int dialog_x;
   int portrait_x = 0;
@@ -597,7 +688,44 @@ void ai_popup_render(
   } else {
     dialog_x = (framebuffer->width - dialog_w) / 2;
   }
+
+  int graphic_x = 0;
+  int graphic_y = 0;
+  if (graphic) {
+    const int ov_y = graphic->place_offset_y > graphic_h ? graphic_h : graphic->place_offset_y;
+    const int total_h = graphic_h - ov_y + dialog_h;
+    int top = (framebuffer->height - total_h) / 2;
+    /* Keep the whole assembly below the menu bar. */
+    if (top < MAP_MENU_BAR_H) {
+      top = MAP_MENU_BAR_H;
+    }
+    if (top + total_h > framebuffer->height) {
+      top = framebuffer->height - total_h;
+    }
+    graphic_y = top;
+    dialog_y = top + graphic_h - ov_y;
+    if (graphic->place_mode == 1) {
+      /* Centred over the (already centred) dialog. */
+      graphic_x = (framebuffer->width - graphic_w) / 2;
+    } else {
+      int ov_x = graphic->place_offset_x;
+      int total_w = dialog_w + graphic_w - ov_x;
+      if (total_w > framebuffer->width) {
+        ov_x += total_w - framebuffer->width; /* DOS widens the overlap. */
+        total_w = framebuffer->width;
+      }
+      const int x0 = (framebuffer->width - total_w) / 2;
+      if (graphic->place_mode == 2) {
+        dialog_x = x0;
+        graphic_x = x0 + dialog_w - ov_x;
+      } else {
+        graphic_x = x0;
+        dialog_x = x0 + graphic_w - ov_x;
+      }
+    }
+  }
   frame_x = dialog_x;
+  frame_y = dialog_y;
 
   ColonizePopupColors local_colors;
   if (!colors) {
@@ -636,6 +764,10 @@ void ai_popup_render(
 
   if (portrait) {
     ss_blit_sprite(portrait, 0, framebuffer, portrait_x, portrait_y);
+  }
+  if (graphic) {
+    /* After the frame so the figure's head/shoulders overlap the wood top. */
+    ss_blit_sprite(graphic, 0, framebuffer, graphic_x, graphic_y);
   }
 
   int text_y = inner_y + 3; /* DOS +0x2c = 3 + 3 */

@@ -104,13 +104,13 @@ This is a user-maintained list of bugs. User puts reports in. Agents may annotat
 | Initial selected project on colony founding should be Docks, I think. I'm not sure what a landlocked, lakeless colony would have instead. Port currently has "none". Check DOS. | FIXED. New colony's first project: Stockade when the population already qualifies (3+), else Docks for a coastal site (seed-100 golden AI towns all start on Docks), else Warehouse for a landlocked one (your correction — thanks). Unit-tested both coastal and landlocked. |
 | Construction project selection popup has incorrent text styling (color, text, exact positioning of parts of text). Check DOS. | FIXED to what the asm shows (2f2b:5a68 row build / 5bd2 dialog): rows read "Name (N Hammers)(M Tools)" with the full cargo words — N is cost minus banked hammers, floored at 0 — not the invented "(52H, 20T)" shorthand; the dialog uses FONTTINY (DS:0x89e handle at 5bf7, already the port's font here); and past 14 rows it goes two-column, 16 rows per column (5c05..5c17), which the port now does too (draw + click hit-test share the layout). DOS also appends "(COMPLETE)" (@MISC 127 via DS:0x2eb8) for an already-built row — the port's list never shows built rows, so that branch has no port equivalent. |
 | Founding father colonizopedia entries do not include the portrait used in continental congress report page 2, and should be dismissable by clicking anywhere, not just Escape.  | PARTLY FIXED. Click-anywhere (left or right) now dismisses the article like Escape. The portrait half did not reproduce statically: the article renderer already blits sprite 0 of the father's CC-nn.SS at (8,28) with the sheet's own palette (the row-50 fix), the sheet loads on open and on L/R navigation, and the numbering matches the Congress page 2 loader. If you still see no portrait, tell me which father and how you opened the entry (P-list vs the arrival chain) and I will chase the path.  **Update (2026-08-31 Colonizopedia DOS recreation):** static decompile of the DOS father article builder (FUN_6cb2_1f28) shows DOS draws *no* portrait — father pages are title + body text only. The article pages were rebuilt to DOS fidelity, so the portrait was removed again; any key or click dismisses. If the portrait is wanted anyway as a port nicety, say so and it can be re-added on top of the DOS layout. |
-| | |
-| | |
-| | |
-| | |
-| | |
-| | |
-| | |
+| Indian raid was triggered, but only the woodcut appeared. No combat analysis, despite it being turned on. Was it covered up by the woodcut? | |
+| Recruit and Purchase popup font coloring is wrong. Shading, mostly.  | |
+| European Status ship selection rectangle is wrong size. I thought we fixed it elsewhere. | |
+| Activate Unit (A) seems to give units their movement points back. It should not. That thing is there to pick which unit is currently being controlled (blinking). | |
+| Go-to orders on lost city rumour one tile away fail, but arrow key orders onto that tile succeed. | |
+| In European Status, when you set your last ship currently docked there to sail to the new world, it should automatically close the European Status and go back to main map. | |
+| Somehow, a caravel is able to pick up no-orders or forest-cutting pioneers. It should not. Ships should only take on (when leaving) passengers from the list of SENTRIED units on the tile. Nobody else. And they should only be able to take as many passengers, as there is room in their holds (cargo occupies slots that passengers could go into). Check DOS, because this has been a source of persistent variation in bugs. | |
 | | |
 | | |
 | | |

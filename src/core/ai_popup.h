@@ -112,6 +112,17 @@ typedef struct AiPopupRequest {
    * <25 → 0, <50 → 1, <75 → 2, else 3). -1 = none. */
   int portrait_tribe;
   int portrait_tier;
+  /*
+   * MSS/MYR popup decoration (DOS DS:0x1f5e / DS:0x1f60 latches,
+   * FUN_6f74_00c2/00ec): -1 = none. graphic_mss 0..5 = MSS{n}.SS (theme
+   * figure above the dialog), graphic_myr 0..3 = MYR{n}.SS (Euro ruler,
+   * index = nation id). Placement comes from the sheet's own header words
+   * (ss.h place_*); MYR wins when both are set (DOS loads it last).
+   * graphic_mss is auto-filled from popup_msg_fill's section table
+   * (popup_msg_take_pending_graphic); MYR is set explicitly.
+   */
+  int graphic_mss;
+  int graphic_myr;
 } AiPopupRequest;
 
 typedef struct AiPopupState {
@@ -212,5 +223,12 @@ void ai_popup_set_portrait_source(const char* data_dir, const struct ColonizePal
 void ai_popup_set_last_portrait(AiPopupState* st, int tribe, int tier);
 /* FUN_15dc_00a2 alarm → portrait tier. */
 int ai_popup_portrait_tier_from_alarm(int alarm);
+/*
+ * Set the MSS/MYR decoration on the newest queued request (mirrors the DOS
+ * latch writes around FUN_281f_0652 / FUN_2a1f_0688). mss -1..5, myr = Euro
+ * nation 0..3 or -1. Sheets load lazily from the portrait source dir.
+ */
+void ai_popup_set_last_graphic_mss(AiPopupState* st, int mss);
+void ai_popup_set_last_graphic_myr(AiPopupState* st, int nation);
 
 #endif

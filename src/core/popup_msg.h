@@ -64,6 +64,19 @@ int popup_msg_section_width(const ColonizeMsgSection* section);
  * existing fill→enqueue call site sizes like DOS without a signature change.
  */
 int popup_msg_take_pending_width(void);
+/*
+ * MSS graphic side-channel (same pattern as the width one): DOS sets a
+ * DS:0x1f5e latch (FUN_281f_0652(tag, index)) before a popup so the 6f74
+ * compositor decorates it with MSS{index}.SS (0 admiral / 1 continental
+ * soldier / 2 courtier / 3 frontiersman / 4 friar / 5 nun). The call-site →
+ * index pairs were lifted from the VICEROY.EXE asm and keyed here by section
+ * name; popup_msg_fill records the section's index (-1 = no graphic) and the
+ * next ai_popup enqueue takes it. MYR (Euro diplomacy ruler, index = nation)
+ * stays explicit via ai_popup_set_last_graphic_myr.
+ */
+int popup_msg_take_pending_graphic(void);
+/* Section-name → MSS index (-1 when the section has no DOS graphic). */
+int popup_msg_mss_index_for_section(const char* section_name);
 void popup_msg_fill(
   const ColonizeMsgCatalog* catalog,
   const char* section_name,

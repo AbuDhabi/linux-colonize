@@ -17,6 +17,10 @@ typedef struct SsHeader {
   uint8_t mode;
   uint8_t pflag;
   uint16_t nsprites;
+  /* Popup-placement words (MSSn/MYRn decorations); see ss.h. */
+  int16_t place_offset_y;
+  int16_t place_mode;
+  int16_t place_offset_x;
 } SsHeader;
 
 typedef struct SpriteHeader {
@@ -42,6 +46,9 @@ static bool parse_ss_header(const uint8_t* data, size_t size, SsHeader* out) {
   }
   out->mode = data[0];
   out->pflag = data[0x0c];
+  out->place_offset_y = (int16_t)read_u16(data + 0x0e);
+  out->place_mode = (int16_t)read_u16(data + 0x10);
+  out->place_offset_x = (int16_t)read_u16(data + 0x12);
   out->nsprites = read_u16(data + 0x26);
   return out->nsprites > 0;
 }
@@ -262,6 +269,9 @@ bool ss_load(const char* path, ColonizeSpriteSheet* out_sheet, char* err, size_t
     return false;
   }
   out_sheet->sprite_count = ss_hdr.nsprites;
+  out_sheet->place_offset_y = ss_hdr.place_offset_y;
+  out_sheet->place_mode = ss_hdr.place_mode;
+  out_sheet->place_offset_x = ss_hdr.place_offset_x;
 
   SpriteHeader* sprite_headers = calloc(ss_hdr.nsprites, sizeof(*sprite_headers));
   if (!sprite_headers) {
