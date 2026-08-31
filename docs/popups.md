@@ -55,6 +55,45 @@ flowchart LR
 | Map event queue | flush immediately from AI/turn | [`ai_popup.c`](../src/core/ai_popup.c) (max 16) |
 | Dedicated UIs | colony `2f2b`, Europe `38fd`, save `7562`, … | `colony_screen`, Europe menus in `game_loop`, `save_load_dialog`, `pick_music`, `unit_stack`, `cheat_list_dialog`, `new_game` |
 
+### Popup decorations (MSS/MYR/IND/KING sheets) — shipped 2026-08-31
+
+DOS decorates many popups with a figure sprite. Three latches, all cleared
+after every popup show (`LAB_6f74_3018`):
+
+- `DS:0x1f5c` chief/king portrait (`IND{tribe}A{tier}.SS` / `KING.SS`,
+  `FUN_6f74_0042`) — ported earlier (P8.6).
+- `DS:0x1f5e` = MSS index → `MSS{0-5}.SS` (`FUN_6f74_00c2`, set via far stub
+  `FUN_281f_0652(tag, index)` or direct writes): 0 admiral (ships/sea),
+  1 continental soldier (war/king/revolution), 2 courtier (gold/prices/court),
+  3 frontiersman (terrain work/scout/LCR), 4 friar (religion/unrest),
+  5 nun (colony stores/raids).
+- `DS:0x1f60` = MYR index → `MYR{0-3}.SS` (`FUN_6f74_00ec`, stub
+  `FUN_2a1f_0688(tag, nation)`): Euro ruler by nation id, used by the
+  `5bfb` diplomacy dialogs (13b0/153e).
+
+Placement is data-driven from each sheet's 0x98-byte section-0 header
+(bytes 0x0e/0x10/0x12 → `ss.h` `place_offset_y`/`place_mode`/`place_offset_x`):
+the sprite stands **above** the dialog, bottom overlapping the dialog top by
+`place_offset_y`; mode 0 = left edge (horizontal overlap `place_offset_x`),
+1 = centred, 2 = right edge; the pair is centred vertically as a unit, and the
+sprite is dropped when the combined height reaches 200 (compositor
+`viceroy_unpacked.c:116068`).
+
+Port wiring: the (tag → index) pairs were lifted from every constant
+`FUN_281f_0652` PUSH pair in the VICEROY.EXE asm and keyed by section name in
+`popup_msg.c` (`k_popup_msg_mss`); `popup_msg_fill` records the section's index
+in a side-channel (same pattern as `@width`) and the next `ai_popup` enqueue
+takes it, so all existing fill→enqueue sites decorate without signature
+changes. Explicit overrides where DOS latches without a constant tag:
+Fountain-of-Youth picks (MSS3) and the Brewster pick (MSS4) in `units.c`
+(`FUN_38fd_4884` writes), MYR via `ai_popup_set_last_graphic_myr` in
+`ai_diplo.c`'s talk helpers (skipped when the section carries its own MSS
+figure, e.g. `@DECLAREWAR`). MYR wins when both are set (DOS loads it last);
+a chief portrait suppresses the MSS/MYR sprite in the port. Not wired: the
+Europe in-screen Recruit/Purchase menus (`game_loop` europe menu, DOS latches
+2/4/3 in `FUN_38fd_4884`/`4b50`) and `FUN_479b_076e`'s idx-5 WoI popup — those
+dialogs don't run through `ai_popup`.
+
 Modal input (`game_loop.c`): early gate before parent hotkeys (E/Q/etc.) —
 pick_music → save_load → options → name_entry → howmuch → cheat_list →
 **ai_popups** → unit_stack. Letters typed in name/howmuch do not switch views.

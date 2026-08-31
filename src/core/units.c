@@ -795,6 +795,9 @@ void units_fountain_youth_enqueue_pick(
     popups, AI_POPUP_TAG_FOUNTAIN_YOUTH, human, -1, remaining, NULL, body, labels, ids,
     EUROPE_POOL_SIZE
   );
+  /* DOS 4884(1,0) latches DS:0x1f5e = 3 (MSS3 frontiersman) for the FoY
+   * picks — not the Europe recruit courtier the @RECRUIT section implies. */
+  ai_popup_set_last_graphic_mss(popups, 3);
 }
 
 bool units_fountain_youth_apply_popup(
@@ -856,6 +859,8 @@ void units_brewster_enqueue_pick(
   (void)ai_popup_enqueue_choice_ctx(
     popups, AI_POPUP_TAG_BREWSTER_PICK, human, -1, 0, NULL, body, labels, ids, EUROPE_POOL_SIZE
   );
+  /* DOS 4884(0,1) latches DS:0x1f5e = 4 (MSS4 friar) for the Brewster pick. */
+  ai_popup_set_last_graphic_mss(popups, 4);
 }
 
 bool units_brewster_apply_popup(
