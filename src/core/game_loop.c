@@ -113,6 +113,22 @@ struct ColonizeGameState {
    * silently snatch control back the next frame. units.selected_id >= 0
    * always implies Move Pieces regardless of this flag. */
   bool view_pieces_mode;
+  /*
+   * DOS runs every popup/dialog as a blocking call, so the unit cycle and the
+   * end-of-turn processor never advance behind one; here dialogs are
+   * asynchronous, so a hand-off that lands while a modal is up (or while some
+   * other screen owns the display) is parked here and replayed by game_update
+   * once the map is back on screen. See game_turn_flow_allowed (bugs.md:
+   * "The only place that time/turn processing is allowed to proceed is the
+   * overland map, and only if there ISN'T an active popup").
+   */
+  bool turn_flow_deferred;
+  /*
+   * DOS FUN_479b_076e ends a human founding with FUN_281f_0608(colony) — the
+   * colony screen opens as soon as the name prompt is answered. Held here
+   * across the async name-entry dialog; -1 = nothing pending.
+   */
+  int found_open_colony_id;
   int map_zoom; /* 0..3 — VIEW Zoom In/Out/Level N. FUN_2b5a_0f92 DS:0x184; 0 = 15×12 native. */
   /*
    * VIEW ~Hidden Terrain (H): 0 = off; 1..3 = DOS's three peel passes (units/
@@ -476,11 +492,14 @@ static bool game_try_unit_move(ColonizeGameState* game, int dest_x, int dest_y);
 static void game_after_unit_action(ColonizeGameState* game);
 static void activate_menu_selection(ColonizeGameState* game);
 static void game_wait_next_unit(ColonizeGameState* game);
+static bool game_turn_flow_allowed(const ColonizeGameState* game);
+static bool game_defer_turn_flow(ColonizeGameState* game);
 static void game_open_retire_score(ColonizeGameState* game);
 static void game_open_trade_unload_picker(ColonizeGameState* game);
 static int game_trade_route_aim_stop(ColonizeGameState* game, ColonizeUnit* u, int stop_i);
 static void game_set_view_center(ColonizeGameState* game, int x, int y);
 static void game_open_found_name_entry(ColonizeGameState* game, int colony_id);
+static void game_enter_colony(ColonizeGameState* game, int cid);
 static void game_open_landho_name_entry(ColonizeGameState* game);
 static void game_landho_default_region(const ColonizeGameState* game, char* out, size_t out_size);
 static void game_apply_name_entry_result(ColonizeGameState* game);
@@ -845,6 +864,7 @@ static bool game_do_found_colony_at_unit(ColonizeGameState* game, int uid, bool 
       col ? col->population : 0
     );
   }
+  game->found_open_colony_id = cid;
   game_open_found_name_entry(game, cid);
   sound_play(0x54); /* DOS FUN_479b_076e: found-colony hammering (COLDIG sample 13) */
   /* 479b:0950, immediately after that same 0x54: human-only woodcut 2. */
@@ -1492,7 +1512,13 @@ static void game_open_found_name_entry(ColonizeGameState* game, int colony_id) {
   if (!name_entry_open(
         &game->name_entry, NAME_ENTRY_KIND_FOUND, prompt, seed, colony_id
       )) {
+    /* No prompt to answer means nothing will fire the FUN_281f_0608 tail;
+     * open the colony now rather than leaving it armed for the next one. */
     set_status(game, "Name entry failed", NULL);
+    if (game->found_open_colony_id == colony_id) {
+      game->found_open_colony_id = -1;
+      game_enter_colony(game, colony_id);
+    }
   }
 }
 
@@ -1588,6 +1614,19 @@ static void game_apply_name_entry_result(ColonizeGameState* game) {
       if (game->in_colony) {
         colony_screen_set_status(&game->colony_screen, game->status);
       }
+    }
+  }
+  /*
+   * FUN_479b_076e tail: once the human has named the new colony, DOS calls
+   * FUN_281f_0608(colony) and drops the player straight into its screen.
+   * Only for a founding — a rename from inside the colony screen leaves the
+   * view exactly where it was.
+   */
+  if (kind == NAME_ENTRY_KIND_FOUND && game->found_open_colony_id >= 0) {
+    const int cid = game->found_open_colony_id;
+    game->found_open_colony_id = -1;
+    if (!game->in_colony) {
+      game_enter_colony(game, cid);
     }
   }
   game->name_entry.has_result = false;
@@ -3093,6 +3132,8 @@ static bool game_apply_col1_save(ColonizeGameState* game, ColonizeCol1Save* load
   game->in_report = false;
   game->in_debug_atlas = false;
   game->colony_view_id = -1;
+  game->found_open_colony_id = -1;
+  game->turn_flow_deferred = false;
   game->view_pieces_mode = false; /* loaded save resumes Move Pieces */
 
   col1_save_free(&game->col1);
@@ -3609,7 +3650,17 @@ static void render_pedia_screen(const ColonizeGameState* game, ColonizeFramebuff
     return;
   }
 
+  /*
+   * Articles sit on the same WOODPANL.PIK panel the category list does
+   * (assets.md "Colonizopedia") — a Founding Father page in particular was
+   * drawing its portrait onto bare black, in the map palette (bugs.md).
+   * Blitting the panel here also makes the wood palette the right one for
+   * the whole screen; game_render selects it for any in_pedia view.
+   */
   memset(framebuffer->pixels, 0, (size_t)framebuffer->width * (size_t)framebuffer->height);
+  if (game->pedia_wood_ok && game->pedia_wood.pixels) {
+    pik_blit(&game->pedia_wood, framebuffer, 0, 0);
+  }
 
   PediaPage page;
   pedia_page(
@@ -3750,6 +3801,34 @@ static void europe_draw_box_border(
   europe_fill_rect(fb, x + w - 1, y, x + w, y + h, color);
 }
 
+/*
+ * Passenger riding in an Expected/Bound ship's hold: same icon rule the dock
+ * queue uses (profession sprite for a plain Colonists-type unit, the @UNIT
+ * icon otherwise).
+ */
+static int europe_pax_type_index(const ColonizeUnitPool* units, int tag) {
+  if (tag == -2) {
+    const int t = units_find_type(units, "Artillery");
+    return t >= 0 ? t : 0;
+  }
+  if (!units || tag < 0 || tag >= units->type_count) {
+    const int t = units_find_type(units, "Colonists");
+    return t >= 0 ? t : 0;
+  }
+  return tag;
+}
+
+static int europe_pax_icon_sprite(const ColonizeUnitPool* units, int type_index, int profession) {
+  const ColonizeUnitType* ut = units_type(units, type_index);
+  if (!ut) {
+    return -1;
+  }
+  if (strstr(ut->name, "Colonist") != NULL) {
+    return units_working_colonist_sprite(units, type_index, profession);
+  }
+  return ut->icon_sprite;
+}
+
 /* Two-line header + ship icons inside an Expected/Bound/Loading water box. */
 static int europe_ship_icon_sprite(const ColonizeUnitPool* units, const EuropeHarborShip* ship) {
   if (!units || !ship) {
@@ -3833,6 +3912,53 @@ static void europe_render_transit_box(
       europe_draw_box_border(framebuffer, x - 1, y - 1, sw + 2, sh + 2, 14);
     }
     x += sw + 2;
+
+    /*
+     * Everyone riding along shows next to their ship — bugs.md: "Colonists
+     * embarked on ships arriving from or traveling to the new world on the
+     * European Status need to be visible alongside ships." They are still
+     * cargo, so they get no orders chrome and no selection frame of their own;
+     * the ship is what the player clicks.
+     */
+    for (int c = 0; c < ships[i].cargo_count && c < EUROPE_SHIP_CARGO_MAX; ++c) {
+      const int pax_type = europe_pax_type_index(&game->units, ships[i].cargo_types[c]);
+      const int pax_sprite =
+        europe_pax_icon_sprite(&game->units, pax_type, ships[i].cargo_professions[c]);
+      if (pax_sprite < 0 || pax_sprite >= game->unit_icons.sprite_count) {
+        continue;
+      }
+      const ColonizeSprite* psp = &game->unit_icons.sprites[pax_sprite];
+      const int pw = psp->width > 0 ? psp->width : 14;
+      const int ph = psp->height > 0 ? psp->height : 16;
+      if (x + pw > box_x + box_w - 2) {
+        x = box_x + 3;
+        y += row_h + 1;
+        row_h = 0;
+        if (y + ph > box_y + box_h - 1) {
+          break;
+        }
+      }
+      if (ph > row_h) {
+        row_h = ph;
+      }
+      unit_chrome_blit_unit_for_palette(
+        framebuffer,
+        font,
+        &game->unit_icons,
+        pax_sprite,
+        x,
+        y,
+        pax_type,
+        game->human_nation,
+        UNITS_ORDER_NONE,
+        false,
+        false,
+        (game->europe_ok && game->europe.background.has_palette)
+          ? &game->europe.background.palette
+          : NULL
+      );
+      x += pw + 2;
+    }
   }
 }
 
@@ -4419,6 +4545,7 @@ ColonizeGameState* game_create(const ColonizeGameConfig* config) {
   }
   game->config = *config;
   game->ff_pedia_after_report = -1;
+  game->found_open_colony_id = -1;
   game->turn_number = 1;
   game->map_seed = 73;
   game->colony_view_id = -1;
@@ -5683,6 +5810,13 @@ static void game_after_unit_action(ColonizeGameState* game) {
   if (u->moves_left > 0) {
     return;
   }
+  /* The reveal / LCR / first-contact work above can raise a popup (@LANDHO
+   * naming, @INDIANWELCOME, a rumour outcome). DOS would be sitting inside
+   * that dialog right now, so nothing may advance past it here either —
+   * park the hand-off and let game_update replay it once it is answered. */
+  if (game_defer_turn_flow(game)) {
+    return;
+  }
   const int exhausted_x = u->x;
   const int exhausted_y = u->y;
   if (turn_select_next_unit(&game->units, game->human_nation)) {
@@ -5799,8 +5933,7 @@ static ColoniesBuildableOpts game_colony_buildable_opts(const ColonizeGameState*
   return opts;
 }
 
-static void game_enter_colony_at_cursor(ColonizeGameState* game) {
-  const int cid = colonies_id_at(&game->colonies, game->map_cursor_x, game->map_cursor_y);
+static void game_enter_colony(ColonizeGameState* game, int cid) {
   if (cid < 0) {
     set_status(game, "No colony at cursor", NULL);
     return;
@@ -5834,6 +5967,12 @@ static void game_enter_colony_at_cursor(ColonizeGameState* game) {
   }
   snprintf(game->status, sizeof(game->status), "Entered %s", col ? col->name : "colony");
   colony_screen_set_status(&game->colony_screen, col ? col->name : "Colony");
+}
+
+static void game_enter_colony_at_cursor(ColonizeGameState* game) {
+  game_enter_colony(
+    game, colonies_id_at(&game->colonies, game->map_cursor_x, game->map_cursor_y)
+  );
 }
 
 /*
@@ -7061,6 +7200,9 @@ static void game_europe_deliver_bound_ships(ColonizeGameState* game) {
 
 static void game_finish_end_turn(ColonizeGameState* game, const ColonizeTurnResult* result) {
   units_set_move_watch(NULL, NULL);
+  /* turn.c's own FINISH step already picked the first unit needing orders;
+   * a hand-off parked during the turn that just ended would skip past it. */
+  game->turn_flow_deferred = false;
   /* New turn always resumes Move Pieces (turn.c's own FINISH-step
    * turn_select_next_unit already picked the first unit needing orders,
    * or left none) — rearms the per-frame activation queue below. */
@@ -7087,8 +7229,52 @@ static void game_finish_end_turn(ColonizeGameState* game, const ColonizeTurnResu
   }
 }
 
+/*
+ * bugs.md: "The only place that time/turn processing is allowed to proceed is
+ * the overland map, and only if there ISN'T an active popup."
+ *
+ * DOS gets this for free — its popups are blocking calls, so the code that
+ * hands control to the next unit or ends the turn simply does not run until
+ * the player has answered. Our dialogs are asynchronous, so every automatic
+ * hand-off has to ask first. A queued-but-not-yet-presented AI popup counts
+ * as open (ai_popup_busy): it is shown at the top of the very next
+ * game_update, and the action that queued it must not race ahead of it.
+ */
+static bool game_turn_flow_allowed(const ColonizeGameState* game) {
+  if (!game) {
+    return false;
+  }
+  if (game->in_menu || game->in_europe || game->in_colony || game->in_report ||
+      game->in_pedia || game->in_debug_atlas || game->in_hall_of_fame ||
+      game->in_exploits) {
+    return false;
+  }
+  if (new_game_active(&game->new_game)) {
+    return false;
+  }
+  return !game_modal_open(game) && !ai_popup_busy(&game->ai_popups);
+}
+
+/*
+ * Park an automatic unit hand-off / end-of-turn until the map is back on
+ * screen with nothing over it; game_update replays it. Returns true when the
+ * caller must stop (deferred).
+ */
+static bool game_defer_turn_flow(ColonizeGameState* game) {
+  if (game_turn_flow_allowed(game)) {
+    return false;
+  }
+  if (game) {
+    game->turn_flow_deferred = true;
+  }
+  return true;
+}
+
 static void game_do_end_turn(ColonizeGameState* game) {
   if (!game || turn_processor_active(&game->turn_proc)) {
+    return;
+  }
+  if (game_defer_turn_flow(game)) {
     return;
   }
   units_set_move_watch(game_move_watch, game);
@@ -7148,6 +7334,11 @@ static bool game_end_turn_prompt_active(const ColonizeGameState* game) {
 
 static void game_wait_next_unit(ColonizeGameState* game) {
   if (!game || !game->units_ok) {
+    return;
+  }
+  /* Never hand control to another unit (or end the turn) from behind a popup
+   * or another screen — park it for game_update instead. */
+  if (game_defer_turn_flow(game)) {
     return;
   }
   bool found = turn_select_next_unit(&game->units, game->human_nation);
@@ -7679,7 +7870,20 @@ static bool game_apply_map_menu_action(ColonizeGameState* game, MapMenuAction ac
       set_status(game, "Hidden Terrain: units and settlements hidden", NULL);
       return true;
     case MAP_MENU_ACTION_ACTIVATE_UNIT: {
-      const int at = units_id_at(&game->units, game->map_cursor_x, game->map_cursor_y);
+      /*
+       * units_id_at only sees units standing on the map, so a passenger in a
+       * ship's hold could never be activated from here. If one is already the
+       * selection (picked out of the tile stack) and its ship is on the tile
+       * under the cursor, activate that instead — bugs.md: cancelling a loaded
+       * unit's orders has to leave it free to step ashore.
+       */
+      int at = units_id_at(&game->units, game->map_cursor_x, game->map_cursor_y);
+      const ColonizeUnit* sel_pax = units_get_const(&game->units, game->units.selected_id);
+      if (sel_pax && sel_pax->active && sel_pax->aboard_ship_id >= 0 &&
+          sel_pax->nation_id == game->human_nation &&
+          sel_pax->x == game->map_cursor_x && sel_pax->y == game->map_cursor_y) {
+        at = game->units.selected_id;
+      }
       if (at < 0) {
         set_status(game, "No unit at cursor", NULL);
       } else {
@@ -7985,83 +8189,13 @@ static bool game_apply_map_menu_action(ColonizeGameState* game, MapMenuAction ac
       } else if (!units_on_high_seas(&game->world_map, ship->x, ship->y)) {
         set_status(game, "Ship must be on high seas", NULL);
       } else {
-        const int exit_x = ship->x;
-        const int exit_y = ship->y;
-        const bool exit_east = exit_x >= (int)game->world_map.width / 2;
-        int type_index = -1;
-        char ship_name[32];
-        int cargo_types[EUROPE_SHIP_CARGO_MAX];
-        int cargo_profs[EUROPE_SHIP_CARGO_MAX];
-        int cargo_count = 0;
-        int hold_types[EUROPE_SHIP_CARGO_MAX];
-        int hold_amts[EUROPE_SHIP_CARGO_MAX];
-        int cargo_treasure_gold[EUROPE_SHIP_CARGO_MAX];
-        memset(hold_types, 0, sizeof(hold_types));
-        memset(hold_amts, 0, sizeof(hold_amts));
-        memset(cargo_treasure_gold, 0, sizeof(cargo_treasure_gold));
-        game_europe_capture_pax_professions(
-          &game->units, sid, cargo_profs, EUROPE_SHIP_CARGO_MAX
-        );
-        game_europe_capture_pax_treasure_gold(
-          &game->units, sid, cargo_treasure_gold, EUROPE_SHIP_CARGO_MAX
-        );
-        if (!units_despawn_ship_with_cargo(
-              &game->units,
-              sid,
-              &type_index,
-              ship_name,
-              sizeof(ship_name),
-              cargo_types,
-              &cargo_count,
-              EUROPE_SHIP_CARGO_MAX,
-              hold_types,
-              hold_amts,
-              EUROPE_SHIP_CARGO_MAX
-            )) {
-          set_status(game, "Failed to sail ship", NULL);
-        } else {
-          const int voyage_turns = game_voyage_turns(game);
-          if (!europe_enqueue_expected(
-                &game->europe,
-                type_index,
-                ship_name,
-                cargo_types,
-                cargo_profs,
-                cargo_count,
-                hold_types,
-                hold_amts,
-                exit_x,
-                exit_y,
-                exit_east,
-                voyage_turns
-              )) {
-            const int restored = units_spawn_ship_with_cargo(
-              &game->units,
-              type_index,
-              exit_x,
-              exit_y,
-              cargo_types,
-              cargo_count,
-              hold_types,
-              hold_amts
-            );
-            if (restored >= 0) {
-              game_europe_restore_pax_treasure_gold(
-                &game->units, restored, cargo_treasure_gold, cargo_count
-              );
-              game->units.selected_id = restored;
-            }
-            set_status(game, "Europe lane is full", NULL);
-          } else {
-            game_europe_fill_expected_treasure_gold(
-              &game->europe, cargo_treasure_gold, cargo_count
-            );
-            snprintf(game->status, sizeof(game->status), "%s sailed to Europe", ship_name);
-            if (!game_try_enter_europe(game)) {
-              /* Ship already despawned — stay on map with status from helper. */
-            }
-          }
-        }
+        /*
+         * Shared tail with the H command and the Go-To-onto-a-lane path.
+         * Ordering a ship home does NOT open the Europe screen: DOS opens it
+         * on *arrival*, when europe_tick_voyages moves the ship Expected →
+         * Harbor and raises open_on_dock (bugs.md).
+         */
+        game_ship_sail_to_europe(game, sid);
       }
       return true;
     }
@@ -8559,6 +8693,17 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
       return false;
     }
     return true;
+  }
+
+  /*
+   * Replay a unit hand-off / end-of-turn that was parked because a popup or
+   * another screen owned the display when it came due (game_defer_turn_flow).
+   * This is the async stand-in for DOS returning from a blocking dialog and
+   * simply continuing where it left off.
+   */
+  if (game->turn_flow_deferred && game_turn_flow_allowed(game)) {
+    game->turn_flow_deferred = false;
+    game_wait_next_unit(game);
   }
 
   if (input->last_key == COLONIZE_KEY_Q) {
@@ -10939,8 +11084,11 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
     ? game->palette
     : (game->in_debug_atlas && debug_atlas_palette(&game->debug_atlas))
       ? *debug_atlas_palette(&game->debug_atlas)
-      : (game->in_pedia && game->pedia_view == PEDIA_VIEW_LIST && game->pedia_wood_ok &&
-         game->pedia_wood.has_palette)
+      : (game->in_pedia && game->pedia_view != PEDIA_VIEW_LIST &&
+         game->pedia_category == PEDIA_CAT_FATHER && game->pedia_father_ok &&
+         game->pedia_father.has_palette)
+        ? game->pedia_father.palette
+      : (game->in_pedia && game->pedia_wood_ok && game->pedia_wood.has_palette)
         ? game->pedia_wood.palette
         : (game->in_report && game->reports_ok &&
            game->report_id == COLONIZE_REPORT_CONGRESS && !game->congress_page2 &&

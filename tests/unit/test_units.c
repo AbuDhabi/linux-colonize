@@ -1410,6 +1410,97 @@ static int unit_flood_river_pair_step(void) {
   return rc;
 }
 
+
+/*
+ * bugs.md: waking a loaded unit out of a ship's hold (tile-stack picker /
+ * ORDERS Activate Unit) has to leave it able to walk ashore even when the
+ * ship itself has no moves left. Boarding parks the passenger at moves_left
+ * 0 as a skip-select flag, so the wake has to restore its allotment.
+ */
+static int unit_wake_passenger_can_land(void) {
+  ColonizeUnitPool pool;
+  memset(&pool, 0, sizeof(pool));
+  pool.type_count = 2;
+  snprintf(pool.types[0].name, sizeof(pool.types[0].name), "Caravel");
+  pool.types[0].movement = 4;
+  pool.types[0].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  pool.types[0].cargo = 2;
+  pool.types[1].space = 1;
+  snprintf(pool.types[1].name, sizeof(pool.types[1].name), "Colonists");
+  pool.types[1].movement = 1;
+  pool.types[1].domain = COLONIZE_UNIT_DOMAIN_LAND;
+
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  char err[128];
+  if (!map_alloc(&map, 8, 8, err, sizeof(err))) {
+    fprintf(stderr, "wake_pax: map_alloc failed: %s\n", err);
+    return 1;
+  }
+  for (int i = 0; i < 8 * 8; ++i) {
+    map.terrain[i] = 25; /* ocean */
+  }
+  for (int y = 0; y < 8; ++y) {
+    map.terrain[y * 8 + 4] = 1; /* land column */
+  }
+
+  const int ship = units_spawn_allow_stack(&pool, 0, 3, 3);
+  const int pax = units_spawn_allow_stack(&pool, 1, 4, 3);
+  ColonizeUnit* su = units_get(&pool, ship);
+  ColonizeUnit* pu = units_get(&pool, pax);
+  if (!su || !pu) {
+    map_free(&map);
+    fprintf(stderr, "wake_pax: spawn failed\n");
+    return 1;
+  }
+  su->nation_id = 0;
+  pu->nation_id = 0;
+  su->moves_left = 4 * UNITS_MP_PER_TILE;
+  pu->moves_left = UNITS_MP_PER_TILE;
+
+  int rc = 0;
+  if (!units_board(&pool, pax, ship)) {
+    fprintf(stderr, "wake_pax: board failed\n");
+    rc = 1;
+  }
+  pu = units_get(&pool, pax);
+  su = units_get(&pool, ship);
+  if (rc == 0 && (pu->aboard_ship_id != ship || pu->moves_left != 0)) {
+    fprintf(stderr, "wake_pax: boarding should park the passenger at 0 MP\n");
+    rc = 1;
+  }
+  /* The ship is out of moves: only the passenger's own allotment can land it. */
+  if (rc == 0) {
+    su->moves_left = 0;
+  }
+  if (rc == 0 && !units_wake(&pool, pax)) {
+    fprintf(stderr, "wake_pax: units_wake should report the sentry cleared\n");
+    rc = 1;
+  }
+  pu = units_get(&pool, pax);
+  if (rc == 0 && (pu->orders != 0 || pu->moves_left <= 0)) {
+    fprintf(stderr, "wake_pax: wake must clear orders and restore MP (orders=%d mp=%d)\n",
+            pu->orders, pu->moves_left);
+    rc = 1;
+  }
+  if (rc == 0 &&
+      !units_unload_passenger(&pool, ship, pax, &map, 4, 3, NULL)) {
+    fprintf(stderr, "wake_pax: woken passenger must be able to step ashore\n");
+    rc = 1;
+  }
+  pu = units_get(&pool, pax);
+  if (rc == 0 && (pu->aboard_ship_id >= 0 || pu->x != 4 || pu->y != 3)) {
+    fprintf(stderr, "wake_pax: passenger should stand on land at (4,3)\n");
+    rc = 1;
+  }
+
+  map_free(&map);
+  if (rc == 0) {
+    fprintf(stderr, "unit_units: wake loaded passenger -> land ok\n");
+  }
+  return rc;
+}
+
 int main(void) {
   diag_init(0, NULL);
 
@@ -1449,6 +1540,10 @@ int main(void) {
     return 1;
   }
   if (unit_combat_sfx_visibility() != 0) {
+    diag_shutdown();
+    return 1;
+  }
+  if (unit_wake_passenger_can_land() != 0) {
     diag_shutdown();
     return 1;
   }

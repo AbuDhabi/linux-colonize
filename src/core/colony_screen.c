@@ -1024,30 +1024,44 @@ static void colony_screen_draw_outlined_number(
 }
 
 /*
- * Note 1 layout: evenly spaced icon x positions in [x, x+w).
+ * Note 1 layout: icon x positions for a row centred in [x, x+w).
  * ref_iw is the reference sprite width (usually the first icon).
  * Returns start-to-start step (0 if fully stacked).
+ *
+ * The row is packed shoulder to shoulder — one sprite width per step — and
+ * the whole block centred on the host rect, rather than spread across its
+ * full width. bugs.md: "Colonists working buildings in colony UI stand too
+ * far apart. If the building is wide enough, have them stand centered
+ * horizontally on the building, right next to each other as per their sprite
+ * widths. If the building is too narrow for that, squeeze them as needed."
+ * The squeeze keeps the last sprite inside the rect, and the caller's
+ * count badge still appears once the step collapses to <= 1px.
  */
 static int colony_screen_icon_strip_layout(int x, int w, int count, int ref_iw, int* out_x) {
   if (count <= 0 || !out_x || ref_iw <= 0) {
     return 0;
   }
-  if (count == 1) {
-    out_x[0] = x + (w - ref_iw) / 2;
-    return ref_iw;
-  }
   if (w <= ref_iw) {
+    /* Narrower than one sprite: stack them all, centred as best we can. */
+    const int only = x + (w - ref_iw) / 2;
     for (int i = 0; i < count; ++i) {
-      out_x[i] = x;
+      out_x[i] = only;
     }
-    return 0;
+    return count == 1 ? ref_iw : 0;
   }
-  const int span = w - ref_iw;
-  const int start_step = span / (count - 1);
+  int step = ref_iw;
+  if (count > 1 && ref_iw * count > w) {
+    step = (w - ref_iw) / (count - 1); /* overlap just enough to fit */
+    if (step < 0) {
+      step = 0;
+    }
+  }
+  const int total = step * (count - 1) + ref_iw;
+  const int start = x + (w - total) / 2;
   for (int i = 0; i < count; ++i) {
-    out_x[i] = x + (i * span) / (count - 1);
+    out_x[i] = start + i * step;
   }
-  return start_step;
+  return count == 1 ? ref_iw : step;
 }
 
 /*

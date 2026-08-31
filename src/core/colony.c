@@ -2998,16 +2998,51 @@ void colonies_render_on_map(
       }
     }
 
-    /* Colony name label below tile: white ink, black shadow. FONTINTR
-     * already bakes a soft AA shadow into shade 2/3 of every glyph
-     * (font_draw_text's color==15 path, FF_COLOR_MAP) — that shadow just
-     * renders grey/brown, not black. Recolor it in place via
-     * font_draw_text_shaded rather than layering a second, separate
-     * manual shadow on top (player-caught: an earlier pass added one,
-     * doubling up). */
-    if (font) {
+    /*
+     * Population badge + name label — DOS FUN_112b_0c64, and only in the
+     * full-size (16px) tile set: the smaller zoom levels draw the icon
+     * alone. Geometry read off CODE_5:112b:0dd b..0e79 (Ghidra drops the
+     * register arguments of FUN_1c11_000c, so the coordinates come from
+     * the instruction stream): digits at tile+(7,7), name at tile+(2,16).
+     */
+    if (font && tile_w >= 16 && tile_h >= 16) {
+      /*
+       * What is counted: your own colonies show their live population; a
+       * foreign one shows what you last saw (colony +0xba per viewer,
+       * floored at 1), so the badge never leaks a rival's growth. DOS
+       * writes that floor back into the record; the reveal writer
+       * (colonies_note_seen_by) owns it here, so the draw stays const.
+       */
+      int shown = c->population;
+      if (fog_nation >= 0 && fog_nation < 4 && c->nation_id != fog_nation) {
+        shown = c->pop_on_map[fog_nation];
+        if (shown <= 0) {
+          shown = 1;
+        }
+      }
+      /* Colour by Sons of Liberty latch: white, bright green at ≥50%,
+       * bright cyan once 100% is latched on top of it (+0x1c bits 4/2). */
+      uint8_t ink = 15;
+      if ((c->colony_flags & COLONIZE_COLONY_FLAG_SOL_50) != 0) {
+        ink = 10;
+        if ((c->colony_flags & COLONIZE_COLONY_FLAG_SOL_100) != 0) {
+          ink = 11;
+        }
+      }
+      char pop_text[8];
+      snprintf(pop_text, sizeof(pop_text), "%d", shown);
+      const uint8_t pop_shade[4] = {0, ink, ink, ink};
+      font_draw_text_shaded(font, framebuffer, px + 7, py + 7, pop_text, pop_shade);
+
+      /* Colony name below the tile: white ink, black shadow. FONTINTR
+       * already bakes a soft AA shadow into shade 2/3 of every glyph
+       * (font_draw_text's color==15 path, FF_COLOR_MAP) — that shadow just
+       * renders grey/brown, not black. Recolor it in place via
+       * font_draw_text_shaded rather than layering a second, separate
+       * manual shadow on top (player-caught: an earlier pass added one,
+       * doubling up). */
       static const uint8_t kShade[4] = {0, 15, 0, 0};
-      font_draw_text_shaded(font, framebuffer, px, py + tile_h + 1, c->name, kShade);
+      font_draw_text_shaded(font, framebuffer, px + 2, py + 16, c->name, kShade);
     }
   }
 }
