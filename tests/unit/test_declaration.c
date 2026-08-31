@@ -32,7 +32,7 @@ static void test_title_case(void) {
   check(strcmp(b, "Les Provinces-Unies") == 0, "hyphen is a word boundary");
 
   char c[32];
-  snprintf(c, sizeof(c), "");
+  c[0] = '\0';
   declaration_title_case(c);
   check(c[0] == '\0', "empty name survives");
 }

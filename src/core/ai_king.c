@@ -2384,7 +2384,9 @@ static void ai_king_tax_hike_apply(ColonizeTurnContext* ctx, int human, int delt
       labels[1] = choice_buf[1];
     } else {
       labels[0] = "Kiss pinky ring.";
-      snprintf(choice_buf[1], sizeof(choice_buf[1]), "Hold '%s Party.'", party);
+      /* %.49s bounds the party name: the literal costs 14 chars, leaving 49
+       * plus NUL of the 64-byte choice slot. */
+      snprintf(choice_buf[1], sizeof(choice_buf[1]), "Hold '%.49s Party.'", party);
       labels[1] = choice_buf[1];
     }
     sound_play(0x3e); /* FUN_38fd_3dc8 38fd:4022/4068: royal-audience tune */
