@@ -1,3 +1,4 @@
+#include "core/ai_diplo.h"
 #include "core/ai_king.h"
 #include "core/assets.h"
 #include "core/colony_production.h"
@@ -176,6 +177,7 @@ void reports_free(ColonizeReportsView* view) {
   }
   ss_free(&view->icons);
   ff_free(&view->title_font);
+  ff_free(&view->intro_font);
   pik_free(&view->congress_page1_bg);
   pik_free(&view->exploits_bg);
   memset(view, 0, sizeof(*view));
@@ -330,6 +332,12 @@ bool reports_load(ColonizeReportsView* view, const char* data_dir, char* err, si
   if (dos_compat_normalize_asset_path(data_dir, "FONTTINY.FF", font_path, sizeof(font_path)) &&
       ff_load(font_path, &view->title_font, font_err, sizeof(font_err))) {
     view->title_font_ok = true;
+    /* FONTINTR — the mixed-case serif dialog font; the Indian Adviser's
+     * tribe names and tech levels use it (indian.png). */
+    if (dos_compat_normalize_asset_path(data_dir, "FONTINTR.FF", font_path, sizeof(font_path)) &&
+        ff_load(font_path, &view->intro_font, font_err, sizeof(font_err))) {
+      view->intro_font_ok = true;
+    }
   } else {
     diag_warn("Failed to load FONTTINY.FF for reports: %s", font_err);
   }
@@ -3022,7 +3030,7 @@ static void reports_render_foreign(
 #define REPORTS_INDIAN_ICON_DY (-2) /* icon top = name_y + this */
 #define REPORTS_INDIAN_ICON_SPRITE 113 /* ICONS.SS headband portrait, 16x16 — see comment above */
 #define REPORTS_INDIAN_NAME_X 30
-#define REPORTS_INDIAN_STATS_DY 8 /* stats line y = name_y + this */
+#define REPORTS_INDIAN_STATS_DY 9 /* stats line y = name_y + this (FONTINTR name row is 9px) */
 #define REPORTS_INDIAN_VILLAGES_X 40
 #define REPORTS_INDIAN_MISSIONS_X 96
 #define REPORTS_INDIAN_MUSKETS_X 153
@@ -3050,6 +3058,7 @@ typedef struct IndianRow {
   int missions;
   int muskets;
   int horse_herds;
+  int icon_sprite; /* 114 + alarm quartile — chief flair (see build_rows) */
 } IndianRow;
 
 /* Builds the flat contacted-tribe row list — shared shape with
@@ -3108,6 +3117,21 @@ static int reports_indian_build_rows(
     r->missions = missions;
     r->muskets = ((int)ind->muskets + armed_units) * REPORTS_INDIAN_MUSKET_UNIT_SCALE;
     r->horse_herds = ind->horse_herds;
+    /*
+     * Chief flair vs alarm (bugs.md), decoded from the raw asm (OVL06
+     * 053d..05d2): sprite = 0x72 (114) + quartile of the Indian↔Euro
+     * alarm word at cuts 25/50/75 (FUN_281f_0a60), forced to the top tier
+     * when the record's +3 bit 0x80 (hostile latch) is set. The earlier
+     * hardcoded #113 was the sixth, unused-by-this-formula portrait.
+     */
+    {
+      const int alarm = ai_diplo_indian_alarm(col1, nation_id, human);
+      int q = alarm >= 75 ? 3 : alarm >= 50 ? 2 : alarm >= 25 ? 1 : 0;
+      if (ind->extinct) {
+        q = 3; /* [0x8d4e+3] & 0x80 forces the top tier */
+      }
+      r->icon_sprite = 114 + q;
+    }
   }
   return n;
 }
@@ -3120,9 +3144,14 @@ static void reports_render_indian(
   const ColonizeFont* font,
   ColonizeFramebuffer8* fb
 ) {
-  /* Body text needs FONTTINY, not FONTSMAL — same pitfall as Naval/Congress
-   * page 1 (docs/report_screens.md): the tight fixed-column stats line
-   * ("<n> Villages" at 56px available width) only fits at FONTTINY size. */
+  /* The stats line needs FONTTINY — the tight fixed columns ("<n>
+   * Villages" at 56px) only fit at that size — but the tribe NAME and the
+   * tech-level word are FONTSMAL in the golden (indian.png: bolder,
+   * shadowed glyphs, visibly heavier than the stats row). The earlier pass
+   * dropped everything to FONTTINY (bugs.md: "fonts are off ... the tribe
+   * name and tech level"). */
+  const ColonizeFont* name_font =
+    (view && view->intro_font_ok) ? &view->intro_font : font;
   font = (view && view->title_font_ok) ? &view->title_font : font;
 
   IndianRow rows[COLONIZE_COL1_INDIAN_COUNT];
@@ -3134,16 +3163,21 @@ static void reports_render_indian(
     const int stats_y = name_y + REPORTS_INDIAN_STATS_DY;
 
     if (view && view->icons_ok) {
+      const int icon =
+        (r->icon_sprite >= 114 && r->icon_sprite < view->icons.sprite_count)
+          ? r->icon_sprite
+          : REPORTS_INDIAN_ICON_SPRITE;
       ss_blit_sprite(
-        &view->icons, REPORTS_INDIAN_ICON_SPRITE, fb, REPORTS_INDIAN_ICON_X,
-        name_y + REPORTS_INDIAN_ICON_DY
+        &view->icons, icon, fb, REPORTS_INDIAN_ICON_X, name_y + REPORTS_INDIAN_ICON_DY
       );
     }
 
     char name_buf[40];
     snprintf(name_buf, sizeof(name_buf), "%s:", r->name);
-    reports_draw_line_shadowed(font, fb, REPORTS_INDIAN_NAME_X, name_y, name_buf, r->color);
-    reports_draw_right_shadowed(font, fb, REPORTS_INDIAN_LEVEL_RIGHT, name_y, r->level, r->color);
+    reports_draw_line_shadowed(name_font, fb, REPORTS_INDIAN_NAME_X, name_y, name_buf, r->color);
+    reports_draw_right_shadowed(
+      name_font, fb, REPORTS_INDIAN_LEVEL_RIGHT, name_y, r->level, r->color
+    );
 
     /*
      * "Missions" (@MISC #28) and "Horse Herds" (@MISC #45) are real

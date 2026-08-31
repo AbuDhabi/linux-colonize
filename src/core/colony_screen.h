@@ -258,6 +258,8 @@ typedef struct ColonyScreenView {
   int construction_dialog_h;
   int construction_list_y0;
   int construction_line_h;
+  int construction_rows_per_col; /* DOS 2f2b_5bd2: 2 columns of 16 when > 14 rows */
+  int construction_col_w;
 
   bool jobs_open;
   int jobs_tile_index;

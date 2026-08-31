@@ -3190,7 +3190,13 @@ static bool game_apply_col1_save(ColonizeGameState* game, ColonizeCol1Save* load
     sound_set_options(opts);
   }
   sound_set_bgm(1);
-  sound_play(0x3e); /* FUN_75c2_20e2 75c2:21e0: tune queued after a successful load */
+  /*
+   * bugs.md: loading played the royal-audience tune. The 0x3e queue in
+   * OVL27 sits in the KING-portrait screen (75c2:1dcc pushes DS string
+   * "KING1" right before it), not in the load path — the load function's
+   * own tail (75c2:2330) queues 0x25, the default main theme.
+   */
+  sound_play(0x25);
   /* Continue LCG for FUN_465b / AI nation turns. VR_SEED fixtures use seed 100;
    * prefer that when the save looks like a seed-100 NEW WORLD start (turn<=6,
    * 34 tribes), else fall back to turn/year. --seed overrides all of that. */
@@ -8634,7 +8640,14 @@ static bool game_apply_map_menu_action(ColonizeGameState* game, MapMenuAction ac
           ship_id = sid;
         }
       }
-      if (land_id < 0 || ship_id < 0) {
+      /* bugs.md: never grab a Fortifying/Fortified unit off the tile —
+       * fortification has no interaction with boarding in DOS, and
+       * units_board forces sentry-aboard (the "fortified soldier became
+       * sentried and vanished onto the ship" report). */
+      const ColonizeUnit* lu = land_id >= 0 ? units_get_const(&game->units, land_id) : NULL;
+      if (lu && (lu->orders == UNITS_ORDER_FORTIFY || lu->orders == UNITS_ORDER_FORTIFIED)) {
+        set_status(game, "Unit is fortified", NULL);
+      } else if (land_id < 0 || ship_id < 0) {
         set_status(game, "Select land unit and cursor on adjacent ship (or reverse)", NULL);
       } else if (!units_board(&game->units, land_id, ship_id)) {
         set_status(game, "Cannot board (need adjacent ship with free hold)", NULL);
@@ -10524,7 +10537,9 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
       diag_info("Left Colonizopedia.");
       return true;
     }
-    if (input->last_key == COLONIZE_KEY_ESCAPE) {
+    /* bugs.md: a click anywhere dismisses the article, like Escape. */
+    if (input->last_key == COLONIZE_KEY_ESCAPE || input->mouse_left_clicked ||
+        input->mouse_right_clicked) {
       if (game->pedia_return_to_list) {
         game_open_pedia_list(game, game->pedia_category);
       } else {
@@ -11119,6 +11134,13 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
      * this plain-key branch ever become reachable. Must NOT reduce to a
      * bare game_wait_next_unit() call: that is W/Wait's semantics (defer
      * without spending moves), not Space's. */
+    /* bugs.md: with the End of Turn prompt flashing (View Pieces, nothing
+     * left in the control queue), Space confirms the turn like the sidebar
+     * click does in DOS. */
+    if (game_end_turn_prompt_active(game)) {
+      game_do_end_turn(game);
+      return true;
+    }
     ColonizeUnit* u =
       game->units.selected_id >= 0 ? units_get(&game->units, game->units.selected_id) : NULL;
     if (u) {
@@ -11160,6 +11182,12 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
       }
     } else if (at_cursor >= 0) {
       game_select_unit(game, at_cursor);
+    } else if (game_end_turn_prompt_active(game)) {
+      /* bugs.md: View Pieces, no own colony/unit on the tile, control queue
+       * empty (End of Turn flashing) — Enter confirms the turn, same as the
+       * sidebar click. */
+      game_do_end_turn(game);
+      return true;
     } else {
       /* Enter on exhausted human unit / empty tile → tile select. */
       const int any_id = units_id_at(&game->units, game->map_cursor_x, game->map_cursor_y);
@@ -11198,7 +11226,13 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
         ship_id = sid;
       }
     }
-    if (land_id < 0 || ship_id < 0) {
+    const ColonizeUnit* board_lu =
+      land_id >= 0 ? units_get_const(&game->units, land_id) : NULL;
+    if (board_lu && (board_lu->orders == UNITS_ORDER_FORTIFY ||
+                     board_lu->orders == UNITS_ORDER_FORTIFIED)) {
+      /* bugs.md: fortification never interacts with boarding. */
+      set_status(game, "Unit is fortified", NULL);
+    } else if (land_id < 0 || ship_id < 0) {
       set_status(game, "Select land unit and cursor on adjacent ship (or reverse)", NULL);
     } else if (!units_board(&game->units, land_id, ship_id)) {
       set_status(game, "Cannot board (need adjacent ship with free hold)", NULL);
