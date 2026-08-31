@@ -3,8 +3,9 @@ Roland_SC-55.sf2
 
 This directory is **not** covered by the repository's PolyForm
 Noncommercial license. The SoundFont stays GPL-3+ as declared below.
-The game binary does not require this file; it is shipped as a MIDI
-playback convenience.
+Neither the build nor the game binary requires this file; it is shipped
+as a MIDI playback convenience. Without it, music uses the square-wave
+fallback (or a system soundfont, if one is installed).
 
 Source
 ------
