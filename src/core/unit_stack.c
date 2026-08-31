@@ -64,7 +64,16 @@ static bool unit_stack_activate_row(UnitStackPopup* dlg, ColonizeUnitPool* pool,
     return false;
   }
   if (u->aboard_ship_id >= 0 && u->orders == 1) {
-    u->orders = 0;
+    /*
+     * Wake through units_wake, not a bare orders=0: boarding parks a
+     * passenger at moves_left 0 as a "skip this one" flag while DOS's own
+     * spent byte is still zero (a full allotment). Clearing just the order
+     * left the unit awake with no MP, so every move gate refused it and it
+     * could not walk ashore from a ship that was itself out of moves --
+     * bugs.md "cancel the orders of that loaded unit ... that unit should
+     * be available to move".
+     */
+    (void)units_wake(pool, uid);
     return true; /* woke; keep popup open */
   }
   *out_select_id = uid;
