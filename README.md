@@ -37,7 +37,8 @@ Living status:
 - FluidSynth (optional; MIDI / Pick Music)
 
 Original game data must be present under `COLONIZE/` (or passed with
-`--data-dir`).
+`--data-dir`). This repo does not include those files; you provide a copy
+you obtained yourself (see [License](#license)).
 
 ## Build / run
 
@@ -75,4 +76,24 @@ Songs play through FluidSynth over a GM/GS soundfont. `sound_find_soundfont`
 If none are found, the game logs a warning and falls back to a soft
 (non-FluidSynth) beep path rather than failing — set `COLONIZE_SOUNDFONT` to
 point at any GM-compatible `.sf2` file to override. `--nosound` skips audio
-entirely.
+entirely. The bundled bank is optional and separately licensed (GPL-3+);
+it is not required for the binary to run.
+
+## License
+
+**linux-colonize code** is [PolyForm Noncommercial 1.0.0](LICENSE)
+(`PolyForm-Noncommercial-1.0.0`). Noncommercial use, modification, and
+redistribution are allowed if you keep the license and the
+`Required Notice:` attribution line. **Commercial use needs explicit
+written permission** from the copyright holder.
+
+**Original Colonization data** (graphics, sound, text catalogs, and the
+rest of a DOS/`COLONIZE/` install) is **not** relicensed here and is
+**not** in this repository. The binary needs those files until someone
+ships replacement assets. You must supply a legally obtained copy — the
+1994 game is still sold on GOG and Steam, among other stores.
+
+**Bundled SC-55 soundfont** (`data/soundfonts/Roland_SC-55.sf2`) is a
+convenience for MIDI, licensed **GPL-3+** by deemster. See
+[`data/soundfonts/COPYRIGHT.Roland_SC-55`](data/soundfonts/COPYRIGHT.Roland_SC-55).
+The port runs without it.

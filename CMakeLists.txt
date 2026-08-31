@@ -162,7 +162,10 @@ if(SDL2_FOUND)
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
             ${CMAKE_SOURCE_DIR}/data/soundfonts/COPYRIGHT.Roland_SC-55
             $<TARGET_FILE_DIR:colonize_linux>/data/soundfonts/COPYRIGHT.Roland_SC-55
-    COMMENT "Copy bundled Roland_SC-55.sf2 next to colonize_linux"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            ${CMAKE_SOURCE_DIR}/LICENSE
+            $<TARGET_FILE_DIR:colonize_linux>/LICENSE
+    COMMENT "Copy bundled Roland_SC-55.sf2 and LICENSE next to colonize_linux"
   )
 else()
   message(WARNING "SDL2 not found. colonize_linux target is disabled; build/install SDL2 dev packages to enable.")
