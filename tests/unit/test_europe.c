@@ -540,6 +540,28 @@ int main(void) {
   }
 
   /* Train: cheapest @JOB hire (Expert Ore Miners 600). */
+  /*
+   * DOS FUN_38fd_41ce sorts the collected @JOB costs (FUN_291f_0ed0 ->
+   * FUN_1cf8_000a) before drawing a row, so the Train list is cheapest-first
+   * and its first row is Expert Ore Miners at 600, not @JOB 0 (bugs.md).
+   */
+  for (int i = 1; i < eu.train_count; ++i) {
+    if (eu.train[i].cost < eu.train[i - 1].cost) {
+      fprintf(
+        stderr, "train list not sorted by cost: [%d]=%s %d after [%d]=%s %d\n",
+        i, eu.train[i].expert_name, eu.train[i].cost,
+        i - 1, eu.train[i - 1].expert_name, eu.train[i - 1].cost
+      );
+      europe_free(&eu);
+      return 1;
+    }
+  }
+  if (eu.train_count > 0 && strstr(eu.train[0].expert_name, "Ore Miner") == NULL) {
+    fprintf(stderr, "train list should open on Expert Ore Miners, got '%s'\n",
+            eu.train[0].expert_name);
+    europe_free(&eu);
+    return 1;
+  }
   if (eu.train_count < 1) {
     fprintf(stderr, "expected train options from @JOB\n");
     europe_free(&eu);

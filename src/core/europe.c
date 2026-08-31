@@ -382,6 +382,50 @@ static void europe_init_pool(EuropeScreen* eu) {
   }
 }
 
+/*
+ * DOS `FUN_38fd_41ce` (the Train dialog) collects every @JOB with a positive
+ * hire cost in job order, exactly as the loop below does, and then hands the
+ * cost array and the parallel job-id array to `FUN_291f_0ed0` ->
+ * `FUN_1cf8_000a` before drawing a single row. That routine is a sort: it
+ * walks for the first descending step, lifts that element out (shifting the
+ * tail left), finds the first slot whose key is >= the lifted key, shifts
+ * right and drops it in — an ascending sort by cost. So the Train list is
+ * ordered cheapest-first, not by @JOB index the way this port had it
+ * (bugs.md).
+ *
+ * Transcribed rather than replaced with a qsort because the tie order is
+ * observable and is this algorithm's own: an element only moves on a strictly
+ * descending step, and re-enters *before* every equal key. With stock
+ * NAMES.TXT that puts Carpenters before Fishermen at 1000, Farmers before
+ * Distiller at 1100, and Pioneers before Tobacconists at 1200. Costs come
+ * from NAMES.TXT, so a modded table has to re-sort the same way.
+ */
+static void europe_sort_train_by_cost(EuropeTrainOption* a, int n) {
+  if (!a || n < 2) {
+    return;
+  }
+  int i = 0;
+  while (i < n - 1) {
+    if (a[i + 1].cost >= a[i].cost) {
+      ++i;
+      continue;
+    }
+    const EuropeTrainOption lifted = a[i + 1];
+    for (int k = 0; k < n - 2 - i; ++k) {
+      a[i + 1 + k] = a[i + 2 + k];
+    }
+    int pos = 0;
+    while (pos < n - 1 && a[pos].cost < lifted.cost) {
+      ++pos;
+    }
+    for (int k = n - 2; k >= pos; --k) {
+      a[k + 1] = a[k];
+    }
+    a[pos] = lifted;
+    /* DOS does not rewind `local_12` here — the scan resumes where it was. */
+  }
+}
+
 static bool europe_load_tables(EuropeScreen* eu, const ColonizeMsgCatalog* names) {
   eu->cargo_count = 0;
   eu->class_count = 0;
@@ -515,6 +559,7 @@ static bool europe_load_tables(EuropeScreen* eu, const ColonizeMsgCatalog* names
       }
       ++job_index;
     }
+    europe_sort_train_by_cost(eu->train, eu->train_count);
   }
 
   const ColonizeMsgSection* home = assets_msg_find(names, "HOMEPORT");

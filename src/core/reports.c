@@ -1177,40 +1177,33 @@ static void reports_render_congress_page1(
 }
 
 /*
- * Page 2 (golden: continental_p2.png) — CCBKGD.PIK hall, full-bleed group
- * portrait, no title/text/OK chrome. Positions below are template-matched
- * directly off the golden for the 10 Founding Fathers it shows (each CC-xx.SS
- * blitted at native size, no cropping); the other 15 have no known position
- * yet (no second golden to cross-reference) and are skipped rather than guessed.
+ * Page 2 — CCBKGD.PIK hall, full-bleed group portrait, no title/text/OK
+ * chrome. Transcribed from DOS `FUN_4345_01a6` (4345:01b5..0246), which is a
+ * plain 25-iteration loop: take the next father id out of the draw-order
+ * table at DS:0x123a, skip it unless this nation owns it (FUN_281f_07b4),
+ * build "CC-" + a leading "0" below 10 + the id (DS strings 0x1234 / 0x1238),
+ * load that sheet and blit it at the position the sheet itself carries
+ * (`ES:[BX+0x46]` / `ES:[BX+0x48]` — the per-sprite anchor `ss_load` already
+ * parses out of the file header).
+ *
+ * So there is no coordinate table to measure: every father's position is in
+ * his own CC-xx.SS. The earlier pass template-matched 10 of them off
+ * continental_p2.png and skipped the other 15 as unknown, which is why Paul
+ * Revere and Francis Drake never appeared (bugs.md). All 25 now draw, and the
+ * four positions that pass had matched cleanly (De La Salle, Washington,
+ * Jefferson, Franklin) come out byte-identical from the anchors.
  */
-typedef struct ReportsFfPortraitSlot {
-  int8_t ff_index;
-  int16_t x;
-  int16_t y;
-} ReportsFfPortraitSlot;
-
 /*
- * Draw order matters: sprites are photo cutouts with opaque (non-transparent)
- * canvas margins, not clean alpha mattes, so an overlapping later sprite can
- * blank out an earlier one even outside its "person" silhouette. Ordered
- * back-to-front by (y + height) ascending so foreground figures (DeLaSalle,
- * Washington, Franklin, ...) paint over the background row behind them,
- * matching the golden's apparent layering.
+ * DS:0x123a, verbatim: the back-to-front paint order. It matters because the
+ * sprites are photo cutouts with opaque canvas margins rather than clean
+ * mattes, so a later sprite can blank an earlier one outside its silhouette.
+ * (Sanity check: the order tracks each sheet's anchor baseline ascending,
+ * 118 -> 199, which is what a hand-authored depth order looks like.)
  */
-static const ReportsFfPortraitSlot k_ff_portrait_slots[] = {
-  {20, 268, 38}, /* William Brewster */
-  {3, 83, 34},   /* Peter Stuyvesant */
-  {17, 2, 22},   /* Thomas Paine */
-  {18, 190, 35}, /* Simon Bolivar */
-  {2, 49, 39},   /* Peter Minuit */
-  {16, 223, 37}, /* Pocahontas */
-  {15, 96, 56},  /* Thomas Jefferson */
-  {11, 154, 60}, /* George Washington */
-  {9, 39, 65},   /* Sieur De La Salle */
-  {19, 118, 86}  /* Benjamin Franklin */
+static const uint8_t k_ff_portrait_draw_order[COLONIZE_COL1_FF_COUNT] = {
+  6, 20, 1, 23, 24, 22, 7, 3, 8, 18, 4, 21, 10,
+  13, 0, 17, 5, 12, 15, 11, 2, 9, 14, 19, 16
 };
-#define REPORTS_FF_PORTRAIT_SLOT_COUNT \
-  (int)(sizeof(k_ff_portrait_slots) / sizeof(k_ff_portrait_slots[0]))
 
 static void reports_render_congress_page2(
   const ColonizeReportsView* view,
@@ -1225,16 +1218,20 @@ static void reports_render_congress_page2(
     return;
   }
   const ColonizeCol1Nation* nat = &col1->nation[human];
-  for (int i = 0; i < REPORTS_FF_PORTRAIT_SLOT_COUNT; ++i) {
-    const ReportsFfPortraitSlot* slot = &k_ff_portrait_slots[i];
-    if (!reports_ff_owned_by_nation(nat, slot->ff_index)) {
+  for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
+    const int ff = (int)k_ff_portrait_draw_order[i];
+    if (!reports_ff_owned_by_nation(nat, ff)) {
       continue;
     }
-    const ColonizeSpriteSheet* sheet = reports_ff_portrait_sheet(view->data_dir, slot->ff_index);
-    if (!sheet) {
+    const ColonizeSpriteSheet* sheet = reports_ff_portrait_sheet(view->data_dir, ff);
+    if (!sheet || sheet->sprite_count <= 0) {
       continue;
     }
-    ss_blit_sprite(sheet, 0, fb, slot->x, slot->y);
+    const ColonizeSprite* sp = &sheet->sprites[0];
+    /* ss.h: anchor_x is a horizontal centre, anchor_y a bottom baseline. */
+    ss_blit_sprite(
+      sheet, 0, fb, sp->anchor_x - sp->width / 2, sp->anchor_y - sp->height + 1
+    );
   }
 }
 

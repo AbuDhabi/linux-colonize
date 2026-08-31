@@ -510,6 +510,7 @@ static void game_apply_howmuch_result(ColonizeGameState* game);
 static void game_apply_save_load_result(ColonizeGameState* game);
 static void game_apply_cheat_list_result(ColonizeGameState* game);
 static void game_select_unit(ColonizeGameState* game, int unit_id);
+static void game_click_activate_unit(ColonizeGameState* game, int unit_id);
 static void game_reveal_sight_for_unit(ColonizeGameState* game, const ColonizeUnit* u);
 static bool game_load_col1_slot(ColonizeGameState* game, int slot, char* err, size_t err_size);
 static bool game_save_col1_slot(ColonizeGameState* game, int slot, char* err, size_t err_size);
@@ -1787,7 +1788,9 @@ static bool game_handle_modal_input(ColonizeGameState* game, const ColonizeInput
     int select_id = -1;
     unit_stack_handle_input(&game->unit_stack, &game->units, input, &select_id);
     if (select_id >= 0) {
-      game_select_unit(game, select_id);
+      /* Picking a row out of the tile stack is the same activation DOS
+       * clears the orders byte on (2b5a:1dd0). */
+      game_click_activate_unit(game, select_id);
     }
     return true;
   }
@@ -4001,6 +4004,102 @@ static void europe_render_transit_box(
   }
 }
 
+/*
+ * Geometry of the RECRUIT/TRAIN/PURCHASE/DOCK wood popup. Shared by the
+ * renderer and the click hit-test so a row the player sees and the row a
+ * click lands on cannot drift apart. bugs.md: those three popups were
+ * keyboard-only because the Europe input path swallowed every click while a
+ * menu was open.
+ */
+/*
+ * DOS builds all four of these through the one generic list dialog
+ * (FUN_291f_0182 -> FUN_6f74_32a4), which takes its font from the far pointer
+ * at DS:0x1f9e/0x1fa0. That global's standing value is DS:0x268a — FONTINTR;
+ * startup sets it there (75c2:2306) and the one place that swaps it to
+ * FONTTINY (DS:0x89e) puts FONTINTR back straight after. So Recruit, Train,
+ * Purchase and the dock-orders menu are FONTINTR, not the FONTSMAL this port
+ * was drawing them in (bugs.md). Same getter feeds the layout and the
+ * renderer so the row pitch the hit-test uses is the row pitch drawn.
+ */
+static const ColonizeFont* europe_menu_font(const ColonizeGameState* game) {
+  if (!game) {
+    return NULL;
+  }
+  if (game->intro_font_ok) {
+    return &game->intro_font;
+  }
+  return game->menu_font_ok ? &game->menu_font : NULL;
+}
+
+typedef struct EuropeMenuLayout {
+  int rows;
+  int inner_x;
+  int inner_y;
+  int inner_w;
+  int list_y0;
+  int line_h;
+  int pad;
+} EuropeMenuLayout;
+
+static bool europe_menu_layout(
+  const ColonizeGameState* game,
+  int fb_w,
+  int fb_h,
+  EuropeMenuLayout* out
+) {
+  if (!game || !out || fb_w <= 0 || fb_h <= 0) {
+    return false;
+  }
+  const EuropeScreen* eu = &game->europe;
+  const ColonizeFont* font = europe_menu_font(game);
+  out->line_h = font ? (font->max_height + 2) : 9;
+  out->pad = 4;
+  switch (eu->menu) {
+    case EUROPE_MENU_RECRUIT:
+      out->rows = 1 + EUROPE_POOL_SIZE;
+      break;
+    case EUROPE_MENU_TRAIN:
+      out->rows = 1 + eu->train_count;
+      break;
+    case EUROPE_MENU_PURCHASE:
+      out->rows = 1 + eu->purchase_count;
+      break;
+    case EUROPE_MENU_DOCK:
+      out->rows = 4;
+      break;
+    default:
+      return false;
+  }
+  int dialog_w = 220;
+  if (dialog_w > fb_w - 8) {
+    dialog_w = fb_w - 8;
+  }
+  int dialog_h = POPUP_FRAME_INSET * 2 + out->pad + out->line_h + out->rows * out->line_h + out->pad;
+  if (dialog_h > fb_h - 8) {
+    dialog_h = fb_h - 8;
+  }
+  const int dialog_x = (fb_w - dialog_w) / 2;
+  const int dialog_y = 16;
+  out->inner_x = dialog_x + POPUP_FRAME_INSET;
+  out->inner_y = dialog_y + POPUP_FRAME_INSET;
+  out->inner_w = dialog_w - POPUP_FRAME_INSET * 2;
+  out->list_y0 = out->inner_y + out->pad + out->line_h;
+  return out->inner_w > 0;
+}
+
+/* Row under (mx,my) in the open Europe menu, or -1 when the click misses it. */
+static int europe_menu_row_at(const ColonizeGameState* game, int mx, int my) {
+  EuropeMenuLayout lay;
+  if (!europe_menu_layout(game, 320, 200, &lay)) {
+    return -1;
+  }
+  if (mx < lay.inner_x || mx >= lay.inner_x + lay.inner_w || my < lay.list_y0) {
+    return -1;
+  }
+  const int row = (my - lay.list_y0) / lay.line_h;
+  return (row >= 0 && row < lay.rows) ? row : -1;
+}
+
 /* RECRUIT/TRAIN/PURCHASE/DOCK wood popup — chrome via popup_draw. */
 static void europe_render_menu_popup(
   const ColonizeGameState* game,
@@ -4010,27 +4109,27 @@ static void europe_render_menu_popup(
   if (eu->menu == EUROPE_MENU_NONE) {
     return;
   }
-  const ColonizeFont* font = game->menu_font_ok ? &game->menu_font : NULL;
-  const int line_h = font ? (font->max_height + 2) : 9;
-  const int pad = 4;
+  const ColonizeFont* font = europe_menu_font(game);
+  EuropeMenuLayout lay;
+  if (!europe_menu_layout(game, framebuffer->width, framebuffer->height, &lay)) {
+    return;
+  }
+  const int line_h = lay.line_h;
+  const int pad = lay.pad;
+  const int rows = lay.rows;
 
-  int rows = 0;
   char title[64];
   switch (eu->menu) {
     case EUROPE_MENU_RECRUIT:
-      rows = 1 + EUROPE_POOL_SIZE;
       snprintf(title, sizeof(title), "Recruit (passage %d$)", eu->recruit_passage);
       break;
     case EUROPE_MENU_TRAIN:
-      rows = 1 + eu->train_count;
       snprintf(title, sizeof(title), "%s", "The Royal University");
       break;
     case EUROPE_MENU_PURCHASE:
-      rows = 1 + eu->purchase_count;
       snprintf(title, sizeof(title), "%s", "Purchase");
       break;
     case EUROPE_MENU_DOCK:
-      rows = 4;
       snprintf(title, sizeof(title), "%s", "Dock orders");
       break;
     default:
@@ -4186,7 +4285,8 @@ static int europe_harbor_open_holds(const ColonizeUnitPool* units, const EuropeH
 
 static void render_europe_screen(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffer) {
   memset(framebuffer->pixels, 0, (size_t)framebuffer->width * (size_t)framebuffer->height);
-  /* Main Europe chrome uses FONTTINY; popups keep menu_font (see europe_render_menu_popup). */
+  /* Main Europe chrome uses FONTTINY; the list popups use FONTINTR, DOS's own
+   * dialog default (see europe_menu_font). */
   const ColonizeFont* font = game->colony_font_ok ? &game->colony_font
     : (game->menu_font_ok ? &game->menu_font : NULL);
   EuropeScreen* eu_mut = game->europe_ok ? (EuropeScreen*)&game->europe : NULL;
@@ -8424,6 +8524,31 @@ static bool game_apply_map_menu_action(ColonizeGameState* game, MapMenuAction ac
 }
 
 /*
+ * Activating a unit by clicking it cancels whatever it was doing. DOS's
+ * click-on-tile handler (2b5a:1b9b..1dda) ends every path that makes a unit
+ * active with `unit[active].orders = 0`, and its single-unit branch clears the
+ * order before that too — so a click is how you take a Fortified or Sentried
+ * unit off its post (bugs.md). Its gates are the ones this dispatch already
+ * applies before it gets here: the tile must hold a unit of the nation being
+ * played, and an own colony is consumed by the colony branch first. Not
+ * modelled: DOS's `FUN_281f_0966` corner, which routes an *already* order-less
+ * lone unit through the (one-row) stack list instead of straight to select.
+ */
+static void game_click_activate_unit(ColonizeGameState* game, int unit_id) {
+  if (!game || !game->units_ok) {
+    return;
+  }
+  /*
+   * units_clear_orders, not units_wake: waking also refills the move
+   * allotment, which is right for a passenger parked at 0 MP on boarding
+   * (see unit_stack_activate_row) but would hand a free turn back to a unit
+   * that moved and then dug in this turn. DOS only writes the orders byte.
+   */
+  units_clear_orders(&game->units, unit_id);
+  game_select_unit(game, unit_id);
+}
+
+/*
  * What a plain left-click on map tile (x,y) means, shared by the "no unit
  * selected" click path and the short-click end of a go-to drag. Order:
  * own colony → open it; own units → activate one (stack chooser when the tile
@@ -8458,22 +8583,25 @@ static void game_map_click_dispatch(ColonizeGameState* game, int mx, int my) {
                                    )
                                  : 0;
     if (n == 1) {
-      game_select_unit(game, stack_ids[0]);
+      game_click_activate_unit(game, stack_ids[0]);
       return;
     }
   }
 
   const int owned = game_owned_unit_at(game, mx, my);
   if (owned >= 0) {
-    game_select_unit(game, owned);
+    game_click_activate_unit(game, owned);
     return;
   }
 
-  /* Human unit with no moves: select the tile under it. */
+  /* Human unit with no moves: select the tile under it. DOS still clears the
+   * order — it makes the unit active either way — so a unit that dug in after
+   * spending its moves is off its post next turn, not still fortified. */
   if (game->units_ok) {
     const int any_id = units_id_at(&game->units, mx, my);
     const ColonizeUnit* any = units_get_const(&game->units, any_id);
     if (any && any->nation_id == game->human_nation) {
+      units_clear_orders(&game->units, any_id);
       game_select_tile(game, mx, my);
       return;
     }
@@ -9705,6 +9833,28 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
       }
       if (input->last_key == COLONIZE_KEY_ESCAPE) {
         europe_menu_close(eu);
+        return true;
+      }
+      /*
+       * Mouse: a click on a row picks it and confirms in one go (the same
+       * pair the keyboard needs Up/Down + Enter for), a click anywhere else
+       * inside the screen closes the menu, and a right-click cancels — the
+       * arrangement every other list in this port uses. Without this the
+       * branch swallowed the click and Recruit/Purchase/Train were
+       * keyboard-only (bugs.md).
+       */
+      if (input->mouse_right_clicked) {
+        europe_menu_close(eu);
+        return true;
+      }
+      if (input->mouse_left_clicked) {
+        const int row = europe_menu_row_at(game, input->mouse_x, input->mouse_y);
+        if (row >= 0) {
+          eu->menu_selection = row;
+          europe_menu_confirm(eu);
+        } else {
+          europe_menu_close(eu);
+        }
         return true;
       }
       int max_sel = 0;
