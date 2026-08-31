@@ -316,10 +316,14 @@ static bool ai_setup_col1_template(const AiNewGameParams* p, char* err, size_t e
     }
   }
   /*
-   * DOS's new-game option word is 0xc680:
-   * Indian moves, foreign moves, autosave, combat analysis and tutorial help
-   * enabled; fast slide and end-of-turn disabled; water cycling enabled
-   * (the stored water bit is an inverted disable flag).
+   * FUN_75c2_235c (viceroy_unpacked_2.c:112401) writes DS:0x5382 = 0xc600:
+   * Indian moves, foreign moves, autosave and combat analysis enabled; fast
+   * slide and end-of-turn disabled; water cycling enabled (the stored water
+   * bit is an inverted disable flag).
+   *
+   * Tutorial hints are NOT in that word. The new-game wizard ORs 0x80 in
+   * afterwards only when the chosen difficulty is 0 / Discoverer
+   * (viceroy_unpacked_2.c:111468).
    */
   p->col1->head.game_options.show_indian_moves = 1;
   p->col1->head.game_options.show_foreign_moves = 1;
@@ -328,7 +332,7 @@ static bool ai_setup_col1_template(const AiNewGameParams* p, char* err, size_t e
   p->col1->head.game_options.autosave = 1;
   p->col1->head.game_options.combat_analysis = 1;
   p->col1->head.game_options.water_color_cycling = 0;
-  p->col1->head.game_options.tutorial_hints = 1;
+  p->col1->head.game_options.tutorial_hints = (p->col1->head.difficulty == 0) ? 1 : 0;
 
   /* Seed indian tech from @TRIBES when available. */
   for (int t = 0; t < 8; ++t) {

@@ -94,6 +94,8 @@ add_library(colonize_core STATIC
   src/core/col1_bridge.c
   src/core/col1_post_map.c
   src/core/col1_stuff_census.c
+  src/core/json_min.c
+  src/core/settings.c
   src/data/viceroy_tables.c
   src/platform/diagnostics.c
   src/platform/dos_compat/dos_compat.c
@@ -180,6 +182,18 @@ target_link_libraries(unit_col1_save PRIVATE colonize_core)
 
 add_test(NAME unit_col1_save COMMAND unit_col1_save WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
+add_executable(unit_settings
+  tests/unit/test_settings.c
+)
+
+target_include_directories(unit_settings PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
+target_link_libraries(unit_settings PRIVATE colonize_core)
+
+add_test(NAME unit_settings COMMAND unit_settings WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+
 add_executable(smoke_game_flow
   tests/smoke/test_game_flow.c
   tests/common/platform_cursor_stubs.c
@@ -241,6 +255,8 @@ add_executable(smoke_game_flow
   src/core/col1_bridge.c
   src/core/col1_post_map.c
   src/core/col1_stuff_census.c
+  src/core/json_min.c
+  src/core/settings.c
   src/data/viceroy_tables.c
   src/platform/diagnostics.c
   src/platform/dos_compat/dos_compat.c
@@ -307,6 +323,8 @@ add_executable(unit_new_game
   src/core/col1_bridge.c
   src/core/col1_post_map.c
   src/core/col1_stuff_census.c
+  src/core/json_min.c
+  src/core/settings.c
   src/data/viceroy_tables.c
   src/platform/diagnostics.c
   src/platform/dos_compat/dos_compat.c
@@ -384,6 +402,8 @@ add_executable(unit_hall_of_fame
   src/core/col1_bridge.c
   src/core/col1_post_map.c
   src/core/col1_stuff_census.c
+  src/core/json_min.c
+  src/core/settings.c
   src/data/viceroy_tables.c
   src/platform/diagnostics.c
   src/platform/dos_compat/dos_compat.c
@@ -518,7 +538,6 @@ add_test(NAME golden_mapgen_seed100 COMMAND golden_mapgen_seed100 WORKING_DIRECT
 add_executable(sav_json
   tools/sav_json_main.c
   tools/col1_json.c
-  tools/json_min.c
 )
 
 target_include_directories(sav_json PRIVATE
@@ -1304,6 +1323,8 @@ add_executable(smoke_play
   src/core/col1_bridge.c
   src/core/col1_post_map.c
   src/core/col1_stuff_census.c
+  src/core/json_min.c
+  src/core/settings.c
   src/data/viceroy_tables.c
   src/platform/diagnostics.c
   src/platform/dos_compat/dos_compat.c

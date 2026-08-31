@@ -1,0 +1,192 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include "core/col1_save.h"
+#include "core/settings.h"
+
+static int g_failures = 0;
+
+static void check(bool cond, const char* what) {
+  if (!cond) {
+    fprintf(stderr, "FAIL: %s\n", what);
+    g_failures++;
+  }
+}
+
+static const char* k_path = "build/test_settings.json";
+
+/* A missing file must load as the DOS 0xc680 defaults, not as an error. */
+static void test_missing_file_defaults(void) {
+  remove(k_path);
+  ColonizeSettings s;
+  char err[256] = {0};
+  check(settings_load_file(k_path, &s, err, sizeof(err)), "missing file loads");
+  check(s.show_indian_moves && s.show_foreign_moves, "default moves shown");
+  check(s.autosave && s.combat_analysis && s.tutorial_hints, "default helpers on");
+  check(!s.fast_piece_slide && !s.end_of_turn, "default slide/eot off");
+  check(s.water_color_cycling, "default water cycling on");
+  check(s.background_music && s.event_music && s.sound_effects, "default sound on");
+  check(s.window_scale == 2 && s.windowed, "default display");
+}
+
+static void test_roundtrip(void) {
+  ColonizeSettings out;
+  settings_defaults(&out);
+  out.fast_piece_slide = true;
+  out.tutorial_hints = false;
+  out.water_color_cycling = false;
+  out.report_rebel_majorities = false;
+  out.labels_on_buildings = false;
+  out.event_music = false;
+  out.window_scale = 3;
+  out.windowed = false;
+
+  char err[256] = {0};
+  check(settings_save_file(k_path, &out, err, sizeof(err)), "save file");
+
+  ColonizeSettings back;
+  check(settings_load_file(k_path, &back, err, sizeof(err)), "load file");
+  check(memcmp(&out, &back, sizeof(out)) == 0, "round-trip is exact");
+}
+
+/* Unknown keys and a partial object keep defaults for whatever is absent. */
+static void test_partial_file(void) {
+  FILE* f = fopen(k_path, "wb");
+  check(f != NULL, "open partial file");
+  if (!f) {
+    return;
+  }
+  fprintf(f, "{\"version\": 1, \"future_key\": 7,\n");
+  fprintf(f, " \"game_options\": {\"end_of_turn\": true}}\n");
+  fclose(f);
+
+  ColonizeSettings s;
+  char err[256] = {0};
+  check(settings_load_file(k_path, &s, err, sizeof(err)), "partial file loads");
+  check(s.end_of_turn, "partial value applied");
+  check(s.autosave, "absent key kept default");
+  check(s.background_music, "absent section kept default");
+}
+
+static void test_bad_file_is_an_error(void) {
+  FILE* f = fopen(k_path, "wb");
+  if (f) {
+    fprintf(f, "{ this is not json");
+    fclose(f);
+  }
+  ColonizeSettings s;
+  char err[256] = {0};
+  check(!settings_load_file(k_path, &s, err, sizeof(err)), "corrupt file rejected");
+  check(err[0] != '\0', "corrupt file explains itself");
+  /* Even on failure the caller gets usable defaults. */
+  check(s.autosave, "defaults survive a parse error");
+}
+
+/* The head bridge must leave game state (WoI, REF, cheats) alone. */
+static void test_head_bridge_preserves_state(void) {
+  ColonizeCol1Head head;
+  memset(&head, 0, sizeof(head));
+  head.game_options.woi = 1;
+  head.game_options.ref_present = 1;
+  head.game_options.independence_force = 1;
+  head.game_options.cheats_enabled = 1;
+
+  ColonizeSettings s;
+  settings_defaults(&s);
+  s.water_color_cycling = false;
+  s.end_of_turn = true;
+  s.report_food_shortages = false;
+  settings_apply_to_head(&s, &head);
+
+  check(head.game_options.woi == 1, "woi preserved");
+  check(head.game_options.ref_present == 1, "ref_present preserved");
+  check(head.game_options.independence_force == 1, "independence_force preserved");
+  check(head.game_options.cheats_enabled == 1, "cheats_enabled preserved");
+  check(head.game_options.end_of_turn == 1, "end_of_turn applied");
+  /* DOS stores the water checkbox inverted: off means the bit is set. */
+  check(head.game_options.water_color_cycling == 1, "water bit inverted on write");
+  /* Report bits are DOS suppress flags: "show it" stores a 0. */
+  check(head.colony_report_options.report_food_shortages == 1, "report off sets the bit");
+  check(head.colony_report_options.report_rebel_majorities == 0, "report on clears the bit");
+  check(head.tut2.background_music == 1, "sound bit applied");
+
+  ColonizeSettings back;
+  settings_defaults(&back);
+  settings_capture_from_head(&back, &head);
+  check(!back.water_color_cycling, "water bit inverted on read");
+  check(back.end_of_turn, "end_of_turn captured");
+  check(!back.report_food_shortages, "report bit captured");
+  check(back.report_rebel_majorities, "cleared report bit captured as on");
+}
+
+/*
+ * settings_init materializes a defaults file on first run, and reports that a
+ * preference file is now in play. Harnesses that never call it must keep
+ * settings_is_loaded() false so the DOS new-game words stand.
+ */
+static void test_init_creates_file(void) {
+  check(!settings_is_loaded(), "no preference file before settings_init");
+
+  remove(k_path);
+  char err[256] = {0};
+  check(settings_init(k_path, err, sizeof(err)), "init with no file");
+  check(settings_is_loaded(), "init marks settings loaded");
+  check(strcmp(settings_path(), k_path) == 0, "init keeps the given path");
+
+  FILE* f = fopen(k_path, "rb");
+  check(f != NULL, "init created the file");
+  if (f) {
+    fclose(f);
+  }
+
+  ColonizeSettings written;
+  ColonizeSettings expected;
+  settings_defaults(&expected);
+  check(settings_load_file(k_path, &written, err, sizeof(err)), "created file reloads");
+  check(memcmp(&written, &expected, sizeof(expected)) == 0, "created file holds defaults");
+}
+
+/* A corrupt file must not be overwritten — the player's edits survive for
+ * them to fix, and the session runs on defaults. */
+static void test_init_keeps_corrupt_file(void) {
+  FILE* f = fopen(k_path, "wb");
+  check(f != NULL, "open corrupt file");
+  if (!f) {
+    return;
+  }
+  fprintf(f, "{ nope");
+  fclose(f);
+
+  char err[256] = {0};
+  check(!settings_init(k_path, err, sizeof(err)), "init reports the parse error");
+  check(settings_get()->autosave, "init falls back to defaults");
+
+  char kept[64] = {0};
+  f = fopen(k_path, "rb");
+  check(f != NULL, "corrupt file still there");
+  if (f) {
+    (void)fgets(kept, sizeof(kept), f);
+    fclose(f);
+  }
+  check(strncmp(kept, "{ nope", 6) == 0, "corrupt file left untouched");
+}
+
+int main(void) {
+  test_missing_file_defaults();
+  test_roundtrip();
+  test_partial_file();
+  test_bad_file_is_an_error();
+  test_head_bridge_preserves_state();
+  /* Keep the settings_init cases last: they latch the process-wide state. */
+  test_init_creates_file();
+  test_init_keeps_corrupt_file();
+  remove(k_path);
+
+  if (g_failures != 0) {
+    fprintf(stderr, "test_settings: %d failure(s)\n", g_failures);
+    return 1;
+  }
+  printf("test_settings: ok\n");
+  return 0;
+}

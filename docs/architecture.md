@@ -87,6 +87,7 @@ Cluster table (not every file). Paths are under `src/core/` unless noted.
 | **Europe / economy** | `europe.c/.h` | Market, sail, recruit/hire |
 | **AI** | `ai`, `ai_euro`, `ai_contact`, `ai_diplo`, `ai_king`, `ai_goals`, `ai_popup` | Init + nation-turn entry; split planners |
 | **Save / Col1** | `savegame`, `col1_save`, `col1_bridge`, `col1_post_map`, `col1_stuff_census` | DOS `COLONY##.SAV` interop |
+| **Settings** | `settings.c/.h`, `json_min.c/.h` | Port-only `settings.json` preference file (see [settings.md](settings.md)) |
 | **Assets / art** | `assets`, `madspack`, `pik`, `ss`, `ff`, `font`, `debug_atlas` | Catalogs + MADSPACK decode |
 | **UI primitives** | `popup`, `popup_msg`, `ui_button`, `ui_drag`, `ui_colors`, dialogs (`save_load`, `options`, `pick_music`, …) | Wood/list modals |
 | **Screens** | `new_game`, `pedia`, `reports`, `founding_fathers` | Wizard / advisors / FF |
@@ -255,6 +256,7 @@ greenfield redesign or a mandated `game_loop` rewrite phase.
 | Decomp bring-up / core–platform sketch | [decomp_inventory.md](decomp_inventory.md) |
 | Decomp / data index | [original_index.md](original_index.md) |
 | Save codec / Col1 bridge | [savegame.md](savegame.md) |
+| Persisted options (`settings.json`) | [settings.md](settings.md) |
 | Col1 field atlas | [save_format_map.md](save_format_map.md) |
 | DOS segment → system map | [`MODULE_MAP.md`](../original_sources_annotated/MODULE_MAP.md) |
 

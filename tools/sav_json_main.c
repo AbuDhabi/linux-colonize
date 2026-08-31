@@ -18,7 +18,7 @@
 
 #include "col1_json.h"
 #include "core/col1_save.h"
-#include "json_min.h"
+#include "core/json_min.h"
 
 static bool has_sav_ext(const char* path) {
   size_t len = strlen(path);

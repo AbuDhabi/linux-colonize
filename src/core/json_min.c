@@ -1,4 +1,4 @@
-#include "json_min.h"
+#include "core/json_min.h"
 
 #include <ctype.h>
 #include <stdlib.h>

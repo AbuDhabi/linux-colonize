@@ -43,6 +43,7 @@
 #include "core/reports.h"
 #include "core/save_load_dialog.h"
 #include "core/savegame.h"
+#include "core/settings.h"
 #include "core/sound.h"
 #include "core/ss.h"
 #include "core/strutil.h"
@@ -1658,6 +1659,23 @@ static void game_try_prompt_landho(ColonizeGameState* game) {
   game_open_landho_name_entry(game);
 }
 
+/*
+ * Port-only: mirror whatever the options dialogs just changed into
+ * settings.json so the choice survives the process. DOS had no such file —
+ * see settings.h.
+ */
+static void game_persist_settings(const ColonizeGameState* game) {
+  ColonizeSettings prefs = *settings_get();
+  if (game && game->col1_ok) {
+    settings_capture_from_head(&prefs, &game->col1.head);
+  }
+  settings_set(&prefs);
+  char err[256];
+  if (!settings_flush(err, sizeof(err))) {
+    diag_warn("Could not save settings: %s", err);
+  }
+}
+
 static void game_apply_options_result(ColonizeGameState* game) {
   if (!game || !game->options_dlg.has_result) {
     return;
@@ -1665,11 +1683,13 @@ static void game_apply_options_result(ColonizeGameState* game) {
   if (!game->options_dlg.result_cancelled) {
     if (game->options_dlg.result_kind == OPTIONS_KIND_GAME && game->col1_ok) {
       options_dialog_apply_game(&game->options_dlg, &game->col1.head.game_options);
+      game_persist_settings(game);
       set_status(game, "Game options updated", NULL);
     } else if (game->options_dlg.result_kind == OPTIONS_KIND_COLONY && game->col1_ok) {
       options_dialog_apply_colony(
         &game->options_dlg, &game->col1.head.colony_report_options
       );
+      game_persist_settings(game);
       set_status(game, "Colony report options updated", NULL);
     } else if (game->options_dlg.result_kind == OPTIONS_KIND_SOUND) {
       bool bg = true, ev = true, sfx = true;
@@ -1683,6 +1703,17 @@ static void game_apply_options_result(ColonizeGameState* game) {
           game->col1.head.tut2.background_music = bg ? 1 : 0;
           game->col1.head.tut2.event_music = ev ? 1 : 0;
           game->col1.head.tut2.sound_effects = sfx ? 1 : 0;
+          game_persist_settings(game);
+        } else {
+          ColonizeSettings prefs = *settings_get();
+          prefs.background_music = bg;
+          prefs.event_music = ev;
+          prefs.sound_effects = sfx;
+          settings_set(&prefs);
+          char err[256];
+          if (!settings_flush(err, sizeof(err))) {
+            diag_warn("Could not save settings: %s", err);
+          }
         }
         set_status(game, "Sound options updated", NULL);
       }
@@ -3142,6 +3173,12 @@ static bool game_apply_col1_save(ColonizeGameState* game, ColonizeCol1Save* load
   game->col1_ok = true;
   /* Restore Complete Map cheat (DOS show_entire_map @ DS:0x53a2); nation view not saved. */
   game->fog_view = (game->col1.head.show_entire_map != 0) ? -1 : -2;
+  /*
+   * A save carries the options the player was using in that game, and DOS
+   * restores them with it — settings.json is deliberately NOT applied here
+   * (see settings.h). Only the audio mixer has to be told, since it lives
+   * outside the save.
+   */
   {
     ColonizeSoundOptions opts = sound_get_options();
     opts.background_music = game->col1.head.tut2.background_music != 0;
@@ -5206,6 +5243,16 @@ static void game_commit_new_campaign(ColonizeGameState* game) {
     char ai_err[256];
     if (!ai_init_new_game(&ai, ai_err, sizeof(ai_err))) {
       diag_warn("ai_init_new_game failed: %s", ai_err[0] ? ai_err : "unknown");
+    }
+    /*
+     * ai_init_new_game seeds the DOS new-game words; a loaded settings.json
+     * then overrides them with the player's remembered options. Gated on
+     * settings_is_loaded so harnesses that never call settings_init (tests,
+     * goldens) keep the untouched DOS defaults.
+     */
+    if (game->col1_ok && settings_is_loaded()) {
+      settings_apply_to_head(settings_get(), &game->col1.head);
+      sound_set_options(settings_sound_options(settings_get()));
     }
     if (share_campaign_rng) {
       game->move_rng = campaign_rng;
