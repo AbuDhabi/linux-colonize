@@ -398,9 +398,17 @@ static void unit_chrome_draw_impl(
     default:
       box_x = right_x;
       box_y = (icon_y - box_h) + sprite_h;
-      /* Peek bottom-right (away from the figure) so the tab stays visible. */
-      stack_x = box_x + 2;
-      stack_y = box_y + 2;
+      /*
+       * DOS FUN_112b_01ba, the fall-through corner (112b:0568..057c): the
+       * stack tab peeks UP-LEFT of the box — `AX = DX; DEC; DEC` for x and
+       * `AX = y - box_h + sprite_h; DEC; DEC` for y — the same −2/+2-family
+       * offset the other three corners use, not down-right. The port had it
+       * at +2/+2, which is the corner every plain Colonists/Soldiers unit
+       * takes, so the "more units here" rect showed on the wrong side for
+       * exactly the commonest units (bugs.md).
+       */
+      stack_x = box_x - 2;
+      stack_y = box_y - 2;
       break;
   }
 

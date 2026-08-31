@@ -1982,18 +1982,10 @@ void turn_run_nation_ticks(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
       /* Mirror dock immigrant as Europe-map unit for Col1 capture. */
       if (ctx->units && ctx->europe->dock_count > 0) {
         const EuropeDockImmigrant* d = &ctx->europe->dock[ctx->europe->dock_count - 1];
-        const int tid = units_find_type(ctx->units, "Colonists");
-        const int type_index = tid >= 0 ? tid : 0;
-        const int id = units_spawn_allow_stack(ctx->units, type_index, 236, 236);
-        ColonizeUnit* u = units_get(ctx->units, id);
-        if (u) {
-          units_set_nation(u, ctx->human_nation);
-          u->orders = UNITS_ORDER_SENTRY;
-          u->profession = d->profession;
-          u->goto_x = 0;
-          u->goto_y = 0;
-          u->moves_left = 0;
-        }
+        (void)europe_spawn_dock_mirror_unit(
+          ctx->units, ctx->human_nation, d->profession, (int)ctx->europe->difficulty, true,
+          ctx->rng
+        );
       }
     }
     europe_tick_voyages(ctx->europe, ctx->units);

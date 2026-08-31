@@ -801,12 +801,7 @@ static const char* map_panel_unit_type_name(const ColonizeUnitPool* units, const
  * something else in.
  */
 static bool map_panel_type_has_profession(int type_index) {
-  static const signed char k_default_job[] = {19, 21, 20, 24, 23, 22, -1, 23, -1, 21, -1, -1,
-                                              -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 0};
-  if (type_index < 0 || type_index >= (int)(sizeof(k_default_job) / sizeof(k_default_job[0]))) {
-    return false;
-  }
-  return k_default_job[type_index] >= 0;
+  return units_type_has_profession_slot(type_index);
 }
 
 /*

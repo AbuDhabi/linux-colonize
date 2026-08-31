@@ -61,8 +61,18 @@ static void col1_stuff_census_tally_units(
     if (t == 0 && stuff->free_colonist_counts[n] < 255u) {
       stuff->free_colonist_counts[n]++;
     }
-    if (u->profession >= 0 && u->profession != UNITS_JOB_NONE &&
-        stuff->census_pop_proxy[n] < 255u) {
+    /*
+     * DOS FUN_4962_0018 (4962:0183..0196) counts a unit toward DS:0x9410 when
+     * `FUN_281f_0b78(unit) >= 0` — that is DS:0x30e[unit_type], the per-TYPE
+     * profession slot, not the unit's own profession byte. Keying it off the
+     * byte made a unit's own job decide whether it was a person, which is why
+     * the Foreign Affairs population (and so the Rebels/Tories split built on
+     * it) disagreed with the units actually on the board (bugs.md). DOS scans
+     * the whole unit array, so a passenger sitting in a ship's hold counts
+     * exactly like one standing on the map — the loop above already walks
+     * every active unit, aboard_ship_id or not.
+     */
+    if (units_type_has_profession_slot(t) && stuff->census_pop_proxy[n] < 255u) {
       stuff->census_pop_proxy[n]++;
     }
     const ColonizeUnitType* ut = units_type(units, t);
