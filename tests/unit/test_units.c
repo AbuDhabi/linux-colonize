@@ -3137,6 +3137,37 @@ int main(void) {
       assets_msg_free(&names);
       return 1;
     }
+    /*
+     * Open water, no colony anywhere near, and no colony pool at all: DOS's
+     * Fortify (FUN_2b5a_1112) has no harbour or water condition, so both the
+     * ORDERS row and the F key must take a ship wherever it floats. This used
+     * to need an own colony within one tile, which is what made it look like
+     * fortifying at sea worked only sometimes (bugs.md).
+     */
+    units_clear_orders(&pool, ship);
+    sh = units_get(&pool, ship);
+    if (sh) {
+      sh->moves_left = 4 * UNITS_MP_PER_TILE;
+    }
+    if (!units_order_anchor(&pool, ship, NULL) || !sh || sh->orders != UNITS_ORDER_FORTIFY) {
+      fprintf(stderr, "anchor at sea failed orders=%d\n", sh ? sh->orders : -1);
+      ss_free(&icons);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    units_clear_orders(&pool, ship);
+    sh = units_get(&pool, ship);
+    if (sh) {
+      sh->moves_left = 4 * UNITS_MP_PER_TILE;
+    }
+    if (!units_order_fortify(&pool, ship) || !sh || sh->orders != UNITS_ORDER_FORTIFY) {
+      fprintf(stderr, "F-key fortify on a ship failed orders=%d\n", sh ? sh->orders : -1);
+      ss_free(&icons);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
     units_despawn(&pool, ship);
 
     /* Pillage improvements on land. */
@@ -6318,18 +6349,34 @@ int main(void) {
     const int active = units_spawn_allow_stack(&pool, pioneer, tx, ty);
     pool.selected_id = active;
 
-    /* Baseline (no colony here): blink-off still shows the non-selected
-     * garrison unit, same as any other stacked tile. */
+    /*
+     * Blink-off leaves the tile empty even on plain ground: the active unit
+     * owns its tile, and letting the rest of the stack stand in for it made
+     * the tile alternate between two units so you could not tell which was
+     * active (bugs.md). This used to assert the opposite.
+     */
     int top = units_top_on_map_tile(&pool, tx, ty, false, &map);
-    if (top != garrison) {
+    if (top != -1) {
       fprintf(
-        stderr, "non-colony blink-off expected garrison unit %d, got %d\n", garrison, top
+        stderr, "non-colony blink-off should leave the tile empty, got %d (garrison %d)\n",
+        top, garrison
       );
       ss_free(&icons);
       map_free(&map);
       assets_msg_free(&names);
       return 1;
     }
+    /* With nothing selected there, the stack's top unit shows as before. */
+    pool.selected_id = -1;
+    top = units_top_on_map_tile(&pool, tx, ty, false, &map);
+    if (top != garrison && top != active) {
+      fprintf(stderr, "unselected stack should still draw its top unit, got %d\n", top);
+      ss_free(&icons);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    pool.selected_id = active;
 
     map_occupancy_set_layer2(&map, tx, ty, MAP_OCCUPANCY_HAS_CITY, true);
 

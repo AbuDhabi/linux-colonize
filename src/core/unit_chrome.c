@@ -282,19 +282,20 @@ void unit_chrome_selection_frame(
   const int sw = sprite_w > 0 ? sprite_w : 16;
   const int sh = sprite_h > 0 ? sprite_h : 16;
   /*
-   * Shadow at x+SPRITE_DX+SHADOW_DX, sprite at x+SPRITE_DX, orders at x.
-   * Stack under-rect may extend ±STACK_PAD from the badge.
+   * One pixel around the colour sprite, and nothing more. Measured off
+   * original_screenshots/europe/main_with_caravel_and_two_colonists.png,
+   * where the selected dock colonist's green frame is 18x18 (x 232..249,
+   * y 137..154) around a 16x16 icon — a 1px margin on the sprite itself,
+   * not on the shadow or the orders badge, both of which sit inside it.
+   * This used to pad by STACK_PAD as well and came out 3px proud on every
+   * side, which is the "2px too far each direction" in bugs.md; it also
+   * left the chrome frames a different size from the plain-icon ones the
+   * colony strips draw.
    */
-  const int art_left = x + UNIT_CHROME_SPRITE_DX + UNIT_CHROME_SHADOW_DX;
-  const int art_right = x + UNIT_CHROME_SPRITE_DX + sw;
-  const int left = (art_left < x ? art_left : x) - UNIT_CHROME_STACK_PAD;
-  const int right = art_right + UNIT_CHROME_STACK_PAD;
-  const int top = y - UNIT_CHROME_STACK_PAD;
-  const int bottom = y + sh + UNIT_CHROME_STACK_PAD;
-  *out_x = left - 1;
-  *out_y = top - 1;
-  *out_w = (right - left) + 2;
-  *out_h = (bottom - top) + 2;
+  *out_x = x + UNIT_CHROME_SPRITE_DX - 1;
+  *out_y = y - 1;
+  *out_w = sw + 2;
+  *out_h = sh + 2;
 }
 
 /*

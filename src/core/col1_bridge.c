@@ -1085,13 +1085,28 @@ bool col1_bridge_apply(
         const char* name = col1_bridge_europe_dock_job_name(europe, (int)src->profession);
         europe_dock_push_load(europe, name, (int)src->profession);
         /*
+         * The dock entry's job name says nothing about whether this
+         * immigrant was armed, equipped or blessed on the dock, but the
+         * save's @UNIT type does — carry it over so an @ARMOPTIONS change
+         * survives the round trip (bugs.md). Types outside the six the dock
+         * menu deals in fall back to what the profession implies.
+         */
+        if (europe->dock_count > 0 && (int)src->type <= 5) {
+          europe->dock[europe->dock_count - 1].dos_type = (int)src->type;
+        }
+        /*
          * Keep the runtime shape turn.c's immigrant path creates: dock entry
          * plus a mirror unit at Europe (236,236) — capture only walks the
          * unit pool, so without the mirror a loaded dock colonist vanished
          * from the next save (seed-100 TURN5→6 lost the human's immigrant).
          */
         {
-          const int tid = units_find_type(units, "Colonists");
+          const int dos_type =
+            (europe && europe->dock_count > 0) ? europe->dock[europe->dock_count - 1].dos_type : 0;
+          int tid = europe_dock_unit_type_index(units, dos_type);
+          if (tid < 0) {
+            tid = units_find_type(units, "Colonists");
+          }
           const int id = units_spawn_allow_stack(units, tid >= 0 ? tid : 0, 236, 236);
           ColonizeUnit* mu = units_get(units, id);
           if (mu) {
@@ -1101,6 +1116,7 @@ bool col1_bridge_apply(
             mu->goto_x = 0;
             mu->goto_y = 0;
             mu->moves_left = 0;
+            europe_apply_dock_unit_kit(mu, dos_type);
             if (id_by_index) {
               id_by_index[i] = id;
             }

@@ -9,10 +9,16 @@
 #include "core/colony.h"
 #include "core/dos_rng.h"
 #include "core/founding_fathers.h"
+#include "core/popup_msg.h"
 #include "core/ss.h"
 #include "core/strutil.h"
 #include "core/units.h"
 #include "platform/diagnostics.h"
+
+/* Sound hook (unit tests build europe.c without sound.c — same shape as
+ * units_set_combat_music_hooks). */
+static void (*g_europe_sound_play)(int id) = NULL;
+static void (*g_europe_set_bgm)(int pool) = NULL;
 #include "platform/platform.h"
 
 static void europe_refresh_recruit_passage(EuropeScreen* eu);
@@ -175,6 +181,7 @@ static bool europe_dock_push_front(
   d->profession = profession;
   d->present = true;
   d->sentry = sentry;
+  d->dos_type = europe_dock_type_for(d->name, profession);
   eu->dock_count++;
   return true;
 }
@@ -189,6 +196,7 @@ bool europe_dock_push_load(EuropeScreen* eu, const char* name, int profession) {
   slot->profession = profession;
   slot->present = true;
   slot->sentry = true;
+  slot->dos_type = europe_dock_type_for(slot->name, profession);
   return true;
 }
 
@@ -837,6 +845,7 @@ bool europe_recruit_from_pool(EuropeScreen* eu, int pool_index) {
   slot->profession = eu->pool[pool_index].profession;
   slot->present = true;
   slot->sentry = true;
+  slot->dos_type = europe_dock_type_for(slot->name, slot->profession);
   snprintf(
     eu->status,
     sizeof(eu->status),
@@ -868,6 +877,7 @@ bool europe_recruit_free_from_pool(EuropeScreen* eu, int pool_index) {
   slot->profession = eu->pool[pool_index].profession;
   slot->present = true;
   slot->sentry = true;
+  slot->dos_type = europe_dock_type_for(slot->name, slot->profession);
   snprintf(eu->status, sizeof(eu->status), "%s joins the docks.", slot->name);
   europe_refill_pool_slot(eu, pool_index, NULL);
   return true;
@@ -918,6 +928,7 @@ bool europe_immigrant_from_pool(EuropeScreen* eu, ColonizeDosRng* rng) {
   d->profession = eu->pool[slot].profession;
   d->present = true;
   d->sentry = true;
+  d->dos_type = europe_dock_type_for(d->name, d->profession);
   /* DOS 0718 harbor-spawn does NOT bump Europe+6 — only 4884's own real
    * Recruit-click tail does (see europe_compute_recruit_passage). */
   europe_refill_pool_slot(eu, slot, NULL);
@@ -944,6 +955,7 @@ bool europe_train(EuropeScreen* eu, int train_index) {
   slot->profession = t->job_index;
   slot->present = true;
   slot->sentry = true;
+  slot->dos_type = europe_dock_type_for(slot->name, slot->profession);
   snprintf(eu->status, sizeof(eu->status), "Trained %s (-%d$).", t->expert_name, t->cost);
   return true;
 }
@@ -982,6 +994,7 @@ bool europe_purchase(EuropeScreen* eu, int purchase_index) {
   slot->profession = -1;
   slot->present = true;
   slot->sentry = true;
+  slot->dos_type = europe_dock_type_for(slot->name, slot->profession);
   snprintf(eu->status, sizeof(eu->status), "Purchased %s (-%d$).", p->name, p->gold);
   return true;
 }
@@ -1014,6 +1027,31 @@ int europe_dock_unit_dos_type(int profession, int difficulty, bool human, Coloni
   return type;
 }
 
+int europe_dock_type_for(const char* name, int profession) {
+  static const char* const k_names[6] = {"Colonists", "Soldiers",  "Pioneers",
+                                         "Missionaries", "Dragoons", "Scouts"};
+  if (name && name[0]) {
+    for (int i = 0; i < 6; ++i) {
+      if (strcmp(name, k_names[i]) == 0) {
+        return i;
+      }
+    }
+  }
+  return europe_dock_unit_dos_type(profession, 0, true, NULL);
+}
+
+int europe_dock_type_tools(int dos_type) {
+  return dos_type == EUROPE_DOCK_TYPE_PIONEERS ? 100 : 0;
+}
+
+int europe_dock_type_muskets(int dos_type) {
+  return (dos_type == EUROPE_DOCK_TYPE_SOLDIERS || dos_type == EUROPE_DOCK_TYPE_DRAGOONS) ? 50 : 0;
+}
+
+int europe_dock_type_horses(int dos_type) {
+  return (dos_type == EUROPE_DOCK_TYPE_DRAGOONS || dos_type == EUROPE_DOCK_TYPE_SCOUTS) ? 50 : 0;
+}
+
 int europe_dock_unit_type_index(const ColonizeUnitPool* units, int dos_type) {
   static const char* const k_names[6] = {"Colonists", "Soldiers",  "Pioneers",
                                          "Missionaries", "Dragoons", "Scouts"};
@@ -1027,11 +1065,61 @@ void europe_apply_dock_unit_kit(ColonizeUnit* u, int dos_type) {
   if (!u) {
     return;
   }
-  /* DOS sets only Tools here (+0x3159); muskets/horses ride on the @UNIT
-   * type itself, which is why Soldiers and Dragoons get no byte of their
-   * own in FUN_38fd_0718. */
-  if (dos_type == 2 && u->tools < 100) {
-    u->tools = 100;
+  /*
+   * DOS's harbor spawn writes only the Tools byte (+0x3159) because
+   * muskets and horses ride on the @UNIT type itself. This port keeps them
+   * as explicit unit fields, so set all three from the type — which is also
+   * what the @ARMOPTIONS rows need when they move an immigrant between
+   * Colonists / Soldiers / Pioneers / Dragoons / Scouts.
+   */
+  u->tools = europe_dock_type_tools(dos_type);
+  u->muskets = europe_dock_type_muskets(dos_type);
+  u->horses = europe_dock_type_horses(dos_type);
+}
+
+/*
+ * Re-type and re-kit the (236,236) mirror unit behind a dock entry after an
+ * @ARMOPTIONS row changed it. Matched on profession the same way
+ * europe_remove_dock_mirror_unit matches, with the pre-change type as the
+ * tie-break so two immigrants of the same profession do not swap.
+ */
+void europe_retype_dock_mirror_unit(
+  ColonizeUnitPool* units,
+  int nation_id,
+  int profession,
+  int from_dos_type,
+  int to_dos_type
+) {
+  if (!units || nation_id < 0 || nation_id > 3) {
+    return;
+  }
+  const int from_ti = europe_dock_unit_type_index(units, from_dos_type);
+  const int to_ti = europe_dock_unit_type_index(units, to_dos_type);
+  if (to_ti < 0) {
+    return;
+  }
+  int fallback = -1;
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    ColonizeUnit* u = &units->units[i];
+    if (!u->active || u->nation_id != nation_id || u->x != 236 || u->y != 236 ||
+        u->aboard_ship_id >= 0 || units_is_sea(units, u->id)) {
+      continue;
+    }
+    if (u->profession != profession) {
+      continue;
+    }
+    if (from_ti >= 0 && u->type_index == from_ti) {
+      u->type_index = to_ti;
+      europe_apply_dock_unit_kit(u, to_dos_type);
+      return;
+    }
+    if (fallback < 0) {
+      fallback = i;
+    }
+  }
+  if (fallback >= 0) {
+    units->units[fallback].type_index = to_ti;
+    europe_apply_dock_unit_kit(&units->units[fallback], to_dos_type);
   }
 }
 
@@ -1088,6 +1176,287 @@ void europe_remove_dock_mirror_unit(ColonizeUnitPool* units, int nation_id, int 
   if (fallback >= 0) {
     (void)units_disband(units, fallback);
   }
+}
+
+/*
+ * GAME.TXT @ARMOPTIONS — the menu behind a click on a dock immigrant.
+ *
+ * Prices, from DOS 38fd:3745..3830: Muskets are @CARGO 0x0f at 50 a set,
+ * Tools 0x0e at 100, Horses 0x08 at 50, each priced with the buy accessor
+ * (FUN_281f_0c3e) or the sell one (FUN_281f_09ea) times that quantity.
+ * Which of the pair a row shows is the unit's @UNIT type: Muskets sell for
+ * Soldiers or Dragoons and buy otherwise, Tools sell for Pioneers, Horses
+ * sell for Dragoons or Scouts.
+ */
+static int europe_arm_buy_cost(const EuropeScreen* eu, int cargo, int qty) {
+  return europe_buy_price(eu, cargo) * qty;
+}
+
+static int europe_arm_sell_gain(const EuropeScreen* eu, int cargo, int qty) {
+  return europe_sell_price(eu, cargo) * qty;
+}
+
+/*
+ * Per-row enable, transcribed from the switch at 38fd:388e..3a04. `price` is
+ * DOS's [bp-0x6a]: non-zero only on the three buy rows, and the tail greys
+ * the row when the treasury cannot cover it. A boycotted cargo disables its
+ * rows outright (the FUN_38fd_68c7 test each arm row runs), and an Indian
+ * Convert (@JOB 0x1b) can be neither armed, equipped nor blessed.
+ */
+static bool europe_arm_row_enabled(
+  const EuropeScreen* eu,
+  const EuropeDockImmigrant* d,
+  int row,
+  int* out_price
+) {
+  const int t = d->dos_type;
+  const bool convert = (d->profession == 0x1b);
+  *out_price = 0;
+  switch (row) {
+    case EUROPE_ARM_ROW_NO_BOARD:
+      return d->sentry;
+    case EUROPE_ARM_ROW_BOARD:
+      return !d->sentry;
+    case EUROPE_ARM_ROW_TO_FRONT:
+      /* DS:0x9e2c is this immigrant's place in the dock queue. */
+      return eu->menu_dock_index > 0;
+    case EUROPE_ARM_ROW_BUY_MUSKETS:
+      *out_price = europe_arm_buy_cost(eu, COLONIZE_CARGO_MUSKETS, EUROPE_ARM_MUSKETS);
+      if (europe_cargo_boycotted(eu, COLONIZE_CARGO_MUSKETS)) {
+        return false;
+      }
+      return !convert &&
+             (t == EUROPE_DOCK_TYPE_COLONISTS || t == EUROPE_DOCK_TYPE_SCOUTS);
+    case EUROPE_ARM_ROW_SELL_MUSKETS:
+      if (europe_cargo_boycotted(eu, COLONIZE_CARGO_MUSKETS)) {
+        return false;
+      }
+      return t == EUROPE_DOCK_TYPE_SOLDIERS || t == EUROPE_DOCK_TYPE_DRAGOONS;
+    case EUROPE_ARM_ROW_BUY_TOOLS:
+      *out_price = europe_arm_buy_cost(eu, COLONIZE_CARGO_TOOLS, EUROPE_ARM_TOOLS);
+      if (europe_cargo_boycotted(eu, COLONIZE_CARGO_TOOLS)) {
+        return false;
+      }
+      return !convert && t == EUROPE_DOCK_TYPE_COLONISTS;
+    case EUROPE_ARM_ROW_SELL_TOOLS:
+      if (europe_cargo_boycotted(eu, COLONIZE_CARGO_TOOLS)) {
+        return false;
+      }
+      return t == EUROPE_DOCK_TYPE_PIONEERS;
+    case EUROPE_ARM_ROW_BUY_HORSES:
+      *out_price = europe_arm_buy_cost(eu, COLONIZE_CARGO_HORSES, EUROPE_ARM_HORSES);
+      if (europe_cargo_boycotted(eu, COLONIZE_CARGO_HORSES)) {
+        return false;
+      }
+      return !convert &&
+             (t == EUROPE_DOCK_TYPE_COLONISTS || t == EUROPE_DOCK_TYPE_SOLDIERS);
+    case EUROPE_ARM_ROW_SELL_HORSES:
+      if (europe_cargo_boycotted(eu, COLONIZE_CARGO_HORSES)) {
+        return false;
+      }
+      return t == EUROPE_DOCK_TYPE_SCOUTS || t == EUROPE_DOCK_TYPE_DRAGOONS;
+    case EUROPE_ARM_ROW_BLESS:
+      return !convert && t == EUROPE_DOCK_TYPE_COLONISTS;
+    case EUROPE_ARM_ROW_UNBLESS:
+      return t == EUROPE_DOCK_TYPE_MISSIONARIES && d->profession == 0x18;
+    case EUROPE_ARM_ROW_NO_CHANGES:
+    default:
+      return true;
+  }
+}
+
+void europe_build_dock_menu(
+  EuropeScreen* eu,
+  const struct ColonizeMsgCatalog* messages,
+  int dock_index
+) {
+  if (!eu) {
+    return;
+  }
+  eu->dock_menu_count = 0;
+  if (dock_index < 0 || dock_index >= eu->dock_count) {
+    return;
+  }
+  const EuropeDockImmigrant* d = &eu->dock[dock_index];
+  const int t = d->dos_type;
+  const bool sell_muskets =
+    (t == EUROPE_DOCK_TYPE_SOLDIERS || t == EUROPE_DOCK_TYPE_DRAGOONS);
+  const bool sell_tools = (t == EUROPE_DOCK_TYPE_PIONEERS);
+  const bool sell_horses =
+    (t == EUROPE_DOCK_TYPE_DRAGOONS || t == EUROPE_DOCK_TYPE_SCOUTS);
+
+  PopupMsgTokens tok;
+  memset(&tok, 0, sizeof(tok));
+  tok.has_number0 = true;
+  tok.number0 = sell_muskets
+                  ? europe_arm_sell_gain(eu, COLONIZE_CARGO_MUSKETS, EUROPE_ARM_MUSKETS)
+                  : europe_arm_buy_cost(eu, COLONIZE_CARGO_MUSKETS, EUROPE_ARM_MUSKETS);
+  tok.has_number1 = true;
+  tok.number1 = sell_tools
+                  ? europe_arm_sell_gain(eu, COLONIZE_CARGO_TOOLS, EUROPE_ARM_TOOLS)
+                  : europe_arm_buy_cost(eu, COLONIZE_CARGO_TOOLS, EUROPE_ARM_TOOLS);
+  tok.has_number2 = true;
+  tok.number2 = sell_horses
+                  ? europe_arm_sell_gain(eu, COLONIZE_CARGO_HORSES, EUROPE_ARM_HORSES)
+                  : europe_arm_buy_cost(eu, COLONIZE_CARGO_HORSES, EUROPE_ARM_HORSES);
+
+  /* GAME.TXT @ARMOPTIONS verbatim, for a build with no catalog loaded. */
+  static const char* const k_fallback[EUROPE_DOCK_MENU_MAX] = {
+    "Don't get on next ship.",
+    "Board next ship.",
+    "Move to front of dock.",
+    "Arm with {Muskets} (costs {%NUMBER0$}).",
+    "Sell {Muskets} (save {%NUMBER0$}).",
+    "Equip with {Tools} (costs {%NUMBER1$}).",
+    "Sell {Tools} (save {%NUMBER1$}).",
+    "Equip with {Horses} (costs {%NUMBER2$}).",
+    "Sell {Horses} (save {%NUMBER2$}).",
+    "Bless as {Missionaries}.",
+    "Cancel {Missionary} Status.",
+    "No changes."
+  };
+  const ColonizeMsgSection* sec =
+    messages ? assets_msg_find((const ColonizeMsgCatalog*)messages, "ARMOPTIONS") : NULL;
+
+  int row = 0; /* 0-based index into the section's non-directive lines */
+  const int line_count = (sec && sec->line_count > 0) ? sec->line_count : EUROPE_DOCK_MENU_MAX;
+  for (int i = 0; i < line_count && row < EUROPE_DOCK_MENU_MAX; ++i) {
+    const char* line = (sec && i < sec->line_count) ? sec->lines[i] : k_fallback[row];
+    if (sec && (popup_msg_is_directive(line) || line[0] == '\0')) {
+      continue;
+    }
+    const int row_id = row + 1;
+    ++row;
+    int price = 0;
+    if (!europe_arm_row_enabled(eu, d, row_id, &price)) {
+      continue; /* DOS omits a disabled row rather than greying it. */
+    }
+    const int slot = eu->dock_menu_count;
+    popup_msg_apply_tokens(
+      eu->dock_menu_label[slot], sizeof(eu->dock_menu_label[slot]), line, &tok
+    );
+    eu->dock_menu_row[slot] = (uint8_t)row_id;
+    eu->dock_menu_greyed[slot] = (price > 0 && eu->gold < price);
+    eu->dock_menu_count++;
+  }
+}
+
+bool europe_apply_dock_menu_row(
+  EuropeScreen* eu,
+  ColonizeUnitPool* units,
+  int nation_id,
+  int dock_index,
+  int row
+) {
+  if (!eu || dock_index < 0 || dock_index >= eu->dock_count) {
+    return false;
+  }
+  EuropeDockImmigrant* d = &eu->dock[dock_index];
+  const int from = d->dos_type;
+  int to = from;
+  int gold_delta = 0;
+  int ledger_cargo = -1;
+  int ledger_qty = 0;
+  int ledger_is_buy = 0;
+  int sound = -1;
+
+  switch (row) {
+    case EUROPE_ARM_ROW_NO_BOARD:
+      d->sentry = false;
+      europe_set_status(eu, "Will not board next ship.");
+      return true;
+    case EUROPE_ARM_ROW_BOARD:
+      d->sentry = true;
+      europe_set_status(eu, "Will board next ship.");
+      return true;
+    case EUROPE_ARM_ROW_TO_FRONT: {
+      if (dock_index <= 0) {
+        return false;
+      }
+      const EuropeDockImmigrant moved = *d;
+      for (int i = dock_index; i > 0; --i) {
+        eu->dock[i] = eu->dock[i - 1];
+      }
+      eu->dock[0] = moved;
+      eu->menu_dock_index = 0;
+      europe_set_status(eu, "Moved to front of dock.");
+      return true;
+    }
+    /* 38fd:3ade — Scouts become Dragoons, anyone else Soldiers. */
+    case EUROPE_ARM_ROW_BUY_MUSKETS:
+      to = (from == EUROPE_DOCK_TYPE_SCOUTS) ? EUROPE_DOCK_TYPE_DRAGOONS
+                                             : EUROPE_DOCK_TYPE_SOLDIERS;
+      gold_delta = -europe_arm_buy_cost(eu, COLONIZE_CARGO_MUSKETS, EUROPE_ARM_MUSKETS);
+      ledger_cargo = COLONIZE_CARGO_MUSKETS;
+      ledger_qty = EUROPE_ARM_MUSKETS;
+      ledger_is_buy = 1;
+      sound = 0x58;
+      break;
+    case EUROPE_ARM_ROW_SELL_MUSKETS:
+      to = (from == EUROPE_DOCK_TYPE_DRAGOONS) ? EUROPE_DOCK_TYPE_SCOUTS
+                                               : EUROPE_DOCK_TYPE_COLONISTS;
+      gold_delta = europe_arm_sell_gain(eu, COLONIZE_CARGO_MUSKETS, EUROPE_ARM_MUSKETS);
+      ledger_cargo = COLONIZE_CARGO_MUSKETS;
+      ledger_qty = EUROPE_ARM_MUSKETS;
+      break;
+    case EUROPE_ARM_ROW_BUY_TOOLS:
+      to = EUROPE_DOCK_TYPE_PIONEERS;
+      gold_delta = -europe_arm_buy_cost(eu, COLONIZE_CARGO_TOOLS, EUROPE_ARM_TOOLS);
+      ledger_cargo = COLONIZE_CARGO_TOOLS;
+      ledger_qty = EUROPE_ARM_TOOLS;
+      ledger_is_buy = 1;
+      break;
+    case EUROPE_ARM_ROW_SELL_TOOLS:
+      to = EUROPE_DOCK_TYPE_COLONISTS;
+      gold_delta = europe_arm_sell_gain(eu, COLONIZE_CARGO_TOOLS, EUROPE_ARM_TOOLS);
+      ledger_cargo = COLONIZE_CARGO_TOOLS;
+      ledger_qty = EUROPE_ARM_TOOLS;
+      break;
+    /* 38fd:3bbe — Soldiers become Dragoons, anyone else Scouts. */
+    case EUROPE_ARM_ROW_BUY_HORSES:
+      to = (from == EUROPE_DOCK_TYPE_SOLDIERS) ? EUROPE_DOCK_TYPE_DRAGOONS
+                                               : EUROPE_DOCK_TYPE_SCOUTS;
+      gold_delta = -europe_arm_buy_cost(eu, COLONIZE_CARGO_HORSES, EUROPE_ARM_HORSES);
+      ledger_cargo = COLONIZE_CARGO_HORSES;
+      ledger_qty = EUROPE_ARM_HORSES;
+      ledger_is_buy = 1;
+      sound = 0x5c;
+      break;
+    case EUROPE_ARM_ROW_SELL_HORSES:
+      to = (from == EUROPE_DOCK_TYPE_DRAGOONS) ? EUROPE_DOCK_TYPE_SOLDIERS
+                                               : EUROPE_DOCK_TYPE_COLONISTS;
+      gold_delta = europe_arm_sell_gain(eu, COLONIZE_CARGO_HORSES, EUROPE_ARM_HORSES);
+      ledger_cargo = COLONIZE_CARGO_HORSES;
+      ledger_qty = EUROPE_ARM_HORSES;
+      break;
+    case EUROPE_ARM_ROW_BLESS:
+      to = EUROPE_DOCK_TYPE_MISSIONARIES;
+      sound = 0x8024; /* the same church chord the colony assign plays */
+      break;
+    case EUROPE_ARM_ROW_UNBLESS:
+      to = EUROPE_DOCK_TYPE_COLONISTS;
+      break;
+    case EUROPE_ARM_ROW_NO_CHANGES:
+    default:
+      return true;
+  }
+
+  if (gold_delta < 0 && eu->gold < -gold_delta) {
+    europe_set_status(eu, "The treasury cannot afford that.");
+    return false;
+  }
+  eu->gold += gold_delta;
+  d->dos_type = to;
+  if (ledger_cargo >= 0) {
+    europe_apply_volume_price(eu, ledger_cargo, ledger_qty, ledger_is_buy);
+  }
+  if (units) {
+    europe_retype_dock_mirror_unit(units, nation_id, d->profession, from, to);
+  }
+  if (sound >= 0 && g_europe_sound_play) {
+    g_europe_sound_play(sound);
+  }
+  return true;
 }
 
 bool europe_pop_dock_immigrant(EuropeScreen* eu, char* out_name, size_t out_name_size) {
@@ -1247,15 +1616,14 @@ static void europe_board_sentry_dockers(
        * The dock entry's name is the expert plural ("Hardy Pioneers"), which
        * matches no @UNIT type, so this used to fall back to Colonists for
        * every specialist and the passenger landed as a plain colonist with no
-       * kit. Fall back to FUN_38fd_0718's profession -> type rule instead;
-       * the name lookup still wins for purchases that really are typed by
-       * name (Artillery is handled above, Wagon Train and the like by name).
+       * kit. The entry now carries its own DOS type — set when it arrived and
+       * moved by the @ARMOPTIONS rows — so a Soldier boards as Soldiers and a
+       * Hardy Pioneer as Pioneers. The name lookup still wins for purchases
+       * that really are typed by name (Artillery is handled above).
        */
       int ti = units_find_type(units, eu->dock[di].name);
       if (ti < 0) {
-        ti = europe_dock_unit_type_index(
-          units, europe_dock_unit_dos_type(eu->dock[di].profession, eu->difficulty, true, NULL)
-        );
+        ti = europe_dock_unit_type_index(units, eu->dock[di].dos_type);
       }
       type_tag = ti >= 0 ? ti : 0;
     }
@@ -1550,10 +1918,6 @@ void europe_tick_voyages(EuropeScreen* eu, const ColonizeUnitPool* units) {
   }
 }
 
-/* Sound hook (unit tests build europe.c without sound.c — same shape as
- * units_set_combat_music_hooks). */
-static void (*g_europe_sound_play)(int id) = NULL;
-static void (*g_europe_set_bgm)(int pool) = NULL;
 void europe_set_sound_hook(void (*play_fn)(int id)) {
   g_europe_sound_play = play_fn;
 }
@@ -2959,12 +3323,46 @@ void europe_menu_close(EuropeScreen* eu) {
   eu->menu_dock_index = -1;
 }
 
+/*
+ * Turn the highlighted row of the open dock menu into its @ARMOPTIONS row id
+ * and apply it. Row ids are carried per-row because DOS omits the rows it
+ * disabled, so the visible index is not the id.
+ */
+bool europe_dock_menu_apply_selection(
+  EuropeScreen* eu,
+  ColonizeUnitPool* units,
+  int nation_id
+) {
+  if (!eu || eu->menu != EUROPE_MENU_DOCK) {
+    return false;
+  }
+  const int sel = eu->menu_selection;
+  if (sel < 0 || sel >= eu->dock_menu_count) {
+    return false;
+  }
+  if (eu->dock_menu_greyed[sel]) {
+    europe_set_status(eu, "The treasury cannot afford that.");
+    return false;
+  }
+  return europe_apply_dock_menu_row(
+    eu, units, nation_id, eu->menu_dock_index, (int)eu->dock_menu_row[sel]
+  );
+}
+
 bool europe_menu_confirm(EuropeScreen* eu) {
   if (!eu || eu->menu == EUROPE_MENU_NONE) {
     return false;
   }
   const EuropeMenu m = eu->menu;
   const int sel = eu->menu_selection;
+  if (m == EUROPE_MENU_DOCK) {
+    /* Units-less path (no pool to keep the mirror unit in step); game_loop
+     * calls europe_dock_menu_apply_selection with the pool so equipment,
+     * type and dock sprite follow the row that was picked. */
+    const bool ok = europe_dock_menu_apply_selection(eu, NULL, -1);
+    europe_menu_close(eu);
+    return ok;
+  }
   if (sel == 0) {
     europe_menu_close(eu);
     europe_set_status(eu, "Cancelled.");
@@ -2985,24 +3383,6 @@ bool europe_menu_confirm(EuropeScreen* eu) {
     const bool ok = europe_purchase(eu, sel - 1);
     europe_menu_close(eu);
     return ok;
-  }
-  if (m == EUROPE_MENU_DOCK && eu->menu_dock_index >= 0 &&
-      eu->menu_dock_index < eu->dock_count) {
-    EuropeDockImmigrant* d = &eu->dock[eu->menu_dock_index];
-    if (sel == 1) {
-      d->sentry = false;
-      europe_set_status(eu, "Will not board next ship.");
-    } else if (sel == 2) {
-      d->sentry = true;
-      europe_set_status(eu, "Will board next ship.");
-    } else if (sel == 3 && eu->menu_dock_index > 0) {
-      EuropeDockImmigrant tmp = eu->dock[0];
-      eu->dock[0] = *d;
-      eu->dock[eu->menu_dock_index] = tmp;
-      europe_set_status(eu, "Moved to front of dock.");
-    }
-    europe_menu_close(eu);
-    return true;
   }
   europe_menu_close(eu);
   return false;

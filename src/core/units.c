@@ -5100,7 +5100,15 @@ bool units_set_orders(ColonizeUnitPool* pool, int unit_id, int orders) {
     return false;
   }
   if (orders == UNITS_ORDER_FORTIFY || orders == UNITS_ORDER_FORTIFIED) {
-    if (!units_is_on_map(u) || units_is_sea(pool, unit_id)) {
+    /*
+     * Ships fortify too. DOS's Fortify command (FUN_2b5a_1112) writes
+     * orders 5 unconditionally; its only type test is `type < 0x0d ||
+     * type > 0x12` — the six ship types — and that gate guards the
+     * *adjacent-foreign-power war prompt* the command runs first, not the
+     * order itself. There is no water or harbour condition anywhere in it
+     * (bugs.md). A unit still has to be on the map, not riding in a hold.
+     */
+    if (!units_is_on_map(u)) {
       return false;
     }
   }
@@ -5132,48 +5140,31 @@ bool units_order_fortify(ColonizeUnitPool* pool, int unit_id) {
   const bool ok = units_set_orders(pool, unit_id, UNITS_ORDER_FORTIFY);
   if (ok) {
     units_play_event_sound(UNITS_SFX_ORDER_FORTIFY);
+    /* FUN_2b5a_1112's own tail also zeroes the unit's +0x315a counter. */
+    u->turns_worked = 0;
   }
   return ok;
 }
 
+/*
+ * The ship half of MENU.TXT @ORDERS' two "~Fortify" rows (the port calls this
+ * one Anchor to tell them apart; DOS labels both the same and runs both
+ * through FUN_2b5a_1112). It used to require an own colony on or next to the
+ * ship's tile, which is why fortifying at sea worked "only sometimes" — DOS
+ * has no such rule, or any water rule, so this is now plain fortify.
+ * `colonies` is kept in the signature for the call sites and is unused.
+ */
 bool units_order_anchor(
   ColonizeUnitPool* pool,
   int unit_id,
   const ColonizeColonyPool* colonies
 ) {
-  ColonizeUnit* u = units_get(pool, unit_id);
-  if (!u || !u->active || !units_is_on_map(u) || !units_is_sea(pool, unit_id)) {
+  (void)colonies;
+  const ColonizeUnit* u = units_get_const(pool, unit_id);
+  if (!u || !u->active || !units_is_sea(pool, unit_id)) {
     return false;
   }
-  if (!colonies) {
-    return false;
-  }
-  /* Harbor: own Euro colony on this tile, or adjacent (ship in port approaches). */
-  bool in_harbor = false;
-  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
-    const ColonizeColony* c = &colonies->colonies[i];
-    if (!c->active || c->nation_id != u->nation_id) {
-      continue;
-    }
-    const int dx = c->x - u->x;
-    const int dy = c->y - u->y;
-    if (dx >= -1 && dx <= 1 && dy >= -1 && dy <= 1) {
-      in_harbor = true;
-      break;
-    }
-  }
-  if (!in_harbor) {
-    return false;
-  }
-  if (u->orders == UNITS_ORDER_FORTIFIED) {
-    return true;
-  }
-  u->goto_x = UNITS_GOTO_NONE;
-  u->goto_y = UNITS_GOTO_NONE;
-  u->follow_unit_id = -1;
-  u->orders = UNITS_ORDER_FORTIFY;
-  u->moves_left = 0;
-  return true;
+  return units_order_fortify(pool, unit_id);
 }
 
 bool units_order_sentry(ColonizeUnitPool* pool, int unit_id) {
@@ -8068,18 +8059,32 @@ int units_top_on_map_tile(
   const ColonizeWorldMap* map
 ) {
   const bool on_colony = map_tile_has_city(map, x, y);
+  /*
+   * The active unit owns its tile outright: it is drawn on the blink-on
+   * phase and the tile is left empty on the blink-off one. Letting the rest
+   * of the stack take its place off-blink made the tile alternate between
+   * two different units, so which one was actually active became a guess
+   * (bugs.md). A Go-To unit does not blink at all, so it never yields.
+   */
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    const ColonizeUnit* u = &pool->units[i];
+    if (!units_is_on_map(u) || u->x != x || u->y != y) {
+      continue;
+    }
+    if (u->id != pool->selected_id) {
+      continue;
+    }
+    if (!selected_visible && u->orders != UNITS_ORDER_GOTO) {
+      return -1;
+    }
+    return u->id;
+  }
   int top = -1;
   int top_id = -1;
   for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
     const ColonizeUnit* u = &pool->units[i];
     if (!units_is_on_map(u) || u->x != x || u->y != y) {
       continue;
-    }
-    if (u->id == pool->selected_id && !selected_visible && u->orders != UNITS_ORDER_GOTO) {
-      continue;
-    }
-    if (u->id == pool->selected_id) {
-      return u->id;
     }
     if (on_colony) {
       continue;
@@ -8207,8 +8212,15 @@ void units_render_on_map(
     const int px = origin_x + sx * tile_w;
     const int py = origin_y + sy * tile_h;
     const int dtype = units_display_type_index(pool, top->id);
+    /*
+     * "More units here" covers passengers as well. DOS decides it with
+     * FUN_1427_0002/004a — "is there another unit after this one in the
+     * chain" (112b:01de..01fa) — and that chain is the same next/prev pair
+     * that links a ship to the units riding in it, not just the units
+     * standing on the tile. A loaded transport carries the tab (bugs.md).
+     */
     const int on_tile = units_count_on_map_tile(pool, top->x, top->y);
-    const bool stacked = on_tile > 1;
+    const bool stacked = on_tile > 1 || top->cargo_count > 0;
     const bool aboard = top->aboard_ship_id >= 0;
 
     unit_chrome_blit_unit_for_palette(
