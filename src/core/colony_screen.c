@@ -116,7 +116,13 @@ void colony_screen_refresh_transports(
       view->transport_unit_id = -1;
     }
   }
-  if (view->transport_unit_id < 0 && view->docked_transport_count == 1) {
+  /*
+   * Something is always selected while there is anything to select — the
+   * screen never shows an unhighlighted row of units (bugs.md). This used
+   * to auto-select only when exactly one transport was docked, so two ships
+   * in port left neither highlighted until the player clicked one.
+   */
+  if (view->transport_unit_id < 0 && view->docked_transport_count > 0) {
     view->transport_unit_id = view->docked_transport_ids[0];
   }
 }
@@ -177,6 +183,26 @@ void colony_screen_refresh_outside(
     if (!still) {
       view->multi_unit_selected_id = -1;
     }
+  }
+  /* Same rule as the transport strip: the Units pane always has a
+   * highlighted unit while it has any, and the outside strip likewise. */
+  if (view->selected_outside_unit < 0 && view->outside_unit_count > 0) {
+    view->selected_outside_unit = view->outside_unit_ids[0];
+  }
+  if (view->multi_unit_selected_id < 0) {
+    if (view->outside_unit_count > 0) {
+      view->multi_unit_selected_id = view->outside_unit_ids[0];
+    } else if (view->docked_transport_count > 0) {
+      view->multi_unit_selected_id = view->docked_transport_ids[0];
+    }
+  }
+  /* And the People band: a colony with anyone in it always has one of them
+   * highlighted (bugs.md). Drops the selection when the last one leaves. */
+  if (view->selected_colonist >= colony->colonist_count) {
+    view->selected_colonist = -1;
+  }
+  if (view->selected_colonist < 0 && colony->colonist_count > 0) {
+    view->selected_colonist = 0;
   }
 }
 
@@ -2285,34 +2311,58 @@ int colony_screen_multi_units_layout(
     ids[n++] = view->outside_unit_ids[i];
   }
 
+  /*
+   * Two rows, growing upward from the bottom of the pane: the first units
+   * fill the *lower* row (up to COLONY_MULTI_UNITS_ROW0 of them at their
+   * natural width), anything past that goes on the row above, squeezed to
+   * fit the pane. bugs.md: this used to fill top-down from py, which put
+   * the row about 21px above where it belongs (py 139 vs a bottom row at
+   * py + pane_h - 16 = 160) and listed the first units on the top row.
+   */
   const int row_h = 16;
-  int x = px;
-  int y = py;
   int count = 0;
+  int ref_iw = 12;
+  {
+    const ColonizeUnit* u0 = n > 0 ? units_get_const(units, ids[0]) : NULL;
+    const int s0 = u0 ? colony_screen_outside_display_sprite(units, u0) : -1;
+    const ColonizeSprite* sp0 =
+      (view->icons_ok && s0 >= 0 && s0 < view->icons.sprite_count) ? &view->icons.sprites[s0] : NULL;
+    if (sp0 && sp0->width > 0) {
+      ref_iw = sp0->width;
+    }
+  }
+  const int slot_w = ref_iw + UNIT_CHROME_SPRITE_DX + 2;
+  const int row0_y = py + pane_h - row_h;
+  const int row1_y = row0_y - row_h;
+  const int row0_n = n < COLONY_MULTI_UNITS_ROW0 ? n : COLONY_MULTI_UNITS_ROW0;
+  const int row1_n = n - row0_n;
+  /* Overflow row: pack shoulder to shoulder, then shrink the step so the
+   * last one still ends inside the pane (same rule as the building strips). */
+  int row1_step = slot_w;
+  if (row1_n > 1 && px + (row1_n - 1) * slot_w + ref_iw > px + pane_w) {
+    row1_step = (pane_w - ref_iw) / (row1_n - 1);
+    if (row1_step < 1) {
+      row1_step = 1;
+    }
+  }
   for (int i = 0; i < n && count < max; ++i) {
     const ColonizeUnit* u = units_get_const(units, ids[i]);
     const int sprite = u ? colony_screen_outside_display_sprite(units, u) : -1;
     if (sprite < 0) {
       continue;
     }
-    const ColonizeSprite* sp =
-      (view->icons_ok && sprite < view->icons.sprite_count) ? &view->icons.sprites[sprite] : NULL;
-    const int iw = (sp && sp->width > 0) ? sp->width : 12;
-    const int slot_w = iw + UNIT_CHROME_SPRITE_DX + 2;
-    if (x + slot_w > px + pane_w && x > px) {
-      x = px;
-      y += row_h;
-    }
-    if (y + row_h > py + pane_h) {
+    const bool bottom = (i < row0_n);
+    const int y = bottom ? row0_y : row1_y;
+    if (y < py) {
       break;
     }
+    const int x = bottom ? (px + i * slot_w) : (px + (i - row0_n) * row1_step);
     out[count].unit_id = ids[i];
     out[count].x = x;
     out[count].y = y;
     out[count].w = slot_w;
     out[count].h = row_h;
     count++;
-    x += slot_w;
   }
   return count;
 }

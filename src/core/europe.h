@@ -17,6 +17,26 @@
 #define EUROPE_POOL_SIZE 3
 #define EUROPE_TRAIN_MAX 24
 #define EUROPE_PURCHASE_MAX 8
+#define EUROPE_DOCK_MENU_MAX 12 /* GAME.TXT @ARMOPTIONS row count */
+
+/* @ARMOPTIONS row ids, 1-based, exactly DOS's switch order. */
+#define EUROPE_ARM_ROW_NO_BOARD 1
+#define EUROPE_ARM_ROW_BOARD 2
+#define EUROPE_ARM_ROW_TO_FRONT 3
+#define EUROPE_ARM_ROW_BUY_MUSKETS 4
+#define EUROPE_ARM_ROW_SELL_MUSKETS 5
+#define EUROPE_ARM_ROW_BUY_TOOLS 6
+#define EUROPE_ARM_ROW_SELL_TOOLS 7
+#define EUROPE_ARM_ROW_BUY_HORSES 8
+#define EUROPE_ARM_ROW_SELL_HORSES 9
+#define EUROPE_ARM_ROW_BLESS 10
+#define EUROPE_ARM_ROW_UNBLESS 11
+#define EUROPE_ARM_ROW_NO_CHANGES 12
+
+/* Quantities DOS moves per row (38fd:408b / 40ea / 4131). */
+#define EUROPE_ARM_MUSKETS 50
+#define EUROPE_ARM_TOOLS 100
+#define EUROPE_ARM_HORSES 50
 
 /*
  * Layout calibrated to EUROPE.PIK / original_screenshots/europe/ (320×200).
@@ -96,11 +116,24 @@ typedef struct EuropeCargoQuote {
   int volatility;
 } EuropeCargoQuote;
 
+/* DOS @UNIT type codes a dock unit can hold (FUN_38fd_0718 / the @ARMOPTIONS
+ * menu moves an immigrant between exactly these six). The kit follows from
+ * the type: Soldiers and Dragoons carry 50 Muskets, Dragoons and Scouts 50
+ * Horses, Pioneers 100 Tools — DOS stores only the Tools byte and lets the
+ * type imply the rest. */
+#define EUROPE_DOCK_TYPE_COLONISTS 0
+#define EUROPE_DOCK_TYPE_SOLDIERS 1
+#define EUROPE_DOCK_TYPE_PIONEERS 2
+#define EUROPE_DOCK_TYPE_MISSIONARIES 3
+#define EUROPE_DOCK_TYPE_DRAGOONS 4
+#define EUROPE_DOCK_TYPE_SCOUTS 5
+
 typedef struct EuropeDockImmigrant {
   char name[40];
   int profession; /* NAMES.TXT @JOB index; -1 unknown */
   bool present;
   bool sentry; /* board next outbound ship (default true) */
+  int dos_type; /* EUROPE_DOCK_TYPE_*; what the @ARMOPTIONS rows move around */
 } EuropeDockImmigrant;
 
 typedef struct EuropeRecruitClass {
@@ -252,6 +285,17 @@ typedef struct EuropeScreen {
   EuropeMenu menu;
   int menu_selection; /* 0 = None / cancel for list menus */
   int menu_dock_index;
+  /*
+   * GAME.TXT @ARMOPTIONS rows for the clicked dock immigrant, built by
+   * europe_build_dock_menu. DOS omits a row it has disabled rather than
+   * greying it, and greys one the player cannot afford, so `count` is the
+   * number of rows actually shown and `row[]` remembers each one's 1-based
+   * DOS row id — the id the action switch (and DOS's own dialog) works in.
+   */
+  char dock_menu_label[EUROPE_DOCK_MENU_MAX][72];
+  uint8_t dock_menu_row[EUROPE_DOCK_MENU_MAX];
+  bool dock_menu_greyed[EUROPE_DOCK_MENU_MAX];
+  int dock_menu_count;
   int last_exit_x;
   int last_exit_y;
   bool last_exit_east;
@@ -363,6 +407,34 @@ bool europe_dock_push_load(EuropeScreen* eu, const char* name, int profession);
  */
 void europe_remove_dock_mirror_unit(ColonizeUnitPool* units, int nation_id, int profession);
 
+struct ColonizeMsgCatalog;
+
+/*
+ * Build the @ARMOPTIONS row list for dock[dock_index] into eu->dock_menu_*.
+ * Cite: DOS FUN_38fd_37xx — prices and quantities at 38fd:3745..3830, the
+ * per-row enable switch at 38fd:388e..3a04, and the add/grey tail at
+ * 38fd:3a32..3a7b (a disabled row is not added at all; an unaffordable one
+ * is added greyed).
+ */
+void europe_build_dock_menu(
+  EuropeScreen* eu,
+  const struct ColonizeMsgCatalog* messages,
+  int dock_index
+);
+
+/*
+ * Apply one @ARMOPTIONS row id (EUROPE_ARM_ROW_*) to dock[dock_index].
+ * `units` may be NULL; when given, the (236,236) mirror unit follows.
+ * Cite: DOS's action switch at 38fd:3ade..3c49.
+ */
+bool europe_apply_dock_menu_row(
+  EuropeScreen* eu,
+  ColonizeUnitPool* units,
+  int nation_id,
+  int dock_index,
+  int row
+);
+
 /*
  * DOS FUN_38fd_0718 (the Europe harbor spawn behind every dock arrival):
  * the @UNIT type a dock immigrant of this @JOB profession is created as.
@@ -377,6 +449,19 @@ int europe_dock_unit_dos_type(int profession, int difficulty, bool human, struct
 
 /* Pool type_index for a DOS @UNIT type code 0..5, or -1. */
 int europe_dock_unit_type_index(const ColonizeUnitPool* units, int dos_type);
+
+/*
+ * DOS @UNIT type for a dock entry. A name that is itself one of the six
+ * (an arriving passenger keeps the type it sailed with) wins; otherwise the
+ * profession decides, the way FUN_38fd_0718 decides it for a fresh
+ * immigrant. Anything else — Artillery, a purchased hull — is Colonists.
+ */
+int europe_dock_type_for(const char* name, int profession);
+
+/* Kit implied by a dock entry's type, for the mirror unit and for landing. */
+int europe_dock_type_tools(int dos_type);
+int europe_dock_type_muskets(int dos_type);
+int europe_dock_type_horses(int dos_type);
 
 /*
  * Spawn (or re-kit) the Europe-map mirror unit for a dock immigrant, exactly
@@ -396,6 +481,15 @@ int europe_spawn_dock_mirror_unit(
 
 /* The FUN_38fd_0718 kit for an already-spawned unit of a known DOS type. */
 void europe_apply_dock_unit_kit(ColonizeUnit* u, int dos_type);
+
+/* Move the (236,236) mirror unit behind a dock entry to a new @UNIT type. */
+void europe_retype_dock_mirror_unit(
+  ColonizeUnitPool* units,
+  int nation_id,
+  int profession,
+  int from_dos_type,
+  int to_dos_type
+);
 bool europe_pop_dock_immigrant(EuropeScreen* eu, char* out_name, size_t out_name_size);
 /* Pop with profession; returns false if empty. */
 bool europe_pop_dock_immigrant_ex(
@@ -712,6 +806,13 @@ void europe_menu_open(EuropeScreen* eu, EuropeMenu menu);
 void europe_menu_close(EuropeScreen* eu);
 /* Apply current menu_selection (0 = cancel). Returns true if acted. */
 bool europe_menu_confirm(EuropeScreen* eu);
+
+/* Apply the highlighted dock-menu row; `units` keeps the mirror unit in step. */
+bool europe_dock_menu_apply_selection(
+  EuropeScreen* eu,
+  ColonizeUnitPool* units,
+  int nation_id
+);
 
 void europe_cheat_add_gold(EuropeScreen* eu, int amount);
 void europe_cheat_adjust_tax(EuropeScreen* eu, int delta);

@@ -198,6 +198,8 @@ typedef struct ColonyScreenHitResult {
  * the roster grid — golden-confirmed, matched at both the draw and
  * hit-test call sites so click regions never drift from what's drawn. */
 #define COLONY_MULTI_UNITS_TITLE_H 8
+/* Units on the lower (first) row of the Units pane before it wraps upward. */
+#define COLONY_MULTI_UNITS_ROW0 5
 
 typedef struct ColonyMultiUnitSlot {
   int unit_id;

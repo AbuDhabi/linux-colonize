@@ -4005,6 +4005,29 @@ static void europe_render_transit_box(
 }
 
 /*
+ * Confirm the highlighted row of whichever Europe menu is open. The dock menu
+ * goes through europe_dock_menu_apply_selection with the unit pool so an
+ * @ARMOPTIONS row that re-types the immigrant (armed, equipped, blessed) also
+ * moves its (236,236) mirror unit; everything else is the plain confirm.
+ */
+static bool game_europe_menu_confirm(ColonizeGameState* game) {
+  if (!game) {
+    return false;
+  }
+  EuropeScreen* eu = &game->europe;
+  if (eu->menu == EUROPE_MENU_DOCK) {
+    const bool ok = europe_dock_menu_apply_selection(
+      eu, game->units_ok ? &game->units : NULL, game->human_nation
+    );
+    if (ok) {
+      europe_menu_close(eu);
+    }
+    return ok;
+  }
+  return europe_menu_confirm(eu);
+}
+
+/*
  * Geometry of the RECRUIT/TRAIN/PURCHASE/DOCK wood popup. Shared by the
  * renderer and the click hit-test so a row the player sees and the row a
  * click lands on cannot drift apart. bugs.md: those three popups were
@@ -4065,7 +4088,9 @@ static bool europe_menu_layout(
       out->rows = 1 + eu->purchase_count;
       break;
     case EUROPE_MENU_DOCK:
-      out->rows = 4;
+      /* @ARMOPTIONS rows this immigrant actually gets, no "None" header —
+       * DOS's own last row is "No changes." (bugs.md). */
+      out->rows = eu->dock_menu_count;
       break;
     default:
       return false;
@@ -4129,9 +4154,19 @@ static void europe_render_menu_popup(
     case EUROPE_MENU_PURCHASE:
       snprintf(title, sizeof(title), "%s", "Purchase");
       break;
-    case EUROPE_MENU_DOCK:
-      snprintf(title, sizeof(title), "%s", "Dock orders");
+    case EUROPE_MENU_DOCK: {
+      /* GAME.TXT @EUROPEARM. */
+      const ColonizeMsgSection* sec = assets_msg_find(&game->messages, "EUROPEARM");
+      const char* head = NULL;
+      for (int i = 0; sec && i < sec->line_count; ++i) {
+        if (!popup_msg_is_directive(sec->lines[i]) && sec->lines[i][0]) {
+          head = sec->lines[i];
+          break;
+        }
+      }
+      snprintf(title, sizeof(title), "%s", head ? head : "European dock options:");
       break;
+    }
     default:
       return;
   }
@@ -4172,7 +4207,6 @@ static void europe_render_menu_popup(
 
   font_draw_text(font, framebuffer, inner_x + pad, inner_y + pad, title, 15);
   const int list_y0 = inner_y + pad + line_h;
-  static const char* k_dock_opts[4] = {"None", "Don't board", "Board next", "Move to front"};
 
   for (int i = 0; i < rows; ++i) {
     const int row_y = list_y0 + i * line_h;
@@ -4184,9 +4218,17 @@ static void europe_render_menu_popup(
         framebuffer, inner_x + 1, row_y - 1, inner_x + inner_w - 1, row_y + line_h - 1, 138
       );
     }
-    char label[64];
+    char label[72];
     uint8_t color = 15;
-    if (i == 0) {
+    if (eu->menu == EUROPE_MENU_DOCK) {
+      if (i < 0 || i >= eu->dock_menu_count) {
+        continue;
+      }
+      snprintf(label, sizeof(label), "%s", eu->dock_menu_label[i]);
+      /* DOS greys a row the treasury cannot cover, and omits the ones it
+       * disabled outright (europe_build_dock_menu already dropped those). */
+      color = eu->dock_menu_greyed[i] ? 8 : 15;
+    } else if (i == 0) {
       snprintf(label, sizeof(label), "%s", "None");
     } else if (eu->menu == EUROPE_MENU_RECRUIT) {
       const EuropePoolSlot* p = &eu->pool[i - 1];
@@ -4198,8 +4240,6 @@ static void europe_render_menu_popup(
     } else if (eu->menu == EUROPE_MENU_PURCHASE) {
       const EuropePurchaseOption* p = &eu->purchase[i - 1];
       snprintf(label, sizeof(label), "%s (Cost: %d)", p->name, p->gold);
-    } else if (eu->menu == EUROPE_MENU_DOCK && i >= 0 && i < 4) {
-      snprintf(label, sizeof(label), "%s", k_dock_opts[i]);
     }
     font_draw_text(font, framebuffer, inner_x + pad, row_y, label, color);
   }
@@ -4253,6 +4293,15 @@ static int europe_dock_sprite(const ColonizeUnitPool* units, const EuropeDockImm
     const int ti = units_find_type(units, "Artillery");
     const ColonizeUnitType* ut = units_type(units, ti);
     return ut ? ut->icon_sprite : -1;
+  }
+  /* Armed / equipped / blessed on the dock: show what the immigrant now is,
+   * not the profession portrait it arrived with (bugs.md @ARMOPTIONS). */
+  if (d->dos_type != EUROPE_DOCK_TYPE_COLONISTS) {
+    const int eti = europe_dock_unit_type_index(units, d->dos_type);
+    const ColonizeUnitType* eut = units_type(units, eti);
+    if (eut && eut->icon_sprite >= 0) {
+      return eut->icon_sprite;
+    }
   }
   int ti = units_find_type(units, d->name);
   if (ti < 0) {
@@ -7376,10 +7425,16 @@ static void game_europe_deliver_bound_ships(ColonizeGameState* game) {
         ColonizeUnit* pax = units_get(&game->units, ship->cargo_ids[i]);
         if (pax && cargo_professions[i] >= 0) {
           pax->profession = cargo_professions[i];
-          /* FUN_38fd_0718's kit travels with the passenger: a Hardy Pioneer
-           * steps ashore with its 100 Tools, not empty-handed (bugs.md). */
+          /*
+           * The kit travels with the passenger: a Hardy Pioneer steps ashore
+           * with its 100 Tools, a colonist armed on the dock with its muskets
+           * (bugs.md). Read it off the type the passenger actually boarded as,
+           * which is what the @ARMOPTIONS rows moved it to, not off the
+           * profession — those disagree once a plain colonist has been armed.
+           */
+          const ColonizeUnitType* put = units_type(&game->units, pax->type_index);
           europe_apply_dock_unit_kit(
-            pax, europe_dock_unit_dos_type(cargo_professions[i], eu->difficulty, true, NULL)
+            pax, europe_dock_type_for(put ? put->name : NULL, cargo_professions[i])
           );
         }
       }
@@ -9851,7 +9906,7 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
         const int row = europe_menu_row_at(game, input->mouse_x, input->mouse_y);
         if (row >= 0) {
           eu->menu_selection = row;
-          europe_menu_confirm(eu);
+          game_europe_menu_confirm(game);
         } else {
           europe_menu_close(eu);
         }
@@ -9869,7 +9924,7 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
           max_sel = eu->purchase_count;
           break;
         case EUROPE_MENU_DOCK:
-          max_sel = 3;
+          max_sel = eu->dock_menu_count > 0 ? eu->dock_menu_count - 1 : 0;
           break;
         default:
           break;
@@ -9879,7 +9934,7 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
       } else if (colonize_key_down(input->last_key) && eu->menu_selection < max_sel) {
         eu->menu_selection++;
       } else if (input->last_key == COLONIZE_KEY_ENTER) {
-        europe_menu_confirm(eu);
+        game_europe_menu_confirm(game);
       }
       return true;
     }
@@ -10111,6 +10166,7 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
         break;
       case EUROPE_HIT_DOCK:
         eu->menu_dock_index = hit.index;
+        europe_build_dock_menu(eu, &game->messages, hit.index);
         europe_menu_open(eu, EUROPE_MENU_DOCK);
         break;
       case EUROPE_HIT_EXPECTED:
@@ -10933,6 +10989,7 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
       set_status(game, "No immigrants on dock", NULL);
     } else {
       const char* immigrant = game->europe.dock[0].name;
+      const int deploy_type = game->europe.dock[0].dos_type;
       if (!units_deploy_colonist(
             &game->units,
             &game->world_map,
@@ -10944,6 +11001,24 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
       } else {
         char name[40];
         const int prof = game->europe.dock_count > 0 ? game->europe.dock[0].profession : -1;
+        /*
+         * units_deploy_colonist always spawns a bare Colonists-type unit and
+         * leaves it profession-less; carry over what the immigrant actually
+         * was on the dock, kit included, the same way boarding a ship does.
+         */
+        {
+          ColonizeUnit* placed = units_get(&game->units, game->units.selected_id);
+          if (placed) {
+            const int dti = europe_dock_unit_type_index(&game->units, deploy_type);
+            if (dti >= 0) {
+              placed->type_index = dti;
+            }
+            if (prof >= 0) {
+              placed->profession = prof;
+            }
+            europe_apply_dock_unit_kit(placed, deploy_type);
+          }
+        }
         europe_pop_dock_immigrant(&game->europe, name, sizeof(name));
         europe_remove_dock_mirror_unit(&game->units, game->human_nation, prof);
         snprintf(

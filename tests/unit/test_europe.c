@@ -960,6 +960,116 @@ int main(void) {
   );
 
   /*
+   * GAME.TXT @ARMOPTIONS dock menu (bugs.md): DOS FUN_38fd_37xx omits the
+   * rows it disabled, so a plain colonist gets the three queue rows plus buy
+   * Muskets / buy Tools / buy Horses / Bless / No changes, and arming him
+   * turns him into Soldiers, charges 50 x the Muskets ask, and swaps the
+   * buy row for the matching sell row.
+   */
+  {
+    EuropeScreen arm;
+    char aerr[128];
+    if (!europe_load(&arm, "COLONIZE", aerr, sizeof(aerr))) {
+      fprintf(stderr, "armoptions: reload failed: %s\n", aerr);
+      europe_free(&eu);
+      return 1;
+    }
+    europe_cheat_add_gold(&arm, 50000);
+    arm.dock_count = 0;
+    memset(arm.dock, 0, sizeof(arm.dock));
+    if (!europe_dock_push_load(&arm, "Free Colonists", UNITS_JOB_COLONIST)) {
+      fprintf(stderr, "armoptions: dock push failed\n");
+      europe_free(&arm);
+      europe_free(&eu);
+      return 1;
+    }
+    if (arm.dock[0].dos_type != EUROPE_DOCK_TYPE_COLONISTS) {
+      fprintf(stderr, "armoptions: fresh immigrant should be Colonists, got %d\n",
+              arm.dock[0].dos_type);
+      europe_free(&arm);
+      europe_free(&eu);
+      return 1;
+    }
+    arm.menu_dock_index = 0;
+    europe_build_dock_menu(&arm, NULL, 0);
+    int has_buy_muskets = 0, has_sell_muskets = 0, has_bless = 0, has_unbless = 0;
+    int has_to_front = 0, has_no_changes = 0;
+    for (int i = 0; i < arm.dock_menu_count; ++i) {
+      switch (arm.dock_menu_row[i]) {
+        case EUROPE_ARM_ROW_BUY_MUSKETS: has_buy_muskets = 1; break;
+        case EUROPE_ARM_ROW_SELL_MUSKETS: has_sell_muskets = 1; break;
+        case EUROPE_ARM_ROW_BLESS: has_bless = 1; break;
+        case EUROPE_ARM_ROW_UNBLESS: has_unbless = 1; break;
+        case EUROPE_ARM_ROW_TO_FRONT: has_to_front = 1; break;
+        case EUROPE_ARM_ROW_NO_CHANGES: has_no_changes = 1; break;
+        default: break;
+      }
+    }
+    if (!has_buy_muskets || has_sell_muskets || !has_bless || has_unbless ||
+        has_to_front /* index 0 is already the front */ || !has_no_changes) {
+      fprintf(
+        stderr,
+        "armoptions rows wrong: buy=%d sell=%d bless=%d unbless=%d front=%d none=%d (count=%d)\n",
+        has_buy_muskets, has_sell_muskets, has_bless, has_unbless, has_to_front,
+        has_no_changes, arm.dock_menu_count
+      );
+      europe_free(&arm);
+      europe_free(&eu);
+      return 1;
+    }
+    const int musket_cost =
+      europe_buy_price(&arm, COLONIZE_CARGO_MUSKETS) * EUROPE_ARM_MUSKETS;
+    const int gold_before = arm.gold;
+    if (!europe_apply_dock_menu_row(&arm, NULL, -1, 0, EUROPE_ARM_ROW_BUY_MUSKETS)) {
+      fprintf(stderr, "armoptions: arm with muskets failed\n");
+      europe_free(&arm);
+      europe_free(&eu);
+      return 1;
+    }
+    if (arm.dock[0].dos_type != EUROPE_DOCK_TYPE_SOLDIERS ||
+        arm.gold != gold_before - musket_cost) {
+      fprintf(stderr, "armoptions: arm result type=%d gold=%d expected type=1 gold=%d\n",
+              arm.dock[0].dos_type, arm.gold, gold_before - musket_cost);
+      europe_free(&arm);
+      europe_free(&eu);
+      return 1;
+    }
+    /* Now the Muskets row flips to Sell, and Horses upgrades to Dragoons. */
+    europe_build_dock_menu(&arm, NULL, 0);
+    has_buy_muskets = 0;
+    has_sell_muskets = 0;
+    for (int i = 0; i < arm.dock_menu_count; ++i) {
+      if (arm.dock_menu_row[i] == EUROPE_ARM_ROW_BUY_MUSKETS) has_buy_muskets = 1;
+      if (arm.dock_menu_row[i] == EUROPE_ARM_ROW_SELL_MUSKETS) has_sell_muskets = 1;
+    }
+    if (has_buy_muskets || !has_sell_muskets) {
+      fprintf(stderr, "armoptions: after arming buy=%d sell=%d\n",
+              has_buy_muskets, has_sell_muskets);
+      europe_free(&arm);
+      europe_free(&eu);
+      return 1;
+    }
+    if (!europe_apply_dock_menu_row(&arm, NULL, -1, 0, EUROPE_ARM_ROW_BUY_HORSES) ||
+        arm.dock[0].dos_type != EUROPE_DOCK_TYPE_DRAGOONS) {
+      fprintf(stderr, "armoptions: soldier + horses should be Dragoons, got %d\n",
+              arm.dock[0].dos_type);
+      europe_free(&arm);
+      europe_free(&eu);
+      return 1;
+    }
+    if (!europe_apply_dock_menu_row(&arm, NULL, -1, 0, EUROPE_ARM_ROW_SELL_MUSKETS) ||
+        arm.dock[0].dos_type != EUROPE_DOCK_TYPE_SCOUTS) {
+      fprintf(stderr, "armoptions: dragoon minus muskets should be Scouts, got %d\n",
+              arm.dock[0].dos_type);
+      europe_free(&arm);
+      europe_free(&eu);
+      return 1;
+    }
+    europe_free(&arm);
+    fprintf(stderr, "europe @ARMOPTIONS dock menu ok\n");
+  }
+
+  /*
    * Volume prices: FUN_38fd_1dfa/0058 — sell pushes nr toward fall*100 → bid−1.
    * Sugar: fall=6 vol=1 → sell 300 tons (delta 600) drops bid 4→3; ask=bid+1+1=5.
    * Cite: NAMES.TXT @CARGO; viceroy_unpacked.c FUN_38fd_0058.
