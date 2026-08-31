@@ -96,14 +96,14 @@ This is a user-maintained list of bugs. User puts reports in. Agents may annotat
 | When a tile has a colonist working there as a profession that produces nothing, there should be a red slashed-circle icon (icon 64) over the normal icon of what's normally produced there instead of nothing. Ie. if putting a farmer on a sea tile or mountain, then there should be a corn corb icon with a red slashed-circle icon superimposed on it.  | FIXED. A worked tile whose job yields 0 here now draws the job's normal produce icon (corn for a farmer, fish for a fisherman, …) with ICONS.SS #64 — the red slashed circle, 16x16 — superimposed, instead of drawing nothing. |
 | Loading the game seems to play the "I'm about to tax you" royal sound. That's not quite appropriate. | |
 | Soldier fortified in a colony with a ship instead became sentried, vanished from the military view, and was apparently boarded onto the ship. Fortification has no interaction with boarding ships in DOS. And being sentried does not automatically load units onto ships - that only happens when a ship leaves the tile, similar to European Status; first in line, first picked up. | |
-| | |
-| | |
-| | |
-| | |
-| | |
-| | |
-| | |
-| | |
+| In DOS, when in View Pieces mode, and there is no colony or own units on the tile, and there are no units left in the control queue, pressing Enter or Space should end the turn (just the same as clicking the sidebar; the End turn info is already flashing). Reproduce this behaviour in port, because it's either broken or missing. | |
+| Crosses are missing from Religious report. | |
+| Indian Advisor fonts are off. I mean, they're legible, but weird - the tribe name and tech level. Check DOS. | |
+| Indian chief flair seems mismatched regarding their alarm level. The little-to-no-alarm one is right, but the further ones need checking vs DOS. | |
+| Lost city rumour that grants a colonist should say the nation name (eg England), not the new world name (eg New England). | |
+| Initial selected project on colony founding should be Docks, I think. I'm not sure what a landlocked, lakeless colony would have instead. Port currently has "none". Check DOS. | |
+| Construction project selection popup has incorrent text styling (color, text, exact positioning of parts of text). Check DOS. | |
+| Founding father colonizopedia entries do not include the portrait used in continental congress report page 2, and should be dismissable by clicking anywhere, not just Escape.  | |
 | | |
 | | |
 | | |
