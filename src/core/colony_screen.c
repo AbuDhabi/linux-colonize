@@ -39,7 +39,8 @@ void colony_screen_reset_ui(ColonyScreenView* view) {
   }
   view->selected_colonist = -1;
   view->selected_outside_unit = -1;
-  view->show_production_numbers = false;
+  /* show_production_numbers deliberately NOT reset here: it is DOS's
+   * game-wide DS:0x336 numbers toggle and survives between colonies. */
   view->multi_mode = COLONY_MULTI_PRODUCTION;
   view->selected_cargo = -1;
   view->construction_open = false;
@@ -184,11 +185,7 @@ void colony_screen_refresh_outside(
       view->multi_unit_selected_id = -1;
     }
   }
-  /* Same rule as the transport strip: the Units pane always has a
-   * highlighted unit while it has any, and the outside strip likewise. */
-  if (view->selected_outside_unit < 0 && view->outside_unit_count > 0) {
-    view->selected_outside_unit = view->outside_unit_ids[0];
-  }
+  /* The Units pane always has a highlighted unit while it has any. */
   if (view->multi_unit_selected_id < 0) {
     if (view->outside_unit_count > 0) {
       view->multi_unit_selected_id = view->outside_unit_ids[0];
@@ -196,13 +193,24 @@ void colony_screen_refresh_outside(
       view->multi_unit_selected_id = view->docked_transport_ids[0];
     }
   }
-  /* And the People band: a colony with anyone in it always has one of them
-   * highlighted (bugs.md). Drops the selection when the last one leaves. */
   if (view->selected_colonist >= colony->colonist_count) {
     view->selected_colonist = -1;
   }
-  if (view->selected_colonist < 0 && colony->colonist_count > 0) {
-    view->selected_colonist = 0;
+  /*
+   * Settlement view and the People band both show colonists AND on-tile
+   * units, so selected_colonist / selected_outside_unit are one mutually
+   * exclusive selection, not two: auto-filling both painted two boxes at
+   * once (bugs.md: "too many selections ... should be 1 and only 1 each").
+   * The click handlers already clear one when setting the other
+   * (game_colony_select_colonist / _select_outside); here only fill a
+   * fallback when *neither* is set, preferring the colony population.
+   */
+  if (view->selected_colonist < 0 && view->selected_outside_unit < 0) {
+    if (colony->colonist_count > 0) {
+      view->selected_colonist = 0;
+    } else if (view->outside_unit_count > 0) {
+      view->selected_outside_unit = view->outside_unit_ids[0];
+    }
   }
 }
 
@@ -677,6 +685,14 @@ bool colony_screen_load(ColonyScreenView* view, const char* data_dir, char* err,
     return false;
   }
   memset(view, 0, sizeof(*view));
+  /*
+   * DOS DS:0x336 — the game-wide "show numbers on production badges"
+   * toggle (colony 'N' key at 2f2b:667c, click at 2f2b:609e). Numbers on
+   * is the normal state; the shared badge drawer also forces the number
+   * whenever the icons pack into an uncountable smear (FUN_1097_0174's
+   * step==1 override), so a toggled-off screen still labels big amounts.
+   */
+  view->show_production_numbers = true;
 
   if (!colony_screen_load_pik(data_dir, "WOODPANL.PIK", &view->frame, err, err_size)) {
     return false;
@@ -1219,8 +1235,12 @@ static void colony_screen_draw_resource_count_pair(
   const int iw = sp->width;
   const int ih = sp->height;
   const int iy = y + (h - ih) / 2;
+  /* Where the icon run begins — the number anchors to it (bugs.md: a lone
+   * centred icon left its number stranded in the cell's corner). */
+  int cluster_x = x;
   if (amount == 1) {
     const int ix = x + (w - iw) / 2;
+    cluster_x = ix;
     ss_blit_sprite(&view->icons, first_icon, framebuffer, ix, iy);
   } else if (w <= iw) {
     for (int i = 0; i < amount; ++i) {
@@ -1235,12 +1255,32 @@ static void colony_screen_draw_resource_count_pair(
       ss_blit_sprite(&view->icons, icon, framebuffer, ix, iy);
     }
   }
-  (void)always_show_number; /* number is unconditional here — see comment above */
-  if (font) {
+  /*
+   * DOS FUN_1097_0174 number rule (bugs.md): the count label appears when
+   * the game-wide numbers toggle (DS:0x336, `show_production_numbers`) is
+   * on, OR when the icons packed into an uncountable smear — DOS's
+   * `step == 1 && count > 1` override, the "subitizable" cut: 5 corn icons
+   * at a readable pitch stay bare with numbers off, 14 fused ones get the
+   * label anyway (both states golden-confirmed against new_amsterdam_
+   * production(.numberless).png). `always_show_number` marks the badges
+   * DOS numbers unconditionally (People band, warehouse-style labels).
+   */
+  bool show_number = always_show_number || view->show_production_numbers;
+  if (!show_number && amount > 1) {
+    if (w <= iw) {
+      show_number = true; /* everything stacked on one spot */
+    } else {
+      const int step = (w - iw) / (amount - 1);
+      if (step <= 1) {
+        show_number = true;
+      }
+    }
+  }
+  if (show_number && font) {
     char num[12];
     snprintf(num, sizeof(num), "%d", amount);
     colony_screen_draw_outlined_number(
-      font, framebuffer, x + 1, y + (h > 6 ? 1 : 0), num, number_color
+      font, framebuffer, cluster_x + 1, y + (h > 6 ? 1 : 0), num, number_color
     );
   }
 }
@@ -2312,59 +2352,85 @@ int colony_screen_multi_units_layout(
   }
 
   /*
-   * Two rows, growing upward from the bottom of the pane: the first units
-   * fill the *lower* row (up to COLONY_MULTI_UNITS_ROW0 of them at their
-   * natural width), anything past that goes on the row above, squeezed to
-   * fit the pane. bugs.md: this used to fill top-down from py, which put
-   * the row about 21px above where it belongs (py 139 vs a bottom row at
-   * py + pane_h - 16 = 160) and listed the first units on the top row.
+   * DOS FUN_2f2b_1e46 (2f2b:1ecc..1ffd), click hit-test FUN_2f2b_59a0: the
+   * first 5 units fill the bottom row of full 16x16 icons at x=0xd5 step
+   * 0x12, y=0x9e; every unit past that goes on an overflow row above —
+   * y=0x98, then y=0x90 — as a 3x5 miniature at step 5, 17 per row (the
+   * scaled-blit path at 2f2b:1f14). Absolute screen coordinates, like DOS;
+   * px/py/pane_* only bound the caller's clip.
    */
-  const int row_h = 16;
+  (void)px;
+  (void)py;
+  (void)pane_w;
+  (void)pane_h;
   int count = 0;
-  int ref_iw = 12;
-  {
-    const ColonizeUnit* u0 = n > 0 ? units_get_const(units, ids[0]) : NULL;
-    const int s0 = u0 ? colony_screen_outside_display_sprite(units, u0) : -1;
-    const ColonizeSprite* sp0 =
-      (view->icons_ok && s0 >= 0 && s0 < view->icons.sprite_count) ? &view->icons.sprites[s0] : NULL;
-    if (sp0 && sp0->width > 0) {
-      ref_iw = sp0->width;
-    }
-  }
-  const int slot_w = ref_iw + UNIT_CHROME_SPRITE_DX + 2;
-  const int row0_y = py + pane_h - row_h;
-  const int row1_y = row0_y - row_h;
-  const int row0_n = n < COLONY_MULTI_UNITS_ROW0 ? n : COLONY_MULTI_UNITS_ROW0;
-  const int row1_n = n - row0_n;
-  /* Overflow row: pack shoulder to shoulder, then shrink the step so the
-   * last one still ends inside the pane (same rule as the building strips). */
-  int row1_step = slot_w;
-  if (row1_n > 1 && px + (row1_n - 1) * slot_w + ref_iw > px + pane_w) {
-    row1_step = (pane_w - ref_iw) / (row1_n - 1);
-    if (row1_step < 1) {
-      row1_step = 1;
-    }
-  }
   for (int i = 0; i < n && count < max; ++i) {
     const ColonizeUnit* u = units_get_const(units, ids[i]);
     const int sprite = u ? colony_screen_outside_display_sprite(units, u) : -1;
     if (sprite < 0) {
       continue;
     }
-    const bool bottom = (i < row0_n);
-    const int y = bottom ? row0_y : row1_y;
-    if (y < py) {
-      break;
+    if (count < COLONY_MULTI_UNITS_ROW0) {
+      out[count].unit_id = ids[i];
+      out[count].x = COLONY_MULTI_UNITS_X + count * COLONY_MULTI_UNITS_ROW0_STEP;
+      out[count].y = COLONY_MULTI_UNITS_ROW0_Y;
+      out[count].w = COLONY_MULTI_UNITS_ROW0_STEP;
+      out[count].h = 16;
+      out[count].mini = false;
+    } else {
+      const int over = count - COLONY_MULTI_UNITS_ROW0;
+      const int row = over / COLONY_MULTI_UNITS_OVERFLOW_PER_ROW;
+      const int slot = over % COLONY_MULTI_UNITS_OVERFLOW_PER_ROW;
+      if (row > 1) {
+        break; /* DOS stops after two overflow rows (local_6a > 2). */
+      }
+      out[count].unit_id = ids[i];
+      out[count].x = COLONY_MULTI_UNITS_X + slot * COLONY_MULTI_UNITS_OVERFLOW_STEP;
+      out[count].y = (row == 0) ? COLONY_MULTI_UNITS_ROW1_Y : COLONY_MULTI_UNITS_ROW2_Y;
+      out[count].w = COLONY_MULTI_UNITS_OVERFLOW_STEP;
+      out[count].h = COLONY_MULTI_UNITS_MINI_H;
+      out[count].mini = true;
     }
-    const int x = bottom ? (px + i * slot_w) : (px + (i - row0_n) * row1_step);
-    out[count].unit_id = ids[i];
-    out[count].x = x;
-    out[count].y = y;
-    out[count].w = slot_w;
-    out[count].h = row_h;
     count++;
   }
   return count;
+}
+
+/*
+ * Overflow-row miniature: the unit sprite resampled into a 3x5 cell (DOS
+ * routes these through the scaled/dithered blitter FUN_1c56_0004; nearest
+ * sample keeps the unit's dominant colours at this size).
+ */
+static void colony_screen_blit_mini_unit(
+  const ColonyScreenView* view,
+  ColonizeFramebuffer8* framebuffer,
+  int sprite,
+  int x,
+  int y
+) {
+  if (!view || !view->icons_ok || !framebuffer || sprite < 0 ||
+      sprite >= view->icons.sprite_count) {
+    return;
+  }
+  const ColonizeSprite* sp = &view->icons.sprites[sprite];
+  if (!sp || !sp->pixels || sp->width <= 0 || sp->height <= 0) {
+    return;
+  }
+  for (int oy = 0; oy < COLONY_MULTI_UNITS_MINI_H; ++oy) {
+    const int sy = (oy * sp->height + sp->height / 2) / COLONY_MULTI_UNITS_MINI_H;
+    for (int ox = 0; ox < COLONY_MULTI_UNITS_MINI_W; ++ox) {
+      const int sx = (ox * sp->width + sp->width / 2) / COLONY_MULTI_UNITS_MINI_W;
+      const uint8_t c = sp->pixels[sy * sp->width + sx];
+      if (c == COLONIZE_SS_TRANSPARENT) {
+        continue;
+      }
+      const int fx = x + ox;
+      const int fy = y + oy;
+      if (fx >= 0 && fx < framebuffer->width && fy >= 0 && fy < framebuffer->height) {
+        framebuffer->pixels[fy * framebuffer->width + fx] = c;
+      }
+    }
+  }
 }
 
 static int colony_screen_building_production_badge(
@@ -3023,6 +3089,35 @@ static void colony_screen_draw_people(
     if (width[bell_weight_idx] < min_w) {
       width[bell_weight_idx] = min_w;
     }
+    width_sum = 0;
+    for (int i = 0; i < slot_count; ++i) {
+      width_sum += width[i];
+    }
+  }
+  /*
+   * bugs.md: the row must never escape the People box. When the floors +
+   * bells re-floor leave the total past `avail` (e.g. one huge column plus
+   * three floored ones), shave the widest columns back down to the floor
+   * until it fits — 4 floored columns (68px) always fit the 102px band, so
+   * this terminates inside the box.
+   */
+  for (int guard = 0; width_sum > avail && guard < 8; ++guard) {
+    int widest = -1;
+    for (int i = 0; i < slot_count; ++i) {
+      if (width[i] > min_w && (widest < 0 || width[i] > width[widest])) {
+        widest = i;
+      }
+    }
+    if (widest < 0) {
+      break;
+    }
+    int take = width_sum - avail;
+    const int room = width[widest] - min_w;
+    if (take > room) {
+      take = room;
+    }
+    width[widest] -= take;
+    width_sum -= take;
   }
 
   int meter_x = COLONY_PEOPLE_X + 2;
@@ -3043,7 +3138,7 @@ static void colony_screen_draw_people(
       COLONY_CARGO_ICON_BASE + COLONIZE_CARGO_FOOD,
       grain_amt,
       15,
-      false
+      true /* People band: number unconditional in DOS */
     );
     meter_x += width[food_weight_idx] + gap;
   }
@@ -3061,18 +3156,18 @@ static void colony_screen_draw_people(
                : (COLONY_CARGO_ICON_BASE + COLONIZE_CARGO_FOOD),
       net_amt,
       shortage ? 12 : 15,
-      false
+      true
     );
     meter_x += width[surplus_weight_idx] + gap;
   }
   colony_screen_draw_resource_count(
     view, font, framebuffer, meter_x, meter_y, width[cross_weight_idx], meter_h,
-    COLONY_ICON_CROSS, p->crosses, 15, false
+    COLONY_ICON_CROSS, p->crosses, 15, true
   );
   meter_x += width[cross_weight_idx] + gap;
   colony_screen_draw_resource_count(
     view, font, framebuffer, meter_x, meter_y, width[bell_weight_idx], meter_h, COLONY_ICON_BELL,
-    p->bells, 15, false
+    p->bells, 15, true
   );
 }
 
@@ -3310,6 +3405,18 @@ static void colony_screen_draw_multifunction(
       const ColonizeUnit* u = units_get_const(units, slots[i].unit_id);
       const int sprite = u ? colony_screen_outside_display_sprite(units, u) : -1;
       if (!u || sprite < 0) {
+        continue;
+      }
+      if (slots[i].mini) {
+        /* Overflow rows: 3x5 miniature; selection is the small DOS box
+         * (2f2b:1f7f with the row-1 params: x-1..x+3 by y-2..y+5). */
+        colony_screen_blit_mini_unit(view, framebuffer, sprite, slots[i].x, slots[i].y);
+        if (view->multi_unit_selected_id == u->id) {
+          colony_screen_draw_selection_box(
+            framebuffer, slots[i].x - 1, slots[i].y - 2, COLONY_MULTI_UNITS_MINI_W + 2,
+            COLONY_MULTI_UNITS_MINI_H + 3, 10
+          );
+        }
         continue;
       }
       unit_chrome_blit_unit_for_palette(
@@ -4468,6 +4575,10 @@ ColonyScreenHitResult colony_screen_hit_test(
         hit.index = ti;
         return hit;
       }
+      /* Centre tile (not assignable): DOS's click-to-toggle-numbers spot
+       * (2f2b:609e flips DS:0x336 and refreshes; bugs.md). */
+      hit.kind = COLONY_HIT_AREA_INTERIOR;
+      return hit;
     }
   }
 

@@ -8104,45 +8104,6 @@ int units_top_on_map_tile(
   return top;
 }
 
-bool units_nation_sees_tile_now(
-  const ColonizeUnitPool* pool,
-  const ColonizeColonyPool* colonies,
-  int nation_id,
-  int x,
-  int y
-) {
-  if (!pool) {
-    return false;
-  }
-  if (nation_id < 0 || nation_id > 3) {
-    return true; /* matches map_tile_seen_by: out-of-range = no fog / show all */
-  }
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-    const ColonizeUnit* u = &pool->units[i];
-    if (!units_is_on_map(u) || u->nation_id != nation_id) {
-      continue;
-    }
-    if (u->aboard_ship_id >= 0) {
-      continue; /* only the carrier sets the tile's presence bit */
-    }
-    if (abs(u->x - x) <= 1 && abs(u->y - y) <= 1) {
-      return true;
-    }
-  }
-  if (colonies) {
-    for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
-      const ColonizeColony* c = &colonies->colonies[i];
-      if (!c->active || c->nation_id != nation_id) {
-        continue;
-      }
-      if (abs(c->x - x) <= 1 && abs(c->y - y) <= 1) { /* FUN_137f_0358 neighbour walk */
-        return true;
-      }
-    }
-  }
-  return false;
-}
-
 void units_render_on_map(
   const ColonizeUnitPool* pool,
   const ColonizeColonyPool* colonies,
