@@ -1258,7 +1258,14 @@ static bool europe_arm_row_enabled(
     case EUROPE_ARM_ROW_BLESS:
       return !convert && t == EUROPE_DOCK_TYPE_COLONISTS;
     case EUROPE_ARM_ROW_UNBLESS:
-      return t == EUROPE_DOCK_TYPE_MISSIONARIES && d->profession == 0x18;
+      /*
+       * DOS 38fd:39ec..3a09: enabled when the @UNIT type is Missionaries
+       * (0x3146 == 3) AND the profession is NOT @JOB 0x18 (38fd:39fa
+       * `cmp byte [bx+0x315b],0x18; jnz enable`) — i.e. only a *blessed*
+       * ordinary colonist can cancel Missionary status; a born Jesuit
+       * Missionary specialist cannot. Was inverted.
+       */
+      return t == EUROPE_DOCK_TYPE_MISSIONARIES && d->profession != 0x18;
     case EUROPE_ARM_ROW_NO_CHANGES:
     default:
       return true;

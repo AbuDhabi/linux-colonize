@@ -1065,6 +1065,43 @@ int main(void) {
       europe_free(&eu);
       return 1;
     }
+    /*
+     * UNBLESS polarity (DOS 38fd:39ec..3a09): only a *blessed* ordinary
+     * colonist (type Missionaries, profession != 0x18) gets "Cancel
+     * Missionary Status"; a born Jesuit Missionary (profession 0x18) does
+     * not. Was inverted (bugs.md).
+     */
+    if (!europe_apply_dock_menu_row(&arm, NULL, -1, 0, EUROPE_ARM_ROW_SELL_HORSES) ||
+        !europe_apply_dock_menu_row(&arm, NULL, -1, 0, EUROPE_ARM_ROW_BLESS) ||
+        arm.dock[0].dos_type != EUROPE_DOCK_TYPE_MISSIONARIES) {
+      fprintf(stderr, "armoptions: bless colonist failed, type=%d\n", arm.dock[0].dos_type);
+      europe_free(&arm);
+      europe_free(&eu);
+      return 1;
+    }
+    europe_build_dock_menu(&arm, NULL, 0);
+    has_unbless = 0;
+    for (int i = 0; i < arm.dock_menu_count; ++i) {
+      if (arm.dock_menu_row[i] == EUROPE_ARM_ROW_UNBLESS) has_unbless = 1;
+    }
+    if (!has_unbless) {
+      fprintf(stderr, "armoptions: blessed colonist should offer Cancel Missionary Status\n");
+      europe_free(&arm);
+      europe_free(&eu);
+      return 1;
+    }
+    arm.dock[0].profession = 0x18; /* born Jesuit Missionary */
+    europe_build_dock_menu(&arm, NULL, 0);
+    has_unbless = 0;
+    for (int i = 0; i < arm.dock_menu_count; ++i) {
+      if (arm.dock_menu_row[i] == EUROPE_ARM_ROW_UNBLESS) has_unbless = 1;
+    }
+    if (has_unbless) {
+      fprintf(stderr, "armoptions: Jesuit Missionary must not offer Cancel Missionary Status\n");
+      europe_free(&arm);
+      europe_free(&eu);
+      return 1;
+    }
     europe_free(&arm);
     fprintf(stderr, "europe @ARMOPTIONS dock menu ok\n");
   }

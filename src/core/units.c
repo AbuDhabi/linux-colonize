@@ -5023,8 +5023,15 @@ bool units_try_move(
      * whatever its hold count says (bugs.md: "does not always happen").
      */
     if (units_is_sea(pool, unit_id) && unit->cargo_count > 0) {
-      (void)units_disembark_all(pool, unit_id, dest_x, dest_y);
-      units_occupancy_refresh_tile(pool, dest_x, dest_y, -1);
+      /* Own colonies only: a De Witt trade dock at a *foreign* colony
+       * (COLONIZE_ENTER_DOCK via the foreign-colony-trade branch) must not
+       * put passengers ashore in someone else's town. */
+      const ColonizeColony* dock_col =
+        colonies_get(colonies, colonies_id_at(colonies, dest_x, dest_y));
+      if (dock_col && dock_col->active && dock_col->nation_id == unit->nation_id) {
+        (void)units_disembark_all(pool, unit_id, dest_x, dest_y);
+        units_occupancy_refresh_tile(pool, dest_x, dest_y, -1);
+      }
     }
   }
 
