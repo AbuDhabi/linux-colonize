@@ -2609,25 +2609,49 @@ static void reports_render_naval(
  * two draw calls split at the leader segment's measured width, same idiom
  * as a two-color same-line label elsewhere in this file), then either a
  * centered "(Withdrawn from New World)" (LABELS.TXT @MISC index 190,
- * live-resolved) for a nation
- * with player.control==2, or a 2-column grid of "<peer country>: Peace|War"
- * for every OTHER non-withdrawn nation (own-nation and withdrawn peers are
- * skipped — confirmed against the golden: every block lists exactly its 2
- * surviving peers, never the withdrawn Spanish), followed by a
+ * live-resolved) for the Crown's slot, or the body: an optional Jan de Witt
+ * detail grid, a row of "<peer country>: Peace|War", and a
  * "Rebels: N   Tories: N" line.
  *
- * War/Peace: nation[a].euro_relation[b] is the DS -0x77c4 peer byte
- * ai_diplo.h also reads, but that module's AI_DIPLO_WAR=0x01/PEACE=0x02
- * bit *names* don't reproduce this golden's War pairs when applied at
- * face value (ai_diplo.c's own semantics are a structural port of the
- * war/ally state *machine*, not a byte-verified decode of a real DOS
- * save's raw values). Empirically, against dutch-reports.SAV, bit 0x02
- * being set in *either* direction's byte (nation[a].euro_relation[b] or
- * nation[b].euro_relation[a]) exactly identifies every War pair the
- * golden shows (French/Dutch) and excludes every Peace pair — used here
- * as a report-local reading, deliberately not fed back into ai_diplo.h's
- * shared bit constants (that module drives live AI turn processing; this
- * finding is a single-save empirical fit, not a confirmed DOS decode).
+ * DOS: FUN_3f41_2548 (viceroy_unpacked.c:70787; the per-cell x/y and the
+ * argument order Ghidra drops were read off the raw .asm at 3f41:2548..2aca).
+ *
+ * Block geometry, all from that .asm — `local_60` is the running baseline
+ * and every advance is `FONTTINY.height + 1` == LINE_STEP:
+ *
+ *   header      block_top + 3    "<Leader>'s <Adjective>:"  (x=2)
+ *   de Witt A   header + 1 step  Colonies / Average Colony / Population
+ *   de Witt B   header + 2 steps Military Power / Naval Power / Merchant Marine
+ *   peers       + 1 step         up to 3 cells on ONE line
+ *   rebels      + 1 step         (only when at least one peer was drawn)
+ *
+ * Without de Witt the two detail rows are absent and the peer line lands at
+ * block_top + 17, which is what the golden shows.
+ *
+ * Column x for both the detail grid and the peer line: the .asm starts at
+ * `local_5c` (2) and then does "if (x < 0x50) x = 0x50; else x += 0x50",
+ * i.e. 2 / 80 / 160 / 240 — a single row, never a 2-column wrap. Only 3
+ * peers can ever exist so the peer line stops at 160; the detail grid uses
+ * the first three fixed.
+ *
+ * Crown slot: DOS compares the block's nation to `head.crown_nation_id`
+ * (DS:0x53d2), NOT to player.control — that block prints @MISC 190 centered
+ * and nothing else. In dutch-reports.SAV crown_nation_id==2 and Spain also
+ * has control==2, which is why the earlier control-based reading fit the
+ * golden; the DOS gate is the crown one.
+ *
+ * "Free": when nation_flags bit 0x04 is set DOS splices @MISC 191 ("Free")
+ * into the header between the leader's name and the adjective, and drops
+ * that block's Rebels/Tories line. Neutral on the golden (no nation has the
+ * bit) but ported so a post-independence report reads as DOS does.
+ *
+ * War/Peace: read straight from `nation[a].euro_relation[b]`, one byte, one
+ * direction (the .asm calls the same DS accessor FUN_281f_0a38(a, b) for
+ * both tests): bit 0x20 = met (an unmet peer is not listed at all), bit
+ * 0x40 = at peace, clear = at war. This supersedes the earlier report-local
+ * "(ab|ba) & 0x02" empirical fit, which happened to agree on every pair in
+ * dutch-reports.SAV; ai_diplo.h's AI_DIPLO_WAR=0x01 names are still not
+ * this byte's DOS decode and are still not touched from here.
  *
  * Rebels/Tories: total = col1->stuff.census_pop_proxy[nation] (DS:0x9410,
  * "+1 skilled unit + Σ colony pop" per col1_save.h — a DOS-computed census
@@ -2639,6 +2663,25 @@ static void reports_render_naval(
  * nation's field colonist-type units (Soldiers/Dragoons/etc., counted in
  * census_pop_proxy but not colony population), which is why this reads
  * the census byte rather than re-deriving the total from colonies+units.
+ *
+ * Jan de Witt detail grid: gated on the *viewing* nation owning FF #4, or
+ * on head.show_entire_map (DOS: `FUN_281f_07b4(viewer, 4) || DS:0x53a2`).
+ * Six cells, each drawn as one "<@MISC label>: <n>" string in the same
+ * light yellow as Rebels/Tories, values straight off the DOS census block
+ * (`stuff`, written by FUN_4962_0018) so they carry whatever the save
+ * recorded, exactly like the Rebels/Tories row above:
+ *
+ *   Colonies        @MISC 95   stuff.colony_counts[n]          (DS:0x9298)
+ *   Average Colony  @MISC 97   stuff.avg_colony_pop[n]         (DS:0x944e, u16)
+ *   Population      @MISC 96   stuff.census_pop_proxy[n]       (DS:0x9410)
+ *   Military Power  @MISC 98   stuff.land_combat_strength[n]>>3(DS:0x941c)
+ *   Naval Power     @MISC 99   (privateers + frigates) * 8     (DS:0x924c,
+ *                              stuff.unit_type_counts[n][16] and [17] —
+ *                              @UNIT ids 16/17; Man-O-War 18 is excluded)
+ *   Merchant Marine @MISC 100  stuff.ship_cargo_totals[n]      (DS:0x9414)
+ *
+ * Note the label order on screen is NOT the @MISC order: row A is 95/97/96
+ * and row B is 98/99/100, exactly as the .asm pushes them.
  */
 #define REPORTS_FOREIGN_BLOCK0_Y 10 /* first block's rule (golden: foreign.png hline scan) */
 #define REPORTS_FOREIGN_BLOCK_STEP 45 /* divider-to-divider spacing, 4 fixed nation blocks */
@@ -2648,6 +2691,15 @@ static void reports_render_naval(
    header_dy + 2*LINE_STEP — golden shows one blank line between header and body */
 #define REPORTS_FOREIGN_COL1_X 2
 #define REPORTS_FOREIGN_COL2_X 80
+#define REPORTS_FOREIGN_COL3_X 160 /* third cell of the de Witt grid / peer line (.asm x += 0x50) */
+#define REPORTS_FOREIGN_DE_WITT_FF 4 /* FF_JAN_DE_WITT — DOS FUN_281f_07b4(viewer, 4) */
+#define REPORTS_FOREIGN_NATION_FLAG_FREE 0x04u /* nation_flags bit: splice @MISC 191 into the header */
+#define REPORTS_FOREIGN_MET_BIT 0x20u /* euro_relation[b]: peer has been met */
+#define REPORTS_FOREIGN_PEACE_BIT 0x40u /* euro_relation[b]: at peace (clear = at war) */
+#define REPORTS_FOREIGN_PRIVATEER_TYPE 16 /* @UNIT ids summed for Naval Power */
+#define REPORTS_FOREIGN_FRIGATE_TYPE 17
+#define REPORTS_FOREIGN_NAVAL_SCALE 8 /* DOS: (privateers + frigates) << 3 */
+#define REPORTS_FOREIGN_MILITARY_SHIFT 3 /* DOS: land_combat_strength >> 3 */
 #define REPORTS_FOREIGN_LEADER_COLOR 146 /* bright yellow (255,243,93) — REPORT8.PIK palette probe */
 #define REPORTS_FOREIGN_ADJ_COLOR 97 /* pale cream (247,243,199) — same index as REPORTS_NAVAL_TEXT_COLOR */
 #define REPORTS_FOREIGN_LABEL_COLOR 145 /* light yellow (255,255,142) — peer/nation names, Rebels/Tories */
@@ -2663,10 +2715,30 @@ static const char* k_euro_country[COLONIZE_COL1_NATION_COUNT] = {
   "England", "France", "Spain", "Netherlands"
 };
 
+/* The six de Witt cells, in the .asm's draw order (row A then row B). */
+typedef enum ForeignDetail {
+  FOREIGN_DETAIL_COLONIES = 0,
+  FOREIGN_DETAIL_AVG_COLONY,
+  FOREIGN_DETAIL_POPULATION,
+  FOREIGN_DETAIL_MILITARY,
+  FOREIGN_DETAIL_NAVAL,
+  FOREIGN_DETAIL_MERCHANT,
+  FOREIGN_DETAIL_COUNT
+} ForeignDetail;
+
+/* @MISC index + English fallback per cell, same order as ForeignDetail. */
+static const int k_foreign_detail_labels[FOREIGN_DETAIL_COUNT] = {95, 97, 96, 98, 99, 100};
+static const char* k_foreign_detail_fallbacks[FOREIGN_DETAIL_COUNT] = {
+  "Colonies", "Average Colony", "Population", "Military Power", "Naval Power", "Merchant Marine"
+};
+
 typedef struct ForeignRow {
   const char* leader;
   const char* adjective;
-  bool withdrawn;
+  bool is_crown; /* head.crown_nation_id — prints @MISC 190, nothing else */
+  bool free_nation; /* nation_flags 0x04 — "Free" in the header, no Rebels/Tories line */
+  bool detail; /* viewer has de Witt (or the complete-map cheat) */
+  int detail_value[FOREIGN_DETAIL_COUNT];
   int peer_nation[COLONIZE_COL1_NATION_COUNT - 1];
   bool peer_war[COLONIZE_COL1_NATION_COUNT - 1];
   int peer_count;
@@ -2674,16 +2746,42 @@ typedef struct ForeignRow {
   int tories;
 } ForeignRow;
 
-/* True if euro_relation's War bit (0x02, empirically — see block comment
- * above) is set in either direction between a and b. */
+/*
+ * DOS reads one byte, one direction: nation[a].euro_relation[b] bit 0x40 is
+ * "at peace", so a met peer without it is at war (see the block comment).
+ */
 static bool reports_foreign_at_war(const ColonizeCol1Save* col1, int a, int b) {
   if (!col1 || a == b || a < 0 || a >= (int)COLONIZE_COL1_NATION_COUNT || b < 0 ||
       b >= (int)COLONIZE_COL1_NATION_COUNT) {
     return false;
   }
-  const uint8_t ab = col1->nation[a].euro_relation[b];
-  const uint8_t ba = col1->nation[b].euro_relation[a];
-  return ((ab | ba) & 0x02u) != 0;
+  return (col1->nation[a].euro_relation[b] & REPORTS_FOREIGN_PEACE_BIT) == 0;
+}
+
+/* x of the nth cell on a body line — the .asm's 2 / 80 / 160 / 240 ladder. */
+static int reports_foreign_cell_x(int cell) {
+  return cell <= 0 ? REPORTS_FOREIGN_COL1_X : REPORTS_FOREIGN_COL2_X * cell;
+}
+
+/* stuff.avg_colony_pop is 4 packed little-endian u16 (DS:0x944e). */
+static int reports_foreign_avg_colony(const ColonizeCol1Save* col1, int nation) {
+  const uint8_t* p = &col1->stuff.avg_colony_pop[nation * 2];
+  return (int)((unsigned)p[0] | ((unsigned)p[1] << 8));
+}
+
+/* Fills one block's de Witt cells from the DOS census block. */
+static void reports_foreign_fill_detail(const ColonizeCol1Save* col1, int nation, ForeignRow* r) {
+  const ColonizeCol1Stuff* st = &col1->stuff;
+  const int privateers = st->unit_type_counts[nation][REPORTS_FOREIGN_PRIVATEER_TYPE];
+  const int frigates = st->unit_type_counts[nation][REPORTS_FOREIGN_FRIGATE_TYPE];
+  r->detail_value[FOREIGN_DETAIL_COLONIES] = st->colony_counts[nation];
+  r->detail_value[FOREIGN_DETAIL_AVG_COLONY] = reports_foreign_avg_colony(col1, nation);
+  r->detail_value[FOREIGN_DETAIL_POPULATION] = st->census_pop_proxy[nation];
+  r->detail_value[FOREIGN_DETAIL_MILITARY] =
+    (int)(st->land_combat_strength[nation] >> REPORTS_FOREIGN_MILITARY_SHIFT);
+  r->detail_value[FOREIGN_DETAIL_NAVAL] = (privateers + frigates) * REPORTS_FOREIGN_NAVAL_SCALE;
+  r->detail_value[FOREIGN_DETAIL_MERCHANT] = st->ship_cargo_totals[nation];
+  r->detail = true;
 }
 
 /* Builds one row per Euro nation, fixed English/French/Spanish/Dutch order.
@@ -2693,12 +2791,19 @@ static bool reports_foreign_at_war(const ColonizeCol1Save* col1, int a, int b) {
  * function decided, nothing recomputed inline. */
 static int reports_foreign_build_rows(
   const ColonizeCol1Save* col1,
+  int human,
   ForeignRow* rows,
   int max_rows
 ) {
   if (!col1) {
     return 0;
   }
+  /* DOS: FUN_281f_07b4(viewer, 4) || DS:0x53a2 — the viewer's own FF, so the
+   * gate is the same for all four blocks. */
+  const bool reveal =
+    (human >= 0 && human < (int)COLONIZE_COL1_NATION_COUNT &&
+     reports_ff_owned_by_nation(&col1->nation[human], REPORTS_FOREIGN_DE_WITT_FF)) ||
+    col1->head.show_entire_map != 0;
   int n = 0;
   for (int i = 0; i < (int)COLONIZE_COL1_NATION_COUNT && n < max_rows; ++i) {
     ForeignRow* r = &rows[n++];
@@ -2706,19 +2811,28 @@ static int reports_foreign_build_rows(
     const ColonizeCol1Player* p = &col1->player[i];
     r->leader = p->name[0] ? p->name : reports_nation_adjective(i);
     r->adjective = reports_nation_adjective(i);
-    r->withdrawn = (p->control == 2);
-    if (r->withdrawn) {
+    r->is_crown = (col1->head.crown_nation_id == (int16_t)i);
+    if (r->is_crown) {
       continue;
+    }
+    r->free_nation = (col1->nation[i].nation_flags & REPORTS_FOREIGN_NATION_FLAG_FREE) != 0;
+    if (reveal) {
+      reports_foreign_fill_detail(col1, i, r);
     }
     for (int j = 0; j < (int)COLONIZE_COL1_NATION_COUNT &&
                     r->peer_count < (int)(COLONIZE_COL1_NATION_COUNT - 1);
          ++j) {
-      if (j == i || col1->player[j].control == 2) {
+      /* Own slot, the Crown's slot, and never-met peers are all skipped. */
+      if (j == i || col1->head.crown_nation_id == (int16_t)j ||
+          (col1->nation[i].euro_relation[j] & REPORTS_FOREIGN_MET_BIT) == 0) {
         continue;
       }
       r->peer_nation[r->peer_count] = j;
       r->peer_war[r->peer_count] = reports_foreign_at_war(col1, i, j);
       r->peer_count++;
+    }
+    if (r->free_nation) {
+      continue; /* DOS skips the Rebels/Tories line for a free nation. */
     }
     const int total = col1->stuff.census_pop_proxy[i];
     const int rebels = (total * (int)col1->nation[i].rebel_sentiment) / 100;
@@ -2731,6 +2845,7 @@ static int reports_foreign_build_rows(
 static void reports_render_foreign(
   const ColonizeReportsView* view,
   const ColonizeCol1Save* col1,
+  int human,
   const ColonizeFont* font,
   ColonizeFramebuffer8* fb
 ) {
@@ -2748,7 +2863,7 @@ static void reports_render_foreign(
   }
 
   ForeignRow rows[COLONIZE_COL1_NATION_COUNT];
-  const int n = reports_foreign_build_rows(col1, rows, (int)COLONIZE_COL1_NATION_COUNT);
+  const int n = reports_foreign_build_rows(col1, human, rows, (int)COLONIZE_COL1_NATION_COUNT);
   char line[64];
 
   for (int i = 0; i < n; ++i) {
@@ -2759,17 +2874,29 @@ static void reports_render_foreign(
     const int header_y = block_top + REPORTS_FOREIGN_HEADER_DY;
     snprintf(line, sizeof(line), "%s's", r->leader);
     reports_draw_line(font, fb, REPORTS_FOREIGN_COL1_X, header_y, line, REPORTS_FOREIGN_LEADER_COLOR);
-    const int leader_w = font ? font_text_width(font, line) : 0;
+    int leader_w = font ? font_text_width(font, line) : 0;
+    if (r->free_nation) {
+      /* @MISC 191 "Free", spliced between the name and the adjective. */
+      const char* live = reports_labels_field("MISC", 191);
+      snprintf(line, sizeof(line), " %s", live ? live : "Free");
+      reports_draw_line(
+        font, fb, REPORTS_FOREIGN_COL1_X + leader_w, header_y, line, REPORTS_FOREIGN_LEADER_COLOR
+      );
+      leader_w += font ? font_text_width(font, line) : 0;
+    }
     snprintf(line, sizeof(line), " %s:", r->adjective);
     reports_draw_line(
       font, fb, REPORTS_FOREIGN_COL1_X + leader_w, header_y, line, REPORTS_FOREIGN_ADJ_COLOR
     );
 
-    const int body_y = block_top + REPORTS_FOREIGN_BODY_DY;
-    if (r->withdrawn) {
+    /* One step below the header; each drawn body line advances it again. */
+    int body_y = header_y + REPORTS_FOREIGN_LINE_STEP;
+    if (r->is_crown) {
       /* LABELS.TXT @MISC index 190 (was cited as raw line "#205" — same
        * line-number-vs-index mix-up P2.2's title fix corrected elsewhere;
-       * now actually live-resolved, 2026-08-26). */
+       * now actually live-resolved, 2026-08-26). DOS advances one extra
+       * step before centering this, landing it on the normal body line. */
+      body_y += REPORTS_FOREIGN_LINE_STEP;
       const char* live = reports_labels_field("MISC", 190);
       const char* msg = live ? live : "(Withdrawn from New World)";
       const int w = font ? font_text_width(font, msg) : 0;
@@ -2777,26 +2904,50 @@ static void reports_render_foreign(
       continue;
     }
 
+    if (r->detail) {
+      char w[32];
+      for (int d = 0; d < FOREIGN_DETAIL_COUNT; ++d) {
+        const int row_y = body_y + (d / 3) * REPORTS_FOREIGN_LINE_STEP;
+        snprintf(
+          line, sizeof(line), "%s: %d",
+          reports_misc_word(k_foreign_detail_labels[d], k_foreign_detail_fallbacks[d], w, sizeof(w)),
+          r->detail_value[d]
+        );
+        reports_draw_line(
+          font, fb, reports_foreign_cell_x(d % 3), row_y, line, REPORTS_FOREIGN_LABEL_COLOR
+        );
+      }
+      /* Row A sat on body_y, row B one step below; leave body_y on row B so
+       * the shared advance below lands the peer line one step under it. */
+      body_y += REPORTS_FOREIGN_LINE_STEP;
+    }
+
+    /* Peer relations: one line, cells at 2 / 80 / 160 — DOS never wraps. */
+    body_y += REPORTS_FOREIGN_LINE_STEP;
     for (int p = 0; p < r->peer_count; ++p) {
-      const int col_x = (p % 2 == 0) ? REPORTS_FOREIGN_COL1_X : REPORTS_FOREIGN_COL2_X;
-      const int row_y = body_y + (p / 2) * REPORTS_FOREIGN_LINE_STEP;
+      const int col_x = reports_foreign_cell_x(p);
       snprintf(line, sizeof(line), "%s:", k_euro_country[r->peer_nation[p]]);
-      reports_draw_line(font, fb, col_x, row_y, line, REPORTS_FOREIGN_LABEL_COLOR);
+      reports_draw_line(font, fb, col_x, body_y, line, REPORTS_FOREIGN_LABEL_COLOR);
       const int label_w = font ? font_text_width(font, line) : 0;
-      /* "War"/"Peace" live from LABELS.TXT @MISC #101/#102 (2026-08-27 fix). */
-      const char* war_w = reports_labels_field("MISC", 101);
-      const char* peace_w = reports_labels_field("MISC", 102);
-      snprintf(
-        line, sizeof(line), " %s", r->peer_war[p] ? (war_w ? war_w : "War") : (peace_w ? peace_w : "Peace")
-      );
+      /* "War"/"Peace" live from LABELS.TXT @MISC #101/#102 (2026-08-27 fix).
+       * Must go through reports_misc_word's caller-owned buffer: resolving
+       * both indices up front aliased reports_labels_field's single static
+       * buffer, so a War pair printed the word "Peace" (in the War colour). */
+      char state[32];
+      const char* state_w = r->peer_war[p] ? reports_misc_word(101, "War", state, sizeof(state))
+                                           : reports_misc_word(102, "Peace", state, sizeof(state));
+      snprintf(line, sizeof(line), " %s", state_w);
       reports_draw_line(
-        font, fb, col_x + label_w, row_y, line,
+        font, fb, col_x + label_w, body_y, line,
         r->peer_war[p] ? REPORTS_FOREIGN_WAR_COLOR : REPORTS_FOREIGN_PEACE_COLOR
       );
     }
 
-    const int peer_rows = (r->peer_count + 1) / 2;
-    const int rebels_y = body_y + peer_rows * REPORTS_FOREIGN_LINE_STEP;
+    if (r->free_nation) {
+      continue; /* DOS drops the Rebels/Tories line once the nation is free. */
+    }
+    /* DOS only advances again when at least one peer cell was drawn. */
+    const int rebels_y = body_y + (r->peer_count > 0 ? REPORTS_FOREIGN_LINE_STEP : 0);
     /* LABELS.TXT @MISC #86 "Rebels" / #87 "Tories" (plural forms are real). */
     char w[32];
     snprintf(line, sizeof(line), "%s: %d", reports_misc_word(86, "Rebels", w, sizeof(w)), r->rebels);
@@ -3963,7 +4114,7 @@ void reports_render(
       reports_render_naval(view, human, units, colonies, europe, font, framebuffer, naval_page);
       break;
     case COLONIZE_REPORT_FOREIGN:
-      reports_render_foreign(view, col1, font, framebuffer);
+      reports_render_foreign(view, col1, human, font, framebuffer);
       break;
     case COLONIZE_REPORT_INDIAN:
       reports_render_indian(view, col1, units, human, font, framebuffer);

@@ -1137,7 +1137,7 @@ static void write_stuff(FILE* f, const ColonizeCol1Stuff* s) {
   wh(f, &n, "unknown_ds_9526_hex", s->skilled_unit_counts_by_continent, sizeof s->skilled_unit_counts_by_continent);
   wh(f, &n, "unknown_ds_918c_hex", s->unit_value_sum_by_continent, sizeof s->unit_value_sum_by_continent);
   wh(f, &n, "unknown_ds_9572_hex", s->combat_value_sum_by_continent, sizeof s->combat_value_sum_by_continent);
-  wh(f, &n, "unknown_ds_944e_hex", s->unknown_ds_944e, sizeof s->unknown_ds_944e);
+  wh(f, &n, "unknown_ds_944e_hex", s->avg_colony_pop, sizeof s->avg_colony_pop);
   wi(f, &n, "ui_toggle_336", s->ui_toggle_336);
   wh(f, &n, "tribe_data_9184_hex", s->tribe_data_9184, sizeof s->tribe_data_9184);
   wh(f, &n, "unknown_ds_9622_hex", s->tribe_population_totals, sizeof s->tribe_population_totals);
@@ -1193,7 +1193,7 @@ static void read_stuff(const JsonValue* o, ColonizeCol1Stuff* s) {
   json_get_hex(o, "unknown_ds_9526_hex", s->skilled_unit_counts_by_continent, sizeof s->skilled_unit_counts_by_continent);
   json_get_hex(o, "unknown_ds_918c_hex", s->unit_value_sum_by_continent, sizeof s->unit_value_sum_by_continent);
   json_get_hex(o, "unknown_ds_9572_hex", s->combat_value_sum_by_continent, sizeof s->combat_value_sum_by_continent);
-  json_get_hex(o, "unknown_ds_944e_hex", s->unknown_ds_944e, sizeof s->unknown_ds_944e);
+  json_get_hex(o, "unknown_ds_944e_hex", s->avg_colony_pop, sizeof s->avg_colony_pop);
   if (json_get_u64(o, "ui_toggle_336", &u)) s->ui_toggle_336 = (uint8_t)u;
   json_get_hex(o, "tribe_data_9184_hex", s->tribe_data_9184, sizeof s->tribe_data_9184);
   json_get_hex(o, "unknown_ds_9622_hex", s->tribe_population_totals, sizeof s->tribe_population_totals);
