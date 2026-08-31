@@ -173,9 +173,25 @@ int main(void) {
       return 1;
     }
     int x = 0, y = 0;
+    /* @SCENARIO is four pairs, one per nation, in nation order. */
+    new_game_scenario_start(&names, "AMER2", 0, &x, &y);
+    if (x != 34 || y != 20) {
+      fprintf(stderr, "scenario England start expected 34,20 got %d,%d\n", x, y);
+      return 1;
+    }
     new_game_scenario_start(&names, "AMER2", 1, &x, &y);
+    if (x != 39 || y != 10) {
+      fprintf(stderr, "scenario France start expected 39,10 got %d,%d\n", x, y);
+      return 1;
+    }
+    new_game_scenario_start(&names, "AMER2", 2, &x, &y);
     if (x != 47 || y != 61) {
-      fprintf(stderr, "scenario France start expected 47,61 got %d,%d\n", x, y);
+      fprintf(stderr, "scenario Spain start expected 47,61 got %d,%d\n", x, y);
+      return 1;
+    }
+    new_game_scenario_start(&names, "AMER2", 3, &x, &y);
+    if (x != 50 || y != 33) {
+      fprintf(stderr, "scenario Netherlands start expected 50,33 got %d,%d\n", x, y);
       return 1;
     }
     assets_msg_free(&names);

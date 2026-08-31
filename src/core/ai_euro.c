@@ -5874,23 +5874,45 @@ static void ai_euro_found_with_unit(ColonizeTurnContext* ctx, ColonizeUnit* foun
           "Not enough gold to buy Indian land (%d$ needed).",
           cost
         );
+        return;
       }
-      return;
+      /*
+       * AI nations start with a treasury of 0 (ai_starting_gold: AI always 0),
+       * and the FOUND sites the planner produces are tribe-adjacent by
+       * construction, so this gate used to block every AI first colony
+       * outright — settlers reached their site and stood there for the rest of
+       * the game. The @INDIANLAND dialog's third option is "take it", which
+       * proceeds unpaid with no immediate consequence (game_loop.c
+       * GAME_INDIAN_LAND_TAKE); that is what an AI with no gold does.
+       */
+      cid = colonies_found(
+        ctx->colonies,
+        ctx->map,
+        founder->x,
+        founder->y,
+        nation_id,
+        founder->type_index,
+        founder->profession,
+        tools,
+        muskets,
+        horses
+      );
+    } else {
+      cid = colonies_found_with_indian_land(
+        ctx->colonies,
+        ctx->map,
+        ctx->col1,
+        gold,
+        founder->x,
+        founder->y,
+        nation_id,
+        founder->type_index,
+        founder->profession,
+        tools,
+        muskets,
+        horses
+      );
     }
-    cid = colonies_found_with_indian_land(
-      ctx->colonies,
-      ctx->map,
-      ctx->col1,
-      gold,
-      founder->x,
-      founder->y,
-      nation_id,
-      founder->type_index,
-      founder->profession,
-      tools,
-      muskets,
-      horses
-    );
   } else {
     cid = colonies_found(
       ctx->colonies,
@@ -10551,39 +10573,42 @@ static void ai_euro_colony_goals(ColonizeTurnContext* ctx, int nation_id) {
 
   /* H: light bind — idle land founders → primary FOUND (do not steal Soldiers). */
   {
-    int fx = 0;
-    int fy = 0;
-    if (ai_goals_best_found_tile(nation_id, &fx, &fy)) {
-      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-        ColonizeUnit* u = &ctx->units->units[i];
-        if (!u->active || u->nation_id != nation_id || u->aboard_ship_id >= 0) {
-          continue;
-        }
-        if (!units_is_on_map(u) || ai_euro_is_ship_type(ctx->units, u->id)) {
-          continue;
-        }
-        if (units_orders_follow_goto(u->orders)) {
-          continue; /* idle only */
-        }
-        /*
-         * Don't yank a Pioneer off an in-progress tile improve job for a
-         * FOUND bind — same class of gap as the food-emergency scan above,
-         * exposed once the real DS:0x2f78 threshold (2026-08-20 live
-         * capture) made these jobs usually take more than one turn.
-         */
-        if (u->orders == UNITS_ORDER_CLEAR_PLOW || u->orders == UNITS_ORDER_BUILD_ROAD) {
-          continue;
-        }
-        const char* name = units_display_name(ctx->units, u);
-        if (!name || strstr(name, "Soldier")) {
-          continue;
-        }
-        if (!strstr(name, "Pioneer") && !strstr(name, "Hardy") &&
-            !strstr(name, "Free Colonist") && !strstr(name, "Colonist")) {
-          continue;
-        }
-        ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, fx, fy);
+    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+      ColonizeUnit* u = &ctx->units->units[i];
+      if (!u->active || u->nation_id != nation_id || u->aboard_ship_id >= 0) {
+        continue;
       }
+      if (!units_is_on_map(u) || ai_euro_is_ship_type(ctx->units, u->id)) {
+        continue;
+      }
+      if (units_orders_follow_goto(u->orders)) {
+        continue; /* idle only */
+      }
+      /*
+       * Don't yank a Pioneer off an in-progress tile improve job for a
+       * FOUND bind — same class of gap as the food-emergency scan above,
+       * exposed once the real DS:0x2f78 threshold (2026-08-20 live
+       * capture) made these jobs usually take more than one turn.
+       */
+      if (u->orders == UNITS_ORDER_CLEAR_PLOW || u->orders == UNITS_ORDER_BUILD_ROAD) {
+        continue;
+      }
+      const char* name = units_display_name(ctx->units, u);
+      if (!name || strstr(name, "Soldier")) {
+        continue;
+      }
+      if (!strstr(name, "Pioneer") && !strstr(name, "Hardy") &&
+          !strstr(name, "Free Colonist") && !strstr(name, "Colonist")) {
+        continue;
+      }
+      /* Per-unit pick: a single table-wide FOUND bound every founder in the
+       * nation to the same tile, however far away each one stood. */
+      int fx = 0;
+      int fy = 0;
+      if (!ai_goals_best_found_tile_near(ctx->map, nation_id, u->x, u->y, &fx, &fy)) {
+        continue;
+      }
+      ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, fx, fy);
     }
   }
 }
@@ -10728,6 +10753,26 @@ static int ai_euro_ocean_score_step(
   return 1;
 }
 
+/* Native village on this tile (col1 tribe table), else -1. */
+static int ai_euro_village_nation_at(const ColonizeCol1Save* col1, int x, int y) {
+  if (!col1 || !col1->tribe) {
+    return -1;
+  }
+  for (uint16_t ti = 0; ti < col1->head.tribe_count; ++ti) {
+    const ColonizeCol1Tribe* t = &col1->tribe[ti];
+    if ((int)t->x == x && (int)t->y == y && t->nation_id >= 4 && t->nation_id <= 11) {
+      return (int)t->nation_id;
+    }
+  }
+  return -1;
+}
+
+/* @UNIT attack 0 (Pioneers, Colonists, Wagon Train, unarmed transports). */
+static int ai_euro_unit_cannot_attack(const ColonizeUnitPool* pool, const ColonizeUnit* u) {
+  const ColonizeUnitType* t = u ? units_type(pool, u->type_index) : NULL;
+  return t && t->attack <= 0;
+}
+
 static int ai_euro_score_move(
   ColonizeTurnContext* ctx,
   ColonizeUnit* u,
@@ -10766,6 +10811,23 @@ static int ai_euro_score_move(
       if (!f || f->nation_id == u->nation_id || units_is_sea(ctx->units, foe)) {
         continue;
       }
+      /* Only a tile a fight could take. A settler treated a blocked tile as an
+       * attack candidate and walked into it. */
+      if (ai_euro_unit_cannot_attack(ctx->units, u)) {
+        continue;
+      }
+    }
+    /*
+     * Entering a native village is an attack on it, resolved inside
+     * units_try_move against a defender spawned from the dwelling, with no
+     * unit visible on the tile beforehand. Movement scoring must never route
+     * through one: settlers died on the way to their colony site, and a
+     * peacetime Soldier that wandered in lost and took its whole stack with it
+     * (units_sweep_stack_after_loss). Deliberate raids go through the war hunt
+     * arms, which pick their target explicitly.
+     */
+    if (ctx->col1_ok && ctx->col1 && ai_euro_village_nation_at(ctx->col1, nx, ny) >= 4) {
+      continue;
     }
     const int dist = abs(goal_x - nx) + abs(goal_y - ny);
     int score = 1000 - dist * 10;
@@ -12031,7 +12093,32 @@ static int ai_euro_move_scoring_gate(ColonizeTurnContext* ctx, ColonizeUnit* u, 
   int fx = 0;
   int fy = 0;
   int is_roam = 0;
-  if (ai_goals_best_found_tile(nation_id, &fx, &fy)) {
+  /*
+   * No colony yet: settle where we landed, FUN_521d_06ae style (own tile plus
+   * the eight neighbours), rather than walking at the nation-wide goal band.
+   * Those goals sit next to villages all over the map, so a freshly landed
+   * founder used to set off across the continent and either never arrive or
+   * oscillate between two tiles forever.
+   */
+  if (ctx->colonies && ai_euro_colony_count(ctx->colonies, nation_id) == 0) {
+    const char* fname = units_display_name(ctx->units, u);
+    if (fname && (ai_euro_name_is_pioneer(fname) || strstr(fname, "Colonist") != NULL)) {
+      int lx = 0;
+      int ly = 0;
+      if (ai_euro_pick_founding_tile(
+            ctx->map, ctx->colonies, ctx->col1_ok ? ctx->col1 : NULL, nation_id, u->x, u->y,
+            0, &lx, &ly
+          )) {
+        ai_goals_upsert_primary(nation_id, lx, ly, AI_GOAL_FOUND, 7);
+        fx = lx;
+        fy = ly;
+      }
+    }
+  }
+  /* Nearest top-priority FOUND on this unit's own landmass -- the table is
+   * priority-ordered but distance-blind, and planning fills it with a band of
+   * equal-priority tribe-adjacent sites shared by all four nations. */
+  if (ai_goals_best_found_tile_near(ctx->map, nation_id, u->x, u->y, &fx, &fy)) {
     gx = fx;
     gy = fy;
   } else if (units_orders_follow_goto(u->orders)) {
@@ -12183,6 +12270,18 @@ static void ai_euro_try_violate_notify(ColonizeTurnContext* ctx, ColonizeUnit* u
 static void ai_euro_try_attack(ColonizeTurnContext* ctx, ColonizeUnit* u, int tx, int ty) {
   if (!ctx || !ctx->units || !u) {
     return;
+  }
+  /*
+   * @UNIT attack 0 means the unit cannot attack at all -- Pioneers, Colonists,
+   * Wagon Trains, unarmed transports. Without this gate a settler walking a
+   * FOUND goto straight at a village fought the Braves standing on it and died,
+   * which is how AI nations kept losing their founder before ever founding.
+   */
+  {
+    const ColonizeUnitType* t = units_type(ctx->units, u->type_index);
+    if (t && t->attack <= 0) {
+      return;
+    }
   }
   const int foe = units_best_defender_at(
     ctx->units, ctx->col1_ok ? ctx->col1 : NULL, tx, ty, u->id, u->id
@@ -14214,7 +14313,31 @@ static void ai_euro_unload_settle(ColonizeTurnContext* ctx, ColonizeUnit* ship, 
       return;
     }
     if (!ai_euro_ship_has_land_adjacent(ctx->map, ship->x, ship->y)) {
-      return; /* Still offshore — wait for coastal tip. */
+      /*
+       * Still offshore. The seed-100 staging tables only resolve for the
+       * NEW WORLD landfall keys; everywhere else (scenario maps especially)
+       * this used to be a dead end — the ship kept its spawn tile as its own
+       * goto and parked on open water with the colonists aboard for the whole
+       * game. Aim at the nearest coast we could actually land on and let the
+       * case 0x0b sail loop carry it there.
+       */
+      const int stuck_goto =
+        !units_orders_follow_goto(ship->orders) ||
+        (ship->goto_x == ship->x && ship->goto_y == ship->y) ||
+        ship->goto_x < 0 || ship->goto_y < 0 || ship->goto_x >= (int)ctx->map->width ||
+        ship->goto_y >= (int)ctx->map->height ||
+        !ai_euro_tile_is_coast_water(ctx->map, ship->goto_x, ship->goto_y);
+      if (stuck_goto) {
+        int wx = 0;
+        int wy = 0;
+        if (ai_goals_nearest_landing_water(
+              ctx->map, ctx->units, ctx->colonies, ship->x, ship->y, 24, &wx, &wy
+            ) &&
+            (wx != ship->x || wy != ship->y)) {
+          ai_euro_set_goto(ship, UNITS_ORDER_AI_SAIL, wx, wy);
+        }
+      }
+      return; /* Wait for the coastal tip; sail resumes next act. */
     }
     int stage_x = ship->x;
     int stage_y = ship->y;
@@ -14222,6 +14345,17 @@ static void ai_euro_unload_settle(ColonizeTurnContext* ctx, ColonizeUnit* ship, 
       (void)ai_euro_coastal_staging_from_landfall(
         ctx->map, landfall_x, landfall_y, &stage_x, &stage_y
       );
+    }
+    if (!have_found) {
+      /*
+       * No first-colony tile resolved from the landfall tables, i.e. any map
+       * outside the seed-100 fixtures. The staging tip those tables imply is
+       * meaningless here, and sailing off toward it left ships circling with
+       * the colonists still aboard. We are already beside land (checked
+       * above) — make this tile the staging tile and put them ashore.
+       */
+      stage_x = ship->x;
+      stage_y = ship->y;
     }
     const int dist = ai_euro_chebyshev(ship->x, ship->y, stage_x, stage_y);
     const int at_staging = (ship->x == stage_x && ship->y == stage_y);
@@ -14267,7 +14401,13 @@ static void ai_euro_unload_settle(ColonizeTurnContext* ctx, ColonizeUnit* ship, 
     {
       const int hold_x = stage_x - 1;
       const int hold_y = stage_y;
-      if (ai_euro_tile_is_coast_water(ctx->map, hold_x, hold_y)) {
+      /*
+       * The soldier-first beachhead (pioneer waits aboard for a second act) is
+       * the seed-100 French shape and only makes sense when the landfall
+       * tables actually named a town site to approach. Without one the pioneer
+       * simply never came ashore. Put everyone ashore instead.
+       */
+      if (have_found && ai_euro_tile_is_coast_water(ctx->map, hold_x, hold_y)) {
         /* Beachhead: soldier lands tip of hold; pioneer stays aboard. */
         ai_euro_set_goto(ship, UNITS_ORDER_AI_MOVE, hold_x, hold_y);
         ship->moves_left = 0;
@@ -14374,7 +14514,7 @@ static void ai_euro_unload_settle(ColonizeTurnContext* ctx, ColonizeUnit* ship, 
   int dest_y = 0;
   int fx = 0;
   int fy = 0;
-  if (ai_goals_best_found_tile(nation_id, &fx, &fy) &&
+  if (ai_goals_best_found_tile_near(ctx->map, nation_id, ship->x, ship->y, &fx, &fy) &&
       colonies_can_found(ctx->colonies, ctx->map, fx, fy)) {
     dest_x = fx;
     dest_y = fy;
@@ -14506,13 +14646,9 @@ static int ai_euro_resolve_first_found_tile(
   if (!ctx || !u || !out_x || !out_y) {
     return 0;
   }
-  for (int i = 0; i < AI_PRIMARY_SLOTS; ++i) {
-    const AiGoalSlot* g = ai_goals_primary(nation_id, i);
-    if (g && g->code == AI_GOAL_FOUND) {
-      *out_x = (int)g->x;
-      *out_y = (int)g->y;
-      return 1;
-    }
+  /* Nearest top-priority FOUND on this unit's landmass, not table slot 0. */
+  if (ai_goals_best_found_tile_near(ctx->map, nation_id, u->x, u->y, out_x, out_y)) {
+    return 1;
   }
   int live_x = 0;
   int live_y = 0;
@@ -14599,6 +14735,56 @@ static int ai_euro_try_first_colony_land(ColonizeTurnContext* ctx, ColonizeUnit*
       }
     }
   }
+  /*
+   * Generic first colony (any map the seed-100 landfall tables do not cover).
+   * Everything below this point is that fixture's approach/beachhead
+   * choreography and simply never fires elsewhere, which left landed founders
+   * walking at the nation-wide goal band forever. Settle at or beside where we
+   * stand instead -- FUN_521d_06ae's own search area.
+   */
+  {
+    int seed_x = 0;
+    int seed_y = 0;
+    const int seeded =
+      lf_x >= 0 && ai_euro_06ae_first_colony_from_landfall(
+                     ctx->map, ctx->colonies, ctx->units, nation_id, lf_x, lf_y, &seed_x, &seed_y
+                   );
+    if (!seeded && !ai_euro_name_is_soldier(uname)) {
+      int lx = 0;
+      int ly = 0;
+      if (ai_euro_pick_founding_tile(
+            ctx->map, ctx->colonies, ctx->col1_ok ? ctx->col1 : NULL, nation_id, u->x, u->y,
+            0, &lx, &ly
+          )) {
+        if (u->x == lx && u->y == ly) {
+          if (colonies_can_found(ctx->colonies, ctx->map, lx, ly)) {
+            ai_euro_found_with_unit(ctx, u, nation_id);
+            return 1;
+          }
+          ai_euro_set_goto(u, UNITS_ORDER_NONE, lx, ly);
+          u->moves_left = 0;
+          return 1;
+        }
+        ai_goals_upsert_primary(nation_id, lx, ly, AI_GOAL_FOUND, 7);
+        ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, lx, ly);
+        if (u->moves_left <= 0) {
+          (void)units_wake(ctx->units, u->id);
+          u = units_get(ctx->units, u->id);
+        }
+        while (u && u->active && u->moves_left > 0 && (u->x != lx || u->y != ly)) {
+          if (!units_advance_goto_one_step(ctx->units, u->id, ctx->map, ctx->colonies, NULL)) {
+            break;
+          }
+          u = units_get(ctx->units, u->id);
+        }
+        if (u) {
+          u->moves_left = 0;
+        }
+        return 1;
+      }
+    }
+  }
+
   int fx = 0;
   int fy = 0;
   if (!ai_euro_resolve_first_found_tile(ctx, u, nation_id, lf_x, lf_y, &fx, &fy)) {
@@ -16723,6 +16909,24 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
   if (goal_code == AI_GOAL_FOUND && u->x == goal_x && u->y == goal_y) {
     ai_euro_found_with_unit(ctx, u, nation_id);
     return;
+  }
+  /*
+   * A founder can also arrive on a FOUND tile through the 20e6 move-scoring
+   * gate, which writes the goto but leaves no 0a60 goal code behind. Nothing
+   * then founded on arrival: settlers walked to the site and stood on it for
+   * the rest of the game. Found when we are standing on this nation's own best
+   * FOUND tile and the tile still takes a colony.
+   */
+  if (goal_code < 0 && !is_ship && uname &&
+      (ai_euro_name_is_pioneer(uname) || strstr(uname, "Colonist") != NULL)) {
+    int bfx = 0;
+    int bfy = 0;
+    if (ai_goals_best_found_tile_near(ctx->map, nation_id, u->x, u->y, &bfx, &bfy) &&
+        bfx == u->x && bfy == u->y &&
+        colonies_can_found(ctx->colonies, ctx->map, u->x, u->y)) {
+      ai_euro_found_with_unit(ctx, u, nation_id);
+      return;
+    }
   }
 
   /*
