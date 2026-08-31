@@ -2943,6 +2943,7 @@ void colonies_render_on_map(
   const ColonizeSpriteSheet* icons,
   ColonizeFramebuffer8* framebuffer,
   const ColonizeFont* font,
+  const ColonizeFont* pop_font,
   int view_x,
   int view_y,
   int view_cols,
@@ -3032,7 +3033,10 @@ void colonies_render_on_map(
       char pop_text[8];
       snprintf(pop_text, sizeof(pop_text), "%d", shown);
       const uint8_t pop_shade[4] = {0, ink, ink, ink};
-      font_draw_text_shaded(font, framebuffer, px + 7, py + 7, pop_text, pop_shade);
+      /* FONTTINY (DS:0x89e), not the name label's FONTINTR (DS:0x268a). */
+      font_draw_text_shaded(
+        pop_font ? pop_font : font, framebuffer, px + 7, py + 7, pop_text, pop_shade
+      );
 
       /* Colony name below the tile: white ink, black shadow. FONTINTR
        * already bakes a soft AA shadow into shade 2/3 of every glyph

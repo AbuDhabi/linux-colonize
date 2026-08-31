@@ -11598,7 +11598,8 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
       &game->colonies,
       game->unit_icons_ok ? &game->unit_icons : NULL,
       framebuffer,
-      game->intro_font_ok ? &game->intro_font : NULL,
+      game->intro_font_ok ? &game->intro_font : NULL,   /* FONTINTR — name */
+      game->colony_font_ok ? &game->colony_font : NULL, /* FONTTINY — pop badge */
       view_x,
       view_y,
       view_cols,
