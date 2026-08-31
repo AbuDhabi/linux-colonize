@@ -3148,44 +3148,68 @@ static void ai_contact_gift_or_demand(
  * Euro colony's relevant stock `> 0x4a` (74) — matches the user's own
  * independently-reported trigger condition ("only ever seen with
  * substantial food stores") — then `dos_rng_range(1,100) <= (ask-bid)`.
- * On accept: attitude (`friction`) scales up roughly ×1.5, a positive
- * relation delta (doubled if the tribe's own capital). On decline: the
- * colony loses roughly half its stock anyway — a **punitive** seizure,
- * not a withheld voluntary gift; this reconciles the raw decompile's
- * "gives away half the colony's stock" wording on the *refuse* branch
- * with a refuse outcome (natives who already know the colony is
- * well-stocked take some anyway when rebuffed) — attitude resets to 0,
- * negative relation delta (doubled if capital).
+ * Which branch is which (re-read off the decompile 2026-08-31, bugs.md):
+ * the choice returns `local_c`, and it is `local_c == 2` — the second
+ * GAME.TXT row, "We offer you {%NUMBER0} of our {%NUMBER1 food}" — that
+ * subtracts `colony->food >> 1`. So the *half is the voluntary gift*, and
+ * refusing costs no food at all; the earlier reading had the two branches'
+ * effects swapped, so accepting handed over a quarter and angered them
+ * while refusing seized half and calmed them. Corrected here.
  *
- * Approximated, not independently byte-verified: the exact relation-delta
- * magnitude (raw decompile has an uncertain floor-loop on the decline
- * side not fully reconciled; used the same flat ±5/±10-doubled-if-capital
- * shape as the loop's own base case before iterating), and the DOS
- * AI-vs-human branch-selection nuance (a `param_1==2` hardcode in the
- * human-controlled arm wasn't reconciled with the user's own experience
- * of a real Give/Refuse choice regardless of nation played — implemented
- * as a real CHOICE for any human nation instead). The DOS "which-good-to-
- * gift sizing" sub-routine (a separate, still-unported piece) is
- * approximated here as a simple quarter of current stock.
+ * On accept (`local_c == 2`): colony food −= half, the begging
+ * settlement's alarm word toward this European is zeroed, and the nation
+ * alarm is walked down 5 at a time from −5 (−10 off a capital) until it
+ * sits below 0x47 — the floor-loop that was previously "not fully
+ * reconciled" is exactly that `while (alarm + d >= 0x47) d -= 5;`.
+ * On refuse (`local_c == 1`): no food moves, the settlement's alarm word
+ * goes ×1.5 (`w += w >> 1`), and the nation alarm rises by
+ * `((difficulty + 1) >> 1) + 1`, doubled off a capital.
+ *
+ * Still approximated: DOS halves that refuse bump when its upstream
+ * "calm enough" roll passed (`bVar5`), part of the demand/threat selector
+ * this port drives differently; and the DOS AI-vs-human branch-selection
+ * nuance (a `param_1==2` hardcode in the human-controlled arm wasn't
+ * reconciled with the user's own experience of a real Give/Refuse choice
+ * regardless of nation played — implemented as a real CHOICE for any
+ * human nation instead).
  */
 /*
- * @INDIANBEGFOOD gift: a quarter of the colony's store, at least a ton. The
- * choice row names it ("We offer you {%NUMBER0} of our {%NUMBER1 food}"), so
- * label and effect read it from here rather than computing it twice.
+ * @INDIANBEGFOOD gift: exactly half the colony's store, DOS's own
+ * `iVar15 = colony->food >> 1` in FUN_5bfb_022e (colony pointer DS:0x8542,
+ * food at +0x9a). The same half is what NUMBER0 names in the accept row
+ * ("We offer you {%NUMBER0} of our {%NUMBER1 food}") and what accepting
+ * actually hands over, so label and effect read it from here rather than
+ * computing it twice. Was a quarter, which under-asked (bugs.md).
  */
 static int ai_contact_beg_food_gift(const ColonizeColony* c) {
   if (!c) {
     return 0;
   }
   const int have = c->stock[COLONIZE_CARGO_FOOD];
-  int gift = have / 4;
-  if (gift < 1) {
-    gift = 1;
+  int gift = have >> 1;
+  if (gift < 0) {
+    gift = 0;
   }
   if (gift > have) {
     gift = have;
   }
   return gift;
+}
+
+/* Village alarm toward `e` as DOS's int16 at tribe+10+e*2 (0x54f6 family). */
+static int ai_contact_tribe_alarm_word(const ColonizeCol1Tribe* t, int e) {
+  return (int)t->alarm[e].friction | ((int)t->alarm[e].attacks << 8);
+}
+
+static void ai_contact_tribe_alarm_word_set(ColonizeCol1Tribe* t, int e, int w) {
+  if (w < 0) {
+    w = 0;
+  }
+  if (w > 0xffff) {
+    w = 0xffff;
+  }
+  t->alarm[e].friction = (uint8_t)(w & 0xff);
+  t->alarm[e].attacks = (uint8_t)((w >> 8) & 0xff);
 }
 
 static void ai_contact_apply_beg_food(
@@ -3221,17 +3245,30 @@ static void ai_contact_apply_beg_food(
   }
   ai_contact_bind_names(ctx);
   if (accept) {
+    /*
+     * DOS FUN_5bfb_022e, `local_c == 2` (the "We offer you ..." row): the
+     * colony loses the half it just offered, the begging settlement's own
+     * alarm word toward this European is zeroed outright, and the nation
+     * alarm is walked down in steps of 5 (base -5, -10 from a capital)
+     * until it lands under 0x47 --- `while (alarm + d >= 0x47) d -= 5;`.
+     * Giving cannot make them angrier; the earlier port had the accept and
+     * refuse effects the wrong way round (bugs.md).
+     */
     const int gift = ai_contact_beg_food_gift(c);
     c->stock[COLONIZE_CARGO_FOOD] -= gift;
-    if (target_tribe) {
-      int fr = (int)target_tribe->alarm[e].friction;
-      fr += fr / 2;
-      if (fr > 255) {
-        fr = 255;
-      }
-      target_tribe->alarm[e].friction = (uint8_t)fr;
+    if (c->stock[COLONIZE_CARGO_FOOD] < 0) {
+      c->stock[COLONIZE_CARGO_FOOD] = 0;
     }
-    ai_diplo_indian_relation_delta(ctx->col1, nation_id, e, capital ? 10 : 5);
+    if (target_tribe) {
+      ai_contact_tribe_alarm_word_set(target_tribe, e, 0);
+    }
+    int d = capital ? -10 : -5;
+    const int alarm = ai_diplo_indian_alarm(ctx->col1, nation_id, e);
+    /* Bounded: d only ever falls, and alarm is a 0..100 byte. */
+    for (int guard = 0; guard < 32 && alarm + d >= 0x47; ++guard) {
+      d -= 5;
+    }
+    ai_diplo_indian_relation_delta(ctx->col1, nation_id, e, -d);
     if (ctx->status && ctx->status_size) {
       snprintf(
         ctx->status, ctx->status_size, "We share %d food with the %s.", gift,
@@ -3239,16 +3276,28 @@ static void ai_contact_apply_beg_food(
       );
     }
   } else {
-    int half = c->stock[COLONIZE_CARGO_FOOD] / 2;
-    c->stock[COLONIZE_CARGO_FOOD] -= half;
+    /*
+     * DOS `local_c == 1` (the "we gave at the office" row): refusing costs
+     * no food at all --- the tribe begs, it does not raid. What it does is
+     * multiply the settlement's alarm word by 1.5 (`w += w >> 1`) and add
+     * `((difficulty + 1) >> 1) + 1` to the nation alarm, doubled off a
+     * capital. (DOS also halves that add when the upstream "calm enough"
+     * roll passed; that roll is part of the demand/threat selector this
+     * port drives differently, so it is not modelled here.)
+     */
     if (target_tribe) {
-      target_tribe->alarm[e].friction = 0;
+      const int w = ai_contact_tribe_alarm_word(target_tribe, e);
+      ai_contact_tribe_alarm_word_set(target_tribe, e, w + (w >> 1));
     }
-    ai_diplo_indian_relation_delta(ctx->col1, nation_id, e, capital ? -10 : -5);
+    int d = (((int)ctx->col1->head.difficulty + 1) >> 1) + 1;
+    if (capital) {
+      d *= 2;
+    }
+    ai_diplo_indian_relation_delta(ctx->col1, nation_id, e, -d);
     if (ctx->status && ctx->status_size) {
       snprintf(
-        ctx->status, ctx->status_size, "The %s take %d food in anger at our refusal.",
-        ai_contact_tribe_name(nation_id), half
+        ctx->status, ctx->status_size, "We turn the %s away empty-handed.",
+        ai_contact_tribe_name(nation_id)
       );
     }
   }
@@ -3381,7 +3430,7 @@ void ai_contact_try_village_beg_food(ColonizeTurnContext* ctx, int nation_id) {
         }
       }
     } else {
-      /* AI Euro: auto-accept when it can spare a quarter of its food. */
+      /* AI Euro: auto-accept, handing over the same half a human would. */
       ai_contact_apply_beg_food(ctx, ind, nation_id, e, best_ci, 1);
     }
     return; /* one beg-for-food event per Indian nation per turn */

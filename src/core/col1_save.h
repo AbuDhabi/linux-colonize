@@ -1030,6 +1030,10 @@ bool col1_save_validate_head(
 /* Ensure DOS signature / EOF / version fields before write. */
 void col1_save_stamp_head(ColonizeCol1Head* head);
 
+/* crown_nation_id / rival_nation_slot_1 / _2 back to -1 ("none"), as
+ * FUN_75c2_235c does at new game. Zero means "England" to every reader. */
+void col1_save_reset_nation_slots(ColonizeCol1Head* head);
+
 size_t col1_save_expected_size(const ColonizeCol1Save* save);
 size_t col1_save_expected_size_counts(
   uint16_t map_w,

@@ -30,6 +30,25 @@ void col1_save_init(ColonizeCol1Save* save) {
   for (int n = 0; n < (int)COLONIZE_COL1_NATION_COUNT; ++n) {
     save->nation[n].next_founding_father = -1;
   }
+  col1_save_reset_nation_slots(&save->head);
+}
+
+void col1_save_reset_nation_slots(ColonizeCol1Head* head) {
+  if (!head) {
+    return;
+  }
+  /*
+   * DS:0x53d2/0x53d4/0x53d6 are "no nation yet" sentinels, not nation 0 —
+   * FUN_75c2_235c resets them together at new game, and both surviving
+   * original saves carry ff ff ff ff ff ff at head+98..103. Zero-filling
+   * them made nation 0 (England) read as the Crown's own slot, which is
+   * why the Foreign Affairs report printed "(Withdrawn from New World)"
+   * over an English player's own block (bugs.md). sol_pct_last_notified,
+   * the fourth int16 of the same group, really is 0 in those saves.
+   */
+  head->crown_nation_id = -1;
+  head->rival_nation_slot_1 = -1;
+  head->rival_nation_slot_2 = -1;
 }
 
 void col1_save_free(ColonizeCol1Save* save) {
