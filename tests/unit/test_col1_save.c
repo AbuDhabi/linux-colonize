@@ -1690,6 +1690,122 @@ int main(void) {
     assets_msg_free(&names);
   }
 
+  /*
+   * bugs.md regression: capture's DOS-hygiene pass must NOT board land units
+   * that merely share a LAND tile (colony dock / coastal stack) with a ship —
+   * it used to force the whole garrison aboard (orders→Sentry, live pool
+   * mutated) on every save. Only a land unit stranded on WATER (an orphan
+   * state DOS can't represent) may be auto-boarded.
+   */
+  {
+    ColonizeMsgCatalog names;
+    assets_msg_init(&names);
+    if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT")) {
+      fprintf(stderr, "dock-garrison: NAMES.TXT load failed\n");
+      return 1;
+    }
+    ColonizeWorldMap map;
+    memset(&map, 0, sizeof(map));
+    if (!map_alloc(&map, COLONIZE_COL1_MAP_W_STD, COLONIZE_COL1_MAP_H_STD, err, sizeof(err))) {
+      fprintf(stderr, "dock-garrison: map_alloc: %s\n", err);
+      assets_msg_free(&names);
+      return 1;
+    }
+    for (size_t i = 0; i < map.tile_count; ++i) {
+      map.terrain[i] = 25; /* ocean */
+    }
+    /* One land tile at (20,20). */
+    map.terrain[20 * (int)map.width + 20] = 1;
+    ColonizeCol1Save save;
+    if (!col1_bridge_init_template(&save, map.width, map.height, err, sizeof(err))) {
+      fprintf(stderr, "dock-garrison: template: %s\n", err);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    ColonizeUnitPool units;
+    units_reset(&units);
+    if (!units_load_types(&units, &names)) {
+      fprintf(stderr, "dock-garrison: unit types failed\n");
+      col1_save_free(&save);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    units_set_occupancy_map(&map);
+    const int freeman = units_find_type(&units, "Free Colonist");
+    const int caravel = units_find_type(&units, "Caravel");
+    /* Ship docked on the land tile (colony dock stand-in) + no-orders unit. */
+    const int ship_id = units_spawn_allow_stack(&units, caravel >= 0 ? caravel : 13, 20, 20);
+    const int land_id = units_spawn_allow_stack(&units, freeman >= 0 ? freeman : 0, 20, 20);
+    /* Land unit stranded on a WATER tile beside a second ship (orphan). */
+    const int ship2_id = units_spawn_allow_stack(&units, caravel >= 0 ? caravel : 13, 22, 20);
+    const int orphan_id = units_spawn_allow_stack(&units, freeman >= 0 ? freeman : 0, 22, 20);
+    if (ship_id < 0 || land_id < 0 || ship2_id < 0 || orphan_id < 0) {
+      fprintf(stderr, "dock-garrison: spawns failed\n");
+      units_set_occupancy_map(NULL);
+      col1_save_free(&save);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    {
+      ColonizeUnit* lu = units_get(&units, land_id);
+      if (lu) {
+        lu->orders = UNITS_ORDER_NONE;
+      }
+    }
+    ColonizeColonyPool colonies;
+    colonies_init(&colonies);
+    EuropeScreen europe;
+    memset(&europe, 0, sizeof(europe));
+    europe.cargo_count = 16;
+    if (!col1_bridge_capture(
+          &save, &map, &units, &colonies, &europe, 1492, 0, 1, 0, 20, 20, ship_id, err,
+          sizeof(err)
+        )) {
+      fprintf(stderr, "dock-garrison: capture: %s\n", err);
+      units_set_occupancy_map(NULL);
+      col1_save_free(&save);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    const ColonizeUnit* lu = units_get(&units, land_id);
+    if (!lu || lu->aboard_ship_id >= 0 || lu->orders != UNITS_ORDER_NONE) {
+      fprintf(
+        stderr,
+        "dock-garrison: land-tile unit boarded by capture (aboard=%d orders=%d)\n",
+        lu ? lu->aboard_ship_id : -99,
+        lu ? lu->orders : -99
+      );
+      units_set_occupancy_map(NULL);
+      col1_save_free(&save);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    const ColonizeUnit* ou = units_get(&units, orphan_id);
+    if (!ou || ou->aboard_ship_id != ship2_id) {
+      fprintf(
+        stderr,
+        "dock-garrison: water orphan not boarded (aboard=%d want %d)\n",
+        ou ? ou->aboard_ship_id : -99,
+        ship2_id
+      );
+      units_set_occupancy_map(NULL);
+      col1_save_free(&save);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    fprintf(stderr, "dock-garrison capture hygiene ok\n");
+    units_set_occupancy_map(NULL);
+    col1_save_free(&save);
+    map_free(&map);
+    assets_msg_free(&names);
+  }
+
   /* FUN_67f4_0088 rebuild vs COLONY00: tallies exact; planes near-match. */
   {
     ColonizeCol1Save orig;
