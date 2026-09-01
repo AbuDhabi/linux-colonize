@@ -188,11 +188,11 @@ This is a user-maintained list of bugs. User puts reports in. Agents may annotat
 | Foreign intervention in the war of independence does not appear to be implemented at all yet. | FIXED — it was implemented but dead-gated. The bell-pool spend that triggers foreign intervention (and follow-up waves) returns 0 while DS:0x5382's REF-present bit is set, and the port set that bit at the DECLARATION and never cleared it — so the trigger could not fire for the entire war. The bit now means what DOS's means: REF currently in the New World (units on the map, or colonies the crown holds); wiping a wave clears it, the bell pool can then bring the intervention force (player-controlled MoW + Continental troops from the backup pools) or the next wave. |
 | REF now correctly white, but still listed as "French". REF uses incorrect unit presentations; REF is composed of Regulars and Cavalry, not Soldiers and Dragoons. Different units. | FIXED, both halves. Labels: the crown's borrowed slot now reads "Royal Expeditionary Force" in combat/report text and "Royal" in the sidebar nationality line during the WoI (units_combat_nation_label / map_panel_nationality consult the crown-slot marker), never the peer's name. Types: the wave's pool[1] spawned colonial Dragoons — the REF fields Regulars and CAVALRY (@UNIT 8); the pool unit table is corrected (alt falls back to Dragoons only when the Cavalry type is missing). |
 | REF still lands on my units despite having a perfectly good tile to land on, upon which they previously landed forces. | FIXED — the previous fix's "empty" test rejected tiles held by the CROWN'S OWN earlier landings, so a second wave saw its beachhead as occupied and fell through to seizing your units. Candidates are now partitioned by "safe" = empty OR crown-held (stacking with its own army); when any safe tile exists the landing uses only those, and the seize branch remains solely for a genuine full blockade. |
-| | |
-| | |
-| | |
-| | |
-| | |
+| The "activate multiple units popup" needs to cancel orders of every unit clicked, on the first click, not the second. As in, you click the stack on the map, popup shows up. Every unit you click here once should have orders canceled (and should be in the Orders-Allegiance chrome to boot!) and only the one you click on twice should be activated. | |
+| Fortified units (ie. fortified in a previous turn, not this one) should have all their movement points unspent, and can move on order cancellation and activation. | |
+| Player Continental Cavalry and Continental Army should use its own graphics, and be distinguishable from veterans/unskilled soldiers. | |
+| Choice of defender seems off. The best defender should be chosen; combat power of every unit on the stack should be easy to calculate, and best current candidate to defend should be selected. Do verify how DOS does it. | |
+| Movement and combat needs to have some sort of animation. Should be quick, but perceptible to user, so the user isn't spammed with a dozen things happening instantaneously. If a unit is moving, its sprite should be moved to its new spot. If it attacks, similarly, it needs to "bump" into the attacked tile. That's how DOS does it. | |
 | | |
 | | |
 | | |
