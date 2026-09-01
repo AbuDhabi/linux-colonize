@@ -4,6 +4,7 @@
 #include "core/col1_save.h"
 #include "core/colony.h"
 #include "core/colony_production.h"
+#include "core/combat_strength.h"
 #include "core/dos_rng.h"
 #include "core/europe.h"
 #include "core/founding_fathers.h"
@@ -1173,11 +1174,29 @@ int main(void) {
       ColonizeUnit* d1 = units_get(&upool, def1);
       a1->nation_id = 1; /* no Drake */
       d1->nation_id = 0; /* has Drake → def 8*3/2=12 */
-      if (units_resolve_naval_combat_ff(&upool, atk1, def1, NULL, &ccol1)) {
-        return fail("Drake defender Privateer +50% should beat equal attacker");
+      /* bugs.md: attackers now get +50% at sea too, so equal Privateers tie
+       * (Drake ×3/2 def vs attack ×3/2) and the deterministic >= rule gives
+       * the ATTACKER the tie. Prove Drake's defender bonus on the strengths
+       * instead of the outcome. */
+      {
+        ColonizeCombatStrengthCtx sctx;
+        memset(&sctx, 0, sizeof(sctx));
+        sctx.units = &upool;
+        sctx.col1 = &ccol1;
+        ColonizeCombatEngageResult er_drake;
+        combat_naval_engage(&sctx, atk1, def1, &er_drake);
+        sctx.col1 = &no_drake;
+        ColonizeCombatEngageResult er_plain;
+        combat_naval_engage(&sctx, atk1, def1, &er_plain);
+        if (er_drake.def_strength <= er_plain.def_strength) {
+          return fail("Drake defender Privateer +50% must raise def strength");
+        }
       }
-      if (!units_get(&upool, def1) || units_get(&upool, atk1)) {
-        return fail("Drake defender should survive, attacker despawned");
+      if (!units_resolve_naval_combat_ff(&upool, atk1, def1, NULL, &ccol1)) {
+        return fail("equal Privateers with attack bonus: deterministic tie goes to attacker");
+      }
+      if (units_get(&upool, def1) || !units_get(&upool, atk1)) {
+        return fail("tie-goes-to-attacker: defender despawned, attacker survives");
       }
 
       const int atk2 = units_spawn_allow_stack(&upool, 4, 11, 1);
@@ -1226,14 +1245,18 @@ int main(void) {
       ColonizeUnit* d = units_get(&upool, def);
       a->nation_id = 1; /* no Drake */
       d->nation_id = 0; /* has Drake → def 12 */
+      /* bugs.md: with the naval attacker's +50% the equal-Privateer matchup
+       * is a deterministic tie (atk 12 vs Drake def 12) and >= gives it to
+       * the attacker; the wrapper still routes g_units_ff_col1 (proved by
+       * the strength comparison in spawn A above). */
       units_set_ff_col1(&ccol1);
-      if (units_resolve_naval_combat(&upool, atk, def, NULL)) {
+      if (!units_resolve_naval_combat(&upool, atk, def, NULL)) {
         units_set_ff_col1(NULL);
-        return fail("Drake wrapper defender Privateer +50% should beat equal attacker");
+        return fail("Drake wrapper: deterministic tie goes to attacker");
       }
       units_set_ff_col1(NULL);
-      if (!units_get(&upool, def) || units_get(&upool, atk)) {
-        return fail("Drake wrapper: defender survives, attacker despawned");
+      if (units_get(&upool, def) || !units_get(&upool, atk)) {
+        return fail("Drake wrapper tie: defender despawned, attacker survives");
       }
     }
 
@@ -1303,9 +1326,16 @@ int main(void) {
         map_free(&rmap);
         return fail("Revere should spend warehouse muskets");
       }
-      if (colony->colonist_count != 0) {
+      /* bugs.md 217: the beaten armed colonist DEMOTES (sheds muskets, keeps
+       * status) and is readmitted to the colony rather than dying — and stays
+       * put through the capture (captured colonists stay in the colony). */
+      if (colony->colonist_count != 1) {
         map_free(&rmap);
-        return fail("Revere should eject the defending colonist");
+        return fail("Revere loser should demote back into the colony, not die");
+      }
+      if (colony->nation_id != 1) {
+        map_free(&rmap);
+        return fail("Revere colony should be captured by the attacker");
       }
       if (units_last_combat_outcome() != 1) {
         map_free(&rmap);

@@ -562,6 +562,46 @@ static void game_combat_watch(
   }
 }
 
+/*
+ * bugs.md: every combat concludes in isolation. After a combat resolves,
+ * present and answer its queued popups RIGHT NOW in a nested modal loop —
+ * the way DOS's blocking dialogs pace the King's turn — instead of hoarding
+ * "X defeats Y" until every combat has ceased. Combat Analysis already runs
+ * nested (game_combat_analysis_present); this is its outcome-popup twin.
+ */
+static void game_apply_ai_popup_result(ColonizeGameState* game);
+
+static void game_combat_popup_pump(void* user) {
+  ColonizeGameState* game = (ColonizeGameState*)user;
+  static bool pumping = false;
+  if (!game || !game->platform || pumping) {
+    return;
+  }
+  pumping = true;
+  uint8_t pixels[320 * 200];
+  ColonizeFramebuffer8 fb = {.width = 320, .height = 200, .pixels = pixels};
+  ColonizePalette pal;
+  while (ai_popup_busy(&game->ai_popups)) {
+    if (!game->ai_popups.open && !game->ai_popups.has_result) {
+      ai_popup_try_present_next(&game->ai_popups);
+    }
+    ColonizeInputState input = {0};
+    if (!platform_poll_input(game->platform, &input) || input.quit_requested) {
+      break;
+    }
+    if (game->ai_popups.open) {
+      ai_popup_handle_input(&game->ai_popups, &input);
+      game_apply_ai_popup_result(game);
+    }
+    game_render(game, &fb, &pal);
+    if (!platform_present(game->platform, &fb, &pal)) {
+      break;
+    }
+    platform_sleep_ms(16);
+  }
+  pumping = false;
+}
+
 static void game_bind_combat_analysis(ColonizeGameState* game) {
   if (!game) {
     return;
@@ -2389,6 +2429,12 @@ static void game_apply_ai_popup_result(ColonizeGameState* game) {
       !game->ai_popups.result_cancelled &&
       game->ai_popups.result_choice_id == 0) {
     /* @SCORED "That's all." → open retire score (same path as Retire menu). */
+    game_open_retire_score(game);
+  }
+  /* bugs.md: losing the War of Independence ENDS the game — dismissing the
+   * @LOSING/@RETIRING2 capitulation popup opens the retire score, the same
+   * chain the Retire menu and @SCORED use. */
+  if (game->ai_popups.result_tag == AI_POPUP_TAG_KING_WAR_END) {
     game_open_retire_score(game);
   }
   ai_contact_apply_popup_result(&ctx, &game->ai_popups);
@@ -5614,6 +5660,7 @@ void game_destroy(ColonizeGameState* game) {
   }
   units_set_move_watch(NULL, NULL);
   units_set_combat_watch(NULL, NULL);
+  units_set_combat_popup_pump(NULL, NULL);
   combat_analysis_set_presenter(NULL, NULL);
   combat_analysis_close(&game->combat_analysis);
   declaration_close(&game->declaration);
@@ -8019,6 +8066,7 @@ static void game_europe_deliver_bound_ships(ColonizeGameState* game) {
 static void game_finish_end_turn(ColonizeGameState* game, const ColonizeTurnResult* result) {
   units_set_move_watch(NULL, NULL);
   units_set_combat_watch(NULL, NULL);
+  units_set_combat_popup_pump(NULL, NULL);
   /* turn.c's own FINISH step already picked the first unit needing orders;
    * a hand-off parked during the turn that just ended would skip past it. */
   game->turn_flow_deferred = false;
@@ -8111,6 +8159,7 @@ static void game_do_end_turn(ColonizeGameState* game) {
   }
   units_set_move_watch(game_move_watch, game);
   units_set_combat_watch(game_combat_watch, game);
+  units_set_combat_popup_pump(game_combat_popup_pump, game);
   turn_processor_start(&game->turn_proc);
   /* Run setup immediately so calendar advances on the same input that ends the turn. */
   ColonizeTurnContext ctx;
@@ -9325,6 +9374,11 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
       ? ai_king_crown_nation(game->human_nation)
       : -1
   );
+  /* bugs.md: WoI colony flags — rebel colonies fly the American flag, crown
+   * captures fly the player's original nation color. */
+  unit_chrome_set_rebel_nation(
+    game->col1_ok && ai_king_independence_declared(&game->col1) ? game->human_nation : -1
+  );
 
   /* End-of-turn nation phases: advance one slice per frame; block other input.
    *
@@ -9348,6 +9402,7 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
     }
     units_set_move_watch(game_move_watch, game);
     units_set_combat_watch(game_combat_watch, game);
+  units_set_combat_popup_pump(game_combat_popup_pump, game);
     ColonizeTurnContext ctx;
     game_fill_turn_context(game, &ctx);
     if (!turn_processor_advance(&game->turn_proc, &ctx)) {

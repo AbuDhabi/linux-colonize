@@ -1269,6 +1269,26 @@ void units_set_combat_watch(ColonizeUnitsCombatWatchFn fn, void* user) {
   g_units_combat_watch = fn;
   g_units_combat_watch_user = user;
 }
+
+/*
+ * bugs.md: every combat concludes in isolation — the popups it queued are
+ * presented (and answered) before the NEXT combat runs, instead of being
+ * hoarded until the whole AI slice ends. The hook is a nested modal loop in
+ * game_loop (headless callers leave it unset).
+ */
+static ColonizeUnitsPopupPumpFn g_units_popup_pump = NULL;
+static void* g_units_popup_pump_user = NULL;
+
+void units_set_combat_popup_pump(ColonizeUnitsPopupPumpFn fn, void* user) {
+  g_units_popup_pump = fn;
+  g_units_popup_pump_user = user;
+}
+
+static void units_combat_pump_popups(void) {
+  if (g_units_popup_pump) {
+    g_units_popup_pump(g_units_popup_pump_user);
+  }
+}
 static void* g_units_move_watch_user = NULL;
 
 void units_set_ff_col1(const ColonizeCol1Save* col1) {
@@ -1718,10 +1738,11 @@ static const char* units_combat_nation_label(const ColonizeCol1Save* col1, int n
     "Inca", "Aztec", "Arawak", "Iroquois", "Cherokee", "Apache", "Sioux", "Tupi"
   };
   if (nation_id >= 0 && nation_id <= 3) {
-    /* bugs.md: during the WoI the crown's borrowed slot is the Royal
-     * Expeditionary Force, not the peer nation whose slot it wears. */
+    /* bugs.md: during the WoI the crown's borrowed slot is the King's side —
+     * the proper adjective is "Tory" ("Tory Cavalry"), not the peer nation
+     * whose slot it wears and not "Royal". */
     if (nation_id == unit_chrome_crown_nation()) {
-      return "Royal Expeditionary Force";
+      return "Tory";
     }
     if (col1 && col1->player[nation_id].country_name[0]) {
       return col1->player[nation_id].country_name;
@@ -1811,7 +1832,7 @@ static void units_combat_enqueue_tok(
   );
 }
 
-static void units_combat_enqueue_section(
+__attribute__((unused)) static void units_combat_enqueue_section(
   AiPopupTag tag,
   const char* section,
   int nation_a,
@@ -2112,6 +2133,47 @@ static int units_demote_combat_type(
   if (!pool || !loser || !loser->active) {
     return 0;
   }
+  /*
+   * bugs.md: an armed colonist-TYPE unit (muskets on a Colonists/expert body
+   * — how a colonist armed in a colony is stored) demotes by shedding
+   * equipment, keeping type AND profession: armed+mounted loses the horses
+   * (Dragoon→Soldier), armed loses the muskets (Soldier→Colonist). A
+   * Veteran keeps veteran status — only CAPTURE strips it. Horses-only
+   * (scout kit) has no demote: destroyed, as before.
+   */
+  {
+    const ColonizeUnitType* lt0 = units_type(pool, loser->type_index);
+    const int table_target = units_combat_demote_type_index(pool, loser);
+    if (table_target < 0 && lt0 && loser->muskets > 0) {
+      const char* was = units_display_name(pool, loser);
+      char old_name[48];
+      snprintf(old_name, sizeof(old_name), "%s", was ? was : "Soldier");
+      if (loser->horses > 0) {
+        loser->horses = 0;
+      } else {
+        loser->muskets = 0;
+      }
+      loser->orders = UNITS_ORDER_NONE;
+      loser->moves_left = 0;
+      if (human_facing) {
+        PopupMsgTokens tok;
+        memset(&tok, 0, sizeof(tok));
+        tok.string0 = units_combat_nation_label(col1, loser->nation_id);
+        tok.string1 = old_name;
+        tok.string2 = units_display_name(pool, loser);
+        units_combat_enqueue_tok(
+          AI_POPUP_TAG_COMBAT_DEMOTE,
+          "DEMOTE",
+          loser->nation_id,
+          -1,
+          0,
+          &tok,
+          "Unit demoted."
+        );
+      }
+      return 1;
+    }
+  }
   const int tgt = units_combat_demote_type_index(pool, loser);
   if (tgt < 0 || tgt == loser->type_index) {
     return 0;
@@ -2282,24 +2344,44 @@ static int units_apply_land_loss_outcome(
   const int win_can_capture = win_euro && wt && wt->attack > 0;
   const int loser_euro = lose->nation_id >= 0 && lose->nation_id <= 3;
 
-  /* Artillery: first loss → damaged bit7; already damaged → sink. */
+  /* Artillery: first loss → damaged bit7; already damaged → destroyed. */
   if (lt && combat_type_is_artillery_name(lt->name)) {
+    /* bugs.md: these are GAME.TXT @ARTILLERY / @ARTILLERY2, not the ship's
+     * @SHIPDAMAGE — the old reuse produced the "Artillery ... Ship returns
+     * to for repairs" mashup. */
+    PopupMsgTokens tok;
+    memset(&tok, 0, sizeof(tok));
+    tok.string0 = units_combat_nation_label(col1, lose->nation_id);
+    tok.string1 = lt->name;
     if ((lose->col1_unknown15 & 0x80u) == 0) {
       lose->col1_unknown15 |= 0x80u;
       lose->moves_left = 0;
       if (human) {
-        units_combat_enqueue_section(
+        units_combat_enqueue_tok(
           AI_POPUP_TAG_COMBAT_SHIP,
-          "SHIPDAMAGE",
+          "ARTILLERY",
           lose->nation_id,
           win->nation_id,
-          lt->name,
-          wt ? wt->name : NULL,
-          "Artillery damaged."
+          0,
+          &tok,
+          "Artillery damaged. Further damage will destroy it."
         );
       }
       return 1;
     }
+    if (human) {
+      units_combat_enqueue_tok(
+        AI_POPUP_TAG_COMBAT_SHIP,
+        "ARTILLERY2",
+        lose->nation_id,
+        win->nation_id,
+        0,
+        &tok,
+        "Damaged Artillery destroyed."
+      );
+    }
+    units_despawn(pool, loser_id);
+    return 0;
   }
 
   /*
@@ -2437,7 +2519,7 @@ static void units_sweep_stack_after_loss(
 }
 
 /* Nearest active colony of nation_id to (x,y) by squared distance; NULL if none. */
-static const ColonizeColony* units_nearest_own_colony(
+__attribute__((unused)) static const ColonizeColony* units_nearest_own_colony(
   const ColonizeColonyPool* colonies,
   int nation_id,
   int x,
@@ -2451,6 +2533,38 @@ static const ColonizeColony* units_nearest_own_colony(
   for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
     const ColonizeColony* c = &colonies->colonies[i];
     if (!c->active || c->nation_id != nation_id) {
+      continue;
+    }
+    const long dx = c->x - x;
+    const long dy = c->y - y;
+    const long d = dx * dx + dy * dy;
+    if (best_d < 0 || d < best_d) {
+      best_d = d;
+      best = c;
+    }
+  }
+  return best;
+}
+
+/* Nearest own colony WITH a Drydock (bugs.md: repair routing). NULL if none. */
+static const ColonizeColony* units_nearest_own_drydock_colony(
+  const ColonizeColonyPool* colonies,
+  int nation_id,
+  int x,
+  int y
+) {
+  if (!colonies) {
+    return NULL;
+  }
+  const int drydock = colonies_find_building(colonies, "Drydock");
+  if (drydock < 0 || drydock >= COLONIZE_BUILDING_TYPES_MAX) {
+    return NULL;
+  }
+  const ColonizeColony* best = NULL;
+  long best_d = -1;
+  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+    const ColonizeColony* c = &colonies->colonies[i];
+    if (!c->active || c->nation_id != nation_id || !c->has_building[drydock]) {
       continue;
     }
     const long dx = c->x - x;
@@ -2505,13 +2619,16 @@ static int units_apply_naval_loss_outcome(
       }
     }
     /*
-     * bugs.md: "Ship returns to {colony} for repairs" — actually send it
-     * home to its nearest own port instead of leaving it stranded at the
-     * combat tile, so Drydock repair (units_tick_drydock_repair) can ever
-     * reach it and the popup's destination claim is true.
+     * bugs.md: a damaged ship sails to the nearest OWN colony that has a
+     * Drydock (units_tick_drydock_repair only works there — a drydock-less
+     * port never repaired it). With no such colony it stays put and the
+     * end-of-turn tick routes it to Europe when Europe is still friendly
+     * (pre-WoI human ships; damaged Tory Man-O-Wars sail home too) — see
+     * turn_route_damaged_ships.
      */
-    const ColonizeColony* home =
-      units_nearest_own_colony(g_units_combat_colonies, lose->nation_id, lose->x, lose->y);
+    const ColonizeColony* home = units_nearest_own_drydock_colony(
+      g_units_combat_colonies, lose->nation_id, lose->x, lose->y
+    );
     if (home && (home->x != lose->x || home->y != lose->y)) {
       const int old_x = lose->x;
       const int old_y = lose->y;
@@ -2525,7 +2642,7 @@ static int units_apply_naval_loss_outcome(
       memset(&tok, 0, sizeof(tok));
       tok.string0 = units_combat_nation_label(col1, lose->nation_id);
       tok.string1 = lt ? lt->name : "Ship";
-      tok.string2 = home && home->name[0] ? home->name : "port";
+      tok.string2 = home && home->name[0] ? home->name : "Europe";
       char fb[AI_POPUP_BODY_LEN];
       snprintf(
         fb, sizeof(fb), "%s %s damaged! Ship returns to %s for repairs.",
@@ -3904,6 +4021,7 @@ bool units_resolve_land_combat_ff(
      */
     units_mounted_attack_spend_all(pool, attacker_id);
     g_units_last_combat = 1;
+    units_combat_pump_popups();
     return true;
   }
   units_combat_outcome_popups(
@@ -3925,6 +4043,7 @@ bool units_resolve_land_combat_ff(
   }
   units_mounted_attack_spend_all(pool, attacker_id);
   g_units_last_combat = -1;
+  units_combat_pump_popups();
   return false;
 }
 
@@ -4051,7 +4170,15 @@ bool units_resolve_naval_combat_ff(
       const ColonizeUnitType* wt = units_type(pool, atk->type_index);
       const int is_priv = wt && wt->name[0] && strstr(wt->name, "Privateer") != NULL;
       const int human = units_combat_human_involved(col1, atk->nation_id, def->nation_id);
-      if (human) {
+      /*
+       * bugs.md: the "captured/seized" cue belongs to a Privateer (or the
+       * Royal Navy) taking an UNARMED transport as a prize. A warship
+       * defeating a warship (Frigate vs Man-O-War) is damage-or-sink only —
+       * the old unconditional @SEIZURESEA fired "captured" and then the
+       * sink popup contradicted it.
+       */
+      const int def_transport = dt && dt->attack == 0;
+      if (human && def_transport) {
         PopupMsgTokens tok;
         memset(&tok, 0, sizeof(tok));
         tok.string0 = dt && dt->name[0] ? dt->name : "Ship";
@@ -4096,6 +4223,7 @@ bool units_resolve_naval_combat_ff(
       pool, defender_id, attacker_id, eng.def_strength, eng.atk_strength, 1, col1
     );
     g_units_last_combat = 1;
+    units_combat_pump_popups();
     return true;
   }
   units_combat_outcome_popups(
@@ -4105,6 +4233,7 @@ bool units_resolve_naval_combat_ff(
     pool, attacker_id, defender_id, eng.atk_strength, eng.def_strength, 1, col1
   );
   g_units_last_combat = -1;
+  units_combat_pump_popups();
   return false;
 }
 
@@ -4831,6 +4960,15 @@ static bool units_revere_defend_colony_tile(
     ColonizeUnit* d = units_get(pool, def_id);
     if (d && d->active) {
       units_despawn(pool, def_id);
+    }
+  } else if (won) {
+    /* bugs.md 217: a beaten Revere-armed colonist demotes (sheds muskets)
+     * instead of dying — put the survivor back to work in the colony so the
+     * town isn't "defended" by a unit standing on its own tile blocking the
+     * capture the attacker just won. */
+    ColonizeUnit* d = units_get(pool, def_id);
+    if (d && d->active) {
+      (void)colonies_admit_unit(colonies, cid, pool, def_id, g_units_ff_col1);
     }
   }
   if (!won) {

@@ -38,6 +38,16 @@ static const uint8_t k_nation_letter_rgb_native[4][3] = {
   {170, 0, 0}, {0, 0, 170}, {170, 85, 0}, {170, 73, 0}
 };
 
+/* WoI flag state (bugs.md): the rebel (human) nation and the crown slot.
+ * Set together with unit_chrome_set_crown_nation; -1 outside the WoI. */
+static int g_chrome_rebel_nation = -1;
+
+void unit_chrome_set_rebel_nation(int nation_id) {
+  g_chrome_rebel_nation = nation_id;
+}
+
+static int g_chrome_crown_nation;
+
 static int unit_chrome_nearest_palette_index(const ColonizePalette* pal, const uint8_t rgb[3]) {
   int best = 0;
   int best_d = 1 << 30;
@@ -84,12 +94,34 @@ void unit_chrome_nation_flag_shades_for_palette(
   if (!active_palette || nation_id < 0 || nation_id >= 4) {
     return;
   }
-  const uint8_t* light_rgb = k_nation_fill_rgb_native[nation_id];
-  const uint8_t dark_rgb[3] = {
+  /*
+   * bugs.md WoI flags: the rebel nation's colonies fly the American flag
+   * (white body / red shadow stand-in for the stripes in a 14-pixel
+   * two-shade marker), and colonies held by the crown slot fly the color of
+   * the nation the PLAYER started as (orange for Dutch, red for English, …)
+   * — they are the player's captured towns under the King, not the peer
+   * whose slot the crown borrows. Set via unit_chrome_set_woi_flag_nations.
+   */
+  const uint8_t* light_rgb;
+  uint8_t light_us[3] = {250, 250, 250};
+  if (nation_id == g_chrome_rebel_nation) {
+    light_rgb = light_us;
+  } else if (nation_id == g_chrome_crown_nation && g_chrome_rebel_nation >= 0 &&
+             g_chrome_rebel_nation < 4) {
+    light_rgb = k_nation_fill_rgb_native[g_chrome_rebel_nation];
+  } else {
+    light_rgb = k_nation_fill_rgb_native[nation_id];
+  }
+  uint8_t dark_rgb[3] = {
     (uint8_t)((int)light_rgb[0] * 82 / 100),
     (uint8_t)((int)light_rgb[1] * 82 / 100),
     (uint8_t)((int)light_rgb[2] * 82 / 100)
   };
+  if (nation_id == g_chrome_rebel_nation) {
+    dark_rgb[0] = 200; /* red shadow under the white body: stars & stripes */
+    dark_rgb[1] = 30;
+    dark_rgb[2] = 30;
+  }
   if (out_light) {
     *out_light = unit_chrome_nearest_palette_index(active_palette, light_rgb);
   }
@@ -164,6 +196,9 @@ void unit_chrome_load_orders(const ColonizeMsgCatalog* names) {
 static int g_chrome_crown_nation = -1;
 void unit_chrome_set_crown_nation(int nation_id) {
   g_chrome_crown_nation = nation_id;
+  if (nation_id < 0) {
+    g_chrome_rebel_nation = -1; /* WoI chrome off ⇒ flag overrides off too */
+  }
 }
 
 int unit_chrome_crown_nation(void) {

@@ -1180,6 +1180,49 @@ static void reports_render_congress_page1(
     }
   }
 
+  /*
+   * bugs.md / DOS 3f41 (viceroy_unpacked.c ~69774): when the foreign-
+   * intervention pool (DS:0x53e2.. = head.backup_force, seeded on declaring
+   * independence and drained by bell spending) is non-zero, a second force
+   * row appears under the REF lines: "<Ally nationality> Intervention Force"
+   * (@MISC 111, DS string 0x2e98) with the pool's four counts. The port's
+   * fixed layout has 10px here, so the counts are drawn as one text line.
+   */
+  {
+    int pool_sum = 0;
+    for (int i = 0; i < 4; ++i) {
+      pool_sum += (int)col1->head.backup_force[i];
+    }
+    if (pool_sum > 0) {
+      int ally = (int)col1->head.rival_nation_slot_1;
+      /* ai_king_crown_nation inlined (test_reports links without ai_king.c). */
+      const int crown = (human == 0) ? 1 : 0;
+      if (ally < 0 || ally > 3 || ally == human || ally == crown) {
+        ally = -1;
+        for (int n = 0; n < 4; ++n) {
+          if (n != human && n != crown) {
+            ally = n;
+            break;
+          }
+        }
+      }
+      snprintf(
+        line,
+        line_sz,
+        "%s %s: %u %u %u %u",
+        ally >= 0 ? reports_nation_adjective(ally) : "Foreign",
+        reports_misc_word(111, "Intervention Force", w1, sizeof(w1)),
+        (unsigned)col1->head.backup_force[0],
+        (unsigned)col1->head.backup_force[1],
+        (unsigned)col1->head.backup_force[3],
+        (unsigned)col1->head.backup_force[2]
+      );
+      reports_draw_line(
+        font, fb, 8, REPORTS_CONGRESS_FORCE_Y + REPORTS_CONGRESS_FORCE_H, line, 15
+      );
+    }
+  }
+
   snprintf(line, line_sz, "%s:", reports_misc_word(89, "Founding Fathers", w1, sizeof(w1)));
   reports_draw_line(font, fb, 8, REPORTS_CONGRESS_FF_HEADER_Y, line, 15);
   {

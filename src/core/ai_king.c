@@ -3341,6 +3341,11 @@ static void ai_king_ref_wave(ColonizeTurnContext* ctx) {
           if (need < 3) {
             need = 3;
           }
+          /* bugs.md: one Man-O-War carries 6 units — that is the most the
+           * REF can put ashore against one colony in a turn. */
+          if (need > 6) {
+            need = 6;
+          }
           int used_d = 0;
           int used_a = 0;
           /* Candidate land tiles around the ship, weakest stack first. */
@@ -3434,9 +3439,44 @@ static void ai_king_ref_wave(ColonizeTurnContext* ctx) {
             } else {
               break;
             }
-            const int uid = ai_king_0982_spawn_pool_unit(ctx, crown, k, cx[slot], cy[slot]);
+            /* bugs.md: show the troops DISEMBARKING — spawn on the ship's
+             * tile and step ashore through units_try_move, which fires the
+             * move-watch slide, so the player can see what landed. Fall
+             * back to a direct beach spawn if the step is refused. */
+            const int uid = ai_king_0982_spawn_pool_unit(ctx, crown, k, lx, ly);
             if (uid < 0) {
               break;
+            }
+            {
+              /* One step's worth of MP for the walk ashore (spawn parks at 0). */
+              ColonizeUnit* lu = units_get(ctx->units, uid);
+              if (lu) {
+                lu->moves_left = 3;
+                lu->goto_x = cx[slot];
+                lu->goto_y = cy[slot];
+              }
+            }
+            if (!units_try_move(
+                  ctx->units, uid, ctx->map, cx[slot], cy[slot], ctx->colonies, ctx->rng
+                )) {
+              ColonizeUnit* lu = units_get(ctx->units, uid);
+              if (lu) {
+                const int sx0 = lu->x;
+                const int sy0 = lu->y;
+                lu->x = cx[slot];
+                lu->y = cy[slot];
+                units_occupancy_notify_moved(ctx->units, sx0, sy0, lu->x, lu->y);
+              }
+            }
+            {
+              ColonizeUnit* lu = units_get(ctx->units, uid);
+              if (lu) {
+                lu->moves_left = 0; /* landing consumes the turn */
+                if (ctx->map) {
+                  lu->col1_vis_mask |=
+                    units_vis_mask_for_tile(ctx->map, lu->x, lu->y, crown);
+                }
+              }
             }
             map_reveal_radius(ctx->map, cx[slot], cy[slot], crown, 2);
             force[k]--;
@@ -5336,7 +5376,7 @@ static void ai_king_check_revolution_end(ColonizeTurnContext* ctx, int ref_alrea
     }
     if (ai_king_human_popups(ctx)) {
       (void)ai_popup_enqueue_ok_ctx(
-        ctx->ai_popups, AI_POPUP_TAG_INFO, human, crown, 2, "Revolution Failed", body
+        ctx->ai_popups, AI_POPUP_TAG_KING_WAR_END, human, crown, 2, "Revolution Failed", body
       );
     }
     return;
@@ -5364,7 +5404,7 @@ static void ai_king_check_revolution_end(ColonizeTurnContext* ctx, int ref_alrea
     }
     if (ai_king_human_popups(ctx)) {
       (void)ai_popup_enqueue_ok_ctx(
-        ctx->ai_popups, AI_POPUP_TAG_INFO, human, crown, 2, "Revolution Failed", body
+        ctx->ai_popups, AI_POPUP_TAG_KING_WAR_END, human, crown, 2, "Revolution Failed", body
       );
     }
     return;
@@ -5396,7 +5436,7 @@ static void ai_king_check_revolution_end(ColonizeTurnContext* ctx, int ref_alrea
     }
     if (ai_king_human_popups(ctx)) {
       (void)ai_popup_enqueue_ok_ctx(
-        ctx->ai_popups, AI_POPUP_TAG_INFO, human, crown, 2, "Revolution Failed", body
+        ctx->ai_popups, AI_POPUP_TAG_KING_WAR_END, human, crown, 2, "Revolution Failed", body
       );
     }
     return;
@@ -5466,7 +5506,7 @@ static void ai_king_check_revolution_end(ColonizeTurnContext* ctx, int ref_alrea
     if (ai_king_human_popups(ctx)) {
       (void)ai_popup_enqueue_ok_ctx(
         ctx->ai_popups,
-        AI_POPUP_TAG_INFO,
+        AI_POPUP_TAG_KING_WAR_END,
         human,
         crown,
         2,
