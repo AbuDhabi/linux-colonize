@@ -50,10 +50,23 @@ static unsigned ff_bells_threshold_at_elect_count(
   return founding_fathers_bells_needed(&snap, nation);
 }
 
+/*
+ * bugs.md: the Congress debate is persistent in DOS — escaping the popup
+ * re-presents it immediately with the SAME candidates, so the pseudorandom
+ * slate cannot be rerolled by cancelling (or by waiting a turn: the old
+ * code rolled a fresh slate on every enqueue). The rolled slate is kept
+ * here until a candidate is actually chosen.
+ */
+static int s_ff_debate_slate[AI_POPUP_CHOICE_MAX];
+static int s_ff_debate_slate_n;
+static int s_ff_debate_slate_nation = -1;
+
 void founding_fathers_reset(void) {
   memset(s_ff_bells_since_elect, 0, sizeof(s_ff_bells_since_elect));
   memset(s_intervention_bells, 0, sizeof(s_intervention_bells));
   s_ff_pools_initialized = false;
+  s_ff_debate_slate_n = 0;
+  s_ff_debate_slate_nation = -1;
 }
 
 void founding_fathers_stash_pools_into_col1(
@@ -658,6 +671,49 @@ static int ff_debate_pending(const AiPopupState* p) {
   return 0;
 }
 
+/* Enqueue the Congress debate CHOICE from the stored slate (dropping any
+ * candidate elected elsewhere since). False when no usable slate remains. */
+static bool ff_enqueue_debate_from_slate(
+  ColonizeTurnContext* ctx,
+  AiPopupState* popups,
+  int nation_id
+) {
+  if (!ctx || !ctx->col1 || !popups || s_ff_debate_slate_nation != nation_id) {
+    return false;
+  }
+  char labels[AI_POPUP_CHOICE_MAX][AI_POPUP_CHOICE_LEN];
+  const char* choice_ptrs[AI_POPUP_CHOICE_MAX];
+  int ids[AI_POPUP_CHOICE_MAX];
+  int n = 0;
+  for (int i = 0; i < s_ff_debate_slate_n && n < AI_POPUP_CHOICE_MAX; ++i) {
+    const int idx = s_ff_debate_slate[i];
+    if (idx < 0 || idx >= (int)COLONIZE_COL1_FF_COUNT || !ff_unclaimed(ctx->col1, idx)) {
+      continue;
+    }
+    snprintf(labels[n], sizeof(labels[n]), "%s", k_ff_short_names[idx]);
+    choice_ptrs[n] = labels[n];
+    ids[n] = idx;
+    n++;
+  }
+  if (n < 2) {
+    s_ff_debate_slate_n = 0;
+    s_ff_debate_slate_nation = -1;
+    return false;
+  }
+  char body[AI_POPUP_BODY_LEN];
+  popup_msg_fill(
+    ctx->messages,
+    "WHICHFREEDOM",
+    NULL,
+    "The Continental Congress will expand during its next session. Which Founding Father shall we appoint as its next member?",
+    body,
+    sizeof(body)
+  );
+  return ai_popup_enqueue_choice_ctx(
+    popups, AI_POPUP_TAG_FF_CONGRESS, nation_id, -1, 1, NULL, body, choice_ptrs, ids, n
+  );
+}
+
 static int pick_candidate(ColonizeTurnContext* ctx, const ColonizeCol1Save* col1,
                           const ColonizeCol1Nation* nat) {
   const int next = (int)nat->next_founding_father;
@@ -703,7 +759,14 @@ static void ensure_next_candidate(ColonizeTurnContext* ctx, int nation_id) {
     if (ff_debate_pending(ctx->ai_popups)) {
       return;
     }
-    char labels[AI_POPUP_CHOICE_MAX][AI_POPUP_CHOICE_LEN];
+    /* A slate already rolled (and escaped, or carried over) re-presents
+     * verbatim — cancelling or waiting a turn must not reroll it. */
+    if (ff_enqueue_debate_from_slate(ctx, ctx->ai_popups, nation_id)) {
+      if (ctx->status && ctx->status_size > 0) {
+        snprintf(ctx->status, ctx->status_size, "Congress debates founding fathers.");
+      }
+      return;
+    }
     int ids[AI_POPUP_CHOICE_MAX];
     int n = 0;
     for (int type = 0; type < 5 && n < AI_POPUP_CHOICE_MAX; ++type) {
@@ -711,37 +774,15 @@ static void ensure_next_candidate(ColonizeTurnContext* ctx, int nation_id) {
       if (idx < 0) {
         continue;
       }
-      snprintf(labels[n], sizeof(labels[n]), "%s", k_ff_short_names[idx]);
       ids[n] = idx;
       n++;
     }
     if (n >= 2) {
-      const char* choice_ptrs[AI_POPUP_CHOICE_MAX];
-      for (int i = 0; i < n; ++i) {
-        choice_ptrs[i] = labels[i];
-      }
-      char body[AI_POPUP_BODY_LEN];
-      popup_msg_fill(
-        ctx->messages,
-        "WHICHFREEDOM",
-        NULL,
-        "The Continental Congress will expand during its next session. Which Founding Father shall we appoint as its next member?",
-        body,
-        sizeof(body)
-      );
-      (void)ai_popup_enqueue_choice_ctx(
-        ctx->ai_popups,
-        AI_POPUP_TAG_FF_CONGRESS,
-        nation_id,
-        -1,
-        1, /* payload >0: debate apply sets next (not announce OK) */
-        NULL,
-        body,
-        choice_ptrs,
-        ids,
-        n
-      );
-      if (ctx->status && ctx->status_size > 0) {
+      memcpy(s_ff_debate_slate, ids, sizeof(ids[0]) * (size_t)n);
+      s_ff_debate_slate_n = n;
+      s_ff_debate_slate_nation = nation_id;
+      if (ff_enqueue_debate_from_slate(ctx, ctx->ai_popups, nation_id) &&
+          ctx->status && ctx->status_size > 0) {
         snprintf(ctx->status, ctx->status_size, "Congress debates founding fathers.");
       }
       return;
@@ -1350,6 +1391,13 @@ void founding_fathers_apply_popup_result(ColonizeTurnContext* ctx, AiPopupState*
     return;
   }
   if (popups->result_cancelled) {
+    /* DOS: escaping the debate re-presents it at once, same candidates —
+     * the choice is persistent and cannot be rerolled (bugs.md). */
+    if (popups->result_payload > 0) {
+      const int nation =
+        popups->result_nation_a >= 0 ? popups->result_nation_a : ctx->human_nation;
+      (void)ff_enqueue_debate_from_slate(ctx, popups, nation);
+    }
     return;
   }
   /* Peacetime only — Congress debate is gated in ensure_next_candidate. */
@@ -1371,6 +1419,9 @@ void founding_fathers_apply_popup_result(ColonizeTurnContext* ctx, AiPopupState*
   /* Lock candidate first (choose → accumulate → join). Elect if already funded. */
   ColonizeCol1Nation* nat = &ctx->col1->nation[nation];
   nat->next_founding_father = (int16_t)idx;
+  /* Debate answered — the persistent slate is spent. */
+  s_ff_debate_slate_n = 0;
+  s_ff_debate_slate_nation = -1;
   const unsigned needed = founding_fathers_bells_needed(ctx->col1, nation);
   const unsigned pool = founding_fathers_bells_since_last_elect(nation);
   if (pool >= needed) {
