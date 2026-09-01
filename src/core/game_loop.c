@@ -391,6 +391,8 @@ static bool game_move_is_near_human(
   return false;
 }
 
+static void game_map_zoom_view_size(int zoom, int* out_cols, int* out_rows);
+
 static void game_move_watch(
   void* user,
   const ColonizeUnitPool* pool,
@@ -404,29 +406,97 @@ static void game_move_watch(
 ) {
   ColonizeGameState* game = (ColonizeGameState*)user;
   const ColonizeUnit* unit = pool ? units_get_const(pool, unit_id) : NULL;
-  if (!game || !unit || !map || !colonies || !game->platform || !game->col1_ok ||
-      unit->nation_id == game->human_nation) {
+  if (!game || !unit || !map || !colonies || !game->platform || !game->col1_ok) {
     return;
   }
-  const bool show =
-    (unit->nation_id >= 0 && unit->nation_id < 4)
-      ? game->col1.head.game_options.show_foreign_moves != 0
-      : game->col1.head.game_options.show_indian_moves != 0;
-  if (!show || !game_move_is_near_human(game, unit, map, colonies, to_x, to_y)) {
-    return;
+  const bool own = unit->nation_id == game->human_nation;
+  if (!own) {
+    const bool show =
+      (unit->nation_id >= 0 && unit->nation_id < 4)
+        ? game->col1.head.game_options.show_foreign_moves != 0
+        : game->col1.head.game_options.show_indian_moves != 0;
+    if (!show || !game_move_is_near_human(game, unit, map, colonies, to_x, to_y)) {
+      return;
+    }
+    game_set_view_center(game, to_x, to_y);
   }
-  game_set_view_center(game, to_x, to_y);
+
   uint8_t pixels[320 * 200];
   ColonizeFramebuffer8 fb = {.width = 320, .height = 200, .pixels = pixels};
   ColonizePalette pal;
-  game_render(game, &fb, &pal);
-  if (platform_present(game->platform, &fb, &pal)) {
-    const uint32_t delay_ms =
-      game->col1.head.game_options.fast_piece_slide ? 80u : 100u;
-    platform_sleep_ms(delay_ms);
+  const bool fast = game->col1.head.game_options.fast_piece_slide != 0;
+
+  /*
+   * bugs.md: the sprite must visibly travel from the old tile to the new one
+   * — for the player's own units too (a jump-cut reads as "no animation").
+   * Zoom 0 only (16px tiles); the unit is hidden from the base frame and a
+   * chrome'd copy is blitted along the interpolated pixel path at an
+   * eyeball-visible ~25 fps.
+   */
+  bool slid = false;
+  if (game->map_zoom == 0 && game->unit_icons_ok) {
+    int cols = 0;
+    int rows = 0;
+    game_map_zoom_view_size(game->map_zoom, &cols, &rows);
+    int vx = 0;
+    int vy = 0;
+    map_panel_clamp_view_origin(
+      (int)game->world_map.width, (int)game->world_map.height, game->map_view_x,
+      game->map_view_y, cols, rows, &vx, &vy
+    );
+    const int fxl = from_x - vx;
+    const int fyl = from_y - vy;
+    const int txl = to_x - vx;
+    const int tyl = to_y - vy;
+    const int sprite = units_map_sprite(pool, unit_id);
+    if (sprite >= 0 && sprite < game->unit_icons.sprite_count && fxl >= 0 && fyl >= 0 &&
+        fxl < cols && fyl < rows && txl >= 0 && tyl >= 0 && txl < cols && tyl < rows) {
+      ColonizeUnit* mu = units_get(&game->units, unit_id);
+      if (mu) {
+        const int x0 = fxl * 16;
+        const int y0 = MAP_MENU_BAR_H + fyl * 16;
+        const int x1 = txl * 16;
+        const int y1 = MAP_MENU_BAR_H + tyl * 16;
+        const int steps = fast ? 2 : 4;
+        const uint32_t delay_ms = fast ? 30u : 40u;
+        const bool was_active = mu->active;
+        mu->active = false; /* keep the base frame from drawing it at `to` */
+        for (int f = 1; f <= steps; ++f) {
+          game_render(game, &fb, &pal);
+          const int px = x0 + (x1 - x0) * f / steps;
+          const int py = y0 + (y1 - y0) * f / steps;
+          unit_chrome_blit_unit_for_palette(
+            &fb,
+            NULL,
+            &game->unit_icons,
+            sprite,
+            px,
+            py,
+            units_display_type_index(pool, unit_id),
+            unit->nation_id,
+            UNITS_ORDER_NONE,
+            false,
+            false,
+            NULL
+          );
+          if (!platform_present(game->platform, &fb, &pal)) {
+            break;
+          }
+          platform_sleep_ms(delay_ms);
+        }
+        mu->active = was_active;
+        slid = true;
+      }
+    }
   }
-  (void)from_x;
-  (void)from_y;
+
+  if (!slid && !own) {
+    /* Off-screen or zoomed out: keep the old one-frame beat at the arrival. */
+    game_render(game, &fb, &pal);
+    if (platform_present(game->platform, &fb, &pal)) {
+      platform_sleep_ms(fast ? 80u : 100u);
+    }
+  }
 }
 
 /*
@@ -485,8 +555,9 @@ static void game_combat_watch(
     if (!platform_present(game->platform, &fb, &pal)) {
       return;
     }
+    /* bugs.md: 3x slower with fast piece slide on, 6x slower without. */
     platform_sleep_ms(
-      game->col1_ok && game->col1.head.game_options.fast_piece_slide ? 30u : 45u
+      game->col1_ok && game->col1.head.game_options.fast_piece_slide ? 90u : 270u
     );
   }
 }

@@ -1965,6 +1965,22 @@ void units_combat_notify_colony_burned_foreign(
 }
 
 /*
+ * bugs.md: royal (REF) types never change class. "Regulars"/"Cavalry" are the
+ * King's units — a Cavalry winner must not promote into the rebel "Cont. Cav."
+ * type (that chain ended with defeated Regulars demoting into capturable
+ * Colonists), and defeated Regulars are destroyed, not demoted.
+ */
+static int units_type_is_royal_name(const char* n) {
+  if (!n) {
+    return 0;
+  }
+  if (strstr(n, "Regular") != NULL) {
+    return 1;
+  }
+  return strstr(n, "Cavalry") != NULL && strstr(n, "Cont") == NULL;
+}
+
+/*
  * PEDIA George Washington: non-veteran soldier/dragoon who wins combat is
  * automatically upgraded. Name-based type swap (1eca-style) + profession bit
  * so display_name becomes Veteran when @UNIT has no separate Veteran type.
@@ -1983,6 +1999,9 @@ static void units_washington_promote_on_win(
   const ColonizeUnitType* ut = units_type(pool, winner->type_index);
   const char* tname = ut ? ut->name : NULL;
   const char* dname = units_display_name(pool, winner);
+  if (units_type_is_royal_name(tname)) {
+    return; /* bugs.md: REF units never promote into colonial types */
+  }
   if ((dname && (strstr(dname, "Veteran") || strstr(dname, "Continental"))) ||
       (tname &&
        (strstr(tname, "Veteran") || strstr(tname, "Cont.") || strstr(tname, "Continental")))) {
@@ -2145,6 +2164,9 @@ static int units_chance_promote_on_win(
   const ColonizeUnitType* ut = units_type(pool, winner->type_index);
   const char* tname = ut ? ut->name : NULL;
   const char* dname = units_display_name(pool, winner);
+  if (units_type_is_royal_name(tname)) {
+    return 0; /* bugs.md: REF units never promote into colonial types */
+  }
   if ((dname && (strstr(dname, "Veteran") || strstr(dname, "Continental"))) ||
       (tname &&
        (strstr(tname, "Veteran") || strstr(tname, "Cont.") || strstr(tname, "Continental")))) {
@@ -2203,6 +2225,35 @@ static int units_chance_promote_on_win(
     winner->profession = UNITS_JOB_SOLDIER;
   }
   return 1;
+}
+
+/*
+ * bugs.md: a captured unit must not stay mixed into the enemy stack it was
+ * taken from — it changes allegiance AND moves to the captor's tile. The one
+ * exception is a colony tile (colony capture keeps everyone put; the colony
+ * flip handles them).
+ */
+static void units_capture_relocate_to_winner(
+  ColonizeUnitPool* pool, ColonizeUnit* lose, const ColonizeUnit* win
+) {
+  if (!pool || !lose || !win || !units_is_on_map(win)) {
+    return;
+  }
+  if (lose->x == win->x && lose->y == win->y) {
+    return;
+  }
+  if (g_units_combat_colonies &&
+      colonies_id_at(g_units_combat_colonies, lose->x, lose->y) >= 0) {
+    return; /* colony tile: captured colonists stay put */
+  }
+  const int ox = lose->x;
+  const int oy = lose->y;
+  lose->x = win->x;
+  lose->y = win->y;
+  /* Now stands with the captor: share the captor tile's sight stamp. */
+  lose->col1_vis_mask = win->col1_vis_mask;
+  units_occupancy_refresh_tile(pool, ox, oy, -1);
+  units_occupancy_refresh_tile(pool, lose->x, lose->y, -1);
 }
 
 /*
@@ -2281,6 +2332,7 @@ static int units_apply_land_loss_outcome(
       units_set_nation(lose, win->nation_id);
       lose->orders = UNITS_ORDER_NONE;
       lose->moves_left = 0;
+      units_capture_relocate_to_winner(pool, lose, win);
       if (human) {
         PopupMsgTokens tok;
         memset(&tok, 0, sizeof(tok));
@@ -2323,6 +2375,7 @@ static int units_apply_land_loss_outcome(
       units_set_nation(lose, win->nation_id);
       lose->orders = UNITS_ORDER_NONE;
       lose->moves_left = 0;
+      units_capture_relocate_to_winner(pool, lose, win);
       if (human) {
         PopupMsgTokens tok;
         memset(&tok, 0, sizeof(tok));
@@ -3661,6 +3714,27 @@ bool units_resolve_land_combat(
   return units_resolve_land_combat_ff(pool, attacker_id, defender_id, rng, g_units_ff_col1);
 }
 
+/*
+ * bugs.md: mounted units (Dragoons, Scouts, Cavalry, Cont. Cav., Mtd.
+ * Braves/Warriors) get one attack per turn — any combat drains all their
+ * remaining moves, win or lose.
+ */
+static void units_mounted_attack_spend_all(ColonizeUnitPool* pool, int attacker_id) {
+  ColonizeUnit* a = units_get(pool, attacker_id);
+  if (!a || !a->active) {
+    return;
+  }
+  const ColonizeUnitType* t = units_type(pool, a->type_index);
+  const char* n = t ? t->name : NULL;
+  const bool mounted =
+    a->horses > 0 ||
+    (n && (strstr(n, "Dragoon") || strstr(n, "Cavalry") || strstr(n, "Cav.") ||
+           strstr(n, "Scout") || strstr(n, "Mtd") || strstr(n, "Mounted")));
+  if (mounted) {
+    a->moves_left = 0;
+  }
+}
+
 bool units_resolve_land_combat_ff(
   ColonizeUnitPool* pool,
   int attacker_id,
@@ -3828,6 +3902,7 @@ bool units_resolve_land_combat_ff(
      * (units_finish_village_temp_defender). Killing a map Brave on the tile
      * leaves the dwelling intact. Cite: FUN_5fef_1b0e bVar28 path.
      */
+    units_mounted_attack_spend_all(pool, attacker_id);
     g_units_last_combat = 1;
     return true;
   }
@@ -3848,6 +3923,7 @@ bool units_resolve_land_combat_ff(
       pool, def, col1, eng.atk_strength, eng.def_strength, eng.roll, rng
     );
   }
+  units_mounted_attack_spend_all(pool, attacker_id);
   g_units_last_combat = -1;
   return false;
 }
@@ -8094,6 +8170,11 @@ const char* units_display_name(const ColonizeUnitPool* pool, const ColonizeUnit*
     return "Unit";
   }
   const ColonizeUnitType* ut = pool ? units_type(pool, unit->type_index) : NULL;
+  /* bugs.md: damaged artillery (bit7, −2 combat) reads "Damaged Artillery". */
+  if (ut && combat_type_is_artillery_name(ut->name) && (unit->col1_unknown15 & 0x80u) != 0) {
+    snprintf(buf, sizeof(buf), "Damaged %s", ut->name);
+    return buf;
+  }
   const bool armed = unit->muskets > 0;
   const bool mounted = unit->horses > 0;
   const bool has_tools = unit->tools > 0;

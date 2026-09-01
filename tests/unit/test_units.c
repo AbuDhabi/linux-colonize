@@ -1540,7 +1540,8 @@ static int unit_stack_one_click_wakes_and_selects(void) {
     fprintf(stderr, "stack_pick: popup should open with ship+passenger\n");
     return 1;
   }
-  /* Keyboard pick of the passenger row (same path as a row click). */
+  /* bugs.md two-step: the first pick on an ordered row only cancels its
+   * orders and keeps the popup open; the second pick activates and closes. */
   dlg.selection = (dlg.ids[0] == pax) ? 0 : 1;
   ColonizeInputState in;
   memset(&in, 0, sizeof(in));
@@ -1548,20 +1549,25 @@ static int unit_stack_one_click_wakes_and_selects(void) {
   int sel = -1;
   unit_stack_handle_input(&dlg, &pool, &in, &sel);
   pu = units_get(&pool, pax);
-  if (sel != pax || dlg.open) {
-    fprintf(stderr, "stack_pick: one pick must select and close (sel=%d open=%d)\n", sel, dlg.open);
+  if (sel != -1 || !dlg.open) {
+    fprintf(stderr, "stack_pick: first pick must only cancel (sel=%d open=%d)\n", sel, dlg.open);
     return 1;
   }
   if (pu->orders != 0 || pu->moves_left <= 0) {
     fprintf(
       stderr,
-      "stack_pick: pick must wake the passenger (orders=%d mp=%d)\n",
+      "stack_pick: first pick must wake the passenger (orders=%d mp=%d)\n",
       pu->orders,
       pu->moves_left
     );
     return 1;
   }
-  fprintf(stderr, "unit_units: stack picker one-click wake+select ok\n");
+  unit_stack_handle_input(&dlg, &pool, &in, &sel);
+  if (sel != pax || dlg.open) {
+    fprintf(stderr, "stack_pick: second pick must select and close (sel=%d open=%d)\n", sel, dlg.open);
+    return 1;
+  }
+  fprintf(stderr, "unit_units: stack picker two-step cancel+activate ok\n");
   return 0;
 }
 
