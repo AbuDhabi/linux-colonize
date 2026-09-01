@@ -70,7 +70,8 @@ typedef enum GameMapConfirm {
   GAME_MAP_CONFIRM_TRADE_DELETE,
   GAME_MAP_CONFIRM_TITLE_EXIT,
   GAME_MAP_CONFIRM_BUY_CONSTRUCTION,
-  GAME_MAP_CONFIRM_FOUND_INLAND
+  GAME_MAP_CONFIRM_FOUND_INLAND,
+  GAME_MAP_CONFIRM_EUROPE_SAIL
 } GameMapConfirm;
 
 /* Hall of Fame: ranked table of retired Colonization Scores, persisted to
@@ -528,6 +529,7 @@ static bool game_load_col1_slot(ColonizeGameState* game, int slot, char* err, si
 static bool game_save_col1_slot(ColonizeGameState* game, int slot, char* err, size_t err_size);
 static void game_do_buy_construction(ColonizeGameState* game, int colony_id);
 static void game_request_buy_construction_confirm(ColonizeGameState* game);
+static void game_europe_sail_harbor(ColonizeGameState* game, int hidx);
 
 typedef struct BeginMenuLayout {
   int dialog_x;
@@ -1210,6 +1212,9 @@ static void game_apply_map_confirm(ColonizeGameState* game) {
       break;
     case GAME_MAP_CONFIRM_FOUND_INLAND:
       (void)game_do_found_colony_at_unit(game, payload, false);
+      break;
+    case GAME_MAP_CONFIRM_EUROPE_SAIL:
+      game_europe_sail_harbor(game, payload);
       break;
     default:
       break;
@@ -6894,6 +6899,12 @@ static void game_colony_assign_building_drop(ColonizeGameState* game, int buildi
   ColonyScreenView* csv = &game->colony_screen;
   if (building_index < 0) {
     set_status(game, "Build it first", NULL);
+  } else if (!colonies_building_workable(&game->colonies, building_index)) {
+    /* bugs.md: refuse BEFORE resolving the colonist — the resolver admits an
+     * outside unit into the colony as a side effect, and a failing drop onto
+     * e.g. the Printing Press was consuming it as an invisible unassigned
+     * colonist ("vanishes the colonist"). */
+    set_status(game, "No one works there", NULL);
   } else {
     const int ci = game_colony_selected_colonist(game);
     if (ci < 0) {
@@ -7177,6 +7188,24 @@ static void game_europe_sail_harbor(ColonizeGameState* game, int hidx) {
   }
 }
 
+/* bugs.md: DOS confirms before leaving port — GAME.TXT @SAILAWAY ("Shall we
+ * set sail for the New World?" Yes/No). Every sail entry point asks first. */
+static void game_europe_request_sail(ColonizeGameState* game, int hidx) {
+  EuropeScreen* eu = &game->europe;
+  if (eu->harbor_ships <= 0 || hidx < 0 || hidx >= eu->harbor_ships) {
+    snprintf(eu->status, sizeof(eu->status), "%s", "No ships in harbor.");
+    return;
+  }
+  game_enqueue_yes_no(
+    game,
+    GAME_MAP_CONFIRM_EUROPE_SAIL,
+    hidx,
+    "SAILAWAY",
+    "Shall we set sail for the New World, Your Excellency?",
+    NULL
+  );
+}
+
 static bool game_europe_drag_drop(ColonizeGameState* game, int mx, int my) {
   EuropeScreen* eu = &game->europe;
   UiDragSession* drag = &game->ui_drag;
@@ -7208,7 +7237,7 @@ static bool game_europe_drag_drop(ColonizeGameState* game, int mx, int my) {
     }
   } else if (kind == UI_DRAG_EUROPE_HARBOR_SHIP) {
     if (hit.kind == EUROPE_HIT_BOUND) {
-      game_europe_sail_harbor(game, drag->index);
+      game_europe_request_sail(game, drag->index);
     }
   } else if (kind == UI_DRAG_EUROPE_EXPECTED_SHIP) {
     if (hit.kind == EUROPE_HIT_BOUND) {
@@ -10498,7 +10527,7 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
     if (input->last_key == COLONIZE_KEY_S) {
       /* DOS: S sails the selected ship for the New World. */
       if (eu->selected_harbor >= 0) {
-        game_europe_sail_harbor(game, eu->selected_harbor);
+        game_europe_request_sail(game, eu->selected_harbor);
       } else {
         snprintf(eu->status, sizeof(eu->status), "%s", "Select a ship first.");
       }
@@ -10662,7 +10691,7 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
 
     if (input->last_key == COLONIZE_KEY_S) {
       const int hidx = eu->selected_harbor >= 0 ? eu->selected_harbor : 0;
-      game_europe_sail_harbor(game, hidx);
+      game_europe_request_sail(game, hidx);
       return true;
     } else if (input->last_key == COLONIZE_KEY_RIGHTBRACKET) {
       europe_cheat_add_gold(eu, 1000);

@@ -1140,6 +1140,33 @@ int colonies_building_worker_count(const ColonizeColony* colony, int building_ty
   return n;
 }
 
+/*
+ * bugs.md: only buildings with a real @JOB worker slot accept colonists.
+ * Passive/structural buildings (fortifications, docks chain, Warehouse,
+ * Stable, Custom House, Printing Press/Newspaper, Capitol) have no crew —
+ * assigning there must be refused BEFORE any admit side effect.
+ */
+bool colonies_building_workable(const ColonizeColonyPool* pool, int building_type) {
+  if (!pool || building_type < 0 || building_type >= pool->building_type_count) {
+    return false;
+  }
+  const char* bn = pool->building_types[building_type].name;
+  if (!bn || !bn[0]) {
+    return false;
+  }
+  static const char* const k_no_slot[] = {
+    "Stockade", "Fort", "Fortress", "Docks", "Drydock", "Shipyard",
+    "Warehouse", "Stable", "Custom House", "Printing Press", "Newspaper",
+    "Capitol"
+  };
+  for (size_t i = 0; i < sizeof(k_no_slot) / sizeof(k_no_slot[0]); ++i) {
+    if (strstr(bn, k_no_slot[i]) != NULL) {
+      return false;
+    }
+  }
+  return true;
+}
+
 bool colonies_assign_workplace(
   ColonizeColonyPool* pool,
   int colony_id,
@@ -1163,17 +1190,8 @@ bool colonies_assign_workplace(
   if (!col->has_building[building_type]) {
     return false;
   }
-  {
-    /* Custom House, Printing Press and Newspaper have no worker slot at
-     * all — no `@JOB` entry, colony-wide passive/multiplier buildings only
-     * (player-reported: port let a colonist be dragged onto them anyway).
-     * Match colony_screen_building_production_badge's own Printing-Press
-     * exclusion. */
-    const char* bn = pool->building_types[building_type].name;
-    if (bn && (strstr(bn, "Custom House") != NULL || strstr(bn, "Printing Press") != NULL ||
-               strstr(bn, "Newspaper") != NULL)) {
-      return false;
-    }
+  if (!colonies_building_workable(pool, building_type)) {
+    return false;
   }
   /* @MORETHANTHREE: at most 3 colonists per building (manual ch. 6 / schools
    * teacher+students). No-op reassignment (already working there) is fine. */

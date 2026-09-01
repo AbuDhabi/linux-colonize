@@ -4230,7 +4230,9 @@ int main(void) {
     }
   }
 
-  /* §C rare Merchantman: year≥1600, turn%8==0, peacetime. */
+  /* §C rare Merchantman: year≥1600, turn%8==0, peacetime, AND the DOS
+   * warship-threat gate (bugs.md free_merchanman: an own colony within 5
+   * tiles of a foreign Frigate / >3 other armed ships). */
   {
     ColonizeUnitPool units;
     memset(&units, 0, sizeof(units));
@@ -4238,7 +4240,20 @@ int main(void) {
     snprintf(units.types[0x11].name, sizeof(units.types[0x11].name), "Merchantman");
     units.types[0x11].domain = COLONIZE_UNIT_DOMAIN_SEA;
     units.types[0x11].movement = 5;
+    snprintf(units.types[0x10].name, sizeof(units.types[0x10].name), "Frigate");
+    units.types[0x10].domain = COLONIZE_UNIT_DOMAIN_SEA;
+    units.types[0x10].movement = 6;
+    units.types[0x10].attack = 16;
     units.type_count = 0x12;
+
+    ColonizeColonyPool tcolonies;
+    colonies_init(&tcolonies);
+    tcolonies.colonies[0].active = true;
+    tcolonies.colonies[0].id = 0;
+    tcolonies.colonies[0].nation_id = 0;
+    tcolonies.colonies[0].x = 10;
+    tcolonies.colonies[0].y = 10;
+    tcolonies.colony_count = 1;
 
     uint16_t year = 1600;
     uint16_t autumn = 0;
@@ -4249,12 +4264,30 @@ int main(void) {
     memset(&ctx, 0, sizeof(ctx));
     ctx.human_nation = 0;
     ctx.units = &units;
+    ctx.colonies = &tcolonies;
     ctx.game_year = &year;
     ctx.game_autumn = &autumn;
     ctx.turn_number = &turn_number;
     ctx.status = status;
     ctx.status_size = sizeof(status);
 
+    /* Without a threat the spawn must NOT fire. */
+    turn_run_nation_ticks(&ctx, NULL);
+    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+      const ColonizeUnit* u = &units.units[i];
+      if (u->active && u->nation_id == 0 && (u->col1_unknown15 & 0x40u) != 0) {
+        fprintf(stderr, "immigrant ship must not spawn with no warship threat\n");
+        return 1;
+      }
+    }
+    /* Foreign Frigate 2 tiles from the colony arms the gate. */
+    {
+      const int fid = units_spawn_allow_stack(&units, 0x10, 12, 12);
+      ColonizeUnit* fu = units_get(&units, fid);
+      if (fu) {
+        units_set_nation(fu, 1);
+      }
+    }
     turn_run_nation_ticks(&ctx, NULL);
     int found = 0;
     int dur = -1;

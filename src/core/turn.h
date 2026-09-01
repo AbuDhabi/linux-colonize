@@ -138,6 +138,9 @@ void turn_colony_free_production(
 );
 
 /* Production for every active colony (used by turn_end). map/col1/europe may be NULL. */
+/* Hand the unit pool in so births land ON the colony tile (NULL = old
+ * join-colony fallback for headless callers). */
+void turn_set_birth_units_pool(ColonizeUnitPool* units);
 void turn_run_colony_production(
   ColonizeColonyPool* pool,
   const ColonizeWorldMap* map,
