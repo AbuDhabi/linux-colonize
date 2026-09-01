@@ -648,6 +648,9 @@ void combat_naval_engage(
   combat_side_flags_clear(&out->def_flags);
   out->atk_strength = combat_unit_base_x8(ctx, attacker_id, 1, &out->atk_flags);
   out->def_strength = combat_unit_base_x8(ctx, defender_id, 0, &out->def_flags);
+  /* bugs.md: attacking ships get the same +50% attack factor land attackers
+   * do (the land formula's ×3/2 tail was never applied at sea). */
+  out->atk_strength += out->atk_strength >> 1;
   if (out->atk_strength < 0) {
     out->atk_strength = 0;
   }

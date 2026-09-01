@@ -58,6 +58,10 @@ uint8_t unit_chrome_nation_color(int nation_id);
  * (-1 = none; set each frame by the game loop while independence is
  * declared). */
 void unit_chrome_set_crown_nation(int nation_id);
+/* bugs.md WoI flags: rebel (human) nation — its colonies fly the American
+ * flag; crown-held colonies fly this nation's original color. Cleared
+ * automatically when the crown nation is set to -1. */
+void unit_chrome_set_rebel_nation(int nation_id);
 /* -1 outside the WoI; else the crown's borrowed nation slot. */
 int unit_chrome_crown_nation(void);
 

@@ -638,6 +638,14 @@ typedef void (*ColonizeUnitsCombatWatchFn)(
 void units_set_combat_watch(ColonizeUnitsCombatWatchFn fn, void* user);
 
 /*
+ * bugs.md: combat popups are presented per-combat, not hoarded until the AI
+ * slice ends. The hook runs a nested modal loop draining the ai_popup queue
+ * after each combat resolution; headless callers leave it unset.
+ */
+typedef void (*ColonizeUnitsPopupPumpFn)(void* user);
+void units_set_combat_popup_pump(ColonizeUnitsPopupPumpFn fn, void* user);
+
+/*
  * Land combat (FUN_157e / FUN_5fef_1b0e peel): attacker base×8 (004a mode 1);
  * defender engagement (015e: colony/village/terrain/fortify). Probability =
  * atk/(atk+def). Optional Combat Analysis presenter after strengths, before

@@ -2031,10 +2031,16 @@ void turn_run_nation_ticks(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
       ctx->col1->nation[ctx->human_nation].current_crosses = ctx->europe->current_crosses;
       ctx->col1->nation[ctx->human_nation].needed_crosses = ctx->europe->needed_crosses;
     }
-    const int imm = europe_tick_immigration_pressure(
-      ctx->europe, ctx->colonies, ctx->units, ctx->col1_ok ? ctx->col1 : NULL, ctx->human_nation,
-      ctx->rng
-    );
+    /* bugs.md: no immigration during the War of Independence — Europe is
+     * closed to the rebels (user-observed DOS; the dock is unreachable
+     * anyway once the WoI blocks the European Status). */
+    const int woi_now =
+      ctx->col1_ok && ctx->col1 && ctx->col1->head.game_options.woi != 0;
+    const int imm = woi_now ? 0
+                            : europe_tick_immigration_pressure(
+                                ctx->europe, ctx->colonies, ctx->units,
+                                ctx->col1_ok ? ctx->col1 : NULL, ctx->human_nation, ctx->rng
+                              );
     if (imm == 2) {
       /* Brewster: player picks from the pool (@RECRUITCHOOSE); applied via
        * units_brewster_apply_popup in game_loop, crosses kept until then. */
@@ -2287,6 +2293,98 @@ void turn_tally_professions(
 }
 
 /*
+ * bugs.md: damaged ships have a homing system — the nearest OWN colony with
+ * a Drydock; a nation with no such colony sends them to Europe when Europe
+ * is friendly: the pre-WoI human's ships sail home as an Expected-Soon
+ * voyage (that voyage IS the repair timeout — they arrive repaired), and a
+ * damaged Tory Man-O-War sails back to the King's dockyards (despawn; the
+ * next wave draws on the fleet pool). AI peers with no drydock keep the old
+ * stay-put behavior. Runs each nation phase, after units_tick_drydock_repair.
+ */
+static void turn_route_damaged_ships(ColonizeTurnContext* ctx, int nation) {
+  if (!ctx || !ctx->units || !ctx->colonies || nation < 0 || nation > 3) {
+    return;
+  }
+  const int woi =
+    ctx->col1_ok && ctx->col1 && ctx->col1->head.game_options.woi != 0;
+  const int crown =
+    woi ? ai_king_crown_nation(ctx->human_nation) : -1;
+  const int drydock = colonies_find_building(ctx->colonies, "Drydock");
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    ColonizeUnit* u = &ctx->units->units[i];
+    if (!u->active || u->nation_id != nation || u->aboard_ship_id >= 0) {
+      continue;
+    }
+    if (!units_is_sea(ctx->units, u->id) || (u->col1_unknown15 & 0x80u) == 0) {
+      continue;
+    }
+    const ColonizeUnitType* ty = units_type(ctx->units, u->type_index);
+    const int thresh = ty && ty->defense > 0 ? ty->defense : 4;
+    if (u->turns_worked < thresh) {
+      continue; /* still under construction — build tick owns bit7 */
+    }
+    /* Already sitting on an own Drydock colony: the repair tick handles it. */
+    const int cid = colonies_id_at(ctx->colonies, u->x, u->y);
+    const ColonizeColony* here = colonies_get(ctx->colonies, cid);
+    if (here && here->active && here->nation_id == nation && drydock >= 0 &&
+        here->has_building[drydock]) {
+      continue;
+    }
+    /* Nearest own Drydock colony (recomputed here: the one picked at combat
+     * time may since have been captured). */
+    const ColonizeColony* best = NULL;
+    long best_d = -1;
+    if (drydock >= 0) {
+      for (int k = 0; k < COLONIZE_COLONIES_MAX; ++k) {
+        const ColonizeColony* c = &ctx->colonies->colonies[k];
+        if (!c->active || c->nation_id != nation || !c->has_building[drydock]) {
+          continue;
+        }
+        const long dx = c->x - u->x;
+        const long dy = c->y - u->y;
+        const long d = dx * dx + dy * dy;
+        if (best_d < 0 || d < best_d) {
+          best_d = d;
+          best = c;
+        }
+      }
+    }
+    if (best) {
+      const int ox = u->x;
+      const int oy = u->y;
+      u->x = best->x;
+      u->y = best->y;
+      units_occupancy_notify_moved(ctx->units, ox, oy, best->x, best->y);
+      continue;
+    }
+    if (nation == crown) {
+      /* Tory Man-O-War limps home to the King — despawn_ship_with_cargo
+       * also removes any stragglers still aboard. */
+      (void)units_despawn_ship_with_cargo(
+        ctx->units, u->id, NULL, NULL, 0, NULL, NULL, 0, NULL, NULL, 0
+      );
+      continue;
+    }
+    if (nation == ctx->human_nation && !woi && ctx->europe && u->cargo_count == 0) {
+      const int turns = europe_voyage_turns_roll(ctx->rng, false, 1);
+      if (europe_enqueue_expected(
+            ctx->europe, u->type_index, ty ? ty->name : "Ship", NULL, NULL, 0,
+            u->hold_goods_type, u->hold_goods_amount, u->x, u->y, true, turns
+          )) {
+        if (ctx->status && ctx->status_size > 0) {
+          snprintf(
+            ctx->status, ctx->status_size, "%s sails to Europe for repairs.",
+            ty && ty->name[0] ? ty->name : "Damaged ship"
+          );
+        }
+        u->col1_unknown15 = (uint8_t)(u->col1_unknown15 & 0x7fu); /* repaired abroad */
+        units_despawn(ctx->units, u->id);
+      }
+    }
+  }
+}
+
+/*
  * FUN_43f7_2424 war dispatch: once independence is declared the crown slot
  * is the REF, driven by ai_king_nation_turn's 2022 branch (wave + war_act),
  * not the ordinary Euro unit AI. Running ai_euro_nation_turn on it first
@@ -2339,6 +2437,7 @@ void turn_run_european_ai_stubs(ColonizeTurnContext* ctx) {
       ctx->ai_popups,
       ctx->messages
     );
+    turn_route_damaged_ships(ctx, n);
     if (turn_euro_nation_is_ref(ctx, n)) {
       continue; /* REF: ai_king_nation_turn (war_act) moves these units. */
     }
@@ -2688,6 +2787,11 @@ void turn_run_year_end_chrome(ColonizeTurnContext* ctx, ColonizeTurnResult* out)
       if (ctx->col1_ok && ctx->col1) {
         ctx->col1->head.game_options.calendar_latch = 1;
         ctx->col1->head.turn_loop_running = 0;
+        /* bugs.md: keep the endgame latch in step so the @LOSING game-over
+         * chain (retire score) recognizes the war as over too. */
+        if (ai_king_latch_get(ctx->col1, AI_KING_ENDGAME_BYTE) == AI_KING_ENDGAME_NONE) {
+          ai_king_latch_set(ctx->col1, AI_KING_ENDGAME_BYTE, AI_KING_ENDGAME_LOST);
+        }
       }
       if (ctx->status && ctx->status_size > 0) {
         snprintf(ctx->status, ctx->status_size, "The revolution is crushed.");
@@ -2946,6 +3050,7 @@ bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ct
             ctx->ai_popups,
             ctx->messages
           );
+          turn_route_damaged_ships(ctx, n);
           if (want_eu && n == ctx->human_nation) {
             proc->result.request_europe_open = true;
           }
@@ -3081,6 +3186,7 @@ bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ct
           ctx->ai_popups,
           ctx->messages
         );
+        turn_route_damaged_ships(ctx, ctx->human_nation);
         if (want_eu) {
           proc->result.request_europe_open = true;
         }

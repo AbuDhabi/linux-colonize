@@ -6228,7 +6228,9 @@ int main(void) {
       }
       pool.types[priv].attack = 16;
       pool.types[priv].defense = 8;
-      pool.types[car].attack = 2;
+      /* bugs.md: seizure fires only for UNARMED transports (attack 0, as in
+       * real NAMES.TXT); a warship loser is damage-or-sink only. */
+      pool.types[car].attack = 0;
       pool.types[car].defense = 2;
       const int aid = units_spawn_allow_stack(&pool, priv, 4, 4);
       const int did = units_spawn_allow_stack(&pool, car, 5, 4);
