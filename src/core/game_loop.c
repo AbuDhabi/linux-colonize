@@ -1932,8 +1932,15 @@ static void game_apply_ai_popup_result(ColonizeGameState* game) {
               &game->units, ship_id, pax_id, &game->world_map, dest_x, dest_y, &game->colonies
             )) {
           /* bugs.md: landfall costs the SHIP nothing — the passengers move,
-           * not the ship (their step ashore is charged in unload). The old
-           * 1 MP "coastal order" charge on the ship was invented. */
+           * not the ship. The old 1 MP "coastal order" charge on the ship
+           * was invented. The passenger's landfall step, however, consumes
+           * its WHOLE turn, not just the shore terrain cost. */
+          {
+            ColonizeUnit* pax = units_get(&game->units, pax_id);
+            if (pax) {
+              pax->moves_left = 0;
+            }
+          }
           game->units.selected_id = pax_id;
           snprintf(game->status, sizeof(game->status), "Landfall at (%d,%d)", dest_x, dest_y);
           game_after_unit_action(game);
