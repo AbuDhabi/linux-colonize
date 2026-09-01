@@ -285,6 +285,21 @@ struct ColonizeGameState {
   ColonizeTurnProcessor turn_proc;
   ColonizePalette map_palette;
   bool map_palette_ok;
+  /*
+   * CYCLE.DAT water palette-cycle table (DOS FUN_1a0a_0004/007a). Each entry
+   * rotates `length` DAC triples starting at palette index `start`, one step
+   * per `rate` ticks of the 60.877 Hz DS:0x92e8 clock (IRQ0 ÷10). Retail
+   * file: one entry, start 0x78, length 8, rate 0x23 (~575 ms/step) — the 8
+   * water-sparkle blues used by the sea-lane tile, PHYS0 rivers/coast
+   * corners and swamp.
+   */
+  struct {
+    uint8_t start;
+    uint8_t length;
+    uint32_t step_ms;
+    uint32_t last_ms;
+  } water_cycle[8];
+  int water_cycle_count;
   bool in_debug_atlas;
   DebugAtlas debug_atlas;
   char menu_options[MENU_MAX_OPTIONS][COLONIZE_MSG_LINE_LEN];
@@ -4826,6 +4841,102 @@ static void fill_fallback_palette(ColonizePalette* palette) {
 static void game_hof_load(ColonizeGameState* game);
 static void game_hof_save(const ColonizeGameState* game);
 
+/*
+ * CYCLE.DAT: uint16 count + up to 8 records of [length, phase, start, rate]
+ * loaded raw to DS:0x929e by DOS FUN_7a9d_0004; FUN_1a0a_0004 zeroes the
+ * phase bytes on map-screen entry. rate is in ticks of the 60.877 Hz
+ * DS:0x92e8 counter (IRQ0 at PIT divisor 0x7a8 = 608.77 Hz, ÷2 ÷5 in the
+ * ISR); one step rotates the `length` palette triples at
+ * `start` one index upward (rgb[start] takes rgb[start+length-1]'s place at
+ * the top, everything else shifts up by one).
+ */
+static void game_load_cycle_dat(ColonizeGameState* game) {
+  game->water_cycle_count = 0;
+  char path[512];
+  if (!dos_compat_normalize_asset_path(game->resolved_data_dir, "CYCLE.DAT", path, sizeof(path))) {
+    return;
+  }
+  FILE* f = fopen(path, "rb");
+  if (!f) {
+    return;
+  }
+  uint8_t raw[34];
+  const size_t n = fread(raw, 1, sizeof(raw), f);
+  fclose(f);
+  if (n < 2) {
+    return;
+  }
+  int count = raw[0] | (raw[1] << 8);
+  if (count > 8) {
+    count = 8;
+  }
+  for (int i = 0; i < count; ++i) {
+    const size_t off = 2 + (size_t)i * 4;
+    if (off + 4 > n) {
+      break;
+    }
+    const uint8_t length = raw[off + 0];
+    const uint8_t start = raw[off + 2];
+    const uint8_t rate = raw[off + 3];
+    if (length < 2 || (int)start + (int)length > 256) {
+      continue;
+    }
+    const int slot = game->water_cycle_count++;
+    game->water_cycle[slot].start = start;
+    game->water_cycle[slot].length = length;
+    /*
+     * ticks → ms. The IRQ0 fires at 1193182/0x7a8 = 608.77 Hz, but the
+     * DS:0x92e8 counter FUN_1c0c_0006 reads (via the DS:0x267a far ptr) only
+     * increments on every 2nd IRQ × every 5th pass of the DS:0x376 countdown
+     * (ISR at 1a29:0004, bytes 0x15/0x65/0x7b/0xb1) — a 60.877 Hz tick.
+     * Retail rate 0x23 → ~575 ms/step.
+     */
+    game->water_cycle[slot].step_ms = ((uint32_t)rate * 164270u) / 10000u;
+    game->water_cycle[slot].last_ms = 0;
+  }
+  if (game->water_cycle_count > 0) {
+    diag_info(
+      "Loaded CYCLE.DAT: %d cycle(s), first start=%u len=%u step=%ums",
+      game->water_cycle_count,
+      game->water_cycle[0].start,
+      game->water_cycle[0].length,
+      game->water_cycle[0].step_ms
+    );
+  }
+}
+
+/*
+ * DOS FUN_1a0a_007a runs from the IRQ0 path whenever DS:0x372 is set —
+ * i.e. while the map screen owns the display and 0x5383 bit0 (Water Color
+ * Cycling off) is clear — including under popups and during AI turns. Here:
+ * rotate the live map palette in place; game_render copies it out per frame,
+ * which is this port's DAC write.
+ */
+static void game_water_cycle_tick(ColonizeGameState* game) {
+  if (game->water_cycle_count == 0 || !game->map_palette_ok || game->in_menu ||
+      game->in_colony || game->in_europe || game->in_pedia || game->in_report ||
+      game->in_debug_atlas || game->in_hall_of_fame || game->in_exploits ||
+      game->woodcut.open || game->declaration.open) {
+    return;
+  }
+  if (game->col1.head.game_options.water_color_cycling != 0) { /* bit set = off */
+    return;
+  }
+  for (int i = 0; i < game->water_cycle_count; ++i) {
+    if (game->elapsed_ms - game->water_cycle[i].last_ms < game->water_cycle[i].step_ms) {
+      continue;
+    }
+    game->water_cycle[i].last_ms = game->elapsed_ms;
+    const int start = game->water_cycle[i].start;
+    const int len = game->water_cycle[i].length;
+    uint8_t (*rgb)[3] = game->map_palette.rgb;
+    uint8_t top[3];
+    memcpy(top, rgb[start + len - 1], 3);
+    memmove(rgb[start + 1], rgb[start], (size_t)(len - 1) * 3);
+    memcpy(rgb[start], top, 3);
+  }
+}
+
 ColonizeGameState* game_create(const ColonizeGameConfig* config) {
   ColonizeGameState* game = calloc(1, sizeof(*game));
   if (!game || !config) {
@@ -5123,6 +5234,8 @@ ColonizeGameState* game_create(const ColonizeGameConfig* config) {
       diag_warn("Failed to load TERRAIN.SS: %s", ss_err);
     }
   }
+
+  game_load_cycle_dat(game);
   if (dos_compat_normalize_asset_path(game->resolved_data_dir, "PHYS0.SS", ss_path, sizeof(ss_path))) {
     if (ss_load(ss_path, &game->phys0, ss_err, sizeof(ss_err))) {
       game->phys0_ok = true;
@@ -8843,6 +8956,7 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
   game->elapsed_ms += dt_ms;
   (void)dos_compat_tick_count();
   sound_service();
+  game_water_cycle_tick(game);
 
   /* End-of-turn nation phases: advance one slice per frame; block other input. */
   if (turn_processor_active(&game->turn_proc)) {
