@@ -265,17 +265,26 @@ dual column. Shown **before** the combat roll (strengths known; no outcome yet).
 - Village Attack (empty tile): `FUN_5fef_1b0e` temp Brave spawn (not nearby
   pull) so strengths / Analysis run before the roll; dwelling `population`
   drains on win
-- Layout:
+- Layout (FUN_636c_0000 draw pass): frame `w=0xd6` at `x=0x35`, row pitch
+  `0x14`, height by tallest column, vertically centered (frame widens past
+  DOS 214 only when a label+value row can’t fit its half column in
+  FONTINTR — DOS overdraws there instead).
   1. Centered title `COMBAT ANALYSIS` (LABELS.TXT)
-  2. Attacker chrome + **baseline** strength … defender baseline + chrome
-     (`NAMES` attack/defense byte from `base_combat` / DOS `-0x72fa` — not the
-     post-×8 roll weight)
-  3. Modifier rows per side (empty cell when that side has no matching flag)
-- Flag lines (LABELS-shaped): **Attack Bonus +50%** (land ×3/2), Veteran,
-  Drake, Cargo, Terrain, Village, Colony/Stockade/Fortress, Fortified,
-  Artillery In Open, Artillery Vs. Raid, Spain Bonus, Expeditionary Force,
-  Tories/Rebels (WoI support %). No unit-name dump, no “Combat N”, no roll,
-  no Victory/Defeat.
+  2. Header row per column: unit chrome + type name, **baseline** strength
+     right-aligned (`NAMES` attack/defense byte from `base_combat` / DOS
+     `-0x72fa` — not the post-×8 roll weight)
+  3. Modifier rows per side: label left, `±N%` value right-aligned at the
+     column edge (DOS 013c label / 0150 value split)
+- Flag rows (LABELS-shaped, DOS check order): Veteran, Cargo, **Attack
+  Bonus** (land ×3/2), Expeditionary Force, Tories/Rebels (WoI support %),
+  Ambush (attacker terrain, DOS `0x2e56`) / Terrain (defender `0x2e58`),
+  Colony/Stockade/Fortress, village row labeled with the **tribe name**
+  (LABELS has no "Village"), Artillery In Open, Artillery Vs. Raid,
+  Fortified, Spain Bonus, Drake. No roll, no Victory/Defeat.
+- Not ported from DOS 636c: Fatigue −33%/−66% rows (bits `0x100`/`a156&8` —
+  strength calc doesn’t model fatigue), the 0x400 sprite row (label
+  `0x97de`, unidentified), row icons for terrain/colony/village lines, and
+  the cheat-mode (`0x5383&0x20`) final-weight footer rows.
 - Roll still uses post-modifier odds weights (`atk` / `def` in
   `roll 1..(atk+def)`); those values are not printed in the header.
 - Input: Esc / Enter / Space / click dismiss

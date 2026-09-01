@@ -4105,10 +4105,10 @@ int main(void) {
         int found_atk_bonus = 0;
         int found_vet = 0;
         for (int i = 0; i < dlg.atk_line_count; ++i) {
-          if (strstr(dlg.atk_lines[i], "Attack Bonus")) {
+          if (strstr(dlg.atk_rows[i].label, "Attack Bonus")) {
             found_atk_bonus = 1;
           }
-          if (strstr(dlg.atk_lines[i], "Veteran")) {
+          if (strstr(dlg.atk_rows[i].label, "Veteran")) {
             found_vet = 1;
           }
         }
@@ -4145,7 +4145,7 @@ int main(void) {
           return 1;
         }
         for (int i = 0; i < dlg.def_line_count; ++i) {
-          if (strstr(dlg.def_lines[i], "Attack Bonus")) {
+          if (strstr(dlg.def_rows[i].label, "Attack Bonus")) {
             fprintf(stderr, "defender must not list Attack Bonus\n");
             return 1;
           }
@@ -4157,7 +4157,7 @@ int main(void) {
           return 1;
         }
         for (int i = 0; i < dlg.atk_line_count; ++i) {
-          if (strstr(dlg.atk_lines[i], "Attack Bonus")) {
+          if (strstr(dlg.atk_rows[i].label, "Attack Bonus")) {
             fprintf(stderr, "naval analysis must not list land Attack Bonus\n");
             return 1;
           }

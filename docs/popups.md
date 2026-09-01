@@ -238,7 +238,7 @@ Deep mechanics: [combat.md](combat.md).
 
 | Popup / `@SECTION`s | When | Status | Port |
 |---------------------|------|--------|------|
-| Combat Analysis (options bit) | After strengths, before roll; human side | Done | Title + chrome/strength row spacing + modifier columns (`636c`-shaped); gated by `combat_analysis` |
+| Combat Analysis (options bit) | After strengths, before roll; human side | Done | DOS `636c` layout: 214-wide frame, per-column header (chrome + type name + baseline right-aligned), label/±N% split rows at 20px pitch; gated by `combat_analysis` |
 | `@LOOT*` / `@LOOTCAPTURE` / `@LOOTCASH` | Combat loot / ransom | Partial | `@LOOT` treasure + `@LOOT2` burn Done; `@LOOTCAPTURE` ransom Done; `@LOOTCASH` Europe fleet |
 | `@CAPTURED*` / `@BURNED*` / `@SHIPDAMAGE` / `@SHIPSUNK` | Capture / burn / naval | Done | Colony `@CAPTURED*`/`@BURNED*`; ship damage/sunk Done |
 | `@COLONISTCAPTURE*` / `@WAGONCAPTURE` / `@CARGOCAPTURE` | Unit / wagon capture | Done | Structural combat popups |
