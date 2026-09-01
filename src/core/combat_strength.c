@@ -144,10 +144,12 @@ int combat_unit_base_x8(
     local_8 = 0;
   }
   /*
-   * FUN_157e_004a: type 0x0b + damaged bit7 → −2. Linux peels Privateer by
-   * name (same as prior naval resolve / ai_euro).
+   * FUN_157e_004a: type 0x0b + damaged bit7 → −2. DOS type 0x0b is
+   * Artillery (bugs.md: Damaged Artillery is the weaker unit) — the old
+   * Privateer-only peel missed it; keep Privateer for naval-resolve parity.
    */
-  if (combat_type_is_privateer(t) && (u->col1_unknown15 & 0x80u) != 0) {
+  if ((combat_type_is_privateer(t) || combat_type_is_artillery_name(t->name)) &&
+      (u->col1_unknown15 & 0x80u) != 0) {
     local_8 -= 2;
     if (local_8 < 0) {
       local_8 = 0;

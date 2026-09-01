@@ -62,11 +62,11 @@ static int unit_stack_row_at_y(const UnitStackPopup* dlg, int my) {
 }
 
 /*
- * One pick = wake + select + close, like DOS's stack picker (FUN_2b5a_1b5a
- * clears the picked unit's orders byte and makes it active in the same
- * click). The earlier two-step here — first click only woke a sentried
- * passenger and kept the dialog open — read as "nothing happened" (bugs.md:
- * "impossible to wake up unit ... loaded onto a ship without moves").
+ * bugs.md (two-step, final form): a pick on a row with standing orders only
+ * cancels them (units_wake — overnight-park refund rules apply; the row's
+ * orders chrome updates in place) and keeps the dialog open. A pick on an
+ * order-less row activates that unit — if it has moves — and closes. Opening
+ * the popup itself never touches anyone's orders.
  */
 static void unit_stack_activate_row(UnitStackPopup* dlg, ColonizeUnitPool* pool, int idx, int* out_select_id) {
   if (!dlg || !pool || idx < 0 || idx >= dlg->count || !out_select_id) {
@@ -78,17 +78,19 @@ static void unit_stack_activate_row(UnitStackPopup* dlg, ColonizeUnitPool* pool,
   if (!u || !u->active) {
     return;
   }
-  if (u->aboard_ship_id >= 0 && u->orders == 1) {
+  dlg->selection = idx;
+  if (u->orders != 0) {
     /*
-     * Wake through units_wake, not a bare orders=0: boarding parks a
-     * passenger at moves_left 0 as a "skip this one" flag while DOS's own
-     * spent byte is still zero (a full allotment). Clearing just the order
-     * left the unit awake with no MP, so every move gate refused it and it
-     * could not walk ashore from a ship that was itself out of moves --
-     * bugs.md "cancel the orders of that loaded unit ... that unit should
-     * be available to move".
+     * First pick cancels orders only. Wake through units_wake, not a bare
+     * orders=0: boarding parks a passenger at moves_left 0 as a "skip this
+     * one" flag while DOS's own spent byte is still zero, and standing
+     * orders parked on a previous turn refund the allotment.
      */
     (void)units_wake(pool, uid);
+    return;
+  }
+  if (u->moves_left <= 0) {
+    return; /* canceled but spent — nothing to activate this turn */
   }
   *out_select_id = uid;
   unit_stack_close(dlg);
@@ -138,28 +140,8 @@ bool unit_stack_handle_input(
     }
     const int idx = unit_stack_row_at_y(dlg, my);
     if (idx >= 0) {
-      /*
-       * bugs.md loaded-unit activation (DOS live behaviour, corrects the
-       * single-pick read of FUN_2b5a_1b5a): the first click on a row only
-       * selects it in the popup — cancelling a loaded passenger's Sentry so
-       * its label flips to ready — and the popup stays open; clicking the
-       * already-selected row activates that unit and closes. The popup opens
-       * with the clicked ship's row selected, so one click on the ship row
-       * still activates the ship directly.
-       */
-      if (idx != dlg->selection) {
-        dlg->selection = idx;
-        const int uid = dlg->ids[idx];
-        ColonizeUnit* u = units_get(pool, uid);
-        /* bugs.md: the FIRST click on any unit in the stack cancels its
-         * orders (visible immediately in the row's orders chrome); only
-         * the second click on the same row activates. units_wake applies
-         * the overnight-park refund rules. */
-        if (u && u->active && u->orders != 0) {
-          (void)units_wake(pool, uid);
-        }
-        return true;
-      }
+      /* bugs.md: same rule for every row, preselected or not — ordered rows
+       * get their orders canceled first, order-less rows activate. */
       int sel = -1;
       unit_stack_activate_row(dlg, pool, idx, &sel);
       if (out_select_id) {
