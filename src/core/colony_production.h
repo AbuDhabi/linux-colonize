@@ -306,6 +306,17 @@ int colony_prod_worker_building_output_sol(
   int profession,
   int sol_bonus
 );
+/* Full-context worker output: folds in the colony's upgrade multipliers
+ * (Lumber Mill x2, Cathedral x2) and Penn (x1.5 crosses) — what the turn
+ * tick actually pays (bugs.md: badge read 7 where DOS shows 14). */
+int colony_prod_worker_building_output_ctx(
+  const ColonizeColonyPool* pool,
+  const ColonizeColony* colony,
+  const ColonizeCol1Save* col1,
+  int building_type,
+  int profession,
+  int sol_bonus
+);
 int colony_prod_worker_building_output(
   const ColonizeColonyPool* pool,
   int building_type,
@@ -321,6 +332,7 @@ int colony_prod_worker_building_output(
 int colony_prod_building_display_output_sol(
   const ColonizeColonyPool* pool,
   const ColonizeColony* colony,
+  const ColonizeCol1Save* col1,
   int building_type,
   int sol_bonus
 );
