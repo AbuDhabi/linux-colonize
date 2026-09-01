@@ -17,17 +17,28 @@
  * Gated by game_options.combat_analysis when a human side is involved.
  * Cite: FUN_5fef_1b0e gate 0x5383&2; FUN_2a1f_0704 → FUN_636c_0000.
  *
- * Layout (DOS / LABELS.TXT):
+ * Layout (DOS / LABELS.TXT, FUN_636c_0000 draw pass):
+ *   Frame w=0xd6 at x=0x35, height rows*0x14+pad, vertically centered.
  *   1. Centered title "COMBAT ANALYSIS"
- *   2. Atk chrome + baseline strength … def baseline + def chrome
- *      (NAMES attack/defense byte — not post-×8 roll weights)
- *   3. Per-side modifier rows (Attack Bonus, Veteran, Terrain, …)
+ *   2. Two columns (atk left, def right). Row 0 per column: unit chrome +
+ *      type name, baseline strength right-aligned (NAMES byte — not the
+ *      post-×8 roll weight).
+ *   3. Modifier rows, 0x14 pitch: label left, ±N% right-aligned.
+ *      Attacker terrain line reads "Ambush", defender "Terrain";
+ *      village line uses the tribe name (LABELS has no "Village").
  *
  * Shown after strengths are known, before the combat roll / outcome UI.
  */
 
 #define COMBAT_ANALYSIS_LINES_MAX 12
 #define COMBAT_ANALYSIS_LINE_LEN 40
+#define COMBAT_ANALYSIS_VALUE_LEN 12
+
+/* One modifier row: label left, value right-aligned in the column (DOS 013c/0150). */
+typedef struct CombatAnalysisRow {
+  char label[COMBAT_ANALYSIS_LINE_LEN];
+  char value[COMBAT_ANALYSIS_VALUE_LEN];
+} CombatAnalysisRow;
 
 typedef struct ColonizeCombatEngagement {
   int attacker_id;
@@ -54,8 +65,11 @@ typedef struct CombatAnalysisDialog {
   ColonizeCombatEngagement eng;
   CombatAnalysisSideChrome atk_chrome;
   CombatAnalysisSideChrome def_chrome;
-  char atk_lines[COMBAT_ANALYSIS_LINES_MAX][COMBAT_ANALYSIS_LINE_LEN];
-  char def_lines[COMBAT_ANALYSIS_LINES_MAX][COMBAT_ANALYSIS_LINE_LEN];
+  /* Header row (DOS: unit chrome + NAMES type name + baseline strength). */
+  char atk_name[COMBAT_ANALYSIS_LINE_LEN];
+  char def_name[COMBAT_ANALYSIS_LINE_LEN];
+  CombatAnalysisRow atk_rows[COMBAT_ANALYSIS_LINES_MAX];
+  CombatAnalysisRow def_rows[COMBAT_ANALYSIS_LINES_MAX];
   int atk_line_count;
   int def_line_count;
   int dialog_x;

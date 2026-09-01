@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "core/ai_contact.h"
 #include "core/ui_colors.h"
 #include "core/unit_chrome.h"
 
@@ -61,88 +62,98 @@ bool combat_analysis_should_show(
   return atk_human || def_human;
 }
 
-static void combat_analysis_push_line(
-  char lines[][COMBAT_ANALYSIS_LINE_LEN],
+static void combat_analysis_push_row(
+  CombatAnalysisRow* rows,
   int* count,
-  const char* text
+  const char* label,
+  int signed_pct
 ) {
-  if (!lines || !count || !text || *count >= COMBAT_ANALYSIS_LINES_MAX) {
+  if (!rows || !count || !label || *count >= COMBAT_ANALYSIS_LINES_MAX) {
     return;
   }
-  snprintf(lines[*count], COMBAT_ANALYSIS_LINE_LEN, "%s", text);
+  CombatAnalysisRow* row = &rows[*count];
+  snprintf(row->label, sizeof(row->label), "%s", label);
+  snprintf(
+    row->value, sizeof(row->value), "%+d%%", signed_pct
+  );
   (*count)++;
 }
 
 /*
- * Modifier lines only (FUN_636c_0000 flag walk). Labels match LABELS.TXT
- * Combat Analysis block (Attack Bonus / Veteran / Spain Bonus / …).
- * land_attack_bonus: land engage applied ×3/2 (show Attack Bonus +50%).
+ * Modifier rows only (FUN_636c_0000 flag walk, DOS check order). Labels match
+ * the LABELS.TXT Combat Analysis block. land_attack_bonus: land engage ×3/2.
+ * tribe_name: village defender's tribe (DOS labels the village row with the
+ * tribe name from the dwelling record; there is no "Village" label).
  */
 static void combat_analysis_fill_mods(
-  char lines[][COMBAT_ANALYSIS_LINE_LEN],
+  CombatAnalysisRow* rows,
   int* count,
   const ColonizeCombatSideFlags* flags,
-  int land_attack_bonus
+  int land_attack_bonus,
+  bool is_attacker,
+  const char* tribe_name
 ) {
-  char buf[COMBAT_ANALYSIS_LINE_LEN];
   *count = 0;
   if (!flags) {
     return;
   }
 
-  /* LABELS "Attack Bonus" — land ×3/2 (FUN_5fef_1b0e / FUN_636c bit0 walk). */
-  if (land_attack_bonus) {
-    combat_analysis_push_line(lines, count, "Attack Bonus +50%");
-  }
   if (flags->flags & COMBAT_FLAG_VETERAN) {
-    combat_analysis_push_line(lines, count, "Veteran +50%");
-  }
-  if (flags->flags_hi & COMBAT_FLAG_DRAKE) {
-    combat_analysis_push_line(lines, count, "Drake +50%");
+    combat_analysis_push_row(rows, count, "Veteran", 50);
   }
   if (flags->flags & COMBAT_FLAG_HOLDS) {
     const int pct = flags->holds_occupied > 0 ? (flags->holds_occupied * 100) >> 3 : 0;
-    snprintf(buf, sizeof(buf), "Cargo -%d%%", pct);
-    combat_analysis_push_line(lines, count, buf);
+    combat_analysis_push_row(rows, count, "Cargo", -pct);
   }
+  /* LABELS "Attack Bonus" — land ×3/2 (FUN_5fef_1b0e / FUN_636c bit0 walk). */
+  if (land_attack_bonus) {
+    combat_analysis_push_row(rows, count, "Attack Bonus", 50);
+  }
+  if (flags->flags & COMBAT_FLAG_REF) {
+    combat_analysis_push_row(rows, count, "Expeditionary Force", 50);
+  }
+  if (flags->flags2 & COMBAT_FLAG_TORIES) {
+    combat_analysis_push_row(rows, count, "Tories", flags->sol_percent);
+  } else if (flags->flags2 & COMBAT_FLAG_REBELS) {
+    combat_analysis_push_row(rows, count, "Rebels", flags->sol_percent);
+  }
+  /* DOS 0x2e56/0x2e58: attacker terrain line reads "Ambush", defender "Terrain". */
   if (flags->flags & COMBAT_FLAG_TERRAIN) {
-    snprintf(buf, sizeof(buf), "Terrain +%d%%", flags->terrain_byte * 25);
-    combat_analysis_push_line(lines, count, buf);
-  }
-  if (flags->flags & COMBAT_FLAG_VILLAGE) {
-    snprintf(buf, sizeof(buf), "Village +%d%%", (flags->village_n + 1) * 50);
-    combat_analysis_push_line(lines, count, buf);
+    combat_analysis_push_row(
+      rows, count, is_attacker ? "Ambush" : "Terrain", flags->terrain_byte * 25
+    );
   }
   if (flags->flags & COMBAT_FLAG_COLONY) {
     if (flags->flags & COMBAT_FLAG_FORTRESS) {
-      combat_analysis_push_line(lines, count, "Fortress +200%");
+      combat_analysis_push_row(rows, count, "Fortress", 200);
     } else if (flags->flags & COMBAT_FLAG_STOCKADE) {
-      combat_analysis_push_line(lines, count, "Stockade +100%");
+      combat_analysis_push_row(rows, count, "Stockade", 100);
     } else {
-      combat_analysis_push_line(lines, count, "Colony +50%");
+      combat_analysis_push_row(rows, count, "Colony", 50);
     }
   }
-  if (flags->flags & COMBAT_FLAG_FORTIFY) {
-    combat_analysis_push_line(lines, count, "Fortified +50%");
+  if (flags->flags & COMBAT_FLAG_VILLAGE) {
+    combat_analysis_push_row(
+      rows,
+      count,
+      (tribe_name && tribe_name[0]) ? tribe_name : "Village",
+      (flags->village_n + 1) * 50
+    );
   }
   if (flags->flags & COMBAT_FLAG_ARTILLERY) {
-    combat_analysis_push_line(lines, count, "Artillery In Open -75%");
+    combat_analysis_push_row(rows, count, "Artillery In Open", -75);
   }
   if (flags->flags2 & COMBAT_FLAG_ARTY_COLONY) {
-    combat_analysis_push_line(lines, count, "Artillery Vs. Raid +100%");
+    combat_analysis_push_row(rows, count, "Artillery Vs. Raid", 100);
+  }
+  if (flags->flags & COMBAT_FLAG_FORTIFY) {
+    combat_analysis_push_row(rows, count, "Fortified", 50);
   }
   if (flags->flags & COMBAT_FLAG_AMBUSH) {
-    combat_analysis_push_line(lines, count, "Spain Bonus +50%");
+    combat_analysis_push_row(rows, count, "Spain Bonus", 50);
   }
-  if (flags->flags & COMBAT_FLAG_REF) {
-    combat_analysis_push_line(lines, count, "Expeditionary Force +50%");
-  }
-  if (flags->flags2 & COMBAT_FLAG_TORIES) {
-    snprintf(buf, sizeof(buf), "Tories +%d%%", flags->sol_percent);
-    combat_analysis_push_line(lines, count, buf);
-  } else if (flags->flags2 & COMBAT_FLAG_REBELS) {
-    snprintf(buf, sizeof(buf), "Rebels +%d%%", flags->sol_percent);
-    combat_analysis_push_line(lines, count, buf);
+  if (flags->flags_hi & COMBAT_FLAG_DRAKE) {
+    combat_analysis_push_row(rows, count, "Drake", 50);
   }
 }
 
@@ -187,10 +198,34 @@ bool combat_analysis_open(
 
   combat_analysis_snap_chrome(&dlg->atk_chrome, pool, eng->attacker_id);
   combat_analysis_snap_chrome(&dlg->def_chrome, pool, eng->defender_id);
+
+  /* Header names (DOS NAMES type string via 0x5230 table). */
+  dlg->atk_name[0] = '\0';
+  dlg->def_name[0] = '\0';
+  const ColonizeUnit* atk_u = units_get_const(pool, eng->attacker_id);
+  const ColonizeUnit* def_u = units_get_const(pool, eng->defender_id);
+  if (atk_u && atk_u->active) {
+    snprintf(dlg->atk_name, sizeof(dlg->atk_name), "%s", units_display_name(pool, atk_u));
+  }
+  if (def_u && def_u->active) {
+    snprintf(dlg->def_name, sizeof(dlg->def_name), "%s", units_display_name(pool, def_u));
+  }
+
+  const char* atk_tribe =
+    (atk_u && atk_u->active && atk_u->nation_id >= 4) ? ai_contact_tribe_name(atk_u->nation_id)
+                                                      : NULL;
+  const char* def_tribe =
+    (def_u && def_u->active && def_u->nation_id >= 4) ? ai_contact_tribe_name(def_u->nation_id)
+                                                      : NULL;
+
   /* Land attacker always gets ×3/2 standing attack factor — list as Attack Bonus. */
   const int atk_bonus = !eng->is_naval && (eng->atk_flags.flags & COMBAT_FLAG_MODE_ATK);
-  combat_analysis_fill_mods(dlg->atk_lines, &dlg->atk_line_count, &eng->atk_flags, atk_bonus);
-  combat_analysis_fill_mods(dlg->def_lines, &dlg->def_line_count, &eng->def_flags, 0);
+  combat_analysis_fill_mods(
+    dlg->atk_rows, &dlg->atk_line_count, &eng->atk_flags, atk_bonus, true, atk_tribe
+  );
+  combat_analysis_fill_mods(
+    dlg->def_rows, &dlg->def_line_count, &eng->def_flags, 0, false, def_tribe
+  );
   return true;
 }
 
@@ -266,16 +301,44 @@ void combat_analysis_render(
   }
 
   const int line_h = font ? (font->max_height > 0 ? font->max_height + 2 : 8) : 8;
-  const int icon_h = 16;
-  const int icon_w = 16;
-  /* DOS-shaped: title, sprite/strength header with center gap, dual mod columns. */
-  const int header_h = icon_h + 8;
+  /* DOS FUN_636c_0000 draw pass: w=0xd6 at x=0x35, row pitch 0x14, height by
+   * tallest column (header row + mods), vertically centered. */
+  const int row_pitch = 20;
   const int mod_rows =
     dlg->atk_line_count > dlg->def_line_count ? dlg->atk_line_count : dlg->def_line_count;
+  const int rows = 1 + mod_rows; /* header (name + baseline) counts as a row */
   const int title_h = line_h + 6;
-  const int body_h = header_h + mod_rows * line_h + 10;
-  const int w = 240;
-  const int h = title_h + body_h + 12;
+  /* DOS width 0xd6; grow only when a label+value row cannot fit its half
+   * column in this font (DOS overdraws instead — we widen). */
+  int col_w = (214 - POPUP_FRAME_INSET * 2) / 2 - 7;
+  if (font) {
+    for (int side = 0; side < 2; ++side) {
+      const CombatAnalysisRow* rows_arr = side == 0 ? dlg->atk_rows : dlg->def_rows;
+      const int count = side == 0 ? dlg->atk_line_count : dlg->def_line_count;
+      const char* name = side == 0 ? dlg->atk_name : dlg->def_name;
+      const int base =
+        side == 0 ? dlg->eng.atk_flags.base_combat : dlg->eng.def_flags.base_combat;
+      char num[16];
+      snprintf(num, sizeof(num), "%d", base);
+      int need = 16 + UNIT_CHROME_SPRITE_DX + 3 + font_text_width(font, name) + 6 +
+        font_text_width(font, num);
+      if (need > col_w) {
+        col_w = need;
+      }
+      for (int i = 0; i < count; ++i) {
+        need = font_text_width(font, rows_arr[i].label) + 3 +
+          font_text_width(font, rows_arr[i].value);
+        if (need > col_w) {
+          col_w = need;
+        }
+      }
+    }
+  }
+  int w = 2 * (col_w + 7) + POPUP_FRAME_INSET * 2;
+  if (w > 312) {
+    w = 312;
+  }
+  const int h = title_h + rows * row_pitch + 12;
   const int x = (320 - w) / 2;
   const int y = (200 - h) / 2;
   dlg->dialog_x = x;
@@ -296,43 +359,78 @@ void combat_analysis_render(
     font, framebuffer, ix + (iw - tw) / 2, iy + 3, title, text_color
   );
 
-  const int mid = ix + iw / 2;
+  /* Columns split the interior in half; values right-align at column edge. */
+  const int atk_x = ix + 2;
+  const int atk_right = ix + iw / 2 - 5;
+  const int def_x = ix + iw / 2 + 3;
+  const int def_right = ix + iw - 4;
   const int y_hdr = iy + title_h;
-  const int atk_icon_x = ix + 6;
-  const int def_icon_x = ix + iw - 6 - icon_w - UNIT_CHROME_SPRITE_DX;
+  const int icon_h = 16;
+  const int icon_w = 16;
+  const int text_dy = (row_pitch - line_h) / 2 > 0 ? (row_pitch - line_h) / 2 : 0;
   char str_buf[16];
 
+  /* Header row: unit chrome, type name at +17, baseline strength at right
+   * (NAMES byte via 0x8d06 / -0x72fa — not the post-×8 roll weight). */
   combat_analysis_blit_side(
-    framebuffer, font, unit_icons, &dlg->atk_chrome, atk_icon_x, y_hdr, active_palette
+    framebuffer, font, unit_icons, &dlg->atk_chrome, atk_x, y_hdr, active_palette
   );
   combat_analysis_blit_side(
-    framebuffer, font, unit_icons, &dlg->def_chrome, def_icon_x, y_hdr, active_palette
+    framebuffer, font, unit_icons, &dlg->def_chrome, def_x, y_hdr, active_palette
   );
-
-  /* Header numbers = NAMES baseline (0x8d06 / -0x72fa), not roll weights. */
-  snprintf(str_buf, sizeof(str_buf), "%d", dlg->eng.atk_flags.base_combat);
   {
-    const int sx = atk_icon_x + icon_w + UNIT_CHROME_SPRITE_DX + 6;
-    const int sy = y_hdr + (icon_h - line_h) / 2 + 2;
-    popup_draw_text_shadowed(font, framebuffer, sx, sy, str_buf, text_color);
-  }
-  snprintf(str_buf, sizeof(str_buf), "%d", dlg->eng.def_flags.base_combat);
-  {
-    const int sw = font_text_width(font, str_buf);
-    const int sx = def_icon_x - 6 - sw;
-    const int sy = y_hdr + (icon_h - line_h) / 2 + 2;
-    popup_draw_text_shadowed(font, framebuffer, sx, sy, str_buf, text_color);
+    const int name_dy = (icon_h - line_h) / 2 + 1;
+    const int atk_name_x = atk_x + icon_w + UNIT_CHROME_SPRITE_DX + 3;
+    const int def_name_x = def_x + icon_w + UNIT_CHROME_SPRITE_DX + 3;
+    snprintf(str_buf, sizeof(str_buf), "%d", dlg->eng.atk_flags.base_combat);
+    {
+      const int sw = font_text_width(font, str_buf);
+      const int name_w = font_text_width(font, dlg->atk_name);
+      const int room = atk_right - sw - 3 - atk_name_x;
+      if (dlg->atk_name[0] && name_w <= room) {
+        popup_draw_text_shadowed(
+          font, framebuffer, atk_name_x, y_hdr + name_dy, dlg->atk_name, text_color
+        );
+      }
+      popup_draw_text_shadowed(
+        font, framebuffer, atk_right - sw, y_hdr + name_dy, str_buf, text_color
+      );
+    }
+    snprintf(str_buf, sizeof(str_buf), "%d", dlg->eng.def_flags.base_combat);
+    {
+      const int sw = font_text_width(font, str_buf);
+      const int name_w = font_text_width(font, dlg->def_name);
+      const int room = def_right - sw - 3 - def_name_x;
+      if (dlg->def_name[0] && name_w <= room) {
+        popup_draw_text_shadowed(
+          font, framebuffer, def_name_x, y_hdr + name_dy, dlg->def_name, text_color
+        );
+      }
+      popup_draw_text_shadowed(
+        font, framebuffer, def_right - sw, y_hdr + name_dy, str_buf, text_color
+      );
+    }
   }
 
-  const int y0 = y_hdr + header_h;
-  for (int i = 0; i < dlg->atk_line_count; ++i) {
-    popup_draw_text_shadowed(
-      font, framebuffer, ix + 6, y0 + i * line_h, dlg->atk_lines[i], text_color
-    );
-  }
-  for (int i = 0; i < dlg->def_line_count; ++i) {
-    popup_draw_text_shadowed(
-      font, framebuffer, mid + 4, y0 + i * line_h, dlg->def_lines[i], text_color
-    );
+  const int y0 = y_hdr + row_pitch;
+  for (int side = 0; side < 2; ++side) {
+    const CombatAnalysisRow* rows_arr = side == 0 ? dlg->atk_rows : dlg->def_rows;
+    const int count = side == 0 ? dlg->atk_line_count : dlg->def_line_count;
+    const int col_x = side == 0 ? atk_x : def_x;
+    const int col_right = side == 0 ? atk_right : def_right;
+    for (int i = 0; i < count; ++i) {
+      const CombatAnalysisRow* row = &rows_arr[i];
+      const int ry = y0 + i * row_pitch + text_dy;
+      popup_draw_text_shadowed(font, framebuffer, col_x, ry, row->label, text_color);
+      const int lw = font_text_width(font, row->label);
+      const int vw = font_text_width(font, row->value);
+      /* Right-align value at the column edge; a long label pushes it right
+       * instead of being overdrawn. */
+      int vx = col_right - vw;
+      if (vx < col_x + lw + 3) {
+        vx = col_x + lw + 3;
+      }
+      popup_draw_text_shadowed(font, framebuffer, vx, ry, row->value, text_color);
+    }
   }
 }
