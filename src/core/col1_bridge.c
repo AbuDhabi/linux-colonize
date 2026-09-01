@@ -1412,7 +1412,23 @@ static void col1_bridge_sanitize_units_for_dos(
     if (land->aboard_ship_id >= 0 || units_is_sea(units, land->id)) {
       continue;
     }
-    /* Same-tile own ship → board (fixes ocean sentry orphans). */
+    /*
+     * Same-tile own ship → board — but ONLY when the land unit stands on a
+     * water tile (an "ocean sentry orphan": a land unit on water that is not
+     * aboard anything is already a broken state DOS cannot represent).
+     *
+     * bugs.md ("ships take away any non-fortified unit as they even enter a
+     * colony"): this loop used to board every co-located land unit on ANY
+     * tile — and it mutates the LIVE pool during save/export
+     * (units_board_stacked stamps Sentry, parks MP, sets aboard_ship_id).
+     * Save with a ship docked at a colony and the whole garrison silently
+     * became passengers, sailing off with the next departure. Land-tile
+     * stacks (colony docks, coastal stacks) are left alone; genuine
+     * departures pick up Sentry units via units_board_sentries_from_tile.
+     */
+    if (map_tile_is_land(map, land->x, land->y)) {
+      continue;
+    }
     for (int s = 0; s < COLONIZE_UNITS_MAX; ++s) {
       ColonizeUnit* ship = &units->units[s];
       if (!ship->active || ship->nation_id != land->nation_id) {
