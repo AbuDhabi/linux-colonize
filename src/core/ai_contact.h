@@ -181,6 +181,22 @@ int ai_contact_try_whack_confirm(
 );
 int ai_contact_whack_pending(const AiPopupState* st, int unit_id);
 
+/*
+ * FUN_465b_0000 Euro-vs-Euro attack gate: with a signed peace treaty
+ * (relation & 0x40) asks @HAVETREATY (Cancel Action / Break Treaty); with no
+ * treaty declares war silently and lets the attack continue, as DOS does.
+ * Returns 1 when a popup now gates the move (caller stops), 0 when the move
+ * may proceed.
+ */
+int ai_contact_try_euro_attack_confirm(
+  ColonizeTurnContext* ctx,
+  int euro_nation,
+  int target_nation,
+  int unit_id,
+  int dest_x,
+  int dest_y
+);
+
 /* @TRADE0 sell-side haggle arm (pure). Exposed for tests. */
 int ai_contact_2820_sell_haggle(int difficulty, int ask, int qty, ColonizeDosRng* rng, int* io_c4, int* io_price, int* io_fair);
 

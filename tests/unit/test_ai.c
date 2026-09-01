@@ -453,6 +453,20 @@ static int run_init_and_turns(
     assets_msg_free(&names);
     return 1;
   }
+  /* bugs.md: REF must be seeded from the wizard's actual new-game path
+   * (75c2:360b, diff 0 → [15,5,2,2]), not only from the lazy save template. */
+  if (col1.head.expeditionary_force[0] != 15 || col1.head.expeditionary_force[1] != 5 ||
+      col1.head.expeditionary_force[2] != 2 || col1.head.expeditionary_force[3] != 2) {
+    fprintf(
+      stderr, "%s: new-game REF seed missing, got [%u,%u,%u,%u]\n", label,
+      col1.head.expeditionary_force[0], col1.head.expeditionary_force[1],
+      col1.head.expeditionary_force[2], col1.head.expeditionary_force[3]
+    );
+    map_free(&map);
+    col1_save_free(&col1);
+    assets_msg_free(&names);
+    return 1;
+  }
   if (count_braves(&units) <= 0) {
     fprintf(stderr, "%s: expected Braves\n", label);
     map_free(&map);
