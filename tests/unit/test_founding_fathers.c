@@ -2236,6 +2236,79 @@ int main(void) {
     fprintf(stderr, "unit_founding_fathers: Congress debate CHOICE ok\n");
   }
 
+  /* bugs.md: the debate is persistent — escaping re-presents it at once with
+   * the SAME candidates, and a next-turn tick keeps them too (no reroll). */
+  {
+    ColonizeCol1Save dcol1;
+    col1_save_init(&dcol1);
+    seed_unclaimed(&dcol1);
+    ff_test_calendar(&dcol1);
+    ColonizeCol1Nation* dnat = &dcol1.nation[0];
+    memset(dnat, 0, sizeof(*dnat));
+    dnat->liberty_bells_total = 10;
+    dnat->next_founding_father = -1;
+
+    AiPopupState pop;
+    ai_popup_init(&pop);
+    char dstatus[128];
+    dstatus[0] = '\0';
+    ColonizeTurnContext dctx;
+    memset(&dctx, 0, sizeof(dctx));
+    dctx.human_nation = 0;
+    dctx.col1 = &dcol1;
+    dctx.col1_ok = true;
+    dctx.status = dstatus;
+    dctx.status_size = sizeof(dstatus);
+    dctx.ai_popups = &pop;
+    founding_fathers_reset();
+
+    ff_tick(&dctx);
+    if (pop.queue_count < 1 || pop.queue[0].choice_count < 2) {
+      return fail("persistence: expected debate CHOICE");
+    }
+    int slate[AI_POPUP_CHOICE_MAX];
+    const int slate_n = pop.queue[0].choice_count;
+    memcpy(slate, pop.queue[0].choice_ids, sizeof(slate[0]) * (size_t)slate_n);
+
+    /* Escape: cancelled result must re-enqueue the identical slate. */
+    pop.has_result = true;
+    pop.result_cancelled = true;
+    pop.result_tag = AI_POPUP_TAG_FF_CONGRESS;
+    pop.result_nation_a = 0;
+    pop.result_payload = 1;
+    pop.queue_count = 0;
+    founding_fathers_apply_popup_result(&dctx, &pop);
+    if (pop.queue_count != 1 || pop.queue[0].tag != AI_POPUP_TAG_FF_CONGRESS ||
+        pop.queue[0].choice_count != slate_n ||
+        memcmp(pop.queue[0].choice_ids, slate, sizeof(slate[0]) * (size_t)slate_n) != 0) {
+      return fail("persistence: escape must re-present the same candidates");
+    }
+
+    /* Fresh popup state (as after a turn): tick must reuse the slate. */
+    ai_popup_init(&pop);
+    ff_tick(&dctx);
+    if (pop.queue_count != 1 || pop.queue[0].choice_count != slate_n ||
+        memcmp(pop.queue[0].choice_ids, slate, sizeof(slate[0]) * (size_t)slate_n) != 0) {
+      return fail("persistence: next-turn debate must keep the same candidates");
+    }
+
+    /* Answering clears the slate: the following debate may roll fresh. */
+    const int chosen = pop.queue[0].choice_ids[0];
+    pop.has_result = true;
+    pop.result_cancelled = false;
+    pop.result_tag = AI_POPUP_TAG_FF_CONGRESS;
+    pop.result_choice_id = chosen;
+    pop.result_nation_a = 0;
+    pop.result_payload = 1;
+    pop.queue_count = 0;
+    founding_fathers_apply_popup_result(&dctx, &pop);
+    if (dnat->next_founding_father != chosen) {
+      return fail("persistence: answer must still lock the candidate");
+    }
+    founding_fathers_reset();
+    fprintf(stderr, "unit_founding_fathers: debate slate persistence ok\n");
+  }
+
   {
     /* Stash/restore round-trip for side-table pool (liberty_bells_last_turn). */
     ColonizeCol1Save rt;
@@ -2466,6 +2539,8 @@ int main(void) {
     int n7 = 0;
     int n9 = 0;
     for (int pass = 0; pass < 2; ++pass) {
+      /* Clear the persistent debate slate — this test compares fresh rolls. */
+      founding_fathers_reset();
       AiPopupState pop;
       ai_popup_init(&pop);
       ColonizeDosRng rng;
