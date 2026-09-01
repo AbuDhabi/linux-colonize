@@ -5006,9 +5006,10 @@ bool units_try_move(
   units_occupancy_refresh_tile(pool, dest_x, dest_y, -1);
   units_vis_mask_after_move(pool, map, unit_id, dest_x, dest_y);
 
-  /* Sentry land units on the departure tile auto-board (colony / ocean stack). */
+  /* Departure pickup: sentried units on the tile AND passengers of other own
+   * ships still there, first come first served (DOS ship-switch quirk). */
   if (units_is_sea(pool, unit_id)) {
-    (void)units_board_sentries_from_tile(pool, unit_id, ox, oy);
+    (void)units_ship_departure_pickup(pool, unit_id, ox, oy);
   }
 
   /*
@@ -7423,6 +7424,75 @@ static bool units_remove_from_cargo(ColonizeUnit* ship, int pax_id) {
     return true;
   }
   return false;
+}
+
+/*
+ * DOS quirk (bugs.md): loaded units switch ships en route. In DOS a
+ * "passenger" is just a sentried land unit sharing the ship's tile in the
+ * unit chain, so whichever ship moves off a shared tile first scoops up as
+ * many of the tile's loaded units as it has room for, in chain order —
+ * exactly like ships picking sentries off a colony square, first come,
+ * first served. The rest stay with the remaining ship(s). The port keeps an
+ * explicit aboard_ship_id, so the departure pass walks one ascending-id
+ * sweep over BOTH groups: sentried land units standing on the departure
+ * tile, and passengers riding other own ships still standing there. A
+ * Treasure Train never hops to a non-Galleon (its boarding rule, P7.3).
+ */
+int units_ship_departure_pickup(ColonizeUnitPool* pool, int ship_id, int x, int y) {
+  ColonizeUnit* ship = units_get(pool, ship_id);
+  if (!pool || !ship || !units_is_sea(pool, ship_id)) {
+    return 0;
+  }
+  const ColonizeUnitType* sty = units_type(pool, ship->type_index);
+  const bool is_galleon = sty && sty->name[0] && strstr(sty->name, "Galleon") != NULL;
+  int taken = 0;
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    if (units_ship_free_passenger_slots(pool, ship_id) <= 0 ||
+        ship->cargo_count >= COLONIZE_UNIT_CARGO_MAX) {
+      break;
+    }
+    ColonizeUnit* u = &pool->units[i];
+    if (!u->active || u->id == ship_id || units_is_sea(pool, u->id) ||
+        u->nation_id != ship->nation_id || u->aboard_ship_id == ship_id) {
+      continue;
+    }
+    if (!is_galleon) {
+      const ColonizeUnitType* ut = units_type(pool, u->type_index);
+      if (ut && ut->name[0] && strstr(ut->name, "Treasure") != NULL) {
+        continue;
+      }
+    }
+    if (u->aboard_ship_id >= 0) {
+      /* Riding another own ship that is still on the departure tile. Only a
+       * sentried passenger transfers — DOS's pickup takes sentries, and an
+       * awake (player-activated) passenger stays with its own ship. */
+      if (u->orders != UNITS_ORDER_SENTRY) {
+        continue;
+      }
+      ColonizeUnit* host = units_get(pool, u->aboard_ship_id);
+      if (!host || !units_is_on_map(host) || host->x != x || host->y != y) {
+        continue;
+      }
+      if (!units_remove_from_cargo(host, u->id)) {
+        continue;
+      }
+      u->aboard_ship_id = ship_id;
+      u->x = ship->x;
+      u->y = ship->y;
+      ship->cargo_ids[ship->cargo_count++] = u->id;
+      taken++;
+    } else {
+      /* Sentried land unit standing on the tile (colony / ocean stack). */
+      if (!units_is_on_map(u) || u->x != x || u->y != y ||
+          u->orders != UNITS_ORDER_SENTRY) {
+        continue;
+      }
+      if (units_board_stacked(pool, u->id, ship_id)) {
+        taken++;
+      }
+    }
+  }
+  return taken;
 }
 
 bool units_unload_passenger(
