@@ -2394,6 +2394,9 @@ static void ai_king_tax_hike_apply(ColonizeTurnContext* ctx, int human, int delt
                                     ai_king_crown_nation(human),
                                     ai_king_teaparty_payload(applied, picked),
                                     NULL, body, labels, ids, 2)) {
+      /* bugs.md: DOS's 3dc8 dialog sets DS:0x1f5c = 8 — the animated King
+       * flair stands beside the tax audience. */
+      ai_popup_set_last_portrait(ctx->ai_popups, 8, 0);
       return; /* effect deferred to ai_king_apply_popup_result */
     }
     /* Queue full — fall through to auto resolve. */

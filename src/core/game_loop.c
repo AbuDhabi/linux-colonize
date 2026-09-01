@@ -9099,6 +9099,7 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
   (void)dos_compat_tick_count();
   sound_service();
   game_water_cycle_tick(game);
+  ai_popup_set_now_ms(game->elapsed_ms); /* King flair animation clock */
 
   /* End-of-turn nation phases: advance one slice per frame; block other input. */
   if (turn_processor_active(&game->turn_proc)) {
@@ -9111,8 +9112,12 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
     return true;
   }
 
-  /* Present next queued AI popup once the turn processor is idle. */
-  if (!game->ai_popups.open && !game->ai_popups.has_result) {
+  /* Present next queued AI popup once the turn processor is idle.
+   * bugs.md: never while the Colonizopedia owns the screen — the pedia
+   * branch draws no popup, so a queued dialog (the re-presented FF debate
+   * behind the F1 detour) opened INVISIBLY and swallowed the keys the
+   * player pressed to leave the article, silently answering the debate. */
+  if (!game->ai_popups.open && !game->ai_popups.has_result && !game->in_pedia) {
     ai_popup_try_present_next(&game->ai_popups);
   }
 
