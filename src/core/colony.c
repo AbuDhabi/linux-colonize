@@ -1940,6 +1940,50 @@ bool colonies_try_complete_building(ColonizeColonyPool* pool, int colony_id) {
     }
   }
   col->hammers = 0;
+  /*
+   * bugs.md: an upgrade takes its workers with it — DOS has no per-building
+   * membership at all (occupation is the @JOB; the worker always works the
+   * best tier owned), so completing e.g. a Lumber Mill must move the
+   * Carpenter's Shop crew over. Same chain families the save bridge maps.
+   */
+  {
+    static const char* const k_fam[][4] = {
+      {"Lumber Mill", "Carpenter", NULL},
+      {"Rum", NULL},
+      {"Cigar", "Tobacconist", NULL},
+      {"Textile", "Weaver", NULL},
+      {"Fur", NULL},
+      {"Iron", "Blacksmith", NULL},
+      {"Arsenal", "Magazine", "Armory", NULL},
+      {"Cathedral", "Church", NULL},
+      {"University", "College", "School", NULL},
+    };
+    int fam = -1;
+    for (int f = 0; fam < 0 && f < (int)(sizeof(k_fam) / sizeof(k_fam[0])); ++f) {
+      for (int s = 0; k_fam[f][s]; ++s) {
+        if (strstr(bt->name, k_fam[f][s]) != NULL) {
+          fam = f;
+          break;
+        }
+      }
+    }
+    if (fam >= 0) {
+      for (int p = 0; p < col->colonist_count; ++p) {
+        ColonizeColonist* c = &col->colonists[p];
+        if (!c->active || c->building_type < 0 || c->building_type == bid ||
+            c->building_type >= pool->building_type_count) {
+          continue;
+        }
+        const char* on = pool->building_types[c->building_type].name;
+        for (int s = 0; k_fam[fam][s]; ++s) {
+          if (on && strstr(on, k_fam[fam][s]) != NULL) {
+            c->building_type = bid;
+            break;
+          }
+        }
+      }
+    }
+  }
   /* Player-confirmed 2026-08-17 (colony_prod02 golden, a real single DOS
    * turn): building_in_production stays pointed at the just-completed
    * project — DOS never clears it on completion, only has_building[] and

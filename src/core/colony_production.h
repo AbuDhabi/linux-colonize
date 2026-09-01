@@ -300,6 +300,12 @@ const char* colony_prod_highest_manufacturing_tier_name(
   const char* base_name
 );
 
+int colony_prod_worker_building_output_sol(
+  const ColonizeColonyPool* pool,
+  int building_type,
+  int profession,
+  int sol_bonus
+);
 int colony_prod_worker_building_output(
   const ColonizeColonyPool* pool,
   int building_type,
@@ -310,6 +316,14 @@ int colony_prod_worker_building_output(
  * Settlement-view building strip: Town Hall / Church / Cathedral free output
  * plus assigned workers. Colony-wide base +1 cross is people-meter only.
  */
+/* bugs.md: the settlement badge shows POTENTIAL (unclamped) output and must
+ * include the colony's SoL bonus — the plain variant passes bonus 0. */
+int colony_prod_building_display_output_sol(
+  const ColonizeColonyPool* pool,
+  const ColonizeColony* colony,
+  int building_type,
+  int sol_bonus
+);
 int colony_prod_building_display_output(
   const ColonizeColonyPool* pool,
   const ColonizeColony* colony,

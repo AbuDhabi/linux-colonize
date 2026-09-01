@@ -198,6 +198,8 @@ bool ai_popup_busy(const AiPopupState* st); /* open or queued */
 /* If !open && queue non-empty, pop front into current and open. */
 bool ai_popup_try_present_next(AiPopupState* st);
 
+/* Cancel the OPEN dialog as if Esc was pressed (result_cancelled for a CHOICE). */
+void ai_popup_cancel_current(AiPopupState* st);
 bool ai_popup_handle_input(AiPopupState* st, const ColonizeInputState* input);
 
 void ai_popup_render(

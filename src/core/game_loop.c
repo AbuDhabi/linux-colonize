@@ -1331,6 +1331,22 @@ static void game_request_buy_construction_confirm(ColonizeGameState* game) {
     colonies_unit_build_info(colony->building_in_production, &uname, NULL, NULL);
   }
   const char* bname = (bt && bt->name[0]) ? bt->name : (uname ? uname : "building");
+  /* bugs.md: a project the colony already owns can't be bought or completed —
+   * say so (@ALREADYHAVE) instead of quoting a meaningless price and letting
+   * "Complete it" do nothing. */
+  if (bt && colony->building_in_production < COLONIZE_BUILDING_TYPES_MAX &&
+      colony->has_building[colony->building_in_production]) {
+    PopupMsgTokens atok;
+    memset(&atok, 0, sizeof(atok));
+    atok.string0 = colony->name[0] ? colony->name : "colony";
+    atok.string1 = bname;
+    char abody[AI_POPUP_BODY_LEN];
+    char afb[160];
+    snprintf(afb, sizeof(afb), "%s has already built a %s!", atok.string0, bname);
+    popup_msg_fill(&game->messages, "ALREADYHAVE", &atok, afb, abody, sizeof(abody));
+    ai_popup_enqueue_ok(&game->ai_popups, AI_POPUP_TAG_INFO, NULL, abody);
+    return;
+  }
   /* One uniform Buy, whether or not tools are short — DOS's own
    * FUN_2f2b_5e44 formula (colonies_construction_gold_cost) already sums
    * hammers+tools into one gold figure; the popup never differs by cause,
@@ -1792,6 +1808,28 @@ static bool game_handle_modal_input(ColonizeGameState* game, const ColonizeInput
     return true;
   }
   if (game->ai_popups.open) {
+    /*
+     * bugs.md: F1 on the Congress debate CHOICE opens the highlighted
+     * father's Colonizopedia entry; closing that page comes straight back
+     * to the popup (the persistent slate re-presents it — no reroll).
+     */
+    if (input->last_key == COLONIZE_KEY_F1 &&
+        game->ai_popups.current.tag == AI_POPUP_TAG_FF_CONGRESS &&
+        game->ai_popups.current.kind == AI_POPUP_KIND_CHOICE) {
+      const AiPopupRequest* cur = &game->ai_popups.current;
+      const int sel = game->ai_popups.selection;
+      if (sel >= 0 && sel < cur->choice_count) {
+        const int ff_index = cur->choice_ids[sel];
+        if (ff_index >= 0 && ff_index < PEDIA_FATHER_COUNT) {
+          /* Cancel the open dialog — apply's cancelled branch re-enqueues
+           * the identical slate, which re-presents once the pedia closes. */
+          ai_popup_cancel_current(&game->ai_popups);
+          game_apply_ai_popup_result(game);
+          game_open_pedia_article(game, PEDIA_CAT_FATHER, ff_index, false);
+          return true;
+        }
+      }
+    }
     ai_popup_handle_input(&game->ai_popups, input);
     game_apply_ai_popup_result(game);
     return true;
@@ -9262,6 +9300,29 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
           }
         }
       }
+    } else if (active_awaiting_player) {
+      /* bugs.md: the unit awaiting orders must be on screen — whatever path
+       * selected it, recentre once it sits outside the current viewport. */
+      int vc = 0;
+      int vr = 0;
+      game_map_zoom_view_size(game->map_zoom, &vc, &vr);
+      int vx = 0;
+      int vy = 0;
+      map_panel_clamp_view_origin(
+        (int)game->world_map.width,
+        (int)game->world_map.height,
+        game->map_view_x,
+        game->map_view_y,
+        vc,
+        vr,
+        &vx,
+        &vy
+      );
+      if (active->x < vx || active->y < vy || active->x >= vx + vc || active->y >= vy + vr) {
+        game->map_cursor_x = active->x;
+        game->map_cursor_y = active->y;
+        game_set_view_center(game, active->x, active->y);
+      }
     } else if (!active_awaiting_player && !game->view_pieces_mode) {
       /* No unit is currently both selected and idle-awaiting the player —
        * advance the cycle to find the next one that does. Loops (bounded
@@ -11109,9 +11170,17 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
           if (!game->map_goto_left_tile) {
             /* Short click (press and release on the same tile) is not a go-to:
              * it means whatever a plain click on that tile means — open a
-             * colony, or make another of our units the active one. */
-            game_map_click_dispatch(game, mx, my);
-            return true;
+             * colony, or make another of our units the active one.
+             * bugs.md: unless the pointer clearly DRAGGED (≥4 logical px)
+             * within the tile — that was an intended go-to whose pull didn't
+             * cross a tile boundary, and it kept opening the colony under
+             * the pointer instead of ordering the ship there. */
+            const int pdx = input->mouse_x - game->map_goto_down_px;
+            const int pdy = input->mouse_y - game->map_goto_down_py;
+            if (pdx * pdx + pdy * pdy < 16) {
+              game_map_click_dispatch(game, mx, my);
+              return true;
+            }
           }
           if (mx == u->x && my == u->y) {
             return true;
@@ -11832,6 +11901,34 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
 
   if (game->in_europe) {
     render_europe_screen(game, framebuffer);
+    /*
+     * bugs.md: an open AI popup was never DRAWN over the European Status —
+     * but it still swallowed every input (game_handle_modal_input gates on
+     * ai_popups.open). Arrival events queue popups in the same end-turn
+     * that auto-opens Europe on ship arrival, so the screen froze until
+     * blind clicks happened to answer the invisible dialog. Same fix as
+     * the colony branch.
+     */
+    if (game->ai_popups.open) {
+      ColonizePopupColors popup_cols;
+      popup_colors_from_ui(&popup_cols);
+      const ColonizeFont* popup_font = game->intro_font_ok ? &game->intro_font
+                                        : (game->menu_font_ok ? &game->menu_font
+                                                               : (game->colony_font_ok
+                                                                    ? &game->colony_font
+                                                                    : NULL));
+      const ColonizeSpriteSheet* wood =
+        game->europe_ok && game->europe.wood_tile_ok ? &game->europe.wood_tile : NULL;
+      ai_popup_render(
+        (AiPopupState*)&game->ai_popups,
+        popup_font,
+        wood,
+        &popup_cols,
+        COLONIZE_COL_BASIC,
+        COLONIZE_COL_SELECT,
+        framebuffer
+      );
+    }
     goto render_log_sample;
   }
 

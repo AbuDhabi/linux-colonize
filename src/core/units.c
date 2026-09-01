@@ -506,6 +506,8 @@ int units_tick_drydock_repair(
   return repaired;
 }
 
+static int g_units_combat_human_nation;
+
 int units_cortes_cash_coastal_treasures(
   ColonizeUnitPool* pool,
   ColonizeColonyPool* colonies,
@@ -521,6 +523,10 @@ int units_cortes_cash_coastal_treasures(
     return 0;
   }
   ColonizeCol1Nation* nat = &col1->nation[nation_id];
+  /* Borrow/restore the shared EuropeScreen — an AI nation's cash-in must not
+   * leave its treasury behind as the human's displayed gold (bugs.md). */
+  const int saved_gold = europe->gold;
+  const int saved_tax = europe->tax_percent;
   europe->gold = (int)nat->gold;
   europe->tax_percent = (int)nat->tax_rate;
   int cashed = 0;
@@ -563,6 +569,10 @@ int units_cortes_cash_coastal_treasures(
     }
     (void)units_despawn(pool, treasure->id);
     cashed++;
+  }
+  if (nation_id != g_units_combat_human_nation) {
+    europe->gold = saved_gold;
+    europe->tax_percent = saved_tax;
   }
   return cashed;
 }
@@ -6615,12 +6625,24 @@ bool units_advance_goto_one_step(
   {
     const ColonizeUnitType* mt = units_type(pool, u->type_index);
     const int missionary = mt && mt->name[0] && strstr(mt->name, "Missionar") != NULL;
-    if (mt && mt->attack <= 0 && !missionary) {
-      const int occ = units_id_at(pool, nx, ny);
-      const ColonizeUnit* of = occ >= 0 ? units_get_const(pool, occ) : NULL;
-      const int village = units_tribe_nation_at(g_units_ff_col1, nx, ny);
-      if ((of && of->nation_id != u->nation_id) ||
-          (village >= 4 && u->nation_id >= 0 && u->nation_id <= 3)) {
+    const int occ = units_id_at(pool, nx, ny);
+    const ColonizeUnit* of = occ >= 0 ? units_get_const(pool, occ) : NULL;
+    const int village = units_tribe_nation_at(g_units_ff_col1, nx, ny);
+    const int step_is_dest = (nx == gx && ny == gy);
+    /*
+     * bugs.md: a goto must NEVER open combat en route — a scout pathing
+     * past a Brave was auto-attacking it. Any foreign occupant (or native
+     * village) on an intermediate step tile halts the step instead; only
+     * the DESTINATION tile may be attacked, and then only by a unit that
+     * can fight (@UNIT attack 0: Pioneers, Colonists, Wagon Trains,
+     * unarmed transports stop even at the destination).
+     */
+    if ((of && of->nation_id != u->nation_id) ||
+        (village >= 4 && u->nation_id >= 0 && u->nation_id <= 3)) {
+      if (!step_is_dest) {
+        return false;
+      }
+      if (mt && mt->attack <= 0 && !missionary) {
         return false;
       }
     }

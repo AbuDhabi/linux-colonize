@@ -2526,6 +2526,7 @@ static void colony_screen_blit_buildings(
   const ColonizeColonyPool* pool,
   const ColonizeColony* colony,
   const ColonizeUnitPool* units,
+  const ColonizeCol1Save* col1,
   const ColonizeFont* font,
   bool debug_rects,
   ColonizeFramebuffer8* framebuffer
@@ -2648,7 +2649,13 @@ static void colony_screen_blit_buildings(
          * 5 (what actually got made) where DOS shows 10 (what the worker
          * can make, cotton permitting) — the shortfall itself already shows
          * separately on the Production tab. */
-        int amount = colony_prod_building_display_output(pool, colony, built);
+        /* bugs.md (carpentry.SAV): the badge is the crew's POTENTIAL with
+         * the SoL bonus folded in — never this tick's input-clamped actual.
+         * The hammers preview override is gone for the same reason: with
+         * lumber at 0 it read 0 (and silently dropped the SoL bonus). */
+        int amount = colony_prod_building_display_output_sol(
+          pool, colony, built, colony_prod_sol_bonus(col1, colony)
+        );
         if (badge >= COLONY_CARGO_ICON_BASE && badge < COLONY_CARGO_ICON_BASE + COLONIZE_CARGO_COUNT &&
             view->preview_valid) {
           const int cargo = badge - COLONY_CARGO_ICON_BASE;
@@ -2660,8 +2667,6 @@ static void colony_screen_blit_buildings(
             amount = view->preview.bells;
           } else if (badge == COLONY_ICON_CROSS && view->preview.crosses > 0) {
             amount = view->preview.crosses;
-          } else if (badge == COLONY_ICON_HAMMER && view->preview.hammers > 0) {
-            amount = view->preview.hammers;
           }
         }
         if (amount > 0) {
@@ -4785,7 +4790,7 @@ void colony_screen_render(
   colony_screen_draw_top_bar(colony, game_year, game_autumn, gold, font, framebuffer);
 
   colony_screen_fill_parch(view, framebuffer);
-  colony_screen_blit_buildings(view, pool, colony, units, font, debug_building_rects, framebuffer);
+  colony_screen_blit_buildings(view, pool, colony, units, col1, font, debug_building_rects, framebuffer);
 
   colony_screen_fill_wood_tile(view, framebuffer);
   if (colony && map && terrain) {
