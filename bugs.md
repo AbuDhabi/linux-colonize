@@ -181,5 +181,22 @@ This is a user-maintained list of bugs. User puts reports in. Agents may annotat
 | Frigates can't attack. That's what they are for, attacking! Make sure Man-O-War and Privateer can attack too. | FIXED. Nothing ever set the WAR flag between the rebel and the crown's borrowed slot at the declaration, so warships attacking REF ships bounced on the peace gate ("At peace — cannot attack"). Declaring now raises WAR|MET on the pair directly (no Franklin gate, no peer embargo chrome — the WoI is its own regime). Frigate/Man-O-War/Privateer all attack via the normal combat-role rule. |
 | Game does not detect the end of the revolution (ie. losing the game) when the King captures all your towns. | FIXED. The zero-colonies defeat was gated to peacetime (and to year ≥ 1600) — the King capturing every town during the WoI ended nothing. During the war, losing your last colony now ends the game ("The revolution is crushed"), with no year grace. |
 | Popups must block ALL processing until answered — there is not a single non-blocking popup in the whole game. The only time state processing (end-of-turn, AI, pathing, combat, price changes, …) may happen is while the player is viewing the main map with no popup up. Refactor this structurally instead of fixing it case by case. | REFACTORED. The last structural hole was end-of-turn itself: dialogs queued by a processing slice (starvation, king audience, combat chrome, Indian contact, …) were hoarded and shown only after the WHOLE turn had processed — every nation's moves ran behind them. `game_update`'s EOT branch now presents queued popups/woodcuts between processor slices and freezes `turn_processor_advance` until each is answered, mirroring DOS's blocking dialog calls; only animations keep ticking. `game_turn_flow_allowed` is additionally false while the EOT processor is active, so a popup answer can never hand control to a unit mid-turn. Popup queue cap 16→32 (one SETUP slice queues every colony's production chrome at once and overflow dropped popups silently). New dialogs get this for free: anything in `game_modal_open` or the `ai_popup` queue stops the pipeline by construction — the invariant is documented in architecture.md/popups.md so it stops being re-litigated per bug. |
+| REF landing is too early. They currently land the same turn as the declaration of independence is signed. They should wait one more turn before doing so. | |
+| REF landing doesn't update the map properly. They are effectively invisible until the user moves a unit and the map refreshes. | |
+| REF lands on user units despite having an empty tile next to the colony to land on. I know they can land-capture user units if user decides to be cheeky and block every tile, but not if the user leaves some tiles open. Check DOS. Do they falsely believe that since they already landed on the empty tile, the tile held by them is no longer empty or something, and therefore they have to land on user units, capturing them? See REF_bugs.SAV. | |
+| REF still uses French appearance. | |
+| Foreign intervention in the war of independence does not appear to be implemented at all yet. | |
+| | |
+| | |
+| | |
+| | |
+| | |
+| | |
+| | |
+| | |
+| | |
+| | |
+| | |
+| | |
 | | |
 
