@@ -12063,6 +12063,28 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
               blit_map_sprite(
                 &game->phys0, 148, framebuffer, sx, sy, tile_w, tile_h, map_origin_x, map_origin_y
               );
+              /* FUN_6ba1_0938 unseen tail: seen neighbours dither their
+               * terrain onto the fog tile (mask 104+q + fill into holes). */
+              const int fog_n2 = game_fog_nation(game);
+              const int redges = map_fog_reveal_edge_count(&game->world_map, mx, my, fog_n2);
+              for (int ei = 0; ei < redges; ++ei) {
+                const int mask =
+                  map_fog_reveal_edge_mask_sprite_at(&game->world_map, mx, my, fog_n2, ei);
+                const int fill =
+                  map_fog_reveal_edge_fill_sprite_at(&game->world_map, mx, my, fog_n2, ei);
+                if (mask >= 0) {
+                  blit_map_sprite(
+                    &game->phys0, mask, framebuffer, sx, sy, tile_w, tile_h, map_origin_x,
+                    map_origin_y
+                  );
+                }
+                if (fill >= 0 && fill < game->terrain.sprite_count) {
+                  blit_map_sprite_where_dest(
+                    &game->terrain, fill, framebuffer, sx, sy, tile_w, tile_h, map_origin_x,
+                    map_origin_y, 0
+                  );
+                }
+              }
             }
             continue;
           }
@@ -12229,15 +12251,25 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
               }
             }
           }
-          /* Fog transitional edges: PHYS0 104–107 black fringe toward unseen. */
+          /* Fog transitional edges toward unseen: PHYS0 104-107 mask, then —
+           * as DOS FUN_6ba1_06e0 always does — the unseen neighbour's own
+           * terrain filled into the mask's colour-0 holes, so the boundary
+           * dithers instead of staying black (bugs.md). */
           {
             const int fog_n = game_fog_nation(game);
             const int edges = map_fog_edge_count(&game->world_map, mx, my, fog_n);
             for (int ei = 0; ei < edges; ++ei) {
               const int mask = map_fog_edge_mask_sprite_at(&game->world_map, mx, my, fog_n, ei);
+              const int fill = map_fog_edge_fill_sprite_at(&game->world_map, mx, my, fog_n, ei);
               if (mask >= 0) {
                 blit_map_sprite(
                   &game->phys0, mask, framebuffer, sx, sy, tile_w, tile_h, map_origin_x, map_origin_y
+                );
+              }
+              if (fill >= 0 && fill < game->terrain.sprite_count) {
+                blit_map_sprite_where_dest(
+                  &game->terrain, fill, framebuffer, sx, sy, tile_w, tile_h, map_origin_x,
+                  map_origin_y, 0
                 );
               }
             }

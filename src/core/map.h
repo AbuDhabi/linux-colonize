@@ -146,6 +146,33 @@ int map_fog_edge_mask_sprite_at(
 );
 /* Number of fog-edge cardinals (0..4) for a seen tile. */
 int map_fog_edge_count(const ColonizeWorldMap* map, int x, int y, int nation_id);
+/* VICEROY FUN_6ba1_06e0: every fog-edge mask gets the neighbour's terrain
+ * dithered into its colour-0 holes — seen tile toward unseen neighbour. */
+int map_fog_edge_fill_sprite_at(
+  const ColonizeWorldMap* map,
+  int x,
+  int y,
+  int nation_id,
+  int index
+);
+/* Unseen tile toward seen neighbours (FUN_6ba1_0938 unseen path): mask 104+q
+ * plus the seen neighbour's terrain; land fog tile resolves an ocean
+ * neighbour via its W/S/E/N cardinals or skips the edge. */
+int map_fog_reveal_edge_count(const ColonizeWorldMap* map, int x, int y, int nation_id);
+int map_fog_reveal_edge_mask_sprite_at(
+  const ColonizeWorldMap* map,
+  int x,
+  int y,
+  int nation_id,
+  int index
+);
+int map_fog_reveal_edge_fill_sprite_at(
+  const ColonizeWorldMap* map,
+  int x,
+  int y,
+  int nation_id,
+  int index
+);
 
 uint8_t map_get_terrain(const ColonizeWorldMap* map, int x, int y);
 uint8_t map_get_layer3(const ColonizeWorldMap* map, int x, int y);
