@@ -864,6 +864,12 @@ int main(void) {
   if ((ai_diplo_read(&col1, 2, 1) & AI_DIPLO_MET) == 0) {
     return fail("0108 should mark eliminated nation as MET vs crown fold");
   }
+  /* bugs.md: the first wave WAITS one turn after the declaration — the
+   * declare turn itself must land nothing. */
+  if (count_nation(&units, 1) >= 1) {
+    return fail("declare turn must not land the wave (one-turn wait)");
+  }
+  ai_king_nation_turn(&ctx);
   /* Seed then drain: residual +1 regular may leave pools non-zero; require spawn. */
   if (count_nation(&units, 1) < 1) {
     return fail("post-declare wave should spawn crown (nation 1) unit");

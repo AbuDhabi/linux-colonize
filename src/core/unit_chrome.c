@@ -582,7 +582,14 @@ void unit_chrome_blit_unit_for_palette(
   int fill_override = -1;
   int letter_override = -1;
   if (active_palette && nation_id >= 0 && nation_id < 4) {
-    fill_override = unit_chrome_nearest_palette_index(active_palette, k_nation_fill_rgb_native[nation_id]);
+    /* bugs.md: REF renders WHITE — this palette wrapper bypassed the
+     * crown override in unit_chrome_nation_color, so the main map still
+     * showed the borrowed peer's blue. */
+    static const uint8_t k_white_rgb[3] = {255, 255, 255};
+    fill_override = unit_chrome_nearest_palette_index(
+      active_palette,
+      nation_id == g_chrome_crown_nation ? k_white_rgb
+                                         : k_nation_fill_rgb_native[nation_id]);
     /*
      * DOS 112b:1996..19b8: only Sentry (1) and Fortified (6) letters take
      * the nation shade — every other order (No Orders, Go To, Fortify in
@@ -593,8 +600,11 @@ void unit_chrome_blit_unit_for_palette(
      * no remap is needed for the black case.
      */
     if (orders_index == 1 /* Sentry */ || orders_index == 6 /* Fortified */) {
-      letter_override =
-        unit_chrome_nearest_palette_index(active_palette, k_nation_letter_rgb_native[nation_id]);
+      static const uint8_t k_grey_rgb[3] = {180, 180, 180};
+      letter_override = unit_chrome_nearest_palette_index(
+        active_palette,
+        nation_id == g_chrome_crown_nation ? k_grey_rgb
+                                           : k_nation_letter_rgb_native[nation_id]);
     } else {
       letter_override = 0;
     }
