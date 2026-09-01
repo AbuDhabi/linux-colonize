@@ -161,9 +161,9 @@ This is a user-maintained list of bugs. User puts reports in. Agents may annotat
 | Tax hike event lacks king flair. There is even an animation on that flair. | FIXED. DOS's tax dialog (FUN_38fd_3dc8) sets DS:0x1f5c = 8 — the KING portrait flair — and FUN_6f74_0042 arms its one-shot animation (~3.9 s pause, then a frame every ~164 ms to the sheet's end). The port had only the tribe-chief half of that latch wired. The tax audience CHOICE now stands the animated King (KING2.SS, 8 frames, 79x161) beside the dialog, timed off the game clock; frame state resets per popup. |
 | Something is messed up with the new Founding Father election choice popup. Pressing F1 goes to the help page on the selected FF, but exiting that goes to another page or something, and when you finally get out, there's no popup anymore, and some FF has been selected for election. | FIXED — the F1 detour itself was fine; the return leg wasn't. The cancelled debate re-enqueues its slate immediately, and the popup presenter ran even while the Colonizopedia owned the screen — but the pedia render branch draws no popup, so the re-presented debate opened INVISIBLY under the article and swallowed the keys you pressed to leave it, silently picking a father. Popups no longer present while in the pedia; leaving the article (one key/click, article-only mode) re-presents the identical debate on the next frame. |
 | Petty criminals still appear on Recruit screen, despite having Brewster. When the popup appears to select one, the criminals seem "bumped" to other colonist types, but not in Europe docks. Both should have the same choices. | |
-| Master blacksmiths equipped with tools appear as hardy pioneers. They should use the base, unskilled pioneer look. | |
-| | |
-| | |
+| Master blacksmiths equipped with tools on euro docks appear as hardy pioneers. They should use the base, unskilled pioneer look. On the map and colony view, they use the correct icon. | |
+| European Status should block turn processing just like a popup. I just had the tax hike event appear; it should not have. While you're in Europe, that blocks turn processing, just like every other blocking popup. | |
+| Verify un-worked church output. I seem to recall that it should not benefit from SoL bonus unless there's a colonist there; I might be wrong. DOS no doubt has the proper output somewhere. | |
 | | |
 | | |
 | | |
