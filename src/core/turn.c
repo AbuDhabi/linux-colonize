@@ -2156,91 +2156,14 @@ void turn_run_nation_ticks(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
   }
 
   /*
-   * FUN_3844_00f2 §C rare immigrant Merchantman (every 8th turn, peacetime).
-   * Year≥1600 keeps golden_ai_turns early T2 clean. Census/dialog PARKED.
-   * Cite: nation_eot_ship_spawn.md §C.
+   * FUN_3844_00f2 §C tail (viceroy 58393-58423) is NOT ported here: it is
+   * the @KINGFRIGATE event — Crown offers a FRIGATE (+10% tax) when the
+   * nation's colonies are threatened by warships — and lives in ai_king.c
+   * (ai_king_frigate_*). An earlier duplicate here misread type 0x11 as a
+   * "Merchantman" and spawned a free ship every 8th turn (bugs.md
+   * free_merchanman.SAV; player-corrected: a Merchantman is the victim,
+   * not the help).
    */
-  if (ctx->units && ctx->game_year && ctx->turn_number && *ctx->game_year >= 1600u &&
-      (*ctx->turn_number & 7u) == 0u) {
-    const int woi = ctx->col1_ok && ctx->col1 && ctx->col1->head.game_options.woi != 0;
-    /*
-     * bugs.md (free_merchanman.SAV): the port fired this on the turn
-     * counter alone, handing out a free Merchantman every 8th turn. DOS's
-     * outer gate (nation_eot_ship_spawn.md §C) also requires the census
-     * warship-threat crumbs: DS:0xa89b != 0 (a colony threatened by a
-     * Frigate) OR DS:0xa89a > 3 — own colonies within 5 tiles of foreign
-     * armed ships. Computed inline (the census detector has no port
-     * equivalent yet; the pathfinding sub-gate is skipped, which only
-     * makes the spawn rarer, never spammier).
-     */
-    int frigate_threat = 0;
-    int other_threat = 0;
-    if (ctx->colonies && ctx->human_nation >= 0) {
-      for (int ci = 0; ci < COLONIZE_COLONIES_MAX; ++ci) {
-        const ColonizeColony* c = &ctx->colonies->colonies[ci];
-        if (!c->active || c->nation_id != ctx->human_nation) {
-          continue;
-        }
-        for (int ui = 0; ui < COLONIZE_UNITS_MAX; ++ui) {
-          const ColonizeUnit* su = units_get_const(ctx->units, ui);
-          if (!su || !su->active || su->nation_id == ctx->human_nation ||
-              su->nation_id > 3 || !units_is_on_map(su) || su->x >= 200 ||
-              !units_is_sea(ctx->units, ui)) {
-            continue;
-          }
-          const ColonizeUnitType* st = units_type(ctx->units, su->type_index);
-          if (!st || st->attack <= 0) {
-            continue;
-          }
-          if (abs(su->x - c->x) > 5 || abs(su->y - c->y) > 5) {
-            continue;
-          }
-          if (st->name[0] && strstr(st->name, "Frigate") != NULL) {
-            frigate_threat++;
-          } else {
-            other_threat++;
-          }
-          break; /* one qualifying ship marks the colony */
-        }
-      }
-    }
-    if (!woi && (frigate_threat != 0 || other_threat > 3)) {
-      int ti = units_find_type(ctx->units, "Merchantman");
-      if (ti < 0) {
-        ti = 0x11;
-      }
-      int x = 236;
-      int y = 236;
-      if (ctx->col1_ok && ctx->col1 && ctx->human_nation >= 0 &&
-          ctx->human_nation < (int)COLONIZE_COL1_NATION_COUNT) {
-        x = (int)ctx->col1->nation[ctx->human_nation].return_from_europe_x;
-        y = (int)ctx->col1->nation[ctx->human_nation].return_from_europe_y;
-        if (x == 0 && y == 0) {
-          x = 236;
-          y = 236;
-        }
-      }
-      const int id = units_spawn_allow_stack(ctx->units, ti, x, y);
-      ColonizeUnit* u = units_get(ctx->units, id);
-      if (u) {
-        units_set_nation(u, ctx->human_nation);
-        u->orders = UNITS_ORDER_AI_SAIL;
-        u->col1_unknown15 = (uint8_t)(u->col1_unknown15 | 0x40u);
-        u->goto_x = x;
-        u->goto_y = y;
-        /* FUN_48d3_0002 voyage duration (same roll as every Europe crossing). */
-        const bool magellan = ctx->col1_ok && ctx->col1 &&
-          founding_fathers_nation_has(ctx->col1, ctx->human_nation, FF_FERDINAND_MAGELLAN);
-        const int dur = europe_voyage_turns_roll(
-          ctx->rng, magellan, units_count_sea_for_nation(ctx->units, ctx->human_nation)
-        );
-        u->turns_worked = (uint8_t)dur;
-        if (ctx->status && ctx->status_size > 0) {
-          snprintf(ctx->status, ctx->status_size, "Immigrant ship arrives.");
-        }
-      }
-    }
-  }
 }
 
 int turn_rank_euro_nations(

@@ -75,7 +75,7 @@ If Euro + human: dialog (difficulty string + player name + nation name), sound `
 
 If `local_4 == 1`:
 
-1. `281f_095c` → spawn type **`0x11`** (Merchantman-class) at Europe proxy coords `nation-0x18`
+1. `281f_095c` → spawn type **`0x11`** (= @UNIT index 17, **Frigate** — an earlier "Merchantman-class" gloss here was wrong and led the port to hand out free Merchantmen; player-corrected 2026-09-01) at Europe proxy coords `nation-0x18`
 2. Clear `+0x314c`; copy Europe landfall target from nation Europe block `+0x32/+0x33` → unit `+0x314d/+0x314e`
 3. `291f_0aee` → `48d3_0002` landfall goto duration → `+0x315a`
 4. OR flag bit **`0x40`** on `+0x3148` (in-transit / bound)
