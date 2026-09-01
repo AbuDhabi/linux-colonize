@@ -1048,6 +1048,10 @@ int units_collect_tile_stack(
 
 int units_ship_capacity(const ColonizeUnitPool* pool, int ship_id);
 
+/* Passenger slots left: capacity − passengers − holds occupied by goods
+ * (goods share the slots passengers ride in). */
+int units_ship_free_passenger_slots(const ColonizeUnitPool* pool, int ship_id);
+
 /* Ships and wagon trains that can carry commodity holds. */
 bool units_is_transport(const ColonizeUnitPool* pool, int unit_id);
 /* Number of commodity hold slots (from @UNIT cargo field). */
