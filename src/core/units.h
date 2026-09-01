@@ -1126,6 +1126,8 @@ void units_end_turn(ColonizeUnitPool* pool);
 #define UNITS_JOB_SCOUT 22    /* Seasoned Scouts */
 #define UNITS_JOB_DRAGOON 23  /* Veteran Dragoons */
 #define UNITS_JOB_MISSIONARY 24 /* Jesuit Missionaries expert; plain bless uses NONE */
+#define UNITS_JOB_SERVANT 25  /* Indentured Servants */
+#define UNITS_JOB_CRIMINAL 26 /* Petty Criminals */
 #define UNITS_JOB_NONE 28     /* no expert skill (plain Pioneer/Soldier) */
 
 /* Equipped map/fence icons (ICONS.SS); expert variants when profession matches. */

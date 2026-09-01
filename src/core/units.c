@@ -2235,8 +2235,16 @@ static int units_apply_land_loss_outcome(
   if (loser_euro && lt && lt->name[0] && win_can_capture) {
     const int is_treasure = strstr(lt->name, "Treasure") != NULL;
     const int is_wagon = strstr(lt->name, "Wagon") != NULL;
+    /*
+     * bugs.md: mounted scouts are DESTROYED, never captured — by anyone.
+     * DOS captures type 0 Colonists only, and an equipped colonist is a
+     * different type there; a Colonists-type unit carrying horses or
+     * muskets here (seizure, save import) must not slip into the capture
+     * branch on its type name.
+     */
     const int is_colonist =
-      strstr(lt->name, "Colonist") != NULL && !is_treasure && !is_wagon;
+      strstr(lt->name, "Colonist") != NULL && !is_treasure && !is_wagon &&
+      lose->horses <= 0 && lose->muskets <= 0;
     if (is_treasure) {
       /* Treasure gold handled in resolve; despawn below. */
     } else if (is_wagon) {
@@ -4204,11 +4212,30 @@ static bool units_is_combat_role(const ColonizeUnitPool* pool, const ColonizeUni
   return t && t->attack > 0;
 }
 
-static bool units_at_war_for_move(int a, int b) {
+static bool units_at_war_for_move_target(int a, int b, const ColonizeUnit* target) {
   if (a < 0 || b < 0 || a == b) {
     return false;
   }
-  /* Natives vs Euro: always fightable when combat role. */
+  /*
+   * bugs.md: an INDIAN mover walking into a Euro must not open combat on a
+   * wander — that made Indians attack units with zero alarm. A native
+   * attack now needs real hostility: the Indian×Euro war flag, or alarm at
+   * the "already hostile" cut (0x4b) — except a Treasure Train, which they
+   * find hard to resist and always take. A Euro attacking a native stays
+   * always fightable (the @WHACKINDIANS confirm gates the human side).
+   */
+  if (a >= 4 && a <= 11 && b >= 0 && b <= 3) {
+    if (!g_units_ff_col1) {
+      return true;
+    }
+    (void)target;
+    if (ai_diplo_indian_at_war(g_units_ff_col1, b, a - 4)) {
+      return true;
+    }
+    const ColonizeCol1Indian* ind = &g_units_ff_col1->indian[a - 4];
+    return (int)ind->alarm_by_player[b] >= 0x4b;
+  }
+  /* Euro mover vs native, or native vs native: always fightable. */
   if (a >= 4 || b >= 4) {
     return true;
   }
@@ -4216,6 +4243,10 @@ static bool units_at_war_for_move(int a, int b) {
     return true; /* tests / no diplo: allow combat */
   }
   return ai_diplo_at_war(g_units_ff_col1, a, b);
+}
+
+static bool units_at_war_for_move(int a, int b) {
+  return units_at_war_for_move_target(a, b, NULL);
 }
 
 static bool units_village_squat_illegal(
@@ -4375,7 +4406,11 @@ ColonizeEnterReason units_enter_probe(
       g_units_last_enter_reason = COLONIZE_ENTER_BOUNCE_FOREIGN;
       return g_units_last_enter_reason;
     }
-    if (!units_at_war_for_move(mover_nation, foe_nation)) {
+    /* Treasure Train: natives always take it (bugs.md — "hard to resist"). */
+    const ColonizeUnitType* ft = fu ? units_type(pool, fu->type_index) : NULL;
+    const bool treasure_bait = mover_nation >= 4 && ft && ft->name[0] &&
+      strstr(ft->name, "Treasure") != NULL;
+    if (!treasure_bait && !units_at_war_for_move(mover_nation, foe_nation)) {
       g_units_last_enter_reason = COLONIZE_ENTER_BOUNCE_PEACE;
       return g_units_last_enter_reason;
     }
@@ -5396,7 +5431,17 @@ bool units_set_goto(
    */
   if (map_tile_seen_by(map, dest_x, dest_y, u->nation_id) &&
       !units_can_enter(pool, u->type_index, map, dest_x, dest_y, unit_id, colonies)) {
-    return false;
+    /*
+     * bugs.md: a Go To aimed at an Indian village is a legal order — the
+     * unit travels there and the village-enter handling fires on arrival
+     * (the per-frame pacing stops it adjacent and hands control back).
+     * Everything else that fails the enterability check still refuses.
+     */
+    const bool village_dest = map_tile_has_city(map, dest_x, dest_y) &&
+      (!colonies || colonies_id_at(colonies, dest_x, dest_y) < 0);
+    if (!village_dest) {
+      return false;
+    }
   }
   u->follow_unit_id = -1;
   u->orders = UNITS_ORDER_GOTO;

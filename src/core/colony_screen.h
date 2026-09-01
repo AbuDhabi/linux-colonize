@@ -105,11 +105,17 @@
 /* bugs.md item 11: transport icons sat 10px too high; nudged down. */
 #define COLONY_TRANSPORT_ICON_Y (COLONY_BOTTOM_PANEL_Y + 18)
 #define COLONY_TRANSPORT_PITCH 18
-#define COLONY_HOLD_X COLONY_TRANSPORT_X
-#define COLONY_HOLD_Y (COLONY_BOTTOM_PANEL_Y + 30)
-#define COLONY_HOLD_W 12
-#define COLONY_HOLD_H 14
-#define COLONY_HOLD_PITCH 14
+/*
+ * bugs.md: hold-box geometry measured off COLONY.PIK itself (the panel art
+ * carries six 9x12 box interiors at panel-local x = 13 + i*12, y = 37..48,
+ * i.e. screen x = 128 + i*12, y = 165). The old 14px pitch drifted up to
+ * 10px right of the painted boxes by the sixth hold.
+ */
+#define COLONY_HOLD_X 128
+#define COLONY_HOLD_Y 165
+#define COLONY_HOLD_W 9
+#define COLONY_HOLD_H 12
+#define COLONY_HOLD_PITCH 12
 
 #define COLONY_OUTSIDE_MAX 12
 

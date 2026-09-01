@@ -378,6 +378,26 @@ bool platform_poll_input(ColonizePlatform* platform, ColonizeInputState* out_inp
       case SDL_KEYDOWN:
         out_input->last_key = map_key(event.key.keysym.sym);
         break;
+      case SDL_WINDOWEVENT:
+        /*
+         * bugs.md: after alt-tabbing away mid-press (or releasing the button
+         * outside the window) SDL never delivers the BUTTONUP, so the held
+         * flags stayed latched and screens driven by press/release pairs
+         * (the European Status drags in particular) ate several clicks
+         * before resyncing. Losing focus drops the held state and
+         * synthesizes the release so drag sessions resolve.
+         */
+        if (event.window.event == SDL_WINDOWEVENT_FOCUS_LOST) {
+          if (platform->mouse_left_down) {
+            out_input->mouse_left_released = true;
+          }
+          if (platform->mouse_right_down) {
+            out_input->mouse_right_released = true;
+          }
+          platform->mouse_left_down = false;
+          platform->mouse_right_down = false;
+        }
+        break;
       case SDL_TEXTINPUT:
         if (event.text.text[0] && out_input->text_input_len + 1 < COLONIZE_TEXT_INPUT_MAX) {
           /* Take first byte of each text event (ASCII names). */
