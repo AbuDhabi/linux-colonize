@@ -1158,6 +1158,7 @@ void units_end_turn(ColonizeUnitPool* pool);
 #define UNITS_ICON_SOLDIER 74
 #define UNITS_ICON_SCOUT 75
 #define UNITS_ICON_DRAGOON 76
+#define UNITS_ICON_DAMAGED_ARTILLERY 65 /* DOS FUN_112b icon 0x42 (type 0xb + bit7) */
 #define UNITS_ICON_HARDY_PIONEER 101
 #define UNITS_ICON_VETERAN_SOLDIER 102
 #define UNITS_ICON_SEASONED_SCOUT 103

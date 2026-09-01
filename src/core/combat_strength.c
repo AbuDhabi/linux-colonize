@@ -326,6 +326,23 @@ int combat_engagement_strength(
         apply_now = 1;
         skip_stash = 1;
       }
+      /*
+       * bugs.md: the Rebels-vs-Tories ambush terrain (stash → attacker
+       * ×(stash+4)/4) applies ONLY when BOTH units stand outside colonies —
+       * attacking from a non-colony tile into a non-colony tile. With a
+       * colony on either tile the defender keeps its terrain normally and
+       * the attacker gets no ambush (DOS 1b0e gates the WoI tail on the
+       * colony lookup, iVar18 < 0).
+       */
+      if (combat_woi_active(ctx->col1) && ctx->colonies) {
+        const int colony_here = colonies_id_at(ctx->colonies, u->x, u->y) >= 0;
+        const int colony_foe =
+          foe && colonies_id_at(ctx->colonies, foe->x, foe->y) >= 0;
+        if (colony_here || colony_foe) {
+          apply_now = 1;
+          skip_stash = 1;
+        }
+      }
     } else if (u->orders == UNITS_ORDER_FORTIFIED || u->orders == UNITS_ORDER_FORTIFY) {
       skip_stash = 1;
     }

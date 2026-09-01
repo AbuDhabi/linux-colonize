@@ -1561,8 +1561,21 @@ int units_best_defender_at(
   ColonizeCombatStrengthCtx sctx = units_combat_strength_ctx(col1);
   sctx.units = pool;
 
+  /*
+   * bugs.md: the picker looked "random" for two reasons. (1) A colony-armed
+   * soldier is stored as a Colonists-TYPE unit with muskets — the type-attack
+   * combat-role gate skipped it, so a stack of armed colonists fell through
+   * to the fallback. (2) That fallback was units_foreign_at = first unit in
+   * POOL ORDER, which happily handed an unarmed colonist to the attacker.
+   * Now: two tiers. Armed (combat-role type OR carrying muskets/horses) are
+   * ranked by full engagement strength and always outrank everyone; unarmed
+   * units are ranked in a second tier and defend only when no armed unit is
+   * left on the tile.
+   */
   int best_id = -1;
   int best_score = -1;
+  int best_soft_id = -1;
+  int best_soft_score = -1;
   for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
     const ColonizeUnit* u = &pool->units[i];
     if (!units_is_on_map(u) || u->x != x || u->y != y) {
@@ -1574,24 +1587,27 @@ int units_best_defender_at(
     if (atk_nat >= 0 && u->nation_id == atk_nat) {
       continue;
     }
-    if (!combat_unit_is_combat_role(pool, u->id)) {
-      continue;
-    }
+    const int armed =
+      combat_unit_is_combat_role(pool, u->id) || u->muskets > 0 || u->horses > 0;
     int score = combat_engagement_strength(&sctx, u->id, attacker_id, NULL);
     const ColonizeUnitType* t = units_type(pool, u->type_index);
     if (t && combat_type_is_artillery_name(t->name) && atk_nat > 3) {
       score *= 2;
     }
-    if (score > best_score) {
-      best_score = score;
-      best_id = u->id;
+    if (armed) {
+      if (score > best_score) {
+        best_score = score;
+        best_id = u->id;
+      }
+    } else if (score > best_soft_score) {
+      best_soft_score = score;
+      best_soft_id = u->id;
     }
   }
-  /* Fallback: any foreign unit (capture-only stacks with no combat role). */
-  if (best_id < 0 && atk) {
-    return units_foreign_at(pool, x, y, attacker_id, atk_nat);
+  if (best_id >= 0) {
+    return best_id;
   }
-  return best_id;
+  return best_soft_id;
 }
 
 int units_spawn_village_temp_defender(
@@ -1774,6 +1790,28 @@ static const char* units_combat_place_label(
       if ((int)t->x == x && (int)t->y == y && t->nation_id >= 4 && t->nation_id <= 11) {
         return units_combat_nation_label(col1, (int)t->nation_id);
       }
+    }
+  }
+  /* bugs.md: a fight right outside a town is "near <colony>", not "near
+   * Wilderness" — pick the closest colony within 3 tiles (Chebyshev). */
+  if (g_units_combat_colonies) {
+    const ColonizeColony* best = NULL;
+    int best_d = 4;
+    for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+      const ColonizeColony* c = &g_units_combat_colonies->colonies[i];
+      if (!c->active || !c->name[0]) {
+        continue;
+      }
+      const int dx = c->x > x ? c->x - x : x - c->x;
+      const int dy = c->y > y ? c->y - y : y - c->y;
+      const int d = dx > dy ? dx : dy;
+      if (d < best_d) {
+        best_d = d;
+        best = c;
+      }
+    }
+    if (best) {
+      return best->name;
     }
   }
   return "Wilderness";
@@ -8308,6 +8346,14 @@ const char* units_display_name(const ColonizeUnitPool* pool, const ColonizeUnit*
     return "Unit";
   }
   const ColonizeUnitType* ut = pool ? units_type(pool, unit->type_index) : NULL;
+  /* bugs.md: the WoI military types keep their own names — a Cont. Army unit
+   * carries muskets + a veteran profession, and the equipment branches below
+   * would relabel it "Veteran Soldier" in the sidebar. */
+  if (ut && ut->name[0] &&
+      (strstr(ut->name, "Cont.") != NULL || strstr(ut->name, "Continental") != NULL ||
+       strstr(ut->name, "Regular") != NULL || strstr(ut->name, "Cavalry") != NULL)) {
+    return ut->name;
+  }
   /* bugs.md: damaged artillery (bit7, −2 combat) reads "Damaged Artillery". */
   if (ut && combat_type_is_artillery_name(ut->name) && (unit->col1_unknown15 & 0x80u) != 0) {
     snprintf(buf, sizeof(buf), "Damaged %s", ut->name);
@@ -8439,6 +8485,12 @@ int units_map_sprite(const ColonizeUnitPool* pool, int unit_id) {
       (strstr(type->name, "Cont.") != NULL || strstr(type->name, "Continental") != NULL ||
        strstr(type->name, "Regular") != NULL || strstr(type->name, "Cavalry") != NULL)) {
     return type->icon_sprite;
+  }
+  /* bugs.md: damaged artillery has its own art — DOS FUN_112b icon pick:
+   * type 0xb + damage bit7 -> icon 0x42, i.e. this port's sprite 65 (same
+   * 1-based offset as the Scout/Dragoon poses in that function). */
+  if (combat_type_is_artillery_name(type->name) && (unit->col1_unknown15 & 0x80u) != 0) {
+    return UNITS_ICON_DAMAGED_ARTILLERY;
   }
   if (muskets > 0 && horses > 0) {
     return (unit->profession == UNITS_JOB_DRAGOON) ? UNITS_ICON_VETERAN_DRAGOON
