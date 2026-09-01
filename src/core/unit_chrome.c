@@ -166,6 +166,10 @@ void unit_chrome_set_crown_nation(int nation_id) {
   g_chrome_crown_nation = nation_id;
 }
 
+int unit_chrome_crown_nation(void) {
+  return g_chrome_crown_nation;
+}
+
 uint8_t unit_chrome_nation_color(int nation_id) {
   if (nation_id >= 0 && nation_id < 4 && nation_id == g_chrome_crown_nation) {
     return 15; /* white */
