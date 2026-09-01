@@ -6522,6 +6522,65 @@ int main(void) {
     fprintf(stderr, "unit_units: passenger blink ownership ok\n");
   }
 
+  /* DOS ship-switch quirk (bugs.md): the first ship to leave a shared tile
+   * scoops the tile's loaded units first come, first served; the rest stay
+   * with the remaining ship(s). Awake passengers stay put. */
+  {
+    int wx = -1, wy = -1;
+    for (int y = 5; y < (int)map.height - 5 && wx < 0; ++y) {
+      for (int x = 5; x < (int)map.width - 5; ++x) {
+        if (map_tile_is_water(&map, x, y)) {
+          wx = x;
+          wy = y;
+          break;
+        }
+      }
+    }
+    if (wx < 0) {
+      fprintf(stderr, "ship-switch test: no water tile\n");
+      return 1;
+    }
+    const int caravel = units_find_type(&pool, "Caravel");
+    /* Spawn order fixes id order: shipA (empty), then shipB with 2 pax. */
+    const int shipA = units_spawn_allow_stack(&pool, caravel, wx, wy);
+    const int shipB = units_spawn_allow_stack(&pool, caravel, wx, wy);
+    const int pax1 = units_spawn_allow_stack(&pool, pioneer, wx, wy);
+    const int pax2 = units_spawn_allow_stack(&pool, pioneer, wx, wy);
+    ColonizeUnit* sB = units_get(&pool, shipB);
+    for (int p = 0; p < 2; ++p) {
+      ColonizeUnit* pu = units_get(&pool, p == 0 ? pax1 : pax2);
+      pu->aboard_ship_id = shipB;
+      pu->orders = UNITS_ORDER_SENTRY;
+      pu->moves_left = 0;
+      sB->cargo_ids[sB->cargo_count++] = pu->id;
+    }
+    /* Ship A departs first: takes both of B's sentried passengers. */
+    if (units_ship_departure_pickup(&pool, shipA, wx, wy) != 2) {
+      fprintf(stderr, "ship-switch: departing ship should scoop both passengers\n");
+      return 1;
+    }
+    ColonizeUnit* sA = units_get(&pool, shipA);
+    if (sA->cargo_count != 2 || sB->cargo_count != 0 ||
+        units_get(&pool, pax1)->aboard_ship_id != shipA ||
+        units_get(&pool, pax2)->aboard_ship_id != shipA) {
+      fprintf(stderr, "ship-switch: passengers should ride the departing ship\n");
+      return 1;
+    }
+    /* Awake passenger stays with its own ship. */
+    units_get(&pool, pax1)->orders = UNITS_ORDER_NONE;
+    if (units_ship_departure_pickup(&pool, shipB, wx, wy) != 1 ||
+        units_get(&pool, pax1)->aboard_ship_id != shipA ||
+        units_get(&pool, pax2)->aboard_ship_id != shipB) {
+      fprintf(stderr, "ship-switch: awake passenger must not transfer\n");
+      return 1;
+    }
+    units_despawn(&pool, pax1);
+    units_despawn(&pool, pax2);
+    units_despawn(&pool, shipA);
+    units_despawn(&pool, shipB);
+    fprintf(stderr, "unit_units: ship-switch departure pickup ok\n");
+  }
+
   /*
    * P7.2 Fountain of Youth = 8× FUN_38fd_4884(1,0): a 3-way @RECRUIT CHOICE
    * per pick, free passage, no recruit-count bump, chained until 8 landed.

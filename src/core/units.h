@@ -970,6 +970,13 @@ int units_find_boardable_ship(
  * Used when a ship leaves a colony or stacked ocean tile. Returns count boarded.
  */
 int units_board_sentries_from_tile(ColonizeUnitPool* pool, int ship_id, int x, int y);
+/*
+ * Departure pickup (DOS ship-switch quirk): one ascending-id first-come-
+ * first-served sweep boarding sentried land units on (x,y) AND passengers
+ * riding other own ships still on (x,y), until the departing ship is full.
+ * Treasure Trains never transfer to a non-Galleon. Returns units taken.
+ */
+int units_ship_departure_pickup(ColonizeUnitPool* pool, int ship_id, int x, int y);
 /* Unload oldest passenger from ship onto dest (must be enterable land). */
 bool units_unload(
   ColonizeUnitPool* pool,
