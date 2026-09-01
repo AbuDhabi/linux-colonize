@@ -897,6 +897,21 @@ bool col1_bridge_apply(
           }
         }
       }
+      /*
+       * bugs.md (starvation_bug.SAV): salvage — a building occupation that
+       * could not be resolved (chain building missing, or a garbage byte
+       * from the pre-fix exporter that wrote port building indexes) must
+       * not leave the colonist silently idle; put them to work in the Town
+       * Hall rather than let the colony starve unnoticed. occ 19 (plain
+       * colonist) stays idle on purpose.
+       */
+      if (dst->colonists[p].building_type < 0 && dst->colonists[p].field_job < 0 &&
+          occ != (int)UNITS_JOB_COLONIST) {
+        const int th = colonies_find_building(colonies, "Town Hall");
+        if (th >= 0 && th < COLONIZE_BUILDING_TYPES_MAX && dst->has_building[th]) {
+          dst->colonists[p].building_type = th;
+        }
+      }
     }
     dst->population = dst->colonist_count;
     colonies->colony_count++;
@@ -1690,8 +1705,44 @@ bool col1_bridge_capture(
         dst->profession[p] = (uint8_t)prof;
         if (c->field_job >= 0 && c->field_job < COLONIZE_FIELD_JOB_COUNT) {
           dst->occupation[p] = (uint8_t)c->field_job;
-        } else if (c->building_type >= 0 && c->building_type < 256) {
-          dst->occupation[p] = (uint8_t)c->building_type;
+        } else if (c->building_type >= 0 &&
+                   c->building_type < COLONIZE_BUILDING_TYPES_MAX) {
+          /*
+           * bugs.md (starvation_bug.SAV): the occupation byte is the DOS
+           * @JOB id, but this wrote the PORT's building-type index — the
+           * import side then failed to map it, so every building worker
+           * came back unassigned after a save round-trip and the colony
+           * quietly stopped producing until it starved. Map the building
+           * to its @JOB (mirror of the import chains above).
+           */
+          const char* bn = colonies->building_types[c->building_type].name;
+          int occ = UNITS_JOB_COLONIST;
+          if (bn && bn[0]) {
+            if (strstr(bn, "Lumber") != NULL || strstr(bn, "Carpenter") != NULL) {
+              occ = 13;
+            } else if (strstr(bn, "Rum") != NULL) {
+              occ = 9;
+            } else if (strstr(bn, "Cigar") != NULL || strstr(bn, "Tobacconist") != NULL) {
+              occ = 10;
+            } else if (strstr(bn, "Textile") != NULL || strstr(bn, "Weaver") != NULL) {
+              occ = 11;
+            } else if (strstr(bn, "Fur") != NULL) {
+              occ = 12;
+            } else if (strstr(bn, "Iron") != NULL || strstr(bn, "Blacksmith") != NULL) {
+              occ = 14;
+            } else if (strstr(bn, "Arsenal") != NULL || strstr(bn, "Magazine") != NULL ||
+                       strstr(bn, "Armory") != NULL) {
+              occ = 15;
+            } else if (strstr(bn, "Cathedral") != NULL || strstr(bn, "Church") != NULL) {
+              occ = 16;
+            } else if (strstr(bn, "Town Hall") != NULL) {
+              occ = 17;
+            } else if (strstr(bn, "University") != NULL || strstr(bn, "College") != NULL ||
+                       strstr(bn, "School") != NULL) {
+              occ = 18;
+            }
+          }
+          dst->occupation[p] = (uint8_t)occ;
         } else {
           dst->occupation[p] = (uint8_t)UNITS_JOB_COLONIST;
         }

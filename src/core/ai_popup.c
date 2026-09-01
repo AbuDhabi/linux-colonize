@@ -166,6 +166,14 @@ static void ai_popup_finish(AiPopupState* st, bool cancelled, int choice_id) {
   st->open = false;
 }
 
+void ai_popup_cancel_current(AiPopupState* st) {
+  if (!st || !st->open) {
+    return;
+  }
+  const int is_info = (st->current.kind == AI_POPUP_KIND_OK || st->current.choice_count <= 0);
+  ai_popup_finish(st, !is_info, is_info ? 0 : -1);
+}
+
 static int ai_popup_option_at_y(const AiPopupState* st, int mouse_y) {
   if (!st || st->line_h <= 0) {
     return -1;

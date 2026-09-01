@@ -1815,25 +1815,16 @@ static void ai_contact_teach_skill(ColonizeTurnContext* ctx, int nation_id) {
       if (!other || other->nation_id < 0 || other->nation_id > 3) {
         continue;
       }
+      /*
+       * bugs.md: the adjacency pulse never LECTURES — a mounted
+       * criminal-scout got the @LEARNCRIMINAL refusal out of nowhere when
+       * a Brave wandered by, as though it had asked to live among the
+       * natives. Refusal dialogs (@LEARNCRIMINAL/@LEARNMASTER/…) belong to
+       * the deliberate "Live Among The Natives" flow; here an ineligible
+       * unit is simply skipped in silence.
+       */
       if (ai_contact_is_petty_criminal(ctx->units, other)) {
-        /* Refused outright, one-shot not consumed (a Free Colonist could
-         * still learn here later). Cite: GAME.TXT @LEARNCRIMINAL. */
-        char body[AI_POPUP_BODY_LEN];
-        PopupMsgTokens tok;
-        memset(&tok, 0, sizeof(tok));
-        tok.string0 = ai_contact_tribe_name(nation_id);
-        popup_msg_fill(
-          ctx->messages,
-          "LEARNCRIMINAL",
-          &tok,
-          "We doubt that you will ever be more than a common criminal. We will teach you nothing.",
-          body,
-          sizeof(body)
-        );
-        ai_contact_human_chrome(
-          ctx, other->nation_id, AI_POPUP_TAG_CONTACT_TEACH, nation_id, "Teach", body
-        );
-        break; /* one refuse pulse per tribe per call */
+        continue;
       }
       if (!ai_contact_is_teachable_learner(ctx->units, other)) {
         continue;
@@ -1848,20 +1839,10 @@ static void ai_contact_teach_skill(ColonizeTurnContext* ctx, int nation_id) {
        * burned the teach + showed a misleading "taught outdoor skills" line.
        */
       if (other->profession != UNITS_JOB_NONE) {
-        char body[AI_POPUP_BODY_LEN];
-        PopupMsgTokens tok;
-        memset(&tok, 0, sizeof(tok));
-        tok.string1 = ai_contact_learner_skill_name(ctx->units, other);
-        popup_msg_fill(
-          ctx->messages,
-          "LEARNMASTER",
-          &tok,
-          "We can only teach new skills to colonists who do not yet have one.",
-          body,
-          sizeof(body)
-        );
-        ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_TEACH, nation_id, "Teach", body);
-        break; /* one pulse per tribe per call */
+        /* Skilled already — silent skip in the pulse; the @LEARNMASTER
+         * refusal dialog belongs to the deliberate Live-Among flow
+         * (bugs.md — no unprompted lecture popups). */
+        continue;
       }
       /*
        * Alarmed Indian diplomacy (fandom Alarm; same ≥55 refuse-talk gate):
@@ -3439,6 +3420,17 @@ void ai_contact_try_village_beg_food(ColonizeTurnContext* ctx, int nation_id) {
   if (delta <= 0) {
     return;
   }
+  /*
+   * bugs.md: DOS begs at the colony a Brave actually walked next to — the
+   * tribe cannot ask from across the map, and it must not re-ask every
+   * turn. A colony qualifies only with one of this tribe's units standing
+   * adjacent, and each tribe asks at most once per 8 turns.
+   */
+  static uint16_t s_beg_cooldown_until[8];
+  const uint16_t now_turn = ctx->col1->head.turn;
+  if (now_turn && s_beg_cooldown_until[nation_id - 4] > now_turn) {
+    return;
+  }
   for (int e = 0; e < 4; ++e) {
     if (!ind->euro_diplo[e] || ind->alarm_by_player[e] >= 55) {
       continue;
@@ -3447,6 +3439,17 @@ void ai_contact_try_village_beg_food(ColonizeTurnContext* ctx, int nation_id) {
     for (int ci = 0; ci < COLONIZE_COLONIES_MAX; ++ci) {
       ColonizeColony* c = &ctx->colonies->colonies[ci];
       if (!c->active || c->nation_id != e || c->stock[COLONIZE_CARGO_FOOD] <= 0x4a) {
+        continue;
+      }
+      bool brave_adjacent = false;
+      for (int ui = 0; ui < COLONIZE_UNITS_MAX && !brave_adjacent; ++ui) {
+        const ColonizeUnit* bu = units_get_const(ctx->units, ui);
+        if (bu && bu->active && bu->nation_id == nation_id && units_is_on_map(bu) &&
+            abs(bu->x - c->x) <= 1 && abs(bu->y - c->y) <= 1) {
+          brave_adjacent = true;
+        }
+      }
+      if (!brave_adjacent) {
         continue;
       }
       best_ci = ci;
@@ -3459,6 +3462,7 @@ void ai_contact_try_village_beg_food(ColonizeTurnContext* ctx, int nation_id) {
     if (roll > delta) {
       continue;
     }
+    s_beg_cooldown_until[nation_id - 4] = (uint16_t)(now_turn + 8);
     ai_contact_bind_names(ctx);
     if (ai_contact_euro_is_human(ctx, e)) {
       const ColonizeColony* beg_colony = &ctx->colonies->colonies[best_ci];
@@ -7917,6 +7921,11 @@ static void ai_contact_speak_with_chief(
               ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_MEET, nation_id, "Chief", body);
             }
             col1->nation[e].gold += (uint32_t)gold;
+            /* bugs.md: the human's live treasury is europe->gold — crediting
+             * only the col1 mirror made the beads worth nothing. */
+            if (ctx->europe && e == ctx->human_nation) {
+              ctx->europe->gold += gold;
+            }
             return;
           }
           /* r == 2, or a seasoned scout rolling 1: tales of nearby lands. */

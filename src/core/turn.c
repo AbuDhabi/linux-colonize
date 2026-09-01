@@ -1291,6 +1291,30 @@ static void turn_produce_one_colony(
         if (bip >= 0 && bip < pool->building_type_count) {
           bname = pool->building_types[bip].name;
         }
+        /*
+         * bugs.md (printing_press.SAV/carpentry.SAV): the selection stays on
+         * a completed project (DOS never clears it), so hammers piled up
+         * forever with no word to the player — GAME.TXT @ALREADYHAVE is the
+         * DOS notification for exactly this ("{colony} is set to produce a
+         * {X}, but it has already built one!").
+         */
+        if (bip < COLONIZE_BUILDING_TYPES_MAX && colony->has_building[bip] &&
+            colony->nation_id == human_nation && europe && ai_popups) {
+          char body[AI_POPUP_BODY_LEN];
+          PopupMsgTokens tok;
+          memset(&tok, 0, sizeof(tok));
+          tok.string0 = colony->name[0] ? colony->name : "colony";
+          tok.string1 = (bname && bname[0]) ? bname : "building";
+          char afb[120];
+          snprintf(
+            afb, sizeof(afb), "%s already built.",
+            (bname && bname[0]) ? bname : "Building"
+          );
+          /* Popup only — the status line stays free for the Phase K
+           * production crumbs ("Need lumber." etc.). */
+          popup_msg_fill(messages, "ALREADYHAVE", &tok, afb, body, sizeof(body));
+          ai_popup_enqueue_ok(ai_popups, AI_POPUP_TAG_INFO, NULL, body);
+        }
         if (colonies_try_complete_building(pool, colony->id)) {
           if (delta) {
             delta->building_completed = true;

@@ -1258,9 +1258,12 @@ int main(void) {
     if (euro->profession != COLONIZE_JOB_FARMER) {
       return fail("LEARNMASTER refuse should not touch the learner's profession");
     }
-    if (strstr(status_lm, "teach new skills") == NULL) {
+    /* bugs.md: the adjacency pulse never lectures — the skilled unit is
+     * skipped in SILENCE now; the @LEARNMASTER dialog belongs to the
+     * deliberate Live-Among flow. */
+    if (strstr(status_lm, "teach new skills") != NULL) {
       fprintf(stderr, "unit_ai_contact: LEARNMASTER status '%s'\n", status_lm);
-      return fail("already-expert learner should set @LEARNMASTER refuse status");
+      return fail("pulse must not emit the @LEARNMASTER lecture unprompted");
     }
     euro->profession = UNITS_JOB_NONE;
     ctx.status = NULL;
@@ -1310,9 +1313,11 @@ int main(void) {
     if (crim->profession != UNITS_JOB_NONE) {
       return fail("LEARNCRIMINAL refuse should not touch the criminal's profession");
     }
-    if (strstr(status_lc, "teach you nothing") == NULL) {
+    /* bugs.md: the pulse skips a criminal in silence — the @LEARNCRIMINAL
+     * lecture belongs to the deliberate Live-Among flow. */
+    if (strstr(status_lc, "teach you nothing") != NULL) {
       fprintf(stderr, "unit_ai_contact: LEARNCRIMINAL status '%s'\n", status_lc);
-      return fail("Petty Criminal should be refused with @LEARNCRIMINAL status");
+      return fail("pulse must not lecture a Petty Criminal unprompted");
     }
     units_despawn(&units, crim_id);
     euro->x = 6;
@@ -5653,6 +5658,12 @@ int main(void) {
       ColonizeDosRng* saved_rng = ctx.rng;
       ctx.messages = &beg_txt;
       ColonizeDosRng beg_rng;
+      /* bugs.md: a Brave must actually stand next to the colony to beg. */
+      const int beg_brave = units_spawn_allow_stack(&units, 0,
+        colonies.colonies[0].x + 1, colonies.colonies[0].y + 1);
+      if (beg_brave >= 0) {
+        units_get(&units, beg_brave)->nation_id = 4;
+      }
       int found = -1;
       for (unsigned seed = 1u; seed <= 400u && found < 0; ++seed) {
         dos_rng_seed(&beg_rng, seed);
@@ -5741,6 +5752,15 @@ int main(void) {
       return fail("BEGFOOD decline should worsen relations");
     }
     fprintf(stderr, "unit_ai_contact: BEGFOOD accept/decline ok\n");
+    /* Drop the adjacency Brave so later fixtures see no stray unit. */
+    for (int ui = 0; ui < COLONIZE_UNITS_MAX; ++ui) {
+      const ColonizeUnit* bu = units_get_const(&units, ui);
+      if (bu && bu->active && bu->nation_id == 4 &&
+          bu->x == colonies.colonies[0].x + 1 && bu->y == colonies.colonies[0].y + 1) {
+        units_despawn(&units, ui);
+        break;
+      }
+    }
     ctx.ai_popups = NULL;
   }
 

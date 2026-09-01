@@ -4614,6 +4614,12 @@ static int ai_euro_cash_one_treasure(
     return 0;
   }
   ColonizeCol1Nation* nat = &ctx->col1->nation[nation_id];
+  /* Borrow the shared EuropeScreen for this nation; ALWAYS restore the
+   * human's values after — leaving an AI's treasury behind zeroed the
+   * human's displayed (and spendable) gold (bugs.md "starting gold is
+   * zero"). */
+  const int saved_gold = ctx->europe->gold;
+  const int saved_tax = ctx->europe->tax_percent;
   ctx->europe->gold = (int)nat->gold;
   ctx->europe->tax_percent = (int)nat->tax_rate;
 
@@ -4629,6 +4635,10 @@ static int ai_euro_cash_one_treasure(
      * bytes when bridge-loaded; game_loop→europe_enqueue_expected does not fill
      * cargo_treasure_gold yet). Do not invent a default rate/value.
      */
+  }
+  if (nation_id != ctx->human_nation) {
+    ctx->europe->gold = saved_gold;
+    ctx->europe->tax_percent = saved_tax;
   }
   /* Consume Treasure after cash attempt — same as Expected→Harbor disembark. */
   (void)units_despawn(ctx->units, treasure->id);
@@ -4747,10 +4757,17 @@ static void ai_euro_try_expected_treasure_harbor(ColonizeTurnContext* ctx, int n
     return;
   }
   ColonizeCol1Nation* nat = &ctx->col1->nation[nation_id];
+  /* Borrow/restore — see ai_euro_cash_one_treasure (bugs.md zeroed gold). */
+  const int saved_gold = ctx->europe->gold;
+  const int saved_tax = ctx->europe->tax_percent;
   ctx->europe->gold = (int)nat->gold;
   ctx->europe->tax_percent = (int)nat->tax_rate;
   europe_tick_voyages(ctx->europe, ctx->units);
   nat->gold = (uint32_t)(ctx->europe->gold < 0 ? 0 : ctx->europe->gold);
+  if (nation_id != ctx->human_nation) {
+    ctx->europe->gold = saved_gold;
+    ctx->europe->tax_percent = saved_tax;
+  }
 }
 
 /*
@@ -8789,7 +8806,7 @@ static void ai_euro_nation_planning(ColonizeTurnContext* ctx, int nation_id) {
           units_set_nation(bought, nation_id);
           bought->moves_left = 0; /* docked Europe — planning hire only */
           nat->gold -= (uint32_t)buy_gold;
-          if (ctx->europe) {
+          if (ctx->europe && nation_id == ctx->human_nation) {
             ctx->europe->gold = (int)nat->gold;
           }
           ship = bought;
@@ -9319,7 +9336,7 @@ static void ai_euro_nation_planning(ColonizeTurnContext* ctx, int nation_id) {
     (void)ai_euro_dock_remove_at(ctx->europe, dock_idx);
   }
   nat->gold -= (uint32_t)pay;
-  if (ctx->europe) {
+  if (ctx->europe && nation_id == ctx->human_nation) {
     ctx->europe->gold = (int)nat->gold;
   }
   if (inv && inv->profession_demand[0] > 0) {
