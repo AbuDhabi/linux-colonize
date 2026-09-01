@@ -170,16 +170,16 @@ This is a user-maintained list of bugs. User puts reports in. Agents may annotat
 | Move to front on multipurpose-military unit popup does nothing. It should do something. | |
 | Clicking an already-selected unit on the fence should bring up a popup. Check DOS - this popup can be used to select what the colonist should be doing. | |
 | Multipurpose-production sometimes doesn't list hammers. Particularly after a building was completed. Is it getting reset with the hammer accumulation getting reset? Something is deeply wrong with it, given that hammers don't apparently reliably consume lumber. | |
-| | |
-| | |
-| | |
-| | |
-| | |
-| | |
-| | |
-| | |
-| | |
-| | |
+| Running out of lumber popup should not happen if you are producing lumber, merely not enough for demands. It's reserved for situations when input production is zero, and output good made from it is attempting to be produced. | |
+| Unloading past colony capacity should be possible. Excess will just be thrown away next turn. DOS has number coloring to alert which wares are in excess. | |
+| When there are many colonists on the fence, some are unselectable. So long as there's a single pixel differentiating them, they should be selectable. They're not even all displayed there if there's enough of them. | |
+| Population view colonist line-up should be using the plain colonist chrome. No shadow. | |
+| Random experts equipped with muskets on euro docks appear as veteran soldiers. They should appear as regular soldiers. There are perhaps more bugs in this vein. | |
+| The signing of the declaration of independence appears to write "United Colon" instead of the leader name. | |
+| Popup alerting of the arrival of the REF at your colony after signing of the declaration is too soon. That popup should be immediately preceding landing, and landing is soonest on the next turn. Maybe the REF was invisible! Because they attacked immediately following my end of turn | |
+| REF color is incorrect. It should be white, not blue. They're not French. For some reason, REF are displayed as French units. | |
+| Frigates can't attack. That's what they are for, attacking! Make sure Man-O-War and Privateer can attack too. | |
+| Game does not detect the end of the revolution (ie. losing the game) when the King captures all your towns. | |
 | | |
 | | |
 
