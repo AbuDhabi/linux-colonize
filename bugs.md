@@ -112,5 +112,30 @@ This is a user-maintained list of bugs. User puts reports in. Agents may annotat
 | In European Status, when you set your last ship currently docked there to sail to the new world, it should automatically close the European Status and go back to main map. | FIXED. Sailing the last docked ship closes the European Status back to the map. |
 | Somehow, a caravel is able to pick up no-orders or forest-cutting pioneers. It should not. Ships should only take on (when leaving) passengers from the list of SENTRIED units on the tile. Nobody else. And they should only be able to take as many passengers, as there is room in their holds (cargo occupies slots that passengers could go into). Check DOS, because this has been a source of persistent variation in bugs. | FIXED, two real defects. (a) The save/load bridge boarded every land unit sharing a docked ship's tile chain unless it was Fortifying/Fortified — a no-orders or plowing pioneer beside a docked ship came back aboard (and sentried) after any save round-trip. It now boards ONLY units whose saved orders are Sentry, which is what DOS stamps on every genuine passenger (the dutch-reports.SAV manifest confirms it). (b) Capacity ignored goods: a ship could take capacity-many passengers on top of full holds. New units_ship_free_passenger_slots = capacity − passengers − goods-occupied holds, used by both boarding paths; departure pickup itself was already sentried-only, first in line first aboard. |
 | Impossible to wake up unit with moves that's loaded onto a ship without moves on a coastal ocean tile. Verify against DOS how the multiple units wakeup popup should work. I'm pretty sure there's a click once to cancel, click again to activate in there. | |
-| French expeditionary force missing on report. Just check that they're all wired, populated, etc. Not just one nation.  | |
+| French expeditionary force missing on report. Just check that they're all wired, populated, etc. Not just one nation.  | FIXED. The report and the growth/seed code are nation-agnostic (the Col1 save has one global REF pool) — the gap was historical: campaigns started on a build from before the new-game REF seed existed carry an under-seeded pool forever (your save held [3,0,0,0]: no seed, some tax growth). DOS seeds regulars 8*diff+15 / dragoons 5*(diff+1) / man-o-wars 3*diff+2 / artillery 6*diff+2 at new game and nothing drains it before the declaration, so every pre-WoI save must hold at least that floor (verified: DOS COLONY00.SAV at diff 0 = exactly [15,5,2,2]). Loading now raises each pool to the seed floor pre-WoI, any nation; post-declaration pools are left alone since they legitimately drain as waves land. |
 | Ships still appear to take away any non-fortified unit with them as they even enter a colony. ONLY SENTRIED. Why is this so hard to implement properly? Check DOS how Sentry/Load should work. | FIXED. The load side and the live departure pickup were already Sentry-only — the leak was the SAVE side: col1_bridge's pre-export "DOS hygiene" pass boarded every land unit sharing a tile with an own ship, on any tile, and it mutates the live pool (aboard_ship_id set, orders forced to Sentry, MP parked). So the moment the game was saved (incl. autosave) with a ship docked at a colony, the whole non-fortified garrison silently became Sentry passengers, and the ship's next departure took them along — matching "as they even enter a colony". The pass now only boards a land unit standing on a WATER tile (a genuine orphan state the Col1 format cannot represent); land-tile stacks (colony docks, coastal stacks) are left untouched. Regression test in unit_col1_save (dock garrison stays ashore through capture; water orphan still gets boarded). |
+| Fog of war isn't the same color as in DOS. That needs to be corrected. | |
+| | |
+| | |
+| | |
+| | |
+| | |
+| | |
+| | |
+| | |
+| | |
+| | |
+| | |
+| | |
+| | |
+| | |
+| | |
+| | |
+| | |
+| | |
+| | |
+| | |
+| | |
+| | |
+| | |
+
