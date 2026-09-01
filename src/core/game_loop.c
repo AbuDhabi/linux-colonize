@@ -9000,6 +9000,22 @@ static void game_map_click_dispatch(ColonizeGameState* game, int mx, int my) {
     }
   }
 
+  /*
+   * bugs.md: while a unit is actively controlled, clicking an empty tile
+   * PANS the viewport (DOS) — it must not drop into View Pieces, or the
+   * player could never scroll to a go-to destination outside the view
+   * without losing the unit. Only with nothing controlled does the click
+   * move the blinking tile cursor as before.
+   */
+  if (game->units_ok && game->units.selected_id >= 0) {
+    const ColonizeUnit* sel = units_get_const(&game->units, game->units.selected_id);
+    if (sel && sel->active) {
+      /* View only — the cursor stays with the controlled unit. */
+      game_set_view_center(game, mx, my);
+      return;
+    }
+  }
+
   game_select_tile(game, mx, my);
 }
 
@@ -9162,6 +9178,22 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
       active_pax_awaiting;
 
     if (active_pending) {
+      /*
+       * bugs.md: a Go To aimed at an Indian village stops one tile short and
+       * hands control back — entering a village is a player decision (the
+       * @ACTIONS menu fires on the arrow-key step), never something the
+       * pacer walks into on its own.
+       */
+      if (active->orders == UNITS_ORDER_GOTO && active->goto_x < UNITS_GOTO_NONE &&
+          active->goto_y < UNITS_GOTO_NONE &&
+          map_tile_has_city(&game->world_map, active->goto_x, active->goto_y) &&
+          colonies_id_at(&game->colonies, active->goto_x, active->goto_y) < 0 &&
+          abs(active->x - active->goto_x) <= 1 && abs(active->y - active->goto_y) <= 1) {
+        units_clear_orders(&game->units, active->id);
+        game_center_on_selected_unit(game);
+        set_status(game, "Village ahead — awaiting orders", NULL);
+        return true;
+      }
       game->goto_step_accum_ms += dt_ms;
       const uint32_t goto_step_ms =
         (game->col1_ok && game->col1.head.game_options.fast_piece_slide) ? 80u : 100u;
@@ -10376,33 +10408,38 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
       return true;
     }
     if (input->last_key == COLONIZE_KEY_U) {
+      /* bugs.md: DOS's U on the European Status unloads (sells) the selected
+       * ship's WHOLE cargo, hold by hold — no amount prompt. */
       if (eu->selected_harbor < 0) {
         snprintf(eu->status, sizeof(eu->status), "%s", "Select a ship first.");
       } else {
-        const int hold = europe_best_sell_hold(eu, eu->selected_harbor);
-        if (hold < 0) {
+        int sold = 0;
+        const int gold_before = eu->gold;
+        for (int guard = 0; guard < EUROPE_SHIP_CARGO_MAX; ++guard) {
+          const int hold = europe_best_sell_hold(eu, eu->selected_harbor);
+          if (hold < 0) {
+            break;
+          }
+          europe_sell_hold(eu, eu->selected_harbor, hold);
+          sold++;
+        }
+        if (sold == 0) {
           snprintf(eu->status, sizeof(eu->status), "%s", "Nothing to sell.");
         } else {
-          EuropeHarborShip* ship = &eu->harbor[eu->selected_harbor];
-          const int cargo = ship->hold_goods_type[hold];
-          const int max_amt = ship->hold_goods_amount[hold];
-          char prompt[AI_POPUP_BODY_LEN];
-          PopupMsgTokens tok;
-          memset(&tok, 0, sizeof(tok));
-          tok.string0 =
-            (cargo >= 0 && cargo < eu->cargo_count) ? eu->cargo[cargo].name : "cargo";
-          tok.string2 = eu->port_city[0] ? eu->port_city : "Europe";
-          tok.number0 = max_amt;
-          tok.has_number0 = true;
-          tok.number1 = europe_sell_price(eu, cargo);
-          tok.has_number1 = true;
-          popup_msg_fill(
-            &game->messages, "HOWMUCH5", &tok, "How much to sell?", prompt, sizeof(prompt)
-          );
-          howmuch_open(
-            &game->howmuch, HOWMUCH_KIND_SELL, prompt, max_amt, max_amt, cargo, hold
+          snprintf(
+            eu->status, sizeof(eu->status), "Unloaded %d hold%s for %d$.", sold,
+            sold == 1 ? "" : "s", eu->gold - gold_before
           );
         }
+      }
+      return true;
+    }
+    if (input->last_key == COLONIZE_KEY_S) {
+      /* DOS: S sails the selected ship for the New World. */
+      if (eu->selected_harbor >= 0) {
+        game_europe_sail_harbor(game, eu->selected_harbor);
+      } else {
+        snprintf(eu->status, sizeof(eu->status), "%s", "Select a ship first.");
       }
       return true;
     }
@@ -11027,6 +11064,11 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
              * click IS the confirmation — the handler tests DS:0x53c6 before
              * it dispatches the click anywhere else. */
             game_do_end_turn(game);
+          } else if (game->units_ok && game_units_pending_orders(game)) {
+            /* bugs.md: mid-turn (units still in the control queue) a sidebar
+             * click hands control to the next waiting unit instead of doing
+             * nothing. */
+            game_wait_next_unit(game);
           }
         }
         return true;

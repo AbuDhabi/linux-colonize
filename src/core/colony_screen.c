@@ -2912,14 +2912,20 @@ static void colony_screen_draw_transports(
       const int goods_holds = units_goods_hold_count(units, view->transport_unit_id);
       open_holds = goods_holds < 0 ? 0 : (goods_holds > max_holds ? max_holds : goods_holds);
       for (int i = 0; i < open_holds; ++i) {
-        /* bugs.md: loaded-cargo goods icon nudged +3px x/+10px y, then
-         * player-reported 4px too low after that — net +6px y. */
-        const int x = COLONY_HOLD_X + 4 + i * COLONY_HOLD_PITCH + 3;
-        const int y = COLONY_HOLD_Y + 6;
+        /* Centre the cargo icon inside the painted 9x12 box interior
+         * (COLONY.PIK-measured; see colony_screen.h). */
+        int icon_w = COLONY_HOLD_W;
         const int amt = ship->hold_goods_amount[i];
         const int gtype = ship->hold_goods_type[i];
         if (amt > 0 && amt < 255 && gtype >= 0 && gtype < COLONIZE_CARGO_COUNT) {
           const bool partial = amt < 100;
+          const int sprite =
+            (partial ? COLONY_CARGO_GREY_BASE : COLONY_CARGO_ICON_BASE) + gtype;
+          if (view->icons_ok && sprite >= 0 && sprite < view->icons.sprite_count) {
+            icon_w = view->icons.sprites[sprite].width;
+          }
+          const int x = COLONY_HOLD_X + i * COLONY_HOLD_PITCH + (COLONY_HOLD_W - icon_w) / 2;
+          const int y = COLONY_HOLD_Y;
           colony_screen_blit_cargo(view, gtype, partial, framebuffer, x, y);
         }
       }
@@ -2934,21 +2940,12 @@ static void colony_screen_draw_transports(
        */
     }
   }
-  /* Cover unused holds; with no ship selected, all six are covered. */
-  int cover_w = COLONY_HOLD_W;
-  if (view->icons_ok && COLONY_ICON_EMPTY_HOLD >= 0 && COLONY_ICON_EMPTY_HOLD < view->icons.sprite_count) {
-    const ColonizeSprite* cov = &view->icons.sprites[COLONY_ICON_EMPTY_HOLD];
-    if (cov && cov->width > 0) {
-      cover_w = cov->width;
-    }
-  }
-  const int cover_pitch = cover_w + 2; /* keep exactly 2px between hold covers */
-  /* All-closed row sits 4px further right than the partial-cover base. */
-  const int cover_x0 =
-    COLONY_HOLD_X + 2 + (open_holds == 0 ? 4 : 0) + open_holds * COLONY_HOLD_PITCH;
+  /* Cover unused holds; with no ship selected, all six are covered. The
+   * 10x12 cover (#122) sits over the 9x12 box interior plus its left
+   * border, one per painted box on the same 12px pitch. */
   for (int i = open_holds; i < max_holds; ++i) {
-    const int x = cover_x0 + (i - open_holds) * cover_pitch;
-    const int y = COLONY_HOLD_Y + 7;
+    const int x = COLONY_HOLD_X - 1 + i * COLONY_HOLD_PITCH;
+    const int y = COLONY_HOLD_Y;
     colony_screen_blit_icon(view, COLONY_ICON_EMPTY_HOLD, framebuffer, x, y);
   }
 }
@@ -4396,10 +4393,10 @@ ColonyScreenHitResult colony_screen_hit_test(
   if (units && view->transport_unit_id >= 0 && my >= COLONY_HOLD_Y &&
       my < COLONY_HOLD_Y + COLONY_HOLD_H) {
     const int holds = units_goods_hold_count(units, view->transport_unit_id);
-    if (mx >= COLONY_HOLD_X + 4 && holds > 0) {
-      const int idx = (mx - (COLONY_HOLD_X + 4)) / COLONY_HOLD_PITCH;
+    if (mx >= COLONY_HOLD_X && holds > 0) {
+      const int idx = (mx - COLONY_HOLD_X) / COLONY_HOLD_PITCH;
       if (idx >= 0 && idx < holds &&
-          mx < COLONY_HOLD_X + 4 + idx * COLONY_HOLD_PITCH + COLONY_HOLD_W) {
+          mx < COLONY_HOLD_X + idx * COLONY_HOLD_PITCH + COLONY_HOLD_W) {
         hit.kind = COLONY_HIT_HOLD;
         hit.index = idx;
         return hit;

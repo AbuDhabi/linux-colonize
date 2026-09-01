@@ -1669,6 +1669,16 @@ static void ai_contact_bump_u16_cap100(uint16_t* v, int amount) {
  * criminal. The %s will teach you nothing." Petty Criminals are refused
  * outright, distinct from the alarm-based @LEARNMAD refusal. */
 static int ai_contact_is_petty_criminal(const ColonizeUnitPool* units, const ColonizeUnit* u) {
+  if (!u) {
+    return 0;
+  }
+  /* bugs.md: profession byte, not the display name — a Petty Criminal is a
+   * Colonists-type unit whose display name reads "Free Colonist", so the
+   * old name test never fired (and Indentured Servants fell into the
+   * profession-set "master" refusal instead of learning). */
+  if (u->profession == UNITS_JOB_CRIMINAL) {
+    return 1;
+  }
   const char* name = units_display_name(units, u);
   return name && strstr(name, "Criminal") != NULL;
 }
@@ -6655,6 +6665,21 @@ void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id) {
       if (!f || f->nation_id != target_euro || units_is_sea(ctx->units, foe)) {
         continue;
       }
+      /*
+       * bugs.md: Indians should be more chill — the ambush arm only fires
+       * in the provocation band (alarm ≥ 55, the same cut the war-declare
+       * escalation uses) or at open war, not at the ≥40 raid-gate band. A
+       * Treasure Train is the exception: hard to resist at any alarm.
+       */
+      {
+        const ColonizeUnitType* ft2 = units_type(ctx->units, f->type_index);
+        const int is_treasure2 =
+          ft2 && ft2->name[0] && strstr(ft2->name, "Treasure") != NULL;
+        if (!is_treasure2 && max_alarm < 55 &&
+            !ai_diplo_indian_at_war(ctx->col1, target_euro, nation_id - 4)) {
+          continue;
+        }
+      }
       /* Snapshot before combat despawn (GAME.TXT @INDIANWIN1/@INDIANWIN2). */
       const int foe_muskets = f->muskets;
       const int foe_horses = f->horses;
@@ -6900,9 +6925,13 @@ void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id) {
             colonies_capture(ctx->colonies, best_cid, nation_id);
             abandoned = 1;
           }
+          /* bugs.md: only the FIRST attack against this Euro is "deniable" —
+           * snapshot before the counters bump. */
+          int prior_attacks = 0;
           for (uint16_t ti = 0; ti < ctx->col1->head.tribe_count; ++ti) {
             ColonizeCol1Tribe* t = &ctx->col1->tribe[ti];
             if ((int)t->nation_id == nation_id) {
+              prior_attacks += (int)t->alarm[target_euro].attacks;
               t->alarm[target_euro].attacks++;
             }
           }
@@ -7024,8 +7053,10 @@ void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id) {
                 tribe
               );
               raid_body = raid_line;
-            } else if (!was_at_war) {
-              /* GAME.TXT @INDIANSURPRISE thin — deniable raid before open war. */
+            } else if (!was_at_war && prior_attacks == 0) {
+              /* GAME.TXT @INDIANSURPRISE thin — only the tribe's FIRST attack
+               * on this Euro is deniable; later raids use the plain @RAID*
+               * chrome below (bugs.md). */
               if (c->name[0]) {
                 snprintf(
                   raid_line,
@@ -7688,7 +7719,9 @@ static void ai_contact_live_among_natives(
   } else {
     const char* dname = units_display_name(ctx->units, u);
     const int is_convert = u->profession == COLONIZE_PROF_CONVERT || (dname && strstr(dname, "Convert") != NULL);
-    const int is_indentured = dname && strstr(dname, "Indentured") != NULL;
+    /* Profession byte, not the display name (see is_petty_criminal). */
+    const int is_indentured = u->profession == UNITS_JOB_SERVANT ||
+      (dname && strstr(dname, "Indentured") != NULL);
     if (is_convert) {
       char body[AI_POPUP_BODY_LEN];
       popup_msg_fill(ctx->messages, "TEACHCONVERT", NULL, "Indian converts already know the Indian ways.", body, sizeof(body));
