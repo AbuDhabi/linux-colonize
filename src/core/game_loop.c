@@ -3171,6 +3171,30 @@ static bool game_apply_col1_save(ColonizeGameState* game, ColonizeCol1Save* load
   game->col1 = *loaded;
   memset(loaded, 0, sizeof(*loaded));
   game->col1_ok = true;
+  /*
+   * bugs.md ("French expeditionary force missing on report"): in DOS the
+   * Expeditionary Force exists from turn 1 (new-game seed 75c2:360b) and
+   * nothing drains it before the declaration, so every pre-WoI save must
+   * hold at least the seed in each pool — whatever the nation. A campaign
+   * started on a port build from before the new-game seed existed carries
+   * less (the reported French save held [3,0,0,0]: no seed, a little tax
+   * growth). Backfill each pool to the seed floor on load; after the
+   * declaration the pools legitimately drain, so leave those alone.
+   */
+  if (!ai_king_independence_declared(&game->col1)) {
+    const int diff = game->col1.head.difficulty;
+    const uint16_t floor[4] = {
+      (uint16_t)(8 * diff + 15),
+      (uint16_t)(5 * (diff + 1)),
+      (uint16_t)(3 * diff + 2),
+      (uint16_t)(6 * diff + 2)
+    };
+    for (int i = 0; i < 4; ++i) {
+      if (game->col1.head.expeditionary_force[i] < floor[i]) {
+        game->col1.head.expeditionary_force[i] = floor[i];
+      }
+    }
+  }
   /* Restore Complete Map cheat (DOS show_entire_map @ DS:0x53a2); nation view not saved. */
   game->fog_view = (game->col1.head.show_entire_map != 0) ? -1 : -2;
   /*

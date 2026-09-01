@@ -666,6 +666,7 @@ add_test(NAME unit_map_panel COMMAND unit_map_panel WORKING_DIRECTORY ${CMAKE_SO
 add_executable(unit_units
   tests/unit/test_units.c
   src/core/units.c
+  src/core/unit_stack.c
   src/core/woodcut.c
   src/core/combat_strength.c
   src/core/combat_analysis.c
