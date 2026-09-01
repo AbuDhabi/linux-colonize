@@ -68,7 +68,12 @@ Everything in `ColonizeSettings` is stored in the player-facing sense: `true`
 means the thing happens. Several DOS bits are inverted suppress flags, and
 `settings_apply_to_head` / `settings_capture_from_head` do the flipping:
 
-- `water_color_cycling` — `DS:0x5383` bit 0 set = cycling *off*.
+- `water_color_cycling` — `DS:0x5383` bit 0 set = cycling *off*. Wired to the
+  real effect: `game_water_cycle_tick` (game_loop.c) rotates map-palette
+  entries 0x78–0x7F per `CYCLE.DAT` (~575 ms/step, DOS `FUN_1a0a_007a`) on
+  the map screen. Those 8 blues appear in the sea-lane tile (TERRAIN 11),
+  PHYS0 rivers + coast corners 150–153, and 2 px of swamp — open-ocean tiles
+  (TERRAIN 10) are flat 0x3a–0x3c and never animate, matching DOS.
 - All ten colony-report bits — `DS:0x5384`/`0x5385` set = report *suppressed*.
   `FUN_2b5a_223a` sets each bit when its checkbox is **clear**, and the EOT
   reporters fire on `bit == 0` (`turn_report_ok_*` in `turn.c`). A fresh save

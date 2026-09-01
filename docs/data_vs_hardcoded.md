@@ -95,7 +95,7 @@ SoundFont for FluidSynth is **not** in `COLONIZE/` (`data/soundfonts/`). Numeric
 |------|---------|
 | **`AMERICA.MOV`** | Tiny motion/script blob for map tooling — **not** the LEVN voyage cutscene. Skip unless restoring MAPEDIT tooling. |
 | **`PATH.DAT`** | CSV of coordinate pairs (~702 lines). Installer / path-drawing helper data — not core gameplay catalogs. |
-| **`CYCLE.DAT`** | 34-byte binary stub — not used by the Linux port. |
+| **`CYCLE.DAT`** | Water palette-cycle table: uint16 count + 8×[length, phase, start, rate] records (DOS loads it raw to `DS:0x929e`, `FUN_7a9d_0004`). Retail: one cycle, palette 0x78–0x7F, rate 0x23 ticks of the 60.877 Hz `DS:0x92e8` clock (IRQ0 608.77 Hz ÷2 ÷5 in the ISR; ~575 ms/step). Loaded by `game_load_cycle_dat`; `game_water_cycle_tick` rotates the map palette on the map screen when the Water Color Cycling option is on. |
 | **`INSTALL.DAT` / `INSTALL.EXE` / `MPSCOPY.EXE` / `PKUNZJR.COM` / `INSTALL.GIF`** | Installer — do not load. |
 | **`COLONIZE.BAT` / `COLDEMO.BAT`** | DOS launchers. |
 | **`VR_*.EXE` / `VR_SEED.EXE` / `VR_BRAVE*.EXE`** | Local RE / fidelity tools (seed-locked VICEROY variants). Evidence only. |
