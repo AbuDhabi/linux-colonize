@@ -92,7 +92,8 @@ typedef enum AiPopupTag {
   AI_POPUP_TAG_CONTACT_LEARNSTAY = 47, /* thunk_FUN_1000_a618 @LEARNSTAY Yes/No (payload = unit | skill<<16) */
   AI_POPUP_TAG_FOUNTAIN_YOUTH = 48, /* FUN_65dd_0004 case 1: 8× free FUN_38fd_4884(1,0) Recruit pick (payload = picks left) */
   AI_POPUP_TAG_BREWSTER_PICK = 49, /* 5e52 Brewster branch: FUN_38fd_4884(0,1) @RECRUITCHOOSE free pick (nation_a = human) */
-  AI_POPUP_TAG_CONTACT_TRADE_PICK = 50 /* FUN_4d56_2820 shell: multi-hold unit picks which cargo to offer (payload = unit id, 99 = cancel) */
+  AI_POPUP_TAG_CONTACT_TRADE_PICK = 50, /* FUN_4d56_2820 shell: multi-hold unit picks which cargo to offer (payload = unit id, 99 = cancel) */
+  AI_POPUP_TAG_CONTACT_EURO_WAR = 52 /* FUN_465b_0000 @HAVETREATY Cancel Action/Break Treaty before attacking a treaty peer (nation_a = unit, nation_b = target, payload = x|y<<8) */
 } AiPopupTag;
 
 typedef struct AiPopupRequest {

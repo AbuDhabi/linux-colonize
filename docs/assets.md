@@ -186,7 +186,7 @@ Small sprite sheets render as a labeled grid. Large or single-sprite sheets show
 | 108–139 | Coastline 8×8 fragments (`108+4*mask+q`; MAPEDIT `0x6d−1`) |
 | 140–143 | Major river estuary corners (N/E/S/W) |
 | 144–147 | Minor river estuary corners |
-| 148 | (reserved / solid) |
+| 148 | Fog of war (unexplored tile fill; VICEROY `FUN_6ba1_0938` asm 6ba1:09a2 blits it as 1-based 0x95 — dark-blue noise of palette 60..62, one shade below the ocean tile's 58..60) |
 | 149 | Plowed / other overlay |
 | 150–153 | Coastal ocean corners (land NW/NE/SW/SE) |
 

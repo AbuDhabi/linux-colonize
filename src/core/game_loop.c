@@ -2094,6 +2094,30 @@ static void game_apply_ai_popup_result(ColonizeGameState* game) {
     ai_popup_consume_result(&game->ai_popups);
     return;
   }
+  if (game->ai_popups.result_tag == AI_POPUP_TAG_CONTACT_EURO_WAR) {
+    const int unit_id = game->ai_popups.result_nation_a;
+    const int target_nation = game->ai_popups.result_nation_b;
+    const int dest_x = game->ai_popups.result_payload & 0xff;
+    const int dest_y = (game->ai_popups.result_payload >> 8) & 0xff;
+    if (!game->ai_popups.result_cancelled && game->ai_popups.result_choice_id == 1 &&
+        game->col1_ok && target_nation >= 0 && target_nation <= 3) {
+      ColonizeUnit* u = units_get(&game->units, unit_id);
+      if (u && u->nation_id >= 0 && u->nation_id <= 3) {
+        /* Break Treaty: clear 0x40 both ways and open the war (FUN_281f_0a10). */
+        ColonizeTurnContext ctx;
+        game_fill_turn_context(game, &ctx);
+        ai_diplo_declare_war_ctx(&ctx, u->nation_id, target_nation);
+        game->units.selected_id = unit_id;
+        ai_popup_consume_result(&game->ai_popups);
+        (void)game_try_unit_move(game, dest_x, dest_y);
+        return;
+      }
+    } else {
+      set_status(game, "Attack called off", NULL);
+    }
+    ai_popup_consume_result(&game->ai_popups);
+    return;
+  }
   if (game->ai_popups.result_tag == AI_POPUP_TAG_COMBAT_RANSOM) {
     if (game->col1_ok) {
       (void)units_combat_apply_ransom_popup(&game->col1, &game->ai_popups);
@@ -6041,6 +6065,38 @@ static bool game_try_unit_move(ColonizeGameState* game, int dest_x, int dest_y) 
       ColonizeTurnContext ctx;
       game_fill_turn_context(game, &ctx);
       if (ai_contact_try_whack_confirm(&ctx, selected->nation_id, foe->nation_id, sid, dest_x, dest_y)) {
+        set_status(game, "Attack?", NULL);
+        return true;
+      }
+    }
+  }
+  /*
+   * FUN_465b_0000 Euro peer at peace (bugs.md): DOS never refuses the attack —
+   * a signed treaty asks @HAVETREATY first, no treaty just opens hostilities.
+   * Covers a foreign unit on the tile and an (even undefended) foreign colony.
+   */
+  if (game->col1_ok && combat_unit_is_combat_role(&game->units, sid)) {
+    int target_nation = -1;
+    const int foe_id = units_id_at(&game->units, dest_x, dest_y);
+    const ColonizeUnit* foe = foe_id >= 0 ? units_get_const(&game->units, foe_id) : NULL;
+    if (foe && foe->nation_id >= 0 && foe->nation_id <= 3 &&
+        foe->nation_id != selected->nation_id) {
+      target_nation = foe->nation_id;
+    } else if (!foe && !units_is_sea(&game->units, sid)) {
+      const int cid = colonies_id_at(&game->colonies, dest_x, dest_y);
+      const ColonizeColony* col = colonies_get(&game->colonies, cid);
+      if (col && col->active && col->nation_id >= 0 && col->nation_id <= 3 &&
+          col->nation_id != selected->nation_id) {
+        target_nation = col->nation_id;
+      }
+    }
+    if (target_nation >= 0 &&
+        !ai_diplo_at_war(&game->col1, selected->nation_id, target_nation)) {
+      ColonizeTurnContext ctx;
+      game_fill_turn_context(game, &ctx);
+      if (ai_contact_try_euro_attack_confirm(
+            &ctx, selected->nation_id, target_nation, sid, dest_x, dest_y
+          )) {
         set_status(game, "Attack?", NULL);
         return true;
       }
@@ -11997,7 +12053,17 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
             continue;
           }
           if (!map_tile_seen_by(&game->world_map, mx, my, game_fog_nation(game))) {
-            /* Unexplored: leave black (framebuffer cleared above). */
+            /*
+             * bugs.md: DOS fog of war is a textured blue, not black. The
+             * unseen branch of DOS FUN_6ba1_0938 (asm 6ba1:09a2) blits
+             * sprite 0x95 (1-based) = PHYS0 #148 — a 16x16 noise fill of
+             * palette 60..62, one shade darker than the ocean's 58..60.
+             */
+            if (game->phys0_ok && 148 < game->phys0.sprite_count) {
+              blit_map_sprite(
+                &game->phys0, 148, framebuffer, sx, sy, tile_w, tile_h, map_origin_x, map_origin_y
+              );
+            }
             continue;
           }
           underlayer = map_coast_underlayer_sprite_at(&game->world_map, mx, my);

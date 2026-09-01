@@ -1248,6 +1248,80 @@ int ai_contact_try_whack_confirm(
   return 1;
 }
 
+/*
+ * FUN_465b_0000 Euro-vs-Euro attack gate (viceroy_unpacked.c:75540..75560):
+ * DOS never refuses an attack on a Euro peer at peace. With a signed peace
+ * treaty (relation & 0x40) it asks @HAVETREATY ("We have signed a peace
+ * treaty with the {%STRING0}" — Cancel Action / Break Treaty; result != 2
+ * aborts the move); without one the attack simply proceeds and war is
+ * declared. Returns 1 when a popup now gates the move (caller must stop),
+ * 0 when the move may continue (war was declared here if it had to be).
+ */
+static int ai_contact_euro_war_pending(const AiPopupState* st, int unit_id) {
+  if (!st) {
+    return 0;
+  }
+  for (int i = 0; i < st->queue_count; ++i) {
+    if (st->queue[i].tag == AI_POPUP_TAG_CONTACT_EURO_WAR && st->queue[i].nation_a == unit_id) {
+      return 1;
+    }
+  }
+  return st->open && st->current.tag == AI_POPUP_TAG_CONTACT_EURO_WAR &&
+         st->current.nation_a == unit_id;
+}
+
+int ai_contact_try_euro_attack_confirm(
+  ColonizeTurnContext* ctx,
+  int euro_nation,
+  int target_nation,
+  int unit_id,
+  int dest_x,
+  int dest_y
+) {
+  if (!ctx || !ctx->col1_ok || !ctx->col1 || !ctx->ai_popups || euro_nation < 0 ||
+      euro_nation > 3 || target_nation < 0 || target_nation > 3 ||
+      euro_nation == target_nation) {
+    return 0;
+  }
+  if (!ai_contact_euro_is_human(ctx, euro_nation)) {
+    return 0;
+  }
+  if (ai_diplo_at_war(ctx->col1, euro_nation, target_nation)) {
+    return 0;
+  }
+  if (ai_contact_euro_war_pending(ctx->ai_popups, unit_id)) {
+    return 1;
+  }
+  const uint8_t rel = (uint8_t)(ai_diplo_read(ctx->col1, euro_nation, target_nation) |
+                                ai_diplo_read(ctx->col1, target_nation, euro_nation));
+  if ((rel & AI_DIPLO_PEACE) == 0) {
+    /* No treaty: DOS attacks without a prompt — open hostilities and go. */
+    ai_diplo_declare_war_ctx(ctx, euro_nation, target_nation);
+    return 0;
+  }
+  const char* name = ai_contact_euro_name(target_nation);
+  PopupMsgTokens tok;
+  memset(&tok, 0, sizeof(tok));
+  tok.string0 = name;
+  char fb[AI_POPUP_BODY_LEN];
+  snprintf(
+    fb, sizeof(fb),
+    "\"We have signed a peace treaty with the %s, Your Excellency.\"", name
+  );
+  char body[AI_POPUP_BODY_LEN];
+  popup_msg_fill(ctx->messages, "HAVETREATY", &tok, fb, body, sizeof(body));
+  static const char* labels[] = {"Cancel Action.", "Break Treaty."};
+  static const int ids[] = {0, 1};
+  const int payload = dest_x | (dest_y << 8);
+  if (!ai_popup_enqueue_choice_ctx(
+        ctx->ai_popups, AI_POPUP_TAG_CONTACT_EURO_WAR, unit_id, target_nation, payload, name,
+        body, labels, ids, 2
+      )) {
+    return 0;
+  }
+  return 1;
+}
+
 int ai_contact_try_village_raid_warn(
   ColonizeTurnContext* ctx,
   int euro_nation,

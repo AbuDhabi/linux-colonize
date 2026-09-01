@@ -34,7 +34,15 @@ bool unit_stack_try_open(
   dlg->tile_x = x;
   dlg->tile_y = y;
   dlg->count = n;
+  /* DOS opens the picker with the currently active unit's row (the ship you
+   * clicked) highlighted, not row 0 (bugs.md loaded-unit activation flow). */
   dlg->selection = 0;
+  for (int i = 0; i < n; ++i) {
+    if (dlg->ids[i] == pool->selected_id) {
+      dlg->selection = i;
+      break;
+    }
+  }
   return true;
 }
 
@@ -129,7 +137,24 @@ bool unit_stack_handle_input(
     }
     const int idx = unit_stack_row_at_y(dlg, my);
     if (idx >= 0) {
-      dlg->selection = idx;
+      /*
+       * bugs.md loaded-unit activation (DOS live behaviour, corrects the
+       * single-pick read of FUN_2b5a_1b5a): the first click on a row only
+       * selects it in the popup — cancelling a loaded passenger's Sentry so
+       * its label flips to ready — and the popup stays open; clicking the
+       * already-selected row activates that unit and closes. The popup opens
+       * with the clicked ship's row selected, so one click on the ship row
+       * still activates the ship directly.
+       */
+      if (idx != dlg->selection) {
+        dlg->selection = idx;
+        const int uid = dlg->ids[idx];
+        ColonizeUnit* u = units_get(pool, uid);
+        if (u && u->active && u->aboard_ship_id >= 0 && u->orders == 1) {
+          (void)units_wake(pool, uid);
+        }
+        return true;
+      }
       int sel = -1;
       unit_stack_activate_row(dlg, pool, idx, &sel);
       if (out_select_id) {

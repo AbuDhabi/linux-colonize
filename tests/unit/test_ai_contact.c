@@ -5789,6 +5789,51 @@ int main(void) {
     fprintf(stderr, "unit_ai_contact: WHACKINDIANS ok\n");
   }
 
+  /* FUN_465b_0000 Euro peer: treaty → @HAVETREATY CHOICE; no treaty → silent war. */
+  {
+    AiPopupState wp;
+    ai_popup_clear(&wp);
+    ColonizeTurnContext wctx;
+    memset(&wctx, 0, sizeof(wctx));
+    wctx.col1 = &col1;
+    wctx.col1_ok = true;
+    wctx.ai_popups = &wp;
+    wctx.human_nation = 0;
+    col1.player[0].control = 0;
+    col1.player[1].control = 1;
+    /* Signed treaty: prompt, no war yet. */
+    ai_diplo_write(&col1, 0, 1, AI_DIPLO_MET | AI_DIPLO_PEACE);
+    ai_diplo_write(&col1, 1, 0, AI_DIPLO_MET | AI_DIPLO_PEACE);
+    if (!ai_contact_try_euro_attack_confirm(&wctx, 0, 1, 7, 5, 6) || wp.queue_count != 1 ||
+        wp.queue[0].tag != AI_POPUP_TAG_CONTACT_EURO_WAR || wp.queue[0].nation_a != 7 ||
+        wp.queue[0].nation_b != 1 || wp.queue[0].payload != (5 | (6 << 8))) {
+      return fail("HAVETREATY should enqueue Cancel/Break CHOICE for a treaty peer");
+    }
+    if (ai_diplo_at_war(&col1, 0, 1)) {
+      return fail("HAVETREATY prompt alone must not declare war");
+    }
+    if (!ai_contact_try_euro_attack_confirm(&wctx, 0, 1, 7, 5, 6) || wp.queue_count != 1) {
+      return fail("HAVETREATY must not stack a second CHOICE while one is pending");
+    }
+    ai_popup_clear(&wp);
+    /* No treaty: no prompt, war opens and the move may proceed. */
+    ai_diplo_write(&col1, 0, 1, AI_DIPLO_MET);
+    ai_diplo_write(&col1, 1, 0, AI_DIPLO_MET);
+    if (ai_contact_try_euro_attack_confirm(&wctx, 0, 1, 7, 5, 6) || wp.queue_count != 0) {
+      return fail("no treaty: attack must proceed without a prompt");
+    }
+    if (!ai_diplo_at_war(&col1, 0, 1)) {
+      return fail("no treaty: attack should open the war");
+    }
+    /* Already at war: nothing to ask. */
+    if (ai_contact_try_euro_attack_confirm(&wctx, 0, 1, 7, 5, 6) || wp.queue_count != 0) {
+      return fail("at war: no prompt");
+    }
+    ai_diplo_write(&col1, 0, 1, 0);
+    ai_diplo_write(&col1, 1, 0, 0);
+    fprintf(stderr, "unit_ai_contact: HAVETREATY euro attack confirm ok\n");
+  }
+
 
   /* FUN_4d56_417e Mode 2: AI Missionary incites the tribe against the human. */
   {
