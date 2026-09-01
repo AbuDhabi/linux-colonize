@@ -142,6 +142,10 @@ typedef struct AiPopupState {
   int result_nation_b;
   int result_payload;
 
+  /* King flair one-shot animation (KING2.SS; bugs.md). */
+  int king_anim_frame;
+  uint32_t king_anim_next_ms;
+
   int dialog_x;
   int dialog_y;
   int dialog_w;
@@ -224,6 +228,8 @@ void ai_popup_set_portrait_source(const char* data_dir, const struct ColonizePal
 /* Attach IND{tribe}A{tier} to the most recently enqueued request (no-op when
  * the queue is empty or tribe > 7; tribe < 0 clears the portrait). */
 void ai_popup_set_last_portrait(AiPopupState* st, int tribe, int tier);
+/* Frame clock for the King flair animation — call once per game_update. */
+void ai_popup_set_now_ms(uint32_t now_ms);
 /* FUN_15dc_00a2 alarm → portrait tier. */
 int ai_popup_portrait_tier_from_alarm(int alarm);
 /*

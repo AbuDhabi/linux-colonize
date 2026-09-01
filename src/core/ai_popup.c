@@ -149,6 +149,8 @@ bool ai_popup_try_present_next(AiPopupState* st) {
   st->selection = 0;
   st->has_result = false;
   st->result_cancelled = false;
+  st->king_anim_frame = 0;
+  st->king_anim_next_ms = 0;
   return true;
 }
 
@@ -381,6 +383,18 @@ static ColonizePalette g_portrait_palette;
 static bool g_portrait_palette_ok;
 static ColonizeSpriteSheet g_portrait_sheets[8][4];
 static uint8_t g_portrait_state[8][4]; /* 0 untried, 1 loaded, 2 failed */
+/* bugs.md: the King's tax-audience flair — DS:0x1f5c = 8 loads "KING" and
+ * arms a one-shot frame animation (FUN_6f74_0042: first step after 240
+ * ticks of the 60.877 Hz clock ≈ 3.9 s, then one frame per 10 ticks ≈
+ * 164 ms until the sheet runs out). KING2.SS carries the 8 frames
+ * (79x161, same box as KING.SS's static pose). */
+static ColonizeSpriteSheet g_king_sheet;
+static uint8_t g_king_state; /* 0 untried, 1 loaded, 2 failed */
+static uint32_t g_popup_now_ms;
+
+void ai_popup_set_now_ms(uint32_t now_ms) {
+  g_popup_now_ms = now_ms;
+}
 /* MSS0..5 / MYR0..3 popup decorations, same lazy load + remap. */
 static ColonizeSpriteSheet g_mss_sheets[6];
 static uint8_t g_mss_state[6];
@@ -408,6 +422,7 @@ void ai_popup_set_portrait_source(const char* data_dir, const ColonizePalette* p
         ss_free(&g_portrait_sheets[t][a]);
       }
       g_portrait_state[t][a] = 0;
+      (void)0;
     }
   }
   for (int i = 0; i < 6; ++i) {
@@ -503,6 +518,23 @@ static const ColonizeSpriteSheet* ai_popup_portrait_sheet(int tribe, int tier) {
     }
   }
   return g_portrait_state[tribe][tier] == 1 ? &g_portrait_sheets[tribe][tier] : NULL;
+}
+
+static const ColonizeSpriteSheet* ai_popup_king_sheet(void) {
+  if (!g_portrait_dir[0] || !g_portrait_palette_ok) {
+    return NULL;
+  }
+  if (g_king_state == 0) {
+    char path[600];
+    char err[128];
+    g_king_state = 2;
+    if (dos_compat_normalize_asset_path(g_portrait_dir, "KING2.SS", path, sizeof(path)) &&
+        ss_load(path, &g_king_sheet, err, sizeof(err))) {
+      ai_popup_remap_sheet(&g_king_sheet, &g_portrait_palette);
+      g_king_state = 1;
+    }
+  }
+  return g_king_state == 1 ? &g_king_sheet : NULL;
 }
 
 void ai_popup_set_last_graphic_mss(AiPopupState* st, int mss) {
@@ -612,12 +644,30 @@ void ai_popup_render(
    * Sprite top = 100 − (sprite_h + 3)/2; the frame grows to enclose it.
    */
   const ColonizeSpriteSheet* portrait =
-    ai_popup_portrait_sheet(req->portrait_tribe, req->portrait_tier);
+    req->portrait_tribe == 8 ? ai_popup_king_sheet()
+                             : ai_popup_portrait_sheet(req->portrait_tribe, req->portrait_tier);
+  int portrait_frame = 0;
+  if (portrait && req->portrait_tribe == 8) {
+    /* FUN_6f74_0042 one-shot flair animation: ~3.9 s pause on frame 0,
+     * then ~164 ms per frame to the sheet's last (bugs.md). */
+    if (st->king_anim_next_ms == 0) {
+      st->king_anim_frame = 0;
+      st->king_anim_next_ms = g_popup_now_ms + 3900u;
+    } else if (g_popup_now_ms >= st->king_anim_next_ms &&
+               st->king_anim_frame + 1 < portrait->sprite_count) {
+      st->king_anim_frame++;
+      st->king_anim_next_ms = g_popup_now_ms + 164u;
+    }
+    if (st->king_anim_frame < portrait->sprite_count) {
+      portrait_frame = st->king_anim_frame;
+    }
+  }
   int portrait_w = 0;
   int portrait_h = 0;
-  if (portrait && portrait->sprite_count > 0 && portrait->sprites[0].pixels) {
-    portrait_w = portrait->sprites[0].width;
-    portrait_h = portrait->sprites[0].height;
+  if (portrait && portrait->sprite_count > portrait_frame &&
+      portrait->sprites[portrait_frame].pixels) {
+    portrait_w = portrait->sprites[portrait_frame].width;
+    portrait_h = portrait->sprites[portrait_frame].height;
   } else {
     portrait = NULL;
   }
@@ -771,7 +821,7 @@ void ai_popup_render(
   st->line_h = line_h;
 
   if (portrait) {
-    ss_blit_sprite(portrait, 0, framebuffer, portrait_x, portrait_y);
+    ss_blit_sprite(portrait, portrait_frame, framebuffer, portrait_x, portrait_y);
   }
   if (graphic) {
     /* After the frame so the figure's head/shoulders overlap the wood top. */
