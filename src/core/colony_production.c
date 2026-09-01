@@ -829,8 +829,10 @@ const char* colony_prod_highest_manufacturing_tier_name(
   return base_name;
 }
 
-int colony_prod_worker_building_output_sol(
+int colony_prod_worker_building_output_ctx(
   const ColonizeColonyPool* pool,
+  const ColonizeColony* colony,
+  const ColonizeCol1Save* col1,
   int building_type,
   int profession,
   int sol_bonus
@@ -842,14 +844,24 @@ int colony_prod_worker_building_output_sol(
   if (!name) {
     return 0;
   }
+  /* bugs.md: the badge must fold in the SAME multipliers the turn tick
+   * applies — the Lumber Mill x2 (a Master Carpenter reads 14, not 7),
+   * the Cathedral x2 and Penn x1.5 for preachers. */
+  const bool has_mill =
+    colony && colony_prod_building_built(pool, colony, "Lumber Mill");
+  const bool has_cathedral =
+    colony && colony_prod_building_built(pool, colony, "Cathedral");
+  const bool has_penn = col1 && colony && colony->nation_id >= 0 &&
+    colony->nation_id <= 3 &&
+    founding_fathers_nation_has(col1, colony->nation_id, FF_WILLIAM_PENN);
   if (colony_prod_name_has(name, "Town Hall")) {
     return colony_prod_bells_worker(name, profession, sol_bonus);
   }
   if (colony_prod_name_has(name, "Church") || colony_prod_name_has(name, "Cathedral")) {
-    return colony_prod_crosses_worker(name, profession, sol_bonus, false, false);
+    return colony_prod_crosses_worker(name, profession, sol_bonus, has_cathedral, has_penn);
   }
   if (colony_prod_name_has(name, "Carpenter") || colony_prod_name_has(name, "Lumber Mill")) {
-    return colony_prod_hammers_worker(name, profession, sol_bonus, false);
+    return colony_prod_hammers_worker(name, profession, sol_bonus, has_mill);
   }
   if (colony_prod_name_has(name, "Rum Distill")) {
     return colony_prod_manufacturing_output(name, profession, COLONIZE_PROF_DISTILLER, sol_bonus);
@@ -873,17 +885,27 @@ int colony_prod_worker_building_output_sol(
   return 0;
 }
 
+int colony_prod_worker_building_output_sol(
+  const ColonizeColonyPool* pool,
+  int building_type,
+  int profession,
+  int sol_bonus
+) {
+  return colony_prod_worker_building_output_ctx(pool, NULL, NULL, building_type, profession, sol_bonus);
+}
+
 int colony_prod_worker_building_output(
   const ColonizeColonyPool* pool,
   int building_type,
   int profession
 ) {
-  return colony_prod_worker_building_output_sol(pool, building_type, profession, 0);
+  return colony_prod_worker_building_output_ctx(pool, NULL, NULL, building_type, profession, 0);
 }
 
 int colony_prod_building_display_output_sol(
   const ColonizeColonyPool* pool,
   const ColonizeColony* colony,
+  const ColonizeCol1Save* col1,
   int building_type,
   int sol_bonus
 ) {
@@ -910,7 +932,8 @@ int colony_prod_building_display_output_sol(
     if (!c->active || c->building_type != building_type) {
       continue;
     }
-    amount += colony_prod_worker_building_output_sol(pool, building_type, c->profession, sol_bonus);
+    amount += colony_prod_worker_building_output_ctx(
+      pool, colony, col1, building_type, c->profession, sol_bonus);
   }
   return amount;
 }
@@ -920,5 +943,5 @@ int colony_prod_building_display_output(
   const ColonizeColony* colony,
   int building_type
 ) {
-  return colony_prod_building_display_output_sol(pool, colony, building_type, 0);
+  return colony_prod_building_display_output_sol(pool, colony, NULL, building_type, 0);
 }

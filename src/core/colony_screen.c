@@ -2654,7 +2654,7 @@ static void colony_screen_blit_buildings(
          * The hammers preview override is gone for the same reason: with
          * lumber at 0 it read 0 (and silently dropped the SoL bonus). */
         int amount = colony_prod_building_display_output_sol(
-          pool, colony, built, colony_prod_sol_bonus(col1, colony)
+          pool, colony, col1, built, colony_prod_sol_bonus(col1, colony)
         );
         if (badge >= COLONY_CARGO_ICON_BASE && badge < COLONY_CARGO_ICON_BASE + COLONIZE_CARGO_COUNT &&
             view->preview_valid) {
