@@ -1711,6 +1711,11 @@ static const char* units_combat_nation_label(const ColonizeCol1Save* col1, int n
     "Inca", "Aztec", "Arawak", "Iroquois", "Cherokee", "Apache", "Sioux", "Tupi"
   };
   if (nation_id >= 0 && nation_id <= 3) {
+    /* bugs.md: during the WoI the crown's borrowed slot is the Royal
+     * Expeditionary Force, not the peer nation whose slot it wears. */
+    if (nation_id == unit_chrome_crown_nation()) {
+      return "Royal Expeditionary Force";
+    }
     if (col1 && col1->player[nation_id].country_name[0]) {
       return col1->player[nation_id].country_name;
     }

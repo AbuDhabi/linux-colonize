@@ -775,6 +775,10 @@ static int map_panel_draw_line_color(
 static const char* map_panel_nationality(const ColonizeMsgCatalog* names, int nation_id) {
   static const char* k_euro[] = {"English", "French", "Spanish", "Dutch"};
   if (nation_id >= 0 && nation_id < 4) {
+    /* bugs.md: crown slot = the REF during the WoI, never the peer name. */
+    if (nation_id == unit_chrome_crown_nation()) {
+      return "Royal";
+    }
     const char* line = map_panel_section_line(names, "NATIONALITY", nation_id);
     if (line && line[0]) {
       static char buf[32];

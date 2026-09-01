@@ -58,6 +58,8 @@ uint8_t unit_chrome_nation_color(int nation_id);
  * (-1 = none; set each frame by the game loop while independence is
  * declared). */
 void unit_chrome_set_crown_nation(int nation_id);
+/* -1 outside the WoI; else the crown's borrowed nation slot. */
+int unit_chrome_crown_nation(void);
 
 /* Col1 @UNIT type index → badge corner (aboard: unit is cargo of a ship). */
 UnitChromeCorner unit_chrome_corner_for_type(int display_type_index, bool aboard);

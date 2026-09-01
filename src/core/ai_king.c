@@ -3052,8 +3052,10 @@ static int ai_king_0982_crown_mow_alive(const ColonizeTurnContext* ctx, int crow
 
 /* 0982 pool index → NAMES type (43f7_0082 crown class map). */
 static int ai_king_0982_spawn_pool_unit(ColonizeTurnContext* ctx, int crown, int k, int x, int y) {
-  static const char* names[4] = {"Regulars", "Dragoons", "Man-O-War", "Artillery"};
-  static const char* alts[4] = {"Soldiers", "Scouts", "Galleon", "Cannon"};
+  /* bugs.md: the REF fields Regulars and CAVALRY (@UNIT 8) — not colonial
+   * Dragoons; pool[1] is the Cavalry pool. */
+  static const char* names[4] = {"Regulars", "Cavalry", "Man-O-War", "Artillery"};
+  static const char* alts[4] = {"Soldiers", "Dragoons", "Galleon", "Cannon"};
   int ty = units_find_type(ctx->units, names[k]);
   if (ty < 0) {
     ty = units_find_type(ctx->units, alts[k]);
@@ -3375,19 +3377,47 @@ static void ai_king_ref_wave(ColonizeTurnContext* ctx) {
            * tile is held. Empty tiles sort first anyway (strength 0), so
            * restrict "usable" to them when one exists.
            */
+          /*
+           * bugs.md: "safe" = no HUMAN stack on the tile — empty, or held
+           * by an earlier crown landing (stacking with its own army is
+           * fine; the previous fix treated the old beachhead as occupied
+           * and pushed the next wave onto the player's units). Partition:
+           * when ANY safe tile exists, land ONLY on safe tiles; the
+           * seize-what-stands-there landing remains solely for a full
+           * blockade.
+           */
           int usable = 0;
-          if (nc > 0 && units_id_at(ctx->units, cx[0], cy[0]) < 0) {
-            while (usable < nc && units_id_at(ctx->units, cx[usable], cy[usable]) < 0) {
-              usable++;
+          {
+            int sx2[8];
+            int sy2[8];
+            int ss2[8];
+            int ns = 0;
+            for (int t = 0; t < nc; ++t) {
+              const int occ = units_id_at(ctx->units, cx[t], cy[t]);
+              const ColonizeUnit* ou = occ >= 0 ? units_get_const(ctx->units, occ) : NULL;
+              if (!ou || ou->nation_id == crown) {
+                sx2[ns] = cx[t];
+                sy2[ns] = cy[t];
+                ss2[ns] = cs[t];
+                ns++;
+              }
             }
-          } else {
-            /* No empty tile: DOS lands on every tile no stronger than the
-             * weakest, seizing what stands there. */
-            while (usable < nc && cs[usable] <= cs[0]) {
-              usable++;
-            }
-            for (int t = 0; t < usable; ++t) {
-              ai_king_0982_purge_tile(ctx, crown, cx[t], cy[t]);
+            if (ns > 0) {
+              for (int t = 0; t < ns; ++t) {
+                cx[t] = sx2[t];
+                cy[t] = sy2[t];
+                cs[t] = ss2[t];
+              }
+              usable = ns;
+            } else {
+              /* Full blockade: DOS lands on every tile no stronger than the
+               * weakest, seizing what stands there. */
+              while (usable < nc && cs[usable] <= cs[0]) {
+                usable++;
+              }
+              for (int t = 0; t < usable; ++t) {
+                ai_king_0982_purge_tile(ctx, crown, cx[t], cy[t]);
+              }
             }
           }
           int slot = 0;
