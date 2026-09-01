@@ -24,7 +24,10 @@
  * a listed option; Esc / click-outside / right-click cancels (result_cancelled).
  */
 
-#define AI_POPUP_QUEUE_MAX 16
+/* One TURN_PROC_SETUP slice queues every colony's production chrome at once
+ * (starve/spoil/built/…) before the blocking presenter can drain any of it —
+ * a large empire overflows 16 and enqueue drops the popup silently. */
+#define AI_POPUP_QUEUE_MAX 32
 #define AI_POPUP_CHOICE_MAX 6
 #define AI_POPUP_BODY_LEN 512
 #define AI_POPUP_TITLE_LEN 64

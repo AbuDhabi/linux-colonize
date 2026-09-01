@@ -142,6 +142,18 @@ Framebuffer is fixed **320×200** indexed + `ColonizePalette`.
 finish / human MP refresh. Full pipeline map:
 [turn_between_players.md](turn_between_players.md).
 
+**Blocking-popup invariant (2026-09-01):** every player-facing modal blocks all
+simulation, DOS-style. Time/turn processing runs **only** with the overland map
+on screen and nothing over it. Two enforcement points in `game_loop.c`:
+`game_turn_flow_allowed` (unit hand-offs / end-turn starts; also false while
+the EOT processor is active) and the EOT branch at the top of `game_update`,
+which presents queued popups/woodcuts **mid-EOT** and freezes
+`turn_processor_advance` until each is answered — dialogs are no longer hoarded
+until FINISH. New popup-ish features need no per-site gating: enqueue via
+`ai_popup` / open a `game_modal_open`-listed dialog and the pipeline stops by
+construction. If a new modal type is added, it must be added to
+`game_modal_open`.
+
 **AI:** new game `ai_init_new_game` (`ai.c`); per nation
 `ai_euro_nation_turn` / Indian / king planners.
 

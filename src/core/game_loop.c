@@ -7936,6 +7936,11 @@ static bool game_turn_flow_allowed(const ColonizeGameState* game) {
   if (!game) {
     return false;
   }
+  /* Mid-EOT a popup answer must never hand control to a human unit — the
+   * pipeline is frozen behind the dialog and FINISH does its own hand-off. */
+  if (turn_processor_active(&game->turn_proc)) {
+    return false;
+  }
   if (game->in_menu || game->in_europe || game->in_colony || game->in_report ||
       game->in_pedia || game->in_debug_atlas || game->in_hall_of_fame ||
       game->in_exploits) {
@@ -9132,6 +9137,36 @@ static void game_map_click_dispatch(ColonizeGameState* game, int mx, int my) {
   game_select_tile(game, mx, my);
 }
 
+/*
+ * Milestone woodcut (FUN_12fd_006c) — full-screen, and ahead of whatever
+ * popup the same event queues behind it: DOS pushes the woodcut first
+ * (FUN_5bfb_022e runs woodcut 3/4/5 before the @INDIANWELCOME dialog,
+ * FUN_5fef the raid woodcut before its @RAID text). The popup queue still
+ * advances underneath — the woodcut only owns the screen and the keyboard
+ * until it is dismissed. Returns true while a woodcut owns the frame.
+ */
+static bool game_service_woodcut(ColonizeGameState* game, const ColonizeInputState* input) {
+  bool just_opened = false;
+  if (!game->woodcut.open && !game->declaration.open && !game->in_menu &&
+      woodcut_has_pending()) {
+    const int wid = woodcut_take_pending();
+    just_opened = wid >= 0 &&
+      woodcut_open(&game->woodcut, game->resolved_data_dir, wid);
+    if (just_opened) {
+      diag_info("Woodcut %d: %s", wid, game->woodcut.caption);
+    }
+  }
+  if (game->woodcut.open) {
+    /* Not on the opening frame: a key still down from the action that armed
+     * it would dismiss the screen before it is ever seen. */
+    if (!just_opened) {
+      (void)woodcut_handle_input(&game->woodcut, input);
+    }
+    return true;
+  }
+  return false;
+}
+
 bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint32_t dt_ms) {
   if (!game || !input) {
     return false;
@@ -9154,8 +9189,26 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
       : -1
   );
 
-  /* End-of-turn nation phases: advance one slice per frame; block other input. */
+  /* End-of-turn nation phases: advance one slice per frame; block other input.
+   *
+   * DOS popups are BLOCKING calls — a dialog queued by an earlier slice
+   * (starvation, king audience, combat chrome, …) is answered before the
+   * next slice of processing runs, not hoarded until FINISH. Present it
+   * here and freeze the whole pipeline until the player deals with it;
+   * only animations (water cycle, flair clocks above) keep running. */
   if (turn_processor_active(&game->turn_proc)) {
+    /* Popup queue advances underneath an open woodcut (same order as the
+     * post-EOT path below) — the woodcut owns screen and keyboard only. */
+    if (!game->ai_popups.open && !game->ai_popups.has_result) {
+      ai_popup_try_present_next(&game->ai_popups);
+    }
+    if (game_service_woodcut(game, input)) {
+      return true;
+    }
+    if (game_modal_open(game) || ai_popup_busy(&game->ai_popups)) {
+      (void)game_handle_modal_input(game, input);
+      return true;
+    }
     units_set_move_watch(game_move_watch, game);
     ColonizeTurnContext ctx;
     game_fill_turn_context(game, &ctx);
@@ -9187,30 +9240,7 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
     sound_set_bgm(3);
   }
 
-  /*
-   * Milestone woodcut (FUN_12fd_006c) — full-screen, and ahead of whatever
-   * popup the same event queues behind it: DOS pushes the woodcut first
-   * (FUN_5bfb_022e runs woodcut 3/4/5 before the @INDIANWELCOME dialog,
-   * FUN_5fef the raid woodcut before its @RAID text). The popup queue still
-   * advances underneath — the woodcut only owns the screen and the keyboard
-   * until it is dismissed.
-   */
-  bool woodcut_just_opened = false;
-  if (!game->woodcut.open && !game->declaration.open && !game->in_menu &&
-      woodcut_has_pending()) {
-    const int wid = woodcut_take_pending();
-    woodcut_just_opened = wid >= 0 &&
-      woodcut_open(&game->woodcut, game->resolved_data_dir, wid);
-    if (woodcut_just_opened) {
-      diag_info("Woodcut %d: %s", wid, game->woodcut.caption);
-    }
-  }
-  if (game->woodcut.open) {
-    /* Not on the opening frame: a key still down from the action that armed
-     * it would dismiss the screen before it is ever seen. */
-    if (!woodcut_just_opened) {
-      (void)woodcut_handle_input(&game->woodcut, input);
-    }
+  if (game_service_woodcut(game, input)) {
     return true;
   }
 

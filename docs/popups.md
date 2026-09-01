@@ -98,6 +98,15 @@ Modal input (`game_loop.c`): early gate before parent hotkeys (E/Q/etc.) —
 pick_music → save_load → options → name_entry → howmuch → cheat_list →
 **ai_popups** → unit_stack. Letters typed in name/howmuch do not switch views.
 
+**Blocking invariant (2026-09-01):** every modal blocks all simulation,
+including mid-EOT — `game_update`'s EOT branch presents queued popups/woodcuts
+between processor slices and freezes `turn_processor_advance` until each is
+answered (DOS popups are blocking calls; ours pause the pipeline instead).
+`game_turn_flow_allowed` is false while the EOT processor is active, so a
+popup answer can never hand control to a unit mid-EOT. Queue cap raised to 32
+(one SETUP slice can queue every colony's production chrome before the
+presenter drains any). See architecture.md "Blocking-popup invariant".
+
 **Out of main tables:** MAPEDIT.EXE ([`MAPEDIT.TXT`](../COLONIZE/MAPEDIT.TXT) —
 19 sections), Colonizopedia articles, F2–F10 report *plates* (unless a nested
 confirm), pulldown chrome from `MENU.TXT`. Woodcut discovery captions
