@@ -8115,7 +8115,18 @@ int units_top_on_map_tile(
    * of the stack take its place off-blink made the tile alternate between
    * two different units, so which one was actually active became a guess
    * (bugs.md). A Go-To unit does not blink at all, so it never yields.
+   *
+   * A selected PASSENGER is not on the map (it rides in the hold), so the
+   * on-map scan below never found it and the ship drew steadily instead —
+   * "the loaded-active unit doesn't blink" (bugs.md). It owns the ship's
+   * tile the same way: its own sprite on blink-on, empty off-blink.
    */
+  if (pool->selected_id >= 0) {
+    const ColonizeUnit* sel = units_get_const(pool, pool->selected_id);
+    if (sel && sel->active && sel->aboard_ship_id >= 0 && sel->x == x && sel->y == y) {
+      return selected_visible ? sel->id : -1;
+    }
+  }
   for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
     const ColonizeUnit* u = &pool->units[i];
     if (!units_is_on_map(u) || u->x != x || u->y != y) {
