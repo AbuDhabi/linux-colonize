@@ -116,8 +116,8 @@ This is a user-maintained list of bugs. User puts reports in. Agents may annotat
 | Ships still appear to take away any non-fortified unit with them as they even enter a colony. ONLY SENTRIED. Why is this so hard to implement properly? Check DOS how Sentry/Load should work. | FIXED. The load side and the live departure pickup were already Sentry-only — the leak was the SAVE side: col1_bridge's pre-export "DOS hygiene" pass boarded every land unit sharing a tile with an own ship, on any tile, and it mutates the live pool (aboard_ship_id set, orders forced to Sentry, MP parked). So the moment the game was saved (incl. autosave) with a ship docked at a colony, the whole non-fortified garrison silently became Sentry passengers, and the ship's next departure took them along — matching "as they even enter a colony". The pass now only boards a land unit standing on a WATER tile (a genuine orphan state the Col1 format cannot represent); land-tile stacks (colony docks, coastal stacks) are left untouched. Regression test in unit_col1_save (dock garrison stays ashore through capture; water orphan still gets boarded). |
 | Fog of war isn't the same color as in DOS. That needs to be corrected. | |
 | If you are at peace with a AI Euro nation, the game should prompt you whether you want to attack their units/colonies if you walk into them. DOS does. | |
-| | |
-| | |
+| French REF still missing on new game as France. Same for Spain. Same for England. Same for Netherlands. REF isn't initialized for any of them on game start. WTF. | |
+| I try to activate a ship-loaded unit, but cannot do so. Clicking once brings up the popup. Clicking on the loaded unit cancels the orders and the popup, but does not activate the unit. DOS behaviour is: Click on ship, this brings up the popup with the ship itself selected on it. Click the unit, which selects the unit in the popup and cancels (Sentry) orders. Click unit once more activates it for moving.  | |
 | | |
 | | |
 | | |
