@@ -6475,6 +6475,53 @@ int main(void) {
     fprintf(stderr, "unit_units: colony-tile garrison visibility ok\n");
   }
 
+  /* bugs.md: a selected passenger is not on the map, so the tile scan never
+   * found it and the ship drew steadily — no blink. The passenger owns its
+   * ship's tile like any active unit: own sprite blink-on, empty off. */
+  {
+    int wx = -1, wy = -1;
+    for (int y = 5; y < (int)map.height - 5 && wx < 0; ++y) {
+      for (int x = 5; x < (int)map.width - 5; ++x) {
+        if (map_tile_is_water(&map, x, y)) {
+          wx = x;
+          wy = y;
+          break;
+        }
+      }
+    }
+    if (wx < 0) {
+      fprintf(stderr, "pax blink test: no water tile\n");
+      return 1;
+    }
+    const int saved_selected = pool.selected_id;
+    const int caravel = units_find_type(&pool, "Caravel");
+    const int ship = units_spawn_allow_stack(&pool, caravel, wx, wy);
+    const int pax = units_spawn_allow_stack(&pool, pioneer, wx, wy);
+    ColonizeUnit* pu = units_get(&pool, pax);
+    pu->aboard_ship_id = ship;
+    pu->orders = 0;
+    ColonizeUnit* su = units_get(&pool, ship);
+    su->cargo_count = 1;
+    pool.selected_id = pax;
+    if (units_top_on_map_tile(&pool, wx, wy, true, &map) != pax) {
+      fprintf(stderr, "selected passenger should show on blink-on\n");
+      return 1;
+    }
+    if (units_top_on_map_tile(&pool, wx, wy, false, &map) != -1) {
+      fprintf(stderr, "selected passenger tile should be empty off-blink\n");
+      return 1;
+    }
+    pool.selected_id = ship;
+    if (units_top_on_map_tile(&pool, wx, wy, true, &map) != ship) {
+      fprintf(stderr, "selected ship should still show itself\n");
+      return 1;
+    }
+    units_despawn(&pool, pax);
+    units_despawn(&pool, ship);
+    pool.selected_id = saved_selected;
+    fprintf(stderr, "unit_units: passenger blink ownership ok\n");
+  }
+
   /*
    * P7.2 Fountain of Youth = 8× FUN_38fd_4884(1,0): a 3-way @RECRUIT CHOICE
    * per pick, free passage, no recruit-count bump, chained until 8 landed.

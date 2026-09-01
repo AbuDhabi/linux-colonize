@@ -9143,8 +9143,20 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
      * zero their moves_left yet) demanded the player's input on every
      * garrisoned unit in turn — player-reported alongside the Merchantman
      * destination bug. */
+    /*
+     * bugs.md (loaded_soldier_bug.SAV): a passenger woken out of the tile-
+     * stack popup is NOT on the map (it rides in the hold), so the
+     * on-map-only test above rejected it and the very next frame's cycle
+     * below silently grabbed the selection away — the pick "did nothing".
+     * An awake passenger with moves is a unit awaiting the player's step
+     * ashore.
+     */
+    const bool active_pax_awaiting = active && active->active &&
+      active->nation_id == game->human_nation && active->aboard_ship_id >= 0 &&
+      active->moves_left > 0 && !units_orders_skip_turn(active);
     const bool active_awaiting_player =
-      active_on_map_with_moves && !active_pending && !units_orders_skip_turn(active);
+      (active_on_map_with_moves && !active_pending && !units_orders_skip_turn(active)) ||
+      active_pax_awaiting;
 
     if (active_pending) {
       game->goto_step_accum_ms += dt_ms;
