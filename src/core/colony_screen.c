@@ -2791,6 +2791,7 @@ static int colony_screen_text_width(const ColonizeFont* font, const char* text) 
 /* Warehouse strip: icon centered in each COLONY.PIK slot, amount below. */
 static void colony_screen_draw_cargo_strip(
   const ColonyScreenView* view,
+  const ColonizeColonyPool* pool,
   const ColonizeColony* colony,
   const ColonizeFont* font,
   ColonizeFramebuffer8* framebuffer
@@ -2843,8 +2844,13 @@ static void colony_screen_draw_cargo_strip(
       snprintf(amount, sizeof(amount), "%d", colony->stock[i]);
       const int tw = colony_screen_text_width(font, amount);
       const int tx = slot_x + (COLONY_CARGO_SLOT_W - tw) / 2;
-      const uint8_t base_col =
-        europe_custom_house_cargo_enabled(colony->custom_house_bits, i) ? 10 : 61;
+      /* bugs.md: stock past warehouse capacity draws in the alert colour —
+       * the excess spoils next turn (over-capacity unloads are allowed). */
+      const int wcap = colonies_warehouse_capacity(pool, colony, i);
+      const bool over = wcap > 0 && colony->stock[i] > wcap;
+      const uint8_t base_col = over
+        ? 12
+        : (europe_custom_house_cargo_enabled(colony->custom_house_bits, i) ? 10 : 61);
       const size_t len = strlen(amount);
       if (len > 2) {
         char hundreds[16];
@@ -2870,13 +2876,25 @@ static void colony_screen_draw_transports(
   if (!view || !units || !framebuffer) {
     return;
   }
+  /* bugs.md: >4 transports overflowed the box — shrink the pitch so the
+   * last icon still ends inside (same squeeze the worker strips use). */
+  int tr_pitch = COLONY_TRANSPORT_PITCH;
+  if (view->docked_transport_count > 1) {
+    const int avail = COLONY_TRANSPORT_W - 8 - 16;
+    if ((view->docked_transport_count - 1) * tr_pitch > avail) {
+      tr_pitch = avail / (view->docked_transport_count - 1);
+      if (tr_pitch < 2) {
+        tr_pitch = 2;
+      }
+    }
+  }
   for (int i = 0; i < view->docked_transport_count; ++i) {
     const ColonizeUnit* u = units_get_const(units, view->docked_transport_ids[i]);
     if (!u) {
       continue;
     }
     const ColonizeUnitType* type = units_type(units, u->type_index);
-    const int x = COLONY_TRANSPORT_X + 4 + i * COLONY_TRANSPORT_PITCH;
+    const int x = COLONY_TRANSPORT_X + 4 + i * tr_pitch;
     const int y = COLONY_TRANSPORT_ICON_Y;
     if (type && type->icon_sprite >= 0 && view->icons_ok) {
       unit_chrome_blit_unit_for_palette(
@@ -3085,7 +3103,9 @@ static void colony_screen_draw_people(
       view, colony, units, ent, (int)(sizeof(ent) / sizeof(ent[0]))
     );
     for (int i = 0; i < n; ++i) {
-      colony_screen_blit_icon_shadowed(view, ent[i].sprite, framebuffer, ent[i].px, y_people);
+      /* bugs.md: the People line-up uses the plain colonist chrome — no
+       * drop shadow. */
+      colony_screen_blit_icon(view, ent[i].sprite, framebuffer, ent[i].px, y_people);
       if ((ent[i].sel_colonist >= 0 && view->selected_colonist == ent[i].sel_colonist) ||
           (ent[i].sel_unit >= 0 && view->selected_outside_unit == ent[i].sel_unit)) {
         colony_screen_draw_icon_selection(view, framebuffer, ent[i].sprite, ent[i].px, y_people);
@@ -4515,7 +4535,26 @@ ColonyScreenHitResult colony_screen_hit_test(
   if (view->docked_transport_count > 0 && my >= COLONY_TRANSPORT_ICON_Y &&
       my < COLONY_TRANSPORT_ICON_Y + 16 && mx >= COLONY_TRANSPORT_X &&
       mx < COLONY_TRANSPORT_X + COLONY_TRANSPORT_W) {
-    const int idx = (mx - (COLONY_TRANSPORT_X + 4)) / COLONY_TRANSPORT_PITCH;
+    int tr_pitch = COLONY_TRANSPORT_PITCH;
+    if (view->docked_transport_count > 1) {
+      const int avail = COLONY_TRANSPORT_W - 8 - 16;
+      if ((view->docked_transport_count - 1) * tr_pitch > avail) {
+        tr_pitch = avail / (view->docked_transport_count - 1);
+        if (tr_pitch < 2) {
+          tr_pitch = 2;
+        }
+      }
+    }
+    /* Walk back-to-front so overlapped (squeezed) icons resolve to the
+     * one drawn on top. */
+    int idx = -1;
+    for (int i = view->docked_transport_count - 1; i >= 0; --i) {
+      const int x0 = COLONY_TRANSPORT_X + 4 + i * tr_pitch;
+      if (mx >= x0 && mx < x0 + 16) {
+        idx = i;
+        break;
+      }
+    }
     if (idx >= 0 && idx < view->docked_transport_count) {
       hit.kind = COLONY_HIT_TRANSPORT;
       hit.index = idx;
@@ -4563,7 +4602,10 @@ ColonyScreenHitResult colony_screen_hit_test(
       }
       int xs[COLONY_OUTSIDE_MAX];
       colony_screen_icon_strip_layout(fence_x, fence_w, n, ref_iw, xs);
-      for (int i = 0; i < n; ++i) {
+      /* bugs.md: walk BACK-to-front — squeezed icons overlap, and the one
+       * drawn on top (later index) must win the click, or the units behind
+       * the pile were unselectable. */
+      for (int i = n - 1; i >= 0; --i) {
         int iw = 12;
         int ih = 16;
         colony_screen_outside_icon_metrics(view, units, view->outside_unit_ids[map_i[i]], &iw, &ih);
@@ -4839,7 +4881,7 @@ void colony_screen_render(
   }
 
   if (colony) {
-    colony_screen_draw_cargo_strip(view, colony, font, framebuffer);
+    colony_screen_draw_cargo_strip(view, pool, colony, font, framebuffer);
   }
 
   if (view && view->construction_open) {

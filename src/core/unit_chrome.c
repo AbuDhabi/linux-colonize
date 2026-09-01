@@ -158,7 +158,18 @@ void unit_chrome_load_orders(const ColonizeMsgCatalog* names) {
   }
 }
 
+/* bugs.md: after the Declaration the Royal Expeditionary Force renders
+ * WHITE — it is the Crown's army, not the peer nation whose slot it
+ * borrows (an English player's REF was showing French blue). */
+static int g_chrome_crown_nation = -1;
+void unit_chrome_set_crown_nation(int nation_id) {
+  g_chrome_crown_nation = nation_id;
+}
+
 uint8_t unit_chrome_nation_color(int nation_id) {
+  if (nation_id >= 0 && nation_id < 4 && nation_id == g_chrome_crown_nation) {
+    return 15; /* white */
+  }
   if (nation_id >= 0 && nation_id < 4) {
     return k_european_fill[nation_id];
   }
@@ -169,6 +180,9 @@ uint8_t unit_chrome_nation_color(int nation_id) {
 }
 
 static uint8_t unit_chrome_names_color(int nation_id) {
+  if (nation_id >= 0 && nation_id < 4 && nation_id == g_chrome_crown_nation) {
+    return 15; /* white — REF (see unit_chrome_set_crown_nation) */
+  }
   if (nation_id >= 0 && nation_id < 4) {
     return k_european_names[nation_id];
   }

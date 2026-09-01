@@ -348,6 +348,28 @@ static const EuropePoolCand k_pool_cands[] = {
   {"Expert Silver Miners", 7, 2},
 };
 
+/* bugs.md: Brewster's ban covers the EXISTING pool too — slots rolled
+ * before the flag rose still held Petty Criminals / Indentured Servants,
+ * so the Recruit list and the docks disagreed with the Brewster pick
+ * dialog. Raise the flag and reroll any offending slots. */
+void europe_apply_brewster(EuropeScreen* eu, int owned) {
+  if (!eu || !owned) {
+    return;
+  }
+  const int fresh = !eu->brewster_no_criminals;
+  eu->brewster_no_criminals = true;
+  if (!fresh) {
+    return;
+  }
+  for (int i = 0; i < EUROPE_POOL_SIZE; ++i) {
+    if (eu->pool[i].filled &&
+        (eu->pool[i].profession == 25 || eu->pool[i].profession == 26)) {
+      eu->pool[i].filled = false;
+      europe_refill_pool_slot(eu, i, NULL);
+    }
+  }
+}
+
 void europe_refill_pool_slot(EuropeScreen* eu, int slot, unsigned* rng_state) {
   if (!eu || slot < 0 || slot >= EUROPE_POOL_SIZE) {
     return;

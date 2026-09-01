@@ -145,6 +145,7 @@ void units_reset(ColonizeUnitPool* pool) {
   memset(pool->units, 0, sizeof(pool->units));
   pool->unit_count = 0;
   pool->selected_id = -1;
+  pool->board_first_id = -1;
   pool->next_id = 1;
 }
 
@@ -7522,7 +7523,19 @@ int units_ship_departure_pickup(ColonizeUnitPool* pool, int ship_id, int x, int 
   const ColonizeUnitType* sty = units_type(pool, ship->type_index);
   const bool is_galleon = sty && sty->name[0] && strstr(sty->name, "Galleon") != NULL;
   int taken = 0;
+  /* "Move to front" (bugs.md): the flagged unit is first in line. */
+  int order[COLONIZE_UNITS_MAX];
+  int on = 0;
+  if (pool->board_first_id >= 0 && pool->board_first_id < COLONIZE_UNITS_MAX) {
+    order[on++] = pool->board_first_id;
+  }
   for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    if (i != pool->board_first_id) {
+      order[on++] = i;
+    }
+  }
+  for (int oi = 0; oi < on; ++oi) {
+    const int i = order[oi];
     if (units_ship_free_passenger_slots(pool, ship_id) <= 0 ||
         ship->cargo_count >= COLONIZE_UNIT_CARGO_MAX) {
       break;

@@ -293,6 +293,9 @@ typedef struct ColonizeUnitPool {
   ColonizeUnit units[COLONIZE_UNITS_MAX];
   int unit_count;
   int selected_id;
+  /* bugs.md "Move to front": this unit boards departing ships first and
+   * heads the colony rosters (-1 = none; DOS reorders its unit chain). */
+  int board_first_id;
   int next_id;
 } ColonizeUnitPool;
 

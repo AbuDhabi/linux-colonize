@@ -2632,15 +2632,15 @@ int colonies_transfer_from_unit(
   if (amt <= 0 || amt >= 255 || ctype < 0 || ctype >= COLONIZE_CARGO_COUNT) {
     return 0;
   }
+  /*
+   * bugs.md: unloading past warehouse capacity is ALLOWED — the whole hold
+   * goes ashore, the excess spoils at next turn's warehouse pass, and the
+   * over-capacity stock number is drawn in the alert colour. The flag only
+   * informs the caller (status/popup), it no longer blocks or splits the
+   * unload.
+   */
   const int cap = colonies_warehouse_capacity(pool, col, ctype);
-  const int room = cap - col->stock[ctype];
-  if (room <= 0) {
-    if (out_warehouse_full) {
-      *out_warehouse_full = true;
-    }
-    return 0;
-  }
-  const int move = amt < room ? amt : room;
+  const int move = amt;
   int got_type = 0;
   int got_amt = 0;
   if (units_unload_goods_hold(units, unit_id, hold_index, &got_type, &got_amt) <= 0) {
@@ -2651,12 +2651,8 @@ int colonies_transfer_from_unit(
   if (move > 0) {
     col->cargo_idle_turns = 0;
   }
-  if (move < got_amt) {
-    /* Put remainder back into the same hold. */
-    units_load_goods(units, unit_id, ctype, got_amt - move);
-    if (out_warehouse_full) {
-      *out_warehouse_full = true;
-    }
+  if (out_warehouse_full && cap > 0 && col->stock[ctype] > cap) {
+    *out_warehouse_full = true;
   }
   return move;
 }

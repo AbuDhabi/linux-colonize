@@ -265,8 +265,18 @@ void colony_preview_compute(
      * unconfirmed; matching the tick is the P4.10 bar. */
     if (hammers_add > 0 && (!col1 || col1->head.autumn == 0)) {
       int hammers = hammers_add;
-      if (hammers > colony->stock[COLONIZE_CARGO_LUMBER]) {
-        hammers = colony->stock[COLONIZE_CARGO_LUMBER];
+      /*
+       * bugs.md (hammers_lumber.SAV): the REAL tick spends this same turn's
+       * Lumberjack output too (its clamp runs after field production lands
+       * in stock — turn.c "same-turn production IS spendable"), so the cap
+       * here is stock + this tick's field lumber. The old stock-only cap
+       * made the hammers row vanish from the Production tab whenever
+       * storage ran low even though the tick was banking hammers fine.
+       */
+      const int lumber_avail =
+        colony->stock[COLONIZE_CARGO_LUMBER] + out->field_gross[COLONIZE_CARGO_LUMBER];
+      if (hammers > lumber_avail) {
+        hammers = lumber_avail;
       }
       out->hammers = hammers;
     }

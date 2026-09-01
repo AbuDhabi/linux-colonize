@@ -386,6 +386,8 @@ bool europe_immigrant_from_pool(EuropeScreen* eu, struct ColonizeDosRng* rng);
 /* Brewster (FF 20) arrival: FUN_38fd_4884(0,1) pick applied — free
  * dock transfer of pool[pool_index], then crosses zeroed (no +6 bump). */
 bool europe_brewster_pick_from_pool(EuropeScreen* eu, int pool_index);
+/* Brewster owned: no criminals/servants in pool; reroll stale slots once. */
+void europe_apply_brewster(EuropeScreen* eu, int owned);
 void europe_refill_pool_slot(EuropeScreen* eu, int slot, unsigned* rng_state);
 
 bool europe_train(EuropeScreen* eu, int train_index);
