@@ -1931,13 +1931,9 @@ static void game_apply_ai_popup_result(ColonizeGameState* game) {
             units_unload_passenger(
               &game->units, ship_id, pax_id, &game->world_map, dest_x, dest_y, &game->colonies
             )) {
-          /* Ship spends the coastal order (1 MP); passenger charged in unload. */
-          if (ship->moves_left > 0) {
-            ship->moves_left -= UNITS_MP_PER_TILE;
-            if (ship->moves_left < 0) {
-              ship->moves_left = 0;
-            }
-          }
+          /* bugs.md: landfall costs the SHIP nothing — the passengers move,
+           * not the ship (their step ashore is charged in unload). The old
+           * 1 MP "coastal order" charge on the ship was invented. */
           game->units.selected_id = pax_id;
           snprintf(game->status, sizeof(game->status), "Landfall at (%d,%d)", dest_x, dest_y);
           game_after_unit_action(game);
