@@ -6,6 +6,7 @@
 #include "core/font.h"
 #include "core/map_menu.h"
 #include "core/ui_colors.h"
+#include "core/unit_chrome.h"
 
 void unit_stack_close(UnitStackPopup* dlg) {
   if (!dlg) {
@@ -150,7 +151,11 @@ bool unit_stack_handle_input(
         dlg->selection = idx;
         const int uid = dlg->ids[idx];
         ColonizeUnit* u = units_get(pool, uid);
-        if (u && u->active && u->aboard_ship_id >= 0 && u->orders == 1) {
+        /* bugs.md: the FIRST click on any unit in the stack cancels its
+         * orders (visible immediately in the row's orders chrome); only
+         * the second click on the same row activates. units_wake applies
+         * the overnight-park refund rules. */
+        if (u && u->active && u->orders != 0) {
           (void)units_wake(pool, uid);
         }
         return true;
@@ -260,8 +265,23 @@ void unit_stack_render(
     const ColonizeUnit* u = units_get_const(pool, dlg->ids[i]);
     const int sprite = u ? units_map_sprite(pool, u->id) : -1;
     int text_x = inner_x + pad_x;
-    if (sprite >= 0 && icons && sprite < icons->sprite_count) {
-      ss_blit_sprite(icons, sprite, framebuffer, text_x, row_y);
+    if (sprite >= 0 && icons && sprite < icons->sprite_count && u) {
+      /* bugs.md: rows carry the Orders-Allegiance chrome, so cancelling a
+       * unit's orders on the first click is visible immediately. */
+      unit_chrome_blit_unit_for_palette(
+        framebuffer,
+        font,
+        icons,
+        sprite,
+        text_x,
+        row_y,
+        units_display_type_index(pool, u->id),
+        u->nation_id,
+        u->orders,
+        false,
+        u->aboard_ship_id >= 0,
+        NULL
+      );
       const ColonizeSprite* sp = &icons->sprites[sprite];
       text_x += (sp->width > 0 ? sp->width : icon_slot) + 3;
     }
