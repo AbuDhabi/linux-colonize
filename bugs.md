@@ -200,20 +200,19 @@ This is a user-maintained list of bugs. User puts reports in. Agents may annotat
 | Despite movement having been allegedly implemented visually, I don't see it. The sprite should move from its original tile, to the new tile, and do it at a rate that humans eyeballs can see it (allegedly humans can see ~25 FPS). | FIXED. game_move_watch previously (a) skipped the human's own units entirely and (b) showed foreign moves as a single frame already at the destination — no travel was ever visible. It now animates a real slide at zoom 0: the unit is hidden from the base frame and a chrome'd sprite is blitted along the interpolated pixel path from the old tile to the new one — 4 frames at 40ms (25 FPS; 2 frames at 30ms with Fast Piece Slide) — for the player's units and for visible foreign/Indian moves alike. Off-screen or zoomed-out foreign moves keep the old one-frame arrival beat. |
 | Attack "bumps" are too fast. Slow them down 3x. (Or 6x if fast move slides are not on.) | FIXED. Per-frame delay 30ms->90ms with Fast Piece Slide on (3x), 45ms->270ms with it off (6x); still 3 frames. |
 | There's something screwy about demotion to colonist status. Units should never be on the same tile as units from another nation, indian, king or otherwise. Yet I see colonists appear mixed in with enemies as a result of combat. Attackers defeating colonists (who are basically last resort as defenders) should at the very least change their allegiance to the attacker's, and move them to the attacker's origin tile. Capturing colonies is an exception, and there every captured colonist stays put. But otherwise, changed allegiance and move to attacker's tile of origin. | FIXED. Captured units (colonist and wagon capture branches in units_apply_land_loss_outcome, including the after-loss stack sweep) now relocate to the captor's tile along with the allegiance flip, sharing the captor tile's sight stamp — no more own-colored units standing inside an enemy stack. Colony tiles are the exception: a capture on a colony tile leaves everyone put (the colony flip handles them). Demotions themselves never mixed nations (the loser stays on its own-nation tile); the mixing came from in-place captures plus the bug-196 promote chain, both closed. |
-| | |
-| | |
-| | |
-| | |
-| | |
-| | |
-| | |
-| | |
-| | |
-| | |
-| | |
-| | |
-| | |
-| | |
-| | |
-| | |
+| Game still doesn't recognize that the war of independence is over once the last colony of the player falls to the REF. | |
+| "Artillery Dragoons damaged! Ship returns to for repairs" is a mashup of two popups: 1) The artillery damaged popup. 2) The ship damaged popup. They're separate things, with different effects. | |
+| Damaged ships have a "timeout" system, and they go to the nearest owned colony with a drydock, or Europe if Europe is friendly (ie. pre-WoI player ships or damaged Tory Man-O-Wars).  | |
+| The proper adjective for REF is "Tory", ie. "Tory Cavalry", "Tory Artillery", etc. Not Royal. | |
+| When I defeated a Tory Man-O-War with my frigate it first said it was captured, but then that it was sunk. Sunk is the only option available to the player. The first popup is a weird error. | |
+| Attacking ships get a +50% attack bonus, just like attacking land units. | |
+| Attack animation (ie. bump) needs to conclude BEFORE the combat analysis popup happens, or otherwise the player sees nothing. | |
+| Immigration shouldn't happen while under war of independence. Pretty sure never seen that fire while fighting the REF already. Check DOS. | |
+| Artillery have different strengths when attacking and defending. On attack they have (shown) strength 7 (5 if damaged), on defense (shown) strength 5 (3 if damaged). | |
+| The Tories bonus to attacking REF against a colony should probably use the same rounded-to-100% number as the player is shown in the colony. | |
+| REF should be showing up in groups of 6: That's how many units a Man-O-War can carry (I'm not sure if they can attack more than one colony per turn, but the most troops they can disembark in a turn against one colony is 6 units; plus the Man-O-War carrying them). Then they should be shown disembarking; movement animations. This way the player can see what units landed. | |
+| On the King's turn, I get plenty of attacks and combat analyses, but the "X defeats Y" and similar popups are relegated only after all the combats have ceased. This is incorrect. Every combat should be concluded in isolation, all the popups it triggers should be shown in strict sequence of being triggered. | |
+| On declaring independence, player's flag on the colonies should change to the American flag. I'm not sure how DOS does it. Meanwhile, any colonies recaptured by the REF should have their colony icon flag be the according to the original nation the player started as; eg. orange for Dutch, red for English, etc. | |
+| On start of the war of independence, efforts into getting more founding fathers cease, and liberty bells are instead directed towards the foreign intervention. I'm still not seeing it on the Continental Congress page 1, where it should appear under the REF lines. Check DOS.| |
+| Veteran Soldiers lose Veteran Status only on capture as colonists, not when demoted to colonists. Veteran Soldiers (armed with muskets) -> Veteran Soldier Colonists (unarmed). | |
 
