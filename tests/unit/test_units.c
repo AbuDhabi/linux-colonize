@@ -6581,6 +6581,46 @@ int main(void) {
     fprintf(stderr, "unit_units: ship-switch departure pickup ok\n");
   }
 
+  /* bugs.md: Go To onto a fogged square is always legal — the destination
+   * check must not peek under the fog. Seen, it still validates. */
+  {
+    int wx = -1, wy = -1, lx = -1, ly = -1;
+    for (int y = 5; y < (int)map.height - 5 && (wx < 0 || lx < 0); ++y) {
+      for (int x = 5; x < (int)map.width - 5; ++x) {
+        if (wx < 0 && map_tile_is_water(&map, x, y)) {
+          wx = x;
+          wy = y;
+        } else if (lx < 0 && map_tile_is_land(&map, x, y)) {
+          lx = x;
+          ly = y;
+        }
+      }
+    }
+    if (wx < 0 || lx < 0) {
+      fprintf(stderr, "fog goto test: tiles not found\n");
+      return 1;
+    }
+    const int caravel = units_find_type(&pool, "Caravel");
+    const int ship = units_spawn_allow_stack(&pool, caravel, wx, wy);
+    ColonizeUnit* su = units_get(&pool, ship);
+    su->nation_id = 0;
+    const size_t li = (size_t)ly * (size_t)map.width + (size_t)lx;
+    const uint8_t saved_seen = map.seen[li];
+    map.seen[li] = 0; /* fog the land tile for everyone */
+    if (!units_set_goto(&pool, ship, &map, lx, ly, NULL)) {
+      fprintf(stderr, "fog goto: order onto an unseen tile must be accepted\n");
+      return 1;
+    }
+    units_clear_orders(&pool, ship);
+    map.seen[li] = saved_seen; /* fully explored again */
+    if (units_set_goto(&pool, ship, &map, lx, ly, NULL)) {
+      fprintf(stderr, "fog goto: a SEEN land tile must still refuse a ship goto\n");
+      return 1;
+    }
+    units_despawn(&pool, ship);
+    fprintf(stderr, "unit_units: fogged goto destination ok\n");
+  }
+
   /*
    * P7.2 Fountain of Youth = 8× FUN_38fd_4884(1,0): a 3-way @RECRUIT CHOICE
    * per pick, free passage, no recruit-count bump, chained until 8 landed.

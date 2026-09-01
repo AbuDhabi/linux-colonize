@@ -5386,7 +5386,16 @@ bool units_set_goto(
     units_clear_orders(pool, unit_id);
     return true;
   }
-  if (!units_can_enter(pool, u->type_index, map, dest_x, dest_y, unit_id, colonies)) {
+  /*
+   * bugs.md: a Go To onto a fogged square is always legal — the player does
+   * not know what is under the fog, so the destination check must not peek.
+   * Only a tile the mover's nation has actually seen gets the enterability
+   * test; an unseen one takes the order and the unit finds out en route
+   * (the per-step move logic stops or bounces it once the truth is in
+   * sight, same as DOS).
+   */
+  if (map_tile_seen_by(map, dest_x, dest_y, u->nation_id) &&
+      !units_can_enter(pool, u->type_index, map, dest_x, dest_y, unit_id, colonies)) {
     return false;
   }
   u->follow_unit_id = -1;
