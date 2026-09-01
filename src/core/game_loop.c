@@ -3823,7 +3823,13 @@ static void europe_render_transit_box(
       (game->europe_ok && game->europe.background.has_palette) ? &game->europe.background.palette : NULL
     );
     if (i == selected_index) {
-      europe_draw_box_border(framebuffer, x - 1, y - 1, sw + 2, sh + 2, 14);
+      /* bugs.md: same fixed 18x18 cell frame as every other unit selection. */
+      int fx = 0;
+      int fy = 0;
+      int fw = 0;
+      int fh = 0;
+      unit_chrome_selection_frame(x, y, sw, sh, &fx, &fy, &fw, &fh);
+      europe_draw_box_border(framebuffer, fx, fy, fw, fh, 14);
     }
     x += sw + 2;
 
@@ -4005,6 +4011,20 @@ static void europe_menu_title_prose(const ColonizeGameState* game, char* buf, si
   buf[o] = '\0';
 }
 
+/* DOS list-dialog text carries a 1px black drop shadow (recruit/train/
+ * purchase screenshots — bugs.md: "shading, mostly"). */
+static void europe_menu_draw_shadowed(
+  const ColonizeFont* font,
+  ColonizeFramebuffer8* fb,
+  int x,
+  int y,
+  const char* text,
+  uint8_t color
+) {
+  font_draw_text(font, fb, x + 1, y + 1, text, 0);
+  font_draw_text(font, fb, x, y, text, color);
+}
+
 /* Pixel width of a string with the {} markup skipped. */
 static int europe_prose_width(const ColonizeFont* font, const char* s, int len) {
   char tmp[128];
@@ -4083,6 +4103,8 @@ static int europe_draw_prose(
       memcpy(run, word + i, (size_t)rl);
       run[rl] = '\0';
       if (fb) {
+        /* 1px black drop shadow, like DOS's dialog text writer. */
+        font_draw_text(font, fb, x + cx + 1, y + cy + 1, run, 0);
         font_draw_text(font, fb, x + cx, y + cy, run, hi ? hi_color : base_color);
       }
       cx += font_text_width(font, run);
@@ -4276,17 +4298,19 @@ static void europe_render_menu_popup(
       snprintf(cost, sizeof(cost), "(Cost: %d)", p->gold);
       color = (eu->gold >= p->gold) ? 14 : 8;
     }
-    font_draw_text(font, framebuffer, inner_x + pad + 6, row_y, label, color);
+    europe_menu_draw_shadowed(font, framebuffer, inner_x + pad + 6, row_y, label, color);
     if (cost[0]) {
       const int cw = font_text_width(font, cost);
-      font_draw_text(font, framebuffer, inner_x + inner_w - pad - cw, row_y, cost, color);
+      europe_menu_draw_shadowed(
+        font, framebuffer, inner_x + inner_w - pad - cw, row_y, cost, color
+      );
     }
   }
 
   {
     const char* f1 = "(F1 for Help)";
     const int fw = font_text_width(font, f1);
-    font_draw_text(
+    europe_menu_draw_shadowed(
       font, framebuffer, inner_x + inner_w - pad - fw,
       lay.list_y0 + rows * line_h, f1, 10
     );
@@ -6912,6 +6936,11 @@ static void game_europe_sail_harbor(ColonizeGameState* game, int hidx) {
     }
   }
   europe_set_sail_from_harbor(eu, hidx, game_voyage_turns(game), &game->units, game->human_nation);
+  /* bugs.md: sailing the LAST docked ship closes the European Status back
+   * to the map — nothing is left to manage there. */
+  if (eu->harbor_ships <= 0 && game->in_europe) {
+    game->in_europe = false;
+  }
 }
 
 static bool game_europe_drag_drop(ColonizeGameState* game, int mx, int my) {

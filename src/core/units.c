@@ -5349,8 +5349,17 @@ bool units_wake(ColonizeUnitPool* pool, int unit_id) {
   }
   const int prev = u->orders;
   units_clear_orders(pool, unit_id);
-  const ColonizeUnitType* type = units_type(pool, u->type_index);
-  if (type) {
+  /*
+   * Restore the allotment only where the zero was a PARK, not a spend:
+   * boarding parks a passenger at moves_left 0, and Sentry/Fortify(ed)
+   * zero it as their "skip this unit" flag while DOS's own spent byte
+   * stays 0. A unit with no standing order (None, or mid-Go-To) genuinely
+   * spent its moves — Activate Unit picks who is controlled, it does not
+   * hand out free movement (bugs.md).
+   */
+  const bool parked = u->aboard_ship_id >= 0 || prev == UNITS_ORDER_SENTRY ||
+                      prev == UNITS_ORDER_FORTIFY || prev == UNITS_ORDER_FORTIFIED;
+  if (parked && units_type(pool, u->type_index)) {
     u->moves_left = units_max_mp(pool, unit_id);
   }
   return prev == UNITS_ORDER_SENTRY || prev == UNITS_ORDER_FORTIFY ||
@@ -6412,14 +6421,15 @@ bool units_next_goto_step(
   const int adx = abs(gx - u->x);
   const int ady = abs(gy - u->y);
 
-  /* Adjacent: sign-step (FUN_6662_0086). */
+  /* Adjacent: sign-step (FUN_6662_0086). No afford pre-check here — a
+   * partial-MP overspend is decided by units_try_move's own DOS roll, the
+   * same as an arrow-key step; the earlier hard afford gate made a one-tile
+   * Go To (e.g. onto a lost-city rumour) fail where the arrow key
+   * succeeded (bugs.md). */
   if (units_chebyshev(u->x, u->y, gx, gy) < 2) {
     const int nx = u->x + units_sign_i(gx - u->x);
     const int ny = u->y + units_sign_i(gy - u->y);
-    if (units_can_enter(pool, u->type_index, map, nx, ny, unit_id, colonies) &&
-        units_can_afford_move_cost(
-          pool, unit_id, units_move_cost(pool, unit_id, map, nx, ny)
-        )) {
+    if (units_can_enter(pool, u->type_index, map, nx, ny, unit_id, colonies)) {
       *out_x = nx;
       *out_y = ny;
       return true;
@@ -7262,6 +7272,28 @@ int units_unload_goods_hold(
   return amt;
 }
 
+/*
+ * Passenger slots left in a ship's hold: total capacity minus passengers
+ * already riding minus holds occupied by GOODS — cargo shares the same
+ * slots passengers go into (bugs.md; DOS's one per-hold array holds both).
+ */
+int units_ship_free_passenger_slots(const ColonizeUnitPool* pool, int ship_id) {
+  const ColonizeUnit* ship = units_get_const(pool, ship_id);
+  const int cap = units_ship_capacity(pool, ship_id);
+  if (!ship || cap <= 0) {
+    return 0;
+  }
+  int goods = 0;
+  const int holds = units_goods_hold_count(pool, ship_id);
+  for (int i = 0; i < holds && i < COLONIZE_UNIT_CARGO_MAX; ++i) {
+    if (ship->hold_goods_amount[i] > 0 && ship->hold_goods_amount[i] < 255) {
+      goods++;
+    }
+  }
+  int free_slots = cap - ship->cargo_count - goods;
+  return free_slots > 0 ? free_slots : 0;
+}
+
 bool units_board(ColonizeUnitPool* pool, int land_unit_id, int ship_id) {
   ColonizeUnit* land = units_get(pool, land_unit_id);
   ColonizeUnit* ship = units_get(pool, ship_id);
@@ -7275,7 +7307,7 @@ bool units_board(ColonizeUnitPool* pool, int land_unit_id, int ship_id) {
     return false;
   }
   const int cap = units_ship_capacity(pool, ship_id);
-  if (cap <= 0 || ship->cargo_count >= cap) {
+  if (cap <= 0 || units_ship_free_passenger_slots(pool, ship_id) <= 0) {
     return false;
   }
   if (!units_adjacent(land->x, land->y, ship->x, ship->y)) {
@@ -7307,7 +7339,7 @@ bool units_board_stacked(ColonizeUnitPool* pool, int land_unit_id, int ship_id) 
     return false;
   }
   const int cap = units_ship_capacity(pool, ship_id);
-  if (cap <= 0 || ship->cargo_count >= cap) {
+  if (cap <= 0 || units_ship_free_passenger_slots(pool, ship_id) <= 0) {
     return false;
   }
   land->aboard_ship_id = ship_id;

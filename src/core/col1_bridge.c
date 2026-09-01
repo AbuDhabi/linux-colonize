@@ -1257,7 +1257,12 @@ bool col1_bridge_apply(
     if (!id_by_index || id_by_index[i] < 0) {
       continue;
     }
-    if (save->unit[i].orders == UNITS_ORDER_FORTIFY || save->unit[i].orders == UNITS_ORDER_FORTIFIED) {
+    /* Only a SENTRY unit can be a genuine passenger (bugs.md: ships take on
+     * passengers from the sentried units only; DOS stamps orders 1 on every
+     * boarded unit and the dutch-reports.SAV manifest confirms it). The
+     * earlier skip-list (Fortify/Fortified only) still boarded no-orders or
+     * plowing pioneers merely garrisoned beside a docked ship. */
+    if (save->unit[i].orders != UNITS_ORDER_SENTRY) {
       continue;
     }
     const int ship_idx = col1_find_ship_root(save->unit, (int)save->head.unit_count, i);
