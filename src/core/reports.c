@@ -1138,12 +1138,32 @@ static void reports_render_congress_page1(
       REPORTS_CONGRESS_ICON_MANOWAR
     };
     static const int kForceX[4] = {4, 128, 193, 260};
+    static const int kForceXEnd = 316;
+    /*
+     * bugs.md "REF units squished unnecessarily": DOS draws this row through
+     * the shared icon-row drawer (FUN_1097_0174 — the 3f41 builder brackets
+     * the force line with DS:0x70 = 1), which packs icons at their natural
+     * width and only shrinks the step when the run would overflow its cell.
+     * The old width = count * 2.2px spread reproduced the 56-regular
+     * golden's 2px pitch but crushed small counts too. Natural width capped
+     * at the cell (next column start, screen margin for the last) gives both:
+     * 56 regulars in a 124px cell still squeeze to ~2px, a fresh campaign's
+     * 15 stand shoulder to shoulder.
+     */
     for (int i = 0; i < 4; ++i) {
       const int amount = (int)col1->head.expeditionary_force[kForceIndex[i]];
       if (amount <= 0) {
         continue;
       }
-      const int w = (amount * REPORTS_CONGRESS_FORCE_STEP_X10) / 10;
+      const int avail = ((i < 3) ? kForceX[i + 1] : kForceXEnd) - kForceX[i];
+      int iw = 16;
+      if (view->icons_ok && kForceIcon[i] >= 0 && kForceIcon[i] < view->icons.sprite_count) {
+        iw = view->icons.sprites[kForceIcon[i]].width;
+      }
+      int w = amount * iw;
+      if (w > avail) {
+        w = avail;
+      }
       reports_draw_icon_bar(
         view,
         font,
@@ -1155,7 +1175,7 @@ static void reports_render_congress_page1(
         REPORTS_CONGRESS_FORCE_H,
         amount,
         true,
-        0 /* golden pitch is 2px for 56 regulars — unit counts spread as-is */
+        0
       );
     }
   }

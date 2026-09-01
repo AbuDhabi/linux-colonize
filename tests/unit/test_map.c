@@ -558,6 +558,58 @@ int main(void) {
     fprintf(stderr, "plow overlay PHYS0 149 ok; road 80–88 connectivity ok\n");
   }
 
+  /* bugs.md fog edges: VICEROY FUN_6ba1_06e0 mask+fill pairs across the
+   * seen/unseen boundary. 5x5 board: plains everywhere, ocean at (3,2);
+   * only (2,2) seen by nation 0. */
+  {
+    ColonizeWorldMap fog_map;
+    char err2[128];
+    if (!map_alloc(&fog_map, 5, 5, err2, sizeof(err2))) {
+      fprintf(stderr, "fog: map_alloc failed: %s\n", err2);
+      return 1;
+    }
+    for (int i = 0; i < 25; ++i) {
+      fog_map.terrain[i] = 2; /* plains */
+    }
+    fog_map.terrain[2 * 5 + 3] = 25; /* ocean at (3,2) */
+    memset(fog_map.seen, 0, fog_map.tile_count);
+    fog_map.seen[2 * 5 + 2] = MAP_SEEN_NATION_BIT(0);
+    /* Seen tile (2,2): 4 unseen neighbours → 4 mask+fill pairs; the east
+     * fill is the hidden ocean's own sprite (no rescan on the seen side). */
+    if (map_fog_edge_count(&fog_map, 2, 2, 0) != 4) {
+      fprintf(stderr, "fog: seen tile should have 4 fog edges\n");
+      return 1;
+    }
+    if (map_fog_edge_mask_sprite_at(&fog_map, 2, 2, 0, 1) != 105 ||
+        map_fog_edge_fill_sprite_at(&fog_map, 2, 2, 0, 1) != 10) {
+      fprintf(stderr, "fog: east edge should be mask 105 + ocean sprite fill\n");
+      return 1;
+    }
+    if (map_fog_edge_fill_sprite_at(&fog_map, 2, 2, 0, 0) != 2) {
+      fprintf(stderr, "fog: north edge should fill with plains sprite\n");
+      return 1;
+    }
+    /* Unseen land tile (2,1): one seen neighbour to the south → mask 106 +
+     * that neighbour's plains dither. */
+    if (map_fog_reveal_edge_count(&fog_map, 2, 1, 0) != 1 ||
+        map_fog_reveal_edge_mask_sprite_at(&fog_map, 2, 1, 0, 0) != 106 ||
+        map_fog_reveal_edge_fill_sprite_at(&fog_map, 2, 1, 0, 0) != 2) {
+      fprintf(stderr, "fog: unseen tile should dither the seen neighbour in\n");
+      return 1;
+    }
+    /* Unseen LAND tile with an ocean seen neighbour resolves via the
+     * neighbour's W/S/E/N cardinals (here: land) instead of ocean art. */
+    fog_map.seen[2 * 5 + 2] = 0;
+    fog_map.seen[2 * 5 + 3] = MAP_SEEN_NATION_BIT(0); /* the ocean is seen */
+    if (map_fog_reveal_edge_count(&fog_map, 2, 2, 0) != 1 ||
+        map_fog_reveal_edge_fill_sprite_at(&fog_map, 2, 2, 0, 0) != 2) {
+      fprintf(stderr, "fog: ocean neighbour should resolve to a land cardinal fill\n");
+      return 1;
+    }
+    map_free(&fog_map);
+    fprintf(stderr, "fog edge mask+fill ok\n");
+  }
+
   fprintf(stderr,
     "map tests ok (%zu amer2 fixtures, %d scrub, %zu + %zu + %zu river tiles%s%s)\n",
     sizeof(amer2_fixtures) / sizeof(amer2_fixtures[0]),

@@ -950,6 +950,163 @@ int map_fog_edge_mask_sprite_at(
   return -1;
 }
 
+/*
+ * VICEROY FUN_6ba1_06e0 (asm 6ba1:0919): the 104..107 edge masks are never
+ * left as bare colour-0 dots — every mask blit is followed by FUN_6ba1_067c
+ * filling the holes with the NEIGHBOUR's terrain art. For a seen tile the
+ * unseen-neighbour case (local_10 = 1) forces the draw past the same-class
+ * and ocean skips and fills with that neighbour's real class, so the hidden
+ * terrain dithers onto the seen tile's edge (bugs.md "fog edges still
+ * black"). Off-map tiles read as seen here, so neither helper fires on the
+ * map rim.
+ */
+int map_fog_edge_fill_sprite_at(
+  const ColonizeWorldMap* map,
+  int x,
+  int y,
+  int nation_id,
+  int index
+) {
+  if (!map || !map->seen || index < 0 || !map_tile_seen_by(map, x, y, nation_id)) {
+    return -1;
+  }
+  int seen = 0;
+  for (int q = 0; q < 4; ++q) {
+    const int nx = x + mapedit_card_dx[q];
+    const int ny = y + mapedit_card_dy[q];
+    if (!map_tile_seen_by(map, nx, ny, nation_id)) {
+      if (seen == index) {
+        if (nx < 0 || ny < 0 || nx >= map->width || ny >= map->height) {
+          return -1;
+        }
+        return map_terrain_sprite_at(map, nx, ny);
+      }
+      ++seen;
+    }
+  }
+  return -1;
+}
+
+/*
+ * FUN_6ba1_0938 unseen path: after the PHYS0 148 fog fill the tile runs
+ * FUN_6ba1_06e0(1, is_ocean, 0) — for each SEEN cardinal neighbour, mask
+ * 104+q plus that neighbour's terrain dithered into the holes, so explored
+ * land feathers into the fog. When the fog tile is land and the seen
+ * neighbour is ocean-class, DOS rescans the neighbour's own even-ring
+ * offsets (6ba1:082a: ring indices 6,4,2,0 = its W,S,E,N cardinals) for a
+ * non-ocean class and uses that instead; still ocean → the edge is skipped
+ * (6ba1:08b0). A fog OCEAN tile (param_2 = 1) takes the ocean neighbour art
+ * as-is.
+ */
+static int map_fog_reveal_fill_for(
+  const ColonizeWorldMap* map,
+  int x,
+  int y,
+  int nx,
+  int ny
+) {
+  if (nx < 0 || ny < 0 || nx >= map->width || ny >= map->height) {
+    return -1;
+  }
+  const bool self_ocean =
+    map_is_ocean_index(map_decode_terrain_index(map_get_terrain(map, x, y)));
+  const bool nb_ocean =
+    map_is_ocean_index(map_decode_terrain_index(map_get_terrain(map, nx, ny)));
+  if (!nb_ocean || self_ocean) {
+    return map_terrain_sprite_at(map, nx, ny);
+  }
+  static const int even_dir[4] = {6, 4, 2, 0}; /* W, S, E, N of the neighbour */
+  for (int i = 0; i < 4; ++i) {
+    const int d = even_dir[i];
+    const int x2 = nx + mapedit_neigh8_dx[d];
+    const int y2 = ny + mapedit_neigh8_dy[d];
+    if (x2 < 0 || y2 < 0 || x2 >= map->width || y2 >= map->height) {
+      continue;
+    }
+    if (!map_is_ocean_index(map_decode_terrain_index(map_get_terrain(map, x2, y2)))) {
+      return map_terrain_sprite_at(map, x2, y2);
+    }
+  }
+  return -1; /* still ocean: DOS draws nothing for this edge */
+}
+
+int map_fog_reveal_edge_mask_sprite_at(
+  const ColonizeWorldMap* map,
+  int x,
+  int y,
+  int nation_id,
+  int index
+) {
+  if (!map || !map->seen || index < 0 || map_tile_seen_by(map, x, y, nation_id)) {
+    return -1;
+  }
+  int seen = 0;
+  for (int q = 0; q < 4; ++q) {
+    const int nx = x + mapedit_card_dx[q];
+    const int ny = y + mapedit_card_dy[q];
+    if (nx < 0 || ny < 0 || nx >= map->width || ny >= map->height) {
+      continue;
+    }
+    if (map_tile_seen_by(map, nx, ny, nation_id) &&
+        map_fog_reveal_fill_for(map, x, y, nx, ny) >= 0) {
+      if (seen == index) {
+        return PHYS0_LAND_TRANSITION_BASE + q; /* 104..107 */
+      }
+      ++seen;
+    }
+  }
+  return -1;
+}
+
+int map_fog_reveal_edge_fill_sprite_at(
+  const ColonizeWorldMap* map,
+  int x,
+  int y,
+  int nation_id,
+  int index
+) {
+  if (!map || !map->seen || index < 0 || map_tile_seen_by(map, x, y, nation_id)) {
+    return -1;
+  }
+  int seen = 0;
+  for (int q = 0; q < 4; ++q) {
+    const int nx = x + mapedit_card_dx[q];
+    const int ny = y + mapedit_card_dy[q];
+    if (nx < 0 || ny < 0 || nx >= map->width || ny >= map->height) {
+      continue;
+    }
+    if (map_tile_seen_by(map, nx, ny, nation_id)) {
+      const int fill = map_fog_reveal_fill_for(map, x, y, nx, ny);
+      if (fill >= 0) {
+        if (seen == index) {
+          return fill;
+        }
+        ++seen;
+      }
+    }
+  }
+  return -1;
+}
+
+int map_fog_reveal_edge_count(const ColonizeWorldMap* map, int x, int y, int nation_id) {
+  if (!map || !map->seen || map_tile_seen_by(map, x, y, nation_id)) {
+    return 0;
+  }
+  int count = 0;
+  for (int q = 0; q < 4; ++q) {
+    const int nx = x + mapedit_card_dx[q];
+    const int ny = y + mapedit_card_dy[q];
+    if (nx < 0 || ny < 0 || nx >= map->width || ny >= map->height) {
+      continue;
+    }
+    if (map_tile_seen_by(map, nx, ny, nation_id) &&
+        map_fog_reveal_fill_for(map, x, y, nx, ny) >= 0) {
+      ++count;
+    }
+  }
+  return count;
+}
+
 uint8_t map_get_terrain(const ColonizeWorldMap* map, int x, int y) {
   if (!map || !map->terrain || x < 0 || y < 0 || x >= map->width || y >= map->height) {
     return 0;
