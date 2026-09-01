@@ -156,7 +156,7 @@ This is a user-maintained list of bugs. User puts reports in. Agents may annotat
 | Population increase should put a colonist on the colony tile, but not actually in the colony as a worker.  | |
 | Clicking printing press as if to assign a colonist vanishes the colonist. WTF. Should do nothing. | |
 | Assigning colonist to warehouse/stable actually succeeds in assigment. It should not; same as printing press/newspaper and custom house; those are unworked buildings. | |
-| On purchasing an artillery, and going back to New World, a merchantman is also spawned and arrives a turn later. | |
+| Merchantman ships spawn randomly every few turns. WTF.  | |
 | Population view does not seem to properly show the entire colony population (and and colonists standing on the tile, outside colony on the fence). | |
 | | |
 | | |
