@@ -1715,10 +1715,12 @@ int main(void) {
     bool full = false;
     const int unloaded =
       colonies_transfer_from_unit(&pool, cid, &units, ship_id, 0, &full);
-    if (unloaded != 50 || !full || col->stock[COLONIZE_CARGO_SUGAR] != 100) {
+    /* bugs.md: over-capacity unload is allowed — the whole hold lands, the
+     * flag informs, and the excess spoils next turn. */
+    if (unloaded != 100 || !full || col->stock[COLONIZE_CARGO_SUGAR] != 150) {
       fprintf(
         stderr,
-        "capacity unload expected 50/full stock=100 got unloaded=%d full=%d stock=%d\n",
+        "capacity unload expected 100/full stock=150 got unloaded=%d full=%d stock=%d\n",
         unloaded,
         full ? 1 : 0,
         col->stock[COLONIZE_CARGO_SUGAR]
@@ -1735,8 +1737,9 @@ int main(void) {
       colony_screen_free(&view);
       return 1;
     }
-    if (ship->hold_goods_amount[0] != 50) {
-      fprintf(stderr, "expected 50 sugar left in hold got %d\n", ship->hold_goods_amount[0]);
+    /* bugs.md: the whole hold lands now — nothing is left aboard. */
+    if (ship->hold_goods_amount[0] != 0) {
+      fprintf(stderr, "expected empty hold after over-capacity unload got %d\n", ship->hold_goods_amount[0]);
       if (font_ok) {
         ff_free(&font);
       }
@@ -1771,7 +1774,10 @@ int main(void) {
     full = false;
     const int unloaded2 =
       colonies_transfer_from_unit(&pool, cid, &units, ship_id, 0, &full);
-    if (unloaded2 != 50 || full || col->stock[COLONIZE_CARGO_SUGAR] != 150 ||
+    /* bugs.md: the hold was fully landed on the first unload — a second
+     * unload finds it empty and moves nothing; with the Warehouse built the
+     * 150 stock now sits under capacity, no full flag. */
+    if (unloaded2 != 0 || full || col->stock[COLONIZE_CARGO_SUGAR] != 150 ||
         ship->hold_goods_amount[0] != 0) {
       fprintf(
         stderr,

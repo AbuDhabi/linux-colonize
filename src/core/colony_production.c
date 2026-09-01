@@ -590,16 +590,12 @@ int colony_prod_colony_crosses_ff(
     crosses +=
       colony_prod_crosses_worker(bn, c->profession, sol_bonus, colony_has_cathedral, nation_has_penn);
   }
-  /* No cross workers to fold sol_bonus into individually — apply it to the
-   * base/passive crosses directly instead (nothing else it could attach to;
-   * matches the pre-2026-08-15 external "church passive / colony base"
-   * fallback this replaces). */
-  if (cross_workers == 0 && sol_bonus != 0 && crosses > 0) {
-    crosses += sol_bonus;
-    if (crosses < 0) {
-      crosses = 0;
-    }
-  }
+  /* bugs.md (player-recalled, matches the asm): the SoL bonus folds in
+   * per-WORKER only (FUN_15eb_1d4c) — the base/passive composer
+   * (FUN_15eb_1f72) never sees it, so an unworked church earns no SoL
+   * bonus. The old "attach it to the passives when nobody works" fallback
+   * was invented and is gone. */
+  (void)cross_workers;
   return crosses;
 }
 

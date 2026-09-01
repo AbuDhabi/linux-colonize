@@ -1784,6 +1784,16 @@ static int ai_king_spawn_landing(ColonizeTurnContext* ctx, int nation_id, int sx
     u->orders = UNITS_ORDER_AI_MOVE;
     u->goto_x = sx;
     u->goto_y = sy;
+    /*
+     * bugs.md: the wave landed INVISIBLE — spawned units carry only their
+     * owner's vis bit, and the live-sight renderer hides foreign units
+     * until a move refreshes the mask, so "the REF attacked out of nothing
+     * right after end of turn". A landing next to a colony is in plain
+     * sight; stamp the watching nations' bits like a real move would.
+     */
+    if (ctx->map) {
+      u->col1_vis_mask |= units_vis_mask_for_tile(ctx->map, sx, sy, nation_id);
+    }
   }
   return uid;
 }
@@ -2462,6 +2472,17 @@ static void ai_king_do_declare(ColonizeTurnContext* ctx, int human) {
   ctx->col1->head.king_audience_last_pick = (uint8_t)(ctx->col1->head.year % 100);
   ctx->col1->nation[human].liberty_bells_total = 0;
   ai_king_set_ref_present(ctx->col1, 1);
+  /*
+   * bugs.md: nothing ever set the WAR bit between the rebel and the
+   * crown's borrowed slot, so a player Frigate (or Man-O-War/Privateer)
+   * attacking a REF ship bounced with "At peace — cannot attack". Raw
+   * ai_diplo_or_both, not declare_war_ctx: the WoI is its own regime — no
+   * Franklin gate, no peer embargo/tax chrome.
+   */
+  ai_diplo_or_both(
+    ctx->col1, human, ai_king_crown_nation(human),
+    (uint8_t)(AI_DIPLO_WAR | AI_DIPLO_MET)
+  );
   /*
    * FUN_43f7_0108 (eliminate nation), called from FUN_43f7_1a26 for every
    * nation that is neither the declaring human nor the crown proxy

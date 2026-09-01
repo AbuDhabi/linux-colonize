@@ -117,7 +117,8 @@
 #define COLONY_HOLD_H 12
 #define COLONY_HOLD_PITCH 12
 
-#define COLONY_OUTSIDE_MAX 12
+/* bugs.md: 12 dropped fence units outright in crowded colonies. */
+#define COLONY_OUTSIDE_MAX 24
 
 typedef enum ColonyMultiMode {
   COLONY_MULTI_PRODUCTION = 0,

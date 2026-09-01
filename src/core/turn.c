@@ -1464,7 +1464,11 @@ static void turn_produce_one_colony(
     (void)colony_prod_colony_hammers(pool, colony, 0, &lumber_demand);
 
     const char* k_sec = NULL;
-    if (colony->stock[COLONIZE_CARGO_LUMBER] == 0 && lumber_demand > 0) {
+    /* bugs.md: @LUMBER only when lumber INPUT production is zero and the
+     * carpenters still tried to work — producing some lumber (merely not
+     * enough for full demand) is not "run out". */
+    if (colony->stock[COLONIZE_CARGO_LUMBER] == 0 && lumber_demand > 0 &&
+        field_lumber <= 0) {
       snprintf(europe->status, sizeof(europe->status), "Need lumber.");
       k_sec = "LUMBER";
     } else if (colony->stock[COLONIZE_CARGO_ORE] == 0 && craft_demand[COLONIZE_CARGO_ORE]) {
@@ -2656,13 +2660,6 @@ void turn_run_year_end_chrome(ColonizeTurnContext* ctx, ColonizeTurnResult* out)
     }
   }
 
-  if (year < 1600) {
-    return;
-  }
-  /* Section B: peacetime only. */
-  if (woi) {
-    return;
-  }
   int human_colonies = 0;
   if (ctx->colonies) {
     for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
@@ -2672,6 +2669,29 @@ void turn_run_year_end_chrome(ColonizeTurnContext* ctx, ColonizeTurnResult* out)
       }
     }
   }
+  /*
+   * bugs.md: the zero-colonies defeat was peacetime-only — the King
+   * capturing every town during the War of Independence ended nothing.
+   * During WoI the same condition is the revolution being crushed, and it
+   * does not wait for the year-1600 grace either.
+   */
+  if (woi) {
+    if (human_colonies == 0) {
+      out->year_end_defeat = true;
+      if (ctx->col1_ok && ctx->col1) {
+        ctx->col1->head.game_options.calendar_latch = 1;
+        ctx->col1->head.turn_loop_running = 0;
+      }
+      if (ctx->status && ctx->status_size > 0) {
+        snprintf(ctx->status, ctx->status_size, "The revolution is crushed.");
+      }
+    }
+    return;
+  }
+  if (year < 1600) {
+    return;
+  }
+  /* Section B: peacetime only. */
   if (human_colonies != 0) {
     return;
   }

@@ -4476,7 +4476,28 @@ static int europe_dock_sprite(const ColonizeUnitPool* units, const EuropeDockImm
     return ut ? ut->icon_sprite : -1;
   }
   /* Armed / equipped / blessed on the dock: show what the immigrant now is,
-   * not the profession portrait it arrived with (bugs.md @ARMOPTIONS). */
+   * not the profession portrait it arrived with (bugs.md @ARMOPTIONS).
+   * bugs.md 164/177: the @UNIT icon column carries the EXPERT poses (Hardy
+   * Pioneer / Veteran Soldier …) — DOS's map rule overrides those to the
+   * base pose unless the unit's own profession matches; the dock follows
+   * the same rule, so a Master Blacksmith with tools reads as a plain
+   * Pioneer, not a Hardy one. */
+  switch (d->dos_type) {
+    case EUROPE_DOCK_TYPE_PIONEERS:
+      return d->profession == UNITS_JOB_PIONEER ? UNITS_ICON_HARDY_PIONEER
+                                                : UNITS_ICON_PIONEER;
+    case EUROPE_DOCK_TYPE_SOLDIERS:
+      return d->profession == UNITS_JOB_SOLDIER ? UNITS_ICON_VETERAN_SOLDIER
+                                                : UNITS_ICON_SOLDIER;
+    case EUROPE_DOCK_TYPE_DRAGOONS:
+      return d->profession == UNITS_JOB_DRAGOON ? UNITS_ICON_VETERAN_DRAGOON
+                                                : UNITS_ICON_DRAGOON;
+    case EUROPE_DOCK_TYPE_SCOUTS:
+      return d->profession == UNITS_JOB_SCOUT ? UNITS_ICON_SEASONED_SCOUT
+                                              : UNITS_ICON_SCOUT;
+    default:
+      break;
+  }
   if (d->dos_type != EUROPE_DOCK_TYPE_COLONISTS) {
     const int eti = europe_dock_unit_type_index(units, d->dos_type);
     const ColonizeUnitType* eut = units_type(units, eti);
@@ -4530,6 +4551,13 @@ static void render_europe_screen(const ColonizeGameState* game, ColonizeFramebuf
     if (game->col1_ok && game->human_nation >= 0 &&
         game->human_nation < (int)COLONIZE_COL1_NATION_COUNT) {
       eu_mut->boycott_bitmap = game->col1.nation[game->human_nation].boycott_bitmap;
+      /* bugs.md: Brewster bans criminals/servants from the pool the moment
+       * he is owned — reroll stale slots so Recruit and dock agree with the
+       * Brewster pick dialog. */
+      europe_apply_brewster(
+        eu_mut,
+        founding_fathers_nation_has(&game->col1, game->human_nation, FF_WILLIAM_BREWSTER)
+      );
     }
   }
 
@@ -7405,8 +7433,18 @@ static void game_colony_apply_dock_order(
   }
   switch (action) {
   case COLONY_DOCK_ORDER_ACTIVATE:
-    csv->transport_unit_id = uid;
-    set_status(game, "Transport selected", NULL);
+    if (units_is_sea(&game->units, uid) ||
+        units_is_transport(&game->units, uid)) {
+      csv->transport_unit_id = uid;
+      set_status(game, "Transport selected", NULL);
+    } else {
+      /* bugs.md: on a land/military unit "Move to front" was a no-op —
+       * it now heads the queue: first pick for a departing ship and the
+       * Units-pane selection. */
+      game->units.board_first_id = uid;
+      csv->multi_unit_selected_id = uid;
+      set_status(game, "Moved to front", NULL);
+    }
     break;
   case COLONY_DOCK_ORDER_CLEAR:
     units_wake(&game->units, uid);
@@ -7858,8 +7896,16 @@ static void game_finish_end_turn(ColonizeGameState* game, const ColonizeTurnResu
   if (result && result->request_europe_open && game->europe_ok) {
     game->europe.open_on_dock = true;
   }
-  if (game->europe_ok && game->europe.open_on_dock && !game_europe_blocked_by_woi(game)) {
+  /*
+   * bugs.md: don't auto-open the European Status while end-of-turn popups
+   * (king tax, raids, …) are still queued — DOS answers every audience
+   * before the harbor screen appears. The open_on_dock flag stays set;
+   * game_update opens Europe once the popup queue has drained.
+   */
+  if (game->europe_ok && game->europe.open_on_dock && !game_europe_blocked_by_woi(game) &&
+      !ai_popup_busy(&game->ai_popups)) {
     game->in_europe = true;
+    game->europe.open_on_dock = false;
     sound_set_bgm(3); /* FUN_75c2_2778: Europe pool */
   }
   if (result && result->year_end_defeat) {
@@ -9100,6 +9146,13 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
   sound_service();
   game_water_cycle_tick(game);
   ai_popup_set_now_ms(game->elapsed_ms); /* King flair animation clock */
+  /* bugs.md: while independence is declared, the Crown's borrowed nation
+   * slot renders WHITE (REF), not the peer's own colour. */
+  unit_chrome_set_crown_nation(
+    game->col1_ok && ai_king_independence_declared(&game->col1)
+      ? ai_king_crown_nation(game->human_nation)
+      : -1
+  );
 
   /* End-of-turn nation phases: advance one slice per frame; block other input. */
   if (turn_processor_active(&game->turn_proc)) {
@@ -9117,8 +9170,21 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
    * branch draws no popup, so a queued dialog (the re-presented FF debate
    * behind the F1 detour) opened INVISIBLY and swallowed the keys the
    * player pressed to leave the article, silently answering the debate. */
-  if (!game->ai_popups.open && !game->ai_popups.has_result && !game->in_pedia) {
+  if (!game->ai_popups.open && !game->ai_popups.has_result && !game->in_pedia &&
+      !game->in_report) {
     ai_popup_try_present_next(&game->ai_popups);
+  }
+
+  /* Deferred ship-arrival Europe open: once every end-of-turn popup has
+   * been answered (bugs.md — the tax audience must not land ON the
+   * European Status; DOS finishes the audiences first). */
+  if (game->europe_ok && game->europe.open_on_dock && !game->in_europe && !game->in_menu &&
+      !game->in_colony && !game->in_report && !game->in_pedia &&
+      !ai_popup_busy(&game->ai_popups) && !game_modal_open(game) &&
+      !game_europe_blocked_by_woi(game)) {
+    game->in_europe = true;
+    game->europe.open_on_dock = false;
+    sound_set_bgm(3);
   }
 
   /*
@@ -9161,13 +9227,16 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
       game->ai_popups.current.tag == AI_POPUP_TAG_KING_LETTER) {
     game->declaration_played = true;
     const int human = game->human_nation;
-    const char* country =
+    /* bugs.md: the signature on the parchment is the LEADER's name (the
+     * John Hancock moment), not the country — which had just been renamed
+     * "United Colonies" and truncated to "United Colon" on the line. */
+    const char* signer =
       (game->col1_ok && human >= 0 && human < 4 &&
-       game->col1.player[human].country_name[0] != '\0')
-        ? game->col1.player[human].country_name
-        : "United Colonies";
+       game->col1.player[human].name[0] != '\0')
+        ? game->col1.player[human].name
+        : (game->leader_name[0] ? game->leader_name : "Walter Raleigh");
     declaration_just_opened =
-      declaration_open(&game->declaration, game->resolved_data_dir, country);
+      declaration_open(&game->declaration, game->resolved_data_dir, signer);
   }
   if (game->declaration.open) {
     /*
@@ -10135,7 +10204,15 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
         break;
       case COLONY_HIT_OUTSIDE_UNIT:
         if (hit.index >= 0 && hit.index < csv->outside_unit_count) {
-          game_colony_drag_begin_outside(game, csv->outside_unit_ids[hit.index]);
+          const int ouid = csv->outside_unit_ids[hit.index];
+          if (csv->selected_outside_unit == ouid) {
+            /* bugs.md: clicking the already-selected fence unit opens the
+             * role popup (what should this colonist be doing) — same list
+             * the fence drop offers. */
+            game_colony_fence_drop(game, colony);
+          } else {
+            game_colony_drag_begin_outside(game, ouid);
+          }
         }
         break;
       case COLONY_HIT_FENCE: {

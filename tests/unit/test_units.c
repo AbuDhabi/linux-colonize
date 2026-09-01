@@ -457,8 +457,10 @@ static int unit_warehouse_full(void) {
 
   bool full = false;
   const int moved = colonies_transfer_from_unit(&colonies, 1, &pool, sid, 0, &full);
-  if (moved != 0 || !full) {
-    fprintf(stderr, "whfull: want moved=0 full=1 got moved=%d full=%d\n", moved, (int)full);
+  /* bugs.md: full warehouse no longer blocks — the hold lands anyway and
+   * the flag informs (excess spoils next turn). */
+  if (moved != 20 || !full) {
+    fprintf(stderr, "whfull: want moved=20 full=1 got moved=%d full=%d\n", moved, (int)full);
     assets_msg_free(&names);
     return 1;
   }
