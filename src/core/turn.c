@@ -282,6 +282,18 @@ static int turn_report_ok_rebel_maj(const ColonizeCol1Save* col1) {
   return !col1 || !col1->head.colony_report_options.report_rebel_majorities;
 }
 /* DOS 0x5385 bit0 clear → show @SONSUP / @SONSDOWN decade chrome. */
+/*
+ * bugs.md: a birth puts the new Free Colonist ON the colony tile as a map
+ * unit awaiting orders — not into the colony as a worker. The production
+ * pass has no unit-pool parameter (deep call chain), so the game loop hands
+ * it in here before ticking; NULL (tests, headless callers) falls back to
+ * the old join-the-colony behaviour.
+ */
+static ColonizeUnitPool* s_turn_birth_units = NULL;
+void turn_set_birth_units_pool(ColonizeUnitPool* units) {
+  s_turn_birth_units = units;
+}
+
 static int turn_report_ok_sons(const ColonizeCol1Save* col1) {
   return !col1 || !col1->head.colony_report_options.report_sons_of_liberty_membership;
 }
@@ -753,15 +765,32 @@ static void turn_produce_one_colony(
         delta->goods[COLONIZE_CARGO_FOOD] -= 200;
         delta->food_net -= 200;
       }
-      ColonizeColonist* newborn = &colony->colonists[colony->colonist_count];
-      memset(newborn, 0, sizeof(*newborn));
-      newborn->active = true;
-      newborn->unit_type_index = 0;
-      newborn->profession = UNITS_JOB_COLONIST; /* Free Colonists */
-      newborn->building_type = -1;
-      newborn->field_job = -1;
-      colony->colonist_count++;
-      colony->population = colony->colonist_count;
+      bool born_on_tile = false;
+      if (s_turn_birth_units) {
+        /* bugs.md: the newborn stands on the colony tile awaiting orders. */
+        const int ct = units_find_type(s_turn_birth_units, "Colonists");
+        if (ct >= 0) {
+          const int nid =
+            units_spawn_allow_stack(s_turn_birth_units, ct, colony->x, colony->y);
+          ColonizeUnit* nu = units_get(s_turn_birth_units, nid);
+          if (nu) {
+            units_set_nation(nu, colony->nation_id);
+            nu->orders = UNITS_ORDER_NONE;
+            born_on_tile = true;
+          }
+        }
+      }
+      if (!born_on_tile) {
+        ColonizeColonist* newborn = &colony->colonists[colony->colonist_count];
+        memset(newborn, 0, sizeof(*newborn));
+        newborn->active = true;
+        newborn->unit_type_index = 0;
+        newborn->profession = UNITS_JOB_COLONIST; /* Free Colonists */
+        newborn->building_type = -1;
+        newborn->field_job = -1;
+        colony->colonist_count++;
+        colony->population = colony->colonist_count;
+      }
       if (europe && colony->nation_id == human_nation) {
         /* DOS 0xe2f @NEWCOLONIST. Cite: colony_eot_production.md Phase I. */
         if (colony->name[0]) {
@@ -2134,7 +2163,48 @@ void turn_run_nation_ticks(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
   if (ctx->units && ctx->game_year && ctx->turn_number && *ctx->game_year >= 1600u &&
       (*ctx->turn_number & 7u) == 0u) {
     const int woi = ctx->col1_ok && ctx->col1 && ctx->col1->head.game_options.woi != 0;
-    if (!woi) {
+    /*
+     * bugs.md (free_merchanman.SAV): the port fired this on the turn
+     * counter alone, handing out a free Merchantman every 8th turn. DOS's
+     * outer gate (nation_eot_ship_spawn.md §C) also requires the census
+     * warship-threat crumbs: DS:0xa89b != 0 (a colony threatened by a
+     * Frigate) OR DS:0xa89a > 3 — own colonies within 5 tiles of foreign
+     * armed ships. Computed inline (the census detector has no port
+     * equivalent yet; the pathfinding sub-gate is skipped, which only
+     * makes the spawn rarer, never spammier).
+     */
+    int frigate_threat = 0;
+    int other_threat = 0;
+    if (ctx->colonies && ctx->human_nation >= 0) {
+      for (int ci = 0; ci < COLONIZE_COLONIES_MAX; ++ci) {
+        const ColonizeColony* c = &ctx->colonies->colonies[ci];
+        if (!c->active || c->nation_id != ctx->human_nation) {
+          continue;
+        }
+        for (int ui = 0; ui < COLONIZE_UNITS_MAX; ++ui) {
+          const ColonizeUnit* su = units_get_const(ctx->units, ui);
+          if (!su || !su->active || su->nation_id == ctx->human_nation ||
+              su->nation_id > 3 || !units_is_on_map(su) || su->x >= 200 ||
+              !units_is_sea(ctx->units, ui)) {
+            continue;
+          }
+          const ColonizeUnitType* st = units_type(ctx->units, su->type_index);
+          if (!st || st->attack <= 0) {
+            continue;
+          }
+          if (abs(su->x - c->x) > 5 || abs(su->y - c->y) > 5) {
+            continue;
+          }
+          if (st->name[0] && strstr(st->name, "Frigate") != NULL) {
+            frigate_threat++;
+          } else {
+            other_threat++;
+          }
+          break; /* one qualifying ship marks the colony */
+        }
+      }
+    }
+    if (!woi && (frigate_threat != 0 || other_threat > 3)) {
       int ti = units_find_type(ctx->units, "Merchantman");
       if (ti < 0) {
         ti = 0x11;
@@ -2817,6 +2887,7 @@ bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ct
         ctx->col1->head.year = *ctx->game_year;
         ctx->col1->head.autumn = *ctx->game_autumn;
       }
+      turn_set_birth_units_pool(ctx->units);
       turn_run_colony_production(
         ctx->colonies,
         ctx->map,
@@ -2828,6 +2899,7 @@ bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ct
         ctx->messages,
         ctx->rng
       );
+      turn_set_birth_units_pool(NULL);
       /* Artillery construction completion — turn_run_colony_production has
        * no ColonizeUnitPool access (colonies_try_complete_building never
        * needed one; spawning a unit does), so this is its own pass. */

@@ -229,6 +229,8 @@ bool colonies_load_names(ColonizeColonyPool* pool, const char* colony_txt_path);
 bool colonies_load_buildings(ColonizeColonyPool* pool, const ColonizeMsgCatalog* names);
 
 int colonies_find_building(const ColonizeColonyPool* pool, const char* name);
+/* True when the building has a real worker slot (see colony.c list). */
+bool colonies_building_workable(const ColonizeColonyPool* pool, int building_type);
 
 bool colonies_can_found(
   const ColonizeColonyPool* pool,

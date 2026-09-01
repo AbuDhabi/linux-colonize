@@ -2959,6 +2959,92 @@ static int colony_screen_sol_percent(const ColonizeCol1Save* col1, const Coloniz
   return colony_prod_sol_percent(col1, colony);
 }
 
+typedef struct PeopleEntry {
+  int sprite;
+  int sel_colonist; /* colonist index, or -1 */
+  int sel_unit;     /* outside unit id, or -1 */
+  int px;
+  int iw;
+} PeopleEntry;
+
+/*
+ * bugs.md: one layout for the People band, shared by draw and hit-test —
+ * every active colonist plus every fence unit, packed naturally and
+ * squeezed to fit the band when the natural row overflows (the old code
+ * hard-stopped at the edge and silently dropped the rest of a big colony).
+ */
+static int colony_screen_people_layout(
+  const ColonyScreenView* view,
+  const ColonizeColony* colony,
+  const ColonizeUnitPool* units,
+  PeopleEntry* ent,
+  int max_ent
+) {
+  if (!view || !colony || !ent || max_ent <= 0) {
+    return 0;
+  }
+  int n = 0;
+  for (int i = 0; i < colony->colonist_count && n < max_ent; ++i) {
+    const ColonizeColonist* c = &colony->colonists[i];
+    if (!c->active) {
+      continue;
+    }
+    const int sprite =
+      units_working_colonist_sprite(units, c->unit_type_index, c->profession);
+    if (sprite >= 0) {
+      ent[n].sprite = sprite;
+      ent[n].sel_colonist = i;
+      ent[n].sel_unit = -1;
+      n++;
+    }
+  }
+  const int colonists_drawn = n;
+  for (int i = 0; i < view->outside_unit_count && n < max_ent; ++i) {
+    const ColonizeUnit* u = units_get_const(units, view->outside_unit_ids[i]);
+    if (!u) {
+      continue;
+    }
+    const int sprite = colony_screen_outside_display_sprite(units, u);
+    if (sprite >= 0) {
+      ent[n].sprite = sprite;
+      ent[n].sel_colonist = -1;
+      ent[n].sel_unit = u->id;
+      n++;
+    }
+  }
+  const int x0 = COLONY_PEOPLE_X + 2;
+  const int avail = COLONY_PEOPLE_W - 4;
+  int natural = 0;
+  int last_w = 12;
+  for (int i = 0; i < n; ++i) {
+    const ColonizeSprite* sp =
+      (view->icons_ok && ent[i].sprite < view->icons.sprite_count)
+        ? &view->icons.sprites[ent[i].sprite]
+        : NULL;
+    ent[i].iw = (sp && sp->width > 0) ? sp->width : 12;
+    last_w = ent[i].iw;
+    natural += ent[i].iw + 2;
+    if (i == colonists_drawn && colonists_drawn > 0) {
+      natural += 6;
+    }
+  }
+  natural -= 2;
+  const bool squeeze = natural > avail && n > 1;
+  int x = x0;
+  for (int i = 0; i < n; ++i) {
+    if (squeeze) {
+      ent[i].px = x0 + (int)((long)i * (avail - last_w) / (n - 1));
+    } else {
+      if (i == colonists_drawn && colonists_drawn > 0) {
+        x += 6;
+      }
+      ent[i].px = x;
+      x += ent[i].iw + 2;
+    }
+  }
+  return n;
+}
+
 static void colony_screen_draw_people(
   ColonyScreenView* view,
   const ColonizeColony* colony,
@@ -2992,56 +3078,17 @@ static void colony_screen_draw_people(
     );
   }
 
-  int x = COLONY_PEOPLE_X + 2;
   const int y_people = COLONY_PANEL_CONTENT_Y + 16;
-  const int x_limit = COLONY_PEOPLE_X + COLONY_PEOPLE_W - 14;
-  int colonists_drawn = 0;
-  for (int i = 0; i < colony->colonist_count; ++i) {
-    const ColonizeColonist* c = &colony->colonists[i];
-    if (!c->active) {
-      continue;
-    }
-    if (x > x_limit) {
-      break;
-    }
-    const int sprite =
-      units_working_colonist_sprite(units, c->unit_type_index, c->profession);
-    if (sprite >= 0) {
-      colony_screen_blit_icon_shadowed(view, sprite, framebuffer, x, y_people);
-      if (view->selected_colonist == i) {
-        colony_screen_draw_icon_selection(view, framebuffer, sprite, x, y_people);
-      }
-      const ColonizeSprite* sp =
-        (view->icons_ok && sprite < view->icons.sprite_count) ? &view->icons.sprites[sprite]
-                                                             : NULL;
-      x += (sp ? sp->width : 12) + 2;
-      colonists_drawn++;
-    }
-  }
-
-  /* Fence / on-tile units: same row, separate group to the right of colonists. */
-  if (view->outside_unit_count > 0 && x <= x_limit) {
-    if (colonists_drawn > 0) {
-      x += 6; /* extra gap between colony pop and outside group */
-    }
-    for (int i = 0; i < view->outside_unit_count; ++i) {
-      const ColonizeUnit* u = units_get_const(units, view->outside_unit_ids[i]);
-      if (!u) {
-        continue;
-      }
-      if (x > x_limit) {
-        break;
-      }
-      const int sprite = colony_screen_outside_display_sprite(units, u);
-      if (sprite >= 0) {
-        colony_screen_blit_icon_shadowed(view, sprite, framebuffer, x, y_people);
-        if (view->selected_outside_unit == u->id) {
-          colony_screen_draw_icon_selection(view, framebuffer, sprite, x, y_people);
-        }
-        const ColonizeSprite* sp =
-          (view->icons_ok && sprite < view->icons.sprite_count) ? &view->icons.sprites[sprite]
-                                                               : NULL;
-        x += (sp ? sp->width : 12) + 2;
+  {
+    PeopleEntry ent[COLONIZE_COLONY_POP_MAX + COLONY_OUTSIDE_MAX];
+    const int n = colony_screen_people_layout(
+      view, colony, units, ent, (int)(sizeof(ent) / sizeof(ent[0]))
+    );
+    for (int i = 0; i < n; ++i) {
+      colony_screen_blit_icon_shadowed(view, ent[i].sprite, framebuffer, ent[i].px, y_people);
+      if ((ent[i].sel_colonist >= 0 && view->selected_colonist == ent[i].sel_colonist) ||
+          (ent[i].sel_unit >= 0 && view->selected_outside_unit == ent[i].sel_unit)) {
+        colony_screen_draw_icon_selection(view, framebuffer, ent[i].sprite, ent[i].px, y_people);
       }
     }
   }
@@ -4656,63 +4703,35 @@ ColonyScreenHitResult colony_screen_hit_test(
     }
   }
 
-  /* People-view: colony colonists then outside (fence) units on one row. */
+  /* People-view: shares colony_screen_people_layout with the draw. */
   if (colony && my >= COLONY_PANEL_CONTENT_Y + 16 && my < COLONY_PANEL_CONTENT_Y + 32 &&
       mx >= COLONY_PEOPLE_X && mx < COLONY_PEOPLE_X + COLONY_PEOPLE_W) {
-    int x = COLONY_PEOPLE_X + 2;
-    const int x_limit = COLONY_PEOPLE_X + COLONY_PEOPLE_W - 14;
-    int colonists_drawn = 0;
-    for (int i = 0; i < colony->colonist_count; ++i) {
-      const ColonizeColonist* c = &colony->colonists[i];
-      if (!c->active) {
-        continue;
-      }
-      if (x > x_limit) {
-        break;
-      }
-      const int sprite =
-        units_working_colonist_sprite(units, c->unit_type_index, c->profession);
-      int iw = 12;
-      if (view->icons_ok && sprite >= 0 && sprite < view->icons.sprite_count) {
-        const ColonizeSprite* sp = &view->icons.sprites[sprite];
-        if (sp && sp->width > 0) {
-          iw = sp->width;
-        }
-      }
-      if (mx >= x && mx < x + iw) {
-        hit.kind = COLONY_HIT_PEOPLE_COLONIST;
-        hit.index = i;
-        return hit;
-      }
-      x += iw + 2;
-      colonists_drawn++;
-    }
-    if (view->outside_unit_count > 0 && x <= x_limit) {
-      if (colonists_drawn > 0) {
-        x += 6;
-      }
-      for (int i = 0; i < view->outside_unit_count; ++i) {
-        const ColonizeUnit* u = units_get_const(units, view->outside_unit_ids[i]);
-        if (!u) {
-          continue;
-        }
-        if (x > x_limit) {
-          break;
-        }
-        const int sprite = colony_screen_outside_display_sprite(units, u);
-        int iw = 12;
-        if (view->icons_ok && sprite >= 0 && sprite < view->icons.sprite_count) {
-          const ColonizeSprite* sp = &view->icons.sprites[sprite];
-          if (sp && sp->width > 0) {
-            iw = sp->width;
+    PeopleEntry ent[COLONIZE_COLONY_POP_MAX + COLONY_OUTSIDE_MAX];
+    const int n = colony_screen_people_layout(
+      view, colony, units, ent, (int)(sizeof(ent) / sizeof(ent[0]))
+    );
+    /* Walk back-to-front so an overlapped (squeezed) icon resolves to the
+     * one drawn on top. */
+    for (int i = n - 1; i >= 0; --i) {
+      if (mx >= ent[i].px && mx < ent[i].px + ent[i].iw) {
+        if (ent[i].sel_colonist >= 0) {
+          hit.kind = COLONY_HIT_PEOPLE_COLONIST;
+          hit.index = ent[i].sel_colonist;
+        } else {
+          hit.kind = COLONY_HIT_OUTSIDE_UNIT;
+          /* callers expect the outside ARRAY index */
+          hit.index = -1;
+          for (int oi = 0; oi < view->outside_unit_count; ++oi) {
+            if (view->outside_unit_ids[oi] == ent[i].sel_unit) {
+              hit.index = oi;
+              break;
+            }
+          }
+          if (hit.index < 0) {
+            continue;
           }
         }
-        if (mx >= x && mx < x + iw) {
-          hit.kind = COLONY_HIT_OUTSIDE_UNIT;
-          hit.index = i;
-          return hit;
-        }
-        x += iw + 2;
+        return hit;
       }
     }
   }
