@@ -52,16 +52,22 @@ static int unit_stack_row_at_y(const UnitStackPopup* dlg, int my) {
   return idx;
 }
 
-/* Wake sentry cargo; return true if woke (stay in dialog). Else ready to select. */
-static bool unit_stack_activate_row(UnitStackPopup* dlg, ColonizeUnitPool* pool, int idx, int* out_select_id) {
+/*
+ * One pick = wake + select + close, like DOS's stack picker (FUN_2b5a_1b5a
+ * clears the picked unit's orders byte and makes it active in the same
+ * click). The earlier two-step here — first click only woke a sentried
+ * passenger and kept the dialog open — read as "nothing happened" (bugs.md:
+ * "impossible to wake up unit ... loaded onto a ship without moves").
+ */
+static void unit_stack_activate_row(UnitStackPopup* dlg, ColonizeUnitPool* pool, int idx, int* out_select_id) {
   if (!dlg || !pool || idx < 0 || idx >= dlg->count || !out_select_id) {
-    return false;
+    return;
   }
   *out_select_id = -1;
   const int uid = dlg->ids[idx];
   ColonizeUnit* u = units_get(pool, uid);
   if (!u || !u->active) {
-    return false;
+    return;
   }
   if (u->aboard_ship_id >= 0 && u->orders == 1) {
     /*
@@ -74,11 +80,9 @@ static bool unit_stack_activate_row(UnitStackPopup* dlg, ColonizeUnitPool* pool,
      * be available to move".
      */
     (void)units_wake(pool, uid);
-    return true; /* woke; keep popup open */
   }
   *out_select_id = uid;
   unit_stack_close(dlg);
-  return false;
 }
 
 bool unit_stack_handle_input(

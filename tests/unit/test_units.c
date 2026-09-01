@@ -18,6 +18,7 @@
 #include "core/sound.h"
 #include "core/ss.h"
 #include "core/unit_chrome.h"
+#include "core/unit_stack.h"
 #include "core/units.h"
 #include "platform/diagnostics.h"
 #include "platform/platform.h"
@@ -1495,6 +1496,73 @@ static int unit_wake_passenger_can_land(void) {
   return rc;
 }
 
+/*
+ * bugs.md: the tile-stack picker must work like DOS FUN_2b5a_1b5a — ONE pick
+ * wakes a sentried passenger AND hands it back for selection, closing the
+ * dialog. The old two-step (first click only woke, dialog stayed open with
+ * no selection) read as "impossible to wake up unit loaded onto a ship
+ * without moves".
+ */
+static int unit_stack_one_click_wakes_and_selects(void) {
+  ColonizeUnitPool pool;
+  memset(&pool, 0, sizeof(pool));
+  pool.type_count = 2;
+  snprintf(pool.types[0].name, sizeof(pool.types[0].name), "Caravel");
+  pool.types[0].movement = 4;
+  pool.types[0].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  pool.types[0].cargo = 2;
+  pool.types[1].space = 1;
+  snprintf(pool.types[1].name, sizeof(pool.types[1].name), "Colonists");
+  pool.types[1].movement = 1;
+  pool.types[1].domain = COLONIZE_UNIT_DOMAIN_LAND;
+
+  const int ship = units_spawn_allow_stack(&pool, 0, 3, 3);
+  const int pax = units_spawn_allow_stack(&pool, 1, 3, 3);
+  ColonizeUnit* su = units_get(&pool, ship);
+  ColonizeUnit* pu = units_get(&pool, pax);
+  if (!su || !pu) {
+    fprintf(stderr, "stack_pick: spawn failed\n");
+    return 1;
+  }
+  su->nation_id = 0;
+  pu->nation_id = 0;
+  su->moves_left = 0; /* ship exhausted — the reported scenario */
+  if (!units_board_stacked(&pool, pax, ship)) {
+    fprintf(stderr, "stack_pick: board failed\n");
+    return 1;
+  }
+
+  UnitStackPopup dlg;
+  memset(&dlg, 0, sizeof(dlg));
+  if (!unit_stack_try_open(&dlg, &pool, 3, 3, 0) || dlg.count != 2) {
+    fprintf(stderr, "stack_pick: popup should open with ship+passenger\n");
+    return 1;
+  }
+  /* Keyboard pick of the passenger row (same path as a row click). */
+  dlg.selection = (dlg.ids[0] == pax) ? 0 : 1;
+  ColonizeInputState in;
+  memset(&in, 0, sizeof(in));
+  in.last_key = COLONIZE_KEY_ENTER;
+  int sel = -1;
+  unit_stack_handle_input(&dlg, &pool, &in, &sel);
+  pu = units_get(&pool, pax);
+  if (sel != pax || dlg.open) {
+    fprintf(stderr, "stack_pick: one pick must select and close (sel=%d open=%d)\n", sel, dlg.open);
+    return 1;
+  }
+  if (pu->orders != 0 || pu->moves_left <= 0) {
+    fprintf(
+      stderr,
+      "stack_pick: pick must wake the passenger (orders=%d mp=%d)\n",
+      pu->orders,
+      pu->moves_left
+    );
+    return 1;
+  }
+  fprintf(stderr, "unit_units: stack picker one-click wake+select ok\n");
+  return 0;
+}
+
 int main(void) {
   diag_init(0, NULL);
 
@@ -1538,6 +1606,10 @@ int main(void) {
     return 1;
   }
   if (unit_wake_passenger_can_land() != 0) {
+    diag_shutdown();
+    return 1;
+  }
+  if (unit_stack_one_click_wakes_and_selects() != 0) {
     diag_shutdown();
     return 1;
   }
