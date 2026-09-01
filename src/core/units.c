@@ -1262,6 +1262,13 @@ static int g_units_combat_human_nation = -1;
 static AiPopupState* g_units_combat_popups = NULL;
 static const ColonizeMsgCatalog* g_units_combat_game_txt = NULL;
 static ColonizeUnitsMoveWatchFn g_units_move_watch = NULL;
+static ColonizeUnitsCombatWatchFn g_units_combat_watch = NULL;
+static void* g_units_combat_watch_user = NULL;
+
+void units_set_combat_watch(ColonizeUnitsCombatWatchFn fn, void* user) {
+  g_units_combat_watch = fn;
+  g_units_combat_watch_user = user;
+}
 static void* g_units_move_watch_user = NULL;
 
 void units_set_ff_col1(const ColonizeCol1Save* col1) {
@@ -3713,6 +3720,10 @@ bool units_resolve_land_combat_ff(
   eng.atk_flags = er.atk_flags;
   eng.def_flags = er.def_flags;
 
+  /* Combat "bump" (bugs.md): show the attacker lunging at the defender. */
+  if (g_units_combat_watch) {
+    g_units_combat_watch(g_units_combat_watch_user, pool, attacker_id, def->x, def->y);
+  }
   /* Combat Analysis before roll — strengths known, outcome not yet decided. */
   units_combat_maybe_present_analysis(col1, &eng, atk->nation_id, def->nation_id);
 
@@ -3937,6 +3948,10 @@ bool units_resolve_naval_combat_ff(
   eng.atk_flags = er.atk_flags;
   eng.def_flags = er.def_flags;
 
+  /* Combat "bump" (bugs.md): show the attacker lunging at the defender. */
+  if (g_units_combat_watch) {
+    g_units_combat_watch(g_units_combat_watch_user, pool, attacker_id, def->x, def->y);
+  }
   /* Combat Analysis before roll — strengths known, outcome not yet decided. */
   units_combat_maybe_present_analysis(col1, &eng, atk->nation_id, def->nation_id);
 
@@ -5409,10 +5424,23 @@ bool units_wake(ColonizeUnitPool* pool, int unit_id) {
    * spent its moves — Activate Unit picks who is controlled, it does not
    * hand out free movement (bugs.md).
    */
-  const bool parked = u->aboard_ship_id >= 0 || prev == UNITS_ORDER_SENTRY ||
-                      prev == UNITS_ORDER_FORTIFY || prev == UNITS_ORDER_FORTIFIED;
+  /*
+   * bugs.md (player-clarified): the order byte itself separates the cases.
+   * FORTIFY (5) was given THIS turn — those moves are spent, no refund.
+   * FORTIFIED (6) only exists after an overnight promotion, so waking one
+   * always restores the full allotment, however long ago it dug in.
+   * SENTRY uses the nights counter (turns_worked, bumped by the turn
+   * refresh): overnight sentries wake with full moves, same-turn ones keep
+   * what they had. Hold passengers restore as before.
+   */
+  const bool parked = u->aboard_ship_id >= 0 || prev == UNITS_ORDER_FORTIFIED ||
+                      (prev == UNITS_ORDER_SENTRY && u->turns_worked > 0);
   if (parked && units_type(pool, u->type_index)) {
     u->moves_left = units_max_mp(pool, unit_id);
+  }
+  if (prev == UNITS_ORDER_SENTRY || prev == UNITS_ORDER_FORTIFY ||
+      prev == UNITS_ORDER_FORTIFIED) {
+    u->turns_worked = 0;
   }
   return prev == UNITS_ORDER_SENTRY || prev == UNITS_ORDER_FORTIFY ||
          prev == UNITS_ORDER_FORTIFIED || prev == UNITS_ORDER_GOTO;
@@ -8185,6 +8213,14 @@ int units_map_sprite(const ColonizeUnitPool* pool, int unit_id) {
   int muskets = 0;
   int horses = 0;
   units_founder_loot(pool, unit_id, &tools, &muskets, &horses);
+  /* bugs.md: the WoI military types (Cont. Army / Cont. Cav. / Regulars /
+   * Cavalry) have their own @UNIT art — the colonial equipment overrides
+   * below must not repaint them as plain/veteran Soldiers. */
+  if (type->name[0] &&
+      (strstr(type->name, "Cont.") != NULL || strstr(type->name, "Continental") != NULL ||
+       strstr(type->name, "Regular") != NULL || strstr(type->name, "Cavalry") != NULL)) {
+    return type->icon_sprite;
+  }
   if (muskets > 0 && horses > 0) {
     return (unit->profession == UNITS_JOB_DRAGOON) ? UNITS_ICON_VETERAN_DRAGOON
                                                    : UNITS_ICON_DRAGOON;

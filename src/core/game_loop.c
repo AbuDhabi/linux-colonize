@@ -429,6 +429,68 @@ static void game_move_watch(
   (void)from_y;
 }
 
+/*
+ * bugs.md: combat "bump" — the attacker's sprite lunges toward the defender
+ * for a couple of presented frames before the engagement resolves, the way
+ * DOS animates an attack, so back-to-back events stay perceptible. Zoom 0
+ * only (other tiers decimate sprites); needs a live platform (headless
+ * callers present nothing).
+ */
+static void game_map_zoom_view_size(int zoom, int* out_cols, int* out_rows);
+
+static void game_combat_watch(
+  void* user, const ColonizeUnitPool* pool, int attacker_id, int def_x, int def_y
+) {
+  ColonizeGameState* game = (ColonizeGameState*)user;
+  const ColonizeUnit* atk = pool ? units_get_const(pool, attacker_id) : NULL;
+  if (!game || !atk || !game->platform || !game->world_map_ok || game->map_zoom != 0 ||
+      !game->unit_icons_ok) {
+    return;
+  }
+  /* Only when the human can see the fight (live sight of either tile). */
+  const int hn = game->human_nation;
+  if (!map_tile_seen_by(&game->world_map, def_x, def_y, hn)) {
+    return;
+  }
+  game_set_view_center(game, def_x, def_y);
+  int cols = 0;
+  int rows = 0;
+  game_map_zoom_view_size(game->map_zoom, &cols, &rows);
+  int vx = 0;
+  int vy = 0;
+  map_panel_clamp_view_origin(
+    (int)game->world_map.width, (int)game->world_map.height, game->map_view_x,
+    game->map_view_y, cols, rows, &vx, &vy
+  );
+  const int sprite = units_map_sprite(pool, attacker_id);
+  if (sprite < 0 || sprite >= game->unit_icons.sprite_count) {
+    return;
+  }
+  const int sxp = (atk->x - vx) * 16;
+  const int syp = MAP_MENU_BAR_H + (atk->y - vy) * 16;
+  if (sxp < 0 || syp < MAP_MENU_BAR_H || atk->x - vx >= cols || atk->y - vy >= rows) {
+    return;
+  }
+  const int ddx = (def_x > atk->x) - (def_x < atk->x);
+  const int ddy = (def_y > atk->y) - (def_y < atk->y);
+  static const int k_bump[3] = {5, 9, 4};
+  uint8_t pixels[320 * 200];
+  ColonizeFramebuffer8 fb = {.width = 320, .height = 200, .pixels = pixels};
+  ColonizePalette pal;
+  for (int f = 0; f < 3; ++f) {
+    game_render(game, &fb, &pal);
+    ss_blit_sprite(
+      &game->unit_icons, sprite, &fb, sxp + ddx * k_bump[f], syp + ddy * k_bump[f]
+    );
+    if (!platform_present(game->platform, &fb, &pal)) {
+      return;
+    }
+    platform_sleep_ms(
+      game->col1_ok && game->col1.head.game_options.fast_piece_slide ? 30u : 45u
+    );
+  }
+}
+
 static void game_bind_combat_analysis(ColonizeGameState* game) {
   if (!game) {
     return;
@@ -5480,6 +5542,7 @@ void game_destroy(ColonizeGameState* game) {
     return;
   }
   units_set_move_watch(NULL, NULL);
+  units_set_combat_watch(NULL, NULL);
   combat_analysis_set_presenter(NULL, NULL);
   combat_analysis_close(&game->combat_analysis);
   declaration_close(&game->declaration);
@@ -7884,6 +7947,7 @@ static void game_europe_deliver_bound_ships(ColonizeGameState* game) {
 
 static void game_finish_end_turn(ColonizeGameState* game, const ColonizeTurnResult* result) {
   units_set_move_watch(NULL, NULL);
+  units_set_combat_watch(NULL, NULL);
   /* turn.c's own FINISH step already picked the first unit needing orders;
    * a hand-off parked during the turn that just ended would skip past it. */
   game->turn_flow_deferred = false;
@@ -7975,6 +8039,7 @@ static void game_do_end_turn(ColonizeGameState* game) {
     return;
   }
   units_set_move_watch(game_move_watch, game);
+  units_set_combat_watch(game_combat_watch, game);
   turn_processor_start(&game->turn_proc);
   /* Run setup immediately so calendar advances on the same input that ends the turn. */
   ColonizeTurnContext ctx;
@@ -9050,12 +9115,13 @@ static void game_click_activate_unit(ColonizeGameState* game, int unit_id) {
     return;
   }
   /*
-   * units_clear_orders, not units_wake: waking also refills the move
-   * allotment, which is right for a passenger parked at 0 MP on boarding
-   * (see unit_stack_activate_row) but would hand a free turn back to a unit
-   * that moved and then dug in this turn. DOS only writes the orders byte.
+   * units_wake is overnight-safe now (bugs.md): it refills the allotment
+   * only for hold passengers and for standing orders parked on a PREVIOUS
+   * turn (turns_worked nights counter) — a unit that moved and dug in this
+   * turn keeps its spent moves, so the old free-turn hazard is gone and a
+   * long-fortified unit can march the turn you rouse it.
    */
-  units_clear_orders(&game->units, unit_id);
+  units_wake(&game->units, unit_id);
   game_select_unit(game, unit_id);
 }
 
@@ -9210,6 +9276,7 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
       return true;
     }
     units_set_move_watch(game_move_watch, game);
+    units_set_combat_watch(game_combat_watch, game);
     ColonizeTurnContext ctx;
     game_fill_turn_context(game, &ctx);
     if (!turn_processor_advance(&game->turn_proc, &ctx)) {

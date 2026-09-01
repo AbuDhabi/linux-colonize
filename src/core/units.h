@@ -625,6 +625,18 @@ typedef void (*ColonizeUnitsMoveWatchFn)(
 );
 void units_set_move_watch(ColonizeUnitsMoveWatchFn fn, void* user);
 
+/* bugs.md: combat "bump" animation hook — called once as an engagement is
+ * about to resolve (attacker still on its tile, defender at (def_x,def_y)).
+ * The game loop renders the attacker nudged toward the defender. */
+typedef void (*ColonizeUnitsCombatWatchFn)(
+  void* user,
+  const ColonizeUnitPool* pool,
+  int attacker_id,
+  int def_x,
+  int def_y
+);
+void units_set_combat_watch(ColonizeUnitsCombatWatchFn fn, void* user);
+
 /*
  * Land combat (FUN_157e / FUN_5fef_1b0e peel): attacker base×8 (004a mode 1);
  * defender engagement (015e: colony/village/terrain/fortify). Probability =

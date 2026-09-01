@@ -157,6 +157,13 @@ void turn_refresh_moves_for_nation(
       continue;
     }
     if (units_orders_skip_turn(u)) {
+      /* bugs.md: count the nights parked — a unit fortified/sentried on a
+       * PREVIOUS turn wakes with its full allotment (units_wake checks
+       * turns_worked > 0); one dug in this turn does not get its spent
+       * moves back. */
+      if (u->turns_worked < 255) {
+        u->turns_worked++;
+      }
       u->moves_left = 0;
       continue;
     }
