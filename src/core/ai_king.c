@@ -2483,6 +2483,8 @@ static void ai_king_do_declare(ColonizeTurnContext* ctx, int human) {
     ctx->col1, human, ai_king_crown_nation(human),
     (uint8_t)(AI_DIPLO_WAR | AI_DIPLO_MET)
   );
+  /* bugs.md: no landing on the declaration turn itself. */
+  ai_king_latch_set(ctx->col1, AI_KING_REF_WAVE_WAIT_BYTE, 1);
   /*
    * FUN_43f7_0108 (eliminate nation), called from FUN_43f7_1a26 for every
    * nation that is neither the declaring human nor the crown proxy
@@ -3070,6 +3072,11 @@ static int ai_king_0982_spawn_pool_unit(ColonizeTurnContext* ctx, int crown, int
   u->goto_y = y;
   /* 0982: the landed unit's moves are spent this beat (02d0 animate + 0948). */
   u->moves_left = 0;
+  /* bugs.md: landings are in plain sight — stamp watcher vis bits so the
+   * wave draws immediately instead of after its first move. */
+  if (ctx->map) {
+    u->col1_vis_mask |= units_vis_mask_for_tile(ctx->map, x, y, crown);
+  }
   return uid;
 }
 
@@ -3104,6 +3111,11 @@ static void ai_king_ref_wave(ColonizeTurnContext* ctx) {
     return;
   }
   if (!ai_king_independence_declared(ctx->col1)) {
+    return;
+  }
+  /* bugs.md: the wave waits one turn after the declaration. */
+  if (ai_king_latch_get(ctx->col1, AI_KING_REF_WAVE_WAIT_BYTE) != 0) {
+    ai_king_latch_set(ctx->col1, AI_KING_REF_WAVE_WAIT_BYTE, 0);
     return;
   }
   const int crown = ai_king_crown_nation(ctx->human_nation);
@@ -3286,6 +3298,12 @@ static void ai_king_ref_wave(ColonizeTurnContext* ctx) {
           ship->goto_x = lx;
           ship->goto_y = ly;
           ship->turns_worked = 0;
+          /* bugs.md: the invasion fleet is in plain sight of the colony —
+           * stamp watcher vis bits like a real move (the land units get
+           * theirs in ai_king_spawn_landing / 0982_spawn_pool_unit). */
+          if (ctx->map) {
+            ship->col1_vis_mask |= units_vis_mask_for_tile(ctx->map, lx, ly, crown);
+          }
           landed = true;
           exhaust = false;
           /* @INVASION (thin 1528 announce; VGA chrome PARKED). */
@@ -3350,13 +3368,27 @@ static void ai_king_ref_wave(ColonizeTurnContext* ctx) {
               t = cy[b]; cy[b] = cy[b - 1]; cy[b - 1] = t;
             }
           }
-          /* DOS lands on every tile whose stack is no stronger than the weakest. */
+          /*
+           * bugs.md (REF_bugs.SAV): if ANY candidate tile is empty, the
+           * landing uses only the empty tiles — seizing the player's units
+           * is the blockade-runner case, legal only when every adjacent
+           * tile is held. Empty tiles sort first anyway (strength 0), so
+           * restrict "usable" to them when one exists.
+           */
           int usable = 0;
-          while (usable < nc && cs[usable] <= cs[0]) {
-            usable++;
-          }
-          for (int t = 0; t < usable; ++t) {
-            ai_king_0982_purge_tile(ctx, crown, cx[t], cy[t]);
+          if (nc > 0 && units_id_at(ctx->units, cx[0], cy[0]) < 0) {
+            while (usable < nc && units_id_at(ctx->units, cx[usable], cy[usable]) < 0) {
+              usable++;
+            }
+          } else {
+            /* No empty tile: DOS lands on every tile no stronger than the
+             * weakest, seizing what stands there. */
+            while (usable < nc && cs[usable] <= cs[0]) {
+              usable++;
+            }
+            for (int t = 0; t < usable; ++t) {
+              ai_king_0982_purge_tile(ctx, crown, cx[t], cy[t]);
+            }
           }
           int slot = 0;
           while (need > 0 && usable > 0) {
@@ -4298,6 +4330,39 @@ static void ai_king_war_act(ColonizeTurnContext* ctx) {
   }
   if (!ai_king_independence_declared(ctx->col1)) {
     return;
+  }
+  /*
+   * bugs.md: DS:0x5382 bit1 means "REF currently on the map", not "war
+   * declared" — the port set it at the declaration and never cleared it,
+   * which permanently blocked the bell-pool spend (foreign intervention /
+   * next-wave trigger). Clear it once no crown unit remains in the New
+   * World, so wiping a wave re-arms the pool.
+   */
+  if (ctx->col1->head.game_options.ref_present && ctx->units) {
+    const int crown_now = ai_king_crown_nation(ctx->human_nation);
+    bool crown_on_map = false;
+    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+      const ColonizeUnit* u = units_get_const(ctx->units, i);
+      /* Loose test on purpose: any live crown-slot unit in the New World
+       * (incl. hold passengers) keeps the presence armed. */
+      if (u && u->active && u->nation_id == crown_now && u->x < 200) {
+        crown_on_map = true;
+        break;
+      }
+    }
+    /* Colonies the crown captured keep the presence too. */
+    if (!crown_on_map && ctx->colonies) {
+      for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+        const ColonizeColony* c = &ctx->colonies->colonies[i];
+        if (c->active && c->nation_id == crown_now) {
+          crown_on_map = true;
+          break;
+        }
+      }
+    }
+    if (!crown_on_map) {
+      ai_king_set_ref_present(ctx->col1, 0);
+    }
   }
   /*
    * Rebel arm first: 10f0 while human ports still exist (crown move/capture

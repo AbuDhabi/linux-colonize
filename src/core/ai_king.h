@@ -37,6 +37,10 @@
 #define AI_KING_SOONRETIRE1_BYTE 9
 /* Mid-war @WARN3 once-per-episode (crown pop share 50–89%); clear when <50%. */
 #define AI_KING_WARN3_BYTE 10
+/* bugs.md: the first REF wave waits one full turn after the declaration —
+ * set to 1 on declare, consumed (cleared, no landing) by the first wave
+ * tick. */
+#define AI_KING_REF_WAVE_WAIT_BYTE 11
 
 
 /*
@@ -84,6 +88,9 @@ static inline int ai_king_latch_get(const ColonizeCol1Save* col1, int which) {
   if (which == AI_KING_ENDGAME_BYTE) {
     return pad[0] & 0x03;
   }
+  if (which == AI_KING_REF_WAVE_WAIT_BYTE) {
+    return (pad[0] & 0x04) ? 1 : 0;
+  }
   const int bit = ai_king_latch_bit(which);
   return (bit && (pad[1] & bit)) ? 1 : 0;
 }
@@ -101,6 +108,10 @@ static inline void ai_king_latch_set(ColonizeCol1Save* col1, int which, int valu
     return;
   }
   uint8_t* pad = ai_king_latch_pad(col1);
+  if (which == AI_KING_REF_WAVE_WAIT_BYTE) {
+    pad[0] = (uint8_t)(value ? (pad[0] | 0x04) : (pad[0] & ~0x04));
+    return;
+  }
   if (which == AI_KING_ENDGAME_BYTE) {
     pad[0] = (uint8_t)((pad[0] & ~0x03) | (value & 0x03));
     return;
