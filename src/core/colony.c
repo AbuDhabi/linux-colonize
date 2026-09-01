@@ -168,9 +168,22 @@ void colonies_blit_settlement_icon(
   if (light < 0 && dark < 0) {
     return;
   }
+  /* bugs.md: the rebel nation flies an actual striped American flag — navy
+   * hoist edge, alternating red/white stripe rows — not a plain white flag
+   * ("we are not surrendering just yet"). */
+  int us_navy = -1;
+  int us_red = -1;
+  int us_white = -1;
+  const bool rebel = nation_id >= 0 && nation_id == unit_chrome_rebel_nation();
+  if (rebel) {
+    unit_chrome_rebel_flag_colors_for_palette(active_palette, &us_navy, &us_red, &us_white);
+  }
   for (int i = 0; i < 15; ++i) {
     const ColonyIconFlagPixel* fp = &k_colony_icon_flag_pixels[i];
-    const int color = fp->is_dark ? dark : light;
+    int color = fp->is_dark ? dark : light;
+    if (rebel && us_navy >= 0) {
+      color = fp->is_dark ? us_navy : ((fp->dy & 1) ? us_white : us_red);
+    }
     if (color < 0) {
       continue;
     }
@@ -1554,6 +1567,9 @@ int colonies_eject_colonist(
     u->tools = tools_take;
     u->muskets = muskets_take;
     u->horses = horses_take;
+    /* bugs.md: a freshly ejected/armed/horsed unit starts with no moves —
+     * it acts from next turn's refresh. */
+    u->moves_left = 0;
   }
   return uid;
 }

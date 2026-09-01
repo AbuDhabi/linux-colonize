@@ -199,6 +199,7 @@ struct ColonizeGameState {
   bool reports_ok;
   bool in_report;
   bool report_exits_to_menu; /* Retire: close score → title menu */
+  bool war_end_retired; /* bugs.md: ENDGAME_LOST already routed to the retire score */
   bool congress_page2; /* Continental Congress is two pages; closing p1 shows p2 */
   /* A new Founding Father's arrival walks the player through Congress page 2
    * and then that father's Colonizopedia entry. Holds his index while the
@@ -457,8 +458,9 @@ static void game_move_watch(
         const int y0 = MAP_MENU_BAR_H + fyl * 16;
         const int x1 = txl * 16;
         const int y1 = MAP_MENU_BAR_H + tyl * 16;
+        /* bugs.md: doubled once more ("can barely register they moved"). */
         const int steps = fast ? 2 : 4;
-        const uint32_t delay_ms = fast ? 30u : 40u;
+        const uint32_t delay_ms = fast ? 60u : 80u;
         const bool was_active = mu->active;
         mu->active = false; /* keep the base frame from drawing it at `to` */
         for (int f = 1; f <= steps; ++f) {
@@ -2435,6 +2437,7 @@ static void game_apply_ai_popup_result(ColonizeGameState* game) {
    * @LOSING/@RETIRING2 capitulation popup opens the retire score, the same
    * chain the Retire menu and @SCORED use. */
   if (game->ai_popups.result_tag == AI_POPUP_TAG_KING_WAR_END) {
+    game->war_end_retired = true;
     game_open_retire_score(game);
   }
   ai_contact_apply_popup_result(&ctx, &game->ai_popups);
@@ -7552,6 +7555,10 @@ static bool game_colony_apply_outside_role(
   u->tools = tools_take;
   u->muskets = muskets_take;
   u->horses = horses_take;
+  /* bugs.md: newly armed/horsed units start without movement points. */
+  if (muskets_take > 0 || horses_take > 0) {
+    u->moves_left = 0;
+  }
   return true;
 }
 
@@ -9419,6 +9426,19 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
   if (!game->ai_popups.open && !game->ai_popups.has_result && !game->in_pedia &&
       !game->in_report) {
     ai_popup_try_present_next(&game->ai_popups);
+  }
+
+  /* bugs.md: the LOST endgame latch must actually END the game. Whatever
+   * path latched it (LOSING popup, zero-colony crush, a loaded save), once
+   * every dialog is answered the retire-score chain runs exactly once:
+   * score → (exploits) → Hall of Fame → title menu. */
+  if (!game->war_end_retired && game->col1_ok &&
+      ai_king_latch_get(&game->col1, AI_KING_ENDGAME_BYTE) == AI_KING_ENDGAME_LOST &&
+      !ai_popup_busy(&game->ai_popups) && !game_modal_open(game) && !game->in_menu &&
+      !game->in_report && !game->in_hall_of_fame && !game->in_exploits) {
+    game->war_end_retired = true;
+    game_open_retire_score(game);
+    return true;
   }
 
   /* Deferred ship-arrival Europe open: once every end-of-turn popup has

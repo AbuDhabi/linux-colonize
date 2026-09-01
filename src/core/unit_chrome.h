@@ -62,6 +62,12 @@ void unit_chrome_set_crown_nation(int nation_id);
  * flag; crown-held colonies fly this nation's original color. Cleared
  * automatically when the crown nation is set to -1. */
 void unit_chrome_set_rebel_nation(int nation_id);
+int unit_chrome_rebel_nation(void);
+/* US flag palette picks (navy hoist / red / white stripes) for the rebel
+ * colony marker. Any output may come back -1 without a palette. */
+void unit_chrome_rebel_flag_colors_for_palette(
+  const ColonizePalette* active_palette, int* out_navy, int* out_red, int* out_white
+);
 /* -1 outside the WoI; else the crown's borrowed nation slot. */
 int unit_chrome_crown_nation(void);
 

@@ -95,38 +95,54 @@ void unit_chrome_nation_flag_shades_for_palette(
     return;
   }
   /*
-   * bugs.md WoI flags: the rebel nation's colonies fly the American flag
-   * (white body / red shadow stand-in for the stripes in a 14-pixel
-   * two-shade marker), and colonies held by the crown slot fly the color of
-   * the nation the PLAYER started as (orange for Dutch, red for English, …)
-   * — they are the player's captured towns under the King, not the peer
-   * whose slot the crown borrows. Set via unit_chrome_set_woi_flag_nations.
+   * bugs.md WoI flags: colonies held by the crown slot fly the color of the
+   * nation the PLAYER started as (orange for Dutch, red for English, …) —
+   * they are the player's captured towns under the King, not the peer whose
+   * slot the crown borrows. The rebel nation's own colonies get an actual
+   * striped American flag, painted per-pixel by the caller (see
+   * unit_chrome_rebel_flag_colors_for_palette) — the two-shade pair here is
+   * its fallback only.
    */
   const uint8_t* light_rgb;
-  uint8_t light_us[3] = {250, 250, 250};
-  if (nation_id == g_chrome_rebel_nation) {
-    light_rgb = light_us;
-  } else if (nation_id == g_chrome_crown_nation && g_chrome_rebel_nation >= 0 &&
-             g_chrome_rebel_nation < 4) {
+  if (nation_id == g_chrome_crown_nation && g_chrome_rebel_nation >= 0 &&
+      g_chrome_rebel_nation < 4) {
     light_rgb = k_nation_fill_rgb_native[g_chrome_rebel_nation];
   } else {
     light_rgb = k_nation_fill_rgb_native[nation_id];
   }
-  uint8_t dark_rgb[3] = {
+  const uint8_t dark_rgb[3] = {
     (uint8_t)((int)light_rgb[0] * 82 / 100),
     (uint8_t)((int)light_rgb[1] * 82 / 100),
     (uint8_t)((int)light_rgb[2] * 82 / 100)
   };
-  if (nation_id == g_chrome_rebel_nation) {
-    dark_rgb[0] = 200; /* red shadow under the white body: stars & stripes */
-    dark_rgb[1] = 30;
-    dark_rgb[2] = 30;
-  }
   if (out_light) {
     *out_light = unit_chrome_nearest_palette_index(active_palette, light_rgb);
   }
   if (out_dark) {
     *out_dark = unit_chrome_nearest_palette_index(active_palette, dark_rgb);
+  }
+}
+
+int unit_chrome_rebel_nation(void) {
+  return g_chrome_rebel_nation;
+}
+
+/* bugs.md: US flag colors for the rebel colony marker — navy hoist, red and
+ * white stripes — nearest-matched into the active palette. */
+void unit_chrome_rebel_flag_colors_for_palette(
+  const ColonizePalette* active_palette, int* out_navy, int* out_red, int* out_white
+) {
+  static const uint8_t k_navy[3] = {40, 40, 140};
+  static const uint8_t k_red[3] = {200, 30, 30};
+  static const uint8_t k_white[3] = {245, 245, 245};
+  if (out_navy) {
+    *out_navy = active_palette ? unit_chrome_nearest_palette_index(active_palette, k_navy) : -1;
+  }
+  if (out_red) {
+    *out_red = active_palette ? unit_chrome_nearest_palette_index(active_palette, k_red) : -1;
+  }
+  if (out_white) {
+    *out_white = active_palette ? unit_chrome_nearest_palette_index(active_palette, k_white) : -1;
   }
 }
 
