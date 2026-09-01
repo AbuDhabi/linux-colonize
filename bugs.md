@@ -164,6 +164,19 @@ This is a user-maintained list of bugs. User puts reports in. Agents may annotat
 | Master blacksmiths equipped with tools on euro docks appear as hardy pioneers. They should use the base, unskilled pioneer look. On the map and colony view, they use the correct icon. | |
 | European Status should block turn processing just like a popup. I just had the tax hike event appear; it should not have. While you're in Europe, that blocks turn processing, just like every other blocking popup. | |
 | Verify un-worked church output. I seem to recall that it should not benefit from SoL bonus unless there's a colonist there; I might be wrong. DOS no doubt has the proper output somewhere. | |
+| Somehow 2 master carpenters producing 28 hammers out of 14 wood produced and taking nothing from storage. WTF. See hammers_lumber.SAV. | |
+| There appears to have been a popup during viewing a new founding father getting added to congress. Listen here: Popups block. European Status blocks. Reports block. Colonizopedia blocks. NOTHING SHOULD HAPPEN IN THE BACKGROUND WHILE YOU ARE VIEWING SOME OTHER PAGE THAN THE MAIN MAP. | |
+| Transport view with more than four transports (ships) overflows box. Align presentation with DOS. | |
+| Move to front on multipurpose-military unit popup does nothing. It should do something. | |
+| Clicking an already-selected unit on the fence should bring up a popup. Check DOS - this popup can be used to select what the colonist should be doing. | |
+| Multipurpose-production sometimes doesn't list hammers. Particularly after a building was completed. Is it getting reset with the hammer accumulation getting reset? Something is deeply wrong with it, given that hammers don't apparently reliably consume lumber. | |
+| | |
+| | |
+| | |
+| | |
+| | |
+| | |
+| | |
 | | |
 | | |
 | | |
