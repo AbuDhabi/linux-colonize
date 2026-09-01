@@ -1580,6 +1580,17 @@ bool col1_bridge_capture(
   save->stuff.viewport_x = (uint16_t)cursor_x;
   save->stuff.viewport_y = (uint16_t)cursor_y;
   save->player[human_nation].control = 0;
+  /*
+   * bugs.md interop (port_saves/interop pair): DOS's own in-game saves carry
+   * DS:0x53c2 turn_loop_running = 1 and DS:0x53c4 map_modal_active = 1. The
+   * port wrote 0/0, and DOS's IN-GAME load restores 0x53c2 into its running
+   * main loop — the `while` gate reads 0 and DOS falls straight out to the
+   * command line right after the "loaded COLONY##.SAV" popup ("crashes
+   * VICEROY.EXE"; a main-menu load reinitializes the flag itself, which is
+   * why that path worked). Mirror DOS's live values.
+   */
+  save->head.turn_loop_running = 1;
+  save->head.map_modal_active = 1;
 
   for (size_t i = 0; i < save->map.tile_count; ++i) {
     save->map.tile[i] = col1_mp_terrain_to_tile(map->terrain[i]);
@@ -1747,6 +1758,45 @@ bool col1_bridge_capture(
           dst->occupation[p] = (uint8_t)UNITS_JOB_COLONIST;
         }
       }
+      /*
+       * bugs.md interop: DOS keeps each colony's colonist arrays SORTED by
+       * occupation. The interop pair (generated_by_port.SAV vs DOS's own
+       * resave of it) shows exactly an insert-before-first->= ordering:
+       * ascending occupation with ties in REVERSE arrival order. Emit that
+       * canonical order — occupation[], profession[], the specialty nibbles
+       * below, and the tiles[] worker indices all permute together, so DOS
+       * reads the same colony without reshuffling anything.
+       */
+      int col1_new_index[COLONIZE_COL1_COLONY_POP_MAX];
+      {
+        int order[COLONIZE_COL1_COLONY_POP_MAX]; /* new position -> old index */
+        int cnt = 0;
+        for (int p = 0; p < dst->population && p < (int)COLONIZE_COL1_COLONY_POP_MAX; ++p) {
+          int pos = 0;
+          while (pos < cnt && dst->occupation[order[pos]] < dst->occupation[p]) {
+            pos++;
+          }
+          for (int m = cnt; m > pos; --m) {
+            order[m] = order[m - 1];
+          }
+          order[pos] = p;
+          cnt++;
+        }
+        uint8_t occ2[COLONIZE_COL1_COLONY_POP_MAX];
+        uint8_t pro2[COLONIZE_COL1_COLONY_POP_MAX];
+        for (int k = 0; k < (int)COLONIZE_COL1_COLONY_POP_MAX; ++k) {
+          col1_new_index[k] = k;
+        }
+        for (int k = 0; k < cnt; ++k) {
+          occ2[k] = dst->occupation[order[k]];
+          pro2[k] = dst->profession[order[k]];
+          col1_new_index[order[k]] = k;
+        }
+        for (int k = 0; k < cnt; ++k) {
+          dst->occupation[k] = occ2[k];
+          dst->profession[k] = pro2[k];
+        }
+      }
       /* Specialty nibbles: pack profession low nibble pairs (FUN_15eb_0c7a). */
       for (int s = 0; s < 16; ++s) {
         const int e = s * 2;
@@ -1778,7 +1828,8 @@ bool col1_bridge_capture(
           continue;
         }
         const int cti = col1_tile_index_from_runtime(rti);
-        dst->tiles[cti] = (int8_t)who;
+        /* Remap through the DOS-canonical colonist ordering above. */
+        dst->tiles[cti] = (int8_t)col1_new_index[who];
       }
       col1_encode_colony_buildings(colonies, src, &dst->buildings);
       dst->warehouse_level = src->warehouse_level > (uint8_t)dst->buildings.warehouse
