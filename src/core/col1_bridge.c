@@ -1290,6 +1290,18 @@ bool col1_bridge_apply(
     if (units_is_sea(units, id_by_index[i])) {
       continue;
     }
+    /*
+     * bugs.md interop: the capture now writes FULL per-tile stacking chains
+     * (DOS FUN_1427_02ca semantics), so a sentried land unit standing in a
+     * colony shares a chain with any docked ship. A land unit is genuinely
+     * aboard only on a WATER tile (the port's docking model puts everyone
+     * ashore in a colony; a land unit standing on sea has no other way to
+     * be there).
+     */
+    if (map && save->unit[i].x < 200 && save->unit[i].y < 200 &&
+        map_tile_is_land(map, (int)save->unit[i].x, (int)save->unit[i].y)) {
+      continue;
+    }
     units_board_stacked(units, id_by_index[i], id_by_index[ship_idx]);
   }
 
@@ -2120,6 +2132,57 @@ bool col1_bridge_capture(
         neu[last].transport_chain.next_unit_idx = (int16_t)ship_ci;
         neu[ship_ci].transport_chain.prev_unit_idx = (int16_t)last;
         neu[ship_ci].transport_chain.next_unit_idx = -1;
+      }
+    }
+
+    /*
+     * bugs.md interop: DOS tile stacks ARE this chain. FUN_1427_02ca (place
+     * unit) appends every unit to its tile's doubly-linked list
+     * (+0x315c next / +0x315e prev) and the whole engine walks it — the
+     * "there are multiple units here" tab, the stack popup, colony troop
+     * lists, ship-passenger pooling. Port-created units carried -1/-1, so
+     * in DOS every one of them looked like a loose single (moveable via the
+     * control queue, invisible as a stack). Rebuild the full per-tile chain
+     * for every on-map unit: land units first in array order, ships last —
+     * which also reproduces the pax0→…→ship shape the passenger wiring
+     * above produced (a land unit on a sea tile is DOS's "aboard", pooled
+     * per tile first-come, exactly the ship-switch quirk). Europe-sentinel
+     * records (x ≥ 200) keep their dedicated lane chains.
+     */
+    {
+      bool* chained = calloc((size_t)(written > 0 ? written : 1), sizeof(bool));
+      if (chained) {
+        for (int i = 0; i < written; ++i) {
+          if (chained[i] || neu[i].x >= 200 || neu[i].y >= 200) {
+            continue;
+          }
+          int group[COLONIZE_UNITS_MAX];
+          int gn = 0;
+          /* Land units first, ships after (both in array order). */
+          for (int pass = 0; pass < 2; ++pass) {
+            for (int j = i; j < written; ++j) {
+              if (chained[j] || neu[j].x != neu[i].x || neu[j].y != neu[i].y) {
+                continue;
+              }
+              const bool is_ship =
+                neu[j].type >= 0x0d && neu[j].type <= 0x12; /* Caravel..Man-O-War */
+              if ((pass == 0) == is_ship) {
+                continue;
+              }
+              if (gn < COLONIZE_UNITS_MAX) {
+                group[gn++] = j;
+              }
+            }
+          }
+          for (int g = 0; g < gn; ++g) {
+            chained[group[g]] = true;
+            neu[group[g]].transport_chain.prev_unit_idx =
+              (int16_t)(g > 0 ? group[g - 1] : -1);
+            neu[group[g]].transport_chain.next_unit_idx =
+              (int16_t)(g + 1 < gn ? group[g + 1] : -1);
+          }
+        }
+        free(chained);
       }
     }
 
