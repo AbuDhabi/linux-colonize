@@ -22,14 +22,18 @@
  *   series 0..9 → WND1 / SUN / MON1 / WND2 / MON2 / MON3 / FISH / GUY /
  *                 LOGO / BONK
  *   BaseX is a world-x origin on the 960-wide panorama (640 / 320 / 0)
- *   Repeats 0 = play once and hold the last sprite; >0 = that many cycles
+ *   Repeats 0 = play once then hold the last sprite, except OPENGUY
+ *   which idle-loops the last (OPENING_GUY_LOOP_BACK+1) sprites
+ *   (OPENING.EXE `_anim_loop` 0x7f6: frame = count-5).
+ *   Repeats >0 = that many cycles then the series ends.
  *   series -1, Frame N = stop when the clock reaches N (shipped: 891)
  *
  * Camera follows the ship, clamped to [0, 640]. One key/click skips the
  * MPS logo into the sailing scene. Two edges during sailing jump to the
- * last frame (so a single accidental tap does not skip). After the last
- * frame — natural end or skip — the still holds for OPENING_HOLD_MS, then
- * the owner goes to the title menu. Same BIOS-tick pacing as CLOSING.EXE
+ * last frame (so a single accidental tap does not skip). Once OPENGUY is
+ * idle-looping the intro is over: one edge finishes immediately. After
+ * the last frame the still otherwise holds for OPENING_HOLD_MS, then the
+ * owner goes to the title menu. Same BIOS-tick pacing as CLOSING.EXE
  * (~55 ms).
  */
 
@@ -49,6 +53,8 @@
 #define OPENING_SHEET_GUY 7
 #define OPENING_SHEET_LOGO 8
 #define OPENING_SHEET_BONK 9
+/* OPENGUY Repeats 0: wrap 1-based frame to count-5 (last 6 sprites). */
+#define OPENING_GUY_LOOP_BACK 5
 
 #define OPENING_SCENE_Y 24
 #define OPENING_SCENE_H 132
@@ -138,7 +144,8 @@ void opening_close(OpeningCinematic* o);
 void opening_update(OpeningCinematic* o, uint32_t dt_ms);
 
 /* True while still open. One key/click skips the MPS logo into the sailing
- * scene. Two edges during sailing jump to the last frame. */
+ * scene. Two edges during sailing jump to the last frame. One edge during
+ * the OPENGUY idle loop (or the end hold) finishes. */
 bool opening_handle_input(OpeningCinematic* o, const ColonizeInputState* input);
 
 void opening_render(

@@ -344,7 +344,16 @@ static int opening_sprite_index(const OpeningSeries* s, int elapsed, int n) {
     }
     return elapsed % n;
   }
-  return elapsed < n ? elapsed : n - 1;
+  if (elapsed < n) {
+    return elapsed;
+  }
+  /* Repeats 0: hold the last sprite. OPENGUY is special — `_anim_loop`
+   * sets the 1-based frame to count-5 so the last 6 frames idle-loop. */
+  if (s->series == OPENING_SHEET_GUY && n > OPENING_GUY_LOOP_BACK) {
+    const int loop = OPENING_GUY_LOOP_BACK + 1;
+    return (elapsed - n) % loop + (n - loop);
+  }
+  return n - 1;
 }
 
 static void opening_compose(OpeningCinematic* o);
@@ -691,6 +700,27 @@ void opening_update(OpeningCinematic* o, uint32_t dt_ms) {
   }
 }
 
+static bool opening_in_finale(const OpeningCinematic* o) {
+  if (!o || o->logo_phase) {
+    return false;
+  }
+  if (o->end_frame > 0 && o->clock >= o->end_frame) {
+    return true;
+  }
+  int guy_at = -1;
+  for (int i = 0; i < o->series_count; ++i) {
+    if (o->series[i].series == OPENING_SHEET_GUY) {
+      guy_at = o->series[i].frame;
+      break;
+    }
+  }
+  if (guy_at < 0 || !o->sheet_ok[OPENING_SHEET_GUY]) {
+    return false;
+  }
+  const int n = o->sheets[OPENING_SHEET_GUY].sprite_count;
+  return n > 0 && o->clock >= guy_at + n;
+}
+
 bool opening_handle_input(OpeningCinematic* o, const ColonizeInputState* input) {
   if (!o || !o->open) {
     return false;
@@ -706,7 +736,8 @@ bool opening_handle_input(OpeningCinematic* o, const ColonizeInputState* input) 
       opening_begin_sailing(o);
       return true;
     }
-    if (o->end_frame > 0 && o->clock >= o->end_frame) {
+    if (opening_in_finale(o)) {
+      o->finished = true;
       return true;
     }
     o->skip_presses++;

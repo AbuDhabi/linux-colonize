@@ -244,6 +244,43 @@ static void test_logo_and_credit_layout(void) {
   opening_close(&o);
 }
 
+static void test_guy_idle_loops(void) {
+  OpeningCinematic o;
+  memset(&o, 0, sizeof(o));
+  if (!opening_open(&o, "COLONIZE")) {
+    fprintf(stderr, "FAIL: opening_open guy loop\n");
+    failures++;
+    return;
+  }
+  ColonizeInputState in;
+  memset(&in, 0, sizeof(in));
+  in.last_key = COLONIZE_KEY_ESCAPE;
+  opening_handle_input(&o, &in);
+
+  const int n = o.sheets[OPENING_SHEET_GUY].sprite_count;
+  check(n == 54, "OPENGUY has 54 frames");
+  const int loop = OPENING_GUY_LOOP_BACK + 1;
+  const int guy_start = 720;
+  const int first_loop = guy_start + n;
+  opening_update(&o, OPENING_FRAME_MS * (uint32_t)first_loop);
+  check(o.clock == first_loop, "reached guy idle loop");
+  uint8_t a[320 * 200];
+  uint8_t b[320 * 200];
+  uint8_t c[320 * 200];
+  memcpy(a, o.canvas, sizeof(a));
+  opening_update(&o, OPENING_FRAME_MS);
+  memcpy(b, o.canvas, sizeof(b));
+  opening_update(&o, OPENING_FRAME_MS * (uint32_t)(loop - 1));
+  memcpy(c, o.canvas, sizeof(c));
+  check(memcmp(a, b, sizeof(a)) != 0, "guy idle advances");
+  check(memcmp(a, c, sizeof(a)) == 0, "guy idle wraps every 6 frames");
+
+  in.last_key = COLONIZE_KEY_ENTER;
+  check(opening_handle_input(&o, &in), "key during guy loop");
+  check(o.finished, "one key during the idle loop ends the intro");
+  opening_close(&o);
+}
+
 static void test_timed_run_reaches_end(void) {
   OpeningCinematic o;
   memset(&o, 0, sizeof(o));
@@ -271,6 +308,7 @@ int main(void) {
   test_credits_and_path();
   test_open_skip_and_motion();
   test_logo_and_credit_layout();
+  test_guy_idle_loops();
   test_timed_run_reaches_end();
   diag_shutdown();
   if (failures) {
