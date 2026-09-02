@@ -4319,7 +4319,11 @@ int main(void) {
       return 1;
     }
     const int old_def = pool.types[caravel_ti].defense;
-    pool.types[caravel_ti].defense = 2; /* Fort atk 4 >= 2 → sink */
+    const int old_hull = pool.types[caravel_ti].hull;
+    pool.types[caravel_ti].defense = 2; /* Fort atk 4 >= 2 → fort wins */
+    /* bugs.md 255: fort win rolls damage-vs-sink on the hull (no-rng
+     * fallback: hull >= atk → damaged). Hull 0 keeps this check a sink. */
+    pool.types[caravel_ti].hull = 0;
 
     const int foe_id = units_spawn_allow_stack(&pool, caravel_ti, wx, wy);
     ColonizeUnit* foe = units_get(&pool, foe_id);
@@ -4344,7 +4348,8 @@ int main(void) {
       return 1;
     }
 
-    /* Ship-slow: fort miss leaves ship with moves_left=0. */
+    /* bugs.md 255: fort miss leaves the ship UNTOUCHED — no MP drain (DOS
+     * undoes the temp attacker; the old ship-slow was invented). */
     ai_diplo_declare_war(&fcol1, 0, 1);
     pool.types[caravel_ti].defense = 100; /* fort atk 4 loses */
     const int slow_id = units_spawn_allow_stack(&pool, caravel_ti, wx, wy);
@@ -4362,10 +4367,11 @@ int main(void) {
       return 1;
     }
     foe = units_get(&pool, slow_id);
-    if (!foe || !foe->active || foe->moves_left != 0) {
+    if (!foe || !foe->active || foe->moves_left != 4 * UNITS_MP_PER_TILE) {
       fprintf(
         stderr,
-        "ship-slow: want active moves=0 got active=%d moves=%d\n",
+        "fort miss: want untouched ship (moves=%d) got active=%d moves=%d\n",
+        4 * UNITS_MP_PER_TILE,
         foe ? foe->active : 0,
         foe ? foe->moves_left : -1
       );
@@ -4390,7 +4396,12 @@ int main(void) {
     const int priv_ti = units_find_type(&pool, "Privateer");
     if (priv_ti >= 0) {
       const int old_pdef = pool.types[priv_ti].defense;
+      const int old_phull = pool.types[priv_ti].hull;
       pool.types[priv_ti].defense = 2;
+      /* bugs.md 255: fort win now rolls damage-vs-sink on the ship's hull
+       * (no-rng fallback: hull > fort atk → damaged). Zero the hull so this
+       * deterministic check still ends in a sink. */
+      pool.types[priv_ti].hull = 0;
       const int pid = units_spawn_allow_stack(&pool, priv_ti, wx, wy);
       ColonizeUnit* pr = units_get(&pool, pid);
       pr->nation_id = 1;
@@ -4399,13 +4410,16 @@ int main(void) {
       if (psunk < 1 || (units_get(&pool, pid) && units_get(&pool, pid)->active)) {
         fprintf(stderr, "Fort should sink Privateer at peace\n");
         pool.types[priv_ti].defense = old_pdef;
+        pool.types[priv_ti].hull = old_phull;
         pool.types[caravel_ti].defense = old_def;
         return 1;
       }
       pool.types[priv_ti].defense = old_pdef;
+      pool.types[priv_ti].hull = old_phull;
     }
 
     pool.types[caravel_ti].defense = old_def;
+    pool.types[caravel_ti].hull = old_hull;
     fprintf(stderr, "unit_units: coastal fort naval fire ok\n");
   }
 
@@ -6344,8 +6358,9 @@ int main(void) {
         fprintf(stderr, "fort miss must not set damaged bit7\n");
         return 1;
       }
-      if (ship->moves_left != 0) {
-        fprintf(stderr, "fort miss should drain moves_left (got %d)\n", ship->moves_left);
+      /* bugs.md 255: a fort miss leaves the ship untouched (no MP drain). */
+      if (ship->moves_left == 0) {
+        fprintf(stderr, "fort miss must NOT drain moves_left (got %d)\n", ship->moves_left);
         return 1;
       }
       units_despawn(&pool, sid_miss);
@@ -6370,11 +6385,16 @@ int main(void) {
         fprintf(stderr, "close fort hit must set damaged bit7\n");
         return 1;
       }
-      if (ship->turns_worked < 3) {
-        fprintf(stderr, "combat damage should mark past construction thresh\n");
+      /* bugs.md 260: combat damage presets the repair TIMER below the
+       * threshold (fort winner doubles the bill → remaining = full
+       * threshold here) and marks repair_pending. */
+      if (ship->turns_worked >= 3 || !ship->repair_pending) {
+        fprintf(stderr, "combat damage should preset repair timer (worked=%d pending=%d)\n",
+                ship->turns_worked, ship->repair_pending);
         return 1;
       }
-      /* Ship-build tick must not clear combat damage. */
+      /* The EOT ship tick counts the timer but never clears a repair —
+       * the repair tick does that once the threshold is reached. */
       (void)units_tick_ship_build_ready(
         &pool, &colonies, 1, -1, st, sizeof(st), NULL
       );
@@ -6383,21 +6403,25 @@ int main(void) {
         fprintf(stderr, "ship-build must leave combat bit7 set\n");
         return 1;
       }
-      /* Drydock at colony repairs finished damaged ship on dock. */
+      /* In port (double speed) the timer finishes; the repair tick clears. */
       ship->x = cx;
       ship->y = cy;
       ship->nation_id = 0;
       col->has_building[3] = true;
-      const int repaired = units_tick_drydock_repair(
-        &pool, &colonies, 0, 0, st, sizeof(st), NULL, NULL
-      );
+      int repaired = 0;
+      for (int t = 0; t < 4 && !repaired; ++t) {
+        (void)units_tick_ship_build_ready(&pool, &colonies, 0, -1, st, sizeof(st), NULL);
+        repaired = units_tick_drydock_repair(
+          &pool, &colonies, 0, 0, st, sizeof(st), NULL, NULL
+        );
+      }
       ship = units_get(&pool, sid_hit);
       if (repaired != 1 || !ship || (ship->col1_unknown15 & 0x80u) != 0) {
-        fprintf(stderr, "Drydock should clear combat bit7 (repaired=%d)\n", repaired);
+        fprintf(stderr, "repair timer should clear combat bit7 (repaired=%d)\n", repaired);
         return 1;
       }
       units_despawn(&pool, sid_hit);
-      fprintf(stderr, "unit_units: fort bit7 + Drydock repair ok\n");
+      fprintf(stderr, "unit_units: fort bit7 + timed repair ok\n");
     }
 
     units_set_combat_popups(NULL, NULL);
