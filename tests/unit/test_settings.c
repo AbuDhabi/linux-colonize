@@ -32,7 +32,7 @@ static void test_missing_file_defaults(void) {
   check(!s.skip_intro, "default skip_intro false (play intro first run)");
   check(strcmp(s.data_dir, "./COLONIZE") == 0, "default data_dir");
   check(s.save_dir[0] == '\0', "default save_dir empty (platform default)");
-  check(s.debug_menu && s.show_mouse_coords && !s.show_building_rects, "default debug overlay");
+  check(!s.debug_menu && !s.show_mouse_coords && !s.show_building_rects, "default debug overlay off");
 }
 
 static void test_roundtrip(void) {
@@ -84,7 +84,7 @@ static void test_partial_file(void) {
   check(strcmp(s.data_dir, "./COLONIZE") == 0, "absent data_dir kept default");
   check(s.save_dir[0] == '\0', "absent save_dir kept empty");
   check(!s.no_sound && s.seed == 0 && !s.seed_present, "absent launch flags kept default");
-  check(s.debug_menu && s.show_mouse_coords && !s.show_building_rects, "absent debug keys kept default");
+  check(!s.debug_menu && !s.show_mouse_coords && !s.show_building_rects, "absent debug keys kept default");
 }
 
 /* Empty / wrong-type launch keys are not valid values, so defaults stand. */

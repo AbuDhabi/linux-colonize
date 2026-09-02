@@ -14,7 +14,7 @@ typedef struct ColonizeGameConfig {
   uint32_t rng_seed;
   bool rng_seed_set;
   /* DEBUG navbar + pointer HUD. Ignored unless the matching *_set flag is set
-   * (tests leave them unset and keep the hardcoded on-by-default). */
+   * (tests leave them unset and keep the hardcoded off-by-default). */
   bool debug_menu;
   bool debug_menu_set;
   bool show_mouse_coords;

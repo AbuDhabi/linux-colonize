@@ -39,7 +39,7 @@ static CliConfig cli_defaults(void) {
   cfg.no_sound = false;
   cfg.window_scale = 2;
   cfg.rng_seed = 0;
-  cfg.debug_menu = true;
+  cfg.debug_menu = false;
   cfg.data_dir_from_cli = false;
   cfg.save_dir_from_cli = false;
   cfg.windowed_from_cli = false;

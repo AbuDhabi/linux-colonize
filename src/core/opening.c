@@ -331,7 +331,12 @@ static void opening_compose(OpeningCinematic* o) {
       spr = (o->clock - 1) % o->ship.sprite_count;
     }
     const ColonizeSprite* sh = &o->ship.sprites[spr];
-    ss_blit_sprite(&o->ship, spr, &fb, sx - camera - (sh->width >> 1), sy - sh->height + 1);
+    /* PATH.DAT is the sprite centre in world/screen space, not a FUN_6f30
+     * baseline. Using height-1 as a bottom anchor parked the hull ~12 px
+     * above OPENBONK's still (anchor 123 / dest y 102 vs path y 114). */
+    ss_blit_sprite(
+      &o->ship, spr, &fb, sx - camera - (sh->width >> 1), sy - (sh->height >> 1)
+    );
   }
 
   for (int i = 0; i < o->credit_count; ++i) {

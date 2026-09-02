@@ -75,8 +75,8 @@ void settings_defaults(ColonizeSettings* out) {
   out->save_dir[0] = '\0';
   out->seed = 0;
   out->seed_present = false;
-  out->debug_menu = true;
-  out->show_mouse_coords = true;
+  out->debug_menu = false;
+  out->show_mouse_coords = false;
   out->show_building_rects = false;
   out->skip_intro = false;
 }

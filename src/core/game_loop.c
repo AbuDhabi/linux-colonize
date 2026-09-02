@@ -255,7 +255,7 @@ struct ColonizeGameState {
   bool mouse_cursor_built; /* SDL color cursor created from CURSOR.SS #0 */
   int debug_mouse_x;       /* last pointer in 320×200 framebuffer space */
   int debug_mouse_y;
-  bool debug_show_mouse_coords; /* DEBUG menu toggle; default on */
+  bool debug_show_mouse_coords; /* DEBUG menu toggle; default off */
   bool debug_building_rects; /* DEBUG menu toggle: colony-screen building sprite bounds; default off */
   bool debug_show_strategy; /* CHEAT Show Strategy: per-nation top AI goal overlay */
   bool debug_show_colony_sites; /* CHEAT Show Colony Sites: ai_goals_best_found_tile overlay */
@@ -5448,7 +5448,7 @@ ColonizeGameState* game_create(const ColonizeGameConfig* config) {
   game->pedia_view = PEDIA_VIEW_LIST;
   game->pedia_return_to_list = false;
   game->debug_show_mouse_coords =
-    (config && config->show_mouse_coords_set) ? config->show_mouse_coords : true;
+    (config && config->show_mouse_coords_set) ? config->show_mouse_coords : false;
   game->debug_building_rects =
     (config && config->show_building_rects_set) ? config->show_building_rects : false;
   game->cheat_create_pending_nation = -1;
@@ -5524,7 +5524,7 @@ ColonizeGameState* game_create(const ColonizeGameConfig* config) {
       map_menu_load(
         &game->map_menu,
         &game->map_menu_txt,
-        (config && config->debug_menu_set) ? config->debug_menu : true
+        (config && config->debug_menu_set) ? config->debug_menu : false
       );
     } else {
       diag_warn("Failed to parse MENU.TXT");
