@@ -77,6 +77,7 @@ void settings_defaults(ColonizeSettings* out) {
   out->seed_present = false;
   out->debug_menu = true;
   out->show_mouse_coords = true;
+  out->show_building_rects = false;
 }
 
 /* ---------------------------------------------------------------- writing */
@@ -137,7 +138,8 @@ bool settings_save_file(const char* path, const ColonizeSettings* in, char* err,
 
   fprintf(f, "  \"debug\": {\n");
   wb(f, "menu", in->debug_menu, false);
-  wb(f, "mouse_coords", in->show_mouse_coords, true);
+  wb(f, "mouse_coords", in->show_mouse_coords, false);
+  wb(f, "building_rects", in->show_building_rects, true);
   fprintf(f, "  },\n");
 
   fprintf(f, "  \"data_dir\": ");
@@ -262,6 +264,7 @@ bool settings_load_file(const char* path, ColonizeSettings* out, char* err, size
   const JsonValue* dbg = json_obj_get(root, "debug");
   rb(dbg, "menu", &out->debug_menu);
   rb(dbg, "mouse_coords", &out->show_mouse_coords);
+  rb(dbg, "building_rects", &out->show_building_rects);
 
   const char* data_dir = json_get_str(root, "data_dir");
   if (data_dir && data_dir[0]) {

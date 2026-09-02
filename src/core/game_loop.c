@@ -1926,6 +1926,21 @@ static void game_try_prompt_landho(ColonizeGameState* game) {
   game_open_landho_name_entry(game);
 }
 
+/* Persist DEBUG HUD toggles (mouse coords, building rects) to settings.json. */
+static void game_persist_debug_hud(const ColonizeGameState* game) {
+  if (!game || !settings_is_loaded()) {
+    return;
+  }
+  ColonizeSettings prefs = *settings_get();
+  prefs.show_mouse_coords = game->debug_show_mouse_coords;
+  prefs.show_building_rects = game->debug_building_rects;
+  settings_set(&prefs);
+  char err[256];
+  if (!settings_flush(err, sizeof(err))) {
+    diag_warn("Could not save settings: %s", err);
+  }
+}
+
 /*
  * Port-only: mirror whatever the options dialogs just changed into
  * settings.json so the choice survives the process. DOS had no such file —
@@ -5385,6 +5400,8 @@ ColonizeGameState* game_create(const ColonizeGameConfig* config) {
   game->pedia_return_to_list = false;
   game->debug_show_mouse_coords =
     (config && config->show_mouse_coords_set) ? config->show_mouse_coords : true;
+  game->debug_building_rects =
+    (config && config->show_building_rects_set) ? config->show_building_rects : false;
   game->cheat_create_pending_nation = -1;
   game->cheat_unlock_step = 0;
   game->fog_view = -2;
@@ -9327,15 +9344,7 @@ static bool game_apply_map_menu_action(ColonizeGameState* game, MapMenuAction ac
         "Mouse coords: %s",
         game->debug_show_mouse_coords ? "on" : "off"
       );
-      if (settings_is_loaded()) {
-        ColonizeSettings prefs = *settings_get();
-        prefs.show_mouse_coords = game->debug_show_mouse_coords;
-        settings_set(&prefs);
-        char err[256];
-        if (!settings_flush(err, sizeof(err))) {
-          diag_warn("Could not save settings: %s", err);
-        }
-      }
+      game_persist_debug_hud(game);
       return true;
     case MAP_MENU_ACTION_DEBUG_BUILDING_RECTS:
       game->debug_building_rects = !game->debug_building_rects;
@@ -9345,6 +9354,7 @@ static bool game_apply_map_menu_action(ColonizeGameState* game, MapMenuAction ac
         "Building rects: %s",
         game->debug_building_rects ? "on" : "off"
       );
+      game_persist_debug_hud(game);
       return true;
     case MAP_MENU_ACTION_CHEAT_REVEAL_MAP:
       game_open_cheat_setview(game);

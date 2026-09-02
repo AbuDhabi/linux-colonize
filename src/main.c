@@ -173,7 +173,9 @@ int main(int argc, char** argv) {
     .debug_menu = cli.debug_menu,
     .debug_menu_set = true,
     .show_mouse_coords = settings_get()->show_mouse_coords,
-    .show_mouse_coords_set = true
+    .show_mouse_coords_set = true,
+    .show_building_rects = settings_get()->show_building_rects,
+    .show_building_rects_set = true
   };
 
   ColonizeGameState* game = game_create(&game_cfg);
