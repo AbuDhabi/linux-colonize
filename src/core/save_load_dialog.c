@@ -4,16 +4,21 @@
 #include <string.h>
 
 #include "core/map_menu.h"
+#include "core/popup_msg.h"
+#include "core/reports.h"
 #include "core/savegame.h"
 #include "core/strutil.h"
 #include "core/ui_colors.h"
+
+/* GAME.TXT @SAVEGAME/@LOADGAME @width (DOS 6f74 content width). */
+#define SAVE_LOAD_DEFAULT_WIDTH 190
 
 void save_load_init(SaveLoadDialog* dlg) {
   if (!dlg) {
     return;
   }
   memset(dlg, 0, sizeof(*dlg));
-  dlg->width = 200;
+  dlg->width = SAVE_LOAD_DEFAULT_WIDTH;
 }
 
 void save_load_close(SaveLoadDialog* dlg) {
@@ -27,58 +32,81 @@ void save_load_close(SaveLoadDialog* dlg) {
   /* has_result / result_* intentionally preserved until the next open. */
 }
 
+/*
+ * FUN_7562_0052 row: "<Difficulty> <Leader> of the <Nation>, <Season> <Year>";
+ * empty slot = DS:0x20ee "(EMPTY)". Difficulty titles = DS:0x8394 table,
+ * nation = NAMES.TXT @NATIONALITY, "of the" = LABELS.TXT @MISC 19. The DOS
+ * builder trims the leader name until it measures under 0x65 px.
+ */
 static void save_load_format_label(
   char* out,
   size_t out_sz,
-  int display_index /*1-based*/,
-  int slot,
-  const ColonizeSaveSlotInfo* info
+  const ColonizeSaveSlotInfo* info,
+  const ColonizeFont* font
 ) {
   if (!out || out_sz == 0) {
     return;
   }
   if (!info || !info->occupied) {
-    snprintf(out, out_sz, "%d. Empty", display_index);
+    str_copy_trunc(out, out_sz, "(EMPTY)");
     return;
   }
-  if (slot == 8) {
-    snprintf(
-      out,
-      out_sz,
-      "%d. %s  %u [Decade]",
-      display_index,
-      info->leader_name,
-      (unsigned)info->year
-    );
-  } else if (slot == 9) {
-    snprintf(
-      out,
-      out_sz,
-      "%d. %s  %u [Turn]",
-      display_index,
-      info->leader_name,
-      (unsigned)info->year
-    );
-  } else {
-    snprintf(
-      out, out_sz, "%d. %s  %u", display_index, info->leader_name, (unsigned)info->year
-    );
+  static const char* k_titles[5] = {
+    "Discoverer", "Explorer", "Conquistador", "Governor", "Viceroy"
+  };
+  const char* diff =
+    k_titles[info->difficulty <= 4 ? info->difficulty : 4];
+  char leader[24];
+  str_copy_trunc(leader, sizeof(leader), info->leader_name);
+  if (font) {
+    size_t n = strlen(leader);
+    while (n > 0 && font_text_width(font, leader) >= 0x65) {
+      leader[--n] = '\0';
+    }
   }
+  snprintf(
+    out,
+    out_sz,
+    "%s %s of the %s, %s %u",
+    diff,
+    leader,
+    reports_nation_adjective_display_name(info->human_nation),
+    info->autumn ? "Autumn" : "Spring",
+    (unsigned)info->year
+  );
 }
 
-bool save_load_open(SaveLoadDialog* dlg, SaveLoadMode mode, const char* save_dir) {
+bool save_load_open(
+  SaveLoadDialog* dlg,
+  SaveLoadMode mode,
+  const char* save_dir,
+  const ColonizeMsgCatalog* messages,
+  const ColonizeFont* font
+) {
   if (!dlg || !save_dir) {
     return false;
   }
   save_load_init(dlg);
   dlg->has_result = false;
   dlg->mode = mode;
-  dlg->width = 200;
 
-  if (mode == SAVE_LOAD_MODE_SAVE) {
-    str_copy_trunc(dlg->prompt, sizeof(dlg->prompt), "Save Game");
-  } else {
-    str_copy_trunc(dlg->prompt, sizeof(dlg->prompt), "Load Game");
+  /* GAME.TXT @SAVEGAME "Select Save Slot" / @LOADGAME "Select Game To Load". */
+  const char* section = (mode == SAVE_LOAD_MODE_SAVE) ? "SAVEGAME" : "LOADGAME";
+  const char* fallback =
+    (mode == SAVE_LOAD_MODE_SAVE) ? "Select Save Slot" : "Select Game To Load";
+  str_copy_trunc(dlg->prompt, sizeof(dlg->prompt), fallback);
+  if (messages) {
+    const ColonizeMsgSection* sec = assets_msg_find(messages, section);
+    if (sec) {
+      char body[64];
+      if (popup_msg_section_body(sec, body, sizeof(body), true) > 0) {
+        str_copy_trunc(dlg->prompt, sizeof(dlg->prompt), body);
+      }
+      const int w = popup_msg_section_width(sec);
+      if (w > 0) {
+        dlg->width = w;
+      }
+    }
   }
 
   const int slot_max = (mode == SAVE_LOAD_MODE_SAVE) ? 7 : 9;
@@ -94,9 +122,7 @@ bool save_load_open(SaveLoadDialog* dlg, SaveLoadMode mode, const char* save_dir
     }
     dlg->slot_ids[idx] = slot;
     dlg->slot_occupied[idx] = info.occupied;
-    save_load_format_label(
-      dlg->options[idx], sizeof(dlg->options[idx]), slot + 1, slot, &info
-    );
+    save_load_format_label(dlg->options[idx], sizeof(dlg->options[idx]), &info, font);
     if (mode == SAVE_LOAD_MODE_LOAD) {
       if (info.occupied && first_usable < 0) {
         first_usable = idx;
@@ -236,24 +262,41 @@ void save_load_render(
     return;
   }
 
-  const int line_h = font ? (font->max_height + 2) : 8;
-  const int pad_x = 6;
-  const int pad_y = 4;
-  const int prompt_h = dlg->prompt[0] ? line_h + 2 : 0;
-  const int options_h = dlg->option_count * line_h;
-  int dialog_h = POPUP_FRAME_INSET * 2 + pad_y + prompt_h + options_h + pad_y;
-  if (dialog_h < 40) {
-    dialog_h = 40;
+  /* DOS 6f74 compositor metrics (same as ai_popup_render): content width =
+   * @width, frame adds 3 px per side, line pitch = glyph height + 1 (6-px
+   * font counts as 5), outer height = text + 12, centred and clamped below
+   * the menu bar. */
+  int glyph_h = font ? font->max_height : 6;
+  if (glyph_h == 6) {
+    glyph_h = 5;
   }
-  if (dialog_h > framebuffer->height - 8) {
-    dialog_h = framebuffer->height - 8;
+  const int line_h = glyph_h + 1;
+  const int pad_x = 2;
+  const int title_gap = dlg->prompt[0] ? 2 : 0;
+
+  int content_w = dlg->width > 0 ? dlg->width : SAVE_LOAD_DEFAULT_WIDTH;
+  /* FUN_6f74_14c6: content width = max(@width, widest emitted row). */
+  if (font) {
+    for (int i = -1; i < dlg->option_count; ++i) {
+      const char* row = (i < 0) ? dlg->prompt : dlg->options[i];
+      const int w = font_text_width(font, row) + 2 * pad_x;
+      if (w > content_w) {
+        content_w = w;
+      }
+    }
+  }
+  if (content_w + 6 > framebuffer->width) {
+    content_w = framebuffer->width - 6;
+  }
+  const int dialog_w = content_w + 6;
+  const int prompt_h = dlg->prompt[0] ? line_h + title_gap : 0;
+  const int options_h = dlg->option_count * line_h;
+  int dialog_h = 12 + prompt_h + options_h;
+  if (dialog_h > framebuffer->height) {
+    dialog_h = framebuffer->height;
   }
 
-  int dialog_w = dlg->width;
-  if (dialog_w > framebuffer->width - 8) {
-    dialog_w = framebuffer->width - 8;
-  }
-  int dialog_x = (framebuffer->width - dialog_w) / 2;
+  const int dialog_x = (framebuffer->width - dialog_w) / 2;
   int dialog_y = (framebuffer->height - dialog_h) / 2;
   if (dialog_y < MAP_MENU_BAR_H + 2) {
     dialog_y = MAP_MENU_BAR_H + 2;
@@ -289,9 +332,12 @@ void save_load_render(
   dlg->dialog_h = dialog_h;
   dlg->line_h = line_h;
 
-  int text_y = inner_y + pad_y;
+  /* FONTINTR unbold + black drop-shadow, like every other wood popup. */
+  int text_y = inner_y + 3;
   if (dlg->prompt[0] && font) {
-    font_draw_text(font, framebuffer, inner_x + pad_x, text_y, dlg->prompt, text_color);
+    popup_draw_text_shadowed(
+      font, framebuffer, inner_x + pad_x, text_y, dlg->prompt, text_color
+    );
     text_y += prompt_h;
   }
   dlg->list_y0 = text_y;
@@ -300,7 +346,7 @@ void save_load_render(
     const int row_y = text_y + i * line_h;
     if (i == dlg->selection) {
       for (int y = row_y - 1; y <= row_y + line_h - 2; ++y) {
-        for (int x = inner_x + 1; x <= inner_x + inner_w - 2; ++x) {
+        for (int x = inner_x + 2; x <= inner_x + inner_w - 3; ++x) {
           if (x >= 0 && y >= 0 && x < framebuffer->width && y < framebuffer->height) {
             framebuffer->pixels[y * framebuffer->width + x] = select_color;
           }
@@ -308,7 +354,7 @@ void save_load_render(
       }
     }
     if (font) {
-      font_draw_text(
+      popup_draw_text_shadowed(
         font, framebuffer, inner_x + pad_x, row_y, dlg->options[i], text_color
       );
     }
