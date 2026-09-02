@@ -22,6 +22,7 @@
 #include "core/combat_strength.h"
 #include "core/debug_atlas.h"
 #include "core/closing.h"
+#include "core/opening.h"
 #include "core/declaration.h"
 #include "core/dos_rng.h"
 #include "core/europe.h"
@@ -170,6 +171,12 @@ struct ColonizeGameState {
   ClosingCinematic closing;
   bool closing_just_opened;
   bool closing_then_score;
+  /*
+   * OPENING.EXE title intro (OPENING.PIK panorama + ship + credits).
+   * Armed once at process start when settings.json skip_intro is false.
+   */
+  OpeningCinematic opening;
+  bool opening_just_opened;
   /*
    * Milestone woodcut screens (FUN_12fd_006c → FUN_6f30_0062). Trigger sites
    * call woodcut_fire(); the queue is drained here once no other modal owns
@@ -649,6 +656,7 @@ static void game_bind_combat_analysis(ColonizeGameState* game) {
   europe_set_bgm_hook(sound_set_bgm);
   woodcut_set_sound_hooks(sound_play, sound_set_bgm);
   closing_set_sound_hooks(sound_play, sound_set_bgm);
+  opening_set_sound_hooks(sound_play, sound_set_bgm);
 }
 
 static void game_refresh_orders_menu(ColonizeGameState* game) {
@@ -2028,6 +2036,9 @@ static bool game_handle_modal_input(ColonizeGameState* game, const ColonizeInput
   }
   if (game->declaration.open) {
     return declaration_handle_input(&game->declaration, input);
+  }
+  if (game->opening.open) {
+    return opening_handle_input(&game->opening, input);
   }
   if (game->closing.open) {
     return closing_handle_input(&game->closing, input);
@@ -5381,7 +5392,8 @@ static void game_water_cycle_tick(ColonizeGameState* game) {
   if (game->water_cycle_count == 0 || !game->map_palette_ok || game->in_menu ||
       game->in_colony || game->in_europe || game->in_pedia || game->in_report ||
       game->in_debug_atlas || game->in_hall_of_fame || game->in_exploits ||
-      game->woodcut.open || game->declaration.open || game->closing.open) {
+      game->woodcut.open || game->declaration.open || game->opening.open ||
+      game->closing.open) {
     return;
   }
   if (game->col1.head.game_options.water_color_cycling != 0) { /* bit set = off */
@@ -5865,6 +5877,7 @@ void game_destroy(ColonizeGameState* game) {
   combat_analysis_set_presenter(NULL, NULL);
   combat_analysis_close(&game->combat_analysis);
   declaration_close(&game->declaration);
+  opening_close(&game->opening);
   closing_close(&game->closing);
   woodcut_close(&game->woodcut);
   woodcut_clear_pending();
@@ -9547,7 +9560,8 @@ static void game_map_click_dispatch(ColonizeGameState* game, int mx, int my) {
  */
 static bool game_service_woodcut(ColonizeGameState* game, const ColonizeInputState* input) {
   bool just_opened = false;
-  if (!game->woodcut.open && !game->declaration.open && !game->closing.open &&
+  if (!game->woodcut.open && !game->declaration.open && !game->opening.open &&
+      !game->closing.open &&
       !game->in_menu &&
       woodcut_has_pending()) {
     const int wid = woodcut_take_pending();
@@ -9594,6 +9608,66 @@ static bool game_service_closing(
   return true;
 }
 
+static void game_finish_intro(ColonizeGameState* game) {
+  if (!game) {
+    return;
+  }
+  opening_close(&game->opening);
+  game->opening_just_opened = false;
+  if (settings_is_loaded()) {
+    ColonizeSettings prefs = *settings_get();
+    if (!prefs.skip_intro) {
+      prefs.skip_intro = true;
+      settings_set(&prefs);
+      char err[256];
+      if (!settings_flush(err, sizeof(err))) {
+        diag_warn("Could not save skip_intro: %s", err);
+      }
+    }
+  }
+  sound_play(SOUND_TITLE_ID);
+}
+
+bool game_try_start_intro(ColonizeGameState* game) {
+  if (!game) {
+    return false;
+  }
+  if (game->opening.open) {
+    return true;
+  }
+  if (!settings_is_loaded() || settings_get()->skip_intro) {
+    return false;
+  }
+  if (!opening_open(&game->opening, game->resolved_data_dir)) {
+    return false;
+  }
+  game->opening_just_opened = true;
+  set_status(game, "Colonization", NULL);
+  return true;
+}
+
+static bool game_service_opening(
+  ColonizeGameState* game,
+  const ColonizeInputState* input,
+  uint32_t dt_ms
+) {
+  if (!game || !game->opening.open) {
+    return false;
+  }
+  if (!game->opening_just_opened) {
+    (void)opening_handle_input(&game->opening, input);
+  }
+  game->opening_just_opened = false;
+  if (game->opening.open) {
+    if (game->opening.finished) {
+      game_finish_intro(game);
+    } else {
+      opening_update(&game->opening, dt_ms);
+    }
+  }
+  return true;
+}
+
 bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint32_t dt_ms) {
   if (!game || !input) {
     return false;
@@ -9606,6 +9680,9 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
   game->elapsed_ms += dt_ms;
   (void)dos_compat_tick_count();
   sound_service();
+  if (game_service_opening(game, input, dt_ms)) {
+    return true;
+  }
   game_water_cycle_tick(game);
   ai_popup_set_now_ms(game->elapsed_ms); /* King flair animation clock */
   /* bugs.md: while independence is declared, the Crown's borrowed nation
@@ -12507,6 +12584,12 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
     return;
   }
 
+  /* OPENING.EXE owns the whole screen (OPENING.PIK palette). */
+  if (game->opening.open) {
+    opening_render(&game->opening, framebuffer, palette);
+    return;
+  }
+
   /* A woodcut owns the whole screen (and its own WDCUTnn palette). */
   if (game->woodcut.open) {
     woodcut_render(&game->woodcut, framebuffer, palette);
@@ -13698,7 +13781,8 @@ bool game_modal_open(const ColonizeGameState* game) {
   return game->ai_popups.open || game->name_entry.open || game->howmuch.open ||
          game->save_load.open || game->cheat_list.open || game->unit_stack.open ||
          game->options_dlg.open || game->pick_music.open || game->combat_analysis.open ||
-         game->declaration.open || game->woodcut.open || game->closing.open;
+         game->declaration.open || game->woodcut.open || game->opening.open ||
+         game->closing.open;
 }
 
 bool game_ai_popup_pending(const ColonizeGameState* game) {

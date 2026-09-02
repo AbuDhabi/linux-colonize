@@ -78,6 +78,7 @@ void settings_defaults(ColonizeSettings* out) {
   out->debug_menu = true;
   out->show_mouse_coords = true;
   out->show_building_rects = false;
+  out->skip_intro = false;
 }
 
 /* ---------------------------------------------------------------- writing */
@@ -149,6 +150,7 @@ bool settings_save_file(const char* path, const ColonizeSettings* in, char* err,
   json_write_escaped_string(f, in->save_dir, sizeof(in->save_dir) - 1);
   fprintf(f, ",\n");
   fprintf(f, "  \"no_sound\": %s,\n", in->no_sound ? "true" : "false");
+  fprintf(f, "  \"skip_intro\": %s,\n", in->skip_intro ? "true" : "false");
   if (in->seed_present) {
     fprintf(f, "  \"seed\": %u\n", in->seed);
   } else {
@@ -275,6 +277,7 @@ bool settings_load_file(const char* path, ColonizeSettings* out, char* err, size
     snprintf(out->save_dir, sizeof(out->save_dir), "%s", save_dir);
   }
   rb(root, "no_sound", &out->no_sound);
+  rb(root, "skip_intro", &out->skip_intro);
   int64_t seed = 0;
   if (json_get_i64(root, "seed", &seed) && seed >= 0 && seed <= (int64_t)UINT32_MAX) {
     out->seed = (uint32_t)seed;

@@ -78,6 +78,7 @@ typedef struct ColonizeSettings {
   bool debug_menu;         /* show DEBUG pulldown on the map navbar */
   bool show_mouse_coords;  /* pixel HUD follows the pointer */
   bool show_building_rects; /* colony-screen building sprite outlines */
+  bool skip_intro;          /* true = skip OPENING.EXE cinematic at launch */
 } ColonizeSettings;
 
 /* DOS new-game state (0x5382=0xc600, 0x5384=0, 0x5386=0x0e) plus port

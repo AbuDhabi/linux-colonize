@@ -193,7 +193,9 @@ int main(int argc, char** argv) {
   if (platform_audio_enabled(platform)) {
     platform_audio_resume(platform);
   }
-  if (sound_playback_enabled()) {
+  if (game_try_start_intro(game)) {
+    /* Intro plays 0x33 itself; title music starts when it finishes. */
+  } else if (sound_playback_enabled()) {
     sound_play(SOUND_TITLE_ID);
   } else {
     diag_info(
