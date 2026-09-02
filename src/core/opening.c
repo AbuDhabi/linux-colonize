@@ -198,15 +198,49 @@ static void opening_blit_anchored(
   const ColonizeSpriteSheet* sheet,
   int sprite_index,
   ColonizeFramebuffer8* fb,
-  int add_x
+  int add_x,
+  int add_y
 ) {
   if (!sheet || sprite_index < 0 || sprite_index >= sheet->sprite_count) {
     return;
   }
   const ColonizeSprite* s = &sheet->sprites[sprite_index];
   ss_blit_sprite(
-    sheet, sprite_index, fb, s->anchor_x - (s->width >> 1) + add_x, s->anchor_y - s->height + 1
+    sheet,
+    sprite_index,
+    fb,
+    s->anchor_x - (s->width >> 1) + add_x,
+    s->anchor_y - s->height + 1 + add_y
   );
+}
+
+/* MPSLOGO.SS is 155×119 with FUN_6f30 dest y = 0. Shift so the spin sits on
+ * the 200-tall screen; MPSNAME keeps the same offset so the unroll stays
+ * attached to the badge. */
+static int opening_logo_y_shift(const OpeningCinematic* o) {
+  if (!o || !o->mps_logo_ok || o->mps_logo.sprite_count <= 0) {
+    return 0;
+  }
+  const ColonizeSprite* s = &o->mps_logo.sprites[0];
+  const int dest_y = s->anchor_y - s->height + 1;
+  return (200 - s->height) / 2 - dest_y;
+}
+
+/* OPENCRD*.SS packed the banners as a vertical contact sheet; the stored
+ * anchor_y is the row in that sheet, not the playback slot. Every plate
+ * goes in the OPENBORD bottom strip, centred in the 44 px below the map. */
+static void opening_blit_credit(
+  const ColonizeSpriteSheet* sheet,
+  int sprite_index,
+  ColonizeFramebuffer8* fb
+) {
+  if (!sheet || sprite_index < 0 || sprite_index >= sheet->sprite_count || !fb) {
+    return;
+  }
+  const ColonizeSprite* s = &sheet->sprites[sprite_index];
+  const int strip = 200 - OPENING_CREDIT_TOP;
+  const int dest_y = OPENING_CREDIT_TOP + (strip - s->height) / 2;
+  ss_blit_sprite(sheet, sprite_index, fb, s->anchor_x - (s->width >> 1), dest_y);
 }
 
 static void opening_ship_at(const OpeningCinematic* o, int* x, int* y) {
@@ -344,6 +378,7 @@ static void opening_compose_logo(OpeningCinematic* o) {
   }
   memset(o->canvas, 0, sizeof(o->canvas));
   ColonizeFramebuffer8 fb = {.width = 320, .height = 200, .pixels = o->canvas};
+  const int logo_dy = opening_logo_y_shift(o);
   if (o->mps_logo_ok && o->mps_logo.sprite_count > 0) {
     int idx = o->logo_frame;
     if (idx < 0) {
@@ -352,7 +387,7 @@ static void opening_compose_logo(OpeningCinematic* o) {
     if (idx >= o->mps_logo.sprite_count) {
       idx = o->mps_logo.sprite_count - 1;
     }
-    opening_blit_anchored(&o->mps_logo, idx, &fb, 0);
+    opening_blit_anchored(&o->mps_logo, idx, &fb, 0, logo_dy);
   }
   if (o->logo_clock >= OPENING_LOGO_NAME_FRAME && o->mps_name_ok &&
       o->mps_name.sprite_count > 0) {
@@ -363,7 +398,7 @@ static void opening_compose_logo(OpeningCinematic* o) {
     if (idx >= o->mps_name.sprite_count) {
       idx = o->mps_name.sprite_count - 1;
     }
-    opening_blit_anchored(&o->mps_name, idx, &fb, 0);
+    opening_blit_anchored(&o->mps_name, idx, &fb, 0, logo_dy);
   }
 }
 
@@ -409,7 +444,7 @@ static void opening_compose(OpeningCinematic* o) {
     if (idx < 0) {
       continue;
     }
-    opening_blit_anchored(sheet, idx, &fb, s->base_x - camera);
+    opening_blit_anchored(sheet, idx, &fb, s->base_x - camera, 0);
   }
 
   if (o->ship_ok && o->ship.sprite_count > 0 && o->clock < opening_ship_end_clock(o)) {
@@ -436,6 +471,8 @@ static void opening_compose(OpeningCinematic* o) {
     );
   }
 
+  opening_blit_border(o, &fb);
+
   for (int i = 0; i < o->credit_count; ++i) {
     const OpeningCredit* c = &o->credit_rows[i];
     if (o->clock < c->start_frame || o->clock > c->end_frame) {
@@ -444,10 +481,8 @@ static void opening_compose(OpeningCinematic* o) {
     if (c->series < 0 || c->series >= OPENING_CREDIT_SHEETS || !o->credit_ok[c->series]) {
       continue;
     }
-    opening_blit_anchored(&o->credits[c->series], c->sprite, &fb, 0);
+    opening_blit_credit(&o->credits[c->series], c->sprite, &fb);
   }
-
-  opening_blit_border(o, &fb);
 }
 
 static bool opening_step(OpeningCinematic* o) {
