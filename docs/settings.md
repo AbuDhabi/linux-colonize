@@ -52,7 +52,7 @@ defaults no matter what file is sitting in the build directory.
     "sound_effects": true
   },
   "display": { "windowed": true, "window_scale": 2 },
-  "debug": { "menu": true, "mouse_coords": true, "building_rects": false },
+  "debug": { "menu": false, "mouse_coords": false, "building_rects": false },
   "data_dir": "./COLONIZE",
   "save_dir": "",
   "no_sound": false,

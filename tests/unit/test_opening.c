@@ -60,6 +60,17 @@ static void test_open_skip_and_motion(void) {
   check(o.scene_ok && o.border_ok, "panorama + border");
   check(o.ship_ok, "ship sheet");
   check(o.path_count == 701, "path loaded");
+  {
+    const ColonizeSprite* ship = &o.ship.sprites[0];
+    const ColonizeSpriteSheet* bonk = &o.sheets[OPENING_SHEET_BONK];
+    check(bonk && o.sheet_ok[OPENING_SHEET_BONK] && bonk->sprite_count > 0, "bonk sheet");
+    if (ship && bonk && bonk->sprite_count > 0) {
+      const ColonizeSprite* still = &bonk->sprites[bonk->sprite_count - 1];
+      const int ship_y = o.path_y[o.path_count - 1] - (ship->height >> 1);
+      const int still_y = still->anchor_y - still->height + 1;
+      check(ship_y == still_y, "landed ship lines up with bonk still");
+    }
+  }
   check(o.end_frame == 891, "end_frame from TXT");
   check(o.clock == 0, "clock starts at 0");
   check(!o.finished, "starts unfinished");
