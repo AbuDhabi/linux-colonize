@@ -295,8 +295,84 @@ static int opening_sprite_index(const OpeningSeries* s, int elapsed, int n) {
   return elapsed < n ? elapsed : n - 1;
 }
 
+static void opening_compose(OpeningCinematic* o);
+
+static void opening_begin_sailing(OpeningCinematic* o) {
+  if (!o) {
+    return;
+  }
+  o->logo_phase = false;
+  o->clock = 0;
+  o->accum_ms = 0;
+  o->skip_presses = 0;
+  opening_compose(o);
+}
+
+static void opening_advance_logo_frames(OpeningCinematic* o) {
+  if (!o) {
+    return;
+  }
+  o->logo_frame++;
+  if (o->mps_logo_ok && o->logo_frame >= o->mps_logo.sprite_count) {
+    o->logo_frame = o->mps_logo.sprite_count > 1 ? 1 : 0;
+  }
+  if (o->logo_clock >= OPENING_LOGO_NAME_FRAME && o->mps_name_ok) {
+    o->logo_name_frame++;
+    if (o->logo_name_frame >= o->mps_name.sprite_count) {
+      o->logo_name_frame = o->mps_name.sprite_count - 1;
+    }
+  }
+}
+
+static void opening_compose_logo(OpeningCinematic* o) {
+  if (!o) {
+    return;
+  }
+  memset(o->canvas, 0, sizeof(o->canvas));
+  ColonizeFramebuffer8 fb = {.width = 320, .height = 200, .pixels = o->canvas};
+  if (o->mps_logo_ok && o->mps_logo.sprite_count > 0) {
+    int idx = o->logo_frame;
+    if (idx < 0) {
+      idx = 0;
+    }
+    if (idx >= o->mps_logo.sprite_count) {
+      idx = o->mps_logo.sprite_count - 1;
+    }
+    opening_blit_anchored(&o->mps_logo, idx, &fb, 0);
+  }
+  if (o->logo_clock >= OPENING_LOGO_NAME_FRAME && o->mps_name_ok &&
+      o->mps_name.sprite_count > 0) {
+    int idx = o->logo_name_frame;
+    if (idx < 0) {
+      idx = 0;
+    }
+    if (idx >= o->mps_name.sprite_count) {
+      idx = o->mps_name.sprite_count - 1;
+    }
+    opening_blit_anchored(&o->mps_name, idx, &fb, 0);
+  }
+}
+
+static bool opening_logo_step(OpeningCinematic* o) {
+  if (!o || !o->logo_phase) {
+    return false;
+  }
+  o->logo_clock++;
+  if (o->logo_clock > OPENING_LOGO_END_FRAME) {
+    opening_begin_sailing(o);
+    return false;
+  }
+  opening_compose_logo(o);
+  opening_advance_logo_frames(o);
+  return true;
+}
+
 static void opening_compose(OpeningCinematic* o) {
   if (!o) {
+    return;
+  }
+  if (o->logo_phase) {
+    opening_compose_logo(o);
     return;
   }
   memset(o->canvas, 0, sizeof(o->canvas));
@@ -443,6 +519,14 @@ bool opening_open(OpeningCinematic* o, const char* data_dir) {
     o->ship_ok = true;
     loaded++;
   }
+  if (dos_compat_normalize_asset_path(data_dir, "MPSLOGO.SS", path, sizeof(path)) &&
+      ss_load(path, &o->mps_logo, err, sizeof(err))) {
+    o->mps_logo_ok = true;
+  }
+  if (dos_compat_normalize_asset_path(data_dir, "MPSNAME.SS", path, sizeof(path)) &&
+      ss_load(path, &o->mps_name, err, sizeof(err))) {
+    o->mps_name_ok = true;
+  }
   for (int i = 0; i < OPENING_CREDIT_SHEETS; ++i) {
     if (!dos_compat_normalize_asset_path(data_dir, kCreditSheets[i], path, sizeof(path))) {
       continue;
@@ -481,12 +565,13 @@ bool opening_open(OpeningCinematic* o, const char* data_dir) {
   o->credit_count = opening_parse_credits(data_dir, o->credit_rows, OPENING_CREDIT_MAX);
   o->path_count = opening_parse_path(data_dir, o->path_x, o->path_y, OPENING_PATH_MAX);
 
-  opening_compose(o);
   o->clock = 0;
   o->accum_ms = 0;
   o->skip_presses = 0;
   o->open = true;
   o->finished = false;
+  o->logo_phase = o->mps_logo_ok;
+  opening_compose(o);
   if (g_opening_play) {
     g_opening_play(OPENING_BGM_ID);
   }
@@ -505,6 +590,12 @@ void opening_close(OpeningCinematic* o) {
   if (o->ship_ok) {
     ss_free(&o->ship);
   }
+  if (o->mps_logo_ok) {
+    ss_free(&o->mps_logo);
+  }
+  if (o->mps_name_ok) {
+    ss_free(&o->mps_name);
+  }
   for (int i = 0; i < OPENING_CREDIT_SHEETS; ++i) {
     if (o->credit_ok[i]) {
       ss_free(&o->credits[i]);
@@ -517,14 +608,26 @@ void opening_update(OpeningCinematic* o, uint32_t dt_ms) {
   if (!o || !o->open || o->finished) {
     return;
   }
-  if (o->end_frame > 0 && o->clock >= o->end_frame) {
+  if (o->logo_phase) {
+    o->accum_ms += dt_ms;
+    while (o->accum_ms >= OPENING_FRAME_MS) {
+      o->accum_ms -= OPENING_FRAME_MS;
+      if (!opening_logo_step(o)) {
+        break;
+      }
+    }
+    if (o->logo_phase) {
+      return;
+    }
+  } else if (o->end_frame > 0 && o->clock >= o->end_frame) {
     o->hold_ms += dt_ms;
     if (o->hold_ms >= OPENING_HOLD_MS) {
       o->finished = true;
     }
     return;
+  } else {
+    o->accum_ms += dt_ms;
   }
-  o->accum_ms += dt_ms;
   while (o->accum_ms >= OPENING_FRAME_MS) {
     o->accum_ms -= OPENING_FRAME_MS;
     if (!opening_step(o)) {
@@ -545,6 +648,10 @@ bool opening_handle_input(OpeningCinematic* o, const ColonizeInputState* input) 
     input->last_key != COLONIZE_KEY_NONE || input->mouse_left_clicked ||
     input->mouse_right_clicked;
   if (pressed) {
+    if (o->logo_phase) {
+      opening_begin_sailing(o);
+      return true;
+    }
     if (o->end_frame > 0 && o->clock >= o->end_frame) {
       return true;
     }
@@ -576,7 +683,11 @@ void opening_render(
       (size_t)w
     );
   }
-  if (palette && o->palette_ok) {
-    *palette = o->palette;
+  if (palette) {
+    if (o->logo_phase && o->mps_logo_ok && o->mps_logo.has_palette) {
+      *palette = o->mps_logo.palette;
+    } else if (o->palette_ok) {
+      *palette = o->palette;
+    }
   }
 }

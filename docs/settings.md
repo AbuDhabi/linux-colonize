@@ -56,7 +56,7 @@ defaults no matter what file is sitting in the build directory.
   "data_dir": "./COLONIZE",
   "save_dir": "",
   "no_sound": false,
-  "skip_intro": false,
+  "skip_intro": true,
   "seed": null
 }
 ```
@@ -114,12 +114,12 @@ of the file.
 
 ## Intro cinematic (`skip_intro`)
 
-First run writes `"skip_intro": false` and plays `OPENING.EXE` (sailing
-panorama, ship, credits — `src/core/opening.c`). After the cinematic
-finishes or the player skips it (two keys or clicks), the port sets
-`skip_intro` true and flushes, so the next launch goes straight to the title
-menu. Set it back to `false` in the file to watch again. Tests never call
-`settings_init`, so harnesses never play it.
+`skip_intro` is a "not the first launch" marker, not a one-shot latch.
+
+A missing `settings.json` is first launch: `OPENING.EXE` plays, and the
+created file writes `"skip_intro": true` so the next start goes to the title
+menu. After that the key is left alone — set it to `false` to watch the intro
+every time. Tests never call `settings_init`, so harnesses never play it.
 
 ## What is *not* in the file
 

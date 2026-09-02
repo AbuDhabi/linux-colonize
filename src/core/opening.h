@@ -11,6 +11,8 @@
  * Title intro cinematic — DOS OPENING.EXE, not VICEROY.
  *
  * COLONIZE.BAT is `opening -g`, which plays this then execs `viceroy`.
+ * OPENING.EXE starts with the spinning MPS Labs logo (MPSLOGO.SS +
+ * MPSNAME.SS, 228 ticks) before the sailing cinematic.
  * Art: OPENING.PIK (960×132 panorama) + OPENBORD.PIK (320×200 frame with a
  * colour-0 window at y=24..155), OPENSHIP.SS + PATH.DAT (701 world x,y
  * points), CLOS-style series sheets from OPENING.TXT @OPENING, and credit
@@ -23,11 +25,12 @@
  *   Repeats 0 = play once and hold the last sprite; >0 = that many cycles
  *   series -1, Frame N = stop when the clock reaches N (shipped: 891)
  *
- * Camera follows the ship, clamped to [0, 640]. Any key/click twice jumps
- * to the last frame (two edges so a single accidental tap does not skip).
- * After the last frame — natural end or skip — the still holds for
- * OPENING_HOLD_MS, then the owner goes to the title menu. Same BIOS-tick
- * pacing as CLOSING.EXE (~55 ms).
+ * Camera follows the ship, clamped to [0, 640]. One key/click skips the
+ * MPS logo into the sailing scene. Two edges during sailing jump to the
+ * last frame (so a single accidental tap does not skip). After the last
+ * frame — natural end or skip — the still holds for OPENING_HOLD_MS, then
+ * the owner goes to the title menu. Same BIOS-tick pacing as CLOSING.EXE
+ * (~55 ms).
  */
 
 #define OPENING_SHEET_COUNT 10
@@ -55,6 +58,9 @@
 
 #define OPENING_FRAME_MS 55
 #define OPENING_HOLD_MS 1000
+/* MPS logo clock (OPENING.EXE [0xd2]): name from 0x5c, end when past 0xe4. */
+#define OPENING_LOGO_NAME_FRAME 0x5c
+#define OPENING_LOGO_END_FRAME 0xe4
 
 /*
  * OPENSHIP.SS is 47 px wide with 14 px of transparent padding on the right,
@@ -89,6 +95,14 @@ typedef struct OpeningCinematic {
   bool sheet_ok[OPENING_SHEET_COUNT];
   ColonizeSpriteSheet ship;
   bool ship_ok;
+  ColonizeSpriteSheet mps_logo;
+  bool mps_logo_ok;
+  ColonizeSpriteSheet mps_name;
+  bool mps_name_ok;
+  bool logo_phase;
+  int logo_clock;
+  int logo_frame;
+  int logo_name_frame;
   ColonizeSpriteSheet credits[OPENING_CREDIT_SHEETS];
   bool credit_ok[OPENING_CREDIT_SHEETS];
   OpeningSeries series[OPENING_SERIES_MAX];
@@ -119,7 +133,8 @@ void opening_close(OpeningCinematic* o);
 
 void opening_update(OpeningCinematic* o, uint32_t dt_ms);
 
-/* True while still open. Two key/click edges jump to the last frame. */
+/* True while still open. One key/click skips the MPS logo into the sailing
+ * scene. Two edges during sailing jump to the last frame. */
 bool opening_handle_input(OpeningCinematic* o, const ColonizeInputState* input);
 
 void opening_render(

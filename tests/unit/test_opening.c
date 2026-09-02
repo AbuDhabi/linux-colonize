@@ -88,18 +88,33 @@ static void test_open_skip_and_motion(void) {
   check(o.clock == 0, "clock starts at 0");
   check(!o.finished, "starts unfinished");
   check(o.skip_presses == 0, "no skip yet");
+  check(o.mps_logo_ok && o.mps_logo.sprite_count == 16, "MPSLOGO.SS");
+  check(o.mps_name_ok && o.mps_name.sprite_count == 29, "MPSNAME.SS");
+  check(o.logo_phase, "starts on the MPS logo");
 
-  uint8_t first[320 * 200];
-  memcpy(first, o.canvas, sizeof(first));
+  uint8_t logo0[320 * 200];
+  memcpy(logo0, o.canvas, sizeof(logo0));
 
   opening_update(&o, OPENING_FRAME_MS * 2);
-  check(o.clock == 2, "two ticks");
-  check(memcmp(o.canvas, first, sizeof(first)) != 0, "ship moved a pixel by tick 2");
+  check(o.logo_phase && o.logo_clock == 2, "logo ticks");
+  check(memcmp(o.canvas, logo0, sizeof(logo0)) != 0, "logo spun");
 
   ColonizeInputState in;
   memset(&in, 0, sizeof(in));
   in.last_key = COLONIZE_KEY_ESCAPE;
   check(opening_handle_input(&o, &in), "consumes input");
+  check(o.open && !o.finished && !o.logo_phase, "one key skips logo into sailing");
+  check(o.clock == 0 && o.skip_presses == 0, "sailing skip not armed");
+
+  uint8_t first[320 * 200];
+  memcpy(first, o.canvas, sizeof(first));
+
+  opening_update(&o, OPENING_FRAME_MS * 2);
+  check(o.clock == 2, "two sailing ticks");
+  check(memcmp(o.canvas, first, sizeof(first)) != 0, "ship moved a pixel by tick 2");
+
+  in.last_key = COLONIZE_KEY_ESCAPE;
+  check(opening_handle_input(&o, &in), "first sailing key");
   check(o.open && !o.finished, "first key does not skip");
   check(o.skip_presses == 1, "one press armed");
 
@@ -126,6 +141,9 @@ static void test_timed_run_reaches_end(void) {
     failures++;
     return;
   }
+  opening_update(&o, OPENING_FRAME_MS * (OPENING_LOGO_END_FRAME + 2));
+  check(!o.logo_phase, "logo ends on its own");
+  check(o.clock == 0, "sailing clock starts after logo");
   opening_update(&o, OPENING_FRAME_MS * 900);
   check(!o.finished, "end frame holds before the menu");
   check(o.clock == o.end_frame, "lands on end marker");

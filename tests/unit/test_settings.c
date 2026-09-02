@@ -29,7 +29,7 @@ static void test_missing_file_defaults(void) {
   check(s.background_music && s.event_music && s.sound_effects, "default sound on");
   check(s.window_scale == 2 && s.windowed, "default display");
   check(!s.no_sound && s.seed == 0 && !s.seed_present, "default launch flags off");
-  check(!s.skip_intro, "default skip_intro false (play intro first run)");
+  check(s.skip_intro, "default skip_intro true (new file skips later launches)");
   check(strcmp(s.data_dir, "./COLONIZE") == 0, "default data_dir");
   check(s.save_dir[0] == '\0', "default save_dir empty (platform default)");
   check(!s.debug_menu && !s.show_mouse_coords && !s.show_building_rects, "default debug overlay off");
@@ -52,7 +52,7 @@ static void test_roundtrip(void) {
   out.debug_menu = false;
   out.show_mouse_coords = false;
   out.show_building_rects = true;
-  out.skip_intro = true;
+  out.skip_intro = false;
   snprintf(out.data_dir, sizeof(out.data_dir), "/tmp/col-data");
   snprintf(out.save_dir, sizeof(out.save_dir), "/tmp/col-saves");
 
@@ -235,6 +235,8 @@ static void test_init_creates_file(void) {
     fclose(f);
   }
   check(strstr(created, "\"seed\": null") != NULL, "first-run file has seed null");
+  check(strstr(created, "\"skip_intro\": true") != NULL, "first-run file skips later intros");
+  check(settings_first_run(), "missing file is first run");
 
   ColonizeSettings written;
   ColonizeSettings expected;
@@ -256,6 +258,7 @@ static void test_init_keeps_corrupt_file(void) {
 
   char err[256] = {0};
   check(!settings_init(k_path, err, sizeof(err)), "init reports the parse error");
+  check(!settings_first_run(), "existing corrupt file is not first run");
   check(settings_get()->autosave, "init falls back to defaults");
 
   char kept[64] = {0};

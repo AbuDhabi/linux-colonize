@@ -78,7 +78,7 @@ typedef struct ColonizeSettings {
   bool debug_menu;         /* show DEBUG pulldown on the map navbar */
   bool show_mouse_coords;  /* pixel HUD follows the pointer */
   bool show_building_rects; /* colony-screen building sprite outlines */
-  bool skip_intro;          /* true = skip OPENING.EXE cinematic at launch */
+  bool skip_intro;          /* true = skip OPENING.EXE at launch (default for a new file) */
 } ColonizeSettings;
 
 /* DOS new-game state (0x5382=0xc600, 0x5384=0, 0x5386=0x0e) plus port
@@ -99,6 +99,8 @@ void settings_defaults(ColonizeSettings* out);
  */
 bool settings_init(const char* path, char* err, size_t err_size);
 bool settings_is_loaded(void);
+/* True when settings_init created settings.json because it was missing. */
+bool settings_first_run(void);
 const ColonizeSettings* settings_get(void);
 const char* settings_path(void);
 
