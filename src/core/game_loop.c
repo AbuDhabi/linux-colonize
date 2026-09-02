@@ -1117,6 +1117,12 @@ static bool game_do_found_colony_at_unit(ColonizeGameState* game, int uid, bool 
   if (gold) {
     game->europe.gold = (int)*gold;
   }
+  /* bugs.md 274: DOS tracks names-consumed per nation in the SAVE (the AI
+   * paths already bump player.founded_colonies); the human path didn't, so
+   * a reload re-derived nothing and the session counter drifted. */
+  if (game->col1_ok && hn >= 0 && hn < 4) {
+    game->col1.player[hn].founded_colonies++;
+  }
   colonies_reveal_founded(
     &game->world_map, &game->colonies, game->col1_ok ? &game->col1 : NULL, cid); /* FUN_364b_1dd6 Coronado */
   const ColonizeColony* col = colonies_get(&game->colonies, cid);

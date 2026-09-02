@@ -753,7 +753,14 @@ static void turn_produce_one_colony(
     const int was_starving =
       (colony->colony_flags & COLONIZE_COLONY_FLAG_STARVATION) != 0;
     int starved_this_tick = 0;
-    if (colony->stock[COLONIZE_CARGO_FOOD] < need) {
+    /*
+     * bugs.md (port_orange_starves.SAV): DOS's starve trigger is DS:0x8e5a =
+     * max(0, consumption − stock-at-start − production) — the colony must
+     * actually have gone NEGATIVE this turn. The old `stock_after < need`
+     * latch killed a colony producing exactly what it eats at 0 stores
+     * (commons 2 food vs pop 1 eating 2 — net zero, DOS-fine forever).
+     */
+    if (need - food_at_start - field_food > 0) {
       colony->colony_flags |= COLONIZE_COLONY_FLAG_STARVATION;
     } else {
       colony->colony_flags =
