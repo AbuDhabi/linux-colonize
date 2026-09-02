@@ -116,6 +116,30 @@ int main(void) {
     return 1;
   }
 
+  /* Idle pump must stay silent until sound_play / sound_set_bgm. Launch used
+   * to start a random pool tune, then fade to intro 0x34 a second later. */
+  {
+    int16_t idle[512];
+    memset(idle, 0, sizeof(idle));
+    sound_render_s16(idle, 512, 1, 44100);
+    sound_service();
+    if (sound_active_song_id() != -1) {
+      fprintf(stderr, "idle pump started song 0x%02x with no pool armed\n",
+              sound_active_song_id());
+      sound_shutdown();
+      return 1;
+    }
+    sound_play(0x34);
+    sound_service();
+    if (sound_active_song_id() != 0x34) {
+      fprintf(stderr, "queued intro 0x34, pump has 0x%02x\n", sound_active_song_id());
+      sound_shutdown();
+      return 1;
+    }
+    sound_play(0);
+    sound_service();
+  }
+
   /* Title intro must decode to a substantial event list. */
   int title_events = 0;
   uint32_t title_dur = 0;

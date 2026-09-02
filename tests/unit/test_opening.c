@@ -70,6 +70,16 @@ static void test_open_skip_and_motion(void) {
   check(o.ship_ok, "ship sheet");
   check(o.path_count == 701, "path loaded");
   {
+    int bonk_at = -1;
+    for (int i = 0; i < o.series_count; ++i) {
+      if (o.series[i].series == OPENING_SHEET_BONK) {
+        bonk_at = o.series[i].frame;
+        break;
+      }
+    }
+    check(bonk_at == o.path_count, "OPENSHIP path ends where OPENBONK starts");
+  }
+  {
     const ColonizeSprite* ship = &o.ship.sprites[0];
     const ColonizeSpriteSheet* bonk = &o.sheets[OPENING_SHEET_BONK];
     check(bonk && o.sheet_ok[OPENING_SHEET_BONK] && bonk->sprite_count > 0, "bonk sheet");

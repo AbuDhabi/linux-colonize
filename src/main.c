@@ -190,9 +190,6 @@ int main(int argc, char** argv) {
 
   sound_init(cli.data_dir, platform_audio_enabled(platform));
   sound_set_options(settings_sound_options(settings_get()));
-  if (platform_audio_enabled(platform)) {
-    platform_audio_resume(platform);
-  }
   if (game_try_start_intro(game)) {
     /* Intro plays OPENING_BGM_ID (0x34); title music starts when it finishes. */
   } else if (sound_playback_enabled()) {
@@ -202,6 +199,11 @@ int main(int argc, char** argv) {
       "Music autoplay disabled; use GAME → Pick Music to preview songs%s.",
       platform_audio_enabled(platform) ? "" : " (audio device off)"
     );
+  }
+  /* Resume after the launch cue is queued so the first audible song is 0x34
+   * (or title 0x33), not a random pool pick from the idle pump. */
+  if (platform_audio_enabled(platform)) {
+    platform_audio_resume(platform);
   }
 
   diag_info("Diagnostics log path (for bug reports): %s", diag_log_path());

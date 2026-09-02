@@ -231,6 +231,20 @@ static void opening_ship_at(const OpeningCinematic* o, int* x, int* y) {
   }
 }
 
+static int opening_ship_end_clock(const OpeningCinematic* o) {
+  int end = o && o->path_count > 0 ? o->path_count : 0;
+  if (!o) {
+    return end;
+  }
+  for (int i = 0; i < o->series_count; ++i) {
+    if (o->series[i].series == OPENING_SHEET_BONK && o->series[i].frame > 0 &&
+        (end <= 0 || o->series[i].frame < end)) {
+      end = o->series[i].frame;
+    }
+  }
+  return end;
+}
+
 static int opening_camera_x(const OpeningCinematic* o) {
   int ship_x = 0;
   opening_ship_at(o, &ship_x, NULL);
@@ -398,12 +412,12 @@ static void opening_compose(OpeningCinematic* o) {
     opening_blit_anchored(sheet, idx, &fb, s->base_x - camera);
   }
 
-  if (o->ship_ok && o->ship.sprite_count > 0) {
+  if (o->ship_ok && o->ship.sprite_count > 0 && o->clock < opening_ship_end_clock(o)) {
     int sx = 0;
     int sy = 0;
     opening_ship_at(o, &sx, &sy);
     int spr = 0;
-    if (o->clock > 0 && o->clock <= o->path_count) {
+    if (o->clock > 0) {
       spr = (o->clock - 1) % o->ship.sprite_count;
     }
     const ColonizeSprite* sh = &o->ship.sprites[spr];
@@ -411,7 +425,8 @@ static void opening_compose(OpeningCinematic* o) {
      * baseline. Using height-1 as a bottom anchor parked the hull ~12 px
      * above OPENBONK's still (anchor 123 / dest y 102 vs path y 114).
      * OPENING_SHIP_X_ALIGN parks the padded 47-wide sheet on the 33-wide
-     * still (dest x 141 vs path x 161). */
+     * still (dest x 141 vs path x 161). OPENSHIP stops when OPENBONK
+     * starts (frame 701); drawing both left two hulls for the landfall. */
     ss_blit_sprite(
       &o->ship,
       spr,
