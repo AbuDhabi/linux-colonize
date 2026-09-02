@@ -402,7 +402,7 @@ static void turn_emit_inefficient_gov_chrome(
   tok.number0 = thresh;
   tok.has_number0 = true;
   popup_msg_fill(messages, section, &tok, status_buf, body, sizeof(body));
-  ai_popup_enqueue_ok(ai_popups, AI_POPUP_TAG_INFO, NULL, body);
+  ai_popup_enqueue_colony_event(ai_popups, colony->id, body);
 }
 
 /*
@@ -510,7 +510,7 @@ static void turn_emit_sol_phase_d_chrome(
   tok.number0 = sol_after;
   tok.has_number0 = true;
   popup_msg_fill(messages, section, &tok, fallback, body, sizeof(body));
-  ai_popup_enqueue_ok(ai_popups, AI_POPUP_TAG_INFO, NULL, body);
+  ai_popup_enqueue_colony_event(ai_popups, colony->id, body);
 }
 
 static void turn_produce_one_colony(
@@ -813,7 +813,7 @@ static void turn_produce_one_colony(
           popup_msg_fill(
             messages, "NEWCOLONIST", &tok, europe->status, body, sizeof(body)
           );
-          ai_popup_enqueue_ok(ai_popups, AI_POPUP_TAG_INFO, NULL, body);
+          ai_popup_enqueue_colony_event(ai_popups, colony->id, body);
         }
       }
     }
@@ -898,7 +898,7 @@ static void turn_produce_one_colony(
           memset(&tok, 0, sizeof(tok));
           tok.string0 = colony->name[0] ? colony->name : "colony";
           popup_msg_fill(messages, sec, &tok, europe->status, body, sizeof(body));
-          ai_popup_enqueue_ok(ai_popups, AI_POPUP_TAG_INFO, NULL, body);
+          ai_popup_enqueue_colony_event(ai_popups, colony->id, body);
         }
       }
     }
@@ -937,7 +937,7 @@ static void turn_produce_one_colony(
           memset(&tok, 0, sizeof(tok));
           tok.string0 = colony->name[0] ? colony->name : "colony";
           popup_msg_fill(messages, sec, &tok, europe->status, body, sizeof(body));
-          ai_popup_enqueue_ok(ai_popups, AI_POPUP_TAG_INFO, NULL, body);
+          ai_popup_enqueue_colony_event(ai_popups, colony->id, body);
         }
       } else if (
         stock >= need && food_shortfall > 0 && stock < food_shortfall * 4
@@ -955,7 +955,7 @@ static void turn_produce_one_colony(
           tok.number0 = stock;
           tok.has_number0 = true;
           popup_msg_fill(messages, "FOODLOW", &tok, europe->status, body, sizeof(body));
-          ai_popup_enqueue_ok(ai_popups, AI_POPUP_TAG_INFO, NULL, body);
+          ai_popup_enqueue_colony_event(ai_popups, colony->id, body);
         }
       }
     }
@@ -1157,7 +1157,7 @@ static void turn_produce_one_colony(
             tok.string0 = cname;
             tok.string1 = skill_name;
             popup_msg_fill(messages, chrome_sec, &tok, fallback, body, sizeof(body));
-            ai_popup_enqueue_ok(ai_popups, AI_POPUP_TAG_INFO, NULL, body);
+            ai_popup_enqueue_colony_event(ai_popups, colony->id, body);
           }
         }
       }
@@ -1177,7 +1177,7 @@ static void turn_produce_one_colony(
               memset(&tok, 0, sizeof(tok));
               tok.string0 = cname;
               popup_msg_fill(messages, "TRAINFAIL", &tok, fallback, body, sizeof(body));
-              ai_popup_enqueue_ok(ai_popups, AI_POPUP_TAG_INFO, NULL, body);
+              ai_popup_enqueue_colony_event(ai_popups, colony->id, body);
             }
             break;
           }
@@ -1246,7 +1246,7 @@ static void turn_produce_one_colony(
             tok.string0 = cname;
             tok.string1 = skill_name;
             popup_msg_fill(messages, "TRAINPROFESSION", &tok, fallback, body, sizeof(body));
-            ai_popup_enqueue_ok(ai_popups, AI_POPUP_TAG_INFO, NULL, body);
+            ai_popup_enqueue_colony_event(ai_popups, colony->id, body);
           }
         }
       }
@@ -1349,7 +1349,7 @@ static void turn_produce_one_colony(
           /* Popup only — the status line stays free for the Phase K
            * production crumbs ("Need lumber." etc.). */
           popup_msg_fill(messages, "ALREADYHAVE", &tok, afb, body, sizeof(body));
-          ai_popup_enqueue_ok(ai_popups, AI_POPUP_TAG_INFO, NULL, body);
+          ai_popup_enqueue_colony_event(ai_popups, colony->id, body);
         }
         if (colonies_try_complete_building(pool, colony->id)) {
           if (delta) {
@@ -1372,7 +1372,7 @@ static void turn_produce_one_colony(
               tok.string0 = colony->name[0] ? colony->name : "colony";
               tok.string1 = (bname && bname[0]) ? bname : "building";
               popup_msg_fill(messages, "BUILT", &tok, europe->status, body, sizeof(body));
-              ai_popup_enqueue_ok(ai_popups, AI_POPUP_TAG_INFO, NULL, body);
+              ai_popup_enqueue_colony_event(ai_popups, colony->id, body);
             }
           }
         } else if (
@@ -1404,7 +1404,7 @@ static void turn_produce_one_colony(
                 tok.has_number1 = true;
               }
               popup_msg_fill(messages, section, &tok, europe->status, body, sizeof(body));
-              ai_popup_enqueue_ok(ai_popups, AI_POPUP_TAG_INFO, NULL, body);
+              ai_popup_enqueue_colony_event(ai_popups, colony->id, body);
             }
           }
         }
@@ -1523,7 +1523,7 @@ static void turn_produce_one_colony(
       memset(&tok, 0, sizeof(tok));
       tok.string0 = colony->name[0] ? colony->name : "colony";
       popup_msg_fill(messages, k_sec, &tok, europe->status, body, sizeof(body));
-      ai_popup_enqueue_ok(ai_popups, AI_POPUP_TAG_INFO, NULL, body);
+      ai_popup_enqueue_colony_event(ai_popups, colony->id, body);
     }
   }
 
@@ -1632,7 +1632,7 @@ static void turn_produce_one_colony(
           body,
           sizeof(body)
         );
-        ai_popup_enqueue_ok(ai_popups, AI_POPUP_TAG_INFO, NULL, body);
+        ai_popup_enqueue_colony_event(ai_popups, colony->id, body);
       }
     }
 
@@ -1681,7 +1681,7 @@ static void turn_produce_one_colony(
         tok.number0 = cap > 0 ? cap : after;
         tok.has_number0 = true;
         popup_msg_fill(messages, sec, &tok, europe->status, body, sizeof(body));
-        ai_popup_enqueue_ok(ai_popups, AI_POPUP_TAG_INFO, NULL, body);
+        ai_popup_enqueue_colony_event(ai_popups, colony->id, body);
 
         /* @TUTORIAL6, once per campaign (DS:0x5387 bit1). */
         if (col1 && !col1->head.tut3.nr6) {
@@ -1746,7 +1746,7 @@ static void turn_produce_one_colony(
         memset(&tok, 0, sizeof(tok));
         tok.string0 = cname;
         popup_msg_fill(messages, "DEPLETION", &tok, europe->status, body, sizeof(body));
-        ai_popup_enqueue_ok(ai_popups, AI_POPUP_TAG_INFO, NULL, body);
+        ai_popup_enqueue_colony_event(ai_popups, colony->id, body);
       }
     }
   }
@@ -1813,7 +1813,7 @@ void turn_run_colony_unit_construction(ColonizeTurnContext* ctx) {
         tok.string0 = col->name[0] ? col->name : "colony";
         tok.string1 = name;
         popup_msg_fill(ctx->messages, "BUILT", &tok, ctx->europe->status, body, sizeof(body));
-        ai_popup_enqueue_ok(ctx->ai_popups, AI_POPUP_TAG_INFO, NULL, body);
+        ai_popup_enqueue_colony_event(ctx->ai_popups, col->id, body);
       }
     }
   }
@@ -1859,7 +1859,7 @@ void turn_run_colony_building_completion(ColonizeTurnContext* ctx) {
         tok.string0 = col->name[0] ? col->name : "colony";
         tok.string1 = bt->name;
         popup_msg_fill(ctx->messages, "BUILT", &tok, ctx->europe->status, body, sizeof(body));
-        ai_popup_enqueue_ok(ctx->ai_popups, AI_POPUP_TAG_INFO, NULL, body);
+        ai_popup_enqueue_colony_event(ctx->ai_popups, col->id, body);
       }
     }
   }
