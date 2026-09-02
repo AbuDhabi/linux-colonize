@@ -1876,8 +1876,19 @@ gameplay/determinism. Most rows need the user's visual-fidelity judgement.
     matching DOS's `local_520` literals. Frame period is DOS's 5 ticks of
     the DS:`0x8338` counter — PIT divisor 0x7a8 (`FUN_0000_a443`),
     incremented once per tick by the INT 8 handler at `0000:a294`, so
-    1193182/1960 = 608.77 Hz and 8.213 ms/frame. Any key or click
+    1193182/1960 = 608.77 Hz and 8.213 ms/frame.     Any key or click
     fast-forwards, then dismisses. Test: `unit_declaration`.
+  - [x] **CLOSING.EXE rebel-victory cinematic — Done 2026-09-02.** Not in
+    VICEROY: after `@KINGLOSE`, VICEROY execs `closing -gok` (string at
+    `VICEROY.EXE` `0x1dabb`). Player is `COLONIZE/CLOSING.EXE` (shared
+    engine with `OPENING.EXE`); art `CLOS-BKG.PIK` +
+    `CLOS-{HAT,LDY,MAN,MIL,FWK,ROC,BEL}.SS`; timeline `CLOSING.TXT`
+    `@CLOSING` (series / frame / repeats / baseX / delay, end marker
+    series −1 frame 390). Hats, liberty bell, fireworks, rock gag.
+    Ported as `src/core/closing.c`, armed after KING_THRONE payload 1
+    (or a WON latch with no popups); any key/click skips to the retire
+    score. Cheer sting COLDIG 15 (`0x5a`) + BGM pool 3. Test:
+    `unit_closing`.
   - [x] **`DECLARAT.PIK` animation — retracted 2026-08-30, wrong premise.**
     `DECLARAT.PIK` is the *signed* parchment and is referenced by **no**
     executable in the shipped game (`grep -abo DECLARAT COLONIZE/*.EXE`
