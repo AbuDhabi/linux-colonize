@@ -95,10 +95,21 @@ typedef enum AiPopupTag {
   AI_POPUP_TAG_CONTACT_LEARNSTAY = 47, /* thunk_FUN_1000_a618 @LEARNSTAY Yes/No (payload = unit | skill<<16) */
   AI_POPUP_TAG_FOUNTAIN_YOUTH = 48, /* FUN_65dd_0004 case 1: 8× free FUN_38fd_4884(1,0) Recruit pick (payload = picks left) */
   AI_POPUP_TAG_BREWSTER_PICK = 49, /* 5e52 Brewster branch: FUN_38fd_4884(0,1) @RECRUITCHOOSE free pick (nation_a = human) */
-  AI_POPUP_TAG_KING_WAR_END = 52, /* @LOSING1-3 / @RETIRING2 revolution-lost OK; dismissal opens the retire score (game over) */
   AI_POPUP_TAG_CONTACT_TRADE_PICK = 50, /* FUN_4d56_2820 shell: multi-hold unit picks which cargo to offer (payload = unit id, 99 = cancel) */
   AI_POPUP_TAG_CONTACT_EURO_WAR = 52, /* FUN_465b_0000 @HAVETREATY Cancel Action/Break Treaty before attacking a treaty peer (nation_a = unit, nation_b = target, payload = x|y<<8) */
-  AI_POPUP_TAG_COLONY_EVENT = 53 /* FUN_364b_0000 colony EOT message (payload = colony id): "Continue turn." / "Zoom to colony." choices until zoom elected for that colony */
+  AI_POPUP_TAG_COLONY_EVENT = 53, /* FUN_364b_0000 colony EOT message (payload = colony id): "Continue turn." / "Zoom to colony." choices until zoom elected for that colony */
+  /* Was 52, colliding with CONTACT_EURO_WAR — a resolved @HAVETREATY confirm
+   * looked like a war-end dismissal (and vice versa). Runtime-only ids. */
+  AI_POPUP_TAG_KING_WAR_END = 54, /* @WINNING / @LOSING1-3 / @RETIRING2 revolution-over OK.
+                                   * payload 1 = win announcement (throne audience follows),
+                                   * payload 4 = loss announcement (throne audience follows),
+                                   * payload 2 = loss, dismissal opens the retire score directly. */
+  AI_POPUP_TAG_KING_THRONE = 55, /* full-screen royal audience (DOS FUN_75c2_20e2):
+                                  * payload 1 = @KINGLOSE on KINGLOSE.SS (war won),
+                                  * payload 2 = @KINGWIN on KINGWIN.SS (war lost);
+                                  * dismissal opens the retire score chain. */
+  AI_POPUP_TAG_WAR_SCORED = 56 /* post-HoF @SCORED CHOICE after a WoI win:
+                                * 1 = "That's all." (title menu), 2 = "Keep playing anyway." */
 } AiPopupTag;
 
 typedef struct AiPopupRequest {

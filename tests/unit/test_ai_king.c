@@ -5748,6 +5748,38 @@ int main(void) {
         return fail("rev-win should enqueue @WINNING INFO OK");
       }
     }
+    /* bugs.md 264: @WINNING (KING_WAR_END payload 1) FIRST, then the
+     * @KINGLOSE throne audience (KING_THRONE payload 1) — the audience
+     * dismissal is what opens the retire score. */
+    {
+      int win_at = -1;
+      int throne_at = -1;
+      for (int i = 0; i < pop.queue_count; ++i) {
+        if (pop.queue[i].tag == AI_POPUP_TAG_KING_WAR_END && pop.queue[i].payload == 1) {
+          win_at = i;
+        }
+        if (pop.queue[i].tag == AI_POPUP_TAG_KING_THRONE) {
+          throne_at = i;
+          if (pop.queue[i].payload != 1 ||
+              !strstr(pop.queue[i].body, "go your own way")) {
+            assets_msg_free(&game_txt);
+            free(emap.terrain);
+            free(emap.layer2);
+            free(emap.layer3);
+            return fail("rev-win throne audience should carry @KINGLOSE, payload 1");
+          }
+        }
+      }
+      if (win_at < 0 || throne_at < 0 || throne_at < win_at) {
+        fprintf(stderr, "unit_ai_king: rev-win order win_at=%d throne_at=%d\n", win_at,
+                throne_at);
+        assets_msg_free(&game_txt);
+        free(emap.terrain);
+        free(emap.layer2);
+        free(emap.layer3);
+        return fail("rev-win: @WINNING must precede the @KINGLOSE throne audience");
+      }
+    }
     assets_msg_free(&game_txt);
     free(emap.terrain);
     free(emap.layer2);

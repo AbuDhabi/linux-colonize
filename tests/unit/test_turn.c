@@ -4456,11 +4456,14 @@ int main(void) {
     }
     fprintf(stderr, "year-end defeat chrome ok\n");
     fprintf(stderr, "year-end victory chrome ok\n");
-    if (!col1.head.game_options.calendar_latch) {
-      fprintf(stderr, "year-end victory want calendar_latch\n");
+    /* calendar_latch ("scoring complete") is set by the retire-score chain,
+     * not the victory latch (bugs.md 265) — the WON latch alone must both
+     * leave it clear and still suppress the anniversary chrome. */
+    if (col1.head.game_options.calendar_latch) {
+      fprintf(stderr, "year-end victory must NOT set calendar_latch (scoring pending)\n");
       return 1;
     }
-    /* Latch suppresses further E anniversary while campaign stopped. */
+    /* Endgame latch suppresses further E anniversary while campaign stopped. */
     year = 1790;
     status[0] = '\0';
     memset(&out, 0, sizeof(out));

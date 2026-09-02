@@ -2582,8 +2582,13 @@ void turn_run_year_end_chrome(ColonizeTurnContext* ctx, ColonizeTurnResult* out)
     (ctx->game_year) ? *ctx->game_year
                      : (ctx->col1_ok && ctx->col1) ? ctx->col1->head.year : 0;
 
+  /* Anniversary chrome stops once scoring completed OR the war already
+   * resolved (the WON latch no longer implies calendar_latch — that bit is
+   * now set by the retire-score chain, as DOS's 0x5382|0x10 is). */
   const int splash_done =
-    ctx->col1_ok && ctx->col1 && ctx->col1->head.game_options.calendar_latch;
+    ctx->col1_ok && ctx->col1 &&
+    (ctx->col1->head.game_options.calendar_latch ||
+     ai_king_latch_get(ctx->col1, AI_KING_ENDGAME_BYTE) != AI_KING_ENDGAME_NONE);
 
   /* Section E anniversary (0x6fe=1790, 0x730=1840) — status only; gate 5382|0x10. */
   if (!splash_done && (year == 0x6feu || year == 0x730u) && ctx->status &&
@@ -2753,7 +2758,10 @@ void turn_run_year_end_chrome(ColonizeTurnContext* ctx, ColonizeTurnResult* out)
         ai_king_latch_set(ctx->col1, AI_KING_ENDGAME_BYTE, AI_KING_ENDGAME_WON);
         ctx->col1->head.game_options.independence_chrome = 1; /* 0x5382|8 */
         ctx->col1->head.show_entire_map = 1; /* LAB_0b4a → DS:0x53a2 */
-        ctx->col1->head.game_options.calendar_latch = 1; /* LAB_0b4a when stopped */
+        /* calendar_latch (0x5382|0x10 "scoring complete") is NOT set here:
+         * DOS sets it only after the score chain runs (main-loop 0x104
+         * block); setting it at the latch suppressed the win sequence
+         * (bugs.md 265 — the game just carried on with a status line). */
         ctx->col1->head.turn_loop_running = 0; /* DS:0x53c2 clear */
       }
       if (ctx->status && ctx->status_size > 0) {

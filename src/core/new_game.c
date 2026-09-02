@@ -132,6 +132,11 @@ static void new_game_free_assets(NewGameWizard* ng) {
     ff_free(&ng->fontking);
     ng->fontking_ok = false;
   }
+  if (ng->endking_ok) {
+    ss_free(&ng->endking);
+    ng->endking_ok = false;
+    ng->endking_name[0] = '\0';
+  }
   for (int i = 0; i < NEW_GAME_SAIL_FRAMES; ++i) {
     if (ng->levn_ok[i]) {
       pik_free(&ng->levn[i]);
@@ -2277,6 +2282,112 @@ static void new_game_render_king(
         }
       }
       new_game_draw_markup_line(font, fb, x, y, text, ink, hilite);
+    }
+    y += line_h;
+  }
+}
+
+/*
+ * End-of-war throne audience (DOS FUN_75c2_20e2). Same composition as the
+ * new-game audience — KINGLSS1 backdrop + nation banners — but the king
+ * sprite comes from KINGLOSE.SS (player won) or KINGWIN.SS (King won), and
+ * the scroll text is the already-token-filled dialog body, flow-wrapped to
+ * the GAME.TXT section's @width. Ink is black on KINGLSS, as in the wizard.
+ */
+void new_game_render_throne_audience(
+  NewGameWizard* ng,
+  const char* data_dir,
+  int nation,
+  const char* king_sheet,
+  const char* body,
+  int text_x,
+  int text_y,
+  int text_w,
+  ColonizeFramebuffer8* fb,
+  ColonizePalette* out_palette
+) {
+  if (!ng || !fb || !fb->pixels || !king_sheet) {
+    return;
+  }
+  if (ng->data_dir[0] == '\0' && data_dir && data_dir[0]) {
+    snprintf(ng->data_dir, sizeof(ng->data_dir), "%s", data_dir);
+  }
+  new_game_load_pik(ng, "KINGLSS1.PIK", &ng->kinglss_pik, &ng->kinglss_ok);
+  if (ng->endking_ok && strcmp(ng->endking_name, king_sheet) != 0) {
+    ss_free(&ng->endking);
+    ng->endking_ok = false;
+  }
+  if (!ng->endking_ok) {
+    if (new_game_load_ss(ng, king_sheet, &ng->endking, &ng->endking_ok)) {
+      snprintf(ng->endking_name, sizeof(ng->endking_name), "%s", king_sheet);
+    }
+  }
+  /* The banner slot may hold another nation's flags from an earlier wizard. */
+  const int nat = (nation < 0 || nation > 3) ? 0 : nation;
+  if (ng->nation_art_ok && ng->nation != nat) {
+    ss_free(&ng->nation_art);
+    ng->nation_art_ok = false;
+  }
+  if (!ng->nation_art_ok) {
+    if (new_game_load_ss(ng, k_nation_ss[nat], &ng->nation_art, &ng->nation_art_ok)) {
+      ng->nation = nat;
+    }
+  }
+  if (!ng->fontking_ok) {
+    char path[512];
+    char err[256];
+    if (dos_compat_normalize_asset_path(ng->data_dir, "FONTKING.FF", path, sizeof(path)) &&
+        ff_load(path, &ng->fontking, err, sizeof(err))) {
+      ng->fontking_ok = true;
+    }
+  }
+
+  memset(fb->pixels, 0, (size_t)fb->width * (size_t)fb->height);
+  if (ng->kinglss_ok) {
+    pik_blit(&ng->kinglss_pik, fb, 0, 0);
+    if (ng->kinglss_pik.has_palette && out_palette) {
+      new_game_copy_palette(out_palette, &ng->kinglss_pik.palette);
+    }
+  }
+  if (ng->endking_ok && ng->endking.sprite_count > 0) {
+    const ColonizeSprite* king = &ng->endking.sprites[0];
+    /* Same anchors as the wizard audience (new_game_render_king). */
+    const int king_x = 20 - 21;
+    const int king_y = fb->height - king->height;
+    if (ng->nation_art_ok && ng->nation_art.sprite_count > 0) {
+      const int flag_x = 20 + king->width / 2 - 86 + 6 - 2;
+      ss_blit_sprite(&ng->nation_art, 0, fb, flag_x, 0);
+    }
+    ss_blit_sprite(&ng->endking, 0, fb, king_x, king_y);
+  } else if (ng->nation_art_ok && ng->nation_art.sprite_count > 0) {
+    ss_blit_sprite(&ng->nation_art, 0, fb, 28 + 6 - 2, 0);
+  }
+
+  if (!body || !body[0]) {
+    return;
+  }
+  const ColonizeFont* font = ng->fontking_ok ? &ng->fontking : ng->ui_font;
+  if (!font) {
+    return;
+  }
+  if (text_w < 20) {
+    text_w = 20;
+  }
+  char out[NEW_GAME_LORE_MAX_OUT][COLONIZE_MSG_LINE_LEN];
+  bool out_center[NEW_GAME_LORE_MAX_OUT];
+  int n_out = 0;
+  char accum[COLONIZE_MSG_LINE_LEN];
+  accum[0] = '\0';
+  new_game_lore_add_run(font, text_w, accum, sizeof(accum), body, out, out_center, &n_out);
+  new_game_lore_flush_accum(accum, out, out_center, &n_out);
+  const int line_h = font->max_height + 1;
+  int y = text_y;
+  for (int i = 0; i < n_out; ++i) {
+    if (y > fb->height - line_h) {
+      break;
+    }
+    if (out[i][0]) {
+      new_game_draw_markup_line(font, fb, text_x, y, out[i], 0, 0);
     }
     y += line_h;
   }

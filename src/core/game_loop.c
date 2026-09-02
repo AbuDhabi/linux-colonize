@@ -199,7 +199,8 @@ struct ColonizeGameState {
   bool reports_ok;
   bool in_report;
   bool report_exits_to_menu; /* Retire: close score → title menu */
-  bool war_end_retired; /* bugs.md: ENDGAME_LOST already routed to the retire score */
+  bool war_end_retired; /* bugs.md: endgame already routed to the retire score */
+  bool war_end_won; /* WoI won: after the Hall of Fame, @SCORED asks continue/exit */
   bool congress_page2; /* Continental Congress is two pages; closing p1 shows p2 */
   /* A new Founding Father's arrival walks the player through Congress page 2
    * and then that father's Colonizopedia entry. Holds his index while the
@@ -2501,12 +2502,43 @@ static void game_apply_ai_popup_result(ColonizeGameState* game) {
     /* @SCORED "That's all." → open retire score (same path as Retire menu). */
     game_open_retire_score(game);
   }
-  /* bugs.md: losing the War of Independence ENDS the game — dismissing the
-   * @LOSING/@RETIRING2 capitulation popup opens the retire score, the same
-   * chain the Retire menu and @SCORED use. */
-  if (game->ai_popups.result_tag == AI_POPUP_TAG_KING_WAR_END) {
+  /* bugs.md: the war-end announcements. Payload 2 (@RETIRING2 and legacy
+   * loss popups with no audience behind them) retires straight away; payload
+   * 1 (@WINNING) and 4 (@LOSINGn) have the KING_THRONE audience queued next,
+   * and the retire score waits for its dismissal (DOS 3844_0442 order:
+   * announcement → throne audience → score chain). */
+  if (game->ai_popups.result_tag == AI_POPUP_TAG_KING_WAR_END &&
+      game->ai_popups.result_payload == 2) {
     game->war_end_retired = true;
     game_open_retire_score(game);
+  }
+  if (game->ai_popups.result_tag == AI_POPUP_TAG_KING_THRONE) {
+    game->war_end_retired = true;
+    game->war_end_won = (game->ai_popups.result_payload == 1);
+    game_open_retire_score(game);
+  }
+  /* Post-HoF @SCORED (WoI win): "That's all." ends at the title menu; "Keep
+   * playing anyway." resumes the map (DOS main-loop 0x104 block: FUN_281f_03fe
+   * choice 2 keeps DS:0x53c2 alive). Either way scoring is complete. */
+  if (game->ai_popups.result_tag == AI_POPUP_TAG_WAR_SCORED) {
+    if (game->col1_ok) {
+      game->col1.head.game_options.calendar_latch = 1;
+    }
+    if (!game->ai_popups.result_cancelled && game->ai_popups.result_choice_id == 1) {
+      if (game->col1_ok) {
+        game->col1.head.turn_loop_running = 0;
+      }
+      game->in_menu = true;
+      sound_stop_bgm();
+      set_status(game, "Colonization Linux Port", NULL);
+    } else {
+      /* Keep playing (or Esc): back on the map, campaign continues. */
+      if (game->col1_ok) {
+        game->col1.head.turn_loop_running = 1;
+      }
+      sound_set_bgm(1);
+      set_status(game, "Independence won — playing on", NULL);
+    }
   }
   ai_contact_apply_popup_result(&ctx, &game->ai_popups);
   ai_diplo_apply_popup_result(&ctx, &game->ai_popups);
@@ -3853,6 +3885,9 @@ static void game_retire_after_score(ColonizeGameState* game) {
   }
   ColonizeScoreBreakdown sc;
   reports_compute_score(&sc, &game->col1, game->human_nation, &game->colonies, &game->europe);
+  /* DOS LAB_3844_0b4a / main-loop 0x104 block: 0x5382 |= 0x10 once the score
+   * chain has run — "scoring complete" (also gates the WON auto-retire). */
+  game->col1.head.game_options.calendar_latch = 1;
   ColonizeHofEntry entry;
   memset(&entry, 0, sizeof(entry));
   snprintf(
@@ -3886,6 +3921,27 @@ static void game_open_retire_score(ColonizeGameState* game) {
   game_open_report(game, COLONIZE_REPORT_SCORE);
   game->report_exits_to_menu = true;
   set_status(game, "Retired — Colonization Score", "Enter/Esc returns to menu");
+}
+
+/* GAME.TXT @SCORED after a WoI win's score chain (DOS main-loop 0x104 block):
+ * "That's all." (1) quits to the title menu, "Keep playing anyway." (2)
+ * resumes the campaign. */
+static void game_enqueue_war_scored_choice(ColonizeGameState* game) {
+  char body[AI_POPUP_BODY_LEN];
+  popup_msg_fill(
+    &game->messages, "SCORED", NULL, "Scoring for this game is now complete.", body, sizeof(body)
+  );
+  char choice_buf[AI_POPUP_CHOICE_MAX][AI_POPUP_CHOICE_LEN];
+  const ColonizeMsgSection* sec = assets_msg_find(&game->messages, "SCORED");
+  const int nch = popup_msg_choices(sec, choice_buf, AI_POPUP_CHOICE_MAX);
+  const char* labels[2];
+  labels[0] = nch >= 2 ? choice_buf[0] : "That's all.";
+  labels[1] = nch >= 2 ? choice_buf[1] : "Keep playing anyway.";
+  const int ids[2] = {1, 2};
+  (void)ai_popup_enqueue_choice_ctx(
+    &game->ai_popups, AI_POPUP_TAG_WAR_SCORED, game->human_nation, -1, 0, "Scoring Complete",
+    body, labels, ids, 2
+  );
 }
 
 static void game_open_debug_atlas(ColonizeGameState* game) {
@@ -9543,17 +9599,23 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
     ai_popup_try_present_next(&game->ai_popups);
   }
 
-  /* bugs.md: the LOST endgame latch must actually END the game. Whatever
-   * path latched it (LOSING popup, zero-colony crush, a loaded save), once
-   * every dialog is answered the retire-score chain runs exactly once:
-   * score → (exploits) → Hall of Fame → title menu. */
-  if (!game->war_end_retired && game->col1_ok &&
-      ai_king_latch_get(&game->col1, AI_KING_ENDGAME_BYTE) == AI_KING_ENDGAME_LOST &&
-      !ai_popup_busy(&game->ai_popups) && !game_modal_open(game) && !game->in_menu &&
-      !game->in_report && !game->in_hall_of_fame && !game->in_exploits) {
-    game->war_end_retired = true;
-    game_open_retire_score(game);
-    return true;
+  /* bugs.md: an endgame latch must actually END the game. Whatever path
+   * latched it (popup chain, zero-colony crush, a loaded save, the silent
+   * turn.c C1 check), once every dialog is answered the retire-score chain
+   * runs exactly once: score → (exploits) → Hall of Fame → menu/@SCORED.
+   * A WON latch with scoring already complete (calendar_latch — the player
+   * chose "Keep playing anyway.") stays quiet. */
+  if (!game->war_end_retired && game->col1_ok && !ai_popup_busy(&game->ai_popups) &&
+      !game_modal_open(game) && !game->in_menu && !game->in_report &&
+      !game->in_hall_of_fame && !game->in_exploits) {
+    const int endgame = ai_king_latch_get(&game->col1, AI_KING_ENDGAME_BYTE);
+    if (endgame == AI_KING_ENDGAME_LOST ||
+        (endgame == AI_KING_ENDGAME_WON && !game->col1.head.game_options.calendar_latch)) {
+      game->war_end_retired = true;
+      game->war_end_won = (endgame == AI_KING_ENDGAME_WON);
+      game_open_retire_score(game);
+      return true;
+    }
   }
 
   /* Deferred ship-arrival Europe open: once every end-of-turn popup has
@@ -10009,8 +10071,15 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
   if (game->in_hall_of_fame) {
     if (input->last_key == COLONIZE_KEY_ESCAPE || input->last_key == COLONIZE_KEY_ENTER) {
       game->in_hall_of_fame = false;
-      game->in_menu = true;
-      set_status(game, "Colonization Linux Port", NULL);
+      if (game->war_end_won) {
+        /* WoI win: the score chain ends in @SCORED "That's all." / "Keep
+         * playing anyway." (DOS main-loop 0x104 block) instead of the menu. */
+        game->war_end_won = false;
+        game_enqueue_war_scored_choice(game);
+      } else {
+        game->in_menu = true;
+        set_status(game, "Colonization Linux Port", NULL);
+      }
     }
     return true;
   }
@@ -12331,6 +12400,27 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
   /* Signing cinematic owns the whole screen (and its own DECOIND palette). */
   if (game->declaration.open) {
     declaration_render(&game->declaration, framebuffer, palette);
+    return;
+  }
+
+  /* War-end throne audience owns the whole screen (KINGLSS palette): the
+   * KING_THRONE popup renders as the DOS FUN_75c2_20e2 audience — KINGLOSE.SS
+   * king when the player won (@KINGLOSE scroll at 232/31/68), KINGWIN.SS when
+   * the King did (@KINGWIN at 202/125/90). Any key / click dismisses (OK). */
+  if (game->ai_popups.open && game->ai_popups.current.tag == AI_POPUP_TAG_KING_THRONE) {
+    const bool won = (game->ai_popups.current.payload == 1);
+    new_game_render_throne_audience(
+      (NewGameWizard*)&game->new_game,
+      game->resolved_data_dir,
+      game->human_nation,
+      won ? "KINGLOSE.SS" : "KINGWIN.SS",
+      game->ai_popups.current.body,
+      won ? 232 : 202,
+      won ? 31 : 125,
+      won ? 68 : 90,
+      framebuffer,
+      palette
+    );
     return;
   }
 
