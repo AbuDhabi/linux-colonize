@@ -238,4 +238,20 @@ This is a user-maintained list of bugs. User puts reports in. Agents may annotat
 | On the same turn as the intervention force popup, after said popup, there should be the mustering of the continental armies/cavalries, one popup per colony where some veteran soldiers and/or dragoons are getting upgrades. | FIXED. The 1eca veteran->Continental promote (per colony with SoL>49, on the war-act turn) was status-line only; each promoting colony now also queues GAME.TXT @MOBILIZE (one unit) / @MOBILIZE2 (%NUMBER0 units) — after the intervention popup in the same turn's queue order. |
 | Combat movement "bumps" are currently animated before combat analysis. They should be placed AFTER, and block further turn processing until done, so you get a bump->analysis->next bump->next analysis chain of events. | FIXED. Order swapped in both combat resolvers: Combat Analysis presents first (nested, blocking), THEN the bump plays, then the outcome popups (per-combat pump) — analysis -> bump -> popups -> next combat, each step blocking. |
 | When I move units, they're still not having the move visibly animated. They are simply drawn on the next tile. IDK what's wrong, maybe it's just too fast for my eyeballs to see. I can see combat bumps, maybe make it as fast. | FIXED — it never ran for your own units: the move/combat watches were only registered while end-of-turn processing was active and cleared at FINISH, so a player move mid-turn fired into a NULL watch and just redrew at the destination. The watches (and the popup pump) are now armed every frame in game_update. Slide pacing stays at 4x80ms (~25 FPS, from row 219). |
+| The confirm popup for declaring independence says New England instead of England. | |
+| Road to freedom popup emits just after declaring independence, as if we had recaptured a colony. No shots were even fired yet. | |
+| REF landing popup apparently happens concurrently with their unloading animations. This is not acceptable; firs the popup, then the animations, then other things in line. Every part in this is blocking further execution. | |
 | | |
+| | |
+| | |
+| | |
+| | |
+| | |
+| | |
+| | |
+| | |
+| | |
+| | |
+| | |
+| | |
+
