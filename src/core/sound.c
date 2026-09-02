@@ -715,8 +715,10 @@ static int sound_pick_next_tune_id(void) {
 /*
  * FUN_129f_00f6 idle pump: once the driver has no voice left, play the queued
  * explicit id, else draw the next tune from the current pool. DOS only polls
- * this with sound effects enabled or a pending change; the port always keeps
- * background music rolling.
+ * this with sound effects enabled or a pending change. Category 0 is "no
+ * pool" (DS:0x9a); do not invent a random song until sound_play / sound_set_bgm
+ * arms one — otherwise the audio callback starts a map tune at launch before
+ * the intro can queue 0x34.
  */
 static void sound_pump_unlocked(void) {
   if (!g_sound.vm || gsound_vm_active(g_sound.vm)) {
@@ -732,6 +734,9 @@ static void sound_pump_unlocked(void) {
     g_sound.pending_id = -1;
   } else {
     if (!g_sound.opts.background_music || g_sound.preview_active) {
+      return;
+    }
+    if (g_sound.category <= 0 && g_sound.category_applied <= 0) {
       return;
     }
     id = sound_pick_next_tune_id();
