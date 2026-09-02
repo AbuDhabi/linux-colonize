@@ -1607,6 +1607,18 @@ int units_best_defender_at(
   if (best_id >= 0) {
     return best_id;
   }
+  /*
+   * DOS FUN_5fef_0000 never returns an attack==0 unit. The soft tier stands
+   * in for the raw unit-at-tile fallback on OPEN ground (a lone colonist can
+   * be attacked and captured there). On a colony tile it must stay off: the
+   * town fights through its militia / Paul Revere auto-arm
+   * (units_revere_defend_colony_tile), never through a bystanding civilian —
+   * that path also seizes the bystanders once the colony's defense is beaten.
+   */
+  if (g_units_combat_colonies &&
+      colonies_id_at(g_units_combat_colonies, x, y) >= 0) {
+    return -1;
+  }
   return best_soft_id;
 }
 
@@ -4042,7 +4054,18 @@ bool units_resolve_land_combat_ff(
       pool, attacker_id, defender_id, 1, atk_nation, def_nation, 0, ambush, col1
     );
     (void)units_apply_land_loss_outcome(pool, defender_id, attacker_id, col1, 1);
-    units_sweep_stack_after_loss(pool, def_x, def_y, def_nation, attacker_id, defender_id, col1);
+    /*
+     * DOS 5fef land tail (~0x2532): on a DEFENDER loss the 0ec0 stack sweep
+     * runs only when the attacker's type attack byte is 0 or a ship (type
+     * 0xd..0x12) is party to the fight — ships never reach this land-only
+     * resolver, so a normal land attack touches ONLY the picked defender.
+     * Stackmates / colony bystanders are not captured while the colony still
+     * stands; they fall with the colony (entry seizure) instead. The
+     * attacker-loss sweep below stays unconditional, as in DOS.
+     */
+    if (at->attack == 0) {
+      units_sweep_stack_after_loss(pool, def_x, def_y, def_nation, attacker_id, defender_id, col1);
+    }
     atk = units_get(pool, attacker_id);
     if (atk) {
       units_washington_promote_on_win(pool, atk, col1);
@@ -4611,6 +4634,36 @@ static void units_try_capture_foreign_colony(
   units_combat_notify_colony_captured(g_units_ff_col1, &snap, u->nation_id, plunder);
 }
 
+/*
+ * DOS entry seizure ("0512 seizes whatever stands there"): once a colony's
+ * defense is beaten, the non-combat foreigners still standing on the tile are
+ * taken with it — Colonists/Wagons flip to the captor, the rest are destroyed
+ * (units_apply_land_loss_outcome per unit). Without this, a bystanding
+ * civilian keeps the tile "contested" and blocks the capture forever.
+ */
+static void units_seize_noncombat_at(
+  ColonizeUnitPool* pool, int winner_id, int x, int y, const ColonizeCol1Save* col1
+) {
+  const ColonizeUnit* win = units_get_const(pool, winner_id);
+  if (!win) {
+    return;
+  }
+  const int win_nat = win->nation_id;
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    ColonizeUnit* u = &pool->units[i];
+    if (!units_is_on_map(u) || u->x != x || u->y != y) {
+      continue;
+    }
+    if (u->id == winner_id || u->nation_id == win_nat) {
+      continue;
+    }
+    const ColonizeUnitType* t = units_type(pool, u->type_index);
+    if (t && t->attack == 0) {
+      (void)units_apply_land_loss_outcome(pool, u->id, winner_id, col1, 1);
+    }
+  }
+}
+
 /* Boarding helpers are defined later; enter_probe needs the embark probe. */
 int units_find_boardable_ship(
   const ColonizeUnitPool* pool, int x, int y, int nation_id, bool require_galleon
@@ -5134,8 +5187,40 @@ bool units_try_move(
     if (foe < 0) {
       if (village_temp >= 0) {
         units_despawn(pool, village_temp);
+        village_temp = -1;
       }
-      return false;
+      /*
+       * Foreign colony tile with no armed map defender: only non-combat
+       * bystanders stand there (the picker's soft tier is off on colony
+       * tiles). DOS fights the colony itself — Paul Revere auto-arm or the
+       * civilian militia stand-in — and then seizes whoever remains on
+       * entry, rather than dueling a bystanding colonist one by one.
+       */
+      const int nc_cid = colonies ? colonies_id_at(colonies, dest_x, dest_y) : -1;
+      const ColonizeColony* nc = nc_cid >= 0 ? colonies_get(colonies, nc_cid) : NULL;
+      if (reason != COLONIZE_ENTER_COMBAT_LAND || !nc || !nc->active ||
+          units_is_sea(pool, unit_id)) {
+        return false;
+      }
+      if (nc->nation_id == unit->nation_id) {
+        /* Own colony squatted by foreign civilians (an old capture left them
+         * put): seize them on entry, no militia fight against your own town. */
+        units_seize_noncombat_at(pool, unit_id, dest_x, dest_y, g_units_ff_col1);
+        combat_attack_mp_surcharge = 3;
+        goto combat_entry_resolved;
+      }
+      if (!units_revere_defend_colony_tile(
+            pool, (ColonizeColonyPool*)colonies, unit_id, dest_x, dest_y, rng
+          )) {
+        return false;
+      }
+      unit = units_get(pool, unit_id);
+      if (!unit) {
+        return false;
+      }
+      units_seize_noncombat_at(pool, unit_id, dest_x, dest_y, g_units_ff_col1);
+      combat_attack_mp_surcharge = 3;
+      goto combat_entry_resolved;
     }
     bool won = false;
     if (reason == COLONIZE_ENTER_COMBAT_NAVAL) {
@@ -5260,6 +5345,7 @@ bool units_try_move(
     }
   }
 
+combat_entry_resolved:
   /* Dock / OK: domain enterability already confirmed by probe. */
   if (reason != COLONIZE_ENTER_OK && reason != COLONIZE_ENTER_DOCK &&
       reason != COLONIZE_ENTER_COMBAT_LAND && reason != COLONIZE_ENTER_COMBAT_NAVAL) {
