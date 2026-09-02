@@ -439,8 +439,9 @@ Two more player-reported gaps against `new_amsterdam_production.png`:
 
 ### DEBUG menu: Building Rects
 
-`MAP_MENU_ACTION_DEBUG_BUILDING_RECTS` (DEBUG pulldown, default off, port-only
-— `COLONIZE_DEBUG_MENU`) draws a violet outline (`COLONY_DEBUG_RECT_COLOR` =
+`MAP_MENU_ACTION_DEBUG_BUILDING_RECTS` (DEBUG pulldown, default off, persisted
+as `debug.building_rects` in settings.json, port-only — `COLONIZE_DEBUG_MENU`)
+draws a violet outline (`COLONY_DEBUG_RECT_COLOR` =
 13, WOODPANL.PIK's bright EGA magenta — not used anywhere else on this
 screen) around every colony building sprite's actual bounds: the 14 random-
 pool slots plus the fixed docks/fence corner. `game->debug_building_rects`
