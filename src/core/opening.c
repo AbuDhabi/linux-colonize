@@ -333,9 +333,15 @@ static void opening_compose(OpeningCinematic* o) {
     const ColonizeSprite* sh = &o->ship.sprites[spr];
     /* PATH.DAT is the sprite centre in world/screen space, not a FUN_6f30
      * baseline. Using height-1 as a bottom anchor parked the hull ~12 px
-     * above OPENBONK's still (anchor 123 / dest y 102 vs path y 114). */
+     * above OPENBONK's still (anchor 123 / dest y 102 vs path y 114).
+     * OPENING_SHIP_X_ALIGN parks the padded 47-wide sheet on the 33-wide
+     * still (dest x 141 vs path x 161). */
     ss_blit_sprite(
-      &o->ship, spr, &fb, sx - camera - (sh->width >> 1), sy - (sh->height >> 1)
+      &o->ship,
+      spr,
+      &fb,
+      sx - camera - (sh->width >> 1) + OPENING_SHIP_X_ALIGN,
+      sy - (sh->height >> 1)
     );
   }
 
@@ -361,7 +367,6 @@ static bool opening_step(OpeningCinematic* o) {
   if (o->end_frame > 0 && o->clock >= o->end_frame) {
     o->clock = o->end_frame;
     opening_compose(o);
-    o->finished = true;
     return false;
   }
   opening_compose(o);
@@ -512,6 +517,13 @@ void opening_update(OpeningCinematic* o, uint32_t dt_ms) {
   if (!o || !o->open || o->finished) {
     return;
   }
+  if (o->end_frame > 0 && o->clock >= o->end_frame) {
+    o->hold_ms += dt_ms;
+    if (o->hold_ms >= OPENING_HOLD_MS) {
+      o->finished = true;
+    }
+    return;
+  }
   o->accum_ms += dt_ms;
   while (o->accum_ms >= OPENING_FRAME_MS) {
     o->accum_ms -= OPENING_FRAME_MS;
@@ -533,9 +545,15 @@ bool opening_handle_input(OpeningCinematic* o, const ColonizeInputState* input) 
     input->last_key != COLONIZE_KEY_NONE || input->mouse_left_clicked ||
     input->mouse_right_clicked;
   if (pressed) {
+    if (o->end_frame > 0 && o->clock >= o->end_frame) {
+      return true;
+    }
     o->skip_presses++;
     if (o->skip_presses >= 2) {
-      o->finished = true;
+      o->clock = o->end_frame;
+      opening_compose(o);
+      o->accum_ms = 0;
+      o->hold_ms = 0;
     }
   }
   return true;

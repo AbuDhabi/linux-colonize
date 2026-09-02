@@ -23,9 +23,11 @@
  *   Repeats 0 = play once and hold the last sprite; >0 = that many cycles
  *   series -1, Frame N = stop when the clock reaches N (shipped: 891)
  *
- * Camera follows the ship, clamped to [0, 640]. Any key/click twice skips
- * (two edges so a single accidental tap does not dump the player into the
- * title menu). Same BIOS-tick pacing as CLOSING.EXE (~55 ms).
+ * Camera follows the ship, clamped to [0, 640]. Any key/click twice jumps
+ * to the last frame (two edges so a single accidental tap does not skip).
+ * After the last frame — natural end or skip — the still holds for
+ * OPENING_HOLD_MS, then the owner goes to the title menu. Same BIOS-tick
+ * pacing as CLOSING.EXE (~55 ms).
  */
 
 #define OPENING_SHEET_COUNT 10
@@ -52,9 +54,18 @@
 #define OPENING_CAMERA_MAX (OPENING_WORLD_W - OPENING_VIEW_W)
 
 #define OPENING_FRAME_MS 55
+#define OPENING_HOLD_MS 1000
 
-/* Same id the title menu already uses (SOUND_TITLE_ID / "Natives"). */
-#define OPENING_BGM_ID 0x33
+/*
+ * OPENSHIP.SS is 47 px wide with 14 px of transparent padding on the right,
+ * so width/2 sits 3 px left of OPENBONK's last still (FUN_6f30 dest x 141
+ * vs PATH 161). Added to dest x so the moving hull and the still coincide.
+ */
+#define OPENING_SHIP_X_ALIGN 3
+
+/* OPENING.EXE: `mov ax,0x34` then far-call the GSOUND dispatcher (image
+ * +0xfd8). 0x34 is the looping intro theme, not Pick Music / title 0x33. */
+#define OPENING_BGM_ID 0x34
 
 typedef struct OpeningSeries {
   int series;
@@ -90,6 +101,7 @@ typedef struct OpeningCinematic {
   int end_frame;
   int clock;
   uint32_t accum_ms;
+  uint32_t hold_ms;
   ColonizePalette palette;
   bool palette_ok;
   uint8_t scene[OPENING_WORLD_W * OPENING_SCENE_H];
@@ -107,7 +119,7 @@ void opening_close(OpeningCinematic* o);
 
 void opening_update(OpeningCinematic* o, uint32_t dt_ms);
 
-/* True while still open. Two key/click edges set finished. */
+/* True while still open. Two key/click edges jump to the last frame. */
 bool opening_handle_input(OpeningCinematic* o, const ColonizeInputState* input);
 
 void opening_render(
