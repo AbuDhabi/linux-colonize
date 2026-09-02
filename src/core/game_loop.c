@@ -8202,48 +8202,32 @@ static void game_europe_deliver_bound_ships(ColonizeGameState* game) {
       break;
     }
 
+    /*
+     * bugs.md (missing_merchantman.SAV): a returning ship must NEVER be lost.
+     * The old code popped the ship off the bound lane FIRST and then did
+     * `continue` on any spawn failure (unresolved type, no free high-seas
+     * tile, spawn refused) — deleting the ship and every passenger aboard.
+     * Resolve everything against the still-in-lane slot, and only pop once a
+     * spawn has actually succeeded; a genuine failure leaves the ship parked
+     * in the lane (turns_left 0) to retry, never vanished.
+     */
+    const EuropeHarborShip* slot = &eu->bound[idx];
     int cargo_professions[EUROPE_SHIP_CARGO_MAX];
-    memcpy(cargo_professions, eu->bound[idx].cargo_professions, sizeof(cargo_professions));
+    memcpy(cargo_professions, slot->cargo_professions, sizeof(cargo_professions));
 
-    int type_index = -1;
     char name[32];
-    int cargo_types[EUROPE_SHIP_CARGO_MAX];
-    int cargo_count = 0;
-    int hold_types[EUROPE_SHIP_CARGO_MAX];
-    int hold_amts[EUROPE_SHIP_CARGO_MAX];
-    int exit_x = 0;
-    int exit_y = 0;
-    bool exit_east = true;
-    memset(hold_types, 0, sizeof(hold_types));
-    memset(hold_amts, 0, sizeof(hold_amts));
-    if (!europe_bound_pop_arrived(
-          eu,
-          &type_index,
-          name,
-          sizeof(name),
-          cargo_types,
-          &cargo_count,
-          EUROPE_SHIP_CARGO_MAX,
-          hold_types,
-          hold_amts,
-          EUROPE_SHIP_CARGO_MAX,
-          &exit_x,
-          &exit_y,
-          &exit_east
-        )) {
-      break; /* shouldn't happen — idx was just found */
-    }
-
+    snprintf(name, sizeof(name), "%s", slot->name);
+    int type_index = slot->type_index;
     if (type_index < 0) {
       type_index = units_find_type(&game->units, name); /* purchased ship, never resolved */
     }
     if (type_index < 0) {
-      diag_warn("Europe arrival: could not resolve ship type for '%s'", name);
-      continue;
+      diag_warn("Europe arrival: could not resolve ship type for '%s' — parked in lane", name);
+      break;
     }
 
-    int sx = exit_x;
-    int sy = exit_y;
+    int sx = slot->exit_x;
+    int sy = slot->exit_y;
     if (sx <= 0 && sy <= 0 && eu->last_exit_valid) {
       sx = eu->last_exit_x;
       sy = eu->last_exit_y;
@@ -8255,22 +8239,36 @@ static void game_europe_deliver_bound_ships(ColonizeGameState* game) {
     int fx = sx;
     int fy = sy;
     if (!units_find_high_seas_tile(&game->units, &game->world_map, sx, sy, &fx, &fy)) {
-      diag_warn("Europe arrival: no free high-seas tile for '%s'", name);
-      continue;
+      diag_warn("Europe arrival: no free high-seas tile for '%s' — parked in lane", name);
+      break;
     }
 
+    int cargo_count = slot->cargo_count > EUROPE_SHIP_CARGO_MAX ? EUROPE_SHIP_CARGO_MAX
+                                                               : slot->cargo_count;
     int resolved_cargo[EUROPE_SHIP_CARGO_MAX];
     for (int i = 0; i < cargo_count; ++i) {
-      resolved_cargo[i] = game_europe_resolve_pax_type(&game->units, cargo_types[i]);
+      resolved_cargo[i] = game_europe_resolve_pax_type(&game->units, slot->cargo_types[i]);
+    }
+    int hold_types[EUROPE_SHIP_CARGO_MAX];
+    int hold_amts[EUROPE_SHIP_CARGO_MAX];
+    for (int i = 0; i < EUROPE_SHIP_CARGO_MAX; ++i) {
+      hold_types[i] = slot->hold_goods_type[i];
+      hold_amts[i] = slot->hold_goods_amount[i];
     }
 
     const int ship_id = units_spawn_ship_with_cargo(
       &game->units, type_index, fx, fy, resolved_cargo, cargo_count, hold_types, hold_amts
     );
     if (ship_id < 0) {
-      diag_warn("Europe arrival: failed to spawn '%s' at (%d,%d)", name, fx, fy);
-      continue;
+      diag_warn("Europe arrival: failed to spawn '%s' at (%d,%d) — parked in lane", name, fx, fy);
+      break;
     }
+    /* Spawn confirmed — now it is safe to remove the ship from the lane. */
+    for (int j = idx + 1; j < eu->bound_ships; ++j) {
+      eu->bound[j - 1] = eu->bound[j];
+    }
+    eu->bound_ships--;
+    memset(&eu->bound[eu->bound_ships], 0, sizeof(eu->bound[eu->bound_ships]));
     ColonizeUnit* ship = units_get(&game->units, ship_id);
     if (ship) {
       for (int i = 0; i < ship->cargo_count && i < cargo_count; ++i) {
