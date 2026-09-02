@@ -128,6 +128,66 @@ bool ai_popup_enqueue_choice_ctx(
   return ai_popup_enqueue(st, &req);
 }
 
+/* LABELS.TXT @MISC 34/35 (DS:0x2dfe/0x2e00); literals until the file loads. */
+static char g_colony_event_continue[AI_POPUP_CHOICE_LEN] = "Continue turn.";
+static char g_colony_event_zoom[AI_POPUP_CHOICE_LEN] = "Zoom to colony.";
+
+void ai_popup_set_colony_event_labels(const char* continue_label, const char* zoom_label) {
+  if (continue_label && continue_label[0]) {
+    snprintf(g_colony_event_continue, sizeof(g_colony_event_continue), "%s", continue_label);
+  }
+  if (zoom_label && zoom_label[0]) {
+    snprintf(g_colony_event_zoom, sizeof(g_colony_event_zoom), "%s", zoom_label);
+  }
+}
+
+bool ai_popup_enqueue_colony_event(AiPopupState* st, int colony_id, const char* body) {
+  /* DOS FUN_364b_0000 appends the two rows with ids 1/2 (FUN_281f_0022). */
+  const char* labels[2] = {g_colony_event_continue, g_colony_event_zoom};
+  const int ids[2] = {1, 2};
+  return ai_popup_enqueue_choice_ctx(
+    st, AI_POPUP_TAG_COLONY_EVENT, -1, -1, colony_id, NULL, body, labels, ids, 2
+  );
+}
+
+void ai_popup_colony_zoom_elect(AiPopupState* st, int colony_id) {
+  if (!st || colony_id < 0 || colony_id >= 64) {
+    return;
+  }
+  st->colony_zoom_elected |= (uint64_t)1u << colony_id;
+}
+
+static bool ai_popup_colony_has_pending(const AiPopupState* st, int colony_id) {
+  if (st->open && st->current.tag == AI_POPUP_TAG_COLONY_EVENT &&
+      st->current.payload == colony_id) {
+    return true;
+  }
+  if (st->has_result && st->result_tag == AI_POPUP_TAG_COLONY_EVENT &&
+      st->result_payload == colony_id) {
+    return true;
+  }
+  for (int i = 0; i < st->queue_count; ++i) {
+    if (st->queue[i].tag == AI_POPUP_TAG_COLONY_EVENT && st->queue[i].payload == colony_id) {
+      return true;
+    }
+  }
+  return false;
+}
+
+int ai_popup_take_colony_zoom(AiPopupState* st) {
+  if (!st || st->colony_zoom_elected == 0) {
+    return -1;
+  }
+  for (int c = 0; c < 64; ++c) {
+    const uint64_t bit = (uint64_t)1u << c;
+    if ((st->colony_zoom_elected & bit) != 0 && !ai_popup_colony_has_pending(st, c)) {
+      st->colony_zoom_elected &= ~bit;
+      return c;
+    }
+  }
+  return -1;
+}
+
 bool ai_popup_queue_pending(const AiPopupState* st) {
   return st && st->queue_count > 0;
 }
@@ -145,6 +205,14 @@ bool ai_popup_try_present_next(AiPopupState* st) {
     st->queue[i - 1] = st->queue[i];
   }
   st->queue_count--;
+  /* DOS FUN_364b_0000: choices only while DS:0xa898 is clear — once zoom is
+   * elected, the rest of that colony's batch presents as plain messages. */
+  if (st->current.tag == AI_POPUP_TAG_COLONY_EVENT && st->current.payload >= 0 &&
+      st->current.payload < 64 &&
+      (st->colony_zoom_elected & ((uint64_t)1u << st->current.payload)) != 0) {
+    st->current.choice_count = 0;
+    st->current.kind = AI_POPUP_KIND_OK;
+  }
   st->open = true;
   st->selection = 0;
   st->has_result = false;

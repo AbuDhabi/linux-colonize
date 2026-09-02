@@ -97,7 +97,8 @@ typedef enum AiPopupTag {
   AI_POPUP_TAG_BREWSTER_PICK = 49, /* 5e52 Brewster branch: FUN_38fd_4884(0,1) @RECRUITCHOOSE free pick (nation_a = human) */
   AI_POPUP_TAG_KING_WAR_END = 52, /* @LOSING1-3 / @RETIRING2 revolution-lost OK; dismissal opens the retire score (game over) */
   AI_POPUP_TAG_CONTACT_TRADE_PICK = 50, /* FUN_4d56_2820 shell: multi-hold unit picks which cargo to offer (payload = unit id, 99 = cancel) */
-  AI_POPUP_TAG_CONTACT_EURO_WAR = 52 /* FUN_465b_0000 @HAVETREATY Cancel Action/Break Treaty before attacking a treaty peer (nation_a = unit, nation_b = target, payload = x|y<<8) */
+  AI_POPUP_TAG_CONTACT_EURO_WAR = 52, /* FUN_465b_0000 @HAVETREATY Cancel Action/Break Treaty before attacking a treaty peer (nation_a = unit, nation_b = target, payload = x|y<<8) */
+  AI_POPUP_TAG_COLONY_EVENT = 53 /* FUN_364b_0000 colony EOT message (payload = colony id): "Continue turn." / "Zoom to colony." choices until zoom elected for that colony */
 } AiPopupTag;
 
 typedef struct AiPopupRequest {
@@ -150,6 +151,12 @@ typedef struct AiPopupState {
   int king_anim_frame;
   uint32_t king_anim_next_ms;
 
+  /* DOS DS:0xa898 latch, per colony (bit = colony id): once the player picks
+   * "Zoom to colony." the rest of that colony's queued messages present
+   * optionless, and the colony screen opens after the last one is answered
+   * (FUN_364b_0688 tail FUN_281f_0608). */
+  uint64_t colony_zoom_elected;
+
   int dialog_x;
   int dialog_y;
   int dialog_w;
@@ -199,6 +206,23 @@ bool ai_popup_enqueue_choice_ctx(
   const int* choice_ids,
   int choice_count
 );
+
+/*
+ * Colony EOT message (DOS FUN_364b_0000): CHOICE with "Continue turn." (1) /
+ * "Zoom to colony." (2) — LABELS.TXT @MISC 34/35 (DS:0x2dfe/0x2e00). Presents
+ * optionless once zoom is elected for that colony (colony_zoom_elected bit).
+ */
+bool ai_popup_enqueue_colony_event(AiPopupState* st, int colony_id, const char* body);
+/* Override the built-in choice labels from LABELS.TXT @MISC 34/35. */
+void ai_popup_set_colony_event_labels(const char* continue_label, const char* zoom_label);
+/* Latch a "Zoom to colony." election (result_choice_id 2). */
+void ai_popup_colony_zoom_elect(AiPopupState* st, int colony_id);
+/*
+ * Colony whose zoom was elected and whose queued messages are all answered
+ * (DOS: colony screen opens after that colony's message batch). Clears the
+ * bit; -1 = none ready.
+ */
+int ai_popup_take_colony_zoom(AiPopupState* st);
 
 bool ai_popup_queue_pending(const AiPopupState* st);
 bool ai_popup_busy(const AiPopupState* st); /* open or queued */

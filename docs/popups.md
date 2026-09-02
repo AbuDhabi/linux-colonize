@@ -129,6 +129,23 @@ popup answer can never hand control to a unit mid-EOT. Queue cap raised to 32
 (one SETUP slice can queue every colony's production chrome before the
 presenter drains any). See architecture.md "Blocking-popup invariant".
 
+**Colony-event choices (2026-09-02):** every colony EOT message DOS routes
+through `FUN_364b_0000` (`thunk_FUN_291f_09dc`) carries two choice rows —
+LABELS.TXT `@MISC` 34/35 "Continue turn." (id 1) / "Zoom to colony." (id 2,
+DS:0x2dfe/0x2e00) — while the per-colony latch DS:0xa898 is clear. Picking
+zoom sets the latch (rest of that colony's batch presents optionless) and the
+colony screen opens after the batch drains (`FUN_364b_0688` tail
+`FUN_281f_0608`). Port: `ai_popup_enqueue_colony_event` (tag
+`AI_POPUP_TAG_COLONY_EVENT`, payload = colony id) on the whole family —
+BUILT / NOMOREWAREHOUSE / NOMOREWAGONS / DEPLETION / SoL (SONS*/TORY*/REBEL*)
+/ EFFICIENT / INEFFICIENT / TRAIN* / NEWCOLONIST / FOOD1-2 / FOODLOW /
+STARVE1-2 / ALREADYHAVE / NEEDTOOLS* / raw-out crumbs (LUMBER…TOOLS) /
+SPOIL* / CARGOREADY*. `@VANISH` stays optionless (DOS passes the choice flag
+false). `game_loop` latches the election (`ai_popup_colony_zoom_elect`) and
+opens the colony screen via `ai_popup_take_colony_zoom` once no popups for
+that colony remain — mid-EOT too, like DOS. Not in the family (DOS
+`FUN_281f_0652` / ticker): TUTORIAL6, UNREST, WARN1/2, Custom House sale line.
+
 **Out of main tables:** MAPEDIT.EXE ([`MAPEDIT.TXT`](../COLONIZE/MAPEDIT.TXT) —
 19 sections), Colonizopedia articles, F2–F10 report *plates* (unless a nested
 confirm), pulldown chrome from `MENU.TXT`. Woodcut discovery captions
@@ -899,6 +916,7 @@ sections have no response lines). **Kind CHOICE** lists authentic labels.
 | `DIPLO_FA` | OK | Thin FA `3f41` | Partial |
 | `LANDFALL` | CHOICE | `@LANDFALL` | Done |
 | `MAP_CONFIRM` | CHOICE | Disband / overboard / quit / retire / trade-delete | Done |
+| `COLONY_EVENT` | CHOICE | Colony EOT messages / `364b_0000`: "Continue turn." / "Zoom to colony." (LABELS `@MISC` 34/35); optionless once zoom elected, colony screen opens after the batch | Done |
 
 ---
 

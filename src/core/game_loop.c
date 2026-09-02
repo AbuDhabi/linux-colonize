@@ -2164,6 +2164,16 @@ static void game_apply_ai_popup_result(ColonizeGameState* game) {
     game_apply_map_confirm(game);
     return;
   }
+  if (game->ai_popups.result_tag == AI_POPUP_TAG_COLONY_EVENT) {
+    /* Choice 2 = "Zoom to colony." (DOS FUN_364b_0000 result 2 → DS:0xa898);
+     * 1 / Esc / right-click = "Continue turn.". The screen itself opens once
+     * the colony's remaining messages are answered (take_colony_zoom). */
+    if (!game->ai_popups.result_cancelled && game->ai_popups.result_choice_id == 2) {
+      ai_popup_colony_zoom_elect(&game->ai_popups, game->ai_popups.result_payload);
+    }
+    ai_popup_consume_result(&game->ai_popups);
+    return;
+  }
   if (game->ai_popups.result_tag == AI_POPUP_TAG_LANDFALL) {
     if (!game->ai_popups.result_cancelled) {
       const int ship_id = game->ai_popups.result_nation_a;
@@ -5370,6 +5380,12 @@ ColonizeGameState* game_create(const ColonizeGameConfig* config) {
     if (assets_msg_load_file(&game->labels, labels_txt)) {
       game->labels_ok = true;
       diag_info("Loaded LABELS.TXT");
+      /* @MISC 34/35 = "Continue turn." / "Zoom to colony." (DS:0x2dfe/0x2e00),
+       * the FUN_364b_0000 colony-event choice pair. */
+      const ColonizeMsgSection* misc = assets_msg_find(&game->labels, "MISC");
+      if (misc && misc->line_count > 35) {
+        ai_popup_set_colony_event_labels(misc->lines[34], misc->lines[35]);
+      }
     } else {
       diag_warn("Failed to parse LABELS.TXT");
     }
@@ -9444,6 +9460,19 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
     /* Popup queue advances underneath an open woodcut (same order as the
      * post-EOT path below) — the woodcut owns screen and keyboard only. */
     if (!game->ai_popups.open && !game->ai_popups.has_result) {
+      /* Elected "Zoom to colony." whose message batch just drained: open the
+       * colony screen before the next colony's popups, the way DOS's
+       * FUN_364b_0688 tail (FUN_281f_0608) opens it mid-EOT. */
+      if (!game_modal_open(game)) {
+        const int zoom_cid = ai_popup_take_colony_zoom(&game->ai_popups);
+        if (zoom_cid >= 0) {
+          const ColonizeColony* zc = colonies_get(&game->colonies, zoom_cid);
+          if (zc && zc->active) {
+            game_enter_colony(game, zoom_cid);
+            return true;
+          }
+        }
+      }
       ai_popup_try_present_next(&game->ai_popups);
     }
     if (game_service_woodcut(game, input)) {
@@ -9471,6 +9500,18 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
    * player pressed to leave the article, silently answering the debate. */
   if (!game->ai_popups.open && !game->ai_popups.has_result && !game->in_pedia &&
       !game->in_report) {
+    /* Elected colony zoom with its batch drained → open the colony screen
+     * before presenting anything else (DOS FUN_364b_0688 tail). */
+    if (!game_modal_open(game) && !game->in_menu && !game->in_europe && !game->in_colony) {
+      const int zoom_cid = ai_popup_take_colony_zoom(&game->ai_popups);
+      if (zoom_cid >= 0) {
+        const ColonizeColony* zc = colonies_get(&game->colonies, zoom_cid);
+        if (zc && zc->active) {
+          game_enter_colony(game, zoom_cid);
+          return true;
+        }
+      }
+    }
     ai_popup_try_present_next(&game->ai_popups);
   }
 
