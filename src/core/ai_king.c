@@ -3152,13 +3152,139 @@ static void ai_king_ref_wave(ColonizeTurnContext* ctx) {
   int total = (int)force[0] + (int)force[1] + (int)force[2] + (int)force[3];
 
   if (total <= 0) {
-    /* 06a6 irregulars near player colony — crown nation_id, never human. */
-    int hx = 0;
-    int hy = 0;
-    if (ai_king_weakest_port(ctx, human, &hx, &hy) < 0) {
+    /*
+     * bugs.md 261 — full FUN_43f7_06a6 Tory uprising (viceroy_unpacked.c
+     * 73829-73932), replacing the old one-Regular-at-(hx,hy+1) stand-in
+     * that could drop Regulars on a WATER tile:
+     *   - roll(0, difficulty+1) != 0 to fire at all;
+     *   - per human colony without the +0x1c bit1 latch (flags.ref_landing):
+     *     score = pop*(100-SoL)*2/100 + difficulty+1, minus the attack
+     *     strength of every unit on the colony tile; a crown unit on any
+     *     adjacent land tile, or no free adjacent LAND tile, disqualifies;
+     *   - the max-score colony gets latched and score crown SOLDIERS (not
+     *     Regulars) spawn round-robin on free adjacent land tiles — odd
+     *     picks roll Veteran profession, every 3rd rolls into a Dragoon;
+     *   - @TORYUPRISING popup with the colony name.
+     */
+    if (dos_rng_range(ctx->rng, 0, (int)ctx->col1->head.difficulty + 1) == 0) {
       return;
     }
-    (void)ai_king_spawn_landing(ctx, crown, hx, hy + 1, "Regular", "Soldier", false);
+    static const int dx8[8] = {-1, 0, 1, 1, 1, 0, -1, -1};
+    static const int dy8[8] = {-1, -1, -1, 0, 1, 1, 1, 0};
+    int best_ci = -1;
+    int best_score = 0;
+    for (uint16_t ci = 0; ci < ctx->col1->head.colony_count; ++ci) {
+      ColonizeCol1Colony* c = ctx->col1->colony ? &ctx->col1->colony[ci] : NULL;
+      if (!c || (int)c->nation_id != human || c->flags.ref_landing) {
+        continue;
+      }
+      const int sol_p = ai_king_colony_sol_at(ctx, human, (int)c->x, (int)c->y);
+      int score = ((int)c->population * (100 - sol_p) * 2) / 100 +
+                  (int)ctx->col1->head.difficulty + 1;
+      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+        const ColonizeUnit* u = &ctx->units->units[i];
+        if (u->active && u->aboard_ship_id < 0 && u->x == (int)c->x && u->y == (int)c->y) {
+          const ColonizeUnitType* ty = units_type(ctx->units, u->type_index);
+          score -= ty ? ty->attack : 0;
+        }
+      }
+      int free_land = 0;
+      bool crown_adjacent = false;
+      for (int e = 0; e < 8; ++e) {
+        const int nx = (int)c->x + dx8[e];
+        const int ny = (int)c->y + dy8[e];
+        if (map_tile_is_water(ctx->map, nx, ny) ||
+            map_tile_has_city(ctx->map, nx, ny)) {
+          continue;
+        }
+        const int occ = units_id_at(ctx->units, nx, ny);
+        const ColonizeUnit* ou = occ >= 0 ? units_get_const(ctx->units, occ) : NULL;
+        if (!ou) {
+          free_land++;
+        } else if (ou->nation_id == crown) {
+          crown_adjacent = true;
+        }
+      }
+      if (crown_adjacent || free_land == 0) {
+        continue;
+      }
+      if (score > best_score) {
+        best_score = score;
+        best_ci = (int)ci;
+      }
+    }
+    if (best_ci < 0 || best_score <= 0) {
+      return;
+    }
+    ColonizeCol1Colony* c = &ctx->col1->colony[best_ci];
+    c->flags.ref_landing = 1;
+    const int soldier_ty = units_find_type(ctx->units, "Soldier");
+    const int dragoon_ty = units_find_type(ctx->units, "Dragoon");
+    int remaining = best_score;
+    int spawned = 0;
+    bool any_pass = true;
+    while (remaining > 0 && any_pass) {
+      any_pass = false;
+      for (int e = 0; e < 8 && remaining > 0; ++e) {
+        const int nx = (int)c->x + dx8[e];
+        const int ny = (int)c->y + dy8[e];
+        if (map_tile_is_water(ctx->map, nx, ny) ||
+            map_tile_has_city(ctx->map, nx, ny)) {
+          continue;
+        }
+        const int occ = units_id_at(ctx->units, nx, ny);
+        const ColonizeUnit* ou = occ >= 0 ? units_get_const(ctx->units, occ) : NULL;
+        if (ou && ou->nation_id != crown) {
+          continue;
+        }
+        const int uid = soldier_ty >= 0
+          ? units_spawn_allow_stack(ctx->units, soldier_ty, nx, ny)
+          : -1;
+        if (uid >= 0) {
+          any_pass = true;
+          spawned++;
+          ColonizeUnit* nu = units_get(ctx->units, uid);
+          if (nu) {
+            units_set_nation(nu, crown);
+            nu->orders = UNITS_ORDER_AI_MOVE;
+            nu->goto_x = nx;
+            nu->goto_y = ny;
+            if ((remaining & 1) != 0 &&
+                dos_rng_range(ctx->rng, 0, (int)ctx->col1->head.difficulty + 1) != 0) {
+              nu->profession = UNITS_JOB_SOLDIER; /* Veteran */
+            }
+            if (remaining % 3 == 0 && dragoon_ty >= 0 &&
+                dos_rng_range(ctx->rng, 0, (int)ctx->col1->head.difficulty + 1) != 0) {
+              nu->type_index = dragoon_ty;
+              nu->horses = UNITS_EQUIP_HORSES;
+            }
+            if (ctx->map) {
+              nu->col1_vis_mask |= units_vis_mask_for_tile(ctx->map, nx, ny, crown);
+            }
+          }
+        }
+        remaining--;
+      }
+    }
+    if (spawned == 0) {
+      c->flags.ref_landing = 0;
+      return;
+    }
+    if (ai_king_human_popups(ctx)) {
+      PopupMsgTokens tok;
+      memset(&tok, 0, sizeof(tok));
+      tok.string0 = c->name[0] ? c->name : "our colony";
+      char body[AI_POPUP_BODY_LEN];
+      char fallback[AI_POPUP_BODY_LEN];
+      snprintf(fallback, sizeof(fallback),
+               "Tory uprising near %s! Loyalist irregulars take up arms for the King!",
+               tok.string0);
+      popup_msg_fill(ctx->messages, "TORYUPRISING", &tok, fallback, body, sizeof(body));
+      (void)ai_popup_enqueue_ok_ctx(
+        ctx->ai_popups, AI_POPUP_TAG_KING_ARRIVAL, human, crown, spawned,
+        "Tory Uprising", body
+      );
+    }
     return;
   }
 
@@ -3637,37 +3763,26 @@ static void ai_king_foreign_intervene(ColonizeTurnContext* ctx) {
   caps[3] = backup[3] > 2 ? 2 : (int)backup[3];
   caps[0] = 6 - (caps[1] + caps[3]);
   static const int pool_k[3] = {0, 1, 3};
-  bool ok = true;
-  for (int pi = 0; pi < 3 && ok; ++pi) {
+  for (int pi = 0; pi < 3; ++pi) {
     const int k = pool_k[pi];
     int n = caps[k];
     if (n > (int)backup[k]) {
       n = (int)backup[k];
     }
-    for (int s = 0; s < n; ++s) {
-      if (ai_king_10f0_spawn_unit(ctx, human, k, hx, hy) < 0) {
-        ok = false;
-        break;
-      }
-      backup[k]--;
-      landings++;
-    }
-  }
-  if (ctx->map) {
-    map_reveal_radius(ctx->map, hx, hy, human, 2);
+    landings += n;
   }
 
   if (landings > 0) {
+    /* bugs.md 258: the declaration names the PARENT countries (DOS 1528
+     * passes both nations through FUN_291f_0ac8's country-name form —
+     * "France declares war on England"), never the new-world colony names.
+     * The arrival line uses the nationality adjective ("French Intervention
+     * Force"). */
     static const char* k_euro[4] = {"English", "French", "Spanish", "Dutch"};
-    const int crown = ai_king_crown_nation(human);
-    const char* ally_name =
-      (ally1 >= 0 && ally1 < 4 && ctx->col1 && ctx->col1->player[ally1].country_name[0])
-        ? ctx->col1->player[ally1].country_name
-        : ((ally1 >= 0 && ally1 < 4) ? k_euro[ally1] : "Foreign");
-    const char* crown_name =
-      (crown >= 0 && crown < 4 && ctx->col1 && ctx->col1->player[crown].country_name[0])
-        ? ctx->col1->player[crown].country_name
-        : ((crown >= 0 && crown < 4) ? k_euro[crown] : "the Crown");
+    static const char* k_country[4] = {"England", "France", "Spain", "Netherlands"};
+    const char* ally_name = (ally1 >= 0 && ally1 < 4) ? k_euro[ally1] : "Foreign";
+    const char* ally_country = (ally1 >= 0 && ally1 < 4) ? k_country[ally1] : "A foreign power";
+    const char* crown_country = (human >= 0 && human < 4) ? k_country[human] : "the Crown";
     const char* colony = "the colonies";
     if (ctx->colonies) {
       const int cid = colonies_id_at(ctx->colonies, hx, hy);
@@ -3676,35 +3791,48 @@ static void ai_king_foreign_intervene(ColonizeTurnContext* ctx) {
         colony = c->name;
       }
     }
+    /* @FRIEND row for the ally ("French General Lafayette", …) — DOS 1528
+     * splices GAME.TXT @FRIEND[ally] into %STRING2. */
     char general[64];
     snprintf(general, sizeof(general), "%s General", ally_name);
+    {
+      const ColonizeMsgSection* fsec = assets_msg_find(ctx->messages, "FRIEND");
+      if (fsec && ally1 >= 0 && ally1 < fsec->line_count && fsec->lines[ally1][0]) {
+        str_copy_trunc(general, sizeof(general), fsec->lines[ally1]);
+      }
+    }
 
     if (ctx->status && ctx->status_size) {
       snprintf(ctx->status, ctx->status_size, "%s Intervention Force arrives in %s!",
                ally_name, colony);
     }
     if (ai_king_human_popups(ctx)) {
-      PopupMsgTokens itok;
-      memset(&itok, 0, sizeof(itok));
-      itok.string0 = ally_name;
-      itok.string1 = crown_name;
-      itok.string2 = general;
-      itok.string3 = colony;
-      itok.string4 = ally_name;
       char body[AI_POPUP_BODY_LEN];
       char fallback[AI_POPUP_BODY_LEN];
-      snprintf(
-        fallback,
-        sizeof(fallback),
-        "%s declares war on %s and joins the War of Independence on the Rebel side!",
-        ally_name,
-        crown_name
-      );
-      popup_msg_fill(ctx->messages, "INTERVENTION", &itok, fallback, body, sizeof(body));
-      (void)ai_popup_enqueue_ok_ctx(
-        ctx->ai_popups, AI_POPUP_TAG_KING_ARRIVAL, human, ally1, landings,
-        "Foreign Intervention", body
-      );
+      /* bugs.md 258: the declares-war announcement fires ONCE per game (DOS
+       * 1528 latch), the per-landing arrival popup every time. */
+      if (ai_king_latch_get(ctx->col1, AI_KING_INTERVENE_ANNOUNCED_BYTE) == 0) {
+        ai_king_latch_set(ctx->col1, AI_KING_INTERVENE_ANNOUNCED_BYTE, 1);
+        PopupMsgTokens itok;
+        memset(&itok, 0, sizeof(itok));
+        itok.string0 = ally_country;
+        itok.string1 = crown_country;
+        itok.string2 = general;
+        itok.string3 = colony;
+        itok.string4 = ally_name;
+        snprintf(
+          fallback,
+          sizeof(fallback),
+          "%s declares war on %s and joins the War of Independence on the Rebel side!",
+          ally_country,
+          crown_country
+        );
+        popup_msg_fill(ctx->messages, "INTERVENTION", &itok, fallback, body, sizeof(body));
+        (void)ai_popup_enqueue_ok_ctx(
+          ctx->ai_popups, AI_POPUP_TAG_KING_ARRIVAL, human, ally1, landings,
+          "Foreign Intervention", body
+        );
+      }
 
       PopupMsgTokens atok;
       memset(&atok, 0, sizeof(atok));
@@ -3726,7 +3854,58 @@ static void ai_king_foreign_intervene(ColonizeTurnContext* ctx) {
       );
       sound_set_bgm(3); /* FUN_43f7_10f0 43f7:145b: 281f_0498(3) Independence pool… */
       sound_play(0x3f); /* …then 43f7:1465: intervention tune after @INTERVENE */
+      /* bugs.md 259: the arrival popup BLOCKS before the disembark slides,
+       * same sequencing as the REF landing (bugs.md 243). */
+      units_pump_combat_popups();
     }
+  }
+
+  /* bugs.md 259: land troops disembark VISIBLY — spawn on the ship's tile
+   * and slide into the colony through units_try_move (fires the move-watch
+   * animation), like the REF landing. Unlike normal disembark rules they
+   * arrive ready for action: full moves restored after the step. */
+  for (int pi = 0; pi < 3; ++pi) {
+    const int k = pool_k[pi];
+    int n = caps[k];
+    if (n > (int)backup[k]) {
+      n = (int)backup[k];
+    }
+    for (int s = 0; s < n; ++s) {
+      const int uid = ai_king_10f0_spawn_unit(ctx, human, k, sx, sy);
+      if (uid < 0) {
+        break;
+      }
+      backup[k]--;
+      ColonizeUnit* lu = units_get(ctx->units, uid);
+      if (lu) {
+        lu->moves_left = 3;
+        lu->goto_x = hx;
+        lu->goto_y = hy;
+      }
+      if (!units_try_move(ctx->units, uid, ctx->map, hx, hy, ctx->colonies, ctx->rng)) {
+        lu = units_get(ctx->units, uid);
+        if (lu) {
+          const int ox = lu->x;
+          const int oy = lu->y;
+          lu->x = hx;
+          lu->y = hy;
+          units_occupancy_notify_moved(ctx->units, ox, oy, lu->x, lu->y);
+        }
+      }
+      lu = units_get(ctx->units, uid);
+      if (lu) {
+        lu->moves_left = units_max_mp(ctx->units, uid);
+        lu->orders = 0;
+        lu->goto_x = UNITS_GOTO_NONE;
+        lu->goto_y = UNITS_GOTO_NONE;
+        if (ctx->map) {
+          lu->col1_vis_mask |= units_vis_mask_for_tile(ctx->map, lu->x, lu->y, human);
+        }
+      }
+    }
+  }
+  if (ctx->map) {
+    map_reveal_radius(ctx->map, hx, hy, human, 2);
   }
 }
 
@@ -4463,16 +4642,23 @@ static void ai_king_war_act(ColonizeTurnContext* ctx) {
       ai_king_set_ref_present(ctx->col1, 0);
     }
   }
-  /*
-   * Rebel arm first: 10f0 while human ports still exist (crown move/capture
-   * below may seize the landing pick). In addition to 06a6 in ref_wave.
-   */
-  ai_king_foreign_intervene(ctx);
-  /* Real 2022: recurring per-turn rebel merc gift (hire CHOICE / auto). */
-  ai_king_merc_offer(ctx);
-
   const int crown = ai_king_crown_nation(ctx->human_nation);
   const int human = ctx->human_nation;
+  /* bugs.md 256: DOS 2022 runs the mobilization gate BEFORE any other war
+   * beat — the mobilization turn does nothing else (no intervene/merc). The
+   * gate block below returns early, so intervene/merc moved after it. */
+  const int mobilization_due =
+    human >= 0 && human < (int)COLONIZE_COL1_NATION_COUNT &&
+    (ctx->col1->nation[human].nation_flags & 0x08u) == 0;
+  if (!mobilization_due) {
+    /*
+     * Rebel arm first: 10f0 while human ports still exist (crown move/capture
+     * below may seize the landing pick). In addition to 06a6 in ref_wave.
+     */
+    ai_king_foreign_intervene(ctx);
+    /* Real 2022: recurring per-turn rebel merc gift (hire CHOICE / auto). */
+    ai_king_merc_offer(ctx);
+  }
 
   /*
    * FUN_43f7_1eca full port. Per colony owned by the rebel nation with
@@ -4494,7 +4680,13 @@ static void ai_king_war_act(ColonizeTurnContext* ctx) {
    * SoL 40..49 "restless" band is status-text only (below), not a promote
    * band in 1eca.
    */
-  {
+  /* bugs.md 256 + DOS FUN_43f7_2022: the 1eca mobilization runs exactly ONCE,
+   * on the first war-act turn after the declaration — gated on nation_flags
+   * bit 0x08 (`*(byte*)*[0x84fc] & 8`), set right after, and DOS `return`s so
+   * the mobilization turn does nothing else on the war path. */
+  if (human >= 0 && human < (int)COLONIZE_COL1_NATION_COUNT &&
+      (ctx->col1->nation[human].nation_flags & 0x08u) == 0) {
+    ctx->col1->nation[human].nation_flags |= 0x08u;
     int army = units_find_type(ctx->units, "Continental Army");
     if (army < 0) {
       army = units_find_type(ctx->units, "Cont. Army");
@@ -4611,6 +4803,8 @@ static void ai_king_war_act(ColonizeTurnContext* ctx) {
         }
       }
     }
+    /* DOS 2022: mobilization turn ends the war path here. */
+    return;
   }
 
   /*
@@ -5502,7 +5696,26 @@ static void ai_king_check_revolution_end(ColonizeTurnContext* ctx, int ref_alrea
     return;
   }
   const int year = (int)ctx->col1->head.year;
-  if (year >= AI_KING_YEAR_CAP && ai_king_crown_units_alive(ctx, crown) <= 0) {
+  /* bugs.md 261: no year gate on winning — when the King has run out of
+   * forces (every REF pool spent AND no crown unit left in the New World)
+   * he gives up and the player wins. The year cap only drives the
+   * war-weary @RETIRING2 loss below. */
+  const int ref_pools_left = ai_king_force_total(ctx->col1->head.expeditionary_force);
+  /* Not gated on ref_already: once the last crown unit dies, war_act clears
+   * ref_present the same turn, so requiring it would block the win forever.
+   * Pools-empty is proof enough the REF came and was spent (declare always
+   * seeds them non-zero). */
+  int crown_colonies = 0;
+  if (ctx->colonies) {
+    for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+      const ColonizeColony* c = &ctx->colonies->colonies[i];
+      if (c->active && c->nation_id == crown) {
+        ++crown_colonies;
+      }
+    }
+  }
+  if (ref_pools_left <= 0 && crown_colonies <= 0 &&
+      ai_king_crown_units_alive(ctx, crown) <= 0) {
     ai_king_latch_set(ctx->col1, AI_KING_ENDGAME_BYTE, AI_KING_ENDGAME_WON);
     ai_king_latch_set(ctx->col1, AI_KING_REF_PRESENT_BYTE, 0);
     ctx->col1->head.game_options.ref_present = 0;

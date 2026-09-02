@@ -1768,6 +1768,10 @@ void turn_run_colony_production(
   }
   for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
     if (pool->colonies[i].active) {
+      /* bugs.md 262: DOS never carries an idle colonist — sweep any
+       * job-less colonist (stale saves, non-UI admit paths) into work
+       * before producing, so the head count always matches the workers. */
+      colonies_auto_assign_idle(pool, i);
       turn_produce_one_colony(
         pool,
         &pool->colonies[i],
