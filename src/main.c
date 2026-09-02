@@ -194,7 +194,7 @@ int main(int argc, char** argv) {
     platform_audio_resume(platform);
   }
   if (game_try_start_intro(game)) {
-    /* Intro plays 0x33 itself; title music starts when it finishes. */
+    /* Intro plays OPENING_BGM_ID (0x34); title music starts when it finishes. */
   } else if (sound_playback_enabled()) {
     sound_play(SOUND_TITLE_ID);
   } else {
