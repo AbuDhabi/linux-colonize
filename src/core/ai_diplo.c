@@ -1241,6 +1241,7 @@ static void ai_diplo_status_declare_war(
     "The %STRING0 and %STRING1 are now at war.",
     ctx->status, ctx->status_size
   );
+  popup_msg_strip_markup(ctx->status); /* status line: no {} coloring */
 }
 
 /*
@@ -1269,6 +1270,7 @@ static void ai_diplo_status_sign_treaty(
     "The %STRING0 and %STRING1 have signed a peace treaty.",
     ctx->status, ctx->status_size
   );
+  popup_msg_strip_markup(ctx->status); /* status line: no {} coloring */
 }
 
 /* @CARGO display names (colony.h / NAMES.TXT / reports.c) for boycott chrome. */

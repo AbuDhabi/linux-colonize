@@ -37,20 +37,6 @@ static void options_strip_tilde(char* s) {
   *w = '\0';
 }
 
-static void options_strip_braces(char* s) {
-  if (!s) {
-    return;
-  }
-  char* w = s;
-  for (char* r = s; *r; ++r) {
-    if (*r == '{' || *r == '}') {
-      continue;
-    }
-    *w++ = *r;
-  }
-  *w = '\0';
-}
-
 static bool options_load_section(
   OptionsDialog* dlg,
   OptionsDialogKind kind,
@@ -103,7 +89,7 @@ static bool options_load_section(
       char lab[OPTIONS_DIALOG_LABEL_LEN];
       str_copy_trunc(lab, sizeof(lab), line);
       options_strip_tilde(lab);
-      options_strip_braces(lab);
+      /* {} kept — render colors braced spans with the hilite ink. */
       str_copy_trunc(dlg->labels[dlg->option_count], sizeof(dlg->labels[0]), lab);
       dlg->values[dlg->option_count] =
         (initial_values && dlg->option_count < fallback_count) ? initial_values[dlg->option_count]
@@ -411,6 +397,7 @@ void options_dialog_render(
   const ColonizeSpriteSheet* wood_tile,
   const ColonizePopupColors* colors,
   uint8_t text_color,
+  uint8_t hilite_color,
   uint8_t select_color,
   ColonizeFramebuffer8* framebuffer
 ) {
@@ -479,7 +466,10 @@ void options_dialog_render(
       text_color
     );
     if (font) {
-      popup_draw_text_shadowed(font, framebuffer, ix + pad_x + 10, row_y, dlg->labels[i], text_color);
+      popup_draw_text_markup(
+        font, framebuffer, ix + pad_x + 10, row_y, dlg->labels[i], text_color,
+        hilite_color, true, true, NULL
+      );
     }
   }
 }

@@ -4619,7 +4619,12 @@ static void europe_render_menu_popup(
       snprintf(cost, sizeof(cost), "(Cost: %d)", p->gold);
       color = (eu->gold >= p->gold) ? 14 : 8;
     }
-    europe_menu_draw_shadowed(font, framebuffer, inner_x + pad + 6, row_y, label, color);
+    /* ARMOPTIONS rows carry {} emphasis ("Arm with {Muskets}…"); a greyed
+     * row stays all grey like DOS's disabled ink. */
+    popup_draw_text_markup(
+      font, framebuffer, inner_x + pad + 6, row_y, label, color,
+      color == 8 ? (uint8_t)8 : (uint8_t)14, false, true, NULL
+    );
     if (cost[0]) {
       const int cw = font_text_width(font, cost);
       europe_menu_draw_shadowed(
@@ -12323,6 +12328,7 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
         wood,
         &popup_cols,
         COLONIZE_COL_BASIC,
+        COLONIZE_COL_HILITE,
         COLONIZE_COL_SELECT,
         framebuffer
       );
@@ -12418,6 +12424,7 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
         wood,
         &popup_cols,
         COLONIZE_COL_BASIC,
+        COLONIZE_COL_HILITE,
         COLONIZE_COL_SELECT,
         framebuffer
       );
@@ -12538,6 +12545,7 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
           wood,
           &popup_cols,
           COLONIZE_COL_BASIC,
+          COLONIZE_COL_HILITE,
           COLONIZE_COL_SELECT,
           framebuffer
         );
@@ -13123,6 +13131,7 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
         wood,
         &popup_cols,
         COLONIZE_COL_BASIC,
+        COLONIZE_COL_HILITE,
         COLONIZE_COL_SELECT,
         framebuffer
       );
@@ -13190,6 +13199,7 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
         wood,
         &popup_cols,
         COLONIZE_COL_BASIC,
+        COLONIZE_COL_HILITE,
         COLONIZE_COL_SELECT,
         framebuffer
       );
@@ -13272,7 +13282,12 @@ const char* game_status_text(const ColonizeGameState* game) {
   if (!game) {
     return "Colonization Linux Port";
   }
-  return game->status;
+  /* Status feeds the window title — plain text, so eat any {} emphasis
+   * markup a GAME.TXT-sourced line carried along. */
+  static char plain[sizeof(((ColonizeGameState*)0)->status)];
+  snprintf(plain, sizeof(plain), "%s", game->status);
+  popup_msg_strip_markup(plain);
+  return plain;
 }
 
 void game_apply_mouse_cursor(

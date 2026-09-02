@@ -71,6 +71,7 @@ static void ai_contact_set_status(ColonizeTurnContext* ctx, const char* msg) {
     return;
   }
   snprintf(ctx->status, ctx->status_size, "%s", msg);
+  popup_msg_strip_markup(ctx->status); /* status line: no {} coloring */
 }
 
 /*

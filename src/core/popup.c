@@ -1,6 +1,8 @@
 #include "core/popup.h"
 
+#include <stdbool.h>
 #include <stddef.h>
+#include <string.h>
 
 #include "core/font.h"
 #include "core/ui_colors.h"
@@ -268,4 +270,82 @@ void popup_draw_text_shadowed(
   }
   font_draw_text_unbold(font, framebuffer, x + 1, y + 1, text, 0);
   font_draw_text_unbold(font, framebuffer, x, y, text, color);
+}
+
+int popup_markup_text_width(const ColonizeFont* font, const char* text) {
+  if (!text) {
+    return 0;
+  }
+  char plain[512];
+  size_t t = 0;
+  for (const char* p = text; *p && t + 1 < sizeof(plain); ++p) {
+    if (*p == '{' || *p == '}') {
+      continue;
+    }
+    plain[t++] = *p;
+  }
+  plain[t] = '\0';
+  return font_text_width(font, plain);
+}
+
+int popup_draw_text_markup(
+  const ColonizeFont* font,
+  ColonizeFramebuffer8* framebuffer,
+  int x,
+  int y,
+  const char* text,
+  uint8_t base_color,
+  uint8_t hilite_color,
+  bool unbold,
+  bool shadow,
+  bool* inout_hilite
+) {
+  if (!font || !text) {
+    return x;
+  }
+  bool hi = inout_hilite ? *inout_hilite : false;
+  int cx = x;
+  const char* p = text;
+  while (*p) {
+    if (*p == '{') {
+      hi = true;
+      ++p;
+      continue;
+    }
+    if (*p == '}') {
+      hi = false;
+      ++p;
+      continue;
+    }
+    const char* start = p;
+    while (*p && *p != '{' && *p != '}') {
+      ++p;
+    }
+    char run[256];
+    size_t n = (size_t)(p - start);
+    if (n >= sizeof(run)) {
+      n = sizeof(run) - 1;
+    }
+    memcpy(run, start, n);
+    run[n] = '\0';
+    const uint8_t ink = hi ? hilite_color : base_color;
+    if (framebuffer) {
+      if (unbold) {
+        if (shadow) {
+          font_draw_text_unbold(font, framebuffer, cx + 1, y + 1, run, 0);
+        }
+        font_draw_text_unbold(font, framebuffer, cx, y, run, ink);
+      } else {
+        if (shadow) {
+          font_draw_text(font, framebuffer, cx + 1, y + 1, run, 0);
+        }
+        font_draw_text(font, framebuffer, cx, y, run, ink);
+      }
+    }
+    cx += font_text_width(font, run);
+  }
+  if (inout_hilite) {
+    *inout_hilite = hi;
+  }
+  return cx;
 }

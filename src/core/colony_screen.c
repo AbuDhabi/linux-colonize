@@ -10,7 +10,9 @@
 #include "core/dos_rng.h"
 #include "core/europe.h"
 #include "core/founding_fathers.h"
+#include "core/popup.h"
 #include "core/popup_msg.h"
+#include "core/ui_colors.h"
 #include "core/turn.h"
 #include "core/ui_button.h"
 #include "core/unit_chrome.h"
@@ -31,6 +33,7 @@ void colony_screen_set_status(ColonyScreenView* view, const char* text) {
     return;
   }
   snprintf(view->status, sizeof(view->status), "%s", text ? text : "");
+  popup_msg_strip_markup(view->status); /* plain status text, no {} markup */
 }
 
 void colony_screen_reset_ui(ColonyScreenView* view) {
@@ -4024,7 +4027,7 @@ static void colony_screen_draw_custom_house_popup(
    * Custom House export?") is the widest line, not any cargo name. */
   int dialog_w = 130;
   if (font) {
-    const int title_w = font_text_width(font, view->custom_house_title) + pad * 2;
+    const int title_w = popup_markup_text_width(font, view->custom_house_title) + pad * 2;
     if (title_w > dialog_w) {
       dialog_w = title_w;
     }
@@ -4058,7 +4061,10 @@ static void colony_screen_draw_custom_house_popup(
   view->custom_house_line_h = line_h;
 
   if (font && inner_w > 0) {
-    font_draw_text(font, framebuffer, inner_x + pad, inner_y + pad, view->custom_house_title, 15);
+    popup_draw_text_markup(
+      font, framebuffer, inner_x + pad, inner_y + pad, view->custom_house_title,
+      15, COLONIZE_COL_HILITE, false, false, NULL
+    );
   }
   const int list_y0 = inner_y + pad + line_h;
   view->custom_house_list_y0 = list_y0;
@@ -4192,7 +4198,10 @@ static void colony_screen_draw_dock_orders_popup(
   view->dock_orders_line_h = line_h;
 
   if (font && inner_w > 0) {
-    font_draw_text(font, framebuffer, inner_x + pad, inner_y + pad, view->dock_orders_title, 15);
+    popup_draw_text_markup(
+      font, framebuffer, inner_x + pad, inner_y + pad, view->dock_orders_title,
+      15, COLONIZE_COL_HILITE, false, false, NULL
+    );
   }
   const int list_y0 = inner_y + pad + line_h;
   view->dock_orders_list_y0 = list_y0;
