@@ -75,6 +75,8 @@ void settings_defaults(ColonizeSettings* out) {
   out->save_dir[0] = '\0';
   out->seed = 0;
   out->seed_present = false;
+  out->debug_menu = true;
+  out->show_mouse_coords = true;
 }
 
 /* ---------------------------------------------------------------- writing */
@@ -131,6 +133,11 @@ bool settings_save_file(const char* path, const ColonizeSettings* in, char* err,
   fprintf(f, "  \"display\": {\n");
   wb(f, "windowed", in->windowed, false);
   fprintf(f, "    \"window_scale\": %d\n", in->window_scale);
+  fprintf(f, "  },\n");
+
+  fprintf(f, "  \"debug\": {\n");
+  wb(f, "menu", in->debug_menu, false);
+  wb(f, "mouse_coords", in->show_mouse_coords, true);
   fprintf(f, "  },\n");
 
   fprintf(f, "  \"data_dir\": ");
@@ -251,6 +258,10 @@ bool settings_load_file(const char* path, ColonizeSettings* out, char* err, size
   if (d && json_get_i64(d, "window_scale", &scale)) {
     out->window_scale = (int)(scale < 1 ? 1 : (scale > 8 ? 8 : scale));
   }
+
+  const JsonValue* dbg = json_obj_get(root, "debug");
+  rb(dbg, "menu", &out->debug_menu);
+  rb(dbg, "mouse_coords", &out->show_mouse_coords);
 
   const char* data_dir = json_get_str(root, "data_dir");
   if (data_dir && data_dir[0]) {

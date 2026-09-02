@@ -75,6 +75,8 @@ typedef struct ColonizeSettings {
   char save_dir[512]; /* empty = platform default (<exe>/COLONIZE) */
   uint32_t seed;      /* campaign RNG; used only when seed_present */
   bool seed_present;  /* JSON number (including 0); null/omitted = unset */
+  bool debug_menu;         /* show DEBUG pulldown on the map navbar */
+  bool show_mouse_coords;  /* pixel HUD follows the pointer */
 } ColonizeSettings;
 
 /* DOS new-game state (0x5382=0xc600, 0x5384=0, 0x5386=0x0e) plus port
