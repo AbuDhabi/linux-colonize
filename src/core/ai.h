@@ -43,6 +43,7 @@ typedef struct AiNewGameParams {
   int human_start_x;
   int human_start_y;
   uint32_t rng_seed;
+  bool rng_seed_set; /* 0 is valid when set; unset 0 means "use 1 / skip reseed" */
   /* When set, tribe placement continues this DOS LCG (post map_generate). */
   ColonizeDosRng* rng;
 } AiNewGameParams;

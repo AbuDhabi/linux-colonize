@@ -31,7 +31,7 @@
 typedef ColonizeDosRng MapGenRng;
 
 static void rng_seed(MapGenRng* rng, uint32_t seed) {
-  dos_rng_seed(rng, seed ? seed : 1u);
+  dos_rng_seed(rng, seed);
 }
 
 static int rng_range(MapGenRng* rng, int lo, int hi_inclusive) {
@@ -57,9 +57,9 @@ void map_gen_params_random(MapGenParams* out, uint32_t seed) {
   if (out->rng) {
     rng = out->rng;
   } else {
-    rng_seed(&local, seed ? seed : 1u);
+    rng_seed(&local, seed);
   }
-  out->seed = seed ? seed : 1u;
+  out->seed = seed;
   /* NEW WORLD: FUN_281f_04d4(0,3) per axis (can be 0..3). CUSTOMIZE UI stays 0..2. */
   out->land_mass = rng_range(rng, 0, 3);
   out->land_form = rng_range(rng, 0, 3);
@@ -1345,9 +1345,6 @@ bool map_generate(ColonizeWorldMap* out, const MapGenParams* params, char* err, 
   p.temperature = clamp_i(p.temperature, 0, 3);
   p.climate = clamp_i(p.climate, 0, 3);
   p.forest_extra = clamp_i(p.forest_extra, 0, 3);
-  if (p.seed == 0) {
-    p.seed = 1;
-  }
 
   if (!map_alloc(out, MAP_GEN_WIDTH, MAP_GEN_HEIGHT, err, err_size)) {
     return false;

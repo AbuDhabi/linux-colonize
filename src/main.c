@@ -18,10 +18,15 @@ typedef struct CliConfig {
   bool no_sound;
   int window_scale;
   uint32_t rng_seed;
-  /* Which display flags the command line actually set; those win over
-   * settings.json, anything else falls back to the stored preference. */
+  /* Which flags the command line actually set; those win over settings.json.
+   * Anything else falls back to the stored preference if that key is valid,
+   * else the hardcoded default already in this struct. */
+  bool data_dir_from_cli;
+  bool save_dir_from_cli;
   bool windowed_from_cli;
+  bool nosound_from_cli;
   bool scale_from_cli;
+  bool seed_from_cli;
 } CliConfig;
 
 static CliConfig cli_defaults(void) {
@@ -32,8 +37,12 @@ static CliConfig cli_defaults(void) {
   cfg.no_sound = false;
   cfg.window_scale = 2;
   cfg.rng_seed = 0;
+  cfg.data_dir_from_cli = false;
+  cfg.save_dir_from_cli = false;
   cfg.windowed_from_cli = false;
+  cfg.nosound_from_cli = false;
   cfg.scale_from_cli = false;
+  cfg.seed_from_cli = false;
   return cfg;
 }
 
@@ -42,8 +51,10 @@ static bool parse_args(int argc, char** argv, CliConfig* cfg) {
     const char* arg = argv[i];
     if (strcmp(arg, "--data-dir") == 0 && i + 1 < argc) {
       cfg->data_dir = argv[++i];
+      cfg->data_dir_from_cli = true;
     } else if (strcmp(arg, "--save-dir") == 0 && i + 1 < argc) {
       cfg->save_dir = argv[++i];
+      cfg->save_dir_from_cli = true;
     } else if (strcmp(arg, "--windowed") == 0) {
       cfg->windowed = true;
       cfg->windowed_from_cli = true;
@@ -52,6 +63,7 @@ static bool parse_args(int argc, char** argv, CliConfig* cfg) {
       cfg->windowed_from_cli = true;
     } else if (strcmp(arg, "--nosound") == 0) {
       cfg->no_sound = true;
+      cfg->nosound_from_cli = true;
     } else if (strcmp(arg, "--scale") == 0 && i + 1 < argc) {
       cfg->window_scale = atoi(argv[++i]);
       if (cfg->window_scale < 1) {
@@ -60,6 +72,7 @@ static bool parse_args(int argc, char** argv, CliConfig* cfg) {
       cfg->scale_from_cli = true;
     } else if (strcmp(arg, "--seed") == 0 && i + 1 < argc) {
       cfg->rng_seed = (uint32_t)strtoul(argv[++i], NULL, 0);
+      cfg->seed_from_cli = true;
     } else {
       fprintf(stderr, "Unknown argument: %s\n", arg);
       return false;
@@ -86,11 +99,24 @@ int main(int argc, char** argv) {
   }
   {
     const ColonizeSettings* prefs = settings_get();
+    if (!cli.data_dir_from_cli && prefs->data_dir[0]) {
+      cli.data_dir = prefs->data_dir;
+    }
+    if (!cli.save_dir_from_cli && prefs->save_dir[0]) {
+      cli.save_dir = prefs->save_dir;
+    }
     if (!cli.windowed_from_cli) {
       cli.windowed = prefs->windowed;
     }
+    if (!cli.nosound_from_cli) {
+      cli.no_sound = prefs->no_sound;
+    }
     if (!cli.scale_from_cli) {
       cli.window_scale = prefs->window_scale;
+    }
+    if (!cli.seed_from_cli && prefs->seed_present) {
+      cli.rng_seed = prefs->seed;
+      cli.seed_from_cli = true;
     }
   }
 
@@ -129,7 +155,8 @@ int main(int argc, char** argv) {
   ColonizeGameConfig game_cfg = {
     .data_dir = cli.data_dir,
     .save_dir = cli.save_dir,
-    .rng_seed = cli.rng_seed
+    .rng_seed = cli.rng_seed,
+    .rng_seed_set = cli.seed_from_cli
   };
 
   ColonizeGameState* game = game_create(&game_cfg);

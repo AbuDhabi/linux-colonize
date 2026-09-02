@@ -3,6 +3,7 @@
 
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdint.h>
 
 #include "core/col1_save.h"
 #include "core/sound.h"
@@ -65,13 +66,20 @@ typedef struct ColonizeSettings {
   bool event_music;
   bool sound_effects;
 
-  /* Port-only display prefs; CLI flags still win when given. */
+  /* Port-only launch prefs. CLI flags still win when given; a missing or
+   * invalid settings.json key keeps the hardcoded default. */
   bool windowed;
   int window_scale; /* 1..8 */
+  bool no_sound;
+  char data_dir[512];
+  char save_dir[512]; /* empty = platform default (<exe>/COLONIZE) */
+  uint32_t seed;      /* campaign RNG; used only when seed_present */
+  bool seed_present;  /* JSON number (including 0); null/omitted = unset */
 } ColonizeSettings;
 
 /* DOS new-game state (0x5382=0xc600, 0x5384=0, 0x5386=0x0e) plus port
- * display defaults. */
+ * launch defaults (windowed / scale 2 / ./COLONIZE). seed writes as null
+ * until a file actually sets a number. */
 void settings_defaults(ColonizeSettings* out);
 
 /*

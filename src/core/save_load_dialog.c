@@ -138,6 +138,8 @@ bool save_load_open(
     return false;
   }
   dlg->selection = (first_usable >= 0) ? first_usable : 0;
+  dlg->hover_mx = -1;
+  dlg->hover_my = -1;
   dlg->open = true;
   return true;
 }
@@ -244,6 +246,19 @@ bool save_load_handle_input(SaveLoadDialog* dlg, const ColonizeInputState* input
   if (input->mouse_right_clicked) {
     save_load_cancel(dlg);
     return true;
+  }
+
+  /* bugs.md: mousing over a row moves the highlight (only on real movement,
+   * so it doesn't fight the arrow keys; unloadable rows don't take it). */
+  if (input->mouse_x != dlg->hover_mx || input->mouse_y != dlg->hover_my) {
+    dlg->hover_mx = input->mouse_x;
+    dlg->hover_my = input->mouse_y;
+    if (input->mouse_x >= dlg->dialog_x && input->mouse_x < dlg->dialog_x + dlg->dialog_w) {
+      const int idx = save_load_option_at_y(dlg, input->mouse_y);
+      if (idx >= 0 && save_load_can_confirm(dlg, idx)) {
+        dlg->selection = idx;
+      }
+    }
   }
 
   return true; /* consume while open */

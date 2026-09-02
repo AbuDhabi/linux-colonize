@@ -37,6 +37,27 @@ static uint32_t ai_starting_gold(int difficulty) {
   return 0u;
 }
 
+/* 0 is a valid campaign seed when *_set; otherwise 0 means "not provided". */
+static uint32_t ai_new_game_seed(const AiNewGameParams* p) {
+  if (!p) {
+    return 1u;
+  }
+  if (p->rng_seed_set) {
+    return p->rng_seed;
+  }
+  return p->rng_seed ? p->rng_seed : 1u;
+}
+
+static uint32_t ai_turn_seed(const ColonizeTurnContext* ctx) {
+  if (!ctx) {
+    return 100u;
+  }
+  if (ctx->rng_seed_set) {
+    return ctx->rng_seed;
+  }
+  return ctx->rng_seed ? ctx->rng_seed : 100u;
+}
+
 static const char* k_new_country[4] = {
   "New England", "New France", "New Spain", "New Netherlands"
 };
@@ -1175,7 +1196,7 @@ bool ai_init_new_game(const AiNewGameParams* params, char* err, size_t err_size)
   if (params->rng) {
     rng = params->rng;
   } else {
-    dos_rng_seed(&local_rng, params->rng_seed ? params->rng_seed : 1u);
+    dos_rng_seed(&local_rng, ai_new_game_seed(params));
   }
 
   int landfalls[4][2];
@@ -1217,7 +1238,7 @@ bool ai_init_new_game(const AiNewGameParams* params, char* err, size_t err_size)
    * FUN_6a09 reseeds from the BIOS tick at entry (VR_SEED → 100). Not the
    * post-mapgen stream and not post-axes replay.
    */
-  if (!params->use_tribe_txt && params->rng_seed) {
+  if (!params->use_tribe_txt && (params->rng_seed || params->rng_seed_set)) {
     dos_rng_seed(rng, params->rng_seed);
   }
   /* FUN_6ba1_10be: mark every tile unowned (high nibble 0xf) before villages. */
@@ -1269,7 +1290,7 @@ bool ai_init_new_game(const AiNewGameParams* params, char* err, size_t err_size)
         u->moves_left = 0;
       }
     }
-    const uint32_t pulse_seed = params->rng_seed ? params->rng_seed : 1u;
+    const uint32_t pulse_seed = ai_new_game_seed(params);
     for (int n = 4; n <= 11; ++n) {
       dos_rng_seed(rng, pulse_seed);
       ai_native_nation_pulse(params->units, params->map, params->col1, rng, n, true);
@@ -1292,7 +1313,7 @@ static void ai_nation_reseed(ColonizeTurnContext* ctx) {
   if (!ctx) {
     return;
   }
-  const uint32_t seed = ctx->rng_seed ? ctx->rng_seed : 100u;
+  const uint32_t seed = ai_turn_seed(ctx);
   if (ctx->rng) {
     dos_rng_seed(ctx->rng, seed);
   }
@@ -2978,7 +2999,7 @@ static void ai_grow_villages(ColonizeTurnContext* ctx, int nation_id) {
   AiRng local;
   AiRng* rng = ctx->rng;
   if (!rng) {
-    const uint32_t seed = ctx->rng_seed ? ctx->rng_seed : 100u;
+    const uint32_t seed = ai_turn_seed(ctx);
     dos_rng_seed(&local, seed);
     rng = &local;
   }
@@ -4366,7 +4387,7 @@ void ai_indian_nation_turn(ColonizeTurnContext* ctx, int nation_id) {
   AiRng local;
   AiRng* rng = ctx->rng;
   if (!rng) {
-    const uint32_t seed = ctx->rng_seed ? ctx->rng_seed : 100u;
+    const uint32_t seed = ai_turn_seed(ctx);
     dos_rng_seed(&local, seed);
     rng = &local;
   }

@@ -45,9 +45,11 @@ typedef struct ColonizeTurnContext {
   ColonizeCol1Save* col1; /* optional; updated in place when non-NULL */
   bool col1_ok;
   /* DOS LCG for AI / partial-overspend. Nation turns reseed from rng_seed
-   * (FUN_281f_04ca ← DS:0x83a6 timer word; VR_SEED locks this to 100). */
+   * (FUN_281f_04ca ← DS:0x83a6 timer word; VR_SEED locks this to 100).
+   * rng_seed_set distinguishes an explicit 0 from "not provided". */
   ColonizeDosRng* rng;
   uint32_t rng_seed;
+  bool rng_seed_set;
   char* status;
   size_t status_size;
   /* Optional map AI popup queue (human-facing OK / choice dialogs). */

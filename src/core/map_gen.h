@@ -21,7 +21,7 @@ typedef struct MapGenParams {
   int temperature; /* 0 Cool .. 2 Warm */
   int climate; /* 0 Arid .. 2 Wet */
   int forest_extra; /* 0..2 DOS 5th word */
-  uint32_t seed; /* 0 = treat as 1 for determinism helpers */
+  uint32_t seed; /* 0 is a valid LCG seed */
   /*
    * Optional shared DOS LCG (global DS:28EE in VICEROY). When non-NULL,
    * map_generate continues from *rng and leaves the post-gen state there
