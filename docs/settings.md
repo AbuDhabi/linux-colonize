@@ -21,7 +21,7 @@ answer different questions:
 
 | Moment | Authority |
 |--------|-----------|
-| Startup | `settings.json`. `display` seeds the platform config unless `--windowed` / `--fullscreen` / `--scale` were passed (CLI wins). Sound options are pushed into the mixer after `sound_init`. |
+| Startup | Launch flags (`data_dir`, `save_dir`, `windowed` / `window_scale`, `no_sound`, `seed`) and sound options. Precedence, most to least: CLI (if that flag was given), `settings.json` (if that key is present and valid), hardcoded default. Sound mixer options are pushed after `sound_init`. |
 | New Game | `ai_init_new_game` seeds the DOS words, then `settings_apply_to_head` overrides them — but **only if `settings_is_loaded()`**. |
 | Load | **The save.** Options the player set during that game ride in its head and come back with it; `settings.json` is not applied. Only the audio mixer is re-pointed, since it lives outside the save. |
 | Options dialog confirmed | Written to the live save head *and* flushed to `settings.json`, so the next new game and the next process start from it. |
@@ -51,16 +51,29 @@ defaults no matter what file is sitting in the build directory.
     "event_music": true,
     "sound_effects": true
   },
-  "display": { "windowed": true, "window_scale": 2 }
+  "display": { "windowed": true, "window_scale": 2 },
+  "data_dir": "./COLONIZE",
+  "save_dir": "",
+  "no_sound": false,
+  "seed": null
 }
 ```
 
+Launch keys map 1:1 onto the process flags (`--data-dir`, `--save-dir`,
+`--windowed` / `--fullscreen`, `--scale`, `--nosound`, `--seed`). `save_dir`
+empty means the platform default (`<exe>/COLONIZE`). `seed` is `null` in a
+first-run file (same as omitting the key): not set, so the campaign RNG uses
+elapsed time. `"seed": 0` is a real seed and pins the LCG to 0. A wrong type,
+a negative `seed`, or an empty path is not a valid value and the hardcoded
+default stays.
+
 Written on first run so the options are discoverable and hand-editable without
 opening a dialog first. Every key is optional: a missing file, section or key
-falls back to the DOS default, so an older file keeps working when fields are
-added. A file that fails to parse is reported (stderr + diagnostics log), left
-on disk untouched — the player's edits are theirs to fix — and the session runs
-on defaults. Writes go to `settings.json.tmp` and are `rename()`d into place.
+falls back to the DOS / hardcoded default, so an older file keeps working when
+fields are added. A file that fails to parse is reported (stderr + diagnostics
+log), left on disk untouched — the player's edits are theirs to fix — and the
+session runs on defaults. Writes go to `settings.json.tmp` and are `rename()`d
+into place.
 
 ## Polarity
 
@@ -110,5 +123,5 @@ touches those bits — `unit_settings` asserts it.
    packer for polarity before assuming the bit means what its name says.
 4. Extend `tests/unit/test_settings.c`.
 
-Port-only options with no DOS bit (future: key bindings, autosave interval)
-live in their own top-level section and skip the head bridge entirely.
+Port-only options with no DOS bit (`data_dir`, `save_dir`, `no_sound`, `seed`,
+`display`, and future ones like key bindings) skip the head bridge entirely.

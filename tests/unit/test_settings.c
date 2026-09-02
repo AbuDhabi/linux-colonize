@@ -28,6 +28,9 @@ static void test_missing_file_defaults(void) {
   check(s.water_color_cycling, "default water cycling on");
   check(s.background_music && s.event_music && s.sound_effects, "default sound on");
   check(s.window_scale == 2 && s.windowed, "default display");
+  check(!s.no_sound && s.seed == 0 && !s.seed_present, "default launch flags off");
+  check(strcmp(s.data_dir, "./COLONIZE") == 0, "default data_dir");
+  check(s.save_dir[0] == '\0', "default save_dir empty (platform default)");
 }
 
 static void test_roundtrip(void) {
@@ -41,6 +44,11 @@ static void test_roundtrip(void) {
   out.event_music = false;
   out.window_scale = 3;
   out.windowed = false;
+  out.no_sound = true;
+  out.seed = 100;
+  out.seed_present = true;
+  snprintf(out.data_dir, sizeof(out.data_dir), "/tmp/col-data");
+  snprintf(out.save_dir, sizeof(out.save_dir), "/tmp/col-saves");
 
   char err[256] = {0};
   check(settings_save_file(k_path, &out, err, sizeof(err)), "save file");
@@ -67,6 +75,83 @@ static void test_partial_file(void) {
   check(s.end_of_turn, "partial value applied");
   check(s.autosave, "absent key kept default");
   check(s.background_music, "absent section kept default");
+  check(strcmp(s.data_dir, "./COLONIZE") == 0, "absent data_dir kept default");
+  check(s.save_dir[0] == '\0', "absent save_dir kept empty");
+  check(!s.no_sound && s.seed == 0 && !s.seed_present, "absent launch flags kept default");
+}
+
+/* Empty / wrong-type launch keys are not valid values, so defaults stand. */
+static void test_invalid_launch_keys_keep_defaults(void) {
+  FILE* f = fopen(k_path, "wb");
+  check(f != NULL, "open invalid-launch file");
+  if (!f) {
+    return;
+  }
+  fprintf(f, "{\"version\": 1,\n");
+  fprintf(f, " \"data_dir\": \"\",\n");
+  fprintf(f, " \"save_dir\": \"\",\n");
+  fprintf(f, " \"no_sound\": \"yes\",\n");
+  fprintf(f, " \"seed\": -1}\n");
+  fclose(f);
+
+  ColonizeSettings s;
+  char err[256] = {0};
+  check(settings_load_file(k_path, &s, err, sizeof(err)), "invalid-launch file loads");
+  check(strcmp(s.data_dir, "./COLONIZE") == 0, "empty data_dir ignored");
+  check(s.save_dir[0] == '\0', "empty save_dir ignored");
+  check(!s.no_sound, "non-bool no_sound ignored");
+  check(s.seed == 0 && !s.seed_present, "negative seed ignored");
+}
+
+/* "seed": 0 is a valid override. null and omitted both mean unset. */
+static void test_seed_null_omitted_and_zero(void) {
+  FILE* f = fopen(k_path, "wb");
+  check(f != NULL, "open seed-zero file");
+  if (!f) {
+    return;
+  }
+  fprintf(f, "{\"version\": 1, \"seed\": 0}\n");
+  fclose(f);
+
+  ColonizeSettings s;
+  char err[256] = {0};
+  check(settings_load_file(k_path, &s, err, sizeof(err)), "seed 0 loads");
+  check(s.seed_present && s.seed == 0, "seed 0 counts as present");
+
+  check(settings_save_file(k_path, &s, err, sizeof(err)), "seed 0 rewrites");
+  f = fopen(k_path, "rb");
+  check(f != NULL, "open rewritten seed-zero file");
+  if (!f) {
+    return;
+  }
+  char buf[4096] = {0};
+  size_t n = fread(buf, 1, sizeof(buf) - 1, f);
+  fclose(f);
+  buf[n] = '\0';
+  check(strstr(buf, "\"seed\": 0") != NULL, "present seed 0 is written back");
+  check(strstr(buf, "\"seed\": null") == NULL, "present seed is not null");
+
+  f = fopen(k_path, "wb");
+  check(f != NULL, "open seed-null file");
+  if (!f) {
+    return;
+  }
+  fprintf(f, "{\"version\": 1, \"seed\": null}\n");
+  fclose(f);
+  check(settings_load_file(k_path, &s, err, sizeof(err)), "seed null loads");
+  check(!s.seed_present && s.seed == 0, "null seed is unset");
+
+  settings_defaults(&s);
+  check(settings_save_file(k_path, &s, err, sizeof(err)), "defaults rewrite");
+  f = fopen(k_path, "rb");
+  check(f != NULL, "open defaults rewrite");
+  if (!f) {
+    return;
+  }
+  n = fread(buf, 1, sizeof(buf) - 1, f);
+  fclose(f);
+  buf[n] = '\0';
+  check(strstr(buf, "\"seed\": null") != NULL, "unset seed written as null");
 }
 
 static void test_bad_file_is_an_error(void) {
@@ -136,9 +221,13 @@ static void test_init_creates_file(void) {
 
   FILE* f = fopen(k_path, "rb");
   check(f != NULL, "init created the file");
+  char created[4096] = {0};
   if (f) {
+    const size_t n = fread(created, 1, sizeof(created) - 1, f);
+    created[n] = '\0';
     fclose(f);
   }
+  check(strstr(created, "\"seed\": null") != NULL, "first-run file has seed null");
 
   ColonizeSettings written;
   ColonizeSettings expected;
@@ -176,6 +265,8 @@ int main(void) {
   test_missing_file_defaults();
   test_roundtrip();
   test_partial_file();
+  test_invalid_launch_keys_keep_defaults();
+  test_seed_null_omitted_and_zero();
   test_bad_file_is_an_error();
   test_head_bridge_preserves_state();
   /* Keep the settings_init cases last: they latch the process-wide state. */

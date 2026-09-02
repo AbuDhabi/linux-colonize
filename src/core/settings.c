@@ -70,6 +70,11 @@ void settings_defaults(ColonizeSettings* out) {
 
   out->windowed = true;
   out->window_scale = 2;
+  out->no_sound = false;
+  snprintf(out->data_dir, sizeof(out->data_dir), "./COLONIZE");
+  out->save_dir[0] = '\0';
+  out->seed = 0;
+  out->seed_present = false;
 }
 
 /* ---------------------------------------------------------------- writing */
@@ -126,7 +131,20 @@ bool settings_save_file(const char* path, const ColonizeSettings* in, char* err,
   fprintf(f, "  \"display\": {\n");
   wb(f, "windowed", in->windowed, false);
   fprintf(f, "    \"window_scale\": %d\n", in->window_scale);
-  fprintf(f, "  }\n");
+  fprintf(f, "  },\n");
+
+  fprintf(f, "  \"data_dir\": ");
+  json_write_escaped_string(f, in->data_dir, sizeof(in->data_dir) - 1);
+  fprintf(f, ",\n");
+  fprintf(f, "  \"save_dir\": ");
+  json_write_escaped_string(f, in->save_dir, sizeof(in->save_dir) - 1);
+  fprintf(f, ",\n");
+  fprintf(f, "  \"no_sound\": %s,\n", in->no_sound ? "true" : "false");
+  if (in->seed_present) {
+    fprintf(f, "  \"seed\": %u\n", in->seed);
+  } else {
+    fprintf(f, "  \"seed\": null\n");
+  }
   fprintf(f, "}\n");
 
   const bool io_ok = (ferror(f) == 0);
@@ -232,6 +250,21 @@ bool settings_load_file(const char* path, ColonizeSettings* out, char* err, size
   int64_t scale = 0;
   if (d && json_get_i64(d, "window_scale", &scale)) {
     out->window_scale = (int)(scale < 1 ? 1 : (scale > 8 ? 8 : scale));
+  }
+
+  const char* data_dir = json_get_str(root, "data_dir");
+  if (data_dir && data_dir[0]) {
+    snprintf(out->data_dir, sizeof(out->data_dir), "%s", data_dir);
+  }
+  const char* save_dir = json_get_str(root, "save_dir");
+  if (save_dir && save_dir[0]) {
+    snprintf(out->save_dir, sizeof(out->save_dir), "%s", save_dir);
+  }
+  rb(root, "no_sound", &out->no_sound);
+  int64_t seed = 0;
+  if (json_get_i64(root, "seed", &seed) && seed >= 0 && seed <= (int64_t)UINT32_MAX) {
+    out->seed = (uint32_t)seed;
+    out->seed_present = true;
   }
 
   json_free(root);

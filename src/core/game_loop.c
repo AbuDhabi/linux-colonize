@@ -3490,9 +3490,10 @@ static const char* render_mode_name(const ColonizeGameState* game) {
   return "map";
 }
 
-/* CLI --seed: fixed campaign RNG (DOS DS:0x83a6 timer word; VR_SEED = 100). */
+/* CLI --seed / settings.json seed: fixed campaign RNG (DOS DS:0x83a6 timer
+ * word; VR_SEED = 100). 0 is valid when rng_seed_set. */
 static uint32_t game_pick_rng_seed(const ColonizeGameState* game, uint32_t fallback) {
-  if (game && game->config.rng_seed) {
+  if (game && game->config.rng_seed_set) {
     return game->config.rng_seed;
   }
   return fallback ? fallback : 1u;
@@ -6017,8 +6018,10 @@ static void game_commit_new_campaign(ColonizeGameState* game) {
     ai.human_start_x = sx;
     ai.human_start_y = sy;
     ai.rng_seed = game_pick_rng_seed(game, game->elapsed_ms);
+    ai.rng_seed_set = game->config.rng_seed_set || (ai.rng_seed != 0);
     if (ng->path == NEW_GAME_PATH_NEW_WORLD || ng->path == NEW_GAME_PATH_CUSTOMIZE) {
-      ai.rng_seed = ng->gen_params.seed ? ng->gen_params.seed : ai.rng_seed;
+      ai.rng_seed = ng->gen_params.seed;
+      ai.rng_seed_set = true;
     }
     if (share_campaign_rng) {
       ai.rng = &campaign_rng;
@@ -6040,9 +6043,9 @@ static void game_commit_new_campaign(ColonizeGameState* game) {
     if (share_campaign_rng) {
       game->move_rng = campaign_rng;
     } else {
-      dos_rng_seed(&game->move_rng, ai.rng_seed ? ai.rng_seed : 1u);
+      dos_rng_seed(&game->move_rng, ai.rng_seed);
     }
-    game->ai_rng_seed = ai.rng_seed ? ai.rng_seed : 1u;
+    game->ai_rng_seed = ai.rng_seed;
     /*
      * Reveal around owned units and colonies. Was NEW WORLD/CUSTOMIZE-only in
      * practice — scenario .MP starts (Original Americas/AMER2) used to load
@@ -7848,7 +7851,8 @@ static void game_fill_turn_context(ColonizeGameState* game, ColonizeTurnContext*
   ctx->col1 = game->col1_ok ? &game->col1 : NULL;
   ctx->col1_ok = game->col1_ok;
   ctx->rng = &game->move_rng;
-  ctx->rng_seed = game->ai_rng_seed ? game->ai_rng_seed : 100u;
+  ctx->rng_seed = game->ai_rng_seed;
+  ctx->rng_seed_set = true;
   ctx->status = game->status;
   ctx->status_size = sizeof(game->status);
   ctx->ai_popups = &game->ai_popups;
@@ -12697,16 +12701,18 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
       const ColonizeSpriteSheet* wood =
         game->menu_opentile_ok ? &game->menu_opentile :
         ((game->map_panel_ok && game->map_panel.wood_ok) ? &game->map_panel.wood_tile : NULL);
-      ColonizePopupColors popup_cols;
-      popup_colors_from_ui(&popup_cols);
+      /* bugs.md: OPENMENU.PIK embeds its own palette — the WOODPANL @COLORS
+       * indices land on light yellow / wrong greens here. Use the RGB-
+       * remapped title-menu set (menu_popup_colors / menu_col_*), same as
+       * the begin menu itself. */
       if (game->save_load.open) {
         save_load_render(
           (SaveLoadDialog*)&game->save_load,
           font,
           wood,
-          &popup_cols,
-          COLONIZE_COL_BASIC,
-          COLONIZE_COL_SELECT,
+          &game->menu_popup_colors,
+          game->menu_col_basic,
+          game->menu_col_select,
           framebuffer
         );
       }
@@ -12715,10 +12721,10 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
           (AiPopupState*)&game->ai_popups,
           font,
           wood,
-          &popup_cols,
-          COLONIZE_COL_BASIC,
-          COLONIZE_COL_HILITE,
-          COLONIZE_COL_SELECT,
+          &game->menu_popup_colors,
+          game->menu_col_basic,
+          game->menu_col_hilite,
+          game->menu_col_select,
           framebuffer
         );
       }

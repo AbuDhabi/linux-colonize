@@ -48,16 +48,16 @@ cmake --build --preset debug
 ./build/debug/colonize_linux
 ```
 
-Useful flags:
+Useful flags (CLI wins over `settings.json`, which wins over the default):
 
-| Flag | Default | Meaning |
-|------|---------|---------|
-| `--data-dir DIR` | `./COLONIZE` | Original game data |
-| `--save-dir DIR` | platform default | Save games |
-| `--scale N` | `2` | Window scale |
-| `--fullscreen` | — | Fullscreen |
-| `--nosound` | — | Disable audio |
-| `--seed N` | — | Fixed RNG seed (debug; like VR_SEED) |
+| Flag | Default | Meaning | `settings.json` |
+|------|---------|---------|-----------------|
+| `--data-dir DIR` | `./COLONIZE` | Original game data | `data_dir` |
+| `--save-dir DIR` | platform default | Save games | `save_dir` (empty = default) |
+| `--scale N` | `2` | Window scale | `display.window_scale` |
+| `--windowed` / `--fullscreen` | windowed | Window / fullscreen | `display.windowed` |
+| `--nosound` | — | Disable audio | `no_sound` |
+| `--seed N` | — | Fixed RNG seed (debug; like VR_SEED; `0` is valid) | `seed` (`null` / omit = unset) |
 
 Release preset: `cmake --preset release` then `cmake --build --preset release`.
 
