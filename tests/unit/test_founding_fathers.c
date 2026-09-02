@@ -1027,11 +1027,15 @@ int main(void) {
     upool.types[4].attack = 8;
     upool.types[4].defense = 8;
     upool.types[4].movement = 8;
+    upool.types[4].guns = 12; /* NAMES @UNIT guns/hull: sink roll inputs */
+    upool.types[4].hull = 12;
     upool.types[4].domain = COLONIZE_UNIT_DOMAIN_SEA;
     snprintf(upool.types[5].name, sizeof(upool.types[5].name), "Frigate");
     upool.types[5].attack = 16;
     upool.types[5].defense = 16;
     upool.types[5].movement = 6;
+    upool.types[5].guns = 20;
+    upool.types[5].hull = 32;
     upool.types[5].domain = COLONIZE_UNIT_DOMAIN_SEA;
 
     /* Washington: non-vet Soldier win → Veteran Soldier type. */

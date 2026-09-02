@@ -119,7 +119,6 @@ bool units_load_types(ColonizeUnitPool* pool, const ColonizeMsgCatalog* names) {
       continue;
     }
     (void)tools;
-    (void)guns;
 
     ColonizeUnitType* t = &pool->types[pool->type_count++];
     str_copy_trunc(t->name, sizeof(t->name), line);
@@ -131,6 +130,8 @@ bool units_load_types(ColonizeUnitPool* pool, const ColonizeMsgCatalog* names) {
     t->cargo = cargo;
     t->cost = cost;
     t->space = size;
+    t->guns = guns;
+    t->hull = hull;
     t->domain = hull > 0 ? COLONIZE_UNIT_DOMAIN_SEA : COLONIZE_UNIT_DOMAIN_LAND;
   }
 
@@ -2629,6 +2630,44 @@ static const ColonizeColony* units_nearest_own_drydock_colony(
 }
 
 /* Naval: damage-not-always-sink when margin close; else plunder+despawn. */
+/* Occupied holds (DOS unit +0x3150): goods slots in use plus passengers. */
+static int units_holds_used(const ColonizeUnitPool* pool, int unit_id) {
+  const ColonizeUnit* u = units_get_const(pool, unit_id);
+  if (!u) {
+    return 0;
+  }
+  int used = u->cargo_count;
+  for (int i = 0; i < COLONIZE_UNIT_CARGO_MAX; ++i) {
+    if (u->hold_goods_amount[i] > 0 && u->hold_goods_amount[i] < 255) {
+      used++;
+    }
+  }
+  return used;
+}
+
+/* DOS 0352 damage tail zeroes the loser's holds (unit +0x3150 = 0): goods
+ * not lifted by the winner vanish and passengers go down with them — a
+ * damaged ship limps home empty. */
+static void units_ship_lose_holds(ColonizeUnitPool* pool, int ship_id) {
+  ColonizeUnit* u = units_get(pool, ship_id);
+  if (!u) {
+    return;
+  }
+  int pax[COLONIZE_UNIT_CARGO_MAX];
+  const int n = u->cargo_count > COLONIZE_UNIT_CARGO_MAX ? COLONIZE_UNIT_CARGO_MAX
+                                                        : u->cargo_count;
+  for (int i = 0; i < n; ++i) {
+    pax[i] = u->cargo_ids[i];
+  }
+  for (int i = 0; i < n; ++i) {
+    (void)units_despawn(pool, pax[i]);
+  }
+  for (int i = 0; i < COLONIZE_UNIT_CARGO_MAX; ++i) {
+    u->hold_goods_amount[i] = 0;
+    u->hold_goods_type[i] = 0;
+  }
+}
+
 static int units_apply_naval_loss_outcome(
   ColonizeUnitPool* pool,
   int loser_id,
@@ -2636,8 +2675,11 @@ static int units_apply_naval_loss_outcome(
   int loser_str,
   int winner_str,
   int show_popups,
-  const ColonizeCol1Save* col1
+  const ColonizeCol1Save* col1,
+  ColonizeDosRng* rng
 ) {
+  (void)loser_str;
+  (void)winner_str;
   ColonizeUnit* lose = units_get(pool, loser_id);
   ColonizeUnit* win = units_get(pool, winner_id);
   if (!lose || !win || !lose->active) {
@@ -2654,11 +2696,36 @@ static int units_apply_naval_loss_outcome(
     units_play_event_sound(0x4d);
   }
 
-  /* Close fight + weaker type attack: set damaged bit and escape (1b0e ship peel). */
-  const int lose_atk = lt ? lt->attack : 0;
-  const int win_atk = wt ? wt->attack : 0;
-  const int close = loser_str * 2 > winner_str && winner_str > 0;
-  if (close && lose_atk < win_atk && (lose->col1_unknown15 & 0x80u) == 0) {
+  /*
+   * DOS FUN_5fef_0352 5fef:05e6: with BOTH parties ships, the winner lifts
+   * the loser's cargo hold by hold while it has space (@CARGOCAPTURE per
+   * item), and the loser's holds are then zeroed EITHER WAY — the
+   * damage-vs-sink roll comes after, so even a survivor limps home empty
+   * and its passengers are lost.
+   */
+  if (units_is_sea(pool, winner_id) && units_is_sea(pool, loser_id)) {
+    (void)units_plunder_ship_holds(pool, winner_id, loser_id);
+  }
+  units_ship_lose_holds(pool, loser_id);
+
+  /*
+   * Damage vs sink (DOS 0352 5fef:09xx): roll range(1, winner.guns +
+   * loser.hull) <= loser.hull → survives damaged; a gunless victor (@UNIT
+   * guns column 0) can never sink, only drive off damaged. This replaces
+   * the earlier "close fight" heuristic. (DOS layers AI fleet-pool biases
+   * and a crown-galleon exemption on top; those pools aren't ported.)
+   */
+  const int wguns = wt ? wt->guns : 0;
+  const int lhull = lt ? lt->hull : 0;
+  int damaged;
+  if (wguns <= 0) {
+    damaged = 1;
+  } else if (rng) {
+    damaged = dos_rng_range(rng, 1, wguns + lhull) <= lhull;
+  } else {
+    damaged = lhull > wguns; /* deterministic no-RNG fallback: tie sinks */
+  }
+  if (damaged) {
     lose->col1_unknown15 |= 0x80u;
     lose->moves_left = 0;
     /* Finished ship: mark past construction thresh so Drydock (not build tick) repairs. */
@@ -2679,6 +2746,15 @@ static int units_apply_naval_loss_outcome(
     const ColonizeColony* home = units_nearest_own_drydock_colony(
       g_units_combat_colonies, lose->nation_id, lose->x, lose->y
     );
+    if (!home) {
+      /* DOS teleports to the nation's stored port coords (per-nation DS
+       * -0x77c6 pair) even with no Drydock anywhere — the loser always
+       * vacates the battle tile so the victor can move in. Nearest own
+       * colony stands in for that; the EOT tick still reroutes it. */
+      home = units_nearest_own_colony(
+        g_units_combat_colonies, lose->nation_id, lose->x, lose->y
+      );
+    }
     if (home && (home->x != lose->x || home->y != lose->y)) {
       const int old_x = lose->x;
       const int old_y = lose->y;
@@ -2705,7 +2781,6 @@ static int units_apply_naval_loss_outcome(
     return 1;
   }
 
-  (void)units_plunder_ship_holds(pool, winner_id, loser_id);
   if (human) {
     PopupMsgTokens tok;
     memset(&tok, 0, sizeof(tok));
@@ -2735,6 +2810,71 @@ static int units_apply_naval_loss_outcome(
   }
   units_despawn(pool, loser_id);
   return 0;
+}
+
+/*
+ * FUN_5bfb_312e naval evasion power: movement + 3; Privateer ×2; Galleon +3;
+ * −4 per occupied hold; min 1.
+ */
+static int units_naval_evade_power(const ColonizeUnitPool* pool, int unit_id) {
+  const ColonizeUnit* u = units_get_const(pool, unit_id);
+  const ColonizeUnitType* t = u ? units_type(pool, u->type_index) : NULL;
+  if (!u || !t) {
+    return 1;
+  }
+  int p = t->movement + 3;
+  if (t->name[0] && strstr(t->name, "Privateer") != NULL) {
+    p *= 2;
+  }
+  if (t->name[0] && strstr(t->name, "Galleon") != NULL) {
+    p += 3;
+  }
+  p -= 4 * units_holds_used(pool, unit_id);
+  return p < 1 ? 1 : p;
+}
+
+/*
+ * DOS 0ec0 on a naval loss: walk the loser's tile stack and apply 0352 to
+ * every unit — each ship rolls its own plunder + damage-vs-sink; anything
+ * else standing there is destroyed (a ship winner can neither capture nor
+ * demote in 0352, so land stackmates fall through to despawn). DOS naval
+ * fights never occur on colony tiles, so a colony tile is left untouched
+ * (a port garrison must not drown because a ship lost offshore).
+ */
+static void units_sweep_naval_stack_after_loss(
+  ColonizeUnitPool* pool,
+  int x,
+  int y,
+  int loser_nation,
+  int winner_id,
+  int primary_loser_id,
+  const ColonizeCol1Save* col1,
+  ColonizeDosRng* rng
+) {
+  if (!pool || loser_nation < 0) {
+    return;
+  }
+  if (g_units_combat_colonies && colonies_id_at(g_units_combat_colonies, x, y) >= 0) {
+    return;
+  }
+  ColonizeUnit* win = units_get(pool, winner_id);
+  if (!win || !win->active) {
+    return;
+  }
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    ColonizeUnit* u = &pool->units[i];
+    if (!units_is_on_map(u) || u->x != x || u->y != y) {
+      continue;
+    }
+    if (u->nation_id != loser_nation || u->id == winner_id || u->id == primary_loser_id) {
+      continue;
+    }
+    if (units_is_sea(pool, u->id)) {
+      (void)units_apply_naval_loss_outcome(pool, u->id, winner_id, 0, 0, 1, col1, rng);
+    } else {
+      (void)units_despawn(pool, u->id);
+    }
+  }
 }
 
 static void units_combat_outcome_popups(
@@ -4225,23 +4365,72 @@ bool units_resolve_naval_combat_ff(
     eng.atk_wins = eng.roll <= eng.atk_strength;
   }
 
+  /*
+   * Evasion (DOS 1b0e 5fef:~2532, after the main roll and preempting its
+   * outcome): a defender whose type attack is BELOW the attacker's may slip
+   * away — power per FUN_5bfb_312e (movement+3, Privateer ×2, Galleon +3,
+   * −4 per occupied hold, min 1); it escapes on roll(1, atk+def) <= def.
+   * No outcome is applied; @EVASIVE popup. The attacker's MP surcharge is
+   * charged by the caller like any failed attack.
+   */
+  if (dt->attack < at->attack) {
+    const int ap = units_naval_evade_power(pool, attacker_id);
+    const int dp = units_naval_evade_power(pool, defender_id);
+    int evades;
+    if (rng) {
+      evades = dos_rng_range(rng, 1, ap + dp) <= dp;
+    } else {
+      evades = 0; /* no-RNG (deterministic test) path: always fight */
+    }
+    if (evades) {
+      if (units_combat_human_involved(col1, atk->nation_id, def->nation_id)) {
+        PopupMsgTokens tok;
+        memset(&tok, 0, sizeof(tok));
+        tok.string0 = units_combat_nation_label(col1, def->nation_id);
+        tok.string1 = dt->name[0] ? dt->name : "Ship";
+        tok.string2 = units_combat_nation_label(col1, atk->nation_id);
+        tok.string3 = at->name[0] ? at->name : "Ship";
+        char fb[AI_POPUP_BODY_LEN];
+        snprintf(
+          fb, sizeof(fb), "%s %s evades %s %s.",
+          tok.string0, tok.string1, tok.string2, tok.string3
+        );
+        units_combat_enqueue_tok(
+          AI_POPUP_TAG_COMBAT_SHIP, "EVASIVE", def->nation_id, atk->nation_id, 0, &tok, fb
+        );
+      }
+      units_combat_pump_popups();
+      return false;
+    }
+  }
+
   if (eng.atk_wins) {
     units_combat_outcome_popups(
       pool, attacker_id, defender_id, 1, atk->nation_id, def->nation_id, 1, 0, col1
     );
+    const int def_x = def->x;
+    const int def_y = def->y;
+    const int def_nation = def->nation_id;
+    const int atk_nation = atk->nation_id;
+    const int def_alive = units_apply_naval_loss_outcome(
+      pool, defender_id, attacker_id, eng.def_strength, eng.atk_strength, 1, col1, rng
+    );
+    /* DOS 0ec0 sweep: every stackmate on the loser tile takes its own loss. */
+    units_sweep_naval_stack_after_loss(
+      pool, def_x, def_y, def_nation, attacker_id, defender_id, col1, rng
+    );
     {
       const ColonizeUnitType* wt = units_type(pool, atk->type_index);
       const int is_priv = wt && wt->name[0] && strstr(wt->name, "Privateer") != NULL;
-      const int human = units_combat_human_involved(col1, atk->nation_id, def->nation_id);
+      const int human = units_combat_human_involved(col1, atk_nation, def_nation);
       /*
        * bugs.md: the "captured/seized" cue belongs to a Privateer (or the
-       * Royal Navy) taking an UNARMED transport as a prize. A warship
-       * defeating a warship (Frigate vs Man-O-War) is damage-or-sink only —
-       * the old unconditional @SEIZURESEA fired "captured" and then the
-       * sink popup contradicted it.
+       * Royal Navy) taking an UNARMED transport as a prize — and only when
+       * the prize is actually TAKEN (sunk/seized), not when it escapes
+       * damaged. A warship defeating a warship is damage-or-sink only.
        */
       const int def_transport = dt && dt->attack == 0;
-      if (human && def_transport) {
+      if (human && def_transport && !def_alive) {
         PopupMsgTokens tok;
         memset(&tok, 0, sizeof(tok));
         tok.string0 = dt && dt->name[0] ? dt->name : "Ship";
@@ -4261,8 +4450,8 @@ bool units_resolve_naval_combat_ff(
             ai_popup_enqueue_ok_ctx(
               g_units_combat_popups,
               AI_POPUP_TAG_COMBAT_SEIZURE,
-              atk->nation_id,
-              def->nation_id,
+              atk_nation,
+              def_nation,
               0,
               "Seizure",
               body
@@ -4273,8 +4462,8 @@ bool units_resolve_naval_combat_ff(
           units_combat_enqueue_tok(
             AI_POPUP_TAG_COMBAT_SEIZURE,
             "SEIZURESEA",
-            atk->nation_id,
-            def->nation_id,
+            atk_nation,
+            def_nation,
             0,
             &tok,
             "Ship seized at sea by the Royal Navy."
@@ -4282,9 +4471,6 @@ bool units_resolve_naval_combat_ff(
         }
       }
     }
-    (void)units_apply_naval_loss_outcome(
-      pool, defender_id, attacker_id, eng.def_strength, eng.atk_strength, 1, col1
-    );
     g_units_last_combat = 1;
     units_combat_pump_popups();
     return true;
@@ -4292,9 +4478,18 @@ bool units_resolve_naval_combat_ff(
   units_combat_outcome_popups(
     pool, defender_id, attacker_id, 0, atk->nation_id, def->nation_id, 1, 0, col1
   );
-  (void)units_apply_naval_loss_outcome(
-    pool, attacker_id, defender_id, eng.atk_strength, eng.def_strength, 1, col1
-  );
+  {
+    const int atk_x = atk->x;
+    const int atk_y = atk->y;
+    const int atk_nation = atk->nation_id;
+    (void)units_apply_naval_loss_outcome(
+      pool, attacker_id, defender_id, eng.atk_strength, eng.def_strength, 1, col1, rng
+    );
+    /* DOS 0ec0 sweep on the attacker's own tile stack, unconditional. */
+    units_sweep_naval_stack_after_loss(
+      pool, atk_x, atk_y, atk_nation, defender_id, attacker_id, col1, rng
+    );
+  }
   g_units_last_combat = -1;
   units_combat_pump_popups();
   return false;
