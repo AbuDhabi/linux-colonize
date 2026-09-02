@@ -243,10 +243,10 @@ This is a user-maintained list of bugs. User puts reports in. Agents may annotat
 | REF landing popup apparently happens concurrently with their unloading animations. This is not acceptable; firs the popup, then the animations, then other things in line. Every part in this is blocking further execution. | |
 | "Artillery captured by the royal army" is not a thing. Popup shouldn't exist. This apparently was in response to my defending artillery losing a fight and getting damaged. The artillery damaged popup (which is good) came later.| |
 | "United Colonies" is not a thing. Under WoI, the player faction is referred to as Rebel/Rebels. | |
-| | |
-| | |
-| | |
-| | |
+| Player defeating REF in combat popup fires out of sequence with demotions, damage. Pretty sure the demotion/damage popup should be first, the "{Player} defeats {Tories}" after it. Verify with DOS! I'm not entirely certain.  | |
+| Combat bumps should animate rendering above other map stuff, including other units. Otherwise they get partly occluded and are hard to see. Same thing should apply for non-combat movement animations: always on top. | |
+| I think the "Expeditionary Force" bonus should be "Bombard". That's the bonus for having a Man-O-War nearby, yes? | |
+| After defeating a unit, attacker does NOT enter its space automatically. Exceptions: Ships, and the attack that captures a colony. In all other cases, attacker stays put. | |
 | | |
 | | |
 | | |
