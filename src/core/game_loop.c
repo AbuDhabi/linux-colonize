@@ -549,18 +549,40 @@ static void game_combat_watch(
   uint8_t pixels[320 * 200];
   ColonizeFramebuffer8 fb = {.width = 320, .height = 200, .pixels = pixels};
   ColonizePalette pal;
+  /* bugs.md 247: the lunge must draw ON TOP of everything and not fight its
+   * own static sprite — hide the attacker from the base frame (as the move
+   * slide does) and blit the chrome'd copy after game_render. */
+  ColonizeUnit* mu = units_get((ColonizeUnitPool*)pool, attacker_id);
+  const bool was_active = mu ? mu->active : false;
+  if (mu) {
+    mu->active = false;
+  }
   for (int f = 0; f < 3; ++f) {
     game_render(game, &fb, &pal);
-    ss_blit_sprite(
-      &game->unit_icons, sprite, &fb, sxp + ddx * k_bump[f], syp + ddy * k_bump[f]
+    unit_chrome_blit_unit_for_palette(
+      &fb,
+      NULL,
+      &game->unit_icons,
+      sprite,
+      sxp + ddx * k_bump[f],
+      syp + ddy * k_bump[f],
+      units_display_type_index(pool, attacker_id),
+      atk->nation_id,
+      UNITS_ORDER_NONE,
+      false,
+      false,
+      NULL
     );
     if (!platform_present(game->platform, &fb, &pal)) {
-      return;
+      break;
     }
     /* bugs.md: 3x slower with fast piece slide on, 6x slower without. */
     platform_sleep_ms(
       game->col1_ok && game->col1.head.game_options.fast_piece_slide ? 90u : 270u
     );
+  }
+  if (mu) {
+    mu->active = was_active;
   }
 }
 

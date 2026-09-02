@@ -3343,9 +3343,18 @@ int main(void) {
       assets_msg_free(&names);
       return 1;
     }
+    /* bugs.md 249: a land attacker does NOT advance into the vacated tile
+     * (only ships and colony-capturing attacks enter). */
     a = units_get(&pool, aid);
-    if (!a || a->x != dx || a->y != dy) {
-      fprintf(stderr, "attacker did not enter tile\n");
+    if (!a || a->x != ax || a->y != ay) {
+      fprintf(stderr, "attacker should stay put after land win\n");
+      ss_free(&icons);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    if (a->moves_left >= 3 * UNITS_MP_PER_TILE) {
+      fprintf(stderr, "attack should drain MP even when staying put\n");
       ss_free(&icons);
       map_free(&map);
       assets_msg_free(&names);

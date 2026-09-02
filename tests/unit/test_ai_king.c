@@ -834,15 +834,16 @@ int main(void) {
   if (ai_king_latch_get(&col1, 5) == 0) {
     return fail("declare should set congress confirm unknown46[5]");
   }
-  /* Thin 160a: rename stand-in (letter cinematic PARKED). Status may be overwritten by 1528.
-   * Thin 2564 congress: unknown46[5] + country_name prove confirm; wave may clobber status. */
-  if (strcmp(col1.player[0].country_name, "United Colonies") != 0) {
+  /* bugs.md 245: NO rename — DOS 160a is only the signing cinematic;
+   * "United Colonies" was a port invention. The faction reads Rebels/Tory
+   * via units_combat_nation_label instead. */
+  if (strcmp(col1.player[0].country_name, "England") != 0) {
     fprintf(stderr, "unit_ai_king: country_name after declare: '%s'\n",
             col1.player[0].country_name);
-    return fail("160a declare should rename player.country_name to United Colonies");
+    return fail("declare must NOT rename player.country_name (bugs.md 245)");
   }
-  if (strcmp(europe.nation_name, "United Colonies") != 0) {
-    return fail("160a declare should sync europe.nation_name");
+  if (strcmp(europe.nation_name, "England") != 0) {
+    return fail("declare must NOT rename europe.nation_name (bugs.md 245)");
   }
   /* bugs.md 234: the crown's borrowed slot (human 0 → 1) stays a live AI
    * combatant (DOS 1a26: *(0x53d2*0x34+0x543f)=1); only the other two Euro
@@ -4464,9 +4465,10 @@ int main(void) {
       assets_msg_free(&game_txt);
       return fail("apply Confirm should declare WoI + congress unknown46[5]");
     }
-    /* R2: Confirm chain → @INDEPENDENCE letter OK + @HOWTOWIN INFO (160a / 1a26). */
+    /* R2: Confirm chain → @INDEPENDENCE letter OK. bugs.md 242: NO @HOWTOWIN
+     * at declare — it fires at the first rebel recapture (units.c). */
     {
-      int found_rename = 0;
+      int found_letter = 0;
       int found_how = 0;
       for (int i = 0; i < pop.queue_count; ++i) {
         if (pop.queue[i].kind != AI_POPUP_KIND_OK) {
@@ -4475,7 +4477,7 @@ int main(void) {
         if (pop.queue[i].tag == AI_POPUP_TAG_KING_LETTER &&
             (strstr(pop.queue[i].body, "Declaration of Independence") ||
              strstr(pop.queue[i].body, "Continental Congress signs"))) {
-          found_rename = 1;
+          found_letter = 1;
         }
         if (strstr(pop.queue[i].body, "road to freedom") ||
             (strstr(pop.queue[i].body, "recapture") &&
@@ -4483,18 +4485,19 @@ int main(void) {
           found_how = 1;
         }
       }
-      if (!found_rename) {
+      if (!found_letter) {
         assets_msg_free(&game_txt);
         return fail("apply Confirm should enqueue @INDEPENDENCE KING_LETTER OK");
       }
-      if (!found_how) {
+      if (found_how) {
         assets_msg_free(&game_txt);
-        return fail("apply Confirm should enqueue @HOWTOWIN INFO OK");
+        return fail("apply Confirm must NOT enqueue @HOWTOWIN (bugs.md 242)");
       }
     }
-    if (strcmp(col1.player[0].country_name, "United Colonies") != 0) {
+    /* bugs.md 245: no rename on the choice-apply path either. */
+    if (strcmp(col1.player[0].country_name, "United Colonies") == 0) {
       assets_msg_free(&game_txt);
-      return fail("apply Confirm must still rename country_name (choice apply)");
+      return fail("apply Confirm must NOT rename country_name (bugs.md 245)");
     }
 
     /*

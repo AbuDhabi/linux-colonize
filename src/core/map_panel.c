@@ -780,6 +780,10 @@ static const char* map_panel_nationality(const ColonizeMsgCatalog* names, int na
     if (nation_id == unit_chrome_crown_nation()) {
       return "Tory";
     }
+    /* bugs.md 245: rebel side's units read "Rebel" (LABELS 84) during WoI. */
+    if (nation_id == unit_chrome_rebel_nation()) {
+      return "Rebel";
+    }
     const char* line = map_panel_section_line(names, "NATIONALITY", nation_id);
     if (line && line[0]) {
       static char buf[32];

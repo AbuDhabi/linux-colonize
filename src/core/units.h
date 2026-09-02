@@ -646,6 +646,9 @@ void units_set_combat_watch(ColonizeUnitsCombatWatchFn fn, void* user);
  */
 typedef void (*ColonizeUnitsPopupPumpFn)(void* user);
 void units_set_combat_popup_pump(ColonizeUnitsPopupPumpFn fn, void* user);
+/* Present-and-answer queued popups now via the registered pump (no-op when
+ * headless). bugs.md 243: popup before animation, each blocking. */
+void units_pump_combat_popups(void);
 
 /*
  * Land combat (FUN_157e / FUN_5fef_1b0e peel): attacker base×8 (004a mode 1);

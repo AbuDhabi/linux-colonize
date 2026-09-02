@@ -1290,6 +1290,12 @@ static void units_combat_pump_popups(void) {
     g_units_popup_pump(g_units_popup_pump_user);
   }
 }
+
+/* Public pump for non-combat callers that must block on queued popups before
+ * animating (bugs.md 243: REF landing popup precedes the disembark slides). */
+void units_pump_combat_popups(void) {
+  units_combat_pump_popups();
+}
 static void* g_units_move_watch_user = NULL;
 
 void units_set_ff_col1(const ColonizeCol1Save* col1) {
@@ -1772,6 +1778,13 @@ static const char* units_combat_nation_label(const ColonizeCol1Save* col1, int n
      * whose slot it wears and not "Royal". */
     if (nation_id == unit_chrome_crown_nation()) {
       return "Tory";
+    }
+    /* bugs.md 245: under the WoI the player faction is "Rebels" (LABELS 101),
+     * never "United Colonies" or the old country name. */
+    if (col1 && col1->head.game_options.woi &&
+        (col1->player[nation_id].control == 0 ||
+         nation_id == g_units_combat_human_nation)) {
+      return "Rebels";
     }
     if (col1 && col1->player[nation_id].country_name[0]) {
       return col1->player[nation_id].country_name;
@@ -2877,10 +2890,13 @@ static void units_sweep_naval_stack_after_loss(
   }
 }
 
+/* win/lose are PRE-LOSS snapshots: bugs.md 246 — DOS 1b0e applies the 0352
+ * loss outcome (demote/damage/capture popups) first and fills @EUROPEWIN /
+ * @EUROPELOSE after, so this runs after the loser may already be despawned. */
 static void units_combat_outcome_popups(
   const ColonizeUnitPool* pool,
-  int winner_id,
-  int loser_id,
+  const ColonizeUnit* win,
+  const ColonizeUnit* lose,
   int atk_wins,
   int atk_nation,
   int def_nation,
@@ -2892,8 +2908,6 @@ static void units_combat_outcome_popups(
   if (!units_combat_human_involved(col1, atk_nation, def_nation)) {
     return;
   }
-  const ColonizeUnit* win = units_get_const(pool, winner_id);
-  const ColonizeUnit* lose = units_get_const(pool, loser_id);
   if (!win || !lose) {
     return;
   }
@@ -2941,34 +2955,9 @@ static void units_combat_outcome_popups(
         );
       }
     }
-    /*
-     * Crown / REF land win vs human → @SEIZURELAND (Royal Army). Privateer
-     * naval path uses custom body; peer Euro uses @EUROPEWIN above.
-     */
-    if (atk_wins && col1 && atk_nation < 4) {
-      int human = -1;
-      for (int i = 0; i < 4; ++i) {
-        if (col1->player[i].control == 0) {
-          human = i;
-          break;
-        }
-      }
-      const int crown = (human == 0) ? 1 : (human == 1) ? 0 : -1;
-      if (crown >= 0 && win->nation_id == crown && lose->nation_id == human) {
-        PopupMsgTokens stok;
-        memset(&stok, 0, sizeof(stok));
-        stok.string0 = units_combat_unit_label(pool, lose);
-        units_combat_enqueue_tok(
-          AI_POPUP_TAG_COMBAT_SEIZURE,
-          "SEIZURELAND",
-          win->nation_id,
-          lose->nation_id,
-          0,
-          &stok,
-          "Unit captured by the Royal Army."
-        );
-      }
-    }
+    /* bugs.md 244: no @SEIZURELAND here — DOS shows it only from the 0512
+     * entry-seizure path (FUN_43f7_0512, ported in ai_king.c), never as a
+     * combat-win follow-up. A damaged/destroyed loser is not "captured". */
   }
 }
 
@@ -4190,10 +4179,16 @@ bool units_resolve_land_combat_ff(
         }
       }
     }
-    units_combat_outcome_popups(
-      pool, attacker_id, defender_id, 1, atk_nation, def_nation, 0, ambush, col1
-    );
-    (void)units_apply_land_loss_outcome(pool, defender_id, attacker_id, col1, 1);
+    /* bugs.md 246: loss outcome (demote/damage/capture popups) FIRST, then
+     * @EUROPEWIN — DOS 1b0e order. Snapshots keep labels past a despawn. */
+    {
+      const ColonizeUnit win_snap = *atk;
+      const ColonizeUnit lose_snap = *def;
+      (void)units_apply_land_loss_outcome(pool, defender_id, attacker_id, col1, 1);
+      units_combat_outcome_popups(
+        pool, &win_snap, &lose_snap, 1, atk_nation, def_nation, 0, ambush, col1
+      );
+    }
     /*
      * DOS 5fef land tail (~0x2532): on a DEFENDER loss the 0ec0 stack sweep
      * runs only when the attacker's type attack byte is 0 or a ship (type
@@ -4226,14 +4221,18 @@ bool units_resolve_land_combat_ff(
     units_combat_pump_popups();
     return true;
   }
-  units_combat_outcome_popups(
-    pool, defender_id, attacker_id, 0, atk->nation_id, def->nation_id, 0, ambush, col1
-  );
   {
     const int atk_x = atk->x;
     const int atk_y = atk->y;
     const int atk_nation = atk->nation_id;
+    const int def_nation = def->nation_id;
+    const ColonizeUnit win_snap = *def;
+    const ColonizeUnit lose_snap = *atk;
+    /* bugs.md 246: loss outcome popups first, then @EUROPELOSE (DOS order). */
     (void)units_apply_land_loss_outcome(pool, attacker_id, defender_id, col1, 1);
+    units_combat_outcome_popups(
+      pool, &win_snap, &lose_snap, 0, atk_nation, def_nation, 0, ambush, col1
+    );
     units_sweep_stack_after_loss(pool, atk_x, atk_y, atk_nation, defender_id, attacker_id, col1);
   }
   def = units_get(pool, defender_id);
@@ -4406,7 +4405,7 @@ bool units_resolve_naval_combat_ff(
 
   if (eng.atk_wins) {
     units_combat_outcome_popups(
-      pool, attacker_id, defender_id, 1, atk->nation_id, def->nation_id, 1, 0, col1
+      pool, atk, def, 1, atk->nation_id, def->nation_id, 1, 0, col1
     );
     const int def_x = def->x;
     const int def_y = def->y;
@@ -4476,7 +4475,7 @@ bool units_resolve_naval_combat_ff(
     return true;
   }
   units_combat_outcome_popups(
-    pool, defender_id, attacker_id, 0, atk->nation_id, def->nation_id, 1, 0, col1
+    pool, def, atk, 0, atk->nation_id, def->nation_id, 1, 0, col1
   );
   {
     const int atk_x = atk->x;
@@ -4827,6 +4826,24 @@ static void units_try_capture_foreign_colony(
     plunder = share;
   }
   units_combat_notify_colony_captured(g_units_ff_col1, &snap, u->nation_id, plunder);
+  /* DOS 5fef capture tail (~100915): @HOWTOWIN "glorious victory on the road
+   * to freedom" fires ONCE, on the first colony the human recaptures while
+   * the REF is present (0x5382 bit1) — latch DS:0x5386 bit0 (tut2.howtowin).
+   * bugs.md 242: it does NOT fire at the declaration. */
+  if (g_units_ff_col1 && g_units_ff_col1->head.game_options.woi &&
+      g_units_ff_col1->head.game_options.ref_present &&
+      u->nation_id == g_units_combat_human_nation &&
+      !g_units_ff_col1->head.tut2.howtowin) {
+    ColonizeCol1Save* mut = (ColonizeCol1Save*)g_units_ff_col1;
+    mut->head.tut2.howtowin = 1;
+    units_combat_enqueue_tok(
+      AI_POPUP_TAG_INFO, "HOWTOWIN", u->nation_id, -1, 0, NULL,
+      "We have just won a glorious victory on the road to freedom, Your "
+      "Excellency. In order to defeat the King's forces and win our "
+      "independence, we must recapture all of our colonies from the King, and "
+      "we must destroy most of his ground forces in the New World."
+    );
+  }
 }
 
 /*
@@ -5515,6 +5532,23 @@ bool units_try_move(
     /* After win, dest must be clear of foreigners for enter. */
     if (units_foreign_at(pool, dest_x, dest_y, unit_id, unit->nation_id) >= 0) {
       return false;
+    }
+    /*
+     * bugs.md 249: a land attacker does NOT advance into the vacated tile.
+     * Only ships (naval combat) and the attack that captures a colony enter;
+     * everywhere else the winner stays put — the step cost + 3 attack drain
+     * is spent either way (DOS 1b0e / 465b, same charge as the loss branch).
+     */
+    if (reason == COLONIZE_ENTER_COMBAT_LAND &&
+        (!colonies || colonies_id_at(colonies, dest_x, dest_y) < 0)) {
+      const int drain = units_move_cost(pool, unit_id, map, dest_x, dest_y) + 3;
+      unit->moves_left = (unit->moves_left > drain) ? unit->moves_left - drain : 0;
+      if (unit->orders == UNITS_ORDER_SENTRY || unit->orders == UNITS_ORDER_FORTIFY ||
+          unit->orders == UNITS_ORDER_FORTIFIED) {
+        unit->orders = UNITS_ORDER_NONE;
+      }
+      g_units_last_enter_reason = COLONIZE_ENTER_OK;
+      return true;
     }
     /* Combat-entry MP surcharge (see comment above) folded into the shared
      * step-cost gate below, not applied directly — feeding it into `cost`
