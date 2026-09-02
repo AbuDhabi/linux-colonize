@@ -287,6 +287,9 @@ typedef struct ColonizeUnit {
    */
   uint8_t col1_ai_plan;
   uint8_t col1_vis_mask; /* DOS nation high nibble (unit byte+3 >> 4); 0x10<<euro */
+  /* Port-only, not saved: bit7 came from combat damage (repair timer), so the
+   * completion popup says "repaired", not "construction complete". */
+  uint8_t repair_pending;
 } ColonizeUnit;
 
 typedef struct ColonizeUnitPool {

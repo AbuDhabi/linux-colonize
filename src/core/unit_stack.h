@@ -27,7 +27,11 @@ typedef struct UnitStackPopup {
   int dialog_w;
   int dialog_h;
   int list_y0;
+  int list_x0;
   int line_h;
+  int col_w;   /* grid column width in px (bugs.md 252) */
+  int cols;    /* columns in use, 1..3 */
+  int rows;    /* rows per column */
 } UnitStackPopup;
 
 void unit_stack_close(UnitStackPopup* dlg);

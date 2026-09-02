@@ -1059,15 +1059,16 @@ static void reports_render_congress_page1(
     }
   }
   if (woi) {
-    /* bugs.md 235: after declaring, FF elections are over — the bell bar
-     * counts toward the foreign intervention instead, and the header names
-     * it (DOS 3f41: @MISC 111 via DS ptr 0x2e98). */
+    /* bugs.md 235/257: after declaring, FF elections are over — the bell bar
+     * counts toward the foreign intervention instead. DOS's top header is
+     * just "<nation> Intervention:" (@MISC 113); "Intervention Force" (@MISC
+     * 111) is the header of the soldier lineup row further down. */
     snprintf(
       line,
       line_sz,
       "%s %s:",
       ally >= 0 ? reports_nation_adjective(ally) : "Foreign",
-      reports_misc_word(111, "Intervention Force", w1, sizeof(w1))
+      reports_misc_word(113, "Intervention", w1, sizeof(w1))
     );
   } else {
     snprintf(
@@ -1228,16 +1229,25 @@ static void reports_render_congress_page1(
       pool_sum += (int)col1->head.backup_force[i];
     }
     if (pool_sum > 0) {
+      /* bugs.md 257: the intervention lineup is Continental Army /
+       * Continental Cavalry (@UNIT icons 129/130), not Regulars/Cavalry,
+       * and it carries its own "<Ally> Intervention Force:" header. */
       static const int kForceIndex2[4] = {0, 1, 3, 2};
       static const int kForceIcon2[4] = {
-        REPORTS_CONGRESS_ICON_REGULARS,
-        REPORTS_CONGRESS_ICON_CAVALRY,
+        128 /* Cont. Army icon 129 */,
+        129 /* Cont. Cav. icon 130 */,
         REPORTS_CONGRESS_ICON_ARTILLERY,
         REPORTS_CONGRESS_ICON_MANOWAR
       };
-      static const int kForceX2[4] = {4, 128, 193, 260};
+      static const int kForceX2[4] = {110, 170, 225, 275};
       const int row_y = REPORTS_CONGRESS_FORCE_Y + REPORTS_CONGRESS_FORCE_H;
       const int row_h = REPORTS_CONGRESS_FF_HEADER_Y - row_y - 2;
+      snprintf(
+        line, line_sz, "%s %s:",
+        ally >= 0 ? reports_nation_adjective(ally) : "Foreign",
+        reports_misc_word(111, "Intervention Force", w1, sizeof(w1))
+      );
+      reports_draw_line(font, fb, 4, row_y + 1, line, 15);
       for (int i = 0; i < 4; ++i) {
         const int amount = (int)col1->head.backup_force[kForceIndex2[i]];
         if (amount <= 0) {

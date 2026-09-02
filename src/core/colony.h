@@ -450,6 +450,10 @@ int colonies_admit_unit(
   int unit_id,
   const ColonizeCol1Save* col1
 );
+
+/* bugs.md 262: assign every job-less colonist a workplace (Town Hall first).
+ * DOS never carries idle colonists; runs after admits and each EOT. */
+void colonies_auto_assign_idle(ColonizeColonyPool* pool, int colony_id);
 /*
  * Remove a colonist onto the colony map tile as the given role (spends warehouse
  * gear). Compacts the colonist list. Returns new unit id or -1.

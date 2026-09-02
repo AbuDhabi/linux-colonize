@@ -41,6 +41,10 @@
  * set to 1 on declare, consumed (cleared, no landing) by the first wave
  * tick. */
 #define AI_KING_REF_WAVE_WAIT_BYTE 11
+/* bugs.md 258: @INTERVENTION "declares war" announcement fires once (DOS
+ * FUN_43f7_1528 latches 0x5382 bit2 after showing it; the port's ref_present
+ * bit gets cleared when no crown unit remains, so it keeps its own bit). */
+#define AI_KING_INTERVENE_ANNOUNCED_BYTE 12
 
 
 /*
@@ -91,6 +95,9 @@ static inline int ai_king_latch_get(const ColonizeCol1Save* col1, int which) {
   if (which == AI_KING_REF_WAVE_WAIT_BYTE) {
     return (pad[0] & 0x04) ? 1 : 0;
   }
+  if (which == AI_KING_INTERVENE_ANNOUNCED_BYTE) {
+    return (pad[0] & 0x08) ? 1 : 0;
+  }
   const int bit = ai_king_latch_bit(which);
   return (bit && (pad[1] & bit)) ? 1 : 0;
 }
@@ -110,6 +117,10 @@ static inline void ai_king_latch_set(ColonizeCol1Save* col1, int which, int valu
   uint8_t* pad = ai_king_latch_pad(col1);
   if (which == AI_KING_REF_WAVE_WAIT_BYTE) {
     pad[0] = (uint8_t)(value ? (pad[0] | 0x04) : (pad[0] & ~0x04));
+    return;
+  }
+  if (which == AI_KING_INTERVENE_ANNOUNCED_BYTE) {
+    pad[0] = (uint8_t)(value ? (pad[0] | 0x08) : (pad[0] & ~0x08));
     return;
   }
   if (which == AI_KING_ENDGAME_BYTE) {

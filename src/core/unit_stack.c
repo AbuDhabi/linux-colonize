@@ -28,9 +28,13 @@ bool unit_stack_try_open(
   if (!dlg || !pool) {
     return false;
   }
-  const int n = units_collect_tile_stack(pool, x, y, nation_id, dlg->ids, UNITS_TILE_STACK_MAX);
+  int n = units_collect_tile_stack(pool, x, y, nation_id, dlg->ids, UNITS_TILE_STACK_MAX);
   if (n <= 1) {
     return false;
+  }
+  /* bugs.md 252: grid shows up to 3 columns x 8 rows. */
+  if (n > 24) {
+    n = 24;
   }
   dlg->open = true;
   dlg->tile_x = x;
@@ -85,15 +89,21 @@ static const char* unit_stack_profession_label(
   return buf[0] ? buf : NULL;
 }
 
-static int unit_stack_row_at_y(const UnitStackPopup* dlg, int my) {
-  if (!dlg || dlg->line_h <= 0 || dlg->count <= 0) {
+/* bugs.md 252: grid hit-test — column-major fill (first 8 in column 0, ...). */
+static int unit_stack_row_at_y(const UnitStackPopup* dlg, int mx, int my) {
+  if (!dlg || dlg->line_h <= 0 || dlg->count <= 0 || dlg->rows <= 0) {
     return -1;
   }
-  if (my < dlg->list_y0) {
+  if (my < dlg->list_y0 || mx < dlg->list_x0) {
     return -1;
   }
-  const int idx = (my - dlg->list_y0) / dlg->line_h;
-  if (idx < 0 || idx >= dlg->count) {
+  const int row = (my - dlg->list_y0) / dlg->line_h;
+  const int col = dlg->col_w > 0 ? (mx - dlg->list_x0) / dlg->col_w : 0;
+  if (row < 0 || row >= dlg->rows || col < 0 || col >= dlg->cols) {
+    return -1;
+  }
+  const int idx = col * dlg->rows + row;
+  if (idx >= dlg->count) {
     return -1;
   }
   return idx;
@@ -159,6 +169,15 @@ bool unit_stack_handle_input(
     dlg->selection++;
     return true;
   }
+  /* bugs.md 252: left/right hop a full grid column. */
+  if (colonize_key_left(input->last_key) && dlg->rows > 0 && dlg->selection - dlg->rows >= 0) {
+    dlg->selection -= dlg->rows;
+    return true;
+  }
+  if (colonize_key_right(input->last_key) && dlg->rows > 0 && dlg->selection + dlg->rows < dlg->count) {
+    dlg->selection += dlg->rows;
+    return true;
+  }
   if (input->last_key == COLONIZE_KEY_ENTER || input->last_key == COLONIZE_KEY_SPACE) {
     int sel = -1;
     unit_stack_activate_row(dlg, pool, dlg->selection, &sel);
@@ -176,7 +195,7 @@ bool unit_stack_handle_input(
       unit_stack_close(dlg);
       return true;
     }
-    const int idx = unit_stack_row_at_y(dlg, my);
+    const int idx = unit_stack_row_at_y(dlg, mx, my);
     if (idx >= 0) {
       /* bugs.md: same rule for every row, preselected or not — ordered rows
        * get their orders canceled first, order-less rows activate. */
@@ -218,7 +237,18 @@ void unit_stack_render(
   const int pad_x = 6;
   const int pad_y = 4;
   const int title_h = font ? font->max_height + 2 : 10;
-  const int options_h = dlg->count * line_h;
+  /* bugs.md 252: 8 rows per column, columns added as needed (max 3 / 24). */
+  const int rows_per_col = 8;
+  int cols = (dlg->count + rows_per_col - 1) / rows_per_col;
+  if (cols < 1) {
+    cols = 1;
+  }
+  if (cols > 3) {
+    cols = 3;
+  }
+  const int rows = cols > 1 ? rows_per_col : dlg->count;
+  const int col_w = 148;
+  const int options_h = rows * line_h;
   int dialog_h = POPUP_FRAME_INSET * 2 + pad_y + title_h + options_h + pad_y;
   if (dialog_h < 40) {
     dialog_h = 40;
@@ -227,7 +257,7 @@ void unit_stack_render(
     dialog_h = framebuffer->height - 8;
   }
 
-  int dialog_w = 160;
+  int dialog_w = cols > 1 ? POPUP_FRAME_INSET * 2 + pad_x + cols * col_w + pad_x : 160;
   if (dialog_w > framebuffer->width - 8) {
     dialog_w = framebuffer->width - 8;
   }
@@ -269,13 +299,21 @@ void unit_stack_render(
 
   const int list_y0 = inner_y + pad_y + title_h;
   dlg->list_y0 = list_y0;
+  dlg->list_x0 = inner_x + 1;
+  dlg->col_w = cols > 1 ? col_w : inner_w;
+  dlg->cols = cols;
+  dlg->rows = rows;
 
   for (int i = 0; i < dlg->count; ++i) {
-    const int row_y = list_y0 + i * line_h;
+    const int gcol = rows > 0 ? i / rows : 0;
+    const int grow = rows > 0 ? i % rows : i;
+    const int col_x0 = dlg->list_x0 + gcol * dlg->col_w;
+    const int row_y = list_y0 + grow * line_h;
     const bool selected = (i == dlg->selection);
     if (selected) {
+      const int sel_x1 = cols > 1 ? col_x0 + dlg->col_w - 1 : inner_x + inner_w - 1;
       for (int y = row_y - 1; y <= row_y + line_h - 2; ++y) {
-        for (int x = inner_x + 1; x < inner_x + inner_w - 1; ++x) {
+        for (int x = col_x0; x < sel_x1; ++x) {
           if (x >= 0 && y >= 0 && x < framebuffer->width && y < framebuffer->height) {
             framebuffer->pixels[y * framebuffer->width + x] = select_color;
           }
@@ -285,7 +323,7 @@ void unit_stack_render(
 
     const ColonizeUnit* u = units_get_const(pool, dlg->ids[i]);
     const int sprite = u ? units_map_sprite(pool, u->id) : -1;
-    int text_x = inner_x + pad_x;
+    int text_x = col_x0 + pad_x - 1;
     if (sprite >= 0 && icons && sprite < icons->sprite_count && u) {
       /* bugs.md: rows carry the Orders-Allegiance chrome, so cancelling a
        * unit's orders on the first click is visible immediately. */

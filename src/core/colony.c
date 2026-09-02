@@ -1369,7 +1369,36 @@ int colonies_admit_unit(
       col->building_in_production = -1;
     }
   }
+  /* bugs.md 262: every admit path (AI joins, capture, save import) puts the
+   * newcomer to work immediately — DOS has no idle colonists, and an idle
+   * one made the head count disagree with the visible workers. */
+  colonies_auto_assign_idle(pool, colony_id);
   return idx;
+}
+
+void colonies_auto_assign_idle(ColonizeColonyPool* pool, int colony_id) {
+  ColonizeColony* col = colonies_get_mut(pool, colony_id);
+  if (!pool || !col) {
+    return;
+  }
+  const int town_hall = colonies_find_building(pool, "Town Hall");
+  for (int i = 0; i < col->colonist_count; ++i) {
+    ColonizeColonist* c = &col->colonists[i];
+    if (!c->active || c->field_job >= 0 || c->building_type >= 0) {
+      continue;
+    }
+    if (town_hall >= 0 && colonies_assign_workplace(pool, colony_id, i, town_hall)) {
+      continue;
+    }
+    for (int bi = 0; bi < pool->building_type_count; ++bi) {
+      if (bi == town_hall || !col->has_building[bi]) {
+        continue;
+      }
+      if (colonies_assign_workplace(pool, colony_id, i, bi)) {
+        break;
+      }
+    }
+  }
 }
 
 const char* colonies_eject_role_name(int role) {

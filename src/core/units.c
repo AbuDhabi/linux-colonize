@@ -231,6 +231,7 @@ int units_spawn_allow_stack(ColonizeUnitPool* pool, int type_index, int x, int y
   slot->last_dir = 0;
   slot->col1_unknown15 = 0;
   slot->col1_ai_plan = COL1_UNIT_UNKNOWN16_HI_DEFAULT;
+  slot->repair_pending = 0;
   if (strstr(type->name, "Pioneer") != NULL) {
     slot->tools = UNITS_EQUIP_TOOLS_MAX;
   } else if (strstr(type->name, "Dragoon") != NULL || strstr(type->name, "Cavalry") != NULL) {
@@ -404,8 +405,11 @@ int units_tick_ship_build_ready(
      */
     int threshold = ty && ty->defense > 0 ? ty->defense : 4;
     /*
-     * Past construction threshold with bit7 still set = combat damage (fort/naval).
-     * Leave for units_tick_drydock_repair; do not auto-clear.
+     * bugs.md 260: combat damage presets turns_worked BELOW threshold (DOS
+     * repair timer) and this same tick counts it up — construction and
+     * repair share the loop like DOS. At/past threshold with bit7 still set
+     * (legacy save parked by the old drydock model): leave for
+     * units_tick_drydock_repair to clear this EOT.
      */
     if (u->turns_worked >= threshold) {
       continue;
@@ -423,6 +427,9 @@ int units_tick_ship_build_ready(
     if (u->turns_worked < threshold) {
       continue;
     }
+    if (u->repair_pending) {
+      continue; /* repair completion (bit7 clear + @REFIT) is the repair tick's */
+    }
     u->col1_unknown15 = (uint8_t)(u->col1_unknown15 & 0x7fu);
     completed++;
     if (nation_id == human_nation && status && status_size > 0) {
@@ -437,10 +444,12 @@ int units_tick_ship_build_ready(
 }
 
 /*
- * Drydock ship repair: clear combat-damage bit7 for nation ships on an own
- * colony that has Drydock. Construction ships (turns_worked < defense thresh)
- * stay on units_tick_ship_build_ready. Cite: building_production.md Drydock;
- * combat.md coastal fort bit7.
+ * Repair completion (bugs.md 260): combat-damage bit7 clears when the repair
+ * TIMER (turns_worked, counted by units_tick_ship_build_ready, double speed
+ * in port) reaches the type threshold — DOS's model; no Drydock building
+ * required. Also clears legacy-save ships parked at/past threshold by the
+ * old instant-drydock model. Construction ships (repair_pending==0 below
+ * threshold) stay on units_tick_ship_build_ready.
  */
 int units_tick_drydock_repair(
   ColonizeUnitPool* pool,
@@ -452,11 +461,7 @@ int units_tick_drydock_repair(
   AiPopupState* ai_popups,
   const ColonizeMsgCatalog* messages
 ) {
-  if (!pool || !colonies || nation_id < 0 || nation_id > 3) {
-    return 0;
-  }
-  const int drydock = colonies_find_building(colonies, "Drydock");
-  if (drydock < 0 || drydock >= COLONIZE_BUILDING_TYPES_MAX) {
+  if (!pool || nation_id < 0 || nation_id > 3) {
     return 0;
   }
   int repaired = 0;
@@ -470,22 +475,24 @@ int units_tick_drydock_repair(
     }
     const ColonizeUnitType* ty = units_type(pool, u->type_index);
     const int threshold = ty && ty->defense > 0 ? ty->defense : 4;
-    /* Still under construction — ship-build tick owns bit7. */
+    /* Timer still running (construction OR repair) — build tick owns bit7. */
     if (u->turns_worked < threshold) {
       continue;
     }
-    const int cid = colonies_id_at(colonies, u->x, u->y);
-    const ColonizeColony* col = colonies_get(colonies, cid);
-    if (!col || !col->active || col->nation_id != nation_id || !col->has_building[drydock]) {
-      continue;
-    }
+    /* repair_pending ships arrive here at threshold; legacy-save damaged
+     * ships parked at/past threshold (repair_pending 0) clear here too —
+     * fresh construction never reaches this point with bit7 set (the build
+     * tick clears it at threshold). */
+    const ColonizeColony* col =
+      colonies ? colonies_get(colonies, colonies_id_at(colonies, u->x, u->y)) : NULL;
     u->col1_unknown15 = (uint8_t)(u->col1_unknown15 & 0x7fu);
+    u->repair_pending = 0;
     repaired++;
     if (nation_id == human_nation) {
       const char* ship_name = (ty && ty->name[0]) ? ty->name : "Ship";
-      const char* col_name = (col->name[0]) ? col->name : "colony";
+      const char* col_name = (col && col->name[0]) ? col->name : "port";
       if (status && status_size > 0) {
-        snprintf(status, status_size, "%s repaired at Drydock.", ship_name);
+        snprintf(status, status_size, "%s repaired.", ship_name);
       }
       if (ai_popups) {
         char body[AI_POPUP_BODY_LEN];
@@ -2066,66 +2073,142 @@ static int units_type_is_royal_name(const char* n) {
 }
 
 /*
- * PEDIA George Washington: non-veteran soldier/dragoon who wins combat is
- * automatically upgraded. Name-based type swap (1eca-style) + profession bit
- * so display_name becomes Veteran when @UNIT has no separate Veteran type.
+ * bugs.md 254 — full FUN_5fef_172c + FUN_5fef_16ea port (combat promotion).
+ * Eligibility: winner is an armed colonial soldier/dragoon body (DOS types
+ * 1/4; royal Regulars/Cavalry never promote). Ladder (16ea, by @JOB id):
+ *   Petty Criminal → Indentured Servant → Free Colonist (job NONE) →
+ *   Veteran Soldiers; Converts never promote; expert skills never promote.
+ *   Veteran (WoI + mobilization bit only): type → Cont. Army / Cont. Cav.,
+ *   profession stays Veteran.
+ * Odds (172c): Washington (FF 0xb) always promotes; else
+ *   roll(1, atk+def ± difficulty) <= loser_strength — the pool shrinks 10
+ *   for Criminals, 5 for Servants (human gets +difficulty, AI −).
+ * Popups (@CONTINENTAL / @VETERAN / @VALOR) for the human's own unit.
  */
-static void units_washington_promote_on_win(
+static int units_promote_on_win(
   ColonizeUnitPool* pool,
   ColonizeUnit* winner,
-  const ColonizeCol1Save* col1
+  const ColonizeCol1Save* col1,
+  int winner_str,
+  int loser_str,
+  ColonizeDosRng* rng
 ) {
-  if (!pool || !winner || !winner->active || !col1) {
-    return;
+  if (!pool || !winner || !winner->active) {
+    return 0;
   }
-  if (!founding_fathers_nation_has(col1, winner->nation_id, FF_GEORGE_WASHINGTON)) {
-    return;
+  if (winner->nation_id < 0 || winner->nation_id > 3) {
+    return 0; /* DOS: promotions are for Euro nations (natives never) */
   }
   const ColonizeUnitType* ut = units_type(pool, winner->type_index);
   const char* tname = ut ? ut->name : NULL;
-  const char* dname = units_display_name(pool, winner);
   if (units_type_is_royal_name(tname)) {
-    return; /* bugs.md: REF units never promote into colonial types */
+    return 0; /* REF units never promote into colonial types */
   }
-  if ((dname && (strstr(dname, "Veteran") || strstr(dname, "Continental"))) ||
-      (tname &&
-       (strstr(tname, "Veteran") || strstr(tname, "Cont.") || strstr(tname, "Continental")))) {
-    return;
+  const int is_cont = tname && (strstr(tname, "Cont") || strstr(tname, "Continental"));
+  if (is_cont) {
+    return 0; /* already at the top of the ladder */
   }
-  const bool is_dragoon =
-    (tname && (strstr(tname, "Dragoon") || strstr(tname, "Cavalry"))) ||
-    (dname && (strstr(dname, "Dragoon") || strstr(dname, "Cavalry")));
-  const bool is_soldier =
-    !is_dragoon &&
-    ((tname && strstr(tname, "Soldier") != NULL) || (dname && strstr(dname, "Soldier") != NULL));
-  if (!is_soldier && !is_dragoon) {
-    return;
+  /* DOS type 1/4 gate: a soldier or dragoon body. The port also stores an
+   * armed colonist as a Colonists-type with muskets — same thing in DOS. */
+  const int is_dragoon_body =
+    (tname && (strstr(tname, "Dragoon") != NULL)) ||
+    (winner->muskets > 0 && winner->horses > 0);
+  const int is_soldier_body =
+    !is_dragoon_body &&
+    ((tname && strstr(tname, "Soldier") != NULL) || winner->muskets > 0);
+  if (!is_soldier_body && !is_dragoon_body) {
+    return 0; /* unarmed colonists never combat-promote */
   }
-  if (is_dragoon) {
-    int tgt = units_find_type(pool, "Veteran Dragoon");
-    if (tgt < 0) {
-      tgt = units_find_type(pool, "Cont. Cav.");
+  const int prof = winner->profession;
+  const int is_veteran = (prof == UNITS_JOB_SOLDIER || prof == UNITS_JOB_DRAGOON);
+  int next_prof = -2; /* -2 = ineligible; -1 = Continental type promote */
+  if (is_veteran) {
+    /* 172c: veteran promotes only under WoI with the mobilization flag
+     * (nation_flags bit 0x08) set — the Continental era. */
+    if (!col1 || !col1->head.game_options.woi ||
+        (col1->nation[winner->nation_id].nation_flags & 0x08u) == 0) {
+      return 0;
     }
-    if (tgt < 0) {
-      tgt = units_find_type(pool, "Continental Cavalry");
-    }
-    if (tgt >= 0) {
-      winner->type_index = tgt;
-    }
-    winner->profession = UNITS_JOB_DRAGOON;
+    next_prof = -1;
+  } else if (prof == UNITS_JOB_CRIMINAL) {
+    next_prof = UNITS_JOB_SERVANT;
+  } else if (prof == UNITS_JOB_SERVANT) {
+    next_prof = UNITS_JOB_NONE; /* Free Colonist */
+  } else if (prof == UNITS_JOB_COLONIST || prof == UNITS_JOB_NONE) {
+    next_prof = UNITS_JOB_SOLDIER; /* DOS 0x15 for soldier AND dragoon bodies */
   } else {
-    int tgt = units_find_type(pool, "Veteran Soldier");
-    if (tgt < 0) {
-      tgt = units_find_type(pool, "Cont. Army");
-    }
-    if (tgt < 0) {
-      tgt = units_find_type(pool, "Continental Army");
-    }
-    if (tgt >= 0) {
-      winner->type_index = tgt;
-    }
-    winner->profession = UNITS_JOB_SOLDIER;
+    return 0; /* experts / Converts / everything else: no combat promote */
   }
+  /* Odds. */
+  const int human = (g_units_combat_human_nation >= 0 &&
+                     winner->nation_id == g_units_combat_human_nation);
+  const int difficulty = col1 ? (int)col1->head.difficulty : 2;
+  int pool_n = winner_str + loser_str + (human ? difficulty : -difficulty);
+  if (prof == UNITS_JOB_CRIMINAL) {
+    pool_n -= 10;
+  }
+  if (prof == UNITS_JOB_SERVANT) {
+    pool_n -= 5;
+  }
+  const int washington =
+    col1 && founding_fathers_nation_has(col1, winner->nation_id, FF_GEORGE_WASHINGTON);
+  if (!washington) {
+    if (pool_n < 1) {
+      pool_n = 1;
+    }
+    if (!rng || dos_rng_range(rng, 1, pool_n) > loser_str) {
+      return 0;
+    }
+  }
+  const ColonizeUnitType* old_ty = ut;
+  const char* old_disp = units_display_name(pool, winner);
+  char old_name[48];
+  snprintf(old_name, sizeof(old_name), "%s", old_disp ? old_disp : (tname ? tname : "unit"));
+  const char* popup_tag = NULL;
+  if (next_prof == -1) {
+    int tgt = is_dragoon_body ? units_find_type(pool, "Cont. Cav.")
+                              : units_find_type(pool, "Cont. Army");
+    if (tgt < 0) {
+      tgt = is_dragoon_body ? units_find_type(pool, "Continental Cavalry")
+                            : units_find_type(pool, "Continental Army");
+    }
+    if (tgt < 0) {
+      return 0;
+    }
+    winner->type_index = tgt;
+    winner->profession = UNITS_JOB_SOLDIER; /* DOS keeps 0x15 */
+    popup_tag = "CONTINENTAL";
+  } else {
+    winner->profession = next_prof;
+    popup_tag = (next_prof == UNITS_JOB_SOLDIER) ? "VETERAN" : "VALOR";
+  }
+  if (human) {
+    PopupMsgTokens tok;
+    memset(&tok, 0, sizeof(tok));
+    const char* base = old_ty && old_ty->name[0] ? old_ty->name : "Soldiers";
+    char fb[AI_POPUP_BODY_LEN];
+    if (strcmp(popup_tag, "CONTINENTAL") == 0) {
+      tok.string0 = base;
+      snprintf(fb, sizeof(fb),
+               "Our Veteran %s have hardened to Continental status, Your Excellency!", base);
+    } else if (strcmp(popup_tag, "VETERAN") == 0) {
+      tok.string0 = base;
+      snprintf(fb, sizeof(fb), "Our %s have hardened to Veteran status, Your Excellency!", base);
+    } else {
+      tok.string0 = base;
+      tok.string1 = old_name;
+      tok.string2 = units_display_name(pool, winner);
+      snprintf(fb, sizeof(fb),
+               "Because of their valor in battle, our %s soldiers have been promoted from %s "
+               "to %s status.",
+               base, old_name, tok.string2 ? tok.string2 : "higher");
+    }
+    units_combat_enqueue_tok(
+      AI_POPUP_TAG_COMBAT_DEMOTE, popup_tag, winner->nation_id, -1, 0, &tok, fb
+    );
+  }
+  (void)old_name;
+  return 1;
 }
 
 /*
@@ -2208,7 +2291,12 @@ static int units_demote_combat_type(
   {
     const ColonizeUnitType* lt0 = units_type(pool, loser->type_index);
     const int table_target = units_combat_demote_type_index(pool, loser);
-    if (table_target < 0 && lt0 && loser->muskets > 0) {
+    /* bugs.md 253: the equipment-shed demote is for colonist-BODY units
+     * only. A typed military unit with no table target (Regulars, Armed
+     * Braves) is DESTROYED — the old unguarded branch stripped a Regular's
+     * muskets and popped "Regulars routed, demoted to Regulars". */
+    if (table_target < 0 && lt0 && loser->muskets > 0 &&
+        !units_type_is_royal_name(lt0->name) && strstr(lt0->name, "Brave") == NULL) {
       const char* was = units_display_name(pool, loser);
       char old_name[48];
       snprintf(old_name, sizeof(old_name), "%s", was ? was : "Soldier");
@@ -2254,7 +2342,11 @@ static int units_demote_combat_type(
     memset(&tok, 0, sizeof(tok));
     tok.string0 = units_combat_nation_label(col1, loser->nation_id);
     tok.string1 = old_name;
-    tok.string2 = nt && nt->name[0] ? nt->name : "colonist";
+    /* bugs.md 253: name the post-demote unit by DISPLAY name so a veteran
+     * stripped to a colonist body reads "Veteran Soldiers", not "Colonists". */
+    const char* new_disp = units_display_name(pool, loser);
+    tok.string2 = new_disp && new_disp[0] ? new_disp
+                  : (nt && nt->name[0] ? nt->name : "colonist");
     units_combat_enqueue_tok(
       AI_POPUP_TAG_COMBAT_DEMOTE,
       "DEMOTE",
@@ -2264,91 +2356,6 @@ static int units_demote_combat_type(
       &tok,
       "Unit demoted."
     );
-  }
-  return 1;
-}
-
-/*
- * FUN_5fef_172c chance promote: Soldier/Dragoon → veteran profession/type.
- * Washington always promotes (caller); here RNG margin path.
- */
-static int units_chance_promote_on_win(
-  ColonizeUnitPool* pool,
-  ColonizeUnit* winner,
-  const ColonizeCol1Save* col1,
-  int atk_strength,
-  int def_strength,
-  int roll,
-  ColonizeDosRng* rng
-) {
-  if (!pool || !winner || !winner->active) {
-    return 0;
-  }
-  if (col1 && founding_fathers_nation_has(col1, winner->nation_id, FF_GEORGE_WASHINGTON)) {
-    return 0; /* Washington path already ran / will run */
-  }
-  const ColonizeUnitType* ut = units_type(pool, winner->type_index);
-  const char* tname = ut ? ut->name : NULL;
-  const char* dname = units_display_name(pool, winner);
-  if (units_type_is_royal_name(tname)) {
-    return 0; /* bugs.md: REF units never promote into colonial types */
-  }
-  if ((dname && (strstr(dname, "Veteran") || strstr(dname, "Continental"))) ||
-      (tname &&
-       (strstr(tname, "Veteran") || strstr(tname, "Cont.") || strstr(tname, "Continental")))) {
-    return 0;
-  }
-  const int is_dragoon =
-    (tname && (strstr(tname, "Dragoon") || strstr(tname, "Cavalry"))) ||
-    (dname && (strstr(dname, "Dragoon") || strstr(dname, "Cavalry")));
-  const int is_soldier =
-    !is_dragoon &&
-    ((tname && strstr(tname, "Soldier") != NULL) || (dname && strstr(dname, "Soldier") != NULL));
-  if (!is_soldier && !is_dragoon) {
-    return 0;
-  }
-  /* Margin: how far roll beat the weaker side. Chance rises with margin. */
-  int margin = 0;
-  if (atk_strength + def_strength > 0) {
-    if (roll <= atk_strength) {
-      margin = atk_strength - roll + 1;
-    } else {
-      margin = roll - atk_strength;
-    }
-  }
-  int difficulty = col1 ? (int)col1->head.difficulty : 2;
-  int threshold = 8 + difficulty;
-  if (winner->profession == UNITS_JOB_COLONIST || winner->profession == UNITS_JOB_NONE) {
-    threshold += 5;
-  }
-  if (!rng) {
-    if (margin < threshold / 2) {
-      return 0;
-    }
-  } else {
-    const int r = dos_rng_range(rng, 1, threshold + margin);
-    if (r > margin + 2) {
-      return 0;
-    }
-  }
-  if (is_dragoon) {
-    int tgt = units_find_type(pool, "Veteran Dragoon");
-    if (tgt < 0) {
-      tgt = units_find_type(pool, "Cont. Cav.");
-    }
-    if (tgt >= 0) {
-      winner->type_index = tgt;
-    }
-    winner->profession = UNITS_JOB_DRAGOON;
-  } else {
-    int tgt = units_find_type(pool, "Veteran Soldier");
-    if (tgt < 0) {
-      tgt = units_find_type(pool, "Cont. Army");
-    }
-    if (tgt >= 0) {
-      winner->type_index = tgt;
-    }
-    winner->profession = UNITS_JOB_SOLDIER;
   }
   return 1;
 }
@@ -2738,27 +2745,46 @@ static int units_apply_naval_loss_outcome(
   } else {
     damaged = lhull > wguns; /* deterministic no-RNG fallback: tie sinks */
   }
+  /*
+   * bugs.md 260 / DOS 0352 damage tail (overlays.c 85117-85186): repair is a
+   * TIMER, not a drydock flash — bit7 + turns_worked preset so the normal
+   * EOT ship tick (+1/turn, +1 extra on a colony tile) counts up to the
+   * 0x5235-column threshold. Remaining turns = winner's combat strength,
+   * doubled when the winner is not a ship (fort fire), clamped to the own
+   * threshold; Frigate presets turns_worked ≥ 4, Man-O-War ≥ 8 (repair-time
+   * cap). WoI human with no drydock port: no friendly Europe either — the
+   * ship goes down instead of limping anywhere.
+   */
+  const ColonizeColony* home = NULL;
+  if (damaged) {
+    home = units_nearest_own_drydock_colony(
+      g_units_combat_colonies, lose->nation_id, lose->x, lose->y
+    );
+    if (!home && col1 && col1->head.game_options.woi &&
+        lose->nation_id == (int)col1->head.human_player) {
+      damaged = 0; /* DOS 85139: `goto` into the sunk path */
+    }
+  }
   if (damaged) {
     lose->col1_unknown15 |= 0x80u;
     lose->moves_left = 0;
-    /* Finished ship: mark past construction thresh so Drydock (not build tick) repairs. */
+    lose->orders = 0; /* DOS zeroes +0x314c */
+    lose->repair_pending = 1;
     {
       const int thresh = lt && lt->defense > 0 ? lt->defense : 4;
-      if (lose->turns_worked < thresh) {
-        lose->turns_worked = (uint8_t)thresh;
+      int wstr = wt ? wt->defense : 0;
+      if (!units_is_sea(pool, winner_id)) {
+        wstr <<= 1; /* non-ship (fort) winner doubles the repair bill */
       }
+      int worked = (wstr < thresh) ? thresh - wstr : 0;
+      if (lt && strcmp(lt->name, "Frigate") == 0 && worked < 4) {
+        worked = 4;
+      }
+      if (lt && strcmp(lt->name, "Man-O-War") == 0 && worked < 8) {
+        worked = 8;
+      }
+      lose->turns_worked = (uint8_t)worked;
     }
-    /*
-     * bugs.md: a damaged ship sails to the nearest OWN colony that has a
-     * Drydock (units_tick_drydock_repair only works there — a drydock-less
-     * port never repaired it). With no such colony it stays put and the
-     * end-of-turn tick routes it to Europe when Europe is still friendly
-     * (pre-WoI human ships; damaged Tory Man-O-Wars sail home too) — see
-     * turn_route_damaged_ships.
-     */
-    const ColonizeColony* home = units_nearest_own_drydock_colony(
-      g_units_combat_colonies, lose->nation_id, lose->x, lose->y
-    );
     if (!home) {
       /* DOS teleports to the nation's stored port coords (per-nation DS
        * -0x77c6 pair) even with no Drydock anywhere — the loser always
@@ -4203,12 +4229,7 @@ bool units_resolve_land_combat_ff(
     }
     atk = units_get(pool, attacker_id);
     if (atk) {
-      units_washington_promote_on_win(pool, atk, col1);
-      if (units_chance_promote_on_win(
-            pool, atk, col1, eng.atk_strength, eng.def_strength, eng.roll, rng
-          )) {
-        /* promoted */
-      }
+      (void)units_promote_on_win(pool, atk, col1, eng.atk_strength, eng.def_strength, rng);
     }
     /*
      * Village destroy / pop drain is NOT "no Brave left on tile". DOS only
@@ -4237,10 +4258,7 @@ bool units_resolve_land_combat_ff(
   }
   def = units_get(pool, defender_id);
   if (def) {
-    units_washington_promote_on_win(pool, def, col1);
-    (void)units_chance_promote_on_win(
-      pool, def, col1, eng.atk_strength, eng.def_strength, eng.roll, rng
-    );
+    (void)units_promote_on_win(pool, def, col1, eng.def_strength, eng.atk_strength, rng);
   }
   units_mounted_attack_spend_all(pool, attacker_id);
   g_units_last_combat = -1;
@@ -4567,6 +4585,7 @@ static int units_fort_fire_is_hostile(
 static bool units_fort_vs_ship(
   ColonizeUnitPool* pool,
   int attack_str,
+  int fort_nation,
   int defender_id,
   ColonizeDosRng* rng,
   const ColonizeCol1Save* col1
@@ -4596,29 +4615,99 @@ static bool units_fort_vs_ship(
   }
   if (atk_wins) {
     /*
-     * Mirror naval loss (FUN_5fef_1b0e ship peel): close fight + undamaged →
-     * bit7 damage + MP drain; else sink. Cite: coastal_fort_fire.md; units_apply_naval_loss.
+     * bugs.md 255: DOS engages via the REAL naval resolver (temp attacker →
+     * FUN_5fef_1b0e), so a fort win lands the same outcomes as any naval
+     * fight: holds lost, damage-vs-sink roll (fort strength as "guns"),
+     * damaged ship relocates to the repair port with the DOS repair timer
+     * (0352 doubles the repair bill when the winner is not a ship), popups.
      */
-    const int close = defense * 2 > attack_str && attack_str > 0;
-    if (close && (def->col1_unknown15 & 0x80u) == 0) {
+    const int human = units_combat_human_involved(col1, def->nation_id, fort_nation);
+    units_ship_lose_holds(pool, defender_id);
+    const int lhull = dt->hull > 0 ? dt->hull : 0;
+    int damaged;
+    if (attack_str <= 0) {
+      damaged = 1;
+    } else if (rng) {
+      damaged = dos_rng_range(rng, 1, attack_str + lhull) <= lhull;
+    } else {
+      damaged = lhull > attack_str;
+    }
+    const ColonizeColony* home = NULL;
+    if (damaged) {
+      home = units_nearest_own_drydock_colony(
+        g_units_combat_colonies, def->nation_id, def->x, def->y
+      );
+      if (!home && col1 && col1->head.game_options.woi &&
+          def->nation_id == (int)col1->head.human_player) {
+        damaged = 0; /* WoI human with no drydock port: she goes down */
+      }
+    }
+    if (damaged) {
       def->col1_unknown15 |= 0x80u;
       def->moves_left = 0;
+      def->orders = 0;
+      def->repair_pending = 1;
       {
         const int thresh = dt->defense > 0 ? dt->defense : 4;
-        if (def->turns_worked < thresh) {
-          def->turns_worked = (uint8_t)thresh;
+        int wstr = attack_str << 1; /* non-ship winner doubles the bill */
+        int worked = (wstr < thresh) ? thresh - wstr : 0;
+        if (strcmp(dt->name, "Frigate") == 0 && worked < 4) {
+          worked = 4;
         }
+        if (strcmp(dt->name, "Man-O-War") == 0 && worked < 8) {
+          worked = 8;
+        }
+        def->turns_worked = (uint8_t)worked;
+      }
+      if (!home) {
+        home = units_nearest_own_colony(
+          g_units_combat_colonies, def->nation_id, def->x, def->y
+        );
+      }
+      if (home && (home->x != def->x || home->y != def->y)) {
+        const int old_x = def->x;
+        const int old_y = def->y;
+        def->x = home->x;
+        def->y = home->y;
+        units_occupancy_refresh_tile(pool, old_x, old_y, -1);
+        units_occupancy_refresh_tile(pool, home->x, home->y, -1);
+      }
+      if (human) {
+        PopupMsgTokens tok;
+        memset(&tok, 0, sizeof(tok));
+        tok.string0 = units_combat_nation_label(col1, def->nation_id);
+        tok.string1 = dt->name;
+        tok.string2 = home && home->name[0] ? home->name : "Europe";
+        char fb[AI_POPUP_BODY_LEN];
+        snprintf(
+          fb, sizeof(fb), "%s %s damaged! Ship returns to %s for repairs.",
+          tok.string0, tok.string1, tok.string2
+        );
+        units_combat_enqueue_tok(
+          AI_POPUP_TAG_COMBAT_SHIP, "SHIPDAMAGE", def->nation_id, -1, 0, &tok, fb
+        );
       }
       return false; /* ship survives damaged */
+    }
+    if (human) {
+      PopupMsgTokens tok;
+      memset(&tok, 0, sizeof(tok));
+      tok.string0 = units_combat_nation_label(col1, def->nation_id);
+      tok.string1 = dt->name;
+      tok.string2 = "coastal";
+      tok.string3 = "fortifications";
+      char fb[AI_POPUP_BODY_LEN];
+      snprintf(fb, sizeof(fb), "%s %s sunk by coastal fortifications!", tok.string0, tok.string1);
+      units_combat_enqueue_tok(
+        AI_POPUP_TAG_COMBAT_SHIP, "SHIPSUNK", def->nation_id, -1, 0, &tok, fb
+      );
+      units_play_event_sound(0x57);
     }
     units_despawn(pool, defender_id);
     return true;
   }
-  /*
-   * Fort miss: surviving ship loses remaining MP. Damaged bit7 only on fort hit
-   * (damage-not-sink above). Cite: coastal_fort_fire.md.
-   */
-  def->moves_left = 0;
+  /* bugs.md 255: fort loses the exchange → NOTHING happens (DOS undoes the
+   * temp attacker and the ship sails on; the old ship-slow was invented). */
   return false;
 }
 
@@ -4676,14 +4765,13 @@ int units_coastal_fort_fire_pulse(
         const int human_chrome =
           status && status_size > 0 &&
           (col->nation_id == human_nation || ship_nation == human_nation);
-        if (units_fort_vs_ship(units, atk, targets[t], rng, col1)) {
+        if (units_fort_vs_ship(units, atk, col->nation_id, targets[t], rng, col1)) {
           sunk++;
           if (human_chrome) {
             snprintf(status, status_size, "Coastal fort sank a ship.");
           }
-        } else if (human_chrome) {
-          snprintf(status, status_size, "Coastal fort slowed a ship.");
         }
+        /* bugs.md 255: fort loss/miss → nothing happens, no chrome. */
       }
     }
   }
@@ -8580,6 +8668,7 @@ static int units_spawn_aboard(ColonizeUnitPool* pool, int type_index, ColonizeUn
   slot->last_dir = 0;
   slot->col1_unknown15 = 0;
   slot->col1_ai_plan = COL1_UNIT_UNKNOWN16_HI_DEFAULT;
+  slot->repair_pending = 0;
   if (strstr(type->name, "Pioneer") != NULL) {
     slot->tools = UNITS_EQUIP_TOOLS_MAX;
   } else if (strstr(type->name, "Dragoon") != NULL || strstr(type->name, "Cavalry") != NULL) {
