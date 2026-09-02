@@ -263,6 +263,7 @@ void unit_stack_render(
   const ColonizePopupColors* colors,
   uint8_t text_color,
   uint8_t select_color,
+  const ColonizePalette* active_palette,
   ColonizeFramebuffer8* framebuffer
 ) {
   if (!dlg || !dlg->open || !framebuffer || !framebuffer->pixels || !pool) {
@@ -412,7 +413,9 @@ void unit_stack_render(
         u->orders,
         false,
         u->aboard_ship_id >= 0,
-        NULL
+        /* bugs.md: raw nation fill index goes pink for the Dutch under the
+         * game palette — remap through the frame's real palette. */
+        active_palette
       );
       const ColonizeSprite* sp = &icons->sprites[sprite];
       text_x += (sp->width > 0 ? sp->width : icon_slot) + 3;

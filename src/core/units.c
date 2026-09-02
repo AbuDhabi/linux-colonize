@@ -8894,7 +8894,10 @@ static const int16_t k_units_job_icon[UNITS_JOB_NONE + 1] = {
   81,  82,  83, 84,  85,  86,  87,  88, /* 0-7   farm/forest/mine experts */
   89,  90,  91, 92,  93,  94,  95,  96, 97, /* 8-16  fisherman..preacher */
   98,  -1, 100, UNITS_ICON_HARDY_PIONEER_WORK, UNITS_ICON_VETERAN_SOLDIER_WORK,
-  60,  -1, 77,  106, 107, 66, /* 22-27 scout,dragoon,missionary,servant,criminal,convert */
+  /* 23 Veteran Dragoons: DOS FUN_112b_0002 case 0x17 → icon 0x69 = sprite
+   * 104 (equipped veteran dragoon — there is no working portrait). Was -1,
+   * which left prof-23 citizens invisible on the Score screen (bugs.md). */
+  60,  UNITS_ICON_VETERAN_DRAGOON, 77, 106, 107, 66, /* 22-27 scout,dragoon,missionary,servant,criminal,convert */
   100 /* 28 NONE: same as Free Colonists */
 };
 
