@@ -2085,6 +2085,24 @@ static int units_type_is_royal_name(const char* n) {
  *   for Criminals, 5 for Servants (human gets +difficulty, AI −).
  * Popups (@CONTINENTAL / @VETERAN / @VALOR) for the human's own unit.
  */
+/* @JOB profession label for the @VALOR ladder (DOS FUN_281f_0c40). */
+static const char* units_promote_prof_label(int prof) {
+  switch (prof) {
+  case UNITS_JOB_CRIMINAL:
+    return "Petty Criminals";
+  case UNITS_JOB_SERVANT:
+    return "Indentured Servants";
+  case UNITS_JOB_SOLDIER:
+    return "Veteran Soldiers";
+  case UNITS_JOB_DRAGOON:
+    return "Veteran Dragoons";
+  case UNITS_JOB_COLONIST:
+  case UNITS_JOB_NONE:
+  default:
+    return "Free Colonists";
+  }
+}
+
 static int units_promote_on_win(
   ColonizeUnitPool* pool,
   ColonizeUnit* winner,
@@ -2161,9 +2179,7 @@ static int units_promote_on_win(
     }
   }
   const ColonizeUnitType* old_ty = ut;
-  const char* old_disp = units_display_name(pool, winner);
-  char old_name[48];
-  snprintf(old_name, sizeof(old_name), "%s", old_disp ? old_disp : (tname ? tname : "unit"));
+  const int old_prof = winner->profession;
   const char* popup_tag = NULL;
   if (next_prof == -1) {
     int tgt = is_dragoon_body ? units_find_type(pool, "Cont. Cav.")
@@ -2195,19 +2211,22 @@ static int units_promote_on_win(
       tok.string0 = base;
       snprintf(fb, sizeof(fb), "Our %s have hardened to Veteran status, Your Excellency!", base);
     } else {
+      /* bugs.md 271: DOS 172c fills @VALOR's STRING1/STRING2 with the OLD
+       * and NEW profession names (FUN_281f_0c40), not unit display names —
+       * a dragoon body's display name hides the profession change, so the
+       * popup read "our Dragoons ... promoted from Dragoon to Dragoon". */
       tok.string0 = base;
-      tok.string1 = old_name;
-      tok.string2 = units_display_name(pool, winner);
+      tok.string1 = units_promote_prof_label(old_prof);
+      tok.string2 = units_promote_prof_label(winner->profession);
       snprintf(fb, sizeof(fb),
                "Because of their valor in battle, our %s soldiers have been promoted from %s "
                "to %s status.",
-               base, old_name, tok.string2 ? tok.string2 : "higher");
+               base, tok.string1, tok.string2);
     }
     units_combat_enqueue_tok(
       AI_POPUP_TAG_COMBAT_DEMOTE, popup_tag, winner->nation_id, -1, 0, &tok, fb
     );
   }
-  (void)old_name;
   return 1;
 }
 
@@ -4588,7 +4607,8 @@ static bool units_fort_vs_ship(
   int fort_nation,
   int defender_id,
   ColonizeDosRng* rng,
-  const ColonizeCol1Save* col1
+  const ColonizeCol1Save* col1,
+  const char* atk_label
 ) {
   ColonizeUnit* def = units_get(pool, defender_id);
   if (!def || !def->active || !units_is_sea(pool, defender_id) || attack_str <= 0) {
@@ -4603,6 +4623,28 @@ static bool units_fort_vs_ship(
     defense = 0;
   }
   defense = units_drake_scale_strength(pool, def, defense, col1);
+  /* bugs.md 267: DOS engages through the real resolver (temp attacker →
+   * FUN_5fef_1b0e), so a fort firing on a human-visible ship shows the
+   * Combat Analysis dialog before the roll, same as any naval fight. */
+  {
+    ColonizeCombatEngagement eng;
+    memset(&eng, 0, sizeof(eng));
+    eng.attacker_id = -1;
+    eng.defender_id = defender_id;
+    eng.is_naval = true;
+    eng.atk_strength = attack_str;
+    eng.def_strength = defense;
+    eng.atk_flags.base_combat = attack_str;
+    eng.def_flags.base_combat = dt->defense > 0 ? dt->defense : 0;
+    if (defense > eng.def_flags.base_combat) {
+      eng.def_flags.flags_hi |= COMBAT_FLAG_DRAKE;
+    }
+    snprintf(
+      eng.atk_label, sizeof(eng.atk_label), "%s",
+      atk_label && atk_label[0] ? atk_label : "Fort"
+    );
+    units_combat_maybe_present_analysis(col1, &eng, fort_nation, def->nation_id);
+  }
   const int total = attack_str + defense;
   bool atk_wins = false;
   if (total <= 0) {
@@ -4736,6 +4778,17 @@ int units_coastal_fort_fire_pulse(
     if (atk <= 0) {
       continue;
     }
+    /* bugs.md 267: analysis header for the unit-less attacker. */
+    char fort_label[40];
+    {
+      const int fortress = colonies_find_building(colonies, "Fortress");
+      const int is_fortress = fortress >= 0 && fortress < COLONIZE_BUILDING_TYPES_MAX &&
+        col->has_building[fortress];
+      snprintf(
+        fort_label, sizeof(fort_label), "%s %s",
+        col->name[0] ? col->name : "Colony", is_fortress ? "Fortress" : "Fort"
+      );
+    }
     for (int d = 0; d < 8; ++d) {
       const int nx = col->x + k_dx[d];
       const int ny = col->y + k_dy[d];
@@ -4765,7 +4818,7 @@ int units_coastal_fort_fire_pulse(
         const int human_chrome =
           status && status_size > 0 &&
           (col->nation_id == human_nation || ship_nation == human_nation);
-        if (units_fort_vs_ship(units, atk, col->nation_id, targets[t], rng, col1)) {
+        if (units_fort_vs_ship(units, atk, col->nation_id, targets[t], rng, col1, fort_label)) {
           sunk++;
           if (human_chrome) {
             snprintf(status, status_size, "Coastal fort sank a ship.");
@@ -8768,15 +8821,19 @@ const char* units_display_name(const ColonizeUnitPool* pool, const ColonizeUnit*
   const bool armed = unit->muskets > 0;
   const bool mounted = unit->horses > 0;
   const bool has_tools = unit->tools > 0;
+  /* bugs.md 269: either veteran profession (0x15/0x17) reads Veteran when
+   * armed — a mounted Veteran Soldier is a Veteran Dragoon. */
+  const bool vet_prof =
+    unit->profession == UNITS_JOB_SOLDIER || unit->profession == UNITS_JOB_DRAGOON;
   if (armed && mounted) {
-    if (unit->profession == UNITS_JOB_DRAGOON) {
+    if (vet_prof) {
       snprintf(buf, sizeof(buf), "Veteran Dragoon");
       return buf;
     }
     return "Dragoon";
   }
   if (armed) {
-    if (unit->profession == UNITS_JOB_SOLDIER) {
+    if (vet_prof) {
       snprintf(buf, sizeof(buf), "Veteran Soldier");
       return buf;
     }
@@ -8898,13 +8955,15 @@ int units_map_sprite(const ColonizeUnitPool* pool, int unit_id) {
   if (combat_type_is_artillery_name(type->name) && (unit->col1_unknown15 & 0x80u) != 0) {
     return UNITS_ICON_DAMAGED_ARTILLERY;
   }
+  /* bugs.md 269: a mounted Veteran Soldier (profession 0x15) IS a veteran
+   * dragoon — both veteran professions (0x15/0x17) take the veteran art. */
+  const bool vet_prof =
+    unit->profession == UNITS_JOB_SOLDIER || unit->profession == UNITS_JOB_DRAGOON;
   if (muskets > 0 && horses > 0) {
-    return (unit->profession == UNITS_JOB_DRAGOON) ? UNITS_ICON_VETERAN_DRAGOON
-                                                   : UNITS_ICON_DRAGOON;
+    return vet_prof ? UNITS_ICON_VETERAN_DRAGOON : UNITS_ICON_DRAGOON;
   }
   if (muskets > 0) {
-    return (unit->profession == UNITS_JOB_SOLDIER) ? UNITS_ICON_VETERAN_SOLDIER
-                                                  : UNITS_ICON_SOLDIER;
+    return vet_prof ? UNITS_ICON_VETERAN_SOLDIER : UNITS_ICON_SOLDIER;
   }
   if (horses > 0) {
     return (unit->profession == UNITS_JOB_SCOUT) ? UNITS_ICON_SEASONED_SCOUT : UNITS_ICON_SCOUT;

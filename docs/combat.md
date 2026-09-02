@@ -340,7 +340,10 @@ Deep DOS notes: [`coastal_fort_fire.md`](../original_sources_annotated/turn/coas
 `turns_worked < type.defense` → construction (`units_tick_ship_build_ready`);
 `>=` → combat damage (fort/naval), repaired only by Drydock.
 
-**PARKED:** DOS temp-attacker spawn + fort VGA chrome.
+**Analysis (bugs.md 267):** `units_fort_vs_ship` presents Combat Analysis
+pre-roll (attacker_id −1, `eng.atk_label` = "<Colony> Fort/Fortress", battery
+strength as base; Drake row on scaled defense). **PARKED:** DOS temp-attacker
+spawn + fort VGA chrome.
 
 ---
 

@@ -1299,6 +1299,32 @@ static int unit_fog_vis_mask_and_snapshot(void) {
     }
     cu->muskets = 0;
     fprintf(stderr, "convert map sprite ok\n");
+
+    /* bugs.md 269: a mounted Veteran Soldier (profession 0x15) draws with the
+     * Veteran Dragoon art, not the plain grey dragoon. */
+    ColonizeUnit* vu = units_get(&cpool, plain);
+    vu->profession = UNITS_JOB_SOLDIER;
+    vu->muskets = UNITS_EQUIP_MUSKETS;
+    if (units_map_sprite(&cpool, plain) != UNITS_ICON_VETERAN_SOLDIER) {
+      fprintf(stderr, "veteran sprite: armed vet icon %d want %d\n",
+              units_map_sprite(&cpool, plain), UNITS_ICON_VETERAN_SOLDIER);
+      return 1;
+    }
+    vu->horses = UNITS_EQUIP_HORSES;
+    if (units_map_sprite(&cpool, plain) != UNITS_ICON_VETERAN_DRAGOON) {
+      fprintf(stderr, "veteran sprite: mounted vet icon %d want %d\n",
+              units_map_sprite(&cpool, plain), UNITS_ICON_VETERAN_DRAGOON);
+      return 1;
+    }
+    if (strcmp(units_display_name(&cpool, vu), "Veteran Dragoon") != 0) {
+      fprintf(stderr, "veteran name: mounted vet reads '%s' want 'Veteran Dragoon'\n",
+              units_display_name(&cpool, vu));
+      return 1;
+    }
+    vu->muskets = 0;
+    vu->horses = 0;
+    vu->profession = 0;
+    fprintf(stderr, "veteran dragoon chrome ok\n");
   }
 
   /*

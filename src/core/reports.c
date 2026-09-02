@@ -1222,14 +1222,21 @@ static void reports_render_congress_page1(
    * bugs.md 236 / DOS 3f41 (~69774): when the foreign-intervention pool
    * (DS:0x53e2 = head.backup_force) is non-zero, a second force row appears
    * under the REF lines in the SAME format — icon lineup of regulars,
-   * cavalry, artillery, man-o-wars. Squeezed into the 10px band between the
-   * REF row and the Founding Fathers header (the port's layout is fixed).
+   * cavalry, artillery, man-o-wars (bugs.md 270: it gets a full-height band
+   * and pushes the Founding Fathers block down).
    */
+  int pool_sum = 0;
+  for (int i = 0; i < 4; ++i) {
+    pool_sum += (int)col1->head.backup_force[i];
+  }
+  /* bugs.md 270: the intervention row needs its own full band — when it is
+   * present, the Founding Fathers header (and list) move down below it
+   * instead of sharing the fixed 10px gap and overlapping both neighbors. */
+  const int interv_row_y = REPORTS_CONGRESS_FORCE_Y + REPORTS_CONGRESS_FORCE_H + 2;
+  const int ff_header_y = pool_sum > 0
+    ? interv_row_y + REPORTS_CONGRESS_FORCE_H + 3
+    : REPORTS_CONGRESS_FF_HEADER_Y;
   {
-    int pool_sum = 0;
-    for (int i = 0; i < 4; ++i) {
-      pool_sum += (int)col1->head.backup_force[i];
-    }
     if (pool_sum > 0) {
       /* bugs.md 257: the intervention lineup is Continental Army /
        * Continental Cavalry (@UNIT icons 129/130), not Regulars/Cavalry,
@@ -1242,8 +1249,8 @@ static void reports_render_congress_page1(
         REPORTS_CONGRESS_ICON_MANOWAR
       };
       static const int kForceX2[4] = {110, 170, 225, 275};
-      const int row_y = REPORTS_CONGRESS_FORCE_Y + REPORTS_CONGRESS_FORCE_H;
-      const int row_h = REPORTS_CONGRESS_FF_HEADER_Y - row_y - 2;
+      const int row_y = interv_row_y;
+      const int row_h = REPORTS_CONGRESS_FORCE_H;
       snprintf(
         line, line_sz, "%s %s:",
         ally >= 0 ? reports_nation_adjective(ally) : "Foreign",
@@ -1273,10 +1280,10 @@ static void reports_render_congress_page1(
   }
 
   snprintf(line, line_sz, "%s:", reports_misc_word(89, "Founding Fathers", w1, sizeof(w1)));
-  reports_draw_line(font, fb, 8, REPORTS_CONGRESS_FF_HEADER_Y, line, 15);
+  reports_draw_line(font, fb, 8, ff_header_y, line, 15);
   {
     int shown = 0;
-    int y = REPORTS_CONGRESS_FF_HEADER_Y + step;
+    int y = ff_header_y + step;
     for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
       if (!reports_ff_owned_by_nation(nat, i)) {
         continue;

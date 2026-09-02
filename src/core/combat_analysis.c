@@ -209,6 +209,9 @@ bool combat_analysis_open(
   const ColonizeUnit* def_u = units_get_const(pool, eng->defender_id);
   if (atk_u && atk_u->active) {
     snprintf(dlg->atk_name, sizeof(dlg->atk_name), "%s", units_display_name(pool, atk_u));
+  } else if (eng->atk_label[0]) {
+    /* bugs.md 267: unit-less attacker (coastal Fort/Fortress battery). */
+    snprintf(dlg->atk_name, sizeof(dlg->atk_name), "%s", eng->atk_label);
   }
   if (def_u && def_u->active) {
     snprintf(dlg->def_name, sizeof(dlg->def_name), "%s", units_display_name(pool, def_u));

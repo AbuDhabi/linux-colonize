@@ -89,6 +89,43 @@ static const char* unit_stack_profession_label(
   return buf[0] ? buf : NULL;
 }
 
+/* bugs.md 266: one row's full label ("Dragoon (Expert Farmers) (aboard)"). */
+static void unit_stack_row_label(
+  const ColonizeUnitPool* pool,
+  const ColonizeMsgCatalog* names,
+  const ColonizeUnit* u,
+  char* out,
+  size_t out_size
+) {
+  const char* name = units_display_name(pool, u);
+  /* bugs.md 232: cross-specialized soldiers/dragoons carry their expert
+   * skill in the row name — "Dragoon (Expert Farmers)". */
+  const char* prof =
+    (u && names) ? unit_stack_profession_label(names, u->type_index, u->profession) : NULL;
+  char base[56];
+  if (prof && name && strstr(name, prof) == NULL) {
+    snprintf(base, sizeof(base), "%s (%s)", name, prof);
+  } else {
+    snprintf(base, sizeof(base), "%s", name ? name : "Unit");
+  }
+  if (u && u->aboard_ship_id >= 0) {
+    snprintf(out, out_size, "%s (%s)", base, u->orders == 1 ? "aboard" : "ready");
+  } else {
+    snprintf(out, out_size, "%s", base);
+  }
+}
+
+/* bugs.md 266: crop a label to max_w pixels (drop trailing chars). */
+static void unit_stack_crop_label(const ColonizeFont* font, char* label, int max_w) {
+  if (!font || max_w <= 0) {
+    return;
+  }
+  size_t n = strlen(label);
+  while (n > 0 && font_text_width(font, label) > max_w) {
+    label[--n] = '\0';
+  }
+}
+
 /* bugs.md 252: grid hit-test — column-major fill (first 8 in column 0, ...). */
 static int unit_stack_row_at_y(const UnitStackPopup* dlg, int mx, int my) {
   if (!dlg || dlg->line_h <= 0 || dlg->count <= 0 || dlg->rows <= 0) {
@@ -247,7 +284,36 @@ void unit_stack_render(
     cols = 3;
   }
   const int rows = cols > 1 ? rows_per_col : dlg->count;
-  const int col_w = 148;
+  /*
+   * bugs.md 266: size each column to its widest row instead of a fixed
+   * 148px — with the labels cropped to whatever per-column budget still
+   * lets every column fit on screen.
+   */
+  const int col_w_cap =
+    (framebuffer->width - 8 - POPUP_FRAME_INSET * 2 - pad_x * 2) / (cols > 0 ? cols : 1);
+  int col_w = 60;
+  if (font) {
+    for (int i = 0; i < dlg->count; ++i) {
+      const ColonizeUnit* u = units_get_const(pool, dlg->ids[i]);
+      int icon_adv = icon_slot + 3;
+      const int sprite = u ? units_map_sprite(pool, u->id) : -1;
+      if (sprite >= 0 && icons && sprite < icons->sprite_count) {
+        const int sw = icons->sprites[sprite].width;
+        icon_adv = (sw > 0 ? sw : icon_slot) + 3;
+      }
+      char label[72];
+      unit_stack_row_label(pool, names, u, label, sizeof(label));
+      const int need = (pad_x - 1) + icon_adv + font_text_width(font, label) + 4;
+      if (need > col_w) {
+        col_w = need;
+      }
+    }
+  } else {
+    col_w = 148;
+  }
+  if (col_w > col_w_cap) {
+    col_w = col_w_cap;
+  }
   const int options_h = rows * line_h;
   int dialog_h = POPUP_FRAME_INSET * 2 + pad_y + title_h + options_h + pad_y;
   if (dialog_h < 40) {
@@ -257,7 +323,14 @@ void unit_stack_render(
     dialog_h = framebuffer->height - 8;
   }
 
-  int dialog_w = cols > 1 ? POPUP_FRAME_INSET * 2 + pad_x + cols * col_w + pad_x : 160;
+  int dialog_w = POPUP_FRAME_INSET * 2 + pad_x + cols * col_w + pad_x;
+  /* Title must still fit ("Units (nnn,nnn)"). */
+  if (font) {
+    const int title_need = POPUP_FRAME_INSET * 2 + pad_x * 2 + 70;
+    if (dialog_w < title_need) {
+      dialog_w = title_need;
+    }
+  }
   if (dialog_w > framebuffer->width - 8) {
     dialog_w = framebuffer->width - 8;
   }
@@ -345,28 +418,11 @@ void unit_stack_render(
       text_x += (sp->width > 0 ? sp->width : icon_slot) + 3;
     }
 
-    const char* name = units_display_name(pool, u);
-    /* bugs.md 232: cross-specialized soldiers/dragoons carry their expert
-     * skill in the row name — "Dragoon (Expert Farmers)". */
-    const char* prof =
-      (u && names) ? unit_stack_profession_label(names, u->type_index, u->profession) : NULL;
-    char base[56];
-    if (prof && name && strstr(name, prof) == NULL) {
-      snprintf(base, sizeof(base), "%s (%s)", name, prof);
-    } else {
-      snprintf(base, sizeof(base), "%s", name ? name : "Unit");
-    }
     char label[72];
-    if (u && u->aboard_ship_id >= 0) {
-      if (u->orders == 1) {
-        snprintf(label, sizeof(label), "%s (aboard)", base);
-      } else {
-        snprintf(label, sizeof(label), "%s (ready)", base);
-      }
-    } else {
-      snprintf(label, sizeof(label), "%s", base);
-    }
+    unit_stack_row_label(pool, names, u, label, sizeof(label));
     if (font) {
+      /* bugs.md 266: crop instead of spilling into the next column. */
+      unit_stack_crop_label(font, label, col_x0 + dlg->col_w - 2 - text_x);
       font_draw_text(font, framebuffer, text_x, row_y + 2, label, text_color);
     }
   }

@@ -9543,7 +9543,15 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
    * next slice of processing runs, not hoarded until FINISH. Present it
    * here and freeze the whole pipeline until the player deals with it;
    * only animations (water cycle, flair clocks above) keep running. */
-  if (turn_processor_active(&game->turn_proc)) {
+  /* bugs.md 268: a screen over the map (colony zoom mid-EOT, Europe, a
+   * report, the pedia) freezes the WHOLE end-of-turn pipeline — nothing may
+   * advance while the player is occupied with it. Fall through so that
+   * screen gets its input; the EOT branch resumes when it closes. Queued
+   * popups still present on top of it ("popup batch notwithstanding"). */
+  const bool screen_over_map = game->in_colony || game->in_europe || game->in_report ||
+    game->in_pedia || game->in_menu || game->in_debug_atlas || game->in_hall_of_fame ||
+    game->in_exploits;
+  if (turn_processor_active(&game->turn_proc) && !screen_over_map) {
     /* Popup queue advances underneath an open woodcut (same order as the
      * post-EOT path below) — the woodcut owns screen and keyboard only. */
     if (!game->ai_popups.open && !game->ai_popups.has_result) {
@@ -9609,7 +9617,8 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
    * A WON latch with scoring already complete (calendar_latch — the player
    * chose "Keep playing anyway.") stays quiet. */
   if (!game->war_end_retired && game->col1_ok && !ai_popup_busy(&game->ai_popups) &&
-      !game_modal_open(game) && !game->in_menu && !game->in_report &&
+      !game_modal_open(game) && !turn_processor_active(&game->turn_proc) &&
+      !game->in_menu && !game->in_report &&
       !game->in_hall_of_fame && !game->in_exploits) {
     const int endgame = ai_king_latch_get(&game->col1, AI_KING_ENDGAME_BYTE);
     if (endgame == AI_KING_ENDGAME_LOST ||
@@ -9626,6 +9635,7 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
    * European Status; DOS finishes the audiences first). */
   if (game->europe_ok && game->europe.open_on_dock && !game->in_europe && !game->in_menu &&
       !game->in_colony && !game->in_report && !game->in_pedia &&
+      !turn_processor_active(&game->turn_proc) &&
       !ai_popup_busy(&game->ai_popups) && !game_modal_open(game) &&
       !game_europe_blocked_by_woi(game)) {
     game->in_europe = true;
