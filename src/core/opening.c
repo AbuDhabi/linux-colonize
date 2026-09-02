@@ -228,7 +228,9 @@ static int opening_logo_y_shift(const OpeningCinematic* o) {
 
 /* OPENCRD*.SS packed the banners as a vertical contact sheet; the stored
  * anchor_y is the row in that sheet, not the playback slot. Every plate
- * goes in the OPENBORD bottom strip, centred in the 44 px below the map. */
+ * sits in the OPENBORD bottom panel, below the inner bevel so it does not
+ * overlap the map frame. X is centred on the 320-wide screen; the stored
+ * anchor_x is the contact-sheet column, not a playback dest. */
 static void opening_blit_credit(
   const ColonizeSpriteSheet* sheet,
   int sprite_index,
@@ -238,9 +240,11 @@ static void opening_blit_credit(
     return;
   }
   const ColonizeSprite* s = &sheet->sprites[sprite_index];
-  const int strip = 200 - OPENING_CREDIT_TOP;
-  const int dest_y = OPENING_CREDIT_TOP + (strip - s->height) / 2;
-  ss_blit_sprite(sheet, sprite_index, fb, s->anchor_x - (s->width >> 1), dest_y);
+  const int panel = OPENING_CREDIT_TOP + OPENING_CREDIT_BORDER;
+  const int strip = 200 - panel;
+  const int dest_x = (OPENING_VIEW_W - s->width) / 2;
+  const int dest_y = panel + (strip - s->height) / 2;
+  ss_blit_sprite(sheet, sprite_index, fb, dest_x, dest_y);
 }
 
 static void opening_ship_at(const OpeningCinematic* o, int* x, int* y) {
