@@ -1895,7 +1895,8 @@ gameplay/determinism. Most rows need the user's visual-fidelity judgement.
     `OPENSHIP.SS` + `PATH.DAT` (701 world points), series sheets from
     `OPENING.TXT` `@OPENING`, credit plates `@CREDITS` / `OPENCRD1/2/3`.
     Camera follows the ship (clamped to 640). Two key/click skip.
-    `skip_intro` in settings.json (first run false, then true after play).
+    `skip_intro` in settings.json (absent file plays intro and writes true;
+    afterwards the key is the player's).
     Test: `unit_opening`.
   - [x] **`DECLARAT.PIK` animation — retracted 2026-08-30, wrong premise.**
     `DECLARAT.PIK` is the *signed* parchment and is referenced by **no**

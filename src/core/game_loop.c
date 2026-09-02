@@ -173,7 +173,8 @@ struct ColonizeGameState {
   bool closing_then_score;
   /*
    * OPENING.EXE title intro (OPENING.PIK panorama + ship + credits).
-   * Armed once at process start when settings.json skip_intro is false.
+   * Armed at process start when skip_intro is false, or on the first launch
+   * (settings.json was missing). The intro never writes the key back.
    */
   OpeningCinematic opening;
   bool opening_just_opened;
@@ -9614,17 +9615,6 @@ static void game_finish_intro(ColonizeGameState* game) {
   }
   opening_close(&game->opening);
   game->opening_just_opened = false;
-  if (settings_is_loaded()) {
-    ColonizeSettings prefs = *settings_get();
-    if (!prefs.skip_intro) {
-      prefs.skip_intro = true;
-      settings_set(&prefs);
-      char err[256];
-      if (!settings_flush(err, sizeof(err))) {
-        diag_warn("Could not save skip_intro: %s", err);
-      }
-    }
-  }
   sound_play(SOUND_TITLE_ID);
 }
 
@@ -9635,7 +9625,10 @@ bool game_try_start_intro(ColonizeGameState* game) {
   if (game->opening.open) {
     return true;
   }
-  if (!settings_is_loaded() || settings_get()->skip_intro) {
+  if (!settings_is_loaded()) {
+    return false;
+  }
+  if (settings_get()->skip_intro && !settings_first_run()) {
     return false;
   }
   if (!opening_open(&game->opening, game->resolved_data_dir)) {

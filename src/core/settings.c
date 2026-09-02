@@ -15,6 +15,7 @@ static ColonizeSettings g_settings;
 static char g_settings_path[640];
 static bool g_settings_ready = false;
 static bool g_settings_loaded = false;
+static bool g_settings_first_run = false;
 
 static void set_err(char* err, size_t err_size, const char* fmt, ...) {
   if (!err || err_size == 0) {
@@ -78,7 +79,10 @@ void settings_defaults(ColonizeSettings* out) {
   out->debug_menu = false;
   out->show_mouse_coords = false;
   out->show_building_rects = false;
-  out->skip_intro = false;
+  /* Newly created settings.json writes true so later launches skip OPENING.EXE.
+   * First launch still plays it because the file was absent (settings_first_run).
+   * After that the key is the player's; the intro never writes it back. */
+  out->skip_intro = true;
 }
 
 /* ---------------------------------------------------------------- writing */
@@ -318,6 +322,7 @@ bool settings_init(const char* path, char* err, size_t err_size) {
   if (probe) {
     fclose(probe);
   }
+  g_settings_first_run = !existed;
 
   char load_err[256] = {0};
   if (!settings_load_file(g_settings_path, &g_settings, load_err, sizeof(load_err))) {
@@ -345,6 +350,10 @@ bool settings_init(const char* path, char* err, size_t err_size) {
 
 bool settings_is_loaded(void) {
   return g_settings_loaded;
+}
+
+bool settings_first_run(void) {
+  return g_settings_loaded && g_settings_first_run;
 }
 
 const ColonizeSettings* settings_get(void) {
