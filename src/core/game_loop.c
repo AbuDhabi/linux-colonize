@@ -799,6 +799,35 @@ static bool game_europe_blocked_by_woi(const ColonizeGameState* game) {
   return game && game->col1_ok && ai_king_independence_declared(&game->col1);
 }
 
+/* bugs.md 231: player sell/buy that crossed a price threshold — show the
+ * @PRICEUP/@PRICEDOWN dialog immediately (same format as the EOT market
+ * tick's) and clear the event list. */
+static void game_europe_drain_price_events(ColonizeGameState* game) {
+  if (!game || !game->europe_ok) {
+    return;
+  }
+  EuropeScreen* eu = &game->europe;
+  for (int i = 0; i < eu->price_event_count; ++i) {
+    const int c = eu->price_event_cargo[i];
+    if (c < 0 || c >= eu->cargo_count) {
+      continue;
+    }
+    PopupMsgTokens tok;
+    memset(&tok, 0, sizeof(tok));
+    tok.string0 = eu->cargo[c].name;
+    tok.string1 = eu->port_city;
+    tok.number0 = eu->cargo[c].bid;
+    tok.has_number0 = true;
+    char body[AI_POPUP_BODY_LEN];
+    popup_msg_fill(
+      &game->messages, eu->price_event_dir[i] > 0 ? "PRICEUP" : "PRICEDOWN", &tok,
+      eu->status, body, sizeof(body)
+    );
+    (void)ai_popup_enqueue_ok(&game->ai_popups, AI_POPUP_TAG_INFO, NULL, body);
+  }
+  eu->price_event_count = 0;
+}
+
 static bool game_try_enter_europe(ColonizeGameState* game) {
   if (!game || !game->europe_ok) {
     return false;
@@ -2095,6 +2124,7 @@ static void game_apply_howmuch_result(ColonizeGameState* game) {
       return;
     }
     europe_buy_cargo(eu, eu->selected_harbor, cargo, amt);
+        game_europe_drain_price_events(game);
   } else if (kind == HOWMUCH_KIND_SELL) {
     EuropeScreen* eu = &game->europe;
     if (!game->in_europe || eu->selected_harbor < 0) {
@@ -7437,6 +7467,7 @@ static bool game_europe_drag_drop(ColonizeGameState* game, int mx, int my) {
       }
       if (hidx >= 0) {
         europe_buy_cargo(eu, hidx, drag->index, drag->amount > 0 ? drag->amount : 100);
+        game_europe_drain_price_events(game);
       } else {
         snprintf(eu->status, sizeof(eu->status), "%s", "Select a ship first.");
       }
@@ -7445,6 +7476,7 @@ static bool game_europe_drag_drop(ColonizeGameState* game, int mx, int my) {
     if (hit.kind == EUROPE_HIT_MARKET) {
       if (eu->selected_harbor >= 0) {
         europe_sell_hold(eu, eu->selected_harbor, drag->index);
+        game_europe_drain_price_events(game);
       }
     }
   } else if (kind == UI_DRAG_EUROPE_HARBOR_SHIP) {
@@ -8561,6 +8593,7 @@ static void game_trade_route_service_stop(ColonizeGameState* game, ColonizeUnit*
           break;
         }
       }
+      game_europe_drain_price_events(game);
     }
     return;
   }
@@ -9386,6 +9419,14 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
   unit_chrome_set_rebel_nation(
     game->col1_ok && ai_king_independence_declared(&game->col1) ? game->human_nation : -1
   );
+  /* bugs.md 240: the move/combat watches were only armed during end-of-turn
+   * processing, so the PLAYER's own moves fired into a NULL watch and never
+   * animated. Arm them every frame; the callbacks guard platform/zoom
+   * themselves. (The moving unit's overlay is blitted after game_render, so
+   * it also draws on top of any stack it passes — bugs.md 233.) */
+  units_set_move_watch(game_move_watch, game);
+  units_set_combat_watch(game_combat_watch, game);
+  units_set_combat_popup_pump(game_combat_popup_pump, game);
 
   /* End-of-turn nation phases: advance one slice per frame; block other input.
    *
@@ -10838,6 +10879,7 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
           europe_sell_hold(eu, eu->selected_harbor, hold);
           sold++;
         }
+        game_europe_drain_price_events(game);
         if (sold == 0) {
           snprintf(eu->status, sizeof(eu->status), "%s", "Nothing to sell.");
         } else {
@@ -10884,6 +10926,7 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
       }
       if (ch == '+' && eu->selected_harbor >= 0) {
         europe_buy_cargo(eu, eu->selected_harbor, eu->selected_market, 1);
+        game_europe_drain_price_events(game);
         return true;
       }
       if ((ch == '-' || ch == '_') && eu->selected_harbor >= 0) {
@@ -10910,6 +10953,7 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
         } else {
           europe_sell_hold(eu, eu->selected_harbor, hold);
         }
+        game_europe_drain_price_events(game);
         return true;
       }
     }
@@ -13157,6 +13201,7 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
         (UnitStackPopup*)&game->unit_stack,
         &game->units,
         game->unit_icons_ok ? &game->unit_icons : NULL,
+        &game->names,
         hud_font,
         wood,
         &popup_cols,

@@ -1044,13 +1044,40 @@ static void reports_render_congress_page1(
    * #70 "Tory", #71 "Sentiment", #85 "Expeditionary Force", #89 "Founding
    * Fathers" — composed with the golden's punctuation/spacing. */
   char w1[48], w2[48], w3[48];
-  snprintf(
-    line,
-    line_sz,
-    "%s:  (%s)",
-    reports_misc_word(112, "Next Continental Congress Session", w1, sizeof(w1)),
-    nat->next_founding_father >= 0 ? reports_ff_name(nat->next_founding_father) : "none"
-  );
+  const int woi = col1->head.game_options.woi != 0;
+  int ally = (int)col1->head.rival_nation_slot_1;
+  {
+    const int crown = (human == 0) ? 1 : 0; /* ai_king_crown_nation inlined */
+    if (ally < 0 || ally > 3 || ally == human || ally == crown) {
+      ally = -1;
+      for (int n = 0; n < 4; ++n) {
+        if (n != human && n != crown) {
+          ally = n;
+          break;
+        }
+      }
+    }
+  }
+  if (woi) {
+    /* bugs.md 235: after declaring, FF elections are over — the bell bar
+     * counts toward the foreign intervention instead, and the header names
+     * it (DOS 3f41: @MISC 111 via DS ptr 0x2e98). */
+    snprintf(
+      line,
+      line_sz,
+      "%s %s:",
+      ally >= 0 ? reports_nation_adjective(ally) : "Foreign",
+      reports_misc_word(111, "Intervention Force", w1, sizeof(w1))
+    );
+  } else {
+    snprintf(
+      line,
+      line_sz,
+      "%s:  (%s)",
+      reports_misc_word(112, "Next Continental Congress Session", w1, sizeof(w1)),
+      nat->next_founding_father >= 0 ? reports_ff_name(nat->next_founding_father) : "none"
+    );
+  }
   reports_draw_line(font, fb, 8, REPORTS_CONGRESS_TEXT1_Y, line, 15);
 
   {
@@ -1188,38 +1215,48 @@ static void reports_render_congress_page1(
    * (@MISC 111, DS string 0x2e98) with the pool's four counts. The port's
    * fixed layout has 10px here, so the counts are drawn as one text line.
    */
+  /*
+   * bugs.md 236 / DOS 3f41 (~69774): when the foreign-intervention pool
+   * (DS:0x53e2 = head.backup_force) is non-zero, a second force row appears
+   * under the REF lines in the SAME format — icon lineup of regulars,
+   * cavalry, artillery, man-o-wars. Squeezed into the 10px band between the
+   * REF row and the Founding Fathers header (the port's layout is fixed).
+   */
   {
     int pool_sum = 0;
     for (int i = 0; i < 4; ++i) {
       pool_sum += (int)col1->head.backup_force[i];
     }
     if (pool_sum > 0) {
-      int ally = (int)col1->head.rival_nation_slot_1;
-      /* ai_king_crown_nation inlined (test_reports links without ai_king.c). */
-      const int crown = (human == 0) ? 1 : 0;
-      if (ally < 0 || ally > 3 || ally == human || ally == crown) {
-        ally = -1;
-        for (int n = 0; n < 4; ++n) {
-          if (n != human && n != crown) {
-            ally = n;
-            break;
-          }
+      static const int kForceIndex2[4] = {0, 1, 3, 2};
+      static const int kForceIcon2[4] = {
+        REPORTS_CONGRESS_ICON_REGULARS,
+        REPORTS_CONGRESS_ICON_CAVALRY,
+        REPORTS_CONGRESS_ICON_ARTILLERY,
+        REPORTS_CONGRESS_ICON_MANOWAR
+      };
+      static const int kForceX2[4] = {4, 128, 193, 260};
+      const int row_y = REPORTS_CONGRESS_FORCE_Y + REPORTS_CONGRESS_FORCE_H;
+      const int row_h = REPORTS_CONGRESS_FF_HEADER_Y - row_y - 2;
+      for (int i = 0; i < 4; ++i) {
+        const int amount = (int)col1->head.backup_force[kForceIndex2[i]];
+        if (amount <= 0) {
+          continue;
         }
+        const int avail = ((i < 3) ? kForceX2[i + 1] : 316) - kForceX2[i];
+        int iw = 16;
+        if (view->icons_ok && kForceIcon2[i] >= 0 && kForceIcon2[i] < view->icons.sprite_count) {
+          iw = view->icons.sprites[kForceIcon2[i]].width;
+        }
+        int w = amount * iw;
+        if (w > avail) {
+          w = avail;
+        }
+        reports_draw_icon_bar(
+          view, font, fb, kForceIcon2[i], kForceX2[i], row_y, w,
+          row_h > 6 ? row_h : 6, amount, true, 0
+        );
       }
-      snprintf(
-        line,
-        line_sz,
-        "%s %s: %u %u %u %u",
-        ally >= 0 ? reports_nation_adjective(ally) : "Foreign",
-        reports_misc_word(111, "Intervention Force", w1, sizeof(w1)),
-        (unsigned)col1->head.backup_force[0],
-        (unsigned)col1->head.backup_force[1],
-        (unsigned)col1->head.backup_force[3],
-        (unsigned)col1->head.backup_force[2]
-      );
-      reports_draw_line(
-        font, fb, 8, REPORTS_CONGRESS_FORCE_Y + REPORTS_CONGRESS_FORCE_H, line, 15
-      );
     }
   }
 

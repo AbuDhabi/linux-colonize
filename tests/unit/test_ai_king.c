@@ -844,9 +844,15 @@ int main(void) {
   if (strcmp(europe.nation_name, "United Colonies") != 0) {
     return fail("160a declare should sync europe.nation_name");
   }
-  if (col1.player[1].control != 2 || col1.player[2].control != 2 ||
+  /* bugs.md 234: the crown's borrowed slot (human 0 → 1) stays a live AI
+   * combatant (DOS 1a26: *(0x53d2*0x34+0x543f)=1); only the other two Euro
+   * powers withdraw. crown_nation_id must be stamped for DOS interop. */
+  if (col1.player[1].control != 1 || col1.player[2].control != 2 ||
       col1.player[3].control != 2) {
-    return fail("declare should withdraw other Euro control");
+    return fail("declare: crown slot AI (1), others withdrawn (2)");
+  }
+  if (col1.head.crown_nation_id != 1) {
+    return fail("declare should stamp head.crown_nation_id");
   }
   /*
    * FUN_43f7_0108 diplo-clear/set: eliminated nation 2 loses WAR/PEACE and

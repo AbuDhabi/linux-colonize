@@ -464,16 +464,42 @@ static int ai_king_intervention_nation_slot(
   return ai_king_intervention_nation(ctx, human_nation);
 }
 
-/* FUN_43f7_1a26: cache first two non-human/non-crown Euro slots (DOS 0x53d4/0x53d6). */
+/*
+ * FUN_43f7_1a26: cache two non-human/non-crown Euro slots (DOS 0x53d4/0x53d6).
+ * DOS ranks all four by colonies*3 + pop*2 + third-term and the sort
+ * (FUN_1cf8_000a insertion sort) is ASCENDING — so the intervention ally
+ * (0x53d4) is the WEAKER of the two remaining powers, the second (0x53d6)
+ * the stronger. (Same sorted list 43f7_0218 picks the crown from: first
+ * non-human = the weakest power, which is withdrawn-by-merger to free its
+ * slot for the King.)
+ */
 static void ai_king_write_rival_nation_slots(ColonizeCol1Save* col1, int human) {
   if (!col1 || human < 0 || human >= 4) {
     return;
   }
   const int crown = ai_king_crown_nation(human);
+  int score[4] = {0, 0, 0, 0};
+  if (col1->colony) {
+    for (uint16_t i = 0; i < col1->head.colony_count; ++i) {
+      const int n = (int)col1->colony[i].nation_id;
+      if (n >= 0 && n < 4) {
+        score[n] += 3 + 2 * (int)col1->colony[i].population;
+      }
+    }
+  }
+  int order[4] = {0, 1, 2, 3};
+  for (int a = 1; a < 4; ++a) {
+    for (int b = a; b > 0 && score[order[b]] < score[order[b - 1]]; --b) {
+      const int t = order[b];
+      order[b] = order[b - 1];
+      order[b - 1] = t;
+    }
+  }
   col1->head.rival_nation_slot_1 = -1;
   col1->head.rival_nation_slot_2 = -1;
   int w = 0;
-  for (int n = 0; n < 4 && w < 2; ++n) {
+  for (int i = 0; i < 4 && w < 2; ++i) {
+    const int n = order[i];
     if (n == human || n == crown) {
       continue;
     }
@@ -2497,11 +2523,29 @@ static void ai_king_do_declare(ColonizeTurnContext* ctx, int human) {
    * must survive.
    */
   const int crown_fold = ai_king_crown_nation(human);
+  /*
+   * bugs.md 234: DOS 1a26 stores the crown slot in DS:0x53d2 and sets its
+   * control byte to 1 (`*(0x53d2*0x34+0x543f)=1`). The port never wrote
+   * head.crown_nation_id, so a save exported mid-WoI reached DOS with
+   * 0x53d2 = -1; DOS then picked its own crown — sometimes the very nation
+   * the port had cached as the intervention ally (0x53d4), which made the
+   * intervention force render as "Tory".
+   */
+  ctx->col1->head.crown_nation_id = (int16_t)crown_fold;
+  /*
+   * bugs.md 235: DOS 1a26 zeroes the bell pool (`*(pool+0xc)=0`) — the FF
+   * election in progress is cancelled and bells start accruing toward the
+   * foreign intervention instead.
+   */
+  founding_fathers_consume_woi_bell_pool(human);
+  ctx->col1->nation[human].next_founding_father = -1;
   for (int n = 0; n < 4; ++n) {
     if (n == human) {
       continue;
     }
-    ctx->col1->player[n].control = 2;
+    /* Crown slot stays a live AI combatant (DOS control 1), the other two
+     * Euro powers withdraw (control 2). */
+    ctx->col1->player[n].control = (uint8_t)(n == crown_fold ? 1 : 2);
     if (n != crown_fold && ctx->col1_ok) {
       /*
        * FUN_43f7_0108 diplo-clear/set (0xb clear / 0x60 OR bitmasks vs
@@ -4548,6 +4592,37 @@ static void ai_king_war_act(ColonizeTurnContext* ctx) {
                      "%d rebel units have been promoted to Continental status!",
                      promoted);
           }
+        }
+        /* bugs.md 238: the mustering gets its own dialog per colony —
+         * GAME.TXT @MOBILIZE (one unit, %STRING0 colony / %STRING1 type) or
+         * @MOBILIZE2 (%NUMBER0 units). */
+        if (promoted > 0 && ai_king_human_popups(ctx)) {
+          PopupMsgTokens tok;
+          memset(&tok, 0, sizeof(tok));
+          tok.string0 = c->name[0] ? c->name : "our colony";
+          char body[AI_POPUP_BODY_LEN];
+          if (promoted == 1) {
+            tok.string1 = "Soldiers";
+            popup_msg_fill(
+              ctx->messages, "MOBILIZE", &tok,
+              "Continental Army mobilizes! Our Veteran unit has been promoted to "
+              "Continental Army status.",
+              body, sizeof(body)
+            );
+          } else {
+            tok.has_number0 = true;
+            tok.number0 = promoted;
+            popup_msg_fill(
+              ctx->messages, "MOBILIZE2", &tok,
+              "Continental Army mobilizes! %NUMBER0 Veteran units have been "
+              "promoted to Continental Army status.",
+              body, sizeof(body)
+            );
+          }
+          (void)ai_popup_enqueue_ok_ctx(
+            ctx->ai_popups, AI_POPUP_TAG_INFO, human, -1, promoted,
+            "Continental Army", body
+          );
         }
       }
     }

@@ -1603,6 +1603,13 @@ bool col1_bridge_capture(
    */
   save->head.turn_loop_running = 1;
   save->head.map_modal_active = 1;
+  /* bugs.md 234: a WoI save must carry the crown slot (DS:0x53d2) — with -1
+   * DOS picks its own crown at load and can collide with the cached
+   * intervention ally (0x53d4), mislabeling the intervention force "Tory".
+   * Belt for campaigns declared before ai_king_do_declare stamped it. */
+  if (save->head.game_options.woi && save->head.crown_nation_id < 0) {
+    save->head.crown_nation_id = (int16_t)(human_nation == 0 ? 1 : 0);
+  }
 
   for (size_t i = 0; i < save->map.tile_count; ++i) {
     save->map.tile[i] = col1_mp_terrain_to_tile(map->terrain[i]);

@@ -56,6 +56,7 @@ void unit_stack_render(
   UnitStackPopup* dlg,
   const ColonizeUnitPool* pool,
   const ColonizeSpriteSheet* icons,
+  const ColonizeMsgCatalog* names,
   const ColonizeFont* font,
   const ColonizeSpriteSheet* wood_tile,
   const ColonizePopupColors* colors,
