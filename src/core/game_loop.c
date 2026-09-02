@@ -5383,7 +5383,8 @@ ColonizeGameState* game_create(const ColonizeGameConfig* config) {
   game->pedia_hover_entry = -1;
   game->pedia_view = PEDIA_VIEW_LIST;
   game->pedia_return_to_list = false;
-  game->debug_show_mouse_coords = true;
+  game->debug_show_mouse_coords =
+    (config && config->show_mouse_coords_set) ? config->show_mouse_coords : true;
   game->cheat_create_pending_nation = -1;
   game->cheat_unlock_step = 0;
   game->fog_view = -2;
@@ -5454,7 +5455,11 @@ ColonizeGameState* game_create(const ColonizeGameConfig* config) {
   char menu_txt[512];
   if (dos_compat_normalize_asset_path(game->resolved_data_dir, "MENU.TXT", menu_txt, sizeof(menu_txt))) {
     if (assets_msg_load_file(&game->map_menu_txt, menu_txt)) {
-      map_menu_load(&game->map_menu, &game->map_menu_txt);
+      map_menu_load(
+        &game->map_menu,
+        &game->map_menu_txt,
+        (config && config->debug_menu_set) ? config->debug_menu : true
+      );
     } else {
       diag_warn("Failed to parse MENU.TXT");
     }
@@ -9322,6 +9327,15 @@ static bool game_apply_map_menu_action(ColonizeGameState* game, MapMenuAction ac
         "Mouse coords: %s",
         game->debug_show_mouse_coords ? "on" : "off"
       );
+      if (settings_is_loaded()) {
+        ColonizeSettings prefs = *settings_get();
+        prefs.show_mouse_coords = game->debug_show_mouse_coords;
+        settings_set(&prefs);
+        char err[256];
+        if (!settings_flush(err, sizeof(err))) {
+          diag_warn("Could not save settings: %s", err);
+        }
+      }
       return true;
     case MAP_MENU_ACTION_DEBUG_BUILDING_RECTS:
       game->debug_building_rects = !game->debug_building_rects;

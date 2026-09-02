@@ -809,7 +809,7 @@ static bool map_menu_load_debug(MapMenuBar* bar) {
 }
 #endif
 
-bool map_menu_load(MapMenuBar* bar, const ColonizeMsgCatalog* menu_txt) {
+bool map_menu_load(MapMenuBar* bar, const ColonizeMsgCatalog* menu_txt, bool show_debug) {
   if (!bar) {
     return false;
   }
@@ -826,7 +826,11 @@ bool map_menu_load(MapMenuBar* bar, const ColonizeMsgCatalog* menu_txt) {
   map_menu_load_section(bar, menu_txt, "CUP", false);
   bar->cheat_visible = false;
 #if COLONIZE_DEBUG_MENU
-  map_menu_load_debug(bar);
+  if (show_debug) {
+    map_menu_load_debug(bar);
+  }
+#else
+  (void)show_debug;
 #endif
   map_menu_load_section(bar, menu_txt, "PEDIA", true);
 

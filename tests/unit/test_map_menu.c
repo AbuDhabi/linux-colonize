@@ -29,7 +29,7 @@ int main(void) {
 
   MapMenuBar bar;
   map_menu_init(&bar);
-  if (!map_menu_load(&bar, &menu_txt)) {
+  if (!map_menu_load(&bar, &menu_txt, true)) {
     fprintf(stderr, "map_menu_load failed\n");
     assets_msg_free(&menu_txt);
     return 1;

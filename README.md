@@ -58,6 +58,7 @@ Useful flags (CLI wins over `settings.json`, which wins over the default):
 | `--windowed` / `--fullscreen` | windowed | Window / fullscreen | `display.windowed` |
 | `--nosound` | — | Disable audio | `no_sound` |
 | `--seed N` | — | Fixed RNG seed (debug; like VR_SEED; `0` is valid) | `seed` (`null` / omit = unset) |
+| `--debug-menu` / `--no-debug-menu` | on | DEBUG pulldown on the map navbar | `debug.menu` |
 
 Release preset: `cmake --preset release` then `cmake --build --preset release`.
 

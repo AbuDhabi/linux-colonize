@@ -18,6 +18,7 @@ typedef struct CliConfig {
   bool no_sound;
   int window_scale;
   uint32_t rng_seed;
+  bool debug_menu;
   /* Which flags the command line actually set; those win over settings.json.
    * Anything else falls back to the stored preference if that key is valid,
    * else the hardcoded default already in this struct. */
@@ -27,6 +28,7 @@ typedef struct CliConfig {
   bool nosound_from_cli;
   bool scale_from_cli;
   bool seed_from_cli;
+  bool debug_menu_from_cli;
 } CliConfig;
 
 static CliConfig cli_defaults(void) {
@@ -37,12 +39,14 @@ static CliConfig cli_defaults(void) {
   cfg.no_sound = false;
   cfg.window_scale = 2;
   cfg.rng_seed = 0;
+  cfg.debug_menu = true;
   cfg.data_dir_from_cli = false;
   cfg.save_dir_from_cli = false;
   cfg.windowed_from_cli = false;
   cfg.nosound_from_cli = false;
   cfg.scale_from_cli = false;
   cfg.seed_from_cli = false;
+  cfg.debug_menu_from_cli = false;
   return cfg;
 }
 
@@ -73,6 +77,12 @@ static bool parse_args(int argc, char** argv, CliConfig* cfg) {
     } else if (strcmp(arg, "--seed") == 0 && i + 1 < argc) {
       cfg->rng_seed = (uint32_t)strtoul(argv[++i], NULL, 0);
       cfg->seed_from_cli = true;
+    } else if (strcmp(arg, "--debug-menu") == 0) {
+      cfg->debug_menu = true;
+      cfg->debug_menu_from_cli = true;
+    } else if (strcmp(arg, "--no-debug-menu") == 0) {
+      cfg->debug_menu = false;
+      cfg->debug_menu_from_cli = true;
     } else {
       fprintf(stderr, "Unknown argument: %s\n", arg);
       return false;
@@ -118,6 +128,9 @@ int main(int argc, char** argv) {
       cli.rng_seed = prefs->seed;
       cli.seed_from_cli = true;
     }
+    if (!cli.debug_menu_from_cli) {
+      cli.debug_menu = prefs->debug_menu;
+    }
   }
 
   diag_info("CLI data_dir=%s", cli.data_dir);
@@ -156,7 +169,11 @@ int main(int argc, char** argv) {
     .data_dir = cli.data_dir,
     .save_dir = cli.save_dir,
     .rng_seed = cli.rng_seed,
-    .rng_seed_set = cli.seed_from_cli
+    .rng_seed_set = cli.seed_from_cli,
+    .debug_menu = cli.debug_menu,
+    .debug_menu_set = true,
+    .show_mouse_coords = settings_get()->show_mouse_coords,
+    .show_mouse_coords_set = true
   };
 
   ColonizeGameState* game = game_create(&game_cfg);

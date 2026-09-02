@@ -31,6 +31,7 @@ static void test_missing_file_defaults(void) {
   check(!s.no_sound && s.seed == 0 && !s.seed_present, "default launch flags off");
   check(strcmp(s.data_dir, "./COLONIZE") == 0, "default data_dir");
   check(s.save_dir[0] == '\0', "default save_dir empty (platform default)");
+  check(s.debug_menu && s.show_mouse_coords, "default debug overlay on");
 }
 
 static void test_roundtrip(void) {
@@ -47,6 +48,8 @@ static void test_roundtrip(void) {
   out.no_sound = true;
   out.seed = 100;
   out.seed_present = true;
+  out.debug_menu = false;
+  out.show_mouse_coords = false;
   snprintf(out.data_dir, sizeof(out.data_dir), "/tmp/col-data");
   snprintf(out.save_dir, sizeof(out.save_dir), "/tmp/col-saves");
 
@@ -78,6 +81,7 @@ static void test_partial_file(void) {
   check(strcmp(s.data_dir, "./COLONIZE") == 0, "absent data_dir kept default");
   check(s.save_dir[0] == '\0', "absent save_dir kept empty");
   check(!s.no_sound && s.seed == 0 && !s.seed_present, "absent launch flags kept default");
+  check(s.debug_menu && s.show_mouse_coords, "absent debug keys kept default");
 }
 
 /* Empty / wrong-type launch keys are not valid values, so defaults stand. */

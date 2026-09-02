@@ -171,7 +171,7 @@ typedef struct MapMenuOrdersContext {
 
 void map_menu_init(MapMenuBar* bar);
 void map_menu_free(MapMenuBar* bar);
-bool map_menu_load(MapMenuBar* bar, const ColonizeMsgCatalog* menu_txt);
+bool map_menu_load(MapMenuBar* bar, const ColonizeMsgCatalog* menu_txt, bool show_debug);
 
 /* Show/hide the CHEAT title; layout slot stays reserved either way. */
 void map_menu_set_cheat_visible(MapMenuBar* bar, bool visible);
