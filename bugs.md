@@ -241,8 +241,8 @@ This is a user-maintained list of bugs. User puts reports in. Agents may annotat
 | The confirm popup for declaring independence says New England instead of England. | |
 | Road to freedom popup emits just after declaring independence, as if we had recaptured a colony. No shots were even fired yet. | |
 | REF landing popup apparently happens concurrently with their unloading animations. This is not acceptable; firs the popup, then the animations, then other things in line. Every part in this is blocking further execution. | |
-| | |
-| | |
+| "Artillery captured by the royal army" is not a thing. Popup shouldn't exist. This apparently was in response to my defending artillery losing a fight and getting damaged. The artillery damaged popup (which is good) came later.| |
+| "United Colonies" is not a thing. Under WoI, the player faction is referred to as Rebel/Rebels. | |
 | | |
 | | |
 | | |
