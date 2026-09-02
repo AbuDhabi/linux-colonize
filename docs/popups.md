@@ -802,7 +802,7 @@ work.
 | `@WARN2` | Done thin | WoI one colony left — `ai_king_check_revolution_end` (`unknown46[7]`) |
 | `@LOSING3` | Done thin | WoI crown pop share ≥90% — `ai_king_check_revolution_end` |
 | `@WARN3` | Done thin | WoI crown pop share 50–89% — `unknown46[10]` episode |
-| `@WINNING` | Done thin | WoI win year≥1850 + no crown — `ai_king_check_revolution_end` |
+| `@WINNING` | Done | WoI win — `ai_king_check_revolution_end`; precedes the `@KINGLOSE` throne audience; win tune pool 3 |
 | `@OTHERGRANTED` | Partial | endgame/score/calendar — Partial (F10/status/thin INFO) |
 | `@OTHERMIGHT` | Partial | endgame/score/calendar — Partial (F10/status/thin INFO) |
 | `@OTHERLESS` | Partial | endgame/score/calendar — Partial (F10/status/thin INFO) |
@@ -863,8 +863,8 @@ work.
 | `@TUTORIAL19` | Missing | tutorial hints missing |
 | `@TUTNOLUMBER` | Missing | tutorial hints missing |
 | `@TUTNOSPACES` | Missing | tutorial hints missing |
-| `@KINGLOSE` | Partial | king/REF — structural ai_popup OK/CHOICE or thin; VGA PARKED |
-| `@KINGWIN` | Partial | king/REF — structural ai_popup OK/CHOICE or thin; VGA PARKED |
+| `@KINGLOSE` | Done | WoI won — full-screen throne audience (KINGLSS1 + KINGLOSE.SS, FUN_75c2_20e2); dismissal opens the retire score |
+| `@KINGWIN` | Done | WoI lost (@LOSING1-3) — full-screen throne audience (KINGWIN.SS); dismissal opens the retire score |
 | `@DISBANDSHIP` | Done | ship-with-cargo error OK (not Yes/No) |
 | `@NOMOREWAREHOUSE` | Done thin | Warehouse Expansion already owned → ai_popup OK |
 | `@NOMOREWAGONS` | Missing | no colony modal (FULL/SIEGE may status) |

@@ -5658,6 +5658,53 @@ static int ai_king_woi_pop_share_pct(
   return (crown_pop * 100) / total;
 }
 
+/*
+ * Full-screen throne audience follow-up to the war-end announcement (DOS
+ * FUN_3844_0442 → FUN_291f_0aba → FUN_75c2_20e2): the King's parting word.
+ * win: @KINGLOSE text on the KINGLOSE.SS king; loss: @KINGWIN on KINGWIN.SS
+ * (%STRING0 = the mother country). game_loop renders the KING_THRONE tag as
+ * the full-screen KINGLSS audience and opens the retire score on dismissal.
+ */
+static void ai_king_enqueue_throne_audience(
+  ColonizeTurnContext* ctx,
+  int human,
+  int crown,
+  int win
+) {
+  if (!ai_king_human_popups(ctx)) {
+    return;
+  }
+  static const char* const k_crown[4] = {"England", "France", "Spain", "Netherlands"};
+  const char* motherland = (human >= 0 && human <= 3) ? k_crown[human] : "the Crown";
+  PopupMsgTokens tok;
+  memset(&tok, 0, sizeof(tok));
+  char body[AI_POPUP_BODY_LEN];
+  char fallback[AI_POPUP_BODY_LEN];
+  if (win) {
+    snprintf(
+      fallback,
+      sizeof(fallback),
+      "\"In our wisdom, we have decided to let you go your own way. Do not "
+      "seek our aid in the future, for it will not be forthcoming.\""
+    );
+    popup_msg_fill(ctx->messages, "KINGLOSE", &tok, fallback, body, sizeof(body));
+  } else {
+    tok.string0 = motherland;
+    snprintf(
+      fallback,
+      sizeof(fallback),
+      "\"As expected, your attempt to separate from mother %s has proven "
+      "futile. Your Rag Tag armies are simply no match for our Royal "
+      "forces.\"",
+      motherland
+    );
+    popup_msg_fill(ctx->messages, "KINGWIN", &tok, fallback, body, sizeof(body));
+  }
+  (void)ai_popup_enqueue_ok_ctx(
+    ctx->ai_popups, AI_POPUP_TAG_KING_THRONE, human, crown, win ? 1 : 2, "The King", body
+  );
+}
+
 static void ai_king_check_revolution_end(ColonizeTurnContext* ctx, int ref_already) {
   if (!ctx || !ctx->col1_ok || !ctx->col1) {
     return;
@@ -5820,9 +5867,12 @@ static void ai_king_check_revolution_end(ColonizeTurnContext* ctx, int ref_alrea
     }
     if (ai_king_human_popups(ctx)) {
       (void)ai_popup_enqueue_ok_ctx(
-        ctx->ai_popups, AI_POPUP_TAG_KING_WAR_END, human, crown, 2, "Revolution Failed", body
+        ctx->ai_popups, AI_POPUP_TAG_KING_WAR_END, human, crown, 4, "Revolution Failed", body
       );
     }
+    /* DOS lose order: @LOSINGn dialog, then the @KINGWIN gloating audience
+     * (291f_0aba(2,1,0xf31)); the retire score follows its dismissal. */
+    ai_king_enqueue_throne_audience(ctx, human, crown, 0);
     return;
   }
   if (ports <= 0 && ref_already) {
@@ -5848,9 +5898,10 @@ static void ai_king_check_revolution_end(ColonizeTurnContext* ctx, int ref_alrea
     }
     if (ai_king_human_popups(ctx)) {
       (void)ai_popup_enqueue_ok_ctx(
-        ctx->ai_popups, AI_POPUP_TAG_KING_WAR_END, human, crown, 2, "Revolution Failed", body
+        ctx->ai_popups, AI_POPUP_TAG_KING_WAR_END, human, crown, 4, "Revolution Failed", body
       );
     }
+    ai_king_enqueue_throne_audience(ctx, human, crown, 0);
     return;
   }
   /*
@@ -5880,9 +5931,10 @@ static void ai_king_check_revolution_end(ColonizeTurnContext* ctx, int ref_alrea
     }
     if (ai_king_human_popups(ctx)) {
       (void)ai_popup_enqueue_ok_ctx(
-        ctx->ai_popups, AI_POPUP_TAG_KING_WAR_END, human, crown, 2, "Revolution Failed", body
+        ctx->ai_popups, AI_POPUP_TAG_KING_WAR_END, human, crown, 4, "Revolution Failed", body
       );
     }
+    ai_king_enqueue_throne_audience(ctx, human, crown, 0);
     return;
   }
   const int year = (int)ctx->col1->head.year;
@@ -5945,24 +5997,14 @@ static void ai_king_check_revolution_end(ColonizeTurnContext* ctx, int ref_alrea
       (pl->country_name[0] != '\0') ? pl->country_name : "the colonies";
     char body[AI_POPUP_BODY_LEN];
     char fallback[AI_POPUP_BODY_LEN];
+    /* DOS 3844_0442 win order: victory tune pool (FUN_129f_0318(3)), the
+     * @WINNING announcement, THEN the @KINGLOSE throne audience (bugs.md 264
+     * — the first pass had the two inverted). */
     if (ai_king_human_popups(ctx)) {
-      /* 1st: @KINGLOSE — the King's parting audience (DOS 291f_0aba 0xf20). */
-      PopupMsgTokens ktok;
-      memset(&ktok, 0, sizeof(ktok));
-      snprintf(
-        fallback,
-        sizeof(fallback),
-        "\"In our wisdom, we have decided to let you go your own way. Do not "
-        "seek our aid in the future, for it will not be forthcoming.\""
-      );
-      /* INFO tag: only the @WINNING dismissal below concludes into the
-       * retire score; the King's audience is just the parting word. */
-      popup_msg_fill(ctx->messages, "KINGLOSE", &ktok, fallback, body, sizeof(body));
-      (void)ai_popup_enqueue_ok_ctx(
-        ctx->ai_popups, AI_POPUP_TAG_INFO, human, crown, 1, "The King", body
-      );
+      sound_set_bgm(3);
     }
-    /* 2nd: @WINNING — STRING0 leader, STRING1 country. */
+    /* 1st: @WINNING — STRING0 leader, STRING1 country. Payload 1 = win; the
+     * retire score waits for the throne audience behind it. */
     PopupMsgTokens tok;
     memset(&tok, 0, sizeof(tok));
     tok.string0 = leader;
@@ -5986,6 +6028,9 @@ static void ai_king_check_revolution_end(ColonizeTurnContext* ctx, int ref_alrea
         ctx->ai_popups, AI_POPUP_TAG_KING_WAR_END, human, crown, 1, "Independence", body
       );
     }
+    /* 2nd: @KINGLOSE — the King's parting word as the full-screen audience
+     * (DOS 291f_0aba(1,2,0xf20)); dismissal opens the retire score chain. */
+    ai_king_enqueue_throne_audience(ctx, human, crown, 1);
     return;
   }
   /*

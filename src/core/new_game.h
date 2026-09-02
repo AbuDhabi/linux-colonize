@@ -87,6 +87,10 @@ typedef struct NewGameWizard {
   bool nation_art_ok;
   ColonizeFont fontking;
   bool fontking_ok;
+  /* End-of-war throne audience king sheet (KINGLOSE.SS / KINGWIN.SS). */
+  ColonizeSpriteSheet endking;
+  bool endking_ok;
+  char endking_name[16];
   ColonizePikImage levn[NEW_GAME_SAIL_FRAMES];
   bool levn_ok[NEW_GAME_SAIL_FRAMES];
 
@@ -148,6 +152,27 @@ void new_game_render(
   uint8_t text_color,
   uint8_t hilite_color,
   uint8_t select_color
+);
+
+/*
+ * End-of-war royal audience screen (DOS FUN_75c2_20e2): KINGLSS1.PIK backdrop,
+ * the nation banner pair (ENGLND1/FRANCE1/SPAIN1/DUTCH1.SS), a king sheet
+ * (KINGLOSE.SS when the player won the WoI, KINGWIN.SS when the King did) and
+ * the dialog text on the throne-room scroll in FONTKING (black ink), at the
+ * GAME.TXT section's own @x/@y/@width. Assets load lazily into the wizard's
+ * slots; data_dir is copied in when the wizard never ran this session.
+ */
+void new_game_render_throne_audience(
+  NewGameWizard* ng,
+  const char* data_dir,
+  int nation,
+  const char* king_sheet,
+  const char* body,
+  int text_x,
+  int text_y,
+  int text_w,
+  ColonizeFramebuffer8* fb,
+  ColonizePalette* out_palette
 );
 
 /* AMER2 @SCENARIO start tile for nation 0..3 (Dutch falls back if missing). */
