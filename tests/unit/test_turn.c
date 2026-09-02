@@ -3156,6 +3156,49 @@ int main(void) {
     fprintf(stderr, "colony starve-kill ok\n");
   }
 
+  /* bugs.md (port_orange_starves.SAV): DOS deficit is DS:0x8e5a =
+   * consumption − stock − production; a colony producing exactly what it
+   * eats at 0 stores (commons feeds the lone statesman) must NOT latch
+   * starvation or lose anyone, ever. Simulated without a map by pre-adding
+   * the "production" to stock, which is how the tick's own commons food
+   * lands before the latch runs — deficit 2−0−2 = 0. */
+  {
+    ColonizeColonyPool zpool;
+    colonies_init(&zpool);
+    ColonizeColony* s = &zpool.colonies[0];
+    memset(s, 0, sizeof(*s));
+    s->active = true;
+    s->id = 1;
+    s->building_in_production = -1;
+    s->stock[COLONIZE_CARGO_FOOD] = 2; /* 1 pop eats 2 — net zero, not short */
+    s->colonists[0].active = true;
+    s->colonists[0].unit_type_index = 0;
+    s->colonists[0].profession = UNITS_JOB_NONE;
+    s->colonists[0].building_type = 9;
+    s->colonists[0].field_job = -1;
+    for (int t = 0; t < COLONIZE_COLONY_FIELD_TILES; ++t) {
+      s->tiles[t] = -1;
+    }
+    s->colonist_count = 1;
+    s->population = 1;
+    zpool.colony_count = 1;
+    ColonizeTurnResult sr;
+    memset(&sr, 0, sizeof(sr));
+    turn_colony_free_production(&zpool, s, NULL, &sr, NULL);
+    if (!s->active || s->colonist_count != 1) {
+      fprintf(
+        stderr, "starve netzero: colonist_count want 1 got %d active=%d\n",
+        s->colonist_count, s->active
+      );
+      return 1;
+    }
+    if ((s->colony_flags & COLONIZE_COLONY_FLAG_STARVATION) != 0) {
+      fprintf(stderr, "starve netzero: STARVATION latch must stay clear\n");
+      return 1;
+    }
+    fprintf(stderr, "colony net-zero food no-starve ok\n");
+  }
+
   /* Last colonist starve → @VANISH + abandon (DOS 0xe47). */
   {
     ColonizeColonyPool pool;

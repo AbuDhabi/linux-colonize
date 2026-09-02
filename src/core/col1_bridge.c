@@ -725,6 +725,30 @@ bool col1_bridge_apply(
     memcpy(colonies->name_next, name_next, sizeof(name_next));
     memcpy(colonies->building_types, buildings_backup, sizeof(buildings_backup));
     colonies->building_type_count = building_type_count;
+    /*
+     * bugs.md 274: the name counter belongs to the SAVE, not the session —
+     * loading must reset it, or names keep advancing across reloads. Base
+     * it on player.founded_colonies (what the found paths bump); for legacy
+     * saves that never tracked the human's counter, fall back to the
+     * highest COLONY.TXT name a loaded colony of that nation still carries.
+     */
+    for (int n = 0; n < 4; ++n) {
+      int next = (int)save->player[n].founded_colonies;
+      for (uint16_t ci = 0; ci < save->head.colony_count; ++ci) {
+        const ColonizeCol1Colony* sc = &save->colony[ci];
+        if ((int)sc->nation_id != n) {
+          continue;
+        }
+        char cname[COLONIZE_COLONY_NAME_MAX];
+        col1_copy_name24(cname, sizeof(cname), sc->name);
+        for (int k = 0; k < colonies->name_count[n]; ++k) {
+          if (strcmp(colonies->names[n][k], cname) == 0 && k + 1 > next) {
+            next = k + 1;
+          }
+        }
+      }
+      colonies->name_next[n] = next;
+    }
   }
 
   for (int i = 0; i < (int)save->head.colony_count; ++i) {
