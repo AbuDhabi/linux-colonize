@@ -143,6 +143,97 @@ static void test_open_skip_and_motion(void) {
   check(!o.open, "close");
 }
 
+static int canvas_bbox(
+  const uint8_t* px, int* x0, int* y0, int* x1, int* y1
+) {
+  int n = 0;
+  *x0 = 320;
+  *y0 = 200;
+  *x1 = -1;
+  *y1 = -1;
+  for (int y = 0; y < 200; ++y) {
+    for (int x = 0; x < 320; ++x) {
+      if (px[y * 320 + x] == 0) {
+        continue;
+      }
+      n++;
+      if (x < *x0) {
+        *x0 = x;
+      }
+      if (y < *y0) {
+        *y0 = y;
+      }
+      if (x > *x1) {
+        *x1 = x;
+      }
+      if (y > *y1) {
+        *y1 = y;
+      }
+    }
+  }
+  return n;
+}
+
+static void test_logo_and_credit_layout(void) {
+  OpeningCinematic o;
+  memset(&o, 0, sizeof(o));
+  if (!opening_open(&o, "COLONIZE")) {
+    fprintf(stderr, "FAIL: opening_open layout\n");
+    failures++;
+    return;
+  }
+  int x0 = 0, y0 = 0, x1 = 0, y1 = 0;
+  canvas_bbox(o.canvas, &x0, &y0, &x1, &y1);
+  check(y0 == (200 - 119) / 2, "MPS logo vertically centered");
+  check(y1 == y0 + 118, "MPS logo uses full 119 px height");
+
+  ColonizeInputState in;
+  memset(&in, 0, sizeof(in));
+  in.last_key = COLONIZE_KEY_ESCAPE;
+  opening_handle_input(&o, &in);
+
+  uint8_t before[320 * 200];
+  int below_hits = 0;
+  for (int i = 0; i < o.credit_count; ++i) {
+    const OpeningCredit* c = &o.credit_rows[i];
+    const int pre = c->start_frame > 0 ? c->start_frame - 1 : 0;
+    if (o.clock < pre) {
+      opening_update(&o, OPENING_FRAME_MS * (uint32_t)(pre - o.clock));
+    }
+    memcpy(before, o.canvas, sizeof(before));
+    const int at = c->start_frame + 1;
+    if (o.clock < at) {
+      opening_update(&o, OPENING_FRAME_MS * (uint32_t)(at - o.clock));
+    }
+    int scene = 0;
+    int below = 0;
+    int min_below = 200;
+    for (int y = 0; y < 200; ++y) {
+      for (int x = 0; x < 320; ++x) {
+        if (before[y * 320 + x] == o.canvas[y * 320 + x]) {
+          continue;
+        }
+        if (y < OPENING_CREDIT_TOP) {
+          scene++;
+        } else {
+          below++;
+          if (y < min_below) {
+            min_below = y;
+          }
+        }
+      }
+    }
+    check(below > 200, "credit banner appears below the map");
+    check(min_below >= OPENING_CREDIT_TOP, "credit pixels stay out of the scene");
+    if (below > 200) {
+      below_hits++;
+    }
+    (void)scene;
+  }
+  check(below_hits == o.credit_count && o.credit_count >= 10, "every credit row is a bottom banner");
+  opening_close(&o);
+}
+
 static void test_timed_run_reaches_end(void) {
   OpeningCinematic o;
   memset(&o, 0, sizeof(o));
@@ -169,6 +260,7 @@ int main(void) {
   test_timeline();
   test_credits_and_path();
   test_open_skip_and_motion();
+  test_logo_and_credit_layout();
   test_timed_run_reaches_end();
   diag_shutdown();
   if (failures) {

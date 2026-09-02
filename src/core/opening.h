@@ -55,6 +55,8 @@
 #define OPENING_WORLD_W 960
 #define OPENING_VIEW_W 320
 #define OPENING_CAMERA_MAX (OPENING_WORLD_W - OPENING_VIEW_W)
+/* First row below the OPENBORD window (y=24..155). Credit banners sit here. */
+#define OPENING_CREDIT_TOP (OPENING_SCENE_Y + OPENING_SCENE_H)
 
 #define OPENING_FRAME_MS 55
 #define OPENING_HOLD_MS 1000
