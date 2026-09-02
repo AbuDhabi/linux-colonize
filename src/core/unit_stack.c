@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "core/assets.h"
 #include "core/font.h"
 #include "core/map_menu.h"
 #include "core/ui_colors.h"
@@ -45,6 +46,43 @@ bool unit_stack_try_open(
     }
   }
   return true;
+}
+
+/* bugs.md 232: expert-skill label for a row (local resolver — some test
+ * binaries link unit_stack.c without map_panel.c). NULL when not an expert. */
+static const char* unit_stack_profession_label(
+  const ColonizeMsgCatalog* names, int type_index, int profession
+) {
+  if (!units_type_has_profession_slot(type_index)) {
+    return NULL;
+  }
+  if (profession < 0 || profession == UNITS_JOB_NONE || profession == 19 ||
+      profession == 25 || profession == 26 || profession == 27) {
+    return NULL;
+  }
+  const ColonizeMsgSection* sec = names ? assets_msg_find(names, "JOB") : NULL;
+  if (!sec || profession >= sec->line_count) {
+    return NULL;
+  }
+  const char* p = strchr(sec->lines[profession], ',');
+  if (!p) {
+    return NULL;
+  }
+  ++p;
+  while (*p == ' ') {
+    ++p;
+  }
+  static char buf[40];
+  size_t n = 0;
+  while (p[n] && p[n] != ',' && n + 1 < sizeof(buf)) {
+    buf[n] = p[n];
+    ++n;
+  }
+  while (n > 0 && buf[n - 1] == ' ') {
+    --n;
+  }
+  buf[n] = '\0';
+  return buf[0] ? buf : NULL;
 }
 
 static int unit_stack_row_at_y(const UnitStackPopup* dlg, int my) {
@@ -163,6 +201,7 @@ void unit_stack_render(
   UnitStackPopup* dlg,
   const ColonizeUnitPool* pool,
   const ColonizeSpriteSheet* icons,
+  const ColonizeMsgCatalog* names,
   const ColonizeFont* font,
   const ColonizeSpriteSheet* wood_tile,
   const ColonizePopupColors* colors,
@@ -269,15 +308,25 @@ void unit_stack_render(
     }
 
     const char* name = units_display_name(pool, u);
-    char label[64];
+    /* bugs.md 232: cross-specialized soldiers/dragoons carry their expert
+     * skill in the row name — "Dragoon (Expert Farmers)". */
+    const char* prof =
+      (u && names) ? unit_stack_profession_label(names, u->type_index, u->profession) : NULL;
+    char base[56];
+    if (prof && name && strstr(name, prof) == NULL) {
+      snprintf(base, sizeof(base), "%s (%s)", name, prof);
+    } else {
+      snprintf(base, sizeof(base), "%s", name ? name : "Unit");
+    }
+    char label[72];
     if (u && u->aboard_ship_id >= 0) {
       if (u->orders == 1) {
-        snprintf(label, sizeof(label), "%s (aboard)", name ? name : "Unit");
+        snprintf(label, sizeof(label), "%s (aboard)", base);
       } else {
-        snprintf(label, sizeof(label), "%s (ready)", name ? name : "Unit");
+        snprintf(label, sizeof(label), "%s (ready)", base);
       }
     } else {
-      snprintf(label, sizeof(label), "%s", name ? name : "Unit");
+      snprintf(label, sizeof(label), "%s", base);
     }
     if (font) {
       font_draw_text(font, framebuffer, text_x, row_y + 2, label, text_color);

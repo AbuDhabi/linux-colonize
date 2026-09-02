@@ -2148,6 +2148,49 @@ void turn_run_nation_ticks(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
 
     /* FUN_4345_0a22 wartime branch: bell pool → intervention / REF, not FF elect. */
     if (ctx->col1->head.game_options.woi) {
+      /*
+       * bugs.md 237 / DOS FUN_4345_0a22 (viceroy ~73346): once per war,
+       * while the REF has not yet landed (0x5382 bit1 clear) and the bell
+       * pool has started accruing, show @AMBUSHHINT then @CONSIDER —
+       * "%STRING0 is considering intervention ... generate %NUMBER0 liberty
+       * bells". Latch = 0x5382 bit 0x04 (game_options.woi_crosses_event,
+       * confirmed live 2026-08-18 as exactly this dialog's one-shot).
+       */
+      if (!ctx->col1->head.game_options.ref_present &&
+          !ctx->col1->head.game_options.woi_crosses_event &&
+          founding_fathers_bells_since_last_elect(ctx->human_nation) > 0u &&
+          ctx->ai_popups) {
+        const int ally = (int)ctx->col1->head.rival_nation_slot_1;
+        const char* ally_name = "A European power";
+        static const char* k_euro[4] = {"The English", "The French", "The Spanish", "The Dutch"};
+        if (ally >= 0 && ally < 4) {
+          ally_name = ctx->col1->player[ally].country_name[0]
+                        ? ctx->col1->player[ally].country_name
+                        : k_euro[ally];
+        }
+        char body[AI_POPUP_BODY_LEN];
+        popup_msg_fill(
+          ctx->messages, "AMBUSHHINT", NULL,
+          "Attacking the King's troops while neither unit is in a colony square "
+          "gains an ambush bonus equal to the terrain's defensive value!",
+          body, sizeof(body)
+        );
+        (void)ai_popup_enqueue_ok(ctx->ai_popups, AI_POPUP_TAG_INFO, NULL, body);
+        PopupMsgTokens tok;
+        memset(&tok, 0, sizeof(tok));
+        tok.string0 = ally_name;
+        tok.has_number0 = true;
+        tok.number0 = (int)founding_fathers_bells_needed(ctx->col1, ctx->human_nation);
+        char body2[AI_POPUP_BODY_LEN];
+        popup_msg_fill(
+          ctx->messages, "CONSIDER", &tok,
+          "%STRING0 is considering intervention on our behalf against the King! "
+          "If we can generate %NUMBER0 liberty bells, they will join us.",
+          body2, sizeof(body2)
+        );
+        (void)ai_popup_enqueue_ok(ctx->ai_popups, AI_POPUP_TAG_INFO, NULL, body2);
+        ctx->col1->head.game_options.woi_crosses_event = 1;
+      }
       for (int n = 0; n < 4; ++n) {
         if (ctx->col1->player[n].control == 2) {
           continue;

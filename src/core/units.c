@@ -3949,12 +3949,13 @@ bool units_resolve_land_combat_ff(
   eng.atk_flags = er.atk_flags;
   eng.def_flags = er.def_flags;
 
-  /* Combat "bump" (bugs.md): show the attacker lunging at the defender. */
+  /* Combat Analysis before roll — strengths known, outcome not yet decided. */
+  units_combat_maybe_present_analysis(col1, &eng, atk->nation_id, def->nation_id);
+  /* bugs.md 239: the attack "bump" plays AFTER the analysis is dismissed —
+   * analysis → bump → outcome popups, each blocking, per combat. */
   if (g_units_combat_watch) {
     g_units_combat_watch(g_units_combat_watch_user, pool, attacker_id, def->x, def->y);
   }
-  /* Combat Analysis before roll — strengths known, outcome not yet decided. */
-  units_combat_maybe_present_analysis(col1, &eng, atk->nation_id, def->nation_id);
 
   const int total = eng.atk_strength + eng.def_strength;
   if (er.force_defender_wins) {
@@ -4181,12 +4182,13 @@ bool units_resolve_naval_combat_ff(
   eng.atk_flags = er.atk_flags;
   eng.def_flags = er.def_flags;
 
-  /* Combat "bump" (bugs.md): show the attacker lunging at the defender. */
+  /* Combat Analysis before roll — strengths known, outcome not yet decided. */
+  units_combat_maybe_present_analysis(col1, &eng, atk->nation_id, def->nation_id);
+  /* bugs.md 239: the attack "bump" plays AFTER the analysis is dismissed —
+   * analysis → bump → outcome popups, each blocking, per combat. */
   if (g_units_combat_watch) {
     g_units_combat_watch(g_units_combat_watch_user, pool, attacker_id, def->x, def->y);
   }
-  /* Combat Analysis before roll — strengths known, outcome not yet decided. */
-  units_combat_maybe_present_analysis(col1, &eng, atk->nation_id, def->nation_id);
 
   const int total = eng.atk_strength + eng.def_strength;
   if (total <= 0) {

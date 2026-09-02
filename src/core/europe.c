@@ -356,11 +356,11 @@ void europe_apply_brewster(EuropeScreen* eu, int owned) {
   if (!eu || !owned) {
     return;
   }
-  const int fresh = !eu->brewster_no_criminals;
+  /* bugs.md 230: purge unconditionally (idempotent) — the immigration tick
+   * used to set brewster_no_criminals WITHOUT purging, and the old
+   * "fresh" gate here then skipped the purge forever, so the Brewster pick
+   * dialog and the Recruit list kept offering stale criminal/servant slots. */
   eu->brewster_no_criminals = true;
-  if (!fresh) {
-    return;
-  }
   for (int i = 0; i < EUROPE_POOL_SIZE; ++i) {
     if (eu->pool[i].filled &&
         (eu->pool[i].profession == 25 || eu->pool[i].profession == 26)) {
@@ -914,7 +914,9 @@ bool europe_brewster_pick_from_pool(EuropeScreen* eu, int pool_index) {
   eu->current_crosses = 0;
   eu->immigration_pressure = 0;
   eu->crosses_immigrant_seen = true;
-  eu->open_on_dock = false;
+  /* bugs.md 229: do NOT clear open_on_dock here — that flag belongs to a
+   * ship ARRIVAL (DS:0x14c). A Brewster pick answered after the end of turn
+   * was wiping the pending auto-open of the ship that had just docked. */
   europe_refresh_recruit_passage(eu);
   snprintf(eu->status, sizeof(eu->status), "Immigrant arrives in Europe.");
   return true;
@@ -2118,6 +2120,7 @@ void europe_apply_trade_volume(
     return;
   }
   /* 0058 single-cargo: temporary attrition then rise/fall thresholds. */
+  const int bid_before = q->bid; /* bugs.md 231: player-move price popups */
   int attrition = q->attrition;
   nr += attrition;
   const int rise = q->rise;
@@ -2148,6 +2151,14 @@ void europe_apply_trade_volume(
     q->bid = 0;
   }
   q->ask = q->bid + q->burden;
+  /* bugs.md 231: a player transaction that moved the price gets the same
+   * @PRICEUP/@PRICEDOWN dialog the EOT market tick shows — record the event;
+   * game_loop drains it into a popup right after the sell/buy. */
+  if (q->bid != bid_before && eu->price_event_count < EUROPE_CARGO_MAX) {
+    eu->price_event_cargo[eu->price_event_count] = cargo_type;
+    eu->price_event_dir[eu->price_event_count] = q->bid > bid_before ? 1 : -1;
+    eu->price_event_count++;
+  }
   if (nr < -32768) {
     nr = -32768;
   }
@@ -2525,7 +2536,7 @@ int europe_tick_immigration_pressure(
      */
     if ((col1 && founding_fathers_nation_has(col1, nation_id, FF_WILLIAM_BREWSTER)) ||
         eu->brewster_no_criminals) {
-      eu->brewster_no_criminals = true;
+      europe_apply_brewster(eu, 1); /* bugs.md 230: purge stale slots BEFORE the pick */
       return 2;
     }
     eu->current_crosses = 0;
@@ -2533,7 +2544,7 @@ int europe_tick_immigration_pressure(
     eu->crosses_immigrant_seen = true;
     europe_refresh_recruit_passage(eu);
     if (europe_immigrant_from_pool(eu, rng)) {
-      eu->open_on_dock = false;
+      /* bugs.md 229: keep open_on_dock — arrivals own it (see above). */
       snprintf(eu->status, sizeof(eu->status), "Immigrant arrives in Europe.");
       return 1;
     }
