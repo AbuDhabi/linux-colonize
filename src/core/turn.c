@@ -2355,7 +2355,7 @@ static void turn_route_damaged_ships(ColonizeTurnContext* ctx, int nation) {
   const int woi =
     ctx->col1_ok && ctx->col1 && ctx->col1->head.game_options.woi != 0;
   const int crown =
-    woi ? ai_king_crown_nation(ctx->human_nation) : -1;
+    woi ? ai_king_crown_nation_col1(ctx->col1_ok ? ctx->col1 : NULL, ctx->human_nation) : -1;
   const int drydock = colonies_find_building(ctx->colonies, "Drydock");
   for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
     ColonizeUnit* u = &ctx->units->units[i];
@@ -2440,7 +2440,7 @@ static void turn_route_damaged_ships(ColonizeTurnContext* ctx, int nation) {
  */
 static bool turn_euro_nation_is_ref(const ColonizeTurnContext* ctx, int n) {
   return ctx && ctx->col1_ok && ctx->col1 && ai_king_independence_declared(ctx->col1) &&
-         n == ai_king_crown_nation(ctx->human_nation);
+         n == ai_king_crown_nation_col1(ctx->col1_ok ? ctx->col1 : NULL, ctx->human_nation);
 }
 
 void turn_run_european_ai_stubs(ColonizeTurnContext* ctx) {
@@ -2550,7 +2550,7 @@ static void turn_year_end_ensure_rival_slots(ColonizeCol1Save* col1, int human) 
       turn_year_end_valid_rival(col1, human, (int)col1->head.rival_nation_slot_2)) {
     return;
   }
-  const int crown = ai_king_crown_nation(human);
+  const int crown = ai_king_crown_nation_col1(col1, human);
   col1->head.rival_nation_slot_1 = -1;
   col1->head.rival_nation_slot_2 = -1;
   int w = 0;
@@ -2697,7 +2697,7 @@ void turn_run_year_end_chrome(ColonizeTurnContext* ctx, ColonizeTurnResult* out)
    * thin. Force (0x5382 bit5) bypasses fleet/REF gates. Cite: year_end_chrome.md.
    */
   if (woi && !already_won && !out->year_end_defeat) {
-    const int crown = (ctx->human_nation == 0) ? 1 : 0;
+    const int crown = ai_king_crown_nation_col1(ctx->col1_ok ? ctx->col1 : NULL, ctx->human_nation);
     int crown_colonies = 0;
     if (ctx->colonies) {
       for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
