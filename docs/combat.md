@@ -38,7 +38,7 @@ site / FF / difficulty live in [save_format_map.md](save_format_map.md).
 | Human / shared move | `units_enter_probe` → `units_try_move` | Foreign stack → `COMBAT_LAND` / `COMBAT_NAVAL` → best defender → `units_resolve_*_ff` → enter on win → colony capture |
 | Land resolve | `units_resolve_land_combat` / `_ff` | `combat_land_engage` → roll → analysis → outcome |
 | Naval resolve | `units_resolve_naval_combat` / `_ff` | `combat_naval_engage` → roll → analysis → naval outcome |
-| Best defender | `units_best_defender_at` (`FUN_5fef_0000`) | Highest `combat_engagement_strength`; arty×2 vs Indian atk; skip `attack==0` |
+| Best defender | `units_best_defender_at` (`FUN_5fef_0000`) | Highest `combat_engagement_strength`; arty×2 vs Indian atk; skip `attack==0`. Unarmed fallback tier only on NON-colony tiles; on a colony tile with no armed defender the attack routes to militia/Revere, then entry seizure (`units_seize_noncombat_at`) |
 | Euro AI attack | `ai_euro_try_attack` | Declare war if needed → land/naval resolve; optional `colonies_capture` |
 | King / REF | `ai_king.c` | Land / naval resolve on invasion paths |
 | Indian raid | `ai_contact.c` raid pulse | Adjacent `units_resolve_land_combat` → seize / move / abandon |
@@ -217,7 +217,10 @@ dwelling. Deep `4528` mid-body / VGA still **PARKED**.
     Missionary); `@DEMOTE` if human-facing
   - else despawn (Pioneers, Missionaries, Scouts, Regulars, …)
 - `units_sweep_stack_after_loss` (`FUN_5fef_0ec0`) apply loss to leftover
-  non-combat same-nation stackmates (skips the primary loser already resolved)
+  non-combat same-nation stackmates (skips the primary loser already resolved).
+  **Gated on a defender loss** (DOS 5fef ~0x2532): runs only when the
+  attacker's type attack byte is 0 or a ship (type 0xd..0x12) is party — never
+  for a normal land attack. On an ATTACKER loss it runs unconditionally.
 - Winner: Washington always-promote; else chance promote (`FUN_5fef_172c`)
 - Native def: settlement fallout (`FUN_5fef_31ea`) + `@LOOT` (treasure) /
   `@LOOT2` (burn, no treasure)

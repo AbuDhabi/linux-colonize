@@ -6662,7 +6662,16 @@ void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id) {
     for (int d = 0; d < 8 && !attacked; ++d) {
       const int nx = brave->x + dx[d];
       const int ny = brave->y + dy[d];
-      const int foe = units_id_at(ctx->units, nx, ny);
+      /*
+       * bugs.md: units_id_at picked the first unit in POOL ORDER, so a raid
+       * could duel an unarmed colonist while a soldier stood on the same
+       * tile. Use the DOS best-defender walk (FUN_5fef_0000) like every
+       * other combat entry; on a civilian-only colony tile it returns -1
+       * and the raid skips (colony raids go through their own path).
+       */
+      const int foe = units_best_defender_at(
+        ctx->units, ctx->col1, nx, ny, brave->id, brave->id
+      );
       if (foe < 0) {
         continue;
       }
