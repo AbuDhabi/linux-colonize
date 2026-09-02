@@ -50,6 +50,9 @@ typedef struct ColonizeCombatEngagement {
   bool is_naval;
   ColonizeCombatSideFlags atk_flags;
   ColonizeCombatSideFlags def_flags;
+  /* bugs.md 267: unit-less attacker (coastal Fort/Fortress battery) — the
+   * header name when attacker_id < 0. Empty for normal unit engagements. */
+  char atk_label[COMBAT_ANALYSIS_LINE_LEN];
 } ColonizeCombatEngagement;
 
 typedef struct CombatAnalysisSideChrome {
