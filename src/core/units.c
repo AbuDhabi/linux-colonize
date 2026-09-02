@@ -4630,7 +4630,7 @@ static bool units_fort_vs_ship(
     } else if (rng) {
       damaged = dos_rng_range(rng, 1, attack_str + lhull) <= lhull;
     } else {
-      damaged = lhull > attack_str;
+      damaged = lhull >= attack_str; /* deterministic fallback: tie damages */
     }
     const ColonizeColony* home = NULL;
     if (damaged) {

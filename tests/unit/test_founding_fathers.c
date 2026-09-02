@@ -1056,8 +1056,10 @@ int main(void) {
         return fail("Washington land combat attacker should win");
       }
       aw = units_get(&upool, aid);
-      if (!aw || aw->type_index != 1) {
-        return fail("Washington should promote Soldier → Veteran Soldier");
+      /* DOS 5fef_172c: veteran status is the PROFESSION (0x15); the unit
+       * type never changes on a veteran promote (bugs.md 254). */
+      if (!aw || aw->type_index != 0) {
+        return fail("Washington veteran promote must not swap the unit type");
       }
       if (aw->profession != UNITS_JOB_SOLDIER) {
         return fail("Washington should set Veteran Soldier profession");
@@ -1101,8 +1103,12 @@ int main(void) {
         return fail("Washington Dragoon combat should win");
       }
       aw = units_get(&upool, aid);
-      if (!aw || aw->type_index != 3) {
-        return fail("Washington should promote Dragoon → Veteran Dragoon");
+      /* DOS: dragoon body keeps its type; veteran = profession 0x15. */
+      if (!aw || aw->type_index != 2) {
+        return fail("Washington Dragoon promote must not swap the unit type");
+      }
+      if (aw->profession != UNITS_JOB_SOLDIER) {
+        return fail("Washington Dragoon should get Veteran profession");
       }
     }
 
@@ -1147,8 +1153,8 @@ int main(void) {
       }
       units_set_ff_col1(NULL);
       aw = units_get(&upool, aid);
-      if (!aw || aw->type_index != 1) {
-        return fail("Washington wrapper should promote via g_units_ff_col1");
+      if (!aw || aw->type_index != 0 || aw->profession != UNITS_JOB_SOLDIER) {
+        return fail("Washington wrapper should promote (profession) via g_units_ff_col1");
       }
     }
 

@@ -73,7 +73,8 @@
 #define AI_KING_PEACE_YEAR_CAP 1800
 #define AI_KING_SOONRETIRE0_YEAR 1790
 #define AI_KING_SOONRETIRE1_YEAR 1840
-#define AI_KING_WARN3_PCT_MIN 50
+/* DOS 3844_0442: warn at >=80% crown pop share (0x4f < pct), lose at >=90. */
+#define AI_KING_WARN3_PCT_MIN 80
 #define AI_KING_LOSING3_PCT 90
 
 /*
@@ -1668,8 +1669,12 @@ static void ai_king_try_capture_at(ColonizeTurnContext* ctx, ColonizeUnit* u, in
     return;
   }
   ColonizeColony* c = colonies_get_mut(ctx->colonies, cid);
+  /* No artillery exclusion: DOS conquest takes the colony whichever crown
+   * LAND unit stands on it — a siege ending with only Artillery on the tile
+   * still captures (the old guard left such colonies un-capturable, and the
+   * test relied on a stray irregular to do the job). */
   if (c && c->nation_id == human && ai_king_human_defender_at(ctx, human, u->x, u->y) < 0 &&
-      !units_is_sea(ctx->units, u->id) && !ai_king_is_artillery(ctx->units, u)) {
+      !units_is_sea(ctx->units, u->id)) {
     /* Civilians left in the port change hands with it (DOS conquest). */
     for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
       ColonizeUnit* f = &ctx->units->units[i];
@@ -1770,6 +1775,37 @@ static void ai_king_mow_post_unload_land(ColonizeTurnContext* ctx, int crown, in
       continue;
     }
     ai_king_try_capture_at(ctx, u, crown, human);
+    /* Landed NEXT to an undefended human colony: the beachhead walks in and
+     * seizes the same beat (fandom REF seize landing — this used to be
+     * masked by the old always-spawning irregular doing the job). The step
+     * is part of the landing beat: grant it the walk-ashore MP the 0982
+     * disembark uses, spent again after. */
+    if (u->active && ctx->colonies && ctx->map) {
+      static const int dx8[8] = {0, 1, 1, 1, 0, -1, -1, -1};
+      static const int dy8[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
+      for (int d = 0; d < 8; ++d) {
+        const int nx = u->x + dx8[d];
+        const int ny = u->y + dy8[d];
+        const int cid = colonies_id_at(ctx->colonies, nx, ny);
+        const ColonizeColony* c = cid >= 0 ? colonies_get(ctx->colonies, cid) : NULL;
+        if (!c || !c->active || c->nation_id != human) {
+          continue;
+        }
+        if (ai_king_human_defender_at(ctx, human, nx, ny) >= 0) {
+          continue;
+        }
+        if (u->moves_left < 3) {
+          u->moves_left = 3;
+        }
+        if (units_try_move(ctx->units, u->id, ctx->map, nx, ny, ctx->colonies, ctx->rng)) {
+          ai_king_after_step_onto_colony(ctx, u, crown, human);
+        }
+        if (u->active) {
+          u->moves_left = 0; /* the landing consumed the turn */
+        }
+        break;
+      }
+    }
   }
 }
 
@@ -5488,15 +5524,15 @@ static void ai_king_check_revolution_end(ColonizeTurnContext* ctx, int ref_alrea
   const char* country =
     (pl->country_name[0] != '\0') ? pl->country_name : "the colonies";
   const char* leader = (pl->name[0] != '\0') ? pl->name : "Your Excellency";
-  /* Reclaiming ports clears the mid-war warn episode so a later drop to one can re-fire. */
-  if (ports > 1) {
+  /* Reclaiming ports (>=3) clears the mid-war warn episode so a later drop can re-fire. */
+  if (ports >= 3) {
     ai_king_latch_set(ctx->col1, AI_KING_WARN1_BYTE, 0);
   }
   /*
-   * Mid-war warn: exactly one coastal port left while REF already invading.
-   * GAME.TXT @WARN1. Once per episode (unknown46[6]); does not latch endgame.
+   * Mid-war warn: fewer than 3 coastal ports left while REF already invading
+   * (DOS 3844_0442: cVar1 = local_68 < 3). GAME.TXT @WARN1. Once per episode.
    */
-  if (ports == 1 && ref_already &&
+  if (ports >= 1 && ports < 3 && ref_already &&
       ai_king_latch_get(ctx->col1, AI_KING_WARN1_BYTE) == 0) {
     PopupMsgTokens tok;
     memset(&tok, 0, sizeof(tok));
@@ -5529,15 +5565,15 @@ static void ai_king_check_revolution_end(ColonizeTurnContext* ctx, int ref_alrea
     ai_king_latch_set(ctx->col1, AI_KING_WARN1_BYTE, 1);
   }
   const int colonies = ai_king_human_colonies(ctx, human);
-  /* Reclaiming colonies clears the mid-war colony-warn episode. */
-  if (colonies > 1) {
+  /* Reclaiming colonies (>=3) clears the mid-war colony-warn episode. */
+  if (colonies >= 3) {
     ai_king_latch_set(ctx->col1, AI_KING_WARN2_BYTE, 0);
   }
   /*
-   * Mid-war warn: exactly one colony left while REF already invading.
-   * GAME.TXT @WARN2 (%NUMBER1). Once per episode (unknown46[7]); no endgame latch.
+   * Mid-war warn: fewer than 3 colonies left while REF already invading
+   * (DOS: colony count < 3). GAME.TXT @WARN2 (%NUMBER1). Once per episode.
    */
-  if (colonies == 1 && ref_already &&
+  if (colonies >= 1 && colonies < 3 && ref_already &&
       ai_king_latch_get(ctx->col1, AI_KING_WARN2_BYTE) == 0) {
     PopupMsgTokens tok;
     memset(&tok, 0, sizeof(tok));
@@ -5568,7 +5604,7 @@ static void ai_king_check_revolution_end(ColonizeTurnContext* ctx, int ref_alrea
     ai_king_latch_set(ctx->col1, AI_KING_WARN3_BYTE, 0);
   }
   /*
-   * Mid-war warn: crown controls 50–89% of human+crown colony population.
+   * Mid-war warn: crown controls 80–89% of human+crown colony population.
    * GAME.TXT @WARN3 (%NUMBER2). Once per episode (unknown46[10]).
    */
   if (ref_already && pop_pct >= AI_KING_WARN3_PCT_MIN &&
@@ -5696,15 +5732,20 @@ static void ai_king_check_revolution_end(ColonizeTurnContext* ctx, int ref_alrea
     return;
   }
   const int year = (int)ctx->col1->head.year;
-  /* bugs.md 261: no year gate on winning — when the King has run out of
-   * forces (every REF pool spent AND no crown unit left in the New World)
-   * he gives up and the player wins. The year cap only drives the
-   * war-weary @RETIRING2 loss below. */
-  const int ref_pools_left = ai_king_force_total(ctx->col1->head.expeditionary_force);
-  /* Not gated on ref_already: once the last crown unit dies, war_act clears
-   * ref_present the same turn, so requiring it would block the win forever.
-   * Pools-empty is proof enough the REF came and was spent (declare always
-   * seeds them non-zero). */
+  /*
+   * WIN — full DOS FUN_3844_0442 C1 (viceroy_unpacked.c 58468-58497,
+   * @KINGLOSE emitter found via EXE DS-string scan, tag 0xf20):
+   *   1. crown holds no colony (`*(0x53d2 - 0x6d68) == 0`);
+   *   2. crown LAND force on the map — types 6/8/0xb Regulars/Cavalry/
+   *      Artillery only, ships never count — is below the give-up bar:
+   *      <1 normally, <8 once bit 0x40 (crown captured a colony this war,
+   *      game_options.ref_unit_threshold) is set;
+   *   3. REF pool score `ef[0] + (ef[1]!=0) + (ef[3]!=0) < 4` — the MoW
+   *      pool (ef[2]) is ignored, and up to 3 pooled Regulars still allow
+   *      the concession.
+   * game_options.independence_force (0x5382 bit 0x20, the cheat) bypasses
+   * gates 2 and 3 and the colony gate, as in DOS. No year gate.
+   */
   int crown_colonies = 0;
   if (ctx->colonies) {
     for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
@@ -5714,18 +5755,64 @@ static void ai_king_check_revolution_end(ColonizeTurnContext* ctx, int ref_alrea
       }
     }
   }
-  if (ref_pools_left <= 0 && crown_colonies <= 0 &&
-      ai_king_crown_units_alive(ctx, crown) <= 0) {
+  int crown_land = 0;
+  if (ctx->units) {
+    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+      const ColonizeUnit* u = &ctx->units->units[i];
+      if (!u->active || u->nation_id != crown) {
+        continue;
+      }
+      /* DOS counts types 6/8/0xb — Regulars / Cavalry / Artillery. Matched
+       * by NAME here (synthetic test pools reorder type indices). */
+      const ColonizeUnitType* t = units_type(ctx->units, u->type_index);
+      const char* n = t ? t->name : NULL;
+      if (n && (strstr(n, "Regular") ||
+                (strstr(n, "Cavalry") && !strstr(n, "Cont")) ||
+                strstr(n, "Artillery") || strstr(n, "Cannon"))) {
+        ++crown_land;
+      }
+    }
+  }
+  const int force_end = ctx->col1->head.game_options.independence_force != 0;
+  const int giveup_bar = ctx->col1->head.game_options.ref_unit_threshold ? 8 : 1;
+  const uint16_t* ef = ctx->col1->head.expeditionary_force;
+  const int pool_score = (int)ef[0] + (ef[1] != 0 ? 1 : 0) + (ef[3] != 0 ? 1 : 0);
+  if ((crown_colonies <= 0 || force_end) &&
+      (crown_land < giveup_bar || force_end) && (pool_score < 4 || force_end)) {
     ai_king_latch_set(ctx->col1, AI_KING_ENDGAME_BYTE, AI_KING_ENDGAME_WON);
     ai_king_latch_set(ctx->col1, AI_KING_REF_PRESENT_BYTE, 0);
     ctx->col1->head.game_options.ref_present = 0;
-    /* GAME.TXT @WINNING — STRING0 leader, STRING1 country. */
+    /* DOS win sequence: 0x5382|=8 (war concluded), reveal map, scoring
+     * latch — mirrors turn.c C1's LAB_0b4a effects so the win is complete
+     * whichever check fires first. */
+    ctx->col1->head.game_options.independence_chrome = 1;
+    ctx->col1->head.show_entire_map = 1;
+    const char* country =
+      (pl->country_name[0] != '\0') ? pl->country_name : "the colonies";
+    char body[AI_POPUP_BODY_LEN];
+    char fallback[AI_POPUP_BODY_LEN];
+    if (ai_king_human_popups(ctx)) {
+      /* 1st: @KINGLOSE — the King's parting audience (DOS 291f_0aba 0xf20). */
+      PopupMsgTokens ktok;
+      memset(&ktok, 0, sizeof(ktok));
+      snprintf(
+        fallback,
+        sizeof(fallback),
+        "\"In our wisdom, we have decided to let you go your own way. Do not "
+        "seek our aid in the future, for it will not be forthcoming.\""
+      );
+      /* INFO tag: only the @WINNING dismissal below concludes into the
+       * retire score; the King's audience is just the parting word. */
+      popup_msg_fill(ctx->messages, "KINGLOSE", &ktok, fallback, body, sizeof(body));
+      (void)ai_popup_enqueue_ok_ctx(
+        ctx->ai_popups, AI_POPUP_TAG_INFO, human, crown, 1, "The King", body
+      );
+    }
+    /* 2nd: @WINNING — STRING0 leader, STRING1 country. */
     PopupMsgTokens tok;
     memset(&tok, 0, sizeof(tok));
     tok.string0 = leader;
-    tok.string1 =
-      (pl->country_name[0] != '\0') ? pl->country_name : "the colonies";
-    char fallback[AI_POPUP_BODY_LEN];
+    tok.string1 = country;
     snprintf(
       fallback,
       sizeof(fallback),
@@ -5733,17 +5820,16 @@ static void ai_king_check_revolution_end(ColonizeTurnContext* ctx, int ref_alrea
       "all Tory forces. Parliament accepts independence of %s. Continental "
       "Congress proclaims %s the first President of the new republic!",
       leader,
-      tok.string1,
+      country,
       leader
     );
-    char body[AI_POPUP_BODY_LEN];
     popup_msg_fill(ctx->messages, "WINNING", &tok, fallback, body, sizeof(body));
     if (ctx->status && ctx->status_size) {
       snprintf(ctx->status, ctx->status_size, "%s", body);
     }
     if (ai_king_human_popups(ctx)) {
       (void)ai_popup_enqueue_ok_ctx(
-        ctx->ai_popups, AI_POPUP_TAG_INFO, human, crown, 1, "Independence", body
+        ctx->ai_popups, AI_POPUP_TAG_KING_WAR_END, human, crown, 1, "Independence", body
       );
     }
     return;

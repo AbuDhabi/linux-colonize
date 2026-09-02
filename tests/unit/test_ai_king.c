@@ -3348,6 +3348,10 @@ int main(void) {
     unfort->profession = UNITS_JOB_SOLDIER;
     offtile->profession = UNITS_JOB_SOLDIER;
   }
+  /* bugs.md 256: 1eca is a ONCE-only mobilization gated on nation_flags bit
+   * 0x08 (already consumed by the first war turn above) — re-arm it so this
+   * subtest exercises the mobilization body itself. */
+  col1.nation[0].nation_flags = (uint8_t)(col1.nation[0].nation_flags & ~0x08u);
   ai_king_nation_turn(&ctx);
   {
     const ColonizeUnit* su = units_get_const(&units, sid);
@@ -3513,6 +3517,8 @@ int main(void) {
       su->profession = UNITS_JOB_SOLDIER; /* Veteran gate, see 1eca note above */
       du->profession = UNITS_JOB_SOLDIER; /* eligible by type/profession; cap==1 still skips it */
     }
+    /* bugs.md 256: re-arm the once-only mobilization for this subtest. */
+    col1.nation[0].nation_flags = (uint8_t)(col1.nation[0].nation_flags & ~0x08u);
     ai_king_nation_turn(&ctx);
     {
       const ColonizeUnit* su = units_get_const(&units, sid50);
@@ -3615,6 +3621,8 @@ int main(void) {
     hi->profession = UNITS_JOB_SOLDIER; /* Veteran gate, see 1eca note above */
     lo->profession = UNITS_JOB_SOLDIER;
   }
+  /* bugs.md 256: re-arm the once-only mobilization for this subtest. */
+  col1.nation[0].nation_flags = (uint8_t)(col1.nation[0].nation_flags & ~0x08u);
   ai_king_nation_turn(&ctx);
   {
     const ColonizeUnit* hi = units_get_const(&units, sid_hi);
@@ -4541,7 +4549,10 @@ int main(void) {
      * formula shifts.
      */
     ColonizeDosRng merc_rng;
-    dos_rng_seed(&merc_rng, 1u);
+    /* Seed re-probed for the DOS 06a6 Tory-uprising roll now consumed first
+     * (bugs.md 261): first draw skips the uprising, second hits the 1-in-3
+     * merc roll. */
+    dos_rng_seed(&merc_rng, 3u);
     ctx.rng = &merc_rng;
     col1.nation[0].gold = 6000;
     europe.gold = 6000;
@@ -4568,6 +4579,9 @@ int main(void) {
     }
     status[0] = '\0';
     ai_popup_clear(&pop);
+    /* bugs.md 256: intervene/merc skip the mobilization turn — make sure the
+     * once-only mobilization is already consumed before this probe. */
+    col1.nation[0].nation_flags |= 0x08u;
     const int merc_units_before = count_nation(&units, 0);
     const uint32_t merc_gold_before = col1.nation[0].gold;
     ai_king_nation_turn(&ctx);
@@ -4630,7 +4644,7 @@ int main(void) {
     /* R6: Decline apply → follow-up OK, no spend/spawn, no once-per-war gate
      * (DOS has none — a fresh roll can offer again on a later turn). */
     {
-      dos_rng_seed(&merc_rng, 2u); /* fresh roll for this sub-probe */
+      dos_rng_seed(&merc_rng, 6u); /* fresh roll (uprising-draw-aware, see above) */
       col1.nation[0].gold = 6000;
       europe.gold = 6000;
       colonies.colonies[0].nation_id = 0;
@@ -4707,6 +4721,10 @@ int main(void) {
     {
       ai_king_latch_set(&col1, 0, 1);
       col1.head.game_options.woi = 1;
+      /* bugs.md 258: @INTERVENTION fires once per game — earlier probes in
+       * this file already landed an intervention; reset the latch so this
+       * subtest sees the announcement again. */
+      ai_king_latch_set(&col1, AI_KING_INTERVENE_ANNOUNCED_BYTE, 0);
       memset(col1.head.expeditionary_force, 0, sizeof(col1.head.expeditionary_force));
       colonies.colonies[0].nation_id = 0;
       col1.head.backup_force[0] = 2;
@@ -5077,6 +5095,10 @@ int main(void) {
       u->y = 0;
       eu.unit_count = 1;
     }
+    /* DOS 3844_0442 win gate: a bare typeless crown unit doesn't count as
+     * land force — keep the REF Regulars pool stocked so the King has not
+     * "run out of forces" in this warn-only scenario (bugs.md 261 rework). */
+    end.head.expeditionary_force[0] = 5;
 
     ColonizeMsgCatalog game_txt;
     memset(&game_txt, 0, sizeof(game_txt));
@@ -5199,7 +5221,9 @@ int main(void) {
       }
     }
 
-    /* Reclaim a second coastal colony → clear latches; drop to one → re-fire. */
+    /* bugs.md batch (DOS 3844_0442): warn band is <3 ports/colonies, so the
+     * episode clears only at >=3 — reclaim TWO coastal colonies to clear,
+     * then drop back below to re-fire. */
     {
       ColonizeColony* c2 = &cp.colonies[1];
       memset(c2, 0, sizeof(*c2));
@@ -5207,7 +5231,14 @@ int main(void) {
       c2->nation_id = 0;
       c2->x = 8;
       c2->y = 5;
-      cp.colony_count = 2;
+      ColonizeColony* c3 = &cp.colonies[2];
+      memset(c3, 0, sizeof(*c3));
+      c3->active = true;
+      c3->nation_id = 0;
+      c3->x = 10;
+      c3->y = 5;
+      emap.terrain[10 + 5 * 16] = 1; /* land tile for the third port */
+      cp.colony_count = 3;
       estatus[0] = '\0';
       ai_king_nation_turn(&ectx);
       if (ai_king_latch_get(&end, 6) != 0 || ai_king_latch_get(&end, 7) != 0) {
@@ -5218,6 +5249,7 @@ int main(void) {
         return fail("warn latches should clear when ports/colonies>1");
       }
       c2->active = false;
+      c3->active = false;
       cp.colony_count = 1;
       const int q1 = pop.queue_count;
       estatus[0] = '\0';
@@ -5323,7 +5355,7 @@ int main(void) {
       ck->nation_id = 1; /* crown */
       ck->x = 5;
       ck->y = 8;
-      ck->population = 60; /* 60% share */
+      ck->population = 227; /* 85% share — DOS warn band is 80-89% */
       cp.colony_count = 3;
     }
 
@@ -5382,7 +5414,7 @@ int main(void) {
       int found = 0;
       for (int i = 0; i < pop.queue_count; ++i) {
         if (pop.queue[i].kind == AI_POPUP_KIND_OK &&
-            strstr(pop.queue[i].body, "60%") &&
+            strstr(pop.queue[i].body, "85%") &&
             strstr(pop.queue[i].body, "population") &&
             strstr(pop.queue[i].body, "United Colonies")) {
           found = 1;
@@ -5404,7 +5436,7 @@ int main(void) {
       int re = 0;
       for (int i = q0; i < pop.queue_count; ++i) {
         if (pop.queue[i].kind == AI_POPUP_KIND_OK &&
-            strstr(pop.queue[i].body, "60%") &&
+            strstr(pop.queue[i].body, "85%") &&
             strstr(pop.queue[i].body, "population")) {
           re = 1;
           break;
@@ -5418,7 +5450,7 @@ int main(void) {
         return fail("warn3 must not re-enqueue while latched");
       }
     }
-    /* Drop crown share below 50% → clear latch; raise again → re-fire. */
+    /* Drop crown share below 80% → clear latch; raise again → re-fire. */
     cp.colonies[2].population = 10; /* 10/50 = 20% */
     estatus[0] = '\0';
     ai_king_nation_turn(&ectx);
@@ -5427,9 +5459,9 @@ int main(void) {
       free(emap.terrain);
       free(emap.layer2);
       free(emap.layer3);
-      return fail("warn3 latch should clear when pop share <50%");
+      return fail("warn3 latch should clear when pop share <80%");
     }
-    cp.colonies[2].population = 60;
+    cp.colonies[2].population = 227;
     const int q1 = pop.queue_count;
     estatus[0] = '\0';
     ai_king_nation_turn(&ectx);
@@ -5438,14 +5470,14 @@ int main(void) {
       free(emap.terrain);
       free(emap.layer2);
       free(emap.layer3);
-      return fail("warn3 should re-latch after share returns to 50–89%");
+      return fail("warn3 should re-latch after share returns to 80–89%");
     }
     {
       int found = 0;
       for (int i = q1; i < pop.queue_count; ++i) {
         if (pop.queue[i].kind == AI_POPUP_KIND_OK &&
             strstr(pop.queue[i].body, "population") &&
-            strstr(pop.queue[i].body, "60%")) {
+            strstr(pop.queue[i].body, "85%")) {
           found = 1;
           break;
         }
@@ -5780,6 +5812,9 @@ int main(void) {
       u->nation_id = 1; /* crown still in the field */
       eu.unit_count = 1;
     }
+    /* DOS win gate (bugs.md 261): keep the REF pool stocked so the
+     * exhaustion win cannot preempt the 1850 war-weariness loss. */
+    end.head.expeditionary_force[0] = 5;
 
     ColonizeMsgCatalog game_txt;
     memset(&game_txt, 0, sizeof(game_txt));
@@ -6127,6 +6162,8 @@ int main(void) {
       u->nation_id = 1;
       eu.unit_count = 1;
     }
+    /* DOS win gate (bugs.md 261): stocked pool keeps the war live at 1840. */
+    end.head.expeditionary_force[0] = 5;
 
     ColonizeMsgCatalog game_txt;
     memset(&game_txt, 0, sizeof(game_txt));

@@ -27,15 +27,15 @@
 #define AI_KING_ENDGAME_LOST 2
 #define AI_KING_ENDGAME_PEACE_1800 3
 #define AI_KING_CONGRESS_BYTE 5
-/* Mid-war @WARN1 once-per-episode (ports==1); clear when ports>1. */
+/* Mid-war @WARN1 once-per-episode (ports<3, DOS 3844_0442); clear at >=3. */
 #define AI_KING_WARN1_BYTE 6
-/* Mid-war @WARN2 once-per-episode (colonies==1); clear when colonies>1. */
+/* Mid-war @WARN2 once-per-episode (colonies<3, DOS); clear at >=3. */
 #define AI_KING_WARN2_BYTE 7
 /* Peacetime Spring 1790 @SOONRETIRING0 once. */
 #define AI_KING_SOONRETIRE0_BYTE 8
 /* Wartime 1840 @SOONRETIRING1 once. */
 #define AI_KING_SOONRETIRE1_BYTE 9
-/* Mid-war @WARN3 once-per-episode (crown pop share 50–89%); clear when <50%. */
+/* Mid-war @WARN3 once-per-episode (crown pop share 80–89%, DOS); clear when <80%. */
 #define AI_KING_WARN3_BYTE 10
 /* bugs.md: the first REF wave waits one full turn after the declaration —
  * set to 1 on declare, consumed (cleared, no landing) by the first wave

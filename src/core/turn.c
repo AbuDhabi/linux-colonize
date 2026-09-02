@@ -2716,14 +2716,22 @@ void turn_run_year_end_chrome(ColonizeTurnContext* ctx, ColonizeTurnResult* out)
         if (!u->active || u->nation_id != crown) {
           continue;
         }
-        /* DOS crown warship types 0x06 / 0x08 / 0x0b. */
-        if (u->type_index == 0x06 || u->type_index == 0x08 || u->type_index == 0x0b) {
+        /* DOS crown land-force types 0x06/0x08/0x0b (Regulars/Cavalry/
+         * Artillery) — matched by name so synthetic pools count right. */
+        const ColonizeUnitType* t = units_type(ctx->units, u->type_index);
+        const char* n = t ? t->name : NULL;
+        if (n && (strstr(n, "Regular") ||
+                  (strstr(n, "Cavalry") && !strstr(n, "Cont")) ||
+                  strstr(n, "Artillery") || strstr(n, "Cannon"))) {
           warships++;
         }
       }
     }
+    /* DOS 3844_0442: bit 0x40 (crown captured a colony this war) LOOSENS the
+     * give-up bar to <8 land units; without it the King fights to the last
+     * (<1). Was inverted. */
     const int fleet_cap =
-      (ctx->col1_ok && ctx->col1 && ctx->col1->head.game_options.ref_unit_threshold) ? 1 : 8;
+      (ctx->col1_ok && ctx->col1 && ctx->col1->head.game_options.ref_unit_threshold) ? 8 : 1;
     const int colony_gate = (crown_colonies == 0) || force;
     const int fleet_thin = warships < fleet_cap;
     /* DOS: (2-(53dc==0)-(53e0==0)+53da) < 4 — expeditionary_force[0/1/3]. */
