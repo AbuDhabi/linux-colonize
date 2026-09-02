@@ -8271,8 +8271,20 @@ static void game_europe_deliver_bound_ships(ColonizeGameState* game) {
     memset(&eu->bound[eu->bound_ships], 0, sizeof(eu->bound[eu->bound_ships]));
     ColonizeUnit* ship = units_get(&game->units, ship_id);
     if (ship) {
+      /*
+       * bugs.md (merchantman_sails_back.SAV): units_spawn_ship_with_cargo
+       * defaults nation_id to 0. A returning ship (and its passengers) must
+       * belong to the HUMAN nation — for a nation-0 player that was a no-op,
+       * but a Dutch (nation 3) player's ship arrived owned by England, so it
+       * dropped out of the player's control and the English AI sailed it off
+       * ("vanished after two turns"). Stamp the human owner explicitly.
+       */
+      units_set_nation(ship, game->human_nation);
       for (int i = 0; i < ship->cargo_count && i < cargo_count; ++i) {
         ColonizeUnit* pax = units_get(&game->units, ship->cargo_ids[i]);
+        if (pax) {
+          units_set_nation(pax, game->human_nation);
+        }
         if (pax && cargo_professions[i] >= 0) {
           pax->profession = cargo_professions[i];
           /*
