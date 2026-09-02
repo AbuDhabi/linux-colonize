@@ -55,6 +55,28 @@ flowchart LR
 | Map event queue | flush immediately from AI/turn | [`ai_popup.c`](../src/core/ai_popup.c) (max 16) |
 | Dedicated UIs | colony `2f2b`, Europe `38fd`, save `7562`, … | `colony_screen`, Europe menus in `game_loop`, `save_load_dialog`, `pick_music`, `unit_stack`, `cheat_list_dialog`, `new_game` |
 
+### `{}` emphasis markup — shipped 2026-09-02
+
+GAME.TXT colors braced spans (`{far too crowded}`, `{%STRING0}`) with the
+@COLORS **hilite** ink (149, gold on the in-game / WOODPANL / EUROPE
+palettes) instead of **basic** (68 green). DOS mechanism (dialog text writer
+`FUN_6f74_0538`, file offset 0x6C388): `{` sets DS:`0x1f62` = 1, `}` clears
+it, both zero-width; the per-char color helper (`0xc346`) picks struct color
++6 (emphasis) over +2 (normal), with the +4 grey/disabled ink overriding
+both; `~` escapes the next char, `|` ends the string. `0x1f62` starts 0 per
+popup and carries across every drawn line — title, body, then choice rows.
+
+Port: `popup_msg_apply_tokens` **keeps** `{}` (it used to strip); renderers
+eat the braces at draw time via `popup_markup_text_width` /
+`popup_draw_text_markup` ([`popup.c`](../src/core/popup.c)). Markup-aware:
+`ai_popup_render` (title/body/choices, state carried DOS-style, new
+`hilite_color` arg), `options_dialog` rows (@COLONYOPTIONS), Europe dock
+menu rows (@ARMOPTIONS; greyed rows stay all-grey like DOS), colony-screen
+custom-house/dock-orders titles, plus the pre-existing brace-aware paths
+(title menu, `europe_draw_prose`, pedia, new_game). Plain-text sinks strip
+via `popup_msg_strip_markup` (window-title status via `game_status_text`,
+`colony_screen_set_status`, ai_contact/ai_diplo/ai_euro status lines).
+
 ### Popup decorations (MSS/MYR/IND/KING sheets) — shipped 2026-08-31
 
 DOS decorates many popups with a figure sprite. Three latches, all cleared

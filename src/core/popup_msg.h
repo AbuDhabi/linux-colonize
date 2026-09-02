@@ -41,13 +41,20 @@ size_t popup_msg_section_body(
   bool stop_before_choices
 );
 
-/* In-place / into dst: replace %STRING0..4, %NUMBER0..2, %COUNTRY, strip {} . */
+/*
+ * In-place / into dst: replace %STRING0..4, %NUMBER0..2, %COUNTRY. {} emphasis
+ * markup is KEPT (brace-aware renderers color it; popup_msg_strip_markup for
+ * plain-text sinks).
+ */
 void popup_msg_apply_tokens(
   char* dst,
   size_t dst_size,
   const char* src,
   const PopupMsgTokens* tok
 );
+
+/* Remove {} emphasis markup in place (status line / window-title sinks). */
+void popup_msg_strip_markup(char* s);
 
 /*
  * Convenience: find section in catalog, build body with tokens.

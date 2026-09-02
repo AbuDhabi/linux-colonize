@@ -83,6 +83,20 @@ size_t popup_msg_section_body(
   return used;
 }
 
+void popup_msg_strip_markup(char* s) {
+  if (!s) {
+    return;
+  }
+  char* w = s;
+  for (char* r = s; *r; ++r) {
+    if (*r == '{' || *r == '}') {
+      continue;
+    }
+    *w++ = *r;
+  }
+  *w = '\0';
+}
+
 static void popup_msg_append(char* dst, size_t dst_size, size_t* used, const char* add) {
   if (!dst || !used || dst_size == 0 || !add) {
     return;
@@ -108,10 +122,8 @@ void popup_msg_apply_tokens(
   }
   size_t used = 0;
   for (size_t i = 0; src[i] != '\0' && used + 1 < dst_size;) {
-    if (src[i] == '{' || src[i] == '}') {
-      ++i;
-      continue;
-    }
+    /* Keep {} — the DOS dialog writer colors braced spans with the hilite
+     * ink (FUN_6f74_0538); brace-aware renderers eat them at draw time. */
     if (src[i] == '%' && tok) {
       if (strncmp(src + i, "%STRING0", 8) == 0) {
         popup_msg_append(dst, dst_size, &used, tok->string0 ? tok->string0 : "");

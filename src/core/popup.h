@@ -72,4 +72,29 @@ void popup_draw_text_shadowed(
   uint8_t color
 );
 
+/* Pixel width of text with the {} emphasis markup skipped ('~'/'#' follow
+ * font_text_width's rules). */
+int popup_markup_text_width(const ColonizeFont* font, const char* text);
+
+/*
+ * Draw text honoring the DOS dialog writer's {} emphasis markup
+ * (FUN_6f74_0538): '{' switches to hilite ink, '}' back to base, both
+ * zero-width. shadow draws a 1px black drop shadow first. unbold selects
+ * font_draw_text_unbold (FONTINTR captions). inout_hilite carries the
+ * emphasis state across lines the way DS:0x1f62 does (NULL = start off,
+ * discard). fb may be NULL (measure only). Returns the end x.
+ */
+int popup_draw_text_markup(
+  const ColonizeFont* font,
+  ColonizeFramebuffer8* framebuffer,
+  int x,
+  int y,
+  const char* text,
+  uint8_t base_color,
+  uint8_t hilite_color,
+  bool unbold,
+  bool shadow,
+  bool* inout_hilite
+);
+
 #endif

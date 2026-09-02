@@ -282,18 +282,6 @@ static void ai_popup_fill_row(
   }
 }
 
-/* Nation-wizard style: unbold FONTINTR + black (0) drop-shadow. */
-static void ai_popup_draw_shadowed(
-  const ColonizeFont* font,
-  ColonizeFramebuffer8* fb,
-  int x,
-  int y,
-  const char* text,
-  uint8_t color
-) {
-  popup_draw_text_shadowed(font, fb, x, y, text, color);
-}
-
 /*
  * Flow-wrap body to pixel max_w (DOS FUN_6f74_1198 / new_game_wrap_prompt_flow).
  * Honors embedded '\n'. Returns number of output lines.
@@ -348,10 +336,10 @@ static int ai_popup_wrap_body(
     memcpy(word, start, n);
     word[n] = '\0';
 
-    const int word_w = font_text_width(font, word);
+    const int word_w = popup_markup_text_width(font, word);
     if (accum[0]) {
       const int space_w = font_text_width(font, " ");
-      if (font_text_width(font, accum) + space_w + word_w > max_w) {
+      if (popup_markup_text_width(font, accum) + space_w + word_w > max_w) {
         snprintf(out[count], AI_POPUP_BODY_LEN, "%s", accum);
         count++;
         accum[0] = '\0';
@@ -589,6 +577,7 @@ void ai_popup_render(
   const ColonizeSpriteSheet* wood_tile,
   const ColonizePopupColors* colors,
   uint8_t text_color,
+  uint8_t hilite_color,
   uint8_t select_color,
   ColonizeFramebuffer8* framebuffer
 ) {
@@ -828,10 +817,14 @@ void ai_popup_render(
     ss_blit_sprite(graphic, 0, framebuffer, graphic_x, graphic_y);
   }
 
+  /* DOS DS:0x1f62 starts 0 per popup and carries across every line the
+   * writer emits — title, body, then the option rows (FUN_6f74_0538). */
+  bool emph = false;
   int text_y = inner_y + 3; /* DOS +0x2c = 3 + 3 */
   if (req->title[0] && font) {
-    ai_popup_draw_shadowed(
-      font, framebuffer, inner_x + pad_x, text_y, req->title, text_color
+    popup_draw_text_markup(
+      font, framebuffer, inner_x + pad_x, text_y, req->title, text_color,
+      hilite_color, true, true, &emph
     );
     text_y += title_h;
   }
@@ -840,8 +833,9 @@ void ai_popup_render(
     if (text_y + line_h > inner_y + inner_h - options_h) {
       break;
     }
-    ai_popup_draw_shadowed(
-      font, framebuffer, inner_x + pad_x, text_y, wrapped[i], text_color
+    popup_draw_text_markup(
+      font, framebuffer, inner_x + pad_x, text_y, wrapped[i], text_color,
+      hilite_color, true, true, &emph
     );
     text_y += line_h;
   }
@@ -859,8 +853,9 @@ void ai_popup_render(
       );
     }
     if (font) {
-      ai_popup_draw_shadowed(
-        font, framebuffer, inner_x + pad_x, row_y, req->choices[i], text_color
+      popup_draw_text_markup(
+        font, framebuffer, inner_x + pad_x, row_y, req->choices[i], text_color,
+        hilite_color, true, true, &emph
       );
     }
   }

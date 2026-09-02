@@ -1319,7 +1319,8 @@ int main(void) {
         &game_txt_sneak, "SNEAK", &tok, "Sneak attack by the treacherous %STRING0!", sneak_buf,
         sizeof(sneak_buf)
       );
-      if (strcmp(sneak_buf, "Sneak attack by the treacherous Spain!") != 0) {
+      /* popup_msg_fill keeps the {} emphasis markup now; renderers color it. */
+      if (strcmp(sneak_buf, "Sneak attack by the treacherous {Spain}!") != 0) {
         fprintf(stderr, "unit_ai_diplo: sneak real-catalog status '%s'\n", sneak_buf);
         return fail("@SNEAK should render authentic GAME.TXT text with attacker name");
       }
@@ -3188,7 +3189,7 @@ int main(void) {
         pop_cp.queue[0].kind != AI_POPUP_KIND_CHOICE) {
       return fail("@CANCELPEACE: expected DIPLO_WAR CHOICE");
     }
-    if (strcmp(pop_cp.queue[0].body, "France cancel peace treaty with England.") != 0) {
+    if (strcmp(pop_cp.queue[0].body, "{France} cancel peace treaty with {England}.") != 0) {
       fprintf(stderr, "unit_ai_diplo: CANCELPEACE body '%s'\n", pop_cp.queue[0].body);
       return fail("@CANCELPEACE: CHOICE body should be authentic GAME.TXT line");
     }

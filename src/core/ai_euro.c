@@ -12277,6 +12277,7 @@ static void ai_euro_try_violate_notify(ColonizeTurnContext* ctx, ColonizeUnit* u
       "%STRING0 violate %STRING1 territory near %STRING2! Colonists are outraged!",
       ctx->status, ctx->status_size
     );
+    popup_msg_strip_markup(ctx->status); /* status line: no {} coloring */
     if (u->id >= 0 && u->id < COLONIZE_UNITS_MAX) {
       s_violate_last_turn[u->id] = turn ? turn : 1;
     }
@@ -12337,6 +12338,7 @@ static void ai_euro_try_attack(ColonizeTurnContext* ctx, ColonizeUnit* u, int tx
           ctx->messages, "SNEAK", &tok, "Sneak attack by the treacherous %STRING0!",
           ctx->status, ctx->status_size
         );
+        popup_msg_strip_markup(ctx->status); /* status line: no {} coloring */
       }
     }
   }

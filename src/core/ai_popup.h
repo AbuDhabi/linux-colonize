@@ -216,6 +216,7 @@ void ai_popup_render(
   const ColonizeSpriteSheet* wood_tile,
   const ColonizePopupColors* colors,
   uint8_t text_color,
+  uint8_t hilite_color,
   uint8_t select_color,
   ColonizeFramebuffer8* framebuffer
 );
