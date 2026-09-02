@@ -45,12 +45,12 @@
  *   ctx->ai_popups (auto-accept when NULL); unaffordable → silently
  *   skipped (no DOS status/dialog). No once-per-war flag — head.unknown46[3]
  *   is unused for this now (was an invented gate, see king_ref.md).
- * 160a rename: player[human].country_name → "United Colonies"
- *   (thin rename + KING_LETTER Done; the 160a signing cinematic itself is
- *   core/declaration.c, armed from game_loop on the KING_LETTER popup).
- *   unknown46[4] endgame latch: 0 none / 1 won / 2 lost.
- *   On declare + ai_popups: thin rename OK + GAME.TXT @HOWTOWIN INFO
- *   (invent "War of Independence begins!" demoted).
+ * 160a: signing cinematic only (core/declaration.c, armed from game_loop on
+ *   the KING_LETTER popup). No country rename — "United Colonies" was a port
+ *   invention (bugs.md 245); WoI faction labels are Rebels/Tory via
+ *   units_combat_nation_label. unknown46[4] endgame latch: 0/1 won/2 lost.
+ *   @HOWTOWIN fires at first rebel recapture (units.c), not at declare
+ *   (bugs.md 242).
  * Congress confirm: head.unknown46[5] + thin 2564 (ai_popup CHOICE from
  *   GAME.TXT @DECLARE Never/Yes when ctx->ai_popups; auto-declare when NULL;
  *   same-turn 1528 may overwrite status).
@@ -69,7 +69,6 @@
  * Crown nation_id: non-human Euro slot (1 if human==0 else 0).
  */
 
-#define AI_KING_INDEP_COUNTRY "United Colonies"
 #define AI_KING_YEAR_CAP 1850
 #define AI_KING_PEACE_YEAR_CAP 1800
 #define AI_KING_SOONRETIRE0_YEAR 1790
@@ -2580,12 +2579,9 @@ static void ai_king_do_declare(ColonizeTurnContext* ctx, int human) {
    * signing animation (DECOIND.PIK + DEC-UPP/LOW/SQIG.SS) is core/declaration.c.
    * DECLARAT.PIK is an unused leftover — no DOS executable references it.
    */
-  snprintf(ctx->col1->player[human].country_name,
-           sizeof(ctx->col1->player[human].country_name), "%s", AI_KING_INDEP_COUNTRY);
-  if (ctx->europe) {
-    snprintf(ctx->europe->nation_name, sizeof(ctx->europe->nation_name), "%s",
-             AI_KING_INDEP_COUNTRY);
-  }
+  /* bugs.md 245: no "United Colonies" rename — DOS 160a is only the signing
+   * cinematic and never touches country_name. Under the WoI the player
+   * faction reads "Rebels" (LABELS 84/101) via units_combat_nation_label. */
   if (ctx->status && ctx->status_size) {
     snprintf(ctx->status, ctx->status_size, "Congress declares independence!");
   }
@@ -2604,7 +2600,8 @@ static void ai_king_do_declare(ColonizeTurnContext* ctx, int human) {
       "INDEPENDENCE",
       &letter_tok,
       "Continental Congress signs Declaration of Independence! "
-      "Abuses and usurpations cited! The colonies are renamed the United Colonies.",
+      "Abuses and usurpations cited! Ultimatum presented to King! "
+      "Expeditionary force dispatched to suppress rebellion!",
       letter,
       sizeof(letter)
     );
@@ -2617,23 +2614,10 @@ static void ai_king_do_declare(ColonizeTurnContext* ctx, int human) {
       "Declaration of Independence",
       letter
     );
-    /* FUN_43f7_1a26 / 2564: @HOWTOWIN briefing after Confirm/auto declare. */
-    char how[AI_POPUP_BODY_LEN];
-    popup_msg_fill(
-      ctx->messages,
-      "HOWTOWIN",
-      NULL,
-      "We have just won a glorious victory on the road to freedom, Your Excellency. "
-      "In order to defeat the King's forces and win our independence, we must "
-      "recapture all of our colonies from the King, and we must destroy most of "
-      "his ground forces in the New World.",
-      how,
-      sizeof(how)
-    );
-    (void)ai_popup_enqueue_ok_ctx(
-      ctx->ai_popups, AI_POPUP_TAG_INFO, human, ai_king_crown_nation(human), 1,
-      "Road to Freedom", how
-    );
+    /* bugs.md 242: @HOWTOWIN does NOT fire at the declaration. DOS shows it
+     * once at the first colony the rebel recaptures with the REF present
+     * (5fef capture tail, DS:0x5386 bit0 latch) — see
+     * units_try_capture_foreign_colony. */
   }
 }
 
@@ -2683,12 +2667,10 @@ static void ai_king_do_declare(ColonizeTurnContext* ctx, int human) {
  */
 static void ai_king_show_declare_choice(ColonizeTurnContext* ctx, int human, int sol) {
   if (ai_king_human_popups(ctx)) {
-    const char* motherland = "the Crown";
-    if (ctx->col1->player[human].country_name[0] != '\0') {
-      motherland = ctx->col1->player[human].country_name;
-    } else if (ctx->europe && ctx->europe->nation_name[0] != '\0') {
-      motherland = ctx->europe->nation_name;
-    }
+    /* bugs.md 241: %STRING0 is the Crown nation ("England"), never the
+     * player's new-world country_name ("New England"). NAMES.TXT @COUNTRY. */
+    static const char* const k_crown[4] = {"England", "France", "Spain", "Netherlands"};
+    const char* motherland = (human >= 0 && human <= 3) ? k_crown[human] : "the Crown";
     PopupMsgTokens tok;
     memset(&tok, 0, sizeof(tok));
     tok.string0 = motherland;
@@ -3369,6 +3351,9 @@ static void ai_king_ref_wave(ColonizeTurnContext* ctx) {
               ctx->ai_popups, AI_POPUP_TAG_KING_ARRIVAL, human, crown, 0,
               "Royal Expeditionary Force", body
             );
+            /* bugs.md 243: the landing popup BLOCKS before the disembark
+             * slides — popup, then animations, then the rest, in sequence. */
+            units_pump_combat_popups();
           }
 
           /* Land units: caps recomputed from the raw garrison (74150-74162). */
@@ -5526,7 +5511,7 @@ static void ai_king_check_revolution_end(ColonizeTurnContext* ctx, int ref_alrea
     memset(&tok, 0, sizeof(tok));
     tok.string0 = leader;
     tok.string1 =
-      (pl->country_name[0] != '\0') ? pl->country_name : "the United Colonies";
+      (pl->country_name[0] != '\0') ? pl->country_name : "the colonies";
     char fallback[AI_POPUP_BODY_LEN];
     snprintf(
       fallback,

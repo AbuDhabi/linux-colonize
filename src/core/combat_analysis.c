@@ -109,8 +109,11 @@ static void combat_analysis_fill_mods(
   if (land_attack_bonus) {
     combat_analysis_push_row(rows, count, "Attack Bonus", 50);
   }
+  /* bugs.md 248: DOS 636c bit 0x8000 label ptr DS:0x2e8a = @MISC 104
+   * "Bombard" (the WoI colony-attack support bonus), not "Expeditionary
+   * Force" (@MISC 91, the Congress force row). */
   if (flags->flags & COMBAT_FLAG_REF) {
-    combat_analysis_push_row(rows, count, "Expeditionary Force", 50);
+    combat_analysis_push_row(rows, count, "Bombard", 50);
   }
   if (flags->flags2 & COMBAT_FLAG_TORIES) {
     combat_analysis_push_row(rows, count, "Tories", flags->sol_percent);

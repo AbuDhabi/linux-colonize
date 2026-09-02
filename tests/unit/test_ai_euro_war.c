@@ -1707,7 +1707,11 @@ static int unit_land_adjacent_combat_chain(void) {
   fb = units_get(&units, foe_b);
   const int a_dead = !fa || !fa->active;
   const int b_dead = !fb || !fb->active;
-  if (!a_dead || !b_dead) {
+  /* bugs.md 249: a land attacker stays put after a win — foe A (adjacent)
+   * dies; the AI may then STEP into the vacated tile as a normal move, but
+   * the attack itself no longer carries it there, so foe B two tiles out
+   * survives the act. */
+  if (!a_dead || b_dead) {
     fprintf(
       stderr,
       "unit_ai_euro_war: chain soldier=%d,%d moves=%d a_dead=%d b_dead=%d\n",
@@ -1720,13 +1724,13 @@ static int unit_land_adjacent_combat_chain(void) {
     free(map.terrain);
     free(map.layer2);
     free(map.layer3);
-    return fail("land adjacent combat chain should kill both foes in one act");
+    return fail("adjacent foe dies, attacker stays put, far foe survives");
   }
 
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "unit_ai_euro_war: land adjacent combat chain ok\n");
+  fprintf(stderr, "unit_ai_euro_war: land adjacent combat (stay-put) ok\n");
   return 0;
 }
 
