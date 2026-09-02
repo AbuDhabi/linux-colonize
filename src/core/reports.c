@@ -1047,7 +1047,9 @@ static void reports_render_congress_page1(
   const int woi = col1->head.game_options.woi != 0;
   int ally = (int)col1->head.rival_nation_slot_1;
   {
-    const int crown = (human == 0) ? 1 : 0; /* ai_king_crown_nation inlined */
+    const int crown = (col1->head.crown_nation_id >= 0 && col1->head.crown_nation_id < 4)
+                        ? (int)col1->head.crown_nation_id
+                        : ((human == 0) ? 1 : 0);
     if (ally < 0 || ally > 3 || ally == human || ally == crown) {
       ally = -1;
       for (int n = 0; n < 4; ++n) {

@@ -372,7 +372,7 @@ static void ai_king_enqueue_teaparty_ok(ColonizeTurnContext* ctx, int human, int
     ctx->ai_popups,
     AI_POPUP_TAG_KING_TAX,
     human,
-    ai_king_crown_nation(human),
+    ai_king_crown_nation_col1(ctx->col1_ok ? ctx->col1 : NULL, human),
     ctx->col1 && ctx->col1_ok ? (int)ctx->col1->nation[human].tax_rate : 0,
     title,
     body
@@ -405,7 +405,7 @@ static bool ai_king_valid_intervention_slot(
   if (!col1 || slot < 0 || slot >= 4) {
     return false;
   }
-  const int crown = ai_king_crown_nation(human_nation);
+  const int crown = ai_king_crown_nation_col1(col1, human_nation);
   /* WoI foreign landings: eliminated Euros (control==2) still intervene via 10f0. */
   return slot != human_nation && slot != crown;
 }
@@ -418,7 +418,7 @@ static int ai_king_intervention_nation(const ColonizeTurnContext* ctx, int human
       return slot;
     }
   }
-  const int crown = ai_king_crown_nation(human_nation);
+  const int crown = ai_king_crown_nation_col1(ctx->col1_ok ? ctx->col1 : NULL, human_nation);
   int best = -1;
   int best_colonies = -1;
   int best_force = -1;
@@ -477,7 +477,7 @@ static void ai_king_write_rival_nation_slots(ColonizeCol1Save* col1, int human) 
   if (!col1 || human < 0 || human >= 4) {
     return;
   }
-  const int crown = ai_king_crown_nation(human);
+  const int crown = ai_king_crown_nation_col1(col1, human);
   int score[4] = {0, 0, 0, 0};
   if (col1->colony) {
     for (uint16_t i = 0; i < col1->head.colony_count; ++i) {
@@ -2369,7 +2369,7 @@ static void ai_king_tax_hike_apply(ColonizeTurnContext* ctx, int human, int delt
       snprintf(body, sizeof(body),
                "The King, moved by your poverty, lowers taxes to %u%%.", nat->tax_rate);
       (void)ai_popup_enqueue_ok_ctx(ctx->ai_popups, AI_POPUP_TAG_KING_TAX, human,
-                                    ai_king_crown_nation(human), (int)nat->tax_rate,
+                                    ai_king_crown_nation_col1(ctx->col1_ok ? ctx->col1 : NULL, human), (int)nat->tax_rate,
                                     "Royal Audience", body);
     }
     return;
@@ -2409,7 +2409,7 @@ static void ai_king_tax_hike_apply(ColonizeTurnContext* ctx, int human, int delt
       snprintf(body, sizeof(body), "The King raises taxes to %u%%.", nat->tax_rate);
       sound_play(0x56); /* FUN_38fd_3dc8 tax raise (COLDIG 9 cheering) */
       (void)ai_popup_enqueue_ok_ctx(ctx->ai_popups, AI_POPUP_TAG_KING_TAX, human,
-                                    ai_king_crown_nation(human), (int)nat->tax_rate,
+                                    ai_king_crown_nation_col1(ctx->col1_ok ? ctx->col1 : NULL, human), (int)nat->tax_rate,
                                     "Royal Tax", body);
     }
     return;
@@ -2462,7 +2462,7 @@ static void ai_king_tax_hike_apply(ColonizeTurnContext* ctx, int human, int delt
     }
     sound_play(0x3e); /* FUN_38fd_3dc8 38fd:4022/4068: royal-audience tune */
     if (ai_popup_enqueue_choice_ctx(ctx->ai_popups, AI_POPUP_TAG_KING_AUDIENCE, human,
-                                    ai_king_crown_nation(human),
+                                    ai_king_crown_nation_col1(ctx->col1_ok ? ctx->col1 : NULL, human),
                                     ai_king_teaparty_payload(applied, picked),
                                     NULL, body, labels, ids, 2)) {
       /* bugs.md: DOS's 3dc8 dialog sets DS:0x1f5c = 8 — the animated King
@@ -2489,6 +2489,156 @@ static void ai_king_tax_hike_apply(ColonizeTurnContext* ctx, int human, int delt
 }
 
 /*
+ * FUN_43f7_0218 — War of the Spanish Succession (viceroy_unpacked.c
+ * 73601-73712). Fires PRE-WoI, the first time the human's SoL passes 49%
+ * (caller gate `0x31 < SoL && *0x53d2 < 0`), and 1a26 falls back to it at
+ * declare. It frees the slot the King will borrow:
+ *   - rank the 4 powers ascending by pop*3 + colonies*2 + SoL-ish term;
+ *   - weakest AI (local_c) is merged INTO the next-weakest AI (local_a):
+ *     its colonies change owner (rebel accumulators +0xc2/+0xc4 zeroed),
+ *     its units transfer when standing in a colony and are DESPAWNED in
+ *     the field (`0302(x,y)==0 → 0808`), map owner/vis and tribe-alarm
+ *     nibbles are remapped (thin: skipped here);
+ *   - @SUCCESSION (0x128c) announces the Treaty of Utrecht;
+ *   - merged slot control=2, DS:0x53d2 = the vacated slot.
+ * THIS is why the King must never inherit a live nation's estate (bugs.md
+ * follow-up: the port's fixed slot borrow handed the King Quebec + 5
+ * Caravels that were simply France's).
+ */
+static void ai_king_succession(ColonizeTurnContext* ctx) {
+  if (!ctx || !ctx->col1_ok || !ctx->col1) {
+    return;
+  }
+  ColonizeCol1Save* col1 = ctx->col1;
+  if (col1->head.crown_nation_id >= 0) {
+    return; /* slot already vacated */
+  }
+  const int human = ctx->human_nation;
+  if (human < 0 || human >= 4) {
+    return;
+  }
+  /* Score ascending: colony pop*3 + colonies*2 (DOS -0x6be8/-0x6d68 tables;
+   * the -0x6bf0 SoL term only tie-breaks and is folded thin). */
+  int score[4] = {0, 0, 0, 0};
+  if (ctx->colonies) {
+    for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+      const ColonizeColony* c = &ctx->colonies->colonies[i];
+      if (c->active && c->nation_id >= 0 && c->nation_id < 4) {
+        score[c->nation_id] += 3 * (int)c->population + 2;
+      }
+    }
+  } else if (col1->colony) {
+    for (uint16_t i = 0; i < col1->head.colony_count; ++i) {
+      const int n = (int)col1->colony[i].nation_id;
+      if (n >= 0 && n < 4) {
+        score[n] += 3 * (int)col1->colony[i].population + 2;
+      }
+    }
+  }
+  int order[4] = {0, 1, 2, 3};
+  for (int a = 1; a < 4; ++a) {
+    for (int b = a; b > 0 && score[order[b]] < score[order[b - 1]]; --b) {
+      const int t = order[b];
+      order[b] = order[b - 1];
+      order[b - 1] = t;
+    }
+  }
+  int merged = -1;  /* DOS local_c: weakest AI — the slot the King takes */
+  int heir = -1;    /* DOS local_a: next-weakest AI — receives the estate */
+  for (int i = 0; i < 4; ++i) {
+    const int n = order[i];
+    if (n == human) {
+      continue;
+    }
+    if (merged < 0) {
+      merged = n;
+    } else if (heir < 0) {
+      heir = n;
+    }
+  }
+  if (merged < 0 || heir < 0) {
+    return;
+  }
+  /* Colonies: owner swap + rebel accumulators zeroed (DOS +0xc2/+0xc4). */
+  if (ctx->colonies) {
+    for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+      ColonizeColony* c = &ctx->colonies->colonies[i];
+      if (c->active && c->nation_id == merged) {
+        c->nation_id = heir;
+      }
+    }
+  }
+  if (col1->colony) {
+    for (uint16_t i = 0; i < col1->head.colony_count; ++i) {
+      ColonizeCol1Colony* c = &col1->colony[i];
+      if ((int)c->nation_id == merged) {
+        c->nation_id = (uint8_t)heir;
+        c->rebel_dividend = 0;
+        c->rebel_divisor = 0;
+      }
+    }
+  }
+  /* Units: in a colony → transfer to the heir; in the field/at sea → gone
+   * (DOS 0302==0 → 0808 despawn). */
+  if (ctx->units) {
+    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+      ColonizeUnit* u = &ctx->units->units[i];
+      if (!u->active || u->nation_id != merged) {
+        continue;
+      }
+      const int cid =
+        ctx->colonies ? colonies_id_at(ctx->colonies, u->x, u->y) : -1;
+      if (cid >= 0) {
+        units_set_nation(u, heir);
+      } else {
+        (void)units_despawn(ctx->units, u->id);
+      }
+    }
+  }
+  col1->player[merged].control = 2; /* withdrawn — the King's future slot */
+  col1->head.crown_nation_id = (int16_t)merged;
+  /* @SUCCESSION Treaty of Utrecht announcement. */
+  if (ai_king_human_popups(ctx)) {
+    static const char* k_country[4] = {"England", "France", "Spain", "Netherlands"};
+    static const char* k_adj[4] = {"English", "French", "Spanish", "Dutch"};
+    const char* ceder = k_country[merged];
+    const char* domain = col1->player[merged].country_name[0]
+                           ? col1->player[merged].country_name
+                           : "its colonies";
+    PopupMsgTokens tok;
+    memset(&tok, 0, sizeof(tok));
+    tok.string0 = ceder;
+    tok.string1 = domain;
+    tok.string2 = k_adj[heir];
+    tok.string3 = k_adj[merged];
+    char body[AI_POPUP_BODY_LEN];
+    char fallback[AI_POPUP_BODY_LEN];
+    snprintf(
+      fallback,
+      sizeof(fallback),
+      "War of the Spanish Succession ends in Europe! %s, ravaged by war, agrees "
+      "to cede %s to the %s. Treaty of Utrecht specifies that all %s possessions "
+      "in the New World now fall under %s rule.",
+      ceder, domain, k_adj[heir], k_adj[merged], k_adj[heir]
+    );
+    popup_msg_fill(ctx->messages, "SUCCESSION", &tok, fallback, body, sizeof(body));
+    (void)ai_popup_enqueue_ok_ctx(
+      ctx->ai_popups, AI_POPUP_TAG_INFO, human, merged, heir,
+      "War of the Spanish Succession", body
+    );
+  }
+  if (ctx->status && ctx->status_size && ctx->status[0] == '\0') {
+    snprintf(ctx->status, ctx->status_size,
+             "War of the Spanish Succession: %s possessions pass to the %s.",
+             col1->player[merged].country_name[0] ? col1->player[merged].country_name
+                                                  : "foreign",
+             (heir >= 0 && heir < 4)
+               ? (const char*[]){"English", "French", "Spanish", "Dutch"}[heir]
+               : "heir");
+  }
+}
+
+/*
  * FUN_43f7_1a26 declare body (after 2564 confirm / auto).
  * Seeds REF by difficulty; thin backup_force as 10f0 foreign-pool stand-in;
  * withdraws other Euros; thin 160a rename; unknown46[5] congress.
@@ -2500,6 +2650,10 @@ static void ai_king_do_declare(ColonizeTurnContext* ctx, int human) {
   if (ai_king_independence_declared(ctx->col1)) {
     return;
   }
+  /* DOS 1a26: `if (*0x53d2 < 0) 0364` — run the succession merger now if the
+   * SoL>49 trigger never fired, so the King borrows an EMPTY slot instead of
+   * inheriting a live nation's colonies and ships (bugs.md follow-up). */
+  ai_king_succession(ctx);
   ai_king_set_independence(ctx->col1, 1); /* WoI: unknown46[0] if not already */
   ai_king_write_rival_nation_slots(ctx->col1, human);
   /* FUN_43f7_2564 congress-confirm stand-in. */
@@ -2541,7 +2695,7 @@ static void ai_king_do_declare(ColonizeTurnContext* ctx, int human) {
    * Franklin gate, no peer embargo/tax chrome.
    */
   ai_diplo_or_both(
-    ctx->col1, human, ai_king_crown_nation(human),
+    ctx->col1, human, ai_king_crown_nation_col1(ctx->col1_ok ? ctx->col1 : NULL, human),
     (uint8_t)(AI_DIPLO_WAR | AI_DIPLO_MET)
   );
   /* bugs.md: no landing on the declaration turn itself. */
@@ -2557,7 +2711,7 @@ static void ai_king_do_declare(ColonizeTurnContext* ctx, int human) {
    * unit-scrub half was missing. Crown-nation units (the REF spawns below)
    * must survive.
    */
-  const int crown_fold = ai_king_crown_nation(human);
+  const int crown_fold = ai_king_crown_nation_col1(ctx->col1_ok ? ctx->col1 : NULL, human);
   /*
    * bugs.md 234: DOS 1a26 stores the crown slot in DS:0x53d2 and sets its
    * control byte to 1 (`*(0x53d2*0x34+0x543f)=1`). The port never wrote
@@ -2645,7 +2799,7 @@ static void ai_king_do_declare(ColonizeTurnContext* ctx, int human) {
       ctx->ai_popups,
       AI_POPUP_TAG_KING_LETTER,
       human,
-      ai_king_crown_nation(human),
+      ai_king_crown_nation_col1(ctx->col1_ok ? ctx->col1 : NULL, human),
       0,
       "Declaration of Independence",
       letter
@@ -2739,7 +2893,7 @@ static void ai_king_show_declare_choice(ColonizeTurnContext* ctx, int human, int
       labels[1] = "Yes! Give me liberty or give me death!";
     }
     if (ai_popup_enqueue_choice_ctx(ctx->ai_popups, AI_POPUP_TAG_KING_CONGRESS, human,
-                                    ai_king_crown_nation(human), sol, "Continental Congress",
+                                    ai_king_crown_nation_col1(ctx->col1_ok ? ctx->col1 : NULL, human), sol, "Continental Congress",
                                     body, labels, ids, 2)) {
       if (ctx->status && ctx->status_size) {
         snprintf(ctx->status, ctx->status_size,
@@ -2828,7 +2982,7 @@ void ai_king_menu_declare_independence(ColonizeTurnContext* ctx) {
       char body[AI_POPUP_BODY_LEN];
       popup_msg_fill(ctx->messages, "TOOTORY", &tok, fallback, body, sizeof(body));
       (void)ai_popup_enqueue_ok_ctx(ctx->ai_popups, AI_POPUP_TAG_INFO, human,
-                                    ai_king_crown_nation(human), sol, "Continental Congress",
+                                    ai_king_crown_nation_col1(ctx->col1_ok ? ctx->col1 : NULL, human), sol, "Continental Congress",
                                     body);
     }
     if (ctx->status && ctx->status_size) {
@@ -3182,7 +3336,7 @@ static void ai_king_ref_wave(ColonizeTurnContext* ctx) {
     ai_king_latch_set(ctx->col1, AI_KING_REF_WAVE_WAIT_BYTE, 0);
     return;
   }
-  const int crown = ai_king_crown_nation(ctx->human_nation);
+  const int crown = ai_king_crown_nation_col1(ctx->col1_ok ? ctx->col1 : NULL, ctx->human_nation);
   const int human = ctx->human_nation;
   uint16_t* force = ctx->col1->head.expeditionary_force;
   int total = (int)force[0] + (int)force[1] + (int)force[2] + (int)force[3];
@@ -4074,7 +4228,7 @@ static int ai_king_do_merc_hire_at(ColonizeTurnContext* ctx, int human, int hx, 
       "Mercenaries arrive.", body, sizeof(body)
     );
     (void)ai_popup_enqueue_ok_ctx(ctx->ai_popups, AI_POPUP_TAG_KING_MERC, human,
-                                  ai_king_crown_nation(human),
+                                  ai_king_crown_nation_col1(ctx->col1_ok ? ctx->col1 : NULL, human),
                                   ai_king_merc_payload(hx, hy, qty_a, extra_flag, price), NULL,
                                   body);
   }
@@ -4185,7 +4339,7 @@ static void ai_king_merc_offer(ColonizeTurnContext* ctx) {
       labels[1] = "Pay";
     }
     if (ai_popup_enqueue_choice_ctx(ctx->ai_popups, AI_POPUP_TAG_KING_MERC, human,
-                                    ai_king_crown_nation(human),
+                                    ai_king_crown_nation_col1(ctx->col1_ok ? ctx->col1 : NULL, human),
                                     ai_king_merc_payload(hx, hy, qty_a, extra_flag, price), NULL,
                                     body, labels, ids, 2)) {
       if (ctx->status && ctx->status_size) {
@@ -4369,7 +4523,7 @@ void ai_king_frigate_offer(ColonizeTurnContext* ctx, int nation) {
   }
   sound_play(0x3e); /* FUN_3844_00f2 3844:0350: audience tune (281f_048e) before the CHOICE */
   if (!ai_popup_enqueue_choice_ctx(ctx->ai_popups, AI_POPUP_TAG_KING_FRIGATE, nation,
-                                   ai_king_crown_nation(nation), 0, NULL, body, labels, ids, 2)) {
+                                   ai_king_crown_nation_col1(ctx->col1_ok ? ctx->col1 : NULL, nation), 0, NULL, body, labels, ids, 2)) {
     ai_king_frigate_accept(ctx, nation); /* queue full: DOS has no "no answer" path */
   }
 }
@@ -4532,7 +4686,7 @@ int ai_king_new_war_event(ColonizeTurnContext* ctx) {
   if ((difficulty + 2) * turn <= 799) {
     return 0;
   }
-  const int crown = ai_king_crown_nation(human);
+  const int crown = ai_king_crown_nation_col1(ctx->col1_ok ? ctx->col1 : NULL, human);
   int peace_n = 0;
   int met_no_peace = 0;
   long strength_peers = 0;
@@ -4653,7 +4807,7 @@ static void ai_king_war_act(ColonizeTurnContext* ctx) {
    * World, so wiping a wave re-arms the pool.
    */
   if (ctx->col1->head.game_options.ref_present && ctx->units) {
-    const int crown_now = ai_king_crown_nation(ctx->human_nation);
+    const int crown_now = ai_king_crown_nation_col1(ctx->col1_ok ? ctx->col1 : NULL, ctx->human_nation);
     bool crown_on_map = false;
     for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
       const ColonizeUnit* u = units_get_const(ctx->units, i);
@@ -4678,7 +4832,7 @@ static void ai_king_war_act(ColonizeTurnContext* ctx) {
       ai_king_set_ref_present(ctx->col1, 0);
     }
   }
-  const int crown = ai_king_crown_nation(ctx->human_nation);
+  const int crown = ai_king_crown_nation_col1(ctx->col1_ok ? ctx->col1 : NULL, ctx->human_nation);
   const int human = ctx->human_nation;
   /* bugs.md 256: DOS 2022 runs the mobilization gate BEFORE any other war
    * beat — the mobilization turn does nothing else (no intervene/merc). The
@@ -5518,7 +5672,7 @@ static void ai_king_check_revolution_end(ColonizeTurnContext* ctx, int ref_alrea
   if (human < 0 || human >= 4) {
     return;
   }
-  const int crown = ai_king_crown_nation(human);
+  const int crown = ai_king_crown_nation_col1(ctx->col1_ok ? ctx->col1 : NULL, human);
   const int ports = ai_king_human_coastal_ports(ctx, human);
   const ColonizeCol1Player* pl = &ctx->col1->player[human];
   const char* country =
@@ -5901,6 +6055,11 @@ void ai_king_nation_turn(ColonizeTurnContext* ctx) {
   const int sol = ai_king_sol_percent(ctx, ctx->human_nation);
 
   if (!ai_king_independence_declared(ctx->col1_ok ? ctx->col1 : NULL)) {
+    /* DOS 1b3a SoL cache tail: `0x31 < SoL && *0x53d2 < 0` → the War of the
+     * Spanish Succession vacates the King's future slot ahead of time. */
+    if (sol > 49) {
+      ai_king_succession(ctx);
+    }
     const int popups_before = ctx->ai_popups ? ctx->ai_popups->queue_count : 0;
     ai_king_tax_event(ctx);
     /* 38fd Europe-EOT king slot: @KINGNEWWAR only when the tax event stayed quiet. */
@@ -5945,7 +6104,7 @@ void ai_king_nation_turn(ColonizeTurnContext* ctx) {
           ctx->ai_popups,
           AI_POPUP_TAG_INFO,
           human,
-          ai_king_crown_nation(human),
+          ai_king_crown_nation_col1(ctx->col1_ok ? ctx->col1 : NULL, human),
           AI_KING_SOONRETIRE0_YEAR,
           "Retirement Rumors",
           body
@@ -5993,7 +6152,7 @@ void ai_king_nation_turn(ColonizeTurnContext* ctx) {
           ctx->ai_popups,
           AI_POPUP_TAG_KING_SCORED,
           ctx->human_nation,
-          ai_king_crown_nation(ctx->human_nation),
+          ai_king_crown_nation_col1(ctx->col1_ok ? ctx->col1 : NULL, ctx->human_nation),
           AI_KING_PEACE_YEAR_CAP,
           "Scoring Complete",
           body,
@@ -6100,7 +6259,7 @@ void ai_king_nation_turn(ColonizeTurnContext* ctx) {
           ctx->ai_popups,
           AI_POPUP_TAG_INFO,
           human,
-          ai_king_crown_nation(human),
+          ai_king_crown_nation_col1(ctx->col1_ok ? ctx->col1 : NULL, human),
           AI_KING_SOONRETIRE1_YEAR,
           "War Weariness",
           body
@@ -6255,7 +6414,7 @@ void ai_king_apply_popup_result(ColonizeTurnContext* ctx, const AiPopupState* po
             ctx->ai_popups,
             AI_POPUP_TAG_INFO,
             human,
-            ai_king_crown_nation(human),
+            ai_king_crown_nation_col1(ctx->col1_ok ? ctx->col1 : NULL, human),
             0,
             "Retirement",
             body

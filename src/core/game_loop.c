@@ -1020,6 +1020,12 @@ static bool game_do_found_colony_at_unit(ColonizeGameState* game, int uid, bool 
   if (!game || !game->world_map_ok || uid < 0) {
     return false;
   }
+  /* bugs.md follow-up: DOS forbids founding new colonies once independence
+   * is declared — every hand and bell goes to the war effort. */
+  if (game->col1_ok && game->col1.head.game_options.woi) {
+    set_status(game, "Cannot found new colonies during the War of Independence", NULL);
+    return false;
+  }
   const ColonizeUnit* founder = units_get_const(&game->units, uid);
   if (!founder || !founder->active || !units_is_on_map(founder)) {
     set_status(game, "No unit at cursor to found colony", NULL);
@@ -9454,7 +9460,7 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
    * slot renders WHITE (REF), not the peer's own colour. */
   unit_chrome_set_crown_nation(
     game->col1_ok && ai_king_independence_declared(&game->col1)
-      ? ai_king_crown_nation(game->human_nation)
+      ? ai_king_crown_nation_col1(&game->col1, game->human_nation)
       : -1
   );
   /* bugs.md: WoI colony flags — rebel colonies fly the American flag, crown

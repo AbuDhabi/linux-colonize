@@ -125,7 +125,8 @@ int main(void) {
   ctx.messages = &msgs;
   ctx.names = &names;
   const int human = br.human_nation;
-  const int crown = ai_king_crown_nation(human);
+  int crown = ai_king_crown_nation(human); /* refreshed after declare — the
+    succession merger (bugs.md follow-up) may vacate a different slot */
 
   /* Market pool words must not be the king's scratch space any more. */
   uint16_t market_before[16];
@@ -141,6 +142,14 @@ int main(void) {
   ai_king_menu_declare_independence(&ctx);
   if (!ai_king_independence_declared(&save)) {
     fprintf(stderr, "declare failed: %s\n", status);
+    return 1;
+  }
+  crown = ai_king_crown_nation_col1(&save, human);
+  /* Succession invariant: the King borrows an EMPTY slot — no inherited
+   * colonies (bugs.md follow-up: Quebec must not become Tory for free). */
+  if (count_colonies(&colonies, crown) != 0) {
+    fprintf(stderr, "crown slot %d inherited %d colonies at declare\n", crown,
+            count_colonies(&colonies, crown));
     return 1;
   }
   if (memcmp(market_before, save.head.price_group_state, sizeof(market_before)) != 0) {

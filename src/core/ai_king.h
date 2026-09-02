@@ -213,9 +213,21 @@ void ai_king_menu_declare_independence(ColonizeTurnContext* ctx);
  */
 int ai_king_spend_woi_bell_pool(ColonizeTurnContext* ctx, int nation_id);
 
-/* Crown nation-slot stand-in (nation 1 if human is 0, else nation 0) — no
- * real 5th DOS crown identity in Linux, this reuses an existing slot. */
+/* Crown nation-slot FALLBACK formula (nation 1 if human is 0, else nation 0)
+ * — only for callers with no save in hand. The real slot is the one the
+ * War-of-the-Spanish-Succession merger vacated (DOS FUN_43f7_0218 → DS:0x53d2
+ * = head.crown_nation_id); prefer ai_king_crown_nation_col1. */
 int ai_king_crown_nation(int human_nation);
+
+/* Crown slot per the save: head.crown_nation_id when set (DOS 0x53d2 — the
+ * slot the succession merger emptied), else the fallback formula. */
+static inline int ai_king_crown_nation_col1(const ColonizeCol1Save* col1, int human_nation) {
+  if (col1 && col1->head.crown_nation_id >= 0 && col1->head.crown_nation_id < 4 &&
+      (int)col1->head.crown_nation_id != human_nation) {
+    return (int)col1->head.crown_nation_id;
+  }
+  return ai_king_crown_nation(human_nation);
+}
 
 /*
  * FUN_38fd_3dc8 dump-goods cargo pick (thin API for AI / tax refuse callers).

@@ -4188,7 +4188,7 @@ void ai_contact_indian_woi_defect(ColonizeTurnContext* ctx, int nation_id) {
   }
 
   ind->woi_defect_resolved = 1;
-  const int crown = ai_king_crown_nation(human);
+  const int crown = ai_king_crown_nation_col1(ctx->col1_ok ? ctx->col1 : NULL, human);
   /*
    * FUN_4cc6_00f2(tribe, declaring, +100) / (tribe, crown, -100) are ALARM
    * deltas: the tribe turns fully hostile to the rebels and content with the
