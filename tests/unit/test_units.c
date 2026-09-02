@@ -5015,6 +5015,10 @@ int main(void) {
       }
       pool.types[caravel_t].attack = 99;
       pool.types[caravel_t].defense = 1;
+      /* Real Caravels carry guns 0 (@UNIT col 9) — a gunless victor can only
+       * damage, never sink (DOS 0352). Arm the type so the win clears the
+       * tile and the move-through completes. */
+      pool.types[caravel_t].guns = 99;
       const ColonizeEnterReason r =
         units_enter_probe(&pool, ua->type_index, &map, wx2, wy2, a, NULL);
       if (r != COLONIZE_ENTER_COMBAT_NAVAL) {
@@ -5766,20 +5770,20 @@ int main(void) {
       fprintf(stderr, "unit_units: native destroy-pioneer / demote-soldier ok\n");
     }
 
-    /* Naval damage-not-always-sink: weaker ship escapes damaged when close. */
+    /* Naval damage-not-always-sink (DOS 0352): loser hull vs winner guns —
+     * a tough hull survives damaged deterministically when hull > guns.
+     * Privateer (guns 12) beats Frigate (hull 32) → damaged, not sunk. */
     {
       const int frig = units_find_type(&pool, "Frigate");
-      const int car = units_find_type(&pool, "Caravel");
-      if (frig < 0 || car < 0) {
+      const int priv = units_find_type(&pool, "Privateer");
+      if (frig < 0 || priv < 0) {
         fprintf(stderr, "phase2 naval types missing\n");
         return 1;
       }
-      pool.types[frig].attack = 6;
-      pool.types[frig].defense = 6;
-      pool.types[car].attack = 5;
-      pool.types[car].defense = 5;
-      const int aid = units_spawn_allow_stack(&pool, frig, 2, 2);
-      const int did = units_spawn_allow_stack(&pool, car, 3, 2);
+      units_set_combat_colonies(NULL); /* no reroute target in this fixture */
+      pool.types[priv].attack = 20; /* force the win; guns stay 12 */
+      const int aid = units_spawn_allow_stack(&pool, priv, 2, 2);
+      const int did = units_spawn_allow_stack(&pool, frig, 3, 2);
       ColonizeUnit* a = units_get(&pool, aid);
       ColonizeUnit* d = units_get(&pool, did);
       if (!a || !d) {

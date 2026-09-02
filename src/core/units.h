@@ -250,6 +250,8 @@ typedef struct ColonizeUnitType {
   int cargo;
   int cost; /* NAMES.TXT @UNIT cost field (Europe purchase uses screenshot gold table) */
   int space; /* NAMES.TXT @UNIT "size" column (DOS 0x5238): ship slots this unit takes; 99 = cannot board */
+  int guns; /* NAMES.TXT @UNIT guns column (DOS 0x523b): naval sink power */
+  int hull; /* NAMES.TXT @UNIT hull column (DOS 0x523c): naval survive-as-damaged weight */
   ColonizeUnitDomain domain;
 } ColonizeUnitType;
 

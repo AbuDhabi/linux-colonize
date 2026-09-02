@@ -234,12 +234,36 @@ Same loss apply on attacker; defender may promote.
 Combat loss remaps **unit type** (not merely profession). Cite:
 `viceroy_unpacked.c` `FUN_5fef_0352` demote arm.
 
-### Naval (`units_apply_naval_loss_outcome`)
+### Naval (`units_apply_naval_loss_outcome`) — DOS `FUN_5fef_0352` model (2026-09-02)
 
-- Close fight (`loser_str * 2 > winner_str`) + weaker type attack + undamaged →
-  damage bit7 + escape (`@SHIPDAMAGE`)
-- else `units_plunder_ship_holds` (`FUN_5fef_016c`) then despawn (`@SHIPSUNK`)
-- Privateer winner + human → `@SEIZURESEA`
+- **Evasion first** (`FUN_5bfb_312e`, DOS 1b0e tail; preempts the rolled
+  outcome): defender with type attack BELOW the attacker's escapes on
+  `roll(1, atk_pow+def_pow) <= def_pow`, power = movement+3, Privateer ×2,
+  Galleon +3, −4 per occupied hold, min 1 → `@EVASIVE`, no outcome.
+- Both ships → `units_plunder_ship_holds` (`FUN_5fef_016c`) runs BEFORE the
+  damage/sink split; the loser's holds are then zeroed either way (goods not
+  lifted vanish, passengers are lost — `units_ship_lose_holds`).
+- **Damage vs sink is a roll on @UNIT guns/hull** (DS `0x523b`/`0x523c`):
+  `roll(1, winner.guns + loser.hull) <= loser.hull` → survives damaged
+  (bit7, `@SHIPDAMAGE`, teleport to nearest own Drydock colony, else nearest
+  own colony as the stored-port stand-in, else EOT routing); otherwise
+  despawn (`@SHIPSUNK`). A gunless victor (guns 0: all transports) can only
+  drive off damaged, never sink. No "already damaged" special: a re-loss
+  re-rolls, as in DOS.
+- **Stack sweep** (`units_sweep_naval_stack_after_loss`, DOS `FUN_5fef_0ec0`):
+  every stackmate on the loser's tile takes its own 0352 — each ship its own
+  plunder + damage-vs-sink roll; land stackmates are destroyed (a ship winner
+  can neither capture nor demote in 0352). Runs on BOTH the defender's tile
+  (win) and the attacker's tile (loss). Colony tiles are exempt (DOS naval
+  fights never occur there; a port garrison must not drown). With the whole
+  defender stack removed/rerouted, the attacker's move-through completes.
+- Privateer winner + human → `@SEIZURESEA` — only when the transport is
+  actually taken (sunk), not when it escapes damaged.
+- Unported DOS residue: AI fleet-pool keep/lose biases, crown-MoW forced-
+  damage exemption, late-game (turn>0x4f) forced Caravel sink, the
+  `0x5235`-column repair-turn formula (Linux keeps its drydock-tick model),
+  and the per-nation stored-port coords (`DS -0x77c6`) for the damaged
+  teleport target.
 
 ### Colony capture
 

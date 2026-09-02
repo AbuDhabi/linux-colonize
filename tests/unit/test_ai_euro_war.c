@@ -2992,11 +2992,15 @@ static int unit_naval_adjacent_foe_prefer_non_drake(void) {
   units.types[0].domain = COLONIZE_UNIT_DOMAIN_SEA;
   units.types[0].attack = 16;
   units.types[0].defense = 16;
+  units.types[0].guns = 32; /* NAMES @UNIT guns/hull: sink roll inputs */
+  units.types[0].hull = 64;
   snprintf(units.types[1].name, sizeof(units.types[1].name), "Privateer");
   units.types[1].movement = 4;
   units.types[1].domain = COLONIZE_UNIT_DOMAIN_SEA;
   units.types[1].attack = 8;
   units.types[1].defense = 8;
+  units.types[1].guns = 12;
+  units.types[1].hull = 12;
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
@@ -3530,11 +3534,15 @@ static int unit_naval_adjacent_foe_prefer_weak(void) {
   units.types[0].domain = COLONIZE_UNIT_DOMAIN_SEA;
   units.types[0].attack = 8;
   units.types[0].defense = 8;
+  units.types[0].guns = 32; /* NAMES @UNIT guns/hull: sink roll inputs */
+  units.types[0].hull = 64;
   snprintf(units.types[1].name, sizeof(units.types[1].name), "Caravel");
   units.types[1].movement = 4;
   units.types[1].domain = COLONIZE_UNIT_DOMAIN_SEA;
   units.types[1].attack = 0;
   units.types[1].defense = 1;
+  units.types[1].guns = 0;
+  units.types[1].hull = 4;
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
