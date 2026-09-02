@@ -75,6 +75,8 @@ bool game_in_hall_of_fame(const ColonizeGameState* game);
  */
 bool game_in_colony_screen(const ColonizeGameState* game);
 bool game_in_europe_screen(const ColonizeGameState* game);
+/* Start OPENING.EXE if settings allow. True while the intro owns the screen. */
+bool game_try_start_intro(ColonizeGameState* game);
 /* Any modal that swallows input (AI popup, name entry, save/load, ...). */
 bool game_modal_open(const ColonizeGameState* game);
 /* AI popup queued but not presented yet: feed one idle frame before keys. */

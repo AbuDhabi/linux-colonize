@@ -29,6 +29,7 @@ static void test_missing_file_defaults(void) {
   check(s.background_music && s.event_music && s.sound_effects, "default sound on");
   check(s.window_scale == 2 && s.windowed, "default display");
   check(!s.no_sound && s.seed == 0 && !s.seed_present, "default launch flags off");
+  check(!s.skip_intro, "default skip_intro false (play intro first run)");
   check(strcmp(s.data_dir, "./COLONIZE") == 0, "default data_dir");
   check(s.save_dir[0] == '\0', "default save_dir empty (platform default)");
   check(s.debug_menu && s.show_mouse_coords && !s.show_building_rects, "default debug overlay");
@@ -51,6 +52,7 @@ static void test_roundtrip(void) {
   out.debug_menu = false;
   out.show_mouse_coords = false;
   out.show_building_rects = true;
+  out.skip_intro = true;
   snprintf(out.data_dir, sizeof(out.data_dir), "/tmp/col-data");
   snprintf(out.save_dir, sizeof(out.save_dir), "/tmp/col-saves");
 

@@ -56,6 +56,7 @@ defaults no matter what file is sitting in the build directory.
   "data_dir": "./COLONIZE",
   "save_dir": "",
   "no_sound": false,
+  "skip_intro": false,
   "seed": null
 }
 ```
@@ -111,6 +112,15 @@ to consult, so `settings.json` ships the Discoverer value and, once present,
 is absolute — a stored preference outranking a difficulty default is the point
 of the file.
 
+## Intro cinematic (`skip_intro`)
+
+First run writes `"skip_intro": false` and plays `OPENING.EXE` (sailing
+panorama, ship, credits — `src/core/opening.c`). After the cinematic
+finishes or the player skips it (two keys or clicks), the port sets
+`skip_intro` true and flushes, so the next launch goes straight to the title
+menu. Set it back to `false` in the file to watch again. Tests never call
+`settings_init`, so harnesses never play it.
+
 ## What is *not* in the file
 
 The rest of `game_options` (`DS:0x5382` low bits: `woi`, `ref_present`,
@@ -130,5 +140,5 @@ touches those bits — `unit_settings` asserts it.
 4. Extend `tests/unit/test_settings.c`.
 
 Port-only options with no DOS bit (`data_dir`, `save_dir`, `no_sound`, `seed`,
-`display`, `debug`, and future ones like key bindings) skip the head bridge
+`display`, `debug`, `skip_intro`, and future ones like key bindings) skip the head bridge
 entirely.

@@ -67,6 +67,7 @@ add_library(colonize_core STATIC
   src/core/debug_atlas.c
   src/core/declaration.c
   src/core/closing.c
+  src/core/opening.c
   src/core/woodcut.c
   src/core/units.c
   src/core/colony.c
@@ -233,6 +234,7 @@ add_executable(smoke_game_flow
   src/core/debug_atlas.c
   src/core/declaration.c
   src/core/closing.c
+  src/core/opening.c
   src/core/woodcut.c
   src/core/units.c
   src/core/colony.c
@@ -302,6 +304,7 @@ add_executable(unit_new_game
   src/core/debug_atlas.c
   src/core/declaration.c
   src/core/closing.c
+  src/core/opening.c
   src/core/woodcut.c
   src/core/units.c
   src/core/colony.c
@@ -382,6 +385,7 @@ add_executable(unit_hall_of_fame
   src/core/debug_atlas.c
   src/core/declaration.c
   src/core/closing.c
+  src/core/opening.c
   src/core/woodcut.c
   src/core/units.c
   src/core/colony.c
@@ -900,6 +904,24 @@ target_include_directories(unit_closing PRIVATE
 
 add_test(NAME unit_closing COMMAND unit_closing WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
+add_executable(unit_opening
+  tests/unit/test_opening.c
+  src/core/opening.c
+  src/core/ss.c
+  src/core/pik.c
+  src/core/madspack.c
+  src/core/assets.c
+  src/platform/diagnostics.c
+  src/core/strutil.c
+  src/platform/dos_compat/dos_compat.c
+)
+
+target_include_directories(unit_opening PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
+add_test(NAME unit_opening COMMAND unit_opening WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+
 add_executable(smoke_ss
   tests/smoke/test_ss.c
   src/core/ss.c
@@ -1316,6 +1338,7 @@ add_executable(smoke_play
   src/core/debug_atlas.c
   src/core/declaration.c
   src/core/closing.c
+  src/core/opening.c
   src/core/woodcut.c
   src/core/units.c
   src/core/colony.c

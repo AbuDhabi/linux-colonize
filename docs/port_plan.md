@@ -1889,6 +1889,14 @@ gameplay/determinism. Most rows need the user's visual-fidelity judgement.
     (or a WON latch with no popups); any key/click skips to the retire
     score. Cheer sting COLDIG 15 (`0x5a`) + BGM pool 3. Test:
     `unit_closing`.
+  - [x] **OPENING.EXE title intro — Done 2026-09-02.** `COLONIZE.BAT` is
+    `opening -g`. Player `COLONIZE/OPENING.EXE`; art `OPENING.PIK`
+    (960×132 panorama) + `OPENBORD.PIK` (colour-0 window y=24..155),
+    `OPENSHIP.SS` + `PATH.DAT` (701 world points), series sheets from
+    `OPENING.TXT` `@OPENING`, credit plates `@CREDITS` / `OPENCRD1/2/3`.
+    Camera follows the ship (clamped to 640). Two key/click skip.
+    `skip_intro` in settings.json (first run false, then true after play).
+    Test: `unit_opening`.
   - [x] **`DECLARAT.PIK` animation — retracted 2026-08-30, wrong premise.**
     `DECLARAT.PIK` is the *signed* parchment and is referenced by **no**
     executable in the shipped game (`grep -abo DECLARAT COLONIZE/*.EXE`
