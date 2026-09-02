@@ -208,6 +208,8 @@ static void test_logo_and_credit_layout(void) {
     int scene = 0;
     int below = 0;
     int min_below = 200;
+    int min_x = 320;
+    int max_x = -1;
     for (int y = 0; y < 200; ++y) {
       for (int x = 0; x < 320; ++x) {
         if (before[y * 320 + x] == o.canvas[y * 320 + x]) {
@@ -220,11 +222,19 @@ static void test_logo_and_credit_layout(void) {
           if (y < min_below) {
             min_below = y;
           }
+          if (x < min_x) {
+            min_x = x;
+          }
+          if (x > max_x) {
+            max_x = x;
+          }
         }
       }
     }
     check(below > 200, "credit banner appears below the map");
-    check(min_below >= OPENING_CREDIT_TOP, "credit pixels stay out of the scene");
+    check(min_below >= OPENING_CREDIT_TOP + OPENING_CREDIT_BORDER,
+          "credit pixels sit below the map border");
+    check((min_x + max_x) / 2 == 159, "credit banner horizontally centered");
     if (below > 200) {
       below_hits++;
     }
