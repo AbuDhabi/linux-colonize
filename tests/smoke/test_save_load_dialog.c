@@ -75,7 +75,7 @@ int main(void) {
   }
 
   SaveLoadDialog dlg;
-  if (!save_load_open(&dlg, SAVE_LOAD_MODE_SAVE, dir)) {
+  if (!save_load_open(&dlg, SAVE_LOAD_MODE_SAVE, dir, NULL, NULL)) {
     fprintf(stderr, "save open failed\n");
     return 1;
   }
@@ -89,7 +89,7 @@ int main(void) {
   }
   save_load_close(&dlg);
 
-  if (!save_load_open(&dlg, SAVE_LOAD_MODE_LOAD, dir)) {
+  if (!save_load_open(&dlg, SAVE_LOAD_MODE_LOAD, dir, NULL, NULL)) {
     fprintf(stderr, "load open failed\n");
     return 1;
   }
@@ -109,7 +109,7 @@ int main(void) {
   }
 
   /* Empty slot must not confirm in Load mode. */
-  if (!save_load_open(&dlg, SAVE_LOAD_MODE_LOAD, dir)) {
+  if (!save_load_open(&dlg, SAVE_LOAD_MODE_LOAD, dir, NULL, NULL)) {
     fprintf(stderr, "load reopen failed\n");
     return 1;
   }

@@ -33,7 +33,7 @@ choices from data where a real `@SECTION` exists.
 | Building slot max | `colony.c` / `game_loop` | `@MORETHANTHREE` | Authentic | Assign-to-building now caps at 3 workers and shows this |
 | EOT starve/spoil/ship/warn | `turn.c` | `@STARVE1` / `@SPOIL1` / `@CARGOREADY0` / `@WARN*` | Authentic | — |
 | Pick music | `pick_music` | `@PICKMUSIC` | Authentic | — |
-| Save/load title | `save_load_dialog` | — | Invented title strings | Keep UI; titles cosmetic |
+| Save/load title | `save_load_dialog` | `@SAVEGAME` / `@LOADGAME` | Authentic | Title + @width=190 from GAME.TXT; rows per FUN_7562_0052 ("Diff Leader of the Nation, Season Year" / "(EMPTY)") |
 | Unit stack | `unit_stack` | — | n/a (unit names) | — |
 | FF debate CHOICE | `founding_fathers.c` | `@WHICHFREEDOM` | Authentic | Choices remain FF names |
 | FF elect OK | same | `@FREEDOM` | Authentic | — |

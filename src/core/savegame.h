@@ -45,6 +45,8 @@ typedef struct ColonizeSaveSlotInfo {
   uint16_t year;
   uint16_t autumn;
   uint16_t turn;
+  uint8_t difficulty; /* head.difficulty 0..4 */
+  uint8_t human_nation; /* first player with control == 0 */
 } ColonizeSaveSlotInfo;
 
 bool savegame_probe_col1_slot(

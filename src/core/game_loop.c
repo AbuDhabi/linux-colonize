@@ -3136,7 +3136,10 @@ static void game_open_save_load(ColonizeGameState* game, SaveLoadMode mode) {
     return;
   }
   const char* dir = game->config.save_dir ? game->config.save_dir : savegame_default_dir();
-  if (!save_load_open(&game->save_load, mode, dir)) {
+  const ColonizeFont* popup_font =
+    game->intro_font_ok ? &game->intro_font
+    : (game->menu_font_ok ? &game->menu_font : NULL);
+  if (!save_load_open(&game->save_load, mode, dir, &game->messages, popup_font)) {
     set_status(game, mode == SAVE_LOAD_MODE_SAVE ? "Save unavailable" : "Load unavailable", NULL);
   }
 }
@@ -13255,9 +13258,13 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
     if (game->save_load.open) {
       ColonizePopupColors popup_cols;
       popup_colors_from_ui(&popup_cols);
+      /* DOS uses the FONTINTR dialog font here, not the FONTTINY HUD one. */
+      const ColonizeFont* popup_font =
+        game->intro_font_ok ? &game->intro_font
+        : (game->menu_font_ok ? &game->menu_font : hud_font);
       save_load_render(
         (SaveLoadDialog*)&game->save_load,
-        hud_font,
+        popup_font,
         wood,
         &popup_cols,
         COLONIZE_COL_BASIC,

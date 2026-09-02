@@ -169,5 +169,7 @@ bool savegame_probe_col1_slot(
   out->year = head.year;
   out->autumn = head.autumn;
   out->turn = head.turn;
+  out->difficulty = head.difficulty;
+  out->human_nation = (uint8_t)human;
   return true;
 }
