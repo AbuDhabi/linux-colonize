@@ -497,7 +497,10 @@ static void game_move_watch(
             UNITS_ORDER_NONE,
             false,
             false,
-            NULL
+            /* bugs.md: NULL here fell back to the raw ICONS.SS fill index,
+             * which the game palette repurposes (Dutch orange → pink while
+             * moving). Use the frame's real palette like the static draw. */
+            &pal
           );
           if (!platform_present(game->platform, &fb, &pal)) {
             break;
@@ -589,7 +592,8 @@ static void game_combat_watch(
       UNITS_ORDER_NONE,
       false,
       false,
-      NULL
+      /* bugs.md: same palette rule as the move slide — raw index went pink. */
+      &pal
     );
     if (!platform_present(game->platform, &fb, &pal)) {
       break;
@@ -13579,6 +13583,7 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
         &popup_cols,
         COLONIZE_COL_BASIC,
         COLONIZE_COL_SELECT,
+        palette,
         framebuffer
       );
     }

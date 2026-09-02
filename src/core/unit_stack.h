@@ -66,6 +66,7 @@ void unit_stack_render(
   const ColonizePopupColors* colors,
   uint8_t text_color,
   uint8_t select_color,
+  const ColonizePalette* active_palette, /* frame palette for nation-fill remap */
   ColonizeFramebuffer8* framebuffer
 );
 

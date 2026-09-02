@@ -3447,10 +3447,61 @@ static int reports_count_ff_for_nation(const ColonizeCol1Save* col1, int human) 
  *   other purposes) overcounts: applying it to every scored-colonist unit
  *   in that save gives 180, not the golden's 158.
  */
+/*
+ * bugs.md (score_screen.SAV): Score-strip icon for a counted UNIT. DOS
+ * FUN_41f2_0092 draws each unit with its map icon (FUN_281f_02da — type icon
+ * incl. equipment, downgraded to the generic 0x4a..0x4e pose when the
+ * profession isn't the kit's own expert) and only swaps a GENERIC pose for
+ * the profession portrait (02c6). So Veteran Soldiers/Dragoons/Scouts/
+ * Pioneers keep their full kit, Regulars/Cavalry/Continentals keep their own
+ * @UNIT art, and a plain-equipped expert shows his skill portrait instead.
+ * Icon constants: NAMES @UNIT icon column − 1 (1-based sheet).
+ */
+static int reports_score_unit_icon(int type, int prof) {
+  const bool vet = (prof == UNITS_JOB_SOLDIER || prof == UNITS_JOB_DRAGOON);
+  int icon = -1;
+  switch (type) {
+  case 1: /* Soldiers */
+    icon = vet ? UNITS_ICON_VETERAN_SOLDIER : UNITS_ICON_SOLDIER;
+    break;
+  case 2: /* Pioneers */
+    icon = (prof == UNITS_JOB_PIONEER) ? UNITS_ICON_HARDY_PIONEER : UNITS_ICON_PIONEER;
+    break;
+  case 3: /* Missionaries: NAMES icon 106, generic pose 77 */
+    icon = (prof == UNITS_JOB_MISSIONARY) ? 105 : 77;
+    break;
+  case 4: /* Dragoons */
+    icon = vet ? UNITS_ICON_VETERAN_DRAGOON : UNITS_ICON_DRAGOON;
+    break;
+  case 5: /* Scouts */
+    icon = (prof == UNITS_JOB_SCOUT) ? UNITS_ICON_SEASONED_SCOUT : UNITS_ICON_SCOUT;
+    break;
+  case 6: /* Regulars */
+    return 125;
+  case 7: /* Cont. Cav. */
+    return 129;
+  case 8: /* Cavalry */
+    return 126;
+  case 9: /* Cont. Army */
+    return 128;
+  default:
+    break;
+  }
+  /* Colonists-type, or a generic equipped pose → profession portrait. */
+  if (icon < 0 || (icon >= UNITS_ICON_PIONEER && icon <= 77)) {
+    const int by_job = units_job_icon_sprite(reports_resolve_job(prof, type));
+    if (by_job >= 0) {
+      return by_job;
+    }
+  }
+  return icon;
+}
+
 static int reports_score_collect_citizen_jobs(
   const ColonizeCol1Save* col1,
   int human,
   int* jobs_out,
+  int* icons_out, /* optional: per-citizen strip sprite (equipped for units) */
   int max_out
 ) {
   int count = 0;
@@ -3466,7 +3517,11 @@ static int reports_score_collect_citizen_jobs(
       c->population > COLONIZE_COL1_COLONY_POP_MAX ? COLONIZE_COL1_COLONY_POP_MAX
                                                    : (int)c->population;
     for (int p = 0; p < pop && count < max_out; ++p) {
-      jobs_out[count++] = reports_resolve_job((int)c->profession[p], -1);
+      const int job = reports_resolve_job((int)c->profession[p], -1);
+      if (icons_out) {
+        icons_out[count] = units_job_icon_sprite(job);
+      }
+      jobs_out[count++] = job;
     }
   }
   for (uint16_t i = 0; i < col1->head.unit_count && count < max_out; ++i) {
@@ -3480,6 +3535,9 @@ static int reports_score_collect_citizen_jobs(
     const int prof = (int)u->profession;
     if (prof < 0 || prof >= k_job_count) {
       continue;
+    }
+    if (icons_out) {
+      icons_out[count] = reports_score_unit_icon((int)u->type, prof);
     }
     jobs_out[count++] = prof;
   }
@@ -3592,7 +3650,7 @@ void reports_compute_score(
     {
       int jobs[REPORTS_SCORE_CITIZENS_MAX];
       const int n =
-        reports_score_collect_citizen_jobs(col1, human, jobs, REPORTS_SCORE_CITIZENS_MAX);
+        reports_score_collect_citizen_jobs(col1, human, jobs, NULL, REPORTS_SCORE_CITIZENS_MAX);
       for (int i = 0; i < n; ++i) {
         out->citizens += reports_citizen_points_for_job(jobs[i]);
       }
@@ -3717,7 +3775,7 @@ static void reports_score_fill_rect(
 static void reports_score_draw_citizen_icons(
   const ColonizeReportsView* view,
   ColonizeFramebuffer8* fb,
-  const int* jobs,
+  const int* icons,
   int count,
   int x,
   int y,
@@ -3729,7 +3787,7 @@ static void reports_score_draw_citizen_icons(
   int icon_w = 6;
   int icon_h = 16;
   for (int i = 0; i < count; ++i) {
-    const int probe = units_job_icon_sprite(jobs[i]);
+    const int probe = icons[i];
     if (probe >= 0 && probe < view->icons.sprite_count) {
       icon_w = view->icons.sprites[probe].width;
       icon_h = view->icons.sprites[probe].height;
@@ -3740,7 +3798,7 @@ static void reports_score_draw_citizen_icons(
   const int row_dy = icon_h / 2;
   const int row_dx = icon_w / 2;
   for (int i = 0; i < count; ++i) {
-    const int icon = units_job_icon_sprite(jobs[i]);
+    const int icon = icons[i];
     if (icon < 0 || icon >= view->icons.sprite_count) {
       continue;
     }
@@ -3847,10 +3905,15 @@ static void reports_render_score(
     body_font, fb, REPORTS_SCORE_LEFT_X, REPORTS_SCORE_CITIZENS_Y, line, REPORTS_SCORE_GREEN_COLOR
   );
   {
+    /* bugs.md (score_screen.SAV): strip icons are per-citizen sprites —
+     * equipped map art for units (Continentals, veterans with kit), job
+     * portraits for colony population. */
     int jobs[REPORTS_SCORE_CITIZENS_MAX];
-    const int n = reports_score_collect_citizen_jobs(col1, human, jobs, REPORTS_SCORE_CITIZENS_MAX);
+    int icons[REPORTS_SCORE_CITIZENS_MAX];
+    const int n =
+      reports_score_collect_citizen_jobs(col1, human, jobs, icons, REPORTS_SCORE_CITIZENS_MAX);
     reports_score_draw_citizen_icons(
-      view, fb, jobs, n, REPORTS_SCORE_ICON_X, REPORTS_SCORE_ICON_Y, REPORTS_SCORE_ICON_W
+      view, fb, icons, n, REPORTS_SCORE_ICON_X, REPORTS_SCORE_ICON_Y, REPORTS_SCORE_ICON_W
     );
   }
 
