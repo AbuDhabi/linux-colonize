@@ -164,7 +164,7 @@ Topic hub (graphics, units, settlements, alarm, contact): [indians.md](indians.m
 | Quit / Exit | Done | |
 | Retire → score / HoF | Done | `FUN_41f2_14a8` chain 2026-08-29: `@RETIRE` confirm → F10 → exploits screen (`FUN_41f2_0b70`: WOODPAN2, `@EXPLOITS` + `@SCORE` build-up list, `SCORE<tier+1>.SS` picture, surname-substituted name; skipped when no tier / scoring complete) → Hall of Fame → title; rating + flags persist via `HOF.TXT` |
 | Revolution victory / failure | Done thin | `@WINNING` / `@LOSING1`–`3` / `@RETIRING2` + latches; `@WARN1`–`3` Done thin |
-| Auto-end 1800 / 1850 | Done thin | Peacetime year≥1800 `@SCORED` → `@RETIRING` + retire score; `@SOONRETIRING0`/`1`; WoI `@WINNING` / `@RETIRING2` at 1850 |
+| Auto-end 1800 / 1850 | Done thin | Peacetime year≥1800 `@SCORED` → `@RETIRING` + retire score; `@SOONRETIRING0`/`1`; WoI `@WINNING` → `@KINGLOSE` → CLOSING.EXE cinematic (`closing.c`) → score; `@RETIRING2` at 1850 |
 
 ---
 

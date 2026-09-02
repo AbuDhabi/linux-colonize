@@ -398,7 +398,7 @@ Press **C** on the map when the cursor is on a founded colony to open the colony
 
 **Resource-count strip** (`colony_screen_draw_resource_count` / `_pair` / `draw_icon_strip`): one icon per unit, evenly spaced in a rect; when start-to-start spacing is ≤ 1px (nearly total overlap), overlay the amount on the **left** with a black outline and a caller-chosen foreground (white / green / red / …). An `always_show_number` flag exists but is unused by current call sites. Used for area yields, people meters, Production tab, Construction accumulated hammers (two rows of progress toward the project, not total cost), and settlement building/fence colonists. Fisherman yields still count as food cargo; colony UI only swaps the icon to `ICONS.SS` **#57** (fish before grain when both appear in one strip). Colonist/unit strips pass a `selected_index` so individual icons are selectable; resource strips pass `-1`.
 
-`CLOS-BKG.PIK` is the independence closing-sequence backdrop — not used here.
+`CLOS-BKG.PIK` is the independence closing-sequence backdrop (CLOSING.EXE / `closing.c`) — not used on the colony screen.
 
 Single-pixel black separators split the sections: top bar vs middle band, buildings vs minimap, and middle band vs bottom panel.
 

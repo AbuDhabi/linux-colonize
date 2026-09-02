@@ -305,7 +305,8 @@ Repo SoundFont (not in `COLONIZE/`): `data/soundfonts/Roland_SC-55.sf2`.
 |------|---------|
 | `VICEROY.EXE` | Main game — decomp + table extraction |
 | `MAPEDIT.EXE` | Map editor — static map art rules |
-| `OPENING.EXE` / `CLOSING.EXE` | Intro / outro |
+| `OPENING.EXE` | Intro player (not ported) |
+| `CLOSING.EXE` | Rebel-victory outro — ported as `src/core/closing.c` |
 | `INSTALL.EXE` / `MPSCOPY.EXE` | Installer / copy |
 | `COLONIZE.BAT` / `COLDEMO.BAT` | Launchers |
 

@@ -21,6 +21,7 @@
 #include "core/colony_screen.h"
 #include "core/combat_strength.h"
 #include "core/debug_atlas.h"
+#include "core/closing.h"
 #include "core/declaration.h"
 #include "core/dos_rng.h"
 #include "core/europe.h"
@@ -161,6 +162,14 @@ struct ColonizeGameState {
    */
   DeclarationCinematic declaration;
   bool declaration_played;
+  /*
+   * CLOSING.EXE rebel-victory cinematic (CLOS-BKG + hats / bell / fireworks).
+   * Armed after the @KINGLOSE audience (or a WON latch with no popups);
+   * dismissal / natural end opens the retire score chain.
+   */
+  ClosingCinematic closing;
+  bool closing_just_opened;
+  bool closing_then_score;
   /*
    * Milestone woodcut screens (FUN_12fd_006c → FUN_6f30_0062). Trigger sites
    * call woodcut_fire(); the queue is drained here once no other modal owns
@@ -639,6 +648,7 @@ static void game_bind_combat_analysis(ColonizeGameState* game) {
   europe_set_sound_hook(sound_play);
   europe_set_bgm_hook(sound_set_bgm);
   woodcut_set_sound_hooks(sound_play, sound_set_bgm);
+  closing_set_sound_hooks(sound_play, sound_set_bgm);
 }
 
 static void game_refresh_orders_menu(ColonizeGameState* game) {
@@ -707,6 +717,7 @@ static void game_wait_next_unit(ColonizeGameState* game);
 static bool game_turn_flow_allowed(const ColonizeGameState* game);
 static bool game_defer_turn_flow(ColonizeGameState* game);
 static void game_open_retire_score(ColonizeGameState* game);
+static void game_begin_win_closing_or_score(ColonizeGameState* game);
 static void game_open_trade_unload_picker(ColonizeGameState* game);
 static int game_trade_route_aim_stop(ColonizeGameState* game, ColonizeUnit* u, int stop_i);
 static void game_set_view_center(ColonizeGameState* game, int x, int y);
@@ -2018,6 +2029,9 @@ static bool game_handle_modal_input(ColonizeGameState* game, const ColonizeInput
   if (game->declaration.open) {
     return declaration_handle_input(&game->declaration, input);
   }
+  if (game->closing.open) {
+    return closing_handle_input(&game->closing, input);
+  }
   if (game->pick_music.open) {
     const ColonizeFont* pm_font = game->colony_font_ok ? &game->colony_font :
                                   (game->menu_font_ok ? &game->menu_font : NULL);
@@ -2521,7 +2535,7 @@ static void game_apply_ai_popup_result(ColonizeGameState* game) {
    * loss popups with no audience behind them) retires straight away; payload
    * 1 (@WINNING) and 4 (@LOSINGn) have the KING_THRONE audience queued next,
    * and the retire score waits for its dismissal (DOS 3844_0442 order:
-   * announcement → throne audience → score chain). */
+   * announcement → throne audience → CLOSING.EXE → score chain). */
   if (game->ai_popups.result_tag == AI_POPUP_TAG_KING_WAR_END &&
       game->ai_popups.result_payload == 2) {
     game->war_end_retired = true;
@@ -2530,7 +2544,11 @@ static void game_apply_ai_popup_result(ColonizeGameState* game) {
   if (game->ai_popups.result_tag == AI_POPUP_TAG_KING_THRONE) {
     game->war_end_retired = true;
     game->war_end_won = (game->ai_popups.result_payload == 1);
-    game_open_retire_score(game);
+    if (game->war_end_won) {
+      game_begin_win_closing_or_score(game);
+    } else {
+      game_open_retire_score(game);
+    }
   }
   /* Post-HoF @SCORED (WoI win): "That's all." ends at the title menu; "Keep
    * playing anyway." resumes the map (DOS main-loop 0x104 block: FUN_281f_03fe
@@ -3942,6 +3960,25 @@ static void game_open_retire_score(ColonizeGameState* game) {
   set_status(game, "Retired — Colonization Score", "Enter/Esc returns to menu");
 }
 
+/*
+ * DOS: VICEROY execs CLOSING.EXE after the @KINGLOSE audience and before
+ * FUN_41f2_14a8. Missing art skips straight to the score plate.
+ */
+static void game_begin_win_closing_or_score(ColonizeGameState* game) {
+  if (!game) {
+    return;
+  }
+  game->war_end_retired = true;
+  game->war_end_won = true;
+  if (closing_open(&game->closing, game->resolved_data_dir)) {
+    game->closing_just_opened = true;
+    game->closing_then_score = true;
+    set_status(game, "Independence", NULL);
+    return;
+  }
+  game_open_retire_score(game);
+}
+
 /* GAME.TXT @SCORED after a WoI win's score chain (DOS main-loop 0x104 block):
  * "That's all." (1) quits to the title menu, "Keep playing anyway." (2)
  * resumes the campaign. */
@@ -5344,7 +5381,7 @@ static void game_water_cycle_tick(ColonizeGameState* game) {
   if (game->water_cycle_count == 0 || !game->map_palette_ok || game->in_menu ||
       game->in_colony || game->in_europe || game->in_pedia || game->in_report ||
       game->in_debug_atlas || game->in_hall_of_fame || game->in_exploits ||
-      game->woodcut.open || game->declaration.open) {
+      game->woodcut.open || game->declaration.open || game->closing.open) {
     return;
   }
   if (game->col1.head.game_options.water_color_cycling != 0) { /* bit set = off */
@@ -5828,6 +5865,7 @@ void game_destroy(ColonizeGameState* game) {
   combat_analysis_set_presenter(NULL, NULL);
   combat_analysis_close(&game->combat_analysis);
   declaration_close(&game->declaration);
+  closing_close(&game->closing);
   woodcut_close(&game->woodcut);
   woodcut_clear_pending();
   pik_free(&game->menu_bg);
@@ -9509,7 +9547,8 @@ static void game_map_click_dispatch(ColonizeGameState* game, int mx, int my) {
  */
 static bool game_service_woodcut(ColonizeGameState* game, const ColonizeInputState* input) {
   bool just_opened = false;
-  if (!game->woodcut.open && !game->declaration.open && !game->in_menu &&
+  if (!game->woodcut.open && !game->declaration.open && !game->closing.open &&
+      !game->in_menu &&
       woodcut_has_pending()) {
     const int wid = woodcut_take_pending();
     just_opened = wid >= 0 &&
@@ -9527,6 +9566,32 @@ static bool game_service_woodcut(ColonizeGameState* game, const ColonizeInputSta
     return true;
   }
   return false;
+}
+
+static bool game_service_closing(
+  ColonizeGameState* game,
+  const ColonizeInputState* input,
+  uint32_t dt_ms
+) {
+  if (!game || !game->closing.open) {
+    return false;
+  }
+  if (!game->closing_just_opened) {
+    (void)closing_handle_input(&game->closing, input);
+  }
+  game->closing_just_opened = false;
+  if (game->closing.open) {
+    if (game->closing.finished) {
+      closing_close(&game->closing);
+    } else {
+      closing_update(&game->closing, dt_ms);
+    }
+  }
+  if (!game->closing.open && game->closing_then_score) {
+    game->closing_then_score = false;
+    game_open_retire_score(game);
+  }
+  return true;
 }
 
 bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint32_t dt_ms) {
@@ -9601,6 +9666,9 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
     if (game_service_woodcut(game, input)) {
       return true;
     }
+    if (game_service_closing(game, input, dt_ms)) {
+      return true;
+    }
     if (game_modal_open(game) || ai_popup_busy(&game->ai_popups)) {
       (void)game_handle_modal_input(game, input);
       return true;
@@ -9649,11 +9717,14 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
       !game->in_menu && !game->in_report &&
       !game->in_hall_of_fame && !game->in_exploits) {
     const int endgame = ai_king_latch_get(&game->col1, AI_KING_ENDGAME_BYTE);
-    if (endgame == AI_KING_ENDGAME_LOST ||
-        (endgame == AI_KING_ENDGAME_WON && !game->col1.head.game_options.calendar_latch)) {
+    if (endgame == AI_KING_ENDGAME_LOST) {
       game->war_end_retired = true;
-      game->war_end_won = (endgame == AI_KING_ENDGAME_WON);
+      game->war_end_won = false;
       game_open_retire_score(game);
+      return true;
+    }
+    if (endgame == AI_KING_ENDGAME_WON && !game->col1.head.game_options.calendar_latch) {
+      game_begin_win_closing_or_score(game);
       return true;
     }
   }
@@ -9711,6 +9782,10 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
     if (game->declaration.open) {
       declaration_update(&game->declaration, dt_ms);
     }
+    return true;
+  }
+
+  if (game_service_closing(game, input, dt_ms)) {
     return true;
   }
 
@@ -12444,6 +12519,11 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
     return;
   }
 
+  if (game->closing.open) {
+    closing_render(&game->closing, framebuffer, palette);
+    return;
+  }
+
   /* War-end throne audience owns the whole screen (KINGLSS palette): the
    * KING_THRONE popup renders as the DOS FUN_75c2_20e2 audience — KINGLOSE.SS
    * king when the player won (@KINGLOSE scroll at 232/31/68), KINGWIN.SS when
@@ -13618,7 +13698,7 @@ bool game_modal_open(const ColonizeGameState* game) {
   return game->ai_popups.open || game->name_entry.open || game->howmuch.open ||
          game->save_load.open || game->cheat_list.open || game->unit_stack.open ||
          game->options_dlg.open || game->pick_music.open || game->combat_analysis.open ||
-         game->declaration.open || game->woodcut.open;
+         game->declaration.open || game->woodcut.open || game->closing.open;
 }
 
 bool game_ai_popup_pending(const ColonizeGameState* game) {

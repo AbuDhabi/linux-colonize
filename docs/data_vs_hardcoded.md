@@ -107,7 +107,8 @@ SoundFont for FluidSynth is **not** in `COLONIZE/` (`data/soundfonts/`). Numeric
 |-----|---------------------|
 | **`VICEROY.EXE`** | Main game. Extract static DS tables; decomp for map gen, AI, UI, economy, combat. |
 | **`MAPEDIT.EXE`** | Authority for **static map feature art** (coasts, forests, hills, rivers, resource type-by-terrain). |
-| **`OPENING.EXE` / `CLOSING.EXE`** | Intro/outro players — port later from assets + decomp if needed. |
+| **`OPENING.EXE`** | Intro player — port later from assets + decomp if needed. |
+| **`CLOSING.EXE`** | Rebel-victory outro — **Done** (`src/core/closing.c`). Art `CLOS-BKG.PIK` + `CLOS-{HAT,LDY,MAN,MIL,FWK,ROC,BEL}.SS`; timeline `CLOSING.TXT` `@CLOSING`. VICEROY execs `closing -gok` after `@KINGLOSE`, then CLOSING returns via `viceroy -ow` into the score chain. |
 
 ---
 
