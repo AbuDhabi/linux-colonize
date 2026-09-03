@@ -1591,18 +1591,6 @@ static int ai_contact_is_jesuit_grade(
   return 0;
 }
 
-/* Soldier / Scout / Pioneer / Dragoon / Artillery — encroachment types. */
-static int ai_contact_is_encroacher(const ColonizeUnitPool* units, const ColonizeUnit* u) {
-  const char* name = units_display_name(units, u);
-  if (!name) {
-    return 0;
-  }
-  /* "Soldier" also matches Veteran Soldier; Dragoon/Artillery = military presence. */
-  return strstr(name, "Soldier") != NULL || strstr(name, "Scout") != NULL ||
-         strstr(name, "Pioneer") != NULL || strstr(name, "Dragoon") != NULL ||
-         strstr(name, "Artillery") != NULL;
-}
-
 /*
  * Alarm growth dampers (wiki/fandom Alarm):
  * - Pocahontas: Indian alarm generated half as fast for that Euro.
@@ -4308,102 +4296,16 @@ void ai_contact_indian_prelude(ColonizeTurnContext* ctx, int nation_id) {
   }
 
   /*
-   * Encroachment deepen (dialog chrome PARKED): Soldier/Scout/Pioneer/Dragoon within
-   * Chebyshev ≤2 of a tribe with no mission → +2 tribe friction + alarm_by_player
-   * toward that Euro (cap 100). Pocahontas halves bump (wiki/fandom half-rate).
+   * Retired 2026-09-03 (bugs.md "alarm rises incredibly fast"): the former
+   * unit-encroacher and colony-encroachment +2/turn direct bumps on tribe
+   * friction + alarm_by_player were fandom-invented, not DOS. DOS grows
+   * alarm only through FUN_4d56_152e's threat-score accumulator (colonies
+   * within distance 7 + the 20-tile military ring feed euro_relation_accum;
+   * every −8 crossing = alarm +1), which a 1-colonist colony scores ~0 on —
+   * hence decades of quiet in DOS vs ~50 turns to alarm 100 here. The
+   * @INDIANCOMMENT land-use chrome fired only off those invented bumps and
+   * retires with them (DOS's own trigger unlocated).
    */
-  if (ctx->units) {
-    for (int ui = 0; ui < COLONIZE_UNITS_MAX; ++ui) {
-      ColonizeUnit* u = &ctx->units->units[ui];
-      if (!u->active || u->nation_id < 0 || u->nation_id > 3) {
-        continue;
-      }
-      if (units_is_sea(ctx->units, u->id)) {
-        continue;
-      }
-      if (!ai_contact_is_encroacher(ctx->units, u)) {
-        continue;
-      }
-      const int e = u->nation_id;
-      const int bump = ai_contact_alarm_bump_amount(ctx->col1, e, 2);
-      if (bump <= 0) {
-        continue;
-      }
-      for (uint16_t ti = 0; ti < ctx->col1->head.tribe_count; ++ti) {
-        ColonizeCol1Tribe* t = &ctx->col1->tribe[ti];
-        if ((int)t->nation_id != nation_id) {
-          continue;
-        }
-        if (t->mission != COL1_TRIBE_MISSION_NONE) {
-          continue; /* mission present → no encroachment bump */
-        }
-        if (ai_contact_dist(u->x, u->y, t->x, t->y) > 2) {
-          continue;
-        }
-        ai_contact_bump_u8_cap100(&t->alarm[e].friction, bump);
-        ai_contact_bump_u16_cap100(&ind->alarm_by_player[e], bump);
-        /* @INDIANCOMMENT chrome only when colonies exist (see colony block). */
-      }
-    }
-  }
-
-  /*
-   * Colony encroachment (fandom Alarm; GAME.TXT @INDIANFOREST2 colony wording):
-   * Euro colony within Chebyshev ≤2 of unmissioned tribe → same +2 bump as
-   * unit encroachers (Pocahontas/French half). Reuses @INDIANCOMMENT mid-cross.
-   * Road/forest bribe CHOICE PARKED (no invented gold).
-   */
-  if (ctx->colonies) {
-    for (int ci = 0; ci < COLONIZE_COLONIES_MAX; ++ci) {
-      ColonizeColony* c = &ctx->colonies->colonies[ci];
-      if (!c->active || c->nation_id < 0 || c->nation_id > 3) {
-        continue;
-      }
-      const int e = c->nation_id;
-      const int bump = ai_contact_alarm_bump_amount(ctx->col1, e, 2);
-      if (bump <= 0) {
-        continue;
-      }
-      for (uint16_t ti = 0; ti < ctx->col1->head.tribe_count; ++ti) {
-        ColonizeCol1Tribe* t = &ctx->col1->tribe[ti];
-        if ((int)t->nation_id != nation_id) {
-          continue;
-        }
-        if (t->mission != COL1_TRIBE_MISSION_NONE) {
-          continue;
-        }
-        if (ai_contact_dist(c->x, c->y, t->x, t->y) > 2) {
-          continue;
-        }
-        const int fr_before = (int)t->alarm[e].friction;
-        ai_contact_bump_u8_cap100(&t->alarm[e].friction, bump);
-        ai_contact_bump_u16_cap100(&ind->alarm_by_player[e], bump);
-        if (fr_before < 40 && (int)t->alarm[e].friction >= 40) {
-          char comment_fb[AI_POPUP_BODY_LEN];
-          PopupMsgTokens tok;
-          memset(&tok, 0, sizeof(tok));
-          tok.string0 = ai_contact_tribe_name(nation_id);
-          tok.string1 = c->name[0] ? c->name : "our colonies";
-          popup_msg_fill(
-            ctx->messages,
-            "INDIANCOMMENT",
-            &tok,
-            "Natives are concerned that your colonies are beginning to overuse the lands near their settlements.",
-            comment_fb,
-            sizeof(comment_fb)
-          );
-          ai_contact_human_chrome(
-            ctx,
-            e,
-            AI_POPUP_TAG_CONTACT_MEET,
-            nation_id,
-            "Natives",
-            comment_fb
-          );
-        }
-      }
-    }
-  }
 
   /*
    * Mission pacifies: tribe with mission + low friction toward mission Euro →
@@ -4480,34 +4382,14 @@ void ai_contact_indian_relation_tick(ColonizeTurnContext* ctx, int nation_id) {
    * a Linux-only scalar; DOS alarm has no per-turn drift (seed-100 TURN3-7
    * saves) — the real ±1 is the 152e accumulator in ai.c. Friction part kept.
    */
-  for (int e = 0; e < 4; ++e) {
-    if (ctx->col1->player[e].control == 2) {
-      continue;
-    }
-    /*
-     * Goods/relation tick deepen (fandom Alarm cools / rises with band):
-     *  - met + alarm cool (<40) → tribe friction −1 (floor 0; <40 band)
-     *  - met + alarm hot (>40) → tribe friction +1 (cap 100)
-     * Same bands as relation ±1. Cite: indian_contact.md relation tick;
-     * deep 4962 census PARKED.
-     */
-    if (ind->euro_diplo[e] && ctx->col1->tribe) {
-      for (uint16_t ti = 0; ti < ctx->col1->head.tribe_count; ++ti) {
-        ColonizeCol1Tribe* t = &ctx->col1->tribe[ti];
-        if ((int)t->nation_id != nation_id) {
-          continue;
-        }
-        if (ind->alarm_by_player[e] < 40) {
-          if (t->alarm[e].friction > 0 && t->alarm[e].friction < 40) {
-            t->alarm[e].friction--;
-          }
-        } else {
-          /* alarm ≥40 mid/hot band — slight friction rise */
-          ai_contact_bump_u8_cap100(&t->alarm[e].friction, 1);
-        }
-      }
-    }
-  }
+  /*
+   * Retired 2026-09-03 (bugs.md "alarm rises incredibly fast"): the fandom
+   * friction ±1-per-turn band drift is gone with the encroachment bumps —
+   * DOS friction moves only through 152e (mission −3·local_8, threat-word
+   * bump + alarm/5) and discrete events (trade, raids, land-work), never a
+   * per-turn drift. Function kept as a no-op anchor for the 1816 pulse order.
+   */
+  (void)ind;
 }
 
 /*

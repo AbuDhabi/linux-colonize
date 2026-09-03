@@ -55,10 +55,10 @@ Annotated shell (quiet path only for act):
 |---|-------------|-------|
 | 1 | Reseed LCG (`04ca`); set active nation = indian+4 | `ai_nation_reseed` |
 | 2 | Select indian context + chrome | (no-op / turn cursor) |
-| 3 | Alarm prelude (NEW WORLD) | `ai_contact_indian_prelude` — flag body thin (dialog PARKED); encroachment + mission pacify; LCG burns stay in pulse |
+| 3 | Alarm prelude (NEW WORLD) | `ai_contact_indian_prelude` — flag body thin (dialog PARKED); mission pacify (encroachment drift retired 2026-09-03); LCG burns stay in pulse |
 | 4 | Clamp alarm byte ≥ 0 | prelude clamp |
 | 5 | Tribe growth loop (`41f2_0280` / `152e`) | `ai_grow_villages` |
-| 6 | Relation / goods tick (`2a1f_0270` → `4962_06b6`) | `ai_contact_indian_relation_tick` — met ±1 relation by alarm; cool tribe friction −1 / hot +1 (census body PARKED) |
+| 6 | Relation / goods tick (`2a1f_0270` → `4962_06b6`) | `ai_contact_indian_relation_tick` — no-op since 2026-09-03 (fandom ±1 friction drift retired; DOS has no per-turn drift; census body PARKED) |
 | 7 | Clear act_counter | pulse clears `turns_worked` |
 | 8 | Act loop → quiet `14fe` only | `ai_native_nation_pulse` (+ seed-100 overlays) |
 | 9 | Meet / trade / raid (other paths; not inside `14fe`) | post-pulse `ai_contact_indian_meet_trade` / `…_raids` |
@@ -77,21 +77,15 @@ when the Euro is human.
 
 1. Clamp `alarm_by_player` band; thin NEW WORLD flag body (isolated RNG; dialog PARKED).
    Escalate also bumps tribe friction (same amount as alarm).
-2. **Encroachment:** Euro land unit whose display name contains `Soldier` / `Scout` /
-   `Pioneer` / `Dragoon` / `Artillery`, **or Euro colony**, Chebyshev distance ≤ 2
-   from a tribe of this nation, and
-   `tribe.mission == 0xff` → bump that tribe's `alarm[euro].friction` and
-   `indian.alarm_by_player[euro]` by **+2** each (cap **100**).    Per unit×tribe
-   (and per colony×tribe).
-   **Pocahontas** (`founding_fathers_nation_has` / `FF_POCAHONTAS`): bumps
-   **halved** (floor; wiki/fandom — alarm generated half as fast).
-   First bump that crosses tribe friction into **≥40** → thin status
-   **"The %s are concerned about land use near their settlements."**
-   (`@INDIANCOMMENT`; dialog PARKED).
-   **French** (euro nation **1**): same half-rate national bonus (stacks with
-   Pocahontas → quarter); also **+1** auto-trade colony reach (cooperation
-   bias). Flag-body escalate bump (difficulty-scaled, sticky
-   `unknown31_flags` bit 0x20) uses the same half-rate helper.
+2. **Encroachment — RETIRED 2026-09-03** (bugs.md "alarm rises incredibly
+   fast"): the +2/turn unit×tribe and colony×tribe bumps were fandom-invented,
+   not DOS. DOS grows alarm only through `FUN_4d56_152e`'s threat-score
+   accumulator (colonies within distance 7 + the 20-tile military ring feed
+   `euro_relation_accum`; every −8 crossing = alarm +1) — a 1-colonist colony
+   scores ~0, matching decades of DOS quiet. The `@INDIANCOMMENT` chrome fired
+   only off those bumps and retired with them (DOS's own trigger unlocated).
+   Flag-body escalate bump (difficulty-scaled, sticky `unknown31_flags` bit
+   0x20) survives and still uses the Pocahontas/French half-rate helper.
 3. **Mission pacifies:** tribe with mission set to Euro `e`, and friction/alarm
    toward `e` low (`< 40`) → extra **−1** on tribe friction (and on
    `alarm_by_player` if also low). Floor 0.
@@ -412,8 +406,8 @@ remain **PARKED**. Player meet/trade/gift/teach **status chrome thinned**; **wid
 - **Done (thin sea/wagon trade):** auto-trade drains ship or Wagon Train
   TRADE_GOODS hold within French-5 / else-4 reach; sets `last_sold` outdoor cargo.
 - **Done (thin `@INDIANWAGONS`):** mid demand tools from wagon hold when colony short.
-- **Done (thin `@INDIANSCONVERT` / `@INDIANCOMMENT` / `@INDIANBURN`):** convert names
-  colony; encroachment mid-cross concern status; mission burn names tribe.
+- **Done (thin `@INDIANSCONVERT` / `@INDIANBURN`):** convert names colony; mission
+  burn names tribe. (`@INDIANCOMMENT` retired with the encroachment bumps.)
 - **Done (thin `@INDIANWIN0`/`LOSE` / raid tribe names):** adjacent ambush chrome;
   colony raid status names tribe / SCALP massacre / GOLD treasury.
 - **Done (thin foreign-mission heresy):** adjacent missionary vs foreign mission →
@@ -423,10 +417,9 @@ remain **PARKED**. Player meet/trade/gift/teach **status chrome thinned**; **wid
   `indian_incite_417e.md`. Cite: wiki/HandWiki; fandom Missionaries.
 - **Done (thin ambush WIN1/WIN2):** Brave win transfers foe muskets (prefer) or
   horses onto Brave + status. Cite: GAME.TXT `@INDIANWIN1`/`@INDIANWIN2`.
-- **Done (thin Dragoon/Artillery encroachment):** military presence names bump
-  alarm like Soldier/Scout/Pioneer.
-- **Done (thin colony encroachment):** Euro colony Chebyshev ≤2 of unmissioned
-  tribe → same +2 bump + `@INDIANCOMMENT` / FOREST2-shaped colony name status.
+- **RETIRED 2026-09-03 (unit + colony encroachment):** the +2/turn bumps and
+  their `@INDIANCOMMENT` chrome were fandom-invented, not DOS — see §Prelude
+  deepen item 2.
 - **Done (thin `@INDIANSURPRISE` / `@INDIANWAR`):** successful loot while not at
   war → surprise status; high-friction loot with peace bit → clear peace + war
   status + hostility sync.
