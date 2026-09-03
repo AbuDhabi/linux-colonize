@@ -58,10 +58,11 @@
 #define EUROPE_LOADING_W 78 /* (144,118)–(222,160) */
 #define EUROPE_LOADING_H 42
 #define EUROPE_TRANSIT_HEADER_LINES 2
-#define EUROPE_HOLD_X 146
-#define EUROPE_HOLD_Y 163
-#define EUROPE_HOLD_W 12
-#define EUROPE_HOLD_H 14
+/* Same painted 9×12 interiors / 12px pitch as colony transport (EUROPE.PIK). */
+#define EUROPE_HOLD_X 148
+#define EUROPE_HOLD_Y 165
+#define EUROPE_HOLD_W 9
+#define EUROPE_HOLD_H 12
 #define EUROPE_HOLD_PITCH 12
 #define EUROPE_HOLD_MAX 6
 #define EUROPE_ICON_EMPTY_HOLD 122 /* ICONS.SS — closed hold cover (colony transport) */
@@ -350,6 +351,9 @@ bool europe_load(EuropeScreen* eu, const char* data_dir, char* err, size_t err_s
 void europe_free(EuropeScreen* eu);
 void europe_reset_campaign(EuropeScreen* eu);
 void europe_reset_campaign_nation(EuropeScreen* eu, int nation);
+/* Port / region / old-world nation from NAMES.TXT (@HOMEPORT / @COLONYNAME).
+ * Does not wipe harbor, dock, or gold. nation clamped 0..3. */
+void europe_set_nation(EuropeScreen* eu, int nation, const struct ColonizeMsgCatalog* names);
 
 /*
  * FUN_48d3_0002 voyage roll. rng NULL → 1 (no roll). The x<3 west-edge

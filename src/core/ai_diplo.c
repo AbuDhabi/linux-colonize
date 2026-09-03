@@ -43,15 +43,10 @@
 /* Thin FUN_5bfb_153e stand-in: treasury + tax friction on war declare;
  * unpark #5 deepens military score + colony-gap trade sting + Tools embargo.
  * FA 3f41 full body/UI PARKED - thin ally-aid + FA gift + break trust.
- * War trade embargo: OR all 16 @CARGO cargos (Food + Sugar + Tobacco + Cotton
- * + Furs + Lumber + Ore + Silver + Horses + Rum + Cigars + Cloth + Coats +
- * Trade Goods + Tools + Muskets) into nation.boycott_bitmap (idx 0..15;
- * colony.h / NAMES.TXT). Sugar uses the same bit1 as king refuse
- * (ai_king AI_KING_BOYCOTT_CARGO_BIT) for consistency — shared boycott_bitmap
- * path; lift on peace may clear a lingering king Sugar bit while unknown46[2]
- * still holds tax refuse (thin stand-in). Cotton = COLONIZE_CARGO_COTTON (R11
- * leftover). Tools always OR'd on first declare (R10); colony-gap ≥2 still
- * drains the extra rich-side trade sting. Full per-rival 153e PARKED. */
+ * Euro×Euro war does NOT boycott Europe cargos (DOS tea-party / king refuse
+ * only). An invented wartime all-16-bit embargo was removed after
+ * all_boycotted.SAV (1516, tax 0, boycott_bitmap 0xFFFF). Peace/alliance still
+ * lift leftover wartime bits on poisoned saves. Full per-rival 153e PARKED. */
 
 #define AI_DIPLO_WAR_GOLD_STING 100u
 #define AI_DIPLO_WAR_TAX_BUMP 1u
@@ -167,39 +162,6 @@ static void ai_diplo_war_tax_bump(ColonizeCol1Save* col1, int nation_a, int nati
   }
 }
 
-/* Thin wartime trade embargo: OR all 16 @CARGO boycott bits both nations
- * (Food+Sugar+Tobacco+Cotton+Furs+Lumber+Ore+Silver+Horses+Rum+Cigars+Cloth+
- * Coats+Trade Goods+Tools+Muskets). Sugar = cargo idx 1 (@CARGO /
- * COLONIZE_CARGO_SUGAR) — same bit1 as king refuse (king_ref.md tax boycott).
- * Cotton = idx 3 (COLONIZE_CARGO_COTTON; R11 leftover). Food=0 / Lumber=5 /
- * Horses=8 / Tools=14 / Muskets=15 / Trade Goods=13 / Rum=9 / Cigars=10 /
- * Cloth=11 / Coats=12 / Ore=6 / Silver=7 (colony.h @CARGO / NAMES.TXT).
- * Source: 153e wartime freeze stand-in (Europe boycott_bitmap freezes named
- * cargos); fuller per-rival body PARKED. */
-static void ai_diplo_war_embargo_set(ColonizeCol1Save* col1, int nation_a, int nation_b) {
-  if (!col1) {
-    return;
-  }
-  const uint16_t set =
-    (uint16_t)(AI_DIPLO_WAR_FOOD_EMBARGO_BIT | AI_DIPLO_WAR_EMBARGO_CARGO_BIT |
-               AI_DIPLO_WAR_TOBACCO_EMBARGO_BIT | AI_DIPLO_WAR_SUGAR_EMBARGO_BIT |
-               AI_DIPLO_WAR_COTTON_EMBARGO_BIT | AI_DIPLO_WAR_LUMBER_EMBARGO_BIT |
-               AI_DIPLO_WAR_HORSES_EMBARGO_BIT | AI_DIPLO_WAR_RUM_EMBARGO_BIT |
-               AI_DIPLO_WAR_CIGARS_EMBARGO_BIT | AI_DIPLO_WAR_CLOTH_EMBARGO_BIT |
-               AI_DIPLO_WAR_COATS_EMBARGO_BIT | AI_DIPLO_WAR_ORE_EMBARGO_BIT |
-               AI_DIPLO_WAR_SILVER_EMBARGO_BIT | AI_DIPLO_WAR_TRADE_GOODS_EMBARGO_BIT |
-               AI_DIPLO_WAR_TOOLS_EMBARGO_BIT | AI_DIPLO_WAR_MUSKETS_EMBARGO_BIT);
-  for (int i = 0; i < 2; ++i) {
-    const int n = (i == 0) ? nation_a : nation_b;
-    if (n < 0 || n >= 4) {
-      continue;
-    }
-    ColonizeCol1Nation* nat = &col1->nation[n];
-    nat->boycott_bitmap = (uint16_t)(nat->boycott_bitmap | set);
-  }
-}
-
-/* Count owned Col1 colonies for nation (153e trade-score stand-in). */
 static int ai_diplo_col1_colony_count(const ColonizeCol1Save* col1, int nation_id) {
   if (!col1 || !col1->colony || nation_id < 0 || nation_id >= 4) {
     return 0;
@@ -215,9 +177,8 @@ static int ai_diplo_col1_colony_count(const ColonizeCol1Save* col1, int nation_i
 
 /*
  * Unpark #5 153e trade deepen: if |colony_count_a − colony_count_b| ≥ 2,
- * drain AI_DIPLO_WAR_TRADE_STING from the richer treasury (floor 0). Tools
- * embargo is OR'd on every first declare (war_embargo_set); gap deepen keeps
- * the rich-side gold sting only. Full per-rival trade dialog PARKED.
+ * drain AI_DIPLO_WAR_TRADE_STING from the richer treasury (floor 0). Gap
+ * deepen is gold-only — Euro war does not boycott Europe cargos.
  */
 static void ai_diplo_war_trade_score_sting(ColonizeCol1Save* col1, int nation_a, int nation_b) {
   if (!col1 || nation_a < 0 || nation_a >= 4 || nation_b < 0 || nation_b >= 4) {
@@ -243,13 +204,9 @@ static void ai_diplo_war_trade_score_sting(ColonizeCol1Save* col1, int nation_a,
 }
 
 /*
- * Lift all 16 wartime @CARGO embargo bits (Food+…+Cotton+…+Tools+Muskets)
- * when a nation has no remaining Euro×Euro wars. Tools bit is OR'd on every
- * first declare (with the other wartime cargos); Cotton (R11 leftover) joins
- * the shared set/lift mask. Peace/alliance clear all sixteen via this mask.
- * Sugar shares king refuse bit1 (see war_embargo_set). Source: thin 153e trade
- * embargo stand-in; Fugger FF forgives boycotts — full 153e PARKED. Call sites:
- * make_peace, form_alliance (clears WAR). Raw PEACE writes do not.
+ * Lift leftover wartime @CARGO embargo bits when a nation has no remaining
+ * Euro×Euro wars. Declare no longer sets these (DOS tea-party only); this
+ * still repairs poisoned 0xFFFF saves on peace. Raw PEACE writes do not lift.
  */
 static void ai_diplo_war_embargo_lift_if_peace(ColonizeCol1Save* col1, int nation_a, int nation_b) {
   if (!col1) {
@@ -1093,9 +1050,7 @@ void ai_diplo_declare_war(ColonizeCol1Save* col1, int nation_a, int nation_b) {
     ai_diplo_war_tax_bump(col1, nation_a, nation_b);
     /* Indians dislike Euro×Euro war (scalar stand-in; full 15b3 PARKED). */
     ai_diplo_war_indian_relation_hit(col1, nation_a, nation_b);
-    /* Wartime trade embargo: all 16 @CARGO bits (incl. Cotton R11 leftover). */
-    ai_diplo_war_embargo_set(col1, nation_a, nation_b);
-    /* Unpark #5: colony-gap rich-side trade sting (Tools already in embargo set). */
+    /* Unpark #5: colony-gap rich-side trade sting. */
     ai_diplo_war_trade_score_sting(col1, nation_a, nation_b);
     /* War fatigue: seed treaty timer if 0 so near-parity peace waits for age. */
     ai_diplo_war_fatigue_timer_seed(col1, nation_a, nation_b);
@@ -1287,7 +1242,7 @@ static const char* ai_diplo_cargo_name(int cargo_idx) {
   return names[cargo_idx];
 }
 
-/* Full wartime 16-bit embargo mask (same set as war_embargo_set/lift). */
+/* Full wartime 16-bit embargo mask (lift leftover bits; declare no longer sets). */
 static uint16_t ai_diplo_wartime_boycott_mask(void) {
   return (uint16_t)(AI_DIPLO_WAR_FOOD_EMBARGO_BIT | AI_DIPLO_WAR_EMBARGO_CARGO_BIT |
                     AI_DIPLO_WAR_TOBACCO_EMBARGO_BIT | AI_DIPLO_WAR_SUGAR_EMBARGO_BIT |

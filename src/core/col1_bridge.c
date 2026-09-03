@@ -1353,7 +1353,10 @@ bool col1_bridge_apply(
     europe->gold = (int)nat->gold;
     europe->tax_percent = nat->tax_rate;
     europe->difficulty = save->head.difficulty > 8 ? 8 : save->head.difficulty;
-    europe->boycott_bitmap = nat->boycott_bitmap;
+    /* 0xFFFF is the fingerprint of the removed Euro-war all-cargo embargo
+     * stand-in (bugs.md all_boycotted.SAV). DOS boycotts are king tea-party,
+     * one cargo at a time — never all 16 in one event. */
+    europe->boycott_bitmap = (nat->boycott_bitmap == 0xFFFFu) ? 0u : nat->boycott_bitmap;
     europe->current_crosses = nat->current_crosses;
     europe->needed_crosses =
       nat->needed_crosses > 0 ? nat->needed_crosses : TURN_DEFAULT_NEEDED_CROSSES;
@@ -1369,8 +1372,7 @@ bool col1_bridge_apply(
         break;
       }
     }
-    col1_copy_name24(europe->nation_name, sizeof(europe->nation_name),
-                     save->player[local.human_nation].country_name);
+    europe_set_nation(europe, local.human_nation, NULL);
     for (int i = 0; i < europe->cargo_count && i < (int)COLONIZE_COL1_CARGO_TYPES; ++i) {
       europe->cargo[i].bid = nat->trade.euro_price[i];
       europe->trade_nr[i] = nat->trade.nr[i];
