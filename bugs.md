@@ -285,3 +285,4 @@ This is a user-maintained list of bugs. User puts reports in. Agents may annotat
 | I'm pretty sure diplomatic contact with the other Europeans should only occur if their land units or colonies get adjacent to yours. Not just ships, not even ships with passengers. | |
 | Recruit popup text in European Status appears bolded. That's incorrect. | |
 | "Sioux march into Amsterdam" is not a thing. Indians do not conquer, they raid, steal stuff, destroy buildings, damage ships, kill colonists, etc. In this instance, an undefended colony was attacked and completely destroyed, which is also incorrect. At worst, Indians kill one colonist at a time. Check DOS! | |
+| Something still wrong with fog in saves. I loaded a game into DOS, and the first turn it was OK. Then one turn later, I got the fog state from the English, but I'm Dutch. | |
