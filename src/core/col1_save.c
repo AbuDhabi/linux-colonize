@@ -49,6 +49,11 @@ void col1_save_reset_nation_slots(ColonizeCol1Head* head) {
   head->crown_nation_id = -1;
   head->rival_nation_slot_1 = -1;
   head->rival_nation_slot_2 = -1;
+  /* DS:0x53a4 SETVIEW cheat override — DOS's turn loop does
+   * `view = human_player; if (0x53a4 >= 0) view = 0x53a4` every pass. All DOS
+   * saves carry 0xffff (= none); the template's zero-fill pinned the map view
+   * to England forever (bugs.md 288: Dutch campaign, English fog after EOT). */
+  head->fixed_nation_map_view = 0xffffu;
 }
 
 int col1_save_human_nation(const ColonizeCol1Save* save) {
