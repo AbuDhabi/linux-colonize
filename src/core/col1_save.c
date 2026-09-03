@@ -55,12 +55,21 @@ int col1_save_human_nation(const ColonizeCol1Save* save) {
   if (!save) {
     return 0;
   }
+  /* Prefer DS:0x5398 when it agrees with the control table — a stale save can
+   * carry TWO control==0 slots (pre-fix template left England's), and the
+   * first-zero scan then read a Dutch campaign as England (bugs.md 288).
+   * head.human_player alone is not trusted either: older port saves carry a
+   * stale 0 there with a correct control table. */
+  const int hp = (int)save->head.human_player;
+  if (hp >= 0 && hp < (int)COLONIZE_COL1_NATION_COUNT && save->player[hp].control == 0) {
+    return hp;
+  }
   for (int i = 0; i < (int)COLONIZE_COL1_NATION_COUNT; ++i) {
     if (save->player[i].control == 0) {
       return i;
     }
   }
-  return (int)save->head.human_player;
+  return hp;
 }
 
 void col1_save_free(ColonizeCol1Save* save) {

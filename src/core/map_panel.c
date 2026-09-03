@@ -438,7 +438,7 @@ static const char* map_panel_tribe_short(const ColonizeMsgCatalog* names, int na
 }
 
 static const char* map_panel_euro_country(
-  const ColonizeCol1Save* col1, const char* nation_name, int nation_id
+  const ColonizeCol1Save* col1, const char* nation_name, int nation_id, int human_nation
 ) {
   static const char* k_euro[] = {"England", "France", "Spain", "Netherlands"};
   if (nation_id >= 0 && nation_id < 4 && col1) {
@@ -446,7 +446,9 @@ static const char* map_panel_euro_country(
       return col1->player[nation_id].country_name;
     }
   }
-  if (nation_name && nation_name[0] && nation_id == 0) {
+  /* nation_name is the HUMAN nation's name — only valid for their own tiles
+   * (was keyed to nation 0, which mislabeled colonies for non-English play). */
+  if (nation_name && nation_name[0] && nation_id == human_nation) {
     return nation_name;
   }
   if (nation_id >= 0 && nation_id < 4) {
@@ -1429,7 +1431,8 @@ void map_panel_render(
       const ColonizeCol1Tribe* tribe = map_panel_tribe_at(col1, info_x, info_y);
       if (col_here && col_here->active) {
         snprintf(
-          line, sizeof(line), "%s", map_panel_euro_country(col1, nation_name, col_here->nation_id)
+          line, sizeof(line), "%s",
+          map_panel_euro_country(col1, nation_name, col_here->nation_id, human_nation)
         );
         map_panel_draw_line(font, framebuffer, text_x, &text_y, line_h, y_limit, line);
       } else if (tribe) {

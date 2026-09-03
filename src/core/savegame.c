@@ -144,11 +144,18 @@ bool savegame_probe_col1_slot(
   memcpy(&head, buf, sizeof(head));
   memcpy(players, buf + sizeof(head), sizeof(players));
 
+  /* Same precedence as col1_save_human_nation: a stale double-zero control
+   * table must not read a non-English campaign's slot as England's. */
   int human = 0;
-  for (int i = 0; i < (int)COLONIZE_COL1_NATION_COUNT; ++i) {
-    if (players[i].control == 0) {
-      human = i;
-      break;
+  const int hp = (int)head.human_player;
+  if (hp >= 0 && hp < (int)COLONIZE_COL1_NATION_COUNT && players[hp].control == 0) {
+    human = hp;
+  } else {
+    for (int i = 0; i < (int)COLONIZE_COL1_NATION_COUNT; ++i) {
+      if (players[i].control == 0) {
+        human = i;
+        break;
+      }
     }
   }
 

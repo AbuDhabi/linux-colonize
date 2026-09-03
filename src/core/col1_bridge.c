@@ -1613,6 +1613,15 @@ bool col1_bridge_capture(
   save->stuff.viewport_x = (uint16_t)cursor_x;
   save->stuff.viewport_y = (uint16_t)cursor_y;
   save->player[human_nation].control = 0;
+  /* DOS 0x543f polarity: 0 = human. A stale save (pre-fix template) can carry
+   * a second control==0 on nation 0 — DOS then runs England's turn as a HUMAN
+   * (input stop, fog view flips to England; bugs.md 288). Heal: any other
+   * Euro slot still at 0 becomes AI (1); withdrawn (2) is preserved. */
+  for (int n = 0; n < (int)COLONIZE_COL1_NATION_COUNT; ++n) {
+    if (n != human_nation && save->player[n].control == 0) {
+      save->player[n].control = 1;
+    }
+  }
   /* DOS DS:0x5398 — the new-game path never stamped it, so a non-English
    * campaign saved human_player=0 forever (misleads every head.human_player
    * reader on later loads). */
