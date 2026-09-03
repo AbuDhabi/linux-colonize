@@ -4945,6 +4945,29 @@ static void units_try_capture_foreign_colony(
   if (units_foreign_at(pool, u->x, u->y, unit_id, u->nation_id) >= 0) {
     return;
   }
+  /*
+   * bugs.md 287: Indians never conquer — no "march into" @CAPTURED, no
+   * ownership flip. DOS (FUN_5fef land-combat colony arm, ~91576): an
+   * Indian winner kills ONE colonist while population > 1; only when the
+   * LAST colonist falls is the colony burned to the ground
+   * (@INDIANBURNCOLONY — destroy, not capture).
+   */
+  if (u->nation_id > 3) {
+    ColonizeColony snap = *col;
+    if (col->population > 1) {
+      col->population--;
+      if (col->colonist_count > 1) {
+        col->colonist_count--;
+      }
+      return;
+    }
+    (void)colonies_abandon(colonies, cid);
+    units_combat_notify_colony_burned(
+      g_units_ff_col1, snap.name, snap.nation_id,
+      units_combat_nation_label(g_units_ff_col1, u->nation_id)
+    );
+    return;
+  }
   int plunder = units_colony_plunder_stock_sum(col);
   const int old_nat = col->nation_id;
   ColonizeColony snap = *col;
@@ -7378,6 +7401,17 @@ bool units_advance_goto_one_step(
       if (!step_is_dest) {
         return false;
       }
+      /*
+       * bugs.md 293: a go-to AIMED at an Indian settlement is complete once
+       * the unit stands adjacent — clear the order and hand control back so
+       * the player's next move onto the village opens the proper
+       * enter-village popup (goto pacing itself must never auto-enter or
+       * auto-attack the dwelling).
+       */
+      if (village >= 4) {
+        units_clear_orders(pool, unit_id);
+        return false;
+      }
       if (mt && mt->attack <= 0 && !missionary) {
         return false;
       }
@@ -7811,19 +7845,10 @@ bool units_pioneer_work_tick(
         );
         ai_popup_enqueue_ok(ai_popups, AI_POPUP_TAG_INFO, NULL, body);
       }
-      /* @DEFOREST tip when clear is near an owned colony (even if lumber=0). */
-      if (near && ai_popups &&
-          (g_units_combat_human_nation < 0 || u->nation_id == g_units_combat_human_nation)) {
-        const char* cname = near->name[0] ? near->name : "colony";
-        char body[AI_POPUP_BODY_LEN];
-        char fallback[96];
-        snprintf(fallback, sizeof(fallback), "Deforestation near %s.", cname);
-        PopupMsgTokens tok;
-        memset(&tok, 0, sizeof(tok));
-        tok.string0 = cname;
-        popup_msg_fill(messages, "DEFOREST", &tok, fallback, body, sizeof(body));
-        ai_popup_enqueue_ok(ai_popups, AI_POPUP_TAG_INFO, NULL, body);
-      }
+      /* bugs.md 284: no @DEFOREST popup — the tag string never appears in
+       * VICEROY.EXE (unlike CLEARCUT/DEPLETION), so DOS never shows that
+       * GAME.TXT section; the port fired it on every chop on top of
+       * @CLEARCUT, double-notifying. */
       if (demoted) {
         units_pioneer_emit_useduptools(u, err, err_size, ai_popups, messages);
       }

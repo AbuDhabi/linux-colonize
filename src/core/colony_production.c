@@ -76,21 +76,18 @@ static bool colony_prod_craft_skill_matches(int profession, int craft_profession
   if (profession == craft_profession) {
     return true;
   }
-  /* Map unit-type indices (19..27) to skill indices (9..17):
-   * 19=Carpenter(13), 20=Distiller(9), 21=Tobacconist(10), 22=Weaver(11),
-   * 23=FurTrader(12), 24=Blacksmith(14), 25=Gunsmith(15), 26=Preacher(16), 27=Statesman(17) */
-  switch (craft_profession) {
-  case 9:  return profession == 20;
-  case 10: return profession == 21;
-  case 11: return profession == 22;
-  case 12: return profession == 23;
-  case 13: return profession == 19;
-  case 14: return profession == 24;
-  case 15: return profession == 25;
-  case 16: return profession == 26;
-  case 17: return profession == 27;
-  default: return false;
-  }
+  /*
+   * bugs.md 294 family: a legacy "19..27 → skill 9..17" remap lived here,
+   * calibrated against golden_colony_prod01's Montreal (12 rum) — but that
+   * total is really 3 workers × (class 3 + SoL latch 1); the remap only
+   * "fit" because colony_prod_manufacturing_output used to truncate the
+   * +1 SoL bonus. Colonist professions are NAMES.TXT @JOB bytes everywhere
+   * (unit joins, DOS save loads, education, discovery): 25 is an Indentured
+   * Servant (the remap crowned it Master Gunsmith), 26 a Petty Criminal
+   * (→ Firebrand Preacher), 27 a Convert (→ Elder Statesman), 19..24 the
+   * colonist/equipped classes. Straight equality only.
+   */
+  return false;
 }
 
 /*
@@ -153,15 +150,12 @@ int colony_prod_manufacturing_output(
    * skill match doubles whatever's left. See
    * original_sources_annotated/turn/manufacturing_worker_calc_1d4c.md. */
   const int tag = colony_prod_scale_by_class(profession, 3);
-  /* In manufacturing, SoL bonus is +2 at 100% SoL, 0 below 100% (or clamped for sol_50).
-   * However, negative Tory penalties apply in full. */
-  int effective_sol = 0;
-  if (sol_bonus >= 2) {
-    effective_sol = 2;
-  } else if (sol_bonus < 0) {
-    effective_sol = sol_bonus;
-  }
-  int out = tag + effective_sol;
+  /* DOS folds local_e (the full signed SoL/Tory term, +1 at the sol_50
+   * latch) straight into v — no "+2 or nothing" step. The old truncation
+   * here silently ate the +1 and was compensated by the bogus 19..24
+   * skill-match rows below (bugs.md 294 family / golden_colony_prod01:
+   * Montreal's 12 rum is 3 workers x (3+1), not 3+6+3). */
+  int out = tag + sol_bonus;
   if (tier == COLONY_PROD_TIER_SHOP || tier == COLONY_PROD_TIER_FACTORY) {
     out += tag;
   }

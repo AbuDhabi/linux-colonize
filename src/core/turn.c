@@ -928,8 +928,12 @@ static void turn_produce_one_colony(
        * re-trigger "depleted" every turn. Require actively losing food
        * (shortfall>0) to match FOODLOW's own "surplus never warns" rule
        * below and stop the false-positive nag.
+       *
+       * bugs.md item 292: "depleted" additionally requires the stores to be
+       * EXACTLY 0 — merely dipping below next turn's need reads as "low",
+       * handled by the FOODLOW branch below.
        */
-      if (stock < need && food_shortfall > 0 && !was_starving) {
+      if (stock == 0 && food_shortfall > 0 && !was_starving) {
         if (colony->name[0]) {
           snprintf(
             europe->status, sizeof(europe->status), "Food depleted in %s.", colony->name
@@ -947,7 +951,7 @@ static void turn_produce_one_colony(
           ai_popup_enqueue_colony_event(ai_popups, colony->id, body);
         }
       } else if (
-        stock >= need && food_shortfall > 0 && stock < food_shortfall * 4
+        stock > 0 && food_shortfall > 0 && stock < food_shortfall * 4
       ) {
         if (colony->name[0]) {
           snprintf(europe->status, sizeof(europe->status), "Food low in %s.", colony->name);
@@ -1087,6 +1091,7 @@ static void turn_produce_one_colony(
           }
         } else if (
           c->profession == COLONIZE_PROF_FREE_COLONIST ||
+          c->profession == UNITS_JOB_COLONIST /* @JOB 19 free alias (newborns) */ ||
           c->profession == COLONIZE_PROF_INDENTURED ||
           c->profession == COLONIZE_PROF_CRIMINAL ||
           c->profession == COLONIZE_PROF_CONVERT ||
@@ -1228,7 +1233,9 @@ static void turn_produce_one_colony(
         discover_denom = 199;
       } else if (c->profession == COLONIZE_PROF_CRIMINAL) {
         discover_denom = 299;
-      } else if (c->profession != COLONIZE_PROF_FREE_COLONIST && c->profession >= 0) {
+      } else if (c->profession != COLONIZE_PROF_FREE_COLONIST &&
+                 c->profession != UNITS_JOB_COLONIST /* @JOB 19 free alias */ &&
+                 c->profession >= 0) {
         continue;
       }
       if (c->field_job < 0 || c->field_job > COLONIZE_JOB_FUR_TRAPPER) {

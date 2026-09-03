@@ -298,6 +298,20 @@ int colonies_indian_land_owner_tribe(
 );
 
 /*
+ * bugs.md 290 / FUN_15eb_26e4: tribe index claiming (x,y) for the colony
+ * screen's totem overlay + work complaint — MET tribes only, unbought land
+ * (Peter Minuit folds to none), no colony on the tile. -1 = no claim.
+ */
+int colonies_indian_claim_tribe(
+  const ColonizeCol1Save* col1,
+  const ColonizeWorldMap* map,
+  const ColonizeColonyPool* pool,
+  int viewer_nation,
+  int x,
+  int y
+);
+
+/*
  * Pay for tribal land at (x,y): debit *gold by cost (when gold non-NULL),
  * INC indian.lands_bought (FUN_479b_00ca), stamp the purchased bit on the
  * Col1 mask (0x10) and map layer2 (MAP_LAYER2_PURCHASED) — the

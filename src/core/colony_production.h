@@ -19,9 +19,14 @@ typedef struct ColonizeCol1Save ColonizeCol1Save;
 #define COLONIZE_PROF_PREACHER 16
 #define COLONIZE_PROF_STATESMAN 17
 #define COLONIZE_PROF_TEACHER 18
+/* bugs.md 294 family: these are the DOS @JOB bytes (0x19/0x1a/0x1b/0x1c) —
+ * the port briefly had 29/30 for servant/criminal, which no real colonist
+ * ever carries (unit joins, DOS saves, education all use @JOB), so every
+ * class check against them was dead. Note the port also uses 19 (@JOB
+ * "Colonist" row) as a free-colonist alias in a few spawn paths. */
 #define COLONIZE_PROF_FREE_COLONIST 28
-#define COLONIZE_PROF_INDENTURED 29
-#define COLONIZE_PROF_CRIMINAL 30
+#define COLONIZE_PROF_INDENTURED 25
+#define COLONIZE_PROF_CRIMINAL 26
 #define COLONIZE_PROF_CONVERT 27
 
 typedef enum ColonyProdTier {
