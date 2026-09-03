@@ -54,12 +54,25 @@ int main(int argc, char** argv) {
 
     printf("Colonists (%u):\n", (unsigned)c->population);
     for (unsigned p = 0; p < c->population && p < COLONIZE_COL1_COLONY_POP_MAX; ++p) {
-      printf("  [%2u] occupation=%-3u (0x%02x)  profession=%-3u (0x%02x)\n",
+      const unsigned nib = (p & 1u) ? (unsigned)c->specialty[p / 2].odd
+                                    : (unsigned)c->specialty[p / 2].even;
+      printf("  [%2u] occupation=%-3u (0x%02x)  profession=%-3u (0x%02x)  specialty=%u\n",
              p,
              (unsigned)c->occupation[p], (unsigned)c->occupation[p],
-             (unsigned)c->profession[p], (unsigned)c->profession[p]);
+             (unsigned)c->profession[p], (unsigned)c->profession[p], nib);
     }
 
+    printf("Buildings: dist=%u tob=%u weav=%u fur=%u smith=%u carp=%u church=%u th=%u armory=%u school=%u\n",
+           (unsigned)c->buildings.rum_distillers_house,
+           (unsigned)c->buildings.tobacconists_house,
+           (unsigned)c->buildings.weavers_house,
+           (unsigned)c->buildings.fur_traders_house,
+           (unsigned)c->buildings.blacksmiths_house,
+           (unsigned)c->buildings.carpenters_shop,
+           (unsigned)c->buildings.church,
+           (unsigned)c->buildings.town_hall,
+           (unsigned)c->buildings.armory,
+           (unsigned)c->buildings.schoolhouse);
     printf("Stock:\n");
     for (unsigned g = 0; g < COLONIZE_COL1_CARGO_TYPES; ++g) {
       if (c->stock[g] > 0) {

@@ -708,6 +708,45 @@ int colonies_indian_land_owner_tribe(
   return tribe_i;
 }
 
+/*
+ * bugs.md 290 — DOS FUN_15eb_26e4 (colony screen 5x5 Indian-land table):
+ * a tile shows the totem / triggers a work complaint when a village's
+ * tech-tier radius covers it, the tribe has been MET (bit 0x20), the land
+ * has not been bought (purchase price > 0 also folds in Peter Minuit — the
+ * whole table empties with FF 2), and no colony sits on it. Returns the
+ * claiming tribe index, or -1.
+ */
+int colonies_indian_claim_tribe(
+  const ColonizeCol1Save* col1,
+  const ColonizeWorldMap* map,
+  const ColonizeColonyPool* pool,
+  int viewer_nation,
+  int x,
+  int y
+) {
+  if (!col1 || viewer_nation < 0 || viewer_nation > 3) {
+    return -1;
+  }
+  const int ti = colonies_indian_land_owner_tribe(col1, map, x, y);
+  if (ti < 0 || !col1->tribe) {
+    return -1;
+  }
+  const int tn = (int)col1->tribe[ti].nation_id;
+  if (tn < 4 || tn > 11) {
+    return -1;
+  }
+  if ((col1->indian[tn - 4].euro_diplo[viewer_nation] & COL1_INDIAN_MET_BIT) == 0) {
+    return -1;
+  }
+  if (colonies_indian_land_purchase_gold(col1, map, x, y, viewer_nation) <= 0) {
+    return -1; /* bought / Minuit / outside radius */
+  }
+  if (pool && colonies_id_at(pool, x, y) >= 0) {
+    return -1;
+  }
+  return ti;
+}
+
 void colonies_indian_land_pay(
   ColonizeCol1Save* col1,
   const ColonizeWorldMap* map,
@@ -1041,7 +1080,8 @@ bool colonies_profession_may_teach(int profession) {
     return false;
   }
   if (profession == COLONIZE_PROF_FREE_COLONIST || profession == COLONIZE_PROF_INDENTURED ||
-      profession == COLONIZE_PROF_CRIMINAL || profession == COLONIZE_PROF_CONVERT) {
+      profession == COLONIZE_PROF_CRIMINAL || profession == COLONIZE_PROF_CONVERT ||
+      profession == UNITS_JOB_COLONIST /* @JOB 19 free-colonist alias */) {
     return false;
   }
   return true;

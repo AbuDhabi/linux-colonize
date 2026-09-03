@@ -1834,7 +1834,8 @@ static void ai_contact_teach_skill(ColonizeTurnContext* ctx, int nation_id) {
        * unskilled colonist). Previously this fell through and silently
        * burned the teach + showed a misleading "taught outdoor skills" line.
        */
-      if (other->profession != UNITS_JOB_NONE) {
+      if (other->profession != UNITS_JOB_NONE &&
+          other->profession != UNITS_JOB_COLONIST /* @JOB 19 free alias */) {
         /* Skilled already — silent skip in the pulse; the @LEARNMASTER
          * refusal dialog belongs to the deliberate Live-Among flow
          * (bugs.md — no unprompted lecture popups). */
@@ -6918,16 +6919,17 @@ void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id) {
               [(size_t)brave->home_tribe_id * COLONIZE_COL1_NATION_COUNT + (size_t)target_euro] =
               0;
           }
-          int abandoned = 0;
+          /*
+           * bugs.md 287: the raid pulse never takes or destroys a colony —
+           * DOS FUN_5fef_0f14 only loots. Colony destruction lives on the
+           * real combat path (units_try_capture_foreign_colony's Indian arm:
+           * kill one colonist, burn only when the last falls), and Indians
+           * NEVER capture (the old colonies_capture here flipped ownership
+           * to the tribe — "Sioux march into Amsterdam").
+           */
+          const int abandoned = 0;
           char abandoned_name[40];
           abandoned_name[0] = '\0';
-          if (c->population <= 1 && max_alarm >= 70) {
-            if (c->name[0]) {
-              snprintf(abandoned_name, sizeof(abandoned_name), "%s", c->name);
-            }
-            colonies_capture(ctx->colonies, best_cid, nation_id);
-            abandoned = 1;
-          }
           /* bugs.md: only the FIRST attack against this Euro is "deniable" —
            * snapshot before the counters bump. */
           int prior_attacks = 0;
@@ -7731,7 +7733,10 @@ static void ai_contact_live_among_natives(
       ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_TEACH, nation_id, "Teach", body);
       return;
     }
-    if (u->profession != UNITS_JOB_NONE && !is_indentured) {
+    /* @JOB 19 ("Colonist") is the port's free-colonist alias (newborns,
+     * Europe recruit pool) — a learner like NONE, not a skilled master. */
+    if (u->profession != UNITS_JOB_NONE && u->profession != UNITS_JOB_COLONIST &&
+        !is_indentured) {
       tok.string1 = ai_contact_learner_skill_name(ctx->units, u);
       section = "LEARNMASTER";
       fb = "\"We are glad to have a master %s living among us, Old One. However, we can only teach new skills to colonists who do not yet have one.\"";

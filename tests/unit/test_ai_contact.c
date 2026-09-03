@@ -3143,21 +3143,20 @@ int main(void) {
     if (status[0] != '\0') {
       return fail("bystander raid must not write human status (not a party)");
     }
-    int found_burned3 = 0;
-    for (int qi = 0; qi < pop_fbrn.queue_count; ++qi) {
-      if (pop_fbrn.queue[qi].kind == AI_POPUP_KIND_OK &&
-          strstr(pop_fbrn.queue[qi].body, "Spies report") != NULL &&
-          strstr(pop_fbrn.queue[qi].body, "Jamestown") != NULL) {
-        found_burned3 = 1;
-      }
+    /* bugs.md 287: the raid pulse only LOOTS — a pop-1 colony survives a
+     * BURN raid with its owner intact (destruction lives on the combat
+     * path, and only when the last colonist falls there). */
+    if (!c_fbrn->active || c_fbrn->nation_id != 1) {
+      return fail("raid pulse must not destroy or capture a pop-1 colony (bugs.md 287)");
     }
-    if (!found_burned3) {
-      fprintf(stderr, "unit_ai_contact: bystander popup queue_count=%d\n",
-              pop_fbrn.queue_count);
-      for (int qi = 0; qi < pop_fbrn.queue_count; ++qi) {
-        fprintf(stderr, "  [%d] '%s'\n", qi, pop_fbrn.queue[qi].body);
+    for (int qi = 0; qi < pop_fbrn.queue_count; ++qi) {
+      if (strstr(pop_fbrn.queue[qi].body, "Spies report") != NULL ||
+          strstr(pop_fbrn.queue[qi].body, "overrun") != NULL ||
+          strstr(pop_fbrn.queue[qi].body, "march into") != NULL) {
+        fprintf(stderr, "unit_ai_contact: raid abandon popup leaked: '%s'\n",
+                pop_fbrn.queue[qi].body);
+        return fail("raid pulse must not emit abandon/capture chrome (bugs.md 287)");
       }
-      return fail("bystander colony burn should enqueue @BURNED3 spy-report OK");
     }
     /* Restore neutral baseline for nation 1 so later blocks (which only
      * touch nation 0) are not hijacked by this block's higher alarm. */
@@ -6263,6 +6262,51 @@ int main(void) {
       }
       col1.tribe[0].state.learned = 0;
       units_despawn(&units, col_id);
+    }
+
+    /* bugs.md 294: an Indentured Servant is a learner like a Free Colonist
+     * (DOS a618: profession ∈ {0x19, 0x1c} reaches the LEARNSTAY arm) — it
+     * must NOT get the @LEARNCRIMINAL "offend us" refusal nor @LEARNMASTER. */
+    {
+      const int srv_id = units_spawn_allow_stack(&units, 1, 6, 5);
+      ColonizeUnit* servant = units_get(&units, srv_id);
+      if (!servant) {
+        return fail("menu: spawn servant");
+      }
+      servant->nation_id = 0;
+      servant->profession = UNITS_JOB_SERVANT;
+      ai_popup_clear(&pop);
+      if (!ai_contact_try_village_meet_unit(&ctx, 0, 4, 0, 0, srv_id)) {
+        return fail("menu: servant meet should enqueue");
+      }
+      AiPopupState res;
+      ai_popup_init(&res);
+      res.has_result = true;
+      res.result_cancelled = false;
+      res.result_choice_id = 4; /* AI_CONTACT_CHOICE_TEACH = Live Among */
+      res.result_tag = AI_POPUP_TAG_CONTACT_MEET;
+      res.result_nation_a = 0;
+      res.result_nation_b = 4;
+      res.result_payload = pop.queue[0].payload;
+      ai_popup_clear(&pop);
+      st_menu[0] = '\0';
+      ai_contact_apply_popup_result(&ctx, &res);
+      if (strstr(st_menu, "teach you nothing") != NULL ||
+          strstr(st_menu, "common criminal") != NULL) {
+        fprintf(stderr, "unit_ai_contact: servant live-among status '%s'\n", st_menu);
+        return fail("live among: servant must not get @LEARNCRIMINAL");
+      }
+      if (strstr(st_menu, "can only teach new skills") != NULL) {
+        fprintf(stderr, "unit_ai_contact: servant live-among status '%s'\n", st_menu);
+        return fail("live among: servant must not get @LEARNMASTER");
+      }
+      if (pop.queue_count != 1 || pop.queue[0].tag != AI_POPUP_TAG_CONTACT_LEARNSTAY) {
+        fprintf(stderr, "unit_ai_contact: servant queue %d status '%s'\n", pop.queue_count, st_menu);
+        return fail("live among: servant at peace should get @LEARNSTAY CHOICE");
+      }
+      ai_popup_clear(&pop);
+      col1.tribe[0].state.learned = 0;
+      units_despawn(&units, srv_id);
     }
 
     /* Soldier → Demand Tribute: one of the four @EXTORT* bodies; laugh/no bumps alarm. */

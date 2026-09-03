@@ -164,32 +164,23 @@ static int unit_clearcut_lumber(void) {
     assets_msg_free(&names);
     return 1;
   }
-  int found_deforest = 0;
+  /* bugs.md 284: @DEFOREST is a dead GAME.TXT section (tag absent from
+   * VICEROY.EXE) — a chop shows @CLEARCUT alone, never a second popup. */
   for (int i = 0; i < pops.queue_count; ++i) {
     if (strstr(pops.queue[i].body, "Deforestation") != NULL ||
-        strstr(pops.queue[i].body, "deforestation") != NULL ||
-        (strstr(pops.queue[i].body, "Timber") != NULL && i > 0)) {
-      found_deforest = 1;
-      break;
+        strstr(pops.queue[i].body, "deforestation") != NULL) {
+      fprintf(stderr, "clearcut: unexpected DEFOREST popup body='%s'\n", pops.queue[i].body);
+      assets_msg_free(&game_txt);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
     }
-  }
-  if (!found_deforest) {
-    fprintf(
-      stderr,
-      "clearcut: DEFOREST popup missing q=%d last='%s'\n",
-      pops.queue_count,
-      pops.queue_count > 0 ? pops.queue[pops.queue_count - 1].body : ""
-    );
-    assets_msg_free(&game_txt);
-    map_free(&map);
-    assets_msg_free(&names);
-    return 1;
   }
 
   assets_msg_free(&game_txt);
   map_free(&map);
   assets_msg_free(&names);
-  fprintf(stderr, "unit_units: CLEARCUT+DEFOREST chrome ok\n");
+  fprintf(stderr, "unit_units: CLEARCUT chrome ok (no DEFOREST double)\n");
   return 0;
 }
 

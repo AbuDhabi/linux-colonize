@@ -1048,8 +1048,13 @@ bool new_game_handle_input(NewGameWizard* ng, const ColonizeInputState* input) {
     if (input->mouse_left_clicked) {
       const int hit = new_game_point_in_rects(rects, count, input->mouse_x, input->mouse_y);
       if (hit >= 0) {
-        /* Left-click selects only; confirm via finished / Enter. */
-        ng->selection = hit;
+        /* bugs.md 289: clicking the already-selected entry confirms like
+         * Enter; a click elsewhere still only moves the selection. */
+        if (hit == ng->selection) {
+          new_game_activate_list(ng);
+        } else {
+          ng->selection = hit;
+        }
         return true;
       }
       if (new_game_point_in_finished(ng, input->mouse_x, input->mouse_y)) {

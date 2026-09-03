@@ -117,6 +117,11 @@ struct ColonizeGameState {
    * silently snatch control back the next frame. units.selected_id >= 0
    * always implies Move Pieces regardless of this flag. */
   bool view_pieces_mode;
+  /* bugs.md 291: unit id whose off-screen auto-recentre is suspended
+   * because the player deliberately panned away (map or minimap click)
+   * while it was active; -1 = none. Cleared by the unit's next action /
+   * the next unit hand-off. */
+  int view_pan_hold_unit;
   /*
    * DOS runs every popup/dialog as a blocking call, so the unit cycle and the
    * end-of-turn processor never advance behind one; here dialogs are
@@ -4540,8 +4545,9 @@ static void europe_menu_draw_shadowed(
   const char* text,
   uint8_t color
 ) {
-  font_draw_text(font, fb, x + 1, y + 1, text, 0);
-  font_draw_text(font, fb, x, y, text, color);
+  /* bugs.md 286: thin letters like every other dialog caption. */
+  font_draw_text_unbold(font, fb, x + 1, y + 1, text, 0);
+  font_draw_text_unbold(font, fb, x, y, text, color);
 }
 
 /* Pixel width of a string with the {} markup skipped. */
@@ -4622,9 +4628,11 @@ static int europe_draw_prose(
       memcpy(run, word + i, (size_t)rl);
       run[rl] = '\0';
       if (fb) {
-        /* 1px black drop shadow, like DOS's dialog text writer. */
-        font_draw_text(font, fb, x + cx + 1, y + cy + 1, run, 0);
-        font_draw_text(font, fb, x + cx, y + cy, run, hi ? hi_color : base_color);
+        /* 1px black drop shadow, like DOS's dialog text writer. bugs.md 286:
+         * thin (unbold) letters — the solid-shade draw read as bolded next
+         * to every other dialog's caption ink. */
+        font_draw_text_unbold(font, fb, x + cx + 1, y + cy + 1, run, 0);
+        font_draw_text_unbold(font, fb, x + cx, y + cy, run, hi ? hi_color : base_color);
       }
       cx += font_text_width(font, run);
       i = j;
@@ -4822,7 +4830,7 @@ static void europe_render_menu_popup(
      * row stays all grey like DOS's disabled ink. */
     popup_draw_text_markup(
       font, framebuffer, inner_x + pad + 6, row_y, label, color,
-      color == 8 ? (uint8_t)8 : (uint8_t)14, false, true, NULL
+      color == 8 ? (uint8_t)8 : (uint8_t)14, true, true, NULL
     );
     if (cost[0]) {
       const int cw = font_text_width(font, cost);
@@ -5458,6 +5466,7 @@ ColonizeGameState* game_create(const ColonizeGameConfig* config) {
   game->config = *config;
   game->ff_pedia_after_report = -1;
   game->found_open_colony_id = -1;
+  game->view_pan_hold_unit = -1;
   game->turn_number = 1;
   game->map_seed = 73;
   game->colony_view_id = -1;
@@ -6679,6 +6688,9 @@ static void game_after_unit_action(ColonizeGameState* game) {
   if (!game || !game->units_ok) {
     return;
   }
+  /* bugs.md 291: any unit action ends the manual-pan hold — from here the
+   * view follows the acting unit again. */
+  game->view_pan_hold_unit = -1;
   ColonizeUnit* u = units_get(&game->units, game->units.selected_id);
   if (!u || !u->active) {
     game_select_tile(game, game->map_cursor_x, game->map_cursor_y);
@@ -7432,6 +7444,60 @@ static bool game_colony_has_docks(const ColonizeColonyPool* pool, const Colonize
 }
 
 /*
+ * bugs.md 290 — DOS work-assign complaint (overlays.c ~8789, the colony
+ * tiles[] writer): putting a colonist on Indian-claimed land bumps the
+ * owning tribe's alarm. base = difficulty+5 (human turn); ×2 when the
+ * claiming village stands within 3 tiles, +base again within 2; ×2 on a
+ * road. No dialog in DOS — the resentment is the alarm itself; the port
+ * adds a status line so the player learns why. (DOS's AI-colony
+ * auto-purchase arm is not ported — AI assignment runs elsewhere.)
+ */
+static void game_colony_indian_land_worked(
+  ColonizeGameState* game,
+  const ColonizeColony* colony,
+  int tile_index
+) {
+  if (!game || !game->col1_ok || !game->world_map_ok || !colony) {
+    return;
+  }
+  int dx = 0;
+  int dy = 0;
+  if (!colonies_field_tile_delta(tile_index, &dx, &dy)) {
+    return;
+  }
+  const int x = colony->x + dx;
+  const int y = colony->y + dy;
+  ColonizeCol1Save* col1 = &game->col1;
+  const int ti = colonies_indian_claim_tribe(
+    col1, &game->world_map, &game->colonies, colony->nation_id, x, y
+  );
+  if (ti < 0 || !col1->tribe) {
+    return;
+  }
+  const ColonizeCol1Tribe* t = &col1->tribe[ti];
+  const int tn = (int)t->nation_id;
+  int base = (int)col1->head.difficulty + 5;
+  int amt = base;
+  const int ddx = abs((int)t->x - x);
+  const int ddy = abs((int)t->y - y);
+  const int dist = ddx > ddy ? ddx : ddy;
+  if (dist < 3) {
+    amt = base * 2;
+  }
+  if (dist < 2) {
+    amt += base;
+  }
+  if (map_tile_has_road(&game->world_map, x, y)) {
+    amt *= 2;
+  }
+  ai_diplo_indian_alarm_delta(col1, tn, colony->nation_id, amt);
+  snprintf(
+    game->status, sizeof(game->status), "The %s resent the use of their land.",
+    ai_contact_tribe_name(tn)
+  );
+}
+
+/*
  * DOS FUN_2f2b_3fa6, the area-view tile click (bugs.md):
  *  - tile worked by the selected colonist  → the field-jobs popup (348c);
  *  - tile worked by someone else           → just select that colonist;
@@ -7489,6 +7555,7 @@ static void game_colony_area_tile_drop(
   if (colonies_assign_field(&game->colonies, game->colony_view_id, ci, tile_index, job)) {
     game_colony_assign_job_sound(job);
     snprintf(game->status, sizeof(game->status), "Working as %s", colony_yield_job_name(job));
+    game_colony_indian_land_worked(game, colony, tile_index);
   } else {
     set_status(game, "Cannot assign field", NULL);
   }
@@ -7809,12 +7876,17 @@ static bool game_colony_apply_outside_role(
   if (type_index < 0) {
     type_index = u->type_index;
   }
+  const int prev_tools = u->tools;
+  const int prev_muskets = u->muskets;
+  const int prev_horses = u->horses;
   u->type_index = type_index;
   u->tools = tools_take;
   u->muskets = muskets_take;
   u->horses = horses_take;
-  /* bugs.md: newly armed/horsed units start without movement points. */
-  if (muskets_take > 0 || horses_take > 0) {
+  /* bugs.md 283: ANY loadout change (arming, mounting, tools taken OR laid
+   * down) exhausts the unit's moves for the turn; picking the same kit
+   * ("No changes") costs nothing. */
+  if (u->tools != prev_tools || u->muskets != prev_muskets || u->horses != prev_horses) {
     u->moves_left = 0;
   }
   return true;
@@ -9606,7 +9678,10 @@ static void game_map_click_dispatch(ColonizeGameState* game, int mx, int my) {
   if (game->units_ok && game->units.selected_id >= 0) {
     const ColonizeUnit* sel = units_get_const(&game->units, game->units.selected_id);
     if (sel && sel->active) {
-      /* View only — the cursor stays with the controlled unit. */
+      /* View only — the cursor stays with the controlled unit. bugs.md 291:
+       * the deliberate pan also holds off the off-screen auto-recentre so
+       * the player can reach a far go-to destination. */
+      game->view_pan_hold_unit = sel->id;
       game_set_view_center(game, mx, my);
       return;
     }
@@ -10091,7 +10166,8 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
         &vx,
         &vy
       );
-      if (active->x < vx || active->y < vy || active->x >= vx + vc || active->y >= vy + vr) {
+      if ((active->x < vx || active->y < vy || active->x >= vx + vc || active->y >= vy + vr) &&
+          game->view_pan_hold_unit != active->id /* bugs.md 291 manual pan */) {
         game->map_cursor_x = active->x;
         game->map_cursor_y = active->y;
         game_set_view_center(game, active->x, active->y);
@@ -10439,6 +10515,9 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
               sizeof(game->status),
               "Working as %s",
               colony_yield_job_name(job)
+            );
+            game_colony_indian_land_worked(
+              game, colonies_get(&game->colonies, game->colony_view_id), csv->jobs_tile_index
             );
           } else {
             set_status(game, "Cannot assign field", NULL);
@@ -11028,6 +11107,9 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
             game_colony_assign_job_sound(job);
             snprintf(
               game->status, sizeof(game->status), "Working as %s", colony_yield_job_name(job)
+            );
+            game_colony_indian_land_worked(
+              game, colonies_get(&game->colonies, game->colony_view_id), csv->jobs_tile_index
             );
           } else {
             set_status(game, "Cannot assign field", NULL);
@@ -11910,6 +11992,12 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
                 &tx,
                 &ty
               )) {
+            /* bugs.md 291: a minimap pan while a unit is active must hold,
+             * exactly like a main-map pan — suspend that unit's off-screen
+             * auto-recentre until its next action / hand-off. */
+            if (game->units_ok && game->units.selected_id >= 0) {
+              game->view_pan_hold_unit = game->units.selected_id;
+            }
             game_set_view_center(game, tx, ty);
           } else if (game_end_turn_prompt_active(game)) {
             /* DOS FUN_2b5a_3752: while the End of Turn prompt is up the next

@@ -1774,6 +1774,45 @@ static void colony_screen_draw_area_overlays(
       }
     }
   }
+
+  /*
+   * bugs.md 290 / DOS FUN_15eb_26e4: unworked tiles still claimed as Indian
+   * land (MET tribe radius, land unbought, no Peter Minuit) carry a totem
+   * pole marker. Mark shape is the port's own (DOS totem art not located in
+   * the sheets yet); the claim rule is the decoded DOS one.
+   */
+  if (col1) {
+    for (int dy = -half; dy <= half; ++dy) {
+      for (int dx = -half; dx <= half; ++dx) {
+        if (dx == 0 && dy == 0) {
+          continue;
+        }
+        const int ti = colonies_field_tile_index(dx, dy);
+        if (ti >= 0) {
+          const int who = (int)colony->tiles[ti];
+          if (who >= 0 && who < colony->colonist_count &&
+              colony->colonists[who].active && colony->colonists[who].field_job >= 0) {
+            continue; /* worked tile — DOS clears the claim slot */
+          }
+        }
+        if (colonies_indian_claim_tribe(
+              col1, map, pool, colony->nation_id, colony->x + dx, colony->y + dy
+            ) < 0) {
+          continue;
+        }
+        const int tx = origin_x + (dx + half) * tile;
+        const int ty = origin_y + (dy + half) * tile;
+        /* Totem: 3px pole with darker bands + top wings, bottom-centred. */
+        const int px = tx + tile / 2 - 1;
+        const int py = ty + tile - 15;
+        colony_screen_fill_rect(framebuffer, px, py, px + 2, py + 12, 6);
+        colony_screen_fill_rect(framebuffer, px, py + 3, px + 2, py + 4, 4);
+        colony_screen_fill_rect(framebuffer, px, py + 7, px + 2, py + 8, 4);
+        colony_screen_fill_rect(framebuffer, px - 2, py + 1, px + 4, py + 1, 6);
+        colony_screen_fill_rect(framebuffer, px - 1, py, px + 3, py, 14);
+      }
+    }
+  }
 }
 
 static void colony_screen_render_minimap(

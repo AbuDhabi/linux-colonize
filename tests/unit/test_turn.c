@@ -1485,10 +1485,12 @@ int main(void) {
         return 1;
       }
       const char* iname = pool.building_types[iron_works].name;
-      /* Free colonist (tag=3), factory tier, sol_bonus=3 (clamped to 2):
-       * v = 3+2=5; shop/factory re-add tag: 5+3=8; factory ×1.5 floor: 8+4=12. */
+      /* Free colonist (tag=3), factory tier, sol_bonus=2 (the real maximum —
+       * the old ">=2 clamps to 2, +1 truncates to 0" step is gone; DOS folds
+       * local_e directly): v = 3+2=5; shop/factory re-add tag: 5+3=8;
+       * factory ×1.5 floor: 8+4=12. */
       const int unskilled =
-        colony_prod_manufacturing_output(iname, COLONIZE_PROF_FREE_COLONIST, COLONIZE_PROF_BLACKSMITH, 3);
+        colony_prod_manufacturing_output(iname, COLONIZE_PROF_FREE_COLONIST, COLONIZE_PROF_BLACKSMITH, 2);
       if (unskilled != 12) {
         fprintf(stderr, "factory sol-fold unskilled want 12 got %d\n", unskilled);
         assets_msg_free(&names);
@@ -1496,7 +1498,7 @@ int main(void) {
       }
       /* Skilled (Blacksmith in Iron Works): whole running total doubles: 12*2=24. */
       const int skilled =
-        colony_prod_manufacturing_output(iname, COLONIZE_PROF_BLACKSMITH, COLONIZE_PROF_BLACKSMITH, 3);
+        colony_prod_manufacturing_output(iname, COLONIZE_PROF_BLACKSMITH, COLONIZE_PROF_BLACKSMITH, 2);
       if (skilled != 24) {
         fprintf(stderr, "factory sol-fold skilled want 24 got %d\n", skilled);
         assets_msg_free(&names);
