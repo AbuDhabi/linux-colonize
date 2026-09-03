@@ -4775,8 +4775,9 @@ static void europe_render_menu_popup(
       snprintf(label, sizeof(label), "%s",
                eu->menu == EUROPE_MENU_RECRUIT ? "(None)" : "None");
     } else if (eu->menu == EUROPE_MENU_RECRUIT) {
-      const EuropePoolSlot* p = &eu->pool[i - 1];
-      snprintf(label, sizeof(label), "%s", p->filled ? p->name : "(empty)");
+      /* Same choice source as the Brewster / Fountain of Youth pick popups
+       * (DOS 4884 draws one list for all three). */
+      snprintf(label, sizeof(label), "%s", europe_pool_label(eu, i - 1));
       if (eu->gold < eu->recruit_passage) {
         color = 8; /* cannot pay the passage */
       }

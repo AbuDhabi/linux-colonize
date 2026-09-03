@@ -351,21 +351,20 @@ static const EuropePoolCand k_pool_cands[] = {
 /* bugs.md: Brewster's ban covers the EXISTING pool too — slots rolled
  * before the flag rose still held Petty Criminals / Indentured Servants,
  * so the Recruit list and the docks disagreed with the Brewster pick
- * dialog. Raise the flag and reroll any offending slots. */
+ * dialog. DOS FUN_4345_0342 case 0x14 walks the three pool slot bytes and
+ * overwrites 0x19/0x1a (servant/criminal) with 0x1c — job NONE, which
+ * FUN_38fd_4884 draws as Free Colonists (0x1c→0x13 label swap). A direct
+ * substitution, not a reroll (bugs.md 230 kept it idempotent). */
 void europe_apply_brewster(EuropeScreen* eu, int owned) {
   if (!eu || !owned) {
     return;
   }
-  /* bugs.md 230: purge unconditionally (idempotent) — the immigration tick
-   * used to set brewster_no_criminals WITHOUT purging, and the old
-   * "fresh" gate here then skipped the purge forever, so the Brewster pick
-   * dialog and the Recruit list kept offering stale criminal/servant slots. */
   eu->brewster_no_criminals = true;
   for (int i = 0; i < EUROPE_POOL_SIZE; ++i) {
     if (eu->pool[i].filled &&
         (eu->pool[i].profession == 25 || eu->pool[i].profession == 26)) {
-      eu->pool[i].filled = false;
-      europe_refill_pool_slot(eu, i, NULL);
+      snprintf(eu->pool[i].name, sizeof(eu->pool[i].name), "Free Colonists");
+      eu->pool[i].profession = 19;
     }
   }
 }
@@ -378,11 +377,6 @@ void europe_refill_pool_slot(EuropeScreen* eu, int slot, unsigned* rng_state) {
   unsigned* st = rng_state ? rng_state : &local;
   int total = 0;
   for (size_t i = 0; i < sizeof(k_pool_cands) / sizeof(k_pool_cands[0]); ++i) {
-    /* Brewster (wiki): no criminals/servants on docks / recruit pool. */
-    if (eu->brewster_no_criminals &&
-        (k_pool_cands[i].profession == 26 || k_pool_cands[i].profession == 25)) {
-      continue;
-    }
     total += k_pool_cands[i].weight;
   }
   if (total <= 0) {
@@ -390,19 +384,45 @@ void europe_refill_pool_slot(EuropeScreen* eu, int slot, unsigned* rng_state) {
   }
   int pick = (int)(europe_rng_next(st) % (unsigned)total);
   for (size_t i = 0; i < sizeof(k_pool_cands) / sizeof(k_pool_cands[0]); ++i) {
-    if (eu->brewster_no_criminals &&
-        (k_pool_cands[i].profession == 26 || k_pool_cands[i].profession == 25)) {
-      continue;
-    }
     pick -= k_pool_cands[i].weight;
     if (pick < 0) {
       EuropePoolSlot* p = &eu->pool[slot];
-      snprintf(p->name, sizeof(p->name), "%s", k_pool_cands[i].name);
-      p->profession = k_pool_cands[i].profession;
+      /* Brewster: DOS FUN_38fd_46d4 rolls the tier first and only then
+       * checks FF 0x14 — a criminal (0x1a) or servant (0x19) result is
+       * returned as 0x1c (Free Colonists) instead. Substitute here so their
+       * roll mass moves to Free Colonists rather than being redistributed
+       * across the whole candidate table. */
+      if (eu->brewster_no_criminals &&
+          (k_pool_cands[i].profession == 25 || k_pool_cands[i].profession == 26)) {
+        snprintf(p->name, sizeof(p->name), "Free Colonists");
+        p->profession = 19;
+      } else {
+        snprintf(p->name, sizeof(p->name), "%s", k_pool_cands[i].name);
+        p->profession = k_pool_cands[i].profession;
+      }
       p->filled = true;
       return;
     }
   }
+}
+
+void europe_pool_ensure_filled(EuropeScreen* eu) {
+  if (!eu) {
+    return;
+  }
+  for (int i = 0; i < EUROPE_POOL_SIZE; ++i) {
+    if (!eu->pool[i].filled) {
+      europe_refill_pool_slot(eu, i, NULL);
+    }
+  }
+}
+
+const char* europe_pool_label(const EuropeScreen* eu, int slot) {
+  if (!eu || slot < 0 || slot >= EUROPE_POOL_SIZE) {
+    return "Colonist";
+  }
+  const EuropePoolSlot* p = &eu->pool[slot];
+  return (p->filled && p->name[0]) ? p->name : "Colonist";
 }
 
 static void europe_init_pool(EuropeScreen* eu) {
@@ -3339,6 +3359,7 @@ void europe_menu_open(EuropeScreen* eu, EuropeMenu menu) {
   eu->menu = menu;
   eu->menu_selection = 0;
   if (menu == EUROPE_MENU_RECRUIT) {
+    europe_pool_ensure_filled(eu);
     snprintf(
       eu->status,
       sizeof(eu->status),

@@ -386,9 +386,16 @@ bool europe_immigrant_from_pool(EuropeScreen* eu, struct ColonizeDosRng* rng);
 /* Brewster (FF 20) arrival: FUN_38fd_4884(0,1) pick applied — free
  * dock transfer of pool[pool_index], then crosses zeroed (no +6 bump). */
 bool europe_brewster_pick_from_pool(EuropeScreen* eu, int pool_index);
-/* Brewster owned: no criminals/servants in pool; reroll stale slots once. */
+/* Brewster owned (FUN_4345_0342 case 0x14): criminal/servant pool slots are
+ * overwritten with Free Colonists in place — a substitution, not a reroll. */
 void europe_apply_brewster(EuropeScreen* eu, int owned);
 void europe_refill_pool_slot(EuropeScreen* eu, int slot, unsigned* rng_state);
+/* Shared recruit-choice source: DOS FUN_38fd_4884 draws the same three pool
+ * slots for the Recruit menu, the Brewster @RECRUITCHOOSE pick and the
+ * Fountain of Youth @RECRUIT picks. Ensure fills empty slots; label is the
+ * row text every one of those lists must use. */
+void europe_pool_ensure_filled(EuropeScreen* eu);
+const char* europe_pool_label(const EuropeScreen* eu, int slot);
 
 bool europe_train(EuropeScreen* eu, int train_index);
 bool europe_purchase(EuropeScreen* eu, int purchase_index);
