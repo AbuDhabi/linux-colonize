@@ -289,4 +289,6 @@ This is a user-maintained list of bugs. User puts reports in. Agents may annotat
 | Clicking an already selected nation and difficulty in the new game setup should confirm selection just the same as Enter does. | |
 | Indian land should be indicated by a totem pole sprite in the colony minimap, and Indians will complain if you try to work those tiles. When you have Peter Minuit, all of those go away. Check how DOS does all of that. | |
 | Clicking on main map sidebar minimap while a unit is active should pan just like panning by clicking on the main map itself does. Same idea: user may want to pan to a different location to give a go-to order far away. | |
-| Food stores depleted should only fire if the food stores are exactly 0. Not just because they decreased. | | 
+| Food stores depleted should only fire if the food stores are exactly 0. Not just because they decreased. | |
+| Trying to go-to into an Indian settlement fails, even though it's a valid order. Unit should try to go there and once adjacent, the next move should open up the appropriate "entering indian village" popup, according to what unit that is.| |
+| Identured servants still offend indians as if they were criminals, when they come to the village to live among the natives. Fix that. | |
