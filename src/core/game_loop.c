@@ -49,6 +49,7 @@
 #include "core/sound.h"
 #include "core/ss.h"
 #include "core/strutil.h"
+#include "core/trade_screen.h"
 #include "core/turn.h"
 #include "core/ui_button.h"
 #include "core/ui_colors.h"
@@ -192,10 +193,23 @@ struct ColonizeGameState {
   GameMapConfirm map_confirm;
   int map_confirm_payload; /* unit id / trade route slot / … */
   int trade_select_mode; /* 0=idle, 1=begin route, 2=edit, 3=delete */
-  /* Thin TRADE Edit cargo picker: route/stop being edited; phase unload→load. */
-  int trade_edit_route; /* -1 = idle */
-  int trade_edit_stop;
-  bool trade_edit_need_load; /* after unload confirm, open load picker */
+  /* EDIT TRADE ROUTE screen (DOS FUN_647e_115c) + its sub-dialog context. */
+  TradeScreen trade_screen;
+  int trade_dest_stop;   /* editor destination picker: stop index being edited */
+  int trade_cargo_stop;  /* editor cargo picker: stop index */
+  bool trade_cargo_is_load;
+  int trade_last_edited; /* DS:0x1d69 — last route the editor was opened on */
+  /*
+   * Create Trade Route wizard (DOS OVL19_L0040 flow):
+   * 0 idle, 1 = first @TRADESTART picker open, 2 = @TRADETYPE pending,
+   * 3 = @TRADENAME pending, 4 = second @TRADESTART picker open.
+   */
+  int trade_create_stage;
+  int trade_create_dest1;
+  uint8_t trade_create_sea;
+  char trade_create_name[32];
+  /* Begin Trade Route: route picked, waiting on the starting-stop picker. */
+  int trade_begin_route_pending;
   AiPopupState ai_popups;
   SaveLoadDialog save_load;
   UnitStackPopup unit_stack;
@@ -736,7 +750,16 @@ static bool game_turn_flow_allowed(const ColonizeGameState* game);
 static bool game_defer_turn_flow(ColonizeGameState* game);
 static void game_open_retire_score(ColonizeGameState* game);
 static void game_begin_win_closing_or_score(ColonizeGameState* game);
-static void game_open_trade_unload_picker(ColonizeGameState* game);
+static void game_trade_open_editor(ColonizeGameState* game, int route);
+static void game_trade_begin_at_stop(ColonizeGameState* game, int route, int stop_i);
+static void game_trade_open_dest_picker(ColonizeGameState* game, int stop_i);
+static void game_trade_open_cargo_picker(ColonizeGameState* game, int stop_i, bool is_load);
+static void game_trade_open_stop_picker(ColonizeGameState* game, int route, int preselect);
+static void game_trade_wizard_open_dest(ColonizeGameState* game, int number);
+static void game_trade_wizard_open_name(ColonizeGameState* game);
+static void game_apply_trade_dest(ColonizeGameState* game, int id);
+static void game_trade_default_name(ColonizeGameState* game, int dest1, char* out, size_t out_size);
+static const char* game_trade_europe_label(const ColonizeGameState* game);
 static int game_trade_route_aim_stop(ColonizeGameState* game, ColonizeUnit* u, int stop_i);
 static void game_set_view_center(ColonizeGameState* game, int x, int y);
 static void game_open_found_name_entry(ColonizeGameState* game, int colony_id);
@@ -1330,6 +1353,26 @@ static void game_do_overboard(ColonizeGameState* game, int uid) {
   }
 }
 
+/* Live route count (DOS DS:0x53a0 — routes are kept compact). */
+static int game_trade_route_count(const ColonizeGameState* game) {
+  if (!game || !game->col1_ok) {
+    return 0;
+  }
+  int n = 0;
+  for (int i = 0; i < (int)COLONIZE_COL1_TRADE_ROUTE_COUNT; ++i) {
+    if (game->col1.trade_route[i].name[0] != '\0' ||
+        game->col1.trade_route[i].dest_count > 0) {
+      n = i + 1;
+    }
+  }
+  return n;
+}
+
+/*
+ * Delete route `slot` — DOS FUN_647e_1486 tail: units on the route lose
+ * order 2 (and the route/stop bookkeeping), units on later routes are
+ * renumbered, and the array is compacted.
+ */
 static void game_do_trade_delete_slot(ColonizeGameState* game, int slot) {
   if (!game || !game->col1_ok || slot < 0 ||
       slot >= (int)COLONIZE_COL1_TRADE_ROUTE_COUNT) {
@@ -1337,20 +1380,63 @@ static void game_do_trade_delete_slot(ColonizeGameState* game, int slot) {
   }
   char gone[32];
   snprintf(gone, sizeof(gone), "%s", game->col1.trade_route[slot].name);
-  memset(&game->col1.trade_route[slot], 0, sizeof(game->col1.trade_route[slot]));
-  uint16_t hi = 0;
-  for (int i = 0; i < (int)COLONIZE_COL1_TRADE_ROUTE_COUNT; ++i) {
-    if (game->col1.trade_route[i].name[0] != '\0' ||
-        game->col1.trade_route[i].dest_count > 0) {
-      hi = (uint16_t)(i + 1);
+  if (game->units_ok) {
+    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+      ColonizeUnit* u = &game->units.units[i];
+      if (!u->active || u->orders != UNITS_ORDER_TRADE_ROUTE) {
+        continue;
+      }
+      if (u->follow_unit_id == slot) {
+        units_clear_orders(&game->units, u->id);
+      } else if (u->follow_unit_id > slot) {
+        u->follow_unit_id--;
+      }
     }
   }
-  game->col1.head.trade_route_count = hi;
+  const int count = game_trade_route_count(game);
+  for (int i = slot; i < count - 1; ++i) {
+    game->col1.trade_route[i] = game->col1.trade_route[i + 1];
+  }
+  memset(
+    &game->col1.trade_route[count - 1], 0, sizeof(game->col1.trade_route[count - 1])
+  );
+  game->col1.head.trade_route_count = (uint16_t)(count - 1);
+  if (game->trade_last_edited >= count - 1) {
+    game->trade_last_edited = 0;
+  }
   snprintf(game->status, sizeof(game->status), "Deleted %s", gone[0] ? gone : "route");
 }
 
+/*
+ * Begin Trade Route step 2 (DOS FUN_2b5a_1e66 tail): route picked; assign it,
+ * then let the player pick the starting destination (FUN_647e_090a) when the
+ * route has more than one stop.
+ */
 static void game_trade_begin_route(ColonizeGameState* game, int route) {
-  if (!game || !game->units_ok) {
+  if (!game || !game->units_ok || !game->col1_ok) {
+    return;
+  }
+  const int sid = game->units.selected_id;
+  if (sid < 0 || route < 0 || route >= (int)COLONIZE_COL1_TRADE_ROUTE_COUNT) {
+    set_status(game, "Select a ship or wagon", NULL);
+    return;
+  }
+  const ColonizeCol1TradeRoute* r = &game->col1.trade_route[route];
+  if (r->dest_count <= 0) {
+    set_status(game, "Invalid trade route", NULL);
+    return;
+  }
+  if (r->dest_count > 1) {
+    game->trade_begin_route_pending = route;
+    game_trade_open_stop_picker(game, route, 0);
+    return;
+  }
+  game_trade_begin_at_stop(game, route, 0);
+}
+
+/* Begin Trade Route final step: order 2, aim the chosen stop. */
+static void game_trade_begin_at_stop(ColonizeGameState* game, int route, int stop_i) {
+  if (!game || !game->units_ok || !game->col1_ok) {
     return;
   }
   const int sid = game->units.selected_id;
@@ -1365,77 +1451,19 @@ static void game_trade_begin_route(ColonizeGameState* game, int route) {
   }
   u->follow_unit_id = route;
   u->turns_worked = 0;
-  if (game_trade_route_aim_stop(game, u, 0)) {
+  if (game_trade_route_aim_stop(game, u, stop_i)) {
     snprintf(
       game->status,
       sizeof(game->status),
-      "Trade route: %s (stop 1/%d)",
+      "Trade route: %s (stop %d/%d)",
       game->col1.trade_route[route].name,
+      stop_i + 1,
       (int)game->col1.trade_route[route].dest_count
     );
   } else {
     set_status(game, "Trade route begun (could not aim first stop)", NULL);
   }
   game_wait_next_unit(game);
-}
-
-static void game_trade_edit_append_stop(ColonizeGameState* game, int route) {
-  if (!game || !game->col1_ok || route < 0 ||
-      route >= (int)COLONIZE_COL1_TRADE_ROUTE_COUNT) {
-    return;
-  }
-  ColonizeCol1TradeRoute* r = &game->col1.trade_route[route];
-  if (r->dest_count >= 4) {
-    snprintf(game->status, sizeof(game->status), "%s full (4 stops)", r->name);
-    return;
-  }
-  const int cid = colonies_id_at(&game->colonies, game->map_cursor_x, game->map_cursor_y);
-  uint16_t stop_idx = 999;
-  const char* stop_label = "Europe";
-  if (cid >= 0) {
-    const ColonizeColony* c = colonies_get(&game->colonies, cid);
-    if (!c || !c->active || c->nation_id != game->human_nation) {
-      set_status(game, "Edit: cursor must be own colony (or Europe for sea)", NULL);
-      return;
-    }
-    stop_idx = (uint16_t)cid;
-    stop_label = c->name[0] ? c->name : "colony";
-  } else if (!r->sea) {
-    set_status(game, "Edit: put cursor on own colony to add stop", NULL);
-    return;
-  }
-  if (r->dest_count > 0 && r->stop[r->dest_count - 1].colony_index == stop_idx) {
-    snprintf(
-      game->status,
-      sizeof(game->status),
-      "%s already ends at %s (%d/4)",
-      r->name,
-      stop_label,
-      (int)r->dest_count
-    );
-    return;
-  }
-  ColonizeCol1TradeStop* st = &r->stop[r->dest_count];
-  memset(st, 0, sizeof(*st));
-  st->colony_index = stop_idx;
-  {
-    const ColonizeColony* fill_c =
-      (stop_idx == 999) ? NULL : colonies_get(&game->colonies, (int)stop_idx);
-    colonies_trade_stop_autofill(st, fill_c, &game->units, game->units.selected_id);
-  }
-  r->dest_count++;
-  game->trade_edit_route = route;
-  game->trade_edit_stop = (int)r->dest_count - 1;
-  game->trade_edit_need_load = (stop_idx != 999);
-  snprintf(
-    game->status,
-    sizeof(game->status),
-    "%s +%s (%d/4) — pick unload/load",
-    r->name,
-    stop_label,
-    (int)r->dest_count
-  );
-  game_open_trade_unload_picker(game);
 }
 
 static void game_apply_map_confirm(ColonizeGameState* game) {
@@ -1752,9 +1780,29 @@ static void game_open_find_colony_picker(ColonizeGameState* game) {
   }
 }
 
+/*
+ * Route picker (DOS FUN_647e_0796). mode: 1 = Begin (filter to the selected
+ * unit's sea/land routes — FUN_2b5a_1e66's param 2/1), 2 = Edit (@TRADESELECT,
+ * all routes), 3 = Delete (@TRADEDELETE). No routes at all → @TRADENONE; no
+ * routes of the unit's type → @TRADENONE2 {sea|land}.
+ */
 static void game_open_trade_route_picker(ColonizeGameState* game, int mode) {
   if (!game || !game->col1_ok) {
     set_status(game, "No trade routes", NULL);
+    return;
+  }
+  int filter = 0; /* 0 = all; 1 = land only; 2 = sea only */
+  if (mode == 1 && game->units_ok && game->units.selected_id >= 0) {
+    filter = units_is_sea(&game->units, game->units.selected_id) ? 2 : 1;
+  }
+  const int total = game_trade_route_count(game);
+  if (total <= 0) {
+    char body[AI_POPUP_BODY_LEN];
+    popup_msg_fill(
+      &game->messages, "TRADENONE", NULL,
+      "You have not yet defined any trade routes.", body, sizeof(body)
+    );
+    ai_popup_enqueue_ok(&game->ai_popups, AI_POPUP_TAG_INFO, NULL, body);
     return;
   }
   const char* labels[CHEAT_LIST_MAX_OPTIONS];
@@ -1767,9 +1815,12 @@ static void game_open_trade_route_picker(ColonizeGameState* game, int mode) {
     if (r->name[0] == '\0' && r->dest_count == 0) {
       continue;
     }
-    str_copy_trunc(
-      name_bufs[count],
-      sizeof(name_bufs[count]),
+    if (filter != 0 && ((filter == 2) != (r->sea != 0))) {
+      continue;
+    }
+    /* DOS rows are "N. NAME" (FUN_647e_0796's number + FUN_1d1d_11b4). */
+    snprintf(
+      name_bufs[count], sizeof(name_bufs[count]), "%d. %s", i + 1,
       r->name[0] ? r->name : "Route"
     );
     labels[count] = name_bufs[count];
@@ -1777,7 +1828,18 @@ static void game_open_trade_route_picker(ColonizeGameState* game, int mode) {
     count++;
   }
   if (count <= 0) {
-    set_status(game, "No trade routes", NULL);
+    /* @TRADENONE2 {%STRING0} — LABELS @ROUTE "Sea" / "Land". */
+    PopupMsgTokens tok;
+    memset(&tok, 0, sizeof(tok));
+    tok.string0 =
+      (filter == 2) ? game->trade_screen.lab_sea : game->trade_screen.lab_land;
+    char body[AI_POPUP_BODY_LEN];
+    char fb[AI_POPUP_BODY_LEN];
+    snprintf(
+      fb, sizeof(fb), "You have not yet defined any {%s} trade routes.", tok.string0
+    );
+    popup_msg_fill(&game->messages, "TRADENONE2", &tok, fb, body, sizeof(body));
+    ai_popup_enqueue_ok(&game->ai_popups, AI_POPUP_TAG_INFO, NULL, body);
     return;
   }
   game->trade_select_mode = mode;
@@ -1902,6 +1964,32 @@ static void game_apply_name_entry_result(ColonizeGameState* game) {
     return;
   }
   const NameEntryKind kind = game->name_entry.result_kind;
+  if (kind == NAME_ENTRY_KIND_TRADE_NAME) {
+    /* Create wizard stage 3 (@TRADENAME): cancel aborts the whole flow. */
+    if (game->name_entry.result_cancelled || game->trade_create_stage != 3) {
+      game->trade_create_stage = 0;
+    } else {
+      str_copy_trunc(
+        game->trade_create_name, sizeof(game->trade_create_name),
+        game->name_entry.result_name
+      );
+      game_trade_wizard_open_dest(game, 2);
+    }
+    game->name_entry.has_result = false;
+    return;
+  }
+  if (kind == NAME_ENTRY_KIND_TRADE_RENAME) {
+    if (!game->name_entry.result_cancelled && game->col1_ok &&
+        game->name_entry.result_name[0] &&
+        game->name_entry.result_colony_id >= 0 &&
+        game->name_entry.result_colony_id < (int)COLONIZE_COL1_TRADE_ROUTE_COUNT) {
+      ColonizeCol1TradeRoute* r =
+        &game->col1.trade_route[game->name_entry.result_colony_id];
+      str_copy_trunc(r->name, sizeof(r->name), game->name_entry.result_name);
+    }
+    game->name_entry.has_result = false;
+    return;
+  }
   if (kind == NAME_ENTRY_KIND_LANDHO) {
     char fallback[48];
     game_landho_default_region(game, fallback, sizeof(fallback));
@@ -2050,6 +2138,68 @@ static void game_apply_options_result(ColonizeGameState* game) {
   game->options_dlg.has_result = false;
 }
 
+/* Service the EDIT TRADE ROUTE screen's posted request (see trade_screen.h). */
+static void game_trade_service_screen_request(ColonizeGameState* game) {
+  TradeScreen* ts = &game->trade_screen;
+  const TradeScreenRequest req = ts->request;
+  ts->request = TRADE_SCREEN_REQ_NONE;
+  if (req == TRADE_SCREEN_REQ_NONE || !game->col1_ok || ts->route < 0) {
+    if (req == TRADE_SCREEN_REQ_CLOSE) {
+      trade_screen_close(ts);
+    }
+    return;
+  }
+  ColonizeCol1TradeRoute* r = &game->col1.trade_route[ts->route];
+  switch (req) {
+    case TRADE_SCREEN_REQ_CLOSE:
+      trade_screen_close(ts);
+      break;
+    case TRADE_SCREEN_REQ_RENAME: {
+      char prompt[AI_POPUP_BODY_LEN];
+      popup_msg_fill(
+        &game->messages, "TRADENAME", NULL, "Enter the name for this trade route.",
+        prompt, sizeof(prompt)
+      );
+      (void)name_entry_open(
+        &game->name_entry, NAME_ENTRY_KIND_TRADE_RENAME, prompt, r->name, ts->route
+      );
+      break;
+    }
+    case TRADE_SCREEN_REQ_DEST:
+      game_trade_open_dest_picker(game, ts->request_stop);
+      break;
+    case TRADE_SCREEN_REQ_CARGO_ADD:
+      game_trade_open_cargo_picker(game, ts->request_stop, ts->request_is_load);
+      break;
+    case TRADE_SCREEN_REQ_CARGO_REMOVE: {
+      /* DOS FUN_647e_0f2c: clicking an icon removes that list entry. */
+      const int stop_i = ts->request_stop;
+      const int slot = ts->request_slot;
+      if (stop_i < 0 || stop_i >= (int)r->dest_count) {
+        break;
+      }
+      ColonizeCol1TradeStop* st = &r->stop[stop_i];
+      uint8_t* nib = ts->request_is_load ? st->load_cargo_nibbles : st->unload_cargo_nibbles;
+      const int count = ts->request_is_load ? (int)st->load_count : (int)st->unload_count;
+      if (slot < 0 || slot >= count) {
+        break;
+      }
+      for (int i = slot; i < count - 1; ++i) {
+        col1_trade_nibble_set(nib, i, col1_trade_nibble_cargo(nib, i + 1));
+      }
+      col1_trade_nibble_set(nib, count - 1, 0);
+      if (ts->request_is_load) {
+        st->load_count--;
+      } else {
+        st->unload_count--;
+      }
+      break;
+    }
+    default:
+      break;
+  }
+}
+
 /*
  * Parent-view hotkeys must not fire while any wood modal is open (name entry,
  * howmuch, options, ai_popup, lists, stack picker).
@@ -2109,7 +2259,16 @@ static bool game_handle_modal_input(ColonizeGameState* game, const ColonizeInput
   }
   if (game->cheat_list.open) {
     cheat_list_handle_input(&game->cheat_list, input);
+    const bool cancelled = !game->cheat_list.open && !game->cheat_list.has_result;
     game_apply_cheat_list_result(game);
+    if (cancelled) {
+      /* An Esc'd picker aborts whatever trade flow was waiting on it. */
+      game->trade_create_stage = 0;
+      game->trade_begin_route_pending = -1;
+      game->trade_dest_stop = -1;
+      game->trade_cargo_stop = -1;
+      game->trade_select_mode = 0;
+    }
     return true;
   }
   if (game->ai_popups.open) {
@@ -2137,6 +2296,14 @@ static bool game_handle_modal_input(ColonizeGameState* game, const ColonizeInput
     }
     ai_popup_handle_input(&game->ai_popups, input);
     game_apply_ai_popup_result(game);
+    return true;
+  }
+  if (game->trade_screen.open) {
+    trade_screen_handle_input(
+      &game->trade_screen, game->col1_ok ? &game->col1 : NULL,
+      game->unit_icons_ok ? &game->unit_icons : NULL, input
+    );
+    game_trade_service_screen_request(game);
     return true;
   }
   if (game->unit_stack.open) {
@@ -2258,6 +2425,20 @@ static void game_apply_ai_popup_result(ColonizeGameState* game) {
   }
   if (game->ai_popups.result_tag == AI_POPUP_TAG_MAP_CONFIRM) {
     game_apply_map_confirm(game);
+    return;
+  }
+  if (game->ai_popups.result_tag == AI_POPUP_TAG_TRADE_TYPE) {
+    /* @TRADETYPE (create wizard stage 2): choice 1 = Sea, 0 = Land (DOS). */
+    const bool cancelled = game->ai_popups.result_cancelled;
+    const int choice = game->ai_popups.result_choice_id;
+    ai_popup_consume_result(&game->ai_popups);
+    if (cancelled || game->trade_create_stage != 2) {
+      game->trade_create_stage = 0;
+      return;
+    }
+    game->trade_create_sea = (choice == 1) ? 1u : 0u;
+    game->trade_create_stage = 3;
+    game_trade_wizard_open_name(game);
     return;
   }
   if (game->ai_popups.result_tag == AI_POPUP_TAG_COLONY_EVENT) {
@@ -3035,61 +3216,399 @@ static void game_open_cheat_sound_test(ColonizeGameState* game) {
   howmuch_open(&game->howmuch, HOWMUCH_KIND_SOUND_TEST, "Play what sound #?", 255, 0, 0, 0);
 }
 
-static uint16_t game_trade_stop_mask_from_nibbles(const uint8_t nibbles[3], int count) {
-  uint16_t m = 0;
-  for (int i = 0; i < count && i < 6; ++i) {
-    const int ct = col1_trade_nibble_cargo(nibbles, i);
-    if (ct >= 0 && ct < 16) {
-      m = (uint16_t)(m | (uint16_t)(1u << ct));
+/* Nation's Europe port name — the Europe-stop row label (DOS DS:-0x7c74 table). */
+static const char* game_trade_europe_label(const ColonizeGameState* game) {
+  if (game && game->europe_ok && game->europe.port_city[0]) {
+    return game->europe.port_city;
+  }
+  return "Europe";
+}
+
+static void game_trade_open_editor(ColonizeGameState* game, int route) {
+  if (!game || !game->col1_ok || route < 0 ||
+      route >= (int)COLONIZE_COL1_TRADE_ROUTE_COUNT) {
+    return;
+  }
+  game->trade_last_edited = route;
+  trade_screen_open(&game->trade_screen, route);
+}
+
+/*
+ * Destination picker for editor stop `stop_i` (or append when stop_i ==
+ * dest_count) and for the create wizard (trade_create_stage 1/4, stop_i < 0).
+ * DOS FUN_647e_01c6: own colonies (sea routes: coastal only, plus the Europe
+ * row); "(Delete Destination)" appended when editing an existing stop of a
+ * multi-stop route.
+ */
+static void game_trade_open_dest_picker(ColonizeGameState* game, int stop_i) {
+  if (!game || !game->col1_ok || !game->colonies_ok) {
+    return;
+  }
+  const bool wizard = stop_i < 0;
+  bool sea = false;
+  const ColonizeCol1TradeRoute* r = NULL;
+  if (!wizard) {
+    if (game->trade_screen.route < 0) {
+      return;
+    }
+    r = &game->col1.trade_route[game->trade_screen.route];
+    sea = r->sea != 0;
+  }
+  const char* labels[CHEAT_LIST_MAX_OPTIONS];
+  int ids[CHEAT_LIST_MAX_OPTIONS];
+  char bufs[CHEAT_LIST_MAX_OPTIONS][CHEAT_LIST_LABEL_LEN];
+  int count = 0;
+  for (int i = 0; i < COLONIZE_COLONIES_MAX && count < CHEAT_LIST_MAX_OPTIONS - 2; ++i) {
+    const ColonizeColony* c = &game->colonies.colonies[i];
+    if (!c->active || c->nation_id != game->human_nation) {
+      continue;
+    }
+    if (!wizard && sea && game->world_map_ok &&
+        !map_tile_is_coastal(&game->world_map, c->x, c->y)) {
+      continue;
+    }
+    str_copy_trunc(bufs[count], sizeof(bufs[count]), c->name[0] ? c->name : "Colony");
+    labels[count] = bufs[count];
+    ids[count] = c->id;
+    count++;
+  }
+  if (!wizard && sea && count < CHEAT_LIST_MAX_OPTIONS - 1) {
+    /* Europe row: "<Port> (Europe)" — FUN_647e_01c6's nation port entry. */
+    snprintf(bufs[count], sizeof(bufs[count]), "%s (Europe)", game_trade_europe_label(game));
+    labels[count] = bufs[count];
+    ids[count] = 999;
+    count++;
+  }
+  if (!wizard && r && stop_i < (int)r->dest_count && r->dest_count > 1 &&
+      count < CHEAT_LIST_MAX_OPTIONS) {
+    labels[count] = game->trade_screen.lab_delete;
+    ids[count] = 1000;
+    count++;
+  }
+  if (count <= 0) {
+    set_status(game, "No destinations available", NULL);
+    game->trade_create_stage = 0;
+    return;
+  }
+  /* @TRADESTART "Select destination number %NUMBER0 for route". */
+  PopupMsgTokens tok;
+  memset(&tok, 0, sizeof(tok));
+  int number = 1;
+  if (wizard) {
+    number = (game->trade_create_stage == 4) ? 2 : 1;
+  } else {
+    number = stop_i + 1;
+  }
+  tok.number0 = number;
+  tok.has_number0 = true;
+  char prompt[COLONIZE_MSG_LINE_LEN];
+  char fb[COLONIZE_MSG_LINE_LEN];
+  snprintf(fb, sizeof(fb), "Select destination number %d for route", number);
+  popup_msg_fill(&game->messages, "TRADESTART", &tok, fb, prompt, sizeof(prompt));
+  game->trade_dest_stop = wizard ? -1 : stop_i;
+  if (!cheat_list_open_trade_dest(&game->cheat_list, prompt, labels, ids, count)) {
+    set_status(game, "Destination picker unavailable", NULL);
+    game->trade_create_stage = 0;
+    game->trade_dest_stop = -1;
+  }
+}
+
+/* @CARGOLOAD / @CARGOUNLOAD single-cargo picker for the editor (16 goods). */
+static void game_trade_open_cargo_picker(ColonizeGameState* game, int stop_i, bool is_load) {
+  if (!game || !game->col1_ok || game->trade_screen.route < 0) {
+    return;
+  }
+  const ColonizeCol1TradeRoute* r = &game->col1.trade_route[game->trade_screen.route];
+  if (stop_i < 0 || stop_i >= (int)r->dest_count) {
+    return;
+  }
+  const char* labels[CHEAT_LIST_MAX_OPTIONS];
+  int ids[CHEAT_LIST_MAX_OPTIONS];
+  char bufs[CHEAT_LIST_MAX_OPTIONS][CHEAT_LIST_LABEL_LEN];
+  const ColonizeMsgSection* cargo_sec =
+    game->names_ok ? assets_msg_find(&game->names, "CARGO") : NULL;
+  int count = 0;
+  for (int c = 0; c < 16 && count < CHEAT_LIST_MAX_OPTIONS; ++c) {
+    if (cargo_sec && c < cargo_sec->line_count) {
+      char line[COLONIZE_MSG_LINE_LEN];
+      str_copy_trunc(line, sizeof(line), cargo_sec->lines[c]);
+      char* comma = strchr(line, ',');
+      if (comma) {
+        *comma = '\0';
+      }
+      str_copy_trunc(bufs[count], sizeof(bufs[count]), line);
+    } else {
+      snprintf(bufs[count], sizeof(bufs[count]), "Cargo %d", c);
+    }
+    labels[count] = bufs[count];
+    ids[count] = c;
+    count++;
+  }
+  PopupMsgTokens tok;
+  memset(&tok, 0, sizeof(tok));
+  tok.string0 = trade_screen_stop_label(
+    &game->colonies, r->stop[stop_i].colony_index, game_trade_europe_label(game)
+  );
+  char prompt[COLONIZE_MSG_LINE_LEN];
+  char fb[COLONIZE_MSG_LINE_LEN];
+  snprintf(
+    fb, sizeof(fb), "Select a cargo to %s at {%s}.", is_load ? "load" : "unload",
+    tok.string0
+  );
+  popup_msg_fill(
+    &game->messages, is_load ? "CARGOLOAD" : "CARGOUNLOAD", &tok, fb, prompt,
+    sizeof(prompt)
+  );
+  game->trade_cargo_stop = stop_i;
+  game->trade_cargo_is_load = is_load;
+  if (!cheat_list_open_trade_cargo_one(&game->cheat_list, prompt, labels, ids, count)) {
+    game->trade_cargo_stop = -1;
+    set_status(game, "Cargo picker unavailable", NULL);
+  }
+}
+
+/* Begin Trade Route starting-stop picker (DOS FUN_647e_090a). */
+static void game_trade_open_stop_picker(ColonizeGameState* game, int route, int preselect) {
+  (void)preselect;
+  if (!game || !game->col1_ok || route < 0 ||
+      route >= (int)COLONIZE_COL1_TRADE_ROUTE_COUNT) {
+    return;
+  }
+  const ColonizeCol1TradeRoute* r = &game->col1.trade_route[route];
+  const char* labels[CHEAT_LIST_MAX_OPTIONS];
+  int ids[CHEAT_LIST_MAX_OPTIONS];
+  char bufs[CHEAT_LIST_MAX_OPTIONS][CHEAT_LIST_LABEL_LEN];
+  int count = 0;
+  for (int i = 0; i < (int)r->dest_count && i < 4 && count < CHEAT_LIST_MAX_OPTIONS; ++i) {
+    snprintf(
+      bufs[count], sizeof(bufs[count]), "%d. %s", i + 1,
+      trade_screen_stop_label(
+        &game->colonies, r->stop[i].colony_index, game_trade_europe_label(game)
+      )
+    );
+    labels[count] = bufs[count];
+    ids[count] = i;
+    count++;
+  }
+  if (count <= 0) {
+    game->trade_begin_route_pending = -1;
+    return;
+  }
+  if (!cheat_list_open_trade_dest(&game->cheat_list, "Select a destination:", labels, ids, count)) {
+    game->trade_begin_route_pending = -1;
+    set_status(game, "Destination picker unavailable", NULL);
+  }
+}
+
+/* Create wizard: open the @TRADESTART destination picker (number 1 or 2). */
+static void game_trade_wizard_open_dest(ColonizeGameState* game, int number) {
+  if (!game) {
+    return;
+  }
+  game->trade_create_stage = (number >= 2) ? 4 : 1;
+  game_trade_open_dest_picker(game, -1);
+}
+
+/*
+ * Default route name (DOS OVL19): "<Colony> <TRADENAMES word>", the word
+ * picked at random; on a clash append " A" (DS:0x1d89) and keep bumping the
+ * letter until unique.
+ */
+static void game_trade_default_name(
+  ColonizeGameState* game,
+  int dest1,
+  char* out,
+  size_t out_size
+) {
+  const ColonizeColony* c = colonies_get(&game->colonies, dest1);
+  const char* cname = (c && c->name[0]) ? c->name : "Trade";
+  const char* word = "Run";
+  char word_buf[COLONIZE_MSG_LINE_LEN];
+  const ColonizeMsgSection* sec = assets_msg_find(&game->messages, "TRADENAMES");
+  if (sec && sec->line_count > 1) {
+    /* Line 0 is the count; entries follow (Run/Ferry/Cargo/Transport/Triangle). */
+    int n = atoi(sec->lines[0]);
+    if (n <= 0 || n > sec->line_count - 1) {
+      n = sec->line_count - 1;
+    }
+    const uint32_t pick = (uint32_t)(game->ai_rng_seed = game->ai_rng_seed * 1103515245u + 12345u);
+    str_copy_trunc(word_buf, sizeof(word_buf), sec->lines[1 + (int)(pick % (uint32_t)n)]);
+    if (word_buf[0]) {
+      word = word_buf;
     }
   }
-  return m;
-}
-
-static void game_trade_mask_to_types(uint16_t mask, int* out, int* out_n) {
-  int n = 0;
-  if (!out || !out_n) {
-    return;
-  }
-  for (int c = 0; c < 16 && n < 6; ++c) {
-    if ((mask & (uint16_t)(1u << c)) != 0) {
-      out[n++] = c;
+  snprintf(out, out_size, "%s %s", cname, word);
+  /* Uniqueness: " A", then bump the trailing letter (DOS INC on last char). */
+  bool suffixed = false;
+  for (int guard = 0; guard < 32; ++guard) {
+    bool clash = false;
+    for (int i = 0; i < (int)COLONIZE_COL1_TRADE_ROUTE_COUNT; ++i) {
+      const ColonizeCol1TradeRoute* r = &game->col1.trade_route[i];
+      if ((r->name[0] || r->dest_count) && strncmp(r->name, out, sizeof(r->name)) == 0) {
+        clash = true;
+        break;
+      }
+    }
+    if (!clash) {
+      return;
+    }
+    if (!suffixed) {
+      const size_t len = strlen(out);
+      if (len + 2 < out_size) {
+        out[len] = ' ';
+        out[len + 1] = 'A';
+        out[len + 2] = '\0';
+      }
+      suffixed = true;
+    } else {
+      out[strlen(out) - 1]++;
     }
   }
-  *out_n = n;
 }
 
-static void game_open_trade_unload_picker(ColonizeGameState* game) {
-  if (!game || game->trade_edit_route < 0 || !game->col1_ok) {
+/*
+ * Create wizard step after the first destination: coastal colony → ask
+ * @TRADETYPE (sea/land CHOICE, DOS choice 1 = Sea); landlocked → land route,
+ * straight to the @TRADENAME prompt.
+ */
+static void game_trade_wizard_after_dest1(ColonizeGameState* game, int dest1) {
+  game->trade_create_dest1 = dest1;
+  const ColonizeColony* c = colonies_get(&game->colonies, dest1);
+  const bool coastal =
+    c && game->world_map_ok && map_tile_is_coastal(&game->world_map, c->x, c->y);
+  if (!coastal) {
+    game->trade_create_sea = 0;
+    game->trade_create_stage = 3;
+    game_trade_wizard_open_name(game);
     return;
   }
-  ColonizeCol1TradeRoute* r = &game->col1.trade_route[game->trade_edit_route];
-  if (game->trade_edit_stop < 0 || game->trade_edit_stop >= (int)r->dest_count) {
-    return;
-  }
-  const ColonizeCol1TradeStop* st = &r->stop[game->trade_edit_stop];
-  const uint16_t mask =
-    game_trade_stop_mask_from_nibbles(st->unload_cargo_nibbles, (int)st->unload_count);
-  if (!cheat_list_open_trade_cargos(&game->cheat_list, CHEAT_LIST_KIND_TRADE_UNLOAD, mask)) {
-    set_status(game, "Trade cargo picker unavailable", NULL);
-    game->trade_edit_route = -1;
+  game->trade_create_stage = 2;
+  char body[AI_POPUP_BODY_LEN];
+  popup_msg_fill(
+    &game->messages, "TRADETYPE", NULL,
+    "Is this a {sea} trade route or a {land} trade route?", body, sizeof(body)
+  );
+  const ColonizeMsgSection* sec = assets_msg_find(&game->messages, "TRADETYPE");
+  char choice_buf[AI_POPUP_CHOICE_MAX][AI_POPUP_CHOICE_LEN];
+  const int nch = popup_msg_choices(sec, choice_buf, AI_POPUP_CHOICE_MAX);
+  const char* labels[2] = {
+    nch >= 2 ? choice_buf[0] : "Sea route",
+    nch >= 2 ? choice_buf[1] : "Land route"
+  };
+  const int ids[2] = {1, 0}; /* DOS: 1 = sea, else land */
+  if (!ai_popup_enqueue_choice(
+        &game->ai_popups, AI_POPUP_TAG_TRADE_TYPE, NULL, body, labels, ids, 2
+      )) {
+    game->trade_create_stage = 0;
   }
 }
 
-static void game_open_trade_load_picker(ColonizeGameState* game) {
-  if (!game || game->trade_edit_route < 0 || !game->col1_ok) {
+/* Create wizard @TRADENAME prompt, seeded with the DOS default name. */
+static void game_trade_wizard_open_name(ColonizeGameState* game) {
+  char def_name[NAME_ENTRY_NAME_LEN];
+  game_trade_default_name(game, game->trade_create_dest1, def_name, sizeof(def_name));
+  char prompt[AI_POPUP_BODY_LEN];
+  popup_msg_fill(
+    &game->messages, "TRADENAME", NULL, "Enter the name for this trade route.",
+    prompt, sizeof(prompt)
+  );
+  if (!name_entry_open(
+        &game->name_entry, NAME_ENTRY_KIND_TRADE_NAME, prompt, def_name, -1
+      )) {
+    game->trade_create_stage = 0;
+  }
+}
+
+/*
+ * A CHEAT_LIST_KIND_TRADE_DEST result, by context: Begin's starting-stop
+ * picker (id = stop index), the create wizard's two @TRADESTART pickers
+ * (id = colony), or the editor's stop row (id = colony / 999 Europe / 1000
+ * delete — DOS FUN_647e_0dd4 + _060e).
+ */
+static void game_apply_trade_dest(ColonizeGameState* game, int id) {
+  if (!game || !game->col1_ok) {
     return;
   }
-  ColonizeCol1TradeRoute* r = &game->col1.trade_route[game->trade_edit_route];
-  if (game->trade_edit_stop < 0 || game->trade_edit_stop >= (int)r->dest_count) {
+  if (game->trade_begin_route_pending >= 0) {
+    const int route = game->trade_begin_route_pending;
+    game->trade_begin_route_pending = -1;
+    game_trade_begin_at_stop(game, route, id);
     return;
   }
-  const ColonizeCol1TradeStop* st = &r->stop[game->trade_edit_stop];
-  const uint16_t mask =
-    game_trade_stop_mask_from_nibbles(st->load_cargo_nibbles, (int)st->load_count);
-  if (!cheat_list_open_trade_cargos(&game->cheat_list, CHEAT_LIST_KIND_TRADE_LOAD, mask)) {
-    set_status(game, "Trade cargo picker unavailable", NULL);
-    game->trade_edit_route = -1;
+  if (game->trade_create_stage == 1) {
+    game_trade_wizard_after_dest1(game, id);
+    return;
+  }
+  if (game->trade_create_stage == 4) {
+    /* Commit (DOS: record written, count bumped, editor opened). */
+    game->trade_create_stage = 0;
+    int slot = -1;
+    for (int i = 0; i < (int)COLONIZE_COL1_TRADE_ROUTE_COUNT; ++i) {
+      const ColonizeCol1TradeRoute* r = &game->col1.trade_route[i];
+      if (r->name[0] == '\0' && r->dest_count == 0) {
+        slot = i;
+        break;
+      }
+    }
+    if (slot < 0) {
+      return;
+    }
+    ColonizeCol1TradeRoute* r = &game->col1.trade_route[slot];
+    memset(r, 0, sizeof(*r));
+    str_copy_trunc(r->name, sizeof(r->name), game->trade_create_name);
+    if (!r->name[0]) {
+      snprintf(r->name, sizeof(r->name), "Route %d", slot + 1);
+    }
+    r->sea = game->trade_create_sea;
+    r->dest_count = 2;
+    r->stop[0].colony_index = (uint16_t)game->trade_create_dest1;
+    r->stop[1].colony_index = (uint16_t)id;
+    if (game->col1.head.trade_route_count < (uint16_t)(slot + 1)) {
+      game->col1.head.trade_route_count = (uint16_t)(slot + 1);
+    }
+    game_trade_open_editor(game, slot);
+    return;
+  }
+  /* Editor destination result. */
+  if (!game->trade_screen.open || game->trade_screen.route < 0) {
+    return;
+  }
+  ColonizeCol1TradeRoute* r = &game->col1.trade_route[game->trade_screen.route];
+  const int stop_i = game->trade_dest_stop;
+  game->trade_dest_stop = -1;
+  if (stop_i < 0) {
+    return;
+  }
+  if (id == 1000) {
+    /* (Delete Destination) — DOS FUN_647e_060e: shift stops down, fix units. */
+    if (stop_i >= (int)r->dest_count || r->dest_count <= 1) {
+      return;
+    }
+    for (int i = stop_i; i < (int)r->dest_count - 1; ++i) {
+      r->stop[i] = r->stop[i + 1];
+    }
+    memset(&r->stop[r->dest_count - 1], 0, sizeof(r->stop[0]));
+    r->dest_count--;
+    if (game->units_ok) {
+      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+        ColonizeUnit* u = &game->units.units[i];
+        if (u->active && u->orders == UNITS_ORDER_TRADE_ROUTE &&
+            u->follow_unit_id == game->trade_screen.route &&
+            u->turns_worked >= stop_i) {
+          u->turns_worked = u->turns_worked > 0 ? u->turns_worked - 1 : 0;
+        }
+      }
+    }
+    return;
+  }
+  if (stop_i < (int)r->dest_count) {
+    r->stop[stop_i].colony_index = (uint16_t)id;
+  } else if (r->dest_count < 4) {
+    /* Append — DOS FUN_647e_05ec: set colony, clear both cargo lists. */
+    ColonizeCol1TradeStop* st = &r->stop[r->dest_count];
+    memset(st, 0, sizeof(*st));
+    st->colony_index = (uint16_t)id;
+    r->dest_count++;
   }
 }
 
@@ -3112,56 +3631,29 @@ static void game_apply_cheat_list_result(ColonizeGameState* game) {
     game_apply_set_human(game, id);
   } else if (kind == CHEAT_LIST_KIND_DEBUG_FLAGS) {
     game_apply_debug_flags(game, mask);
-  } else if (kind == CHEAT_LIST_KIND_TRADE_UNLOAD || kind == CHEAT_LIST_KIND_TRADE_LOAD) {
-    if (game->trade_edit_route < 0 || !game->col1_ok) {
-      return;
-    }
-    ColonizeCol1TradeRoute* r = &game->col1.trade_route[game->trade_edit_route];
-    if (game->trade_edit_stop < 0 || game->trade_edit_stop >= (int)r->dest_count) {
-      game->trade_edit_route = -1;
-      return;
-    }
-    ColonizeCol1TradeStop* st = &r->stop[game->trade_edit_stop];
-    int types[6];
-    int n = 0;
-    game_trade_mask_to_types(mask, types, &n);
-    if (kind == CHEAT_LIST_KIND_TRADE_UNLOAD) {
-      int load_types[6];
-      int ln = 0;
-      for (int i = 0; i < (int)st->load_count && i < 6; ++i) {
-        load_types[ln++] = col1_trade_nibble_cargo(st->load_cargo_nibbles, i);
+  } else if (kind == CHEAT_LIST_KIND_TRADE_DEST) {
+    game_apply_trade_dest(game, id);
+  } else if (kind == CHEAT_LIST_KIND_TRADE_CARGO_ONE) {
+    /* Append the picked cargo to the stop's unload/load list (max 6). */
+    if (game->col1_ok && game->trade_screen.open && game->trade_screen.route >= 0 &&
+        game->trade_cargo_stop >= 0 && id >= 0 && id < 16) {
+      ColonizeCol1TradeRoute* r = &game->col1.trade_route[game->trade_screen.route];
+      if (game->trade_cargo_stop < (int)r->dest_count) {
+        ColonizeCol1TradeStop* st = &r->stop[game->trade_cargo_stop];
+        if (game->trade_cargo_is_load) {
+          if (st->load_count < 6) {
+            col1_trade_nibble_set(st->load_cargo_nibbles, st->load_count, id);
+            st->load_count++;
+          }
+        } else {
+          if (st->unload_count < 6) {
+            col1_trade_nibble_set(st->unload_cargo_nibbles, st->unload_count, id);
+            st->unload_count++;
+          }
+        }
       }
-      colonies_trade_stop_set_cargos(st, types, n, load_types, ln);
-      if (game->trade_edit_need_load && st->colony_index != 999) {
-        game_open_trade_load_picker(game);
-      } else {
-        snprintf(
-          game->status,
-          sizeof(game->status),
-          "%s stop unload=%u load=%u",
-          r->name,
-          (unsigned)st->unload_count,
-          (unsigned)st->load_count
-        );
-        game->trade_edit_route = -1;
-      }
-    } else {
-      int unload_types[6];
-      int un = 0;
-      for (int i = 0; i < (int)st->unload_count && i < 6; ++i) {
-        unload_types[un++] = col1_trade_nibble_cargo(st->unload_cargo_nibbles, i);
-      }
-      colonies_trade_stop_set_cargos(st, unload_types, un, types, n);
-      snprintf(
-        game->status,
-        sizeof(game->status),
-        "%s stop unload=%u load=%u",
-        r->name,
-        (unsigned)st->unload_count,
-        (unsigned)st->load_count
-      );
-      game->trade_edit_route = -1;
     }
+    game->trade_cargo_stop = -1;
   } else if (kind == CHEAT_LIST_KIND_FIND_COLONY) {
     const ColonizeColony* target = colonies_get(&game->colonies, id);
     if (!target) {
@@ -3185,11 +3677,16 @@ static void game_apply_cheat_list_result(ColonizeGameState* game) {
     if (mode == 1) {
       game_trade_begin_route(game, id);
     } else if (mode == 2) {
-      game_trade_edit_append_stop(game, id);
+      game_trade_open_editor(game, id);
     } else if (mode == 3) {
       PopupMsgTokens tok;
       memset(&tok, 0, sizeof(tok));
-      tok.string0 = label && label[0] ? label : "route";
+      const char* rname =
+        (game->col1_ok && id >= 0 && id < (int)COLONIZE_COL1_TRADE_ROUTE_COUNT &&
+         game->col1.trade_route[id].name[0])
+          ? game->col1.trade_route[id].name
+          : (label && label[0] ? label : "route");
+      tok.string0 = rname;
       game_enqueue_yes_no(
         game,
         GAME_MAP_CONFIRM_TRADE_DELETE,
@@ -5519,9 +6016,16 @@ ColonizeGameState* game_create(const ColonizeGameConfig* config) {
   game->map_confirm = GAME_MAP_CONFIRM_NONE;
   game->map_confirm_payload = -1;
   game->trade_select_mode = 0;
-  game->trade_edit_route = -1;
-  game->trade_edit_stop = -1;
-  game->trade_edit_need_load = false;
+  trade_screen_init(&game->trade_screen, NULL); /* labels rebound after asset load */
+  game->trade_dest_stop = -1;
+  game->trade_cargo_stop = -1;
+  game->trade_cargo_is_load = false;
+  game->trade_last_edited = 0;
+  game->trade_create_stage = 0;
+  game->trade_create_dest1 = -1;
+  game->trade_create_sea = 0;
+  game->trade_create_name[0] = '\0';
+  game->trade_begin_route_pending = -1;
   ai_popup_init(&game->ai_popups);
   save_load_init(&game->save_load);
   new_game_init(&game->new_game);
@@ -5589,6 +6093,8 @@ ColonizeGameState* game_create(const ColonizeGameConfig* config) {
       if (misc && misc->line_count > 35) {
         ai_popup_set_colony_event_labels(misc->lines[34], misc->lines[35]);
       }
+      /* EDIT TRADE ROUTE screen strings (@ROUTE + @MISC 46 "OK"). */
+      trade_screen_init(&game->trade_screen, &game->labels);
     } else {
       diag_warn("Failed to parse LABELS.TXT");
     }
@@ -8899,23 +9405,39 @@ static void game_trade_route_service_stop(ColonizeGameState* game, ColonizeUnit*
   if (cidx == 999) {
     if (units_is_sea(&game->units, u->id) && (u->x >= 200 || u->y >= 200 ||
                                                 map_tile_is_high_seas(&game->world_map, u->x, u->y))) {
-      /* Sell from front — europe_sell_unit_hold may compact holds. */
-      for (int guard = 0; guard < 8; ++guard) {
-        const int n = units_goods_hold_count(&game->units, u->id);
-        int sold = 0;
-        for (int h = 0; h < n; ++h) {
-          if (u->hold_goods_amount[h] > 0 && u->hold_goods_amount[h] < 255) {
-            if (europe_sell_unit_hold(&game->europe, &game->units, u->id, h) > 0) {
-              sold = 1;
+      /*
+       * DOS FUN_479b_0bd0 Europe arrival: SELL exactly the stop's unload-list
+       * cargos (every matching hold, boycott gated inside the sell), then BUY
+       * the load-list cargos (FUN_38fd_1fa2 via FUN_291f_0b42), one 100-unit
+       * hold per list entry, gold permitting.
+       */
+      for (int i = 0; i < (int)st->unload_count && i < 6; ++i) {
+        const int want = col1_trade_nibble_cargo(st->unload_cargo_nibbles, i);
+        for (int guard = 0; guard < COLONIZE_UNIT_CARGO_MAX; ++guard) {
+          const int n = units_goods_hold_count(&game->units, u->id);
+          int found = -1;
+          for (int h = 0; h < n; ++h) {
+            if (u->hold_goods_amount[h] > 0 && u->hold_goods_amount[h] < 255 &&
+                u->hold_goods_type[h] == want) {
+              found = h;
+              break;
             }
+          }
+          if (found < 0 ||
+              europe_sell_unit_hold(&game->europe, &game->units, u->id, found) <= 0) {
             break;
           }
         }
-        if (!sold) {
-          break;
-        }
+      }
+      for (int i = 0; i < (int)st->load_count && i < 6; ++i) {
+        const int ct = col1_trade_nibble_cargo(st->load_cargo_nibbles, i);
+        (void)europe_buy_unit_cargo(&game->europe, &game->units, u->id, ct, 100);
       }
       game_europe_drain_price_events(game);
+      if (game->col1_ok && game->human_nation >= 0 && game->human_nation < 4) {
+        game->col1.nation[game->human_nation].gold =
+          (uint32_t)(game->europe.gold < 0 ? 0 : game->europe.gold);
+      }
     }
     return;
   }
@@ -8955,6 +9477,33 @@ static void game_trade_route_retarget(ColonizeGameState* game, ColonizeUnit* u) 
     return;
   }
   game_trade_route_service_stop(game, u);
+  /*
+   * DOS FUN_479b_0bd0 tail: a route whose stops are all the same port warns
+   * @ROUTELOOP {%STRING0} and parks the unit for the turn.
+   */
+  bool all_same = true;
+  for (int i = 1; i < (int)r->dest_count; ++i) {
+    if (r->stop[i].colony_index != r->stop[0].colony_index) {
+      all_same = false;
+      break;
+    }
+  }
+  if (all_same) {
+    PopupMsgTokens tok;
+    memset(&tok, 0, sizeof(tok));
+    tok.string0 = r->name[0] ? r->name : "route";
+    char body[AI_POPUP_BODY_LEN];
+    char fb[AI_POPUP_BODY_LEN];
+    snprintf(
+      fb, sizeof(fb),
+      "Your Excellency, our \"{%s}\" trade route has only one port on its itinerary!",
+      tok.string0
+    );
+    popup_msg_fill(&game->messages, "ROUTELOOP", &tok, fb, body, sizeof(body));
+    ai_popup_enqueue_ok(&game->ai_popups, AI_POPUP_TAG_INFO, NULL, body);
+    u->moves_left = 0;
+    return;
+  }
   const int next = (u->turns_worked + 1) % (int)r->dest_count;
   (void)game_trade_route_aim_stop(game, u, next);
 }
@@ -9306,36 +9855,23 @@ static bool game_apply_map_menu_action(ColonizeGameState* game, MapMenuAction ac
         set_status(game, "No save data for trade routes", NULL);
         return true;
       }
-      ColonizeCol1Save* col1 = &game->col1;
-      int slot = -1;
-      for (int i = 0; i < (int)COLONIZE_COL1_TRADE_ROUTE_COUNT; ++i) {
-        if (col1->trade_route[i].name[0] == '\0' && col1->trade_route[i].dest_count == 0) {
-          slot = i;
-          break;
-        }
-      }
-      if (slot < 0) {
-        set_status(game, "Trade route list full (12)", NULL);
+      /* DOS OVL19: 12-route cap → @TRADEMANY {%NUMBER0}. */
+      if (game_trade_route_count(game) >= (int)COLONIZE_COL1_TRADE_ROUTE_COUNT) {
+        PopupMsgTokens tok;
+        memset(&tok, 0, sizeof(tok));
+        tok.number0 = (int)COLONIZE_COL1_TRADE_ROUTE_COUNT;
+        tok.has_number0 = true;
+        char body[AI_POPUP_BODY_LEN];
+        popup_msg_fill(
+          &game->messages, "TRADEMANY", &tok,
+          "Only {12} trade routes can be defined, Your Excellency.\n"
+          "To create a new trade route now, you must delete an old one first.",
+          body, sizeof(body)
+        );
+        ai_popup_enqueue_ok(&game->ai_popups, AI_POPUP_TAG_INFO, NULL, body);
         return true;
       }
-      ColonizeCol1TradeRoute* r = &col1->trade_route[slot];
-      memset(r, 0, sizeof(*r));
-      snprintf(r->name, sizeof(r->name), "Route %d", slot + 1);
-      /* Sea route if a ship is selected; else land/wagon. Cite: Col1 sea byte. */
-      const int sid = game->units.selected_id;
-      const ColonizeUnit* u = (sid >= 0) ? units_get_const(&game->units, sid) : NULL;
-      r->sea = (u && units_is_sea(&game->units, sid)) ? 1u : 0u;
-      r->dest_count = 0;
-      if (col1->head.trade_route_count < (uint16_t)(slot + 1)) {
-        col1->head.trade_route_count = (uint16_t)(slot + 1);
-      }
-      snprintf(
-        game->status,
-        sizeof(game->status),
-        "Created %s (%s) — add stops via Edit (thin)",
-        r->name,
-        r->sea ? "sea" : "land"
-      );
+      game_trade_wizard_open_dest(game, 1);
       return true;
     }
     case MAP_MENU_ACTION_TRADE_EDIT: {
@@ -13590,6 +14126,24 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
     const ColonizeSpriteSheet* wood =
       (game->map_panel_ok && game->map_panel.wood_ok) ? &game->map_panel.wood_tile : NULL;
     map_menu_render((MapMenuBar*)&game->map_menu, hud_font, wood, framebuffer);
+    if (game->trade_screen.open) {
+      ColonizePopupColors popup_cols;
+      popup_colors_from_ui(&popup_cols);
+      const ColonizeFont* popup_font =
+        game->intro_font_ok ? &game->intro_font
+        : (game->menu_font_ok ? &game->menu_font : hud_font);
+      trade_screen_render(
+        &game->trade_screen,
+        game->col1_ok ? &game->col1 : NULL,
+        game->colonies_ok ? &game->colonies : NULL,
+        game_trade_europe_label(game),
+        popup_font,
+        wood,
+        game->unit_icons_ok ? &game->unit_icons : NULL,
+        &popup_cols,
+        framebuffer
+      );
+    }
     if (game->pick_music.open) {
       ColonizePopupColors popup_cols;
       popup_colors_from_ui(&popup_cols);
@@ -13928,7 +14482,7 @@ bool game_modal_open(const ColonizeGameState* game) {
          game->save_load.open || game->cheat_list.open || game->unit_stack.open ||
          game->options_dlg.open || game->pick_music.open || game->combat_analysis.open ||
          game->declaration.open || game->woodcut.open || game->opening.open ||
-         game->closing.open;
+         game->closing.open || game->trade_screen.open;
 }
 
 bool game_ai_popup_pending(const ColonizeGameState* game) {

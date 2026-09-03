@@ -3007,6 +3007,49 @@ int europe_sell_unit_hold(
   return gained;
 }
 
+int europe_buy_unit_cargo(
+  EuropeScreen* eu,
+  ColonizeUnitPool* units,
+  int unit_id,
+  int cargo_type,
+  int amount
+) {
+  /*
+   * Map/transport buy (no harbor chrome) — trade-route load list at a Europe
+   * stop (DOS FUN_479b_0bd0 → FUN_38fd_1fa2 via FUN_291f_0b42). Flat ask ×
+   * bought, boycott gated, volume price applied, same as europe_buy_cargo.
+   */
+  if (!eu || !units || cargo_type < 0 || cargo_type >= eu->cargo_count || amount <= 0) {
+    return 0;
+  }
+  ColonizeUnit* u = units_get(units, unit_id);
+  if (!u || !u->active || !units_is_transport(units, unit_id)) {
+    return 0;
+  }
+  if (europe_cargo_boycotted(eu, cargo_type)) {
+    return 0;
+  }
+  const int ask = eu->cargo[cargo_type].ask;
+  if (ask <= 0) {
+    return 0;
+  }
+  int buy = amount > 100 ? 100 : amount;
+  const int can_afford = eu->gold / ask;
+  if (buy > can_afford) {
+    buy = can_afford;
+  }
+  if (buy <= 0) {
+    return 0;
+  }
+  const int loaded = units_load_goods(units, unit_id, cargo_type, buy);
+  if (loaded <= 0) {
+    return 0;
+  }
+  eu->gold -= loaded * ask;
+  europe_apply_volume_price(eu, cargo_type, loaded, 1);
+  return loaded;
+}
+
 int europe_buy_cargo(EuropeScreen* eu, int harbor_index, int cargo_type, int amount) {
   if (!eu || harbor_index < 0 || harbor_index >= eu->harbor_ships) {
     return 0;

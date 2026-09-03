@@ -929,16 +929,14 @@ OK popups (P6.1 / P11.2).
 - [x] **P6.5 [auto] — closed 2026-08-26, verified already correct.**
   Trade routes with Europe as an endpoint (`TRADE` editor already Done
   structural — verify Europe stops, wagon/ship auto-buy/sell amounts).
-  `game_trade_route_service_stop` (`game_loop.c` ~6605): a sea unit at
-  the Europe stop (`colony_index==999`, eastern high-seas tile) sells its
-  *entire* hold via `europe_sell_unit_hold` in a loop until empty — real
-  auto-sell, all cargo types, no invented cap. **No auto-buy at Europe,
-  and that's confirmed correct, not a gap**: the TRADE editor itself
-  already disables load-list configuration for a Europe stop
-  (`trade_edit_need_load = (stop_idx != 999)`, `game_loop.c` ~956/2255) —
-  a deliberate, pre-existing design signal that Europe stops are
-  sell-only by intent, matching DOS trade routes (buying at Europe is a
-  manual Europe-screen action, not something a route automates). Wagon
+  **Corrected 2026-09-03 by the full FUN_479b_0bd0 decode:** DOS trade
+  routes DO auto-buy at Europe — the arrival body sells exactly the
+  stop's unload-list cargos (FUN_291f_0d02 → 38fd_23c4 sell+tax) and
+  then buys the load-list cargos (FUN_291f_0b42 → 38fd_1fa2). The old
+  sell-entire-hold behavior and the "sell-only by intent" reading were
+  both wrong. Port now: `europe_sell_unit_hold` per unload-list cargo +
+  `europe_buy_unit_cargo` per load-list entry (100/hold, ask price,
+  boycott gated). Wagon
   trains can never physically reach the Europe stop tile (land-only,
   high-seas is water) so the `units_is_sea` gate correctly makes a
   wagon-assigned Europe stop a inert no-op rather than a crash — a minor,

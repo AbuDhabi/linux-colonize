@@ -154,8 +154,8 @@ stateDiagram-v2
 | Goto tick | Frame / AI | Next adjacent step; clear on arrival | `units_advance_goto_one_step` | Done |
 | Cancel Go-To | Player (active path) | Clear order 3; unit selectable again | Activate → `units_wake`; replace order; same-tile `units_set_goto` | Done |
 | Abort Place / drag | Esc / right-click before dest set | Cancel destination picking only | `map_goto_place_mode` / `UI_DRAG_MAP_GOTO` clear | Done |
-| Begin Trade Route | ORDERS | Order 2; pick route; cycle stops | `units_order_trade_route` + aim/cycle; nibble honor | Partial (Edit/VGA thin) |
-| Trade at stop | Arrival | Service load/unload; retarget; stay order 2 | `game_trade_route_retarget` | Done (structural) |
+| Begin Trade Route | ORDERS | Order 2; route picker (sea/land filtered) + starting-stop picker; cycle stops | `units_order_trade_route` + aim/cycle; strict DOS nibble lists | Done |
+| Trade at stop | Arrival | Unload/load exactly the stop lists; Europe sell+auto-buy; @ROUTELOOP on 1-port routes; retarget; stay order 2 | `game_trade_route_retarget` (DOS 479b_0bd0) | Done |
 | FOLLOW | AI / Brave escort | Stick to unit id | `units_follow_unit` / `advance_follow` | Done (AI-only) |
 | AI_MOVE / AI_SAIL | AI planners | Goto-following course bytes | Same stepper as human goto | Done (structural) |
 
@@ -249,7 +249,7 @@ Full inventory in [popups.md](popups.md) §3 / `@SECTION` index. Order-related:
 | Pioneer clear / plow / road multi-turn + tools wear | Done |
 | Board / unload / landfall / sentry auto-board / dump / return Europe | Done |
 | Build / Join colony (immediate actions) | Done |
-| Trade Route begin / aim / cycle / stop service | Partial (structural Done; Edit UI / VGA PARKED) |
+| Trade Route begin / aim / cycle / stop service | Done (create wizard + EDIT TRADE ROUTE screen + DOS stop service) |
 | Pillage | Partial (thin API; ORDERS item hidden like DOS `0b34`) |
 | Order-gate modals (`@ONLYPIO`, `@NOPLOW`, …) | Done thin (`@ONLYPIO`/`@NOPLOW`/`@NOROAD`; EOT `@NEEDTOOLS`/`@NEEDTOOLS0`; pioneer `@NEEDTOOLS` still Partial) |
 | Colony docked-unit orders popup | Done thin (`@COLONYUNIT`/`@SHIPOPTIONS`/`@UNITOPTIONS`; VGA chrome PARKED) |

@@ -108,6 +108,7 @@ typedef enum AiPopupTag {
                                   * payload 1 = @KINGLOSE on KINGLOSE.SS (war won),
                                   * payload 2 = @KINGWIN on KINGWIN.SS (war lost);
                                   * dismissal opens the retire score chain. */
+  AI_POPUP_TAG_TRADE_TYPE = 57, /* @TRADETYPE create-wizard CHOICE (DOS OVL19): 1 = Sea, 0 = Land */
   AI_POPUP_TAG_WAR_SCORED = 56 /* post-HoF @SCORED CHOICE after a WoI win:
                                 * 1 = "That's all." (title menu), 2 = "Keep playing anyway." */
 } AiPopupTag;

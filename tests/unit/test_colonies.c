@@ -1506,7 +1506,8 @@ int main(void) {
           "picker service"
         );
         CHECK(c->stock[COLONIZE_CARGO_TOOLS] == tools0 + 20, "picker unload TOOLS");
-        CHECK(c->stock[COLONIZE_CARGO_SILVER] == silver0 - 20, "picker load SILVER");
+        /* DOS load phase drains warehouse stock into free holds (100/hold). */
+        CHECK(c->stock[COLONIZE_CARGO_SILVER] == silver0 - 80, "picker load SILVER");
         int food_left = 0;
         int silver_on = 0;
         const int nh = units_goods_hold_count(&units, wid);
@@ -1519,7 +1520,7 @@ int main(void) {
           }
         }
         CHECK(food_left == 20, "picker FOOD stays aboard");
-        CHECK(silver_on == 20, "picker SILVER aboard");
+        CHECK(silver_on == 80, "picker SILVER aboard");
 
         /* Europe: unload list only */
         ColonizeCol1TradeStop eu;
@@ -1594,8 +1595,9 @@ int main(void) {
         }
         CHECK(food_left == 20, "FOOD remains on wagon after selective unload");
         CHECK(tools_on == 0, "TOOLS hold cleared");
-        CHECK(lumber_on == 20, "load LUMBER per Col1 load nibble");
-        CHECK(c->stock[COLONIZE_CARGO_LUMBER] == lumber0 - 20, "warehouse LUMBER decreased");
+        /* DOS load phase fills the freed hold from warehouse stock (≤100). */
+        CHECK(lumber_on == 80, "load LUMBER per Col1 load nibble");
+        CHECK(c->stock[COLONIZE_CARGO_LUMBER] == lumber0 - 80, "warehouse LUMBER decreased");
         CHECK(
           col1_trade_nibble_cargo(st.unload_cargo_nibbles, 0) == COLONIZE_CARGO_TOOLS,
           "nibble pack TOOLS low"
