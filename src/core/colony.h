@@ -71,6 +71,14 @@ typedef struct ColonizeColonist {
   bool active;
   /* FUN_364b_0688 education: turns in current workplace (DOS 0d1c counter). */
   uint8_t turns_in_job;
+  /*
+   * Raw DOS specialty nibble (colony +0x60 pair array) for this colonist.
+   * DOS data contradicts the old "profession & 0xf" export formula: AI
+   * colonies store 0, human colonies store 15 with occasional low values
+   * (likely learning state). 0xff = colonist created in the port (no DOS
+   * byte to preserve); capture then falls back to the observed defaults.
+   */
+  uint8_t col1_specialty;
 } ColonizeColonist;
 
 typedef struct ColonizeColony {

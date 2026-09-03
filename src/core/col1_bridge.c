@@ -829,6 +829,9 @@ bool col1_bridge_apply(
       col->field_job = -1;
       /* COL1 profession[] is NAMES.TXT @JOB skill, not unit type. */
       col->profession = (int)src->profession[p];
+      /* Preserve the raw DOS specialty nibble (colony +0x60) — see colony.h. */
+      col->col1_specialty =
+        (uint8_t)((p & 1) ? src->specialty[p / 2].odd : src->specialty[p / 2].even);
       int work_type = units_find_type(units, "Colonists");
       if (work_type < 0) {
         work_type = 0;
@@ -1147,6 +1150,13 @@ bool col1_bridge_apply(
             units_set_nation(mu, (int)src->nation_id);
             mu->orders = UNITS_ORDER_SENTRY;
             mu->profession = (int)src->profession;
+            /* Carry the raw DOS unit bytes onto the mirror so capture
+             * round-trips them (hold[5] counters, facing_pad — units.h). */
+            memcpy(mu->col1_hold_raw, &src->holds_occupied, sizeof(mu->col1_hold_raw));
+            mu->col1_hold_raw_valid = 1;
+            mu->col1_origin = src->origin;
+            mu->col1_facing_pad = src->facing_pad;
+            mu->last_dir = (int)src->facing;
             mu->goto_x = 0;
             mu->goto_y = 0;
             mu->moves_left = 0;
@@ -1263,6 +1273,11 @@ bool col1_bridge_apply(
       } else if (src->cargo_hold[5] > 0 && src->cargo_hold[5] <= 100) {
         u->tools = (int)src->cargo_hold[5];
       }
+      /* Stash raw DOS +0x0c..+0x15 for capture round-trip (see units.h). */
+      memcpy(u->col1_hold_raw, &src->holds_occupied, sizeof(u->col1_hold_raw));
+      u->col1_hold_raw_valid = 1;
+      u->col1_origin = src->origin;
+      u->col1_facing_pad = src->facing_pad;
     }
     id_by_index[i] = id;
     local.imported_units++;
@@ -1826,7 +1841,12 @@ bool col1_bridge_capture(
       }
       /*
        * bugs.md interop: DOS keeps each colony's colonist arrays SORTED by
-       * occupation. The interop pair (generated_by_port.SAV vs DOS's own
+       * occupation. (Not a universal invariant: original campaign saves
+       * carry unsorted arrays too — french COLONY00 Jamestown is
+       * [13,0,12,6,4] — DOS only insert-sorts at colonist ADD, later job
+       * changes don't re-sort. The canonical emit below stays: DOS reads a
+       * permuted colony fine since tiles[] permutes along.) The interop
+       * pair (generated_by_port.SAV vs DOS's own
        * resave of it) shows exactly an insert-before-first->= ordering:
        * ascending occupation with ties in REVERSE arrival order. Emit that
        * canonical order — occupation[], profession[], the specialty nibbles
@@ -1863,14 +1883,30 @@ bool col1_bridge_capture(
           dst->profession[k] = pro2[k];
         }
       }
-      /* Specialty nibbles: pack profession low nibble pairs (FUN_15eb_0c7a). */
-      for (int s = 0; s < 16; ++s) {
-        const int e = s * 2;
-        const int o = e + 1;
-        dst->specialty[s].even =
-          (uint8_t)(e < dst->population ? (dst->profession[e] & 0x0fu) : 0u);
-        dst->specialty[s].odd =
-          (uint8_t)(o < dst->population ? (dst->profession[o] & 0x0fu) : 0u);
+      /*
+       * Specialty nibbles: preserve each colonist's raw DOS nibble (stashed
+       * at apply; permuted through the canonical reorder above). The old
+       * "profession & 0xf" formula is contradicted by every original DOS
+       * campaign save (french-campaign 2026-09-03): AI colonies store 0,
+       * human colonies store 15 with occasional low values (learning
+       * state). Port-created colonists (stash 0xff) get those observed
+       * defaults.
+       */
+      {
+        uint8_t nib[COLONIZE_COL1_COLONY_POP_MAX];
+        memset(nib, 0, sizeof(nib));
+        for (int p = 0; p < dst->population && p < (int)COLONIZE_COL1_COLONY_POP_MAX; ++p) {
+          /* col1_new_index maps old colonist index -> canonical position. */
+          uint8_t v = src->colonists[p].col1_specialty;
+          if (v == 0xffu) {
+            v = (dst->nation_id == (uint8_t)human_nation) ? 0x0fu : 0u;
+          }
+          nib[col1_new_index[p]] = (uint8_t)(v & 0x0fu);
+        }
+        for (int s = 0; s < 16; ++s) {
+          dst->specialty[s].even = nib[s * 2];
+          dst->specialty[s].odd = nib[s * 2 + 1];
+        }
       }
       for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
         int s = src->stock[c];
@@ -1966,7 +2002,9 @@ bool col1_bridge_capture(
     }
 
     int written = 0;
-    int active_col1 = 0;
+    /* DOS "no active unit" = 0xffff (dutch-campaign COLONY09 / french
+     * COLONY08 originals, saved in View mode). 0 claimed unit 0 active. */
+    int active_col1 = -1;
     for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
       const ColonizeUnit* src = &units->units[i];
       if (!src->active) {
@@ -1976,14 +2014,24 @@ bool col1_bridge_capture(
       memset(dst, 0, sizeof(*dst));
       dst->x = (uint8_t)src->x;
       dst->y = (uint8_t)src->y;
+      /* Port-internal dock mirrors live at literal (236,236); the DOS dock
+       * lane is per-nation 236+n (french-campaign originals carry 237). */
+      if (src->x == 236 && src->y == 236 && (src->nation_id & 0xF) < 4) {
+        dst->x = (uint8_t)(236 + (src->nation_id & 3));
+        dst->y = dst->x;
+      }
       dst->type = (uint8_t)(src->type_index < 0 ? 0 : src->type_index);
       dst->nation_id = (uint8_t)(src->nation_id & 0xF);
       {
         /* DOS fog draw: (0x10<<viewer) & vis_mask. Live mask (reveal marks,
-         * move resets); Euro owner bit always present, natives 0 until observed. */
+         * move resets); Euro owner bit always present on MAP units. Europe
+         * sentinel units (x/y >= 200) carry vis 0 in every original DOS
+         * save (french-campaign survey 2026-09-03) — no owner bit there. */
         const int nat = src->nation_id & 0xF;
         uint8_t vis = (uint8_t)(src->col1_vis_mask & 0x0Fu);
-        if (nat >= 0 && nat < 4) {
+        if (src->x >= 200 || src->y >= 200) {
+          vis = 0;
+        } else if (nat >= 0 && nat < 4) {
           vis = (uint8_t)(vis | (1u << (nat & 3)));
         }
         dst->vis_mask = vis;
@@ -2079,9 +2127,12 @@ bool col1_bridge_capture(
       dst->garrison_request_pending = (src->col1_unknown15 & 0x20u) != 0 ? 1u : 0u;
       dst->bound_in_transit = (src->col1_unknown15 & 0x40u) != 0 ? 1u : 0u;
       dst->ship_damaged = (src->col1_unknown15 & 0x80u) != 0 ? 1u : 0u;
-      /* Euros never carry a home-tribe origin; natives use tribe index / 0xff. */
+      /* Natives: origin = home tribe index / 0xff. Euro units carry values
+       * here too in original DOS campaign saves (home colony index, seen on
+       * french-campaign 2026-09-03) — preserve the loaded byte; only a
+       * port-spawned Euro unit gets 0xff. */
       if ((src->nation_id & 0xF) < 4) {
-        dst->origin = 0xff;
+        dst->origin = src->col1_hold_raw_valid ? src->col1_origin : 0xff;
       } else {
         dst->origin =
           (uint8_t)(src->home_tribe_id < 0 || src->home_tribe_id > 255 ? 0xff
@@ -2090,8 +2141,22 @@ bool col1_bridge_capture(
       dst->ai_plan =
         src->col1_ai_plan != 0 ? src->col1_ai_plan : COL1_UNIT_UNKNOWN16_HI_DEFAULT;
       dst->facing = (uint8_t)(src->last_dir & 7);
-      dst->facing_pad = 0;
+      /* Preserve the raw upper 5 bits of the DOS facing byte (set on some
+       * original units; semantics unmapped). */
+      dst->facing_pad = src->col1_hold_raw_valid ? (uint8_t)(src->col1_facing_pad & 0x1fu) : 0u;
       memset(dst->cargo_hold, 0, sizeof(dst->cargo_hold));
+      if (src->col1_hold_raw_valid) {
+        /*
+         * Restore the raw DOS +0x0c..+0x15 bytes stashed at apply (units.h).
+         * DOS repurposes this region on land units (french-campaign
+         * originals 2026-09-03: braves carry a per-settlement counter in
+         * hold[2]; the 196/216/236 family lives in hold[5] on land units
+         * and ships alike), and keeps stale goods bytes beyond
+         * holds_occupied. Live goods below overwrite only the slots the
+         * port actually models.
+         */
+        memcpy(&dst->holds_occupied, src->col1_hold_raw, sizeof(src->col1_hold_raw));
+      }
       {
         /* Pack goods into nibble fields + amounts. Passengers are not goods. */
         int gi = 0;
@@ -2132,15 +2197,27 @@ bool col1_bridge_capture(
           }
           gi++;
         }
-        if (gi == 0) {
+        /* Empty-hold sentinel: DOS starters carry 255 on Euro units only —
+         * original braves store 0 (or their live counter) in hold[2]. */
+        if (gi == 0 && !src->col1_hold_raw_valid && src->nation_id < 4) {
           dst->cargo_hold[2] = 255; /* COL1 empty-hold sentinel seen in starters */
         }
         /* Goods only — passengers live in transport_chain (not hold slots). */
         dst->holds_occupied = (uint8_t)gi;
       }
-      /* DOS pioneer tools = cargo_hold[5] (FUN_479b_0158). Keep actual count. */
-      if (src->tools > 0 && src->tools <= 100 && !units_is_sea(units, src->id)) {
-        dst->cargo_hold[5] = (uint8_t)src->tools;
+      /* DOS pioneer tools = cargo_hold[5] (FUN_479b_0158). Keep actual count.
+       * A stashed hold[5] > 100 is the repurposed DOS byte, never tools —
+       * leave the restored raw value alone. Transports (wagons) never carry
+       * tools; their raw hold[5] also stays. */
+      if (!units_is_sea(units, src->id) && !units_is_transport(units, src->id)) {
+        const uint8_t raw5 = src->col1_hold_raw_valid ? src->col1_hold_raw[9] : 0u;
+        if (raw5 <= 100u) {
+          if (src->tools > 0) {
+            dst->cargo_hold[5] = (uint8_t)(src->tools <= 100 ? src->tools : 100);
+          } else if (src->col1_hold_raw_valid) {
+            dst->cargo_hold[5] = 0; /* tools fully consumed in the port */
+          }
+        }
       } else if (src->tools > 0 && src->aboard_ship_id >= 0 && dst->cargo_hold[5] == 0) {
         dst->cargo_hold[5] = (uint8_t)(src->tools <= 100 ? src->tools : 100);
       }
@@ -2291,7 +2368,7 @@ bool col1_bridge_capture(
             px->y = lanes[li].xy;
             px->type = (uint8_t)pti;
             px->nation_id = n;
-            px->vis_mask = (uint8_t)(1u << n);
+            px->vis_mask = 0; /* Europe sentinel units carry vis 0 in DOS saves */
             px->ai_plan = COL1_UNIT_UNKNOWN16_HI_DEFAULT;
             px->origin = 0xff;
             px->orders = 1; /* sentry aboard */
@@ -2323,8 +2400,9 @@ bool col1_bridge_capture(
           dst->y = lanes[li].xy;
           dst->type = (uint8_t)ship_ti;
           dst->nation_id = n;
-          dst->vis_mask = (uint8_t)(1u << n);
+          dst->vis_mask = 0; /* Europe sentinel units carry vis 0 in DOS saves */
           dst->ai_plan = COL1_UNIT_UNKNOWN16_HI_DEFAULT;
+          dst->origin = 0xff; /* home-colony byte can't survive the Europe screen */
           dst->orders = 0;
           dst->goto_x = gx;
           dst->goto_y = gy;
@@ -2374,7 +2452,7 @@ bool col1_bridge_capture(
     free(save->unit);
     save->unit = neu;
     save->head.unit_count = (uint16_t)written;
-    save->head.active_unit = (uint16_t)active_col1;
+    save->head.active_unit = active_col1 >= 0 ? (uint16_t)active_col1 : 0xffffu;
     free(runtime_to_col1);
   }
 

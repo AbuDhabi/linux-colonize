@@ -877,6 +877,7 @@ int colonies_found(
   if (founder_type_index >= 0 && slot->colonist_count < COLONIZE_COLONY_POP_MAX) {
     ColonizeColonist* c = &slot->colonists[slot->colonist_count++];
     c->active = true;
+    c->col1_specialty = 0xff;
     c->unit_type_index = founder_type_index;
     c->profession =
       (founder_profession >= 0) ? founder_profession : UNITS_JOB_NONE;
@@ -1383,6 +1384,7 @@ int colonies_admit_unit(
   ColonizeColonist* c = &col->colonists[col->colonist_count];
   memset(c, 0, sizeof(*c));
   c->active = true;
+  c->col1_specialty = 0xff;
   c->unit_type_index = work_type;
   c->profession = profession;
   c->building_type = -1;
