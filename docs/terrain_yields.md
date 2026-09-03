@@ -354,31 +354,48 @@ Unit size `u = 2` if (matching expert and not food/fish) **or** lumberjack; else
 
 | Condition | Jobs | Add |
 |-----------|------|----:|
-| Farmer path (job 0) | Farmer | +`u` (plow-shaped; see decomp ~11950) |
-| `layer2 & 0x0a` (FA / plow-road mask) | job &gt; 3 (fur, lumber, ore, silver) | +`u` |
-| `layer2 & 0x40` (river) | job &lt; 4 (food + cash crops) | +`u` |
-| Terrain river bit `0x40` | (adds again) | +`u` |
-| Major river (`0x40|0x80`) when only one unit so far | | +`u` again |
+| Farmer (job 0) | Farmer | +`u`, **UNCONDITIONAL** — any skill, expert included, no plow gate (asm 15eb:1c32-1c40 is a bare `job==0` test) |
+| Runtime mask `0x0a` (road) | job &gt; 3 (fur, lumber, ore, silver, fish) | +`u` |
+| Runtime bit `0x40` (**= plow**, resolved 2026-09-03) | job &lt; 4 (food + cash crops) | +`u` |
+| Terrain river bit `0x40` | any job | +`u` |
+| Major river (terrain `0x80`) when the stack so far == `u` (river was sole contributor) | | +`u` again |
 
-**Port:** plow +1 on crops; road +1 on fur/lumber/ore/silver (×2 unit for a
-matching non-food/fish expert or any Lumberjack — **2026-08-15 fix**, see
-below); river magnitudes FreeCol-shaped; **road and river do not stack**
-(max of one) — this specific piece stays **divergent** from DOS's literal
-multi-signal additive stack (below), but the *unit size itself* (u=1 vs u=2)
-is now DOS-confirmed and wired, which was the higher-value half of this
-item.
+**Port, 2026-09-03: the literal stack above is now wired verbatim**
+(`colony_yield_pipeline`'s improvement-stack block, verified
+instruction-by-instruction against asm 15eb:1c16-1c9c), replacing the old
+curve-fit shapes (crop-improvements block, road/river "buckets",
+Lumberjack post-double tail — every prior player anchor decomposes
+identically under the literal stack, checked per-anchor). The Fur Trapper
+additionally has its own pre-multiplier +1 road / +1(+2 major) river add
+before the SoL fold and expert doubling (decompile ~11840-11850) — also
+wired. What broke the old shapes open was `farming/case3`
+(`golden_colony_prod03`): expert Farmer, Broadleaf+Game = **8** (1 + expert
+2 + Game 2×2 + farmer 1) and the same expert on a bare Hill = **4** (1 + 2
++ 1) — the +1s only close with the unconditional skill-blind farmer term,
+which in turn forced `golden_colony_prod02`'s Fort Orange to re-balance
+(its expert Farmer is 10, not the 9 the old decomposition claimed; the
+compensating −1 was town-commons food's phantom river term, see the
+commons section). Consequences: **Hills farmer base is NAMES.TXT's 1**
+(the old "player-confirmed 2" = 1 + farmer term), every farmer
+"unconditional +1" sighting was this term, and the runtime `0x40` bit is
+pinned as **plow** (a plow-less river tile adds nothing through it —
+farming/case2's expert at exactly 5 excludes "river"; Fort Orange prod02's
+plowed convert-farmer needs it).
 
 **2026-09-03 — Farmer major river does NOT double (player-confirmed,
 `farming/case1+2` saves → `golden_colony_prod03`):** expert Farmer,
-Broadleaf (base 2) + *major* river = **6** food (2 + river 2 + expert flat
-2), the same +2 river delta as the minor-river case2 capture — the port's
-`major ? base×2` gave 8. This is exactly what the literal stack above
-predicts: a job<4 river tile fires *both* +u signals (runtime-array bit +
-static terrain bit), so the term is already 2u and the `term == u`
-major-river add never triggers for a Farmer. Fisherman (job 8) gets only
-the static +u, so its major doubling (Lake+major=6, 2026-08-15) stays
-real. `colony_yield_river_bonus` now returns flat 2 for Farmer regardless
-of major.
+Tropical (base 2) + *major* river = **6** food, same +2 river delta as the
+minor-river case2 capture. Falls straight out of the literal stack: the
+farmer +u lands first, so by the time the river +u is added the stack is
+2u ≠ u and the major add never fires for a Farmer. (An earlier same-day
+reading blamed "two river signals" — retracted: the second contributor is
+the farmer term itself, and the runtime bit is plow, not river.) Fisherman
+(job 8, no farmer term, no plow term) genuinely doubles on major
+(Lake+major=6, 2026-08-15).
+
+**2026-09-03 — Beaver+Fur Trapper resource effect is +3, not +2**
+(`FUN_15eb_17fa` asm, `(resource==8 && job==4) += 3` — the port's table
+had 2; no player anchor existed either way).
 
 **2026-08-15 fix — expert/lumberjack road-river doubling, player-confirmed
 (Viceroy):** Expert Ore Miner, Hills+road+sentiment(+1) = 12; Free
@@ -572,13 +589,24 @@ Manual: settlement square **always produces some food and one other commodity**;
 
 ```
 food = class_base(pedia)                   (0 for pedia 24; 1 for pedia 1/9/17; 2 for pedia 8-23 or 27/28; else 3)
-     + 1   if plowed and pedia 0-7 (cleared land)
-     + 1/2 if river (minor/major)
+     + 2/1 at Discoverer/Explorer difficulty
+     + 1   if plowed (the runtime 0x40 bit — FUN_137f_0142)
      + 2   if resource is Oasis(1) / Wheat(2) / Game(9)   (Prime Timber excluded)
      + 1   if colony_flags has SOL_50 latch bit
      + 1   if colony_flags has SOL_100 latch bit
 floor 0
 ```
+
+**NO river term on commons food — 2026-09-03.** `FUN_15eb_1f72`'s food
+block reads only `FUN_137f_0142 & 0x40` (the plow bit, +1); the
+terrain-byte river value (`FUN_137f_010e`, 1/2) feeds the SECONDARY alone.
+The old "+1 minor / +2 major" food term double-counted Fort Orange
+(prod02)'s plowed+rivered Savannah center at 7 vs DOS's 6 — invisible
+until `farming/case3` forced the expert-Farmer +1 (see the field
+improvement stack), whose old absence had compensated exactly. prod01's
+Montreal/St. Louis fixtures, whose centers leaned on the phantom river
+food, were re-derived (plow on Montreal's center / St. Louis's farmer
+tile).
 
 Wired in `colony_yield_town_commons_food_base` + `colony_yield_town_commons` (`colony_yield.c`). Supersedes the earlier flat-+2/general-`sol_bonus` model this section used to describe (confirmed 2026-08-17, then found to be a class-2-only coincidence — see below); `NAMES.TXT`'s field food chart does **not** apply to the town square, the class split is its own thing.
 
@@ -670,7 +698,7 @@ Printed chart often shows post-modifier lumber (e.g. Plains forested lumber **6*
 | Lumberjack ×2 | Yes | **2026-08-15 fix** — wired at the correct pipeline position (after resource, before plow/road/river) |
 | Expert food/fish +2 | Yes (+ SoL mod re-add) | **2026-08-15 fix (player-confirmed, Viceroy)** — flat +2 and the SoL mod re-add both wired, plus `sol_bonus` now folds in *before* expert doubling colony-wide (`colony_yield_pipeline`), not as a flat post-hoc add. **2026-08-24 fix:** the re-add now uses `sol_bonus` itself (decompile-confirmed identical to `local_1c`), not a `colony_flags` latch-bit reconstruction that undercounted whenever the Tory-penalty term was nonzero — see "Field Farmer/Fisherman expert formula" above |
 | Convert job whitelist | Yes | **2026-08-15 fix** — exact whitelist gate |
-| Plow/road/river stack | Add (multi-signal) | Max(road, river) — still **divergent** on the multi-signal additive stack itself (unresolved runtime-array bit, see below), but the **unit size** (u=1 vs u=2 for expert/Lumberjack) is now **2026-08-15 fix, player-confirmed (Viceroy)** — wired |
+| Plow/road/river stack | Add (multi-signal) | **Wired verbatim 2026-09-03** (farmer +u unconditional, road job>3, plow job<4 — the former "unresolved runtime-array bit" is plow — river any job, major +u only when sole contributor; u=2 for non-food expert / Lumberjack) — no divergence left |
 | Fisherman distance modifier | Yes (`FUN_15eb_173e`) | **2026-08-15 fix** — real 3-case ladder confirmed from raw asm, ported |
 | Fisherman needs Docks | Yes, zeroes yield outright | **2026-08-15 fix** — `colony_yield_for_worker` gained a `has_docks` param, threaded from every production/preview/badge caller (`turn.c`, `colony_preview.c`, `colony_screen.c` area overlay + jobs popup) |
 | SoL mod: AI zero-out | Zeroed outright for AI (strong, cross-validated hypothesis — see manufacturing_worker_calc_1d4c.md) | **2026-08-15 fix** — `colony_prod_sol_bonus_field` (new function), wired into both field-yield call sites (`turn.c`, `colony_preview.c`); building contexts (craft/bells/crosses/hammers) keep the shared `colony_prod_sol_bonus`, unaffected |

@@ -265,6 +265,27 @@ int main(void) {
   if (rc != 0) {
     return rc;
   }
+  /*
+   * case3 (2026-09-03): Fort Orange, expert Farmer on Broadleaf + Game
+   * (8 food; the player then moved him to a bare Hill for 4). Pinned
+   * three things at once: the unconditional skill-blind farmer +1 (asm
+   * 15eb:1c32-1c40), Hills farmer base = NAMES.TXT's 1 (the old
+   * "player-confirmed 2" had absorbed that +1), and — via the
+   * golden_colony_prod02 reconciliation it forced — that commons food
+   * has no river term. Only turn1->turn2 runs as a golden pair: the
+   * farmer was moved to the Hill BETWEEN turn2 and turn3 (turn2's save
+   * still has him on the forest), so turn2->turn3 is not a no-move turn
+   * and can't be simulated blind; the Hill value (4) is asserted
+   * statically in unit_colony_yield instead.
+   */
+  rc = run_pair(
+    "original_saves/colony-prod-tests/farming/case3-turn1.SAV",
+    "original_saves/colony-prod-tests/farming/case3-turn2.SAV",
+    "colony_prod03 farming case3 turn1->2 (expert Farmer, forest+Game)"
+  );
+  if (rc != 0) {
+    return rc;
+  }
   printf("golden_colony_prod03: farming production ok\n");
   return 0;
 }

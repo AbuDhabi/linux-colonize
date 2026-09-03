@@ -2230,10 +2230,14 @@ int main(void) {
       return 1;
     }
     const int base = colony_yield_for_tile(&map, fx, fy, COLONIZE_JOB_FARMER);
-    const int river_bonus = map_tile_has_river(&map, fx, fy) ? 1 : 0;
     const int expert_yld =
       colony_yield_for_worker(&map, fx, fy, COLONIZE_JOB_FARMER, COLONIZE_JOB_FARMER, true, 0, 0);
-    const int want = (base - 1 - river_bonus) + 2;
+    /* 2026-09-03: the improvement stack (farmer +1, plow, river) applies to
+     * expert and non-expert alike (asm 15eb:1c32-1c9c is skill-blind except
+     * for u sizing, and u=1 for food jobs), so the expert delta over the
+     * profession-less tile yield is exactly the flat +2 — golden_colony_
+     * prod03's case3 (forest+Game 8, bare hill 4) pinned this. */
+    const int want = base + 2;
     if (expert_yld != want) {
       fprintf(
         stderr,
