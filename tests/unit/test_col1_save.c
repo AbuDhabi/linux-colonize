@@ -702,6 +702,10 @@ int main(void) {
     {"test-saves-ai/TURN5.SAV", false, false, true},
     {"test-saves-ai/TURN6.SAV", false, false, true},
     {"test-saves-ai/TURN7.SAV", false, false, true},
+    /* Pre-fix Dutch port save with stale head human/nation_turn/view = 0;
+     * apply must derive human=3 from control and recapture must stamp 3/3/3
+     * (bugs.md fog_and_popup: DOS fogged whole map + instant @PRICEUP). */
+    {"port_saves/campaign2/fog_and_popup.SAV", false, false, true},
   };
   for (size_t oi = 0; oi < sizeof(k_fixtures) / sizeof(k_fixtures[0]); ++oi) {
     const Col1Fixture* fix = &k_fixtures[oi];
@@ -813,6 +817,24 @@ int main(void) {
           cap.head.colony_count,
           orig.head.unit_count,
           cap.head.unit_count
+        );
+        return 1;
+      }
+      /* DOS in-game saves carry DS:0x5394/0x5396/0x5398 all == human slot
+       * (Dutch goldens: 3/3/3); a stale 0 makes DOS run England's EOT as
+       * "human" at load (immediate @PRICEUP) and draw fog for viewer 0
+       * (bugs.md fog_and_popup.SAV). */
+      if (cap.head.human_player != (uint16_t)br.human_nation ||
+          cap.head.nation_turn != (uint16_t)br.human_nation ||
+          cap.head.curr_nation_map_view != (uint16_t)br.human_nation) {
+        fprintf(
+          stderr,
+          "recapture human-slot heads %s: human %u nation_turn %u view %u expected %d\n",
+          fix->path,
+          (unsigned)cap.head.human_player,
+          (unsigned)cap.head.nation_turn,
+          (unsigned)cap.head.curr_nation_map_view,
+          br.human_nation
         );
         return 1;
       }

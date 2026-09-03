@@ -1617,6 +1617,12 @@ bool col1_bridge_capture(
    * campaign saved human_player=0 forever (misleads every head.human_player
    * reader on later loads). */
   save->head.human_player = (uint16_t)human_nation;
+  /* DOS DS:0x5394/0x5396 both equal the human slot in every DOS in-game save
+   * (Dutch goldens carry 3/3/3) — saves only happen mid human Move Pieces.
+   * Left at the template's 0, DOS resumes the nation-0 EOT as "human"
+   * (immediate @PRICEUP dialog) and draws fog for the wrong viewer. */
+  save->head.nation_turn = (uint16_t)human_nation;
+  save->head.curr_nation_map_view = (uint16_t)human_nation;
   /*
    * bugs.md interop (port_saves/interop pair): DOS's own in-game saves carry
    * DS:0x53c2 turn_loop_running = 1 and DS:0x53c4 map_modal_active = 1. The
