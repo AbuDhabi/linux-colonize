@@ -296,7 +296,7 @@ static int colony_yield_pipeline(
    * single early placement, shared by expert and non-expert alike, is
    * the version that reconciles all of them together.
    */
-  if (field_job == COLONIZE_JOB_FISHERMAN) {
+  if (field_job == COLONIZE_JOB_FISHERMAN && yield != 0) {
     yield += colony_yield_fisherman_distance_mod(map, x, y);
   }
 
@@ -320,7 +320,16 @@ static int colony_yield_pipeline(
     }
   }
 
-  if (sol_bonus > 0) {
+  /*
+   * Zero-base gate — DOS folds positive SoL only into a nonzero yield
+   * (`local_26 != 0 && local_1c > 0`, asm 15eb:1aeb-1afa), and the expert
+   * branch below carries the same `local_26 != 0` gate: a terrain whose
+   * table base is 0 for this job stays 0 through both. Player-confirmed
+   * 2026-09-03 (farming/case4, golden_colony_prod03): expert Farmer on
+   * Mountains = 0 food — the ungated port paid the expert flat +2 and
+   * then the stack's farmer +1 on top, inventing 3 food from bare rock.
+   */
+  if (sol_bonus > 0 && yield != 0) {
     yield += sol_bonus;
   }
 
@@ -398,13 +407,19 @@ static int colony_yield_pipeline(
   if (resource_double) {
     yield <<= 1;
   }
-  if (is_expert_food_fish) {
-    yield += 2;
-    if (sol_bonus > 0) {
-      yield += sol_bonus;
+  /* `yield != 0` gate: see the zero-base note above (DOS 15eb:1afd-1b25).
+   * For non-food experts the gate is a no-op (doubling 0 is 0, and a
+   * resource-only yield doubles to the same total DOS reaches by doubling
+   * the effect term instead); it only changes the food/fish flat +2. */
+  if (yield != 0) {
+    if (is_expert_food_fish) {
+      yield += 2;
+      if (sol_bonus > 0) {
+        yield += sol_bonus;
+      }
+    } else if (expert) {
+      yield <<= 1;
     }
-  } else if (expert) {
-    yield <<= 1;
   }
   if (field_job == COLONIZE_JOB_LUMBERJACK) {
     yield <<= 1;

@@ -461,6 +461,15 @@ whole term, so still not attempted.
 
 Silver on mountains without a deposit / road can be forced to 0 or 1 (`18ec` ~11925–11938).
 
+**2026-09-03 — zero-base gate (player-confirmed, `farming/case4` →
+`golden_colony_prod03`):** DOS gates the positive-SoL fold and the entire
+expert branch on `local_26 != 0` (asm 15eb:1aeb-1b25), and the improvement
+stack on `local_26 > 0` — so a terrain whose table base is 0 for the job
+yields 0 no matter the skill: **expert Farmer on Mountains = 0 food** (the
+ungated port paid flat +2 then farmer +1, inventing 3). Same capture also
+confirmed Beaver grants no Farmer bonus (17fa pairs it with Fur Trapper
+only): Mixed+Beaver expert Farmer = 5 = base 2 + expert 2 + farmer 1.
+
 **2026-08-15: player-supplied gameplay data (Viceroy difficulty) — crop-job
 magnitudes confirmed as-is, Fisherman bug found and fixed.** Five live
 observations (free colonist, no sentiment bonus unless noted):
