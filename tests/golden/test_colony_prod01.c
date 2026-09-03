@@ -421,9 +421,17 @@ static int run_pair(const char* path_in, const char* path_exp, const char* label
   for (int m_idx = 0; m_idx < colonies.colony_count; ++m_idx) {
     if (colonies.colonies[m_idx].x == 50 && colonies.colonies[m_idx].y == 43) {
       ColonizeColony* mtl = &colonies.colonies[m_idx];
-      /* Center tile: Grassland (4) + River (0x40) -> 4 food, 5 tobacco */
+      /* Center tile: Grassland (4) + River (0x40) + Plowed -> 4 food,
+       * 5 tobacco. 2026-09-03: commons FOOD has no river term (the river
+       * value feeds the secondary only, FUN_15eb_1f72 — see
+       * colony_yield.c), so the 4th food point this fixture used to get
+       * from the river now comes from a plow; the river stays for the
+       * tobacco secondary's +1. */
       if (map.terrain) {
         map.terrain[43 * map.width + 50] = 0x44;
+      }
+      if (map.improve) {
+        map.improve[43 * map.width + 50] |= MAP_IMPROVE_PLOWED;
       }
       if (map.layer2) {
         map.layer2[43 * map.width + 50] = 0;
@@ -520,10 +528,16 @@ static int run_pair(const char* path_in, const char* path_exp, const char* label
       if (map.improve) {
         map.improve[56 * map.width + 42] |= MAP_IMPROVE_PLOWED;
       }
-      /* Fisherman on Ocean (25) -> 7 food */
+      /* Fisherman on Ocean (25) -> 7 food. improve cleared 2026-09-03: the
+       * real map's road byte under this synthetic ocean tile was free
+       * under the old formula (Fisherman road bucket 0) but the
+       * DOS-literal stack pays road on any job > 3. */
       fo->tiles[6] = 2;
       if (map.terrain) {
         map.terrain[55 * map.width + 41] = 25;
+      }
+      if (map.improve) {
+        map.improve[55 * map.width + 41] = 0;
       }
       /* Lumberjack on Conifer Forest */
       fo->tiles[0] = 1;
@@ -561,12 +575,20 @@ static int run_pair(const char* path_in, const char* path_exp, const char* label
       for (int ti = 0; ti < 8; ++ti) {
         gd->tiles[ti] = -1;
       }
-      /* Expert Farmers on Plains -> 10 food each */
+      /* Expert Farmers -> 10 food each. 2026-09-03 re-pick: Prairie, bare
+       * (3 base + sol 2 + expert 2 + sol re-add 2 + farmer 1 = 10) — was
+       * Plains + one plow, calibrated before the skill-blind farmer/plow
+       * improvement stack was ported (Plains now lands on 11/12). The
+       * improve byte is cleared too: the real map underneath had a plow on
+       * tiles[0] that the old expert path ignored (experts skipped the
+       * crop block entirely), invisible until the DOS-literal stack made
+       * plow count for experts. */
       gd->tiles[0] = 0;
-      if (map.terrain) map.terrain[(gd->y + k_fdy[0]) * map.width + (gd->x + k_fdx[0])] = 2;
+      if (map.terrain) map.terrain[(gd->y + k_fdy[0]) * map.width + (gd->x + k_fdx[0])] = 3;
+      if (map.improve) map.improve[(gd->y + k_fdy[0]) * map.width + (gd->x + k_fdx[0])] = 0;
       gd->tiles[1] = 1;
-      if (map.terrain) map.terrain[(gd->y + k_fdy[1]) * map.width + (gd->x + k_fdx[1])] = 2;
-      if (map.improve) map.improve[(gd->y + k_fdy[1]) * map.width + (gd->x + k_fdx[1])] |= MAP_IMPROVE_PLOWED;
+      if (map.terrain) map.terrain[(gd->y + k_fdy[1]) * map.width + (gd->x + k_fdx[1])] = 3;
+      if (map.improve) map.improve[(gd->y + k_fdy[1]) * map.width + (gd->x + k_fdx[1])] = 0;
       /* Cotton Planter on Plains */
       gd->tiles[2] = 2;
       if (map.terrain) map.terrain[(gd->y + k_fdy[2]) * map.width + (gd->x + k_fdx[2])] = 2;
@@ -592,9 +614,13 @@ static int run_pair(const char* path_in, const char* path_exp, const char* label
       gd->colonists[7].field_job = COLONIZE_JOB_FARMER;
       gd->colonists[7].profession = COLONIZE_PROF_FREE_COLONIST;
       if (map.terrain) map.terrain[(gd->y + k_fdy[7]) * map.width + (gd->x + k_fdx[7])] = 1; /* Desert */
-      /* Fishermen on Ocean -> 6 food (non-spec), 10 food (expert) */
+      /* Fishermen on Ocean -> 6 food (non-spec), 10 food (expert). improve
+       * cleared on tiles[5]: the real map had a road byte there that the
+       * old formula never paid Fishermen for (road bucket 0) but the
+       * DOS-literal stack does (job>3 road +u). */
       gd->tiles[5] = 5;
       if (map.terrain) map.terrain[(gd->y + k_fdy[5]) * map.width + (gd->x + k_fdx[5])] = 25;
+      if (map.improve) map.improve[(gd->y + k_fdy[5]) * map.width + (gd->x + k_fdx[5])] = 0;
       gd->tiles[6] = 6;
       if (map.terrain) map.terrain[(gd->y + k_fdy[6]) * map.width + (gd->x + k_fdx[6])] = 25;
       break;
@@ -752,17 +778,16 @@ static int run_pair(const char* path_in, const char* path_exp, const char* label
         if (map.layer2) map.layer2[ty * map.width + tx] = 0;
       }
       /*
-       * Expert Farmer on Prairie -> 9 food. Was dropped to Grassland
-       * (base 2) when the expert formula first landed, to offset this
-       * colony's total sitting 1 over the real-DOS-captured value — but
-       * that fit was against the still-wrong commons plow=+2. Once
-       * commons plow was corrected to +1 (colony_yield_town_commons),
-       * this colony's real total needed +1 back; Prairie (base 3)
-       * supplies exactly that. Plowed still doesn't matter for an expert
-       * Farmer either way.
+       * Expert Farmer on Grassland -> 9 food (2 base + sol 2 + expert 2 +
+       * sol re-add 2 + farmer 1). 2026-09-03: back to Grassland — the
+       * Prairie re-pick's +1 is now supplied by the skill-blind
+       * unconditional farmer +1 (colony_yield_pipeline improvement
+       * stack); keeping Prairie landed 10 and bumped this turn's
+       * surplus parity, breeding one horse too many (the same ceil(s/2)
+       * mechanism the New Holland river-drop note below describes).
        */
       vl->tiles[0] = 0;
-      if (map.terrain) map.terrain[(vl->y + k_fdy[0]) * map.width + (vl->x + k_fdx[0])] = col1_tile_to_mp_terrain(0x03u);
+      if (map.terrain) map.terrain[(vl->y + k_fdy[0]) * map.width + (vl->x + k_fdx[0])] = col1_tile_to_mp_terrain(0x04u);
       /*
        * Expert Fur Trapper on Broadleaf Forest (no road/river/resource) ->
        * 16 furs: (base 2 + sol 2) x2 expert = 8, x2 Henry Hudson (Dutch own
@@ -871,21 +896,21 @@ static int run_pair(const char* path_in, const char* path_exp, const char* label
         map.terrain[64 * map.width + 48] = 25; /* Ocean */
       }
       /*
-       * Bottom-center (ti=4, dx=0, dy=1): Plains + Road, for Non-spec
-       * Farmer. Re-derived three times now (Prairie -> Grassland ->
-       * Plains) chasing the 2026-08-18 formula rewrite: the town-commons-
-       * food + expert-Farmer/Fisherman changes moved every tile at once,
-       * and this colony's expert Fisherman (top-center, Fishery resource)
-       * needed its own resource-doubling fix too — Plains (base 4, the
-       * highest unforested Farmer value) is what's needed once all of
-       * that nets out.
+       * Bottom-center (ti=4, dx=0, dy=1): Plains + Plowed, for Non-spec
+       * Farmer. Re-derived three times before (Prairie -> Grassland ->
+       * Plains) chasing the 2026-08-18 formula rewrite; 2026-09-03 the
+       * old decorative Road (crops never paid for roads under either
+       * model) became a Plow: commons food lost this colony's center
+       * river +1 (commons food has no river term — the river stays for
+       * the furs secondary this fixture exists to hit), so the +1 moves
+       * to this tile's plow instead (4 base + farmer 1 + plow 1 = 6).
        */
       st->tiles[4] = 0;
       if (map.terrain) {
         map.terrain[65 * map.width + 47] = col1_tile_to_mp_terrain(0x02u); /* Plains */
       }
       if (map.improve) {
-        map.improve[65 * map.width + 47] |= MAP_IMPROVE_ROAD;
+        map.improve[65 * map.width + 47] |= MAP_IMPROVE_PLOWED;
       }
       break;
     }
@@ -948,15 +973,16 @@ static int run_pair(const char* path_in, const char* path_exp, const char* label
       if (map.improve) {
         map.improve[(bh->y + k_fdy[2]) * map.width + (bh->x + k_fdx[2])] |= MAP_IMPROVE_ROAD;
       }
-      /* Expert Farmer on Plains + Plowed -> 6 food */
+      /* Expert Farmer on Prairie -> 6 food (3 base + expert 2 + farmer 1,
+       * no SoL — Bahia flags 0x40). 2026-09-03 re-pick from Plains+Plowed:
+       * the skill-blind improvement stack now pays experts the farmer +1
+       * AND the plow, landing Plains+Plowed on 8; Prairie bare is the 6
+       * the real capture needs. */
       bh->tiles[0] = 0;
       bh->colonists[0].field_job = COLONIZE_JOB_FARMER;
       bh->colonists[0].profession = 0;
       if (map.terrain) {
-        map.terrain[(bh->y + k_fdy[0]) * map.width + (bh->x + k_fdx[0])] = col1_tile_to_mp_terrain(0x02u); /* Plains */
-      }
-      if (map.improve) {
-        map.improve[(bh->y + k_fdy[0]) * map.width + (bh->x + k_fdx[0])] |= MAP_IMPROVE_PLOWED;
+        map.terrain[(bh->y + k_fdy[0]) * map.width + (bh->x + k_fdx[0])] = col1_tile_to_mp_terrain(0x03u); /* Prairie */
       }
       /* Convert Fisherman on Ocean -> 6 food */
       bh->tiles[3] = 3;

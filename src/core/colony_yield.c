@@ -39,15 +39,18 @@ static const int k_forested[8][COLONIZE_FIELD_JOB_COUNT] = {
 };
 
 /* Arctic, Ocean, Sea Lane, Mountains, Hills.
- * Hills Farmer is 2 — player-confirmed 2026-08-15 (Viceroy difficulty), not
- * just Terrain Chart/FreeCol; NAMES.TXT lists 1 but real gameplay doesn't
- * match it. See docs/terrain_yields.md. */
+ * Hills Farmer is NAMES.TXT's 1 after all — the 2026-08-15 "player-confirmed
+ * 2" observation was base 1 + the unconditional farmer +1 from the DOS
+ * improvement stack (FUN_15eb_18ec 1c37, see colony_yield_pipeline), which
+ * this table had absorbed before that stack was ported literally. Pinned
+ * 2026-09-03 by farming/case3's expert Farmer on a bare Hill = 4
+ * (1 + expert 2 + farmer 1); base 2 would give 5. */
 static const int k_other[5][COLONIZE_FIELD_JOB_COUNT] = {
   {0, 0, 0, 0, 0, 0, 0, 0, 0},
   {0, 0, 0, 0, 0, 0, 0, 0, 3},
   {0, 0, 0, 0, 0, 0, 0, 0, 3},
   {0, 0, 0, 0, 0, 0, 4, 1, 0},
-  {2, 0, 0, 0, 0, 0, 4, 0, 0},
+  {1, 0, 0, 0, 0, 0, 4, 0, 0},
 };
 
 static const char* k_job_names[COLONIZE_FIELD_JOB_COUNT] = {
@@ -134,7 +137,10 @@ static int colony_yield_resource_effect(int resource, int field_job) {
     v += 2;
   }
   if (resource == 8 && field_job == COLONIZE_JOB_FUR_TRAPPER) {
-    v += 2;
+    /* +3, not +2 — FUN_15eb_17fa asm: `(param_1 == 8) && (param_2 == 4)`
+     * adds 3 (viceroy_unpacked.c 11736-11738); caught 2026-09-03 while
+     * re-reading the table against the farming saves. */
+    v += 3;
   }
   if (resource == 3 && field_job == COLONIZE_JOB_COTTON_PLANTER) {
     v = COLONY_YIELD_RESOURCE_DOUBLE;
@@ -164,93 +170,6 @@ static int colony_yield_resource_effect(int resource, int field_job) {
     v += 3;
   }
   return v;
-}
-
-static bool colony_yield_is_crop_job(int field_job) {
-  return field_job == COLONIZE_JOB_FARMER || field_job == COLONIZE_JOB_SUGAR_PLANTER ||
-         field_job == COLONIZE_JOB_TOBACCO_PLANTER || field_job == COLONIZE_JOB_COTTON_PLANTER;
-}
-
-/*
- * Minor-river bonus for a field job; major = 2×.
- * Food/crops +1, furs/lumber +2, ore/silver +1 (FreeCol classic / Col1).
- *
- * Fisherman (job 8), player-confirmed 2026-08-15 (Viceroy difficulty): Lake
- * with a major river, free colonist, no sentiment bonus = 6 food. Base ocean
- * fish is 3, coastal distance mod +1 (colony_yield_fisherman_distance_mod)
- * = 4, so the river delta is +2 — exactly the food/crop bucket (base 1,
- * major ×2) doubled. This also explains a previously-unexplained "coastal
- * usually 4, sometimes 6" observation: the "sometimes 6" tiles are coastal
- * *and* major-river (4 + 2). DOS's static terrain river-bit check
- * (`FUN_15eb_18ec` ~11950s) applies to *any* job, not just job<4 — only the
- * separate runtime-array river signal is job<4-gated (still unresolved, see
- * terrain_yields.md, but doesn't block this: the port's own crop-job river
- * magnitudes already matched player data without needing that signal, so
- * Fisherman only needed the same "any job" static-bit path crop/ore/silver
- * already get). Previously `default: return 0` silently dropped Fisherman
- * from any river bonus at all — the bug this fixes.
- */
-static int colony_yield_river_bonus(int field_job, bool major) {
-  int base = 1;
-  switch (field_job) {
-  case COLONIZE_JOB_FARMER:
-    /*
-     * No major-river doubling for Farmer — player-confirmed 2026-09-03
-     * (farming/case1 vs case2 saves): expert Farmer, Broadleaf pedia 13
-     * base 2, *major* river = 6 food (2 + river 2 + expert 2), same +2
-     * river delta as case2's *minor*-river expert (pedia 15 base 1 = 5).
-     * Matches the FUN_15eb_18ec asm reading (docs/terrain_yields.md
-     * "Plow / road / river stacking"): major river adds +u again ONLY
-     * when the accumulated river term so far == u, and job<4 river tiles
-     * fire *two* +u signals (runtime-array bit + static terrain bit), so
-     * a Farmer's term is already 2u and the major add never triggers.
-     * Fisherman (job 8) is not job<4, gets only the static +u, and so
-     * genuinely doubles on major — the 2026-08-15 Lake+major=6 capture
-     * below stays valid.
-     */
-    base = 2;
-    return base;
-  case COLONIZE_JOB_FUR_TRAPPER:
-  case COLONIZE_JOB_LUMBERJACK:
-    base = 2;
-    break;
-  default:
-    base = 1;
-    break;
-  }
-  return major ? (base * 2) : base;
-}
-
-/*
- * Road bonus for a field job — same per-job magnitude bucket as
- * colony_yield_river_bonus's minor-river value (furs/lumber +2,
- * ore/silver +1), not a flat +1 for every road job. Player-confirmed
- * 2026-08-15 (Viceroy): Expert Fur Trapper, Mixed Forest+road+sentiment(+2),
- * Henry Hudson owned = 28 furs; Free Colonist, same tile = 14. The port
- * used to give every road job (fur/lumber/ore/silver alike) a flat +1,
- * which — even combined with Hudson's ×2 and the expert road/river
- * doubling fixed above — landed on free=12/expert=24, not 14/28. Only
- * matches exactly once fur/lumber's road magnitude is 2, same as their
- * river magnitude: free = (base 3 + sol 2 + road[u=1,base=2]) × Hudson(2)
- * = 7×2 = 14; expert = ((base 3 + sol 2)<<=1 + road[u=2,base=2]) × Hudson(2)
- * = 14×2 = 28. See docs/terrain_yields.md "Plow / road / river stacking".
- * Re-confirmed 2026-08-18 via colony_prod02's New Holland (real DOS turn):
- * an unskilled Lumberjack + road was landing hammers-consumed-lumber one
- * short (this bucket had regressed back to the old flat "ore/silver +1"
- * grouping for Lumberjack specifically, contradicting this comment and
- * colony_yield_river_bonus's own already-correct split).
- */
-static int colony_yield_road_bonus(int field_job) {
-  switch (field_job) {
-  case COLONIZE_JOB_FUR_TRAPPER:
-  case COLONIZE_JOB_LUMBERJACK:
-    return 2;
-  case COLONIZE_JOB_ORE_MINER:
-  case COLONIZE_JOB_SILVER_MINER:
-    return 1;
-  default:
-    return 0;
-  }
 }
 
 /*
@@ -292,41 +211,6 @@ static int colony_yield_fisherman_distance_mod(const ColonizeWorldMap* map, int 
     return -1;
   }
   return 1;
-}
-
-/*
- * Road and river do not stack — apply the larger bonus once. `big_unit`
- * doubles whichever wins: DOS's road/river "u" unit size is 2 instead of 1
- * for a matching expert on a non-food/fish job, or for any Lumberjack
- * (matching, or not) — confirmed 2026-08-15 by player data (Viceroy):
- * Expert Ore Miner on Hills+road+sentiment(+1) = 12; Free Colonist, same
- * tile = 6 — exactly ×2 at every step, which only holds if road/river also
- * doubles for the expert, not just the flat expert doubling already wired
- * (that alone would give 10, not 12 — see colony_yield_pipeline's own
- * comment for the full derivation). See docs/terrain_yields.md.
- */
-static int colony_yield_road_or_river_bonus(
-  const ColonizeWorldMap* map,
-  int x,
-  int y,
-  int field_job,
-  bool big_unit
-) {
-  const int road = map_tile_has_road(map, x, y) ? colony_yield_road_bonus(field_job) : 0;
-  int river = 0;
-  if (map_tile_has_river(map, x, y)) {
-    river = colony_yield_river_bonus(field_job, map_tile_has_major_river(map, x, y));
-  }
-  /* Road and river stack (sum), not max — player-confirmed 2026-08-18 via
-   * colony_prod02's Fort Orange: an expert Lumberjack on a tile with both
-   * a road and a (minor) river needed both bonuses added (2+2=4) to match
-   * the real colony's lumber income; New Amsterdam's road-only expert
-   * Lumberjack (colony_prod01) independently confirmed the flat,
-   * non-doubled magnitude this now sums (see the Lumberjack pipeline
-   * comment for why the road/river addition itself isn't expert-doubled
-   * a second time here). */
-  const int bonus = road + river;
-  return big_unit ? bonus * 2 : bonus;
 }
 
 /*
@@ -416,57 +300,28 @@ static int colony_yield_pipeline(
     yield += colony_yield_fisherman_distance_mod(map, x, y);
   }
 
-  if (sol_bonus > 0) {
-    yield += sol_bonus;
-  }
-
-  const bool is_forested = pedia >= 8 && pedia <= 23;
-
-  /* Crop improvements.
-   * - Expert farmers on cleared land: skip here; expert doubling covers cleared land.
-   * - Forested farmers with river: skip river here; handled by road/river below.
-   * - Non-expert Farmer: unconditional +1, plus +1 more if plowed, plus +1
-   *   more if river (all three stack).
-   * - All other crop jobs: +1 if plowed or river.
-   *
-   * 2026-08-18: an earlier version of this comment concluded plow does
-   * *not* stack with the unconditional +1, "confirmed" via New Amsterdam
-   * and Fort Orange's real golden_colony_prod02 aggregates. That was
-   * curve-fit against a wrong baseline: both colonies' aggregates were
-   * computed while town-commons' own plow term was still off by +1 (the
-   * +2-vs-+1 bug fixed the same day, see colony_yield_town_commons),
-   * which inflated their commons food by exactly +1 — the same +1 the
-   * "no stacking" reading was quietly absorbing. Once commons plow was
-   * corrected, both colonies came up short by +1 again; restoring the
-   * stacking +1 here (matching `test_units.c`'s original runtime
-   * plow-tick expectation, which this had also flipped) makes both real
-   * captures exact again.
+  /*
+   * Fur Trapper pre-multiplier road/river add — FUN_15eb_18ec's own job==4
+   * block right after the base lookup (viceroy_unpacked.c ~11840-11850,
+   * gated on base != 0): +1 for a road (runtime mask 0x0a), +1 for a river
+   * with +1 more on a major river (terrain bits 0x40/0x80), all added
+   * *before* the SoL fold and expert doubling. Combined with the
+   * unit-sized add in the shared improvement
+   * stack below this reproduces the old "furs road/river bucket = 2,
+   * major river 4, expert-doubled" totals exactly (2026-08-15 Hudson
+   * capture: (3 + road 1 + sol 2)×2 + road u2 = 14, ×Hudson = 28).
    */
-  if (colony_yield_is_crop_job(field_job)) {
-    const bool forested_farmer = is_forested && field_job == COLONIZE_JOB_FARMER;
-    if (!(expert && field_job == COLONIZE_JOB_FARMER)) {
-      if (field_job == COLONIZE_JOB_FARMER) {
-        yield += 1;
-        if (!forested_farmer && map_tile_has_river(map, x, y)) {
-          yield += 1;
-        }
-        if (map_tile_is_plowed(map, x, y)) {
-          yield += 1;
-        }
-      } else {
-        const bool use_plow = map_tile_is_plowed(map, x, y);
-        const bool use_river = map_tile_has_river(map, x, y) && !forested_farmer;
-        if (use_plow || use_river) {
-          yield += 1;
-        }
-      }
+  if (field_job == COLONIZE_JOB_FUR_TRAPPER && yield != 0) {
+    if (map_tile_has_road(map, x, y)) {
+      yield += 1;
+    }
+    if (map_tile_has_river(map, x, y)) {
+      yield += map_tile_has_major_river(map, x, y) ? 2 : 1;
     }
   }
 
-  /* Non-crop road/river improvements (Furs, Ore, Silver, Forested Farmer) */
-  if ((!colony_yield_is_crop_job(field_job) && field_job != COLONIZE_JOB_LUMBERJACK) ||
-      (is_forested && field_job == COLONIZE_JOB_FARMER)) {
-    yield += colony_yield_road_or_river_bonus(map, x, y, field_job, false);
+  if (sol_bonus > 0) {
+    yield += sol_bonus;
   }
 
   /*
@@ -553,25 +408,64 @@ static int colony_yield_pipeline(
   }
   if (field_job == COLONIZE_JOB_LUMBERJACK) {
     yield <<= 1;
-    /*
-     * Road/river bonus is added post-doubling, flat (no extra expert
-     * multiplier here) — Lumberjack already went through the general
-     * `if (expert) yield <<= 1` above (it isn't excluded from that branch)
-     * on top of this job's own unconditional doubling, so an expert
-     * Lumberjack's base is already doubled twice by the time this runs;
-     * multiplying the road/river term a *third* time double-counted the
-     * expert bonus. Player-confirmed 2026-08-18 (colony_prod02's New
-     * Holland, non-expert + road, needed the base=2 magnitude fixed above
-     * with no extra multiplier; colony_prod01's New Amsterdam, expert +
-     * road, needed that same flat magnitude — the old `*(expert?2:1)` here
-     * only "worked" for the expert case by compounding with the wrong
-     * base=1 magnitude this fix also corrects).
-     */
-    yield += colony_yield_road_or_river_bonus(map, x, y, field_job, false);
   }
   yield += post_resource;
   if (deferred_resource != 0) {
     yield += expert ? deferred_resource * 2 : deferred_resource;
+  }
+
+  /*
+   * Improvement stack — FUN_15eb_18ec's literal tail block (asm
+   * 15eb:1c16-1c9c, verified instruction-by-instruction 2026-09-03; runs
+   * after the expert/resource/Lumberjack multipliers, before Hudson/
+   * convert/negative-SoL). Unit `u` = 2 for a matching non-food/fish
+   * expert or any Lumberjack, else 1. Adds, all stacking:
+   *   - Farmer: +u, UNCONDITIONALLY — any skill level, expert included,
+   *     no plow gate (asm 1c37-1c40 is a bare `job==0` test). This is
+   *     why every "player-confirmed" farmer base sat exactly 1 above its
+   *     NAMES.TXT row (Hills 2-vs-1, and the farming/case1-3 criminals):
+   *     the +1 was being read into the base table. Player-confirmed
+   *     2026-09-03 via farming/case3 (golden_colony_prod03): expert
+   *     Farmer, Broadleaf+Game = 8 (1 + expert 2 + Game 2×2 + farmer 1),
+   *     and the same expert on a bare Hill = 4 (1 + 2 + 1), which pins
+   *     Hills farmer base back to NAMES's 1.
+   *   - road (runtime mask 0x0a) on non-crop jobs (>3): +u.
+   *   - plow (runtime bit 0x40) on crop jobs (<4): +u.
+   *   - river (terrain bit 0x40): +u; major river (terrain 0x80) adds +u
+   *     once more ONLY if the stack so far is exactly u — i.e. river was
+   *     the sole contributor. A Farmer never qualifies (the farmer +u is
+   *     always there first), which is what farming/case1's major-river
+   *     expert = 6 was showing; a Fisherman does (Lake+major=6 capture,
+   *     2026-08-15).
+   * Replaces the port's former crop-improvements block, the non-crop
+   * road/river bucket add, and the Lumberjack post-double road/river tail
+   * — all curve-fit shapes that matched every prior anchor only because
+   * their totals coincide with this stack on those tiles (checked
+   * per-anchor: ore/fur/lumber road & river cases decompose identically).
+   */
+  if (yield > 0) {
+    const int u =
+      ((expert && field_job != COLONIZE_JOB_FARMER && field_job != COLONIZE_JOB_FISHERMAN) ||
+       field_job == COLONIZE_JOB_LUMBERJACK)
+        ? 2
+        : 1;
+    int add = 0;
+    if (field_job == COLONIZE_JOB_FARMER) {
+      add = u;
+    }
+    if (field_job > COLONIZE_JOB_COTTON_PLANTER && map_tile_has_road(map, x, y)) {
+      add += u;
+    }
+    if (field_job <= COLONIZE_JOB_COTTON_PLANTER && map_tile_is_plowed(map, x, y)) {
+      add += u;
+    }
+    if (map_tile_has_river(map, x, y)) {
+      add += u;
+      if (map_tile_has_major_river(map, x, y) && add == u) {
+        add += u;
+      }
+    }
+    yield += add;
   }
 
   /* Convert +1 on DOS whitelist (FUN_15eb_18ec) */
@@ -747,11 +641,18 @@ void colony_yield_town_commons(
   if (map_tile_is_plowed(map, x, y) && pedia >= 0 && pedia <= 7) {
     food += 1;
   }
-  /* River boosts commons food: +1 minor, +2 major (not the full farmer river
-   * bonus which is doubled for field use). */
-  if (map_tile_has_river(map, x, y)) {
-    food += map_tile_has_major_river(map, x, y) ? 2 : 1;
-  }
+  /*
+   * NO river term on commons food — 2026-09-03. FUN_15eb_1f72's food block
+   * reads only `FUN_137f_0142 & 0x40` (+1, the runtime plow bit — the plow
+   * term above); the terrain-byte river value (FUN_137f_010e, local_14
+   * 1/2) feeds the SECONDARY only. The former "+1 minor / +2 major" here
+   * was double-counting Fort Orange's plowed+rivered Savannah center
+   * (7 vs DOS 6) — masked until now because the same colony's expert
+   * Farmer was undercounted by exactly 1 (the missing unconditional
+   * farmer +1, see colony_yield_pipeline's improvement stack), so the
+   * colony aggregate matched with both errors in place. farming/case3
+   * broke the tie by pinning the farmer +1 on riverless tiles.
+   */
   /* Oasis / Wheat / Game: +2 food on commons (not absolute @RESOURCE). Skip timber. */
   if (!timber && res >= 0) {
     if (res == 1 || res == 2 || res == 9) {

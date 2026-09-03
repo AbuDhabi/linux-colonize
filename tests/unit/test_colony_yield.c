@@ -191,8 +191,11 @@ int main(void) {
     map_free(&map);
     return 1;
   }
-  /* amt=4: base(Prairie,Cotton)=3 +1 river(minor). */
-  if (check_commons(&map, 3, 0, 4, COLONIZE_CARGO_COTTON, 4, "prairie+minor river")) {
+  /* amt=4: base(Prairie,Cotton)=3 +1 river(minor). Food stays 3 — commons
+   * food has NO river term (FUN_15eb_1f72 reads only the runtime plow bit;
+   * the river value feeds the secondary alone — see colony_yield.c,
+   * 2026-09-03, the Fort Orange plow+river double-count). */
+  if (check_commons(&map, 3, 0, 3, COLONIZE_CARGO_COTTON, 4, "prairie+minor river")) {
     map_free(&map);
     return 1;
   }
@@ -396,8 +399,11 @@ int main(void) {
    * asm-confirmed 2026-08-18, see colony_yield_pipeline. Its own resource
    * bonus is deferred past that step and doubled separately, matching the
    * real asm order (not "double the whole accumulated base").
-   *   free:   base(1) +farmer(+1, non-expert, unconditional) +resource(free,+2) = 4
-   *   expert: base(1) +flat(2) +latch_readd(0) +resource(+2 x2 expert)          = 7
+   *   free:   base(1) +farmer(+1, unconditional) +resource(free,+2)      = 4
+   *   expert: base(1) +flat(2) +resource(+2 x2 expert) +farmer(+1)       = 8
+   * 2026-09-03: the farmer +1 applies to experts too (skill-blind
+   * improvement stack, asm 15eb:1c32-1c40) — this exact tile shape is the
+   * DOS-save-confirmed farming/case3 value (golden_colony_prod03).
    */
   {
     int gx = -1;
@@ -418,8 +424,8 @@ int main(void) {
     const int expert_game = colony_yield_for_worker(
       &map, gx, gy, COLONIZE_JOB_FARMER, COLONIZE_JOB_FARMER, /*has_docks=*/true, 0, 0
     );
-    if (expert_game != 7) {
-      fprintf(stderr, "expert farmer+Game want 7 got %d\n", expert_game);
+    if (expert_game != 8) {
+      fprintf(stderr, "expert farmer+Game want 8 got %d\n", expert_game);
       map_free(&map);
       return 1;
     }
@@ -440,8 +446,48 @@ int main(void) {
    * uses a nonzero sol_bonus with colony_flags=0 (no latch bits) to prove
    * the re-add tracks sol_bonus, not the latch reconstruction the old code
    * used (which would have re-added 0 here instead of 3).
-   *   expert: base(2) +sol_fold(3)=5, +flat(2)=7, +sol_readd(3)=10
+   *   expert: base(2) +sol_fold(3)=5, +flat(2)=7, +sol_readd(3)=10,
+   *           +farmer(1, skill-blind improvement stack, 2026-09-03)=11
    */
+  /*
+   * Hills Farmer — DOS-save-confirmed 2026-09-03 (farming/case3 turn3:
+   * expert Farmer on a bare Hill = 4 food; asserted here statically since
+   * the player moved the farmer mid-pair, so no golden turn covers it).
+   * Pins Hills farmer base back to NAMES.TXT's 1 — the old table 2 was
+   * base 1 + the unconditional farmer +1 read into the base — and the
+   * skill-blind farmer term: free colonist same tile = 2 (1 + farmer 1),
+   * expert = 4 (1 + expert flat 2 + farmer 1).
+   */
+  {
+    int hx = -1;
+    int hy = -1;
+    for (int y = 0; y < (int)map.height && hx < 0; ++y) {
+      for (int x = 0; x < (int)map.width && hx < 0; ++x) {
+        map.terrain[y * map.width + x] = 0x20u; /* Hills */
+        if (map_resource_type_for_yield(&map, x, y) < 0) {
+          hx = x;
+          hy = y;
+        }
+      }
+    }
+    if (hx < 0) {
+      fprintf(stderr, "no resource-free Hills tile found on 32x32\n");
+      map_free(&map);
+      return 1;
+    }
+    const int free_hill = colony_yield_for_worker(
+      &map, hx, hy, COLONIZE_JOB_FARMER, COLONIZE_PROF_FREE_COLONIST, true, 0, 0
+    );
+    const int expert_hill = colony_yield_for_worker(
+      &map, hx, hy, COLONIZE_JOB_FARMER, COLONIZE_JOB_FARMER, true, 0, 0
+    );
+    if (free_hill != 2 || expert_hill != 4) {
+      fprintf(stderr, "hills farmer want free=2 expert=4 got %d/%d\n", free_hill, expert_hill);
+      map_free(&map);
+      return 1;
+    }
+  }
+
   {
     int tx = -1;
     int ty = -1;
@@ -463,10 +509,10 @@ int main(void) {
       &map, tx, ty, COLONIZE_JOB_FARMER, COLONIZE_JOB_FARMER, /*has_docks=*/true, /*sol_bonus=*/3,
       /*colony_flags=*/0
     );
-    if (expert_farmer_sol != 10) {
+    if (expert_farmer_sol != 11) {
       fprintf(
         stderr,
-        "expert farmer, sol_bonus=3 colony_flags=0 want 10 got %d\n",
+        "expert farmer, sol_bonus=3 colony_flags=0 want 11 got %d\n",
         expert_farmer_sol
       );
       map_free(&map);
