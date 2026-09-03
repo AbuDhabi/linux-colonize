@@ -41,9 +41,16 @@
 /* BIOS timer tick. 390 frames × 55 ms ≈ 21 s. */
 #define CLOSING_FRAME_MS 55
 
-/* COLDIG 15 cheering + fireworks (event 0x5a, same sting as the King's Galleon). */
+/*
+ * CLOSING.EXE `call 069B:000E` (GSOUND FUN_12d8_000e):
+ *   0x3d  BGM at `_closing` start (unlisted victory cue, not pool 3)
+ *   0x5a  COLDIG 15 cheer+fireworks when CLOS-HAT's 1-based frame is 1
+ *   0x59  COLDIG event when CLOS-FWK's pre-increment frame is
+ *         1, 27, 37 or 42 (`_anim_loop` 0x284)
+ */
+#define CLOSING_BGM_ID 0x3d
 #define CLOSING_CHEER_SOUND_ID 0x5a
-#define CLOSING_BGM_POOL 3 /* Independence set, already armed by 3844_0442 */
+#define CLOSING_FIREWORK_SOUND_ID 0x59
 
 typedef struct ClosingSeries {
   int series; /* sheet index, or -1 for the end marker */

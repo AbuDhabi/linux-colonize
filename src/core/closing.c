@@ -171,7 +171,38 @@ static void closing_compose(ClosingCinematic* c) {
   }
 }
 
-static bool closing_step(ClosingCinematic* c) {
+static void closing_play_frame_sounds(const ClosingCinematic* c) {
+  if (!c || !g_closing_play) {
+    return;
+  }
+  for (int i = 0; i < c->series_count; ++i) {
+    const ClosingSeries* s = &c->series[i];
+    if (s->series < 0 || s->series >= CLOSING_SHEET_COUNT || !c->sheet_ok[s->series]) {
+      continue;
+    }
+    const int n = c->sheets[s->series].sprite_count;
+    if (n <= 0) {
+      continue;
+    }
+    const int elapsed = c->clock - closing_start_tick(s);
+    if (elapsed < 0) {
+      continue;
+    }
+    const int frame = elapsed % n;
+    /* `_anim_loop` checks the 1-based counter *before* incrementing, so
+     * port elapsed 1/27/37/42 is DOS frame 1/27/37/42. */
+    if (s->series == CLOSING_SHEET_FIREWORKS &&
+        (frame == 1 || frame == 27 || frame == 37 || frame == 42)) {
+      g_closing_play(CLOSING_FIREWORK_SOUND_ID);
+    }
+    /* `_do_anims` plays 0x5a while drawing hat sprite 1 (after increment). */
+    if (s->series == CLOSING_SHEET_HAT && frame == 0) {
+      g_closing_play(CLOSING_CHEER_SOUND_ID);
+    }
+  }
+}
+
+static bool closing_step(ClosingCinematic* c, bool play_sounds) {
   if (!c || c->finished) {
     return false;
   }
@@ -179,10 +210,16 @@ static bool closing_step(ClosingCinematic* c) {
   if (c->end_frame > 0 && c->clock >= c->end_frame) {
     c->clock = c->end_frame;
     closing_compose(c);
+    if (play_sounds) {
+      closing_play_frame_sounds(c);
+    }
     c->finished = true;
     return false;
   }
   closing_compose(c);
+  if (play_sounds) {
+    closing_play_frame_sounds(c);
+  }
   return true;
 }
 
@@ -257,10 +294,10 @@ bool closing_open(ClosingCinematic* c, const char* data_dir) {
   c->open = true;
   c->finished = false;
   if (g_closing_set_bgm) {
-    g_closing_set_bgm(CLOSING_BGM_POOL);
+    g_closing_set_bgm(0); /* CLOSING.EXE is its own process; no VICEROY pool. */
   }
   if (g_closing_play) {
-    g_closing_play(CLOSING_CHEER_SOUND_ID);
+    g_closing_play(CLOSING_BGM_ID);
   }
   return true;
 }
@@ -284,7 +321,7 @@ void closing_update(ClosingCinematic* c, uint32_t dt_ms) {
   c->accum_ms += dt_ms;
   while (c->accum_ms >= CLOSING_FRAME_MS) {
     c->accum_ms -= CLOSING_FRAME_MS;
-    if (!closing_step(c)) {
+    if (!closing_step(c, true)) {
       c->accum_ms = 0;
       break;
     }
@@ -295,7 +332,7 @@ void closing_skip_to_end(ClosingCinematic* c) {
   if (!c || !c->open) {
     return;
   }
-  while (closing_step(c)) {
+  while (closing_step(c, false)) {
   }
   c->finished = true;
 }
