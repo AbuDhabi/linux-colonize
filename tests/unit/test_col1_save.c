@@ -695,6 +695,18 @@ int main(void) {
     {"original_saves/valid-lategame-saves/COLONY07.SAV", false, true, true},
     {"original_saves/valid-lategame-saves/COLONY08.SAV", false, true, true},
     {"original_saves/valid-lategame-saves/COLONY10.SAV", false, true, true},
+    /* Dutch + French campaign sets (added 2026-09-03): original DOS saves.
+     * dutch-campaign COLONY00-08/10 are byte-identical duplicates of the
+     * valid-lategame-saves fixtures above, so only the one new file (the
+     * early-game COLONY09) is listed here. */
+    {"original_saves/dutch-campaign/COLONY09.SAV", false, true, true},
+    {"original_saves/french-campaign/COLONY00.SAV", false, true, true},
+    {"original_saves/french-campaign/COLONY01.SAV", false, true, true},
+    {"original_saves/french-campaign/COLONY02.SAV", false, true, true},
+    {"original_saves/french-campaign/COLONY03.SAV", false, true, true},
+    {"original_saves/french-campaign/COLONY04.SAV", false, true, true},
+    {"original_saves/french-campaign/COLONY08.SAV", false, true, true},
+    {"original_saves/french-campaign/COLONY09.SAV", false, true, true},
     {"test-saves-ai/TURN1.SAV", false, false, true},
     {"test-saves-ai/TURN2.SAV", false, false, true},
     {"test-saves-ai/TURN3.SAV", false, false, true},

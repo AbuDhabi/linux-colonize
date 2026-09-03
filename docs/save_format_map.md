@@ -111,14 +111,14 @@ as peels land.
 | `start_mode_marker` (was `unknown39[2]`) | 2 | `partial` | DS:`0x5388`, one int16 — scenario/start-mode marker from `FUN_75c2_235c` param; tested nonzero to add intro text on first-colony founding |
 | `year` / `autumn` / `turn` | 6 | `mapped` | |
 | `map_mode` | 2 | `mapped` | DS:`0x5390`; 0=Move / 1=View |
-| `active_unit` | 2 | `mapped` | |
+| `active_unit` | 2 | `mapped` | `0xffff` = no unit selected (dutch COLONY09 / french COLONY08, both saved in View mode) — capture writes `0xffff` when nothing is selected (was: stamped 0 = unit 0) |
 | `nation_turn` / `curr_nation_map_view` / `human_player` | 6 | `mapped` | DS:`0x5394`..`0x5398` |
 | `tribe_count` / `unit_count` / `colony_count` | 6 | `mapped` | |
 | `trade_route_count` / `show_entire_map` / `fixed_nation_map_view` | 6 | `mapped` | DS:`0x53a0`.. |
 | `difficulty` | 1 | `mapped` | 0..4 |
 | `king_audience_streak` / `king_audience_last_pick` (was `unknown43[2]`) | 2 | `mapped` | DS:`0x53a7`/`0x53a8` — dual use (2026-08-29): King-audience RNG state pre-declaration; `FUN_43f7_1a26` overwrites them at the Declaration with `year/100`, `year%100` — the declare year `FUN_41f2_0092` reads for the Early Revolution score bonus (`reports_score_declare_year`). Pre-declaration meaning: King-audience RNG state (streak + last-picked line, avoid repeat); near `FUN_38fd_5be8` (`KING_AUDIENCE` in `ai_king.c`); reset at new game |
 | `founding_father[25]` | 25 | `mapped` | −1 = unrecruited |
-| `turn_loop_running` / `map_modal_active` / `no_unit_selected` | 6 | `mapped` | DS:`0x53c2`/`c4`/`c6` |
+| `turn_loop_running` / `map_modal_active` / `no_unit_selected` | 6 | `mapped` | DS:`0x53c2`/`c4`/`c6`. Not always 1/1: View-mode DOS saves carry `map_modal_active 0` with `active_unit 0xffff` (2026-09-03) — port still stamps 1 (safe for the in-game-load crash, see col1_bridge.c) |
 | `nation_relation[4]` | 8 | `mapped` | |
 | `rebel_sentiment_report` + `crown_nation_id`/`rival_nation_slot_1`/`_2`/`sol_pct_last_notified` (was `unknown45_pad[8]`) | 10 | `mapped` | DS:`0x53d0`; the 4 int16 slots resolved 2026-08-19 (crown nation, 2 lazy rival-nation caches, SoL-report dedup) |
 | `expeditionary_force` / `backup_force` | 16 | `mapped` | |
@@ -150,7 +150,7 @@ as peels land.
 | `build_ai_flags` | 1 | `mapped` | +0x1d; bit7 `wants_construction` (0x80) — Linux field + LABOR latch + clear on queue done; other bits reserved |
 | `garrison_quota` | 1 | `mapped` | +0x1e; `threat>>3` (`FUN_5952_035e`, clean recovery 2026-08-14 confirms exact match — [`colony_tick_5952_035e.md`](../original_sources_annotated/ai/colony_tick_5952_035e.md)); Linux `ColonizeColony.garrison_quota` + fortify DEC + thin latch |
 | `occupation` / `profession` | 64 | `mapped` | |
-| `specialty[16]` | 16 | `mapped` | +0x60; colonist specialty nibbles (`FUN_15eb_0c7a`; was `duration`) |
+| `specialty[16]` | 16 | `partial` | +0x60; per-colonist nibble (`FUN_15eb_0c7a`; was `duration`). **2026-09-03 french/dutch campaign survey refutes the old "profession & 0xf" export formula**: AI colonies store 0 for every colonist; human colonies default 15 with occasional low values (0-14, likely learning/education state). Port now preserves the loaded nibble per colonist (`ColonizeColonist.col1_specialty`, permuted with the canonical reorder); port-created colonists get the observed defaults (human 15 / AI 0) |
 | `tiles[20]` | 20 | `mapped` | +0x70; ring `[0..7]`; `[8..19]` empty `0xff` in fixtures |
 | `buildings` / `custom_house` | — | `mapped` | `unused05` pad. Each 2/3-tier chain field (`fortification`, `armory`, `docks`, `blacksmiths_house`, `carpenters_shop`, …) stores `(1 << N) - 1`, not the tier count `N` directly — reads 0/1/3[/7], never 2/5/6. Player-confirmed 2026-08-18: no chain field ever read 2 across colony_prod01/02's ~30 colonies (a plain-count encoding would hit it constantly), and cross-checked against founding-father gating (a colony reading the top tier of an Adam-Smith-gated factory chain, when its nation didn't own Adam Smith, would be impossible under a plain-count reading but is expected/absent under this one). `col1_apply_building_level`/`col1_encode_building_level` (col1_bridge.c) convert via popcount / `(1<<N)-1`. |
 | `improve_timer` | 1 | `mapped` | +0x8c; INC cap `0x7f`; Linux field + pioneer gate (≥2 thin) + clear on plow/road |
@@ -174,14 +174,14 @@ Export often **zeros** unnamed colony bytes on rebuild ([savegame.md](savegame.m
 
 | Field | Size | Status | Notes |
 |-------|------|--------|-------|
-| `x` / `y` / `type` / `nation_id` | — | `mapped` | Europe sentinels ≥200, resolved 2026-08-29 from `FUN_48d3_007a/0346/03d0`: `228+n` in port, `232+n` sailing to New World (`goto` = landfall), `244+n` sailing to Europe (`goto` = exit tile), `236+n` seen on dock land units; `turns_worked` (+0x16) = voyage turns left while in transit. nawagers' 235/239/243 = nation 3 on those diagonals. Linux capture/apply honor all three ship lanes (savegame.md "Human Europe ships") |
-| `vis_mask` | 4 bits | `mapped` | euro owner `1<<n` (`FUN_1427_0992`); natives 0 on spawn/capture |
+| `x` / `y` / `type` / `nation_id` | — | `mapped` | Europe sentinels ≥200, resolved 2026-08-29 from `FUN_48d3_007a/0346/03d0`: `228+n` in port, `232+n` sailing to New World (`goto` = landfall), `244+n` sailing to Europe (`goto` = exit tile), `236+n` seen on dock land units, `240+n` also observed on a docked-in-Europe human ship (french COLONY02, unresolved fifth family — port folds it into `228+n`); `turns_worked` (+0x16) = voyage turns left while in transit. nawagers' 235/239/243 = nation 3 on those diagonals. Linux capture/apply honor all three ship lanes (savegame.md "Human Europe ships") |
+| `vis_mask` | 4 bits | `mapped` | euro owner `1<<n` (`FUN_1427_0992`) on MAP units only; natives 0 on spawn/capture. **Europe-sentinel units (x/y ≥ 200) carry vis 0 in every original save** (2026-09-03 survey) — capture forces 0 there |
 | 8 named bits (was `unknown15_lo`/`ship_damaged`) | 1 | `mapped` | bit7 `ship_damaged` (`FUN_1427_13b0`); bit0 dead; bits1/2/3/5/6 resolved 2026-08-19 (roam-reeval, stack founders/military, garrison-request, bound-in-transit); bit4 `wander_dest_chosen` partial — see mysteries_catalog.md |
 | `moves` / `orders` / `goto_*` | — | `mapped` | |
-| `origin` | 1 | `mapped` | Brave home tribe |
+| `origin` | 1 | `partial` | Brave home tribe; **Euro units carry small values here too** (2026-09-03 french campaign: 0-9, looks like home colony index) — port preserves the loaded byte (`col1_origin` stash), 0xff for port-spawned Euros. Semantics of the Euro value unconfirmed |
 | `ai_plan` | 1 | `mapped` | Default `0x58` / `'X'` |
-| `facing` / `facing_pad` | 1 | `mapped` | Low 3 = last dir (`FUN_1427_0968`); smcol still `unknown18` |
-| Cargo / `turns_worked` / chain | — | `mapped` | |
+| `facing` / `facing_pad` | 1 | `partial` | Low 3 = last dir (`FUN_1427_0968`); smcol still `unknown18`. Upper 5 bits are set on some original units (2026-09-03) — preserved raw via `col1_facing_pad` stash, semantics unmapped |
+| Cargo / `turns_worked` / chain | — | `partial` | 2026-09-03 campaign survey: DOS repurposes the hold region on land units — settled braves carry a slowly-growing counter (~+1/year, 64-107 observed) in `cargo_hold[2]`; Euro land units, braves and even ships carry 196/216/236 (int8 −60/−40/−20?) in `cargo_hold[5]` alongside legit pioneer tools ≤100; Euro land units keep the 255 empty-hold sentinel in `cargo_hold[2]`, braves store 0 there. Port preserves the raw +0x0c..+0x15 bytes per loaded unit (`col1_hold_raw` stash) and only overlays modeled goods/tools. **`holds_occupied` is NOT a reliable goods count**: a human ship at `244+n` (sailing to Europe) can carry `holds_occupied 0` with 4 real goods slots (valid-lategame COLONY04's 4×100 tons), while the dutch-reports phantom-cargo ships also had ho 0 with stale bytes — DOS's own read rule still unresolved, needs a live DOS check (does the COLONY04 ship sell its cargo on arrival?) |
 | `profession` | 1 | `mapped` | Job id; **Treasure** (`type==0x0a`): smcol + DOS Europe exit — value is gold/100 (`profession*100` cash; `FUN_48d3_06ba`) |
 
 ### Nation (316 × 4)

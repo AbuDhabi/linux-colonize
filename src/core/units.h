@@ -287,6 +287,22 @@ typedef struct ColonizeUnit {
    */
   uint8_t col1_ai_plan;
   uint8_t col1_vis_mask; /* DOS nation high nibble (unit byte+3 >> 4); 0x10<<euro */
+  /*
+   * Raw DOS unit bytes +0x0c..+0x15 (holds_occupied, cargo_item nibbles,
+   * cargo_hold[6]) exactly as loaded. DOS repurposes this region on land
+   * units for state the port doesn't model (french-campaign originals:
+   * braves carry a per-settlement counter in hold[2]; Euro land units and
+   * even ships carry 196/216/236 in hold[5] — not pioneer tools). Kept so
+   * capture can round-trip those bytes instead of fabricating sentinels.
+   */
+  uint8_t col1_hold_raw[10];
+  uint8_t col1_hold_raw_valid;
+  /* Raw DOS unit +0x06 (origin). Euro units DO carry values here in original
+   * campaign saves (home colony index, 0-based) — not just Braves. */
+  uint8_t col1_origin;
+  /* Raw DOS facing byte +0x0b upper 5 bits (facing_pad) — set on some
+   * original units; dropped bits changed the byte on round-trip. */
+  uint8_t col1_facing_pad;
   /* Port-only, not saved: bit7 came from combat damage (repair timer), so the
    * completion popup says "repaired", not "construction complete". */
   uint8_t repair_pending;
