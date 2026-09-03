@@ -140,6 +140,26 @@ int main(void) {
     sound_service();
   }
 
+  /* CLOSING.EXE 0x3d is FUN_12d8_000e (start now). Queueing it behind a still-
+   * running Independence tune lets firework events hold gsound_vm_active, so
+   * the pump only starts the song after the cinematic. */
+  {
+    sound_set_bgm(3);
+    sound_play(0x29);
+    sound_service();
+    sound_play(0x59);
+    sound_set_bgm(0);
+    sound_play(0x3d);
+    if (sound_driver_song_id() != 0x3d) {
+      fprintf(stderr, "closing 0x3d delayed until driver idle (got 0x%02x)\n",
+              sound_driver_song_id());
+      sound_shutdown();
+      return 1;
+    }
+    sound_play(0);
+    sound_service();
+  }
+
   /* Title intro must decode to a substantial event list. */
   int title_events = 0;
   uint32_t title_dur = 0;
