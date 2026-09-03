@@ -1232,6 +1232,16 @@ target_include_directories(golden_colony_prod02 PRIVATE
 target_link_libraries(golden_colony_prod02 PRIVATE colonize_core)
 add_test(NAME golden_colony_prod02 COMMAND golden_colony_prod02 WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
+# Colony production golden #3: farmer skill/river arithmetic (farming/case1+case2 DOS pairs):
+add_executable(golden_colony_prod03
+  tests/golden/test_colony_prod03.c
+)
+target_include_directories(golden_colony_prod03 PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+target_link_libraries(golden_colony_prod03 PRIVATE colonize_core)
+add_test(NAME golden_colony_prod03 COMMAND golden_colony_prod03 WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+
 # Joint Euro↔Indian harness (T3 roadmap Phase 0 + Series D/H/K mid+late):
 add_custom_target(golden_ai_joint
   COMMAND ${CMAKE_COMMAND} -E echo "golden_ai_joint: mapgen + turns + contact + diplo + mid01 + late01"

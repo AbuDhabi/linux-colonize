@@ -211,10 +211,12 @@ int main(void) {
       map_free(&map);
       return 1;
     }
-    /* Settlement bit hides sprites — a colony's own town square always
-     * carries this bit, so town-commons food/secondary correctly drop the
-     * Game bonus once it's set (colony_yield_town_commons intentionally
-     * uses the settlement-hiding resource lookup, unlike field yields). */
+    /* Settlement bit hides the resource *sprite*, but NOT its yield — a
+     * colony's own town square always carries this bit, and DOS's
+     * FUN_15eb_1f72 resource read (FUN_137f_04b0) has no settlement gate.
+     * Player-confirmed 2026-09-03 (farming saves / golden_colony_prod03):
+     * a Swamp town square with Minerals makes 5 ore per turn. So commons
+     * food/secondary keep the Game bonus under the settlement bit. */
     map.layer2[gy * map.width + gx] = (uint8_t)(map.layer2[gy * map.width + gx] | 2u);
     if (map_resource_type_at(&map, gx, gy) >= 0) {
       fprintf(stderr, "settlement bit should hide resource sprite lookup\n");
@@ -226,14 +228,14 @@ int main(void) {
       map_free(&map);
       return 1;
     }
-    /* amt=2: base(Broadleaf,Fur)=2, Game hidden. */
+    /* amt=4: base(Broadleaf,Fur)=2 + Game(+2), unchanged by settlement bit. */
     if (check_commons(
           &map,
           gx,
           gy,
-          2,
+          4,
           COLONIZE_CARGO_FURS,
-          2,
+          4,
           "broadleaf+Game (settlement bit)"
         )) {
       map_free(&map);
