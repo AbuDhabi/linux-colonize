@@ -362,9 +362,6 @@ static void ai_king_enqueue_teaparty_ok(ColonizeTurnContext* ctx, int human, int
     cargo_nm
   );
 
-  char title[AI_POPUP_BODY_LEN];
-  snprintf(title, sizeof(title), "%s Party", party);
-
   char body[AI_POPUP_BODY_LEN];
   popup_msg_fill(ctx->messages, "TEAPARTY", &tok, fallback, body, sizeof(body));
   sound_play(0x56); /* FUN_38fd_3dc8 tea party (COLDIG 9 cheering) */
@@ -374,7 +371,7 @@ static void ai_king_enqueue_teaparty_ok(ColonizeTurnContext* ctx, int human, int
     human,
     ai_king_crown_nation_col1(ctx->col1_ok ? ctx->col1 : NULL, human),
     ctx->col1 && ctx->col1_ok ? (int)ctx->col1->nation[human].tax_rate : 0,
-    title,
+    NULL,
     body
   );
 }
@@ -1711,7 +1708,7 @@ static void ai_king_try_capture_at(ColonizeTurnContext* ctx, ColonizeUnit* u, in
           ctx->messages, "CAPTURED3", &tok, fallback, body, sizeof(body)
         );
         (void)ai_popup_enqueue_ok_ctx(ctx->ai_popups, AI_POPUP_TAG_KING_CAPTURE, human,
-                                      crown, cid, "Colony Captured", body);
+                                      crown, cid, NULL, body);
       }
       ai_king_fortify_garrison_at(ctx, u, crown, u->x, u->y);
       /* Euro pattern: idle Artillery on newly captured colony → FORTIFY. */
@@ -2370,7 +2367,7 @@ static void ai_king_tax_hike_apply(ColonizeTurnContext* ctx, int human, int delt
                "The King, moved by your poverty, lowers taxes to %u%%.", nat->tax_rate);
       (void)ai_popup_enqueue_ok_ctx(ctx->ai_popups, AI_POPUP_TAG_KING_TAX, human,
                                     ai_king_crown_nation_col1(ctx->col1_ok ? ctx->col1 : NULL, human), (int)nat->tax_rate,
-                                    "Royal Audience", body);
+                                    NULL, body);
     }
     return;
   }
@@ -2410,7 +2407,7 @@ static void ai_king_tax_hike_apply(ColonizeTurnContext* ctx, int human, int delt
       sound_play(0x56); /* FUN_38fd_3dc8 tax raise (COLDIG 9 cheering) */
       (void)ai_popup_enqueue_ok_ctx(ctx->ai_popups, AI_POPUP_TAG_KING_TAX, human,
                                     ai_king_crown_nation_col1(ctx->col1_ok ? ctx->col1 : NULL, human), (int)nat->tax_rate,
-                                    "Royal Tax", body);
+                                    NULL, body);
     }
     return;
   }
@@ -2623,8 +2620,7 @@ static void ai_king_succession(ColonizeTurnContext* ctx) {
     );
     popup_msg_fill(ctx->messages, "SUCCESSION", &tok, fallback, body, sizeof(body));
     (void)ai_popup_enqueue_ok_ctx(
-      ctx->ai_popups, AI_POPUP_TAG_INFO, human, merged, heir,
-      "War of the Spanish Succession", body
+      ctx->ai_popups, AI_POPUP_TAG_INFO, human, merged, heir, NULL, body
     );
   }
   if (ctx->status && ctx->status_size && ctx->status[0] == '\0') {
@@ -2801,7 +2797,7 @@ static void ai_king_do_declare(ColonizeTurnContext* ctx, int human) {
       human,
       ai_king_crown_nation_col1(ctx->col1_ok ? ctx->col1 : NULL, human),
       0,
-      "Declaration of Independence",
+      NULL,
       letter
     );
     /* bugs.md 242: @HOWTOWIN does NOT fire at the declaration. DOS shows it
@@ -2893,7 +2889,7 @@ static void ai_king_show_declare_choice(ColonizeTurnContext* ctx, int human, int
       labels[1] = "Yes! Give me liberty or give me death!";
     }
     if (ai_popup_enqueue_choice_ctx(ctx->ai_popups, AI_POPUP_TAG_KING_CONGRESS, human,
-                                    ai_king_crown_nation_col1(ctx->col1_ok ? ctx->col1 : NULL, human), sol, "Continental Congress",
+                                    ai_king_crown_nation_col1(ctx->col1_ok ? ctx->col1 : NULL, human), sol, NULL,
                                     body, labels, ids, 2)) {
       if (ctx->status && ctx->status_size) {
         snprintf(ctx->status, ctx->status_size,
@@ -2982,7 +2978,7 @@ void ai_king_menu_declare_independence(ColonizeTurnContext* ctx) {
       char body[AI_POPUP_BODY_LEN];
       popup_msg_fill(ctx->messages, "TOOTORY", &tok, fallback, body, sizeof(body));
       (void)ai_popup_enqueue_ok_ctx(ctx->ai_popups, AI_POPUP_TAG_INFO, human,
-                                    ai_king_crown_nation_col1(ctx->col1_ok ? ctx->col1 : NULL, human), sol, "Continental Congress",
+                                    ai_king_crown_nation_col1(ctx->col1_ok ? ctx->col1 : NULL, human), sol, NULL,
                                     body);
     }
     if (ctx->status && ctx->status_size) {
@@ -3241,7 +3237,7 @@ static void ai_king_0982_purge_tile(ColonizeTurnContext* ctx, int crown, int x, 
           "The Royal Expeditionary Force has seized our %STRING0!", body, sizeof(body)
         );
         (void)ai_popup_enqueue_ok_ctx(
-          ctx->ai_popups, AI_POPUP_TAG_INFO, ctx->human_nation, crown, 0, "Seizure", body
+          ctx->ai_popups, AI_POPUP_TAG_INFO, ctx->human_nation, crown, 0, NULL, body
         );
       }
     }
@@ -3471,8 +3467,7 @@ static void ai_king_ref_wave(ColonizeTurnContext* ctx) {
                tok.string0);
       popup_msg_fill(ctx->messages, "TORYUPRISING", &tok, fallback, body, sizeof(body));
       (void)ai_popup_enqueue_ok_ctx(
-        ctx->ai_popups, AI_POPUP_TAG_KING_ARRIVAL, human, crown, spawned,
-        "Tory Uprising", body
+        ctx->ai_popups, AI_POPUP_TAG_KING_ARRIVAL, human, crown, spawned, NULL, body
       );
     }
     return;
@@ -3664,8 +3659,7 @@ static void ai_king_ref_wave(ColonizeTurnContext* ctx) {
           }
           if (ai_king_human_popups(ctx)) {
             (void)ai_popup_enqueue_ok_ctx(
-              ctx->ai_popups, AI_POPUP_TAG_KING_ARRIVAL, human, crown, 0,
-              "Royal Expeditionary Force", body
+              ctx->ai_popups, AI_POPUP_TAG_KING_ARRIVAL, human, crown, 0, NULL, body
             );
             /* bugs.md 243: the landing popup BLOCKS before the disembark
              * slides — popup, then animations, then the rest, in sequence. */
@@ -4019,8 +4013,7 @@ static void ai_king_foreign_intervene(ColonizeTurnContext* ctx) {
         );
         popup_msg_fill(ctx->messages, "INTERVENTION", &itok, fallback, body, sizeof(body));
         (void)ai_popup_enqueue_ok_ctx(
-          ctx->ai_popups, AI_POPUP_TAG_KING_ARRIVAL, human, ally1, landings,
-          "Foreign Intervention", body
+          ctx->ai_popups, AI_POPUP_TAG_KING_ARRIVAL, human, ally1, landings, NULL, body
         );
       }
 
@@ -4039,8 +4032,7 @@ static void ai_king_foreign_intervene(ColonizeTurnContext* ctx) {
       );
       popup_msg_fill(ctx->messages, "INTERVENE", &atok, fallback, body, sizeof(body));
       (void)ai_popup_enqueue_ok_ctx(
-        ctx->ai_popups, AI_POPUP_TAG_KING_ARRIVAL, human, ally1, landings,
-        "Foreign Intervention", body
+        ctx->ai_popups, AI_POPUP_TAG_KING_ARRIVAL, human, ally1, landings, NULL, body
       );
       sound_set_bgm(3); /* FUN_43f7_10f0 43f7:145b: 281f_0498(3) Independence pool… */
       sound_play(0x3f); /* …then 43f7:1465: intervention tune after @INTERVENE */
@@ -4773,7 +4765,7 @@ int ai_king_new_war_event(ColonizeTurnContext* ctx) {
     char body[AI_POPUP_BODY_LEN];
     popup_msg_fill(ctx->messages, "KINGNEWWAR", &tok, fallback, body, sizeof(body));
     (void)ai_popup_enqueue_ok_ctx(
-      ctx->ai_popups, AI_POPUP_TAG_KING_TAX, human, peer, gold, "New War", body
+      ctx->ai_popups, AI_POPUP_TAG_KING_TAX, human, peer, gold, NULL, body
     );
   }
   col1->nation[human].gold += (uint32_t)gold;
@@ -4987,8 +4979,7 @@ static void ai_king_war_act(ColonizeTurnContext* ctx) {
             );
           }
           (void)ai_popup_enqueue_ok_ctx(
-            ctx->ai_popups, AI_POPUP_TAG_INFO, human, -1, promoted,
-            "Continental Army", body
+            ctx->ai_popups, AI_POPUP_TAG_INFO, human, -1, promoted, NULL, body
           );
         }
       }
@@ -5701,7 +5692,7 @@ static void ai_king_enqueue_throne_audience(
     popup_msg_fill(ctx->messages, "KINGWIN", &tok, fallback, body, sizeof(body));
   }
   (void)ai_popup_enqueue_ok_ctx(
-    ctx->ai_popups, AI_POPUP_TAG_KING_THRONE, human, crown, win ? 1 : 2, "The King", body
+    ctx->ai_popups, AI_POPUP_TAG_KING_THRONE, human, crown, win ? 1 : 2, NULL, body
   );
 }
 
@@ -5760,7 +5751,7 @@ static void ai_king_check_revolution_end(ColonizeTurnContext* ctx, int ref_alrea
     }
     if (ai_king_human_popups(ctx)) {
       (void)ai_popup_enqueue_ok_ctx(
-        ctx->ai_popups, AI_POPUP_TAG_INFO, human, crown, 1, "Port Warning", body
+        ctx->ai_popups, AI_POPUP_TAG_INFO, human, crown, 1, NULL, body
       );
     }
     ai_king_latch_set(ctx->col1, AI_KING_WARN1_BYTE, 1);
@@ -5794,7 +5785,7 @@ static void ai_king_check_revolution_end(ColonizeTurnContext* ctx, int ref_alrea
     }
     if (ai_king_human_popups(ctx)) {
       (void)ai_popup_enqueue_ok_ctx(
-        ctx->ai_popups, AI_POPUP_TAG_INFO, human, crown, 1, "Colony Warning", body
+        ctx->ai_popups, AI_POPUP_TAG_INFO, human, crown, 1, NULL, body
       );
     }
     ai_king_latch_set(ctx->col1, AI_KING_WARN2_BYTE, 1);
@@ -5833,8 +5824,7 @@ static void ai_king_check_revolution_end(ColonizeTurnContext* ctx, int ref_alrea
     }
     if (ai_king_human_popups(ctx)) {
       (void)ai_popup_enqueue_ok_ctx(
-        ctx->ai_popups, AI_POPUP_TAG_INFO, human, crown, pop_pct, "Population Warning",
-        body
+        ctx->ai_popups, AI_POPUP_TAG_INFO, human, crown, pop_pct, NULL, body
       );
     }
     ai_king_latch_set(ctx->col1, AI_KING_WARN3_BYTE, 1);
@@ -5867,7 +5857,7 @@ static void ai_king_check_revolution_end(ColonizeTurnContext* ctx, int ref_alrea
     }
     if (ai_king_human_popups(ctx)) {
       (void)ai_popup_enqueue_ok_ctx(
-        ctx->ai_popups, AI_POPUP_TAG_KING_WAR_END, human, crown, 4, "Revolution Failed", body
+        ctx->ai_popups, AI_POPUP_TAG_KING_WAR_END, human, crown, 4, NULL, body
       );
     }
     /* DOS lose order: @LOSINGn dialog, then the @KINGWIN gloating audience
@@ -5898,7 +5888,7 @@ static void ai_king_check_revolution_end(ColonizeTurnContext* ctx, int ref_alrea
     }
     if (ai_king_human_popups(ctx)) {
       (void)ai_popup_enqueue_ok_ctx(
-        ctx->ai_popups, AI_POPUP_TAG_KING_WAR_END, human, crown, 4, "Revolution Failed", body
+        ctx->ai_popups, AI_POPUP_TAG_KING_WAR_END, human, crown, 4, NULL, body
       );
     }
     ai_king_enqueue_throne_audience(ctx, human, crown, 0);
@@ -5931,7 +5921,7 @@ static void ai_king_check_revolution_end(ColonizeTurnContext* ctx, int ref_alrea
     }
     if (ai_king_human_popups(ctx)) {
       (void)ai_popup_enqueue_ok_ctx(
-        ctx->ai_popups, AI_POPUP_TAG_KING_WAR_END, human, crown, 4, "Revolution Failed", body
+        ctx->ai_popups, AI_POPUP_TAG_KING_WAR_END, human, crown, 4, NULL, body
       );
     }
     ai_king_enqueue_throne_audience(ctx, human, crown, 0);
@@ -6025,7 +6015,7 @@ static void ai_king_check_revolution_end(ColonizeTurnContext* ctx, int ref_alrea
     }
     if (ai_king_human_popups(ctx)) {
       (void)ai_popup_enqueue_ok_ctx(
-        ctx->ai_popups, AI_POPUP_TAG_KING_WAR_END, human, crown, 1, "Independence", body
+        ctx->ai_popups, AI_POPUP_TAG_KING_WAR_END, human, crown, 1, NULL, body
       );
     }
     /* 2nd: @KINGLOSE — the King's parting word as the full-screen audience
@@ -6068,7 +6058,7 @@ static void ai_king_check_revolution_end(ColonizeTurnContext* ctx, int ref_alrea
         human,
         crown,
         2,
-        "Congress Sues for Peace",
+        NULL,
         body
       );
     }
@@ -6151,7 +6141,7 @@ void ai_king_nation_turn(ColonizeTurnContext* ctx) {
           human,
           ai_king_crown_nation_col1(ctx->col1_ok ? ctx->col1 : NULL, human),
           AI_KING_SOONRETIRE0_YEAR,
-          "Retirement Rumors",
+          NULL,
           body
         );
       }
@@ -6199,7 +6189,7 @@ void ai_king_nation_turn(ColonizeTurnContext* ctx) {
           ctx->human_nation,
           ai_king_crown_nation_col1(ctx->col1_ok ? ctx->col1 : NULL, ctx->human_nation),
           AI_KING_PEACE_YEAR_CAP,
-          "Scoring Complete",
+          NULL,
           body,
           labels,
           ids,
@@ -6306,7 +6296,7 @@ void ai_king_nation_turn(ColonizeTurnContext* ctx) {
           human,
           ai_king_crown_nation_col1(ctx->col1_ok ? ctx->col1 : NULL, human),
           AI_KING_SOONRETIRE1_YEAR,
-          "War Weariness",
+          NULL,
           body
         );
       }
@@ -6461,7 +6451,7 @@ void ai_king_apply_popup_result(ColonizeTurnContext* ctx, const AiPopupState* po
             human,
             ai_king_crown_nation_col1(ctx->col1_ok ? ctx->col1 : NULL, human),
             0,
-            "Retirement",
+            NULL,
             body
           );
         }

@@ -17,6 +17,7 @@ static void check(bool cond, const char* what) {
 static int g_plays[64];
 static int g_nplay;
 static int g_bgm = -999;
+static int g_sfx_stops;
 
 static void cap_play(int id) {
   if (g_nplay < (int)(sizeof g_plays / sizeof g_plays[0])) {
@@ -26,6 +27,10 @@ static void cap_play(int id) {
 
 static void cap_bgm(int id) {
   g_bgm = id;
+}
+
+static void cap_stop_sfx(void) {
+  g_sfx_stops++;
 }
 
 static int last_play(void) {
@@ -128,15 +133,17 @@ static void test_sounds(void) {
   memset(&c, 0, sizeof(c));
   g_nplay = 0;
   g_bgm = -999;
-  closing_set_sound_hooks(cap_play, cap_bgm);
+  g_sfx_stops = 0;
+  closing_set_sound_hooks(cap_play, cap_bgm, cap_stop_sfx);
   if (!closing_open(&c, "COLONIZE")) {
     fprintf(stderr, "FAIL: closing_open sound\n");
     failures++;
-    closing_set_sound_hooks(NULL, NULL);
+    closing_set_sound_hooks(NULL, NULL, NULL);
     return;
   }
   check(g_bgm == 0, "CLOSING.EXE clears the VICEROY pool");
   check(g_nplay == 1 && g_plays[0] == CLOSING_BGM_ID, "open plays 0x3d");
+  check(g_sfx_stops == 0, "open does not dump SFX");
 
   closing_update(&c, CLOSING_FRAME_MS);
   check(c.clock == 1, "clock 1");
@@ -160,15 +167,18 @@ static void test_sounds(void) {
     fprintf(stderr, "FAIL: closing_open skip sound\n");
     failures++;
     closing_close(&c);
-    closing_set_sound_hooks(NULL, NULL);
+    closing_set_sound_hooks(NULL, NULL, NULL);
     return;
   }
   check(g_nplay == before_skip + 1, "skip open only adds 0x3d");
   closing_skip_to_end(&skip);
   check(g_nplay == before_skip + 1, "skip does not burst SFX");
+  check(g_sfx_stops == 0, "skip-to-end keeps SFX until close");
   closing_close(&skip);
+  check(g_sfx_stops == 1, "close dumps COLDIG");
   closing_close(&c);
-  closing_set_sound_hooks(NULL, NULL);
+  check(g_sfx_stops == 2, "each close dumps once");
+  closing_set_sound_hooks(NULL, NULL, NULL);
 }
 
 int main(void) {

@@ -1997,7 +1997,7 @@ static void turn_notify_dock_immigrant(
   } else {
     snprintf(body, sizeof(body), "%s", fb);
   }
-  ai_popup_enqueue_ok(ctx->ai_popups, AI_POPUP_TAG_INFO, "Immigration", body);
+  ai_popup_enqueue_ok(ctx->ai_popups, AI_POPUP_TAG_INFO, NULL, body);
 }
 
 void turn_run_nation_ticks(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
