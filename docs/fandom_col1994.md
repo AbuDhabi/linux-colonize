@@ -218,7 +218,8 @@ Europe screen: recruit (3-slot pool), train, buy ships/artillery, buy/sell goods
 - Lose all **port** colonies → lose war. Defeat REF + recapture lost colonies by **1850** → win.
 - REF AI (wiki strategy): prioritizes weakest-defended ports; man-o-war with 6 units; seizes occupied landing tiles; always attacks adjacent uncaptured colony rather than marching past.
 
-Port: declare / REF / win-lose latches Partial structural; HoF / letter cinematic / deep siege polish later — [manual_gap.md](manual_gap.md).
+Port: declare / REF / win-lose latches structural; signing cinematic **Done**
+2026-08-30; HoF Done; deep siege polish later — [manual_gap.md](manual_gap.md).
 
 ---
 

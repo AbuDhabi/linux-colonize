@@ -395,7 +395,8 @@ int units_tick_drydock_repair(
  * Cortes free king galleon stand-in: each Treasure of nation on an own coastal
  * colony → europe_cash_treasure (tax = Crown share) + despawn. Cite: fandom
  * Hernan Cortes; GAME.TXT @KINGGALLEON3. Syncs col1 nation gold. Returns
- * number cashed. PARK: KINGGALLEON2 / voyage chrome.
+ * number cashed. Non-Cortes KINGGALLEON2 is
+ * `units_king_galleon_offer_coastal_treasures` (FUN_5fef_1908, Done).
  */
 int units_cortes_cash_coastal_treasures(
   ColonizeUnitPool* pool,

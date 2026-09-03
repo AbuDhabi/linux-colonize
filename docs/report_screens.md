@@ -236,11 +236,11 @@ multi-sprite scene)
   well outside the later sprite's visible silhouette. Draw back-to-front:
   sort by `(y + height)` ascending so the frontmost/lowest figures paint
   last, over the ones behind them.
-- 10 of 25 Congress Founding Father portrait positions are known (whichever
-  appeared in the one available golden); the other 15 have no confirmed
-  position and are simply not drawn. If a future golden surfaces a
-  different combination, extend `k_ff_portrait_slots[]` in `reports.c`
-  rather than guessing coordinates.
+- Congress page-2 FF portraits all draw from CC-xx.SS sprite anchors
+  (`reports_render_congress_page2` / `k_ff_portrait_draw_order[]`). An earlier
+  pass template-matched 10 of 25 off `continental_p2.png` and skipped the
+  rest — that table is gone (bugs.md Revere/Drake). Do not reintroduce a
+  coordinate table.
 
 ## `render_diff.sh`'s pixel-mismatch count is noisy for text
 

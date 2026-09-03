@@ -667,14 +667,14 @@ work.
 | `@FORTFIRE` | Partial | order/gate — status or bounce; no modal |
 | `@EUROPEARM` | Done | Europe dock / arm chrome |
 | `@EUROPESHIPCLICK` | Done | Europe dock / arm chrome |
-| `@ARMOPTIONS` | Partial | unit/ship option chrome thin or menu-driven |
+| `@ARMOPTIONS` | Done | Europe dock immigrant click — 12 GAME.TXT rows, DOS `FUN_38fd_37xx` |
 | `@COLONYUNIT` | Done | colony dock-orders popup title (`colony_screen_open_dock_orders`) |
 | `@UNITOPTIONS` | Done thin | colony dock-orders popup, land transport; chrome thin |
 | `@SHIPOPTIONS` | Done thin | colony dock-orders popup, sea transport; chrome thin |
 | `@EUROPESHIPOPTIONS` | Done | Europe dock / arm chrome |
 | `@KINGFRIGATE` | Partial | king/REF — structural ai_popup OK/CHOICE or thin; VGA PARKED |
-| `@KINGGALLEON2` | Partial | king/REF — structural ai_popup OK/CHOICE or thin; VGA PARKED |
-| `@KINGGALLEON3` | Partial | king/REF — structural ai_popup OK/CHOICE or thin; VGA PARKED |
+| `@KINGGALLEON2` | Done (structural) | `FUN_5fef_1908` CHOICE (tag built at runtime); VGA PARKED |
+| `@KINGGALLEON3` | Done (structural) | Cortes free-transport arm of the same function; VGA PARKED |
 | `@CASHTREASURE` | Partial | Europe sail/market — partial status or auto |
 | `@USEDUPTOOLS` | Done thin | pioneer tools demotion ai_popup OK; VGA PARKED |
 | `@EVASIVE` | Partial | order/gate — status or bounce; no modal |

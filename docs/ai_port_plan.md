@@ -195,7 +195,8 @@ uncatalogued function (`FUN_15eb_28c8`, "colonist work-plot job scoring,"
 tribe/fort-zone pathing gate `units.c` doesn't implement) but stays open,
 deliberately not closed — a working substitute already ships and nothing
 currently depends on the fix. `T1.13` (KINGGALLEON2) re-attempted, still
-PARKED — two prior leads ruled out, one new unexplored one (`38fd`
+PARKED at this date — **closed 2026-08-27** (`FUN_5fef_1908`, see the T1.13
+row). Two prior leads ruled out, one new unexplored one (`38fd`
 overlay) flagged but not swept (too large to blind-search). Fixed a stale
 cross-reference in `T1.13`'s open-items list (was still citing `T1.3`/
 `T1.9` as open after both closed this pass). Tier 1 now: 12 of 17 items
