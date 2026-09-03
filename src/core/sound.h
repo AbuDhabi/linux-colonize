@@ -53,6 +53,12 @@ ColonizeSoundOptions sound_get_options(void);
 
 /* Mirror FUN_12d8_000e: gate by option bits then play. */
 void sound_play(int id);
+/*
+ * Id last handed to GSOUND, or -1. Unlike sound_active_song_id this ignores a
+ * queued FUN_129f_02cc next-song; CLOSING.EXE 0x3d must show up here as soon
+ * as sound_play runs, not after event stings go idle.
+ */
+int sound_driver_song_id(void);
 
 /*
  * Play a song for A/B testing from Pick Music even when autoplay is disabled.

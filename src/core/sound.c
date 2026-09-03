@@ -772,10 +772,29 @@ void sound_play(int id) {
     /* Event ids go straight to the driver (FUN_281f_04c0 → FUN_12d8_000e):
      * a COLDIG sample + MIDI sting on channels 7/8, BGM state untouched. */
     sound_dispatch_gated_unlocked(id);
+  } else if (g_sound.category <= 0 && g_sound.category_applied <= 0) {
+    /* No VICEROY pool: OPENING.EXE / CLOSING.EXE call FUN_12d8_000e and the
+     * cue starts now. sound_queue waits for the driver to go idle, so a
+     * leftover Independence tune plus firework stings would postpone 0x3d
+     * until the cinematic ended. */
+    g_sound.pending_id = -1;
+    g_sound.pending = false;
+    g_sound.current_id = id;
+    sound_dispatch_gated_unlocked(id);
   } else {
     sound_queue_unlocked(id);
   }
   pthread_mutex_unlock(&g_sound.lock);
+}
+
+int sound_driver_song_id(void) {
+  if (!g_sound.inited) {
+    return -1;
+  }
+  pthread_mutex_lock(&g_sound.lock);
+  const int id = g_sound.current_id;
+  pthread_mutex_unlock(&g_sound.lock);
+  return id;
 }
 
 /* Pick Music: DOS stores the chosen id in DS:0x96 and plays it immediately (FUN_281f_04c0). */
