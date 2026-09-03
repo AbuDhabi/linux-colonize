@@ -245,7 +245,7 @@ First-contact **reject** floors alarm/friction into the **≥80** band
 
 | Driver | Effect |
 |--------|--------|
-| Encroachment | Euro Soldier / Scout / Pioneer / Dragoon / Artillery **or** Euro colony within Chebyshev ≤2 of unmissioned tribe → **+2** friction and `alarm_by_player` (cap 100) |
+| Encroachment | **RETIRED 2026-09-03** (bugs.md "alarm rises incredibly fast"). The former fandom +2/turn unit/colony bump was not DOS; DOS grows alarm only via the `152e` threat accumulator (colonies within distance 7 + military ring → `euro_relation_accum`, −8 crossing = alarm +1). The friction ±1/turn relation-tick band drift retired with it. |
 | French (Euro nation 1) | Half-rate bumps; +1 auto-trade reach |
 | Pocahontas | Half-rate bumps; elect zeros this nation's tribe friction/attacks + `alarm_by_player` |
 | Missions | Low band extra −1; mid 40–79 meet pulse −2 toward mission owner; ≥80 burns mission |

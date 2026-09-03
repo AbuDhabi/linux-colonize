@@ -379,91 +379,10 @@ int main(void) {
   }
 
   /*
-   * Prelude encroachment: Dragoon also counts (mounted military presence).
-   * Cite: fandom Alarm — military presence; indian_contact.md encroachment.
-   */
-  {
-    col1.tribe[0].mission = 0xff;
-    col1.tribe[0].alarm[0].friction = 10;
-    ind->alarm_by_player[0] = 10;
-    ind->unknown31_flags = (uint8_t)(ind->unknown31_flags | 0x20);
-    /* Park colony so only unit encroachment fires. */
-    c->x = 14;
-    c->y = 14;
-    snprintf(units.types[2].name, sizeof(units.types[2].name), "Dragoon");
-    const int drag_id = units_spawn_allow_stack(&units, 2, 7, 5);
-    ColonizeUnit* drag = units_get(&units, drag_id);
-    if (!drag) {
-      return fail("spawn Dragoon encroacher");
-    }
-    drag->nation_id = 0;
-    ai_contact_indian_prelude(&ctx, 4);
-    if (col1.tribe[0].alarm[0].friction != 12) {
-      return fail("Dragoon encroachment should bump tribe friction by 2");
-    }
-    units_despawn(&units, drag_id);
-    snprintf(units.types[2].name, sizeof(units.types[2].name), "Artillery");
-    col1.tribe[0].alarm[0].friction = 10;
-    ind->alarm_by_player[0] = 10;
-    const int art_id = units_spawn_allow_stack(&units, 2, 7, 5);
-    ColonizeUnit* art = units_get(&units, art_id);
-    if (!art) {
-      return fail("spawn Artillery encroacher");
-    }
-    art->nation_id = 0;
-    ai_contact_indian_prelude(&ctx, 4);
-    if (col1.tribe[0].alarm[0].friction != 12) {
-      return fail("Artillery encroachment should bump tribe friction by 2");
-    }
-    units_despawn(&units, art_id);
-    snprintf(units.types[2].name, sizeof(units.types[2].name), "Soldier");
-    col1.tribe[0].alarm[0].friction = 10;
-    ind->alarm_by_player[0] = 10;
-    c->x = 5;
-    c->y = 5;
-  }
-
-  /*
-   * Colony encroachment: Euro colony Chebyshev ≤2 of unmissioned tribe → +2.
-   * Cite: fandom Alarm; GAME.TXT @INDIANFOREST2; indian_contact.md.
-   */
-  {
-    char st_col[128];
-    st_col[0] = '\0';
-    ctx.status = st_col;
-    ctx.status_size = sizeof(st_col);
-    ctx.human_nation = 0;
-    col1.tribe[0].mission = 0xff;
-    col1.tribe[0].alarm[0].friction = 39;
-    ind->alarm_by_player[0] = 39;
-    ind->unknown31_flags = (uint8_t)(ind->unknown31_flags | 0x20);
-    c->active = true;
-    c->nation_id = 0;
-    c->x = 6;
-    c->y = 5; /* Chebyshev 1 from tribe (5,5) */
-    snprintf(c->name, sizeof(c->name), "Roanoke");
-    /* Park military encroachers away. */
-    euro->x = 10;
-    euro->y = 10;
-    ai_contact_indian_prelude(&ctx, 4);
-    if (col1.tribe[0].alarm[0].friction < 40) {
-      return fail("colony encroachment mid-cross should bump into ≥40");
-    }
-    if (strstr(st_col, "Roanoke") == NULL && strstr(st_col, "concerned") == NULL) {
-      fprintf(stderr, "unit_ai_contact: colony-encroach status '%s'\n", st_col);
-      return fail("colony encroachment mid-cross should set concern status");
-    }
-    c->x = 5;
-    c->y = 5;
-    col1.tribe[0].alarm[0].friction = 10;
-    ind->alarm_by_player[0] = 10;
-    ctx.status = NULL;
-    ctx.status_size = 0;
-  }
-
-  /*
-   * Prelude encroachment: Soldier within Chebyshev ≤2 of tribe, no mission →
-   * friction/alarm +2 (cap 100). Flag body sticky so RNG arm does not also bump.
+   * Retired 2026-09-03 (bugs.md "alarm rises incredibly fast"): the fandom
+   * +2/turn unit- and colony-encroachment bumps are gone — DOS grows alarm
+   * only via the 152e threat accumulator. Prelude must leave friction /
+   * alarm_by_player untouched with a Soldier AND a colony adjacent.
    */
   units.type_count = 3;
   snprintf(units.types[2].name, sizeof(units.types[2].name), "Soldier");
@@ -478,141 +397,23 @@ int main(void) {
   soldier->nation_id = 0;
   euro->x = 10;
   euro->y = 10;
-  c->x = 14;
-  c->y = 14; /* park colony — only Soldier encroachment under test */
+  c->active = true;
+  c->nation_id = 0;
+  c->x = 6;
+  c->y = 5; /* Chebyshev 1 from tribe (5,5) */
   col1.tribe[0].mission = 0xff;
   col1.tribe[0].alarm[0].friction = 10;
   ind->alarm_by_player[0] = 10;
   ind->unknown31_flags = (uint8_t)(ind->unknown31_flags | 0x20); /* skip flag-body escalate */
   ai_contact_indian_prelude(&ctx, 4);
-  if (col1.tribe[0].alarm[0].friction != 12) {
-    return fail("prelude encroachment should bump tribe friction by 2");
+  if (col1.tribe[0].alarm[0].friction != 10) {
+    return fail("prelude must not bump tribe friction (encroachment drift retired)");
   }
-  if (ind->alarm_by_player[0] != 12) {
-    return fail("prelude encroachment should bump alarm_by_player by 2");
+  if (ind->alarm_by_player[0] != 10) {
+    return fail("prelude must not bump alarm_by_player (encroachment drift retired)");
   }
-
-  /*
-   * Unit encroachment still bumps friction; @INDIANCOMMENT chrome only fires
-   * when a colony encroaches (GAME.TXT talks about colonies overusing land).
-   */
-  {
-    char st_cmt[128];
-    st_cmt[0] = '\0';
-    ctx.status = st_cmt;
-    ctx.status_size = sizeof(st_cmt);
-    ctx.human_nation = 0;
-    col1.tribe[0].mission = 0xff;
-    col1.tribe[0].alarm[0].friction = 39;
-    ind->alarm_by_player[0] = 39;
-    ind->unknown31_flags = (uint8_t)(ind->unknown31_flags | 0x20);
-    ai_contact_indian_prelude(&ctx, 4);
-    if (col1.tribe[0].alarm[0].friction < 40) {
-      return fail("comment-cross should bump friction into mid band");
-    }
-    if (st_cmt[0] != '\0' &&
-        (strstr(st_cmt, "concerned") != NULL || strstr(st_cmt, "land use") != NULL)) {
-      fprintf(stderr, "unit_ai_contact: unit-only comment status '%s'\n", st_cmt);
-      return fail("unit encroachment must not fire @INDIANCOMMENT chrome");
-    }
-    ctx.status = NULL;
-    ctx.status_size = 0;
-  }
-
-  /*
-   * Pocahontas half-rate alarm (wiki/fandom): same encroachment with FF →
-   * bumps halved (+2 → +1). Cite: docs/fandom_col1994.md Pocahontas.
-   */
-  {
-    col1.head.founding_father[FF_POCAHONTAS] = 0; /* Euro 0 owns Pocahontas */
-    col1.tribe[0].mission = 0xff;
-    col1.tribe[0].alarm[0].friction = 10;
-    ind->alarm_by_player[0] = 10;
-    ind->unknown31_flags = (uint8_t)(ind->unknown31_flags | 0x20);
-    /* Reuse existing soldier at Chebyshev 2; do not double-bump. */
-    ai_contact_indian_prelude(&ctx, 4);
-    if (col1.tribe[0].alarm[0].friction != 11) {
-      return fail("Pocahontas should halve encroachment friction bump to +1");
-    }
-    if (ind->alarm_by_player[0] != 11) {
-      return fail("Pocahontas should halve encroachment alarm bump to +1");
-    }
-    col1.head.founding_father[FF_POCAHONTAS] = -1; /* clear for later tests */
-  }
-
-  /*
-   * French national bonus (wiki/fandom Alarm): hostility growth half as fast
-   * for nation 1. Encroachment +2 → +1. Cite: docs/fandom_col1994.md Indians.
-   */
-  {
-    ind->alarm_by_player[1] = 10;
-    col1.tribe[0].alarm[1].friction = 10;
-    col1.tribe[0].mission = 0xff;
-    ind->unknown31_flags = (uint8_t)(ind->unknown31_flags | 0x20);
-    units.type_count = 3;
-    snprintf(units.types[2].name, sizeof(units.types[2].name), "Soldier");
-    units.types[2].movement = 1;
-    units.types[2].attack = 2;
-    units.types[2].defense = 2;
-    const int fr_sol = units_spawn_allow_stack(&units, 2, 7, 5);
-    ColonizeUnit* frs = units_get(&units, fr_sol);
-    if (!frs) {
-      return fail("French encroachment spawn");
-    }
-    frs->nation_id = 1;
-    /* EN soldier still near tribe from Pocahontas block — despawn so only FR bumps. */
-    units_despawn(&units, soldier_id);
-    ai_contact_indian_prelude(&ctx, 4);
-    if (col1.tribe[0].alarm[1].friction != 11) {
-      fprintf(
-        stderr,
-        "unit_ai_contact: FR friction=%u want 11\n",
-        (unsigned)col1.tribe[0].alarm[1].friction
-      );
-      return fail("French should halve encroachment friction bump to +1");
-    }
-    if (ind->alarm_by_player[1] != 11) {
-      return fail("French should halve encroachment alarm bump to +1");
-    }
-    units_despawn(&units, fr_sol);
-  }
-
-  /*
-   * French + Pocahontas stack: quarter-rate (+2 → +0 via successive /2).
-   * Cite: ai_contact_alarm_bump_amount; docs/fandom_col1994.md.
-   */
-  {
-    col1.head.founding_father[FF_POCAHONTAS] = 1; /* France owns Pocahontas */
-    ind->alarm_by_player[1] = 20;
-    col1.tribe[0].alarm[1].friction = 20;
-    col1.tribe[0].mission = 0xff;
-    ind->unknown31_flags = (uint8_t)(ind->unknown31_flags | 0x20);
-    units.type_count = 3;
-    snprintf(units.types[2].name, sizeof(units.types[2].name), "Soldier");
-    units.types[2].movement = 1;
-    const int fr_sol2 = units_spawn_allow_stack(&units, 2, 7, 5);
-    ColonizeUnit* frs2 = units_get(&units, fr_sol2);
-    if (!frs2) {
-      return fail("FR+Poca encroachment spawn");
-    }
-    frs2->nation_id = 1;
-    ai_contact_indian_prelude(&ctx, 4);
-    if (col1.tribe[0].alarm[1].friction != 20) {
-      fprintf(
-        stderr,
-        "unit_ai_contact: FR+Poca friction=%u want 20\n",
-        (unsigned)col1.tribe[0].alarm[1].friction
-      );
-      return fail("French+Pocahontas should quarter encroachment bump to +0");
-    }
-    if (ind->alarm_by_player[1] != 20) {
-      return fail("French+Pocahontas should quarter alarm bump to +0");
-    }
-    units_despawn(&units, fr_sol2);
-    col1.head.founding_father[FF_POCAHONTAS] = (int8_t)-1; /* clear FF ownership */
-    c->x = 5;
-    c->y = 5;
-  }
+  c->x = 5;
+  c->y = 5;
 
   /* Mission pacifies: mission present + low friction → extra −1. */
   col1.tribe[0].mission = 0;
@@ -627,19 +428,19 @@ int main(void) {
     return fail("prelude mission pacify should decay alarm_by_player by 1");
   }
 
-  /* Relation tick: met peaceful → tribe friction −1; hot alarm → +1. */
+  /* Relation tick: retired to a no-op — DOS has no per-turn friction drift. */
   ind->euro_diplo[0] = 1;
   col1.tribe[0].alarm[0].friction = 12;
   ind->alarm_by_player[0] = 12;
   ai_contact_indian_relation_tick(&ctx, 4);
-  if (col1.tribe[0].alarm[0].friction != 11) {
-    return fail("peaceful relation tick should decay tribe friction by 1");
+  if (col1.tribe[0].alarm[0].friction != 12) {
+    return fail("relation tick must not drift cool-band friction");
   }
   col1.tribe[0].alarm[0].friction = 50;
-  ind->alarm_by_player[0] = 40; /* mid-band floor */
+  ind->alarm_by_player[0] = 40;
   ai_contact_indian_relation_tick(&ctx, 4);
-  if (col1.tribe[0].alarm[0].friction != 51) {
-    return fail("mid/hot relation tick should bump tribe friction by 1");
+  if (col1.tribe[0].alarm[0].friction != 50) {
+    return fail("relation tick must not drift hot-band friction");
   }
   col1.tribe[0].alarm[0].friction = 10;
   ind->alarm_by_player[0] = 10;
