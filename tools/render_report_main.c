@@ -81,7 +81,7 @@ int main(int argc, char** argv) {
     fprintf(stderr, "col1_save_read_file failed: %s\n", err);
     return 1;
   }
-  const int human = save.head.human_player;
+  const int human = col1_save_human_nation(&save);
 
   /* Same sync the live game does in col1_bridge_apply() after loading a
    * save — without this, founding_fathers_bells_since_last_elect() reads 0. */

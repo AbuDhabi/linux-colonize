@@ -278,3 +278,4 @@ This is a user-maintained list of bugs. User puts reports in. Agents may annotat
 | Dragging cargo onto the cargo hold area should load it onto the selected vessel. It sometimes works, sometimes doesn't. Probably some drop-area misalignment issue. | |
 | Expert Farmers appear to produce only 1 extra food over non-specialists. Verify with DOS. Pedia is inconsistent on the subject. | |
 | In the all_boycotted.SAV all goods appear to be boycotted. Not sure how that happened. Cargoes can only be boycotted one by one and it's very early in the game. I did not even get a tax hike popup that would give me a choice. | |
+| Nations should get their appropriate default new world names. I just got suggested "New England" playing as Dutch. | |

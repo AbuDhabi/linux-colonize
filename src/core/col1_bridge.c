@@ -137,12 +137,7 @@ static int col1_tile_index_from_runtime(int runtime_ti) {
 }
 
 static int col1_find_human_nation(const ColonizeCol1Save* save) {
-  for (int i = 0; i < (int)COLONIZE_COL1_NATION_COUNT; ++i) {
-    if (save->player[i].control == 0) {
-      return i;
-    }
-  }
-  return 0;
+  return col1_save_human_nation(save);
 }
 
 static void col1_copy_name24(char* dst, size_t dst_size, const char* src24) {
@@ -1616,6 +1611,10 @@ bool col1_bridge_capture(
   save->stuff.viewport_x = (uint16_t)cursor_x;
   save->stuff.viewport_y = (uint16_t)cursor_y;
   save->player[human_nation].control = 0;
+  /* DOS DS:0x5398 — the new-game path never stamped it, so a non-English
+   * campaign saved human_player=0 forever (misleads every head.human_player
+   * reader on later loads). */
+  save->head.human_player = (uint16_t)human_nation;
   /*
    * bugs.md interop (port_saves/interop pair): DOS's own in-game saves carry
    * DS:0x53c2 turn_loop_running = 1 and DS:0x53c4 map_modal_active = 1. The

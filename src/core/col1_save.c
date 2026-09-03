@@ -51,6 +51,18 @@ void col1_save_reset_nation_slots(ColonizeCol1Head* head) {
   head->rival_nation_slot_2 = -1;
 }
 
+int col1_save_human_nation(const ColonizeCol1Save* save) {
+  if (!save) {
+    return 0;
+  }
+  for (int i = 0; i < (int)COLONIZE_COL1_NATION_COUNT; ++i) {
+    if (save->player[i].control == 0) {
+      return i;
+    }
+  }
+  return (int)save->head.human_player;
+}
+
 void col1_save_free(ColonizeCol1Save* save) {
   if (!save) {
     return;

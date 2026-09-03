@@ -60,7 +60,7 @@ int main(int argc, char** argv) {
     fprintf(stderr, "col1_save_read_file failed: %s\n", err);
     return 1;
   }
-  const int human = save.head.human_player;
+  const int human = col1_save_human_nation(&save);
 
   ColonyScreenView view;
   memset(&view, 0, sizeof(view));

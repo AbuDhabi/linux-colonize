@@ -3577,6 +3577,11 @@ static bool game_apply_col1_save(ColonizeGameState* game, ColonizeCol1Save* load
   game->game_autumn = result.autumn;
   game->human_nation = result.human_nation;
   game->active_turn_nation = result.human_nation;
+  /* DOS DS:0x5398 — keep in step with the control table. Older port saves
+   * carry a stale 0 here (new game never stamped it), which mis-gates the
+   * head.human_player readers (ai.c WoI seizure, units.c capture popups,
+   * ai_euro focus, render tools) for a non-English player. */
+  loaded->head.human_player = (uint16_t)result.human_nation;
   game->map_cursor_x = result.cursor_x;
   game->map_cursor_y = result.cursor_y;
   game->map_view_x = result.cursor_x;

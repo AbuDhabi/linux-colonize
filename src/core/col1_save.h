@@ -1034,6 +1034,10 @@ void col1_save_stamp_head(ColonizeCol1Head* head);
  * FUN_75c2_235c does at new game. Zero means "England" to every reader. */
 void col1_save_reset_nation_slots(ColonizeCol1Head* head);
 
+/* Human nation = the control==0 player slot (authoritative). Falls back to
+ * head.human_player (DS:0x5398) — older port saves left that field stale 0. */
+int col1_save_human_nation(const ColonizeCol1Save* save);
+
 size_t col1_save_expected_size(const ColonizeCol1Save* save);
 size_t col1_save_expected_size_counts(
   uint16_t map_w,
