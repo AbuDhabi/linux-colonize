@@ -159,10 +159,11 @@ static void ai_contact_human_chrome(
   if (!ctx || !body || !ai_contact_euro_is_human(ctx, e)) {
     return;
   }
+  (void)title;
   ai_contact_set_status(ctx, body);
   if (ctx->ai_popups) {
     ai_popup_enqueue_ok_ctx(
-      ctx->ai_popups, tag, e, nation_b, 0, title ? title : "Natives", body
+      ctx->ai_popups, tag, e, nation_b, 0, NULL, body
     );
     /* FUN_6f74_0042: DS:0x1f5c = the contact tribe → IND{tribe}A{tier}.SS
      * portrait beside the dialog, tier from the alarm band (P8.6). */
@@ -633,8 +634,6 @@ static void ai_contact_enqueue_welcome(ColonizeTurnContext* ctx, int e, int nati
   ai_contact_msg_body(
     ctx->messages, "INDIANWELCOME", &welcome_tok, fb, body, sizeof(body)
   );
-  char title[AI_POPUP_TITLE_LEN];
-  snprintf(title, sizeof(title), "%s", tribe);
   static const char* labels[] = {"Yes", "No"};
   static const int ids[] = {AI_CONTACT_WELCOME_YES, AI_CONTACT_WELCOME_NO};
   ai_popup_enqueue_choice_ctx(
@@ -643,7 +642,7 @@ static void ai_contact_enqueue_welcome(ColonizeTurnContext* ctx, int e, int nati
     e,
     nation_id,
     0,
-    title,
+    NULL,
     body,
     labels,
     ids,
@@ -974,8 +973,6 @@ static void ai_contact_enqueue_village_meet(
   snprintf(fb, sizeof(fb), "Your expedition has reached a %s of %s.", tok.string0, tribe);
   char body[AI_POPUP_BODY_LEN];
   popup_msg_fill(ctx->messages, section, &tok, fb, body, sizeof(body));
-  char title[AI_POPUP_TITLE_LEN];
-  snprintf(title, sizeof(title), "%s", tribe);
 
   const char* labels[AI_POPUP_CHOICE_MAX];
   int ids[AI_POPUP_CHOICE_MAX];
@@ -1049,7 +1046,7 @@ static void ai_contact_enqueue_village_meet(
     e,
     nation_id,
     ai_contact_meet_payload(is_missionary, is_capital, unit_id),
-    title,
+    NULL,
     body,
     labels,
     ids,
@@ -1241,7 +1238,7 @@ int ai_contact_try_whack_confirm(
   static const int ids[] = {1, 0};
   const int payload = dest_x | (dest_y << 8);
   if (!ai_popup_enqueue_choice_ctx(
-        ctx->ai_popups, AI_POPUP_TAG_CONTACT_WHACK, unit_id, indian_nation, payload, tribe, body,
+        ctx->ai_popups, AI_POPUP_TAG_CONTACT_WHACK, unit_id, indian_nation, payload, NULL, body,
         labels, ids, 2
       )) {
     return 0;
@@ -1315,7 +1312,7 @@ int ai_contact_try_euro_attack_confirm(
   static const int ids[] = {0, 1};
   const int payload = dest_x | (dest_y << 8);
   if (!ai_popup_enqueue_choice_ctx(
-        ctx->ai_popups, AI_POPUP_TAG_CONTACT_EURO_WAR, unit_id, target_nation, payload, name,
+        ctx->ai_popups, AI_POPUP_TAG_CONTACT_EURO_WAR, unit_id, target_nation, payload, NULL,
         body, labels, ids, 2
       )) {
     return 0;
@@ -1381,8 +1378,6 @@ int ai_contact_try_village_raid_warn(
       tribe
     );
   }
-  char title[AI_POPUP_TITLE_LEN];
-  snprintf(title, sizeof(title), "%s", tribe);
   static const char* labels[] = {"Leave", "Attack"};
   static const int ids[] = {AI_CONTACT_VILLAGE_LEAVE, AI_CONTACT_VILLAGE_ATTACK};
   const int payload = dest_x | (dest_y << 8);
@@ -1392,7 +1387,7 @@ int ai_contact_try_village_raid_warn(
         unit_id,
         indian_nation,
         payload,
-        title,
+        NULL,
         body,
         labels,
         ids,
@@ -2086,9 +2081,7 @@ static int ai_contact_enqueue_gift_amount_choice(
     ids[n] = AI_CONTACT_GIFT_GENEROUS;
     n++;
   }
-  char title[AI_POPUP_TITLE_LEN];
   char body[AI_POPUP_BODY_LEN];
-  snprintf(title, sizeof(title), "Gift");
   snprintf(
     body,
     sizeof(body),
@@ -2101,7 +2094,7 @@ static int ai_contact_enqueue_gift_amount_choice(
            e,
            nation_id,
            0,
-           title,
+           NULL,
            body,
            labels,
            ids,
@@ -2329,9 +2322,7 @@ static int ai_contact_enqueue_incite_target_choice(
   if (n == 0) {
     return 0;
   }
-  char title[AI_POPUP_TITLE_LEN];
   char body[AI_POPUP_BODY_LEN];
-  snprintf(title, sizeof(title), "Incite");
   snprintf(
     body,
     sizeof(body),
@@ -2347,7 +2338,7 @@ static int ai_contact_enqueue_incite_target_choice(
            e,
            nation_id,
            payload,
-           title,
+           NULL,
            body,
            labels,
            ids,
@@ -2688,9 +2679,7 @@ static int ai_contact_enqueue_demand_amount_choice(
     ids[n] = AI_CONTACT_DEMAND_GOLD;
     n++;
   }
-  char title[AI_POPUP_TITLE_LEN];
   char body[AI_POPUP_BODY_LEN];
-  snprintf(title, sizeof(title), "Demand");
   snprintf(
     body,
     sizeof(body),
@@ -2703,7 +2692,7 @@ static int ai_contact_enqueue_demand_amount_choice(
            e,
            nation_id,
            0,
-           title,
+           NULL,
            body,
            labels,
            ids,
@@ -5050,7 +5039,7 @@ static void ai_contact_enqueue_buy0(
   (void)ai_popup_enqueue_choice_ctx(
     ctx->ai_popups, AI_POPUP_TAG_CONTACT_BUY0, e, nation_id,
     (unit->id & 0xffff) | (cargo << 16) | ((price > 0x7ff ? 0x7ff : price) << 20) | (round > 0 ? (1 << 31) : 0),
-    "Trade", body, labels, ids, 3
+    NULL, body, labels, ids, 3
   );
 }
 
@@ -5083,7 +5072,7 @@ static int ai_contact_enqueue_buywhich(
     ids[k] = goods[k] + 1; /* 1..16; 0 = cancel */
   }
   return ai_popup_enqueue_choice_ctx(
-    ctx->ai_popups, AI_POPUP_TAG_CONTACT_BUYWHICH, e, nation_id, unit->id, "Trade", body, labels,
+    ctx->ai_popups, AI_POPUP_TAG_CONTACT_BUYWHICH, e, nation_id, unit->id, NULL, body, labels,
     ids, n
   );
 }
@@ -5344,7 +5333,7 @@ static int ai_contact_enqueue_trade_offer_round(
                        AI_CONTACT_TRADE_OFFER_DECLINE};
   const int four = s->round == 0;
   return ai_popup_enqueue_choice_ctx(
-           ctx->ai_popups, AI_POPUP_TAG_CONTACT_TRADE_OFFER, e, nation_id, s->price, "Trade",
+           ctx->ai_popups, AI_POPUP_TAG_CONTACT_TRADE_OFFER, e, nation_id, s->price, NULL,
            body, four ? labels : labels3, four ? ids4 : ids3, four ? 4 : 3
          )
            ? 1
@@ -5484,7 +5473,7 @@ static int ai_contact_2820_begin_slot(
       char body[AI_POPUP_BODY_LEN];
       snprintf(body, sizeof(body), "Which cargo will you offer the %s?", ai_contact_tribe_name(nation_id));
       if (ai_popup_enqueue_choice_ctx(
-            ctx->ai_popups, AI_POPUP_TAG_CONTACT_TRADE_PICK, e, nation_id, unit->id, "Trade", body,
+            ctx->ai_popups, AI_POPUP_TAG_CONTACT_TRADE_PICK, e, nation_id, unit->id, NULL, body,
             labels, ids, n
           )) {
         return 1;
@@ -7776,12 +7765,9 @@ static void ai_contact_live_among_natives(
         }
         const char* labels[2] = {yes_lbl, nch >= 2 ? choice_buf[1] : "Not right now, thanks."};
         const int ids[2] = {AI_CONTACT_LEARNSTAY_YES, AI_CONTACT_LEARNSTAY_NO};
-        char title[AI_POPUP_TITLE_LEN];
-        snprintf(title, sizeof(title), "%s", tribe);
-        /* payload: unit id | skill << 16 */
         const int payload = (u->id & 0xffff) | (skill << 16);
         if (ai_popup_enqueue_choice_ctx(
-              ctx->ai_popups, AI_POPUP_TAG_CONTACT_LEARNSTAY, e, nation_id, payload, title, body, labels, ids, 2
+              ctx->ai_popups, AI_POPUP_TAG_CONTACT_LEARNSTAY, e, nation_id, payload, NULL, body, labels, ids, 2
             )) {
           ai_contact_set_status(ctx, body);
           return;

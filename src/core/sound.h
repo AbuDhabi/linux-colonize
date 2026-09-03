@@ -89,6 +89,9 @@ void sound_render_s16(int16_t* dst, int frames, int channels, int sample_rate);
 /* COLDIG.BIN digital samples (driver FUN_1000_27b4 queue). */
 int sound_sfx_count(void);
 void sound_play_sfx(int index);
+/* Drop the playing sample and the 16-slot ring. Event MIDI on 7/8 fades;
+ * BGM voices are left alone (CLOSING.EXE teardown of digital SFX). */
+void sound_stop_sfx(void);
 /* Raw unsigned 8-bit PCM of one sample (pointer valid until sound_shutdown). */
 bool sound_sfx_sample(int index, const uint8_t** out_pcm, uint32_t* out_len, int* out_rate);
 

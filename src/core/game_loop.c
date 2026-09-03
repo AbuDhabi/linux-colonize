@@ -660,7 +660,7 @@ static void game_bind_combat_analysis(ColonizeGameState* game) {
   europe_set_sound_hook(sound_play);
   europe_set_bgm_hook(sound_set_bgm);
   woodcut_set_sound_hooks(sound_play, sound_set_bgm);
-  closing_set_sound_hooks(sound_play, sound_set_bgm);
+  closing_set_sound_hooks(sound_play, sound_set_bgm, sound_stop_sfx);
   opening_set_sound_hooks(sound_play, sound_set_bgm);
 }
 
@@ -1037,7 +1037,7 @@ static bool game_request_indian_land_choice(
   ids[n++] = GAME_INDIAN_LAND_TAKE;
   const int payload = (x & 0xff) | ((y & 0xff) << 8);
   return ai_popup_enqueue_choice_ctx(
-    &game->ai_popups, AI_POPUP_TAG_INDIAN_LAND, uid, (int)kind, payload, tribe, body, labels, ids, n
+    &game->ai_popups, AI_POPUP_TAG_INDIAN_LAND, uid, (int)kind, payload, NULL, body, labels, ids, n
   );
 }
 
@@ -4017,7 +4017,7 @@ static void game_enqueue_war_scored_choice(ColonizeGameState* game) {
   labels[1] = nch >= 2 ? choice_buf[1] : "Keep playing anyway.";
   const int ids[2] = {1, 2};
   (void)ai_popup_enqueue_choice_ctx(
-    &game->ai_popups, AI_POPUP_TAG_WAR_SCORED, game->human_nation, -1, 0, "Scoring Complete",
+    &game->ai_popups, AI_POPUP_TAG_WAR_SCORED, game->human_nation, -1, 0, NULL,
     body, labels, ids, 2
   );
 }

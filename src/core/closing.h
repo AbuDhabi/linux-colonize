@@ -77,7 +77,12 @@ typedef struct ClosingCinematic {
 } ClosingCinematic;
 
 typedef void (*ColonizeClosingSoundFn)(int id);
-void closing_set_sound_hooks(ColonizeClosingSoundFn play_fn, ColonizeClosingSoundFn set_bgm_fn);
+typedef void (*ColonizeClosingStopSfxFn)(void);
+void closing_set_sound_hooks(
+  ColonizeClosingSoundFn play_fn,
+  ColonizeClosingSoundFn set_bgm_fn,
+  ColonizeClosingStopSfxFn stop_sfx_fn
+);
 
 /*
  * Load CLOS-BKG.PIK, the seven CLOS-*.SS sheets, and CLOSING.TXT @CLOSING.

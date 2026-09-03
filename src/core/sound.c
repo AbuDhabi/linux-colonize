@@ -1002,6 +1002,27 @@ void sound_play_sfx(int index) {
   pthread_mutex_unlock(&g_sound.lock);
 }
 
+void sound_stop_sfx(void) {
+  if (!g_sound.inited) {
+    return;
+  }
+  pthread_mutex_lock(&g_sound.lock);
+  sound_sfx_stop_all_unlocked();
+  if (g_sound.vm) {
+    gsound_vm_stop_events(g_sound.vm);
+  }
+#if defined(COLONIZE_HAS_FLUIDSYNTH)
+  if (g_sound.fluid_synth) {
+    /* GSOUND channels 7/8 → FluidSynth 0-based 6/7. */
+    fluid_synth_all_notes_off(g_sound.fluid_synth, 6);
+    fluid_synth_all_sounds_off(g_sound.fluid_synth, 6);
+    fluid_synth_all_notes_off(g_sound.fluid_synth, 7);
+    fluid_synth_all_sounds_off(g_sound.fluid_synth, 7);
+  }
+#endif
+  pthread_mutex_unlock(&g_sound.lock);
+}
+
 /* ---- inspection API ----------------------------------------------------- */
 
 int sound_gsound_song_count(void) {

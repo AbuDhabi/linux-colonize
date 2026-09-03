@@ -20,10 +20,16 @@ static const char* const kClosingSheets[CLOSING_SHEET_COUNT] = {
 
 static ColonizeClosingSoundFn g_closing_play;
 static ColonizeClosingSoundFn g_closing_set_bgm;
+static ColonizeClosingStopSfxFn g_closing_stop_sfx;
 
-void closing_set_sound_hooks(ColonizeClosingSoundFn play_fn, ColonizeClosingSoundFn set_bgm_fn) {
+void closing_set_sound_hooks(
+  ColonizeClosingSoundFn play_fn,
+  ColonizeClosingSoundFn set_bgm_fn,
+  ColonizeClosingStopSfxFn stop_sfx_fn
+) {
   g_closing_play = play_fn;
   g_closing_set_bgm = set_bgm_fn;
+  g_closing_stop_sfx = stop_sfx_fn;
 }
 
 static void closing_strip_comment(char* line) {
@@ -306,12 +312,18 @@ void closing_close(ClosingCinematic* c) {
   if (!c) {
     return;
   }
+  const bool was_open = c->open;
   for (int i = 0; i < CLOSING_SHEET_COUNT; ++i) {
     if (c->sheet_ok[i]) {
       ss_free(&c->sheets[i]);
     }
   }
   memset(c, 0, sizeof(*c));
+  /* CLOSING.EXE exit tears down GSOUND; the COLDIG ring would otherwise
+   * keep cheering into the score screen. BGM 0x3d is left playing. */
+  if (was_open && g_closing_stop_sfx) {
+    g_closing_stop_sfx();
+  }
 }
 
 void closing_update(ClosingCinematic* c, uint32_t dt_ms) {

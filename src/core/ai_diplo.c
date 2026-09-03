@@ -1168,8 +1168,9 @@ static void ai_diplo_popup_ok(
   if (!ai_diplo_involves_human(ctx, nation_a, nation_b)) {
     return;
   }
+  (void)title;
   (void)ai_popup_enqueue_ok_ctx(
-    ctx->ai_popups, tag, nation_a, nation_b, 0, title, body
+    ctx->ai_popups, tag, nation_a, nation_b, 0, NULL, body
   );
 }
 
@@ -2287,7 +2288,7 @@ static void ai_talk_ok(
   ai_talk_body(ctx, tag, tok, fallback, body, sizeof(body));
   (void)ai_popup_enqueue_ok_ctx(
     ctx->ai_popups, AI_POPUP_TAG_DIPLO_TALK, s_talk.self, s_talk.target, 0,
-    ai_talk_name(ctx, s_talk.target), body
+    NULL, body
   );
   /* DOS FUN_2a1f_0688: every 153e audience popup wears the ruler MYR{nation}
    * — except sections DOS shows via FUN_281f_0652 with their own MSS figure
@@ -2318,7 +2319,7 @@ static void ai_talk_choice(
   }
   (void)ai_popup_enqueue_choice_ctx(
     ctx->ai_popups, AI_POPUP_TAG_DIPLO_TALK, s_talk.self, s_talk.target, stage,
-    ai_talk_name(ctx, s_talk.target), body, labels, ids, count
+    NULL, body, labels, ids, count
   );
   if (popup_msg_mss_index_for_section(tag) < 0) {
     ai_popup_set_last_graphic_myr(ctx->ai_popups, s_talk.target);
@@ -2558,7 +2559,7 @@ static void ai_talk_advance(ColonizeTurnContext* ctx) {
         }
         (void)ai_popup_enqueue_choice_ctx(
           ctx->ai_popups, AI_POPUP_TAG_DIPLO_TALK, h, t, AI_TALK_ST_ALLY_PICK,
-          ai_talk_name(ctx, t), "\"Against whom shall we ally?\"", labels, picks, n
+          NULL, "\"Against whom shall we ally?\"", labels, picks, n
         );
         ai_popup_set_last_graphic_myr(ctx->ai_popups, t);
         return;
@@ -3250,7 +3251,7 @@ static void ai_diplo_13b0_treaty_tick(ColonizeTurnContext* ctx, int a, int b) {
       col1->nation[a].treaty_timer[b] = 1;
       col1->nation[b].treaty_timer[a] = 1;
       if (ctx->ai_popups && notify) {
-        (void)ai_popup_enqueue_ok_ctx(ctx->ai_popups, AI_POPUP_TAG_DIPLO_PEACE, a, b, 0, "Treaty", body);
+        (void)ai_popup_enqueue_ok_ctx(ctx->ai_popups, AI_POPUP_TAG_DIPLO_PEACE, a, b, 0, NULL, body);
       }
       if (ctx->status && ctx->status_size > 0 && notify) {
         snprintf(ctx->status, ctx->status_size, "%s", body);
@@ -3271,7 +3272,7 @@ static void ai_diplo_13b0_treaty_tick(ColonizeTurnContext* ctx, int a, int b) {
     col1->nation[b].treaty_timer[a] = 0;
     ai_diplo_clear_both(col1, a, b, AI_DIPLO_PEACE);
     if (ctx->ai_popups && notify) {
-      (void)ai_popup_enqueue_ok_ctx(ctx->ai_popups, AI_POPUP_TAG_DIPLO_BREAK, a, b, 0, "Treaty", body);
+      (void)ai_popup_enqueue_ok_ctx(ctx->ai_popups, AI_POPUP_TAG_DIPLO_BREAK, a, b, 0, NULL, body);
     }
     if (ctx->status && ctx->status_size > 0 && notify) {
       snprintf(ctx->status, ctx->status_size, "%s", body);
@@ -3342,7 +3343,7 @@ void ai_diplo_euro_balance(ColonizeTurnContext* ctx, int nation_id) {
               nation_id,
               peer,
               0,
-              "Peace",
+              NULL,
               body,
               labels,
               ids,
@@ -3425,7 +3426,7 @@ void ai_diplo_euro_balance(ColonizeTurnContext* ctx, int nation_id) {
                 nation_id,
                 peer,
                 0,
-                "Peace",
+                NULL,
                 body,
                 labels,
                 ids,
@@ -3519,7 +3520,7 @@ void ai_diplo_euro_balance(ColonizeTurnContext* ctx, int nation_id) {
               nation_id,
               peer,
               0,
-              "Alliance",
+              NULL,
               body,
               labels,
               ids,
@@ -3579,7 +3580,7 @@ void ai_diplo_euro_balance(ColonizeTurnContext* ctx, int nation_id) {
               nation_id,
               peer,
               0,
-              "War",
+              NULL,
               body,
               labels,
               ids,

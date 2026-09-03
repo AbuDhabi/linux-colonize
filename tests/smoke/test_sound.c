@@ -160,6 +160,42 @@ int main(void) {
     sound_service();
   }
 
+  /* COLDIG ring plays samples back-to-back; CLOSING.EXE exit dumps it. */
+  {
+    if (sound_sfx_count() < 16) {
+      fprintf(stderr, "expected COLDIG samples, got %d\n", sound_sfx_count());
+      sound_shutdown();
+      return 1;
+    }
+    int16_t sfx[2048];
+    memset(sfx, 0, sizeof(sfx));
+    sound_play_sfx(15);
+    sound_render_s16(sfx, 2048, 1, 44100);
+    double playing = 0.0;
+    for (int i = 0; i < 2048; ++i) {
+      const double s = (double)sfx[i];
+      playing += s * s;
+    }
+    if (playing < 1.0) {
+      fprintf(stderr, "COLDIG 15 produced silence\n");
+      sound_shutdown();
+      return 1;
+    }
+    sound_stop_sfx();
+    memset(sfx, 0, sizeof(sfx));
+    sound_render_s16(sfx, 2048, 1, 44100);
+    double stopped = 0.0;
+    for (int i = 0; i < 2048; ++i) {
+      const double s = (double)sfx[i];
+      stopped += s * s;
+    }
+    if (stopped > playing * 0.05) {
+      fprintf(stderr, "stop_sfx left digital audio (playing=%g stopped=%g)\n", playing, stopped);
+      sound_shutdown();
+      return 1;
+    }
+  }
+
   /* Title intro must decode to a substantial event list. */
   int title_events = 0;
   uint32_t title_dur = 0;

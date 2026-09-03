@@ -4482,6 +4482,11 @@ int main(void) {
         if (pop.queue[i].kind != AI_POPUP_KIND_OK) {
           continue;
         }
+        if (pop.queue[i].title[0] != '\0') {
+          fprintf(stderr, "unit_ai_king: invented title '%s'\n", pop.queue[i].title);
+          assets_msg_free(&game_txt);
+          return fail("GAME.TXT wood OKs must not invent a title line");
+        }
         if (pop.queue[i].tag == AI_POPUP_TAG_KING_LETTER &&
             (strstr(pop.queue[i].body, "Declaration of Independence") ||
              strstr(pop.queue[i].body, "Continental Congress signs"))) {

@@ -1033,6 +1033,12 @@ bool gsound_vm_active(const GsoundVm* vm) {
   return false;
 }
 
+void gsound_vm_stop_events(GsoundVm* vm) {
+  if (vm) {
+    soft_stop_78(vm);
+  }
+}
+
 uint32_t gsound_vm_tick_count(const GsoundVm* vm) {
   return vm ? vm->ticks : 0;
 }

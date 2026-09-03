@@ -4481,7 +4481,7 @@ bool units_resolve_naval_combat_ff(
               atk_nation,
               def_nation,
               0,
-              "Seizure",
+              NULL,
               body
             );
           }
