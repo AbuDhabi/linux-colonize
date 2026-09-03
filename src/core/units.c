@@ -786,15 +786,11 @@ void units_fountain_youth_enqueue_pick(
   if (!europe || !popups || remaining <= 0) {
     return;
   }
-  for (int i = 0; i < EUROPE_POOL_SIZE; ++i) {
-    if (!europe->pool[i].filled) {
-      europe_refill_pool_slot(europe, i, NULL);
-    }
-  }
+  europe_pool_ensure_filled(europe);
   const char* labels[EUROPE_POOL_SIZE];
   int ids[EUROPE_POOL_SIZE];
   for (int i = 0; i < EUROPE_POOL_SIZE; ++i) {
-    labels[i] = europe->pool[i].name[0] ? europe->pool[i].name : "Colonist";
+    labels[i] = europe_pool_label(europe, i);
     ids[i] = i;
   }
   /* @RECRUIT with %NUMBER0 = 0: 4884(1,0) zeroes the passage before drawing
@@ -851,15 +847,11 @@ void units_brewster_enqueue_pick(
   if (ai_popup_busy(popups)) {
     return; /* one outstanding pick at a time; the tick re-offers next turn */
   }
-  for (int i = 0; i < EUROPE_POOL_SIZE; ++i) {
-    if (!europe->pool[i].filled) {
-      europe_refill_pool_slot(europe, i, NULL);
-    }
-  }
+  europe_pool_ensure_filled(europe);
   const char* labels[EUROPE_POOL_SIZE];
   int ids[EUROPE_POOL_SIZE];
   for (int i = 0; i < EUROPE_POOL_SIZE; ++i) {
-    labels[i] = europe->pool[i].name[0] ? europe->pool[i].name : "Colonist";
+    labels[i] = europe_pool_label(europe, i);
     ids[i] = i;
   }
   PopupMsgTokens tok;

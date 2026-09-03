@@ -931,19 +931,9 @@ static void effect_brewster_filter_pool(EuropeScreen* europe) {
   if (!europe) {
     return;
   }
-  europe->brewster_no_criminals = true;
-  for (int i = 0; i < EUROPE_POOL_SIZE; ++i) {
-    if (!europe->pool[i].filled) {
-      continue;
-    }
-    if (europe->pool[i].profession == COLONIZE_PROF_CRIMINAL ||
-        europe->pool[i].profession == COLONIZE_PROF_INDENTURED ||
-        strstr(europe->pool[i].name, "Criminal") != NULL ||
-        strstr(europe->pool[i].name, "Indentured") != NULL ||
-        strstr(europe->pool[i].name, "Servant") != NULL) {
-      europe_refill_pool_slot(europe, i, NULL);
-    }
-  }
+  /* Pool substitution shared with the immigration tick (DOS 4345_0342 case
+   * 0x14: servant/criminal slot bytes overwritten with 0x1c in place). */
+  europe_apply_brewster(europe, 1);
   /* Dock starters may still be Indentured — clear/refill to Free Colonists. */
   for (int i = 0; i < europe->dock_count; ++i) {
     if (!europe->dock[i].present) {
