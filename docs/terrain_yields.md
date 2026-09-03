@@ -368,6 +368,18 @@ multi-signal additive stack (below), but the *unit size itself* (u=1 vs u=2)
 is now DOS-confirmed and wired, which was the higher-value half of this
 item.
 
+**2026-09-03 — Farmer major river does NOT double (player-confirmed,
+`farming/case1+2` saves → `golden_colony_prod03`):** expert Farmer,
+Broadleaf (base 2) + *major* river = **6** food (2 + river 2 + expert flat
+2), the same +2 river delta as the minor-river case2 capture — the port's
+`major ? base×2` gave 8. This is exactly what the literal stack above
+predicts: a job<4 river tile fires *both* +u signals (runtime-array bit +
+static terrain bit), so the term is already 2u and the `term == u`
+major-river add never triggers for a Farmer. Fisherman (job 8) gets only
+the static +u, so its major doubling (Lake+major=6, 2026-08-15) stays
+real. `colony_yield_river_bonus` now returns flat 2 for Farmer regardless
+of major.
+
 **2026-08-15 fix — expert/lumberjack road-river doubling, player-confirmed
 (Viceroy):** Expert Ore Miner, Hills+road+sentiment(+1) = 12; Free
 Colonist, same tile = 6. This only reproduces if the road/river bonus
@@ -576,21 +588,26 @@ Wired in `colony_yield_town_commons_food_base` + `colony_yield_town_commons` (`c
 
 ### Secondary commodity
 
-The job is a **fixed per-terrain choice** (below), not DOS's real per-tile max-over-all-jobs search (`FUN_15eb_1f72` loops jobs 1-7 skipping Lumberjack, scoring each via the 0x2f7b table + resource effect, and keeps the max) — the fixed choice matches that search's outcome for every terrain this project has real data for, since ties/near-ties haven't come up yet.
+**2026-09-03: the port now runs DOS's real per-tile max-over-all-jobs search** (`FUN_15eb_1f72` loops jobs 1-7 skipping Lumberjack, scoring each as 0x2f7b table base + `FUN_15eb_17fa` resource effect at its *real magnitude*, and keeps the strictly-greatest — first job wins ties, so riverless Swamp still picks Sugar over equal-base Ore). The old fixed per-terrain job table (kept below as the no-resource outcome reference) was wrong whenever a resource shifted the winner: player-confirmed via the `farming/case1+2` saves (`golden_colony_prod03`) — New Amsterdam's Swamp center with **Minerals** makes **5 ore**/turn (Ore base 2 + Minerals +3 beats Sugar 2), where the fixed table produced 2 sugar. Two entangled fixes landed with it: the resource effect applies **inside the comparison at its table value** (Minerals+Ore is +3, not the old flat "+2 on any match" applied after), and the commons resource read uses the settlement-bit-ignoring lookup (`map_resource_type_for_yield`) — the colony center always carries the settlement bit, and DOS's `FUN_137f_04b0` read has no settlement gate (the old `map_resource_type_at` call returned −1 there, silently erasing every commons resource; `unit_colony_yield`'s "settlement bit hides the bonus" case asserted the bug and was flipped).
 
 ```
-secondary = table[pedia][job]                  (same per-pedia table as field yields, see sections above)
+per job in {Sugar, Tobacco, Cotton, Fur, Ore, Silver}:      (jobs 1-7, skip Lumberjack; never Farmer/Fisherman)
+  score = table[pedia][job]                  (same per-pedia table as field yields, see sections above)
+        + resource effect (FUN_15eb_17fa magnitude, e.g. Minerals+Ore +3)
+        ×2 instead if resource is a DOUBLE match (Prime Cotton/Tobacco/Sugar on their planter)
+secondary = max score (strictly greater wins; earlier job keeps ties)
           + 1/2 if river (minor/major)
           + 1   if COLONIZE_COLONY_FLAG_SOL_50 is set
           + 1   if COLONIZE_COLONY_FLAG_SOL_100 is set
-          + 2   if resource matches job (flat types)
-          × 2   if resource is a DOUBLE match (Prime Cotton/Tobacco/Sugar on their planter)
+          + 1   at Discoverer difficulty only
 floor 0
 ```
 
 **No plow term, no flat road** — asm-confirmed absent from `FUN_15eb_1f72` (2026-08-18). Earlier passes assumed "every colony founds with a road" (`+1` flat) and a plow bonus matching food's; both were unverified guesses this port carried since before the composer was read, and both are gone now. The SoL term is the two *latch* bits specifically (hysteresis flags, see [sons_of_liberty.md](sons_of_liberty.md)), not the general signed live-percentage/Tory-penalty `sol_bonus` value food uses.
 
 Prime Timber (resource 10/11) never applies to the commons (matches the manual's stated exception).
+
+No-resource outcome per terrain (what the max-search picks when no special shifts it):
 
 | Pedia | Terrain | Secondary job | Table col. (base) |
 |------:|---------|----------------|--------------------|

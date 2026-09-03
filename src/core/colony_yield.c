@@ -194,6 +194,22 @@ static int colony_yield_river_bonus(int field_job, bool major) {
   int base = 1;
   switch (field_job) {
   case COLONIZE_JOB_FARMER:
+    /*
+     * No major-river doubling for Farmer — player-confirmed 2026-09-03
+     * (farming/case1 vs case2 saves): expert Farmer, Broadleaf pedia 13
+     * base 2, *major* river = 6 food (2 + river 2 + expert 2), same +2
+     * river delta as case2's *minor*-river expert (pedia 15 base 1 = 5).
+     * Matches the FUN_15eb_18ec asm reading (docs/terrain_yields.md
+     * "Plow / road / river stacking"): major river adds +u again ONLY
+     * when the accumulated river term so far == u, and job<4 river tiles
+     * fire *two* +u signals (runtime-array bit + static terrain bit), so
+     * a Farmer's term is already 2u and the major add never triggers.
+     * Fisherman (job 8) is not job<4, gets only the static +u, and so
+     * genuinely doubles on major — the 2026-08-15 Lake+major=6 capture
+     * below stays valid.
+     */
+    base = 2;
+    return base;
   case COLONIZE_JOB_FUR_TRAPPER:
   case COLONIZE_JOB_LUMBERJACK:
     base = 2;
@@ -637,31 +653,43 @@ static int colony_yield_town_commons_food_base(int pedia) {
   return 0;
 }
 
-/* Secondary commodity job for the settlement square (not best-of-table). */
-static int colony_yield_town_commons_secondary_job(int pedia) {
-  if (pedia >= 8 && pedia <= 23) {
-    /* Rain forest → sugar; all other forests → furs (not lumber). */
-    return ((pedia & 7) == 7) ? COLONIZE_JOB_SUGAR_PLANTER : COLONIZE_JOB_FUR_TRAPPER;
+/*
+ * Secondary commodity job for the settlement square: DOS is a best-of loop,
+ * not a fixed per-terrain table — FUN_15eb_1f72 (viceroy_unpacked.c
+ * ~12553-12570) iterates jobs 1..7 skipping 5 (Sugar/Tobacco/Cotton/Fur/
+ * Ore/Silver — never Farmer, Lumberjack, or Fisherman), scores each as
+ * table base + FUN_15eb_17fa resource effect (a DOUBLE-type match doubles
+ * the base inside the comparison), and keeps the strictly-greatest (first
+ * job wins ties, so riverless Swamp still picks Sugar over equal-base Ore
+ * — matches the Guadeloupe capture that calibrated the old fixed table).
+ * Player-confirmed 2026-09-03 (farming/case1+2 saves): New Amsterdam's
+ * Swamp center with a Minerals resource makes 5 ore per turn (Ore base 2 +
+ * Minerals +3 beats Sugar 2), where the old fixed table said 2 sugar.
+ * Returns the winning job via *out_job and its base+resource score.
+ */
+static int colony_yield_town_commons_secondary_pick(int pedia, int res, int* out_job) {
+  int best_job = -1;
+  int best = 0;
+  for (int job = 1; job <= 7; ++job) {
+    if (job == COLONIZE_JOB_LUMBERJACK) {
+      continue;
+    }
+    int v = colony_yield_base_for_pedia(pedia, job);
+    if (res >= 0) {
+      const int effect = colony_yield_resource_effect(res, job);
+      if (effect == COLONY_YIELD_RESOURCE_DOUBLE) {
+        v <<= 1;
+      } else {
+        v += effect;
+      }
+    }
+    if (v > best) {
+      best = v;
+      best_job = job;
+    }
   }
-  switch (pedia) {
-  case 0: /* Tundra */
-  case 1: /* Desert */
-  case 28: /* Hills */
-    return COLONIZE_JOB_ORE_MINER;
-  case 2: /* Plains */
-  case 3: /* Prairie */
-    return COLONIZE_JOB_COTTON_PLANTER;
-  case 4: /* Grassland */
-  case 6: /* Marsh */
-    return COLONIZE_JOB_TOBACCO_PLANTER;
-  case 5: /* Savannah */
-  case 7: /* Swamp */
-    return COLONIZE_JOB_SUGAR_PLANTER;
-  case 27: /* Mountains (not founding terrain) */
-    return COLONIZE_JOB_SILVER_MINER;
-  default:
-    return -1;
-  }
+  *out_job = best_job;
+  return best;
 }
 
 void colony_yield_town_commons(
@@ -682,7 +710,11 @@ void colony_yield_town_commons(
     return;
   }
   const int pedia = map_pedia_terrain_index_at(map, x, y);
-  const int res = map_resource_type_at(map, x, y);
+  /* _for_yield: the colony center always carries the settlement bit, and
+   * plain map_resource_type_at returns -1 for settlement tiles — DOS's
+   * FUN_137f_04b0 read in FUN_15eb_1f72 has no settlement gate. Caught
+   * 2026-09-03 by the farming saves' Minerals commons (5 ore/turn). */
+  const int res = map_resource_type_for_yield(map, x, y);
   const bool timber = (res == 10 || res == 11);
 
   int food = colony_yield_town_commons_food_base(pedia);
@@ -748,37 +780,27 @@ void colony_yield_town_commons(
   (void)sol_bonus;
   out->food = food > 0 ? food : 0;
 
-  const int sec_job = colony_yield_town_commons_secondary_job(pedia);
+  /*
+   * Secondary: best-of loop over jobs (see colony_yield_town_commons_
+   * secondary_pick), then FUN_15eb_1f72 adds to the winner only:
+   * +1 at Discoverer, river +1/+2 (minor/major, from the terrain byte,
+   * FUN_137f_010e bits 0x40/0x80), +1 per SoL latch bit. No plow term, no
+   * flat "+1 road" (both were earlier unverified guesses; the asm has
+   * neither — Curacao's 100%-SoL Fur-secondary capture pinned the latch
+   * form, 2026-08-18). The resource effect lives *inside* the pick loop at
+   * its real FUN_15eb_17fa magnitude (e.g. Minerals+Ore = +3), replacing
+   * an older flat "+2 on any match" applied after the fact — that undercut
+   * New Amsterdam's Minerals commons by 1 and picked the wrong job
+   * entirely (player-confirmed 2026-09-03, farming saves: 5 ore, not
+   * 2 sugar). Difficulty term stays unexercised by the goldens
+   * (prod01 is difficulty 2, prod02/03 are 4); asm-read only.
+   */
+  (void)timber;
+  int sec_job = -1;
+  int sec = colony_yield_town_commons_secondary_pick(pedia, res, &sec_job);
   if (sec_job < 0) {
     return;
   }
-  /*
-   * Base secondary yield: terrain base + river + SoL latch bits.
-   * Asm-confirmed 2026-08-18 against FUN_15eb_1f72 (the real town-commons
-   * composer, viceroy_unpacked.c ~12474): secondary is table_lookup(pedia,
-   * job) + resource_effect + river(0/1/2) +1 if COLONIZE_COLONY_FLAG_SOL_50
-   * is set, +1 if _SOL_100 is set. No plow term, no flat "+1 road" — the
-   * asm has neither (both were this port's earlier unverified guesses).
-   *
-   * This was tried once already and reverted for regressing
-   * golden_colony_prod01's synthetic Quebec/Bahia/St.Louis/Guadeloupe/New
-   * Holland/Paramaribo fixtures — but those fixtures' terrain choices are
-   * entirely hand-picked (that save's whole map is a synthetic
-   * reconstruction, see test_colony_prod01.c's header), calibrated against
-   * the *old* flat-road formula. Curacao (golden_colony_prod02, 2026-08-18)
-   * broke the tie: a real, unpatched save with a Fur Trapper-secondary
-   * colony on flat ground (no road/river/plow tile) at 100% SoL — town
-   * commons is its *only* furs source, so the real capture's furs delta
-   * isolates this formula with zero free parameters. Latch-only lands it
-   * exactly (base 2 + latch 2 = 4); the old flat-road formula came up 1
-   * short (base 2 + assumed-road 1 = 3). The prod01 fixtures were
-   * re-derived to match instead (their terrain pedia is a free synthetic
-   * parameter, same move already made once for Bahia's ore-miner tile).
-   * Difficulty term (FUN_15eb_1f72 ~12568): `+1` at Discoverer only.
-   * colony_prod01's save is difficulty 2 and colony_prod02's is 4 — neither
-   * is 0, so it stays unexercised by the goldens; asm-read only.
-   */
-  int sec = colony_yield_base_for_pedia(pedia, sec_job);
   if (difficulty == 0) {
     sec += 1;
   }
@@ -790,17 +812,6 @@ void colony_yield_town_commons(
   }
   if ((colony_flags & COLONIZE_COLONY_FLAG_SOL_100) != 0) {
     sec += 1;
-  }
-  /* Matching special (except Prime Timber): additive effects add flat, but
-   * a DOUBLE-type match doubles the accumulated secondary so far, same as
-   * the field pipeline. */
-  if (!timber && res >= 0) {
-    const int effect = colony_yield_resource_effect(res, sec_job);
-    if (effect == COLONY_YIELD_RESOURCE_DOUBLE) {
-      sec <<= 1;
-    } else if (effect != 0) {
-      sec += 2;
-    }
   }
   out->secondary_job = sec_job;
   out->secondary_cargo = colony_yield_job_cargo(sec_job);
