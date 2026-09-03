@@ -224,7 +224,7 @@ fragment. Related sections are listed in the first column.
 | `@SCHOOL1` / `@COLLEGE2` / `@UNIV3` | Train expert | Done | ~TRAIN |
 | Europe dock orders | Don’t board / Board / Move front | Done | `EUROPE_MENU_DOCK` |
 | `@HOWMUCH4`/`5` | Buy/sell amount | Done | Europe **L**/**U** → howmuch |
-| `@PRICEUP` / `@PRICEDOWN` | Price change notice | Partial | Status lines |
+| `@PRICEUP` / `@PRICEDOWN` | Price change notice | Done | OK popup (EOT + immediate buy/sell) |
 | `@KINGTAX` / `@TAXOPTIONS` / `@TEAPARTY` | Tax audience (also map queue) | Done | `@KINGTAX` body + `@TAXOPTIONS` Kiss/Party; `@TEAPARTY` Done thin (stock dump + tokens; VGA PARKED) |
 
 ### 6. Indian contact / trade / raids
@@ -644,8 +644,8 @@ work.
 | `@TEAPARTY` | Done thin | king refuse/dump follow-up OK via `popup_msg_fill`; thin `3dc8` stock dump; VGA PARKED |
 | `@KISSUP` | Partial | king/REF — structural ai_popup OK/CHOICE or thin; VGA PARKED |
 | `@KISSSORRY` | Partial | king/REF — structural ai_popup OK/CHOICE or thin; VGA PARKED |
-| `@PRICEUP` | Partial | market price status lines |
-| `@PRICEDOWN` | Partial | market price status lines |
+| `@PRICEUP` | Done | market price OK popup (EOT + buy/sell) |
+| `@PRICEDOWN` | Done | market price OK popup (EOT + buy/sell) |
 | `@WHICHFREEDOM` | Done | FF debate body via `popup_msg_fill`; choices = FF names |
 | `@FREEDOM` | Done | FF elect announce via `popup_msg_fill` |
 | `@CLAND` | Done | customize wizard |
@@ -697,11 +697,11 @@ work.
 | `@SCOUTCOLONY` | Partial | scout messages thin/missing modal |
 | `@LOSTOURSCOUTS` | Partial | scout messages thin/missing modal |
 | `@LOSTTHEIRSCOUTS` | Partial | scout messages thin/missing modal |
-| `@HELLOFIRST` | Not wired | same, see `euro_diplo.md` "FA negotiation screen" |
-| `@HELLOUSA` | Not wired | same, see `euro_diplo.md` "FA negotiation screen" |
-| `@HELLOAHOY` | Not wired | same, see `euro_diplo.md` "FA negotiation screen" |
-| `@HELLOMEEK` | Not wired | same, see `euro_diplo.md` "FA negotiation screen" |
-| `@HELLOMANLY` | Not wired | same, see `euro_diplo.md` "FA negotiation screen" |
+| `@HELLOFIRST` | Done | Euro first-contact land (`ai_diplo_153e_encounter`) |
+| `@HELLOUSA` | Not wired | USA variant not modeled |
+| `@HELLOAHOY` | Done | Euro first-contact sea |
+| `@HELLOMEEK` | Done | Euro subsequent meek greeting |
+| `@HELLOMANLY` | Done | Euro subsequent manly greeting |
 | `@GREATKINGS` | Partial | FA / diplo lines — thin DIPLO_FA or status; full 3f41 PARKED |
 | `@GREATDEEDS` | Partial | FA / diplo lines — thin DIPLO_FA or status; full 3f41 PARKED |
 | `@GREATLEADER` | Partial | FA / diplo lines — thin DIPLO_FA or status; full 3f41 PARKED |

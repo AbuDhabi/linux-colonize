@@ -209,6 +209,8 @@ Full opaque-field inventory and RE phases: **[save_format_map.md](save_format_ma
   Linux arrival model). Guarded by `unit_col1_save`'s recapture block
   (colony/unit counts survive apply→capture on all 19 fixtures; COLONY04
   Expected lane, COLONY06 harbor + synthetic Bound round-trip).
+  **2026-09-03:** user loaded a Linux-written save with a ship at sea in DOS;
+  it arrived.
 - **Colony cap** raised 32 → 48 (`COLONIZE_COLONIES_MAX`): DOS's founding
   gate is `colony_count < 0x30`; five 33-colony lategame fixtures were
   silently truncated to 32 on apply.

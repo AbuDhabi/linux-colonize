@@ -69,18 +69,16 @@ status doc when a slice lands).
 
 ### P1 — UI correctness (player-guided)
 
-**Now:** map/colony/Europe screens, menus, panel, keyboard model all
-structurally in; many details are "Done thin" against screenshots rather
-than against the user's play experience.
+**Now (2026-09-03):** user-passed as playable. Remaining UI nits go through
+`bugs.md` as they come in; this track is not a gate.
 
 **How to work:** this track is **[user]**-driven by design. The user plays,
 reports what is wrong or missing, and the agent fixes. Agents should not
 self-select UI polish here; they should keep a running checklist in this
 section from the user's feedback.
 
-- [ ] **P1.1 [user]** Establish a UI feedback checklist (screen → issue →
-  fix). Seed it from the user's first play session. Append below as items
-  arrive.
+- [x] **P1.1 [user] — closed 2026-09-03.** Playable; leftover issues file
+  as `bugs.md` rows rather than a pre-seeded checklist.
 - [x] **P1.2 [auto] — 2026-08-28: automated as `smoke_play`
   (`tests/smoke/test_play_smoke.c`).** Drives the real `COLONIZE` assets
   headlessly through the key script new game (Enter through the wizard,
@@ -95,13 +93,15 @@ section from the user's feedback.
   `ctest`: 47/47. Skips (exit 0) when `./COLONIZE` is absent. Still
   re-run it (and a by-hand `run` pass when UI changed) before each user
   session; this row stays the hook for that habit.
-- [ ] **P1.3 [user]** Colony screen: confirm drag/assign, building
-  click, warehouse↔ship, production preview numbers, and the "People"
-  strip all read as DOS does at a glance.
-- [ ] **P1.4 [user]** Europe screen: confirm dock/harbor/market interactions,
-  recruit/train/purchase menus, tax/boycott chrome.
-- [ ] **P1.5 [user]** Map/panel: unit chrome, orders letters, minimap,
-  status line, F-key model, end-turn flow, stack picker.
+- [x] **P1.3 [user] — closed 2026-09-03.** Colony screen playable at a
+  glance (drag/assign, buildings, warehouse↔ship, production, People strip).
+  Remaining nits are not a P1 gate.
+- [x] **P1.4 [user] — closed 2026-09-03.** Europe screen playable
+  (dock/harbor/market, recruit/train/purchase, tax/boycott). Remaining nits
+  are not a P1 gate.
+- [x] **P1.5 [user] — closed 2026-09-03.** Map/panel playable (chrome,
+  orders, minimap, status line, F-keys, end-turn, stack picker). Remaining
+  nits are not a P1 gate.
 
 ### P2 — Report screens (F1–F10 + Hall of Fame)
 
@@ -116,7 +116,8 @@ no report jumps to the colony/map screen on click in DOS itself. The real
 remaining gap (narrowed 2026-08-26 by P2.2): report titles and every
 name table (FF/job/cargo/tribe/nation/level) now resolve live from
 `LABELS.TXT`/`NAMES.TXT`; column headers and body strings are still
-hardcoded English typed from the goldens.
+hardcoded English typed from the goldens (non-blocking after P2.12
+user-pass 2026-09-03).
 
 **Target:** each report matches the DOS screen in content, column layout
 and interaction (scroll, click-to-zoom to colony / unit where DOS does),
@@ -139,7 +140,7 @@ stays deferred (D4).
   jumps to the colony/map screen) — so P2.2's "click-to-zoom plumbing into
   game_loop (colony screen / center unit)" describes behavior DOS's own
   renderers don't have.
-- [x] **P2.2 [auto] — closed 2026-08-29** (all sub-items landed 2026-08-26/28; only P2.12's user review remains). Shared report scaffolding: heading from
+- [x] **P2.2 [auto] — closed 2026-08-29** (all sub-items landed 2026-08-26/28; P2.12 user-passed 2026-09-03). Shared report scaffolding: heading from
   `LABELS.TXT`, column helper, scroll, click-to-zoom plumbing into
   `game_loop` (colony screen / center unit). **Screen titles: earlier
   "not achievable" note (2026-08-26) was itself wrong, corrected same
@@ -218,7 +219,8 @@ stays deferred (D4).
   (`assets.c`), which also drops ~10 MB of fixed-size section storage for
   GAME.TXT's 1045 sections. `unit_reports` regression asserts #86/#87/#56/
   #112/#121 against the asset + fallback path. `ctest`: 47/47.
-  Row stays open only for P2.12's user review of the resulting screens.
+  P2.12 user-passed 2026-09-03; hardcoded English column headers remain a
+  non-blocking residue.
 - [x] **P2.3 [auto]** F2 Religious Adviser (crosses, immigration, recruit
   pool) to DOS layout. **Done** — golden `religious.png`,
   `reports_render_religious` (was mislabeled "F1" here; DOS F1 is the
@@ -278,12 +280,9 @@ stays deferred (D4).
   **Done** — golden `score.png`. Hall of Fame (shares F10's chrome) stays
   **Done thin**: no DOS golden exists for it at all, so its column
   widths/chrome are unconfirmed (see [reports.md](reports.md)).
-- [ ] **P2.12 [user]** Review pass with the user on each report — P2.3–
-  P2.11 are now content/layout-complete against goldens, but column headers /
-  body strings are still hardcoded English rather than `LABELS.TXT`-driven
-  (P2.2 residue; titles and name tables already resolve live) and Congress page 2's FF portrait slot table only has
-  10/25 positions confirmed; worth the user's eyes before calling P2 fully
-  closed.
+- [x] **P2.12 [user] — closed 2026-09-03.** User: stale. P2.3–P2.11 already
+  match goldens; leftover hardcoded English headers / incomplete Congress
+  page-2 FF slot table are polish, not a P2 gate.
 
 ### P3 — Passable music
 
@@ -292,9 +291,9 @@ stays deferred (D4).
 Sound Options, the corrected BGM id table, the DOS BGM scheduler, the
 situational Military sting and `COLDIG.BIN` digital SFX playback are all in.
 "Passable" here means: tracks play on the right cues, end/advance as DOS does,
-don't glitch, and a default SoundFont path works out of the box. The music half
-of this track is effectively closed pending the user's listen test (P3.5); the
-open work is cue/SFX *wiring* (P3.2, P3.7).
+don't glitch, and a default SoundFont path works out of the box. Music
+listen-test **Done** 2026-09-03 (P3.5). Cue/SFX wiring (P3.2, P3.7) already
+closed; leftover is some SFX still sounding off or missing — not a P3 gate.
 
 - [x] **P3.1 [auto] — closed 2026-08-26, already done, just uncross-
   referenced.** Audit cue coverage: every DOS BGM/event id push site
@@ -410,12 +409,11 @@ open work is cue/SFX *wiring* (P3.2, P3.7).
   `0x8024` chord stings (war declaration `5bfb_153e`, assign colonist
   `2f2b_2f3e`). Ids `0x4c`, `0x50`, `0x51`, `0x55`, `0x5c` have no located
   DOS push site yet — do not invent one.
-- [ ] **P3.5 [user]** Listen test with the user on a handful of tracks vs
-  DOSBox reference (`ripped_sound/*.wav` are fresh renders with correct
-  titles). Anything "sounds wrong but recognizable" is D5, not here.
-  Follow-ups: colony / Europe screens should call `sound_set_bgm(2)` /
-  `(3)` on entry (DOS `FUN_281f_0498(2/3)`); verify title id `0x33`;
-  `0x34` never ends (E6/E8 segment machinery) — check against DOS.
+- [x] **P3.5 [user] — closed 2026-09-03.** Music is fine vs DOS. SFX are
+  not all appropriate and some may still be missing, but the biggest
+  offenders are gone. Remaining SFX misfires are polish, not a P3 gate.
+  Historical follow-ups (colony/Europe `sound_set_bgm(2/3)`, title `0x33`,
+  `0x34` never-ends) stay as D5 / assets notes if they still bite.
 
 ### P4 — Player colony production, complete
 
@@ -555,9 +553,11 @@ House, horse breeding, food→colonist growth details.
   popup — already how `colony.c`'s Change list works (min-pop/upgrade/FF
   gates filter the list itself, per `manual_gap.md`'s "Construction
   queue" row). Nothing left to port.
-- [ ] **P4.9 [user]** Colonist auto-assign on join (`FUN_15eb_28c8`, W1.7
-  structural port exists + golden): wire for the **player** colony join
-  path — changes default behavior, confirm with user.
+- [x] **P4.9 [user] — closed 2026-09-03.** User: stale / already done.
+  Player admit path auto-assigns (`colonies_auto_assign_idle` on every
+  `colonies_admit_unit`, plus `game_auto_assign_new_colonist` on Join
+  Colony). `FUN_15eb_28c8` stays the AI/reference scorer (T1.17), not a
+  player-join blocker.
 - [x] **P4.10 [auto] — closed 2026-08-28.** New `golden_colony_preview01`
   (`tests/golden/test_colony_preview01.c`): both real-DOS colony-prod
   fixtures, every active colony (human + AI), `colony_preview_compute`
@@ -796,9 +796,9 @@ tiers, promote/demote/capture, plunder, coastal fort fire, Combat Analysis
   Not modelled: 465b's ocean↔high-seas force-to-max (Linux handles the
   Europe sail elsewhere), the partial-MP gamble for units the AI moves with
   a NULL rng (pathing still pre-filters on `units_can_afford_move_cost`).
-- [ ] **P5.7 [user]** Full playthrough test with the user: declare on a
-  lategame fixture (`valid-lategame-saves/COLONY*`), fight to a win.
-  Fixture-driven `unit_ai_king` scenarios stay the regression net.
+- [x] **P5.7 [user] — closed 2026-09-03.** User playthrough: declare on a
+  lategame fixture, fight to a win. Fixture-driven `unit_ai_king` stays the
+  regression net.
 - [x] **P5.8 [auto] — closed 2026-08-26, already fixed, checkbox stale.**
   `unit_ai_king` first-failure-blocks-suite: fix the "multi-unload fortify
   count" failure so the ~204 downstream WoI checks actually run (was W2.2
@@ -815,8 +815,8 @@ tiers, promote/demote/capture, plunder, coastal fort fire, Combat Analysis
 
 **Now:** sail/harbor/buy/sell/recruit/hire/train/purchase/equip Done;
 volume-price T0 (`FUN_38fd_0058` ±1 bids) Done thin; boycotts enforced on
-the Europe screen; tax audience Done; price change notices are status
-lines.
+the Europe screen; tax audience Done; `@PRICEUP`/`@PRICEDOWN` are real
+OK popups (P6.1 / P11.2).
 
 - [x] **P6.1 [auto] — closed 2026-08-28** (every listed sub-item now
   DOS-exact or explained; see the two dated notes below). Price model to DOS: `price_group_state`, EOT
@@ -1108,6 +1108,9 @@ Deep `2820` (village trade/haggle) and `4528` (deep settlement battle) PARK.
   first contact, not fixed in this pass (out of P8's Indian scope, and a
   new UI moment — first-contact modal — needing `[user]` sign-off on
   when/how it interrupts play, not a silent auto-port).
+  **2026-09-03:** HELLO is wired (`ai_diplo_153e_encounter`:
+  `@HELLOFIRST`/`AHOY`/`MEEK`/`MANLY`; `@HELLOUSA` still not modeled).
+  User: P8.2 looks fine now.
 - [x] **P8.3 [auto] — closed 2026-08-28 (static).** The suspected
   mis-mapping was real and is now resolved: `@TRIBUTE` / `@TRIBUTEUSA` /
   `@GIFTS` / `@WANTSTUFF*` are **Euro-rival** diplomacy text (resident
@@ -1185,7 +1188,8 @@ Deep `2820` (village trade/haggle) and `4528` (deep settlement battle) PARK.
   onto the game palette (`ai_popup.c`), figure drawn full-height left of the
   dialog with the pair centred; attached in `ai_contact_human_chrome` for
   every tribe-addressed popup. Placement made DOS-exact with P11.3 (same day): side by tribe, frame spans sprite + dialog.
-- [ ] **P8.7 [user]** Contact flow review with the user on a fresh game.
+- [x] **P8.7 [user] — closed 2026-09-03.** Contact flow on a fresh game:
+  user-passed.
 - [x] **P8.8 [auto] — done 2026-08-28 (static).** The meet menu is now
   DOS's real `NAMES.TXT` `@ACTIONS` list with the real per-unit gating
   (`FUN_4d56_4528` human arm, overlay 13 `0x478a..0x4bdb`): wagon/ship →
@@ -1311,9 +1315,9 @@ Done.
   `232+n` outbound, `244+n` inbound, `turns_worked` = voyage turns,
   passengers chained) and apply reads the two transit lanes back with
   passengers aboard instead of dumping them on the docks. Details in
-  [savegame.md](savegame.md) "Human Europe ships". ctest 48/48. Remaining
-  **[user]** half: load one Linux-written save with a ship at sea in DOS
-  and confirm it arrives.
+  [savegame.md](savegame.md) "Human Europe ships". ctest 48/48.
+  **2026-09-03 [user]:** Linux-written save with a ship at sea loads in DOS
+  and arrives.
 - [x] **P10.2 [auto] — done 2026-08-26.** Added `tools/check_save_interop.sh`:
   builds just the `unit_col1_save` target then runs it alone via
   `ctest -R '^unit_col1_save$'` (the strict byte-identical round-trip over
@@ -1331,9 +1335,10 @@ Done.
 
 **Now:** ~80% of player-facing modals are "Authentic" per
 [popup_audit.md](popup_audit.md); remaining MissingWire/Partial rows are
-mostly in contact (`@LEARN*`, `@RAID*`, `@CHIEF*`), Europe
-(`@PRICEUP/DOWN`), order gates (`@NEEDTOOLS`…), FA `3f41` thin, boycott
-`DIPLO_BOYCOTT`, and "Invented" title strings in save/load.
+mostly in contact (`@LEARN*`, `@RAID*`, `@CHIEF*`), order gates
+(`@NEEDTOOLS`…), FA `3f41` thin, boycott `DIPLO_BOYCOTT`, and "Invented"
+title strings in save/load. `@PRICEUP`/`@PRICEDOWN` and HELLO greetings
+are real modals (P11.2 / P8.2 user-passed 2026-09-03).
 
 - [x] **P11.1 [auto] — closed 2026-08-26.** Close every **MissingWire**
   row in `popup_audit.md` (wire the real `@SECTION` body/choices). Only
@@ -1342,7 +1347,8 @@ mostly in contact (`@LEARN*`, `@RAID*`, `@CHIEF*`), Europe
   `@LEARNALREADY`, is deliberately left silent by design (not a wiring
   gap — see the row's own note), so nothing further to close; updated
   `popup_audit.md`'s row to drop the now-stale `@RAID*` citation.
-- [x] **P11.2 [auto] — closed 2026-08-29** (every example is a real modal now; the only residue is the [user] call on @PRICEUP/@PRICEDOWN frequency and the P8.2 HELLO row). Convert **Partial** rows that are status lines but
+- [x] **P11.2 [auto] — closed 2026-08-29; [user] residue closed 2026-09-03.**
+  Convert **Partial** rows that are status lines but
   DOS shows a modal (`@PRICEUP`/`@PRICEDOWN`, order gates, `@CARGOREADY`
   ship-finish, HELLO attitude) to real modals with correct choice sets.
   **Checked 2026-08-26 — 3 of 4 examples already resolved, "choice sets"
@@ -1365,6 +1371,8 @@ mostly in contact (`@LEARN*`, `@RAID*`, `@CHIEF*`), Europe
   status line again (`turn.c` FINISH, one `if`). **"HELLO attitude"
   is the same Euro-rival first-contact greeting gap found under P8.2**,
   not an Indian-attitude thing — see that row.
+  **2026-09-03:** user keeps `@PRICEUP`/`@PRICEDOWN` as modals. HELLO
+  greeting signed off under P8.2.
 - [x] **P11.3 [auto] — closed 2026-08-29, static.** The three cited
   functions are thin thunks; the real compositor is `FUN_6f74_14c6` (rects)
   + `FUN_6f74_1198` (wrap) with defaults from `FUN_6f74_06d0`. (Ghidra's
@@ -1384,7 +1392,7 @@ mostly in contact (`@LEARN*`, `@RAID*`, `@CHIEF*`), Europe
   choice-row highlight. Thin spot: Linux `font->max_height` vs DOS font
   byte 0 assumed equal; word width = `font_text_width` vs DOS `6f74_0538`
   (per-glyph `281f_01fa` widths + `{`/`}`/`~` markup) — same asset, so
-  expected equal. [user] P11.5 eyeball still owed. Layout: popup width/height/wrap rules from the
+  expected equal. P11.5 user-passed 2026-09-03. Layout: popup width/height/wrap rules from the
   `6f74` compositor (`FUN_6f74_36ca`/`3760`/`3848`) so multi-line bodies and
   CHOICE lists size like DOS — content correctness only; wood-frame pixel
   chrome is D4. **Confirmed real 2026-08-26, not fixed this pass —
@@ -1433,8 +1441,8 @@ mostly in contact (`@LEARN*`, `@RAID*`, `@CHIEF*`), Europe
   literally to the player). Result: 181/181 clean, no gap found — this
   audit didn't uncover a bug, it closes the row by proving there isn't
   one in the currently-wired set. `ctest`: 43/43 (was 42, +1 new target).
-- [ ] **P11.5 [user]** Popup review with the user during P1 sessions;
-  file per-popup fixes here.
+- [x] **P11.5 [user] — closed 2026-09-03.** Popup review during P1 sessions:
+  big things ironed out. Remaining nits file as they appear; not a P11 gate.
 
 ---
 
