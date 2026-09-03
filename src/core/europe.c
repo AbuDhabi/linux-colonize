@@ -621,12 +621,18 @@ static bool europe_load_tables(EuropeScreen* eu, const ColonizeMsgCatalog* names
   return eu->cargo_count > 0;
 }
 
-static void europe_apply_nation_names(EuropeScreen* eu, int nation, const ColonizeMsgCatalog* names) {
+void europe_set_nation(EuropeScreen* eu, int nation, const ColonizeMsgCatalog* names) {
   static const char* k_ports[4] = {"London", "La Rochelle", "Seville", "Amsterdam"};
   static const char* k_nations[4] = {"England", "France", "Spain", "Netherlands"};
   static const char* k_regions[4] = {
     "New England", "New France", "New Spain", "New Netherlands"
   };
+  if (!eu) {
+    return;
+  }
+  if (nation < 0 || nation > 3) {
+    nation = 0;
+  }
   if (names) {
     const ColonizeMsgSection* home = assets_msg_find(names, "HOMEPORT");
     const ColonizeMsgSection* reg = assets_msg_find(names, "COLONYNAME");
@@ -694,7 +700,7 @@ void europe_reset_campaign_nation(EuropeScreen* eu, int nation) {
   if (nation < 0 || nation > 3) {
     nation = 0;
   }
-  europe_apply_nation_names(eu, nation, NULL);
+  europe_set_nation(eu, nation, NULL);
   eu->gold = 1000;
   eu->tax_percent = 0;
   eu->current_crosses = 0;
@@ -781,7 +787,7 @@ bool europe_load(EuropeScreen* eu, const char* data_dir, char* err, size_t err_s
   }
 
   europe_reset_campaign(eu);
-  europe_apply_nation_names(eu, 0, &names);
+  europe_set_nation(eu, 0, &names);
   /* Re-init pool/purchase after reset; train table already from load_tables. */
   {
     int train_count = eu->train_count;
@@ -790,7 +796,7 @@ bool europe_load(EuropeScreen* eu, const char* data_dir, char* err, size_t err_s
     europe_reset_campaign(eu);
     eu->train_count = train_count;
     memcpy(eu->train, train_copy, sizeof(train_copy));
-    europe_apply_nation_names(eu, 0, &names);
+    europe_set_nation(eu, 0, &names);
     europe_init_purchase_table(eu);
   }
   assets_msg_free(&names);
@@ -3244,15 +3250,10 @@ EuropeHitResult europe_hit_test_ex(
   }
 
   {
-    int open_holds = 0;
-    if (eu->selected_harbor >= 0 && eu->selected_harbor < eu->harbor_ships) {
-      open_holds = EUROPE_HOLD_MAX;
-    }
-    if (open_holds > 0 && my >= EUROPE_HOLD_Y && my < EUROPE_HOLD_Y + EUROPE_HOLD_H &&
+    if (eu->harbor_ships > 0 && my >= EUROPE_HOLD_Y && my < EUROPE_HOLD_Y + EUROPE_HOLD_H &&
         mx >= EUROPE_HOLD_X && mx < EUROPE_HOLD_X + EUROPE_HOLD_MAX * EUROPE_HOLD_PITCH) {
       const int idx = (mx - EUROPE_HOLD_X) / EUROPE_HOLD_PITCH;
-      if (idx >= 0 && idx < open_holds &&
-          mx < EUROPE_HOLD_X + idx * EUROPE_HOLD_PITCH + EUROPE_HOLD_W) {
+      if (idx >= 0 && idx < EUROPE_HOLD_MAX) {
         hit.kind = EUROPE_HIT_HOLD;
         hit.index = idx;
         return hit;

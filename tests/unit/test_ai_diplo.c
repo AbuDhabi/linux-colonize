@@ -1,5 +1,5 @@
 /* Smoke: bilateral 15b3 diplo bytes, war gold/tax sting,
- * all-16 @CARGO wartime embargo (Food+…+Cotton+…+Tools+Muskets), war-fatigue
+ * Euro war does not boycott Europe cargos, war-fatigue
  * peace + status, make_peace + full wartime mask lift + peace feeler restore
  * (sticky==1; sticky==2 refuses), upkeep + human upkeep status, privateer prize
  * + human status + prize stops after peace, ally cost/timer≥8/longevity + FA gift
@@ -80,10 +80,7 @@ int main(void) {
   /* Pair independence: war(0,1) must not force war(0,2).
    * Thin 153e: first declare drains 100 gold + bumps tax_rate both sides.
    * Indians dislike war: −5 on relation_by_indian[0..7] both sides.
-   * Wartime embargo: OR all 16 @CARGO bits (Food+Sugar+Tobacco+Cotton+Furs+
-   * Lumber+Ore+Silver+Horses+Rum+Cigars+Cloth+Coats+Trade Goods+Tools+Muskets)
-   * into both boycott_bitmap (Sugar = king refuse bit1; Cotton = R11 leftover;
-   * Tools always on first declare).
+   * Euro war does not boycott Europe cargos (DOS king tea-party only).
    * War fatigue: seed peer treaty timer to 8 when was 0. */
   col1.nation[0].gold = 250;
   col1.nation[1].gold = 80;
@@ -130,75 +127,10 @@ int main(void) {
   if (col1.nation[2].tax_rate != 20) {
     return fail("war(0,1) must not bump tax of nation 2");
   }
-  if ((col1.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_EMBARGO_BIT) == 0 ||
-      (col1.nation[1].boycott_bitmap & AI_DIPLO_SMOKE_EMBARGO_BIT) == 0) {
-    return fail("declare_war should set Furs boycott bit on both nations");
-  }
-  if ((col1.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_FOOD_BIT) == 0 ||
-      (col1.nation[1].boycott_bitmap & AI_DIPLO_SMOKE_FOOD_BIT) == 0) {
-    return fail("declare_war should set Food boycott bit on both nations");
-  }
-  if ((col1.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_TOBACCO_BIT) == 0 ||
-      (col1.nation[1].boycott_bitmap & AI_DIPLO_SMOKE_TOBACCO_BIT) == 0) {
-    return fail("declare_war should set Tobacco boycott bit on both nations");
-  }
-  if ((col1.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_SUGAR_BIT) == 0 ||
-      (col1.nation[1].boycott_bitmap & AI_DIPLO_SMOKE_SUGAR_BIT) == 0) {
-    return fail("declare_war should set Sugar boycott bit on both nations");
-  }
-  if ((col1.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_COTTON_BIT) == 0 ||
-      (col1.nation[1].boycott_bitmap & AI_DIPLO_SMOKE_COTTON_BIT) == 0) {
-    return fail("declare_war should set Cotton boycott bit on both nations");
-  }
-  if ((col1.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_LUMBER_BIT) == 0 ||
-      (col1.nation[1].boycott_bitmap & AI_DIPLO_SMOKE_LUMBER_BIT) == 0) {
-    return fail("declare_war should set Lumber boycott bit on both nations");
-  }
-  if ((col1.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_HORSES_BIT) == 0 ||
-      (col1.nation[1].boycott_bitmap & AI_DIPLO_SMOKE_HORSES_BIT) == 0) {
-    return fail("declare_war should set Horses boycott bit on both nations");
-  }
-  if ((col1.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_RUM_BIT) == 0 ||
-      (col1.nation[1].boycott_bitmap & AI_DIPLO_SMOKE_RUM_BIT) == 0) {
-    return fail("declare_war should set Rum boycott bit on both nations");
-  }
-  if ((col1.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_CIGARS_BIT) == 0 ||
-      (col1.nation[1].boycott_bitmap & AI_DIPLO_SMOKE_CIGARS_BIT) == 0) {
-    return fail("declare_war should set Cigars boycott bit on both nations");
-  }
-  if ((col1.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_CLOTH_BIT) == 0 ||
-      (col1.nation[1].boycott_bitmap & AI_DIPLO_SMOKE_CLOTH_BIT) == 0) {
-    return fail("declare_war should set Cloth boycott bit on both nations");
-  }
-  if ((col1.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_COATS_BIT) == 0 ||
-      (col1.nation[1].boycott_bitmap & AI_DIPLO_SMOKE_COATS_BIT) == 0) {
-    return fail("declare_war should set Coats boycott bit on both nations");
-  }
-  if ((col1.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_ORE_BIT) == 0 ||
-      (col1.nation[1].boycott_bitmap & AI_DIPLO_SMOKE_ORE_BIT) == 0) {
-    return fail("declare_war should set Ore boycott bit on both nations");
-  }
-  if ((col1.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_SILVER_BIT) == 0 ||
-      (col1.nation[1].boycott_bitmap & AI_DIPLO_SMOKE_SILVER_BIT) == 0) {
-    return fail("declare_war should set Silver boycott bit on both nations");
-  }
-  if ((col1.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_TRADE_GOODS_BIT) == 0 ||
-      (col1.nation[1].boycott_bitmap & AI_DIPLO_SMOKE_TRADE_GOODS_BIT) == 0) {
-    return fail("declare_war should set Trade Goods boycott bit on both nations");
-  }
-  if ((col1.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_MUSKETS_BIT) == 0 ||
-      (col1.nation[1].boycott_bitmap & AI_DIPLO_SMOKE_MUSKETS_BIT) == 0) {
-    return fail("declare_war should set Muskets boycott bit on both nations");
-  }
-  if ((col1.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_TOOLS_BIT) == 0 ||
-      (col1.nation[1].boycott_bitmap & AI_DIPLO_SMOKE_TOOLS_BIT) == 0) {
-    return fail("declare_war should set Tools boycott bit on both nations");
-  }
-  if ((col1.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_WARTIME_MASK) !=
-        AI_DIPLO_SMOKE_WARTIME_MASK ||
-      (col1.nation[1].boycott_bitmap & AI_DIPLO_SMOKE_WARTIME_MASK) !=
-        AI_DIPLO_SMOKE_WARTIME_MASK) {
-    return fail("declare_war should OR full wartime boycott mask on both nations");
+  /* DOS does not boycott Europe cargos on Euro×Euro war (king tea-party only). */
+  if ((col1.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_WARTIME_MASK) != 0 ||
+      (col1.nation[1].boycott_bitmap & AI_DIPLO_SMOKE_WARTIME_MASK) != 0) {
+    return fail("declare_war must not set Europe boycott bits");
   }
   if ((col1.nation[2].boycott_bitmap & AI_DIPLO_SMOKE_WARTIME_MASK) != 0) {
     return fail("war(0,1) must not set wartime embargo bits on nation 2");
@@ -233,7 +165,7 @@ int main(void) {
   if (ai_diplo_indian_at_war(&col1, 2, 0)) {
     return fail("indian_at_war: nation 2 slot0 should be peaceful (rel=100)");
   }
-  /* Re-declare: no second sting / tax bump / Indian hit; embargo bit stays. */
+  /* Re-declare: no second sting / tax bump / Indian hit; still no Europe boycott. */
   ai_diplo_declare_war(&col1, 0, 1);
   if (col1.nation[0].gold != 150) {
     return fail("re-declare_war should not re-sting gold");
@@ -244,8 +176,8 @@ int main(void) {
   if (ai_diplo_indian_relation(&col1, 4 + (0), 0) != 45) {
     return fail("re-declare_war should not re-hit Indian relations");
   }
-  if ((col1.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_EMBARGO_BIT) == 0) {
-    return fail("re-declare_war should leave Furs embargo bit set");
+  if ((col1.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_WARTIME_MASK) != 0) {
+    return fail("re-declare_war must not boycott Europe cargos");
   }
 
   /* make_peace: clear WAR both ways, set PEACE, lift all wartime boycotts
@@ -272,11 +204,11 @@ int main(void) {
     }
   }
 
-  /* Re-war for upkeep / embargo retention tests below. */
+  /* Re-war for upkeep tests below. */
   ai_diplo_declare_war(&col1, 0, 1);
-  if ((col1.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_EMBARGO_BIT) == 0 ||
-      (col1.nation[1].boycott_bitmap & AI_DIPLO_SMOKE_EMBARGO_BIT) == 0) {
-    return fail("re-war after make_peace should set Furs embargo again");
+  if ((col1.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_WARTIME_MASK) != 0 ||
+      (col1.nation[1].boycott_bitmap & AI_DIPLO_SMOKE_WARTIME_MASK) != 0) {
+    return fail("re-war after make_peace must not boycott Europe cargos");
   }
 
   /* euro_balance at-war upkeep (before timer pass can PEACE-tweak zero timers).
@@ -591,6 +523,8 @@ int main(void) {
   col1.nation[2].gold = 50;
   col1.nation[0].unknown26[2] = 0;
   col1.nation[2].unknown26[0] = 0;
+  col1.nation[0].boycott_bitmap = AI_DIPLO_SMOKE_EMBARGO_BIT;
+  col1.nation[1].boycott_bitmap = AI_DIPLO_SMOKE_EMBARGO_BIT;
   ai_diplo_form_alliance(&col1, 0, 2);
   if (col1.nation[0].gold != 25 || col1.nation[2].gold != 25) {
     return fail("form_alliance(0,2) should drain 25 gold each");
@@ -657,6 +591,8 @@ int main(void) {
     ctx_aid.rng = &rng_aid;
     ctx_aid.turn_number = &turn_aid;
     /* Clear war(0,1) so nation 0 can run ally path (not war upkeep). */
+    col1.nation[0].boycott_bitmap = AI_DIPLO_SMOKE_EMBARGO_BIT;
+    col1.nation[1].boycott_bitmap = AI_DIPLO_SMOKE_EMBARGO_BIT;
     ai_diplo_clear_both(&col1, 0, 1, AI_DIPLO_WAR);
     ai_diplo_or_both(&col1, 0, 1, (uint8_t)(AI_DIPLO_PEACE | AI_DIPLO_MET));
     /* Raw PEACE write alone does not lift embargo (must use make_peace / form_alliance). */
@@ -1028,9 +964,9 @@ int main(void) {
   if (col1.nation[2].tax_rate != 75 || col1.nation[3].tax_rate != 75) {
     return fail("declare_war must not raise tax_rate above 75");
   }
-  if ((col1.nation[2].boycott_bitmap & AI_DIPLO_SMOKE_EMBARGO_BIT) == 0 ||
-      (col1.nation[3].boycott_bitmap & AI_DIPLO_SMOKE_EMBARGO_BIT) == 0) {
-    return fail("declare_war(2,3) should set Furs boycott bit on both");
+  if ((col1.nation[2].boycott_bitmap & AI_DIPLO_SMOKE_WARTIME_MASK) != 0 ||
+      (col1.nation[3].boycott_bitmap & AI_DIPLO_SMOKE_WARTIME_MASK) != 0) {
+    return fail("declare_war(2,3) must not boycott Europe cargos");
   }
 
   /* Indian relation delta clamps. */
@@ -1101,10 +1037,10 @@ int main(void) {
     tw.nation[0].gold = 400;
     tw.nation[1].gold = 50;
     ai_diplo_declare_war(&tw, 0, 1);
-    if ((tw.nation[0].boycott_bitmap & (1u << COLONIZE_CARGO_TOOLS)) == 0 ||
-        (tw.nation[1].boycott_bitmap & (1u << COLONIZE_CARGO_TOOLS)) == 0) {
+    if ((tw.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_WARTIME_MASK) != 0 ||
+        (tw.nation[1].boycott_bitmap & AI_DIPLO_SMOKE_WARTIME_MASK) != 0) {
       free(tw.colony);
-      return fail("declare_war should set Tools embargo (always + gap sting)");
+      return fail("colony-gap declare must not boycott Europe cargos");
     }
     /* 400 − 100 sting − 25 trade = 275 */
     if (tw.nation[0].gold != 275) {
@@ -1196,9 +1132,9 @@ int main(void) {
     if (!ai_diplo_at_war(&st, 0, 1)) {
       return fail("declare_war_ctx should set WAR");
     }
-    if (strcmp(status, "Sugar/Tobacco/Tools boycott imposed.") != 0) {
+    if (strcmp(status, "The France and rival are now at war.") != 0) {
       fprintf(stderr, "unit_ai_diplo: war status '%s'\n", status);
-      return fail("declare_war_ctx should prefer Sugar/Tobacco/Tools boycott status for human");
+      return fail("declare_war_ctx should use @DECLAREWAR line (no wartime boycott)");
     }
     /* Re-declare: no status rewrite. */
     snprintf(status, sizeof(status), "keep");
@@ -1211,10 +1147,9 @@ int main(void) {
     if (ai_diplo_at_war(&st, 0, 1)) {
       return fail("make_peace_ctx should clear WAR");
     }
-    /* Tools lift chrome preferred over Peace concluded when Tools cleared. */
-    if (strcmp(status, "Tools embargo lifted.") != 0) {
+    if (strcmp(status, "The rival and France have signed a peace treaty.") != 0) {
       fprintf(stderr, "unit_ai_diplo: peace status '%s'\n", status);
-      return fail("make_peace_ctx should prefer Tools embargo lifted for human");
+      return fail("make_peace_ctx should use @SIGNTREATY when no Tools embargo");
     }
 
     /* R12: Sugar/Tobacco/Tools already set → name first newly boycotted cargo
@@ -1233,9 +1168,12 @@ int main(void) {
                  AI_DIPLO_SMOKE_TOOLS_BIT);
     status[0] = '\0';
     ai_diplo_declare_war_ctx(&ctx_st, 0, 2);
-    if (strcmp(status, "Food boycott imposed.") != 0) {
+    if ((st.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_FOOD_BIT) != 0) {
+      return fail("declare_war_ctx must not OR Food onto existing king boycotts");
+    }
+    if (strcmp(status, "The rival and rival are now at war.") != 0) {
       fprintf(stderr, "unit_ai_diplo: first-cargo status '%s'\n", status);
-      return fail("declare_war_ctx should name first newly boycotted cargo (Food)");
+      return fail("declare_war_ctx should use war line when no new boycott bits");
     }
 
     /* Full wartime mask already set → boycott chrome quiet → war line. */
@@ -1486,9 +1424,9 @@ int main(void) {
     em.nation[0].gold = 200;
     em.nation[1].gold = 200;
     ai_diplo_declare_war(&em, 0, 1);
-    if ((em.nation[0].boycott_bitmap & (1u << COLONIZE_CARGO_TOOLS)) == 0) {
+    if ((em.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_WARTIME_MASK) != 0) {
       free(em.colony);
-      return fail("colony-gap war should set Tools before form_alliance lift");
+      return fail("colony-gap war must not boycott Europe cargos");
     }
     ai_diplo_form_alliance(&em, 0, 1);
     if ((em.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_WARTIME_MASK) != 0 ||
@@ -1577,10 +1515,9 @@ int main(void) {
       }
       if (!ai_diplo_at_war(&wf, 0, 1)) {
         peaced = 1;
-        /* Tools always OR'd on declare → lift chrome preferred over Peace. */
-        if (strcmp(status_wf, "Tools embargo lifted.") != 0) {
+        if (strcmp(status_wf, "The rival and England have signed a peace treaty.") != 0) {
           fprintf(stderr, "unit_ai_diplo: war-fatigue status '%s'\n", status_wf);
-          return fail("war-fatigue make_peace_ctx should status Tools embargo lifted for human");
+          return fail("war-fatigue make_peace_ctx should status @SIGNTREATY for human");
         }
       }
     }
@@ -1648,10 +1585,10 @@ int main(void) {
         }
         if (!ai_diplo_at_war(&wf2, 0, 1)) {
           peaced_peer = 1;
-          if (strcmp(status_peer, "Tools embargo lifted.") != 0) {
+          if (strcmp(status_peer, "The France and England have signed a peace treaty.") != 0) {
             fprintf(stderr, "unit_ai_diplo: war-fatigue peer status '%s'\n",
                     status_peer);
-            return fail("war-fatigue make_peace_ctx should status when human is peer");
+            return fail("war-fatigue make_peace_ctx should status @SIGNTREATY when human is peer");
           }
         }
       }
@@ -1699,24 +1636,24 @@ int main(void) {
     ctx_ts.status = status;
     ctx_ts.status_size = sizeof(status);
     ai_diplo_declare_war_ctx(&ctx_ts, 0, 1);
-    if ((ts.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_TOOLS_BIT) == 0) {
+    if ((ts.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_TOOLS_BIT) != 0) {
       free(ts.colony);
-      return fail("Tools status setup: colony-gap should set Tools bit");
+      return fail("Tools status setup: colony-gap must not set Tools bit");
     }
-    if (strcmp(status, "Sugar/Tobacco/Tools boycott imposed.") != 0) {
+    if (strcmp(status, "The rival and Spain are now at war.") != 0) {
       fprintf(stderr, "unit_ai_diplo: Tools set status '%s'\n", status);
       free(ts.colony);
-      return fail("declare_war_ctx should status Sugar/Tobacco/Tools boycott for human");
+      return fail("declare_war_ctx should use war line (no wartime boycott)");
     }
     ai_diplo_make_peace_ctx(&ctx_ts, 0, 1);
     if ((ts.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_TOOLS_BIT) != 0) {
       free(ts.colony);
-      return fail("make_peace_ctx should lift Tools bit");
+      return fail("make_peace_ctx should leave Tools bit clear");
     }
-    if (strcmp(status, "Tools embargo lifted.") != 0) {
+    if (strcmp(status, "The rival and Spain have signed a peace treaty.") != 0) {
       fprintf(stderr, "unit_ai_diplo: Tools lift status '%s'\n", status);
       free(ts.colony);
-      return fail("make_peace_ctx should status Tools embargo lifted for human");
+      return fail("make_peace_ctx should status @SIGNTREATY when Tools never set");
     }
     /* AI-only Tools war: no status overwrite. */
     snprintf(status, sizeof(status), "keep");
@@ -1870,16 +1807,18 @@ int main(void) {
     }
     sg.nation[0].gold = 200;
     sg.nation[1].gold = 200;
-    /* Pre-seed king-style Sugar bit; war OR is idempotent. */
+    /* Pre-seed king-style Sugar bit; war must not spread it. */
     sg.nation[0].boycott_bitmap = AI_DIPLO_SMOKE_SUGAR_BIT;
     ai_diplo_declare_war(&sg, 0, 1);
-    if ((sg.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_SUGAR_BIT) == 0 ||
-        (sg.nation[1].boycott_bitmap & AI_DIPLO_SMOKE_SUGAR_BIT) == 0) {
-      return fail("declare_war should OR Sugar boycott bit (king refuse bit1)");
+    if ((sg.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_SUGAR_BIT) == 0) {
+      return fail("declare_war must not clear a king Sugar boycott");
     }
-    if ((sg.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_EMBARGO_BIT) == 0 ||
-        (sg.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_TOBACCO_BIT) == 0) {
-      return fail("Sugar wartime boycott should sit alongside Furs+Tobacco");
+    if ((sg.nation[1].boycott_bitmap & AI_DIPLO_SMOKE_SUGAR_BIT) != 0) {
+      return fail("declare_war must not copy Sugar boycott onto the peer");
+    }
+    if ((sg.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_EMBARGO_BIT) != 0 ||
+        (sg.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_TOBACCO_BIT) != 0) {
+      return fail("declare_war must not OR extra wartime cargos");
     }
     ai_diplo_make_peace(&sg, 0, 1);
     if ((sg.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_SUGAR_BIT) != 0 ||
@@ -1900,17 +1839,9 @@ int main(void) {
     rc.nation[0].gold = 200;
     rc.nation[1].gold = 200;
     ai_diplo_declare_war(&rc, 0, 1);
-    if ((rc.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_RUM_BIT) == 0 ||
-        (rc.nation[1].boycott_bitmap & AI_DIPLO_SMOKE_RUM_BIT) == 0) {
-      return fail("declare_war should OR Rum boycott bit (COLONIZE_CARGO_RUM)");
-    }
-    if ((rc.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_CIGARS_BIT) == 0 ||
-        (rc.nation[1].boycott_bitmap & AI_DIPLO_SMOKE_CIGARS_BIT) == 0) {
-      return fail("declare_war should OR Cigars boycott bit (COLONIZE_CARGO_CIGARS)");
-    }
-    if ((rc.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_COTTON_BIT) == 0 ||
-        (rc.nation[1].boycott_bitmap & AI_DIPLO_SMOKE_COTTON_BIT) == 0) {
-      return fail("declare_war should OR Cotton boycott bit (COLONIZE_CARGO_COTTON)");
+    if ((rc.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_WARTIME_MASK) != 0 ||
+        (rc.nation[1].boycott_bitmap & AI_DIPLO_SMOKE_WARTIME_MASK) != 0) {
+      return fail("declare_war must not OR Rum/Cigars/Cotton boycott bits");
     }
     ai_diplo_make_peace(&rc, 0, 1);
     if ((rc.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_WARTIME_MASK) != 0 ||
@@ -1965,7 +1896,7 @@ int main(void) {
       return fail("sticky==2 FA skip should still apply longevity timer+1");
     }
 
-    /* R4/R10: human declare always ORs Tools → Sugar/Tobacco/Tools boycott status. */
+    /* Human declare uses @DECLAREWAR; no wartime Tools boycott. */
     ColonizeCol1Save st;
     col1_save_init(&st);
     memset(st.nation, 0, sizeof(st.nation));
@@ -1986,12 +1917,12 @@ int main(void) {
     ctx_st.status = status_st;
     ctx_st.status_size = sizeof(status_st);
     ai_diplo_declare_war_ctx(&ctx_st, 0, 1);
-    if ((st.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_TOOLS_BIT) == 0) {
-      return fail("declare_war should OR Tools boycott even without colony gap");
+    if ((st.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_TOOLS_BIT) != 0) {
+      return fail("declare_war must not OR Tools boycott");
     }
-    if (strcmp(status_st, "Sugar/Tobacco/Tools boycott imposed.") != 0) {
+    if (strcmp(status_st, "The rival and France are now at war.") != 0) {
       fprintf(stderr, "unit_ai_diplo: Sugar/Tobacco/Tools status '%s'\n", status_st);
-      return fail("declare_war_ctx should status Sugar/Tobacco/Tools boycott for human");
+      return fail("declare_war_ctx should use war line (no wartime boycott)");
     }
   }
 
@@ -2010,13 +1941,9 @@ int main(void) {
     os.nation[0].gold = 200;
     os.nation[1].gold = 200;
     ai_diplo_declare_war(&os, 0, 1);
-    if ((os.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_ORE_BIT) == 0 ||
-        (os.nation[1].boycott_bitmap & AI_DIPLO_SMOKE_ORE_BIT) == 0) {
-      return fail("declare_war should OR Ore boycott bit (COLONIZE_CARGO_ORE)");
-    }
-    if ((os.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_SILVER_BIT) == 0 ||
-        (os.nation[1].boycott_bitmap & AI_DIPLO_SMOKE_SILVER_BIT) == 0) {
-      return fail("declare_war should OR Silver boycott bit (COLONIZE_CARGO_SILVER)");
+    if ((os.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_WARTIME_MASK) != 0 ||
+        (os.nation[1].boycott_bitmap & AI_DIPLO_SMOKE_WARTIME_MASK) != 0) {
+      return fail("declare_war must not OR Ore/Silver boycott bits");
     }
     ai_diplo_make_peace(&os, 0, 1);
     if ((os.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_ORE_BIT) != 0 ||
@@ -2043,9 +1970,9 @@ int main(void) {
     r8.nation[0].gold = 200;
     r8.nation[1].gold = 200;
     ai_diplo_declare_war(&r8, 0, 1);
-    if ((r8.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_LUMBER_BIT) == 0 ||
-        (r8.nation[1].boycott_bitmap & AI_DIPLO_SMOKE_LUMBER_BIT) == 0) {
-      return fail("declare_war should OR Lumber boycott bit (COLONIZE_CARGO_LUMBER)");
+    if ((r8.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_LUMBER_BIT) != 0 ||
+        (r8.nation[1].boycott_bitmap & AI_DIPLO_SMOKE_LUMBER_BIT) != 0) {
+      return fail("declare_war must not OR Lumber boycott bit");
     }
     ai_diplo_make_peace(&r8, 0, 1);
     if ((r8.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_LUMBER_BIT) != 0 ||
@@ -2171,13 +2098,13 @@ int main(void) {
     r9.nation[0].gold = 200;
     r9.nation[1].gold = 200;
     ai_diplo_declare_war(&r9, 0, 1);
-    if ((r9.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_HORSES_BIT) == 0 ||
-        (r9.nation[1].boycott_bitmap & AI_DIPLO_SMOKE_HORSES_BIT) == 0) {
-      return fail("declare_war should OR Horses boycott bit (COLONIZE_CARGO_HORSES)");
+    if ((r9.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_HORSES_BIT) != 0 ||
+        (r9.nation[1].boycott_bitmap & AI_DIPLO_SMOKE_HORSES_BIT) != 0) {
+      return fail("declare_war must not OR Horses boycott bit");
     }
-    if ((r9.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_MUSKETS_BIT) == 0 ||
-        (r9.nation[1].boycott_bitmap & AI_DIPLO_SMOKE_MUSKETS_BIT) == 0) {
-      return fail("declare_war should OR Muskets boycott bit (COLONIZE_CARGO_MUSKETS)");
+    if ((r9.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_MUSKETS_BIT) != 0 ||
+        (r9.nation[1].boycott_bitmap & AI_DIPLO_SMOKE_MUSKETS_BIT) != 0) {
+      return fail("declare_war must not OR Muskets boycott bit");
     }
     ai_diplo_make_peace(&r9, 0, 1);
     if ((r9.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_HORSES_BIT) != 0 ||
@@ -2416,15 +2343,15 @@ int main(void) {
     if (!ai_diplo_at_war(&pop, 0, 1)) {
       return fail("popup smoke: declare_war_ctx should set WAR");
     }
-    if (strcmp(status_pop, "Sugar/Tobacco/Tools boycott imposed.") != 0) {
+    if (strcmp(status_pop, "The France and rival are now at war.") != 0) {
       fprintf(stderr, "unit_ai_diplo: popup war status '%s'\n", status_pop);
-      return fail("popup smoke: status line must still prefer boycott chrome");
+      return fail("popup smoke: status line is @DECLAREWAR (no wartime boycott)");
     }
     if (popups.queue_count != 1) {
       return fail("popup smoke: declare_war_ctx should enqueue one OK");
     }
-    if (popups.queue[0].tag != AI_POPUP_TAG_DIPLO_BOYCOTT) {
-      return fail("popup smoke: boycott status should tag DIPLO_BOYCOTT");
+    if (popups.queue[0].tag != AI_POPUP_TAG_DIPLO_WAR) {
+      return fail("popup smoke: war status should tag DIPLO_WAR");
     }
     if (strcmp(popups.queue[0].body, status_pop) != 0) {
       return fail("popup smoke: OK body should match status");
@@ -2436,13 +2363,13 @@ int main(void) {
       return fail("popup smoke: re-declare must not enqueue again");
     }
 
-    /* Peace → Tools embargo lift OK (BOYCOTT tag). */
+    /* Peace → @SIGNTREATY OK (PEACE tag; Tools embargo never set). */
     ai_diplo_make_peace_ctx(&ctx_pop, 0, 1);
     if (popups.queue_count != 2) {
       return fail("popup smoke: make_peace_ctx should enqueue OK");
     }
-    if (popups.queue[1].tag != AI_POPUP_TAG_DIPLO_BOYCOTT) {
-      return fail("popup smoke: Tools embargo lift should tag DIPLO_BOYCOTT");
+    if (popups.queue[1].tag != AI_POPUP_TAG_DIPLO_PEACE) {
+      return fail("popup smoke: peace treaty should tag DIPLO_PEACE");
     }
 
     /*

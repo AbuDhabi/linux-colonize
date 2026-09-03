@@ -1832,11 +1832,8 @@ static void game_landho_default_region(const ColonizeGameState* game, char* out,
     str_copy_trunc(out, out_size, "New England");
     return;
   }
-  /* Europe screen already loaded NAMES.TXT @COLONYNAME for the human nation. */
-  if (game->europe.colony_region[0]) {
-    str_copy_trunc(out, out_size, game->europe.colony_region);
-    return;
-  }
+  /* Seed from the human nation's @COLONYNAME — do not trust a stale
+   * europe.colony_region left by europe_load (always nation 0 / New England). */
   const int nation = game->human_nation;
   if (game->names_ok && nation >= 0 && nation <= 3) {
     const ColonizeMsgSection* reg = assets_msg_find(&game->names, "COLONYNAME");
@@ -1884,6 +1881,13 @@ static void game_open_landho_name_entry(ColonizeGameState* game) {
       col1_bridge_mark_new_world_discovered(&game->col1, game->human_nation);
     }
     str_copy_trunc(game->europe.colony_region, sizeof(game->europe.colony_region), seed);
+    if (game->col1_ok && game->human_nation >= 0 && game->human_nation < 4) {
+      str_copy_trunc(
+        game->col1.player[game->human_nation].country_name,
+        sizeof(game->col1.player[game->human_nation].country_name),
+        seed
+      );
+    }
     set_status(game, "Name entry failed", NULL);
   }
 }
@@ -1899,6 +1903,13 @@ static void game_apply_name_entry_result(ColonizeGameState* game) {
     const char* name =
       game->name_entry.result_name[0] ? game->name_entry.result_name : fallback;
     str_copy_trunc(game->europe.colony_region, sizeof(game->europe.colony_region), name);
+    if (game->col1_ok && game->human_nation >= 0 && game->human_nation < 4) {
+      str_copy_trunc(
+        game->col1.player[game->human_nation].country_name,
+        sizeof(game->col1.player[game->human_nation].country_name),
+        name
+      );
+    }
     if (game->col1_ok) {
       col1_bridge_mark_new_world_discovered(&game->col1, game->human_nation);
     }
@@ -3602,6 +3613,16 @@ static bool game_apply_col1_save(ColonizeGameState* game, ColonizeCol1Save* load
   game->col1 = *loaded;
   memset(loaded, 0, sizeof(*loaded));
   game->col1_ok = true;
+  /* Repair invented wartime all-cargo embargo on the live save (const apply
+   * cannot touch the snapshot). europe.boycott_bitmap already mapped 0xFFFF→0. */
+  for (int n = 0; n < 4; ++n) {
+    if (game->col1.nation[n].boycott_bitmap == 0xFFFFu) {
+      game->col1.nation[n].boycott_bitmap = 0;
+    }
+  }
+  europe_set_nation(
+    &game->europe, result.human_nation, game->names_ok ? &game->names : NULL
+  );
   /*
    * bugs.md ("French expeditionary force missing on report"): in DOS the
    * Expeditionary Force exists from turn 1 (new-game seed 75c2:360b) and
@@ -5101,13 +5122,10 @@ static void render_europe_screen(const ColonizeGameState* game, ColonizeFramebuf
       }
     }
     if (game->unit_icons_ok && EUROPE_ICON_EMPTY_HOLD < game->unit_icons.sprite_count) {
-      const ColonizeSprite* cov = &game->unit_icons.sprites[EUROPE_ICON_EMPTY_HOLD];
-      const int cover_w = (cov && cov->width > 0) ? cov->width : EUROPE_HOLD_W;
-      const int cover_h = (cov && cov->height > 0) ? cov->height : 12;
       for (int i = open_holds; i < EUROPE_HOLD_MAX; ++i) {
-        const int x =
-          EUROPE_HOLD_X + i * EUROPE_HOLD_PITCH + (EUROPE_HOLD_W - cover_w) / 2;
-        const int y = EUROPE_HOLD_Y + (EUROPE_HOLD_H - cover_h) / 2;
+        /* Cover #122 is 10×12; sit over the 9×12 interior plus its left border. */
+        const int x = EUROPE_HOLD_X - 1 + i * EUROPE_HOLD_PITCH;
+        const int y = EUROPE_HOLD_Y;
         ss_blit_sprite(&game->unit_icons, EUROPE_ICON_EMPTY_HOLD, framebuffer, x, y);
       }
     }
@@ -6018,6 +6036,9 @@ static void game_commit_new_campaign(ColonizeGameState* game) {
   game->game_autumn = 0;
   game->turn_number = 0;
   europe_reset_campaign_nation(&game->europe, game->human_nation);
+  if (game->names_ok) {
+    europe_set_nation(&game->europe, game->human_nation, &game->names);
+  }
   /* Wipe live colonies but restore @BUILDING / COLONY.TXT so founding can grant starters. */
   colonies_init(&game->colonies);
   game->colonies_ok = false;
@@ -7665,6 +7686,10 @@ static bool game_europe_drag_drop(ColonizeGameState* game, int mx, int my) {
       if (hit.kind == EUROPE_HIT_HARBOR_SHIP && hit.index >= 0) {
         hidx = hit.index;
         eu->selected_harbor = hidx;
+      }
+      if (hidx < 0 && eu->harbor_ships > 0) {
+        hidx = 0;
+        eu->selected_harbor = 0;
       }
       if (hidx >= 0) {
         europe_buy_cargo(eu, hidx, drag->index, drag->amount > 0 ? drag->amount : 100);

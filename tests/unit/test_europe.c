@@ -431,6 +431,27 @@ int main(void) {
       europe_free(&eu);
       return 1;
     }
+    /* 3px gap between 9×12 interiors is still a drop target (full pitch). */
+    hit = europe_hit_test(&eu, EUROPE_HOLD_X + EUROPE_HOLD_W + 1, EUROPE_HOLD_Y + 2);
+    if (hit.kind != EUROPE_HIT_HOLD || hit.index != 0) {
+      fprintf(stderr, "hold gap hit expected 0 got kind=%d idx=%d\n", (int)hit.kind, hit.index);
+      europe_free(&eu);
+      return 1;
+    }
+    /* Holds stay hittable with no selected ship so market→hold drops land. */
+    {
+      const int saved_sel = eu.selected_harbor;
+      eu.selected_harbor = -1;
+      hit = europe_hit_test(&eu, EUROPE_HOLD_X + 2, EUROPE_HOLD_Y + 2);
+      eu.selected_harbor = saved_sel;
+      if (hit.kind != EUROPE_HIT_HOLD || hit.index != 0) {
+        fprintf(
+          stderr, "unselected hold hit expected 0 got kind=%d idx=%d\n", (int)hit.kind, hit.index
+        );
+        europe_free(&eu);
+        return 1;
+      }
+    }
     hit = europe_hit_test(&eu, EUROPE_EXIT_X + 2, EUROPE_EXIT_Y + 2);
     if (hit.kind != EUROPE_HIT_EXIT) {
       fprintf(stderr, "exit hit expected EXIT got kind=%d\n", (int)hit.kind);
@@ -1389,6 +1410,22 @@ int main(void) {
       return 1;
     }
     fprintf(stderr, "europe market phase2/3 pressure ok\n");
+  }
+
+  {
+    europe_set_nation(&eu, 3, NULL);
+    if (strcmp(eu.colony_region, "New Netherlands") != 0 ||
+        strcmp(eu.port_city, "Amsterdam") != 0 || strcmp(eu.nation_name, "Netherlands") != 0) {
+      fprintf(
+        stderr,
+        "Dutch names want New Netherlands/Amsterdam/Netherlands got '%s'/'%s'/'%s'\n",
+        eu.colony_region,
+        eu.port_city,
+        eu.nation_name
+      );
+      europe_free(&eu);
+      return 1;
+    }
   }
 
   europe_free(&eu);
