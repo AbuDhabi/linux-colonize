@@ -309,7 +309,7 @@ Convert profession 27). Missionary pulse remains a different path.
  `gold_amount<=0` (caller-known amount still wins). AI live path verified via
  `units_resolve_land_combat` + turn_refresh fallout context (smoke). rich_capital
  (-0xcc) ← `ColonizeCol1TribeState.capital` (Done). KINGGALLEON2 / non-Cortes
- treasure chrome **PARKED**. On destroy, `nation.villages_burned++` (col1_save /
+ treasure chrome **Done** 2026-08-27 (`FUN_5fef_1908`). On destroy, `nation.villages_burned++` (col1_save /
  reports villages_penalty). Thin Brave escort via `units_follow_unit` (raid-gate
  goto preference) and @RAIDBURN `colonies_destroy_building` + building-name
  status: **Done** thin.
@@ -325,7 +325,7 @@ when FF + peace.
 `g_units_ff_col1` (was always NULL). Privateer *3/2 when nation owns Drake
 (PEDIA/wiki +50%).
 
-**de Soto LCR:** **Done** thin — `units_resolve_lcr_rumour` clears rumour via
+**de Soto LCR:** **Done** — `units_resolve_lcr_rumour` clears rumour via
 `map_clear_rumour`; with FF 7 positive-only draw + extended sight. Full
 FUN_65dd_0004 case/redirect graph **Done 2026-08-27** (`units_lcr_roll_outcome`,
 `src/core/units.c`; static read only — see `docs/mysteries_catalog.md` 65dd entry

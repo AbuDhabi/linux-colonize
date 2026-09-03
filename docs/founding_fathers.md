@@ -35,7 +35,7 @@ comment naming why.
 | 0 | Adam Smith | "Allows factory level buildings... Factories allow the production of 1 and 1/2 units of manufactured goods for each unit of raw materials." | `FUN_4345_0342` apply; factory-tier math `FUN_15eb_1d4c` (`manufacturing_worker_calc_1d4c.md`) | Gate: `ColoniesBuildableOpts.has_adam_smith` (`colony.h`), set from `game_nation_has_ff(...,0)` (`game_loop.c` `game_colony_buildable_opts`) and `ai_euro.c` (3 call sites: 2118, 2429, 2603). Throughput: `colony_prod_manufacturing_output` (`colony_production.c` ~166, `out += out>>1` when `tier==FACTORY`) — factory tier is itself unreachable without the build gate, so the ×1.5 is correctly conditioned on ownership. | `test_founding_fathers.c` ~154 (elect, no gold invent); `test_ai_euro_expand.c` 16238/16963/17930/18040/18157/18272 (AI factory-build gating) | **Done** — both build-gate and the 1.5× throughput are wired, not just the gate. (P9.2's "verify wired in production, not just build gating" is resolved — confirmed done, this doc closes that question.) |
 | 1 | Jakob Fugger | "When Fugger joins the Congress, all boycotts currently in effect are forgiven, without back taxes." | `FUN_4345_0342` apply | `founding_fathers.c` `apply_effect` case `FF_JAKOB_FUGGER`: `nat->boycott_bitmap = 0` + clears `col1->head.unknown46[2]` (king boycott-refuse byte) for the human. Elect-only — no ongoing gate needed (a *future* boycott after Fugger owned still boycotts normally; DOS doesn't grant immunity). | `test_founding_fathers.c` ~173-190, ~873-882 (AI elect path) | **Done (elect-only)** |
 | 2 | Peter Minuit | "Once Peter Minuit joins the Continental Congress, the Indians no longer demand payment for their land." | `FUN_4cc6_07c2` (land-cost formula), FF index 2 zero-cost branch | `colony.c` ~533 `colonies_indian_land_purchase_gold`/land-purchase cost path: `founding_fathers_nation_has(col1, nation_id, FF_PETER_MINUIT)` → return 0. Ongoing gate (correct — applies to every future purchase, not just elect-time). | `test_founding_fathers.c` ~1478-1543; `test_ai_euro_expand.c` ~13170 | **Done** |
-| 3 | Peter Stuyvesant | "Allows construction of the Custom House... which can streamline trade with Europe and allows European trade during the Revolution." | `FUN_4345_0342` apply (gate); `FUN_364b_0688`/`FUN_364b_0636` (Custom House EOT auto-sell + per-cargo denylist) | Gate: `ColoniesBuildableOpts.has_peter_stuyvesant` (`colony.h`), set from `game_nation_has_ff(...,3)` (`game_loop.c`) and `ai_euro.c` 1536/1547. Auto-sell: `europe_custom_house_autosell` (turn.c, thin structural per code comments — stock>99 leave 50 + denylist). Per-cargo UI chrome still PARK (P4.4 / P11). | `test_ai_euro_expand.c` ~15215-15283 (AI Custom-House prefer) | **Done** structural gate + autosell; per-cargo UI **PARK** (tracked P4.4, not this track) |
+| 3 | Peter Stuyvesant | "Allows construction of the Custom House... which can streamline trade with Europe and allows European trade during the Revolution." | `FUN_4345_0342` apply (gate); `FUN_364b_0688`/`FUN_364b_0636` (Custom House EOT auto-sell + per-cargo denylist) | Gate: `ColoniesBuildableOpts.has_peter_stuyvesant` (`colony.h`), set from `game_nation_has_ff(...,3)` (`game_loop.c`) and `ai_euro.c` 1536/1547. Auto-sell: `europe_custom_house_autosell` (turn.c — stock>99 leave 50 + denylist). Per-cargo checklist: `colony_screen_open_custom_house` / `colonies_toggle_custom_house_cargo` (click the building). | `test_ai_euro_expand.c` ~15215-15283 (AI Custom-House prefer) | **Done** — gate + autosell + per-cargo toggle UI |
 | 4 | Jan de Witt | "Trade with foreign colonies is allowed. In addition, your Foreign Affairs report becomes more revealing." | `FUN_4345_0342` apply (gate) | `founding_fathers_de_witt_allows_foreign_colony_trade` → `colonies_de_witt_transfer_*` (cargo transfer) + `ai_euro.c` wagon/ship trade-act gate; FA detail **Done 2026-08-31**: `reports_foreign_build_rows` gates on `nation[viewer].founding_fathers` bit 4 (or `head.show_entire_map`) and adds the six-cell Colonies / Average Colony / Population / Military Power / Naval Power / Merchant Marine grid to every block — DOS `FUN_3f41_2548` reveal block, formulas in [reports.md](reports.md) F8. | `test_founding_fathers.c` ~1786-1831 (both direct gate scenarios); `test_ai_euro_expand.c` ~2954-2956 | **Done** |
 
 ## Exploration
@@ -55,8 +55,8 @@ comment naming why.
 | 10 | Hernan Cortes | "Conquered native settlements always yield treasure, in greater abundance, and the king's galleons transport the treasure free of charge." | `FUN_4345_0342` apply (gate); `FUN_5fef_31ea` (post-win Indian settlement fallout: treasure spawn) | `founding_fathers_cortes_guarantees_conquest_treasure` + `units_cortes_conquest_treasure_gold` (`FUN_5fef_31ea` peel) + `units_spawn_treasure_train`, wired from `units_resolve_land_combat_ff` via fallout context (`units_set_native_fallout_context`). Free transport: `founding_fathers_cortes_free_king_galleon` → `units_cortes_cash_coastal_treasures` (tax-share-only `@KINGGALLEON3` path). Non-Cortes `@KINGGALLEON2` share: resolved 2026-08-27 — `FUN_5fef_1908` (`units_king_galleon_offer_coastal_treasures`, share `max((difficulty+10)*5, 2*tax)` cap 90), no longer PARK. | `test_founding_fathers.c` ~1732-1734, ~1991-1993; `test_ai_euro_expand.c` ~9935-9937; `test_units.c` ~2707-2709 | **Done** for conquest-treasure guarantee + free transport; `KINGGALLEON2` non-Cortes share also **Done** (P7.4, 2026-08-27) |
 | 11 | George Washington | "Every non-veteran soldier or dragoon who wins a combat is automatically upgraded." | `FUN_4345_0342` apply (gate); promote-on-win in combat resolve | `units_washington_promote_on_win` (`units.c` ~1382), called unconditionally instead of the chance-based `units_chance_promote_on_win` (~1552) when owned — `if (has(WASHINGTON)) return 0;` short-circuits the RNG path so Washington's promote is *always*, not chance. Wired from `units_resolve_land_combat_ff` (AI/king path passes `g_units_ff_col1` set by `units_set_ff_col1`). | `test_founding_fathers.c` ~891-899 (ownership bit set alongside Drake/Revere) | **Done** |
 | 12 | Paul Revere | "When a colony with no standing soldiers is attacked, a colonist automatically takes up any stockpiled muskets in defense of the colony." | `FUN_4345_0342` apply (gate); auto-arm on attack | `founding_fathers_revere_should_auto_arm` (gate: no soldier defender + `muskets_stock >= UNITS_EQUIP_MUSKETS`) + `founding_fathers_revere_auto_arm` (eject first active colonist as Soldier). Wired from `units_try_move` when the attacker steps onto an empty foreign colony tile, FF col1 context set via `turn_refresh_moves_for_nation` → `units_set_ff_col1`. | `test_founding_fathers.c` ~891-899 | **Done** |
-| 13 | Francis Drake | "The combat strengths of all your privateers are increased by 50%." | `FUN_4345_0342` apply (gate); Privateer strength term | `combat_strength.c` ~171 (`local_4 += local_4>>1` when `combat_type_is_privateer` + owned) — this is the **live combat-strength** path. `units.c` ~1961 (`units_apply_drake_privateer_bonus`, `strength*3/2`) is a **second**, narrower helper gated the same way — confirm both are reached on the same code path or one is dead (see Open items). | `test_ai_euro_war.c` ~3046-3048; `test_founding_fathers.c` ~891-899 | **Done** (two call sites doing the same ×1.5 — worth a follow-up dedup pass, not a correctness bug) |
-| 14 | John Paul Jones | "A Frigate is added to your colonial navy, without cost." | `FUN_4345_0342` apply | `effect_jones_frigate` (`founding_fathers.c`): spawns Frigate (fallback Man-O-War if type missing) at nearest owned coastal water tile or an existing ship's location; nation-stamped. Elect-only, correct (one-shot grant). | `test_founding_fathers.c` ~413-423 (no-fallback-gold check), ~668-687 (deep spawn) | **Done (elect-only)** — player-nation only per port_plan P9.2 note (`effect_jones_frigate` runs for whichever nation elects, not player-restricted in code — see Open items) |
+| 13 | Francis Drake | "The combat strengths of all your privateers are increased by 50%." | `FUN_4345_0342` apply (gate); Privateer strength term | `combat_strength.c` ~171 (`local_4 += local_4>>1` when `combat_type_is_privateer` + owned) — live ship-to-ship engine. `units.c` `units_drake_scale_strength` is a **separate** coastal-fort-fire formula (bare type defense, no ×8/veteran) — same ×1.5 semantics, not a dedup candidate (open item 3). | `test_ai_euro_war.c` ~3046-3048; `test_founding_fathers.c` ~891-899 | **Done** |
+| 14 | John Paul Jones | "A Frigate is added to your colonial navy, without cost." | `FUN_4345_0342` apply | `effect_jones_frigate` (`founding_fathers.c`): spawns Frigate (fallback Man-O-War if type missing) at nearest owned coastal water tile or an existing ship's location; nation-stamped. Elect-only, correct (one-shot grant). DOS grants to whichever nation elects (open item 4) — not player-restricted. | `test_founding_fathers.c` ~413-423 (no-fallback-gold check), ~668-687 (deep spawn) | **Done (elect-only)** |
 
 ## Political
 
@@ -80,17 +80,17 @@ comment naming why.
 
 ---
 
-## Open items found while writing this table (not fixed — P9.1 is static RE + doc only)
+## Open items found while writing this table
 
-These are candidates for **P9.2** (a separate track) or a documentation
-follow-up; none were touched here.
+P9.2 closed 2026-08-28. Items below are resolved or parked elsewhere; none
+are open Father-effect work.
 
-1. **Magellan is wired in 3 places, not "turn.c only"** as port_plan.md's
-   P9 "Now" summary states: `founding_fathers.c` (elect one-shot bump),
+1. **Magellan is wired in 3 places, not "turn.c only"** as an early P9 draft
+   stated: `founding_fathers.c` (elect one-shot bump),
    `turn.c` `turn_refresh_moves_for_nation` (ongoing per-turn +1), **and**
    `col1_bridge.c` ~991 (Col1 save-load path re-derives ship `moves_left`
-   from raw `moves` with the same +1). All three are consistent with each
-   other; this is a doc-accuracy note, not a bug.
+   from raw `moves` with the same +1). All three are consistent; doc note,
+   not a bug.
 2. **Fixed 2026-08-26.** La Salle now re-sweeps every `founding_fathers_tick`
    while owned (added alongside the existing Las Casas re-tick), so future
    colonies and colonies growing into pop 3 later also get the free
@@ -121,17 +121,18 @@ follow-up; none were touched here.
    row 20. Same pass: de Soto's ongoing sight radius (`13f1_02f8`),
    Magellan's voyage roll (`48d3_0002`, plus a polarity bug in the
    immigrant-ship landfall) — rows 5 and 7.
-6. **Stuyvesant's Custom House per-cargo sell-configuration UI** is PARK
-   (P4.4) — auto-sell itself (stock>99→leave 50 + denylist) is wired.
+6. **Stuyvesant's Custom House per-cargo toggle** is **Done**
+   (`colony_screen_open_custom_house` / `colonies_toggle_custom_house_cargo`).
+   Auto-sell itself (stock>99→leave 50 + denylist) is wired. VGA chrome of
+   that checklist is D4 if it still looks off.
 
 ## Cross-check against port_plan.md P9's own claims
 
 - **Wired list** (Bolivar, Brebeuf, Brewster, Cortes, de Soto, de Witt,
   Drake, Franklin, Hudson, Jefferson, Paine, Penn, Pocahontas, Revere,
   Sepulveda, Washington, Las Casas) — **verified accurate** against code;
-  all 17 have a real gate + effect site as tabulated above (de Soto and
-  Brewster are correctly "wired" but thin/partial, not fully DOS-complete
-  — see their rows).
+  all 17 have a real gate + effect site as tabulated above (de Soto sight +
+  LCR and Brewster pick-among-pool are **Done**, 2026-08-28 — see their rows).
 - **"Not found outside core files" list** (Fugger, Coronado, La Salle,
   Magellan (turn.c only), Jones (ai_ only)) — **partially confirmed,
   partially corrected**:

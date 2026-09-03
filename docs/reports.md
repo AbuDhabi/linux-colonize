@@ -16,51 +16,23 @@ the `FUN_291f_03xx` thunk table below).
 
 ## Current-state note
 
-`port_plan.md`'s P2 intro text (reports render as "flat text lines"; two
-reports have an unwired click-to-zoom) does not match this tree. All nine
-F2-F10 plates already have golden-derived pixel layouts, real
-`REPORT<N>.PIK` backgrounds, correct fonts/palettes, and a matching golden
-PNG in `original_saves/report-screen-goldens/` (religious.png,
-continental_p1/p2.png, labor.png/labor_detail.png, economic_p1/p2.png,
-colony_p1/p2.png, naval.png, foreign.png, indian.png, score.png).
+All nine F2–F10 plates have golden-derived pixel layouts, real `REPORT<N>.PIK`
+backgrounds, and a matching golden PNG in `original_saves/report-screen-goldens/`.
 `report_screens.md` has dedicated write-ups for F2/F3/F6/F7/F8/F9/F10; F4/F5
 carry the same golden-measured constants in code without a prose section.
-`docs/assets.md` line ~329 ("only F2/F3 done, rest placeholder") is also out
-of date for the same reason.
+P2.12 user-passed 2026-09-03.
 
 Only one click-to-zoom exists anywhere in the DOS decompile: Labor (F4)'s
 profession grid to its own per-profession detail page
-(`FUN_3f41_10d8` -> `FUN_3f41_0d3e`, confirmed by the catalog's "click->0d3e"
-note). Grepping `reports.c` for `mouse|click|hit` turns up only Labor's hit
-test. There is no DOS mechanic for clicking a report row to jump to the
-colony/map screen or center a unit — Colony/Naval/Foreign/Economic/Indian
-are read-only paginated tables in the decompile.
+(`FUN_3f41_10d8` -> `FUN_3f41_0d3e`). There is no DOS mechanic for clicking a
+report row to jump to the colony/map screen.
 
-Open gaps (narrowed 2026-08-28): every column header / body word that has a
-`LABELS.TXT` `@MISC` line now resolves live (`reports_misc_word` /
-`reports_misc_display_word`, same fallback shape as the titles) — Congress
-header/sentiment/Expeditionary Force/Founding Fathers lines, Labor's zoom
-hint and Off/On Mapboard/In Colonies breakdown, Foreign's "Rebels"/"Tories",
-Indian's "Muskets" (NAMES.TXT `@CARGO`), Score's Gold/Citizens/Continental
-Congress/Rebel Sentiment/Total Score, and the shared OK button. Still
-hardcoded, each with no shipped string: "Villages" (Indian), "(no Col1 save
-loaded)"/"No tribes contacted yet." (port-only states), Hall of Fame's
-"Nation" + Esc hint. **Real bug fixed the same day:** `ColonizeMsgSection`
-capped every section at 64 lines (`COLONIZE_MSG_MAX_LINES`), while `@MISC`
-is 223 lines — every `@MISC` index ≥ 64 (#101/#102 War/Peace, #190,
-#192–#198 HoF, #203/#204 Bid/Ask, #206–#209 Economic/Colony page
-subtitles) had silently been taking the static fallback since it was
-"fixed"; the fallback text happened to match, so no golden moved. Lines are
-now heap-grown per section (`assets.c`). **Screen titles were the first
-strings fixed, 2026-08-26**: `reports_title` now resolves live from
-`LABELS.TXT` `@MISC` (all 9 titles are real shipped strings there — an
-earlier pass's "not shipped as text anywhere" conclusion was a spelling
-mismatch in its own search, not a real absence; see `port_plan.md` P2.2).
-Hall of Fame has no
-golden screenshot at all, unlike every F2-F10 report, so its layout is
-unconfirmed against DOS. Congress page 2's FF portrait slot table has only
-10 of 25 positions confirmed. F9's headband-portrait variant selection
-(ICONS.SS #113-117) is unidentified, always renders #113.
+Open gaps: leftover hardcoded English with no shipped string ("Villages" on
+F9, port-only empty states, HoF "Nation" + Esc hint). Hall of Fame has no
+golden. Congress page 2 draws all 25 FF portraits from CC-xx.SS sprite
+anchors (the old 10/25 slot table is gone — bugs.md Revere/Drake). F9's
+headband variant (ICONS.SS #113-117) is unidentified, always renders #113.
+Bell-bar glyph is fatter than DOS (10×12 `ICONS.SS` #62 vs a 2×7 mark).
 
 ## Shared chrome (every F2-F9 report)
 
@@ -121,8 +93,8 @@ unconfirmed against DOS. Congress page 2's FF portrait slot table has only
   expeditionary-force 4-box natural tally (y=102, ~2.2px/unit), 4-column FF
   name grid (x=8, step=78; `FUN_3f41_0ae6` is the Ghidra-split tail of this
   list). Page 2: full-bleed FF group portrait composite, no text.
-- Ordering: fixed bells -> sentiment -> force -> FF list; page 2 portrait
-  positions (`k_ff_portrait_slots[]`) only 10/25 confirmed.
+- Ordering: fixed bells -> sentiment -> force -> FF list; page 2 portraits
+  paint from CC-xx.SS sprite anchors in `k_ff_portrait_draw_order[]` (all 25).
 - Bells bar icon count (2026-08-30): the bar's `amount` is a raw four-digit
   pool, not a unit count, so it is **not** the icon count — spreading all of
   them filled the bar solid black. `reports_draw_icon_bar` takes a

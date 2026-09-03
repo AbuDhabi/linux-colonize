@@ -40,20 +40,16 @@ D1–D6). Music and `COLDIG.BIN` SFX were deferred at the time of writing but
 have since been largely closed — see "Audio (2026-08-27)" below. The phase
 table below is kept for archaeology; the P-tracks are the working order.
 
+Playability tracks **P1–P11 closed 2026-09-03** ([port_plan.md](port_plan.md)).
 The port is strong on **shell, map art, navigation, reports / pedia, Col1
-save/load, basic units / naval passengers, founding a colony, and Europe
-buy/sell/recruit/hire**. Structural Indian contact (including player dialogs),
-Euro/Indian diplomacy, king/REF (audience/confirm/merc), FF election, trade
-routes (Create/Edit/Begin), and early Euro AI (seed-100 T2 + thin expand/war)
-are in (Sepulveda/Cortes/de Witt effects **Done**). The two mid-planner
-blockers this paragraph used to name closed on 2026-08-27: the `20e6` land
-arms are structurally ported (`ai_port_plan.md` T1.18) and `5d04` is wired
-live with its hire-ladder tail callees made real (T3.1). Next playability work
-is production / combat depth and endgame polish — not waiting on missing
-combat/capture prerequisites. (KINGGALLEON2 closed 2026-08-27 and the
-`COLDIG` cue wiring closed 2026-08-29; both used to be named here.) VGA
-dialog chrome and full 1:1 AI bodies remain later; Congress UI is now
-**Done** (2026-08-25, see Phase 4).
+save/load, units / naval passengers, founding a colony, Europe
+buy/sell/recruit/hire/equip, rumours/treasure, Indian contact, king/REF, FF
+election (all 25 Fathers), and trade routes**. Euro AI is past the structural
+stage: `20e6` land arms (T1.18) and `5d04` (T3.1) landed 2026-08-27;
+KINGGALLEON2 and `COLDIG` cue wiring closed the same week. Congress UI is
+**Done** (2026-08-25). Remaining work is `bugs.md` nits, production / combat
+depth on Partial rows, and deferred D1–D5 (1:1 AI, seed determinism,
+pixel-exact dialog chrome, SC-55 timbre).
 Snapshot source: [manual_gap.md](manual_gap.md) takeaway.
 
 **Maintained (not blocking):** Col1 save RE P0–P6 is **Done**
@@ -93,7 +89,7 @@ Both are owned by [assets.md](assets.md) "Music / sound".
 | **2 Contact & conflict** | Partial | Land/naval combat + capture + Indian meet/trade/raid usable for a human game without deep PARK blockers |
 | **3 Mid-game AI** | Partial / active | Euro mid-planner (`5d04` / land `20e6`) + Indian large bodies advance; `golden_ai_joint` **PARKED / DISABLED** 2026-08-19 — no chance of staying green before AI transcription is complete, see ai_transcription.md R0 |
 | **4 Independence & endgame** | Partial | WoI bell→intervention + Europe closed post-declare **Done** (2026-08-22); FF weighted pick **Done**; REF/WoI win/lose latches **Done** thin; all 25 Fathers wired (2026-08-28); KINGGALLEON2 / 65dd Done |
-| **5 Fidelity & polish** | Later | VGA dialog chrome, VIEW modes, pixel layout, T3 AI goldens, remaining PARKED deep bodies (COLDIG SFX moved out — playback wired 2026-08-27, remaining push sites tracked in port_plan.md P3.7) |
+| **5 Fidelity & polish** | Later | VGA dialog chrome, pixel layout, T3 AI goldens, remaining PARKED deep bodies (`2820` haggle, FA `3f41`). VIEW modes and COLDIG SFX are **Done** (see Phase 0 / assets.md) |
 
 ```mermaid
 flowchart LR
@@ -205,12 +201,12 @@ regression gate again.
 
 ### 4 — Independence & endgame (Partial)
 
-Finish a campaign: FF leftovers, king/REF, win/lose/retire.
+Finish a campaign: king/REF depth, win/lose/retire polish.
 
-**Now (Phase 5, 2026-08-22):**
+**Closed in this phase:**
 
 - **KINGGALLEON2** — **Done** (2026-08-27: `FUN_5fef_1908`, popup ids are DS tag addresses)
-- **10f0** — landing scorer, per-call caps, Veteran `0x15` — **Done** Phase 5; foreign MoW ship **PARK**
+- **10f0** — landing scorer, per-call caps, Veteran `0x15` — **Done** Phase 5; foreign MoW ship **Done** 2026-08-28 (P5.5)
 - **0982 REF wave** — **Done** (2026-08-28 full port: pool gate/regrow, exhaust, 060a need, weakest-colony pick, 0x5333 cap, 0512 seizure, direct landing); `golden_woi_ref01` capture t3 / all lost t10
 - **65dd LCR** — **Done** (2026-08-27 full static port, `units_lcr_roll_outcome`)
 - **FF leftovers** — **Done** (2026-08-28): de Soto sight radius (`13f1_02f8`), Magellan voyage roll (`48d3_0002`, replaces invented 2/4-turn crossings), Brewster pick-among-pool (`4884(0,1)`); no Father PARKed
@@ -222,7 +218,7 @@ Finish a campaign: FF leftovers, king/REF, win/lose/retire.
 - Century-weighted FF debate pick (`4345_06d2` / `015a`) — **Done** (2026-08-22)
 - `rival_nation_slot_1/2` + slot_2 intervene — **Done** (Phase 4)
 - Decile SoL notify — **Done** thin
-- Congress VGA-identical chrome — **Done** (2026-08-25): both pages match golden screenshots pixel-for-pixel (title/OK chrome, bells + rebel/tory + expeditionary-force bars, 4-col FF list, page-2 group portrait). Religious (F2) done the same way earlier. See [report_screens.md](report_screens.md) for the workflow — Labor/Economic/Colony/Naval/Foreign/Indian (F4–F9) still need the same treatment.
+- Congress VGA-identical chrome — **Done** (2026-08-25): both pages match golden screenshots pixel-for-pixel (title/OK chrome, bells + rebel/tory + expeditionary-force bars, 4-col FF list, page-2 group portrait from CC-xx.SS anchors). All nine F2–F10 plates have golden-derived layouts; leftover is a fatter-than-DOS bell glyph, F9 headband always #113, HoF has no golden. See [reports.md](reports.md).
 
 ### 5 — Fidelity & polish (Later)
 
@@ -231,14 +227,13 @@ Do not prioritize over gameplay/determinism.
 **Parked until later:**
 
 - VGA-identical dialog / TRADE / FA / king letter chrome
-- Digital SFX (`COLDIG.BIN`) — **not parked, Done 2026-08-29**: playback wired
-  2026-08-27 and every reachable push site wired by P3.2 / P3.7 (raid loot
-  outcomes, naval win/sink, wagon move, tax raise, the `5fef_1b0e` unit-class
-  variants and the `0x8020`/`0x8024` chord stings all landed). Only the Retire
-  tune's coin tier remains — see [assets.md](assets.md) "COLDIG.BIN"
-- Pixel-exact layout and style
-- Blanket T3 AI goldens and remaining deep PARKED bodies (full `2820`,
-  `4528`'s VGA meet chrome, letter cinematic, hang-dump RE)
+- Pixel-exact layout and style (VIEW In/Out/Hidden Terrain are **Done** /
+  Done thin — not in this bucket)
+- Digital SFX leftover misfires (playback + every reachable push site
+  **Done** 2026-08-29; Retire coin-tier PARK — [assets.md](assets.md))
+- Blanket T3 AI goldens and remaining deep PARKED bodies (full `2820` haggle,
+  `4528` VGA meet chrome, hang-dump RE). Signing cinematic **Done**
+  2026-08-30 (`declaration.c`, DECOIND.PIK — `DECLARAT.PIK` is unused)
 
 ---
 
@@ -258,7 +253,7 @@ Do not prioritize over gameplay/determinism.
 | Acceptance order / fidelity bar | [project_goals.md](project_goals.md) |
 | Move-enter authority | [move_enter.md](move_enter.md) |
 | Combat mechanics | [combat.md](combat.md) |
-| Report screen (F2–F10 + HoF) DOS FUN map / layout | [reports.md](reports.md) (owner doc — pending creation, see port_plan.md P2.1), [report_screens.md](report_screens.md) (porting how-to) |
+| Report screen (F2–F10 + HoF) DOS FUN map / layout | [reports.md](reports.md) (owner), [report_screens.md](report_screens.md) (porting how-to) |
 | EOT / between-player turns | [turn_between_players.md](turn_between_players.md) |
 | Decomp / data navigation | [original_index.md](original_index.md) |
 

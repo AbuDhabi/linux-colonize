@@ -329,7 +329,13 @@ Open from **REPORTS** on the map menu bar, or press **F2–F10**. Esc (or Enter,
 
 Content uses `ColonizeCol1Save` when a campaign is loaded (crosses / founding fathers / tribes / trade ledger / rival strength), with runtime colony / unit / Europe pools as fallback. **F10** uses the manual score schedule (citizen quality, congress, gold/1000, rebel sentiment, village-burn penalty, independence multipliers when declare/achieve are tracked). **F3 Continental Congress** is two pages: page 1 (bells progress bar toward the next Founding Father, rebel/tory split, expeditionary force, FF name list) advances to page 2 (full-bleed Founding Father group portrait, no chrome) on Esc/Enter/click/OK, and page 2 itself closes on any click.
 
-All nine F2-F10 report plates are done to golden-screenshot fidelity (confirmed 2026-08-26 by [reports.md](reports.md)'s RE pass — a matching golden PNG exists for each in `original_saves/report-screen-goldens/`; this line's earlier "only F2/F3 done, rest placeholder" claim was stale). See **[report_screens.md](report_screens.md)** before touching any of them — it documents the golden-comparison workflow, the `render_report` dev tool, and several pitfalls (font choice, three distinct progress-bar shapes, a couple of misleading save-format fields) that cost real time on the first two. Remaining gaps are narrow: titles/column headers are hardcoded English (not `LABELS.TXT`-driven), Congress page 2's FF portrait slot table has only 10/25 positions confirmed, F9's headband-portrait variant always renders #113, and Hall of Fame has no golden at all — see [reports.md](reports.md) "Current-state note".
+All nine F2-F10 report plates are done to golden-screenshot fidelity (confirmed
+2026-08-26; P2.12 user-passed 2026-09-03). See **[report_screens.md](report_screens.md)**
+before touching any of them. Remaining gaps: a few hardcoded English strings
+with no shipped `LABELS.TXT` line, F9 headband always #113, Hall of Fame has
+no golden, Congress page-2 portraits all 25 draw from CC-xx.SS anchors (the
+old 10/25 slot table is gone). See [reports.md](reports.md) "Current-state
+note".
 
 ### Colonizopedia
 
@@ -355,7 +361,9 @@ The pull-down has a horizontal green rule between Terrain Types and Colonist Ski
 
 Press **E** from the map to open the European Status screen (`EUROPE.PIK`). Esc or E returns to the map (closes open menus first). Visual layout reference: [`original_screenshots/europe/`](../original_screenshots/europe/). Harbor / Expected / Bound ships and dock immigrants draw orders/allegiance chrome (`unit_chrome.c`) behind their `ICONS.SS` sprites.
 
-Transit (manual 1–4 turns; port interim **east 2 / west 4**, −1 if ship moves ≥6 — **Unverified vs DOS**):
+Transit (`europe_voyage_turns_roll`, DOS `FUN_48d3_0002`): **1 turn**, or **2**
+when `RNG(1,100)>89 && ships>2 && !Magellan` — both directions. The old
+invented east-2 / west-4 table is gone (P9.2 / bugs.md 2026-08-31).
 
 - **H** / Return to Europe on high seas → **Expected Soon** (not instant dock); docks when turns elapse (auto-opens Europe).
 - New dock immigrants (crosses threshold or immigration pressure) show `@UNREST` and do **not** auto-open Europe — open with **E** when ready.

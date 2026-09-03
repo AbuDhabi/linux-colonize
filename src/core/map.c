@@ -1856,9 +1856,9 @@ int map_move_cost_at(const ColonizeWorldMap* map, int x, int y) {
     return 1;
   }
   /*
-   * NAMES.TXT movement scale: terr_cost[class] (not DOS *3). Dest road/river
-   * still halves for single-tile queries. Brave keeps table*3 (ai_dos_move_spent).
-   * PARK: unit MP *3 scale.
+   * NAMES.TXT movement scale: terr_cost[class] (not thirds). Dest road/river
+   * still halves for single-tile queries. Live unit moves use
+   * map_move_spent_thirds (terr_cost*3). Brave keeps table*3 (ai_dos_move_spent).
    */
   int spent = map_dos_terr_cost_byte(map_dos_terr_class_at(map, x, y));
   if (spent > 100) {
@@ -1877,10 +1877,10 @@ int map_move_cost_at(const ColonizeWorldMap* map, int x, int y) {
 }
 
 /*
- * DOS FUN_465b cost head (NAMES MP scale): terr_cost[class(dest)];
+ * DOS FUN_465b cost head in thirds: terr_cost[class(dest)]*3;
  *   both FA road bits → 1; both river + cardinal axis → 1;
- *   else dest road/river halves (Linux pathfinding / prior goldens).
- * Cite: move_spent.c; map_dos_terr_cost_byte. Full DOS *3 PARKED until MP scale.
+ *   tribe/settlement dest caps at 3. Non-land `to` → 3.
+ * Cite: move_spent.c; map_dos_terr_cost_byte.
  */
 int map_move_spent_thirds(
   const ColonizeWorldMap* map,

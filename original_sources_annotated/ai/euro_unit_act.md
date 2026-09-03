@@ -1721,15 +1721,19 @@ skip naval war-hunt yank. **Treasure → Europe gold (unparked):** when Treasure
 `europe_cash_treasure` with COL1 `cargo_hold[0..1]` LE16 mirrored in
 `hold_goods_amount[0..1]`; Treasure despawned. Value 0/unset → PARK (no invented
 default). AI may also tick due Expected→Harbor (`cargo_treasure_gold`). Cite:
-Colonization.pdf Treasure Trains; GAME.TXT `@LOOTCASH`. **PARK:** KINGGALLEON2
-non-Cortes royal-galleon extra share (see `europe_cash_treasure`).
+Colonization.pdf Treasure Trains; GAME.TXT `@LOOTCASH`. **KINGGALLEON2**
+non-Cortes royal-galleon share is **Done** 2026-08-27 (`FUN_5fef_1908` —
+see the 2026-08-27 note below; do not treat the next PARK paragraph as current).
 
 **Cortes KINGGALLEON3 coastal cash (unparked):** with FF Cortes, Treasure on an
 own coastal colony cashes via `europe_cash_treasure` (tax = Crown share) without
 boarding a ship (`ai_euro_try_cortes_king_galleon_cash`). Cite: fandom Hernan
 Cortes; GAME.TXT `@KINGGALLEON3`.
 
-**2026-08-14 investigation note (KINGGALLEON2, still correctly PARKED):**
+**2026-08-14 investigation note (KINGGALLEON2 — superseded 2026-08-27):**
+This PARK is historical. The function is `FUN_5fef_1908`; see the 2026-08-27
+note at the end of this file. Left here so the false `48d3_06ba` lead is not
+re-tried.
 read the two GAME.TXT tags side by side — `@KINGGALLEON3` (Cortes) says
 "for no extra charge... taken a percentage equal to the current tax rate";
 `@KINGGALLEON2` (non-Cortes) drops the "no extra charge" line and just
@@ -2399,13 +2403,16 @@ hunt also prefers Treasure within MD slack ≤3 vs nearer non-Treasure, then low
 **PARK:** deep `FUN_521d_20e6` combat scoring (terrain/artillery tables,
 multi-hex threat weights) — **section-mapped** in
 [`move_scoring_land.md`](move_scoring_land.md) /
-[`move_scoring_ship.md`](move_scoring_ship.md); port still OPEN unpark #4.
+[`move_scoring_ship.md`](move_scoring_ship.md); land `20e6` structurally
+ported 2026-08-27 (`ai_port_plan.md` T1.18); remaining thin spots listed
+there. Deep −0x6790 still PARK.
 Thin adjacent-toughness pick includes fortified ×2,
 colony Stockade/Fort/Fortress %, and FUN_157e_004a vet/Drake +50% peels +
 2-step goto only.
 
 **Done:** Treasure → Europe gold via `europe_cash_treasure` (LE16 hold value;
-despawn; Expected→Harbor tick). **PARK:** value unset / KINGGALLEON2 extra share.
+despawn; Expected→Harbor tick). KINGGALLEON2 extra share **Done** 2026-08-27
+(`FUN_5fef_1908`). Unset treasure value still PARK (no invented default).
 
 ### 2g. Linux thin — ocean west-explore / east-Europe HS bias
 

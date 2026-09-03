@@ -394,19 +394,20 @@ Ordered pipeline recovered for the Linux port:
    `building_in_production` (Colony Space = free production + UI deltas;
    `README.TXT` “free turn”)
 4. **Nation ticks** — liberty bells + crosses; crosses ≥ needed → dock immigrant;
-   founding-father election via `founding_fathers_tick` (manual-aligned effects;
-   Sepulveda/Cortes/de Witt **Done**; KINGGALLEON2 leftover — see
+   founding-father election via `founding_fathers_tick` (all 25 Fathers
+   wired 2026-08-28; KINGGALLEON2 **Done** 2026-08-27 — see
    [ai_transcription.md](ai_transcription.md) unpark #3; de Soto LCR gate wired,
    full `FUN_65dd_0004` outcome table **ported 2026-08-27** (`units_lcr_roll_outcome`)
 5. **European AI** — EN→FR→SP→DU via `player.control` (0 human / 1 AI / 2 withdrawn);
    `ai_euro_nation_turn` (`src/core/ai.c` → `ai_euro.c`): reseed from VR_SEED timer word, tick AI crosses,
    `6d8e`-shaped ship/land passes; **T2 early path** (seed-100 TURN1→7 via `golden_ai_turns`;
    landfall coastal staging + `ai_euro_06ae_first_colony_from_landfall`).
-   Full-dispatch planner partial; deep land/ocean `20e6` still open — see [ai_transcription.md](ai_transcription.md).
+   Full-dispatch planner partial; land `20e6` structurally ported 2026-08-27
+   (`ai_port_plan.md` T1.18); deep −0x6790 remains — see [ai_transcription.md](ai_transcription.md).
 6. **Indians** — village growth (`FUN_4d56_152e`-style), mid-turn Brave pulse + residual
    overlays (t1 empty; ~50 on t2–t6); named init burns `ai_native_post_first_brave_burns`.
    (`FUN_4d56_1816` / quiet `20e6`); meet/trade/raids via `ai_contact_*` (structural;
-   deep `2820`/`4528` PARKED).
+   human `4528` `@ACTIONS` **Done** P8.8; deep `2820` haggle PARKED).
 7. **King** — partial structural (`ai_king_nation_turn`: tax / declare / REF / war; R6;
    audience/confirm/merc via `ai_popup`)
 8. **Refresh human MP** + select next unit with moves (“Continue turn.”)
@@ -423,10 +424,12 @@ villages (cap ~84). Human starter `nation_id` matches chosen power.
 **Parked (later):** deep Euro `20e6` / T3 planner (**mapped** —
 [`move_scoring_land.md`](../original_sources_annotated/ai/move_scoring_land.md) /
 [`move_scoring_ship.md`](../original_sources_annotated/ai/move_scoring_ship.md));
-deep Indian `2820`/`4528` + VGA meet chrome (**mapped** —
+deep Indian `2820` haggle + `4528` VGA meet chrome (**mapped** —
 [`indian_trade_2820.md`](../original_sources_annotated/ai/indian_trade_2820.md) /
-[`indian_settlement_4528.md`](../original_sources_annotated/ai/indian_settlement_4528.md));
-deep King/REF (`10f0` economy, letter cinematic, exact `0x5382`). Early-AI T2 gate is green
+[`indian_settlement_4528.md`](../original_sources_annotated/ai/indian_settlement_4528.md);
+human `4528` `@ACTIONS` **Done** P8.8);
+deep King/REF (`10f0` economy, exact `0x5382`; `160a` signing cinematic **Done**
+2026-08-30). Early-AI T2 gate is green
 (`test-saves-ai/TURN1`…`TURN7`). Roadmap: [ai_transcription.md](ai_transcription.md).
 Year-end `0442` UI: [`year_end_chrome.md`](../original_sources_annotated/turn/year_end_chrome.md).
 

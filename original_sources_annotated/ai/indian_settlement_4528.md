@@ -12,8 +12,10 @@ Loot outcomes (sibling path, not direct callees inside `4528`):
 [`indian_raid_outcomes.md`](indian_raid_outcomes.md) (`FUN_5fef_0f14` / `016c` /
 `0352` / `0ec0`).
 
-**Port status:** head warn CHOICE + ship abort + Linux raid/fallout arms
-**Done** thin; full body now recovered clean (see below) — VGA chrome still open.
+**Port status:** human `@ACTIONS` 9-way dispatch **Done** (P8.8, 2026-08-28);
+ship abort + Linux raid/fallout arms **Done** thin; full body recovered clean
+(see below) — VGA chrome still open. The old "warn CHOICE" is only the unmet
+fallback.
 
 ## 2026-08-27 — two retractions: `0x543f` polarity is `0`=human after all,
 ## and the tail switch IS a real 9-way action dispatch (417e's caller found)

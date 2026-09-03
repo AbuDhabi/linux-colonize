@@ -105,19 +105,12 @@ section from the user's feedback.
 
 ### P2 — Report screens (F1–F10 + Hall of Fame)
 
-**Now (corrected 2026-08-26 by P2.1's RE pass — see [docs/reports.md](reports.md)):**
-this paragraph was stale.
-[`reports.c`](../src/core/reports.c) already renders every F2–F10 report to
-golden-screenshot-derived DOS pixel layout (columns, icons, sprite chrome,
-paging) — a matching golden PNG exists for all nine in
-`original_saves/report-screen-goldens/`. Only Labor (F4) has a click-to-zoom
-in DOS at all, and it's wired (grid cell → that profession's detail page);
-no report jumps to the colony/map screen on click in DOS itself. The real
-remaining gap (narrowed 2026-08-26 by P2.2): report titles and every
-name table (FF/job/cargo/tribe/nation/level) now resolve live from
-`LABELS.TXT`/`NAMES.TXT`; column headers and body strings are still
-hardcoded English typed from the goldens (non-blocking after P2.12
-user-pass 2026-09-03).
+**Now (2026-08-29):** every F2–F10 report has golden-derived DOS pixel layout
+(`original_saves/report-screen-goldens/`). Labor (F4) click-to-zoom is wired;
+no report jumps to colony/map in DOS. Titles and name tables resolve live from
+`LABELS.TXT`/`NAMES.TXT`. P2.12 user-passed 2026-09-03; leftover hardcoded
+English (a few headers with no shipped string), F9 headband always #113, and
+HoF having no golden are polish — not a P2 gate.
 
 **Target:** each report matches the DOS screen in content, column layout
 and interaction (scroll, click-to-zoom to colony / unit where DOS does),
@@ -417,11 +410,11 @@ closed; leftover is some SFX still sounding off or missing — not a P3 gate.
 
 ### P4 — Player colony production, complete
 
-**Now:** economy loop runs end to end; expert bonuses, SoL/Tory modifier,
-spoilage, hidden-resource discovery, construction and manufacturing chain
-are in. Formula fidelity is the gap: manufacturing tier rates, class scale,
-Town Hall L2/L3 tile rings, school/college/university training, Custom
-House, horse breeding, food→colonist growth details.
+**Now (2026-09-03):** economy loop, manufacturing rates, Town Hall outer-tile
+opaque preserve, school/college/university, Custom House (autosell + per-cargo
+checklist), horse breeding, food→colonist growth, warehouse caps, construction,
+and preview-vs-tick goldens are in. P4.9 user-passed. Remaining mismatches go
+through [bugs.md](../bugs.md).
 
 - [x] **P4.1 [auto] — closed 2026-08-26, blocking premise stale + work
   already done.** Manufacturing tier rates + class scale against decomp
@@ -576,12 +569,11 @@ House, horse breeding, food→colonist growth details.
 
 ### P5 — War of Independence: declarable, fightable, winnable
 
-**Now:** declare (menu + auto) with SoL ≥ 50 gate, `@INDEPENDENCE` letter,
-Europe closed post-declare, bell pool → intervention, REF wave/landing
-scorer, merc offer, Continental Army muster, win/lose latches — all
-"structural" or "thin". Combat: land/naval engage, best defender, fort
-tiers, promote/demote/capture, plunder, coastal fort fire, Combat Analysis
-— playable bar Done. Gaps are depth and the REF's own campaign behavior.
+**Now (2026-08-28):** declare (menu + auto) with SoL ≥ 50 gate, `@INDEPENDENCE`
+letter, Europe closed post-declare, bell pool → intervention, `0982` REF wave
++ landing scorer, merc offer, Continental Army muster, win/lose latches, and
+foreign MoW spawn (P5.5) are in. Combat playable bar Done. Residual REF
+behavior is `4d56` crown unit-act (D1) and king's-reply chrome (P11 / D4).
 
 - [x] **P5.1 [auto] — closed 2026-08-28 (0982 faithful; 4d56 residue → D1).** REF campaign loop: turn-by-turn REF behavior after
   landing (target choice, siege, re-embark, reinforcement waves from
@@ -813,10 +805,11 @@ tiers, promote/demote/capture, plunder, coastal fort fire, Combat Analysis
 
 ### P6 — Player ↔ Europe trade, complete
 
-**Now:** sail/harbor/buy/sell/recruit/hire/train/purchase/equip Done;
-volume-price T0 (`FUN_38fd_0058` ±1 bids) Done thin; boycotts enforced on
-the Europe screen; tax audience Done; `@PRICEUP`/`@PRICEDOWN` are real
-OK popups (P6.1 / P11.2).
+**Now:** sail/harbor/buy/sell/recruit/hire/train/purchase/equip Done
+(Europe dock click is `@ARMOPTIONS`, not the old four-row invented menu);
+volume-price (`FUN_38fd_0058`) Done (`golden_market_prices01`); boycotts
+enforced on the Europe screen; tax audience Done; `@PRICEUP`/`@PRICEDOWN`
+are real OK popups (P6.1 / P11.2).
 
 - [x] **P6.1 [auto] — closed 2026-08-28** (every listed sub-item now
   DOS-exact or explained; see the two dated notes below). Price model to DOS: `price_group_state`, EOT
@@ -926,6 +919,10 @@ OK popups (P6.1 / P11.2).
   priced one. Dock-order menu (None/Don't board/Board next/Move to
   front) already matches DOS's real 4-option set (confirmed earlier this
   session, `manual_gap.md`). Nothing found needing a fix.
+  **Corrected later (bugs.md, 2026-08-31):** that 4-row dock menu was
+  invented. DOS `FUN_38fd_37xx` is GAME.TXT `@ARMOPTIONS` (12 rows) —
+  ported in `europe.c`. Colony-fence bless remains a separate free action.
+  P6.4's "DOS has no Europe dock equip UI" premise does not hold.
 - [x] **P6.5 [auto] — closed 2026-08-26, verified already correct.**
   Trade routes with Europe as an endpoint (`TRADE` editor already Done
   structural — verify Europe stops, wagon/ship auto-buy/sell amounts).
@@ -947,11 +944,10 @@ OK popups (P6.1 / P11.2).
 
 ### P7 — Rumours and treasure
 
-**Now:** `units_resolve_lcr_rumour` thin transcription of `FUN_65dd_0004`
-(case table documented, WoI case-1→2 redirect + case-5 latch Done, weight
-reroll loops PARK); treasure train spawn/tick/cash, Cortes conquest
-treasure, king's galleon transport with Cortes free, ransom on capture.
-KINGGALLEON2 (non-Cortes galleon share string) PARK.
+**Now (2026-08-28):** `units_resolve_lcr_rumour` is a full `FUN_65dd_0004`
+port (`units_lcr_roll_outcome`); treasure train spawn/tick/cash, Cortes
+conquest treasure, king's galleon (`@KINGGALLEON2`/`3` via `FUN_5fef_1908`)
+and WoI full-value cash are wired. P7.1–P7.5 all closed.
 
 - [x] **P7.1 [auto]** (2026-08-26) LCR outcome weights + reroll loops from
   `65dd` (difficulty, de Soto, unit type Scout vs other, already-explored
@@ -1060,9 +1056,10 @@ KINGGALLEON2 (non-Cortes galleon share string) PARK.
 
 ### P8 — Basic Indian interactions (teach, alarm, gifts, raids)
 
-**Now:** structural contact/meet/teach/gift/demand/convert/raid
-(`ai_contact.c`), alarm bookkeeping, encroachment, missions, Pocahontas.
-Deep `2820` (village trade/haggle) and `4528` (deep settlement battle) PARK.
+**Now (2026-08-28):** structural contact/meet/teach/gift/demand/convert/raid
+(`ai_contact.c`), alarm, encroachment, missions, Pocahontas. Human village
+meet is DOS `@ACTIONS` (`FUN_4d56_4528` human arm, P8.8). Deep `2820`
+haggle / hard-bargain stays PARK (D2); `4528` VGA meet chrome stays open.
 **Village trade is deferred (D2)** — do not open `2820`.
 
 - [x] **P8.1 [auto] — done 2026-08-28 (static).** Teach is now the DOS
@@ -1206,6 +1203,13 @@ Deep `2820` (village trade/haggle) and `4528` (deep settlement battle) PARK.
   the unmet fallback). `@ORDERS` "Live In Village" is this same action
   (immediate, not a persistent order). Thin: `FUN_4cc6_03f8`'s nearby-threat
   term in the heresy roll is 0; see the doc's "Thin spots".
+
+### P9 — Founding Fathers, complete
+
+**Now (2026-08-28):** all 25 Fathers wired; no Father PARK left. Custom House
+per-cargo checklist is in (`colony_screen_open_custom_house`). Franklin's FA
+chrome and VGA dialog polish live in D4.
+
 - [x] **P9.1 [auto]** Write a per-FF status table into a new
   `docs/founding_fathers.md` (effect, DOS FUN, port symbol, test) — it
   does not exist today; `fandom_col1994.md` is Tier-3 evidence only.
@@ -1269,8 +1273,8 @@ Deep `2820` (village trade/haggle) and `4528` (deep settlement battle) PARK.
   `units_brewster_apply_popup`; cancel keeps crosses (re-asks next turn).
   Also refreshed [founding_fathers.md](founding_fathers.md) rows 5/7/10/20
   (stale `65dd` + `KINGGALLEON2` PARKs). `ctest`: 50/50 active. **No
-  Father has a PARK left**; only P4.4's Custom-House per-cargo UI and
-  Franklin's FA chrome (P11) remain, both outside this track.
+  Father has a PARK left.** Franklin's FA chrome (D4) remains outside this
+  track. Custom House per-cargo toggle is in (`colony_screen_open_custom_house`).
 - [x] **P9.3 [auto] — closed 2026-08-26, already satisfied.** Verify each
   wired effect with a unit test if none exists (`test_founding_fathers.c`
   covers a subset). [founding_fathers.md](founding_fathers.md)'s P9.1
@@ -1293,8 +1297,7 @@ Deep `2820` (village trade/haggle) and `4528` (deep settlement battle) PARK.
   ~731) and `@FREEDOM` (~1289) are already wired. There is nothing further
   to port here; DOS has no per-effect one-liner asset for any Father.
 - **Deferred** in this track: effects that only matter for rival AI
-  behavior parity (D1) and KINGGALLEON2 string (P7.4 handles the
-  gameplay).
+  behavior parity (D1). KINGGALLEON2 gameplay is P7.4 (Done).
 
 ### P10 — Mapgen + DOS save interop: keep green
 
@@ -1452,9 +1455,9 @@ are real modals (P11.2 / P8.2 user-passed 2026-09-03).
 | D1 | Rival Europeans behaving like DOS (`5d04`/`20e6`/`−0x6790`, goldens) | [ai_port_plan.md](ai_port_plan.md) T1/T2/T3, `golden_ai_joint` | Rivals must not crash, must found/trade/fight *something*; that bar is already met |
 | D2 | Indian behavior 1:1 (`2820` trade/haggle, deep `4528`, `2154`) | [ai_port_plan.md](ai_port_plan.md), [indians.md](indians.md) | P8 thin outcome ports only |
 | D3 | Known-seed determinism with DOS | [seed100_brave.md](seed100_brave.md), T4.3 | None required for playability |
-| D4 | Pixel-perfect graphics / VGA-identical chrome (dialogs, TRADE/FA editors, Congress, king letter, `DECLARAT.PIK`, map digit colors) | old W5.1–W5.3, T5.x | Content + layout correct (P2, P11); frames may stay port-drawn |
+| D4 | Pixel-perfect graphics / VGA-identical chrome (dialogs, TRADE/FA editors, king letter). Congress F3 plates are **Done** to goldens; `DECLARAT.PIK` is unused leftover (signing uses DECOIND.PIK) | old W5.1–W5.3, T5.x | Content + layout correct (P2, P11); frames may stay port-drawn |
 | D5 | Fully faithful music (SC-55 timbre parity, per-driver quirks) | [assets.md](assets.md) | P3 "passable" bar |
-| ~~D6~~ | ~~Present-but-unused digital SFX (`COLDIG.BIN`)~~ | [assets.md](assets.md) | **Undeferred 2026-08-27** — the triggers were real all along (ids passed in `AX`). Playback is wired; leftover push sites are now P3.7 |
+| ~~D6~~ | ~~Present-but-unused digital SFX (`COLDIG.BIN`)~~ | [assets.md](assets.md) | **Undeferred and closed 2026-08-29** — P3.2 / P3.7 both `[x]`. Playback + every reachable push site wired; ids `0x4c`/`0x50`/`0x51`/`0x55`/`0x5c` have no DOS push site. Retire coin-tier stays PARK (difficulty.md) |
 
 Also parked with these: MAPEDIT catalog track (old W5.4), `VR_B465X` hang
 dump (T4.6, by policy). (`unknown13_pad`/old W4.4 closed 2026-08-27 — static.)
@@ -1926,8 +1929,10 @@ gameplay/determinism. Most rows need the user's visual-fidelity judgement.
     pitch; crosses: 8 icons at ~7.9px). **Still open (W5.3-shaped):** DOS's
     bell mark is a 2×7 glyph (a brown dot over a 1px grey stroke) that is
     *not* `ICONS.SS` #62 — no `ICONS.SS` sprite is ≤4px wide — so the port
-    still draws the full 10×12 bell and reads fatter than the golden; and
-    `k_ff_portrait_slots[]` still covers only 10 of 25 page-2 portraits.
+    still draws the full 10×12 bell and reads fatter than the golden.
+    Page-2 portraits: all 25 draw from CC-xx.SS sprite anchors
+    (`reports_render_congress_page2`); the old `k_ff_portrait_slots[]`
+    10/25 table is gone.
   - [x] **HoF year-end dialogs — already Done, row was stale.** The
     `FUN_41f2_14a8` retire chain (`@RETIRE` confirm → F10 → `0b70`
     exploits → `0f56` Hall of Fame → title) and the peacetime

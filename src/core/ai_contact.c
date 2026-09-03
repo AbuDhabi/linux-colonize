@@ -6477,7 +6477,9 @@ void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id) {
    * matrix that DOS reaches before settlement enter — nested 2aac…311e trade
    * helpers (dispatch / AI buy / hard-bargain / demand) and alarmed act pick
    * live there, not in this post-pulse path. Do not port 2820 body here.
-   * Full FUN_4d56_4528 (~3k) settlement body also PARKED (comment only).
+   * Human `4528` `@ACTIONS` arm is ported (P8.8). This pulse stays on the
+   * thin @RAID* / combat / 359c path; `4528` VGA meet chrome + deep mid-body
+   * remain PARKED.
    * Linux stays on thin @RAID* / combat / 359c + equal-dist mil/tools/silver
    * approach. Widgets Done structural (ai_popup); VGA PARKED. Mid-friction prefers non-mission
    * villages (below). Cite: indian_raid_outcomes.md §10; indian_contact.md

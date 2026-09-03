@@ -8,15 +8,19 @@ Version: **0.1-alpha**.
 
 ## Current state
 
-Strong on shell, map art, navigation, reports / pedia, Col1 save/load, units /
-naval passengers, founding a colony, and Europe buy/sell/recruit/hire.
-Structural Indian contact, diplomacy, king/REF, FF election and trade routes
-are in, and the Euro AI is past the structural stage — the `20e6` land planner
-and the `5d04` mid-planner both landed in August 2026. Music runs through a literal
-`GSOUND.COL` driver emulator, and `COLDIG.BIN` digital sound effects play
-(most push sites still to be wired). Next playability work is leftover FF
-KINGGALLEON2, production / combat depth, the remaining sound cues, and endgame
-polish. VGA dialog chrome and full 1:1 AI remain later.
+Playability tracks P1–P11 closed 2026-09-03. Strong on shell, map art,
+navigation, reports / pedia, Col1 save/load, units / naval passengers, founding
+a colony, Europe buy/sell/recruit/hire/equip, rumours/treasure (incl.
+KINGGALLEON2), structural Indian contact and diplomacy, king/REF, FF election
+(all 25 Fathers), and trade routes. Euro AI is past the structural stage
+(`20e6` land planner + `5d04` mid-planner, August 2026). Music is a literal
+`GSOUND.COL` driver emulator; `COLDIG.BIN` SFX are wired (leftover misfires
+are polish).
+
+Remaining work is incoming [bugs.md](bugs.md) nits, production / combat depth
+on the Partial rows in [manual_gap.md](docs/manual_gap.md), and the deferred
+tracks (1:1 rival/Indian AI, seed determinism, pixel-exact dialog chrome,
+SC-55 timbre).
 
 Living status:
 

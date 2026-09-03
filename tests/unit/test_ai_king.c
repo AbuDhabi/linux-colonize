@@ -22,8 +22,9 @@
  * bias (+ Artillery siege capital when fortified MD slack), congress
  * unknown46[5] on declare, WoI unknown46[0] only when SoL≥50,
  * Refuse→dump CHOICE→@TEAPARTY OK (thin 3dc8 stock dump), 2244 Decline
- * follow-up OK, second MoW only @diff≥2. PARK: 160a letter cinematic;
- * dump-goods CHOICE prompt invent English (picker + Europe bid>0 Done). */
+ * follow-up OK, second MoW only @diff≥2. 160a letter cinematic Done
+ * (declaration.c). PARK: dump-goods CHOICE prompt invent English
+ * (picker + Europe bid>0 Done). */
 #include "core/ai_king.h"
 #include "core/ai_diplo.h"
 #include "core/assets.h"
@@ -3201,7 +3202,7 @@ int main(void) {
      * Idle empty MoW coastal patrol (fandom REF man-o-war → ports):
      * cargo_count==0 → AI_SAIL toward water adjacent to human colony; step
      * toward coast. Redirects existing ship only — no invent spawn.
-     * Hold fill = ship capacity (cargo_ids); PARK: 160a letter cinematic.
+     * Hold fill = ship capacity (cargo_ids); 160a letter cinematic Done.
      */
     {
       ColonizeUnit* mow = units_get(&units, mow_id);
@@ -3782,8 +3783,8 @@ int main(void) {
      * Cont. capital MD slack (same geometry as REF idle hunters): founding
      * capital id0 at (5,5); nearer distant colony at (11,5); Cont. Army at
      * (9,5) → MD capital=4, MD distant=2; slack=2 → prefer capital over distant.
-     * Cont. Cav same beat. PARK: 160a letter cinematic; dump-goods price-weight
-     * + modal (ai_king_pick_dump_goods_cargo Done).
+     * Cont. Cav same beat. 160a letter cinematic Done. PARK: dump-goods
+     * price-weight + modal (ai_king_pick_dump_goods_cargo Done).
      */
     {
       colonies.colonies[0].nation_id = 0;
@@ -3873,8 +3874,8 @@ int main(void) {
    * REF capital MD hunt bias (fandom REF main-port pressure):
    * founding capital id0 at (5,5); nearer distant colony at (11,5); Regular at
    * (9,5) → MD capital=4, MD distant=2; slack=2 → prefer capital over distant.
-   * Clear human land units so colony bias is observable. PARK: 160a letter
-   * cinematic; extra boycott cargos beyond Sugar.
+   * Clear human land units so colony bias is observable. 160a letter
+   * cinematic Done. PARK: extra boycott cargos beyond Sugar.
    */
   {
     colonies.colonies[0].nation_id = 0;

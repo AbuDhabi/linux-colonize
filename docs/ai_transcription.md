@@ -395,8 +395,9 @@ series; do not skip prerequisite systems in [Prerequisites](#prerequisites).
 Structural Full T0/T1 slices unlocked six tracks that were still labeled
 **PARKED**. Deep line-by-line bodies, hang dumps, MAPEDIT, letter/MoW chrome,
 and VGA-identical dialog polish remain correctly **PARKED** (see R0 / R5).
-`COLDIG` left this list on 2026-08-27 — its SFX playback is wired and the
-leftover push sites are a `port_plan.md` P3.7 item, not an AI-queue one.
+`COLDIG` left this list on 2026-08-27 — its SFX playback is wired and every
+reachable push site closed as `port_plan.md` P3.2 / P3.7 (both `[x]`
+2026-08-29), not an AI-queue item.
 
 | # | Track | Status |
 |--:|-------|--------|
@@ -410,7 +411,7 @@ leftover push sites are a `port_plan.md` P3.7 item, not an AI-queue one.
 Playability mirror: [manual_gap.md](manual_gap.md). Thin maps under
 `original_sources_annotated/ai/` mark structural `ai_popup` work **Done** and
 reserve **PARKED** / **OPEN** for the still-deferred column (deep bodies, VGA,
-leftover FF KINGGALLEON2, deep `20e6`).
+`2820` haggle, `20e6` thin spots). KINGGALLEON2 is **Done**.
 
 ### R0 — Fidelity debt and doc hygiene (**partial**)
 
@@ -1040,21 +1041,23 @@ Status reflects the AI-port prerequisite work:
 | Land combat | **Partial** | T0 attack/defense (+ fortified ×2); AI-initiated via act/raids |
 | Colony capture | **Done** (T0) | `colonies_capture` — Euro owner swap; Indian capture abandons |
 | Naval combat | **Partial** (T0) | `units_resolve_naval_combat` |
-| Fog of war / `map.seen` | **Partial** | Dedicated plane; reveal on move; cheat Reveal; `.MP` fully seen |
+| Fog of war / `map.seen` | **Done** | Full DOS reveal/vis-bit/snapshot (2026-08-29); scenario `.MP` starts fogged; cheat Reveal |
 | AI coarse fog (`DS:0x9faa`) | **Partial** | Explore `(y>>2)+(x>>2)*18` + tribe `/5` dual index; Linux `s_ai_coarse_fog`; not player FoW |
 | Alarm / contact hooks | **Partial** (T0) | `ai_contact_*` meet/trade/missions/raids + adjacent friction |
 | AI colony economy + construction | **Ready** | `turn_run_colony_production` already ticks **all** active colonies |
 | Founding Fathers / liberty | **Partial** | Human+AI Euro elect; **manual-aligned effects** (no gold/crosses fiction); factory/Custom House gates; Magellan +1 sea MP; Fugger clears all boycotts; Minuit + Franklin + Brebeuf + Las Casas + Sepulveda convert-join (**Done** `units_try_native_settlement_fallout`) + Cortes coastal cash + de Witt **Done**; KINGGALLEON2 **Done** (2026-08-27); F3 Congress portrait grid **Done** structural |
 | King / tax / REF | **Partial structural** | `ai_king_nation_turn` — R6; audience / confirm / `2022` merc via `ai_popup` **Done** (audience `38fd_5be8`/`38fd_3dc8` delta formula and merc `2022` price/qty both now real, not stand-ins); VGA chrome PARKED; `unit_ai_king` (tax scenarios stale, see R6 note) |
 
-Suggested manual order: finish leftover **unpark #3** KINGGALLEON2 (non-Cortes
-royal-galleon share) if evidence appears, and **unpark #4** deep land/ocean `20e6`, then deepen PARKED bodies
-(VGA dialog chrome, FA `3f41`, letter cinematic, full `2820`/`4528`). **R1 Euro
-settle (T0)** and **seed-100 early T2** (`golden_ai_turns`) are in; R0 partial
+Suggested manual order: leftover **unpark #4** thin spots in land `20e6`
+(explore-plane nibble, `−0x6168`, village `0x4c` arms), then deepen PARKED
+bodies (VGA dialog chrome, FA `3f41`, full `2820` haggle, `4528` VGA meet
+chrome). Signing cinematic **Done** 2026-08-30. **R1 Euro settle (T0)** and
+**seed-100 early T2** (`golden_ai_turns`) are in; R0 partial
 (quiet mid-turn default, **2** Brave spent-only residuals — call graph annotated
 (`brave_spent_callgraph.md`); post-ADD chrome does not write `0x3149`; overlays
-kept; hang **VR_B465X** parked; explore fog index axes corrected). Generic T1 Euro settle + unpark #4
-mid-planner share the next Euro path.
+kept; hang **VR_B465X** parked; explore fog index axes corrected). Land `20e6`
+is structurally ported (T1.18); remaining Euro path is the T1.18 thin spots
+and T3 goldens.
 
 ---
 
