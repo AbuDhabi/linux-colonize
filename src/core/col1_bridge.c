@@ -1632,6 +1632,13 @@ bool col1_bridge_capture(
    * (immediate @PRICEUP dialog) and draws fog for the wrong viewer. */
   save->head.nation_turn = (uint16_t)human_nation;
   save->head.curr_nation_map_view = (uint16_t)human_nation;
+  /* DS:0x53a4 SETVIEW override: DOS's turn loop pins the map view to it when
+   * >= 0 (`view = 0x5398; if (0x53a4 >= 0) view = 0x53a4`). The port's old
+   * zero-filled head locked DOS onto England's fog after the first EOT
+   * (bugs.md 288, still_foggy.SAV). 0xffff = no override, as every DOS save
+   * carries; heals stale campaigns on re-save. */
+  save->head.fixed_nation_map_view = 0xffffu;
+  save->head.show_entire_map = 0;
   /*
    * bugs.md interop (port_saves/interop pair): DOS's own in-game saves carry
    * DS:0x53c2 turn_loop_running = 1 and DS:0x53c4 map_modal_active = 1. The
