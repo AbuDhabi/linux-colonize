@@ -14,6 +14,34 @@ static void check(bool cond, const char* what) {
   }
 }
 
+static int g_plays[64];
+static int g_nplay;
+static int g_bgm = -999;
+
+static void cap_play(int id) {
+  if (g_nplay < (int)(sizeof g_plays / sizeof g_plays[0])) {
+    g_plays[g_nplay++] = id;
+  }
+}
+
+static void cap_bgm(int id) {
+  g_bgm = id;
+}
+
+static int last_play(void) {
+  return g_nplay > 0 ? g_plays[g_nplay - 1] : -1;
+}
+
+static int count_play(int id) {
+  int n = 0;
+  for (int i = 0; i < g_nplay; ++i) {
+    if (g_plays[i] == id) {
+      n++;
+    }
+  }
+  return n;
+}
+
 static void test_timeline(void) {
   ClosingSeries rows[CLOSING_SERIES_MAX];
   int end_frame = 0;
@@ -95,10 +123,59 @@ static void test_open_and_skip(void) {
   closing_close(&skip);
 }
 
+static void test_sounds(void) {
+  ClosingCinematic c;
+  memset(&c, 0, sizeof(c));
+  g_nplay = 0;
+  g_bgm = -999;
+  closing_set_sound_hooks(cap_play, cap_bgm);
+  if (!closing_open(&c, "COLONIZE")) {
+    fprintf(stderr, "FAIL: closing_open sound\n");
+    failures++;
+    closing_set_sound_hooks(NULL, NULL);
+    return;
+  }
+  check(g_bgm == 0, "CLOSING.EXE clears the VICEROY pool");
+  check(g_nplay == 1 && g_plays[0] == CLOSING_BGM_ID, "open plays 0x3d");
+
+  closing_update(&c, CLOSING_FRAME_MS);
+  check(c.clock == 1, "clock 1");
+  check(count_play(CLOSING_FIREWORK_SOUND_ID) == 0, "no 0x59 on first fireworks tick");
+  check(count_play(CLOSING_CHEER_SOUND_ID) == 0, "no 0x5a before hats");
+
+  closing_update(&c, CLOSING_FRAME_MS);
+  check(c.clock == 2, "clock 2");
+  check(last_play() == CLOSING_FIREWORK_SOUND_ID, "0x59 when fireworks frame is 1");
+  check(count_play(CLOSING_FIREWORK_SOUND_ID) == 1, "one firework sting");
+
+  closing_update(&c, CLOSING_FRAME_MS * 15); /* clock 17 */
+  check(c.clock == 17, "hat start");
+  check(last_play() == CLOSING_CHEER_SOUND_ID, "0x5a on first hat sprite");
+  check(count_play(CLOSING_CHEER_SOUND_ID) == 1, "one cheer so far");
+
+  ClosingCinematic skip;
+  memset(&skip, 0, sizeof(skip));
+  const int before_skip = g_nplay;
+  if (!closing_open(&skip, "COLONIZE")) {
+    fprintf(stderr, "FAIL: closing_open skip sound\n");
+    failures++;
+    closing_close(&c);
+    closing_set_sound_hooks(NULL, NULL);
+    return;
+  }
+  check(g_nplay == before_skip + 1, "skip open only adds 0x3d");
+  closing_skip_to_end(&skip);
+  check(g_nplay == before_skip + 1, "skip does not burst SFX");
+  closing_close(&skip);
+  closing_close(&c);
+  closing_set_sound_hooks(NULL, NULL);
+}
+
 int main(void) {
   diag_init(0, NULL);
   test_timeline();
   test_open_and_skip();
+  test_sounds();
   diag_shutdown();
   if (failures) {
     fprintf(stderr, "%d failure(s)\n", failures);

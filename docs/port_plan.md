@@ -1887,7 +1887,10 @@ gameplay/determinism. Most rows need the user's visual-fidelity judgement.
     series −1 frame 390). Hats, liberty bell, fireworks, rock gag.
     Ported as `src/core/closing.c`, armed after KING_THRONE payload 1
     (or a WON latch with no popups); any key/click skips to the retire
-    score. Cheer sting COLDIG 15 (`0x5a`) + BGM pool 3. Test:
+    score. Soundtrack is CLOSING.EXE's own `FUN_12d8_000e` calls: BGM `0x3d`
+    at start, event `0x5a` (COLDIG 15 cheer+fireworks) on each CLOS-HAT
+    sprite 1, event `0x59` on CLOS-FWK frames 1/27/37/42. Not VICEROY pool 3.
+    Test:
     `unit_closing`.
   - [x] **OPENING.EXE title intro — Done 2026-09-02.** `COLONIZE.BAT` is
     `opening -g`. Player `COLONIZE/OPENING.EXE`; art `OPENING.PIK`
