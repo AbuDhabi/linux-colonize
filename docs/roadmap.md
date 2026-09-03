@@ -69,8 +69,9 @@ same pass:
   had been made against the wrong track. The hand-written decoder was replaced
   by a literal `GSOUND.COL` driver emulator (`src/core/gsound_vm.c`) plus a
   mirror of the DOS BGM scheduler. A/B against DOSBox-X captures and OST rips
-  now reads dtw 0.04–0.17 (OST-vs-DOSBox itself is 0.07). Remaining: a listen
-  test with the user (port_plan.md P3.5).
+  now reads dtw 0.04–0.17 (OST-vs-DOSBox itself is 0.07). Listen test
+  **Done** 2026-09-03 (port_plan.md P3.5): music is fine; leftover SFX
+  misfires/missing cues are polish.
 - **`COLDIG.BIN` digital SFX — Done 2026-08-29.** The earlier "settled negative
   — no reachable DOS trigger" verdict was **wrong** and is retracted: event ids
   `0x40..0x5c` are pushed with the id in `AX`, which Ghidra's decompile drops.
