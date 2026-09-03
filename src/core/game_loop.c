@@ -8182,6 +8182,19 @@ static void game_ship_sail_to_europe(ColonizeGameState* game, int sid) {
         hold_amts
       );
       if (restored >= 0) {
+        /* units_spawn_ship_with_cargo defaults nation_id 0 — a non-English
+         * player's restored ship (and passengers) must stay theirs, same
+         * hazard as the arrival path (bugs.md merchantman_sails_back.SAV). */
+        ColonizeUnit* rs = units_get(&game->units, restored);
+        if (rs) {
+          units_set_nation(rs, game->human_nation);
+          for (int ci = 0; ci < rs->cargo_count; ++ci) {
+            ColonizeUnit* pax = units_get(&game->units, rs->cargo_ids[ci]);
+            if (pax) {
+              units_set_nation(pax, game->human_nation);
+            }
+          }
+        }
         game_europe_restore_pax_treasure_gold(
           &game->units, restored, cargo_treasure_gold, cargo_count
         );

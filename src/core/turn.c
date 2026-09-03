@@ -2173,11 +2173,11 @@ void turn_run_nation_ticks(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
           ctx->ai_popups) {
         const int ally = (int)ctx->col1->head.rival_nation_slot_1;
         const char* ally_name = "A European power";
-        static const char* k_euro[4] = {"The English", "The French", "The Spanish", "The Dutch"};
+        /* bugs.md 258 rule: PARENT country ("France"), never the new-world
+         * colony name player[ally].country_name ("New France"). */
+        static const char* k_euro[4] = {"England", "France", "Spain", "Netherlands"};
         if (ally >= 0 && ally < 4) {
-          ally_name = ctx->col1->player[ally].country_name[0]
-                        ? ctx->col1->player[ally].country_name
-                        : k_euro[ally];
+          ally_name = k_euro[ally];
         }
         char body[AI_POPUP_BODY_LEN];
         popup_msg_fill(
