@@ -569,10 +569,10 @@ House, horse breeding, food→colonist growth details.
   `turn.c` only — and, on the Autumn fixture, every Carpenter colony's
   preview promised hammers the tick never banks (turn.c's real-DOS
   Spring-only hammers gate had no mirror). Both mirrored into
-  `colony_preview.c`; 32 + 17 colonies now match exactly. Open [user]
-  question: does DOS's own Production tab hide Carpenter hammers in
-  Autumn, or show them regardless? `ctest`: 48/48. See
-  [building_production.md](building_production.md) fix row.
+  `colony_preview.c`; 32 + 17 colonies now match exactly. `ctest`: 48/48.
+  See [building_production.md](building_production.md) fix row.
+  **2026-09-03 [user]:** Autumn hammers-preview question dropped — preview
+  already matches the tick; remaining mismatches go through bugfixes.
 
 ### P5 — War of Independence: declarable, fightable, winnable
 
@@ -942,7 +942,8 @@ OK popups (P6.1 / P11.2).
   wagon-assigned Europe stop a inert no-op rather than a crash — a minor,
   likely-unreachable-in-practice UX edge (no status feedback if a player
   somehow assigns one), not fixed this pass, low priority.
-- [ ] **P6.6 [user]** Europe screen behavior review with the user.
+- [x] **P6.6 [user] — closed 2026-09-03.** Covered by P1.4. Remaining
+  Europe nits go through bugfixes.
 
 ### P7 — Rumours and treasure
 
