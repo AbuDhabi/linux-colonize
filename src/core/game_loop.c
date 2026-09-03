@@ -3285,11 +3285,6 @@ static void game_trade_open_dest_picker(ColonizeGameState* game, int stop_i) {
     ids[count] = 1000;
     count++;
   }
-  if (count <= 0) {
-    set_status(game, "No destinations available", NULL);
-    game->trade_create_stage = 0;
-    return;
-  }
   /* @TRADESTART "Select destination number %NUMBER0 for route". */
   PopupMsgTokens tok;
   memset(&tok, 0, sizeof(tok));
@@ -3305,6 +3300,14 @@ static void game_trade_open_dest_picker(ColonizeGameState* game, int stop_i) {
   char fb[COLONIZE_MSG_LINE_LEN];
   snprintf(fb, sizeof(fb), "Select destination number %d for route", number);
   popup_msg_fill(&game->messages, "TRADESTART", &tok, fb, prompt, sizeof(prompt));
+  if (count <= 0) {
+    /* No colonies yet: DOS FUN_647e_01c6 still shows the (empty) destination
+     * menu — present the prompt as an OK popup so the action is visible. */
+    ai_popup_enqueue_ok(&game->ai_popups, AI_POPUP_TAG_INFO, NULL, prompt);
+    set_status(game, "No destinations available", NULL);
+    game->trade_create_stage = 0;
+    return;
+  }
   game->trade_dest_stop = wizard ? -1 : stop_i;
   if (!cheat_list_open_trade_dest(&game->cheat_list, prompt, labels, ids, count)) {
     set_status(game, "Destination picker unavailable", NULL);
