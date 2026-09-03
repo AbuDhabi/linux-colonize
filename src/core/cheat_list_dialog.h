@@ -23,10 +23,13 @@ typedef enum CheatListKind {
   CHEAT_LIST_KIND_NONE = 0,
   CHEAT_LIST_KIND_SETVIEW,
   CHEAT_LIST_KIND_KILL_INDIANS,
-  CHEAT_LIST_KIND_TRADE_UNLOAD,
-  CHEAT_LIST_KIND_TRADE_LOAD,
   CHEAT_LIST_KIND_FIND_COLONY,
   CHEAT_LIST_KIND_TRADE_SELECT,
+  /* TRADE destination picker (@TRADESTART / editor row): ids = colony id,
+   * 999 = Europe, 1000 = "(Delete Destination)" (LABELS @ROUTE 8). */
+  CHEAT_LIST_KIND_TRADE_DEST,
+  /* Single-cargo append picker (@CARGOLOAD / @CARGOUNLOAD): ids = cargo 0..15. */
+  CHEAT_LIST_KIND_TRADE_CARGO_ONE,
   /* CHEAT Create Unit (@CREATE/@CSHIP/@FOREIGN/@FOREIGN2): multi-stage;
    * caller tracks stage, this dialog just returns whichever list was shown. */
   CHEAT_LIST_KIND_CREATE_UNIT,
@@ -76,16 +79,6 @@ bool cheat_list_open_setview(CheatListDialog* dlg, const ColonizeMsgCatalog* deb
 bool cheat_list_open_kill_indians(CheatListDialog* dlg, const ColonizeMsgCatalog* names);
 
 /*
- * Thin TRADE cargo picker (@CARGO 0..15). multi_select; preselect bits from
- * initial_mask. Enter confirms result_mask; Esc cancels. Cite: TRADE Edit.
- */
-bool cheat_list_open_trade_cargos(
-  CheatListDialog* dlg,
-  CheatListKind kind,
-  uint16_t initial_mask
-);
-
-/*
  * Find Colony picker (@FINDCITY). labels[i] = colony name; option_ids = colony id.
  * Caller supplies up to CHEAT_LIST_MAX_OPTIONS entries.
  */
@@ -103,6 +96,24 @@ bool cheat_list_open_trade_select(
   const char* prompt,
   const char* const* labels,
   const int* route_ids,
+  int count
+);
+
+/* Trade destination picker (@TRADESTART / editor stop row — see kind note). */
+bool cheat_list_open_trade_dest(
+  CheatListDialog* dlg,
+  const char* prompt,
+  const char* const* labels,
+  const int* dest_ids,
+  int count
+);
+
+/* Single-cargo append picker (@CARGOLOAD / @CARGOUNLOAD, 16 goods). */
+bool cheat_list_open_trade_cargo_one(
+  CheatListDialog* dlg,
+  const char* prompt,
+  const char* const* labels,
+  const int* cargo_ids,
   int count
 );
 

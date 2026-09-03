@@ -2947,42 +2947,23 @@ int colonies_trade_route_service_stop(
   }
 
   int moved = 0;
+  /*
+   * Unload phase (DOS FUN_479b_0bd0): exactly the stop's unload-list cargos,
+   * every matching hold, into the warehouse. No list → unload nothing.
+   */
   const int unload_n = (int)stop->unload_count;
-  if (unload_n > 0) {
-    for (int i = 0; i < unload_n && i < 6; ++i) {
-      const int want = col1_trade_nibble_cargo(stop->unload_cargo_nibbles, i);
-      if (want < 0 || want >= COLONIZE_CARGO_COUNT) {
-        continue;
-      }
-      /* Re-scan holds each pass — unload may compact. */
-      for (int guard = 0; guard < COLONIZE_UNIT_CARGO_MAX; ++guard) {
-        const int n = units_goods_hold_count(units, unit_id);
-        int found = -1;
-        for (int h = 0; h < n; ++h) {
-          if (u->hold_goods_amount[h] > 0 && u->hold_goods_amount[h] < 255 &&
-              u->hold_goods_type[h] == want) {
-            found = h;
-            break;
-          }
-        }
-        if (found < 0) {
-          break;
-        }
-        bool full = false;
-        if (colonies_transfer_from_unit(pool, colony_id, units, unit_id, found, &full) > 0) {
-          moved = 1;
-        } else {
-          break;
-        }
-      }
+  for (int i = 0; i < unload_n && i < 6; ++i) {
+    const int want = col1_trade_nibble_cargo(stop->unload_cargo_nibbles, i);
+    if (want < 0 || want >= COLONIZE_CARGO_COUNT) {
+      continue;
     }
-  } else {
-    int had_goods = 0;
+    /* Re-scan holds each pass — unload may compact. */
     for (int guard = 0; guard < COLONIZE_UNIT_CARGO_MAX; ++guard) {
       const int n = units_goods_hold_count(units, unit_id);
       int found = -1;
       for (int h = 0; h < n; ++h) {
-        if (u->hold_goods_amount[h] > 0 && u->hold_goods_amount[h] < 255) {
+        if (u->hold_goods_amount[h] > 0 && u->hold_goods_amount[h] < 255 &&
+            u->hold_goods_type[h] == want) {
           found = h;
           break;
         }
@@ -2990,7 +2971,6 @@ int colonies_trade_route_service_stop(
       if (found < 0) {
         break;
       }
-      had_goods = 1;
       bool full = false;
       if (colonies_transfer_from_unit(pool, colony_id, units, unit_id, found, &full) > 0) {
         moved = 1;
@@ -2998,62 +2978,35 @@ int colonies_trade_route_service_stop(
         break;
       }
     }
-    /* Thin fallback: unload-all then surplus only when unit arrived empty. */
-    if (had_goods) {
-      return moved;
-    }
   }
 
+  /*
+   * Load phase (DOS: sort load-list cargos by weight×stock, take the best,
+   * load one hold, repeat until the transport is full or nothing is left).
+   * Port keeps the greedy shape with uniform weights: highest stock first.
+   */
   const int load_n = (int)stop->load_count;
-  if (load_n > 0) {
+  for (int guard = 0; guard < COLONIZE_UNIT_CARGO_MAX + 2; ++guard) {
+    int best = -1;
+    int best_stock = 0;
     for (int i = 0; i < load_n && i < 6; ++i) {
       const int ct = col1_trade_nibble_cargo(stop->load_cargo_nibbles, i);
       if (ct < 0 || ct >= COLONIZE_CARGO_COUNT) {
         continue;
       }
-      const int amt = colonies_trade_surplus_load_amount(cmut, ct);
-      if (cmut->stock[ct] < amt) {
-        continue;
-      }
-      if (colonies_transfer_to_unit(pool, colony_id, units, unit_id, ct, amt) > 0) {
-        moved = 1;
+      if (cmut->stock[ct] > best_stock) {
+        best_stock = cmut->stock[ct];
+        best = ct;
       }
     }
-    return moved;
-  }
-
-  /* Surplus ladder when no Col1 load list (and empty-arrival for unload-all path). */
-  {
-    int has_goods = 0;
-    const int n = units_goods_hold_count(units, unit_id);
-    for (int h = 0; h < n; ++h) {
-      if (u->hold_goods_amount[h] > 0 && u->hold_goods_amount[h] < 255) {
-        has_goods = 1;
-        break;
-      }
-    }
-    if (has_goods) {
-      return moved;
-    }
-  }
-  static const int k_load[] = {
-    COLONIZE_CARGO_TOOLS,
-    COLONIZE_CARGO_LUMBER,
-    COLONIZE_CARGO_ORE,
-    COLONIZE_CARGO_MUSKETS,
-    COLONIZE_CARGO_HORSES,
-    COLONIZE_CARGO_FOOD
-  };
-  for (size_t i = 0; i < sizeof(k_load) / sizeof(k_load[0]); ++i) {
-    const int ct = k_load[i];
-    const int amt = colonies_trade_surplus_load_amount(cmut, ct);
-    if (cmut->stock[ct] < amt * 2) {
-      continue;
-    }
-    if (colonies_transfer_to_unit(pool, colony_id, units, unit_id, ct, amt) > 0) {
-      moved = 1;
+    if (best < 0) {
       break;
     }
+    const int amt = best_stock > 100 ? 100 : best_stock;
+    if (colonies_transfer_to_unit(pool, colony_id, units, unit_id, best, amt) <= 0) {
+      break;
+    }
+    moved = 1;
   }
   return moved;
 }

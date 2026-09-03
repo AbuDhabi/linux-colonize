@@ -78,7 +78,7 @@ Deep mechanics (expected vs Linux by context): [unit_orders.md](unit_orders.md).
 | Landfall confirm (one unit ashore) | Done | Ship→bare land: `@LANDFALL` Stay / Make Landfall; passenger pays dest terrain MP + ship −1 MP; ship stays at sea — [move_enter.md](move_enter.md) |
 | Ship→native village | Done | `@DONTKNOWSHIPS` / `@MADATSHIPS` (not landfall); [move_enter.md](move_enter.md) |
 | Stack picker for partial unload | Done | `unit_stack.c` (wake sentry → select) |
-| Trade routes (TRADE menu) | Partial | Create/Edit/Delete; Begin aims+cycles stops; stop service honors Col1 load/unload nibbles when counts>0 (else unload-all / surplus ladder); Edit autofill + thin cargo picker (unload→load multi-select); Europe sell on 999; VGA TRADE chrome PARKED |
+| Trade routes (TRADE menu) | Done | Full DOS flows: create wizard (@TRADEMANY cap, @TRADESTART pickers, @TRADETYPE, @TRADENAMES default + @TRADENAME entry), EDIT TRADE ROUTE screen (`trade_screen.c`, 647e_09da layout: rename band, per-stop destination / unload / load columns, icon click-to-remove, (Delete Destination)), Begin filters sea/land + starting-stop picker, DOS stop service (strict nibble lists; Europe = sell unload list + auto-buy load list; @ROUTELOOP), delete with unit fixup + compaction |
 
 ### Colonies
 
@@ -187,7 +187,7 @@ is the historical bring-up order (early manual chapters first), then the
    PARKED)
 8. **King audience / declare / merc UI** (**Done** structural) + **FF effect depth** (Sepulveda convert-join + Cortes/de Witt Done; KINGGALLEON2 **Done** 2026-08-27; F3 Congress **Done** structural)
 9. **Euro mid-planner** (`20e6` land arms + `5d04` **Done** 2026-08-27, T1.18 / T3.1; deep −0x6790 still open) + **Indian×Euro diplo** (**Done** structural; FA UI PARKED)
-10. **Trade routes** — Create/Edit/Delete + Begin aim/cycle + stop nibble honor + Edit autofill + cargo picker + route select/delete confirms **Done**; VGA TRADE chrome PARKED
+10. **Trade routes** — **Done** (2026-09-03): create wizard, EDIT TRADE ROUTE screen, Begin filters + starting stop, DOS stop service (strict lists, Europe auto-buy), @ROUTELOOP, delete fixups
 11. **Deep PARKED bodies** (full `2820`/`4528`, VGA dialog chrome, T3 goldens, letter cinematic) + HoF / end sequences — [ai_transcription.md](ai_transcription.md)
 
 ---

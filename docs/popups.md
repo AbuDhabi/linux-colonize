@@ -330,12 +330,22 @@ DEBUG sections: `MOTD`, `MOTD2`, `MEMORY`, `CREATE`, `CREATE2`, `CSHIP`,
 
 ### 13. Trade routes
 
+DOS module = segment `647e` (mislabelled "colony" in the catalog — records are
+0x4a routes, not 0xca colonies); create wizard = OVL19_L0040; Begin =
+`FUN_2b5a_1e66`; stop service = `FUN_479b_0bd0`.
+
 | Popup / `@SECTION`s | When | Status | Port |
 |---------------------|------|--------|------|
-| `@TRADESELECT` route picker | TRADE Edit | Done | `cheat_list` TRADE_SELECT |
-| `@PICKACARGO` cargo picker | Edit unload/load | Partial | Multi-select via `cheat_list_open_trade_cargos` |
-| `@TRADEDELETE` / `@SUREDELETE` | Delete confirm | Done | Route picker + Yes/No |
-| VGA TRADE chrome | Full trade UI | Missing | PARKED |
+| `@TRADEMANY` | Create at 12-route cap | Done | ai_popup OK, %NUMBER0=12 |
+| `@TRADESTART` | Create/editor destination pickers | Done | `cheat_list` TRADE_DEST, %NUMBER0 = stop # |
+| `@TRADETYPE` | Create: first colony coastal | Done | AI_POPUP_TAG_TRADE_TYPE CHOICE (1=Sea) |
+| `@TRADENAMES` + `@TRADENAME` | Create: default name + entry | Done | "<Colony> <random word>", " A"-suffix dedupe; name_entry TRADE_NAME (31 chars) |
+| `@TRADENONE` / `@TRADENONE2` | Begin/Edit with no (matching) routes | Done | ai_popup OK; %STRING0 = @ROUTE Sea/Land |
+| `@TRADESELECT` route picker | Begin (sea/land filtered) / Edit | Done | `cheat_list` TRADE_SELECT, "N. NAME" rows |
+| `@CARGOLOAD` / `@CARGOUNLOAD` | Editor cargo append | Done | `cheat_list` TRADE_CARGO_ONE, %STRING0 = stop |
+| `@TRADEDELETE` / `@SUREDELETE` | Delete confirm | Done | Route picker + Yes/No; DOS unit fixup + array compaction |
+| `@ROUTELOOP` | Route with one distinct port | Done | ai_popup OK at stop service; unit parked |
+| VGA TRADE chrome | EDIT TRADE ROUTE screen | Done | [`trade_screen.c`](../src/core/trade_screen.c) — `647e_09da` layout (LABELS @ROUTE headers, 4 stop rows y 61+20i, unload x 125 / load x 208, ICONS.SS #22+ icons), `1064`/`10d2` click zones (rename band, dest/cargo columns, exit ≥ y 169), "(Delete Destination)" row |
 
 ---
 
@@ -610,19 +620,19 @@ work.
 | `@LEARNSTAY` | Partial | CONTACT_TEACH OK; not full LEARN scripts |
 | `@LEARNLATER` | Partial | CONTACT_TEACH OK; not full LEARN scripts |
 | `@LEARNDONE` | Partial | CONTACT_TEACH OK; not full LEARN scripts |
-| `@TRADEMANY` | Missing | deep village trade 2820 PARKED |
-| `@TRADESTART` | Missing | deep village trade 2820 PARKED |
-| `@TRADETYPE` | Missing | deep village trade 2820 PARKED |
-| `@TRADENAMES` | Missing | deep village trade 2820 PARKED |
-| `@TRADENAME` | Missing | deep village trade 2820 PARKED |
-| `@TRADENONE` | Missing | deep village trade 2820 PARKED |
-| `@TRADENONE2` | Missing | deep village trade 2820 PARKED |
+| `@TRADEMANY` | Done | create wizard cap popup (%NUMBER0=12) |
+| `@TRADESTART` | Done | destination pickers (create wizard + editor) |
+| `@TRADETYPE` | Done | sea/land CHOICE (AI_POPUP_TAG_TRADE_TYPE) |
+| `@TRADENAMES` | Done | default-name word pool (create wizard) |
+| `@TRADENAME` | Done | name entry (create + editor rename) |
+| `@TRADENONE` | Done | Begin/Edit with no routes |
+| `@TRADENONE2` | Done | no routes of unit's sea/land type |
 | `@TRADESELECT` | Done | route picker (`cheat_list`) |
-| `@TRADEDELETE` | Done | route picker |
+| `@TRADEDELETE` | Done | route picker (DOS unit fixup + compaction) |
 | `@SUREDELETE` | Done | delete Yes/No |
-| `@CARGOLOAD` | Partial | trade routes — menu + thin cargo picker; confirms Missing |
-| `@CARGOUNLOAD` | Partial | trade routes — menu + thin cargo picker; confirms Missing |
-| `@ROUTELOOP` | Partial | trade routes — menu + thin cargo picker; confirms Missing |
+| `@CARGOLOAD` | Done | editor load-list append picker |
+| `@CARGOUNLOAD` | Done | editor unload-list append picker |
+| `@ROUTELOOP` | Done | single-port route warning at stop service |
 | `@PISS0` | Partial | king/REF — structural ai_popup OK/CHOICE or thin; VGA PARKED |
 | `@PISS1` | Partial | king/REF — structural ai_popup OK/CHOICE or thin; VGA PARKED |
 | `@PISS2` | Partial | king/REF — structural ai_popup OK/CHOICE or thin; VGA PARKED |

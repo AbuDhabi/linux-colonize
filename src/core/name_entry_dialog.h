@@ -18,13 +18,16 @@
  */
 
 #define NAME_ENTRY_PROMPT_LEN 240
-#define NAME_ENTRY_NAME_LEN 24
+/* 32: trade-route names are 31 chars + NUL (DOS FUN_1000_9310 limit 0x1f). */
+#define NAME_ENTRY_NAME_LEN 32
 
 typedef enum NameEntryKind {
   NAME_ENTRY_KIND_NONE = 0,
   NAME_ENTRY_KIND_FOUND = 1,  /* @COLONY */
   NAME_ENTRY_KIND_RENAME = 2, /* @RENAMECOLONY */
-  NAME_ENTRY_KIND_LANDHO = 3  /* @LANDHO — name the New World */
+  NAME_ENTRY_KIND_LANDHO = 3, /* @LANDHO — name the New World */
+  NAME_ENTRY_KIND_TRADE_NAME = 4,  /* @TRADENAME — create wizard (colony_id = route slot) */
+  NAME_ENTRY_KIND_TRADE_RENAME = 5 /* @TRADENAME — editor title click (colony_id = route slot) */
 } NameEntryKind;
 
 typedef struct NameEntryDialog {

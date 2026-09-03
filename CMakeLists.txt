@@ -37,6 +37,7 @@ endif()
 
 add_library(colonize_core STATIC
   src/core/game_loop.c
+  src/core/trade_screen.c
   src/core/assets.c
   src/core/font.c
   src/core/ff.c
@@ -204,6 +205,7 @@ add_executable(smoke_game_flow
   tests/smoke/test_game_flow.c
   tests/common/platform_cursor_stubs.c
   src/core/game_loop.c
+  src/core/trade_screen.c
   src/core/assets.c
   src/core/font.c
   src/core/ff.c
@@ -274,6 +276,7 @@ add_executable(unit_new_game
   tests/unit/test_new_game.c
   tests/common/platform_cursor_stubs.c
   src/core/game_loop.c
+  src/core/trade_screen.c
   src/core/assets.c
   src/core/font.c
   src/core/ff.c
@@ -355,6 +358,7 @@ add_executable(unit_hall_of_fame
   tests/unit/test_hall_of_fame.c
   tests/common/platform_cursor_stubs.c
   src/core/game_loop.c
+  src/core/trade_screen.c
   src/core/assets.c
   src/core/font.c
   src/core/ff.c
@@ -1308,6 +1312,7 @@ add_executable(smoke_play
   tests/smoke/test_play_smoke.c
   tests/common/platform_cursor_stubs.c
   src/core/game_loop.c
+  src/core/trade_screen.c
   src/core/assets.c
   src/core/font.c
   src/core/ff.c

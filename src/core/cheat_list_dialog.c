@@ -228,6 +228,30 @@ bool cheat_list_open_trade_select(
   );
 }
 
+bool cheat_list_open_trade_dest(
+  CheatListDialog* dlg,
+  const char* prompt,
+  const char* const* labels,
+  const int* dest_ids,
+  int count
+) {
+  return cheat_list_open_simple_list(
+    dlg, CHEAT_LIST_KIND_TRADE_DEST, prompt, labels, dest_ids, count, 190
+  );
+}
+
+bool cheat_list_open_trade_cargo_one(
+  CheatListDialog* dlg,
+  const char* prompt,
+  const char* const* labels,
+  const int* cargo_ids,
+  int count
+) {
+  return cheat_list_open_simple_list(
+    dlg, CHEAT_LIST_KIND_TRADE_CARGO_ONE, prompt, labels, cargo_ids, count, 120
+  );
+}
+
 bool cheat_list_open_create_unit(
   CheatListDialog* dlg,
   const char* prompt,
@@ -368,48 +392,6 @@ bool cheat_list_open_debug_flags(
     dlg->option_ids[i] = i;
   }
   dlg->option_count = n;
-  dlg->open = true;
-  return true;
-}
-
-bool cheat_list_open_trade_cargos(
-  CheatListDialog* dlg,
-  CheatListKind kind,
-  uint16_t initial_mask
-) {
-  if (!dlg ||
-      (kind != CHEAT_LIST_KIND_TRADE_UNLOAD && kind != CHEAT_LIST_KIND_TRADE_LOAD)) {
-    return false;
-  }
-  static const char* const k_cargo[] = {
-    "Food",        "Sugar",  "Tobacco", "Cotton", "Furs",  "Lumber",
-    "Ore",         "Silver", "Horses",  "Rum",    "Cigars", "Cloth",
-    "Coats",       "Trade Goods", "Tools", "Muskets"
-  };
-  cheat_list_init(dlg);
-  dlg->has_result = false;
-  dlg->kind = kind;
-  dlg->width = 160;
-  dlg->multi_select = true;
-  dlg->selected_mask = initial_mask;
-  str_copy_trunc(
-    dlg->prompt,
-    sizeof(dlg->prompt),
-    kind == CHEAT_LIST_KIND_TRADE_UNLOAD ? "Unload cargos (Space toggle, Enter OK)"
-                                        : "Load cargos (Space toggle, Enter OK)"
-  );
-  for (int i = 0; i < 16 && i < CHEAT_LIST_MAX_OPTIONS; ++i) {
-    const int on = (initial_mask & (uint16_t)(1u << i)) != 0;
-    snprintf(
-      dlg->options[i],
-      sizeof(dlg->options[i]),
-      "%s %s",
-      on ? "[x]" : "[ ]",
-      k_cargo[i]
-    );
-    dlg->option_ids[i] = i; /* @CARGO index */
-  }
-  dlg->option_count = 16;
   dlg->open = true;
   return true;
 }

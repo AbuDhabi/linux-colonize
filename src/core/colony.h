@@ -771,9 +771,12 @@ int colonies_de_witt_transfer_to_colony(
 int colonies_best_load_cargo(const ColonizeColony* colony);
 
 /*
- * TRADE stop cargo at own colony: honor Col1 unload/load nibble lists when
- * counts > 0; else unload-all then surplus ladder (tools…food). Returns 1 if
- * any transfer happened. Cite: ColonizeCol1TradeStop; Colonization.pdf Trade Routes.
+ * TRADE stop cargo at own colony — DOS FUN_479b_0bd0 arrival body:
+ * unload exactly the stop's unload-list cargos (all matching holds), then
+ * load exactly the load-list cargos greedily by colony stock (highest stock
+ * first, 100-unit holds) until the transport is full or stock runs out.
+ * Empty lists move nothing — no unload-all / surplus-ladder fallback.
+ * Returns 1 if any transfer happened. Cite: ColonizeCol1TradeStop.
  */
 int colonies_trade_route_service_stop(
   ColonizeColonyPool* pool,

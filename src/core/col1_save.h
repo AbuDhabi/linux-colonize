@@ -912,15 +912,18 @@ typedef struct ColonizeCol1Seen {
 } ColonizeCol1Seen;
 
 /*
- * One trade-route stop (10 B). DOS FUN_647e: unload cargo at +3, load at +6
- * (smcol names those blobs swapped — follow DOS).
+ * One trade-route stop (10 B). DOS FUN_647e_04f0: slots 0..5 (unload list,
+ * counts low nibble, FUN_647e_0522(0)) live at +6..+8; slots 6..11 (load
+ * list, counts high nibble) at +3..+5. Verified against the @CARGOUNLOAD /
+ * @CARGOLOAD tags FUN_647e_0f2c passes (DS:0x1d47 / 0x1d3d) and the column
+ * x-positions FUN_647e_09da draws the LABELS.TXT @ROUTE headers at.
  */
 typedef struct ColonizeCol1TradeStop {
   uint16_t colony_index; /* 999 = Europe */
   uint8_t unload_count : 4;
   uint8_t load_count : 4;
-  uint8_t unload_cargo_nibbles[3];
   uint8_t load_cargo_nibbles[3];
+  uint8_t unload_cargo_nibbles[3];
   uint8_t pad;
 } ColonizeCol1TradeStop;
 

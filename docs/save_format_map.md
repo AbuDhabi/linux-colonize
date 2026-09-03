@@ -334,7 +334,7 @@ planes byte-exact). Tail preserved; blank templates may stamp
 | Field | Size | Status | Notes |
 |-------|------|--------|-------|
 | `name` / `sea` / `dest_count` | 34 | `mapped` | |
-| `stop[4]` (`ColonizeCol1TradeStop`, 10 B) | 40 | `mapped` | DOS unload@+3 then load@+6 (`FUN_647e`); smcol names those blobs swapped |
+| `stop[4]` (`ColonizeCol1TradeStop`, 10 B) | 40 | `mapped` | +2 counts (lo=unload, hi=load); **load nibbles @+3, unload @+6** — `FUN_647e_04f0` slots 0..5 (unload) → +6, slots 6..11 (load) → +3, cross-checked against the `@CARGOUNLOAD`/`@CARGOLOAD` tags (DS:0x1d47/0x1d3d) `FUN_647e_0f2c` passes and the `@ROUTE` header columns `09da` draws. Port struct fixed 2026-09-03 (earlier read had them backwards) |
 
 ---
 
@@ -406,7 +406,9 @@ atlas. Most named fields were already absorbed in P2 or superseded by DOS peels.
 **Already known / prefer DOS (do not take smcol literally):**
 
 - Post-map after connectivity (`strategy` / `unknown_map38*` / 1-byte seed) — wrong carve
-- Trade-route load/unload blob order — smcol swapped vs `FUN_647e`
+- Trade-route load/unload blob order — smcol has it right after all: DOS keeps
+  load nibbles at +3, unload at +6 (see Trade routes table); the port's earlier
+  "follow DOS, unload@+3" comment was the backwards reading
 - `euro_relation` attitude/status/piracy bitfield — conflicts with `FUN_15b3` WAR/PEACE/ALLY/MET
 - Head `tile_selection_mode` / `manual_save_flag` / `end_of_turn_sign` — port has `map_mode` + `turn_loop_running` / `map_modal_active` / `no_unit_selected` from DS
 - Tribe `BLCS.brave_missing` vs port tribe `+3` bit 0x01 — port names it `state.needs_colonist` (FUN_4d56_152e clear site; was mislabelled `artillery` and the needs-colonist reader sat on bit 0x10 until 2026-08-28; 0x10 is `state.tribute_paid`, the `thunk_FUN_1000_a5f4` @EXTORTSTUFF once-latch)

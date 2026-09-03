@@ -782,6 +782,19 @@ int europe_cargo_export_eligible(int cargo_type);
 bool europe_custom_house_cargo_enabled(uint16_t custom_house_bits, int cargo_type);
 
 int europe_buy_cargo(EuropeScreen* eu, int harbor_index, int cargo_type, int amount);
+/*
+ * Trade-route load list at a Europe stop: buy up to `amount` (≤100) of
+ * cargo_type straight into a map/transport unit's holds. Flat ask price,
+ * boycott gated. Cite: DOS FUN_479b_0bd0 load phase → FUN_38fd_1fa2.
+ * Returns units bought (0 = no gold / boycott / no room).
+ */
+int europe_buy_unit_cargo(
+  EuropeScreen* eu,
+  ColonizeUnitPool* units,
+  int unit_id,
+  int cargo_type,
+  int amount
+);
 int europe_best_sell_hold(const EuropeScreen* eu, int harbor_index);
 
 EuropeHitResult europe_hit_test(const EuropeScreen* eu, int mx, int my);
