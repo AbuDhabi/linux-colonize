@@ -695,11 +695,18 @@ static void game_move_watch(
 }
 
 /*
- * bugs.md: combat "bump" — the attacker's sprite lunges toward the defender
- * for a couple of presented frames before the engagement resolves, the way
- * DOS animates an attack, so back-to-back events stay perceptible. Zoom 0
- * only (other tiers decimate sprites); needs a live platform (headless
- * callers present nothing).
+ * bugs.md: combat "bump" — the attacker's sprite travels toward the defender
+ * before the engagement resolves, the way DOS animates an attack, so
+ * back-to-back events stay perceptible. Zoom 0 only (other tiers decimate
+ * sprites); needs a live platform (headless callers present nothing).
+ *
+ * DOS FUN_112b_0eb6 (the tile-to-tile slide behind FUN_281f_02d0, which the
+ * visiting-Brave path FUN_5bfb_022e reuses) animates the OUTBOUND leg only:
+ * `0x10 >> zoom` one-pixel steps carry the piece a whole tile toward the
+ * target, and the tail then redraws it at its own tile (param_4/param_5) in
+ * a single 01ba call — the way home is never animated. The port's k_bump
+ * table stepped out to +5/+9 and then back to +4, so the lunge read as a
+ * there-and-back wobble that stopped short of the defender (bugs.md).
  */
 static void game_map_zoom_view_size(int zoom, int* out_cols, int* out_rows);
 
@@ -738,7 +745,9 @@ static void game_combat_watch(
   }
   const int ddx = (def_x > atk->x) - (def_x < atk->x);
   const int ddy = (def_y > atk->y) - (def_y < atk->y);
-  static const int k_bump[3] = {5, 9, 4};
+  /* Outbound only, ending one full tile out (16px at zoom 0) as DOS's
+   * pixel-step loop does; the snap home below is a single frame. */
+  static const int k_step[3] = {6, 11, 16};
   uint8_t pixels[320 * 200];
   ColonizeFramebuffer8 fb = {.width = 320, .height = 200, .pixels = pixels};
   ColonizePalette pal;
@@ -757,8 +766,8 @@ static void game_combat_watch(
       game_chrome_font(game),
       &game->unit_icons,
       sprite,
-      sxp + ddx * k_bump[f],
-      syp + ddy * k_bump[f],
+      sxp + ddx * k_step[f],
+      syp + ddy * k_step[f],
       units_display_type_index(pool, attacker_id),
       atk->nation_id,
       atk->orders, /* as above: the lunging piece keeps its own letter */
@@ -778,6 +787,13 @@ static void game_combat_watch(
   if (mu) {
     mu->active = was_active;
   }
+  /*
+   * DOS's tail: the piece is back on its own tile the instant the outbound
+   * leg ends, drawn in one frame with no travel of its own. Present it here
+   * so it never sits overlapping the defender while the combat popup opens.
+   */
+  game_render(game, &fb, &pal);
+  platform_present(game->platform, &fb, &pal);
 }
 
 /*
