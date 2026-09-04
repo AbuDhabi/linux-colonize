@@ -9528,6 +9528,14 @@ static int units_count_on_map_tile(const ColonizeUnitPool* pool, int x, int y) {
   return n;
 }
 
+bool units_map_stack_chrome(const ColonizeUnitPool* pool, int unit_id) {
+  const ColonizeUnit* u = pool ? units_get_const(pool, unit_id) : NULL;
+  if (!u) {
+    return false;
+  }
+  return units_count_on_map_tile(pool, u->x, u->y) > 1 || u->cargo_count > 0;
+}
+
 /*
  * Prefer selected unit on the tile; else highest id (drawn last previously)
  * — except on a colony tile, where DOS never shows an idle garrison unit at
@@ -9674,8 +9682,7 @@ void units_render_on_map(
      * that links a ship to the units riding in it, not just the units
      * standing on the tile. A loaded transport carries the tab (bugs.md).
      */
-    const int on_tile = units_count_on_map_tile(pool, top->x, top->y);
-    const bool stacked = on_tile > 1 || top->cargo_count > 0;
+    const bool stacked = units_map_stack_chrome(pool, top->id);
     const bool aboard = top->aboard_ship_id >= 0;
 
     unit_chrome_blit_unit_for_palette(

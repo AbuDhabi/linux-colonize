@@ -642,6 +642,20 @@ static void game_move_watch(
         fxl < cols && fyl < rows && txl >= 0 && tyl >= 0 && txl < cols && tyl < rows) {
       ColonizeUnit* mu = units_get(&game->units, unit_id);
       if (mu) {
+        /*
+         * bugs.md 371: the sliding piece wears the SAME chrome it wears
+         * standing still. DOS animates the move by calling FUN_112b_01ba once
+         * per pixel step with no extra arguments — every decision inside it
+         * (the stack tab from the unit's own chain, the aboard corner) is read
+         * off the unit record, so it cannot change just because the piece is
+         * in motion. Forcing both to false here made a loaded wagon train or
+         * ship drop its "more units here" tab for the length of the move and
+         * snap it back on arrival. Counted after the move, so the unit itself
+         * is already on the destination tile — the same expression
+         * units_render_on_map uses.
+         */
+        const bool slide_stacked = units_map_stack_chrome(pool, unit_id);
+        const bool slide_aboard = mu->aboard_ship_id >= 0;
         const int x0 = fxl * 16;
         const int y0 = MAP_MENU_BAR_H + fyl * 16;
         const int x1 = txl * 16;
@@ -667,8 +681,8 @@ static void game_move_watch(
             /* Same chrome the unit wears standing still: real order letter,
              * not a forced '-' (bugs.md). */
             unit->orders,
-            false,
-            false,
+            slide_stacked,
+            slide_aboard,
             /* bugs.md: NULL here fell back to the raw ICONS.SS fill index,
              * which the game palette repurposes (Dutch orange → pink while
              * moving). Use the frame's real palette like the static draw. */
@@ -756,6 +770,9 @@ static void game_combat_watch(
    * slide does) and blit the chrome'd copy after game_render. */
   ColonizeUnit* mu = units_get((ColonizeUnitPool*)pool, attacker_id);
   const bool was_active = mu ? mu->active : false;
+  /* bugs.md 371: same chrome standing or lunging — see game_move_watch. */
+  const bool bump_stacked = units_map_stack_chrome(pool, attacker_id);
+  const bool bump_aboard = atk->aboard_ship_id >= 0;
   if (mu) {
     mu->active = false;
   }
@@ -771,8 +788,8 @@ static void game_combat_watch(
       units_display_type_index(pool, attacker_id),
       atk->nation_id,
       atk->orders, /* as above: the lunging piece keeps its own letter */
-      false,
-      false,
+      bump_stacked,
+      bump_aboard,
       /* bugs.md: same palette rule as the move slide — raw index went pink. */
       &pal
     );
@@ -2496,9 +2513,14 @@ static bool game_handle_modal_input(ColonizeGameState* game, const ColonizeInput
         const int ff_index = cur->choice_ids[sel];
         if (ff_index >= 0 && ff_index < PEDIA_FATHER_COUNT) {
           /* Cancel the open dialog — apply's cancelled branch re-enqueues
-           * the identical slate, which re-presents once the pedia closes. */
+           * the identical slate, which re-presents once the pedia closes.
+           * bugs.md 374: the re-enqueue lands at the BACK of the queue, so
+           * without this the article handed the screen to whatever else was
+           * waiting instead of back to the debate. Reading a candidate's
+           * entry must not cost the player their place in the vote. */
           ai_popup_cancel_current(&game->ai_popups);
           game_apply_ai_popup_result(game);
+          ai_popup_move_tag_to_front(&game->ai_popups, AI_POPUP_TAG_FF_CONGRESS);
           game_open_pedia_article(game, PEDIA_CAT_FATHER, ff_index, false);
           return true;
         }
@@ -6000,12 +6022,13 @@ static void render_europe_screen(const ColonizeGameState* game, ColonizeFramebuf
     }
   }
 
-  /* Dock colonists as unit sprites from (235,140). */
+  /* Dock colonists as unit sprites: two quay rows from (233,138)/(233,161). */
   if (game->units_ok && game->unit_icons_ok) {
     for (int i = 0; i < eu->dock_count && i < EUROPE_DOCK_MAX; ++i) {
-      const int dx = EUROPE_DOCK_X + i * EUROPE_DOCK_PITCH;
-      const int dy = EUROPE_DOCK_Y;
-      if (dx + EUROPE_DOCK_PITCH > framebuffer->width) {
+      int dx = 0;
+      int dy = 0;
+      /* Two quay rows (DOS FUN_38fd_146c); slots past tier 1 are not drawn. */
+      if (!europe_dock_slot_pos(i, &dx, &dy)) {
         break;
       }
       const int sprite = europe_dock_sprite(&game->units, &eu->dock[i]);
@@ -8595,8 +8618,8 @@ static void game_colony_indian_land_worked(
   const int x = colony->x + dx;
   const int y = colony->y + dy;
   ColonizeCol1Save* col1 = &game->col1;
-  const int ti = colonies_indian_claim_tribe(
-    col1, &game->world_map, &game->colonies, colony->nation_id, x, y
+  const int ti = colonies_indian_claim_tribe_from(
+    col1, &game->world_map, &game->colonies, colony->nation_id, colony->x, colony->y, x, y
   );
   if (ti < 0 || !col1->tribe) {
     return;
@@ -9272,6 +9295,7 @@ static void game_fill_turn_context(ColonizeGameState* game, ColonizeTurnContext*
   ctx->ai_popups = &game->ai_popups;
   ctx->messages = &game->messages;
   ctx->names = game->names_ok ? &game->names : NULL;
+  ctx->labels = game->labels_ok ? &game->labels : NULL;
 }
 
 /* Purchased-ship cargo tags (see europe_board_sentry_dockers): 0 = Colonists,
@@ -11137,6 +11161,41 @@ static bool game_service_woodcut(ColonizeGameState* game, const ColonizeInputSta
   return false;
 }
 
+/*
+ * DOS status line (bugs.md 375). FUN_1009_00b4 is a BLOCKING call: it holds
+ * whatever was running until the line's dwell expires or the player presses
+ * anything, then clears the strip and lets the next one through. Same shape
+ * here — while a line is up, the map's top strip shows it instead of the
+ * pull-down titles and the turn pipeline does not advance. Returns true while
+ * the strip is owned.
+ */
+static bool game_service_bar_message(ColonizeGameState* game, const ColonizeInputState* input) {
+  if (!game) {
+    return false;
+  }
+  if (!ai_popup_bar_message(&game->ai_popups)) {
+    map_menu_set_message(&game->map_menu, NULL);
+    return false;
+  }
+  /*
+   * Anything over the map owns both the display and the keyboard. Park the
+   * line — do not start or advance its dwell, and take the text back off the
+   * strip — and let that screen have the frame; the queue is picked up again
+   * when the map is back.
+   */
+  if (game->in_menu || game->in_colony || game->in_europe || game->in_report ||
+      game->in_pedia || game->in_debug_atlas || game->in_hall_of_fame || game->in_exploits ||
+      game->woodcut.open || game->ai_popups.open || game_modal_open(game)) {
+    map_menu_set_message(&game->map_menu, NULL);
+    return false;
+  }
+  const bool dismiss = input && (input->last_key != COLONIZE_KEY_NONE ||
+                                 input->mouse_left_clicked || input->mouse_right_clicked);
+  (void)ai_popup_bar_service(&game->ai_popups, game->elapsed_ms, dismiss);
+  map_menu_set_message(&game->map_menu, ai_popup_bar_message(&game->ai_popups));
+  return ai_popup_bar_message(&game->ai_popups) != NULL;
+}
+
 static bool game_service_closing(
   ColonizeGameState* game,
   const ColonizeInputState* input,
@@ -11308,6 +11367,10 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
       (void)game_handle_modal_input(game, input);
       return true;
     }
+    /* Status line holds the pipeline exactly as DOS's FUN_1009_00b4 does. */
+    if (game_service_bar_message(game, input)) {
+      return true;
+    }
     units_set_move_watch(game_move_watch, game);
     units_set_combat_watch(game_combat_watch, game);
   units_set_combat_popup_pump(game_combat_popup_pump, game);
@@ -11340,6 +11403,12 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
       }
     }
     ai_popup_try_present_next(&game->ai_popups);
+  }
+
+  /* Same status-line hold once the turn processor is idle (a line queued by
+   * the last colony still has to be seen). */
+  if (game_service_bar_message(game, input)) {
+    return true;
   }
 
   /* bugs.md: an endgame latch must actually END the game. Whatever path

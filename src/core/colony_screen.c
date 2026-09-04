@@ -1795,8 +1795,9 @@ static void colony_screen_draw_area_overlays(
             continue; /* worked tile — DOS clears the claim slot */
           }
         }
-        if (colonies_indian_claim_tribe(
-              col1, map, pool, colony->nation_id, colony->x + dx, colony->y + dy
+        if (colonies_indian_claim_tribe_from(
+              col1, map, pool, colony->nation_id, colony->x, colony->y,
+              colony->x + dx, colony->y + dy
             ) < 0) {
           continue;
         }

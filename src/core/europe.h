@@ -66,9 +66,21 @@
 #define EUROPE_HOLD_PITCH 12
 #define EUROPE_HOLD_MAX 6
 #define EUROPE_ICON_EMPTY_HOLD 122 /* ICONS.SS — closed hold cover (colony transport) */
-#define EUROPE_DOCK_X 235
-#define EUROPE_DOCK_Y 138 /* was 140 — dock row sat 2px low (bugs.md) */
-#define EUROPE_DOCK_PITCH 20
+/*
+ * Dock immigrants: DOS FUN_38fd_146c lays them out in TWO rows off one base x
+ * (FUN_38fd_15aa passes 0xe9 = 233), 17px pitch, 16x16 sprites — 3 slots on the
+ * upper quay (y = 0x8a = 138) and 5 on the lower one (y = 0xa1 = 161). Index 8
+ * and up gets tier 2, which FUN_38fd_14e2 never draws, so 8 is also the cap.
+ * The 233/138 origin is confirmed by original_screenshots/europe (the selection
+ * frame there runs x 232..249, y 137..154 — 1px outside a 16x16 at 233,138).
+ */
+#define EUROPE_DOCK_X 233
+#define EUROPE_DOCK_Y 138  /* upper quay row (FUN_38fd_146c tier 0) */
+#define EUROPE_DOCK_Y2 161 /* lower quay row (tier 1) */
+#define EUROPE_DOCK_PITCH 17
+#define EUROPE_DOCK_ROW0 3 /* slots before the row wraps */
+#define EUROPE_DOCK_ROW1 5
+#define EUROPE_DOCK_UNIT_W 16
 #define EUROPE_DOCK_UNIT_H 16
 #define EUROPE_BTN_X 268
 #define EUROPE_BTN_Y 48
@@ -433,6 +445,12 @@ int europe_purchase_cost(const EuropeScreen* eu, int purchase_index);
 bool europe_dock_push_load(EuropeScreen* eu, const char* name, int profession);
 
 /*
+ * Screen position of dock slot `index` (DOS FUN_38fd_146c). False when the slot
+ * is past the drawable tiers — DOS silently omits those immigrants.
+ */
+bool europe_dock_slot_pos(int index, int* out_x, int* out_y);
+
+/*
  * Drop the (236,236) Europe-map mirror unit that shadows a dock immigrant
  * (turn.c immigrant spawn / col1_bridge load create one per dock entry so
  * Col1 capture keeps the colonist). Prefers the matching profession.
@@ -771,6 +789,33 @@ int europe_custom_house_autosell(
   struct ColonizeColony* colony,
   struct ColonizeCol1Save* col1,
   int human_nation
+);
+
+/* One cargo type's Custom House sale — the numbers DOS puts in its status line. */
+typedef struct EuropeCustomHouseSale {
+  int cargo;       /* cargo type index */
+  int amount;      /* units shipped */
+  int gross;       /* price x amount, before tax */
+  int tax_percent; /* 0 while independence is declared */
+  int tax_paid;
+  int net;         /* gold actually credited */
+} EuropeCustomHouseSale;
+
+/*
+ * As above, but also reports each cargo's sale. DOS composes one status line
+ * per cargo inside the same loop (FUN_364b_0688), so the caller needs the
+ * per-cargo numbers, not just the total. `out_count` may exceed `out_max`
+ * only in the sense that extra sales are simply not recorded.
+ */
+int europe_custom_house_autosell_ex(
+  EuropeScreen* eu,
+  struct ColonizeColonyPool* pool,
+  struct ColonizeColony* colony,
+  struct ColonizeCol1Save* col1,
+  int human_nation,
+  EuropeCustomHouseSale* out,
+  int out_max,
+  int* out_count
 );
 
 /*

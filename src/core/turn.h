@@ -58,6 +58,8 @@ typedef struct ColonizeTurnContext {
   const ColonizeMsgCatalog* messages;
   /* Optional NAMES.TXT for @TRIBES flavor-good live parse (contact trade). */
   const ColonizeMsgCatalog* names;
+  /* Optional LABELS.TXT — @MISC / @CMESSAGE wording for status lines. */
+  const ColonizeMsgCatalog* labels;
   /*
    * FUN_5bfb_00f8 inverse rank filled in TURN_PROC_SETUP (0 = strongest).
    * euro_power_rank_ok set when turn_rank_euro_nations ran this EOT.

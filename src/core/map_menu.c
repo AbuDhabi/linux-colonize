@@ -1508,6 +1508,21 @@ static void map_menu_tile_wood(
   }
 }
 
+void map_menu_set_message(MapMenuBar* bar, const char* text) {
+  if (!bar) {
+    return;
+  }
+  if (!text || !text[0]) {
+    bar->message[0] = '\0';
+    return;
+  }
+  snprintf(bar->message, sizeof(bar->message), "%s", text);
+  /* The strip is one rect in DOS: a status line and a dropped-down menu
+   * cannot share it. */
+  bar->open_index = -1;
+  bar->hover_item = -1;
+}
+
 void map_menu_render(
   MapMenuBar* bar,
   const ColonizeFont* font,
@@ -1527,6 +1542,18 @@ void map_menu_render(
   }
   /* Black rule under the menu bar (full width; separates bar from map + minimap). */
   map_menu_hline(framebuffer, MAP_MENU_BAR_H - 1, 0, framebuffer->width - 1, MAP_MENU_COL_RULE);
+
+  /* Status line owns the whole strip while it is up (DOS FUN_0000_035c: the
+   * message buffer is drawn instead of the strip's normal content). */
+  if (bar->message[0]) {
+    const int tw = font_text_width(font, bar->message);
+    int tx = (framebuffer->width - tw) / 2;
+    if (tx < 2) {
+      tx = 2;
+    }
+    font_draw_text(font, framebuffer, tx, 1, bar->message, MAP_MENU_COL_TITLE);
+    return;
+  }
 
   for (int i = 0; i < bar->menu_count; ++i) {
     const MapMenuPulldown* menu = &bar->menus[i];

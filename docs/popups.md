@@ -55,6 +55,35 @@ flowchart LR
 | Map event queue | flush immediately from AI/turn | [`ai_popup.c`](../src/core/ai_popup.c) (max 16) |
 | Dedicated UIs | colony `2f2b`, Europe `38fd`, save `7562`, … | `colony_screen`, Europe menus in `game_loop`, `save_load_dialog`, `pick_music`, `unit_stack`, `cheat_list_dialog`, `new_game` |
 
+### The map status line is not a popup (2026-09-04, bugs.md 375)
+
+DOS has a second, lighter channel that the port kept mistaking for a dialog.
+`DS:0x2d54` is a text buffer; `FUN_0000_035c` repaints the map's top strip
+every frame and, whenever that buffer is non-empty, draws **its** text there
+instead of the strip's normal content (wood pattern id 0x22, ink 0x95 from
+`FUN_1009_0004`). Composition is a small append API, all of it via
+`FUN_1009_017e` (each append also leaves one trailing space):
+
+| Resident | Thunk | Does |
+|----------|-------|------|
+| `FUN_1009_00b4(1)` | `281f_0056` | **flush**: wait out the pending line, then clear `0x4a` + the buffer |
+| `FUN_1009_017e` | `281f_006a` | append a `char*` |
+| `FUN_1009_01a2` | `281f_0074` | append a pooled string by index (`FUN_1000_0062`) |
+| `FUN_1009_01b8` | `281f_007e` | append an integer |
+| `FUN_1009_0222` | `281f_0088` | drop the last character (kills the trailing space before punctuation) |
+| `FUN_1009_0244(kind, ticks, hi)` | `281f_0092` | arm it: `0x4a = 1`, deadline = now + ticks |
+
+The wait (`FUN_1009_0036`) runs until `min(armed deadline, now + 30 ticks)` on
+the 60.877 Hz clock, broken early by any key or mouse button — so in practice
+each line owns the strip for about half a second and a run of them plays as a
+sequence. It **blocks** like a dialog does, but nothing is clicked away.
+
+Port: a ring on `AiPopupState` (`ai_popup_enqueue_bar_message`,
+`ai_popup_bar_service`), `map_menu_set_message` painting the strip in place of
+the pull-down titles, and `game_service_bar_message` holding the turn pipeline
+while a line is up (parked, not ticked, while any screen covers the map).
+First user: Custom House sales (`FUN_364b_0688`, one line per cargo).
+
 ### Dialog script parser — blank lines are the body/choice separator (2026-09-03)
 
 `FUN_6f74_32a4` (EXE 117247) is a **state machine keyed on blank lines**, not a

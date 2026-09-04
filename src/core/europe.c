@@ -201,6 +201,30 @@ bool europe_dock_push_load(EuropeScreen* eu, const char* name, int profession) {
   return true;
 }
 
+bool europe_dock_slot_pos(int index, int* out_x, int* out_y) {
+  /*
+   * FUN_38fd_146c: tier 0 = the first EUROPE_DOCK_ROW0 slots on the upper quay,
+   * tier 1 = the next EUROPE_DOCK_ROW1 on the lower one, both starting from the
+   * same base x. Tier 2 (anything beyond) is computed but never blitted.
+   */
+  if (index < 0 || index >= EUROPE_DOCK_ROW0 + EUROPE_DOCK_ROW1) {
+    return false;
+  }
+  int col = index;
+  int y = EUROPE_DOCK_Y;
+  if (index >= EUROPE_DOCK_ROW0) {
+    col = index - EUROPE_DOCK_ROW0;
+    y = EUROPE_DOCK_Y2;
+  }
+  if (out_x) {
+    *out_x = EUROPE_DOCK_X + col * EUROPE_DOCK_PITCH;
+  }
+  if (out_y) {
+    *out_y = y;
+  }
+  return true;
+}
+
 static int europe_type_is_treasure(const ColonizeUnitPool* units, int type_tag) {
   if (!units || type_tag < 0) {
     return 0;
@@ -2856,13 +2880,19 @@ bool europe_custom_house_cargo_enabled(uint16_t custom_house_bits, int cargo_typ
   return europe_custom_house_bit_enabled(custom_house_bits, cargo_type) != 0;
 }
 
-int europe_custom_house_autosell(
+int europe_custom_house_autosell_ex(
   EuropeScreen* eu,
   ColonizeColonyPool* pool,
   ColonizeColony* colony,
   ColonizeCol1Save* col1,
-  int human_nation
+  int human_nation,
+  EuropeCustomHouseSale* out,
+  int out_max,
+  int* out_count
 ) {
+  if (out_count) {
+    *out_count = 0;
+  }
   /*
    * FUN_364b_0688 after production: Custom House + type gate + stock>99 →
    * sell stock-50. Cite: viceroy_unpacked.c FUN_364b_0688 / FUN_364b_0636;
@@ -2932,6 +2962,16 @@ int europe_custom_house_autosell(
     const int tax_paid = gross - gained;
     colony->stock[c] = 50;
     total += gained;
+    if (out && out_count && *out_count < out_max) {
+      EuropeCustomHouseSale* rec = &out[*out_count];
+      rec->cargo = c;
+      rec->amount = amount;
+      rec->gross = gross;
+      rec->tax_percent = tax;
+      rec->tax_paid = tax_paid;
+      rec->net = gained;
+      (*out_count)++;
+    }
     if (nat) {
       nat->gold += (uint32_t)gained;
       /* nation +0x22 (royal_money) += tax paid; +0x26 write-only cumulative
@@ -2966,6 +3006,18 @@ int europe_custom_house_autosell(
     }
   }
   return total;
+}
+
+int europe_custom_house_autosell(
+  EuropeScreen* eu,
+  ColonizeColonyPool* pool,
+  ColonizeColony* colony,
+  ColonizeCol1Save* col1,
+  int human_nation
+) {
+  return europe_custom_house_autosell_ex(
+    eu, pool, colony, col1, human_nation, NULL, 0, NULL
+  );
 }
 
 int europe_ai_colony_dump_sell(
@@ -3479,13 +3531,15 @@ EuropeHitResult europe_hit_test_ex(
     return hit;
   }
 
-  if (eu->dock_count > 0 && my >= EUROPE_DOCK_Y && my < EUROPE_DOCK_Y + EUROPE_DOCK_UNIT_H &&
-      mx >= EUROPE_DOCK_X) {
-    const int idx = (mx - EUROPE_DOCK_X) / EUROPE_DOCK_PITCH;
-    if (idx >= 0 && idx < eu->dock_count &&
-        mx < EUROPE_DOCK_X + idx * EUROPE_DOCK_PITCH + EUROPE_DOCK_PITCH) {
+  for (int i = 0; i < eu->dock_count; ++i) {
+    int dx = 0;
+    int dy = 0;
+    if (!europe_dock_slot_pos(i, &dx, &dy)) {
+      break;
+    }
+    if (europe_in_rect(mx, my, dx, dy, EUROPE_DOCK_UNIT_W, EUROPE_DOCK_UNIT_H)) {
       hit.kind = EUROPE_HIT_DOCK;
-      hit.index = idx;
+      hit.index = i;
       return hit;
     }
   }
