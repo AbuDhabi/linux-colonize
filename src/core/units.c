@@ -6316,10 +6316,11 @@ bool units_set_goto(
   const ColonizeColonyPool* colonies
 ) {
   ColonizeUnit* u = units_get(pool, unit_id);
-  /* An awake passenger (aboard, x/y synced to its ship) may take a Go To —
-   * the first step walks it ashore (bugs.md: "Go-to order to have a colonist
-   * walk off a ship onto coast doesn't work"). */
-  if (!u || !u->active || !map || (!units_is_on_map(u) && u->aboard_ship_id < 0)) {
+  /* A passenger aboard a ship never carries a lasting Go To: its only legal
+   * step is one tile ashore, and a one-tile Go To is an ordinary move (the
+   * UI issues it through the same path an arrow key takes), so it is a
+   * landfall, not an order. */
+  if (!u || !u->active || !map || !units_is_on_map(u)) {
     return false;
   }
   if (dest_x < 0 || dest_y < 0 || dest_x >= (int)map->width || dest_y >= (int)map->height) {
@@ -7488,52 +7489,6 @@ bool units_advance_goto_one_step(
   }
   if (!units_orders_follow_goto(u->orders)) {
     return false;
-  }
-  /*
-   * Awake passenger under Go To: the first step walks it off its ship onto
-   * land (bugs.md — "Go-to order to have a colonist walk off a ship onto
-   * coast doesn't work. It should."). Path from the ship's tile (pax x/y
-   * stay synced), commit the step via units_unload_passenger, then restore
-   * the order (unload zeroes it) unless the step reached the destination.
-   */
-  if (u->aboard_ship_id >= 0) {
-    const int pgx = u->goto_x;
-    const int pgy = u->goto_y;
-    if (pgx < 0 || pgy < 0 || pgx >= UNITS_GOTO_NONE || pgy >= UNITS_GOTO_NONE) {
-      units_clear_orders(pool, unit_id);
-      return false;
-    }
-    if (u->x == pgx && u->y == pgy) {
-      units_clear_orders(pool, unit_id);
-      return false;
-    }
-    if (u->moves_left <= 0) {
-      return false;
-    }
-    int nx = -1;
-    int ny = -1;
-    if (!units_next_goto_step(pool, unit_id, map, colonies, rng, &nx, &ny)) {
-      return false;
-    }
-    if (!map_tile_is_land(map, nx, ny) || map_tile_is_high_seas(map, nx, ny)) {
-      return false; /* the ship carries it over water; only a shore step here */
-    }
-    const int occ = units_id_at(pool, nx, ny);
-    const ColonizeUnit* of = occ >= 0 ? units_get_const(pool, occ) : NULL;
-    if (of && of->nation_id != u->nation_id) {
-      return false; /* stepping ashore is never an attack */
-    }
-    const int ship_id = u->aboard_ship_id;
-    if (!units_unload_passenger(pool, ship_id, unit_id, map, nx, ny, colonies)) {
-      return false;
-    }
-    u = units_get(pool, unit_id);
-    if (u && !(u->x == pgx && u->y == pgy)) {
-      u->orders = UNITS_ORDER_GOTO;
-      u->goto_x = pgx;
-      u->goto_y = pgy;
-    }
-    return true;
   }
   if (!units_is_on_map(u)) {
     return false;
