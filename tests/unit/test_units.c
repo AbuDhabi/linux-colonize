@@ -23,6 +23,82 @@
 #include "platform/diagnostics.h"
 #include "platform/platform.h"
 
+/*
+ * bugs.md: equipping an existing unit keeps its tier. A Continental Army given
+ * horses becomes Continental Cavalry (DOS DS:0x30e files type 9 under @JOB 21
+ * Soldier and type 7 under @JOB 23 Dragoon — the same pair the WoI promotion
+ * and the combat demote table use), never the plain Veteran Dragoons the flat
+ * @JOB->@UNIT table name would give. Also covers the spawn kit: "Cont. Cav."
+ * matched neither "Dragoon" nor "Cavalry", so it used to spawn with no
+ * muskets and no horses at all.
+ */
+static int unit_continental_equip_tier(void) {
+  ColonizeMsgCatalog names;
+  assets_msg_init(&names);
+  if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT")) {
+    fprintf(stderr, "cont_equip: NAMES.TXT load failed\n");
+    return 1;
+  }
+  ColonizeUnitPool pool;
+  memset(&pool, 0, sizeof(pool));
+  if (!units_load_types(&pool, &names)) {
+    fprintf(stderr, "cont_equip: units_load_types failed\n");
+    assets_msg_free(&names);
+    return 1;
+  }
+  const int cont_army = units_find_type(&pool, "Cont. Army");
+  const int cont_cav = units_find_type(&pool, "Cont. Cav.");
+  const int colonists = units_find_type(&pool, "Colonists");
+  const int regulars = units_find_type(&pool, "Regulars");
+  if (cont_army < 0 || cont_cav < 0 || colonists < 0 || regulars < 0) {
+    fprintf(stderr, "cont_equip: missing WoI @UNIT types\n");
+    assets_msg_free(&names);
+    return 1;
+  }
+  struct {
+    int type;
+    int role;
+    const char* want;
+  } cases[] = {
+    {cont_army, COLONIZE_EJECT_DRAGOON, "Cont. Cav."},
+    {cont_army, COLONIZE_EJECT_SOLDIER, "Cont. Army"},
+    {cont_army, COLONIZE_EJECT_COLONIST, "Colonists"},
+    {cont_cav, COLONIZE_EJECT_SOLDIER, "Cont. Army"},
+    {cont_cav, COLONIZE_EJECT_DRAGOON, "Cont. Cav."},
+    {colonists, COLONIZE_EJECT_DRAGOON, "Dragoons"},
+    {colonists, COLONIZE_EJECT_SOLDIER, "Soldiers"},
+    {regulars, COLONIZE_EJECT_DRAGOON, "Cavalry"},
+  };
+  for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); ++i) {
+    const char* got = units_equip_role_type_name(&pool, cases[i].type, cases[i].role);
+    if (!got || strcmp(got, cases[i].want) != 0) {
+      fprintf(stderr, "cont_equip: %s + role %d -> %s (want %s)\n",
+              pool.types[cases[i].type].name, cases[i].role, got ? got : "(null)",
+              cases[i].want);
+      assets_msg_free(&names);
+      return 1;
+    }
+  }
+  const int cav_id = units_spawn_allow_stack(&pool, cont_cav, 3, 3);
+  const ColonizeUnit* cav = units_get_const(&pool, cav_id);
+  if (!cav || cav->muskets != UNITS_EQUIP_MUSKETS || cav->horses != UNITS_EQUIP_HORSES) {
+    fprintf(stderr, "cont_equip: Cont. Cav. spawn kit muskets=%d horses=%d\n",
+            cav ? cav->muskets : -1, cav ? cav->horses : -1);
+    assets_msg_free(&names);
+    return 1;
+  }
+  const int army_id = units_spawn_allow_stack(&pool, cont_army, 4, 3);
+  const ColonizeUnit* army = units_get_const(&pool, army_id);
+  if (!army || army->muskets != UNITS_EQUIP_MUSKETS || army->horses != 0) {
+    fprintf(stderr, "cont_equip: Cont. Army spawn kit muskets=%d horses=%d\n",
+            army ? army->muskets : -1, army ? army->horses : -1);
+    assets_msg_free(&names);
+    return 1;
+  }
+  assets_msg_free(&names);
+  return 0;
+}
+
 /* Helper: clear-forest grants lumber + @CLEARCUT (avoids main stack pressure). */
 static int unit_clearcut_lumber(void) {
   ColonizeMsgCatalog names;
@@ -1599,6 +1675,10 @@ int main(void) {
     return 1;
   }
   if (unit_clearcut_lumber() != 0) {
+    diag_shutdown();
+    return 1;
+  }
+  if (unit_continental_equip_tier() != 0) {
     diag_shutdown();
     return 1;
   }

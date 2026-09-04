@@ -629,6 +629,22 @@ static int ai_king_is_continental(const ColonizeUnitPool* units, const ColonizeU
 }
 
 /*
+ * DOS combat-entry gate (@UNIT attack byte / DS:0x5236): a unit with attack 0
+ * and no carried muskets/horses cannot initiate combat. Mirrors
+ * ai_euro_try_attack's gate and units.c's units_is_combat_role.
+ */
+static int ai_king_unit_can_fight(const ColonizeUnitPool* units, const ColonizeUnit* u) {
+  if (!units || !u) {
+    return 0;
+  }
+  if (u->muskets > 0 || u->horses > 0) {
+    return 1;
+  }
+  const ColonizeUnitType* t = units_type(units, u->type_index);
+  return (t && t->attack > 0) ? 1 : 0;
+}
+
+/*
  * REF land hunters: Regular / Dragoon (fandom REF AI land arm).
  * Thin Artillery siege: when Artillery type exists in pool, Artillery also hunts
  * (prefer fortified colony — see ai_king_ref_hunt_target). Cont. Army / Cont. Cav
@@ -1672,14 +1688,20 @@ static void ai_king_try_capture_at(ColonizeTurnContext* ctx, ColonizeUnit* u, in
    * test relied on a stray irregular to do the job). */
   if (c && c->nation_id == human && ai_king_human_defender_at(ctx, human, u->x, u->y) < 0 &&
       !units_is_sea(ctx->units, u->id)) {
-    /* Civilians left in the port change hands with it (DOS conquest). */
-    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-      ColonizeUnit* f = &ctx->units->units[i];
-      if (f->active && f->nation_id == human && units_is_on_map(f) && f->x == u->x &&
-          f->y == u->y && !units_is_sea(ctx->units, f->id)) {
-        units_set_nation(f, crown);
-      }
-    }
+    /*
+     * bugs.md: whatever is still standing in the port goes through DOS's own
+     * loss table (FUN_5fef_0352 via units_seize_noncombat_at), not a blanket
+     * nation flip. Only Colonists, Wagon Trains and Treasure Trains change
+     * hands there — Pioneers, Missionaries and Scouts are destroyed, and
+     * Artillery is damaged then destroyed. The old flip handed the King a
+     * pioneer/missionary/scout corps he can never recruit (and, with the
+     * wagons, gave the column non-combat units to march); the DOS crown does
+     * not get those. It also emits the human's @COLONISTCAPTURE /
+     * @WAGONCAPTURE notices, which the silent flip skipped.
+     */
+    units_seize_noncombat_at(
+      ctx->units, u->id, u->x, u->y, ctx->col1_ok ? ctx->col1 : NULL
+    );
     /* Source: conquest / colonies_capture — Euro owner swap; no gold fiction. */
     char cname[COLONIZE_COLONY_NAME_MAX];
     snprintf(cname, sizeof(cname), "%s", c->name[0] ? c->name : "your colony");
@@ -1714,6 +1736,17 @@ static void ai_king_try_capture_at(ColonizeTurnContext* ctx, ColonizeUnit* u, in
       /* Euro pattern: idle Artillery on newly captured colony → FORTIFY. */
       ai_king_fortify_artillery_at(ctx, u, crown, u->x, u->y);
     }
+    /*
+     * bugs.md: block on the seizure/capture popups HERE, the way the landing
+     * (bugs.md 243) and the intervention force (bugs.md 259) already do.
+     * units_resolve_land_combat pumps its own outcome popups per attack, but
+     * the @COLONISTCAPTURE / @WAGONCAPTURE / @CAPTURED3 chrome this arm
+     * queues had no pump, so it sat in the queue and drained after the whole
+     * King slice — reading as "REF-attack popups arrive out of order once all
+     * the attacks are done". A pump already running is a no-op (the pump is
+     * re-entrancy guarded), so this only fires when nothing is draining yet.
+     */
+    units_pump_combat_popups();
   }
 }
 
@@ -5235,6 +5268,21 @@ static void ai_king_war_act(ColonizeTurnContext* ctx) {
           }
         }
       }
+      continue;
+    }
+
+    /*
+     * bugs.md: a crown LAND unit that cannot fight never marches and never
+     * attacks. DOS gates every combat entry on the @UNIT attack byte
+     * (DS:0x5236, FUN_4720/5fef) — attack 0 is Colonists / Pioneers /
+     * Missionaries / Treasure / Wagon Train — and ai_euro_try_attack already
+     * carries the same gate. The King's column never had it, so a Wagon Train
+     * that changed hands when the REF took a port (ai_king_try_capture_at
+     * flips every civilian on the tile to the crown) joined the hunt and
+     * opened combat on the human's units. As in the port everywhere else, a
+     * colonist body carrying muskets/horses counts as armed.
+     */
+    if (!ai_king_unit_can_fight(ctx->units, u)) {
       continue;
     }
 
