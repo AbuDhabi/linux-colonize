@@ -349,10 +349,14 @@ dual column. Shown **before** the combat roll (strengths known; no outcome yet).
 - Village Attack (empty tile): `FUN_5fef_1b0e` temp Brave spawn (not nearby
   pull) so strengths / Analysis run before the roll; dwelling `population`
   drains on win
+- Font: **FONTTINY** (the map HUD font). DOS `636c` sets no font of its own,
+  so it inherits whatever the map left current. The port used the FONTINTR
+  dialog font, which also oversized the header unit chrome — the orders box
+  sizes itself from the font metrics (`unit_chrome.c` `box_w`/`box_h`).
 - Layout (FUN_636c_0000 draw pass): frame `w=0xd6` at `x=0x35`, row pitch
   `0x14`, height by tallest column, vertically centered (frame widens past
-  DOS 214 only when a label+value row can’t fit its half column in
-  FONTINTR — DOS overdraws there instead).
+  DOS 214 only when a label+value row can’t fit its half column in the
+  current font — DOS overdraws there instead).
   1. Centered title `COMBAT ANALYSIS` (LABELS.TXT)
   2. Header row per column: unit chrome + type name, **baseline** strength
      right-aligned (`NAMES` attack/defense byte from `base_combat` / DOS
