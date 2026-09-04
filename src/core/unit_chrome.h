@@ -68,6 +68,20 @@ int unit_chrome_rebel_nation(void);
 void unit_chrome_rebel_flag_colors_for_palette(
   const ColonizePalette* active_palette, int* out_navy, int* out_red, int* out_white
 );
+
+/*
+ * The two nation shades DOS's @COUNTRY table (DS:0x848) encodes as index
+ * and index-8 — the bright fill and its darker companion — nearest-matched
+ * into `active_palette`. Same reasoning as
+ * unit_chrome_blit_unit_for_palette: the raw indices are ICONS.SS-native,
+ * and every other screen's palette (TERRAIN.SS included) repurposes slots
+ * 5/13 back to EGA magenta, which is what made the Dutch map chrome pink
+ * (bugs.md 370). Outputs are -1 when active_palette is NULL or nation_id
+ * isn't a 0..3 European; the crown/rebel overrides do NOT apply here.
+ */
+void unit_chrome_nation_shades_for_palette(
+  int nation_id, const ColonizePalette* active_palette, int* out_bright, int* out_dark
+);
 /* -1 outside the WoI; else the crown's borrowed nation slot. */
 int unit_chrome_crown_nation(void);
 

@@ -522,6 +522,28 @@ static void map_panel_fill(
  */
 static const uint8_t k_map_panel_nation_color[4] = {12u, 9u, 14u, 13u};
 
+/*
+ * bugs.md 370 ("Dutch mission cross is pink"): DS:0x848's indices are
+ * ICONS.SS-native, and the map is drawn through TERRAIN.SS's palette, which
+ * puts plain EGA magenta back in slots 13 (bright) and 5 (index-8 dark) —
+ * the two the Dutch use. Ask unit_chrome for the nearest match to the real
+ * (255,113,0)/(170,73,0) pair in whatever palette is actually active; with
+ * no palette (tests, headless renders) fall back to the raw DOS index.
+ */
+static uint8_t map_panel_nation_shade(
+  int nation_id, const ColonizePalette* active_palette, bool dim
+) {
+  const uint8_t raw = k_map_panel_nation_color[nation_id];
+  const uint8_t raw_dim = raw >= 8u ? (uint8_t)(raw - 8u) : raw;
+  int bright = -1;
+  int dark = -1;
+  unit_chrome_nation_shades_for_palette(nation_id, active_palette, &bright, &dark);
+  if (dim) {
+    return dark >= 0 ? (uint8_t)dark : raw_dim;
+  }
+  return bright >= 0 ? (uint8_t)bright : raw;
+}
+
 static void map_panel_draw_tribe_chrome(
   const ColonizeCol1Save* col1,
   const ColonizeWorldMap* map,
@@ -532,7 +554,8 @@ static void map_panel_draw_tribe_chrome(
   const ColonizeCol1Tribe* t,
   int fog_nation,
   int tile_px,
-  int tile_py
+  int tile_py,
+  const ColonizePalette* active_palette
 ) {
   if (!col1 || !framebuffer || !framebuffer->pixels || fog_nation < 0 || fog_nation > 3) {
     return;
@@ -568,14 +591,21 @@ static void map_panel_draw_tribe_chrome(
       surround = 0u;
       n = score;
     } else {
-      color = k_map_panel_nation_color[threat];
+      /* Another European's mark: their nation shade, palette-adapted. */
+      color = map_panel_nation_shade(threat, active_palette, false);
       surround = color;
       n = 1;
     }
+    /* DOS dims the last mark by 8 (the @COUNTRY table's own dark twin);
+     * with the nation shades palette-adapted that pairing is the
+     * bright/dark pair unit_chrome hands back, so pick it up front. */
+    const uint8_t dim_color = (threat == fog_nation)
+      ? (color >= 8u ? (uint8_t)(color - 8u) : color)
+      : map_panel_nation_shade(threat, active_palette, true);
     const int y = tile_py + 4; /* local_6 = local_64 + 4 */
     while (n >= 0) {
-      if (n <= 2 && color >= 8u) {
-        color = (uint8_t)(color - 8u);
+      if (n <= 2 && color != dim_color) {
+        color = dim_color;
         if (surround != 0u) {
           surround = color;
         }
@@ -592,10 +622,11 @@ static void map_panel_draw_tribe_chrome(
   if ((int)(int8_t)t->mission >= 0) {
     const int owner = (int)(t->mission & COL1_TRIBE_MISSION_NATION_MASK);
     if (owner >= 0 && owner < 4) {
-      uint8_t color = k_map_panel_nation_color[owner];
-      if ((t->mission & COL1_TRIBE_MISSION_JESUIT_BIT) == 0 && color >= 8u) {
-        color = (uint8_t)(color - 8u);
-      }
+      /* Jesuit = the bright nation shade, plain mission = its dark twin
+       * (DOS's index-8). Palette-adapted: bugs.md 370. */
+      const uint8_t color = map_panel_nation_shade(
+        owner, active_palette, (t->mission & COL1_TRIBE_MISSION_JESUIT_BIT) == 0
+      );
       map_panel_fill(framebuffer, x, tile_py + 5, 5, 6, 0u);
       map_panel_fill(framebuffer, x + 2, tile_py + 6, 1, 4, color);
       map_panel_fill(framebuffer, x + 1, tile_py + 7, 3, 1, color);
@@ -618,7 +649,8 @@ void map_panel_render_tribes_on_map(
   int origin_x,
   int origin_y,
   const ColonizeWorldMap* fog_map,
-  int fog_nation
+  int fog_nation,
+  const ColonizePalette* active_palette
 ) {
   if (!col1 || !col1->tribe || !framebuffer || !icons ||
       icons->sprite_count < MAP_PANEL_TRIBE_ICON_BASE + MAP_PANEL_TRIBE_ICON_COUNT) {
@@ -665,7 +697,8 @@ void map_panel_render_tribes_on_map(
       );
     }
     map_panel_draw_tribe_chrome(
-      col1, fog_map, units, colonies, framebuffer, (int)i, t, fog_nation, tile_px, tile_py);
+      col1, fog_map, units, colonies, framebuffer, (int)i, t, fog_nation, tile_px, tile_py,
+      active_palette);
   }
 }
 

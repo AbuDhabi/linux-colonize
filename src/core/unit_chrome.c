@@ -127,6 +127,32 @@ int unit_chrome_rebel_nation(void) {
   return g_chrome_rebel_nation;
 }
 
+/* bugs.md 370: the map's tribe chrome (alarm marks, mission cross) drew
+ * DS:0x848's raw index — Dutch 13 / 5, which TERRAIN.SS's palette maps to
+ * EGA magenta rather than ICONS.SS-native orange. Same nearest-match
+ * treatment the unit badges already get. */
+void unit_chrome_nation_shades_for_palette(
+  int nation_id, const ColonizePalette* active_palette, int* out_bright, int* out_dark
+) {
+  if (out_bright) {
+    *out_bright = -1;
+  }
+  if (out_dark) {
+    *out_dark = -1;
+  }
+  if (!active_palette || nation_id < 0 || nation_id >= 4) {
+    return;
+  }
+  if (out_bright) {
+    *out_bright =
+      unit_chrome_nearest_palette_index(active_palette, k_nation_fill_rgb_native[nation_id]);
+  }
+  if (out_dark) {
+    *out_dark =
+      unit_chrome_nearest_palette_index(active_palette, k_nation_letter_rgb_native[nation_id]);
+  }
+}
+
 /* bugs.md: US flag colors for the rebel colony marker — navy hoist, red and
  * white stripes — nearest-matched into the active palette. */
 void unit_chrome_rebel_flag_colors_for_palette(
