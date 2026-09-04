@@ -396,7 +396,7 @@ Press **C** on the map when the cursor is on a founded colony to open the colony
 |-------|-------|------|
 | Wood chrome | `WOODPANL.PIK` (320×200) | Full-screen panel; supplies the colony-screen palette |
 | Top bar | (rendered) | Colony name, campaign date, and treasury across the top strip |
-| Settlement view | `PARCH.SS` + `BUILDING.SS` | Workers + badges via Note 1 strips at building bottom-center (selectable); hit-test uses **sprite bounds** (not fixed slot grid); outside units same on fence; thin construction banner (project + hammers; click opens Change) |
+| Settlement view | `PARCH.SS` + `BUILDING.SS` | Real DOS placement: 15 slots (`DS:0x266`) in 5 size classes, one per building category, shuffled per colony from `(y<<8)+x` + a pinned base seed — see [colony_screen.md](colony_screen.md). Workers + badges via Note 1 strips at building bottom-center (selectable); hit-test uses **sprite bounds**; outside units same on the fence slot; thin construction banner (project + hammers; click opens Change) |
 | Area view | `TERRAIN.SS` + `PHYS0.SS` + `ICONS.SS` | Centered 3×3 at **24px** tiles (1.5×); settlement **#0–3**; yields via resource-count strips (fisherman food uses fish **#57**) |
 | Minimap panel | `WOODTILE.SS` (32×24 tile) | Wood-grain fill behind the 3×3 (equal L/R and T/B margins) |
 | People view | `COLONY.PIK` left (x0–117) | SoL (flag **#123**) / Tory (crown **#124**, right-aligned); colonists + fence units on one row; food→crosses→bells resource strips (fish **#57** first, then grain food) |
