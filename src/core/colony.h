@@ -530,6 +530,17 @@ bool colonies_capture_ex(
   ColonizeColonyPool* pool, int colony_id, int new_nation_id, int* plunder_gold
 );
 
+/*
+ * Tools an equip actually takes out of `available` (warehouse stock plus
+ * anything the unit is already carrying): whole 20-tool steps, capped at 100 —
+ * a Pioneer legitimately walks with 20/40/60/80/100. Returns 0 when there is
+ * not even one step. Shared so the two equip paths (a colonist leaving the
+ * colony, and a unit already standing outside it) cannot drift apart again —
+ * bugs.md: the outside path demanded the full 100 and answered "Cannot equip
+ * unit" for a stock its own menu had just offered Pioneers on.
+ */
+int colonies_equip_tools_take(int available);
+
 /* Fill out_roles with affordable eject roles for this colonist; returns count. */
 int colonies_list_eject_roles(
   const ColonizeColonyPool* pool,

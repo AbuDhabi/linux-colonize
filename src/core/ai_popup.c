@@ -648,10 +648,17 @@ static void ai_popup_fill_row(
  * Flow-wrap body to pixel max_w (DOS FUN_6f74_1198 / new_game_wrap_prompt_flow).
  * Honors embedded '\n'. Returns number of output lines.
  */
+/*
+ * out_center, when given, receives one flag per emitted line: true for a
+ * GAME.TXT '^^' row, which DOS centres in the dialog (FUN_6f74_1198's flag-1
+ * arm). Rows from '^' or '^^' are drawn verbatim — the wrap loop never breaks
+ * them, exactly as DOS skips straight past a caret line's text.
+ */
 static int ai_popup_wrap_body(
   const ColonizeFont* font,
   const char* body,
   char out[][AI_POPUP_BODY_LEN],
+  bool* out_center,
   int max_out,
   int max_w
 ) {
@@ -673,6 +680,9 @@ static int ai_popup_wrap_body(
     if (*p == '\n') {
       if (accum[0]) {
         snprintf(out[count], AI_POPUP_BODY_LEN, "%s", accum);
+        if (out_center) {
+          out_center[count] = false;
+        }
         count++;
         accum[0] = '\0';
         if (count >= max_out) {
@@ -680,9 +690,47 @@ static int ai_popup_wrap_body(
         }
       } else {
         out[count][0] = '\0';
+        if (out_center) {
+          out_center[count] = false;
+        }
         count++;
       }
       p++;
+      continue;
+    }
+    if (*p == POPUP_MSG_LINE_MARK || *p == POPUP_MSG_CENTER_MARK) {
+      /* Caret row: flush the paragraph, then take the rest of the source line
+       * whole — no wrapping, no re-flowing into what follows. */
+      if (accum[0]) {
+        snprintf(out[count], AI_POPUP_BODY_LEN, "%s", accum);
+        if (out_center) {
+          out_center[count] = false;
+        }
+        count++;
+        accum[0] = '\0';
+        if (count >= max_out) {
+          return count;
+        }
+      }
+      const bool centered = (*p == POPUP_MSG_CENTER_MARK);
+      p++;
+      const char* row = p;
+      while (*p && *p != '\n') {
+        p++;
+      }
+      size_t rn = (size_t)(p - row);
+      if (rn >= AI_POPUP_BODY_LEN) {
+        rn = AI_POPUP_BODY_LEN - 1;
+      }
+      memcpy(out[count], row, rn);
+      out[count][rn] = '\0';
+      if (out_center) {
+        out_center[count] = centered;
+      }
+      count++;
+      if (*p == '\n') {
+        p++; /* the trailing break is the row's own terminator, not a blank */
+      }
       continue;
     }
 
@@ -703,6 +751,9 @@ static int ai_popup_wrap_body(
       const int space_w = font_text_width(font, " ");
       if (popup_markup_text_width(font, accum) + space_w + word_w > max_w) {
         snprintf(out[count], AI_POPUP_BODY_LEN, "%s", accum);
+        if (out_center) {
+          out_center[count] = false;
+        }
         count++;
         accum[0] = '\0';
         if (count >= max_out) {
@@ -722,6 +773,9 @@ static int ai_popup_wrap_body(
   }
   if (accum[0] && count < max_out) {
     snprintf(out[count], AI_POPUP_BODY_LEN, "%s", accum);
+    if (out_center) {
+      out_center[count] = false;
+    }
     count++;
   }
   return count;
@@ -1016,10 +1070,13 @@ void ai_popup_render(
   const int text_max_w = content_w - 2 * pad_x;
 
   char wrapped[AI_POPUP_WRAP_MAX][AI_POPUP_BODY_LEN];
+  bool wrapped_center[AI_POPUP_WRAP_MAX];
+  memset(wrapped_center, 0, sizeof(wrapped_center));
   int wrapped_count = 0;
   if (req->body[0]) {
-    wrapped_count =
-      ai_popup_wrap_body(font, req->body, wrapped, AI_POPUP_WRAP_MAX, text_max_w);
+    wrapped_count = ai_popup_wrap_body(
+      font, req->body, wrapped, wrapped_center, AI_POPUP_WRAP_MAX, text_max_w
+    );
   }
 
   const int title_h = req->title[0] ? line_h + title_gap : 0;
@@ -1258,8 +1315,16 @@ void ai_popup_render(
     if (text_y + line_h > inner_y + inner_h - options_h) {
       break;
     }
+    /* GAME.TXT '^^' rows centre inside the text column (FUN_6f74_1198). */
+    int line_x = inner_x + pad_x;
+    if (wrapped_center[i]) {
+      const int w = popup_markup_text_width(font, wrapped[i]);
+      if (w < text_max_w) {
+        line_x += (text_max_w - w) / 2;
+      }
+    }
     popup_draw_text_markup(
-      font, framebuffer, inner_x + pad_x, text_y, wrapped[i], text_color,
+      font, framebuffer, line_x, text_y, wrapped[i], text_color,
       hilite_color, true, true, &emph
     );
     text_y += line_h;

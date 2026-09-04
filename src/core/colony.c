@@ -1539,6 +1539,17 @@ static int colonies_has_church_or_cathedral(
   return 0;
 }
 
+int colonies_equip_tools_take(int available) {
+  if (available < UNITS_EQUIP_TOOLS_STEP) {
+    return 0;
+  }
+  int take = (available / UNITS_EQUIP_TOOLS_STEP) * UNITS_EQUIP_TOOLS_STEP;
+  if (take > UNITS_EQUIP_TOOLS_MAX) {
+    take = UNITS_EQUIP_TOOLS_MAX;
+  }
+  return take;
+}
+
 int colonies_list_eject_roles(
   const ColonizeColonyPool* pool,
   int colony_id,
@@ -1601,19 +1612,13 @@ int colonies_eject_colonist(
   int horses_take = 0;
   const char* type_name = "Colonists";
   switch (role) {
-  case COLONIZE_EJECT_PIONEER: {
-    int avail = col->stock[COLONIZE_CARGO_TOOLS];
-    avail = (avail / UNITS_EQUIP_TOOLS_STEP) * UNITS_EQUIP_TOOLS_STEP;
-    if (avail < UNITS_EQUIP_TOOLS_STEP) {
+  case COLONIZE_EJECT_PIONEER:
+    tools_take = colonies_equip_tools_take(col->stock[COLONIZE_CARGO_TOOLS]);
+    if (tools_take <= 0) {
       return -1;
     }
-    if (avail > UNITS_EQUIP_TOOLS_MAX) {
-      avail = UNITS_EQUIP_TOOLS_MAX;
-    }
-    tools_take = avail;
     type_name = "Pioneers";
     break;
-  }
   case COLONIZE_EJECT_SOLDIER:
     if (col->stock[COLONIZE_CARGO_MUSKETS] < UNITS_EQUIP_MUSKETS) {
       return -1;

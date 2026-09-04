@@ -886,6 +886,46 @@ int main(void) {
               units_map_sprite(&units, pej) == UNITS_ICON_HARDY_PIONEER,
             "pioneer map icon");
     }
+    /*
+     * bugs.md: the two equip paths (colonist leaving the colony vs. a unit
+     * already standing outside it) had different tool rules — the outside one
+     * insisted on a full 100 and refused a Pioneer its own menu offered. Both
+     * now go through colonies_equip_tools_take: whole 20s, capped at 100.
+     */
+    CHECK(colonies_equip_tools_take(0) == 0, "0 tools equips nothing");
+    CHECK(colonies_equip_tools_take(19) == 0, "under one step equips nothing");
+    CHECK(colonies_equip_tools_take(20) == 20, "one step");
+    CHECK(colonies_equip_tools_take(59) == 40, "rounds down to whole steps");
+    CHECK(colonies_equip_tools_take(100) == 100, "full load");
+    CHECK(colonies_equip_tools_take(340) == 100, "capped at 100");
+    {
+      ColonizeColony* col = colonies_get_mut(&pool, cid);
+      CHECK(col != NULL, "colony mut for partial-tools eject");
+      if (col) {
+        col->stock[COLONIZE_CARGO_TOOLS] = 40;
+      }
+      const int uidp = units_spawn_allow_stack(&units, free_col, land2_x, land2_y);
+      ColonizeUnit* oup = units_get(&units, uidp);
+      if (oup && col) {
+        oup->nation_id = col->nation_id;
+      }
+      const int adp = colonies_admit_unit(&pool, cid, &units, uidp, NULL);
+      CHECK(adp >= 0, "admit before partial-tools eject");
+      int roles[COLONIZE_EJECT_ROLE_COUNT];
+      const int nrp = colonies_list_eject_roles(&pool, cid, adp, roles, COLONIZE_EJECT_ROLE_COUNT);
+      int offers_pioneer = 0;
+      for (int i = 0; i < nrp; ++i) {
+        if (roles[i] == COLONIZE_EJECT_PIONEER) {
+          offers_pioneer = 1;
+        }
+      }
+      CHECK(offers_pioneer, "40 tools must offer Pioneer");
+      const int pejp = colonies_eject_colonist(&pool, cid, adp, &units, COLONIZE_EJECT_PIONEER);
+      CHECK(pejp >= 0, "40 tools must equip a Pioneer, not refuse");
+      const ColonizeUnit* pionp = units_get_const(&units, pejp);
+      CHECK(pionp && pionp->tools == 40, "partial pioneer carries the 40 tools");
+    }
+
     /* Skill sticks: hardy pioneer armed as soldier looks non-veteran; re-admit keeps skill. */
     {
       ColonizeColony* col = colonies_get_mut(&pool, cid);
@@ -1410,6 +1450,19 @@ int main(void) {
 
         col1.player[c->nation_id].control = 1; /* AI → thresh 10 always */
         CHECK(colony_prod_sol_bonus(&col1, c) == -1, "Tory floor AI thresh 10 at Viceroy");
+
+        /*
+         * bugs.md: the floor is unbounded — DOS clamps the finished yield at 0,
+         * never the modifier. A -2 cap used to live in colony_prod_sol_bonus and
+         * silently protected large low-SoL colonies.
+         */
+        c->population = 24;
+        c->colonist_count = 24;
+        col1.player[c->nation_id].control = 0; /* human, Viceroy → thresh 6 */
+        /* tories=24; floor(24/6)=4 → mod=-4, not the old -2 */
+        CHECK(colony_prod_sol_bonus(&col1, c) == -4, "Tory floor is not capped at -2");
+        c->population = 12;
+        c->colonist_count = 12;
 
         /* sol 50 + latch: tories=(12*50+50)/100=6; floor(6/10)=0; +1 → 1 */
         col1.player[c->nation_id].control = 0;
