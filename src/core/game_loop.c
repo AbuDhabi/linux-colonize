@@ -1168,6 +1168,28 @@ static void game_europe_drain_price_events(ColonizeGameState* game) {
   eu->price_event_count = 0;
 }
 
+/*
+ * Europe status line (bugs.md 382). DOS composes the sale line into the same
+ * DS:0x2d54 buffer the map strip uses and arms it with FUN_38fd_19d8(1, 0x78,
+ * 0), then repaints the European Status screen — the line replaces the top
+ * strip's normal content for its dwell. Nothing blocks: the Europe screen
+ * keeps taking input while it is up, and FUN_1009_0270 retires it when the
+ * armed deadline passes.
+ */
+static void game_service_europe_bar(ColonizeGameState* game) {
+  if (!game || !game->europe_ok) {
+    return;
+  }
+  EuropeScreen* eu = &game->europe;
+  for (int i = 0; i < eu->bar_event_count; ++i) {
+    (void)ai_popup_enqueue_bar_message(&game->ai_popups, eu->bar_event[i]);
+  }
+  eu->bar_event_count = 0;
+  if (ai_popup_bar_message(&game->ai_popups)) {
+    (void)ai_popup_bar_service(&game->ai_popups, game->elapsed_ms, false);
+  }
+}
+
 static bool game_try_enter_europe(ColonizeGameState* game) {
   if (!game || !game->europe_ok) {
     return false;
@@ -2705,6 +2727,7 @@ static void game_apply_howmuch_result(ColonizeGameState* game) {
       const int take = ship->hold_goods_amount[hold] < left ? ship->hold_goods_amount[hold] : left;
       const int gained = europe_sell_proceeds(eu, ctype, take);
       eu->gold += gained;
+      europe_push_sale_status(eu, ctype, take, gained);
       ship->hold_goods_amount[hold] = (uint8_t)(ship->hold_goods_amount[hold] - take);
       if (ship->hold_goods_amount[hold] == 0) {
         ship->hold_goods_type[hold] = 255;
@@ -5978,11 +6001,20 @@ static void render_europe_screen(const ColonizeGameState* game, ColonizeFramebuf
     );
   }
   {
-    const int tw = font_text_width(font, line);
+    /*
+     * DOS status line owns this strip while one is armed: FUN_38fd_23c4
+     * composes the sale into DS:0x2d54 and FUN_1009_02cc paints it INSTEAD of
+     * the strip's normal content, in the arm kind's ink (bugs.md 382).
+     */
+    const char* bar = ai_popup_bar_message(&game->ai_popups);
+    const char* text = bar ? bar : line;
+    const uint8_t ink =
+      bar ? ai_popup_bar_message_color(&game->ai_popups) : (uint8_t)EUROPE_TEXT_GREEN;
+    const int tw = font_text_width(font, text);
     const int th = font ? (font->max_height > 0 ? (int)font->max_height : 6) : 7;
     const int tx = (framebuffer->width - tw) / 2;
     const int ty = (EUROPE_TOP_BAR_H - th) / 2;
-    font_draw_text(font, framebuffer, tx > 0 ? tx : 0, ty > 0 ? ty : 1, line, EUROPE_TEXT_GREEN);
+    font_draw_text(font, framebuffer, tx > 0 ? tx : 0, ty > 0 ? ty : 1, text, ink);
   }
 
   /* Transit boxes: two-line headers + ship icons (not text lists). */
@@ -6555,6 +6587,8 @@ ColonizeGameState* game_create(const ColonizeGameConfig* config) {
       }
       /* EDIT TRADE ROUTE screen strings (@ROUTE + @MISC 46 "OK"). */
       trade_screen_init(&game->trade_screen, &game->labels);
+      /* @CMESSAGE wording for the Europe sale status line (bugs.md 382). */
+      europe_set_labels(&game->europe, &game->labels);
     } else {
       diag_warn("Failed to parse LABELS.TXT");
     }
@@ -11248,7 +11282,7 @@ static bool game_service_bar_message(ColonizeGameState* game, const ColonizeInpu
     return false;
   }
   if (!ai_popup_bar_message(&game->ai_popups)) {
-    map_menu_set_message(&game->map_menu, NULL);
+    map_menu_set_message(&game->map_menu, NULL, 0);
     return false;
   }
   /*
@@ -11260,13 +11294,17 @@ static bool game_service_bar_message(ColonizeGameState* game, const ColonizeInpu
   if (game->in_menu || game->in_colony || game->in_europe || game->in_report ||
       game->in_pedia || game->in_debug_atlas || game->in_hall_of_fame || game->in_exploits ||
       game->woodcut.open || game->ai_popups.open || game_modal_open(game)) {
-    map_menu_set_message(&game->map_menu, NULL);
+    map_menu_set_message(&game->map_menu, NULL, 0);
     return false;
   }
   const bool dismiss = input && (input->last_key != COLONIZE_KEY_NONE ||
                                  input->mouse_left_clicked || input->mouse_right_clicked);
   (void)ai_popup_bar_service(&game->ai_popups, game->elapsed_ms, dismiss);
-  map_menu_set_message(&game->map_menu, ai_popup_bar_message(&game->ai_popups));
+  map_menu_set_message(
+    &game->map_menu,
+    ai_popup_bar_message(&game->ai_popups),
+    ai_popup_bar_message_color(&game->ai_popups)
+  );
   return ai_popup_bar_message(&game->ai_popups) != NULL;
 }
 
@@ -12835,6 +12873,7 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
   if (game->in_europe) {
     EuropeScreen* eu = &game->europe;
     europe_refresh_harbor_selection(eu);
+    game_service_europe_bar(game);
 
     /* Bound ships that ticked to 0 turns since we last checked. */
     for (int i = 0; i < eu->bound_ships; ++i) {
@@ -13054,6 +13093,7 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
           const int ctype = ship->hold_goods_type[hold];
           const int gained = europe_sell_proceeds(eu, ctype, 1);
           eu->gold += gained;
+          europe_push_sale_status(eu, ctype, 1, gained);
           ship->hold_goods_amount[hold]--;
           snprintf(eu->status, sizeof(eu->status), "Sold 1 for %d$.", gained);
         } else {

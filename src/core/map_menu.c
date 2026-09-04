@@ -1508,7 +1508,7 @@ static void map_menu_tile_wood(
   }
 }
 
-void map_menu_set_message(MapMenuBar* bar, const char* text) {
+void map_menu_set_message(MapMenuBar* bar, const char* text, uint8_t color) {
   if (!bar) {
     return;
   }
@@ -1517,6 +1517,7 @@ void map_menu_set_message(MapMenuBar* bar, const char* text) {
     return;
   }
   snprintf(bar->message, sizeof(bar->message), "%s", text);
+  bar->message_color = color ? color : (uint8_t)MAP_MENU_COL_TITLE;
   /* The strip is one rect in DOS: a status line and a dropped-down menu
    * cannot share it. */
   bar->open_index = -1;
@@ -1551,7 +1552,14 @@ void map_menu_render(
     if (tx < 2) {
       tx = 2;
     }
-    font_draw_text(font, framebuffer, tx, 1, bar->message, MAP_MENU_COL_TITLE);
+    font_draw_text(
+      font,
+      framebuffer,
+      tx,
+      1,
+      bar->message,
+      bar->message_color ? bar->message_color : (uint8_t)MAP_MENU_COL_TITLE
+    );
     return;
   }
 

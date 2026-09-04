@@ -10,6 +10,9 @@
 #include "core/units.h"
 
 #define EUROPE_CARGO_MAX 16
+/* Europe status-line ring (DOS DS:0x2d54 lines produced by a sale). */
+#define EUROPE_BAR_EVENT_MAX 8
+#define EUROPE_BAR_EVENT_LEN 96
 #define EUROPE_DOCK_MAX 8
 #define EUROPE_CLASS_MAX 8
 #define EUROPE_HARBOR_MAX 8
@@ -379,6 +382,16 @@ typedef struct EuropeScreen {
    * bumps the count on every purchase. Synced by col1_bridge apply/capture. */
   int artillery_bought;
   char status[160];
+  /*
+   * DOS status-line lines this screen has composed but the game loop has not
+   * handed to the strip yet (FUN_38fd_23c4 tail: compose into DS:0x2d54, arm
+   * with FUN_38fd_19d8(1, 0x78, 0), repaint). Drained by the Europe frame in
+   * game_loop.c; see bugs.md 382.
+   */
+  char bar_event[EUROPE_BAR_EVENT_MAX][EUROPE_BAR_EVENT_LEN];
+  int bar_event_count;
+  /* LABELS.TXT for that wording (@CMESSAGE). NULL → built-in fallbacks. */
+  const struct ColonizeMsgCatalog* labels;
 } EuropeScreen;
 
 bool europe_load(EuropeScreen* eu, const char* data_dir, char* err, size_t err_size);
@@ -388,6 +401,18 @@ void europe_reset_campaign_nation(EuropeScreen* eu, int nation);
 /* Port / region / old-world nation from NAMES.TXT (@HOMEPORT / @COLONYNAME).
  * Does not wipe harbor, dock, or gold. nation clamped 0..3. */
 void europe_set_nation(EuropeScreen* eu, int nation, const struct ColonizeMsgCatalog* names);
+
+/* LABELS.TXT used for the sale status line's @CMESSAGE wording (bugs.md 382). */
+void europe_set_labels(EuropeScreen* eu, const struct ColonizeMsgCatalog* labels);
+
+/*
+ * Compose DOS's Europe-sale status line for one sale and queue it in
+ * `bar_event` — "<amount> <Cargo> sold for <gross>. <tax>% Tax: <paid>. Net:
+ * <net>" (FUN_38fd_23c4: @CMESSAGE 1 / DS:0xfef "." / @CMESSAGE 0x11 / 0x12).
+ * Call it with the price still at the pre-sale bid; `net` is the gold that
+ * was actually credited.
+ */
+void europe_push_sale_status(EuropeScreen* eu, int cargo_type, int amount, int net);
 
 /*
  * FUN_48d3_0002 voyage roll. rng NULL → 1 (no roll). The x<3 west-edge

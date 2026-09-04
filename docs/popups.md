@@ -78,11 +78,33 @@ the 60.877 Hz clock, broken early by any key or mouse button — so in practice
 each line owns the strip for about half a second and a run of them plays as a
 sequence. It **blocks** like a dialog does, but nothing is clicked away.
 
-Port: a ring on `AiPopupState` (`ai_popup_enqueue_bar_message`,
-`ai_popup_bar_service`), `map_menu_set_message` painting the strip in place of
-the pull-down titles, and `game_service_bar_message` holding the turn pipeline
+The **ink** comes from the arm kind (`FUN_1009_0244`'s first argument, kept in
+`DS:0x4c`) via `FUN_1009_0004` / `FUN_0000_0094`:
+
+| kind | ink | used by |
+|------|-----|---------|
+| 1, 2 | `0x95` @COLORS hilite (gold) | every success line — Custom House sale, Europe sale |
+| 3 | `0x0c` bright red | Europe refusals (boycott, not enough gold, no room) |
+| other | `0x44` @COLORS basic (green) | — |
+
+Port: a ring on `AiPopupState` (`ai_popup_enqueue_bar_message` /
+`_kind`, `ai_popup_bar_service`, `ai_popup_bar_message_color`),
+`map_menu_set_message(bar, text, ink)` painting the strip in place of the
+pull-down titles, and `game_service_bar_message` holding the turn pipeline
 while a line is up (parked, not ticked, while any screen covers the map).
-First user: Custom House sales (`FUN_364b_0688`, one line per cargo).
+Dwell follows DOS's `min(deadline, now + 30 ticks)`: a line with more behind it
+holds ~0.5 s, the last of a run lives out the full 0x78 ticks (1971 ms).
+
+Users:
+
+- Custom House sales (`FUN_364b_0688`, one line per cargo) — map strip.
+- **Europe sales** (`FUN_38fd_23c4`, arm `FUN_38fd_19d8(1, 0x78, 0)`) — the
+  European Status screen's own top strip, `<amount> <Cargo>` + `@CMESSAGE 1`
+  "sold for" + gross + `DS:0xfef` "." + tax rate + `@CMESSAGE 0x11` + tax paid
+  + `@CMESSAGE 0x12` + net. This one does **not** block: the screen keeps
+  taking input and `FUN_1009_0270` retires the line on its deadline. Port:
+  `EuropeScreen.bar_event` + `europe_push_sale_status`, drained by
+  `game_service_europe_bar`, painted by `render_europe_screen`.
 
 ### Dialog script parser — blank lines are the body/choice separator (2026-09-03)
 

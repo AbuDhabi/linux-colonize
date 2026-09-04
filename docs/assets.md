@@ -74,7 +74,7 @@ Colonization uses the same wood dialog chrome for many confirmations and prompts
 
 Content draws inside the rect inset by `POPUP_FRAME_INSET` (3). Call `popup_draw(...)`; on palettes that differ from WOODPANL (e.g. `OPENMENU.PIK`), use `popup_colors_from_ui` + `popup_colors_remap`. First consumer: title `@BEGINMENU`. Not the same as `WOODFRAM.SS` (the milestone-woodcut picture frame, `woodcut.c`) or map-menu pulldowns. Which game dialogs use this chrome (and port status): [popups.md](popups.md).
 
-`.SS` sprite sheets (e.g. `TERRAIN.SS`, `CURSOR.SS`) use four MADSPACK sections: header, per-sprite metadata, palette, and linemode-compressed pixel data. Sprites are blitted with transparency at index `0xFD`. `CURSOR.SS` #0 also has stray index `0x09` (light blue) at opposite corners; the SDL color cursor treats those as transparent.
+`.SS` sprite sheets (e.g. `TERRAIN.SS`, `CURSOR.SS`) use four MADSPACK sections: header, per-sprite metadata, palette, and linemode-compressed pixel data. Sprites are blitted with transparency at index `0xFD`. **Both** `CURSOR.SS` frames (the pointer and the Go-To hand) carry a stray index `0x09` (light blue) at the top-right and bottom-left corners of their 17x17 frame — a registration mark, not art; no other `.SS` in `COLONIZE/` has the pair. `ui_drag.c` drops those two cells on both build paths, so the SDL colour cursor shows them as transparent (bugs.md 379).
 
 `.FF` fonts (e.g. `FONTSMAL.FF`, `FONTTINY.FF`) are single-section MADSPACK files. After decompression:
 

@@ -2362,6 +2362,21 @@ static bool colonies_building_is_buildable(
     return false;
   }
 
+  /*
+   * Cut construction rows. DOS's own "can this colony build it" gate
+   * (FUN_15eb_3650) hard-zeroes three @BUILDING file indices no matter what
+   * the colony has: 0x0a and 0x0b (the two unfinished Town Hall upgrades —
+   * PEDIA.TXT calls 0x0b "COLONIAL ASSEMBLY") and 0x1e (Capitol). 0x1f
+   * (Capitol Expansion) is not zeroed there but is unreachable anyway: its
+   * prerequisite is the Capitol, which can never be owned. NAMES.TXT still
+   * carries all four rows and PEDIA.TXT keeps title-only stubs for them, but
+   * no DOS colony can ever start one — the port used to offer Capitol /
+   * Capitol Expansion in the construction picker.
+   */
+  if (strcmp(n, "Capitol") == 0 || strcmp(n, "Capitol Expansion") == 0) {
+    return false;
+  }
+
   /* Fortification chain. */
   if (strcmp(n, "Stockade") == 0) {
     return !colonies_has_building_named(pool, col, "Stockade") &&
@@ -2515,16 +2530,10 @@ static bool colonies_building_is_buildable(
            !colonies_has_building_named(pool, col, "Iron Works");
   }
 
-  if (strcmp(n, "Capitol Expansion") == 0) {
-    return colonies_has_building_named(pool, col, "Capitol") &&
-           !colonies_has_building_named(pool, col, "Capitol Expansion");
-  }
-
   /* Starter houses and other leaf buildings: available if not already owned. */
   if (strcmp(n, "Weaver's House") == 0 || strcmp(n, "Tobacconist's House") == 0 ||
       strcmp(n, "Rum Distiller's House") == 0 || strcmp(n, "Fur Trader's House") == 0 ||
-      strcmp(n, "Blacksmith's House") == 0 || strcmp(n, "Stable") == 0 ||
-      strcmp(n, "Capitol") == 0) {
+      strcmp(n, "Blacksmith's House") == 0 || strcmp(n, "Stable") == 0) {
     return !colonies_has_building_named(pool, col, n);
   }
 

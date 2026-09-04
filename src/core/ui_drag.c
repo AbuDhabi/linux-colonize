@@ -53,6 +53,24 @@ bool ui_drag_set_cursor_sprite(UiDragSession* drag, const ColonizeSprite* sp) {
       (size_t)w
     );
   }
+  /*
+   * CURSOR.SS registration marks: both cursor frames carry a stray index
+   * 0x09 (light blue) at the top-right and bottom-left corners of the 17x17
+   * frame - a sheet-authoring artifact, not art (a scan of every COLONIZE
+   * .SS finds the pair in CURSOR.SS alone). ui_drag_install_arrow already
+   * dropped them for the plain pointer; the Go-To pointer (sprite 1) is
+   * built through here, which is why it kept them (bugs.md 379).
+   */
+  if (w >= 2 && h >= 2) {
+    uint8_t* const tr = &drag->cursor_pixels[(size_t)(w - 1)];
+    uint8_t* const bl = &drag->cursor_pixels[(size_t)(h - 1) * (size_t)w];
+    if (*tr == 0x09u) {
+      *tr = COLONIZE_SS_TRANSPARENT;
+    }
+    if (*bl == 0x09u) {
+      *bl = COLONIZE_SS_TRANSPARENT;
+    }
+  }
   drag->cursor_w = w;
   drag->cursor_h = h;
   drag->hotspot_x = w / 2;
