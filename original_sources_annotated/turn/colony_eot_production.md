@@ -28,7 +28,7 @@ Full map: [`coastal_fort_fire.md`](coastal_fort_fire.md). Nested here at
 | Offset | Role |
 |--------|------|
 | `+0x1a` | Owner nation |
-| `+0x1c` | `colony_flags`: sol_100=`0x02`, sol_50=`0x04`, starvation=`0x08`, build_complete=`0x80` |
+| `+0x1c` | `colony_flags`: sol_100=`0x02`, sol_50=`0x04`, inefficient_gov=`0x08`, build_complete=`0x80` |
 | `+0x1f` | Population |
 | `+0x90` | `cargo_produced_mask` |
 | `+0x92` | Hammers bank |
@@ -125,10 +125,11 @@ Scratch: `DS:−0x7238` (gross), `−0x71f6` (reserve). Net: `281f_0b50` → `15
 | SoL &lt;95 with bit2 set | AND ~0x02 | `0xda7` |
 | SoL &lt;50 with bit4 set | AND ~0x04 | `0xdb4` |
 | Decade up / down | chrome only | `0xdc1` / `0xdc8` |
-| Tory pressure ≥ difficulty band | OR / clear **0x08** (starvation-named bit; DOS Tory path) | `0xdd1` / `0xddd` → port `@INEFFICIENT`/`@EFFICIENT` via `inefficient_gov` (not Col1 bit3) |
+| Tory pressure ≥ difficulty band | OR / clear **0x08** | `0xdd1` / `0xddd` → port `@INEFFICIENT`/`@EFFICIENT` on that same Col1 bit3 (`COLONIZE_COLONY_FLAG_INEFFICIENT_GOV`) |
 
-Linux `COLONIZE_COLONY_FLAG_STARVATION` is a **food-vs-need reshape** of bit3,
-not the Tory latch above. `colony_prod_refresh_sol_flags` covers sol_50/100
+Bit3 is the Tory latch above in the port too (2026-09-04). Linux's own
+food-vs-need reading, previously `COLONIZE_COLONY_FLAG_STARVATION` on this bit,
+is the runtime-only `ColonizeColony.food_shortfall_latch`. `colony_prod_refresh_sol_flags` covers sol_50/100
 **one-step** (majority then unanimous on separate ticks). Human chrome:
 `turn_emit_sol_phase_d_chrome` in `turn.c`.
 
@@ -305,7 +306,7 @@ phrasing **Done** thin; full dialogs PARKED; century tip **Done** thin
 | C/D SoL flags | `colony_prod_refresh_sol_flags` (one-step sol_50/100); food starve reshape |
 | C SoL accumulators | `colony_prod_tick_rebel_accumulators` **Done** (shrink÷64 + pop×2 + bells; WoI crown half-negative) |
 | D SoL chrome | Latch + decade `@REBELMAJORITY`/`@REBELUNANIMOUS`/`@TORY*`/`@SONSUP`/`@SONSDOWN` **Done** thin (`turn_emit_sol_phase_d_chrome`); report_rebel_majorities / report_sons gates; VGA PARKED |
-| D Tory inefficient | `@INEFFICIENT`/`@EFFICIENT` **Done** thin (`turn_emit_inefficient_gov_chrome`); port-only `inefficient_gov` latch (Col1 bit3 = starvation); `report_inefficient_government` gate |
+| D Tory inefficient | `@INEFFICIENT`/`@EFFICIENT` **Done** thin (`turn_emit_inefficient_gov_chrome`); latch on Col1 bit3 as in DOS, so it survives save/load; `report_inefficient_government` gate |
 | L hammers | `colony_prod_colony_hammers` + complete; `@BUILT` chrome **Done** thin |
 | O spoilage trim | `colonies_apply_warehouse_spoilage` |
 | O AI dump-sell | `europe_ai_colony_dump_sell` **Done** thin |

@@ -250,7 +250,6 @@ Details: [`year_end_chrome.md`](../original_sources_annotated/turn/year_end_chro
 
 | Effect | Source |
 |--------|--------|
-| DOS +0x1c bit `0x08` inefficient latch | decomp ~57468 — port chrome via `inefficient_gov` (bit3 stays starvation) |
 | Combat popular-support attack % = side’s SoL/Tory share | Manual — **Done** in `combat_apply_1b0e_peels` (colony Tory/Rebel) — [combat.md](combat.md) |
 | Continental Army muster by colony SoL | Manual — **Done** in `ai_king_war_act` (1eca) |
 | Map population digit colors (white/green/blue) | Manual |
@@ -266,7 +265,7 @@ Details: [`year_end_chrome.md`](../original_sources_annotated/turn/year_end_chro
 | Tory thresh 10…6 | — | Decomp + manual; also [difficulty.md](difficulty.md) |
 | Bolivar | Port dividend bump alone as “the” rule | DOS/port: +20 on every SoL compute while FF held (human) |
 | Declare gate | Manual/decomp: SoL≥50 only |
-| +0x1c `0x08` | Port food starvation bit | DOS inefficient-gov latch |
+| +0x1c `0x08` | Port food starvation bit | DOS inefficient-gov latch — port agrees since 2026-09-04 (`COLONIZE_COLONY_FLAG_INEFFICIENT_GOV`; food latch moved to `food_shortfall_latch`) |
 | `0x1c & 0x40` as “rebel” | Some year-end annotations | Port: coastal bit |
 
 ---

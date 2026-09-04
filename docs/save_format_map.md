@@ -146,7 +146,7 @@ as peels land.
 |-------|------|--------|-------|
 | `x` / `y` / `name` / `nation_id` / `population` | — | `mapped` | |
 | `ai_flags` (`ColonizeCol1ColonyAiFlags`) | 1 | `mapped` | +0x1b; ship/AI planner bits — Linux field + MoW/armed ship scan + COLONY 5|8; thin needs_colonists/garrison |
-| `flags` (`ColonizeCol1ColonyFlags`) | 1 | `mapped` | +0x1c; Linux `colony_flags` — starvation→LABOR + sol_50/100 + wagon/coastal/small (`FUN_364b_0688`) |
+| `flags` (`ColonizeCol1ColonyFlags`) | 1 | `mapped` | +0x1c; Linux `colony_flags` — bit3 inefficient-gov latch + sol_50/100 + wagon/coastal/small (`FUN_364b_0688`) |
 | `build_ai_flags` | 1 | `mapped` | +0x1d; bit7 `wants_construction` (0x80) — Linux field + LABOR latch + clear on queue done; other bits reserved |
 | `garrison_quota` | 1 | `mapped` | +0x1e; `threat>>3` (`FUN_5952_035e`, clean recovery 2026-08-14 confirms exact match — [`colony_tick_5952_035e.md`](../original_sources_annotated/ai/colony_tick_5952_035e.md)); Linux `ColonizeColony.garrison_quota` + fortify DEC + thin latch |
 | `occupation` / `profession` | 64 | `mapped` | |

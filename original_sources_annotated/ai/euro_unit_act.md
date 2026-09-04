@@ -2158,8 +2158,10 @@ Smoke: `smoke_colony_ai_flags_mow_colony_alt`. Cite: save_format_map.md +0x1b.
 
 ### 2d12. Linux thin — Col1 `colony_flags` (+0x1c)
 
-Runtime `ColonizeColony.colony_flags` bridged from Col1. Starvation (0x08)
-latches when food < pop×2 (production + planning); forces LABOR. Thin wagon
+Runtime `ColonizeColony.colony_flags` bridged from Col1. The AI's "eating into
+its stores" test (food < pop×2) forces LABOR; it used to be stored in bit 0x08,
+but that bit is DOS's inefficient-government latch, so `ai_euro_colony_food_short`
+now reads the stock directly and leaves the bit to the colony tick. Thin wagon
 (0x20) / coastal (0x40) / small-AI (0x10) latches. Smoke:
 `smoke_colony_flags_starvation_labor`. Cite: save_format_map.md +0x1c;
 FUN_364b_0688.

@@ -312,7 +312,11 @@ static int turn_report_ok_inefficient(const ColonizeCol1Save* col1) {
 
 /*
  * FUN_364b_0688 Phase D Tory pressure: inefficient-gov chrome (0xdd1 / 0xddd).
- * Port latch is colony->inefficient_gov (Col1 +0x1c bit3 = starvation).
+ * Latch is Col1 +0x1c bit3 (COLONIZE_COLONY_FLAG_INEFFICIENT_GOV), exactly
+ * where DOS keeps it, so a crossing announced before a save is not announced
+ * again after the reload (bugs.md). DOS sets and clears the bit whether or
+ * not the report option lets the message through, so the latch update stays
+ * outside turn_report_ok_inefficient.
  */
 static void turn_emit_inefficient_gov_chrome(
   ColonizeColony* colony,
@@ -361,8 +365,9 @@ static void turn_emit_inefficient_gov_chrome(
   status_buf[0] = '\0';
 
   if (tories < thresh) {
-    if (colony->inefficient_gov != 0) {
-      colony->inefficient_gov = 0;
+    if ((colony->colony_flags & COLONIZE_COLONY_FLAG_INEFFICIENT_GOV) != 0) {
+      colony->colony_flags =
+        (uint8_t)(colony->colony_flags & (uint8_t)~COLONIZE_COLONY_FLAG_INEFFICIENT_GOV);
       if (turn_report_ok_inefficient(col1)) {
         section = "EFFICIENT";
         snprintf(
@@ -374,8 +379,8 @@ static void turn_emit_inefficient_gov_chrome(
       }
     }
   } else {
-    if (colony->inefficient_gov == 0) {
-      colony->inefficient_gov = 1;
+    if ((colony->colony_flags & COLONIZE_COLONY_FLAG_INEFFICIENT_GOV) == 0) {
+      colony->colony_flags |= COLONIZE_COLONY_FLAG_INEFFICIENT_GOV;
       if (turn_report_ok_inefficient(col1)) {
         section = "INEFFICIENT";
         snprintf(
@@ -751,8 +756,7 @@ static void turn_produce_one_colony(
   {
     const int need = pop * TURN_FOOD_PER_COLONIST;
     const int food_at_start = stock_before[COLONIZE_CARGO_FOOD];
-    const int was_starving =
-      (colony->colony_flags & COLONIZE_COLONY_FLAG_STARVATION) != 0;
+    const int was_starving = colony->food_shortfall_latch != 0;
     int starved_this_tick = 0;
     /*
      * bugs.md (port_orange_starves.SAV): DOS's starve trigger is DS:0x8e5a =
@@ -761,12 +765,7 @@ static void turn_produce_one_colony(
      * latch killed a colony producing exactly what it eats at 0 stores
      * (commons 2 food vs pop 1 eating 2 — net zero, DOS-fine forever).
      */
-    if (need - food_at_start - field_food > 0) {
-      colony->colony_flags |= COLONIZE_COLONY_FLAG_STARVATION;
-    } else {
-      colony->colony_flags =
-        (uint8_t)(colony->colony_flags & (uint8_t)~COLONIZE_COLONY_FLAG_STARVATION);
-    }
+    colony->food_shortfall_latch = (need - food_at_start - field_food > 0) ? 1u : 0u;
 
     /*
      * FUN_364b_0688 phase I — birth: food ≥ 200 → Free Colonist in colony;
@@ -846,8 +845,8 @@ static void turn_produce_one_colony(
      * Phase J — starve-kill when still short and started the turn at 0 food.
      * Last colonist → @VANISH + colonies_abandon (DOS 0xe47 / thunk 0254).
      */
-    if ((colony->colony_flags & COLONIZE_COLONY_FLAG_STARVATION) != 0 &&
-        food_at_start == 0 && colony->colonist_count > 0 && !starve_mercy) {
+    if (colony->food_shortfall_latch != 0 && food_at_start == 0 &&
+        colony->colonist_count > 0 && !starve_mercy) {
       const int colony_id = colony->id;
       char vanish_name[COLONIZE_COLONY_NAME_MAX];
       snprintf(

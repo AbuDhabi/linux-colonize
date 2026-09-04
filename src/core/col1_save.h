@@ -64,6 +64,7 @@
 #define COLONIZE_COL1_UNKNOWN_F_SIZE 110u
 #define COLONIZE_COL1_TRADE_ROUTE_SIZE 74u
 #define COLONIZE_COL1_TRADE_ROUTE_COUNT 12u
+#define COLONIZE_COL1_TRADE_ROUTE_STOPS 4u
 #define COLONIZE_COL1_CARGO_TYPES 16u
 #define COLONIZE_COL1_FF_COUNT 25u
 #define COLONIZE_COL1_COLONY_POP_MAX 32u
@@ -387,7 +388,11 @@ typedef struct ColonizeCol1ColonyFlags {
   uint8_t ref_landing : 1; /* 0x01 — REF landing target */
   uint8_t sol_100 : 1; /* 0x02 — SoL ≥ 100 latch */
   uint8_t sol_50 : 1; /* 0x04 — SoL ≥ 50 latch */
-  uint8_t starvation : 1; /* 0x08 — food shortfall latch */
+  uint8_t inefficient_gov : 1; /* 0x08 — inefficient-government latch. Set by
+     FUN_364b_0688 phase D when tories = pop*(100-SoL%)/100 reaches
+     10-difficulty, cleared below it; gates the once-per-crossing
+     @INEFFICIENT / @EFFICIENT chrome. Was named "starvation" here after the
+     port's own food reshape of the bit — DOS never stores food state in it. */
   uint8_t small_colony_ai : 1; /* 0x10 — AI pop < 10 */
   uint8_t wagon_train : 1; /* 0x20 — wagon in colony */
   uint8_t coastal : 1; /* 0x40 — coastal / docks founding path */
@@ -956,7 +961,7 @@ typedef struct ColonizeCol1TradeRoute {
   char name[32];
   uint8_t sea; /* non-zero = sea route */
   uint8_t dest_count;
-  ColonizeCol1TradeStop stop[4];
+  ColonizeCol1TradeStop stop[COLONIZE_COL1_TRADE_ROUTE_STOPS];
 } ColonizeCol1TradeRoute;
 
 #pragma pack(pop)

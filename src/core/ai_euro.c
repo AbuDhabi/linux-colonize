@@ -1133,6 +1133,21 @@ static int ai_euro_type_is_man_o_war_name(const char* name) {
  * sea units within MD≤5 (MoW → 0x02, else armed → 0x01). Also thin-latch
  * needs_colonists / needs_garrison from pop / garrison_quota.
  */
+/*
+ * "This colony is eating into its stores" — stock below one turn's
+ * consumption (TURN_FOOD_PER_COLONIST = 2 per head). Used to ride in
+ * colony_flags bit3 until that bit went back to being DOS's
+ * inefficient-government latch; the AI only ever wanted the reading, never
+ * the storage.
+ */
+static int ai_euro_colony_food_short(const ColonizeColony* c) {
+  if (!c) {
+    return 0;
+  }
+  const int pop = c->colonist_count > 0 ? c->colonist_count : c->population;
+  return c->stock[COLONIZE_CARGO_FOOD] < pop * 2;
+}
+
 static void ai_euro_refresh_colony_ai_flags(
   ColonizeTurnContext* ctx,
   int nation_id,
@@ -1177,16 +1192,15 @@ static void ai_euro_refresh_colony_ai_flags(
     c->ai_flags =
       (uint8_t)(c->ai_flags & (uint8_t)~COLONIZE_COLONY_AI_NEEDS_GARRISON);
   }
-  /* +0x1c thin: starvation / wagon / coastal / small-colony. */
+  /*
+   * +0x1c thin: wagon / coastal / small-colony. Bit3 is NOT touched here: it
+   * is DOS's inefficient-government latch (FUN_364b_0688 phase D), which the
+   * per-turn colony tick owns. This pass used to overwrite it with a
+   * food-vs-need reading, which both clobbered the latch and had no DOS
+   * basis; ai_euro_colony_food_short below is the food test the AI wanted.
+   */
   {
     const int pop = c->colonist_count > 0 ? c->colonist_count : c->population;
-    const int need = pop * 2; /* TURN_FOOD_PER_COLONIST */
-    if (c->stock[COLONIZE_CARGO_FOOD] < need) {
-      c->colony_flags |= COLONIZE_COLONY_FLAG_STARVATION;
-    } else {
-      c->colony_flags =
-        (uint8_t)(c->colony_flags & (uint8_t)~COLONIZE_COLONY_FLAG_STARVATION);
-    }
     if (pop < 10) {
       c->colony_flags |= COLONIZE_COLONY_FLAG_SMALL_AI;
     } else {
@@ -9918,7 +9932,7 @@ static void ai_euro_colony_goals(ColonizeTurnContext* ctx, int nation_id) {
       }
       ai_euro_refresh_colony_ai_flags(ctx, nation_id, c);
       int labor = (c->population < 3) || (c->labor_shortage > 0) ||
-                  ((c->colony_flags & COLONIZE_COLONY_FLAG_STARVATION) != 0);
+                  ai_euro_colony_food_short(c);
       if (inv && inv->tools_short > 0 && c->stock[COLONIZE_CARGO_TOOLS] < 20) {
         labor = 1;
       }

@@ -3058,7 +3058,7 @@ int main(void) {
     ColonizeTurnResult prod;
     memset(&prod, 0, sizeof(prod));
     turn_run_colony_production(&pool, NULL, &col1, &eu, 0, &prod, &pops, &game_txt, NULL);
-    if (c->inefficient_gov == 0) {
+    if ((c->colony_flags & COLONIZE_COLONY_FLAG_INEFFICIENT_GOV) == 0) {
       fprintf(stderr, "INEFFICIENT: latch not set (sol low, pop 12)\n");
       assets_msg_free(&game_txt);
       return 1;
@@ -3069,16 +3069,34 @@ int main(void) {
       return 1;
     }
 
+    /*
+     * bugs.md ("it keeps pestering me"): a second tick with the latch already
+     * set must stay quiet, and — because the latch is now DOS's saved
+     * colony_flags bit3 rather than a RAM-only byte — that silence survives a
+     * save/load too.
+     */
+    eu.status[0] = '\0';
+    ai_popup_clear(&pops);
+    c->stock[COLONIZE_CARGO_FOOD] = 200;
+    memset(&prod, 0, sizeof(prod));
+    turn_run_colony_production(&pool, NULL, &col1, &eu, 0, &prod, &pops, &game_txt, NULL);
+    if (strstr(eu.status, "inefficient") != NULL) {
+      fprintf(stderr, "INEFFICIENT: repeated on a second tick ('%s')\n", eu.status);
+      assets_msg_free(&game_txt);
+      return 1;
+    }
+
     /* Raise SoL → tories 0 → @EFFICIENT. */
     col1c.rebel_dividend = 100u << 6;
     col1c.rebel_divisor = 100u << 6;
     c->stock[COLONIZE_CARGO_FOOD] = 200;
-    c->colony_flags = (uint8_t)(COLONIZE_COLONY_FLAG_SOL_50 | COLONIZE_COLONY_FLAG_SOL_100);
+    c->colony_flags = (uint8_t)(COLONIZE_COLONY_FLAG_SOL_50 | COLONIZE_COLONY_FLAG_SOL_100 |
+                                COLONIZE_COLONY_FLAG_INEFFICIENT_GOV);
     eu.status[0] = '\0';
     ai_popup_clear(&pops);
     memset(&prod, 0, sizeof(prod));
     turn_run_colony_production(&pool, NULL, &col1, &eu, 0, &prod, &pops, &game_txt, NULL);
-    if (c->inefficient_gov != 0) {
+    if ((c->colony_flags & COLONIZE_COLONY_FLAG_INEFFICIENT_GOV) != 0) {
       fprintf(stderr, "EFFICIENT: latch still set\n");
       assets_msg_free(&game_txt);
       return 1;
@@ -3090,7 +3108,6 @@ int main(void) {
     }
 
     /* Suppress reports: edge up silent but latch still sets. */
-    c->inefficient_gov = 0;
     col1c.rebel_dividend = 0u << 6;
     col1c.rebel_divisor = 100u << 6;
     c->stock[COLONIZE_CARGO_FOOD] = 200;
@@ -3100,7 +3117,7 @@ int main(void) {
     ai_popup_clear(&pops);
     memset(&prod, 0, sizeof(prod));
     turn_run_colony_production(&pool, NULL, &col1, &eu, 0, &prod, &pops, &game_txt, NULL);
-    if (c->inefficient_gov == 0) {
+    if ((c->colony_flags & COLONIZE_COLONY_FLAG_INEFFICIENT_GOV) == 0) {
       fprintf(stderr, "INEFFICIENT suppress: latch should still set\n");
       assets_msg_free(&game_txt);
       return 1;
@@ -3155,8 +3172,8 @@ int main(void) {
       );
       return 1;
     }
-    if ((s->colony_flags & COLONIZE_COLONY_FLAG_STARVATION) == 0) {
-      fprintf(stderr, "starve: STARVATION latch should remain\n");
+    if (s->food_shortfall_latch == 0) {
+      fprintf(stderr, "starve: food-shortfall latch should remain\n");
       return 1;
     }
     fprintf(stderr, "colony starve-kill ok\n");
@@ -3198,8 +3215,8 @@ int main(void) {
       );
       return 1;
     }
-    if ((s->colony_flags & COLONIZE_COLONY_FLAG_STARVATION) != 0) {
-      fprintf(stderr, "starve netzero: STARVATION latch must stay clear\n");
+    if (s->food_shortfall_latch != 0) {
+      fprintf(stderr, "starve netzero: food-shortfall latch must stay clear\n");
       return 1;
     }
     fprintf(stderr, "colony net-zero food no-starve ok\n");
@@ -3589,8 +3606,8 @@ int main(void) {
     ColonizeTurnResult prod;
     memset(&prod, 0, sizeof(prod));
     turn_run_colony_production(&pool, NULL, NULL, &eu, 0, &prod, &pops, &game_txt, NULL);
-    if ((col->colony_flags & COLONIZE_COLONY_FLAG_STARVATION) == 0) {
-      fprintf(stderr, "food1: want STARVATION latch\n");
+    if (col->food_shortfall_latch == 0) {
+      fprintf(stderr, "food1: want food-shortfall latch\n");
       assets_msg_free(&game_txt);
       return 1;
     }
