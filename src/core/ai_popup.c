@@ -727,10 +727,19 @@ static int ai_popup_wrap_body(
   return count;
 }
 
-/* ---- Chief portraits (P8.6): IND{tribe}A{tier}.SS, lazy, palette-remapped ---- */
+/*
+ * ---- Chief portraits (P8.6): IND{tribe}A{tier}.SS, lazy ----
+ *
+ * These sheets (and KING/KING2, MSSn, MYRn) are NOT remapped onto the host
+ * screen's palette. Every screen palette DOS shows them over reserves a block
+ * of DAC slots as black — TERRAIN.SS leaves 152..251 empty, EUROPE.PIK
+ * 120..251 — and each popup sheet ships its own entries for exactly that
+ * block, which DOS loads alongside the art. Nearest-colour remapping instead
+ * collapsed ~100 private colours onto the ~150 the map already uses, which is
+ * what wrecked the King's tax-audience flair (bugs.md). The sheets now blit
+ * raw and ai_popup_art_palette_merge lends the host palette their block.
+ */
 static char g_portrait_dir[512];
-static ColonizePalette g_portrait_palette;
-static bool g_portrait_palette_ok;
 static ColonizeSpriteSheet g_portrait_sheets[8][4];
 static uint8_t g_portrait_state[8][4]; /* 0 untried, 1 loaded, 2 failed */
 /* bugs.md: the King's tax-audience flair — DS:0x1f5c = 8 loads "KING" and
@@ -775,7 +784,7 @@ int ai_popup_portrait_tier_from_alarm(int alarm) {
   return 3;
 }
 
-void ai_popup_set_portrait_source(const char* data_dir, const ColonizePalette* palette) {
+void ai_popup_set_portrait_source(const char* data_dir) {
   for (int t = 0; t < 8; ++t) {
     for (int a = 0; a < 4; ++a) {
       if (g_portrait_state[t][a] == 1) {
@@ -797,8 +806,7 @@ void ai_popup_set_portrait_source(const char* data_dir, const ColonizePalette* p
     }
     g_myr_state[i] = 0;
   }
-  /* The King pair is remapped against the popup palette like the rest, so it
-   * has to be dropped when the source/palette changes. */
+  /* The King pair reloads with the rest when the source directory changes. */
   if (g_king_state == 1) {
     ss_free(&g_king_sheet);
   }
@@ -808,13 +816,10 @@ void ai_popup_set_portrait_source(const char* data_dir, const ColonizePalette* p
   }
   g_king_base_state = 0;
   g_portrait_dir[0] = '\0';
-  g_portrait_palette_ok = false;
-  if (!data_dir || !palette) {
+  if (!data_dir) {
     return;
   }
   snprintf(g_portrait_dir, sizeof(g_portrait_dir), "%s", data_dir);
-  g_portrait_palette = *palette;
-  g_portrait_palette_ok = true;
 }
 
 void ai_popup_set_last_portrait(AiPopupState* st, int tribe, int tier) {
@@ -828,53 +833,8 @@ void ai_popup_set_last_portrait(AiPopupState* st, int tribe, int tier) {
   req->portrait_tier = tier < 0 ? 0 : (tier > 3 ? 3 : tier);
 }
 
-/* Nearest-colour remap of the sheet's own palette onto the popup palette
- * (same per-file pattern as reports.c / colony_screen.c / europe.c). */
-static void ai_popup_remap_sheet(ColonizeSpriteSheet* sheet, const ColonizePalette* dst) {
-  if (!sheet || !dst || !sheet->has_palette) {
-    return;
-  }
-  uint8_t lut[256];
-  for (int i = 0; i < 256; ++i) {
-    if (i == COLONIZE_SS_TRANSPARENT) {
-      lut[i] = (uint8_t)COLONIZE_SS_TRANSPARENT;
-      continue;
-    }
-    const int sr = sheet->palette.rgb[i][0];
-    const int sg = sheet->palette.rgb[i][1];
-    const int sb = sheet->palette.rgb[i][2];
-    int best = 0;
-    int best_d = 1 << 30;
-    for (int j = 0; j < 256; ++j) {
-      if (j == COLONIZE_SS_TRANSPARENT) {
-        continue;
-      }
-      const int dr = sr - dst->rgb[j][0];
-      const int dg = sg - dst->rgb[j][1];
-      const int db = sb - dst->rgb[j][2];
-      const int d = dr * dr + dg * dg + db * db;
-      if (d < best_d) {
-        best_d = d;
-        best = j;
-      }
-    }
-    lut[i] = (uint8_t)best;
-  }
-  for (int k = 0; k < sheet->sprite_count; ++k) {
-    ColonizeSprite* spr = &sheet->sprites[k];
-    if (!spr->pixels) {
-      continue;
-    }
-    const int n = spr->width * spr->height;
-    for (int q = 0; q < n; ++q) {
-      spr->pixels[q] = lut[spr->pixels[q]];
-    }
-  }
-}
-
 static const ColonizeSpriteSheet* ai_popup_portrait_sheet(int tribe, int tier) {
-  if (tribe < 0 || tribe > 7 || tier < 0 || tier > 3 || !g_portrait_dir[0] ||
-      !g_portrait_palette_ok) {
+  if (tribe < 0 || tribe > 7 || tier < 0 || tier > 3 || !g_portrait_dir[0]) {
     return NULL;
   }
   if (g_portrait_state[tribe][tier] == 0) {
@@ -885,7 +845,6 @@ static const ColonizeSpriteSheet* ai_popup_portrait_sheet(int tribe, int tier) {
     g_portrait_state[tribe][tier] = 2;
     if (dos_compat_normalize_asset_path(g_portrait_dir, name, path, sizeof(path)) &&
         ss_load(path, &g_portrait_sheets[tribe][tier], err, sizeof(err))) {
-      ai_popup_remap_sheet(&g_portrait_sheets[tribe][tier], &g_portrait_palette);
       g_portrait_state[tribe][tier] = 1;
     }
   }
@@ -893,7 +852,7 @@ static const ColonizeSpriteSheet* ai_popup_portrait_sheet(int tribe, int tier) {
 }
 
 static const ColonizeSpriteSheet* ai_popup_king_sheet(void) {
-  if (!g_portrait_dir[0] || !g_portrait_palette_ok) {
+  if (!g_portrait_dir[0]) {
     return NULL;
   }
   if (g_king_state == 0) {
@@ -902,7 +861,6 @@ static const ColonizeSpriteSheet* ai_popup_king_sheet(void) {
     g_king_state = 2;
     if (dos_compat_normalize_asset_path(g_portrait_dir, "KING2.SS", path, sizeof(path)) &&
         ss_load(path, &g_king_sheet, err, sizeof(err))) {
-      ai_popup_remap_sheet(&g_king_sheet, &g_portrait_palette);
       g_king_state = 1;
     }
   }
@@ -911,7 +869,7 @@ static const ColonizeSpriteSheet* ai_popup_king_sheet(void) {
 
 /* The static full-figure King the KING2 frames overlay. */
 static const ColonizeSpriteSheet* ai_popup_king_base_sheet(void) {
-  if (!g_portrait_dir[0] || !g_portrait_palette_ok) {
+  if (!g_portrait_dir[0]) {
     return NULL;
   }
   if (g_king_base_state == 0) {
@@ -920,7 +878,6 @@ static const ColonizeSpriteSheet* ai_popup_king_base_sheet(void) {
     g_king_base_state = 2;
     if (dos_compat_normalize_asset_path(g_portrait_dir, "KING.SS", path, sizeof(path)) &&
         ss_load(path, &g_king_base_sheet, err, sizeof(err))) {
-      ai_popup_remap_sheet(&g_king_base_sheet, &g_portrait_palette);
       g_king_base_state = 1;
     }
   }
@@ -957,7 +914,7 @@ static const ColonizeSpriteSheet* ai_popup_graphic_sheet(int mss, int myr) {
   } else {
     return NULL;
   }
-  if (!g_portrait_dir[0] || !g_portrait_palette_ok) {
+  if (!g_portrait_dir[0]) {
     return NULL;
   }
   if (*state == 0) {
@@ -966,11 +923,57 @@ static const ColonizeSpriteSheet* ai_popup_graphic_sheet(int mss, int myr) {
     *state = 2;
     if (dos_compat_normalize_asset_path(g_portrait_dir, name, path, sizeof(path)) &&
         ss_load(path, sheet, err, sizeof(err))) {
-      ai_popup_remap_sheet(sheet, &g_portrait_palette);
       *state = 1;
     }
   }
   return *state == 1 ? sheet : NULL;
+}
+
+/*
+ * The sheet whose private palette block the open popup needs — the portrait
+ * when one is set (KING.SS and KING2.SS share a palette, so either serves),
+ * else the MSS/MYR decoration. Same precedence as ai_popup_render's own pick.
+ */
+static const ColonizeSpriteSheet* ai_popup_art_sheet(const AiPopupRequest* req) {
+  if (!req) {
+    return NULL;
+  }
+  const ColonizeSpriteSheet* portrait =
+    req->portrait_tribe == 8 ? ai_popup_king_base_sheet()
+                             : ai_popup_portrait_sheet(req->portrait_tribe, req->portrait_tier);
+  if (!portrait && req->portrait_tribe == 8) {
+    portrait = ai_popup_king_sheet();
+  }
+  if (portrait) {
+    return portrait;
+  }
+  /* Portrait asked for but absent: ai_popup_render falls back to the MSS/MYR
+   * decoration in exactly the same way. */
+  return ai_popup_graphic_sheet(req->graphic_mss, req->graphic_myr);
+}
+
+void ai_popup_art_palette_merge(AiPopupState* st, ColonizePalette* dst) {
+  if (!st || !st->open || !dst) {
+    return;
+  }
+  const ColonizeSpriteSheet* art = ai_popup_art_sheet(&st->current);
+  if (!art || !art->has_palette) {
+    return;
+  }
+  /*
+   * Lend the host palette only the slots it leaves black. That is exactly the
+   * reserved block DOS loads these sheets into (TERRAIN.SS 152..251,
+   * EUROPE.PIK 120..251), so the map's own colours — the animated water ramp
+   * at 120..127 included — are never disturbed.
+   */
+  for (int i = 1; i < 256; ++i) {
+    if (dst->rgb[i][0] || dst->rgb[i][1] || dst->rgb[i][2]) {
+      continue;
+    }
+    dst->rgb[i][0] = art->palette.rgb[i][0];
+    dst->rgb[i][1] = art->palette.rgb[i][1];
+    dst->rgb[i][2] = art->palette.rgb[i][2];
+  }
 }
 
 void ai_popup_render(

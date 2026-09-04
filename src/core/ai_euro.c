@@ -6286,6 +6286,16 @@ static int ai_euro_try_transport_europe_sell(
   }
   ColonizeCol1Nation* nat = &ctx->col1->nation[nation_id];
   EuropeScreen* eu = ctx->europe;
+  /*
+   * Borrow/restore the shared EuropeScreen — see ai_euro_cash_one_treasure.
+   * bugs.md: this site borrowed but never gave back, so an AI dump-sell left
+   * its own gold AND tax rate on the human's Europe screen; the next col1
+   * capture wrote that tax straight into the human's nation record, which is
+   * what made every King audience start from the AI's rate ("tax hike always
+   * resets the pre-existing rate").
+   */
+  const int saved_gold = eu->gold;
+  const int saved_tax = eu->tax_percent;
   eu->gold = (int)nat->gold;
   eu->tax_percent = (int)nat->tax_rate;
   int sold = 0;
@@ -6311,9 +6321,12 @@ static int ai_euro_try_transport_europe_sell(
   }
   if (sold > 0) {
     nat->gold = (uint32_t)(eu->gold < 0 ? 0 : eu->gold);
-    return 1;
   }
-  return 0;
+  if (nation_id != ctx->human_nation) {
+    eu->gold = saved_gold;
+    eu->tax_percent = saved_tax;
+  }
+  return sold > 0 ? 1 : 0;
 }
 
 static int ai_euro_try_wagon_tools_delivery(

@@ -2151,6 +2151,82 @@ int main(void) {
     );
   }
 
+  /*
+   * bugs.md: nation+6 (the Recruit passage ladder counter) was never bridged,
+   * so game_apply_col1_save's europe_reset_campaign dropped it to 0 on every
+   * load and the Europe passage price fell back to its opening rung. Round-trip
+   * it in both directions, and check apply recomputes the displayed price.
+   */
+  {
+    ColonizeWorldMap map;
+    char err[256];
+    if (!map_alloc(&map, 32, 32, err, sizeof(err))) {
+      fprintf(stderr, "recruit_count roundtrip: map_alloc: %s\n", err);
+      return 1;
+    }
+    ColonizeCol1Save save;
+    if (!col1_bridge_init_template(&save, map.width, map.height, err, sizeof(err))) {
+      fprintf(stderr, "recruit_count roundtrip: template: %s\n", err);
+      map_free(&map);
+      return 1;
+    }
+    save.head.difficulty = 3;
+    save.nation[save.head.human_player & 3].recruit_count = 6;
+    save.nation[save.head.human_player & 3].current_crosses = 0;
+    save.nation[save.head.human_player & 3].needed_crosses = 9;
+
+    ColonizeUnitPool units;
+    units_reset(&units);
+    ColonizeColonyPool colonies;
+    colonies_init(&colonies);
+    EuropeScreen europe;
+    memset(&europe, 0, sizeof(europe));
+    europe.cargo_count = 16;
+    ColonizeCol1BridgeResult br;
+    if (!col1_bridge_apply(&save, &map, &units, &colonies, &europe, &br, err, sizeof(err))) {
+      fprintf(stderr, "recruit_count roundtrip: apply: %s\n", err);
+      col1_save_free(&save);
+      map_free(&map);
+      return 1;
+    }
+    const int want_passage = europe_compute_recruit_passage(6, 3, 0, 9);
+    if (europe.recruit_count != 6 || europe.recruit_passage != want_passage) {
+      fprintf(
+        stderr,
+        "recruit_count roundtrip: apply gave count=%u passage=%d (want 6/%d)\n",
+        (unsigned)europe.recruit_count,
+        europe.recruit_passage,
+        want_passage
+      );
+      col1_save_free(&save);
+      map_free(&map);
+      return 1;
+    }
+    europe.recruit_count = 9;
+    if (!col1_bridge_capture(
+          &save, &map, &units, &colonies, &europe, br.year, br.autumn, br.turn_number,
+          br.human_nation, br.cursor_x, br.cursor_y, -1, err, sizeof(err)
+        )) {
+      fprintf(stderr, "recruit_count roundtrip: capture: %s\n", err);
+      col1_save_free(&save);
+      map_free(&map);
+      return 1;
+    }
+    if (save.nation[br.human_nation & 3].recruit_count != 9) {
+      fprintf(
+        stderr,
+        "recruit_count roundtrip: capture kept %u (want 9)\n",
+        (unsigned)save.nation[br.human_nation & 3].recruit_count
+      );
+      col1_save_free(&save);
+      map_free(&map);
+      return 1;
+    }
+    col1_save_free(&save);
+    map_free(&map);
+    fprintf(stderr, "recruit_count survives the col1 bridge both ways ok\n");
+  }
+
   diag_shutdown();
   return 0;
 }

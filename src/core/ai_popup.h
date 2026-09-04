@@ -301,11 +301,20 @@ void ai_popup_render(
 void ai_popup_consume_result(AiPopupState* st);
 
 /*
- * Chief portraits (P8.6). data_dir + the framebuffer palette the sheets are
- * remapped onto; sheets load lazily on first render. Call once after the
- * palette is loaded. NULL disables portraits.
+ * Chief portraits (P8.6): the directory the popup art sheets load from, lazily
+ * on first render. Call once at startup; NULL disables portraits.
  */
-void ai_popup_set_portrait_source(const char* data_dir, const struct ColonizePalette* palette);
+void ai_popup_set_portrait_source(const char* data_dir);
+/*
+ * Lend `dst` the open popup's portrait / MSS / MYR sheet its own palette
+ * entries, for every slot `dst` leaves black. DOS shows these sheets over
+ * screen palettes that reserve a block of DAC slots (TERRAIN.SS 152..251,
+ * EUROPE.PIK 120..251) and loads the sheet's own entries there; the port
+ * therefore blits the art raw and merges here instead of nearest-colour
+ * remapping it (bugs.md: the King's tax-audience flair). No-op when no
+ * decorated popup is open.
+ */
+void ai_popup_art_palette_merge(AiPopupState* st, struct ColonizePalette* dst);
 /* Attach IND{tribe}A{tier} to the most recently enqueued request (no-op when
  * the queue is empty or tribe > 7; tribe < 0 clears the portrait). */
 void ai_popup_set_last_portrait(AiPopupState* st, int tribe, int tier);
