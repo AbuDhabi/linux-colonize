@@ -283,6 +283,7 @@ struct ColonizeGameState {
   int debug_mouse_y;
   bool debug_show_mouse_coords; /* DEBUG menu toggle; default off */
   bool debug_building_rects; /* DEBUG menu toggle: colony-screen building sprite bounds; default off */
+  bool debug_logs; /* DEBUG menu toggle: diag_info to colonize-linux.log; default off */
   bool debug_show_strategy; /* CHEAT Show Strategy: per-nation top AI goal overlay */
   bool debug_show_colony_sites; /* CHEAT Show Colony Sites: ai_goals_best_found_tile overlay */
   uint16_t debug_flags_mask; /* CHEAT Debug Info Flags (@OPTIONS, 7 bits); bits 1/3 shadow
@@ -2100,7 +2101,7 @@ static void game_try_prompt_landho(ColonizeGameState* game) {
   game_open_landho_name_entry(game);
 }
 
-/* Persist DEBUG HUD toggles (mouse coords, building rects) to settings.json. */
+/* Persist DEBUG HUD toggles (mouse coords, building rects, logs) to settings.json. */
 static void game_persist_debug_hud(const ColonizeGameState* game) {
   if (!game || !settings_is_loaded()) {
     return;
@@ -2108,6 +2109,7 @@ static void game_persist_debug_hud(const ColonizeGameState* game) {
   ColonizeSettings prefs = *settings_get();
   prefs.show_mouse_coords = game->debug_show_mouse_coords;
   prefs.show_building_rects = game->debug_building_rects;
+  prefs.debug_logs = game->debug_logs;
   settings_set(&prefs);
   char err[256];
   if (!settings_flush(err, sizeof(err))) {
@@ -6184,6 +6186,9 @@ ColonizeGameState* game_create(const ColonizeGameConfig* config) {
     (config && config->show_mouse_coords_set) ? config->show_mouse_coords : false;
   game->debug_building_rects =
     (config && config->show_building_rects_set) ? config->show_building_rects : false;
+  game->debug_logs =
+    (config && config->debug_logs_set) ? config->debug_logs : false;
+  diag_set_info_enabled(game->debug_logs);
   game->cheat_create_pending_nation = -1;
   game->cheat_unlock_step = 0;
   game->fog_view = -2;
@@ -10703,6 +10708,20 @@ static bool game_apply_map_menu_action(ColonizeGameState* game, MapMenuAction ac
         "Building rects: %s",
         game->debug_building_rects ? "on" : "off"
       );
+      game_persist_debug_hud(game);
+      return true;
+    case MAP_MENU_ACTION_DEBUG_LOGS:
+      game->debug_logs = !game->debug_logs;
+      diag_set_info_enabled(game->debug_logs);
+      snprintf(
+        game->status,
+        sizeof(game->status),
+        "Debug logs: %s",
+        game->debug_logs ? "on" : "off"
+      );
+      if (game->debug_logs) {
+        diag_info("Debug logs enabled");
+      }
       game_persist_debug_hud(game);
       return true;
     case MAP_MENU_ACTION_CHEAT_REVEAL_MAP:

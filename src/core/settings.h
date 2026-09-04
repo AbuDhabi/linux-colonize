@@ -78,6 +78,7 @@ typedef struct ColonizeSettings {
   bool debug_menu;         /* show DEBUG pulldown on the map navbar */
   bool show_mouse_coords;  /* pixel HUD follows the pointer */
   bool show_building_rects; /* colony-screen building sprite outlines */
+  bool debug_logs;          /* write diag_info lines to colonize-linux.log */
   bool skip_intro;          /* true = skip OPENING.EXE at launch (default for a new file) */
 } ColonizeSettings;
 

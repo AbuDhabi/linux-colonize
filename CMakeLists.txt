@@ -6,7 +6,7 @@ set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_C_EXTENSIONS OFF)
 
 option(COLONIZE_ENABLE_AUDIO "Enable SDL2 audio backend" ON)
-option(COLONIZE_DEBUG_MENU "Include DEBUG map menu (sprite viewer, mouse coords)" ON)
+option(COLONIZE_DEBUG_MENU "Include DEBUG map menu (sprite viewer, mouse coords, debug logs)" ON)
 
 if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Debug CACHE STRING "Build type" FORCE)

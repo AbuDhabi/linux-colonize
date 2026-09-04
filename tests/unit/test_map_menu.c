@@ -161,7 +161,7 @@ int main(void) {
     assets_msg_free(&menu_txt);
     return 1;
   }
-  if (!bar.menus[debug_i].visible || bar.menus[debug_i].item_count != 3) {
+  if (!bar.menus[debug_i].visible || bar.menus[debug_i].item_count != 4) {
     fprintf(stderr, "DEBUG menu malformed\n");
     map_menu_free(&bar);
     assets_msg_free(&menu_txt);
@@ -172,7 +172,9 @@ int main(void) {
       !bar.menus[debug_i].items[1].enabled ||
       bar.menus[debug_i].items[1].action != MAP_MENU_ACTION_DEBUG_TOGGLE_MOUSE_COORDS ||
       !bar.menus[debug_i].items[2].enabled ||
-      bar.menus[debug_i].items[2].action != MAP_MENU_ACTION_DEBUG_BUILDING_RECTS) {
+      bar.menus[debug_i].items[2].action != MAP_MENU_ACTION_DEBUG_BUILDING_RECTS ||
+      !bar.menus[debug_i].items[3].enabled ||
+      bar.menus[debug_i].items[3].action != MAP_MENU_ACTION_DEBUG_LOGS) {
     fprintf(stderr, "DEBUG items unexpected\n");
     map_menu_free(&bar);
     assets_msg_free(&menu_txt);

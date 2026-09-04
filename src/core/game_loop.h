@@ -21,6 +21,8 @@ typedef struct ColonizeGameConfig {
   bool show_mouse_coords_set;
   bool show_building_rects;
   bool show_building_rects_set;
+  bool debug_logs;
+  bool debug_logs_set;
 } ColonizeGameConfig;
 
 typedef struct ColonizeGameState ColonizeGameState;

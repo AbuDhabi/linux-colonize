@@ -79,6 +79,7 @@ void settings_defaults(ColonizeSettings* out) {
   out->debug_menu = false;
   out->show_mouse_coords = false;
   out->show_building_rects = false;
+  out->debug_logs = false;
   /* Newly created settings.json writes true so later launches skip OPENING.EXE.
    * First launch still plays it because the file was absent (settings_first_run).
    * After that the key is the player's; the intro never writes it back. */
@@ -144,7 +145,8 @@ bool settings_save_file(const char* path, const ColonizeSettings* in, char* err,
   fprintf(f, "  \"debug\": {\n");
   wb(f, "menu", in->debug_menu, false);
   wb(f, "mouse_coords", in->show_mouse_coords, false);
-  wb(f, "building_rects", in->show_building_rects, true);
+  wb(f, "building_rects", in->show_building_rects, false);
+  wb(f, "logs", in->debug_logs, true);
   fprintf(f, "  },\n");
 
   fprintf(f, "  \"data_dir\": ");
@@ -271,6 +273,7 @@ bool settings_load_file(const char* path, ColonizeSettings* out, char* err, size
   rb(dbg, "menu", &out->debug_menu);
   rb(dbg, "mouse_coords", &out->show_mouse_coords);
   rb(dbg, "building_rects", &out->show_building_rects);
+  rb(dbg, "logs", &out->debug_logs);
 
   const char* data_dir = json_get_str(root, "data_dir");
   if (data_dir && data_dir[0]) {
