@@ -164,27 +164,31 @@ static void col1_copy_name24(char* dst, size_t dst_size, const char* src24) {
  * chain field, which a plain tier-count encoding would produce constantly.
  * `popcount` recovers N from that pattern exactly.
  */
-static unsigned col1_building_level_to_tier_count(unsigned level) {
-  unsigned n = 0;
-  while (level) {
-    n += level & 1u;
-    level >>= 1;
-  }
-  return n;
-}
-
-static void col1_apply_building_level(
+/*
+ * The colony's packed building words are DOS's own per-building bitfield at
+ * colony +0x84 — one bit per @BUILDING file index, read by FUN_15eb_035e as
+ * `bit (n & 7)` of byte `n >> 3`. Each field below is therefore a plain
+ * bitmask over its chain, NOT a tier count: bit i means "owns names[i]".
+ *
+ * They usually read cumulative (a Fort colony stores 3, a Fortress 7) because
+ * DOS requires the lower tier as a prerequisite and never clears it on
+ * upgrade — but not always: pillage clears one building's bit on its own, and
+ * real saves do contain lone-upper-bit values (mask 2 = a Lumber Mill with no
+ * Carpenter's Shop, a Cathedral with no Church, a Newspaper with no Printing
+ * Press). Decoding "popcount tiers, lowest first" turned those into the
+ * *lower* building, which is why these are bit-exact now.
+ */
+static void col1_apply_building_bits(
   ColonizeColonyPool* pool,
   ColonizeColony* colony,
   const char* const* names,
   int name_count,
-  unsigned level
+  unsigned bits
 ) {
-  if (level == 0) {
-    return;
-  }
-  const unsigned tier_count = col1_building_level_to_tier_count(level);
-  for (int i = 0; i < name_count && (unsigned)i < tier_count; ++i) {
+  for (int i = 0; i < name_count; ++i) {
+    if (!(bits & (1u << i))) {
+      continue;
+    }
     const int idx = colonies_find_building(pool, names[i]);
     if (idx >= 0 && idx < COLONIZE_BUILDING_TYPES_MAX) {
       colony->has_building[idx] = true;
@@ -192,23 +196,23 @@ static void col1_apply_building_level(
   }
 }
 
-static unsigned col1_encode_building_level(
+static unsigned col1_encode_building_bits(
   const ColonizeColonyPool* pool,
   const ColonizeColony* colony,
   const char* const* names,
   int name_count
 ) {
-  unsigned tier_count = 0;
+  unsigned bits = 0;
   if (!pool || !colony || !names || name_count <= 0) {
     return 0;
   }
   for (int i = 0; i < name_count; ++i) {
     const int idx = colonies_find_building(pool, names[i]);
     if (idx >= 0 && idx < COLONIZE_BUILDING_TYPES_MAX && colony->has_building[idx]) {
-      tier_count = (unsigned)(i + 1);
+      bits |= 1u << i;
     }
   }
-  return tier_count == 0 ? 0 : (1u << tier_count) - 1u;
+  return bits;
 }
 
 static void col1_apply_colony_buildings(
@@ -239,32 +243,51 @@ static void col1_apply_colony_buildings(
   };
   static const char* k_capitol[] = {"Capitol", "Capitol Expansion"};
 
-  col1_apply_building_level(pool, colony, k_fort, 3, b->fortification);
-  col1_apply_building_level(pool, colony, k_armory, 3, b->armory);
-  col1_apply_building_level(pool, colony, k_docks, 3, b->docks);
+  col1_apply_building_bits(pool, colony, k_fort, 3, b->fortification);
+  col1_apply_building_bits(pool, colony, k_armory, 3, b->armory);
+  col1_apply_building_bits(pool, colony, k_docks, 3, b->docks);
   if (b->town_hall) {
     static const char* k_hall[] = {"Town Hall"};
-    col1_apply_building_level(pool, colony, k_hall, 1, 1);
+    col1_apply_building_bits(pool, colony, k_hall, 1, 1);
   }
-  col1_apply_building_level(pool, colony, k_school, 3, b->schoolhouse);
-  col1_apply_building_level(pool, colony, k_warehouse, 2, b->warehouse);
+  col1_apply_building_bits(pool, colony, k_school, 3, b->schoolhouse);
+  /*
+   * Warehouse Expansion has no bit of its own in DOS: FUN_364b_0114 only INCs
+   * the level counter at colony +0x95 for it, and FUN_15eb_3650 gates a second
+   * expansion on the resulting capacity (`> 299`) rather than on ownership.
+   * Every real DOS save agrees — across 977 colonies in original_saves the
+   * warehouse mask is only ever 0 or 1, with 95 of them carrying
+   * warehouse_level 2. So take tier 0 from the bit and tier 1 from the level.
+   * Same shape for the Capitol (+0x96), which is moot in practice: that
+   * building is unbuildable, and its mask is 0 in every save.
+   */
+  col1_apply_building_bits(pool, colony, k_warehouse, 1, b->warehouse);
+  if (colony->warehouse_level >= 2u) {
+    col1_apply_building_bits(pool, colony, k_warehouse, 2, 0x3u);
+  }
+  col1_apply_building_bits(pool, colony, k_capitol, 2, b->capitol);
+  if (colony->capitol_level >= 1u) {
+    col1_apply_building_bits(pool, colony, k_capitol, 1, 0x1u);
+  }
+  if (colony->capitol_level >= 2u) {
+    col1_apply_building_bits(pool, colony, k_capitol, 2, 0x3u);
+  }
   if (b->stables) {
     static const char* k_stable[] = {"Stable"};
-    col1_apply_building_level(pool, colony, k_stable, 1, 1);
+    col1_apply_building_bits(pool, colony, k_stable, 1, 1);
   }
   if (b->custom_house) {
     static const char* k_custom[] = {"Custom House"};
-    col1_apply_building_level(pool, colony, k_custom, 1, 1);
+    col1_apply_building_bits(pool, colony, k_custom, 1, 1);
   }
-  col1_apply_building_level(pool, colony, k_press, 2, b->printing_press);
-  col1_apply_building_level(pool, colony, k_weaver, 3, b->weavers_house);
-  col1_apply_building_level(pool, colony, k_tobacco, 3, b->tobacconists_house);
-  col1_apply_building_level(pool, colony, k_rum, 3, b->rum_distillers_house);
-  col1_apply_building_level(pool, colony, k_fur, 3, b->fur_traders_house);
-  col1_apply_building_level(pool, colony, k_carpenter, 2, b->carpenters_shop);
-  col1_apply_building_level(pool, colony, k_church, 2, b->church);
-  col1_apply_building_level(pool, colony, k_smith, 3, b->blacksmiths_house);
-  col1_apply_building_level(pool, colony, k_capitol, 2, b->capitol);
+  col1_apply_building_bits(pool, colony, k_press, 2, b->printing_press);
+  col1_apply_building_bits(pool, colony, k_weaver, 3, b->weavers_house);
+  col1_apply_building_bits(pool, colony, k_tobacco, 3, b->tobacconists_house);
+  col1_apply_building_bits(pool, colony, k_rum, 3, b->rum_distillers_house);
+  col1_apply_building_bits(pool, colony, k_fur, 3, b->fur_traders_house);
+  col1_apply_building_bits(pool, colony, k_carpenter, 2, b->carpenters_shop);
+  col1_apply_building_bits(pool, colony, k_church, 2, b->church);
+  col1_apply_building_bits(pool, colony, k_smith, 3, b->blacksmiths_house);
 }
 
 static void col1_encode_colony_buildings(
@@ -296,8 +319,6 @@ static void col1_encode_colony_buildings(
   static const char* k_smith[] = {
     "Blacksmith's House", "Blacksmith's Shop", "Iron Works"
   };
-  static const char* k_capitol[] = {"Capitol", "Capitol Expansion"};
-
   if (!out) {
     return;
   }
@@ -305,23 +326,24 @@ static void col1_encode_colony_buildings(
   if (!pool || !colony) {
     return;
   }
-  out->fortification = col1_encode_building_level(pool, colony, k_fort, 3);
-  out->armory = col1_encode_building_level(pool, colony, k_armory, 3);
-  out->docks = col1_encode_building_level(pool, colony, k_docks, 3);
-  out->town_hall = col1_encode_building_level(pool, colony, k_hall, 1);
-  out->schoolhouse = col1_encode_building_level(pool, colony, k_school, 3);
-  out->warehouse = col1_encode_building_level(pool, colony, k_warehouse, 2);
-  out->stables = col1_encode_building_level(pool, colony, k_stable, 1) ? 1u : 0u;
-  out->custom_house = col1_encode_building_level(pool, colony, k_custom, 1) ? 1u : 0u;
-  out->printing_press = col1_encode_building_level(pool, colony, k_press, 2);
-  out->weavers_house = col1_encode_building_level(pool, colony, k_weaver, 3);
-  out->tobacconists_house = col1_encode_building_level(pool, colony, k_tobacco, 3);
-  out->rum_distillers_house = col1_encode_building_level(pool, colony, k_rum, 3);
-  out->fur_traders_house = col1_encode_building_level(pool, colony, k_fur, 3);
-  out->carpenters_shop = col1_encode_building_level(pool, colony, k_carpenter, 2);
-  out->church = col1_encode_building_level(pool, colony, k_church, 2);
-  out->blacksmiths_house = col1_encode_building_level(pool, colony, k_smith, 3);
-  out->capitol = col1_encode_building_level(pool, colony, k_capitol, 2);
+  out->fortification = col1_encode_building_bits(pool, colony, k_fort, 3);
+  out->armory = col1_encode_building_bits(pool, colony, k_armory, 3);
+  out->docks = col1_encode_building_bits(pool, colony, k_docks, 3);
+  out->town_hall = col1_encode_building_bits(pool, colony, k_hall, 1);
+  out->schoolhouse = col1_encode_building_bits(pool, colony, k_school, 3);
+  /* Tier 1 lives in warehouse_level, never in the bitfield — see the decode. */
+  out->warehouse = col1_encode_building_bits(pool, colony, k_warehouse, 1);
+  out->stables = col1_encode_building_bits(pool, colony, k_stable, 1) ? 1u : 0u;
+  out->custom_house = col1_encode_building_bits(pool, colony, k_custom, 1) ? 1u : 0u;
+  out->printing_press = col1_encode_building_bits(pool, colony, k_press, 2);
+  out->weavers_house = col1_encode_building_bits(pool, colony, k_weaver, 3);
+  out->tobacconists_house = col1_encode_building_bits(pool, colony, k_tobacco, 3);
+  out->rum_distillers_house = col1_encode_building_bits(pool, colony, k_rum, 3);
+  out->fur_traders_house = col1_encode_building_bits(pool, colony, k_fur, 3);
+  out->carpenters_shop = col1_encode_building_bits(pool, colony, k_carpenter, 2);
+  out->church = col1_encode_building_bits(pool, colony, k_church, 2);
+  out->blacksmiths_house = col1_encode_building_bits(pool, colony, k_smith, 3);
+  out->capitol = 0; /* unbuildable in DOS, and 0 in every real save */
 }
 
 static int col1_unit_type_to_runtime(const ColonizeUnitPool* units, uint8_t col1_type) {
@@ -2016,20 +2038,30 @@ bool col1_bridge_capture(
       col1_encode_colony_buildings(colonies, src, &dst->buildings);
       /*
        * +0x95 / +0x96 are DOS level COUNTERS (FUN_364b_0114 INCs one per
-       * completed tier, so 0..2), while buildings.warehouse / .capitol are the
-       * packed tier BITMASKS ((1<<tiers)-1). Comparing the counter against the
-       * raw mask wrote 3 for a colony with both warehouse tiers, which then
-       * read back as a 400-slot warehouse and a white "3" badge on the
-       * settlement view. Fold the mask down to its tier count first.
+       * completed tier, so 0..2) and are the ONLY record of the upper tier:
+       * DOS gives Warehouse Expansion and Capitol Expansion no bit in the
+       * packed building word (see col1_apply_colony_buildings). Derive the
+       * counter from what the colony owns, keep whichever is higher, clamp.
        */
       {
-        const uint8_t wh_tiers =
-          (uint8_t)col1_building_level_to_tier_count((unsigned)dst->buildings.warehouse);
-        const uint8_t cap_tiers =
-          (uint8_t)col1_building_level_to_tier_count((unsigned)dst->buildings.capitol);
-        dst->warehouse_level =
-          src->warehouse_level > wh_tiers ? src->warehouse_level : wh_tiers;
-        dst->capitol_level = src->capitol_level > cap_tiers ? src->capitol_level : cap_tiers;
+        uint8_t wh = 0;
+        uint8_t cap = 0;
+        {
+          static const char* k_wh[] = {"Warehouse", "Warehouse Expansion"};
+          static const char* k_cp[] = {"Capitol", "Capitol Expansion"};
+          for (int t = 0; t < 2; ++t) {
+            const int wi = colonies_find_building(colonies, k_wh[t]);
+            if (wi >= 0 && wi < COLONIZE_BUILDING_TYPES_MAX && src->has_building[wi]) {
+              wh = (uint8_t)(t + 1);
+            }
+            const int ci = colonies_find_building(colonies, k_cp[t]);
+            if (ci >= 0 && ci < COLONIZE_BUILDING_TYPES_MAX && src->has_building[ci]) {
+              cap = (uint8_t)(t + 1);
+            }
+          }
+        }
+        dst->warehouse_level = src->warehouse_level > wh ? src->warehouse_level : wh;
+        dst->capitol_level = src->capitol_level > cap ? src->capitol_level : cap;
         if (dst->warehouse_level > 2u) {
           dst->warehouse_level = 2u; /* heal saves written before this fix */
         }

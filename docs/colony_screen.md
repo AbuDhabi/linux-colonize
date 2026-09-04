@@ -1243,10 +1243,13 @@ box. So a Warehouse Expansion shows as a white `2` on the warehouse roof.
 Ported in `colony_screen.c` (`k_class_box`). The Capitol half can never fire —
 DOS refuses that building outright (see [building_production.md](building_production.md)).
 
-Both `+0x95` and `+0x96` are **level counters** (0..2), not the packed tier
-bitmasks that live in the colony's building words; `col1_bridge.c` used to
-`max()` the counter against the raw mask, which stored `3` for a colony with
-both warehouse tiers and then read back as a 400-slot warehouse.
+Both `+0x95` and `+0x96` are **level counters** (0..2), and for these two
+chains they are the *only* record of the upper tier — DOS gives Warehouse
+Expansion and Capitol Expansion no bit in the colony's building word at all.
+`col1_bridge.c` used to `max()` the counter against the raw building mask,
+which stored `3` for a colony with both warehouse tiers and then read back as a
+400-slot warehouse. See [save_format_map.md](save_format_map.md) for the full
+correction to how those words are encoded.
 
 ### Categories, positions and the shuffle (`FUN_2f2b_0434`)
 
