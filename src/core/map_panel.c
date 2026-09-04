@@ -395,6 +395,30 @@ static void map_panel_terrain_name(
   map_panel_csv_field(line ? line : "Unknown", out, out_size);
 }
 
+/*
+ * DOS `FUN_2f2b_0842`: an Ocean square that is not part of the open sea is
+ * described as "Lake" (LABELS.TXT @MISC 40) rather than through the
+ * NAMES.TXT @OTHER terrain table. `map` may be NULL for callers that only
+ * have a terrain index.
+ */
+static void map_panel_terrain_name_at(
+  const ColonizeMsgCatalog* names,
+  const ColonizeMsgCatalog* labels,
+  const ColonizeWorldMap* map,
+  int x,
+  int y,
+  int pedia_index,
+  char* out,
+  size_t out_size
+) {
+  if (map && map_tile_is_lake(map, x, y)) {
+    const char* lake = map_panel_section_line(labels, "MISC", 40);
+    snprintf(out, out_size, "%s", (lake && lake[0]) ? lake : "Lake");
+    return;
+  }
+  map_panel_terrain_name(names, pedia_index, out, out_size);
+}
+
 static void map_panel_resource_name(
   const ColonizeMsgCatalog* names, int resource_type, char* out, size_t out_size
 ) {
@@ -1085,6 +1109,7 @@ static void map_panel_orders_text(
   const ColonizeColonyPool* colonies,
   const ColonizeWorldMap* map,
   const ColonizeMsgCatalog* names,
+  const ColonizeMsgCatalog* labels,
   char* out,
   size_t out_size
 ) {
@@ -1102,8 +1127,9 @@ static void map_panel_orders_text(
     return;
   }
   char tname[40];
-  map_panel_terrain_name(
-    names, map_pedia_terrain_index_at(map, u->goto_x, u->goto_y), tname, sizeof(tname)
+  map_panel_terrain_name_at(
+    names, labels, map, u->goto_x, u->goto_y,
+    map_pedia_terrain_index_at(map, u->goto_x, u->goto_y), tname, sizeof(tname)
   );
   snprintf(out, out_size, "%s %s", label, tname);
 }
@@ -1119,6 +1145,7 @@ static void map_panel_draw_stack_row(
   const ColonizeSpriteSheet* icons,
   const ColonizeFont* font,
   const ColonizeMsgCatalog* names,
+  const ColonizeMsgCatalog* labels,
   const ColonizePalette* active_palette,
   ColonizeFramebuffer8* fb,
   int stack_n,
@@ -1172,7 +1199,7 @@ static void map_panel_draw_stack_row(
      * thunk_FUN_2a1f_028a on this row. */
     map_panel_draw_cargo_icons(u, col1, icons, fb, x, *y, right);
   } else {
-    map_panel_orders_text(units, u, colonies, map, names, line, sizeof(line));
+    map_panel_orders_text(units, u, colonies, map, names, labels, line, sizeof(line));
     font_draw_text(font, fb, x, text_y, line, MAP_PANEL_COL_TEXT);
   }
   *y += MAP_PANEL_ROW_H;
@@ -1456,7 +1483,7 @@ void map_panel_render(
       );
     }
 
-    map_panel_orders_text(units, selected, colonies, map, names, line, sizeof(line));
+    map_panel_orders_text(units, selected, colonies, map, names, labels, line, sizeof(line));
     map_panel_draw_line(font, framebuffer, text_x, &text_y, line_h, y_limit, line);
   } else {
     /*
@@ -1510,8 +1537,9 @@ void map_panel_render(
     } else {
       {
         char tname[40];
-        map_panel_terrain_name(
-          names, map_pedia_terrain_index_at(map, info_x, info_y), tname, sizeof(tname)
+        map_panel_terrain_name_at(
+          names, labels, map, info_x, info_y,
+          map_pedia_terrain_index_at(map, info_x, info_y), tname, sizeof(tname)
         );
         snprintf(line, sizeof(line), "(%s)", tname);
         map_panel_draw_line(font, framebuffer, text_x, &text_y, line_h, y_limit, line);
@@ -1728,6 +1756,7 @@ void map_panel_render(
             icons,
             font,
             names,
+            labels,
             active_palette,
             framebuffer,
             stack_n,

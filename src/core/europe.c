@@ -339,39 +339,165 @@ static void europe_init_purchase_table(EuropeScreen* eu) {
 }
 
 /*
- * Pool candidates: basic classes + trainable experts (job index).
- * Draw weights Unverified vs DOS — mix favors common colonists.
+ * Recruit-pool profession table. The roll below can only produce these 21
+ * @JOB ids; the six the DOS remap folds away (Master Sugar/Tobacco/Cotton
+ * Planters, Expert Fur Trappers, Expert Teachers, Veteran Dragoons) are
+ * deliberately absent — see europe_pool_remap.
  */
 typedef struct EuropePoolCand {
   const char* name;
   int profession;
-  int weight;
 } EuropePoolCand;
 
 static const EuropePoolCand k_pool_cands[] = {
-  {"Petty Criminals", 26, 8},
-  {"Indentured Servants", 25, 10},
-  {"Free Colonists", 19, 12},
-  {"Expert Farmers", 0, 4},
-  {"Expert Lumberjacks", 5, 3},
-  {"Expert Ore Miners", 6, 3},
-  {"Expert Fishermen", 8, 3},
-  {"Master Carpenters", 13, 3},
-  {"Master Blacksmiths", 14, 2},
-  {"Master Gunsmiths", 15, 2},
-  {"Hardy Pioneers", 20, 3},
-  {"Veteran Soldiers", 21, 2},
-  {"Seasoned Scouts", 22, 2},
-  {"Jesuit Missionaries", 24, 2},
-  {"Elder Statesmen", 17, 1},
-  {"Firebrand Preachers", 16, 1},
-  {"Expert Teachers", 18, 1},
-  {"Master Distiller", 9, 2},
-  {"Master Tobacconists", 10, 2},
-  {"Master Weavers", 11, 2},
-  {"Master Fur Traders", 12, 2},
-  {"Expert Silver Miners", 7, 2},
+  {"Petty Criminals", 26},
+  {"Indentured Servants", 25},
+  {"Free Colonists", 19},
+  {"Expert Farmers", 0},
+  {"Expert Lumberjacks", 5},
+  {"Expert Ore Miners", 6},
+  {"Expert Silver Miners", 7},
+  {"Expert Fishermen", 8},
+  {"Master Distiller", 9},
+  {"Master Tobacconists", 10},
+  {"Master Weavers", 11},
+  {"Master Fur Traders", 12},
+  {"Master Carpenters", 13},
+  {"Master Blacksmiths", 14},
+  {"Master Gunsmiths", 15},
+  {"Firebrand Preachers", 16},
+  {"Elder Statesmen", 17},
+  {"Hardy Pioneers", 20},
+  {"Veteran Soldiers", 21},
+  {"Seasoned Scouts", 22},
+  {"Jesuit Missionaries", 24},
 };
+
+static const char* europe_pool_job_name(int profession) {
+  for (size_t i = 0; i < sizeof(k_pool_cands) / sizeof(k_pool_cands[0]); ++i) {
+    if (k_pool_cands[i].profession == profession) {
+      return k_pool_cands[i].name;
+    }
+  }
+  return "Free Colonists";
+}
+
+/*
+ * DOS `FUN_38fd_46d4`'s remap block (viceroy_unpacked.c:64595-64609): the
+ * expert tier rolls a raw @JOB in 0..0x18 and then rewrites seven of them
+ * before the value is ever stored. Six professions are therefore
+ * UNREACHABLE from Europe — they exist only as colony/Indian training
+ * outcomes or promotions:
+ *
+ *   0x12 Expert Teachers    -> 0x0d Master Carpenters   (bugs.md)
+ *   0x17 Veteran Dragoons   -> 0x0d Master Carpenters
+ *   0x13 Free Colonists     -> 0x16 Seasoned Scouts     (the free-colonist
+ *                                    result comes from the tier roll's own
+ *                                    0x1c return, not from this table)
+ *   0x01 Master Sugar Planters  -> 0x08 Expert Fishermen
+ *   0x02 Master Tobacco Planters-> 0x05 Expert Lumberjacks
+ *   0x03 Master Cotton Planters -> 0x00 Expert Farmers
+ *   0x04 Expert Fur Trappers    -> 0x06 Expert Ore Miners
+ *
+ * which is also why reports.c's labour scan says Expert Teachers (18) and
+ * Veteran Dragoons (23) "never appear". The port used to draw from a
+ * hand-weighted candidate table that listed Expert Teachers outright.
+ */
+static int europe_pool_remap(int job) {
+  switch (job) {
+    case 0x12: return 0x0d;
+    case 0x13: return 0x16;
+    case 0x01: return 0x08;
+    case 0x02: return 0x05;
+    case 0x03: return 0x00;
+    case 0x04: return 0x06;
+    case 0x17: return 0x0d;
+    default: return job;
+  }
+}
+
+/* DOS `FUN_15eb_0002` (via FUN_281f_0c9a): 0 for @JOB 0x13 and 0x19..0x1c,
+ * i.e. Free Colonists / Servants / Criminals / Converts / job NONE — the
+ * non-expert classes. 1 for every expert. */
+static bool europe_job_is_expert(int job) {
+  return !(job == 0x13 || (job >= 0x19 && job <= 0x1c));
+}
+
+/*
+ * `FUN_38fd_46d4(force_expert)` (viceroy_unpacked.c:64554-64694) — the
+ * profession a recruit-pool slot is refilled with. Two halves:
+ *
+ *  - Tier roll (force_expert == 0, the Recruit-click refill 64776 and the
+ *    game-start seed). Threshold t = (difficulty + 3) >> 1, with the DOS
+ *    difficulty byte DS:0x53a6 used only for the human nation (AI nations
+ *    substitute 1). RNG(1,15) <= t -> Petty Criminals; else RNG(1,10) <= t
+ *    -> Indentured Servants; else RNG(1,8) <= t -> Free Colonists; else
+ *    fall through to the expert half. Brewster (FF 0x14) turns the two
+ *    bottom results into Free Colonists in place, exactly as
+ *    europe_apply_brewster does to slots already rolled.
+ *
+ *  - Expert half (force_expert != 0, the end-of-turn crosses spawn on the
+ *    season quad, 68583). Guarded twice: if all three pool slots already
+ *    hold experts the routine gives up and returns Free Colonists (so the
+ *    pool never shows three experts at once), and a roll that duplicates a
+ *    profession already in the pool is thrown away and re-rolled, up to
+ *    100 attempts.
+ *
+ * Deviation: DOS draws the expert value from a per-nation 5-bit LFSR
+ * (nation +0x44 stepped by FUN_3f3f_0006 with poly 0x14, plus the +0x45
+ * salt, rejecting > 0x18) so the sequence never repeats a value inside one
+ * cycle. Those two bytes are the ones the port repurposed as
+ * ColonizeCol1Nation.diplo_flag[0..1], so the state is not available here;
+ * a uniform draw over the same 0..0x18 range is used instead. The reachable
+ * set and its distribution are identical, only the ordering differs.
+ */
+static int europe_roll_pool_profession(
+  const EuropeScreen* eu, int slot, bool force_expert, unsigned* st
+) {
+  if (!force_expert) {
+    /* DS:0x53a6 for the human nation; AI nations use 1. The port's Europe
+     * screen caches the human's difficulty (eu->difficulty). */
+    const int threshold = ((eu ? (int)eu->difficulty : 0) + 3) >> 1;
+    if ((int)(europe_rng_next(st) % 15u) + 1 <= threshold) {
+      return (eu && eu->brewster_no_criminals) ? 0x13 : 0x1a; /* Petty Criminals */
+    }
+    if ((int)(europe_rng_next(st) % 10u) + 1 <= threshold) {
+      return (eu && eu->brewster_no_criminals) ? 0x13 : 0x19; /* Indentured Servants */
+    }
+    if ((int)(europe_rng_next(st) % 8u) + 1 <= threshold) {
+      return 0x13; /* Free Colonists (DOS 0x1c, drawn as Free Colonists) */
+    }
+  }
+
+  for (int tries = 0;;) {
+    bool any_non_expert = false;
+    for (int i = 0; i < EUROPE_POOL_SIZE; ++i) {
+      if (!eu->pool[i].filled || !europe_job_is_expert(eu->pool[i].profession)) {
+        any_non_expert = true;
+      }
+    }
+    if (!any_non_expert) {
+      return 0x13; /* three experts already in the pool */
+    }
+    const int job = europe_pool_remap((int)(europe_rng_next(st) % 0x19u));
+    if (++tries > 100) {
+      return job;
+    }
+    bool duplicate = false;
+    for (int i = 0; i < EUROPE_POOL_SIZE; ++i) {
+      /* DOS compares against all three slots — the one being refilled still
+       * holds its outgoing profession at this point, so the class that just
+       * left the pool is not immediately redrawn. */
+      if (eu->pool[i].filled && eu->pool[i].profession == job) {
+        duplicate = true;
+      }
+    }
+    (void)slot;
+    if (!duplicate) {
+      return job;
+    }
+  }
+}
 
 /* bugs.md: Brewster's ban covers the EXISTING pool too — slots rolled
  * before the flag rose still held Petty Criminals / Indentured Servants,
@@ -394,41 +520,42 @@ void europe_apply_brewster(EuropeScreen* eu, int owned) {
   }
 }
 
-void europe_refill_pool_slot(EuropeScreen* eu, int slot, unsigned* rng_state) {
+void europe_refill_pool_slot_ex(
+  EuropeScreen* eu, int slot, bool force_expert, unsigned* rng_state
+) {
   if (!eu || slot < 0 || slot >= EUROPE_POOL_SIZE) {
     return;
   }
   unsigned local = 1u + (unsigned)(eu->gold + eu->recruit_passage + slot * 17);
   unsigned* st = rng_state ? rng_state : &local;
-  int total = 0;
-  for (size_t i = 0; i < sizeof(k_pool_cands) / sizeof(k_pool_cands[0]); ++i) {
-    total += k_pool_cands[i].weight;
-  }
-  if (total <= 0) {
+  const int job = europe_roll_pool_profession(eu, slot, force_expert, st);
+  EuropePoolSlot* p = &eu->pool[slot];
+  snprintf(p->name, sizeof(p->name), "%s", europe_pool_job_name(job));
+  p->profession = job;
+  p->filled = true;
+}
+
+void europe_refill_pool_slot(EuropeScreen* eu, int slot, unsigned* rng_state) {
+  /* DOS 64776 (the Recruit-click tail) calls 46d4(0) — the tier roll. */
+  europe_refill_pool_slot_ex(eu, slot, false, rng_state);
+}
+
+/* Restore one pool slot from a saved nation+2..+4 job byte. 0x1c (job NONE,
+ * what DOS stores for "nothing here") and anything unnamed fall back to
+ * Free Colonists, the label 4884's 0x1c→0x13 swap gives it. */
+void europe_set_pool_slot(EuropeScreen* eu, int slot, int profession) {
+  if (!eu || slot < 0 || slot >= EUROPE_POOL_SIZE) {
     return;
   }
-  int pick = (int)(europe_rng_next(st) % (unsigned)total);
-  for (size_t i = 0; i < sizeof(k_pool_cands) / sizeof(k_pool_cands[0]); ++i) {
-    pick -= k_pool_cands[i].weight;
-    if (pick < 0) {
-      EuropePoolSlot* p = &eu->pool[slot];
-      /* Brewster: DOS FUN_38fd_46d4 rolls the tier first and only then
-       * checks FF 0x14 — a criminal (0x1a) or servant (0x19) result is
-       * returned as 0x1c (Free Colonists) instead. Substitute here so their
-       * roll mass moves to Free Colonists rather than being redistributed
-       * across the whole candidate table. */
-      if (eu->brewster_no_criminals &&
-          (k_pool_cands[i].profession == 25 || k_pool_cands[i].profession == 26)) {
-        snprintf(p->name, sizeof(p->name), "Free Colonists");
-        p->profession = 19;
-      } else {
-        snprintf(p->name, sizeof(p->name), "%s", k_pool_cands[i].name);
-        p->profession = k_pool_cands[i].profession;
-      }
-      p->filled = true;
-      return;
-    }
+  EuropePoolSlot* p = &eu->pool[slot];
+  const char* name = europe_pool_job_name(profession);
+  if (profession < 0 || profession > 0x1a || strcmp(name, "Free Colonists") == 0) {
+    profession = 0x13;
+    name = "Free Colonists";
   }
+  snprintf(p->name, sizeof(p->name), "%s", name);
+  p->profession = profession;
+  p->filled = true;
 }
 
 void europe_pool_ensure_filled(EuropeScreen* eu) {
@@ -450,11 +577,65 @@ const char* europe_pool_label(const EuropeScreen* eu, int slot) {
   return (p->filled && p->name[0]) ? p->name : "Colonist";
 }
 
-static void europe_init_pool(EuropeScreen* eu) {
+/*
+ * Game-start recruit pool — DOS `FUN_38fd_6024` (viceroy_unpacked.c:68706-
+ * 68729). Slot 0 is a fixed bottom-tier class (Indentured Servants below
+ * Viceroy, Petty Criminals at Viceroy); slots 1 and 2 are 46d4 rolls, slot
+ * 1 forced to the expert half below Conquistador and slot 2 always. The
+ * human player then gets a hand-picked easy opener: at Discoverer the whole
+ * pool is overwritten with Master Carpenters / Expert Farmers / Seasoned
+ * Scouts, at Conquistador only slots 1 and 2 are.
+ */
+void europe_seed_pool(EuropeScreen* eu, int difficulty, bool human) {
+  if (!eu) {
+    return;
+  }
+  if (difficulty < 0) {
+    difficulty = 0;
+  }
+  if (difficulty > 8) {
+    difficulty = 8;
+  }
+  const uint8_t saved_difficulty = eu->difficulty;
+  eu->difficulty = (uint8_t)difficulty;
   unsigned rng = 42u;
   for (int i = 0; i < EUROPE_POOL_SIZE; ++i) {
-    europe_refill_pool_slot(eu, i, &rng);
+    eu->pool[i].filled = false;
+    eu->pool[i].profession = -1;
+    eu->pool[i].name[0] = '\0';
   }
+  if (EUROPE_POOL_SIZE > 0) {
+    const int job = (difficulty < 4) ? 0x19 : 0x1a;
+    snprintf(eu->pool[0].name, sizeof(eu->pool[0].name), "%s", europe_pool_job_name(job));
+    eu->pool[0].profession = job;
+    eu->pool[0].filled = true;
+  }
+  if (EUROPE_POOL_SIZE > 1) {
+    europe_refill_pool_slot_ex(eu, 1, difficulty < 3, &rng);
+  }
+  if (EUROPE_POOL_SIZE > 2) {
+    europe_refill_pool_slot_ex(eu, 2, true, &rng);
+  }
+  if (human && difficulty <= 1) {
+    static const int k_easy[3] = {0x0d, 0x00, 0x16};
+    for (int i = (difficulty == 0) ? 0 : 1; i < EUROPE_POOL_SIZE && i < 3; ++i) {
+      snprintf(eu->pool[i].name, sizeof(eu->pool[i].name), "%s", europe_pool_job_name(k_easy[i]));
+      eu->pool[i].profession = k_easy[i];
+      eu->pool[i].filled = true;
+    }
+  }
+  eu->difficulty = saved_difficulty;
+  if (eu->brewster_no_criminals) {
+    europe_apply_brewster(eu, 1);
+  }
+}
+
+static void europe_init_pool(EuropeScreen* eu) {
+  /* Reset time: the real difficulty is not cached yet (europe_reset_campaign
+   * zeroes it and the first EOT tick fills it in), so this is the Discoverer
+   * seed; the new-game bridge calls europe_seed_pool again once the wizard's
+   * difficulty is known. */
+  europe_seed_pool(eu, eu->difficulty, true);
 }
 
 /*
@@ -1019,7 +1200,8 @@ bool europe_immigrant_from_pool(EuropeScreen* eu, ColonizeDosRng* rng) {
   d->dos_type = europe_dock_type_for(d->name, d->profession);
   /* DOS 0718 harbor-spawn does NOT bump Europe+6 — only 4884's own real
    * Recruit-click tail does (see europe_compute_recruit_passage). */
-  europe_refill_pool_slot(eu, slot, NULL);
+  /* 68583: this refill is `46d4((turn & 3) == 0)`, not `46d4(0)`. */
+  europe_refill_pool_slot_ex(eu, slot, eu->pool_force_expert, NULL);
   return true;
 }
 

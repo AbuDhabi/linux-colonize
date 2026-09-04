@@ -289,6 +289,14 @@ typedef struct EuropeScreen {
   int selected_harbor; /* -1 none; index into harbor[] */
   int selected_market; /* cargo type highlight */
   EuropePoolSlot pool[EUROPE_POOL_SIZE];
+  /*
+   * DOS `FUN_38fd_5e52` phase 5 refills the emptied pool slot with
+   * `46d4((DS:0x538e & 3) == 0)` — one turn in four the tier roll is skipped
+   * and the slot is guaranteed to come from the expert half. DS:0x538e is
+   * the turn counter, which this screen has no other way to see, so turn.c
+   * stamps the quad here right before the immigration tick.
+   */
+  bool pool_force_expert;
   int recruit_passage; /* current dialog gold; see europe_compute_recruit_passage */
   /*
    * DOS Europe+6: recruit count this era, capped 180 (0xb4). Bumped only by
@@ -420,6 +428,15 @@ bool europe_brewster_pick_from_pool(EuropeScreen* eu, int pool_index);
  * overwritten with Free Colonists in place — a substitution, not a reroll. */
 void europe_apply_brewster(EuropeScreen* eu, int owned);
 void europe_refill_pool_slot(EuropeScreen* eu, int slot, unsigned* rng_state);
+/* Same refill with DOS `FUN_38fd_46d4`'s param_1: non-zero skips the
+ * criminal/servant/free tier roll and goes straight to the expert half.
+ * The end-of-turn crosses spawn passes ((turn & 3) == 0). */
+void europe_refill_pool_slot_ex(EuropeScreen* eu, int slot, bool force_expert, unsigned* rng_state);
+/* Restore a pool slot from a saved nation+2..+4 job byte (0x1c = empty). */
+void europe_set_pool_slot(EuropeScreen* eu, int slot, int profession);
+/* Game-start pool (DOS `FUN_38fd_6024`): fixed bottom-tier slot 0, two
+ * expert-biased rolls, then the human's easy-difficulty override. */
+void europe_seed_pool(EuropeScreen* eu, int difficulty, bool human);
 /* Shared recruit-choice source: DOS FUN_38fd_4884 draws the same three pool
  * slots for the Recruit menu, the Brewster @RECRUITCHOOSE pick and the
  * Fountain of Youth @RECRUIT picks. Ensure fills empty slots; label is the

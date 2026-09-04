@@ -189,6 +189,12 @@ int map_continent_id_at(const ColonizeWorldMap* map, int x, int y);
  * does NOT cover a colony's wider worked-tile claim, only literal
  * occupancy. Cite: euro_unit_act.md T1.8 2026-08-22 (0015bc hard-reject).
  */
+/*
+ * Ocean square in a water region other than the open sea (layer3 low nibble
+ * != 1) — DOS calls these "Lake" instead of "Ocean" in the tile
+ * description (FUN_2f2b_0842, LABELS @MISC 40). Sea Lane is never a lake.
+ */
+bool map_tile_is_lake(const ColonizeWorldMap* map, int x, int y);
 int map_tile_tribe_or_presence(const ColonizeWorldMap* map, int x, int y);
 uint8_t map_terrain_overlay(uint8_t terrain_byte);
 int map_terrain_base_sprite(uint8_t terrain_byte);

@@ -582,6 +582,57 @@ static const ColonizeFont* game_chrome_font(const ColonizeGameState* game) {
   return game->menu_font_ok ? &game->menu_font : NULL;
 }
 
+/*
+ * bugs.md: the animated piece (move slide / combat lunge) is blitted onto the
+ * finished 320x200 frame, while the standing piece is drawn into the offscreen
+ * map composite that `game_render` then copies into the 240x192 viewport. The
+ * standing draw is therefore clipped at the viewport edge and the animated one
+ * was not: a wide sprite (ICONS.SS units run 13-21px) moving in the rightmost
+ * columns painted itself and its orders box across the right info panel for
+ * the length of the animation, and the combat lunge — which travels a whole
+ * tile outward — put the attacker entirely on the panel when it struck east
+ * from the last column. Draw the animated copy through a viewport-sized
+ * scratch frame so it clips exactly where the static one does.
+ */
+static void game_blit_unit_in_viewport(
+  ColonizeFramebuffer8* fb,
+  const ColonizeFont* font,
+  const ColonizeSpriteSheet* sheet,
+  int sprite_index,
+  int x,
+  int y,
+  int display_type_index,
+  int nation_id,
+  int orders_index,
+  bool show_stack,
+  bool aboard,
+  const ColonizePalette* active_palette
+) {
+  static uint8_t s_viewport[MAP_VIEW_W * MAP_VIEW_H];
+  if (!fb || !fb->pixels || fb->width < MAP_VIEW_W || fb->height < MAP_MENU_BAR_H + MAP_VIEW_H) {
+    return;
+  }
+  ColonizeFramebuffer8 view = {.width = MAP_VIEW_W, .height = MAP_VIEW_H, .pixels = s_viewport};
+  for (int row = 0; row < MAP_VIEW_H; ++row) {
+    memcpy(
+      &s_viewport[(size_t)row * MAP_VIEW_W],
+      &fb->pixels[(size_t)(MAP_MENU_BAR_H + row) * (size_t)fb->width],
+      MAP_VIEW_W
+    );
+  }
+  unit_chrome_blit_unit_for_palette(
+    &view, font, sheet, sprite_index, x, y - MAP_MENU_BAR_H, display_type_index, nation_id,
+    orders_index, show_stack, aboard, active_palette
+  );
+  for (int row = 0; row < MAP_VIEW_H; ++row) {
+    memcpy(
+      &fb->pixels[(size_t)(MAP_MENU_BAR_H + row) * (size_t)fb->width],
+      &s_viewport[(size_t)row * MAP_VIEW_W],
+      MAP_VIEW_W
+    );
+  }
+}
+
 static void game_move_watch(
   void* user,
   const ColonizeUnitPool* pool,
@@ -669,7 +720,7 @@ static void game_move_watch(
           game_render(game, &fb, &pal);
           const int px = x0 + (x1 - x0) * f / steps;
           const int py = y0 + (y1 - y0) * f / steps;
-          unit_chrome_blit_unit_for_palette(
+          game_blit_unit_in_viewport(
             &fb,
             game_chrome_font(game),
             &game->unit_icons,
@@ -778,7 +829,7 @@ static void game_combat_watch(
   }
   for (int f = 0; f < 3; ++f) {
     game_render(game, &fb, &pal);
-    unit_chrome_blit_unit_for_palette(
+    game_blit_unit_in_viewport(
       &fb,
       game_chrome_font(game),
       &game->unit_icons,
@@ -6957,6 +7008,10 @@ static void game_commit_new_campaign(ColonizeGameState* game) {
   if (game->names_ok) {
     europe_set_nation(&game->europe, game->human_nation, &game->names);
   }
+  /* DOS FUN_38fd_6024 seeds the recruit pool from the chosen difficulty;
+   * europe_reset_campaign_nation had to guess Discoverer because it runs
+   * before any col1 exists. */
+  europe_seed_pool(&game->europe, game->difficulty, true);
   /* Wipe live colonies but restore @BUILDING / COLONY.TXT so founding can grant starters. */
   colonies_init(&game->colonies);
   game->colonies_ok = false;
