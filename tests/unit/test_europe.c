@@ -4,6 +4,7 @@
 #include "core/assets.h"
 #include "core/colony.h"
 #include "core/europe.h"
+#include "core/unit_chrome.h"
 #include "core/ui_drag.h"
 #include "core/units.h"
 #include "platform/diagnostics.h"
@@ -1426,6 +1427,59 @@ int main(void) {
       europe_free(&eu);
       return 1;
     }
+  }
+
+  /*
+   * bugs.md: dock chrome corner must follow the @UNIT display type the way
+   * the map does — an armed/mounted immigrant is not a Colonist. The entry's
+   * name is a profession, so dos_type is what decides.
+   */
+  {
+    ColonizeMsgCatalog names;
+    ColonizeUnitPool units;
+    memset(&names, 0, sizeof(names));
+    units_reset(&units);
+    if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT") ||
+        !units_load_types(&units, &names)) {
+      fprintf(stderr, "dock chrome: load NAMES/units failed\n");
+      assets_msg_free(&names);
+      europe_free(&eu);
+      return 1;
+    }
+    EuropeDockImmigrant d;
+    memset(&d, 0, sizeof(d));
+    snprintf(d.name, sizeof(d.name), "%s", "Veteran Soldiers");
+    d.profession = UNITS_JOB_SOLDIER;
+    d.present = true;
+    d.dos_type = EUROPE_DOCK_TYPE_DRAGOONS;
+    int ti = europe_dock_display_type_index(&units, &d);
+    if (ti != units_find_type(&units, "Dragoons") ||
+        unit_chrome_corner_for_type(ti, false) != UNIT_CHROME_CORNER_TOP_LEFT) {
+      fprintf(stderr, "dock Veteran Dragoon display type %d wrong corner\n", ti);
+      assets_msg_free(&names);
+      europe_free(&eu);
+      return 1;
+    }
+    d.dos_type = EUROPE_DOCK_TYPE_COLONISTS;
+    snprintf(d.name, sizeof(d.name), "%s", "Free Colonists");
+    ti = europe_dock_display_type_index(&units, &d);
+    if (ti != units_find_type(&units, "Colonists") ||
+        unit_chrome_corner_for_type(ti, false) != UNIT_CHROME_CORNER_BOTTOM_RIGHT) {
+      fprintf(stderr, "dock colonist display type %d wrong corner\n", ti);
+      assets_msg_free(&names);
+      europe_free(&eu);
+      return 1;
+    }
+    snprintf(d.name, sizeof(d.name), "%s", "Artillery");
+    ti = europe_dock_display_type_index(&units, &d);
+    if (ti != units_find_type(&units, "Artillery") ||
+        unit_chrome_corner_for_type(ti, false) != UNIT_CHROME_CORNER_TOP_CENTER) {
+      fprintf(stderr, "dock artillery display type %d wrong corner\n", ti);
+      assets_msg_free(&names);
+      europe_free(&eu);
+      return 1;
+    }
+    assets_msg_free(&names);
   }
 
   europe_free(&eu);

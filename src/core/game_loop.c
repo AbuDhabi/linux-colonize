@@ -564,6 +564,24 @@ static bool game_move_is_near_human(
 
 static void game_map_zoom_view_size(int zoom, int* out_cols, int* out_rows);
 
+/*
+ * HUD / unit-chrome font (FONTTINY, DS:0x89e) — the one the stationary map
+ * draw hands unit_chrome. bugs.md: the move slide and the combat bump passed
+ * NULL here, so font_text_width fell back to its 6px cell (a wider box than
+ * the tiny font's own '-' or 'S') and font_draw_text drew no letter at all —
+ * a moving piece wore visibly different chrome from the same piece standing
+ * still, which is what read as a second chrome implementation.
+ */
+static const ColonizeFont* game_chrome_font(const ColonizeGameState* game) {
+  if (!game) {
+    return NULL;
+  }
+  if (game->colony_font_ok) {
+    return &game->colony_font;
+  }
+  return game->menu_font_ok ? &game->menu_font : NULL;
+}
+
 static void game_move_watch(
   void* user,
   const ColonizeUnitPool* pool,
@@ -639,14 +657,16 @@ static void game_move_watch(
           const int py = y0 + (y1 - y0) * f / steps;
           unit_chrome_blit_unit_for_palette(
             &fb,
-            NULL,
+            game_chrome_font(game),
             &game->unit_icons,
             sprite,
             px,
             py,
             units_display_type_index(pool, unit_id),
             unit->nation_id,
-            UNITS_ORDER_NONE,
+            /* Same chrome the unit wears standing still: real order letter,
+             * not a forced '-' (bugs.md). */
+            unit->orders,
             false,
             false,
             /* bugs.md: NULL here fell back to the raw ICONS.SS fill index,
@@ -734,14 +754,14 @@ static void game_combat_watch(
     game_render(game, &fb, &pal);
     unit_chrome_blit_unit_for_palette(
       &fb,
-      NULL,
+      game_chrome_font(game),
       &game->unit_icons,
       sprite,
       sxp + ddx * k_bump[f],
       syp + ddy * k_bump[f],
       units_display_type_index(pool, attacker_id),
       atk->nation_id,
-      UNITS_ORDER_NONE,
+      atk->orders, /* as above: the lunging piece keeps its own letter */
       false,
       false,
       /* bugs.md: same palette rule as the move slide — raw index went pink. */
@@ -5985,10 +6005,10 @@ static void render_europe_screen(const ColonizeGameState* game, ColonizeFramebuf
          * to a map stack and is always wrong here (bugs.md). Singular chrome.
          */
         const bool stacked = false;
-        int dtype = units_find_type(&game->units, eu->dock[i].name);
-        if (dtype < 0) {
-          dtype = units_find_type(&game->units, "Colonists");
-        }
+        /* Box corner from the @UNIT display type, same rule the map runs
+         * (bugs.md: the name-first lookup put every armed immigrant's box in
+         * the Colonists corner). */
+        int dtype = europe_dock_display_type_index(&game->units, &eu->dock[i]);
         if (dtype < 0) {
           dtype = 0;
         }
@@ -14833,8 +14853,7 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
   if (game->hidden_terrain_phase == 0 && game->units_ok && game->unit_icons_ok) {
     /* Half-period 500ms → full blink cycle 1s (was 250ms / 500ms cycle). */
     const bool blink_on = ((game->elapsed_ms / 500u) % 2u) == 0u;
-    const ColonizeFont* chrome_font = game->colony_font_ok ? &game->colony_font
-      : (game->menu_font_ok ? &game->menu_font : NULL);
+    const ColonizeFont* chrome_font = game_chrome_font(game);
     units_render_on_map(
       &game->units,
       game->colonies_ok || game->colonies.colony_count > 0 ? &game->colonies : NULL,

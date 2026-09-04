@@ -490,6 +490,15 @@ int europe_dock_unit_type_index(const ColonizeUnitPool* units, int dos_type);
  */
 int europe_dock_type_for(const char* name, int profession);
 
+/*
+ * @UNIT display type for a dock entry, for unit_chrome's box corner. Reads
+ * dos_type (what @ARMOPTIONS moves around), not the profession name, so an
+ * armed/mounted immigrant gets its own corner. -1 only without a pool.
+ */
+int europe_dock_display_type_index(
+  const ColonizeUnitPool* units, const EuropeDockImmigrant* d
+);
+
 /* Kit implied by a dock entry's type, for the mirror unit and for landing. */
 int europe_dock_type_tools(int dos_type);
 int europe_dock_type_muskets(int dos_type);
