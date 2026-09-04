@@ -8998,13 +8998,20 @@ static bool game_colony_apply_outside_role(
   if (!u) {
     return false;
   }
+  int stock_tools = colony->stock[COLONIZE_CARGO_TOOLS] + (u->tools > 0 ? u->tools : 0);
+  int stock_muskets = colony->stock[COLONIZE_CARGO_MUSKETS] + (u->muskets > 0 ? u->muskets : 0);
+  int stock_horses = colony->stock[COLONIZE_CARGO_HORSES] + (u->horses > 0 ? u->horses : 0);
+
   int tools_take = 0;
   int muskets_take = 0;
   int horses_take = 0;
   const char* type_name = "Colonists";
   switch (role) {
   case COLONIZE_EJECT_PIONEER:
-    tools_take = UNITS_EQUIP_TOOLS_MAX;
+    /* bugs.md: whole 20-tool steps capped at 100, the same rule
+     * colonies_eject_colonist uses — this path used to insist on the full 100
+     * and refused a Pioneer the menu beside it had just offered. */
+    tools_take = colonies_equip_tools_take(stock_tools);
     type_name = "Pioneers";
     break;
   case COLONIZE_EJECT_SOLDIER:
@@ -9026,9 +9033,9 @@ static bool game_colony_apply_outside_role(
     break;
   }
 
-  int stock_tools = colony->stock[COLONIZE_CARGO_TOOLS] + (u->tools > 0 ? u->tools : 0);
-  int stock_muskets = colony->stock[COLONIZE_CARGO_MUSKETS] + (u->muskets > 0 ? u->muskets : 0);
-  int stock_horses = colony->stock[COLONIZE_CARGO_HORSES] + (u->horses > 0 ? u->horses : 0);
+  if (role == COLONIZE_EJECT_PIONEER && tools_take <= 0) {
+    return false; /* not even one 20-tool step in reach */
+  }
   if (stock_tools < tools_take || stock_muskets < muskets_take || stock_horses < horses_take) {
     return false;
   }

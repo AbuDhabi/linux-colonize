@@ -453,8 +453,29 @@ static void effect_pocahontas_reset_alarm(ColonizeCol1Save* col1, int nation_id)
   }
 }
 
-static bool ff_unclaimed(const ColonizeCol1Save* col1, int idx) {
-  return col1->head.founding_father[idx] < 0;
+/*
+ * DOS FUN_0000_9810 (reached as FUN_281f_07b4): can this NATION still elect
+ * Father idx? The only test is that nation's own +7..+0xa bitfield.
+ *
+ * bugs.md ("fewer than one Founding Father per category"): this used to read
+ * head.founding_father[idx] < 0, i.e. "nobody anywhere has him". Fathers are
+ * not globally exclusive in DOS — every power runs its own Congress, and
+ * head.founding_father[] is only a first-claimer record (FUN_4345_0342 writes
+ * it once, `if (entry < 0) entry = nation`, and nothing ever reads it back as
+ * a gate; reports.c had already noticed the same thing against
+ * dutch-reports.SAV). Reading it as a lock deleted a candidate from the human's
+ * slate every time an AI elected someone, which is exactly how categories went
+ * missing.
+ */
+static bool ff_available_to(const ColonizeCol1Save* col1, int nation, int idx) {
+  if (!col1 || idx < 0 || idx >= (int)COLONIZE_COL1_FF_COUNT) {
+    return false;
+  }
+  if (nation < 0 || nation >= (int)COLONIZE_COL1_NATION_COUNT) {
+    return false;
+  }
+  const uint8_t byte = col1->nation[nation].founding_fathers[idx / 8];
+  return (byte & (uint8_t)(1u << (idx % 8))) == 0;
 }
 
 /* NAMES.TXT @FATHERS type column (0=Trade … 4=Religious). */
@@ -539,11 +560,11 @@ static int ff_century_band(const ColonizeCol1Save* col1) {
 }
 
 /* FUN_4345_0080: count unclaimed FFs of type with non-zero weight this century. */
-static int ff_count_eligible_of_type(const ColonizeCol1Save* col1, int type) {
+static int ff_count_eligible_of_type(const ColonizeCol1Save* col1, int nation, int type) {
   const int band = ff_century_band(col1);
   int count = 0;
   for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
-    if ((int)k_ff_type[i] != type || !ff_unclaimed(col1, i)) {
+    if ((int)k_ff_type[i] != type || !ff_available_to(col1, nation, i)) {
       continue;
     }
     if (k_ff_weight[i][band] > 0) {
@@ -559,13 +580,14 @@ static int ff_count_eligible_of_type(const ColonizeCol1Save* col1, int type) {
  */
 static int ff_pick_weighted_of_type(
   const ColonizeCol1Save* col1,
+  int nation,
   int type,
   ColonizeDosRng* rng
 ) {
   const int band = ff_century_band(col1);
   int total = 0;
   for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
-    if ((int)k_ff_type[i] != type || !ff_unclaimed(col1, i)) {
+    if ((int)k_ff_type[i] != type || !ff_available_to(col1, nation, i)) {
       continue;
     }
     total += (int)k_ff_weight[i][band];
@@ -576,7 +598,7 @@ static int ff_pick_weighted_of_type(
   if (!rng) {
     /* Deterministic fallback when no RNG context (should not happen in tick). */
     for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
-      if ((int)k_ff_type[i] == type && ff_unclaimed(col1, i) &&
+      if ((int)k_ff_type[i] == type && ff_available_to(col1, nation, i) &&
           k_ff_weight[i][band] > 0) {
         return i;
       }
@@ -585,7 +607,7 @@ static int ff_pick_weighted_of_type(
   }
   int roll = dos_rng_range(rng, 1, total);
   for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
-    if ((int)k_ff_type[i] != type || !ff_unclaimed(col1, i)) {
+    if ((int)k_ff_type[i] != type || !ff_available_to(col1, nation, i)) {
       continue;
     }
     const int w = (int)k_ff_weight[i][band];
@@ -601,11 +623,11 @@ static int ff_pick_weighted_of_type(
 }
 
 /* FUN_4345_015a: @FATHERS category with the most eligible unclaimed Fathers. */
-static int ff_pick_strongest_category(const ColonizeCol1Save* col1) {
+static int ff_pick_strongest_category(const ColonizeCol1Save* col1, int nation) {
   int best_type = -1;
   int best_count = -1;
   for (int type = 0; type < 5; ++type) {
-    const int n = ff_count_eligible_of_type(col1, type);
+    const int n = ff_count_eligible_of_type(col1, nation, type);
     if (n > best_count) {
       best_count = n;
       best_type = type;
@@ -688,7 +710,8 @@ static bool ff_enqueue_debate_from_slate(
   int n = 0;
   for (int i = 0; i < s_ff_debate_slate_n && n < AI_POPUP_CHOICE_MAX; ++i) {
     const int idx = s_ff_debate_slate[i];
-    if (idx < 0 || idx >= (int)COLONIZE_COL1_FF_COUNT || !ff_unclaimed(ctx->col1, idx)) {
+    if (idx < 0 || idx >= (int)COLONIZE_COL1_FF_COUNT ||
+        !ff_available_to(ctx->col1, nation_id, idx)) {
       continue;
     }
     snprintf(labels[n], sizeof(labels[n]), "%s", k_ff_short_names[idx]);
@@ -696,7 +719,7 @@ static bool ff_enqueue_debate_from_slate(
     ids[n] = idx;
     n++;
   }
-  if (n < 2) {
+  if (n < 1) {
     s_ff_debate_slate_n = 0;
     s_ff_debate_slate_nation = -1;
     return false;
@@ -716,16 +739,17 @@ static bool ff_enqueue_debate_from_slate(
 }
 
 static int pick_candidate(ColonizeTurnContext* ctx, const ColonizeCol1Save* col1,
-                          const ColonizeCol1Nation* nat) {
+                          const ColonizeCol1Nation* nat, int nation_id) {
   const int next = (int)nat->next_founding_father;
-  if (next >= 0 && next < (int)COLONIZE_COL1_FF_COUNT && ff_unclaimed(col1, next)) {
+  if (next >= 0 && next < (int)COLONIZE_COL1_FF_COUNT &&
+      ff_available_to(col1, nation_id, next)) {
     return next;
   }
-  const int type = ff_pick_strongest_category(col1);
+  const int type = ff_pick_strongest_category(col1, nation_id);
   if (type < 0) {
     return -1;
   }
-  return ff_pick_weighted_of_type(col1, type, ctx ? ctx->rng : NULL);
+  return ff_pick_weighted_of_type(col1, nation_id, type, ctx ? ctx->rng : NULL);
 }
 
 static int16_t advance_next_candidate(const ColonizeCol1Save* col1, int elected_idx) {
@@ -751,7 +775,8 @@ static void ensure_next_candidate(ColonizeTurnContext* ctx, int nation_id) {
   }
   ColonizeCol1Nation* nat = &col1->nation[nation_id];
   const int next = (int)nat->next_founding_father;
-  if (next >= 0 && next < (int)COLONIZE_COL1_FF_COUNT && ff_unclaimed(col1, next)) {
+  if (next >= 0 && next < (int)COLONIZE_COL1_FF_COUNT &&
+      ff_available_to(col1, nation_id, next)) {
     return;
   }
   nat->next_founding_father = -1;
@@ -771,14 +796,17 @@ static void ensure_next_candidate(ColonizeTurnContext* ctx, int nation_id) {
     int ids[AI_POPUP_CHOICE_MAX];
     int n = 0;
     for (int type = 0; type < 5 && n < AI_POPUP_CHOICE_MAX; ++type) {
-      const int idx = ff_pick_weighted_of_type(col1, type, ctx->rng);
+      const int idx = ff_pick_weighted_of_type(col1, nation_id, type, ctx->rng);
       if (idx < 0) {
         continue;
       }
       ids[n] = idx;
       n++;
     }
-    if (n >= 2) {
+    /* DOS FUN_4345_06d2 opens the debate whenever ANY category still has a
+     * candidate (`local_4 != 0`) — a one-row Congress is a real DOS state, not
+     * a reason to skip the ask and pick for the player. */
+    if (n >= 1) {
       memcpy(s_ff_debate_slate, ids, sizeof(ids[0]) * (size_t)n);
       s_ff_debate_slate_n = n;
       s_ff_debate_slate_nation = nation_id;
@@ -786,16 +814,11 @@ static void ensure_next_candidate(ColonizeTurnContext* ctx, int nation_id) {
           ctx->status && ctx->status_size > 0) {
         snprintf(ctx->status, ctx->status_size, "Congress debates founding fathers.");
       }
-      return;
-    }
-    if (n == 1) {
-      nat->next_founding_father = (int16_t)ids[0];
-      return;
     }
     return;
   }
 
-  const int idx = pick_candidate(ctx, col1, nat);
+  const int idx = pick_candidate(ctx, col1, nat, nation_id);
   if (idx >= 0) {
     nat->next_founding_father = (int16_t)idx;
   }
@@ -1286,7 +1309,7 @@ static bool elect_commit(
   if (!ctx || !ctx->col1 || idx < 0 || idx >= (int)COLONIZE_COL1_FF_COUNT) {
     return false;
   }
-  if (!ff_unclaimed(ctx->col1, idx)) {
+  if (!ff_available_to(ctx->col1, nation_id, idx)) {
     return false;
   }
   ColonizeCol1Save* col1 = ctx->col1;
@@ -1372,7 +1395,8 @@ static bool try_elect_nation(ColonizeTurnContext* ctx, int nation_id) {
   }
 
   const int idx = (int)nat->next_founding_father;
-  if (idx < 0 || idx >= (int)COLONIZE_COL1_FF_COUNT || !ff_unclaimed(col1, idx)) {
+  if (idx < 0 || idx >= (int)COLONIZE_COL1_FF_COUNT ||
+      !ff_available_to(col1, nation_id, idx)) {
     return false; /* waiting on debate CHOICE, or no candidates left */
   }
   return elect_commit(ctx, nation_id, idx);
@@ -1408,7 +1432,8 @@ void founding_fathers_apply_popup_result(ColonizeTurnContext* ctx, AiPopupState*
   if (!ctx->col1 || nation < 0 || nation >= (int)COLONIZE_COL1_NATION_COUNT) {
     return;
   }
-  if (idx < 0 || idx >= (int)COLONIZE_COL1_FF_COUNT || !ff_unclaimed(ctx->col1, idx)) {
+  if (idx < 0 || idx >= (int)COLONIZE_COL1_FF_COUNT ||
+      !ff_available_to(ctx->col1, nation, idx)) {
     return;
   }
   /* Lock candidate first (choose → accumulate → join). Elect if already funded. */

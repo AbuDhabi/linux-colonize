@@ -26,6 +26,17 @@ typedef struct PopupMsgTokens {
   bool has_number2;
 } PopupMsgTokens;
 
+/*
+ * GAME.TXT '^' / '^^' line prefixes (DOS FUN_6f74_0cb0 flags 2 / 1, consumed
+ * by the FUN_6f74_1198 wrap loop): a caret-led line is drawn on a line of its
+ * own and NOT word-wrapped — left-aligned for '^', centred for '^^'.
+ * popup_msg_section_body encodes that as a '\n' break followed by one of these
+ * marker bytes. Renderers consume the marker; popup_msg_strip_markup drops it
+ * (and flattens the breaks to spaces) for plain-text sinks.
+ */
+#define POPUP_MSG_LINE_MARK '\x01'   /* '^'  — own line, left-aligned */
+#define POPUP_MSG_CENTER_MARK '\x02' /* '^^' — own line, centred */
+
 /* True if line is an @directive (width/default/checkbox/…). */
 bool popup_msg_is_directive(const char* line);
 

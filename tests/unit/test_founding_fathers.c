@@ -2276,6 +2276,56 @@ int main(void) {
     fprintf(stderr, "unit_founding_fathers: Congress debate CHOICE ok\n");
   }
 
+  /*
+   * bugs.md ("fewer than one Founding Father per category"): Fathers are NOT
+   * globally exclusive. DOS's eligibility test (FUN_0000_9810 via
+   * FUN_281f_07b4) reads only the ASKING nation's own +7..+0xa bitfield;
+   * head.founding_father[] is a first-claimer record, never a lock. An AI
+   * Congress full of Fathers must not shrink the human's slate.
+   */
+  {
+    ColonizeCol1Save xcol1;
+    col1_save_init(&xcol1);
+    seed_unclaimed(&xcol1);
+    ff_test_calendar(&xcol1);
+    ColonizeCol1Nation* xnat = &xcol1.nation[0];
+    memset(xnat, 0, sizeof(*xnat));
+    xnat->liberty_bells_total = 10;
+    xnat->next_founding_father = -1;
+    xnat->founding_father_count = 0;
+    /* Nation 2 has elected every Father; nation 0's own bitfield is empty. */
+    for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
+      xcol1.head.founding_father[i] = 2;
+      xcol1.nation[2].founding_fathers[i / 8] |= (uint8_t)(1u << (i % 8));
+    }
+
+    AiPopupState xpop;
+    ai_popup_init(&xpop);
+    char xstatus[128];
+    xstatus[0] = '\0';
+    ColonizeTurnContext xctx;
+    memset(&xctx, 0, sizeof(xctx));
+    xctx.human_nation = 0;
+    xctx.col1 = &xcol1;
+    xctx.col1_ok = true;
+    xctx.status = xstatus;
+    xctx.status_size = sizeof(xstatus);
+    xctx.ai_popups = &xpop;
+
+    ff_tick(&xctx);
+    if (xpop.queue_count < 1 || xpop.queue[0].tag != AI_POPUP_TAG_FF_CONGRESS) {
+      return fail("AI-owned Fathers must not suppress the human's Congress debate");
+    }
+    /* 1492 band: Trade/Political/Religious 4 eligible, Exploration 5,
+     * Military 3 — all five categories still offer someone. */
+    if (xpop.queue[0].choice_count != 5) {
+      fprintf(stderr, "unit_founding_fathers: slate with AI-owned FFs = %d rows (want 5)\n",
+              xpop.queue[0].choice_count);
+      return fail("every category must still offer a candidate");
+    }
+    fprintf(stderr, "unit_founding_fathers: FF pool is per-nation ok\n");
+  }
+
   /* bugs.md: the debate is persistent — escaping re-presents it at once with
    * the SAME candidates, and a next-turn tick keeps them too (no reroll). */
   {

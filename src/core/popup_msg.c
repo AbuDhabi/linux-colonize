@@ -74,7 +74,30 @@ size_t popup_msg_section_body(
     if (stop_before_choices && saw_prose && (boundary || popup_msg_is_choice_word(line))) {
       break;
     }
-    if (used > 0 && used + 1 < out_size) {
+    /*
+     * GAME.TXT '^' line prefix (DOS FUN_6f74_0cb0 + the 1198 wrap loop): a
+     * caret-led line is NOT word-wrapped into the running paragraph. It gets
+     * an output line of its own, drawn verbatim — '^^' additionally centres
+     * it (the flag-1 arm measures the string before drawing; '^' alone sets
+     * flag 2 and stays left-aligned). bugs.md: the caret was copied through
+     * literally, so @BUYME1 read "...100$. ^Treasury: 500$." on one line.
+     * Encoded for the renderer as a newline break plus a leading
+     * POPUP_MSG_LINE_MARK / POPUP_MSG_CENTER_MARK.
+     */
+    int caret = 0;
+    while (line[caret] == '^') {
+      caret++;
+    }
+    if (caret > 0) {
+      if (used > 0 && used + 1 < out_size) {
+        out[used++] = '\n';
+      }
+      if (used + 1 < out_size) {
+        out[used++] = caret >= 2 ? POPUP_MSG_CENTER_MARK : POPUP_MSG_LINE_MARK;
+      }
+      out[used] = '\0';
+      line += caret;
+    } else if (used > 0 && used + 1 < out_size) {
       out[used++] = ' ';
     }
     const size_t n = strlen(line);
@@ -87,6 +110,9 @@ size_t popup_msg_section_body(
     }
     memcpy(out + used, line, n);
     used += n;
+    if (caret > 0 && used + 1 < out_size) {
+      out[used++] = '\n'; /* the next line starts fresh, never joins this one */
+    }
     out[used] = '\0';
     saw_prose = 1;
   }
@@ -99,10 +125,11 @@ void popup_msg_strip_markup(char* s) {
   }
   char* w = s;
   for (char* r = s; *r; ++r) {
-    if (*r == '{' || *r == '}') {
+    if (*r == '{' || *r == '}' || *r == POPUP_MSG_LINE_MARK ||
+        *r == POPUP_MSG_CENTER_MARK) {
       continue;
     }
-    *w++ = *r;
+    *w++ = (*r == '\n') ? ' ' : *r;
   }
   *w = '\0';
 }

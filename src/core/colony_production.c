@@ -290,10 +290,17 @@ int colony_prod_sol_bonus(const ColonizeCol1Save* col1, const ColonizeColony* co
   if (thresh < 2) {
     thresh = 2;
   }
+  /*
+   * bugs.md ("SoL >50% yet still over the Tory limit"): there is no separate
+   * over-the-limit state in DOS. FUN_15eb_18ec builds ONE signed term —
+   * -floor(tories/thresh) plus the latch steps — and the two simply add, so a
+   * big colony can sit above 50% SoL and still run a net penalty. The floor
+   * itself is unbounded (decomp ~11880 clamps nothing; docs/sons_of_liberty.md
+   * says "-2, -3, ..."), so the invented -2 clamp that used to live here is
+   * gone: it silently capped the penalty for large low-SoL colonies. The only
+   * clamp DOS has is on the FINISHED yield, which never goes below 0.
+   */
   int mod = -(tories / thresh);
-  if (mod < -2) {
-    mod = -2;
-  }
 
   /* Latch bits (hysteresis) or live SoL stand-in; take the larger so a
    * stale sol_50-only flag cannot under-count after SoL rises to 100, while
