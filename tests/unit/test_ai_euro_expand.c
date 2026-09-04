@@ -4147,10 +4147,19 @@ static int unit_transport_europe_sell_trade_goods(void) {
   ship->hold_goods_type[0] = COLONIZE_CARGO_TRADE_GOODS;
   ship->hold_goods_amount[0] = amt;
 
+  /*
+   * The EuropeScreen belongs to the HUMAN (nation 0); the AI only borrows it
+   * for the sell. bugs.md: this site borrowed and never gave back, so the AI's
+   * gold and tax rate stayed on the human's screen and the next col1 capture
+   * wrote that tax into the human's nation record. Seed values that differ
+   * from the AI's so the restore is observable.
+   */
+  const int human_gold = 777;
+  const int human_tax = 5;
   EuropeScreen europe;
   memset(&europe, 0, sizeof(europe));
-  europe.gold = 100;
-  europe.tax_percent = tax;
+  europe.gold = human_gold;
+  europe.tax_percent = human_tax;
   europe.cargo_count = COLONIZE_CARGO_COUNT;
   for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
     europe.cargo[c].bid = bid;
@@ -4206,6 +4215,15 @@ static int unit_transport_europe_sell_trade_goods(void) {
     free(map.layer2);
     free(map.layer3);
     return fail("eu-sell should credit tax-adjusted TRADE_GOODS proceeds");
+  }
+
+  if (europe.tax_percent != human_tax || europe.gold != human_gold) {
+    fprintf(stderr, "unit_ai_euro_expand: human Europe left at gold=%d tax=%d%%\n",
+            europe.gold, europe.tax_percent);
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("eu-sell must restore the human's borrowed Europe gold/tax");
   }
 
   free(map.terrain);

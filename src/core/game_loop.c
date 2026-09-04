@@ -6387,7 +6387,7 @@ ColonizeGameState* game_create(const ColonizeGameConfig* config) {
     fill_fallback_palette(&game->palette);
     diag_warn("Using fallback generated palette.");
   }
-  ai_popup_set_portrait_source(game->resolved_data_dir, &game->palette);
+  ai_popup_set_portrait_source(game->resolved_data_dir);
 
   char game_txt[512];
   if (dos_compat_normalize_asset_path(game->resolved_data_dir, "GAME.TXT", game_txt, sizeof(game_txt))) {
@@ -6596,9 +6596,6 @@ ColonizeGameState* game_create(const ColonizeGameConfig* config) {
       if (game->terrain.has_palette) {
         game->map_palette = game->terrain.palette;
         game->map_palette_ok = true;
-        /* Chief portraits show over the map: remap onto the map palette, not
-         * VICEROY.PAL (P8.6 "colours too light"). */
-        ai_popup_set_portrait_source(game->resolved_data_dir, &game->map_palette);
       }
       diag_info("Loaded terrain sheet with %d sprites", game->terrain.sprite_count);
     } else {
@@ -14214,6 +14211,14 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
               : (game->in_colony && game->colony_screen_ok && game->colony_screen.frame.has_palette)
                 ? game->colony_screen.frame.palette
                 : (game->map_palette_ok ? game->map_palette : game->palette);
+
+  /*
+   * An open popup's King / chief / MSS / MYR sheet carries its own entries for
+   * the DAC block every screen palette above leaves black; lend them now so the
+   * art blits with DOS's colours instead of a nearest-colour approximation
+   * (bugs.md: the tax-audience King flair).
+   */
+  ai_popup_art_palette_merge((AiPopupState*)&game->ai_popups, palette);
 
   if (render_log_counter == 0) {
     diag_info(

@@ -1374,11 +1374,25 @@ bool col1_bridge_apply(
     europe->boycott_bitmap = (nat->boycott_bitmap == 0xFFFFu) ? 0u : nat->boycott_bitmap;
     /* nation+0x1e — Artillery purchase count (FUN_38fd_4b50 price ladder). */
     europe->artillery_bought = (int)nat->artillery_count;
+    /*
+     * nation+6 — the Recruit passage ladder counter (FUN_38fd_4884 tail,
+     * cap 0xb4). bugs.md: it was never bridged, so game_apply_col1_save's
+     * europe_reset_campaign dropped it to 0 on every load and the passage
+     * price fell back to its opening rung.
+     */
+    europe->recruit_count = nat->recruit_count > 180 ? 180 : nat->recruit_count;
     europe->current_crosses = nat->current_crosses;
     europe->needed_crosses =
       nat->needed_crosses > 0 ? nat->needed_crosses : TURN_DEFAULT_NEEDED_CROSSES;
     europe->liberty_bells_total = nat->liberty_bells_total;
     europe->liberty_bells_last_turn = nat->liberty_bells_last_turn;
+    /* The dialog price is derived state; recompute it now that count,
+     * difficulty and crosses are all restored (the EOT tick would otherwise
+     * be the first thing to correct it). */
+    europe->recruit_passage = europe_compute_recruit_passage(
+      europe->recruit_count, europe->difficulty, europe->current_crosses,
+      europe->needed_crosses
+    );
     /* Restore immigrant-crosses FSM from save (dock unit / spent crosses). */
     europe->crosses_immigrant_seen = false;
     for (int ui = 0; ui < (int)save->head.unit_count; ++ui) {
@@ -1718,6 +1732,7 @@ bool col1_bridge_capture(
     nat->tax_rate = (uint8_t)(europe->tax_percent < 0 ? 0 : (europe->tax_percent > 99 ? 99 : europe->tax_percent));
     nat->artillery_count =
       (uint16_t)(europe->artillery_bought < 0 ? 0 : europe->artillery_bought);
+    nat->recruit_count = europe->recruit_count > 180 ? 180 : europe->recruit_count;
     nat->current_crosses = europe->current_crosses;
     nat->needed_crosses = europe->needed_crosses > 0 ? europe->needed_crosses : TURN_DEFAULT_NEEDED_CROSSES;
     nat->liberty_bells_total = europe->liberty_bells_total;
