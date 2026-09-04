@@ -1054,162 +1054,165 @@ static void turn_produce_one_colony(
   }
 
   /*
-   * FUN_364b_0688 phases F–G thin: Schoolhouse/College/University education.
-   * Teachers (profession Teacher) in school buildings; students = Free/
-   * Indentured/Criminal/Convert in school. turns_in_job++ each tick; when
-   * teacher ≥ 4/6/8 (by tier), graduate one student → Farmer (Schoolhouse),
-   * Carpenter (College+). Deep specialty table / msgs PARKED.
-   * Cite: ~57502–57589; docs/building_production.md; colony_eot_production.md.
+   * FUN_364b_0688 phases F–G: Schoolhouse/College/University education.
+   * Cite: viceroy_unpacked.c ~57502-57589; GAME.TXT @TRAINFAIL /
+   * @TRAINCRIMINAL / @TRAININDENTURED / @TRAINPROFESSION;
+   * docs/building_production.md, colony_eot_production.md.
+   *
+   * bugs.md 386 ("has education even been implemented?" — it had not). Every
+   * axis of the previous port was wrong, and nothing could ever graduate:
+   *   - A TEACHER is a colonist whose WORK SLOT is the school (DOS occupation
+   *     0x12, i.e. the @JOB 18 "Teacher" slot, `local_c2 == 0x12`) and whose
+   *     SPECIALTY has an @JOB school level of 1..3. The port instead required
+   *     `profession == COLONIZE_PROF_TEACHER` (18), which nothing in the game
+   *     ever sets, so the teacher list was always empty.
+   *   - Required turns come from the TEACHER'S profession level (1 -> 4,
+   *     2 -> 6, 3 -> 8), not from the colony's best school building; the
+   *     building tier is enforced when the teacher is assigned
+   *     (@NEEDCOLLEGE / @NEEDUNIVERSITY, colonies_assign_workplace).
+   *   - STUDENTS are colonists working anywhere in the colony, not only ones
+   *     placed inside the school — @TRAINFAIL says so in as many words. DOS's
+   *     list is profession 0x13 / 0x1c (free colonist), 0x19 (indentured),
+   *     0x1a (criminal); Indian Converts (0x1b) are NOT students.
+   *   - The graduate takes the TEACHER'S OWN profession — 0cae's third,
+   *     register-passed argument, which Ghidra drops, is `aiStack_7e[t]`, the
+   *     stored teacher specialty. The port handed out Farmer/Carpenter off
+   *     `teacher->field_job`, which is always -1 for a colonist working in a
+   *     building, so even a live teacher could not have taught Veteran
+   *     Soldiers.
+   *   - The student is picked at RANDOM (FUN_281f_04d4(0, n-1)), and at most
+   *     3 teachers graduate per colony per tick (`local_6e < 3`).
+   * The 0x1a -> 0x19 and 0x19 -> 0x1c ladders take priority over the specialty
+   * and consume the teacher's turn, exactly as in DOS.
    */
   if (pool) {
-    int school_tier = 0; /* 1 Schoolhouse, 2 College, 3 University */
-    for (int bi = 0; bi < pool->building_type_count && bi < COLONIZE_BUILDING_TYPES_MAX; ++bi) {
-      if (!colony->has_building[bi]) {
+    enum { EDU_MAX_TEACHERS = 3 };
+    int teach_prof[EDU_MAX_TEACHERS];
+    int students[COLONIZE_COLONY_POP_MAX];
+    int n_teach = 0;
+    int n_stud = 0;
+    for (int ci = 0; ci < colony->colonist_count; ++ci) {
+      ColonizeColonist* c = &colony->colonists[ci];
+      if (!c->active) {
         continue;
       }
-      const char* bn = pool->building_types[bi].name;
-      if (!bn) {
+      /* DOS 0d1c/0a7e: the turn counter ticks for every colonist. */
+      if (c->turns_in_job < 255) {
+        c->turns_in_job++;
+      }
+      const int prof = c->profession;
+      if (prof < 0 || prof == COLONIZE_PROF_FREE_COLONIST || prof == UNITS_JOB_COLONIST ||
+          prof == COLONIZE_PROF_INDENTURED || prof == COLONIZE_PROF_CRIMINAL) {
+        if (n_stud < (int)(sizeof(students) / sizeof(students[0]))) {
+          students[n_stud++] = ci;
+        }
+        continue; /* level-4 professions never teach; lists are disjoint */
+      }
+      if (n_teach >= EDU_MAX_TEACHERS || c->building_type < 0 ||
+          c->building_type >= pool->building_type_count ||
+          colonies_school_building_tier(pool, c->building_type) <= 0) {
         continue;
       }
-      if (strstr(bn, "University") != NULL) {
-        school_tier = 3;
-      } else if (strstr(bn, "College") != NULL && school_tier < 2) {
-        school_tier = 2;
-      } else if (strstr(bn, "Schoolhouse") != NULL && school_tier < 1) {
-        school_tier = 1;
+      const int level = colonies_job_school_tier(prof);
+      if (level < 1 || level > 3) {
+        continue;
       }
+      const int need = (level == 1) ? 4 : (level == 2) ? 6 : 8;
+      if ((int)c->turns_in_job < need) {
+        continue;
+      }
+      teach_prof[n_teach++] = prof;
+      /* DOS zeroes the counter the moment the teacher qualifies, whether or
+       * not a student is available for him this turn. */
+      c->turns_in_job = 0;
     }
-    if (school_tier > 0) {
-      const int need = (school_tier == 1) ? 4 : (school_tier == 2) ? 6 : 8;
-      int teachers[8];
-      int students[32];
-      int n_teach = 0;
-      int n_stud = 0;
-      for (int ci = 0; ci < colony->colonist_count; ++ci) {
-        ColonizeColonist* c = &colony->colonists[ci];
-        if (!c->active) {
-          continue;
-        }
-        if (c->turns_in_job < 255) {
-          c->turns_in_job++;
-        }
-        if (c->building_type < 0 || c->building_type >= pool->building_type_count) {
-          continue;
-        }
-        const char* bn = pool->building_types[c->building_type].name;
-        if (!bn ||
-            (strstr(bn, "Schoolhouse") == NULL && strstr(bn, "College") == NULL &&
-             strstr(bn, "University") == NULL)) {
-          continue;
-        }
-        if (c->profession == COLONIZE_PROF_TEACHER) {
-          if (n_teach < 8) {
-            teachers[n_teach++] = ci;
-          }
-        } else if (
-          c->profession == COLONIZE_PROF_FREE_COLONIST ||
-          c->profession == UNITS_JOB_COLONIST /* @JOB 19 free alias (newborns) */ ||
-          c->profession == COLONIZE_PROF_INDENTURED ||
-          c->profession == COLONIZE_PROF_CRIMINAL ||
-          c->profession == COLONIZE_PROF_CONVERT ||
-          c->profession < 0
-        ) {
-          if (n_stud < 32) {
-            students[n_stud++] = ci;
-          }
-        }
-      }
-      const int students_at_start = n_stud;
-      for (int t = 0; t < n_teach && n_stud > 0; ++t) {
-        ColonizeColonist* teacher = &colony->colonists[teachers[t]];
-        if ((int)teacher->turns_in_job < need) {
-          continue;
-        }
-        ColonizeColonist* student = &colony->colonists[students[n_stud - 1]];
-        const int prev_prof = student->profession;
-        enum { GRAD_SPECIALTY = 0, GRAD_CRIMINAL, GRAD_INDENTURED } grad = GRAD_SPECIALTY;
-        const char* chrome_sec = "TRAINPROFESSION";
-        const char* skill_name = "profession";
-        if (prev_prof == COLONIZE_PROF_CRIMINAL) {
-          /* DOS 0x1a → 0x19 / @TRAINCRIMINAL. */
-          student->profession = COLONIZE_PROF_INDENTURED;
-          chrome_sec = "TRAINCRIMINAL";
-          grad = GRAD_CRIMINAL;
-        } else if (prev_prof == COLONIZE_PROF_INDENTURED) {
-          /* DOS 0x19 → Free / @TRAININDENTURED. */
-          student->profession = COLONIZE_PROF_FREE_COLONIST;
-          chrome_sec = "TRAININDENTURED";
-          grad = GRAD_INDENTURED;
-        } else {
-          /* Specialty: teacher field_job 0..8 if set; else Farmer / Carpenter. */
-          int skill = (school_tier >= 2) ? COLONIZE_PROF_CARPENTER : COLONIZE_JOB_FARMER;
-          if (teacher->field_job >= 0 && teacher->field_job < COLONIZE_FIELD_JOB_COUNT) {
-            skill = teacher->field_job;
-          }
-          student->profession = skill;
-          if (skill >= 0 && skill < COLONIZE_FIELD_JOB_COUNT) {
-            skill_name = colony_yield_job_name(skill);
-          } else if (skill == COLONIZE_PROF_CARPENTER) {
-            skill_name = "Carpenter";
-          }
-        }
-        student->turns_in_job = 0;
-        teacher->turns_in_job = 0;
-        n_stud--;
-        if (europe && colony->nation_id == human_nation && turn_report_ok_trained(col1)) {
-          const char* tier_name =
-            (school_tier >= 3) ? "University" : (school_tier == 2) ? "College" : "Schoolhouse";
-          if (grad == GRAD_CRIMINAL) {
-            snprintf(europe->status, sizeof(europe->status), "Criminal educated.");
-          } else if (grad == GRAD_INDENTURED) {
-            snprintf(europe->status, sizeof(europe->status), "Indentured educated.");
-          } else {
-            snprintf(europe->status, sizeof(europe->status), "%s graduate.", tier_name);
-          }
+    for (int t = 0; t < n_teach; ++t) {
+      const bool tell =
+        europe && colony->nation_id == human_nation && turn_report_ok_trained(col1);
+      const char* cname = colony->name[0] ? colony->name : "colony";
+      char body[AI_POPUP_BODY_LEN];
+      char fallback[224];
+      PopupMsgTokens tok;
+      if (n_stud == 0) {
+        /* DOS 0xde7 @TRAINFAIL, then out of the graduation loop entirely. */
+        if (tell) {
+          snprintf(europe->status, sizeof(europe->status), "No students to teach.");
           if (ai_popups) {
-            const char* cname = colony->name[0] ? colony->name : "colony";
-            char body[AI_POPUP_BODY_LEN];
-            char fallback[160];
-            if (grad == GRAD_CRIMINAL) {
-              snprintf(
-                fallback, sizeof(fallback), "Criminal in %s became indentured.", cname
-              );
-            } else if (grad == GRAD_INDENTURED) {
-              snprintf(
-                fallback, sizeof(fallback), "Indentured in %s became free colonist.", cname
-              );
-            } else {
-              snprintf(fallback, sizeof(fallback), "%s learned %s.", cname, skill_name);
-            }
-            PopupMsgTokens tok;
+            snprintf(
+              fallback,
+              sizeof(fallback),
+              "We have a teacher in %s, but all the colonists there already have "
+              "specialty professions.",
+              cname
+            );
             memset(&tok, 0, sizeof(tok));
             tok.string0 = cname;
-            tok.string1 = skill_name;
-            popup_msg_fill(messages, chrome_sec, &tok, fallback, body, sizeof(body));
+            popup_msg_fill(messages, "TRAINFAIL", &tok, fallback, body, sizeof(body));
             ai_popup_enqueue_colony_event(ai_popups, colony->id, body);
           }
         }
+        break;
       }
-      /* Teacher ready but no students at start → DOS 0xde7 / @TRAINFAIL. */
-      if (students_at_start == 0 && europe && colony->nation_id == human_nation &&
-          turn_report_ok_trained(col1)) {
-        for (int t = 0; t < n_teach; ++t) {
-          ColonizeColonist* teacher = &colony->colonists[teachers[t]];
-          if ((int)teacher->turns_in_job >= need) {
-            snprintf(europe->status, sizeof(europe->status), "No students to teach.");
-            if (ai_popups) {
-              const char* cname = colony->name[0] ? colony->name : "colony";
-              char body[AI_POPUP_BODY_LEN];
-              char fallback[160];
-              snprintf(fallback, sizeof(fallback), "No students to teach in %s.", cname);
-              PopupMsgTokens tok;
-              memset(&tok, 0, sizeof(tok));
-              tok.string0 = cname;
-              popup_msg_fill(messages, "TRAINFAIL", &tok, fallback, body, sizeof(body));
-              ai_popup_enqueue_colony_event(ai_popups, colony->id, body);
-            }
-            break;
-          }
+      const int pick = rng ? dos_rng_range(rng, 0, n_stud - 1) : n_stud - 1;
+      ColonizeColonist* student = &colony->colonists[students[pick]];
+      const int prev_prof = student->profession;
+      const char* skill_name = colonies_profession_name(teach_prof[t]);
+      const char* chrome_sec;
+      enum { GRAD_SPECIALTY = 0, GRAD_CRIMINAL, GRAD_INDENTURED } grad = GRAD_SPECIALTY;
+      if (prev_prof == COLONIZE_PROF_CRIMINAL) {
+        /* DOS 0x1a -> 0x19, popup 0xdf1. */
+        student->profession = COLONIZE_PROF_INDENTURED;
+        chrome_sec = "TRAINCRIMINAL";
+        grad = GRAD_CRIMINAL;
+        snprintf(
+          fallback,
+          sizeof(fallback),
+          "A criminal in %s has become an indentured servant through education.",
+          cname
+        );
+      } else if (prev_prof == COLONIZE_PROF_INDENTURED) {
+        /* DOS 0x19 -> 0x1c, popup 0xdff. */
+        student->profession = COLONIZE_PROF_FREE_COLONIST;
+        chrome_sec = "TRAININDENTURED";
+        grad = GRAD_INDENTURED;
+        snprintf(
+          fallback,
+          sizeof(fallback),
+          "An indentured servant in %s has become a free colonist through education.",
+          cname
+        );
+      } else {
+        /* DOS 0cae(student, aiStack_7e[t]) + 0438(1, jobtable[prof].name),
+         * popup 0xe0f. */
+        student->profession = teach_prof[t];
+        chrome_sec = "TRAINPROFESSION";
+        snprintf(
+          fallback,
+          sizeof(fallback),
+          "A colonist in %s has learned the specialty profession %s.",
+          cname,
+          skill_name
+        );
+      }
+      student->turns_in_job = 0;
+      for (int k = pick; k < n_stud - 1; ++k) {
+        students[k] = students[k + 1];
+      }
+      n_stud--;
+      if (tell) {
+        if (grad == GRAD_CRIMINAL) {
+          snprintf(europe->status, sizeof(europe->status), "Criminal educated.");
+        } else if (grad == GRAD_INDENTURED) {
+          snprintf(europe->status, sizeof(europe->status), "Indentured educated.");
+        } else {
+          snprintf(europe->status, sizeof(europe->status), "%s trained.", skill_name);
+        }
+        if (ai_popups) {
+          memset(&tok, 0, sizeof(tok));
+          tok.string0 = cname;
+          tok.string1 = skill_name;
+          popup_msg_fill(messages, chrome_sec, &tok, fallback, body, sizeof(body));
+          ai_popup_enqueue_colony_event(ai_popups, colony->id, body);
         }
       }
     }

@@ -398,13 +398,21 @@ static int unit_noteacher_chrome(void) {
   }
   assets_msg_free(&game_txt);
 
+  /* bugs.md 386: @JOB 18 "Teacher" is level 4 and may NOT teach in DOS. */
   col->colonists[0].profession = COLONIZE_PROF_TEACHER;
+  if (colonies_assign_workplace(&pool, 1, 0, 0)) {
+    fprintf(stderr, "noteacher: @JOB 18 Teacher must not assign to Schoolhouse\n");
+    return 1;
+  }
+  col->colonists[0].profession = COLONIZE_JOB_FARMER; /* @JOB level 1 */
   if (!colonies_assign_workplace(&pool, 1, 0, 0)) {
-    fprintf(stderr, "noteacher: Teacher should assign to Schoolhouse\n");
+    fprintf(stderr, "noteacher: Expert Farmer should assign to Schoolhouse\n");
     return 1;
   }
   if (col->colonists[0].building_type != 0) {
-    fprintf(stderr, "noteacher: Teacher building_type want 0 got %d\n", col->colonists[0].building_type);
+    fprintf(
+      stderr, "noteacher: teacher building_type want 0 got %d\n", col->colonists[0].building_type
+    );
     return 1;
   }
 

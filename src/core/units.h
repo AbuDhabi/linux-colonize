@@ -187,11 +187,14 @@ int col1_destroy_tribe_at(
 );
 
 /*
- * FUN_5fef_31ea conquest treasure gold (×100 from DOS amount byte).
+ * FUN_5fef_31ea conquest treasure gold (×100 from DOS amount byte). Runs for
+ * ANY conqueror (bugs.md 387) — Hernan Cortes only removes the difficulty-0/1
+ * "did it pay out at all" roll and adds +50% (difficulty 0/1) or +10/+100
+ * (difficulty 2/3); at difficulty 2 and 3 everyone gets an amount.
  * rich_capital: stack-local -0xcc ← ColonizeCol1TribeState.capital.
  * Returns 0 if no treasure / no rng. Cite: viceroy_unpacked.c ~101407–101495.
  */
-int units_cortes_conquest_treasure_gold(
+int units_conquest_treasure_gold(
   const ColonizeCol1Save* col1,
   int attacker_nation_id,
   ColonizeDosRng* rng,
@@ -204,7 +207,8 @@ int units_cortes_conquest_treasure_gold(
  * on that tile after win, destroy tribe. Before destroy: subjugated convert-join
  * when tribe.mission low-nibble == attacker (PEDIA Sepulveda / @INDIANSLAVES) —
  * threshold 4|8 (±Spanish/Sepulveda/Las Casas), roll dos_rng_range(0,12).
- * Cortes treasure when gold_amount>0 or gold_amount<=0 with Cortes + rng peel.
+ * Conquest treasure: gold_amount>0 is used as-is, else the FUN_5fef_31ea peel
+ * rolls one (no Cortes gate — see bugs.md 387).
  * May adjust Indian relation via ai_diplo helpers when col1 is set.
  */
 bool units_try_native_settlement_fallout(

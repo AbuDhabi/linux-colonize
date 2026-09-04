@@ -97,7 +97,45 @@ Field experts: food/fish **+2**, other jobs **×2** — [terrain_yields.md](terr
 | **Church / Cathedral** | Passive + worker crosses — **DOS-confirmed** 2026-08-15 (`FUN_15eb_1f72`, see [`manufacturing_worker_calc_1d4c.md`](../original_sources_annotated/turn/manufacturing_worker_calc_1d4c.md)): colony base **+1** cross/turn, **+1** independently if Church built, **+1** independently if Cathedral built — Church and Cathedral give the *same* +1 passive, not a scaled +2/+3 (that was manual/wiki-sourced and wrong). Worker rate: **3**/worker unskilled, **6** Firebrand Preacher, **doubled** (6/12) if the colony owns Cathedral specifically (not a flat Church-3/Cathedral-6 split — the doubling is colony-wide and stacks with skill). |
 | **Town Hall** | Port: passive **+1** bell + **3**/worker; Elder Statesman ×2. |
 | **Docks** | Enables fishermen on ocean/lake surrounds (no processing). |
-| **Schoolhouse / College / University** | Teach (faculty 1 / 2 / 3). |
+| **Schoolhouse / College / University** | Teach (faculty 1 / 2 / 3) — see [Education](#education-fun_364b_0688-phases-fg). |
+
+---
+
+## Education (`FUN_364b_0688` phases F–G)
+
+Source: `viceroy_unpacked.c` ~57502-57589; GAME.TXT `@TRAINFAIL` / `@TRAINCRIMINAL` /
+`@TRAININDENTURED` / `@TRAINPROFESSION`. Ported in full 2026-09-04 (bugs.md 386 — the
+previous port could not graduate anyone).
+
+**Teacher.** Any colonist whose *work slot* is a school building and whose *specialty*
+has an @JOB school level of 1–3. The specialty is what gets taught; there is no
+"teacher" profession. Level 4 (@JOB 18 Teacher, @JOB 19 Colonist, Indentured Servant,
+Petty Criminal, Indian Convert) cannot teach.
+
+**Time.** From the **teacher's** profession level, not the building: level 1 → 4 turns,
+level 2 → 6, level 3 → 8. The building tier is enforced only at assignment
+(`colonies_assign_workplace` → `@NEEDCOLLEGE` / `@NEEDUNIVERSITY`). The counter
+(`turns_in_job`, DOS `FUN_281f_0d1c`/`0a7e`) ticks for every colonist every turn and is
+zeroed the moment a teacher qualifies — whether or not a student was available.
+
+**Students.** Every colonist **anywhere in the colony**, not just ones placed in the
+school: professions `0x13`/`0x1c` (free colonist), `0x19` (indentured), `0x1a`
+(criminal). Indian Converts (`0x1b`) are **not** students. One is drawn at random
+(`FUN_281f_04d4(0, n-1)`) and removed from the pool.
+
+**Outcome**, in priority order — the first two consume the teacher's turn just like a
+specialty graduation:
+
+| Student was | Becomes | Popup |
+|-------------|---------|-------|
+| Petty Criminal (`0x1a`) | Indentured Servant (`0x19`) | `@TRAINCRIMINAL` (DOS tag `0xdf1`) |
+| Indentured Servant (`0x19`) | Free Colonist (`0x1c`) | `@TRAININDENTURED` (`0xdff`) |
+| Free Colonist | **the teacher's own profession** | `@TRAINPROFESSION` (`0xe0f`) |
+
+At most **3** teachers graduate per colony per tick (`local_6e < 3`). A ready teacher
+with an empty student pool raises `@TRAINFAIL` (`0xde7`) and ends the pass. All four
+popups are suppressed when the "report when colonists trained" option bit
+(`0x5384 & 0x80`) is set.
 
 ---
 
@@ -157,7 +195,7 @@ Indices match `NAMES.TXT` `@JOB` and Col1 `profession` bytes.
 |------|------:|-------|----------|----------|
 | Preacher | 16 | Firebrand Preacher | Church, Cathedral | Crosses (×2 skilled) |
 | Statesman | 17 | Elder Statesman | Town Hall | Liberty bells (×2 skilled) |
-| Teacher | 18 | Expert Teacher | Schoolhouse / College / University | Trains colonists; unskilled → `@NOTEACHER`; job tier vs school → `@NEEDCOLLEGE`/`@NEEDUNIVERSITY` |
+| Teacher | 18 | Expert Teacher | Schoolhouse / College / University | **Occupation slot, not a specialty.** DOS marks a colonist as teaching by setting his *work slot* to 18 (`FUN_281f_0c0e == 0x12`); @JOB 18's own school level is **4**, so a colonist whose *specialty* is "Expert Teacher" can neither teach nor be taught. Unskilled teacher → `@NOTEACHER`; job tier above the school → `@NEEDCOLLEGE`/`@NEEDUNIVERSITY` |
 
 ### Not manufacturing
 

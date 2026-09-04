@@ -3341,7 +3341,7 @@ int col1_destroy_tribe_at(
   return nation_id;
 }
 
-int units_cortes_conquest_treasure_gold(
+int units_conquest_treasure_gold(
   const ColonizeCol1Save* col1,
   int attacker_nation_id,
   ColonizeDosRng* rng,
@@ -3562,13 +3562,19 @@ bool units_try_native_settlement_fallout(
     }
   }
 
-  if (attacker_nation_id >= 0 && attacker_nation_id < 4 &&
-      founding_fathers_cortes_guarantees_conquest_treasure(col1, attacker_nation_id)) {
+  /*
+   * bugs.md 387: treasure is NOT Cortes-gated. FUN_5fef_31ea runs the peel for
+   * every conqueror (viceroy_unpacked.c ~101407-101495) — Cortes (local -6) is
+   * only one of the three "or" terms that let the low-difficulty roll pay out
+   * (`roll == 0 || rich || cortes`) plus a +50% / +10-per-unit bonus, and at
+   * difficulty 2 and 3 the amount is unconditional for everyone. The port
+   * wrapped the whole block in the Cortes test, so a player without him could
+   * burn any number of villages and never see a Treasure Train.
+   */
+  if (attacker_nation_id >= 0 && attacker_nation_id < 4) {
     int gold = gold_amount;
     if (gold <= 0) {
-      gold = units_cortes_conquest_treasure_gold(
-        col1, attacker_nation_id, rng, rich_capital
-      );
+      gold = units_conquest_treasure_gold(col1, attacker_nation_id, rng, rich_capital);
     }
     if (gold > 0) {
       (void)units_spawn_treasure_train(units, tile_x, tile_y, attacker_nation_id, gold);
@@ -3586,6 +3592,7 @@ bool units_try_native_settlement_fallout(
         );
       }
     } else if (units_combat_human_involved(col1, attacker_nation_id, defender_nation_id)) {
+      /* Peel came up empty — DOS 0x1cd1 (@LOOT2), not @NOLOOT. */
       PopupMsgTokens tok;
       memset(&tok, 0, sizeof(tok));
       tok.string0 = units_combat_nation_label(col1, attacker_nation_id);
@@ -3601,25 +3608,6 @@ bool units_try_native_settlement_fallout(
         "Village burned; natives flee."
       );
     }
-  } else if (
-    units_combat_human_involved(col1, attacker_nation_id, defender_nation_id) &&
-    attacker_nation_id >= 0 && attacker_nation_id < 4
-  ) {
-    /* Burn without Cortes treasure — GAME.TXT @LOOT2 (not @NOLOOT). */
-    PopupMsgTokens tok;
-    memset(&tok, 0, sizeof(tok));
-    tok.string0 = units_combat_nation_label(col1, attacker_nation_id);
-    tok.string1 = "native";
-    tok.string2 = "village";
-    units_combat_enqueue_tok(
-      AI_POPUP_TAG_COMBAT_LOOT,
-      "LOOT2",
-      attacker_nation_id,
-      defender_nation_id,
-      0,
-      &tok,
-      "Village burned; natives flee."
-    );
   }
   return true;
 }

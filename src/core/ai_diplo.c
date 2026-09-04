@@ -3058,8 +3058,18 @@ void ai_diplo_treaty_timers(ColonizeTurnContext* ctx, int nation_id) {
       ai_diplo_break_alliance_ctx(ctx, nation_id, other);
       continue;
     }
+    /*
+     * bugs.md 388: this used to assign `*f = PEACE|MET` — a raw overwrite of
+     * ONE direction's byte. That both wiped every other flag in it (0x80
+     * treasure alert, 0x10 crown-armed, 0x08) and left the pair in a state
+     * DOS's own writers never produce here: the peer at peace with us while
+     * we are still at war with them. The Foreign Affairs report reads the
+     * viewer's own byte and the attack gate read the OR of both, so the two
+     * screens disagreed. Route it through the normal peace path instead,
+     * which clears WAR and ORs PEACE|MET on both bytes.
+     */
     if (ctx->rng && (stored & AI_DIPLO_MET) && dos_rng_range(ctx->rng, 1, 8) == 1) {
-      *f = (uint8_t)(AI_DIPLO_PEACE | AI_DIPLO_MET);
+      ai_diplo_make_peace(ctx->col1, nation_id, other);
       ai_diplo_mirror_relation_summary(ctx->col1, nation_id);
     }
   }

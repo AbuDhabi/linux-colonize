@@ -391,7 +391,7 @@ deliberate **Live Among The Natives** `@ACTIONS` row.
 | Foreign mission | 50/50 heresy replace vs burn denouncer |
 | Las Casas | Existing Converts → free colonists on elect |
 | Sepulveda | Higher convert-join odds on settlement fallout |
-| Cortes | Conquest treasure; capital = `rich_capital` |
+| Cortes | Conquest treasure **bonus and guaranteed payout**, not a prerequisite — any conqueror can find treasure, and at difficulty 2+ always does (bugs.md 387); capital = `rich_capital` |
 | Minuit | Indians no longer demand land payment |
 | Pocahontas | Reset + half future alarm |
 

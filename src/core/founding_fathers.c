@@ -352,7 +352,7 @@ bool founding_fathers_cortes_guarantees_conquest_treasure(
 ) {
   /*
    * docs/fandom_col1994.md Hernan Cortes — conquered native settlements always
-   * yield more treasure. Ownership gate; amount via units_cortes_conquest_treasure_gold
+   * yield more treasure. Ownership gate; amount via units_conquest_treasure_gold
    * (FUN_5fef_31ea peel) when fallout gold_amount<=0.
    */
   return founding_fathers_nation_has(col1, nation, FF_HERNAN_CORTES);
@@ -1209,7 +1209,7 @@ static void apply_effect(
     case FF_HERNAN_CORTES:
       /* API ready (docs/fandom_col1994.md Hernan Cortes; Colonization.pdf FF):
        * founding_fathers_cortes_guarantees_conquest_treasure +
-       * units_cortes_conquest_treasure_gold (FUN_5fef_31ea peel) +
+       * units_conquest_treasure_gold (FUN_5fef_31ea peel) +
        * units_spawn_treasure_train; free king-galleon via
        * founding_fathers_cortes_free_king_galleon. Fallout wired from
        * units_resolve_land_combat_ff when fallout context set. rich_capital

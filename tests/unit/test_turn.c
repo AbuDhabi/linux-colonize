@@ -454,6 +454,83 @@ static int unit_needtools(void) {
   return 0;
 }
 
+/*
+ * bugs.md 386: a Veteran Soldier teaching in a College turns a Free Colonist
+ * who is working a FIELD TILE (not sitting in the school) into a Veteran
+ * Soldier after 6 turns. The old port needed profession == @JOB 18 for the
+ * teacher, required students to be inside the school, and handed out the
+ * teacher's field_job (always -1 in a building), so it graduated nobody.
+ */
+static int unit_train_veteran_soldier(void) {
+  ColonizeColonyPool pool;
+  colonies_init(&pool);
+  snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "College");
+  pool.building_type_count = 1;
+
+  ColonizeColony* col = &pool.colonies[0];
+  memset(col, 0, sizeof(*col));
+  col->active = true;
+  col->id = 1;
+  col->nation_id = 0;
+  snprintf(col->name, sizeof(col->name), "Boston");
+  col->building_in_production = -1;
+  col->has_building[0] = true;
+  col->stock[COLONIZE_CARGO_FOOD] = 50;
+  /* Teacher: Veteran Soldier (@JOB 21, school level 2 -> 6 turns). */
+  col->colonists[0].active = true;
+  col->colonists[0].profession = 21;
+  col->colonists[0].building_type = 0;
+  col->colonists[0].field_job = -1;
+  col->colonists[0].turns_in_job = 5; /* one tick -> 6 == need */
+  /* Student: Free Colonist out on a field tile, not in the school. */
+  col->colonists[1].active = true;
+  col->colonists[1].profession = COLONIZE_PROF_FREE_COLONIST;
+  col->colonists[1].building_type = -1;
+  col->colonists[1].field_job = COLONIZE_JOB_FARMER;
+  col->colonists[1].turns_in_job = 0;
+  col->colonist_count = 2;
+  col->population = 2;
+  pool.colony_count = 1;
+
+  ColonizeTurnResult prod;
+  memset(&prod, 0, sizeof(prod));
+  turn_colony_free_production(&pool, col, NULL, &prod, NULL);
+  if (col->colonists[1].profession != 21) {
+    fprintf(
+      stderr,
+      "vetsoldier: field student want Veteran Soldier(21) got %d\n",
+      col->colonists[1].profession
+    );
+    return 1;
+  }
+  if (col->colonists[0].turns_in_job != 0) {
+    fprintf(stderr, "vetsoldier: teacher counter should reset\n");
+    return 1;
+  }
+
+  /* Level 2 needs 6 turns, not the Schoolhouse's 4: 5 turns must not graduate. */
+  col->colonists[1].profession = COLONIZE_PROF_FREE_COLONIST;
+  col->colonists[0].turns_in_job = 4; /* one tick -> 5 < 6 */
+  memset(&prod, 0, sizeof(prod));
+  turn_colony_free_production(&pool, col, NULL, &prod, NULL);
+  if (col->colonists[1].profession != COLONIZE_PROF_FREE_COLONIST) {
+    fprintf(stderr, "vetsoldier: graduated early at 5 of 6 turns\n");
+    return 1;
+  }
+
+  /* Indian Converts are not students in DOS (0x1b is absent from the list). */
+  col->colonists[1].profession = COLONIZE_PROF_CONVERT;
+  col->colonists[0].turns_in_job = 5;
+  memset(&prod, 0, sizeof(prod));
+  turn_colony_free_production(&pool, col, NULL, &prod, NULL);
+  if (col->colonists[1].profession != COLONIZE_PROF_CONVERT) {
+    fprintf(stderr, "vetsoldier: Indian Convert must not be educated\n");
+    return 1;
+  }
+  fprintf(stderr, "unit_turn: Veteran Soldier education ok\n");
+  return 0;
+}
+
 /* Phase G @TRAINFAIL when ready teacher has no eligible students. */
 static int unit_trainfail(void) {
   ColonizeColonyPool pool;
@@ -471,7 +548,7 @@ static int unit_trainfail(void) {
   col->has_building[0] = true;
   col->stock[COLONIZE_CARGO_FOOD] = 50;
   col->colonists[0].active = true;
-  col->colonists[0].profession = COLONIZE_PROF_TEACHER;
+  col->colonists[0].profession = COLONIZE_JOB_FARMER; /* @JOB level 1 teacher */
   col->colonists[0].building_type = 0;
   col->colonists[0].field_job = -1;
   col->colonists[0].turns_in_job = 3; /* one tick → 4 ≥ need */
@@ -535,7 +612,7 @@ static int unit_trainprofession(void) {
   col->has_building[0] = true;
   col->stock[COLONIZE_CARGO_FOOD] = 50;
   col->colonists[0].active = true;
-  col->colonists[0].profession = COLONIZE_PROF_TEACHER;
+  col->colonists[0].profession = COLONIZE_JOB_FARMER; /* @JOB level 1 teacher */
   col->colonists[0].building_type = 0;
   col->colonists[0].field_job = -1;
   col->colonists[0].turns_in_job = 3; /* one tick → 4 ≥ need */
@@ -573,8 +650,8 @@ static int unit_trainprofession(void) {
     assets_msg_free(&game_txt);
     return 1;
   }
-  if (strstr(eu.status, "graduate") == NULL) {
-    fprintf(stderr, "trainprof: status want graduate got '%s'\n", eu.status);
+  if (strstr(eu.status, "trained") == NULL) {
+    fprintf(stderr, "trainprof: status want trained got '%s'\n", eu.status);
     assets_msg_free(&game_txt);
     return 1;
   }
@@ -614,7 +691,7 @@ static int unit_traincriminal(void) {
   col->has_building[0] = true;
   col->stock[COLONIZE_CARGO_FOOD] = 50;
   col->colonists[0].active = true;
-  col->colonists[0].profession = COLONIZE_PROF_TEACHER;
+  col->colonists[0].profession = COLONIZE_JOB_FARMER; /* @JOB level 1 teacher */
   col->colonists[0].building_type = 0;
   col->colonists[0].field_job = -1;
   col->colonists[0].turns_in_job = 3;
@@ -688,7 +765,7 @@ static int unit_trainindentured(void) {
   col->has_building[0] = true;
   col->stock[COLONIZE_CARGO_FOOD] = 50;
   col->colonists[0].active = true;
-  col->colonists[0].profession = COLONIZE_PROF_TEACHER;
+  col->colonists[0].profession = COLONIZE_JOB_FARMER; /* @JOB level 1 teacher */
   col->colonists[0].building_type = 0;
   col->colonists[0].field_job = -1;
   col->colonists[0].turns_in_job = 3;
@@ -829,6 +906,9 @@ int main(void) {
     return 1;
   }
   if (unit_needtools() != 0) {
+    return 1;
+  }
+  if (unit_train_veteran_soldier() != 0) {
     return 1;
   }
   if (unit_trainfail() != 0) {
@@ -3968,8 +4048,8 @@ int main(void) {
   }
 
   /*
-   * FUN_364b_0688 F–G thin: Teacher in Schoolhouse graduates Free Colonist
-   * after 4 turns_in_job → Farmer.
+   * FUN_364b_0688 F–G: an Expert Farmer working the Schoolhouse graduates a
+   * Free Colonist into a Farmer after 4 turns_in_job.
    */
   {
     ColonizeColonyPool pool;
@@ -3986,7 +4066,7 @@ int main(void) {
     col->has_building[0] = true;
     col->stock[COLONIZE_CARGO_FOOD] = 50;
     col->colonists[0].active = true;
-    col->colonists[0].profession = COLONIZE_PROF_TEACHER;
+    col->colonists[0].profession = COLONIZE_JOB_FARMER; /* @JOB level 1 teacher */
     col->colonists[0].building_type = 0;
     col->colonists[0].field_job = -1;
     col->colonists[0].turns_in_job = 3; /* one tick → 4 ≥ need */
@@ -4017,10 +4097,10 @@ int main(void) {
     }
     fprintf(stderr, "colony education graduate ok\n");
 
-    /* Teacher field_job specialty → graduate that skill. */
-    col->colonists[0].profession = COLONIZE_PROF_TEACHER;
+    /* bugs.md 386: the graduate takes the TEACHER'S OWN profession. */
+    col->colonists[0].profession = COLONIZE_JOB_FISHERMAN;
     col->colonists[0].building_type = 0;
-    col->colonists[0].field_job = COLONIZE_JOB_FISHERMAN;
+    col->colonists[0].field_job = -1;
     col->colonists[0].turns_in_job = 3;
     col->colonists[1].profession = COLONIZE_PROF_FREE_COLONIST;
     col->colonists[1].building_type = 0;
@@ -4043,7 +4123,7 @@ int main(void) {
     {
       EuropeScreen eu;
       memset(&eu, 0, sizeof(eu));
-      col->colonists[0].profession = COLONIZE_PROF_TEACHER;
+      col->colonists[0].profession = COLONIZE_JOB_FARMER; /* @JOB level 1 teacher */
       col->colonists[0].building_type = 0;
       col->colonists[0].turns_in_job = 3;
       col->colonists[1].active = false;
