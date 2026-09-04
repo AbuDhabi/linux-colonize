@@ -196,7 +196,12 @@ Bell-bar glyph is fatter than DOS (10×12 `ICONS.SS` #62 vs a 2×7 mark).
   pool (see `report_screens.md`'s `col1_bridge_apply` orders-byte pitfall).
 - Columns/layout: shared left sidebar (fort icon + population digit + name,
   colored by SoL tier: white <50%, green >=50%, blue 100%). Military
-  Garrisons pages show up to 6 garrison icons (x=110, step=18). Sons of
+  Garrisons pages draw the tile's garrison from x=110 for as long as
+  x <= 300, with pitch = clamp(210 / n, 1, 18) where n is the tile stack's
+  FUN_1427_0d38 case-10 count (non-ship units whose @UNIT attack > 1) — so a
+  large garrison packs tighter instead of being truncated (a 15-unit stack
+  draws 14 at pitch 14). Drawing itself takes any non-ship unit with
+  attack >= 1, so a Scout is drawn but does not tighten the row. Sons of
   Liberty pages show SoL flag+percent, building name, bell icon+count, up
   to 6 worker-slot icons (x=249, step=21). 9 rows/page, row0 y=27 step=17.
 - Ordering: colony array order, filtered to this nation.
@@ -209,7 +214,12 @@ Bell-bar glyph is fatter than DOS (10×12 `ICONS.SS` #62 vs a 2×7 mark).
   as F5); colony/building names from save.
 - Port status: Done (golden `colony_p1.png`/`colony_p2.png`) —
   `reports_render_colony_sidebar`/`_garrisons`/`_sol`
-  (`reports.c:1878`/`1912`/`2032`). Surfaced two real project-wide bugs
+  (`reports.c:1878`/`1912`/`2032`). Row sizing was wrong until
+  2026-09-04 (fixed slot cap of 8, fixed pitch 18): a 15-unit New Amsterdam
+  in `port_saves/campaign2/COLONY09.SAV` showed 8 icons instead of 14.
+  Still unported: DOS reorders the tile stack (`FUN_281f_07ea` ->
+  `FUN_1427_04d6`, mode 1) by ship/treasure/defence-class before drawing, so
+  icon *order* within a row can differ from the port's unit-pool order. Surfaced two real project-wide bugs
   fixed during porting: magenta nation-color box on report backgrounds
   (`unit_chrome` palette), unrecolored colony-icon flag — see
   `report_screens.md`.
