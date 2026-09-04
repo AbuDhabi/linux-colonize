@@ -1423,6 +1423,10 @@ enum {
   COLONY_TREE_MED = 43,
   COLONY_TREE_SMALL = 44,
   COLONY_COAST_PLACEHOLDER = 45,
+  /* DOS 0x2f / 0x30 (minus one): the warehouse slot's stable-only and
+   * warehouse-plus-stable variants — see colony_screen_category_sprite. */
+  COLONY_STABLE_ONLY_SPRITE = 46,
+  COLONY_WAREHOUSE_STABLE_SPRITE = 47,
   COLONY_FENCE_W = 73,
   COLONY_FENCE_H = 18,
   COLONY_COAST_W = 75,
@@ -1440,164 +1444,6 @@ enum {
  */
 static const int k_class_box[5][2] = {{23, 27}, {44, 22}, {53, 37}, {73, 18}, {75, 48}};
 
-/*
- * Golden-exact overrides for New Amsterdam and Recife (dutch-reports.SAV),
- * the two colonies with reference screenshots. Casuistry, not a general
- * solution — this placeholder algorithm is meant to be replaced by a real
- * port of DOS's own tables later (see the block comment above
- * colony_screen_assign_slot_positions); until then, these two colonies
- * should look exactly like their goldens so the rest of the colony-screen
- * work can be tuned against real DOS pixels instead of this port's
- * invented layout. Positions came from brute-force template matching each
- * real building's actual sprite against the golden PNGs (BUILDING.SS
- * sprite, palette-converted, slid over the downscaled-to-native golden
- * until pixel-SAD is minimized — exact-zero score for most). Only *built*
- * structures are overridden; unbuilt categories (drawn as a decorative
- * tree-clump placeholder) keep the general algorithm — template matching
- * them was inconclusive (DOS scatters filler trees pretty freely, not from
- * the same fixed per-class pool used for real buildings), and they're not
- * interactive, so exact placement doesn't matter the way it does for a
- * real building. docks_x/y and fence_x/y (both colonies: (123,55) and
- * (123,106)) matched exactly too, including on Recife's *unbuilt* coast
- * placeholder — strong evidence that corner is a genuinely fixed screen
- * slot, not random; a good candidate to promote to the general formula
- * later. Indices in `pos[]` follow k_building_slots[] order (0 town_hall …
- * 13 custom); -1 = no override, use the algorithm.
- *
- * `pos[]` values are relative to the viewport origin (added to slot_ox/
- * slot_oy — COLONY_VIEWPORT_X/Y — same as the general algorithm's pool
- * points), NOT absolute framebuffer coordinates. The matcher searched the
- * full 320×200 golden frame and returned absolute hits; every value here
- * has already had (COLONY_VIEWPORT_X, COLONY_VIEWPORT_Y) = (1,8)
- * subtracted out (an earlier pass skipped that and every override sat 1px
- * right/8px down from its real golden spot — player-caught). Once
- * corrected, most values landed exactly on an existing `k_group_*_slots`
- * pool point (real DOS reuses the same candidate pool this port's general
- * algorithm draws from) — nice independent confirmation the pools
- * themselves are right, only DOS's per-colony *assignment* differs from
- * this port's synthetic one. */
-#define COLONY_OVERRIDE_NONE (-1)
-#define COLONY_OVERRIDE_HIDDEN (-2) /* don't draw this (unbuilt) placeholder at all */
-#define COLONY_SLOT_HIDDEN (-30000) /* sentinel xs[]/ys[] value for a hidden slot */
-typedef struct ColonyPlacementOverride {
-  int x, y; /* colony's fixed map position, keys the override */
-  int pos[14][2]; /* k_building_slots order; {-1,-1} = not overridden, {-2,-2} = hidden */
-  int docks_x, docks_y, fence_x, fence_y; /* -1 = use the formula default (already viewport-absolute) */
-} ColonyPlacementOverride;
-
-static const ColonyPlacementOverride k_colony_overrides[] = {
-  { /* New Amsterdam */
-    50, 43,
-    {
-      {65, 79},   /* town_hall */
-      {-1, -1},   /* church (unbuilt) */
-      {14, 94},   /* school (unbuilt, but tree matched exactly) */
-      {127, 45},  /* carpenter */
-      {4, 33},    /* blacksmith */
-      {55, 5},    /* weaver */
-      {172, 10},  /* tobacco */
-      {144, 7},   /* rum */
-      {36, 37},   /* fur */
-      {9, 68},    /* warehouse */
-      {5, 6},     /* armory */
-      {95, 45},   /* press */
-      {-2, -2},   /* stable (unbuilt; every SMALL pool point is claimed by
-                     the other 7 — real DOS evidently fits it somewhere,
-                     this port's pool doesn't have the slack; hide rather
-                     than force an overlap onto a real building) */
-      {66, 46},   /* custom */
-    },
-    123, 55, 123, 106
-  },
-  { /* Recife */
-    41, 38,
-    {
-      {86, 3},    /* town_hall */
-      {-1, -1},   /* church (unbuilt) */
-      {-1, -1},   /* school (unbuilt) */
-      {127, 45},  /* carpenter */
-      {172, 10},  /* blacksmith */
-      {66, 46},   /* weaver */
-      {95, 45},   /* tobacco */
-      {4, 33},    /* rum */
-      {144, 7},   /* fur */
-      {-1, -1},   /* warehouse (unbuilt) */
-      {-1, -1},   /* armory (unbuilt) */
-      {-1, -1},   /* press (unbuilt) */
-      {-1, -1},   /* stable (unbuilt) */
-      {-2, -2},   /* custom (unbuilt; exactly 3 SMALL points remain free for
-                     3 unbuilt categories here — no slack, so the one bad
-                     point always gets forced onto whichever is processed
-                     last. Same fix as New Amsterdam's stable: hide it. */
-    },
-    123, 55, 123, 106
-  },
-};
-static const int k_colony_override_count =
-  (int)(sizeof(k_colony_overrides) / sizeof(k_colony_overrides[0]));
-
-/*
- * Every colony now gets one of these two golden-verified layouts — not
- * just New Amsterdam and Recife themselves. Player's ask: since both
- * layouts are now known-good (no overlaps, exact golden match on their
- * source colony), reuse them everywhere instead of the general RNG-pool
- * algorithm, to see how two *real* arrangements read against other
- * colonies' actual built/unbuilt mixes. New Amsterdam/Recife keep their
- * own exact table (matches `k_colony_overrides[]` order: index 0, 1); any
- * other colony gets one of the two picked deterministically from its own
- * (x,y) — stable across reloads, arbitrary-looking across colonies. The
- * general algorithm doesn't disappear: it still resolves any category
- * either table leaves at COLONY_OVERRIDE_NONE (church's slot on both, for
- * instance), and colony_screen_assign_slot_positions() falls back to it
- * for a HIDDEN category too if this *other* colony actually has it built
- * (HIDDEN only ever meant "no room in this table for the tree filler" —
- * it must never swallow a real building).
- */
-#define COLONY_LAYOUT_PICK_SALT 0x9e17u
-
-static const ColonyPlacementOverride* colony_screen_find_override(const ColonizeColony* colony) {
-  if (!colony) {
-    return NULL;
-  }
-  for (int i = 0; i < k_colony_override_count; ++i) {
-    if (k_colony_overrides[i].x == colony->x && k_colony_overrides[i].y == colony->y) {
-      return &k_colony_overrides[i];
-    }
-  }
-  ColonizeDosRng rng;
-  const uint32_t xy = ((uint32_t)colony->y << 8) | (uint32_t)colony->x;
-  dos_rng_seed(&rng, xy ^ COLONY_LAYOUT_PICK_SALT);
-  const int pick = dos_rng_range(&rng, 0, k_colony_override_count - 1);
-  return &k_colony_overrides[pick];
-}
-
-/* Shared by the draw path and both hit-test call sites so clicks always
- * match what's drawn (mirrors colony_screen_assign_slot_positions). */
-static void colony_screen_docks_fence_anchor(
-  const ColonizeColony* colony,
-  int fence_w,
-  int fence_h,
-  int* fence_x,
-  int* fence_y,
-  int* coast_x,
-  int* coast_y
-) {
-  *fence_x = COLONY_VIEWPORT_X + COLONY_VIEWPORT_W - fence_w;
-  *fence_y = COLONY_VIEWPORT_Y + COLONY_VIEWPORT_H - fence_h;
-  *coast_x = COLONY_VIEWPORT_X + COLONY_VIEWPORT_W - COLONY_COAST_W;
-  *coast_y = *fence_y - COLONY_COAST_H;
-  const ColonyPlacementOverride* ovr = colony_screen_find_override(colony);
-  if (ovr) {
-    if (ovr->fence_x != COLONY_OVERRIDE_NONE) {
-      *fence_x = ovr->fence_x;
-      *fence_y = ovr->fence_y;
-    }
-    if (ovr->docks_x != COLONY_OVERRIDE_NONE) {
-      *coast_x = ovr->docks_x;
-      *coast_y = ovr->docks_y;
-    }
-  }
-}
 
 static void colony_screen_draw_area_overlays(
   ColonyScreenView* view,
@@ -1938,9 +1784,28 @@ static void colony_screen_render_minimap(
 }
 
 
+/*
+ * ---------------------------------------------------------------------
+ * DOS settlement-view layout — a real port of FUN_2f2b_0434 (assignment)
+ * and FUN_2f2b_171c (draw), replacing this port's earlier invented
+ * candidate-slot pools. Every table below is initialised DS data read
+ * straight out of VICEROY.EXE at file offset 121248 + addr (the same base
+ * as the DS strings; verify with DS:0xfef == "."). See
+ * docs/colony_screen.md for the write-up.
+ *
+ * DOS groups the 42 @BUILDING rows into 15 CATEGORIES (the static setup
+ * table FUN_75c2_144c), each category having one SIZE CLASS (0..4, the
+ * "size" column of NAMES.TXT @BUILDING) and each class owning a fixed run
+ * of screen SLOTS. Slot coordinates are DS:0x266; the run layout is
+ * DS:0x224 (count) / DS:0x22a (base). Counts are 7/4/2/1/1 = 15 slots for
+ * 15 categories, so every category always gets exactly one slot — an
+ * unbuilt one just draws its class's placeholder sprite there.
+ * ---------------------------------------------------------------------
+ */
+
 typedef struct ColonyBuildingSlot {
-  const char* const* chain;
-  int tree_sprite; /* also selects this slot's size-class pool — see colony_screen_slot_group */
+  const char* const* chain; /* low → high tier, DOS's own chain order */
+  int size_class;           /* NAMES.TXT @BUILDING column 4 */
 } ColonyBuildingSlot;
 
 typedef struct ColonyPoint {
@@ -1948,347 +1813,161 @@ typedef struct ColonyPoint {
   int y;
 } ColonyPoint;
 
+static const char* k_slot_stockade[] = {"Stockade", "Fort", "Fortress", NULL};
+static const char* k_slot_armory[] = {"Armory", "Magazine", "Arsenal", NULL};
+static const char* k_slot_docks[] = {"Docks", "Drydock", "Shipyard", NULL};
+/* Capitol / Capitol Expansion really are the tail of the Town Hall chain in
+ * DOS's table; they are unbuildable (see colonies_building_is_buildable) and
+ * BUILDING.SS has only 1x1 / 2x2 stubs for them, so they never draw. */
 static const char* k_slot_town_hall[] = {"Town Hall", NULL};
-static const char* k_slot_church[] = {"Church", "Cathedral", NULL};
 static const char* k_slot_school[] = {"Schoolhouse", "College", "University", NULL};
-static const char* k_slot_carpenter[] = {"Carpenter's Shop", "Lumber Mill", NULL};
-static const char* k_slot_blacksmith[] = {"Blacksmith's House", "Blacksmith's Shop", "Iron Works", NULL};
+/* DOS folds the Stable into the warehouse category — one shared slot, with
+ * its own sprite rule (see colony_screen_category_sprite). */
+static const char* k_slot_warehouse[] = {"Warehouse", "Warehouse Expansion", "Stable", NULL};
+static const char* k_slot_custom[] = {"Custom House", NULL};
+static const char* k_slot_press[] = {"Printing Press", "Newspaper", NULL};
 static const char* k_slot_weaver[] = {"Weaver's House", "Weaver's Shop", "Textile Mill", NULL};
 static const char* k_slot_tobacco[] = {"Tobacconist's House", "Tobacconist's Shop", "Cigar Factory", NULL};
 static const char* k_slot_rum[] = {"Rum Distiller's House", "Rum Distillery", "Rum Factory", NULL};
 static const char* k_slot_fur[] = {"Fur Trader's House", "Fur Trading Post", "Fur Factory", NULL};
-static const char* k_slot_warehouse[] = {"Warehouse", NULL};
-static const char* k_slot_armory[] = {"Armory", "Magazine", "Arsenal", NULL};
-static const char* k_slot_press[] = {"Printing Press", "Newspaper", NULL};
-static const char* k_slot_stable[] = {"Stable", NULL};
-static const char* k_slot_custom[] = {"Custom House", NULL};
-static const char* k_slot_stockade[] = {"Stockade", "Fort", "Fortress", NULL};
-static const char* k_slot_docks[] = {"Docks", "Drydock", "Shipyard", NULL};
+static const char* k_slot_carpenter[] = {"Carpenter's Shop", "Lumber Mill", NULL};
+static const char* k_slot_church[] = {"Church", "Cathedral", NULL};
+static const char* k_slot_blacksmith[] = {"Blacksmith's House", "Blacksmith's Shop", "Iron Works", NULL};
 
-/*
- * Real DOS placement (FUN_2f2b_0434, original_sources_decompiled/
- * viceroy_unpacked.c:47259) is genuinely pseudorandom: each building
- * category is grouped into one of 5 size classes with its own fixed pool
- * of candidate screen slots, and gets rejection-sample-assigned (DOS RNG,
- * reseeded per-colony from `(colony.y<<8)|colony.x` — FUN_15eb_1476 — plus
- * a second term this port can't recover, so not reproducible from a save
- * file) to one free slot in its class's pool. Extracting DOS's own actual
- * slot-pool tables and RNG stream turned out to be a dead end this session
- * — the decompile's `FUN_SSSS_OOOO` tags are compile-time overlay labels,
- * not real runtime segments (confirmed live: breakpoints on the literal
- * address, and on the standard DOS overlay-load interrupt, both never
- * fired — this game's overlay manager isn't the standard one), and static
- * file extraction landed on unrelated code bytes (the file-offset formula
- * that works for the map/terrain tables in `docs/viceroy_tables.md` is
- * anchored to a *different* segment's data, confirmed by decoding straight
- * into an `int 21h` opcode).
- *
- * So this doesn't reproduce DOS's actual output — it reproduces DOS's
- * *algorithm shape*: same size-class grouping, same reject-sampled random
- * assignment from a fixed per-class pool, same per-colony-stable-but-
- * cross-colony-different result (seeded from colony x,y, matching the
- * real mechanism, XORed with an arbitrary salt since the real second seed
- * term isn't recoverable). The pools themselves are this port's own
- * invention — sized and spaced to reuse the good real estate found by
- * template-matching New Amsterdam's golden (see git history) — not
- * extracted DOS data. `colony_screen_assign_slot_positions` does the
- * actual assignment; `k_group_*_slots` below are the three pools.
- * `k_building_slots[]` only records each category's upgrade chain and
- * which pool it draws from now (via `tree_sprite`'s existing LARGE/MED/
- * SMALL enum). See docs/colony_screen.md.
- */
+/* DOS category order (FUN_75c2_144c). The order matters: it is also the
+ * order categories claim positions within their size class. */
 static const ColonyBuildingSlot k_building_slots[] = {
-  {k_slot_town_hall, COLONY_TREE_LARGE},
-  {k_slot_church, COLONY_TREE_LARGE},
-  {k_slot_school, COLONY_TREE_MED},
-  {k_slot_carpenter, COLONY_TREE_MED},
-  {k_slot_blacksmith, COLONY_TREE_SMALL},
-  {k_slot_weaver, COLONY_TREE_SMALL},
-  {k_slot_tobacco, COLONY_TREE_SMALL},
-  {k_slot_rum, COLONY_TREE_SMALL},
-  {k_slot_fur, COLONY_TREE_SMALL},
-  {k_slot_warehouse, COLONY_TREE_MED},
-  {k_slot_armory, COLONY_TREE_MED},
-  {k_slot_press, COLONY_TREE_SMALL},
-  {k_slot_stable, COLONY_TREE_SMALL},
-  {k_slot_custom, COLONY_TREE_SMALL},
+  {k_slot_stockade, 3},   /*  0 fortification (the fence corner) */
+  {k_slot_armory, 1},     /*  1 */
+  {k_slot_docks, 4},      /*  2 (the dock corner) */
+  {k_slot_town_hall, 2},  /*  3 */
+  {k_slot_school, 1},     /*  4 */
+  {k_slot_warehouse, 1},  /*  5 warehouse + stable */
+  {k_slot_custom, 0},     /*  6 */
+  {k_slot_press, 0},      /*  7 */
+  {k_slot_weaver, 0},     /*  8 */
+  {k_slot_tobacco, 0},    /*  9 */
+  {k_slot_rum, 0},        /* 10 */
+  {k_slot_fur, 0},        /* 11 */
+  {k_slot_carpenter, 1},  /* 12 */
+  {k_slot_church, 2},     /* 13 */
+  {k_slot_blacksmith, 0}, /* 14 */
 };
 static const int k_building_slot_count =
   (int)(sizeof(k_building_slots) / sizeof(k_building_slots[0]));
 
-/* The three size-class pools — screen real estate only, not DOS data (see
- * comment above). Count must be >= the number of k_building_slots entries
- * using that class, so every category always finds a free slot. */
-static const ColonyPoint k_group_large_slots[] = {{65, 79}, {86, 3}};
-static const ColonyPoint k_group_med_slots[] = {{14, 94}, {127, 10}, {9, 68}, {5, 6}};
-static const ColonyPoint k_group_small_slots[] = {
-  /* {110,20} (this session's earlier replacement for the reserved-corner-
-   * violating {173,45}) sat squarely under the LARGE pool's {86,3} slot —
-   * whichever category ends up there (usually church/town_hall's forced
-   * "only slot left" pick) would draw its tree canopy through the real
-   * building's roof. {60,27} clears both LARGE points and 6 of the other
-   * 7 SMALL points outright; the one exception ({36,37}, fur) only nicks
-   * a 2×18px corner — real building sprites have enough transparent
-   * margin inside their bounding box that this doesn't show. See
-   * colony_screen_slot_overlaps_placed() for the general cross-group
-   * guard this pairs with. */
-  {4, 33}, {55, 5}, {172, 10}, {144, 7}, {36, 37}, {95, 45}, {60, 27}, {66, 46}
+enum {
+  COLONY_CAT_FORTIFICATION = 0,
+  COLONY_CAT_DOCKS = 2,
+  COLONY_CAT_WAREHOUSE = 5,
+  COLONY_DOS_SLOT_COUNT = 15,
+  COLONY_DOS_CLASS_COUNT = 5
 };
 
-enum { COLONY_GROUP_LARGE = 0, COLONY_GROUP_MED = 1, COLONY_GROUP_SMALL = 2, COLONY_GROUP_COUNT = 3 };
-
-static int colony_screen_slot_group(int tree_sprite) {
-  if (tree_sprite == COLONY_TREE_LARGE) {
-    return COLONY_GROUP_LARGE;
-  }
-  if (tree_sprite == COLONY_TREE_MED) {
-    return COLONY_GROUP_MED;
-  }
-  return COLONY_GROUP_SMALL;
-}
-
-/* Docks/Drydock/Shipyard (k_slot_docks) and the Stockade/Fort/Fortress fence
- * aren't part of the random pool at all — they're drawn separately at a
- * fixed slot hugging the settlement's bottom-right corner (see coast_x/
- * coast_y and fence_x/fence_y in colony_screen_draw_area_overlays), same
- * corner every colony, because that's where the water/shore tile the docks
- * sit on actually is. Player-verified real-DOS anchor: drydock's sprite
- * center sits around native (188,66), shipyard's around (142,90) — both
- * inside this reserved box, consistent with one fixed top-left-anchored
- * slot whose visible "center" shifts a bit with each tier's sprite art.
- * The random building pool must never place a category on top of this
- * corner (or its trailing shore/tree art) — reject any candidate whose
- * footprint would overlap it, in *addition* to keeping the pool data
- * itself clear of the box (belt and suspenders: a future pool edit that
- * strays back in here gets skipped instead of silently overlapping). */
-#define COLONY_RESERVED_X0 (COLONY_MINIMAP_SECTION_X - COLONY_VIEWPORT_X - COLONY_COAST_W)
-#define COLONY_RESERVED_Y0 (COLONY_VIEWPORT_H - COLONY_COAST_H - COLONY_FENCE_H)
-#define COLONY_RESERVED_X1 COLONY_VIEWPORT_W
-#define COLONY_RESERVED_Y1 COLONY_VIEWPORT_H
-
-/* Real sprite sizes run LARGE ~53x37, MED ~44x22, SMALL ~23x27 (golden-
- * measured); these round up a little so both the reserved-corner check and
- * the cross-slot overlap check below never under-cover a real sprite. */
-static void colony_screen_group_footprint_wh(int group, int* w, int* h) {
-  if (group == COLONY_GROUP_LARGE) {
-    *w = 56;
-    *h = 40;
-  } else if (group == COLONY_GROUP_MED) {
-    *w = 46;
-    *h = 24;
-  } else {
-    *w = 26;
-    *h = 28;
-  }
-}
-
-static bool colony_screen_slot_reserved(int group, int x, int y) {
-  int w, h;
-  colony_screen_group_footprint_wh(group, &w, &h);
-  return x + w > COLONY_RESERVED_X0 && x < COLONY_RESERVED_X1 && y + h > COLONY_RESERVED_Y0 &&
-    y < COLONY_RESERVED_Y1;
-}
-
-typedef struct ColonyPlacedRect {
-  int x, y, w, h;
-} ColonyPlacedRect;
-
-static bool colony_rects_overlap(
-  int ax, int ay, int aw, int ah, int bx, int by, int bw, int bh
-) {
-  return ax < bx + bw && ax + aw > bx && ay < by + bh && ay + ah > by;
-}
-
-/* True if a candidate (group-sized) slot at x,y would overlap any
- * already-placed building — same colony, other groups included. Building
- * placement used to only guard against same-group duplicates and the
- * docks/fence corner; nothing stopped, say, an unbuilt SMALL tree from
- * landing on top of a LARGE building assigned from a different pool
- * (player-caught: a placeholder copse rendered on top of Town Hall / the
- * church in both New Amsterdam and Recife). */
-static bool colony_screen_slot_overlaps_placed(
-  int group, int x, int y, const ColonyPlacedRect* placed, int placed_count
-) {
-  int w, h;
-  colony_screen_group_footprint_wh(group, &w, &h);
-  for (int i = 0; i < placed_count; ++i) {
-    if (colony_rects_overlap(x, y, w, h, placed[i].x, placed[i].y, placed[i].w, placed[i].h)) {
-      return true;
-    }
-  }
-  return false;
-}
-
 /*
- * One group's worth of the rejection-sampling fallback chain: same-group
- * dup + reserved corner + cross-group overlap, then drop the overlap
- * check, then drop reserved too, then accept any free same-group slot —
- * guarantees a pick even if the pool is fully boxed in, while preferring
- * a clean one. Shared by the main per-category loop and the HIDDEN-but-
- * actually-built fallback below (a category a golden layout's table marks
- * unbuildable-here can still be genuinely built in some *other* colony
- * reusing that layout — see colony_screen_find_override()). */
-static int colony_screen_pick_pool_slot(
-  int group,
-  const ColonyPoint* const pools[COLONY_GROUP_COUNT],
-  const int pool_counts[COLONY_GROUP_COUNT],
-  bool taken[COLONY_GROUP_COUNT][8],
-  const ColonyPlacedRect* placed,
-  int placed_count,
-  ColonizeDosRng* rng
-) {
-  const int n = pool_counts[group];
-  int pick = -1;
-  for (int guard = 0; guard < n * 4 && pick < 0; ++guard) {
-    const int c = dos_rng_range(rng, 0, n - 1);
-    if (!taken[group][c] && !colony_screen_slot_reserved(group, pools[group][c].x, pools[group][c].y) &&
-        !colony_screen_slot_overlaps_placed(group, pools[group][c].x, pools[group][c].y, placed, placed_count)) {
-      pick = c;
-    }
-  }
-  if (pick < 0) {
-    for (int c = 0; c < n; ++c) {
-      if (!taken[group][c] && !colony_screen_slot_reserved(group, pools[group][c].x, pools[group][c].y) &&
-          !colony_screen_slot_overlaps_placed(group, pools[group][c].x, pools[group][c].y, placed, placed_count)) {
-        pick = c;
-        break;
-      }
-    }
-  }
-  if (pick < 0) {
-    for (int c = 0; c < n; ++c) {
-      if (!taken[group][c] && !colony_screen_slot_reserved(group, pools[group][c].x, pools[group][c].y)) {
-        pick = c;
-        break;
-      }
-    }
-  }
-  if (pick < 0) {
-    for (int c = 0; c < n; ++c) {
-      if (!taken[group][c]) {
-        pick = c;
-        break;
-      }
-    }
-  }
-  return pick < 0 ? 0 : pick;
-}
-
-/*
- * Fills xs[]/ys[] (each sized k_building_slot_count) with this colony's
- * building positions: same algorithm shape as DOS (see block comment
- * above) — reseed a DOS-LCG RNG from this colony's fixed map (x,y), then
- * for each k_building_slots[] entry in order, rejection-sample a free slot
- * from its size class's pool. Deterministic per colony (stable across
- * calls/reloads, matching the real game's observed behavior), different
- * across colonies, cheap enough to recompute on every call (14 slots) —
- * no caching needed.
+ * DS:0x266 — the 15 slot origins, (x, y) word pairs. DOS draws each slot's
+ * sprite at (x, y + 8) with no further offset; this port's callers add
+ * (COLONY_VIEWPORT_X, COLONY_VIEWPORT_Y) = (1, 8) instead, so the stored
+ * values below are DOS's x minus 1 and DOS's raw y (the +8 and the viewport
+ * origin cancel). Slots 13 and 14 are the fence and dock corners — the two
+ * positions this port had already recovered by template-matching the
+ * goldens, which is what pins the whole table.
  */
-static int colony_screen_best_built(
-  const ColonizeColonyPool* pool, const ColonizeColony* colony, const char* const* names, size_t name_count
-);
+static const ColonyPoint k_dos_slot_xy[COLONY_DOS_SLOT_COUNT] = {
+  {55, 5}, {144, 7}, {172, 10}, {7, 33}, {36, 37}, {66, 46}, {95, 45}, /* class 0 */
+  {5, 6}, {127, 45}, {9, 68}, {14, 94},                                /* class 1 */
+  {86, 3}, {65, 79},                                                   /* class 2 */
+  {122, 98},                                                           /* class 3 */
+  {122, 47}                                                            /* class 4 */
+};
+static const int k_dos_class_count[COLONY_DOS_CLASS_COUNT] = {7, 4, 2, 1, 1}; /* DS:0x224 */
+static const int k_dos_class_base[COLONY_DOS_CLASS_COUNT] = {0, 7, 11, 13, 14}; /* DS:0x22a */
+/*
+ * DS:0x260, empty-slot filler per class, minus one: DOS's sprite ids are
+ * 1-based (0 = none) where this port's SS loader is 0-based. Class 3 has no
+ * filler because its category (fortification) is always placed.
+ */
+static const int k_dos_class_placeholder[COLONY_DOS_CLASS_COUNT] = {
+  COLONY_TREE_SMALL, COLONY_TREE_MED, COLONY_TREE_LARGE, -1, COLONY_COAST_PLACEHOLDER
+};
 
+/*
+ * The per-program-launch half of DOS's layout seed (DS:0x8d80). DOS fills it
+ * from the BIOS tick at 0040:006C when the game boots (FUN_1c0c_0012), so a
+ * real DOS session re-rolls every colony's layout on every launch and no save
+ * can reproduce one. This port pins it instead, so a colony's layout is
+ * stable forever — and the value is not arbitrary: it is the unique base in
+ * 0..0x7fff that reproduces BOTH golden screenshots (New Amsterdam at (50,43)
+ * and Recife at (41,38), 18 independent category→slot constraints measured
+ * off the real DOS frames). Finding one at all, let alone a unique one, is
+ * the proof that the tables and the algorithm below are right.
+ */
+#define COLONY_DOS_LAYOUT_SEED 25281u
+
+static int colony_screen_slot_size_class(int slot) {
+  for (int c = 0; c < COLONY_DOS_CLASS_COUNT; ++c) {
+    if (slot >= k_dos_class_base[c] && slot < k_dos_class_base[c] + k_dos_class_count[c]) {
+      return c;
+    }
+  }
+  return 0;
+}
+
+/*
+ * Port of FUN_2f2b_0434. Fills xs[]/ys[] (each sized k_building_slot_count,
+ * indexed by DOS category) with this colony's building positions.
+ *
+ * DOS: reseed the C-library LCG from (colony.y << 8) + colony.x + DS:0x8d80
+ * (FUN_15eb_1476, masked to 15 bits by srand), then walk slots 0..14 and give
+ * each one a random still-free POSITION inside its own size class, retrying
+ * on collision. Positions are then handed to categories in category order,
+ * sequentially within each class — a fixed mapping, so all the randomness
+ * lives in that one shuffle. Deterministic per colony, cheap enough to redo
+ * on every call.
+ */
 static void colony_screen_assign_slot_positions(
   const ColonizeColonyPool* pool, const ColonizeColony* colony, int* xs, int* ys
 ) {
-  const ColonyPoint* pools[COLONY_GROUP_COUNT] = {
-    k_group_large_slots, k_group_med_slots, k_group_small_slots
-  };
-  const int pool_counts[COLONY_GROUP_COUNT] = {
-    (int)(sizeof(k_group_large_slots) / sizeof(k_group_large_slots[0])),
-    (int)(sizeof(k_group_med_slots) / sizeof(k_group_med_slots[0])),
-    (int)(sizeof(k_group_small_slots) / sizeof(k_group_small_slots[0]))
-  };
-  bool taken[COLONY_GROUP_COUNT][8] = {{false}};
-  ColonyPlacedRect placed[14];
-  int placed_count = 0;
-
-  /* A colony-specific override (see below) already fixes some of these
-   * slots to an exact golden pixel — almost always one of the pool points
-   * above (DOS reuses the same real estate, just assigns it differently).
-   * Mark those pool points taken, and record their footprint in `placed[]`,
-   * *before* the RNG runs, so an unbuilt category's tree placeholder never
-   * lands on top of an overridden neighbor's real building — same-group
-   * duplicate (`taken`) or cross-group overlap (`placed`, player-caught:
-   * a placeholder copse rendered on top of Town Hall / the church in both
-   * New Amsterdam and Recife). Overridden indices themselves are skipped
-   * below and filled in from `ovr->pos[]` afterward. */
-  const ColonyPlacementOverride* ovr = colony_screen_find_override(colony);
-  if (ovr) {
-    for (int i = 0; i < k_building_slot_count && i < 14; ++i) {
-      if (ovr->pos[i][0] == COLONY_OVERRIDE_NONE || ovr->pos[i][0] == COLONY_OVERRIDE_HIDDEN) {
-        continue; /* HIDDEN doesn't occupy pool real estate — nothing to mark/reserve */
-      }
-      const int group = colony_screen_slot_group(k_building_slots[i].tree_sprite);
-      const int n = pool_counts[group];
-      for (int c = 0; c < n; ++c) {
-        if (pools[group][c].x == ovr->pos[i][0] && pools[group][c].y == ovr->pos[i][1]) {
-          taken[group][c] = true;
-          break;
-        }
-      }
-      int w, h;
-      colony_screen_group_footprint_wh(group, &w, &h);
-      placed[placed_count++] = (ColonyPlacedRect){ovr->pos[i][0], ovr->pos[i][1], w, h};
-    }
+  (void)pool;
+  int perm[COLONY_DOS_SLOT_COUNT];
+  for (int i = 0; i < COLONY_DOS_SLOT_COUNT; ++i) {
+    perm[i] = -1;
   }
 
   ColonizeDosRng rng;
-  const uint32_t xy = colony ? (((uint32_t)colony->y << 8) | (uint32_t)colony->x) : 0;
-  /* 0x434 salts this port's synthetic roll away from DOS's own (unrecoverable
-   * second seed term) reseed value — arbitrary, just needs to be fixed. */
-  dos_rng_seed(&rng, xy ^ 0x434u);
+  const uint32_t xy = colony ? (((uint32_t)colony->y << 8) + (uint32_t)colony->x) : 0u;
+  dos_rng_seed(&rng, (COLONY_DOS_LAYOUT_SEED + xy) & 0x7fffu);
 
-  for (int i = 0; i < k_building_slot_count; ++i) {
-    if (ovr && ovr->pos[i][0] != COLONY_OVERRIDE_NONE) {
-      continue; /* filled in from ovr->pos[] below */
-    }
-    const int group = colony_screen_slot_group(k_building_slots[i].tree_sprite);
-    const int pick =
-      colony_screen_pick_pool_slot(group, pools, pool_counts, taken, placed, placed_count, &rng);
-    taken[group][pick] = true;
-    xs[i] = pools[group][pick].x;
-    ys[i] = pools[group][pick].y;
-    if (placed_count < 14) {
-      int w, h;
-      colony_screen_group_footprint_wh(group, &w, &h);
-      placed[placed_count++] = (ColonyPlacedRect){xs[i], ys[i], w, h};
-    }
-  }
-
-  if (ovr) {
-    for (int i = 0; i < k_building_slot_count && i < 14; ++i) {
-      if (ovr->pos[i][0] == COLONY_OVERRIDE_HIDDEN) {
-        /* HIDDEN means "this table has no room for the tree filler" — it
-         * must never swallow a real building. If some *other* colony
-         * reusing this layout actually has the category built, give it a
-         * genuine slot via the same fallback the general algorithm uses. */
-        size_t n = 0;
-        while (k_building_slots[i].chain && k_building_slots[i].chain[n]) {
-          ++n;
-        }
-        const int built = pool ? colony_screen_best_built(pool, colony, k_building_slots[i].chain, n) : -1;
-        if (built < 0) {
-          xs[i] = COLONY_SLOT_HIDDEN;
-          ys[i] = COLONY_SLOT_HIDDEN;
-        } else {
-          const int group = colony_screen_slot_group(k_building_slots[i].tree_sprite);
-          const int pick =
-            colony_screen_pick_pool_slot(group, pools, pool_counts, taken, placed, placed_count, &rng);
-          taken[group][pick] = true;
-          xs[i] = pools[group][pick].x;
-          ys[i] = pools[group][pick].y;
-          if (placed_count < 14) {
-            int w, h;
-            colony_screen_group_footprint_wh(group, &w, &h);
-            placed[placed_count++] = (ColonyPlacedRect){xs[i], ys[i], w, h};
-          }
-        }
-      } else if (ovr->pos[i][0] != COLONY_OVERRIDE_NONE) {
-        xs[i] = ovr->pos[i][0];
-        ys[i] = ovr->pos[i][1];
+  for (int slot = 0; slot < COLONY_DOS_SLOT_COUNT; ++slot) {
+    const int cls = colony_screen_slot_size_class(slot);
+    const int base = k_dos_class_base[cls];
+    const int count = k_dos_class_count[cls];
+    int pos = base;
+    /* Each class has exactly as many positions as slots, so this always
+     * terminates; the guard is belt and braces against a bad table edit. */
+    for (int guard = 0; guard < 1024; ++guard) {
+      pos = base + dos_rng_range(&rng, 0, count - 1);
+      if (perm[pos] < 0) {
+        break;
       }
     }
+    if (perm[pos] >= 0) {
+      for (pos = base; pos < base + count && perm[pos] >= 0; ++pos) {
+      }
+      if (pos >= base + count) {
+        pos = base;
+      }
+    }
+    perm[pos] = slot;
+  }
+
+  int next_in_class[COLONY_DOS_CLASS_COUNT] = {0};
+  for (int cat = 0; cat < k_building_slot_count; ++cat) {
+    const int cls = k_building_slots[cat].size_class;
+    const int pos = k_dos_class_base[cls] + next_in_class[cls]++;
+    const int slot = (pos >= 0 && pos < COLONY_DOS_SLOT_COUNT && perm[pos] >= 0) ? perm[pos] : 0;
+    xs[cat] = k_dos_slot_xy[slot].x;
+    ys[cat] = k_dos_slot_xy[slot].y;
   }
 }
 
@@ -2322,6 +2001,107 @@ static int colony_screen_best_built(
     }
   }
   return best;
+}
+
+/* Chain length helper — the tables are NULL-terminated. */
+static size_t colony_screen_chain_len(const char* const* chain) {
+  size_t n = 0;
+  while (chain && chain[n]) {
+    ++n;
+  }
+  return n;
+}
+
+/*
+ * The building a category's slot stands for, or -1 if the colony owns none of
+ * it. Highest built tier, with DOS's one normalisation (FUN_2f2b_14d4's
+ * 0x0f/0x11 swaps): the shared warehouse/stable slot reports the Warehouse
+ * whenever it is owned, never the Stable and never the Expansion — DOS never
+ * sets the Expansion's own building bit at all, it only bumps the level
+ * counter this port keeps in warehouse_level.
+ */
+static int colony_screen_category_built(
+  const ColonizeColonyPool* pool, const ColonizeColony* colony, int cat
+) {
+  if (cat < 0 || cat >= k_building_slot_count) {
+    return -1;
+  }
+  if (cat == COLONY_CAT_WAREHOUSE) {
+    const int warehouse = colony_screen_find_built(pool, colony, "Warehouse");
+    return warehouse >= 0 ? warehouse : colony_screen_find_built(pool, colony, "Stable");
+  }
+  const char* const* chain = k_building_slots[cat].chain;
+  return colony_screen_best_built(pool, colony, chain, colony_screen_chain_len(chain));
+}
+
+/*
+ * BUILDING.SS sprite for a category's slot, or -1 to draw nothing.
+ * Port of FUN_2f2b_14d4's `local_5a` (DOS ids are 1-based, this port's are
+ * 0-based, hence every DOS constant here appears minus one):
+ *
+ *  - fortification: always drawn, even unbuilt — an unowned Stockade shows
+ *    the post-and-rail fence, DOS id 0x11.
+ *  - warehouse/stable share one slot and have their own art: no Warehouse
+ *    shows the stable-only sprite (DOS 0x2f), Warehouse + Stable a combined
+ *    one (DOS 0x30), Warehouse alone the plain warehouse. Warehouse
+ *    Expansion is never drawn as itself — BUILDING.SS's slot for it holds
+ *    the fence art, and DOS reports the expansion with the white "2" badge
+ *    instead (see the badge block in colony_screen_draw_area_overlays).
+ *  - anything else: its highest built tier, else the size class's filler.
+ */
+static int colony_screen_category_sprite(
+  const ColonizeColonyPool* pool, const ColonizeColony* colony, int cat
+) {
+  if (cat < 0 || cat >= k_building_slot_count) {
+    return -1;
+  }
+  if (cat == COLONY_CAT_FORTIFICATION) {
+    const int built = colony_screen_category_built(pool, colony, cat);
+    return built >= 0 ? built : COLONY_FENCE_SPRITE;
+  }
+  if (cat == COLONY_CAT_WAREHOUSE) {
+    const int warehouse = colony_screen_find_built(pool, colony, "Warehouse");
+    const bool stable = colony_screen_find_built(pool, colony, "Stable") >= 0;
+    if (warehouse < 0) {
+      return stable ? COLONY_STABLE_ONLY_SPRITE : k_dos_class_placeholder[k_building_slots[cat].size_class];
+    }
+    return stable ? COLONY_WAREHOUSE_STABLE_SPRITE : warehouse;
+  }
+  const int built = colony_screen_category_built(pool, colony, cat);
+  if (built >= 0) {
+    return built;
+  }
+  return k_dos_class_placeholder[k_building_slots[cat].size_class];
+}
+
+/*
+ * Screen rectangle of the fortification slot (DOS category 0, always drawn),
+ * which the outside-unit strip sits on. xs/ys come from
+ * colony_screen_assign_slot_positions.
+ */
+static void colony_screen_fence_rect(
+  const ColonyScreenView* view,
+  const ColonizeColonyPool* pool,
+  const ColonizeColony* colony,
+  const int* xs,
+  const int* ys,
+  int* out_x,
+  int* out_y,
+  int* out_w,
+  int* out_h
+) {
+  *out_x = COLONY_VIEWPORT_X + xs[COLONY_CAT_FORTIFICATION];
+  *out_y = COLONY_VIEWPORT_Y + ys[COLONY_CAT_FORTIFICATION];
+  *out_w = COLONY_FENCE_W;
+  *out_h = COLONY_FENCE_H;
+  const int sprite = colony_screen_category_sprite(pool, colony, COLONY_CAT_FORTIFICATION);
+  if (view && view->buildings_ok && sprite >= 0 && sprite < view->buildings.sprite_count) {
+    const ColonizeSprite* spr = &view->buildings.sprites[sprite];
+    if (spr && spr->width > 2 && spr->height > 2) {
+      *out_w = spr->width;
+      *out_h = spr->height;
+    }
+  }
 }
 
 static void colony_screen_blit_slot(
@@ -2593,22 +2373,12 @@ static void colony_screen_blit_buildings(
   colony_screen_assign_slot_positions(pool, colony, slot_x, slot_y);
   for (int i = 0; i < k_building_slot_count; ++i) {
     const ColonyBuildingSlot* slot = &k_building_slots[i];
-    size_t n = 0;
-    while (slot->chain && slot->chain[n]) {
-      ++n;
+    const int built = colony_screen_category_built(pool, colony, i);
+    const int drawn_sprite = colony_screen_category_sprite(pool, colony, i);
+    if (drawn_sprite < 0) {
+      continue;
     }
-    const int built = colony_screen_best_built(pool, colony, slot->chain, n);
-    if (built < 0 && slot_x[i] == COLONY_SLOT_HIDDEN) {
-      continue; /* per-colony override: no pool slot fits this placeholder cleanly — skip it */
-    }
-    const int drawn_sprite = built >= 0 ? built : slot->tree_sprite;
-    if (built >= 0) {
-      colony_screen_blit_slot(view, built, slot_ox + slot_x[i], slot_oy + slot_y[i], framebuffer);
-    } else {
-      colony_screen_blit_slot(
-        view, slot->tree_sprite, slot_ox + slot_x[i], slot_oy + slot_y[i], framebuffer
-      );
-    }
+    colony_screen_blit_slot(view, drawn_sprite, slot_ox + slot_x[i], slot_oy + slot_y[i], framebuffer);
     if (debug_rects) {
       colony_screen_debug_building_rect(
         view, framebuffer, drawn_sprite, slot_ox + slot_x[i], slot_oy + slot_y[i]
@@ -2624,19 +2394,10 @@ static void colony_screen_blit_buildings(
      * warehouse. (The Capitol half never fires — DOS's construction gate
      * refuses that building outright; see colonies_building_is_buildable.)
      */
-    if (built >= 0 && font) {
-      const ColonizeBuildingType* bt = colonies_building_type(pool, built);
-      int level = 0;
-      if (bt && strcmp(bt->name, "Warehouse") == 0) {
-        level = (int)colony->warehouse_level;
-      } else if (bt && strcmp(bt->name, "Capitol") == 0) {
-        level = (int)colony->capitol_level;
-      }
+    if (built >= 0 && font && i == COLONY_CAT_WAREHOUSE) {
+      const int level = (int)colony->warehouse_level;
       if (level > 1) {
-        int cls = bt ? bt->size_class : 0;
-        if (cls < 0 || cls > 4) {
-          cls = 0;
-        }
+        const int cls = slot->size_class;
         char badge_text[8];
         snprintf(badge_text, sizeof(badge_text), "%d", level);
         font_draw_text(
@@ -2774,50 +2535,15 @@ static void colony_screen_blit_buildings(
     }
   }
 
-  const int fort = colony_screen_best_built(pool, colony, k_slot_stockade, 3);
-  int fence_w = COLONY_FENCE_W;
-  int fence_h = COLONY_FENCE_H;
-  {
-    const int fort_sprite = fort >= 0 ? fort : COLONY_FENCE_SPRITE;
-    if (fort_sprite >= 0 && fort_sprite < view->buildings.sprite_count) {
-      const ColonizeSprite* spr = &view->buildings.sprites[fort_sprite];
-      if (spr && spr->width > 2 && spr->height > 2) {
-        fence_w = spr->width;
-        fence_h = spr->height;
-      }
-    }
-  }
-  int fence_x, fence_y, coast_x, coast_y;
-  colony_screen_docks_fence_anchor(colony, fence_w, fence_h, &fence_x, &fence_y, &coast_x, &coast_y);
-
-  const int docks = colony_screen_best_built(pool, colony, k_slot_docks, 3);
-  if (docks >= 0) {
-    colony_screen_blit_slot(view, docks, coast_x, coast_y, framebuffer);
-    if (debug_rects) {
-      colony_screen_debug_building_rect(view, framebuffer, docks, coast_x, coast_y);
-    }
-  } else {
-    /* DOS draws this placeholder in every colony's dock corner, coastal or
-     * not — inland colonies just never get to replace it with a real
-     * Docks/Drydock/Shipyard (player-caught: this port was gating it on
-     * `coastal`, leaving inland colonies with a blank corner instead). */
-    colony_screen_blit_slot(view, COLONY_COAST_PLACEHOLDER, coast_x, coast_y, framebuffer);
-    if (debug_rects) {
-      colony_screen_debug_building_rect(view, framebuffer, COLONY_COAST_PLACEHOLDER, coast_x, coast_y);
-    }
-  }
-
-  if (fort >= 0) {
-    colony_screen_blit_slot(view, fort, fence_x, fence_y, framebuffer);
-    if (debug_rects) {
-      colony_screen_debug_building_rect(view, framebuffer, fort, fence_x, fence_y);
-    }
-  } else {
-    colony_screen_blit_slot(view, COLONY_FENCE_SPRITE, fence_x, fence_y, framebuffer);
-    if (debug_rects) {
-      colony_screen_debug_building_rect(view, framebuffer, COLONY_FENCE_SPRITE, fence_x, fence_y);
-    }
-  }
+  /*
+   * The fortification and the docks are ordinary DOS categories now (0 and
+   * 2), drawn by the loop above at slots 13 and 14 — no separate corner
+   * blit. The outside-unit strip still needs that fence rectangle.
+   */
+  int fence_x = 0, fence_y = 0, fence_w = COLONY_FENCE_W, fence_h = COLONY_FENCE_H;
+  colony_screen_fence_rect(
+    view, pool, colony, slot_x, slot_y, &fence_x, &fence_y, &fence_w, &fence_h
+  );
 
   /* Outside units: Note 1 strip centered on the fortification. */
   if (units && view->outside_unit_count > 0 && view->icons_ok) {
@@ -4683,20 +4409,9 @@ ColonyScreenHitResult colony_screen_hit_test(
 
   /* Outside units on fortification strip (Note 1; per-icon selectable). */
   if (view->outside_unit_count > 0 && units && view->icons_ok) {
-    int fence_w = COLONY_FENCE_W;
-    int fence_h = COLONY_FENCE_H;
-    const int fort = colony_screen_best_built(pool, colony, k_slot_stockade, 3);
-    const int fort_sprite = fort >= 0 ? fort : COLONY_FENCE_SPRITE;
-    if (view->buildings_ok && fort_sprite >= 0 && fort_sprite < view->buildings.sprite_count) {
-      const ColonizeSprite* spr = &view->buildings.sprites[fort_sprite];
-      if (spr && spr->width > 2 && spr->height > 2) {
-        fence_w = spr->width;
-        fence_h = spr->height;
-      }
-    }
-    int fence_x, fence_y, coast_x_unused, coast_y_unused;
-    colony_screen_docks_fence_anchor(
-      colony, fence_w, fence_h, &fence_x, &fence_y, &coast_x_unused, &coast_y_unused
+    int fence_x, fence_y, fence_w, fence_h;
+    colony_screen_fence_rect(
+      view, pool, colony, slot_x, slot_y, &fence_x, &fence_y, &fence_w, &fence_h
     );
     int icons[COLONY_OUTSIDE_MAX];
     int map_i[COLONY_OUTSIDE_MAX];
@@ -4743,20 +4458,9 @@ ColonyScreenHitResult colony_screen_hit_test(
     }
   } else if (view->buildings_ok) {
     /* No outside units: still allow fence clicks for eject. */
-    int fence_w = COLONY_FENCE_W;
-    int fence_h = COLONY_FENCE_H;
-    const int fort = colony_screen_best_built(pool, colony, k_slot_stockade, 3);
-    const int fort_sprite = fort >= 0 ? fort : COLONY_FENCE_SPRITE;
-    if (fort_sprite >= 0 && fort_sprite < view->buildings.sprite_count) {
-      const ColonizeSprite* spr = &view->buildings.sprites[fort_sprite];
-      if (spr && spr->width > 2 && spr->height > 2) {
-        fence_w = spr->width;
-        fence_h = spr->height;
-      }
-    }
-    int fence_x, fence_y, coast_x_unused, coast_y_unused;
-    colony_screen_docks_fence_anchor(
-      colony, fence_w, fence_h, &fence_x, &fence_y, &coast_x_unused, &coast_y_unused
+    int fence_x, fence_y, fence_w, fence_h;
+    colony_screen_fence_rect(
+      view, pool, colony, slot_x, slot_y, &fence_x, &fence_y, &fence_w, &fence_h
     );
     if (mx >= fence_x && my >= fence_y && mx < fence_x + fence_w && my < fence_y + fence_h) {
       hit.kind = COLONY_HIT_FENCE;
@@ -4771,12 +4475,7 @@ ColonyScreenHitResult colony_screen_hit_test(
     const int slot_ox = COLONY_VIEWPORT_X;
     const int slot_oy = COLONY_VIEWPORT_Y;
     for (int i = 0; i < k_building_slot_count; ++i) {
-      const ColonyBuildingSlot* slot = &k_building_slots[i];
-      size_t nchain = 0;
-      while (slot->chain && slot->chain[nchain]) {
-        ++nchain;
-      }
-      const int built = colony_screen_best_built(pool, colony, slot->chain, nchain);
+      const int built = colony_screen_category_built(pool, colony, i);
       if (built < 0 || built >= view->buildings.sprite_count) {
         continue;
       }
@@ -4903,16 +4602,8 @@ ColonyScreenHitResult colony_screen_hit_test(
     const int slot_ox = COLONY_VIEWPORT_X;
     const int slot_oy = COLONY_VIEWPORT_Y;
     for (int i = 0; i < k_building_slot_count; ++i) {
-      const ColonyBuildingSlot* slot = &k_building_slots[i];
-      size_t n = 0;
-      while (slot->chain && slot->chain[n]) {
-        ++n;
-      }
-      const int built = colony_screen_best_built(pool, colony, slot->chain, n);
-      if (built < 0 && slot_x[i] == COLONY_SLOT_HIDDEN) {
-        continue; /* per-colony override: this placeholder isn't drawn */
-      }
-      const int sprite = (built >= 0) ? built : slot->tree_sprite;
+      const int built = colony_screen_category_built(pool, colony, i);
+      const int sprite = colony_screen_category_sprite(pool, colony, i);
       if (sprite < 0 || sprite >= view->buildings.sprite_count) {
         continue;
       }

@@ -274,6 +274,17 @@ what's drawn.
 
 ## Follow-up session: top bar height, minimap border, building placement
 
+> **Superseded 2026-09-04 — the building-placement half only.** Everything
+> below about candidate-slot pools, salted seeds, reserved corners, overlap
+> rejection and the two golden-exact per-colony overrides described a
+> placeholder that no longer exists: the real DOS tables and algorithm were
+> recovered and ported (see
+> [The real DOS slot tables](#the-real-dos-slot-tables-recovered-2026-09-04)
+> at the end of this file). Kept for the reasoning trail — in particular the
+> claim here that the tables were unrecoverable turned out to be wrong, and
+> why is worth remembering. The other two topics in this section (top bar
+> height, minimap border) still stand.
+
 Three more player-reported gaps, fixed against `new_amsterdam_production.png`
 specifically (New Amsterdam set as the reference colony for this pass).
 
@@ -1181,7 +1192,7 @@ split the one `end_turn_flash_on` bool into `end_turn_active` (show at all)
 
 ---
 
-## The real DOS slot tables (recovered 2026-09-04, not yet wired)
+## The real DOS slot tables (recovered and ported 2026-09-04)
 
 While porting the Warehouse Expansion badge (bugs.md 383) the settlement
 view's DOS driver turned up, and with it the static tables the placement
@@ -1220,11 +1231,7 @@ Class 3 (73×18) and class 4 (75×48) match `COLONY_FENCE_W/H` and
 
 The building sprite itself is blitted at the slot coordinate with **no** class
 offset (`FUN_281f_0254`, sheet `DS:0x2da8`), which is why the port's
-sprite-position matches are directly comparable to this table. Wiring these 15
-slots up in place of `colony_screen_assign_slot_positions()`'s invented pools
-is now a data-entry job rather than a research one — the missing piece is the
-per-colony `slot → building index` assignment (`DS:-0x717e`, filled by the
-init loop near `viceroy_unpacked.c:47289`).
+sprite-position matches are directly comparable to this table.
 
 ### Warehouse Expansion / Capitol level badge
 
@@ -1240,3 +1247,76 @@ Both `+0x95` and `+0x96` are **level counters** (0..2), not the packed tier
 bitmasks that live in the colony's building words; `col1_bridge.c` used to
 `max()` the counter against the raw mask, which stored `3` for a colony with
 both warehouse tiers and then read back as a 400-slot warehouse.
+
+### Categories, positions and the shuffle (`FUN_2f2b_0434`)
+
+The 42 `@BUILDING` rows are grouped into **15 categories** by the static setup
+table `FUN_75c2_144c` (42 calls to `FUN_75c2_13dc(category, next, prereq)`,
+each also writing the record's `+2`/`+3`/`+4`/`+6` fields). Extracted:
+
+| cat | class | chain |
+|-----|-------|-------|
+| 0 | 3 | Stockade → Fort → Fortress *(the fence corner)* |
+| 1 | 1 | Armory → Magazine → Arsenal |
+| 2 | 4 | Docks → Drydock → Shipyard *(the dock corner)* |
+| 3 | 2 | Town Hall ×3 → Capitol → Capitol Expansion |
+| 4 | 1 | Schoolhouse → College → University |
+| 5 | 1 | Warehouse → Warehouse Expansion → Stable |
+| 6 | 0 | Custom House |
+| 7 | 0 | Printing Press → Newspaper |
+| 8 | 0 | Weaver's House → Shop → Textile Mill |
+| 9 | 0 | Tobacconist's ×3 |
+| 10 | 0 | Rum ×3 |
+| 11 | 0 | Fur ×3 |
+| 12 | 1 | Carpenter's Shop → Lumber Mill |
+| 13 | 2 | Church → Cathedral |
+| 14 | 0 | Blacksmith's ×3 |
+
+A category's class is the `size` of its first member. Membership counts out to
+exactly **7 / 4 / 2 / 1 / 1** = the 15 slots, and `DS:0x266` is terminated by a
+`(-1,-1)` word pair right after entry 14 — two independent confirmations that
+the set is complete.
+
+Two structural surprises, both now in the port:
+
+- **The fortification and the docks are ordinary categories** (0 and 2), each
+  the sole member of its own size class, which is why their corners look fixed.
+  The port used to draw them outside the loop with a hand-written anchor
+  formula; that formula had the dock corner 2px off (it was patched by an
+  override).
+- **The Stable shares the warehouse's slot.** That is what `FUN_2f2b_14d4`'s
+  `param_1 == 0x0f || param_1 == 0x11` branch is for: no Warehouse draws the
+  stable-only sprite (DOS `0x2f`), Warehouse + Stable a combined one (`0x30`),
+  Warehouse alone the plain warehouse. Warehouse Expansion is never drawn as
+  itself — `BUILDING.SS`'s slot for it holds the pre-stockade fence art, and
+  the expansion is reported by the white "2" badge instead. Real DOS saves
+  confirm the bit for it is never set (no colony in `original_saves` has the
+  packed warehouse field at 3; expanded ones read mask 1 + `warehouse_level` 2).
+
+Placement itself: categories claim positions inside their class **in category
+order**, a fixed mapping. All the randomness is one shuffle — for each slot
+0..14 in order, draw a random still-free position within that slot's class and
+retry on collision. The seed is `(colony.y << 8) + colony.x + DS:0x8d80`,
+srand-masked to 15 bits (`FUN_15eb_1476`).
+
+### The base seed, and why DOS layouts aren't in the save
+
+`DS:0x8d80` is filled at program start from the BIOS tick at `0040:006C`
+(`FUN_281f_0e72` → `FUN_1c0c_0012`). It is **wall-clock**, not game state: a
+real DOS session re-rolls every colony's layout on every launch, and no save
+can reproduce the one a screenshot was taken with. This port pins it instead,
+so a colony's layout is stable forever.
+
+The pinned value is not arbitrary. Because srand masks to 15 bits, only
+`base & 0x7fff` matters — a 32768-value search space. Exactly **one** base,
+`25281`, reproduces both golden screenshots at once: New Amsterdam at (50,43)
+and Recife at (41,38), 18 independent category→slot constraints measured off
+the real DOS frames. A unique solution over the whole space is the proof that
+the category table, the class pools, the position mapping, the shuffle order
+and the RNG are all right; a wrong model has no solution at all.
+
+Both colonies now render at their golden positions with no per-colony
+overrides. One byproduct: the old hand-measured override put the blacksmith's
+slot at x=4 where the EXE says 7 — re-checking the golden by column-aligning
+the render confirms the EXE (best alignment at dx=0, clearly better than any
+neighbouring offset).
