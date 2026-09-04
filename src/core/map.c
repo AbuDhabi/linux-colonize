@@ -1131,6 +1131,30 @@ int map_continent_id_at(const ColonizeWorldMap* map, int x, int y) {
   return (int)(map_get_layer3(map, x, y) & 0x0fu);
 }
 
+/*
+ * DOS `FUN_2f2b_0842` (viceroy_unpacked.c:47452): the tile-description
+ * builder names a water square "Lake" — LABELS.TXT @MISC 40, DS:0x2e0a —
+ * instead of reaching into the NAMES.TXT @OTHER terrain table, whenever the
+ * class is Ocean (0x19) AND `FUN_281f_06b4` (the layer3 low nibble) is not
+ * 1. Region 1 is the open sea: the water connected-component pass scans
+ * from the top-right map corner, which is always high seas, and merges keep
+ * the lowest id, so the main body is always labelled 1. Anything else is a
+ * body of water fully enclosed by land. Sea Lane (0x1a) is never a lake.
+ *
+ * Note this reads the raw nibble, not map_continent_id_at — that one
+ * deliberately reports -1 on water so land-continent comparisons cannot
+ * match across a coastline.
+ */
+bool map_tile_is_lake(const ColonizeWorldMap* map, int x, int y) {
+  if (!map || x < 0 || y < 0 || x >= map->width || y >= map->height) {
+    return false;
+  }
+  if (map_pedia_terrain_index_at(map, x, y) != 25) {
+    return false;
+  }
+  return (int)(map_get_layer3(map, x, y) & 0x0fu) != 1;
+}
+
 int map_tile_tribe_or_presence(const ColonizeWorldMap* map, int x, int y) {
   if (!map || !map->layer2 || x < 0 || y < 0 || x >= map->width || y >= map->height) {
     return -1;

@@ -2205,6 +2205,12 @@ void turn_run_nation_ticks(ColonizeTurnContext* ctx, ColonizeTurnResult* out) {
      * anyway once the WoI blocks the European Status). */
     const int woi_now =
       ctx->col1_ok && ctx->col1 && ctx->col1->head.game_options.woi != 0;
+    /* DOS 68583 refills the emptied pool slot with `46d4((DS:0x538e & 3)==0)`
+     * — one turn in four skips the criminal/servant/free tier roll. */
+    if (ctx->europe) {
+      const uint32_t turn = ctx->turn_number ? *ctx->turn_number : 0u;
+      ctx->europe->pool_force_expert = ((turn & 3u) == 0u);
+    }
     const int imm = woi_now ? 0
                             : europe_tick_immigration_pressure(
                                 ctx->europe, ctx->colonies, ctx->units,

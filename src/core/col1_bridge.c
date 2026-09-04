@@ -1430,6 +1430,28 @@ bool col1_bridge_apply(
         break;
       }
     }
+    /*
+     * Restore the recruit pool from nation+2..+4 rather than leaving the
+     * fresh-campaign seed europe_reset_campaign laid down (which, being run
+     * before the difficulty is known, is always the Discoverer opener).
+     * A save whose three bytes are all job NONE / out of range predates the
+     * pool being written, so re-seed it at the save's real difficulty.
+     */
+    {
+      bool have_pool = false;
+      for (int i = 0; i < EUROPE_POOL_SIZE && i < 3; ++i) {
+        if (nat->recruit[i] < 0x1c) {
+          have_pool = true;
+        }
+      }
+      if (have_pool) {
+        for (int i = 0; i < EUROPE_POOL_SIZE && i < 3; ++i) {
+          europe_set_pool_slot(europe, i, (int)nat->recruit[i]);
+        }
+      } else {
+        europe_seed_pool(europe, (int)europe->difficulty, true);
+      }
+    }
     europe_set_nation(europe, local.human_nation, NULL);
     for (int i = 0; i < europe->cargo_count && i < (int)COLONIZE_COL1_CARGO_TYPES; ++i) {
       europe->cargo[i].bid = nat->trade.euro_price[i];
@@ -1760,6 +1782,17 @@ bool col1_bridge_capture(
     nat->artillery_count =
       (uint16_t)(europe->artillery_bought < 0 ? 0 : europe->artillery_bought);
     nat->recruit_count = europe->recruit_count > 180 ? 180 : europe->recruit_count;
+    /*
+     * nation+2..+4 — the three recruit-pool slots (DOS reads them as job
+     * bytes in FUN_38fd_4884 / 46d4; the port's AI already keeps its own
+     * nations' pools here). The human's pool lived only in EuropeScreen, so
+     * saving and reloading rerolled it. Empty slot = 0x1c (job NONE), which
+     * DOS itself draws as Free Colonists.
+     */
+    for (int i = 0; i < EUROPE_POOL_SIZE && i < 3; ++i) {
+      const int job = europe->pool[i].filled ? europe->pool[i].profession : 0x1c;
+      nat->recruit[i] = (uint8_t)((job >= 0 && job <= 0x1c) ? job : 0x1c);
+    }
     nat->current_crosses = europe->current_crosses;
     nat->needed_crosses = europe->needed_crosses > 0 ? europe->needed_crosses : TURN_DEFAULT_NEEDED_CROSSES;
     nat->liberty_bells_total = europe->liberty_bells_total;
