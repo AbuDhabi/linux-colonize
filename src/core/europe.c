@@ -10,6 +10,7 @@
 #include "core/dos_rng.h"
 #include "core/founding_fathers.h"
 #include "core/popup_msg.h"
+#include "platform/diagnostics.h"
 #include "core/ss.h"
 #include "core/strutil.h"
 #include "core/units.h"
@@ -901,6 +902,10 @@ bool europe_recruit_from_pool(EuropeScreen* eu, int pool_index) {
     slot->name,
     eu->recruit_passage
   );
+  diag_info(
+    "EUROPE recruited %s (job %d) for %d$ passage (gold=%d)",
+    slot->name, slot->profession, eu->recruit_passage, eu->gold
+  );
   europe_bump_recruit_count(eu);
   europe_refill_pool_slot(eu, pool_index, NULL);
   return true;
@@ -1007,6 +1012,7 @@ bool europe_train(EuropeScreen* eu, int train_index) {
   slot->sentry = true;
   slot->dos_type = europe_dock_type_for(slot->name, slot->profession);
   snprintf(eu->status, sizeof(eu->status), "Trained %s (-%d$).", t->expert_name, t->cost);
+  diag_info("EUROPE trained %s for %d$ (gold=%d)", t->expert_name, t->cost, eu->gold);
   return true;
 }
 
@@ -1046,6 +1052,7 @@ bool europe_purchase(EuropeScreen* eu, int purchase_index) {
     snprintf(slot->name, sizeof(slot->name), "%s", p->name);
     europe_refresh_harbor_selection(eu);
     snprintf(eu->status, sizeof(eu->status), "Purchased %s (-%d$).", p->name, cost);
+    diag_info("EUROPE purchased ship %s for %d$ (gold=%d)", p->name, cost, eu->gold);
     return true;
   }
   if (eu->dock_count >= EUROPE_DOCK_MAX) {
@@ -1065,6 +1072,7 @@ bool europe_purchase(EuropeScreen* eu, int purchase_index) {
   slot->sentry = true;
   slot->dos_type = europe_dock_type_for(slot->name, slot->profession);
   snprintf(eu->status, sizeof(eu->status), "Purchased %s (-%d$).", p->name, cost);
+  diag_info("EUROPE purchased %s for %d$ (gold=%d)", p->name, cost, eu->gold);
   return true;
 }
 
@@ -1761,6 +1769,11 @@ bool europe_set_sail_from_harbor(
     ship.name,
     eu->colony_region[0] ? eu->colony_region : "New World",
     ship.turns_left
+  );
+  diag_info(
+    "EUROPE %s sails for the New World: %d turns, exit (%d,%d) %s",
+    ship.name, ship.turns_left, ship.exit_x, ship.exit_y,
+    ship.exit_east ? "east" : "west"
   );
   return true;
 }
@@ -2713,6 +2726,11 @@ int europe_sell_hold(EuropeScreen* eu, int harbor_index, int hold_index) {
   const char* cname =
     (ctype >= 0 && ctype < eu->cargo_count) ? eu->cargo[ctype].name : "cargo";
   snprintf(eu->status, sizeof(eu->status), "Sold %d %s for %d$.", amt, cname, gained);
+  diag_info(
+    "EUROPE sold %d %s from %s: bid=%d tax=%d%% proceeds=%d gold=%d",
+    amt, cname, ship->name[0] ? ship->name : "ship",
+    europe_sell_price(eu, ctype), eu->tax_percent, gained, eu->gold
+  );
   return gained;
 }
 
@@ -3023,6 +3041,10 @@ int europe_sell_unit_hold(
   const char* cname =
     (ctype >= 0 && ctype < eu->cargo_count) ? eu->cargo[ctype].name : "cargo";
   snprintf(eu->status, sizeof(eu->status), "Sold %d %s for %d$.", amt, cname, gained);
+  diag_info(
+    "EUROPE sold %d %s from unit %d: bid=%d tax=%d%% proceeds=%d gold=%d",
+    amt, cname, unit_id, europe_sell_price(eu, ctype), eu->tax_percent, gained, eu->gold
+  );
   return gained;
 }
 
@@ -3066,6 +3088,10 @@ int europe_buy_unit_cargo(
   }
   eu->gold -= loaded * ask;
   europe_apply_volume_price(eu, cargo_type, loaded, 1);
+  diag_info(
+    "EUROPE bought %d %s onto unit %d: ask=%d cost=%d gold=%d",
+    loaded, eu->cargo[cargo_type].name, unit_id, ask, loaded * ask, eu->gold
+  );
   return loaded;
 }
 
@@ -3159,6 +3185,11 @@ int europe_buy_cargo(EuropeScreen* eu, int harbor_index, int cargo_type, int amo
     bought,
     eu->cargo[cargo_type].name,
     bought * ask
+  );
+  diag_info(
+    "EUROPE bought %d %s onto %s: ask=%d cost=%d gold=%d",
+    bought, eu->cargo[cargo_type].name, ship->name[0] ? ship->name : "ship",
+    ask, bought * ask, eu->gold
   );
   return bought;
 }

@@ -7,6 +7,7 @@
 #include "core/colony_production.h"
 #include "core/dos_rng.h"
 #include "core/popup_msg.h"
+#include "platform/diagnostics.h"
 #include "core/units.h"
 
 #include <stdint.h>
@@ -1303,6 +1304,10 @@ static bool elect_commit(
   if (ctx->status && ctx->status_size > 0 && nation_id == ctx->human_nation) {
     snprintf(ctx->status, ctx->status_size, "Founding Father elected (#%d)", idx);
   }
+  diag_info(
+    "FF nation %d elected #%d %s (count=%u)",
+    nation_id, idx, k_ff_short_names[idx], (unsigned)nat->founding_father_count
+  );
   founding_fathers_reset_bells_pool(nation_id);
 
   if (ctx->ai_popups && nation_id == ctx->human_nation) {

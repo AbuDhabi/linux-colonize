@@ -265,6 +265,9 @@ int ai_popup_take_colony_zoom(AiPopupState* st);
  */
 void ai_popup_promote_tag_before(AiPopupState* st, AiPopupTag promote, AiPopupTag before);
 
+/* Debug-log name for a tag ("KING_TAX", "COMBAT_LOOT", ...). Never NULL. */
+const char* ai_popup_tag_name(AiPopupTag tag);
+
 bool ai_popup_queue_pending(const AiPopupState* st);
 bool ai_popup_busy(const AiPopupState* st); /* open or queued */
 

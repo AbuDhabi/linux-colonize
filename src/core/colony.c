@@ -1246,6 +1246,20 @@ bool colonies_building_workable(const ColonizeColonyPool* pool, int building_typ
   return true;
 }
 
+/* debug.logs: colonist "#2 Master Carpenter" style tag for assign lines. */
+static void colony_log_colonist(
+  const ColonizeColony* col,
+  int colonist_index,
+  char* out,
+  size_t out_size
+) {
+  if (!col || colonist_index < 0 || colonist_index >= col->colonist_count) {
+    snprintf(out, out_size, "#%d", colonist_index);
+    return;
+  }
+  snprintf(out, out_size, "#%d job=%d", colonist_index, col->colonists[colonist_index].profession);
+}
+
 bool colonies_assign_workplace(
   ColonizeColonyPool* pool,
   int colony_id,
@@ -1290,6 +1304,14 @@ bool colonies_assign_workplace(
   colonies_clear_colonist_tile(col, colonist_index);
   c->field_job = -1;
   c->building_type = building_type;
+  if (diag_info_enabled()) {
+    char who[48];
+    colony_log_colonist(col, colonist_index, who, sizeof(who));
+    diag_info(
+      "COLONY %s: colonist %s -> %s",
+      col->name[0] ? col->name : "colony", who, pool->building_types[building_type].name
+    );
+  }
   return true;
 }
 
@@ -1342,6 +1364,15 @@ bool colonies_assign_field(
   col->tiles[tile_index] = (int8_t)colonist_index;
   c->building_type = -1;
   c->field_job = field_job;
+  if (diag_info_enabled()) {
+    char who[48];
+    colony_log_colonist(col, colonist_index, who, sizeof(who));
+    diag_info(
+      "COLONY %s: colonist %s -> field tile %d as %s",
+      col->name[0] ? col->name : "colony", who, tile_index,
+      colony_yield_job_name(field_job)
+    );
+  }
   return true;
 }
 
@@ -1357,6 +1388,10 @@ bool colonies_clear_field(ColonizeColonyPool* pool, int colony_id, int tile_inde
   col->tiles[tile_index] = -1;
   if (who >= 0 && who < col->colonist_count) {
     col->colonists[who].field_job = -1;
+    diag_info(
+      "COLONY %s: colonist #%d off field tile %d",
+      col->name[0] ? col->name : "colony", who, tile_index
+    );
   }
   return true;
 }
@@ -1884,6 +1919,7 @@ bool colonies_set_construction(ColonizeColonyPool* pool, int colony_id, int buil
       return false;
     }
     col->building_in_production = building_type;
+    diag_info("COLONY %s: building Artillery", col->name[0] ? col->name : "colony");
     return true;
   }
   if (building_type == COLONIZE_UNIT_BUILD_WAGON_TRAIN) {
@@ -1892,6 +1928,7 @@ bool colonies_set_construction(ColonizeColonyPool* pool, int colony_id, int buil
       return false;
     }
     col->building_in_production = building_type;
+    diag_info("COLONY %s: building Wagon Train", col->name[0] ? col->name : "colony");
     return true;
   }
   if (!col || !pool) {
@@ -1908,6 +1945,10 @@ bool colonies_set_construction(ColonizeColonyPool* pool, int colony_id, int buil
     return false;
   }
   col->building_in_production = building_type;
+  diag_info(
+    "COLONY %s: building %s (hammers %d, pop %d)",
+    col->name[0] ? col->name : "colony", bt->name, col->hammers, col->population
+  );
   return true;
 }
 
@@ -2206,6 +2247,10 @@ bool colonies_buy_construction(ColonizeColonyPool* pool, int colony_id, int diff
   if (tools_deficit > 0) {
     col->stock[COLONIZE_CARGO_TOOLS] += tools_deficit;
   }
+  diag_info(
+    "COLONY %s: bought construction for %d$ (hammers +%d, tools +%d, gold=%d)",
+    col->name[0] ? col->name : "colony", gold_cost, hammers_deficit, tools_deficit, *gold
+  );
   return true;
 }
 
@@ -2710,6 +2755,11 @@ int colonies_transfer_to_unit(
   const int loaded = units_load_goods(units, unit_id, cargo_type, amount);
   if (loaded > 0) {
     col->stock[cargo_type] -= loaded;
+    diag_info(
+      "CARGO %s -> unit %d: cargo %d x%d (colony stock %d)",
+      col->name[0] ? col->name : "colony", unit_id, cargo_type, loaded,
+      col->stock[cargo_type]
+    );
   }
   return loaded;
 }
@@ -2763,6 +2813,10 @@ int colonies_transfer_from_unit(
   /* Col1 +0x8f: goods unload clears cargo_idle_turns (decomp ~90249). */
   if (move > 0) {
     col->cargo_idle_turns = 0;
+    diag_info(
+      "CARGO unit %d -> %s: cargo %d x%d (colony stock %d, cap %d)",
+      unit_id, col->name[0] ? col->name : "colony", ctype, move, col->stock[ctype], cap
+    );
   }
   if (out_warehouse_full && cap > 0 && col->stock[ctype] > cap) {
     *out_warehouse_full = true;

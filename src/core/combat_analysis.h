@@ -131,4 +131,16 @@ void* combat_analysis_presenter_user(void);
 /* Invoke presenter if set; no-op otherwise. */
 void combat_analysis_present_if_hooked(const ColonizeCombatEngagement* eng);
 
+/*
+ * Debug log (debug.logs): the same numbers the dialog would show — both
+ * header names, baseline and final strengths, every modifier row — plus the
+ * roll and the winner when `resolved` is true. Runs whether or not the
+ * dialog is shown, so AI-vs-AI combat is logged too.
+ */
+void combat_analysis_log_engagement(
+  const ColonizeUnitPool* pool,
+  const ColonizeCombatEngagement* eng,
+  bool resolved
+);
+
 #endif

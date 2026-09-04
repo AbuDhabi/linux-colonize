@@ -5,6 +5,7 @@
 
 #include "core/ui_colors.h"
 #include "core/unit_chrome.h"
+#include "platform/diagnostics.h"
 
 static ColonizeCombatAnalysisPresenter g_combat_analysis_presenter = NULL;
 static void* g_combat_analysis_presenter_user = NULL;
@@ -171,6 +172,99 @@ static void combat_analysis_fill_mods(
     combat_analysis_push_row(rows, count, "Fatigue", -33);
   } else if (flags->flags2 & COMBAT_FLAG_FATIGUE_66) {
     combat_analysis_push_row(rows, count, "Fatigue", -66);
+  }
+}
+
+/* "Veteran +50% Fortified +50%" for one side's rows. */
+static void combat_analysis_join_rows(
+  char* out,
+  size_t out_size,
+  const CombatAnalysisRow* rows,
+  int count
+) {
+  if (!out || out_size == 0) {
+    return;
+  }
+  out[0] = '\0';
+  size_t at = 0;
+  for (int i = 0; i < count && i < COMBAT_ANALYSIS_LINES_MAX; ++i) {
+    const int n = snprintf(
+      out + at, out_size - at, "%s%s %s", i ? " " : "", rows[i].label, rows[i].value
+    );
+    if (n <= 0 || (size_t)n >= out_size - at) {
+      break;
+    }
+    at += (size_t)n;
+  }
+  if (count <= 0) {
+    snprintf(out, out_size, "none");
+  }
+}
+
+void combat_analysis_log_engagement(
+  const ColonizeUnitPool* pool,
+  const ColonizeCombatEngagement* eng,
+  bool resolved
+) {
+  if (!diag_info_enabled() || !eng) {
+    return;
+  }
+  const ColonizeUnit* atk_u = pool ? units_get_const(pool, eng->attacker_id) : NULL;
+  const ColonizeUnit* def_u = pool ? units_get_const(pool, eng->defender_id) : NULL;
+  char atk_name[COMBAT_ANALYSIS_LINE_LEN];
+  char def_name[COMBAT_ANALYSIS_LINE_LEN];
+  snprintf(
+    atk_name, sizeof(atk_name), "%s",
+    (atk_u && atk_u->active) ? units_display_name(pool, atk_u)
+                             : (eng->atk_label[0] ? eng->atk_label : "?")
+  );
+  snprintf(
+    def_name, sizeof(def_name), "%s",
+    (def_u && def_u->active) ? units_display_name(pool, def_u) : "?"
+  );
+
+  CombatAnalysisRow atk_rows[COMBAT_ANALYSIS_LINES_MAX];
+  CombatAnalysisRow def_rows[COMBAT_ANALYSIS_LINES_MAX];
+  int atk_count = 0;
+  int def_count = 0;
+  const int atk_bonus = !eng->is_naval && (eng->atk_flags.flags & COMBAT_FLAG_MODE_ATK);
+  combat_analysis_fill_mods(atk_rows, &atk_count, &eng->atk_flags, atk_bonus, true);
+  combat_analysis_fill_mods(def_rows, &def_count, &eng->def_flags, 0, false);
+  char atk_mods[256];
+  char def_mods[256];
+  combat_analysis_join_rows(atk_mods, sizeof(atk_mods), atk_rows, atk_count);
+  combat_analysis_join_rows(def_mods, sizeof(def_mods), def_rows, def_count);
+
+  const int total = eng->atk_strength + eng->def_strength;
+  diag_info(
+    "COMBAT %s attacker=%s (nation %d, id %d) defender=%s (nation %d, id %d) at (%d,%d)",
+    eng->is_naval ? "naval" : "land",
+    atk_name,
+    atk_u ? atk_u->nation_id : -1,
+    eng->attacker_id,
+    def_name,
+    def_u ? def_u->nation_id : -1,
+    eng->defender_id,
+    def_u ? def_u->x : -1,
+    def_u ? def_u->y : -1
+  );
+  diag_info(
+    "COMBAT   attacker base=%d strength=%d mods: %s",
+    eng->atk_flags.base_combat, eng->atk_strength, atk_mods
+  );
+  diag_info(
+    "COMBAT   defender base=%d strength=%d mods: %s",
+    eng->def_flags.base_combat, eng->def_strength, def_mods
+  );
+  if (resolved) {
+    diag_info(
+      "COMBAT   odds %d/%d (%d%%) roll=%d -> %s wins",
+      eng->atk_strength,
+      total,
+      total > 0 ? (eng->atk_strength * 100) / total : 100,
+      eng->roll,
+      eng->atk_wins ? "attacker" : "defender"
+    );
   }
 }
 
