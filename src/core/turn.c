@@ -2362,6 +2362,17 @@ void turn_tally_professions(
  * next wave draws on the fleet pool). AI peers with no drydock keep the old
  * stay-put behavior. Runs each nation phase, after units_tick_drydock_repair.
  */
+/* Drydock (DOS colony feature bit 7) or its Shipyard upgrade. */
+static int turn_colony_repairs_ships(const ColonizeColony* c, int drydock, int shipyard) {
+  if (!c) {
+    return 0;
+  }
+  if (drydock >= 0 && drydock < COLONIZE_BUILDING_TYPES_MAX && c->has_building[drydock]) {
+    return 1;
+  }
+  return shipyard >= 0 && shipyard < COLONIZE_BUILDING_TYPES_MAX && c->has_building[shipyard];
+}
+
 static void turn_route_damaged_ships(ColonizeTurnContext* ctx, int nation) {
   if (!ctx || !ctx->units || !ctx->colonies || nation < 0 || nation > 3) {
     return;
@@ -2371,6 +2382,7 @@ static void turn_route_damaged_ships(ColonizeTurnContext* ctx, int nation) {
   const int crown =
     woi ? ai_king_crown_nation_col1(ctx->col1_ok ? ctx->col1 : NULL, ctx->human_nation) : -1;
   const int drydock = colonies_find_building(ctx->colonies, "Drydock");
+  const int shipyard = colonies_find_building(ctx->colonies, "Shipyard");
   for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
     ColonizeUnit* u = &ctx->units->units[i];
     if (!u->active || u->nation_id != nation || u->aboard_ship_id >= 0) {
@@ -2380,25 +2392,34 @@ static void turn_route_damaged_ships(ColonizeTurnContext* ctx, int nation) {
       continue;
     }
     const ColonizeUnitType* ty = units_type(ctx->units, u->type_index);
-    const int thresh = ty && ty->defense > 0 ? ty->defense : 4;
-    if (u->turns_worked < thresh) {
-      continue; /* still under construction — build tick owns bit7 */
+    /*
+     * bit7 is shared by "under construction" and "combat damaged"; only the
+     * latter sets repair_pending, so that — not the turns_worked/threshold
+     * comparison — is what separates them. The old threshold test never let
+     * a damaged ship through: units_tick_drydock_repair, which runs first,
+     * clears bit7 the moment the timer completes, so the Europe fallback
+     * below was unreachable and every damaged ship stayed at whatever colony
+     * combat had parked it on (bugs.md).
+     */
+    if (!u->repair_pending) {
+      continue; /* construction — build tick owns bit7 */
     }
     /* Already sitting on an own Drydock colony: the repair tick handles it. */
     const int cid = colonies_id_at(ctx->colonies, u->x, u->y);
     const ColonizeColony* here = colonies_get(ctx->colonies, cid);
-    if (here && here->active && here->nation_id == nation && drydock >= 0 &&
-        here->has_building[drydock]) {
+    if (here && here->active && here->nation_id == nation &&
+        turn_colony_repairs_ships(here, drydock, shipyard)) {
       continue;
     }
     /* Nearest own Drydock colony (recomputed here: the one picked at combat
      * time may since have been captured). */
     const ColonizeColony* best = NULL;
     long best_d = -1;
-    if (drydock >= 0) {
+    if (drydock >= 0 || shipyard >= 0) {
       for (int k = 0; k < COLONIZE_COLONIES_MAX; ++k) {
         const ColonizeColony* c = &ctx->colonies->colonies[k];
-        if (!c->active || c->nation_id != nation || !c->has_building[drydock]) {
+        if (!c->active || c->nation_id != nation ||
+            !turn_colony_repairs_ships(c, drydock, shipyard)) {
           continue;
         }
         const long dx = c->x - u->x;
@@ -2428,9 +2449,12 @@ static void turn_route_damaged_ships(ColonizeTurnContext* ctx, int nation) {
     }
     if (nation == ctx->human_nation && !woi && ctx->europe && u->cargo_count == 0) {
       const int turns = europe_voyage_turns_roll(ctx->rng, false, 1);
+      /* Same edge rule as the manual sail-to-Europe path so the ship comes
+       * back on the side it left from. */
+      const bool east = ctx->map ? (u->x >= (int)ctx->map->width / 2) : true;
       if (europe_enqueue_expected(
             ctx->europe, u->type_index, ty ? ty->name : "Ship", NULL, NULL, 0,
-            u->hold_goods_type, u->hold_goods_amount, u->x, u->y, true, turns
+            u->hold_goods_type, u->hold_goods_amount, u->x, u->y, east, turns
           )) {
         if (ctx->status && ctx->status_size > 0) {
           snprintf(

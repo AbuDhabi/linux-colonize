@@ -251,11 +251,21 @@ Combat loss remaps **unit type** (not merely profession). Cite:
   lifted vanish, passengers are lost — `units_ship_lose_holds`).
 - **Damage vs sink is a roll on @UNIT guns/hull** (DS `0x523b`/`0x523c`):
   `roll(1, winner.guns + loser.hull) <= loser.hull` → survives damaged
-  (bit7, `@SHIPDAMAGE`, teleport to nearest own Drydock colony, else nearest
-  own colony as the stored-port stand-in, else EOT routing); otherwise
-  despawn (`@SHIPSUNK`). A gunless victor (guns 0: all transports) can only
-  drive off damaged, never sink. No "already damaged" special: a re-loss
-  re-rolls, as in DOS.
+  (bit7, `@SHIPDAMAGE`, teleport to the nearest own Drydock/Shipyard colony);
+  otherwise despawn (`@SHIPSUNK`). A gunless victor (guns 0: all transports)
+  can only drive off damaged, never sink. No "already damaged" special: a
+  re-loss re-rolls, as in DOS.
+- **No repair port → Europe** (2026-09-04, bugs.md): DOS's colony scan tests
+  feature bit 7 only, and when it finds nothing substitutes the nation's
+  home-port name (`DS -0x7c74`, crown slot borrowing the human's) into
+  `%STRING2`. The ship stays on its tile and `turn_route_damaged_ships` hands
+  it to the Europe lane at end of turn — that voyage IS the repair. WoI human
+  keeps the DOS `goto`-to-sunk (no friendly Europe).
+- **Repair timer** (`0x5235` column): `turns_worked` preset to
+  `max(0, loser.combat - winner.combat)`, the winner's value doubled when it
+  is not a ship (fort fire), Frigate floor 4 / Man-O-War floor 8; the EOT ship
+  tick counts +1, +2 on a colony tile. The damage turn itself does not count
+  (`repair_pending == 2`), so a damaged ship is always out at least one turn.
 - **Stack sweep** (`units_sweep_naval_stack_after_loss`, DOS `FUN_5fef_0ec0`):
   every stackmate on the loser's tile takes its own 0352 — each ship its own
   plunder + damage-vs-sink roll; land stackmates are destroyed (a ship winner
@@ -267,9 +277,9 @@ Combat loss remaps **unit type** (not merely profession). Cite:
   actually taken (sunk), not when it escapes damaged.
 - Unported DOS residue: AI fleet-pool keep/lose biases, crown-MoW forced-
   damage exemption, late-game (turn>0x4f) forced Caravel sink, the
-  `0x5235`-column repair-turn formula (Linux keeps its drydock-tick model),
-  and the per-nation stored-port coords (`DS -0x77c6`) for the damaged
-  teleport target.
+  and the per-nation stored-port *coords* (`DS -0x77c6`, written to the
+  loser's goal fields +0x314d/e — Linux routes through the Europe lane
+  instead).
 
 ### Colony capture
 

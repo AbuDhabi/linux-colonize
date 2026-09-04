@@ -71,11 +71,79 @@ static ColonizeUnit* units_slot(ColonizeUnitPool* pool) {
   return NULL;
 }
 
+/*
+ * NAMES.TXT @NATIONALITY adjectives ("English"/"French"/"Spanish"/"Dutch"),
+ * cached at type-load time: DOS's nation_name_ptr (FUN_15b3_01e0, reached as
+ * func_0x00018b94 from FUN_5fef_0352) reads the DS:-0x72f6 adjective table
+ * for every combat / unit substitution, never the player's @COLONYNAME
+ * ("New Spain"). Copied rather than aliased so a caller's catalog going out
+ * of scope cannot dangle here. bugs.md: "New Spain Privateer".
+ */
+static char g_units_nationality[4][24];
+
+/*
+ * NAMES.TXT @HOMEPORT ("London"/"La Rochelle"/"Seville"/"Amsterdam") — DOS's
+ * DS:-0x7c74 table, the @SHIPDAMAGE %STRING2 when the loser's nation owns no
+ * Drydock colony (FUN_5fef_0352: the ship goes to Europe, not to some other
+ * colony).
+ */
+static char g_units_homeport[4][24];
+
+/* Bounded copy: NAMES rows are COLONIZE_MSG_LINE_LEN wide, these cells 24. */
+static void units_copy_row(char* dst, size_t cap, const char* src) {
+  size_t n = 0;
+  while (src && src[n] && n + 1 < cap) {
+    dst[n] = src[n];
+    n++;
+  }
+  dst[n] = '\0';
+}
+
+static void units_cache_names_rows(
+  const ColonizeMsgCatalog* names, const char* section, char out[4][24],
+  const char* const fallback[4]
+) {
+  for (int i = 0; i < 4; ++i) {
+    units_copy_row(out[i], 24, fallback[i]);
+  }
+  const ColonizeMsgSection* sec = names ? assets_msg_find(names, section) : NULL;
+  if (!sec) {
+    return;
+  }
+  int row = 0;
+  for (int i = 0; i < sec->line_count && row < 4; ++i) {
+    char line[COLONIZE_MSG_LINE_LEN];
+    snprintf(line, sizeof(line), "%s", sec->lines[i]);
+    char* semi = strchr(line, ';');
+    if (semi) {
+      *semi = '\0';
+    }
+    char* comma = strchr(line, ',');
+    if (comma) {
+      *comma = '\0';
+    }
+    units_trim(line);
+    if (line[0] == '\0') {
+      continue;
+    }
+    units_copy_row(out[row], 24, line);
+    row++;
+  }
+}
+
+static void units_cache_nationality(const ColonizeMsgCatalog* names) {
+  static const char* const k_euro[4] = {"English", "French", "Spanish", "Dutch"};
+  static const char* const k_port[4] = {"London", "La Rochelle", "Seville", "Amsterdam"};
+  units_cache_names_rows(names, "NATIONALITY", g_units_nationality, k_euro);
+  units_cache_names_rows(names, "HOMEPORT", g_units_homeport, k_port);
+}
+
 bool units_load_types(ColonizeUnitPool* pool, const ColonizeMsgCatalog* names) {
   if (!pool || !names) {
     return false;
   }
   pool->type_count = 0;
+  units_cache_nationality(names);
 
   const ColonizeMsgSection* section = assets_msg_find(names, "UNIT");
   if (!section) {
@@ -412,6 +480,19 @@ int units_tick_ship_build_ready(
      * units_tick_drydock_repair to clear this EOT.
      */
     if (u->turns_worked >= threshold) {
+      continue;
+    }
+    /*
+     * bugs.md ("Ships damaged don't get a timeout. They should. It is AT
+     * LEAST one turn."): the turn a ship is damaged is not a repair turn.
+     * A Caravel victor presets remaining = 2 and a ship parked on a colony
+     * tile counts +2, so without this the whole repair landed inside the
+     * same end-of-turn the combat happened in and the player never saw a
+     * damaged ship. repair_pending 2 = damaged this turn; the first tick
+     * downgrades it to 1 and counts nothing.
+     */
+    if (u->repair_pending > 1) {
+      u->repair_pending = 1;
       continue;
     }
     if (u->turns_worked < 255) {
@@ -1797,8 +1878,14 @@ static const char* units_combat_nation_label(const ColonizeCol1Save* col1, int n
          nation_id == g_units_combat_human_nation)) {
       return "Rebels";
     }
-    if (col1 && col1->player[nation_id].country_name[0]) {
-      return col1->player[nation_id].country_name;
+    /*
+     * bugs.md ("New Spain Privateer" should be "Spanish Privateer"): DOS
+     * substitutes the @NATIONALITY adjective here, not the player's
+     * @COLONYNAME. country_name is the new-world colony region and belongs
+     * in colony/diplomacy text, never on a unit.
+     */
+    if (g_units_nationality[nation_id][0]) {
+      return g_units_nationality[nation_id];
     }
     return k_euro[nation_id];
   }
@@ -2660,15 +2747,25 @@ static const ColonizeColony* units_nearest_own_drydock_colony(
   if (!colonies) {
     return NULL;
   }
+  /* DOS tests colony feature bit 7 (Drydock). Shipyard is the tier above it
+   * and leaves that bit set, but a save whose mask only carries the top tier
+   * must still count as a repair port. */
   const int drydock = colonies_find_building(colonies, "Drydock");
-  if (drydock < 0 || drydock >= COLONIZE_BUILDING_TYPES_MAX) {
+  const int shipyard = colonies_find_building(colonies, "Shipyard");
+  if (drydock < 0 && shipyard < 0) {
     return NULL;
   }
   const ColonizeColony* best = NULL;
   long best_d = -1;
   for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
     const ColonizeColony* c = &colonies->colonies[i];
-    if (!c->active || c->nation_id != nation_id || !c->has_building[drydock]) {
+    if (!c->active || c->nation_id != nation_id) {
+      continue;
+    }
+    const int repairs =
+      (drydock >= 0 && drydock < COLONIZE_BUILDING_TYPES_MAX && c->has_building[drydock]) ||
+      (shipyard >= 0 && shipyard < COLONIZE_BUILDING_TYPES_MAX && c->has_building[shipyard]);
+    if (!repairs) {
       continue;
     }
     const long dx = c->x - x;
@@ -2680,6 +2777,25 @@ static const ColonizeColony* units_nearest_own_drydock_colony(
     }
   }
   return best;
+}
+
+/*
+ * @SHIPDAMAGE %STRING2 when the loser's nation owns no Drydock colony: DOS
+ * FUN_5fef_0352 substitutes the nation's home-port name from DS:-0x7c74 (the
+ * crown slot borrowing the human's) — the ship goes to EUROPE, not to the
+ * nearest ordinary colony. bugs.md: "Ships damaged don't seem to respect the
+ * need for a drydock or shipyard".
+ */
+static const char* units_home_port_name(const ColonizeCol1Save* col1, int nation_id) {
+  int n = nation_id;
+  const int crown = unit_chrome_crown_nation();
+  if (crown >= 0 && n == crown) {
+    n = col1 ? (int)col1->head.human_player : g_units_combat_human_nation;
+  }
+  if (n < 0 || n > 3) {
+    return "Europe";
+  }
+  return g_units_homeport[n][0] ? g_units_homeport[n] : "Europe";
 }
 
 /* Naval: damage-not-always-sink when margin close; else plunder+despawn. */
@@ -2802,7 +2918,7 @@ static int units_apply_naval_loss_outcome(
     lose->col1_unknown15 |= 0x80u;
     lose->moves_left = 0;
     lose->orders = 0; /* DOS zeroes +0x314c */
-    lose->repair_pending = 1;
+    lose->repair_pending = 2; /* 2 = damaged this turn; see the repair tick */
     {
       const int thresh = lt && lt->defense > 0 ? lt->defense : 4;
       int wstr = wt ? wt->defense : 0;
@@ -2818,15 +2934,12 @@ static int units_apply_naval_loss_outcome(
       }
       lose->turns_worked = (uint8_t)worked;
     }
-    if (!home) {
-      /* DOS teleports to the nation's stored port coords (per-nation DS
-       * -0x77c6 pair) even with no Drydock anywhere — the loser always
-       * vacates the battle tile so the victor can move in. Nearest own
-       * colony stands in for that; the EOT tick still reroutes it. */
-      home = units_nearest_own_colony(
-        g_units_combat_colonies, lose->nation_id, lose->x, lose->y
-      );
-    }
+    /*
+     * With no Drydock/Shipyard colony the ship is Europe-bound: it stays on
+     * its tile this turn and turn_route_damaged_ships hands it to the Europe
+     * lane at end of turn (that voyage IS the repair). Only a repair port
+     * teleports it. bugs.md: it must not simply park at the nearest colony.
+     */
     if (home && (home->x != lose->x || home->y != lose->y)) {
       const int old_x = lose->x;
       const int old_y = lose->y;
@@ -2840,7 +2953,8 @@ static int units_apply_naval_loss_outcome(
       memset(&tok, 0, sizeof(tok));
       tok.string0 = units_combat_nation_label(col1, lose->nation_id);
       tok.string1 = lt ? lt->name : "Ship";
-      tok.string2 = home && home->name[0] ? home->name : "Europe";
+      tok.string2 = (home && home->name[0]) ? home->name
+                                            : units_home_port_name(col1, lose->nation_id);
       char fb[AI_POPUP_BODY_LEN];
       snprintf(
         fb, sizeof(fb), "%s %s damaged! Ship returns to %s for repairs.",
@@ -4750,7 +4864,7 @@ static bool units_fort_vs_ship(
       def->col1_unknown15 |= 0x80u;
       def->moves_left = 0;
       def->orders = 0;
-      def->repair_pending = 1;
+      def->repair_pending = 2; /* 2 = damaged this turn; see the repair tick */
       {
         const int thresh = dt->defense > 0 ? dt->defense : 4;
         int wstr = attack_str << 1; /* non-ship winner doubles the bill */
@@ -4763,11 +4877,8 @@ static bool units_fort_vs_ship(
         }
         def->turns_worked = (uint8_t)worked;
       }
-      if (!home) {
-        home = units_nearest_own_colony(
-          g_units_combat_colonies, def->nation_id, def->x, def->y
-        );
-      }
+      /* No repair port: Europe-bound, stays put until the EOT router (see
+       * the naval-loss arm for the same rule). */
       if (home && (home->x != def->x || home->y != def->y)) {
         const int old_x = def->x;
         const int old_y = def->y;
@@ -4781,7 +4892,8 @@ static bool units_fort_vs_ship(
         memset(&tok, 0, sizeof(tok));
         tok.string0 = units_combat_nation_label(col1, def->nation_id);
         tok.string1 = dt->name;
-        tok.string2 = home && home->name[0] ? home->name : "Europe";
+        tok.string2 = (home && home->name[0]) ? home->name
+                                              : units_home_port_name(col1, def->nation_id);
         char fb[AI_POPUP_BODY_LEN];
         snprintf(
           fb, sizeof(fb), "%s %s damaged! Ship returns to %s for repairs.",
