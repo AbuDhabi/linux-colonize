@@ -249,6 +249,58 @@ int units_find_type(const ColonizeUnitPool* pool, const char* name) {
   return -1;
 }
 
+/*
+ * bugs.md: the destination @UNIT type for an equipment change, honouring the
+ * body's own tier. DOS re-types through the DS:0x2f5 @JOB->@UNIT table
+ * (FUN_15eb_0916 out of FUN_15eb_1068 case 1), whose only entries are the six
+ * colonial types — but the reverse table DS:0x30e deliberately files the
+ * Continentals under those same jobs (type 9 "Cont. Army" -> job 0x15
+ * Soldier, type 7 "Cont. Cav." -> job 0x17 Dragoon), which is the pairing the
+ * WoI promotion (FUN_5fef_172c) and the demote table both use. Mounting a
+ * Continental Army therefore yields Continental Cavalry, not the plain
+ * Veteran Dragoons the flat table name would give; the same holds for the
+ * King's Regulars/Cavalry pair. Losing the muskets drops the body out of the
+ * tier entirely (DOS demote: Cont. Army -> Colonists).
+ */
+const char* units_equip_role_type_name(
+  const ColonizeUnitPool* units,
+  int cur_type_index,
+  int role
+) {
+  const ColonizeUnitType* t = units_type(units, cur_type_index);
+  const char* n = (t && t->name[0]) ? t->name : NULL;
+  const int is_cont = n && (strstr(n, "Cont") != NULL || strstr(n, "Continental") != NULL);
+  const int is_royal = n && !is_cont &&
+                       (strstr(n, "Regular") != NULL || strstr(n, "Cavalry") != NULL);
+  if (role == COLONIZE_EJECT_SOLDIER) {
+    if (is_cont) {
+      return "Cont. Army";
+    }
+    if (is_royal) {
+      return "Regulars";
+    }
+    return "Soldiers";
+  }
+  if (role == COLONIZE_EJECT_DRAGOON) {
+    if (is_cont) {
+      return "Cont. Cav.";
+    }
+    if (is_royal) {
+      return "Cavalry";
+    }
+    return "Dragoons";
+  }
+  switch (role) {
+  case COLONIZE_EJECT_PIONEER:
+    return "Pioneers";
+  case COLONIZE_EJECT_SCOUT:
+    return "Scouts";
+  case COLONIZE_EJECT_COLONIST:
+  default:
+    return "Colonists";
+  }
+}
+
 int units_spawn(ColonizeUnitPool* pool, int type_index, int x, int y) {
   if (!pool || type_index < 0 || type_index >= pool->type_count) {
     return -1;
@@ -4452,8 +4504,18 @@ bool units_resolve_land_combat_ff(
      * Stackmates / colony bystanders are not captured while the colony still
      * stands; they fall with the colony (entry seizure) instead. The
      * attacker-loss sweep below stays unconditional, as in DOS.
+     *
+     * bugs.md: the raw type byte is not the faithful test in THIS port. DOS
+     * stores a colony-armed colonist as @UNIT type 1 "Soldiers" (attack 2);
+     * the port keeps the colonist body and hangs muskets/horses on it, so its
+     * type byte is 0. Reading `at->attack` alone therefore made every armed
+     * colonist (including a Tory one that changed hands with a captured port)
+     * sweep and capture the whole defending stack — wagon trains and all —
+     * on a single won attack, while armed defenders were still standing.
+     * Test the DOS combat role instead: attack 0 AND no carried kit.
      */
-    if (at->attack == 0) {
+    const int atk_noncombat_body = (at->attack == 0 && atk->muskets <= 0 && atk->horses <= 0);
+    if (atk_noncombat_body) {
       units_sweep_stack_after_loss(pool, def_x, def_y, def_nation, attacker_id, defender_id, col1);
     }
     atk = units_get(pool, attacker_id);
@@ -5281,7 +5343,7 @@ static void units_try_capture_foreign_colony(
  * (units_apply_land_loss_outcome per unit). Without this, a bystanding
  * civilian keeps the tile "contested" and blocks the capture forever.
  */
-static void units_seize_noncombat_at(
+void units_seize_noncombat_at(
   ColonizeUnitPool* pool, int winner_id, int x, int y, const ColonizeCol1Save* col1
 ) {
   const ColonizeUnit* win = units_get_const(pool, winner_id);

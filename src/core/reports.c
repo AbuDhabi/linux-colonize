@@ -1233,8 +1233,13 @@ static void reports_render_congress_page1(
    * present, the Founding Fathers header (and list) move down below it
    * instead of sharing the fixed 10px gap and overlapping both neighbors. */
   const int interv_row_y = REPORTS_CONGRESS_FORCE_Y + REPORTS_CONGRESS_FORCE_H + 2;
+  /* bugs.md: the "<Ally> Intervention Force:" header gets its own row, the
+   * way the REF's "<Nation> Expeditionary Force:" header does (text at
+   * TEXT3_Y, lineup at FORCE_Y) — the lineup then owns the full row width
+   * below it instead of starting after the header at x=110. */
+  const int interv_icons_y = interv_row_y + step;
   const int ff_header_y = pool_sum > 0
-    ? interv_row_y + REPORTS_CONGRESS_FORCE_H + 3
+    ? interv_icons_y + REPORTS_CONGRESS_FORCE_H + 2
     : REPORTS_CONGRESS_FF_HEADER_Y;
   {
     if (pool_sum > 0) {
@@ -1248,15 +1253,17 @@ static void reports_render_congress_page1(
         REPORTS_CONGRESS_ICON_ARTILLERY,
         REPORTS_CONGRESS_ICON_MANOWAR
       };
-      static const int kForceX2[4] = {110, 170, 225, 275};
-      const int row_y = interv_row_y;
+      /* Same four cells as the REF lineup above, now that the header has
+       * moved off this row. */
+      static const int kForceX2[4] = {4, 128, 193, 260};
+      const int row_y = interv_icons_y;
       const int row_h = REPORTS_CONGRESS_FORCE_H;
       snprintf(
         line, line_sz, "%s %s:",
         ally >= 0 ? reports_nation_adjective(ally) : "Foreign",
         reports_misc_word(111, "Intervention Force", w1, sizeof(w1))
       );
-      reports_draw_line(font, fb, 4, row_y + 1, line, 15);
+      reports_draw_line(font, fb, 8, interv_row_y, line, 15);
       for (int i = 0; i < 4; ++i) {
         const int amount = (int)col1->head.backup_force[kForceIndex2[i]];
         if (amount <= 0) {

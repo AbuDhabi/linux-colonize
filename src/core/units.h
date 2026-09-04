@@ -338,6 +338,18 @@ bool units_load_types(ColonizeUnitPool* pool, const ColonizeMsgCatalog* names);
 void units_reset(ColonizeUnitPool* pool);
 
 int units_find_type(const ColonizeUnitPool* pool, const char* name);
+
+/*
+ * Destination @UNIT type name for a COLONIZE_EJECT_* equipment change applied
+ * to an EXISTING unit of type cur_type_index — keeps a Continental
+ * (Cont. Army <-> Cont. Cav.) or royal (Regulars <-> Cavalry) body in its own
+ * tier instead of dropping it to the plain colonial pair. See units.c.
+ */
+const char* units_equip_role_type_name(
+  const ColonizeUnitPool* units,
+  int cur_type_index,
+  int role
+);
 int units_spawn(ColonizeUnitPool* pool, int type_index, int x, int y);
 /* Spawn even if the tile already has a unit (COL1 stacks / passengers). */
 int units_spawn_allow_stack(ColonizeUnitPool* pool, int type_index, int x, int y);
@@ -696,6 +708,21 @@ void units_set_combat_popup_pump(ColonizeUnitsPopupPumpFn fn, void* user);
 /* Present-and-answer queued popups now via the registered pump (no-op when
  * headless). bugs.md 243: popup before animation, each blocking. */
 void units_pump_combat_popups(void);
+
+/*
+ * DOS entry seizure: apply FUN_5fef_0352's loss outcome to every foreign
+ * non-combat unit left standing on (x, y) once the tile's defense is beaten —
+ * Colonists / Wagon Trains / Treasure change hands, Pioneers / Missionaries /
+ * Scouts are destroyed, Artillery is damaged then destroyed. Callers must
+ * already have established that no armed defender remains.
+ */
+void units_seize_noncombat_at(
+  ColonizeUnitPool* pool,
+  int winner_id,
+  int x,
+  int y,
+  const ColonizeCol1Save* col1
+);
 
 /*
  * Land combat (FUN_157e / FUN_5fef_1b0e peel): attacker base×8 (004a mode 1);
