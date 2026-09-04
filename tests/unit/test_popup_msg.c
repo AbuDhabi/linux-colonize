@@ -115,10 +115,59 @@ int main(void) {
     ++checked;
   }
 
+  /*
+   * bugs.md (King galleon / Euro diplomacy: "the options are appended in the
+   * text"): DOS FUN_6f74_32a4 is a blank-line state machine — state 1 body,
+   * state 2 choices, state 3 done — so no choice row may ever appear in the
+   * body. Sweep every section in the shipped GAME.TXT, not just the wired
+   * ones, so a newly wired dialog cannot regress silently.
+   */
+  int swept = 0;
+  for (int s = 0; s < catalog.section_count; ++s) {
+    const ColonizeMsgSection* sec = &catalog.sections[s];
+    /* @TAXOPTIONS is not a dialog: DOS reads its two rows line-by-line
+     * (38fd:40a9 FUN_291f_0928 + 091c) and appends them to the @KINGTAX box,
+     * so it has no body/choice split of its own. */
+    if (strcmp(sec->name, "TAXOPTIONS") == 0) {
+      continue;
+    }
+    char body[2048];
+    popup_msg_section_body(sec, body, sizeof(body), true);
+    char choices[8][POPUP_MSG_CHOICE_LEN];
+    const int nch = popup_msg_choices(sec, choices, 8);
+    for (int c = 0; c < nch; ++c) {
+      if (choices[c][0] && strstr(body, choices[c]) != NULL) {
+        fprintf(
+          stderr, "unit_popup_msg: @%s choice row leaked into the body: '%s'\n", sec->name,
+          choices[c]
+        );
+        rc = fail("choice row present in dialog body");
+        break;
+      }
+    }
+    ++swept;
+  }
+
+  /* @ABANDON: DOS 2f2b caseD_a shows it through the normal compositor with
+   * @default=2 pre-selected ("Never! That would be folly."). */
+  {
+    const ColonizeMsgSection* ab = assets_msg_find(&catalog, "ABANDON");
+    if (!ab || popup_msg_section_default(ab) != 2) {
+      rc = fail("@ABANDON lost its @default=2");
+    }
+    if (popup_msg_mss_index_for_section("ABANDON") != 5 ||
+        popup_msg_mss_index_for_section("ABANDON2") != 5) {
+      rc = fail("@ABANDON/@ABANDON2 lost the MSS5 figure");
+    }
+  }
+
   assets_msg_free(&catalog);
   if (rc != 0) {
     return rc;
   }
-  fprintf(stderr, "unit_popup_msg: ok (%d/%zu sections clean)\n", checked, n);
+  fprintf(
+    stderr, "unit_popup_msg: ok (%d/%zu sections clean, %d swept for choice leaks)\n", checked, n,
+    swept
+  );
   return 0;
 }

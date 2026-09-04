@@ -109,6 +109,13 @@ typedef enum AiPopupTag {
                                   * payload 2 = @KINGWIN on KINGWIN.SS (war lost);
                                   * dismissal opens the retire score chain. */
   AI_POPUP_TAG_TRADE_TYPE = 57, /* @TRADETYPE create-wizard CHOICE (DOS OVL19): 1 = Sea, 0 = Land */
+  AI_POPUP_TAG_SAILHOME = 58, /* @SAILHOME (FUN_4720_049e reason 5): eastward step deeper into the
+                               * sea lane. 1 = sail for Europe; 0 = remain (step still commits).
+                               * nation_a = ship id, nation_b = dest x, payload = dest y. */
+  AI_POPUP_TAG_COLONY_ABANDON = 59, /* @ABANDON / @ABANDON2 colony-screen confirm (DOS 2f2b
+                                     * caseD_a: FUN_281f_0652(name, 5), @default=2 → "Never!").
+                                     * 1 = abandon, 2 / Esc = keep.
+                                     * nation_a = colonist slot, nation_b = eject role. */
   AI_POPUP_TAG_WAR_SCORED = 56 /* post-HoF @SCORED CHOICE after a WoI win:
                                 * 1 = "That's all." (title menu), 2 = "Keep playing anyway." */
 } AiPopupTag;
@@ -141,6 +148,12 @@ typedef struct AiPopupRequest {
    */
   int graphic_mss;
   int graphic_myr;
+  /*
+   * GAME.TXT `@default=N`: 1-based choice row DOS pre-highlights when the
+   * dialog opens (FUN_6f74_32a4 default slot). 0 = first row.
+   * Auto-filled from popup_msg_fill's side-channel, same as `width`.
+   */
+  int default_choice;
 } AiPopupRequest;
 
 typedef struct AiPopupState {
@@ -236,11 +249,29 @@ void ai_popup_colony_zoom_elect(AiPopupState* st, int colony_id);
  */
 int ai_popup_take_colony_zoom(AiPopupState* st);
 
+/*
+ * Stable-reorder the queue: entries tagged `promote` that sit behind the first
+ * entry tagged `before` move to just in front of it (relative order kept).
+ * DOS FUN_364b_0688 runs bells+FF (4345_0a22, Phase A prologue) BEFORE the
+ * colony message phases, so a Congress nomination/election presents ahead of
+ * the colony production chrome; the port computes production first (RNG order
+ * pinned by goldens) and fixes the presentation order here instead.
+ */
+void ai_popup_promote_tag_before(AiPopupState* st, AiPopupTag promote, AiPopupTag before);
+
 bool ai_popup_queue_pending(const AiPopupState* st);
 bool ai_popup_busy(const AiPopupState* st); /* open or queued */
 
 /* If !open && queue non-empty, pop front into current and open. */
 bool ai_popup_try_present_next(AiPopupState* st);
+
+/*
+ * Open the newest queued request with `tag` right now, ahead of everything
+ * else. For player-initiated modals only (a colony-screen confirm): DOS runs
+ * those as a nested blocking dialog from inside the screen's own event loop,
+ * so they never wait behind queued AI chrome or a colony-zoom hold.
+ */
+bool ai_popup_present_now(AiPopupState* st, AiPopupTag tag);
 
 /* Cancel the OPEN dialog as if Esc was pressed (result_cancelled for a CHOICE). */
 void ai_popup_cancel_current(AiPopupState* st);

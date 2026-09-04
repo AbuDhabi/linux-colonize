@@ -2415,7 +2415,10 @@ static void ai_king_tax_hike_apply(ColonizeTurnContext* ctx, int human, int delt
   if (ai_king_human_popups(ctx)) {
     PopupMsgTokens tok;
     memset(&tok, 0, sizeof(tok));
-    tok.number0 = 1;
+    /* DOS 3dc8: NUMBER0 = |applied delta| (FUN_281f_09ae(0, abs(param_2))
+     * after both clamps), not a constant 1 — bugs.md: popup claimed "raise
+     * by 1%" for a 7% hike. */
+    tok.number0 = applied;
     tok.has_number0 = true;
     tok.number1 = (int)nat->tax_rate;
     tok.has_number1 = true;

@@ -59,28 +59,6 @@ static const ColonizeCol1Tribe* combat_tribe_at(const ColonizeCol1Save* col1, in
   return NULL;
 }
 
-/*
- * Thin FUN_157e_0008: count 0..3 settlement defense probes from Indian tech.
- * Cite: FUN_15eb_038e(0..2); indian[].tech.
- */
-static int combat_village_probe_count(const ColonizeCol1Save* col1, int nation_id) {
-  if (!col1 || nation_id < 4 || nation_id > 11) {
-    return 0;
-  }
-  const int tech = (int)col1->indian[nation_id - 4].tech;
-  int n = 0;
-  if (tech >= 1) {
-    ++n;
-  }
-  if (tech >= 2) {
-    ++n;
-  }
-  if (tech >= 3) {
-    ++n;
-  }
-  return n;
-}
-
 static int combat_colony_local_1a(
   const ColonizeColonyPool* colonies,
   const ColonizeColony* col,
@@ -274,16 +252,35 @@ int combat_engagement_strength(
     }
   }
 
-  /* B. Native village. */
+  /*
+   * B. Native village — DOS FUN_157e_015e village arm (viceroy 8989-9002):
+   * local_1a = 2; tribe tech > 1 (Advanced/Civilized) → 4 (8d02|0x10);
+   * capital (tribe record +3 bit4) → local_1a <<= 1 (8d02|0x20). The old
+   * (probe+1)*2 formula here belonged to the COLONY arm (FUN_157e_0008
+   * probes the bound colony's fort tier) — it mislabeled an Aztec village
+   * +150% (bugs: "Aztec bonus").
+   */
   if (ctx->col1) {
     const ColonizeCol1Tribe* tribe = combat_tribe_at(ctx->col1, u->x, u->y);
     if (tribe) {
       const int nation = (int)tribe->nation_id;
-      const int n = combat_village_probe_count(ctx->col1, nation >= 4 ? nation : u->nation_id);
-      local_1a = (n + 1) * 2;
+      int tech = 0;
+      if (nation >= 4 && nation <= 11) {
+        tech = (int)ctx->col1->indian[nation - 4].tech;
+      }
+      local_1a = 2;
+      if (tech > 1) {
+        local_1a = 4;
+      }
+      if (tribe->state.capital) {
+        local_1a <<= 1;
+      }
       if (out_flags) {
         out_flags->flags |= COMBAT_FLAG_VILLAGE;
-        out_flags->village_n = n;
+        out_flags->village_n = tech;
+        if (tribe->state.capital) {
+          out_flags->flags2 |= COMBAT_FLAG_VILLAGE_CAPITAL;
+        }
       }
       goto fortify;
     }
@@ -497,6 +494,16 @@ void combat_apply_1b0e_peels(
   const int atk_ship = combat_type_is_ship(ctx->units, attacker_id);
   const int def_ship = combat_type_is_ship(ctx->units, defender_id);
   const int on_colony = combat_unit_on_colony(ctx, def);
+  /*
+   * DOS 1b0e keys the artillery + Spanish-ambush clauses on
+   * FUN_281f_06be(dest) = tile settlement bit (layer2&2 — set on Euro colony
+   * AND Indian village tiles; euro_unit_act.md road-pair rule "colony 0x02"),
+   * NOT on the colony lookup (07be) the WoI clauses use. So artillery
+   * attacking a village is NOT "in the open" (bugs: −75% wrongly applied),
+   * and the Spanish +50% fires on village tiles.
+   */
+  const int on_settlement =
+    on_colony || (ctx->col1 && combat_tribe_at(ctx->col1, def->x, def->y) != NULL);
   const int land = !atk_ship && !def_ship;
 
   /* Difficulty: human Euro side strength -= (difficulty - 4). */
@@ -511,32 +518,45 @@ void combat_apply_1b0e_peels(
     }
   }
 
-  /* Artillery open-field >>2 when combat tile is not a colony. */
+  /*
+   * DOS 1b0e 1f0b (unported until 2026-09-03): land vs land, attacker type
+   * attack (5236) > 1 and defender type defense (5235) < 2 → defender
+   * strength halved. No 8d00 flag — DOS 636c has no row for it.
+   */
+  if (land && at->attack > 1 && dt->defense < 2) {
+    io->def_strength >>= 1;
+  }
+
+  /* Artillery open-field >>2 when the combat tile has no settlement. */
   if (land) {
     const int atk_arty = combat_type_is_artillery_name(at->name);
     const int def_arty = combat_type_is_artillery_name(dt->name);
-    const int atk_fort =
-      atk->orders == UNITS_ORDER_FORTIFIED || atk->orders == UNITS_ORDER_FORTIFY;
+    /*
+     * DOS 1f4b: BOTH clauses read the DEFENDER's orders (asm IMUL of the
+     * defender slot in each) — penalty unless (defender Fortify/Fortified
+     * AND defender is Euro). The old port tested each side's own orders.
+     */
     const int def_fort =
       def->orders == UNITS_ORDER_FORTIFIED || def->orders == UNITS_ORDER_FORTIFY;
-    if (!on_colony) {
-      if (atk_arty && (!atk_fort || def_nat > 3)) {
+    const int def_shielded = def_fort && def_nat <= 3;
+    if (!on_settlement) {
+      if (atk_arty && !def_shielded) {
         io->atk_strength >>= 2;
         io->atk_flags.flags |= COMBAT_FLAG_ARTILLERY;
         io->atk_flags.flags_hi |= COMBAT_FLAG_ARTILLERY;
       }
-      if (def_arty && (!def_fort || atk_nat > 3)) {
+      if (def_arty && !def_shielded) {
         io->def_strength >>= 2;
         io->def_flags.flags |= COMBAT_FLAG_ARTILLERY;
         io->def_flags.flags_hi |= COMBAT_FLAG_ARTILLERY;
       }
     } else if (def_arty && atk_nat > 3) {
-      /* Artillery defender vs native attacker on colony → ×2. */
+      /* Artillery defender vs native attacker on settlement → ×2. */
       io->def_strength <<= 1;
       io->def_flags.flags2 |= COMBAT_FLAG_ARTY_COLONY;
     }
-    /* Spanish ambush +50% vs Indians on colony. */
-    if (atk_nat == 2 && def_nat > 3 && on_colony) {
+    /* Spanish ambush +50% vs Indians on a settlement tile (villages). */
+    if (atk_nat == 2 && def_nat > 3 && on_settlement) {
       io->atk_strength += io->atk_strength >> 1;
       io->atk_flags.flags |= COMBAT_FLAG_AMBUSH;
       io->atk_flags.flags_hi |= COMBAT_FLAG_AMBUSH;

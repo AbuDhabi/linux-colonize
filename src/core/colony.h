@@ -748,6 +748,19 @@ int colonies_transfer_from_unit(
   int hold_index,
   bool* out_warehouse_full
 );
+/*
+ * Partial unload (@HOWMUCH2 shift-drag): move up to `amount` from the hold
+ * ashore; delegates to colonies_transfer_from_unit when it empties the hold.
+ */
+int colonies_transfer_from_unit_amount(
+  ColonizeColonyPool* pool,
+  int colony_id,
+  ColonizeUnitPool* units,
+  int unit_id,
+  int hold_index,
+  int amount,
+  bool* out_warehouse_full
+);
 
 /*
  * Jan de Witt: transfer cargo between a transport and a *foreign* European

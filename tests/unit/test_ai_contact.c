@@ -1,4 +1,5 @@
 /* Smoke: Indian meet + friction raid loot (@RAID* kinds) + prelude encroachment. */
+#include "core/ai.h"
 #include "core/ai_contact.h"
 #include "core/ai_diplo.h"
 #include "core/ai_popup.h"
@@ -769,360 +770,48 @@ int main(void) {
   }
 
   /*
-   * Teach-skill pulse: peaceful Free Colonist adjacent to tribe →
-   * tribe.state.learned and tribe-appropriate profession.
-   * last_sold cargo (furs) drives Expert Fur Trapper over nation default.
+   * bugs.md 2026-09-04 (bugs 2 and 3): there is NO passive teach pulse.
+   * DOS's Brave-side contact FUN_5bfb_022e (viceroy_unpacked_2.c 87455-88030)
+   * has no teach arm at all - its arms are first contact, demand/beg-food,
+   * gift (@INDIANGIVEFOOD/@INDIANGIVESTUFF), mission convert and raid.
+   * Teaching is reached only through the deliberate "Live Among The Natives"
+   * @ACTIONS row (FUN_4d56_4528 dispatch case 5 -> thunk_FUN_1000_a618).
+   * So a Brave wandering past a colonist must never set tribe.state.learned,
+   * never hand out a profession, and never emit a teach / @LEARN* line.
    */
   units_despawn(&units, miss_id);
-  euro->x = 6;
-  euro->y = 5;
-  euro->profession = UNITS_JOB_NONE;
-  col1.tribe[0].state.learned = 0;
-  col1.tribe[0].last_sold = (uint8_t)COLONIZE_CARGO_FURS;
-  col1.tribe[0].alarm[0].friction = 5;
-  ind->alarm_by_player[0] = 5;
-  col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT; /* met (was relation 80; alarm pinned above) */
-  ai_contact_indian_meet_trade(&ctx, 4);
-  if (!col1.tribe[0].state.learned) {
-    return fail("teach-skill should set tribe.state.learned");
-  }
-  if (euro->profession != COLONIZE_JOB_FUR_TRAPPER) {
-    return fail("teach-skill last_sold furs → Expert Fur Trapper");
-  }
-
-  /*
-   * Already learned (Col1 one-shot): state.learned set → skip teach and do not
-   * write teach status (preserves other chrome). Cite: indian_contact.md.
-   */
   {
-    char status_al[128];
-    status_al[0] = '\0';
-    ctx.status = status_al;
-    ctx.status_size = sizeof(status_al);
+    char status_np[128];
+    status_np[0] = '\0';
+    ctx.status = status_np;
+    ctx.status_size = sizeof(status_np);
     ctx.human_nation = 0;
     euro->x = 6;
     euro->y = 5;
+    euro->active = true;
     euro->profession = UNITS_JOB_NONE;
     col1.tribe[0].nation_id = 4;
-    col1.tribe[0].state.learned = 1;
-    col1.tribe[0].last_sold = 0;
+    col1.tribe[0].state.learned = 0;
+    col1.tribe[0].state.capital = 0;
+    col1.tribe[0].mission = 0xff;
+    col1.tribe[0].last_sold = (uint8_t)COLONIZE_CARGO_FURS;
     col1.tribe[0].alarm[0].friction = 5;
-    ind->alarm_by_player[0] = 5;
     ind->euro_diplo[0] = 1;
-    col1.nation[0].gold = 0; /* no gift overwrite */
-    col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT; /* met (was relation 80; alarm pinned above) */
+    ind->alarm_by_player[0] = 5;
+    col1.nation[0].gold = 0; /* no gift arm */
+    col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
     ai_contact_indian_meet_trade(&ctx, 4);
+    if (col1.tribe[0].state.learned) {
+      return fail("Indian move pulse must not teach (5bfb_022e has no teach arm)");
+    }
     if (euro->profession != UNITS_JOB_NONE) {
-      return fail("already-learned should not re-teach profession");
+      return fail("Indian move pulse must not hand out a profession");
     }
-    if (strstr(status_al, "teach") != NULL) {
-      fprintf(stderr, "unit_ai_contact: already-learned status '%s'\n", status_al);
-      return fail("already-learned should skip teach status");
+    if (strstr(status_np, "teach") != NULL || strstr(status_np, "infuriate") != NULL) {
+      fprintf(stderr, "unit_ai_contact: passive-teach status '%s'\n", status_np);
+      return fail("Indian move pulse must not emit teach / @LEARNMAD chrome");
     }
-    ctx.status = NULL;
-    ctx.status_size = 0;
-  }
-
-  /* Nation map: clear cargo override; Iroquois (7) → Fur Trapper. */
-  euro->profession = UNITS_JOB_NONE;
-  col1.tribe[0].state.learned = 0;
-  col1.tribe[0].last_sold = 0;
-  col1.tribe[0].nation_id = 7;
-  ColonizeCol1Indian* iroq = &col1.indian[3];
-  memset(iroq, 0, sizeof(*iroq));
-  iroq->alarm_by_player[0] = 5;
-  col1.tribe[0].alarm[0].friction = 5;
-  col1.indian[3].euro_diplo[0] |= COL1_INDIAN_MET_BIT; /* met (was relation 80; alarm pinned above) */ /* Iroquois idx 3 */
-  ai_contact_indian_meet_trade(&ctx, 7);
-  if (!col1.tribe[0].state.learned) {
-    return fail("teach-skill nation map should set tribe.state.learned");
-  }
-  if (euro->profession != COLONIZE_JOB_FUR_TRAPPER) {
-    return fail("teach-skill Iroquois nation → Expert Fur Trapper");
-  }
-
-  /*
-   * Nation map deepen smoke: Arawak (6) → Fisherman (no cargo id; nation only).
-   * Cite: indian_contact.md teach-skill profession map.
-   */
-  {
-    euro->profession = UNITS_JOB_NONE;
-    col1.tribe[0].state.learned = 0;
     col1.tribe[0].last_sold = 0;
-    col1.tribe[0].nation_id = 6;
-    ColonizeCol1Indian* arawak = &col1.indian[2];
-    memset(arawak, 0, sizeof(*arawak));
-    arawak->alarm_by_player[0] = 5;
-    col1.tribe[0].alarm[0].friction = 5;
-    col1.indian[2].euro_diplo[0] |= COL1_INDIAN_MET_BIT; /* met (was relation 80; alarm pinned above) */ /* Arawak idx 2 */
-    ai_contact_indian_meet_trade(&ctx, 6);
-    if (!col1.tribe[0].state.learned) {
-      return fail("teach-skill Arawak should set tribe.state.learned");
-    }
-    if (euro->profession != COLONIZE_JOB_FISHERMAN) {
-      return fail("teach-skill Arawak nation → Expert Fisherman");
-    }
-  }
-
-  /*
-   * Nation map deepen: Cherokee (8) → Tobacco Planter (unused table entry).
-   * Also assert teach success status chrome. Cite: indian_contact.md map.
-   */
-  {
-    char status_tch[128];
-    status_tch[0] = '\0';
-    ctx.status = status_tch;
-    ctx.status_size = sizeof(status_tch);
-    ctx.human_nation = 0;
-    euro->profession = UNITS_JOB_NONE;
-    col1.tribe[0].state.learned = 0;
-    col1.tribe[0].last_sold = 0;
-    col1.tribe[0].nation_id = 8;
-    ColonizeCol1Indian* cherokee = &col1.indian[4];
-    memset(cherokee, 0, sizeof(*cherokee));
-    cherokee->alarm_by_player[0] = 5;
-    col1.tribe[0].alarm[0].friction = 5;
-    col1.indian[4].euro_diplo[0] |= COL1_INDIAN_MET_BIT; /* met (was relation 80; alarm pinned above) */ /* Cherokee idx 4 */
-    col1.nation[0].gold = 0; /* no gift overwrite of teach status */
-    ai_contact_indian_meet_trade(&ctx, 8);
-    if (!col1.tribe[0].state.learned) {
-      return fail("teach-skill Cherokee should set tribe.state.learned");
-    }
-    if (euro->profession != COLONIZE_JOB_TOBACCO_PLANTER) {
-      return fail("teach-skill Cherokee nation → Expert Tobacco Planter");
-    }
-    if (strstr(status_tch, "teach") == NULL || strstr(status_tch, "Cherokee") == NULL) {
-      fprintf(stderr, "unit_ai_contact: teach-ok status '%s'\n", status_tch);
-      return fail("teach success should set Natives-teach-Cherokee status");
-    }
-    ctx.status = NULL;
-    ctx.status_size = 0;
-  }
-
-  /*
-   * Skill-map deepen: Apache (9) → Cotton Planter; Scout → Seasoned Scout.
-   * Cite: indian_contact.md teach-skill profession map; FUN_5bfb_022e.
-   */
-  {
-    euro->profession = UNITS_JOB_NONE;
-    col1.tribe[0].state.learned = 0;
-    col1.tribe[0].last_sold = 0;
-    col1.tribe[0].nation_id = 9;
-    ColonizeCol1Indian* apache = &col1.indian[5];
-    memset(apache, 0, sizeof(*apache));
-    apache->alarm_by_player[0] = 5;
-    col1.tribe[0].alarm[0].friction = 5;
-    col1.indian[5].euro_diplo[0] |= COL1_INDIAN_MET_BIT; /* met (was relation 80; alarm pinned above) */ /* Apache idx 5 */
-    ai_contact_indian_meet_trade(&ctx, 9);
-    if (!col1.tribe[0].state.learned) {
-      return fail("teach-skill Apache should set tribe.state.learned");
-    }
-    if (euro->profession != COLONIZE_JOB_COTTON_PLANTER) {
-      return fail("teach-skill Apache nation → Expert Cotton Planter");
-    }
-
-    units.type_count = 4;
-    snprintf(units.types[3].name, sizeof(units.types[3].name), "Scout");
-    units.types[3].movement = 4;
-    units.types[3].attack = 0;
-    units.types[3].defense = 1;
-    const int scout_teach_id = units_spawn_allow_stack(&units, 3, 6, 5);
-    ColonizeUnit* scout_t = units_get(&units, scout_teach_id);
-    if (!scout_t) {
-      return fail("spawn Scout for teach");
-    }
-    scout_t->nation_id = 0;
-    scout_t->profession = UNITS_JOB_NONE;
-    scout_t->horses = 50; /* display name → Scout / Seasoned after teach */
-    euro->x = 12;
-    euro->y = 12; /* clear Free Colonist from tribe adjacency */
-    col1.tribe[0].state.learned = 0;
-    col1.tribe[0].last_sold = 0;
-    col1.tribe[0].nation_id = 4;
-    ind->alarm_by_player[0] = 5;
-    col1.tribe[0].alarm[0].friction = 5;
-    col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT; /* met (was relation 80; alarm pinned above) */
-    char status_sc[128];
-    status_sc[0] = '\0';
-    ctx.status = status_sc;
-    ctx.status_size = sizeof(status_sc);
-    ctx.human_nation = 0;
-    col1.nation[0].gold = 0;
-    ColonizeMsgCatalog game_txt;
-    assets_msg_init(&game_txt);
-    (void)assets_msg_load_file(&game_txt, "COLONIZE/GAME.TXT");
-    ctx.messages = &game_txt;
-    AiPopupState pops;
-    ai_popup_init(&pops);
-    ctx.ai_popups = &pops;
-    ai_contact_indian_meet_trade(&ctx, 4);
-    scout_t = units_get(&units, scout_teach_id);
-    if (!col1.tribe[0].state.learned) {
-      assets_msg_free(&game_txt);
-      return fail("teach-skill Scout should set tribe.state.learned");
-    }
-    if (!scout_t || scout_t->profession != UNITS_JOB_SCOUT) {
-      assets_msg_free(&game_txt);
-      return fail("teach-skill Scout → Seasoned Scout profession");
-    }
-    if (strstr(status_sc, "Seasoned") == NULL && strstr(status_sc, "Scouts") == NULL) {
-      fprintf(stderr, "unit_ai_contact: scout-teach status '%s'\n", status_sc);
-      assets_msg_free(&game_txt);
-      return fail("Scout teach should set WELLSEASONED status");
-    }
-    if (pops.queue_count < 1 ||
-        (strstr(pops.queue[0].body, "Seasoned") == NULL &&
-         strstr(pops.queue[0].body, "Scouts") == NULL)) {
-      fprintf(
-        stderr,
-        "unit_ai_contact: WELLSEASONED popup weak q=%d body='%s'\n",
-        pops.queue_count,
-        pops.queue_count > 0 ? pops.queue[0].body : ""
-      );
-      assets_msg_free(&game_txt);
-      return fail("Scout teach should enqueue WELLSEASONED popup");
-    }
-    ctx.messages = NULL;
-    ctx.ai_popups = NULL;
-    assets_msg_free(&game_txt);
-    units_despawn(&units, scout_teach_id);
-    euro->x = 6;
-    euro->y = 5;
-    ctx.status = NULL;
-    ctx.status_size = 0;
-  }
-
-  /*
-   * Mid-alarm teach refuse (40..54): Free Colonist at tribe → no learned;
-   * status @LEARNMAD ("ill manners infuriate us … learn anything from us").
-   * Cite: indian_contact.md mid refuse; GAME.TXT @LEARNMAD.
-   */
-  {
-    char status_mt[128];
-    status_mt[0] = '\0';
-    ctx.status = status_mt;
-    ctx.status_size = sizeof(status_mt);
-    ctx.human_nation = 0;
-    euro->x = 6;
-    euro->y = 5;
-    euro->active = true;
-    euro->profession = UNITS_JOB_NONE;
-    col1.tribe[0].nation_id = 4;
-    col1.tribe[0].state.learned = 0;
-    col1.tribe[0].mission = 0xff;
-    col1.tribe[0].alarm[0].friction = 45;
-    ind->euro_diplo[0] = 1;
-    ind->alarm_by_player[0] = 20; /* mid via tribe friction */
-    col1.nation[0].gold = 0;
-    col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT; /* met (was relation 80; alarm pinned above) */
-    ai_contact_indian_meet_trade(&ctx, 4);
-    if (col1.tribe[0].state.learned) {
-      return fail("mid-alarm teach refuse should not set learned");
-    }
-    if (strstr(status_mt, "infuriate") == NULL || strstr(status_mt, "learn") == NULL) {
-      fprintf(stderr, "unit_ai_contact: mid-teach status '%s'\n", status_mt);
-      return fail("mid-alarm teach should set @LEARNMAD refuse status");
-    }
-    col1.tribe[0].alarm[0].friction = 10;
-    ind->alarm_by_player[0] = 10;
-    ctx.status = NULL;
-    ctx.status_size = 0;
-  }
-
-  /*
-   * @LEARNMASTER: an already-expert colonist (peaceful band, would otherwise
-   * teach) is refused without consuming the village's one-shot teach — a
-   * later unskilled colonist may still learn. Cite: GAME.TXT @LEARNMASTER.
-   */
-  {
-    char status_lm[128];
-    status_lm[0] = '\0';
-    ctx.status = status_lm;
-    ctx.status_size = sizeof(status_lm);
-    ctx.human_nation = 0;
-    euro->x = 6;
-    euro->y = 5;
-    euro->active = true;
-    euro->profession = COLONIZE_JOB_FARMER; /* already a master */
-    col1.tribe[0].nation_id = 4;
-    col1.tribe[0].state.learned = 0;
-    col1.tribe[0].mission = 0xff;
-    col1.tribe[0].alarm[0].friction = 5;
-    ind->euro_diplo[0] = 1;
-    ind->alarm_by_player[0] = 5;
-    col1.nation[0].gold = 0;
-    col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT; /* met (was relation 80; alarm pinned above) */
-    ai_contact_indian_meet_trade(&ctx, 4);
-    if (col1.tribe[0].state.learned) {
-      return fail("LEARNMASTER refuse should not consume the village one-shot");
-    }
-    if (euro->profession != COLONIZE_JOB_FARMER) {
-      return fail("LEARNMASTER refuse should not touch the learner's profession");
-    }
-    /* bugs.md: the adjacency pulse never lectures — the skilled unit is
-     * skipped in SILENCE now; the @LEARNMASTER dialog belongs to the
-     * deliberate Live-Among flow. */
-    if (strstr(status_lm, "teach new skills") != NULL) {
-      fprintf(stderr, "unit_ai_contact: LEARNMASTER status '%s'\n", status_lm);
-      return fail("pulse must not emit the @LEARNMASTER lecture unprompted");
-    }
-    euro->profession = UNITS_JOB_NONE;
-    ctx.status = NULL;
-    ctx.status_size = 0;
-  }
-
-  /*
-   * @LEARNCRIMINAL (fixed 2026-08-26): a Petty Criminal is refused outright,
-   * distinct from the alarm-based @LEARNMAD refusal, and does not consume
-   * the village's one-shot teach — a Free Colonist could still learn later.
-   * Cite: GAME.TXT @LEARNCRIMINAL.
-   */
-  {
-    char status_lc[128];
-    status_lc[0] = '\0';
-    ctx.status = status_lc;
-    ctx.status_size = sizeof(status_lc);
-    ctx.human_nation = 0;
-    col1.tribe[0].nation_id = 4;
-    col1.tribe[0].state.learned = 0;
-    col1.tribe[0].mission = 0xff;
-    col1.tribe[0].alarm[0].friction = 5;
-    ind->euro_diplo[0] = 1;
-    ind->alarm_by_player[0] = 5;
-    col1.nation[0].gold = 0;
-    col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT; /* met (was relation 80; alarm pinned above) */
-
-    euro->x = 12;
-    euro->y = 12; /* clear Free Colonist from tribe adjacency */
-    units.type_count = 5;
-    snprintf(units.types[4].name, sizeof(units.types[4].name), "Petty Criminal");
-    units.types[4].movement = 1;
-    units.types[4].attack = 0;
-    units.types[4].defense = 1;
-    const int crim_id = units_spawn_allow_stack(&units, 4, 6, 5);
-    ColonizeUnit* crim = units_get(&units, crim_id);
-    if (!crim) {
-      return fail("spawn Petty Criminal for teach");
-    }
-    crim->nation_id = 0;
-    crim->profession = UNITS_JOB_NONE;
-
-    ai_contact_indian_meet_trade(&ctx, 4);
-    if (col1.tribe[0].state.learned) {
-      return fail("LEARNCRIMINAL refuse should not consume the village one-shot");
-    }
-    if (crim->profession != UNITS_JOB_NONE) {
-      return fail("LEARNCRIMINAL refuse should not touch the criminal's profession");
-    }
-    /* bugs.md: the pulse skips a criminal in silence — the @LEARNCRIMINAL
-     * lecture belongs to the deliberate Live-Among flow. */
-    if (strstr(status_lc, "teach you nothing") != NULL) {
-      fprintf(stderr, "unit_ai_contact: LEARNCRIMINAL status '%s'\n", status_lc);
-      return fail("pulse must not lecture a Petty Criminal unprompted");
-    }
-    units_despawn(&units, crim_id);
-    euro->x = 6;
-    euro->y = 5;
     ctx.status = NULL;
     ctx.status_size = 0;
   }
@@ -1806,8 +1495,10 @@ int main(void) {
   }
 
   /*
-   * Alarmed teach refuse (≥55 refuse-talk gate): Free Colonist at tribe + high
-   * alarm → no state.learned; human status @LEARNMAD.
+   * Alarmed Brave next to a Free Colonist: still no teach, and (bugs.md
+   * 2026-09-04 bug 2) no unprompted @LEARNMAD lecture either — the refusal
+   * dialogs belong to the deliberate Live-Among-The-Natives action, not to
+   * the Indian move pulse, which has no teach arm in DOS at all.
    */
   {
     for (int i = 0; i < 256; ++i) {
@@ -1833,9 +1524,9 @@ int main(void) {
     if (col1.tribe[0].state.learned) {
       return fail("alarmed teach refuse should not set tribe.state.learned");
     }
-    if (strstr(status, "infuriate") == NULL || strstr(status, "learn") == NULL) {
+    if (strstr(status, "infuriate") != NULL) {
       fprintf(stderr, "unit_ai_contact: teach-refuse status '%s'\n", status);
-      return fail("alarmed teach should set @LEARNMAD refuse status");
+      return fail("Indian move pulse must not lecture @LEARNMAD unprompted");
     }
   }
 
@@ -5463,6 +5154,9 @@ int main(void) {
         colonies.colonies[0].x + 1, colonies.colonies[0].y + 1);
       if (beg_brave >= 0) {
         units_get(&units, beg_brave)->nation_id = 4;
+        /* …and it must have WALKED there this turn (DOS move-tail trigger). */
+        ai_native_note_brave_turn_origin(
+          beg_brave, colonies.colonies[0].x + 3, colonies.colonies[0].y + 3);
       }
       int found = -1;
       for (unsigned seed = 1u; seed <= 400u && found < 0; ++seed) {
@@ -5561,6 +5255,99 @@ int main(void) {
         break;
       }
     }
+    ctx.ai_popups = NULL;
+  }
+
+  /*
+   * bugs.md 2026-09-04 (bug 5, "Indians never seem to visit bearing gifts"):
+   * the generous half of FUN_5bfb_022e (@INDIANGIVESTUFF / @INDIANGIVEFOOD)
+   * was written but never wired. A Brave standing beside an already-met
+   * colony at low alarm must hand goods over and raise a popup for the human.
+   */
+  {
+    AiPopupState gp;
+    ai_popup_init(&gp);
+    ctx.ai_popups = &gp;
+    ctx.human_nation = 0;
+    col1.player[0].control = 0;
+    const uint16_t saved_turn = col1.head.turn;
+    col1.head.turn = 5; /* non-zero so the once-per-8-turns cooldown is live */
+    colonies.colonies[0].active = true;
+    colonies.colonies[0].nation_id = 0;
+    snprintf(colonies.colonies[0].name, sizeof(colonies.colonies[0].name), "Jamestown");
+    for (int cg = 0; cg < COLONIZE_CARGO_COUNT; ++cg) {
+      colonies.colonies[0].stock[cg] = 0;
+    }
+    colonies.colonies[0].stock[COLONIZE_CARGO_FOOD] = 100; /* > 25 → GIVESTUFF arm */
+    col1.tribe[0].nation_id = 4;
+    col1.tribe[0].mission = 0xff;
+    col1.tribe[0].state.capital = 0;
+    col1.tribe[0].alarm[0].friction = 0;
+    col1.tribe[0].alarm[0].attacks = 0;
+    col1.indian[0].alarm_by_player[0] = 10; /* ≤ 0x31 → generous */
+    col1.indian[0].contact_state[0] = 0;
+    col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
+
+    const int gift_brave = units_spawn_allow_stack(
+      &units, 0, colonies.colonies[0].x + 1, colonies.colonies[0].y + 1);
+    if (gift_brave < 0) {
+      return fail("spawn gift-visit Brave");
+    }
+    units_get(&units, gift_brave)->nation_id = 4;
+    /*
+     * DOS runs the visit off the Brave's move tail, so the port needs the
+     * pre-move tile: this Brave walked in from three tiles away, it did not
+     * loiter next to the colony.
+     */
+    ai_native_note_brave_turn_origin(
+      gift_brave, colonies.colonies[0].x + 3, colonies.colonies[0].y + 3);
+
+    ColonizeDosRng gift_rng;
+    ColonizeDosRng* saved_rng = ctx.rng;
+    dos_rng_seed(&gift_rng, 7u);
+    ctx.rng = &gift_rng;
+    const int gave = ai_contact_try_village_gifts(&ctx, 4);
+    ctx.rng = saved_rng;
+    if (!gave) {
+      return fail("gift visit should fire at low alarm beside a met colony");
+    }
+    int gifted_cargo = -1;
+    for (int cg = 0; cg < COLONIZE_CARGO_COUNT; ++cg) {
+      if (cg == COLONIZE_CARGO_FOOD) {
+        continue;
+      }
+      if (colonies.colonies[0].stock[cg] >= 2) {
+        gifted_cargo = cg;
+        break;
+      }
+    }
+    if (gifted_cargo < 0) {
+      return fail("@INDIANGIVESTUFF should add at least the DOS floor of 2 goods");
+    }
+    if (col1.indian[0].contact_state[0] != 2) {
+      return fail("gift arm should stamp contact_state 2");
+    }
+    if (col1.tribe[0].alarm[0].friction != 0 || col1.tribe[0].alarm[0].attacks != 0) {
+      return fail("gift visit should leave the village alarm word discharged");
+    }
+    if (gp.queue_count < 1) {
+      return fail("gift visit should raise a popup for the human");
+    }
+    /* Second call in the same turn is refused (one visit per nation). */
+    dos_rng_seed(&gift_rng, 7u);
+    ctx.rng = &gift_rng;
+    col1.indian[0].contact_state[0] = 0;
+    const int again = ai_contact_try_village_gifts(&ctx, 4);
+    ctx.rng = saved_rng;
+    if (again) {
+      return fail("gift visit should not repeat while its cooldown stands");
+    }
+    units_despawn(&units, gift_brave);
+    for (int cg = 0; cg < COLONIZE_CARGO_COUNT; ++cg) {
+      colonies.colonies[0].stock[cg] = 0;
+    }
+    colonies.colonies[0].stock[COLONIZE_CARGO_FOOD] = 100;
+    col1.head.turn = saved_turn;
     ctx.ai_popups = NULL;
   }
 

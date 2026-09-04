@@ -58,6 +58,23 @@ void ai_euro_nation_turn(ColonizeTurnContext* ctx, int nation_id);
 void ai_indian_nation_turn(ColonizeTurnContext* ctx, int nation_id);
 
 /*
+ * Where `unit_id` stood when this turn's native Brave pulse began, i.e. before
+ * FUN_4d56_14fe walked it. Returns 0 for a unit the current pulse never
+ * touched, leaving the out params alone.
+ *
+ * DOS drives every Indian-side contact off the move itself: FUN_465b's tail
+ * runs FUN_281f_0984 -> FUN_5bfb_3180 -> FUN_5bfb_022e for the tile the Brave
+ * just stepped next to. The Linux pulse commits its steps inline and the
+ * contact arms run once per nation afterwards (ai.c section 9), so they need
+ * the pre-move tile to tell "a Brave walked up to this colony this turn" from
+ * "a Brave has been parked beside it for twenty turns".
+ */
+int ai_native_brave_turn_origin(int unit_id, int* out_x, int* out_y);
+
+/* Record that tile. The native pulse calls this for each of its Braves. */
+void ai_native_note_brave_turn_origin(int unit_id, int x, int y);
+
+/*
  * FUN_4cc6_03f8 (via FUN_281f_0316): which European nation this settlement
  * feels most threatened by, and how strongly. Returns the nation 0..3, or -1
  * when nothing scores; *out_score (optional) gets the threat score.

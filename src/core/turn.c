@@ -2887,6 +2887,41 @@ void turn_run_year_end_chrome(ColonizeTurnContext* ctx, ColonizeTurnResult* out)
   if (ctx->col1_ok && ctx->col1) {
     ctx->col1->head.game_options.calendar_latch = 1; /* LAB_0b4a when stopped */
     ctx->col1->head.turn_loop_running = 0; /* DS:0x53c2 clear */
+    /*
+     * DOS Section B tail (LAB_3844_04ec): the @LOSENOCOLONIES dialog (string
+     * 0xf09; 0438 slot 0 = difficulty title, 0416 slot 1 = leader name) and
+     * then the Hall of Fame. Latch ENDGAME_LOST so game_loop's drained-dialog
+     * gate runs the retire-score chain — same machinery as the WoI crush
+     * above; without it this branch only wrote a status line and the game
+     * never actually ended.
+     */
+    const bool first_time =
+      ai_king_latch_get(ctx->col1, AI_KING_ENDGAME_BYTE) == AI_KING_ENDGAME_NONE;
+    if (first_time) {
+      ai_king_latch_set(ctx->col1, AI_KING_ENDGAME_BYTE, AI_KING_ENDGAME_LOST);
+    }
+    /* Once only — the chrome runs again every year while the board is empty. */
+    if (first_time && ctx->ai_popups) {
+      static const char* k_diff[5] = {
+        "Discoverer", "Explorer", "Conquistador", "Governor", "Viceroy"
+      };
+      const int d = (int)ctx->col1->head.difficulty;
+      PopupMsgTokens tok;
+      memset(&tok, 0, sizeof(tok));
+      tok.string0 = (d >= 0 && d <= 4) ? k_diff[d] : "Viceroy";
+      tok.string1 = (ctx->human_nation >= 0 && ctx->human_nation < 4)
+        ? ctx->col1->player[ctx->human_nation].name
+        : "";
+      char body[AI_POPUP_BODY_LEN];
+      popup_msg_fill(
+        ctx->messages, "LOSENOCOLONIES", &tok,
+        "Our efforts in the New World have proven fruitless and we have "
+        "decided to remove you as Viceroy. You may, as always, kiss our "
+        "royal pinky ring.",
+        body, sizeof(body)
+      );
+      (void)ai_popup_enqueue_ok(ctx->ai_popups, AI_POPUP_TAG_INFO, NULL, body);
+    }
   }
   if (ctx->status && ctx->status_size > 0) {
     snprintf(ctx->status, ctx->status_size, "Defeat: no colonies remain.");
@@ -3042,6 +3077,19 @@ bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ct
       /* FUN_364b_03f6 coastal Fort/Fortress fire after production. */
       (void)turn_run_coastal_fort_fire(ctx);
       turn_run_nation_ticks(ctx, &proc->result);
+      /*
+       * DOS FUN_364b_0688 Phase A: bells + Congress (291f_09f8 → 4345_0a22)
+       * run in the colony-EOT PROLOGUE, so an FF nomination/election dialog
+       * presents BEFORE the colony production messages. The port computes
+       * production first (RNG draw order pinned by goldens); reorder the
+       * presentation queue instead. Cite: turn/colony_eot_production.md
+       * Phase A; turn/nation_ticks_bells_ff.md.
+       */
+      if (ctx->ai_popups) {
+        ai_popup_promote_tag_before(
+          ctx->ai_popups, AI_POPUP_TAG_FF_CONGRESS, AI_POPUP_TAG_COLONY_EVENT
+        );
+      }
       /* Mid-pass Euro rank (FUN_5bfb_00f8) — DOS before nation loop; Linux SETUP. */
       ctx->euro_power_rank_ok =
         turn_rank_euro_nations(
@@ -3223,6 +3271,10 @@ bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ct
             (void)ai_popup_enqueue_ok(ctx->ai_popups, AI_POPUP_TAG_INFO, NULL, body);
           }
         }
+        /* Shown — clear, or the next player sell/buy replays these stale
+         * events via game_europe_drain_price_events and an unrelated cargo
+         * (e.g. Coats) looks like it moved in response to that sale. */
+        ctx->europe->price_event_count = 0;
       }
       turn_set_active_nation(ctx, ctx->human_nation);
       turn_reveal_fog_for_nation(ctx, ctx->human_nation);

@@ -1778,8 +1778,8 @@ static void colony_screen_draw_area_overlays(
   /*
    * bugs.md 290 / DOS FUN_15eb_26e4: unworked tiles still claimed as Indian
    * land (MET tribe radius, land unbought, no Peter Minuit) carry a totem
-   * pole marker. Mark shape is the port's own (DOS totem art not located in
-   * the sheets yet); the claim rule is the decoded DOS one.
+   * pole marker — ICONS.SS #108 (8x16 red totem pole), bottom-centred with
+   * the standard 2px shadow like other on-tile figures.
    */
   if (col1) {
     for (int dy = -half; dy <= half; ++dy) {
@@ -1802,14 +1802,12 @@ static void colony_screen_draw_area_overlays(
         }
         const int tx = origin_x + (dx + half) * tile;
         const int ty = origin_y + (dy + half) * tile;
-        /* Totem: 3px pole with darker bands + top wings, bottom-centred. */
-        const int px = tx + tile / 2 - 1;
-        const int py = ty + tile - 15;
-        colony_screen_fill_rect(framebuffer, px, py, px + 2, py + 12, 6);
-        colony_screen_fill_rect(framebuffer, px, py + 3, px + 2, py + 4, 4);
-        colony_screen_fill_rect(framebuffer, px, py + 7, px + 2, py + 8, 4);
-        colony_screen_fill_rect(framebuffer, px - 2, py + 1, px + 4, py + 1, 6);
-        colony_screen_fill_rect(framebuffer, px - 1, py, px + 3, py, 14);
+        if (view->icons_ok && COLONY_ICON_TOTEM < view->icons.sprite_count) {
+          const ColonizeSprite* sp = &view->icons.sprites[COLONY_ICON_TOTEM];
+          const int ix = tx + (tile - sp->width) / 2;
+          const int iy = ty + tile - sp->height - 1;
+          colony_screen_blit_icon_shadowed(view, COLONY_ICON_TOTEM, framebuffer, ix, iy);
+        }
       }
     }
   }
@@ -3387,6 +3385,22 @@ static void colony_screen_draw_multifunction(
         (c == COLONIZE_CARGO_HORSES) ? p->goods[c] : (p->field_gross[c] + p->craft_gross[c]);
       const int short_amt = p->shortfall[c];
 
+      if (c == COLONIZE_CARGO_LUMBER && short_amt <= 0 && p->hammers_capacity > produced) {
+        /* Player-reported (bugs.md): a carpenter demanding more lumber than
+         * this tick *produces* is a lumber shortage — even when warehouse
+         * stock is still feeding him (production 0, stock > 0), and doubly
+         * so when there is no stock either. Same red pairing as the craft
+         * recipes' input-side shortfall. */
+        ColonyProdSlot* s = &slots[slot_count++];
+        s->icon0 = produced > 0 ? COLONY_CARGO_ICON_BASE + c : -1;
+        s->amount0 = produced;
+        s->color0 = 15;
+        s->icon1 = COLONY_CARGO_GREY_BASE + c;
+        s->amount1 = p->hammers_capacity - produced;
+        s->color1 = 12;
+        continue;
+      }
+
       if (c == COLONIZE_CARGO_LUMBER && short_amt <= 0 && p->hammers > 0 && produced > 0) {
         /* Case 4: Lumber->Hammers isn't a colony_craft_preview() recipe
          * (the Carpenter's hammers bank is `colony_prod_colony_hammers`, a
@@ -3461,14 +3475,25 @@ static void colony_screen_draw_multifunction(
         s->color1 = 0;
       }
     }
-    if (p->hammers > 0 && slot_count < (int)(sizeof(slots) / sizeof(slots[0]))) {
+    if ((p->hammers > 0 || p->hammers_capacity > p->hammers) &&
+        slot_count < (int)(sizeof(slots) / sizeof(slots[0]))) {
+      /* Hammer shortfall (player-reported, bugs.md): a lumber-starved
+       * carpenter shows the hammers he could not bank as a red number, in
+       * the same one-cell pairing the cargo shortfalls use. */
       ColonyProdSlot* s = &slots[slot_count++];
-      s->icon0 = COLONY_ICON_HAMMER;
+      const int short_h = p->hammers_capacity - p->hammers;
+      s->icon0 = p->hammers > 0 ? COLONY_ICON_HAMMER : -1;
       s->amount0 = p->hammers;
       s->color0 = 15;
-      s->icon1 = -1;
-      s->amount1 = 0;
-      s->color1 = 0;
+      if (short_h > 0) {
+        s->icon1 = COLONY_ICON_HAMMER;
+        s->amount1 = short_h;
+        s->color1 = 12;
+      } else {
+        s->icon1 = -1;
+        s->amount1 = 0;
+        s->color1 = 0;
+      }
     }
     if (slot_count > 0 && pane_w > 0 && pane_h > 0) {
       /* Prefer a single column; add columns when rows would be shorter than icons. */

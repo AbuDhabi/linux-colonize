@@ -774,7 +774,10 @@ completely decoded.**
   "mission byte's sign bit set," i.e. `mission == 0xff` as a *signed*
   read — **exact bit-for-bit match** to Linux's own `COL1_TRIBE_MISSION_NONE`
   encoding, already implemented, not a guess.
-- **`FUN_1000_8b24` (called before `return 1`, line 418) — also
+- **`FUN_1000_8b24` — [CORRECTED 2026-09-04: this is the village-interaction
+  MP forfeit, not bookkeeping. See the correction section at the end of this
+  file.]** Original (wrong) reading follows.
+  **(called before `return 1`, line 418) — also
   disassembled directly, confirmed harmless bookkeeping, nothing to
   port.** Same RTLink-thunk shape (`FUN_1000_1e61()` + `FUN_0000_57ce()`);
   the real target recomputes and writes `unit+0x3149` (moves-spent byte)
@@ -821,3 +824,67 @@ risks being structurally right but behaviorally inert or wrong, the same
 "structural ≠ semantic" trap this project's method notes flag repeatedly.
 Cases 1/4/5/6/7/8/9 (no `84fc`/`8d52`/`8d4a+5` dependency) remain
 portable too, same caveat applies to all of them equally now.
+
+## 2026-09-04 — CORRECTION: `FUN_1000_8b24` is the village-interaction MP forfeit
+
+bugs.md ("After a unit interacts with an Indian village their remaining
+movement points should be forfeit") sent this back to the ASM. The
+2026-08-27 reading above — "`8b24` recomputes and writes `unit+0x3149`
+from a per-unit-type max-MP table … a stat-cache refresh, not a narration
+… no Linux counterpart to write" — describes the mechanic correctly but
+draws the wrong conclusion from it. `0x3149` is **moves-spent**; writing
+it *from* the max-MP table means **spent := max**, i.e. the unit's whole
+remaining movement is burned. That is `unit_exhaust_mp`, and it is very
+much a Linux-visible mechanic.
+
+Chain, all static:
+
+- `FUN_1000_8b24` → resident-stub rule `FUN_1000_X = 281f_(X − 0x81f0)`;
+  `0x8b24 − 0x81f0 = 0x934` ⇒ **`FUN_281f_0934`**, the same thunk
+  `move_spent.c` already annotates as `unit_exhaust_mp`.
+- `FUN_281f_0934` → `FUN_1427_155e` (`viceroy_unpacked.c:8880`):
+  `*(unit*0x1c + 0x3149) = FUN_1427_065a(unit)`.
+- `FUN_1427_065a` (`:7691`): `DS:0x5234[type*0xe]` max-MP byte, `+3` when
+  `FUN_15eb_3960(nation, 5)` and type in `0xd..0x12` (the FF-gated ship
+  speed bonus) — exactly the "per-unit-type max-MP table plus a
+  Founding-Father-gated ship-speed bonus" the old note described.
+
+**Which outcomes forfeit.** The call sits in `4528`'s common tail,
+`viceroy_overlays.asm` `OVL13_L0000::004c0a`:
+
+```
+LAB_OVL13_L0000__004c0a:
+    CMP   word ptr [BP + -0x58],0x1     ; the function's return code
+    JNZ   LAB_OVL13_L0000__004c1b
+    PUSH  word ptr [BP + 0x6]           ; unit index
+    CALLF ram:FUN_1000_8b24             ; spent := max MP
+LAB_OVL13_L0000__004c1b:
+    MOV   AX,word ptr [BP + -0x58]
+    RETF
+```
+
+So the forfeit is exactly "return code == 1", and the switch at
+`OVL13::004bdb` decides that:
+
+| case | action | return code | MP forfeit |
+|-----:|--------|------------:|------------|
+| 1 | Trade (`a63c` → `2820`) | 1 (default) | **yes** |
+| 2 | trade variant (`a5e8`) | 2 if `a5e8 != 0`, else 1 | only on the `0` arm |
+| 3 | Establish Mission (`a5dc`) | 2 (set unconditionally at case entry) | **no** |
+| 4 | Denounce Heresy (`a594`) | 1 | **yes** |
+| 5 | Live Among The Natives (`a618`) | 1 | **yes** |
+| 6 | Speak With Chief (`a60c`) | 2 if `a60c != 0`, else 1 | only on the `0` arm |
+| 7 | Incite (`a5b8` → `417e`) | 1 | **yes** |
+| 8 | Demand Tribute (`a5f4`) | 1 | **yes** |
+| 9 | Attack (`FUN_1000_8bf6`) | 0 | **no** — `465b` runs the move/combat, which spends MP itself |
+| 10 / none | Leave / cancel → `default` | 1 | **yes** |
+
+(The `default` label is also the fall-through target for cases 1–8, which
+is why they all land on the `== 1` test.)
+
+**Ported 2026-09-04** in `ai_contact_apply_popup_result`
+(`src/core/ai_contact.c`): `menu_unit->moves_left = 0` for every
+`AI_POPUP_TAG_CONTACT_MEET` result except `ATTACK_VILLAGE` (case 9) and
+`MISSION` (case 3). The two conditional `2` returns (cases 2 and 6) are
+approximated as "always forfeit" — `a5e8`/`a60c`'s return semantics are
+not decoded, and the `1` arm is the common one.

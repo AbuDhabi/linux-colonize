@@ -144,23 +144,25 @@ int main(void) {
   if (col1.nation[0].unknown26[1] != 8 || col1.nation[1].unknown26[0] != 8) {
     return fail("declare_war should seed war-fatigue treaty timer to 8 when was 0");
   }
+  /* 2026-09-03: DOS declare-war sites never touch Indian relations (alarm
+   * grows only via the 152e accumulator) — the −5/−10 war hit was retired
+   * (bugs: "natives grow hostile" popped on a Euro-vs-Euro attack). */
   for (int i = 0; i < 8; ++i) {
-    if (ai_diplo_indian_relation(&col1, 4 + (i), 0) != 45) {
-      return fail("declare_war should −5 Indian relations for nation 0");
+    if (ai_diplo_indian_relation(&col1, 4 + (i), 0) != 50) {
+      return fail("declare_war must not change Indian relations for nation 0");
     }
-    /* 20 − 5 = 15 < 16 (very-low, DOS bands) → thin hostile extra −10 → 5 */
-    if (ai_diplo_indian_relation(&col1, 4 + (i), 1) != 5) {
-      return fail("declare_war should −5 then hostile −10 Indian relations for nation 1");
+    if (ai_diplo_indian_relation(&col1, 4 + (i), 1) != 20) {
+      return fail("declare_war must not change Indian relations for nation 1");
     }
     if (ai_diplo_indian_relation(&col1, 4 + (i), 2) != 100) {
       return fail("war(0,1) must not change Indian relations of nation 2");
     }
   }
-  if (ai_diplo_indian_read(&col1, 0, 0) != 45 || ai_diplo_indian_at_war(&col1, 0, 0)) {
-    return fail("indian_read/at_war: nation 0 slot0 rel 45 is not at war (DOS band: rel<26)");
+  if (ai_diplo_indian_read(&col1, 0, 0) != 50 || ai_diplo_indian_at_war(&col1, 0, 0)) {
+    return fail("indian_read/at_war: nation 0 slot0 rel 50 is not at war (DOS band: rel<26)");
   }
   if (!ai_diplo_indian_at_war(&col1, 1, 0)) {
-    return fail("indian_at_war: nation 1 slot0 should be at war (rel 5 < 26)");
+    return fail("indian_at_war: nation 1 slot0 should be at war (rel 20 < 26)");
   }
   if (ai_diplo_indian_at_war(&col1, 2, 0)) {
     return fail("indian_at_war: nation 2 slot0 should be peaceful (rel=100)");
@@ -173,7 +175,7 @@ int main(void) {
   if (col1.nation[0].tax_rate != 11) {
     return fail("re-declare_war should not re-bump tax");
   }
-  if (ai_diplo_indian_relation(&col1, 4 + (0), 0) != 45) {
+  if (ai_diplo_indian_relation(&col1, 4 + (0), 0) != 50) {
     return fail("re-declare_war should not re-hit Indian relations");
   }
   if ((col1.nation[0].boycott_bitmap & AI_DIPLO_SMOKE_WARTIME_MASK) != 0) {
@@ -829,28 +831,30 @@ int main(void) {
       col1.indian[i].alarm_by_player[3] = 10; /* relation 90 */
       col1.indian[i].euro_diplo[3] |= COL1_INDIAN_MET_BIT;
     }
-    /* 45 −5 = 40 (≥40 → no hostile extra) → sticky at-war (==1), not deep. */
+    /* Slot0 rel 45 (< 50) → sticky at-war (==1) once the matrix tick syncs.
+     * 2026-09-03: the declare-war Indian hit is retired — relations are
+     * untouched by the declaration itself. */
     col1.indian[0].alarm_by_player[3] = 78; /* DOS bands: relation 45 */
     col1.indian[0].euro_diplo[3] |= COL1_INDIAN_MET_BIT;
     ai_diplo_declare_war(&col1, 2, 3);
-    /* declare: 90→85 mid; 45→40; sticky at-war */
-    if (ai_diplo_indian_relation(&col1, 4 + (3), 3) != 85) {
-      return fail("peace-restore setup: mid slot should be 85 after war hit");
+    if (ai_diplo_indian_relation(&col1, 4 + (3), 3) != 90) {
+      return fail("declare_war must not move Indian relations (war hit retired)");
     }
+    ai_diplo_euro_balance(&ctx_f, 3); /* matrix tick syncs sticky from slots */
     if (ai_diplo_indian_hostility_sticky(&col1, 3) != 1) {
-      return fail("peace-restore setup: sticky should be at-war (==1) after war hit");
+      return fail("peace-restore setup: sticky should be at-war (==1) after sync");
     }
     ai_diplo_make_peace(&col1, 2, 3);
-    /* Feeler retired: mid slot stays 85; hostile 40 untouched; sticky stays. */
-    if (ai_diplo_indian_relation(&col1, 4 + (3), 3) != 85) {
+    /* Feeler retired: mid slot stays 90; sub-50 slot untouched; sticky stays. */
+    if (ai_diplo_indian_relation(&col1, 4 + (3), 3) != 90) {
       return fail("make_peace must not move Indian alarm (feeler retired)");
     }
-    if (ai_diplo_indian_relation(&col1, 4 + (0), 3) != 17) {
-      return fail("make_peace feeler must not heal indian_at_war slots");
+    if (ai_diplo_indian_relation(&col1, 4 + (0), 3) != 22) {
+      return fail("make_peace feeler must not heal sub-50 slots");
     }
     /* Idempotent: already peaceful + sticky elevated must not re-nudge. */
     ai_diplo_make_peace(&col1, 2, 3);
-    if (ai_diplo_indian_relation(&col1, 4 + (3), 3) != 85) {
+    if (ai_diplo_indian_relation(&col1, 4 + (3), 3) != 90) {
       return fail("make_peace feeler nudge must not re-fire when already peaceful");
     }
     /* Sticky clear: no feeler nudge on peace. */
@@ -875,21 +879,21 @@ int main(void) {
       col1.indian[i].alarm_by_player[3] = 10; /* relation 90 */
       col1.indian[i].euro_diplo[3] |= COL1_INDIAN_MET_BIT;
     }
-    col1.indian[0].alarm_by_player[3] = 90; /* DOS bands: relation 30 */ /* very-low → sticky deep after hit */
+    col1.indian[0].alarm_by_player[3] = 100; /* relation 0 — very-low → sticky deep */
     col1.indian[0].euro_diplo[3] |= COL1_INDIAN_MET_BIT;
     ai_diplo_declare_war(&col1, 2, 3);
-    /* mid 90→85; 30→15 (extra); sticky==2 */
+    ai_diplo_euro_balance(&ctx_f, 3); /* sync sticky from matrix (war hit retired) */
     if (ai_diplo_indian_hostility_sticky(&col1, 3) != 2) {
       return fail("sticky2 make_peace setup should deepen sticky to 2");
     }
-    if (ai_diplo_indian_relation(&col1, 4 + (3), 3) != 85) {
-      return fail("sticky2 make_peace setup: mid should be 85 after war hit");
+    if (ai_diplo_indian_relation(&col1, 4 + (3), 3) != 90) {
+      return fail("sticky2 make_peace setup: mid should stay 90 (war hit retired)");
     }
     ai_diplo_make_peace(&col1, 2, 3);
-    if (ai_diplo_indian_relation(&col1, 4 + (3), 3) != 85) {
+    if (ai_diplo_indian_relation(&col1, 4 + (3), 3) != 90) {
       return fail("make_peace must not feeler-nudge when sticky==2");
     }
-    if (ai_diplo_indian_relation(&col1, 4 + (0), 3) != 0) { /* 10 −5 −10 → floor 0 */
+    if (ai_diplo_indian_relation(&col1, 4 + (0), 3) != 0) {
       return fail("sticky2 make_peace must leave very-low slot untouched");
     }
   }
@@ -984,8 +988,8 @@ int main(void) {
   }
 
   /*
-   * R11: war −5 Indian hit floors at 0 (relation_delta clamp; optional −10
-   * deepen still cannot underflow). Source: FUN_4cc6_00f2 scalar; fandom.
+   * R11 (rewritten 2026-09-03): the war Indian hit is retired — declare_war
+   * leaves every Indian slot untouched, met or unmet.
    */
   {
     ColonizeCol1Save wf;
@@ -997,17 +1001,17 @@ int main(void) {
     wf.nation[0].gold = 200;
     wf.nation[1].gold = 200;
     for (int i = 0; i < 8; ++i) {
-      wf.indian[i].alarm_by_player[0] = 97; /* relation 3 */ /* −5 → floor 0; then deepen −10 → 0 */
+      wf.indian[i].alarm_by_player[0] = 97; /* relation 3 */
       wf.indian[i].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
-      wf.indian[i].euro_diplo[1] = (uint8_t)(wf.indian[i].euro_diplo[1] & ~COL1_INDIAN_MET_BIT); /* unmet (was relation 0) */ /* already at floor */
+      wf.indian[i].euro_diplo[1] = (uint8_t)(wf.indian[i].euro_diplo[1] & ~COL1_INDIAN_MET_BIT); /* unmet */
     }
     ai_diplo_declare_war(&wf, 0, 1);
     for (int i = 0; i < 8; ++i) {
-      if (ai_diplo_indian_relation(&wf, 4 + (i), 0) != 0) {
-        return fail("war −5 Indian hit should floor relation at 0");
+      if (ai_diplo_indian_relation(&wf, 4 + (i), 0) != 3) {
+        return fail("declare_war must leave Indian relations untouched (hit retired)");
       }
       if (ai_diplo_indian_read(&wf, 1, i) != 0) {
-        return fail("unmet slot must still read 0 after war hit");
+        return fail("unmet slot must still read 0 after declare_war");
       }
     }
   }
@@ -1264,10 +1268,12 @@ int main(void) {
       }
     }
 
-    /* R6/R12: Indian −5 war-hit status when boycott chrome quiet and sticky rises. */
+    /* 2026-09-03: the −5 war hit is retired (no DOS declare site touches
+     * Indian relations) — declare_war_ctx must neither move the matrix nor
+     * pop "Natives grow hostile" (bugs: it fired on a Euro-vs-Euro attack). */
     ai_diplo_make_peace(&st, 0, 2);
     for (int i = 0; i < 8; ++i) {
-      st.indian[i].alarm_by_player[0] = 70; /* relation 30: −5 → 25 crosses the DOS at-war band (<26) */
+      st.indian[i].alarm_by_player[0] = 70; /* relation 30 */
       st.indian[i].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
     }
     st.nation[0].unknown26[8] = 0;
@@ -1276,12 +1282,11 @@ int main(void) {
     st.nation[2].gold = 200;
     status[0] = '\0';
     ai_diplo_declare_war_ctx(&ctx_st, 0, 2);
-    if (ai_diplo_indian_relation(&st, 4 + (0), 0) != 25) {
-      return fail("declare_war_ctx should still −5 Indian relations (smoke-verified)");
+    if (ai_diplo_indian_relation(&st, 4 + (0), 0) != 30) {
+      return fail("declare_war_ctx must not touch Indian relations (hit retired)");
     }
-    if (strcmp(status, "Natives grow hostile.") != 0) {
-      fprintf(stderr, "unit_ai_diplo: indian war-hit status '%s'\n", status);
-      return fail("declare_war_ctx should status Natives grow hostile when sticky rises");
+    if (strcmp(status, "Natives grow hostile.") == 0) {
+      return fail("declare_war_ctx must not status Natives grow hostile (hit retired)");
     }
 
     /* AI-only pair: no status write. */

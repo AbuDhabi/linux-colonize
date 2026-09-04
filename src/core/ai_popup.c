@@ -46,6 +46,8 @@ static void ai_popup_fill_base(
   req->width = popup_msg_take_pending_width();
   /* MSS decoration of that same section (DOS DS:0x1f5e latch; -1 = none). */
   req->graphic_mss = popup_msg_take_pending_graphic();
+  /* @default=N pre-highlighted row (0 = first). */
+  req->default_choice = popup_msg_take_pending_default();
   req->nation_a = nation_a;
   req->nation_b = nation_b;
   req->payload = payload;
@@ -188,6 +190,59 @@ int ai_popup_take_colony_zoom(AiPopupState* st) {
   return -1;
 }
 
+void ai_popup_promote_tag_before(AiPopupState* st, AiPopupTag promote, AiPopupTag before) {
+  if (!st || st->queue_count <= 1) {
+    return;
+  }
+  int insert = -1;
+  for (int i = 0; i < st->queue_count; ++i) {
+    if (st->queue[i].tag == before) {
+      insert = i;
+      break;
+    }
+  }
+  if (insert < 0) {
+    return;
+  }
+  for (int i = insert + 1; i < st->queue_count; ++i) {
+    if (st->queue[i].tag != promote) {
+      continue;
+    }
+    const AiPopupRequest tmp = st->queue[i];
+    for (int j = i; j > insert; --j) {
+      st->queue[j] = st->queue[j - 1];
+    }
+    st->queue[insert] = tmp;
+    insert++;
+  }
+}
+
+bool ai_popup_present_now(AiPopupState* st, AiPopupTag tag) {
+  if (!st || st->open || st->has_result || st->queue_count <= 0) {
+    return false;
+  }
+  int at = -1;
+  for (int i = st->queue_count - 1; i >= 0; --i) {
+    if (st->queue[i].tag == tag) {
+      at = i;
+      break;
+    }
+  }
+  if (at < 0) {
+    return false;
+  }
+  const AiPopupRequest req = st->queue[at];
+  for (int j = at; j > 0; --j) {
+    st->queue[j] = st->queue[j - 1];
+  }
+  st->queue[0] = req;
+  const uint64_t saved_zoom = st->colony_zoom_elected;
+  st->colony_zoom_elected = 0; /* player-initiated: never held by a zoom batch */
+  const bool ok = ai_popup_try_present_next(st);
+  st->colony_zoom_elected = saved_zoom;
+  return ok;
+}
+
 bool ai_popup_queue_pending(const AiPopupState* st) {
   return st && st->queue_count > 0;
 }
@@ -200,8 +255,31 @@ bool ai_popup_try_present_next(AiPopupState* st) {
   if (!st || st->open || st->has_result || st->queue_count <= 0) {
     return false;
   }
-  st->current = st->queue[0];
-  for (int i = 1; i < st->queue_count; ++i) {
+  int pick = 0;
+  /*
+   * Zoom elected: DOS FUN_364b_0688 is per-colony BLOCKING — the elected
+   * colony's remaining messages and its colony screen finish before anything
+   * else (other colonies' chrome, king dialogs, …) can appear. Present only
+   * the elected colony's own batch; everything else holds until
+   * ai_popup_take_colony_zoom hands the colony to game_loop (which keeps the
+   * hold up while the zoomed colony screen is open).
+   */
+  if (st->colony_zoom_elected != 0) {
+    pick = -1;
+    for (int i = 0; i < st->queue_count; ++i) {
+      const AiPopupRequest* q = &st->queue[i];
+      if (q->tag == AI_POPUP_TAG_COLONY_EVENT && q->payload >= 0 && q->payload < 64 &&
+          (st->colony_zoom_elected & ((uint64_t)1u << q->payload)) != 0) {
+        pick = i;
+        break;
+      }
+    }
+    if (pick < 0) {
+      return false;
+    }
+  }
+  st->current = st->queue[pick];
+  for (int i = pick + 1; i < st->queue_count; ++i) {
     st->queue[i - 1] = st->queue[i];
   }
   st->queue_count--;
@@ -214,7 +292,12 @@ bool ai_popup_try_present_next(AiPopupState* st) {
     st->current.kind = AI_POPUP_KIND_OK;
   }
   st->open = true;
+  /* GAME.TXT @default=N (1-based) pre-highlights that row — DOS 6f74 stores
+   * the matching option in the box's default slot as it parses. */
   st->selection = 0;
+  if (st->current.default_choice > 0 && st->current.default_choice <= st->current.choice_count) {
+    st->selection = st->current.default_choice - 1;
+  }
   st->has_result = false;
   st->result_cancelled = false;
   st->king_anim_frame = 0;
@@ -504,7 +587,9 @@ void ai_popup_set_portrait_source(const char* data_dir, const ColonizePalette* p
 }
 
 void ai_popup_set_last_portrait(AiPopupState* st, int tribe, int tier) {
-  if (!st || st->queue_count <= 0 || tribe > 7) {
+  /* tribe 8 = the King (DS:0x1f5c = 8 → KING.SS/KING2.SS animated flair);
+   * the old > 7 guard silently dropped the tax-audience King portrait. */
+  if (!st || st->queue_count <= 0 || tribe > 8) {
     return;
   }
   AiPopupRequest* req = &st->queue[st->queue_count - 1];

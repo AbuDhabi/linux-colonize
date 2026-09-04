@@ -2744,6 +2744,52 @@ int colonies_transfer_from_unit(
   return move;
 }
 
+int colonies_transfer_from_unit_amount(
+  ColonizeColonyPool* pool,
+  int colony_id,
+  ColonizeUnitPool* units,
+  int unit_id,
+  int hold_index,
+  int amount,
+  bool* out_warehouse_full
+) {
+  if (out_warehouse_full) {
+    *out_warehouse_full = false;
+  }
+  if (amount <= 0) {
+    return 0;
+  }
+  ColonizeColony* col = colonies_get_mut(pool, colony_id);
+  if (!col || !units) {
+    return 0;
+  }
+  ColonizeUnit* u = units_get(units, unit_id);
+  if (!u) {
+    return 0;
+  }
+  const int n = units_goods_hold_count(units, unit_id);
+  if (hold_index < 0 || hold_index >= n) {
+    return 0;
+  }
+  const int held = u->hold_goods_amount[hold_index];
+  const int ctype = u->hold_goods_type[hold_index];
+  if (held <= 0 || held >= 255 || ctype < 0 || ctype >= COLONIZE_CARGO_COUNT) {
+    return 0;
+  }
+  if (amount >= held) {
+    /* Whole hold: reuse the full-unload path (hold clear + bookkeeping). */
+    return colonies_transfer_from_unit(pool, colony_id, units, unit_id, hold_index, out_warehouse_full);
+  }
+  u->hold_goods_amount[hold_index] = (uint8_t)(held - amount);
+  const int cap = colonies_warehouse_capacity(pool, col, ctype);
+  col->stock[ctype] += amount;
+  col->cargo_idle_turns = 0;
+  if (out_warehouse_full && cap > 0 && col->stock[ctype] > cap) {
+    *out_warehouse_full = true;
+  }
+  return amount;
+}
+
 static int colonies_de_witt_trade_ok(
   const ColonizeColonyPool* pool,
   int foreign_colony_id,

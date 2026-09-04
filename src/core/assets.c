@@ -241,6 +241,7 @@ void assets_msg_free(ColonizeMsgCatalog* catalog) {
   }
   for (int i = 0; i < catalog->section_count; ++i) {
     free(catalog->sections[i].lines);
+    free(catalog->sections[i].blank_before);
   }
   free(catalog->sections);
   catalog->sections = NULL;
@@ -280,10 +281,19 @@ bool assets_msg_load_file(ColonizeMsgCatalog* catalog, const char* path) {
   }
 
   ColonizeMsgSection* current = NULL;
+  bool pending_blank = false; /* blank line(s) seen since the last stored line */
   char line[512];
   while (fgets(line, sizeof(line), f)) {
     strip_crlf(line);
-    if (line[0] == '\0' || line[0] == ';') {
+    if (line[0] == '\0') {
+      /* DOS's dialog parser advances body→choices on blank lines
+       * (FUN_6f74_32a4); remember the boundary without storing the line. */
+      if (current && current->line_count > 0) {
+        pending_blank = true;
+      }
+      continue;
+    }
+    if (line[0] == ';') {
       continue;
     }
     if (line[0] == '@' && (line[1] < 'a' || line[1] > 'z')) {
@@ -305,6 +315,7 @@ bool assets_msg_load_file(ColonizeMsgCatalog* catalog, const char* path) {
           continue;
         }
         current = msg_add_section(catalog, body);
+        pending_blank = false;
         if (!current) {
           fclose(f);
           return false;
@@ -324,9 +335,17 @@ bool assets_msg_load_file(ColonizeMsgCatalog* catalog, const char* path) {
         return false;
       }
       current->lines = grown;
+      uint8_t* grown_bb = realloc(current->blank_before, (size_t)next * sizeof(uint8_t));
+      if (!grown_bb) {
+        fclose(f);
+        return false;
+      }
+      current->blank_before = grown_bb;
       current->line_capacity = next;
     }
     str_copy_trunc(current->lines[current->line_count], COLONIZE_MSG_LINE_LEN, line);
+    current->blank_before[current->line_count] = pending_blank ? 1 : 0;
+    pending_blank = false;
     current->line_count++;
   }
   fclose(f);

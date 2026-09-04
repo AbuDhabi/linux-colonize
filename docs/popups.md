@@ -55,6 +55,40 @@ flowchart LR
 | Map event queue | flush immediately from AI/turn | [`ai_popup.c`](../src/core/ai_popup.c) (max 16) |
 | Dedicated UIs | colony `2f2b`, Europe `38fd`, save `7562`, … | `colony_screen`, Europe menus in `game_loop`, `save_load_dialog`, `pick_music`, `unit_stack`, `cheat_list_dialog`, `new_game` |
 
+### Dialog script parser — blank lines are the body/choice separator (2026-09-03)
+
+`FUN_6f74_32a4` (EXE 117247) is a **state machine keyed on blank lines**, not a
+keyword matcher. `local_6` starts at 1 and is incremented by every empty line;
+the loop runs `while (local_6 < 3)`:
+
+| state | meaning |
+|---|---|
+| 1 | body prose (`291f_08c6` append text line) |
+| 2 | choice rows (`291f_0176` add option, ordinal in `local_164`) |
+| 3 | stop |
+
+`@`-directives inside a section: `@TEXT` forces state 1, `@OPTIONS` / `@PROMPT`
+force state 2, `@SMALLFONT` / `@X` / `@Y` / `@WIDTH` / `@LENGTH` / `@CHECKBOX` /
+`@DEFAULT` set box fields, and **any unrecognised `@` sets state 3** — that is
+how the next `@SECTION` ends the parse. `@DEFAULT=N` pre-selects the option
+whose ordinal is N (`local_164 == local_16c` → box `+0x4c`).
+
+Port: `assets_msg_load_file` records a `blank_before[]` flag per stored line
+(blank lines are still not stored — ordinal indexing depends on that), and
+`popup_msg_section_body` / `popup_msg_choices` run the same state machine.
+The old keyword list (`popup_msg_is_choice_word`) stays only as a backstop for
+blankless catalogs; it never knew the quoted rows of `@KINGGALLEON2/3` or the
+Euro-diplomacy dialogs, which is why those popups printed their own options
+inside the body (bugs.md). `@default` rides the same side-channel as `@width`
+(`popup_msg_take_pending_default` → `AiPopupRequest.default_choice` →
+`ai_popup` initial selection). `unit_popup_msg` sweeps all 508 GAME.TXT
+sections asserting no choice row appears in a body.
+
+**Missing sections show nothing.** `FUN_7314_001a` scans the file for `@TAG`
+and returns non-zero at EOF; `32a4` then never allocates a box and `36ca`
+returns 0 without drawing. So a tag DOS pushes but GAME.TXT does not ship
+(`@CANCELTREATY`, `0x1898`) is a **silent no-op**, not a fallback popup.
+
 ### `{}` emphasis markup — shipped 2026-09-02
 
 GAME.TXT colors braced spans (`{far too crowded}`, `{%STRING0}`) with the
@@ -290,7 +324,7 @@ Deep mechanics: [combat.md](combat.md).
 
 | Popup / `@SECTION`s | When | Status | Port |
 |---------------------|------|--------|------|
-| `@LOSENOCOLONIES` / defeat | No colonies | Partial | Status; dialog PARKED |
+| `@LOSENOCOLONIES` / defeat | No colonies | Done thin | DOS `3844_0442` Section B (year≥1600, peacetime, zero human colonies): `@LOSENOCOLONIES` OK (`%STRING0` difficulty title, `%STRING1` leader name) then `AI_KING_ENDGAME_LOST` → retire-score/HoF chain (`turn_run_year_end_chrome`) |
 | `@SCORE` / `@SCORED` / retire | Retire / F10 | Done thin | `@SCORED` + `@RETIRING` on peacetime 1800 That's all; F10 score; HoF stub `HOF.TXT` |
 | `@LOSING*` / `@WARN*` / `@WINNING` | WoI end / anniversary | Done thin | `@WINNING`/`@LOSING1`–`3`/`@RETIRING`/`@RETIRING2`/`@WARN1`–`3`/`@SOONRETIRING0`/`1` Done thin |
 | `@TIMECHANGE` | Calendar help | Partial | Calendar Done; no modal |
@@ -436,8 +470,8 @@ work.
 | `@TRAININDENTURED` | Done thin | EOT Phase G Indentured→Free ai_popup OK |
 | `@TRAINPROFESSION` | Done thin | EOT Phase G graduate + Phase H field-skill discover ai_popup OK |
 | `@SIEGE` | Missing | no colony modal (FULL/SIEGE may status) |
-| `@ABANDON` | Done | colony abandon Yes/No (`colony_screen`) |
-| `@ABANDON2` | Done | colony abandon Yes/No (`colony_screen`) |
+| `@ABANDON` | Done | colony abandon confirm; `ai_popup` `AI_POPUP_TAG_COLONY_ABANDON` (2026-09-03 — was a colony-screen-local box with no wrap/width/figure) |
+| `@ABANDON2` | Done | same, picked when the owner has < 2 colonies **and** year > 1575 (DOS 2f2b `caseD_a` `CMP [0x538a],0x627`; the copy's "after 1600" is flavour text only) |
 | `@SAILHOME` | Partial | Europe sail/market — partial status or auto |
 | `@SAILAWAY` | Partial | Europe sail/market — partial status or auto |
 | `@SAILPORT` | Partial | Europe sail/market — partial status or auto |
@@ -496,7 +530,7 @@ work.
 | `@CANCELPEACE` | Done | DIPLO_* CHOICE structural; 10ec AI→human war-declare CHOICE prompt body now the real GAME.TXT line via `popup_msg_fill` |
 | `@SIGNTREATY` | Done | DIPLO_* CHOICE structural; peace-concluded OK popup body now the real GAME.TXT line via `popup_msg_fill` (Tools-embargo-lift chrome may override) |
 | `@DECLAREWAR` | Done | DIPLO_* CHOICE structural; war-declared OK popup body now the real GAME.TXT line via `popup_msg_fill` (boycott/hostility chrome may override); also `13b0` treaty-cancel-without-peace notice (2026-08-27) |
-| `@CANCELTREATY` | Done (structural) | `FUN_5bfb_13b0` treaty cancel notice via `ai_diplo_13b0_treaty_tick` (2026-08-27); tag not in shipped GAME.TXT (`0x1898`, DS-only) → fallback text |
+| `@CANCELTREATY` | n/a — DOS shows nothing | `FUN_5bfb_13b0` cancel branch pushes tag `0x1898` = `CANCELTREATY`, but **no `.TXT` in `COLONIZE/` has that section**. `FUN_7314_001a` (open resource; scan for `@TAG`) hits EOF → returns 1 → `FUN_6f74_32a4` skips the whole parse and returns a NULL box → `FUN_6f74_36ca` returns 0 without ever opening a dialog. So real DOS cancels the treaty **silently** (bits + timers only). Fixed 2026-09-03: the port's invented "The X cancel their treaty with the Y." notice is gone; the effects stay, and the popup only fires if some GAME.TXT ever ships the section |
 | `@HAVETREATY` | Partial | FA / diplo lines — thin DIPLO_FA or status; full 3f41 PARKED |
 | `@WHACKINDIANS` | Done (structural) | `FUN_465b_0000` → `ai_contact_try_whack_confirm` (2026-08-27): Yes/No before the first attack on a calm tribe, asked once (bit 0x04); real GAME.TXT body via `popup_msg_fill` |
 | `@VILLAGEHAPPY` | Partial | contact/raid/mission — structural OK/status; deep/VGA PARKED |
@@ -562,21 +596,21 @@ work.
 | `@HERESY0` | Partial | CONTACT_CONVERT OK thin |
 | `@HERESY1` | Partial | CONTACT_CONVERT OK thin |
 | `@INDIANBURN` | Partial | contact/raid/mission — structural OK/status; deep/VGA PARKED |
-| `@INDIANWIN0` | Partial | contact/raid/mission — structural OK/status; deep/VGA PARKED |
-| `@INDIANWIN1` | Partial | contact/raid/mission — structural OK/status; deep/VGA PARKED |
-| `@INDIANWIN2` | Partial | contact/raid/mission — structural OK/status; deep/VGA PARKED |
-| `@INDIANLOSE` | Partial | contact/raid/mission — structural OK/status; deep/VGA PARKED |
-| `@INDIANWINCOLONY` | Partial | contact/raid/mission — structural OK/status; deep/VGA PARKED |
-| `@INDIANWINCOLONY2` | Partial | contact/raid/mission — structural OK/status; deep/VGA PARKED |
-| `@INDIANBURNCOLONY` | Partial | contact/raid/mission — structural OK/status; deep/VGA PARKED |
-| `@INDIANBURNCOLONY2` | Partial | contact/raid/mission — structural OK/status; deep/VGA PARKED |
+| `@INDIANWIN0` | Done | Native attacker beats a human land defender: ai_contact ambush arm **and** the generic `units_combat_outcome_popups` path (braves stepping onto defended tiles); `units_set_native_combat_chrome_owned` keeps the two from doubling |
+| `@INDIANWIN1` | Done | Ambush arm only (muskets seized); generic path has no native seizure, like DOS |
+| `@INDIANWIN2` | Done | Ambush arm only (horses seized) |
+| `@INDIANLOSE` | Done | Native attack repulsed; LABELS defeat/defeats by defender type (`<7`) |
+| `@INDIANWINCOLONY` | Done | DOS `5fef_1b0e` colony arm (`bVar28` = undefended colony tile): native winner kills one colonist while pop>1 (`units_try_capture_foreign_colony`) |
+| `@INDIANWINCOLONY2` | Done | Human-bystander "Spies report…" twin of the above |
+| `@INDIANBURNCOLONY` | Done | Last colonist falls → colony burned (`units_combat_notify_colony_burned`, + woodcut 11). The `@BURNED` family is the both-Euro arm only |
+| `@INDIANBURNCOLONY2` | Done | Human-bystander twin (`units_combat_notify_colony_burned_foreign`) |
 | `@INDIANSURPRISE` | Partial | contact/raid/mission — structural OK/status; deep/VGA PARKED |
 | `@CAPTURED` | Done | Euro colony conquest with plunder |
 | `@CAPTURED2` | Done | spies report (AI capturer) |
 | `@CAPTURED3` | Done | conquest without plunder amount |
-| `@BURNED` | Done | Indian raid abandon burn → `units_combat_notify_colony_burned` |
+| `@BURNED` | Missing | Euro-vs-Euro colony burn only (DOS `5fef_1b0e` `uVar16<4 && uVar15<4` arm); the port has no Euro burn path yet — native burns use `@INDIANBURNCOLONY` |
 | `@BURNED2` | Missing | Ambiguous vs `@BURNED3` (no distinct trigger identified); left unwired |
-| `@BURNED3` | Done thin | Human-bystander "Spies report: …" via `units_combat_notify_colony_burned_foreign`, when the burned colony's nation is neither the human nor the raider |
+| `@BURNED3` | Missing | Euro-vs-Euro bystander twin of `@BURNED` (DOS tag `0x1c37` in the both-Euro arm); the native bystander uses `@INDIANBURNCOLONY2` instead |
 | `@EUROPEWIN` | Done | `{atk_nation} defeat {def_nation def_unit} near {place}!` |
 | `@EUROPELOSE` | Done | `{def_nation def_unit} defeat(s) {atk_nation} near {place}!` |
 | `@WAREHOUSEFULL` | Done thin | ship→colony unload when no room; spoilage remains `@SPOIL*` |
@@ -838,7 +872,7 @@ work.
 | `@INDIANWARPATH` | Partial | contact/raid/mission — structural OK/status; deep/VGA PARKED |
 | `@INDIANWARPATH2` | Partial | contact/raid/mission — structural OK/status; deep/VGA PARKED |
 | `@INDIANWARFARE` | Partial | contact/raid/mission — structural OK/status; deep/VGA PARKED |
-| `@LOSENOCOLONIES` | Partial | endgame/score/calendar — Partial (F10/status/thin INFO) |
+| `@LOSENOCOLONIES` | Done thin | Section B zero-colony defeat OK + `ENDGAME_LOST` latch (`turn_run_year_end_chrome`) |
 | `@SOONRETIRING0` | Done thin | peacetime Spring 1790 — `ai_king_nation_turn` (`unknown46[8]`) |
 | `@SOONRETIRING1` | Done thin | wartime 1840 — `ai_king_nation_turn` (`unknown46[9]`) |
 | `@RETIRING` | Done thin | peacetime `@SCORED` That's all → `ai_king_apply_popup_result` |

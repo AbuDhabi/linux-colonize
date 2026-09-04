@@ -653,6 +653,17 @@ void map_panel_render_tribes_on_map(
     const int px = tile_px + (tile_w - sp->width) / 2;
     const int py = tile_py + (tile_h - sp->height) / 2;
     ss_blit_sprite(icons, sprite, framebuffer, px, py);
+    /* DOS FUN_112b_0790 (asm 112b:09a1): tribe state bit 0x04 (capital)
+     * draws sprite 0x12 1-based = ICONS.SS #17 — the starburst — centred
+     * over the village icon, before the alarm/mission chrome. */
+    if (t->state.capital && 17 < icons->sprite_count) {
+      const ColonizeSprite* cap = &icons->sprites[17];
+      ss_blit_sprite(
+        icons, 17, framebuffer,
+        tile_px + (tile_w - cap->width) / 2,
+        tile_py + (tile_h - cap->height) / 2
+      );
+    }
     map_panel_draw_tribe_chrome(
       col1, fog_map, units, colonies, framebuffer, (int)i, t, fog_nation, tile_px, tile_py);
   }

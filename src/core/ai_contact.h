@@ -74,6 +74,15 @@ void ai_contact_indian_meet_trade(ColonizeTurnContext* ctx, int nation_id);
 void ai_contact_try_village_beg_food(ColonizeTurnContext* ctx, int nation_id);
 
 /*
+ * FUN_5bfb_022e generous half of the same already-met visit
+ * (@INDIANGIVEFOOD / @INDIANGIVESTUFF) — the most common peaceful Indian
+ * visitor in DOS. Returns 1 when a gift was handed over, in which case the
+ * caller must NOT also run the demand/beg arm: DOS's `bVar6` picks exactly
+ * one of the two halves per encounter.
+ */
+int ai_contact_try_village_gifts(ColonizeTurnContext* ctx, int nation_id);
+
+/*
  * FUN_5bfb_022e first contact: if unmet, set met and enqueue @INDIANWELCOME
  * Yes/No for human (or auto-accept for AI / no popups). Returns 1 if this
  * call started first contact. indian_nation is Col1 id 4..11.

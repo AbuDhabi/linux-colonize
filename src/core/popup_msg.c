@@ -51,8 +51,14 @@ size_t popup_msg_section_body(
   }
   size_t used = 0;
   int saw_prose = 0;
+  int boundary = 0; /* blank-line boundary carried across skipped lines */
   for (int i = 0; i < section->line_count; ++i) {
     const char* line = section->lines[i];
+    /* Only blanks after the first prose line count — a blank between the
+     * @directives and the body must not end an empty body. */
+    if (saw_prose && section->blank_before && section->blank_before[i]) {
+      boundary = 1;
+    }
     if (!line || line[0] == '\0' || popup_msg_is_directive(line)) {
       continue;
     }
@@ -61,7 +67,10 @@ size_t popup_msg_section_body(
         strcmp(line, "Colony:") == 0) {
       continue;
     }
-    if (stop_before_choices && saw_prose && popup_msg_is_choice_word(line)) {
+    /* DOS FUN_6f74_32a4: a blank line after body prose switches the parser
+     * to choice state — everything past it is choice rows, never body. The
+     * keyword list stays as a backstop for blankless catalogs (tests). */
+    if (stop_before_choices && saw_prose && (boundary || popup_msg_is_choice_word(line))) {
       break;
     }
     if (used > 0 && used + 1 < out_size) {
@@ -190,6 +199,7 @@ void popup_msg_apply_tokens(
 
 static int g_popup_msg_pending_width = 0;
 static int g_popup_msg_pending_graphic = -1;
+static int g_popup_msg_pending_default = 0;
 
 /*
  * GAME.TXT section → MSS{n}.SS popup decoration. Every constant
@@ -246,6 +256,10 @@ static const PopupMsgGraphicRow k_popup_msg_mss[] = {
   {"LOBOTOMIZE", 5},  {"WAREHOUSEFULL", 5}, {"BUYME0", 5},   {"BUYME1", 5},
   {"CLEARCUT", 5},    {"RAIDSTORES", 5},  {"RAIDBURN", 5},   {"RAIDSHIP", 5},
   {"RAIDGOLD", 5},    {"RAIDNOTHING", 5},
+  /* Colony-screen abandon confirm: DOS 2f2b builds "ABANDON" (+"2" after
+   * 1575 with no other colony) into a stack buffer and calls
+   * FUN_281f_0652(name, 5) — a dynamic tag, so it is keyed by name here. */
+  {"ABANDON", 5},     {"ABANDON2", 5},
 };
 
 int popup_msg_mss_index_for_section(const char* section_name) {
@@ -286,6 +300,26 @@ int popup_msg_take_pending_width(void) {
   return w;
 }
 
+int popup_msg_section_default(const ColonizeMsgSection* section) {
+  if (!section) {
+    return 0;
+  }
+  for (int i = 0; i < section->line_count; ++i) {
+    const char* line = section->lines[i];
+    if (line && strncmp(line, "@default=", 9) == 0) {
+      const int d = atoi(line + 9);
+      return d > 0 ? d : 0;
+    }
+  }
+  return 0;
+}
+
+int popup_msg_take_pending_default(void) {
+  const int d = g_popup_msg_pending_default;
+  g_popup_msg_pending_default = 0;
+  return d;
+}
+
 void popup_msg_fill(
   const ColonizeMsgCatalog* catalog,
   const char* section_name,
@@ -303,6 +337,7 @@ void popup_msg_fill(
   const ColonizeMsgSection* sec =
     (catalog && section_name) ? assets_msg_find(catalog, section_name) : NULL;
   g_popup_msg_pending_width = sec ? popup_msg_section_width(sec) : 0;
+  g_popup_msg_pending_default = sec ? popup_msg_section_default(sec) : 0;
   /* DOS keys the graphic off the call site, not GAME.TXT content — set it
    * from the name even when the section is missing and the fallback shows. */
   g_popup_msg_pending_graphic = popup_msg_mss_index_for_section(section_name);
@@ -328,6 +363,41 @@ int popup_msg_choices(
   }
   int count = 0;
   int saw_prose = 0;
+  /* Primary: DOS FUN_6f74_32a4 blank-line state machine — body until the
+   * first blank line after prose, then every line is a choice row until the
+   * next blank (state 3 = ignored trailer). Quoted diplomacy/King rows the
+   * keyword list below never knew about are caught by this pass. */
+  if (section->blank_before) {
+    int state = 1; /* 1 body, 2 choices, 3 done */
+    for (int i = 0; i < section->line_count; ++i) {
+      const char* line = section->lines[i];
+      if (saw_prose && section->blank_before[i]) {
+        state++;
+        if (state > 2) {
+          break;
+        }
+      }
+      if (!line || line[0] == '\0' || popup_msg_is_directive(line)) {
+        continue;
+      }
+      if (strcmp(line, "Name:") == 0 || strcmp(line, "Amount:") == 0 ||
+          strcmp(line, "Colony:") == 0) {
+        continue;
+      }
+      if (state == 1) {
+        saw_prose = 1;
+        continue;
+      }
+      if (count < max_choices) {
+        str_copy_trunc(out[count], POPUP_MSG_CHOICE_LEN, line);
+        count++;
+      }
+    }
+    if (count > 0) {
+      return count;
+    }
+  }
+  saw_prose = 0;
   for (int i = 0; i < section->line_count; ++i) {
     const char* line = section->lines[i];
     if (!line || line[0] == '\0' || popup_msg_is_directive(line)) {

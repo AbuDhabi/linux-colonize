@@ -196,6 +196,16 @@ typedef struct EuropeHarborShip {
   int exit_x;
   int exit_y;
   bool exit_east; /* true = left via east edge (usually shorter) */
+  /*
+   * Trade-route automation (bugs.md: "A ship trying to go to Europe via
+   * trade route just goes to the sea lane tile, then returns. Never visits
+   * Europe."): 0 = not on a route; else route slot + 1. trade_stop is the
+   * stop index the ship is travelling to service (going east: the Europe
+   * stop; going west after service: the next stop, re-armed as TRADE_ROUTE
+   * orders when the ship spawns back on the map). Zero-init = none.
+   */
+  int trade_route_plus1;
+  int trade_stop;
 } EuropeHarborShip;
 
 typedef enum EuropeHit {
@@ -344,6 +354,10 @@ typedef struct EuropeScreen {
    * does not check it).
    */
   uint16_t boycott_bitmap;
+  /* Mirrors ColonizeCol1Nation.artillery_count (nation+0x1e) for the human —
+   * DOS FUN_38fd_4b50 prices Artillery (type 0xb) at base + count*100 and
+   * bumps the count on every purchase. Synced by col1_bridge apply/capture. */
+  int artillery_bought;
   char status[160];
 } EuropeScreen;
 
@@ -403,6 +417,11 @@ const char* europe_pool_label(const EuropeScreen* eu, int slot);
 
 bool europe_train(EuropeScreen* eu, int train_index);
 bool europe_purchase(EuropeScreen* eu, int purchase_index);
+
+/* Live cost of a purchase-menu row — the table price plus DOS's Artillery
+ * escalation (FUN_38fd_4b50: +100 gold per Artillery already purchased,
+ * eu->artillery_bought = nation+0x1e). Returns -1 on a bad index. */
+int europe_purchase_cost(const EuropeScreen* eu, int purchase_index);
 
 /*
  * Push a save-loaded Europe-dock colonist straight onto the dock (append at

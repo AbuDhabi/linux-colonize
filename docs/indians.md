@@ -141,6 +141,13 @@ that patrol nearby are separate — killing one does not burn the dwelling.
 Homeland (tribal-land) radius: the tribe's tech tier — `FUN_15dc_006a`:
 tech 0/1 → **1**, tech 2 (Aztec) → **2**, tech 3 (Inca) → **3**, nearest
 village on the **same continent** (`FUN_4cc6_0356` / the 5x5 native cache).
+**Re-verified 2026-09-04** (bugs.md "Indian land should only be a 1-tile
+radius"): `FUN_15dc_006a(nation)` reads `nation*0x4e + 0x5ad8` (tech) and
+returns 1 / 1 / 2 / 3; all three call sites test `dist <= radius`
+(`viceroy_unpacked.c:12850` colony tile cache, `viceroy_unpacked_2.c:75564`
+and `:75663` the `@INDIANLAND` found/clear gate). 1 tile is right for six of
+the eight nations — only Aztec (2) and Inca (3) reach further. `colony.c`
+`colonies_indian_land_radius` matches; **not a defect**.
 Was the manual's "capital 2" rule until 2026-08-28 (`colony.c`
 `colonies_tile_indian_homeland`). Founding / clearing / road-building on
 such a tile at PEACE with the owner raises the DOS `@INDIANLAND` /
@@ -246,6 +253,7 @@ First-contact **reject** floors alarm/friction into the **≥80** band
 | Driver | Effect |
 |--------|--------|
 | Encroachment | **RETIRED 2026-09-03** (bugs.md "alarm rises incredibly fast"). The former fandom +2/turn unit/colony bump was not DOS; DOS grows alarm only via the `152e` threat accumulator (colonies within distance 7 + military ring → `euro_relation_accum`, −8 crossing = alarm +1). The friction ±1/turn relation-tick band drift retired with it. |
+| Units at sea | **Never counted** (verified 2026-09-04). `FUN_4cc6_03f8`'s 20-tile threat ring skips a tile when `FUN_281f_0768` → `FUN_13e4_0074` says terrain class `0x19`/`0x1a` (water), and its stack walk ignores unit types `0xd..0x12` (ships). So combat units riding a ship raise no alarm; `@MADATSHIPS` / `@DONTKNOWSHIPS` are refusal chrome with no alarm bump. `ai_indian_village_threat` already matched (`map_tile_is_water`, `units_is_sea`, and `units_is_on_map` excluding aboard passengers). |
 | French (Euro nation 1) | Half-rate bumps; +1 auto-trade reach |
 | Pocahontas | Half-rate bumps; elect zeros this nation's tribe friction/attacks + `alarm_by_player` |
 | Missions | Low band extra −1; mid 40–79 meet pulse −2 toward mission owner; ≥80 burns mission |
@@ -298,6 +306,60 @@ Village tile / synthetic apply: Trade / Gift / Demand / Teach / Leave
 (`ai_contact_try_village_meet`). Greet `@INDIANHELLO1` / `HELLO2` by cool/hot
 alarm. Thin auto-trade drains Trade Goods from colony / ship / wagon; deep
 bargain matrix `FUN_4d56_2820` **PARKED**.
+
+**Interacting with a village forfeits the unit's remaining MP** (2026-09-04).
+`FUN_4d56_4528`'s common tail (`viceroy_overlays.asm` `OVL13::004c0a`) calls
+`FUN_1000_8b24` = `FUN_281f_0934` → `FUN_1427_155e` (`spent := max MP`)
+whenever the dispatch returns code **1** — Trade, Denounce Heresy, Live Among
+The Natives, Speak With Chief, Incite, Demand Tribute and plain Leave. Only
+**Attack Village** (code 0; the move/combat spends MP itself) and **Establish
+Mission** (code 2) keep their movement. Full case table + the retraction of
+the old "8b24 is a harmless stat-cache refresh" reading:
+[`indian_settlement_4528.md`](../original_sources_annotated/ai/indian_settlement_4528.md)
+§2026-09-04. Ported in `ai_contact_apply_popup_result`.
+
+### Indian-initiated visit (`FUN_5bfb_022e`, the Brave's own move)
+
+One encounter picks **exactly one** of two halves via `bVar6` (mood roll
+`rng(1,0x148) ≥ max(0, alarm−0x19)*4 + village alarm word`, plus
+`alarm ≤ 0x4a` overall and `alarm ≤ 0x31` for the generous half):
+
+| Half | Arms |
+|------|------|
+| Generous (`LAB_5bfb_096c`) | `@INDIANGIVEFOOD` (village food surplus `bid[0] > ask[0]` **and** colony food ≤ 25 → top up to 75) / `@INDIANGIVESTUFF` (gift the good the village values most that still fits) — and, on a mission-owned village, `@INDIANSCONVERT` first on a `tech+2` (×2 Jesuit) vs `rng(0,0xf)` roll |
+| Demanding (`LAB_5bfb_0def`) | `@INDIANBEGFOOD` (`ask[0] > bid[0]` **and** colony food > 74) / tribute from an adjacent unit |
+
+The gift half stamps `contact_state[euro] = 2` and **zeroes that village's
+alarm word** toward the visited nation. `contact_state` (`ColonizeCol1Indian
++0x2e`, persisted) is a sticky per-(tribe nation, Euro) latch and the two
+halves read it: **2 permanently disables the demand/beg arm**, **1 permanently
+disables the gift arm** (`local_10`). `ai_contact_try_village_gifts` (returns 1
+when it gifted, so `ai.c`'s §9 skips the beg arm) /
+`ai_contact_try_village_beg_food`. The generous half was missing entirely until
+2026-09-04 — the only peaceful visitor the player ever saw was a beggar.
+Whether a village begs or gifts is a **per-village** 2154 terrain/population
+question (DOS binds the visiting Brave's own home settlement, `unit+0x314a`),
+not a tribe personality: an Aztec village on food-poor terrain begs, one with a
+surplus brings food.
+
+**Trigger — the port's one divergence.** DOS runs `022e` from `FUN_465b`'s move
+tail (`FUN_281f_0984` → `FUN_5bfb_3180`), once per Brave *step*, for the
+neighbour tile the encounter scan found; a Brave parked beside a colony raises
+nothing. The Linux pulse commits steps inline and runs the contact arms once
+per nation afterwards, so both halves reconstruct it from
+`ai_native_brave_turn_origin` ("walked up this turn, was not already
+adjacent") plus an 8-turn per-nation throttle, and the gift half additionally
+declines when there is no popup queue. That last gate is not cosmetic: the
+port's Brave paths are not DOS-faithful (`golden_ai_turns` is DISABLED for
+exactly that), and in `COLONY00→01` the port walks an Iroquois Brave beside New
+Amsterdam while DOS's Braves end that turn two and three tiles away — letting a
+mis-walked Brave move colony stores corrupts the DOS production goldens.
+
+There is **no passive teach arm** in `022e` — retired 2026-09-04. The port's
+old per-turn adjacency pulse invented "The %s teach outdoor skills." (no such
+GAME.TXT tag) and fired `@LEARNMAD` / `@LEARNCRIMINAL` refusals at any
+colonist a Brave wandered past. Teaching is reached only through the
+deliberate **Live Among The Natives** `@ACTIONS` row.
 
 ### Missions and Founding Fathers
 

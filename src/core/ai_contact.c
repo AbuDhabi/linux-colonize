@@ -1,5 +1,6 @@
 #include "core/ai_contact.h"
 
+#include "core/ai.h"
 #include "core/ai_diplo.h"
 #include "core/sound.h"
 #include "core/woodcut.h"
@@ -3347,6 +3348,40 @@ static void ai_contact_apply_beg_food(
   }
 }
 
+/*
+ * "A Brave walked up to this colony this turn."
+ *
+ * DOS never polls standing adjacency: FUN_5bfb_022e is reached from
+ * FUN_465b's move tail (FUN_281f_0984 → FUN_5bfb_3180) for the tile a unit
+ * just stepped beside, so a Brave that has been parked next to a colony for
+ * twenty turns raises nothing, while one that walks over raises a visit.
+ * The Linux native pulse commits its steps inline and runs the contact arms
+ * once per nation afterwards (ai.c §9), so this reconstructs the trigger
+ * from the pulse's recorded pre-move tile: the Brave must have moved this
+ * turn AND not already have been adjacent to this colony before it moved.
+ *
+ * This is the port's one adaptation of the trigger and it matters: without
+ * it every Brave loitering beside a colony gifted it goods every few turns,
+ * which broke the DOS colony-production goldens (New Amsterdam +13 ore).
+ */
+static int ai_contact_brave_walked_up_to(const ColonizeUnit* brave, int cx, int cy) {
+  if (!brave) {
+    return 0;
+  }
+  int ox = 0;
+  int oy = 0;
+  if (!ai_native_brave_turn_origin(brave->id, &ox, &oy)) {
+    return 0; /* the pulse never touched this unit this turn */
+  }
+  if (ox == brave->x && oy == brave->y) {
+    return 0; /* stood still — DOS runs no move tail, so no encounter */
+  }
+  if (abs(ox - cx) <= 1 && abs(oy - cy) <= 1) {
+    return 0; /* already beside this colony before the step */
+  }
+  return 1;
+}
+
 static int ai_contact_beg_food_pending(const AiPopupState* st) {
   if (!st) {
     return 0;
@@ -3379,26 +3414,6 @@ void ai_contact_try_village_beg_food(ColonizeTurnContext* ctx, int nation_id) {
   if (ctx->ai_popups && ai_contact_beg_food_pending(ctx->ai_popups)) {
     return;
   }
-  const ColonizeCol1Tribe* sample = NULL;
-  for (uint16_t ti = 0; ti < ctx->col1->head.tribe_count; ++ti) {
-    const ColonizeCol1Tribe* t = &ctx->col1->tribe[ti];
-    if ((int)t->nation_id == nation_id) {
-      sample = t;
-      break;
-    }
-  }
-  if (!sample) {
-    return;
-  }
-  AiContactMeetEcon2154 econ;
-  memset(&econ, 0, sizeof(econ));
-  if (!ai_contact_meet_economics_2154(ctx, nation_id, sample, &econ)) {
-    return;
-  }
-  const int delta = (int)econ.ask[0] - (int)econ.bid[0];
-  if (delta <= 0) {
-    return;
-  }
   /*
    * bugs.md: DOS begs at the colony a Brave actually walked next to — the
    * tribe cannot ask from across the map, and it must not re-ask every
@@ -3414,7 +3429,20 @@ void ai_contact_try_village_beg_food(ColonizeTurnContext* ctx, int nation_id) {
     if (!ind->euro_diplo[e] || ind->alarm_by_player[e] >= 55) {
       continue;
     }
+    /*
+     * DOS's demand half is latched off once this pair has resolved a generous
+     * visit: `if (contact_state != 2 && (colony || wagon))` guards
+     * LAB_5bfb_0def. contact_state is a persisted per-(tribe nation, Euro)
+     * byte, so a tribe that has ever brought gifts to a nation never begs
+     * from it again — and, symmetrically, state 1 (a past demand) is what
+     * permanently disables the gift arm (`local_10`).
+     */
+    if (ind->contact_state[e] == 2) {
+      continue;
+    }
     int best_ci = -1;
+    int visit_brave_id = -1;
+    int visit_home_tribe = -1;
     for (int ci = 0; ci < COLONIZE_COLONIES_MAX; ++ci) {
       ColonizeColony* c = &ctx->colonies->colonies[ci];
       if (!c->active || c->nation_id != e || c->stock[COLONIZE_CARGO_FOOD] <= 0x4a) {
@@ -3423,10 +3451,19 @@ void ai_contact_try_village_beg_food(ColonizeTurnContext* ctx, int nation_id) {
       bool brave_adjacent = false;
       for (int ui = 0; ui < COLONIZE_UNITS_MAX && !brave_adjacent; ++ui) {
         const ColonizeUnit* bu = units_get_const(ctx->units, ui);
-        if (bu && bu->active && bu->nation_id == nation_id && units_is_on_map(bu) &&
-            abs(bu->x - c->x) <= 1 && abs(bu->y - c->y) <= 1) {
-          brave_adjacent = true;
+        if (!bu || !bu->active || bu->nation_id != nation_id || !units_is_on_map(bu)) {
+          continue;
         }
+        if (abs(bu->x - c->x) > 1 || abs(bu->y - c->y) > 1) {
+          continue;
+        }
+        /* Same DOS move-tail trigger as the gift half — see the helper. */
+        if (!ai_contact_brave_walked_up_to(bu, c->x, c->y)) {
+          continue;
+        }
+        brave_adjacent = true;
+        visit_brave_id = bu->id;
+        visit_home_tribe = bu->home_tribe_id;
       }
       if (!brave_adjacent) {
         continue;
@@ -3437,6 +3474,41 @@ void ai_contact_try_village_beg_food(ColonizeTurnContext* ctx, int nation_id) {
     if (best_ci < 0) {
       continue;
     }
+    /*
+     * bugs.md 2026-09-04 (bug 6, "do Aztecs really beg?"): DOS scores the
+     * economics of the VISITING Brave's own village (FUN_281f_0a4c binds
+     * `unit+0x314a`, its home settlement, before FUN_2a1f_0434 runs), so
+     * whether a tribe begs is a per-village terrain/population question, not
+     * a per-nation one. The port used to score one arbitrary "sample"
+     * village for the whole nation, which made every visit by that nation
+     * inherit tribe[0]'s food shortfall. Ask minus bid on cargo 0 is the
+     * DOS gate (`0 < *0x9e58 - *0x9e78`) and the mirror of the gift arm's
+     * `bid[0] > ask[0]` food surplus.
+     */
+    const ColonizeCol1Tribe* home = NULL;
+    if (visit_home_tribe >= 0 && visit_home_tribe < (int)ctx->col1->head.tribe_count &&
+        (int)ctx->col1->tribe[visit_home_tribe].nation_id == nation_id) {
+      home = &ctx->col1->tribe[visit_home_tribe];
+    } else {
+      for (uint16_t ti = 0; ti < ctx->col1->head.tribe_count; ++ti) {
+        if ((int)ctx->col1->tribe[ti].nation_id == nation_id) {
+          home = &ctx->col1->tribe[ti];
+          break;
+        }
+      }
+    }
+    if (!home) {
+      continue;
+    }
+    AiContactMeetEcon2154 econ;
+    memset(&econ, 0, sizeof(econ));
+    if (!ai_contact_meet_economics_2154(ctx, nation_id, home, &econ)) {
+      continue;
+    }
+    const int delta = (int)econ.ask[0] - (int)econ.bid[0];
+    if (delta <= 0) {
+      continue; /* this village has no food shortfall — nothing to beg for */
+    }
     const int roll = dos_rng_range(ctx->rng, 1, 100);
     if (roll > delta) {
       continue;
@@ -3445,6 +3517,12 @@ void ai_contact_try_village_beg_food(ColonizeTurnContext* ctx, int nation_id) {
     ai_contact_bind_names(ctx);
     if (ai_contact_euro_is_human(ctx, e)) {
       const ColonizeColony* beg_colony = &ctx->colonies->colonies[best_ci];
+      /*
+       * bugs.md 2026-09-04: DOS FUN_5bfb_022e visibly walks the visitor into
+       * the colony (FUN_281f_0e08/02d0/09ba slide) before the popup — reuse
+       * the combat-bump watch so the visit reads on screen first.
+       */
+      units_combat_watch_notify(ctx->units, visit_brave_id, beg_colony->x, beg_colony->y);
       PopupMsgTokens tok;
       memset(&tok, 0, sizeof(tok));
       tok.string0 = ai_contact_tribe_name(nation_id);
@@ -4587,6 +4665,280 @@ static const uint8_t k_2820_throttle[16] = {0x00, 0x05, 0x02, 0x03, 0x04, 0x01, 
                                             0x02, 0x0a, 0x0a, 0x0e, 0x09, 0x02, 0x01, 0x02};
 
 /*
+ * FUN_5bfb_022e generous-visit ("bVar6") arm — @INDIANGIVEFOOD / @INDIANGIVESTUFF
+ * (viceroy_unpacked_2.c 87455–88030). The DOS most-common peaceful visitor:
+ * a Brave walks up to an already-met colony and, when the mood roll lands
+ * generous, gifts goods (or food when the colony is starving).
+ *
+ * DOS gates, all ported literally:
+ *  - nation alarm > 0x4a (74) → no peaceful visit at all;
+ *  - village alarm word ≥ 0x80 or contact_state == 1 (hostile latch) → not
+ *    the gift arm;
+ *  - mood roll: rng(1, 0x148) must be ≥ max(0, alarm−0x19)*4 + village word;
+ *  - alarm > 0x31 (49) → generous flips off, contact_state ← 2, no gift.
+ * At gift-arm entry DOS also stamps contact_state ← 2 and ZEROES the village
+ * alarm word toward the visited nation (`*(0x8d4a + e*2 + 10) = 0`, right
+ * after the FUN_281f_09e6 colony bind) — a gift-bearing visit discharges that
+ * village's friction/attacks pair.
+ * Mission-owned-by-e villages roll for @INDIANSCONVERT first (`tech + 2`,
+ * doubled for a Jesuit mission, vs rng(0,0xf) — hit sends a convert instead,
+ * ported separately as ai_contact_mission_convert_visit); a missed roll falls
+ * through to the gift arms exactly as DOS does at LAB_5bfb_096c.
+ *
+ * Branch pick (LAB_5bfb_096c): 2154 bid[0] > ask[0] (village food surplus)
+ * AND colony food ≤ 0x19 (25) → GIVEFOOD, topping the colony to 0x4b (75).
+ * Else GIVESTUFF: bid[] keys with bid[0]=0 and near-full goods forced to 1
+ * (capacity−10 < stock), insertion-sorted ascending; pick from the top at
+ * rank rng(1,3), skipping food and skipping silver (7) for tech < 2;
+ * qty = min(100/(want+1), key+5) clamped [5,100], capped to warehouse room,
+ * floor 2. Cite: FUN_281f_0d3a = warehouse capacity; FUN_291f_0ed0 sort.
+ *
+ * TRIGGER FIDELITY (the port's one deliberate divergence, 2026-09-04).
+ * DOS reaches 022e from FUN_465b's move tail (FUN_281f_0984 →
+ * FUN_5bfb_3180), once per Brave step, for the neighbour tile the encounter
+ * scan found. The Linux native pulse commits its steps inline and runs the
+ * contact arms once per nation afterwards, so this reconstructs the trigger
+ * from ai_native_brave_turn_origin (the Brave must have walked up this turn —
+ * see ai_contact_brave_walked_up_to) plus an 8-turn per-nation throttle, and
+ * declines entirely without a popup queue. That last gate exists because the
+ * port's Brave paths are NOT DOS-faithful (golden_ai_turns is DISABLED for
+ * exactly that): in COLONY00→01 the port walks an Iroquois Brave to (49,48),
+ * beside New Amsterdam, while DOS's own Braves end that turn at (49,51) and
+ * (50,47) — nowhere near it. Letting a mis-walked Brave move a colony's
+ * stores would corrupt the DOS colony-production goldens, so the arm stays
+ * out of contexts that are replaying production math.
+ *
+ * Returns 1 when a gift was actually handed over. The caller uses that to
+ * skip the demand/beg arm: in DOS the two are the mutually exclusive halves
+ * of one visit (`bVar6` true → LAB_5bfb_096c gifts; false → LAB_5bfb_0def
+ * demands), never both in the same encounter.
+ */
+int ai_contact_try_village_gifts(ColonizeTurnContext* ctx, int nation_id) {
+  if (!ctx || !ctx->col1_ok || !ctx->col1 || !ctx->colonies || !ctx->col1->tribe || !ctx->rng ||
+      !ctx->units) {
+    return 0;
+  }
+  if (nation_id < 4 || nation_id > 11) {
+    return 0;
+  }
+  if (!ctx->ai_popups) {
+    /*
+     * No presentation context — see the "trigger fidelity" note in this
+     * function's header. A visit is a blocking dialog in DOS; a caller with
+     * no popup queue (the DOS colony-production golden fixtures drive
+     * turn_end directly) is replaying production math, and the port's Brave
+     * paths are not DOS-faithful enough (golden_ai_turns is DISABLED for
+     * exactly that) to let this arm move a colony's stores there.
+     */
+    return 0;
+  }
+  ColonizeCol1Indian* ind = &ctx->col1->indian[nation_id - 4];
+  static uint16_t s_gift_cooldown_until[8];
+  const uint16_t now_turn = ctx->col1->head.turn;
+  if (now_turn && s_gift_cooldown_until[nation_id - 4] > now_turn) {
+    return 0;
+  }
+  for (int e = 0; e < 4; ++e) {
+    if (!ind->euro_diplo[e]) {
+      continue; /* unmet — first contact runs its own arm */
+    }
+    const int alarm = ai_diplo_indian_alarm(ctx->col1, nation_id, e);
+    if (alarm > 0x4a) {
+      continue; /* DOS: no peaceful visit interaction at all */
+    }
+    /* A Brave of this nation that walked up to a colony of e this turn. */
+    int best_ci = -1;
+    const ColonizeUnit* brave = NULL;
+    for (int ci = 0; ci < COLONIZE_COLONIES_MAX && best_ci < 0; ++ci) {
+      const ColonizeColony* c = &ctx->colonies->colonies[ci];
+      if (!c->active || c->nation_id != e) {
+        continue;
+      }
+      for (int ui = 0; ui < COLONIZE_UNITS_MAX; ++ui) {
+        const ColonizeUnit* bu = units_get_const(ctx->units, ui);
+        if (!bu || !bu->active || bu->nation_id != nation_id || !units_is_on_map(bu)) {
+          continue;
+        }
+        if (abs(bu->x - c->x) > 1 || abs(bu->y - c->y) > 1) {
+          continue;
+        }
+        if (!ai_contact_brave_walked_up_to(bu, c->x, c->y)) {
+          continue;
+        }
+        best_ci = ci;
+        brave = bu;
+        break;
+      }
+    }
+    if (best_ci < 0 || !brave) {
+      continue;
+    }
+    ColonizeColony* c = &ctx->colonies->colonies[best_ci];
+    /* The visiting Brave's own village record (DOS FUN_281f_0a4c bind). */
+    ColonizeCol1Tribe* t = NULL;
+    if (brave->home_tribe_id >= 0 && brave->home_tribe_id < (int)ctx->col1->head.tribe_count &&
+        (int)ctx->col1->tribe[brave->home_tribe_id].nation_id == nation_id) {
+      t = &ctx->col1->tribe[brave->home_tribe_id];
+    } else {
+      for (uint16_t ti = 0; ti < ctx->col1->head.tribe_count; ++ti) {
+        if ((int)ctx->col1->tribe[ti].nation_id == nation_id) {
+          t = &ctx->col1->tribe[ti];
+          break;
+        }
+      }
+    }
+    if (!t) {
+      continue;
+    }
+    const int word = ai_contact_tribe_alarm_word(t, e);
+    if (word >= 0x80 || ind->contact_state[e] == 1) {
+      continue; /* hostile latch (local_10) — demand arm, not gifts */
+    }
+    const int roll = dos_rng_range(ctx->rng, 1, 0x148);
+    int over = alarm - 0x19;
+    if (over < 0) {
+      over = 0;
+    }
+    if (over * 4 + word > roll) {
+      continue; /* mood roll failed (bVar5) — not generous this visit */
+    }
+    if (alarm > 0x31) {
+      ind->contact_state[e] = 2; /* DOS: bVar6 flips off, state stamped */
+      continue;
+    }
+    /*
+     * DOS stamps state 2 and discharges this village's alarm word toward the
+     * visited nation before the convert/gift split (both halves get it).
+     */
+    ind->contact_state[e] = 2;
+    ai_contact_tribe_alarm_word_set(t, e, 0);
+    /*
+     * Mission owned by e → roll for @INDIANSCONVERT (`tech + 2`, ×2 Jesuit,
+     * vs rng(0,0xf)); a hit is the convert visit (ported separately), a miss
+     * falls through to the gift arms below just as DOS does.
+     */
+    if (t->mission != COL1_TRIBE_MISSION_NONE && (int)(t->mission & 0x0f) == e) {
+      int need = (int)ind->tech + 2;
+      if ((t->mission & COL1_TRIBE_MISSION_JESUIT_BIT) != 0) {
+        need *= 2;
+      }
+      if (need > dos_rng_range(ctx->rng, 0, 0xf)) {
+        continue; /* convert sent instead of a gift */
+      }
+    }
+    AiContactMeetEcon2154 econ;
+    memset(&econ, 0, sizeof(econ));
+    if (!ai_contact_meet_economics_2154(ctx, nation_id, t, &econ)) {
+      continue;
+    }
+    ai_contact_bind_names(ctx);
+    const int human = ai_contact_euro_is_human(ctx, e);
+
+    if ((int)econ.bid[0] > (int)econ.ask[0] && c->stock[COLONIZE_CARGO_FOOD] <= 0x19) {
+      /* @INDIANGIVEFOOD: village food surplus, colony starving → top to 75. */
+      const int qty = 0x4b - c->stock[COLONIZE_CARGO_FOOD];
+      c->stock[COLONIZE_CARGO_FOOD] += qty;
+      if (human) {
+        units_combat_watch_notify(ctx->units, brave->id, c->x, c->y);
+        PopupMsgTokens tok;
+        memset(&tok, 0, sizeof(tok));
+        tok.string0 = ai_contact_tribe_name(nation_id);
+        tok.number0 = qty;
+        tok.has_number0 = true;
+        char body[AI_POPUP_BODY_LEN];
+        popup_msg_fill(
+          ctx->messages, "INDIANGIVEFOOD", &tok,
+          "\"Our own harvest has been plentiful and we have come to share our "
+          "bounty with you. We offer you a gift of food in recognition of the "
+          "everlasting peace between our peoples.\"",
+          body, sizeof(body)
+        );
+        ai_contact_human_chrome(
+          ctx, e, AI_POPUP_TAG_CONTACT_MEET, nation_id, "Gift", body
+        );
+      }
+    } else {
+      /* @INDIANGIVESTUFF: gift the good the village values most that fits. */
+      int16_t key[16];
+      memcpy(key, econ.bid, sizeof(key));
+      key[0] = 0;
+      for (int i = 0; i < COLONIZE_CARGO_COUNT; ++i) {
+        const int cap_i = colonies_warehouse_capacity(ctx->colonies, c, i);
+        if (c->stock[i] > cap_i - 10) {
+          key[i] = 1; /* near-full — deprioritized in the sort */
+        }
+      }
+      int order[16];
+      ai_contact_2820_sort(key, order);
+      int cargo = -1;
+      for (int rank = dos_rng_range(ctx->rng, 1, 3); rank <= 16; ++rank) {
+        const int cand = order[16 - rank];
+        if (cand == COLONIZE_CARGO_FOOD) {
+          continue; /* food has its own arm above */
+        }
+        if (cand == COLONIZE_CARGO_SILVER && ind->tech < 2) {
+          continue; /* only advanced tribes (Aztec/Inca tier) gift silver */
+        }
+        cargo = cand;
+        break;
+      }
+      if (cargo < 0) {
+        continue;
+      }
+      int qty = 100 / ((int)k_2820_throttle[cargo] + 1);
+      const int alt = (int)key[cargo] + 5;
+      if (alt < qty) {
+        qty = alt;
+      }
+      if (qty < 5) {
+        qty = 5;
+      }
+      if (qty > 100) {
+        qty = 100;
+      }
+      const int room = colonies_warehouse_capacity(ctx->colonies, c, cargo) - c->stock[cargo];
+      if (room < qty) {
+        qty = room;
+      }
+      if (qty < 2) {
+        qty = 2; /* DOS floor even into a full warehouse */
+      }
+      c->stock[cargo] += qty;
+      if (human) {
+        units_combat_watch_notify(ctx->units, brave->id, c->x, c->y);
+        PopupMsgTokens tok;
+        memset(&tok, 0, sizeof(tok));
+        tok.string0 = ai_contact_tribe_name(nation_id);
+        tok.string1 = c->name;
+        tok.string2 = ai_contact_cargo_name(cargo);
+        tok.number0 = qty;
+        tok.has_number0 = true;
+        char body[AI_POPUP_BODY_LEN];
+        popup_msg_fill(
+          ctx->messages, "INDIANGIVESTUFF", &tok,
+          "\"The tribe is pleased to see the progress of our neighbors. We have "
+          "come to offer you a gift in recognition of the everlasting peace "
+          "between our peoples.\"",
+          body, sizeof(body)
+        );
+        ai_contact_human_chrome(
+          ctx, e, AI_POPUP_TAG_CONTACT_MEET, nation_id, "Gift", body
+        );
+      }
+    }
+    if (ctx->status && ctx->status_size && !human) {
+      snprintf(
+        ctx->status, ctx->status_size, "The %s bring gifts to %s.",
+        ai_contact_tribe_name(nation_id), c->name
+      );
+    }
+    s_gift_cooldown_until[nation_id - 4] = (uint16_t)(now_turn + 8);
+    return 1; /* one gift-bearing visit per Indian nation per turn */
+  }
+  return 0;
+}
+
+/*
  * Shell tables: 2154 ask/bid, then
  *   bid0 = bid[0]; bid[0] = 0; if (bid[13] < bid0) ask[0] = 0;
  *   sort by bid; top three: ask[c] = 0 (a food slot becomes cloth, 0xc).
@@ -5676,8 +6028,15 @@ void ai_contact_indian_meet_trade(ColonizeTurnContext* ctx, int nation_id) {
    */
   ai_contact_mission_pacify_meet(ctx, nation_id);
 
-  /* 2c. Peaceful Free Colonist/Scout at tribe → state.learned + optional skill. */
-  ai_contact_teach_skill(ctx, nation_id);
+  /*
+   * bugs.md 2026-09-04: the passive teach pulse is retired from the Indian
+   * move path. DOS FUN_5bfb_022e (the Brave-side contact this pulse ports)
+   * contains no teach arm at all — teaching happens only through the
+   * deliberate "Live Among The Natives" @ACTIONS row (thunk_FUN_1000_a618).
+   * The pulse used to fire @LEARNMAD refusals and "The %s teach outdoor
+   * skills." at the player whenever a Brave wandered past a Free Colonist
+   * or Scout, reading as a bogus Indian-initiated lesson.
+   */
 }
 
 /*
@@ -6604,8 +6963,17 @@ void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id) {
           }
         }
       }
+      /*
+       * This arm draws its own @INDIANWIN0/1/2 / @INDIANLOSE below (with the
+       * muskets/horses seizure lines DOS builds by appending '1'/'2' to tag
+       * 0x1ca9, FUN_1d1d_07e4). Silence the generic native-attacker chrome in
+       * units_combat_outcome_popups for the duration, or the same fight
+       * reports twice.
+       */
+      units_set_native_combat_chrome_owned(1);
       const int brave_won =
         units_resolve_land_combat(ctx->units, brave->id, foe, rng) ? 1 : 0;
+      units_set_native_combat_chrome_owned(0);
       int seized_muskets = 0;
       int seized_horses = 0;
       if (brave_won) {
@@ -8531,6 +8899,35 @@ void ai_contact_apply_popup_result(ColonizeTurnContext* ctx, const AiPopupState*
         break;
       }
     }
+  }
+
+  /*
+   * bugs.md 2026-09-04 (user-observed DOS, then confirmed in the ASM): a unit
+   * that interacts with an Indian village — scout, armed unit, colonist
+   * alike — forfeits its remaining movement for the turn.
+   *
+   * Cite: FUN_4d56_4528's common tail, viceroy_overlays.asm OVL13:0x4c0a —
+   *   if ([BP-0x58] == 1) FUN_1000_8b24(unit);   ; then RETF [BP-0x58]
+   * [BP-0x58] is the function's return code and FUN_1000_8b24 resolves (the
+   * FUN_1000_X = 281f_(X-0x81f0) resident-stub rule: 0x8b24-0x81f0 = 0x934)
+   * to FUN_281f_0934 → FUN_1427_155e → `moves_spent = FUN_1427_065a(unit)`,
+   * i.e. spent := the unit's own max MP — a full forfeit, not a "stat cache
+   * refresh" (indian_settlement_4528.md's old reading of 8b24, corrected).
+   *
+   * Two DOS exceptions, both reproduced here:
+   *  - Attack Village (switch case 9) sets the code to 0, so no forfeit — the
+   *    deferred move onto the village tile is committed by game_loop and
+   *    consumes MP through the move/combat itself.
+   *  - Establish Mission (case 3) sets the code to 2 unconditionally, so no
+   *    forfeit either; on the success path the missionary is consumed by the
+   *    village anyway, and on a refusal DOS really does leave its MP alone.
+   * Every other outcome — Trade, Denounce Heresy, Live Among The Natives,
+   * Speak With Chief, Incite, Demand Tribute, and plain Leave (which falls to
+   * the switch default) — returns 1 and forfeits.
+   */
+  if (menu_unit && popup->result_choice_id != AI_CONTACT_CHOICE_ATTACK_VILLAGE &&
+      popup->result_choice_id != AI_CONTACT_CHOICE_MISSION) {
+    menu_unit->moves_left = 0;
   }
 
   switch (popup->result_choice_id) {
