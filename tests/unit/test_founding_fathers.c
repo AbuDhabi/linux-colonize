@@ -1830,7 +1830,11 @@ int main(void) {
       return fail("Las Casas must rename Indian Converts unit type");
     }
 
-    /* Ownership tick: late Convert on map assimilates without re-elect. */
+    /*
+     * Elect is one-shot: a Convert that turns up later stays a Convert. DOS
+     * proof is original_saves/colony-prod-tests — the Dutch hold Las Casas in
+     * COLONY00 and Montreal's Converts are still Converts in COLONY01.
+     */
     const int late = units_spawn_allow_stack(&lunits, 0, 7, 7);
     if (late < 0) {
       return fail("Las Casas late spawn");
@@ -1840,8 +1844,8 @@ int main(void) {
     late_u->profession = COLONIZE_PROF_CONVERT;
     lnat->liberty_bells_total = 0; /* below next elect threshold */
     ff_tick(&lctx);
-    if (late_u->profession != COLONIZE_PROF_FREE_COLONIST) {
-      return fail("Las Casas ownership tick must assimilate late Convert");
+    if (late_u->profession != COLONIZE_PROF_CONVERT) {
+      return fail("Las Casas must not re-assimilate a late Convert");
     }
     if (lnat->founding_father_count != 1) {
       return fail("Las Casas ownership tick must not invent extra elects");

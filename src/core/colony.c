@@ -357,7 +357,6 @@ bool colonies_load_buildings(ColonizeColonyPool* pool, const ColonizeMsgCatalog*
     int upkeep = 0;
     /* NAMES.TXT: name, cost, tools(*10), size, min_colony, upkeep */
     sscanf(p, " %d , %d , %d , %d , %d", &hammers, &tools_cost, &size, &min_pop, &upkeep);
-    (void)size;
     (void)upkeep;
 
     ColonizeBuildingType* t = &pool->building_types[pool->building_type_count++];
@@ -366,6 +365,7 @@ bool colonies_load_buildings(ColonizeColonyPool* pool, const ColonizeMsgCatalog*
     /* NAMES.TXT tools(*10): file stores tens of tools (2 → 20 tools). */
     t->tools_cost = tools_cost * 10;
     t->min_population = min_pop;
+    t->size_class = size;
   }
 
   diag_info("Loaded %d building types from NAMES.TXT @BUILDING", pool->building_type_count);

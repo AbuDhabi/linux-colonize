@@ -206,8 +206,8 @@ Indices match `NAMES.TXT` `@JOB` and Col1 `profession` bytes.
 | Rum Distiller’s House | 64 | 0 | 1 | Sugar → rum |
 | Rum Distillery | 64 | 20 | 1 | Increases rum |
 | Rum Factory | 160 | 100 | 8 | Factory rum (**Adam Smith**) |
-| Capitol | 400 | 100 | 16 | Late-game capitol |
-| Capitol Expansion | 400 | 100 | 16 | Capitol upgrade |
+| Capitol | 400 | 100 | 16 | **Cut — never buildable** (see below) |
+| Capitol Expansion | 400 | 100 | 16 | **Cut — never buildable** (see below) |
 | Fur Trader’s House | 56 | 0 | 1 | Furs → coats |
 | Fur Trading Post | 56 | 20 | 1 | Increases coats |
 | Fur Factory | 160 | 100 | 6 | Factory coats (**Adam Smith**) |
@@ -218,6 +218,17 @@ Indices match `NAMES.TXT` `@JOB` and Col1 `profession` bytes.
 | Blacksmith’s House | 64 | 0 | 1 | Ore → tools |
 | Blacksmith’s Shop | 64 | 20 | 1 | Increases tools |
 | Iron Works | 240 | 100 | 8 | Factory tools (**Adam Smith**) |
+
+**Cut rows.** DOS's own "can this colony build it" gate `FUN_15eb_3650`
+hard-zeroes three `@BUILDING` file indices regardless of colony state:
+`0x0a` and `0x0b` (the two unfinished Town Hall upgrades — `PEDIA.TXT` names
+`0x0b` "COLONIAL ASSEMBLY") and `0x1e` (**Capitol**). `0x1f` (Capitol
+Expansion) is not zeroed there but is unreachable behind the Capitol as its
+prerequisite. `PEDIA.TXT` keeps title-only stubs for all four, which is the
+giveaway. The port carries the same block (`colonies_building_is_buildable`),
+hides Capitol / Capitol Expansion from the Colonizopedia building list, and
+has no AI preference for them. `+0x96 capitol_level` and the destroy-a-Capitol
+arm stay ported — the field is real, it just never grows.
 
 Starter colonies grant several houses / Carpenter’s Shop / Town Hall without spending the chart cost at founding; `NAMES` costs apply if rebuilt later.
 

@@ -1431,6 +1431,16 @@ enum {
 };
 
 /*
+ * DOS settlement-view size-class boxes: DS:0x230 (width) and DS:0x236
+ * (height), indexed by NAMES.TXT @BUILDING column 4. Class 3 (73x18) is the
+ * fence/stockade corner and class 4 (75x48) the dock corner — both already
+ * hardcoded above as COLONY_FENCE_W/H and COLONY_COAST_W/H, which is what
+ * pins this table to the right rows. FUN_2f2b_14d4 centres its level badge
+ * in this box, so the port needs the same numbers.
+ */
+static const int k_class_box[5][2] = {{23, 27}, {44, 22}, {53, 37}, {73, 18}, {75, 48}};
+
+/*
  * Golden-exact overrides for New Amsterdam and Recife (dutch-reports.SAV),
  * the two colonies with reference screenshots. Casuistry, not a general
  * solution — this placeholder algorithm is meant to be replaced by a real
@@ -2603,6 +2613,41 @@ static void colony_screen_blit_buildings(
       colony_screen_debug_building_rect(
         view, framebuffer, drawn_sprite, slot_ox + slot_x[i], slot_oy + slot_y[i]
       );
+    }
+
+    /*
+     * Expansion badge. DOS FUN_2f2b_14d4's tail reads the colony's warehouse
+     * level (+0x95) for building 0x0f and its capitol level (+0x96) for 0x1e,
+     * and when either is above 1 prints the number in plain white (ink 0x0f)
+     * centred in the building's size-class box: x + w/2 - 1, y + h/2 - 3 off
+     * the slot origin. So a Warehouse Expansion shows as a white "2" on the
+     * warehouse. (The Capitol half never fires — DOS's construction gate
+     * refuses that building outright; see colonies_building_is_buildable.)
+     */
+    if (built >= 0 && font) {
+      const ColonizeBuildingType* bt = colonies_building_type(pool, built);
+      int level = 0;
+      if (bt && strcmp(bt->name, "Warehouse") == 0) {
+        level = (int)colony->warehouse_level;
+      } else if (bt && strcmp(bt->name, "Capitol") == 0) {
+        level = (int)colony->capitol_level;
+      }
+      if (level > 1) {
+        int cls = bt ? bt->size_class : 0;
+        if (cls < 0 || cls > 4) {
+          cls = 0;
+        }
+        char badge_text[8];
+        snprintf(badge_text, sizeof(badge_text), "%d", level);
+        font_draw_text(
+          font,
+          framebuffer,
+          slot_ox + slot_x[i] + k_class_box[cls][0] / 2 - 1,
+          slot_oy + slot_y[i] + k_class_box[cls][1] / 2 - 3,
+          badge_text,
+          15
+        );
+      }
     }
 
     /* Workers in this building (up to 3): Note 1 strip, bottom-center of sprite. */

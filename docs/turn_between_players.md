@@ -43,7 +43,7 @@ flowchart TD
 | Step | Linux | DOS provenance |
 |------|-------|----------------|
 | Calendar | `turn_advance_calendar` (`@TIMECHANGE`) | `FUN_130d_0290` year/autumn tick (runs **after** nation pass in DOS) |
-| Colony production | `turn_run_colony_production` | `FUN_364b_0688` via `291f_0950` inside `3844_00f2` (per nation in DOS) |
+| Colony production (**AI nations only**) | `turn_run_colony_production` (`s_prod_skip_nation` = human) | `FUN_364b_0688` via `291f_0950` inside `3844_00f2` (per nation in DOS) |
 | Coastal fort fire | `turn_run_coastal_fort_fire` | `FUN_364b_03f6` |
 | Nation ticks | `turn_run_nation_ticks` (bells / crosses / FF) | Europe EOT / census pieces of `3844_00f2` + FF helpers |
 
@@ -67,6 +67,7 @@ Order EN→FR→SP→DU; skip `human_nation` and withdrawn (`player.control==2`)
 
 | Step | Linux | DOS |
 |------|-------|-----|
+| **Human colony production** | `turn_run_colony_production` (`s_prod_only_nation` = human) + unit construction + building completion | `FUN_364b_0688` inside the human's own `3844_00f2`, which `130d` runs **immediately before** that nation's Move Pieces |
 | King / REF | `ai_king_nation_turn` | `FUN_43f7_2424` via `291f_0a66` **inside** `3844_00f2` |
 | Europe market | `europe_tick_market_prices` | `FUN_38fd_0058` (sibling of nation EOT `38fd_5e52`) |
 | Human MP + treasure + Cortes | refresh + `units_tick_treasure_*` + `units_cortes_*` | Human treasure inside that nation’s `00f2`; Cortes elsewhere |

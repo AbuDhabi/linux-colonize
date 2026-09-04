@@ -810,8 +810,9 @@ bool col1_bridge_apply(
     dst->cargo_produced_mask = src->cargo_produced_mask;
     dst->hammers_purchased = src->hammers_purchased;
     dst->depletion_counter = src->depletion_counter;
-    dst->warehouse_level = src->warehouse_level;
-    dst->capitol_level = src->capitol_level;
+    /* Level counters, never masks — clamp stale 3s (see the capture side). */
+    dst->warehouse_level = src->warehouse_level > 2u ? 2u : src->warehouse_level;
+    dst->capitol_level = src->capitol_level > 2u ? 2u : src->capitol_level;
     col1_apply_colony_buildings(colonies, dst, &src->buildings);
     const int pop = src->population > COLONIZE_COLONY_POP_MAX ? COLONIZE_COLONY_POP_MAX
                                                               : (int)src->population;
@@ -2013,12 +2014,29 @@ bool col1_bridge_capture(
         dst->tiles[cti] = (int8_t)col1_new_index[who];
       }
       col1_encode_colony_buildings(colonies, src, &dst->buildings);
-      dst->warehouse_level = src->warehouse_level > (uint8_t)dst->buildings.warehouse
-                               ? src->warehouse_level
-                               : (uint8_t)dst->buildings.warehouse;
-      dst->capitol_level = src->capitol_level > (uint8_t)dst->buildings.capitol
-                             ? src->capitol_level
-                             : (uint8_t)dst->buildings.capitol;
+      /*
+       * +0x95 / +0x96 are DOS level COUNTERS (FUN_364b_0114 INCs one per
+       * completed tier, so 0..2), while buildings.warehouse / .capitol are the
+       * packed tier BITMASKS ((1<<tiers)-1). Comparing the counter against the
+       * raw mask wrote 3 for a colony with both warehouse tiers, which then
+       * read back as a 400-slot warehouse and a white "3" badge on the
+       * settlement view. Fold the mask down to its tier count first.
+       */
+      {
+        const uint8_t wh_tiers =
+          (uint8_t)col1_building_level_to_tier_count((unsigned)dst->buildings.warehouse);
+        const uint8_t cap_tiers =
+          (uint8_t)col1_building_level_to_tier_count((unsigned)dst->buildings.capitol);
+        dst->warehouse_level =
+          src->warehouse_level > wh_tiers ? src->warehouse_level : wh_tiers;
+        dst->capitol_level = src->capitol_level > cap_tiers ? src->capitol_level : cap_tiers;
+        if (dst->warehouse_level > 2u) {
+          dst->warehouse_level = 2u; /* heal saves written before this fix */
+        }
+        if (dst->capitol_level > 2u) {
+          dst->capitol_level = 2u;
+        }
+      }
       memcpy(dst->visible_to_euro, src->pop_on_map, sizeof(dst->visible_to_euro));
       memcpy(dst->fortification_on_map, src->fort_on_map, sizeof(dst->fortification_on_map));
       if (src->nation_id >= 0 && src->nation_id < 4 && dst->visible_to_euro[src->nation_id] == 0) {
