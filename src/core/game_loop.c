@@ -7427,6 +7427,46 @@ static bool game_try_unit_move(ColonizeGameState* game, int dest_x, int dest_y) 
 }
 
 /*
+ * Issue a Go To for `uid`. DOS has no separate go-to mover: order 3's tick
+ * commits every step through the ordinary move routine (FUN_465b), so a
+ * destination one tile away is simply an arrow-key move — landfall off a
+ * ship, the village @ACTIONS menu, the @SAILHOME lane prompt and combat all
+ * behave exactly as they do for a keyboard step, and no lasting order is
+ * left behind. Only a unit with no moves left keeps the order and walks it
+ * next turn.
+ *
+ * Returns 1 = moved now (caller must leave the move's own status alone),
+ * 0 = order set, -1 = refused.
+ */
+static int game_issue_goto(ColonizeGameState* game, int uid, int dest_x, int dest_y) {
+  if (!game || !game->units_ok || !game->world_map_ok) {
+    return -1;
+  }
+  const ColonizeUnit* u = units_get_const(&game->units, uid);
+  if (!u || !u->active) {
+    return -1;
+  }
+  const int dx = dest_x - u->x;
+  const int dy = dest_y - u->y;
+  /*
+   * One exception: DOS's 4720 lane check reads the order byte (2/3 = sail
+   * intent), and a Go To onto the lane has already stamped order 3 before
+   * the tick steps in — so that ship sails without the @SAILHOME question a
+   * bare arrow-key step gets. Keep it on the order path.
+   */
+  const bool lane_sail = game->europe_ok && units_is_sea(&game->units, uid) &&
+    map_tile_is_high_seas(&game->world_map, dest_x, dest_y);
+  if (!lane_sail && u->moves_left > 0 &&
+      dx >= -1 && dx <= 1 && dy >= -1 && dy <= 1 && (dx != 0 || dy != 0)) {
+    game->units.selected_id = uid;
+    return game_try_unit_move(game, dest_x, dest_y) ? 1 : -1;
+  }
+  return units_set_goto(&game->units, uid, &game->world_map, dest_x, dest_y, &game->colonies)
+    ? 0
+    : -1;
+}
+
+/*
  * FUN_281f_07a0 for one of the human's / any Euro unit plus the human-only
  * chrome that hangs off it: @LANDHO naming and the DISCOVERY OF THE PACIFIC
  * OCEAN woodcut (FUN_13f1_0158 DS:0x1e8 arm → FUN_12fd_006c(6), once per
@@ -10319,14 +10359,17 @@ static bool game_apply_map_menu_action(ColonizeGameState* game, MapMenuAction ac
         set_status(game, "Select a unit", NULL);
       } else if (!port) {
         set_status(game, "No colonies founded yet", NULL);
-      } else if (!units_set_goto(
-                   &game->units, sid, &game->world_map, port->x, port->y, &game->colonies
-                 )) {
-        set_status(game, "Cannot go to port", NULL);
       } else {
-        game->map_cursor_x = port->x;
-        game->map_cursor_y = port->y;
-        snprintf(game->status, sizeof(game->status), "Go to Port: %s", port->name);
+        const int rc = game_issue_goto(game, sid, port->x, port->y);
+        if (rc < 0) {
+          set_status(game, "Cannot go to port", NULL);
+        } else {
+          game->map_cursor_x = port->x;
+          game->map_cursor_y = port->y;
+          if (rc == 0) {
+            snprintf(game->status, sizeof(game->status), "Go to Port: %s", port->name);
+          }
+        }
       }
       return true;
     }
@@ -11081,13 +11124,8 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
       game->units.selected_id >= 0 ? units_get(&game->units, game->units.selected_id) : NULL;
     const bool active_on_map_with_moves = active && active->active &&
       active->nation_id == game->human_nation && units_is_on_map(active) && active->moves_left > 0;
-    /* An awake passenger with a Go To is paced too — its first step walks it
-     * off the ship (bugs.md: colonist Go To ashore). */
-    const bool active_pax_goto = active && active->active &&
-      active->nation_id == game->human_nation && active->aboard_ship_id >= 0 &&
-      active->moves_left > 0 && units_orders_follow_goto(active->orders);
     const bool active_pending =
-      (active_on_map_with_moves && units_orders_follow_goto(active->orders)) || active_pax_goto;
+      active_on_map_with_moves && units_orders_follow_goto(active->orders);
     /* A standing order (Fortified/Sentry/Clear-Forest.../Build-Road —
      * units_orders_skip_turn, the same discriminator turn.c's own
      * per-turn move refresh uses) doesn't need player attention either,
@@ -11106,7 +11144,7 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
      */
     const bool active_pax_awaiting = active && active->active &&
       active->nation_id == game->human_nation && active->aboard_ship_id >= 0 &&
-      active->moves_left > 0 && !units_orders_skip_turn(active) && !active_pax_goto;
+      active->moves_left > 0 && !units_orders_skip_turn(active);
     const bool active_awaiting_player =
       (active_on_map_with_moves && !active_pending && !units_orders_skip_turn(active)) ||
       active_pax_awaiting;
@@ -13155,13 +13193,12 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
           if (mx == u->x && my == u->y) {
             return true;
           }
-          if (units_set_goto(
-                &game->units, uid, &game->world_map, mx, my, &game->colonies
-              )) {
+          const int rc = game_issue_goto(game, uid, mx, my);
+          if (rc == 0) {
             /* Movement is paced in game_update (10 steps/sec). */
             snprintf(game->status, sizeof(game->status), "Go to (%d,%d)", mx, my);
             game_set_view_center(game, u->x, u->y);
-          } else {
+          } else if (rc < 0) {
             set_status(game, "Cannot go there", NULL);
           }
           return true;
@@ -13204,12 +13241,11 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
           set_status(game, "Already here", NULL);
           return true;
         }
-        if (units_set_goto(
-              &game->units, uid, &game->world_map, mx, my, &game->colonies
-            )) {
+        const int rc = game_issue_goto(game, uid, mx, my);
+        if (rc == 0) {
           snprintf(game->status, sizeof(game->status), "Go to (%d,%d)", mx, my);
           game_set_view_center(game, u->x, u->y);
-        } else {
+        } else if (rc < 0) {
           set_status(game, "Cannot go there", NULL);
         }
         return true;

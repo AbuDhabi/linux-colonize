@@ -149,7 +149,8 @@ stateDiagram-v2
 
 | Command | When | Expected (DOS) | Linux | Status |
 |---------|------|----------------|-------|--------|
-| Go to Place | Land ORDERS / drag | Order 3; path `6662`; walk until MP out; resume next turn; no MP gamble | Drag / Place → `units_set_goto`; 10 steps/sec | Done |
+| Go to Place | Land ORDERS / drag | Order 3; path `6662`; walk until MP out; resume next turn; no MP gamble | Drag / Place → `game_issue_goto`: adjacent destination = arrow-key move (`game_try_unit_move`), longer trip = `units_set_goto`; 10 steps/sec | Done |
+| One-tile Go To | Drag / Place / Port onto a neighbour tile | No separate go-to mover: order 3's tick commits through the ordinary move routine, so it is an arrow-key step (landfall off a ship, village `@ACTIONS`, `@SAILHOME`, combat) and no order is left | `game_issue_goto` moves at once when the unit has MP; a 0-MP unit keeps order 3 and walks next turn | Done (2026-09-04) |
 | Go to Port | Ship ORDERS | Goto next owned colony (`479b_0bd0` tails) | Next owned colony dest | Done |
 | Goto tick | Frame / AI | Next adjacent step; clear on arrival | `units_advance_goto_one_step` | Done |
 | Cancel Go-To | Player (active path) | Clear order 3; unit selectable again | Activate → `units_wake`; replace order; same-tile `units_set_goto` | Done |
