@@ -634,11 +634,23 @@ static void pedia_list_exit_rect(
  * List rows can be a filtered view of the category (Colonist Skills hides
  * the cut Teacher profession, @JOB 18 — leftover from pre-release). Slot =
  * visual row, id = the real category index the article opens with.
+ *
+ * Colony Buildings hides the same cut rows DOS's construction gate
+ * (FUN_15eb_3650) refuses to ever offer: @BUILDING 30 Capitol and 31 Capitol
+ * Expansion, whose PEDIA.TXT bodies are title-only stubs. (@BUILDING 10/11,
+ * the unfinished Town Hall upgrades, are equally dead in DOS but still read
+ * as plain "Town Hall" rows in NAMES.TXT — left alone here.)
  */
+#define PEDIA_BUILDING_CAPITOL 30
+#define PEDIA_BUILDING_CAPITOL_EXPANSION 31
+
 static int pedia_list_slot_count(PediaCategory category) {
   const int count = pedia_category_count(category);
   if (category == PEDIA_CAT_JOB) {
     return count - 1;
+  }
+  if (category == PEDIA_CAT_BUILDING) {
+    return count - 2;
   }
   return count;
 }
@@ -646,6 +658,9 @@ static int pedia_list_slot_count(PediaCategory category) {
 static int pedia_list_slot_id(PediaCategory category, int slot) {
   if (category == PEDIA_CAT_JOB && slot >= 18) {
     return slot + 1;
+  }
+  if (category == PEDIA_CAT_BUILDING && slot >= PEDIA_BUILDING_CAPITOL) {
+    return slot + 2;
   }
   return slot;
 }

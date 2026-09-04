@@ -162,6 +162,9 @@ typedef struct MapMenuBar {
    * FUN_1009_00b4 one-liners, are bar text, never dialogs.
    */
   char message[MAP_MENU_MESSAGE_LEN];
+  /* Ink for that line: DOS FUN_1009_0004 keys it off the arm kind, so a sale
+   * is @COLORS hilite gold, not the basic green the titles use. */
+  uint8_t message_color;
 } MapMenuBar;
 
 /*
@@ -233,7 +236,7 @@ MapMenuAction map_menu_handle_input(
  * (DOS DS:0x2d54). NULL or "" restores the titles. An open pull-down is
  * closed — DOS's message strip owns the whole rect while it is up.
  */
-void map_menu_set_message(MapMenuBar* bar, const char* text);
+void map_menu_set_message(MapMenuBar* bar, const char* text, uint8_t color);
 
 void map_menu_render(
   MapMenuBar* bar,

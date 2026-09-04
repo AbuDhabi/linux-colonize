@@ -5,6 +5,7 @@
 
 #include "core/map_menu.h"
 #include "core/popup_msg.h"
+#include "core/ui_colors.h"
 #include "platform/diagnostics.h"
 #include "platform/platform.h"
 
@@ -45,7 +46,7 @@ bool ai_popup_enqueue(AiPopupState* st, const AiPopupRequest* req) {
   return true;
 }
 
-bool ai_popup_enqueue_bar_message(AiPopupState* st, const char* text) {
+bool ai_popup_enqueue_bar_message_kind(AiPopupState* st, const char* text, int kind) {
   if (!st || !text || !text[0]) {
     return false;
   }
@@ -54,8 +55,13 @@ bool ai_popup_enqueue_bar_message(AiPopupState* st, const char* text) {
     return false;
   }
   snprintf(st->bar_msg[st->bar_msg_count], AI_POPUP_BAR_MSG_LEN, "%s", text);
+  st->bar_msg_kind[st->bar_msg_count] = (uint8_t)(kind < 0 ? 0 : kind);
   st->bar_msg_count++;
   return true;
+}
+
+bool ai_popup_enqueue_bar_message(AiPopupState* st, const char* text) {
+  return ai_popup_enqueue_bar_message_kind(st, text, 1);
 }
 
 const char* ai_popup_bar_message(const AiPopupState* st) {
@@ -63,6 +69,27 @@ const char* ai_popup_bar_message(const AiPopupState* st) {
     return NULL;
   }
   return st->bar_msg[0];
+}
+
+/*
+ * DOS FUN_1009_0004 (resident twin FUN_0000_0094): the arm kind stored in
+ * DS:0x4c picks the strip ink. 1/2 -> 0x95 (@COLORS hilite gold), 3 -> 0x0c
+ * (bright red, used by the Europe screen's refusals), anything else 0x44
+ * (@COLORS basic). bugs.md 381: the port painted every line basic green.
+ */
+uint8_t ai_popup_bar_message_color(const AiPopupState* st) {
+  if (!st || st->bar_msg_count <= 0) {
+    return (uint8_t)COLONIZE_COL_BASIC;
+  }
+  switch (st->bar_msg_kind[0]) {
+    case 1:
+    case 2:
+      return (uint8_t)COLONIZE_COL_HILITE;
+    case 3:
+      return 0x0cu;
+    default:
+      return (uint8_t)COLONIZE_COL_BASIC;
+  }
 }
 
 bool ai_popup_bar_service(AiPopupState* st, uint32_t now_ms, bool dismiss) {
@@ -73,8 +100,14 @@ bool ai_popup_bar_service(AiPopupState* st, uint32_t now_ms, bool dismiss) {
     return false;
   }
   if (st->bar_msg_until_ms == 0) {
-    /* First frame this line is on screen — arm its dwell (FUN_1009_0244). */
-    st->bar_msg_until_ms = now_ms + AI_POPUP_BAR_MSG_MS;
+    /*
+     * First frame this line is on screen — arm its dwell (FUN_1009_0244).
+     * DOS's wait is min(armed deadline, now + 30 ticks), and only the *next*
+     * compose runs it, so a line with more behind it is cut to ~0.5 s while
+     * the last of a run lives out the full 0x78-tick arm.
+     */
+    st->bar_msg_until_ms =
+      now_ms + (st->bar_msg_count > 1 ? AI_POPUP_BAR_MSG_MS : AI_POPUP_BAR_MSG_LAST_MS);
     return true;
   }
   if (!dismiss && (int32_t)(now_ms - st->bar_msg_until_ms) < 0) {
@@ -82,6 +115,7 @@ bool ai_popup_bar_service(AiPopupState* st, uint32_t now_ms, bool dismiss) {
   }
   for (int i = 1; i < st->bar_msg_count; ++i) {
     memcpy(st->bar_msg[i - 1], st->bar_msg[i], AI_POPUP_BAR_MSG_LEN);
+    st->bar_msg_kind[i - 1] = st->bar_msg_kind[i];
   }
   st->bar_msg_count--;
   st->bar_msg_until_ms = 0;

@@ -2960,6 +2960,64 @@ int europe_sell_proceeds(const EuropeScreen* eu, int cargo_type, int amount) {
   return europe_net_after_tax(price * amount, eu->tax_percent);
 }
 
+void europe_set_labels(EuropeScreen* eu, const struct ColonizeMsgCatalog* labels) {
+  if (eu) {
+    eu->labels = labels;
+  }
+}
+
+/* LABELS.TXT line, or the built-in fallback when no catalog is bound. */
+static const char* europe_label(
+  const EuropeScreen* eu,
+  const char* section,
+  int idx,
+  const char* fallback
+) {
+  if (eu && eu->labels && section) {
+    const ColonizeMsgSection* sec = assets_msg_find(eu->labels, section);
+    if (sec && idx >= 0 && idx < sec->line_count && sec->lines[idx][0]) {
+      return sec->lines[idx];
+    }
+  }
+  return fallback;
+}
+
+void europe_push_sale_status(EuropeScreen* eu, int cargo_type, int amount, int net) {
+  if (!eu || amount <= 0 || cargo_type < 0 || cargo_type >= eu->cargo_count) {
+    return;
+  }
+  if (eu->bar_event_count >= EUROPE_BAR_EVENT_MAX) {
+    return;
+  }
+  /*
+   * FUN_38fd_23c4 tail, field for field: amount, cargo name, @CMESSAGE 1
+   * "sold for", gross, DS:0xfef ".", tax rate, @CMESSAGE 0x11 "% Tax:", tax
+   * paid, @CMESSAGE 0x12 ". Net:", net. The 0088 calls between fields only
+   * trim the space each append leaves, so the punctuation closes up. DOS
+   * writes the tax half unconditionally here (Europe trade is shut once
+   * independence is declared, so the rate is never 0 in practice).
+   */
+  const int gross = europe_sell_price(eu, cargo_type) * amount;
+  const int tax_paid = gross - net;
+  const char* cname =
+    eu->cargo[cargo_type].name[0] ? eu->cargo[cargo_type].name : "cargo";
+  snprintf(
+    eu->bar_event[eu->bar_event_count],
+    EUROPE_BAR_EVENT_LEN,
+    "%d %s %s %d. %d%s %d%s %d",
+    amount,
+    cname,
+    europe_label(eu, "CMESSAGE", 1, "sold for"),
+    gross,
+    eu->tax_percent,
+    europe_label(eu, "CMESSAGE", 0x11, "% Tax:"),
+    tax_paid < 0 ? 0 : tax_paid,
+    europe_label(eu, "CMESSAGE", 0x12, ". Net:"),
+    net
+  );
+  eu->bar_event_count++;
+}
+
 int europe_sell_hold(EuropeScreen* eu, int harbor_index, int hold_index) {
   if (!eu || harbor_index < 0 || harbor_index >= eu->harbor_ships) {
     return 0;
@@ -2985,6 +3043,9 @@ int europe_sell_hold(EuropeScreen* eu, int harbor_index, int hold_index) {
   eu->gold += gained;
   ship->hold_goods_amount[hold_index] = 0;
   ship->hold_goods_type[hold_index] = 0;
+  /* Status line before the volume move, so the printed gross is the bid the
+   * sale actually went through at (bugs.md 382). */
+  europe_push_sale_status(eu, ctype, amt, gained);
   europe_apply_volume_price(eu, ctype, amt, 0);
   const char* cname =
     (ctype >= 0 && ctype < eu->cargo_count) ? eu->cargo[ctype].name : "cargo";
