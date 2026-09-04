@@ -4243,11 +4243,15 @@ int main(void) {
       europe_tick_immigration_pressure(&eu, &pool, &units, &bcol, 0, NULL);
       eu.current_crosses = (uint16_t)(eu.needed_crosses + 10);
       const uint16_t kept = eu.current_crosses;
+      /* The tick's own 584a +2 lands first (dock empty), then the Brewster
+       * branch returns 2 without spending the meter. */
       if (europe_tick_immigration_pressure(&eu, &pool, &units, &bcol, 0, NULL) != 2 ||
-          eu.dock_count != 0 || eu.current_crosses != kept || !eu.brewster_no_criminals) {
+          eu.dock_count != 0 || eu.current_crosses != (uint16_t)(kept + 2) ||
+          !eu.brewster_no_criminals) {
         fprintf(stderr, "brewster tick want 2/no dock/crosses kept\n");
         return 1;
       }
+      const uint16_t after_tick = eu.current_crosses;
       AiPopupState pops;
       memset(&pops, 0, sizeof(pops));
       units_brewster_enqueue_pick(&eu, &pops, NULL, 0);
@@ -4261,7 +4265,7 @@ int main(void) {
       pops.result_nation_a = 0;
       pops.result_cancelled = true;
       if (!units_brewster_apply_popup(&eu, &pops, &units) || eu.dock_count != 0 ||
-          eu.current_crosses != kept) {
+          eu.current_crosses != after_tick) {
         fprintf(stderr, "brewster cancel must keep crosses/dock\n");
         return 1;
       }
