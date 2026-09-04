@@ -47,7 +47,7 @@ Helpers (`units.h`):
 
 - `units_orders_follow_goto` — GOTO / AI_SAIL / AI_MOVE / TRADE_ROUTE
 - `units_orders_is_follow` — FOLLOW
-- `units_orders_skip_turn` — SENTRY, FORTIFIED, CLEAR_PLOW, BUILD_ROAD (not FORTIFY; that already has 0 MP)
+- `units_orders_skip_turn` — SENTRY, **FORTIFY**, FORTIFIED, CLEAR_PLOW, BUILD_ROAD. FORTIFY joined the set 2026-09-04: digging in does zero the allotment, but the COL1 export writes spent 0 for an exhausted land unit, so a save taken the same turn reloads it with orders 5 and a full allotment — straight back into the control queue (bugs.md). DOS's cycle reads the order byte, not the MP.
 
 **UI commands without a lasting `@ORDERS` byte:** Wait, Activate, Disband, Dump
 Cargo, Pillage, Load/Unload Cargo, Return to Europe, Join Colony, No Orders

@@ -281,6 +281,30 @@ Combat loss remaps **unit type** (not merely profession). Cite:
   loser's goal fields +0x314d/e — Linux routes through the Europe lane
   instead).
 
+### Attacker fatigue (`@HALF`) — 2026-09-04
+
+`FUN_5fef_1b0e` (viceroy_unpacked.c ~100340) reads `rem = max_mp −
+moves_spent` **before** charging the attack's 3 thirds. When `rem < 3`:
+
+- a human-controlled European attacker is asked `@HALF` (id `0x1c06`) —
+  "Charge!" proceeds, "Then let them rest." aborts (the 3 thirds are already
+  charged, so declining ends the unit's turn). AI and native attackers are
+  never asked.
+- the fatigue bits are set — 2 thirds → `0x8d01` bit0, 1 third → `a156` bit3
+  (`COMBAT_FLAG_FATIGUE_33` / `_66`, two Combat Analysis rows).
+- the attacker's strength is scaled `atk = atk * rem / 3`, immediately after
+  the difficulty peel and before the weak-defender / artillery / ambush
+  clauses (`combat_apply_1b0e_peels`).
+
+Linux: `ai_contact_try_tired_attack_confirm` + `AI_POPUP_TAG_COMBAT_HALF`
+(the last of `game_try_unit_move`'s pre-move confirms, matching 1b0e's own
+order), `units_remaining_mp` (native units keep DOS's spent byte in
+`moves_left`; Europeans keep the remainder).
+
+**Unported residue:** DOS also calls `unit_exhaust_mp` on the attacker after
+the prompt, so a DOS attack always ends the unit's turn; the port still drains
+step cost + 3, which can leave a fast unit enough for a second attack.
+
 ### Colony capture
 
 After successful enter: `units_try_capture_foreign_colony` → `colonies_capture_ex` +
@@ -327,8 +351,9 @@ dual column. Shown **before** the combat roll (strengths known; no outcome yet).
   row; corrected 2026-09-03 — it never prints the tribe name),
   Artillery In Open, Artillery Vs. Raid,
   Fortified, Spain Bonus, Drake. No roll, no Victory/Defeat.
-- Not ported from DOS 636c: Fatigue −33%/−66% rows (bits `0x100`/`a156&8` —
-  strength calc doesn’t model fatigue), the 0x400 sprite row (label
+- Fatigue −33%/−66% rows (bits `0x100`/`a156&8`) ported 2026-09-04 with the
+  penalty itself — see **Attacker fatigue** below.
+- Not ported from DOS 636c: the 0x400 sprite row (label
   `0x97de`, unidentified), row icons for terrain/colony/village lines, and
   the cheat-mode (`0x5383&0x20`) final-weight footer rows.
 - Roll still uses post-modifier odds weights (`atk` / `def` in

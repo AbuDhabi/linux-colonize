@@ -40,7 +40,7 @@ Status: **Done** / **Partial** / **Missing** / **PARKED**.
 | Ship | Map edge | Reason **4** | Out-of-bounds → edge | Partial |
 | Ship | Own colony land | Dock | `can_enter` + disembark | Done |
 | Ship | Foreign Euro dock | Peace / de Witt | de Witt peace berth | Partial |
-| Ship | Bare land | Landfall UI reasons 2/3 | `@LANDFALL` Stay / Make Landfall (one unit; sentry cargo OK); passenger pays dest terrain MP from allotment; ship −1 MP on Make Landfall | Done |
+| Ship | Bare land | Landfall UI reasons 2/3 | `@LANDFALL` Stay / Make Landfall (one unit; sentry cargo OK); passenger spends its **whole** allotment (465b_05ca shore crossing, 2026-09-04); ship −1 MP on Make Landfall | Done |
 | Ship | Native village | `4528` ship abort (`@DONTKNOWSHIPS` / `@MADATSHIPS`) | `VILLAGE_SHIP` + `ai_contact_try_ship_village` | Done |
 
 ---
@@ -101,6 +101,26 @@ Village deep `2820` VGA trade, full `465b` foreign diplo/war UI, Euro mid-planne
 - [assets.md](assets.md) — map keys, landfall note
 - [ai_transcription.md](ai_transcription.md) — AI move / combat
 - [`original_sources_annotated/ai/move_spent.c`](../original_sources_annotated/ai/move_spent.c)
+
+## Shore crossing spends everything — 2026-09-04
+
+`FUN_465b_0000` at `LAB_465b_05ca` adds the step cost, then:
+
+```
+if (ocean_or_hs(from) != ocean_or_hs(dest)
+    && euro_settlement_owner(from) < 0
+    && euro_settlement_owner(dest) < 0)
+    moves_spent = unit_max_mp(unit);
+```
+
+So any move that crosses the water/land boundary outside a colony spends the
+unit's entire allotment — a landfall onto bare coast, and equally boarding a
+ship from open shore. A colony on either end (a dock) exempts the step, which
+is why loading and unloading in port stays cheap; an Indian village does not
+(`FUN_281f_0696` clamps owners above 3 to −1). Linux:
+`units_move_crosses_shore`, applied in `units_try_move` and
+`units_unload_passenger` (bugs.md: "dragoons should have their entire movement
+spent from stepping off a ship onto land").
 
 ## Sea lane (high seas) — corrected 2026-08-28
 
