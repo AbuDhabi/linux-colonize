@@ -394,3 +394,4 @@ This is a user-maintained list of bugs. User puts reports in. Agents may annotat
 | REF landing freezes game until you press the close window button in the OS. We had a similar bug already! In fact several popups seem like this in the WoI. | |
 | Tory Wagon train somehow attacked my Continental Army. That's a non-attacking unit. | |
 | Continental Army equipped with horses makes Continental Cavalry, not Veteran Dragoons. | |
+| Somehow Tories keep finding ways to capture my wagon trains, even though they shouldn't be able to, because there's defenders on the colony the wagon train is stationed in. | |
