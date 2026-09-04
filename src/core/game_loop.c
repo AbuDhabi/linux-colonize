@@ -9167,6 +9167,58 @@ static int game_colony_list_outside_roles(
   return n;
 }
 
+/*
+ * bugs.md: the destination @UNIT type for an equipment change, honouring the
+ * body's own tier. DOS re-types through the DS:0x2f5 @JOB->@UNIT table
+ * (FUN_15eb_0916 out of FUN_15eb_1068 case 1), whose only entries are the six
+ * colonial types — but the reverse table DS:0x30e deliberately files the
+ * Continentals under those same jobs (type 9 "Cont. Army" -> job 0x15
+ * Soldier, type 7 "Cont. Cav." -> job 0x17 Dragoon), which is the pairing the
+ * WoI promotion (FUN_5fef_172c) and the demote table both use. Mounting a
+ * Continental Army therefore yields Continental Cavalry, not the plain
+ * Veteran Dragoons the flat table name would give; the same holds for the
+ * King's Regulars/Cavalry pair. Losing the muskets drops the body out of the
+ * tier entirely (DOS demote: Cont. Army -> Colonists).
+ */
+static const char* game_equip_role_type_name(
+  const ColonizeUnitPool* units,
+  int cur_type_index,
+  int role
+) {
+  const ColonizeUnitType* t = units_type(units, cur_type_index);
+  const char* n = (t && t->name[0]) ? t->name : NULL;
+  const int is_cont = n && (strstr(n, "Cont") != NULL || strstr(n, "Continental") != NULL);
+  const int is_royal = n && !is_cont &&
+                       (strstr(n, "Regular") != NULL || strstr(n, "Cavalry") != NULL);
+  if (role == COLONIZE_EJECT_SOLDIER) {
+    if (is_cont) {
+      return "Cont. Army";
+    }
+    if (is_royal) {
+      return "Regulars";
+    }
+    return "Soldiers";
+  }
+  if (role == COLONIZE_EJECT_DRAGOON) {
+    if (is_cont) {
+      return "Cont. Cav.";
+    }
+    if (is_royal) {
+      return "Cavalry";
+    }
+    return "Dragoons";
+  }
+  switch (role) {
+  case COLONIZE_EJECT_PIONEER:
+    return "Pioneers";
+  case COLONIZE_EJECT_SCOUT:
+    return "Scouts";
+  case COLONIZE_EJECT_COLONIST:
+  default:
+    return "Colonists";
+  }
+}
+
 static bool game_colony_apply_outside_role(
   ColonizeColony* colony,
   ColonizeUnitPool* units,
@@ -9187,31 +9239,26 @@ static bool game_colony_apply_outside_role(
   int tools_take = 0;
   int muskets_take = 0;
   int horses_take = 0;
-  const char* type_name = "Colonists";
+  const char* type_name = game_equip_role_type_name(units, u->type_index, role);
   switch (role) {
   case COLONIZE_EJECT_PIONEER:
     /* bugs.md: whole 20-tool steps capped at 100, the same rule
      * colonies_eject_colonist uses — this path used to insist on the full 100
      * and refused a Pioneer the menu beside it had just offered. */
     tools_take = colonies_equip_tools_take(stock_tools);
-    type_name = "Pioneers";
     break;
   case COLONIZE_EJECT_SOLDIER:
     muskets_take = UNITS_EQUIP_MUSKETS;
-    type_name = "Soldiers";
     break;
   case COLONIZE_EJECT_SCOUT:
     horses_take = UNITS_EQUIP_HORSES;
-    type_name = "Scouts";
     break;
   case COLONIZE_EJECT_DRAGOON:
     muskets_take = UNITS_EQUIP_MUSKETS;
     horses_take = UNITS_EQUIP_HORSES;
-    type_name = "Dragoons";
     break;
   case COLONIZE_EJECT_COLONIST:
   default:
-    type_name = "Colonists";
     break;
   }
 
