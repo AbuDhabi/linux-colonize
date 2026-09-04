@@ -3,7 +3,6 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "core/ai_contact.h"
 #include "core/ui_colors.h"
 #include "core/unit_chrome.h"
 
@@ -82,16 +81,13 @@ static void combat_analysis_push_row(
 /*
  * Modifier rows only (FUN_636c_0000 flag walk, DOS check order). Labels match
  * the LABELS.TXT Combat Analysis block. land_attack_bonus: land engage ×3/2.
- * tribe_name: village defender's tribe (DOS labels the village row with the
- * tribe name from the dwelling record; there is no "Village" label).
  */
 static void combat_analysis_fill_mods(
   CombatAnalysisRow* rows,
   int* count,
   const ColonizeCombatSideFlags* flags,
   int land_attack_bonus,
-  bool is_attacker,
-  const char* tribe_name
+  bool is_attacker
 ) {
   *count = 0;
   if (!flags) {
@@ -135,13 +131,21 @@ static void combat_analysis_fill_mods(
       combat_analysis_push_row(rows, count, "Colony", 50);
     }
   }
+  /*
+   * DOS 636c village row (bit 8): label = NAMES @LEVELS noun by tribe tech
+   * (Camp / Village / City), overridden to "Capital" (@LEVELS row 5) when the
+   * dwelling is a capital; pct = 50 ×2 for tech>1 (bit 0x10) ×2 for capital
+   * (bit 0x20). It never prints the tribe name (bugs: "Aztec +150%").
+   */
   if (flags->flags & COMBAT_FLAG_VILLAGE) {
-    combat_analysis_push_row(
-      rows,
-      count,
-      (tribe_name && tribe_name[0]) ? tribe_name : "Village",
-      (flags->village_n + 1) * 50
-    );
+    const bool capital = (flags->flags2 & COMBAT_FLAG_VILLAGE_CAPITAL) != 0;
+    const char* label = capital ? "Capital"
+      : (flags->village_n > 1 ? "City" : (flags->village_n == 1 ? "Village" : "Camp"));
+    int pct = flags->village_n > 1 ? 100 : 50;
+    if (capital) {
+      pct *= 2;
+    }
+    combat_analysis_push_row(rows, count, label, pct);
   }
   if (flags->flags & COMBAT_FLAG_ARTILLERY) {
     combat_analysis_push_row(rows, count, "Artillery In Open", -75);
@@ -217,20 +221,13 @@ bool combat_analysis_open(
     snprintf(dlg->def_name, sizeof(dlg->def_name), "%s", units_display_name(pool, def_u));
   }
 
-  const char* atk_tribe =
-    (atk_u && atk_u->active && atk_u->nation_id >= 4) ? ai_contact_tribe_name(atk_u->nation_id)
-                                                      : NULL;
-  const char* def_tribe =
-    (def_u && def_u->active && def_u->nation_id >= 4) ? ai_contact_tribe_name(def_u->nation_id)
-                                                      : NULL;
-
   /* Land attacker always gets ×3/2 standing attack factor — list as Attack Bonus. */
   const int atk_bonus = !eng->is_naval && (eng->atk_flags.flags & COMBAT_FLAG_MODE_ATK);
   combat_analysis_fill_mods(
-    dlg->atk_rows, &dlg->atk_line_count, &eng->atk_flags, atk_bonus, true, atk_tribe
+    dlg->atk_rows, &dlg->atk_line_count, &eng->atk_flags, atk_bonus, true
   );
   combat_analysis_fill_mods(
-    dlg->def_rows, &dlg->def_line_count, &eng->def_flags, 0, false, def_tribe
+    dlg->def_rows, &dlg->def_line_count, &eng->def_flags, 0, false
   );
   return true;
 }

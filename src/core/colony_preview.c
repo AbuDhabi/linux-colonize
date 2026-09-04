@@ -265,6 +265,7 @@ void colony_preview_compute(
      * unconfirmed; matching the tick is the P4.10 bar. */
     if (hammers_add > 0 && (!col1 || col1->head.autumn == 0)) {
       int hammers = hammers_add;
+      out->hammers_capacity = hammers_add;
       /*
        * bugs.md (hammers_lumber.SAV): the REAL tick spends this same turn's
        * Lumberjack output too (its clamp runs after field production lands

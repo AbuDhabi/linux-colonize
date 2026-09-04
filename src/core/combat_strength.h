@@ -33,6 +33,7 @@
 #define COMBAT_FLAG_SOL COMBAT_FLAG_REBELS /* legacy alias */
 #define COMBAT_FLAG_REF 0x8000u /* 0x8d01 bit7 — colony WoI +50% (crown or ref_present) */
 #define COMBAT_FLAG_ARTY_COLONY 0x0001u /* a156 bit0 artillery vs natives */
+#define COMBAT_FLAG_VILLAGE_CAPITAL 0x0008u /* flags2 (DOS 8d02 bit5): capital doubles local_1a */
 
 typedef struct ColonizeCombatSideFlags {
   uint16_t flags; /* low word (0x8d00 / 0x8d02) */
@@ -42,7 +43,7 @@ typedef struct ColonizeCombatSideFlags {
   int local_1a; /* 015e multiplier accumulator */
   int terrain_byte; /* DS:0x2f77 when terrain applies (to this side) */
   int terrain_stash; /* 015e→0x8d04: denied to defender, applied to attacker */
-  int village_n; /* 0..3 settlement probes */
+  int village_n; /* village defender: tribe tech level 0..3 (DOS indian+2) */
   int holds_occupied; /* subtracted holds (ships) */
   int sol_percent; /* WoI popular-support % applied */
 } ColonizeCombatSideFlags;

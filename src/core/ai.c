@@ -4182,6 +4182,33 @@ static void ai_native_post_first_brave_burns(AiRng* rng, int nation_id) {
  * FUN_4d56_1816 unit-action core (one pulse): reseed caller-side via 04ca,
  * then while MP remain, one 14fe-style action per step (FUN_465b spent add).
  */
+/* Pre-pulse Brave tiles for this turn — see ai_native_brave_turn_origin. */
+static int16_t s_brave_origin_x[COLONIZE_UNITS_MAX];
+static int16_t s_brave_origin_y[COLONIZE_UNITS_MAX];
+static uint8_t s_brave_origin_ok[COLONIZE_UNITS_MAX];
+
+void ai_native_note_brave_turn_origin(int unit_id, int x, int y) {
+  if (unit_id < 0 || unit_id >= COLONIZE_UNITS_MAX) {
+    return;
+  }
+  s_brave_origin_x[unit_id] = (int16_t)x;
+  s_brave_origin_y[unit_id] = (int16_t)y;
+  s_brave_origin_ok[unit_id] = 1;
+}
+
+int ai_native_brave_turn_origin(int unit_id, int* out_x, int* out_y) {
+  if (unit_id < 0 || unit_id >= COLONIZE_UNITS_MAX || !s_brave_origin_ok[unit_id]) {
+    return 0;
+  }
+  if (out_x) {
+    *out_x = (int)s_brave_origin_x[unit_id];
+  }
+  if (out_y) {
+    *out_y = (int)s_brave_origin_y[unit_id];
+  }
+  return 1;
+}
+
 static void ai_native_nation_pulse(
   ColonizeUnitPool* units,
   ColonizeWorldMap* map,
@@ -4231,6 +4258,20 @@ static void ai_native_nation_pulse(
     if (u->active && u->nation_id == nation_id) {
       u->turns_worked = 0;
     }
+  }
+
+  /*
+   * Remember every Brave's pre-pulse tile — see ai_native_brave_turn_origin
+   * in ai.h for why the §9 contact arms need it. Stamped fresh for this
+   * nation's units on every pulse, and §9 runs immediately after this pulse
+   * for the same nation, so a reader never sees another nation's turn.
+   */
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    ColonizeUnit* u = &units->units[i];
+    if (!u->active || u->nation_id != nation_id) {
+      continue;
+    }
+    ai_native_note_brave_turn_origin(u->id, u->x, u->y);
   }
 
   int brave_index = 0;
@@ -4469,7 +4510,15 @@ void ai_indian_nation_turn(ColonizeTurnContext* ctx, int nation_id) {
 
   /* §9 meet/trade + raids (5bfb / 4528 paths — not quiet 14fe). */
   ai_contact_indian_meet_trade(ctx, nation_id);
-  ai_contact_try_village_beg_food(ctx, nation_id);
+  /*
+   * bugs.md 2026-09-04: FUN_5bfb_022e's peaceful visit picks ONE of two
+   * halves — generous (@INDIANGIVEFOOD/@INDIANGIVESTUFF) or demanding
+   * (@INDIANBEGFOOD / tribute). The gift half was never wired, so the only
+   * peaceful visitor the player ever saw was a beggar.
+   */
+  if (!ai_contact_try_village_gifts(ctx, nation_id)) {
+    ai_contact_try_village_beg_food(ctx, nation_id);
+  }
   ai_contact_indian_raids(ctx, nation_id);
 }
 

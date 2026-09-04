@@ -120,3 +120,18 @@ same tail the `H` command uses — passengers, holds and treasure ride
 along). Plain arrow-key steps onto the lane do not: DOS's own sail intent
 is exactly the order byte the reason-5 gate reads.
 
+Reason 5 is not a hard deny (2026-09-03): the UI handler (`FUN_4720_049e`
+case 4, `viceroy_ndisasm.asm` 0x3FEA6) asks **@SAILHOME** — Yes sails for
+Europe, No **commits the eastward step anyway** (lanes are fully
+traversable); with the WoI declared (`DS:0x5382` bit0) it shows
+@EUROPENOTLEAVE and still commits the step. Linux:
+`game_try_unit_move` intercepts `COLONIZE_ENTER_BLOCKED_HS_SAIL` →
+`AI_POPUP_TAG_SAILHOME` / `game_commit_sea_lane_step`.
+
+A **Trade Route** Europe stop (colony_index 999) really crosses now: the
+ship sails from the lane tile (`game_trade_route_retarget` stamps
+`EuropeHarborShip.trade_route_plus1/trade_stop`), is serviced in harbor
+(`game_europe_service_trade_harbor` — DOS `FUN_479b_0bd0` sell-unload /
+buy-load), sails back and re-arms TRADE_ROUTE orders on spawn
+(`game_europe_deliver_bound_ships`).
+

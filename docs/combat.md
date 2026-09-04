@@ -38,7 +38,7 @@ site / FF / difficulty live in [save_format_map.md](save_format_map.md).
 | Human / shared move | `units_enter_probe` → `units_try_move` | Foreign stack → `COMBAT_LAND` / `COMBAT_NAVAL` → best defender → `units_resolve_*_ff` → enter on win → colony capture |
 | Land resolve | `units_resolve_land_combat` / `_ff` | `combat_land_engage` → roll → analysis → outcome |
 | Naval resolve | `units_resolve_naval_combat` / `_ff` | `combat_naval_engage` → roll → analysis → naval outcome |
-| Best defender | `units_best_defender_at` (`FUN_5fef_0000`) | Highest `combat_engagement_strength`; arty×2 vs Indian atk; skip `attack==0`. Unarmed fallback tier only on NON-colony tiles; on a colony tile with no armed defender the attack routes to militia/Revere, then entry seizure (`units_seize_noncombat_at`) |
+| Best defender | `units_best_defender_at` (`FUN_5fef_0000`) | Highest `combat_engagement_strength`; skip `attack==0`. Artillery pick-score (2026-09-03, OVL17 asm 0x80–0x11c — the Ghidra `.c` export mangles this block): on a Euro colony tile ×2 vs Indian attacker; off-colony, unless the arty itself is Fortify/Fortified, score `>>= 3` (so arty in the open no longer outranks dragoons). Unarmed fallback tier only on NON-colony tiles; on a colony tile with no armed defender the attack routes to militia/Revere, then entry seizure (`units_seize_noncombat_at`) |
 | Euro AI attack | `ai_euro_try_attack` | Declare war if needed → land/naval resolve; optional `colonies_capture` |
 | King / REF | `ai_king.c` | Land / naval resolve on invasion paths |
 | Indian raid | `ai_contact.c` raid pulse | Adjacent `units_resolve_land_combat` → seize / move / abandon |
@@ -88,8 +88,13 @@ No `015e` colony / village / terrain / fortify for ships.
 
 1. Base = `004a(mode=0)`
 2. Site multiplier `local_1a`:
-   - **A.** Own Euro colony: bare `2`; Stockade **or** Fort **or** Fortress `4`; Fortress then `<<=1` → `8`
-   - **B.** Native village: `(village_probe_n + 1) * 2` (tech probes 1/2/3)
+   - **A.** Own Euro colony: bare `2`; Stockade **or** Fort **or** Fortress `4`; Fortress then `<<=1` → `8`.
+     **Open question 2026-09-03:** DOS `015e` colony arm is `(FUN_157e_0008 + 1) * 2` where `0008`
+     counts `038e(0..2)` probes — if those are hierarchical fort tiers, DOS Fort is `6` (×2.5,
+     matching the manual's +150%), not `4`. Port unchanged pending a `038e` peel.
+   - **B.** Native village (corrected 2026-09-03, viceroy 8989–9002 — the old `(probe+1)*2`
+     formula here was the COLONY arm's): `2`; tribe `tech > 1` → `4` (8d02|0x10); capital
+     dwelling (tribe rec +3 bit4) → `<<=1` (8d02|0x20)
    - **C.** Open terrain (`map_dos_terr_found_score_byte` / DS:0x2f77):
      - **Apply to defender** (`8d02|0x80`): native defender, **or** foe is Euro and
        (not WoI **or** foe is AI)
@@ -129,9 +134,10 @@ mapping below is working from trustworthy source.
 | Peel | When | Effect |
 |------|------|--------|
 | Difficulty | Human Euro side | `str -= (difficulty - 4)` (Discoverer +4 … Viceroy 0) |
-| Artillery open-field | Land, not on colony; arty and (not fortified **or** foe native) | `>>=2` (−75%) |
-| Arty vs natives on colony | Defender arty, attacker native | `<<=1` |
-| Spanish ambush | Attacker nation 2, defender native, on colony | +50% |
+| Weak defender | Land×land; atk type attack (5236) > 1, def type defense (5235) < 2 | def `>>=1` (no 8d00 flag / no Analysis row; ported 2026-09-03) |
+| Artillery open-field | Land, defender tile has **no settlement** (`06be` layer2&2 — Euro colony AND village tiles both count, NOT the `07be` colony lookup); arty; skip only when defender is fortified Euro (asm reads the DEFENDER's orders for BOTH clauses) | `>>=2` (−75%) — so arty attacking a village is NOT "in the open" |
+| Arty vs natives on settlement | Defender arty, attacker native, settlement tile | `<<=1` |
+| Spanish ambush | Attacker nation 2, defender native, settlement tile (villages) | +50% |
 | WoI crown open-field | WoI, **crown** attacker, land tile (not ocean) | `+= difficulty * atk / 20` |
 | WoI REF +50% | WoI, Euro attacker, **on colony**, and (attacker is **crown** **or** `ref_present`) | +50% (`0x8d01\|0x80`) |
 | WoI support % | WoI, Euro attacker, **on colony** | Crown: +`(100−SoL)%` (Tories); else +`SoL%` (Rebels) |
@@ -305,8 +311,11 @@ dual column. Shown **before** the combat roll (strengths known; no outcome yet).
 - Flag rows (LABELS-shaped, DOS check order): Veteran, Cargo, **Attack
   Bonus** (land ×3/2), Expeditionary Force, Tories/Rebels (WoI support %),
   Ambush (attacker terrain, DOS `0x2e56`) / Terrain (defender `0x2e58`),
-  Colony/Stockade/Fortress, village row labeled with the **tribe name**
-  (LABELS has no "Village"), Artillery In Open, Artillery Vs. Raid,
+  Colony/Stockade/Fortress, village row labeled with the NAMES **@LEVELS**
+  noun by tribe tech — Camp/Village/City, or "Capital" (`@LEVELS` row 5,
+  DS:0x964c) when the dwelling is a capital, at +50 / +100 / ×2 (636c bit-8
+  row; corrected 2026-09-03 — it never prints the tribe name),
+  Artillery In Open, Artillery Vs. Raid,
   Fortified, Spain Bonus, Drake. No roll, no Victory/Defeat.
 - Not ported from DOS 636c: Fatigue −33%/−66% rows (bits `0x100`/`a156&8` —
   strength calc doesn’t model fatigue), the 0x400 sprite row (label
@@ -366,7 +375,7 @@ spawn + fort VGA chrome.
 | Best defender | Done | `units_best_defender_at` |
 | Colony / village / terrain / fortify site | Done | `015e` |
 | `1b0e` peels | Done | Colony REF +50%; Tory/Rebel support % Done |
-| `1b0e` combat-entry MP surcharge ("ship-slow") | Done | 2026-08-24: `unit+0x3149 += 3` on every attack, win or lose, stacked on the normal step cost — `units_try_move`'s `combat_attack_mp_surcharge`. Land units usually fully drained either way; ships retain leftover MP (genuinely "slowed") |
+| `1b0e` combat-entry MP surcharge ("ship-slow") | Done | 2026-08-24: `unit+0x3149 += 3` on every attack, win or lose, stacked on the normal step cost — `units_try_move`'s `combat_attack_mp_surcharge`. Land units usually fully drained either way; ships retain leftover MP (genuinely "slowed"). 2026-09-03: the 465b MP overspend ROLL never denies an attack (`(04ca, bVar4)` third clause of the gate is the attack flag) — the port used to roll after the fight, which could beat a colony's defender yet refuse the capturing entry |
 | Promote / demote / capture / treasure | Done | Ransom Accept/Refuse Done; wagon/colonist capture Done |
 | Naval damage / sink / plunder | Done | Close-fight escape path Done; Privateer `@SEIZURESEA` |
 | Combat Analysis | Done | Options-gated dual column |

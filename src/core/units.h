@@ -63,6 +63,16 @@ void units_set_combat_human_nation(int human_nation);
 void units_set_combat_popups(AiPopupState* popups, const ColonizeMsgCatalog* game_txt);
 
 /*
+ * ai_contact's ambush arm draws its own @INDIANWIN1/2 chrome (muskets/horses
+ * seizure line, chief portrait), so it sets this around its
+ * units_resolve_land_combat call to keep the generic native-attacker
+ * @INDIANWIN0/@INDIANLOSE chrome in units_combat_outcome_popups quiet.
+ * Every other native attack path (braves stepping onto human tiles via
+ * units_try_move, alarm marches) gets the generic chrome.
+ */
+void units_set_native_combat_chrome_owned(int owned);
+
+/*
  * Optional sound.c hooks for the DOS-evidenced combat "Military" BGM sting
  * (SOUND_MILITARY_BGM_ID, see sound.h) — kept as function pointers rather
  * than a direct link so units.c stays linkable without sound.c (several
@@ -658,6 +668,13 @@ typedef void (*ColonizeUnitsCombatWatchFn)(
   int def_y
 );
 void units_set_combat_watch(ColonizeUnitsCombatWatchFn fn, void* user);
+
+/*
+ * Fire the combat-watch bump for a non-combat approach (DOS FUN_5bfb_022e
+ * animates a visiting Brave sliding into the colony tile before its popup —
+ * FUN_281f_0e08/02d0/09ba block). No-op headless (no watch installed).
+ */
+void units_combat_watch_notify(const ColonizeUnitPool* pool, int unit_id, int x, int y);
 
 /*
  * bugs.md: combat popups are presented per-combat, not hoarded until the AI

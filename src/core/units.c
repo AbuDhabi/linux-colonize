@@ -1270,6 +1270,12 @@ void units_set_combat_watch(ColonizeUnitsCombatWatchFn fn, void* user) {
   g_units_combat_watch_user = user;
 }
 
+void units_combat_watch_notify(const ColonizeUnitPool* pool, int unit_id, int x, int y) {
+  if (g_units_combat_watch && pool) {
+    g_units_combat_watch(g_units_combat_watch_user, pool, unit_id, x, y);
+  }
+}
+
 /*
  * bugs.md: every combat concludes in isolation — the popups it queued are
  * presented (and answered) before the NEXT combat runs, instead of being
@@ -1313,6 +1319,12 @@ void units_set_combat_human_nation(int human_nation) {
 void units_set_combat_popups(AiPopupState* popups, const ColonizeMsgCatalog* game_txt) {
   g_units_combat_popups = popups;
   g_units_combat_game_txt = game_txt;
+}
+
+/* See units.h: ai_contact owns the richer ambush chrome for its own calls. */
+static int g_units_native_chrome_owned = 0;
+void units_set_native_combat_chrome_owned(int owned) {
+  g_units_native_chrome_owned = owned;
 }
 
 static ColonizeCombatStrengthCtx units_combat_strength_ctx(const ColonizeCol1Save* col1) {
@@ -2006,14 +2018,23 @@ void units_combat_notify_colony_burned(
   tok.string0 = burner_label && burner_label[0] ? burner_label : "Enemies";
   tok.string1 = units_combat_nation_label(col1, victim_nation);
   tok.string3 = colony_name;
+  /*
+   * DOS FUN_5fef_1b0e splits the colony-destroyed chrome by attacker class:
+   * the both-Euro arm (`uVar16 < 4 && uVar15 < 4`) uses @BURNED / @BURNED2 /
+   * @BURNED3 (0x1c28/0x1c2f/0x1c37), while the native arm (`3 < uVar16 &&
+   * uVar15 < 4`) uses @INDIANBURNCOLONY (0x1c65, human victim, + woodcut 11
+   * via FUN_281f_0524(0xb)) / @INDIANBURNCOLONY2 (0x1c76, bystander). Both
+   * callers here are native burners (units.c last-colonist kill, ai_contact
+   * SCALP/BURN raid abandon) — cite ai/indian_raid_outcomes.md §6.
+   */
   units_combat_enqueue_tok(
     AI_POPUP_TAG_COMBAT_COLONY,
-    "BURNED",
+    "INDIANBURNCOLONY",
     victim_nation,
     -1,
     0,
     &tok,
-    "Colony burned."
+    "Colony burned to the ground!"
   );
 }
 
@@ -2027,8 +2048,9 @@ void units_combat_notify_colony_burned_foreign(
     return;
   }
   /* Bystander only: a human nation exists and it is not the victim. The
-   * victim already gets @BURNED (units_combat_notify_colony_burned); the
-   * burner here is always a native tribe (id ≥4), never a euro nation. */
+   * victim already gets @INDIANBURNCOLONY (units_combat_notify_colony_burned);
+   * the burner here is always a native tribe (id ≥4), never a euro nation —
+   * so DOS's native arm tag 0x1c76 @INDIANBURNCOLONY2, not @BURNED3. */
   if (g_units_combat_human_nation < 0 || g_units_combat_human_nation == victim_nation) {
     return;
   }
@@ -2039,7 +2061,7 @@ void units_combat_notify_colony_burned_foreign(
   tok.string3 = colony_name;
   units_combat_enqueue_tok(
     AI_POPUP_TAG_INFO,
-    "BURNED3",
+    "INDIANBURNCOLONY2",
     g_units_combat_human_nation,
     victim_nation,
     0,
@@ -2941,7 +2963,7 @@ static void units_combat_outcome_popups(
   int ambush,
   const ColonizeCol1Save* col1
 ) {
-  (void)ambush; /* Indian ambush chrome is owned by ai_contact (@INDIANWIN*). */
+  (void)ambush; /* @INDIANWIN1/2 seizure chrome stays with ai_contact's arm. */
   if (!units_combat_human_involved(col1, atk_nation, def_nation)) {
     return;
   }
@@ -2951,8 +2973,9 @@ static void units_combat_outcome_popups(
 
   if (!is_naval) {
     /*
-     * Native attacker: INDIANWIN/LOSE owned by ai_contact ambush chrome.
      * Euro attacker (incl. vs natives): @EUROPEWIN / @EUROPELOSE.
+     * Native attacker vs human: @INDIANWIN0/@INDIANLOSE below (ai_contact's
+     * ambush arm suppresses it and draws its richer version itself).
      * Cite: FUN_5fef_1b0e both-euro gate; indian raid ambush fill.
      */
     if (atk_nation < 4) {
@@ -2989,6 +3012,53 @@ static void units_combat_outcome_popups(
           0,
           &tok,
           "Defeat."
+        );
+      }
+    } else if (atk_nation >= 4 && atk_nation <= 11 && def_nation >= 0 && def_nation <= 3 &&
+               !g_units_native_chrome_owned) {
+      /*
+       * Native attacker vs the human on the generic combat path (a Brave
+       * stepping onto a defended tile via units_try_move, alarm marches):
+       * DOS FUN_5fef_1b0e fills the @INDIANWIN/@INDIANLOSE chrome on every
+       * land resolution (0x5230 @UNIT-name subst, viceroy ~101087) — the
+       * port only drew it from ai_contact's ambush arm, so these attacks
+       * resolved silently (user-reported). ai_contact keeps its richer
+       * version (seizure lines, chief portrait) via the owned flag.
+       */
+      PopupMsgTokens tok;
+      memset(&tok, 0, sizeof(tok));
+      const int place_x = atk_wins ? lose->x : win->x;
+      const int place_y = atk_wins ? lose->y : win->y;
+      const ColonizeUnit* def_u = atk_wins ? lose : win;
+      tok.string0 = units_combat_nation_label(col1, atk_nation); /* tribe */
+      tok.string1 = units_combat_nation_label(col1, def_nation);
+      tok.string2 = units_combat_unit_label(pool, def_u);
+      tok.string3 = units_combat_place_label(col1, place_x, place_y);
+      if (atk_wins) {
+        /* @INDIANWIN0: {tribe} ambush {nation unit} near {place}! */
+        tok.string4 = tok.string0;
+        units_combat_enqueue_tok(
+          AI_POPUP_TAG_COMBAT_AMBUSH,
+          "INDIANWIN0",
+          atk_nation,
+          def_nation,
+          0,
+          &tok,
+          "Ambushed!"
+        );
+      } else {
+        /* @INDIANLOSE: {nation unit} {defeat} {tribe} near {place}!
+         * LABELS defeat/defeats — unit subjects type_index ≥7 use "defeats". */
+        tok.string4 =
+          (def_u->type_index >= 0 && def_u->type_index < 7) ? "defeat" : "defeats";
+        units_combat_enqueue_tok(
+          AI_POPUP_TAG_COMBAT_AMBUSH,
+          "INDIANLOSE",
+          atk_nation,
+          def_nation,
+          0,
+          &tok,
+          "Attack repulsed!"
         );
       }
     }
@@ -4959,13 +5029,68 @@ static void units_try_capture_foreign_colony(
       if (col->colonist_count > 1) {
         col->colonist_count--;
       }
+      /*
+       * DOS FUN_5fef_1b0e colony arm (viceroy_unpacked_2.c ~91930): the
+       * native winner's colonist kill fires the massacre dialog — human
+       * victim @INDIANWINCOLONY (0x1c88), human bystander @INDIANWINCOLONY2
+       * (0x1c98, "Spies report…"). Was silent (user-reported).
+       */
+      {
+        PopupMsgTokens tok;
+        memset(&tok, 0, sizeof(tok));
+        tok.string0 = units_combat_nation_label(g_units_ff_col1, u->nation_id);
+        tok.string1 = units_combat_nation_label(g_units_ff_col1, snap.nation_id);
+        tok.string2 = "A colonist";
+        tok.string3 = snap.name;
+        const int victim_human =
+          (g_units_ff_col1 && snap.nation_id >= 0 && snap.nation_id <= 3 &&
+           g_units_ff_col1->player[snap.nation_id].control == 0) ||
+          (g_units_combat_human_nation >= 0 &&
+           snap.nation_id == g_units_combat_human_nation);
+        if (victim_human) {
+          units_combat_enqueue_tok(
+            AI_POPUP_TAG_COMBAT_COLONY,
+            "INDIANWINCOLONY",
+            snap.nation_id,
+            u->nation_id,
+            0,
+            &tok,
+            "Colonists massacred!"
+          );
+        } else if (g_units_combat_human_nation >= 0) {
+          units_combat_enqueue_tok(
+            AI_POPUP_TAG_INFO,
+            "INDIANWINCOLONY2",
+            g_units_combat_human_nation,
+            u->nation_id,
+            0,
+            &tok,
+            "Spies report a colony massacre."
+          );
+        }
+      }
       return;
     }
     (void)colonies_abandon(colonies, cid);
-    units_combat_notify_colony_burned(
-      g_units_ff_col1, snap.name, snap.nation_id,
-      units_combat_nation_label(g_units_ff_col1, u->nation_id)
-    );
+    /*
+     * DOS native colony arm: the human victim also gets woodcut 11 (COLONY
+     * BURNING) via FUN_281f_0524(0xb) before the @INDIANBURNCOLONY dialog;
+     * a human bystander instead gets @INDIANBURNCOLONY2 ("Spies report…").
+     */
+    {
+      const char* burner = units_combat_nation_label(g_units_ff_col1, u->nation_id);
+      const int victim_human =
+        (g_units_ff_col1 && snap.nation_id >= 0 && snap.nation_id <= 3 &&
+         g_units_ff_col1->player[snap.nation_id].control == 0) ||
+        (g_units_combat_human_nation >= 0 && snap.nation_id == g_units_combat_human_nation);
+      if (victim_human && g_units_ff_col1) {
+        (void)woodcut_fire((ColonizeCol1Save*)g_units_ff_col1, WOODCUT_COLONY_BURNING);
+      }
+      units_combat_notify_colony_burned(g_units_ff_col1, snap.name, snap.nation_id, burner);
+      units_combat_notify_colony_burned_foreign(
+        g_units_ff_col1, snap.name, snap.nation_id, burner
+      );
+    }
     return;
   }
   int plunder = units_colony_plunder_stock_sum(col);
@@ -5753,7 +5878,18 @@ combat_entry_resolved:
   const bool full_mp = remaining >= max_mp;
 
   bool allow = false;
-  if (cost <= remaining || full_mp) {
+  if (reason == COLONIZE_ENTER_COMBAT_LAND || reason == COLONIZE_ENTER_COMBAT_NAVAL) {
+    /*
+     * DOS FUN_465b gate (~75643): `(cost <= left) || (spent == 0) ||
+     * (04ca(seed), bVar4)` — the third clause is the attack flag itself, so
+     * an attack is never denied by the MP overspend roll (moves_left > 0 was
+     * already required to act). Rolling here after the fight had already
+     * resolved could capture a colony's defender yet refuse the entry that
+     * seizes the colony (bugs: scout beat a Spanish colony's colonist,
+     * captured them, and stayed outside).
+     */
+    allow = true;
+  } else if (cost <= remaining || full_mp) {
     allow = true;
   } else if (rng) {
     /* DOS FUN_465b: range(1, cost); succeed if roll <= remaining. */
@@ -6180,7 +6316,10 @@ bool units_set_goto(
   const ColonizeColonyPool* colonies
 ) {
   ColonizeUnit* u = units_get(pool, unit_id);
-  if (!u || !u->active || !units_is_on_map(u) || !map) {
+  /* An awake passenger (aboard, x/y synced to its ship) may take a Go To —
+   * the first step walks it ashore (bugs.md: "Go-to order to have a colonist
+   * walk off a ship onto coast doesn't work"). */
+  if (!u || !u->active || !map || (!units_is_on_map(u) && u->aboard_ship_id < 0)) {
     return false;
   }
   if (dest_x < 0 || dest_y < 0 || dest_x >= (int)map->width || dest_y >= (int)map->height) {
@@ -7226,7 +7365,9 @@ bool units_next_goto_step(
   int* out_y
 ) {
   const ColonizeUnit* u = units_get_const(pool, unit_id);
-  if (!u || !u->active || !units_is_on_map(u) || !map || !out_x || !out_y) {
+  /* Aboard passengers path from their ship's tile (x/y stay synced). */
+  if (!u || !u->active || !map || !out_x || !out_y ||
+      (!units_is_on_map(u) && u->aboard_ship_id < 0)) {
     return false;
   }
   if (!units_orders_follow_goto(u->orders)) {
@@ -7342,10 +7483,59 @@ bool units_advance_goto_one_step(
   ColonizeDosRng* rng
 ) {
   ColonizeUnit* u = units_get(pool, unit_id);
-  if (!u || !u->active || !units_is_on_map(u) || !map) {
+  if (!u || !u->active || !map) {
     return false;
   }
   if (!units_orders_follow_goto(u->orders)) {
+    return false;
+  }
+  /*
+   * Awake passenger under Go To: the first step walks it off its ship onto
+   * land (bugs.md — "Go-to order to have a colonist walk off a ship onto
+   * coast doesn't work. It should."). Path from the ship's tile (pax x/y
+   * stay synced), commit the step via units_unload_passenger, then restore
+   * the order (unload zeroes it) unless the step reached the destination.
+   */
+  if (u->aboard_ship_id >= 0) {
+    const int pgx = u->goto_x;
+    const int pgy = u->goto_y;
+    if (pgx < 0 || pgy < 0 || pgx >= UNITS_GOTO_NONE || pgy >= UNITS_GOTO_NONE) {
+      units_clear_orders(pool, unit_id);
+      return false;
+    }
+    if (u->x == pgx && u->y == pgy) {
+      units_clear_orders(pool, unit_id);
+      return false;
+    }
+    if (u->moves_left <= 0) {
+      return false;
+    }
+    int nx = -1;
+    int ny = -1;
+    if (!units_next_goto_step(pool, unit_id, map, colonies, rng, &nx, &ny)) {
+      return false;
+    }
+    if (!map_tile_is_land(map, nx, ny) || map_tile_is_high_seas(map, nx, ny)) {
+      return false; /* the ship carries it over water; only a shore step here */
+    }
+    const int occ = units_id_at(pool, nx, ny);
+    const ColonizeUnit* of = occ >= 0 ? units_get_const(pool, occ) : NULL;
+    if (of && of->nation_id != u->nation_id) {
+      return false; /* stepping ashore is never an attack */
+    }
+    const int ship_id = u->aboard_ship_id;
+    if (!units_unload_passenger(pool, ship_id, unit_id, map, nx, ny, colonies)) {
+      return false;
+    }
+    u = units_get(pool, unit_id);
+    if (u && !(u->x == pgx && u->y == pgy)) {
+      u->orders = UNITS_ORDER_GOTO;
+      u->goto_x = pgx;
+      u->goto_y = pgy;
+    }
+    return true;
+  }
+  if (!units_is_on_map(u)) {
     return false;
   }
   const int gx = u->goto_x;

@@ -91,7 +91,6 @@
 #define AI_DIPLO_INDIAN_AT_WAR_REL 26 /* alarm > 0x4a (FUN_5bfb_153e hostile tier) */
 /* Very-low deepen: relation < 40 (contact peaceful-gift friction < 40 inverted). */
 #define AI_DIPLO_INDIAN_VERY_LOW_REL 16 /* alarm >= 85: sticky deepen band (Linux) */
-#define AI_DIPLO_INDIAN_HOSTILE_EXTRA 10
 #define AI_DIPLO_INDIAN_HARASS_GOLD 2u
 /* Peace feeler / first-meet content floor. Seed-100 TURN3+ write 96 on meet
  * (not 100). Heal mid-band up to this ceiling; drift still climbs to 160.
@@ -673,26 +672,17 @@ static int ai_diplo_indian_peace_feeler(ColonizeCol1Save* col1, int nation_id) {
   return 0;
 }
 
-/* Indians dislike Euro×Euro war: −5 on all 8 Indian relation slots (both sides). */
+/*
+ * Retired 2026-09-03 (bugs: attacking a Spanish colony popped "Natives grow
+ * hostile"): no DOS declare-war site (5fef_1b0e 0x53c8 clears, 153e, 684c_08c0,
+ * 6cb2_24b8) touches Indian relations — DOS grows alarm only through the
+ * FUN_4d56_152e accumulator (see alarm-fandom-drips retirement). The −5×8
+ * "Indians dislike Euro×Euro war" hit was a fandom stand-in.
+ */
 static void ai_diplo_war_indian_relation_hit(ColonizeCol1Save* col1, int nation_a, int nation_b) {
-  if (!col1) {
-    return;
-  }
-  for (int i = 0; i < 2; ++i) {
-    const int n = (i == 0) ? nation_a : nation_b;
-    if (n < 0 || n >= 4) {
-      continue;
-    }
-    for (int idx = 0; idx < 8; ++idx) {
-      ai_diplo_indian_relation_delta(col1, 4 + idx, n, -AI_DIPLO_WAR_INDIAN_HIT);
-      /* Extra hit once when already hostile after the −5 (thin matrix deepen). */
-      if (ai_diplo_indian_read(col1, n, idx) < AI_DIPLO_INDIAN_VERY_LOW_REL) {
-        ai_diplo_indian_relation_delta(col1, 4 + idx, n, -AI_DIPLO_INDIAN_HOSTILE_EXTRA);
-      }
-    }
-    /* Keep sticky consistent with matrix after Euro×Euro war Indian hit. */
-    ai_diplo_indian_hostility_sync(col1, n);
-  }
+  (void)col1;
+  (void)nation_a;
+  (void)nation_b;
 }
 
 uint8_t ai_diplo_indian_read(const ColonizeCol1Save* col1, int euro_nation, int indian_idx) {
@@ -3215,21 +3205,31 @@ static void ai_diplo_13b0_treaty_tick(ColonizeTurnContext* ctx, int a, int b) {
     return;
   }
   if ((rel_ab & AI_DIPLO_PEACE) || (rel_ab & AI_DIPLO_MET) == 0) {
-    char fb[AI_POPUP_BODY_LEN];
-    if ((rel_ab & AI_DIPLO_PEACE) == 0) {
+    const int is_cancel = (rel_ab & AI_DIPLO_PEACE) != 0;
+    /*
+     * DOS 13b0 cancel branch shows tag 0x1898 = "CANCELTREATY" — but
+     * GAME.TXT ships NO @CANCELTREATY section, so the dialog open fails and
+     * real DOS cancels the treaty silently (bits/timers only, no popup).
+     * The port's invented fallback text ("The X cancel their treaty with
+     * the Y.") was player-reported as a popup DOS never shows. Keep the
+     * effects; pop the notice only if some GAME.TXT actually has the
+     * section.
+     */
+    body[0] = '\0';
+    if (!is_cancel) {
+      char fb[AI_POPUP_BODY_LEN];
       snprintf(fb, sizeof(fb), "The %s and %s are now at war.", na, nb);
       popup_msg_fill(ctx->messages, "DECLAREWAR", &tok, fb, body, sizeof(body));
-    } else {
-      snprintf(fb, sizeof(fb), "The %s cancel their treaty with the %s.", na, nb);
-      popup_msg_fill(ctx->messages, "CANCELTREATY", &tok, fb, body, sizeof(body));
+    } else if (ctx->messages && assets_msg_find(ctx->messages, "CANCELTREATY")) {
+      popup_msg_fill(ctx->messages, "CANCELTREATY", &tok, NULL, body, sizeof(body));
     }
     col1->nation[a].treaty_timer[b] = 0;
     col1->nation[b].treaty_timer[a] = 0;
     ai_diplo_clear_both(col1, a, b, AI_DIPLO_PEACE);
-    if (ctx->ai_popups && notify) {
+    if (ctx->ai_popups && notify && body[0]) {
       (void)ai_popup_enqueue_ok_ctx(ctx->ai_popups, AI_POPUP_TAG_DIPLO_BREAK, a, b, 0, NULL, body);
     }
-    if (ctx->status && ctx->status_size > 0 && notify) {
+    if (ctx->status && ctx->status_size > 0 && notify && body[0]) {
       snprintf(ctx->status, ctx->status_size, "%s", body);
     }
   }

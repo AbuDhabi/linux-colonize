@@ -81,6 +81,7 @@
 #define COLONY_ICON_RIFLE 68
 #define COLONY_ICON_HAMMER_BTN 69
 #define COLONY_ICON_EMPTY_HOLD 122
+#define COLONY_ICON_TOTEM 108 /* red totem pole (8x16) — Indian-claimed tile */
 
 #define COLONY_EXIT_X 306
 #define COLONY_EXIT_Y 179

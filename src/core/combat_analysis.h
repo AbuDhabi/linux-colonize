@@ -25,7 +25,8 @@
  *      post-×8 roll weight).
  *   3. Modifier rows, 0x14 pitch: label left, ±N% right-aligned.
  *      Attacker terrain line reads "Ambush", defender "Terrain";
- *      village line uses the tribe name (LABELS has no "Village").
+ *      village line uses the NAMES @LEVELS noun (Camp/Village/City, or
+ *      "Capital") — DOS 636c bit-8 row, never the tribe name.
  *
  * Shown after strengths are known, before the combat roll / outcome UI.
  */

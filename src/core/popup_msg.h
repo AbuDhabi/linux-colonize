@@ -84,6 +84,15 @@ int popup_msg_take_pending_width(void);
 int popup_msg_take_pending_graphic(void);
 /* Section-name → MSS index (-1 when the section has no DOS graphic). */
 int popup_msg_mss_index_for_section(const char* section_name);
+/*
+ * GAME.TXT `@default=N` of a section: the 1-based choice row DOS pre-selects
+ * (FUN_6f74_32a4 keeps a running option ordinal `local_164` and stores the row
+ * whose ordinal equals the directive's value into the box's default slot).
+ * 0 = no directive (first row). Same side-channel pattern as @width: the next
+ * ai_popup enqueue takes it.
+ */
+int popup_msg_section_default(const ColonizeMsgSection* section);
+int popup_msg_take_pending_default(void);
 void popup_msg_fill(
   const ColonizeMsgCatalog* catalog,
   const char* section_name,

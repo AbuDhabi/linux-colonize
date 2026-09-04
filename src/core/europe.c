@@ -1010,13 +1010,28 @@ bool europe_train(EuropeScreen* eu, int train_index) {
   return true;
 }
 
+int europe_purchase_cost(const EuropeScreen* eu, int purchase_index) {
+  if (!eu || purchase_index < 0 || purchase_index >= eu->purchase_count) {
+    return -1;
+  }
+  const EuropePurchaseOption* p = &eu->purchase[purchase_index];
+  int cost = p->gold;
+  /* FUN_38fd_4b50: type 0xb (Artillery) costs base + nation+0x1e * 100. */
+  if (strcmp(p->name, "Artillery") == 0 && eu->artillery_bought > 0) {
+    cost += eu->artillery_bought * 100;
+  }
+  return cost;
+}
+
 bool europe_purchase(EuropeScreen* eu, int purchase_index) {
   if (!eu || purchase_index < 0 || purchase_index >= eu->purchase_count) {
     return false;
   }
   const EuropePurchaseOption* p = &eu->purchase[purchase_index];
-  if (eu->gold < p->gold) {
-    snprintf(eu->status, sizeof(eu->status), "Need %d$ for %s.", p->gold, p->name);
+  const int cost = europe_purchase_cost(eu, purchase_index);
+  const bool is_artillery = strcmp(p->name, "Artillery") == 0;
+  if (eu->gold < cost) {
+    snprintf(eu->status, sizeof(eu->status), "Need %d$ for %s.", cost, p->name);
     return false;
   }
   if (p->is_ship) {
@@ -1024,20 +1039,24 @@ bool europe_purchase(EuropeScreen* eu, int purchase_index) {
       europe_set_status(eu, "Harbor is full.");
       return false;
     }
-    eu->gold -= p->gold;
+    eu->gold -= cost;
     EuropeHarborShip* slot = &eu->harbor[eu->harbor_ships++];
     europe_clear_ship(slot);
     slot->type_index = -1; /* resolved by name in game_loop / caller */
     snprintf(slot->name, sizeof(slot->name), "%s", p->name);
     europe_refresh_harbor_selection(eu);
-    snprintf(eu->status, sizeof(eu->status), "Purchased %s (-%d$).", p->name, p->gold);
+    snprintf(eu->status, sizeof(eu->status), "Purchased %s (-%d$).", p->name, cost);
     return true;
   }
   if (eu->dock_count >= EUROPE_DOCK_MAX) {
     europe_set_status(eu, "Docks are full.");
     return false;
   }
-  eu->gold -= p->gold;
+  eu->gold -= cost;
+  /* FUN_38fd_4b50 purchase arm: nation+0x1e += 1 after charging. */
+  if (is_artillery) {
+    eu->artillery_bought += 1;
+  }
   EuropeDockImmigrant* slot = &eu->dock[eu->dock_count++];
   memset(slot, 0, sizeof(*slot));
   snprintf(slot->name, sizeof(slot->name), "%s", p->name);
@@ -1045,7 +1064,7 @@ bool europe_purchase(EuropeScreen* eu, int purchase_index) {
   slot->present = true;
   slot->sentry = true;
   slot->dos_type = europe_dock_type_for(slot->name, slot->profession);
-  snprintf(eu->status, sizeof(eu->status), "Purchased %s (-%d$).", p->name, p->gold);
+  snprintf(eu->status, sizeof(eu->status), "Purchased %s (-%d$).", p->name, cost);
   return true;
 }
 

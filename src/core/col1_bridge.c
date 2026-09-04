@@ -1372,6 +1372,8 @@ bool col1_bridge_apply(
      * stand-in (bugs.md all_boycotted.SAV). DOS boycotts are king tea-party,
      * one cargo at a time — never all 16 in one event. */
     europe->boycott_bitmap = (nat->boycott_bitmap == 0xFFFFu) ? 0u : nat->boycott_bitmap;
+    /* nation+0x1e — Artillery purchase count (FUN_38fd_4b50 price ladder). */
+    europe->artillery_bought = (int)nat->artillery_count;
     europe->current_crosses = nat->current_crosses;
     europe->needed_crosses =
       nat->needed_crosses > 0 ? nat->needed_crosses : TURN_DEFAULT_NEEDED_CROSSES;
@@ -1714,6 +1716,8 @@ bool col1_bridge_capture(
     ColonizeCol1Nation* nat = &save->nation[human_nation];
     nat->gold = (uint32_t)(europe->gold < 0 ? 0 : europe->gold);
     nat->tax_rate = (uint8_t)(europe->tax_percent < 0 ? 0 : (europe->tax_percent > 99 ? 99 : europe->tax_percent));
+    nat->artillery_count =
+      (uint16_t)(europe->artillery_bought < 0 ? 0 : europe->artillery_bought);
     nat->current_crosses = europe->current_crosses;
     nat->needed_crosses = europe->needed_crosses > 0 ? europe->needed_crosses : TURN_DEFAULT_NEEDED_CROSSES;
     nat->liberty_bells_total = europe->liberty_bells_total;

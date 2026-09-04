@@ -17,7 +17,17 @@ typedef struct ColonizeColonyPreview {
   int food_net;      /* produced - consumed */
   int crosses;
   int bells;
-  int hammers; /* carpenter hammers that would be added */
+  int hammers; /* carpenter hammers that would be added (lumber-clamped) */
+  /*
+   * Carpenter full capacity this tick, before the lumber clamp — the craft_
+   * capacity analogue for the Lumber->Hammers path (which isn't a
+   * colony_craft_preview recipe). Production tab uses `capacity - hammers`
+   * as the hammer shortfall and `capacity - lumber produced` as the lumber
+   * shortfall (player-reported: a carpenter running on stored lumber must
+   * still flag the missing lumber production, and a starved carpenter must
+   * flag both). 0 in Autumn, same gate as `hammers`.
+   */
+  int hammers_capacity;
   int goods[COLONIZE_CARGO_COUNT];     /* net field+craft before food eat */
   int shortfall[COLONIZE_CARGO_COUNT]; /* craft wanted beyond available raw */
   /*
