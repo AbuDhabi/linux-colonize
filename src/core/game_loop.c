@@ -707,6 +707,21 @@ static void game_move_watch(
          */
         const bool slide_stacked = units_map_stack_chrome(pool, unit_id);
         const bool slide_aboard = mu->aboard_ship_id >= 0;
+        /*
+         * bugs.md: and it must be read BEFORE `mu->active` is cleared below.
+         * `units_display_type_index` goes through `units_get_const`, which
+         * only matches active units, so calling it inside the loop returned
+         * -1 and `unit_chrome_corner_for_type` fell through to its default
+         * BOTTOM_RIGHT for every piece in motion. Units that already sit in
+         * that corner (Colonists, Soldiers, Pioneers, Missionaries, Braves)
+         * looked right, which is why the symptom read as "only transports,
+         * dragoons and artillery"; everything with a top corner —
+         * Dragoons/Scouts/Cavalry (TOP_LEFT), Artillery/Wagon Train/Treasure
+         * (TOP_CENTER), the six ship types (TOP_LEFT/TOP_RIGHT) — had its
+         * orders box jump to the middle-right of a 13-14px sprite for the
+         * length of the animation, i.e. behind the art.
+         */
+        const int slide_dtype = units_display_type_index(pool, unit_id);
         const int x0 = fxl * 16;
         const int y0 = MAP_MENU_BAR_H + fyl * 16;
         const int x1 = txl * 16;
@@ -727,7 +742,7 @@ static void game_move_watch(
             sprite,
             px,
             py,
-            units_display_type_index(pool, unit_id),
+            slide_dtype,
             unit->nation_id,
             /* Same chrome the unit wears standing still: real order letter,
              * not a forced '-' (bugs.md). */
@@ -824,6 +839,10 @@ static void game_combat_watch(
   /* bugs.md 371: same chrome standing or lunging — see game_move_watch. */
   const bool bump_stacked = units_map_stack_chrome(pool, attacker_id);
   const bool bump_aboard = atk->aboard_ship_id >= 0;
+  /* Read the chrome corner before the piece is hidden — see game_move_watch:
+   * units_display_type_index resolves through units_get_const, which skips
+   * inactive units, so an in-loop call gives -1 and the default corner. */
+  const int bump_dtype = units_display_type_index(pool, attacker_id);
   if (mu) {
     mu->active = false;
   }
@@ -836,7 +855,7 @@ static void game_combat_watch(
       sprite,
       sxp + ddx * k_step[f],
       syp + ddy * k_step[f],
-      units_display_type_index(pool, attacker_id),
+      bump_dtype,
       atk->nation_id,
       atk->orders, /* as above: the lunging piece keeps its own letter */
       bump_stacked,
