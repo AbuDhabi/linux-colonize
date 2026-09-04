@@ -14399,6 +14399,43 @@ static void game_render_begin_menu(
   }
 }
 
+/*
+ * DS:0x929c, the flag every map blink reads (active unit, tile cursor, the
+ * "End of Turn" prompt), is toggled by FUN_281f_0dcc from ONE place: the
+ * map's own wait-for-input loop (FUN_2b5a_3800-ish, the 0x14-tick timer
+ * compare on DS:0x97ec/0x97ee). Nothing else in the game touches it, so the
+ * moment control leaves that loop the blink stops dead and the map keeps
+ * whatever phase it was last drawn in.
+ *
+ * That is exactly what the status line does: FUN_1009_00b4 blits the strip
+ * and then spins on FUN_1c0c_0006 alone -- no redraw, no toggle. So while a
+ * Custom House sale line (or any other DS:0x2d54 line) is dwelling, and
+ * likewise while end-of-turn processing or a dialog owns the frame, DOS
+ * shows a still map. The port drove all three blinks straight off
+ * elapsed_ms, so units went on flashing under the sale lines (bugs.md).
+ *
+ * Frozen phase is "on" here: the unit/cursor stays drawn rather than
+ * vanishing for the hold.
+ */
+static bool game_map_blink_running(const ColonizeGameState* game) {
+  if (!game) {
+    return false;
+  }
+  /* Status line up: FUN_1009_00b4's blocking dwell. */
+  if (ai_popup_bar_message(&game->ai_popups)) {
+    return false;
+  }
+  /* End-of-turn pipeline, or anything modal over the map. */
+  if (turn_processor_active(&game->turn_proc)) {
+    return false;
+  }
+  if (game_modal_open(game) || ai_popup_busy(&game->ai_popups) || game->woodcut.open ||
+      game->closing.open) {
+    return false;
+  }
+  return true;
+}
+
 void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffer, ColonizePalette* palette) {
   static uint32_t render_log_counter = 0;
   if (!game || !framebuffer || !palette || !framebuffer->pixels) {
@@ -15089,8 +15126,10 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
   }
 
   if (game->hidden_terrain_phase == 0 && game->units_ok && game->unit_icons_ok) {
-    /* Half-period 500ms → full blink cycle 1s (was 250ms / 500ms cycle). */
-    const bool blink_on = ((game->elapsed_ms / 500u) % 2u) == 0u;
+    /* Half-period 500ms → full blink cycle 1s (was 250ms / 500ms cycle).
+     * Frozen on while the map's input loop is not the thing running. */
+    const bool blink_on =
+      !game_map_blink_running(game) || ((game->elapsed_ms / 500u) % 2u) == 0u;
     const ColonizeFont* chrome_font = game_chrome_font(game);
     units_render_on_map(
       &game->units,
@@ -15144,7 +15183,8 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
     const int sx = game->map_cursor_x - view_x;
     const int sy = game->map_cursor_y - view_y;
     if (sx >= 0 && sy >= 0 && sx < view_cols && sy < view_rows) {
-      const bool blink_on = ((game->elapsed_ms / 250u) % 2u) == 0u;
+      const bool blink_on =
+        !game_map_blink_running(game) || ((game->elapsed_ms / 250u) % 2u) == 0u;
       if (blink_on) {
         const int cx0 = sx * screen_tile_px;
         const int cy0 = MAP_MENU_BAR_H + sy * screen_tile_px;
@@ -15266,7 +15306,7 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
        * FUN_1984_010a toggles for the map's tile cursor, so the two blink
        * together (250ms half-period here). */
       game_end_turn_prompt_active(game),
-      (game->elapsed_ms / 250u) % 2u == 0u,
+      !game_map_blink_running(game) || (game->elapsed_ms / 250u) % 2u == 0u,
       framebuffer
     );
   }
