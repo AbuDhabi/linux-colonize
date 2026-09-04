@@ -3742,8 +3742,8 @@ int main(void) {
       ColonizeDosRng r1;
       dos_rng_seed(&r0, 99);
       dos_rng_seed(&r1, 99);
-      const int plain = units_cortes_conquest_treasure_gold(&col1, 0, &r0, 0);
-      const int rich = units_cortes_conquest_treasure_gold(&col1, 0, &r1, 1);
+      const int plain = units_conquest_treasure_gold(&col1, 0, &r0, 0);
+      const int rich = units_conquest_treasure_gold(&col1, 0, &r1, 1);
       if (plain <= 0 || rich <= plain) {
         free(tmap.layer3);
         free(col1.tribe);
@@ -3817,6 +3817,60 @@ int main(void) {
     }
     units_despawn(&pool, treasure_id);
     units_set_native_fallout_context(NULL, NULL, -1);
+
+    /*
+     * bugs.md 387: conquest treasure is NOT Cortes-gated. Strip Cortes and burn
+     * a village on Conquistador (difficulty 2), where FUN_5fef_31ea's amount is
+     * unconditional — (roll 2..6 + 0 Cortes + 0 Spanish) * 10 * 100, i.e.
+     * 2000..6000 gold — and a Treasure Train must still appear.
+     */
+    col1.nation[0].founding_fathers[FF_HERNAN_CORTES / 8] &=
+      (uint8_t)~(1u << (FF_HERNAN_CORTES % 8));
+    col1.head.founding_father[FF_HERNAN_CORTES] = -1; /* unclaimed */
+    col1.head.difficulty = 2;
+    col1.head.tribe_count = 1;
+    col1.tribe[0].x = 12;
+    col1.tribe[0].y = 10;
+    col1.tribe[0].nation_id = 4;
+    col1.tribe[0].mission = COL1_TRIBE_MISSION_NONE;
+    col1.tribe[0].state.capital = 0;
+    tmap.layer3[10 * 20 + 12] = (uint8_t)((4u << 4) | 1u);
+    ColonizeDosRng nrng;
+    dos_rng_seed(&nrng, 7);
+    if (!units_try_native_settlement_fallout(
+          &col1, &pool, &tmap, 0, 4, 12, 10, -1, &nrng
+        )) {
+      free(tmap.layer3);
+      free(col1.tribe);
+      fprintf(stderr, "no-Cortes conquer: fallout should destroy dwelling\n");
+      return 1;
+    }
+    int nc_gold = -1;
+    int nc_id = -1;
+    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+      const ColonizeUnit* u = &pool.units[i];
+      if (!u->active || u->x != 12 || u->y != 10) {
+        continue;
+      }
+      const ColonizeUnitType* tt = units_type(&pool, u->type_index);
+      if (tt && strcmp(tt->name, "Treasure") == 0) {
+        nc_gold = u->hold_goods_amount[0] | (u->hold_goods_amount[1] << 8);
+        nc_id = u->id;
+        break;
+      }
+    }
+    if (nc_gold < 2000 || nc_gold > 6000) {
+      free(tmap.layer3);
+      free(col1.tribe);
+      fprintf(
+        stderr, "no-Cortes conquest treasure got %d want 2000..6000\n", nc_gold
+      );
+      return 1;
+    }
+    fprintf(stderr, "unit_units: non-Cortes conquest treasure %d ok\n", nc_gold);
+    if (nc_id >= 0) {
+      units_despawn(&pool, nc_id);
+    }
     free(tmap.layer3);
     free(col1.tribe);
   }

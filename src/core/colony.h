@@ -445,8 +445,15 @@ bool colonies_is_school_building(
   int building_type
 );
 
-/* False for Free / Indentured / Criminal / Convert / unset — cannot teach. */
+/*
+ * True when the @JOB school level of `profession` is 1..3 — DOS's `level < 4`
+ * teach gate. False for Free / Indentured / Criminal / Convert / @JOB 18
+ * "Teacher" / unset.
+ */
 bool colonies_profession_may_teach(int profession);
+
+/* NAMES.TXT @JOB column 0 singular name ("Farmer", "Soldier", …). */
+const char* colonies_profession_name(int profession);
 
 /* NAMES @JOB school field (1 Schoolhouse … 3 University); 0 if unknown. */
 int colonies_job_school_tier(int profession);

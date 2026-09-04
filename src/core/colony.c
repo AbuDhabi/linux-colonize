@@ -1163,19 +1163,20 @@ int colonies_school_tier_shortfall(int profession, int building_tier) {
   return 0;
 }
 
+/*
+ * DOS FUN_364b_0688 (viceroy_unpacked.c ~57519): a colonist may teach when the
+ * @JOB school level of his specialty is below 4 — `local_8c = jobtable[prof].
+ * level; if (local_8c < 4)`. Level 4 covers @JOB 18 "Teacher"/19 "Colonist"
+ * (the two placeholder rows) plus Indentured Servant, Petty Criminal and
+ * Indian Convert, so the old hand-written exclusion list was right about
+ * everything except @JOB 18, which it wrongly admitted.
+ */
 bool colonies_profession_may_teach(int profession) {
-  if (profession < 0) {
-    return false;
-  }
-  if (profession == COLONIZE_PROF_FREE_COLONIST || profession == COLONIZE_PROF_INDENTURED ||
-      profession == COLONIZE_PROF_CRIMINAL || profession == COLONIZE_PROF_CONVERT ||
-      profession == UNITS_JOB_COLONIST /* @JOB 19 free-colonist alias */) {
-    return false;
-  }
-  return true;
+  const int level = colonies_job_school_tier(profession);
+  return level >= 1 && level <= 3;
 }
 
-static const char* colonies_profession_label(int profession) {
+const char* colonies_profession_name(int profession) {
   if (profession >= 0 && profession < COLONIZE_FIELD_JOB_COUNT) {
     const char* n = colony_yield_job_name(profession);
     if (n && n[0]) {
@@ -1251,7 +1252,7 @@ void colonies_emit_need_school_chrome(
     return;
   }
   const char* section = (shortfall == 3) ? "NEEDUNIVERSITY" : "NEEDCOLLEGE";
-  const char* pname = colonies_profession_label(profession);
+  const char* pname = colonies_profession_name(profession);
   char body[AI_POPUP_BODY_LEN];
   char fallback[160];
   snprintf(

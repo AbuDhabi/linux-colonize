@@ -5436,6 +5436,27 @@ int main(void) {
     if (ai_contact_try_euro_attack_confirm(&wctx, 0, 1, 7, 5, 6) || wp.queue_count != 0) {
       return fail("at war: no prompt");
     }
+    /*
+     * bugs.md 388: asymmetric bytes. The peer is at peace with us, we are not
+     * at peace with them — DOS tests the ATTACKER'S own byte
+     * (FUN_281f_0a38(attacker, target) & 0x40), the same byte the Foreign
+     * Affairs report prints, so no @HAVETREATY prompt may appear here.
+     */
+    ai_popup_clear(&wp);
+    ai_diplo_write(&col1, 0, 1, AI_DIPLO_MET);
+    ai_diplo_write(&col1, 1, 0, AI_DIPLO_MET | AI_DIPLO_PEACE);
+    if (ai_contact_try_euro_attack_confirm(&wctx, 0, 1, 7, 5, 6) || wp.queue_count != 0) {
+      return fail("one-sided peer peace must not raise HAVETREATY (report says War)");
+    }
+    /* Mirror case: our byte carries the treaty, theirs does not → prompt. */
+    ai_popup_clear(&wp);
+    ai_diplo_write(&col1, 0, 1, AI_DIPLO_MET | AI_DIPLO_PEACE);
+    ai_diplo_write(&col1, 1, 0, AI_DIPLO_MET);
+    if (!ai_contact_try_euro_attack_confirm(&wctx, 0, 1, 7, 5, 6) || wp.queue_count != 1 ||
+        wp.queue[0].tag != AI_POPUP_TAG_CONTACT_EURO_WAR) {
+      return fail("our own peace bit must raise HAVETREATY even if theirs is clear");
+    }
+    ai_popup_clear(&wp);
     ai_diplo_write(&col1, 0, 1, 0);
     ai_diplo_write(&col1, 1, 0, 0);
     fprintf(stderr, "unit_ai_contact: HAVETREATY euro attack confirm ok\n");

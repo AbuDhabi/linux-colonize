@@ -228,8 +228,16 @@ dwelling. Human `4528` `@ACTIONS` arm **Done** (P8.8). Deep `4528` mid-body / VG
   attacker's type attack byte is 0 or a ship (type 0xd..0x12) is party — never
   for a normal land attack. On an ATTACKER loss it runs unconditionally.
 - Winner: Washington always-promote; else chance promote (`FUN_5fef_172c`)
-- Native def: settlement fallout (`FUN_5fef_31ea`) + `@LOOT` (treasure) /
-  `@LOOT2` (burn, no treasure)
+- Native def: settlement fallout (`FUN_5fef_31ea`) + `@LOOT` (treasure, DOS tag
+  `0x1ccc`) / `@LOOT2` (burn, no treasure, `0x1cd1`). The treasure peel is **not
+  Cortes-gated** (bugs.md 387): everyone rolls it. Cortes (`local -6`) is one of
+  the three "or" terms (`roll == 0 || rich || cortes`) that let the difficulty
+  0/1 roll pay out at all, plus a bonus — +50% at difficulty 0/1, +6 units at
+  difficulty 2, +10 at difficulty 3. **At difficulty 2 and 3 the amount is
+  unconditional for every conqueror.** Spanish (`local -0xa8`) shorten the
+  difficulty-0 roll (`rng(0,3)` vs `rng(0,6)`) and add +3/+5 units at 2/3; a
+  capital (`local -0xcc`, `tribe.state.capital`) always pays out and doubles /
+  widens the amount. Gold = amount × 100.
 
 ### Land loss
 
@@ -419,7 +427,7 @@ spawn + fort VGA chrome.
 | George Washington | Non-veteran Soldier/Dragoon who wins always promotes | `units_resolve_land_combat_ff` |
 | Francis Drake | Privateer combat +50% | `combat_unit_base_x8` |
 | Paul Revere | Auto-arm empty colony under attack | `units_revere_defend_colony_tile` |
-| Cortes / Sepulveda | Conquest treasure / convert-join on native fallout | `units_try_native_settlement_fallout` |
+| Cortes / Sepulveda | Conquest treasure **bonus** (not a gate — see above) / convert-join on native fallout | `units_try_native_settlement_fallout` |
 
 ---
 

@@ -269,6 +269,14 @@ Bell-bar glyph is fatter than DOS (10×12 `ICONS.SS` #62 vs a 2×7 mark).
     "`(ab|ba) & 0x02` in either direction" empirical fit, which happened
     to agree on every pair in the golden. `ai_diplo.h`'s `AI_DIPLO_WAR`
     0x01 is still not this byte's DOS decode and is still untouched.
+    The Euro-attack `@HAVETREATY` gate reads **the same byte in the same
+    direction** — DOS `FUN_465b_0000` tests `FUN_281f_0a38(attacker,
+    target) & 0x40` (`viceroy_unpacked.c:75545`) — so this report and that
+    prompt can never disagree. bugs.md 388: the port used to OR both
+    directions there, which made a peer's one-sided peace bit produce
+    "War" here and "we have signed a peace treaty" on the map. DOS's
+    both-direction OR appears further down `465b` and only decides whether
+    a war *declaration* is announced.
   - **Rebels/Tories:** `col1->stuff.census_pop_proxy[nation]` (DS:0x9410),
     not summed colony `.population` (which undercounts by every field
     colonist-type unit). `rebels = pop * rebel_sentiment / 100`.

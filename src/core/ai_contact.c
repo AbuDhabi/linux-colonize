@@ -1291,8 +1291,18 @@ int ai_contact_try_euro_attack_confirm(
   if (ai_contact_euro_war_pending(ctx->ai_popups, unit_id)) {
     return 1;
   }
-  const uint8_t rel = (uint8_t)(ai_diplo_read(ctx->col1, euro_nation, target_nation) |
-                                ai_diplo_read(ctx->col1, target_nation, euro_nation));
+  /*
+   * bugs.md 388: ONE byte, ONE direction — DOS tests
+   * `FUN_281f_0a38(attacker, target) & 0x40` (viceroy_unpacked.c:75545), the
+   * attacker's own relation byte, which is exactly what the Foreign Affairs
+   * report prints (reports.c reports_foreign_at_war reads
+   * nation[viewer].euro_relation[peer]). The port OR'd both directions, so a
+   * peer whose byte carried the peace bit while the human's did not made the
+   * report say "War" and this gate say "we have signed a peace treaty".
+   * (DOS does use the both-direction OR further down, but only to decide
+   * whether a war DECLARATION is announced, not whether to prompt.)
+   */
+  const uint8_t rel = ai_diplo_read(ctx->col1, euro_nation, target_nation);
   if ((rel & AI_DIPLO_PEACE) == 0) {
     /* No treaty: DOS attacks without a prompt — open hostilities and go. */
     ai_diplo_declare_war_ctx(ctx, euro_nation, target_nation);
