@@ -14890,9 +14890,14 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
     if (game->combat_analysis.open) {
       ColonizePopupColors popup_cols;
       popup_colors_from_ui(&popup_cols);
-      const ColonizeFont* popup_font =
-        game->intro_font_ok ? &game->intro_font
-        : (game->menu_font_ok ? &game->menu_font : hud_font);
+      /*
+       * DOS FUN_636c_0000 sets no font of its own — it draws with whatever
+       * the map HUD left current, which is FONTTINY (DS:0x89e). Using the
+       * FONTINTR dialog font here also blew up the header unit chrome: the
+       * orders box sizes itself from the font metrics (unit_chrome.c
+       * box_w/box_h), so the taller glyph cell made an oversized badge.
+       */
+      const ColonizeFont* popup_font = hud_font;
       combat_analysis_render(
         (CombatAnalysisDialog*)&game->combat_analysis,
         popup_font,
