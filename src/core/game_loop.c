@@ -18,6 +18,7 @@
 #include "core/col1_bridge.h"
 #include "core/col1_save.h"
 #include "core/colony.h"
+#include "core/colony_production.h"
 #include "core/colony_screen.h"
 #include "core/combat_strength.h"
 #include "core/debug_atlas.h"
@@ -363,7 +364,132 @@ struct ColonizeGameState {
   char status[128];
   /* Set from main each frame; used by Combat Analysis nested present loop. */
   ColonizePlatform* platform;
+  /* debug.logs: last screen name handed to diag_set_context. */
+  char log_screen[64];
 };
+
+/*
+ * debug.logs: the screen the player is looking at, stamped onto every log
+ * line (diag_set_context) and logged whenever it changes, so a popup, an
+ * order or a production line says where it happened. Modal chrome wins over
+ * the screen under it, matching the input gate in game_update.
+ */
+static void game_screen_name(const ColonizeGameState* game, char* out, size_t out_size) {
+  if (!game || !out || out_size == 0) {
+    return;
+  }
+  if (game->opening.open) {
+    snprintf(out, out_size, "intro");
+    return;
+  }
+  if (game->closing.open) {
+    snprintf(out, out_size, "closing");
+    return;
+  }
+  if (game->declaration.open) {
+    snprintf(out, out_size, "declaration");
+    return;
+  }
+  if (game->woodcut.open) {
+    snprintf(out, out_size, "woodcut");
+    return;
+  }
+  if (game->combat_analysis.open) {
+    snprintf(out, out_size, "combat analysis");
+    return;
+  }
+  if (game->trade_screen.open) {
+    snprintf(out, out_size, "trade route editor");
+    return;
+  }
+  if (game->save_load.open) {
+    snprintf(out, out_size, "save/load");
+    return;
+  }
+  if (game->options_dlg.open) {
+    snprintf(out, out_size, "options");
+    return;
+  }
+  if (game->pick_music.open) {
+    snprintf(out, out_size, "pick music");
+    return;
+  }
+  if (game->name_entry.open) {
+    snprintf(out, out_size, "name entry");
+    return;
+  }
+  if (game->howmuch.open) {
+    snprintf(out, out_size, "how much");
+    return;
+  }
+  if (game->cheat_list.open) {
+    snprintf(out, out_size, "cheat list");
+    return;
+  }
+  if (game->unit_stack.open) {
+    snprintf(out, out_size, "unit stack");
+    return;
+  }
+  if (game->in_menu) {
+    snprintf(out, out_size, "title menu");
+    return;
+  }
+  if (game->in_hall_of_fame) {
+    snprintf(out, out_size, "hall of fame");
+    return;
+  }
+  if (game->in_exploits) {
+    snprintf(out, out_size, "exploits");
+    return;
+  }
+  if (game->in_debug_atlas) {
+    snprintf(out, out_size, "sprite atlas");
+    return;
+  }
+  if (game->in_pedia) {
+    snprintf(
+      out, out_size, "pedia:%s",
+      game->pedia_view == PEDIA_VIEW_ARTICLE ? "article" : "list"
+    );
+    return;
+  }
+  if (game->in_report) {
+    snprintf(out, out_size, "report:%s", reports_title(game->report_id));
+    return;
+  }
+  if (game->in_europe) {
+    snprintf(out, out_size, "europe");
+    return;
+  }
+  if (game->in_colony) {
+    const ColonizeColony* c = colonies_get(&game->colonies, game->colony_view_id);
+    snprintf(
+      out, out_size, "colony:%s", (c && c->name[0]) ? c->name : "?"
+    );
+    return;
+  }
+  snprintf(out, out_size, "map");
+}
+
+static void game_track_screen(ColonizeGameState* game) {
+  if (!game) {
+    return;
+  }
+  char now[64];
+  now[0] = '\0';
+  game_screen_name(game, now, sizeof(now));
+  if (strcmp(now, game->log_screen) == 0) {
+    return;
+  }
+  if (diag_info_enabled()) {
+    diag_set_context(NULL);
+    diag_info(
+      "VIEW %s -> %s", game->log_screen[0] ? game->log_screen : "(none)", now
+    );
+  }
+  str_copy_trunc(game->log_screen, sizeof(game->log_screen), now);
+  diag_set_context(game->log_screen);
+}
 
 static void game_combat_analysis_present(const ColonizeCombatEngagement* eng, void* user) {
   ColonizeGameState* game = (ColonizeGameState*)user;
@@ -936,6 +1062,12 @@ static bool game_try_enter_europe(ColonizeGameState* game) {
     game->europe.status,
     sizeof(game->europe.status),
     "Home port ready. Recruit / Train / S Sail / Esc."
+  );
+  game_track_screen(game);
+  diag_info(
+    "EUROPE opened: gold=%d tax=%d%% harbor=%d docks=%d",
+    game->europe.gold, game->europe.tax_percent, game->europe.harbor_ships,
+    game->europe.dock_count
   );
   return true;
 }
@@ -4508,6 +4640,7 @@ static void game_open_report(ColonizeGameState* game, ColonizeReportId id) {
   game->in_colony = false;
   game->in_debug_atlas = false;
   snprintf(game->status, sizeof(game->status), "%s", reports_title(id));
+  game_track_screen(game);
   diag_info("Opened report %s (%s)", reports_title(id), reports_background_name(id));
 }
 
@@ -4784,6 +4917,7 @@ static void game_open_pedia_list(ColonizeGameState* game, PediaCategory category
   game->pedia_index = 0;
   game->pedia_hover_entry = -1;
   snprintf(game->status, sizeof(game->status), "%s", pedia_category_label(category));
+  game_track_screen(game);
   diag_info("Opened Colonizopedia list (%s)", pedia_category_label(category));
 }
 
@@ -6923,6 +7057,14 @@ static void game_commit_new_campaign(ColonizeGameState* game) {
     new_game_nation_name(game->human_nation),
     map_label
   );
+  diag_info(
+    "NEWGAME %s of %s, difficulty %d, map %s, year %u",
+    game->leader_name,
+    new_game_nation_name(game->human_nation),
+    game->difficulty,
+    map_label,
+    (unsigned)game->game_year
+  );
 }
 
 static void activate_menu_selection(ColonizeGameState* game) {
@@ -7845,6 +7987,27 @@ static void game_enter_colony(ColonizeGameState* game, int cid) {
   }
   snprintf(game->status, sizeof(game->status), "Entered %s", col ? col->name : "colony");
   colony_screen_set_status(&game->colony_screen, col ? col->name : "Colony");
+  game_track_screen(game);
+  if (diag_info_enabled() && col) {
+    const char* project = "-";
+    if (col->building_in_production >= 0 &&
+        col->building_in_production < game->colonies.building_type_count) {
+      project = game->colonies.building_types[col->building_in_production].name;
+    }
+    diag_info(
+      "COLONY opened %s (id=%d at (%d,%d) nation=%d pop=%d SoL=%d%% food=%d hammers=%d project=%s)",
+      col->name[0] ? col->name : "colony",
+      col->id,
+      col->x,
+      col->y,
+      col->nation_id,
+      col->colonist_count,
+      colony_prod_sol_percent(game->col1_ok ? &game->col1 : NULL, col),
+      col->stock[COLONIZE_CARGO_FOOD],
+      col->hammers,
+      project
+    );
+  }
 }
 
 static void game_enter_colony_at_cursor(ColonizeGameState* game) {
@@ -10137,6 +10300,23 @@ static void game_europe_service_trade_harbor(ColonizeGameState* game) {
 
 /* Returns false if the game should quit. */
 static bool game_apply_map_menu_action(ColonizeGameState* game, MapMenuAction action) {
+  if (diag_info_enabled() && action != MAP_MENU_ACTION_NONE &&
+      action != MAP_MENU_ACTION_SEPARATOR) {
+    const ColonizeUnit* sel = units_get_const(&game->units, game->units.selected_id);
+    if (sel && sel->active) {
+      diag_info(
+        "COMMAND %s (unit %s id=%d at (%d,%d) mp=%d)",
+        map_menu_action_name(action),
+        units_display_name(&game->units, sel),
+        sel->id,
+        sel->x,
+        sel->y,
+        sel->moves_left
+      );
+    } else {
+      diag_info("COMMAND %s", map_menu_action_name(action));
+    }
+  }
   switch (action) {
     case MAP_MENU_ACTION_NONE:
       return true;
@@ -10990,6 +11170,7 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
   }
 
   game->elapsed_ms += dt_ms;
+  game_track_screen(game);
   (void)dos_compat_tick_count();
   sound_service();
   if (game_service_opening(game, input, dt_ms)) {

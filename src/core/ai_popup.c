@@ -5,7 +5,10 @@
 
 #include "core/map_menu.h"
 #include "core/popup_msg.h"
+#include "platform/diagnostics.h"
 #include "platform/platform.h"
+
+static void ai_popup_log_present(const AiPopupRequest* req);
 
 void ai_popup_init(AiPopupState* st) {
   if (!st) {
@@ -19,10 +22,26 @@ void ai_popup_clear(AiPopupState* st) {
 }
 
 bool ai_popup_enqueue(AiPopupState* st, const AiPopupRequest* req) {
-  if (!st || !req || st->queue_count >= AI_POPUP_QUEUE_MAX) {
+  if (!st || !req) {
+    return false;
+  }
+  if (st->queue_count >= AI_POPUP_QUEUE_MAX) {
+    diag_warn(
+      "POPUP dropped (queue full, %d) tag=%s body=\"%.80s\"",
+      AI_POPUP_QUEUE_MAX, ai_popup_tag_name(req->tag), req->body
+    );
     return false;
   }
   st->queue[st->queue_count++] = *req;
+  if (diag_info_enabled()) {
+    diag_info(
+      "POPUP queued tag=%s kind=%s choices=%d queue=%d",
+      ai_popup_tag_name(req->tag),
+      req->kind == AI_POPUP_KIND_CHOICE ? "choice" : "message",
+      req->choice_count,
+      st->queue_count
+    );
+  }
   return true;
 }
 
@@ -243,6 +262,178 @@ bool ai_popup_present_now(AiPopupState* st, AiPopupTag tag) {
   return ok;
 }
 
+/* One line per tag so the debug log names the popup, not a raw id. */
+const char* ai_popup_tag_name(AiPopupTag tag) {
+  switch (tag) {
+    case AI_POPUP_TAG_INFO:
+      return "INFO";
+    case AI_POPUP_TAG_KING_AUDIENCE:
+      return "KING_AUDIENCE";
+    case AI_POPUP_TAG_KING_MERC:
+      return "KING_MERC";
+    case AI_POPUP_TAG_KING_CONGRESS:
+      return "KING_CONGRESS";
+    case AI_POPUP_TAG_KING_ARRIVAL:
+      return "KING_ARRIVAL";
+    case AI_POPUP_TAG_KING_CAPTURE:
+      return "KING_CAPTURE";
+    case AI_POPUP_TAG_KING_TAX:
+      return "KING_TAX";
+    case AI_POPUP_TAG_KING_LETTER:
+      return "KING_LETTER";
+    case AI_POPUP_TAG_FF_CONGRESS:
+      return "FF_CONGRESS";
+    case AI_POPUP_TAG_KING_DUMP_GOODS:
+      return "KING_DUMP_GOODS";
+    case AI_POPUP_TAG_CONTACT_MEET:
+      return "CONTACT_MEET";
+    case AI_POPUP_TAG_CONTACT_TEACH:
+      return "CONTACT_TEACH";
+    case AI_POPUP_TAG_CONTACT_GIFT:
+      return "CONTACT_GIFT";
+    case AI_POPUP_TAG_CONTACT_DEMAND:
+      return "CONTACT_DEMAND";
+    case AI_POPUP_TAG_CONTACT_RAID:
+      return "CONTACT_RAID";
+    case AI_POPUP_TAG_CONTACT_CONVERT:
+      return "CONTACT_CONVERT";
+    case AI_POPUP_TAG_CONTACT_REFUSE:
+      return "CONTACT_REFUSE";
+    case AI_POPUP_TAG_CONTACT_WELCOME:
+      return "CONTACT_WELCOME";
+    case AI_POPUP_TAG_CONTACT_VILLAGE_WARN:
+      return "CONTACT_VILLAGE_WARN";
+    case AI_POPUP_TAG_DIPLO_WAR:
+      return "DIPLO_WAR";
+    case AI_POPUP_TAG_DIPLO_PEACE:
+      return "DIPLO_PEACE";
+    case AI_POPUP_TAG_DIPLO_ALLIANCE:
+      return "DIPLO_ALLIANCE";
+    case AI_POPUP_TAG_DIPLO_BREAK:
+      return "DIPLO_BREAK";
+    case AI_POPUP_TAG_DIPLO_BOYCOTT:
+      return "DIPLO_BOYCOTT";
+    case AI_POPUP_TAG_DIPLO_FA:
+      return "DIPLO_FA";
+    case AI_POPUP_TAG_LANDFALL:
+      return "LANDFALL";
+    case AI_POPUP_TAG_MAP_CONFIRM:
+      return "MAP_CONFIRM";
+    case AI_POPUP_TAG_COMBAT_EUROPE:
+      return "COMBAT_EUROPE";
+    case AI_POPUP_TAG_COMBAT_LOOT:
+      return "COMBAT_LOOT";
+    case AI_POPUP_TAG_COMBAT_CAPTURE:
+      return "COMBAT_CAPTURE";
+    case AI_POPUP_TAG_COMBAT_SHIP:
+      return "COMBAT_SHIP";
+    case AI_POPUP_TAG_COMBAT_DEMOTE:
+      return "COMBAT_DEMOTE";
+    case AI_POPUP_TAG_COMBAT_AMBUSH:
+      return "COMBAT_AMBUSH";
+    case AI_POPUP_TAG_COMBAT_RANSOM:
+      return "COMBAT_RANSOM";
+    case AI_POPUP_TAG_COMBAT_COLONY:
+      return "COMBAT_COLONY";
+    case AI_POPUP_TAG_COMBAT_SEIZURE:
+      return "COMBAT_SEIZURE";
+    case AI_POPUP_TAG_KING_SCORED:
+      return "KING_SCORED";
+    case AI_POPUP_TAG_CONTACT_INCITE:
+      return "CONTACT_INCITE";
+    case AI_POPUP_TAG_CONTACT_BEGFOOD:
+      return "CONTACT_BEGFOOD";
+    case AI_POPUP_TAG_CONTACT_TRADE_OFFER:
+      return "CONTACT_TRADE_OFFER";
+    case AI_POPUP_TAG_KING_GALLEON:
+      return "KING_GALLEON";
+    case AI_POPUP_TAG_CONTACT_WHACK:
+      return "CONTACT_WHACK";
+    case AI_POPUP_TAG_KING_FRIGATE:
+      return "KING_FRIGATE";
+    case AI_POPUP_TAG_CONTACT_BUYWHICH:
+      return "CONTACT_BUYWHICH";
+    case AI_POPUP_TAG_CONTACT_BUY0:
+      return "CONTACT_BUY0";
+    case AI_POPUP_TAG_DIPLO_TALK:
+      return "DIPLO_TALK";
+    case AI_POPUP_TAG_INDIAN_LAND:
+      return "INDIAN_LAND";
+    case AI_POPUP_TAG_CONTACT_LEARNSTAY:
+      return "CONTACT_LEARNSTAY";
+    case AI_POPUP_TAG_FOUNTAIN_YOUTH:
+      return "FOUNTAIN_YOUTH";
+    case AI_POPUP_TAG_BREWSTER_PICK:
+      return "BREWSTER_PICK";
+    case AI_POPUP_TAG_CONTACT_TRADE_PICK:
+      return "CONTACT_TRADE_PICK";
+    case AI_POPUP_TAG_CONTACT_EURO_WAR:
+      return "CONTACT_EURO_WAR";
+    case AI_POPUP_TAG_COLONY_EVENT:
+      return "COLONY_EVENT";
+    case AI_POPUP_TAG_KING_WAR_END:
+      return "KING_WAR_END";
+    case AI_POPUP_TAG_KING_THRONE:
+      return "KING_THRONE";
+    case AI_POPUP_TAG_TRADE_TYPE:
+      return "TRADE_TYPE";
+    case AI_POPUP_TAG_SAILHOME:
+      return "SAILHOME";
+    case AI_POPUP_TAG_COLONY_ABANDON:
+      return "COLONY_ABANDON";
+    case AI_POPUP_TAG_WAR_SCORED:
+      return "WAR_SCORED";
+    case AI_POPUP_TAG_COMBAT_HALF:
+      return "COMBAT_HALF";
+  }
+  return "UNKNOWN";
+}
+
+/* Body text with newlines flattened, so one popup is one log line. */
+static void ai_popup_flatten(char* out, size_t out_size, const char* text) {
+  if (!out || out_size == 0) {
+    return;
+  }
+  size_t n = 0;
+  for (const char* p = text ? text : ""; *p && n + 1 < out_size; ++p) {
+    out[n++] = (*p == '\n' || *p == '\r') ? ' ' : *p;
+  }
+  out[n] = '\0';
+}
+
+static void ai_popup_log_present(const AiPopupRequest* req) {
+  if (!diag_info_enabled() || !req) {
+    return;
+  }
+  char body[AI_POPUP_BODY_LEN];
+  ai_popup_flatten(body, sizeof(body), req->body);
+  char choices[AI_POPUP_CHOICE_MAX * (AI_POPUP_CHOICE_LEN + 8)];
+  choices[0] = '\0';
+  size_t at = 0;
+  for (int i = 0; i < req->choice_count && i < AI_POPUP_CHOICE_MAX; ++i) {
+    const int n = snprintf(
+      choices + at, sizeof(choices) - at, "%s[%d]%s", i ? " " : "",
+      req->choice_ids[i], req->choices[i]
+    );
+    if (n <= 0 || (size_t)n >= sizeof(choices) - at) {
+      break;
+    }
+    at += (size_t)n;
+  }
+  diag_info(
+    "POPUP show tag=%s kind=%s title=\"%s\" ctx=(a=%d b=%d payload=%d) body=\"%s\"%s%s",
+    ai_popup_tag_name(req->tag),
+    req->kind == AI_POPUP_KIND_CHOICE ? "choice" : "message",
+    req->title[0] ? req->title : "-",
+    req->nation_a,
+    req->nation_b,
+    req->payload,
+    body,
+    req->choice_count > 0 ? " choices=" : "",
+    req->choice_count > 0 ? choices : ""
+  );
+}
+
 bool ai_popup_queue_pending(const AiPopupState* st) {
   return st && st->queue_count > 0;
 }
@@ -302,12 +493,32 @@ bool ai_popup_try_present_next(AiPopupState* st) {
   st->result_cancelled = false;
   st->king_anim_frame = 0;
   st->king_anim_next_ms = 0;
+  ai_popup_log_present(&st->current);
   return true;
 }
 
 static void ai_popup_finish(AiPopupState* st, bool cancelled, int choice_id) {
   if (!st) {
     return;
+  }
+  if (diag_info_enabled()) {
+    const char* label = "-";
+    for (int i = 0; i < st->current.choice_count && i < AI_POPUP_CHOICE_MAX; ++i) {
+      if (st->current.choice_ids[i] == choice_id) {
+        label = st->current.choices[i];
+        break;
+      }
+    }
+    diag_info(
+      "POPUP answered tag=%s %s id=%d choice=\"%s\" ctx=(a=%d b=%d payload=%d)",
+      ai_popup_tag_name(st->current.tag),
+      cancelled ? "cancelled" : (st->current.choice_count > 0 ? "picked" : "dismissed"),
+      choice_id,
+      label,
+      st->current.nation_a,
+      st->current.nation_b,
+      st->current.payload
+    );
   }
   st->has_result = true;
   st->result_cancelled = cancelled;

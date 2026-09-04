@@ -5,6 +5,7 @@
 #include <string.h>
 
 #include "core/strutil.h"
+#include "platform/diagnostics.h"
 
 bool popup_msg_is_directive(const char* line) {
   return line && line[0] == '@';
@@ -343,6 +344,10 @@ void popup_msg_fill(
   g_popup_msg_pending_graphic = popup_msg_mss_index_for_section(section_name);
   if (sec) {
     popup_msg_section_body(sec, raw, sizeof(raw), true);
+  } else if (catalog && section_name) {
+    /* A loaded catalog that lacks the section is a real content gap; a NULL
+     * catalog is just a headless caller with no GAME.TXT. */
+    diag_warn("GAME.TXT section @%s missing — using fallback text", section_name);
   }
   if (raw[0] == '\0' && fallback) {
     str_copy_trunc(raw, sizeof(raw), fallback);

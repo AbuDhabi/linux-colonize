@@ -75,6 +75,33 @@ from that pulldown (no CLI flags); the toggles write the keys back.
 WARN/ERROR still always write. A wrong type, a negative `seed`, or an empty
 path is not a valid value and the hardcoded default stays.
 
+### What `debug.logs` records
+
+Every line carries the screen it happened on (`[map]`, `[colony:Jamestown]`,
+`[europe]`, `[report:Colony]`, `[unit stack]`, ...) — `diag_set_context`, kept
+current by `game_track_screen` in [`game_loop.c`](../src/core/game_loop.c).
+Lines are tagged by kind:
+
+| Tag | Where | Content |
+|-----|-------|---------|
+| `VIEW` | `game_loop.c` | screen change, `old -> new` (modals included) |
+| `COMMAND` | `game_loop.c` | any MENU/hotkey action, with the selected unit |
+| `NEWGAME` | `game_loop.c` | leader, nation, difficulty, map, start year |
+| `TURN` | `turn.c` | EOT setup line, then each European / native nation |
+| `PROD` | `turn.c` | per colony per turn: pop, SoL, food, hammers, project, then net stock change per cargo |
+| `COLONY` | `colony.c`, `game_loop.c` | screen open summary, worker assignments, construction picked / bought |
+| `CARGO` | `colony.c` | colony ↔ unit goods transfers |
+| `EUROPE` | `europe.c`, `game_loop.c` | screen open (gold/tax/harbor/docks), buy, sell, train, purchase, recruit, sail |
+| `ORDER` | `units.c` | orders given (fortify, sentry, goto, follow, plow/road, wake, disband) |
+| `MOVE` | `units.c` | every completed unit step, with MP left |
+| `COMBAT` | `combat_analysis.c` | both sides' names, baseline and final strength, every Combat Analysis modifier row, odds, roll, winner — logged for AI-vs-AI fights too, not only when the dialog shows |
+| `LCR` | `units.c` | lost city rumour outcome, gold, explorer skill |
+| `FF` | `founding_fathers.c` | founding father elected |
+| `POPUP` | `ai_popup.c` | queued / shown / answered, with tag name, kind, the fully interpolated body, the choice list and the picked option |
+
+`ai_popup_tag_name` and `map_menu_action_name` keep those lines readable —
+add a case to both when a tag or menu action is added.
+
 Written on first run so the options are discoverable and hand-editable without
 opening a dialog first. Every key is optional: a missing file, section or key
 falls back to the DOS / hardcoded default, so an older file keeps working when

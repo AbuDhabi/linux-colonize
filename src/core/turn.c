@@ -1767,6 +1767,85 @@ static void turn_produce_one_colony(
   }
 }
 
+/*
+ * debug.logs: one summary line per colony per turn — net stock change per
+ * cargo, hammers, and what is under construction. Field names come from
+ * @CARGO when a Europe screen is loaded (headless callers get the fallback).
+ */
+static const char* turn_log_cargo_name(const EuropeScreen* europe, int cargo) {
+  static const char* fallback[COLONIZE_CARGO_COUNT] = {
+    "Food", "Sugar", "Tobacco", "Cotton", "Furs", "Lumber", "Ore", "Silver",
+    "Horses", "Rum", "Cigars", "Cloth", "Coats", "Trade Goods", "Tools", "Muskets"
+  };
+  if (cargo < 0 || cargo >= COLONIZE_CARGO_COUNT) {
+    return "?";
+  }
+  if (europe && cargo < europe->cargo_count && europe->cargo[cargo].name[0]) {
+    return europe->cargo[cargo].name;
+  }
+  return fallback[cargo];
+}
+
+static void turn_log_colony_production(
+  const ColonizeColonyPool* pool,
+  const ColonizeColony* colony,
+  const ColonizeCol1Save* col1,
+  const EuropeScreen* europe,
+  const int* stock_before,
+  int hammers_before,
+  int project_before
+) {
+  if (!diag_info_enabled() || !colony || !stock_before) {
+    return;
+  }
+  char goods[512];
+  goods[0] = '\0';
+  size_t at = 0;
+  for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
+    const int net = colony->stock[c] - stock_before[c];
+    if (net == 0) {
+      continue;
+    }
+    const int n = snprintf(
+      goods + at, sizeof(goods) - at, "%s%s %+d (%d)",
+      at ? ", " : "", turn_log_cargo_name(europe, c), net, colony->stock[c]
+    );
+    if (n <= 0 || (size_t)n >= sizeof(goods) - at) {
+      break;
+    }
+    at += (size_t)n;
+  }
+  if (at == 0) {
+    snprintf(goods, sizeof(goods), "nothing");
+  }
+  const char* building = "-";
+  if (pool && colony->building_in_production >= 0 &&
+      colony->building_in_production < pool->building_type_count) {
+    building = pool->building_types[colony->building_in_production].name;
+  } else {
+    /* Artillery / Wagon Train sit above the @BUILDING range. */
+    const char* unit_name = NULL;
+    if (colonies_unit_build_info(colony->building_in_production, &unit_name, NULL, NULL) &&
+        unit_name) {
+      building = unit_name;
+    }
+  }
+  diag_info(
+    "PROD %s (id=%d nation=%d pop=%d SoL=%d%%): food %+d, hammers %+d (%d) building=%s%s",
+    colony->name[0] ? colony->name : "colony",
+    colony->id,
+    colony->nation_id,
+    colony->colonist_count > 0 ? colony->colonist_count : colony->population,
+    colony_prod_sol_percent(col1, colony),
+    colony->stock[COLONIZE_CARGO_FOOD] - stock_before[COLONIZE_CARGO_FOOD],
+    colony->hammers - hammers_before,
+    colony->hammers,
+    building,
+    project_before != colony->building_in_production ? " (project changed)" : ""
+  );
+  diag_info("PROD   %s: %s", colony->name[0] ? colony->name : "colony", goods);
+}
+
 void turn_run_colony_production(
   ColonizeColonyPool* pool,
   const ColonizeWorldMap* map,
@@ -1787,6 +1866,15 @@ void turn_run_colony_production(
        * job-less colonist (stale saves, non-UI admit paths) into work
        * before producing, so the head count always matches the workers. */
       colonies_auto_assign_idle(pool, i);
+      /* Snapshot for the debug-log summary — production itself keeps the
+       * NULL delta it has always had (a non-NULL one changes which branch
+       * fills cargo_produced_mask). */
+      int stock_before[COLONIZE_CARGO_COUNT];
+      int hammers_before = pool->colonies[i].hammers;
+      int project_before = pool->colonies[i].building_in_production;
+      for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
+        stock_before[c] = pool->colonies[i].stock[c];
+      }
       turn_produce_one_colony(
         pool,
         &pool->colonies[i],
@@ -1799,6 +1887,9 @@ void turn_run_colony_production(
         ai_popups,
         messages,
         rng
+      );
+      turn_log_colony_production(
+        pool, &pool->colonies[i], col1, europe, stock_before, hammers_before, project_before
       );
     }
   }
@@ -3064,6 +3155,11 @@ bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ct
 
   switch (proc->step) {
     case TURN_PROC_SETUP: {
+      diag_info(
+        "TURN setup: turn=%u year=%u autumn=%u human=%d",
+        (unsigned)*ctx->turn_number, (unsigned)*ctx->game_year,
+        (unsigned)*ctx->game_autumn, ctx->human_nation
+      );
       /* DOS FUN_3844_00f2 opens every nation's EOT with turn_owner_chrome
        * (281f_0590 → 1984_00aa), the human's own included, so the bottom-right
        * 5x3 box carries the human colour while their production runs. */
@@ -3153,6 +3249,7 @@ bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ct
     }
     case TURN_PROC_EURO: {
       const int n = proc->nation_cursor;
+      diag_info("TURN european nation %d%s", n, n == ctx->human_nation ? " (human)" : "");
       proc->show_indicator = true;
       turn_set_active_nation(ctx, n);
       if (ctx->units) {
@@ -3234,6 +3331,7 @@ bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ct
     }
     case TURN_PROC_INDIAN: {
       const int n = proc->nation_cursor;
+      diag_info("TURN native nation %d", n);
       proc->show_indicator = true;
       turn_set_active_nation(ctx, n);
       if (ctx->units) {

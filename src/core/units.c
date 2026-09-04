@@ -1340,6 +1340,15 @@ const ColonizeUnitType* units_type(const ColonizeUnitPool* pool, int type_index)
   return &pool->types[type_index];
 }
 
+/* Debug-log helpers (defined with the order commands below). */
+static const char* units_order_name(int orders);
+static void units_log_ident(
+  const ColonizeUnitPool* pool,
+  int unit_id,
+  char* out,
+  size_t out_size
+);
+
 static int g_units_last_combat = 0;
 static ColonizeEnterReason g_units_last_enter_reason = COLONIZE_ENTER_OK;
 static const ColonizeCol1Save* g_units_ff_col1 = NULL;
@@ -3959,6 +3968,10 @@ bool units_resolve_lcr_rumour(
     &roll, col1, map, rng, nation, x, y, skill, de_soto_reroll, woi, is_pioneer
   );
   const ColonizeLcrOutcome outcome = roll.outcome;
+  diag_info(
+    "LCR unit %d nation=%d at (%d,%d): outcome=%d gold=%d skill=%d",
+    unit_id, nation, x, y, (int)outcome, roll.gold, skill
+  );
 
   /*
    * Dispatch tail (103620-103757). The numeric FUN_281f_048e arguments the
@@ -4365,6 +4378,7 @@ bool units_resolve_land_combat_ff(
     eng.roll = dos_rng_range(rng, 1, total);
     eng.atk_wins = eng.roll <= eng.atk_strength;
   }
+  combat_analysis_log_engagement(pool, &eng, true);
 
   const int ambush = (er.atk_flags.flags & COMBAT_FLAG_AMBUSH) != 0;
 
@@ -4608,6 +4622,7 @@ bool units_resolve_naval_combat_ff(
     eng.roll = dos_rng_range(rng, 1, total);
     eng.atk_wins = eng.roll <= eng.atk_strength;
   }
+  combat_analysis_log_engagement(pool, &eng, true);
 
   /*
    * Evasion (DOS 1b0e 5fef:~2532, after the main roll and preempting its
@@ -6147,6 +6162,11 @@ combat_entry_resolved:
 
   g_units_last_enter_reason =
     (reason == COLONIZE_ENTER_DOCK) ? COLONIZE_ENTER_DOCK : COLONIZE_ENTER_OK;
+  if (diag_info_enabled()) {
+    char who[96];
+    units_log_ident(pool, unit_id, who, sizeof(who));
+    diag_info("MOVE %s: (%d,%d) -> (%d,%d)", who, ox, oy, unit->x, unit->y);
+  }
   if (g_units_move_watch && units_is_on_map(unit)) {
     g_units_move_watch(
       g_units_move_watch_user,
@@ -6249,6 +6269,57 @@ bool units_orders_skip_turn(const ColonizeUnit* unit) {
          unit->orders == UNITS_ORDER_BUILD_ROAD;
 }
 
+/* @ORDERS byte → debug-log name. */
+static const char* units_order_name(int orders) {
+  switch (orders) {
+    case UNITS_ORDER_NONE:
+      return "none";
+    case UNITS_ORDER_SENTRY:
+      return "sentry";
+    case UNITS_ORDER_TRADE_ROUTE:
+      return "trade route";
+    case UNITS_ORDER_GOTO:
+      return "goto";
+    case UNITS_ORDER_FORTIFY:
+      return "fortify";
+    case UNITS_ORDER_FORTIFIED:
+      return "fortified";
+    case UNITS_ORDER_BUILD_COLONY:
+      return "build colony";
+    case UNITS_ORDER_CLEAR_PLOW:
+      return "clear/plow";
+    case UNITS_ORDER_BUILD_ROAD:
+      return "build road";
+    case UNITS_ORDER_AI_SAIL:
+      return "ai sail";
+    case UNITS_ORDER_AI_MOVE:
+      return "ai move";
+    case UNITS_ORDER_FOLLOW:
+      return "follow";
+    default:
+      break;
+  }
+  return "?";
+}
+
+/* "Veteran Dragoon id=12 nation=0 at (34,21) mp=3" for order/combat lines. */
+static void units_log_ident(
+  const ColonizeUnitPool* pool,
+  int unit_id,
+  char* out,
+  size_t out_size
+) {
+  const ColonizeUnit* u = units_get_const(pool, unit_id);
+  if (!u) {
+    snprintf(out, out_size, "unit %d (gone)", unit_id);
+    return;
+  }
+  snprintf(
+    out, out_size, "%s id=%d nation=%d at (%d,%d) mp=%d",
+    units_display_name(pool, u), unit_id, u->nation_id, u->x, u->y, u->moves_left
+  );
+}
+
 bool units_set_orders(ColonizeUnitPool* pool, int unit_id, int orders) {
   ColonizeUnit* u = units_get(pool, unit_id);
   if (!u || !u->active) {
@@ -6276,10 +6347,16 @@ bool units_set_orders(ColonizeUnitPool* pool, int unit_id, int orders) {
   u->goto_x = UNITS_GOTO_NONE;
   u->goto_y = UNITS_GOTO_NONE;
   u->follow_unit_id = -1;
+  const int prev = u->orders;
   u->orders = orders;
   if (orders == UNITS_ORDER_SENTRY || orders == UNITS_ORDER_FORTIFY ||
       orders == UNITS_ORDER_FORTIFIED) {
     u->moves_left = 0;
+  }
+  if (diag_info_enabled() && prev != orders) {
+    char who[96];
+    units_log_ident(pool, unit_id, who, sizeof(who));
+    diag_info("ORDER %s: %s (was %s)", who, units_order_name(orders), units_order_name(prev));
   }
   return true;
 }
@@ -6476,6 +6553,11 @@ bool units_disband(ColonizeUnitPool* pool, int unit_id) {
     }
     u->aboard_ship_id = -1;
   }
+  if (diag_info_enabled()) {
+    char who[96];
+    units_log_ident(pool, unit_id, who, sizeof(who));
+    diag_info("ORDER %s: disband", who);
+  }
   return units_despawn(pool, unit_id);
 }
 
@@ -6511,6 +6593,11 @@ bool units_wake(ColonizeUnitPool* pool, int unit_id) {
   if (prev == UNITS_ORDER_SENTRY || prev == UNITS_ORDER_FORTIFY ||
       prev == UNITS_ORDER_FORTIFIED) {
     u->turns_worked = 0;
+  }
+  if (diag_info_enabled() && prev != UNITS_ORDER_NONE) {
+    char who[96];
+    units_log_ident(pool, unit_id, who, sizeof(who));
+    diag_info("ORDER %s: wake (was %s)", who, units_order_name(prev));
   }
   return prev == UNITS_ORDER_SENTRY || prev == UNITS_ORDER_FORTIFY ||
          prev == UNITS_ORDER_FORTIFIED || prev == UNITS_ORDER_GOTO;
@@ -6565,6 +6652,11 @@ bool units_set_goto(
   u->orders = UNITS_ORDER_GOTO;
   u->goto_x = dest_x;
   u->goto_y = dest_y;
+  if (diag_info_enabled()) {
+    char who[96];
+    units_log_ident(pool, unit_id, who, sizeof(who));
+    diag_info("ORDER %s: goto (%d,%d)", who, dest_x, dest_y);
+  }
   return true;
 }
 
@@ -6588,6 +6680,11 @@ bool units_follow_unit(ColonizeUnitPool* pool, int unit_id, int target_unit_id) 
   u->follow_unit_id = target_unit_id;
   u->goto_x = t->x;
   u->goto_y = t->y;
+  if (diag_info_enabled()) {
+    char who[96];
+    units_log_ident(pool, unit_id, who, sizeof(who));
+    diag_info("ORDER %s: follow unit %d at (%d,%d)", who, target_unit_id, t->x, t->y);
+  }
   return true;
 }
 
@@ -8271,6 +8368,18 @@ bool units_pioneer_plow(
   if (u->orders != UNITS_ORDER_CLEAR_PLOW) {
     u->turns_worked = 0;
     u->orders = UNITS_ORDER_CLEAR_PLOW;
+    if (diag_info_enabled()) {
+      char who[96];
+      units_log_ident(pool, unit_id, who, sizeof(who));
+      bool clearing = false;
+      (void)units_pioneer_tile_can_clear_or_plow(map, u->x, u->y, &clearing);
+      diag_info(
+        "ORDER %s: %s tile (%d,%d) tools=%d",
+        who,
+        clearing ? "clear forest" : "plow fields",
+        u->x, u->y, u->tools
+      );
+    }
   }
   return units_pioneer_work_tick(
     pool, unit_id, map, err, err_size, colonies, ai_popups, messages
@@ -8323,6 +8432,11 @@ bool units_pioneer_road(
   if (u->orders != UNITS_ORDER_BUILD_ROAD) {
     u->turns_worked = 0;
     u->orders = UNITS_ORDER_BUILD_ROAD;
+    if (diag_info_enabled()) {
+      char who[96];
+      units_log_ident(pool, unit_id, who, sizeof(who));
+      diag_info("ORDER %s: build road tile (%d,%d) tools=%d", who, u->x, u->y, u->tools);
+    }
   }
   return units_pioneer_work_tick(
     pool, unit_id, map, err, err_size, colonies, ai_popups, messages

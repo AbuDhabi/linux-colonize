@@ -17,6 +17,7 @@ static FILE* g_log = NULL;
 static char g_log_path[1024];
 static char g_exe_dir[1024];
 static bool g_info_enabled = false;
+static char g_context[64];
 
 static void write_line(const char* level, const char* message) {
   if (!g_log) {
@@ -28,7 +29,11 @@ static void write_line(const char* level, const char* message) {
   localtime_r(&now, &tm_now);
   char stamp[32];
   strftime(stamp, sizeof(stamp), "%Y-%m-%d %H:%M:%S", &tm_now);
-  fprintf(g_log, "[%s] [%s] %s\n", stamp, level, message);
+  if (g_context[0]) {
+    fprintf(g_log, "[%s] [%s] [%s] %s\n", stamp, level, g_context, message);
+  } else {
+    fprintf(g_log, "[%s] [%s] %s\n", stamp, level, message);
+  }
   fflush(g_log);
 }
 
@@ -126,6 +131,18 @@ void diag_set_info_enabled(bool enabled) {
 
 bool diag_info_enabled(void) {
   return g_info_enabled;
+}
+
+void diag_set_context(const char* context) {
+  if (!context || !context[0]) {
+    g_context[0] = '\0';
+    return;
+  }
+  str_copy_trunc(g_context, sizeof(g_context), context);
+}
+
+const char* diag_context(void) {
+  return g_context;
 }
 
 void diag_info(const char* fmt, ...) {
