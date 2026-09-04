@@ -2008,6 +2008,11 @@ static void reports_render_economic_cargo(
 
 #define REPORTS_COLONY_UNIT_X 110
 #define REPORTS_COLONY_UNIT_PITCH 18
+/* DOS row-sizing constants (FUN_3f41_1ed8): the icon pitch is
+ * clamp(0xd2 / stack_count, 1, 0x12) and icons keep being emitted while
+ * x <= 0x12c, so a large garrison packs tighter rather than being cut off. */
+#define REPORTS_COLONY_UNIT_SPAN 210
+#define REPORTS_COLONY_UNIT_X_MAX 300
 
 #define REPORTS_COLONY_FLAG_X 111
 #define REPORTS_COLONY_FLAG_ICON 123 /* ICONS.SS — same SoL flag as colony_screen.c */
@@ -2176,8 +2181,38 @@ static void reports_render_colony_garrisons(
          view->backgrounds[COLONIZE_REPORT_COLONY].has_palette)
           ? &view->backgrounds[COLONIZE_REPORT_COLONY].palette
           : NULL;
-      int slot = 0;
-      for (int u = 0; u < COLONIZE_UNITS_MAX && slot < 8; ++u) {
+      /* DOS sizes the row before drawing it (FUN_3f41_1ed8): the pitch is
+       * clamp(0xd2 / n, 1, 0x12), where n is the tile stack's "field 10"
+       * count (FUN_1427_0d38 case 10 — non-ship units whose @UNIT attack is
+       * strictly greater than 1, so a Scout is drawn but doesn't tighten the
+       * row), and icons are emitted from x=110 for as long as x <= 0x12c.
+       * There is no fixed slot cap: a 10-unit garrison draws all 10. */
+      int stack_n = 0;
+      for (int u = 0; u < COLONIZE_UNITS_MAX; ++u) {
+        const ColonizeUnit* unit = &units->units[u];
+        if (!unit->active || unit->nation_id != human) {
+          continue;
+        }
+        if (unit->x != c->x || unit->y != c->y || units_is_sea(units, unit->id)) {
+          continue;
+        }
+        const ColonizeUnitType* ut = units_type(units, unit->type_index);
+        if (ut && ut->attack > 1) {
+          stack_n++;
+        }
+      }
+      if (stack_n < 1) {
+        stack_n = 1;
+      }
+      int pitch = REPORTS_COLONY_UNIT_SPAN / stack_n;
+      if (pitch < 1) {
+        pitch = 1;
+      }
+      if (pitch > REPORTS_COLONY_UNIT_PITCH) {
+        pitch = REPORTS_COLONY_UNIT_PITCH;
+      }
+      int x = REPORTS_COLONY_UNIT_X;
+      for (int u = 0; u < COLONIZE_UNITS_MAX && x <= REPORTS_COLONY_UNIT_X_MAX; ++u) {
         const ColonizeUnit* unit = &units->units[u];
         if (!unit->active || unit->nation_id != human) {
           continue;
@@ -2218,12 +2253,11 @@ static void reports_render_colony_garrisons(
             }
           }
         }
-        const int x = REPORTS_COLONY_UNIT_X + slot * REPORTS_COLONY_UNIT_PITCH;
         unit_chrome_blit_unit_for_palette(
           fb, font, &view->icons, sprite, x, row_top - 3,
           display_type, unit->nation_id, orders, false, false, active_palette
         );
-        slot++;
+        x += pitch;
       }
       free(raw_used);
     }
