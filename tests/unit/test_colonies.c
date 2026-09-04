@@ -1216,9 +1216,26 @@ int main(void) {
     CHECK(stockade_b >= 0, "stockade type for fortification check");
     c->has_building[stockade_b] = true;
     CHECK(colonies_has_fortification(&pool, c), "fortification detected");
+    /*
+     * bugs.md: the layer2 settlement bit is what the map renderer reads to
+     * hide a garrison, so founding must set it and abandoning must clear it —
+     * otherwise units left on an abandoned colony's square stay invisible
+     * until the next end-of-turn rebuild.
+     */
+    colonies_set_occupancy_map(&map);
+    CHECK(!map_tile_has_city(&map, land2_x, land2_y), "no settlement bit before rebind");
     CHECK(colonies_abandon(&pool, cid), "abandon colony");
     CHECK(colonies_get(&pool, cid) == NULL, "colony gone after abandon");
     CHECK(colonies_id_at(&pool, land2_x, land2_y) < 0, "tile free after abandon");
+    {
+      const int recid =
+        colonies_found(&pool, &map, land2_x, land2_y, 0, pioneer_type, UNITS_JOB_PIONEER, 0, 0, 0);
+      CHECK(recid >= 0, "re-found for settlement bit check");
+      CHECK(map_tile_has_city(&map, land2_x, land2_y), "found sets the settlement bit");
+      CHECK(colonies_abandon(&pool, recid), "abandon again");
+      CHECK(!map_tile_has_city(&map, land2_x, land2_y), "abandon clears the settlement bit");
+    }
+    colonies_set_occupancy_map(NULL);
   }
 
   /* Re-found so map-icon test has a colony. */
@@ -1282,8 +1299,10 @@ int main(void) {
   }
 
   /*
-   * SoL %: Col1 rebel fields when present; else nation liberty_bells/4.
-   * Cite: colony_prod_sol_percent; FUN_43f7_0004-shaped; manual_gap SoL display.
+   * SoL %: purely the Col1 rebel dividend/divisor pair (FUN_15eb_0274). No
+   * pair (or a zero divisor) reads 0 — the old nation-liberty-bells/4
+   * stand-in was a nation figure and made a colony founded this turn show
+   * 100% (bugs.md). Cite: colony_prod_sol_percent; manual_gap SoL display.
    */
   {
     ColonizeColony* c = colonies_get_mut(&pool, cid);
@@ -1311,25 +1330,32 @@ int main(void) {
       CHECK((c->colony_flags & COLONIZE_COLONY_FLAG_SOL_100) == 0, "sol_100 clear at 50%");
       col1c.rebel_dividend = 0;
       col1c.rebel_divisor = 0;
-      col1.nation[c->nation_id].liberty_bells_total = 200; /* /4 → 50 */
-      CHECK(colony_prod_sol_percent(&col1, c) == 50, "SoL bells fallback 200/4");
-      CHECK(colony_prod_sol_bonus(&col1, c) == 1, "SoL bonus from bells fallback");
-      col1.nation[c->nation_id].liberty_bells_total = 400; /* /4 → 100 */
-      CHECK(colony_prod_sol_percent(&col1, c) == 100, "SoL bells cap 100");
+      col1.nation[c->nation_id].liberty_bells_total = 400;
+      CHECK(colony_prod_sol_percent(&col1, c) == 0, "no rebel pair reads 0, not nation bells");
+      col1c.rebel_dividend = 50;
+      col1c.rebel_divisor = 100;
+      CHECK(colony_prod_sol_percent(&col1, c) == 50, "SoL back from the pair");
+      CHECK(colony_prod_sol_bonus(&col1, c) == 1, "SoL bonus +1 at 50%");
+      col1c.rebel_dividend = 100;
+      col1c.rebel_divisor = 100;
+      CHECK(colony_prod_sol_percent(&col1, c) == 100, "SoL 100 from the pair");
       CHECK(colony_prod_sol_bonus(&col1, c) == 2, "SoL bonus +2 at 100%");
       colony_prod_refresh_sol_flags(c, &col1);
       CHECK((c->colony_flags & COLONIZE_COLONY_FLAG_SOL_100) != 0, "sol_100 latch at 100%");
       CHECK((c->colony_flags & COLONIZE_COLONY_FLAG_SOL_50) != 0, "sol_50 stays at 100%");
       /* DOS hysteresis: sol_100 stays while SoL in 95..99. */
-      col1.nation[c->nation_id].liberty_bells_total = 388; /* /4 → 97 */
+      col1c.rebel_dividend = 97;
+      col1c.rebel_divisor = 100;
       CHECK(colony_prod_sol_percent(&col1, c) == 97, "SoL 97 for hysteresis");
       colony_prod_refresh_sol_flags(c, &col1);
       CHECK((c->colony_flags & COLONIZE_COLONY_FLAG_SOL_100) != 0, "sol_100 holds at 97%");
-      col1.nation[c->nation_id].liberty_bells_total = 360; /* /4 → 90 */
+      col1c.rebel_dividend = 90;
+      col1c.rebel_divisor = 100;
       colony_prod_refresh_sol_flags(c, &col1);
       CHECK((c->colony_flags & COLONIZE_COLONY_FLAG_SOL_100) == 0, "sol_100 clear below 95%");
       CHECK((c->colony_flags & COLONIZE_COLONY_FLAG_SOL_50) != 0, "sol_50 holds at 90%");
-      col1.nation[c->nation_id].liberty_bells_total = 0;
+      col1c.rebel_dividend = 0;
+      col1c.rebel_divisor = 100;
       colony_prod_refresh_sol_flags(c, &col1);
       CHECK((c->colony_flags & (COLONIZE_COLONY_FLAG_SOL_50 | COLONIZE_COLONY_FLAG_SOL_100)) == 0,
             "SoL flags clear when SoL drops");

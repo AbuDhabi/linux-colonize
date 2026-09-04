@@ -2404,6 +2404,25 @@ static void ai_talk_advance(ColonizeTurnContext* ctx) {
       }
       case AI_TALK_ST_WORTHY: {
         /* raw :98047-98062 provoke; then the peace negotiation for !worthy. */
+        /*
+         * Benjamin Franklin — "Europeans in the New World always offer peace
+         * in negotiations" (docs/fandom_col1994.md). This is where that rule
+         * belongs: with Franklin on either side the provoke arm is skipped
+         * and the peace offer is made even to a "worthy" (threatening)
+         * counterpart. It used to be an unsolicited Accept/Refuse popup in
+         * the euro-balance tick, which was invented whole (bugs.md).
+         */
+        if (k->worthy && ai_diplo_franklin_pair(col1, h, t) && k->at_war) {
+          if (ai_talk_peace(ctx, h, t)) {
+            k->stage = AI_TALK_ST_PEACEMENU;
+            break;
+          }
+          ai_talk_peace_offer(ctx);
+          if (k->stage == AI_TALK_ST_WORTHY) {
+            return; /* CHOICE queued */
+          }
+          break;
+        }
         if (k->worthy) {
           if (ai_talk_peace(ctx, h, t) && k->score >= 0x65) {
             ai_talk_ok(ctx, "PROVOKE", &tok, "\"We can no longer tolerate your foul provocations. Prepare for WAR!\"");
@@ -3276,38 +3295,20 @@ void ai_diplo_euro_balance(ColonizeTurnContext* ctx, int nation_id) {
        * Source: docs/fandom_col1994.md Benjamin Franklin; FA 3f41 UI PARKED.
        */
       if (franklin) {
-        if (ctx->ai_popups && peer == ctx->human_nation) {
-          if (!ai_diplo_popup_pair_queued(
-                ctx->ai_popups, AI_POPUP_TAG_DIPLO_PEACE, nation_id, peer
-              )) {
-            char body[AI_POPUP_BODY_LEN];
-            snprintf(
-              body,
-              sizeof(body),
-              "%s offers peace.",
-              ai_diplo_rival_name(ctx->col1, nation_id)
-            );
-            if (ctx->status && ctx->status_size > 0) {
-              snprintf(ctx->status, ctx->status_size, "%s", body);
-            }
-            const char* labels[] = {"Accept", "Refuse"};
-            const int ids[] = {1, 2};
-            (void)ai_popup_enqueue_choice_ctx(
-              ctx->ai_popups,
-              AI_POPUP_TAG_DIPLO_PEACE,
-              nation_id,
-              peer,
-              0,
-              NULL,
-              body,
-              labels,
-              ids,
-              2
-            );
-          }
-        } else {
-          ai_diplo_make_peace_ctx(ctx, nation_id, peer);
-        }
+        /*
+         * bugs.md: the "<nation> offers peace." Accept/Refuse toast that used
+         * to sit here was invented — body, labels and all. DOS never puts an
+         * unsolicited peace dialog in front of the player; peace with a
+         * European peer is settled in the FUN_5bfb_153e encounter
+         * negotiation, which this file already ports in full (@WORTHY →
+         * @PEACEMANLY / @PEACEMEEK). Franklin's "Europeans in the New World
+         * always offer peace" is a rule about NEGOTIATIONS, so it now lives
+         * there (see AI_TALK_ST_WORTHY) as well. The treaty itself still
+         * concludes here and is announced with DOS's own @SIGNTREATY line,
+         * which ai_diplo_make_peace_ctx already emits — that is a real
+         * GAME.TXT string, not a hand-written dialog.
+         */
+        ai_diplo_make_peace_ctx(ctx, nation_id, peer);
         continue;
       }
       /* Thin ongoing 153e friction: 5 gold/turn while gold>0 (per war peer). */
@@ -3358,39 +3359,10 @@ void ai_diplo_euro_balance(ColonizeTurnContext* ctx, int nation_id) {
       if (self > 10 && other > 10 && abs(self - other) < 15) {
         uint8_t* t = ai_diplo_timer_byte(ctx->col1, nation_id, peer);
         if (t && *t == 0 && ctx->rng && dos_rng_range(ctx->rng, 1, 30) == 1) {
-          if (ctx->ai_popups && peer == ctx->human_nation) {
-            /* Skip spam if a peace offer for this pair is already queued. */
-            if (!ai_diplo_popup_pair_queued(
-                  ctx->ai_popups, AI_POPUP_TAG_DIPLO_PEACE, nation_id, peer
-                )) {
-              char body[AI_POPUP_BODY_LEN];
-              snprintf(
-                body,
-                sizeof(body),
-                "%s offers peace.",
-                ai_diplo_rival_name(ctx->col1, nation_id)
-              );
-              if (ctx->status && ctx->status_size > 0) {
-                snprintf(ctx->status, ctx->status_size, "%s", body);
-              }
-              const char* labels[] = {"Accept", "Refuse"};
-              const int ids[] = {1, 2};
-              (void)ai_popup_enqueue_choice_ctx(
-                ctx->ai_popups,
-                AI_POPUP_TAG_DIPLO_PEACE,
-                nation_id,
-                peer,
-                0,
-                NULL,
-                body,
-                labels,
-                ids,
-                2
-              );
-            }
-          } else {
-            ai_diplo_make_peace_ctx(ctx, nation_id, peer);
-          }
+          /* Same as the Franklin arm above (bugs.md): no invented peace
+           * toast. The treaty is concluded and announced with DOS's own
+           * @SIGNTREATY line, which ai_diplo_make_peace_ctx already emits. */
+          ai_diplo_make_peace_ctx(ctx, nation_id, peer);
         }
       }
       continue;

@@ -120,6 +120,7 @@ void turn_refresh_moves_for_nation(
   units_set_ff_col1(col1);
   colonies_set_col1_context((ColonizeCol1Save*)col1);
   units_set_occupancy_map(map);
+  colonies_set_occupancy_map(map);
   if (col1) {
     int human = -1;
     for (int i = 0; i < 4; ++i) {
