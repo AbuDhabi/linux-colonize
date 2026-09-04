@@ -351,7 +351,7 @@ The pull-down has a horizontal green rule between Terrain Types and Colonist Ski
 | Unit Types | `@UNIT0`–`22` (`@UNIT23` is a stub Colonists duplicate — dropped) | `ICONS.SS` (`NAMES.TXT` `@UNIT` icon) |
 | Terrain Types | `@TERRAIN0`–`28` | 3×3 TERRAIN/PHYS0 composite |
 | Colonist Skills | `@JOB0`–`27` (`@JOB18` Teacher/Student was cut pre-release — hidden from the list) | related cargo/unit icon |
-| Colony Buildings | `@BUILDING0`–`41` | `BUILDING.SS` (Stable → sprite 46) |
+| Colony Buildings | `@BUILDING0`–`41` (`30`/`31` Capitol / Capitol Expansion are cut — title-only stubs, unbuildable in DOS, hidden from the list) | `BUILDING.SS` (Stable → sprite 46) |
 | Founding Fathers | `@FATHER0`–`24` | none (DOS text-only) |
 | Miscellaneous | `@MISCELLANEOUS` titles | text blurbs (no PEDIA bodies in data) |
 

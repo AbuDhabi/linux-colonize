@@ -2504,117 +2504,18 @@ static void ai_euro_prefer_iron_works(ColonizeTurnContext* ctx, int nation_id) {
 }
 
 /*
- * Capitol prefer (5d04): Stockade owned, no Capitol, idle → Capitol when
- * buildable. Liberty bells / SoL. Cite: building_production.md Capitol;
- * Colonization.pdf. After Iron Works; before craft upgrades. Peace or war.
+ * DOS has no Capitol construction preference to port: FUN_15eb_3650 refuses
+ * @BUILDING 0x1e (Capitol) outright for every colony, and Capitol Expansion
+ * sits behind it as a prerequisite, so neither the AI nor the player can ever
+ * start one (colonies_building_is_buildable carries the same block). The
+ * port's two Capitol prefer passes are gone with it.
  */
-static void ai_euro_prefer_capitol(ColonizeTurnContext* ctx, int nation_id) {
-  if (!ctx || !ctx->colonies || !ctx->map || nation_id < 0 || nation_id >= 4) {
-    return;
-  }
-  const int stockade_id = colonies_find_building(ctx->colonies, "Stockade");
-  const int fort_id = colonies_find_building(ctx->colonies, "Fort");
-  const int fortress_id = colonies_find_building(ctx->colonies, "Fortress");
-  const int capitol_id = colonies_find_building(ctx->colonies, "Capitol");
-  const int exp_id = colonies_find_building(ctx->colonies, "Capitol Expansion");
-  if (capitol_id < 0) {
-    return;
-  }
-  ColoniesBuildableOpts opts;
-  memset(&opts, 0, sizeof(opts));
-  opts.map = ctx->map;
-  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
-    ColonizeColony* c = &ctx->colonies->colonies[i];
-    if (!c->active || c->nation_id != nation_id) {
-      continue;
-    }
-    if (c->building_in_production >= 0) {
-      continue;
-    }
-    const int fortified =
-      (stockade_id >= 0 && stockade_id < COLONIZE_BUILDING_TYPES_MAX &&
-       c->has_building[stockade_id]) ||
-      (fort_id >= 0 && fort_id < COLONIZE_BUILDING_TYPES_MAX && c->has_building[fort_id]) ||
-      (fortress_id >= 0 && fortress_id < COLONIZE_BUILDING_TYPES_MAX &&
-       c->has_building[fortress_id]);
-    if (!fortified) {
-      continue;
-    }
-    if (capitol_id < COLONIZE_BUILDING_TYPES_MAX && c->has_building[capitol_id]) {
-      continue;
-    }
-    if (exp_id >= 0 && exp_id < COLONIZE_BUILDING_TYPES_MAX && c->has_building[exp_id]) {
-      continue;
-    }
-    int buildable[COLONIZE_BUILDING_TYPES_MAX];
-    const int n =
-      colonies_list_buildable(ctx->colonies, c->id, buildable, COLONIZE_BUILDING_TYPES_MAX, &opts);
-    int ok = 0;
-    for (int b = 0; b < n; ++b) {
-      if (buildable[b] == capitol_id) {
-        ok = 1;
-        break;
-      }
-    }
-    if (!ok) {
-      continue;
-    }
-    (void)colonies_set_construction(ctx->colonies, c->id, capitol_id);
-  }
-}
-
-/*
- * Capitol Expansion prefer (5d04): Capitol owned, no Expansion, idle → Expansion.
- * Cite: building_production.md Capitol Expansion. After Capitol.
- */
-static void ai_euro_prefer_capitol_expansion(ColonizeTurnContext* ctx, int nation_id) {
-  if (!ctx || !ctx->colonies || !ctx->map || nation_id < 0 || nation_id >= 4) {
-    return;
-  }
-  const int capitol_id = colonies_find_building(ctx->colonies, "Capitol");
-  const int exp_id = colonies_find_building(ctx->colonies, "Capitol Expansion");
-  if (exp_id < 0 || capitol_id < 0) {
-    return;
-  }
-  ColoniesBuildableOpts opts;
-  memset(&opts, 0, sizeof(opts));
-  opts.map = ctx->map;
-  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
-    ColonizeColony* c = &ctx->colonies->colonies[i];
-    if (!c->active || c->nation_id != nation_id) {
-      continue;
-    }
-    if (c->building_in_production >= 0) {
-      continue;
-    }
-    if (capitol_id >= COLONIZE_BUILDING_TYPES_MAX || !c->has_building[capitol_id]) {
-      continue;
-    }
-    if (exp_id < COLONIZE_BUILDING_TYPES_MAX && c->has_building[exp_id]) {
-      continue;
-    }
-    int buildable[COLONIZE_BUILDING_TYPES_MAX];
-    const int n =
-      colonies_list_buildable(ctx->colonies, c->id, buildable, COLONIZE_BUILDING_TYPES_MAX, &opts);
-    int ok = 0;
-    for (int b = 0; b < n; ++b) {
-      if (buildable[b] == exp_id) {
-        ok = 1;
-        break;
-      }
-    }
-    if (!ok) {
-      continue;
-    }
-    (void)colonies_set_construction(ctx->colonies, c->id, exp_id);
-  }
-}
 
 /*
  * Craft house/shop/factory prefer (5d04): House→Shop→Factory for rum/cotton/
  * tobacco/fur when raw stock≥20. Factories need Adam Smith. Cite:
  * building_production craft chains; dock craft hire stock≥20 gate. After
- * Capitol Expansion.
+ * Iron Works.
  */
 static void ai_euro_prefer_craft_upgrades(ColonizeTurnContext* ctx, int nation_id) {
   if (!ctx || !ctx->colonies || !ctx->map || nation_id < 0 || nation_id >= 4) {
@@ -17246,8 +17147,6 @@ void ai_euro_dispatcher_turn(ColonizeTurnContext* ctx, int nation_id) {
   ai_euro_prefer_blacksmiths_house(ctx, nation_id);
   ai_euro_prefer_blacksmiths_shop(ctx, nation_id);
   ai_euro_prefer_iron_works(ctx, nation_id);
-  ai_euro_prefer_capitol(ctx, nation_id);
-  ai_euro_prefer_capitol_expansion(ctx, nation_id);
   ai_euro_prefer_craft_upgrades(ctx, nation_id);
   ai_euro_clear_pre_stockade_build_queue(ctx, nation_id);
   ai_euro_colony_goals(ctx, nation_id);

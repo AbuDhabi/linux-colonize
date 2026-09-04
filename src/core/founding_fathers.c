@@ -1482,14 +1482,16 @@ void founding_fathers_tick(ColonizeTurnContext* ctx) {
     try_elect_nation(ctx, n);
   }
 
-  /* Las Casas ownership tick: re-assimilate Convert→Free Colonist while owned
-   * (PEDIA elect is one-shot; tick catches late joins without inventing join). */
-  for (int n = 0; n < (int)COLONIZE_COL1_NATION_COUNT; ++n) {
-    if (!founding_fathers_nation_has(col1, n, FF_BARTOLOME_DE_LAS_CASAS)) {
-      continue;
-    }
-    (void)effect_las_casas_assimilate(ctx->colonies, ctx->units, n);
-  }
+  /*
+   * No Las Casas ownership tick. It used to re-assimilate Convert→Free
+   * Colonist every turn while the father was owned, and DOS's own saves say
+   * that never happens: in original_saves/colony-prod-tests the Dutch already
+   * hold Las Casas (father 24) in COLONY00, yet Montreal's first three
+   * colonists are Converts (profession 27) in COLONY00 *and* still Converts in
+   * COLONY01 one full turn later. Since a Convert outproduces a Free Colonist
+   * on every outdoor job but Lumberjack (colony_yield.c), the re-tick was also
+   * quietly costing those colonies yield. The elect-time one-shot stays.
+   */
 
   /* La Salle ownership tick: PEDIA says "existing AND future" colonies get a
    * Stockade at population 3+. The elect-time sweep (apply_effect) only

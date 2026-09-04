@@ -60,6 +60,10 @@ typedef struct ColonizeBuildingType {
   int hammers;
   int tools_cost;
   int min_population;
+  /* NAMES.TXT @BUILDING column 4 ("size") — DOS's settlement-view size class
+   * 0..4, indexing the per-class box tables at DS:0x230 (width) / DS:0x236
+   * (height) that FUN_2f2b_14d4 centers level badges in. */
+  int size_class;
 } ColonizeBuildingType;
 
 /* One person living in a colony (disbanded map unit). */

@@ -1178,3 +1178,65 @@ drawn while active — not a show/hide blink like before. `map_panel_render`
 split the one `end_turn_flash_on` bool into `end_turn_active` (show at all)
 + `end_turn_blink_white` (color phase), drawn as its own block pinned to
 `framebuffer->height - line_h - 2`, after all other sidebar content.
+
+---
+
+## The real DOS slot tables (recovered 2026-09-04, not yet wired)
+
+While porting the Warehouse Expansion badge (bugs.md 383) the settlement
+view's DOS driver turned up, and with it the static tables the placement
+section above calls "not recoverable". They are plain initialised DS data in
+`VICEROY.EXE` (file offset `121248 + addr`, the same base as the DS strings),
+so no live capture is needed.
+
+`FUN_2f2b_171c` draws the buildings section: **15 slots**, `slot 0..14`, each
+at `DS:0x266 + slot*4` as an `(x, y)` word pair, drawn at `(x, y + 8)`, with
+`DS:-0x717e[slot]` the building index in that slot and `DS:-0x729e[slot]` its
+size class. Each slot goes through `FUN_2f2b_14d4(building, x, y+8, class)`.
+
+| slot | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 |
+|------|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| x | 56 | 145 | 173 | 8 | 37 | 67 | 96 | 6 | 128 | 10 | 15 | 87 | 66 | 123 | 123 |
+| y (pre +8) | 5 | 7 | 10 | 33 | 37 | 46 | 45 | 6 | 45 | 68 | 94 | 3 | 79 | 98 | 47 |
+
+Two of these are already confirmed: slot 13 → `(123, 106)` is the
+fence/stockade corner and slot 14 → `(123, 55)` the dock corner, the two
+positions this port's template matcher recovered exactly from the goldens.
+
+Per size class (NAMES.TXT `@BUILDING` column 4, values 0..4), byte arrays of 5:
+
+| class | 0 | 1 | 2 | 3 | 4 | what |
+|-------|---|---|---|---|---|------|
+| `DS:0x230` width | 23 | 44 | 53 | 73 | 75 | box width |
+| `DS:0x236` height | 27 | 22 | 37 | 18 | 48 | box height |
+| `DS:0x23c` / `0x242` | 3,12 | 20,8 | 25,22 | 5,5 | 0,0 | overlay dx,dy |
+| `DS:0x248` | 17 | 21 | 25 | 65 | 0 | |
+| `DS:0x24e` / `0x254` | −5,−3 | 0,1 | 0,1 | 0,1 | 0,1 | worker-strip dx,dy |
+| `DS:0x25a` | 20 | 22 | 30 | 20 | 20 | strip width |
+| `DS:0x260` | 45 | 44 | 43 | 0 | 46 | empty-slot placeholder sprite |
+
+Class 3 (73×18) and class 4 (75×48) match `COLONY_FENCE_W/H` and
+`COLONY_COAST_W/H` exactly, which is what pins the row order.
+
+The building sprite itself is blitted at the slot coordinate with **no** class
+offset (`FUN_281f_0254`, sheet `DS:0x2da8`), which is why the port's
+sprite-position matches are directly comparable to this table. Wiring these 15
+slots up in place of `colony_screen_assign_slot_positions()`'s invented pools
+is now a data-entry job rather than a research one — the missing piece is the
+per-colony `slot → building index` assignment (`DS:-0x717e`, filled by the
+init loop near `viceroy_unpacked.c:47289`).
+
+### Warehouse Expansion / Capitol level badge
+
+`FUN_2f2b_14d4`'s tail: for building `0x0f` it reads colony `+0x95`
+(`warehouse_level`), for `0x1e` colony `+0x96` (`capitol_level`), and when the
+value is above 1 prints it as a decimal string in **ink `0x0f` (white)** at
+`(x + width[class]/2 − 1, y + height[class]/2 − 3)` — centred in the class
+box. So a Warehouse Expansion shows as a white `2` on the warehouse roof.
+Ported in `colony_screen.c` (`k_class_box`). The Capitol half can never fire —
+DOS refuses that building outright (see [building_production.md](building_production.md)).
+
+Both `+0x95` and `+0x96` are **level counters** (0..2), not the packed tier
+bitmasks that live in the colony's building words; `col1_bridge.c` used to
+`max()` the counter against the raw mask, which stored `3` for a colony with
+both warehouse tiers and then read back as a 400-slot warehouse.

@@ -1905,6 +1905,34 @@ static void turn_log_colony_production(
   diag_info("PROD   %s: %s", colony->name[0] ? colony->name : "colony", goods);
 }
 
+/*
+ * Nation scope for the three colony-EOT passes below.
+ *
+ * DOS runs FUN_364b_0688 inside each nation's own FUN_3844_00f2, and 00f2
+ * runs immediately BEFORE that nation acts (year_loop.c: `nation_eot` then
+ * `Move Pieces` for the human slot). So the human's colonies produce — and
+ * their construction projects finish, with the @BUILT popup — at the START of
+ * the human's turn, not when End Turn is pressed. This port's pipeline is
+ * post-human, so it runs every AI nation's colonies in TURN_PROC_SETUP and
+ * the human's in TURN_PROC_FINISH, right before control returns.
+ *
+ * Threaded as slice-scoped statics for the same reason as s_turn_labels: the
+ * public entry points' signatures are pinned by the test call sites. Both -1
+ * (the default, and what those entry points restore) means "every colony".
+ */
+static int s_prod_only_nation = -1;
+static int s_prod_skip_nation = -1;
+
+static bool turn_prod_nation_in_scope(int nation_id) {
+  if (s_prod_only_nation >= 0 && nation_id != s_prod_only_nation) {
+    return false;
+  }
+  if (s_prod_skip_nation >= 0 && nation_id == s_prod_skip_nation) {
+    return false;
+  }
+  return true;
+}
+
 void turn_run_colony_production(
   ColonizeColonyPool* pool,
   const ColonizeWorldMap* map,
@@ -1920,7 +1948,7 @@ void turn_run_colony_production(
     return;
   }
   for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
-    if (pool->colonies[i].active) {
+    if (pool->colonies[i].active && turn_prod_nation_in_scope(pool->colonies[i].nation_id)) {
       /* bugs.md 262: DOS never carries an idle colonist — sweep any
        * job-less colonist (stale saves, non-UI admit paths) into work
        * before producing, so the head count always matches the workers. */
@@ -1960,7 +1988,8 @@ void turn_run_colony_unit_construction(ColonizeTurnContext* ctx) {
   }
   for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
     ColonizeColony* col = &ctx->colonies->colonies[i];
-    if (!col->active || col->building_in_production < 0) {
+    if (!col->active || col->building_in_production < 0 ||
+        !turn_prod_nation_in_scope(col->nation_id)) {
       continue;
     }
     const char* name = NULL;
@@ -2009,7 +2038,8 @@ void turn_run_colony_building_completion(ColonizeTurnContext* ctx) {
   }
   for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
     ColonizeColony* col = &ctx->colonies->colonies[i];
-    if (!col->active || col->building_in_production < 0) {
+    if (!col->active || col->building_in_production < 0 ||
+        !turn_prod_nation_in_scope(col->nation_id)) {
       continue;
     }
     const ColonizeBuildingType* bt = colonies_building_type(ctx->colonies, col->building_in_production);
@@ -3230,8 +3260,8 @@ bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ct
         (unsigned)*ctx->game_autumn, ctx->human_nation
       );
       /* DOS FUN_3844_00f2 opens every nation's EOT with turn_owner_chrome
-       * (281f_0590 → 1984_00aa), the human's own included, so the bottom-right
-       * 5x3 box carries the human colour while their production runs. */
+       * (281f_0590 → 1984_00aa); the human's own colony EOT now runs in
+       * TURN_PROC_FINISH, which re-arms the same chrome there. */
       turn_set_active_nation(ctx, ctx->human_nation);
       proc->show_indicator = true;
       proc->year_before = *ctx->game_year;
@@ -3244,6 +3274,10 @@ bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ct
         ctx->col1->head.autumn = *ctx->game_autumn;
       }
       turn_set_birth_units_pool(ctx->units);
+      /* AI nations only — the human's colonies run their EOT at the top of
+       * TURN_PROC_FINISH instead, which is where DOS puts it (see the
+       * s_prod_only_nation comment). */
+      s_prod_skip_nation = ctx->human_nation;
       turn_run_colony_production(
         ctx->colonies,
         ctx->map,
@@ -3264,6 +3298,7 @@ bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ct
        * buildings sitting at/above threshold — turn_produce_one_colony's
        * inline complete check only fires on a tick that adds new hammers. */
       turn_run_colony_building_completion(ctx);
+      s_prod_skip_nation = -1;
       /* FUN_364b_03f6 coastal Fort/Fortress fire after production. */
       (void)turn_run_coastal_fort_fire(ctx);
       turn_run_nation_ticks(ctx, &proc->result);
@@ -3272,8 +3307,11 @@ bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ct
        * run in the colony-EOT PROLOGUE, so an FF nomination/election dialog
        * presents BEFORE the colony production messages. The port computes
        * production first (RNG draw order pinned by goldens); reorder the
-       * presentation queue instead. Cite: turn/colony_eot_production.md
-       * Phase A; turn/nation_ticks_bells_ff.md.
+       * presentation queue instead. Now that the human's own colony EOT sits
+       * in TURN_PROC_FINISH this is normally a no-op (only human colonies
+       * enqueue colony events, and none exist yet), kept for AI-owned queues
+       * and for the synchronous turn_end path. Cite:
+       * turn/colony_eot_production.md Phase A; turn/nation_ticks_bells_ff.md.
        */
       if (ctx->ai_popups) {
         ai_popup_promote_tag_before(
@@ -3432,6 +3470,33 @@ bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ct
       break;
     }
     case TURN_PROC_FINISH: {
+      proc->show_indicator = false;
+      /*
+       * The human nation's own colony EOT — DOS FUN_3844_00f2 runs it right
+       * before that nation's Move Pieces, so a construction project finishes
+       * (and announces itself) at the start of the player's turn, not the
+       * instant End Turn is pressed. Ahead of the king / census / market work
+       * below, matching 00f2's own production-then-census-then-king order.
+       */
+      turn_set_active_nation(ctx, ctx->human_nation);
+      proc->show_indicator = true;
+      s_prod_only_nation = ctx->human_nation;
+      turn_set_birth_units_pool(ctx->units);
+      turn_run_colony_production(
+        ctx->colonies,
+        ctx->map,
+        ctx->col1_ok ? ctx->col1 : NULL,
+        ctx->europe,
+        ctx->human_nation,
+        &proc->result,
+        ctx->ai_popups,
+        ctx->messages,
+        ctx->rng
+      );
+      turn_set_birth_units_pool(NULL);
+      turn_run_colony_unit_construction(ctx);
+      turn_run_colony_building_completion(ctx);
+      s_prod_only_nation = -1;
       proc->show_indicator = false;
       turn_run_king_stub(ctx);
       turn_run_year_end_chrome(ctx, &proc->result);

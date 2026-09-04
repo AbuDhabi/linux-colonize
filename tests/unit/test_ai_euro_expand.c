@@ -18345,7 +18345,9 @@ static int unit_craft_fur_factory_prefer(void) {
 }
 
 /*
- * Capitol prefer: Stockade owned → Capitol.
+ * Capitol is never a construction project: DOS FUN_15eb_3650 zeroes
+ * @BUILDING 0x1e for every colony, so a fortified colony with hammers and a
+ * Capitol row in the table still picks nothing.
  */
 static int unit_capitol_prefer(void) {
   const int nation = 1;
@@ -18423,28 +18425,28 @@ static int unit_capitol_prefer(void) {
 
   ai_euro_dispatcher_turn(&ctx, nation);
 
-  if (c->building_in_production != 1) {
+  if (c->building_in_production == 1) {
     fprintf(
       stderr,
-      "unit_ai_euro_expand: Capitol bip=%d (want Capitol=1)\n",
+      "unit_ai_euro_expand: Capitol bip=%d (want anything but Capitol=1)\n",
       c->building_in_production
     );
     free(map.terrain);
     free(map.layer2);
     free(map.layer3);
-    return fail("expected fortified colony to prefer Capitol");
+    return fail("Capitol is unbuildable in DOS; AI must never start one");
   }
 
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "unit_ai_euro_expand: Capitol prefer ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: Capitol never built ok\n");
   return 0;
 }
 
 /*
- * Capitol Expansion prefer: Capitol owned → Capitol Expansion.
- * Cite: building_production.md Capitol Expansion; euro_unit_act Capitol prefer.
+ * Capitol Expansion is unreachable too — it sits behind the Capitol as a
+ * prerequisite, and DOS never lets a colony own one.
  */
 static int unit_capitol_expansion_prefer(void) {
   const int nation = 1;
@@ -18526,22 +18528,22 @@ static int unit_capitol_expansion_prefer(void) {
 
   ai_euro_dispatcher_turn(&ctx, nation);
 
-  if (c->building_in_production != 1) {
+  if (c->building_in_production == 1) {
     fprintf(
       stderr,
-      "unit_ai_euro_expand: Capitol Expansion bip=%d (want Expansion=1)\n",
+      "unit_ai_euro_expand: Capitol Expansion bip=%d (want anything but Expansion=1)\n",
       c->building_in_production
     );
     free(map.terrain);
     free(map.layer2);
     free(map.layer3);
-    return fail("expected Capitol colony to prefer Capitol Expansion");
+    return fail("Capitol Expansion is unbuildable in DOS; AI must never start one");
   }
 
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
-  fprintf(stderr, "unit_ai_euro_expand: Capitol Expansion prefer ok\n");
+  fprintf(stderr, "unit_ai_euro_expand: Capitol Expansion never built ok\n");
   return 0;
 }
 
