@@ -131,6 +131,7 @@ int main(int argc, char** argv) {
     if (!cli.debug_menu_from_cli) {
       cli.debug_menu = prefs->debug_menu;
     }
+    diag_set_info_enabled(prefs->debug_logs);
   }
 
   diag_info("CLI data_dir=%s", cli.data_dir);
@@ -175,7 +176,9 @@ int main(int argc, char** argv) {
     .show_mouse_coords = settings_get()->show_mouse_coords,
     .show_mouse_coords_set = true,
     .show_building_rects = settings_get()->show_building_rects,
-    .show_building_rects_set = true
+    .show_building_rects_set = true,
+    .debug_logs = settings_get()->debug_logs,
+    .debug_logs_set = true
   };
 
   ColonizeGameState* game = game_create(&game_cfg);

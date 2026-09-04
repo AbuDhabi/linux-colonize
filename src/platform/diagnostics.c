@@ -16,6 +16,7 @@
 static FILE* g_log = NULL;
 static char g_log_path[1024];
 static char g_exe_dir[1024];
+static bool g_info_enabled = false;
 
 static void write_line(const char* level, const char* message) {
   if (!g_log) {
@@ -119,7 +120,18 @@ const char* diag_exe_dir(void) {
   return g_exe_dir;
 }
 
+void diag_set_info_enabled(bool enabled) {
+  g_info_enabled = enabled;
+}
+
+bool diag_info_enabled(void) {
+  return g_info_enabled;
+}
+
 void diag_info(const char* fmt, ...) {
+  if (!g_info_enabled) {
+    return;
+  }
   va_list args;
   va_start(args, fmt);
   diag_vlog("INFO", fmt, args);
