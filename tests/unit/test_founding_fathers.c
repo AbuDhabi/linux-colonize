@@ -1533,7 +1533,7 @@ int main(void) {
     EuropeScreen peu;
     memset(&peu, 0, sizeof(peu));
     peu.needed_crosses = 100;
-    peu.crosses_immigrant_seen = true; /* no idle +2 after first immigrant */
+    peu.crosses_immigrant_seen = true; /* dock latch up, but dock is empty */
 
     /* Keep 584a needed above Penn's 13 so the meter is not cleared by a spawn. */
     ColonizeUnitPool punits;
@@ -1581,12 +1581,13 @@ int main(void) {
     pnat->liberty_bells_total = 0;
     pnat->current_crosses = 0;
     turn_run_nation_ticks(&pctx, NULL);
-    /* Jefferson+Paine: 12 bells; Penn: 11 church crosses (no idle +2) — see
-     * the per-worker Penn fold note above crosses_penn. */
+    /* Jefferson+Paine: 12 bells; Penn: 11 church crosses + the 584a idle +2
+     * (dock latch is up but no immigrant waits, so the tick stays positive)
+     * — see the per-worker Penn fold note above crosses_penn. */
     if (peu.liberty_bells_last_turn != 12) {
       return fail("turn Jefferson+Paine bells last_turn");
     }
-    if (peu.current_crosses != 11) {
+    if (peu.current_crosses != 13) {
       return fail("turn Penn crosses accrued");
     }
   }

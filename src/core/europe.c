@@ -906,6 +906,15 @@ bool europe_recruit_from_pool(EuropeScreen* eu, int pool_index) {
     "EUROPE recruited %s (job %d) for %d$ passage (gold=%d)",
     slot->name, slot->profession, eu->recruit_passage, eu->gold
   );
+  /*
+   * FUN_38fd_4884 tail, param_1==0 (viceroy_unpacked.c:64765): a *paid*
+   * passage clears the crosses meter (nation+0x2e = 0) before the +6
+   * counter bumps. Without it the discount term kept the next price pinned
+   * near the 100 floor, so buying colonists never walked the price ladder
+   * up (bugs.md: "recruit price isn't increased by recruiting with gold").
+   */
+  eu->current_crosses = 0;
+  eu->immigration_pressure = 0;
   europe_bump_recruit_count(eu);
   europe_refill_pool_slot(eu, pool_index, NULL);
   return true;
@@ -2602,16 +2611,30 @@ int europe_tick_immigration_pressure(
   eu->immigration_score = (int16_t)(need > 32767 ? 32767 : need);
 
   /*
-   * Idle +2 (584a *param_2 default) until the first dock immigrant; afterward
-   * only church/mission crosses (caller) accrue. Seed-100 TURN5–7 stay 0/10
-   * with no churches. Cite: test-saves-ai/TURN1–7; 5e52 ~68558.
+   * 584a *param_2 (viceroy_unpacked.c:68258-68280): +2 a turn, but once the
+   * nation's dock latch is up (nation_flags 0x40, set by the first crosses
+   * immigrant = crosses_immigrant_seen) every colonist still waiting on the
+   * Europe dock flips the tick negative: 2 → -2 → -4 …, i.e. -2 per waiting
+   * immigrant. Empty the dock and the +2 resumes — the port used to freeze
+   * the meter forever after the first immigrant.
+   * Cite: test-saves-ai TURN1–4 = 2/4/6/8 (flag clear, no dock unit),
+   * TURN5–7 = 0 (flag 0x40 + one dock colonist, drain clamped at 0).
    */
-  unsigned cur = (unsigned)eu->current_crosses;
-  if (!eu->crosses_immigrant_seen) {
-    cur += 2u;
-    if (cur > 65535u) {
-      cur = 65535u;
+  int delta = 2;
+  if (eu->crosses_immigrant_seen) {
+    for (int i = 0; i < eu->dock_count && i < EUROPE_DOCK_MAX; ++i) {
+      if (!eu->dock[i].present) {
+        continue;
+      }
+      delta = (delta < 1) ? delta - 2 : -2;
     }
+  }
+  int cur = (int)eu->current_crosses + delta;
+  if (cur < 0) {
+    cur = 0; /* 5e52 clamps the sum at 0 before the compare. */
+  }
+  if (cur > 65535) {
+    cur = 65535;
   }
   eu->current_crosses = (uint16_t)cur;
   eu->immigration_pressure = (int16_t)(cur > 32767u ? 32767 : (int)cur);
