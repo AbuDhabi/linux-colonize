@@ -2227,6 +2227,187 @@ int main(void) {
     fprintf(stderr, "recruit_count survives the col1 bridge both ways ok\n");
   }
 
+  /*
+   * bugs.md (trade_route_wagon.SAV): a wagon/ship on a trade route came back
+   * from a save with no route at all, so game_trade_route_retarget bailed on
+   * follow_unit_id == -1 and the unit just sat in the activation queue. DOS
+   * keeps the cursor in the profession byte a route-running unit does not
+   * use (unit +0x17 = DS:0x315b; FUN_1427_0f64/0f74 low nibble = trade_route
+   * slot, FUN_1427_0f8e/0fa0 high nibble = stop index) — bridge both ways.
+   */
+  {
+    ColonizeMsgCatalog names;
+    assets_msg_init(&names);
+    if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT")) {
+      fprintf(stderr, "trade-route cursor: NAMES.TXT load failed\n");
+      return 1;
+    }
+    ColonizeWorldMap map;
+    memset(&map, 0, sizeof(map));
+    if (!map_alloc(&map, COLONIZE_COL1_MAP_W_STD, COLONIZE_COL1_MAP_H_STD, err, sizeof(err))) {
+      fprintf(stderr, "trade-route cursor: map_alloc: %s\n", err);
+      assets_msg_free(&names);
+      return 1;
+    }
+    for (size_t i = 0; i < map.tile_count; ++i) {
+      map.terrain[i] = 1; /* land */
+    }
+    ColonizeCol1Save save;
+    if (!col1_bridge_init_template(&save, map.width, map.height, err, sizeof(err))) {
+      fprintf(stderr, "trade-route cursor: template: %s\n", err);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    /* Slot 2 is a live two-stop route; slot 3 stays empty. */
+    save.head.trade_route_count = 3;
+    snprintf(save.trade_route[2].name, sizeof(save.trade_route[2].name), "%s", "Wagon Loop");
+    save.trade_route[2].sea = 0;
+    save.trade_route[2].dest_count = 2;
+    save.trade_route[2].stop[0].colony_index = 0;
+    save.trade_route[2].stop[1].colony_index = 1;
+
+    ColonizeUnitPool units;
+    units_reset(&units);
+    if (!units_load_types(&units, &names)) {
+      fprintf(stderr, "trade-route cursor: unit types failed\n");
+      col1_save_free(&save);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    units_set_occupancy_map(&map);
+    const int wagon_t = units_find_type(&units, "Wagon Train");
+    const int wagon = units_spawn(&units, wagon_t >= 0 ? wagon_t : 12, 20, 20);
+    const int stray = units_spawn(&units, wagon_t >= 0 ? wagon_t : 12, 22, 20);
+    ColonizeUnit* w = units_get(&units, wagon);
+    ColonizeUnit* sv = units_get(&units, stray);
+    if (!w || !sv) {
+      fprintf(stderr, "trade-route cursor: spawns failed\n");
+      units_set_occupancy_map(NULL);
+      col1_save_free(&save);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    w->nation_id = 0;
+    w->orders = UNITS_ORDER_TRADE_ROUTE;
+    w->follow_unit_id = 2;
+    w->turns_worked = 1;
+    sv->nation_id = 0;
+    sv->orders = UNITS_ORDER_TRADE_ROUTE;
+    sv->follow_unit_id = 3; /* route with no stops */
+    sv->turns_worked = 0;
+    const int wagon_x = w->x;
+    const int wagon_y = w->y;
+    const int stray_x = sv->x;
+    const int stray_y = sv->y;
+
+    ColonizeColonyPool colonies;
+    colonies_init(&colonies);
+    EuropeScreen europe;
+    memset(&europe, 0, sizeof(europe));
+    europe.cargo_count = 16;
+    if (!col1_bridge_capture(
+          &save, &map, &units, &colonies, &europe, 1492, 0, 1, 0, 20, 20, wagon, err, sizeof(err)
+        )) {
+      fprintf(stderr, "trade-route cursor: capture: %s\n", err);
+      units_set_occupancy_map(NULL);
+      col1_save_free(&save);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    {
+      int packed = -1;
+      for (uint16_t i = 0; i < save.head.unit_count; ++i) {
+        if (save.unit[i].x == (uint8_t)wagon_x && save.unit[i].y == (uint8_t)wagon_y) {
+          packed = (int)save.unit[i].profession;
+        }
+      }
+      if (packed != ((1 << 4) | 2)) {
+        fprintf(
+          stderr, "trade-route cursor: capture packed 0x%02x (want 0x12)\n", (unsigned)packed
+        );
+        units_set_occupancy_map(NULL);
+        col1_save_free(&save);
+        map_free(&map);
+        assets_msg_free(&names);
+        return 1;
+      }
+    }
+
+    ColonizeUnitPool units2;
+    units_reset(&units2);
+    if (!units_load_types(&units2, &names)) {
+      fprintf(stderr, "trade-route cursor: unit types (2) failed\n");
+      units_set_occupancy_map(NULL);
+      col1_save_free(&save);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    ColonizeColonyPool colonies2;
+    colonies_init(&colonies2);
+    EuropeScreen europe2;
+    memset(&europe2, 0, sizeof(europe2));
+    europe2.cargo_count = 16;
+    ColonizeWorldMap map2;
+    memset(&map2, 0, sizeof(map2));
+    ColonizeCol1BridgeResult br2;
+    if (!col1_bridge_apply(&save, &map2, &units2, &colonies2, &europe2, &br2, err, sizeof(err))) {
+      fprintf(stderr, "trade-route cursor: apply: %s\n", err);
+      units_set_occupancy_map(NULL);
+      col1_save_free(&save);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    int rc = 0;
+    const ColonizeUnit* w2 = NULL;
+    const ColonizeUnit* sv2 = NULL;
+    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+      const ColonizeUnit* u = units_get_const(&units2, i);
+      if (!u || !u->active) {
+        continue;
+      }
+      if (u->x == wagon_x && u->y == wagon_y) {
+        w2 = u;
+      } else if (u->x == stray_x && u->y == stray_y) {
+        sv2 = u;
+      }
+    }
+    if (!w2 || w2->orders != UNITS_ORDER_TRADE_ROUTE || w2->follow_unit_id != 2 ||
+        w2->turns_worked != 1) {
+      fprintf(
+        stderr,
+        "trade-route cursor: apply gave orders=%d route=%d stop=%d (want 2/2/1)\n",
+        w2 ? w2->orders : -1,
+        w2 ? w2->follow_unit_id : -1,
+        w2 ? w2->turns_worked : -1
+      );
+      rc = 1;
+    }
+    if (!sv2 || sv2->orders != UNITS_ORDER_NONE || sv2->follow_unit_id != -1) {
+      fprintf(
+        stderr,
+        "trade-route cursor: empty route should drop the order (orders=%d route=%d)\n",
+        sv2 ? sv2->orders : -1,
+        sv2 ? sv2->follow_unit_id : -1
+      );
+      rc = 1;
+    }
+    units_set_occupancy_map(NULL);
+    map_free(&map2);
+    map_free(&map);
+    col1_save_free(&save);
+    assets_msg_free(&names);
+    if (rc != 0) {
+      return 1;
+    }
+    fprintf(stderr, "trade-route cursor survives the col1 bridge both ways ok\n");
+  }
+
   diag_shutdown();
   return 0;
 }

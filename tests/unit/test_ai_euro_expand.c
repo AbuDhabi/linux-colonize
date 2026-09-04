@@ -8305,13 +8305,17 @@ static int unit_colony_flags_starvation_labor(void) {
 
   c = &colonies.colonies[0];
   col = units_get(&units, uid);
-  if ((c->colony_flags & COLONIZE_COLONY_FLAG_STARVATION) == 0) {
+  /* The AI's food-short reading (stock < 2 per head) used to be stashed in
+   * colony_flags bit3; that bit is DOS's inefficient-government latch again,
+   * so assert the condition the dispatcher actually reads. */
+  if (c->stock[COLONIZE_CARGO_FOOD] >=
+      (c->colonist_count > 0 ? c->colonist_count : c->population) * 2) {
     fprintf(stderr, "unit_ai_euro_expand: colony_flags=0x%02x food=%d\n",
             (unsigned)c->colony_flags, c->stock[COLONIZE_CARGO_FOOD]);
     free(map.terrain);
     free(map.layer2);
     free(map.layer3);
-    return fail("expected starvation colony_flags bit");
+    return fail("expected a food-short colony");
   }
   const int joined = (col == NULL || !col->active) && c->population == pop_before + 1;
   if (!joined) {

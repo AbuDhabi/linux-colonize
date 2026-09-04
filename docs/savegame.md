@@ -173,7 +173,13 @@ Full opaque-field inventory and RE phases: **[save_format_map.md](save_format_ma
 - Boarded euros: `origin=0xff` (`home_tribe_id=-1`), pioneer `cargo_hold[5]=100`
   tools; Discoverer English pioneer profession `28` (Hardy is French-only).
   Ship/wagon `profession=0` (`FUN_1427_06b4`); never `28` — ships must look like
-  transports. Idle on-map fleets export `goto==xy`; ships/aboard export `moves`
+  transports. Exception: while a unit runs a trade route (`orders=2`) DOS reuses
+  that byte (unit `+0x17` = DS:`0x315b`) as the route cursor — low nibble =
+  `trade_route[]` slot (`FUN_1427_0f64`/`0f74`), high nibble = stop index
+  (`FUN_1427_0f8e`/`0fa0`), which `FUN_479b_0bd0` reads to bind the route before
+  servicing a stop. The port unpacks it into `follow_unit_id` / `turns_worked`
+  on import and repacks it on export (2026-09-04; before that the slot was never
+  written to the file and every reload dropped the unit off its route). Idle on-map fleets export `goto==xy`; ships/aboard export `moves`
   as **moves_spent** (0 when full MP). Stale landfall with `orders=0` made DOS
   peel the caravel out of `transport_chain` (sidebar unloaded, land units left
   behind). 2026-08-29: `moves` is DOS spent thirds for every Euro unit —

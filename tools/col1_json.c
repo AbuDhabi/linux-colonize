@@ -558,7 +558,7 @@ static void write_colony_flags(FILE* f, const ColonizeCol1ColonyFlags* c) {
   wb(f, &n, "ref_landing", c->ref_landing);
   wb(f, &n, "sol_100", c->sol_100);
   wb(f, &n, "sol_50", c->sol_50);
-  wb(f, &n, "starvation", c->starvation);
+  wb(f, &n, "inefficient_gov", c->inefficient_gov);
   wb(f, &n, "small_colony_ai", c->small_colony_ai);
   wb(f, &n, "wagon_train", c->wagon_train);
   wb(f, &n, "coastal", c->coastal);
@@ -570,7 +570,7 @@ static void read_colony_flags(const JsonValue* o, ColonizeCol1ColonyFlags* c) {
   if (json_get_bool(o, "ref_landing", &v)) c->ref_landing = v;
   if (json_get_bool(o, "sol_100", &v)) c->sol_100 = v;
   if (json_get_bool(o, "sol_50", &v)) c->sol_50 = v;
-  if (json_get_bool(o, "starvation", &v)) c->starvation = v;
+  if (json_get_bool(o, "inefficient_gov", &v)) c->inefficient_gov = v;
   if (json_get_bool(o, "small_colony_ai", &v)) c->small_colony_ai = v;
   if (json_get_bool(o, "wagon_train", &v)) c->wagon_train = v;
   if (json_get_bool(o, "coastal", &v)) c->coastal = v;

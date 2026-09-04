@@ -155,7 +155,7 @@ stateDiagram-v2
 | Goto tick | Frame / AI | Next adjacent step; clear on arrival | `units_advance_goto_one_step` | Done |
 | Cancel Go-To | Player (active path) | Clear order 3; unit selectable again | Activate → `units_wake`; replace order; same-tile `units_set_goto` | Done |
 | Abort Place / drag | Esc / right-click before dest set | Cancel destination picking only | `map_goto_place_mode` / `UI_DRAG_MAP_GOTO` clear | Done |
-| Begin Trade Route | ORDERS | Order 2; route picker (sea/land filtered) + starting-stop picker; cycle stops | `units_order_trade_route` + aim/cycle; strict DOS nibble lists | Done |
+| Begin Trade Route | ORDERS | Order 2; route picker (sea/land filtered) + starting-stop picker; cycle stops. Route slot + stop index live in the unit's profession byte (`+0x17`; `FUN_1427_0f64`/`0f8e`), so they survive a save | `units_order_trade_route` + aim/cycle; strict DOS nibble lists; cursor bridged through `profession` | Done |
 | Trade at stop | Arrival | Unload/load exactly the stop lists; Europe sell+auto-buy; @ROUTELOOP on 1-port routes; retarget; stay order 2 | `game_trade_route_retarget` (DOS 479b_0bd0) | Done |
 | FOLLOW | AI / Brave escort | Stick to unit id | `units_follow_unit` / `advance_follow` | Done (AI-only) |
 | AI_MOVE / AI_SAIL | AI planners | Goto-following course bytes | Same stepper as human goto | Done (structural) |

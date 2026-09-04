@@ -1214,6 +1214,33 @@ bool col1_bridge_apply(
       }
       u->profession = (int)src->profession;
       u->turns_worked = (int)src->turns_worked;
+      /*
+       * Trade-route cursor: DOS packs it into the profession byte a
+       * route-running unit does not otherwise use (see the capture side and
+       * FUN_1427_0f64/0f8e). Unpack it back into the runtime pair the port
+       * drives the route with, and leave the unit's own profession clear.
+       * A slot pointing at an emptied route — or at one of the wrong kind,
+       * which the Begin picker never allows and which is what saves written
+       * before the cursor was bridged decode to — drops the order rather
+       * than parking the unit in the activation queue forever.
+       */
+      if (u->orders == UNITS_ORDER_TRADE_ROUTE) {
+        const int route = (int)(src->profession & 0x0fu);
+        const int stop = (int)((src->profession >> 4) & 0x0fu);
+        const bool route_sea = save->trade_route[route].sea != 0;
+        const bool unit_sea = ut && ut->domain == COLONIZE_UNIT_DOMAIN_SEA;
+        if (save->trade_route[route].dest_count > 0 && route_sea == unit_sea) {
+          u->follow_unit_id = route;
+          u->turns_worked = stop < (int)save->trade_route[route].dest_count ? stop : 0;
+          u->profession = UNITS_JOB_NONE;
+        } else {
+          u->orders = UNITS_ORDER_NONE;
+          u->follow_unit_id = -1;
+          u->goto_x = UNITS_GOTO_NONE;
+          u->goto_y = UNITS_GOTO_NONE;
+          u->profession = UNITS_JOB_NONE;
+        }
+      }
       /* DOS unit+0x06 / origin: home tribe index for Braves only; 0xff = none.
        * Euros always -1 (starter bugs exported origin=0 which is tribe[0]). */
       if ((src->nation_id & 0xF) < 4 || src->origin == 0xff) {
@@ -2132,6 +2159,26 @@ bool col1_bridge_capture(
           dst->profession = 0;
         } else {
           dst->profession = (uint8_t)(src->profession < 0 ? UNITS_JOB_NONE : src->profession);
+        }
+        /*
+         * A unit running a trade route (orders 2) has no profession, so DOS
+         * reuses this very byte (unit +0x17, DS:0x315b) as the route cursor:
+         * FUN_1427_0f64/0f74 own the low nibble (trade_route[] slot 0..11)
+         * and FUN_1427_0f8e/0fa0 the high nibble (stop index), which is what
+         * FUN_479b_0bd0 reads to bind DS:0x9e14/0x9e18 before servicing a
+         * stop. The port keeps the pair unpacked at runtime (follow_unit_id =
+         * slot, turns_worked = stop); without this the slot was never written
+         * to the file at all, so every reload dropped the wagon/ship off its
+         * route and it just sat in the activation queue (bugs.md
+         * trade_route_wagon.SAV).
+         */
+        if (src->orders == UNITS_ORDER_TRADE_ROUTE && src->follow_unit_id >= 0 &&
+            src->follow_unit_id < (int)COLONIZE_COL1_TRADE_ROUTE_COUNT) {
+          int stop = src->turns_worked;
+          if (stop < 0 || stop >= (int)COLONIZE_COL1_TRADE_ROUTE_STOPS) {
+            stop = 0;
+          }
+          dst->profession = (uint8_t)(((stop & 0xf) << 4) | (src->follow_unit_id & 0xf));
         }
       }
       dst->turns_worked =

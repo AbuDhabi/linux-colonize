@@ -296,11 +296,14 @@ threshold = 10 - difficulty   // Discoverer 10 … Viceroy 6
 Production penalty is **not** a flat −1 at the threshold. DOS uses
 `−⌊tory_count / threshold⌋`, then adds +1/+2 from SoL latches — full formula and
 port status in [sons_of_liberty.md](sons_of_liberty.md). DOS also latches colony
-flag bit `0x08` on the inefficient path (port repurposes `0x08` for starvation).
+flag bit `0x08` on the inefficient path.
 Port: full net mod in `colony_prod_sol_bonus` (Tory floor + sol latches / live
 SoL stand-in). Inefficient-government EOT chrome (`@INEFFICIENT` /
-`@EFFICIENT`) uses port-only `ColonizeColony.inefficient_gov` — Col1 `+0x1c`
-bit3 remains food starvation.
+`@EFFICIENT`) latches on that same Col1 `+0x1c` bit3
+(`COLONIZE_COLONY_FLAG_INEFFICIENT_GOV`) since 2026-09-04, so a crossing
+announced before a save is not announced again after the reload. The port's own
+food-shortfall reading, which used to occupy bit3, moved to the runtime-only
+`ColonizeColony.food_shortfall_latch`.
 
 ---
 

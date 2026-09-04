@@ -198,10 +198,15 @@ typedef struct ColonizeColony {
    */
   uint8_t capitol_level;
   /*
-   * Port-only EOT latch for inefficient-government chrome (DOS +0x1c bit3 /
-   * FUN_364b_0688). Col1 bit3 stays starvation — do not bridge this field.
+   * Port-only within-turn food latch: set by the production tick when this
+   * colony actually went negative on food, read by the same tick's starve
+   * kill and by the @FOOD1/@FOOD2 "depleted" nag suppressor. It used to ride
+   * in colony_flags bit3, but DOS spends that bit on the inefficient-
+   * government latch (FUN_364b_0688 phase D, +0x1c & 8) — see
+   * COLONIZE_COLONY_FLAG_INEFFICIENT_GOV — so it lives here instead. Not
+   * bridged: it carries no state DOS keeps.
    */
-  uint8_t inefficient_gov;
+  uint8_t food_shortfall_latch;
 } ColonizeColony;
 
 #define COLONIZE_BUILD_AI_WANTS_CONSTRUCTION 0x80u
@@ -212,7 +217,16 @@ typedef struct ColonizeColony {
 #define COLONIZE_COLONY_AI_NEEDS_GARRISON 0x40u
 #define COLONIZE_COLONY_FLAG_SOL_100 0x02u
 #define COLONIZE_COLONY_FLAG_SOL_50 0x04u
-#define COLONIZE_COLONY_FLAG_STARVATION 0x08u
+/*
+ * DOS +0x1c bit3 (FUN_364b_0688 phase D, ~57470): the inefficient-government
+ * latch. Set the turn a colony's Tory head count reaches 10-difficulty and
+ * cleared when it drops back under, so @INEFFICIENT / @EFFICIENT each fire
+ * once per crossing — and, because it is a save field, they stay fired across
+ * a save/load. The port used to call this bit "starvation" and keep the real
+ * latch in RAM only, which is why the popup came back on every reload
+ * (bugs.md).
+ */
+#define COLONIZE_COLONY_FLAG_INEFFICIENT_GOV 0x08u
 #define COLONIZE_COLONY_FLAG_SMALL_AI 0x10u
 #define COLONIZE_COLONY_FLAG_WAGON_TRAIN 0x20u
 #define COLONIZE_COLONY_FLAG_COASTAL 0x40u
