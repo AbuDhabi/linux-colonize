@@ -385,3 +385,4 @@ This is a user-maintained list of bugs. User puts reports in. Agents may annotat
 | It seems that construction projects finish the moment I press End Turn. Pretty sure DOS has construction projects finish at the START of the player's turn, not at the end. Verify. | |
 | Has education by schoolhouse/college/university even been implemented? I've been trying to educate veteran soldiers, but to no avail. Verify it's not broken. | |
 | Do Indian settlements ever yield treasure without Cortes? I've burnt like five Aztec cities, and no treasure. This is kind a unlikely in DOS, even without Cortes. | |
+| Fair sure the "war" state in Foreign Affairs report is wrong. Because if I try to attack other Euros, it says we have a treaty. | |
