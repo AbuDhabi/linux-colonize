@@ -4213,18 +4213,16 @@ int main(void) {
     ctx.europe = &europe;
 
     /*
-     * King-audience CHOICE flow — 2026-08-20 rewrite against the real
-     * apply-then-optionally-revert shape (ai_king_apply_popup_result's
-     * own header comment): the hike from ai_king_audience_roll/
-     * apply_delta applies immediately inside ai_king_nation_turn, no
-     * deferral. The KING_AUDIENCE CHOICE only decides whether that
-     * already-applied hike is kept (Accept, "kiss the ring") or
-     * reverted (Refuse, "hold a tea party") — payload carries the
-     * exact (applied delta, picked cargo) pair via
-     * ai_king_teaparty_payload, both already fixed at hike time, not a
-     * player-picked cargo from a second CHOICE (that two-step "dump-
-     * goods CHOICE after Refuse" shape is retired — see
-     * ai_king.c's R6 "stale-claim correction").
+     * King-audience CHOICE flow. The KING_AUDIENCE CHOICE decides whether
+     * the rolled hike happens at all: the rate stays put while the dialog
+     * is on screen and only Accept ("kiss the ring") commits it; Refuse
+     * ("hold a tea party") leaves it and boycotts instead (bugs.md — DOS's
+     * apply-then-revert put a raise the player had not answered into the
+     * save, and reaches the same two end states). Payload carries the exact
+     * (applied delta, picked cargo) pair via ai_king_teaparty_payload, both
+     * fixed at roll time, not a player-picked cargo from a second CHOICE
+     * (that two-step "dump-goods CHOICE after Refuse" shape is retired —
+     * see ai_king.c's R6 "stale-claim correction").
      *
      * Deterministic via seed=1: rebel_sentiment=100, tax=10, SoL=100,
      * turn=44 -> score 1053 -> delta +4 (tax 10->14), then a uniform
@@ -4263,11 +4261,11 @@ int main(void) {
     ctx.rng = &accept_rng;
     ai_king_nation_turn(&ctx);
     ctx.rng = NULL;
-    if (col1.nation[0].tax_rate != 10 + expected_delta) {
+    if (col1.nation[0].tax_rate != 10) {
       fprintf(stderr, "unit_ai_king: audience hike tax_rate=%u (want %d)\n",
-              col1.nation[0].tax_rate, 10 + expected_delta);
+              col1.nation[0].tax_rate, 10);
       assets_msg_free(&game_txt);
-      return fail("audience hike must apply immediately, not defer to CHOICE apply");
+      return fail("audience hike must stay unapplied while the CHOICE is pending");
     }
     int choice_qi = -1;
     for (int i = 0; i < pop.queue_count; ++i) {
@@ -4287,7 +4285,7 @@ int main(void) {
       assets_msg_free(&game_txt);
       return fail("KING_AUDIENCE choice payload should carry (applied, picked cargo)");
     }
-    /* Accept ("kiss the ring"): the standing hike is simply kept. */
+    /* Accept ("kiss the ring"): the proposed hike is committed now. */
     pop.has_result = true;
     pop.result_cancelled = false;
     pop.result_choice_id = 1; /* AI_KING_CHOICE_ACCEPT */
@@ -4299,20 +4297,23 @@ int main(void) {
     ai_popup_consume_result(&pop);
     if (col1.nation[0].tax_rate != 10 + expected_delta) {
       assets_msg_free(&game_txt);
-      return fail("Accept should leave the already-applied hike standing");
+      return fail("Accept should commit the proposed hike");
+    }
+    if (europe.tax_percent != 10 + expected_delta) {
+      assets_msg_free(&game_txt);
+      return fail("Accept should mirror the committed rate into Europe");
     }
     if (col1.nation[0].boycott_bitmap != 0) {
       assets_msg_free(&game_txt);
       return fail("Accept must not boycott anything");
     }
-    if (!strstr(status, "tax increase") || !strstr(status, "stands") ||
-        !strstr(status, "14")) {
+    if (!strstr(status, "raised") || !strstr(status, "14")) {
       fprintf(stderr, "unit_ai_king: Accept status: '%s'\n", status);
       assets_msg_free(&game_txt);
-      return fail("Accept apply should status the standing hike rate");
+      return fail("Accept apply should status the committed hike rate");
     }
 
-    /* Refuse ("hold a tea party"): fresh identical roll, then revert. */
+    /* Refuse ("hold a tea party"): fresh identical roll, hike never lands. */
     col1.nation[0].tax_rate = 10;
     europe.tax_percent = 10;
     col1.nation[0].boycott_bitmap = 0;
@@ -4326,9 +4327,9 @@ int main(void) {
     ctx.rng = &refuse_rng2;
     ai_king_nation_turn(&ctx);
     ctx.rng = NULL;
-    if (col1.nation[0].tax_rate != 10 + expected_delta) {
+    if (col1.nation[0].tax_rate != 10) {
       assets_msg_free(&game_txt);
-      return fail("refuse setup: hike must apply immediately (same as Accept path)");
+      return fail("refuse setup: hike must stay unapplied (same as Accept path)");
     }
     choice_qi = -1;
     for (int i = 0; i < pop.queue_count; ++i) {
@@ -4357,10 +4358,10 @@ int main(void) {
     ai_king_apply_popup_result(&ctx, &pop);
     ai_popup_consume_result(&pop);
     if (col1.nation[0].tax_rate != 10) {
-      fprintf(stderr, "unit_ai_king: Refuse tax_rate=%u (want reverted to 10)\n",
+      fprintf(stderr, "unit_ai_king: Refuse tax_rate=%u (want unchanged 10)\n",
               col1.nation[0].tax_rate);
       assets_msg_free(&game_txt);
-      return fail("Refuse should revert the just-applied hike");
+      return fail("Refuse should leave the tax rate where it was");
     }
     if ((col1.nation[0].boycott_bitmap & (1u << expected_cargo)) == 0) {
       assets_msg_free(&game_txt);
