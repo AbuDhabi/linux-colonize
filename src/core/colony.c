@@ -536,15 +536,19 @@ static int colonies_dos_dist(int dx, int dy) {
 
 /*
  * FUN_4cc6_0356: nearest village index; *out_dist = DOS distance (DS:0x8db8).
- * DOS filters by continent (param_4 = FUN_137f_02a0 of the queried tile):
- * villages on another landmass never claim a tile. Continent unknown (-1,
- * NULL map) → no filter, same as DOS's param_4 < 0 arm.
+ * DOS filters by continent (param_4): villages on another landmass never claim
+ * a tile. Which tile supplies that continent differs per call site — the unit
+ * gates (FUN_479b_043b / _0687) pass the unit's own tile, the colony-screen
+ * claim table (FUN_15eb_26e4) passes the COLONY's tile for all 25 cells — so
+ * `continent` is the caller's to choose. -1 (or a NULL map) = no filter, same
+ * as DOS's param_4 < 0 arm.
  */
-static int colonies_nearest_tribe(
+static int colonies_nearest_tribe_on(
   const ColonizeCol1Save* col1,
   const ColonizeWorldMap* map,
   int x,
   int y,
+  int continent,
   int* out_dist
 ) {
   int best = -1;
@@ -555,7 +559,6 @@ static int colonies_nearest_tribe(
     }
     return -1;
   }
-  const int continent = map ? map_continent_id_at(map, x, y) : -1;
   for (uint16_t i = 0; i < col1->head.tribe_count; ++i) {
     const ColonizeCol1Tribe* t = &col1->tribe[i];
     if (continent >= 0 && map) {
@@ -598,16 +601,17 @@ static int colonies_indian_land_radius(const ColonizeCol1Save* col1, const Colon
   return tech == 2u ? 2 : 3;
 }
 
-static int colonies_tile_indian_homeland(
+static int colonies_tile_indian_homeland_on(
   const ColonizeCol1Save* col1,
   const ColonizeWorldMap* map,
   int x,
   int y,
+  int continent,
   int* out_tribe,
   int* out_dist
 ) {
   int dist = 9999;
-  const int ti = colonies_nearest_tribe(col1, map, x, y, &dist);
+  const int ti = colonies_nearest_tribe_on(col1, map, x, y, continent, &dist);
   if (out_tribe) {
     *out_tribe = ti;
   }
@@ -621,11 +625,26 @@ static int colonies_tile_indian_homeland(
   return dist <= radius ? 1 : 0;
 }
 
-int colonies_indian_land_purchase_gold(
+/* DOS 479b arm: the queried tile supplies its own continent. */
+static int colonies_tile_indian_homeland(
   const ColonizeCol1Save* col1,
   const ColonizeWorldMap* map,
   int x,
   int y,
+  int* out_tribe,
+  int* out_dist
+) {
+  return colonies_tile_indian_homeland_on(
+    col1, map, x, y, map ? map_continent_id_at(map, x, y) : -1, out_tribe, out_dist
+  );
+}
+
+static int colonies_indian_land_purchase_gold_on(
+  const ColonizeCol1Save* col1,
+  const ColonizeWorldMap* map,
+  int x,
+  int y,
+  int continent,
   int nation_id
 ) {
   if (!col1 || nation_id < 0 || nation_id > 3) {
@@ -649,7 +668,7 @@ int colonies_indian_land_purchase_gold(
   }
   int tribe_i = -1;
   int dist = 9999;
-  if (!colonies_tile_indian_homeland(col1, map, x, y, &tribe_i, &dist)) {
+  if (!colonies_tile_indian_homeland_on(col1, map, x, y, continent, &tribe_i, &dist)) {
     return 0;
   }
   /* Colonization.pdf / FUN_4cc6_07c2: Peter Minuit (FF 2) → cost 0. */
@@ -695,6 +714,18 @@ int colonies_indian_land_purchase_gold(
   return cost >> 1;
 }
 
+int colonies_indian_land_purchase_gold(
+  const ColonizeCol1Save* col1,
+  const ColonizeWorldMap* map,
+  int x,
+  int y,
+  int nation_id
+) {
+  return colonies_indian_land_purchase_gold_on(
+    col1, map, x, y, map ? map_continent_id_at(map, x, y) : -1, nation_id
+  );
+}
+
 int colonies_indian_land_owner_tribe(
   const ColonizeCol1Save* col1,
   const ColonizeWorldMap* map,
@@ -715,20 +746,38 @@ int colonies_indian_land_owner_tribe(
  * has not been bought (purchase price > 0 also folds in Peter Minuit — the
  * whole table empties with FF 2), and no colony sits on it. Returns the
  * claiming tribe index, or -1.
+ *
+ * bugs.md 372 — two rules the first port of the table dropped, both visible as
+ * totems in the wrong place:
+ *  - `FUN_13e4_0074(tile)` clears the slot on terrain index 25/26 (Ocean and
+ *    Sea Lane), so a coastal colony never shows a totem out on the water;
+ *  - the village search takes the continent of the COLONY tile, not of the
+ *    cell being tested (`uVar2 = FUN_137f_02a0(colony.x, colony.y)` hoisted
+ *    above the 5x5 loop), so a village on a neighbouring island can never
+ *    claim a cell of this colony's ring.
+ * `origin_x`/`origin_y` are that colony tile.
  */
-int colonies_indian_claim_tribe(
+int colonies_indian_claim_tribe_from(
   const ColonizeCol1Save* col1,
   const ColonizeWorldMap* map,
   const ColonizeColonyPool* pool,
   int viewer_nation,
+  int origin_x,
+  int origin_y,
   int x,
   int y
 ) {
   if (!col1 || viewer_nation < 0 || viewer_nation > 3) {
     return -1;
   }
-  const int ti = colonies_indian_land_owner_tribe(col1, map, x, y);
-  if (ti < 0 || !col1->tribe) {
+  /* FUN_13e4_0074: Ocean / Sea Lane are never claimed. */
+  if (map && map_tile_is_water(map, x, y)) {
+    return -1;
+  }
+  const int continent = map ? map_continent_id_at(map, origin_x, origin_y) : -1;
+  int ti = -1;
+  if (!colonies_tile_indian_homeland_on(col1, map, x, y, continent, &ti, NULL) || ti < 0 ||
+      !col1->tribe) {
     return -1;
   }
   const int tn = (int)col1->tribe[ti].nation_id;
@@ -738,13 +787,26 @@ int colonies_indian_claim_tribe(
   if ((col1->indian[tn - 4].euro_diplo[viewer_nation] & COL1_INDIAN_MET_BIT) == 0) {
     return -1;
   }
-  if (colonies_indian_land_purchase_gold(col1, map, x, y, viewer_nation) <= 0) {
+  if (colonies_indian_land_purchase_gold_on(col1, map, x, y, continent, viewer_nation) <= 0) {
     return -1; /* bought / Minuit / outside radius */
   }
   if (pool && colonies_id_at(pool, x, y) >= 0) {
     return -1;
   }
   return ti;
+}
+
+int colonies_indian_claim_tribe(
+  const ColonizeCol1Save* col1,
+  const ColonizeWorldMap* map,
+  const ColonizeColonyPool* pool,
+  int viewer_nation,
+  int x,
+  int y
+) {
+  return colonies_indian_claim_tribe_from(
+    col1, map, pool, viewer_nation, x, y, x, y
+  );
 }
 
 void colonies_indian_land_pay(

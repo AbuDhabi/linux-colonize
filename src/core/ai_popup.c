@@ -45,6 +45,49 @@ bool ai_popup_enqueue(AiPopupState* st, const AiPopupRequest* req) {
   return true;
 }
 
+bool ai_popup_enqueue_bar_message(AiPopupState* st, const char* text) {
+  if (!st || !text || !text[0]) {
+    return false;
+  }
+  if (st->bar_msg_count >= AI_POPUP_BAR_MSG_MAX) {
+    diag_warn("BAR MSG dropped (queue full, %d) \"%.80s\"", AI_POPUP_BAR_MSG_MAX, text);
+    return false;
+  }
+  snprintf(st->bar_msg[st->bar_msg_count], AI_POPUP_BAR_MSG_LEN, "%s", text);
+  st->bar_msg_count++;
+  return true;
+}
+
+const char* ai_popup_bar_message(const AiPopupState* st) {
+  if (!st || st->bar_msg_count <= 0) {
+    return NULL;
+  }
+  return st->bar_msg[0];
+}
+
+bool ai_popup_bar_service(AiPopupState* st, uint32_t now_ms, bool dismiss) {
+  if (!st || st->bar_msg_count <= 0) {
+    if (st) {
+      st->bar_msg_until_ms = 0;
+    }
+    return false;
+  }
+  if (st->bar_msg_until_ms == 0) {
+    /* First frame this line is on screen — arm its dwell (FUN_1009_0244). */
+    st->bar_msg_until_ms = now_ms + AI_POPUP_BAR_MSG_MS;
+    return true;
+  }
+  if (!dismiss && (int32_t)(now_ms - st->bar_msg_until_ms) < 0) {
+    return true;
+  }
+  for (int i = 1; i < st->bar_msg_count; ++i) {
+    memcpy(st->bar_msg[i - 1], st->bar_msg[i], AI_POPUP_BAR_MSG_LEN);
+  }
+  st->bar_msg_count--;
+  st->bar_msg_until_ms = 0;
+  return st->bar_msg_count > 0;
+}
+
 static void ai_popup_fill_base(
   AiPopupRequest* req,
   AiPopupKind kind,
@@ -236,8 +279,8 @@ void ai_popup_promote_tag_before(AiPopupState* st, AiPopupTag promote, AiPopupTa
   }
 }
 
-bool ai_popup_present_now(AiPopupState* st, AiPopupTag tag) {
-  if (!st || st->open || st->has_result || st->queue_count <= 0) {
+bool ai_popup_move_tag_to_front(AiPopupState* st, AiPopupTag tag) {
+  if (!st || st->queue_count <= 0) {
     return false;
   }
   int at = -1;
@@ -255,6 +298,16 @@ bool ai_popup_present_now(AiPopupState* st, AiPopupTag tag) {
     st->queue[j] = st->queue[j - 1];
   }
   st->queue[0] = req;
+  return true;
+}
+
+bool ai_popup_present_now(AiPopupState* st, AiPopupTag tag) {
+  if (!st || st->open || st->has_result || st->queue_count <= 0) {
+    return false;
+  }
+  if (!ai_popup_move_tag_to_front(st, tag)) {
+    return false;
+  }
   const uint64_t saved_zoom = st->colony_zoom_elected;
   st->colony_zoom_elected = 0; /* player-initiated: never held by a zoom batch */
   const bool ok = ai_popup_try_present_next(st);

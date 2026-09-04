@@ -146,6 +146,8 @@ typedef struct MapMenuPulldown {
   char title_hotkey; /* Alt+letter to open; 0 if none */
 } MapMenuPulldown;
 
+#define MAP_MENU_MESSAGE_LEN 96
+
 typedef struct MapMenuBar {
   MapMenuPulldown menus[MAP_MENU_MAX_MENUS];
   int menu_count;
@@ -153,6 +155,13 @@ typedef struct MapMenuBar {
   int hover_item;    /* item under cursor in open menu, or -1 */
   bool cheat_visible;
   bool loaded;
+  /*
+   * DOS status line (DS:0x2d54). FUN_0000_035c redraws the top strip every
+   * frame and, whenever that buffer is non-empty, paints its text there
+   * INSTEAD of the strip's normal content — Custom House sales, and the other
+   * FUN_1009_00b4 one-liners, are bar text, never dialogs.
+   */
+  char message[MAP_MENU_MESSAGE_LEN];
 } MapMenuBar;
 
 /*
@@ -218,6 +227,13 @@ MapMenuAction map_menu_handle_input(
   const ColonizeFont* font,
   bool close_request
 );
+
+/*
+ * Put one line of status text on the bar in place of the pull-down titles
+ * (DOS DS:0x2d54). NULL or "" restores the titles. An open pull-down is
+ * closed — DOS's message strip owns the whole rect while it is up.
+ */
+void map_menu_set_message(MapMenuBar* bar, const char* text);
 
 void map_menu_render(
   MapMenuBar* bar,

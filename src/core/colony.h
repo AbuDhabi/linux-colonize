@@ -334,6 +334,23 @@ int colonies_indian_claim_tribe(
 );
 
 /*
+ * Same test as the colony screen actually runs it (bugs.md 372): DOS hoists the
+ * continent lookup out of the 5x5 loop and reads it at the COLONY tile
+ * (origin_x, origin_y), and clears every Ocean / Sea Lane cell outright.
+ * colonies_indian_claim_tribe is this with origin == the queried tile.
+ */
+int colonies_indian_claim_tribe_from(
+  const ColonizeCol1Save* col1,
+  const ColonizeWorldMap* map,
+  const ColonizeColonyPool* pool,
+  int viewer_nation,
+  int origin_x,
+  int origin_y,
+  int x,
+  int y
+);
+
+/*
  * Pay for tribal land at (x,y): debit *gold by cost (when gold non-NULL),
  * INC indian.lands_bought (FUN_479b_00ca), stamp the purchased bit on the
  * Col1 mask (0x10) and map layer2 (MAP_LAYER2_PURCHASED) — the

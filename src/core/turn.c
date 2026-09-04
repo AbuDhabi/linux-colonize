@@ -519,6 +519,23 @@ static void turn_emit_sol_phase_d_chrome(
   ai_popup_enqueue_colony_event(ai_popups, colony->id, body);
 }
 
+/*
+ * LABELS.TXT for status-line wording, set by turn_processor_advance for the
+ * duration of a slice. NULL outside the processor (unit tests) — every reader
+ * passes a literal fallback.
+ */
+static const ColonizeMsgCatalog* s_turn_labels = NULL;
+
+static const char* turn_label(const char* section, int idx, const char* fallback) {
+  if (s_turn_labels && section) {
+    const ColonizeMsgSection* sec = assets_msg_find(s_turn_labels, section);
+    if (sec && idx >= 0 && idx < sec->line_count && sec->lines[idx][0]) {
+      return sec->lines[idx];
+    }
+  }
+  return fallback;
+}
+
 static void turn_produce_one_colony(
   ColonizeColonyPool* pool,
   ColonizeColony* colony,
@@ -1550,13 +1567,56 @@ static void turn_produce_one_colony(
    * bids; col1 optional (WoI tax skip + nation gold).
    */
   if (europe) {
-    const int ch_total = europe_custom_house_autosell(europe, pool, colony, col1, human_nation);
-    /* FUN_364b_0688: the human's sale is a real message box (0056/006a/…/07d4
-     * assembled: colony, amount, cargo, gross, tax%, tax, net). The word
-     * pointers (DS:0x2e18/0x2e1a) are load-time strings not yet resolved, so
-     * the body is the port's own summary line — one popup per colony. */
+    EuropeCustomHouseSale ch_sales[COLONIZE_CARGO_COUNT];
+    int ch_sale_count = 0;
+    const int ch_total = europe_custom_house_autosell_ex(
+      europe, pool, colony, col1, human_nation, ch_sales, COLONIZE_CARGO_COUNT, &ch_sale_count
+    );
+    /*
+     * FUN_364b_0688 assembles ONE line PER CARGO into DS:0x2d54 and arms it
+     * with FUN_1009_0092 — that is the map's top-strip STATUS LINE, not a
+     * dialog (bugs.md 375). Each line replaces the strip's normal content for
+     * its dwell and the next one follows; nothing has to be clicked away.
+     *
+     * Wording is DOS's own: colony name, LABELS @MISC 47 "sells", amount,
+     * cargo name, @MISC 48 "for", gross, DS:0xd88 ".", then (peacetime only)
+     * tax rate, @CMESSAGE 0x11 "% Tax:", tax paid, @CMESSAGE 0x12 ". Net:",
+     * net. The 0088 calls between fields just trim the trailing space every
+     * append leaves, so the punctuation closes up.
+     */
     if (ch_total > 0 && colony->nation_id == human_nation && ai_popups) {
-      ai_popup_enqueue_ok(ai_popups, AI_POPUP_TAG_INFO, NULL, europe->status);
+      for (int si = 0; si < ch_sale_count; ++si) {
+        const EuropeCustomHouseSale* sale = &ch_sales[si];
+        const char* cargo_name =
+          (sale->cargo >= 0 && sale->cargo < europe->cargo_count)
+            ? europe->cargo[sale->cargo].name
+            : "goods";
+        char line[AI_POPUP_BAR_MSG_LEN];
+        int n = snprintf(
+          line,
+          sizeof(line),
+          "%s %s %d %s %s %d.",
+          colony->name[0] ? colony->name : "Colony",
+          turn_label("MISC", 47, "sells"),
+          sale->amount,
+          cargo_name,
+          turn_label("MISC", 48, "for"),
+          sale->gross
+        );
+        if (n > 0 && n < (int)sizeof(line) && sale->tax_percent > 0) {
+          snprintf(
+            line + n,
+            sizeof(line) - (size_t)n,
+            " %d%s %d%s %d",
+            sale->tax_percent,
+            turn_label("CMESSAGE", 0x11, "% Tax:"),
+            sale->tax_paid,
+            turn_label("CMESSAGE", 0x12, ". Net:"),
+            sale->net
+          );
+        }
+        ai_popup_enqueue_bar_message(ai_popups, line);
+      }
     }
     /* Phase O: AI dump-sell surplus for gold before spoilage clamp. */
     (void)europe_ai_colony_dump_sell(europe, pool, colony, col1, human_nation);
@@ -3151,6 +3211,10 @@ bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ct
   /* AI combat involving the human can enqueue outcome modals. */
   units_set_combat_popups(ctx->ai_popups, ctx->messages);
   units_set_combat_human_nation(ctx->human_nation);
+  /* LABELS.TXT wording for the status lines composed deep inside production;
+   * threaded as a slice-scoped static because turn_run_colony_production's
+   * signature is pinned by ~60 test call sites. */
+  s_turn_labels = ctx->labels;
 
   switch (proc->step) {
     case TURN_PROC_SETUP: {

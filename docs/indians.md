@@ -149,7 +149,29 @@ and `:75663` the `@INDIANLAND` found/clear gate). 1 tile is right for six of
 the eight nations — only Aztec (2) and Inca (3) reach further. `colony.c`
 `colonies_indian_land_radius` matches; **not a defect**.
 Was the manual's "capital 2" rule until 2026-08-28 (`colony.c`
-`colonies_tile_indian_homeland`). Founding / clearing / road-building on
+`colonies_tile_indian_homeland`).
+
+**Which tiles the colony screen may mark (2026-09-04, bugs.md 372).** The
+5x5 table `FUN_15eb_26e4` builds is not just "village within radius":
+
+* `FUN_13e4_0074(tile)` clears the slot whenever the terrain index is **25 or
+  26** (Ocean / Sea Lane) — no totem ever sits on water, however close the
+  village is. Arctic (24) is *not* excluded.
+* The continent filter passed to `FUN_4cc6_0356` is read **once, at the colony
+  tile** (`uVar2 = FUN_137f_02a0(colony.x, colony.y)`, hoisted above the loop),
+  not per cell. A village on a neighbouring island can therefore never claim a
+  cell of this colony's ring. The unit-side gates (`FUN_479b_043b` / `_0687`,
+  clear-forest and road) read it at their own tile instead — different call
+  site, different origin.
+* The slot is also cleared for a worked field tile (`FUN_15eb_06a6`), for
+  already-purchased land (`FUN_15eb_0620`, mask bit 0x10), for an unmet tribe
+  (`FUN_15b3_0004 & 0x20`) and, wholesale, for Peter Minuit
+  (`FUN_15eb_3960(nation, 2)`).
+
+Port: `colonies_indian_claim_tribe_from(col1, map, pool, nation, origin_x,
+origin_y, x, y)`; `colonies_indian_claim_tribe` is the origin==tile wrapper.
+
+Founding / clearing / road-building on
 such a tile at PEACE with the owner raises the DOS `@INDIANLAND` /
 `@INDIANFOREST` / `@INDIANROAD` CHOICE (respect / offer gold / take it);
 outside that dialog nothing is charged — see

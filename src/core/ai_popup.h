@@ -162,6 +162,15 @@ typedef struct AiPopupRequest {
   int default_choice;
 } AiPopupRequest;
 
+/*
+ * Status-line ring. DOS's FUN_1009_0036 waits min(armed deadline, now + 30
+ * ticks) on the 60.877 Hz clock and breaks early on any key or mouse button,
+ * so in practice each line holds the strip for about half a second.
+ */
+#define AI_POPUP_BAR_MSG_MAX 12
+#define AI_POPUP_BAR_MSG_LEN 96
+#define AI_POPUP_BAR_MSG_MS 500u
+
 typedef struct AiPopupState {
   AiPopupRequest queue[AI_POPUP_QUEUE_MAX];
   int queue_count;
@@ -188,6 +197,17 @@ typedef struct AiPopupState {
    * (FUN_364b_0688 tail FUN_281f_0608). */
   uint64_t colony_zoom_elected;
 
+  /*
+   * DOS status-line queue (DS:0x2d54 + the DS:0x4a "message armed" flag).
+   * FUN_1009_00b4 flushes the previous line — waiting out its dwell or a key
+   * press — before the next one is composed, so these present one at a time
+   * on the map's top strip and never as dialogs. Custom House sales are the
+   * player-visible case (FUN_364b_0688's per-cargo 0056/006a/.../0092 run).
+   */
+  char bar_msg[AI_POPUP_BAR_MSG_MAX][AI_POPUP_BAR_MSG_LEN];
+  int bar_msg_count;       /* [0] is the one on screen */
+  uint32_t bar_msg_until_ms; /* dwell deadline; 0 = not started yet */
+
   int dialog_x;
   int dialog_y;
   int dialog_w;
@@ -195,6 +215,23 @@ typedef struct AiPopupState {
   int list_y0;
   int line_h;
 } AiPopupState;
+
+/*
+ * Queue one status line for the map's top strip. Silently drops when full,
+ * like ai_popup_enqueue.
+ */
+bool ai_popup_enqueue_bar_message(AiPopupState* st, const char* text);
+
+/* Line currently owning the strip, or NULL. */
+const char* ai_popup_bar_message(const AiPopupState* st);
+
+/*
+ * Advance the strip: start the dwell on a freshly-shown line, retire it when
+ * the dwell expires or `dismiss` (any key / mouse button, DOS FUN_1009_0036).
+ * Returns true while a line still owns the strip — the caller holds the turn
+ * pipeline for exactly that long, the way DOS's blocking wait does.
+ */
+bool ai_popup_bar_service(AiPopupState* st, uint32_t now_ms, bool dismiss);
 
 void ai_popup_init(AiPopupState* st);
 void ai_popup_clear(AiPopupState* st);
@@ -281,6 +318,14 @@ bool ai_popup_try_present_next(AiPopupState* st);
  * so they never wait behind queued AI chrome or a colony-zoom hold.
  */
 bool ai_popup_present_now(AiPopupState* st, AiPopupTag tag);
+
+/*
+ * Reorder only: move the newest queued request with `tag` to the head of the
+ * queue without opening it. For a modal that steps aside for a full-screen
+ * detour (F1 on the Congress debate) and must be the first thing back when
+ * that detour closes, rather than losing its place to whatever else queued up.
+ */
+bool ai_popup_move_tag_to_front(AiPopupState* st, AiPopupTag tag);
 
 /* Cancel the OPEN dialog as if Esc was pressed (result_cancelled for a CHOICE). */
 void ai_popup_cancel_current(AiPopupState* st);
