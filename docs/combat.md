@@ -281,6 +281,23 @@ Combat loss remaps **unit type** (not merely profession). Cite:
   loser's goal fields +0x314d/e — Linux routes through the Europe lane
   instead).
 
+### Artillery: two different settlement gates — 2026-09-04
+
+The two artillery rules read the tile through **different** accessors, and
+mixing them up is what row 337 / row 353 of bugs.md kept circling:
+
+| Rule | Where | Gate | Village counts? |
+|---|---|---|---|
+| Strength: open-field `>>2` | `FUN_5fef_1b0e` (`combat_apply_1b0e_peels`) | `FUN_281f_06be` → `FUN_137f_03e4` — layer2 bit 2 settlement owner | **yes** (no penalty at a village) |
+| Strength: defender `<<1` vs a native attacker | same | same | yes, but only a colony can hold a gun |
+| Pick score: `<<1` / `>>3` | `FUN_5fef_0000` (`units_best_defender_at`) | `FUN_1000_8886` → `FUN_281f_0696` — **Euro** settlement owner | **no** (a village is open ground) |
+
+So an artillery *attacking* a native settlement gets no bonus — only the
+absence of the open-field penalty. There is no attacker-side artillery
+multiplier anywhere in 1b0e. The `>>3` pick-score demotion and the colony gate
+on the `<<1` were described in the Best-defender row above on 2026-09-03 but
+only reached the code on 2026-09-04.
+
 ### Attacker fatigue (`@HALF`) — 2026-09-04
 
 `FUN_5fef_1b0e` (viceroy_unpacked.c ~100340) reads `rem = max_mp −

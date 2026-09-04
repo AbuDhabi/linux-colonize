@@ -506,6 +506,16 @@ int colonies_fortification_defense_bonus_percent(
 /* Remove colony and warehouse cargo; on-tile units are left alone. */
 bool colonies_abandon(ColonizeColonyPool* pool, int colony_id);
 
+/*
+ * Bind the live world map so founding and abandoning a colony can keep
+ * layer2's MAP_OCCUPANCY_HAS_CITY bit current. That bit is what the map
+ * renderer reads to hide a settlement's garrison and what the road art keys
+ * off; until this existed it was only rebuilt by the col1 bridge at load and
+ * at end-of-turn capture, so an abandoned colony went on hiding the units
+ * standing on its square (bugs.md). NULL unbinds.
+ */
+void colonies_set_occupancy_map(ColonizeWorldMap* map);
+
 /* Capture colony for a new European owner (T0 military / REF / raids). */
 bool colonies_capture(ColonizeColonyPool* pool, int colony_id, int new_nation_id);
 /*

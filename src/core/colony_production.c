@@ -214,18 +214,24 @@ int colony_prod_sol_percent(const ColonizeCol1Save* col1, const ColonizeColony* 
         continue;
       }
       if (c->rebel_divisor == 0) {
-        break; /* fall through to nation bells */
+        break;
       }
       sol = (int)((c->rebel_dividend * 100u) / c->rebel_divisor);
       have = true;
       break;
     }
   }
-  /* FUN_43f7_0004-shaped: liberty_bells_total/4 when rebel fields unavailable. */
-  if (!have && col1 && colony->nation_id >= 0 && colony->nation_id < 4) {
-    sol = (int)col1->nation[colony->nation_id].liberty_bells_total / 4;
-    have = true;
-  }
+  /*
+   * bugs.md ("new colony showed SoL 100%, next turn 5%"): there used to be a
+   * `liberty_bells_total / 4` stand-in here for a colony with no usable rebel
+   * pair. That number is the NATION aggregate (FUN_43f7_0004), not a colony
+   * figure, and the case it actually hit was a colony founded this turn — its
+   * COL1 record is only minted by the next col1_bridge export, so an
+   * established nation's bell total read straight out as 100% until the first
+   * end of turn replaced it with the real ratio. DOS's FUN_15eb_0274 has no
+   * fallback: no pair means nothing has accumulated, which is 0. The same
+   * sibling readers (reports.c, combat_strength.c, ai_king.c) already do this.
+   */
   if (!have) {
     return 0;
   }

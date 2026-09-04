@@ -817,6 +817,30 @@ int colonies_found_with_indian_land(
   );
 }
 
+/*
+ * Live occupancy map for the settlement bit. layer2's MAP_OCCUPANCY_HAS_CITY
+ * is what the map renderer uses to decide a tile shows its settlement instead
+ * of the stack standing on it (units_top_on_map_tile), and what the DOS road
+ * art keys off — but it was only ever (re)built by the col1 bridge at load and
+ * at the end-of-turn capture. So a colony founded mid-turn kept drawing its
+ * garrison, and an abandoned one kept HIDING units that were still there:
+ * bugs.md, "after abandoning a colony … units on its square vanish, they are
+ * on the sidebar". Bound wherever units_set_occupancy_map is; NULL = the old
+ * capture-time-only behaviour.
+ */
+static ColonizeWorldMap* g_colonies_occupancy_map = NULL;
+
+void colonies_set_occupancy_map(ColonizeWorldMap* map) {
+  g_colonies_occupancy_map = map;
+}
+
+static void colonies_mark_settlement_tile(int x, int y, bool on) {
+  if (!g_colonies_occupancy_map) {
+    return;
+  }
+  map_occupancy_set_layer2(g_colonies_occupancy_map, x, y, MAP_OCCUPANCY_HAS_CITY, on);
+}
+
 int colonies_found(
   ColonizeColonyPool* pool,
   const ColonizeWorldMap* map,
@@ -862,6 +886,7 @@ int colonies_found(
   memset(slot->col1_outer_tiles, 0xff, sizeof(slot->col1_outer_tiles));
   snprintf(slot->name, sizeof(slot->name), "%s", colonies_next_name(pool, nation_id));
   colonies_grant_starters(pool, slot);
+  colonies_mark_settlement_tile(x, y, true);
 
   if (tools > 0) {
     slot->stock[COLONIZE_CARGO_TOOLS] += tools;
@@ -1687,6 +1712,7 @@ bool colonies_abandon(ColonizeColonyPool* pool, int colony_id) {
   if (!col || !col->active) {
     return false;
   }
+  colonies_mark_settlement_tile(col->x, col->y, false);
   memset(col, 0, sizeof(*col));
   int active = 0;
   for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {

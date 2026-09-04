@@ -44,9 +44,17 @@ tory_count = pop - sol_count
 
 **Port:** [`colony_prod_sol_percent`](../src/core/colony_production.c) reads Col1
 pairs (clamp 0..100), then applies Bolivar via
-[`founding_fathers_bolivar_sol_bonus`](../src/core/founding_fathers.c). If
-missing rebel fields: stand-in `nation.liberty_bells_total / 4` then the same
-Bolivar boost.
+[`founding_fathers_bolivar_sol_bonus`](../src/core/founding_fathers.c).
+
+**No fallback (2026-09-04).** There used to be a
+`nation.liberty_bells_total / 4` stand-in for a colony with no usable pair.
+That is the *nation* aggregate (`FUN_43f7_0004`), not a colony figure, and the
+case it hit in practice was a colony founded this turn: its COL1 record is only
+minted by the next `col1_bridge` export, so an established nation's bell total
+read out as 100% until the first end of turn replaced it with the real ratio
+(bugs.md: "new colony showed SoL 100%, next turn 5%"). `FUN_15eb_0274` has no
+fallback - no pair means nothing has accumulated, which is 0, and that is what
+`reports.c` / `combat_strength.c` / `ai_king.c` already returned.
 
 ### EOT accumulator (`FUN_364b_0688` Phase C)
 

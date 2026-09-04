@@ -1633,6 +1633,23 @@ static void game_do_buy_construction(ColonizeGameState* game, int colony_id) {
   colony_screen_set_status(csv, game->status);
 }
 
+/*
+ * bugs.md: a dialog the player raised from inside the colony screen must open
+ * on the spot. game_update's queue pump is suppressed while
+ * colony_zoom_popup_hold is set (the EOT batch must not interrupt a colony
+ * the player elected to zoom into), so a BUY / NODOCKS popup enqueued in a
+ * zoomed colony simply sat in the queue — invisible — until the screen closed
+ * and the hold lifted. Player-initiated popups skip the queue order the same
+ * way the @ABANDON confirm already does; DOS nests them in the colony
+ * screen's own loop.
+ */
+static void game_colony_present_now(ColonizeGameState* game, AiPopupTag tag) {
+  if (!game || !game->in_colony) {
+    return;
+  }
+  (void)ai_popup_present_now(&game->ai_popups, tag);
+}
+
 static void game_request_buy_construction_confirm(ColonizeGameState* game) {
   if (!game || !game->in_colony) {
     return;
@@ -1665,6 +1682,7 @@ static void game_request_buy_construction_confirm(ColonizeGameState* game) {
     snprintf(afb, sizeof(afb), "%s has already built a %s!", atok.string0, bname);
     popup_msg_fill(&game->messages, "ALREADYHAVE", &atok, afb, abody, sizeof(abody));
     ai_popup_enqueue_ok(&game->ai_popups, AI_POPUP_TAG_INFO, NULL, abody);
+    game_colony_present_now(game, AI_POPUP_TAG_INFO);
     return;
   }
   /* One uniform Buy, whether or not tools are short — DOS's own
@@ -1696,6 +1714,7 @@ static void game_request_buy_construction_confirm(ColonizeGameState* game) {
     );
     popup_msg_fill(&game->messages, "BUYME0", &gtok, gfallback, gbody, sizeof(gbody));
     ai_popup_enqueue_ok(&game->ai_popups, AI_POPUP_TAG_INFO, NULL, gbody);
+    game_colony_present_now(game, AI_POPUP_TAG_INFO);
     return;
   }
   PopupMsgTokens tok;
@@ -1736,6 +1755,8 @@ static void game_request_buy_construction_confirm(ColonizeGameState* game) {
     game->map_confirm = GAME_MAP_CONFIRM_NONE;
     set_status(game, "Dialog queue full", NULL);
     colony_screen_set_status(csv, game->status);
+  } else {
+    game_colony_present_now(game, AI_POPUP_TAG_MAP_CONFIRM);
   }
 }
 
@@ -2636,6 +2657,7 @@ static void game_apply_ai_popup_result(ColonizeGameState* game) {
       units_set_combat_human_nation(game->human_nation);
       units_set_combat_popups(&game->ai_popups, &game->messages);
       units_set_occupancy_map(&game->world_map);
+      colonies_set_occupancy_map(&game->world_map);
       units_set_combat_colonies(&game->colonies);
       units_set_native_fallout_context(
         game->col1_ok ? &game->col1 : NULL, &game->world_map, -1
@@ -2812,6 +2834,7 @@ static void game_apply_ai_popup_result(ColonizeGameState* game) {
       units_set_combat_human_nation(game->human_nation);
       units_set_combat_popups(&game->ai_popups, &game->messages);
       units_set_occupancy_map(&game->world_map);
+      colonies_set_occupancy_map(&game->world_map);
       units_set_combat_colonies(&game->colonies);
       units_set_native_fallout_context(game->col1_ok ? &game->col1 : NULL, &game->world_map, -1);
       game->units.selected_id = unit_id;
@@ -4261,6 +4284,7 @@ static bool game_apply_col1_save(ColonizeGameState* game, ColonizeCol1Save* load
   game->map_view_x = result.cursor_x;
   game->map_view_y = result.cursor_y;
   units_set_occupancy_map(&game->world_map);
+  colonies_set_occupancy_map(&game->world_map);
   game->in_menu = false;
   game->in_europe = false;
   game->in_colony = false;
@@ -6648,6 +6672,7 @@ static void game_commit_new_campaign(ColonizeGameState* game) {
   map_free(&game->world_map);
   game->world_map_ok = false;
   units_set_occupancy_map(NULL);
+  colonies_set_occupancy_map(NULL);
 
   char map_label[NEW_GAME_MAP_NAME_MAX];
   map_label[0] = '\0';
@@ -6768,6 +6793,7 @@ static void game_commit_new_campaign(ColonizeGameState* game) {
 
   if (game->world_map_ok && game->units_ok) {
     units_set_occupancy_map(&game->world_map);
+    colonies_set_occupancy_map(&game->world_map);
     units_new_world_start(
       &game->units, &game->world_map, sx, sy, game->human_nation, game->difficulty
     );
@@ -7093,6 +7119,7 @@ static bool game_try_unit_move(ColonizeGameState* game, int dest_x, int dest_y) 
   units_set_combat_human_nation(game->human_nation);
   units_set_combat_popups(&game->ai_popups, &game->messages);
   units_set_occupancy_map(&game->world_map);
+  colonies_set_occupancy_map(&game->world_map);
   units_set_native_fallout_context(
     game->col1_ok ? &game->col1 : NULL, &game->world_map, -1
   );
@@ -8858,9 +8885,13 @@ static bool game_colony_apply_outside_role(
   u->horses = horses_take;
   /* bugs.md 283: ANY loadout change (arming, mounting, tools taken OR laid
    * down) exhausts the unit's moves for the turn; picking the same kit
-   * ("No changes") costs nothing. */
+   * ("No changes") costs nothing. bugs.md follow-up: the standing order goes
+   * with them — the unit that comes out of the armoury is a different type
+   * and reports for orders rather than staying dug in as whatever it was.
+   * (It has no moves left, so it is only offered next turn.) */
   if (u->tools != prev_tools || u->muskets != prev_muskets || u->horses != prev_horses) {
     u->moves_left = 0;
+    units_clear_orders(units, u->id);
   }
   return true;
 }
@@ -10967,6 +10998,11 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
   units_set_move_watch(game_move_watch, game);
   units_set_combat_watch(game_combat_watch, game);
   units_set_combat_popup_pump(game_combat_popup_pump, game);
+  /* Same "arm it every frame" rule as the watches: founding and abandoning a
+   * colony have to keep layer2's settlement bit current wherever they are
+   * reached from (bugs.md — an abandoned colony kept hiding the units left
+   * standing on its square). */
+  colonies_set_occupancy_map(game->world_map_ok ? &game->world_map : NULL);
 
   /* End-of-turn nation phases: advance one slice per frame; block other input.
    *
@@ -12271,6 +12307,7 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
               body, sizeof(body)
             );
             ai_popup_enqueue_ok(&game->ai_popups, AI_POPUP_TAG_INFO, NULL, body);
+            game_colony_present_now(game, AI_POPUP_TAG_INFO);
             set_status(game, "No docks", NULL);
           } else if (ci < 0) {
             set_status(game, "Select a colonist first", NULL);

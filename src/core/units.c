@@ -1698,8 +1698,32 @@ int units_best_defender_at(
       combat_unit_is_combat_role(pool, u->id) || u->muskets > 0 || u->horses > 0;
     int score = combat_engagement_strength(&sctx, u->id, attacker_id, NULL);
     const ColonizeUnitType* t = units_type(pool, u->type_index);
-    if (t && combat_type_is_artillery_name(t->name) && atk_nat > 3) {
-      score *= 2;
+    /*
+     * DOS FUN_5fef_0000 artillery arm (OVL17 asm 0x0f5..0x11c). The gate is
+     * `FUN_1000_8886(tile) >= 0` = FUN_281f_0696, EURO-settlement-owner —
+     * a colony, and deliberately NOT the layer2 settlement bit the 1b0e
+     * strength clauses use, so a native village counts as open ground here:
+     *
+     *   type 0x0b and a Euro colony on the tile → x2, but only against a
+     *   native attacker (asm reads the ATTACKER's nation nibble < 4 → skip);
+     *   type 0x0b anywhere else, unless the artillery is Fortify/Fortified
+     *   → score >>= 3, so a gun in the open never outranks the dragoons
+     *   standing next to it.
+     *
+     * The port had the x2 with no colony gate and no >>3 at all (bugs.md 334
+     * described both but only the pick-order rewrite landed), which made
+     * open-field artillery the pick against Indians by a factor of 16.
+     */
+    if (t && combat_type_is_artillery_name(t->name)) {
+      const int on_colony = g_units_combat_colonies &&
+                            colonies_id_at(g_units_combat_colonies, x, y) >= 0;
+      if (on_colony) {
+        if (atk_nat > 3) {
+          score *= 2;
+        }
+      } else if (u->orders != UNITS_ORDER_FORTIFY && u->orders != UNITS_ORDER_FORTIFIED) {
+        score >>= 3;
+      }
     }
     if (armed) {
       if (score > best_score) {
