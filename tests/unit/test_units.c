@@ -3068,6 +3068,35 @@ int main(void) {
         assets_msg_free(&names);
         return 1;
       }
+      /*
+       * bugs.md: the move slide / combat lunge hide the piece from the base
+       * frame by clearing `active`, and `units_display_type_index` resolves
+       * through `units_get_const`, which skips inactive units. Reading the
+       * chrome corner while the piece is hidden therefore yields -1, and
+       * unit_chrome_corner_for_type falls through to BOTTOM_RIGHT — every
+       * top-corner class (mounted, artillery, wagons, ships) wore the wrong
+       * corner for the length of the animation. Both call sites now hoist
+       * the lookup; this pins the trap so an in-loop call is caught here.
+       */
+      u->active = false;
+      if (units_display_type_index(&pool, id) != -1 ||
+          unit_chrome_corner_for_type(units_display_type_index(&pool, id), false) !=
+            UNIT_CHROME_CORNER_BOTTOM_RIGHT) {
+        fprintf(stderr, "expected -1 dtype (default corner) for a hidden unit\n");
+        ss_free(&icons);
+        map_free(&map);
+        assets_msg_free(&names);
+        return 1;
+      }
+      u->active = true;
+      if (unit_chrome_corner_for_type(units_display_type_index(&pool, id), false) !=
+          UNIT_CHROME_CORNER_TOP_LEFT) {
+        fprintf(stderr, "hidden-unit dtype probe did not restore\n");
+        ss_free(&icons);
+        map_free(&map);
+        assets_msg_free(&names);
+        return 1;
+      }
       units_despawn(&pool, id);
     }
   }
