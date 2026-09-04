@@ -396,3 +396,4 @@ This is a user-maintained list of bugs. User puts reports in. Agents may annotat
 | Continental Army equipped with horses makes Continental Cavalry, not Veteran Dragoons. | |
 | Somehow Tories keep finding ways to capture my wagon trains, even though they shouldn't be able to, because there's defenders on the colony the wagon train is stationed in. | |
 | Popups from REF actually attacking (as opposed to defending vs me) arrive out of order after all the attacks are done. | |
+| <nation> Intervention Force on contintal congress report needs a linebreak after the header so the troop lineup can take the entire row below. | | 

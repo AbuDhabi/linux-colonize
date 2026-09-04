@@ -302,7 +302,7 @@ int units_spawn_allow_stack(ColonizeUnitPool* pool, int type_index, int x, int y
   slot->repair_pending = 0;
   if (strstr(type->name, "Pioneer") != NULL) {
     slot->tools = UNITS_EQUIP_TOOLS_MAX;
-  } else if (strstr(type->name, "Dragoon") != NULL || strstr(type->name, "Cavalry") != NULL) {
+  } else if (strstr(type->name, "Dragoon") != NULL || strstr(type->name, "Cav") != NULL) {
     slot->muskets = UNITS_EQUIP_MUSKETS;
     slot->horses = UNITS_EQUIP_HORSES;
   } else if (
@@ -2415,7 +2415,7 @@ static void units_sync_equip_after_type_change(ColonizeUnit* u, const ColonizeUn
   u->horses = 0;
   if (strstr(t->name, "Pioneer") != NULL) {
     u->tools = UNITS_EQUIP_TOOLS_MAX;
-  } else if (strstr(t->name, "Dragoon") != NULL || strstr(t->name, "Cavalry") != NULL) {
+  } else if (strstr(t->name, "Dragoon") != NULL || strstr(t->name, "Cav") != NULL) {
     u->muskets = UNITS_EQUIP_MUSKETS;
     u->horses = UNITS_EQUIP_HORSES;
   } else if (
@@ -9206,7 +9206,7 @@ static int units_spawn_aboard(ColonizeUnitPool* pool, int type_index, ColonizeUn
   slot->repair_pending = 0;
   if (strstr(type->name, "Pioneer") != NULL) {
     slot->tools = UNITS_EQUIP_TOOLS_MAX;
-  } else if (strstr(type->name, "Dragoon") != NULL || strstr(type->name, "Cavalry") != NULL) {
+  } else if (strstr(type->name, "Dragoon") != NULL || strstr(type->name, "Cav") != NULL) {
     slot->muskets = UNITS_EQUIP_MUSKETS;
     slot->horses = UNITS_EQUIP_HORSES;
   } else if (
