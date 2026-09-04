@@ -149,7 +149,11 @@ void map_panel_render_tribes_on_map(
   int origin_x,
   int origin_y,
   const ColonizeWorldMap* fog_map,
-  int fog_nation
+  int fog_nation,
+  /* Active output palette (TERRAIN.SS for the map): the mission cross and
+   * the other-European alarm mark are drawn in nation shades whose raw DOS
+   * indices are ICONS.SS-native — NULL keeps the raw indices (bugs.md 370). */
+  const ColonizePalette* active_palette
 );
 
 /*

@@ -445,7 +445,46 @@ int main(void) {
     memset(cpx, 0xff, sizeof(cpx));
     ColonizeFramebuffer8 cfb = {.width = 32, .height = 24, .pixels = cpx};
     map_panel_render_tribes_on_map(&ccol1, NULL, &ccol, &chrome_icons, &cfb,
-                                   10, 10, 2, 2, 16, 16, 0, 0, &cmap, 0);
+                                   10, 10, 2, 2, 16, 16, 0, 0, &cmap, 0, NULL);
+
+    /*
+     * bugs.md 370: the Dutch shade is DS:0x848 index 13, which is ICONS.SS-
+     * native orange (255,113,0) but plain EGA magenta in every other
+     * palette. Given the active palette, the cross must land on whatever
+     * index actually holds that orange — here a deliberately relocated slot
+     * 200 — never on the magenta 13.
+     */
+    ColonizePalette cpal;
+    memset(&cpal, 0, sizeof(cpal));
+    cpal.rgb[13][0] = 255; cpal.rgb[13][1] = 85;  cpal.rgb[13][2] = 255; /* magenta */
+    cpal.rgb[5][0] = 170;  cpal.rgb[5][1] = 0;    cpal.rgb[5][2] = 170;
+    cpal.rgb[200][0] = 255; cpal.rgb[200][1] = 113; cpal.rgb[200][2] = 0;  /* orange */
+    cpal.rgb[201][0] = 170; cpal.rgb[201][1] = 73;  cpal.rgb[201][2] = 0;
+    ctribe.mission = 0x13; /* Dutch (3) + Jesuit bit 0x10 */
+    uint8_t dpx[32 * 24];
+    memset(dpx, 0xff, sizeof(dpx));
+    ColonizeFramebuffer8 dfb = {.width = 32, .height = 24, .pixels = dpx};
+    map_panel_render_tribes_on_map(&ccol1, NULL, &ccol, &chrome_icons, &dfb,
+                                   10, 10, 2, 2, 16, 16, 0, 0, &cmap, 0, &cpal);
+    /*
+     * The cross's x depends on how many alarm marks precede it, so count
+     * shades instead of pinning columns: the cross is 6 pixels (4-tall bar
+     * + 3-wide arm sharing one), all of them the orange index, and the
+     * magenta 13 must appear nowhere.
+     */
+    int orange_px = 0;
+    int magenta_px = 0;
+    for (int i = 0; i < 32 * 24; ++i) {
+      if (dpx[i] == 200) {
+        orange_px++;
+      }
+      if (dpx[i] == 13) {
+        magenta_px++;
+      }
+    }
+    const int dutch_cross_ok = orange_px == 6 && magenta_px == 0;
+    ctribe.mission = 0x00;
+
     ss_free(&chrome_icons);
 
 #define CHROME_AT(x, y) cpx[(y) * 32 + (x)]
@@ -471,6 +510,14 @@ int main(void) {
     }
     if (!cross_ok) {
       fprintf(stderr, "village mission cross geometry wrong (should be a cross, not a bang)\n");
+      free(pixels);
+      map_free(&map);
+      map_panel_free(&panel);
+      assets_msg_free(&labels);
+      return 1;
+    }
+    if (!dutch_cross_ok) {
+      fprintf(stderr, "Dutch mission cross not palette-adapted (bugs.md 370: pink, not orange)\n");
       free(pixels);
       map_free(&map);
       map_panel_free(&panel);
@@ -518,7 +565,7 @@ int main(void) {
     memset(tile_px, 0, sizeof(tile_px));
     ColonizeFramebuffer8 tile_fb = {.width = 16, .height = 16, .pixels = tile_px};
     map_panel_render_tribes_on_map(
-      &col1, NULL, NULL, &icons, &tile_fb, 3, 4, 1, 1, 16, 16, 0, 0, NULL, 0);
+      &col1, NULL, NULL, &icons, &tile_fb, 3, 4, 1, 1, 16, 16, 0, 0, NULL, 0, NULL);
 
     int opaque = 0;
     for (int i = 0; i < 16 * 16; ++i) {

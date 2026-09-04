@@ -6659,6 +6659,21 @@ ColonizeGameState* game_create(const ColonizeGameConfig* config) {
   if (dos_compat_normalize_asset_path(game->resolved_data_dir, "ICONS.SS", ss_path, sizeof(ss_path))) {
     if (ss_load(ss_path, &game->unit_icons, ss_err, sizeof(ss_err))) {
       game->unit_icons_ok = true;
+      /*
+       * bugs.md 370 (Dutch mission cross pink): the map screen draws
+       * TERRAIN.SS tiles and ICONS.SS pieces through ONE DAC. The two
+       * sheets' own palettes agree everywhere that matters except slots
+       * 5 and 13 — TERRAIN leaves them as plain EGA magenta and never
+       * uses them (0 pixels in any TERRAIN/PHYS0/BDARK/CURSOR sprite),
+       * while ICONS paints real pixels with them and defines them as the
+       * Dutch pair (255,113,0) / (170,73,0). So DOS's map DAC has to be
+       * carrying ICONS' values there — merge them in rather than leaving
+       * the nation chrome to nearest-match a washed-out substitute.
+       */
+      if (game->map_palette_ok && game->unit_icons.has_palette) {
+        memcpy(game->map_palette.rgb[5], game->unit_icons.palette.rgb[5], 3);
+        memcpy(game->map_palette.rgb[13], game->unit_icons.palette.rgb[13], 3);
+      }
       diag_info("Loaded unit icon sheet with %d sprites", game->unit_icons.sprite_count);
     } else {
       diag_warn("Failed to load ICONS.SS: %s", ss_err);
@@ -11550,6 +11565,29 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
            * none left → drop into View Pieces at the unit's last tile
            * (game_select_tile) instead of leaving a moves-exhausted
            * "ghost" selection this loop would otherwise re-poll forever. */
+          /*
+           * bugs.md 369 (trade-routed wagon sat in the control queue and
+           * only moved after the turn ended): a unit whose order is STILL
+           * a goto/trade route after a failed step did not arrive — it is
+           * blocked (foreign unit or native village on the next tile) or
+           * cannot afford any neighbouring step with its partial MP
+           * (units_next_goto_step drops every candidate that fails
+           * units_can_afford_move_cost, which only the full-allotment
+           * bypass would have let through). Both stay false for the rest
+           * of the turn, so leaving MP on the unit made
+           * turn_select_next_unit keep handing it back — with no other
+           * human unit left with moves it re-picked the same wagon every
+           * frame, holding the cursor on a piece that never stepped.
+           * Park it for the turn instead; next turn's full allotment
+           * clears the affordability case and re-runs the block check.
+           * Arrival is untouched (orders already cleared there), so a
+           * finished Go To still hands the player its leftover MP.
+           */
+          ColonizeUnit* stalled = units_get(&game->units, active_id);
+          if (stalled && stalled->active && units_orders_follow_goto(stalled->orders) &&
+              stalled->moves_left > 0) {
+            stalled->moves_left = 0;
+          }
           if (turn_select_next_unit(&game->units, game->human_nation)) {
             game->view_pieces_mode = false;
             const ColonizeUnit* next = units_get_const(&game->units, game->units.selected_id);
@@ -14862,7 +14900,8 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
       map_origin_x,
       map_origin_y,
       game->world_map_ok ? &game->world_map : NULL,
-      game_fog_nation(game)
+      game_fog_nation(game),
+      game->map_palette_ok ? &game->map_palette : NULL
     );
   }
 
