@@ -668,6 +668,14 @@ int units_cortes_cash_coastal_treasures(
 }
 
 static const char* units_combat_nation_label(const ColonizeCol1Save* col1, int nation_id);
+static bool units_move_crosses_shore(
+  const ColonizeWorldMap* map,
+  const ColonizeColonyPool* colonies,
+  int from_x,
+  int from_y,
+  int to_x,
+  int to_y
+);
 
 static void units_play_event_sound(int id);
 static void units_set_bgm_pool(int pool);
@@ -5454,6 +5462,25 @@ int units_type_max_mp(const ColonizeUnitType* type) {
   return tiles * UNITS_MP_PER_TILE;
 }
 
+/*
+ * DOS `uVar15 = unit_max_mp(u) - u->moves_spent` (FUN_5fef_1b0e ~100340) in
+ * the port's own units: Euro units keep REMAINING thirds in moves_left, while
+ * native units keep the DOS SPENT byte there (turn.c's refresh and the COL1
+ * bridge both say so), so the two have to be read differently.
+ */
+int units_remaining_mp(const ColonizeUnitPool* pool, int unit_id) {
+  const ColonizeUnit* u = units_get_const(pool, unit_id);
+  if (!u || !u->active) {
+    return 0;
+  }
+  if (u->nation_id >= 4) {
+    const int max_mp = units_max_mp(pool, unit_id);
+    const int rem = max_mp - u->moves_left;
+    return rem < 0 ? 0 : rem;
+  }
+  return u->moves_left < 0 ? 0 : u->moves_left;
+}
+
 int units_max_mp(const ColonizeUnitPool* pool, int unit_id) {
   const ColonizeUnit* u = units_get_const(pool, unit_id);
   const ColonizeUnitType* type = u ? units_type(pool, u->type_index) : NULL;
@@ -6019,6 +6046,10 @@ combat_entry_resolved:
   if (unit->moves_left < 0) {
     unit->moves_left = 0;
   }
+  /* DOS 465b_05ca: crossing the shoreline outside a colony spends the lot. */
+  if (units_move_crosses_shore(map, colonies, unit->x, unit->y, dest_x, dest_y)) {
+    unit->moves_left = 0;
+  }
   if (!allow) {
     return false;
   }
@@ -6144,12 +6175,54 @@ void units_clear_orders(ColonizeUnitPool* pool, int unit_id) {
   u->follow_unit_id = -1;
 }
 
+/*
+ * DOS FUN_465b_0000 LAB_465b_05ca "ocean force-to-max" (annotated
+ * ai/move_spent.c section 4): after the step cost is added, a move that
+ * CROSSES the water/land boundary with no European settlement on either tile
+ * sets moves_spent to the unit's maximum — the whole allotment is gone.
+ * That is the rule behind bugs.md's "dragoons should have their entire
+ * movement spent from stepping off a ship onto land": a landfall onto bare
+ * coast is exactly this case, and so is boarding a ship from open shore. A
+ * colony on either end (a dock) exempts the step, which is why loading and
+ * unloading in port stays cheap. Indian villages do not exempt it — DOS's
+ * FUN_281f_0696 clamps any owner above 3 to −1.
+ */
+static bool units_move_crosses_shore(
+  const ColonizeWorldMap* map,
+  const ColonizeColonyPool* colonies,
+  int from_x,
+  int from_y,
+  int to_x,
+  int to_y
+) {
+  if (!map) {
+    return false;
+  }
+  if (map_tile_is_water(map, from_x, from_y) == map_tile_is_water(map, to_x, to_y)) {
+    return false;
+  }
+  if (colonies && (colonies_id_at(colonies, from_x, from_y) >= 0 ||
+                   colonies_id_at(colonies, to_x, to_y) >= 0)) {
+    return false;
+  }
+  return true;
+}
+
 bool units_orders_skip_turn(const ColonizeUnit* unit) {
   if (!unit || !unit->active) {
     return false;
   }
-  return unit->orders == UNITS_ORDER_SENTRY || unit->orders == UNITS_ORDER_FORTIFIED ||
-         unit->orders == UNITS_ORDER_CLEAR_PLOW || unit->orders == UNITS_ORDER_BUILD_ROAD;
+  /*
+   * bugs.md: FORTIFY (5) belongs here too. It used to be left out on the
+   * argument that digging in already zeroes the allotment — but the COL1
+   * export writes spent 0 for an exhausted land unit (DOS clears the spent
+   * bytes at day end), so a unit that fortified this turn reloads with
+   * orders 5 AND a full allotment and walked straight back into the control
+   * queue. DOS's cycle reads the order byte, not the MP.
+   */
+  return unit->orders == UNITS_ORDER_SENTRY || unit->orders == UNITS_ORDER_FORTIFY ||
+         unit->orders == UNITS_ORDER_FORTIFIED || unit->orders == UNITS_ORDER_CLEAR_PLOW ||
+         unit->orders == UNITS_ORDER_BUILD_ROAD;
 }
 
 bool units_set_orders(ColonizeUnitPool* pool, int unit_id, int orders) {
@@ -8650,6 +8723,15 @@ bool units_unload_passenger(
       cost = 1;
     }
     pax->moves_left = remaining > cost ? remaining - cost : 0;
+    /*
+     * bugs.md: a landfall onto bare coast is DOS's 465b_05ca shore crossing —
+     * water tile to land tile with no colony on either end — so the whole
+     * allotment goes, not just the terrain cost. Unloading at a dock (the
+     * ship is standing on the colony tile) keeps the cheap charge.
+     */
+    if (units_move_crosses_shore(map, colonies, ship->x, ship->y, dest_x, dest_y)) {
+      pax->moves_left = 0;
+    }
   }
   diag_info("Unloaded unit %d from ship %d to (%d,%d)", pax_id, ship_id, dest_x, dest_y);
   return true;

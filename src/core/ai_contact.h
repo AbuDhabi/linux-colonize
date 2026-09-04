@@ -206,6 +206,22 @@ int ai_contact_try_euro_attack_confirm(
   int dest_y
 );
 
+/*
+ * FUN_5fef_1b0e @HALF gate (viceroy_unpacked.c ~100359): the attacker has
+ * fewer than 3 movement thirds left, so it would fight at remaining/3
+ * strength. A human-controlled European attacker is asked "Charge!" /
+ * "Then let them rest." first; AI and native attackers take the penalty
+ * silently. Returns 1 when a popup now gates the move (caller stops), 0 when
+ * the move may proceed.
+ */
+int ai_contact_try_tired_attack_confirm(
+  ColonizeTurnContext* ctx,
+  int unit_id,
+  int dest_x,
+  int dest_y
+);
+int ai_contact_tired_pending(const AiPopupState* st, int unit_id);
+
 /* @TRADE0 sell-side haggle arm (pure). Exposed for tests. */
 int ai_contact_2820_sell_haggle(int difficulty, int ask, int qty, ColonizeDosRng* rng, int* io_c4, int* io_price, int* io_fair);
 

@@ -519,6 +519,24 @@ void combat_apply_1b0e_peels(
   }
 
   /*
+   * Fatigue (DOS 1b0e `if (local_98) local_92 = local_92 * local_98 / 3`,
+   * immediately after the difficulty peel): an attacker with less than one
+   * whole movement point left fights at remaining/3 strength — the penalty
+   * @HALF warns about ("they will fight at {%NUMBER0/3 strength}"). local_98
+   * is the remaining thirds when below 3 and 0 otherwise, so a rested
+   * attacker is untouched. bugs.md.
+   */
+  {
+    const int rem = units_remaining_mp(ctx->units, attacker_id);
+    if (rem > 0 && rem < UNITS_MP_PER_TILE) {
+      io->atk_strength = io->atk_strength * rem / UNITS_MP_PER_TILE;
+      /* DOS 636c fatigue rows: 2 thirds → 0x8d01 bit0, 1 third → a156 bit3. */
+      io->atk_flags.flags |= (rem == 2) ? COMBAT_FLAG_FATIGUE_33 : 0u;
+      io->atk_flags.flags2 |= (rem == 1) ? COMBAT_FLAG_FATIGUE_66 : 0u;
+    }
+  }
+
+  /*
    * DOS 1b0e 1f0b (unported until 2026-09-03): land vs land, attacker type
    * attack (5236) > 1 and defender type defense (5235) < 2 → defender
    * strength halved. No 8d00 flag — DOS 636c has no row for it.

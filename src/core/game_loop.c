@@ -2713,6 +2713,30 @@ static void game_apply_ai_popup_result(ColonizeGameState* game) {
     ai_popup_consume_result(&game->ai_popups);
     return;
   }
+  if (game->ai_popups.result_tag == AI_POPUP_TAG_COMBAT_HALF) {
+    const int unit_id = game->ai_popups.result_nation_a;
+    const int dest_x = game->ai_popups.result_payload & 0xff;
+    const int dest_y = (game->ai_popups.result_payload >> 8) & 0xff;
+    ColonizeUnit* u = units_get(&game->units, unit_id);
+    if (!game->ai_popups.result_cancelled && game->ai_popups.result_choice_id == 1 && u) {
+      game->units.selected_id = unit_id;
+      ai_popup_consume_result(&game->ai_popups);
+      (void)game_try_unit_move(game, dest_x, dest_y);
+      return;
+    }
+    /*
+     * "Then let them rest." DOS has already added the attack's 3 thirds by
+     * the time it asks (1b0e ~100342), and the unit had fewer than 3 left, so
+     * declining ends its turn either way.
+     */
+    if (u) {
+      u->moves_left = 0;
+    }
+    set_status(game, "The men rest.", NULL);
+    ai_popup_consume_result(&game->ai_popups);
+    game_after_unit_action(game);
+    return;
+  }
   if (game->ai_popups.result_tag == AI_POPUP_TAG_COMBAT_RANSOM) {
     if (game->col1_ok) {
       (void)units_combat_apply_ransom_popup(&game->col1, &game->ai_popups);
@@ -7358,6 +7382,33 @@ static bool game_try_unit_move(ColonizeGameState* game, int dest_x, int dest_y) 
             &ctx, selected->nation_id, target_nation, sid, dest_x, dest_y
           )) {
         set_status(game, "Attack?", NULL);
+        return true;
+      }
+    }
+  }
+
+  /*
+   * FUN_5fef_1b0e @HALF: the attacker has less than one whole movement point
+   * left and would fight at remaining/3 strength — DOS asks before committing
+   * (bugs.md). Last of the pre-move confirms so the treaty / whack questions
+   * are settled first, exactly the order 1b0e runs them in.
+   */
+  if (game->col1_ok && combat_unit_is_combat_role(&game->units, sid)) {
+    const int foe_id = units_id_at(&game->units, dest_x, dest_y);
+    const ColonizeUnit* foe = foe_id >= 0 ? units_get_const(&game->units, foe_id) : NULL;
+    bool attacking = foe && foe->nation_id != selected->nation_id &&
+                     units_is_sea(&game->units, sid) == units_is_sea(&game->units, foe_id);
+    if (!foe && !units_is_sea(&game->units, sid)) {
+      /* Undefended foreign colony: still an attack (the capture entry). */
+      const int cid = colonies_id_at(&game->colonies, dest_x, dest_y);
+      const ColonizeColony* col = colonies_get(&game->colonies, cid);
+      attacking = col && col->active && col->nation_id != selected->nation_id;
+    }
+    if (attacking) {
+      ColonizeTurnContext ctx;
+      game_fill_turn_context(game, &ctx);
+      if (ai_contact_try_tired_attack_confirm(&ctx, sid, dest_x, dest_y)) {
+        set_status(game, "These men are tired…", NULL);
         return true;
       }
     }

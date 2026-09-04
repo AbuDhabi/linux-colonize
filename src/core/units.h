@@ -609,6 +609,12 @@ bool units_can_enter(
 int units_type_max_mp(const ColonizeUnitType* type);
 /* Per-unit max MP in thirds: type base + 3 for ships when the nation has Magellan. */
 int units_max_mp(const ColonizeUnitPool* pool, int unit_id);
+/*
+ * Movement thirds the unit still has. Euro units store that directly in
+ * moves_left; native units store DOS's spent byte there, so this is the only
+ * safe way to ask "how much is left" across both.
+ */
+int units_remaining_mp(const ColonizeUnitPool* pool, int unit_id);
 /* "1", "2/3", "1 1/3" — DOS panel style. */
 void units_format_mp(int thirds, char* out, size_t out_size);
 /* Destination MP cost in thirds (DOS 465b cost head); sea units always 3. */

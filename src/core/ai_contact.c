@@ -1321,6 +1321,85 @@ int ai_contact_try_euro_attack_confirm(
   return 1;
 }
 
+int ai_contact_tired_pending(const AiPopupState* st, int unit_id) {
+  if (!st) {
+    return 0;
+  }
+  for (int i = 0; i < st->queue_count; ++i) {
+    if (st->queue[i].tag == AI_POPUP_TAG_COMBAT_HALF && st->queue[i].nation_a == unit_id) {
+      return 1;
+    }
+  }
+  return st->open && st->current.tag == AI_POPUP_TAG_COMBAT_HALF &&
+         st->current.nation_a == unit_id;
+}
+
+int ai_contact_try_tired_attack_confirm(
+  ColonizeTurnContext* ctx,
+  int unit_id,
+  int dest_x,
+  int dest_y
+) {
+  if (!ctx || !ctx->units || !ctx->ai_popups || unit_id < 0) {
+    return 0;
+  }
+  if (dest_x < 0 || dest_y < 0 || dest_x > 255 || dest_y > 255) {
+    return 0;
+  }
+  const ColonizeUnit* u = units_get_const(ctx->units, unit_id);
+  if (!u || !u->active) {
+    return 0;
+  }
+  /* DOS asks only for a human-controlled European attacker (nation < 4 with
+   * control 0); everyone else eats the penalty without a dialog. */
+  if (u->nation_id < 0 || u->nation_id > 3 || !ai_contact_euro_is_human(ctx, u->nation_id)) {
+    return 0;
+  }
+  const int rem = units_remaining_mp(ctx->units, unit_id);
+  if (rem <= 0 || rem >= UNITS_MP_PER_TILE) {
+    return 0; /* rested — DOS's `uVar15 < 3` gate */
+  }
+  if (ai_contact_tired_pending(ctx->ai_popups, unit_id)) {
+    return 1;
+  }
+  PopupMsgTokens tok;
+  memset(&tok, 0, sizeof(tok));
+  tok.number0 = rem;
+  tok.has_number0 = true;
+  char fb[AI_POPUP_BODY_LEN];
+  snprintf(
+    fb, sizeof(fb),
+    "Your Excellency, these men are tired.  If we force them to attack this "
+    "turn, they will fight at %d/3 strength.",
+    rem
+  );
+  char body[AI_POPUP_BODY_LEN];
+  popup_msg_fill(ctx->messages, "HALF", &tok, fb, body, sizeof(body));
+  /* @HALF carries its own two rows after the blank line, same as the
+   * diplomacy sections — take them when GAME.TXT is loaded. */
+  char choice_buf[2][POPUP_MSG_CHOICE_LEN];
+  const char* labels[2] = {"\"Charge!\"", "\"Then let them rest.\""};
+  const ColonizeMsgSection* half = assets_msg_find(ctx->messages, "HALF");
+  if (half) {
+    char raw[2][POPUP_MSG_CHOICE_LEN];
+    if (popup_msg_choices(half, raw, 2) >= 2) {
+      for (int i = 0; i < 2; ++i) {
+        popup_msg_apply_tokens(choice_buf[i], sizeof(choice_buf[i]), raw[i], &tok);
+        labels[i] = choice_buf[i];
+      }
+    }
+  }
+  static const int ids[] = {1, 0};
+  const int payload = dest_x | (dest_y << 8);
+  if (!ai_popup_enqueue_choice_ctx(
+        ctx->ai_popups, AI_POPUP_TAG_COMBAT_HALF, unit_id, rem, payload, NULL, body, labels,
+        ids, 2
+      )) {
+    return 0;
+  }
+  return 1;
+}
+
 int ai_contact_try_village_raid_warn(
   ColonizeTurnContext* ctx,
   int euro_nation,

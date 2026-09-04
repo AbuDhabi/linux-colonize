@@ -162,6 +162,16 @@ static void combat_analysis_fill_mods(
   if (flags->flags_hi & COMBAT_FLAG_DRAKE) {
     combat_analysis_push_row(rows, count, "Drake", 50);
   }
+  /*
+   * DOS 636c fatigue rows (bits 0x100 / a156&8), live now that the strength
+   * calc models the @HALF penalty: 2 thirds left = x2/3, 1 third = x1/3.
+   * Attacker side only - a defender is never charged for being tired.
+   */
+  if (flags->flags & COMBAT_FLAG_FATIGUE_33) {
+    combat_analysis_push_row(rows, count, "Fatigue", -33);
+  } else if (flags->flags2 & COMBAT_FLAG_FATIGUE_66) {
+    combat_analysis_push_row(rows, count, "Fatigue", -66);
+  }
 }
 
 static void combat_analysis_snap_chrome(

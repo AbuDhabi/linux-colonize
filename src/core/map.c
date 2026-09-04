@@ -1655,9 +1655,21 @@ int map_phys0_plow_sprite_at(const ColonizeWorldMap* map, int x, int y) {
 }
 
 /*
+ * "Carries road art" = the DOS FA mask 0x0a: the road bit OR the settlement
+ * bit. MAPEDIT FUN_1a47_0932 gates the whole road pass on `tile & 10` and
+ * FUN_1a47_04de tests neighbours with the same mask, so a colony or village
+ * tile behaves exactly like a road tile — which is why DOS draws the stubs
+ * running into a settlement even though nobody built a road on that square.
+ * It is the same predicate the movement rule already uses (map_move_spent_
+ * thirds' road/colony pair), so the drawing and the pathing agree. bugs.md.
+ */
+static bool map_tile_road_art(const ColonizeWorldMap* map, int x, int y) {
+  return map_tile_has_road(map, x, y) || map_tile_has_city(map, x, y);
+}
+
+/*
  * Road 8-neighbor mask (FUN_6ba1_04e4 / MAPEDIT FUN_1a47_04de): bit d set when
- * neighbor has road. Dir order = mapedit_neigh8 (N,NE,E,SE,S,SW,W,NW).
- * DOS also treats tribe layer2&0x0a; Linux uses road bit only (pioneer roads).
+ * neighbor carries road art. Dir order = mapedit_neigh8 (N,NE,E,SE,S,SW,W,NW).
  */
 static uint8_t map_road_neigh8_mask(const ColonizeWorldMap* map, int x, int y) {
   uint8_t m = 0;
@@ -1667,7 +1679,7 @@ static uint8_t map_road_neigh8_mask(const ColonizeWorldMap* map, int x, int y) {
   for (int d = 0; d < 8; ++d) {
     const int nx = x + mapedit_neigh8_dx[d];
     const int ny = y + mapedit_neigh8_dy[d];
-    if (map_tile_has_road(map, nx, ny)) {
+    if (map_tile_road_art(map, nx, ny)) {
       m = (uint8_t)(m | (uint8_t)(1u << d));
     }
   }
@@ -1681,7 +1693,7 @@ static uint8_t map_road_neigh8_mask(const ColonizeWorldMap* map, int x, int y) {
  * Cite: docs/assets.md roads; viceroy ASM MOV AX,0x51 / ADD AX,0x52.
  */
 int map_phys0_road_layer_count(const ColonizeWorldMap* map, int x, int y) {
-  if (!map_tile_has_road(map, x, y)) {
+  if (!map_tile_road_art(map, x, y)) {
     return 0;
   }
   const uint8_t m = map_road_neigh8_mask(map, x, y);
@@ -1698,7 +1710,7 @@ int map_phys0_road_layer_count(const ColonizeWorldMap* map, int x, int y) {
 }
 
 int map_phys0_road_layer_sprite_at(const ColonizeWorldMap* map, int x, int y, int index) {
-  if (!map_tile_has_road(map, x, y) || index < 0) {
+  if (!map_tile_road_art(map, x, y) || index < 0) {
     return -1;
   }
   const uint8_t m = map_road_neigh8_mask(map, x, y);

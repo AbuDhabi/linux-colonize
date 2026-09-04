@@ -554,8 +554,35 @@ int main(void) {
       map_free(&map);
       return 1;
     }
+    /*
+     * bugs.md: a settlement tile carries road art (DOS FA mask 0x0a). Put a
+     * colony at (1,1), diagonally NE of (0,2): (0,2) must gain that stub, and
+     * the colony tile itself must render as a road tile.
+     */
+    plow_map.layer2[1 * plow_map.width + 1] |= MAP_OCCUPANCY_HAS_CITY;
+    if (map_phys0_road_layer_count(&plow_map, 1, 1) <= 0) {
+      fprintf(stderr, "colony tile should carry road art\n");
+      map_free(&plow_map);
+      map_free(&map);
+      return 1;
+    }
+    {
+      int saw_ne = 0;
+      const int n = map_phys0_road_layer_count(&plow_map, 0, 2);
+      for (int i = 0; i < n; ++i) {
+        if (map_phys0_road_layer_sprite_at(&plow_map, 0, 2, i) == 82) {
+          saw_ne = 1; /* PHYS0 81 + dir 1 (NE) */
+        }
+      }
+      if (!saw_ne) {
+        fprintf(stderr, "road should stub NE into the colony tile (count=%d)\n", n);
+        map_free(&plow_map);
+        map_free(&map);
+        return 1;
+      }
+    }
     map_free(&plow_map);
-    fprintf(stderr, "plow overlay PHYS0 149 ok; road 80–88 connectivity ok\n");
+    fprintf(stderr, "plow overlay PHYS0 149 ok; road connectivity + colony stubs ok\n");
   }
 
   /* bugs.md fog edges: VICEROY FUN_6ba1_06e0 mask+fill pairs across the

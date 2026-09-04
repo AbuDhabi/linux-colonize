@@ -116,8 +116,14 @@ typedef enum AiPopupTag {
                                      * caseD_a: FUN_281f_0652(name, 5), @default=2 → "Never!").
                                      * 1 = abandon, 2 / Esc = keep.
                                      * nation_a = colonist slot, nation_b = eject role. */
-  AI_POPUP_TAG_WAR_SCORED = 56 /* post-HoF @SCORED CHOICE after a WoI win:
-                                * 1 = "That's all." (title menu), 2 = "Keep playing anyway." */
+  AI_POPUP_TAG_WAR_SCORED = 56, /* post-HoF @SCORED CHOICE after a WoI win:
+                                 * 1 = "That's all." (title menu), 2 = "Keep playing anyway." */
+  AI_POPUP_TAG_COMBAT_HALF = 60 /* @HALF (FUN_5fef_1b0e, viceroy_unpacked.c ~100365): the
+                                 * attacker has less than one whole movement point left, so it
+                                 * would fight at remaining/3 strength. 1 = "Charge!",
+                                 * 2 / Esc = "Then let them rest."
+                                 * nation_a = attacker unit id, nation_b = remaining thirds,
+                                 * payload = dest x | dest y << 8. */
 } AiPopupTag;
 
 typedef struct AiPopupRequest {
