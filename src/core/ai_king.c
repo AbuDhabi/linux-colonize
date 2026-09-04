@@ -2144,6 +2144,27 @@ static int ai_king_audience_roll(ColonizeTurnContext* ctx, int human, int* out_d
  * the village-goods/tea-party branch below reverts on a "hold a tea
  * party" choice.
  */
+/*
+ * Same clamp as ai_king_audience_apply_delta, without writing: the tax
+ * audience needs to know what a delta WOULD come to before the player has
+ * answered (bugs.md — the raise must not be in the save while the popup that
+ * proposes it is still on screen).
+ */
+static int ai_king_audience_preview_delta(const ColonizeCol1Nation* nat, int delta) {
+  int applied = delta;
+  if (applied < 0) {
+    const int mag = -applied;
+    if (mag > (int)nat->tax_rate) {
+      applied = -(int)nat->tax_rate;
+    }
+  }
+  const int new_tax = (int)nat->tax_rate + applied;
+  if (new_tax > 75) {
+    applied -= (new_tax - 75);
+  }
+  return applied;
+}
+
 static void ai_king_audience_apply_delta(ColonizeCol1Nation* nat, int delta, int* out_applied) {
   int applied = delta;
   if (applied < 0) {
@@ -2232,19 +2253,19 @@ static uint16_t ai_king_teaparty_candidate_mask(
  * DOS's own royal-stock pile, real field unresolved, see file header).
  * Used by both the human CHOICE-apply path and the no-popups auto path.
  */
-static void ai_king_tax_teaparty(ColonizeTurnContext* ctx, int human, int applied, int cargo) {
+static void ai_king_tax_teaparty(ColonizeTurnContext* ctx, int human, int cargo) {
   if (!ctx || !ctx->col1_ok || !ctx->col1 || human < 0 || human >= 4) {
     return;
   }
-  if (cargo < 0 || cargo >= COLONIZE_CARGO_COUNT || applied <= 0) {
+  if (cargo < 0 || cargo >= COLONIZE_CARGO_COUNT) {
     return;
   }
   ColonizeCol1Nation* nat = &ctx->col1->nation[human];
-  int revert = applied;
-  if (revert > (int)nat->tax_rate) {
-    revert = (int)nat->tax_rate;
-  }
-  nat->tax_rate = (uint8_t)(nat->tax_rate - revert);
+  /*
+   * No revert to do any more: ai_king_tax_hike_apply defers the raise until
+   * Accept, so refusing simply never commits it (bugs.md). DOS's
+   * apply-then-revert reaches the same rate.
+   */
   if (ctx->europe) {
     ctx->europe->tax_percent = nat->tax_rate;
   }
@@ -2340,8 +2361,13 @@ static void ai_king_tax_event(ColonizeTurnContext* ctx) {
  * the @KINGFRIGATE acceptance (3844_00f2 → 3dc8(KINGTAX, 10)) both land
  * here: clamp + apply, then the Kiss-the-ring / Tea-party dialog.
  */
-static void ai_king_tax_hike_apply(ColonizeTurnContext* ctx, int human, int delta) {
-  if (!ctx || !ctx->col1_ok || !ctx->col1 || human < 0 || human >= 4) {
+/*
+ * Write a settled tax delta: rate, the Europe mirror, and the REF-growth
+ * approximation. Split out of ai_king_tax_hike_apply so the CHOICE path can
+ * defer all three until the player has answered (bugs.md).
+ */
+static void ai_king_tax_commit(ColonizeTurnContext* ctx, int human, int delta) {
+  if (!ctx || !ctx->col1_ok || !ctx->col1 || human < 0 || human >= 4 || delta == 0) {
     return;
   }
   ColonizeCol1Nation* nat = &ctx->col1->nation[human];
@@ -2355,8 +2381,27 @@ static void ai_king_tax_hike_apply(ColonizeTurnContext* ctx, int human, int delt
    * tax band — unchanged by this pass, kept for existing REF-growth
    * behavior continuity. */
   ai_king_grow_ref_from_tax(ctx->col1, nat->tax_rate);
+}
+
+static void ai_king_tax_hike_apply(ColonizeTurnContext* ctx, int human, int delta) {
+  if (!ctx || !ctx->col1_ok || !ctx->col1 || human < 0 || human >= 4) {
+    return;
+  }
+  ColonizeCol1Nation* nat = &ctx->col1->nation[human];
+  /*
+   * bugs.md: DOS's 3dc8 applies the delta and then offers keep-vs-revert, so
+   * the raise is briefly real while the dialog asks about it — the port
+   * showed the new rate in Europe/status before the player had answered.
+   * The arithmetic outcome of both orderings is identical (accept = raised,
+   * tea party = not raised), so the hike is now previewed here and committed
+   * in ai_king_apply_popup_result on Accept. Everything DOS never asks about
+   * (cuts, fully clamped deltas, the no-cargo fallback) still commits at
+   * once.
+   */
+  const int applied = ai_king_audience_preview_delta(nat, delta);
 
   if (applied < 0) {
+    ai_king_tax_commit(ctx, human, delta);
     if (ctx->status && ctx->status_size) {
       snprintf(ctx->status, ctx->status_size,
                "Audience: the King lowers taxes to %u%%.", nat->tax_rate);
@@ -2376,11 +2421,8 @@ static void ai_king_tax_hike_apply(ColonizeTurnContext* ctx, int human, int delt
     return; /* delta rolled but fully clamped away (already at 75%) */
   }
 
-  /* applied > 0: a real hike happened. */
-  if (ctx->status && ctx->status_size) {
-    snprintf(ctx->status, ctx->status_size,
-             "Audience: the King raises taxes to %u%%.", nat->tax_rate);
-  }
+  /* applied > 0: a real hike is on the table. */
+  const int proposed = (int)nat->tax_rate + applied;
 
   int bid_buf[COLONIZE_CARGO_COUNT];
   const int* bids = NULL;
@@ -2400,7 +2442,13 @@ static void ai_king_tax_hike_apply(ColonizeTurnContext* ctx, int human, int delt
 
   if (picked < 0) {
     /* Only reachable with no RNG (tests) or popups disabled for this
-     * nation — DOS's own choice UI has nothing to drive here either. */
+     * nation — DOS's own choice UI has nothing to drive here either, so
+     * there is nothing to defer: the hike stands. */
+    ai_king_tax_commit(ctx, human, delta);
+    if (ctx->status && ctx->status_size) {
+      snprintf(ctx->status, ctx->status_size,
+               "Audience: the King raises taxes to %u%%.", nat->tax_rate);
+    }
     if (ai_king_human_popups(ctx)) {
       char body[AI_POPUP_BODY_LEN];
       snprintf(body, sizeof(body), "The King raises taxes to %u%%.", nat->tax_rate);
@@ -2420,7 +2468,9 @@ static void ai_king_tax_hike_apply(ColonizeTurnContext* ctx, int human, int delt
      * by 1%" for a 7% hike. */
     tok.number0 = applied;
     tok.has_number0 = true;
-    tok.number1 = (int)nat->tax_rate;
+    /* @KINGTAX "The tax rate is now {%NUMBER1%%}" — the total the raise would
+     * come to. The rate itself is still the old one until Accept. */
+    tok.number1 = proposed;
     tok.has_number1 = true;
     tok.string0 = ai_king_cargo_name(picked);
     /* @TAXOPTIONS "Hold '{%STRING3 Party}.'" — DOS names it after the colony
@@ -2481,10 +2531,16 @@ static void ai_king_tax_hike_apply(ColonizeTurnContext* ctx, int human, int delt
    */
   const int sol = ai_king_sol_percent(ctx, human);
   const int auto_teaparty =
-      ((int)nat->tax_rate >= AI_KING_BOYCOTT_TAX_MIN) &&
+      (proposed >= AI_KING_BOYCOTT_TAX_MIN) &&
       (sol >= AI_KING_BOYCOTT_SOL_MIN || nat->liberty_bells_total >= AI_KING_BOYCOTT_BELLS_MIN);
   if (auto_teaparty) {
-    ai_king_tax_teaparty(ctx, human, applied, picked);
+    ai_king_tax_teaparty(ctx, human, picked);
+    return;
+  }
+  ai_king_tax_commit(ctx, human, delta);
+  if (ctx->status && ctx->status_size) {
+    snprintf(ctx->status, ctx->status_size,
+             "Audience: the King raises taxes to %u%%.", nat->tax_rate);
   }
 }
 
@@ -6352,24 +6408,26 @@ void ai_king_apply_popup_result(ColonizeTurnContext* ctx, const AiPopupState* po
   switch (popup->result_tag) {
     case AI_POPUP_TAG_KING_AUDIENCE:
       /*
-       * FUN_38fd_3dc8 village-goods choice: the hike is already applied
-       * (ai_king_tax_event); this only decides whether it's reverted.
-       * Accept ("kiss the ring") → keep it, status only. Refuse
-       * ("tea party") → ai_king_tax_teaparty reverts the delta packed in
-       * the payload and boycotts the picked cargo.
+       * FUN_38fd_3dc8 village-goods choice. The hike is NOT applied yet
+       * (bugs.md: the popup proposes it, the answer settles it). Accept
+       * ("kiss the ring") → commit the delta packed in the payload. Refuse
+       * ("tea party") → leave the rate alone and boycott the picked cargo.
        */
-      if (popup->result_choice_id == AI_KING_CHOICE_ACCEPT) {
-        if (ctx->status && ctx->status_size && ctx->col1_ok && ctx->col1 &&
-            human >= 0 && human < 4) {
-          snprintf(ctx->status, ctx->status_size,
-                   "Audience: the tax increase to %u%% stands.",
-                   ctx->col1->nation[human].tax_rate);
-        }
-      } else if (popup->result_choice_id == AI_KING_CHOICE_REFUSE) {
+      {
         int applied = 0;
         int cargo = -1;
         ai_king_teaparty_payload_parts(popup->result_payload, &applied, &cargo);
-        ai_king_tax_teaparty(ctx, human, applied, cargo);
+        if (popup->result_choice_id == AI_KING_CHOICE_ACCEPT) {
+          ai_king_tax_commit(ctx, human, applied);
+          if (ctx->status && ctx->status_size && ctx->col1_ok && ctx->col1 &&
+              human >= 0 && human < 4) {
+            snprintf(ctx->status, ctx->status_size,
+                     "Audience: taxes raised to %u%%.",
+                     ctx->col1->nation[human].tax_rate);
+          }
+        } else if (popup->result_choice_id == AI_KING_CHOICE_REFUSE) {
+          ai_king_tax_teaparty(ctx, human, cargo);
+        }
       }
       break;
     case AI_POPUP_TAG_KING_DUMP_GOODS:

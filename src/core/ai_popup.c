@@ -529,6 +529,16 @@ static uint8_t g_portrait_state[8][4]; /* 0 untried, 1 loaded, 2 failed */
  * (79x161, same box as KING.SS's static pose). */
 static ColonizeSpriteSheet g_king_sheet;
 static uint8_t g_king_state; /* 0 untried, 1 loaded, 2 failed */
+/*
+ * bugs.md ("Tax hike popup only renders the king's right arm"): KING2.SS's
+ * eight 79x161 frames are ARM OVERLAYS — each is ~5% opaque, all of it inside
+ * a (0,9)-(52,82) box — not standalone poses. The full figure lives in
+ * KING.SS (one 79x161 sprite, arm at rest); DOS draws that base and composites
+ * the animation frame over it in the same box. Drawing KING2 alone left just
+ * the forearm floating beside the dialog.
+ */
+static ColonizeSpriteSheet g_king_base_sheet;
+static uint8_t g_king_base_state;
 static uint32_t g_popup_now_ms;
 
 void ai_popup_set_now_ms(uint32_t now_ms) {
@@ -576,6 +586,16 @@ void ai_popup_set_portrait_source(const char* data_dir, const ColonizePalette* p
     }
     g_myr_state[i] = 0;
   }
+  /* The King pair is remapped against the popup palette like the rest, so it
+   * has to be dropped when the source/palette changes. */
+  if (g_king_state == 1) {
+    ss_free(&g_king_sheet);
+  }
+  g_king_state = 0;
+  if (g_king_base_state == 1) {
+    ss_free(&g_king_base_sheet);
+  }
+  g_king_base_state = 0;
   g_portrait_dir[0] = '\0';
   g_portrait_palette_ok = false;
   if (!data_dir || !palette) {
@@ -676,6 +696,24 @@ static const ColonizeSpriteSheet* ai_popup_king_sheet(void) {
     }
   }
   return g_king_state == 1 ? &g_king_sheet : NULL;
+}
+
+/* The static full-figure King the KING2 frames overlay. */
+static const ColonizeSpriteSheet* ai_popup_king_base_sheet(void) {
+  if (!g_portrait_dir[0] || !g_portrait_palette_ok) {
+    return NULL;
+  }
+  if (g_king_base_state == 0) {
+    char path[600];
+    char err[128];
+    g_king_base_state = 2;
+    if (dos_compat_normalize_asset_path(g_portrait_dir, "KING.SS", path, sizeof(path)) &&
+        ss_load(path, &g_king_base_sheet, err, sizeof(err))) {
+      ai_popup_remap_sheet(&g_king_base_sheet, &g_portrait_palette);
+      g_king_base_state = 1;
+    }
+  }
+  return g_king_base_state == 1 ? &g_king_base_sheet : NULL;
 }
 
 void ai_popup_set_last_graphic_mss(AiPopupState* st, int mss) {
@@ -788,6 +826,13 @@ void ai_popup_render(
   const ColonizeSpriteSheet* portrait =
     req->portrait_tribe == 8 ? ai_popup_king_sheet()
                              : ai_popup_portrait_sheet(req->portrait_tribe, req->portrait_tier);
+  /* KING2 frames are arm overlays; KING.SS is the figure they sit on. */
+  const ColonizeSpriteSheet* portrait_base =
+    (portrait && req->portrait_tribe == 8) ? ai_popup_king_base_sheet() : NULL;
+  if (portrait_base &&
+      (portrait_base->sprite_count <= 0 || !portrait_base->sprites[0].pixels)) {
+    portrait_base = NULL;
+  }
   int portrait_frame = 0;
   if (portrait && req->portrait_tribe == 8) {
     /* FUN_6f74_0042 one-shot flair animation: ~3.9 s pause on frame 0,
@@ -812,6 +857,16 @@ void ai_popup_render(
     portrait_h = portrait->sprites[portrait_frame].height;
   } else {
     portrait = NULL;
+    portrait_base = NULL;
+  }
+  /* Both sheets share the 79x161 box; take the larger so neither is clipped. */
+  if (portrait_base) {
+    if (portrait_base->sprites[0].width > portrait_w) {
+      portrait_w = portrait_base->sprites[0].width;
+    }
+    if (portrait_base->sprites[0].height > portrait_h) {
+      portrait_h = portrait_base->sprites[0].height;
+    }
   }
   const bool portrait_left =
     portrait && (req->portrait_tribe == 0 || req->portrait_tribe == 3 || req->portrait_tribe == 5 ||
@@ -962,6 +1017,9 @@ void ai_popup_render(
   st->dialog_h = dialog_h;
   st->line_h = line_h;
 
+  if (portrait_base) {
+    ss_blit_sprite(portrait_base, 0, framebuffer, portrait_x, portrait_y);
+  }
   if (portrait) {
     ss_blit_sprite(portrait, portrait_frame, framebuffer, portrait_x, portrait_y);
   }
