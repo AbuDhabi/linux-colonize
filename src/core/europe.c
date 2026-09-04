@@ -1138,6 +1138,40 @@ int europe_dock_unit_type_index(const ColonizeUnitPool* units, int dos_type) {
   return units_find_type((ColonizeUnitPool*)units, k_names[dos_type]);
 }
 
+/*
+ * @UNIT display type for a dock entry — what unit_chrome uses to place the
+ * orders/allegiance box (Dragoons/Scouts top-left, Artillery top-center,
+ * everyone else bottom-right), matching what units_display_type_index
+ * derives from a landed unit's kit. A dock entry's name is a profession
+ * ("Veteran Soldiers"), never an @UNIT type, so looking the name up first
+ * missed and fell back to Colonists: every armed or mounted immigrant wore
+ * the plain bottom-right box, a Veteran Dragoon most visibly (bugs.md).
+ * dos_type is the field the @ARMOPTIONS rows move around and is what
+ * europe_dock_sprite already picks the sprite from; Artillery carries no
+ * dos_type of its own and is name-flagged there, so it is here too.
+ */
+int europe_dock_display_type_index(
+  const ColonizeUnitPool* units, const EuropeDockImmigrant* d
+) {
+  if (!units || !d) {
+    return -1;
+  }
+  int ti = -1;
+  if (strcmp(d->name, "Artillery") == 0) {
+    ti = units_find_type(units, "Artillery");
+  }
+  if (ti < 0) {
+    ti = europe_dock_unit_type_index(units, d->dos_type);
+  }
+  if (ti < 0) {
+    ti = units_find_type(units, d->name);
+  }
+  if (ti < 0) {
+    ti = units_find_type(units, "Colonists");
+  }
+  return ti;
+}
+
 void europe_apply_dock_unit_kit(ColonizeUnit* u, int dos_type) {
   if (!u) {
     return;
