@@ -3036,35 +3036,50 @@ int main(void) {
                 ashore_before, ashore_after);
         return fail("MoW multi-unload should place 2 crown land ashore");
       }
-      /* Same-beat seize + fortify up to two Regulars after multi-unload (cap 2). */
+      /* bugs.md 406: NO same-beat seize — DOS lands adjacent and walks in
+       * only on a later activation with moves restored. */
+      if (colonies.colonies[0].nation_id != 0) {
+        return fail("MoW multi-unload must NOT seize the colony on the landing beat");
+      }
+      /* Next crown activation: refresh the landed Regulars' moves and run the
+       * king again — the war-act walk now enters the undefended colony and
+       * captures it (the DOS later-activation capture). */
+      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+        ColonizeUnit* u = &units.units[i];
+        if (u->active && u->nation_id == 1 && !units_is_sea(&units, u->id) &&
+            u->aboard_ship_id < 0) {
+          u->moves_left = UNITS_MP_PER_TILE;
+        }
+      }
+      ai_king_nation_turn(&ctx);
       if (colonies.colonies[0].nation_id != 1) {
-        return fail("MoW multi-unload onto colony should seize (owner → crown)");
+        return fail("MoW landing should capture the colony on the NEXT activation");
       }
       {
+        /* bugs.md 406: the capture now lands on the next activation via the
+         * war-act walk, so the garrison on the tile may be whichever crown
+         * land unit walked in first — assert a fortified crown garrison,
+         * not specifically the freshly landed Regulars. */
         int fortified = 0;
-        int regulars_on = 0;
+        int crown_on = 0;
         for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
           const ColonizeUnit* u = &units.units[i];
-          if (!u->active || u->nation_id != 1 || u->type_index != ty_regular) {
+          if (!u->active || u->nation_id != 1 || units_is_sea(&units, u->id)) {
             continue;
           }
           if (u->x != 5 || u->y != 5 || u->aboard_ship_id >= 0) {
             continue;
           }
-          regulars_on++;
+          crown_on++;
           if (u->orders == UNITS_ORDER_FORTIFY || u->orders == UNITS_ORDER_FORTIFIED) {
             fortified++;
           }
         }
-        if (regulars_on < 1) {
-          return fail("multi-unload seize should leave Regular on colony tile");
+        if (crown_on < 1) {
+          return fail("capture should leave a crown garrison on the colony tile");
         }
-        if (fortified < 1 || fortified > 2 || fortified > regulars_on) {
-          fprintf(stderr,
-                  "unit_ai_king: multi-unload fortify count=%d on-colony Regulars=%d "
-                  "(want 1..2 FORTIFY per cap-2)\n",
-                  fortified, regulars_on);
-          return fail("multi-unload capture should fortify one or two Regulars (cap 2)");
+        if (fortified < 1) {
+          return fail("capture should fortify at least one garrison unit");
         }
       }
     }

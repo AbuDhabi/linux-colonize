@@ -4242,14 +4242,14 @@ void reports_render_hall_of_fame(
 }
 
 void reports_remap_exploits_sheet(const ColonizeReportsView* view, ColonizeSpriteSheet* sheet) {
-  if (!view || !sheet) {
-    return;
-  }
-  if (view->exploits_bg_ok && view->exploits_bg.has_palette) {
-    reports_remap_sheet_to_palette(sheet, &view->exploits_bg.palette);
-  } else if (view->background_ok[COLONIZE_REPORT_SCORE]) {
-    reports_remap_sheet_to_palette(sheet, &view->backgrounds[COLONIZE_REPORT_SCORE].palette);
-  }
+  /* bugs.md 408: SCORE<nn>.SS shares WOODPAN2.PIK's low palette block and
+   * carries the painting's own colours in the slots WOODPAN2 leaves black —
+   * the reserved-DAC-block pattern (crown-europe batch: merge, never remap).
+   * The old nearest-colour remap here crushed the painting into the 115
+   * woodpanel colours. Keep the sheet indices raw; game_render merges the
+   * sheet palette into the screen palette's black slots instead. */
+  (void)view;
+  (void)sheet;
 }
 
 void reports_render_exploits(
@@ -4268,18 +4268,26 @@ void reports_render_exploits(
     pik_blit(&view->backgrounds[COLONIZE_REPORT_SCORE], fb, 0, 0);
   }
   const ColonizeFont* body_font = (view && view->title_font_ok) ? &view->title_font : font;
-  /* FUN_41f2_0b70: @EXPLOITS lines from y=5 at font height + 1; @SCORE
-   * category fields at y = 0xc3 - (h+1)*(i+1) (bottom-up); the named line at
-   * y=0x8e; SCORE<tier+1>.SS frame 0 at x=100. */
+  /*
+   * FUN_41f2_0b70 (OVL06 asm 0x3887..0x39d0, bugs.md 408): all inks are
+   * WOODPAN2.PIK DAC indices — 0xfc (gold 199,162,32) for the @EXPLOITS
+   * headers, the named line and the picked-tier row, 0xfe (green 85,150,52)
+   * for the other @SCORE rows. Headers centred full-width from y=5; @SCORE
+   * rows centred within x=0xa0 w=0xa0 (the RIGHT half) at
+   * y = 0xc3 - (h+1)*(i+1); the named line centred within x=0x22 w=0x8c at
+   * y=0x8e; SCORE<tier+1>.SS frame 0 at x=100.
+   */
   const int h = body_font ? body_font->max_height + 1 : 8;
   int y = 5;
   for (int i = 0; i < ex->header_count && i < 3; ++i) {
-    reports_draw_centered(body_font, fb, y, ex->header[i], REPORTS_SCORE_TITLE_COLOR);
+    reports_draw_centered(body_font, fb, y, ex->header[i], 0xfc);
     y += h;
   }
   for (int i = 0; i < ex->category_count && i < 24; ++i) {
-    reports_draw_centered(
-      body_font, fb, 0xc3 - h * (i + 1), ex->categories[i], REPORTS_SCORE_GREEN_COLOR
+    const uint8_t ink = (i == ex->category_count - 1) ? 0xfc : 0xfe;
+    const int tw = body_font ? font_text_width(body_font, ex->categories[i]) : 0;
+    reports_draw_line(
+      body_font, fb, 0xa0 + (0xa0 - tw) / 2, 0xc3 - h * (i + 1), ex->categories[i], ink
     );
   }
   if (ex->sheet && ex->sheet->sprite_count > 0) {
@@ -4291,7 +4299,8 @@ void reports_render_exploits(
     ss_blit_sprite(ex->sheet, 0, fb, 100, y + 1);
   }
   if (ex->named[0]) {
-    reports_draw_centered(body_font, fb, 0x8e, ex->named, REPORTS_SCORE_TITLE_COLOR);
+    const int tw = body_font ? font_text_width(body_font, ex->named) : 0;
+    reports_draw_line(body_font, fb, 0x22 + (0x8c - tw) / 2, 0x8e, ex->named, 0xfc);
   }
 }
 

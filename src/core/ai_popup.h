@@ -333,6 +333,9 @@ bool ai_popup_busy(const AiPopupState* st); /* open or queued */
 
 /* If !open && queue non-empty, pop front into current and open. */
 bool ai_popup_try_present_next(AiPopupState* st);
+/* Present the first queued NON-colony-event popup, bypassing the colony-zoom
+ * hold — for nested blocking pumps only (bugs.md 404). */
+bool ai_popup_try_present_next_urgent(AiPopupState* st);
 
 /*
  * Open the newest queued request with `tag` right now, ahead of everything
