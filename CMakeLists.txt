@@ -6,6 +6,7 @@ set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_C_EXTENSIONS OFF)
 
 option(COLONIZE_ENABLE_AUDIO "Enable SDL2 audio backend" ON)
+option(COLONIZE_STATIC_DEPS "Link SDL2/FluidSynth (and their deps) statically for release" OFF)
 option(COLONIZE_DEBUG_MENU "Include DEBUG map menu (sprite viewer, mouse coords, debug logs)" ON)
 
 if(NOT CMAKE_BUILD_TYPE)
@@ -24,6 +25,13 @@ if(NOT SDL2_FOUND)
       set(SDL2_FOUND ON)
     endif()
   endif()
+endif()
+
+# Static release builds link SDL2's static archive (SDL still dlopens
+# X11/Wayland/audio from the host at runtime, so portability is unaffected).
+set(COLONIZE_SDL2_TARGET SDL2::SDL2)
+if(COLONIZE_STATIC_DEPS AND TARGET SDL2::SDL2-static)
+  set(COLONIZE_SDL2_TARGET SDL2::SDL2-static)
 endif()
 
 find_package(PkgConfig QUIET)
@@ -124,7 +132,28 @@ endif()
 
 if(COLONIZE_HAS_FLUIDSYNTH)
   target_include_directories(colonize_core PUBLIC ${FLUIDSYNTH_INCLUDE_DIRS})
-  target_link_libraries(colonize_core PUBLIC ${FLUIDSYNTH_LIBRARIES})
+  if(COLONIZE_STATIC_DEPS)
+    # pkg-config --static gives -l names; -l would still pick the .so when both
+    # exist, so resolve each dep to its .a explicitly. System runtime libs
+    # (m/dl/rt/pthread) stay dynamic.
+    set(_fs_libs "")
+    foreach(_lib IN LISTS FLUIDSYNTH_STATIC_LIBRARIES)
+      if(_lib MATCHES "^(m|dl|rt|pthread|c)$")
+        list(APPEND _fs_libs ${_lib})
+      else()
+        find_library(COLONIZE_STATIC_${_lib} NAMES lib${_lib}.a
+          PATHS ${FLUIDSYNTH_STATIC_LIBRARY_DIRS})
+        if(COLONIZE_STATIC_${_lib})
+          list(APPEND _fs_libs ${COLONIZE_STATIC_${_lib}})
+        else()
+          list(APPEND _fs_libs ${_lib})
+        endif()
+      endif()
+    endforeach()
+    target_link_libraries(colonize_core PUBLIC ${_fs_libs})
+  else()
+    target_link_libraries(colonize_core PUBLIC ${FLUIDSYNTH_LIBRARIES})
+  endif()
   target_compile_definitions(colonize_core PUBLIC COLONIZE_HAS_FLUIDSYNTH=1)
   message(STATUS "FluidSynth found — music backend enabled")
 else()
@@ -147,7 +176,7 @@ if(SDL2_FOUND)
 
   target_link_libraries(colonize_linux PRIVATE
     colonize_core
-    SDL2::SDL2
+    ${COLONIZE_SDL2_TARGET}
   )
 
   if(COLONIZE_ENABLE_AUDIO)

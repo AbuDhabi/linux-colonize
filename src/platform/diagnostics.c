@@ -1,3 +1,7 @@
+/* _POSIX_C_SOURCE too: _DEFAULT_SOURCE only exists since glibc 2.19, and the
+ * release builds against glibc 2.17, where localtime_r/readlink need the
+ * POSIX guard. */
+#define _POSIX_C_SOURCE 200809L
 #define _DEFAULT_SOURCE
 #include "platform/diagnostics.h"
 
