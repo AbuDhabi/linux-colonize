@@ -1,1 +1,0 @@
-/usr/bin/cc -O3 -DNDEBUG -Wl,-rpath,$ORIGIN/lib,--disable-new-dtags CMakeFiles/golden_colony_prod01.dir/tests/golden/test_colony_prod01.c.o -o golden_colony_prod01  libcolonize_core.a -lm -lpthread -lfluidsynth 

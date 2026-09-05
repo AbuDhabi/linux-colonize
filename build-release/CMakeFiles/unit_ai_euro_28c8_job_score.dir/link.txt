@@ -1,1 +1,0 @@
-/usr/bin/cc -O3 -DNDEBUG -Wl,-rpath,$ORIGIN/lib,--disable-new-dtags CMakeFiles/unit_ai_euro_28c8_job_score.dir/tests/unit/test_ai_euro_28c8_job_score.c.o -o unit_ai_euro_28c8_job_score  libcolonize_core.a -lm -lpthread -lfluidsynth 

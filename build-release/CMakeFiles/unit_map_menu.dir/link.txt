@@ -1,1 +1,0 @@
-/usr/bin/cc -O3 -DNDEBUG -Wl,-rpath,$ORIGIN/lib,--disable-new-dtags CMakeFiles/unit_map_menu.dir/tests/unit/test_map_menu.c.o -o unit_map_menu  libcolonize_core.a -lm -lpthread -lfluidsynth 

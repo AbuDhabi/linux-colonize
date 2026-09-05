@@ -8,7 +8,7 @@ import subprocess
 import time
 from pathlib import Path
 
-ROOT = Path('/home/jan/projects/linux-colonize')
+ROOT = Path(__file__).resolve().parents[2]
 COLONIZE = ROOT / 'COLONIZE'
 DUMP = COLONIZE / 'BRAVE.DMP'
 CONF = ROOT / 'tools/brave_dump/dosbox-brave.conf'

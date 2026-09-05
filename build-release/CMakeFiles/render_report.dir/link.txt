@@ -1,1 +1,0 @@
-/usr/bin/cc -O3 -DNDEBUG -Wl,-rpath,$ORIGIN/lib,--disable-new-dtags CMakeFiles/render_report.dir/tools/render_report_main.c.o -o render_report  libcolonize_core.a -lm -lpthread -lfluidsynth 

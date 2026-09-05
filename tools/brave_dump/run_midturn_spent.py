@@ -15,7 +15,7 @@ import time
 import zipfile
 from pathlib import Path
 
-ROOT = Path('/home/jan/projects/linux-colonize')
+ROOT = Path(__file__).resolve().parents[2]
 COLONIZE = ROOT / 'COLONIZE'
 CONF = ROOT / 'tools/brave_dump/dosbox-midturn-dump.conf'
 SAVE_DIR = ROOT / 'original_memory_dumps/dosbox_save_state_brave_t2'

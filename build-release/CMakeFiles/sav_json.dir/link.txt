@@ -1,1 +1,0 @@
-/usr/bin/cc -O3 -DNDEBUG -Wl,-rpath,$ORIGIN/lib,--disable-new-dtags CMakeFiles/sav_json.dir/tools/sav_json_main.c.o CMakeFiles/sav_json.dir/tools/col1_json.c.o -o sav_json  libcolonize_core.a -lm -lpthread -lfluidsynth 
