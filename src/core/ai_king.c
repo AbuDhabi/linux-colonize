@@ -1423,6 +1423,21 @@ static int ai_king_mow_try_unload(ColonizeTurnContext* ctx, ColonizeUnit* ship,
                                 ctx->colonies)) {
       break;
     }
+    /*
+     * bugs.md follow-up to 406: DOS FUN_43f7_0982/2022 spends the landed
+     * unit's moves for the beat — the crown unit-move pass already ran
+     * before the king block, so a fresh passenger can NEVER act the turn it
+     * comes ashore. units_unload_passenger's shore-crossing rule zeroes the
+     * common case, but the dock/colony-fallback unloads kept a charge and
+     * the war-act loop (same beat, right after the wave) marched them into
+     * the player's colony "the moment they landed". Zero unconditionally.
+     */
+    {
+      ColonizeUnit* pax = units_get(ctx->units, pax_id);
+      if (pax) {
+        pax->moves_left = 0;
+      }
+    }
     ship->moves_left -= UNITS_MP_PER_TILE;
     if (ship->moves_left < 0) {
       ship->moves_left = 0;
@@ -3399,6 +3414,11 @@ static void ai_king_ref_wave(ColonizeTurnContext* ctx) {
             nu->orders = UNITS_ORDER_AI_MOVE;
             nu->goto_x = nx;
             nu->goto_y = ny;
+            /* bugs.md follow-up to 406: uprising irregulars spawn with the
+             * turn spent — the war-act loop runs this same beat and must not
+             * march them into the colony the moment they appear (the crown
+             * move pass ran before the king block in DOS). */
+            nu->moves_left = 0;
             if ((remaining & 1) != 0 &&
                 dos_rng_range(ctx->rng, 0, (int)ctx->col1->head.difficulty + 1) != 0) {
               nu->profession = UNITS_JOB_SOLDIER; /* Veteran */

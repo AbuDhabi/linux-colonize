@@ -371,13 +371,15 @@ static void new_game_load_choice_section(NewGameWizard* ng, const char* section_
   }
 }
 
-static void new_game_seed_leader_name(NewGameWizard* ng) {
+void new_game_default_leader_name(
+  const ColonizeMsgCatalog* names_txt, int nation, char* out, size_t out_size
+) {
   static const char* defaults[4] = {
     "Walter Raleigh", "Jacques Cartier", "Christopher Columbus", "Michiel De Ruyter"
   };
-  const char* name = defaults[ng->nation < 0 || ng->nation > 3 ? 0 : ng->nation];
-  if (ng->names_txt) {
-    const ColonizeMsgSection* section = assets_msg_find(ng->names_txt, "LEADERNAME");
+  const int n_idx = (nation < 0 || nation > 3) ? 0 : nation;
+  if (names_txt) {
+    const ColonizeMsgSection* section = assets_msg_find(names_txt, "LEADERNAME");
     if (section) {
       int idx = 0;
       for (int i = 0; i < section->line_count; ++i) {
@@ -385,7 +387,7 @@ static void new_game_seed_leader_name(NewGameWizard* ng) {
         if (!line || line[0] == '\0' || line[0] == ';' || line[0] == '@') {
           continue;
         }
-        if (idx == ng->nation) {
+        if (idx == n_idx) {
           char buf[NEW_GAME_LEADER_NAME_MAX];
           str_copy_trunc(buf, sizeof(buf), line);
           char* comma = strchr(buf, ',');
@@ -398,7 +400,7 @@ static void new_game_seed_leader_name(NewGameWizard* ng) {
             buf[--n] = '\0';
           }
           if (buf[0]) {
-            str_copy_trunc(ng->leader_name, sizeof(ng->leader_name), buf);
+            str_copy_trunc(out, out_size, buf);
             return;
           }
         }
@@ -406,7 +408,13 @@ static void new_game_seed_leader_name(NewGameWizard* ng) {
       }
     }
   }
-  snprintf(ng->leader_name, sizeof(ng->leader_name), "%s", name);
+  str_copy_trunc(out, out_size, defaults[n_idx]);
+}
+
+static void new_game_seed_leader_name(NewGameWizard* ng) {
+  new_game_default_leader_name(
+    ng->names_txt, ng->nation, ng->leader_name, sizeof(ng->leader_name)
+  );
 }
 
 static void new_game_enter_difficulty(NewGameWizard* ng) {

@@ -4292,11 +4292,17 @@ void reports_render_exploits(
   }
   if (ex->sheet && ex->sheet->sprite_count > 0) {
     /* SCORE<nn>.SS is a painting of the nn-th @SCORE item (SCORE17 = the
-     * university). DOS blits it at x=100 AFTER the category list, so the
-     * build-up list ends hidden under the reveal; its y comes from the
-     * sheet header (unread here) — sit it right under the @EXPLOITS lines
-     * so a 99px-tall frame clears the named line at y=0x8e. */
-    ss_blit_sprite(ex->sheet, 0, fb, 100, y + 1);
+     * university), drawn AFTER the category list so the build-up ends hidden
+     * under the reveal. Placement is the sheet's own anchor pair (ax=104,
+     * ay=138 in every SCORE sheet) through the DOS centring rule
+     * (anchor_x - w/2, anchor_y - h + 1) — centre x 104 lines up exactly
+     * with the named-line box below (0x22 + 0x8c/2), bottom edge one row
+     * above the named line at y=0x8e (bugs.md: sprite was misaligned vs its
+     * caption at the old fixed x=100). */
+    const ColonizeSprite* sp = &ex->sheet->sprites[0];
+    ss_blit_sprite(
+      ex->sheet, 0, fb, sp->anchor_x - sp->width / 2, sp->anchor_y - sp->height + 1
+    );
   }
   if (ex->named[0]) {
     const int tw = body_font ? font_text_width(body_font, ex->named) : 0;

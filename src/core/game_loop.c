@@ -4627,6 +4627,30 @@ static bool game_apply_col1_save(ColonizeGameState* game, ColonizeCol1Save* load
   europe_set_nation(
     &game->europe, result.human_nation, game->names_ok ? &game->names : NULL
   );
+  /* bugs.md: leader identity must follow the save — game init defaults
+   * leader_name to the English "Walter Raleigh" and load never replaced it,
+   * so a Dutch campaign's exploits screen / HoF entry / declaration
+   * signature all carried the English default. Take the save's own leader
+   * name; a save without one gets the nation's @LEADERNAME default (stamped
+   * back so later saves and the score chain carry it). */
+  {
+    const int hn = result.human_nation;
+    if (hn >= 0 && hn < (int)COLONIZE_COL1_NATION_COUNT) {
+      if (game->col1.player[hn].name[0] != '\0') {
+        str_copy_trunc(
+          game->leader_name, sizeof(game->leader_name), game->col1.player[hn].name
+        );
+      } else {
+        new_game_default_leader_name(
+          game->names_ok ? &game->names : NULL, hn, game->leader_name,
+          sizeof(game->leader_name)
+        );
+        str_copy_trunc(
+          game->col1.player[hn].name, sizeof(game->col1.player[hn].name), game->leader_name
+        );
+      }
+    }
+  }
   /*
    * bugs.md ("French expeditionary force missing on report"): in DOS the
    * Expeditionary Force exists from turn 1 (new-game seed 75c2:360b) and
