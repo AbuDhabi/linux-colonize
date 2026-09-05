@@ -47,7 +47,12 @@ resolve_lib() {
   echo "$path"
 }
 
-BUNDLE_LIBS="libSDL2-2.0.so.0 libfluidsynth.so.3 libinstpatch-1.0.so.2 libsndfile.so.1"
+# libsndfile's codec deps and fluidsynth's libjack are bundled too: their
+# sonames differ across distros (e.g. libFLAC.so.12 vs .so.8) or they are not
+# installed by default, so the bundled libsndfile/fluidsynth would fail to load.
+BUNDLE_LIBS="libSDL2-2.0.so.0 libfluidsynth.so.3 libinstpatch-1.0.so.2 libsndfile.so.1
+  libFLAC.so.12 libvorbis.so.0 libvorbisenc.so.2 libopus.so.0 libogg.so.0
+  libmpg123.so.0 libmp3lame.so.0 libjack.so.0 libsamplerate.so.0"
 for lib in $BUNDLE_LIBS; do
   src="$(resolve_lib "$lib")"
   if [ -n "$src" ] && [ -e "$src" ]; then
@@ -65,6 +70,15 @@ touch "$PKG_DIR/COLONIZE/put original game files here"
 
 cp "$ROOT/scripts/release/README.md" "$PKG_DIR/README.md"
 cp "$ROOT/LICENSE" "$PKG_DIR/LICENSE"
+
+echo "== Checking bundled link closure =="
+# Everything the binary or a bundled lib needs must resolve from bundle + base
+# system libs (X11/Wayland, ALSA/Pulse, glib, ... are expected from the distro).
+missing="$(LD_LIBRARY_PATH="$PKG_DIR/lib" ldd "$PKG_DIR/linux-colonize" "$PKG_DIR"/lib/*.so* 2>/dev/null | grep 'not found' | sort -u || true)"
+if [ -n "$missing" ]; then
+  echo "warning: unresolved libraries remain:" >&2
+  echo "$missing" >&2
+fi
 
 echo "== Creating tarball =="
 TARBALL="$DIST_ROOT/$PKG_NAME-linux-x86_64.tar.gz"
