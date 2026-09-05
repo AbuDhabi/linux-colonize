@@ -14,6 +14,14 @@
 #include <fluidsynth.h>
 #endif
 
+#ifndef COLONIZE_HAS_TSF
+#define COLONIZE_HAS_TSF 1
+#endif
+#if COLONIZE_HAS_TSF
+#define TSF_IMPLEMENTATION
+#include "third_party/tsf.h"
+#endif
+
 /*
  * Playback runs the GSOUND.COL driver emulator (gsound_vm) in real time from
  * the audio callback: every ~59.95 Hz PIT tick advances the nine voice
@@ -97,6 +105,11 @@ typedef struct SoundState {
   fluid_synth_t* fluid_synth;
   int fluid_sfont_id;
 #endif
+#if COLONIZE_HAS_TSF
+  tsf* tsf_synth;
+  int tsf_out_rate;     /* last tsf_set_output() sample rate */
+  int tsf_out_stereo;   /* last output mode was stereo interleaved */
+#endif
   /* Soft fallback oscillator when FluidSynth is unavailable. */
   double phase;
   int fallback_note;
@@ -178,6 +191,20 @@ static bool sound_load_gsound(const char* data_dir) {
   return songs > 0;
 }
 
+/* settings.json sound_options prefs; separate from g_sound so they survive
+ * sound_init's memset. Set both before sound_init. */
+static char g_soundfont_pref[512];
+static char g_midi_backend_pref[16];
+
+void sound_set_soundfont(const char* path) {
+  snprintf(g_soundfont_pref, sizeof(g_soundfont_pref), "%s", path ? path : "");
+}
+
+void sound_set_midi_backend(const char* name) {
+  snprintf(g_midi_backend_pref, sizeof(g_midi_backend_pref), "%s", name ? name : "");
+}
+
+#if defined(COLONIZE_HAS_FLUIDSYNTH) || COLONIZE_HAS_TSF
 static bool sound_path_readable(const char* path) {
   if (!path || !path[0]) {
     return false;
@@ -190,15 +217,14 @@ static bool sound_path_readable(const char* path) {
   return true;
 }
 
-/* Returns a durable path string (static buffer or literal / env). */
+/* Returns a durable path string (static buffer or literal). */
 static const char* sound_find_soundfont(const char* data_dir) {
   static char path_buf[768];
-  const char* env = getenv("COLONIZE_SOUNDFONT");
-  if (env && env[0]) {
-    if (sound_path_readable(env)) {
-      return env;
+  if (g_soundfont_pref[0]) {
+    if (sound_path_readable(g_soundfont_pref)) {
+      return g_soundfont_pref;
     }
-    diag_warn("sound: COLONIZE_SOUNDFONT not readable: %s", env);
+    diag_warn("sound: settings soundfont not readable: %s", g_soundfont_pref);
   }
 
   /* Bundled default: data/soundfonts/Roland_SC-55.sf2 (GPL-3+, see COPYRIGHT). */
@@ -265,12 +291,13 @@ static const char* sound_find_soundfont(const char* data_dir) {
   }
   return NULL;
 }
+#endif /* COLONIZE_HAS_FLUIDSYNTH || COLONIZE_HAS_TSF */
 
 static bool sound_init_fluidsynth(const char* data_dir) {
 #if defined(COLONIZE_HAS_FLUIDSYNTH)
   const char* sf = sound_find_soundfont(data_dir);
   if (!sf) {
-    diag_warn("sound: no soundfont found (set COLONIZE_SOUNDFONT); using soft fallback");
+    diag_warn("sound: no soundfont found (set sound_options.soundfont in settings.json); using soft fallback");
     return false;
   }
   g_sound.fluid_settings = new_fluid_settings();
@@ -314,6 +341,33 @@ static bool sound_init_fluidsynth(const char* data_dir) {
 #endif
 }
 
+/* TSF gain matches FluidSynth's synth.gain 0.3 ballpark (20*log10(0.3) ≈ -10.5 dB). */
+#define SOUND_TSF_GAIN_DB (-10.5f)
+
+static bool sound_init_tsf(const char* data_dir) {
+#if COLONIZE_HAS_TSF
+  const char* sf = sound_find_soundfont(data_dir);
+  if (!sf) {
+    diag_warn("sound: no soundfont found (set sound_options.soundfont in settings.json); using soft fallback");
+    return false;
+  }
+  g_sound.tsf_synth = tsf_load_filename(sf);
+  if (!g_sound.tsf_synth) {
+    diag_warn("sound: tsf_load_filename failed for %s", sf);
+    return false;
+  }
+  g_sound.tsf_out_rate = 44100;
+  g_sound.tsf_out_stereo = 1;
+  tsf_set_output(g_sound.tsf_synth, TSF_STEREO_INTERLEAVED, g_sound.tsf_out_rate, SOUND_TSF_GAIN_DB);
+  tsf_channel_set_bank_preset(g_sound.tsf_synth, 9, 128, 0); /* GM percussion */
+  diag_info("sound: TinySoundFont ready soundfont=%s", sf);
+  return true;
+#else
+  (void)data_dir;
+  return false;
+#endif
+}
+
 
 static void sound_all_notes_off_unlocked(void) {
 #if defined(COLONIZE_HAS_FLUIDSYNTH)
@@ -321,6 +375,14 @@ static void sound_all_notes_off_unlocked(void) {
     for (int ch = 0; ch < 16; ++ch) {
       fluid_synth_all_notes_off(g_sound.fluid_synth, ch);
       fluid_synth_all_sounds_off(g_sound.fluid_synth, ch);
+    }
+  }
+#endif
+#if COLONIZE_HAS_TSF
+  if (g_sound.tsf_synth) {
+    for (int ch = 0; ch < 16; ++ch) {
+      tsf_channel_note_off_all(g_sound.tsf_synth, ch);
+      tsf_channel_sounds_off_all(g_sound.tsf_synth, ch);
     }
   }
 #endif
@@ -332,6 +394,7 @@ static void sound_all_notes_off_unlocked(void) {
 static void sound_apply_midi_unlocked(uint8_t status, uint8_t d1, uint8_t d2) {
   const int ch = status & 0x0f;
   const uint8_t kind = status & 0xf0;
+  (void)ch; /* unused when both synth backends are compiled out */
 #if defined(COLONIZE_HAS_FLUIDSYNTH)
   if (g_sound.fluid_synth) {
     if (kind == 0x90 && d2 > 0) {
@@ -344,6 +407,22 @@ static void sound_apply_midi_unlocked(uint8_t status, uint8_t d1, uint8_t d2) {
       fluid_synth_cc(g_sound.fluid_synth, ch, d1, d2);
     } else if (kind == 0xe0) {
       fluid_synth_pitch_bend(g_sound.fluid_synth, ch, ((int)d2 << 7) | (int)d1);
+    }
+    return;
+  }
+#endif
+#if COLONIZE_HAS_TSF
+  if (g_sound.tsf_synth) {
+    if (kind == 0x90 && d2 > 0) {
+      tsf_channel_note_on(g_sound.tsf_synth, ch, d1, (float)d2 / 127.0f);
+    } else if (kind == 0x80 || (kind == 0x90 && d2 == 0)) {
+      tsf_channel_note_off(g_sound.tsf_synth, ch, d1);
+    } else if (kind == 0xc0) {
+      tsf_channel_set_presetnumber(g_sound.tsf_synth, ch, d1, ch == 9);
+    } else if (kind == 0xb0) {
+      tsf_channel_midi_control(g_sound.tsf_synth, ch, d1, d2);
+    } else if (kind == 0xe0) {
+      tsf_channel_set_pitchwheel(g_sound.tsf_synth, ch, ((int)d2 << 7) | (int)d1);
     }
     return;
   }
@@ -549,7 +628,20 @@ bool sound_init(const char* data_dir, bool enable_audio) {
   const char* dir = data_dir ? data_dir : "./COLONIZE";
   g_sound.gsound_ok = sound_load_gsound(dir);
   if (g_sound.enable_audio) {
-    g_sound.backend_ok = sound_init_fluidsynth(dir);
+    /* settings.json sound_options.midi_backend forces one synth; default tries
+     * FluidSynth first, then TinySoundFont, then the square-wave fallback. */
+    const char* backend = g_midi_backend_pref;
+    const bool want_tsf = strcmp(backend, "tsf") == 0;
+    const bool want_fluid = strcmp(backend, "fluidsynth") == 0;
+    if (backend[0] && !want_tsf && !want_fluid) {
+      diag_warn("sound: unknown midi_backend '%s' (use fluidsynth or tsf)", backend);
+    }
+    if (!want_tsf) {
+      g_sound.backend_ok = sound_init_fluidsynth(dir);
+    }
+    if (!g_sound.backend_ok && !want_fluid) {
+      g_sound.backend_ok = sound_init_tsf(dir);
+    }
     if (!g_sound.backend_ok) {
       diag_info("sound: using square-wave fallback renderer");
     }
@@ -591,6 +683,12 @@ void sound_shutdown(void) {
     g_sound.fluid_settings = NULL;
   }
 #endif
+#if COLONIZE_HAS_TSF
+  if (g_sound.tsf_synth) {
+    tsf_close(g_sound.tsf_synth);
+    g_sound.tsf_synth = NULL;
+  }
+#endif
   gsound_vm_destroy(g_sound.vm);
   g_sound.vm = NULL;
   free(g_sound.sfx_data);
@@ -610,6 +708,20 @@ bool sound_ok(void) {
 
 bool sound_backend_ok(void) {
   return g_sound.inited && g_sound.backend_ok;
+}
+
+const char* sound_backend_name(void) {
+#if defined(COLONIZE_HAS_FLUIDSYNTH)
+  if (g_sound.fluid_synth) {
+    return "fluidsynth";
+  }
+#endif
+#if COLONIZE_HAS_TSF
+  if (g_sound.tsf_synth) {
+    return "tsf";
+  }
+#endif
+  return "fallback";
 }
 
 void sound_set_options(ColonizeSoundOptions opts) {
@@ -887,7 +999,21 @@ void sound_service(void) {
 
 /* ---- rendering ---------------------------------------------------------- */
 
-static void sound_render_frames_unlocked(int16_t* dst, int frames, int channels) {
+static bool sound_have_synth_unlocked(void) {
+#if defined(COLONIZE_HAS_FLUIDSYNTH)
+  if (g_sound.fluid_synth) {
+    return true;
+  }
+#endif
+#if COLONIZE_HAS_TSF
+  if (g_sound.tsf_synth) {
+    return true;
+  }
+#endif
+  return false;
+}
+
+static void sound_render_frames_unlocked(int16_t* dst, int frames, int channels, int sample_rate) {
 #if defined(COLONIZE_HAS_FLUIDSYNTH)
   if (g_sound.fluid_synth) {
     if (channels == 2) {
@@ -910,9 +1036,42 @@ static void sound_render_frames_unlocked(int16_t* dst, int frames, int channels)
     return;
   }
 #endif
+#if COLONIZE_HAS_TSF
+  if (g_sound.tsf_synth) {
+    const int want_stereo = channels == 2;
+    if (g_sound.tsf_out_rate != sample_rate || g_sound.tsf_out_stereo != want_stereo) {
+      g_sound.tsf_out_rate = sample_rate;
+      g_sound.tsf_out_stereo = want_stereo;
+      tsf_set_output(
+        g_sound.tsf_synth,
+        want_stereo ? TSF_STEREO_INTERLEAVED : TSF_MONO,
+        sample_rate,
+        SOUND_TSF_GAIN_DB
+      );
+    }
+    if (want_stereo) {
+      tsf_render_short(g_sound.tsf_synth, dst, frames, 0);
+    } else {
+      int16_t tmp[256];
+      int done = 0;
+      while (done < frames) {
+        const int n = (frames - done) > 256 ? 256 : (frames - done);
+        tsf_render_short(g_sound.tsf_synth, tmp, n, 0);
+        for (int i = 0; i < n; ++i) {
+          for (int c = 0; c < channels; ++c) {
+            dst[(done + i) * channels + c] = tmp[i];
+          }
+        }
+        done += n;
+      }
+    }
+    return;
+  }
+#endif
   (void)channels;
   (void)dst;
   (void)frames;
+  (void)sample_rate;
 }
 
 void sound_render_s16(int16_t* dst, int frames, int channels, int sample_rate) {
@@ -948,12 +1107,9 @@ void sound_render_s16(int16_t* dst, int frames, int channels, int sample_rate) {
     if (n <= 0) {
       n = 1;
     }
-#if defined(COLONIZE_HAS_FLUIDSYNTH)
-    if (g_sound.fluid_synth) {
-      sound_render_frames_unlocked(dst + (size_t)done * (size_t)channels, n, channels);
-    } else
-#endif
-    {
+    if (sound_have_synth_unlocked()) {
+      sound_render_frames_unlocked(dst + (size_t)done * (size_t)channels, n, channels, sample_rate);
+    } else {
       /* Square-wave fallback so music is still audible without FluidSynth. */
       for (int i = 0; i < n; ++i) {
         int16_t s = 0;
@@ -1018,6 +1174,14 @@ void sound_stop_sfx(void) {
     fluid_synth_all_sounds_off(g_sound.fluid_synth, 6);
     fluid_synth_all_notes_off(g_sound.fluid_synth, 7);
     fluid_synth_all_sounds_off(g_sound.fluid_synth, 7);
+  }
+#endif
+#if COLONIZE_HAS_TSF
+  if (g_sound.tsf_synth) {
+    tsf_channel_note_off_all(g_sound.tsf_synth, 6);
+    tsf_channel_sounds_off_all(g_sound.tsf_synth, 6);
+    tsf_channel_note_off_all(g_sound.tsf_synth, 7);
+    tsf_channel_sounds_off_all(g_sound.tsf_synth, 7);
   }
 #endif
   pthread_mutex_unlock(&g_sound.lock);

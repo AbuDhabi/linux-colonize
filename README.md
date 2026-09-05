@@ -38,7 +38,8 @@ Living status:
 
 - CMake ≥ 3.20
 - SDL2 (required for the game binary)
-- FluidSynth (optional; MIDI / Pick Music)
+- FluidSynth (optional; MIDI / Pick Music — without it the bundled
+  TinySoundFont backend plays MIDI instead)
 
 Original game data must be present under `COLONIZE/` (or passed with
 `--data-dir`). This repo does not include those files; you provide a copy
@@ -68,22 +69,27 @@ Release preset: `cmake --preset release` then `cmake --build --preset release`.
 
 ## Music / MIDI soundfont
 
-Songs play through FluidSynth over a GM/GS soundfont. `sound_find_soundfont`
-(`src/core/sound.c`) picks one automatically, in order:
+Songs play over a GM/GS soundfont through one of two synth backends:
+FluidSynth (when built in), or the bundled single-header TinySoundFont
+(`src/third_party/tsf.h`, MIT) as fallback. `settings.json`
+`sound_options.midi_backend` (`"fluidsynth"` / `"tsf"`, empty = auto) forces
+one; `-DCOLONIZE_ENABLE_TSF=OFF` compiles TSF out.
+`sound_find_soundfont` (`src/core/sound.c`) picks a soundfont automatically,
+in order:
 
-1. `$COLONIZE_SOUNDFONT` (env var), if set and readable.
+1. `settings.json` `sound_options.soundfont`, if set and readable.
 2. The bundled default, `data/soundfonts/Roland_SC-55.sf2` (GPL-3+, see
    `data/soundfonts/COPYRIGHT.Roland_SC-55`) — tried relative to the working
    directory, the executable's own directory, and `--data-dir`.
 3. Common system soundfont locations (e.g.
    `/usr/share/sounds/sf2/FluidR3_GM.sf2`, ScummVM's bundled SC-55, etc.).
 
-If none are found, the game logs a warning and falls back to a soft
-(non-FluidSynth) beep path rather than failing — set `COLONIZE_SOUNDFONT` to
-point at any GM-compatible `.sf2` file to override. `--nosound` skips audio
-entirely. The bundled bank is optional and separately licensed (GPL-3+);
-it is not required to build or to run. Without any soundfont, music uses
-the square-wave fallback (no MIDI).
+If none are found, the game logs a warning and falls back to a soft beep
+path rather than failing — set `sound_options.soundfont` to point at any
+GM-compatible `.sf2` file to override. `--nosound` skips audio entirely.
+The bundled bank is optional and separately licensed (GPL-3+); it is not
+required to build or to run. Without any soundfont, music uses the
+square-wave fallback (no MIDI).
 
 ## License
 
@@ -103,3 +109,6 @@ ships replacement assets. You must supply a legally obtained copy — the
 convenience for MIDI, licensed **GPL-3+** by deemster. See
 [`data/soundfonts/COPYRIGHT.Roland_SC-55`](data/soundfonts/COPYRIGHT.Roland_SC-55).
 The port runs without it.
+
+**TinySoundFont** (`src/third_party/tsf.h`) by Bernhard Schelling is
+**MIT** licensed; the license text is in the file header.

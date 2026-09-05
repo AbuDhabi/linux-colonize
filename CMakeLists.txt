@@ -8,6 +8,7 @@ set(CMAKE_C_EXTENSIONS OFF)
 option(COLONIZE_ENABLE_AUDIO "Enable SDL2 audio backend" ON)
 option(COLONIZE_STATIC_DEPS "Link SDL2/FluidSynth (and their deps) statically for release" OFF)
 option(COLONIZE_DEBUG_MENU "Include DEBUG map menu (sprite viewer, mouse coords, debug logs)" ON)
+option(COLONIZE_ENABLE_TSF "Enable bundled TinySoundFont MIDI backend (fallback when FluidSynth is absent)" ON)
 
 if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Debug CACHE STRING "Build type" FORCE)
@@ -166,6 +167,11 @@ if(COLONIZE_HAS_FLUIDSYNTH)
   message(STATUS "FluidSynth found — music backend enabled")
 else()
   message(STATUS "FluidSynth not found — music uses square-wave fallback")
+endif()
+
+if(NOT COLONIZE_ENABLE_TSF)
+  # sound.c defaults COLONIZE_HAS_TSF to 1; only the opt-out needs a define.
+  target_compile_definitions(colonize_core PUBLIC COLONIZE_HAS_TSF=0)
 endif()
 
 if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
