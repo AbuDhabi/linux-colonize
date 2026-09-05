@@ -387,15 +387,21 @@ mass-promote / combat upgrade. Linux: `ai_king_war_act` in `ai_king.c`
 (`unit_ai_king` 1eca block covers the own-tile-gate, Veteran-profession-gate,
 shared-cap, and SoL==50-edge cases).
 
-After promote, idle human **Cont. Army / Cont. Cav** (hunter name check includes
-`Continental` / `Cont. Army` / `Cont. Cav`) `AI_MOVE` toward the **nearest**
-human colony, then prefer the **founding capital** (lowest colony id) when
-`cap_md ≤ nearest_colony_md + AI_KING_CAPITAL_MD_SLACK` (same helper as REF idle
-hunters); fallback `weakest_port` when no human colony. Hold if already on a
-human colony tile; on **founding capital** fortify up to two Cont. Army / Cont.
-Cav when stack count < 2 (Defending a Colony cap 2; Army prefer over Cav).
-Source: fandom Independence Cont. Army / Cont. Cavalry + REF main-port MD slack;
-deep rebel AI PARKED.
+**Capital rally — removed 2026-09-04 (bugs.md).** A block used to sit after the
+promote that marched every idle **human** Cont. Army / Cont. Cav toward the
+founding capital (`AI_MOVE`) and fortified two of them on it, sourced from a
+fandom description of the Continentals plus the REF's own main-port MD slack.
+It was never DOS. `FUN_43f7_1eca` reads only `unit+0x3146` (type) and
+`unit+0x315b` (profession); `orders` at `unit+0x08` and the goto pair at
+`unit+0x0a/0x0b` are never touched by it or by `2022` around it. The player's
+own Continentals are ordinary player units — the King's beat must not order
+them anywhere. Symptom: two turns of pressing space after declaring
+independence and fortified units all over the map woke up with an invisible
+Go To on the capital. The helpers went with it
+(`ai_king_is_cont_army` / `_is_cont_cav_garrison` / `_is_cont_garrison`,
+`ai_king_tile_human_cont_fortified_count`, `ai_king_fortify_one_cont_on_tile`,
+`ai_king_fortify_human_cont_at`); `unit_ai_king` now asserts the negative
+(orders, goto and tile all survive a full King turn).
 
 ### Thin `160a` independence rename + `2564` congress
 
@@ -622,6 +628,42 @@ Still fandom-shaped here, not byte-traced: the hunt target scoring, the
 greedy detour (DOS crown units go through the `4d56` unit-act dispatcher),
 `backup_force` reinforcement cadence and re-embark.
 
+### The crown's mounted arm is `Cavalry`, not `Dragoons` (2026-09-04, bugs.md)
+
+`NAMES.TXT` `@UNIT` names the colonial mounted type **`Dragoons`** and the
+crown's own **`Cavalry`** (the royal tier pair is `Regulars` <-> `Cavalry`,
+matching `Soldiers` <-> `Dragoons` and `Cont. Army` <-> `Cont. Cav.`).
+`ai_king_is_dragoon` and `ai_king_is_ref_land_hunter` tested the literal
+substring `"Dragoon"` only, so **every REF Cavalry failed both**. `0982`
+lands one from `force[1]` with `orders = AI_MOVE, goto = its own landing
+tile`; war_act then skipped it as a non-hunter, and the `goto`-is-valid test
+(`goto_x/goto_y` in range) kept it from ever being retargeted. Result: each
+wave's Cavalry parked on its beachhead with a full move allowance for the
+rest of the war — the user-visible "the REF seems to skip a turn". Both
+predicates now go through `ai_king_is_dragoon`, which matches `Dragoon` and
+`Cavalry` (only `Cavalry` and `Cont. Cav.` carry `"Cav"` in `@UNIT`, so the
+substring is unambiguous). `unit_ai_king` grew a real `Cavalry` type in its
+fixture — its absence is what hid this — plus a hunt regression test; the
+`0982` mix test now counts Cavalry, because `ai_king_0982_spawn_pool_unit`
+prefers `"Cavalry"` and only falls back to `"Dragoons"`.
+
+### Damaged crown Man-O-War: leaves via the ship act, not instantly (2026-09-04)
+
+`0982` opens with the DOS refill gate `pool[2] == 0 && crown Man-O-War count
+(unit_type_counts[crown][0x12], base -0x6db4 stride 0x13) == 0 -> pool[2]++,
+land nothing this turn`, so the fleet cadence is set by *when the last hull
+leaves the map*. The thin `4d56` ship act takes an emptied MoW home only
+after one wave tick has raised its `turns_worked`, giving the normal
+land / hold / refill / land cycle. `turn_route_damaged_ships` used to delete
+a damaged Tory MoW on the spot, which skipped that tick and brought the
+refill — and the next landing — a full turn *earlier*: under continuous
+bombardment the same fixture lost all 7 colonies in 14 turns versus 15
+untouched, i.e. the player's coastal guns sped the invasion up. The damaged
+hull now waits for the same ship act. Answer to "do they get the damaged ones
+back": not the hull — it is gone once it sails home, and `force[2]` is not
+credited — but the empty-pool refill above means the King is never out of
+Man-O-Wars for more than a turn.
+
 ## Linux `ai_king_nation_turn` checklist
 
 1. SoL (`0004`)
@@ -631,7 +673,7 @@ greedy detour (DOS crown units go through the `4d56` unit-act dispatcher),
 ## PORT DEBT
 
 - **Done (ai_popup unpark):** `38fd_5be8` audience CHOICE Accept/Refuse (+ auto when no queue); `@TEAPARTY` refuse/dump follow-up OK (thin `3dc8` stock dump + tokens); `2564` congress `@DECLARE` CHOICE Never/Yes; merc CHOICE widget now ports real `2022` rebel-branch troop-gift (recurring per-turn roll, real price formula, own-treasury pay — see "corrected" note above; `2244` peacetime AI-only self/ally-funded twin now also ported, `ai_king_ai_peacetime_gift`); `1528` REF `@INVASION` arrival OK; `10f0` `@INTERVENTION`+`@INTERVENE` ARRIVAL; REF `@CAPTURED3` capture OK; tax hike OK on Accept apply; revolution end `@WINNING` / `@LOSING1`–`3` / `@RETIRING2` Done thin (`unknown46[4]` latch); mid-war `@WARN1`–`3` Done thin (`unknown46[6]`/`[7]`/`[10]`); peacetime 1800 `@SCORED` CHOICE + `@RETIRING` on That's all Done thin (`KING_SCORED` → retire score); `@SOONRETIRING0`/`1` Done thin (1790/1840; `unknown46[8]`/`[9]`); declare `@HOWTOWIN` Done thin (invent WoI-begins demoted); restless status-only (invent OK demoted)
-- **Done (structural REF / rebel — Marathon3):** **Dragoon garrison** (up to two Regular else Dragoon/Cont. Cav after capture / idle on crown; Defending a Colony cap 2; multi-garrison chrome still PARKED); **Cont. capital-rally** (nearest human colony + founding-capital MD slack; hold on colony tile; **Cont. Army/Cav fortify on founding capital cap 2**); **Artillery siege spawn** (`force[3]` prefer when target fortified even if Regular/Dragoon live; unfortified → Regular first); **SoL50 band** (`1eca`: SoL>50 Continental; exactly 50 mid-band Soldier→Veteran only, Dragoon unchanged). Smoke covers each.
+- **Done (structural REF / rebel — Marathon3):** **Dragoon garrison** (up to two Regular else Dragoon/Cont. Cav after capture / idle on crown; Defending a Colony cap 2; multi-garrison chrome still PARKED); ~~**Cont. capital-rally**~~ (**removed 2026-09-04** — see the `1eca` section: the King never orders the human's own Continentals); **Artillery siege spawn** (`force[3]` prefer when target fortified even if Regular/Dragoon live; unfortified → Regular first); **SoL50 band** (`1eca`: SoL>50 Continental; exactly 50 mid-band Soldier→Veteran only, Dragoon unchanged). Smoke covers each.
 - **Still PARKED (king modals / chrome):** VGA-identical wood chrome; dump-goods `38fd_3dc8` **CHOICE prompt** invent English (picker Done; `@TEAPARTY` after apply Done thin); deep `10f0` economy / merc-hire dialog beyond thin OK; full MoW embark **UI**; REF deep siege scoring UI. `160a` letter cinematic **Done** 2026-08-30 (`declaration.c`).
 - Deep `10f0` economy / merc hire / VGA arrival chrome — **PARKED** (≤2 + third @diff≥2 + Regular/Dragoon mix + nation-by-colonies pick + drain + thin ARRIVAL OK once Done)
 - ~~Deep `1eca` veteran-profession / type-id promote table — PARKED~~

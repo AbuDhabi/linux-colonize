@@ -2630,11 +2630,25 @@ static void turn_route_damaged_ships(ColonizeTurnContext* ctx, int nation) {
       continue;
     }
     if (nation == crown) {
-      /* Tory Man-O-War limps home to the King — despawn_ship_with_cargo
-       * also removes any stragglers still aboard. */
-      (void)units_despawn_ship_with_cargo(
-        ctx->units, u->id, NULL, NULL, 0, NULL, NULL, 0, NULL, NULL, 0
-      );
+      /*
+       * A damaged Tory Man-O-War still limps home to the King, but it leaves
+       * the way an emptied one does — through ai_king_ref_wave's own "4d56
+       * ship act" at the next wave tick — instead of being deleted here on
+       * the spot.
+       *
+       * bugs.md: deleting it here made the player's coastal guns HELP the
+       * invasion. DOS FUN_43f7_0982 opens with "MoW pool empty and the crown
+       * owns no Man-O-War -> put one back, land nothing this turn", so the
+       * fleet cadence is driven by when the last hull leaves the map. An
+       * emptied hull needs one wave tick to raise turns_worked before the
+       * ship act takes it home, so the normal cycle is land / hold / refill /
+       * land. Deleting a damaged hull mid-turn skipped that tick, and the
+       * refill (and the next landing) arrived a full turn EARLIER than if the
+       * player had never fired: 7 human colonies fell in 14 turns under
+       * continuous bombardment versus 15 turns untouched. Leaving it to the
+       * ship act restores parity — the hull is gone either way, just never
+       * sooner for having been shot at.
+       */
       continue;
     }
     if (nation == ctx->human_nation && !woi && ctx->europe && u->cargo_count == 0) {
