@@ -184,6 +184,12 @@ bool new_game_scenario_start(
   int* out_y
 );
 
+/* Per-nation default leader from NAMES.TXT @LEADERNAME (row = nation), with a
+ * hardcoded fallback. bugs.md: a loaded Dutch campaign kept the English
+ * default. */
+void new_game_default_leader_name(
+  const ColonizeMsgCatalog* names_txt, int nation, char* out, size_t out_size
+);
 const char* new_game_nation_name(int nation);
 const char* new_game_nation_port(int nation);
 const char* new_game_nation_ruler_title(int nation); /* "King" or "Stadtholder" */

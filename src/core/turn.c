@@ -586,6 +586,12 @@ static void turn_produce_one_colony(
   int depl_n = 0;
   int field_lumber = 0;
   int field_ore = 0;
+  /* bugs.md (403 follow-up): this turn's field production per cargo — a
+   * "has run out of X" crumb must stay quiet while X is still being
+   * produced, even insufficiently (same rule the lumber crumb already
+   * applied via field_lumber). */
+  int field_prod[COLONIZE_CARGO_COUNT];
+  memset(field_prod, 0, sizeof(field_prod));
 
   /* Town commons (center tile) + area-view field workers. */
   if (map) {
@@ -610,6 +616,7 @@ static void turn_produce_one_colony(
       if (delta) {
         delta->goods[tc.secondary_cargo] += tc.secondary_amount;
       }
+      field_prod[tc.secondary_cargo] += tc.secondary_amount;
       if (tc.secondary_cargo == COLONIZE_CARGO_LUMBER) {
         field_lumber += tc.secondary_amount;
       } else if (tc.secondary_cargo == COLONIZE_CARGO_ORE) {
@@ -696,6 +703,7 @@ static void turn_produce_one_colony(
       if (delta) {
         delta->goods[cargo] += add;
       }
+      field_prod[cargo] += add;
       if (cargo == COLONIZE_CARGO_FOOD) {
         field_food += add;
       } else if (cargo == COLONIZE_CARGO_LUMBER) {
@@ -1524,7 +1532,8 @@ static void turn_produce_one_colony(
         field_lumber <= 0) {
       snprintf(europe->status, sizeof(europe->status), "Need lumber.");
       k_sec = "LUMBER";
-    } else if (colony->stock[COLONIZE_CARGO_ORE] == 0 && craft_demand[COLONIZE_CARGO_ORE]) {
+    } else if (colony->stock[COLONIZE_CARGO_ORE] == 0 && craft_demand[COLONIZE_CARGO_ORE] &&
+               field_prod[COLONIZE_CARGO_ORE] <= 0) {
       snprintf(europe->status, sizeof(europe->status), "Need ore.");
       k_sec = "ORE";
     } else if (
@@ -1532,22 +1541,26 @@ static void turn_produce_one_colony(
     ) {
       snprintf(europe->status, sizeof(europe->status), "Need food.");
     } else if (
-      colony->stock[COLONIZE_CARGO_SUGAR] == 0 && craft_demand[COLONIZE_CARGO_SUGAR]
+      colony->stock[COLONIZE_CARGO_SUGAR] == 0 && craft_demand[COLONIZE_CARGO_SUGAR] &&
+      field_prod[COLONIZE_CARGO_SUGAR] <= 0
     ) {
       snprintf(europe->status, sizeof(europe->status), "Need sugar.");
       k_sec = "CANESUGAR";
     } else if (
-      colony->stock[COLONIZE_CARGO_TOBACCO] == 0 && craft_demand[COLONIZE_CARGO_TOBACCO]
+      colony->stock[COLONIZE_CARGO_TOBACCO] == 0 && craft_demand[COLONIZE_CARGO_TOBACCO] &&
+      field_prod[COLONIZE_CARGO_TOBACCO] <= 0
     ) {
       snprintf(europe->status, sizeof(europe->status), "Need tobacco.");
       k_sec = "TOBACCO";
     } else if (
-      colony->stock[COLONIZE_CARGO_COTTON] == 0 && craft_demand[COLONIZE_CARGO_COTTON]
+      colony->stock[COLONIZE_CARGO_COTTON] == 0 && craft_demand[COLONIZE_CARGO_COTTON] &&
+      field_prod[COLONIZE_CARGO_COTTON] <= 0
     ) {
       snprintf(europe->status, sizeof(europe->status), "Need cotton.");
       k_sec = "COTTON";
     } else if (
-      colony->stock[COLONIZE_CARGO_FURS] == 0 && craft_demand[COLONIZE_CARGO_FURS]
+      colony->stock[COLONIZE_CARGO_FURS] == 0 && craft_demand[COLONIZE_CARGO_FURS] &&
+      field_prod[COLONIZE_CARGO_FURS] <= 0
     ) {
       snprintf(europe->status, sizeof(europe->status), "Need furs.");
       k_sec = "FURS";
