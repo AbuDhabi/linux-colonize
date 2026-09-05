@@ -1,0 +1,1 @@
+/usr/bin/cc -O3 -DNDEBUG -Wl,-rpath,$ORIGIN/lib,--disable-new-dtags CMakeFiles/smoke_ai_popup.dir/tests/smoke/test_ai_popup.c.o -o smoke_ai_popup  libcolonize_core.a -lm -lpthread -lfluidsynth 

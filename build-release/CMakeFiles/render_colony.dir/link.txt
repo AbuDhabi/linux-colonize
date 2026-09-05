@@ -1,0 +1,1 @@
+/usr/bin/cc -O3 -DNDEBUG -Wl,-rpath,$ORIGIN/lib,--disable-new-dtags CMakeFiles/render_colony.dir/tools/render_colony_main.c.o -o render_colony  libcolonize_core.a -lm -lpthread -lfluidsynth 

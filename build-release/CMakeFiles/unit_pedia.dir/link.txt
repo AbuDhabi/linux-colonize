@@ -1,0 +1,1 @@
+/usr/bin/cc -O3 -DNDEBUG -Wl,-rpath,$ORIGIN/lib,--disable-new-dtags CMakeFiles/unit_pedia.dir/tests/unit/test_pedia.c.o CMakeFiles/unit_pedia.dir/tests/common/platform_cursor_stubs.c.o -o unit_pedia  libcolonize_core.a -lm -lpthread -lfluidsynth 

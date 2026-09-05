@@ -1,0 +1,1 @@
+/usr/bin/cc -O3 -DNDEBUG -Wl,-rpath,$ORIGIN/lib,--disable-new-dtags CMakeFiles/probe_far_ocean_4753.dir/tools/probe_far_ocean_4753.c.o -o probe_far_ocean_4753  libcolonize_core.a -lm -lpthread -lfluidsynth 

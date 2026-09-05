@@ -1,0 +1,1 @@
+/usr/bin/cc -O3 -DNDEBUG -Wl,-rpath,$ORIGIN/lib,--disable-new-dtags CMakeFiles/unit_turn.dir/tests/unit/test_turn.c.o -o unit_turn  libcolonize_core.a -lm -lpthread -lfluidsynth 

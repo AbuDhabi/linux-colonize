@@ -1,0 +1,1 @@
+/usr/bin/cc -O3 -DNDEBUG -Wl,-rpath,$ORIGIN/lib,--disable-new-dtags CMakeFiles/unit_ff.dir/tests/unit/test_ff.c.o CMakeFiles/unit_ff.dir/src/core/ff.c.o CMakeFiles/unit_ff.dir/src/core/font.c.o CMakeFiles/unit_ff.dir/src/core/madspack.c.o CMakeFiles/unit_ff.dir/src/platform/diagnostics.c.o CMakeFiles/unit_ff.dir/src/core/strutil.c.o -o unit_ff 

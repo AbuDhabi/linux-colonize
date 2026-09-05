@@ -4,7 +4,7 @@ Linux port of **Sid Meier's Colonization** (MicroProse, 1994 DOS). Goal: same
 rules, assets, saves, and inputs as the original. Fidelity bar and conflict
 order: [docs/project_goals.md](docs/project_goals.md).
 
-Version: **0.1-alpha**.
+Version: **0.5-alpha**.
 
 ## Current state
 
