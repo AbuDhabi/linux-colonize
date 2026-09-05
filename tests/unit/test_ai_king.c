@@ -350,7 +350,7 @@ int main(void) {
 
   ColonizeUnitPool units;
   units_reset(&units);
-  units.type_count = 8;
+  units.type_count = 9;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Regular");
   units.types[0].movement = 1;
   units.types[0].attack = 3;
@@ -384,6 +384,14 @@ int main(void) {
   units.types[7].movement = 1;
   units.types[7].attack = 3;
   units.types[7].defense = 3;
+  /* NAMES.TXT @UNIT "Cavalry, 127, 4, 6, 6, ..." — the crown's own mounted arm.
+   * The fixture used to stop at Veteran Soldier, which is how the REF Cavalry
+   * could fall through every King name check unnoticed (bugs.md "the REF seems
+   * to skip a turn"). */
+  snprintf(units.types[8].name, sizeof(units.types[8].name), "Cavalry");
+  units.types[8].movement = 4;
+  units.types[8].attack = 6;
+  units.types[8].defense = 6;
   const int ty_regular = 0;
   const int ty_mow = 1;
   const int ty_soldier = 4;
@@ -392,6 +400,7 @@ int main(void) {
   const int ty_cont_army = 5;
   const int ty_cont_cav = 6;
   const int ty_vet_soldier = 7;
+  const int ty_cavalry = 8;
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
@@ -3785,32 +3794,37 @@ int main(void) {
   }
 
   /*
-   * Cont. Army / Cont. Cav capital rally (after 1eca): idle Cont. off colony →
-   * AI_MOVE toward nearest human colony, prefer founding capital when MD within
-   * AI_KING_CAPITAL_MD_SLACK (same as REF idle hunters). Hunter name check
-   * includes Continental / Cont. Army / Cont. Cav (fandom Independence).
-   * Polish: Cont. already on founding capital holds (no AI_MOVE away).
+   * bugs.md: the King's war beat must NOT drive the human's own Continentals.
+   * This block used to assert the invented "capital rally" (idle human Cont.
+   * Army / Cont. Cav AI_MOVE to the founding capital, then fortify two on it).
+   * FUN_43f7_1eca promotes only — it never reads unit+0x08 (orders) or the
+   * goto pair — so the rally is gone and the assertions are inverted: after a
+   * full King turn every human Continental keeps the orders, the goto and the
+   * tile the player left it on.
    */
   {
     colonies.colonies[0].nation_id = 0;
     memset(col1.head.expeditionary_force, 0, sizeof(col1.head.expeditionary_force));
     memset(col1.head.backup_force, 0, sizeof(col1.head.backup_force));
+    col1.head.expeditionary_force[0] = 1; /* non-empty pools: no 06a6 irregulars */
     for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
       ColonizeUnit* u = &units.units[i];
       if (u->active && u->nation_id == 1) {
-        u->moves_left = 0;
+        u->active = false; /* no crown unit may reach and fight the probes */
       }
     }
     const int ca_id = units_spawn_allow_stack(&units, ty_cont_army, 10, 5);
     const int cav_id = units_spawn_allow_stack(&units, ty_cont_cav, 12, 5);
-    if (ca_id < 0 || cav_id < 0) {
-      return fail("Cont. capital-rally setup spawn");
+    const int fort_id = units_spawn_allow_stack(&units, ty_cont_army, 5, 5);
+    if (ca_id < 0 || cav_id < 0 || fort_id < 0) {
+      return fail("Cont. no-auto-play setup spawn");
     }
     {
       ColonizeUnit* ca = units_get(&units, ca_id);
       ColonizeUnit* cav = units_get(&units, cav_id);
-      if (!ca || !cav) {
-        return fail("Cont. capital-rally unit lookup");
+      ColonizeUnit* fort = units_get(&units, fort_id);
+      if (!ca || !cav || !fort) {
+        return fail("Cont. no-auto-play unit lookup");
       }
       ca->nation_id = 0;
       ca->moves_left = 2 * UNITS_MP_PER_TILE;
@@ -3822,196 +3836,148 @@ int main(void) {
       cav->orders = UNITS_ORDER_NONE;
       cav->goto_x = -1;
       cav->goto_y = -1;
+      /* On the founding capital and dug in — the old code re-fortified this
+       * one; nothing may touch it either way. */
+      fort->nation_id = 0;
+      fort->moves_left = 2 * UNITS_MP_PER_TILE;
+      fort->orders = UNITS_ORDER_FORTIFIED;
+      fort->goto_x = -1;
+      fort->goto_y = -1;
     }
     status[0] = '\0';
     ai_king_nation_turn(&ctx);
     {
       const ColonizeUnit* ca = units_get_const(&units, ca_id);
       const ColonizeUnit* cav = units_get_const(&units, cav_id);
-      if (!ca || !ca->active) {
-        return fail("Cont. Army should remain active");
+      const ColonizeUnit* fort = units_get_const(&units, fort_id);
+      if (!ca || !ca->active || !cav || !cav->active || !fort || !fort->active) {
+        return fail("Cont. no-auto-play probes should remain active");
       }
-      if (ca->orders != UNITS_ORDER_AI_MOVE || ca->goto_x != 5 || ca->goto_y != 5) {
-        fprintf(stderr, "unit_ai_king: Cont. Army goto=(%d,%d) orders=%d (want capital 5,5)\n",
-                ca->goto_x, ca->goto_y, ca->orders);
-        return fail("Cont. Army should capital-rally toward founding capital");
+      if (ca->orders != UNITS_ORDER_NONE || ca->x != 10 || ca->y != 5) {
+        fprintf(stderr, "unit_ai_king: idle Cont. Army orders=%d pos=(%d,%d)\n", ca->orders,
+                ca->x, ca->y);
+        return fail("King turn must not order the human's Cont. Army");
       }
-      if (!cav || !cav->active) {
-        return fail("Cont. Cav should remain active");
+      if (cav->orders != UNITS_ORDER_NONE || cav->x != 12 || cav->y != 5) {
+        fprintf(stderr, "unit_ai_king: idle Cont. Cav orders=%d pos=(%d,%d)\n", cav->orders,
+                cav->x, cav->y);
+        return fail("King turn must not order the human's Cont. Cav");
       }
-      if (cav->orders != UNITS_ORDER_AI_MOVE || cav->goto_x != 5 || cav->goto_y != 5) {
-        fprintf(stderr, "unit_ai_king: Cont. Cav goto=(%d,%d) orders=%d (want capital 5,5)\n",
-                cav->goto_x, cav->goto_y, cav->orders);
-        return fail("Cont. Cav should capital-rally toward founding capital");
-      }
-    }
-    /* Hold on capital: Cont. Army already on founding capital must not rally away.
-     * Keep a non-zero REF land pool so 06a6 irregulars do not spawn/capture the
-     * capital out from under the hold assert (empty pools → 06a6). */
-    {
-      ColonizeUnit* ca = units_get(&units, ca_id);
-      if (!ca || !ca->active) {
-        return fail("Cont. capital-hold setup needs live Cont. Army");
-      }
-      ca->x = 5;
-      ca->y = 5;
-      ca->moves_left = 2 * UNITS_MP_PER_TILE;
-      ca->orders = UNITS_ORDER_NONE;
-      ca->goto_x = -1;
-      ca->goto_y = -1;
-      colonies.colonies[0].nation_id = 0;
-      colonies.colonies[0].population = 8;
-      memset(col1.head.expeditionary_force, 0, sizeof(col1.head.expeditionary_force));
-      memset(col1.head.backup_force, 0, sizeof(col1.head.backup_force));
-      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-        ColonizeUnit* u = &units.units[i];
-        if (u->active && u->nation_id == 1) {
-          u->active = false;
-        }
-      }
-      ai_king_nation_turn(&ctx);
-      ca = units_get(&units, ca_id);
-      if (!ca || !ca->active) {
-        return fail("Cont. Army on capital should remain active");
-      }
-      if (ca->x != 5 || ca->y != 5) {
-        fprintf(stderr, "unit_ai_king: Cont. Army left capital to (%d,%d)\n", ca->x, ca->y);
-        return fail("Cont. Army already on founding capital should hold");
-      }
-      if (ca->orders == UNITS_ORDER_AI_MOVE && (ca->goto_x != 5 || ca->goto_y != 5)) {
-        fprintf(stderr, "unit_ai_king: Cont. Army on capital goto=(%d,%d)\n", ca->goto_x,
-                ca->goto_y);
-        return fail("Cont. Army on capital must not AI_MOVE away from founding capital");
-      }
-      if (ca->orders != UNITS_ORDER_FORTIFY) {
-        fprintf(stderr, "unit_ai_king: Cont. Army on capital orders=%d (want FORTIFY)\n",
-                ca->orders);
-        return fail("Cont. Army on founding capital should fortify (cap 2 pool)");
-      }
-      /* Cap-2: Cont. Cav with moves joins fortify stack on founding capital. */
-      ColonizeUnit* cav = units_get(&units, cav_id);
-      if (!cav || !cav->active) {
-        return fail("Cont. capital fortify cap-2 needs live Cont. Cav");
-      }
-      cav->x = 5;
-      cav->y = 5;
-      cav->moves_left = 2 * UNITS_MP_PER_TILE;
-      cav->orders = UNITS_ORDER_NONE;
-      cav->goto_x = -1;
-      cav->goto_y = -1;
-      colonies.colonies[0].nation_id = 0;
-      memset(col1.head.expeditionary_force, 0, sizeof(col1.head.expeditionary_force));
-      memset(col1.head.backup_force, 0, sizeof(col1.head.backup_force));
-      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-        ColonizeUnit* u = &units.units[i];
-        if (u->active && u->nation_id == 1) {
-          u->active = false;
-        }
-      }
-      ai_king_nation_turn(&ctx);
-      ca = units_get(&units, ca_id);
-      cav = units_get(&units, cav_id);
-      if (!ca || !cav || !ca->active || !cav->active) {
-        return fail("Cont. capital fortify cap-2 unit lookup");
-      }
-      if (ca->orders != UNITS_ORDER_FORTIFY && ca->orders != UNITS_ORDER_FORTIFIED) {
-        return fail("Cont. Army must stay FORTIFY when Cav joins capital stack");
-      }
-      if (cav->orders != UNITS_ORDER_FORTIFY) {
-        fprintf(stderr, "unit_ai_king: Cont. Cav cap-2 orders=%d (want FORTIFY)\n",
-                cav->orders);
-        return fail("Cont. Cav with moves should fortify second slot on founding capital");
+      if (fort->orders != UNITS_ORDER_FORTIFIED || fort->x != 5 || fort->y != 5) {
+        fprintf(stderr, "unit_ai_king: capital Cont. Army orders=%d pos=(%d,%d)\n",
+                fort->orders, fort->x, fort->y);
+        return fail("King turn must not wake a fortified human Continental");
       }
     }
     /*
-     * Cont. capital MD slack (same geometry as REF idle hunters): founding
-     * capital id0 at (5,5); nearer distant colony at (11,5); Cont. Army at
-     * (9,5) → MD capital=4, MD distant=2; slack=2 → prefer capital over distant.
-     * Cont. Cav same beat. 160a letter cinematic Done. PARK: dump-goods
-     * price-weight + modal (ai_king_pick_dump_goods_cargo Done).
+     * A Continental the player parked with a Go To of his own keeps it: the
+     * King must not retarget the human's goto pair either.
      */
     {
-      colonies.colonies[0].nation_id = 0;
-      colonies.colonies[0].x = 5;
-      colonies.colonies[0].y = 5;
-      ColonizeColony* distant = &colonies.colonies[2];
-      distant->id = 2;
-      distant->active = true;
-      distant->nation_id = 0;
-      distant->x = 11;
-      distant->y = 5;
-      distant->population = 2;
-      distant->colonist_count = 2;
-      snprintf(distant->name, sizeof(distant->name), "Outpost");
-      if (colonies.colony_count < 3) {
-        colonies.colony_count = 3;
-      }
-      memset(col1.head.expeditionary_force, 0, sizeof(col1.head.expeditionary_force));
-      col1.head.expeditionary_force[0] = 1; /* avoid 06a6 empty-pool irregular */
-      memset(col1.head.backup_force, 0, sizeof(col1.head.backup_force));
-      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-        ColonizeUnit* u = &units.units[i];
-        if (!u->active) {
-          continue;
-        }
-        if (u->nation_id == 1) {
-          u->moves_left = 0;
-          if ((u->x == 5 && u->y == 5) || (u->x == 11 && u->y == 5) ||
-              (u->x == 9 && u->y == 5)) {
-            u->x = 1;
-            u->y = 1;
-          }
-        } else if (u->nation_id == 0 && !units_is_sea(&units, u->id)) {
-          /* Park other human land away from Cont. rally tiles. */
-          if (u->id != ca_id && u->id != cav_id) {
-            u->x = 1;
-            u->y = 14;
-            u->moves_left = 0;
-          }
-        }
-      }
       ColonizeUnit* ca = units_get(&units, ca_id);
-      ColonizeUnit* cav = units_get(&units, cav_id);
-      if (!ca || !cav || !ca->active || !cav->active) {
-        return fail("Cont. capital MD slack setup needs live Cont. Army + Cont. Cav");
+      if (!ca) {
+        return fail("Cont. no-auto-play goto probe lookup");
       }
-      ca->x = 9;
-      ca->y = 5;
+      ca->orders = UNITS_ORDER_GOTO;
+      ca->goto_x = 14;
+      ca->goto_y = 14;
       ca->moves_left = 2 * UNITS_MP_PER_TILE;
-      ca->orders = UNITS_ORDER_NONE;
-      ca->goto_x = -1;
-      ca->goto_y = -1;
-      cav->x = 9;
-      cav->y = 5;
-      cav->moves_left = 2 * UNITS_MP_PER_TILE;
-      cav->orders = UNITS_ORDER_NONE;
-      cav->goto_x = -1;
-      cav->goto_y = -1;
       ai_king_nation_turn(&ctx);
       ca = units_get(&units, ca_id);
-      cav = units_get(&units, cav_id);
       if (!ca || !ca->active) {
-        return fail("Cont. capital MD slack Army should remain active");
+        return fail("Cont. goto probe should remain active");
       }
-      if (ca->orders != UNITS_ORDER_AI_MOVE || ca->goto_x != 5 || ca->goto_y != 5) {
-        fprintf(stderr,
-                "unit_ai_king: Cont. Army MD slack goto=(%d,%d) orders=%d "
-                "(want capital 5,5 not distant 11,5)\n",
+      if (ca->orders != UNITS_ORDER_GOTO || ca->goto_x != 14 || ca->goto_y != 14) {
+        fprintf(stderr, "unit_ai_king: human goto retargeted to (%d,%d) orders=%d\n",
                 ca->goto_x, ca->goto_y, ca->orders);
-        return fail("Cont. Army should prefer capital when MD comparable");
+        return fail("King turn must not retarget a human unit's Go To");
       }
-      if (!cav || !cav->active) {
-        return fail("Cont. capital MD slack Cav should remain active");
-      }
-      if (cav->orders != UNITS_ORDER_AI_MOVE || cav->goto_x != 5 || cav->goto_y != 5) {
-        fprintf(stderr,
-                "unit_ai_king: Cont. Cav MD slack goto=(%d,%d) orders=%d "
-                "(want capital 5,5 not distant 11,5)\n",
-                cav->goto_x, cav->goto_y, cav->orders);
-        return fail("Cont. Cav should prefer capital when MD comparable");
-      }
-      distant->active = false;
+      ca->active = false;
     }
+    {
+      ColonizeUnit* cav = units_get(&units, cav_id);
+      ColonizeUnit* fort = units_get(&units, fort_id);
+      if (cav) {
+        cav->active = false;
+      }
+      if (fort) {
+        fort->active = false;
+      }
+    }
+  }
+
+  /*
+   * bugs.md: the crown's mounted arm is spelled `Cavalry` in NAMES.TXT @UNIT,
+   * not `Dragoons` (that is the colonial type). ai_king_is_ref_land_hunter used
+   * to test the literal "Dragoon" only, so every REF Cavalry landed, kept the
+   * beachhead goto the wave gave it (its own tile), and then sat there with a
+   * full move allowance for the rest of the war. A hunter must get a target
+   * that is not the tile it is standing on, and must spend moves reaching it.
+   */
+  {
+    colonies.colonies[0].nation_id = 0;
+    colonies.colonies[0].has_building[0] = false;
+    colonies.colonies[0].x = 5;
+    colonies.colonies[0].y = 5;
+    memset(col1.head.expeditionary_force, 0, sizeof(col1.head.expeditionary_force));
+    memset(col1.head.backup_force, 0, sizeof(col1.head.backup_force));
+    col1.head.expeditionary_force[0] = 1; /* non-empty pools: no 06a6 irregulars */
+    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+      ColonizeUnit* u = &units.units[i];
+      if (!u->active) {
+        continue;
+      }
+      if (u->nation_id == 1) {
+        u->active = false; /* only the probe Cavalry acts this beat */
+      } else if (u->nation_id == 0 && !units_is_sea(&units, u->id)) {
+        u->x = 1;
+        u->y = 14;
+        u->moves_left = 0;
+      }
+    }
+    const int cav_id = units_spawn_allow_stack(&units, ty_cavalry, 10, 5);
+    if (cav_id < 0) {
+      return fail("REF Cavalry hunt setup spawn");
+    }
+    {
+      ColonizeUnit* cav = units_get(&units, cav_id);
+      if (!cav) {
+        return fail("REF Cavalry hunt unit lookup");
+      }
+      cav->nation_id = 1;
+      cav->moves_left = 2 * UNITS_MP_PER_TILE;
+      /* Exactly what ai_king_ref_wave hands a fresh landing: AI_MOVE with the
+       * goto pointing at the tile it stands on. */
+      cav->orders = UNITS_ORDER_AI_MOVE;
+      cav->goto_x = 10;
+      cav->goto_y = 5;
+    }
+    ai_king_nation_turn(&ctx);
+    {
+      const ColonizeUnit* cav = units_get_const(&units, cav_id);
+      if (!cav || !cav->active) {
+        return fail("REF Cavalry should remain active");
+      }
+      if (cav->orders != UNITS_ORDER_AI_MOVE) {
+        fprintf(stderr, "unit_ai_king: REF Cavalry orders=%d (want AI_MOVE)\n", cav->orders);
+        return fail("REF Cavalry should be a land hunter");
+      }
+      if (cav->goto_x == 10 && cav->goto_y == 5) {
+        return fail("REF Cavalry kept its own tile as goto (no hunt target)");
+      }
+      if (cav->x == 10 && cav->y == 5) {
+        fprintf(stderr, "unit_ai_king: REF Cavalry parked at (%d,%d) goto=(%d,%d) mv=%d\n",
+                cav->x, cav->y, cav->goto_x, cav->goto_y, cav->moves_left);
+        return fail("REF Cavalry should march toward its hunt target");
+      }
+    }
+    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+      ColonizeUnit* u = &units.units[i];
+      if (u->active && u->nation_id == 1) {
+        u->active = false;
+      }
+    }
+    colonies.colonies[0].nation_id = 0;
   }
 
   /*
@@ -4222,10 +4188,12 @@ int main(void) {
   }
 
   /*
-   * 0982 composition: Dragoons/Artillery each capped at max(1, garrison>>3)
-   * (=1 here) when Regulars < Dragoons+Artillery, Regulars fill the rest.
-   * force[0]=1, force[1]=2, force[2]=1 → 1 Dragoon + 1 Regular, then the
-   * Regular pool is empty and the beat stops (pool-limited, never invented).
+   * 0982 composition: the mounted/Artillery pools are each capped at
+   * max(1, garrison>>3) (=1 here) when Regulars < mounted+Artillery, Regulars
+   * fill the rest. force[0]=1, force[1]=2, force[2]=1 → 1 Cavalry + 1 Regular,
+   * then the Regular pool is empty and the beat stops (pool-limited, never
+   * invented). pool[1] fields the crown's own `Cavalry` type; the fixture only
+   * fell back to the colonial `Dragoon` while it carried no Cavalry type.
    */
   {
     colonies.colonies[0].nation_id = 0;
@@ -4255,8 +4223,8 @@ int main(void) {
       }
       if (u->type_index == ty_regular) {
         reg_before++;
-      } else if (u->type_index == ty_dragoon) {
-        drg_before++;
+      } else if (u->type_index == ty_cavalry) {
+        drg_before++; /* pool[1] fields the crown's Cavalry (Dragoons is the fallback) */
       }
     }
     ai_king_nation_turn(&ctx);
@@ -4275,14 +4243,14 @@ int main(void) {
       }
       if (u->type_index == ty_regular) {
         reg_after++;
-      } else if (u->type_index == ty_dragoon) {
+      } else if (u->type_index == ty_cavalry) {
         drg_after++;
       }
     }
     if (drg_after != drg_before + 1 || reg_after != reg_before + 1) {
-      fprintf(stderr, "unit_ai_king: 0982 mix Regular %d→%d Dragoon %d→%d (want +1/+1)\n",
+      fprintf(stderr, "unit_ai_king: 0982 mix Regular %d→%d Cavalry %d→%d (want +1/+1)\n",
               reg_before, reg_after, drg_before, drg_after);
-      return fail("0982 mix: one Dragoon under the cap, then the last Regular");
+      return fail("0982 mix: one Cavalry under the cap, then the last Regular");
     }
     if (col1.head.expeditionary_force[0] != 0 || col1.head.expeditionary_force[1] != 1 ||
         col1.head.expeditionary_force[2] != 0) {

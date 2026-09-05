@@ -645,7 +645,38 @@ static int ai_king_unit_can_fight(const ColonizeUnitPool* units, const ColonizeU
 }
 
 /*
- * REF land hunters: Regular / Dragoon (fandom REF AI land arm).
+ * Mounted land arm (open-land hunt bias when Artillery exists).
+ *
+ * bugs.md: this used to match "Dragoon" only, which is the *colonial* type
+ * (NAMES.TXT @UNIT `Dragoons`). The crown's own mounted type is spelled
+ * `Cavalry` there — the royal tier pair is Regulars <-> Cavalry, exactly as
+ * Soldiers <-> Dragoons and Cont. Army <-> Cont. Cav. (units_equip_role_type_name,
+ * DS:0x30e job table). Every REF Cavalry therefore failed both this test and
+ * ai_king_is_ref_land_hunter, so it never got a hunt target: it landed, parked
+ * on its beachhead tile with its goto pointing at itself, and sat there with a
+ * full move allowance for the rest of the war ("the REF seems to skip a turn").
+ * Only `Cavalry` and `Cont. Cav.` carry "Cav" in @UNIT, so the substring is
+ * unambiguous.
+ */
+static int ai_king_is_dragoon(const ColonizeUnitPool* units, const ColonizeUnit* u) {
+  if (!units || !u) {
+    return 0;
+  }
+  const ColonizeUnitType* ut = units_type(units, u->type_index);
+  const char* tname = ut ? ut->name : NULL;
+  const char* dname = units_display_name(units, u);
+  if ((tname && strstr(tname, "Dragoon")) || (dname && strstr(dname, "Dragoon"))) {
+    return 1;
+  }
+  if ((tname && strstr(tname, "Cavalry")) || (dname && strstr(dname, "Cavalry"))) {
+    return 1;
+  }
+  return 0;
+}
+
+/*
+ * REF land hunters: Regulars / mounted arm — colonial Dragoons and the crown's
+ * own Cavalry (fandom REF AI land arm).
  * Thin Artillery siege: when Artillery type exists in pool, Artillery also hunts
  * (prefer fortified colony — see ai_king_ref_hunt_target). Cont. Army / Cont. Cav
  * included in name check (1eca promote; human Cont. hunt → capital/colony below).
@@ -661,8 +692,8 @@ static int ai_king_is_ref_land_hunter(const ColonizeUnitPool* units, const Colon
   if ((tname && strstr(tname, "Regular")) || (dname && strstr(dname, "Regular"))) {
     return 1;
   }
-  if ((tname && strstr(tname, "Dragoon")) || (dname && strstr(dname, "Dragoon"))) {
-    return 1;
+  if (ai_king_is_dragoon(units, u)) {
+    return 1; /* colonial Dragoons and the crown's own Cavalry */
   }
   if (ai_king_is_continental(units, u)) {
     return 1;
@@ -687,19 +718,6 @@ static int ai_king_is_regular(const ColonizeUnitPool* units, const ColonizeUnit*
   return 0;
 }
 
-/* True if unit type/display is Dragoon (open-land hunt bias when Artillery exists). */
-static int ai_king_is_dragoon(const ColonizeUnitPool* units, const ColonizeUnit* u) {
-  if (!units || !u) {
-    return 0;
-  }
-  const ColonizeUnitType* ut = units_type(units, u->type_index);
-  const char* tname = ut ? ut->name : NULL;
-  const char* dname = units_display_name(units, u);
-  if ((tname && strstr(tname, "Dragoon")) || (dname && strstr(dname, "Dragoon"))) {
-    return 1;
-  }
-  return 0;
-}
 
 /*
  * Open-land hunt role (Dragoon thin bias + Cont. Cav as cavalry promote).
@@ -761,132 +779,6 @@ static int ai_king_tile_fortified_garrison_count(const ColonizeTurnContext* ctx,
     }
   }
   return count;
-}
-
-/* Cont. Army (not Cav) — human founding-capital garrison pool. */
-static int ai_king_is_cont_army(const ColonizeUnitPool* units, const ColonizeUnit* u) {
-  return ai_king_is_continental(units, u) && !ai_king_prefers_open_land(units, u);
-}
-
-/* Cont. Cav — human founding-capital garrison pool (crown cap-2 uses Cont.Cav only). */
-static int ai_king_is_cont_cav_garrison(const ColonizeUnitPool* units, const ColonizeUnit* u) {
-  return ai_king_is_continental(units, u) && ai_king_prefers_open_land(units, u);
-}
-
-static int ai_king_is_cont_garrison(const ColonizeUnitPool* units, const ColonizeUnit* u) {
-  return ai_king_is_cont_army(units, u) || ai_king_is_cont_cav_garrison(units, u);
-}
-
-/*
- * Count human Cont. Army / Cont. Cav on (x,y) already FORTIFY/FORTIFIED.
- * Cite: Colonization.pdf Defending a Colony; king_ref Cont. capital-rally fortify.
- */
-static int ai_king_tile_human_cont_fortified_count(const ColonizeTurnContext* ctx, int human,
-                                                   int x, int y, int except_id) {
-  if (!ctx || !ctx->units || human < 0) {
-    return 0;
-  }
-  int count = 0;
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-    const ColonizeUnit* u = &ctx->units->units[i];
-    if (!u->active || u->nation_id != human || u->id == except_id) {
-      continue;
-    }
-    if (u->x != x || u->y != y) {
-      continue;
-    }
-    if (!ai_king_is_cont_garrison(ctx->units, u)) {
-      continue;
-    }
-    if (u->orders == UNITS_ORDER_FORTIFY || u->orders == UNITS_ORDER_FORTIFIED) {
-      count++;
-    }
-  }
-  return count;
-}
-
-/*
- * Fortify one idle human Cont. garrison on (x,y). Prefer Cont. Army over
- * Cont. Cav; prefer prefer_id when eligible. Returns unit id fortified, or -1.
- */
-static int ai_king_fortify_one_cont_on_tile(ColonizeTurnContext* ctx, int human, int x, int y,
-                                           int require_moves, int prefer_id) {
-  if (!ctx || !ctx->units || human < 0) {
-    return -1;
-  }
-  ColonizeUnitPool* pool = ctx->units;
-
-  if (prefer_id >= 0) {
-    ColonizeUnit* p = units_get(pool, prefer_id);
-    if (p && p->active && p->nation_id == human && p->x == x && p->y == y &&
-        ai_king_is_cont_army(pool, p) && p->orders != UNITS_ORDER_FORTIFY &&
-        p->orders != UNITS_ORDER_FORTIFIED && (!require_moves || p->moves_left > 0)) {
-      (void)units_order_fortify(pool, p->id);
-      return p->id;
-    }
-  }
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-    ColonizeUnit* u = &pool->units[i];
-    if (!u->active || u->nation_id != human || u->x != x || u->y != y) {
-      continue;
-    }
-    if (!ai_king_is_cont_army(pool, u) || u->orders == UNITS_ORDER_FORTIFY ||
-        u->orders == UNITS_ORDER_FORTIFIED) {
-      continue;
-    }
-    if (require_moves && u->moves_left <= 0) {
-      continue;
-    }
-    (void)units_order_fortify(pool, u->id);
-    return u->id;
-  }
-  if (prefer_id >= 0) {
-    ColonizeUnit* p = units_get(pool, prefer_id);
-    if (p && p->active && p->nation_id == human && p->x == x && p->y == y &&
-        ai_king_is_cont_cav_garrison(pool, p) && p->orders != UNITS_ORDER_FORTIFY &&
-        p->orders != UNITS_ORDER_FORTIFIED && (!require_moves || p->moves_left > 0)) {
-      (void)units_order_fortify(pool, p->id);
-      return p->id;
-    }
-  }
-  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-    ColonizeUnit* u = &pool->units[i];
-    if (!u->active || u->nation_id != human || u->x != x || u->y != y) {
-      continue;
-    }
-    if (!ai_king_is_cont_cav_garrison(pool, u) || u->orders == UNITS_ORDER_FORTIFY ||
-        u->orders == UNITS_ORDER_FORTIFIED) {
-      continue;
-    }
-    if (require_moves && u->moves_left <= 0) {
-      continue;
-    }
-    (void)units_order_fortify(pool, u->id);
-    return u->id;
-  }
-  return -1;
-}
-
-/*
- * Idle human Cont. on founding capital: fortify up to two (Army prefer, then
- * Cav). Second slot needs moves_left > 0. Cite: Defending a Colony cap 2;
- * king_ref Cont. capital-rally hold + fortify.
- */
-static void ai_king_fortify_human_cont_at(ColonizeTurnContext* ctx, ColonizeUnit* u,
-                                          int human, int x, int y) {
-  if (!ctx || !ctx->units || human < 0) {
-    return;
-  }
-  if (ai_king_tile_human_cont_fortified_count(ctx, human, x, y, -1) >= 2) {
-    return;
-  }
-  const int prefer = u ? u->id : -1;
-  if (ai_king_tile_human_cont_fortified_count(ctx, human, x, y, -1) < 1) {
-    (void)ai_king_fortify_one_cont_on_tile(ctx, human, x, y, 0, prefer);
-  }
-  if (ai_king_tile_human_cont_fortified_count(ctx, human, x, y, -1) < 2) {
-    (void)ai_king_fortify_one_cont_on_tile(ctx, human, x, y, 1, -1);
-  }
 }
 
 /* True if name looks like a Man-O-War (Galleon fallback used as REF ship). */
@@ -5081,64 +4973,21 @@ static void ai_king_war_act(ColonizeTurnContext* ctx) {
   }
 
   /*
-   * After 1eca Continental promote: Cont. Army / Cont. Cav (hunter name check
-   * includes both) AI_MOVE toward nearest human colony, then prefer founding
-   * capital when MD within AI_KING_CAPITAL_MD_SLACK (same helper as REF idle
-   * hunters). Fallback weakest_port when no human colony. Hold if already on a
-   * human colony tile. Source: fandom Independence Cont. Army / Cont. Cavalry +
-   * REF main-port MD slack; deep rebel AI PARKED.
+   * bugs.md: no rebel-side auto-play. The block that used to sit here marched
+   * every idle human Cont. Army / Cont. Cav toward the founding capital
+   * (AI_MOVE) and fortified two of them on it. That was never DOS: it was
+   * sourced from a fandom description of the Continentals plus the REF's own
+   * main-port MD slack, and it ran on the *human* nation's units every war
+   * turn. FUN_43f7_1eca is a promote-only routine — the full end-to-end read
+   * (viceroy_unpacked.c:74910-74972, king_ref.md "1eca Continental promote")
+   * shows it touching only unit+0x3146 (type) and unit+0x315b (profession);
+   * it never reads or writes unit+0x08 (orders), unit+0x0a/0x0b (goto), and
+   * neither does 2022 around it. The player's own Continentals are ordinary
+   * player units — the King's turn must not order them anywhere. Symptom it
+   * caused: two turns of pressing space after declaring independence and
+   * fortified units all over the map woke up with an invisible Go To on the
+   * capital.
    */
-  {
-    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-      ColonizeUnit* u = &ctx->units->units[i];
-      if (!u->active || u->nation_id != human || u->moves_left <= 0) {
-        continue;
-      }
-      if (units_is_sea(ctx->units, u->id)) {
-        continue;
-      }
-      if (!ai_king_is_continental(ctx->units, u)) {
-        continue;
-      }
-      /* Already on a human colony tile — hold; founding capital may fortify
-       * up to two Cont. Army / Cont. Cav (Defending a Colony cap 2). */
-      if (ctx->colonies) {
-        const int cid = colonies_id_at(ctx->colonies, u->x, u->y);
-        if (cid >= 0) {
-          const ColonizeColony* c = &ctx->colonies->colonies[cid];
-          if (c->active && c->nation_id == human) {
-            int cap_x = 0;
-            int cap_y = 0;
-            if (ai_king_human_capital(ctx, human, &cap_x, &cap_y) && u->x == cap_x &&
-                u->y == cap_y) {
-              if (u->orders == UNITS_ORDER_FORTIFY || u->orders == UNITS_ORDER_FORTIFIED) {
-                continue;
-              }
-              if (ai_king_tile_human_cont_fortified_count(ctx, human, u->x, u->y, u->id) < 2) {
-                ai_king_fortify_human_cont_at(ctx, u, human, u->x, u->y);
-                if (u->orders == UNITS_ORDER_FORTIFY || u->orders == UNITS_ORDER_FORTIFIED) {
-                  continue;
-                }
-              }
-            }
-            continue;
-          }
-        }
-      }
-      int hx = 0;
-      int hy = 0;
-      if (ai_king_nearest_human_colony(ctx, human, u->x, u->y, &hx, &hy)) {
-        const int nearest_md = abs(hx - u->x) + abs(hy - u->y);
-        (void)ai_king_prefer_capital_if_comparable(ctx, human, u->x, u->y, &hx, &hy,
-                                                   nearest_md);
-      } else if (ai_king_weakest_port(ctx, human, &hx, &hy) < 0) {
-        continue;
-      }
-      u->orders = UNITS_ORDER_AI_MOVE;
-      u->goto_x = hx;
-      u->goto_y = hy;
-    }
-  }
 
   for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
     ColonizeUnit* u = &ctx->units->units[i];
