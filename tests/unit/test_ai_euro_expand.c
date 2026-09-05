@@ -21020,24 +21020,28 @@ static int unit_teacher_workplace_assign(void) {
     return fail("expected Expert Teacher admitted into colony");
   }
   const ColonizeColony* after = &colonies.colonies[0];
-  int found_wp = 0;
+  /* DOS rule (colonies_profession_may_teach): @JOB 18 "Teacher" is school
+   * level 4 and may NOT teach, so the explicit Schoolhouse assign is
+   * correctly refused — and the idle sweep must never seat anyone in a
+   * school either (bugs.md: unassigned veteran teachers silently resumed
+   * teaching). Assert the admit happened and the school stayed EMPTY. */
+  int school_workers = 0;
   for (int i = 0; i < after->colonist_count; ++i) {
     if (after->colonists[i].active && after->colonists[i].building_type == 0) {
-      found_wp = 1;
-      break;
+      school_workers++;
     }
   }
-  if (!found_wp || after->colonist_count < 3) {
+  if (school_workers != 0 || after->colonist_count < 3) {
     fprintf(
       stderr,
-      "unit_ai_euro_expand: teacher pop=%d found_wp=%d\n",
+      "unit_ai_euro_expand: teacher pop=%d school_workers=%d\n",
       after->colonist_count,
-      found_wp
+      school_workers
     );
     free(map.terrain);
     free(map.layer2);
     free(map.layer3);
-    return fail("expected Schoolhouse workplace assign after admit");
+    return fail("admit ok but Schoolhouse must stay empty (level-4 prof, no sweep seat)");
   }
 
   free(map.terrain);

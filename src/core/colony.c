@@ -1365,6 +1365,12 @@ bool colonies_assign_workplace(
     }
   }
   colonies_clear_colonist_tile(col, colonist_index);
+  /* Teaching progress is per-JOB: moving to a different workplace restarts
+   * the counter, so a teacher pulled out and re-seated later cannot
+   * insta-graduate a student off a stale tally. No-op reassignment keeps it. */
+  if (c->building_type != building_type || c->field_job >= 0) {
+    c->turns_in_job = 0;
+  }
   c->field_job = -1;
   c->building_type = building_type;
   if (diag_info_enabled()) {
@@ -1425,6 +1431,9 @@ bool colonies_assign_field(
   }
   colonies_clear_colonist_tile(col, colonist_index);
   col->tiles[tile_index] = (int8_t)colonist_index;
+  if (c->building_type >= 0 || c->field_job != field_job) {
+    c->turns_in_job = 0; /* same per-job counter rule as assign_workplace */
+  }
   c->building_type = -1;
   c->field_job = field_job;
   if (diag_info_enabled()) {
@@ -1557,6 +1566,14 @@ void colonies_auto_assign_idle(ColonizeColonyPool* pool, int colony_id) {
     }
     for (int bi = 0; bi < pool->building_type_count; ++bi) {
       if (bi == town_hall || !col->has_building[bi]) {
+        continue;
+      }
+      /* bugs.md (veterans kept teaching after being pulled from the school):
+       * teaching is an explicit player choice — the idle sweep must never
+       * quietly seat a specialist back at the Schoolhouse/College/University
+       * (it did whenever Town Hall was full, so "unassigned" teachers
+       * resumed graduating Veteran Soldiers). */
+      if (colonies_school_building_tier(pool, bi) > 0) {
         continue;
       }
       if (colonies_assign_workplace(pool, colony_id, i, bi)) {
