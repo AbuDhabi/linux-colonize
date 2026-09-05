@@ -23,3 +23,7 @@ original_sources_decompiled/**
 settings.json
 dist/
 build-release/
+build-static/
+build-container/
+deps-static/
+deps-container/

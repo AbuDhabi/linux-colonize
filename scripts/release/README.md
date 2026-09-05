@@ -2,9 +2,9 @@
 
 Linux port of **Sid Meier's Colonization** (MicroProse, 1994 DOS).
 
-This is a standalone build. It bundles the SDL2 and FluidSynth libraries and
-the Roland SC-55 soundfont. It does **not** include the original game data —
-you must provide your own copy of the DOS game.
+This is a standalone build: SDL2 and FluidSynth are linked into the binary,
+and the Roland SC-55 soundfont is included. It does **not** include the
+original game data — you must provide your own copy of the DOS game.
 
 ## Installation
 
