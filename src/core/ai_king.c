@@ -3875,7 +3875,7 @@ static int ai_king_10f0_spawn_unit(ColonizeTurnContext* ctx, int human, int k, i
  * Euro with most colonies (tie-break land-unit force). Thin arrival OK once
  * when landings>0 + ai_popups (1528-shaped; deep economy / merc chrome PARKED).
  */
-static void ai_king_foreign_intervene(ColonizeTurnContext* ctx) {
+static void ai_king_foreign_intervene_ex(ColonizeTurnContext* ctx, int from_bells) {
   if (!ctx || !ctx->col1_ok || !ctx->col1 || !ctx->units) {
     return;
   }
@@ -3883,8 +3883,23 @@ static void ai_king_foreign_intervene(ColonizeTurnContext* ctx) {
     return;
   }
   uint16_t* backup = ctx->col1->head.backup_force;
-  if (ai_king_force_total(ctx->col1->head.expeditionary_force) > 0) {
-    return;
+  /*
+   * bugs.md (user: "Foreign intervention isn't happening even though I've
+   * gathered the required bells"): the old gate here returned while the
+   * expeditionary pools were nonzero — but DOS has no such condition on
+   * EITHER trigger, so intervention could never fire mid-war. The real DOS
+   * gates: the bells-threshold announce (FUN_4345_0a22 → 74462 @INTERVENTION,
+   * sets 0x5382 bit2) is blocked only by that bit; the per-turn free drain
+   * (FUN_43f7_2022 line 75007) needs bit2 SET and the MoW pool
+   * (0x53e6 = backup_force[2]) nonzero. bit2 is set ONLY by the announce
+   * (74493) — it is the intervention-once latch, not "REF on the map";
+   * AI_KING_INTERVENE_ANNOUNCED_BYTE models it here.
+   */
+  if (!from_bells) {
+    if (ai_king_latch_get(ctx->col1, AI_KING_INTERVENE_ANNOUNCED_BYTE) == 0 ||
+        backup[2] == 0) {
+      return;
+    }
   }
   if (ai_king_force_total(backup) <= 0) {
     return;
@@ -4090,19 +4105,19 @@ int ai_king_spend_woi_bell_pool(ColonizeTurnContext* ctx, int nation_id) {
   if (nation_id < 0 || nation_id >= (int)COLONIZE_COL1_NATION_COUNT) {
     return 0;
   }
-  /* DOS: (*(byte *)0x5382 & 2) != 0 → return without spending. */
-  if (ctx->col1->head.game_options.ref_present) {
-    return 0;
+  /*
+   * DOS 0a22: `(*(byte*)0x5382 & 2) != 0 -> return` WITHOUT zeroing the pool.
+   * Bit2 is the intervention-once latch (set only by the @INTERVENTION
+   * announce), NOT REF presence — the old ref_present gate plus the
+   * exp-pools routing below meant the bells NEVER bought the intervention
+   * (they re-triggered a REF wave instead). Waves run per-turn from
+   * ai_king_nation_turn on their own; the bells buy exactly one thing.
+   */
+  if (ai_king_latch_get(ctx->col1, AI_KING_INTERVENE_ANNOUNCED_BYTE) != 0) {
+    return 0; /* pool kept, same as DOS */
   }
   if (nation_id == ctx->human_nation) {
-    const int exp_total = ai_king_force_total(ctx->col1->head.expeditionary_force);
-    if (exp_total > 0) {
-      ai_king_ref_wave(ctx);
-    } else if (ai_king_force_total(ctx->col1->head.backup_force) > 0) {
-      ai_king_foreign_intervene(ctx);
-    } else {
-      ai_king_ref_wave(ctx); /* 06a6 irregulars when both pools empty. */
-    }
+    ai_king_foreign_intervene_ex(ctx, 1);
   }
   return 1;
 }
@@ -4121,6 +4136,11 @@ int ai_king_spend_woi_bell_pool(ColonizeTurnContext* ctx, int nation_id) {
  * 4 bits (range 2-8); hx/hy fit 6 bits each (map width/height ≤ 63 in this
  * project's fixed 58×72 world).
  */
+
+static void ai_king_foreign_intervene(ColonizeTurnContext* ctx) {
+  ai_king_foreign_intervene_ex(ctx, 0);
+}
+
 static int ai_king_merc_payload(int hx, int hy, int qty_a, int extra_flag, int price) {
   return ((hx & 0x3f) << 26) | ((hy & 0x3f) << 20) | ((qty_a & 0xf) << 16) |
          ((extra_flag & 1) << 15) | (price & 0x7fff);
@@ -4253,14 +4273,17 @@ static void ai_king_merc_offer(ColonizeTurnContext* ctx) {
   if (ai_king_human_popups(ctx) && ai_king_merc_offer_pending(ctx->ai_popups)) {
     return;
   }
-  const int ref_present = ctx->col1->head.game_options.ref_present != 0;
   /*
    * FUN_43f7_2022 line 75007: `(*(byte*)0x5382 & 2) == 0 || *(int*)0x53e6 == 0`
    * — gate reads the Man-O-War/colony-count pool (backup_force[2], see
-   * ai_king_seed_backup_force_1a26), not the Artillery pool.
+   * ai_king_seed_backup_force_1a26), not the Artillery pool. Bit2 is the
+   * intervention-announced latch (see ai_king_foreign_intervene_ex), which
+   * the port used to conflate with ref_present.
    */
+  const int intervened =
+    ai_king_latch_get(ctx->col1, AI_KING_INTERVENE_ANNOUNCED_BYTE) != 0;
   const int mow_pool = ctx->col1->head.backup_force[2];
-  if (ref_present && mow_pool != 0) {
+  if (intervened && mow_pool != 0) {
     return; /* free backup-force drain path (ai_king_foreign_intervene) covers this beat */
   }
   if (dos_rng_range(ctx->rng, 0, AI_KING_MERC_ROLL_CHANCE - 1) != 0) {
