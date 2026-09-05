@@ -557,6 +557,18 @@ static void turn_produce_one_colony(
   }
   /* FUN_364b_0688: clear cargo_produced_mask (+0x90) at production start. */
   colony->cargo_produced_mask = 0;
+  /* bugs.md 403: europe->status is shared across the whole colony loop, so
+   * "status empty" as the Phase K crumb gate let ANY earlier colony's
+   * message (birth, food low, cargo ready, ...) suppress every later
+   * colony's "has run out of X" popup for the rest of the EOT. Snapshot the
+   * strip at THIS colony's entry: the crumb yields only to a message this
+   * same colony wrote this tick (its own food/birth chrome outranks it),
+   * never to another colony's leftovers. */
+  char status_at_entry[sizeof(europe->status)];
+  status_at_entry[0] = '\0';
+  if (europe) {
+    snprintf(status_at_entry, sizeof(status_at_entry), "%s", europe->status);
+  }
   int stock_before[COLONIZE_CARGO_COUNT];
   for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
     stock_before[c] = colony->stock[c];
@@ -1460,8 +1472,8 @@ static void turn_produce_one_colony(
   }
 
   /* Phase K demand crumbs (hammers/tools already above): raw / craft empty. */
-  if (colony->nation_id == human_nation && europe && europe->status[0] == '\0' &&
-      turn_report_ok_raw(col1)) {
+  if (colony->nation_id == human_nation && europe &&
+      strcmp(europe->status, status_at_entry) == 0 && turn_report_ok_raw(col1)) {
     /*
      * DOS gates each "ran out of X" msg on a demand scratch word (set by
      * FUN_15eb_0bd4/0b96 from the SAME turn's tier-scaled worker output,
@@ -3515,6 +3527,15 @@ bool turn_processor_advance(ColonizeTurnProcessor* proc, ColonizeTurnContext* ct
       turn_run_colony_building_completion(ctx);
       s_prod_only_nation = -1;
       proc->show_indicator = false;
+      /* bugs.md 400/404/407: yield here so the production popups queued
+       * above are answered (and an elected colony zoom taken) before the
+       * king's REF beats run in TURN_PROC_KING — see turn.h. */
+      proc->step = TURN_PROC_KING;
+      return true;
+    }
+    case TURN_PROC_KING: {
+      proc->show_indicator = false;
+      turn_set_active_nation(ctx, ctx->human_nation);
       turn_run_king_stub(ctx);
       turn_run_year_end_chrome(ctx, &proc->result);
       /* FUN_38fd_0058 EOT market attrition / rise-fall for Europe screen. */

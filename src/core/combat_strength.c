@@ -301,7 +301,9 @@ int combat_engagement_strength(
     if (unit_nat > 3 ||
         (foe_nat < 4 && (!woi || combat_nation_is_ai(ctx->col1, foe_nat)))) {
       local_1a = terr_byte;
-      if (out_flags) {
+      /* DOS 1b0e: `if (local_1a == 0) 8d02 &= 0x7f` — a 0-value terrain
+       * never shows a "+0%" analysis row (bugs.md 405). */
+      if (out_flags && terr_byte != 0) {
         out_flags->flags |= COMBAT_FLAG_TERRAIN;
         out_flags->terrain_byte = terr_byte;
       }
@@ -346,7 +348,7 @@ int combat_engagement_strength(
 
     if (apply_now) {
       local_1a = terr_byte;
-      if (out_flags) {
+      if (out_flags && terr_byte != 0) { /* bugs.md 405, same 8d02 &= 0x7f rule */
         out_flags->flags |= COMBAT_FLAG_TERRAIN;
         out_flags->terrain_byte = terr_byte;
       }

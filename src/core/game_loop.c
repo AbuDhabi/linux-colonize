@@ -140,6 +140,14 @@ struct ColonizeGameState {
    * across the async name-entry dialog; -1 = nothing pending.
    */
   int found_open_colony_id;
+  /*
+   * bugs.md 409: one-shot latch for the @HALF tired-attack confirm. "Charge!"
+   * re-enters game_try_unit_move, and unlike WHACK (confirmed bit) or Break
+   * Treaty (war opened) nothing in the save marks the answer, so without this
+   * the confirm would just re-ask. unit id + (x | y<<8); unit -1 = none.
+   */
+  int tired_ok_unit;
+  int tired_ok_payload;
   int map_zoom; /* 0..3 — VIEW Zoom In/Out/Level N. FUN_2b5a_0f92 DS:0x184; 0 = 15×12 native. */
   /*
    * VIEW ~Hidden Terrain (H): 0 = off; 1..3 = DOS's three peel passes (units/
@@ -922,19 +930,15 @@ static void game_combat_popup_pump(void* user) {
        * a combat outcome instead.
        *
        * A popup raised from inside a nested blocking pump is already outside
-       * that per-colony ordering (in DOS it IS the blocking call), so drop
-       * the hold for this one present, exactly the way
-       * ai_popup_present_tag does for a player-initiated popup. Only if that
-       * still cannot present is there nothing to do but leave.
+       * that per-colony ordering (in DOS it IS the blocking call), so let it
+       * through the hold — but only NON-colony-event popups (bugs.md 404:
+       * the old blanket hold-drop presented another colony's zoom CHOICE
+       * mid-batch). Only if that still cannot present is there nothing to do
+       * but leave.
        */
-      if (!ai_popup_try_present_next(&game->ai_popups)) {
-        const uint64_t saved_zoom = game->ai_popups.colony_zoom_elected;
-        game->ai_popups.colony_zoom_elected = 0;
-        const bool presented = ai_popup_try_present_next(&game->ai_popups);
-        game->ai_popups.colony_zoom_elected = saved_zoom;
-        if (!presented) {
-          break;
-        }
+      if (!ai_popup_try_present_next(&game->ai_popups) &&
+          !ai_popup_try_present_next_urgent(&game->ai_popups)) {
+        break;
       }
     }
     ColonizeInputState input = {0};
@@ -3052,8 +3056,11 @@ static void game_apply_ai_popup_result(ColonizeGameState* game) {
     ColonizeUnit* u = units_get(&game->units, unit_id);
     if (!game->ai_popups.result_cancelled && game->ai_popups.result_choice_id == 1 && u) {
       game->units.selected_id = unit_id;
+      game->tired_ok_unit = unit_id;
+      game->tired_ok_payload = game->ai_popups.result_payload;
       ai_popup_consume_result(&game->ai_popups);
       (void)game_try_unit_move(game, dest_x, dest_y);
+      game->tired_ok_unit = -1;
       return;
     }
     /*
@@ -6477,6 +6484,7 @@ ColonizeGameState* game_create(const ColonizeGameConfig* config) {
   game->config = *config;
   game->ff_pedia_after_report = -1;
   game->found_open_colony_id = -1;
+  game->tired_ok_unit = -1;
   game->view_pan_hold_unit = -1;
   game->turn_number = 1;
   game->map_seed = 73;
@@ -7782,7 +7790,9 @@ static bool game_try_unit_move(ColonizeGameState* game, int dest_x, int dest_y) 
       const ColonizeColony* col = colonies_get(&game->colonies, cid);
       attacking = col && col->active && col->nation_id != selected->nation_id;
     }
-    if (attacking) {
+    if (attacking &&
+        !(game->tired_ok_unit == sid &&
+          game->tired_ok_payload == (dest_x | (dest_y << 8)))) {
       ColonizeTurnContext ctx;
       game_fill_turn_context(game, &ctx);
       if (ai_contact_try_tired_attack_confirm(&ctx, sid, dest_x, dest_y)) {
@@ -14541,6 +14551,20 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
    */
   ai_popup_art_palette_merge((AiPopupState*)&game->ai_popups, palette);
 
+  /* bugs.md 408: SCORE<nn>.SS carries the exploits painting's colours in the
+   * DAC slots WOODPAN2.PIK leaves black — same reserved-block rule as the
+   * popup art sheets (merge, never remap). */
+  if (game->in_exploits && game->exploits_sheet_ok && game->exploits_sheet.has_palette) {
+    for (int i = 1; i < 256; ++i) {
+      if (palette->rgb[i][0] || palette->rgb[i][1] || palette->rgb[i][2]) {
+        continue;
+      }
+      palette->rgb[i][0] = game->exploits_sheet.palette.rgb[i][0];
+      palette->rgb[i][1] = game->exploits_sheet.palette.rgb[i][1];
+      palette->rgb[i][2] = game->exploits_sheet.palette.rgb[i][2];
+    }
+  }
+
   if (render_log_counter == 0) {
     diag_info(
       "Render mode=%s framebuffer=%dx%d palette=%s",
@@ -15047,6 +15071,27 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
               blit_map_sprite(
                 &game->phys0, plow, framebuffer, sx, sy, tile_w, tile_h, map_origin_x, map_origin_y
               );
+              /* bugs.md 402: keep the special-resource icon visible — re-blit
+               * it above the plow art (phase 2+ peel already hides it). */
+              if (game->hidden_terrain_phase < 2) {
+                const int rn = map_phys0_overlay_count(&game->world_map, mx, my);
+                for (int rl = 0; rl < rn; ++rl) {
+                  if (map_phys0_overlay_kind_at(&game->world_map, mx, my, rl) !=
+                      MAP_OVERLAY_KIND_RESOURCE) {
+                    continue;
+                  }
+                  const int rs = map_phys0_overlay_sprite_at(&game->world_map, mx, my, rl);
+                  if (rs >= 0) {
+                    int rox = 0;
+                    int roy = 0;
+                    map_phys0_overlay_offset_at(&game->world_map, mx, my, rl, &rox, &roy);
+                    blit_map_sprite_offset(
+                      &game->phys0, rs, framebuffer, sx, sy, tile_w, tile_h, map_origin_x,
+                      map_origin_y, rox, roy
+                    );
+                  }
+                }
+              }
             }
             /* Hidden Terrain phase 2+: roads aren't in the exempt set. */
             const int road_n =

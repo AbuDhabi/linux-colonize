@@ -1759,6 +1759,22 @@ static void colony_screen_render_minimap(
         const int plow = map_phys0_plow_sprite_at(map, mx, my);
         if (plow >= 0 && plow < phys0->sprite_count) {
           colony_screen_blit_scaled_15(phys0, plow, framebuffer, tile_x, tile_y);
+          /* bugs.md 402: special-resource icon re-blitted above plow art. */
+          const int rn = map_phys0_overlay_count(map, mx, my);
+          for (int rl = 0; rl < rn; ++rl) {
+            if (map_phys0_overlay_kind_at(map, mx, my, rl) != MAP_OVERLAY_KIND_RESOURCE) {
+              continue;
+            }
+            const int rs = map_phys0_overlay_sprite_at(map, mx, my, rl);
+            if (rs >= 0 && rs < phys0->sprite_count) {
+              int rox = 0;
+              int roy = 0;
+              map_phys0_overlay_offset_at(map, mx, my, rl, &rox, &roy);
+              colony_screen_blit_scaled_15(
+                phys0, rs, framebuffer, tile_x + (rox * 3) / 2, tile_y + (roy * 3) / 2
+              );
+            }
+          }
         }
         const int road_n = map_phys0_road_layer_count(map, mx, my);
         for (int ri = 0; ri < road_n; ++ri) {

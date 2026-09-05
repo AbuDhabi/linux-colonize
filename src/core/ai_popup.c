@@ -529,6 +529,8 @@ bool ai_popup_busy(const AiPopupState* st) {
   return st && (st->open || st->queue_count > 0 || st->has_result);
 }
 
+static bool ai_popup_present_index(AiPopupState* st, int pick);
+
 bool ai_popup_try_present_next(AiPopupState* st) {
   if (!st || st->open || st->has_result || st->queue_count <= 0) {
     return false;
@@ -556,6 +558,30 @@ bool ai_popup_try_present_next(AiPopupState* st) {
       return false;
     }
   }
+  return ai_popup_present_index(st, pick);
+}
+
+/*
+ * bugs.md 404: a nested blocking pump (combat / king chrome raised mid-beat)
+ * may bypass the colony-zoom hold — but ONLY for popups that are outside the
+ * per-colony batch flow. A COLONY_EVENT of a non-elected colony must stay
+ * held: the old "zero the elected mask and present anything" fallback showed
+ * another colony's zoom CHOICE mid-batch, and the player ended up queued into
+ * two colony screens back to back.
+ */
+bool ai_popup_try_present_next_urgent(AiPopupState* st) {
+  if (!st || st->open || st->has_result || st->queue_count <= 0) {
+    return false;
+  }
+  for (int i = 0; i < st->queue_count; ++i) {
+    if (st->queue[i].tag != AI_POPUP_TAG_COLONY_EVENT) {
+      return ai_popup_present_index(st, i);
+    }
+  }
+  return false;
+}
+
+static bool ai_popup_present_index(AiPopupState* st, int pick) {
   st->current = st->queue[pick];
   for (int i = pick + 1; i < st->queue_count; ++i) {
     st->queue[i - 1] = st->queue[i];

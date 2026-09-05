@@ -1697,37 +1697,17 @@ static void ai_king_mow_post_unload_land(ColonizeTurnContext* ctx, int crown, in
       continue;
     }
     ai_king_try_capture_at(ctx, u, crown, human);
-    /* Landed NEXT to an undefended human colony: the beachhead walks in and
-     * seizes the same beat (fandom REF seize landing — this used to be
-     * masked by the old always-spawning irregular doing the job). The step
-     * is part of the landing beat: grant it the walk-ashore MP the 0982
-     * disembark uses, spent again after. */
-    if (u->active && ctx->colonies && ctx->map) {
-      static const int dx8[8] = {0, 1, 1, 1, 0, -1, -1, -1};
-      static const int dy8[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
-      for (int d = 0; d < 8; ++d) {
-        const int nx = u->x + dx8[d];
-        const int ny = u->y + dy8[d];
-        const int cid = colonies_id_at(ctx->colonies, nx, ny);
-        const ColonizeColony* c = cid >= 0 ? colonies_get(ctx->colonies, cid) : NULL;
-        if (!c || !c->active || c->nation_id != human) {
-          continue;
-        }
-        if (ai_king_human_defender_at(ctx, human, nx, ny) >= 0) {
-          continue;
-        }
-        if (u->moves_left < 3) {
-          u->moves_left = 3;
-        }
-        if (units_try_move(ctx->units, u->id, ctx->map, nx, ny, ctx->colonies, ctx->rng)) {
-          ai_king_after_step_onto_colony(ctx, u, crown, human);
-        }
-        if (u->active) {
-          u->moves_left = 0; /* the landing consumed the turn */
-        }
-        break;
-      }
-    }
+    /*
+     * bugs.md 406: NO same-beat walk-in. The block that used to sit here
+     * granted free MP and marched the beachhead into an adjacent undefended
+     * human colony the very beat it landed, seizing the wagons/colonists in
+     * port ("REF merely landing near a colony captures the wagon trains").
+     * That was fandom-sourced; DOS FUN_43f7_0982/2022 spends the landed
+     * unit's moves for the beat — it walks onto (and, if undefended,
+     * captures) the colony only on a LATER activation with moves restored
+     * (see ai_king_mow_unload_land_dest's header). The later-activation walk
+     * already does that capture, so nothing else is needed here.
+     */
   }
 }
 

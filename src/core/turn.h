@@ -104,7 +104,15 @@ typedef enum ColonizeTurnProcStep {
   TURN_PROC_SETUP,  /* calendar + production + nation ticks (no indicator) */
   TURN_PROC_EURO,   /* one European AI nation per advance; slots above the human run before INDIAN, slots below after (DOS 130d order) */
   TURN_PROC_INDIAN, /* one native nation per advance (4d56_1b3a mid-pass → 1816) */
-  TURN_PROC_FINISH  /* king stub + human refresh (no indicator) */
+  TURN_PROC_FINISH, /* human colony production (no indicator) */
+  /*
+   * bugs.md 400/404/407: king (REF) + year-end + market + human refresh moved
+   * out of FINISH into their own slice, so every colony popup FINISH queued is
+   * presented and ANSWERED (and an elected colony zoom taken) before the
+   * king's attacks run — DOS FUN_3844_00f2's dialogs are blocking calls, so
+   * its production chrome can never still be pending when the king moves.
+   */
+  TURN_PROC_KING
 } ColonizeTurnProcStep;
 
 typedef struct ColonizeTurnProcessor {
