@@ -15,7 +15,13 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <time.h>
+#ifdef _WIN32
+#include <direct.h>
+#include <windows.h>
+#define getcwd _getcwd
+#else
 #include <unistd.h>
+#endif
 
 static FILE* g_log = NULL;
 static char g_log_path[1024];
@@ -30,7 +36,11 @@ static void write_line(const char* level, const char* message) {
 
   time_t now = time(NULL);
   struct tm tm_now;
+#ifdef _WIN32
+  localtime_s(&tm_now, &now);
+#else
   localtime_r(&now, &tm_now);
+#endif
   char stamp[32];
   strftime(stamp, sizeof(stamp), "%Y-%m-%d %H:%M:%S", &tm_now);
   if (g_context[0]) {
@@ -53,7 +63,24 @@ static bool resolve_exe_dir(char* out_dir, size_t out_dir_size) {
   }
   out_dir[0] = '\0';
 
-#ifdef __linux__
+#if defined(_WIN32)
+  char exe_path[4096];
+  DWORD len = GetModuleFileNameA(NULL, exe_path, sizeof(exe_path));
+  if (len > 0 && len < sizeof(exe_path)) {
+    char* slash = strrchr(exe_path, '\\');
+    if (!slash) {
+      slash = strrchr(exe_path, '/');
+    }
+    if (slash) {
+      size_t dir_len = (size_t)(slash - exe_path);
+      if (dir_len + 1 < out_dir_size) {
+        memcpy(out_dir, exe_path, dir_len);
+        out_dir[dir_len] = '\0';
+        return true;
+      }
+    }
+  }
+#elif defined(__linux__)
   char exe_path[4096];
   ssize_t len = readlink("/proc/self/exe", exe_path, sizeof(exe_path) - 1);
   if (len > 0) {

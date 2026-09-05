@@ -5,7 +5,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#ifndef _WIN32
 #include <sys/resource.h>
+#endif
 
 #include "core/assets.h"
 #include "core/ai.h"
@@ -3635,11 +3637,13 @@ static void game_cheat_memory_check(ColonizeGameState* game) {
   if (!game) {
     return;
   }
-  struct rusage ru;
   long rss_kb = 0;
+#ifndef _WIN32
+  struct rusage ru;
   if (getrusage(RUSAGE_SELF, &ru) == 0) {
     rss_kb = ru.ru_maxrss; /* Linux: KB already */
   }
+#endif
   const int units_n = game->units_ok ? game->units.unit_count : 0;
   const int colonies_n = game->colonies_ok ? game->colonies.colony_count : 0;
   char line[96];

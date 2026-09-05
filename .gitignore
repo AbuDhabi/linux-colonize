@@ -27,3 +27,5 @@ build-static/
 build-container/
 deps-static/
 deps-container/
+build-windows/
+deps-mingw/
