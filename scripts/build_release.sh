@@ -59,6 +59,41 @@ touch "$PKG_DIR/COLONIZE/put original game files here"
 cp "$ROOT/scripts/release/README.md" "$PKG_DIR/README.md"
 cp "$ROOT/LICENSE" "$PKG_DIR/LICENSE"
 
+echo "== Third-party license texts =="
+# The statically linked libraries' licenses require shipping their license
+# texts and keeping sources obtainable; exact versions/URLs come from
+# build_static_deps.sh, texts from the extracted source trees in DEPS_PREFIX.
+eval "$(grep -E '^(SDL2|FLUID|ZLIB|FFI|PCRE2|GLIB)_(VER|URL)=' "$ROOT/scripts/build_static_deps.sh")"
+TPL="$PKG_DIR/THIRD_PARTY_LICENSES"
+: > "$TPL"
+add_license() {
+  local name="$1" ver="$2" home="$3" url="$4" file="$5"
+  {
+    echo "================================================================"
+    echo "$name $ver"
+    echo "Homepage: $home"
+    echo "Source:   $url"
+    echo "================================================================"
+    echo
+    cat "$file"
+    echo
+  } >> "$TPL"
+  echo "  $name $ver"
+}
+S="$DEPS_PREFIX/src"
+add_license "SDL2"       "$SDL2_VER"  "https://www.libsdl.org/"                  "$SDL2_URL"  "$S/SDL2-$SDL2_VER/LICENSE.txt"
+add_license "FluidSynth" "$FLUID_VER" "https://www.fluidsynth.org/"              "$FLUID_URL" "$S/fluidsynth-$FLUID_VER/LICENSE"
+if [ -d "$S/glib-$GLIB_VER" ]; then
+  # Present only when the glib stack was source-built (the release container
+  # path); distro-static-glib builds are for local testing, not distribution.
+  add_license "GLib"   "$GLIB_VER"  "https://gitlab.gnome.org/GNOME/glib"      "$GLIB_URL"  "$S/glib-$GLIB_VER/COPYING"
+  add_license "PCRE2"  "$PCRE2_VER" "https://github.com/PCRE2Project/pcre2"    "$PCRE2_URL" "$S/pcre2-$PCRE2_VER/LICENCE"
+  add_license "libffi" "$FFI_VER"   "https://github.com/libffi/libffi"         "$FFI_URL"   "$S/libffi-$FFI_VER/LICENSE"
+  add_license "zlib"   "$ZLIB_VER"  "https://zlib.net/"                        "$ZLIB_URL"  "$S/zlib-$ZLIB_VER/LICENSE"
+else
+  echo "warning: glib stack not source-built here — THIRD_PARTY_LICENSES incomplete (test build only)" >&2
+fi
+
 echo "== Sanity: dynamic deps of the binary =="
 # Must be base system only (libc/libm & friends). Any SDL/fluidsynth/glib/codec
 # soname here means static linking silently regressed.
