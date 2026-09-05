@@ -191,6 +191,8 @@ int main(int argc, char** argv) {
     return 1;
   }
 
+  sound_set_soundfont(settings_get()->soundfont);
+  sound_set_midi_backend(settings_get()->midi_backend);
   sound_init(cli.data_dir, platform_audio_enabled(platform));
   sound_set_options(settings_sound_options(settings_get()));
   if (game_try_start_intro(game)) {

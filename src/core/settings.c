@@ -68,6 +68,8 @@ void settings_defaults(ColonizeSettings* out) {
   out->background_music = true;
   out->event_music = true;
   out->sound_effects = true;
+  out->soundfont[0] = '\0';
+  out->midi_backend[0] = '\0';
 
   out->windowed = true;
   out->window_scale = 2;
@@ -134,8 +136,13 @@ bool settings_save_file(const char* path, const ColonizeSettings* in, char* err,
   fprintf(f, "  \"sound_options\": {\n");
   wb(f, "background_music", in->background_music, false);
   wb(f, "event_music", in->event_music, false);
-  wb(f, "sound_effects", in->sound_effects, true);
-  fprintf(f, "  },\n");
+  wb(f, "sound_effects", in->sound_effects, false);
+  fprintf(f, "    \"soundfont\": ");
+  json_write_escaped_string(f, in->soundfont, sizeof(in->soundfont) - 1);
+  fprintf(f, ",\n");
+  fprintf(f, "    \"midi_backend\": ");
+  json_write_escaped_string(f, in->midi_backend, sizeof(in->midi_backend) - 1);
+  fprintf(f, "\n  },\n");
 
   fprintf(f, "  \"display\": {\n");
   wb(f, "windowed", in->windowed, false);
@@ -261,6 +268,16 @@ bool settings_load_file(const char* path, ColonizeSettings* out, char* err, size
   rb(s, "background_music", &out->background_music);
   rb(s, "event_music", &out->event_music);
   rb(s, "sound_effects", &out->sound_effects);
+  const char* soundfont = s ? json_get_str(s, "soundfont") : NULL;
+  if (soundfont) {
+    snprintf(out->soundfont, sizeof(out->soundfont), "%s", soundfont);
+  }
+  const char* midi_backend = s ? json_get_str(s, "midi_backend") : NULL;
+  if (midi_backend &&
+      (midi_backend[0] == '\0' || strcmp(midi_backend, "fluidsynth") == 0 ||
+       strcmp(midi_backend, "tsf") == 0)) {
+    snprintf(out->midi_backend, sizeof(out->midi_backend), "%s", midi_backend);
+  }
 
   const JsonValue* d = json_obj_get(root, "display");
   rb(d, "windowed", &out->windowed);

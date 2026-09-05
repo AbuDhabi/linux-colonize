@@ -4,7 +4,8 @@
  *
  * Usage:
  *   dump_gsound_wav [--data-dir DIR] [--out-dir DIR] [--seconds N] [--midi]
- *                   [--rename-only] [--ab] [song_id ...]
+ *                   [--rename-only] [--ab] [--backend fluidsynth|tsf]
+ *                   [--soundfont FILE.sf2] [song_id ...]
  *
  * Defaults: every decoded BGM song id, one full pass (+2s release tail) into
  * ./ripped_sound as stereo 44.1 kHz PCM WAV (same render path as gameplay).
@@ -461,6 +462,10 @@ int main(int argc, char** argv) {
       want_csv = true;
     } else if (strcmp(argv[i], "--sfx") == 0) {
       sfx_mode = true;
+    } else if (strcmp(argv[i], "--backend") == 0 && i + 1 < argc) {
+      sound_set_midi_backend(argv[++i]); /* fluidsynth | tsf */
+    } else if (strcmp(argv[i], "--soundfont") == 0 && i + 1 < argc) {
+      sound_set_soundfont(argv[++i]);
     } else if (argv[i][0] == '-') {
       fprintf(stderr, "unknown flag %s\n", argv[i]);
       return 1;
@@ -723,7 +728,7 @@ int main(int argc, char** argv) {
       wav_path,
       rms,
       peak,
-      sound_backend_ok() ? "fluidsynth" : "fallback"
+      sound_backend_name()
     );
     ok_count++;
 

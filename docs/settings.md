@@ -49,7 +49,9 @@ defaults no matter what file is sitting in the build directory.
   "sound_options": {
     "background_music": true,
     "event_music": true,
-    "sound_effects": true
+    "sound_effects": true,
+    "soundfont": "",
+    "midi_backend": ""
   },
   "display": { "windowed": true, "window_scale": 2 },
   "debug": { "menu": false, "mouse_coords": false, "building_rects": false, "logs": false },
@@ -64,6 +66,12 @@ defaults no matter what file is sitting in the build directory.
 Launch keys map 1:1 onto the process flags (`--data-dir`, `--save-dir`,
 `--windowed` / `--fullscreen`, `--scale`, `--nosound`, `--seed`,
 `--debug-menu` / `--no-debug-menu`).
+`sound_options.soundfont` names a GM-compatible `.sf2` file for MIDI; empty
+means auto-detect (bundled SC-55, then system banks). Unreadable path falls
+back to auto-detect with a logged warning. `sound_options.midi_backend` picks
+the synth: `"fluidsynth"`, `"tsf"` (bundled TinySoundFont), or empty = auto
+(FluidSynth if built in, else TSF); any other string is ignored at load.
+Port-only keys, no DOS bit, no head bridge.
 `save_dir` empty means the platform default (`<exe>/COLONIZE`). `seed` is
 `null` in a first-run file (same as omitting the key): not set, so the campaign
 RNG uses elapsed time. `"seed": 0` is a real seed and pins the LCG to 0.

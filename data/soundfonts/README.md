@@ -30,5 +30,5 @@ attribution of the file to deemster under GPL-3+.
 
 Override
 --------
-Set `COLONIZE_SOUNDFONT` to another `.sf2` (for example Trevor0402's SC-55
+Set `sound_options.soundfont` in `settings.json` to another `.sf2` (for example Trevor0402's SC-55
 SoundFont) if you want a different bank.

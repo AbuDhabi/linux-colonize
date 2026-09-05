@@ -655,11 +655,11 @@ handler). The combat cue `0x32` is therefore **Indian Victory**. The title-scree
 MicroProse GM drivers of this era were written for **Roland Sound Canvas / SC-55**.
 Closest practical playback: FluidSynth + an SC-55-character SoundFont.
 
-**SoundFont search order:** `COLONIZE_SOUNDFONT` → bundled
+**SoundFont search order:** `settings.json` `sound_options.soundfont` → bundled
 [`data/soundfonts/Roland_SC-55.sf2`](../data/soundfonts/Roland_SC-55.sf2) (ScummVM’s
 GPL-3+ bank by deemster; see [`COPYRIGHT.Roland_SC-55`](../data/soundfonts/COPYRIGHT.Roland_SC-55))
 → system SC-55 / GeneralUser GS → FluidR3 / distro defaults. For an alternate SC-55
-character, point `COLONIZE_SOUNDFONT` at [Trevor0402’s SC-55 SoundFont](https://github.com/trevor0402/SC55Soundfont).
+character, point `sound_options.soundfont` at [Trevor0402’s SC-55 SoundFont](https://github.com/trevor0402/SC55Soundfont).
 Gold A/B reference: `original_music_dumps/jine_the_cavalry.wav` (DOSBox-X capture) and
 `reference_music/wav/*` (OST rips, verified identical to DOSBox timing). Run
 `build/dump_gsound_wav --ab && .venv-sound/bin/python3 tools/compare_music_ab.py`

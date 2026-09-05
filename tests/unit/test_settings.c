@@ -32,6 +32,8 @@ static void test_missing_file_defaults(void) {
   check(s.skip_intro, "default skip_intro true (new file skips later launches)");
   check(strcmp(s.data_dir, "./COLONIZE") == 0, "default data_dir");
   check(s.save_dir[0] == '\0', "default save_dir empty (platform default)");
+  check(s.soundfont[0] == '\0', "default soundfont empty (auto-detect)");
+  check(s.midi_backend[0] == '\0', "default midi_backend empty (auto)");
   check(!s.debug_menu && !s.show_mouse_coords && !s.show_building_rects && !s.debug_logs,
         "default debug overlay off");
 }
@@ -57,6 +59,8 @@ static void test_roundtrip(void) {
   out.skip_intro = false;
   snprintf(out.data_dir, sizeof(out.data_dir), "/tmp/col-data");
   snprintf(out.save_dir, sizeof(out.save_dir), "/tmp/col-saves");
+  snprintf(out.soundfont, sizeof(out.soundfont), "/tmp/My \"Bank\".sf2");
+  snprintf(out.midi_backend, sizeof(out.midi_backend), "tsf");
 
   char err[256] = {0};
   check(settings_save_file(k_path, &out, err, sizeof(err)), "save file");
@@ -101,6 +105,7 @@ static void test_invalid_launch_keys_keep_defaults(void) {
   fprintf(f, " \"data_dir\": \"\",\n");
   fprintf(f, " \"save_dir\": \"\",\n");
   fprintf(f, " \"no_sound\": \"yes\",\n");
+  fprintf(f, " \"sound_options\": {\"midi_backend\": \"opl3\"},\n");
   fprintf(f, " \"seed\": -1}\n");
   fclose(f);
 
@@ -111,6 +116,7 @@ static void test_invalid_launch_keys_keep_defaults(void) {
   check(s.save_dir[0] == '\0', "empty save_dir ignored");
   check(!s.no_sound, "non-bool no_sound ignored");
   check(s.seed == 0 && !s.seed_present, "negative seed ignored");
+  check(s.midi_backend[0] == '\0', "unknown midi_backend ignored");
 }
 
 /* "seed": 0 is a valid override. null and omitted both mean unset. */

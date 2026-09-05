@@ -28,7 +28,7 @@ original game data — you must provide your own copy of the DOS game.
 
 - `--data-dir PATH` — use a different game-data directory.
 - `--windowed` / `--fullscreen`, `--scale N`, `--nosound` — display/audio options.
-- `COLONIZE_SOUNDFONT=/path/to/font.sf2` — override the bundled soundfont.
+- `settings.json` `sound_options.soundfont` — override the bundled soundfont.
 
 Settings and saves are written next to the game data.
 
@@ -38,7 +38,7 @@ Settings and saves are written next to the game data.
   is built into the binary. It needs glibc 2.17 or newer (any x86_64 distro
   from ~2014 on) and an X11 or Wayland desktop (Wayland works via XWayland).
 - **No music**: check that `data/soundfonts/Roland_SC-55.sf2` is present, or
-  set `COLONIZE_SOUNDFONT`.
+  set `sound_options.soundfont` in `settings.json`.
 
 ## Licenses
 

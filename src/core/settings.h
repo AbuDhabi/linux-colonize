@@ -65,6 +65,8 @@ typedef struct ColonizeSettings {
   bool background_music;
   bool event_music;
   bool sound_effects;
+  char soundfont[512];   /* .sf2 path; empty = auto-detect */
+  char midi_backend[16]; /* "", "fluidsynth", "tsf"; empty = auto (fluidsynth, then tsf) */
 
   /* Port-only launch prefs. CLI flags still win when given; a missing or
    * invalid settings.json key keeps the hardcoded default. */

@@ -14,8 +14,9 @@
  *
  * Streams are decoded from the GSOUND voice bytecode (note/dur pairs, ED chords,
  * F4 velocity, F8 program, F3 volume envelope, BB pitch-bend RPN, CC ops).
- * Synthesis uses FluidSynth with an SC-55-ish SoundFont when available
- * (COLONIZE_SOUNDFONT overrides).
+ * Synthesis uses an SC-55-ish SoundFont when available (settings.json
+ * sound_options.soundfont overrides). Backends: FluidSynth if built in, else
+ * bundled TinySoundFont; sound_options.midi_backend forces one.
  */
 #define COLONIZE_SOUND_PLAYBACK_ENABLED 1
 
@@ -46,7 +47,14 @@ typedef struct ColonizeSoundOptions {
 bool sound_init(const char* data_dir, bool enable_audio);
 void sound_shutdown(void);
 bool sound_ok(void);
-bool sound_backend_ok(void); /* FluidSynth + soundfont ready */
+bool sound_backend_ok(void); /* synth (FluidSynth or TSF) + soundfont ready */
+/* Preferred .sf2 path (settings.json sound_options.soundfont). Call before
+ * sound_init; empty/NULL = auto-detect. */
+void sound_set_soundfont(const char* path);
+/* Synth pick (settings.json sound_options.midi_backend): "fluidsynth", "tsf",
+ * or empty/NULL = auto (fluidsynth first, tsf fallback). Call before sound_init. */
+void sound_set_midi_backend(const char* name);
+const char* sound_backend_name(void); /* "fluidsynth" / "tsf" / "fallback" */
 
 void sound_set_options(ColonizeSoundOptions opts);
 ColonizeSoundOptions sound_get_options(void);

@@ -26,14 +26,14 @@ harmless.
 
 - `--data-dir PATH` — use a different game-data directory.
 - `--windowed` / `--fullscreen`, `--scale N`, `--nosound` — display/audio options.
-- `COLONIZE_SOUNDFONT=path\to\font.sf2` — override the bundled soundfont.
+- `settings.json` `sound_options.soundfont` — override the bundled soundfont.
 
 Settings and saves are written next to the game data.
 
 ## Troubleshooting
 
 - **No music**: check that `data\soundfonts\Roland_SC-55.sf2` is present, or
-  set `COLONIZE_SOUNDFONT`.
+  set `sound_options.soundfont` in `settings.json`.
 - Windows 7 or newer, 64-bit, is expected.
 
 ## Licenses
