@@ -3047,6 +3047,12 @@ static int ai_king_10f0_score_tile(const ColonizeTurnContext* ctx, int human, in
       !map_tile_is_water(ctx->map, tx, ty)) {
     return -1;
   }
+  /* bugs.md: the ally sails a Man-O-War in — a landlocked lake tile is
+   * unreachable from the ocean, yet pass 2 of the picker accepted any water
+   * ("MoW in the lake deposited troops into the lake colony"). */
+  if (map_tile_is_lake(ctx->map, tx, ty)) {
+    return -1;
+  }
   int score = 1;
   for (int i = 0; i < COLONIZE_UNITS_MAX && ctx->units; ++i) {
     const ColonizeUnit* u = &ctx->units->units[i];
@@ -3911,6 +3917,22 @@ static void ai_king_foreign_intervene_ex(ColonizeTurnContext* ctx, int from_bell
   if (ai_king_10f0_pick_colony(ctx, ctx->human_nation, &hx, &hy) < 0) {
     if (ai_king_weakest_port(ctx, ctx->human_nation, &hx, &hy) < 0) {
       return;
+    }
+  }
+  /* Rolled a colony with no ocean-reachable water beside it (a lake port):
+   * fall back to any human colony that has one instead of skipping the
+   * whole landing. */
+  if (!ai_king_10f0_pick_spawn(ctx, ctx->human_nation, hx, hy, &sx, &sy) && ctx->colonies) {
+    for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+      const ColonizeColony* c = &ctx->colonies->colonies[i];
+      if (!c->active || c->nation_id != ctx->human_nation) {
+        continue;
+      }
+      if (ai_king_10f0_pick_spawn(ctx, ctx->human_nation, c->x, c->y, &sx, &sy)) {
+        hx = c->x;
+        hy = c->y;
+        break;
+      }
     }
   }
   const int human = ctx->human_nation;
