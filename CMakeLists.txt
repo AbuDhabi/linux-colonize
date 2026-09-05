@@ -21,7 +21,15 @@ if(NOT SDL2_FOUND)
     if(SDL2_PC_FOUND)
       add_library(SDL2::SDL2 INTERFACE IMPORTED)
       target_include_directories(SDL2::SDL2 INTERFACE ${SDL2_PC_INCLUDE_DIRS})
-      target_link_libraries(SDL2::SDL2 INTERFACE ${SDL2_PC_LINK_LIBRARIES})
+      if(COLONIZE_STATIC_DEPS)
+        # Static archive + its full dependency closure. Link flags like
+        # -mwindows are deliberately not taken: the exe stays a console-
+        # subsystem binary with a plain main() (no SDL2main/WinMain).
+        target_link_directories(SDL2::SDL2 INTERFACE ${SDL2_PC_STATIC_LIBRARY_DIRS})
+        target_link_libraries(SDL2::SDL2 INTERFACE ${SDL2_PC_STATIC_LINK_LIBRARIES})
+      else()
+        target_link_libraries(SDL2::SDL2 INTERFACE ${SDL2_PC_LINK_LIBRARIES})
+      endif()
       set(SDL2_FOUND ON)
     endif()
   endif()
