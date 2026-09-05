@@ -17,25 +17,9 @@ memory-model / runtime artifacts.
 
 Prefer **`viceroy_unpacked.*`** when chasing map-view or overlay call chains.
 
-## High-Level Metrics
-
-- Unpacked VICEROY export: large (overlay bodies + many segments)
-- Common synthetic symbols:
-  - Globals: `DAT_xxxx_xxxx`
-  - Labels: `LAB_xxxx_xxxx`
-  - Switch labels: `caseD_*`
-
-## Function Clusters by Segment Prefix
-
-The segment prefix in function names (`FUN_ssss_oooo`) provides a practical
-first-pass clustering mechanism:
-
-- `FUN_15eb_*`: high-density logic cluster
-- `FUN_1d1d_*`: high-density logic + platform-adjacent routines
-- `FUN_1427_*`: mid-size cluster
-- `FUN_104b_*`, `FUN_1009_*`: smaller utility/control-flow clusters
-
-This clustering should be preserved in initial source splitting to reduce risk.
+Ghidra synthetic symbols: globals `DAT_xxxx_xxxx`, labels `LAB_xxxx_xxxx`,
+switch labels `caseD_*`. The `FUN_ssss_oooo` segment prefix is a practical
+first-pass clustering (e.g. `15eb`/`1d1d` are high-density logic).
 
 ## Known Ghidra Disassembly Faults (check before trusting a function)
 
