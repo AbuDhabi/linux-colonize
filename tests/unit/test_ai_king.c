@@ -345,6 +345,7 @@ int main(void) {
   }
   for (int i = 0; i < 256; ++i) {
     map.terrain[i] = 1; /* land */
+    map.layer3[i] = 1; /* region 1 = open ocean nibble — water here is NOT a lake */
   }
   map.terrain[5 * 16 + 4] = 25; /* ocean west of colony for MoW */
 

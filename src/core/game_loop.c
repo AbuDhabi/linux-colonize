@@ -667,6 +667,24 @@ static void game_move_watch(
       return;
     }
     game_set_view_center(game, to_x, to_y);
+  } else {
+    /* bugs.md: scripted own-nation moves — the allied intervention force's
+     * disembark slides — can originate entirely off-screen, where the slide
+     * plays invisibly (a player-driven unit is by definition on screen, so
+     * this recentre never fires for ordinary moves). */
+    int cols = 0;
+    int rows = 0;
+    game_map_zoom_view_size(game->map_zoom, &cols, &rows);
+    int vx = 0;
+    int vy = 0;
+    map_panel_clamp_view_origin(
+      (int)game->world_map.width, (int)game->world_map.height, game->map_view_x,
+      game->map_view_y, cols, rows, &vx, &vy
+    );
+    if (from_x < vx || from_y < vy || from_x >= vx + cols || from_y >= vy + rows ||
+        to_x < vx || to_y < vy || to_x >= vx + cols || to_y >= vy + rows) {
+      game_set_view_center(game, to_x, to_y);
+    }
   }
 
   uint8_t pixels[320 * 200];
