@@ -1130,6 +1130,9 @@ int main(void) {
   memset(col1.head.expeditionary_force, 0, sizeof(col1.head.expeditionary_force));
   /* Crown wave may have captured the port; restore human ownership for landing pick. */
   colonies.colonies[0].nation_id = 0;
+  /* DOS 2022 (75007): the free backup drain runs only AFTER the bells-bought
+   * @INTERVENTION announce set 0x5382 bit2 — model latch here. */
+  ai_king_latch_set(&col1, AI_KING_INTERVENE_ANNOUNCED_BYTE, 1);
   col1.head.backup_force[0] = 4;
   col1.head.backup_force[1] = 3;
   col1.head.backup_force[2] = 1;
@@ -1205,12 +1208,14 @@ int main(void) {
     }
   }
 
-  /* Small pools: 1/0/0/0 → MoW (pool[2] already 0, stays 0) + 1 Army. */
+  /* Small pools: 1/0/1/0 → MoW (pool[2] 1→0) + 1 Army. (DOS 2022 75007: the
+   * free drain needs the MoW pool nonzero — an empty 0x53e6 routes to the
+   * merc-roll branch instead, so pool[2]=0 would land nothing here.) */
   memset(col1.head.expeditionary_force, 0, sizeof(col1.head.expeditionary_force));
   colonies.colonies[0].nation_id = 0;
   col1.head.backup_force[0] = 1;
   col1.head.backup_force[1] = 0;
-  col1.head.backup_force[2] = 0;
+  col1.head.backup_force[2] = 1;
   col1.head.backup_force[3] = 0;
   {
     const int human_before = count_nation(&units, 0);
@@ -4867,7 +4872,11 @@ int main(void) {
       col1.head.backup_force[3] = 0;
       status[0] = '\0';
       ai_popup_clear(&pop);
-      ai_king_nation_turn(&ctx);
+      /* The @INTERVENTION announce is the bells-threshold spend (DOS 0a22 →
+       * 74462), not the per-turn drain — drive it directly. */
+      if (!ai_king_spend_woi_bell_pool(&ctx, 0)) {
+        return fail("bells spend should fire the intervention announce");
+      }
       {
         int arrival_ok = 0;
         int found_intervention = 0;
@@ -6469,6 +6478,9 @@ int main(void) {
     founding_fathers_reset();
     col1.head.game_options.woi = 1;
     col1.head.game_options.ref_present = 0;
+    /* Fresh scenario: DOS 0a22 spends once per game (0x5382 bit2) — earlier
+     * subtests already announced; reset the latch. */
+    ai_king_latch_set(&col1, AI_KING_INTERVENE_ANNOUNCED_BYTE, 0);
     col1.head.difficulty = 2;
     memset(col1.head.expeditionary_force, 0, sizeof(col1.head.expeditionary_force));
     col1.head.backup_force[0] = 3;
