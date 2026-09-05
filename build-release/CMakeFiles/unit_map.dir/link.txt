@@ -1,1 +1,0 @@
-/usr/bin/cc -O3 -DNDEBUG -Wl,-rpath,$ORIGIN/lib,--disable-new-dtags CMakeFiles/unit_map.dir/tests/unit/test_map.c.o CMakeFiles/unit_map.dir/src/core/map.c.o CMakeFiles/unit_map.dir/src/data/viceroy_tables.c.o CMakeFiles/unit_map.dir/src/platform/diagnostics.c.o CMakeFiles/unit_map.dir/src/core/strutil.c.o -o unit_map 

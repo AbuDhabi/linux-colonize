@@ -1,1 +1,0 @@
-/usr/bin/cc -O3 -DNDEBUG -Wl,-rpath,$ORIGIN/lib,--disable-new-dtags CMakeFiles/render_map_panel.dir/tools/render_map_panel_main.c.o -o render_map_panel  libcolonize_core.a -lm -lpthread -lfluidsynth 

@@ -1,1 +1,0 @@
-/usr/bin/cc -O3 -DNDEBUG -Wl,-rpath,$ORIGIN/lib,--disable-new-dtags CMakeFiles/probe_sioux_spent.dir/tools/probe_sioux_spent.c.o -o probe_sioux_spent  libcolonize_core.a -lm -lpthread -lfluidsynth 

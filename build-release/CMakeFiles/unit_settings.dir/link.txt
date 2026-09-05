@@ -1,1 +1,0 @@
-/usr/bin/cc -O3 -DNDEBUG -Wl,-rpath,$ORIGIN/lib,--disable-new-dtags CMakeFiles/unit_settings.dir/tests/unit/test_settings.c.o -o unit_settings  libcolonize_core.a -lm -lpthread -lfluidsynth 

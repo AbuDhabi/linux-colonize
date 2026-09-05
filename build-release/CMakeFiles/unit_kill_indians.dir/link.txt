@@ -1,1 +1,0 @@
-/usr/bin/cc -O3 -DNDEBUG -Wl,-rpath,$ORIGIN/lib,--disable-new-dtags CMakeFiles/unit_kill_indians.dir/tests/unit/test_kill_indians.c.o -o unit_kill_indians  libcolonize_core.a -lm -lpthread -lfluidsynth 

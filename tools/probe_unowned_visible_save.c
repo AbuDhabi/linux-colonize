@@ -339,9 +339,9 @@ static int run_one(const char* path, const char* label) {
 }
 
 int main(int argc, char** argv) {
-  const char* bad =
-    "/home/jan/projects/linux-colonize/tests-save-misc/unowned units all visible.sav";
-  const char* good = "/home/jan/projects/linux-colonize/original_saves/COLONY00.SAV";
+  /* Defaults assume the tool is run from the repo root. */
+  const char* bad = "tests-save-misc/unowned units all visible.sav";
+  const char* good = "original_saves/COLONY00.SAV";
   if (argc >= 2) {
     bad = argv[1];
   }

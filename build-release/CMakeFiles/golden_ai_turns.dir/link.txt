@@ -1,1 +1,0 @@
-/usr/bin/cc -O3 -DNDEBUG -Wl,-rpath,$ORIGIN/lib,--disable-new-dtags CMakeFiles/golden_ai_turns.dir/tests/golden/test_ai_turns.c.o -o golden_ai_turns  libcolonize_core.a -lm -lpthread -lfluidsynth 

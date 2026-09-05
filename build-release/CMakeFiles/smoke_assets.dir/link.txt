@@ -1,1 +1,0 @@
-/usr/bin/cc -O3 -DNDEBUG -Wl,-rpath,$ORIGIN/lib,--disable-new-dtags CMakeFiles/smoke_assets.dir/tests/smoke/test_assets.c.o CMakeFiles/smoke_assets.dir/src/core/assets.c.o CMakeFiles/smoke_assets.dir/src/platform/diagnostics.c.o CMakeFiles/smoke_assets.dir/src/core/strutil.c.o CMakeFiles/smoke_assets.dir/src/platform/dos_compat/dos_compat.c.o -o smoke_assets 
