@@ -99,7 +99,7 @@ Village deep `2820` VGA trade, full `465b` foreign diplo/war UI, Euro mid-planne
 - [combat.md](combat.md) — odds, peels, promote/demote, coastal fort
 - [manual_gap.md](manual_gap.md) — Units / Combat rows
 - [assets.md](assets.md) — map keys, landfall note
-- [ai_transcription.md](ai_transcription.md) — AI move / combat
+- [port_plan.md](port_plan.md) — AI move / combat
 - [`original_sources_annotated/ai/move_spent.c`](../original_sources_annotated/ai/move_spent.c)
 
 ## Shore crossing spends everything — 2026-09-04

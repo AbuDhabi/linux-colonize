@@ -317,7 +317,7 @@ typedef struct ColonizeCol1Player {
                                         dispatch runs, so this bit's own description
                                         was already accurate. FUN_65dd_0004's full
                                         table is still PARKED (see indian_contact.md's
-                                        de Soto note). See docs/mysteries_catalog.md. */
+                                        de Soto note). See docs/archive/mysteries_catalog.md. */
   uint8_t named_new_world : 1; /* bit7 @ player+0x30; discovery one-shot (FUN_4720_049e) */
   uint8_t control; /* 0 player, 1 AI, 2 withdrawn */
   uint8_t founded_colonies;
@@ -465,7 +465,7 @@ typedef struct ColonizeCol1Unit {
    * to 0 at the top of every per-unit AI housekeeping pass (FUN_521d_0a60,
    * `&= 0xd1`), then re-derives them fresh that same pass — so all four are
    * per-tick scratch, not persistent unit history, even though they round-trip
-   * through the save file. See docs/mysteries_catalog.md.
+   * through the save file. See docs/archive/mysteries_catalog.md.
    */
   uint8_t unknown15_bit0 : 1; /* bit0 (0x01) — never tested or set anywhere
      in any of the 3 decompiled exports; confirmed dead */
@@ -539,7 +539,7 @@ typedef struct ColonizeCol1Nation {
      (+7..+0xa) via a 4-byte clear, then separately zeroes +0xc.. onward —
      this one byte between them is the sole gap, left un-inited. On a fresh
      DOS game it is stack/heap garbage; no traced code ever reads or writes
-     it. See docs/mysteries_catalog.md.
+     it. See docs/archive/mysteries_catalog.md.
 
      Linux repurpose (2026-08-22): doubles as the FF-pool-stash marker
      (`FF_POOL_STASH_MARKER` in founding_fathers.c). Set only when this
@@ -557,7 +557,7 @@ typedef struct ColonizeCol1Nation {
      here, then applied unconditionally in the SAME call via FUN_38fd_3dc8(delta)
      which does tax_rate += delta (clamped max 75). No DOS reader of this saved
      copy was found — it's a write-through of a value already consumed
-     synchronously, not a pending/awaiting-input slot. See docs/mysteries_catalog.md. */
+     synchronously, not a pending/awaiting-input slot. See docs/archive/mysteries_catalog.md. */
   int16_t next_founding_father;
   uint16_t founding_father_count;
   uint16_t ff_count_end_prob; /* smcol; cleared on independence; no FF-prob reader */
@@ -574,7 +574,7 @@ typedef struct ColonizeCol1Nation {
      nation_flags bit 0x04 (see that field's comment) and broadcasts a
      diplomatic relations update to the other 3 nations. Bytes +0x1b..+0x1d
      (unknown23_pad[1..3]) never touched anywhere in any of the 3 decompiled
-     exports — kept as pad below. See docs/mysteries_catalog.md. */
+     exports — kept as pad below. See docs/archive/mysteries_catalog.md. */
   uint8_t unknown23_pad[3]; /* DOS-dead; bytes 0-1 of the HUMAN nation host the Linux king
      latches since 2026-08-28 (ai_king_latch_get/set, ai_king.h): endgame + once-flags. */
   uint16_t artillery_count;
@@ -644,7 +644,7 @@ typedef struct ColonizeCol1Nation {
    *     founding urgency is nonzero). Linux diplo_flag[2..3] overlay it;
    *     DOS value unused by Linux. Resolved 2026-08-27.
    *   +0x4b: confirmed dead 2026-08-27 (no literal touch anywhere).
-   * All 12 bytes now have a DOS meaning; see docs/mysteries_catalog.md
+   * All 12 bytes now have a DOS meaning; see docs/archive/mysteries_catalog.md
    * Meta-mystery section.
    */
   union {
@@ -707,7 +707,7 @@ typedef struct ColonizeCol1Tribe {
      read back next visit to resume the same standoff / show the "still
      trying to sell that" line (string 0x156a) instead of a fresh offer.
      0xff = idle (set on a completed sale); 0xfe = last visit ended in an
-     outright refusal. See docs/mysteries_catalog.md. */
+     outright refusal. See docs/archive/mysteries_catalog.md. */
   uint8_t last_bought;
   uint8_t last_sold;
   ColonizeCol1TribeAlarm alarm[4];
@@ -721,7 +721,7 @@ typedef struct ColonizeCol1Indian {
      dead 2026-08-24: every literal `*(int*)0x8d4e + 3` access across all 3
      decompiled DOS exports only ever masks 0x20/0x40/0x80 (the three named
      bits below); masks 0x01/0x02/0x04/0x08/0x10 never appear anywhere. See
-     docs/mysteries_catalog.md. */
+     docs/archive/mysteries_catalog.md. */
   /* bit 0x20 (bit5): WoI tribe-defection one-shot latch — FUN_4d56_1816,
    * indian_woi_defect_1816.md. Set once the roll resolves (hit or miss)
    * so the tribe is not re-checked every turn for the rest of the war. */
@@ -764,7 +764,7 @@ typedef struct ColonizeCol1Indian {
      now a direct int16 (struct is #pragma pack(1), same bytes).
      Write side wired 2026-08-24 (ai_place_tribes_procedural, ai.c) —
      previously read-only dead weight since NEW WORLD games never
-     populated it. See docs/mysteries_catalog.md. */
+     populated it. See docs/archive/mysteries_catalog.md. */
   int16_t tons[COLONIZE_COL1_CARGO_TYPES];
   /* +0x2e — per-euro contact FSM 0/1/2 (FUN_5bfb_*); was unknown32[12]. */
   int16_t contact_state[4];
@@ -831,7 +831,7 @@ typedef struct ColonizeCol1Stuff {
    * The 8 fields below were renamed off generic unknown_ds_XXXX names
    * 2026-08-26 — semantics confirmed in save_format_map.md's "Stuff" table
    * (FUN_4962_0018/FUN_4962_06b6 raw-.asm register traces), a cosmetic
-   * rename-only follow-up flagged in mysteries_catalog.md; JSON key strings
+   * rename-only follow-up flagged in archive/mysteries_catalog.md; JSON key strings
    * in tools/col1_json.c kept stable (unchanged "unknown_ds_XXXX_hex"), same
    * convention as the earlier unknown31b/31c_pad rename. */
   uint8_t village_counts_by_continent[16]; /* DS:0x947e */
@@ -993,7 +993,7 @@ typedef struct ColonizeCol1Save {
   /*
    * DS:0x54f6 Indian grudge/tension table, `[tribe_index * 4 + euro_nation]`,
    * int16 per slot (DOS stride is 9 but only euro_nation 0..3 has any
-   * confirmed touch site — docs/mysteries_catalog.md's "0x54f6" entry).
+   * confirmed touch site — docs/archive/mysteries_catalog.md's "0x54f6" entry).
    * Runtime-only: DOS's own "stuff@727 bytes / 33 discrete DS writes"
    * save-chunk inventory (see header comment above) does not include this
    * table, so it is not part of the persisted col1 record either — reset to

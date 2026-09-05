@@ -171,7 +171,7 @@ int ai_goals_unit_desirability_score(
 /*
  * FUN_521d_0600 — composite_unit_priority = 052c + 0492 + 03d0, floor 0.
  * Thunk identities resolved via arg-shape match (2a1f_053c=052c,
- * 2a1f_04d0=0492, 2a1f_0494=03d0); see docs/ai_transcription.md.
+ * 2a1f_04d0=0492, 2a1f_0494=03d0); see docs/port_plan.md.
  */
 int ai_goals_composite_unit_priority(
   const ColonizeWorldMap* map,

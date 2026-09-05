@@ -1,5 +1,5 @@
 /*
- * PARKED 2026-08-19 (docs/ai_transcription.md R0, docs/roadmap.md): DISABLED
+ * PARKED 2026-08-19 (docs/port_plan.md R0, docs/port_plan.md): DISABLED
  * in CMakeLists.txt — same reason as tests/golden/test_ai_turns.c. Red here
  * means AI porting incomplete, not a fresh regression; do not chase to green
  * until the transcription is done.

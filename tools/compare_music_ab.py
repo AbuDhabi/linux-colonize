@@ -29,7 +29,7 @@ tight enough to block repeat-jumps, loose enough not to mask a real global
 tempo bug by force-fitting the diagonal.
 
 Requires the venv at .venv-sound (numpy/scipy/librosa) — see
-docs/ai_transcription.md or run:
+docs/port_plan.md or run:
   python3 -m venv --without-pip .venv-sound
   .venv-sound/bin/python3 <(curl -sS https://bootstrap.pypa.io/get-pip.py)
   .venv-sound/bin/pip install numpy scipy librosa soundfile matplotlib

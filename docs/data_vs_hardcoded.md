@@ -123,10 +123,10 @@ These do **not** appear as editable MicroProse catalogs. Recover from decomp / b
 | NEW WORLD map generation (land blobs, climate, rivers, arctic/HS) | VICEROY `FUN_684c_*`, `FUN_67bf_*` | `src/core/map_gen.c` |
 | DOS LCG / `range()` | `FUN_1d1d_0e04`, `FUN_19ef_0032` | `src/core/dos_rng.c` |
 | Tribe / Brave / satellite placement | `FUN_6a09_*` | `src/core/ai.c` |
-| Indian AI / growth / contact | `FUN_4d56_*` | `ai.c` (growth/pulse) + `ai_contact.c` — see [ai_transcription.md](ai_transcription.md) |
-| European AI planner | `FUN_521d_*` | `ai_euro.c` / `ai_goals.c` — early T2 slices (seed-100 sail/unload/found) + thin expand/war; `20e6` land arms ported 2026-08-27 (T1.18), deep −0x6790 still open — see [ai_transcription.md](ai_transcription.md) |
-| Euro diplomacy | `FUN_15b3_*` / `FUN_5bfb_*` | `ai_diplo.c` — see [ai_transcription.md](ai_transcription.md) |
-| King / REF | `FUN_43f7_*` | `ai_king.c` — see [ai_transcription.md](ai_transcription.md) |
+| Indian AI / growth / contact | `FUN_4d56_*` | `ai.c` (growth/pulse) + `ai_contact.c` — see [port_plan.md](port_plan.md) |
+| European AI planner | `FUN_521d_*` | `ai_euro.c` / `ai_goals.c` — early T2 slices (seed-100 sail/unload/found) + thin expand/war; `20e6` land arms ported 2026-08-27 (T1.18), deep −0x6790 still open — see [port_plan.md](port_plan.md) |
+| Euro diplomacy | `FUN_15b3_*` / `FUN_5bfb_*` | `ai_diplo.c` — see [port_plan.md](port_plan.md) |
+| King / REF | `FUN_43f7_*` | `ai_king.c` — see [port_plan.md](port_plan.md) |
 | Map tile compositor (masks, draw order) | MAPEDIT `FUN_1a47_*` | `src/core/map.c` |
 | Resource / rumour procedural placement | MAPEDIT `FUN_12ab_*` | `map.c` |
 | Turn / calendar mechanics beyond `@TIMECHANGE` copy | VICEROY + saves | `src/core/turn.c` |
@@ -201,7 +201,7 @@ Still **duplicated in C** (should migrate toward catalogs when convenient): some
 ## See also
 
 - [original_index.md](original_index.md) — FUN_* and file index
-- [ai_transcription.md](ai_transcription.md) — AI bake inventory and remaining work
+- [port_plan.md](port_plan.md) — AI bake inventory and remaining work
 - [assets.md](assets.md) — MADSPACK, map layers, UI wiring
 - [viceroy_tables.md](viceroy_tables.md) — extracted VICEROY DS tables
 - [terrain_yields.md](terrain_yields.md) / [building_production.md](building_production.md) — yield & manufacturing rules

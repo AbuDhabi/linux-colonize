@@ -4802,7 +4802,7 @@ static int unit_dock_farmer_hire(void) {
  * base "Colonists" (no literal "Expert Farmer" / "Free Colonist" @UNIT rows —
  * those never exist in real data; specialists are "Colonists" + a @JOB
  * profession, per units_display_name()). Before the ai_euro_type_from_dock_name
- * fix this silently resolved to -1 and the dock hire never fired (roadmap.md
+ * fix this silently resolved to -1 and the dock hire never fired (port_plan.md
  * Phase 3 "Free Colonist" dead-lookup note) — this regresses that.
  */
 static int unit_dock_farmer_hire_real_names(void) {

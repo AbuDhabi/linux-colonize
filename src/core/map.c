@@ -1848,7 +1848,7 @@ static const uint8_t k_map_dos_terr_lumber_reward[29] = {
  * DS:0x2f7a colonist work-plot labor/travel penalty byte (offset +4), same
  * capture/method as the +2/+8 columns above. Consumed by
  * FUN_15eb_28c8 (colonist work-plot job scoring, not yet ported — see
- * docs/ai_port_plan.md T1.17 and original_sources_annotated/turn/
+ * docs/port_plan.md T1.17 and original_sources_annotated/turn/
  * colonist_work_plot_28c8.md), subtracted from a running byte
  * (floor 1), plus a +0x18 forest bonus gated on difficulty<0xb and a
  * "no settlement adjacent" flag (that gate not modeled here — see

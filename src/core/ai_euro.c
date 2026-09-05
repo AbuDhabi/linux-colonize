@@ -517,9 +517,9 @@ static int ai_euro_ocean_3558_empty_cruise_tip(
  * "AI ship Y far from landfall/goto Y" sanity check even with the search
  * radius capped small. Real fix needs each of those 12+ call sites'
  * success/failure expectations mapped first, not a drop-in replacement —
- * left for a future pass; see `ai_port_plan.md` T1.3.
+ * left for a future pass; see `port_plan.md` T1.3.
  *
- * 2026-08-20, T1.4/T1.5 follow-up — call sites catalogued (`ai_port_plan.md`
+ * 2026-08-20, T1.4/T1.5 follow-up — call sites catalogued (`port_plan.md`
  * T1.4): 11 "cascading fallback" sites tolerate a success-rate increase
  * fine, but 5 "exact wake/skip gate" sites need the *same* (fx,fy) back for
  * the *same* landfall on repeat calls within a turn, not just success.
@@ -3520,7 +3520,7 @@ static int ai_euro_28c8_job_headcount(const ColonizeColony* col, int field_job) 
 
 /*
  * FUN_15eb_28c8 — colonist work-plot job scoring, structural reference port
- * (2026-08-22, docs/ai_port_plan.md T1.17). RE is complete — see
+ * (2026-08-22, docs/port_plan.md T1.17). RE is complete — see
  * original_sources_annotated/turn/colonist_work_plot_28c8.md. **2026-08-24
  * (W1.7):** a golden fixture now verifies the 9-job weighted formula —
  * tests/unit/test_ai_euro_28c8_job_score.c — and caught a real discrepancy
@@ -6587,7 +6587,7 @@ static int ai_euro_dock_name_is_fur_trader_expert(const char* name) {
  * below still tries the specialist/base occupation name first (dock pools in
  * some fixtures do define them), then real "Colonists" before the legacy
  * "Free Colonist" fallback, so real NAMES.TXT hires actually resolve instead
- * of silently returning -1. Cite: roadmap.md Phase 3 "Free Colonist" dead-
+ * of silently returning -1. Cite: port_plan.md Phase 3 "Free Colonist" dead-
  * lookup note; the caller (below) copies the dock unit's real profession
  * onto the spawned "Colonists" hire regardless of which arm matched.
  */
@@ -9160,7 +9160,7 @@ static void ai_euro_nation_planning(ColonizeTurnContext* ctx, int nation_id) {
      * Real NAMES.TXT @UNIT has no "Free Colonist" / "Colonist" row — the base
      * laborer type is "Colonists" (profession flavors the display name via
      * units_display_name()). Try the real name first; keep the old names as
-     * fallback for fixtures that still define them. Cite: roadmap.md Phase 3
+     * fallback for fixtures that still define them. Cite: port_plan.md Phase 3
      * "Free Colonist" dead-lookup note.
      */
     hire_ty = units_find_type(ctx->units, "Colonists");
@@ -10918,7 +10918,7 @@ static int ai_euro_score_move(
  *   epilogue commit     → ai_euro_move_scoring_gate  (LAB_589e/5a78)
  *
  * NOT here (own Linux mechanics already cover them, or closed as dead in
- * ai_port_plan.md T1.2/T1.3): 0x42/0x65 found/contact writes, LAB_3558
+ * port_plan.md T1.2/T1.3): 0x42/0x65 found/contact writes, LAB_3558
  * ship band, colonist labor loop (LAB_2c..), missionary/scout 0x4c village
  * arms, attack-odds sub-block of the 8-dir loop (LAB_52aa — the raw C there
  * is register-garbage around FUN_1000_8aac; the tile is scored via the

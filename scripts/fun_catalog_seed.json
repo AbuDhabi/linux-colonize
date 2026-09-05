@@ -1250,19 +1250,19 @@
         "system": "ai",
         "purpose": "Small Indian AI helper; calls into 00e0 / map probes",
         "confidence": "inferred",
-        "links": "docs/ai_transcription.md"
+        "links": "docs/port_plan.md"
       },
       "FUN_4d56_00e0": {
         "system": "ai",
         "purpose": "Chains to 01e2 / 14fe",
         "confidence": "inferred",
-        "links": "docs/ai_transcription.md"
+        "links": "docs/port_plan.md"
       },
       "FUN_4d56_01e2": {
         "system": "ai",
         "purpose": "Thin wrapper to 14fe",
         "confidence": "inferred",
-        "links": "docs/ai_transcription.md"
+        "links": "docs/port_plan.md"
       },
       "FUN_4d56_14fe": {
         "system": "ai",
@@ -1286,37 +1286,37 @@
         "system": "ai",
         "purpose": "Calls 2154; mid-turn Indian action",
         "confidence": "inferred",
-        "links": "docs/ai_transcription.md"
+        "links": "docs/port_plan.md"
       },
       "FUN_4d56_2154": {
         "system": "ai",
         "purpose": "Larger Indian action body (raid-adjacent)",
         "confidence": "inferred",
-        "links": "docs/ai_transcription.md"
+        "links": "docs/port_plan.md"
       },
       "FUN_4d56_2820": {
         "system": "ai",
         "purpose": "Heavy Indian decision / raid-scale logic",
         "confidence": "inferred",
-        "links": "docs/ai_transcription.md"
+        "links": "docs/port_plan.md"
       },
       "FUN_4d56_3582": {
         "system": "ai",
         "purpose": "Small helper after 2820",
         "confidence": "inferred",
-        "links": "docs/ai_transcription.md"
+        "links": "docs/port_plan.md"
       },
       "FUN_4d56_417e": {
         "system": "ai",
         "purpose": "Mid-size Indian AI helper",
         "confidence": "inferred",
-        "links": "docs/ai_transcription.md"
+        "links": "docs/port_plan.md"
       },
       "FUN_4d56_4528": {
         "system": "ai",
         "purpose": "Largest Indian cluster (combat/raid-adjacent)",
         "confidence": "inferred",
-        "links": "docs/ai_transcription.md"
+        "links": "docs/port_plan.md"
       },
       "FUN_6a09_0006": {
         "system": "ai",
@@ -1340,7 +1340,7 @@
         "system": "ai",
         "purpose": "Euro nation planning / hire / treasury (OPEN mid; 6d8e via 0554)",
         "confidence": "inferred",
-        "links": "ai/euro_dispatcher.c; docs/ai_transcription.md"
+        "links": "ai/euro_dispatcher.c; docs/port_plan.md"
       },
       "FUN_521d_6d8e": {
         "system": "ai",
@@ -3032,7 +3032,7 @@
         "system": "ai",
         "purpose": "Tribe growth tick from Indian nation turn (4d56_1816)",
         "confidence": "known",
-        "links": "docs/ai_transcription.md"
+        "links": "docs/port_plan.md"
       },
       "FUN_364b_1ba8": {
         "system": "colony",
@@ -3404,19 +3404,19 @@
         "system": "ai",
         "purpose": "Always-true predicate stub (Europe hire gate)",
         "confidence": "inferred",
-        "links": "ai/euro_dispatcher.c; docs/ai_transcription.md"
+        "links": "ai/euro_dispatcher.c; docs/port_plan.md"
       },
       "FUN_521d_5c3c": {
         "system": "ai",
         "purpose": "Try buy/hire Europe unit if treasury allows",
         "confidence": "inferred",
-        "links": "ai/euro_dispatcher.c; docs/ai_transcription.md"
+        "links": "ai/euro_dispatcher.c; docs/port_plan.md"
       },
       "FUN_521d_5cf6": {
         "system": "ai",
         "purpose": "Refresh colony context pointer (6d8e inventory)",
         "confidence": "inferred",
-        "links": "ai/euro_dispatcher.c; docs/ai_transcription.md"
+        "links": "ai/euro_dispatcher.c; docs/port_plan.md"
       },
       "FUN_2a1f_0464": {
         "system": "mapgen",
@@ -3890,55 +3890,55 @@
         "system": "ai",
         "purpose": "Indian trade dispatch: route selected good → 2e92/2bbc/2b92 or refuse",
         "confidence": "inferred",
-        "links": "docs/ai_transcription.md"
+        "links": "docs/port_plan.md"
       },
       "FUN_4d56_2af6": {
         "system": "ai",
         "purpose": "Abort trade close: clear tribe last-goods flags, reshuffle demand → 3582",
         "confidence": "inferred",
-        "links": "docs/ai_transcription.md"
+        "links": "docs/port_plan.md"
       },
       "FUN_4d56_2b92": {
         "system": "ai",
         "purpose": "Player Indian buy-offer loop: price good, accept/haggle/reject dialog",
         "confidence": "inferred",
-        "links": "docs/ai_transcription.md"
+        "links": "docs/port_plan.md"
       },
       "FUN_4d56_2bbc": {
         "system": "ai",
         "purpose": "AI/non-human Indian buy-offer loop (same pricing, auto choices)",
         "confidence": "inferred",
-        "links": "docs/ai_transcription.md"
+        "links": "docs/port_plan.md"
       },
       "FUN_4d56_2e92": {
         "system": "ai",
         "purpose": "Trade no-deal exit (invalid good/capacity) → 311e demand or close",
         "confidence": "inferred",
-        "links": "docs/ai_transcription.md"
+        "links": "docs/port_plan.md"
       },
       "FUN_4d56_2f96": {
         "system": "ai",
         "purpose": "Trade haggle (choice 2): bump offer/tension, resume buy dialog loop",
         "confidence": "inferred",
-        "links": "docs/ai_transcription.md"
+        "links": "docs/port_plan.md"
       },
       "FUN_4d56_306c": {
         "system": "ai",
         "purpose": "Trade hard-bargain (choice 3): worse terms + tension, resume loop",
         "confidence": "inferred",
-        "links": "docs/ai_transcription.md"
+        "links": "docs/port_plan.md"
       },
       "FUN_4d56_311e": {
         "system": "ai",
         "purpose": "Indian counter-demand: pick tribute goods + priced buy-back dialog",
         "confidence": "inferred",
-        "links": "docs/ai_transcription.md"
+        "links": "docs/port_plan.md"
       },
       "FUN_4d56_359c": {
         "system": "ai",
         "purpose": "Relation-gated Indian attack on unit: kill / warn / displace by RNG",
         "confidence": "inferred",
-        "links": "docs/ai_transcription.md"
+        "links": "docs/port_plan.md"
       },
       "FUN_5fef_0000": {
         "system": "combat",
@@ -4376,49 +4376,49 @@
         "system": "ai",
         "purpose": "Landfall/goto duration roll (1 or 2 turns; docks/colony count)",
         "confidence": "inferred",
-        "links": "docs/ai_transcription.md"
+        "links": "docs/port_plan.md"
       },
       "FUN_48d3_007a": {
         "system": "ai",
         "purpose": "Landfall arrival: stack goto/unload setup from active unit tile",
         "confidence": "inferred",
-        "links": "docs/ai_transcription.md"
+        "links": "docs/port_plan.md"
       },
       "FUN_48d3_015e": {
         "system": "ai",
         "purpose": "Spiral-find nearest High Seas tile; set sail/goto order",
         "confidence": "inferred",
-        "links": "docs/ai_transcription.md"
+        "links": "docs/port_plan.md"
       },
       "FUN_48d3_0346": {
         "system": "ai",
         "purpose": "Retarget stacked units after landfall/colony-goto arrival",
         "confidence": "inferred",
-        "links": "docs/ai_transcription.md"
+        "links": "docs/port_plan.md"
       },
       "FUN_48d3_03d0": {
         "system": "ai",
         "purpose": "Tick landfall delay (315a); move/act unit when expired",
         "confidence": "inferred",
-        "links": "docs/ai_transcription.md"
+        "links": "docs/port_plan.md"
       },
       "FUN_48d3_0434": {
         "system": "ai",
         "purpose": "Tile OK for HS landfall ship place? (bounds, HS, owner)",
         "confidence": "inferred",
-        "links": "docs/ai_transcription.md"
+        "links": "docs/port_plan.md"
       },
       "FUN_48d3_064e": {
         "system": "ai",
         "purpose": "For each ship on tile, spiral-place near landfall goto (048e)",
         "confidence": "inferred",
-        "links": "docs/ai_transcription.md"
+        "links": "docs/port_plan.md"
       },
       "FUN_48d3_06ba": {
         "system": "ai",
         "purpose": "Europe-exit landfall: tax treasures; focus arriving ship",
         "confidence": "inferred",
-        "links": "docs/ai_transcription.md"
+        "links": "docs/port_plan.md"
       },
       "FUN_5952_0000": {
         "system": "colony",
@@ -7622,7 +7622,7 @@
         "system": "mapgen",
         "purpose": "Far thunk → FUN_4d56_4528 (Indian settlement enter/raid contact)",
         "confidence": "inferred",
-        "links": "ai/move_spent.c §3; docs/ai_transcription.md"
+        "links": "ai/move_spent.c §3; docs/port_plan.md"
       },
       "FUN_2a1f_015e": {
         "system": "mapgen",
@@ -13142,19 +13142,19 @@
         "system": "mapgen",
         "purpose": "Far thunk → FUN_48d3_064e (For each ship on tile, spiral-place near landfall goto)",
         "confidence": "inferred",
-        "links": "docs/ai_transcription.md"
+        "links": "docs/port_plan.md"
       },
       "FUN_2a1f_0246": {
         "system": "mapgen",
         "purpose": "Far thunk → FUN_48d3_03d0 (Tick landfall delay; move/act unit when expired)",
         "confidence": "inferred",
-        "links": "docs/ai_transcription.md"
+        "links": "docs/port_plan.md"
       },
       "FUN_2a1f_0254": {
         "system": "mapgen",
         "purpose": "Far thunk → FUN_48d3_0434 (Tile OK for HS landfall ship place?)",
         "confidence": "inferred",
-        "links": "docs/ai_transcription.md"
+        "links": "docs/port_plan.md"
       },
       "FUN_2a1f_0262": {
         "system": "mapgen",
@@ -13286,13 +13286,13 @@
         "system": "mapgen",
         "purpose": "Far thunk → FUN_4d56_0038 (small Indian AI helper; calls into 00e0 / map probes)",
         "confidence": "inferred",
-        "links": "docs/ai_transcription.md"
+        "links": "docs/port_plan.md"
       },
       "FUN_2a1f_044c": {
         "system": "mapgen",
         "purpose": "Far thunk → FUN_4d56_2820 (heavy Indian decision / raid-scale logic)",
         "confidence": "inferred",
-        "links": "docs/ai_transcription.md"
+        "links": "docs/port_plan.md"
       },
       "FUN_2a1f_0458": {
         "system": "mapgen",

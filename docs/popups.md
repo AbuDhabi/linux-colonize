@@ -6,7 +6,7 @@ against the Linux port. Canonical copy identity is the `@SECTION` name in
 are secondary citations.
 
 Feature-level status also lives in [manual_gap.md](manual_gap.md) and
-[ai_transcription.md](ai_transcription.md). This file is the **popup checklist**.
+[port_plan.md](port_plan.md). This file is the **popup checklist**.
 Authenticity vs GAME.TXT (invented vs wired): [popup_audit.md](popup_audit.md).
 
 ## Legend
@@ -1027,7 +1027,7 @@ game compositor. Not inventoried here.
 ## See also
 
 - [manual_gap.md](manual_gap.md) — feature checklist vs manual
-- [ai_transcription.md](ai_transcription.md) — AI FUN inventory; structural vs VGA PARKED
+- [port_plan.md](port_plan.md) — AI FUN inventory; structural vs VGA PARKED
 - [assets.md](assets.md) — `popup_draw` chrome, colony/map popup UX
 - [move_enter.md](move_enter.md) — landfall / meet enter rules
 - [turn_between_players.md](turn_between_players.md) — ship-ready / HoF PARKED

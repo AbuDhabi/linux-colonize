@@ -636,26 +636,6 @@ target_include_directories(render_colony PRIVATE
 
 target_link_libraries(render_colony PRIVATE colonize_core)
 
-add_executable(probe_far_ocean_4753
-  tools/probe_far_ocean_4753.c
-)
-
-target_include_directories(probe_far_ocean_4753 PRIVATE
-  ${CMAKE_CURRENT_SOURCE_DIR}/src
-)
-
-target_link_libraries(probe_far_ocean_4753 PRIVATE colonize_core)
-
-add_executable(probe_sioux_spent
-  tools/probe_sioux_spent.c
-)
-
-target_include_directories(probe_sioux_spent PRIVATE
-  ${CMAKE_CURRENT_SOURCE_DIR}/src
-)
-
-target_link_libraries(probe_sioux_spent PRIVATE colonize_core)
-
 add_executable(smoke_viceroy_tables
   tests/smoke/test_viceroy_tables.c
   src/data/viceroy_tables.c
@@ -1089,11 +1069,11 @@ target_include_directories(unit_ai_king PRIVATE
 target_link_libraries(unit_ai_king PRIVATE colonize_core)
 
 add_test(NAME unit_ai_king COMMAND unit_ai_king WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
-# RE-ENABLED 2026-08-20 (ai_port_plan.md T1.12): the tax/audience blocks
+# RE-ENABLED 2026-08-20 (old AI queue T1.12, now docs/port_plan.md): the tax/audience blocks
 # were rewritten against the real DOS RNG-driven favor-score formula
 # (FUN_38fd_5be8/3dc8) — seeded RNG streams per scenario, turn-gated (not
 # year-gated), apply-then-optionally-revert CHOICE shape. Was DISABLED
-# 2026-08-19 (docs/ai_transcription.md R6) because the fixture predated
+# 2026-08-19 (old AI-doc R6, git history) because the fixture predated
 # this formula port; that gap is closed.
 
 add_executable(unit_ai_euro_expand
@@ -1199,7 +1179,7 @@ target_include_directories(golden_ai_late01 PRIVATE
 target_link_libraries(golden_ai_late01 PRIVATE colonize_core)
 add_test(NAME golden_ai_late01 COMMAND golden_ai_late01 WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
-# PARKED 2026-08-19 (see docs/ai_transcription.md R0 + docs/roadmap.md): the
+# PARKED 2026-08-19 (see docs/port_plan.md, Deferred AI track T3.3): the
 # golden AI bit-fidelity cluster (golden_ai_turns / golden_ai_mid01 /
 # golden_ai_late01 / golden_ai_joint below) chases turn-for-turn DOS parity
 # against a AI planner that is still only structurally/T0-T1 ported, not T3
@@ -1218,7 +1198,7 @@ add_test(NAME golden_ai_late01 COMMAND golden_ai_late01 WORKING_DIRECTORY ${CMAK
 # after the Indian alarm-store consolidation and the 5d04 live wire, so they
 # are back on as regression gates. golden_ai_turns stays DISABLED: it fails
 # only on 3 TURN1→2 Braves — the parked seed-100 quiet-pulse divergence
-# (docs/seed100_brave.md), not a planner regression — and golden_ai_joint
+# (docs/port_plan.md T1.23), not a planner regression — and golden_ai_joint
 # depends on it.
 set_tests_properties(
   golden_ai_turns

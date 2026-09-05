@@ -6,15 +6,29 @@ natives, declare independence, fight the War of Independence and win — with
 the UI, reports, popups and music good enough that none of it feels like a
 placeholder. DOS-exact rival AI, 1:1 Indian AI, seed determinism, pixel-exact
 art and full-fidelity music are **explicitly deferred** (see "Deferred
-phases" below). The AI queue in [ai_port_plan.md](ai_port_plan.md) stays the
-authoritative queue for AI transcription, but it is now a **deferred track**,
-not a peer of this file's Tier 1.
+phases" below and the "Deferred AI track — detail" section, which absorbed
+the old `ai_port_plan.md` / `ai_transcription.md` queues).
+
+**Current posture (2026-09-03):** playability tracks **P1–P11 are closed**.
+Remaining work is `bugs.md` nits, production/combat depth on Partial rows in
+[manual_gap.md](manual_gap.md), and the deferred D1–D5 tracks below.
+
+> **Doc merge note (2026-09-05):** `roadmap.md`, `ai_port_plan.md` and
+> `ai_transcription.md` were merged into this file and removed. Their full
+> changelog-style history (done T*/R* items, dated status notes) lives in git
+> history of those paths. Citations like "ai_port_plan.md T1.18" elsewhere in
+> the repo refer to that history; still-open T-items are carried below.
+
+This file now also owns **phase order / whole-project "what's next"** (was
+roadmap.md). North star: same rules, assets, saves, and inputs as DOS
+Colonization (1994); when goals conflict prefer (1) save/data interop,
+(2) gameplay/determinism, (3) UI parity, (4) visual polish last —
+[project_goals.md](project_goals.md).
 
 Status detail still lives with its owners:
 
 | Detail | Owner |
 |--------|-------|
-| Phase order / exit criteria | [roadmap.md](roadmap.md) |
 | Feature Done/Partial/Missing | [manual_gap.md](manual_gap.md) |
 | Popup inventory / authenticity | [popups.md](popups.md), [popup_audit.md](popup_audit.md) |
 | Combat mechanics | [combat.md](combat.md) |
@@ -23,21 +37,22 @@ Status detail still lives with its owners:
 | Indians | [indians.md](indians.md) |
 | Production formulas | [building_production.md](building_production.md), [terrain_yields.md](terrain_yields.md) |
 | Music / sound | [assets.md](assets.md) "Music / sound" |
-| AI FUN inventory + sequenced queue | [ai_transcription.md](ai_transcription.md), [ai_port_plan.md](ai_port_plan.md) |
+| AI FUN inventory + deferred queue | **this file**, "Deferred AI track — detail" |
 | Architecture constraints | [architecture.md](architecture.md) |
 | Fidelity bar / conflict order | [project_goals.md](project_goals.md) |
+| Decomp / data navigation | [original_index.md](original_index.md) |
 
 ## How an agent should use this file
 
-Same method contract as `ai_port_plan.md`'s "How an agent should use this
-file" + "Method notes" (read raw decomp before trusting summaries; check
-`address_mapping.csv` / `viceroy_globals.h` / `dosbox-x-dumps/*` before filing
-anything as live-capture-blocked; never invent a constant; never `git commit`
-/ `push`; run **full** `ctest` before calling anything done; update the owning
-status doc when a slice lands).
+Method contract (see "Method notes" in the Deferred AI track section below —
+they apply to all RE/port work, not just AI): read raw decomp before trusting
+summaries; check `address_mapping.csv` / `viceroy_globals.h` /
+`dosbox-x-dumps/*` before filing anything as live-capture-blocked; never
+invent a constant; never `git commit` / `push`; run **full** `ctest` before
+calling anything done; update the owning status doc when a slice lands.
 
-1. Read this file, [roadmap.md](roadmap.md), and the owning doc of whatever
-   you touch (CLAUDE.md rule 1).
+1. Read this file and the owning doc of whatever you touch (CLAUDE.md
+   rule 1).
 2. Work the **playability tracks P1–P11** in the order below unless the user
    points at a specific one. Within a track, the "Open" bullets are ordered.
 3. Each bullet carries a gate tag:
@@ -751,7 +766,7 @@ behavior is `4d56` crown unit-act (D1) and king's-reply chrome (P11 / D4).
   tax removed, bells → Continental Army promotions, SoL combat support %
   (already wired — verify). **No Europe** + **Custom House continues**:
   `game_options.woi` authoritative, closed post-declare — Done
-  2026-08-22 per [roadmap.md](roadmap.md); `europe_custom_house_autosell`
+  2026-08-22 per `roadmap.md` (git history); `europe_custom_house_autosell`
   is `woi`-aware and **tax removed** there (`tax=0` when `woi` true,
   `europe.c` ~1954-1958). **Bells → Continental Army/Cavalry promotion**:
   `FUN_43f7_1eca` full port (`ai_king.c` ~3662-3806) — per rebel-owned
@@ -981,7 +996,7 @@ and WoI full-value cash are wired. P7.1–P7.5 all closed.
   skill)<4` → SCREWED +100 relation (no kill). **Case 2/9 identity was
   swapped in the port** (dialog tag is literally "LOSTCITY"+case; case 2
   spawns unit type 10 Treasure, case 9 type 0 Colonist) — fixed. See
-  mysteries_catalog.md 65dd entry. ctest 44/44.
+  archive/mysteries_catalog.md 65dd entry. ctest 44/44.
 - [x] **P7.2 [auto]** Each LCR outcome fully applied. **Status
   2026-08-26 (checked, this "Now" framing was stale):** all 9
   `units_lcr_roll_outcome` cases in `units.c` (`units_apply_lcr_outcome`
@@ -1452,15 +1467,239 @@ are real modals (P11.2 / P8.2 user-passed 2026-09-03).
 
 | # | Deferred | Where it lives | Minimum-thin rule |
 |---|----------|----------------|-------------------|
-| D1 | Rival Europeans behaving like DOS (`5d04`/`20e6`/`−0x6790`, goldens) | [ai_port_plan.md](ai_port_plan.md) T1/T2/T3, `golden_ai_joint` | Rivals must not crash, must found/trade/fight *something*; that bar is already met |
-| D2 | Indian behavior 1:1 (`2820` trade/haggle, deep `4528`, `2154`) | [ai_port_plan.md](ai_port_plan.md), [indians.md](indians.md) | P8 thin outcome ports only |
-| D3 | Known-seed determinism with DOS | [seed100_brave.md](seed100_brave.md), T4.3 | None required for playability |
+| D1 | Rival Europeans behaving like DOS (`5d04`/`20e6`/`−0x6790`, goldens) | "Deferred AI track — detail" below, `golden_ai_joint` | Rivals must not crash, must found/trade/fight *something*; that bar is already met |
+| D2 | Indian behavior 1:1 (`2820` trade/haggle, deep `4528`, `2154`) | "Deferred AI track — detail" below, [indians.md](indians.md) | P8 thin outcome ports only |
+| D3 | Known-seed determinism with DOS | T1.23/T3.3 below (seed-100 notes: git history of `docs/seed100_brave.md`) | None required for playability |
 | D4 | Pixel-perfect graphics / VGA-identical chrome (dialogs, TRADE/FA editors, king letter). Congress F3 plates are **Done** to goldens; `DECLARAT.PIK` is unused leftover (signing uses DECOIND.PIK) | old W5.1–W5.3, T5.x | Content + layout correct (P2, P11); frames may stay port-drawn |
 | D5 | Fully faithful music (SC-55 timbre parity, per-driver quirks) | [assets.md](assets.md) | P3 "passable" bar |
 | ~~D6~~ | ~~Present-but-unused digital SFX (`COLDIG.BIN`)~~ | [assets.md](assets.md) | **Undeferred and closed 2026-08-29** — P3.2 / P3.7 both `[x]`. Playback + every reachable push site wired; ids `0x4c`/`0x50`/`0x51`/`0x55`/`0x5c` have no DOS push site. Retire coin-tier stays PARK (difficulty.md) |
 
 Also parked with these: MAPEDIT catalog track (old W5.4), `VR_B465X` hang
 dump (T4.6, by policy). (`unknown13_pad`/old W4.4 closed 2026-08-27 — static.)
+
+---
+
+## Deferred AI track — detail (merged 2026-09-05 from `ai_port_plan.md` + `ai_transcription.md`)
+
+This section is the surviving, still-relevant core of the two removed AI
+docs: the fidelity-tier vocabulary, the hard-won method notes, the FUN_*
+inventory with honest per-module claims, and the **still-open** queue items.
+Every completed T*/R* item's full dated write-up is in git history of
+`docs/ai_port_plan.md` / `docs/ai_transcription.md`; per-function deep dives
+live on in `original_sources_annotated/ai/*.md` (unaffected by the merge).
+
+**Track status: DEFERRED (2026-08-24).** Work items here only when a P-track
+needs a minimum-thin unblock or the user explicitly asks for AI work.
+
+### Fidelity tiers
+
+**Long-term goal:** every original AI control-flow path that affects game
+state has a Linux counterpart with matching behavior, including DOS LCG call
+order where the original burns RNG.
+
+| Tier | Meaning |
+|------|---------|
+| **T0 — Behavioral slice** | Looks like the original at a high level; RNG / edge cases may differ |
+| **T1 — Save-diff** | Matches observable fields in original saves after the same setup |
+| **T2 — Golden / bit-faithful** | Matches a locked golden (e.g. seed-100) tile-for-tile / unit-for-unit |
+| **T3 — 1:1 transcription** | Structured like the decomp (dispatcher → goals → scoring), all branches. **Not claimed** for any full planner |
+
+**Port rule:** AI algorithms are baked into C from VICEROY decomp (not data
+files — [data_vs_hardcoded.md](data_vs_hardcoded.md)). Use
+[`dos_rng.c`](../src/core/dos_rng.c) for any path that must match seed-100
+or save-diff. Planner modules are split (`ai_euro` / `ai_contact` /
+`ai_diplo` / `ai_king` / `ai_goals` / `ai_popup`); `ai.c` keeps init, pulse,
+and nation-turn entry.
+
+**Golden alignment (for when the gates come back on):** alignment means
+improving port fidelity to DOS, not scripting special cases. When Linux
+output disagrees with a golden: diff the field → trace the DOS FUN_* /
+annotated thin map that owns that mutation → fix or deepen the ported path.
+No seed-/turn-/nation-only exception tables unless explicitly documented as
+temporary PORT DEBT with a retire criterion. `--seed 100` overrides every
+timer-word read for deterministic runs (docs/assets.md "Fixed seed");
+`AI_EURO_EARLY_FIXTURE=1` re-enables the retired early-turn fixture for
+regression bisect only.
+
+### Method notes (don't relearn these)
+
+- Read the **raw decompiled function** directly before trusting a secondary
+  annotated-doc summary — those have drifted from the actual bytes before.
+- A `CALLF <loader>; JMPF 0x0000:XXXX` in a decompile is an **unpatched
+  RTLink placeholder**, not real content — resolve it via `rtlink_decode`'s
+  jump-table parser (info mode), never by naive tail-following or reading
+  the raw bytes as data.
+- A `completed=true` decompile can still carry real corruption, in its own
+  body (`WARNING:` lines, timeouts) or **inlined from a callee** — check
+  whether a cited address actually falls inside the target function's own
+  boundary before concluding "corrupted". Ghidra can also silently pull in
+  *wrong but plausible* content via jump/call misresolution with no warning
+  (`684c_08c0`, `15eb_1d4c` — both false alarms cleared by a boundary-first
+  second pass). Prefer `tools/rtlink_overlay_extract.py` +
+  `tools/GhidraImportOverlays.java` (re-disassembles each RTLink segment at
+  its true DOS address) over the flattened `viceroy_unpacked.c` export for
+  anything flagged suspicious.
+- Cross-check any unnamed DS global / resident helper against
+  `original_sources_annotated/include/viceroy_globals.h` and
+  `tools/address_mapping.csv` before assuming it needs a live dump — many
+  "unlabeled" globals are already named for a sibling function.
+- **Before asking the user for a fresh live DOSBox-X capture,
+  byte-pattern-search the existing `dosbox-x-dumps/*` saves** (throwaway
+  script; static data is unchanged across saves). This closed 6 of 8
+  original Tier-4 "needs a live session" items — the data was already
+  sitting in an existing dump every time. Only file something as
+  live-blocked after checking this and coming up empty.
+- **Never invent a constant.** If a price/byte table has no captured value
+  anywhere in the project, leave it stubbed with a comment.
+- Structural confidence (params line up, globals named, formula shape fits)
+  is **not** semantic confidence (what real-world mechanic this is). Keep
+  the two separate in write-ups.
+- When a fidelity fix changes behavior, the existing unit test usually
+  encodes the *old* behavior — expect to rewrite test scenarios.
+- The harness TaskList does **not** persist across sessions — this file +
+  git log are the continuity mechanism.
+- Ghidra's decompile drops immediate `PUSH`/`AX`-register arguments at some
+  call sites — when an id/argument seems missing, `ndisasm` the raw overlay
+  bytes at the call site (this unlocked the COLDIG event ids and the popup
+  section tables).
+
+### Open queue (all that remains of the old T-tiers)
+
+- [ ] **T1.23 — Brave residue in `golden_ai_turns`.** Presence-bit
+  lifecycle is DOS-exact (`units_occupancy_notify_moved`/`_rebuild`),
+  DOS-shaped dest reject live, `0a60` coarse-plane restamp live
+  (`ai_coarse_fog_euro_restamp`). Remaining diffs: TURN4→5 n=10
+  (48,41)→(49,42) and n=9 (36,52)→(35,52); TURN5→6 n=7 (43,52)→(43,53).
+  Every checked term reads the same state DOS would — these are RNG-order
+  (accepted-count) differences upstream in the same nation's pulse, or
+  terrain/river terms; needs a DOS LCG trace (`AI_LCG_AUDIT` vs a DOSBox-X
+  capture), not more static reading. Lower priority from the same pass:
+  ship-band unload placement is still landfall-scripted
+  (`ai_euro_unload_settle`) though the per-cargo `06ae` rule is known
+  (`20e6` ship band, decomp ~89587); `0a60`'s FOUND/CONTACT goal producers
+  write *ocean* tiles next to villages / own colonies as ship goals (decomp
+  ~87800–88060) — `ai_euro_colony_goals` is still the thin stand-in.
+- [ ] **T2.4 — Retire the Linux-only Euro alliance machinery (cleanup).**
+  Dead since T1.20 (DOS has no Euro×Euro alliances; `13b0` is treaty
+  sign/cancel). Still present: `ai_diplo_form/break_alliance[_ctx]`, ally
+  treaty timers/aid/prize, the `DIPLO_ALLIANCE` CHOICE apply, ~64 refs in
+  `ai_diplo.c`, ~130 assertions in `test_ai_diplo.c`. Zero gameplay effect;
+  one deliberate deletion pass when the diplo file is next touched.
+- [ ] **T3.3 — Re-enable `golden_ai_turns` / `golden_ai_joint`.**
+  `golden_ai_mid01` / `golden_ai_late01` are re-enabled and green;
+  `golden_ai_turns` is down to the T1.23 residue and `golden_ai_joint`
+  depends on it. Don't flip piecemeal — re-enable once T1.23 closes, and
+  **confirm with the user** (changes what `ctest` gates on by default).
+  Harness: `AI_TURNS_ALL=1` runs past a failing step, `AI_TURNS_ONLY=t`
+  runs one step.
+- [ ] **T4.6 — `VR_B465X` hang dump.** Parked **by policy** — a deliberate
+  stop, not a stall. Do not resume without a new, stated reason.
+- [ ] **T5.1 — VGA-identical dialog chrome** (meet/diplo/king wood frames,
+  FA `3f41` full widget body, chief portrait `FUN_281f_04ac`). = D4.
+- [ ] **T5.3 — F3 Congress portrait grid polish leftovers** (fatter-than-DOS
+  bell glyph, F9 headband always #113, HoF has no golden — see
+  [reports.md](reports.md); the plates themselves are Done to goldens).
+
+### FUN_* inventory (status; deep dives in `original_sources_annotated/ai/`)
+
+Symbols are Ghidra names in `original_sources_decompiled/viceroy_unpacked.c`.
+Status: **ported** (full claim at stated tier) / **partial** (subset) /
+**parked**.
+
+**Tribe placement + Indian AI (`FUN_6a09_*`, `FUN_4d56_*`):**
+
+| Symbol | Purpose | Linux | Status |
+|--------|---------|-------|--------|
+| `6a09_0006` | Capitals, satellites, Brave spawn loop | `ai_place_tribes_*`, `ai_spawn_brave_near` | ported (T2 seed-100) |
+| `4d56_0038` | Settlement-record CREATE | covered by `ai_install_tribes` | partial (struct-equivalent) |
+| `4d56_00e0`/`01e2`/`14fe` | Chain to growth/pulse dispatch | contact helpers, growth + pulse | partial (T0/T2 quiet) |
+| `4d56_152e` | Village growth accumulator (capital-only gate!) + Euro-relation friction | `ai_grow_villages` | partial (T0) |
+| `4d56_1816` | Indian nation turn entry: alarm prelude, unit loop, relation ticks | `ai_indian_nation_turn` + `ai_contact_*` | partial (structural; T2 quiet) |
+| `4d56_1b3a` | Mid-turn: clear tables / ownership probes | — | partial (known; not raid) |
+| `4d56_2154` | Meet economics (`0x9e58` ask / `0x9e78` bid tables) | `ai_contact_meet_economics_2154` + gift/demand | **Done** (scorer + `0ce0` work-slot gate) |
+| `4d56_2820` | Village trade: sell/buy/haggle/gift (595 lines; "nest" was internal labels) | `ai_contact_*` trade paths | **Done** (2026-08-29 verification rewrite; see `indian_trade_2820.md`) |
+| `4d56_3582` | Small helper after `2820` | friction floor | partial (thin Done) |
+| `4d56_417e` | Incite Indians / WARPATH price + relation push | `ai_contact_incite_price` / `apply_incite` | **Done** Mode-1 human (byte-faithful price); AI Mode-2 auto-incite unported (`4528` tail case 7) |
+| `4d56_4528` | Settlement enter/raid 9-way dispatch | `ai_contact_indian_raids`, `@ACTIONS` menu, `ai_euro_land_try_adjacent_village_seize` | partial (structural outcomes; VGA meet chrome open) |
+
+**European AI (`FUN_521d_*`):**
+
+| Symbol | Purpose | Linux | Status |
+|--------|---------|-------|--------|
+| `0000`…`0906` | Goal-table ops + founding helpers | `ai_goals.c` | partial (T0) |
+| `0a60` (~5.5k lines) | Unit/colony goal writer + goal-consumption/orders engine | `ai_euro_colony_goals` (A–H condensed writer) + `ai_euro_0a60_goal_orders_structural` (consumption tail, live) | partial — writer condensed but real write shapes/formulas; tail structural live; per-unit `0x3148` garrison housekeeping + deep G-table literal writes unported (`FUN_1000_8aac` field-id wall). See `euro_goal_orders_0a60_full.md` |
+| `20e6` (~2.2k) | Direction / move scoring, all unit kinds | quiet + `ai_euro_score_step` + 2026-08-27 structural land port (explorer flag, SCOUT/PATROL arm, explore ring, 8-dir wander scorer, epilogue commit) | partial — thin/skipped: attack-odds core (LAB_52aa), missionary/scout `0x4c` village arms, colonist labor loop, ship band, `−0x6168` rival strength, explore-plane low nibble. See `move_scoring_20e6_full.md` / `move_scoring_land.md` |
+| `5b66` (44-line dispatcher → `479b_*` bodies) | Euro per-unit act | `ai_euro_unit_act` | partial (T0; case 7 FOUND + case 9 Pioneer-road ported full; case 8 thin) |
+| `5c38`/`5c3c`/`5cf6` | Thin helpers before `5d04` | hire in planning | partial (T0) |
+| `5d04` (~750) | Nation planning / hire / treasury | `ai_euro_nation_planning` (live; real treasury formula) + `ai_euro_5d04_nation_planning_structural` (full port, reference-only) | structurally complete; wiring the rest live is a deliberate future decision |
+| `6d8e` | Euro AI dispatcher per nation | `ai_euro_dispatcher_turn` | shell **Done** (full control flow); "partial" inherited from callees |
+
+Thunk wiring: `0554`→`5d04`, `0578`→`0342`, `050c`→`0a60`, `0488`→`5b66`
+(→`20e6` via `04f4`). Goals ≈ `0a60`+`5d04`; scoring ≈ `20e6`; act ≈ `5b66`.
+
+**Diplomacy (`FUN_15b3_*` / `FUN_5bfb_*`)** — thin map `euro_diplo.md`:
+
+| Symbol | Purpose | Linux | Status |
+|--------|---------|-------|--------|
+| `15b3_0004`/`0032`/`0066`/`00d0` | Bilateral read/write/OR/clear | `ai_diplo_read/write/or_both/clear_both` | partial (structural) |
+| `5bfb_10ec` / `13b0` | War eligibility / treaty sign-cancel | `ai_diplo_euro_balance`, form/break | partial |
+| `5bfb_153e` | War-declare body; outcome jump table → 10 known targets | thin sting + `ai_diplo_153e_worthiness_score_structural` (reference-only) | partial — see `euro_diplo_153e_full.md` |
+| `5bfb_3180` | Adjacent-unit encounter resolver | `ai_contact_encounter_scan` + naval ambush **Done**; diplo-dispatch branches parked | partial |
+| `4cc6_00f2` | Indian relation delta | `ai_diplo_indian_relation_delta` | partial |
+
+**King / REF (`FUN_43f7_*`)** — thin map `king_ref.md`, unit `unit_ai_king`:
+`0004` SoL, `1d42` tax→REF, `2564`/`1a26` declare gate, `0108` eliminate
+nation, `060a` landing score, `0982`/`06a6` REF wave, `2022`/`1eca` war act +
+promote, `2424` nation dispatch, `10f0`/`1528`/`160a`/`2244` intervene /
+announce / rename+cinematic / merc — all **partial structural** with the
+listed sub-pieces Done (audience/merc formulas real, `160a` signing
+cinematic Done, `38fd_5930` @KINGNEWWAR Done).
+
+**Shared helpers:** `465b_0000` terrain MP → `ai_dos_move_spent`;
+`281f_04ca`/`04d4` reseed/range → `dos_rng`; `124c_0040` generic distance
+(not `20e6`-specific); `6662_0f74` land pathing → `units_next_goto_step` /
+`units_greedy_next_step` (byte-exact toughness score); `4720_049e` is a
+tension-notify handler (likely `@VIOLATE`), **not** a move driver, unwired.
+`FUN_4d56_021a` is not a real symbol (decompiler gap after `01e2`).
+
+### Per-module fidelity (honest — not blanket T3)
+
+| Module | Claim |
+|--------|-------|
+| Early Euro TURN1→7 (`6d8e` path) | **T2** (joint fields) |
+| Quiet Brave / tribes seed-100 | **T2** (T1.23 residue) |
+| Indian×Euro `15b3` / sticky / meet floor 96 | **T2**-shaped partial |
+| Ocean `3558` / first-colony `06ae` | Thin ports + soft-tip prior — not T3 |
+| Mid `0a60` / `5d04` / `5b66` | Thin / partial / structural — not T3 |
+| `2154` / `2820` bodies | **Done**; `4528` thin/partial — not T3 |
+| Alarmed Indian unit-act | Escort peel + smoke — not T3 |
+| King / REF | Partial structural (WoI battle path heavily hardened via bugs.md batches) |
+| Mid / late joint goldens | `golden_ai_mid01`/`late01` green gates; `golden_ai_turns`/`joint` DISABLED (T3.3) |
+
+### Evidence, gates and tests
+
+| Artifact | Use |
+|----------|-----|
+| `original_saves/mapgen/SEED100.SAV` | Golden tribes/Braves; `golden_mapgen_seed100` |
+| `test-saves-ai/TURN1.SAV`…`TURN7.SAV` | Early-AI T2 joint gate (`golden_ai_turns`, DISABLED) |
+| `test-saves-ai/JOINT_MIDTURN.md` | Mid-game joint golden scaffold + field policy |
+| `original_saves/COLONY00/01.SAV` | Rival fleets, sail, AI crosses save-diff |
+| `COLONIZE/VR_SEED.EXE`, `VR_BRAVE*.EXE` | Seed-locked RE probes (not runtime) |
+| `original_memory_dumps/`, `dosbox-x-dumps/` | RAM images for byte-pattern search (see method notes) |
+| `tests/unit/test_ai*.c`, `test_founding_fathers.c` | Module units |
+| `tests/golden/test_ai_turns.c` / `test_ai_mid01.c` / `test_ai_late01.c` | Joint field-diff gates |
+
+```bash
+cmake --build build --target golden_ai_joint
+./build/golden_mapgen_seed100   # cwd = repo root
+./build/golden_ai_turns         # TURN1→7 joint gate (currently DISABLED in ctest)
+```
+
+Size sense: Linux `ai.c` + `ai_*.c` ≈ 3.5k + modules; DOS Euro planner ≈
+`6d8e` 500 + `0a60` 5.5k + `5d04` 750 + `20e6` 2.2k + `5b66`→`479b_*` 390;
+Indian cluster ≈ `1816` 140 + `2154` 320 + `2820` 595 + `4528` 3k. The full
+T0/T1 surface is in; remaining work is fidelity hardening, not missing
+planner arms.
 
 ---
 
@@ -1474,7 +1713,7 @@ W4.3/W4.4 → deferred; W5.x → D4; W5.5 → D1/D3.
 ### (archived) Tier 1 — Static RE + port (fully agent-autonomous)
 
 - [ ] **W1.1 — AI transcription (the largest track).** Work
-  [ai_port_plan.md](ai_port_plan.md) top to bottom. Open there as of
+  `ai_port_plan.md` (git history) top to bottom. Open there as of
   2026-08-24 (later same day): **T1.8** (closed 2026-08-29 — 0015bc/0906/
   09ae/0b4e/0f74 aligned to the decompiles; residue is the land-MP-thirds
   model, see P5.8 below), **T1.13**
@@ -1638,7 +1877,7 @@ W4.3/W4.4 → deferred; W5.x → D4; W5.5 → D1/D3.
   (2 starters + 10 `valid-lategame-saves/COLONY*` + 7 `test-saves-ai/TURN*`,
   plus `mapgen/SEED100.SAV` and `tests-save-misc/unit flags error.sav`) are
   byte-identical on read→write — zero drift found. The "not byte-identical"
-  claim in [roadmap.md](roadmap.md)/[savegame.md](savegame.md) dated from
+  claim in `roadmap.md` (git history)/[savegame.md](savegame.md) dated from
   2026-08-22, 42 minutes *before* the same day's `753662d` "Fix FF + I work"
   commit fixed it (stash/restore of nation `unknown21_pad`
   `FF_POOL_STASH_MARKER` alongside `liberty_bells_last_turn` in
@@ -1670,7 +1909,7 @@ W4.3/W4.4 → deferred; W5.x → D4; W5.5 → D1/D3.
   4 = burial-mounds event (`@LOSTCITY4`/`@BURIAL1-3`), case 5 is not an
   independently-displayed result at all (always converts to 4 or 6 first).
   **Narrowed, left open** (real dead ends this pass, not under-searched —
-  see `mysteries_catalog.md` for exact stopping points): `unknown13_pad`
+  see `archive/mysteries_catalog.md` for exact stopping points): `unknown13_pad`
   — **superseded 2026-08-27**: resolved statically (colony array literal
   `0x5e04`, writer `FUN_364b_1b4c`); W4.4 closed.
   `unknown26` `+0x40-0x43` — now confirmed as the alliance-relationship
@@ -1679,7 +1918,7 @@ W4.3/W4.4 → deferred; W5.x → D4; W5.5 → D1/D3.
   own negotiation flow isn't fully traced. `unknown05` — **resolved
   2026-08-27** (static, asm PUSH-immediate reads): bits 17-32 of the
   woodcut/splash once-only array that `event` is bits 1-16 of; only the
-  demo-autoplay loop reaches ids ≥14. See `mysteries_catalog.md`.
+  demo-autoplay loop reaches ids ≥14. See `archive/mysteries_catalog.md`.
 
 - [x] **W1.7 — Colonist work-plot auto-assign (`FUN_15eb_28c8`) golden +
   wire — closed 2026-08-29, wire landed under W3.1.** RE is complete
@@ -1839,7 +2078,7 @@ up empty. Live-debug workflow quirks: [dosbox_debugging.md](dosbox_debugging.md)
 - [ ] **W4.2 — REF foreign-intervention MoW spawn placement.** DOS
   `FUN_43f7_10f0` spawns a Man-O-War (type `0x12`) on the *land* tile
   scored for troop landings — semantics unresolved statically
-  ([ai_transcription.md](ai_transcription.md) R6, 2026-08-24 entry).
+  (`ai_transcription.md` (git history) R6, 2026-08-24 entry).
 - [ ] **W4.3 — AI queue's remaining live-gated items:** `ai_port_plan.md`
   T4.5 (incite Mode-2 caller, low value), T4.9 (`2820` AI refuse-gate
   scale/polarity), T4.6 (`VR_B465X` hang dump — parked **by policy**, do
@@ -1847,7 +2086,7 @@ up empty. Live-debug workflow quirks: [dosbox_debugging.md](dosbox_debugging.md)
 - [x] **W4.4 — `unknown13_pad` (closed 2026-08-27, static).** Writer is
   `FUN_364b_1b4c` on tile reveal, addressed via colony array literal
   `0x5e04`, not the `0x8542` pointer. Renamed `fortification_on_map`. See
-  `mysteries_catalog.md`. ISR/`0xa660` lead retracted.
+  `archive/mysteries_catalog.md`. ISR/`0xa660` lead retracted.
 
 ---
 
@@ -1958,11 +2197,11 @@ gameplay/determinism. Most rows need the user's visual-fidelity judgement.
 - [ ] **W5.3 — Pixel-exact layout/style pass** (map pop digit colors, DOS
   zoom sprite-blit parity, HoF exact layout, etc.).
 - [ ] **W5.4 — MAPEDIT catalog track**
-  ([catalog_peel_ranking.md](catalog_peel_ranking.md) — parked, needs a
+  (`catalog_peel_ranking.md` (removed) — parked, needs a
   dedicated Layer-A track).
 - [ ] **W5.5 — Golden alignment phase.** After W3.2 re-enables the AI
   goldens: chase the (expected, large) pile of diffs they surface, per the
-  workflow frozen in [ai_transcription.md](ai_transcription.md) "Golden
+  workflow frozen in `ai_transcription.md` (git history) "Golden
   alignment (how to work)". This is the project's real 1:1-fidelity
   endgame. Known first customer: the TURN2→3 `(40,20)` Brave W-vs-NW
   quiet-scoring divergence (`ai_port_plan.md` T4.3, peel deliberately

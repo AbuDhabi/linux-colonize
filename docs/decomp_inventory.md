@@ -3,7 +3,7 @@
 For a navigable index of decomp sources, `COLONIZE/` data files, and DOSBox memory
 dumps, see [original_index.md](original_index.md). Manual feature coverage vs the
 Linux port: [manual_gap.md](manual_gap.md). European / Indian AI FUN_* inventory and
-1:1 transcription roadmap: [ai_transcription.md](ai_transcription.md).
+1:1 transcription roadmap: [port_plan.md](port_plan.md).
 
 This repository keeps Ghidra exports of `VICEROY.EXE` / `MAPEDIT.EXE` under
 [`original_sources_decompiled/`](../original_sources_decompiled/) for reverse-engineering
@@ -80,7 +80,7 @@ functions that were candidates for deep porting that day):
 | `FUN_5fef_1b0e` | ~~`Removing unreachable block`~~ **fixed 2026-08-13** — clean 7270-byte recovery (main combat resolution function); see `docs/combat.md` |
 | `FUN_521d_5c38` | ~~`Removing unreachable block`~~ **fixed 2026-08-13** — turned out to be a genuine trivial 4-byte `return 1;` stub, not corrupted content — nothing to correct |
 | `FUN_5fef_0000` | **root-caused 2026-08-13** — not a disassembly-fault warning at all; Ghidra's decompiler hits `Offset must be between 0x0 and 0x10ffef, got 0xffffffff`, confirmed as a decompiler bug in `CALLF 0x1000:XXXX` far-call resolution (same class as `OVL12_L0000:0` below), not corruption — raw disassembly clean (362 bytes, self-contained, no bad pcode varnodes at the instruction level). Structural hand-read (candidate-unit search/scoring loop), not fully semantically ported; see `indian_raid_loot.md` |
-| `FUN_521d_20e6` | ~~`Unable to decompile 'FUN_521d_20e6' — process: timeout`~~ **fixed 2026-08-13** — the central move-scoring formula (every `docs/seed100_brave.md` peel routes through this); never decompiled at all before, now clean in 27s, 2219 lines, zero warnings. Found a real missing branch while there — see `docs/seed100_brave.md` "Root cause candidate". **Re-verified 2026-08-14**: a fresh independent re-recovery (2215 lines, zero warnings) found the canonical export's *current* body has since drifted from that fix — a confusing self-referencing call in its commit-phase tail (past the explore-ring section) isn't present in the fresh recovery, so the 2026-08-13 fix likely wasn't patched back byte-for-byte past the section it was investigating. Full current-clean body: [`move_scoring_20e6_full.md`](../original_sources_annotated/ai/move_scoring_20e6_full.md) — treat that file, not the live canonical export, as authoritative for this function from here on. **Checked 2026-08-14 whether the shipped port was affected — it isn't**: `ai_native_pick_dir_asm` (`src/core/ai.c`) has no reference to the stray self-call at all, and the cited `2a1f_04f4` symbol only ever appears as the normal caller-side entry thunk in the docs used for porting, never inside `20e6`'s own body. Drift confined to the tracking file; no port-side action needed |
+| `FUN_521d_20e6` | ~~`Unable to decompile 'FUN_521d_20e6' — process: timeout`~~ **fixed 2026-08-13** — the central move-scoring formula (every seed-100 peel routes through this); never decompiled at all before, now clean in 27s, 2219 lines, zero warnings. Found a real missing branch while there — see the seed-100 notes "Root cause candidate". **Re-verified 2026-08-14**: a fresh independent re-recovery (2215 lines, zero warnings) found the canonical export's *current* body has since drifted from that fix — a confusing self-referencing call in its commit-phase tail (past the explore-ring section) isn't present in the fresh recovery, so the 2026-08-13 fix likely wasn't patched back byte-for-byte past the section it was investigating. Full current-clean body: [`move_scoring_20e6_full.md`](../original_sources_annotated/ai/move_scoring_20e6_full.md) — treat that file, not the live canonical export, as authoritative for this function from here on. **Checked 2026-08-14 whether the shipped port was affected — it isn't**: `ai_native_pick_dir_asm` (`src/core/ai.c`) has no reference to the stray self-call at all, and the cited `2a1f_04f4` symbol only ever appears as the normal caller-side entry thunk in the docs used for porting, never inside `20e6`'s own body. Drift confined to the tracking file; no port-side action needed |
 | `FUN_OVL12_L0000_0` (task #2, real `a6e4` target) | **root-caused 2026-08-13** — same decompiler pcode bug as `FUN_5fef_0000` above, not corruption. Hand-transcribed clean from raw disassembly (145 bytes, tribe search + no-match dialog fallback); see `euro_unit_act.md`. Not ported to Linux — needs unlabeled DS globals/callees named first, same gate as `FUN_4d56_417e` (task #5) |
 | `FUN_5952_035e` | ~~`Instruction at (ram,0x0005a676) overlaps instruction at (ram,0x0005a675)` + 2× `Removing unreachable block`~~ **fixed 2026-08-14** — the colony per-turn production/AI-hint tick, cited by `save_format_map.md`/`colony.h` as source of truth for 8 already-`mapped` fields (`garrison_quota`/`specialty_cargo`/`cargo_idle_turns`/`improve_timer`/`labor_shortage`/`warehouse_level`/`capitol_level`/`ai_flags` bits). Canonical export's param count (4) didn't even match the clean recovery (2) — real mismatch, not just noise. Clean 1577-line recovery spot-checks all 8 fields as **confirmed, not corrected**. Also caught and reverted a false lead from earlier the same session: a claimed `0x94e6` read site "inside `FUN_5952_035e`" was corrupted-tail content that doesn't belong to this function at all — see `colony_tick_5952_035e.md` and its correction in `move_scoring_land.md`. Full body: [`colony_tick_5952_035e.md`](../original_sources_annotated/ai/colony_tick_5952_035e.md) |
 
@@ -396,14 +396,14 @@ Ordered pipeline recovered for the Linux port:
 4. **Nation ticks** — liberty bells + crosses; crosses ≥ needed → dock immigrant;
    founding-father election via `founding_fathers_tick` (all 25 Fathers
    wired 2026-08-28; KINGGALLEON2 **Done** 2026-08-27 — see
-   [ai_transcription.md](ai_transcription.md) unpark #3; de Soto LCR gate wired,
+   [port_plan.md](port_plan.md) unpark #3; de Soto LCR gate wired,
    full `FUN_65dd_0004` outcome table **ported 2026-08-27** (`units_lcr_roll_outcome`)
 5. **European AI** — EN→FR→SP→DU via `player.control` (0 human / 1 AI / 2 withdrawn);
    `ai_euro_nation_turn` (`src/core/ai.c` → `ai_euro.c`): reseed from VR_SEED timer word, tick AI crosses,
    `6d8e`-shaped ship/land passes; **T2 early path** (seed-100 TURN1→7 via `golden_ai_turns`;
    landfall coastal staging + `ai_euro_06ae_first_colony_from_landfall`).
    Full-dispatch planner partial; land `20e6` structurally ported 2026-08-27
-   (`ai_port_plan.md` T1.18); deep −0x6790 remains — see [ai_transcription.md](ai_transcription.md).
+   (`port_plan.md` T1.18); deep −0x6790 remains — see [port_plan.md](port_plan.md).
 6. **Indians** — village growth (`FUN_4d56_152e`-style), mid-turn Brave pulse + residual
    overlays (t1 empty; ~50 on t2–t6); named init burns `ai_native_post_first_brave_burns`.
    (`FUN_4d56_1816` / quiet `20e6`); meet/trade/raids via `ai_contact_*` (structural;
@@ -430,7 +430,7 @@ deep Indian `2820` haggle + `4528` VGA meet chrome (**mapped** —
 human `4528` `@ACTIONS` **Done** P8.8);
 deep King/REF (`10f0` economy, exact `0x5382`; `160a` signing cinematic **Done**
 2026-08-30). Early-AI T2 gate is green
-(`test-saves-ai/TURN1`…`TURN7`). Roadmap: [ai_transcription.md](ai_transcription.md).
+(`test-saves-ai/TURN1`…`TURN7`). Roadmap: [port_plan.md](port_plan.md).
 Year-end `0442` UI: [`year_end_chrome.md`](../original_sources_annotated/turn/year_end_chrome.md).
 
 Evidence:

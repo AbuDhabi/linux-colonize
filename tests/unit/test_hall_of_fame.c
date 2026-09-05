@@ -16,7 +16,7 @@
  * stub; re-ranks an unsorted/hand-edited file; caps at COLONIZE_HOF_MAX (10)
  * entries on load) AND the title-menu screen it opens into (a real
  * in_hall_of_fame render state via reports_render_hall_of_fame — not a
- * window-title status string). See docs/roadmap.md Phase 1 /
+ * window-title status string). See docs/port_plan.md Phase 1 /
  * docs/manual_gap.md "Hall of Fame".
  */
 

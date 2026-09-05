@@ -272,6 +272,6 @@ and TRADE chrome polish.
 - [assets.md](assets.md) — map keys, Go-To draw, orders chrome
 - [popups.md](popups.md) — order gates and confirms
 - [turn_between_players.md](turn_between_players.md) — EOT / human finish orders
-- [ai_transcription.md](ai_transcription.md) — AI use of order bytes
+- [port_plan.md](port_plan.md) — AI use of order bytes
 - [`FUNCTION_CATALOG.md`](../original_sources_annotated/FUNCTION_CATALOG.md) — segments `2b5a`, `479b`, `6662`, `112b`
 - [`units.h`](../src/core/units.h) — order macros and APIs

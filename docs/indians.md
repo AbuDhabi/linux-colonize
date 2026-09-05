@@ -6,7 +6,7 @@ checklists stay in annotated AI extracts — this file is the topic map.
 
 Authority order: [project_goals.md](project_goals.md) (decomp / NAMES → manual →
 fandom). Feature checklist: [manual_gap.md](manual_gap.md) §Indians. Port FUN
-status: [ai_transcription.md](ai_transcription.md).
+status: [port_plan.md](port_plan.md).
 
 ## Sources
 
@@ -64,7 +64,7 @@ attack, combat, …
 
 Nation stocks `indian.muskets` / `horse_herds` / `horse_breeding` feed equipment
 upgrades (Col1; see save atlas). Quiet Brave AI: `FUN_4d56_14fe` → Linux
-`ai_native_nation_pulse` ([seed100_brave.md](seed100_brave.md)). Brave MP uses
+`ai_native_nation_pulse` (history: port_plan.md T1.23). Brave MP uses
 terrain table ×3 (same scale note as unit orders).
 
 Related catalogs:
@@ -242,7 +242,7 @@ boundary, clamp every tribe-of-that-Indian-nation's tension slot down to
 `0x20` (new relation <50) or `0x60` (≥50). No Linux reader yet — DOS's own
 read sites (`FUN_521d_0896` hostility gate in Euro AI goal-scoring; a
 `>>5` 4-tier relations-report icon) are outside Indian/contact domain, left
-for whoever owns `ai_euro.c`/reports. See `docs/mysteries_catalog.md`'s
+for whoever owns `ai_euro.c`/reports. See `docs/archive/mysteries_catalog.md`'s
 "0x54f6" entry for the full formula trace.
 
 **Second write site wired 2026-08-24 — raid discharges tension.**
@@ -432,7 +432,7 @@ Aligned with [manual_gap.md](manual_gap.md) §Indians — no new fidelity claims
 
 | Area | Status | Where |
 |------|--------|-------|
-| Villages on map + Braves | Partial | Placement + icons; quiet pulse / growth — [seed100_brave.md](seed100_brave.md), [ai_transcription.md](ai_transcription.md) |
+| Villages on map + Braves | Partial | Placement + icons; quiet pulse / growth — [port_plan.md](port_plan.md) T1.23 |
 | First contact WELCOME | Done structural | `ai_contact_*`; thin land grant |
 | Meet / trade / gift / teach | Partial | Village trade `2820` **Done structural** (2026-08-29: hold pick, sell/haggle/gift, `@BADCARGO`/`@BRING`, post-sale buy); gift/teach widgets thin; VGA chrome PARKED |
 | Missions / convert / heresy | Partial | Structural; incite/WARPATH **Done** thin (`indian_incite_417e.md`) |
