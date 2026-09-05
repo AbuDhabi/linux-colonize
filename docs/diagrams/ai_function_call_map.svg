@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="2000" height="1000" viewBox="0 0 2000 1000">
   <title>AI FUN_* call map (port status)</title>
-  <desc>From docs/ai_transcription.md — green=done/ported, yellow=partial, red=unported/missing. Updated 2026-08-27.</desc>
+  <desc>From docs/port_plan.md (Deferred AI track) — green=done/ported, yellow=partial, red=unported/missing. Updated 2026-08-27.</desc>
   <defs>
     <marker id="arrow" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
       <polygon points="0 0, 10 3.5, 0 7" fill="#495057"/>

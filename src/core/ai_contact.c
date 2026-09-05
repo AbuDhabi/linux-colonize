@@ -3693,7 +3693,7 @@ void ai_contact_try_village_beg_food(ColonizeTurnContext* ctx, int nation_id) {
  *    wired. Mode-2 (AI Missionary auto-incites the village against the
  *    human) is confirmed real since 2026-08-27 — caller is FUN_4d56_4528
  *    tail-switch case 7, gate documented in indian_incite_417e.md
- *    "Caller: FOUND" — but not ported; see docs/ai_port_plan.md T4.5).
+ *    "Caller: FOUND" — but not ported; see docs/port_plan.md T4.5).
  *  - alarmed (≥55 refuse-talk gate) → refuse convert/heresy; no crosses
  *  - mid (40..54) convert: Jesuit-grade only (PEDIA @JOB24 / Brebeuf).
  * Teach/convert widgets Done structural; deep 2820 PARKED.
@@ -6931,7 +6931,7 @@ void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id) {
    * Linux stays on thin @RAID* / combat / 359c + equal-dist mil/tools/silver
    * approach. Widgets Done structural (ai_popup); VGA PARKED. Mid-friction prefers non-mission
    * villages (below). Cite: indian_raid_outcomes.md §10; indian_contact.md
-   * PORT DEBT; docs/ai_transcription.md FUN_4d56_2820; Marathon2 R6 PARK.
+   * PORT DEBT; docs/port_plan.md FUN_4d56_2820; Marathon2 R6 PARK.
    */
   for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
     ColonizeUnit* brave = &ctx->units->units[i];

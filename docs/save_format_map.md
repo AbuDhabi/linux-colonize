@@ -441,5 +441,5 @@ pacific walk — prefer `FUN_684c_08c0`.
 - [project_goals.md](project_goals.md) — 100% save interop acceptance
 - [decomp_inventory.md](decomp_inventory.md) — what is shipped vs open RE
 - [manual_gap.md](manual_gap.md) — Col1 I/O checklist (playable ≠ fully mapped)
-- [ai_transcription.md](ai_transcription.md) — uses Col1 blobs; not the field map epic
+- [port_plan.md](port_plan.md) — uses Col1 blobs; not the field map epic
 - [original_index.md](original_index.md) — index entry for SAV layout

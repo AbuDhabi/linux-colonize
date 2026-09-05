@@ -114,7 +114,7 @@ Bell-bar glyph is fatter than DOS (10×12 `ICONS.SS` #62 vs a 2×7 mark).
   and "Founding Fathers" (#89) resolve live from `@MISC` (2026-08-28),
   composed with the golden's ":"/spacing; need FONTTINY not FONTSMAL.
 - Port status: Done (golden `continental_p1.png`/`continental_p2.png`,
-  2026-08-25 per roadmap.md) — `reports_render_congress_page1`/`_page2`
+  2026-08-25 per port_plan.md) — `reports_render_congress_page1`/`_page2`
   (`reports.c:970`/`1141`).
 
 ## F4 - Labor Adviser

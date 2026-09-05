@@ -8,17 +8,15 @@ the deep detail.
 |-------|-----------|
 | **Linux code architecture** (present + intended) | [architecture.md](architecture.md) |
 | **Decomp function catalog** (all `FUN_*`, light) | [`../original_sources_annotated/FUNCTION_CATALOG.md`](../original_sources_annotated/FUNCTION_CATALOG.md) · [`MODULE_MAP.md`](../original_sources_annotated/MODULE_MAP.md) |
-| **Catalog peel ranking** (what to label next) | [catalog_peel_ranking.md](catalog_peel_ranking.md) |
 | **Data files vs bake-into-code** (dev guide) | [data_vs_hardcoded.md](data_vs_hardcoded.md) |
 | Manual vs port feature gaps | [manual_gap.md](manual_gap.md) |
 | Move-into-tile authority (enter / landfall) | [move_enter.md](move_enter.md) |
 | Combat mechanics (odds / peels / outcomes / coastal fort) | [combat.md](combat.md) |
 | Unit orders (issue / tick / gates / port status) | [unit_orders.md](unit_orders.md) |
 | Project goals / acceptance order | [project_goals.md](project_goals.md) |
-| **Whole-project roadmap** (phases / what’s next) | [roadmap.md](roadmap.md) |
+| **Whole-project work queue + deferred AI track** | [port_plan.md](port_plan.md) |
 | Bring-up status, EOT pipeline, map fidelity gaps | [decomp_inventory.md](decomp_inventory.md) |
 | **Between player turns** (full EOT map + Layer D `130d`/`3844`) | [turn_between_players.md](turn_between_players.md) |
-| **AI transcription gap** (Euro / Indian FUN_*, roadmap) | [ai_transcription.md](ai_transcription.md) |
 | Formats, UI wiring, map draw order, sound | [assets.md](assets.md) |
 | Terrain / field / town-commons yields | [terrain_yields.md](terrain_yields.md) |
 | Settlement building production / skills | [building_production.md](building_production.md) |
@@ -29,7 +27,6 @@ the deep detail.
 | Extracted VICEROY DS tables | [viceroy_tables.md](viceroy_tables.md) |
 | `COLONY##.SAV` layout / Col1 bridge | [savegame.md](savegame.md) |
 | Col1 opaque field atlas / RE roadmap | [save_format_map.md](save_format_map.md) |
-| Seed-100 Brave / early-AI fidelity | [seed100_brave.md](seed100_brave.md) |
 
 This file is a **navigation layer**. It does not re-copy compositor algorithms,
 MADSPACK layouts, or full bring-up checklists.
@@ -162,7 +159,7 @@ one exists.
 | `FUN_281f_0590` | Fill helper (turn box) | turn indicator draw |
 | `FUN_1984_00aa` | Nation turn-owner 5×3 at (315,197) | [turn.c](../src/core/turn.c) |
 | `FUN_43f7_05f4` | `@COUNTRY` → DS color table | turn / UI colors |
-| `FUN_4d56_152e` | Indian village growth | [ai.c](../src/core/ai.c) (partial); [ai_transcription.md](ai_transcription.md) |
+| `FUN_4d56_152e` | Indian village growth | [ai.c](../src/core/ai.c) (partial); [port_plan.md](port_plan.md) |
 | `FUN_4d56_1816` | Indian nation turn | **partial** (structural phases + quiet pulse + `ai_contact_*`; `4528` Done 2026-08-27/28, `2820` rewritten 2026-08-29; deep `2820` haggle / VGA PARKED) |
 | `FUN_6a09_0006` | Tribe placement | ai / map gen (T2 seed-100) |
 | `FUN_521d_6d8e` | Euro AI dispatcher | **partial** (`ai_euro.c` skeleton + `ai_euro_early_turn` / `golden_ai_turns`) |

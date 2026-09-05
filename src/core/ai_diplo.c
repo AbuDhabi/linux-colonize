@@ -3568,7 +3568,7 @@ static int ai_diplo_indian_relation_quartile(int relation) {
 /*
  * DS:0x54f6 grudge/tension tier-crossing update — FUN_4cc6_00f2's second
  * half (viceroy_unpacked.c:80864-80900), never wired before this pass
- * (docs/mysteries_catalog.md: "still no Linux accessor or struct field").
+ * (docs/archive/mysteries_catalog.md: "still no Linux accessor or struct field").
  *
  * Raw DOS body (only the reachable arm, see below):
  *   if (iVar5 < 100 || !(peace bit set)) {          // most calls take this
@@ -3587,7 +3587,7 @@ static int ai_diplo_indian_relation_quartile(int relation) {
  * same storage as ai_diplo_indian_relation_delta's own clamp) and
  * iVar3/iVar6 = ai_diplo_indian_relation_quartile(iVar2)/(iVar5) — the
  * *same* FUN_281f_0a60 quartile bucketer ai.c already ported for 152e,
- * not a separate "combat strength" stat (mysteries_catalog.md's framing
+ * not a separate "combat strength" stat (archive/mysteries_catalog.md's framing
  * of this branch was a misreading of what FUN_281f_0a60 was bucketing —
  * flagging for doc correction, not changing that shared file here).
  *
@@ -3600,7 +3600,7 @@ static int ai_diplo_indian_relation_quartile(int relation) {
  * DOS reads iVar2/iVar5 already clamped to [0,100] from the same storage
  * this function's caller writes (0x5b1c == relation_by_indian). Linux's
  * relation_by_indian is [0,255] (separate PORT DEBT, not rescoped here —
- * see ai_port_plan.md) so old/new are locally capped to 99 for this tier
+ * see port_plan.md) so old/new are locally capped to 99 for this tier
  * check only, matching DOS's own `if (iVar5>99) iVar5=99` clamp; storage
  * itself is untouched.
  */

@@ -15,7 +15,7 @@ int ai_euro_use_full_dispatch(const ColonizeTurnContext* ctx);
 
 /*
  * FUN_15eb_28c8 — colonist work-plot job scoring, structural reference port
- * (docs/ai_port_plan.md T1.17 / docs/port_plan.md W1.7). See ai_euro.c's own
+ * (docs/port_plan.md T1.17 / docs/port_plan.md W1.7). See ai_euro.c's own
  * header comment above the definition, and
  * original_sources_annotated/turn/colonist_work_plot_28c8.md, for scope and
  * fidelity notes. The structural entry point scores with plain (non-expert)

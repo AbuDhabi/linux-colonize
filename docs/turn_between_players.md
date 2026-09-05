@@ -3,7 +3,7 @@
 End-to-end map of what runs after the human finishes orders and before the next
 human Move Pieces. Owns the **orchestration** bridge (calendar, production,
 nation EOT pieces, Euro/Indian/King order, market, chrome). AI planner
-internals stay in [ai_transcription.md](ai_transcription.md).
+internals stay in [port_plan.md](port_plan.md).
 
 Layer D extracts + thin callgraph:
 [`original_sources_annotated/turn/`](../original_sources_annotated/turn/)
@@ -175,7 +175,7 @@ broke the Dutch TURN2→3 first contact).
 
 | Cluster | Doc / extract |
 |---------|----------------|
-| Euro goals / act / scoring | [ai_transcription.md](ai_transcription.md); [`euro_dispatcher.c`](../original_sources_annotated/ai/euro_dispatcher.c); [`euro_unit_act.md`](../original_sources_annotated/ai/euro_unit_act.md); [`move_scoring.md`](../original_sources_annotated/ai/move_scoring.md) |
+| Euro goals / act / scoring | [port_plan.md](port_plan.md); [`euro_dispatcher.c`](../original_sources_annotated/ai/euro_dispatcher.c); [`euro_unit_act.md`](../original_sources_annotated/ai/euro_unit_act.md); [`move_scoring.md`](../original_sources_annotated/ai/move_scoring.md) |
 | Indian pulse / contact | [`indian_nation_turn.c`](../original_sources_annotated/ai/indian_nation_turn.c); [`indian_contact.md`](../original_sources_annotated/ai/indian_contact.md); [`brave_spent_callgraph.md`](../original_sources_annotated/ai/brave_spent_callgraph.md) |
 | King / REF | [`king_ref.md`](../original_sources_annotated/ai/king_ref.md) |
 | Diplomacy | [`euro_diplo.md`](../original_sources_annotated/ai/euro_diplo.md) |

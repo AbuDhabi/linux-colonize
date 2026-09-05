@@ -2235,7 +2235,7 @@ static void ai_king_apply_dump_goods_choice(ColonizeTurnContext* ctx, int human,
 /*
  * FUN_38fd_5be8 + FUN_38fd_3dc8: real King-audience tax-rate-change event.
  * Ported 2026-08-19, replacing the earlier invented "Accept/Refuse gates
- * whether the hike happens" design (see docs/mysteries_catalog.md,
+ * whether the hike happens" design (see docs/archive/mysteries_catalog.md,
  * king_audience_tax_delta, for the divergence this replaces).
  *
  * Real DOS shape: the audience fires on a turn-counter interval (no

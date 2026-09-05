@@ -162,7 +162,7 @@ On declare ([`ai_king_do_declare`](../src/core/ai_king.c)):
 | backup Artillery | `1` | always 1 |
 
 Also when `diff ≥ 2`: second Man-O-War wave same beat; foreign intervention up to
-**3** landings (else 2). See [ai_transcription.md](ai_transcription.md) /
+**3** landings (else 2). See [port_plan.md](port_plan.md) /
 [`king_ref.md`](../original_sources_annotated/ai/king_ref.md).
 
 ---

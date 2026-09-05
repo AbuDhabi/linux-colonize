@@ -455,7 +455,7 @@ int main(void) {
    * ai_king_tax_event's own header comment). Real shape: a turn-
    * interval-gated RNG favor-score roll, applied unconditionally; only
    * a real positive applied delta can lead to a tea-party revert.
-   * See ai_port_plan.md T1.12 for the full redesign writeup.
+   * See port_plan.md T1.12 for the full redesign writeup.
    *
    * All seeds below are seed=1 (dos_rng_seed) — deltas/scores computed
    * by hand from the real formula (score = RNG(1,1000) +

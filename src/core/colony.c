@@ -426,7 +426,7 @@ bool colonies_can_found(
    * tools/GhidraDecompileAt.java + tools/GhidraListXRefs.java against the
    * OvlWork/Ovl overlay Ghidra project (canonical viceroy_unpacked.c's
    * export of this address range is corrupted -- WARNING: jumptable/
-   * EMS-mapping garbage, same false-alarm class ai_port_plan.md's Method
+   * EMS-mapping garbage, same false-alarm class port_plan.md's Method
    * notes warn about): the Build Colony order handler (OVL02_L0000
    * offset 0x16ce, canonical FUN_2b5a_16ce, inside the larger
    * ENTER-prologue function at FUN_2b5a_1662, an undocumented gap in

@@ -83,7 +83,7 @@ Brewster dock filter).
 3. **UI parity** — hotkeys, menus, mouse paths match the original.
 4. **Visual polish** — pixel-exact layout and style last.
 
-Related: [roadmap.md](roadmap.md) (whole-project phases),
+Related: [port_plan.md](port_plan.md) (whole-project phases),
 [manual_gap.md](manual_gap.md) (feature checklist),
 [savegame.md](savegame.md) (Col1 layout / interop),
 [save_format_map.md](save_format_map.md) (field atlas / RE roadmap),

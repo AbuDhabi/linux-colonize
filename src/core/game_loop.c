@@ -14910,7 +14910,7 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
    * buffer, then nearest-neighbor-decimates it into the fixed 240×192
    * on-screen viewport below — same visual result (more tiles, smaller),
    * different graphics pipeline, per the architectural gap noted in
-   * docs/roadmap.md.
+   * docs/port_plan.md.
    */
   static uint8_t s_map_zoom_buf[MAP_ZOOM_MAX_VIEW_COLS * MAP_ZOOM_NATIVE_TILE *
                                  MAP_ZOOM_MAX_VIEW_ROWS * MAP_ZOOM_NATIVE_TILE];

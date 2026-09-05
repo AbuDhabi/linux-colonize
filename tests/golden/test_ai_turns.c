@@ -1,5 +1,5 @@
 /*
- * PARKED 2026-08-19 (docs/ai_transcription.md R0, docs/roadmap.md): DISABLED
+ * PARKED 2026-08-19 (docs/port_plan.md R0, docs/port_plan.md): DISABLED
  * in CMakeLists.txt. This chases turn-for-turn DOS parity against an AI
  * planner that is still only structurally/T0-T1 ported, not T3 1:1 — every
  * remaining unported/stubbed callee (FUN_41f2_0294 etc.) is a guaranteed
@@ -9,7 +9,7 @@
  * (set_tests_properties ... DISABLED FALSE) only then.
  *
  * 2026-08-28: TURN1→2, 2→3, 4→5, 5→6, 6→7 pass; TURN3→4 fails on two Braves
- * (docs/ai_port_plan.md T1.23). Diagnostics: AI_TURNS_ALL=1 runs every step
+ * (docs/port_plan.md T1.23). Diagnostics: AI_TURNS_ALL=1 runs every step
  * instead of stopping at the first failure, AI_TURNS_ONLY=t runs one step.
  */
 #include <stdio.h>

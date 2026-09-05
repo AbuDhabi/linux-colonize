@@ -28,7 +28,7 @@
  * Human chrome: status lines + AI popup enqueue (OK / first-contact WELCOME
  * Yes/No / Meet CHOICE incl. Leave→Farewell / Gift amount / Demand
  * tools-vs-gold / alarmed Demand OK). Cite: indian_contact.md;
- * docs/ai_transcription.md FUN_5bfb_022e / FUN_5bfb_0182; peel
+ * docs/port_plan.md FUN_5bfb_022e / FUN_5bfb_0182; peel
  * layer_b_combat_raid / layer_b_2a1f_midlo / layer_b_ai_diplo.
  */
 

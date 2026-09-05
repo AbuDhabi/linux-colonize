@@ -31,13 +31,13 @@ the `5d04` live wire, and are back on as regression gates — they run in a
 default `ctest`. Only `golden_ai_turns` and the aggregate `golden_ai_joint`
 (which depends on it) are still `DISABLED` in CMake; `golden_ai_turns` fails
 on 3 TURN1→2 Braves, the parked seed-100 quiet-pulse divergence
-([`docs/seed100_brave.md`](../docs/seed100_brave.md)), not a planner
+(history in [`docs/port_plan.md`](../docs/port_plan.md) T1.23), not a planner
 regression. The parking rationale below still applies to those two: they chase
 turn-for-turn DOS parity
 against an AI planner that is still only structurally/T0-T1 ported (not T3
 1:1); every remaining unported/stubbed callee is a guaranteed future diff,
 so a red run there means "AI transcription incomplete", not "regression".
-See [`docs/ai_transcription.md`](../docs/ai_transcription.md) R0. Run them
+See [`docs/port_plan.md`](../docs/port_plan.md) R0. Run them
 explicitly if you need to look (`ctest -R golden_ai_turns
 --force-new-ctest-process`, or `cmake --build build --target
 golden_ai_joint`); do not chase them to green piecemeal — re-enable

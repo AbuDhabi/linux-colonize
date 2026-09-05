@@ -2515,7 +2515,7 @@ static int ai_indian_152e_quartile(int relation) {
  *
  * `FUN_41f2_0092`/`0294` (nation-score + report UI, prior 2026-08-19..22
  * notes) remains a real function — just never called from 152e/0038.
- * Full trace: `docs/ai_port_plan.md` T1.15.
+ * Full trace: `docs/port_plan.md` T1.15.
  */
 static int ai_indian_152e_worth_cap(
   const ColonizeTurnContext* ctx,
@@ -3588,7 +3588,7 @@ static int ai_native_pick_dir_asm(
     accepted++;
 
     /*
-     * FUN_521d_20e6 outer branch (2026-08-13 finding, see docs/seed100_brave.md
+     * FUN_521d_20e6 outer branch (2026-08-13 seed-100 finding,
      * "Root cause candidate"): quiet Brave scoring splits on whether *this*
      * unit has been seen by any Euro nation yet — DOS unit+0x3147 high
      * nibble, bit (0x10<<nation), same convention as MAP_SEEN_NATION_BIT.

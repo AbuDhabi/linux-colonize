@@ -3,7 +3,7 @@
 Living hub for the Linux port’s **present** code shape and **intended**
 architectural constraints. Fidelity bar and conflict order:
 [project_goals.md](project_goals.md). Whole-project phases:
-[roadmap.md](roadmap.md).
+[port_plan.md](port_plan.md).
 
 This file owns **structure and contracts** (layers, modules, control flow).
 It does **not** own feature Done/Partial matrices, AI FUN inventories, or
@@ -18,9 +18,9 @@ lives](#where-detail-lives)).
 |---------|-------|
 | Code architecture / layering (this file) | **Here** |
 | Acceptance order / fidelity bar | [project_goals.md](project_goals.md) |
-| Phase order / what’s next | [roadmap.md](roadmap.md) |
+| Phase order / what’s next | [port_plan.md](port_plan.md) |
 | Manual feature gaps | [manual_gap.md](manual_gap.md) |
-| AI FUN / unpark | [ai_transcription.md](ai_transcription.md) |
+| AI FUN / unpark | [port_plan.md](port_plan.md) |
 | Decomp / data navigation | [original_index.md](original_index.md) |
 
 **Non-goal:** restructuring `src/` to mirror VICEROY overlays. DOS segment maps
@@ -238,7 +238,7 @@ greenfield redesign or a mandated `game_loop` rewrite phase.
   `golden_ai_turns` under it are **PARKED / DISABLED** as of 2026-08-19 —
   they chase bit-exact DOS parity against an AI planner that is still only
   structurally/T0-T1 ported, so a red run means "porting incomplete", not
-  "regression"; see [ai_transcription.md](ai_transcription.md) R0. Re-enable
+  "regression"; see [port_plan.md](port_plan.md) R0. Re-enable
   them as real architecture checks only once AI transcription is complete.
   `golden_ai_mid01` / `golden_ai_late01` came back off that list on
   2026-08-27 and do run as regression gates today.
@@ -247,9 +247,9 @@ greenfield redesign or a mandated `game_loop` rewrite phase.
 
 - Cloning VICEROY overlay / segment layout in `src/`
 - Pixel-identical rendering as a day-one architectural requirement (phase 5
-  polish in [roadmap.md](roadmap.md))
+  polish in [port_plan.md](port_plan.md))
 - Claiming T3 / 1:1 AI bodies as an architectural gate before gameplay
-  unpark work in [ai_transcription.md](ai_transcription.md)
+  unpark work in [port_plan.md](port_plan.md)
 
 ---
 
@@ -257,10 +257,10 @@ greenfield redesign or a mandated `game_loop` rewrite phase.
 
 | Topic | Doc |
 |-------|-----|
-| Phases / what’s next | [roadmap.md](roadmap.md) |
+| Phases / what’s next | [port_plan.md](port_plan.md) |
 | Whole-project agent work queue | [port_plan.md](port_plan.md) |
 | Feature Done/Partial/Missing | [manual_gap.md](manual_gap.md) |
-| AI FUN inventory / unpark | [ai_transcription.md](ai_transcription.md) |
+| AI FUN inventory / unpark | [port_plan.md](port_plan.md) |
 | EOT / between-player turns | [turn_between_players.md](turn_between_players.md) |
 | Popup / modal architecture | [popups.md](popups.md) |
 | Assets, formats, map draw | [assets.md](assets.md) |
