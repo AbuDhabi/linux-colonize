@@ -1,53 +1,47 @@
 # Terrain field yields (colony area / town commons)
 
-Reference for what a map square can produce when worked as a field job (or, for the colony center, as the automatic **town commons** harvest). Sons of Liberty / Tory modifiers are summarized under [Field composition order](#field-composition-order-fun_15eb_18ec); full sentiment catalog: [sons_of_liberty.md](sons_of_liberty.md).
+Reference for what a map square can produce when worked as a field job, and
+the colony-center **town commons** auto-harvest. SoL/Tory modifiers are
+summarized under [Field composition order](#field-composition-order-fun_15eb_18ec);
+full sentiment catalog: [sons_of_liberty.md](sons_of_liberty.md).
+(Compressed 2026-09-05; derivation narratives in git history.)
 
 ## Sources
 
 | Source | Role |
 |--------|------|
-| [`COLONIZE/NAMES.TXT`](../COLONIZE/NAMES.TXT) `@UNFORESTED` / `@FORESTED` / `@OTHER` / `@RESOURCE` / `@JOB` | **Authoritative** base yield grids and resource **catalog values** |
-| `FUN_15eb_17fa` / `FUN_15eb_18ec` (`viceroy_unpacked.c` ~11717–11991) | **Authoritative** special-resource effect, expert/convert, lumber ×2, plow/road/river stacking, SoL ± on fields |
-| [`COLONIZE/Colonization.pdf`](../COLONIZE/Colonization.pdf) | Qualitative rules (commons dual-produce, Prime Timber exception, plow/road/river intent). Printed Terrain Chart often **≠** `NAMES` — prefer `NAMES` + decomp |
-| MAPEDIT resource class table (`mapedit_resource_type_by_terrain` in [`map.c`](../src/core/map.c)) | Which special resource **type** a terrain class may roll |
-| Col1 fixtures / [`test_colony_yield.c`](../tests/unit/test_colony_yield.c), `FUN_15eb_1f72` (`viceroy_unpacked.c` ~12474) | Town-commons dual-produce — composer logic read directly; base-yield data table (`0x2f7b`) **located 2026-08-21**, see [DS:0x2f76 terrain-class record](#ds0x2f76-terrain-class-record--full-16-byte-layout-2026-08-21) — confirmed byte-identical to the `NAMES`-sourced table this file already used, so the port formula is **confirmed exact, not just approximated**, see [Town commons](#town-commons-colony-center-tile) |
+| [`COLONIZE/NAMES.TXT`](../COLONIZE/NAMES.TXT) `@UNFORESTED`/`@FORESTED`/`@OTHER`/`@RESOURCE`/`@JOB` | **Authoritative** base yield grids and resource catalog values |
+| `FUN_15eb_17fa` / `FUN_15eb_18ec` (`viceroy_unpacked.c` ~11717–11991) | **Authoritative** resource effect, expert/convert, lumber ×2, improvement stack, SoL on fields |
+| `FUN_15eb_1f72` (~12474) | Town-commons composer, read directly |
+| [`COLONIZE/Colonization.pdf`](../COLONIZE/Colonization.pdf) | Qualitative rules; printed Terrain Chart often ≠ `NAMES` — prefer `NAMES` + decomp |
+| MAPEDIT resource class table (`mapedit_resource_type_by_terrain`, [`map.c`](../src/core/map.c)) | Which resource type a terrain may roll |
+| [`test_colony_yield.c`](../tests/unit/test_colony_yield.c), `golden_colony_prod01/02/03` | Regressions; prod02/03 are real DOS captures |
 
-Pedia / map indices: cleared land **0–7**, forests **8–23** (type = `index & 7`), arctic / ocean / sea lane **24–26**, mountains / hills as classes **27 / 28**.
+Pedia / map indices: cleared land **0–7**, forests **8–23** (type =
+`index & 7`), arctic / ocean / sea lane **24–26**, mountains / hills **27/28**.
 
 ---
 
 ## DS:`0x2f76` terrain-class record — full 16-byte layout (2026-08-21)
 
-The whole record this project had been chasing piecemeal (`map.c`'s
-`k_map_dos_terr_cost`/`k_map_dos_terr_found_score`/`k_map_dos_terr_pioneer_threshold`/
-`k_map_dos_terr_lumber_reward`, plus the separately-cited "`DS 0x2f7b`,
-not present in the decompile" base-yield table `FUN_15eb_18ec`/`FUN_15eb_1f72`
-read for field yields) is **one and the same table**: 32 stride-`0x10` records
-starting `DS:0x2f76`, real terrain classes `0..28` only (`29..31` noisy, not
-trusted — same caveat as before). Found by brute-force byte-pattern search
-across every `dosbox-x-dumps/*` save (19 completely different program states,
-zip'd DOSBox-X `Memory` blobs — `HDR=0x88` not `8`, i.e.
-`file_off = 0x88 + seg*16 + off`, calibrated against the already-known cost
-table since the naive `HDR=8` formula from the (since-removed) brave_dump 0e52 parse script
-doesn't hold for this build/segment): rows `0..28` are **byte-identical across
-every save**, confirming genuine static data, not runtime junk. No live
-DOSBox-X session needed for this pass — the existing dumps already had it.
+One table unifies everything previously chased piecemeal: 32 stride-`0x10`
+records at `DS:0x2f76`, real classes `0..28` (`29..31` noisy, untrusted).
+Recovered by byte-pattern search over `dosbox-x-dumps/*` (blob formula
+`file_off = 0x88 + seg*16 + off` — HDR is `0x88`, not 8); rows 0..28
+byte-identical across all 19 saves, so genuine static data. No live
+session was needed — check existing dumps first.
 
-| Offset | Content | Evidence |
-|-------:|---------|----------|
-| `+0x0` | Move cost (`k_map_dos_terr_cost`) | Already wired |
-| `+0x1` | Founding score (`k_map_dos_terr_found_score`) — doubles as combat terrain-defense bonus (`combat_strength.c` reuses this same byte) | Already wired |
-| `+0x2` | Pioneer clear/plow work-turns threshold | Already wired |
-| `+0x3` | **Decoded 2026-08-21.** Values (idx 0–28): `2,2,4,4,4,4,2,2,3,1,3,3,3,3,1,1,3,1,3,3,3,3,1,1,0,3,0,2,2` — byte-identical across all 20 dump instances found (brute-force stride-match, no live capture). Confirmed 3 use sites, all inside `FUN_521d_20e6` (`viceroy_unpacked.c:85807/88865/91539`, three near-duplicate copies of the same block — an accumulating colony-site desirability score over a candidate site's 8 neighbor tiles, adding this byte for a neighbor once a coast/river-type gate (`local_6a`) passes; unforested farmland (Plains/Prairie/Grassland/Savannah) scores highest (4), Arctic/Sea-Lane 0, forest generally low (1–3). **Not worth wiring**: this whole `20e6`-inline candidate-tile picker is the same found/contact mechanism `port_plan.md` **T1.2** already closed — DOS's own chain-linked-list bookkeeping it ultimately gates on is never actively maintained for land units in this port, and the *behavioral* outcome is already covered by shipped Linux mechanics (`ai_euro_unit_act`'s H-block bind, `ai_euro_scout_contact_ring_target`). Porting this byte into that path would be dead code, same conclusion as T1.2's case-2 gate. |
-| `+0x4` | **Decoded 2026-08-21, enclosing function identified 2026-08-22.** Values (idx 0–28): `12,12,10,15,15,21,12,14,18,12,18,12,12,12,12,7,18,12,18,12,12,12,12,7,0,9,9,24,24` — byte-identical across all 20 dump instances. Use site (`viceroy_unpacked.c:3629`, `*(byte*)(class*0x10+0x2f7a)`) is real — subtracted from a running byte (`pbStack_1e`, floor 1), `+0x18` forest bonus gated on difficulty `<0xb` and `DS:0x8dd2==0`. The 2026-08-21 attribution to `FUN_129f_0008` was a confirmed false collision (that function's real resident body, `0000:29f8`, is an unrelated RLE decoder). **Real owner found via the `.asm`'s own XREF, not a guess**: `original_sources_decompiled/viceroy_unpacked.asm:17798` labels this exact code `caseD_10`, cross-referenced from `129f:00b7(j)` — a genuine indirect-jump target, confirmed by grepping the raw instruction bytes for `[BX + 0x2f7a]` directly (`asm:17825`, tag `CODE_22:15eb:...`, i.e. physically part of the **`15eb` overlay**, the same module `FUN_15eb_18ec`/`FUN_15eb_17fa` (field composition, special resources — both already documented above) live in). Walking back to the nearest real function label before that line lands on **`FUN_15eb_28c8`** — already in `FUNCTION_CATALOG.md` (line 431: "Score/assign best work-plot job for colonist (trial 1068+18ec+06d2)", 254 lines, calls `FUN_15eb_18ec` as a sub-step) but never linked to any `.c`/`.md` file and not yet ported. So `+0x4` isn't an Indian-village growth/threshold term after all (that earlier guess was directionally reasonable — terrain-scaled penalty — but the wrong subsystem): it's a **labor/travel penalty subtracted from a colonist's candidate work-plot score**, worse for higher-effort terrain (forest/hills score high: Marsh/Swamp `21`/`18`, Ocean/Sea-Lane `0`), with an extra penalty for forest plots specifically at low difficulty when no settlement is adjacent (`0x8dd2==0` — this global isn't Indian-village-specific, just a proximity/adjacency flag this function also happens to read; don't assume "Indian" from its name in isolation). **Not wired**: `FUN_15eb_28c8` itself has no Linux port yet (no automated colonist work-plot auto-assignment currently reads this term) — porting the whole 254-line function is a new, separate, unscoped item if this project ever wants DOS-faithful auto-assignment of colonists to plots; the narrow "what is `+0x4`" question `port_plan.md` T1.14 asked is answered. |
-| `+0x5`..`+0xd` | **The `NAMES.TXT` field-yield grid itself** — Food/Sugar/Tobacco/Cotton/Furs/Lumber/Ore/Silver/Fish (job 0–8), i.e. `+0x5+job`. Confirmed two ways: (1) `viceroy_unpacked.c:11811`/`12553` (`FUN_15eb_18ec`/`FUN_15eb_1f72`) literally compute `job + terrain*0x10 + 0x2f7b`, and `0x2f7b == 0x2f76+5`; (2) the raw bytes at `+5..+13` for every terrain class match this doc's `NAMES.TXT`-sourced tables exactly, cell for cell, including the Hills-food **1** (raw table value — the live "2" some other mechanism applies is confirmed *not* this byte, tightening that open question). **Resolves the "base yield table not present in the decompile" note below** — it's this table, just offset `+5`, not a separate binary blob. |
-| `+0x8` | Also separately wired as `k_map_dos_terr_lumber_reward` (Pioneer clear-forest lumber reward scale) — this is the **same byte as the Cotton-yield column** (`job 3`). Numerically coincidental reuse in DOS (a real, player-confirmed, already-wired behavior for the Pioneer-reward reading of this byte) — not a bug, just two unrelated consumers of one byte. |
-| `+0xe` | **New, partially anomalous.** Looks like an internal type/graphic index: unforested `0..7` → value `idx+3`; forest primary `8..15` and forest-alt `16..23` → value `11+(idx&7)` (i.e. same formula continued) — **except index 15 (Rain Forest, primary)**, which reads `10` (matching Swamp's value) instead of the expected `18`. Index 23 (Rain-alt, same forest *type*) gets the expected `18` — so the anomaly is specific to pedia index 15 itself, a second real DOS quirk on that exact row (the first being the already-documented `k_forested` Rain Food/Sugar `2/2→1/1` table bug in [Town commons](#town-commons-colony-center-tile)). Semantic meaning of the column itself not identified; not wired. |
-| `+0xf` | Zero for every real terrain class (`0..28`) in every save. Likely unused padding — no evidence otherwise. |
-
-Not chased further this pass (would need decoding `+0x3`/`+0x4`'s exact
-formulas against real gameplay data, and identifying what `+0xe` is actually
-for) — flagged as backlog, not blocking anything currently wired.
+| Offset | Content |
+|-------:|---------|
+| `+0x0` | Move cost (`k_map_dos_terr_cost`) — wired |
+| `+0x1` | Founding score (`k_map_dos_terr_found_score`); doubles as combat terrain-defense bonus (`combat_strength.c`) — wired |
+| `+0x2` | Pioneer clear/plow work-turns threshold — wired |
+| `+0x3` | Colony-site desirability per neighbor tile, used only inside `FUN_521d_20e6`'s inline candidate-site picker (3 near-duplicate blocks). Values idx 0–28: `2,2,4,4,4,4,2,2,3,1,3,3,3,3,1,1,3,1,3,3,3,3,1,1,0,3,0,2,2`. **Not wired** — that picker is dead code in this port (same conclusion as port_plan T1.2). |
+| `+0x4` | Labor/travel penalty subtracted from a colonist's candidate work-plot score in **`FUN_15eb_28c8`** (work-plot auto-assign, unported). Values: `12,12,10,15,15,21,12,14,18,12,18,12,12,12,12,7,18,12,18,12,12,12,12,7,0,9,9,24,24`. **Traps:** the earlier `FUN_129f_0008` attribution was a false collision (that body is an RLE decoder); the real owner was found via the `.asm`'s own XREF (`caseD_10`, physically in the `15eb` overlay), not a guess. `DS:0x8dd2` there is a proximity flag, not Indian-specific. Not wired. |
+| `+0x5`..`+0xd` | **The `NAMES.TXT` field-yield grid itself** — `+0x5+job` (Farmer..Fisherman). `18ec`/`1f72` compute `job + terrain*0x10 + 0x2f7b`, and `0x2f7b == 0x2f76+5`; bytes match this file's tables cell-for-cell. Resolves the old "base yield table not in the decompile" mystery. |
+| `+0x8` | Also `k_map_dos_terr_lumber_reward` (Pioneer clear reward) — same byte as the Cotton column; two unrelated consumers, not a bug. |
+| `+0xe` | Type/graphic-looking index: unforested `idx+3`, forest `11+(idx&7)` — except pedia 15 (Rain, primary) reads 10 instead of 18 (idx 23 gets 18; quirk on that exact row, like the Rain 1/1 table bug below). Meaning unidentified; not wired. |
+| `+0xf` | Zero for every real class in every save — padding. |
 
 ---
 
@@ -67,13 +61,11 @@ Order matches `NAMES.TXT` yield columns and `@JOB`:
 | 7 | Silver Miner | Silver |
 | 8 | Fisherman | Food (fish) |
 
-A **0** in a yield cell means that job produces nothing on that terrain.
+A **0** cell means that job produces nothing on that terrain.
 
 ---
 
 ## Base yields — unforested land (`@UNFORESTED`)
-
-Cleared / never-forested tiles. Columns: Farmer … Fisherman. Synced from `NAMES.TXT`.
 
 | Terrain | Idx | Food | Sugar | Tob. | Cotton | Furs | Lumber | Ore | Silver | Fish |
 |---------|----:|-----:|------:|-----:|-------:|-----:|-------:|----:|-------:|-----:|
@@ -90,7 +82,7 @@ Cleared / never-forested tiles. Columns: Farmer … Fisherman. Synced from `NAME
 
 ## Base yields — forested (`@FORESTED`)
 
-Forest type *N* clears permanently to unforested type *N* (Boreal→Tundra, …, Rain→Swamp).
+Forest type *N* clears permanently to unforested type *N*.
 
 | Forest | Cleared becomes | Food | Sugar | Tob. | Cotton | Furs | Lumber | Ore | Silver | Fish |
 |--------|-----------------|-----:|------:|-----:|-------:|-----:|-------:|----:|-------:|-----:|
@@ -103,34 +95,31 @@ Forest type *N* clears permanently to unforested type *N* (Boreal→Tundra, …,
 | Wetland | Marsh | 1 | 0 | 1 | 0 | 2 | 2 | 1 | 0 | 0 |
 | Rain | Swamp | 1 | 1 | 0 | 0 | 1 | 2 | 1 | 0 | 0 |
 
-**Lumberjack note:** DOS always doubles lumber after the resource effect, before plow/road/river (`local_14 == 5` → `<<1` in `FUN_15eb_18ec`, confirmed at this exact pipeline position by direct read). So Mixed forest lumber **3** in NAMES becomes **6** in play — matching the printed Terrain Chart. **2026-08-15 fix:** [`colony_yield.c`](../src/core/colony_yield.c) now applies this ×2 at the same pipeline position.
+**Lumberjack:** DOS always doubles lumber after the resource effect, before
+plow/road/river (`local_14 == 5` → `<<1` in `18ec`). Mixed lumber 3 in
+NAMES = 6 in play, matching the printed chart. Wired in
+[`colony_yield.c`](../src/core/colony_yield.c) at that pipeline position.
 
 ---
 
 ## Base yields — other (`@OTHER`)
 
-| Terrain | Pedia-ish | Food | Sugar | Tob. | Cotton | Furs | Lumber | Ore | Silver | Fish |
-|---------|-----------|-----:|------:|-----:|-------:|-----:|-------:|----:|-------:|-----:|
+| Terrain | Pedia | Food | Sugar | Tob. | Cotton | Furs | Lumber | Ore | Silver | Fish |
+|---------|-------|-----:|------:|-----:|-------:|-----:|-------:|----:|-------:|-----:|
 | Arctic | 24 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | Ocean | 25 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 3 |
 | Sea Lane | 26 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 3 |
-| Mountains | — | 0 | 0 | 0 | 0 | 0 | 0 | 4 | 1 | 0 |
-| Hills | — | **2** | 0 | 0 | 0 | 0 | 0 | 4 | 0 | 0 |
+| Mountains | 27 | 0 | 0 | 0 | 0 | 0 | 0 | 4 | 1 | 0 |
+| Hills | 28 | 1 | 0 | 0 | 0 | 0 | 0 | 4 | 0 | 0 |
 
-**Hills food: player-confirmed 2026-08-15 (Viceroy) — 2, not NAMES.TXT's 1.**
-A non-specialist Farmer on a worked (non-colony-center) Hills tile produces
-**2** food. `NAMES.TXT` `@OTHER` lists Farmer **1** for Hills, but real
-gameplay matches the port's existing override (`colony_yield.c` comment:
-"Terrain Chart / FreeCol / live Col1"), not the raw NAMES row. Whatever
-mechanism bumps this in DOS (a hard-coded case, a NAMES-independent Farmer
-path, or something the `FUN_15eb_17fa`/`18ec` peel hasn't traced) is still
-not identified at the byte level — but the *output* is no longer in doubt,
-so this is resolved player-side even though the "why NAMES says 1" question
-stays open as low-priority RE backlog. No code change needed (port already
-had it right); this just confirms the port's override over the raw data
-table instead of flagging it as an unverified divergence.
+**Hills food is NAMES.TXT's 1** (settled 2026-09-03). The old
+"player-confirmed 2" observation was base 1 + the unconditional farmer `+u`
+from the improvement stack, which the table had wrongly absorbed before the
+stack was ported literally; pinned by `farming/case3`'s expert Farmer on a
+bare Hill = 4 (1 + expert 2 + farmer 1).
 
-Colonies cannot be founded on mountains (manual). Fishing on ocean/sea lane needs a colony **Docks** before fishermen can work those surrounds (`FUN_15eb_18ec` zeros fish jobs &gt;7 without dock building).
+Colonies cannot be founded on mountains. Fishing on ocean/sea lane requires
+colony **Docks** (`18ec` zeroes fish jobs without it).
 
 ---
 
@@ -138,7 +127,7 @@ Colonies cannot be founded on mountains (manual). Fishing on ocean/sea lane need
 
 ### Catalog values (`NAMES.TXT` `@RESOURCE`)
 
-These numbers are **data labels**, not the field-yield effect. Effect is `FUN_15eb_17fa` (below).
+Data labels only — the field effect is `FUN_15eb_17fa` below.
 
 | Type | Name | Value |
 |-----:|------|------:|
@@ -159,7 +148,8 @@ These numbers are **data labels**, not the field-yield effect. Effect is `FUN_15
 
 ### Allowed terrain class → resource type (MAPEDIT)
 
-Class = `terrain & 0x1f`, except mountain → **27**, hill → **28**. Table value `0` remaps to type **6** (Minerals); `-1` = never.
+Class = `terrain & 0x1f`, except mountain → 27, hill → 28. Table value 0
+remaps to Minerals (6); `-1` = never.
 
 | Class | Terrain | Allowed resource |
 |------:|---------|------------------|
@@ -188,7 +178,9 @@ Class = `terrain & 0x1f`, except mountain → **27**, hill → **28**. Table val
 
 ### Effect on a matching job (`FUN_15eb_17fa`)
 
-Hardcoded **(resource, job) → bonus**. Return **−1** means **double** the current yield; otherwise **add** the value. Not `max(@RESOURCE, base)`.
+Hardcoded **(resource, job) → bonus** if-chain — a resource can pair with
+more than one job. Return −1 = **double** current yield; otherwise **add**.
+Not `max(@RESOURCE, base)`.
 
 | Resource | Job | Effect |
 |----------|-----|--------|
@@ -196,7 +188,7 @@ Hardcoded **(resource, job) → bonus**. Return **−1** means **double** the cu
 | Wheat (2) | Farmer (0) | +2 |
 | Game (9) | Farmer (0) | +2 |
 | Game (9) | Fur Trapper (4) | +2 |
-| Beaver (8) | Fur Trapper (4) | +3 |
+| Beaver (8) | Fur Trapper (4) | +3 (asm-confirmed 2026-09-03; an old port table had 2) |
 | Prime Cotton (3) | Cotton Planter (3) | **double** |
 | Prime Tobacco (4) | Tobacco Planter (2) | **double** |
 | Prime Sugar (5) | Sugar Planter (1) | **double** |
@@ -207,511 +199,231 @@ Hardcoded **(resource, job) → bonus**. Return **−1** means **double** the cu
 | Silver Deposit (12) | Silver Miner (7) | +2 |
 | Fishery (7) | Fisherman (8) | +3 |
 
-When the worker’s **skill matches** the job, an additive resource bonus is itself **×2** before being added (`18ec` ~11909–11912). Double (`−1`) path does `yield <<= 1` **unconditionally** (not gated on expert match — confirmed from a direct read of `FUN_15eb_18ec`, not just this table).
-
-**2026-08-15 fix:** `colony_yield_for_tile` now uses `colony_yield_resource_effect(resource, field_job)`, a byte-exact port of `FUN_15eb_17fa`'s full if-chain (verified by direct read, not just this table) — every `(resource, job)` pair from the table above, including the ones a single `resource → job` map structurally couldn't express (Game(9) pairs with **both** Farmer +2 and Fur Trapper +2; the old `colony_yield_resource_job()` could only return one job per resource, so Farmer-on-Game got **zero** bonus, not just a wrong number). **Still not done:** the expert-doubles-additive-bonus rule above — needs profession context, which `colony_yield_for_tile` doesn't have (used by AI/job-suggestion callers with no specific worker); would need threading into `colony_yield_for_worker` instead, deferred pending the SoL-ordering work below since they're entangled (the same expert-match flag drives the plow/road/river unit size too — see below).
-
-Examples (free colonist, no other mods):
-
-| Tile | Port (current) | DOS |
-|------|-------------:|----:|
-| Plains + Prime Cotton (cotton) | 6 | 4 (double of 2) |
-| Hills + Minerals (ore) | 4 | 4+3 = 7 |
-| Ocean + Fishery (fish) | 5 | 3+3 = 6 |
-| Mountain + Silver Deposit | 12 | 1+2 = 3 (then other mods) |
+A matching-skill expert **doubles an additive bonus** before it's added
+(`18ec` ~11909). The double (−1) path is `yield <<= 1` unconditionally (not
+expert-gated). Ported byte-exact as `colony_yield_resource_effect()` — the
+old single `resource → job` map structurally couldn't express Game pairing
+with both Farmer and Fur Trapper (Farmer-on-Game got zero). The
+expert-doubles-additive half needs worker context and lives in
+`colony_yield_for_worker`.
 
 ---
 
 ## Field composition order (`FUN_15eb_18ec`)
 
-Simplified pipeline for one surround work-plot (authoritative order —
-**2026-08-15: re-verified by a direct read of `FUN_15eb_18ec`'s full body**,
-`viceroy_unpacked.c:11771-11992`; the function turned out to be
-substantially more involved than this "simplified" list, with two pieces
-not previously documented at all — see below):
+Authoritative pipeline for one surround work-plot (verified against the
+full body, ~11771-11992):
 
-1. Base from terrain×job table at DS `0x2f7b` (NAMES-loaded).
-2. **Fisherman only** (job > 7): a distance/enclosure modifier via
-   `FUN_15eb_173e`/`FUN_15eb_16fe` — counts how many of the 8 neighbors of
-   the fished tile are themselves Ocean/Sea Lane. The decompiled C shows a
-   6-way `local_4 < 8/6/4/3/1` cascade, but **2026-08-15: verified against
-   the raw asm (not decompiler noise this time) that 3 of those 6 branches
-   are genuinely unreachable in the DOS binary itself** — each is only
-   entered after already proving `count < 6`, then immediately re-tested
-   against `count >= 6`, impossible. Real effective ladder: `count >= 8` →
-   **−2** (fully open ocean); `count >= 6` → **−1**; else → **+1** (sheltered
-   coastal tile). **Fixed:** ported as `colony_yield_fisherman_distance_mod`
-   in `colony_yield.c` (the 3 dead branches correctly omitted — porting
-   unreachable code changes nothing observable). Regression: new
-   `test_turn.c` synthetic-map check (open-ocean vs. sheltered, exact
-   3-point swing).
-
-   **The `count >= 8` (`−2`) case is itself unreachable for any tile a real
-   colonist can be assigned to fish**, raised and confirmed on a user
-   question: a colony can never be founded on ocean, and every one of a
-   colony's 8 field-work positions has the colony center as one of *its own*
-   8 neighbors (verified by direct enumeration — for any offset `(dx,dy)`
-   with `dx,dy ∈ {-1,0,1}` not both 0, `(-dx,-dy)` is itself a valid offset,
-   so the center is always among the 8 neighbors of every surrounding tile).
-   So the center — guaranteed non-ocean — always counts against the full-8
-   threshold. This looks like a genuine DOS quirk (the distance function is
-   generic over any two tiles, not aware it's only ever called this way) —
-   kept exactly as ported, matching this project's north star of DOS
-   fidelity over invented "fixes"; not a reachability bug worth guarding
-   against, since it can never fire.
-3. Early terrain/FA tweaks (incl. fur-specific road/river nibbles, job==4 only).
+1. Base from terrain×job table (`DS:0x2f7b`, NAMES-loaded).
+2. **Fisherman only:** coastal distance mod — count ocean/sea-lane among
+   the fished tile's 8 neighbors: `>= 8` → −2, `>= 6` → −1, else +1.
+   (The decompile shows 6 branches; 3 are genuinely unreachable in the
+   binary — verified in raw asm, correctly omitted from the port.
+   The −2 case is itself unreachable for any assignable tile: the colony
+   center is always among a work-plot's 8 neighbors and is never ocean —
+   a DOS quirk, kept as-is.) `colony_yield_fisherman_distance_mod`;
+   applies to experts too (post-×2, flat).
+3. Early terrain/FA tweaks (incl. Fur Trapper's own pre-multiplier road
+   +1 / river +1 (+2 major) adds, job 4 only, ~11840-11850 — wired).
 4. Clamp negative → 0.
-5. **SoL / Tory mod** if `mod > 0`: `yield += mod`. The mod itself can be
-   forced to **0 outright** (not just a different divisor) when
-   `byte[colony+0x1a] >= 4` or the per-nation `0x543f` table byte is nonzero
-   — the *same* gate `FUN_15eb_1d4c` uses only to pick the divisor (10 vs
-   `10-difficulty`), but here it zeroes the whole mod instead — **field
-   yields skip the Tory penalty entirely for AI colonies**, while
-   manufacturing/bells/crosses/hammers do not. **2026-08-15 fix:**
-   `colony_prod_sol_bonus_field` (new function) now applies this for both
-   field-yield call sites; `colony_prod_sol_bonus` (building contexts) is
-   unchanged. See [sons_of_liberty.md](sons_of_liberty.md).
-6. **Expert:** food/fish → `yield += 2` (and re-add the positive SoL mod a
-   second time — confirmed at this exact spot: `if (food/fish) { yield += 2;
-   if (mod > 0) yield += mod; }`); other jobs → `yield <<= 1`.
-   **2026-08-15 fix — steps 5+6 now wired in this order, port-side:**
-   player-confirmed on Viceroy: Expert Ore Miner, Hills+road+sentiment(+1) =
-   12 ore; Free Colonist, same tile = 6. The port used to compute
-   base+road/river first, double the whole thing for a matching expert, then
-   add the SoL/Tory mod *flat, externally, after* `colony_yield_for_worker`
-   returned (in `turn.c`/`colony_preview.c`) — giving free=6 (right, by
-   coincidence) but expert=(4+1)×2+1=11, not 12, because the mod never got
-   swept up by the expert doubling the way DOS's step-5-before-step-6 order
-   demands. Fixed: `colony_yield_for_worker` (moved to `colony_yield.c`,
-   see below) now takes `sol_bonus` as a signed parameter and folds it in at
-   the correct pipeline position itself; `turn.c`/`colony_preview.c` no
-   longer add it externally. Regression: `test_colony_yield.c` (Hills+road,
-   sol_bonus=1, free=6/expert=12, matched the hand-derivation on first run).
-7. **Special resource** via `17fa` (double or add; expert doubles additive).
-   **2026-08-15:** the expert-doubles-additive half is wired (same refactor
-   as steps 5+6). Player later confirmed the same shape directly: on a
-   fur-boosting-resource tile, expert:free was also exactly ×2 (consistent
-   with, though not solely attributable to, this rule — see the Fur Trapper
-   writeup below, where the *non*-resource tile's gap was the real finding).
-   Directly unit-tested regardless (`test_colony_yield.c`, Game(9)+Farmer:
-   free=3, expert=7 — `1+2` vs `1+2+2×2`), since the player data alone
-   couldn't isolate this term from Henry Hudson's own ×2 on that tile.
-8. **Lumberjack:** `yield <<= 1`.
-9. **Plow / road / river** stack (below).
-10. **2026-08-15 fix:** Fish without Docks → 0; Henry Hudson FF check (`FUN_15eb_3960(nation, 8)`)
-    doubles Fur Trapper yield **in this same function** — i.e. DOS applies
-    Hudson here, not as a separate post-hoc step the way the port's
-    `turn.c`/`colony_preview.c` currently do (same final number when there's
-    only one field worker per tick, not independently verified to diverge
-    otherwise).
+5. **SoL/Tory mod** if > 0: `yield += mod`. The mod is zeroed outright for
+   AI colonies (`byte[colony+0x1a] >= 4` or per-nation `0x543f` byte
+   nonzero) — fields skip the Tory penalty for AI while
+   manufacturing/bells/crosses do not. `colony_prod_sol_bonus_field`.
+6. **Expert:** food/fish → `+2` flat **and re-add the positive SoL mod a
+   second time**; other jobs → `yield <<= 1`. Order matters: SoL folds in
+   *before* the doubling (player-confirmed: Expert Ore Miner
+   Hills+road+SoL1 = 12; the old flat-external-add gave 11).
+7. **Special resource** via `17fa` (double, or add ×2 for expert).
+8. **Lumberjack:** `<<= 1`.
+9. **Plow/road/river** stack (below).
+10. Fish without Docks → 0. **Henry Hudson** (FF 8) doubles Fur Trapper
+    inside this same function (port applies it post-hoc in
+    `turn.c`/`colony_preview.c` — same result with one worker/tile).
 11. **Convert** +1 on allowed jobs.
-12. If SoL/Tory `mod < 0`: `yield += mod` (floor at 0).
+12. If SoL/Tory mod < 0: `yield += mod`, floor 0.
+
+**Zero-base gate (2026-09-03, `farming/case4`):** the positive-SoL fold,
+the expert branch, and the improvement stack are all gated on a nonzero
+table base — expert Farmer on Mountains = **0** food (the ungated port
+invented 3). Same capture confirmed Beaver grants no Farmer bonus.
+
+### SoL fold: `local_1c` == `colony_prod_sol_bonus_field()`
+
+Decoded 2026-08-24 (~11866-11889):
+
+```
+local_1e = FUN_15eb_0274();                                    // colony SoL% (= colony_prod_sol_percent, incl. Bolivar +20 human)
+local_e  = (pop * (100 - local_1e) + 50) / 100;                // Tory share (pop = colony+0x1f)
+divisor  = human ? (10 - difficulty) : 10;  AI → local_e = 0;  // same gate as manufacturing_worker_calc_1d4c.md
+local_1c = -(local_e / divisor)
+         + (colony+0x1c & 0x04 ? 1 : 0)                        // SOL_50 latch
+         + (colony+0x1c & 0x02 ? 1 : 0);                       // SOL_100 latch
+```
+
+Field-for-field identical to `colony_prod_sol_bonus_field`'s return. The
+expert food/fish re-add (step 6) re-adds this *same variable* — a real DOS
+double-count. **Trap fixed:** the port's re-add used to reconstruct the
+value from `colony_flags` latch bits only, which undercounts whenever the
+Tory term is nonzero; it now re-adds `sol_bonus` itself.
 
 ### Expert / convert
 
-| Worker | Rule | Port |
-|--------|------|------|
-| Matching expert, food or fish | **+2** (not ×2), plus the SoL/Tory mod re-add above | **Wired, re-confirmed 2026-08-24** — direct read of `FUN_15eb_18ec` (`viceroy_unpacked.c:11890-11899`, `local_16`/`local_18` branch) confirms `local_26 = local_26 + 2` (flat, not `<<=1`) for a matching food/fish expert; `colony_yield_pipeline`'s `is_expert_food_fish` block already had this right. The re-add term (`local_1c`) *is* this port's `sol_bonus`/`colony_prod_sol_bonus_field` (see "Field Farmer/Fisherman expert formula" below, `local_1c`'s components were traced this pass and match that function's formula field-for-field) — the port's re-add previously reconstructed it from `colony_flags` latch bits only, which undercounted whenever the Tory-penalty term was nonzero; fixed to re-add `sol_bonus` itself. |
-| Matching expert, other field jobs | **×2** | Wired |
-| Mismatched skill | Free-colonist yield | Wired |
-| Indian convert | **+1** if job ∈ {0,1,2,3,4} or job &gt; 7 (fisherman); **not** lumber/ore/silver | **2026-08-15 fix, re-verified against raw asm on user question** — `colony_yield_for_worker` gates on the exact whitelist. First pass read this from the `.c` decompile only (`FUN_15eb_18ec` ~11974-11979); re-checked byte-for-byte against `viceroy_unpacked.asm` (`~15eb:1cd6-1d06`) after a user asked whether converts really lose the bonus on lumber/ore/silver specifically — confirmed exact, not decompiler noise: `CMP local_14,0/2/3/1/4` (`JZ` to the `INC`) then `CMP local_14,8; JL` (skip unless ≥8, i.e. Fisherman only from that point up.) Lumber(5)/Ore(6)/Silver(7) are the only 3 field jobs with no matching branch. Real DOS behavior, not a port bug, whatever the manual/community memory says — the *manufacturing* (building) side of converts (1/3 the free-colonist rate, confirmed separately in `manufacturing_worker_calc_1d4c.md`) is unaffected by this and already matches the "converts work buildings poorly" expectation exactly. |
+| Worker | Rule |
+|--------|------|
+| Matching expert, food/fish | **+2 flat** (asm-confirmed, not ×2) + SoL re-add |
+| Matching expert, other field jobs | ×2 |
+| Mismatched skill | Free-colonist yield |
+| Indian convert | **+1** only on jobs {0,1,2,3,4} or Fisherman — **not** lumber/ore/silver. Asm-verified byte-for-byte (`15eb:1cd6-1d06`) on user challenge: real DOS behavior, whatever community memory says. Building-side converts (1/3 rate) are a separate, matching rule. |
 
-### Field Farmer/Fisherman expert formula
+### Plow / road / river stack (literal port, 2026-09-03)
 
-Read `FUN_15eb_18ec` (`viceroy_unpacked.c` ~11771, the real per-tile field-yield composer) directly, chasing New Amsterdam/New Holland's horse-breeding drift in `golden_colony_prod02` (both traced to their expert Fishermen). Confirmed three real mechanics; two are now wired.
-
-**Wired 2026-08-18, revised same day: non-expert Farmer gets an unconditional `+1`** (`if (local_14 == 0) local_12 = local_c;`, ~11950) **that *does* stack with plow** (`+1` more) and river (`+1` more). Expert Farmers skip that whole crop-improvement block after their flat `+2`, so vs other farmers they are only **+1 extra** (PEDIA `@JOB0` "2 more than other farmers" is wrong; DOS golden Fort Orange in `COLONY00-dutch2-t0.SAV` confirms). An earlier pass this same day concluded plow does *not* stack, "confirmed" via `golden_colony_prod02`'s New Amsterdam (Desert, plowed) and Fort Orange (Grassland, plowed, Convert) — but that reading was curve-fit against a wrong baseline: both colonies' aggregates were computed while `colony_yield_town_commons`'s own plow term was still `+2` instead of the real `+1` (fixed the same day, once Guadeloupe/Vlissingen's real, directly player-confirmed Fisherman-tile values isolated the bug to commons alone). That inflated both colonies' commons food by exactly `+1` — the same `+1` the "no stacking" reading was quietly absorbing. Once commons plow was corrected, both colonies came up `+1` short again; restoring the stacking `+1` (matching `test_units.c`'s original runtime plow-tick invariant, which the first pass had flipped to expect no change) makes both real captures exact again. `golden_colony_prod01`'s synthetic Quebec/Montreal/Fort Orange/Fort Nassau/New Holland/Port au Prince/Vlissingen fixtures were re-derived to match (mostly: clearing stray inherited `MAP_IMPROVE_PLOWED` bits left over from the underlying real save on tiles this fixture only overwrote `terrain` on, not `improve`).
-
-**Wired 2026-08-18: the Fisherman coastal distance mod applies to experts too** (~11814-11838) — added post-`×2`, flat, same bucket shape (`+1` sheltered / `-1` moderately open / `-2` fully open) `colony_yield_fisherman_distance_mod` already has for non-experts, which previously skipped experts entirely. A first attempt at this alone broke four `golden_colony_prod01` fixtures; the Farmer fix above showed that class of "regression" is often a re-derivable synthetic fixture rather than real counter-evidence, so it was re-attempted rather than left reverted — and `golden_colony_prod02` (the only real, un-synthesized data for this) is now clean: New Amsterdam and New Holland (whose expert Fishermen this term was built from) both match exactly, and no other real colony regressed. `golden_colony_prod01`'s New Amsterdam/Guadeloupe/Fort Nassau/St. Louis are still off by a small amount (all real, un-synthesized coastal tiles whose actual ocean-neighbor count sits at 5, one short of the `+1`→`-1` bucket boundary, with every remaining neighbor either already ocean or another colonist's worked tile — no free lever to shift the bucket without disturbing a different cargo's tile) — left unpatched pending either a real data point pinning what these specific tiles should yield, or the missing piece below.
-
-**Resolved 2026-08-24 — `local_1c` fully decoded; it *is* `colony_prod_sol_bonus_field()`'s value, not a separate term.** Direct read of `FUN_15eb_18ec` lines 11866-11889 (`viceroy_unpacked.c`):
-
-```
-local_1e = FUN_15eb_0274();                              // colony SoL%
-local_e  = (byte[colony+0x1f] * (100 - local_1e) + 50) / 100;  // Tory share
-if (nation control<4 && per-nation table[control]==0)     // AI/withdrawn gate
-  ... local_10 = 10 - difficulty ... else local_10 = 10;  // divisor
-if (control>=4 || per-nation table[control]!=0) local_e = 0;   // AI zero-out
-local_1c = -(local_e / local_10);
-if (colony+0x1c & 0x04) local_1c += 1;                    // SOL_50 latch
-if (colony+0x1c & 0x02) local_1c += 1;                    // SOL_100 latch
-```
-
-Both previously-"unidentified" pieces are already resolved elsewhere in this project, just not cross-checked into this section before now (a real instance of the "check other docs first" method note, not a new RE win):
-
-- `byte[colony+0x1f]` is already named **colonist count / population** project-wide (`colonist_work_plot_28c8.md` line 52: "`colony+0x1f` | Colonist count | Established project-wide"; `colony_eot_production.md` line 32: "`+0x1f` | Population"), matching `colony_prod_sol_bonus`'s own `pop` variable exactly.
-- `FUN_15eb_0274()` is already ported as **`colony_prod_sol_percent()`** (`colony_production.c:210-247`) — direct read of the raw decompile (`viceroy_unpacked.c:9471-9501`) confirms it returns a rebel-dividend/-divisor-derived percentage (`FUN_1d1d_0ec6`/`FUN_1d1d_0f60` over colony+0xc2/0xc4/0xc6/+200) plus a human-only +20 gated on Bolivar ownership (`FUN_15eb_3960(nation, 0x12)`, FF index 18 = Bolivar) via the same AI-status table gate, clamped to 100 — exactly `colony_prod_sol_percent`'s existing implementation and comment ("Bolivar +20 for human nation").
-- The divisor (`10` or `10-difficulty`) and the AI zero-out gate are the *same* gate `colony_prod_sol_bonus_field` already implements (traced in `manufacturing_worker_calc_1d4c.md`, itself cross-validated against this exact function previously).
-- The `+0x1c` latch bits (`0x04`/`0x02`) are the same offset/bits as `COLONIZE_COLONY_FLAG_SOL_50`/`_SOL_100`.
-
-So `local_1c` in `FUN_15eb_18ec` is field-for-field identical to `colony_prod_sol_bonus_field(col1, colony)`'s return — the same value already threaded through `colony_yield_pipeline` as its `sol_bonus` parameter and already folded in once at the once-only positive fold (~11887, the pipeline's existing step 2). The Farmer/Fisherman-expert branch (~11894-11899) re-adds that *same, unmodified* variable a second time when positive — a real DOS double-count (not a bug to remove), but the port's own replication of it was wrong: it reconstructed a fresh value from `colony_flags` latch bits alone instead of reusing `sol_bonus`. The two coincide only when the Tory-penalty term (`-(local_e/local_10)`) is exactly 0 — true in every previously-validated example here (Fort Orange, New Amsterdam) by chance, not by formula. **Fixed:** `colony_yield_pipeline`'s `is_expert_food_fish` branch now re-adds `sol_bonus` itself when positive; `colony_flags` is no longer read inside that function (still a parameter, for signature symmetry with `colony_yield_town_commons`, a different DOS function with its own direct latch-bit read). Regression: new `test_colony_yield.c` case (expert Farmer, `sol_bonus=3`, `colony_flags=0` — old code would re-add 0, new code re-adds 3, want 10 got 10).
-
-**2026-08-29 — re-verified: `golden_colony_prod01`/`02` and `golden_colony_preview01` pass with the original assets present (port_plan.md W1.3 closed); the coastal-tile residual hypothesis below is moot since `prod01` asserts exact New Amsterdam / Guadeloupe / Fort Nassau / St. Louis values.** Earlier note kept for history: **Not independently re-verified against `golden_colony_prod01`/`02` this pass** — this worktree's `COLONIZE/` original-asset directory (`NAMES.TXT` etc.) isn't present, so both golden binaries fail at load time (`NAMES.TXT load failed`) before reaching any assertion, same pre-existing environment gap noted in `port_plan.md` W1.7 (23 of 42 `ctest` targets fail the same way here, unchanged before/after this fix). The coastal-tile residual hypothesis (New Amsterdam/Guadeloupe/Fort Nassau/St. Louis in `golden_colony_prod01`) stays open pending a run in an environment with the original game assets — flagged as a follow-up, not claimed fixed.
-
-### Plow / road / river stacking
-
-Unit size `u = 2` if (matching expert and not food/fish) **or** lumberjack; else `u = 1`. Bonuses **add** (they stack):
+Unit size `u = 2` if (matching non-food/fish expert) or Lumberjack
+(matching or not); else 1. All terms **add**:
 
 | Condition | Jobs | Add |
 |-----------|------|----:|
-| Farmer (job 0) | Farmer | +`u`, **UNCONDITIONAL** — any skill, expert included, no plow gate (asm 15eb:1c32-1c40 is a bare `job==0` test) |
-| Runtime mask `0x0a` (road) | job &gt; 3 (fur, lumber, ore, silver, fish) | +`u` |
-| Runtime bit `0x40` (**= plow**, resolved 2026-09-03) | job &lt; 4 (food + cash crops) | +`u` |
+| Farmer (job 0) | Farmer | +`u`, **unconditional** — any skill, no plow gate (asm 15eb:1c32-1c40 is a bare `job==0` test) |
+| Runtime mask `0x0a` (road) | job > 3 | +`u` |
+| Runtime bit `0x40` = **plow** (resolved 2026-09-03) | job < 4 | +`u` |
 | Terrain river bit `0x40` | any job | +`u` |
-| Major river (terrain `0x80`) when the stack so far == `u` (river was sole contributor) | | +`u` again |
+| Major river (terrain `0x80`) when the stack so far == `u` | | +`u` again |
 
-**Port, 2026-09-03: the literal stack above is now wired verbatim**
-(`colony_yield_pipeline`'s improvement-stack block, verified
-instruction-by-instruction against asm 15eb:1c16-1c9c), replacing the old
-curve-fit shapes (crop-improvements block, road/river "buckets",
-Lumberjack post-double tail — every prior player anchor decomposes
-identically under the literal stack, checked per-anchor). The Fur Trapper
-additionally has its own pre-multiplier +1 road / +1(+2 major) river add
-before the SoL fold and expert doubling (decompile ~11840-11850) — also
-wired. What broke the old shapes open was `farming/case3`
-(`golden_colony_prod03`): expert Farmer, Broadleaf+Game = **8** (1 + expert
-2 + Game 2×2 + farmer 1) and the same expert on a bare Hill = **4** (1 + 2
-+ 1) — the +1s only close with the unconditional skill-blind farmer term,
-which in turn forced `golden_colony_prod02`'s Fort Orange to re-balance
-(its expert Farmer is 10, not the 9 the old decomposition claimed; the
-compensating −1 was town-commons food's phantom river term, see the
-commons section). Consequences: **Hills farmer base is NAMES.TXT's 1**
-(the old "player-confirmed 2" = 1 + farmer term), every farmer
-"unconditional +1" sighting was this term, and the runtime `0x40` bit is
-pinned as **plow** (a plow-less river tile adds nothing through it —
-farming/case2's expert at exactly 5 excludes "river"; Fort Orange prod02's
-plowed convert-farmer needs it).
+Wired verbatim in `colony_yield_pipeline` (verified against asm
+15eb:1c16-1c9c), replacing older curve-fit shapes. Consequences:
 
-**2026-09-03 — Farmer major river does NOT double (player-confirmed,
-`farming/case1+2` saves → `golden_colony_prod03`):** expert Farmer,
-Tropical (base 2) + *major* river = **6** food, same +2 river delta as the
-minor-river case2 capture. Falls straight out of the literal stack: the
-farmer +u lands first, so by the time the river +u is added the stack is
-2u ≠ u and the major add never fires for a Farmer. (An earlier same-day
-reading blamed "two river signals" — retracted: the second contributor is
-the farmer term itself, and the runtime bit is plow, not river.) Fisherman
-(job 8, no farmer term, no plow term) genuinely doubles on major
-(Lake+major=6, 2026-08-15).
+- Every old "unconditional farmer +1" sighting and the Hills "2" were this
+  farmer term; Hills base is NAMES' 1.
+- **Farmer major river does NOT double** (`farming/case1+2`): the farmer
+  `+u` lands first, so the stack is already `2u` when the river add
+  arrives and the major clause never fires. Fisherman (no farmer/plow
+  term) genuinely doubles on major (Lake+major = 6 = base 3 + coastal +1
+  + river 2).
+- The runtime `0x40` bit is **plow**, closing the old "unidentified
+  runtime-array bit / two river signals" question (the earlier conflation
+  of the port's own `MAP_LAYER2_FA_ROAD == 0x40` constant with DOS's bit
+  was a mistake, since retracted). The `0x0a` road mask is independently
+  confirmed by the AI movement-cost subsystem.
+- Road magnitude uses the same per-job bucket as river: furs/lumber base
+  2, ore/silver/crops 1 (pinned by Hudson-owning player data: Fur Trapper
+  Mixed+road+SoL2, free 14 / expert 28 — both solve exactly only with
+  road base 2 × Hudson ×2).
 
-**2026-09-03 — Beaver+Fur Trapper resource effect is +3, not +2**
-(`FUN_15eb_17fa` asm, `(resource==8 && job==4) += 3` — the port's table
-had 2; no player anchor existed either way).
-
-**2026-08-15 fix — expert/lumberjack road-river doubling, player-confirmed
-(Viceroy):** Expert Ore Miner, Hills+road+sentiment(+1) = 12; Free
-Colonist, same tile = 6. This only reproduces if the road/river bonus
-itself doubles for the expert (`u=2`), not just the flat expert ×2 already
-wired (that alone predicts 11, not 12 — see the "Expert" step-6 fix above
-for the full arithmetic). Fixed: `colony_yield_road_or_river_bonus` takes a
-`big_unit` flag, true for a matching non-food/fish expert or any
-Lumberjack (matching or not — the latter per the decomp's own "or
-lumberjack" clause, not itself independently player-tested, but it's the
-same asm-read rule already cited in this section's `u` definition).
-Regression: `test_colony_yield.c` (Ore Miner case above) plus an existing
-`test_units.c` road/lumberjack test whose hardcoded `+1` expectation
-predated this fix and needed updating to `+2` to match (a real, expected
-behavior change, not a new bug — that test used `colony_yield_for_tile`,
-profession-less, so it exercises the *unconditional* Lumberjack half of the
-rule specifically).
-
-**2026-08-15: revisited, and a claim from earlier this same day was wrong —
-corrected below rather than left to mislead.**
-
-The job>3 check (`FUN_15eb_18ec`'s `FUN_137f_0142(tile) & 0x0a`) really is
-road: that exact mask (`0x0a`) is independently cited in `port_plan.md`
-for a *different* DOS subsystem (AI movement costing) as the road test the
-port's `MAP_LAYER2_FA_ROAD` bit exists to mirror, and `col1_bridge.c`'s save
-loader confirms `MAP_IMPROVE_ROAD` and `MAP_LAYER2_FA_ROAD` are set from the
-same Col1 bit by construction. So `map_tile_has_road()` is safe for *that*
-check.
-
-**But the earlier note above claiming this also resolved the job<4 river
-check was wrong** — a same-day mistake, not a new problem. That check tests
-a *different* mask (`FUN_137f_0142(tile) & 0x40`, standalone, not `0x0a`) on
-the same runtime array. I'd conflated "the port's own `MAP_LAYER2_FA_ROAD`
-constant happens to equal `0x40`" with "DOS's own bit `0x40` in this array
-means road" — those are unrelated facts. The port chose `0x40` as its *own*
-arbitrary bit value when defining `MAP_LAYER2_FA_ROAD`; nothing ties that
-choice to what DOS's `FUN_137f_0142` returns for bit `0x40`. Read further
-usages of `FUN_137f_0142` this pass (`viceroy_unpacked.c:6783-6935`,
-`FUN_137f_0314`/`0358`/`0392`/`03e4`/`044a`) — bits `0x01`/`0x02` there read
-as settlement/unit occupancy (matches `col1_bridge.c`'s own "Col1 mask low
-bits carry village/capital occupancy" note), bit `0x04` matches the port's
-own `MAP_LAYER2_SUPPRESS`, but nothing pins down what bit `0x40` *alone*
-means in this specific array — still open.
-
-So DOS still checks river through **two separate signals**, confirmed
-unresolved (not "one road blocker down, one river blocker to go" as the
-earlier version of this note claimed):
-```
-if (FUN_137f_0142(tile) & 0x40 && field_job < 4):     term += u   ; unknown runtime-array bit, food/crops only
-if (terrain_byte & 0x40):                              term += u   ; the STATIC map-data river bit, ANY job,
-  if (terrain_byte & 0x80 && term == u): term += u again           ; major-river doubles ONLY if this
-                                                                     was the sole contributor so far
-```
-The port's `map_tile_has_river()`/`map_tile_has_major_river()` read the
-**terrain byte** only (confirmed — `map.c:1271-1283`, matches the second
-signal). There is no port equivalent of the first signal at all — genuinely
-unresolved, not just unmapped. `u`'s size depending on the expert-match flag
-is **now resolved and wired** (2026-08-15, player-confirmed — see below);
-what's left open is specifically the *multi-signal additive stack itself*
-(the unidentified runtime-array bit, and whether road+river should add
-rather than take the max) — a half-fix there risks silently dropping a
-whole term, so still not attempted.
-
-Silver on mountains without a deposit / road can be forced to 0 or 1 (`18ec` ~11925–11938).
-
-**2026-09-03 — zero-base gate (player-confirmed, `farming/case4` →
-`golden_colony_prod03`):** DOS gates the positive-SoL fold and the entire
-expert branch on `local_26 != 0` (asm 15eb:1aeb-1b25), and the improvement
-stack on `local_26 > 0` — so a terrain whose table base is 0 for the job
-yields 0 no matter the skill: **expert Farmer on Mountains = 0 food** (the
-ungated port paid flat +2 then farmer +1, inventing 3). Same capture also
-confirmed Beaver grants no Farmer bonus (17fa pairs it with Fur Trapper
-only): Mixed+Beaver expert Farmer = 5 = base 2 + expert 2 + farmer 1.
-
-**2026-08-15: player-supplied gameplay data (Viceroy difficulty) — crop-job
-magnitudes confirmed as-is, Fisherman bug found and fixed.** Five live
-observations (free colonist, no sentiment bonus unless noted):
-- Lake + major river, Fisherman: 6 food.
-- Scrub Forest + major river, Farmer: 3 food.
-- Conifer Forest + major river, Farmer: 3 food.
-- Plains + minor river, Farmer, +1 sentiment: 7 food.
-- Fully-enclosed-by-ocean tile, Fisherman: 2 food; a coastal tile usually 4,
-  "sometimes 6" (previously unexplained to the player).
-
-Checked against the port's actual formulas (not the unresolved
-`FUN_137f_0142` bit theory above, which stays open):
-- **Crop jobs (job&lt;4), no code change needed.** Scrub/Conifer are
-  unplowable (forest), so their major-river delta (+2 on a base-1 tile) is
-  river alone — matches the port's existing `colony_yield_river_bonus`
-  crop bucket (base 1, major ×2) exactly. Plains+minor river and +1 sentiment
-  only reconciles to the observed 7 if the tile is also plowed
-  (4 base + 1 plow + 1 minor-river + 1 sentiment = 7); unplowed doesn't fit
-  (would give 6). Both readings are consistent with the port's current model
-  as-is — no evidence of a bug for crop jobs from this data. Whatever the
-  unresolved runtime-array bit (`FUN_137f_0142 & 0x40`, job&lt;4-gated) truly
-  is, it doesn't change the final crop-job output the port already produces.
-- **Fisherman — real bug, fixed.** `colony_yield_river_bonus`'s switch had
-  no `COLONIZE_JOB_FISHERMAN` case, silently falling to `default: return 0`
-  — Fisherman got *no* river bonus at all, even though DOS's static
-  terrain-river-bit check (`terrain_byte & 0x40`, the second signal above)
-  applies to *any* job, fish included; only the *first*, still-unidentified
-  runtime-array signal is job&lt;4-gated (and job 8 isn't &lt;4, so Fisherman
-  was never eligible for that one anyway — consistent, not a new mystery).
-  Lake+major-river=6 confirms it: Ocean base fish 3, +1 coastal distance mod
-  (`colony_yield_fisherman_distance_mod`, few ocean neighbors around a small
-  lake) = 4, +2 major river (base 1 × 2, same magnitude bucket as
-  Farmer/Ore/Silver) = 6. This *also* resolves the player's separate
-  "coastal usually 4, sometimes 6" observation, previously opaque: the
-  "sometimes 6" tiles are simply coastal *and* major-river (4 + 2), nothing
-  to do with the distance-mod cascade itself. Fixed: added a
-  `COLONIZE_JOB_FISHERMAN` case (base 1, major ×2) to
-  `colony_yield_river_bonus`. Since `colony_yield_for_tile` already calls
-  the shared road/river helper unconditionally for every job, no other
-  pipeline change was needed. Regression: `test_colony_yield.c` (Ocean +
-  major river tile, `colony_yield_for_tile(..., COLONIZE_JOB_FISHERMAN)` ==
-  6, matched the hand-derived value on first run).
-
-The `FUN_137f_0142 & 0x40` runtime-array bit's actual identity is still
-unresolved — this pass confirmed it doesn't change any *observable* output
-the port produces for the cases tested, not what the bit itself means.
-
-**2026-08-15: more player data (Viceroy) — expert road/river unit size
-confirmed and fixed; a second, unexplained anomaly found and left open.**
-Four more live observations (road present, sentiment as noted):
-- Expert Ore Miner, Hills+road, +1 sentiment: 12 ore.
-- Free Colonist, Hills+road, +1 sentiment: 6 ore.
-- Expert Fur Trapper, Mixed Forest+road, +2 sentiment: 28 furs.
-- Free Colonist, Mixed Forest+road, +2 sentiment: 14 furs.
-
-**Ore: clean, exact, fully explained — fixed.** Hills Ore base is 4. Free:
-`4 + sol(1) + road(u=1) = 6`, matches. Expert: `4 + sol(1) = 5`, `<<=1`
-(expert doubling) `= 10`, `+ road(u=2 for a matching expert) = 12`, matches
-*exactly* — and only with this order (SoL folds in before the expert
-double, road/river unit doubles for the expert too). This is what's fixed
-above (`colony_yield_pipeline`), fully validated by this data point, and
-already ported.
-
-**Fur: real gap, resource hypothesis ruled out by the player, new
-hypothesis found — still not implemented, needs one more confirmation.**
-Mixed Forest Furs base is 3 (`NAMES.TXT` `@FORESTED`, double-checked against
-the raw file directly). Player confirmed **no special resource** was on
-that tile, ruling out the `R=8` additive-resource guess floated earlier.
-Player also confirmed: on a *different* tile that does carry a fur-boosting
-special resource, the expert:free ratio was *also* exactly twofold —
-consistent with (and a real independent player-side confirmation of) the
-already-wired "expert doubles the additive resource bonus" rule (step 7
-above), but doesn't bear on this specific non-resource tile's gap.
-
-New candidate, found by re-deriving what *would* make both numbers exact
-(not approximate) instead of guessing a free parameter:
-1. **Road's per-job magnitude may need the same fur/lumber-vs-everything-else
-   split river already has.** The port's `colony_yield_road_bonus` is a flat
-   `+1` for *any* of fur/lumber/ore/silver; `colony_yield_river_bonus`
-   already uses `+2` for fur/lumber specifically (`+1` for ore/silver/crop) —
-   an asymmetry between road and river that was never DOS-confirmed for
-   *either* function (the river split itself is commented "FreeCol
-   classic/Col1", i.e. not decomp-derived) and may simply be a port
-   invention. If Fur Trapper's road magnitude is *also* 2 (matching river's
-   own fur/lumber bucket, not the flat 1 every other road job gets):
-   `free = base(3) + sol(2) + road(u=1, base=2) = 7` — still short of 14 by
-   exactly ×2.
-2. **Henry Hudson** (fur trapper output +100%) would supply exactly that
-   missing ×2, applied uniformly to both free and expert (it's a flat
-   post-pipeline multiply in `turn.c`/`colony_preview.c`, unaffected by
-   skill level) — and combining both pieces lands on the *exact* observed
-   numbers, not approximately:
-   ```
-   free:   (base 3 + sol 2 + road[u=1,base=2]) × Hudson(2) = 7 × 2 = 14  ✓
-   expert: ((base 3 + sol 2) <<=1 + road[u=2,base=2]) × Hudson(2)
-         = (10 + 4) × 2 = 28  ✓
-   ```
-   Both equations solve *exactly*, not just closely — a much stronger fit
-   than the ruled-out resource guess, and using only mechanisms already
-   confirmed to exist (Hudson) or already partially wired with an untested
-   asymmetry (road's per-job magnitude).
-
-**Confirmed and fixed 2026-08-15.** Player confirmed Henry Hudson was
-owned by that nation — both equations above solve exactly, not
-coincidentally. Fixed: `colony_yield_road_bonus` now uses the same
-per-job magnitude bucket `colony_yield_river_bonus` already had (furs/
-lumber `+2`, ore/silver `+1`), replacing the old flat `+1` for every road
-job. Regression: `test_colony_yield.c` (Fur Trapper, Mixed Forest+road+
-sentiment(+2), no Hudson in this direct-pipeline test — Hudson is an
-external post-hoc multiply in `turn.c`/`colony_preview.c`, already covered
-by existing "Henry Hudson" tests — free=7/expert=14, matching the
-pre-Hudson half of the derivation exactly); one pre-existing `test_units.c`
-road/lumberjack test needed its hardcoded expectation updated again
-(`clear+2` → `clear+4`: Lumberjack is in the fur/lumber magnitude bucket
-too, so its road bonus is now `2(base) × 2(unit size) = 4`).
+Silver on mountains without a deposit/road can be forced to 0 or 1
+(`18ec` ~11925–11938).
 
 ---
 
 ## Town commons (colony center tile)
 
-Manual: settlement square **always produces some food and one other commodity**; specials apply **except Prime Timber**. The colony center is *auto-worked* — no colonist assigned, no expert/convert doubling, no docks gate.
-
-**Status:** the real DOS composer (`FUN_15eb_1f72`, `viceroy_unpacked.c` ~12474) has been read directly. Its secondary-commodity logic (river + SoL latch bits, no plow, no flat road) is now wired byte-for-byte; its per-terrain *base* yield reuses this file's field-worker tables as a stand-in — **2026-08-21: confirmed this isn't just a stand-in.** The composer's own base table (`0x2f7b`, indexed by the same pedia numbering) is **`DS:0x2f76+5`**, i.e. columns `+5..+13` of the stride-`0x10` terrain-class record already partly decoded for Pioneer/move-cost data — see [DS:0x2f76 terrain-class record](#ds0x2f76-terrain-class-record--full-16-byte-layout-2026-08-21). Read directly from real RAM (every `dosbox-x-dumps/*` save, not just decompiled pseudo-C) and byte-matched against this file's `NAMES.TXT` tables cell-for-cell. Confirmed correct against `golden_colony_prod01`/`02` (21 real Dutch colonies, one captured DOS turn each) — including two colonies (Curacao, Paramaribo) where town commons is that colony's *only* source of its secondary cargo, so those two checks pin the formula with zero free parameters. One data-table bug this pass also turned up and fixed: `k_forested`'s Rain row had Food/Sugar = 2/2; `NAMES.TXT` says 1/1, and Paramaribo's real capture (isolating the Rum Distiller's exact consumption) independently confirmed 1/1 — the table constant was wrong, not the formula.
+Auto-worked: no colonist, no expert/convert, no docks gate. Composer
+`FUN_15eb_1f72` read directly; its base table is `DS:0x2f76+5` (same as
+field yields — confirmed byte-identical, so the formula is exact, not
+approximated). One table bug found on the way: `k_forested`'s Rain row
+had Food/Sugar 2/2; NAMES (and Paramaribo's real capture) say **1/1**.
 
 ### Food
 
 ```
-food = class_base(pedia)                   (0 for pedia 24; 1 for pedia 1/9/17; 2 for pedia 8-23 or 27/28; else 3)
+food = class_base(pedia)         (0: pedia 24; 1: pedia 1/9/17; 2: pedia 8-23 or 27/28; else 3)
      + 2/1 at Discoverer/Explorer difficulty
-     + 1   if plowed (the runtime 0x40 bit — FUN_137f_0142)
-     + 2   if resource is Oasis(1) / Wheat(2) / Game(9)   (Prime Timber excluded)
-     + 1   if colony_flags has SOL_50 latch bit
-     + 1   if colony_flags has SOL_100 latch bit
+     + 1   if plowed (runtime 0x40 bit)
+     + 2   if resource is Oasis(1)/Wheat(2)/Game(9)   (Prime Timber excluded)
+     + 1   per SOL_50 / SOL_100 latch bit
 floor 0
 ```
 
-**NO river term on commons food — 2026-09-03.** `FUN_15eb_1f72`'s food
-block reads only `FUN_137f_0142 & 0x40` (the plow bit, +1); the
-terrain-byte river value (`FUN_137f_010e`, 1/2) feeds the SECONDARY alone.
-The old "+1 minor / +2 major" food term double-counted Fort Orange
-(prod02)'s plowed+rivered Savannah center at 7 vs DOS's 6 — invisible
-until `farming/case3` forced the expert-Farmer +1 (see the field
-improvement stack), whose old absence had compensated exactly. prod01's
-Montreal/St. Louis fixtures, whose centers leaned on the phantom river
-food, were re-derived (plow on Montreal's center / St. Louis's farmer
-tile).
-
-Wired in `colony_yield_town_commons_food_base` + `colony_yield_town_commons` (`colony_yield.c`). Supersedes the earlier flat-+2/general-`sol_bonus` model this section used to describe (confirmed 2026-08-17, then found to be a class-2-only coincidence — see below); `NAMES.TXT`'s field food chart does **not** apply to the town square, the class split is its own thing.
-
-**Class base, asm-confirmed 2026-08-18** (`FUN_15eb_1f72` ~12506-12518): a 4-way split by pedia, not flat +2 — player-confirmed via `golden_colony_prod02`'s Recife (Savannah, class 3 → real food 3, not 2). The SoL term is the two *latch* bits, matching the secondary-commodity term below (not the general signed `sol_bonus`/`colony_prod_sol_bonus_field` value field-worker food uses).
-
-**Plow term settled 2026-08-18 at `+1`, not `+2`:** player-confirmed via two real, un-synthesized `golden_colony_prod02` colonies (Guadeloupe, Vlissingen) whose plowed, full-latch, class-3 town centers needed food 6, not the `+2` version's 7 — confirmed only once their real Fisherman tiles (mismatched-skill Ore Miner and Convert respectively) were checked against player-observed values and found already exact, isolating the gap to commons alone. This exposed a second, entangled bug: the field-worker non-expert-Farmer plow term (see "[Field Farmer/Fisherman expert formula](#field-farmerfisherman-expert-formula)" below) had been wrongly concluded not to stack with plow, curve-fit against colonies whose *commons* plow was still the wrong `+2` at the time — both bugs are now fixed together and cross-checked against every real colony in both goldens.
+**No river term on commons food** (2026-09-03): the food block reads only
+the plow bit; the terrain river value feeds the secondary alone. (The old
+phantom river term and the missing farmer field term had been cancelling
+each other in the goldens — a curve-fit trap.) Plow is +1, not +2
+(player-pinned via Guadeloupe/Vlissingen). Class base is a 4-way pedia
+split, not flat (Recife: Savannah class 3 → food 3). SoL term = the two
+latch bits, **not** the general signed `sol_bonus`.
 
 ### Secondary commodity
 
-**2026-09-03: the port now runs DOS's real per-tile max-over-all-jobs search** (`FUN_15eb_1f72` loops jobs 1-7 skipping Lumberjack, scoring each as 0x2f7b table base + `FUN_15eb_17fa` resource effect at its *real magnitude*, and keeps the strictly-greatest — first job wins ties, so riverless Swamp still picks Sugar over equal-base Ore). The old fixed per-terrain job table (kept below as the no-resource outcome reference) was wrong whenever a resource shifted the winner: player-confirmed via the `farming/case1+2` saves (`golden_colony_prod03`) — New Amsterdam's Swamp center with **Minerals** makes **5 ore**/turn (Ore base 2 + Minerals +3 beats Sugar 2), where the fixed table produced 2 sugar. Two entangled fixes landed with it: the resource effect applies **inside the comparison at its table value** (Minerals+Ore is +3, not the old flat "+2 on any match" applied after), and the commons resource read uses the settlement-bit-ignoring lookup (`map_resource_type_for_yield`) — the colony center always carries the settlement bit, and DOS's `FUN_137f_04b0` read has no settlement gate (the old `map_resource_type_at` call returned −1 there, silently erasing every commons resource; `unit_colony_yield`'s "settlement bit hides the bonus" case asserted the bug and was flipped).
+DOS runs a **max-over-jobs search** (2026-09-03), not a fixed per-terrain
+job table:
 
 ```
-per job in {Sugar, Tobacco, Cotton, Fur, Ore, Silver}:      (jobs 1-7, skip Lumberjack; never Farmer/Fisherman)
-  score = table[pedia][job]                  (same per-pedia table as field yields, see sections above)
-        + resource effect (FUN_15eb_17fa magnitude, e.g. Minerals+Ore +3)
-        ×2 instead if resource is a DOUBLE match (Prime Cotton/Tobacco/Sugar on their planter)
+per job in jobs 1-7, skipping Lumberjack (never Farmer/Fisherman):
+  score = table[pedia][job]
+        + resource effect at its real 17fa magnitude (e.g. Minerals+Ore +3)
+        (×2 instead on a DOUBLE match: Prime Cotton/Tobacco/Sugar)
 secondary = max score (strictly greater wins; earlier job keeps ties)
           + 1/2 if river (minor/major)
-          + 1   if COLONIZE_COLONY_FLAG_SOL_50 is set
-          + 1   if COLONIZE_COLONY_FLAG_SOL_100 is set
-          + 1   at Discoverer difficulty only
+          + 1 per SOL_50 / SOL_100 latch bit
+          + 1 at Discoverer difficulty only
 floor 0
 ```
 
-**No plow term, no flat road** — asm-confirmed absent from `FUN_15eb_1f72` (2026-08-18). Earlier passes assumed "every colony founds with a road" (`+1` flat) and a plow bonus matching food's; both were unverified guesses this port carried since before the composer was read, and both are gone now. The SoL term is the two *latch* bits specifically (hysteresis flags, see [sons_of_liberty.md](sons_of_liberty.md)), not the general signed live-percentage/Tory-penalty `sol_bonus` value food uses.
+**No plow term, no flat road** (asm-confirmed absent — both were
+pre-composer-read port guesses, removed). Prime Timber never applies.
+**Trap:** the commons resource read must ignore the settlement bit
+(`map_resource_type_for_yield`) — the center always carries it, and
+`map_resource_type_at` returned −1 there, silently erasing every commons
+resource. Player-pinned: Swamp center + Minerals makes **5 ore** (Ore 2 +
+Minerals 3 beats Sugar 2), where the fixed table produced 2 sugar.
 
-Prime Timber (resource 10/11) never applies to the commons (matches the manual's stated exception).
+No-resource outcome per terrain (what the search picks unshifted):
 
-No-resource outcome per terrain (what the max-search picks when no special shifts it):
+| Pedia | Terrain | Secondary job |
+|------:|---------|----------------|
+| 0 | Tundra | Ore Miner |
+| 1 | Desert | Ore Miner |
+| 2 | Plains | Cotton Planter |
+| 3 | Prairie | Cotton Planter |
+| 4 | Grassland | Tobacco Planter |
+| 5 | Savannah | Sugar Planter |
+| 6 | Marsh | Tobacco Planter |
+| 7 | Swamp | Sugar Planter |
+| 8-23 | Forest (`&7`) | Sugar Planter if Rain (`&7==7`), else Fur Trapper |
+| 24-26 | Arctic/Ocean/Sea Lane | none |
+| 27 | Mountains | Silver Miner (uninhabitable, moot) |
+| 28 | Hills | Ore Miner |
 
-| Pedia | Terrain | Secondary job | Table col. (base) |
-|------:|---------|----------------|--------------------|
-| 0 | Tundra | Ore Miner | `@UNFORESTED` Ore |
-| 1 | Desert | Ore Miner | `@UNFORESTED` Ore |
-| 2 | Plains | Cotton Planter | `@UNFORESTED` Cotton |
-| 3 | Prairie | Cotton Planter | `@UNFORESTED` Cotton |
-| 4 | Grassland | Tobacco Planter | `@UNFORESTED` Tobacco |
-| 5 | Savannah | Sugar Planter | `@UNFORESTED` Sugar |
-| 6 | Marsh | Tobacco Planter | `@UNFORESTED` Tobacco |
-| 7 | Swamp | Sugar Planter | `@UNFORESTED` Sugar |
-| 8-23 | Forest (`pedia & 7`) | Sugar Planter if Rain (`&7==7`), else Fur Trapper | `@FORESTED` Sugar / Furs |
-| 24 | Arctic | — none — | — |
-| 25 | Ocean | — none — | — |
-| 26 | Sea Lane | — none — | — |
-| 27 | Mountains | Silver Miner | `@OTHER` Silver (uninhabitable, moot) |
-| 28 | Hills | Ore Miner | `@OTHER` Ore |
-
-### Worked examples (unit_colony_yield fixtures, `colony_flags`/`sol_bonus` = 0)
+### Worked examples (`unit_colony_yield` fixtures, flags/sol = 0)
 
 | Tile | Base | Modifiers | Secondary |
 |------|-----:|-----------|-----------:|
 | Scrub Forest | 2 (Fur) | — | 2 furs |
-| Hills | 4 (Ore) | +2 (coincidental Prime Ore hash hit) | 6 ore |
-| Broadleaf Forest | 2 (Fur) | — | 2 furs |
+| Hills | 4 (Ore) | +2 resource | 6 ore |
 | Prairie + minor river | 3 (Cotton) | +1 river | 4 cotton |
 | Broadleaf + Game | 2 (Fur) | +2 Game | 4 furs |
-| Hills, SoL latch (SOL_50 only) | 4 (Ore) | +2 resource, +1 latch | 7 ore |
-| Hills, SoL latch (both bits) | 4 (Ore) | +2 resource, +2 latch | 8 ore |
+| Hills, SOL_50 | 4 (Ore) | +2 resource, +1 latch | 7 ore |
+| Hills, both latches | 4 (Ore) | +2 resource, +2 latch | 8 ore |
 
-### Real-DOS confirmation (Savannah vs Swamp sugar)
-
-Player-observed (live DOS play): **New Holland** (Savannah, no plow) town center makes **5 sugar**; **Guadeloupe** (Swamp, plowed) makes **4 sugar**. Both colonies are near 100% Sons of Liberty. Colonizapedia's field chart lists Savannah and Swamp sugar as equal, so naively they "should" match — they don't:
-
-- No plow check — Guadeloupe's plow contributes nothing to secondary in real DOS.
-- Both SoL latch bits contribute: Savannah `3 + 2(latch) = 5` ✓, Swamp `2 + 2(latch) = 4` ✓.
-
-This is now exactly how the port computes both (`golden_colony_prod01`'s synthetic Quebec/Guadeloupe/New Holland/Bahia/St. Louis fixtures were re-derived to this formula 2026-08-18, since that save's whole map is hand-reconstructed and the terrain choice for each is a free parameter — see `test_colony_prod01.c`). Two *real, unpatched* saves independently confirm the same formula with zero free parameters: **Curacao** (`golden_colony_prod02`, Broadleaf Forest, no river/road, full latch — town commons is its only furs source: `2 + 2 = 4`, matches the captured turn exactly) and **Paramaribo** (`golden_colony_prod01`, Rain Forest, full latch — town commons is its only sugar source net of its Rum Distiller's own confirmed consumption: `1 + 2 = 3`, matches once the Rain-row table bug above was fixed).
+Real-DOS confirmations with zero free parameters: New Holland Savannah
+`3+2latch=5` sugar, Guadeloupe plowed Swamp `2+2=4` (plow contributes
+nothing to secondary), Curacao Broadleaf `2+2=4` furs (commons is its only
+furs source), Paramaribo Rain `1+2=3` sugar (after the Rain 1/1 fix).
 
 ---
 
 ## Manual Terrain Chart vs `NAMES.TXT`
 
-Printed chart often shows post-modifier lumber (e.g. Plains forested lumber **6** = NAMES Mixed **3** × DOS lumberjack ×2). Prefer **NAMES + `18ec`**, not the chart, for implementation.
-
-| | Manual Plains forested | `NAMES` Mixed | After DOS lumber ×2 |
-|--|------------------------|---------------|---------------------|
-| Food | 3 | 2 | 2 |
-| Lumber | 6 | 3 | **6** |
-| Cotton | 1 | 1 | 1 |
+The printed chart often shows post-modifier lumber (Plains forested 6 =
+NAMES Mixed 3 × lumberjack ×2). Prefer **NAMES + `18ec`** for
+implementation.
 
 ---
 
 ## Port status (field yields)
 
-| Rule | DOS | [`colony_yield.c`](../src/core/colony_yield.c) |
-|------|-----|-----------------------------------------------|
-| Base NAMES grids | Wired | Wired (Hills food override **2**) |
-| Resource effect `17fa` | Additive / double, per (resource,job) pair | **2026-08-15 fix** — `colony_yield_resource_effect()`, byte-exact table (Game/etc. now correctly pair with multiple jobs) |
-| Lumberjack ×2 | Yes | **2026-08-15 fix** — wired at the correct pipeline position (after resource, before plow/road/river) |
-| Expert food/fish +2 | Yes (+ SoL mod re-add) | **2026-08-15 fix (player-confirmed, Viceroy)** — flat +2 and the SoL mod re-add both wired, plus `sol_bonus` now folds in *before* expert doubling colony-wide (`colony_yield_pipeline`), not as a flat post-hoc add. **2026-08-24 fix:** the re-add now uses `sol_bonus` itself (decompile-confirmed identical to `local_1c`), not a `colony_flags` latch-bit reconstruction that undercounted whenever the Tory-penalty term was nonzero — see "Field Farmer/Fisherman expert formula" above |
-| Convert job whitelist | Yes | **2026-08-15 fix** — exact whitelist gate |
-| Plow/road/river stack | Add (multi-signal) | **Wired verbatim 2026-09-03** (farmer +u unconditional, road job>3, plow job<4 — the former "unresolved runtime-array bit" is plow — river any job, major +u only when sole contributor; u=2 for non-food expert / Lumberjack) — no divergence left |
-| Fisherman distance modifier | Yes (`FUN_15eb_173e`) | **2026-08-15 fix** — real 3-case ladder confirmed from raw asm, ported |
-| Fisherman needs Docks | Yes, zeroes yield outright | **2026-08-15 fix** — `colony_yield_for_worker` gained a `has_docks` param, threaded from every production/preview/badge caller (`turn.c`, `colony_preview.c`, `colony_screen.c` area overlay + jobs popup) |
-| SoL mod: AI zero-out | Zeroed outright for AI (strong, cross-validated hypothesis — see manufacturing_worker_calc_1d4c.md) | **2026-08-15 fix** — `colony_prod_sol_bonus_field` (new function), wired into both field-yield call sites (`turn.c`, `colony_preview.c`); building contexts (craft/bells/crosses/hammers) keep the shared `colony_prod_sol_bonus`, unaffected |
-| Town commons | Base-yield table now located (`DS:0x2f76+5`, 2026-08-21) — confirmed match | Fixture formula, now confirmed exact not approximated |
+| Rule | Status in [`colony_yield.c`](../src/core/colony_yield.c) |
+|------|----------------------------------------------------------|
+| Base NAMES grids | Wired (Hills food = NAMES' 1; the farmer stack term explains the old "2") |
+| Resource effect `17fa` | `colony_yield_resource_effect()`, byte-exact incl. multi-job pairs; Beaver+Fur +3 |
+| Lumberjack ×2 | Wired at the correct pipeline position |
+| Expert food/fish +2 + SoL re-add | Wired; re-add uses `sol_bonus` itself; SoL folds before expert doubling |
+| Convert job whitelist | Exact gate |
+| Plow/road/river stack | Wired verbatim (2026-09-03) — no divergence left |
+| Fisherman distance modifier | Real 3-case ladder from raw asm |
+| Fisherman needs Docks | `has_docks` param threaded through all callers |
+| SoL AI zero-out | `colony_prod_sol_bonus_field`, both field call sites |
+| Town commons | Exact (`golden_colony_prod01/02/03` green) |
+| Zero-base gate | Wired (expert on 0-base terrain = 0) |
 
 ---
 
