@@ -1,0 +1,1 @@
+/usr/bin/cc -O3 -DNDEBUG -Wl,-rpath,$ORIGIN/lib,--disable-new-dtags CMakeFiles/unit_europe.dir/tests/unit/test_europe.c.o CMakeFiles/unit_europe.dir/tests/common/platform_cursor_stubs.c.o -o unit_europe  libcolonize_core.a -lm -lpthread -lfluidsynth 

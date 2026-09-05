@@ -1,0 +1,1 @@
+/usr/bin/cc -O3 -DNDEBUG -Wl,-rpath,$ORIGIN/lib,--disable-new-dtags CMakeFiles/smoke_save_load_dialog.dir/tests/smoke/test_save_load_dialog.c.o -o smoke_save_load_dialog  libcolonize_core.a -lm -lpthread -lfluidsynth 

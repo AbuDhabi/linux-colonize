@@ -1,0 +1,1 @@
+/usr/bin/cc -O3 -DNDEBUG -Wl,-rpath,$ORIGIN/lib,--disable-new-dtags CMakeFiles/smoke_popup_dialogs.dir/tests/smoke/test_popup_dialogs.c.o -o smoke_popup_dialogs  libcolonize_core.a -lm -lpthread -lfluidsynth 

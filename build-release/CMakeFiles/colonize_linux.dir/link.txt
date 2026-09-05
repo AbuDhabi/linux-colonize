@@ -1,0 +1,1 @@
+/usr/bin/cc -O3 -DNDEBUG -Wl,-rpath,$ORIGIN/lib,--disable-new-dtags CMakeFiles/colonize_linux.dir/src/main.c.o CMakeFiles/colonize_linux.dir/src/platform/linux_sdl2/sdl_runtime.c.o -o colonize_linux  libcolonize_core.a /usr/lib/x86_64-linux-gnu/libSDL2.so -lm -lpthread -lfluidsynth 

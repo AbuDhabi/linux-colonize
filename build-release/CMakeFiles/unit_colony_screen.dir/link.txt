@@ -1,0 +1,1 @@
+/usr/bin/cc -O3 -DNDEBUG -Wl,-rpath,$ORIGIN/lib,--disable-new-dtags CMakeFiles/unit_colony_screen.dir/tests/unit/test_colony_screen.c.o CMakeFiles/unit_colony_screen.dir/tests/common/platform_cursor_stubs.c.o -o unit_colony_screen  libcolonize_core.a -lm -lpthread -lfluidsynth 

@@ -21,3 +21,4 @@ original_sources_decompiled/**
 !original_sources_decompiled/*.c
 .venv-sound/
 settings.json
+dist/

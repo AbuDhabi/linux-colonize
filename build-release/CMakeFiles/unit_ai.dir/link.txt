@@ -1,0 +1,1 @@
+/usr/bin/cc -O3 -DNDEBUG -Wl,-rpath,$ORIGIN/lib,--disable-new-dtags CMakeFiles/unit_ai.dir/tests/unit/test_ai.c.o -o unit_ai  libcolonize_core.a -lm -lpthread -lfluidsynth 
