@@ -10,6 +10,16 @@
  *
  * Reference only — not compiled into the Linux binary.
  *
+ * 2026-09-06 — NO home-village tether in this dir loop. Verified by grep:
+ * zero DS:0x8db8 reads anywhere in the LAB_521d_4ea9 body
+ * (viceroy_unpacked.asm lines ~152400-156000). The Linux emp picker's
+ * "home_dist > 2 → score -= home_dist*3" term (ai.c ai_native_pick_dir_emp)
+ * is empiricism-fit, NOT DOS; wiring it into the default asm picker broke
+ * golden_ai_turns TURN6→7 (DOS moves the Apache Brave at (43,53) to the
+ * dist-3 tile (44,54) that the penalty vetoes). DOS quiet Braves are an
+ * unanchored persistent random walk; range-limiting lives elsewhere
+ * (152e threat scan dist-7 colony cap, colony_pull arm below).
+ *
  * ============================================================================
  * MAJOR FINDING (2026-08-13) — a whole branch of this formula is missing.
  * See docs/seed100_brave.md "Root cause candidate" section for the full

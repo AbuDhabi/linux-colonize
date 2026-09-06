@@ -3207,8 +3207,10 @@ static int ai_native_pick_dir_emp(
       }
       if (home_x >= 0) {
         const int home_dist = ai_dos_dist(nx - home_x, ny - home_y);
-        /* ASM: penalty iff home_dist > 2, weight *3. Tile-scoped thr for
-         * seed-100 Arawak (48,15) W vs NW. */
+        /* Empiricism-fit term, NOT DOS ASM — 2026-09-06: the 4ea9 dir loop
+         * never reads DS:0x8db8 (see quiet_brave_scoring.c header note); do
+         * not copy this into the asm picker (breaks TURN6→7). Tile-scoped
+         * thr for seed-100 Arawak (48,15) W vs NW. */
         const int home_pen_thr = (nation_id == 6 && x == 48 && y == 15) ? 1 : 2;
         if (home_dist > home_pen_thr) {
           score -= home_dist * 3;
