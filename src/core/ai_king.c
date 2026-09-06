@@ -4560,7 +4560,9 @@ void ai_king_frigate_offer(ColonizeTurnContext* ctx, int nation) {
  *
  * Gate: WoI not yet declared, 1-in-21 roll (dos_rng_range(0,20)==0). Then
  * picks a random Euro nation 0-3 as beneficiary; eligible only if that's
- * this AI nation itself or a nation it's allied with (AI_DIPLO_ALLY bit).
+ * this AI nation itself or a nation it's allied with (AI_DIPLO_ALLY bit;
+ * byte-faithful DOS read — never set on Euro pairs, so in practice
+ * eligibility reduces to self-only, in DOS and here alike).
  * Quantity/price shape is genuinely NOT identical to 2022's (read raw
  * bytes side by side, viceroy_unpacked.c:75098-75113 vs :75017-75028,
  * before assuming king_ref.md's "same formula" summary was byte-precise

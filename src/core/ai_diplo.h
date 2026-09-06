@@ -20,8 +20,11 @@
  * while bit 0x08 is up; cleared by 465b after the attack), 0x10 crown-arms
  * event (FUN_38fd_5930). Same encoding as indian.euro_diplo. Real saves show
  * 00/20/22/60/a0/e0/e2/e8 and the bits are directional (a→b ≠ b→a).
- * AI_DIPLO_ALLY (0x04) is Linux-only on Euro pairs (DOS uses 0x04 only on
- * Indian pairs as "attack-village confirmed"); TREASURE_* likewise Linux.
+ * AI_DIPLO_ALLY (0x04) is never SET on Euro pairs (DOS uses 0x04 only on
+ * Indian pairs as "attack-village confirmed"; the Linux-only alliance
+ * machinery that set it was retired T2.4 2026-09-06). Readers left: the
+ * self-pair virtual in ai_diplo_read, and ai_king 2244's byte-faithful
+ * eligibility check (reduces to self-only, as in DOS). TREASURE_* Linux.
  */
 #define AI_DIPLO_WAR 0x02
 #define AI_DIPLO_PEACE 0x40
@@ -127,24 +130,18 @@ int ai_diplo_at_war_with_any(const ColonizeCol1Save* col1, int nation);
 /* First declare: thin 153e sting + war-hit. Franklin pair → no-op (fandom NW peace). */
 void ai_diplo_declare_war(ColonizeCol1Save* col1, int nation_a, int nation_b);
 void ai_diplo_make_peace(ColonizeCol1Save* col1, int nation_a, int nation_b);
-void ai_diplo_form_alliance(ColonizeCol1Save* col1, int nation_a, int nation_b);
-void ai_diplo_break_alliance(ColonizeCol1Save* col1, int nation_a, int nation_b);
 
 /* Thin 102a/1092 status chrome (Contact/King pattern): call existing
- * declare/make_peace/form_alliance/break_alliance then write ctx->status when
- * human is involved; also enqueue AI OK popup when ctx->ai_popups is set
- * (FUN_15b3 / 5bfb). form_alliance_ctx: first form → "Alliance formed with %s";
- * prefer "Alliance with %s costs gold." when 25g drains. AI callers keep using
- * declare_war / make_peace / form_alliance / break_alliance without status.
- * FA 3f41 full UI PARKED. */
+ * declare/make_peace then write ctx->status when human is involved; also
+ * enqueue AI OK popup when ctx->ai_popups is set (FUN_15b3 / 5bfb). AI
+ * callers keep using declare_war / make_peace without status.
+ * FA 3f41 full UI PARKED. Linux-only alliance machinery retired T2.4. */
 void ai_diplo_set_sound_hook(void (*play_fn)(int id));
 void ai_diplo_declare_war_ctx(ColonizeTurnContext* ctx, int nation_a, int nation_b);
 
 /* Player-facing nation name (Col1 country_name if set, else "rival"). */
 const char* ai_diplo_rival_name(const ColonizeCol1Save* col1, int nation);
 void ai_diplo_make_peace_ctx(ColonizeTurnContext* ctx, int nation_a, int nation_b);
-void ai_diplo_form_alliance_ctx(ColonizeTurnContext* ctx, int nation_a, int nation_b);
-void ai_diplo_break_alliance_ctx(ColonizeTurnContext* ctx, int nation_a, int nation_b);
 
 /* FUN_5bfb_0000/00f8/312e-shaped military score (unpark #5 deepen). */
 int ai_diplo_military_score(const ColonizeTurnContext* ctx, int nation_id);
@@ -153,23 +150,15 @@ int ai_diplo_military_score(const ColonizeTurnContext* ctx, int nation_id);
  * also thin peaceful Indian relation drift when not at Euro war. */
 void ai_diplo_treaty_timers(ColonizeTurnContext* ctx, int nation_id);
 
-/* Opportunistic war/ally by military balance (5bfb_10ec/13b0; not timer slot).
- * Also thin FA ally-aid + FA gift while allied (full 3f41 PARKED);
- * FA gift/longevity human status ("Alliance with %s strengthened/holds") +
- * thin Foreign Affairs OK (DIPLO_FA tag + "Foreign Affairs" title);
+/* Opportunistic war by military balance (5bfb_10ec) + 13b0 treaty
+ * sign/cancel tick (Linux-only alliance arms retired T2.4 2026-09-06);
  * at-war Privateer spawn once/war peer on hunt-ready water (unknown26[9]);
  * PARKED 8g treasury prize only when units null (no hold-plunder API);
  * war-fatigue (timer==0) + near-parity → make_peace_ctx;
- * AI→human war/peace/alliance/break offers enqueue CHOICE Accept/Refuse.
+ * AI→human war/peace offers enqueue CHOICE Accept/Refuse.
  * Franklin FF: NW pair with Benjamin Franklin → skip 10ec declare pressure;
  * at-war → always offer/conclude peace (fandom; FA 3f41 UI PARKED). */
 void ai_diplo_euro_balance(ColonizeTurnContext* ctx, int nation_id);
-
-/* Thin FA 3f41 goodwill gift: 15g from→to + both treaty timers +2 when
- * donor gold >= 100 and peer gold < donor*2. euro_balance calls when ALLY
- * and timer==1; if gift no-ops, longevity timer+1 (no second gold) + human
- * alliance longevity status. Full FA dialog UI PARKED. */
-void ai_diplo_fa_gift(ColonizeCol1Save* col1, int from, int to);
 
 /* Alias → ai_diplo_treaty_timers (6d8e timer pass). */
 void ai_diplo_euro_timers(ColonizeTurnContext* ctx, int nation_id);
@@ -220,8 +209,7 @@ int ai_diplo_indian_any_at_war(const ColonizeCol1Save* col1, int euro_nation);
 
 /* Read unknown26[8] Indian hostility sticky: 0 clear, 1 at-war, 2 very-low deepen.
  * sticky==2 → peace feeler self-gates off (matrix + make_peace) + refuses new
- * alliances this balance + skips FA gift to peers (no gold) + human
- * "Natives remain hostile." / alliance-refuse status. */
+ * treaties this balance + human "Natives remain hostile." status. */
 uint8_t ai_diplo_indian_hostility_sticky(const ColonizeCol1Save* col1, int euro_nation);
 
 /* Sync sticky from relation matrix (set/clear/deepen). Call after relation hits. */
@@ -237,15 +225,11 @@ void ai_diplo_indian_capital_surrender(
   int euro_nation
 );
 
-/* Apply human choice from map AI popup (alliance / peace / war / break
- * Accept/Refuse). Alliance Accept → form_alliance_ctx (follow-up OK
- * "Alliance formed…" + treaty timer ≥8 if was 0); peace Accept →
- * make_peace_ctx; peace Refuse → status + OK; war Accept →
- * declare_war_ctx; war Refuse → status + OK; break Accept →
- * break_alliance_ctx; break Refuse → status + OK. No-op if tag mismatch,
- * cancelled, or OK (choice_id 0). FUN_5bfb_13b0 / 15b3 / 10ec /
- * war-fatigue; FA 3f41 full UI PARKED. Thin FA gift/longevity OK uses
- * AI_POPUP_TAG_DIPLO_FA + title "Foreign Affairs". */
+/* Apply human choice from map AI popup (peace / war Accept/Refuse).
+ * Peace Accept → make_peace_ctx; peace Refuse → status + OK; war Accept →
+ * declare_war_ctx; war Refuse → status + OK. No-op if tag mismatch,
+ * cancelled, or OK (choice_id 0). FUN_5bfb / 15b3 / 10ec / war-fatigue;
+ * FA 3f41 full UI PARKED. (Alliance CHOICE arms retired T2.4.) */
 void ai_diplo_apply_popup_result(ColonizeTurnContext* ctx, const AiPopupState* popup);
 
 #endif

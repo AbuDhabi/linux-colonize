@@ -42,11 +42,12 @@
 
 /* Thin FUN_5bfb_153e stand-in: treasury + tax friction on war declare;
  * unpark #5 deepens military score + colony-gap trade sting + Tools embargo.
- * FA 3f41 full body/UI PARKED - thin ally-aid + FA gift + break trust.
+ * FA 3f41 full body/UI PARKED. Linux-only alliance machinery (ally-aid,
+ * FA gift, break trust) retired T2.4 2026-09-06.
  * Euro×Euro war does NOT boycott Europe cargos (DOS tea-party / king refuse
  * only). An invented wartime all-16-bit embargo was removed after
- * all_boycotted.SAV (1516, tax 0, boycott_bitmap 0xFFFF). Peace/alliance still
- * lift leftover wartime bits on poisoned saves. Full per-rival 153e PARKED. */
+ * all_boycotted.SAV (1516, tax 0, boycott_bitmap 0xFFFF). Peace still
+ * lifts leftover wartime bits on poisoned saves. Full per-rival 153e PARKED. */
 
 #define AI_DIPLO_WAR_GOLD_STING 100u
 #define AI_DIPLO_WAR_TAX_BUMP 1u
@@ -75,16 +76,6 @@
 /* First declare: seed peer treaty timer so near-parity peace waits for
  * timer==0 (war aged / fatigue). Reuses unknown26[0..3]; live timers kept. */
 #define AI_DIPLO_WAR_FATIGUE_TIMER 8u
-#define AI_DIPLO_ALLY_GOLD_COST 25u
-#define AI_DIPLO_ALLY_TREATY_MIN 8u
-#define AI_DIPLO_ALLY_AID_GOLD 10u
-#define AI_DIPLO_ALLY_AID_MIN_TREASURY 50u
-#define AI_DIPLO_FA_GIFT_GOLD 15u
-#define AI_DIPLO_FA_GIFT_MIN_TREASURY 100u
-#define AI_DIPLO_FA_GIFT_TIMER_BUMP 2u
-/* Ally longevity when FA gift gold gates fail: timer+1 both dirs (no gold). */
-#define AI_DIPLO_ALLY_LONGEVITY_BUMP 1u
-#define AI_DIPLO_BREAK_GOLD_PENALTY 20u
 #define AI_DIPLO_INDIAN_DRIFT_CAP 160u
 #define AI_DIPLO_WAR_INDIAN_HIT 5
 /* At-war gate: relation < 50 (same band as contact alarm≥50 mission block). */
@@ -482,161 +473,6 @@ static int ai_diplo_war_privateer_prize(ColonizeCol1Save* col1, int nation_id, i
   return 1;
 }
 
-/* Thin alliance treasury cost: each side pays 25 if able (floor 0). */
-static void ai_diplo_ally_treasury_cost(ColonizeCol1Save* col1, int nation_a, int nation_b) {
-  if (!col1) {
-    return;
-  }
-  for (int i = 0; i < 2; ++i) {
-    const int n = (i == 0) ? nation_a : nation_b;
-    if (n < 0 || n >= 4) {
-      continue;
-    }
-    ColonizeCol1Nation* nat = &col1->nation[n];
-    if (nat->gold > AI_DIPLO_ALLY_GOLD_COST) {
-      nat->gold -= AI_DIPLO_ALLY_GOLD_COST;
-    } else {
-      nat->gold = 0;
-    }
-  }
-}
-
-/* Ensure treaty timer toward peer is at least 8 if currently 0 (both dirs). */
-static void ai_diplo_ally_treaty_timer_bump(ColonizeCol1Save* col1, int nation_a, int nation_b) {
-  if (!col1) {
-    return;
-  }
-  uint8_t* ta = ai_diplo_timer_byte(col1, nation_a, nation_b);
-  uint8_t* tb = ai_diplo_timer_byte(col1, nation_b, nation_a);
-  if (ta && *ta == 0) {
-    *ta = (uint8_t)AI_DIPLO_ALLY_TREATY_MIN;
-  }
-  if (tb && *tb == 0) {
-    *tb = (uint8_t)AI_DIPLO_ALLY_TREATY_MIN;
-  }
-}
-
-/* Break-alliance trust loss: −20 gold each side (floor 0). Tax path unused. */
-static void ai_diplo_break_trust_penalty(ColonizeCol1Save* col1, int nation_a, int nation_b) {
-  if (!col1) {
-    return;
-  }
-  for (int i = 0; i < 2; ++i) {
-    const int n = (i == 0) ? nation_a : nation_b;
-    if (n < 0 || n >= 4) {
-      continue;
-    }
-    ColonizeCol1Nation* nat = &col1->nation[n];
-    if (nat->gold > AI_DIPLO_BREAK_GOLD_PENALTY) {
-      nat->gold -= AI_DIPLO_BREAK_GOLD_PENALTY;
-    } else {
-      nat->gold = 0;
-    }
-  }
-}
-
-/*
- * Break-alliance Indian sticky raise (thin): −5 on all 8 Indian relation slots
- * both sides, then sync sticky. Same scalar as Euro×Euro war Indian hit
- * (no very-low extra −10). When relations were already near the at-war floor
- * (< 50 after hit), sticky rises 0→1 (or deepens). Source: Indians wary of
- * Euro treachery (fandom / euro_diplo war-hit stand-in); full 15b3 PARKED.
- */
-static void ai_diplo_break_indian_sticky_raise(ColonizeCol1Save* col1, int nation_a, int nation_b) {
-  if (!col1) {
-    return;
-  }
-  for (int i = 0; i < 2; ++i) {
-    const int n = (i == 0) ? nation_a : nation_b;
-    if (n < 0 || n >= 4) {
-      continue;
-    }
-    for (int idx = 0; idx < 8; ++idx) {
-      ai_diplo_indian_relation_delta(col1, 4 + idx, n, -AI_DIPLO_WAR_INDIAN_HIT);
-    }
-    ai_diplo_indian_hostility_sync(col1, n);
-  }
-}
-
-/*
- * Thin FA / ally-aid stand-in (full 3f41 PARKED): once per euro_balance peer visit,
- * if allied and peer gold < self gold/2 and self gold >= 50, transfer 10 gold to ally.
- */
-static void ai_diplo_ally_foreign_aid(ColonizeCol1Save* col1, int nation_id, int peer) {
-  if (!col1 || nation_id < 0 || nation_id >= 4 || peer < 0 || peer >= 4 || nation_id == peer) {
-    return;
-  }
-  ColonizeCol1Nation* self = &col1->nation[nation_id];
-  ColonizeCol1Nation* other = &col1->nation[peer];
-  if (self->gold < AI_DIPLO_ALLY_AID_MIN_TREASURY) {
-    return;
-  }
-  if (other->gold >= self->gold / 2u) {
-    return;
-  }
-  if (self->gold < AI_DIPLO_ALLY_AID_GOLD) {
-    return;
-  }
-  self->gold -= AI_DIPLO_ALLY_AID_GOLD;
-  other->gold += AI_DIPLO_ALLY_AID_GOLD;
-}
-
-/*
- * Thin FA goodwill gift (full 3f41 body/UI PARKED): separate from ally-aid.
- * When donor gold >= 100 and peer gold < donor*2, transfer 15g and bump both
- * treaty timers +2 (saturate 255). Caller gates on ALLY + timer==1; if this
- * no-ops, euro_balance applies longevity timer+1 (no second gold transfer).
- */
-void ai_diplo_fa_gift(ColonizeCol1Save* col1, int from, int to) {
-  if (!col1 || from < 0 || from >= 4 || to < 0 || to >= 4 || from == to) {
-    return;
-  }
-  ColonizeCol1Nation* donor = &col1->nation[from];
-  ColonizeCol1Nation* peer = &col1->nation[to];
-  if (donor->gold < AI_DIPLO_FA_GIFT_MIN_TREASURY) {
-    return;
-  }
-  if (peer->gold >= donor->gold * 2u) {
-    return;
-  }
-  if (donor->gold < AI_DIPLO_FA_GIFT_GOLD) {
-    return;
-  }
-  donor->gold -= AI_DIPLO_FA_GIFT_GOLD;
-  peer->gold += AI_DIPLO_FA_GIFT_GOLD;
-  uint8_t* ta = ai_diplo_timer_byte(col1, from, to);
-  uint8_t* tb = ai_diplo_timer_byte(col1, to, from);
-  if (ta) {
-    unsigned next = (unsigned)*ta + AI_DIPLO_FA_GIFT_TIMER_BUMP;
-    *ta = (uint8_t)(next > 255u ? 255u : next);
-  }
-  if (tb) {
-    unsigned next = (unsigned)*tb + AI_DIPLO_FA_GIFT_TIMER_BUMP;
-    *tb = (uint8_t)(next > 255u ? 255u : next);
-  }
-}
-
-/*
- * Ally longevity (13b0/3f41 treaty sustain stand-in): +1 both treaty timers
- * when FA gift gold gates fail. No treasury transfer — avoids double-gift.
- * Source: alliance treaty timer refresh; FA dialog UI PARKED.
- */
-static void ai_diplo_ally_longevity_timer(ColonizeCol1Save* col1, int from, int to) {
-  if (!col1) {
-    return;
-  }
-  uint8_t* ta = ai_diplo_timer_byte(col1, from, to);
-  uint8_t* tb = ai_diplo_timer_byte(col1, to, from);
-  if (ta) {
-    unsigned next = (unsigned)*ta + AI_DIPLO_ALLY_LONGEVITY_BUMP;
-    *ta = (uint8_t)(next > 255u ? 255u : next);
-  }
-  if (tb) {
-    unsigned next = (unsigned)*tb + AI_DIPLO_ALLY_LONGEVITY_BUMP;
-    *tb = (uint8_t)(next > 255u ? 255u : next);
-  }
-}
-
 /*
  * Peaceful Indian×Euro relation drift (not full 15b3 matrix).
  * Per tick: for each of 8 Indian slots already contacted (r>0), if < 160 and
@@ -896,29 +732,10 @@ static void ai_diplo_mirror_relation_summary(ColonizeCol1Save* col1, int nation)
   if (!col1 || nation < 0 || nation >= 4) {
     return;
   }
-  int war = 0;
-  int ally = 0;
-  for (int peer = 0; peer < 4; ++peer) {
-    if (peer == nation) {
-      continue;
-    }
-    const uint8_t* f = ai_diplo_flag_byte_const(col1, nation, peer);
-    if (!f) {
-      continue;
-    }
-    if (*f & AI_DIPLO_WAR) {
-      war = 1;
-    }
-    if (*f & AI_DIPLO_ALLY) {
-      ally = 1;
-    }
-  }
   /* head.nation_relation (DS:0x53c8) is NOT a relation summary: DOS uses it as
    * the per-nation Crown-war turn stamp (FUN_38fd_5930 writes turn; every
    * attack/declare site zeroes both nations' slots). The old WAR/ALLY mirror
    * was dropped 2026-08-27; see ai_diplo_declare_war / ai_king_new_war_event. */
-  (void)war;
-  (void)ally;
   /* Keep player.diplomacy as a coarse OR of peer flags (UI crumb). */
   uint8_t agg = 0;
   for (int peer = 0; peer < 4; ++peer) {
@@ -1032,7 +849,7 @@ void ai_diplo_declare_war(ColonizeCol1Save* col1, int nation_a, int nation_b) {
     col1->head.nation_relation[nation_a] = 0;
     col1->head.nation_relation[nation_b] = 0;
   }
-  ai_diplo_clear_both(col1, nation_a, nation_b, (uint8_t)(AI_DIPLO_PEACE | AI_DIPLO_ALLY));
+  ai_diplo_clear_both(col1, nation_a, nation_b, AI_DIPLO_PEACE);
   ai_diplo_or_both(col1, nation_a, nation_b, (uint8_t)(AI_DIPLO_WAR | AI_DIPLO_MET));
   /* Thin 153e-shaped sting: gold drain + tax bump both sides (relation via mirror). */
   if (!already) {
@@ -1414,7 +1231,7 @@ void ai_diplo_make_peace_ctx(ColonizeTurnContext* ctx, int nation_a, int nation_
  * Fortify/Fortified order (DOS order-state 5/6 -> 0) so the unit re-plans
  * next act instead of sitting garrisoned against a neighbor whose
  * diplomatic status just changed. Decomp calls this (A,B) then (B,A) from
- * the alliance-form path (both sides' border garrisons refreshed).
+ * the 13b0 treaty-sign path (both sides' border garrisons refreshed).
  */
 static void ai_diplo_wake_border_garrisons(
   ColonizeTurnContext* ctx, int nation_a, int nation_b
@@ -1478,7 +1295,7 @@ static const Ai153eSelectorSite ai_diplo_153e_selector_table[] = {
    * IS the human nation (DOS `param_2*0x34+0x543f != 0`, the same
    * control-status byte `ai_king.c`'s FUN_43f7_2244 header already cites
    * as identical to `turn_run_european_ai_stubs`'s human-skip gate). */
-  {7, "3bee", "FUN_5bfb_13b0", "ai_diplo_form_alliance/break_alliance (Done)"},
+  {7, "3bee", "FUN_5bfb_13b0", "ai_diplo_13b0_treaty_tick sign/cancel (Done)"},
   /* idx4, offset 3bdf — raw line 485, the ONLY selector call inside the
    * worthiness-score phase itself: the per-colony border probe inside the
    * colony loop. See ai_diplo_153e_border_probe below (full port). */
@@ -2916,117 +2733,6 @@ int ai_diplo_153e_encounter(ColonizeTurnContext* ctx, int human, int target, int
   return 1;
 }
 
-void ai_diplo_form_alliance(ColonizeCol1Save* col1, int nation_a, int nation_b) {
-  const int was_war = ai_diplo_at_war(col1, nation_a, nation_b);
-  ai_diplo_clear_both(col1, nation_a, nation_b, AI_DIPLO_WAR);
-  ai_diplo_or_both(col1, nation_a, nation_b, (uint8_t)(AI_DIPLO_ALLY | AI_DIPLO_PEACE | AI_DIPLO_MET));
-  /* Lift all 16 wartime @CARGO bits if neither side remains at Euro war. */
-  ai_diplo_war_embargo_lift_if_peace(col1, nation_a, nation_b);
-  if (was_war) {
-    ai_diplo_privateer_spawn_clear(col1, nation_a, nation_b);
-    ai_diplo_privateer_spawn_clear(col1, nation_b, nation_a);
-  }
-  /* Thin alliance treasury cost: 25 gold each side (floor 0). */
-  ai_diplo_ally_treasury_cost(col1, nation_a, nation_b);
-  /* Treaty timer: if peer slot is 0, set to 8 so alliance persists a few ticks. */
-  ai_diplo_ally_treaty_timer_bump(col1, nation_a, nation_b);
-}
-
-/*
- * Thin 102a/1092 status when human is a party (Contact/King pattern).
- * First form → "Alliance formed with %s"; prefer gold-drain chrome when 25g
- * cost fires. AI callers keep using form_alliance without status.
- * FA dialog UI PARKED. Source: 102a/1092 stand-in; euro_diplo.md.
- */
-void ai_diplo_form_alliance_ctx(ColonizeTurnContext* ctx, int nation_a, int nation_b) {
-  if (!ctx || !ctx->col1) {
-    return;
-  }
-  const int was_ally =
-    (ai_diplo_read(ctx->col1, nation_a, nation_b) & AI_DIPLO_ALLY) != 0;
-  const int human = ctx->human_nation;
-  uint16_t gold_before = 0;
-  const int human_party =
-    (human >= 0 && human < 4 && (nation_a == human || nation_b == human));
-  if (human_party) {
-    gold_before = ctx->col1->nation[human].gold;
-  }
-  ai_diplo_form_alliance(ctx->col1, nation_a, nation_b);
-  ai_diplo_wake_border_garrisons(ctx, nation_a, nation_b);
-  ai_diplo_wake_border_garrisons(ctx, nation_b, nation_a);
-  int alliance_chrome = 0;
-  if (!was_ally) {
-    ai_diplo_status_human_pair(ctx, nation_a, nation_b, "Alliance formed with %s");
-    alliance_chrome = human_party ? 1 : 0;
-  }
-  /* Prefer gold-drain chrome over formed when human treasury paid. */
-  if (human_party && ctx->col1->nation[human].gold < gold_before) {
-    ai_diplo_status_human_pair(ctx, nation_a, nation_b, "Alliance with %s costs gold.");
-    alliance_chrome = 1;
-  }
-  /* FUN_5bfb_13b0 / 15b3 alliance chrome → OK popup; FA 3f41 full UI PARKED. */
-  if (alliance_chrome && ctx->status && ctx->status[0] != '\0') {
-    ai_diplo_popup_ok(
-      ctx, AI_POPUP_TAG_DIPLO_ALLIANCE, nation_a, nation_b, "Alliance", ctx->status
-    );
-  }
-}
-
-void ai_diplo_break_alliance(ColonizeCol1Save* col1, int nation_a, int nation_b) {
-  const int was_ally = (ai_diplo_read(col1, nation_a, nation_b) & AI_DIPLO_ALLY) != 0;
-  ai_diplo_clear_both(col1, nation_a, nation_b, AI_DIPLO_ALLY);
-  ai_diplo_or_both(col1, nation_a, nation_b, AI_DIPLO_PEACE);
-  /* Trust loss stand-in (FA 3f41 PARKED): −20 gold each side if they were allied. */
-  if (was_ally) {
-    ai_diplo_break_trust_penalty(col1, nation_a, nation_b);
-    /* Indians wary of Euro treachery: −5 relation + sticky sync both sides. */
-    ai_diplo_break_indian_sticky_raise(col1, nation_a, nation_b);
-  }
-}
-
-/* Thin 102a/1092 status when human is a party (Contact/King pattern).
- * AI callers keep using break_alliance without status. FA dialog UI PARKED.
- * Sticky-rise "Natives grow hostile." also enqueues OK (FUN_15b3 / 5bfb). */
-void ai_diplo_break_alliance_ctx(ColonizeTurnContext* ctx, int nation_a, int nation_b) {
-  if (!ctx || !ctx->col1) {
-    return;
-  }
-  const int was_ally =
-    (ai_diplo_read(ctx->col1, nation_a, nation_b) & AI_DIPLO_ALLY) != 0;
-  const int human = ctx->human_nation;
-  uint8_t sticky_before = AI_DIPLO_STICKY_CLEAR;
-  if (human >= 0 && human < 4) {
-    sticky_before = ai_diplo_indian_hostility_sticky(ctx->col1, human);
-  }
-  ai_diplo_break_alliance(ctx->col1, nation_a, nation_b);
-  if (was_ally) {
-    ai_diplo_status_human_pair(ctx, nation_a, nation_b, "Alliance broken with %s");
-    /*
-     * Prefer sticky-rise chrome when break −5 Indian hit newly raises human
-     * hostility sticky (same Contact/King pattern as declare_war_ctx).
-     * Source: Indians wary of Euro treachery; FA 3f41 UI PARKED.
-     * Also enqueue AI OK popup (FUN_15b3 / 5bfb); status kept — sticky
-     * native line uses INFO tag via tag_from_status.
-     */
-    if (human >= 0 && human < 4 && (nation_a == human || nation_b == human) &&
-        ctx->status && ctx->status_size > 0) {
-      const uint8_t sticky_after = ai_diplo_indian_hostility_sticky(ctx->col1, human);
-      if (sticky_before == AI_DIPLO_STICKY_CLEAR &&
-          sticky_after != AI_DIPLO_STICKY_CLEAR) {
-        snprintf(ctx->status, ctx->status_size, "Natives grow hostile.");
-      }
-      ai_diplo_popup_ok(
-        ctx,
-        ai_diplo_tag_from_status(ctx->status, AI_POPUP_TAG_DIPLO_BREAK),
-        nation_a,
-        nation_b,
-        "Diplomacy",
-        ctx->status
-      );
-    }
-  }
-}
-
 void ai_diplo_treaty_timers(ColonizeTurnContext* ctx, int nation_id) {
   if (!ctx || !ctx->col1_ok || !ctx->col1 || nation_id < 0 || nation_id >= 4) {
     return;
@@ -3046,7 +2752,8 @@ void ai_diplo_treaty_timers(ColonizeTurnContext* ctx, int nation_id) {
     if (*t != 0) {
       continue;
     }
-    /* Expiry: break alliance if allied; else thin peace/met tweak.
+    /* Expiry: thin peace/met tweak (the Linux-only break-alliance arm was
+     * retired with the Euro×Euro alliance machinery, T2.4 2026-09-06).
      * Use stored flags (not ai_diplo_read virtual PEACE|MET for unmet 0) so
      * early turns do not stamp euro_relation in seed-100 goldens. */
     uint8_t* f = ai_diplo_flag_byte(ctx->col1, nation_id, other);
@@ -3054,10 +2761,6 @@ void ai_diplo_treaty_timers(ColonizeTurnContext* ctx, int nation_id) {
       continue;
     }
     const uint8_t stored = *f;
-    if (stored & AI_DIPLO_ALLY) {
-      ai_diplo_break_alliance_ctx(ctx, nation_id, other);
-      continue;
-    }
     /*
      * bugs.md 388: this used to assign `*f = PEACE|MET` — a raw overwrite of
      * ONE direction's byte. That both wiped every other flag in it (0x80
@@ -3277,16 +2980,17 @@ void ai_diplo_euro_balance(ColonizeTurnContext* ctx, int nation_id) {
    *  1 skip human; at-war → upkeep + privateer prize; war-fatigue + near-parity
    *    → make_peace_ctx (timer==0 while WAR)
    *  2 military score (0000/00f8/312e stand-in)
-   *  3 10ec eligibility: war if self ≫ other; ally if near-parity
-   *  4 13b0 form/break + thin ally aid / FA gift / longevity (FA 3f41 PARKED)
+   *  3 10ec eligibility: war if self ≫ other
+   *  4 13b0 treaty sign/cancel (ai_diplo_13b0_treaty_tick; the Linux-only
+   *    alliance form/break + ally aid / FA gift / longevity arms were retired
+   *    T2.4 2026-09-06 — DOS has no Euro×Euro alliances)
    *  5 declare_war_ctx → thin 153e gold+tax + human status (102a/1092 chrome)
    *  + Indian matrix: feeler (skip sticky2 / any Euro war) + sticky sync/pressure
-   *    + harassment; sticky2 also refuses new alliances + skips FA gift (no gold)
+   *    + harassment; sticky2 also refuses new treaties
    *  + Franklin (fandom): NW pair with FF → always offer/conclude peace; skip
    *    10ec declare pressure (king Euro wars must not poison NW peers)
    */
   ai_diplo_indian_matrix_tick(ctx, nation_id);
-  const uint8_t sticky_now = ai_diplo_indian_hostility_sticky(ctx->col1, nation_id);
   const int self = ai_diplo_military_score(ctx, nation_id);
   int war_upkeep_status_done = 0;
   for (int peer = 0; peer < 4; ++peer) {
@@ -3378,98 +3082,10 @@ void ai_diplo_euro_balance(ColonizeTurnContext* ctx, int nation_id) {
       continue;
     }
 
-    /* Thin FA: ally-aid (10g) + expiring-timer gift / longevity (3f41 PARKED). */
-    if (bits & AI_DIPLO_ALLY) {
-      ai_diplo_ally_foreign_aid(ctx->col1, nation_id, peer);
-      uint8_t* t = ai_diplo_timer_byte(ctx->col1, nation_id, peer);
-      if (t && *t == 1) {
-        /*
-         * Sticky→pressure deepen: sticky==2 skips FA gift to peers (no gold
-         * transfer) — deep native hostility refuses gift diplomacy. Longevity
-         * timer+1 still applies (no gold). Source: fandom alarmed refuse gifts;
-         * contact friction <40 inverted. Ally-aid (10g) unchanged.
-         */
-        if (sticky_now != AI_DIPLO_STICKY_DEEP) {
-          ai_diplo_fa_gift(ctx->col1, nation_id, peer);
-        }
-        /*
-         * Alliance longevity: if FA gift gold gates failed (or sticky skipped),
-         * timer still 1 → bump +1 both dirs without a second gold transfer.
-         * Source: 13b0/3f41 treaty sustain; FA dialog UI PARKED.
-         */
-        if (*t == 1) {
-          ai_diplo_ally_longevity_timer(ctx->col1, nation_id, peer);
-        }
-        /*
-         * Human chrome when FA gift / longevity fires (102a/1092 stand-in).
-         * Gift success: timer 1→3 (+2). Longevity-only: timer 1→2 (+1).
-         * Skip when sticky==2 so "Natives remain hostile." stays preferred.
-         * Source: thin 3f41 treaty sustain; FA dialog UI PARKED.
-         */
-        if (sticky_now != AI_DIPLO_STICKY_DEEP && ctx->status && ctx->status_size > 0 &&
-            (ctx->human_nation == nation_id || ctx->human_nation == peer)) {
-          int fa_chrome = 0;
-          if (*t == 3) {
-            ai_diplo_status_human_pair(ctx, nation_id, peer,
-                                      "Alliance with %s strengthened.");
-            fa_chrome = 1;
-          } else if (*t == 2) {
-            ai_diplo_status_human_pair(ctx, nation_id, peer, "Alliance with %s holds.");
-            fa_chrome = 1;
-          }
-          /*
-           * Thin FA report status (gift/longevity). Full 3f41 F2–F9 UI PARKED;
-           * no invented INFO OK modal.
-           */
-          (void)fa_chrome;
-        }
-      }
-    }
-
-    /* 13b0 break: imbalance while allied (human status via _ctx). */
-    if ((bits & AI_DIPLO_ALLY) && self > other * 2 + 25 && self > 40) {
-      if (ctx->rng && dos_rng_range(ctx->rng, 1, 25) == 1) {
-        /*
-         * AI→human (FUN_5bfb_13b0 / 15b3): enqueue CHOICE Accept/Refuse;
-         * apply calls break_alliance_ctx. AI↔AI / human-as-actor still auto
-         * break_alliance_ctx. Treaty-timer expiry stays automatic (not CHOICE).
-         * FA 3f41 full UI PARKED.
-         */
-        if (ctx->ai_popups && peer == ctx->human_nation) {
-          if (!ai_diplo_popup_pair_queued(
-                ctx->ai_popups, AI_POPUP_TAG_DIPLO_BREAK, nation_id, peer
-              )) {
-            char body[AI_POPUP_BODY_LEN];
-            snprintf(
-              body,
-              sizeof(body),
-              "%s breaks the alliance.",
-              ai_diplo_rival_name(ctx->col1, nation_id)
-            );
-            if (ctx->status && ctx->status_size > 0) {
-              snprintf(ctx->status, ctx->status_size, "%s", body);
-            }
-            const char* labels[] = {"Accept", "Refuse"};
-            const int ids[] = {1, 2};
-            (void)ai_popup_enqueue_choice_ctx(
-              ctx->ai_popups,
-              AI_POPUP_TAG_DIPLO_BREAK,
-              nation_id,
-              peer,
-              0,
-              NULL,
-              body,
-              labels,
-              ids,
-              2
-            );
-          }
-        } else {
-          ai_diplo_break_alliance_ctx(ctx, nation_id, peer);
-        }
-      }
-      continue;
-    }
+    /* The Linux-only standing-alliance arms (FA gift / ally-aid / longevity /
+     * imbalance break CHOICE) were retired with the Euro×Euro alliance
+     * machinery (T2.4 2026-09-06) — DOS has no Euro×Euro alliances; 13b0 is
+     * treaty sign/cancel only. */
 
     /* 10ec war eligibility. */
     if (self > other * 2 + 20 && self > 30) {
@@ -3533,14 +3149,10 @@ void ai_diplo_euro_balance(ColonizeTurnContext* ctx, int nation_id) {
 
     /* FUN_5bfb_13b0: AI-initiated treaty sign/cancel (replaces the invented
      * near-parity alliance offer, 2026-08-27). Sticky deep native unrest still
-     * refuses new treaties this balance (Linux layer, kept). */
+     * refuses new treaties this balance (Linux layer, kept; its old
+     * "precludes new alliances" status chrome retired with T2.4). */
     if (ai_diplo_indian_hostility_sticky(ctx->col1, nation_id) != AI_DIPLO_STICKY_DEEP) {
       ai_diplo_13b0_treaty_tick(ctx, nation_id, peer);
-    } else if (self > 10 && other > 10 && abs(self - other) < 15 &&
-               ctx->human_nation == nation_id && ctx->status && ctx->status_size > 0 &&
-               ctx->rng && dos_rng_range(ctx->rng, 1, 40) == 1) {
-      /* Linux-only chrome, kept behind its original near-parity gate. */
-      snprintf(ctx->status, ctx->status_size, "Native unrest precludes new alliances.");
     }
   }
 }
@@ -3712,42 +3324,21 @@ void ai_diplo_apply_popup_result(ColonizeTurnContext* ctx, const AiPopupState* p
     return;
   }
   /*
-   * FUN_5bfb_13b0 alliance offer CHOICE: Accept (1) → form_alliance_ctx
-   * (status + follow-up OK "Alliance formed with %s" / gold-drain chrome);
-   * Refuse (2) → status only. OK popups share DIPLO_ALLIANCE tag with
-   * choice_id 0 — ignore those. Source: 15b3 / 5bfb; FA 3f41 full UI PARKED.
-   *
    * War-fatigue peace offer CHOICE (FUN_5bfb / 15b3): Accept (1) →
    * make_peace_ctx; Refuse (2) → status + follow-up OK (chrome polish;
    * human-facing status also enqueues OK). Full 153e peace UI PARKED.
    *
    * 10ec war declare CHOICE AI→human: Accept (1) → declare_war_ctx;
-   * Refuse (2) → status + follow-up OK (chrome polish; mirrors peace/
-   * break Refuse). OK popups share DIPLO_WAR + choice_id 0.
+   * Refuse (2) → status + follow-up OK (chrome polish; mirrors peace
+   * Refuse). OK popups share DIPLO_WAR + choice_id 0.
    *
-   * 13b0 break-alliance CHOICE AI→human: Accept (1) → break_alliance_ctx;
-   * Refuse (2) → status + OK (ally kept). OK popups share DIPLO_BREAK +
-   * choice_id 0. FA 3f41 full UI PARKED.
+   * (The DIPLO_ALLIANCE / DIPLO_BREAK alliance CHOICE arms were retired
+   * with the Linux-only Euro×Euro alliance machinery, T2.4 2026-09-06;
+   * DIPLO_BREAK remains as the 13b0 treaty-cancel OK tag.)
    */
   if (popup->result_tag == AI_POPUP_TAG_DIPLO_TALK) {
     if (popup->result_choice_id > 0) {
       ai_talk_resume(ctx, popup->result_payload, popup->result_choice_id);
-    }
-    return;
-  }
-  if (popup->result_tag == AI_POPUP_TAG_DIPLO_ALLIANCE) {
-    if (popup->result_choice_id == 1) {
-      /* Follow-up OK enqueued inside form_alliance_ctx when ai_popups set. */
-      ai_diplo_form_alliance_ctx(ctx, popup->result_nation_a, popup->result_nation_b);
-    } else if (popup->result_choice_id == 2) {
-      if (ctx->status && ctx->status_size > 0) {
-        ai_diplo_status_human_pair(
-          ctx,
-          popup->result_nation_a,
-          popup->result_nation_b,
-          "Alliance refused with %s"
-        );
-      }
     }
     return;
   }
@@ -3783,19 +3374,6 @@ void ai_diplo_apply_popup_result(ColonizeTurnContext* ctx, const AiPopupState* p
     }
     return;
   }
-  if (popup->result_tag == AI_POPUP_TAG_DIPLO_BREAK) {
-    if (popup->result_choice_id == 1) {
-      ai_diplo_break_alliance_ctx(ctx, popup->result_nation_a, popup->result_nation_b);
-    } else if (popup->result_choice_id == 2) {
-      if (ctx->status && ctx->status_size > 0) {
-        ai_diplo_status_human_pair(
-          ctx,
-          popup->result_nation_a,
-          popup->result_nation_b,
-          "Alliance break refused with %s"
-        );
-        /* Status only — refuse follow-up INFO OK was invented (FA UI PARKED). */
-      }
-    }
-  }
+  /* DIPLO_BREAK arrives only as the 13b0 treaty-cancel OK (choice_id 0) —
+   * no action on dismiss. */
 }

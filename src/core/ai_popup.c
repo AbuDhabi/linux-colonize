@@ -394,8 +394,6 @@ const char* ai_popup_tag_name(AiPopupTag tag) {
       return "DIPLO_WAR";
     case AI_POPUP_TAG_DIPLO_PEACE:
       return "DIPLO_PEACE";
-    case AI_POPUP_TAG_DIPLO_ALLIANCE:
-      return "DIPLO_ALLIANCE";
     case AI_POPUP_TAG_DIPLO_BREAK:
       return "DIPLO_BREAK";
     case AI_POPUP_TAG_DIPLO_BOYCOTT:

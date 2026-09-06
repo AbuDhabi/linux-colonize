@@ -533,12 +533,20 @@ regression bisect only.
   (`20e6` ship band, decomp ~89587); `0a60`'s FOUND/CONTACT goal producers
   write *ocean* tiles next to villages / own colonies as ship goals (decomp
   ~87800–88060) — `ai_euro_colony_goals` is still the thin stand-in.
-- [ ] **T2.4 — Retire the Linux-only Euro alliance machinery (cleanup).**
-  Dead since T1.20 (DOS has no Euro×Euro alliances; `13b0` is treaty
-  sign/cancel). Still present: `ai_diplo_form/break_alliance[_ctx]`, ally
-  treaty timers/aid/prize, the `DIPLO_ALLIANCE` CHOICE apply, ~64 refs in
-  `ai_diplo.c`, ~130 assertions in `test_ai_diplo.c`. Zero gameplay effect;
-  one deliberate deletion pass when the diplo file is next touched.
+- [x] **T2.4 — Retire the Linux-only Euro alliance machinery (cleanup).**
+  Closed 2026-09-06: deleted `ai_diplo_form/break_alliance[_ctx]`, ally
+  treasury cost / treaty-min / trust penalty / Indian sticky raise /
+  ally-aid / `fa_gift` / longevity helpers, the euro_balance ALLY arms
+  (FA gift + imbalance-break CHOICE), the treaty-timer ALLY-expiry arm,
+  the DIPLO_ALLIANCE/BREAK CHOICE applies, and the sticky "precludes new
+  alliances" chrome. Kept: `AI_DIPLO_ALLY` define (self-pair virtual +
+  ai_king 2244 byte-faithful read — never set on Euro pairs, so 2244
+  eligibility reduces to self-only, as in DOS), tag 22 as a numbering gap,
+  `DIPLO_BREAK` as the 13b0 treaty-cancel OK tag, the AI_TALK
+  ALLY_PICK/ALLY_PAY paid-@SMITE stages (real DOS 153e), timer decrement +
+  peace-tweak expiry (real 6d8e step 4). ai_diplo.c −422 lines,
+  test_ai_diplo.c −876 (alliance tests removed; embargo-lift smoke moved
+  to make_peace). ctest 57/57 + goldens green after.
 - [x] **T3.3 — Re-enable `golden_ai_turns` / `golden_ai_joint`.** Closed
   2026-09-05 (user-confirmed): both DISABLED flips removed from
   CMakeLists.txt; full `ctest` now 57/57 with both gates green. Harness:
