@@ -2962,5 +2962,149 @@ int main(void) {
     }
   }
 
+  /*
+   * FUN_5bfb_153e @WANTSTUFF demand phase (2026-09-06): when the encounter's
+   * moving unit belongs to the TARGET (an AI unit walked up to a human
+   * colony), the AI demands goods — dialog names the picked cargo, but the
+   * DOS transfer indexes the stock rows with the stale rival-loop counter
+   * (== 4), moving FURS (OVL16 asm 0x2995-0x29B2, byte-verified). Accepting
+   * must move Furs by the demanded amount and leave the named cargo alone.
+   */
+  {
+    ColonizeWorldMap qmap;
+    memset(&qmap, 0, sizeof(qmap));
+    qmap.width = 16;
+    qmap.height = 16;
+    qmap.tile_count = 256;
+    qmap.terrain = calloc(256, 1);
+    qmap.layer2 = calloc(256, 1);
+    qmap.layer3 = calloc(256, 1);
+    if (!qmap.terrain || !qmap.layer2 || !qmap.layer3) {
+      return fail("153e wantstuff alloc map");
+    }
+    for (int i = 0; i < 256; ++i) {
+      qmap.terrain[i] = 1;
+      qmap.layer3[i] = 1;
+    }
+    static ColonizeUnitPool qunits;
+    units_reset(&qunits);
+    qunits.type_count = 1;
+    snprintf(qunits.types[0].name, sizeof(qunits.types[0].name), "Dragoons");
+    qunits.types[0].movement = 4;
+    qunits.types[0].attack = 3;
+    qunits.types[0].defense = 3;
+    qunits.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+    const int aiu = units_spawn(&qunits, 0, 5, 6); /* AI unit next to human colony */
+    ColonizeUnit* pai = units_get(&qunits, aiu);
+    if (!pai) {
+      return fail("153e wantstuff spawn");
+    }
+    pai->nation_id = 1;
+    static ColonizeColonyPool qcol;
+    colonies_init(&qcol);
+    ColonizeColony* hc = &qcol.colonies[0]; /* human colony = demand source */
+    hc->id = 0;
+    hc->active = true;
+    hc->nation_id = 0;
+    hc->x = 5;
+    hc->y = 5;
+    hc->population = 2;
+    hc->colonist_count = 2;
+    hc->building_in_production = -1;
+    hc->stock[COLONIZE_CARGO_MUSKETS] = 60;
+    hc->stock[COLONIZE_CARGO_FURS] = 10;
+    ColonizeColony* ac = &qcol.colonies[1]; /* target's nearest colony = receiver */
+    ac->id = 1;
+    ac->active = true;
+    ac->nation_id = 1;
+    ac->x = 8;
+    ac->y = 8;
+    ac->population = 2;
+    ac->colonist_count = 2;
+    ac->building_in_production = -1;
+    qcol.colony_count = 2;
+    qcol.next_id = 2;
+    ColonizeCol1Save q;
+    col1_save_init(&q);
+    memset(q.nation, 0, sizeof(q.nation));
+    memset(q.head.nation_relation, 0, sizeof(q.head.nation_relation));
+    q.head.turn = 100; /* past the (difficulty-10)*-10 threshold */
+    q.head.difficulty = 1;
+    q.head.human_player = 0;
+    q.nation[0].gold = 0; /* gold < score → TRIBUTE skipped, score stays != 999 */
+    q.stuff.colony_counts[0] = 1;
+    q.stuff.colony_counts[1] = 1;
+    q.stuff.field_combat_totals[1] = 10; /* target×3 >= self keeps worthy */
+    q.stuff.colony_pop_totals[1] = 8;    /* quarter=2 > own_border(0) → SIEGES skipped */
+    q.stuff.census_pop_proxy[0] = 8;     /* skip the small-nation score halving */
+    q.nation[1].trade.euro_price[COLONIZE_CARGO_MUSKETS] = 200; /* -0x7b44 weight */
+    snprintf(q.player[0].country_name, sizeof(q.player[0].country_name), "England");
+    snprintf(q.player[1].country_name, sizeof(q.player[1].country_name), "France");
+    AiPopupState qpop;
+    ai_popup_init(&qpop);
+    ColonizeDosRng qrng;
+    dos_rng_seed(&qrng, 7);
+    ColonizeTurnContext qctx;
+    memset(&qctx, 0, sizeof(qctx));
+    qctx.col1 = &q;
+    qctx.col1_ok = true;
+    qctx.map = &qmap;
+    qctx.units = &qunits;
+    qctx.colonies = &qcol;
+    qctx.human_nation = 0;
+    qctx.ai_popups = &qpop;
+    qctx.rng = &qrng;
+    const int started = ai_diplo_153e_encounter(&qctx, 0, 1, pai->id);
+    free(qmap.terrain);
+    free(qmap.layer2);
+    free(qmap.layer3);
+    if (!started) {
+      return fail("153e wantstuff: AI unit next to human colony must open the talk");
+    }
+    if ((q.nation[0].euro_relation[1] & AI_DIPLO_MET) == 0 ||
+        (q.nation[1].euro_relation[0] & AI_DIPLO_MET) == 0) {
+      return fail("153e wantstuff: a started talk must stamp MET both ways (3180 :98530)");
+    }
+    int saw_wantstuff = 0;
+    for (int guard = 0; guard < 12 && qpop.queue_count > 0; ++guard) {
+      AiPopupRequest front = qpop.queue[0];
+      memmove(&qpop.queue[0], &qpop.queue[1], sizeof(qpop.queue[0]) * (size_t)(qpop.queue_count - 1));
+      qpop.queue_count--;
+      if (front.kind != AI_POPUP_KIND_CHOICE) {
+        continue;
+      }
+      /* WANTSTUFF: accept (choice 2). Everything else: option 1. */
+      const int is_want = strstr(front.body, "reparations") != NULL;
+      if (is_want && !saw_wantstuff) {
+        saw_wantstuff = 1;
+      }
+      qpop.has_result = true;
+      qpop.result_cancelled = false;
+      qpop.result_tag = AI_POPUP_TAG_DIPLO_TALK;
+      qpop.result_choice_id = (is_want && saw_wantstuff == 1) ? 2 : 1;
+      if (is_want) {
+        saw_wantstuff = 2; /* answer the demand once */
+      }
+      qpop.result_nation_a = 0;
+      qpop.result_nation_b = 1;
+      qpop.result_payload = front.payload;
+      ai_diplo_apply_popup_result(&qctx, &qpop);
+      qpop.has_result = false;
+    }
+    if (!saw_wantstuff) {
+      return fail("153e wantstuff: the goods demand CHOICE must be queued");
+    }
+    if (qcol.colonies[1].stock[COLONIZE_CARGO_FURS] != 60) {
+      fprintf(stderr, "unit_ai_diplo: receiver furs=%d\n", qcol.colonies[1].stock[COLONIZE_CARGO_FURS]);
+      return fail("153e wantstuff: accepting must move FURS by the demanded amount (DOS stale index)");
+    }
+    if (qcol.colonies[0].stock[COLONIZE_CARGO_FURS] != 0) {
+      return fail("153e wantstuff: source furs floor at 0 (Linux bound on the DOS underflow)");
+    }
+    if (qcol.colonies[0].stock[COLONIZE_CARGO_MUSKETS] != 60) {
+      return fail("153e wantstuff: the NAMED cargo must not move (DOS transfers Furs)");
+    }
+  }
+
   return 0;
 }

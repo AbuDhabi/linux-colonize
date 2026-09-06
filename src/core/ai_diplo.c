@@ -47,7 +47,9 @@
  * Euro×Euro war does NOT boycott Europe cargos (DOS tea-party / king refuse
  * only). An invented wartime all-16-bit embargo was removed after
  * all_boycotted.SAV (1516, tax 0, boycott_bitmap 0xFFFF). Peace still
- * lifts leftover wartime bits on poisoned saves. Full per-rival 153e PARKED. */
+ * lifts leftover wartime bits on poisoned saves. The full per-rival 153e
+ * audience is LIVE (ai_diplo_153e_encounter below, 2026-09-06 close-out);
+ * this sting remains the declare-war side-effect layer. */
 
 #define AI_DIPLO_WAR_GOLD_STING 100u
 #define AI_DIPLO_WAR_TAX_BUMP 1u
@@ -1559,10 +1561,11 @@ static int ai_diplo_153e_skilled_units_at(const ColonizeTurnContext* ctx, int na
  * confirm regardless). Full trace: `euro_diplo_153e_full.md`'s 2026-08-20
  * T1.11 update.
  *
- * NOT wired into any live caller: matches the
- * ai_euro_5d04_nation_planning_structural precedent — finishing a
- * structural port doesn't by itself make it safe to flip live on a
- * function this stub-dense.
+ * LIVE since the 2026-08-27 deepen (ai_diplo_153e_encounter, fired from
+ * FUN_5bfb_3180's both move sides — game_loop for the human, ai_euro
+ * post-act for AI units since 2026-09-06). The old "not safe to flip"
+ * caution is resolved: bit 0x10 is AI_DIPLO_CROWN_ARMED (FUN_38fd_5930),
+ * read as real data below.
  *
  * Real inputs used: euro_relation[] peace bit (resolved, DS -0x77c4),
  * turn/difficulty (col1->head, resolved), the human-nation entry gate
@@ -1642,6 +1645,7 @@ Ai153eWorthinessScore ai_diplo_153e_worthiness_score(
   out.own_border = 0;
   out.border_value = 0;
   out.any_border = 0;
+  out.forced = 0;
   (void)encounter_unit; /* DOS param_4: only read by the demand-goods phase (not ported) */
   if (!ctx || !ctx->col1_ok || !ctx->col1 || !ctx->map || !ctx->colonies || !ctx->units ||
       self < 0 || self >= 4 || target < 0 || target >= 4 || self == target) {
@@ -1805,7 +1809,7 @@ Ai153eWorthinessScore ai_diplo_153e_worthiness_score(
       }
     }
   }
-  (void)forced_conflict;
+  out.forced = forced_conflict; /* raw iStack_c survives to phase 2's tally gate */
 
   /* raw 545-563: final scaling. */
   int scaled = ((difficulty + 8) * combat_delta_sum * 10) / 100;
@@ -1874,16 +1878,18 @@ Ai153eWorthinessScore ai_diplo_153e_worthiness_score(
  * AI_POPUP_TAG_DIPLO_TALK popup (payload = stage), its answer resumes the
  * flow in ai_diplo_153e_talk_resume. GAME.TXT tags are the DOS strcpy/
  * strcat products (HELLO+FIRST/AHOY/MEEK/MANLY, PEACE+MEEK/MANLY, ...).
- * Not modeled: the WANTSTUFF goods demand (needs the phase-2 colony-stock
- * demand pick), the USA (post-independence) text variants, the per-tribe
- * strength table (-0x6e7c, always 0 here), unit "encounter direction"
- * stamps.
+ * @WANTSTUFF goods demand ported 2026-09-06 (see the want_* fields and
+ * AI_TALK_ST_WANTSTUFF; incl. the byte-verified DOS Furs stale-index bug).
+ * Still not modeled: the USA (post-independence) text variants, the
+ * LEADER/LEADER2/KINGS/DEEDS name-prep prefixes (folded into single-tag
+ * bodies), unit "encounter direction" stamps (+0x314f).
  * ====================================================================== */
 enum {
   AI_TALK_ST_THIRD = 1,
   AI_TALK_ST_PIRACY,
   AI_TALK_ST_SIEGES,
   AI_TALK_ST_TRIBUTE,
+  AI_TALK_ST_WANTSTUFF,
   AI_TALK_ST_WORTHY,
   AI_TALK_ST_GIVECASH,
   AI_TALK_ST_PEACEMENU,
@@ -1917,6 +1923,12 @@ typedef struct Ai153eTalk {
   int ally_cost;
   int withdraw_cost;
   int pending_gold; /* GIVECASH / GIFTS amount */
+  /* @WANTSTUFF demand-goods pick (raw :97562-97593): armed only when the
+   * encounter's moving unit (DOS param_4) belongs to `target`. */
+  int want_cargo;  /* raw iStack_b4: picked cargo index, -1 none */
+  int want_amount; /* raw iStack_8a: demanded amount (deficit capped to source stock) */
+  int want_src;    /* raw iStack_88: colony on the encounter tile (the human's) */
+  int want_dst;    /* raw iStack_64: target's nearest colony (the receiver) */
   int last_talk_turn[4][4];
 } Ai153eTalk;
 static Ai153eTalk s_talk;
@@ -2147,7 +2159,9 @@ static void ai_talk_advance(ColonizeTurnContext* ctx) {
     switch (k->stage) {
       case AI_TALK_ST_THIRD: {
         k->stage = AI_TALK_ST_PIRACY;
-        if (k->third >= 0 && ai_talk_met(ctx, h, k->third)) {
+        /* raw :97662: `(-1 < iStack_ca) && (uStack_9e == 0)` — the crown-armed
+         * marker suppresses the third-party demand too. */
+        if (k->third >= 0 && !k->crown_armed && ai_talk_met(ctx, h, k->third)) {
           PopupMsgTokens t3 = tok;
           t3.string0 = ai_talk_name(ctx, k->third);
           t3.string1 = k->third >= 4 ? ai_talk_name(ctx, k->third) : (k->manly ? "demand" : "request");
@@ -2204,7 +2218,7 @@ static void ai_talk_advance(ColonizeTurnContext* ctx) {
         break;
       }
       case AI_TALK_ST_TRIBUTE: {
-        k->stage = AI_TALK_ST_WORTHY;
+        k->stage = AI_TALK_ST_WANTSTUFF;
         if (k->score != 0 && k->manly && col1->nation[h].gold >= (uint32_t)k->score) {
           PopupMsgTokens tt = tok;
           tt.number0 = k->score;
@@ -2214,6 +2228,37 @@ static void ai_talk_advance(ColonizeTurnContext* ctx) {
             ctx, "TRIBUTE", &tt,
             "\"%STRING0 has told us to drive all %STRING1 from these shores. We might overlook this in exchange for a donation of %NUMBER0$.\"",
             lab, 2, AI_TALK_ST_TRIBUTE
+          );
+          return;
+        }
+        break;
+      }
+      case AI_TALK_ST_WANTSTUFF: {
+        /*
+         * @WANTSTUFF (raw :97896-97930, msg ids 0x191e LEADER2 + 0x1926):
+         * gate = manly && score != 999 (tribute dialog not shown — raw sets
+         * uStack_68 = 999 unconditionally after TRIBUTE) && a cargo was
+         * picked in the encounter's demand phase (only armed when the
+         * encounter's moving unit belongs to `target`). Tokens: NUMBER0 =
+         * amount, STRING1 = the picked @CARGO name, STRING2 = target.
+         */
+        k->stage = AI_TALK_ST_WORTHY;
+        if (k->manly && k->score != 999 && k->want_cargo >= 0 && ctx->colonies) {
+          PopupMsgTokens tw = tok;
+          tw.number0 = k->want_amount;
+          tw.has_number0 = true;
+          tw.string1 = ai_diplo_cargo_name(k->want_cargo);
+          tw.string2 = ai_talk_name(ctx, t);
+          static const char* const lab[2] = {
+            "We laugh at your puny threats.",
+            "We gladly share %NUMBER0 %STRING1 with our %STRING2 brothers."
+          };
+          ai_talk_choice(
+            ctx, "WANTSTUFF", &tw,
+            "\"We are displeased that you continue to befoul lands that are "
+            "rightfully ours by order of %STRING0.  We demand %NUMBER0 %STRING1 "
+            "as reparations.\"",
+            lab, 2, AI_TALK_ST_WANTSTUFF
           );
           return;
         }
@@ -2423,9 +2468,9 @@ static void ai_talk_resume(ColonizeTurnContext* ctx, int stage, int choice) {
             *f = (uint8_t)(*f | AI_DIPLO_WAR);
           }
         } else {
-          ColonizeCol1Indian* ind = &col1->indian[k->third - 4];
-          const int a = (int)ind->alarm_by_player[h] + 100;
-          ind->alarm_by_player[h] = (uint16_t)(a > 255 ? 255 : a); /* FUN_281f_0d6c(tribe,h,100,0) */
+          /* FUN_281f_0d6c(tribe, h, 100, 0): the real alarm-delta writer
+           * (clamps 0..100) — joining the crusade enrages the tribe at US. */
+          ai_diplo_indian_alarm_delta(col1, k->third, h, 100);
         }
       }
       break;
@@ -2471,9 +2516,37 @@ static void ai_talk_resume(ColonizeTurnContext* ctx, int stage, int choice) {
       if (choice == 2) {
         ai_talk_gold(ctx, h, t, k->score);
         k->worthy = 0;
-        k->score = 999;
       }
+      /* raw :97894: uStack_68 = 999 unconditionally after the TRIBUTE dialog
+       * (decline included) — marks "tribute asked" so @WANTSTUFF is skipped
+       * and the worthy/PROVOKE arm reads score >= 0x65. */
+      k->score = 999;
       break;
+    case AI_TALK_ST_WANTSTUFF:
+      if (choice == 2) {
+        /*
+         * Byte-verified DOS bug (OVL16 asm 0x2995-0x29B2): the transfer
+         * indexes the colony stock rows with [bp-0xa2] — the loop counter
+         * left at 4 by the euro rival-tally do-while — NOT the picked cargo
+         * [bp-0xb2]. So DOS always moves FURS (cargo 4) by the demanded
+         * amount, whatever the dialog named. Ported faithfully. Linux-only
+         * bound: source stock floors at 0 (DOS int16 may underflow when the
+         * picked cargo != Furs); receiver is uncapped like DOS.
+         */
+        ColonizeColony* cs = colonies_get_mut(ctx->colonies, k->want_src);
+        ColonizeColony* cd = colonies_get_mut(ctx->colonies, k->want_dst);
+        if (cs && cd && cs->active && cd->active) {
+          cs->stock[COLONIZE_CARGO_FURS] -= k->want_amount;
+          if (cs->stock[COLONIZE_CARGO_FURS] < 0) {
+            cs->stock[COLONIZE_CARGO_FURS] = 0;
+          }
+          cd->stock[COLONIZE_CARGO_FURS] += k->want_amount;
+        }
+        k->worthy = 0; /* raw :97928 iStack_a8 = 0 */
+      }
+      k->stage = AI_TALK_ST_WORTHY;
+      ai_talk_advance(ctx);
+      return;
     case AI_TALK_ST_WORTHY:
       if (choice == 1) {
         ai_diplo_or_both(col1, h, t, (uint8_t)(AI_DIPLO_PEACE | AI_DIPLO_MET));
@@ -2576,7 +2649,10 @@ static void ai_talk_resume(ColonizeTurnContext* ctx, int stage, int choice) {
         if (k->at_war) {
           span *= 2;
         }
-        if (ai_talk_rng(ctx, 0, span) > (int)col1->stuff.field_combat_totals[h]) {
+        /* raw asm OVL16 0x2EF2-0x2EFA: `cmp cx(=totals[self]), ax(=roll); jl
+         * refuse` — roll <= the HUMAN's field-combat total → they back down.
+         * (Was inverted here before 2026-09-06.) */
+        if (ai_talk_rng(ctx, 0, span) <= (int)col1->stuff.field_combat_totals[h]) {
           ai_talk_ok(ctx, "WITHDRAW", &tok, "\"In the interest of peace, we shall withdraw our forces.\"");
           (void)ai_talk_withdraw(ctx, t, h);
         } else {
@@ -2600,7 +2676,10 @@ static void ai_talk_resume(ColonizeTurnContext* ctx, int stage, int choice) {
         } else {
           if (p < 4) {
             ai_diplo_clear_both(col1, t, p, AI_DIPLO_PEACE);
-            uint8_t* f = ai_diplo_flag_byte(col1, t, p);
+            /* raw :98393: nation[pick].euro_relation[target] |= WAR — the
+             * PICKED nation's byte toward the hired smiter, same direction
+             * as the APOSTATES arm (was written (t,p) before 2026-09-06). */
+            uint8_t* f = ai_diplo_flag_byte(col1, p, t);
             if (f) {
               *f = (uint8_t)(*f | AI_DIPLO_WAR);
             }
@@ -2656,14 +2735,84 @@ int ai_diplo_153e_encounter(ColonizeTurnContext* ctx, int human, int target, int
   k->any_border = w.any_border;
   k->third = -1;
   k->ally_pick = -1;
+  k->want_cargo = -1;
+  k->forced = w.forced;
   k->manly = w.worthy ? 1 : 0;
+
+  /*
+   * @WANTSTUFF demand pick (raw :97562-97593): only when the encounter's
+   * moving unit (DOS param_4, from FUN_5bfb_3180) belongs to `target` — an
+   * AI unit walked up to the human side. Receiver = target's nearest colony
+   * (FUN_1000_8804, nearest-by-distance approximated Chebyshev); source =
+   * the colony on the encounter tile (FUN_1000_89ae at unit+dir; the Linux
+   * encounter has no direction, so the first adjacent colony stands in —
+   * identical whenever one adjacent colony exists, which is the DOS case).
+   * value = min(warehouse-capacity deficit at receiver, source stock) ×
+   * euro_price[target][cargo] (-0x7b44), kept when >= (score/10)*(diff-2)
+   * + score/2 and >= the running best.
+   */
+  {
+    const ColonizeUnit* eu = units_get_const(ctx->units, unit_id);
+    if (eu && eu->active && eu->nation_id == target && ctx->colonies) {
+      static const int ddx[8] = {0, 1, 1, 1, 0, -1, -1, -1};
+      static const int ddy[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
+      int dst = -1;
+      int best_d = 0x7fff;
+      for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+        const ColonizeColony* c = &ctx->colonies->colonies[i];
+        if (!c->active || c->nation_id != target) {
+          continue;
+        }
+        int dx0 = c->x - eu->x;
+        int dy0 = c->y - eu->y;
+        if (dx0 < 0) dx0 = -dx0;
+        if (dy0 < 0) dy0 = -dy0;
+        const int d = dx0 > dy0 ? dx0 : dy0;
+        if (d < best_d) {
+          best_d = d;
+          dst = i;
+        }
+      }
+      int src = -1;
+      for (int d = 0; d < 8 && src < 0; ++d) {
+        src = colonies_id_at(ctx->colonies, eu->x + ddx[d], eu->y + ddy[d]);
+      }
+      const ColonizeColony* cd = dst >= 0 ? colonies_get(ctx->colonies, dst) : NULL;
+      const ColonizeColony* cs = src >= 0 ? colonies_get(ctx->colonies, src) : NULL;
+      if (cd && cs && cd->active && cs->active) {
+        const int thr = (w.score / 10) * ((int)col1->head.difficulty - 2) + (w.score >> 1);
+        int best_v = 0; /* raw iStack_c2 */
+        for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
+          /* FUN_1000_8f2a = warehouse capacity (FUN_15eb_0a50). */
+          int amount = colonies_warehouse_capacity(ctx->colonies, cd, c) - cd->stock[c];
+          if (cs->stock[c] < amount) {
+            amount = cs->stock[c];
+          }
+          const int v = amount * (int)col1->nation[target].trade.euro_price[c];
+          if (v >= thr && v >= best_v) {
+            best_v = v;
+            k->want_cargo = c;
+            k->want_amount = amount;
+            k->want_src = src;
+            k->want_dst = dst;
+          }
+        }
+      }
+    }
+  }
 
   /* raw :97594-97650: rival tally (local_ba) + the third-party candidate. */
   int ba = k->at_war ? -2 : 0;
   for (int tr = 0; tr < 8; ++tr) {
     const ColonizeCol1Indian* ind = &col1->indian[tr];
+    if (ind->extinct) {
+      continue; /* asm 0x202B: test [0x8d4e+3], 0x80 */
+    }
+    /* asm 0x2035-0x205E: alarm(tribe→target) > 0x4a OR the SELF↔tribe WAR
+     * bit (FUN_1000_8c28(self, tribe+4) & 2 — the earlier `target` read here
+     * was a decompile-arg misread, fixed 2026-09-06 against the raw pushes). */
     const int hostile_to_t = ind->alarm_by_player[target] > 0x4a ||
-                             (ind->euro_diplo[target] & COL1_INDIAN_WAR_BIT) != 0;
+                             (ind->euro_diplo[human] & COL1_INDIAN_WAR_BIT) != 0;
     if (!hostile_to_t) {
       continue;
     }
@@ -2692,6 +2841,9 @@ int ai_diplo_153e_encounter(ColonizeTurnContext* ctx, int human, int target, int
       k->third = n;
     }
   }
+  /* raw :97648: ba -= (char)(-0x6a9a[target*3]) — the ×3-stride per-nation
+   * byte table is still unresolved project-wide (Linux unknown34_pad; same
+   * stub as ai_euro_10ec_war_worthy). Stubbed 0, documented, not invented. */
   if (col1->stuff.land_combat_strength[human] < col1->stuff.land_combat_strength[target]) {
     ba--;
   }
@@ -2730,6 +2882,10 @@ int ai_diplo_153e_encounter(ColonizeTurnContext* ctx, int human, int target, int
   ai_talk_ok(ctx, hello, &tok, "\"Greetings, %STRING0, and welcome to %STRING1.\"");
   k->stage = AI_TALK_ST_THIRD;
   ai_talk_advance(ctx);
+  /* FUN_5bfb_3180 :98530: a nonzero 153e return stamps MET (0x20) both
+   * directions (switchD_2000:da9f::caseD_10(a, b, 0x20)) — the greeting
+   * above read the pre-stamp value for FIRST/AHOY. */
+  ai_diplo_or_both(col1, human, target, AI_DIPLO_MET);
   return 1;
 }
 

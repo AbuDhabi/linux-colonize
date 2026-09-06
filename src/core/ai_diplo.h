@@ -85,7 +85,8 @@
  * cooldown stamp (refreshed to `turn` as a side effect), DS:0xa153 top-
  * ranked nation, Franklin, the treasury clamp. Only the AI-self entry
  * branch (13b0) runs for AI nations — DOS never scores an AI self here.
- * The commit / demand / flavor phases (raw ~594+) are not ported.
+ * The commit / demand / flavor phases (raw ~594+) live in the
+ * ai_diplo_153e_encounter talk machine (@WANTSTUFF included, 2026-09-06).
  */
 typedef struct Ai153eWorthinessScore {
   int handled;         /* raw uStack_8e - did the phase run to completion */
@@ -96,9 +97,17 @@ typedef struct Ai153eWorthinessScore {
                              direct (non-accessor) read = WAR (T1.19 bit map;
                              the older "consistent with PEACE" reading is retired) */
   int old_stamp;         /* raw local_8c: DS:0x53c8[target] before the refresh */
-  int own_border;        /* raw local_8: Σ border-probe value where the human's units matched */
+  int own_border;        /* raw local_8: Σ border-probe value where the human's units matched.
+                             2026-09-06 asm note (OVL16 0x1BED-0x1C7B): the probe call site
+                             pushes param_3 (target) fixed, and FUN_5bfb_0000 only ever writes
+                             param_4 or -1 into its matched-out — so the matched==param_2
+                             branch is DEAD in DOS and own_border is always 0. Linux
+                             faithfully reproduces that (probe never returns self). */
   int border_value;      /* raw local_b2: Σ (doubled off-continent) target-matched probe value */
   int any_border;        /* raw local_62: any target-matched colony probe */
+  int forced;            /* raw iStack_c: forced-conflict flag AFTER the Franklin /
+                             difficulty-threshold overrides — phase 2's rival-tally
+                             demotion is skipped while it is set (raw :97650). */
 } Ai153eWorthinessScore;
 
 Ai153eWorthinessScore ai_diplo_153e_worthiness_score(

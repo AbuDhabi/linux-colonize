@@ -462,29 +462,23 @@ static int ai_king_intervention_nation_slot(
 }
 
 /*
- * FUN_43f7_1a26: cache two non-human/non-crown Euro slots (DOS 0x53d4/0x53d6).
- * DOS ranks all four by colonies*3 + pop*2 + third-term and the sort
- * (FUN_1cf8_000a insertion sort) is ASCENDING — so the intervention ally
- * (0x53d4) is the WEAKER of the two remaining powers, the second (0x53d6)
- * the stronger. (Same sorted list 43f7_0218 picks the crown from: first
- * non-human = the weakest power, which is withdrawn-by-merger to free its
- * slot for the King.)
+ * FUN_43f7_0218 / FUN_43f7_1a26 shared nation rank (both build the same
+ * table before FUN_291f_0ed0's ascending insertion sort):
+ *   score[n] = ship_counts[n]*3 + colony_counts[n]*2 + census_pop_proxy[n]
+ * (DS:-0x6be8 = 0x9418 ship_counts, -0x6d68 = 0x9298 colony_counts,
+ * -0x6bf0 = 0x9410 census_pop_proxy — save_format_map.md rows 241/243/247;
+ * the port's live FUN_4962_0018 census keeps all three fresh per turn).
+ * Was an invented per-colony pop score before 2026-09-06.
  */
-static void ai_king_write_rival_nation_slots(ColonizeCol1Save* col1, int human) {
-  if (!col1 || human < 0 || human >= 4) {
-    return;
-  }
-  const int crown = ai_king_crown_nation_col1(col1, human);
+static void ai_king_rank_nations_0218(const ColonizeCol1Save* col1, int order[4]) {
   int score[4] = {0, 0, 0, 0};
-  if (col1->colony) {
-    for (uint16_t i = 0; i < col1->head.colony_count; ++i) {
-      const int n = (int)col1->colony[i].nation_id;
-      if (n >= 0 && n < 4) {
-        score[n] += 3 + 2 * (int)col1->colony[i].population;
-      }
+  for (int n = 0; n < 4; ++n) {
+    order[n] = n;
+    if (col1) {
+      score[n] = 3 * (int)col1->stuff.ship_counts[n] + 2 * (int)col1->stuff.colony_counts[n] +
+                 (int)col1->stuff.census_pop_proxy[n];
     }
   }
-  int order[4] = {0, 1, 2, 3};
   for (int a = 1; a < 4; ++a) {
     for (int b = a; b > 0 && score[order[b]] < score[order[b - 1]]; --b) {
       const int t = order[b];
@@ -492,6 +486,24 @@ static void ai_king_write_rival_nation_slots(ColonizeCol1Save* col1, int human) 
       order[b - 1] = t;
     }
   }
+}
+
+/*
+ * FUN_43f7_1a26: cache two non-human/non-crown Euro slots (DOS 0x53d4/0x53d6).
+ * DOS ranks all four by ships*3 + colonies*2 + census (see
+ * ai_king_rank_nations_0218) and the sort is ASCENDING — so the intervention
+ * ally (0x53d4) is the WEAKER of the two remaining powers, the second
+ * (0x53d6) the stronger. (Same sorted list 43f7_0218 picks the crown from:
+ * first non-human = the weakest power, which is withdrawn-by-merger to free
+ * its slot for the King.)
+ */
+static void ai_king_write_rival_nation_slots(ColonizeCol1Save* col1, int human) {
+  if (!col1 || human < 0 || human >= 4) {
+    return;
+  }
+  const int crown = ai_king_crown_nation_col1(col1, human);
+  int order[4];
+  ai_king_rank_nations_0218(col1, order);
   col1->head.rival_nation_slot_1 = -1;
   col1->head.rival_nation_slot_2 = -1;
   int w = 0;
@@ -538,11 +550,22 @@ static void ai_king_seed_backup_force_1a26(ColonizeTurnContext* ctx, int human) 
   if (ally < 0 || ally >= 4) {
     return;
   }
-  const ColonizeCol1Nation* anat = &ctx->col1->nation[ally];
-  const int local_4 = ctx->colonies ? ai_king_colony_count(ctx->colonies, ally) : 0;
-  const int n6bf0 = (int)(anat->founding_father_count & 0xffu);
-  const int n6bd4 = (int)anat->rebel_sentiment;
-  const int n6be4 = (int)anat->liberty_bells_total;
+  /*
+   * Real DOS operands resolved 2026-09-06 (were mapped to unrelated nation
+   * fields before): all four are FUN_4962_0018 census tables for the ally
+   * (DOS 0x53d4 rival slot):
+   *   -0x6bf0 = 0x9410 census_pop_proxy;
+   *   -0x6bd4 = 0x942c field_combat_totals (land combat units in the field);
+   *   -0x6be4 word = 0x941c land_combat_strength (u16);
+   *   local_4 = unit_type_counts[ally][0x10] + [0x11] (DS:-0x6da4/-0x6da3,
+   *     stride 0x13 = Privateer + Frigate counts — the ally's warships).
+   */
+  const ColonizeCol1Stuff* stuff = &ctx->col1->stuff;
+  const int local_4 =
+    (int)stuff->unit_type_counts[ally][16] + (int)stuff->unit_type_counts[ally][17];
+  const int n6bf0 = (int)stuff->census_pop_proxy[ally];
+  const int n6bd4 = (int)stuff->field_combat_totals[ally];
+  const int n6be4 = (int)stuff->land_combat_strength[ally];
 
   int pool0 = (n6bf0 / 10) - diff + 8;
   const int iVar7 = (4 - diff) / 2;
@@ -1809,24 +1832,104 @@ static void ai_king_sync_boycott_refuse(ColonizeCol1Save* col1, int human) {
   }
 }
 
-/* Grow REF pools by current tax band (1d42 crumb; no tax_rate change). */
-static void ai_king_grow_ref_from_tax(ColonizeCol1Save* col1, uint8_t tax_rate) {
-  if (!col1) {
+/*
+ * FUN_43f7_1d42 — the real royal REF budget tick (viceroy_unpacked.c
+ * 74846-74907 + OVL07 asm at file offset 0x2c62, re-read 2026-09-06).
+ * Runs each PEACETIME turn from FUN_43f7_2424 for the human slot; the asm's
+ * first test (`TEST [0x5382],1 -> JMP 2de6` = RETF) makes the whole function
+ * a no-op once WoI is declared — the Ghidra-visible @KINGMOBILIZE (0x1320)
+ * "wartime" arm at OVL07:2d8a is DEAD CODE in the shipped binary (its only
+ * inbound jump sits after that early return; the two (*) xrefs into
+ * LAB_2da8 are data refs, not calls).
+ *
+ *   growth = difficulty*8 + 10, doubled at year>=1600, >=1700, >=1750;
+ *   nation.royal_money += growth  (nation+0x22 — the same 32-bit purse the
+ *     Europe sales tax, Custom House tax and treasure Crown-share already
+ *     credit in this port; 1d42 is its consumer);
+ *   when >= 0x708 (1800): buy exactly ONE pool unit this turn:
+ *     k=0 Regulars; k=1 if (reg+2)/3 > cavalry; k=3 if reg/4 > artillery;
+ *     k=2 if (reg+cavalry+artillery+5)/10 > man-o-war (last write wins);
+ *   expeditionary_force[k]++ (0x53da/dc/de/e0);
+ *   @KINGBUY (0x1318) with %STRING0 = FUN_43f7_0082(k, crown) unit name —
+ *     the crown's 0x543f control byte is never 0, so the crown map applies:
+ *     6 Regulars / 8 Cavalry / 0x12 Man-O-War / 0xb Artillery;
+ *   royal_money -= 1800.
+ *
+ * DOS tail also does `nation+0xe += free_colonist_counts[nation]`
+ * (liberty_bells_last_turn += DS:0x9408[nation]; asm `MOV AL,[SI+0x9408]`).
+ * NOT replicated: this port repurposes liberty_bells_last_turn as the FF
+ * pool stash (col1_save.h FF_POOL_STASH_MARKER) and no DOS reader of the
+ * bumped value is known — documented divergence, not an oversight.
+ *
+ * (The pre-2026-09-06 stand-in grew pools by tax band on every audience
+ * event and set ref_present from a peacetime pool — both invented; removed.)
+ */
+static void ai_king_1d42_royal_purse(ColonizeTurnContext* ctx) {
+  if (!ctx || !ctx->col1_ok || !ctx->col1) {
     return;
   }
-  col1->head.expeditionary_force[0] += 1; /* regulars */
-  if (tax_rate >= 10) {
-    col1->head.expeditionary_force[1] += 1; /* dragoons */
+  ColonizeCol1Save* col1 = ctx->col1;
+  const int human = ctx->human_nation;
+  if (human < 0 || human >= 4) {
+    return;
   }
-  if (tax_rate >= 20) {
-    col1->head.expeditionary_force[2] += (tax_rate % 5 == 0) ? 1 : 0; /* MoW */
+  if (ai_king_independence_declared(col1)) {
+    return; /* asm 43f7:1d54: wartime = full no-op */
   }
-  if (tax_rate >= 30 && (tax_rate % 10 == 0)) {
-    col1->head.expeditionary_force[3] += 1; /* artillery */
+  ColonizeCol1Nation* nat = &col1->nation[human];
+  const int year = (int)col1->head.year;
+  int growth = (int)col1->head.difficulty * 8 + 10;
+  if (year >= 1600) {
+    growth <<= 1;
   }
-  if (col1->head.expeditionary_force[0] > 0) {
-    ai_king_set_ref_present(col1, 1);
+  if (year >= 1700) {
+    growth <<= 1;
   }
+  if (year >= 1750) {
+    growth <<= 1;
+  }
+  nat->royal_money += growth;
+  if (nat->royal_money < 0x708) {
+    return;
+  }
+  uint16_t* f = col1->head.expeditionary_force;
+  int k = 0;
+  if (((int)f[0] + 2) / 3 > (int)f[1]) {
+    k = 1; /* Cavalry short of a third of the Regulars */
+  }
+  if ((int)f[0] / 4 > (int)f[3]) {
+    k = 3; /* Artillery short of a quarter */
+  }
+  if (((int)f[0] + (int)f[1] + (int)f[3] + 5) / 10 > (int)f[2]) {
+    k = 2; /* Man-O-War short of a tenth of the land force */
+  }
+  f[k]++;
+  static const char* k_pool_name[4] = {"Regulars", "Cavalry", "Man-O-War", "Artillery"};
+  if (ctx->status && ctx->status_size && ctx->status[0] == '\0') {
+    snprintf(ctx->status, ctx->status_size,
+             "King increases military spending. %s added to royal expeditionary force.",
+             k_pool_name[k]);
+  }
+  if (ai_king_human_popups(ctx)) {
+    PopupMsgTokens tok;
+    memset(&tok, 0, sizeof(tok));
+    tok.string0 = k_pool_name[k];
+    char body[AI_POPUP_BODY_LEN];
+    popup_msg_fill(
+      ctx->messages,
+      "KINGBUY",
+      &tok,
+      "King increases military spending.  %STRING0 added to royal "
+      "expeditionary force.  Colonial leaders express alarm.",
+      body,
+      sizeof(body)
+    );
+    (void)ai_popup_enqueue_ok_ctx(
+      ctx->ai_popups, AI_POPUP_TAG_INFO, human,
+      ai_king_crown_nation_col1(col1, human), k, NULL, body
+    );
+  }
+  nat->royal_money -= 0x708;
 }
 
 int ai_king_sol_percent(const ColonizeTurnContext* ctx, int nation_id) {
@@ -2017,11 +2120,18 @@ static int ai_king_audience_roll(ColonizeTurnContext* ctx, int human, int* out_d
     return 0;
   }
 
+  /*
+   * 38fd_5be8 score (viceroy_unpacked.c:68460-68467). The 4th term reads
+   * DS:nation-0x6bf0 — that is 0x9410 census_pop_proxy (population proxy),
+   * NOT a per-nation SoL cache as this port assumed until 2026-09-06 (the
+   * older king_ref.md "same value, no stored cache" note was wrong; the
+   * live FUN_4962_0018 census now backs the real field).
+   */
   const int score =
     dos_rng_range(ctx->rng, 1, 1000) +
     (col1->head.rebel_sentiment_report * 2 - (int)nat->tax_rate) * 5 +
     (int)(nat->gold / 100) +
-    ai_king_sol_percent(ctx, human) +
+    (int)col1->stuff.census_pop_proxy[human] +
     (int)(turn / 30);
 
   int delta;
@@ -2296,11 +2406,11 @@ static void ai_king_tax_commit(ColonizeTurnContext* ctx, int human, int delta) {
   if (ctx->europe) {
     ctx->europe->tax_percent = nat->tax_rate;
   }
-  /* FUN_43f7_1d42 REF-pool growth: a separate DOS mechanic (treasury
-   * threshold, not tax delta) that this port still only approximates by
-   * tax band — unchanged by this pass, kept for existing REF-growth
-   * behavior continuity. */
-  ai_king_grow_ref_from_tax(ctx->col1, nat->tax_rate);
+  /* (2026-09-06) The invented "grow REF pools on every audience event"
+   * stand-in was removed: FUN_43f7_1d42's real mechanic — royal_money
+   * stipend + 1800-gold pool buys — now runs per peacetime turn from
+   * ai_king_nation_turn (ai_king_1d42_royal_purse), independent of tax
+   * audiences. */
 }
 
 static void ai_king_tax_hike_apply(ColonizeTurnContext* ctx, int human, int delta) {
@@ -2493,32 +2603,11 @@ static void ai_king_succession(ColonizeTurnContext* ctx) {
   if (human < 0 || human >= 4) {
     return;
   }
-  /* Score ascending: colony pop*3 + colonies*2 (DOS -0x6be8/-0x6d68 tables;
-   * the -0x6bf0 SoL term only tie-breaks and is folded thin). */
-  int score[4] = {0, 0, 0, 0};
-  if (ctx->colonies) {
-    for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
-      const ColonizeColony* c = &ctx->colonies->colonies[i];
-      if (c->active && c->nation_id >= 0 && c->nation_id < 4) {
-        score[c->nation_id] += 3 * (int)c->population + 2;
-      }
-    }
-  } else if (col1->colony) {
-    for (uint16_t i = 0; i < col1->head.colony_count; ++i) {
-      const int n = (int)col1->colony[i].nation_id;
-      if (n >= 0 && n < 4) {
-        score[n] += 3 * (int)col1->colony[i].population + 2;
-      }
-    }
-  }
-  int order[4] = {0, 1, 2, 3};
-  for (int a = 1; a < 4; ++a) {
-    for (int b = a; b > 0 && score[order[b]] < score[order[b - 1]]; --b) {
-      const int t = order[b];
-      order[b] = order[b - 1];
-      order[b - 1] = t;
-    }
-  }
+  /* FUN_43f7_0218: rank ascending by ships*3 + colonies*2 + census — the
+   * real DOS table (was an invented per-colony pop score; see
+   * ai_king_rank_nations_0218). */
+  int order[4];
+  ai_king_rank_nations_0218(col1, order);
   int merged = -1;  /* DOS local_c: weakest AI — the slot the King takes */
   int heir = -1;    /* DOS local_a: next-weakest AI — receives the estate */
   for (int i = 0; i < 4; ++i) {
@@ -2732,6 +2821,67 @@ static void ai_king_do_declare(ColonizeTurnContext* ctx, int human) {
         units_despawn(ctx->units, u->id);
       }
     }
+  }
+  /*
+   * FUN_43f7_0188(human) — ported 2026-09-06: right after the eliminate
+   * loop, 1a26 deletes every HUMAN unit whose coordinates fail
+   * FUN_281f_0302 (map_tile_in_bounds) — i.e. everything parked on the
+   * Europe/high-seas lanes (DOS x/y 228+n / 232+n / 244+n) — and pops
+   * @SEIZURE (0x1284, "%STRING0 seized on the high seas by the Royal
+   * Navy!") for each ship type (0xd..0x12); passengers/cargo aboard die
+   * silently with their ship. In this port those ships live in the Europe
+   * lane lists, not the unit pool, so the seizure clears
+   * europe->harbor/bound/expected.
+   */
+  if (ctx->europe) {
+    EuropeHarborShip* lanes[3] = {ctx->europe->harbor, ctx->europe->bound,
+                                  ctx->europe->expected};
+    int* counts[3] = {&ctx->europe->harbor_ships, &ctx->europe->bound_ships,
+                      &ctx->europe->expected_ships};
+    for (int li = 0; li < 3; ++li) {
+      for (int si = 0; si < *counts[li]; ++si) {
+        const EuropeHarborShip* ship = &lanes[li][si];
+        if (ai_king_human_popups(ctx)) {
+          PopupMsgTokens tok;
+          memset(&tok, 0, sizeof(tok));
+          tok.string0 = ship->name[0] ? ship->name : "Ship";
+          char body[AI_POPUP_BODY_LEN];
+          char fallback[AI_POPUP_BODY_LEN];
+          snprintf(fallback, sizeof(fallback),
+                   "%s seized on the high seas by the Royal Navy!", tok.string0);
+          popup_msg_fill(ctx->messages, "SEIZURE", &tok, fallback, body, sizeof(body));
+          (void)ai_popup_enqueue_ok_ctx(
+            ctx->ai_popups, AI_POPUP_TAG_INFO, human, crown_fold, 0, NULL, body
+          );
+        }
+      }
+      *counts[li] = 0;
+    }
+    ctx->europe->selected_harbor = -1;
+  }
+  /*
+   * FUN_43f7_1a26 tail (43f7:1c07..1c1b): every human unit's MP is spent via
+   * FUN_281f_0934 (unit_exhaust_mp) — "This will end our turn" (@DECLARE).
+   */
+  if (ctx->units) {
+    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+      ColonizeUnit* u = &ctx->units->units[i];
+      if (u->active && u->nation_id == human) {
+        u->moves_left = 0;
+      }
+    }
+  }
+  /*
+   * FUN_43f7_1a26 last writes (OVL07 asm 2c44..2c5c): ff_count_end_prob
+   * (nation+0x16, DS:-0x77e2) zeroed for the human AND the crown slot, and
+   * the crown's nation_flags bit 0x04 ("achieved independence from its
+   * King") cleared. col1_save.h already documented the field as "cleared on
+   * independence"; the write itself landed here 2026-09-06.
+   */
+  ctx->col1->nation[human].ff_count_end_prob = 0;
+  if (crown_fold >= 0 && crown_fold < 4) {
+    ctx->col1->nation[crown_fold].ff_count_end_prob = 0;
+    ctx->col1->nation[crown_fold].nation_flags &= (uint8_t)~0x04u;
   }
   /*
    * Thin 160a independence rename (the letter animation itself lives in
@@ -3322,7 +3472,14 @@ static void ai_king_ref_wave(ColonizeTurnContext* ctx) {
   uint16_t* force = ctx->col1->head.expeditionary_force;
   int total = (int)force[0] + (int)force[1] + (int)force[2] + (int)force[3];
 
-  if (total <= 0) {
+  /*
+   * FUN_43f7_2022 crown gate (viceroy_unpacked.c:74994): the wave (0982)
+   * runs while `regulars + (cavalry>0) + (artillery>0) != 0` — the
+   * Man-O-War pool alone does NOT sustain the invasion; once the land
+   * pools are gone the crown falls back to 06a6 Tory uprisings even if
+   * force[2] is nonzero (was `total <= 0`, which counted the MoW pool).
+   */
+  if ((int)force[0] + (force[1] > 0 ? 1 : 0) + (force[3] > 0 ? 1 : 0) == 0) {
     /*
      * bugs.md 261 — full FUN_43f7_06a6 Tory uprising (viceroy_unpacked.c
      * 73829-73932), replacing the old one-Regular-at-(hx,hy+1) stand-in
@@ -4930,6 +5087,7 @@ static void ai_king_war_act(ColonizeTurnContext* ctx) {
           cap = 1;
         }
         int promoted = 0;
+        const char* promoted_from = "Soldiers"; /* DOS %STRING1 = pre-promote type name */
         for (int i = 0; i < COLONIZE_UNITS_MAX && cap > 0; ++i) {
           ColonizeUnit* u = &ctx->units->units[i];
           if (!u->active || u->nation_id != human) {
@@ -4964,8 +5122,12 @@ static void ai_king_war_act(ColonizeTurnContext* ctx) {
             continue;
           }
           if (soldier_ty >= 0 && u->type_index == soldier_ty && army >= 0) {
+            const ColonizeUnitType* ty = units_type(ctx->units, u->type_index);
+            promoted_from = ty && ty->name[0] ? ty->name : "Soldiers";
             u->type_index = army;
           } else if (dragoon_ty >= 0 && u->type_index == dragoon_ty && cav >= 0) {
+            const ColonizeUnitType* ty = units_type(ctx->units, u->type_index);
+            promoted_from = ty && ty->name[0] ? ty->name : "Dragoons";
             u->type_index = cav;
           } else {
             continue;
@@ -4992,7 +5154,9 @@ static void ai_king_war_act(ColonizeTurnContext* ctx) {
           tok.string0 = c->name[0] ? c->name : "our colony";
           char body[AI_POPUP_BODY_LEN];
           if (promoted == 1) {
-            tok.string1 = "Soldiers";
+            /* DOS 1eca %STRING1 = the promoted unit's pre-promote type name
+             * (last FUN_281f_0438 slot-1 write), not a constant. */
+            tok.string1 = promoted_from;
             popup_msg_fill(
               ctx->messages, "MOBILIZE", &tok,
               "Continental Army mobilizes! Our Veteran unit has been promoted to "
@@ -6098,6 +6262,10 @@ void ai_king_nation_turn(ColonizeTurnContext* ctx) {
     if (sol > 49) {
       ai_king_succession(ctx);
     }
+    /* FUN_43f7_2424: 1d42 runs FIRST on the peacetime path — the royal
+     * purse stipend + threshold @KINGBUY pool buy (real 1d42; the tax
+     * audience below is the separate 38fd_5be8 machinery). */
+    ai_king_1d42_royal_purse(ctx);
     const int popups_before = ctx->ai_popups ? ctx->ai_popups->queue_count : 0;
     ai_king_tax_event(ctx);
     /* 38fd Europe-EOT king slot: @KINGNEWWAR only when the tax event stayed quiet. */
@@ -6201,32 +6369,62 @@ void ai_king_nation_turn(ColonizeTurnContext* ctx) {
       }
     }
     /*
-     * FUN_43f7_2424 tail: decile SoL notify (DS:0x53d8 dedup). Status-only;
-     * full 0x1362/0x1358/0x136a popup chrome PARKED.
+     * FUN_43f7_2424 tail: decile SoL notify (DS:0x53d8 dedup), full port
+     * 2026-09-06 (was status-only with an invented founding_father_count
+     * gate). DOS (viceroy_unpacked.c:75182-75211):
+     *   gate: census_pop_proxy[human] > 3 (DS:nation-0x6bf0 = 0x9410 — the
+     *     population proxy, NOT an SoL cache as older notes claimed);
+     *   rising: 0x53d8 < report/10 -> @REBELUP (0x1362, SoL<50) or
+     *     @REBELUP50 (0x1358, SoL>=50), %NUMBER0 = SoL, %STRING0 = the
+     *     human's parent country (FUN_291f_0ac8 form-0 name);
+     *   falling: 0x53d8 > (report+4)/10 -> @REBELDOWN (0x136a) — note the
+     *     +4 hysteresis (a one-decile dip does not re-notify);
+     *   both paths then write 0x53d8 = report/10.
      */
-    if (ctx->col1_ok && ctx->col1 && ctx->status && ctx->status_size &&
-        ctx->human_nation >= 0 && ctx->human_nation < 4 &&
-        ctx->col1->nation[ctx->human_nation].founding_father_count > 3 &&
-        ctx->status[0] == '\0') {
-      const int decile = sol / 10;
+    if (ctx->col1_ok && ctx->col1 && ctx->human_nation >= 0 && ctx->human_nation < 4 &&
+        (int)ctx->col1->stuff.census_pop_proxy[ctx->human_nation] > 3) {
       const int last = (int)ctx->col1->head.sol_pct_last_notified;
-      if (decile != last) {
-        if (decile > last) {
+      const int rising = last < sol / 10;
+      const int falling = !rising && last > (sol + 4) / 10;
+      if (rising || falling) {
+        static const char* k_country[4] = {"England", "France", "Spain", "Netherlands"};
+        const char* country = k_country[ctx->human_nation & 3];
+        if (ctx->status && ctx->status_size && ctx->status[0] == '\0') {
           snprintf(
             ctx->status,
             ctx->status_size,
-            "Congress notes rising Sons of Liberty (%d%%).",
-            sol
-          );
-        } else {
-          snprintf(
-            ctx->status,
-            ctx->status_size,
-            "Congress notes falling Sons of Liberty (%d%%).",
+            rising ? "Congress notes rising Sons of Liberty (%d%%)."
+                   : "Congress notes falling Sons of Liberty (%d%%).",
             sol
           );
         }
-        ctx->col1->head.sol_pct_last_notified = (int16_t)decile;
+        if (ai_king_human_popups(ctx)) {
+          PopupMsgTokens tok;
+          memset(&tok, 0, sizeof(tok));
+          tok.has_number0 = true;
+          tok.number0 = sol;
+          tok.string0 = country;
+          const char* section = rising ? (sol >= 50 ? "REBELUP50" : "REBELUP") : "REBELDOWN";
+          char body[AI_POPUP_BODY_LEN];
+          char fallback[AI_POPUP_BODY_LEN];
+          snprintf(
+            fallback,
+            sizeof(fallback),
+            rising
+              ? "Rebel sentiment is rising in the colonies! %d%% of the population "
+                "supports the idea of independence from %s."
+              : "Tory sentiment is once again on the rise. Only %d%% of the population "
+                "now supports the notion of independence from %s.",
+            sol,
+            country
+          );
+          popup_msg_fill(ctx->messages, section, &tok, fallback, body, sizeof(body));
+          (void)ai_popup_enqueue_ok_ctx(
+            ctx->ai_popups, AI_POPUP_TAG_INFO, ctx->human_nation,
+            ai_king_crown_nation_col1(ctx->col1, ctx->human_nation), sol, NULL, body
+          );
+        }
+        ctx->col1->head.sol_pct_last_notified = (int16_t)(sol / 10);
       }
     }
     /*
