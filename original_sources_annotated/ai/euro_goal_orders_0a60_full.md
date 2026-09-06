@@ -639,8 +639,8 @@ Ghidra reloc misresolve (the same class as the `JMPF 0000:XXXX` pattern
 `ai-417e-caller-found` catalogs). The real modes DO carry per-unit
 signal: 2 = total stack count, 3 = # Pioneers, 4 = # military land
 types, 6 = mobilizable count, 0xa = armed-unit count, 0xd = Σ ship hold
-capacity. Consequences for the shipped `0a60` port (NOT rewired in the
-2026-09-06b pass — flagged as follow-up): the unit-loop `iStack_1c`/
+capacity. Consequences for the shipped `0a60` port (REWIRED 2026-09-06c
+— see the "Seventh pass" section at the end): the unit-loop `iStack_1c`/
 `iStack_1e` eligibility gates (`8aac(u,3)`, `8aac(u,4) < 2`,
 `8aac(u,6)`) are real "stack has Pioneers / fewer than two military /
 mobilizable" reads, not noise; the mode-2 substitution "tile stack size"
@@ -1615,3 +1615,46 @@ LAB_521d_1fdf:
 }
 
 ```
+
+## Seventh pass — 2026-09-06c: the `8aac` rewire (follow-up from the
+## 2026-09-06b correction) SHIPPED
+
+All shipped-on-the-wrong-target substitutions now read the real
+`FUN_1427_0d38` stack counts, via `ai_euro_0a60_stack_counts` (walks the
+tile's units plus each ship's cargo — DOS chains passengers into the tile
+stack; case bodies per the byte-exact 20e6 table):
+
+1. **Unit-loop eligibility gates** (raw `iStack_1e = 8aac(u,4) >= 2 ||
+   8aac(u,6) != 0`, `iStack_1c = 8aac(u,3)`): bits 2+3 now come from real
+   military-in-stack / Pioneers-in-stack counts instead of "every land
+   unit qualifies". Ships keep the literal hold-full + fleet-coordination
+   gate on top (unchanged). A lone plain Colonist gets no bits —
+   DOS-faithful; colonists found via a stacked Pioneer/escort or the 20e6
+   ship-band goal fold.
+2. **Consumption-tail gates wired for land too**: DOS's tail reads
+   `0x3148 & 4` (goal code 1 FOUND) and `& 8` (code 7 MIL_EXPAND) for
+   EVERY unit, not only ships — `ai_euro_0a60_unit_can_pursue_goal` now
+   takes the bits for land units and ANDs them with the existing
+   name-check (the DS:0x523d capability-mask equivalent). MILITARY (code
+   4) stays mask-only, as in DOS; the ship-side MILITARY arm keeps the
+   shipped bit-3 read (conservative — no DOS ship type carries mask bit4).
+3. **Garrison mode 0xa**: "already garrisoned" = # non-ship units with
+   @UNIT combat (0x5236) > 1 in the colony-tile stack (was: own fortified
+   units on the tile).
+4. **CONTACT lurk mode 0xd**: the every-4th early-out is live —
+   `(unit_at_tile + turn) % 4 == 0 && Σ ship hold capacity == 0` skips the
+   lurk ring scan for that foreign harbor (was ported never-taken);
+   `unit_at_tile` is −1 on an empty tile, same arithmetic as DOS's miss.
+
+Mode-2 sites were already byte-right (no change). Mobilizable (mode 6)
+keeps DOS's double-count quirk (veteran-professioned type 6..9 counts
+twice).
+
+**Verified**: clean rebuild; full ctest 57/57 including
+`golden_ai_turns`/`golden_ai_joint`/`mid01`/`late01`, no golden changed.
+Throwaway `AI_0A60_REWIRE_TRACE` instrumentation confirmed all three
+rewired paths execute on the golden fixtures (mixed pioneer/military
+eligibility combos incl. ships; garrison armed counts 0 and 1 feeding the
+LABOR prio; the lurk beat firing and skipping a shipless harbor) — the
+goldens hold because the fixtures' stacks travel with escorts, exactly the
+DOS-eligible shape.

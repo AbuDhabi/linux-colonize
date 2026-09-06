@@ -9648,18 +9648,29 @@ static int ai_euro_0a60_ph_weight_seed(void) { return 50; }
  * not-yet-fully-loaded fleet's full ship pursue slightly earlier).
  */
 static int ai_euro_0a60_unit_can_pursue_goal(
-  const char* name, int goal_code, int is_ship, int ship_has_founders, int ship_has_military
+  const char* name, int goal_code, int is_ship, int has_bit2, int has_bit3
 ) {
   switch (goal_code) {
     case AI_GOAL_FOUND:
+      /* DOS raw tail (goal code 1): capability-mask bit AND 0x3148 bit2 —
+       * for EVERY unit, land included (2026-09-06b rewire; the bits now
+       * carry the real 0d38 stack counts). Name check = the DS:0x523d
+       * capability-mask equivalent this file already used. */
       if (is_ship) {
-        return ship_has_founders || ship_has_military; /* unit+0x3148 bit2 */
+        return has_bit2;
       }
-      return ai_euro_name_is_pioneer(name) || (name && strstr(name, "Colonist") != NULL);
+      return has_bit2 && (ai_euro_name_is_pioneer(name) ||
+                          (name && strstr(name, "Colonist") != NULL));
     case AI_GOAL_MIL_EXPAND:
-    case AI_GOAL_MILITARY:
+      /* DOS goal code 7: capability bit AND 0x3148 bit3, every unit. */
       if (is_ship) {
-        return ship_has_military; /* unit+0x3148 bit3 */
+        return has_bit3;
+      }
+      return has_bit3 && (ai_euro_is_military_name(name) || ai_euro_is_artillery_name(name));
+    case AI_GOAL_MILITARY:
+      /* DOS gates code 4 on the capability mask only — no 0x3148 bit. */
+      if (is_ship) {
+        return has_bit3;
       }
       return ai_euro_is_military_name(name) || ai_euro_is_artillery_name(name);
     default:
@@ -9730,13 +9741,12 @@ static Ai0a60UnitState s_0a60_pilot_state[COLONIZE_UNITS_MAX];
  *     mode 4 → # military land types {1,4,6,7,8,9} (`8aac(u,4) < 2` =
  *              "fewer than two military in the stack" — a real gate);
  *     mode 6 → mobilizable count (mil + veteran-professioned).
- *   The eligibility block below still ships the earlier reading (bits 2+3
- *   on every land unit; ships from real cargo behind the hold-full/fleet
- *   check) — rewiring it to the real stack counts is flagged follow-up in
- *   euro_goal_orders_0a60_full.md, NOT silently changed here, because the
- *   current behavior is golden-tested and the consumption tail's type
- *   gate supplies the selectivity either way (DS:0x523d capability mask —
- *   Linux keeps its tested name-check equivalent there).
+ *   The eligibility block below reads the REAL stack counts as of the
+ *   2026-09-06b rewire (ai_euro_0a60_stack_counts; ships keep the literal
+ *   hold-full + fleet-coordination gate on top), and the consumption
+ *   tail's FOUND/MIL_EXPAND gates consume the bits for land units too —
+ *   DOS reads `0x3148 & 4` / `& 8` for every unit, not only ships (raw
+ *   tail, goal codes 1 and 7).
  *
  * Field ids resolved for the rest of the loop (address_mapping.csv chain
  * FUN_1000_X → FUN_281f_(X-0x81f0) → FUNCTION_CATALOG.md):
@@ -9763,6 +9773,73 @@ static Ai0a60UnitState s_0a60_pilot_state[COLONIZE_UNITS_MAX];
  * goals at spotted hostile ships.
  */
 static int ai_euro_20e6_dos_type(const ColonizeUnitPool* units, const ColonizeUnit* u);
+static int ai_euro_20e6_type_combat(int dos_type);
+
+/*
+ * FUN_1427_0d38 stack-query counts over a tile's stack (2026-09-06b byte
+ * decode; case table at ai_euro_20e6_stack_count). DOS chains a ship's
+ * passengers into its tile stack, so members here = units standing on the
+ * tile plus the cargo of every ship on it:
+ *   pioneers    case 3   # type 2
+ *   mil_types   case 4   # types {1,4,6,7,8,9}
+ *   mobilizable case 6   {1,4} else profession 0x15, plus {6..9} again
+ *                        (a veteran-professioned 6..9 counts twice — kept)
+ *   armed       case 0xa # non-ship with @UNIT combat (0x5236) > 1
+ *   hold_cap    case 0xd Σ ship hold capacity (0x5237)
+ */
+typedef struct Ai0a60StackCounts {
+  int pioneers;
+  int mil_types;
+  int mobilizable;
+  int armed;
+  int hold_cap;
+} Ai0a60StackCounts;
+
+static void ai_euro_0a60_stack_count_member(
+  const ColonizeUnitPool* units, const ColonizeUnit* m, Ai0a60StackCounts* sc
+) {
+  const int t = ai_euro_20e6_dos_type(units, m);
+  const int is_ship = (t >= 0x0d && t <= 0x12);
+  if (t == 2) {
+    sc->pioneers++;
+  }
+  if (t == 1 || t == 4 || (t >= 6 && t <= 9)) {
+    sc->mil_types++;
+  }
+  if (t == 1 || t == 4) {
+    sc->mobilizable++;
+  } else if (m->profession == 0x15) {
+    sc->mobilizable++;
+  }
+  if (t >= 6 && t <= 9) {
+    sc->mobilizable++;
+  }
+  if (!is_ship && ai_euro_20e6_type_combat(t) > 1) {
+    sc->armed++;
+  }
+  if (is_ship) {
+    sc->hold_cap += units_ship_capacity(units, m->id);
+  }
+}
+
+static void ai_euro_0a60_stack_counts(
+  const ColonizeUnitPool* units, int x, int y, Ai0a60StackCounts* sc
+) {
+  memset(sc, 0, sizeof(*sc));
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    const ColonizeUnit* m = units_get_const(units, i);
+    if (!m || !m->active || m->aboard_ship_id >= 0 || m->x != x || m->y != y) {
+      continue;
+    }
+    ai_euro_0a60_stack_count_member(units, m, sc);
+    for (int ci = 0; ci < m->cargo_count && ci < COLONIZE_UNIT_CARGO_MAX; ++ci) {
+      const ColonizeUnit* pax = units_get_const(units, m->cargo_ids[ci]);
+      if (pax && pax->active) {
+        ai_euro_0a60_stack_count_member(units, pax, sc);
+      }
+    }
+  }
+}
 
 /* DOS unit+0x3150 holds_occupied: passengers + occupied goods holds. */
 static int ai_euro_0a60_holds_occupied(const ColonizeUnit* u) {
@@ -9826,28 +9903,16 @@ static void ai_euro_0a60_unit_housekeeping(ColonizeTurnContext* ctx, int nation_
         st->flags |= 0x02; /* roam_reeval_pending */
       }
 
-      /* FOUND/MIL_EXPAND eligibility bits (see header: shipped-DOS gates
-       * are no-signal; ships use real cargo, land units always qualify). */
-      int has_founders = 0;
-      int has_military = 0;
-      if (is_ship_t) {
-        for (int ci = 0; ci < u->cargo_count && ci < COLONIZE_UNIT_CARGO_MAX; ++ci) {
-          const ColonizeUnit* pax = units_get_const(ctx->units, u->cargo_ids[ci]);
-          if (!pax || !pax->active) {
-            continue;
-          }
-          const char* pn = units_display_name(ctx->units, pax);
-          if (ai_euro_is_military_name(pn) || ai_euro_is_artillery_name(pn)) {
-            has_military = 1;
-          } else if (ai_euro_name_is_pioneer(pn) ||
-                     (pn && strstr(pn, "Colonist") != NULL)) {
-            has_founders = 1;
-          }
-        }
-      } else {
-        has_founders = 1;
-        has_military = 1;
-      }
+      /* FOUND/MIL_EXPAND eligibility bits — REWIRED 2026-09-06b to the
+       * real 0d38 stack counts (raw: iStack_1e = 8aac(u,4) >= 2 ||
+       * 8aac(u,6) != 0; iStack_1c = 8aac(u,3)): military-in-stack sets
+       * bits 2+3, Pioneers-in-stack sets bit 2. A lone plain Colonist gets
+       * no bits — DOS-faithful (colonists found via a stacked Pioneer/
+       * escort, or via the ship goal fold in 20e6's band). */
+      Ai0a60StackCounts sc;
+      ai_euro_0a60_stack_counts(ctx->units, ux, uy, &sc);
+      const int has_military = (sc.mil_types >= 2 || sc.mobilizable != 0);
+      const int has_founders = (sc.pioneers != 0);
       if (has_founders || has_military) {
         int ok = 1;
         if (is_ship_t) {
@@ -9867,9 +9932,11 @@ static void ai_euro_0a60_unit_housekeeping(ColonizeTurnContext* ctx, int nation_
           }
         }
         if (ok) {
-          st->flags |= 0x04; /* stack_has_founders_or_military */
+          /* Raw: iStack_1e → |= 0xc, iStack_1c → |= 4 — bit2 from either,
+           * bit3 only from military. */
+          st->flags |= 0x04;
           if (has_military) {
-            st->flags |= 0x08; /* stack_has_military */
+            st->flags |= 0x08;
           }
         }
       }
@@ -9978,12 +10045,13 @@ static void ai_euro_0a60_goal_orders_structural(ColonizeTurnContext* ctx, int na
     const int unit_is_ship = ai_euro_is_ship_type(ctx->units, ui);
     const int unit_continent = map_continent_id_at(ctx->map, u->x, u->y);
 
-    /* unit+0x3148 bits 2/3, now written for real by
-     * ai_euro_0a60_unit_housekeeping (which also applies DOS's literal
-     * hold-full + fleet-coordination gate the old inline cargo scan here
-     * skipped): bit2 = FOUND-eligible, bit3 = MIL_EXPAND-eligible. */
-    const int ship_has_founders = unit_is_ship && (st->flags & 0x04) != 0;
-    const int ship_has_military = unit_is_ship && (st->flags & 0x08) != 0;
+    /* unit+0x3148 bits 2/3, written by ai_euro_0a60_unit_housekeeping from
+     * the real 0d38 stack counts (2026-09-06b rewire; ships additionally
+     * behind DOS's hold-full + fleet-coordination gate): bit2 =
+     * FOUND-eligible, bit3 = MIL_EXPAND-eligible — read for every unit,
+     * land included, as the DOS tail does. */
+    const int has_bit2 = (st->flags & 0x04) != 0;
+    const int has_bit3 = (st->flags & 0x08) != 0;
 
     if (!unit_is_ship && (strstr(uname ? uname : "", "Soldier") ||
                            strstr(uname ? uname : "", "Dragoon"))) {
@@ -10003,7 +10071,7 @@ static void ai_euro_0a60_goal_orders_structural(ColonizeTurnContext* ctx, int na
         continue;
       }
       if (!ai_euro_0a60_unit_can_pursue_goal(
-            uname, g->code, unit_is_ship, ship_has_founders, ship_has_military
+            uname, g->code, unit_is_ship, has_bit2, has_bit3
           )) {
         continue;
       }
@@ -10095,9 +10163,8 @@ static void ai_euro_0a60_goal_orders_structural(ColonizeTurnContext* ctx, int na
  * FUN_1000_8aac mode 2 — 2026-09-06b: the real 0d38 case-2 body IS the
  * plain stack count, so ai_euro_0a60_units_on_tile is byte-right (the old
  * "4fa8 chain splice, substituted" story targeted the wrong function).
- * Mode 0xd (every-4th CONTACT-scan skip) is really Σ ship hold capacity
- * in the stack — still treated as pass here, follow-up flagged in
- * euro_goal_orders_0a60_full.md.
+ * Mode 0xd (every-4th CONTACT-scan skip, Σ ship hold capacity in the
+ * stack) is wired for real at the lurk scan — 2026-09-06b rewire.
  * The village-population scratch (aiStack_14e) only feeds a dead
  * accumulator and the G-formula's Indian presence test, which Linux's
  * stance recompute already covers via live Brave units — not modeled.
@@ -10213,8 +10280,9 @@ static void ai_euro_0a60_settlement_goal_producers(ColonizeTurnContext* ctx, int
      * lurk block for an unseen human colony. DS:0x543f polarity 0=human. */
     const int block1 = !(difficulty * turn < 0xb5 && !seen && owner == human);
     if (block1) {
-      /* MILITARY approach goal (defender count is a mode-2 substitution,
-       * see header). Prio 3 while formally at peace, 5 otherwise. */
+      /* MILITARY approach goal (defender count = 0d38 case-2 stack count
+       * + population, byte-right). Prio 3 while formally at peace, 5
+       * otherwise. */
       if ((int)col_cnt[nation_id][cont] + (int)land_cnt[nation_id][cont] != 0 &&
           ((i + turn) & 3) != 0) {
         const int defenders =
@@ -10230,10 +10298,23 @@ static void ai_euro_0a60_settlement_goal_producers(ColonizeTurnContext* ctx, int
       }
       /* CONTACT lurk scan: ring-2 open-sea tiles off a coastal foreign
        * colony (raw 1012-1089; +0x1c bit 0x40 coastal, live recompute).
-       * The raw every-4th `8aac(...,0xd)==0` early-out is really "Σ ship
-       * hold capacity in the stack == 0" (0d38 case 0xd, 2026-09-06b) —
-       * still ported as never-taken; rewire flagged as 0a60 follow-up. */
-      if (map_tile_is_coastal(map, c->x, c->y)) {
+       * Every-4th early-out REWIRED 2026-09-06b: raw
+       * `(unit_at_tile + turn) % 4 == 0 && 8aac(unit_at_tile, 0xd) == 0`
+       * — 0d38 case 0xd = Σ ship hold capacity over the colony-tile
+       * stack; a foreign harbor with no ship capacity present skips the
+       * lurk scan on its beat (the staging scan below still runs, as in
+       * DOS's goto past LAB_11b6). unit_at_tile −1 when the tile is
+       * empty, matching DOS's miss value through the same arithmetic. */
+      int lurk_skip = 0;
+      {
+        const int uid_at = units_id_at(ctx->units, c->x, c->y);
+        if ((uid_at + turn) % 4 == 0) {
+          Ai0a60StackCounts lsc;
+          ai_euro_0a60_stack_counts(ctx->units, c->x, c->y, &lsc);
+          lurk_skip = (lsc.hold_cap == 0);
+        }
+      }
+      if (!lurk_skip && map_tile_is_coastal(map, c->x, c->y)) {
         int best = 0;
         int bx = 0;
         int by = 0;
@@ -10799,26 +10880,20 @@ static void ai_euro_colony_goals(ColonizeTurnContext* ctx, int nation_id) {
        * per admission. Gated, like DOS's whole own-colony block, on the
        * colony being coastal (+0x1c bit 0x40; live map_tile_is_coastal
        * here rather than the thin-latched colony_flags bit).
-       * The "already garrisoned" count is DOS `FUN_1000_8aac(unit,10)` —
-       * really 0d38 case 0xa = # non-ship units with @UNIT combat > 1 in
-       * the stack (2026-09-06b decode); the shipped "own fortified units
-       * on the tile" substitution stays, rewire flagged as 0a60
-       * follow-up in euro_goal_orders_0a60_full.md. Admitted units get
+       * The "already garrisoned" count is DOS `FUN_1000_8aac(unit,10)` =
+       * 0d38 case 0xa: # non-ship units with @UNIT combat (0x5236) > 1 in
+       * the colony-tile stack — REWIRED 2026-09-06b to that real count
+       * (ai_euro_0a60_stack_counts .armed; was "own fortified units on
+       * the tile"). Admitted units get
        * shadow order 'A', which excludes them from this turn's goal scan
        * (DOS-identical effect); deeper 'A' labor handling stays with the
        * existing colony-join paths.
        */
       if (c->labor_shortage > 0 && ctx->units &&
           map_tile_is_coastal(ctx->map, c->x, c->y)) {
-        int garrisoned = 0;
-        for (int ui = 0; ui < COLONIZE_UNITS_MAX; ++ui) {
-          const ColonizeUnit* gu = units_get_const(ctx->units, ui);
-          if (gu && gu->active && gu->nation_id == nation_id && gu->x == c->x &&
-              gu->y == c->y &&
-              (gu->orders == UNITS_ORDER_FORTIFY || gu->orders == UNITS_ORDER_FORTIFIED)) {
-            garrisoned++;
-          }
-        }
+        Ai0a60StackCounts gsc;
+        ai_euro_0a60_stack_counts(ctx->units, c->x, c->y, &gsc);
+        const int garrisoned = gsc.armed;
         if (garrisoned < (int)c->labor_shortage) {
           ai_goals_upsert_primary(
             nation_id, c->x, c->y, AI_GOAL_LABOR,
