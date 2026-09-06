@@ -539,14 +539,11 @@ regression bisect only.
   treaty timers/aid/prize, the `DIPLO_ALLIANCE` CHOICE apply, ~64 refs in
   `ai_diplo.c`, ~130 assertions in `test_ai_diplo.c`. Zero gameplay effect;
   one deliberate deletion pass when the diplo file is next touched.
-- [ ] **T3.3 — Re-enable `golden_ai_turns` / `golden_ai_joint`.**
-  `golden_ai_mid01` / `golden_ai_late01` are re-enabled and green;
-  T1.23 closed 2026-09-05 — both gates now pass manually
-  (`AI_TURNS_ALL=1` + `cmake --build build --target golden_ai_joint`).
-  Don't flip piecemeal — re-enable both together, and
-  **confirm with the user** (changes what `ctest` gates on by default).
-  Harness: `AI_TURNS_ALL=1` runs past a failing step, `AI_TURNS_ONLY=t`
-  runs one step.
+- [x] **T3.3 — Re-enable `golden_ai_turns` / `golden_ai_joint`.** Closed
+  2026-09-05 (user-confirmed): both DISABLED flips removed from
+  CMakeLists.txt; full `ctest` now 57/57 with both gates green. Harness:
+  `AI_TURNS_ALL=1` runs past a failing step, `AI_TURNS_ONLY=t` runs one
+  step.
 - [ ] **T4.6 — `VR_B465X` hang dump.** Parked **by policy** — a deliberate
   stop, not a stall. Do not resume without a new, stated reason.
 - [ ] **T5.1 — VGA-identical dialog chrome** (meet/diplo/king wood frames,
