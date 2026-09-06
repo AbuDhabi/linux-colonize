@@ -184,6 +184,24 @@ dx:   -2   -2    2    2   -1    1   -1    1
 dy:   -1    1   -1    1   -2   -2    2    2
 ```
 
+**Correction 2026-09-06d — the two rows are swapped above.** `DS:0xc8` is
+**dx** and `DS:0xde` is **dy**, not the other way round. Every consumer agrees:
+`FUN_4d56_1b3a` (81723-81733), `FUN_2f2b_0b97` (47537-47539),
+`FUN_15eb`'s build gate (13677-13678) and `FUN_4cc6_03f8` (81040-81041) all
+compute `x = colony[0] + DS:0xc8[i]`, `y = colony[1] + DS:0xde[i]`. With the
+swap applied the dumped bytes are exactly `ai.c`'s `k_ring_dx`/`k_ring_dy` in
+`ai_indian_village_threat`. The mislabel was harmless so far (the two tables
+are the same multiset, and both consumers only needed the *set*), but it
+matters the moment an index is paired with `colony.tiles[i]` — as `1b3a`
+phase 3 does. This paragraph's "DOS's own enumeration order differs from
+colony.h's tiles[] convention" claim is therefore **unverified**: 28c8 and
+1b3a index `colony+0x70+i` with the same `i` they index these tables with,
+so DOS's order *is* `tiles[]`'s order by construction. `colony.h`'s
+`k_field_dx/dy` is golden-validated (the colony production goldens), so if the
+two really disagree it is this dump's index order that is off — do not use the
+byte listing above to map a `tiles[]` index onto a direction without
+re-deriving it.
+
 Indices 0-7 = the immediate 8-ring (any order; independently confirmed as
 the *set* of the standard N/NE/E/SE/S/SW/W/NW neighbors — DOS's own
 enumeration order differs from `colony.h`'s `tiles[]` convention but

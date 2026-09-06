@@ -34,9 +34,15 @@ if ((*(byte*)0x5382 & 1) != 0 &&                  /* WoI declared (head.unknown4
       ai_diplo_indian_relation_delta(tribe, crown_nation,    -100); /* bottoms out */
       FUN_2a1f_0398(tribe, declaring_nation); /* "mission clear" thunk — FUN_4cc6_0000, see below */
       /* musket/horse windfall: */
-      muskets      = min(muskets, tech);
+      /* 2026-09-06d: the clamp operand is the tribe's VILLAGE COUNT, not
+       * its tech. DOS: `cVar3 = *(char *)(*(int *)0x8d52 - 0x69d6)`, and
+       * 0x962a = tribe_village_counts (save_format_map.md file offset 581,
+       * written by FUN_4962_06b6 — which 1816 itself calls a few lines
+       * later via FUN_2a1f_0270). */
+      villages     = tribe_village_counts[slot];
+      muskets      = min(muskets, villages);
       muskets     *= 4;                       /* << 2 */
-      horse_herds  = min(horse_herds, tech);
+      horse_herds  = min(horse_herds, villages);
       horse_breeding = horse_herds * 25;
       indian_rec.unknown31_flags |= 0x20;      /* one-shot latch */
     }
@@ -112,11 +118,13 @@ prelude — matches DOS phase order). New Linux-side pieces:
   (human/crown) via the already-existing `ai_diplo_indian_relation_delta`,
   then the musket×4 / horse-herds-capped-at-tech / horse_breeding=herds×25
   windfall, then the one-shot latch and a status line.
-- Approximated, as flagged above: the windfall's tech source uses
-  `ind->tech` (this nation's own tech field) rather than DOS's
-  `DS:0x8d52`-selected tribe-tech lookup (same conceptual quantity, exact
-  equivalence not proven); DOS's exact status wording is not reproduced —
-  Linux invents its own.
+- **Resolved 2026-09-06d** (was "approximated"): the windfall clamp is
+  `DS:0x962a[slot]` = `stuff.tribe_village_counts`, not `ind->tech` — a
+  different field, not "the same conceptual quantity". A large low-tech
+  tribe was being disarmed on defection and a small high-tech one
+  over-armed. `ai_contact_indian_woi_defect` now reads the census array
+  (also reads muskets/herds as signed bytes, as DOS does). DOS's exact
+  status wording is still not reproduced — Linux invents its own.
 - **`FUN_2a1f_0398` "mission clear" side-effect — wired 2026-08-14**, same
   day, once its target (`FUN_4cc6_0000`) was fully read (`viceroy_unpacked.c:
   80774-80802`, clean/uncorrupted). Byte-exact: `param_1` at the call site

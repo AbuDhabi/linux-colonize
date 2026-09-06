@@ -5004,6 +5004,15 @@ int main(void) {
       ind->tech = 15;
       ind->muskets = 10;
       ind->horse_herds = 8;
+      /*
+       * 2026-09-06d: the windfall clamp operand is the tribe's **village
+       * count** (`DS:0x962a` = `stuff.tribe_village_counts`), not its tech
+       * level — DOS reads `*(char *)(*(int *)0x8d52 - 0x69d6)`. The old
+       * fixture only set `tech`, which happened to give the same answer
+       * under the previous (wrong) mapping. Keep the same expected windfall
+       * by seeding the census array the same way FUN_4962_06b6 would.
+       */
+      col1.stuff.tribe_village_counts[0] = 15;
       /* relation_by_indian is indexed [euro_nation].[indian_idx]; human=0,
        * crown fold=1 for human=0, tribe nation_id=4 → indian_idx=0. */
       /* FUN_281f_030c = alarm toward the rebel nation; eligibility needs >= 25. */

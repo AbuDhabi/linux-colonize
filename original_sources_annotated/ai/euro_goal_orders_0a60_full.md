@@ -469,7 +469,9 @@ gate fix's thunk resolutions) had these two targets — it did, for both:
   `FUN_281f_07e0`/`FUN_281f_02e4`, both **already fully known** in
   `ai/accessors.c` — `unit_index_on_tile(x,y)` and the transport-chain
   prev-link walker (`FUN_1427_005c`/`FUN_1427_004a`, cross-referenced
-  against `euro_goals.c`'s already-documented `walk_unit_stack_to_end`).
+  against `euro_goals.c`'s `FUN_521d_0656`, documented then as
+  `walk_unit_stack_to_end` and re-decoded 2026-09-06e as
+  `stack_settler_pick` — the chain step itself is unaffected).
   This confirms the unit-scan pre-loop this file's "Second pass" section
   filed as blocked is: walk the stack of units **at the colony's own
   tile** (DOS via the transport-chain linked list; the call site's own
@@ -587,6 +589,12 @@ symbols along the way:
   placeholder; low-impact since it seeds *all* 64 slots uniformly (the
   claim-count increments that follow matter more than the seed's exact
   magnitude).
+  **RETRACTED 2026-09-06d.** Two errors here: (a) the CSV row *does*
+  exist — `FUN_281f_035c,281f:035c,ram,1854c,,gap`, found by searching the
+  flat address column rather than the `func_0x…` spelling; (b) "low-impact
+  because uniform" is wrong — the seed is the denominator the per-slot
+  claim increments are measured against, so its magnitude is exactly what
+  decides whether a claim matters. Resolved in the eighth pass below.
 
 **Real capability gap closed**: `unit+0x3148` bit2/bit3 (the FOUND/
 MIL_EXPAND eligibility bits `ai_euro_0a60_unit_can_pursue_goal` folds in)
@@ -760,11 +768,89 @@ fixtures' units, exactly as in DOS.
 
 **Still deliberately thin** (documented in-code, unchanged): the haul
 work-queue registration gate + `flag_a`/`flag_b` meanings (tested
-Linux behavior, see "Second pass"); the `func_0x0001854c` weight seed
-(fixed 50 — no `address_mapping.csv` row, genuinely unresolved); the
-consumption tail's land-unit type gate stays the tested name-check
-equivalent of the 0x523d mask (swapping it would break the Linux-only
-COLONY/COLONY_ALT codes, whose mask bit 8 cannot exist in a byte).
+Linux behavior, see "Second pass"); the consumption tail's land-unit type
+gate stays the tested name-check equivalent of the 0x523d mask (swapping
+it would break the Linux-only COLONY/COLONY_ALT codes, whose mask bit 8
+cannot exist in a byte). The `func_0x0001854c` weight seed was on this
+list until **2026-09-06d** — see the next section; it is real now.
+
+## Eighth pass — `func_0x0001854c` resolved (2026-09-06d)
+
+The "fixed 50, genuinely unresolved" weight seed is a **clamp**, and the
+value it clamps is **not** the difficulty byte every prior note in this
+file assumed. Evidence chain, in order:
+
+1. **The `address_mapping.csv` row exists** (the fifth pass's "no row at
+   all" claim was wrong — likely searched for the flat `func_0x…` spelling
+   rather than the canonical name):
+   `tools/address_mapping.csv:809` → `FUN_281f_035c,281f:035c,ram,1854c,,gap`.
+   Flat `0x1854c` = `1000:854c`, and `FUN_1000_X = 281f_(X−0x81f0)` gives
+   `281f:035c` exactly. The `gap` match_kind (no overlay twin) is why a
+   name-only grep missed it.
+2. **It is a far RTLink thunk.** `FUNCTION_CATALOG.md:1275` already
+   catalogued it: "Far thunk → `FUN_124c_000c` (clamp value to [lo,hi])".
+   Raw bytes agree (`viceroy_unpacked.asm`, 281f:035c):
+   `9a910d0d21  CALLF FUN_210d_0d91` / `ea0c004c12  JMPF 124c:000c`.
+3. **`FUN_124c_000c` is a 3-arg clamp** (124c:000c, 0x1d bytes):
+   ```
+   PUSH BP / MOV BP,SP
+   MOV DX,[BP+06]        ; arg1
+   MOV AX,[BP+08]        ; arg2
+   CMP AX,DX / JGE +2 / MOV AX,DX      ; AX = max(arg2, arg1)
+   MOV DX,AX
+   CMP AX,[BP+0a] / JLE +3 / MOV AX,[BP+0a]  ; AX = min(AX, arg3)
+   MOV DX,AX / LEAVE / RETF
+   ```
+   → `min(max(a,b),c)`. Three stack words only ([BP+6/8/0a]), so the
+   **four**-argument shape in the decompile is wrong.
+4. **The leading `0xd1d` is a segment artifact, not an argument.** Same
+   call sites in `viceroy_unpacked_2.c` show `0x1d1d`/`0x281f`/`0x291f`/
+   `0x2b5a`/`0x2f2b` where `viceroy_overlays.c` shows `0xd1d`/`0x181f`/
+   `0x191f`/… — a constant `0x1000` image-base delta, i.e. a pushed CS.
+   Confirmed at the raw call site (521d:0ab8):
+   ```
+   6a63          PUSH 0x63              ; 99
+   6a03          PUSH 0x03              ; 3
+   8b5e06        MOV  BX,[BP+06]        ; param_2 = nation
+   8a87fc8c      MOV  AL,[BX + 0x8cfc]
+   c0e803        SHR  AL,3
+   2ae4          SUB  AH,AH
+   50            PUSH AX
+   9a5c031f28    CALLF 281f:035c
+   83c406        ADD  SP,6              ; exactly three words
+   8946c6        MOV  [BP+local_3c],AX
+   ```
+5. **`[BX + 0x8cfc]` is `all_unit_counts[nation]`**, not difficulty — the
+   saturating per-nation unit total written by the `FUN_4962_0018` census
+   (`docs/save_format_map.md`, Stuff file-off 12;
+   `turn/census_tally.md`). The decompile's `param_2 + -0x7304` is the same
+   address in signed form (`0x10000 − 0x7304 = 0x8cfc`).
+
+**Result:**
+
+```
+iStack_3c = clamp(all_unit_counts[nation] >> 3, 3, 99)
+```
+
+The `99` ceiling is unreachable (byte source → shift caps at 31); the live
+range is `[3, 31]`, and on every AI fixture in `test-saves-ai/` the nations
+have ≤ 4 units so the seed is the floor, **3**.
+
+**Why it matters** (structural, not cosmetic): the tail's claim-count
+`aiStack_1da[slot]++` is measured against this seed — `iStack_12 / iStack_3c
+≤ prio*3/2` and `prio * iStack_3c < iStack_12`. With the placeholder 50 a
+claim shifted a slot's score by 2%; with the real early-game 3 it shifts it
+by 33%. That is the mechanism by which DOS spreads a nation's units over
+distinct goal slots instead of stacking them on the cheapest one.
+
+Linux: `ai_euro_0a60_weight_seed(ctx, nation_id)` in `src/core/ai_euro.c`
+(reads `col1->stuff.all_unit_counts[]`, which `turn.c` already refreshes
+per turn via `col1_stuff_census_refresh_colony_counts`; falls back to a
+live tally for col1-less unit-test contexts). Verified: full `ctest`
+**57/57**, `golden_ai_turns` / `golden_ai_joint` / `golden_ai_mid01` /
+`golden_ai_late01` byte-unchanged; temporary `AI_WEIGHT_SEED_TRACE`
+instrumentation confirmed the new path runs on the goldens and yields
+`count=1..3 → seed=3` for nations 1/2/3.
 
 ## Raw recovered C (845 lines, one mild warning)
 
@@ -1658,3 +1744,106 @@ eligibility combos incl. ships; garrison armed counts 0 and 1 feeding the
 LABOR prio; the lurk beat firing and skipping a shipless harbor) — the
 goldens hold because the fixtures' stacks travel with escorts, exactly the
 DOS-eligible shape.
+
+## 2026-09-06d — `flag_a`/`flag_b` DECODED; registration gate re-tested and deliberately NOT switched (second, structural reason)
+
+Companion pass to `move_scoring_20e6_full.md`'s 2026-09-06d section, which
+decodes the consumer (`FUN_521d_4393`) and the 6-byte record layout. This
+section covers the producer: the `thunk_FUN_2a1f_0524` call in this
+function's colony loop (raw block at this file's `## Raw recovered C` fence,
+the `thunk_FUN_2a1f_0524(0x181f,iStack_3e,(int)uStack_1a,iStack_40,uStack_44)`
+line; grep `0524`, the "~528-604" line numbers predate the current fence).
+
+### Result: both flags are real, and this port now produces both
+
+`upsert_work_queue(ctx, colony_index, score, iStack_40, uStack_44)` writes
+record bytes `+2`, `+4`, `+5`. Cross-referenced against the `4393` reader
+(that doc's table — `LAB_0000_a0e0` is `−0x5f24 + 4`, same record):
+
+- **`flag_a` = `iStack_40` = hold-loads of work.** Accumulates
+  `+1` per counted Missionary at the colony tile, `+1` per counted exposed
+  combat unit, and `iStack_32 = (min(adjusted, target) + 25) / 100` per
+  counted cargo slot — the DOS quantization of "how many wagon/ship loads is
+  this". Note the ordering trap: `iStack_32` is computed from the
+  *target-clamped, pre-discount* quantity, while the `have >= 0` test that
+  banks it happens *after* the TOOLS/MUSKETS `−100`. Ported that way.
+- **`flag_b` = `uStack_44` = exposed-combat-unit present**, set only by the
+  `+1500` arm (combat-capable land unit on a `stance == 0` continent). This
+  is exactly what the "Second pass"/"Third pass" notes above predicted and
+  filed as *not wired*; it is wired now. `4393` reads it as the permission
+  for a non-civilian hull (`bVar17` false) to take the slot.
+
+Linux fields renamed to match (`AiWorkSlot.loads` / `.military`,
+`ai_goals.h`). The old Linux `flag_a = specialty_cargo` hint did not die: the
+`4393` pick now reads `c->specialty_cargo` off the colony record directly, so
+the Series R +32 tie-break survives without squatting on a DOS-real byte.
+
+### Removed: a port-invented work-queue row
+
+The unit loop's CONTACT producer also did
+`ai_goals_upsert_work(u->id, 3, AI_GOAL_CONTACT, 0)`. DOS's unit loop reaches
+`thunk_FUN_2a1f_0470` (`upsert_primary`) only — `0524` is called from **one**
+site in the whole function, in the colony loop. The invented row stored a
+*unit* id in a field whose DOS meaning is a *colony* index, and nothing ever
+read it back: the only consumer skipped it on the old `flag_b != 1` filter,
+which is the sole reason the id-namespace collision never bit. Deleted.
+
+### Registration gate: tried again, reverted again — new and better reason
+
+DOS's gate is `bVar5`: Missionary arm ∨ exposed-unit arm ∨ any counted cargo
+slot with post-adjustment value `> 0x4a`. The 2026-08-18 "Second pass" note
+above blamed the revert on the `target = 100` placeholder. **That reason is
+gone** (`target` has been the live `colonies_warehouse_capacity` since the
+Third pass) and the gate does now fire — and it still must not be used:
+
+> DOS's work queue is a **pickup** queue. Its score is Σ `euro_price × stock`
+> and its `loads` count is how many hold-loads of goods are *sitting there*,
+> so `bVar5` selects the colonies with the most cargo. This port consumes the
+> same queue in the opposite, **delivery** direction: the `4393` tip feeds
+> `ai_euro_try_wagon_haul` / `ai_euro_try_ship_trade_haul`, whose fallback is
+> `ai_euro_nearest_haul_short_colony`. A DOS-gated row therefore tells a
+> wagon to drive to the colony that already has the goods.
+
+Live proof, not theory: with the union gate `haul_short || dos_gate`,
+`unit_wagon_europe_export_feeder`'s inland colony (150 Silver, nothing short)
+registers on the `> 0x4a` arm and pulls the wagon back onto its own tile
+instead of exporting to the coast — the wagon loads its Silver and then
+un-aims itself. Reverted to `haul_short`; the `> 0x4a` test is kept as a
+comment at its DOS position. **Turning DOS's gate on requires porting the
+pickup consumer too, not just this line** — that is the retire criterion.
+
+The `loads` value carries a floor of 1 on the shortage arm for the same
+reason: a colony that registers only because this port found it *short*
+legitimately scores zero DOS loads, and `4393` treats `loads == 0` as "no
+work", which is precisely the 2026-08-18 regression signature (colony never
+got a work-queue entry, wagon never moved). One load = the one delivery the
+shortage represents. DOS-gated colonies keep their computed count.
+
+### Resolved symbols
+
+| symbol | resolution |
+|---|---|
+| `−0x5f24` record `+4` / `+5` | `loads` / `military` (above) |
+| `LAB_0000_a0e0` | not an array — `−0x5f24 + 4`, i.e. the record's `+4` byte |
+| `DS:0x8dc6` | current colony index (`colonist_work_plot_28c8.md`); `colony_tick_5952_035e.md`:348 is the writer of `unit->origin` from it |
+| `unit+0x314a` | `ColonizeCol1Unit.origin` (record `+0x06`) — the hauler's home colony |
+| `unit+0x3150` | `ColonizeCol1Unit.holds_occupied` (record `+0x0c`) |
+| `0x5237` | @UNIT stride-0xe hold-capacity column (already named by `0d38` case 0xd) |
+| `*(int*)(nation*2 + 0x1734)` | **count of colonies that registered work-queue work this tick** — the "urgency" term `20e6`'s colony-sail / unload-mask matrices read. Documented, **not rewired**: those matrices currently substitute a NEEDS_GARRISON/MILITARY colony count and the goldens are pinned on it; swapping it is its own scoring change. |
+
+### Stubs / dead ends left
+
+- `bVar17`'s Privateer/Frigate narrowings in the consumer — unresolved
+  globals, unreachable in this port (details in the 20e6 doc).
+- Colony `ai_flags` bit7 (the DOS gate on the Missionary `+800` arm) still
+  approximated as always-clear; unchanged from the Third pass.
+- The `0x1734` rewire above.
+
+### Test evidence
+
+Clean build, zero new warnings; `ctest` **57/57** with every golden
+byte-green (`golden_ai_turns` 6/6, `golden_ai_joint`, `golden_colony_*`,
+`golden_woi_ref01`). Baseline verified green on the same tree via
+`git stash` before the change, so all three intermediate failures
+(specialty tie-break, then the Silver export feeder) were confirmed as
+regressions of this pass and fixed rather than pre-existing.

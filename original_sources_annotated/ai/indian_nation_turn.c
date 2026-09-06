@@ -93,7 +93,9 @@ void indian_unit_act(int unit_index) {
   step_unit_in_dir(unit_index, dir);
 }
 
-/* Ghidra: FUN_4d56_152e | village_growth_accum — Linux ai_grow_villages (T0). */
+/* Ghidra: FUN_4d56_152e | village_growth_accum — Linux
+ * ai_indian_152e_village_growth (full port 2026-09-06d, no callee stubs
+ * left; see docs/indians.md "2026-09-06d"). */
 void village_growth_accum(int tribe_index) {
   (void)tribe_index;
   /* Threshold VICEROY_VILLAGE_GROWTH_THRESHOLD (19); pop cap 15. */
@@ -142,7 +144,21 @@ static void indian_alarm_prelude_parked(int indian_index) {
  *   3. Alarm prelude (NEW WORLD) — PARKED body
  *   4. Clamp signed alarm byte at state+7 to >= 0
  *   5. Tribe growth loop: for t in [0, g_tribe_count) matching nation
- *   6. Relation / goods tick (2a1f_0270) over 16 slots then growth word
+ *   6. DECODED 2026-09-06d (was "relation / goods tick ... then growth word"):
+ *      6a  16-slot loop over indian+0x0e = `tons[16]` (the Col1 cargo ledger):
+ *          each entry walks toward zero by `tech + 1`, clamped at 0, and a
+ *          zero entry is not written at all.
+ *      6b  FUN_2a1f_0270 = FUN_1000_a460 = `CALLF loader; JMPF <reloc>:06b6`,
+ *          trailer overlay id 0x08 -> OVL09 -> **FUN_4962_06b6**, the
+ *          per-tribe-type census recount (tribe_data_9184 /
+ *          tribe_population_totals / tribe_village_counts /
+ *          tribe_dwellings_91cc / village_counts_by_continent). Ghidra's C
+ *          export of the a460 thunk is reloc-0000 garbage; read the raw asm.
+ *      6c  `horse_breeding += horse_herds` (both signed reads), capped at
+ *          `(tribe_population_totals[slot] + 0x19) * 2` — hence 6b first.
+ *      Also: §4's clamp is on **muskets** (indian+7, signed), not alarm.
+ *      Linux: ai_contact_indian_relation_tick (all three), verified against
+ *      real TURN7.SAV by `unit_ai_indian_census`.
  *   7. Clear act_counter for all units of this nation
  *   8. Act loop (ASM 4d56:1a8c..1b12):
  *        do {

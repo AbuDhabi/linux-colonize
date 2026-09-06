@@ -35,11 +35,26 @@ typedef struct AiGoalSlot {
   uint8_t prio;
 } AiGoalSlot;
 
+/*
+ * DOS work-queue record (`DS:-0x5f24`, 16 x 6 bytes; FUN_521d_02be
+ * `upsert_work_queue` / FUN_521d_031c `clear_work_queue`), decoded
+ * 2026-09-06d from the raw `0a60` producer + the `4393` consumer tail
+ * (euro_goal_orders_0a60_full.md / move_scoring_20e6_full.md):
+ *   +0 int16  colony index (DOS 0xffff = free slot; -1 here)
+ *   +2 int16  score        (price-weighted haul value, clamped 0x7fff)
+ *   +4 uint8  loads        (was `flag_a`) -- hold-loads of haul work
+ *   +5 uint8  military     (was `flag_b`) -- an exposed combat-capable land
+ *                          unit sits on the colony tile on a stance-0
+ *                          continent; the only slots a warship may serve
+ * DOS reads `+4` (not `+5`) as the "slot still has work" gate, and the
+ * `4393` tail writes both `+2` and `+4` back after a hauler claims part of
+ * the work -- see ai_goals_work_consume().
+ */
 typedef struct AiWorkSlot {
   int16_t id;
   int16_t score;
-  uint8_t flag_a;
-  uint8_t flag_b;
+  uint8_t loads;
+  uint8_t military;
 } AiWorkSlot;
 
 typedef struct AiNationGoals {
@@ -68,7 +83,18 @@ void ai_goals_promote_secondary_to_primary(int nation_id);
 void ai_goals_upsert_primary(int nation_id, int x, int y, int code, int prio);
 void ai_goals_upsert_secondary(int nation_id, int x, int y, int code, int prio);
 void ai_goals_clear_work_queue(void);
-void ai_goals_upsert_work(int id, int score, uint8_t flag_a, uint8_t flag_b);
+void ai_goals_upsert_work(int id, int score, uint8_t loads, uint8_t military);
+/*
+ * FUN_521d_4393 tail (raw decomp, move_scoring_20e6_full.md ~2226-2242):
+ * a hauler that commits to `slot` claims `free_holds` of its loads; the
+ * remaining score is scaled by the surviving fraction and the slot is freed
+ * outright once nothing is left.
+ *   remaining = max(0, loads - free_holds)
+ *   score     = remaining * score / loads
+ *   loads     = remaining
+ *   id        = -1 when remaining == 0        (DOS writes 0xffff)
+ */
+void ai_goals_work_consume(int slot, int free_holds);
 int ai_goals_max_primary_prio(int nation_id, int x, int y, int code);
 const AiGoalSlot* ai_goals_primary(int nation_id, int slot);
 const AiWorkSlot* ai_goals_work(int slot);
@@ -188,10 +214,16 @@ int ai_goals_composite_unit_priority(
 );
 
 /*
- * FUN_521d_0656 — walk_unit_stack_to_end. Follows transport_chain.next_unit_idx
- * until -1; returns the last valid index (-1 if unit_index itself was < 0).
+ * FUN_521d_0656 — stack_settler_pick (was "walk_unit_stack_to_end", a
+ * misreading of the register-mangled canonical decompile; re-disassembled
+ * byte-exact from OVL14_L0000:0656 on 2026-09-06e). Walks the tile/transport
+ * chain from `unit_index` and returns the member with the HIGHEST unit type
+ * byte whose DS:0x523d capability record has bit 0x40 set (types 0 Colonist,
+ * 2 Pioneer, 5 Scout — the settler-capable set); strictly-greater replaces,
+ * so the first of equal types wins. -1 when the chain holds none, which is
+ * the meaningful "no settler aboard" gate 20e6's cargo goal fold reads.
  */
-int ai_goals_walk_unit_stack_to_end(
+int ai_goals_stack_settler_pick(
   const ColonizeCol1Unit* units,
   int unit_count,
   int unit_index

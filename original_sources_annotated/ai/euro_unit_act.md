@@ -2543,3 +2543,78 @@ Linux now picks the same path but its whole-unit land MP stops it at
 (48,38) — MP thirds are a separate gap (docs/port_plan.md). Open, noted at
 the wire sites: sea continent==1 gate, `FUN_1000_894e` (type ≥ 0x13), the
 BX cost cap, `unit+0x314b != '9'`.
+
+## 2026-09-06e — case 8 (`FUN_479b_01a6`) ported the rest of the way
+
+Dispatcher target re-confirmed before touching anything: `5b66`'s `case 8`
+calls `func_0x000193b2`, the resident stub for `FUN_291f_01c2`, whose
+overlay target is `FUN_479b_01a6` (`viceroy_unpacked.c:76722-76858`) — the
+same row the 2026-08-14 table already carried, and the raw body reads
+clean (no Ghidra reloc-0000 misresolve here: `01a6` sits inside the same
+overlay as `0526`/`076e`, both of which the port already cites).
+
+Three things the port had wrong or missing, all read straight out of that
+body, plus one that fell out of reading `0526` beside it:
+
+1. **The lumber grant is radius-gated.** Raw:
+   `iVar9 = FUN_281f_0614(x, y, unit.nation, 0xffff)`, then
+   `-1 < iVar9 && *(int *)0x8db8 < 4`. **`0x8db8` is not the difficulty
+   byte** — it is the nearest-colony search's own distance output
+   (`move_scoring_land.md` "0x8db8 identified"; `FUN_15eb_0142` writes it,
+   and `FUN_4cc6_0356` writes it for the village search). So a finished
+   forest clear pays lumber only to an own colony within DOS distance 4
+   (`max + min/2`, `FUN_124c_0040`). The road body `0526` has **no** such
+   gate — it just requires the nearest colony (searched with `0xffff`, any
+   nation) to be owned by the unit's nation. Linux used an unbounded
+   Manhattan nearest-own-colony search for both; the clear branch now
+   gates at `< 4` and both branches use the DOS metric
+   (`units_nearest_colony_dos`).
+2. **Scale bump.** `local_14 = terr[+8]`, then
+   `FUN_281f_0754(colony.x, colony.y) & 0x0a` (layer2 road|city, read at
+   the *bound colony's* tile, not the worked tile) adds 1 before the
+   Lumber-Mill floor. A colony tile always carries the city bit, so the
+   bump always lands in DOS and the road half of the test is dead there;
+   Linux adds the +1 unconditionally rather than reading layer2, because
+   Linux's layer2 bit `0x08` is `MAP_LAYER2_RUMOUR_CLEARED`, not Col1's
+   road bit. With no mill the whole thing is still forced to 1 (floor,
+   not gate) so the flat-20 case is unchanged.
+3. **`LAB_479b_043b` — the tribal-land tail, previously unported.** Gates
+   in DOS order: `FUN_281f_0d84` nearest village on the tile's own
+   continent with `0x8db8 <= FUN_281f_0a56` (tech tier 1/2/3) — exactly
+   `colonies_indian_land_owner_tribe`'s homeland test; `FUN_281f_0696 < 0`
+   (no colony on the tile); layer2 `0x10` clear and
+   `FUN_281f_07b4(nation, 2) == 0` (no Peter Minuit) — both are already
+   the early-outs of `colonies_indian_land_purchase_gold`, so a price of 0
+   stands in for the pair; then `thunk_FUN_2a1f_01d8` = **`FUN_479b_00ca`**,
+   which is *not* a founding-father check but the **AI land purchase**: a
+   nation with `0x543f != 0` that can cover `price + price/2` pays
+   `FUN_281f_0d78` (= `FUN_4cc6_07c2`, the same price function the port
+   already has), `indian[+5]`-increments the lands-bought counter, stamps
+   the purchased bit, and returns 1 — taking **no** anger. Otherwise
+   `FUN_281f_0d6c(village, nation, amount, kind)` raises alarm by
+   `base` (`5` clear / `3` road, `+ DS:0x53a6` difficulty when the acting
+   nation is the human), doubled within distance 3 and tripled within 2.
+   Ported as `units_pioneer_native_land_tail` and wired to both
+   completions; the clear side is gated on `!bVar2` exactly as DOS is (a
+   plow never reaches the label).
+   *Trap*: `FUN_281f_0d6c`'s 4th argument (2 for clear, 1 for road) is
+   never read by `FUN_4cc6_00f2`'s body — recorded, not modelled. Positive
+   `param_3` = alarm **up**, so this is `ai_diplo_indian_alarm_delta(+n)`,
+   not the relation-flavoured wrapper.
+4. **Road turn count** (`0526`, spotted while diffing the two bodies):
+   `local_1c = terr[0x2f78]` with **no `+2`** — only the clear/plow body
+   adds 2 (`local_2a = byte + 2`). `units_pioneer_work_needed` ignored its
+   own `road` argument and added 2 for both, so every road took two extra
+   turns. `docs/unit_orders.md` had the right formulas written down the
+   whole time.
+
+Verified: `ctest` 57/57 with all goldens byte-green (no AI Pioneer finishes
+a job inside the golden windows, so none of this moves them); new unit test
+`unit_pioneer_case8_tail` in `tests/unit/test_units.c` covers the radius
+gate, the mill scale, the human alarm (15 at distance 1, difficulty 0) and
+the AI purchase (gold debited, `lands_bought++`, purchased bit, no alarm).
+
+Still thin in case 8 after this pass: the `FUN_281f_09ae`/`0416`/`0652`
+@CLEARCUT dialog is the port's own popup rather than a transcribed
+substitution chain; the viewport-recenter / blit calls (`0352`, `09ba`)
+are cosmetic and stay unported.

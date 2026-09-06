@@ -73,8 +73,11 @@ variants (`-0x77f8 & 4` → +USA tag suffixes, `iStack_9c`) not modeled; the
 LEADER/LEADER2/KINGS/DEEDS name-prep prefixes are folded into the single-tag
 popup bodies; SIEGES/paid-withdraw moves units to Europe by teleport where
 DOS orders a walk (goal = Europe coords); AI-side encounters fire once per
-unit act, not per movement step; `-0x6a9a` (×3-stride per-nation byte,
-`unknown34_pad`) still stubbed 0 in the rival tally and `10ec` alike.
+unit act, not per movement step. (`-0x6a9a`, the ×3-stride per-nation byte
+formerly stubbed 0 in the rival tally and `10ec` alike, was **resolved
+2026-09-06d** — NAMES.TXT `@LEADERNAME` leader-trait triple, column 0 =
+belligerence; both sites are live via `ai_diplo_leader_trait`. See
+[`euro_diplo.md`](euro_diplo.md).)
 
 **2026-08-24 — tail write at `-0x77b8` (line ~1686 below) fully resolved.**
 Re-decompiled fresh and cross-confirmed against a second, independently
@@ -307,7 +310,11 @@ ownership loop (real control flow; its one selector call, idx4/`FUN_5bfb_
 0000`, is an honest stub — see `ai_diplo_153e_unit_score_stub`), the
 euro_relation peace-bit check (real, `-0x77c4`), and the final clamp/scale
 arithmetic (real — the two `func_0x0001854c` calls are ported as plain
-value/lo/hi clamps, since the raw literals are given, not invented; the
+value/lo/hi clamps, since the raw literals are given, not invented; that
+clamp reading was **confirmed byte-exact 2026-09-06d**: `func_0x0001854c`
+is `FUN_281f_035c` → `FUN_124c_000c` = `min(max(a,b),c)`, and the leading
+`0x181f`/`0xd1d` "argument" is a far-thunk segment artifact — see
+`euro_goal_orders_0a60_full.md`, "Eighth pass"; the
 `FUN_0000_e096` treasury-ratio call is NOT ported, see below).
 
 Follows the `ai_euro_5d04_nation_planning_structural` precedent exactly:

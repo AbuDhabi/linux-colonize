@@ -42,9 +42,9 @@ int ai_euro_28c8_colonist_job_score_structural(
 /*
  * FUN_5bfb_10ec — Euro A↔B "war-worthy" eligibility by military balance
  * (static port 2026-08-27, T1.20). Returns 1 when A may reasonably go to
- * war with B. Continent tallies via the 20e6 accessors; the unknown
- * per-nation ×3 byte table at −0x6a9a (Linux `unknown34_pad`, filed dead)
- * reads as 0, and the DS:0xa153 byte gate is skipped (never resolved).
+ * war with B. Continent tallies via the 20e6 accessors; the −0x6a9a
+ * belligerence term is real since 2026-09-06d (`ai_diplo_leader_trait`),
+ * and the DS:0xa153 byte gate is skipped (never resolved).
  */
 int ai_euro_10ec_war_worthy(const ColonizeTurnContext* ctx, int a, int b);
 

@@ -1629,10 +1629,25 @@ static void ai_contact_clamp_alarms(ColonizeCol1Indian* ind) {
     return;
   }
   for (int e = 0; e < 4; ++e) {
-    /* Signed alarm byte clamp stand-in (1816 §4): keep uint16 in band. */
+    /*
+     * Linux-only guard: keep the uint16 alarm mirror in band. NOT DOS 1816
+     * §4 — that clamp is on `muskets`, see below (mis-mapped until
+     * 2026-09-06d).
+     */
     if (ind->alarm_by_player[e] > 200) {
       ind->alarm_by_player[e] = 200;
     }
+  }
+  /*
+   * FUN_4d56_1816 §4 (raw viceroy_unpacked.c:81606-81610), ported
+   * 2026-09-06d: `cVar3 = *(char *)(indian + 7); if (cVar3 < 0) cVar3 = 0;`
+   * — `+7` is `muskets`, and DOS handles it as a **signed** byte throughout
+   * (152e's spend test is `'\0' < muskets` too). The WoI defect arm's
+   * `muskets = min(muskets, villages) << 2` is what can push it past 0x7f,
+   * so this is the guard that catches that overflow the next turn.
+   */
+  if ((int8_t)ind->muskets < 0) {
+    ind->muskets = 0;
   }
 }
 
@@ -4441,15 +4456,25 @@ void ai_contact_indian_woi_defect(ColonizeTurnContext* ctx, int nation_id) {
   ai_diplo_indian_alarm_delta(ctx->col1, nation_id, human, 100);
   ai_diplo_indian_alarm_delta(ctx->col1, nation_id, crown, -100);
 
-  const int tech = ind->tech;
-  int muskets = ind->muskets;
-  if (muskets > tech) {
-    muskets = tech;
+  /*
+   * 2026-09-06d correction: the clamp operand is the tribe's **village
+   * count**, not its tech level. DOS reads `*(char *)(*(int *)0x8d52 +
+   * -0x69d6)`, i.e. `DS:0x962a[indian slot]` = `tribe_village_counts` —
+   * the same array `FUN_4962_06b6` refreshes each Indian turn and the
+   * Incite price quotes (save_format_map.md file offset 581). The old
+   * `ind->tech` read was a different field entirely, so a big tribe with
+   * low tech was disarmed on defection and a small high-tech one over-armed.
+   */
+  const int slot = nation_id - 4;
+  const int villages = (int)ctx->col1->stuff.tribe_village_counts[slot];
+  int muskets = (int)(int8_t)ind->muskets;
+  if (muskets > villages) {
+    muskets = villages;
   }
   ind->muskets = (uint8_t)(muskets * 4); /* DOS <<2; byte truncation matches */
-  int horses = ind->horse_herds;
-  if (horses > tech) {
-    horses = tech;
+  int horses = (int)(int8_t)ind->horse_herds;
+  if (horses > villages) {
+    horses = villages;
   }
   ind->horse_herds = (uint8_t)horses;
   ind->horse_breeding = (uint16_t)(horses * 25);
@@ -4636,6 +4661,110 @@ void ai_contact_indian_prelude(ColonizeTurnContext* ctx, int nation_id) {
   }
 }
 
+/*
+ * FUN_2a1f_0270 -> FUN_4962_06b6 — the per-tribe-type census recount
+ * (ported 2026-09-06d).
+ *
+ * Callee identity recovered with the standard chain, one extra hop because
+ * Ghidra's `viceroy_overlays.c` decompile of this particular thunk is
+ * garbage (`out(...)` / stray ADD — a reloc-`0000` misparse):
+ *   FUN_2a1f_0270 = FUN_1000_a460 (address_mapping.csv)
+ *   raw bytes at ram:1000:a460 = `CALLF FUN_1000_1e7b; JMPF <reloc>:06b6`
+ *   trailer overlay id `08 00` -> OVL09, and `FUN_4962_06b6` is the only
+ *   `:06b6` in OVL09_L0040 -> FUN_4962_06b6 (viceroy_unpacked.c:78378).
+ * Cross-check: save_format_map.md already credits FUN_4962_06b6 with
+ * writing exactly the five arrays below, and 1816's very next statement
+ * reads `tribe_population_totals[slot]` — which only makes sense if this
+ * call is what just refreshed it.
+ *
+ * DOS body, verbatim shape:
+ *   tribe_data_9184[slot] = 0; tribe_population_totals[slot] = 0;
+ *   tribe_village_counts[slot] = 0;
+ *   for i in 0..15: tribe_dwellings_91cc[slot*16+i] = 0;
+ *                   village_counts_by_continent[i] = 0;   // NOT slot-scoped
+ *   for each settlement record with nation == slot+4:
+ *       village_counts[slot]++; population_totals[slot] += population;
+ *       village_counts_by_continent[continent(x,y)]++;
+ *   for each unit with (nation & 0xf) == slot+4:
+ *       v = FUN_281f_09c8(unit, 1)          // = combat_unit_base_x8 mode 1
+ *       tribe_data_9184[slot]        = min(255, +v)   // FUN_4962_0006
+ *       c = FUN_281f_081c(unit)             // = FUN_1427_0f0e = continent
+ *       if (c >= 0) tribe_dwellings_91cc[slot*16+c] = min(255, +v)
+ *
+ * **DOS quirk kept literal:** `village_counts_by_continent[]` is zeroed on
+ * every call but only refilled from the *current* tribe type, so after the
+ * eight 1816 calls it holds the last surviving tribe type's villages only.
+ * FUN_4962_0018 (the Euro census) is the array's other writer. Not
+ * "fixed" here — no invented behavior.
+ */
+static void ai_contact_indian_census_4962_06b6(ColonizeTurnContext* ctx, int nation_id) {
+  if (!ctx || !ctx->col1_ok || !ctx->col1) {
+    return;
+  }
+  ColonizeCol1Save* col1 = ctx->col1;
+  ColonizeCol1Stuff* st = &col1->stuff;
+  const int slot = nation_id - 4;
+  if (slot < 0 || slot >= 8) {
+    return;
+  }
+
+  st->tribe_data_9184[slot] = 0;
+  st->tribe_population_totals[slot] = 0;
+  st->tribe_village_counts[slot] = 0;
+  for (int i = 0; i < 16; ++i) {
+    st->tribe_dwellings_91cc[slot * 16 + i] = 0;
+    st->village_counts_by_continent[i] = 0;
+  }
+
+  if (col1->tribe) {
+    for (uint16_t ti = 0; ti < col1->head.tribe_count; ++ti) {
+      const ColonizeCol1Tribe* t = &col1->tribe[ti];
+      if ((int)t->nation_id != nation_id) {
+        continue;
+      }
+      if (st->tribe_village_counts[slot] < 255u) {
+        st->tribe_village_counts[slot]++;
+      }
+      int pop = (int)st->tribe_population_totals[slot] + (int)t->population;
+      st->tribe_population_totals[slot] = (uint8_t)(pop > 255 ? 255 : pop);
+      const int cont = map_continent_id_at(ctx->map, (int)t->x, (int)t->y);
+      if (cont >= 0 && cont < 16 && st->village_counts_by_continent[cont] < 255u) {
+        st->village_counts_by_continent[cont]++;
+      }
+    }
+  }
+
+  if (!ctx->units) {
+    return;
+  }
+  ColonizeCombatStrengthCtx sctx;
+  sctx.units = ctx->units;
+  sctx.map = ctx->map;
+  sctx.colonies = ctx->colonies;
+  sctx.col1 = col1;
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    const ColonizeUnit* u = units_get_const(ctx->units, i);
+    if (!u || !u->active || u->nation_id != nation_id) {
+      continue;
+    }
+    const int v = combat_unit_base_x8(&sctx, i, 1, NULL);
+    if (v <= 0) {
+      continue;
+    }
+    int sum = (int)st->tribe_data_9184[slot] + v;
+    st->tribe_data_9184[slot] = (uint8_t)(sum > 255 ? 255 : sum);
+    if (!units_is_on_map(u)) {
+      continue; /* FUN_1427_0f0e on an off-map unit returns no continent. */
+    }
+    const int cont = map_continent_id_at(ctx->map, u->x, u->y);
+    if (cont < 0 || cont >= 16) {
+      continue;
+    }
+    int cs = (int)st->tribe_dwellings_91cc[slot * 16 + cont] + v;
+    st->tribe_dwellings_91cc[slot * 16 + cont] = (uint8_t)(cs > 255 ? 255 : cs);
+  }
+}
+
 void ai_contact_indian_relation_tick(ColonizeTurnContext* ctx, int nation_id) {
   if (!ctx || !ctx->col1_ok || !ctx->col1 || nation_id < 4 || nation_id > 11) {
     return;
@@ -4652,9 +4781,71 @@ void ai_contact_indian_relation_tick(ColonizeTurnContext* ctx, int nation_id) {
    * friction ±1-per-turn band drift is gone with the encroachment bumps —
    * DOS friction moves only through 152e (mission −3·local_8, threat-word
    * bump + alarm/5) and discrete events (trade, raids, land-work), never a
-   * per-turn drift. Function kept as a no-op anchor for the 1816 pulse order.
+   * per-turn drift.
    */
-  (void)ind;
+
+  /*
+   * FUN_4d56_1816 §6, ported 2026-09-06d (was an empty ordering anchor).
+   * The raw function's `do { ... } while(true)` with the `if (0xf < local_8)`
+   * guard at the top is a decompiler rendering of two sequential blocks:
+   * a 16-iteration loop, then the tail. Raw: viceroy_unpacked.c:81640-81683.
+   *
+   * §6a — goods ledger decay. `*(int *)(0x8d4e + 0xe + 2*i)`, i = 0..15, is
+   * `ColonizeCol1Indian.tons[16]` (+0x0e, the 16 Col1 cargo types). Every
+   * entry walks toward zero by `tech + 1` per turn and clamps at 0 — DOS
+   * never lets it cross:
+   *     v > 0 -> v = max(0, v - tech - 1)
+   *     v < 0 -> v = min(0, v + tech + 1)
+   *     v == 0 -> untouched (no store at all)
+   * This is the tribe's trade memory bleeding off, which is why a village
+   * you have flooded with one cargo eventually pays well for it again.
+   */
+  {
+    const int step = (int)ind->tech + 1;
+    for (int i = 0; i < (int)COLONIZE_COL1_CARGO_TYPES; ++i) {
+      int v = (int)ind->tons[i];
+      if (v > 0) {
+        v -= step;
+        if (v < 0) {
+          v = 0;
+        }
+        ind->tons[i] = (int16_t)v;
+      } else if (v < 0) {
+        v += step;
+        if (v > 0) {
+          v = 0;
+        }
+        ind->tons[i] = (int16_t)v;
+      }
+    }
+  }
+
+  /* §6b — census recount (FUN_2a1f_0270). Must precede §6c: that reads
+   * `tribe_population_totals[slot]`, which this call is what refreshes. */
+  ai_contact_indian_census_4962_06b6(ctx, nation_id);
+
+  /*
+   * §6c — horse breeding. `if (horse_herds != 0) horse_breeding +=
+   * horse_herds`, capped at `(tribe_population_totals[slot] + 0x19) * 2`.
+   * DOS reads +8 (`horse_herds`) as a signed char and +10 as an int.
+   * The cap is why a tribe with few/small villages never accumulates enough
+   * breeding stock to field Mounted Braves.
+   */
+  {
+    const int herds = (int)(int8_t)ind->horse_herds;
+    if (herds != 0) {
+      const int slot = nation_id - 4;
+      int hb = (int)ind->horse_breeding + herds;
+      const int cap = ((int)ctx->col1->stuff.tribe_population_totals[slot] + 0x19) * 2;
+      if (hb > cap) {
+        hb = cap;
+      }
+      if (hb < 0) {
+        hb = 0;
+      }
+      ind->horse_breeding = (uint16_t)hb;
+    }
+  }
 }
 
 /*

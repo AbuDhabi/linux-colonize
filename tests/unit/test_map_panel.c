@@ -436,6 +436,15 @@ int main(void) {
     ctribe.alarm[0].friction = 96;  /* >> 5 = tier 3 */
     ColonizeCol1Save ccol1;
     memset(&ccol1, 0, sizeof(ccol1));
+    /*
+     * 2026-09-06d: unclaimed Fathers are -1 (col1_save_init), not 0. Left at
+     * 0 the head says nation 0 owns every Father, and the alarm-mark count
+     * now depends on FF 16 Pocahontas (halves the threat score — the
+     * de-stubbed FUN_281f_07b4(nation, 0x10) in ai_indian_village_threat).
+     */
+    for (size_t fi = 0; fi < sizeof(ccol1.head.founding_father); ++fi) {
+      ccol1.head.founding_father[fi] = -1;
+    }
     ccol1.head.tribe_count = 1;
     ccol1.head.difficulty = 2;
     ccol1.tribe = &ctribe;

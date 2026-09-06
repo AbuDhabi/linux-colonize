@@ -187,22 +187,51 @@ void ai_goals_clear_work_queue(void) {
   for (int i = 0; i < AI_WORK_SLOTS; ++i) {
     s_work[i].id = -1;
     s_work[i].score = 0;
-    s_work[i].flag_a = 0;
-    s_work[i].flag_b = 0;
+    s_work[i].loads = 0;
+    s_work[i].military = 0;
   }
 }
 
-void ai_goals_upsert_work(int id, int score, uint8_t flag_a, uint8_t flag_b) {
+void ai_goals_upsert_work(int id, int score, uint8_t loads, uint8_t military) {
   /* FUN_521d_02be: score-ordered insert when score > occupant or id < 0. */
   for (int i = 0; i < AI_WORK_SLOTS; ++i) {
     if (s_work[i].score < score || s_work[i].id < 0) {
       work_shift_down(i);
       s_work[i].id = (int16_t)id;
       s_work[i].score = (int16_t)score;
-      s_work[i].flag_a = flag_a;
-      s_work[i].flag_b = flag_b;
+      s_work[i].loads = loads;
+      s_work[i].military = military;
       return;
     }
+  }
+}
+
+void ai_goals_work_consume(int slot, int free_holds) {
+  if (slot < 0 || slot >= AI_WORK_SLOTS) {
+    return;
+  }
+  AiWorkSlot* w = &s_work[slot];
+  if (w->id < 0 || w->loads == 0) {
+    return;
+  }
+  if (free_holds < 0) {
+    free_holds = 0;
+  }
+  /*
+   * DOS: iStack_9a = rec[+4] - unit_type_hold_capacity(0x5237) +
+   * unit->holds_occupied(+0x3150), floored at 0 -- i.e. loads minus the
+   * hauler's *free* holds. The score write-back divides by the pre-claim
+   * load count, so it is proportional, and a fully served colony's slot is
+   * released the same beat.
+   */
+  int remaining = (int)w->loads - free_holds;
+  if (remaining < 0) {
+    remaining = 0;
+  }
+  w->score = (int16_t)(((int)w->score * remaining) / (int)w->loads);
+  w->loads = (uint8_t)remaining;
+  if (remaining == 0) {
+    w->id = -1;
   }
 }
 
@@ -840,21 +869,47 @@ int ai_goals_composite_unit_priority(
 }
 
 /*
- * FUN_521d_0656 — walk_unit_stack_to_end. Cite: viceroy_unpacked.c ~87219.
- * DOS body is corrupted (drops the FUN_281f_02e4 call's argument), but the
- * shape is unambiguous: follow the transport chain until -1.
+ * FUN_521d_0656 — stack_settler_pick. The canonical decompile
+ * (viceroy_unpacked.c ~87219) is register-mangled and reads as a bare
+ * "follow the chain to its end"; the real body, re-disassembled byte-exact
+ * from OVL14_L0000:0656 (viceroy_overlays.asm) on 2026-09-06e, is a
+ * max-scan gated on the @UNIT capability table:
+ *
+ *   best = -1;
+ *   while (unit >= 0) {
+ *     t = unit.type(+0x3146);
+ *     if (DS:0x523d[t*0xe] & 0x40 && (best < 0 || type[best] < t)) best = unit;
+ *     unit = next_stack_member(unit);          // FUN_1000_84d4
+ *   }
+ *
+ * Bit 0x40 is set for exactly types 0 (Colonist), 2 (Pioneer) and 5 (Scout);
+ * every ship type carries 0x81/0x82/0xa2, so a carrier never picks itself and
+ * an empty transport returns -1. Table values are the same DS:0x523d
+ * @UNIT bit-string ai_euro.c's k_20e6_type_flags carries.
  */
-int ai_goals_walk_unit_stack_to_end(
+static const uint8_t k_goals_type_flags_523d[23] = {
+  0x40, 0x1c, 0x40, 0x20, 0x3c, 0x64, 0x1c, 0x1c, 0x1c, 0x1c, 0x00, 0x18,
+  0x00, 0xa2, 0x82, 0x82, 0x01, 0x81, 0x81, 0x38, 0x38, 0x38, 0x38
+};
+
+int ai_goals_stack_settler_pick(
   const ColonizeCol1Unit* units,
   int unit_count,
   int unit_index
 ) {
-  int last = -1;
+  int best = -1;
+  int best_type = -1;
   while (units && unit_index >= 0 && unit_index < unit_count) {
-    last = unit_index;
+    const int t = (int)units[unit_index].type;
+    const int flags =
+      (t >= 0 && t < (int)(sizeof(k_goals_type_flags_523d))) ? (int)k_goals_type_flags_523d[t] : 0;
+    if ((flags & 0x40) != 0 && t > best_type) {
+      best_type = t;
+      best = unit_index;
+    }
     unit_index = units[unit_index].transport_chain.next_unit_idx;
   }
-  return last;
+  return best;
 }
 
 /*

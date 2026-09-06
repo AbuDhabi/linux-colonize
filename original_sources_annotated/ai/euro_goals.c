@@ -317,17 +317,27 @@ int composite_unit_priority(int nation_id, int unit_index) {
 }
 
 /*
- * Ghidra: FUN_521d_0656 | walk_unit_stack_to_end
- * Follow transport chain (281f_02e4) until −1; return last index.
+ * Ghidra: FUN_521d_0656 | stack_settler_pick
+ * RENAMED 2026-09-06e — "walk_unit_stack_to_end" came from the canonical
+ * decompile, whose register tracking is broken here. Raw bytes at
+ * OVL14_L0000:0656 (see move_scoring_20e6_full.md "2026-09-06e"): walk the
+ * tile stack (281f_02e4 / FUN_1000_84d4) and keep the HIGHEST unit type
+ * whose DS:0x523d capability record has bit 0x40 — types 0 Colonist,
+ * 2 Pioneer, 5 Scout; strictly-greater replaces, so ties keep the first.
+ * −1 when the chain holds none (ships are 0x81/0x82/0xa2, so a carrier
+ * never picks itself). Linux: ai_goals_stack_settler_pick.
  */
-int walk_unit_stack_to_end(int unit_index) {
-  int last = -1;
+int stack_settler_pick(int unit_index) {
+  int best = -1;
+  int best_type = -1;
   while (unit_index >= 0) {
-    last = unit_index;
-    /* unit_index = FUN_281f_02e4(...); */
+    /* const int t = unit_type(unit_index);
+     * if ((type_flags_523d[t] & 0x40) && t > best_type) { best_type = t; best = unit_index; }
+     * unit_index = FUN_281f_02e4(unit_index); */
     break; /* annotated structure only */
   }
-  return last;
+  (void)best_type;
+  return best;
 }
 
 /* ====================================================================== */

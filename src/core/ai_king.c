@@ -1855,11 +1855,26 @@ static void ai_king_sync_boycott_refuse(ColonizeCol1Save* col1, int human) {
  *     6 Regulars / 8 Cavalry / 0x12 Man-O-War / 0xb Artillery;
  *   royal_money -= 1800.
  *
- * DOS tail also does `nation+0xe += free_colonist_counts[nation]`
- * (liberty_bells_last_turn += DS:0x9408[nation]; asm `MOV AL,[SI+0x9408]`).
- * NOT replicated: this port repurposes liberty_bells_last_turn as the FF
- * pool stash (col1_save.h FF_POOL_STASH_MARKER) and no DOS reader of the
- * bumped value is known — documented divergence, not an oversight.
+ * DOS tail (asm 43f7:1e58-1e61, `MOV SI,[BP+param]; MOV AL,[SI+0x9408];
+ * SUB AH,AH; ADD [BX+0xe],AX`) — ported 2026-09-06d. `nation+0xe` decoded:
+ * the nation record is `n*0x13c + DS:-0x77f8` (nation_flags +0, tax_rate +1,
+ * recruit[3] +2, tax_hike_count +5, recruit_count +6, founding_fathers[4] +7,
+ * unknown21_pad +0xb, liberty_bells_total +0xc) so +0xe is
+ * `liberty_bells_last_turn` — and the DOS write set proves the name: zeroed
+ * at each nation's own turn start (FUN_3844_00f2, :58382), zeroed by new-game
+ * init (FUN_38fd_6024, :68684), and ADDed alongside +0xc by the bell-spend
+ * FUN_4345_0a22 (:73343). Those five sites are the ONLY touches of +0xe in
+ * all three decompiled exports (scan of every `<var> = *(int*)0x84fc` alias
+ * plus the array form `n*0x13c-0x77ea`, zero hits) — there is no in-game
+ * reader, so the bump is observable only in the saved word.
+ * `DS:0x9408` = `stuff.free_colonist_counts` (save_format_map row 242,
+ * type==0 units). Phase order matches DOS: turn_run_nation_ticks (bells,
+ * TURN_PROC_SETUP) runs before turn_run_king_stub (TURN_PROC_KING), so the
+ * bump lands last, exactly as 2424's EOT position does in DOS.
+ * Caveat kept: founding_fathers_stash_pools_into_col1 overwrites this word
+ * with the FF pool while writing our own .SAV, so the bumped value survives
+ * to disk only for saves this engine did not stash — a separate, pre-existing
+ * divergence (col1_save.h FF_POOL_STASH_MARKER), not this one.
  *
  * (The pre-2026-09-06 stand-in grew pools by tax band on every audience
  * event and set ref_present from a peacetime pool — both invented; removed.)
@@ -1930,6 +1945,9 @@ static void ai_king_1d42_royal_purse(ColonizeTurnContext* ctx) {
     );
   }
   nat->royal_money -= 0x708;
+  /* asm 43f7:1e58 tail — 16-bit ADD, wraps like DOS. */
+  nat->liberty_bells_last_turn =
+    (uint16_t)(nat->liberty_bells_last_turn + (uint16_t)col1->stuff.free_colonist_counts[human]);
 }
 
 int ai_king_sol_percent(const ColonizeTurnContext* ctx, int nation_id) {
@@ -2758,10 +2776,24 @@ static void ai_king_do_declare(ColonizeTurnContext* ctx, int human) {
    * ai_diplo_or_both, not declare_war_ctx: the WoI is its own regime — no
    * Franklin gate, no peer embargo/tax chrome.
    */
-  ai_diplo_or_both(
-    ctx->col1, human, ai_king_crown_nation_col1(ctx->col1_ok ? ctx->col1 : NULL, human),
-    (uint8_t)(AI_DIPLO_WAR | AI_DIPLO_MET)
-  );
+  /*
+   * FUN_43f7_1a26 (viceroy_unpacked.c:74832-74833), decoded 2026-09-06d:
+   *   caseD_10(human, crown, 0x22)      -> FUN_15b3_0066 = or_both
+   *   FUN_281f_0a10(human, crown, 0x40) -> FUN_15b3_00d0 = clear_both
+   * With the 2026-08-27 T1.19 bit map (ai_diplo.h) 0x22 is exactly
+   * WAR(0x02)|MET(0x20) — the port's existing write was already DOS-exact;
+   * the missing half was the PEACE(0x40) clear. king_ref's old note read
+   * "0x40 MET" off the stale pre-T1.19 map, which is why this looked like a
+   * conflict with the user-verified WAR|MET set. Clearing PEACE cannot
+   * regress the rebel-attacks-REF fix (units.c's gate short-circuits on WAR
+   * before ai_contact's @HAVETREATY prompt ever reads PEACE) and it stops the
+   * crown pair from reading "treaty signed" in the F8 report mid-war.
+   */
+  {
+    const int crown_slot = ai_king_crown_nation_col1(ctx->col1_ok ? ctx->col1 : NULL, human);
+    ai_diplo_or_both(ctx->col1, human, crown_slot, (uint8_t)(AI_DIPLO_WAR | AI_DIPLO_MET));
+    ai_diplo_clear_both(ctx->col1, human, crown_slot, (uint8_t)AI_DIPLO_PEACE);
+  }
   /* bugs.md: no landing on the declaration turn itself. */
   ai_king_latch_set(ctx->col1, AI_KING_REF_WAVE_WAIT_BYTE, 1);
   /*
@@ -2801,16 +2833,28 @@ static void ai_king_do_declare(ColonizeTurnContext* ctx, int human) {
     ctx->col1->player[n].control = (uint8_t)(n == crown_fold ? 1 : 2);
     if (n != crown_fold && ctx->col1_ok) {
       /*
-       * FUN_43f7_0108 diplo-clear/set (0xb clear / 0x60 OR bitmasks vs
-       * DS:0x5398 declaring nation and DS:0x53d2 crown -- DOS never targets
-       * the crown itself with 0108, matching the n==crown_fold skip here).
-       * 0xb = WAR|PEACE|unmapped-bit3; 0x60 = unmapped-bit5|MET. The two
-       * unmapped bits are intentionally not applied -- see king_ref.md.
+       * FUN_43f7_0108 diplo-clear/set (viceroy_unpacked.c:73554-73557: clear
+       * 0x0b vs DS:0x5398 then vs DS:0x53d2, OR 0x60 vs each -- DOS never
+       * targets the crown itself with 0108, matching the n==crown_fold skip).
+       *
+       * Bit map corrected 2026-09-06d: the old comment here ("0xb =
+       * WAR|PEACE|unmapped-bit3; 0x60 = unmapped-bit5|MET") predates the
+       * 2026-08-27 T1.19 re-derivation in ai_diplo.h. Under the live map
+       * 0x0b = WAR_INTENT(0x01)|WAR(0x02)|amicable-latch(0x08) and
+       * 0x60 = MET(0x20)|PEACE(0x40) -- every bit is mapped, nothing is
+       * "unmapped" any more. The port had it inverted for PEACE: it CLEARED
+       * 0x40 where DOS SETS it, so a withdrawn Euro power came out of the
+       * declare fold not-at-peace with both the rebel and the crown.
+       * (0x08 is AI_DIPLO_TREASURE_STRONGER, this port's stand-in on the DOS
+       * amicable-negotiation latch -- clearing it is the DOS write.)
        */
-      ai_diplo_clear_both(ctx->col1, n, human, (uint8_t)(AI_DIPLO_WAR | AI_DIPLO_PEACE));
-      ai_diplo_or_both(ctx->col1, n, human, (uint8_t)AI_DIPLO_MET);
-      ai_diplo_clear_both(ctx->col1, n, crown_fold, (uint8_t)(AI_DIPLO_WAR | AI_DIPLO_PEACE));
-      ai_diplo_or_both(ctx->col1, n, crown_fold, (uint8_t)AI_DIPLO_MET);
+      const uint8_t k_0108_clear =
+        (uint8_t)(AI_DIPLO_WAR_INTENT | AI_DIPLO_WAR | AI_DIPLO_TREASURE_STRONGER);
+      const uint8_t k_0108_set = (uint8_t)(AI_DIPLO_MET | AI_DIPLO_PEACE);
+      ai_diplo_clear_both(ctx->col1, n, human, k_0108_clear);
+      ai_diplo_or_both(ctx->col1, n, human, k_0108_set);
+      ai_diplo_clear_both(ctx->col1, n, crown_fold, k_0108_clear);
+      ai_diplo_or_both(ctx->col1, n, crown_fold, k_0108_set);
     }
     if (n == crown_fold || !ctx->units) {
       continue;
@@ -4031,6 +4075,70 @@ static int ai_king_10f0_spawn_unit(ColonizeTurnContext* ctx, int human, int k, i
 }
 
 /*
+ * FUN_43f7_1528 %STRING3 colony pick — ported 2026-09-06d (was: the port
+ * named the *landing* colony). DOS (viceroy_unpacked.c:74471-74481, the loop
+ * that runs before the popup is built) walks the whole colony array with
+ * FUN_281f_09e6 and keeps the human's (`+0x1a == DS:0x5398`) COASTAL
+ * (`i*0xca+0x5d62 & 0x40` = ColonizeCol1ColonyFlags.coastal) colony with the
+ * largest population (`+0x1f`); the test is strict `<`, so the FIRST colony
+ * at the maximum wins, and `iVar4` is seeded to 0 — with no coastal human
+ * colony at all DOS names colony index 0 whatever it is. `FUN_281f_0416(3,
+ * iVar4*0xca+0x5d48)` then splices that colony's name (+2) into %STRING3.
+ * Returns NULL only when there is no colony array to read at all.
+ */
+static const char* ai_king_1528_announce_colony(const ColonizeTurnContext* ctx, int human) {
+  if (!ctx || human < 0 || human >= 4) {
+    return NULL;
+  }
+  if (ctx->col1_ok && ctx->col1 && ctx->col1->colony && ctx->col1->head.colony_count > 0) {
+    int best_pop = -1;
+    uint16_t best_i = 0; /* DOS seeds iVar4 = 0, not -1 */
+    for (uint16_t i = 0; i < ctx->col1->head.colony_count; ++i) {
+      const ColonizeCol1Colony* c = &ctx->col1->colony[i];
+      if ((int)c->nation_id != human || !c->flags.coastal) {
+        continue;
+      }
+      if (best_pop < (int)c->population) {
+        best_pop = (int)c->population;
+        best_i = i;
+      }
+    }
+    if (ctx->col1->colony[best_i].name[0]) {
+      return ctx->col1->colony[best_i].name;
+    }
+  }
+  /* No Col1 colony array (synthetic fixtures): same rule over the live pool. */
+  if (ctx->colonies) {
+    int best_pop = -1;
+    const ColonizeColony* best = NULL;
+    const ColonizeColony* first = NULL;
+    for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+      const ColonizeColony* c = &ctx->colonies->colonies[i];
+      if (!c->active || c->nation_id != human) {
+        continue;
+      }
+      if (!first) {
+        first = c;
+      }
+      if (ctx->map && !map_tile_is_coastal(ctx->map, c->x, c->y)) {
+        continue;
+      }
+      if (best_pop < c->population) {
+        best_pop = c->population;
+        best = c;
+      }
+    }
+    if (!best) {
+      best = first;
+    }
+    if (best && best->name[0]) {
+      return best->name;
+    }
+  }
+  return NULL;
+}
+
+/*
  * FUN_43f7_10f0-shaped: foreign-intervention landing when REF empty and
  * backup_force (DOS 0x53e2… stand-in) still has pools. Up to two landings
  * per call; third when difficulty ≥ AI_KING_INTERVENE_DIFF_THIRD (REF
@@ -4153,6 +4261,10 @@ static void ai_king_foreign_intervene_ex(ColonizeTurnContext* ctx, int from_bell
         colony = c->name;
       }
     }
+    const char* announce_colony = ai_king_1528_announce_colony(ctx, human);
+    if (!announce_colony || !announce_colony[0]) {
+      announce_colony = colony;
+    }
     /* @FRIEND row for the ally ("French General Lafayette", …) — DOS 1528
      * splices GAME.TXT @FRIEND[ally] into %STRING2. */
     char general[64];
@@ -4180,7 +4292,10 @@ static void ai_king_foreign_intervene_ex(ColonizeTurnContext* ctx, int from_bell
         itok.string0 = ally_country;
         itok.string1 = crown_country;
         itok.string2 = general;
-        itok.string3 = colony;
+        /* DOS 1528 names the human's largest COASTAL colony here, not the
+         * tile the force happens to land on — see
+         * ai_king_1528_announce_colony. */
+        itok.string3 = announce_colony;
         itok.string4 = ally_name;
         snprintf(
           fallback,

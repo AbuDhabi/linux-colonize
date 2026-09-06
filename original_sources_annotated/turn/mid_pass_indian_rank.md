@@ -42,8 +42,26 @@ uses place. Not a save DS:0x917c writer (RMW layout PARKED).
 | 2 | For Indian slots 0..7: if `DS:0x5ad9 + 0x4e*slot` (tribe flags) bit7 clear → **`FUN_4d56_1816(slot)`** — the full Indian nation turn. Ghidra labels the call `FUN_41f2_0266`; that is a misresolve (see "Dispatcher — resolved") |
 | 3 | For each colony: bind; for each worked ring tile with owner nibble: if tile owner is Indian (>3) and ≠ colony owner, and no tribe presence → `281f_0704` stamp ownership toward colony nation |
 
-**Linux:** ownership/growth folded into `ai_indian_nation_turn` /
-`ai_grow_villages` — not a separate mid-pass. Reshape. Note the DOS order:
+**Linux (2026-09-06d — phases 1 and 3 now real, was "Reshape"):**
+`ai_indian_midpass_clear_tables` and `ai_indian_midpass_claim_worked_tiles`
+(`ai.c`), called from `turn.c` immediately before native slot 4 and
+immediately after slot 11 — the same bracket DOS uses. Phase 2 is the
+`TURN_PROC_INDIAN` cursor loop itself.
+
+- Phase 1's `DS:0x5b04` decodes as `0x5ad6 + 0x2e` = `indian.contact_state[4]`
+  (Indian record base, stride `0x4e` = `0x27` words). **This makes
+  `contact_state` a per-YEAR latch, not the permanent one `ai_contact.c`'s
+  gift/beg arm assumed** — DOS wipes all 32 words every year, which is why
+  villages keep visiting instead of going quiet forever.
+- Phase 3 callees: `281f_06dc` = `137f_0200` (owner nibble), `281f_06d2` =
+  `137f_0428` (settlement `layer2 0x02` **or** unit `0x01` present),
+  `281f_0704` = `137f_0228` (owner stamp), `281f_0c5e` = `15eb_0470`
+  (`min(FUN_15eb_039e(10), 2) + 2` → `DS:0x329` ring tier). Net effect: a
+  colonist actually *working* a native-owned plot silently transfers that
+  plot. `0704`'s @SEIZURE popup arm cannot fire here — it needs a native
+  settlement on the tile, which the `06d2` gate already excluded.
+- Trap: the DS ring tables are `DS:0xc8` = **dx**, `DS:0xde` = **dy** — the
+  reverse of `colonist_work_plot_28c8.md`'s labels (corrected there). Note the DOS order:
 all eight Indian nation turns run **inside the mid-pass, before** the Euro
 0..3 loop; Linux `TURN_PROC_INDIAN` now runs before `TURN_PROC_EURO` too (2026-08-27).
 **2026-08-28 correction for the Linux pipeline:** "before the Euro loop" is

@@ -3488,10 +3488,13 @@ they aren't explorer-flagged), goldens byte-green. Trace env:
 
 ### Still thin after this pass (precise)
 
-- Hold-cargo colony-delivery matrix (raw 2052-2146: `acStack_c8`
+- ~~Hold-cargo colony-delivery matrix (raw 2052-2146: `acStack_c8`
   per-cargo tallies vs colony stock `+0x9a`, embargo bits `+0x90`,
   `−0x7b44` price weights) — Linux keeps the tested
-  `ai_euro_try_ship_trade_haul` / nearest-short-colony equivalent.
+  `ai_euro_try_ship_trade_haul` / nearest-short-colony equivalent.~~
+  **Ported 2026-09-06d** (see that section below; the anchor is raw
+  2047-2139 = doc 2059-2153, and `+0x90` is `cargo_produced_mask`, not an
+  embargo mask).
 - `4393` queue-decrement tail (raw 2225-2240: capacity-scaled score
   write-back + slot free) and the raw 2215 `flag_b` gate nuance.
 - `457e` empty-ship HS cadence (`0x3148 & 0x20` or `(id+turn)&0x1f == 0`
@@ -3502,3 +3505,754 @@ they aren't explorer-flagged), goldens byte-green. Trace env:
   (0x0c) village-delivery arms (8d4a target-slot family, PARKED).
 - The stale-goal demote branch of the goal fold (needs a real `a654`
   per-unit goal binding).
+
+## 2026-09-06d — hold-cargo colony-delivery matrix ported (raw 2047-2139)
+
+Closes the first "Still thin after this pass" bullet. Ported as
+`ai_euro_20e6_delivery_tallies` + `ai_euro_20e6_delivery_colony_pick` in
+`src/core/ai_euro.c`, wired into `ai_euro_try_ship_trade_haul`.
+
+### Trap first: the raw line numbers in this doc run 7 below the code block
+
+The "raw N" anchors used by the 2026-09-06b section are `doc line − 7`, not
+`doc line − 991`. Raw 2052-2146 is doc 2059-2153 (the `acStack_c8` colony
+loop), **not** doc 3043-3137 (which is the ship *load*-at-colony matrix, a
+different block that also reads `−0x7b44`/`+0x90`/`+0x9a` and stays
+unported). Verified against the 2026-09-06b anchor "raw 1933-2031" for the
+colony-sail matrix, which lands on doc 1940-2038.
+
+### Trap: Ghidra's `Stack_XX` names sit two bytes below the real BP offset
+
+Throughout this frame: `uStack_50` = `[BP-0x4e]`, `iStack_44` = `[BP-0x42]`,
+`uStack_e6` = `[BP-0xe4]`, `uStack_62` = `[BP-0x60]`, `iStack_2e` =
+`[BP-0x2c]`, `acStack_c8` = `[BP-0xc6]`, `cStack_c0` = `[BP-0xbe]`
+(`viceroy_overlays.asm` 137180-137490). That resolves the one symbol this
+doc had no reading for: **`cStack_c0` is `acStack_c8[8]`** — the Horses
+tally. Ghidra declares `char acStack_c8[8]` but `FUN_0000_df7e(acStack_c8,
+0, 0x10)` memsets 16 and the asm indexes `[BP+SI-0xc6]` for `SI` = 0..0xf,
+so the array is 16 wide and its element 8 got split off as a separate local.
+Nothing invented, nothing stubbed for it.
+
+### Resolved symbols
+
+| decomp | resolution | source |
+|---|---|---|
+| `−0x7b44` | `DS:0x84bc` = `col1->nation[n].trade.euro_price[16]`, indexed `nation*0x10 + cargo` (asm `[BX+SI+0x84bc]`, `SI = nation<<4`) | already named in `euro_goal_orders_0a60_full.md` / `indian_trade_2820.md`; asm confirms the literal |
+| colony `+0x9a` | `c->stock[16]` | `col1_save.h` |
+| colony `+0x90` | `c->cargo_produced_mask` — **not** an embargo mask; the arm is "colony PRODUCES this good AND holds >99 of it → reject the colony" | `col1_save.h` (`+0x90 cargo_produced_mask`) |
+| colony `+0x8d` / `+0x8f` | `specialty_cargo` / `cargo_idle_turns` (signed char) | `col1_save.h` |
+| colony `+0xaa` | `stock[0x9a + 8*2]` = `stock[HORSES]` — the Ghidra listing hides that it is inside `stock[]` | offset arithmetic, asm `[BX+0xaa]` |
+| colony `+0x1c` bit 0x40 | `COLONIZE_COLONY_FLAG_COASTAL` — resolves what the sail matrix had to substitute an `8804(...,0xfffe)` reachability probe for | `col1_save.h` `ColonizeCol1ColonyFlags` |
+| `−0x6b1a` | `colony_counts_by_continent[nation*0x10 + continent]` (`DS:0x94e6`); read with `*(int*)0x5398` = `head.human_player` | `move_scoring_land.md` L212, `euro_g_table_0a60.md` |
+| `FUN_1000_8f2a` | `FUN_15eb_0a50` warehouse capacity `100*(1+level)` | `address_mapping.csv` → `FUNCTION_CATALOG.md` |
+| `FUN_1000_8dd6` / `8e58` | hold-slot cargo type / hold-slot qty byte | same chain |
+| `FUN_1000_84f2` | `map_tile_in_bounds` (not "walkable") | `ai/accessors.c` |
+| `FUN_1000_88c2` | `tile_tribe_or_presence`; `<4` = Euro or empty, `≥4` = tribe `pres−4` | `ai/accessors.c` |
+| `FUN_1000_84fc` | `DS:0x5b1c` Indian↔Euro word = `col1->indian[tribe].alarm_by_player[nation]` | `FUNCTION_CATALOG.md` L343 |
+| `FUN_1000_8c50` | quartile bucketer `<25/50/75 → 0/1/2/3` | `FUN_15dc_00a2` |
+| `FUN_1000_856a` | tile distance (`ai_euro_dos_dist`) | already ported |
+| `DS:0xc8` / `DS:0xde` | ring20 dx / dy — already `k_20e6_ring20_dx/dy` | pre-existing |
+| unit `+0x314a` | colony the ship last LOADED at (written raw 2147); delivery loop skips it | this pass |
+
+### Decoded behaviour (byte-checked against the asm, not just the C)
+
+Tallies (raw 1702-1712): over the ship's occupied holds, keep cargo types
+`0x0d..0x0f` and `0x08` only, sum amounts per type, record the max such type
+in `iStack_44`; `iStack_44 < 0` switches the whole block off (asm 00401d).
+
+Candidate gate (asm 004224-00428d): own nation (`+0x1a`); not the ship's own
+nearest colony when standing on it (`uStack_62`/`iStack_2e`); coastal
+(`0x5d62[idx] & 0x40`); not `unit+0x314a`; and when Horses are the max type,
+`acStack_c8[8] + stock[HORSES] <= 8f2a()`.
+
+Per-cargo loop (asm 004038-0040d5), `cap = 8f2a()`:
+- produced-mask bit set **and** `stock[g] > 99` → reject colony, break;
+- `cap <= tally[g] + stock[g]` → `score += (cap − stock[g] − tally[g]) *
+  euro_price[nation][g] * 4` (negative: the overflow priced at market);
+- `specialty_cargo == g` → `score += (idle_turns + 8) * 4`;
+- `score += (cap − stock[g]) − 1`.
+
+Muskets top-type only (asm 0040e3-00417e): `+0x10` when the human holds
+colonies on this continent; then over the 20-ring, in-bounds tile with
+presence `< 4` → `+0x18`, Indian-held → `quartile(alarm[tribe][nation]) *
+0x10`.
+
+Shared tail (asm 00417e-004221): `+0x1b` bit 0x02 (NEARBY_MAN_O_WAR) and
+type `< 0x10` → `(col5 − 10) * 8`; else bit 0x01 (NEARBY_ARMED_SHIP) →
+`(col5 − 10) * 2`. Then `score = score / ((dist >> 2) + 1)` (SAR/IDIV, both
+truncate toward zero) and later-ties-win against a best seeded to `−1`, so a
+colony must score `≥ −1` to be picked at all. Commit is unconditional on any
+pick (`if (-1 < uStack_24)`), there is no extra threshold.
+
+### Substitutions / stubs left (none invented)
+
+- **Coastal probe**: `+0x1c` bit 0x40 is OR'd with a live
+  `map_tile_is_coastal` call because Linux only latches that bit from the AI
+  colony tick (same belt-and-braces as `ai_euro.c:3651`). No behaviour
+  invented — DOS colonies always carry the bit.
+- **Warehouse capacity**: `colonies_warehouse_capacity` is asked for a
+  non-FOOD cargo so its Linux-only FOOD-199 special case (DOS `8f2a` has
+  none) cannot leak in. FOOD is never a delivery cargo on this path anyway.
+- **unit `+0x314a`**: no Linux unit field (it is cargo-hold storage in DOS,
+  like `+0x3154..+0x3156`), so it rides a session-local
+  `s_20e6_load_colony[]` (`colony_id + 1`, 0 = unset), same pattern as
+  `s_20e6_hop_slot`. Written where the port's haul block actually loads.
+- **Not ported, still open**: the sell tail (raw 2140-2163: dump every hold,
+  `euro_price * 0x8dc4` into `nation+0x2a` gold and the `+0x7c`/`+0xbc`
+  per-cargo totals) that DOS runs when the matrix rejects every colony —
+  filed below. The port simply leaves the ship idle there.
+- `iStack_6` (asm `[BP-0x4]`, raw 2046 outer gate) is not modelled; the port
+  reaches this block only from the peace cargo-haul arm, which is already
+  narrower.
+
+### Ordering change (documented, not a fallback table)
+
+`ai_euro_try_ship_trade_haul` used to run the thin `4393` work-queue peel and
+then `ai_euro_nearest_short_coastal_colony`. With delivery cargo aboard the
+DOS matrix now runs **first and alone**: `20e6` is the per-unit mover and
+never consults the `4393` queue on this path, and a matrix that rejects every
+colony ends the block rather than retrying a thin pick. With no delivery
+cargo aboard (`iStack_44 < 0`) DOS never enters the block, so the `4393` peel
+and the short-colony haul keep owning FOOD/LUMBER/ORE runs unchanged. The
+first attempt kept `4393` in front and it shadowed the matrix outright in the
+new fixture — a Linux-only precedence, not a DOS one.
+
+### Test evidence
+
+- New `unit_delivery_matrix_skips_full_producer` in
+  `tests/unit/test_ai_euro_20e6.c`: Caravel holding 100 TOOLS, two own
+  coastal colonies — the near one (Chebyshev 3) produces TOOLS and holds 150
+  (`> 99`) so the raw 2067-2070 arm rejects it outright; the far one
+  (Chebyshev 8, empty of tools) wins even after the `score / ((dist>>2)+1)`
+  divide. Trace: `[deliver] ship 1 n1 max=14 -> colony 1 (11,12) score 33`.
+  New trace env `AI_20E6_DELIVER_TRACE=1`.
+- No existing test encoded the old thin behaviour on this path, so **no test
+  scenario was rewritten**.
+- `ctest`: 57/57. All goldens byte-green with no changes
+  (`golden_ai_turns`, `golden_ai_joint`, `golden_ai_mid01`,
+  `golden_ai_late01`, `golden_mapgen_seed100`, colony/market/WoI goldens) —
+  the golden fixtures' AI ships never carry Horses/Trade Goods/Tools/Muskets
+  on this arm, so the matrix does not fire there.
+
+(The "Still thin" list for this pass is merged into the combined list at the
+end of the next section — the `47b9`/`457e` pass shipped the same day.)
+
+## 2026-09-06d — `47b9` dead-end destroys + `457e` HS cadence (both shipped)
+
+Closes bullets 3 and 5 of the 2026-09-06b "Still thin" list. Raw band:
+lines 2249-2360 of the recovered C above (`LAB_OVL14_L0000__00457e` …
+`LAB_OVL14_L0000__0047b9`).
+
+### Resolved symbols (all static, no live capture)
+
+| Decomp | Real target | Evidence |
+|---|---|---|
+| `FUN_1000_89f8` (= `47b9`'s whole body) | `FUN_281f_0808` → `FUN_1427_0824` **destroy_unit** (compact pool + fix stacks) | `address_mapping.csv:918`; `FUNCTION_CATALOG.md:1384` |
+| `FUN_1000_8a98` | `FUN_281f_08a8` → `FUN_1427_14f4` **nearest unit of nation** by `124c_0040` dist, self excluded, **ties take the LAST match** (`<=`), distance left in `DS:0x8cf8` | `address_mapping.csv:934`; body `viceroy_unpacked.c:8847` |
+| `FUN_1000_8bd6` | `FUN_281f_09e6` → `FUN_15eb_002c` bind active colony (`DS:0x8542`) | `address_mapping.csv:965` |
+| `FUN_1000_8c3c` | `FUN_281f_0a4c` → `FUN_15dc_0032` bind tribe (`DS:0x8d4a`) — the PARKED village arms | `address_mapping.csv:975` |
+| `FUN_1000_94da` (= `3fa6`) | `FUN_291f_02ea` → `FUN_48d3_015e` | `address_mapping.csv:1147`; body `viceroy_unpacked.c:77636` |
+| `FUN_OVL14_L0000__0072d6` | `FUN_521d_0906` probe_adjacent_contact_claim (returns the adjacent **foreign colony owner nation**, −1 none) | already ported as `ai_goals_probe_adjacent_contact_claim` / `ai_euro_20e6_probe_adjacent` |
+| `DS:0x538e` | turn counter | `turn/year_loop.c:52`; `turn/europe_nation_eot.md` |
+| `DS:0x5398` | human / focus nation | `viceroy_globals.h:65` |
+| `unit+0x314a` | COL1 unit record byte **+0x06 = `origin`** ("home tribe / origin settlement"; for Euro units the **home colony index, 0-based**, `0xff` = unbound) | `col1_save.h` `ColonizeCol1Unit.origin`; `units.h` `col1_origin` |
+| `unit+0x3158` | COL1 unit record byte **+0x14 = `cargo_hold[4]`** — a 2-hold Wagon never uses it, so it is AI scratch (the village-errand slot), same family as the already-known `+0x3154/5/6` cargo-hold scratch | `col1_save.h` record layout |
+| `unit+0x315b` | `profession`; for Treasure (type 0x0a) it is **gold / 100** | `col1_save.h` (`FUN_48d3_06ba`) |
+| `iStack_44` | LAB_3558 per-hold tally's **max cargo id over `id > 0xc \|\| id == 8`** = TradeGoods/Tools/Muskets + Horses; `< 0` = none aboard | raw 1710-1719 |
+| `bVar7` | type gate: `type != 0x12`, Frigate (0x11) also needs its `0x9414 / −0x6db4 / −0x6da4` budget term `< 4` and no `8b74` hit, Privateer (0x10) needs difficulty ≥ 2 or `DS:0x9e52 ≥ 7`; Man-O-War re-allowed on odd unit index or nation `−0x6da2 == 1` | raw 1284-1307 |
+
+`FUN_48d3_015e` decoded in full: expanding ring (radius 1 → `DS:0x853a`)
+for a tile of class **0x1a (High Seas)** whose owner nibble is `< 0` or the
+ship's own nation; on a hit it bumps `DS:0x9456+nation`, sets act_state
+`+0x314c` = 3 (`nation < 4 && DS:0x543f[nation*0x34] == 0`) else 0xb,
+latches the tile into `+0x314d/e` and stamps orders `+0x314b = 0x45`.
+
+### `47b9` — the band, arm by arm
+
+`47b9` itself is two instructions: `destroy_unit(unit); return`. Everything
+interesting is which arms fall into it.
+
+| Arm | Gate | Outcome |
+|---|---|---|
+| Wagon 0x0c, `+0x3158 == 0`, `iStack_2e == 0` | standing on an own colony | bind `+0x314a`, orders `0x55`, park (`LAB_5899`) |
+| Wagon 0x0c, `+0x3158 == 0`, `+0x314a < 0`, `iStack_2c != iStack_38` | unbound **and** no own colony on this landmass (`iStack_2c` is −2 when the nation owns none at all) | **destroy** |
+| Wagon 0x0c, `+0x3158 == 0`, otherwise | — | bind + goto the colony (`LAB_4701` → `4567` → `27f5`) |
+| Wagon 0x0c, `+0x3158 != 0` | village errand: nearest `8d4a` settlement on the same continent, distance halved (min 1) when record `+3 & 4` | goto it; **destroy** when the scan finds none |
+| Treasure 0x0a, `iStack_2e == 0` | in an own colony | treasury `+= (+0x315b) * 100`; when `DS:0x5382 & 1 == 0` (pre-WoI) set strings `18b94(nation)` / `−0x7c74[nation]` + number and fire popup `0x1786`; then **destroy** |
+| Treasure 0x0a, `iStack_2c == iStack_38` | own colony on this landmass | bind + goto (`LAB_4701`) |
+| Treasure 0x0a, nearest own unit (`8a98`) on this landmass | — | goto that unit's tile (`27f5`) — the escort/galleon rendezvous |
+| Treasure 0x0a, else `0072d6(x,y,nation,0) == DS:0x5398` | stranded next to a human claim | **destroy** |
+
+### Ported (`ai_euro.c`, `ai_euro_20e6_47b9_dead_end`)
+
+Both **destroy dead ends** (wagon-unbound-off-continent, treasure-stranded)
+are live, called from `ai_euro_unit_act`: wagons and Treasure sit on the
+`defer_gate` list, so they never enter `ai_euro_move_scoring_gate` and the
+band has to run act-level — for Treasure right after the
+cash/Cortes/board/coast chain declines, for wagons right after de Witt /
+haul / export-feeder decline. The wagon bind (`+0x314a`) is modelled so the
+DOS "bind once, never a dead end again" lifecycle holds.
+
+**Deliberately not ported** (both noted at the call site):
+
+- the `+0x3158 != 0` village-errand arm and its own no-village destroy —
+  the `8d4a` target-slot family stays PARKED, and since nothing in this
+  port ever writes `+0x3158` the DOS gate reads 0 for every wagon, exactly
+  as it does for a wagon that was never given a village errand. **No
+  invented trigger.**
+- the treasure in-colony cash-in (`iStack_2e == 0`: `+0x315b * 100` into
+  the treasury, popup `0x1786`, destroy). The port routes AI treasure
+  through the ship / Cortes / Europe chain; wiring DOS's instant colony
+  cash-in is an economy change, not a dead-end cleanup, and would need its
+  own golden.
+
+**Traps found while porting:**
+
+- `iStack_2e == 0` is **not** "standing on a colony" in the Linux
+  prologue: `ai_euro_20e6_prologue` zeroes `home_dist` when the colony
+  search misses (DOS leaves `DS:0x8db8` stale). Read it as
+  `home_colony >= 0 && home_dist == 0` or a colony-less nation's wagon
+  looks parked instead of stranded.
+- `+0x314a` is a **real, round-tripped save byte** (`col1_origin`), and
+  port-spawned units default it to 0 — writing AI scratch there would both
+  mis-read as "bound to colony 0" and dirty the save. The bind latch is
+  session-local (`s_20e6_haul_bind`, stored as `colony_id + 1`, 0 = unbound
+  — the same convention as `s_20e6_hop_slot`).
+- A wagon waiting in the **Europe pool** has lane-sentinel coordinates, so
+  `iStack_38` reads −1 and every own colony looks "off continent". DOS's
+  unit loop never reaches 20e6 in that state; the port needs an explicit
+  `ai_euro_in_europe` / `cid < 0` guard or Europe wagons get destroyed.
+
+Trace env: `AI_20E6_DEADEND_TRACE=1`.
+Tests: `unit_wagon_dead_end_destroyed` / `unit_wagon_with_target_survives`
+in `tests/unit/test_ai_euro_20e6.c`.
+
+### `457e` — empty-ship HS cadence: WIRED LIVE
+
+Gate (raw 2251-2257): untasked (`iStack_6` — order byte not `'t'`/`'i'`),
+type `0x0d..0x12`, `iStack_a8 == 0` (no passengers), `iStack_44 < 0` (no
+TradeGoods/Tools/Muskets/Horses aboard), `bVar7`, and
+`(+0x3148 & 0x20) != 0 || ((char)unit_index + (char)DS:0x538e) & 0x1f == 0`
+→ `3fa6`.
+
+Ported as `ai_euro_20e6_457e_hs_cadence` + `ai_euro_20e6_457e_type_gate`,
+called from the ship act **in DOS position** — immediately after the 4393
+work-queue haul (`ai_euro_try_ship_trade_haul`) declines, before the
+Europe-export arm, inside the existing
+`!at_war && !treasure_aboard && !ship_has_useful_goto` chain guard.
+
+**Decision + evidence.** The caution was that the golden-pinned SW coastal
+cruise owns empty ships. It still runs first in the chain
+(`ai_euro_try_post_found_coast_cruise`), so it keeps the TURN4→7 beachhead
+transports; instrumenting the new arm (`AI_20E6_HS_TRACE=1`) over
+`golden_ai_turns` (with `AI_TURNS_ALL=1`, all six steps), `golden_ai_mid01`,
+`golden_ai_late01`, `golden_ai_joint` and `smoke_play` gives **zero hits** —
+the cadence is genuinely unreached on every golden fixture, and full `ctest`
+is 57/57 with it on. So it is wired live, not PORT DEBT. Kill switch for a
+future bisect: `AI_20E6_HS_CADENCE=0`.
+
+Substituted / thin, at the call site:
+
+- `bVar7`'s Frigate budget term (`0x9414` / `−0x6db4` / `−0x6da4`) and the
+  Man-O-War `−0x6da2` nation byte have no decoded writer in this port; only
+  the Man-O-War odd-index and Privateer difficulty halves are wired.
+  Caravel / Merchantman / Galleon — the only types this cadence actually
+  reaches in the port — are unconditionally true in DOS too, so the
+  substitution cannot change their behaviour.
+- `3fa6` stamps orders `0x45` and act_state 3/0xb; the port stamps
+  `UNITS_ORDER_AI_SAIL` onto the spiral tile
+  (`units_spiral_place_hs_near` = `48d3_048e`/`0434`, same class-0x1a +
+  owner rule as `015e`) and leaves the actual Europe crossing to the
+  existing high-seas handling. `DS:0x9456+nation` counter not modelled.
+
+**Trap:** the arm sits *after* the 4393 haul, so any colony short of
+anything at all makes `ai_euro_try_ship_trade_haul` win and the cadence
+never runs — the regression fixture's colony has to be fully stocked before
+the beat can be observed (`unit_empty_ship_hs_cadence`).
+
+### Still thin after this pass
+
+(Superseded 2026-09-06e — the first two bullets shipped, the fifth was
+refuted; the authoritative list is now the one at the very end of this file.)
+
+- ~~The sell tail of the delivery-matrix block (raw 2140-2163)~~ **ported
+  2026-09-06e.**
+- ~~The ship LOAD-at-colony matrix (doc 3066-3141)~~ **ported 2026-09-06e** —
+  and `iStack_34` is *not* a war/peace split, it is ship (1) vs land hauler
+  (0); see the 06e section.
+- `4393` queue-decrement tail (raw 2225-2240) and the raw 2215 `flag_b`
+  nuance.
+- Wagon/treasure **village-delivery** arms (`8d4a` target-slot family) —
+  PARKED, no trigger invented; and the treasure in-colony cash-in.
+- ~~`465b_0000` attitude visit-increment writer.~~ **Refuted 2026-09-06e** —
+  the write is an *attack* counter on a hostile tile entry, not a visit
+  counter; see the 06e section §3.
+- The stale-goal demote branch of the goal fold.
+## 2026-09-06d — `4393` queue-decrement tail ported; the work-queue record fully decoded
+
+Closes the first of the "Still thin after this pass (precise)" bullets above
+(`4393` queue-decrement tail + the `flag_b` gate nuance). Worked from the raw
+`LAB_OVL14_L0000__004393` block in this file's own Raw recovered C (the
+`## Raw recovered C` fence, the `-0x5f24` scan and its tail — the section's
+own "raw 2225-2240" line numbers are off by ~10 against the fence; the
+`0x5f24` grep is the reliable anchor).
+
+### The record: `DS:−0x5f24`, 16 × 6 bytes — all four fields named
+
+`LAB_0000_a0e0` is **not a second array**: `−0x5f24` as an unsigned word is
+`0xa0dc`, and `0xa0dc + 4 == 0xa0e0`, so `((byte*)&LAB_0000_a0e0)[slot*6]` is
+byte `+4` of this same record. That one identity is what unlocked the whole
+decode:
+
+| off | type | name | writer | reader |
+|---|---|---|---|---|
+| +0 | int16 | colony index (`0xffff` = free) | `0a60` colony loop | `4393` liveness gate |
+| +2 | int16 | score, Σ `euro_price × qty`, clamped `0x7fff` | same | `4393` distance-normalized pick |
+| +4 | uint8 | **`flag_a` = hold-loads of work** (`iStack_40`) | same | `4393` "slot still has work" gate + the tail's decrement quantity |
+| +5 | uint8 | **`flag_b` = exposed-combat-unit present** (`uStack_44`) | same | `4393`'s warship permission |
+
+Both flags are therefore **DECODED, not dead-ended** — see the 0a60 doc for
+the producer side. Renamed in Linux to `AiWorkSlot.loads` / `.military`
+(`ai_goals.h`).
+
+### The tail (ported — `ai_goals_work_consume`)
+
+```
+iStack_9a = rec[+4] − unit_type_hold_capacity(0x5237) + unit->holds_occupied(+0x3150)
+if (iStack_9a < 0) iStack_9a = 0
+rec[+2] = iStack_9a * rec[+2] / rec[+4]      /* capacity-scaled write-back */
+rec[+4] = iStack_9a
+if (iStack_9a == 0) rec[+0] = 0xffff         /* slot free */
+```
+
+`capacity − holds_occupied` is simply the hauler's **free** holds, so the
+rule reads: a hull claims as much of a colony's queued work as it can carry,
+the leftover keeps a proportional share of the score, and a fully served
+colony leaves the queue the same beat. `0x5237` = @UNIT stride-0xe column
+already named by this file's own `0d38` case 0xd ("ships only: Σ 0x5237 hold
+capacity"); `+0x3150` = `ColonizeCol1Unit.holds_occupied` (col1_save.h,
+record base `0x3144`, so `+0x0c`).
+
+### Pick-loop terms newly wired
+
+- Eligibility is `rec[+0] >= 0 && rec[+4] > 0` — **`+4`, not `+5`**. Linux's
+  old `flag_b != 1` filter existed only to skip a port-invented CONTACT row
+  (removed, see 0a60 doc).
+- `unit+0x314a != DS:0x8dc6`: `+0x314a` is `ColonizeCol1Unit.origin` (record
+  `+0x06`) and `0x8dc6` is the **current colony index**
+  (`colonist_work_plot_28c8.md`; `colony_tick_5952_035e.md` line 348 is the
+  writer, `unit->origin = DS:0x8dc6`). Rule: a hauler never serves its own
+  home colony. Ported against `ColonizeUnit.home_tribe_id` (the port's model
+  of `+0x06`), inert for port-spawned wagons, live for DOS-imported units.
+- `(colony+0x1b & 2) == 0 || type > 0x0f`: a colony with
+  `COLONIZE_COLONY_AI_NEARBY_MAN_O_WAR` set is warship-only work.
+- Tie rule is DOS `iStack_e2 <= uStack_28` with `iStack_e2 = -1` — later
+  slot wins ties (Linux had strict `>` and a `-999999` seed).
+
+### `flag_b` gate nuance (raw ~2216) and the `bVar17` DEAD END
+
+`if (iStack_e2 <= score && (bVar17 || rec[+5] != 0))` — a hull for which
+`bVar17` is false may only take slots the colony flagged **military**.
+`bVar17` (raw ~1284-1306) is the "may take civilian work" flag:
+
+- base term `unit type != 0x12` (Man-O-War) — **ported**;
+- type `0x11` (Frigate): `uStack_b6 = byte[0x9414 + nation] − 3 ×
+  byte[nation*0x13 + type − 0x6db4] − byte[nation*0x13 − 0x6da4]`, then
+  `bVar17 &= (uStack_b6 < 4)`, then `FUN_1000_8b74(x, y, nation) != 0 →
+  false`;
+- type `0x10` (Privateer): `bVar17 = !(byte[0xa89b] < 2 && int[0x9e52] < 7)`.
+
+**DEAD END (static):** `0x9414`, `0xa89b`, `0x9e52`, the per-nation
+stride-0x13 tables at `−0x6db4`/`−0x6da4` and `FUN_1000_8b74` are unnamed in
+`viceroy_globals.h` and unmapped in `address_mapping.csv`; nothing in
+`dosbox-x-dumps/*` pins them either. Not guessed. Both branches can only
+*narrow* `bVar17`, and in this port only wagons and
+`ai_euro_is_cargo_ship_name` hulls ever reach the pick
+(`ai_euro_try_wagon_haul` / `ai_euro_try_ship_trade_haul` gate on those
+names), so the unresolved half is **unreachable, not approximated** — a
+Privateer or Frigate never asks this function for work today.
+
+### Trap: the tail needs a one-claim-per-unit-per-tick latch
+
+DOS runs `20e6` once per unit per turn, so the tail fires at most once per
+hauler. This port's dispatcher re-enters `ai_euro_unit_act` for a unit that
+still has moves; with the tail live, the *second* entry found the slot it had
+just freed gone and re-aimed the wagon at a worse colony (caught immediately
+by `unit_specialty_flag_a_haul_match`: goto flipped from (4,8) to (8,4)).
+`s_4393_claim_turn/_colony/_valid` replay the tick's first claim instead of
+re-scoring; cleared where DOS calls `clear_work_queue`, at the top of
+`ai_euro_colony_goals`. Per-tick scratch, not saved.
+
+### Test evidence
+
+`cmake --build` clean, zero new warnings; `ctest` **57/57**, all goldens
+byte-green (`golden_ai_turns` 6/6, `golden_ai_joint`, all `golden_colony_*`,
+`golden_woi_ref01`). New coverage in `tests/unit/test_ai_goals.c`: the tail's
+four behaviours (partial claim scales the score, repeated claims decrement,
+a fully served slot is freed, a freed/zero-load slot is inert).
+`unit_specialty_flag_a_haul_match` re-purposed as the latch guard (comment
+updated in place). Baseline confirmed green before the change via
+`git stash` on the same tree.
+
+### Still thin after this pass
+
+(Merge note 2026-09-06d: the delivery matrix, `457e` cadence and `47b9`
+dead-ends were closed the same day by the sibling passes above — the
+authoritative combined "still thin" list is the one at the end of the
+`47b9`/`457e` section. New entry from this pass: `bVar17`'s
+Privateer/Frigate narrowings (above), unreachable today; plus the stale-goal
+demote branch of the goal fold.)
+
+## 2026-09-06e — delivery sell tail + ship LOAD matrix ported; `465b_0000` visit-increment REFUTED
+
+Closes bullets 1 and 2 of the combined "Still thin" list (the `47b9`/`457e`
+section). The third item (`465b_0000` attitude visit-increment) was traced and
+**deliberately not ported** — see §3; the decode says DOS does not do it.
+
+### 1. Delivery SELL TAIL (raw 2140-2163 = doc 2147-2170) — LIVE
+
+`ai_euro_20e6_delivery_sell_tail` in `src/core/ai_euro.c`, called from the
+`ai_euro_20e6_delivery_colony_pick` reject path in
+`ai_euro_try_ship_trade_haul`.
+
+```
+while (unit->holds_occupied != 0) {
+  g   = FUN_1000_8cdc(unit, 0);      /* remove hold slot 0, compact */
+  qty = DS:0x8dc4;                   /*   ... and stash its amount   */
+  func_0x00019c1e(g, qty);
+  v = euro_price[nation][g] * qty;
+  nation->gold(+0x2a)          += v;   /* 32-bit, with carry */
+  nation->trade.gold(+0x7c)[g] += v;
+  nation->trade.tons(+0xbc)[g] += qty;
+}
+unit->holds_occupied = 0;
+```
+
+**Resolved symbols** (all static, no live capture):
+
+| decomp | resolution | evidence |
+|---|---|---|
+| `FUN_1000_8cdc` | `FUN_281f_0aec` → `FUN_15eb_317c` "remove unit cargo/passenger slot; compact; **stash qty in 0x8dc4**" | `address_mapping.csv:991`; `FUNCTION_CATALOG.md:440` + `:1455` |
+| `func_0x00019c1e` | `FUN_291f_0a2e` → `FUN_38fd_1dfa` "sell volume: ledgers + tax gold" | `address_mapping.csv:1274`; `FUNCTION_CATALOG.md:1743` + `:2353`; body `viceroy_unpacked.c:60247` |
+| `DS:0x8dc4` | the shared qty scratch `15eb_317c` writes (already named in `indian_trade_2820.md`) | same |
+| `*(int *)0x84fc` | **the bound nation-record pointer — NOT `FUN_1000_84fc`**. `+0x2a` gold, `+0x7c` `trade.gold[16]`, `+0xbc` `trade.tons[16]`, `+0xfc` `trade.tons2[16]` | cross-checked against `FUN_38fd_1dfa`'s own use of the same pointer, and against `offsetof(ColonizeCol1Nation, …)` = 42 / 124 / 188 / 252 |
+
+**Trap: `0x84fc` is two different things in this frame.** The 2026-09-06d
+table resolved `FUN_1000_84fc` (a *call*) to the Indian↔Euro alarm word. The
+sell tail's `*(int *)0x84fc` is a *data* read of the nation-record pointer
+that `FUN_281f_0582` binds. Same literal, unrelated meanings; carrying the
+call's resolution into the data read would have credited an Indian alarm byte
+with the sale.
+
+**Trap: DOS double-books this sale.** `1dfa` has already credited
+`trade.gold[g]` with the tax-adjusted proceeds and `trade.tons[g]`/`tons2[g]`
+with `qty`; the tail then adds the **untaxed** `euro_price*qty` to
+`trade.gold[g]` and `qty` to `trade.tons[g]` a *second* time. Only the
+`+0x2a` treasury credit is single — and it is untaxed, so the AI dump-sell
+pays no Crown cut on this path. Ported verbatim; the double entry is DOS
+behaviour, not a port bug. `1dfa` itself is the already-exact
+`europe_apply_trade_volume(..., is_buy=0, immediate_threshold=0)`; when the
+headless AI has no `ctx->europe` the price/volume half is skipped and only
+the col1 half runs (there is no `EuropeScreen` to drift).
+
+**Ordering (DOS, correcting the 06d note).** After the loop DOS falls
+straight through to `LAB_004393` with an empty hull — the `bVar10 =
+holds_occupied` gate right after the loop cannot fire once it has been
+zeroed. So the 06d wording "a matrix that rejects every colony ends the
+block" was half right: it ends the *delivery* block, and then the work-queue
+peel owns the now-empty ship the same beat. The port now does that.
+
+### 2. Ship LOAD-at-colony matrix (raw 3059-3134, doc 3066-3141) — LIVE
+
+`ai_euro_20e6_load_pick`, replacing the port's own
+TOOLS/LUMBER/ORE/MUSKETS/HORSES/FOOD ladder (and its `food_short`-first
+reorder) inside `ai_euro_try_ship_trade_haul`.
+
+**TRAP — `iStack_34` is NOT a war/peace flag.** Raw 1174-1179:
+
+```
+if (type < 0xd || 0x12 < type) iStack_34 = 0; else iStack_34 = 1;
+```
+
+i.e. **1 = ship, 0 = land hauler (Wagon Train)**. Every `iStack_34` arm in
+this block is a ship-vs-wagon split, including the two latches at the bottom
+of the loop: ships write `+0x314a = colony` (exactly what the delivery matrix
+skips), wagons write `+0x3158 = 1` (the village-errand byte `47b9` reads).
+The task brief and the 06d "still thin" bullet both called it war/peace; they
+were wrong, and porting it that way would have given wagons the ship weights
+at war.
+
+Decoded, in loop order:
+
+```
+cap = FUN_1000_8f2a()                       /* 100*(1+warehouse level) */
+term = stock[g]
+if (term < cap || g == 0) { if (g == 8) term = max(term - cap + 0x17, 0); }
+else                      { term <<= 1; }
+g == 5 (LUMBER)                 -> skipped for everyone
+g == 0xe/0xf (TOOLS/MUSKETS)    -> ships only, and only when the colony
+                                   PRODUCES it (+0x90); then term -= 100
+ship && (g == 0xd || g == 0)    -> skipped (no Trade Goods, no Food)
+term == 0                       -> skipped
+ship  : score = euro_price[nation][g] * term
+wagon : p = euro_price[nation][g]
+        while (p > 1 && 86c4(0,3) == 0) p--        /* throttle walk-down */
+        thr = (g == 0xd) ? 8 : 4
+        score = (p < thr) ? term*(thr-p) + (1-p)*5 : -1
+        if (term < 0x32) score = -1
+best seeded -1, STRICT `<`  -> first cargo wins ties, score -1 never picked
+commit: qty = min(stock[best], 100); stock -= qty; load; free_holds--
+```
+
+`FUN_1000_86c4` = `FUN_281f_04d4` = `dos_rng_range`
+(`address_mapping.csv:844`), mapped inclusive per this file's own
+`86c4(1,0x14)` port in `ai_euro_20e6_ring_hop`.
+
+**Substitution, and why it is needed.** DOS reaches the matrix only after an
+unconditional "empty every hold into this colony" sweep (raw 3007-3012), so
+the hull is always EMPTY when the matrix scores. The port's adjacent-colony
+unload arm only drops cargo a colony is *short* of, so a hull can still be
+part-loaded at this point — DOS state the matrix never sees. The port
+therefore gates the matrix on a genuinely empty hull; a part-loaded ship falls
+through to the export/haul arms exactly as before. No partial-hull variant of
+the DOS formula was invented.
+
+**Oscillation found, fixed with DOS's own latch.** The matrix legitimately
+strips a colony to 0 of what it takes (there is no "leave 50" rule on the
+ship-loading path — that came from `FUN_364b_0636`'s colony-autosell
+eligibility, which the port's export arm had borrowed). With the colony now
+short of that good, the port's adjacent-unload arm handed it straight back on
+the next dispatcher entry. Fix: the unload arm now skips the colony the ship
+last loaded at — the same `+0x314a` rule the delivery matrix already applies
+(raw 2055) — scoped to the turn of the load (`s_20e6_load_turn`), because the
+oscillation is a same-beat effect and a persistent skip would also block a
+legitimate later delivery back to the source colony (and would carry stale
+unit-id state between test scenarios sharing a pool). DOS needs no such guard
+here: it has no per-cargo "colony is short of this" unload arm at this point.
+
+Trace env: `AI_20E6_LOAD_TRACE=1` (`AI_20E6_DELIVER_TRACE=1` now also prints
+the sell tail).
+
+### 3. `FUN_465b_0000` attitude "visit increment" — REFUTED, not ported
+
+The brief asked for the village-visit one-shot (`s_20e6_village_visited`) to
+be replaced by DOS's increment of the village record's per-nation attitude
+word. **DOS does not increment on a visit.** Decode of
+`viceroy_unpacked.c:75417-75626`:
+
+```
+uVar11 = unit->nation & 0xf;
+local_4 = presence/defender nation at the target tile;
+bVar4   = (local_4 >= 0 && local_4 != uVar11);
+if (uVar11 < 4) {                                  /* Euro mover */
+  if (FUN_281f_06f0(x,y) >= 0)                     /* Indian settlement here */
+    if (FUN_2a1f_016c(unit,x,y) != 0)              /* = FUN_4d56_4528 */
+      goto LAB_465b_0bd1;                          /* HANDLED — returns here */
+}
+...
+else {                                             /* local_4 >= 4: Indian OCCUPANT */
+  FUN_281f_0a42(local_4 - 4);                      /* bind Indian nation */
+  ... "attack the Indians?" CHOICE / war declaration ...
+  base    = difficulty(0x53a6) + 5;
+  village = FUN_281f_09f0(x,y);                    /* tribe index AT this tile */
+  delta   = base;
+  if (village >= 0) {
+    FUN_281f_0a4c(village);                        /* bind 0x8d4a */
+    delta = base * 2;
+    *(char *)(rec + (unit->nation & 0xf)*2 + 0xb) += 1;     /* <<< the write */
+    if (rec[3] & 4) delta = base * 6;              /* capital */
+  }
+  FUN_281f_0d6c(indian_nation, unit->nation, delta, 0);     /* alarm delta */
+}
+```
+
+Findings:
+
+- **It is an attack counter, not a visit counter.** It sits in the "moved onto
+  a tile held by an Indian *unit*" branch, downstream of the attack CHOICE and
+  immediately beside a `(difficulty+5)` alarm delta that is doubled for a
+  village tile and sextupled for a capital. A peaceful scout / live-among
+  entry is fully consumed by `FUN_4d56_4528` at the top of the function and
+  returns via `LAB_465b_0bd1` long before this code.
+- **The byte is `alarm[nation].attacks`.** `rec + 0x0b + nation*2` is the HIGH
+  byte of the `int16` at `rec + 0x0a + nation*2`; `ColonizeCol1Tribe` lays
+  that word out as `{uint8_t friction; uint8_t attacks;}` at +10, and
+  `rec[3] & 4` is `state.capital` — the offsets match exactly. So the port's
+  existing `ai_euro_20e6_village_attitude` (`friction | attacks<<8`) reads the
+  right word, and `attacks` is the right name for what 465b bumps.
+- **Only one writer exists**: `viceroy_unpacked.c:75620` (and its twin in
+  `viceroy_unpacked_2.c:74345`). A repo-wide search for `* 2 + 0xb)` finds
+  nothing else, so there is no second "on visit" writer hiding elsewhere.
+- **What DOS actually raises on this word** is the *trade* path:
+  `FUN_521d_20e6`'s own village-trade arm zeroes it on a successful trade
+  (`viceroy_unpacked.c:91221/91260/91302`) and does `+= 0x80` on a refusal
+  (`:91345`); `FUN_5bfb` does the same from the human side
+  (`:86151/86159/86175`). Neither is on the scout / live-among path.
+- DOS's real one-shot for those two arms is `state.scouted` (+3 bit 8) and
+  `state.learned` (+3 bit 2), which the port already gates on. The port's
+  `s_20e6_village_visited` bits cover only the outcomes that set neither
+  latch, and there is no DOS writer to replace them with.
+
+**Verdict: not ported, on evidence rather than on a golden diff.** No golden
+run was needed to reject it — the code path proves the premise wrong. Porting
+an increment here would have (a) invented a DOS write that does not exist, and
+(b) dirtied `tribe[].alarm[].attacks`, which *is* a golden-compared,
+save-round-tripped field. `s_20e6_village_visited` stays with its existing
+comment (which already called itself a stand-in for "the visit-increment
+writer"); that comment is now known to be describing a writer that is not a
+visit writer, and this section is its citation.
+
+The real 465b writer still has no port site: nothing in the port models "Euro
+AI unit moves onto an Indian-held village tile" with the
+`alarm[nation].attacks++` plus `(difficulty+5) × 2/6` alarm delta. Filed as
+thin below rather than bolted onto the 20e6 ship band.
+
+### Test evidence
+
+`cmake --build` clean, zero new warnings; `ctest` **57/57**, all goldens
+byte-green (`golden_ai_turns`, `golden_ai_joint`, `golden_ai_mid01`,
+`golden_ai_late01`, `golden_mapgen_seed100`, `golden_woi_ref01`, all
+`golden_colony_*`, `golden_market_prices01`).
+
+New in `tests/unit/test_ai_euro_20e6.c`:
+
+- `unit_delivery_sell_tail_dumps_cargo` — a Caravel with 100 Tools and one
+  **inland** own colony (raw 2054 coastal gate rejects the sole candidate):
+  the hold empties, `nation.gold` gains `euro_price × qty`, and
+  `trade.gold[TOOLS]` / `trade.tons[TOOLS]` take the tail's own entries.
+  **Fixture trap recorded in the test:** rejecting instead via the raw
+  2067-2070 "produces it and holds > 99" arm needs `cargo_produced_mask`
+  set — which is exactly what lets the load matrix re-load the same cargo the
+  moment the ship berths, so the ledger doubles inside one dispatcher turn.
+  That load→reject→sell pump is real DOS behaviour on a single-colony nation
+  (the load latches `+0x314a`, the delivery matrix then skips the only
+  candidate); it just makes a bad assertion.
+- `unit_load_matrix_picks_priced_cargo` — an empty Caravel beside a colony
+  holding 60 Ore / 60 Silver / 90 Food / 80 Trade Goods / 90 Lumber: Silver
+  (bid 20) must beat Ore (bid 3) at equal stock, the two larger Food and Trade
+  Goods piles must be untouched (ship arm skips cargo 0 and 0xd), Lumber must
+  be untouched (cargo 5 skipped for everyone), and the second free hold takes
+  Ore.
+
+Changed in `tests/unit/test_ai_euro_expand.c` (both changes documented in
+place):
+
+- `seed_dos_start_prices()` helper + three call sites. Fixtures that
+  `memset(col1.nation, 0, …)` leave `trade.euro_price[16]` all zeros, which no
+  DOS game ever sees; the load matrix scores `price × stock`, so an all-zero
+  table makes every cargo tie at 0 and the lowest cargo id wins by DOS's
+  first-wins tie rule. Seeded with the real `NAMES.TXT @CARGO` start_lo
+  column.
+- The three `*_europe_export_load_silver` cases now expect the colony at 0
+  silver with 100 + 50 aboard, not "leave 50". The old expectation encoded the
+  port's own export ladder (which borrowed `FUN_364b_0636`'s colony-autosell
+  eligibility); the DOS matrix fills every free hold while a cargo still
+  scores. Destination is unchanged — the ships still `AI_SAIL` east to Europe.
+
+### Still thin after this pass (authoritative combined list)
+
+- `FUN_465b_0000`'s real writer:
+  `tribe[village at tile].alarm[nation].attacks++` plus the `(difficulty+5)` /
+  `×2` village / `×6` capital alarm delta, on a Euro unit moving onto an
+  Indian-held tile. No port site today (§3).
+- Wagon/treasure **village-delivery** arms (`8d4a` target-slot family) —
+  PARKED, no trigger invented; and the treasure in-colony cash-in.
+- The stale-goal demote branch of the goal fold (needs a real `a654` per-unit
+  goal binding).
+- `bVar17`/`bVar7`'s Privateer/Frigate narrowings (`0x9414`, `0xa89b`,
+  `0x9e52`, the stride-0x13 `−0x6db4`/`−0x6da4` tables, `FUN_1000_8b74`) —
+  DEAD END statically, and unreachable in this port today.
+- The **wagon** half of the load matrix (`iStack_34 == 0`: the `86c4(0,3)`
+  throttle walk-down and the `term < 0x32` floor) is decoded and coded in
+  `ai_euro_20e6_load_pick`, but nothing calls it with `is_ship = 0` yet —
+  `ai_euro_try_wagon_haul` still runs its own ladder.
+- DOS's raw 3007-3012 "dump the whole hull into the colony on arrival" sweep
+  that precedes the load matrix; the port keeps its per-cargo short-colony
+  unload arm instead (see §2's substitution note).
+
+## 2026-09-06e — the cargo goal fold, both branches (raw 1746-1762)
+
+Closes the last bullet of the 2026-09-06b "Still thin" list — and retracts
+its premise.
+
+### `a654` is not a per-unit goal binding
+
+The 06b note read `iStack_68 = thunk_FUN_1000_a654(param_2)` as "the unit's
+goal slot" and parked the demote branch waiting for a per-unit goal binding
+Linux does not have. It never needed one. Two facts settle it:
+
+* `FUN_OVL14_L0000__007326(nation, param_3, cont)` indexes `param_3` as a
+  **unit** (`param_3*0x1c + 0x3144/0x3145` x/y, `+0x3146` type, `+0x315b`
+  profession) — and `FUN_OVL14_L0000__007349 = 7326 + 72f9 + 72e0, floor 0`
+  is `FUN_521d_0600` = `ai_goals_composite_unit_priority`. So `7326` is
+  `FUN_521d_052c` (unit desirability, ported) and `72e0` is `FUN_521d_03d0`
+  (founding expansion urgency, ported).
+* `thunk_FUN_1000_a654` therefore takes a unit index and returns one. Its
+  canonical decompile is register-mangled — and so is `FUN_521d_0656`'s,
+  in the *same* shape (`local_4 = 0xffff; while (-1 < p) { p = next(); ... }`),
+  which is what made the port read it as "walk the chain to its end".
+  Re-disassembled from raw bytes at `OVL14_L0000:0656` (method: the overlay
+  listing's address column is truncated in `viceroy_overlays.asm`, so count
+  instruction lengths forward from the overlay's first byte — line 130939,
+  which is `FUN_521d_0000`, the `[BX+0x98b2] = 0xff` goal-slot clear):
+
+```
+0656  ENTER 2,0
+065a  MOV  [BP-2],0xffff            ; best = -1
+065f  JMP  06a2
+0662  IMUL BX,[BP+6],0x1c           ; loop: unit record
+0666  MOV  BL,[BX+0x3146]           ; AL = unit type
+066a..0678                          ; BX = type*0xe
+067a  TEST byte [BX+0x523d],0x40    ; @UNIT capability bit 0x40
+067f  JZ   0697
+0681  CMP  [BP-2],0 ; JL 0691       ; best < 0 -> take
+0687  IMUL BX,[BP-2],0x1c
+068b  CMP  [BX+0x3146],AL ; JNC 0697 ; best_type >= type -> keep best
+0691  MOV  [BP-2],[BP+6]            ; best = unit
+0697  MOV  AX,[BP+6] ; CALLF FUN_1000_84d4  ; next stack member
+069f  MOV  [BP+6],AX
+06a2  CMP  [BP+6],0 ; JGE 0662
+06a8  MOV  AX,[BP-2] ; LEAVE ; RETF
+```
+
+i.e. **the highest-typed member of the unit's tile stack carrying DS:0x523d
+bit 0x40** — set for exactly types 0 Colonist, 2 Pioneer, 5 Scout
+(`k_20e6_type_flags`); strictly-greater replaces, first wins on ties. Every
+ship type is `0x81`/`0x82`/`0xa2`, so a carrier never picks itself and an
+empty transport returns `-1`. That is why the fold's `-1 < iStack_68` gate
+is meaningful: **"is there a settler aboard at all"**, not "does this unit
+hold a goal".
+
+`ai_goals_walk_unit_stack_to_end` was that misreading in code; it is
+renamed and corrected to `ai_goals_stack_settler_pick` (it had no callers).
+
+### The fold, as ported
+
+```c
+rep = a654(ship);                       /* ai_euro_20e6_stack_settler */
+if (rep >= 0) {
+  urgency = 052c(nation, rep) + 03d0(nation);
+  if (urgency < 1) { if (7344(nation, x, y, FOUND) == 0) { civ += pio; pio = 0; } }
+  else             { carry80 = civ; pio += civ; civ = 0; }
+}
+```
+
+Live as `ai_euro_20e6_goal_fold`, called from both DOS sites (the unload
+mask and the colony-sail gate). `052c` is clamped `<= 0` and `03d0` returns
+8 with the default (all-zero) plan scratch, so the demote arm needs a
+strongly negative representative or a zero expansion urgency — it is the
+criminal/servant-shaped lone transport, never a Pioneer one, which is
+exactly what the 06b warning ("a wrong stand-in would strip founder status
+from lone Pioneer transports") was protecting. `tests/unit/test_ai_goals.c`
+pins both halves of the predicate plus the `0656` pick.
+
+### Trap found while wiring it: raw 1768 sits AFTER the fold
+
+The port tested "all three counts zero -> no mask pass" *before* folding.
+A colonist-only second wave arrives with pioneers/mil/scouts all zero and
+only becomes a founder cargo once the promote arm has run, so the early
+return made the promote unreachable for the one case the fold exists to
+serve. Order corrected to DOS's.
+
+`ctest` 57/57, all goldens byte-green (their transports are all in the
+pinned first-colony beachhead branch, so neither arm changes them).

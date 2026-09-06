@@ -511,3 +511,106 @@ value already in hand.
   - Exact save-field rename for DS `−0x77c4`
   - Quiet Brave `diplomacy_flags` −10 goldens
   - Order clear `12d0` deep; Jakob Fugger / FF boycott-forgive full lift chrome
+
+---
+
+## `−0x6a9a` (DS:0x9566) resolved — leader trait triple (2026-09-06d)
+
+The `×3`-stride per-nation byte table read by `FUN_5bfb_10ec`
+(war-worthiness) and `FUN_521d_153e` (peace pressure), stubbed `0` in
+`ai_euro_10ec_war_worthy` / `ai_diplo_153e_worthiness_score` since the
+original ports, and filed **"confirmed dead 2026-08-19"** as
+`unknown34_pad[12]` in `docs/save_format_map.md` / `col1_save.h`.
+
+**That "dead" verdict was a grep artifact.** The 2026-08-19 sweep searched
+the positive DS spelling `0x9566` and found only the two bulk save-block
+I/O calls (`FUN_1d1d_060c` / `_0528`, size `0xc`). Every *game-logic* touch
+spells the same address as the negative literal — `0x10000 − 0x6a9a =
+0x9566` — so none of them matched. This is the "grep base+offset literals"
+lesson again, in its sign-flipped form.
+
+### The writer
+
+`viceroy_unpacked.c:120960-120977` — the NAMES.TXT section loader. It walks
+tagged sections (`RESOURCE`, `COUNTRY`, `NATIONALITY`, `NATIONABBREV`,
+`HOMEPORT`, `COLONYNAME`, `LEADERNAME`, `MISSION`, `DIFFICULTY`, `CLASS`,
+`BUILDING` — DS strings at `0x21da`…`0x223c`, read at raw EXE offset
+`121248 + addr`). The `LEADERNAME` block is:
+
+```c
+FUN_291f_0928(0x1d1d, 0, 0x2218);          /* "LEADERNAME" */
+for (local_a = 0; local_a < 4; local_a++) {
+  FUN_291f_091c(...); FUN_291f_0fc4(...);
+  FUN_1d1d_117e(local_a * 0x34 + 0x540e);  /* leader name string */
+  iVar9 = local_a * 3;
+  *(undefined1 *)(iVar9 + -0x6a9a) = FUN_2a1f_088a(...);   /* col 0 */
+  *(undefined1 *)(iVar9 + -0x6a99) = FUN_2a1f_088a(...);   /* col 1 */
+  *(undefined1 *)(iVar9 + -0x6a98) = FUN_2a1f_088a(...);   /* col 2 */
+}
+```
+
+i.e. **the three trailing numbers on each `@LEADERNAME` line**:
+
+```
+@LEADERNAME
+Walter Raleigh,          1, -1,  0
+Jacques Cartier,         0,  1,  0
+Christopher Columbus,    1,  0, -1
+Michiel De Ruyter,      -1,  0,  1
+```
+
+Signed bytes, range `{−1, 0, +1}`.
+
+### Confirmed live
+
+Byte-searching `01 FF 00 00 01 00 01 00 FF FF 00 01` hits **all 71**
+`.SAV` files under `original_saves/`, `test-saves-ai/`, `port_saves/`,
+`tests-save-misc/` (always at the Stuff block's file-off 0, e.g.
+`test-saves-ai/TURN1.SAV` @ `0x1052`) and all three
+`original_memory_dumps/*/Memory` blobs at `0x2cdbe` — which back-computes
+to `DS:237D` base `0x237D0` + `0x9566` + the `0x88` Memory-blob header,
+matching the already-known `DS:0x237D` for these dumps. So the table is
+constant, is persisted, and never varies.
+
+### Readers
+
+| Site | Column | Use |
+|------|--------|-----|
+| `FUN_5bfb_10ec` (`viceroy_unpacked.c:97204`) | 0 | `(rival_tally − t0) + 4 ≤ (defence*4)/denom` — war-worthiness |
+| `FUN_521d_153e` (`:97667`) | 0 | `ba -= t0` on the peace-pressure tally |
+| `FUN_5952_035e` (`:94xxx`, `colony_tick_5952_035e.md:659`) | 0 | `(t0 + 2) * 0x32` → a 50/100/150 scale fed to an OVL15 setter |
+| `FUN_521d_03d0` (`:87073`, `:87081`) | 1 | `(census_pop_proxy − colonies) / (4 − t1)`, and `t1*3 − 7` |
+| `FUN_5952_035e` (`:94150`) | 2 | read into `iVar9` |
+
+Column 0 is therefore the **belligerence** term: it is *subtracted* from
+"how many rivals am I already at odds with", so a higher value means the
+leader declares war on thinner grounds. England (+1) and Spain (+1) are
+belligerent, the Netherlands (−1) is not, France is neutral (0) — which
+lines up with the columns' other uses (Dutch `t2 = +1` is the top of the
+`(t2+2)*50` scale, Spain `t2 = −1` the bottom). Columns 1 and 2 are
+**read but not wired** in this port; their host functions
+(`FUN_521d_03d0`, the `FUN_5952_035e` OVL15 setters) are not ported.
+
+Note the **structural vs semantic** split: the writer, the storage, the
+value range and the readers are byte-confirmed; the *names* "belligerence"
+etc. are inference from how the columns are consumed, not from any string
+in the binary.
+
+### Linux
+
+`ai_diplo_leader_trait(ctx, nation, column)` in `src/core/ai_diplo.c`
+(declared in `ai_diplo.h`; lives there rather than in `ai_euro.c` because
+several test targets link `ai_diplo.c` without `ai_euro.c`). It mirrors
+DOS's own precedence: a loaded save's copy wins (`col1->stuff.unknown34_pad`
+— the DS block is overwritten from the save on load), and an all-zero
+window (a port-made blank; `col1_stuff_census_fill_blank` never writes this
+field) falls back to parsing `@LEADERNAME` out of `ctx->names`. Wired at
+both column-0 sites: `ai_euro_10ec_war_worthy` and
+`ai_diplo_153e_encounter`'s rival tally.
+
+The save field keeps the name `unknown34_pad` on purpose — the JSON key
+`unknown34_pad_hex` is baked into checked-in `.SAV.json` fixtures, so a
+rename would silently break their round-trip. The comment in
+`col1_save.h` carries the real meaning.
+
+Verified: full `ctest` **57/57**, all goldens byte-unchanged.

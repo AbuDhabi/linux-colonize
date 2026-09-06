@@ -85,9 +85,9 @@ Exact `0x5382` Col1 bit rename: **Done** — `game_options.woi` mapped; `unknown
   byte never 0); `royal_money -= 1800`.
 - Pool address map pinned: `0x53da`=force[0] Regulars, `0x53dc`=[1]
   Cavalry, `0x53de`=[2] Man-O-War, `0x53e0`=[3] Artillery.
-- NOT replicated: DOS tail `nation+0xe += free_colonist_counts[nation]`
-  (`liberty_bells_last_turn += DS:0x9408[n]`) — that field is the port's FF
-  pool stash (col1_save.h); no DOS reader of the bump is known.
+- DOS tail `nation+0xe += free_colonist_counts[nation]`
+  (`liberty_bells_last_turn += DS:0x9408[n]`) — **ported 2026-09-06d**, see
+  that section.
 - The old invented "grow pools by tax band on every audience event" (and
   its peacetime ref_present side-latch) was removed with this port.
 
@@ -119,10 +119,10 @@ deleted at declare with `@SEIZURE` (0x1284) per ship; in this port that
 clears `europe->harbor/bound/expected`. (2) All human units' MP spent
 (`FUN_281f_0934` loop — "This will end our turn"). (3)
 `ff_count_end_prob = 0` for human AND crown (DS:−0x77e2) plus crown
-`nation_flags &= ~0x04`. Open divergence, documented not ported: DOS
-crown-diplo writes at declare are `or_both(human,crown,0x22)` +
-`clear_both(human,crown,0x40 MET)`; the port keeps its user-verified
-`WAR|MET` set (rebel ships could not attack REF ships without WAR).
+`nation_flags &= ~0x04`. Crown-diplo writes `or_both(human,crown,0x22)` +
+`clear_both(human,crown,0x40)`: **closed 2026-09-06d** — the "0x40 MET"
+reading here was off a stale bit map; 0x22 *is* `WAR|MET`, so the port was
+already DOS-exact and only the PEACE clear was missing. See that section.
 
 **`2022` crown gate fixed**: the wave runs while
 `regulars + (cavalry>0) + (artillery>0) != 0` — the MoW pool alone does NOT
@@ -136,14 +136,108 @@ name (was hardcoded "Soldiers").
 0x12db, sets `0x5382` bit2, names rival slot 0x53d4 + the human's
 largest coastal colony), called from the `4345_0a22` bells spend — NOT a
 "REF arrival announce" as this file's table said. Linux models it inside
-`ai_king_foreign_intervene_ex` (announce-once latch); known divergences:
-Linux couples announce+first landing in one beat (DOS announces, lands next
-`2022` turn) and names the landing colony rather than the largest coastal.
+`ai_king_foreign_intervene_ex` (announce-once latch). Colony-name pick
+**closed 2026-09-06d** (`ai_king_1528_announce_colony`). Remaining
+divergence: Linux couples announce+first landing in one beat (DOS announces,
+lands next `2022` turn).
 
 **`10f0` nit (documented)**: DOS's water-tile scorer subtracts 999 per
 CROWN Man-O-War on the tile and allows human units; Linux blocks any
 foreign-unit tile outright and penalizes a human MoW — kept (bugs.md 259
 battle-tested), noted as a deviation.
+
+### 2026-09-06d — the three documented divergences closed
+
+All three items the 2026-09-06 pass above left open are now ported. Full
+`ctest` 57/57 after (`golden_woi_ref01`, `golden_ai_turns`,
+`golden_ai_joint`, `unit_col1_save` all byte-green); `unit_ai_king` grew
+three new assertions and had one rewritten (below).
+
+**(a) `1d42` royal-purse tail — CLOSED (ported).** The skipped write is
+`ADD [BX+0xe],AX` with `AX = [SI+0x9408]` (asm `43f7:1e55-1e61`, decomp
+`viceroy_unpacked.c:74895`), `BX = [0x84fc]` = the nation record selected by
+`FUN_281f_0582(param_1)`, and `param_1` is the **human** slot: `2424`'s
+`bVar1` gate only reaches `1d42` for `DS:0x5398` in peacetime.
+
+*Resolved symbol:* `nation+0xe` = **`liberty_bells_last_turn`**. Walking the
+record from `-0x77f8` (nation_flags +0, tax_rate +1, recruit[3] +2,
+tax_hike_count +5, recruit_count +6, founding_fathers[4] +7, unknown21_pad
++0xb, liberty_bells_total +0xc) lands `+0xe` on it, and the DOS write set
+confirms the name: zeroed at each nation's own turn start (`FUN_3844_00f2`,
+:58382), zeroed by new-game init (`FUN_38fd_6024`, :68684), ADDed alongside
+`+0xc` by the bell-spend `FUN_4345_0a22` (:73343) — i.e. bells produced
+*this turn*. `DS:0x9408` = `stuff.free_colonist_counts`
+(save_format_map row 242).
+
+*Trap:* those five sites are the **only** touches of `+0xe` anywhere. Scan
+both the pointer alias form (every `<var> = *(int*)0x84fc` followed by
+`<var> + 0xe`, across `viceroy_unpacked.c` / `_2.c` / `overlays.c`) **and**
+the array form `n*0x13c-0x77ea` — the array form has zero hits, which is why
+a plain grep for the offset finds nothing. There is no in-game reader; the
+bump is observable only in the saved word, so "no reader" is not a reason to
+skip it — it is a save-interop write.
+
+*Port:* `ai_king_1d42_royal_purse` tail, inside the `>=1800` buy branch after
+the `0x708` debit, 16-bit wrapping add. Phase order already matched DOS —
+`turn_run_nation_ticks` (bells) runs in `TURN_PROC_SETUP`, the king in
+`TURN_PROC_KING`, so the bump lands last as `2424`'s EOT position does.
+*Residual caveat (pre-existing, not this divergence):*
+`founding_fathers_stash_pools_into_col1` overwrites this word with the FF
+pool while writing our own `.SAV`, so the bumped value reaches disk only for
+saves this engine did not stash.
+
+**(b) declare-time crown diplo — CLOSED (the divergence was a doc error).**
+`1a26` (:74832-74833) calls `caseD_10(human, crown, 0x22)` → `FUN_15b3_0066`
+= or-both, and `FUN_281f_0a10(human, crown, 0x40)` → `FUN_15b3_00d0` =
+clear-both (both thunks verified at :33040/:33048; bodies at :9084/:9102).
+
+*Trap:* king_ref read `0x40` as MET and `0x22` as something other than
+`WAR|MET`, which made the port's user-verified `WAR|MET` set look like a
+conflict. Under `ai_diplo.h`'s **2026-08-27 T1.19** map (`0x02` WAR, `0x20`
+MET, `0x40` PEACE — the same map the F8 report and `relation_by_indian`'s
+`0x60 = MET|PEACE` both rest on), `0x22` **is** `WAR|MET`: the port was
+already DOS-exact and the only missing write was the PEACE clear. Added.
+Clearing PEACE cannot regress the rebel-attacks-REF fix — `units.c`'s gate
+short-circuits on WAR long before `ai_contact`'s `@HAVETREATY` prompt reads
+PEACE.
+
+*Same trap, second site (found this pass, also closed):* `FUN_43f7_0108`'s
+fold-loop masks were read off the same stale map. DOS clears `0x0b` =
+`WAR_INTENT|WAR|amicable-latch(0x08)` and **ORs** `0x60` = `MET|PEACE`; the
+port cleared `WAR|PEACE` and set `MET` only — PEACE inverted, so every
+withdrawn Euro power came out of the declare fold not-at-peace with both the
+rebel and the crown. Now byte-exact in both directions against both targets;
+`unit_ai_king`'s 0108 block rewritten to the new expectation (the old
+"0108 should clear WAR/PEACE" assertions encoded the bug).
+
+**(c) `1528` announce colony pick — CLOSED (ported).** DOS (:74471-74481)
+scans the whole colony array and keeps the human's (`+0x1a == DS:0x5398`)
+**coastal** (`i*0xca+0x5d62 & 0x40` = `ColonizeCol1ColonyFlags.coastal`)
+colony with the largest population (`+0x1f`), then splices its name
+(`iVar4*0xca+0x5d48`) into `%STRING3` ("… dispatched to %STRING3 for
+strategic consultations"). *Traps:* the compare is strict `<`, so the
+**first** colony at the maximum wins; and `iVar4` is seeded to **0**, not
+-1 — with no coastal human colony DOS names colony index 0 whatever it is.
+Ported as `ai_king_1528_announce_colony` and wired to the `@INTERVENTION`
+`string3` only; the `@INTERVENE` arrival line and the status string keep the
+landing colony, which is a different DOS site (`10f0`).
+
+**Test evidence.** `unit_ai_king`: (a) new asserts that a buy beat moves
+`nation+0xe` 5 → 12 with `free_colonist_counts[0] = 7`, and that a
+non-buy beat leaves it at 5; (b) new asserts on the human↔crown pair
+(`WAR|MET` set, PEACE clear, both directions) plus the rewritten 0108 block
+(`0x0b` clear / `0x60` set over all four directed pairs); (c) the R3
+intervention block now seeds two coastal Col1 colonies (Plymouth pop 1,
+Roanoke pop 9, neither on the live pool's Jamestown tile) and requires the
+`@INTERVENTION` body to name **Roanoke** — verified discriminating by
+temporarily restoring the landing-colony pick, which names Jamestown and
+fails the assert.
+
+**Still open here (not closed this pass):** `1528` announce and first
+landing still happen in one Linux beat (DOS announces from the `4345_0a22`
+bells spend and lands on the next `2022` turn) — a turn-cadence change that
+would touch the bugs.md-259 landing sequencing, so it stays filed. The
+`10f0` water-tile scorer nit above stays a deliberate divergence.
 
 ### `2424` tail — `rebel_sentiment_report` (2026-08-22)
 
@@ -169,20 +263,24 @@ event dispatcher (correcting the framing used in `euro_diplo_3180_full.md`
 for a different call site) — it's a Ghidra-named single-case thunk
 straight to `FUN_15b3_0066`, i.e. exactly the already-known/ported
 `FUN_15b3_0066`/`00d0` pair (`ai_diplo_or_both`/`ai_diplo_clear_both`,
-`FUNCTION_CATALOG.md` row already had this). `0xb` = `WAR(0x1)|PEACE(0x2)|
-unmapped-bit3(0x8)`; `0x60` = `unmapped-bit5(0x20)|MET(0x40)`. Ported the
-mapped bits (`WAR`/`PEACE` clear, `MET` set) via existing
+`FUNCTION_CATALOG.md` row already had this). **Bit map corrected
+2026-09-06d** — the line below read the masks off the pre-T1.19 map and was
+wrong in both directions; under `ai_diplo.h`'s live map `0xb` =
+`WAR_INTENT(0x01)|WAR(0x02)|amicable-latch(0x08)` and `0x60` =
+`MET(0x20)|PEACE(0x40)`, i.e. nothing is unmapped and DOS **sets** PEACE.
+~~`0xb` = `WAR(0x1)|PEACE(0x2)|unmapped-bit3(0x8)`; `0x60` =
+`unmapped-bit5(0x20)|MET(0x40)`.~~ Ported via existing
 `ai_diplo_clear_both`/`or_both` in `ai_king_do_declare`'s fold loop,
 targeting both `human` and `ai_king_crown_nation(human)` — so "no
 crown-nation-slot diplomacy model" (this doc's old framing) was also
 stale: `ai_king_crown_nation` already reuses nation slot 0/1 as the crown
-stand-in for exactly this kind of write. The two unmapped bits (`0x8`,
-`0x20`) are intentionally not applied — no other site in the decompile
-was found this pass that pins their meaning down. Guarded to skip
-`n==crown_fold` (DOS's `0108` is never called with the crown as the
-eliminated nation). Covered by `unit_ai_king`'s declare-path assertions
-(pre-seeds nation-2 WAR vs human, asserts WAR/PEACE cleared + MET set vs
-both human and crown fold post-declare).
+stand-in for exactly this kind of write. All six bits are applied since
+2026-09-06d (the "two unmapped bits intentionally not applied" caveat is
+retired). Guarded to skip `n==crown_fold` (DOS's `0108` is never called
+with the crown as the eliminated nation). Covered by `unit_ai_king`'s
+declare-path assertions (pre-seeds nation-2 WAR vs human, asserts `0x0b`
+clear + `0x60` set in **both** directions vs human and crown fold
+post-declare).
 
 ### Tax audience (`38fd_5be8` + `38fd_3dc8`) — real formula ported 2026-08-19
 
@@ -235,12 +333,11 @@ refuse` still clears it when `boycott_bitmap==0`). Restless SoL chrome
 (40..49) still must not clobber audience status lines. VGA `@TEAPARTY`
 chrome remains PARKED.
 
-**Known gap:** `tests/unit/test_ai_king.c` predates this port and assumes
-the old deterministic/year-gated/RNG-free design throughout — its first tax
-scenario (no `ctx.rng`, `turn=1`) now fails before the rest of the
-6000+-line single-`main()` file runs. Rewriting the fixture for seeded RNG
-+ turn-based setup is real follow-up work, out of scope for the formula
-port; see `docs/ai_transcription.md` R6 for the fuller note.
+~~**Known gap:** `tests/unit/test_ai_king.c` predates this port…~~ —
+**stale, verified 2026-09-06d**: the fixture was reworked for seeded RNG +
+turn-based setup at some point after that note was written; `unit_ai_king`
+runs green end to end (its audience blocks seed `ColonizeDosRng` and drive
+`turn` explicitly). No follow-up outstanding.
 
 ### Thin `1528` REF arrival announce
 

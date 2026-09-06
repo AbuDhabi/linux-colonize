@@ -75,7 +75,7 @@ Phase 1 AI-critical symbols + Euro early-settle Layer D + between-turns
 | `FUN_521d_0492` | `colony_count_balance_flags` | `ai/euro_goals.c` | `ai_goals_*` |
 | `FUN_521d_052c` | `unit_desirability_score` | `ai/euro_goals.c` | `ai_goals_*` |
 | `FUN_521d_0600` | `composite_unit_priority` | `ai/euro_goals.c` | `ai_goals_*` |
-| `FUN_521d_0656` | `walk_unit_stack_to_end` | `ai/euro_goals.c` | `ai_goals_*` |
+| `FUN_521d_0656` | `stack_settler_pick` (was `walk_unit_stack_to_end`, 2026-09-06e) | `ai/euro_goals.c` | `ai_goals_stack_settler_pick` |
 | `FUN_521d_06ae` | `pick_best_adjacent_founding_tile` | `ai/euro_goals.c` | `ai_euro_06ae_first_colony_from_landfall` + `ai_goals_pick_founding_tile*` (partial) |
 | `FUN_521d_0896` | `filter_profession_by_distance_wealth` | `ai/euro_goals.c` | `ai_goals_*` |
 | `FUN_521d_0906` | `probe_adjacent_contact_claim` | `ai/euro_goals.c` | `ai_goals_*` |

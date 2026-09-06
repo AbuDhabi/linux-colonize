@@ -118,9 +118,9 @@ recovered as the NAMES @UNIT bit-string (`k_20e6_type_flags`).
 |-----|-------|------|------|
 | `4393` | 89871+ | type ∈ (0x0c,0x13), holds empty-ish | Score **work queue** `−0x5f24` (16×6) → best colony haul target → `4567`/`27f5` |
 | `4567` | 89926 | — | Bind colony y → `27f5` goto |
-| `457e` | 89930 | — | Empty ship + sail bit / turn cadence → `3fa6` HS spiral |
+| `457e` | 89930 | — | Empty ship + sail bit / turn cadence → `3fa6` HS spiral. **Ported live 2026-09-06d** (`ai_euro_20e6_457e_hs_cadence`) |
 | `4701` | 89964 | Wagon/type path | Bind colony → `4567` |
-| `47b9` | 90037 | type `0x0c` / fail paths | **Destroy unit** (`0808`) — wagon/treasure dead ends |
+| `47b9` | 90037 | type `0x0c` / fail paths | **Destroy unit** (`0808` → `FUN_1427_0824`) — wagon/treasure dead ends. **Ported 2026-09-06d** (`ai_euro_20e6_47b9_dead_end`); village-errand + treasure in-colony cash-in arms stay PARKED. See move_scoring_20e6_full.md §2026-09-06d |
 | `48ab`+ | 90047+ | type `0x03` Pioneer-ish | Nearest tribe / tile score (land follow-on; still OPEN) |
 
 Work-queue layout (AI goals): id @ `−0x5f24`, score @ `−0x5f22`, count byte

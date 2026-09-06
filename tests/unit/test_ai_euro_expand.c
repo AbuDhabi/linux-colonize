@@ -18,6 +18,24 @@ static int fail(const char* msg) {
   return 1;
 }
 
+/*
+ * NAMES.TXT @CARGO start_lo column — the bid every nation's
+ * trade.euro_price[16] (DS:0x84bc, the decomp's −0x7b44) carries on turn 1.
+ * Fixtures that `memset(col1.nation, 0, ...)` leave that table all zeros,
+ * which no DOS game ever sees; the FUN_521d_20e6 load matrix scores
+ * price × stock, so an all-zero table makes every cargo tie at 0 and the
+ * lowest cargo id wins by DOS's first-wins tie rule. Seed the real row in
+ * fixtures whose expectation depends on the matrix picking a specific good.
+ */
+static void seed_dos_start_prices(ColonizeCol1Save* col1, int nation) {
+  static const uint8_t k_start_lo[COLONIZE_CARGO_COUNT] = {
+    1, 4, 3, 2, 4, 2, 3, 20, 2, 11, 11, 11, 11, 2, 2, 3
+  };
+  for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
+    col1->nation[nation].trade.euro_price[c] = k_start_lo[c];
+  }
+}
+
 static int count_nation_colonies(const ColonizeColonyPool* colonies, int nation_id) {
   int n = 0;
   for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
@@ -7560,9 +7578,16 @@ static int unit_specialty_cargo_haul_prefer(void) {
 }
 
 /*
- * Series R: 4393 specialty flag_a match — equal-distance haul shorts with
- * distinct specialty; wagon holds only one type → goto matching colony.
+ * Series R: 4393 specialty match — equal-distance haul shorts with distinct
+ * specialty; wagon holds only one type → goto matching colony.
  * Cite: move_scoring_ship.md thin 4393; Series R.
+ *
+ * Also the guard for the 2026-09-06d queue-decrement tail: the tip colony's
+ * work slot is consumed (and freed) the moment this wagon claims it, and the
+ * dispatcher re-enters ai_euro_unit_act for a unit that still has moves — so
+ * without the one-claim-per-unit-per-tick latch the second pass re-picks the
+ * *other* colony and re-aims the wagon at (8,4). Cite:
+ * move_scoring_20e6_full.md 2026-09-06d.
  */
 static int unit_specialty_flag_a_haul_match(void) {
   const int nation = 1;
@@ -7593,8 +7618,8 @@ static int unit_specialty_flag_a_haul_match(void) {
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
   /* Equal MD=4 from wagon at (4,4). Inventory refreshes specialty from surplus:
-   * A tools-short + lumber surplus → flag_a=LUMBER; B lumber-short + tools
-   * surplus → flag_a=TOOLS. Wagon holds TOOLS → +32 picks B. */
+   * A tools-short + lumber surplus → specialty LUMBER; B lumber-short + tools
+   * surplus → specialty TOOLS. Wagon holds TOOLS → +32 picks B. */
   ColonizeColony* a = &colonies.colonies[0];
   a->id = 0;
   a->active = true;
@@ -11987,6 +12012,8 @@ static int unit_ship_europe_export_load_silver(void) {
     col1.player[i].diplomacy = 0;
   }
   col1.nation[nation].gold = 200;
+  /* DOS @CARGO start bids: the 20e6 load matrix scores price x stock. */
+  seed_dos_start_prices(&col1, nation);
 
   uint32_t turn = 32;
   ColonizeTurnContext ctx;
@@ -12008,9 +12035,19 @@ static int unit_ship_europe_export_load_silver(void) {
     free(map.layer3);
     return fail("ship-export-load should remain active");
   }
-  const int loaded = c->stock[COLONIZE_CARGO_SILVER] == 50 &&
+  /*
+   * 2026-09-06e: the FUN_521d_20e6 load matrix now owns ship loading, and it
+   * fills EVERY free hold (min(stock, 100) each) while a cargo still scores.
+   * A 2-hold Caravel therefore takes 100 + 50 and leaves the colony at 0 —
+   * the old "leave 50" expectation came from the port's own export ladder,
+   * which borrowed FUN_364b_0636's colony-autosell eligibility rule; DOS has
+   * no leave-50 rule on the ship-loading path. Destination is unchanged.
+   */
+  const int loaded = c->stock[COLONIZE_CARGO_SILVER] == 0 &&
                      ship->hold_goods_type[0] == COLONIZE_CARGO_SILVER &&
-                     ship->hold_goods_amount[0] == 100;
+                     ship->hold_goods_amount[0] == 100 &&
+                     ship->hold_goods_type[1] == COLONIZE_CARGO_SILVER &&
+                     ship->hold_goods_amount[1] == 50;
   const int sailed_east =
     ship->orders == UNITS_ORDER_AI_SAIL && ship->goto_x > ship->x;
   if (!loaded || !sailed_east) {
@@ -12130,6 +12167,8 @@ static int unit_galleon_europe_export_load_silver(void) {
     col1.player[i].diplomacy = 0;
   }
   col1.nation[nation].gold = 200;
+  /* DOS @CARGO start bids: the 20e6 load matrix scores price x stock. */
+  seed_dos_start_prices(&col1, nation);
 
   uint32_t turn = 32;
   ColonizeTurnContext ctx;
@@ -12151,9 +12190,19 @@ static int unit_galleon_europe_export_load_silver(void) {
     free(map.layer3);
     return fail("galleon-export-load should remain active");
   }
-  const int loaded = c->stock[COLONIZE_CARGO_SILVER] == 50 &&
+  /*
+   * 2026-09-06e: the FUN_521d_20e6 load matrix now owns ship loading, and it
+   * fills EVERY free hold (min(stock, 100) each) while a cargo still scores.
+   * A 2-hold Caravel therefore takes 100 + 50 and leaves the colony at 0 —
+   * the old "leave 50" expectation came from the port's own export ladder,
+   * which borrowed FUN_364b_0636's colony-autosell eligibility rule; DOS has
+   * no leave-50 rule on the ship-loading path. Destination is unchanged.
+   */
+  const int loaded = c->stock[COLONIZE_CARGO_SILVER] == 0 &&
                      ship->hold_goods_type[0] == COLONIZE_CARGO_SILVER &&
-                     ship->hold_goods_amount[0] == 100;
+                     ship->hold_goods_amount[0] == 100 &&
+                     ship->hold_goods_type[1] == COLONIZE_CARGO_SILVER &&
+                     ship->hold_goods_amount[1] == 50;
   const int sailed_east =
     ship->orders == UNITS_ORDER_AI_SAIL && ship->goto_x > ship->x;
   if (!loaded || !sailed_east) {
@@ -12273,6 +12322,8 @@ static int unit_merchantman_europe_export_load_silver(void) {
     col1.player[i].diplomacy = 0;
   }
   col1.nation[nation].gold = 200;
+  /* DOS @CARGO start bids: the 20e6 load matrix scores price x stock. */
+  seed_dos_start_prices(&col1, nation);
 
   uint32_t turn = 32;
   ColonizeTurnContext ctx;
@@ -12294,9 +12345,19 @@ static int unit_merchantman_europe_export_load_silver(void) {
     free(map.layer3);
     return fail("mm-export-load should remain active");
   }
-  const int loaded = c->stock[COLONIZE_CARGO_SILVER] == 50 &&
+  /*
+   * 2026-09-06e: the FUN_521d_20e6 load matrix now owns ship loading, and it
+   * fills EVERY free hold (min(stock, 100) each) while a cargo still scores.
+   * A 2-hold Caravel therefore takes 100 + 50 and leaves the colony at 0 —
+   * the old "leave 50" expectation came from the port's own export ladder,
+   * which borrowed FUN_364b_0636's colony-autosell eligibility rule; DOS has
+   * no leave-50 rule on the ship-loading path. Destination is unchanged.
+   */
+  const int loaded = c->stock[COLONIZE_CARGO_SILVER] == 0 &&
                      ship->hold_goods_type[0] == COLONIZE_CARGO_SILVER &&
-                     ship->hold_goods_amount[0] == 100;
+                     ship->hold_goods_amount[0] == 100 &&
+                     ship->hold_goods_type[1] == COLONIZE_CARGO_SILVER &&
+                     ship->hold_goods_amount[1] == 50;
   const int sailed_east =
     ship->orders == UNITS_ORDER_AI_SAIL && ship->goto_x > ship->x;
   if (!loaded || !sailed_east) {

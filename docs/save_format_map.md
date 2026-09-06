@@ -236,7 +236,7 @@ RAM is scattered; the port stores one packed `ColonizeCol1Stuff` for RMW.
 
 | File off | Size | DS | Notes |
 |----------|------|-----|-------|
-| 0 | 12 | `0x9566` | `unknown34_pad` — confirmed dead 2026-08-19, save R/W only |
+| 0 | 12 | `0x9566` | `unknown34_pad` — **NOT dead** (2026-09-06d): leader trait triple `[nation*3 + 0..2]`, signed, written by the NAMES.TXT `@LEADERNAME` loader (`viceroy_unpacked.c:120960-120977`), read by `FUN_5bfb_10ec`/`FUN_521d_153e` (col 0 = belligerence), `FUN_521d_03d0` (col 1), `FUN_5952_035e` (cols 0/2). Shipped `01 FF 00 / 00 01 00 / 01 00 FF / FF 00 01`. The 2026-08-19 "dead" verdict only grepped the positive `0x9566` spelling; every game-logic reader uses `−0x6a9a`. Name kept (JSON key in fixtures) — see `ai/euro_diplo.md` |
 | 12 | 4 | `0x8cfc` | `all_unit_counts[4]` — `FUN_4962_0018` |
 | 16 | 4 | `0x9298` | `colony_counts[4]` — `FUN_4962_0018` |
 | 20 | 4 | `0x9408` | `free_colonist_counts[4]` — type==0 units |
@@ -279,7 +279,7 @@ window is non-zero. Do not freshen mid-turn lag. **Blank templates only:**
 
 | Field | Size | Status | Notes |
 |-------|------|--------|-------|
-| `unknown34_pad` | 12 | `opaque` | Was `unknown34`; confirmed dead 2026-08-19 — DS:`0x9566`, exhaustive check found zero non-save-I/O touches |
+| `unknown34_pad` | 12 | `mapped` | Was `unknown34`. Resolved 2026-09-06d: NAMES.TXT `@LEADERNAME` trait triple at DS:`0x9566` = `−0x6a9a` (the 2026-08-19 "dead" check missed every reader by grepping only the positive spelling). Field name kept — `unknown34_pad_hex` is a JSON key in checked-in `.SAV.json` fixtures |
 | census + mid-window | 128 | `mapped` | See chunk table |
 | late DS chunks (577) | 577 | `partial` | Named `unknown_ds_*` / tribe_* / `ui_toggle_336` (smcol: `show_colony_prod_quantities`) |
 | `x` / `y` / zoom / viewport | 10 | `mapped` | Focus + camera |
