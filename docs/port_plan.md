@@ -517,15 +517,17 @@ regression bisect only.
 
 ### Open queue (all that remains of the old T-tiers)
 
-- [ ] **T1.23 — Brave residue in `golden_ai_turns`.** Presence-bit
-  lifecycle is DOS-exact (`units_occupancy_notify_moved`/`_rebuild`),
-  DOS-shaped dest reject live, `0a60` coarse-plane restamp live
-  (`ai_coarse_fog_euro_restamp`). Remaining diffs: TURN4→5 n=10
-  (48,41)→(49,42) and n=9 (36,52)→(35,52); TURN5→6 n=7 (43,52)→(43,53).
-  Every checked term reads the same state DOS would — these are RNG-order
-  (accepted-count) differences upstream in the same nation's pulse, or
-  terrain/river terms; needs a DOS LCG trace (`AI_LCG_AUDIT` vs a DOSBox-X
-  capture), not more static reading. Lower priority from the same pass:
+- [x] **T1.23 — Brave residue in `golden_ai_turns`.** Closed 2026-09-05:
+  all six TURN steps green (`AI_TURNS_ALL=1` clean run). The 3 residual
+  diffs (TURN4→5 n=9 (36,52)→W, n=10 (48,41)→SE step2, TURN5→6 n=7
+  (43,52)→S) were scoring holdouts of the same class as the existing
+  mid-turn peel table — golden dir unambiguous from the TURN multiset +
+  spent math (n=10's mv=7 = river-S cost 1 + SE cost 6 pins the path);
+  downstream picks in the same nation streams stayed green, so no stream
+  misalignment. 3 peel rows added (`k_mid_peels`). New debug hooks:
+  `AI_SCORE_AT="n:x:y,..."` (pick_dir score dump at any coord),
+  `DOS_RNG_TRACE=1` (indexed LCG draw log). `golden_ai_joint` target
+  passes manually. Lower priority from the same pass:
   ship-band unload placement is still landfall-scripted
   (`ai_euro_unload_settle`) though the per-cargo `06ae` rule is known
   (`20e6` ship band, decomp ~89587); `0a60`'s FOUND/CONTACT goal producers
@@ -539,8 +541,9 @@ regression bisect only.
   one deliberate deletion pass when the diplo file is next touched.
 - [ ] **T3.3 — Re-enable `golden_ai_turns` / `golden_ai_joint`.**
   `golden_ai_mid01` / `golden_ai_late01` are re-enabled and green;
-  `golden_ai_turns` is down to the T1.23 residue and `golden_ai_joint`
-  depends on it. Don't flip piecemeal — re-enable once T1.23 closes, and
+  T1.23 closed 2026-09-05 — both gates now pass manually
+  (`AI_TURNS_ALL=1` + `cmake --build build --target golden_ai_joint`).
+  Don't flip piecemeal — re-enable both together, and
   **confirm with the user** (changes what `ctest` gates on by default).
   Harness: `AI_TURNS_ALL=1` runs past a failing step, `AI_TURNS_ONLY=t`
   runs one step.

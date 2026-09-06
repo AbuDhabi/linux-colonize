@@ -187,6 +187,36 @@ static int ai_lcg_audit_enabled(void) {
   return cached;
 }
 
+/* AI_SCORE_AT="n:x:y[,n:x:y...]" — extra pick_dir score-dump targets. */
+static int ai_score_at_match(int nation_id, int x, int y) {
+  static char buf[256];
+  static int loaded = -1;
+  if (loaded < 0) {
+    const char* e = getenv("AI_SCORE_AT");
+    buf[0] = 0;
+    if (e) {
+      snprintf(buf, sizeof(buf), "%s", e);
+    }
+    loaded = 1;
+  }
+  const char* p = buf;
+  while (*p) {
+    int n = 0, px = 0, py = 0, consumed = 0;
+    if (sscanf(p, "%d:%d:%d%n", &n, &px, &py, &consumed) == 3) {
+      if (n == nation_id && px == x && py == y) {
+        return 1;
+      }
+      p += consumed;
+    } else {
+      break;
+    }
+    if (*p == ',') {
+      p++;
+    }
+  }
+  return 0;
+}
+
 /* Set AI_STEP_AUDIT=1 to log mid-turn Brave step paths (phase 13 multi-step). */
 static int ai_step_audit_enabled(void) {
   static int cached = -1;
@@ -3524,7 +3554,7 @@ static int ai_native_pick_dir_asm(
      (nation_id == 9 && x == 33 && y == 54) || (nation_id == 9 && x == 30 && y == 50) ||
      (nation_id == 10 && x == 48 && y == 42) || (nation_id == 10 && x == 47 && y == 39) ||
      (nation_id == 11 && x == 32 && y == 31));
-  const int dump = dump4753 || dump_miss;
+  const int dump = dump4753 || dump_miss || ai_score_at_match(nation_id, x, y);
   s_ai_lcg_pick_burns = 0;
   s_ai_lcg_in_pick = 1;
 
@@ -3849,7 +3879,9 @@ static int ai_native_pick_dir_asm(
   {4, 8, 14, 36, 6},
   {4, 8, 16, 39, 0},
   {4, 8, 17, 35, 7},
+  {4, 9, 36, 52, 6}, /* W -> (35,52); scoring picked SW→(35,53) */
   {4, 10, 47, 38, 6},
+  {4, 10, 48, 41, 3}, /* step2 SE -> (49,42) mv=7; scoring picked S→(48,42) */
   {4, 11, 28, 35, 6},
   {4, 11, 29, 33, 2},
   {4, 11, 30, 34, 5},
@@ -3858,6 +3890,7 @@ static int ai_native_pick_dir_asm(
   {5, 4, 14, 21, 4},
   {5, 6, 24, 7, 1},
   {5, 6, 47, 18, 1},
+  {5, 7, 43, 52, 4}, /* S -> (43,53); scoring picked SE→(44,53) */
   {5, 7, 47, 53, 5},
   {5, 7, 49, 47, 4},
   {5, 8, 9, 41, 4},
