@@ -51,6 +51,19 @@ static uint8_t s_founded_colony_turn[COLONIZE_COLONIES_MAX];
  */
 static uint8_t s_euro_continent_stance[4][16];
 /*
+ * DS:0x9e98 (−0x6168) rival-strength-by-continent — FUN_521d_0a60's
+ * max-tracker, written in the same per-continent loop as the G-table:
+ * max over FOREIGN colonies on the continent of colony+0x1f (population),
+ * then max'd again with the capped (≤4) sum of rival land units there.
+ * DOS keeps one shared [16] array rewritten each nation turn; per-nation
+ * storage here is equivalent. Read back by FUN_521d_20e6's explore-radius
+ * term (local_12 = rival*8 + hold[0]) — that read stays substituted-0 in
+ * the 20e6 port (its golden-fit explore scans; see the comment there),
+ * so this write path + accessor make the value available without
+ * changing tested behavior.
+ */
+static uint8_t s_euro_rival_strength[4][16];
+/*
  * Per-unit turn stamp of the last @VIOLATE fire (FUN_4720_049e, thin
  * approximation) — own addition, not DOS-derived, to avoid repeat-spamming
  * the notify every act call for units that just sit adjacent to each
@@ -108,12 +121,11 @@ static void ai_euro_try_violate_notify(ColonizeTurnContext* ctx, ColonizeUnit* u
  * Zero own presence (colonies AND land units both) forces tier 4.
  * Cite: euro_g_table_0a60.md "Naming caveat."
  *
- * Approximated (not byte-exact): DOS gates each rival/tribe comparison
- * through a diplomacy-flag check (FUN_281f_0a38 bitmasks 0x60/0x48, two
- * bits still unidentified) and an Indian relation<0x4b gate before
- * counting pressure — both skipped here (every rival/tribe with presence
- * is always counted), a defensible superset since the DOS gates only ever
- * skip a subset, never add one we wouldn't otherwise have.
+ * Diplomacy gates: WIRED for real 2026-09-06 (was "two still-unidentified
+ * bits" / skipped). FUN_281f_0a38 = FUN_0000_5b34 raw peer byte, bits per
+ * ai_diplo.h: (d&0x60)==0x20 = MET+!PEACE, (d&0x48)==0x40 = PEACE+
+ * !amicable-latch; Indian side = alarm>=0x4b or 23000-matrix WAR bit.
+ * See the gate in the pressure loop below.
  *
  * Linux-only overrides kept on top of the real formula (protect existing
  * tested behavior that has no direct DOS table backing this specific way):
@@ -144,6 +156,7 @@ static void ai_euro_refresh_continent_stance(ColonizeTurnContext* ctx, int natio
     return;
   }
   memset(s_euro_continent_stance[nation_id], 0, sizeof(s_euro_continent_stance[nation_id]));
+  memset(s_euro_rival_strength[nation_id], 0, sizeof(s_euro_rival_strength[nation_id]));
   if (!ctx->map || !ctx->colonies || !ctx->units || !ctx->col1_ok || !ctx->col1) {
     return;
   }
@@ -218,6 +231,29 @@ static void ai_euro_refresh_continent_stance(ColonizeTurnContext* ctx, int natio
       if (!other_has_presence) {
         continue;
       }
+      /*
+       * Diplomacy gates, now bit-resolved (2026-09-06; closes the
+       * "two still-unidentified bits" approximation this formula shipped
+       * with — the masks read FUN_1000_8c28's RAW peer byte, whose bits
+       * ai_diplo.h has since named): a Euro rival is skipped when NOT
+       * (MET && !PEACE) and (PEACE && !amicable-latch-0x08) — i.e. peers
+       * we hold a peace treaty with don't count toward pressure; an
+       * Indian nation is skipped unless alarm >= 0x4b or the 23000-matrix
+       * WAR bit (FUN_0000_5b34's nation>=4 branch) is set.
+       */
+      if (other < 4) {
+        const uint8_t dg = ai_diplo_read(ctx->col1, nation_id, other);
+        if ((dg & (AI_DIPLO_MET | AI_DIPLO_PEACE)) != AI_DIPLO_MET &&
+            (dg & (AI_DIPLO_PEACE | 0x08)) == AI_DIPLO_PEACE) {
+          continue;
+        }
+      } else {
+        const int alarm = ai_diplo_indian_alarm(ctx->col1, other, nation_id);
+        if (alarm < 0x4b &&
+            (ctx->col1->indian[other - 4].euro_diplo[nation_id] & COL1_INDIAN_WAR_BIT) == 0) {
+          continue;
+        }
+      }
       if (defense_value[other][cid] < defense_value[nation_id][cid] || own_colonies == 0) {
         expand_pressure++;
       } else {
@@ -244,7 +280,45 @@ static void ai_euro_refresh_continent_stance(ColonizeTurnContext* ctx, int natio
       tier = 4;
     }
     s_euro_continent_stance[nation_id][cid] = (uint8_t)tier;
+
+    /* −0x6168 max-tracker (raw lines 1346-1374, same continent loop as the
+     * G write): largest foreign-colony population on this continent, then
+     * max'd with the capped (≤4) sum of rival land units. */
+    int rs = 0;
+    for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+      const ColonizeColony* c = &ctx->colonies->colonies[i];
+      if (!c->active || c->nation_id == nation_id) {
+        continue;
+      }
+      if (map_continent_id_at(ctx->map, c->x, c->y) != cid) {
+        continue;
+      }
+      if ((int)c->population > rs) {
+        rs = (int)c->population;
+      }
+    }
+    int rl = 0;
+    for (int n = 0; n < 4; ++n) {
+      if (n != nation_id) {
+        rl += (int)land_unit_count[n][cid];
+      }
+    }
+    if (rl > 4) {
+      rl = 4;
+    }
+    if (rl > rs) {
+      rs = rl;
+    }
+    s_euro_rival_strength[nation_id][cid] = (uint8_t)(rs > 255 ? 255 : rs);
   }
+}
+
+/* −0x6168 read-back (FUN_521d_20e6 explore-radius term). */
+static int ai_euro_rival_strength_at(int nation_id, int continent_id) {
+  if (nation_id < 0 || nation_id >= 4 || continent_id < 0 || continent_id > 15) {
+    return 0;
+  }
+  return (int)s_euro_rival_strength[nation_id][continent_id];
 }
 
 static int ai_euro_continent_stance_at(int nation_id, int continent_id) {
@@ -9527,6 +9601,15 @@ typedef struct Ai0a60UnitState {
                            * value. Only meaningful while act_state==0xb;
                            * stale otherwise (matches order_code's own
                            * DOS-real staleness — see body). */
+  uint8_t flags;          /* unit+0x3148 AI scratch bits, written by
+                           * ai_euro_0a60_unit_housekeeping each nation turn
+                           * (DOS resets bits 1/2/3/5 via `&= 0xd1` and
+                           * rederives them — per-tick scratch, matching the
+                           * col1_save.h bitfield names): bit1 0x02
+                           * roam_reeval_pending (act_state 5/6), bit2 0x04
+                           * stack_has_founders_or_military (FOUND-eligible),
+                           * bit3 0x08 stack_has_military (MIL_EXPAND-
+                           * eligible), bit5 0x20 spare-transport mark. */
 } Ai0a60UnitState;
 
 /*
@@ -9630,6 +9713,228 @@ static void ai_euro_0a60_continent_presence(
  */
 static Ai0a60UnitState s_0a60_pilot_state[COLONIZE_UNITS_MAX];
 
+/* --- 0a60 unit-loop housekeeping (raw lines 1-189) ----------------------
+ *
+ * Literal port of FUN_521d_0a60's opening per-unit loop (raw decomp lines
+ * 704-811 of euro_goal_orders_0a60_full.md's recovery): the unit+0x3148
+ * scratch-bit rederive, act-state transitions, the spare-transport mark and
+ * the foreign-ship CONTACT goal producer. Previously skipped behind the
+ * "FUN_1000_8aac field-id wall"; that wall is now RESOLVED (2026-09-06, no
+ * new tracing needed — the answers were already in
+ * move_scoring_20e6_full.md's 4fa8 case sweep, never cross-applied here):
+ *
+ *   FUN_1000_8aac → FUN_0000_4fa8, a shared CRT-style utility multiplexer,
+ *   and the cases 0a60's unit loop reads carry NO real per-unit signal in
+ *   the shipped 1994 binary:
+ *     mode 4 → identity echo of the convoy-head unit id (so the raw
+ *              `8aac(u,4) < 2` gate is false for every unit index >= 2);
+ *     mode 6 → jump-table entry lands mid-instruction (broken dispatch,
+ *              uncontrolled return);
+ *     mode 3 → stale UI cursor word (DS:0x2DA4), noise.
+ *   Net shipped-DOS behavior of the eligibility block: bits 2+3 get set on
+ *   effectively EVERY land unit, and on every FULL ship (the hold-full +
+ *   fleet-coordination gate is real, non-8aac code); a part-loaded ship
+ *   never qualifies. This function reproduces exactly that: land units get
+ *   both bits; ships get them from their REAL cargo composition (what the
+ *   broken DOS query was plainly intended to report) gated by the literal
+ *   hold-full/fleet check. Selectivity for land units comes from the
+ *   consumption tail's type gate, as in DOS (DS:0x523d capability mask —
+ *   Linux keeps its tested name-check equivalent there).
+ *
+ * Field ids resolved for the rest of the loop (address_mapping.csv chain
+ * FUN_1000_X → FUN_281f_(X-0x81f0) → FUNCTION_CATALOG.md):
+ *   FUN_1000_84f2 → FUN_137f_000a map_tile_in_bounds (inset interior);
+ *   FUN_1000_8958 → FUN_13e4_0074 ocean_or_high_seas;
+ *   FUN_1000_8d18 → FUN_15eb_08e6 unit-type-has-profession (region stamp
+ *     bit variant only — the whole DS:0x9faa stamp is already covered by
+ *     ai_coarse_fog_euro_restamp, which consumers only test for nonzero);
+ *   -0x6da6/-0x6da5/0x9259 → unit_type_counts[4][19] (DS:0x924c,
+ *     save_format_map.md row 252) at types 0x0e/0x0f/0x0d — Merchantman/
+ *     Galleon/Caravel counts, recomputed here like FUN_4962_0018 does;
+ *   DS:0x5382 bit0 → game_options.woi (Frigate CONTACT exception);
+ *   unit+0x3147 high bits (0x10<<nation "this unit spotted") → per-nation
+ *     map seen bit (map_tile_seen_by), the closest live substitute;
+ *   relation gate (FUN_1000_8c28 raw peer byte): (d & 0x60) == 0x20 =
+ *     MET(0x20) set + PEACE(0x40) clear — "met, no peace treaty".
+ *
+ * Runs before the colony loop each nation turn (DOS order). The shadow
+ * state is fresh-zeroed each turn, so the pure act-state *resets* (orders
+ * 'A'→'G', act 1/2/3→0) are structural no-ops kept for shape; the live
+ * effects are the eligibility/spare bits, act_state=1 (in transit: aboard
+ * ship, in Europe, off-map) excluding units from goal consumption,
+ * act_state=10 (adjacent contact claim) doing the same, and the CONTACT
+ * goals at spotted hostile ships.
+ */
+static int ai_euro_20e6_dos_type(const ColonizeUnitPool* units, const ColonizeUnit* u);
+
+/* DOS unit+0x3150 holds_occupied: passengers + occupied goods holds. */
+static int ai_euro_0a60_holds_occupied(const ColonizeUnit* u) {
+  int n = u->cargo_count;
+  for (int i = 0; i < COLONIZE_UNIT_CARGO_MAX; ++i) {
+    if (u->hold_goods_amount[i] > 0) {
+      n++;
+    }
+  }
+  return n;
+}
+
+/* Raw: type_table_5237[unit.type] == unit+0x3150 — "hold completely full". */
+static int ai_euro_0a60_ship_full(const ColonizeUnitPool* units, const ColonizeUnit* u) {
+  const int cap = units_ship_capacity(units, u->id);
+  return cap > 0 && ai_euro_0a60_holds_occupied(u) >= cap;
+}
+
+static void ai_euro_0a60_unit_housekeeping(ColonizeTurnContext* ctx, int nation_id) {
+  if (!ctx || !ctx->map || !ctx->units) {
+    return;
+  }
+  /* unit_type_counts[nation][0x0d/0x0e/0x0f] recompute (FUN_4962_0018). */
+  int caravels = 0;
+  int merchantmen = 0;
+  int galleons = 0;
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    const ColonizeUnit* u = units_get_const(ctx->units, i);
+    if (!u || !u->active || u->nation_id != nation_id) {
+      continue;
+    }
+    const int t = ai_euro_20e6_dos_type(ctx->units, u);
+    if (t == 0x0d) {
+      caravels++;
+    } else if (t == 0x0e) {
+      merchantmen++;
+    } else if (t == 0x0f) {
+      galleons++;
+    }
+  }
+
+  int spare_marked = 0; /* iStack_c: at most one spare-transport mark per turn */
+  const int woi = (ctx->col1_ok && ctx->col1) ? (int)ctx->col1->head.game_options.woi : 0;
+
+  for (int ui = 0; ui < COLONIZE_UNITS_MAX; ++ui) {
+    const ColonizeUnit* u = units_get_const(ctx->units, ui);
+    if (!u || !u->active) {
+      continue;
+    }
+    const int dos_type = ai_euro_20e6_dos_type(ctx->units, u);
+    const int is_ship_t = (dos_type >= 0x0d && dos_type <= 0x12);
+    if (u->nation_id == nation_id) {
+      Ai0a60UnitState* st = &s_0a60_pilot_state[ui];
+      const int ux = u->x;
+      const int uy = u->y;
+      if (st->order_code == 'A') {
+        st->order_code = 'G'; /* admitted labor → garrisoned (fresh shadow: no-op) */
+      }
+      st->flags &= 0xd1; /* rederive bits 1/2/3/5 below */
+      if (st->act_state == 5 || st->act_state == 6) {
+        st->flags |= 0x02; /* roam_reeval_pending */
+      }
+
+      /* FOUND/MIL_EXPAND eligibility bits (see header: shipped-DOS gates
+       * are no-signal; ships use real cargo, land units always qualify). */
+      int has_founders = 0;
+      int has_military = 0;
+      if (is_ship_t) {
+        for (int ci = 0; ci < u->cargo_count && ci < COLONIZE_UNIT_CARGO_MAX; ++ci) {
+          const ColonizeUnit* pax = units_get_const(ctx->units, u->cargo_ids[ci]);
+          if (!pax || !pax->active) {
+            continue;
+          }
+          const char* pn = units_display_name(ctx->units, pax);
+          if (ai_euro_is_military_name(pn) || ai_euro_is_artillery_name(pn)) {
+            has_military = 1;
+          } else if (ai_euro_name_is_pioneer(pn) ||
+                     (pn && strstr(pn, "Colonist") != NULL)) {
+            has_founders = 1;
+          }
+        }
+      } else {
+        has_founders = 1;
+        has_military = 1;
+      }
+      if (has_founders || has_military) {
+        int ok = 1;
+        if (is_ship_t) {
+          /* Literal DOS: only a full ship qualifies, and only when no
+           * earlier-indexed own ship in the same stack is still loading. */
+          ok = ai_euro_0a60_ship_full(ctx->units, u);
+          for (int oi = 0; ok && oi < ui; ++oi) {
+            const ColonizeUnit* o = units_get_const(ctx->units, oi);
+            if (!o || !o->active || o->nation_id != nation_id || o->x != ux ||
+                o->y != uy) {
+              continue;
+            }
+            const int ot = ai_euro_20e6_dos_type(ctx->units, o);
+            if (ot >= 0x0d && ot <= 0x12 && !ai_euro_0a60_ship_full(ctx->units, o)) {
+              ok = 0;
+            }
+          }
+        }
+        if (ok) {
+          st->flags |= 0x04; /* stack_has_founders_or_military */
+          if (has_military) {
+            st->flags |= 0x08; /* stack_has_military */
+          }
+        }
+      }
+
+      /* Spare-transport mark (bit5, one ship per nation per turn): with
+       * fewer than 2 Merchantman+Galleon (or no Merchantman), a 2nd+
+       * Caravel is the spare; otherwise the first Merchantman is. Only for
+       * ships not already FOUND/MIL_EXPAND-eligible. */
+      if (!spare_marked && is_ship_t && (st->flags & 0x0c) == 0) {
+        if (merchantmen + galleons < 2 || merchantmen == 0) {
+          if (dos_type == 0x0d && caravels > 1) {
+            st->flags |= 0x20;
+            spare_marked = 1;
+          }
+        } else if (dos_type == 0x0e) {
+          st->flags |= 0x20;
+          spare_marked = 1;
+        }
+      }
+
+      /* Tile housekeeping: act-state transitions. */
+      const int inset = (ux >= 1 && uy >= 1 && ux < ctx->map->width - 1 &&
+                         uy < ctx->map->height - 1);
+      int in_transit = 1;
+      if (inset) {
+        /* DS:0x9faa region stamp (|=1 / |=5 by profession-capability) is
+         * covered by ai_coarse_fog_euro_restamp — its consumers only test
+         * the byte for nonzero, so the 1-vs-5 split is behaviorally inert. */
+        if (st->act_state == 1 || st->act_state == 2 || st->act_state == 3 ||
+            (st->act_state >= 10 && st->order_code != 0x31)) {
+          st->act_state = 0;
+        }
+        int side = 0;
+        if (ai_goals_probe_adjacent_contact_claim(
+              ctx->map, ctx->colonies, ux, uy, nation_id, 1, &side
+            ) >= 0) {
+          st->act_state = 10; /* on-site at a contact claim: no new goal */
+        }
+        const int on_water = map_tile_is_water(ctx->map, ux, uy) ||
+                             map_tile_is_high_seas(ctx->map, ux, uy);
+        if (!on_water || is_ship_t) {
+          in_transit = 0;
+        }
+      }
+      if (in_transit) {
+        st->act_state = 1; /* aboard ship / in Europe / off-map */
+      }
+    } else if (u->nation_id >= 0 && u->nation_id < 4) {
+      /* Foreign branch: spotted hostile ship → CONTACT goal prio 3.
+       * Frigates only count once independence is declared (DS:0x5382 bit0). */
+      if (is_ship_t && (dos_type != 0x11 || woi) &&
+          map_tile_seen_by(ctx->map, u->x, u->y, nation_id) && ctx->col1_ok &&
+          ctx->col1) {
+        const uint8_t d = ai_diplo_read(ctx->col1, nation_id, u->nation_id);
+        if ((d & (AI_DIPLO_MET | AI_DIPLO_PEACE)) == AI_DIPLO_MET || dos_type == 0x10) {
+          ai_goals_upsert_primary(nation_id, u->x, u->y, AI_GOAL_CONTACT, 3);
+        }
+      }
+    }
+  }
+}
+
 static void ai_euro_0a60_goal_orders_structural(ColonizeTurnContext* ctx, int nation_id) {
   if (!ctx || !ctx->map || !ctx->units) {
     return;
@@ -9676,22 +9981,12 @@ static void ai_euro_0a60_goal_orders_structural(ColonizeTurnContext* ctx, int na
     const int unit_is_ship = ai_euro_is_ship_type(ctx->units, ui);
     const int unit_continent = map_continent_id_at(ctx->map, u->x, u->y);
 
-    int ship_has_founders = 0;
-    int ship_has_military = 0;
-    if (unit_is_ship) {
-      for (int ci = 0; ci < u->cargo_count && ci < COLONIZE_UNIT_CARGO_MAX; ++ci) {
-        const ColonizeUnit* pax = units_get_const(ctx->units, u->cargo_ids[ci]);
-        if (!pax || !pax->active) {
-          continue;
-        }
-        const char* pn = units_display_name(ctx->units, pax);
-        if (ai_euro_is_military_name(pn) || ai_euro_is_artillery_name(pn)) {
-          ship_has_military = 1;
-        } else if (ai_euro_name_is_pioneer(pn) || (pn && strstr(pn, "Colonist") != NULL)) {
-          ship_has_founders = 1;
-        }
-      }
-    }
+    /* unit+0x3148 bits 2/3, now written for real by
+     * ai_euro_0a60_unit_housekeeping (which also applies DOS's literal
+     * hold-full + fleet-coordination gate the old inline cargo scan here
+     * skipped): bit2 = FOUND-eligible, bit3 = MIL_EXPAND-eligible. */
+    const int ship_has_founders = unit_is_ship && (st->flags & 0x04) != 0;
+    const int ship_has_military = unit_is_ship && (st->flags & 0x08) != 0;
 
     if (!unit_is_ship && (strstr(uname ? uname : "", "Soldier") ||
                            strstr(uname ? uname : "", "Dragoon"))) {
@@ -9771,6 +10066,393 @@ static void ai_euro_0a60_goal_orders_structural(ColonizeTurnContext* ctx, int na
   }
 }
 
+/* --- 0a60 foreign-colony / village goal producers ----------------------
+ *
+ * Literal port of FUN_521d_0a60's foreign-colony branch + village loop
+ * (viceroy_unpacked.c ~87795-88052; raw lines 983-1276 of
+ * euro_goal_orders_0a60_full.md's recovery) — the FOUND/CONTACT producers
+ * that write OCEAN tiles next to foreign colonies and villages as ship
+ * goals. These pair with the DS:0x523d capability mask: FOUND(1)/
+ * MIL_EXPAND(7) goals match bit1/bit7 = the transport ships
+ * (Caravel/Merchantman/Galleon 0xa2/0x82/0x82), CONTACT(0) matches bit0 =
+ * the warships — i.e. DOS stages loaded transports at open-sea tiles
+ * adjacent to land worth settling, and lurks warships two tiles off
+ * foreign harbors. Land units can't take these goals (water tile →
+ * continent −1 ≠ any land continent, and the tail's ship gate).
+ *
+ * Resolved symbols (FUN_1000_X → FUN_281f_(X−0x81f0) → catalog):
+ *   84f2 map_tile_in_bounds; 8958 ocean_or_high_seas; 88a4 layer3 low
+ *   nibble (raw water-region id — region 1 = open sea, see map.c's lake
+ *   note); 8912 map_continent_id_at (land only, −1 on water); 893a
+ *   tile_explore_mask (bit 0x10<<nation = map_tile_seen_by); 8872
+ *   tile_owner_or_presence (layer2 bit0 + layer3 owner nibble); 8bd6/8c3c
+ *   colony/village binds; 84fc alarm_by_player; 8c28 raw peer byte
+ *   ((d&0x48)==0x40 = PEACE set + amicable-latch 0x08 clear;
+ *   (d&0x60)==0x20 = MET set + PEACE clear); DS:0x538e head.turn;
+ *   DS:0x53a6 head.difficulty; DS:0x543f polarity 0 = human;
+ *   −0x6ada skilled-unit counts (FUN_281f_0b78 = "type has a profession
+ *   slot"); −0x7a38 continent_tally_b; DS:0x173c/0x173e per-continent
+ *   MIL_EXPAND/FOUND-registered masks (zeroed at 0a60 entry — locals
+ *   here, shared between the two loops exactly as DOS shares them).
+ *
+ * Substituted (documented at use): FUN_1000_8aac mode 2 ("defender count"
+ * at a colony tile) is 4fa8's transport-chain splice — no real count in
+ * the shipped binary — replaced by the plain intended stack count; mode
+ * 0xd (every-4th CONTACT-scan skip) is generic CRT code, treated as pass.
+ * The village-population scratch (aiStack_14e) only feeds a dead
+ * accumulator and the G-formula's Indian presence test, which Linux's
+ * stance recompute already covers via live Brave units — not modeled.
+ */
+
+/* Raw water-region check: FUN_1000_8958 && FUN_1000_88a4(x,y) == 1. */
+static int ai_euro_0a60_open_sea(const ColonizeWorldMap* map, int x, int y) {
+  if (!map || x < 0 || y < 0 || x >= map->width || y >= map->height) {
+    return 0;
+  }
+  if (!map_tile_is_water(map, x, y) && !map_tile_is_high_seas(map, x, y)) {
+    return 0;
+  }
+  return (map_get_layer3(map, x, y) & 0x0fu) == 1;
+}
+
+/* FUN_1000_8872 tile_owner_or_presence: layer2 bit0 + layer3 owner nibble. */
+static int ai_euro_0a60_tile_owner_or_presence(const ColonizeWorldMap* map, int x, int y) {
+  if (!map || !map->layer2 || x < 1 || y < 1 || x >= map->width - 1 ||
+      y >= map->height - 1) {
+    return -1;
+  }
+  if ((map->layer2[y * map->width + x] & 1u) == 0) {
+    return -1;
+  }
+  const int hi = (int)((map_get_layer3(map, x, y) >> 4) & 0x0fu);
+  return hi == 0x0f ? -1 : hi;
+}
+
+/* Intended value of FUN_1000_8aac(unit_at_tile, 2): the tile's stack size. */
+static int ai_euro_0a60_units_on_tile(const ColonizeUnitPool* units, int x, int y) {
+  int n = 0;
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    const ColonizeUnit* u = units_get_const(units, i);
+    if (u && u->active && u->aboard_ship_id < 0 && u->x == x && u->y == y) {
+      n++;
+    }
+  }
+  return n;
+}
+
+static void ai_euro_0a60_settlement_goal_producers(ColonizeTurnContext* ctx, int nation_id) {
+  if (!ctx || !ctx->map || !ctx->units || !ctx->colonies) {
+    return;
+  }
+  const ColonizeWorldMap* map = ctx->map;
+  const int have_col1 = (ctx->col1_ok && ctx->col1 != NULL);
+  const int turn = have_col1 ? (int)ctx->col1->head.turn
+                             : ((ctx->turn_number && *ctx->turn_number) ? (int)*ctx->turn_number : 0);
+  const int difficulty = have_col1 ? (int)ctx->col1->head.difficulty : 2;
+  const int human = have_col1 ? (int)ctx->col1->head.human_player : -1;
+
+  /* FUN_4962_0018-style per-nation/continent tables (colonies, land units,
+   * skilled units — the −0x6b1a/−0x6b5a/−0x6ada trio). */
+  uint8_t col_cnt[4][16];
+  uint8_t land_cnt[4][16];
+  uint8_t skilled_cnt[4][16];
+  memset(col_cnt, 0, sizeof(col_cnt));
+  memset(land_cnt, 0, sizeof(land_cnt));
+  memset(skilled_cnt, 0, sizeof(skilled_cnt));
+  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+    const ColonizeColony* c = &ctx->colonies->colonies[i];
+    if (!c->active || c->nation_id < 0 || c->nation_id > 3) {
+      continue;
+    }
+    const int cid = map_continent_id_at(map, c->x, c->y);
+    if (cid >= 0 && cid < 16 && col_cnt[c->nation_id][cid] < 0xff) {
+      col_cnt[c->nation_id][cid]++;
+    }
+  }
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    const ColonizeUnit* u = units_get_const(ctx->units, i);
+    if (!u || !u->active || u->nation_id < 0 || u->nation_id > 3 ||
+        units_is_sea(ctx->units, i)) {
+      continue;
+    }
+    const int cid = map_continent_id_at(map, u->x, u->y);
+    if (cid < 0 || cid >= 16) {
+      continue;
+    }
+    if (land_cnt[u->nation_id][cid] < 0xff) {
+      land_cnt[u->nation_id][cid]++;
+    }
+    if (units_type_has_profession_slot(u->type_index) &&
+        skilled_cnt[u->nation_id][cid] < 0xff) {
+      skilled_cnt[u->nation_id][cid]++;
+    }
+  }
+
+  static const int dx8[8] = {0, 1, 1, 1, 0, -1, -1, -1};
+  static const int dy8[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
+
+  uint16_t mask_mil_expand = 0; /* DS:0x173c */
+  uint16_t mask_found = 0;      /* DS:0x173e */
+
+  /* Foreign-colony loop (raw 983-1212). */
+  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+    const ColonizeColony* c = &ctx->colonies->colonies[i];
+    if (!c->active || c->nation_id == nation_id || c->nation_id < 0 || c->nation_id > 3) {
+      continue;
+    }
+    const int owner = c->nation_id;
+    const int cont = map_continent_id_at(map, c->x, c->y);
+    if (cont < 0 || cont >= 16) {
+      continue;
+    }
+    const int seen = map_tile_seen_by(map, c->x, c->y, nation_id);
+    const uint8_t d = have_col1 ? ai_diplo_read(ctx->col1, nation_id, owner) : 0;
+    /* (d & 0x48) == 0x40 — PEACE without the amicable latch. */
+    const int at_peace = ((d & (AI_DIPLO_PEACE | 0x08)) == AI_DIPLO_PEACE);
+    /* Early fair-play gate #1 (difficulty×turn < 0xb5): skip the approach/
+     * lurk block for an unseen human colony. DS:0x543f polarity 0=human. */
+    const int block1 = !(difficulty * turn < 0xb5 && !seen && owner == human);
+    if (block1) {
+      /* MILITARY approach goal (defender count is a mode-2 substitution,
+       * see header). Prio 3 while formally at peace, 5 otherwise. */
+      if ((int)col_cnt[nation_id][cont] + (int)land_cnt[nation_id][cont] != 0 &&
+          ((i + turn) & 3) != 0) {
+        const int defenders =
+          ai_euro_0a60_units_on_tile(ctx->units, c->x, c->y) + (int)c->population;
+        if (defenders > 6 - turn / 50) {
+          ai_goals_upsert_primary(
+            nation_id, c->x, c->y, AI_GOAL_MILITARY, at_peace ? 3 : 5
+          );
+        }
+      }
+      if (at_peace) {
+        continue; /* raw: goto next colony — no lurk/staging vs peace peers */
+      }
+      /* CONTACT lurk scan: ring-2 open-sea tiles off a coastal foreign
+       * colony (raw 1012-1089; +0x1c bit 0x40 coastal, live recompute).
+       * The raw every-4th `8aac(...,0xd)==0` early-out reads 4fa8 case 0xd
+       * (generic CRT code, no real signal) — ported as never-taken. */
+      if (map_tile_is_coastal(map, c->x, c->y)) {
+        int best = 0;
+        int bx = 0;
+        int by = 0;
+        for (int dy = -2; dy <= 2; ++dy) {
+          for (int dx = -2; dx <= 2; ++dx) {
+            if (dx == 0 && dy == 0) {
+              continue;
+            }
+            if (abs(dx) != 2 && abs(dy) != 2) {
+              continue; /* Chebyshev ring 2 only */
+            }
+            const int tx = c->x + dx;
+            const int ty = c->y + dy;
+            if (!ai_euro_0a60_open_sea(map, tx, ty)) {
+              continue;
+            }
+            int cnt = 0;
+            for (int k = 0; k < 8; ++k) {
+              const int nx = tx + dx8[k];
+              const int ny = ty + dy8[k];
+              if (!ai_euro_0a60_open_sea(map, nx, ny)) {
+                continue;
+              }
+              if (abs(c->x - nx) < 2 && abs(c->y - ny) < 2) {
+                cnt++; /* open-sea tile adjacent to both candidate and colony */
+              }
+            }
+            if (best < cnt) {
+              best = cnt;
+              bx = tx;
+              by = ty;
+            }
+          }
+        }
+        if (best > 0) {
+          int p = ((int)c->population + 4) >> 3;
+          if (p > 2) {
+            p = 2;
+          }
+          ai_goals_upsert_primary(nation_id, bx, by, AI_GOAL_CONTACT, p + 2);
+        }
+      }
+    }
+    /* LAB_521d_11b6: FOUND/MIL_EXPAND ship-staging scan. Early fair-play
+     * gate #2 (difficulty×turn < 0xc9): unseen colony → next colony. */
+    if (difficulty * turn < 0xc9 && !seen) {
+      continue;
+    }
+    int outmatched = 0; /* iStack_2e: fewer colonies here than a developed owner */
+    int absent = 0;     /* bVar5: no colonies here, owner not yet developed */
+    if (col_cnt[nation_id][cont] < col_cnt[owner][cont] && skilled_cnt[owner][cont] >= 8) {
+      outmatched = 1;
+    }
+    if (col_cnt[nation_id][cont] == 0 && skilled_cnt[owner][cont] < 8) {
+      absent = 1;
+    }
+    if (!outmatched && !absent) {
+      continue;
+    }
+    int best = -99;
+    int bx = c->x;
+    int by = c->y;
+    for (int dx = -3; dx <= 3; ++dx) {
+      for (int dy = -3; dy <= 3; ++dy) {
+        const int tx = c->x + dx;
+        const int ty = c->y + dy;
+        if (!ai_euro_0a60_open_sea(map, tx, ty)) {
+          continue;
+        }
+        int cnt = 0;
+        for (int k = 0; k < 8; ++k) {
+          const int nx = tx + dx8[k];
+          const int ny = ty + dy8[k];
+          if (nx < 0 || ny < 0 || nx >= map->width || ny >= map->height) {
+            continue;
+          }
+          if (map_tile_is_water(map, nx, ny) || map_tile_is_high_seas(map, nx, ny)) {
+            continue;
+          }
+          if (map_continent_id_at(map, nx, ny) == cont) {
+            cnt++;
+          }
+        }
+        if (cnt != 0) {
+          const int sc = (abs(dx) + abs(dy) + cnt) * 2;
+          if (best <= sc) { /* raw `iStack_15a <= iStack_e`: later ties win */
+            best = sc;
+            bx = tx;
+            by = ty;
+          }
+        }
+      }
+    }
+    if (best <= 0) {
+      continue;
+    }
+    if (ai_euro_0a60_tile_owner_or_presence(map, bx, by) >= 0) {
+      continue; /* FUN_1000_8872: someone already claims that tile */
+    }
+    if (outmatched) {
+      mask_mil_expand |= (uint16_t)(1u << cont);
+    } else {
+      mask_found |= (uint16_t)(1u << cont);
+    }
+    /* Priority ladder, transliterated (raw 1162-1196). */
+    const int tally =
+      have_col1 ? (int)ctx->col1->post_map.continent_tally_b[cont] : 0;
+    const int total_cols = (int)col_cnt[0][cont] + (int)col_cnt[1][cont] +
+                           (int)col_cnt[2][cont] + (int)col_cnt[3][cont];
+    int e = outmatched ? 3 : 2;
+    int v = e;
+    if (owner == human) {
+      v = e + 1;
+      if (total_cols == (int)col_cnt[owner][cont]) {
+        if (tally > 0xf) {
+          v = e + 2;
+        }
+        e = v;
+        v = e;
+        if (tally > 0x3f) {
+          v = e + 1;
+        }
+      }
+    }
+    e = v;
+    if (tally < total_cols * 0x10) {
+      e -= 1;
+    }
+    if ((d & (AI_DIPLO_MET | AI_DIPLO_PEACE)) == AI_DIPLO_MET) {
+      e += 1; /* met, no peace treaty */
+    }
+    if (turn < 0x96) {
+      e <<= 1;
+    }
+    /* Weakly-defended target cancels the staging goal (raw 1197-1203). */
+    const int defenders =
+      ai_euro_0a60_units_on_tile(ctx->units, c->x, c->y) + (int)c->population;
+    if (defenders <= 6 - turn / 50) {
+      outmatched = 0;
+      absent = 0;
+    }
+    if (outmatched || absent) {
+      ai_goals_upsert_primary(
+        nation_id, bx, by, outmatched ? AI_GOAL_MIL_EXPAND : AI_GOAL_FOUND, e
+      );
+    }
+  }
+
+  /* Village loop (raw 1215-1276). */
+  if (have_col1 && ctx->col1->tribe) {
+    for (uint16_t vi = 0; vi < ctx->col1->head.tribe_count; ++vi) {
+      const ColonizeCol1Tribe* t = &ctx->col1->tribe[vi];
+      const int vx = (int)t->x;
+      const int vy = (int)t->y;
+      const int cont = map_continent_id_at(map, vx, vy);
+      if (cont < 0 || cont >= 16) {
+        continue;
+      }
+      const int ind = (int)t->nation_id; /* 4..11 */
+      /* MILITARY at the village: own presence on the continent, and either
+       * alarm >= 0x4b or the Indian-matrix WAR bit (FUN_1000_8c28 & 2).
+       * Prio 2 for a mission-less village (+5 byte 0xff → sign bit), 4
+       * when a mission stands there. */
+      if ((int)col_cnt[nation_id][cont] + (int)land_cnt[nation_id][cont] != 0 &&
+          ind >= 4 && ind < 12) {
+        const int alarm = ai_diplo_indian_alarm(ctx->col1, ind, nation_id);
+        int fire = 1;
+        if (alarm < 0x4b) {
+          fire = (ctx->col1->indian[ind - 4].euro_diplo[nation_id] &
+                  COL1_INDIAN_WAR_BIT) != 0;
+        }
+        if (fire) {
+          const int prio = (t->mission & 0x80u) ? 2 : 4;
+          ai_goals_upsert_primary(nation_id, vx, vy, AI_GOAL_MILITARY, prio);
+        }
+      }
+      /* Ship FOUND staging next to a village on a continent with no own
+       * colony and no staging goal registered yet this turn: best village-
+       * adjacent open-sea tile by count of same-continent land neighbours
+       * (a zero-count ocean tile still qualifies — DOS init is −1). */
+      if ((mask_mil_expand & (1u << cont)) == 0 && (mask_found & (1u << cont)) == 0 &&
+          col_cnt[nation_id][cont] == 0) {
+        int best = -1;
+        int bx = -1;
+        int by = -1;
+        for (int k = 0; k < 8; ++k) {
+          const int tx = vx + dx8[k];
+          const int ty = vy + dy8[k];
+          if (!ai_euro_0a60_open_sea(map, tx, ty)) {
+            continue;
+          }
+          int cnt = 0;
+          for (int m = 0; m < 8; ++m) {
+            const int nx = tx + dx8[m];
+            const int ny = ty + dy8[m];
+            if (nx < 0 || ny < 0 || nx >= map->width || ny >= map->height) {
+              continue;
+            }
+            if (map_tile_is_water(map, nx, ny) || map_tile_is_high_seas(map, nx, ny)) {
+              continue;
+            }
+            if (map_continent_id_at(map, nx, ny) == cont) {
+              cnt++;
+            }
+          }
+          if (best < cnt) {
+            best = cnt;
+            bx = tx;
+            by = ty;
+          }
+        }
+        if (bx > 0) { /* raw `0 < (int)uStack_24` */
+          ai_goals_upsert_primary(nation_id, bx, by, AI_GOAL_FOUND, 2);
+          mask_found |= (uint16_t)(1u << cont);
+        }
+      }
+    }
+  }
+}
+
 /* --- 0a60 colony goals ------------------------------------------------- */
 
 static void ai_euro_colony_goals(ColonizeTurnContext* ctx, int nation_id) {
@@ -9791,6 +10473,9 @@ static void ai_euro_colony_goals(ColonizeTurnContext* ctx, int nation_id) {
 
   /* A: urgency seed; FUN_1d1d_0dae(0x9faa,0,0x10e) coarse-plane wipe + restamp. */
   ai_coarse_fog_euro_restamp(ctx->units, ctx->colonies, nation_id);
+  /* Raw lines 1-189: per-unit 0x3148 housekeeping + foreign-ship CONTACT
+   * producer, DOS position (after the memsets, before the colony loop). */
+  ai_euro_0a60_unit_housekeeping(ctx, nation_id);
   const int urgency = inv ? inv->urgency : 0;
 
   /* B: own units — CONTACT from adjacent foreign; work queue only for bindable. */
@@ -10101,6 +10786,72 @@ static void ai_euro_colony_goals(ColonizeTurnContext* ctx, int nation_id) {
           ai_goals_upsert_work(c->id, (int)wscore, flag_a, /*haul=*/1);
         }
       }
+      /*
+       * Garrison-quota distribution (raw lines 904-980; was the last
+       * unported own-colony piece). DOS: while colony+0x8e
+       * (labor_shortage, "units wanted") > 0, register a LABOR goal at the
+       * colony (prio = shortage − already-garrisoned + 2) and then admit
+       * ('A') military units standing on the colony tile in strict
+       * preference order — Artillery(0x0b), non-veteran Soldier(0x01),
+       * veteran Soldier (profession 0x15), non-veteran Dragoon(0x04),
+       * veteran Dragoon — decrementing +0x8e and +0x1e (garrison_quota)
+       * per admission. Gated, like DOS's whole own-colony block, on the
+       * colony being coastal (+0x1c bit 0x40; live map_tile_is_coastal
+       * here rather than the thin-latched colony_flags bit).
+       * The "already garrisoned" count is DOS `FUN_1000_8aac(unit,10)` —
+       * 4fa8 case 0xa is generic CRT code with no per-unit signal (see
+       * move_scoring_20e6_full.md's case sweep), so the intended value is
+       * substituted: own fortified units on the tile. Admitted units get
+       * shadow order 'A', which excludes them from this turn's goal scan
+       * (DOS-identical effect); deeper 'A' labor handling stays with the
+       * existing colony-join paths.
+       */
+      if (c->labor_shortage > 0 && ctx->units &&
+          map_tile_is_coastal(ctx->map, c->x, c->y)) {
+        int garrisoned = 0;
+        for (int ui = 0; ui < COLONIZE_UNITS_MAX; ++ui) {
+          const ColonizeUnit* gu = units_get_const(ctx->units, ui);
+          if (gu && gu->active && gu->nation_id == nation_id && gu->x == c->x &&
+              gu->y == c->y &&
+              (gu->orders == UNITS_ORDER_FORTIFY || gu->orders == UNITS_ORDER_FORTIFIED)) {
+            garrisoned++;
+          }
+        }
+        if (garrisoned < (int)c->labor_shortage) {
+          ai_goals_upsert_primary(
+            nation_id, c->x, c->y, AI_GOAL_LABOR,
+            (int)c->labor_shortage - garrisoned + 2
+          );
+        }
+        /* Five admission passes in DOS preference order. */
+        static const int k_adm_type[5] = {0x0b, 0x01, 0x01, 0x04, 0x04};
+        static const int k_adm_vet[5] = {-1, 0, 1, 0, 1}; /* -1 any; 0/1 vs prof 0x15 */
+        for (int pass = 0; pass < 5 && c->labor_shortage > 0; ++pass) {
+          for (int ui = 0; ui < COLONIZE_UNITS_MAX && c->labor_shortage > 0; ++ui) {
+            const ColonizeUnit* gu = units_get_const(ctx->units, ui);
+            if (!gu || !gu->active || gu->nation_id != nation_id || gu->x != c->x ||
+                gu->y != c->y) {
+              continue;
+            }
+            if (ai_euro_20e6_dos_type(ctx->units, gu) != k_adm_type[pass]) {
+              continue;
+            }
+            const int is_vet = (gu->profession == 0x15);
+            if (k_adm_vet[pass] >= 0 && is_vet != k_adm_vet[pass]) {
+              continue;
+            }
+            Ai0a60UnitState* gst = &s_0a60_pilot_state[ui];
+            if (gst->order_code == 'A') {
+              continue; /* already admitted this turn */
+            }
+            gst->order_code = 'A';
+            c->labor_shortage--;
+            if (c->garrison_quota != 0) {
+              c->garrison_quota--;
+            }
+          }
+        }
+      }
     }
   }
 
@@ -10314,6 +11065,11 @@ static void ai_euro_colony_goals(ColonizeTurnContext* ctx, int nation_id) {
       }
     }
   }
+
+  /* Foreign-colony + village producers (raw 983-1276): MILITARY approach,
+   * CONTACT lurk ring, and the FOUND/MIL_EXPAND ship-staging goals at
+   * open-sea tiles next to foreign colonies / villages. */
+  ai_euro_0a60_settlement_goal_producers(ctx, nation_id);
 
   /*
    * G continent stance — mid-game pressure once established (≥2 colonies).
@@ -10917,12 +11673,20 @@ static int ai_euro_score_move(
  *                         ~1940-2180)
  *   epilogue commit     → ai_euro_move_scoring_gate  (LAB_589e/5a78)
  *
+ * 2026-09-06 deepening pass (the six thin pieces from port_plan.md's 20e6
+ * row): LAB_52aa attack-odds tail (crown==2 halving + Soldier/Dragoon
+ * colony mass gate, ai_euro_20e6_attack_term), 0x4c village arms
+ * (ai_euro_20e6_village_arm → ai_contact AI wrappers), colonist labor loop
+ * (ai_euro_20e6_labor_arm), LAB_3558 per-cargo unload mask
+ * (ai_euro_20e6_unload_mask / _unload_by_mask in ai_euro_unload_settle),
+ * −0x6168 rival strength (persistent 0a60 max-tracker + explore
+ * fatigue → local_12), explore-plane low nibble (ai_euro_20e6_site_nibble
+ * reads the real seen-plane site-score nibble).
+ *
  * NOT here (own Linux mechanics already cover them, or closed as dead in
- * port_plan.md T1.2/T1.3): 0x42/0x65 found/contact writes, LAB_3558
- * ship band, colonist labor loop (LAB_2c..), missionary/scout 0x4c village
- * arms, attack-odds sub-block of the 8-dir loop (LAB_52aa — the raw C there
- * is register-garbage around FUN_1000_8aac; the tile is scored via the
- * existing combat_strength helpers instead, see ai_euro_20e6_attack_term).
+ * port_plan.md T1.2/T1.3): 0x42/0x65 found/contact writes; the LAB_3558
+ * colony-sail matrix / HS spiral / work-queue haul tails beyond the unload
+ * rule.
  *
  * DOS state this port models file-locally (same pattern as s_euro_last_dir
  * for unit+0x314f):
@@ -10936,14 +11700,15 @@ static int ai_euro_score_move(
  * Deliberate substitutions (each marked at its use site):
  *   - DS:0x9faa coarse fog plane (far-probe +8): Linux keeps that plane only
  *     for tribe placement, so the per-nation seen[] plane is used instead.
- *   - explore-plane low nibble (FUN_1000_893a & 0xf): Linux map has only
- *     the per-nation seen bit; unseen → 4 (passes DOS's `>3` explorer gate),
- *     seen → 0.
- *   - −0x6168[continent] rival-strength (FUN_521d_0a60 max-tracker, never
- *     computed in Linux): read as 0, so the explore radius stays 3 and the
- *     village-penalty `>40` halving never fires.
- *   - FUN_1000_8aac field 2 (transport-chain splice) gates: skipped, per
- *     T1.2 (chain fields are never live for land units in this port).
+ *   - explore-plane low nibble (FUN_1000_893a & 0xf): now the real seen-plane
+ *     site-score nibble on DOS-imported maps (ai_euro_20e6_site_nibble);
+ *     Linux-generated maps carry no nibble, old unseen→4 stand-in kept there.
+ *   - −0x6168[continent] rival-strength: live (s_euro_rival_strength,
+ *     the 0a60 max-tracker recomputed per call) + s_20e6_explore_fatigue for
+ *     unit+0x3154; radius shrink and >40 halving now fire.
+ *   - FUN_1000_8aac: resolved as the FUN_1427_0d38 stack-query dispatcher
+ *     (move_scoring_20e6_full.md tail) — case 2 ported as # military types,
+ *     case 0xb as stack combat sum; the 0x42/0x65 gates stay closed per T1.2.
  */
 
 #define AI_20E6_TYPE_COUNT 23
@@ -10980,6 +11745,14 @@ static const int8_t k_20e6_ring20_dx[20] = {0, 1, 1, 1, 0, -1, -1, -1, 0, 1, 2, 
 static const int8_t k_20e6_ring20_dy[20] = {-1, -1, 0, 1, 1, 1, 0, -1, -2, -2, -1, 0, 1, 2, 2, 2, 1, 0, -1, -2};
 
 static uint8_t s_20e6_explorers[16];
+/*
+ * DOS unit+0x3154, the land-explorer branch (raw ~1600-1607): a per-unit
+ * explore-fatigue counter, ++ (cap 0x7f) each explore-ring pass; the ring-hop
+ * arm decrements it by 8. In DOS the same byte doubles as cargo_hold[0]
+ * storage; land explorers never carry cargo, so a session-local array is the
+ * honest home (not save-persisted — documented divergence).
+ */
+static uint8_t s_20e6_explore_fatigue[COLONIZE_UNITS_MAX];
 
 /* DOS unit+0x3146 type index (NAMES.TXT @UNIT order) from a Linux unit. */
 /* NAMES.TXT @UNIT column 9 (DS:0x5239): 0 for land types; ships Caravel 0,
@@ -11373,6 +12146,116 @@ static int ai_euro_20e6_foreign_colony_on(const ColonizeTurnContext* ctx, int na
   return 0;
 }
 
+/*
+ * DOS local_12 = −0x6168[cid]*8 + unit+0x3154 (explore fatigue). The
+ * −0x6168 table is the 0a60 per-nation-turn max-tracker (largest foreign
+ * colony pop vs capped ≤4 rival land units — written for real in
+ * ai_euro_refresh_continent_stance, read back here at DOS position).
+ */
+static int ai_euro_20e6_local12(const ColonizeTurnContext* ctx, const ColonizeUnit* u, int nation, int cid) {
+  (void)ctx;
+  const int fat = (u->id >= 0 && u->id < COLONIZE_UNITS_MAX) ? (int)s_20e6_explore_fatigue[u->id] : 0;
+  return ai_euro_rival_strength_at(nation, cid) * 8 + fat;
+}
+
+/*
+ * DS:0x9650 — per-nation stats pass (decomp ~78316): number of continents
+ * with continent_tally_a > 7 the nation has no colonies on ("open frontier
+ * count"). Recomputed per call.
+ */
+static int ai_euro_20e6_open_continents(const ColonizeTurnContext* ctx, int nation) {
+  if (!ctx->col1_ok || !ctx->col1) {
+    return 0;
+  }
+  int n = 0;
+  for (int cid = 0; cid < 16; ++cid) {
+    if ((int)ctx->col1->post_map.continent_tally_a[cid] > 7 &&
+        ai_euro_20e6_own_colonies_on(ctx, nation, cid) == 0) {
+      n++;
+    }
+  }
+  return n;
+}
+
+/*
+ * FUN_281f_074a & 0xf — the seen-plane low nibble = map-gen colony-site AI
+ * score (save_format_map.md "seen" row; nawagers). DOS-imported maps carry it;
+ * Linux map_gen writes no nibble, so when the whole plane carries none the
+ * old per-nation unseen→4 stand-in stays (an all-zero nibble field would
+ * otherwise disable the explore ring on generated maps).
+ */
+static int ai_euro_20e6_site_nibble(const ColonizeTurnContext* ctx, int x, int y, int nation) {
+  const ColonizeWorldMap* map = ctx->map;
+  if (!map || !map->seen || x < 0 || y < 0 || x >= map->width || y >= map->height) {
+    return 0;
+  }
+  static const uint8_t* s_nib_plane = NULL;
+  static int s_nib_count = -1;
+  static int s_nib_present = 0;
+  const int count = map->width * map->height;
+  if (map->seen != s_nib_plane || count != s_nib_count) {
+    s_nib_plane = map->seen;
+    s_nib_count = count;
+    s_nib_present = 0;
+    for (int i = 0; i < count; ++i) {
+      if (map->seen[i] & 0x0f) {
+        s_nib_present = 1;
+        break;
+      }
+    }
+  }
+  if (s_nib_present) {
+    return (int)(map->seen[y * map->width + x] & 0x0f);
+  }
+  return !map_tile_seen_by(map, x, y, nation) ? 4 : 0;
+}
+
+/*
+ * FUN_1000_8aac = FUN_281f_08bc → FUN_1427_0d38 stack-query dispatcher
+ * (move_scoring_20e6_full.md tail, cases decoded from its CS:0xd78 table).
+ * Case 2: # of military land types {1,4,6,7,8,9} in the stack at (x,y).
+ */
+static int ai_euro_20e6_stack_mil_types(const ColonizeTurnContext* ctx, int x, int y) {
+  int n = 0;
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    const ColonizeUnit* o = units_get_const(ctx->units, i);
+    if (!o || !o->active || o->aboard_ship_id >= 0 || o->x != x || o->y != y) {
+      continue;
+    }
+    const int t = ai_euro_20e6_dos_type(ctx->units, o);
+    if (t == 1 || t == 4 || t == 6 || t == 7 || t == 8 || t == 9) {
+      n++;
+    }
+  }
+  return n;
+}
+
+/*
+ * Case 0xb: Σ combat value (FUN_157e_004a mode 1 — combat_unit_base_x8 mode 1
+ * here, the same read −0x6a8e sums) over stack units whose ship-ness matches
+ * the tile (land tile → land units).
+ */
+static int ai_euro_20e6_stack_combat_0b(ColonizeTurnContext* ctx, int x, int y) {
+  ColonizeCombatStrengthCtx sctx;
+  sctx.units = ctx->units;
+  sctx.map = ctx->map;
+  sctx.colonies = ctx->colonies;
+  sctx.col1 = ctx->col1;
+  const int water = map_tile_is_water(ctx->map, x, y);
+  int sum = 0;
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    const ColonizeUnit* o = units_get_const(ctx->units, i);
+    if (!o || !o->active || o->aboard_ship_id >= 0 || o->x != x || o->y != y) {
+      continue;
+    }
+    if ((units_is_sea(ctx->units, i) ? 1 : 0) != (water ? 1 : 0)) {
+      continue;
+    }
+    sum += combat_unit_base_x8(&sctx, i, 1, NULL);
+  }
+  return sum;
+}
+
 /* FUN_OVL14_L0000__0072d6 → FUN_521d_0906 probe, ≥0 = adjacent foreign claim. */
 static int ai_euro_20e6_probe_adjacent(const ColonizeTurnContext* ctx, int x, int y, int nation) {
   int side = -1;
@@ -11490,6 +12373,143 @@ static int ai_euro_20e6_patrol_arm(ColonizeTurnContext* ctx, ColonizeUnit* u, co
 }
 
 /*
+ * DOS 8d4a village attitude[nation] stand-in for the 0x4c arms: the real
+ * per-village per-Euro-nation attitude counter (settlement_record_8d4a.md,
+ * PARKED) increments on every visit and gates re-visits (==0 scout /
+ * <0x40 colonist). Session-local per-village nation bits keep the arms
+ * one-shot instead of re-firing (and re-drawing RNG) every turn.
+ */
+#define AI_20E6_VILLAGE_MAX 128
+static uint8_t s_20e6_village_visited[AI_20E6_VILLAGE_MAX];
+
+/*
+ * FUN_521d_20e6 orders-0x4c village arms (raw ~1366-1371 scout, ~1682-1691
+ * colonist). Both need the unit adjacent (dist 1) to the nearest village.
+ * Gates:
+ *   Scout (type 5): record +3 bit8 (tribe.state.scouted) clear, alarm
+ *     quartile < 0x19 (quartile domain 0..3 — vacuously true, omitted),
+ *     attitude[nation] == 0 (stand-in latch above).
+ *   Colonist: profession-bearing non-combat non-Scout/Missionary type whose
+ *     profession byte is 0x1c (Free/none) or 0x19 (Indentured Servant),
+ *     record +3 bit2 (tribe.state.learned) clear, attitude < 0x40 (stand-in).
+ * Outcome: DOS writes orders 0x4c + a 2a1f_059c dir (enter the village);
+ * Linux resolves the entry through the same @ACTIONS outcome functions
+ * (Speak With Chief / Live Among The Natives) — an AI unit stepping onto a
+ * village tile is an attack in this port, so the peaceful entry runs in
+ * place. Returns 1 when the act was consumed.
+ */
+static int ai_euro_20e6_village_arm(ColonizeTurnContext* ctx, ColonizeUnit* u, const Ai20e6Unit* s) {
+  if (!ctx->col1_ok || !ctx->col1 || !ctx->col1->tribe || s->village_idx < 0 ||
+      s->village_dist != 1 || s->is_ship || s->nation < 0 || s->nation > 3) {
+    return 0;
+  }
+  if (s->village_idx >= AI_20E6_VILLAGE_MAX ||
+      (s_20e6_village_visited[s->village_idx] & (1u << s->nation))) {
+    return 0;
+  }
+  ColonizeCol1Tribe* t = &ctx->col1->tribe[s->village_idx];
+  if (t->nation_id < 4 || t->nation_id > 11) {
+    return 0;
+  }
+  if (s->dos_type == 5 && !t->state.scouted) {
+    if (ai_contact_ai_scout_visit_village(ctx, s->nation, s->village_idx, u->id)) {
+      s_20e6_village_visited[s->village_idx] |= (uint8_t)(1u << s->nation);
+      u->moves_left = 0;
+      return 1;
+    }
+  }
+  if (!(s->combat > 1 || s->dos_type == 5 || s->dos_type == 3) &&
+      (u->profession == UNITS_JOB_NONE || u->profession == UNITS_JOB_SERVANT) &&
+      !t->state.learned && !units_is_sea(ctx->units, u->id)) {
+    if (ai_contact_ai_live_among_village(ctx, s->nation, s->village_idx, u->id)) {
+      s_20e6_village_visited[s->village_idx] |= (uint8_t)(1u << s->nation);
+      u->moves_left = 0;
+      return 1;
+    }
+  }
+  return 0;
+}
+
+/*
+ * FUN_521d_20e6 colonist labor loop (raw ~1617-1679): a type-0 Colonist that
+ * is not exploring walks to (or joins) the min-score same-continent own
+ * colony that wants colonists (+0x1b bit 0x10, i.e.
+ * COLONIZE_COLONY_AI_NEEDS_COLONISTS; Indian Converts join regardless).
+ * Wanted size = fortification capacity 8/12/32 (FUN_15eb_0484) clamped ≤16;
+ * candidate only while stack-military + population < wanted + 2.
+ * Score = dist>>1, ×need when under-filled, ×2 when full (min-pick,
+ * verbatim DOS arithmetic). No candidate:
+ *   standing on an own colony → become a Pioneer (tools = 20, DOS orders
+ *   0x3d / type 2 / +0x3159 = 0x14);
+ *   else (outside WoI) force the explore ring (DOS re-loops with
+ *   iStack_6a = 1) — signalled via s->explorer.
+ * Returns 0 = not handled, 1 = goto set (act continues), 2 = unit consumed
+ * (join / convert — abort the act, the unit may be gone).
+ */
+static int ai_euro_20e6_labor_arm(ColonizeTurnContext* ctx, ColonizeUnit* u, Ai20e6Unit* s) {
+  if (s->dos_type != 0 || s->explorer || s->is_ship || !ctx->colonies) {
+    return 0;
+  }
+  int best = -1;
+  int best_score = 9999;
+  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+    const ColonizeColony* c = &ctx->colonies->colonies[i];
+    if (!c->active || c->nation_id != s->nation) {
+      continue;
+    }
+    if (map_continent_id_at(ctx->map, c->x, c->y) != s->cid) {
+      continue;
+    }
+    if (!(c->ai_flags & COLONIZE_COLONY_AI_NEEDS_COLONISTS) && u->profession != 27) {
+      continue; /* 27 = Indian Convert (DOS profession 0x1b) */
+    }
+    const int tier = colonies_fortification_tier(ctx->colonies, c);
+    int wanted = tier <= 0 ? 8 : (tier == 1 ? 12 : 32); /* FUN_15eb_0484 */
+    if (wanted > 0x10) {
+      wanted = 0x10;
+    }
+    const int dist = ai_euro_20e6_dist(u->x, u->y, c->x, c->y);
+    int score = dist >> 1;
+    const int need = wanted - (int)c->population;
+    if (need > 0) {
+      score = need * score;
+    }
+    if ((int)c->population >= wanted) {
+      score <<= 1;
+    }
+    const int mil = ai_euro_20e6_stack_mil_types(ctx, c->x, c->y); /* 8aac case 2 */
+    if (mil + (int)c->population < wanted + 2 && score < best_score) {
+      best_score = score;
+      best = i;
+    }
+  }
+  if (best >= 0) {
+    const ColonizeColony* c = colonies_get(ctx->colonies, best);
+    if (!c) {
+      return 0;
+    }
+    if (u->x == c->x && u->y == c->y) {
+      (void)colonies_admit_unit(ctx->colonies, best, ctx->units, u->id, ctx->col1_ok ? ctx->col1 : NULL);
+      return 2; /* FUN_1000_9b94 join; unit consumed either way (8b24) */
+    }
+    ai_euro_set_goto(u, UNITS_ORDER_AI_MOVE, c->x, c->y);
+    return 1;
+  }
+  if (s->home_dist == 0 && s->home_colony >= 0) {
+    /* Standing on an own colony with nothing to staff: re-equip as Pioneer. */
+    if (u->tools < UNITS_EQUIP_TOOLS_STEP) {
+      u->tools = UNITS_EQUIP_TOOLS_STEP;
+    }
+    u->moves_left = 0;
+    return 2;
+  }
+  if (!s->woi) {
+    s->explorer = 1; /* DOS: iStack_6a = 1, re-run the ring as an explorer */
+  }
+  return 0;
+}
+
+/*
  * FUN_521d_20e6 explore ring (LAB_521d_2912 → 2a59), structural port of the
  * DOS windowed best-tile scan. Was a thin radius-5 scan (2026-08-15); now the
  * raw scoring: explore-nibble ×4 base, colony pull −(d−9)² own / −(a2−d)²
@@ -11503,7 +12523,7 @@ static int ai_euro_20e6_patrol_arm(ColonizeTurnContext* ctx, ColonizeUnit* u, co
  * unit is already committed to (unit+0x314c==7) within the radius-2 ring.
  */
 static int ai_euro_land_explore_scan_target(
-  ColonizeTurnContext* ctx, const ColonizeUnit* u, int nation_id, int* out_x, int* out_y
+  ColonizeTurnContext* ctx, const ColonizeUnit* u, int nation_id, int force_explorer, int* out_x, int* out_y
 ) {
   if (!ctx || !ctx->map || !u || !out_x || !out_y) {
     return 0;
@@ -11511,6 +12531,9 @@ static int ai_euro_land_explore_scan_target(
   Ai20e6Unit s;
   ai_euro_20e6_prologue(ctx, u, nation_id, &s);
   ai_euro_20e6_explorer_flag(ctx, u, &s);
+  if (force_explorer) {
+    s.explorer = 1; /* labor-loop fall-through: DOS re-loops with iStack_6a=1 */
+  }
   if (s.cid < 0) {
     return 0; /* not on a mapped landmass (e.g. still in Europe) */
   }
@@ -11525,7 +12548,16 @@ static int ai_euro_land_explore_scan_target(
   } else if (tally_a < 0x31) {
     tier = 2;
   }
-  const int local_12 = 0; /* −0x6168[cid]*8 + cargo_hold[0]: rival strength unported */
+  /*
+   * Raw ~1600-1607: explorer pass bumps unit+0x3154 (cap 0x7f), then
+   * local_12 = −0x6168[cid]*8 + that counter. Both terms live now
+   * (s_euro_rival_strength writer / s_20e6_explore_fatigue).
+   */
+  if (s.explorer && u->id >= 0 && u->id < COLONIZE_UNITS_MAX &&
+      s_20e6_explore_fatigue[u->id] < 0x7f) {
+    s_20e6_explore_fatigue[u->id]++;
+  }
+  const int local_12 = ai_euro_20e6_local12(ctx, u, nation_id, s.cid);
   int radius = 3;
   if (local_12 > 0x1f) {
     radius = 2;
@@ -11551,7 +12583,9 @@ static int ai_euro_land_explore_scan_target(
       if (!map_tile_is_land(ctx->map, tx, ty) || map_continent_id_at(ctx->map, tx, ty) != s.cid) {
         continue;
       }
-      int nib = (ctx->map->seen && !map_tile_seen_by(ctx->map, tx, ty, nation_id)) ? 4 : 0;
+      /* FUN_1000_893a & 0xf — real seen-plane site-score nibble (fallback
+       * inside the helper for nibble-less generated maps). */
+      int nib = ai_euro_20e6_site_nibble(ctx, tx, ty, nation_id);
       int score = nib * 4;
       if (map_dos_terr_class_at(ctx->map, tx, ty) == 0x1b) {
         continue; /* LCR */
@@ -11761,8 +12795,44 @@ static int ai_euro_20e6_attack_term(
   if (s->dos_type == 0xb && !settlement) {
     odds = 0;
   }
+  /* Raw 2855: DS:0x53d2 (crown_nation_id) == 2 ∧ open tile ∧ standing on own
+   * colony (iStack_2e==0) → halve. Was the unsourced "REF nation" note. */
+  if (ctx->col1_ok && ctx->col1 && (int)ctx->col1->head.crown_nation_id == 2 && !settlement &&
+      s->home_dist == 0) {
+    odds >>= 1;
+  }
   if ((s->flags & 0x10) && s->stance == 4) {
     odds *= 3;
+  }
+  /*
+   * Raw 2862-2882 (LAB_52aa tail): Soldier/Dragoon assaulting a Euro colony
+   * tile — mass gate. def = 8aac(tile stack, 0xb) combat sum; own = Σ over
+   * the 8 neighbours of the target of 8aac(neighbour stack, 0xb) for stacks
+   * of the attacker's own nation (the decompile compares the owner nibble to
+   * a clobbered constant 2; own-nation is the only coherent reading — noted
+   * in move_scoring_20e6_full.md as "adjacent Spanish-owned units?").
+   * own ≤ def → skip the tile entirely (LAB_5183).
+   */
+  if ((s->dos_type == 1 || s->dos_type == 4) &&
+      ai_euro_20e6_colony_owner_at(ctx, nx, ny) >= 0) {
+    const int def = ai_euro_20e6_stack_combat_0b(ctx, nx, ny);
+    if (def != 0) {
+      static const int mdx[8] = {0, 1, 1, 1, 0, -1, -1, -1};
+      static const int mdy[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
+      int own_sum = 0;
+      for (int n = 0; n < 8; ++n) {
+        const int ax = nx + mdx[n];
+        const int ay = ny + mdy[n];
+        const int oid = units_id_at(ctx->units, ax, ay);
+        const ColonizeUnit* ou = oid >= 0 ? units_get_const(ctx->units, oid) : NULL;
+        if (ou && ou->nation_id == s->nation) {
+          own_sum += ai_euro_20e6_stack_combat_0b(ctx, ax, ay);
+        }
+      }
+      if (own_sum <= def) {
+        return 0; /* caller treats the tile as unscoreable */
+      }
+    }
   }
   if (odds > 999 || odds < 0) {
     odds = 1000;
@@ -11850,7 +12920,8 @@ static int ai_euro_20e6_wander_step(ColonizeTurnContext* ctx, ColonizeUnit* u, A
         }
       }
     } else {
-      const int nib = (ctx->map->seen && !map_tile_seen_by(ctx->map, nx, ny, nation)) ? 4 : 0;
+      /* Raw ~2670: (rng(1,4) + (893a & 0xf)) >> 1 — real site nibble now. */
+      const int nib = ai_euro_20e6_site_nibble(ctx, nx, ny, nation);
       score = (dos_rng_range(ctx->rng, 1, 4) + nib) >> 1;
     }
     if (terr == 0x1a) {
@@ -12083,7 +13154,24 @@ static int ai_euro_move_scoring_gate(ColonizeTurnContext* ctx, ColonizeUnit* u, 
     if (ai_euro_20e6_patrol_arm(ctx, u, &s)) {
       return 0;
     }
-    if (s.explorer && ai_euro_land_explore_scan_target(ctx, u, nation_id, &fx, &fy)) {
+    /* DOS order: LAB_277a fall-through → 0x4c village arms → 2912 ring →
+     * colonist labor loop (raw runs it inside the ring do-loop; same effect
+     * here since the ring only fires for explorers). A consumed unit (village
+     * entry, colony join, Pioneer convert) aborts the act — it may no longer
+     * exist; a labor walk (goto set) lets the act loop move it this turn. */
+    if (ai_euro_20e6_village_arm(ctx, u, &s)) {
+      return 1;
+    }
+    {
+      const int lr = ai_euro_20e6_labor_arm(ctx, u, &s);
+      if (lr == 2) {
+        return 1;
+      }
+      if (lr == 1) {
+        return 0;
+      }
+    }
+    if (s.explorer && ai_euro_land_explore_scan_target(ctx, u, nation_id, s.explorer, &fx, &fy)) {
       gx = fx;
       gy = fy;
       is_roam = 1; /* unit+0x314c==5 idle-roam (explore ring) */
@@ -14118,6 +15206,280 @@ static int ai_euro_foreign_land_threat_near(
   return 1;
 }
 
+/*
+ * DS:0x173c / 0x173e continent bitmasks (FUN_521d_0a60 goal producers, raw
+ * ~1157/1273 of euro_goal_orders_0a60_full.md). Linux's 0a60 producers are
+ * still the thin ai_euro_colony_goals stand-in, so the masks are derived from
+ * the live goal table instead: a FOUND-class primary goal on the continent
+ * stands in for 0x173e, a MILITARY/MIL_EXPAND one for 0x173c.
+ */
+static int ai_euro_20e6_goal_on_continent(
+  const ColonizeTurnContext* ctx, int nation, int cid, int want_mil
+) {
+  if (cid < 0) {
+    return 0;
+  }
+  for (int i = 0; i < AI_PRIMARY_SLOTS; ++i) {
+    const AiGoalSlot* g = ai_goals_primary(nation, i);
+    if (!g || g->code == AI_GOAL_EMPTY) {
+      continue;
+    }
+    const int is_mil = (g->code == AI_GOAL_MIL_EXPAND || g->code == AI_GOAL_MILITARY);
+    if (want_mil ? !is_mil : g->code != AI_GOAL_FOUND) {
+      continue;
+    }
+    if (map_continent_id_at(ctx->map, (int)g->x, (int)g->y) == cid) {
+      return 1;
+    }
+  }
+  return 0;
+}
+
+/*
+ * FUN_281f_08bc stack-query counts over the ship's cargo (DOS: tile stack).
+ * Mode 3 → founder cargo (type-flag 0x40: Colonists/Pioneers; the ocean-band
+ * annotation and 0a60's bit2 finding both read this mode as "founders" —
+ * move_scoring_20e6_full.md's attack-core list says "# Pioneers", conflict
+ * noted there), mode 4 → military cargo (flag 0x10), mode 5 → Missionary/
+ * Scout cargo (flag 0x20). Mode 6 (iStack_46) is undecoded — read as 0.
+ */
+static void ai_euro_20e6_ship_cargo_counts(
+  ColonizeTurnContext* ctx, const ColonizeUnit* ship, int* founders, int* mil, int* c5
+) {
+  *founders = 0;
+  *mil = 0;
+  *c5 = 0;
+  for (int s = 0; s < ship->cargo_count && s < COLONIZE_UNIT_CARGO_MAX; ++s) {
+    const ColonizeUnit* p = units_get_const(ctx->units, ship->cargo_ids[s]);
+    if (!p || !p->active) {
+      continue;
+    }
+    const int f = ai_euro_20e6_type_flags(ai_euro_20e6_dos_type(ctx->units, p));
+    if (f & 0x40) {
+      (*founders)++;
+    }
+    if (f & 0x10) {
+      (*mil)++;
+    }
+    if (f & 0x20) {
+      (*c5)++;
+    }
+  }
+}
+
+/*
+ * FUN_521d_20e6 LAB_3558 land-adjacent unload mask (local_9c, raw ~1766-1884
+ * of move_scoring_20e6_full.md; euro_ocean_scoring.c section map). Walks the
+ * 8 tiles around the ship; each qualifying land tile recomputes the mask from
+ * scratch (DOS re-zeroes local_9c per tile — the last qualifying tile wins,
+ * replicated verbatim). Bits: 0x40 founder unload, 0x20 Missionary/Scout,
+ * 0x10 military, 0xffff "ship goto lands on this continent — unload all".
+ *
+ * Substitutions (documented per term):
+ *  - DS:0x1734 per-nation urgency accumulator (0a60 threatened-colony count):
+ *    count of own colonies flagged NEEDS_GARRISON/NEEDS_MILITARY.
+ *  - iStack_80 free-slot carry (broken iStack_82 formula upstream): 0.
+ *  - presence bit 0x08 of −0x6a0e: writer undecoded — read as 0.
+ *  - DS:0x1740 recall latch (5bfb full-recall event): no Linux producer — 0.
+ */
+static int ai_euro_20e6_unload_mask(ColonizeTurnContext* ctx, ColonizeUnit* ship, int nation) {
+  static const int dx8[8] = {0, 1, 1, 1, 0, -1, -1, -1};
+  static const int dy8[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
+  if (!ctx->map || nation < 0 || nation > 3) {
+    return 0;
+  }
+  int founders = 0;
+  int mil = 0;
+  int c5 = 0;
+  ai_euro_20e6_ship_cargo_counts(ctx, ship, &founders, &mil, &c5);
+  if (founders == 0 && mil == 0 && c5 == 0) {
+    return 0; /* raw 1768: all three counts zero → no mask pass */
+  }
+  const int case6 = 0; /* iStack_46, undecoded */
+  const int turn = (ctx->turn_number && *ctx->turn_number) ? (int)*ctx->turn_number : 0;
+  const int woi = (ctx->col1_ok && ctx->col1) ? (int)ctx->col1->head.game_options.woi : 0;
+  const int open_cont = ai_euro_20e6_open_continents(ctx, nation); /* DS:0x9650 */
+  int urgency = 0; /* DS:0x1734[nation] stand-in */
+  if (ctx->colonies) {
+    for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+      const ColonizeColony* c = &ctx->colonies->colonies[i];
+      if (c->active && c->nation_id == nation &&
+          (c->ai_flags & (COLONIZE_COLONY_AI_NEEDS_GARRISON | COLONIZE_COLONY_AI_NEEDS_MILITARY))) {
+        urgency++;
+      }
+    }
+  }
+  int home_dist = 0;
+  const int home_colony = ai_euro_20e6_nearest_colony(ctx, ship->x, ship->y, nation, -1, &home_dist);
+  int any_dist = 0;
+  (void)ai_euro_20e6_nearest_colony(ctx, ship->x, ship->y, -1, -1, &any_dist);
+  const int probe7 = ai_goals_max_primary_prio(nation, ship->x, ship->y, AI_GOAL_MIL_EXPAND);
+  const int probe1 = ai_goals_max_primary_prio(nation, ship->x, ship->y, AI_GOAL_FOUND);
+  int goto_cid = -2;
+  if (units_orders_follow_goto(ship->orders) && ship->goto_x >= 0 && ship->goto_y >= 0 &&
+      ship->goto_x < (int)ctx->map->width && ship->goto_y < (int)ctx->map->height) {
+    goto_cid = map_continent_id_at(ctx->map, ship->goto_x, ship->goto_y);
+  }
+  int mask = 0;
+  for (int d = 0; d < 8; ++d) {
+    const int ax = ship->x + dx8[d];
+    const int ay = ship->y + dy8[d];
+    if (!map_coords_inset(ctx->map, ax, ay)) {
+      continue; /* 84f2 */
+    }
+    if (map_tile_is_water(ctx->map, ax, ay)) {
+      continue; /* 8958 */
+    }
+    const int pres = ai_euro_20e6_tribe_or_presence(ctx, ax, ay);
+    if (!(pres < 0 || pres == nation)) {
+      continue; /* 88c2 own/empty */
+    }
+    const int cid = map_continent_id_at(ctx->map, ax, ay);
+    if (cid < 0 || ai_euro_continent_stance_at(nation, cid) == 0) {
+      continue; /* DS:0x9870 G-table zero */
+    }
+    if (!(ay > 1 && ay <= ctx->map->height - 3)) {
+      continue;
+    }
+    mask = 0; /* DOS re-zero per qualifying tile */
+    if (goto_cid >= 0 && goto_cid == cid) {
+      mask = 0xffff; /* act_state 0x0b goto lands here: unload everything */
+    }
+    const int own_cols = ai_euro_20e6_own_colonies_on(ctx, nation, cid);
+    const int own_units = ai_euro_10ec_land_units_on(ctx, nation, cid);
+    const int tally_b = (ctx->col1_ok && ctx->col1 && cid < 16)
+                          ? (int)ctx->col1->post_map.continent_tally_b[cid]
+                          : 0; /* −0x7a38 land-tile count */
+    if (c5 != 0 && ((own_cols == 0 && tally_b > 10) || own_units < (tally_b >> 3))) {
+      mask |= 0x20;
+    }
+    if (founders != 0) {
+      if (ai_goals_colony_balance_flags(ctx->map, ctx->colonies, ctx->col1, nation, cid) > 0) {
+        mask |= 0x40;
+      }
+      if (own_units == 0) {
+        mask |= 0x40;
+      }
+      int ok98 = 1;
+      if (home_colony >= 0 && cid >= 0) {
+        const ColonizeColony* hc = colonies_get(ctx->colonies, home_colony);
+        if (hc && map_continent_id_at(ctx->map, hc->x, hc->y) == cid) {
+          const int iv = ai_euro_20e6_own_colonies_on(ctx, nation, cid) - 8;
+          if (-home_dist != iv && home_dist <= -iv) {
+            mask &= ~0x40; /* too close to an existing cluster */
+          }
+          if (home_dist > 0xb) {
+            ok98 = 0;
+          }
+        }
+      }
+      if (ok98 && open_cont != 0 && (turn >> 4) < own_cols * 4 + own_units && urgency < 0x14) {
+        mask &= ~0x40;
+      }
+      /* raw 1825: iStack_80 (free-slot carry) ∧ explorer count > 1 → clear
+       * 0x40 — iStack_80 has no live producer here (see header), no term. */
+      if (probe7 != 0) {
+        mask |= 0x40;
+      }
+      if (probe1 != 0) {
+        mask |= 0x40;
+      }
+      if (ai_euro_20e6_goal_on_continent(ctx, nation, cid, 0)) {
+        mask |= 0x40; /* DS:0x173e */
+      }
+    }
+    if (mil != 0 && woi && ctx->colonies) {
+      if (ai_euro_20e6_own_colonies_on(ctx, ctx->human_nation, cid) != 0) {
+        mask |= 0x10; /* WoI: human holds colonies here */
+      }
+    }
+    if (mil != 0 && !woi) {
+      if (ai_euro_continent_stance_at(nation, cid) == 4) {
+        mask |= 0x10; /* war stance */
+      }
+      if (case6 == 0 && open_cont != 0 && (turn >> 4) < own_cols * 4 + own_units &&
+          urgency < 0x14) {
+        mask &= ~0x10;
+      }
+      if (own_cols == 0 && ai_euro_20e6_foreign_colony_on(ctx, nation, cid) && any_dist < 7) {
+        mask |= 0x10; /* −0x6a0e bit4 + close colony */
+      }
+      /* −0x6a0e bit 0x08: writer undecoded — no term. */
+    }
+    if (mil != 0) {
+      if (probe7 != 0 || probe1 != 0) {
+        mask |= 0x10;
+      }
+      if (ai_euro_20e6_goal_on_continent(ctx, nation, cid, 1)) {
+        mask |= 0x10; /* DS:0x173c */
+      }
+    }
+  }
+  /* DS:0x1740 recall latch: absent. */
+  return mask;
+}
+
+/*
+ * LAB_3558 unload loop (raw ~1889-1928, decomp ~89566-89609): every carried
+ * land unit whose DS:0x523d type-flag byte intersects the mask steps ashore;
+ * the tile comes from thunk 2a1f_04ac → FUN_521d_06ae (the founding-tile
+ * pick — dir arg mask&0x40 = founder mode, plus an is-Artillery flag) with
+ * ai_euro_pick_unload_land as the adjacent-tile resolver. Repeats until a
+ * pass unloads nothing (DOS rescans the stack whenever a unit left the
+ * tile). Returns the number of units put ashore.
+ */
+static int ai_euro_20e6_unload_by_mask(
+  ColonizeTurnContext* ctx, ColonizeUnit* ship, int nation, int mask
+) {
+  int total = 0;
+  int changed = 1;
+  int found_x = -1;
+  int found_y = -1;
+  if (mask & 0x40) {
+    int fx = 0;
+    int fy = 0;
+    if (ai_goals_pick_founding_tile(
+          ctx->map, ctx->colonies, ctx->col1_ok ? ctx->col1 : NULL, nation, ship->x, ship->y,
+          &fx, &fy
+        )) {
+      found_x = fx;
+      found_y = fy;
+    }
+  }
+  while (changed) {
+    changed = 0;
+    for (int s = 0; s < ship->cargo_count && s < COLONIZE_UNIT_CARGO_MAX; ++s) {
+      const int pid = ship->cargo_ids[s];
+      ColonizeUnit* p = units_get(ctx->units, pid);
+      if (!p || !p->active) {
+        continue;
+      }
+      const int t = ai_euro_20e6_dos_type(ctx->units, p);
+      if (t >= 0xd && t <= 0x12) {
+        continue; /* ships in stack stay */
+      }
+      const int f = ai_euro_20e6_type_flags(t);
+      if ((f & mask & 0xff) == 0) {
+        continue;
+      }
+      const int pref_x = found_x >= 0 ? found_x : ship->x;
+      const int pref_y = found_y >= 0 ? found_y : ship->y;
+      int lx = 0;
+      int ly = 0;
+      if (!ai_euro_pick_unload_land(ctx, ship, pid, pref_x, pref_y, -1, -1, &lx, &ly)) {
+        continue; /* dir 8: no tile */
+      }
+      if (ai_euro_unload_pax_at(ctx, ship, p, lx, ly, UNITS_ORDER_NONE, pref_x, pref_y)) {
+        p->moves_left = 0; /* FUN_1000_8b24 exhaust */
+        total++;
+        changed = 1;
+        break; /* rescan the (mutated) cargo list, DOS do-loop shape */
+      }
+    }
+  }
+  return total;
+}
+
 static void ai_euro_unload_settle(ColonizeTurnContext* ctx, ColonizeUnit* ship, int nation_id) {
   if (!ctx || !ship || !units_is_sea(ctx->units, ship->id) || ai_euro_in_europe(ship->x, ship->y)) {
     return;
@@ -14426,6 +15788,21 @@ static void ai_euro_unload_settle(ColonizeTurnContext* ctx, ColonizeUnit* ship, 
       }
     }
     return;
+  }
+
+  /*
+   * FUN_521d_20e6 LAB_3558 per-cargo unload rule (decomp ~89587): compute the
+   * land-adjacent mask and put every flag-matching carried unit ashore via
+   * the 06ae founding-tile direction. When the mask is empty (its unported
+   * planner inputs — 0x1734/0x173c/0x173e substitutions — can starve it) the
+   * pre-existing best-passenger landfall below stays as the fallback.
+   */
+  {
+    const int mask9c = ai_euro_20e6_unload_mask(ctx, ship, nation_id);
+    if (mask9c != 0 && ai_euro_20e6_unload_by_mask(ctx, ship, nation_id, mask9c) > 0) {
+      ship->moves_left = 0; /* FUN_1000_8b24 on the ship after any unload */
+      return;
+    }
   }
 
   int best_id = -1;

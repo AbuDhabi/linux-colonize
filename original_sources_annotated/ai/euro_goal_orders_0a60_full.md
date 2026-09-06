@@ -1,9 +1,13 @@
 # `FUN_521d_0a60` — full clean recovery, real size correction (2026-08-14)
 
-**Status: mapped in full; goal-selection distance/priority scoring ported**
-into `ai_euro_unit_act`'s existing goal-consumption loops (see
-"Implementation" section below). Verified: clean build, full `ctest` 42/43
-(known pre-existing baseline failure only).
+**Status (2026-09-06): structurally done.** Unit-loop housekeeping,
+garrison-quota distribution, the foreign-colony/village FOUND/CONTACT
+ocean-tile producers, and the G-write diplo gates + `−0x6168` max-tracker
+are all live (`ctest` 57/57, goldens unchanged) — see the "Sixth pass"
+section below, including the resolution of the `FUN_1000_8aac` field-id
+wall. Earlier status: mapped in full 2026-08-14; goal-selection
+distance/priority scoring ported the same day, consumption tail
+structural-live 2026-08-18.
 
 ## Critical correction: this function is ~5.4KB, not ~840 bytes
 
@@ -616,6 +620,133 @@ remaining garrison-request bits (bit0/1/4/5/6/7, the `-0x6da6`/`-0x6da5`
 per-nation table, `LAB_0000_9259`) and the deep G-table's literal write
 path — same difficulty class as `FUN_1000_8aac`'s field-id puzzle for the
 parts that depend on it.
+
+## Sixth pass — structurally done (2026-09-06): unit loop, garrison
+## distribution, settlement producers, G-write completion; the
+## `FUN_1000_8aac` field-id wall RESOLVED
+
+All three pieces this file's "still open" notes carried since August are
+now live in `src/core/ai_euro.c`, and the wall that blocked them fell
+without any new tracing — the answers were already in
+`move_scoring_20e6_full.md`'s `FUN_0000_4fa8` case sweep (2026-08-20/21/22),
+they had just never been cross-applied to this function's call sites:
+
+**The field-id wall, resolved.** `FUN_1000_8aac` → `FUN_0000_4fa8` is a
+shared CRT-style utility multiplexer, and every case `0a60` reads carries
+**no real per-unit signal in the shipped 1994 binary**:
+
+| mode | 4fa8 target | real content | 0a60 call sites |
+|---|---|---|---|
+| 3 | `0xf2` | stale UI cursor word (DS:0x2DA4) + keyboard flush | unit-loop `iStack_1c` (military-in-stack gate) |
+| 4 | `0xa102` | identity echo of the convoy-head unit id | unit-loop `iStack_1e` (`<2` false for every id ≥ 2) |
+| 6 | `0x6ef7` | jump-table entry lands mid-instruction — broken dispatch | unit-loop `iStack_1e` second arm |
+| 2 | `0x46c7` | transport-chain node exchange (returns a link id, never a count) | foreign-colony defender-count reads |
+| 0xa (10) | `0xc00b` | generic CRT code, no unit/colony touch | garrison-distribution "already garrisoned" count |
+| 0xd | `0xc88b` | generic CRT code, no unit/colony touch | CONTACT-scan every-4th early-out |
+
+Net shipped-DOS behavior falls out cleanly once you plug those in: the
+unit-loop eligibility block sets bits 2+3 on effectively **every land
+unit** and on every **full ship** (the hold-full + fleet-coordination gate
+is real, non-8aac code; a part-loaded ship never qualifies); the mode-2 /
+mode-0xa "counts" are noise, so their *intended* values (tile stack size,
+fortified-garrison count) are substituted and documented at each use
+site; the mode-0xd early-out effectively never fires and is ported as
+never-taken. That is the honest resolution: not "the wall was traced
+deeper," but "there is nothing behind it to preserve" — the same
+conclusion `move_scoring_20e6_full.md` reached for `20e6`'s cargo matrix.
+
+**1. Per-unit `0x3148` housekeeping (raw lines 1-189)** →
+`ai_euro_0a60_unit_housekeeping`, run at the top of
+`ai_euro_colony_goals` (DOS position). `Ai0a60UnitState` grew a `flags`
+byte (the unit+0x3148 shadow): `&= 0xd1` rederive, bit1 roam-reeval (act
+5/6), bits 2/3 FOUND/MIL_EXPAND eligibility (ships from real cargo,
+gated by the literal hold-full + earlier-indexed-ship fleet check —
+`holds_occupied` = passengers + goods holds, per save_format_map's +0x0c
+trace), bit5 spare-transport mark (one per nation: `unit_type_counts`
+Merchantman/Galleon/Caravel recompute — DS:0x924c row 252, the
+`-0x6da6`/`-0x6da5`/`0x9259` literals are types 0x0e/0x0f/0x0d).
+Act-state machine live: 1/2/3→0 reset, adjacent-contact-claim probe
+(`ai_goals_probe_adjacent_contact_claim`, profession arg 1) → act 10, and
+**act 1 for land units on water / any unit off-map or in Europe** — the
+"in transit" state that finally excludes aboard-ship passengers and
+Europe-docked ships from the goal scan (they previously consumed slot
+tallies). Foreign branch: spotted hostile ship → CONTACT prio 3
+(`(d & 0x60) == 0x20` = MET + !PEACE against the raw peer byte; Privateer
+always; Frigate only once `game_options.woi` — DS:0x5382 bit0). The
+DS:0x9faa region stamp is already covered by
+`ai_coarse_fog_euro_restamp` (consumers only test nonzero; the |=1 vs
+|=5 profession split is inert). The consumption tail now reads its ship
+eligibility from these bits instead of its own inline cargo scan, which
+adds DOS's hold-full/fleet requirement to ship FOUND/MIL_EXPAND.
+
+**2. Garrison-quota distribution (raw lines 904-980)** → new block in
+`ai_euro_colony_goals`'s own-colony loop: coastal colonies (live
+`map_tile_is_coastal`, the +0x1c bit 0x40 gate) with `labor_shortage`
+(+0x8e) > 0 register a LABOR goal (prio = shortage − garrisoned + 2;
+"garrisoned" substitutes mode 0xa with the fortified-units-on-tile
+count) and then admit ('A' shadow order) military units on the colony
+tile in DOS's strict five-pass order — Artillery, non-vet Soldier, vet
+Soldier (profession 0x15), non-vet Dragoon, vet Dragoon — decrementing
+labor_shortage and garrison_quota per admission. 'A' excludes them from
+the goal scan, the DOS-identical effect.
+
+**3. FOUND/CONTACT ocean-tile producers (raw lines 983-1276, decomp
+~87795-88052)** → `ai_euro_0a60_settlement_goal_producers`, called from
+`ai_euro_colony_goals` before the G refresh. Foreign-colony loop:
+MILITARY approach goal (own presence on continent, `(i+turn)&3`,
+defenders = tile stack + population > 6 − turn/50; prio 3 at peace /
+5 otherwise, `(d&0x48)==0x40` = PEACE + !amicable-latch, then peace
+skips the rest); CONTACT lurk scan (coastal foreign colony, Chebyshev
+ring-2 open-sea tiles — `8958 && 88a4==1` = water with raw layer3
+region nibble 1, the open-sea id per map.c's lake note — scored by
+bridging-tile count, prio min(2,(pop+4)>>3)+2); FOUND/MIL_EXPAND
+staging scan (outmatched/absent via colony + skilled counts — `-0x6ada`
+= "type has a profession slot" per `FUN_281f_0b78` → catalog — 7×7
+open-sea candidates scored `(|dx|+|dy|+cnt)*2` later-ties-win, claim
+check `FUN_1000_8872` tile_owner_or_presence, the full transliterated
+priority ladder incl. the vs-human `0x543f` +1/+2/+1 bumps,
+`continent_tally_b` scaling, MET+!PEACE +1, turn<0x96 doubling, and the
+weak-defender cancel). Village loop: MILITARY at villages (alarm ≥ 0x4b
+or the 23000-matrix WAR bit; prio 2 mission-less / 4 with a mission —
+the +5 sign bit is `mission == 0xff`), and the **ship FOUND staging goal
+at the best village-adjacent open-sea tile** on continents with no own
+colony, gated by the DS:0x173c/0x173e per-continent masks shared with
+the foreign-colony scan (locals here, zeroed per call as DOS zeroes them
+at entry). These pair exactly with the DS:0x523d capability mask: FOUND
+bit1 / MIL_EXPAND bit7 = the transports, CONTACT bit0 = the warships —
+DOS stages loaded transports off coasts worth settling and lurks
+warships off foreign harbors; land units can't take water goals
+(continent −1) so Linux's name-gated land consumption is untouched.
+
+**4. Deep G-table literal-write completion** — in
+`ai_euro_refresh_continent_stance`: the two previously-approximated
+diplomacy gates are now WIRED with resolved bits (Euro rival skipped
+when NOT(MET+!PEACE) && (PEACE+!0x08); Indian counted only at alarm ≥
+0x4b or matrix WAR bit — `ai_diplo.h` named the raw-byte bits since the
+original approximation shipped), and the `−0x6168` max-tracker is
+computed for real (`s_euro_rival_strength[4][16]`: max foreign-colony
+population per continent, folded with the capped ≤4 rival land-unit
+sum). `20e6`'s explore-radius read (`local_12`) now consumes it
+(`ai_euro_rival_strength_at * 8`; the per-unit hold[0] term stays
+unmodeled).
+
+**Verified**: clean rebuild, zero warnings; full `ctest` **57/57**
+including `golden_ai_turns` (TURN1→7 all ok), `golden_ai_joint`,
+`golden_ai_mid01`/`late01` — no golden changed. Temporary instrumentation
+confirmed the new paths actually execute on the golden fixtures (village
+FOUND staging goals written for the AI nations each turn; 16 in-transit
+act-state exclusions per run) — the goldens hold because the early-game
+gates (defender thresholds, fair-play turns, distance/priority score
+gate `dist/(prio+1) ≤ prio*1.5`) keep the new goals out of reach of the
+fixtures' units, exactly as in DOS.
+
+**Still deliberately thin** (documented in-code, unchanged): the haul
+work-queue registration gate + `flag_a`/`flag_b` meanings (tested
+Linux behavior, see "Second pass"); the `func_0x0001854c` weight seed
+(fixed 50 — no `address_mapping.csv` row, genuinely unresolved); the
+consumption tail's land-unit type gate stays the tested name-check
+equivalent of the 0x523d mask (swapping it would break the Linux-only
+COLONY/COLONY_ALT codes, whose mask bit 8 cannot exist in a byte).
 
 ## Raw recovered C (845 lines, one mild warning)
 

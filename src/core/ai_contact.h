@@ -297,4 +297,16 @@ void ai_contact_indian_raids(ColonizeTurnContext* ctx, int nation_id);
 /* Apply human choice from map AI popup (welcome / meet / teach / gift|demand). */
 void ai_contact_apply_popup_result(ColonizeTurnContext* ctx, const AiPopupState* popup);
 
+/*
+ * FUN_521d_20e6 orders-0x4c village arms, AI side (move_scoring_20e6_full.md
+ * raw ~1366/1682): the acting AI unit adjacent to a village enters it
+ * peacefully. These run the same outcome functions the human @ACTIONS menu
+ * uses (Speak With Chief / Live Among The Natives); human chrome inside is
+ * gated on the human nation, so AI callers get the silent state effects
+ * (scouted/learned latches, profession grants, alarm deltas, RNG draws).
+ * tribe_index indexes col1->tribe. Return 1 when the visit ran.
+ */
+int ai_contact_ai_scout_visit_village(ColonizeTurnContext* ctx, int e, int tribe_index, int unit_id);
+int ai_contact_ai_live_among_village(ColonizeTurnContext* ctx, int e, int tribe_index, int unit_id);
+
 #endif

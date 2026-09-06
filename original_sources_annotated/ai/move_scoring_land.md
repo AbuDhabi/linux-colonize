@@ -2,7 +2,11 @@
 
 Section map for decomp **88975–89375** (`LAB_521d_5183` … mid-gate
 `304c`). Quiet Brave / `54f5` bands are Done elsewhere — this file owns the
-**Euro land** arms. Ported 2026-08-27 (`ai_port_plan.md` T1.18); still thin: LAB_52aa attack-odds core, explore-plane seen nibble, `−0x6168` rival strength, `0x4c` village arms.
+**Euro land** arms. Ported 2026-08-27 (`ai_port_plan.md` T1.18); deepened
+2026-09-06: LAB_52aa odds tail, explore-plane seen nibble (real site score),
+`−0x6168` rival strength, `0x4c` village arms, colonist labor loop, ship-band
+per-cargo unload — see the "2026-09-06 deepening" section of
+`move_scoring_20e6_full.md`.
 
 Parent: [`move_scoring.md`](move_scoring.md). Act entry: [`euro_unit_act.md`](euro_unit_act.md)
 (`5b66` → `2a1f_04f4` → `20e6`). Ship band: [`move_scoring_ship.md`](move_scoring_ship.md).
@@ -58,7 +62,8 @@ LAB_521d_5183
   ├─ else (local_ce!=0): low remaining MP (<3) → local_76=8 stay
   └─ else branch LAB_521d_277a (colony / mission / explore matrix)
        ├─ Scout-like (type 2 or combat>1) same continent → orders 0x56 or colony goto
-       ├─ Missionary (type 5) + tribe gate → 2a1f_059c dir; orders 0x4c
+       ├─ Scout (type 5 — NAMES @UNIT order; not Missionary, corrected
+       │    2026-09-06) + tribe gate → 2a1f_059c dir; orders 0x4c
        └─ LAB_521d_2912 … LAB_521d_2a59: explore tile score ring
             continent match, explore nibble, LCR 0x1b skip, colony pull,
             score local_28 → pick best dir / goto
@@ -73,7 +78,7 @@ LAB_521d_5183
 | `0x46` | Adjacent foreign Euro settlement | Attack / siege approach |
 | `0x39` | Default fall-through | Land explore / move opcode |
 | `0x56` | Type 2 / combat unit, no colony bind | Scout / patrol |
-| `0x4c` | Missionary + tribe mission bit clear | Mission plant |
+| `0x4c` | Scout (type 5, +3 bit8 clear) or plain colonist (prof 0x1c/0x19, +3 bit2 clear) beside a village | Peaceful village entry (chief visit / live-among) — corrected 2026-09-06, was "Missionary mission plant" |
 
 Exact opcode names in Linux ORDERS menu may differ; treat values as DOS act codes
 consumed by `5b66` / move apply — **do not invent** menu strings here.
@@ -281,12 +286,14 @@ assumed from the corrupted export's line numbers), then checking that.
 |----------|-------------|-----------------|
 | Adjacent foe pick | `ai_euro_land_best_adjacent_foe` (+ settlement prefer) | Defended case Done |
 | `0x46` undefended colony | `ai_euro_land_try_adjacent_colony_seize` — **Done** full port: combat-capable land unit (attack>1) adjacent to a foreign, at-war Euro colony tile with **no defending unit** walks in and captures it outright (Colonization capture-by-move), then fortifies to hold the prize (own addition — prevents the unrelated "on own colony, no quota → admit as LABOR" beachhead gate from absorbing the conqueror into the workforce next outer-wave pass). Decomp scans all 8 neighbors via `euro_settlement_owner`; Linux additionally gates on war state (decomp has no live peacetime-seize case). Covered by `unit_land_adjacent_colony_seize` in `test_ai_euro_war.c`. |
-| Step toward goal | goal-directed: `ai_euro_score_move` (thin Manhattan); idle: `ai_euro_20e6_wander_step` (**2026-08-27 structural port** of LAB_4d2e→5183) | attack-odds core of LAB_52aa (raw is register-garbage; ratio stand-in) |
-| Explore ring | `ai_euro_land_explore_scan_target` — **2026-08-27 structural port** of the 2912→2a59 scoring (colony pull, village penalty, explorer bonus, site reservation) | explore-plane low nibble (seen-bit stand-in), −0x6168 rival strength (0) |
+| Step toward goal | goal-directed: `ai_euro_score_move` (thin Manhattan); idle: `ai_euro_20e6_wander_step` (**2026-08-27 structural port** of LAB_4d2e→5183) | — (LAB_52aa odds tail completed 2026-09-06: crown==2 halving + Soldier/Dragoon colony mass gate) |
+| Explore ring | `ai_euro_land_explore_scan_target` — **2026-08-27 structural port**, 2026-09-06: real seen-plane site nibble (`ai_euro_20e6_site_nibble`) + live `local_12` (`ai_euro_20e6_rival_strength_on` × 8 + `s_20e6_explore_fatigue`) | nibble falls back to unseen→4 on Linux-generated maps (map_gen writes no site score) |
 | SCOUT/PATROL `0x56` | `ai_euro_20e6_patrol_arm` — **Done** 2026-08-27 | — |
 | Explorer flag `iStack_6a` | `ai_euro_20e6_explorer_flag` — **Done** 2026-08-27 (all clauses) | `FUN_521d_0600` via `ai_goals_composite_unit_priority` |
-| Found / contact opcodes | Goals via `0a60` / peels | Live `0x42`/`0x65` writes inside `20e6` |
-| Missionary `0x4c` | Thin mission contact | Full `2a1f_059c` dir + tribe gate |
+| Found / contact opcodes | Goals via `0a60` / peels | Live `0x42`/`0x65` writes inside `20e6` (T1.2 closed) |
+| `0x4c` village arms | `ai_euro_20e6_village_arm` — **2026-09-06**: Scout (type 5, `state.scouted` clear) → Speak With Chief; plain colonist (profession 0x1c Free / 0x19 Servant, `state.learned` clear) → Live Among The Natives, both via `ai_contact_ai_*_village` | 8d4a per-village `attitude[nation]` gate (PARKED array) — session-local visited latch stands in |
+| Colonist labor loop | `ai_euro_20e6_labor_arm` — **2026-09-06**: NEEDS_COLONISTS colony pick (fort capacity 8/12/32 clamp 16, DOS min-score arithmetic verbatim), join via `colonies_admit_unit`, on-colony Pioneer convert (tools=20), off-colony force-explore fall-through | `8aac` case-2 inbound term ported as # military types (dispatcher table) |
+| Ship band unload | `ai_euro_20e6_unload_mask` + `_unload_by_mask` — **2026-09-06** per-cargo `0x523d & local_9c` rule with 06ae drop tile | `0x1734`/`0x173c`/`0x173e`/`0x1740`/`0x9650` substitutions (see code header); colony-sail matrix + HS spiral + haul tails still Linux-thin |
 | Debug `077e` | — | Ignore (AI debug overlay) |
 
 **2026-08-14 investigation note (missionary `0x4c` gate, still correctly

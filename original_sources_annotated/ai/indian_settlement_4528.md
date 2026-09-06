@@ -14,8 +14,10 @@ Loot outcomes (sibling path, not direct callees inside `4528`):
 
 **Port status:** human `@ACTIONS` 9-way dispatch **Done** (P8.8, 2026-08-28);
 ship abort + Linux raid/fallout arms **Done** thin; full body recovered clean
-(see below) — VGA chrome still open. The old "warn CHOICE" is only the unmet
-fallback.
+(see below) — VGA chrome still open (T5.1). The old "warn CHOICE" is only the
+unmet fallback. **2026-09-06 full audit: logic Done both arms** — see the
+per-case table at the end of this file; case-7 Mode-2 auto-incite fixed to the
+real `417e` gates/push (`indian_incite_417e.md` 2026-09-06 section).
 
 ## 2026-08-27 — two retractions: `0x543f` polarity is `0`=human after all,
 ## and the tail switch IS a real 9-way action dispatch (417e's caller found)
@@ -888,3 +890,33 @@ is why they all land on the `== 1` test.)
 `MISSION` (case 3). The two conditional `2` returns (cases 2 and 6) are
 approximated as "always forfeit" — `a5e8`/`a60c`'s return semantics are
 not decoded, and the `1` arm is the common one.
+
+## 2026-09-06 — deep-port audit: per-case status, both arms
+
+Static audit of every dispatch case against the clean decompile (this
+file's 312-line recovery) + `indian_actions_menu.md`'s per-handler specs.
+Result: **all 9 outcome cases are ported at byte-faithful tier on the
+human arm; the AI arm is fully wired where Linux AI movement can reach
+it.** ctest 57/57 after the case-7 fixes below.
+
+| case | DOS action | Linux (human arm) | Linux (AI arm) | tier |
+|-----:|------------|-------------------|----------------|------|
+| 1 | Trade (`a63c` → `2820`) | `ai_contact_2820_begin` | AI wagon never enters a village tile (no goal routes one) — unreachable, no invented trigger | Done (2820 rewrite 2026-08-29) |
+| 2 | Enter Hostile Village (`a5e8`) | `ai_contact_enter_hostile_village` (rand(0,500) vs alarm/2·alarm → KILLWAGONS/MADATWAGONS/GRUDGEWAGONS→trade) | n/a (human-menu row only) | Done |
+| 3 | Establish Mission (`a5dc`) | `ai_contact_establish_mission` (count/FF ladder, @MISSION{n}) | convert pulse arm | Done |
+| 4 | Denounce Heresy (`a594`) | `ai_contact_denounce_heresy` (incl. `4cc6_03f8` presence scorer) | convert pulse arm (50/50 legacy roll — AI-vs-AI only) | Done human / structural AI |
+| 5 | Live Among The Natives (`a618`) | `ai_contact_live_among_natives` (bid-table skill pick + band suffixes) | `ai_contact_teach_skill` per-turn pulse (accepted stand-in, `indian_actions_menu.md`) | Done human / structural AI |
+| 6 | Speak With Chief (`a60c`) | `ai_contact_speak_with_chief` (seasoned/Arawak-kill/gift-gold/reveal) | AI scout never enters a village tile — unreachable, no invented trigger | Done |
+| 7 | Incite (`a5b8` → `417e`) | `ai_contact_apply_incite` | `ai_contact_ai_incite_human` (convert-pulse hook, case-7 priority) | **Done byte-faithful both modes 2026-09-06** (price alarm-polarity fix, +100 `4cc6_00f2` slam, NOCONTACT/ALREADYSMITE/UNFORTUNATE gates, INDIANWARFARE announce, WoI crown target — `indian_incite_417e.md`) |
+| 8 | Demand Tribute (`a5f4`) | `ai_contact_demand_tribute` (euro-vs-indian census rolls, EXTORT* arms) | n/a (human-menu row) | Done |
+| 9 | Attack (`8bf6(…,4)` + move) | Attack Village commit via game_loop | `ai_euro_land_try_adjacent_village_seize` — trigger is Linux-shaped (war target + garrison-free) but DOS's own AI only reaches case 9 by *choosing* to walk a military unit in, which Linux move scoring equally only does via the seize goal; outcome identical | Done human / structural-trigger AI |
+| 10 | Leave/cancel | dismiss + MP forfeit | n/a | Done |
+
+Cross-cutting: the MP forfeit (`8b24`, return-code 1) and the case-3/9
+exemptions are wired (2026-09-04 section above). The AI arm's automatic
+type→case table (types 1/4/0xb→9, 3→7/3/4, 5→6, 0xc→1, default→5) is
+mirrored where reachable; the scout/wagon rows can only fire if Linux AI
+movement ever routes those unit types onto village tiles, which no goal
+does — porting them would mean inventing a trigger DOS doesn't have
+(the method-notes "structural ≠ semantic" trap), so they are documented
+as unreachable rather than stubbed.

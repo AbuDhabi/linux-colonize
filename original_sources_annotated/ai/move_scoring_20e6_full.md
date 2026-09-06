@@ -3242,3 +3242,105 @@ or Artillery. `1b0e` probe returns `(atk << 3) / (def + 1)`. @UNIT layout
 corrected: `0x5235` = holds (Wagon 2, Caravel 2, Merchantman 4, Galleon 6,
 Privateer 2, Frigate 4, MoW 6), `0x5236` = c6 (0/1/99), `0x5239` = c9 (ship
 strength weight 0/1/4/4/12/32; 0 on land). Wired in `ai_euro_20e6_attack_term`.
+
+## 2026-09-06 — deepening pass: the six thin pieces ported
+
+Worked straight from the raw C above; all six of the port_plan.md `20e6`
+row's listed thin pieces are now live in `src/core/ai_euro.c` (block
+"FUN_521d_20e6 — structural land port"). Full `ctest` 57/57 including
+`golden_ai_turns` (6/6 TURN steps) and `golden_ai_joint` — no golden diffs,
+no peel-table changes.
+
+1. **LAB_52aa attack-odds tail** (`ai_euro_20e6_attack_term`): the two
+   substituted modifiers are ported. Raw 2855 `*(int*)0x53d2 == 2` resolved —
+   `0x53d2` is `head.crown_nation_id` (col1_save.h; the old "REF nation"
+   guess was unsourced): crown slot 2 ∧ open tile ∧ `iStack_2e==0` → odds
+   halved. Raw 2862-2882 Soldier/Dragoon vs colony: mass gate — defender =
+   `8aac(tile stack, 0xb)` (Σ combat value, `combat_unit_base_x8` mode 1,
+   same read `−0x6a8e` sums), own side = Σ over the target's 8 neighbours of
+   the same query for own-nation stacks; own ≤ def → tile skipped
+   (LAB_5183). The decompile's neighbour-owner compare reads `== 2` (a
+   clobbered constant — `uStack_e6` is overwritten by argument staging at
+   2825); own-nation is the only coherent reading and is what shipped.
+2. **`0x4c` village arms** (`ai_euro_20e6_village_arm`): identity corrected —
+   NAMES.TXT @UNIT order proves type 5 = **Scout** (bit-string 01100100 =
+   0x64 matches `k_20e6_type_flags[5]`), type 3 = Missionary (excluded by
+   both arms). First arm (raw 1366): Scout beside a village, record `+3`
+   bit8 (= Col1 `tribe.state.scouted`) clear, attitude[nation]==0 → enter.
+   Second arm (raw 1682): plain colonist — profession `0x1c` (Free/none) or
+   `0x19` (Indentured Servant), non-combat, non-Scout/Missionary type —
+   `+3` bit2 (`state.learned`) clear, attitude < 0x40 → enter. The
+   `iStack_54` alarm gates are quartile-domain (`FUN_1000_8c50` =
+   `FUN_15dc_00a2` bucket 0..3) compared against 0x19/0x18 — vacuously
+   true, omitted. Outcome: an AI unit stepping onto a village tile is an
+   attack in this port, so the peaceful entry runs the human @ACTIONS
+   outcome functions in place (`ai_contact_ai_scout_visit_village` /
+   `ai_contact_ai_live_among_village`, new exports in ai_contact.h). The
+   8d4a per-village `attitude[nation]` counter stays PARKED
+   (settlement_record_8d4a.md); a session-local per-village nation-bit
+   latch (`s_20e6_village_visited`) stands in so the arms are one-shot.
+3. **Colonist labor loop** (`ai_euro_20e6_labor_arm`, raw 1617-1679):
+   same-continent own colonies with `+0x1b` bit 0x10
+   (`COLONIZE_COLONY_AI_NEEDS_COLONISTS`; Indian Converts join regardless),
+   wanted size = `FUN_15eb_0484` fort capacity (level 0→8, 1→12, ≥2→32;
+   `FUN_15eb_039e(10)` clamp) clamped ≤16, DOS min-score arithmetic
+   verbatim (dist>>1, ×need, ×2 full), candidate while stack-military
+   (`8aac` case 2) + pop < wanted+2. Standing on the pick →
+   `colonies_admit_unit`; else walk (27f5). No pick: on own colony →
+   Pioneer conversion (DOS orders 0x3d / type 2 / `+0x3159`=0x14 → Linux
+   `tools = 20`); off colony, outside WoI → `iStack_6a = 1` re-loop, ported
+   as a force-explorer parameter on `ai_euro_land_explore_scan_target`.
+4. **Ship band per-cargo unload** (`ai_euro_20e6_unload_mask` /
+   `ai_euro_20e6_unload_by_mask`, raw 1766-1932): the local_9c mask loop —
+   per adjacent land tile (own/empty, stance nonzero, y-band), DOS re-zeroes
+   the mask per qualifying tile (last tile wins — replicated). Bits: 0xffff
+   ship-goto continent match; 0x20 Missionary/Scout cargo vs
+   `continent_tally_b` (−0x7a38, already-mapped save field) thresholds;
+   0x40 founder cargo (balance flags, empty-continent, home-cluster
+   suppression `colony_counts−8` vs dist, frontier suppression, goal
+   probes 7/1, `0x173e`); 0x10 military cargo (WoI human-colony continent,
+   war stance 4, `−0x6a0e` bit4 = foreign colony + close, probes, `0x173c`).
+   Unload: every carried land unit with `0x523d & mask` steps ashore toward
+   the `2a1f_04ac → 521d_06ae` founding tile (Linux
+   `ai_goals_pick_founding_tile` + `ai_euro_pick_unload_land`), rescanning
+   after each drop; ship consumed after any unload. Wired into
+   `ai_euro_unload_settle`'s post-first-colony tail; the golden-pinned
+   first-colony beachhead branch is untouched, and an empty mask falls back
+   to the previous best-passenger landfall. Substitutions, each cited in
+   the code: `0x1734` urgency → count of NEEDS_GARRISON/MILITARY colonies;
+   `0x173c`/`0x173e` → live goal-table continents (Linux 0a60 producers are
+   still thin); `0x1740` recall latch and `−0x6a0e` bit8 → absent;
+   `iStack_46` (`8aac` case 6, undecoded) → 0. **`0x9650` resolved** while
+   porting (decomp 78316): count of continents with `continent_tally_a > 7`
+   and no own colonies — `ai_euro_20e6_open_continents`. Cargo counts read
+   modes 3/4/5 as flag-counts (0x40 founders / 0x10 military / 0x20
+   Missionary+Scout) per euro_ocean_scoring.c's caller table and 0a60's
+   bit2 finding; this file's attack-core list says mode 3 = "# Pioneers" —
+   conflict noted, flag-count shipped (a colonist-only second wave must be
+   able to raise 0x40).
+5. **`−0x6168` rival strength**: live. Write-site formula from
+   `euro_goal_orders_0a60_full.md` 1346-1374 — max(max foreign colony
+   population on the continent, min(4, Σ other nations' land units)) —
+   read from the persistent 0a60 max-tracker (`s_euro_rival_strength`, written in `ai_euro_refresh_continent_stance`). `unit+0x3154`
+   explore fatigue modelled session-local (`s_20e6_explore_fatigue`, ++ per
+   explorer ring pass, cap 0x7f; not save-persisted — in DOS the byte is
+   cargo_hold[0] storage, never carried by land explorers). `local_12` now
+   drives the ring radius (>0x1f→2, >0x3f→1), the village-penalty >0x28
+   halving, and the explorer `>>tier` bonus.
+6. **Explore-plane low nibble**: `FUN_281f_074a` reads the *seen* map plane
+   (DS:0x168), whose low nibble is the map-gen **colony-site AI score**
+   (save_format_map.md seen row / nawagers) — verified live in
+   `original_saves/COLONY00.SAV` (2240 of 4176 tiles carry a non-zero low
+   nibble, values 0..15). `ai_euro_20e6_site_nibble` reads it from
+   `map->seen` (imported verbatim by `map_seen_from_col1`); Linux
+   `map_gen` writes no nibble, so a plane with no nibble anywhere falls
+   back to the old unseen→4 stand-in rather than silently disabling the
+   ring on generated maps. Used by both the ring score (`nib*4`, founder
+   commit `best_nib>0`, explorer `nib>3` bonus gate) and the wander
+   explorer arm (`(rng(1,4)+nib)>>1`).
+
+Still thin after this pass: `8aac` cases 4/5/6 exact bodies (flag-count
+reading above is caller-table-sourced, not ndisasm-confirmed), the ship
+colony-sail matrix / HS spiral / work-queue haul tails, the 8d4a attitude
+array (whole-struct port PARKED), and the ring-hop wander latch
+(`+0x3155`/`+0x3156`).

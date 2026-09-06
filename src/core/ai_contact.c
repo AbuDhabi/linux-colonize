@@ -2266,11 +2266,16 @@ static uint32_t ai_contact_incite_price(
     village_count * 8 + (((brave_value_sum >> 2) & 0xfe) - 2 * village_count) +
     (int)ind->muskets * 2 + (int)ind->horse_herds * 2;
 
-  /* DOS relation_score is ~0-100 (0x4b=75 is a real DOS "hostile-ish"
-   * threshold on this exact scale, cross-confirmed via euro_g_table_0a60's
-   * independent use of the same FUN_281f_030c/relation<0x4b check);
-   * ai_diplo_indian_relation is 0-255. */
-  const int relation = (int)ai_diplo_indian_relation(col1, nation_id, inciter); /* 0..100 */
+  /* FUN_281f_030c reads the DS:0x5b1c table raw — and that table is the
+   * ALARM mirror (Linux alarm_by_player), not a friendliness score: the
+   * 4528 ship gate treats >=0x4b as @MADATSHIPS, FUN_4cc6_00f2 writes it
+   * with the French/Pocahontas alarm-growth halving, and
+   * indian_actions_menu.md pins 84fc == indian.alarm_by_player[e]. The
+   * multiplier is therefore (alarm + 75): the angrier the tribe already
+   * is at the inciter, the MORE gold it demands to go to war for them.
+   * (2026-09-06 polarity fix — this line previously used
+   * ai_diplo_indian_relation, i.e. 100-alarm, inverting the price curve.) */
+  const int relation = ai_diplo_indian_alarm(col1, nation_id, inciter); /* raw 0x5b1c value, 0..100 */
   (void)target; /* alarm_by_player no longer used — real formula has no target term here */
   /* Base-combine op resolved byte-exact, 2026-08-14: read the actual
    * decompiled bodies of FUN_1d1d_0f60/FUN_1d1d_0ec6 (viceroy_unpacked.c
@@ -2374,12 +2379,28 @@ static int ai_contact_enqueue_incite_target_choice(
   const ColonizeCol1Indian* ind = &ctx->col1->indian[nation_id - 4];
   const uint32_t gold = ctx->col1->nation[e].gold;
 
+  /*
+   * 417e Mode-1 target set (viceroy_unpacked.c 83595-83615): before the
+   * declaration the menu loop skips the inciter AND DS:0x53d2
+   * (head.crown_nation_id, -1 until WoI); once DS:0x5382 bit0
+   * (game_options.woi) is set there is no menu at all — the target is
+   * fixed to the Crown nation (the only enemy left worth inciting
+   * against). The old "AMERICA-scenario map" guess in
+   * indian_incite_417e.md was wrong: 0x5382 bit0 is the WoI latch.
+   */
+  const int crown = (int)ctx->col1->head.crown_nation_id;
+  const int woi_fixed =
+    ctx->col1->head.game_options.woi && crown >= 0 && crown <= 3 && crown != e;
+
   const char* labels[3];
   char label_buf[3][48];
   int ids[3];
   int n = 0;
   for (int target = 0; target < 4 && n < 3; ++target) {
     if (target == e) {
+      continue;
+    }
+    if (woi_fixed ? (target != crown) : (target == crown)) {
       continue;
     }
     const uint32_t price =
@@ -2428,13 +2449,56 @@ static int ai_contact_enqueue_incite_target_choice(
 }
 
 /*
- * Apply Incite Indians (FUN_4d56_417e tail — @INDIANWARPATH2 "We will
- * gladly drive the %s from our ancestral lands in exchange for %d.").
- * Re-checks affordability (gold may have changed since the menu was
- * built), debits the inciter's treasury, and pushes the target nation's
- * alarm with this tribe (the DOS `apply(..., nation_B, 100, 0)` call —
- * approximated as a flat alarm bump, exact magnitude/semantics of the
- * DOS `100` argument unconfirmed).
+ * The @INDIANWARFARE announcement DOS shows at 417e's LAB_4d56_4499 tail
+ * (string id 0x16e9 — resolved 2026-09-06 via the raw-EXE 121248+addr DS
+ * string read; the annotation's old "0x16e9 = @INDIANWARPATH2" guess was
+ * off by one tag — 0x16c1 is WARPATH2, the pay confirm). Fires for both
+ * Mode 1 and Mode 2; shown to the human viewer.
+ */
+static void ai_contact_incite_warfare_chrome(
+  ColonizeTurnContext* ctx,
+  int viewer,
+  int nation_id,
+  int inciter,
+  int target
+) {
+  PopupMsgTokens tok;
+  memset(&tok, 0, sizeof(tok));
+  tok.string0 = ai_contact_tribe_name(nation_id);
+  tok.string1 = ai_contact_euro_name(inciter);
+  tok.string2 = ai_contact_tribe_name(nation_id);
+  tok.string3 = ai_contact_euro_name(target);
+  char fb[AI_POPUP_BODY_LEN];
+  snprintf(
+    fb,
+    sizeof(fb),
+    "%s nation holds War Council! %s missionaries incite %s to warfare "
+    "against the %s!",
+    tok.string0, tok.string1, tok.string2, tok.string3
+  );
+  char body[AI_POPUP_BODY_LEN];
+  popup_msg_fill(ctx->messages, "INDIANWARFARE", &tok, fb, body, sizeof(body));
+  ai_contact_human_chrome(
+    ctx, viewer, AI_POPUP_TAG_CONTACT_INCITE, nation_id, "Incite", body
+  );
+}
+
+/*
+ * Apply Incite Indians (FUN_4d56_417e Mode-1 tail, viceroy_unpacked.c
+ * 83616-83650 + LAB_4d56_4499). DOS gate order after the target pick:
+ *   1. 0a38(tribe, target) & 0x20 clear → @NOCONTACT (0x16b7), no charge;
+ *   2. @INDIANWARPATH2 pay confirm (0x16c1 — merged into the Linux
+ *      target menu, which already shows the price per row);
+ *   3. treasury < price → @UNFORTUNATE (0x16d0), no charge;
+ *   4. 030c(tribe, target) >= 0x4b (tribe already in the war band with
+ *      the target) → @ALREADYSMITE (0x16dc), no charge;
+ *   5. @INDIANWARFARE (0x16e9) announce, then
+ *      FUN_281f_0d6c(tribe, target, 100, 0) — resolved 2026-09-06 via
+ *      address_mapping.csv to FUN_4cc6_00f2, the alarm-delta writer:
+ *      alarm(tribe→target) += 100 (halved for a French target and again
+ *      for Pocahontas inside 00f2, clamped at 100) — i.e. the incite
+ *      slams the tribe into the war band against the target; the old
+ *      flat +10 here was a placeholder — and finally gold -= price.
  */
 static void ai_contact_apply_incite(
   ColonizeTurnContext* ctx,
@@ -2449,37 +2513,55 @@ static void ai_contact_apply_incite(
       target < 0 || target > 3 || target == e) {
     return;
   }
+  if ((ind->euro_diplo[target] & COL1_INDIAN_MET_BIT) == 0) {
+    /* @NOCONTACT: the tribe has never met the target nation. */
+    PopupMsgTokens tok;
+    memset(&tok, 0, sizeof(tok));
+    tok.string0 = ai_contact_euro_name(target);
+    char fb[AI_POPUP_BODY_LEN];
+    snprintf(fb, sizeof(fb), "\"We have no contact with the %s.\"", tok.string0);
+    char body[AI_POPUP_BODY_LEN];
+    popup_msg_fill(ctx->messages, "NOCONTACT", &tok, fb, body, sizeof(body));
+    ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_INCITE, nation_id, "Incite", body);
+    return;
+  }
   const uint32_t price =
     ai_contact_incite_price(ctx, ind, nation_id, e, target, is_missionary, is_capital);
   ColonizeCol1Nation* nat = &ctx->col1->nation[e];
   if (nat->gold < price) {
-    char refuse_fb[AI_POPUP_BODY_LEN];
-    snprintf(
-      refuse_fb,
-      sizeof(refuse_fb),
-      "The %s tribe demands more gold than you have.",
-      ai_contact_tribe_name(nation_id)
+    /* @UNFORTUNATE (0x16d0). */
+    char body[AI_POPUP_BODY_LEN];
+    popup_msg_fill(
+      ctx->messages, "UNFORTUNATE", NULL,
+      "\"Unfortunately, your treasury is insufficient to match your "
+      "extravagant promises.\"",
+      body, sizeof(body)
     );
     ai_contact_human_chrome(
-      ctx, e, AI_POPUP_TAG_CONTACT_INCITE, nation_id, "Incite", refuse_fb
+      ctx, e, AI_POPUP_TAG_CONTACT_INCITE, nation_id, "Incite", body
     );
     return;
   }
-  nat->gold -= price;
-  if (ind->alarm_by_player[target] < 245) {
-    ind->alarm_by_player[target] = (uint16_t)(ind->alarm_by_player[target] + 10);
-  }
-  {
-    char body[AI_POPUP_BODY_LEN];
+  if (ai_diplo_indian_alarm(ctx->col1, nation_id, target) >= 0x4b) {
+    /* @ALREADYSMITE: tribe already in the war band with the target. */
+    PopupMsgTokens tok;
+    memset(&tok, 0, sizeof(tok));
+    tok.string0 = ai_contact_euro_name(target);
+    char fb[AI_POPUP_BODY_LEN];
     snprintf(
-      body,
-      sizeof(body),
-      "\"We will gladly drive the %s from our ancestral lands in exchange for %u.\"",
-      ai_contact_euro_name(target),
-      (unsigned)price
+      fb, sizeof(fb), "\"We are already at war with the worthless %s.\"", tok.string0
     );
+    char body[AI_POPUP_BODY_LEN];
+    popup_msg_fill(ctx->messages, "ALREADYSMITE", &tok, fb, body, sizeof(body));
     ai_contact_human_chrome(ctx, e, AI_POPUP_TAG_CONTACT_INCITE, nation_id, "Incite", body);
+    return;
   }
+  ai_contact_incite_warfare_chrome(ctx, e, nation_id, e, target);
+  ai_diplo_indian_alarm_delta(
+    ctx->col1, nation_id, target,
+    ai_contact_alarm_bump_amount(ctx->col1, target, 100)
+  );
+  nat->gold -= price;
 }
 
 /* Nearest Euro colony with warehouse tools ≥20 (mid demand tools arm). */
@@ -3689,11 +3771,10 @@ void ai_contact_try_village_beg_food(ColonizeTurnContext* ctx, int nation_id) {
  *    below — price formula byte-faithful since 2026-08-14: both formerly
  *    unnamed tables identified as live per-tribe-type sums (village count,
  *    Σ combat_unit_base_x8 over Braves) and wired for real in
- *    ai_contact_incite_price above; only the human-driven Mode-1 path is
- *    wired. Mode-2 (AI Missionary auto-incites the village against the
- *    human) is confirmed real since 2026-08-27 — caller is FUN_4d56_4528
- *    tail-switch case 7, gate documented in indian_incite_417e.md
- *    "Caller: FOUND" — but not ported; see docs/port_plan.md T4.5).
+ *    ai_contact_incite_price above. Mode-2 (AI Missionary auto-incites
+ *    the village against the human, FUN_4d56_4528 tail-switch case 7) is
+ *    ported too — ai_contact_ai_incite_human below, hooked ahead of the
+ *    mission/heresy arms per the case-7 priority in the 4528 switch).
  *  - alarmed (≥55 refuse-talk gate) → refuse convert/heresy; no crosses
  *  - mid (40..54) convert: Jesuit-grade only (PEDIA @JOB24 / Brebeuf).
  * Teach/convert widgets Done structural; deep 2820 PARKED.
@@ -3704,9 +3785,11 @@ void ai_contact_try_village_beg_food(ColonizeTurnContext* ctx, int nation_id) {
  * alarm(tribe → human) < 0x4b; human has MET the tribe; wealth rank of the
  * AI nation < the human's on the FUN_5bfb_00f8 table (compared literally on
  * ctx->euro_power_rank); AI gold >= 1500; RNG(0,4) != 0 or the village has
- * no mission. Then 417e Mode 2: target = human, no menu/confirm, diplo gate
- * + alarm(tribe → human) < 0x4b again + affordability, pay, push the tribe
- * against the human (+10 alarm — same effect as the human Mode 1 apply).
+ * no mission. Then 417e Mode 2: target = human, no menu/confirm, the
+ * tribe↔human MET/alarm gates (both redundant with the 4528 gate above),
+ * affordability, then the shared LAB_4d56_4499 tail: @INDIANWARFARE
+ * announce, alarm(tribe → human) += 100 via FUN_4cc6_00f2 (French/
+ * Pocahontas-halved, clamped at 100 — the war-band slam), pay.
  * Returns 1 when the incite fired (the village keeps its mission state).
  */
 int ai_contact_ai_incite_human(
@@ -3740,11 +3823,15 @@ int ai_contact_ai_incite_human(
   if (dos_rng_range(ctx->rng, 0, 4) == 0 && t->mission != COL1_TRIBE_MISSION_NONE) {
     return 0;
   }
-  /* 417e Mode 2 body: diplo gate (human at peace with the AI? DOS 8c28 & 0x20 = met)
-   * then relation gate again, then pay. */
-  if ((ctx->col1->nation[e].euro_relation[human] & AI_DIPLO_MET) == 0) {
-    return 0;
-  }
+  /*
+   * 417e Mode-2 body (viceroy_unpacked.c 83652-83668): the "diplo gate"
+   * is 0a38(tribe, human) & 0x20 — the tribe↔human MET bit, the very
+   * check already made above (NOT the Euro↔Euro relation byte an earlier
+   * pass gated on here — DOS never consults AI↔human diplomacy for this);
+   * then 030c(tribe, human) >= 0x4b → reject (same alarm value gated at
+   * the top, unchanged in between); then affordability against the real
+   * price; then the LAB_4d56_4499 tail shared with Mode 1.
+   */
   const uint32_t price = ai_contact_incite_price(
     ctx, ind, nation_id, e, human, is_missionary, t->state.capital ? 1 : 0
   );
@@ -3752,8 +3839,19 @@ int ai_contact_ai_incite_human(
   if (nat->gold < price) {
     return 0;
   }
+  /*
+   * Shared 4499 tail: @INDIANWARFARE announce (0x16e9 — the human sees
+   * the War Council popup naming the inciting nation), then
+   * FUN_281f_0d6c(tribe, human, 100, 0) = FUN_4cc6_00f2 alarm slam
+   * (+100, French/Pocahontas-halved, clamped — the old flat +10 was a
+   * placeholder), then gold -= price.
+   */
+  ai_contact_incite_warfare_chrome(ctx, human, nation_id, e, human);
+  ai_diplo_indian_alarm_delta(
+    ctx->col1, nation_id, human,
+    ai_contact_alarm_bump_amount(ctx->col1, human, 100)
+  );
   nat->gold -= price;
-  ai_diplo_indian_alarm_delta(ctx->col1, nation_id, human, 10);
   return 1;
 }
 
@@ -9162,4 +9260,53 @@ void ai_contact_apply_popup_result(ColonizeTurnContext* ctx, const AiPopupState*
   default:
     break;
   }
+}
+
+/*
+ * FUN_521d_20e6 0x4c village arms — AI-side entry points (header comment).
+ * Shared resolve: valid tribe record with a live village, unit of Euro
+ * nation e adjacent to it.
+ */
+static ColonizeCol1Tribe* ai_contact_ai_visit_resolve(
+  ColonizeTurnContext* ctx, int e, int tribe_index, int unit_id, ColonizeUnit** out_u
+) {
+  if (!ctx || !ctx->col1_ok || !ctx->col1 || !ctx->col1->tribe || e < 0 || e > 3 ||
+      tribe_index < 0 || tribe_index >= (int)ctx->col1->head.tribe_count) {
+    return NULL;
+  }
+  ColonizeCol1Tribe* t = &ctx->col1->tribe[tribe_index];
+  if (t->nation_id < 4 || t->nation_id > 11 || t->x >= 200 || t->y >= 200) {
+    return NULL;
+  }
+  ColonizeUnit* u = units_get(ctx->units, unit_id);
+  if (!u || !u->active || u->nation_id != e) {
+    return NULL;
+  }
+  const int dx = u->x - (int)t->x;
+  const int dy = u->y - (int)t->y;
+  if (dx < -1 || dx > 1 || dy < -1 || dy > 1 || (dx == 0 && dy == 0)) {
+    return NULL;
+  }
+  *out_u = u;
+  return t;
+}
+
+int ai_contact_ai_scout_visit_village(ColonizeTurnContext* ctx, int e, int tribe_index, int unit_id) {
+  ColonizeUnit* u = NULL;
+  ColonizeCol1Tribe* t = ai_contact_ai_visit_resolve(ctx, e, tribe_index, unit_id, &u);
+  if (!t) {
+    return 0;
+  }
+  ai_contact_speak_with_chief(ctx, e, (int)t->nation_id, u, t);
+  return 1;
+}
+
+int ai_contact_ai_live_among_village(ColonizeTurnContext* ctx, int e, int tribe_index, int unit_id) {
+  ColonizeUnit* u = NULL;
+  ColonizeCol1Tribe* t = ai_contact_ai_visit_resolve(ctx, e, tribe_index, unit_id, &u);
+  if (!t) {
+    return 0;
+  }
+  ai_contact_live_among_natives(ctx, e, (int)t->nation_id, u, t);
+  return 1;
 }

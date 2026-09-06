@@ -525,3 +525,60 @@ matching the `case 7` priority in the `4528` switch. Open caveat kept: the
 `ctx->euro_power_rank` (`turn_rank_euro_nations`, 0 = strongest); DOS's
 `0x917c` table polarity vs. that Linux table was not independently
 re-verified.
+
+## 2026-09-06 — full-fidelity audit pass: five corrections, both modes now byte-faithful
+
+Deep-port audit of `4528`/`417e` (static only, decompile lines 83511-83690
++ raw-EXE DS string reads at `121248+addr`). Everything below is wired in
+`src/core/ai_contact.c`; `unit_ai_contact` updated; ctest 57/57.
+
+1. **Price polarity was inverted.** `FUN_281f_030c`/`84fc` reads the
+   `DS:0x5b1c` table raw, and that table is the **alarm** mirror
+   (`alarm_by_player`) — `4528`'s ship gate treats `>=0x4b` as
+   `@MADATSHIPS`, `FUN_4cc6_00f2` writes it with the French/Pocahontas
+   *alarm-growth* halving, and `indian_actions_menu.md` pins `84fc ==
+   indian.alarm_by_player[e]`. So the multiplier is `(alarm + 75)` — the
+   angrier the tribe already is at the inciter, the more it charges.
+   `ai_contact_incite_price` had used `ai_diplo_indian_relation`
+   (100−alarm), inverting the curve. Fixed.
+2. **The `apply(tribe, nation_B, 100, 0)` call is resolved** —
+   `FUN_281f_0d6c` → (address_mapping.csv, `exact`) `FUN_1000_8f5c` =
+   `FUN_4cc6_00f2`, the alarm-delta writer: **alarm(tribe→target) += 100**,
+   halved inside `00f2` for a French target (`param_2==1`) and again for
+   Pocahontas (`07b4(target, 0x10)`), clamped at 100. I.e. the incite
+   slams the tribe into the war band against the target. The shipped flat
+   `+10` was a placeholder; both modes now route through
+   `ai_diplo_indian_alarm_delta` with `ai_contact_alarm_bump_amount`
+   (the existing Linux mirror of `00f2`'s halving).
+3. **String-id table corrected** (raw-EXE reads): `0x16b7=@NOCONTACT`,
+   `0x16c1=@INDIANWARPATH2` (the pay confirm), `0x16d0=@UNFORTUNATE`,
+   `0x16dc=@ALREADYSMITE`, `0x16e9=@INDIANWARFARE` — this doc's old
+   "0x16e9 = @INDIANWARPATH2" was off by a tag. The `LAB_4d56_4499`
+   shared tail therefore shows the **@INDIANWARFARE War Council
+   announcement** ("%STRING1 missionaries incite %STRING2 to warfare
+   against the %STRING3!"), for *both* modes — Mode 2 included, so the
+   human sees who paid for the warpath. All three refusal gates and the
+   announce are now wired (`@NOCONTACT` when the tribe hasn't met the
+   target, `@UNFORTUNATE` on treasury, `@ALREADYSMITE` when
+   alarm(tribe→target) ≥ 0x4b).
+4. **`0x5382` bit0 is the WoI latch, not an "AMERICA-scenario map" flag**
+   (`col1_save.h game_options.woi`). Pre-declaration the Mode-1 menu
+   lists the other Euros minus `DS:0x53d2` = `head.crown_nation_id`
+   (−1 until WoI, so no practical skip); post-declaration the target is
+   fixed to the Crown nation — the only enemy left worth inciting
+   against. Wired in `ai_contact_enqueue_incite_target_choice`.
+5. **Mode 2's "diplo gate" is `0a38(tribe, human) & 0x20`** — the
+   tribe↔human MET bit (redundant with the `4528` case-3 gate), *not*
+   the Euro↔Euro `nation[e].euro_relation[human]` byte the 2026-08-27
+   port gated on. That wrong gate (which could block incites DOS allows
+   when the two Euro powers haven't met each other) is removed.
+
+Also re-verified: the `wealth_rank[ai] < wealth_rank[human]` compare is
+safe as shipped — `0x917c`'s writer `FUN_5bfb_00f8` is the same function
+`turn_rank_euro_nations` ports, so `ctx->euro_power_rank` carries the DOS
+table's own polarity by construction and the literal `<` compare matches
+the DOS bytes whichever way the English gloss reads. Mode-1 remaining
+chrome deltas (documented, outcome-equivalent): Linux merges the DOS
+`@INDIANWARPATH2` pay-confirm into the target menu (price shown per row)
+and filters unaffordable rows instead of showing `@UNFORTUNATE` after a
+doomed pick.

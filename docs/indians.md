@@ -395,15 +395,23 @@ deliberate **Live Among The Natives** `@ACTIONS` row.
 | Minuit | Indians no longer demand land payment |
 | Pocahontas | Reset + half future alarm |
 
-Incite / WARPATH gold **Done** thin (2026-08-13) — `FUN_4d56_417e`
-identified and ported as a 6th village-meet CHOICE
-(`ai_contact_apply_incite`), confirmed against `@INDIANWARPATH`/
-`@INDIANWARPATH2` in `GAME.TXT` and two live DOSBox-X captures of a real
-player-driven Incite. See
-[`indian_incite_417e.md`](../original_sources_annotated/ai/indian_incite_417e.md)
-for exactly what's faithful vs. approximated — 2 of 4 price-formula
-table values are unnamed data, substituted with `indian.tech`; only the
-human-driven path is wired (no AI-nation auto-incite yet).
+Incite / WARPATH gold **Done both modes, byte-faithful** (2026-09-06
+audit; first ported thin 2026-08-13) — `FUN_4d56_417e` as a village-meet
+CHOICE (`ai_contact_apply_incite`) plus the AI Mode-2 auto-incite
+(`ai_contact_ai_incite_human`, `4528` tail case 7, hooked in the
+missionary convert pulse). 2026-09-06 fixes: price multiplier is the raw
+`0x5b1c` **alarm** value +75 (was inverted via `ai_diplo_indian_relation`);
+the relation push is `281f_0d6c` → `FUN_4cc6_00f2` = **+100 alarm slam**
+(French-target/Pocahontas-halved, clamped at 100 — was a flat +10
+placeholder); DOS refusal gates wired (`@NOCONTACT` 0x16b7 tribe hasn't
+met target, `@UNFORTUNATE` 0x16d0 treasury, `@ALREADYSMITE` 0x16dc tribe
+already in the war band with target) and the shared `@INDIANWARFARE`
+(0x16e9) War Council announce — the annotation's old "0x16e9 =
+WARPATH2" was off by a tag (0x16c1 is WARPATH2, the pay confirm).
+Mode-1 target set = the other Euros minus `head.crown_nation_id`; once
+`game_options.woi` is set the target is fixed to the Crown (DOS
+`0x5382` bit0 — the WoI latch, not an "AMERICA scenario" flag). See
+[`indian_incite_417e.md`](../original_sources_annotated/ai/indian_incite_417e.md).
 
 ### Raids and combat fallout
 
@@ -435,7 +443,7 @@ Aligned with [manual_gap.md](manual_gap.md) §Indians — no new fidelity claims
 | Villages on map + Braves | Partial | Placement + icons; quiet pulse / growth — [port_plan.md](port_plan.md) T1.23 |
 | First contact WELCOME | Done structural | `ai_contact_*`; thin land grant |
 | Meet / trade / gift / teach | Partial | Village trade `2820` **Done structural** (2026-08-29: hold pick, sell/haggle/gift, `@BADCARGO`/`@BRING`, post-sale buy); gift/teach widgets thin; VGA chrome PARKED |
-| Missions / convert / heresy | Partial | Structural; incite/WARPATH **Done** thin (`indian_incite_417e.md`) |
+| Missions / convert / heresy | Partial | Structural; incite/WARPATH **Done both modes byte-faithful** 2026-09-06 (`indian_incite_417e.md`) |
 | Alarm / raids / wars | Partial | Structural `@RAID*`; village enter warn→Attack Done thin; deep `2820` PARKED |
 | Capital surrender / Cortes treasure | Done thin | `ai_diplo_*` / `units_*` fallout |
 | Indian×Euro diplo matrix | Done structural | Fuller `153e` unpark; FA UI **PARKED** |

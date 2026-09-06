@@ -528,11 +528,13 @@ regression bisect only.
   `AI_SCORE_AT="n:x:y,..."` (pick_dir score dump at any coord),
   `DOS_RNG_TRACE=1` (indexed LCG draw log). `golden_ai_joint` target
   passes manually. Lower priority from the same pass:
-  ship-band unload placement is still landfall-scripted
-  (`ai_euro_unload_settle`) though the per-cargo `06ae` rule is known
-  (`20e6` ship band, decomp ~89587); `0a60`'s FOUND/CONTACT goal producers
-  write *ocean* tiles next to villages / own colonies as ship goals (decomp
-  ~87800–88060) — `ai_euro_colony_goals` is still the thin stand-in.
+  ship-band unload placement — the per-cargo `06ae` rule (decomp ~89587)
+  shipped 2026-09-06 (`ai_euro_20e6_unload_mask`/`_unload_by_mask`; the
+  first-colony beachhead branch and the empty-mask best-passenger fallback
+  stay); `0a60`'s FOUND/CONTACT goal producers (*ocean* tiles next to
+  villages / foreign colonies as ship goals, decomp ~87800–88060) were
+  also ported 2026-09-06 as `ai_euro_0a60_settlement_goal_producers` — no
+  longer a thin stand-in.
 - [x] **T2.4 — Retire the Linux-only Euro alliance machinery (cleanup).**
   Closed 2026-09-06: deleted `ai_diplo_form/break_alliance[_ctx]`, ally
   treasury cost / treaty-min / trust penalty / Indian sticky raise /
@@ -579,16 +581,16 @@ Status: **ported** (full claim at stated tier) / **partial** (subset) /
 | `4d56_2154` | Meet economics (`0x9e58` ask / `0x9e78` bid tables) | `ai_contact_meet_economics_2154` + gift/demand | **Done** (scorer + `0ce0` work-slot gate) |
 | `4d56_2820` | Village trade: sell/buy/haggle/gift (595 lines; "nest" was internal labels) | `ai_contact_*` trade paths | **Done** (2026-08-29 verification rewrite; see `indian_trade_2820.md`) |
 | `4d56_3582` | Small helper after `2820` | friction floor | partial (thin Done) |
-| `4d56_417e` | Incite Indians / WARPATH price + relation push | `ai_contact_incite_price` / `apply_incite` | **Done** Mode-1 human (byte-faithful price); AI Mode-2 auto-incite unported (`4528` tail case 7) |
-| `4d56_4528` | Settlement enter/raid 9-way dispatch | `ai_contact_indian_raids`, `@ACTIONS` menu, `ai_euro_land_try_adjacent_village_seize` | partial (structural outcomes; VGA meet chrome open) |
+| `4d56_417e` | Incite Indians / WARPATH price + relation push | `ai_contact_incite_price` / `apply_incite` / `ai_contact_ai_incite_human` | **Done** both modes (2026-09-06 audit): price polarity fixed (multiplier is raw `0x5b1c` **alarm**+75, not 100−alarm), push resolved (`281f_0d6c` → `4cc6_00f2` = +100 alarm slam, French/Pocahontas-halved), `@NOCONTACT`/`@ALREADYSMITE`/`@UNFORTUNATE` gates + `@INDIANWARFARE` announce wired, Mode-1 target set = others minus crown (post-WoI: crown only — `0x5382`bit0=woi, not "AMERICA map"); Mode-2 wrong Euro↔Euro MET gate removed (DOS gates tribe↔human) |
+| `4d56_4528` | Settlement enter/raid 9-way dispatch | `ai_contact_indian_raids`, `@ACTIONS` menu (all 9 human arms), `ai_contact_ai_incite_human`, `ai_euro_land_try_adjacent_village_seize` | **Done** logic (2026-09-06 audit): human 9-way byte-faithful (P8.8 + MP forfeit), AI arm cases 7/3/4 (Missionary) + 5 (teach pulse) + 9 (village seize, structural trigger) wired; AI scout/wagon arms (6/1) unreachable in Linux (AI movement never enters village tiles — no invented trigger); VGA meet chrome open (T5.1) |
 
 **European AI (`FUN_521d_*`):**
 
 | Symbol | Purpose | Linux | Status |
 |--------|---------|-------|--------|
 | `0000`…`0906` | Goal-table ops + founding helpers | `ai_goals.c` | partial (T0) |
-| `0a60` (~5.5k lines) | Unit/colony goal writer + goal-consumption/orders engine | `ai_euro_colony_goals` (A–H condensed writer) + `ai_euro_0a60_goal_orders_structural` (consumption tail, live) | partial — writer condensed but real write shapes/formulas; tail structural live; per-unit `0x3148` garrison housekeeping + deep G-table literal writes unported (`FUN_1000_8aac` field-id wall). See `euro_goal_orders_0a60_full.md` |
-| `20e6` (~2.2k) | Direction / move scoring, all unit kinds | quiet + `ai_euro_score_step` + 2026-08-27 structural land port (explorer flag, SCOUT/PATROL arm, explore ring, 8-dir wander scorer, epilogue commit) | partial — thin/skipped: attack-odds core (LAB_52aa), missionary/scout `0x4c` village arms, colonist labor loop, ship band, `−0x6168` rival strength, explore-plane low nibble. See `move_scoring_20e6_full.md` / `move_scoring_land.md` |
+| `0a60` (~5.5k lines) | Unit/colony goal writer + goal-consumption/orders engine | `ai_euro_colony_goals` (A–H writer) + `ai_euro_0a60_unit_housekeeping` (unit loop, live) + `ai_euro_0a60_settlement_goal_producers` (foreign-colony/village FOUND/CONTACT/MILITARY producers, live) + `ai_euro_0a60_goal_orders_structural` (consumption tail, live) | structurally done 2026-09-06 — per-unit `0x3148` housekeeping, garrison-quota distribution, ocean-tile ship-goal producers, G-table diplo gates + `−0x6168` max-tracker all live; the `FUN_1000_8aac` field-id wall RESOLVED (4fa8 cases 3/4/5/6/0xa/0xd carry no per-unit signal in the shipped binary; case 2 = chain splice — intended values substituted, documented per site). Remaining thin: haul work-queue gate/flags (deliberate, tested), DOS random weight seed. See `euro_goal_orders_0a60_full.md` |
+| `20e6` (~2.2k) | Direction / move scoring, all unit kinds | quiet + `ai_euro_score_step` + 2026-08-27 structural land port + **2026-09-06 deepening**: LAB_52aa odds tail (crown==2 halving, Soldier/Dragoon colony mass gate via `8aac` case 0xb), scout/colonist `0x4c` village arms (→ `ai_contact` Speak-With-Chief / Live-Among outcomes; 8d4a attitude gate = session latch stand-in), colonist labor loop (fort-capacity wanted size, join/walk/Pioneer-convert, force-explore fall-through), LAB_3558 per-cargo unload mask (`ai_euro_20e6_unload_mask`, 0x40/0x20/0x10/0xffff bits; `0x1734`/`0x173c`/`0x173e`/`0x1740` substituted from live goal table + garrison flags), `−0x6168` rival strength live (`+0x3154` fatigue session-local), explore-plane low nibble = real seen-plane site score (fallback on generated maps) | partial — still thin: `8aac` cases 4/5/6 undecoded (flag-count reading), ship colony-sail matrix / HS spiral / haul tails, 8d4a attitude array. See `move_scoring_20e6_full.md` / `move_scoring_land.md` |
 | `5b66` (44-line dispatcher → `479b_*` bodies) | Euro per-unit act | `ai_euro_unit_act` | partial (T0; case 7 FOUND + case 9 Pioneer-road ported full; case 8 thin) |
 | `5c38`/`5c3c`/`5cf6` | Thin helpers before `5d04` | hire in planning | partial (T0) |
 | `5d04` (~750) | Nation planning / hire / treasury | `ai_euro_nation_planning` (live; real treasury formula) + `ai_euro_5d04_nation_planning_structural` (full port, reference-only) | structurally complete; wiring the rest live is a deliberate future decision |
@@ -630,7 +632,7 @@ tension-notify handler (likely `@VIOLATE`), **not** a move driver, unwired.
 | Quiet Brave / tribes seed-100 | **T2** (T1.23 residue) |
 | Indian×Euro `15b3` / sticky / meet floor 96 | **T2**-shaped partial |
 | Ocean `3558` / first-colony `06ae` | Thin ports + soft-tip prior — not T3 |
-| Mid `0a60` / `5d04` / `5b66` | Thin / partial / structural — not T3 |
+| Mid `0a60` / `5d04` / `5b66` | Structural (2026-09-06) / partial / structural — not T3 |
 | `2154` / `2820` bodies | **Done**; `4528` thin/partial — not T3 |
 | Alarmed Indian unit-act | Escort peel + smoke — not T3 |
 | King / REF | Partial structural (WoI battle path heavily hardened via bugs.md batches) |
