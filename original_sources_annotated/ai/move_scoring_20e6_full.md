@@ -4256,3 +4256,94 @@ serve. Order corrected to DOS's.
 
 `ctest` 57/57, all goldens byte-green (their transports are all in the
 pinned first-colony beachhead branch, so neither arm changes them).
+
+## 2026-09-06f — wagon LOAD matrix wired + village errand chain ported; `465b_0000` attack writer live
+
+Closes two bullets of the 06e authoritative list (wagon half of the load
+matrix; the `465b_0000` writer) and **unparks the wagon half of the 8d4a
+village-delivery family** — the "no trigger invented" objection dissolved
+once the wagon load matrix turned out to BE the DOS trigger: its commit
+writes the village-errand byte `+0x3158 = 1` (raw 3136), and the errand arm
+(raw 2284-2307) plus the 4528 AI wagon arm (case 1 → 2820) are its only
+consumers. One mechanism, three formerly separate thin items:
+
+```
+wagon at own colony (raw 2996-3138):
+  dump every hold into the colony        <- this IS DOS wagon delivery
+  free = capacity − occupied; wagon cap 1 (raw ~3025: type 0xc -> d2 = 1)
+  load matrix is_ship=0 -> one hold of cheap surplus; +0x3158 = 1
+wagon with +0x3158 != 0 (raw 2284-2307):
+  nearest same-landmass village (capital d>>=1 min 1, strict <, 9999 seed)
+  none on landmass -> LAB_47b9 destroy
+  arrival -> 4528 AI arm type 0xc -> case 1 Trade -> 2820 shell
+             (2820 clears +0x3158 for land types, viceroy_unpacked.c:82122)
+```
+
+Linux (`src/core/ai_euro.c` + `ai_contact.c`):
+
+- `ai_euro_try_wagon_haul` own-colony block now runs the DOS arrival
+  sequence first: full dump sweep, then `ai_euro_20e6_load_pick(…, 0)`
+  capped at one hold; a load latches `s_20e6_wagon_errand[unit]` (the
+  session model of `+0x3158` — col1 record byte +0x14, a cargo_hold slot
+  DOS reuses as land-unit scratch; same session-local divergence class as
+  the ring-hop latches, a save/load drops the errand). The old
+  specialty/produced/food-first ladder survives BELOW the matrix as the
+  Linux fallback feeding the (still Linux-direction) short-colony haul; it
+  retires with the 0a60 `haul_short` gate once the work queue flips to
+  DOS's pickup direction — the wagon half of that pickup consumer now
+  exists, the ship half is the 06e load matrix.
+- `ai_euro_20e6_wagon_village_errand`: the errand walker (scan, capital
+  halving, LAB_47b9 destroy on an empty scan, goto, arrival trade). The
+  port's AI movement never steps ONTO tribe tiles, so arrival = adjacency —
+  the same substitution every other village arm uses. MP forfeited on the
+  trade beat (4528 return-code 1).
+- `ai_contact_ai_wagon_village_trade` (new export): 4528 AI arm case 1 on
+  the AI-silent 2820 path (RNG hold pick, LAB_002bbc sell / gift by alarm,
+  LAB_002e92 buy when empty). Gated on the met bit — DOS reaches 4528 off a
+  real tile entry, the port's walker only reaches adjacency, and inventing
+  a first-contact side effect here would be a new mechanic.
+- `ai_euro_20e6_47b9_dead_end` wagon arm now defers to the walker when the
+  errand latch is set (DOS `+0x3158 == 0` guard, raw 2263).
+- **Trap (same class as the 06e ship oscillation):** the act-level
+  wagon-on-colony shortage unload (`ai_euro_try_wagon_tools_delivery` call
+  site) handed a matrix-stripped colony its own cargo straight back — the
+  matrix legitimately strips a colony to 0 of what it takes, which makes
+  the colony "short" of it. Errand wagons now skip that unload arm.
+
+### `465b_0000` attack counter — LIVE (was "no port site")
+
+`units_try_move` COMBAT_LAND arm (`src/core/units.c`), before the combat
+resolves: Euro attacker (nation 0..3) onto a tile whose defender is Indian
+(4..11) → alarm delta `(difficulty+5)`, ×2 when a settlement record sits on
+the tile — where `tribe.alarm[nation].attacks` is also bumped — ×6
+(replacing the ×2) on a capital. Single port site covers the human Attack
+Village commit, the AI village seize, and open-field brave attacks; the
+existing declare-hostility writers (`ai_contact.c` 8bf6-class, one bump per
+village at war open) are a different DOS event and stay.
+
+### Tests
+
+`ctest` 58/58, all goldens byte-green. New: `test_ai_euro_20e6.c`
+`unit_wagon_load_matrix_starts_village_errand` (dump + one-hold Ore pick +
+village goto), `unit_wagon_errand_trades_at_village` (arrival sell: hold
+emptied, gold credited, MP forfeit), `unit_wagon_errand_dead_end_destroyed`
+(ocean-split landmass, no village → destroy); `test_units.c`
+`unit_native_tile_attack_alarm` (village ×2 + attacks++, plain base,
+capital ×6).
+
+### Still thin after this pass (authoritative list)
+
+- Treasure village-delivery arm of the 8d4a family and the treasure
+  in-colony cash-in — still PARKED (economy change, not a dead-end fix).
+- `bVar17`/`bVar7` Privateer/Frigate narrowings — DEAD END statically,
+  unreachable in this port.
+- DOS's raw 3007-3012 dump-whole-hull sweep for SHIPS — the port keeps the
+  06e empty-hull gate substitution (deliberate; a full ship dump at every
+  own-colony berth reroutes the export/delivery arms and needs its own
+  golden-risk pass).
+- The errand latch does not round-trip the save (session-local), unlike
+  DOS's `+0x3158` byte.
+- The 0a60 `haul_short` registration gate: the pickup-direction consumers
+  now exist for both hulls (ship 06e, wagon 06f); flipping the gate to
+  DOS's `bVar5` and retiring the shortage ladder + short-colony fallback is
+  the remaining step, its own pass.

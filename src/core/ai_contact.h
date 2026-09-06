@@ -83,6 +83,16 @@ void ai_contact_try_village_beg_food(ColonizeTurnContext* ctx, int nation_id);
 int ai_contact_try_village_gifts(ColonizeTurnContext* ctx, int nation_id);
 
 /*
+ * AI wagon village-errand trade (FUN_4d56_4528 AI arm case 1 → FUN_4d56_2820
+ * on the AI-silent path). indian_nation is 4..11. Returns 1 when the 2820
+ * shell ran. Caller (ai_euro 20e6 errand walker) owns the errand latch and
+ * the MP forfeit.
+ */
+int ai_contact_ai_wagon_village_trade(
+  ColonizeTurnContext* ctx, int indian_nation, int euro_nation, int unit_id
+);
+
+/*
  * FUN_5bfb_022e first contact: if unmet, set met and enqueue @INDIANWELCOME
  * Yes/No for human (or auto-accept for AI / no popups). Returns 1 if this
  * call started first contact. indian_nation is Col1 id 4..11.

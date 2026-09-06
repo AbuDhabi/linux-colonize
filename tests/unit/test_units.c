@@ -1897,6 +1897,126 @@ static int unit_stack_one_click_wakes_and_selects(void) {
   return 0;
 }
 
+/*
+ * FUN_465b_0000 (75600-75626): a Euro attack onto an Indian-held tile slams
+ * tribe alarm by (difficulty+5), doubled on a village tile — where the
+ * village record's alarm[nation].attacks byte is bumped — sextupled on a
+ * capital. Written before the combat resolves, win or lose.
+ */
+static int unit_native_tile_attack_alarm(void) {
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 8;
+  map.height = 8;
+  map.tile_count = 64;
+  map.terrain = calloc(64, 1);
+  map.layer2 = calloc(64, 1);
+  map.layer3 = calloc(64, 1);
+  if (!map.terrain || !map.layer2 || !map.layer3) {
+    return 1;
+  }
+  for (int i = 0; i < 64; ++i) {
+    map.terrain[i] = 2; /* plains */
+  }
+
+  ColonizeUnitPool pool;
+  memset(&pool, 0, sizeof(pool));
+  pool.type_count = 2;
+  snprintf(pool.types[0].name, sizeof(pool.types[0].name), "Soldiers");
+  pool.types[0].attack = 99;
+  pool.types[0].defense = 99;
+  pool.types[0].movement = 1;
+  pool.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  snprintf(pool.types[1].name, sizeof(pool.types[1].name), "Braves");
+  pool.types[1].attack = 1;
+  pool.types[1].defense = 1;
+  pool.types[1].movement = 1;
+  pool.types[1].domain = COLONIZE_UNIT_DOMAIN_LAND;
+
+  ColonizeCol1Save col1;
+  memset(&col1, 0, sizeof(col1));
+  col1.head.difficulty = 2; /* base = 7 */
+  static ColonizeCol1Tribe tribe;
+  memset(&tribe, 0, sizeof(tribe));
+  tribe.x = 5;
+  tribe.y = 5;
+  tribe.nation_id = 4;
+  tribe.population = 5;
+  col1.tribe = &tribe;
+  col1.head.tribe_count = 1;
+  col1.indian[0].alarm_by_player[0] = 10;
+  units_set_ff_col1(&col1);
+
+  int rc = 0;
+  ColonizeDosRng rng;
+  dos_rng_seed(&rng, 7);
+
+  /* Village tile: base*2 alarm + attacks++. */
+  {
+    const int aid = units_spawn_allow_stack(&pool, 0, 4, 5);
+    const int did = units_spawn_allow_stack(&pool, 1, 5, 5);
+    units_get(&pool, aid)->nation_id = 0;
+    units_get(&pool, aid)->moves_left = UNITS_MP_PER_TILE;
+    units_get(&pool, did)->nation_id = 4;
+    units_try_move(&pool, aid, &map, 5, 5, NULL, &rng);
+    if (tribe.alarm[0].attacks != 1) {
+      fprintf(stderr, "465b: village attacks=%d (want 1)\n", tribe.alarm[0].attacks);
+      rc = 1;
+    }
+    if (col1.indian[0].alarm_by_player[0] != 10 + 14) {
+      fprintf(stderr, "465b: village alarm=%d (want 24)\n",
+              col1.indian[0].alarm_by_player[0]);
+      rc = 1;
+    }
+  }
+  /* Plain tile: base only, attacks untouched. */
+  if (rc == 0) {
+    const int before = col1.indian[0].alarm_by_player[0];
+    const int aid = units_spawn_allow_stack(&pool, 0, 2, 2);
+    const int did = units_spawn_allow_stack(&pool, 1, 3, 2);
+    units_get(&pool, aid)->nation_id = 0;
+    units_get(&pool, aid)->moves_left = UNITS_MP_PER_TILE;
+    units_get(&pool, did)->nation_id = 4;
+    units_try_move(&pool, aid, &map, 3, 2, NULL, &rng);
+    if (tribe.alarm[0].attacks != 1) {
+      fprintf(stderr, "465b: plain-tile bumped attacks=%d\n", tribe.alarm[0].attacks);
+      rc = 1;
+    }
+    if (col1.indian[0].alarm_by_player[0] != before + 7) {
+      fprintf(stderr, "465b: plain alarm=%d (want %d)\n",
+              col1.indian[0].alarm_by_player[0], before + 7);
+      rc = 1;
+    }
+  }
+  /* Capital: base*6 replaces the *2. */
+  if (rc == 0) {
+    tribe.state.capital = 1;
+    const int before = col1.indian[0].alarm_by_player[0];
+    const int aid = units_spawn_allow_stack(&pool, 0, 6, 5);
+    const int did = units_spawn_allow_stack(&pool, 1, 5, 5);
+    units_get(&pool, aid)->nation_id = 0;
+    units_get(&pool, aid)->moves_left = UNITS_MP_PER_TILE;
+    units_get(&pool, did)->nation_id = 4;
+    units_try_move(&pool, aid, &map, 5, 5, NULL, &rng);
+    if (tribe.alarm[0].attacks != 2 ||
+        col1.indian[0].alarm_by_player[0] != before + 42) {
+      fprintf(stderr, "465b: capital attacks=%d alarm=%d (want 2 / %d)\n",
+              tribe.alarm[0].attacks, col1.indian[0].alarm_by_player[0], before + 42);
+      rc = 1;
+    }
+  }
+
+  units_set_ff_col1(NULL);
+  col1.tribe = NULL;
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  if (rc == 0) {
+    fprintf(stderr, "unit_units: native tile attack alarm (465b) ok\n");
+  }
+  return rc;
+}
+
 int main(void) {
   diag_init(0, NULL);
 
@@ -1944,6 +2064,10 @@ int main(void) {
     return 1;
   }
   if (unit_combat_sfx_visibility() != 0) {
+    diag_shutdown();
+    return 1;
+  }
+  if (unit_native_tile_attack_alarm() != 0) {
     diag_shutdown();
     return 1;
   }

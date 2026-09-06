@@ -901,7 +901,7 @@ it.** ctest 57/57 after the case-7 fixes below.
 
 | case | DOS action | Linux (human arm) | Linux (AI arm) | tier |
 |-----:|------------|-------------------|----------------|------|
-| 1 | Trade (`a63c` → `2820`) | `ai_contact_2820_begin` | AI wagon never enters a village tile (no goal routes one) — unreachable, no invented trigger | Done (2820 rewrite 2026-08-29) |
+| 1 | Trade (`a63c` → `2820`) | `ai_contact_2820_begin` | **Reachable 2026-09-06f**: the 20e6 wagon LOAD matrix writes the village-errand byte (+0x3158), the errand walker routes the wagon to the village, and `ai_contact_ai_wagon_village_trade` runs this arm on the AI-silent 2820 path (move_scoring_20e6_full.md 2026-09-06f) — the trigger is DOS's own, not invented | Done (2820 rewrite 2026-08-29; AI arm live 2026-09-06f) |
 | 2 | Enter Hostile Village (`a5e8`) | `ai_contact_enter_hostile_village` (rand(0,500) vs alarm/2·alarm → KILLWAGONS/MADATWAGONS/GRUDGEWAGONS→trade) | n/a (human-menu row only) | Done |
 | 3 | Establish Mission (`a5dc`) | `ai_contact_establish_mission` (count/FF ladder, @MISSION{n}) | convert pulse arm | Done |
 | 4 | Denounce Heresy (`a594`) | `ai_contact_denounce_heresy` (incl. `4cc6_03f8` presence scorer) | convert pulse arm (50/50 legacy roll — AI-vs-AI only) | Done human / structural AI |
@@ -915,8 +915,11 @@ it.** ctest 57/57 after the case-7 fixes below.
 Cross-cutting: the MP forfeit (`8b24`, return-code 1) and the case-3/9
 exemptions are wired (2026-09-04 section above). The AI arm's automatic
 type→case table (types 1/4/0xb→9, 3→7/3/4, 5→6, 0xc→1, default→5) is
-mirrored where reachable; the scout/wagon rows can only fire if Linux AI
-movement ever routes those unit types onto village tiles, which no goal
-does — porting them would mean inventing a trigger DOS doesn't have
-(the method-notes "structural ≠ semantic" trap), so they are documented
-as unreachable rather than stubbed.
+mirrored where reachable. The wagon row (0xc→1) became reachable
+2026-09-06f — DOS's own trigger turned out to be the 20e6 wagon LOAD
+matrix's village-errand byte, no invention needed (see the case-1 row).
+The scout row (5→6) can still only fire if Linux AI movement ever routes a
+Scout onto a village tile, which no goal does — porting it would mean
+inventing a trigger DOS doesn't have (the method-notes "structural ≠
+semantic" trap), so it stays documented as unreachable rather than
+stubbed.
