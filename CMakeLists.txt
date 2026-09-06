@@ -1196,14 +1196,9 @@ add_test(NAME golden_ai_late01 COMMAND golden_ai_late01 WORKING_DIRECTORY ${CMAK
 # progress tracker.
 # 2026-08-27 (T3.3, partial): golden_ai_mid01 / golden_ai_late01 pass again
 # after the Indian alarm-store consolidation and the 5d04 live wire, so they
-# are back on as regression gates. golden_ai_turns stays DISABLED: it fails
-# only on 3 TURN1→2 Braves — the parked seed-100 quiet-pulse divergence
-# (docs/port_plan.md T1.23), not a planner regression — and golden_ai_joint
-# depends on it.
-set_tests_properties(
-  golden_ai_turns
-  PROPERTIES DISABLED TRUE
-)
+# are back on as regression gates.
+# 2026-09-05 (T3.3, complete): T1.23 closed — all six TURN steps green — so
+# golden_ai_turns and golden_ai_joint are re-enabled as regression gates.
 
 # Colony production golden vs real-DOS-run saves (COLONY00/01_no-transports.SAV):
 add_executable(golden_colony_prod01
@@ -1283,8 +1278,7 @@ add_test(
   COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target golden_ai_joint
   WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 )
-# PARKED 2026-08-19 — see comment above golden_ai_turns/mid01/late01.
-set_tests_properties(golden_ai_joint PROPERTIES DISABLED TRUE)
+# Re-enabled 2026-09-05 with golden_ai_turns (T3.3) — see comment above.
 
 add_executable(smoke_sound
   tests/smoke/test_sound.c
