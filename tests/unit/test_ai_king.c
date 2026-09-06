@@ -525,6 +525,10 @@ int main(void) {
      * below the threshold so this turn's stipend (diff*8+10, era-doubled)
      * crosses it and buys one Regular (pools empty -> k=0). */
     col1.nation[0].royal_money = 1795;
+    /* 1d42 tail (asm 43f7:1e58, ported 2026-09-06d): on the buy beat only,
+     * nation+0xe (liberty_bells_last_turn) += DS:0x9408 free_colonist_counts. */
+    col1.stuff.free_colonist_counts[0] = 7;
+    col1.nation[0].liberty_bells_last_turn = 5;
     ColonizeDosRng cut_rng;
     dos_rng_seed(&cut_rng, 1u);
     ctx.rng = &cut_rng;
@@ -549,7 +553,21 @@ int main(void) {
     if (col1.nation[0].royal_money >= 0x708) {
       return fail("1d42 buy should debit 1800 from royal_money");
     }
+    if (col1.nation[0].liberty_bells_last_turn != 12) {
+      fprintf(stderr, "unit_ai_king: 1d42 bells+0xe=%u (want 12)\n",
+              (unsigned)col1.nation[0].liberty_bells_last_turn);
+      return fail("1d42 buy tail should add free_colonist_counts to nation+0xe");
+    }
     col1.nation[0].royal_money = 0; /* keep later blocks purse-quiet */
+    /* A non-buy 1d42 beat must leave nation+0xe alone (the ADD sits inside
+     * the >=1800 branch, after the 0x708 debit). */
+    col1.nation[0].liberty_bells_last_turn = 5;
+    ai_king_nation_turn(&ctx);
+    if (col1.nation[0].liberty_bells_last_turn != 5) {
+      return fail("1d42 must not touch nation+0xe when the purse cannot buy");
+    }
+    col1.stuff.free_colonist_counts[0] = 0;
+    col1.nation[0].royal_money = 0;
   }
   {
     /* +1 branch (100<=score<650, streak<30): rebel=30, tax=40, SoL=20,
@@ -1034,20 +1052,43 @@ int main(void) {
     return fail("declare should stamp head.crown_nation_id");
   }
   /*
-   * FUN_43f7_0108 diplo-clear/set: eliminated nation 2 loses WAR/PEACE and
-   * gains MET vs both the declaring human (0) and the crown fold (1).
+   * FUN_43f7_1a26's own crown pair (viceroy_unpacked.c:74832-74833):
+   * or_both(human, crown, 0x22) = WAR|MET, clear_both(human, crown, 0x40) =
+   * PEACE. Rewritten 2026-09-06d: the PEACE clear used to be missing (the
+   * old king_ref note read 0x40 as MET off the pre-T1.19 bit map).
    */
-  if ((ai_diplo_read(&col1, 2, 0) & (AI_DIPLO_WAR | AI_DIPLO_PEACE)) != 0) {
-    return fail("0108 should clear WAR/PEACE between eliminated nation and human");
+  {
+    const uint8_t hc = ai_diplo_read(&col1, 0, 1);
+    const uint8_t ch = ai_diplo_read(&col1, 1, 0);
+    if ((hc & (AI_DIPLO_WAR | AI_DIPLO_MET)) != (AI_DIPLO_WAR | AI_DIPLO_MET) ||
+        (ch & (AI_DIPLO_WAR | AI_DIPLO_MET)) != (AI_DIPLO_WAR | AI_DIPLO_MET)) {
+      return fail("1a26 must or_both(human, crown, 0x22 = WAR|MET)");
+    }
+    if ((hc & AI_DIPLO_PEACE) != 0 || (ch & AI_DIPLO_PEACE) != 0) {
+      return fail("1a26 must clear_both(human, crown, 0x40 = PEACE)");
+    }
   }
-  if ((ai_diplo_read(&col1, 0, 2) & (AI_DIPLO_WAR | AI_DIPLO_PEACE)) != 0) {
-    return fail("0108 should clear WAR/PEACE symmetrically (human side)");
-  }
-  if ((ai_diplo_read(&col1, 2, 0) & AI_DIPLO_MET) == 0) {
-    return fail("0108 should mark eliminated nation as MET vs human");
-  }
-  if ((ai_diplo_read(&col1, 2, 1) & AI_DIPLO_MET) == 0) {
-    return fail("0108 should mark eliminated nation as MET vs crown fold");
+  /*
+   * FUN_43f7_0108 diplo-clear/set (viceroy_unpacked.c:73554-73557), masks
+   * re-decoded 2026-09-06d against ai_diplo.h's T1.19 bit map: the eliminated
+   * nation 2 loses 0x0b (WAR_INTENT|WAR|TREASURE_STRONGER) and GAINS 0x60
+   * (MET|PEACE) vs both the declaring human (0) and the crown fold (1), in
+   * both directions. Previous expectation ("clear WAR/PEACE, set MET") had
+   * PEACE inverted — DOS ORs it in, it does not clear it.
+   */
+  {
+    const uint8_t k_clr = (uint8_t)(AI_DIPLO_WAR_INTENT | AI_DIPLO_WAR | AI_DIPLO_TREASURE_STRONGER);
+    const uint8_t k_set = (uint8_t)(AI_DIPLO_MET | AI_DIPLO_PEACE);
+    const int pairs[4][2] = {{2, 0}, {0, 2}, {2, 1}, {1, 2}};
+    for (int p = 0; p < 4; ++p) {
+      const uint8_t rel = ai_diplo_read(&col1, pairs[p][0], pairs[p][1]);
+      if ((rel & k_clr) != 0) {
+        return fail("0108 should clear 0x0b (WAR_INTENT|WAR|0x08) around the eliminated nation");
+      }
+      if ((rel & k_set) != k_set) {
+        return fail("0108 should OR 0x60 (MET|PEACE) around the eliminated nation");
+      }
+    }
   }
   /* bugs.md: the first wave WAITS one turn after the declaration — the
    * declare turn itself must land nothing. */
@@ -4894,6 +4935,19 @@ int main(void) {
       col1.head.backup_force[1] = 2;
       col1.head.backup_force[2] = 0;
       col1.head.backup_force[3] = 0;
+      /*
+       * FUN_43f7_1528 %STRING3 (ported 2026-09-06d): the announce names the
+       * human's largest-population COASTAL colony, NOT the tile the force
+       * lands on. Two coastal Col1 colonies, neither at the live pool's
+       * Jamestown tile (5,5) — so the old landing-colony pick resolves to the
+       * "the colonies" placeholder and only the DOS rule can name Roanoke.
+       */
+      col1.colony[0].flags.coastal = 1;
+      col1.colony[0].population = 1;
+      snprintf(col1.colony[0].name, sizeof(col1.colony[0].name), "Plymouth");
+      col1.colony[1].flags.coastal = 1;
+      col1.colony[1].population = 9;
+      snprintf(col1.colony[1].name, sizeof(col1.colony[1].name), "Roanoke");
       status[0] = '\0';
       ai_popup_clear(&pop);
       /* The @INTERVENTION announce is the bells-threshold spend (DOS 0a22 →
@@ -4905,6 +4959,7 @@ int main(void) {
         int arrival_ok = 0;
         int found_intervention = 0;
         int found_intervene = 0;
+        int announce_names_biggest_coastal = 0;
         for (int i = 0; i < pop.queue_count; ++i) {
           if (pop.queue[i].tag == AI_POPUP_TAG_KING_ARRIVAL &&
               pop.queue[i].kind == AI_POPUP_KIND_OK) {
@@ -4912,6 +4967,9 @@ int main(void) {
             if (strstr(pop.queue[i].body, "declares war") ||
                 strstr(pop.queue[i].body, "War of Independence")) {
               found_intervention = 1;
+              if (strstr(pop.queue[i].body, "Roanoke")) {
+                announce_names_biggest_coastal = 1;
+              }
             }
             if (strstr(pop.queue[i].body, "Intervention Force") ||
                 strstr(pop.queue[i].body, "regales")) {
@@ -4924,6 +4982,12 @@ int main(void) {
                   "unit_ai_king: intervene ARRIVAL count=%d interv=%d arrive=%d\n",
                   arrival_ok, found_intervention, found_intervene);
           return fail("10f0 intervene should enqueue @INTERVENTION + @INTERVENE once each");
+        }
+        if (!announce_names_biggest_coastal) {
+          for (int i = 0; i < pop.queue_count; ++i) {
+            fprintf(stderr, "unit_ai_king: 1528 body[%d]: %s\n", i, pop.queue[i].body);
+          }
+          return fail("1528 @INTERVENTION %STRING3 should name the largest coastal colony");
         }
       }
       /* Same-turn capture may overwrite status (1528 pattern); popup is canonical. */

@@ -802,12 +802,17 @@ typedef struct ColonizeCol1Indian {
  * export-OK zero when blank (save I/O only in unpacked VICEROY).
  */
 typedef struct ColonizeCol1Stuff {
-  uint8_t unknown34_pad[12]; /* was unknown34[12]. Confirmed dead 2026-08-19:
-     DS:0x9566, exhaustively grepped across all 3 decompiled DOS exports —
-     the only touches at all are the two bulk save-block read/write calls
-     (FUN_1d1d_060c/_0528 size 0xc). Zero semantic reader or writer found
-     anywhere in game logic. Genuinely vestigial, not just under-searched —
-     what it originally held is unrecoverable from this angle. */
+  uint8_t unknown34_pad[12]; /* NOT dead — the 2026-08-19 "vestigial" verdict
+     was a grep artifact (only the positive DS form 0x9566 was searched; every
+     game-logic reader spells it as the negative literal −0x6a9a). Resolved
+     2026-09-06d: signed leader-trait triple, [nation*3 + 0..2], loaded from
+     NAMES.TXT @LEADERNAME by viceroy_unpacked.c:120960-120977 and read by
+     FUN_5bfb_10ec / FUN_521d_153e (col 0, belligerence), FUN_521d_03d0
+     (col 1), FUN_5952_035e (cols 0 and 2). Shipped values 01 FF 00 / 00 01 00
+     / 01 00 FF / FF 00 01 — present in every DOS save on disk and in the
+     DOSBox-X memory dumps at DS:237D+0x9566. Field name kept (the
+     `unknown34_pad_hex` JSON key is baked into checked-in .SAV.json
+     fixtures); see ai_diplo_leader_trait for the accessor. */
   uint8_t all_unit_counts[4]; /* DS:0x8cfc — per-euro unit totals (FUN_4962_0018) */
   uint8_t colony_counts[4]; /* DS:0x9298 — per-euro colony totals */
   /* File 20..63 mid-window (was unknown_stuff_20[44]) — FUN_4962_0018. */

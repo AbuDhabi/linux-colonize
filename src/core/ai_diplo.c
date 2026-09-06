@@ -2700,6 +2700,69 @@ static void ai_talk_resume(ColonizeTurnContext* ctx, int stage, int choice) {
   ai_talk_advance(ctx);
 }
 
+/*
+ * NAMES.TXT `@LEADERNAME` trailing columns — DOS's own writer for the
+ * DS:0x9566 (`−0x6a9a`) trait table (`viceroy_unpacked.c:120960-120977`:
+ * `FUN_291f_0928(...,"LEADERNAME")`, then 4 × { read name string ->
+ * DS:0x540e+n*0x34; read 3 numbers -> −0x6a9a[n*3+0..2] }). Line format is
+ * `Name, t0, t1, t2`; blank/`;`/`@` lines are skipped, matching
+ * `new_game_default_leader_name`'s own ordinal walk over this section.
+ */
+static int ai_diplo_leader_trait_from_names(
+  const ColonizeMsgCatalog* names, int nation, int column
+) {
+  if (!names) {
+    return 0;
+  }
+  const ColonizeMsgSection* section = assets_msg_find(names, "LEADERNAME");
+  if (!section) {
+    return 0;
+  }
+  int idx = 0;
+  for (int i = 0; i < section->line_count; ++i) {
+    const char* line = section->lines[i];
+    if (!line || line[0] == '\0' || line[0] == ';' || line[0] == '@') {
+      continue;
+    }
+    if (idx == nation) {
+      const char* p = line;
+      for (int field = 0; field <= column; ++field) {
+        p = strchr(p, ',');
+        if (!p) {
+          return 0;
+        }
+        p++;
+      }
+      return (int)strtol(p, NULL, 10);
+    }
+    idx++;
+  }
+  return 0;
+}
+
+int ai_diplo_leader_trait(const ColonizeTurnContext* ctx, int nation, int column) {
+  if (!ctx || nation < 0 || nation > 3 || column < 0 || column > 2) {
+    return 0;
+  }
+  /*
+   * DOS load order: NAMES.TXT seeds DS:0x9566 at startup, and loading a save
+   * overwrites it from the save's own copy (Stuff file-off 0). So the save's
+   * bytes win whenever they carry a table at all; an all-zero window is a
+   * port-made blank (`col1_stuff_census_fill_blank` never writes this field),
+   * not a real DOS one — every DOS save on disk carries the same non-zero
+   * 01 FF 00 / 00 01 00 / 01 00 FF / FF 00 01.
+   */
+  if (ctx->col1_ok && ctx->col1) {
+    const uint8_t* t = ctx->col1->stuff.unknown34_pad;
+    for (int i = 0; i < 12; ++i) {
+      if (t[i] != 0) {
+        return (int)(int8_t)t[nation * 3 + column];
+      }
+    }
+  }
+  return ai_diplo_leader_trait_from_names(ctx->names, nation, column);
+}
+
 int ai_diplo_153e_encounter(ColonizeTurnContext* ctx, int human, int target, int unit_id) {
   if (!ctx || !ctx->col1_ok || !ctx->col1 || !ctx->ai_popups || !ctx->units || !ctx->map ||
       !ctx->colonies || human < 0 || human > 3 || target < 0 || target > 3 || human == target ||
@@ -2841,9 +2904,10 @@ int ai_diplo_153e_encounter(ColonizeTurnContext* ctx, int human, int target, int
       k->third = n;
     }
   }
-  /* raw :97648: ba -= (char)(-0x6a9a[target*3]) — the ×3-stride per-nation
-   * byte table is still unresolved project-wide (Linux unknown34_pad; same
-   * stub as ai_euro_10ec_war_worthy). Stubbed 0, documented, not invented. */
+  /* raw :97648: ba -= (char)(-0x6a9a[target*3]) — real since 2026-09-06d:
+   * the ×3-stride per-nation table is the NAMES.TXT @LEADERNAME trait
+   * triple, column 0 = belligerence (see ai_diplo_leader_trait). */
+  ba -= ai_diplo_leader_trait(ctx, target, 0);
   if (col1->stuff.land_combat_strength[human] < col1->stuff.land_combat_strength[target]) {
     ba--;
   }

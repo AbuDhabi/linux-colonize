@@ -58,6 +58,14 @@ void ai_euro_nation_turn(ColonizeTurnContext* ctx, int nation_id);
 void ai_indian_nation_turn(ColonizeTurnContext* ctx, int nation_id);
 
 /*
+ * FUN_4d56_1b3a phases 1 and 3 — the Indian mid-pass that brackets the eight
+ * ai_indian_nation_turn calls (phase 2). Call `clear_tables` once before the
+ * first native slot and `claim_worked_tiles` once after the last.
+ */
+void ai_indian_midpass_clear_tables(ColonizeTurnContext* ctx);
+void ai_indian_midpass_claim_worked_tiles(ColonizeTurnContext* ctx);
+
+/*
  * Where `unit_id` stood when this turn's native Brave pulse began, i.e. before
  * FUN_4d56_14fe walked it. Returns 0 for a unit the current pulse never
  * touched, leaving the out params alone.

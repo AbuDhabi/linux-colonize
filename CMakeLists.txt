@@ -1046,6 +1046,19 @@ target_link_libraries(unit_ai_contact PRIVATE colonize_core)
 
 add_test(NAME unit_ai_contact COMMAND unit_ai_contact WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
+add_executable(unit_ai_indian_census
+  tests/unit/test_ai_indian_census.c
+)
+
+target_include_directories(unit_ai_indian_census PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
+target_link_libraries(unit_ai_indian_census PRIVATE colonize_core)
+
+add_test(NAME unit_ai_indian_census COMMAND unit_ai_indian_census
+  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+
 add_executable(unit_ai_diplo
   tests/unit/test_ai_diplo.c
 )

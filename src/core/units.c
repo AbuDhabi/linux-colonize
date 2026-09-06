@@ -8010,15 +8010,20 @@ bool units_is_pioneer(const ColonizeUnitPool* pool, int unit_id) {
 #define UNITS_PIONEER_TOOL_COST 20
 
 /*
- * DOS FUN_479b_01a6/0526: both clear/plow and road share the same
- * DS:0x2f78 threshold byte (offset +2 of the terrain-class record) +2.
- * Hardy Pioneer (profession 20) halves. Cite: viceroy_unpacked
- * FUN_479b_01a6/0526; live capture 2026-08-20 (was approximated with the
- * move-cost byte, offset +0, before the real +2 byte was captured).
+ * DOS FUN_479b_01a6/0526: both clear/plow and road read the same DS:0x2f78
+ * threshold byte (offset +2 of the terrain-class record), but only the
+ * clear/plow body adds 2 (`local_2a = byte + 2`); the road body takes the
+ * bare byte (`local_1c = byte`). Hardy Pioneer (profession 20) halves either.
+ * Cite: viceroy_unpacked FUN_479b_01a6:76767 / FUN_479b_0526:76891; live
+ * capture 2026-08-20 (was approximated with the move-cost byte, offset +0,
+ * before the real +2 byte was captured). The `road` arm was `(void)road` —
+ * every road cost 2 extra turns — until 2026-09-06e re-read both bodies.
  */
 static int units_pioneer_work_needed(const ColonizeUnit* u, const ColonizeWorldMap* map, bool road) {
-  (void)road;
-  int needed = map_dos_terr_pioneer_threshold_byte(map_dos_terr_class_at(map, u->x, u->y)) + 2;
+  int needed = map_dos_terr_pioneer_threshold_byte(map_dos_terr_class_at(map, u->x, u->y));
+  if (!road) {
+    needed += 2;
+  }
   if (u->profession == UNITS_JOB_PIONEER) {
     needed >>= 1;
   }
@@ -8026,6 +8031,122 @@ static int units_pioneer_work_needed(const ColonizeUnit* u, const ColonizeWorldM
     needed = 1;
   }
   return needed;
+}
+
+/* FUN_124c_0040 / FUN_281f_0370 — DOS tile distance: max + min/2. */
+static int units_dos_dist(int dx, int dy) {
+  if (dx < 0) {
+    dx = -dx;
+  }
+  if (dy < 0) {
+    dy = -dy;
+  }
+  return (dy < dx) ? (dy >> 1) + dx : (dx >> 1) + dy;
+}
+
+/*
+ * FUN_281f_0614 (= FUN_15eb_0142) nearest-colony search, the one writer of
+ * DOS DS:0x8db8: closest active colony of `filter_nation` (any when < 0) by
+ * units_dos_dist, first wins on ties; *out_dist gets the winning distance
+ * (the 0x8db8 side effect both Pioneer bodies read back). Cite:
+ * move_scoring_land.md "0x8db8 identified".
+ */
+static ColonizeColony* units_nearest_colony_dos(
+  ColonizeColonyPool* colonies,
+  int x,
+  int y,
+  int filter_nation,
+  int* out_dist
+) {
+  ColonizeColony* best = NULL;
+  int best_d = 9999;
+  if (colonies) {
+    for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+      ColonizeColony* c = &colonies->colonies[i];
+      if (!c->active || (filter_nation >= 0 && c->nation_id != filter_nation)) {
+        continue;
+      }
+      const int d = units_dos_dist(c->x - x, c->y - y);
+      if (d < best_d) {
+        best_d = d;
+        best = c;
+      }
+    }
+  }
+  if (out_dist) {
+    *out_dist = best_d;
+  }
+  return best;
+}
+
+/*
+ * FUN_479b_01a6 LAB_479b_043b (clear/plow, base 5) / FUN_479b_0526
+ * LAB_479b_0687 (road, base 3) — what finishing a Pioneer job on tribal land
+ * costs. Gates, in DOS order:
+ *   FUN_281f_0d84 nearest village on the tile's own continent, kept only when
+ *     DS:0x8db8 <= FUN_281f_0a56 (the tribe's tech tier 1/2/3) — exactly
+ *     colonies_indian_land_owner_tribe's homeland test;
+ *   FUN_281f_0696 < 0: no colony stands on the tile;
+ *   layer2 & 0x10 clear (land not already bought/gifted) and
+ *     FUN_281f_07b4(nation, 2) == 0 (no Peter Minuit) — both are exactly the
+ *     early-outs of colonies_indian_land_purchase_gold, so a price of 0 here
+ *     means one of them fired;
+ *   thunk_FUN_2a1f_01d8 = FUN_479b_00ca: an **AI** nation (0x543f != 0) that
+ *     can cover price + price/2 buys the tile outright (treasury debit,
+ *     indian.lands_bought++, purchased bit) and takes no anger at all.
+ * Otherwise the tribe's alarm rises by `base` (+ difficulty when the acting
+ * nation is the human, DS:0x53a6), doubled within DOS distance 3 and tripled
+ * within 2, via FUN_281f_0d6c → FUN_4cc6_00f2 (positive delta = alarm up).
+ * The 4th argument DOS passes 0d6c (2 for clear, 1 for road) is not read by
+ * 00f2's body — recorded, not modelled.
+ */
+static void units_pioneer_native_land_tail(
+  const ColonizeUnit* u,
+  const ColonizeWorldMap* map,
+  const ColonizeColonyPool* colonies,
+  int base_add
+) {
+  ColonizeCol1Save* col1 = g_units_fallout_col1;
+  if (!col1 || !map || !u) {
+    return;
+  }
+  const int nation = u->nation_id;
+  if (nation < 0 || nation > 3) {
+    return;
+  }
+  const int ti = colonies_indian_land_owner_tribe(col1, map, u->x, u->y);
+  if (ti < 0 || !col1->tribe) {
+    return;
+  }
+  if (colonies && colonies_id_at(colonies, u->x, u->y) >= 0) {
+    return;
+  }
+  const int price = colonies_indian_land_purchase_gold(col1, map, u->x, u->y, nation);
+  if (price <= 0) {
+    return; /* already purchased/gifted (mask 0x10), or Peter Minuit */
+  }
+  const int is_ai = col1->player[nation].control != 0;
+  if (is_ai) {
+    uint32_t* gold = &col1->nation[nation].gold;
+    const long have = (long)*gold;
+    if ((long)(price >> 1) <= have - (long)price) {
+      colonies_indian_land_pay(col1, map, u->x, u->y, nation, gold, price);
+      return; /* FUN_479b_00ca returned 1 — bought, no alarm */
+    }
+  }
+  int base = base_add;
+  if (!is_ai) {
+    base += (int)col1->head.difficulty;
+  }
+  const int dist = units_dos_dist(u->x - (int)col1->tribe[ti].x, u->y - (int)col1->tribe[ti].y);
+  int amount = base;
+  if (dist < 3) {
+    amount = base * 2;
+  }
+  if (dist < 2) {
+    amount += base;
+  }
+  ai_diplo_indian_alarm_delta(col1, (int)col1->tribe[ti].nation_id, nation, amount);
 }
 
 static bool units_pioneer_tile_can_clear_or_plow(
@@ -8211,22 +8332,11 @@ bool units_pioneer_work_tick(
      * limit — DOS FUN_281f_0614(x,y,nation,0xffff)) gets a flat
      * +10 hammers_purchased. Mirrors the already-ported case-8 clear-forest
      * lumber grant's "nearest own colony" pattern (units_pioneer_work_tick
-     * clearing branch below).
+     * clearing branch below). Distance is DOS's own max+min/2 metric since
+     * 2026-09-06e (was Manhattan).
      */
     if (colonies) {
-      ColonizeColony* near_road = NULL;
-      int best_md_road = -1;
-      for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
-        ColonizeColony* c = &colonies->colonies[i];
-        if (!c->active || c->nation_id != u->nation_id) {
-          continue;
-        }
-        const int md = abs(c->x - u->x) + abs(c->y - u->y);
-        if (best_md_road < 0 || md < best_md_road) {
-          best_md_road = md;
-          near_road = c;
-        }
-      }
+      ColonizeColony* near_road = units_nearest_colony_dos(colonies, u->x, u->y, u->nation_id, NULL);
       if (near_road) {
         int next = (int)near_road->hammers_purchased + 10;
         if (next > 65535) {
@@ -8246,6 +8356,8 @@ bool units_pioneer_work_tick(
         u->tools
       );
     }
+    /* LAB_479b_0687 tail: base 3 (0d6c mode 1). */
+    units_pioneer_native_land_tail(u, map, colonies, 3);
   } else {
     bool clearing = false;
     (void)units_pioneer_tile_can_clear_or_plow(map, u->x, u->y, &clearing);
@@ -8259,26 +8371,32 @@ bool units_pioneer_work_tick(
        * Mill, else 1 (a floor, not a gate) — add = scale*20, doubled for
        * Hardy Pioneer, clamped to warehouse room. Cite: viceroy_unpacked
        * FUN_479b_01a6, live capture 2026-08-20.
+       *
+       * 2026-09-06e, from the raw body: the grant is **radius-gated** —
+       * `FUN_281f_0614(x, y, nation, 0xffff)` must return a colony AND its
+       * DS:0x8db8 distance must be < 4 (the road body, 0526, has no such
+       * gate). 0x8db8 is the nearest-colony search's own distance output
+       * (move_scoring_land.md), not the difficulty byte. The scale also takes
+       * a +1 from `FUN_281f_0754(colony.x, colony.y) & 0x0a` = layer2
+       * road|city on the receiving colony's own tile; a colony tile always
+       * carries the city bit, so in DOS that bump always lands (the road half
+       * of the test is dead there) — kept as an unconditional +1 rather than
+       * a Linux layer2 read, because Linux's layer2 bit 0x08 is
+       * MAP_LAYER2_RUMOUR_CLEARED, not Col1's road bit.
        */
       int lumber_add = 0;
       ColonizeColony* near = NULL;
       if (colonies) {
-        int best_md = -1;
-        for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
-          ColonizeColony* c = &colonies->colonies[i];
-          if (!c->active || c->nation_id != u->nation_id) {
-            continue;
-          }
-          const int md = abs(c->x - u->x) + abs(c->y - u->y);
-          if (best_md < 0 || md < best_md) {
-            best_md = md;
-            near = c;
-          }
+        int near_dist = 9999;
+        near = units_nearest_colony_dos(colonies, u->x, u->y, u->nation_id, &near_dist);
+        if (near_dist >= 4) {
+          near = NULL;
         }
         if (near) {
           const int lumber_mill = colonies_find_building(colonies, "Lumber Mill");
           const bool has_mill = lumber_mill >= 0 && near->has_building[lumber_mill];
           int scale = map_dos_terr_lumber_reward_byte(map_dos_terr_class_at(map, u->x, u->y));
+          scale += 1; /* layer2(colony tile) & 0x0a — city bit, always set */
           if (!has_mill) {
             scale = 1;
           }
@@ -8353,6 +8471,12 @@ bool units_pioneer_work_tick(
       if (demoted) {
         units_pioneer_emit_useduptools(u, err, err_size, ai_popups, messages);
       }
+      /*
+       * LAB_479b_043b tail: base 5 (0d6c mode 2). DOS gates it on `!bVar2`,
+       * i.e. only a finished forest CLEAR angers the tribe / triggers the AI
+       * land buy — plowing an already-open tile does not reach the label.
+       */
+      units_pioneer_native_land_tail(u, map, colonies, 5);
     } else {
       map_tile_set_plowed(map, u->x, u->y, true);
       const bool demoted = units_pioneer_wear_tools(pool, u);

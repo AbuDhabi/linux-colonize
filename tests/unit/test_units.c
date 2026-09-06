@@ -573,6 +573,239 @@ static int unit_warehouse_full(void) {
   return 0;
 }
 
+/*
+ * FUN_521d_5b66 case 8 (= FUN_479b_01a6), the three arms the port was thin
+ * on before 2026-09-06e:
+ *   1. the lumber grant needs a same-nation colony within DOS distance 4
+ *      (FUN_281f_0614 + DS:0x8db8 < 4) — a colony 5 away gets nothing;
+ *   2. with a Lumber Mill the scale is the terrain +8 byte PLUS the colony
+ *      tile's layer2 road|city bump, i.e. (byte + 1) * 20;
+ *   3. LAB_479b_043b: finishing a clear on tribal land angers the tribe
+ *      (base 5 + difficulty for a human, x2 within distance 3, +base again
+ *      within 2), while an AI nation that can cover price + price/2 buys the
+ *      tile through FUN_479b_00ca instead and takes no anger.
+ */
+static int unit_pioneer_case8_tail(void) {
+  ColonizeMsgCatalog names;
+  assets_msg_init(&names);
+  if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT")) {
+    fprintf(stderr, "case8: NAMES.TXT load failed\n");
+    return 1;
+  }
+  ColonizeUnitPool pool;
+  memset(&pool, 0, sizeof(pool));
+  if (!units_load_types(&pool, &names)) {
+    fprintf(stderr, "case8: units_load_types failed\n");
+    assets_msg_free(&names);
+    return 1;
+  }
+  const int pioneer = units_find_type(&pool, "Pioneers");
+  if (pioneer < 0) {
+    fprintf(stderr, "case8: no Pioneers type\n");
+    assets_msg_free(&names);
+    return 1;
+  }
+
+  int rc = 1;
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  char err[128];
+  ColonizeCol1Save col1;
+  memset(&col1, 0, sizeof(col1));
+  if (!map_alloc(&map, 16, 16, err, sizeof(err))) {
+    fprintf(stderr, "case8: map_alloc failed: %s\n", err);
+    assets_msg_free(&names);
+    return 1;
+  }
+  for (int i = 0; i < 16 * 16; ++i) {
+    map.terrain[i] = 2; /* plains */
+  }
+
+  col1.head.tribe_count = 1;
+  col1.head.difficulty = 0;
+  /* col1_save_init: unclaimed FFs are -1; a zeroed head hands nation 0 all of
+   * them (founding_fathers_nation_has), Peter Minuit included. */
+  for (int i = 0; i < (int)COLONIZE_COL1_FF_COUNT; ++i) {
+    col1.head.founding_father[i] = -1;
+  }
+  col1.tribe = calloc(1, sizeof(ColonizeCol1Tribe));
+  if (!col1.tribe) {
+    fprintf(stderr, "case8: tribe alloc failed\n");
+    map_free(&map);
+    assets_msg_free(&names);
+    return 1;
+  }
+  col1.tribe[0].nation_id = 4; /* indian[0] */
+  col1.tribe[0].x = 6;
+  col1.tribe[0].y = 6;
+  col1.indian[0].tech = 0; /* tech tier 1 -> homeland radius 1 */
+  units_set_native_fallout_context(&col1, &map, -1);
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  if (!colonies_load_buildings(&colonies, &names)) {
+    fprintf(stderr, "case8: colonies_load_buildings failed\n");
+    goto done;
+  }
+  ColonizeColony* col = &colonies.colonies[0];
+  col->active = true;
+  col->id = 1;
+  col->nation_id = 0;
+  col->warehouse_level = 0;
+  snprintf(col->name, sizeof(col->name), "Timber");
+  colonies.colony_count = 1;
+
+  const int fx = 5;
+  const int fy = 6; /* DOS distance 1 from the village at (6,6) */
+  const int terr_scale = map_dos_terr_lumber_reward_byte(map_dos_terr_class_at(&map, fx, fy));
+
+  /* --- arm 1 + 2: colony out of range, then a Lumber Mill colony in range. */
+  for (int pass = 0; pass < 2; ++pass) {
+    map.terrain[fy * map.width + fx] = 10; /* mixed forest again */
+    col->x = pass == 0 ? (uint8_t)(fx + 5) : (uint8_t)(fx - 1);
+    col->y = (uint8_t)fy;
+    col->stock[COLONIZE_CARGO_LUMBER] = 0;
+    const int mill = colonies_find_building(&colonies, "Lumber Mill");
+    if (mill < 0) {
+      fprintf(stderr, "case8: no Lumber Mill building type\n");
+      goto done;
+    }
+    col->has_building[mill] = pass == 1;
+
+    const int pid = units_spawn(&pool, pioneer, fx, fy);
+    ColonizeUnit* u = units_get(&pool, pid);
+    if (!u) {
+      fprintf(stderr, "case8: pioneer spawn failed\n");
+      goto done;
+    }
+    u->nation_id = 0;
+    u->tools = 100;
+    u->profession = UNITS_JOB_NONE;
+    u->orders = UNITS_ORDER_CLEAR_PLOW;
+    u->turns_worked = 0;
+    int guard = 0;
+    while (u->orders == UNITS_ORDER_CLEAR_PLOW && guard++ < 24) {
+      u->moves_left = 1 * UNITS_MP_PER_TILE;
+      (void)units_pioneer_work_tick(&pool, pid, &map, NULL, 0, &colonies, NULL, NULL);
+    }
+    units_despawn(&pool, pid);
+    const int got = (int)col->stock[COLONIZE_CARGO_LUMBER];
+    if (pass == 0) {
+      if (got != 0) {
+        fprintf(stderr, "case8: colony 5 away must get no lumber, got %d\n", got);
+        goto done;
+      }
+    } else {
+      int want = (terr_scale + 1) * 20;
+      const int cap = colonies_warehouse_capacity(&colonies, col, COLONIZE_CARGO_LUMBER);
+      if (want > cap) {
+        want = cap;
+      }
+      if (got != want) {
+        fprintf(stderr, "case8: mill lumber want %d got %d\n", want, got);
+        goto done;
+      }
+    }
+  }
+
+  /* --- arm 3a: human nation on tribal land -> alarm 5 * 3 (distance 1). */
+  col1.player[0].control = 0; /* human */
+  col1.indian[0].alarm_by_player[0] = 0;
+  map.terrain[fy * map.width + fx] = 10;
+  {
+    const int pid = units_spawn(&pool, pioneer, fx, fy);
+    ColonizeUnit* u = units_get(&pool, pid);
+    if (!u) {
+      fprintf(stderr, "case8: human pioneer spawn failed\n");
+      goto done;
+    }
+    u->nation_id = 0;
+    u->tools = 100;
+    u->profession = UNITS_JOB_NONE;
+    u->orders = UNITS_ORDER_CLEAR_PLOW;
+    u->turns_worked = 0;
+    int guard = 0;
+    while (u->orders == UNITS_ORDER_CLEAR_PLOW && guard++ < 24) {
+      u->moves_left = 1 * UNITS_MP_PER_TILE;
+      (void)units_pioneer_work_tick(&pool, pid, &map, NULL, 0, &colonies, NULL, NULL);
+    }
+    units_despawn(&pool, pid);
+    if (col1.indian[0].alarm_by_player[0] != 15) {
+      fprintf(
+        stderr,
+        "case8: human clear alarm want 15 got %d\n",
+        (int)col1.indian[0].alarm_by_player[0]
+      );
+      goto done;
+    }
+  }
+
+  /* --- arm 3b: AI nation with gold buys the land instead of angering it. */
+  col1.player[1].control = 1; /* AI */
+  col1.indian[0].alarm_by_player[1] = 0;
+  col1.indian[0].lands_bought = 0;
+  col1.nation[1].gold = 5000;
+  map.terrain[fy * map.width + fx] = 10;
+  {
+    const int price = colonies_indian_land_purchase_gold(&col1, &map, fx, fy, 1);
+    if (price <= 0) {
+      fprintf(stderr, "case8: AI land price should be positive, got %d\n", price);
+      goto done;
+    }
+    const int pid = units_spawn(&pool, pioneer, fx, fy);
+    ColonizeUnit* u = units_get(&pool, pid);
+    if (!u) {
+      fprintf(stderr, "case8: AI pioneer spawn failed\n");
+      goto done;
+    }
+    u->nation_id = 1;
+    u->tools = 100;
+    u->profession = UNITS_JOB_NONE;
+    u->orders = UNITS_ORDER_CLEAR_PLOW;
+    u->turns_worked = 0;
+    int guard = 0;
+    while (u->orders == UNITS_ORDER_CLEAR_PLOW && guard++ < 24) {
+      u->moves_left = 1 * UNITS_MP_PER_TILE;
+      (void)units_pioneer_work_tick(&pool, pid, &map, NULL, 0, &colonies, NULL, NULL);
+    }
+    units_despawn(&pool, pid);
+    if (col1.indian[0].alarm_by_player[1] != 0) {
+      fprintf(
+        stderr,
+        "case8: AI buyer must not anger the tribe, alarm %d\n",
+        (int)col1.indian[0].alarm_by_player[1]
+      );
+      goto done;
+    }
+    if (col1.nation[1].gold != (uint32_t)(5000 - price)) {
+      fprintf(
+        stderr,
+        "case8: AI gold want %d got %u\n",
+        5000 - price,
+        col1.nation[1].gold
+      );
+      goto done;
+    }
+    if (col1.indian[0].lands_bought != 1) {
+      fprintf(stderr, "case8: lands_bought want 1 got %d\n", (int)col1.indian[0].lands_bought);
+      goto done;
+    }
+    if ((map.layer2[fy * map.width + fx] & MAP_LAYER2_PURCHASED) == 0) {
+      fprintf(stderr, "case8: purchased bit not stamped\n");
+      goto done;
+    }
+  }
+
+  rc = 0;
+  fprintf(stderr, "unit_units: 5b66 case-8 lumber radius + tribal-land tail ok\n");
+done:
+  units_set_native_fallout_context(NULL, NULL, -1);
+  free(col1.tribe);
+  map_free(&map);
+  assets_msg_free(&names);
+  return rc;
+}
+
 /* Pioneer order-gate @ONLYPIO / @NOPLOW / @NOROAD. */
 static int unit_pioneer_order_gates(void) {
   ColonizeMsgCatalog names;
@@ -1703,6 +1936,10 @@ int main(void) {
     return 1;
   }
   if (unit_pioneer_order_gates() != 0) {
+    diag_shutdown();
+    return 1;
+  }
+  if (unit_pioneer_case8_tail() != 0) {
     diag_shutdown();
     return 1;
   }

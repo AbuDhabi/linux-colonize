@@ -946,6 +946,16 @@ static int run_village_threat_alarm(void) {
 
   ColonizeCol1Save col1;
   memset(&col1, 0, sizeof(col1));
+  /*
+   * 2026-09-06d: `head.founding_father[]` must read "unclaimed" (-1), the way
+   * col1_save_init leaves it — a memset-0 head says nation 0 owns all 25
+   * Fathers, and the threat scorer now really reads FF 16 Pocahontas
+   * (FUN_281f_07b4(nation, 0x10), de-stubbed in ai.c), so English alarm would
+   * be silently halved here and the French comparison below inverted.
+   */
+  for (size_t i = 0; i < sizeof(col1.head.founding_father); ++i) {
+    col1.head.founding_father[i] = -1;
+  }
   col1.head.difficulty = 2;
   static ColonizeCol1Tribe tribes[2];
   memset(tribes, 0, sizeof(tribes));

@@ -118,6 +118,32 @@ Ai153eWorthinessScore ai_diplo_153e_worthiness_score(
 int ai_diplo_00f8_top_ranked_nation(const ColonizeCol1Save* col1);
 
 /*
+ * DS:0x9566 (`−0x6a9a`), stride 3, indexed by Euro nation — the per-leader
+ * trait triple. **Resolved 2026-09-06d**: the writer is the NAMES.TXT
+ * loader (`viceroy_unpacked.c:120960-120977`), whose `@LEADERNAME` pass
+ * reads one name string into `DS:0x540e + nation*0x34` and then three
+ * numbers into `−0x6a9a[nation*3 + 0..2]`. In the shipped NAMES.TXT:
+ *
+ *   Walter Raleigh        1, -1,  0     (England)
+ *   Jacques Cartier       0,  1,  0     (France)
+ *   Christopher Columbus  1,  0, -1     (Spain)
+ *   Michiel De Ruyter    -1,  0,  1     (Netherlands)
+ *
+ * Signed bytes in {−1, 0, +1}. Column 0 is the belligerence term: it is
+ * subtracted from the "how many rivals am I already at odds with" tally in
+ * `FUN_5bfb_10ec` (war-worthiness) and in `FUN_521d_153e`'s peace-pressure
+ * count, so a higher value means "declares war on thinner grounds".
+ * Column 1 feeds `FUN_521d_03d0` (`4 − t1` divisor, `t1*3 − 7`), column 2
+ * `FUN_5952_035e`'s `(t2 + 2) * 50`; those two are read but not yet wired
+ * in this port. Live copy confirmed in every DOS save (Stuff file-off 0,
+ * Linux `unknown34_pad`) and in the `original_memory_dumps` DOSBox-X
+ * `Memory` blobs at DS:237D + 0x9566.
+ *
+ * `column` 0..2, `nation` 0..3; 0 when unavailable.
+ */
+int ai_diplo_leader_trait(const ColonizeTurnContext* ctx, int nation, int column);
+
+/*
  * FUN_5bfb_3180 Euro x Euro branch -> FUN_5bfb_153e phases 2-4: the human's
  * unit `unit_id` stands next to a unit of AI nation `target`. Runs phase 1
  * (unmet pair / 16-turn cooldown gate) and, when it opens, drives the

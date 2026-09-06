@@ -164,10 +164,10 @@ stateDiagram-v2
 
 | Command | When | Expected (DOS) | Linux | Status |
 |---------|------|----------------|-------|--------|
-| Clear Forest (**P**) | Pioneer on forest | Order 8; `479b_01a6`; turns = `terr_cost+2` (Hardy ÷2); −20 tools; lumber → nearest colony + `@CLEARCUT` / `@DEFOREST` | `units_pioneer_plow` clear path; +20 lumber thin + chrome | Done |
+| Clear Forest (**P**) | Pioneer on forest | Order 8; `479b_01a6`; turns = `terr_cost+2` (Hardy ÷2); −20 tools; lumber → nearest own colony **within DOS distance 4** (`0x8db8 < 4`), scale `terr[+8] + 1` behind a Lumber-Mill floor; then `LAB_479b_043b` tribal-land tail | `units_pioneer_plow` clear path + `units_pioneer_native_land_tail` | Done (2026-09-06e) |
 | Plow Fields (**P**) | Pioneer on open land | Same order 8; separate job; refuse if already plowed | Plow path; hills/arctic deny | Done |
-| Build Road (**R**) | Pioneer | Order 9; `479b_0526`; turns = `terr_cost` (Hardy ÷2); −20 tools | `units_pioneer_road` | Done |
-| Work tick | Nation refresh | Progress; complete → clear order; tools depleted → Free Colonist (`479b_0158` / `@USEDUPTOOLS`); clear grants lumber/`@CLEARCUT`/`@DEFOREST` | `units_pioneer_work_tick` + type→Colonists | Done (Hardy×2 / terrain×20 / road lumber PARKED) |
+| Build Road (**R**) | Pioneer | Order 9; `479b_0526`; turns = `terr_cost` (Hardy ÷2, **no +2** — clear-only); −20 tools; `LAB_479b_0687` tribal-land tail (base 3) | `units_pioneer_road` + `units_pioneer_native_land_tail` | Done (2026-09-06e) |
+| Work tick | Nation refresh | Progress; complete → clear order; tools depleted → Free Colonist (`479b_0158` / `@USEDUPTOOLS`); clear grants lumber/`@CLEARCUT`/`@DEFOREST` | `units_pioneer_work_tick` + type→Colonists | Done (2026-09-06e: radius gate, scale bump, tribal-land alarm / AI land buy; road no longer pays the clear's +2 turns) |
 
 ### Found / Join / cargo / Europe
 

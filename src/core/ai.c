@@ -2561,22 +2561,88 @@ static int ai_indian_152e_worth_cap(
 }
 
 /*
- * FUN_281f_095c -> FUN_1427_06b4 (spawn a colonist unit at the village) —
- * unresolved unit-type table for the DOS "+2" arg. Stub never spawns
- * (-1); the musket/horse cost side effects above it are real (already-
- * resolved fields) and still apply.
+ * FUN_281f_095c -> FUN_1427_06b4 (unit CREATE) — de-stubbed 2026-09-06d.
+ *
+ * Resolved via the standard chain: `FUN_281f_095c` = `FUN_1000_8b4c`
+ * (address_mapping.csv), whose overlay body is the two-instruction RTLink
+ * thunk `CALLF FUN_1000_1e61; JMPF 0000:4924` -> `FUN_1427_06b4`
+ * (viceroy_unpacked.c:7710-7772).
+ *
+ * **The old stub's premise was wrong**: DOS's `local_4` is not a "cost", it
+ * is `param_1` of `1427:06b4` — the *unit type*. 152e builds it as
+ * `0x13 + 1*(a musket was spent) + 2*(50 horse-breeding was spent)`, i.e.
+ * exactly the four native unit types Linux already knows from
+ * `ai_euro.c`'s NAMES map: 0x13 Brave, 0x14 Armed Brave, 0x15 Mtd. Brave,
+ * 0x16 Mtd. Warrior. So this branch arms the newborn out of the nation's
+ * own musket/horse stock — the muskets/horses were never a "cost paid for
+ * nothing", they decide what walks out of the village.
+ *
+ * `1427:06b4` body, Indian path (`param_2 >= 4`):
+ *   - hard cap `unit_count < 0x124` (292) — the `0x543f` human gate and the
+ *     `< 300` / `tribe_population_totals < 0xc9` arms only apply to Euro
+ *     slots, and the `@NOMOREUNITS` beep (`281f_03fe`) is Euro-only too.
+ *   - zeroes the per-unit scratch (`+0x3148/49/4c/50/54/55/5a`), sets
+ *     `+0x314b = 0x58` (orders 'X' = fortify-ish default), `+0x3156` =
+ *     `DS:0x538e` for natives, `+0x314a` = settlement at (x,y) — which 152e
+ *     then overwrites with the *founding* village index anyway.
+ *   - `FUN_1427_02ca(idx, x, y)` finally places the unit on the tile (the
+ *     `0xff/0xff` writes just above it are pre-placement scratch; Ghidra
+ *     drops 02ca's register args).
+ *
+ * Linux uses `units_spawn_allow_stack` for the placement half (native units
+ * routinely stack on their own village tile) and mirrors the DOS pool cap.
+ * The branch is still **unreachable today** — its only gate is
+ * `t->state.needs_colonist`, whose DOS producer (village CREATE,
+ * `FUN_4d56_0038`) is unported, so the bit is always 0. Ported anyway so the
+ * arm is correct the day that producer lands (same "wired but not fed"
+ * convention as `ai_euro_5d04_compute_flags`).
  */
-static int ai_indian_152e_spawn_colonist_stub(
+static int ai_indian_152e_spawn_brave(
   ColonizeTurnContext* ctx,
   const ColonizeCol1Tribe* t,
-  int cost,
+  int dos_type,
   int tribe_index
 ) {
-  (void)ctx;
-  (void)t;
-  (void)cost;
-  (void)tribe_index;
-  return -1;
+  if (!ctx || !ctx->units || !t) {
+    return -1;
+  }
+  /* DOS: `*(int *)0x539c < 0x124` — the native arm's only pool gate. */
+  int live = 0;
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    if (ctx->units->units[i].active) {
+      live++;
+    }
+  }
+  if (live >= 0x124) {
+    return -1;
+  }
+  /* NAMES pool index == DOS type index for 0x13..0x16 (ai_euro.c k[] map). */
+  int type_index = dos_type;
+  if (type_index < 0x13) {
+    type_index = 0x13;
+  }
+  if (type_index > 0x16) {
+    type_index = 0x16;
+  }
+  if (type_index >= ctx->units->type_count) {
+    type_index = 0x13; /* small NAMES pools: fall back to plain Brave. */
+    if (type_index >= ctx->units->type_count) {
+      return -1;
+    }
+  }
+  const int id = units_spawn_allow_stack(ctx->units, type_index, (int)t->x, (int)t->y);
+  if (id < 0) {
+    return -1;
+  }
+  ColonizeUnit* u = units_get(ctx->units, id);
+  if (!u) {
+    return -1;
+  }
+  u->nation_id = (int)t->nation_id;
+  u->home_tribe_id = tribe_index; /* DOS +0x314a, stamped by 152e itself. */
+  u->moves_left = 0; /* DOS +0x3149 = 0: created spent, acts next turn. */
+  u->turns_worked = 0;
+  return id;
 }
 
 /*
@@ -2717,8 +2783,16 @@ int ai_indian_village_threat(
   }
 
   const int indian_idx = (int)t->nation_id - 4;
-  const int capitol_x =
-    (indian_idx >= 0 && indian_idx < 8) ? (int)col1->indian[indian_idx].capitol_x : 0;
+  /*
+   * 2026-09-06d: DOS reads `*(byte *)(tribe.nation_id * 0x4e + 0x59a0)`.
+   * `0x59a0 + 4*0x4e == 0x5ad8 == indian_base(0x5ad6) + 2`, so the operand is
+   * the tribe's **tech level**, not `capitol_x` (+0). The old name/mapping
+   * happened to read the neighbouring field of the same record. Cite
+   * viceroy_unpacked.c:81038 + `ai_indian_152e_worth_cap`'s own DS note.
+   */
+  const int tribe_tech = (indian_idx >= 0 && indian_idx < 8)
+    ? (int)col1->indian[indian_idx].tech
+    : 0;
   const int difficulty = (int)col1->head.difficulty;
 
   int best_score = 0;
@@ -2758,8 +2832,8 @@ int ai_indian_village_threat(
     const int pop = c->colonist_count > 0 ? c->colonist_count : c->population;
     const int capped_pop = pop > 6 ? 6 : pop;
     int cap_term = pop >> 1;
-    if (capitol_x < cap_term) {
-      cap_term = capitol_x;
+    if (tribe_tech < cap_term) {
+      cap_term = tribe_tech;
     }
     const int base =
       (capped_pop - pop) * -2 + cap_term + capped_pop + diff_term + ((buildings - 8) >> 2);
@@ -2772,8 +2846,15 @@ int ai_indian_village_threat(
     if (c->nation_id == 1) {
       score >>= 1; /* French: half the native alarm everyone else earns */
     }
-    /* FUN_281f_07b4(nation, 0x10) — the unresolved FF/feature bit test, false
-     * project-wide (see ai_indian_152e_ff_bit_stub); its halving is inert. */
+    /*
+     * FUN_281f_07b4(nation, 0x10) = FF 16 Pocahontas — de-stubbed 2026-09-06d
+     * (see ai_indian_152e_ff_bit). This IS the PEDIA "all Indian alarm is
+     * generated half as fast" clause: it halves the threat score that feeds
+     * `euro_relation_accum`, which is the only DOS producer of Indian alarm.
+     */
+    if (founding_fathers_nation_has(col1, c->nation_id, 16)) {
+      score >>= 1;
+    }
     if (score > best_score) {
       best_score = score;
       best_nation = c->nation_id;
@@ -2799,7 +2880,7 @@ int ai_indian_village_threat(
 }
 
 /* ColonizeTurnContext adapter for the village tick. */
-static int ai_indian_152e_best_threat_nation_stub(
+static int ai_indian_152e_best_threat_nation(
   const ColonizeTurnContext* ctx,
   int tribe_index,
   int* out_score
@@ -2815,28 +2896,51 @@ static int ai_indian_152e_best_threat_nation_stub(
 }
 
 /*
- * FUN_281f_07b4 -> FUN_15eb_3960 (nation FF/feature bit test, table
- * -0x77f1, indices 0x17/0x18) — unresolved FF identity. Stub defaults
- * false, same convention as other unresolved FF checks project-wide.
+ * FUN_281f_07b4 -> FUN_15eb_3960 — de-stubbed 2026-09-06d.
+ *
+ * `FUN_281f_07b4` = `FUN_1000_89a4` = RTLink thunk `CALLF FUN_1000_1e61;
+ * JMPF 0000:9810` -> `FUN_15eb_3960` (address_mapping.csv). Its whole body
+ * (viceroy_unpacked.c:13832-13844) is:
+ *
+ *   if (ff < 0) return 1;                       // "no gate" sentinel
+ *   if (nation > 3) return 0;                   // natives own no Fathers
+ *   return bitmap[nation*0x13c + (ff>>3)] & (1 << (ff & 7));
+ *
+ * i.e. it is plainly the **Founding-Father ownership bit test** (per-nation
+ * player record, stride 0x13c) — not an unidentified "feature" flag. The
+ * project already reads the same table by index elsewhere (FF 0x13 Franklin
+ * in the 153e treaty timer, FF 0xd Drake in `157e_004a`, FF 7 de Soto in
+ * `13f1_02f8`), so `founding_fathers_nation_has` is the exact counterpart.
+ *
+ * 152e's two indices resolve semantically, not just numerically:
+ *   0x18 = 24 Bartolome de las Casas -> mission goodwill DOUBLES,
+ *   0x17 = 23 Juan de Sepulveda      -> mission goodwill HALVES.
+ * (Applied in that order, so a nation holding both nets ×1.) Both readings
+ * match the PEDIA text in docs/founding_fathers.md: Las Casas assimilates
+ * converts, Sepulveda subjugates them.
  */
-static bool ai_indian_152e_ff_bit_stub(
+static bool ai_indian_152e_ff_bit(
   const ColonizeTurnContext* ctx,
   int euro_nation,
   int ff_index
 ) {
-  (void)ctx;
-  (void)euro_nation;
-  (void)ff_index;
-  return false;
+  if (ff_index < 0) {
+    return true; /* DOS returns 1 for a negative index. */
+  }
+  if (!ctx || !ctx->col1_ok || !ctx->col1 || euro_nation < 0 || euro_nation > 3) {
+    return false;
+  }
+  return founding_fathers_nation_has(ctx->col1, euro_nation, ff_index);
 }
 
 /*
- * FUN_4d56_152e | ai_indian_152e_village_growth — structural port.
+ * FUN_4d56_152e | ai_indian_152e_village_growth — full port.
  *
  * Own control flow ported in full (raw decomp viceroy_unpacked.c:81387-
- * 81534, ~156 lines); unresolved callees kept as clearly-flagged stubs
- * above (same convention as the ai_euro_5d04/0a60 structural pilots —
- * see memory ai-5d04-structural-port / ai-0a60-structural-pilot).
+ * 81534, ~156 lines). **2026-09-06d: no callee stubs are left** — the last
+ * two (`FUN_281f_095c` spawn, `FUN_281f_07b4` FF bit) were resolved through
+ * the `FUN_281f_X -> FUN_1000_X -> JMPF 0000:Y -> address_mapping.csv`
+ * chain and ported; see each helper's own header above.
  *
  * Field mapping (DOS 0x8d4a "settlement record" == this tribe;
  * DOS 0x8d4e "indian state" == col1->indian[nation_id-4]):
@@ -2911,24 +3015,27 @@ static void ai_indian_152e_village_growth(
         if (local_16 == 2) {
           t->population++;
         } else {
-          /* local_16 == 1: assign a founding colonist. */
-          int cost = 0x13;
-          if (ind->muskets > 0) {
+          /*
+           * local_16 == 1: the village hands out its founding Brave. DOS's
+           * `local_4` is the *unit type* (0x13 Brave), armed up out of the
+           * nation's own stock: +1 for a musket (spent on a 1-in-difficulty
+           * roll), +2 for 50 horse-breeding — 0x16 "Mtd. Warrior" when both.
+           * (2026-09-06d: it was mis-transcribed as a "cost".)
+           */
+          int dos_type = 0x13;
+          if ((int8_t)ind->muskets > 0) { /* DOS reads +7 as a signed byte. */
             const int roll = dos_rng_range(rng, 0, (int)col1->head.difficulty);
             if (roll == 0) {
               ind->muskets--;
             }
-            cost++;
+            dos_type++;
           }
           if (ind->horse_breeding > 0x31) {
             ind->horse_breeding -= 0x32;
-            cost += 2;
+            dos_type += 2;
           }
-          const int spawned = ai_indian_152e_spawn_colonist_stub(ctx, t, cost, tribe_index);
+          const int spawned = ai_indian_152e_spawn_brave(ctx, t, dos_type, tribe_index);
           if (spawned >= 0) {
-            if (ctx->units && spawned < COLONIZE_UNITS_MAX) {
-              ctx->units->units[spawned].home_tribe_id = tribe_index;
-            }
             t->state.needs_colonist = 0;
           }
         }
@@ -2959,7 +3066,7 @@ static void ai_indian_152e_village_growth(
   }
 
   int threat_score = 0;
-  const int threat_nation = ai_indian_152e_best_threat_nation_stub(ctx, tribe_index, &threat_score);
+  const int threat_nation = ai_indian_152e_best_threat_nation(ctx, tribe_index, &threat_score);
   const int mission_nation = (t->mission != 0xffu) ? (int)(t->mission & 0x0fu) : -1;
 
   if (mission_nation >= 0 || threat_nation >= 0) {
@@ -2967,10 +3074,10 @@ static void ai_indian_152e_village_growth(
     if (mission_nation >= 0) {
       const bool jesuit = (t->mission & 0x10u) != 0;
       int local_8 = (jesuit ? 4 : 1) << (capital_mult ? 1 : 0);
-      if (ai_indian_152e_ff_bit_stub(ctx, mission_nation, 0x18)) {
+      if (ai_indian_152e_ff_bit(ctx, mission_nation, 0x18)) {
         local_8 <<= 1;
       }
-      if (ai_indian_152e_ff_bit_stub(ctx, mission_nation, 0x17)) {
+      if (ai_indian_152e_ff_bit(ctx, mission_nation, 0x17)) {
         local_8 >>= 1;
       }
       ind->euro_relation_accum[mission_nation] =
@@ -4433,6 +4540,117 @@ static void ai_native_nation_pulse(
   }
 
   s_ai_seed100_init_pulse = 0;
+}
+
+/*
+ * ===========================================================================
+ * FUN_4d56_1b3a — the year-loop Indian mid-pass (raw viceroy_unpacked.c:
+ * 81684-81738). Ported 2026-09-06d; previously "partial (known; not raid)"
+ * with only phase 2 present.
+ *
+ * DOS structure, in order:
+ *   phase 1  clear DS:0x5b04 — 8 Indian slots x 4 Euro words
+ *   phase 2  for slot 0..7: if !(DS:0x5ad9 + 0x4e*slot & 0x80) -> 1816(slot)
+ *   phase 3  for every colony: claim worked ring tiles off the natives
+ *
+ * Phase 2 is already the Linux `TURN_PROC_INDIAN` cursor loop (the DOS call
+ * looks like `FUN_41f2_0266` only because of the reloc-0000 stub misresolve
+ * documented in turn/mid_pass_indian_rank.md). The two halves below are
+ * phases 1 and 3, and they bracket that loop exactly as DOS does.
+ * ===========================================================================
+ */
+
+/*
+ * Phase 1 — `for (i=0;i<8;i++) for (j=0;j<4;j++) word[(i*0x27 + j)*2 +
+ * 0x5b04] = 0;`.
+ *
+ * Address decode: the Indian record base is DS:0x5ad6 with stride 0x4e (=
+ * 0x27 words), so `0x5b04 = 0x5ad6 + 0x2e` and the four words are exactly
+ * `ColonizeCol1Indian.contact_state[4]` (+0x2e). Nothing new to name.
+ *
+ * **Behavioural correction this exposes:** ai_contact.c's beg/gift arm
+ * described `contact_state` as a permanent per-(tribe, Euro) latch ("a tribe
+ * that has ever brought gifts to a nation never begs from it again"). DOS
+ * wipes all 32 entries at the top of every year, so the latch is really
+ * *per-year*: one gift-or-beg resolution per tribe/nation pair per turn.
+ * That is why DOS villages keep visiting instead of going quiet forever.
+ */
+void ai_indian_midpass_clear_tables(ColonizeTurnContext* ctx) {
+  if (!ctx || !ctx->col1_ok || !ctx->col1) {
+    return;
+  }
+  for (int slot = 0; slot < 8; ++slot) {
+    ColonizeCol1Indian* ind = &ctx->col1->indian[slot];
+    for (int e = 0; e < 4; ++e) {
+      ind->contact_state[e] = 0;
+    }
+  }
+}
+
+/*
+ * Phase 3 — worked-tile ownership claim.
+ *
+ *   for each colony c:
+ *     owner  = c[0x1a]                       // colony nation id
+ *     count  = DS:0x329[FUN_281f_0c5e()]     // ring size for the Town-Hall tier
+ *     for i in 0..count-1:
+ *       if (c[0x70 + i] < 0) continue;       // tile not being worked
+ *       x = c.x + DS:0xc8[i]; y = c.y + DS:0xde[i];
+ *       n = FUN_281f_06dc(x, y);             // = FUN_137f_0200 owner nibble
+ *       if (n <= 3 || n == owner) continue;  // only take from natives
+ *       if (FUN_281f_06d2(x, y) >= 0) continue;  // = FUN_137f_0428:
+ *                                            //   settlement (layer2 0x02) or
+ *                                            //   unit (layer2 0x01) present
+ *       FUN_281f_0704(x, y, owner);          // = FUN_137f_0228 owner stamp
+ *
+ * So: a colonist actually working a tile the natives still claim quietly
+ * transfers that tile's owner nibble to the colony — unless a village or any
+ * unit is standing on it. `0704`'s @SEIZURE-style popup arm can't fire here
+ * (it needs a native settlement on the tile, which the `06d2` gate already
+ * excluded), so this is a pure ownership stamp with no chrome.
+ *
+ * Ring mapping: Linux drives the loop off `colonies_field_tile_delta` +
+ * `colony->tiles[]` rather than re-deriving DS:0xc8/0xde by index. DOS's own
+ * enumeration order differs from `colony.h`'s `tiles[]` convention, but both
+ * pair index -> offset self-consistently and cover the identical 8-tile set,
+ * so the set of tiles claimed is the same. Tiers 3/4's outer ring (DS:0x329
+ * = 12/20) has no Linux storage — the deliberate P4.2 decision, and every
+ * real DOS `.SAV` leaves those slots 0xff, so nothing is skipped in practice.
+ */
+void ai_indian_midpass_claim_worked_tiles(ColonizeTurnContext* ctx) {
+  if (!ctx || !ctx->colonies || !ctx->map) {
+    return;
+  }
+  for (int ci = 0; ci < COLONIZE_COLONIES_MAX; ++ci) {
+    ColonizeColony* c = &ctx->colonies->colonies[ci];
+    if (!c->active || c->nation_id < 0 || c->nation_id > 3) {
+      continue;
+    }
+    for (int i = 0; i < COLONIZE_COLONY_FIELD_TILES; ++i) {
+      if (c->tiles[i] < 0) {
+        continue; /* DOS: `colony[0x70 + i] < 0` — nobody works this plot. */
+      }
+      int dx = 0;
+      int dy = 0;
+      if (!colonies_field_tile_delta(i, &dx, &dy)) {
+        continue;
+      }
+      const int tx = c->x + dx;
+      const int ty = c->y + dy;
+      if (!ai_map_inset(ctx->map, tx, ty)) {
+        continue;
+      }
+      const int owner = ai_owner_nibble(ctx->map, tx, ty);
+      if (owner < 4 || owner == c->nation_id) {
+        continue;
+      }
+      /* FUN_137f_0428: settlement (0x02) or unit (0x01) occupancy blocks it. */
+      if ((ai_layer2_at(ctx->map, tx, ty) & 0x03u) != 0) {
+        continue;
+      }
+      ai_set_owner_nibble(ctx->map, tx, ty, c->nation_id);
+    }
+  }
 }
 
 void ai_indian_nation_turn(ColonizeTurnContext* ctx, int nation_id) {

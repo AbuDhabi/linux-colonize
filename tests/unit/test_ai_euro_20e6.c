@@ -46,7 +46,7 @@ static int fixture_init(Fixture* f, int nation) {
     f->map.terrain[i] = 2; /* plains */
   }
   units_reset(&f->units);
-  f->units.type_count = 3;
+  f->units.type_count = 4;
   snprintf(f->units.types[0].name, sizeof(f->units.types[0].name), "Free Colonist");
   f->units.types[0].movement = 1;
   f->units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
@@ -59,6 +59,10 @@ static int fixture_init(Fixture* f, int nation) {
   f->units.types[2].movement = 4;
   f->units.types[2].cargo = 2;
   f->units.types[2].domain = COLONIZE_UNIT_DOMAIN_SEA;
+  snprintf(f->units.types[3].name, sizeof(f->units.types[3].name), "Wagon Train");
+  f->units.types[3].movement = 2;
+  f->units.types[3].cargo = 2;
+  f->units.types[3].domain = COLONIZE_UNIT_DOMAIN_LAND;
   colonies_init(&f->colonies);
   col1_save_init(&f->col1);
   memset(f->col1.nation, 0, sizeof(f->col1.nation));
@@ -321,6 +325,409 @@ static int unit_colony_sail_targets_needy_colony(void) {
   return 0;
 }
 
+/*
+ * LAB_521d_47b9 (raw 2260-2276): an untasked Wagon Train whose +0x314a bind
+ * byte is unset and whose nearest own colony is not on this landmass
+ * (iStack_2c != iStack_38 — iStack_2c is −2 when the nation owns no colony at
+ * all) is a dead end; DOS calls FUN_1000_89f8 = destroy_unit and returns.
+ */
+static int unit_wagon_dead_end_destroyed(void) {
+  const int nation = 1;
+  Fixture f;
+  if (fixture_init(&f, nation) != 0) {
+    return 1;
+  }
+  /* No colonies at all → uStack_62 < 0 → iStack_2c = −2 ≠ continent 0. */
+  const int wid = units_spawn(&f.units, 3, 8, 8);
+  ColonizeUnit* w = units_get(&f.units, wid);
+  if (!w) {
+    fixture_free(&f);
+    return fail("spawn wagon");
+  }
+  w->nation_id = nation;
+  w->moves_left = 2 * UNITS_MP_PER_TILE;
+  w->orders = 0;
+
+  ai_euro_dispatcher_turn(&f.ctx, nation);
+
+  w = units_get(&f.units, wid);
+  if (w && w->active) {
+    fprintf(stderr, "wagon still alive at (%d,%d) orders=%d\n", w->x, w->y, w->orders);
+    fixture_free(&f);
+    return fail("dead-end wagon was not destroyed");
+  }
+  fixture_free(&f);
+  return 0;
+}
+
+/* Same wagon, but with an own colony on its own landmass: DOS binds +0x314a
+ * and hauls (LAB_4701/4567) — the destroy arm must not fire. */
+static int unit_wagon_with_target_survives(void) {
+  const int nation = 1;
+  Fixture f;
+  if (fixture_init(&f, nation) != 0) {
+    return 1;
+  }
+  ColonizeColony* own = &f.colonies.colonies[0];
+  own->id = 0;
+  own->active = true;
+  own->nation_id = nation;
+  own->x = 4;
+  own->y = 4;
+  own->population = 3;
+  own->colonist_count = 3;
+  own->stock[COLONIZE_CARGO_FOOD] = 60;
+  own->building_in_production = -1;
+  f.colonies.colony_count = 1;
+  f.colonies.next_id = 1;
+
+  const int wid = units_spawn(&f.units, 3, 8, 8);
+  ColonizeUnit* w = units_get(&f.units, wid);
+  if (!w) {
+    fixture_free(&f);
+    return fail("spawn wagon");
+  }
+  w->nation_id = nation;
+  w->moves_left = 2 * UNITS_MP_PER_TILE;
+  w->orders = 0;
+
+  ai_euro_dispatcher_turn(&f.ctx, nation);
+
+  w = units_get(&f.units, wid);
+  if (!w || !w->active) {
+    fixture_free(&f);
+    return fail("wagon with a reachable colony was destroyed");
+  }
+  fixture_free(&f);
+  return 0;
+}
+
+/*
+ * LAB_521d_457e (raw 2251-2257): an untasked, empty ship on the cadence beat
+ * (`((char)id + (char)turn) & 0x1f == 0`) jumps to LAB_3fa6 — spiral out to a
+ * High Seas tile (terrain 0x1a) and sail. Fixture puts the HS column at the
+ * map's east edge and picks the turn so the beat lands on the ship's id.
+ */
+static int unit_empty_ship_hs_cadence(void) {
+  const int nation = 1;
+  Fixture f;
+  if (fixture_init(&f, nation) != 0) {
+    return 1;
+  }
+  for (int y = 0; y < 16; ++y) {
+    for (int x = 12; x < 16; ++x) {
+      f.map.terrain[y * 16 + x] = 25; /* ocean */
+    }
+    f.map.terrain[y * 16 + 15] = 26; /* high seas */
+  }
+  ColonizeColony* own = &f.colonies.colonies[0];
+  own->id = 0;
+  own->active = true;
+  own->nation_id = nation;
+  own->x = 11;
+  own->y = 8;
+  own->population = 3;
+  own->colonist_count = 3;
+  /* Well-stocked: the 4393 work-queue haul (ai_euro_try_ship_trade_haul) must
+   * decline first — DOS reaches LAB_457e only after that pick fails. */
+  for (int c = 0; c < COLONIZE_CARGO_COUNT; ++c) {
+    own->stock[c] = 200;
+  }
+  own->building_in_production = -1;
+  f.colonies.colony_count = 1;
+  f.colonies.next_id = 1;
+
+  const int ship_id = units_spawn(&f.units, 2, 13, 8);
+  ColonizeUnit* ship = units_get(&f.units, ship_id);
+  if (!ship) {
+    fixture_free(&f);
+    return fail("spawn ship");
+  }
+  ship->nation_id = nation;
+  ship->moves_left = 4 * UNITS_MP_PER_TILE;
+  ship->orders = 0;
+  /* ((char)id + (char)turn) & 0x1f == 0 */
+  f.turn = (uint32_t)(32 - (ship_id % 32));
+
+  ai_euro_dispatcher_turn(&f.ctx, nation);
+
+  ship = units_get(&f.units, ship_id);
+  if (!ship || !ship->active) {
+    fixture_free(&f);
+    return fail("ship vanished");
+  }
+  const int on_hs = map_tile_is_high_seas(&f.map, ship->x, ship->y);
+  const int hs_goto = units_orders_follow_goto(ship->orders) && ship->goto_x < 200 &&
+                      map_tile_is_high_seas(&f.map, ship->goto_x, ship->goto_y);
+  if (!on_hs && !hs_goto) {
+    fprintf(stderr, "ship pos=(%d,%d) orders=%d goto=(%d,%d)\n", ship->x, ship->y, ship->orders,
+            ship->goto_x, ship->goto_y);
+    fixture_free(&f);
+    return fail("457e cadence did not send the empty ship to the High Seas");
+  }
+  fixture_free(&f);
+  return 0;
+}
+
+/*
+ * Hold-cargo colony-delivery matrix (raw 2047-2139): a Caravel holding TOOLS
+ * with two own coastal colonies in reach. The near one already PRODUCES tools
+ * (+0x90 cargo_produced_mask) and sits on 150 of them (> 99), so the raw
+ * 2067-2070 arm rejects it outright no matter how close it is; the far one is
+ * empty of tools and wins even after the raw 2126 `score / ((dist>>2)+1)`
+ * distance divide. Guards that the port picks on the DOS matrix and not on
+ * "nearest short colony".
+ */
+static int unit_delivery_matrix_skips_full_producer(void) {
+  const int nation = 1;
+  Fixture f;
+  if (fixture_init(&f, nation) != 0) {
+    return 1;
+  }
+  for (int y = 0; y < 16; ++y) {
+    for (int x = 12; x < 16; ++x) {
+      f.map.terrain[y * 16 + x] = 25; /* MAP_OCEAN_INDEX */
+    }
+  }
+  /* Near colony: produces TOOLS and is full of them → rejected (raw 2067). */
+  ColonizeColony* near_c = &f.colonies.colonies[0];
+  near_c->id = 0;
+  near_c->active = true;
+  near_c->nation_id = nation;
+  near_c->x = 11;
+  near_c->y = 4;
+  near_c->population = 3;
+  near_c->colonist_count = 3;
+  near_c->stock[COLONIZE_CARGO_FOOD] = 60;
+  near_c->stock[COLONIZE_CARGO_TOOLS] = 150;
+  near_c->cargo_produced_mask = (uint16_t)(1u << COLONIZE_CARGO_TOOLS);
+  near_c->building_in_production = -1;
+  /* Far colony: no tools at all → the only legal delivery target. */
+  ColonizeColony* far_c = &f.colonies.colonies[1];
+  far_c->id = 1;
+  far_c->active = true;
+  far_c->nation_id = nation;
+  far_c->x = 11;
+  far_c->y = 12;
+  far_c->population = 3;
+  far_c->colonist_count = 3;
+  far_c->stock[COLONIZE_CARGO_FOOD] = 60;
+  far_c->building_in_production = -1;
+  f.colonies.colony_count = 2;
+  f.colonies.next_id = 2;
+
+  const int ship_id = units_spawn(&f.units, 2, 14, 4);
+  ColonizeUnit* ship = units_get(&f.units, ship_id);
+  if (!ship) {
+    fixture_free(&f);
+    return fail("spawn ship");
+  }
+  ship->nation_id = nation;
+  ship->moves_left = 4 * UNITS_MP_PER_TILE;
+  ship->orders = 0;
+  if (units_load_goods(&f.units, ship_id, COLONIZE_CARGO_TOOLS, 100) <= 0) {
+    fixture_free(&f);
+    return fail("load tools");
+  }
+
+  ai_euro_dispatcher_turn(&f.ctx, nation);
+
+  ship = units_get(&f.units, ship_id);
+  if (!ship || !ship->active) {
+    fixture_free(&f);
+    return fail("ship vanished");
+  }
+  const int near_far =
+    units_orders_follow_goto(ship->orders) && ship->goto_x < 200
+      ? cheb(ship->goto_x, ship->goto_y, 11, 12)
+      : cheb(ship->x, ship->y, 11, 12);
+  const int near_near =
+    units_orders_follow_goto(ship->orders) && ship->goto_x < 200
+      ? cheb(ship->goto_x, ship->goto_y, 11, 4)
+      : cheb(ship->x, ship->y, 11, 4);
+  if (near_far > 1 || near_far >= near_near) {
+    fprintf(stderr, "ship pos=(%d,%d) orders=%d goto=(%d,%d) dfar=%d dnear=%d\n", ship->x,
+            ship->y, ship->orders, ship->goto_x, ship->goto_y, near_far, near_near);
+    fixture_free(&f);
+    return fail("delivery matrix did not aim at the tools-short colony");
+  }
+  fixture_free(&f);
+  return 0;
+}
+
+/*
+ * Delivery SELL TAIL (raw 2140-2163). The nation's only colony is INLAND, so
+ * the raw 2054 coastal gate (+0x1c bit 0x40) rejects the sole candidate and
+ * the matrix picks nothing. DOS then dumps the whole hold for gold at the
+ * −0x7b44 (= trade.euro_price) rate — untaxed into nation+0x2a, and into the
+ * +0x7c / +0xbc per-cargo ledgers.
+ *
+ * Trap this fixture avoids: rejecting via the raw 2067-2070 "produces it and
+ * holds > 99" arm needs cargo_produced_mask set, which is exactly what lets
+ * the load matrix re-load the same cargo the moment the ship berths — DOS
+ * does that too (load → 3558 tallies → matrix skips +0x314a → sell), but it
+ * doubles the ledger inside one dispatcher turn and makes the assertion about
+ * the pump instead of about the tail.
+ */
+static int unit_delivery_sell_tail_dumps_cargo(void) {
+  const int nation = 1;
+  Fixture f;
+  if (fixture_init(&f, nation) != 0) {
+    return 1;
+  }
+  for (int y = 0; y < 16; ++y) {
+    for (int x = 12; x < 16; ++x) {
+      f.map.terrain[y * 16 + x] = 25; /* MAP_OCEAN_INDEX */
+    }
+  }
+  ColonizeColony* c = &f.colonies.colonies[0];
+  c->id = 0;
+  c->active = true;
+  c->nation_id = nation;
+  c->x = 5; /* inland: every neighbour is plains → raw 2054 coastal gate fails */
+  c->y = 4;
+  c->population = 3;
+  c->colonist_count = 3;
+  c->stock[COLONIZE_CARGO_FOOD] = 60;
+  c->stock[COLONIZE_CARGO_TOOLS] = 150;
+  c->building_in_production = -1;
+  f.colonies.colony_count = 1;
+  f.colonies.next_id = 1;
+
+  /* NAMES.TXT @CARGO start bid for Tools. */
+  f.col1.nation[nation].trade.euro_price[COLONIZE_CARGO_TOOLS] = 2;
+
+  const int ship_id = units_spawn(&f.units, 2, 14, 4);
+  ColonizeUnit* ship = units_get(&f.units, ship_id);
+  if (!ship) {
+    fixture_free(&f);
+    return fail("spawn ship");
+  }
+  ship->nation_id = nation;
+  ship->moves_left = 4 * UNITS_MP_PER_TILE;
+  ship->orders = 0;
+  if (units_load_goods(&f.units, ship_id, COLONIZE_CARGO_TOOLS, 100) <= 0) {
+    fixture_free(&f);
+    return fail("load tools");
+  }
+  const uint32_t gold_before = f.col1.nation[nation].gold;
+
+  ai_euro_dispatcher_turn(&f.ctx, nation);
+
+  ship = units_get(&f.units, ship_id);
+  if (!ship || !ship->active) {
+    fixture_free(&f);
+    return fail("ship vanished");
+  }
+  int still_aboard = 0;
+  for (int h = 0; h < COLONIZE_UNIT_CARGO_MAX; ++h) {
+    if (ship->hold_goods_amount[h] > 0 && ship->hold_goods_amount[h] < 255) {
+      still_aboard += ship->hold_goods_amount[h];
+    }
+  }
+  const ColonizeCol1NationTrade* t = &f.col1.nation[nation].trade;
+  if (still_aboard != 0 || t->gold[COLONIZE_CARGO_TOOLS] != 200 ||
+      t->tons[COLONIZE_CARGO_TOOLS] != 100 ||
+      f.col1.nation[nation].gold != gold_before + 200u) {
+    fprintf(stderr, "aboard=%d ledger_gold=%d tons=%d gold %u->%u\n", still_aboard,
+            (int)t->gold[COLONIZE_CARGO_TOOLS], (int)t->tons[COLONIZE_CARGO_TOOLS],
+            (unsigned)gold_before, (unsigned)f.col1.nation[nation].gold);
+    fixture_free(&f);
+    return fail("sell tail did not dump the hold for euro_price gold");
+  }
+  fixture_free(&f);
+  return 0;
+}
+
+/*
+ * Ship LOAD-at-colony matrix (raw 3059-3134). An empty Caravel berthed beside
+ * an own coastal colony holding equal stocks of Ore and Silver, plus larger
+ * stocks of Food and Trade Goods. DOS scores euro_price × stock for a ship,
+ * excludes Food / Trade Goods / Lumber and (absent a producing colony) Tools
+ * and Muskets outright — so Silver (bid 20) must beat Ore (bid 3) at the same
+ * 60 units, and neither of the bigger Food / Trade Goods piles may be taken.
+ * The second free hold then takes Ore, the next-best score.
+ */
+static int unit_load_matrix_picks_priced_cargo(void) {
+  const int nation = 1;
+  Fixture f;
+  if (fixture_init(&f, nation) != 0) {
+    return 1;
+  }
+  for (int y = 0; y < 16; ++y) {
+    for (int x = 12; x < 16; ++x) {
+      f.map.terrain[y * 16 + x] = 25; /* MAP_OCEAN_INDEX */
+    }
+  }
+  ColonizeColony* c = &f.colonies.colonies[0];
+  c->id = 0;
+  c->active = true;
+  c->nation_id = nation;
+  c->x = 11;
+  c->y = 4;
+  c->population = 3;
+  c->colonist_count = 3;
+  c->stock[COLONIZE_CARGO_FOOD] = 90;         /* ship arm skips cargo 0 */
+  c->stock[COLONIZE_CARGO_TRADE_GOODS] = 80;  /* ship arm skips cargo 0xd */
+  c->stock[COLONIZE_CARGO_LUMBER] = 90;       /* cargo 5 skipped for everyone */
+  c->stock[COLONIZE_CARGO_ORE] = 60;
+  c->stock[COLONIZE_CARGO_SILVER] = 60;
+  c->building_in_production = -1;
+  f.colonies.colony_count = 1;
+  f.colonies.next_id = 1;
+
+  /* NAMES.TXT @CARGO start bids for the goods this fixture stocks. */
+  f.col1.nation[nation].trade.euro_price[COLONIZE_CARGO_FOOD] = 1;
+  f.col1.nation[nation].trade.euro_price[COLONIZE_CARGO_LUMBER] = 2;
+  f.col1.nation[nation].trade.euro_price[COLONIZE_CARGO_ORE] = 3;
+  f.col1.nation[nation].trade.euro_price[COLONIZE_CARGO_SILVER] = 20;
+  f.col1.nation[nation].trade.euro_price[COLONIZE_CARGO_TRADE_GOODS] = 2;
+
+  const int ship_id = units_spawn(&f.units, 2, 12, 4); /* berthed alongside */
+  ColonizeUnit* ship = units_get(&f.units, ship_id);
+  if (!ship) {
+    fixture_free(&f);
+    return fail("spawn ship");
+  }
+  ship->nation_id = nation;
+  ship->moves_left = 4 * UNITS_MP_PER_TILE;
+  ship->orders = 0;
+
+  ai_euro_dispatcher_turn(&f.ctx, nation);
+
+  ship = units_get(&f.units, ship_id);
+  if (!ship || !ship->active) {
+    fixture_free(&f);
+    return fail("ship vanished");
+  }
+  int silver = 0;
+  int ore = 0;
+  int forbidden = 0;
+  for (int h = 0; h < COLONIZE_UNIT_CARGO_MAX; ++h) {
+    const int amt = ship->hold_goods_amount[h];
+    if (amt <= 0 || amt >= 255) {
+      continue;
+    }
+    const int g = ship->hold_goods_type[h];
+    if (g == COLONIZE_CARGO_SILVER) {
+      silver += amt;
+    } else if (g == COLONIZE_CARGO_ORE) {
+      ore += amt;
+    } else {
+      forbidden += amt;
+    }
+  }
+  if (ship->hold_goods_type[0] != COLONIZE_CARGO_SILVER || silver != 60 || ore != 60 ||
+      forbidden != 0) {
+    fprintf(stderr, "hold0=%d/%d silver=%d ore=%d other=%d\n", ship->hold_goods_type[0],
+            ship->hold_goods_amount[0], silver, ore, forbidden);
+    fixture_free(&f);
+    return fail("load matrix did not pick the DOS-weighted goods");
+  }
+  fixture_free(&f);
+  return 0;
+}
+
 int main(void) {
   if (unit_wander_step_is_adjacent() != 0) {
     return 1;
@@ -332,6 +739,24 @@ int main(void) {
     return 1;
   }
   if (unit_colony_sail_targets_needy_colony() != 0) {
+    return 1;
+  }
+  if (unit_wagon_dead_end_destroyed() != 0) {
+    return 1;
+  }
+  if (unit_wagon_with_target_survives() != 0) {
+    return 1;
+  }
+  if (unit_empty_ship_hs_cadence() != 0) {
+    return 1;
+  }
+  if (unit_delivery_matrix_skips_full_producer() != 0) {
+    return 1;
+  }
+  if (unit_delivery_sell_tail_dumps_cargo() != 0) {
+    return 1;
+  }
+  if (unit_load_matrix_picks_priced_cargo() != 0) {
     return 1;
   }
   printf("unit_ai_euro_20e6: OK\n");
