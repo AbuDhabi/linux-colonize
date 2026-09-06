@@ -64,10 +64,11 @@ typedef enum AiPopupTag {
   AI_POPUP_TAG_CONTACT_VILLAGE_WARN = 18, /* FUN_4d56_4528 human warn: Attack/Leave */
   AI_POPUP_TAG_DIPLO_WAR = 20,
   AI_POPUP_TAG_DIPLO_PEACE = 21,
-  AI_POPUP_TAG_DIPLO_ALLIANCE = 22,
-  AI_POPUP_TAG_DIPLO_BREAK = 23,
+  /* 22 was DIPLO_ALLIANCE — retired with the Linux-only Euro alliance
+   * machinery (T2.4 2026-09-06); keep the gap, tags are stable ids. */
+  AI_POPUP_TAG_DIPLO_BREAK = 23, /* 13b0 treaty-cancel OK */
   AI_POPUP_TAG_DIPLO_BOYCOTT = 24,
-  AI_POPUP_TAG_DIPLO_FA = 25, /* thin FA 3f41 report / gift chrome (F2–F9 PARKED) */
+  AI_POPUP_TAG_DIPLO_FA = 25, /* FA 3f41 report chrome (PARKED; no producer since T2.4) */
   AI_POPUP_TAG_LANDFALL = 26, /* ship→bare land: Stay With Ships / Make Landfall */
   /* Map confirm gates (disband / overboard / quit / retire / trade-delete). */
   AI_POPUP_TAG_MAP_CONFIRM = 27,
