@@ -94,6 +94,15 @@ blocker. **Real prerequisite before this matrix is portable**: extend the
 that resolved field 2). Not attempted this pass — flagging so the next
 session doesn't re-read "tables resolved" as "matrix portable."
 
+**RESOLVED 2026-09-06**: `8aac` = `FUN_1427_0d38` and ALL its case bodies
+are byte-decoded (`move_scoring_20e6_full.md` "2026-09-06b"): mode 2 =
+total stack count, 3 = # Pioneers, 4 = # military types, 5 = # Scouts,
+6 = mobilizable count (mil + vet-professioned), 0xc = # Artillery. The
+`local_9c` bit word, the raw 1746-1762 goal fold, and the colony-sail
+matrix are ported (`ai_euro_20e6_unload_mask` /
+`ai_euro_20e6_colony_sail_pick`); the `0x523d` flag byte was already
+recovered as the NAMES @UNIT bit-string (`k_20e6_type_flags`).
+
 ### Colony sail score (peace vs war cargo)
 
 - **Peace (`local_48==0`):** RNG + pop-distance terms + dock flag `0x1b&0x10` +
@@ -126,7 +135,7 @@ Work-queue layout (AI goals): id @ `−0x5f24`, score @ `−0x5f22`, count byte
 | `06ae` unload | Founding peels / landfall table | Live call inside `3558` with `local_9c` mask |
 | Work-queue haul | Thin `4393` distance-normalized pick (`flag_b=1`) + specialty `flag_a` hold match +32 (Series R) | Full 16×6 cargo matrix |
 | Atlantic / cruise tips | `ai_euro_ocean_3558_*` thin ports (soft-tip prior) | Full cargo/colony matrix |
-| Colony sail pick | Peace score pop/idle/docks; war cargo when stance≠0 + Stockade/Fort/Fortress ladder (Series O) | Full war `0x1b` / fort matrix |
+| Colony sail pick | **Full matrix ported 2026-09-06** (`ai_euro_20e6_colony_sail_pick`, raw 1933-2031: peace pop²/wanted/NEEDS_COLONISTS ±25, war difficulty/garrison/armed-ship ladder; −0x6a0e&7 term omitted, writer undecoded). Old thin Series-O score remains only in the cargo-short path (`ai_euro_nearest_short_coastal_colony`) | — |
 | `−0x6790` stance | Thin `{0,3,4,6}` + sticky≥2 → mil nibble; war mil unload stance≠0 prefer 4 (Series I); peacetime sticky≥2+stance==4 Brave MD≤3 unload (Series L) | Exact nation×continent nibble table |
 
 ## Related

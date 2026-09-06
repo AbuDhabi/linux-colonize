@@ -30,13 +30,13 @@ EOT → 291f_0a66 → 43f7_2424  (SoL refresh + dispatch)
 | Symbol | Role | Linux |
 |--------|------|-------|
 | `0004` | Pop-weighted SoL | `ai_king_sol_percent` |
-| `1d42` | Tax→REF funding | `ai_king_tax_event` |
+| `1d42` | Royal purse tick → REF pool buys (**not** the tax audience — that is `38fd_5be8`; see "1d42 real port" below) | `ai_king_1d42_royal_purse` (full, 2026-09-06) |
 | `2564` / `1a26` | Declare gate / crown setup | `ai_king_try_declare` (auto when no `ai_popups`; else `@DECLARE` CHOICE Never/Yes → `ai_king_apply_popup_result` / `ai_king_do_declare`; `unknown46[5]`) |
 | `160a` | Independence rename cinematic | thin rename on declare (`country_name`); letter-anim PARKED |
 | `060a` | Garrison score / landing pick | `ai_king_weakest_port` |
 | `0982` | REF invasion wave | `ai_king_ref_wave` — **full port 2026-08-28** (see "`0982` REF wave — ported" below) |
 | `06a6` | Irregulars when REF empty | `ai_king_ref_wave` (else) |
-| `1528` | REF arrival announce | `@INVASION` status + `ai_popup` OK `KING_ARRIVAL` when queue attached |
+| `1528` | Foreign-intervention announce (@INTERVENTION 0x12db, sets `0x5382` bit2; **not** REF arrival — corrected 2026-09-06, see below) | announce block in `ai_king_foreign_intervene_ex`; the wave's own `@INVASION` status/OK lives in `ai_king_ref_wave` |
 | `10f0` | Foreign landing when REF empty + `backup_force` (≤2/call; third @diff≥2; prefer Regular+Dragoon) | `ai_king_foreign_intervene`. Slot mix **Done** Phase 4; coastal roulette + 8-neighbor scorer + per-call caps + Veteran 0x15 **Done** Phase 5. **PARK:** foreign MoW ship |
 | `2244` | Peacetime AI-nation self-funded troop gift (**not** a human merc hire — see "`2244`/`2022` — corrected" below) | `ai_king_ai_peacetime_gift` **Done** |
 | `2022` / `1eca` | War act + Continental/vet promote | `ai_king_war_act` (colony-SoL bias; Veteran-profession gate — see `1eca` note below) |
@@ -63,6 +63,88 @@ EOT → 291f_0a66 → 43f7_2424  (SoL refresh + dispatch)
 
 Exact `0x5382` Col1 bit rename: **Done** — `game_options.woi` mapped; `unknown46[0]` kept in sync on declare for legacy Linux saves.
 
+### 2026-09-06 deep-port pass — 1d42 / 2424 tail / 1a26 tails / gates
+
+**`1d42` real port** (`ai_king_1d42_royal_purse`; asm OVL07 file-offset
+0x2c62 re-read — `43f7:XXXX` = OVL07 offset `XXXX+0xf20`):
+
+- Peacetime-only: the asm's FIRST test is `TEST [0x5382],1 → RETF`, so the
+  Ghidra-visible `@KINGMOBILIZE` (0x1320) "wartime" arm at OVL07:2d8a is
+  **dead code** in the shipped binary (only inbound jump sits after the
+  early return; the two `(*)` xrefs into LAB_2da8 are data refs).
+  `2022`'s crown-branch `1d42` call during WoI is therefore a genuine no-op.
+- Stipend: `royal_money += difficulty*8+10`, doubled at year≥1600, ≥1700,
+  ≥1750. `royal_money` (nation+0x22) was already fed by Europe sales tax /
+  Custom House tax / treasure Crown-share in this port — 1d42 is its
+  consumer, closing that loop.
+- Buy at ≥0x708 (1800), ONE per turn: `k=0`; `k=1` if `(reg+2)/3 >
+  cavalry`; `k=3` if `reg/4 > artillery`; `k=2` if
+  `(reg+cavalry+artillery+5)/10 > man-o-war` (last write wins).
+  `expeditionary_force[k]++`; `@KINGBUY` (0x1318) with `%STRING0` =
+  `0082(k, crown)` = Regulars/Cavalry/Man-O-War/Artillery (crown control
+  byte never 0); `royal_money -= 1800`.
+- Pool address map pinned: `0x53da`=force[0] Regulars, `0x53dc`=[1]
+  Cavalry, `0x53de`=[2] Man-O-War, `0x53e0`=[3] Artillery.
+- NOT replicated: DOS tail `nation+0xe += free_colonist_counts[nation]`
+  (`liberty_bells_last_turn += DS:0x9408[n]`) — that field is the port's FF
+  pool stash (col1_save.h); no DOS reader of the bump is known.
+- The old invented "grow pools by tax band on every audience event" (and
+  its peacetime ref_present side-latch) was removed with this port.
+
+**`2424` decile notify full port** (was status-only): gate is
+`census_pop_proxy[human] > 3` (DS:nation−0x6bf0 = 0x9410 — a population
+proxy, NOT an SoL cache; the old note below and the audience section's
+"same value" claim were wrong). Rising `0x53d8 < report/10` →
+`@REBELUP`/`@REBELUP50` (SoL≥50) OKs; falling only when
+`0x53d8 > (report+4)/10` (+4 hysteresis) → `@REBELDOWN`; both cache
+`0x53d8 = report/10`. `%NUMBER0` = SoL, `%STRING0` = parent country.
+Same-pass fix: the `38fd_5be8` audience score's 4th term now reads
+`census_pop_proxy[human]` too (was substituted with live SoL%).
+
+**`0218`/`1a26` nation rank real formula** (`ai_king_rank_nations_0218`):
+`ship_counts*3 + colony_counts*2 + census_pop_proxy` (0x9418/0x9298/0x9410,
+live via the port's FUN_4962_0018 census), ascending — replaces the invented
+per-colony-pop score in both `ai_king_succession` and
+`ai_king_write_rival_nation_slots`.
+
+**`1a26` backup-pool seed real operands** (were mapped to unrelated nation
+fields): `−0x6bf0`=census_pop_proxy[ally], `−0x6bd4`=0x942c
+field_combat_totals[ally], `−0x6be4`=0x941c land_combat_strength[ally],
+and the "colony count" term is really `unit_type_counts[ally][0x10] +
+[0x11]` (Privateer+Frigate counts, DS:−0x6da4/−0x6da3 stride 0x13).
+
+**`1a26` tails ported**: (1) `0188(human)` — every human unit off the map
+(`FUN_281f_0302` = map_tile_in_bounds fails ⇒ Europe/high-seas lanes) is
+deleted at declare with `@SEIZURE` (0x1284) per ship; in this port that
+clears `europe->harbor/bound/expected`. (2) All human units' MP spent
+(`FUN_281f_0934` loop — "This will end our turn"). (3)
+`ff_count_end_prob = 0` for human AND crown (DS:−0x77e2) plus crown
+`nation_flags &= ~0x04`. Open divergence, documented not ported: DOS
+crown-diplo writes at declare are `or_both(human,crown,0x22)` +
+`clear_both(human,crown,0x40 MET)`; the port keeps its user-verified
+`WAR|MET` set (rebel ships could not attack REF ships without WAR).
+
+**`2022` crown gate fixed**: the wave runs while
+`regulars + (cavalry>0) + (artillery>0) != 0` — the MoW pool alone does NOT
+sustain the invasion (was `total<=0`, which counted force[2]); land pools
+empty ⇒ `06a6` Tory uprisings even with force[2] > 0.
+
+**`1eca` `@MOBILIZE` `%STRING1`** = the promoted unit's pre-promote type
+name (was hardcoded "Soldiers").
+
+**`1528` correction**: it is the foreign-INTERVENTION announce (@INTERVENTION
+0x12db, sets `0x5382` bit2, names rival slot 0x53d4 + the human's
+largest coastal colony), called from the `4345_0a22` bells spend — NOT a
+"REF arrival announce" as this file's table said. Linux models it inside
+`ai_king_foreign_intervene_ex` (announce-once latch); known divergences:
+Linux couples announce+first landing in one beat (DOS announces, lands next
+`2022` turn) and names the landing colony rather than the largest coastal.
+
+**`10f0` nit (documented)**: DOS's water-tile scorer subtracts 999 per
+CROWN Man-O-War on the tile and allows human units; Linux blocks any
+foreign-unit tile outright and penalizes a human MoW — kept (bugs.md 259
+battle-tested), noted as a deviation.
+
 ### `2424` tail — `rebel_sentiment_report` (2026-08-22)
 
 DOS `FUN_43f7_2424` peacetime path stores `FUN_43f7_0004` result in
@@ -70,8 +152,9 @@ DOS `FUN_43f7_2424` peacetime path stores `FUN_43f7_0004` result in
 (`38fd_5be8`: `RNG(1,1000) + (report*2 − tax)*5`). Linux:
 `ai_king_nation_turn` writes `rebel_sentiment_report = ai_king_sol_percent`
 at **turn end** (audience on the same turn uses the prior cached value).
-Decile congress notify (`sol_pct_last_notified`, status-only) **Done** thin;
-full 0x1362/0x1358/0x136a popup chrome remains **PARK**.
+Decile congress notify (`sol_pct_last_notified`): **full port 2026-09-06**
+(`@REBELUP` 0x1362 / `@REBELUP50` 0x1358 / `@REBELDOWN` 0x136a OKs, census
+gate, +4 falling hysteresis — see the 2026-09-06 section above).
 
 ### `0108` diplo-clear/set on nation elimination — done (2026-08-14)
 
@@ -117,10 +200,11 @@ from `viceroy_unpacked.c:68420` (`5be8`) and `:64132` (`3dc8`):
   port only rolls the human's own audience); skip entirely if
   `tax_rate > 85`.
 - **Score**: `RNG(1,1000) + (rebel_sentiment_report·2 − tax_rate)·5 +
-  treasury/100 + this-nation SoL% + turn/30`. The SoL term substitutes
-  `ai_king_sol_percent` for a DOS per-nation SoL% cache table
-  (`DS:nation−0x6bf0`) this port doesn't maintain — same value, no stored
-  cache, documented substitution not a guess.
+  treasury/100 + census_pop_proxy[nation] + turn/30`. **Corrected
+  2026-09-06**: `DS:nation−0x6bf0` is `0x9410 census_pop_proxy` (population
+  proxy, save_format_map row 243), NOT a per-nation SoL% cache — the old
+  "substitute SoL%, same value" note here was wrong; the port now reads the
+  real field (live via `col1_stuff_census`).
 - **Ladder**: `score<100` → cut `= −min(RNG(2,5), tax_rate)`, but **no
   audience at all** if that cut would be 0 (tax already 0%); `100≤score<650`
   and streak<30 → `+1` (streak++); `score>949` → `+3/+4` (score<1100) or

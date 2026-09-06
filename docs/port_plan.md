@@ -589,8 +589,8 @@ Status: **ported** (full claim at stated tier) / **partial** (subset) /
 | Symbol | Purpose | Linux | Status |
 |--------|---------|-------|--------|
 | `0000`…`0906` | Goal-table ops + founding helpers | `ai_goals.c` | partial (T0) |
-| `0a60` (~5.5k lines) | Unit/colony goal writer + goal-consumption/orders engine | `ai_euro_colony_goals` (A–H writer) + `ai_euro_0a60_unit_housekeeping` (unit loop, live) + `ai_euro_0a60_settlement_goal_producers` (foreign-colony/village FOUND/CONTACT/MILITARY producers, live) + `ai_euro_0a60_goal_orders_structural` (consumption tail, live) | structurally done 2026-09-06 — per-unit `0x3148` housekeeping, garrison-quota distribution, ocean-tile ship-goal producers, G-table diplo gates + `−0x6168` max-tracker all live; the `FUN_1000_8aac` field-id wall RESOLVED (4fa8 cases 3/4/5/6/0xa/0xd carry no per-unit signal in the shipped binary; case 2 = chain splice — intended values substituted, documented per site). Remaining thin: haul work-queue gate/flags (deliberate, tested), DOS random weight seed. See `euro_goal_orders_0a60_full.md` |
-| `20e6` (~2.2k) | Direction / move scoring, all unit kinds | quiet + `ai_euro_score_step` + 2026-08-27 structural land port + **2026-09-06 deepening**: LAB_52aa odds tail (crown==2 halving, Soldier/Dragoon colony mass gate via `8aac` case 0xb), scout/colonist `0x4c` village arms (→ `ai_contact` Speak-With-Chief / Live-Among outcomes; 8d4a attitude gate = session latch stand-in), colonist labor loop (fort-capacity wanted size, join/walk/Pioneer-convert, force-explore fall-through), LAB_3558 per-cargo unload mask (`ai_euro_20e6_unload_mask`, 0x40/0x20/0x10/0xffff bits; `0x1734`/`0x173c`/`0x173e`/`0x1740` substituted from live goal table + garrison flags), `−0x6168` rival strength live (`+0x3154` fatigue session-local), explore-plane low nibble = real seen-plane site score (fallback on generated maps) | partial — still thin: `8aac` cases 4/5/6 undecoded (flag-count reading), ship colony-sail matrix / HS spiral / haul tails, 8d4a attitude array. See `move_scoring_20e6_full.md` / `move_scoring_land.md` |
+| `0a60` (~5.5k lines) | Unit/colony goal writer + goal-consumption/orders engine | `ai_euro_colony_goals` (A–H writer) + `ai_euro_0a60_unit_housekeeping` (unit loop, live) + `ai_euro_0a60_settlement_goal_producers` (foreign-colony/village FOUND/CONTACT/MILITARY producers, live) + `ai_euro_0a60_goal_orders_structural` (consumption tail, live) | structurally done 2026-09-06 — per-unit `0x3148` housekeeping, garrison-quota distribution, ocean-tile ship-goal producers, G-table diplo gates + `−0x6168` max-tracker all live; the `FUN_1000_8aac` field-id wall RESOLVED — **but 2026-09-06b corrected the target**: `8aac` = `FUN_1427_0d38` stack-query dispatcher (byte-exact case table in `move_scoring_20e6_full.md` 2026-09-06b), not `FUN_0000_4fa8` (Ghidra reloc misresolve); the modes DO carry signal (2 = stack count, 3 = # Pioneers, 4 = # mil types, 6 = mobilizable, 0xa = armed count, 0xd = Σ ship holds). 0a60's unit-loop eligibility gates/substitutions were shipped on the wrong-target reading and are NOT yet rewired — follow-up flagged in `euro_goal_orders_0a60_full.md`. Remaining thin: that rewire, haul work-queue gate/flags (deliberate, tested), DOS random weight seed |
+| `20e6` (~2.2k) | Direction / move scoring, all unit kinds | quiet + `ai_euro_score_step` + 2026-08-27 structural land port + **2026-09-06 deepening**: LAB_52aa odds tail (crown==2 halving, Soldier/Dragoon colony mass gate via `8aac` case 0xb), scout/colonist `0x4c` village arms (→ `ai_contact` Speak-With-Chief / Live-Among outcomes; 8d4a attitude gate = session latch stand-in), colonist labor loop (fort-capacity wanted size, join/walk/Pioneer-convert, force-explore fall-through), LAB_3558 per-cargo unload mask (`ai_euro_20e6_unload_mask`, 0x40/0x20/0x10/0xffff bits; `0x1734`/`0x173c`/`0x173e`/`0x1740` substituted from live goal table + garrison flags), `−0x6168` rival strength live (`+0x3154` fatigue session-local), explore-plane low nibble = real seen-plane site score (fallback on generated maps) + **2026-09-06b second pass**: `FUN_1427_0d38` (`8aac`) ALL case bodies byte-decoded (case 2 = TOTAL stack count — old "# mil types" reading was case 4; 3 = # Pioneers, 5 = # Scouts, 6 = mobilizable, 0xc = # Artillery), ship-band counts rewired to the real modes + raw 1746-1762 goal fold (civilian→founder promotion; resolves the "# Pioneers" conflict), colony-sail matrix ported (`ai_euro_20e6_colony_sail_pick`, raw 1933-2031), 8d4a attitude READ live (`tribe.alarm[nation]`, scout ==0 / colonist <0x40), ring-hop latch `+0x3155`/`+0x3156` ported (`ai_euro_20e6_ring_hop`, session-local). Trace envs `AI_20E6_HOP_TRACE`/`AI_20E6_SAIL_TRACE` | partial — still thin (scoped in `move_scoring_20e6_full.md` "2026-09-06b" tail): hold-cargo delivery matrix (raw 2052-2146), 4393 queue-decrement tail, 457e empty-ship HS cadence (golden-pinned cruise owns it), 47b9 destroy dead-ends, 465b attitude visit-increment writer, stale-goal demote fold branch |
 | `5b66` (44-line dispatcher → `479b_*` bodies) | Euro per-unit act | `ai_euro_unit_act` | partial (T0; case 7 FOUND + case 9 Pioneer-road ported full; case 8 thin) |
 | `5c38`/`5c3c`/`5cf6` | Thin helpers before `5d04` | hire in planning | partial (T0) |
 | `5d04` (~750) | Nation planning / hire / treasury | `ai_euro_nation_planning` (live; real treasury formula) + `ai_euro_5d04_nation_planning_structural` (full port, reference-only) | structurally complete; wiring the rest live is a deliberate future decision |
@@ -604,18 +604,30 @@ Thunk wiring: `0554`→`5d04`, `0578`→`0342`, `050c`→`0a60`, `0488`→`5b66`
 | Symbol | Purpose | Linux | Status |
 |--------|---------|-------|--------|
 | `15b3_0004`/`0032`/`0066`/`00d0` | Bilateral read/write/OR/clear | `ai_diplo_read/write/or_both/clear_both` | partial (structural) |
-| `5bfb_10ec` / `13b0` | War eligibility / treaty sign-cancel | `ai_diplo_euro_balance`, form/break | partial |
-| `5bfb_153e` | War-declare body; outcome jump table → 10 known targets | thin sting + `ai_diplo_153e_worthiness_score_structural` (reference-only) | partial — see `euro_diplo_153e_full.md` |
-| `5bfb_3180` | Adjacent-unit encounter resolver | `ai_contact_encounter_scan` + naval ambush **Done**; diplo-dispatch branches parked | partial |
+| `5bfb_10ec` / `13b0` | War eligibility / treaty sign-cancel | `ai_euro_10ec_war_worthy` (full port, one −0x6a9a stub), `ai_diplo_13b0_treaty_tick` | **Done** (−0x6a9a unknown34 stubbed 0) |
+| `5bfb_153e` | War-declare audience; the "outcome jump table" is DOS inter-overlay call linkage (5 compile-time-fixed targets) | `ai_diplo_153e_worthiness_score` (live) + `ai_diplo_153e_encounter` talk machine (all DOS dialog stages incl. @WANTSTUFF 2026-09-06; Furs stale-index bug ported byte-faithfully) | **Done** — deltas listed in `euro_diplo_153e_full.md` §2026-09-06 (USA text variants, LEADER prefixes, walk-vs-teleport withdraw) |
+| `5bfb_3180` | Adjacent-unit encounter resolver | `ai_contact_encounter_scan` + naval ambush **Done**; Euro×Euro dispatch: human moves (game_loop) + AI moves (`ai_euro` post-act hook, 2026-09-06) → `ai_diplo_153e_encounter`, MET stamped on a started talk | **Done** (per-act granularity vs DOS per-step) |
 | `4cc6_00f2` | Indian relation delta | `ai_diplo_indian_relation_delta` | partial |
 
-**King / REF (`FUN_43f7_*`)** — thin map `king_ref.md`, unit `unit_ai_king`:
-`0004` SoL, `1d42` tax→REF, `2564`/`1a26` declare gate, `0108` eliminate
-nation, `060a` landing score, `0982`/`06a6` REF wave, `2022`/`1eca` war act +
-promote, `2424` nation dispatch, `10f0`/`1528`/`160a`/`2244` intervene /
-announce / rename+cinematic / merc — all **partial structural** with the
-listed sub-pieces Done (audience/merc formulas real, `160a` signing
-cinematic Done, `38fd_5930` @KINGNEWWAR Done).
+**King / REF (`FUN_43f7_*`)** — thin map `king_ref.md`, unit `unit_ai_king`.
+2026-09-06 deep-port pass (see king_ref.md "2026-09-06 deep-port pass"):
+`0004` SoL **Done**; `1d42` royal-purse tick **Done full** (real stipend +
+1800-gold pool buys + @KINGBUY; wartime arm is dead code — asm-proven; the
+invented audience-driven pool growth removed); `2564`/`1a26` declare
+**Done** (+ this pass: `0188` Europe-lane @SEIZURE, human MP exhaust,
+ff_count_end_prob/crown-flag clears, real `0218`/`1a26` rank
+ships*3+colonies*2+census, real backup-seed census operands); `0108`
+eliminate **Done**; `060a` landing score **Done** (in 0982); `0982`/`06a6`
+REF wave **Done** (crown gate now excludes the MoW pool); `2022`/`1eca`
+war act + promote **Done** (mobilization-once bit8, real merc formula,
+@MOBILIZE %STRING1); `2424` dispatch **Done** (decile @REBELUP/50/@REBELDOWN
+full port, census>3 gate, +4 hysteresis); `10f0` intervene **structural
+Done** (player-controlled MoW+troops, real caps/pools; crown-MoW −999
+scorer nit documented); `1528` = intervention announce (corrected label)
+**Done thin** (announce+landing coupled in one beat vs DOS's two);
+`160a` cinematic / `2244` peacetime gift **Done**. Remaining documented
+divergences live in king_ref.md (1d42 `nation+0xe` bump skipped, declare
+crown-diplo bitmask 0x22/0x40 vs WAR|MET, 1528 colony-name pick).
 
 **Shared helpers:** `465b_0000` terrain MP → `ai_dos_move_spent`;
 `281f_04ca`/`04d4` reseed/range → `dos_rng`; `124c_0040` generic distance
@@ -635,7 +647,7 @@ tension-notify handler (likely `@VIOLATE`), **not** a move driver, unwired.
 | Mid `0a60` / `5d04` / `5b66` | Structural (2026-09-06) / partial / structural — not T3 |
 | `2154` / `2820` bodies | **Done**; `4528` thin/partial — not T3 |
 | Alarmed Indian unit-act | Escort peel + smoke — not T3 |
-| King / REF | Partial structural (WoI battle path heavily hardened via bugs.md batches) |
+| King / REF | **Done 2026-09-06** (all `43f7_*` symbols ported; short documented-divergence list in king_ref.md; WoI battle path battle-hardened via bugs.md batches) |
 | Mid / late joint goldens | `golden_ai_mid01`/`late01` green gates; `golden_ai_turns`/`joint` DISABLED (T3.3) |
 
 ### Evidence, gates and tests

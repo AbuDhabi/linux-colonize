@@ -382,3 +382,12 @@ confirmation" that never actually existed.
 The missionary `0x4c` gate and the `+7/8/9` target-slot family (Euro-side,
 `0x8d4a`'s *other* half) are unaffected by any of this and stay PARKED
 under `move_scoring_land.md`'s original reasoning.
+
+**2026-09-06 — the `0x4c` attitude READ unparked.** The `attitude[4]` ↔
+`ColonizeCol1Tribe.alarm[4]` mapping this doc established is now consumed
+by `FUN_521d_20e6`'s village arms for real
+(`ai_euro_20e6_village_attitude` in `ai_euro.c`: scout arm `== 0`,
+colonist arm `< 0x40` against `friction | attacks<<8`). The
+`FUN_465b_0000` visit-increment writer stays unported (session-local
+visited bits stand in for it); the `+7/8/9` target-slot family stays
+PARKED. See `move_scoring_20e6_full.md` "2026-09-06b".

@@ -70,7 +70,7 @@ euro_nation_turn (6d8e)
 |--------|-------|------|
 | `FUN_5bfb_10ec` | `2a1f_067a` | Euro A↔B war/ally eligibility by military balance |
 | `FUN_5bfb_13b0` | `2a1f_065e` | Form or break alliance |
-| `FUN_5bfb_153e` | `2a1f_05fc` | Large war-declare body (~1112, size estimate confirmed accurate) — thin gold+tax+upkeep; **full clean recovery 2026-08-14**, [`euro_diplo_153e_full.md`](euro_diplo_153e_full.md) — real overlap with the deep G-table + `0a60` goal-engine tables, not yet section-mapped or ported |
+| `FUN_5bfb_153e` | `2a1f_05fc` | Large war-declare audience (~1112) — **fully live 2026-09-06**: phase 1 `ai_diplo_153e_worthiness_score`, phases 2-4 `ai_diplo_153e_encounter` talk machine (all dialog stages incl. `@WANTSTUFF` with the byte-verified Furs stale-index DOS bug), fired from both move sides of `3180` (human `game_loop`, AI `ai_euro` post-act). Deltas + asm audit: [`euro_diplo_153e_full.md`](euro_diplo_153e_full.md) §2026-09-06 |
 | `FUN_5bfb_0000` / `00f8` / `312e` | census / rank / combat factor | Score stand-ins |
 | `FUN_5bfb_102a` / `1092` / `0182` | dialogs | thin `ctx->status` **Done**; widgets **OPEN** (unpark #1 / #5) |
 | `FUN_3f41_*` | FA advisor | **PARKED** (R15: no further thin gap — ally-aid + FA gift only; full F2–F9 report bodies / dialog UI stay parked) |
@@ -96,7 +96,7 @@ On first `ai_diplo_declare_war` (not already at war; Franklin pair already retur
 
 - Drain **100** gold from `nation[a].gold` and `nation[b].gold` (floor 0)
 - Bump each side's `nation[].tax_rate` by **+1**, capped at **75** (same ceiling as king tax path)
-- **−5** on each of `nation[].relation_by_indian[0..7]` for both warring Euros (Indians dislike Euro×Euro war; scalar via `ai_diplo_indian_relation_delta`, clamp **0..255** — war −5 / deepen −10 must not underflow)
+- ~~−5 Indian relation hit~~ retired 2026-09-03 (bug 295 family): no DOS declare-war site touches Indian relations — alarm grows only through the `152e` accumulator. `ai_diplo_war_indian_relation_hit` is a kept no-op.
 - Do **not** OR Europe `boycott_bitmap` bits. DOS boycotts are king tea-party (one cargo). The old wartime all-16-bit embargo stand-in poisoned `all_boycotted.SAV` (1516, tax 0, `0xFFFF`) and was removed 2026-09-03. Load maps `0xFFFF` → 0. Peace/alliance still lift leftover wartime bits on poisoned saves.
 - WAR / PEACE / ALLY / MET flag writes unchanged
 - Relation summary still via mirror (`nation_relation` → −50 while at war)
@@ -171,11 +171,11 @@ Contact/King pattern — thin `ctx->status` stand-in for `102a`/`1092` (widgets 
 **Done (structural unpark #5):** AI popup OK/CHOICE enqueue + wartime Privateer
 **unit spawn** + score/trade deepen + thin status chrome. **Still PARKED:** full
 multi-line VGA `102a`/`1092` dialog widgets; FA `3f41` full UI. Order-clear
-`12d0` — **resolved 2026-08-19** (`euro_diplo_153e_full.md`): cancels
+`12d0` — **resolved 2026-08-19, ported** (`euro_diplo_153e_full.md`): cancels
 roam/reevaluate orders (state 5/6→0) on the other nation's combat-capable
-land units adjacent to your settlements, fired both directions on alliance
-form and once from `153e`'s outcome table; small, not yet ported (would need
-a unit-loop + `euro_settlement_owner` adjacency check, no new struct fields).
+land units adjacent to your settlements, fired both directions on treaty
+sign and from `153e`'s PEACE tail; live as `ai_diplo_wake_border_garrisons`
+(13b0 tick + the talk machine's PEACEMENU entry).
 
 **`−0x77c4` resolved (2026-08-14, this list wasn't updated when it happened
 — it's actually already mapped above, §"`15b3` bilateral bytes"):**

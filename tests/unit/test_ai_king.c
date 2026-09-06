@@ -520,6 +520,11 @@ int main(void) {
     col1.colony[0].rebel_dividend = 0;
     col1.colony[0].rebel_divisor = 100;
     col1.head.expeditionary_force[0] = 0; /* isolate REF growth this call */
+    /* Real FUN_43f7_1d42 (2026-09-06): pool buys come from the royal_money
+     * purse crossing 1800, not from audience events. Seed the purse just
+     * below the threshold so this turn's stipend (diff*8+10, era-doubled)
+     * crosses it and buys one Regular (pools empty -> k=0). */
+    col1.nation[0].royal_money = 1795;
     ColonizeDosRng cut_rng;
     dos_rng_seed(&cut_rng, 1u);
     ctx.rng = &cut_rng;
@@ -535,9 +540,16 @@ int main(void) {
       fprintf(stderr, "unit_ai_king: cut branch status: '%s'\n", status);
       return fail("audience cut branch should mention the lowered rate");
     }
-    if (col1.head.expeditionary_force[0] == 0) {
-      return fail("an audience event (any delta sign) should still grow REF");
+    if (col1.head.expeditionary_force[0] != 1) {
+      fprintf(stderr, "unit_ai_king: 1d42 pool[0]=%u royal=%d\n",
+              (unsigned)col1.head.expeditionary_force[0],
+              (int)col1.nation[0].royal_money);
+      return fail("1d42 purse >= 1800 should buy one Regular into the REF pool");
     }
+    if (col1.nation[0].royal_money >= 0x708) {
+      return fail("1d42 buy should debit 1800 from royal_money");
+    }
+    col1.nation[0].royal_money = 0; /* keep later blocks purse-quiet */
   }
   {
     /* +1 branch (100<=score<650, streak<30): rebel=30, tax=40, SoL=20,
@@ -604,6 +616,8 @@ int main(void) {
     col1.nation[0].liberty_bells_total = 0;
     col1.nation[0].boycott_bitmap = 0;
     memset(col1.head.expeditionary_force, 0, sizeof(col1.head.expeditionary_force));
+    /* Real 1d42: purse-threshold buy (not audience-driven) — seed it. */
+    col1.nation[0].royal_money = 1795;
     const uint16_t pool_before = col1.head.expeditionary_force[0];
     ColonizeDosRng big_rng;
     dos_rng_seed(&big_rng, 1u);
@@ -620,12 +634,13 @@ int main(void) {
       return fail("big-raise branch should sync europe.tax_percent");
     }
     if (col1.head.expeditionary_force[0] <= pool_before) {
-      return fail("big-raise branch should grow REF (1d42)");
+      return fail("1d42 purse-threshold buy should grow REF this turn");
     }
     if (!strstr(status, "raises taxes") || !strstr(status, "4")) {
       fprintf(stderr, "unit_ai_king: big-raise status: '%s'\n", status);
       return fail("big-raise branch should mention the new rate in status");
     }
+    col1.nation[0].royal_money = 0; /* keep later blocks purse-quiet */
   }
   {
     /*
@@ -915,7 +930,9 @@ int main(void) {
     col1.colony[0].rebel_dividend = 45;
     col1.colony[0].rebel_divisor = 100;
     col1.nation[0].liberty_bells_total = 50;
-    col1.nation[0].founding_father_count = 4;
+    /* 2424 decile gate reads census_pop_proxy[human] > 3 (DS:-0x6bf0 =
+     * 0x9410), not founding_father_count (pre-2026-09-06 misread). */
+    col1.stuff.census_pop_proxy[0] = 4;
     col1.head.sol_pct_last_notified = 3; /* previous decile 30-39% */
     ai_king_latch_set(&col1, 0, 0);
     ai_king_latch_set(&col1, 5, 0);
@@ -925,7 +942,13 @@ int main(void) {
       fprintf(stderr, "unit_ai_king: decile+restless status: '%s'\n", status);
       return fail("decile SoL notify must not be clobbered by restless chrome");
     }
-    col1.nation[0].founding_father_count = 0;
+    /* DOS dedup: 0x53d8 = report/10 after the notify. */
+    if (col1.head.sol_pct_last_notified != 4) {
+      fprintf(stderr, "unit_ai_king: sol_pct_last_notified=%d (want 4)\n",
+              (int)col1.head.sol_pct_last_notified);
+      return fail("decile notify should cache report/10 into sol_pct_last_notified");
+    }
+    col1.stuff.census_pop_proxy[0] = 0; /* close the decile gate for later blocks */
   }
 
   /*

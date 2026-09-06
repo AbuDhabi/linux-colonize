@@ -1,5 +1,81 @@
 # `FUN_5bfb_153e` — full clean recovery (2026-08-14)
 
+## 2026-09-06 — live-port close-out (audit vs raw asm; 6 fixes + @WANTSTUFF)
+
+The whole function is now live in Linux: phase 1 = `ai_diplo_153e_worthiness_score`
+(exported, real), phases 2-4 = the `ai_diplo_153e_encounter` popup state machine
+(`ai_diplo.c`), fired from BOTH move sides of `FUN_5bfb_3180` — the human's
+move (`game_loop.c` post-move hook) and, new this pass, the AI's move
+(`ai_euro.c` post-`ai_euro_unit_act` adjacency hook; DOS param_4 = the moving
+unit, which is what arms the goods-demand phase). Method: extracted OVL16 with
+`tools/rtlink_overlay_extract.py` (file offset == `5bfb:` offset; the L0040
+address = file offset + 0x400) and `ndisasm`-verified every disputed site.
+Message-id → tag table dumped from raw DS strings (EXE offset 121248+id):
+0x18b0 MEEK, 0x18b5 MANLY, 0x18bb KINGS, 0x18c1 DEEDS, 0x18c7 HELLO, 0x18cd
+AHOY, 0x18d2 FIRST, 0x18d8 HELLOUSA, 0x18e1 APOSTATES, 0x18eb HEATHEN,
+0x18f3/0x1901/0x190f LEADER, 0x18fa PIRACY, 0x1908 SIEGES, 0x1916 TRIBUTE,
+0x191e/0x1938/0x1949/0x1955/0x19dc/0x197c LEADER2, 0x1926 WANTSTUFF, 0x1930/
+0x19ea PROVOKE, 0x1940 WARMANLY, 0x1951 RID, 0x195d WORTHY, 0x1964 PEACE,
+0x196f GIVECASH, 0x1978/0x19d2 WAR, 0x1984 OLDPEACE, 0x198d PEACEUSA, 0x1996
+NOTHINGWITHDRAW, 0x19a6/0x19c9 WITHDRAW, 0x19af NOTWITHDRAW, 0x19bb
+MAYBEWITHDRAW, 0x19f2 THREATS, 0x1a03 NOCONTACT, 0x1a0d ALREADYSMITE, 0x1a1a
+SMITEINDIANS, 0x1a27 SMITEEUROPE, 0x1a33 UNFORTUNATE, 0x1a3f MERCENARY,
+0x17e8 USA — confirming the existing Linux tag choices wholesale.
+
+**Asm-verified findings (all new, none guessed):**
+
+1. **`own_border` (raw `iStack_8`) is DEAD in DOS.** The colony-loop probe
+   call site (asm 0x1BED-0x1BFF) pushes `param_3` fixed, and `FUN_5bfb_0000`
+   (viceroy_unpacked.c:96448) only ever writes `param_4` or -1 into its
+   matched-out — so the `matched == param_2` branch (raw 777-780, asm
+   0x1C72-0x1C88) can never fire and `own_border` is always 0. The Linux
+   probe reproduced this faithfully already; documented in `ai_diplo.h`.
+   Consequence: SIEGES fires only vs targets with `colony_pop_totals>>2 == 0`,
+   and the sieges-paid withdraw-cost discount is always −0.
+2. **WITHDRAW threat-roll polarity was inverted in Linux** (asm 0x2EF2-0x2EFA:
+   `cmp cx(=totals[self]),ax(=roll); jl refuse` — roll ≤ the human's
+   field-combat total → the AI backs down). Fixed.
+3. **@WANTSTUFF transfers FURS, not the demanded cargo** — a genuine DOS bug,
+   byte-verified: the accept transfer (asm 0x2995-0x29B2) indexes the colony
+   stock rows with `[bp-0xa2]`, the loop counter the euro rival-tally
+   do-while leaves at 4, NOT the picked cargo `[bp-0xb2]`. The dialog names
+   the picked cargo; Furs move. Ported faithfully (Linux-only bound: source
+   stock floors at 0 where DOS int16 would underflow).
+4. **Rival-tally tribe hostility reads the SELF↔tribe war bit** (asm
+   0x2049-0x205E: `FUN_1000_8c28(self, tribe+4) & 2`) — the earlier Linux
+   read of the target's byte was a decompile-arg misread. Fixed; the
+   tribe-extinct gate (`[0x8d4e+3] & 0x80`, asm 0x202B) is now ported too
+   (`col1->indian[i].extinct`).
+5. **`uStack_68 = 999` after TRIBUTE is unconditional** (decline included,
+   raw :97894) — gates @WANTSTUFF off and makes the worthy/PROVOKE arm read
+   999 ≥ 0x65. Linux previously only set it on accept. Fixed.
+6. **Smaller fixes**: ST_THIRD now honors the crown-armed gate (raw
+   `uStack_9e == 0`); the third-party HEATHEN "yes" arm routes through the
+   real alarm-delta writer (`FUN_281f_0d6c` clamp 0..100, was a 255 clamp);
+   `forced` (raw `iStack_c`) is exported from phase 1 so the rival-tally
+   demotion skips when the forced-conflict override armed; a started talk
+   stamps MET both ways (3180 :98530 `caseD_10(a,b,0x20)` — was missing, so
+   every adjacency re-ran first contact).
+
+**@WANTSTUFF demand phase ported** (raw :97562-97593 pick + :97896-97930
+dialog/transfer): armed only when the encounter's moving unit belongs to
+`target`; receiver = target's nearest colony (`FUN_1000_8804`, Chebyshev
+approx), source = the colony on the encounter tile (`FUN_1000_89ae`; Linux
+takes the first adjacent colony since the encounter API carries no
+direction); per-cargo value = min(warehouse-capacity deficit at receiver
+(`FUN_1000_8f2a` = `FUN_15eb_0a50`), source stock) × `euro_price[target][c]`
+(−0x7b44 resolved as `nation.trade.euro_price` per `euro_goal_orders_0a60_
+full.md`), kept when ≥ `(score/10)*(difficulty−2) + score/2`. Unit-tested
+(`test_ai_diplo.c` "wantstuff" block) including the Furs stale-index port.
+
+**Known remaining deltas (deliberate, documented in code):** USA text
+variants (`-0x77f8 & 4` → +USA tag suffixes, `iStack_9c`) not modeled; the
+LEADER/LEADER2/KINGS/DEEDS name-prep prefixes are folded into the single-tag
+popup bodies; SIEGES/paid-withdraw moves units to Europe by teleport where
+DOS orders a walk (goal = Europe coords); AI-side encounters fire once per
+unit act, not per movement step; `-0x6a9a` (×3-stride per-nation byte,
+`unknown34_pad`) still stubbed 0 in the rival tally and `10ec` alike.
+
 **2026-08-24 — tail write at `-0x77b8` (line ~1686 below) fully resolved.**
 Re-decompiled fresh and cross-confirmed against a second, independently
 decompiled export of the same tail (`viceroy_overlays.c:84013-84025`,

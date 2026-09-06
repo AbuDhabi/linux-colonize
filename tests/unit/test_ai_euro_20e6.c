@@ -193,11 +193,145 @@ static int unit_patrol_returns_to_colony(void) {
   return 0;
 }
 
+/*
+ * Ring-hop latch (unit+0x3155/+0x3156, raw 2416-2458): explorer on a big
+ * landlocked plain — the ring scan finds no coastal site (best_nib 0), so
+ * the hop arm rolls a ring20 slot and commits a 4-tiles-out goto (Chebyshev
+ * 4 or 8 from the start, every slot in bounds on 32x32 from the centre).
+ */
+static int unit_ring_hop_commits_far_goto(void) {
+  const int nation = 1;
+  Fixture f;
+  if (fixture_init(&f, nation) != 0) {
+    return 1;
+  }
+  /* Rebuild as 32x32 all-plains. */
+  fixture_free(&f);
+  f.map.width = 32;
+  f.map.height = 32;
+  f.map.tile_count = 32 * 32;
+  f.map.terrain = calloc(32 * 32, 1);
+  f.map.layer2 = calloc(32 * 32, 1);
+  f.map.layer3 = calloc(32 * 32, 1);
+  f.map.seen = calloc(32 * 32, 1);
+  if (!f.map.terrain || !f.map.layer2 || !f.map.layer3 || !f.map.seen) {
+    return fail("alloc big map");
+  }
+  for (int i = 0; i < 32 * 32; ++i) {
+    f.map.terrain[i] = 2; /* plains */
+  }
+  const int sid = units_spawn(&f.units, 1, 16, 16);
+  ColonizeUnit* s = units_get(&f.units, sid);
+  if (!s) {
+    fixture_free(&f);
+    return fail("spawn soldier");
+  }
+  s->nation_id = nation;
+  s->moves_left = 1 * UNITS_MP_PER_TILE;
+  s->orders = 0;
+
+  ai_euro_dispatcher_turn(&f.ctx, nation);
+
+  s = units_get(&f.units, sid);
+  if (!s || !s->active) {
+    fixture_free(&f);
+    return fail("hop soldier vanished");
+  }
+  if (!units_orders_follow_goto(s->orders) || s->goto_x >= 200) {
+    fprintf(stderr, "pos=(%d,%d) orders=%d\n", s->x, s->y, s->orders);
+    fixture_free(&f);
+    return fail("ring hop set no goto");
+  }
+  const int d = cheb(s->goto_x, s->goto_y, 16, 16);
+  if (d != 4 && d != 8) {
+    fprintf(stderr, "goto=(%d,%d) cheb=%d\n", s->goto_x, s->goto_y, d);
+    fixture_free(&f);
+    return fail("ring hop goto not 4 tiles out");
+  }
+  fixture_free(&f);
+  return 0;
+}
+
+/*
+ * LAB_3558 colony-sail matrix (raw 1933-2031): a Caravel at sea carrying a
+ * plain colonist (iStack_82 != 0), no land tile adjacent (empty unload
+ * mask), one own coastal colony flagged NEEDS_COLONISTS — the peace score
+ * commits a goto onto that colony.
+ */
+static int unit_colony_sail_targets_needy_colony(void) {
+  const int nation = 1;
+  Fixture f;
+  if (fixture_init(&f, nation) != 0) {
+    return 1;
+  }
+  /* Columns x>=12 become ocean; land keeps x<=11. */
+  for (int y = 0; y < 16; ++y) {
+    for (int x = 12; x < 16; ++x) {
+      f.map.terrain[y * 16 + x] = 25; /* MAP_OCEAN_INDEX */
+    }
+  }
+  ColonizeColony* own = &f.colonies.colonies[0];
+  own->id = 0;
+  own->active = true;
+  own->nation_id = nation;
+  own->x = 11;
+  own->y = 8;
+  own->population = 2;
+  own->colonist_count = 2;
+  own->stock[COLONIZE_CARGO_FOOD] = 60;
+  own->building_in_production = -1;
+  own->ai_flags = COLONIZE_COLONY_AI_NEEDS_COLONISTS;
+  f.colonies.colony_count = 1;
+  f.colonies.next_id = 1;
+
+  const int ship_id = units_spawn(&f.units, 2, 14, 8);
+  const int pax_id = units_spawn_allow_stack(&f.units, 0, 14, 8);
+  ColonizeUnit* ship = units_get(&f.units, ship_id);
+  ColonizeUnit* pax = units_get(&f.units, pax_id);
+  if (!ship || !pax) {
+    fixture_free(&f);
+    return fail("spawn ship/pax");
+  }
+  ship->nation_id = nation;
+  ship->moves_left = 4 * UNITS_MP_PER_TILE;
+  ship->orders = 0;
+  pax->nation_id = nation;
+  if (!units_board_stacked(&f.units, pax_id, ship_id)) {
+    fixture_free(&f);
+    return fail("board pax");
+  }
+
+  ai_euro_dispatcher_turn(&f.ctx, nation);
+
+  ship = units_get(&f.units, ship_id);
+  if (!ship || !ship->active) {
+    fixture_free(&f);
+    return fail("ship vanished");
+  }
+  const int heads_home =
+    (units_orders_follow_goto(ship->orders) && ship->goto_x == 11 && ship->goto_y == 8) ||
+    cheb(ship->x, ship->y, 11, 8) < cheb(14, 8, 11, 8);
+  if (!heads_home) {
+    fprintf(stderr, "ship pos=(%d,%d) orders=%d goto=(%d,%d)\n", ship->x, ship->y, ship->orders,
+            ship->goto_x, ship->goto_y);
+    fixture_free(&f);
+    return fail("colony sail did not head for the needy colony");
+  }
+  fixture_free(&f);
+  return 0;
+}
+
 int main(void) {
   if (unit_wander_step_is_adjacent() != 0) {
     return 1;
   }
   if (unit_patrol_returns_to_colony() != 0) {
+    return 1;
+  }
+  if (unit_ring_hop_commits_far_goto() != 0) {
+    return 1;
+  }
+  if (unit_colony_sail_targets_needy_colony() != 0) {
     return 1;
   }
   printf("unit_ai_euro_20e6: OK\n");

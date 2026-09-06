@@ -631,6 +631,24 @@ without any new tracing — the answers were already in
 `move_scoring_20e6_full.md`'s `FUN_0000_4fa8` case sweep (2026-08-20/21/22),
 they had just never been cross-applied to this function's call sites:
 
+**[2026-09-06b CORRECTION — this resolution targeted the wrong function.]**
+`FUN_1000_8aac` = `FUN_281f_08bc` → **`FUN_1427_0d38`**, the stack-query
+dispatcher (`move_scoring_20e6_full.md` 2026-08-27 tail + the byte-exact
+"2026-09-06b" case table there); the `FUN_0000_4fa8` chain below was a
+Ghidra reloc misresolve (the same class as the `JMPF 0000:XXXX` pattern
+`ai-417e-caller-found` catalogs). The real modes DO carry per-unit
+signal: 2 = total stack count, 3 = # Pioneers, 4 = # military land
+types, 6 = mobilizable count, 0xa = armed-unit count, 0xd = Σ ship hold
+capacity. Consequences for the shipped `0a60` port (NOT rewired in the
+2026-09-06b pass — flagged as follow-up): the unit-loop `iStack_1c`/
+`iStack_1e` eligibility gates (`8aac(u,3)`, `8aac(u,4) < 2`,
+`8aac(u,6)`) are real "stack has Pioneers / fewer than two military /
+mobilizable" reads, not noise; the mode-2 substitution "tile stack size"
+happens to be exactly right; the mode-0xa "fortified garrison count"
+substitution should be the armed-unit count; the mode-0xd CONTACT
+early-out is a real ship-capacity read, not never-taken. The paragraph
+below is kept for the record of what was believed when the port shipped:
+
 **The field-id wall, resolved.** `FUN_1000_8aac` → `FUN_0000_4fa8` is a
 shared CRT-style utility multiplexer, and every case `0a60` reads carries
 **no real per-unit signal in the shipped 1994 binary**:

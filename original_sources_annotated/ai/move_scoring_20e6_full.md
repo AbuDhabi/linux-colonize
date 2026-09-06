@@ -3242,6 +3242,9 @@ or Artillery. `1b0e` probe returns `(atk << 3) / (def + 1)`. @UNIT layout
 corrected: `0x5235` = holds (Wagon 2, Caravel 2, Merchantman 4, Galleon 6,
 Privateer 2, Frigate 4, MoW 6), `0x5236` = c6 (0/1/99), `0x5239` = c9 (ship
 strength weight 0/1/4/4/12/32; 0 on land). Wired in `ai_euro_20e6_attack_term`.
+**[2026-09-06b correction: this table misattributed two cases — case 2 is
+the TOTAL stack count (the {1,4,6,7,8,9} body is case 4) and case 0xc is
+# Artillery; full byte-exact table in the "2026-09-06b" section below.]**
 
 ## 2026-09-06 — deepening pass: the six thin pieces ported
 
@@ -3343,4 +3346,159 @@ Still thin after this pass: `8aac` cases 4/5/6 exact bodies (flag-count
 reading above is caller-table-sourced, not ndisasm-confirmed), the ship
 colony-sail matrix / HS spiral / work-queue haul tails, the 8d4a attitude
 array (whole-struct port PARKED), and the ring-hop wander latch
-(`+0x3155`/`+0x3156`).
+(`+0x3155`/`+0x3156`). **[All four closed later the same day — next
+section.]**
+
+## 2026-09-06b — second deepening pass: the four "still thin" items closed
+
+### 1. `FUN_1427_0d38` case bodies — ALL decoded byte-exact; two prior
+### case attributions corrected
+
+Method: the dispatcher's `JMP CS:[BX+0xd78]` 5-byte signature
+(`2E FF A7 78 0D`) has exactly one hit in
+`viceroy_unpacked_2_ndisasm.asm` (flat file `0x103E2`); the Ghidra
+listing places that instruction at in-segment `0xd72` of `FUN_1427_0d38`,
+so segment `1427`'s flat file base is `0x103E2 − 0xd72 = 0xF670`.
+Rebuilt the byte range from the ndisasm hex column
+(`scratchpad extract_bytes.py`, zero missing bytes) and re-disassembled
+from the real entry points. Jump table at `0xd78` (15 words):
+`0d96 0ef8 0db9 0db0 0dbe 0de0 0de6 0ef8 0ef8 0ef8 0e16 0e46 0e8c 0e94
+0ebc`. Every case is a loop over the unit's tile stack
+(`FUN_1427_0002` = stack head, `FUN_1427_004a` = next member, both real)
+accumulating `DI`:
+
+| case | entry | body |
+|---|---|---|
+| 0 | 0d96 | Σ `0x5239` (@UNIT col9) over the stack |
+| 1,7,8,9 | 0ef8 | loop-exit only → returns 0 |
+| 2 | 0db9 | bare `INC DI` per member → **TOTAL stack unit count** |
+| 3 | 0db0 | `cmp type,2` → **# Pioneers** (the attack-core note was right) |
+| 4 | 0dbe | types {1,4} then {6,7,8,9} via shared tails → **# military land types** |
+| 5 | 0de0 | `cmp type,5` → **# Scouts** |
+| 6 | 0de6 | {1,4}, else profession byte `+0x315b == 0x15` (vet Soldier), plus {6..9} again (vet-typed counts twice) → mobilizable-military count |
+| 0xa | 0e16 | non-ship (type ∉ [0xd,0x12]) with `0x5236 > 1` → armed-unit count |
+| 0xb | 0e46 | Σ `FUN_157e_004a(u,1)` where ship-ness (`13e4_0074`) matches the tile |
+| 0xc | 0e8c | `cmp type,0xb` → **# Artillery** (not "Σ 0x5237 over ships" — that's 0xd) |
+| 0xd | 0e94 | ships only: Σ `0x5237` hold capacity |
+| 0xe | 0ebc | ships with `+0x3148` bit7 clear: **max** single `0x5237` |
+
+**Corrections to the 2026-08-27 table above**: case 2 is the total stack
+count (the "# of types {1,4,6,7,8,9}" body is case 4); case 0xe is a max,
+not a filtered count. Ripples into the shipped port (all rewired, ctest
+green):
+- `LAB_52aa` odds divisor `d = 8aac(foe,2)` = foe stack SIZE
+  (`ai_euro_20e6_attack_term`), not mil-type count.
+- Labor-loop candidate gate (`PUSH 0x2` confirmed at
+  `viceroy_overlays.asm:135593`): units standing on the colony tile +
+  population < wanted+2 — total count, same fix
+  (`ai_euro_20e6_stack_count`).
+- The unported `0x42`/`0x65` gates' `8aac(unit,2) < 2` now reads simply
+  "the unit is alone in its stack" (still closed per T1.2).
+
+### 2. Ship-band stack-query block — real modes, flag-counts retired
+
+The `LAB_3558` call block (`viceroy_overlays.asm:136292-136330`, literal
+`PUSH` modes) with the real bodies plugged in:
+`iStack_a8` = stack−1 (carried units), `iStack_4a` = # Pioneers,
+`iStack_48` = # military types (+ # Artillery via mode 0xc when
+`DS:0x5382` bit0), `iStack_16` = # Scouts, `iStack_46` = mode-6
+mobilizable count, `iStack_82` = a8 − 4a − 48(pre-war-add) − 16 =
+**# plain civilians aboard**. The "flag-count 0x40/0x10/0x20" reading in
+`ai_euro_20e6_ship_cargo_counts` is retired for these real counts; the
+`# Pioneers` conflict resolves itself: bit 0x40 is gated on Pioneers, and
+the raw 1746-1762 **goal fold** (per-unit goal `a654` with positive
+urgency `7326+72e0`) is what promotes plain civilians into the founder
+count — that is how a colonist-only second wave raises 0x40 in DOS.
+Ported with "nation has any FOUND/MIL_EXPAND primary goal" standing in
+for the per-unit goal binding (`ai_euro_20e6_nation_has_settle_goal`);
+the stale-goal demote branch (goal with urgency<1 and no FOUND probe →
+pioneers fold *into* civilians) is left unmodelled — a wrong stand-in
+there would strip founder status from lone Pioneer transports.
+`iStack_80` (the promoted-civilian carry) is now live and drives the raw
+1825 "explorer count −0x5ec4[cid] > 1 → clear 0x40" term. The raw 1846
+`iStack_46 == 0` clear-0x10 term is **provably dead in DOS** (mode 6 is a
+superset count of mode 4 over the same stack, and the Artillery add only
+happens in the war branch while the clear sits in the peace branch) —
+kept wired with the real count, documented as never-firing.
+
+### 3. Colony-sail matrix ported (raw 1933-2031) — `ai_euro_20e6_colony_sail_pick`
+
+Wired in `ai_euro_unload_settle` directly after the unload-mask block
+(DOS order), gated raw-1933-shaped: not tasked ('t'/'i' — AI ships never
+are in this port), and `iStack_82 != 0 || ((iStack_4a != iStack_a8 ||
+urgency > 0x18) && mask == 0)`, with the same one-time goal fold applied
+first. Peace score: `rng(0,8) + ((17−min(pop,16))²+2)*4 −
+(pop−wanted)*2 + 0x14`(human colonies on continent) `± 0x19/0x25`
+(`+0x1b` bit 0x10 = NEEDS_COLONISTS — the ship doc's old "docks" guess
+for this bit is wrong, the labor loop pinned it). War-cargo score:
+stance-0 continents skipped, `− difficulty×mil×8` (mil>1), `+0x32`
+human-presence, `+0x3c` NEEDS_GARRISON / `+0x2d` bit8 (substituted
+NEEDS_MILITARY — DOS bit 0x08 writer undecoded) / `−0xf` / `−0x2d`
+ladder off `DS:0x9650` open-continent count and `0x1734` urgency.
+Shared: `+ idle (+0x8f)`, the `+0x1b` bit2/bit1 NEARBY_MAN_O_WAR /
+NEARBY_ARMED_SHIP ship-size ladder (`(col5−10)*2`, new
+`ai_euro_20e6_unit_col5` table), `− ((dist>>1)+1)`, later-ties-win.
+Commit threshold raw 2031: peace > −999, war > 0. Substitutions: the
+`(−0x6a0e & 7)*8` presence term omitted (writer undecoded); non-coastal
+colonies skipped in place of the `8804(...,0xfffe)` reachability probe.
+Verified live: `unit_ai_euro_20e6` new case (Caravel + colonist sails to
+the NEEDS_COLONISTS colony); never fires on the golden fixtures (their
+cargo ships are all in the pinned first-colony beachhead branch), all
+goldens byte-green. Trace env: `AI_20E6_SAIL_TRACE=1`.
+
+Also from this band: the `4393` work-queue distance normalization is now
+DOS's `score / ((dist>>2)+1)` (raw 2214/2134) instead of the thin
+`score − d*4` (`ai_euro_4393_work_queue_haul_pick`).
+
+### 4. 8d4a attitude array — read side UNPARKED
+
+`settlement_record_8d4a.md`'s "Relationship to Linux" already proved the
+record's `+10+nation*2` int16 is `ColonizeCol1Tribe.alarm[nation]`
+(`{friction, attacks}`, exact offset match, save-backed). The 0x4c
+village arms now read it for real (`ai_euro_20e6_village_attitude`:
+`friction | attacks<<8`; scout arm `== 0` raw 1366, colonist arm
+`< 0x40` raw 1686). Only the DOS visit-increment writer
+(`FUN_465b_0000` attitude++) stays unported — the session-local
+`s_20e6_village_visited` bits stand in for that one writer so the arms
+stay one-shot.
+
+### 5. Ring-hop latch (`+0x3155`/`+0x3156`) ported
+
+Raw 1600-1611 + 2416-2458 decoded: `+0x3156` latches a random ring20
+slot (`0xff` unset → `86c4(1,0x14) − 1`), the hop target is the slot's
+ring offsets ×4 (a 4-tile hop), validated walkable (`84f2`), fresh
+coarse region (`−0x6056` block byte `&6 == 0` — an 18-column 4×4-block
+map; substituted with "target tile unseen by the nation", the block
+header's standing 0x9faa stand-in), same continent (`8912`) and **no**
+presence of any kind (`88c2 < 0`). On success `+0x3155` latches
+`max(dx*4, dy*4)` (signed char kept), explore fatigue `+0x3154` drops 8
+when above 8, and the target commits as a goto. The countdown runs at
+the top of the explore section: nonzero → decrement and skip the ring
+scan (the latched slot re-commits); zero → slot resets and only a failed
+ring scan reaches a fresh roll. Ported as `ai_euro_20e6_ring_hop` +
+countdown wiring in `ai_euro_move_scoring_gate`'s explore branch;
+latches session-local (`s_20e6_hop_steps`/`s_20e6_hop_slot` — like
+`+0x3154` these bytes are cargo-hold storage in DOS, never carried by
+land explorers). Verified live: fires (and correctly rejects
+out-of-bounds targets) on the existing 16×16 wander fixture, commits a
+Chebyshev-4/8 goto on a 32×32 plain (`unit_ring_hop_commits_far_goto`);
+never fires on golden fixtures (their explorers' ring scans succeed or
+they aren't explorer-flagged), goldens byte-green. Trace env:
+`AI_20E6_HOP_TRACE=1`.
+
+### Still thin after this pass (precise)
+
+- Hold-cargo colony-delivery matrix (raw 2052-2146: `acStack_c8`
+  per-cargo tallies vs colony stock `+0x9a`, embargo bits `+0x90`,
+  `−0x7b44` price weights) — Linux keeps the tested
+  `ai_euro_try_ship_trade_haul` / nearest-short-colony equivalent.
+- `4393` queue-decrement tail (raw 2225-2240: capacity-scaled score
+  write-back + slot free) and the raw 2215 `flag_b` gate nuance.
+- `457e` empty-ship HS cadence (`0x3148 & 0x20` or `(id+turn)&0x1f == 0`
+  → `3fa6`) — the golden-pinned SW coastal cruise owns empty ships.
+- `3fa6` HS spiral itself: already covered by
+  `units_spiral_place_hs_near` (matches intent, per move_scoring_ship.md).
+- `47b9` wagon/treasure destroy dead-ends; treasure (0x0a) and wagon
+  (0x0c) village-delivery arms (8d4a target-slot family, PARKED).
+- The stale-goal demote branch of the goal fold (needs a real `a654`
+  per-unit goal binding).
