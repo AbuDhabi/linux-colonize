@@ -4167,6 +4167,11 @@ int main(void) {
       ind->alarm_by_player[1] = 0;
       col1.nation[0].gold = 5000;
       col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT; /* met (was relation 50; alarm pinned above) */
+      /* 417e @NOCONTACT gate (0x16b7): the tribe must have MET the target
+       * nation too, or the incite is refused without charge. */
+      col1.indian[0].euro_diplo[1] |= COL1_INDIAN_MET_BIT;
+      col1.indian[0].euro_diplo[2] |= COL1_INDIAN_MET_BIT;
+      col1.indian[0].euro_diplo[3] |= COL1_INDIAN_MET_BIT;
       ai_popup_clear(&pop);
       pop.has_result = true;
       pop.result_cancelled = false;
@@ -4206,8 +4211,10 @@ int main(void) {
       if (col1.nation[target].gold != target_gold_before) {
         return fail("Incite target's own gold should be untouched");
       }
-      if (ind->alarm_by_player[target] != 10) {
-        return fail("Incite should push the target's alarm with this tribe");
+      /* FUN_281f_0d6c → FUN_4cc6_00f2: +100 alarm slam, halved for a
+       * French (nation 1) target inside 00f2, clamped at 100. */
+      if (ind->alarm_by_player[target] != (target == 1 ? 50 : 100)) {
+        return fail("Incite should slam the target's alarm with this tribe (+100, French-halved)");
       }
       if (pop.queue_count < 1 ||
           pop.queue[pop.queue_count - 1].tag != AI_POPUP_TAG_CONTACT_INCITE ||
@@ -5491,8 +5498,11 @@ int main(void) {
     if (!ai_contact_ai_incite_human(&ictx, ind, &col1.tribe[0], 4, 1, 1)) {
       return fail("417e Mode 2 should fire for a poorer AI with 1500+ gold vs a calm tribe");
     }
-    if (ind->alarm_by_player[0] != alarm0 + 10 || col1.nation[1].gold >= gold0) {
-      return fail("417e Mode 2 should pay the incite price and push alarm toward the human +10");
+    /* Shared 4499 tail: FUN_4cc6_00f2 +100 alarm slam (no French/Pocahontas
+     * halving here — human is England, no Pocahontas), clamped at 100. */
+    (void)alarm0;
+    if (ind->alarm_by_player[0] != 100 || col1.nation[1].gold >= gold0) {
+      return fail("417e Mode 2 should pay the incite price and slam alarm toward the human to the war band");
     }
     ind->alarm_by_player[0] = 80;
     if (ai_contact_ai_incite_human(&ictx, ind, &col1.tribe[0], 4, 1, 1)) {

@@ -164,7 +164,7 @@ one exists.
 | `FUN_6a09_0006` | Tribe placement | ai / map gen (T2 seed-100) |
 | `FUN_521d_6d8e` | Euro AI dispatcher | **partial** (`ai_euro.c` skeleton + `ai_euro_early_turn` / `golden_ai_turns`) |
 | `FUN_521d_0a60` / `5d04` | Euro unit goals / planning | **partial** (`0a60` goal-consumption tail + `5d04` hire ladder ported; T3.1 closed 2026-08-27) |
-| `FUN_521d_20e6` / nested `5b66` | Move scoring / unit act | **partial** (land arms structurally ported 2026-08-27, T1.18; thin: LAB_52aa attack odds, explore-plane seen nibble, `−0x6168`, `0x4c` village arms) |
+| `FUN_521d_20e6` / nested `5b66` | Move scoring / unit act | **partial** (land arms structurally ported 2026-08-27; six thin pieces closed 2026-09-06 — LAB_52aa odds tail, site nibble, `−0x6168`, `0x4c` arms, labor loop, ship unload mask; sail matrix / haul tails still thin) |
 | `FUN_6a9f_0118` | Map viewport tile loop | [map.c](../src/core/map.c) / map_panel |
 | `FUN_15eb_06d2` | Shared world-map / pedia draw entry | map / pedia |
 | `FUN_1427_065a` | Tile display (reads DS `0x5234`) | [viceroy_tables.md](viceroy_tables.md) |
