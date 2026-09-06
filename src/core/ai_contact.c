@@ -6154,6 +6154,37 @@ static void ai_contact_apply_trade_pick(
  * LAB_002e92 buy), or buys when empty-handed. `forced_price` is ignored.
  * Returns 1 when a sale, gift or purchase happened.
  */
+/*
+ * AI wagon village-errand arrival (FUN_4d56_4528 AI arm, type 0xc → case 1
+ * Trade → FUN_4d56_2820). Called from ai_euro's 20e6 village-errand walker
+ * when an errand wagon reaches its village. Runs the real 2820 shell on the
+ * AI-silent path (random hold pick, LAB_002bbc sell / gift by alarm) — the
+ * same machine the human Trade row uses. 2820 itself clears the DOS errand
+ * byte (+0x3158) for land types at entry; the caller owns the Linux latch.
+ * Returns 1 when the trade shell ran (sold, gifted or priced-out), 0 when
+ * the gates refused (no contact yet / bad record).
+ */
+int ai_contact_ai_wagon_village_trade(
+  ColonizeTurnContext* ctx, int indian_nation, int euro_nation, int unit_id
+) {
+  if (!ctx || !ctx->units || !ctx->col1_ok || !ctx->col1 || indian_nation < 4 ||
+      indian_nation > 11 || euro_nation < 0 || euro_nation > 3) {
+    return 0;
+  }
+  ColonizeUnit* unit = units_get(ctx->units, unit_id);
+  if (!unit || !unit->active || unit->nation_id != euro_nation) {
+    return 0;
+  }
+  ColonizeCol1Indian* ind = &ctx->col1->indian[indian_nation - 4];
+  /* DOS 4528 runs off a real tile entry, which implies contact; the port's
+   * errand walker only reaches adjacency, so gate on the met bit rather than
+   * inventing a first-contact side effect here. */
+  if (!ind->euro_diplo[euro_nation]) {
+    return 0;
+  }
+  return ai_contact_2820_begin(ctx, ind, indian_nation, euro_nation, unit);
+}
+
 static int ai_contact_auto_trade(
   ColonizeTurnContext* ctx, ColonizeCol1Indian* ind, int nation_id, int e, ColonizeUnit* unit,
   int forced_price

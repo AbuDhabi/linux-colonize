@@ -5943,6 +5943,42 @@ bool units_try_move(
       combat_attack_mp_surcharge = 3;
       goto combat_entry_resolved;
     }
+    /*
+     * FUN_465b_0000 (viceroy_unpacked.c:75600-75626): a Euro unit moving onto
+     * a tile held by an Indian occupant slams tribe alarm by (difficulty+5),
+     * doubled on a village tile — where the village record's
+     * alarm[nation].attacks byte is also bumped — and sextupled on a capital
+     * (the *6 replaces the *2). Written before the combat resolves; the only
+     * writer of that attacks byte (move_scoring_20e6_full.md 2026-09-06e §3
+     * refuted the "visit counter" reading). Peaceful village entries never
+     * reach this arm — FUN_4d56_4528 consumes them first.
+     */
+    if (reason == COLONIZE_ENTER_COMBAT_LAND && g_units_ff_col1 &&
+        unit->nation_id >= 0 && unit->nation_id <= 3) {
+      const ColonizeUnit* fu = units_get(pool, foe);
+      const int foe_nation = fu ? fu->nation_id : -1;
+      if (foe_nation >= 4 && foe_nation <= 11) {
+        const int base = (int)g_units_ff_col1->head.difficulty + 5;
+        int delta = base;
+        if (g_units_ff_col1->tribe) {
+          for (uint16_t ti = 0; ti < g_units_ff_col1->head.tribe_count; ++ti) {
+            ColonizeCol1Tribe* vt = &g_units_ff_col1->tribe[ti];
+            if ((int)vt->x != dest_x || (int)vt->y != dest_y) {
+              continue;
+            }
+            delta = base * 2;
+            vt->alarm[unit->nation_id].attacks++;
+            if (vt->state.capital) {
+              delta = base * 6;
+            }
+            break;
+          }
+        }
+        ai_diplo_indian_alarm_delta(
+          (ColonizeCol1Save*)g_units_ff_col1, foe_nation, unit->nation_id, delta
+        );
+      }
+    }
     bool won = false;
     if (reason == COLONIZE_ENTER_COMBAT_NAVAL) {
       won = units_resolve_naval_combat_ff(pool, unit_id, foe, rng, g_units_ff_col1);

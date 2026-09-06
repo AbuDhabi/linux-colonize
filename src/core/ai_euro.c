@@ -5176,12 +5176,42 @@ static int ai_euro_nearest_haul_short_colony(
 }
 
 /*
+ * DOS unit byte +0x3158 (col1 record +0x14 — a cargo_hold slot DOS reuses as
+ * land-unit AI scratch): the wagon village-errand latch. Set by the 20e6
+ * load matrix's wagon arm (raw 3134-3138, iStack_34 == 0), cleared by
+ * FUN_4d56_2820 at trade entry for land types (viceroy_unpacked.c:82122).
+ * Session-local here, same divergence class as the ring-hop latches
+ * +0x3155/+0x3156: the DOS byte round-trips through the save, this latch
+ * does not — a load drops the errand and the wagon falls back to plain haul.
+ */
+static uint8_t s_20e6_wagon_errand[COLONIZE_UNITS_MAX];
+
+/* Defined later in this file (after their 20e6 dependencies). */
+static int ai_euro_20e6_load_pick(
+  ColonizeTurnContext* ctx, const ColonizeColony* c, int nation, int is_ship
+);
+static int ai_euro_20e6_wagon_village_errand(
+  ColonizeTurnContext* ctx, int nation_id, ColonizeUnit* wagon
+);
+
+/*
  * Idle Wagon Train haul (thin 5b66/5d04): free hold capacity or TOOLS / LUMBER /
  * MUSKETS / HORSES / FOOD cargo → AI_MOVE toward nearest matching short own
  * colony (existing unload delivery). On surplus colony with empty capacity,
  * load that cargo via colonies_transfer_to_unit. Cite: euro_unit_act §2d;
  * Colonization.pdf Wagon Train cargo; COLONIZE_CARGO_* + 5cf6 food/lumber_short;
  * no invented stock rates.
+ *
+ * 2026-09-06f: the own-colony stand block now runs DOS's own arrival
+ * sequence first (FUN_521d_20e6 raw 2996-3138): dump every hold into the
+ * colony, then the LOAD matrix wagon arm (ai_euro_20e6_load_pick is_ship=0,
+ * at most ONE hold — `if (type==0xc && d2>1) d2=1`), which on a load sets
+ * the village-errand latch (+0x3158) and hands the wagon to the errand
+ * walker. The specialty/produced/surplus ladder below survives only as the
+ * Linux fallback that feeds the (still Linux-direction) short-colony haul
+ * when the DOS matrix declines — it is retired together with the 0a60
+ * haul_short registration gate once the work queue flips to DOS's
+ * pickup direction.
  */
 static int ai_euro_try_wagon_haul(
   ColonizeTurnContext* ctx,
@@ -5205,7 +5235,7 @@ static int ai_euro_try_wagon_haul(
     ai_euro_wagon_has_cargo_type(ctx->units, wagon, COLONIZE_CARGO_HORSES);
   const int has_food =
     ai_euro_wagon_has_cargo_type(ctx->units, wagon, COLONIZE_CARGO_FOOD);
-  const int has_cap = ai_euro_wagon_has_hold_capacity(ctx->units, wagon);
+  int has_cap = ai_euro_wagon_has_hold_capacity(ctx->units, wagon);
   if (!has_tools && !has_lumber && !has_ore && !has_muskets && !has_horses && !has_food &&
       !has_cap) {
     return 0;
@@ -5225,9 +5255,74 @@ static int ai_euro_try_wagon_haul(
   } else if (has_food) {
     prefer_cargo = COLONIZE_CARGO_FOOD;
   }
+  /*
+   * DOS own-colony arrival block (FUN_521d_20e6 raw 2996-3138), before any
+   * Linux ladder: dump every hold into the colony (raw 3007-3012 — this IS
+   * DOS wagon delivery), then the LOAD matrix wagon arm, capped at ONE hold
+   * (`if (type == 0xc && d2 > 1) d2 = 1`, raw ~3025). A matrix load latches
+   * the village errand (+0x3158 = 1, raw 3136) and the errand walker below
+   * owns the wagon from there.
+   */
+  if (wagon->id >= 0 && wagon->id < COLONIZE_UNITS_MAX) {
+    const int cid = colonies_id_at(ctx->colonies, wagon->x, wagon->y);
+    if (cid >= 0) {
+      ColonizeColony* c = colonies_get_mut(ctx->colonies, cid);
+      if (c && c->active && c->nation_id == nation_id) {
+        for (;;) {
+          int hold = -1;
+          const int n = units_goods_hold_count(ctx->units, wagon->id);
+          for (int h = 0; h < n; ++h) {
+            if (wagon->hold_goods_amount[h] > 0 && wagon->hold_goods_amount[h] < 255) {
+              hold = h;
+              break;
+            }
+          }
+          if (hold < 0) {
+            break;
+          }
+          if (colonies_transfer_from_unit(
+                ctx->colonies, cid, ctx->units, wagon->id, hold, NULL) <= 0) {
+            break;
+          }
+        }
+        prefer_cargo = -1; /* hull emptied — aboard-cargo prefs are stale */
+        has_cap = ai_euro_wagon_has_hold_capacity(ctx->units, wagon);
+        const int g = ai_euro_20e6_load_pick(ctx, c, nation_id, 0);
+        if (g >= 0) {
+          int qty = (int)c->stock[g];
+          if (qty > 100) {
+            qty = 100; /* raw 3126-3129 */
+          }
+          if (qty > 0 &&
+              colonies_transfer_to_unit(ctx->colonies, cid, ctx->units, wagon->id, g, qty) >
+                0) {
+            s_20e6_wagon_errand[wagon->id] = 1;
+            prefer_cargo = g;
+            if (getenv("AI_20E6_LOAD_TRACE")) {
+              fprintf(
+                stderr, "[load] wagon %d n%d colony %d cargo %d qty %d errand\n",
+                wagon->id, nation_id, cid, g, qty
+              );
+            }
+          }
+        }
+      }
+    }
+    /*
+     * Village-errand walker (raw 2284-2307 + 4528 AI arm case 1): an errand
+     * wagon ignores the haul chain — goto the nearest same-landmass village
+     * (capital distance halved, min 1), trade via the 2820 shell on arrival,
+     * destroy when no village shares the landmass (LAB_47b9).
+     */
+    if (s_20e6_wagon_errand[wagon->id] &&
+        ai_euro_20e6_wagon_village_errand(ctx, nation_id, wagon)) {
+      return 1;
+    }
+  }
   /* On own colony with surplus + free hold → load before haul.
    * Default ladder tools>lumber>ore>muskets>horses>food; when inventory
-   * food_short>20 prefer FOOD first (hungry colonies). Cite: Colonization.pdf
+   * food_short>20 prefer FOOD first (hungry colonies). Linux fallback for
+   * when the DOS matrix declines — see the header note. Cite: Colonization.pdf
    * Wagon Train; euro_unit_act §2d surplus FOOD deepen; 5cf6 food_short. */
   if (has_cap && prefer_cargo < 0) {
     const int cid = colonies_id_at(ctx->colonies, wagon->x, wagon->y);
@@ -13507,11 +13602,11 @@ static int ai_euro_20e6_nearest_own_unit(
  *     ai_euro_20e6_probe_adjacent) names the human player (DS:0x5398)
  *     → DESTROY.
  *
- * NOT ported here, deliberately (see move_scoring_20e6_full.md 2026-09-06d):
- *   - the +0x3158 != 0 village-delivery arm and its own no-village dead end
- *     (the 8d4a target-slot family stays PARKED — nothing in this port ever
- *     writes +0x3158, so DOS's gate reads 0 exactly as it does for a wagon
- *     that was never given a village errand);
+ * NOT ported here, deliberately:
+ *   - the +0x3158 != 0 village-errand arm lives in
+ *     ai_euro_20e6_wagon_village_errand (ported 2026-09-06f with the wagon
+ *     load matrix that writes the latch); this function only handles the
+ *     +0x3158 == 0 arms and skips errand wagons below;
  *   - the treasure in-colony cash-in (iStack_2e == 0: treasury +=
  *     unit+0x315b * 100 then the same destroy). The port routes AI treasure
  *     through the ship/Cortes/Europe chain in ai_euro_unit_act; wiring DOS's
@@ -13551,6 +13646,9 @@ static int ai_euro_20e6_47b9_dead_end(ColonizeTurnContext* ctx, ColonizeUnit* u,
   const int destroy_trace = getenv("AI_20E6_DEADEND_TRACE") != NULL;
 
   if (s.dos_type == 0x0c) {
+    if (s_20e6_wagon_errand[u->id]) {
+      return 0; /* +0x3158 != 0 — the errand walker owns this wagon */
+    }
     if (in_own_colony) {
       if (s_20e6_haul_bind[u->id] == 0) {
         s_20e6_haul_bind[u->id] = (int16_t)(s.home_colony + 1); /* +0x314a = colony */
@@ -14611,6 +14709,87 @@ static int ai_euro_20e6_load_pick(
     }
   }
   return pick;
+}
+
+/*
+ * FUN_521d_20e6 wagon village-errand arm (raw 2284-2307) + the 4528 AI-arm
+ * case-1 consumer. A wagon whose errand latch (+0x3158) is set:
+ *   - scan every settlement, keep the nearest on the wagon's own landmass
+ *     (FUN_1000_8912 == iStack_38); a capital (record +3 & 4) halves its
+ *     distance, min 1; strict `<` — the earlier record wins ties;
+ *   - none on this landmass → LAB_47b9 destroy;
+ *   - adjacent (or on the tile) → FUN_4d56_4528 AI arm, type 0xc → case 1
+ *     Trade → the 2820 shell (ai_contact_ai_wagon_village_trade). 2820
+ *     clears the DOS errand byte at entry for land types
+ *     (viceroy_unpacked.c:82122) — mirrored by clearing the latch on the
+ *     attempt, traded or refused; the 4528 return forfeits the MP;
+ *   - else goto the village tile.
+ * The port's AI movement never steps ONTO tribe tiles, so "arrival" is
+ * adjacency here — the same substitution every other village arm uses.
+ * Returns 1 when it owned the wagon this beat (goto set, traded, or
+ * destroyed — caller must re-check active).
+ */
+static int ai_euro_20e6_wagon_village_errand(
+  ColonizeTurnContext* ctx, int nation_id, ColonizeUnit* wagon
+) {
+  if (!ctx || !ctx->units || !ctx->map || !wagon || !wagon->active || wagon->id < 0 ||
+      wagon->id >= COLONIZE_UNITS_MAX) {
+    return 0;
+  }
+  if (!ctx->col1_ok || !ctx->col1 || !ctx->col1->tribe || ctx->col1->head.tribe_count == 0) {
+    s_20e6_wagon_errand[wagon->id] = 0;
+    return 0;
+  }
+  const int cid = map_continent_id_at(ctx->map, wagon->x, wagon->y);
+  int best_i = -1;
+  int best_d = 9999; /* DOS iStack_e2 seed */
+  for (uint16_t i = 0; i < ctx->col1->head.tribe_count; ++i) {
+    const ColonizeCol1Tribe* t = &ctx->col1->tribe[i];
+    if (t->population == 0) {
+      continue; /* razed record — DOS removes these from the 0x539a count */
+    }
+    if (map_continent_id_at(ctx->map, t->x, t->y) != cid) {
+      continue;
+    }
+    int d = ai_euro_dos_dist((int)t->x - wagon->x, (int)t->y - wagon->y);
+    if (t->state.capital) {
+      d >>= 1;
+      if (d < 1) {
+        d = 1;
+      }
+    }
+    if (d < best_d) {
+      best_d = d;
+      best_i = (int)i;
+    }
+  }
+  if (best_i < 0) {
+    /* goto LAB_47b9 — dead end, destroy. */
+    if (getenv("AI_20E6_DEADEND_TRACE")) {
+      fprintf(stderr, "[47b9] errand wagon %d n%d (%d,%d) no village on cid %d -> destroy\n",
+              wagon->id, nation_id, wagon->x, wagon->y, cid);
+    }
+    s_20e6_wagon_errand[wagon->id] = 0;
+    (void)units_despawn(ctx->units, wagon->id);
+    return 1;
+  }
+  const ColonizeCol1Tribe* t = &ctx->col1->tribe[best_i];
+  const int adj = abs((int)t->x - wagon->x) <= 1 && abs((int)t->y - wagon->y) <= 1;
+  if (adj) {
+    s_20e6_wagon_errand[wagon->id] = 0; /* 2820 entry clears +0x3158 */
+    const int ind = (int)t->nation_id;
+    if (ind >= 4 && ind <= 11) {
+      (void)ai_contact_ai_wagon_village_trade(ctx, ind, nation_id, wagon->id);
+    }
+    wagon->moves_left = 0; /* 4528 return-code 1 MP forfeit */
+    return 1;
+  }
+  if (units_orders_follow_goto(wagon->orders) && wagon->goto_x == t->x &&
+      wagon->goto_y == t->y) {
+    return 1;
+  }
+  ai_euro_set_goto(wagon, UNITS_ORDER_AI_MOVE, (int)t->x, (int)t->y);
+  return 1;
 }
 
 /*
@@ -19827,7 +20006,12 @@ static void ai_euro_unit_act(ColonizeTurnContext* ctx, ColonizeUnit* u, int nati
       ColonizeColony* oc = colonies_get_mut(ctx->colonies, here);
       if (oc && oc->nation_id == nation_id) {
         if (uname && ai_euro_type_is_wagon_name(uname)) {
-          (void)ai_euro_try_wagon_tools_delivery(ctx, nation_id, u, oc);
+          /* Errand wagons skip the shortage unload — the load matrix just
+           * stripped this colony deliberately (same +0x314a-class guard the
+           * ship load uses); the hold belongs to the village now. */
+          if (u->id < 0 || u->id >= COLONIZE_UNITS_MAX || !s_20e6_wagon_errand[u->id]) {
+            (void)ai_euro_try_wagon_tools_delivery(ctx, nation_id, u, oc);
+          }
         } else {
           const int is_pioneer =
             uname && (strstr(uname, "Pioneer") || strstr(uname, "Hardy"));
@@ -20042,6 +20226,13 @@ void ai_euro_dispatcher_turn(ColonizeTurnContext* ctx, int nation_id) {
   /* FUN_521d_0a60 entry: memset(0xa13c,0,16) — per-continent explorer count
    * read by FUN_521d_20e6's explorer cap (s_20e6_explorers). */
   memset(s_20e6_explorers, 0, sizeof(s_20e6_explorers));
+  /* Village-errand latch hygiene: DOS's +0x3158 dies with its unit record;
+   * the session latch must not survive a despawn into a reused unit id. */
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    if (s_20e6_wagon_errand[i] && units_get_const(ctx->units, i) == NULL) {
+      s_20e6_wagon_errand[i] = 0;
+    }
+  }
 
   /* 1–3. Colony + unit inventory */
   ai_euro_colony_inventory(ctx, nation_id);

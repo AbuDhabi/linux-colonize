@@ -728,6 +728,251 @@ static int unit_load_matrix_picks_priced_cargo(void) {
   return 0;
 }
 
+/*
+ * Wagon own-colony arrival (raw 2996-3138): dump, then the LOAD matrix wagon
+ * arm — one hold of the cheap-priced surplus (Ore, bid 3 < thr 4, stock ≥
+ * 0x32) — then the village-errand latch routes the wagon at the nearest
+ * same-landmass village (raw 2284-2307).
+ */
+static int unit_wagon_load_matrix_starts_village_errand(void) {
+  const int nation = 1;
+  Fixture f;
+  if (fixture_init(&f, nation) != 0) {
+    return 1;
+  }
+  ColonizeColony* c = &f.colonies.colonies[0];
+  c->id = 0;
+  c->active = true;
+  c->nation_id = nation;
+  c->x = 4;
+  c->y = 4;
+  c->population = 3;
+  c->colonist_count = 3;
+  c->stock[COLONIZE_CARGO_ORE] = 80;
+  c->stock[COLONIZE_CARGO_FOOD] = 40; /* < 0x32 — matrix floors it to −1 */
+  c->building_in_production = -1;
+  f.colonies.colony_count = 1;
+  f.colonies.next_id = 1;
+  f.col1.nation[nation].trade.euro_price[COLONIZE_CARGO_ORE] = 3;
+  f.col1.nation[nation].trade.euro_price[COLONIZE_CARGO_FOOD] = 1;
+
+  static ColonizeCol1Tribe tribe;
+  memset(&tribe, 0, sizeof(tribe));
+  tribe.x = 12;
+  tribe.y = 12;
+  tribe.nation_id = 4;
+  tribe.population = 5;
+  f.col1.tribe = &tribe;
+  f.col1.head.tribe_count = 1;
+
+  const int wid = units_spawn(&f.units, 3, 4, 4);
+  ColonizeUnit* w = units_get(&f.units, wid);
+  if (!w) {
+    fixture_free(&f);
+    return fail("spawn errand wagon");
+  }
+  w->nation_id = nation;
+  w->moves_left = 2 * UNITS_MP_PER_TILE;
+  w->orders = 0;
+
+  ai_euro_dispatcher_turn(&f.ctx, nation);
+
+  w = units_get(&f.units, wid);
+  if (!w || !w->active) {
+    f.col1.tribe = NULL;
+    fixture_free(&f);
+    return fail("errand wagon vanished");
+  }
+  int ore = 0;
+  for (int h = 0; h < COLONIZE_UNIT_CARGO_MAX; ++h) {
+    if (w->hold_goods_amount[h] > 0 && w->hold_goods_amount[h] < 255 &&
+        w->hold_goods_type[h] == COLONIZE_CARGO_ORE) {
+      ore += w->hold_goods_amount[h];
+    }
+  }
+  if (ore != 80 || c->stock[COLONIZE_CARGO_ORE] != 0) {
+    fprintf(stderr, "ore aboard=%d colony=%d\n", ore, c->stock[COLONIZE_CARGO_ORE]);
+    f.col1.tribe = NULL;
+    fixture_free(&f);
+    return fail("matrix should load the whole Ore surplus");
+  }
+  if (w->orders != UNITS_ORDER_AI_MOVE || w->goto_x != 12 || w->goto_y != 12) {
+    fprintf(stderr, "orders=%d goto=(%d,%d)\n", w->orders, w->goto_x, w->goto_y);
+    f.col1.tribe = NULL;
+    fixture_free(&f);
+    return fail("errand wagon should aim at the village");
+  }
+  f.col1.tribe = NULL;
+  fixture_free(&f);
+  return 0;
+}
+
+/*
+ * Errand arrival: adjacent to the village, the 4528 AI arm (case 1 Trade)
+ * runs the 2820 shell — the hold is sold to the tribe (LAB_002bbc credits
+ * Euro gold; alarm 0 accepts) and the MP is forfeited.
+ */
+static int unit_wagon_errand_trades_at_village(void) {
+  const int nation = 1;
+  Fixture f;
+  if (fixture_init(&f, nation) != 0) {
+    return 1;
+  }
+  ColonizeColony* c = &f.colonies.colonies[0];
+  c->id = 0;
+  c->active = true;
+  c->nation_id = nation;
+  c->x = 4;
+  c->y = 4;
+  c->population = 3;
+  c->colonist_count = 3;
+  c->stock[COLONIZE_CARGO_ORE] = 80;
+  c->building_in_production = -1;
+  f.colonies.colony_count = 1;
+  f.colonies.next_id = 1;
+  f.col1.nation[nation].trade.euro_price[COLONIZE_CARGO_ORE] = 3;
+
+  static ColonizeCol1Tribe tribe;
+  memset(&tribe, 0, sizeof(tribe));
+  tribe.x = 8;
+  tribe.y = 4;
+  tribe.nation_id = 4;
+  tribe.population = 5;
+  f.col1.tribe = &tribe;
+  f.col1.head.tribe_count = 1;
+  f.col1.indian[0].euro_diplo[nation] = 1;
+  f.col1.indian[0].alarm_by_player[nation] = 0;
+
+  const int wid = units_spawn(&f.units, 3, 4, 4);
+  ColonizeUnit* w = units_get(&f.units, wid);
+  if (!w) {
+    f.col1.tribe = NULL;
+    fixture_free(&f);
+    return fail("spawn trading wagon");
+  }
+  w->nation_id = nation;
+  w->moves_left = 2 * UNITS_MP_PER_TILE;
+  w->orders = 0;
+
+  /* Beat 1: load + latch + goto the village. */
+  ai_euro_dispatcher_turn(&f.ctx, nation);
+  w = units_get(&f.units, wid);
+  if (!w || !w->active || w->goto_x != 8 || w->goto_y != 4) {
+    f.col1.tribe = NULL;
+    fixture_free(&f);
+    return fail("beat 1 should aim the loaded wagon at the village");
+  }
+  /* Walk it adjacent by hand; beat 2 is the arrival. */
+  w->x = 7;
+  w->y = 4;
+  w->moves_left = 2 * UNITS_MP_PER_TILE;
+  const uint32_t gold_before = f.col1.nation[nation].gold;
+  f.turn += 1;
+
+  ai_euro_dispatcher_turn(&f.ctx, nation);
+
+  w = units_get(&f.units, wid);
+  if (!w || !w->active) {
+    f.col1.tribe = NULL;
+    fixture_free(&f);
+    return fail("trading wagon vanished");
+  }
+  int ore = 0;
+  for (int h = 0; h < COLONIZE_UNIT_CARGO_MAX; ++h) {
+    if (w->hold_goods_amount[h] > 0 && w->hold_goods_amount[h] < 255 &&
+        w->hold_goods_type[h] == COLONIZE_CARGO_ORE) {
+      ore += w->hold_goods_amount[h];
+    }
+  }
+  if (ore != 0) {
+    fprintf(stderr, "ore still aboard=%d\n", ore);
+    f.col1.tribe = NULL;
+    fixture_free(&f);
+    return fail("village trade should take the Ore hold");
+  }
+  if (f.col1.nation[nation].gold <= gold_before) {
+    fprintf(stderr, "gold %u -> %u\n", gold_before, f.col1.nation[nation].gold);
+    f.col1.tribe = NULL;
+    fixture_free(&f);
+    return fail("accepted sale should credit Euro gold");
+  }
+  if (w->moves_left != 0) {
+    f.col1.tribe = NULL;
+    fixture_free(&f);
+    return fail("4528 return forfeits the wagon's MP");
+  }
+  f.col1.tribe = NULL;
+  fixture_free(&f);
+  return 0;
+}
+
+/*
+ * Errand with no village on the wagon's landmass: the scan comes up empty and
+ * LAB_47b9 destroys the wagon (raw 2304 `goto` on uStack_24 < 0).
+ */
+static int unit_wagon_errand_dead_end_destroyed(void) {
+  const int nation = 1;
+  Fixture f;
+  if (fixture_init(&f, nation) != 0) {
+    return 1;
+  }
+  /* Ocean strait splits the map; the only village sits across it. */
+  for (int y = 0; y < 16; ++y) {
+    for (int x = 8; x < 10; ++x) {
+      f.map.terrain[y * 16 + x] = 25; /* MAP_OCEAN_INDEX */
+    }
+    for (int x = 10; x < 16; ++x) {
+      f.map.layer3[y * 16 + x] = 2; /* east landmass, continent 2 */
+    }
+  }
+  ColonizeColony* c = &f.colonies.colonies[0];
+  c->id = 0;
+  c->active = true;
+  c->nation_id = nation;
+  c->x = 4;
+  c->y = 4;
+  c->population = 3;
+  c->colonist_count = 3;
+  c->stock[COLONIZE_CARGO_ORE] = 80;
+  c->building_in_production = -1;
+  f.colonies.colony_count = 1;
+  f.colonies.next_id = 1;
+  f.col1.nation[nation].trade.euro_price[COLONIZE_CARGO_ORE] = 3;
+
+  static ColonizeCol1Tribe tribe;
+  memset(&tribe, 0, sizeof(tribe));
+  tribe.x = 12;
+  tribe.y = 4;
+  tribe.nation_id = 4;
+  tribe.population = 5;
+  f.col1.tribe = &tribe;
+  f.col1.head.tribe_count = 1;
+
+  const int wid = units_spawn(&f.units, 3, 4, 4);
+  ColonizeUnit* w = units_get(&f.units, wid);
+  if (!w) {
+    f.col1.tribe = NULL;
+    fixture_free(&f);
+    return fail("spawn stranded wagon");
+  }
+  w->nation_id = nation;
+  w->moves_left = 2 * UNITS_MP_PER_TILE;
+  w->orders = 0;
+
+  ai_euro_dispatcher_turn(&f.ctx, nation);
+
+  w = units_get(&f.units, wid);
+  if (w && w->active) {
+    fprintf(stderr, "wagon alive at (%d,%d) orders=%d\n", w->x, w->y, w->orders);
+    f.col1.tribe = NULL;
+    fixture_free(&f);
+    return fail("errand wagon with no reachable village must be destroyed");
+  }
+  f.col1.tribe = NULL;
+  fixture_free(&f);
+  return 0;
+}
+
 int main(void) {
   if (unit_wander_step_is_adjacent() != 0) {
     return 1;
@@ -757,6 +1002,15 @@ int main(void) {
     return 1;
   }
   if (unit_load_matrix_picks_priced_cargo() != 0) {
+    return 1;
+  }
+  if (unit_wagon_load_matrix_starts_village_errand() != 0) {
+    return 1;
+  }
+  if (unit_wagon_errand_trades_at_village() != 0) {
+    return 1;
+  }
+  if (unit_wagon_errand_dead_end_destroyed() != 0) {
     return 1;
   }
   printf("unit_ai_euro_20e6: OK\n");
