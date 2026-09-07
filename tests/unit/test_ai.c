@@ -369,7 +369,9 @@ static int run_init_and_turns(
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
   if (!units_load_types(&units, &names)) {
     fprintf(stderr, "%s: units_load_types failed\n", label);
     assets_msg_free(&names);
@@ -642,6 +644,7 @@ static int run_init_and_turns(
   uint16_t autumn = 0;
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   if (!colonies_load_buildings(&colonies, &names)) {
     fprintf(stderr, "%s: colonies_load_buildings failed\n", label);
     map_free(&map);
@@ -939,10 +942,13 @@ static int run_village_threat_alarm(void) {
 
   ColonizeUnitPool units;
   memset(&units, 0, sizeof(units));
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
   units_load_types(&units, &names);
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
 
   ColonizeCol1Save col1;
   memset(&col1, 0, sizeof(col1));

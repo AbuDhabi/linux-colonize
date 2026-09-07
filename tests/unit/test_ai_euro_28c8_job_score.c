@@ -128,6 +128,7 @@ static int unit_penalty_scoped_to_generalist_jobs(void) {
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   colony_init_common(&colonies.colonies[0], /*nation=*/1, cx, cy);
 
   ColonizeTurnContext ctx;
@@ -248,6 +249,7 @@ static int unit_full_matrix_sticky_doubling(void) {
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   colony_init_common(&colonies.colonies[0], /*nation=*/1, cx, cy);
   colonies.colonies[0].colonists[0].field_job = COLONIZE_JOB_ORE_MINER; /* sticky */
 

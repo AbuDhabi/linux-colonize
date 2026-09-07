@@ -842,8 +842,10 @@ int main(void) {
   {
     ColonizeMsgCatalog names;
     ColonizeUnitPool units;
+    memset(&units, 0, sizeof(units));
     memset(&names, 0, sizeof(names));
     units_reset(&units);
+    units_set_occupancy_map(NULL);
     if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT") ||
         !units_load_types(&units, &names)) {
       fprintf(stderr, "treasure disembark: load NAMES/units failed\n");
@@ -913,8 +915,10 @@ int main(void) {
   {
     ColonizeMsgCatalog names;
     ColonizeUnitPool units;
+    memset(&units, 0, sizeof(units));
     memset(&names, 0, sizeof(names));
     units_reset(&units);
+    units_set_occupancy_map(NULL);
     if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT") ||
         !units_load_types(&units, &names)) {
       fprintf(stderr, "sell_unit_hold: load NAMES/units failed\n");
@@ -1317,6 +1321,7 @@ int main(void) {
   {
     ColonizeColonyPool pool;
     colonies_init(&pool);
+    colonies_set_occupancy_map(NULL);
     ColonizeColony* col = &pool.colonies[0];
     memset(col, 0, sizeof(*col));
     col->active = true;
@@ -1437,8 +1442,10 @@ int main(void) {
   {
     ColonizeMsgCatalog names;
     ColonizeUnitPool units;
+    memset(&units, 0, sizeof(units));
     memset(&names, 0, sizeof(names));
     units_reset(&units);
+    units_set_occupancy_map(NULL);
     if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT") ||
         !units_load_types(&units, &names)) {
       fprintf(stderr, "dock chrome: load NAMES/units failed\n");

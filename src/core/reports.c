@@ -266,7 +266,7 @@ bool reports_load(ColonizeReportsView* view, const char* data_dir, char* err, si
   {
     /* WOODPAN2.PIK — Retire exploits screen (FUN_41f2_0b70 loads it by name). */
     char path[512];
-    char pik_err[256];
+    char pik_err[256] = "path build failed";
     if (dos_compat_normalize_asset_path(data_dir, "WOODPAN2.PIK", path, sizeof(path)) &&
         pik_load(path, &view->exploits_bg, pik_err, sizeof(pik_err))) {
       view->exploits_bg_ok = true;

@@ -472,6 +472,7 @@ int main(void) {
 
     ColonizeColonyPool colonies;
     colonies_init(&colonies);
+    colonies_set_occupancy_map(NULL);
     snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Stockade");
     colonies.building_type_count = 1;
     ColonizeColony* col = &colonies.colonies[0];
@@ -487,7 +488,9 @@ int main(void) {
     colonies.colony_count = 1;
 
     ColonizeUnitPool units;
+    memset(&units, 0, sizeof(units));
     units_reset(&units);
+    units_set_occupancy_map(NULL);
     units.type_count = 5;
     snprintf(units.types[0].name, sizeof(units.types[0].name), "Free Colonist");
     units.types[0].movement = 1;
@@ -1001,7 +1004,9 @@ int main(void) {
     }
 
     ColonizeUnitPool upool;
+    memset(&upool, 0, sizeof(upool));
     units_reset(&upool);
+    units_set_occupancy_map(NULL);
     upool.type_count = 6;
     snprintf(upool.types[0].name, sizeof(upool.types[0].name), "Soldier");
     upool.types[0].attack = 2;
@@ -1284,6 +1289,7 @@ int main(void) {
 
       ColonizeColonyPool rcol;
       colonies_init(&rcol);
+      colonies_set_occupancy_map(NULL);
       ColonizeColony* colony = &rcol.colonies[0];
       colony->id = 0;
       colony->active = true;
@@ -1395,6 +1401,7 @@ int main(void) {
     map.terrain[5 * 8 + 5] = (uint8_t)(2 | 0x20); /* hill */
     ColonizeColonyPool pool;
     colonies_init(&pool);
+    colonies_set_occupancy_map(NULL);
     if (colonies_can_found(&pool, &map, 3, 3)) {
       map_free(&map);
       return fail("can_found allowed arctic");
@@ -1423,6 +1430,7 @@ int main(void) {
   {
     ColonizeColonyPool pool;
     colonies_init(&pool);
+    colonies_set_occupancy_map(NULL);
     snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Town Hall");
     snprintf(pool.building_types[1].name, sizeof(pool.building_types[1].name), "Church");
     pool.building_type_count = 2;
@@ -1538,7 +1546,9 @@ int main(void) {
     /* Keep 584a needed above Penn's 13 so the meter is not cleared by a spawn. */
     ColonizeUnitPool punits;
     memset(&punits, 0, sizeof(punits));
+    memset(&punits, 0, sizeof(punits));
     units_reset(&punits);
+    units_set_occupancy_map(NULL);
     punits.type_count = 1;
     snprintf(punits.types[0].name, sizeof(punits.types[0].name), "Colonists");
     for (int ui = 0; ui < 20; ++ui) {
@@ -1645,6 +1655,7 @@ int main(void) {
 
     ColonizeColonyPool mpool;
     colonies_init(&mpool);
+    colonies_set_occupancy_map(NULL);
     uint32_t gold_pay = mnat->gold;
     const int cid_pay =
       colonies_found_with_indian_land(&mpool, &mmap, &mcol1, &gold_pay, fx, fy, 0, -1, -1, 0, 0, 0);
@@ -1679,6 +1690,7 @@ int main(void) {
     }
     const uint32_t gold_before_free = gold_pay;
     colonies_init(&mpool);
+    colonies_set_occupancy_map(NULL);
     const int cid_free = colonies_found_with_indian_land(
       &mpool, &mmap, &mcol1, &gold_pay, 6, 5, 0, -1, -1, 0, 0, 0
     );
@@ -1706,6 +1718,7 @@ int main(void) {
     }
     uint32_t poor = 10;
     colonies_init(&mpool);
+    colonies_set_occupancy_map(NULL);
     const int cid_poor =
       colonies_found_with_indian_land(&mpool, &mmap, &mcol1, &poor, fx, fy, 0, -1, -1, 0, 0, 0);
     if (cid_poor >= 0 || poor != 10u) {
@@ -1734,6 +1747,7 @@ int main(void) {
 
     ColonizeColonyPool lcolonies;
     colonies_init(&lcolonies);
+    colonies_set_occupancy_map(NULL);
     ColonizeColony* lcol = &lcolonies.colonies[0];
     lcol->id = 0;
     lcol->active = true;
@@ -1764,7 +1778,9 @@ int main(void) {
     lcolonies.colony_count = 2;
 
     ColonizeUnitPool lunits;
+    memset(&lunits, 0, sizeof(lunits));
     units_reset(&lunits);
+    units_set_occupancy_map(NULL);
     lunits.type_count = 3;
     snprintf(lunits.types[0].name, sizeof(lunits.types[0].name), "Colonists");
     lunits.types[0].movement = 1;
@@ -1883,6 +1899,7 @@ int main(void) {
 
     ColonizeColonyPool pool;
     colonies_init(&pool);
+    colonies_set_occupancy_map(NULL);
     ColonizeColony* home = &pool.colonies[0];
     memset(home, 0, sizeof(*home));
     home->active = true;
@@ -1895,7 +1912,9 @@ int main(void) {
     pool.colony_count = 1;
 
     ColonizeUnitPool units;
+    memset(&units, 0, sizeof(units));
     units_reset(&units);
+    units_set_occupancy_map(NULL);
     units.type_count = 1;
     snprintf(units.types[0].name, sizeof(units.types[0].name), "Merchantman");
     units.types[0].domain = COLONIZE_UNIT_DOMAIN_SEA;
@@ -1980,6 +1999,7 @@ int main(void) {
 
     ColonizeColonyPool pool;
     colonies_init(&pool);
+    colonies_set_occupancy_map(NULL);
     ColonizeColony* foreign = &pool.colonies[0];
     memset(foreign, 0, sizeof(*foreign));
     foreign->active = true;
@@ -1991,7 +2011,9 @@ int main(void) {
     pool.colony_count = 1;
 
     ColonizeUnitPool units;
+    memset(&units, 0, sizeof(units));
     units_reset(&units);
+    units_set_occupancy_map(NULL);
     memset(units.types, 0, sizeof(units.types));
     units.type_count = 1;
     snprintf(units.types[0].name, sizeof(units.types[0].name), "Merchantman");
@@ -2070,7 +2092,9 @@ int main(void) {
     }
     lmap.terrain[14 * 20 + 8] = 0x08; /* scrub — matches AMER2 rumour fixture class */
     ColonizeUnitPool upool;
+    memset(&upool, 0, sizeof(upool));
     units_reset(&upool);
+    units_set_occupancy_map(NULL);
     upool.type_count = 1;
     snprintf(upool.types[0].name, sizeof(upool.types[0].name), "Scout");
     upool.types[0].movement = 3;
@@ -2143,7 +2167,9 @@ int main(void) {
     cmap.layer3[5 * 16 + 5] = (uint8_t)((4u << 4) | 1u);
 
     ColonizeUnitPool upool;
+    memset(&upool, 0, sizeof(upool));
     units_reset(&upool);
+    units_set_occupancy_map(NULL);
     memset(upool.types, 0, sizeof(upool.types));
     upool.type_count = 3;
     snprintf(upool.types[0].name, sizeof(upool.types[0].name), "Soldiers");
@@ -2538,8 +2564,11 @@ int main(void) {
     memset(&bridge_map, 0, sizeof(bridge_map));
     ColonizeColonyPool bridge_colonies;
     colonies_init(&bridge_colonies);
+    colonies_set_occupancy_map(NULL);
     ColonizeUnitPool bridge_units;
+    memset(&bridge_units, 0, sizeof(bridge_units));
     units_reset(&bridge_units);
+    units_set_occupancy_map(NULL);
     EuropeScreen bridge_europe;
     memset(&bridge_europe, 0, sizeof(bridge_europe));
     ColonizeCol1BridgeResult bridge_br;

@@ -65,6 +65,7 @@ static int expect_cal(
 static int unit_century_cargoready(void) {
   ColonizeColonyPool pool;
   colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
   snprintf(
     pool.building_types[0].name, sizeof(pool.building_types[0].name), "Rum Distiller's House"
   );
@@ -216,7 +217,9 @@ static int unit_eot_fog_reveal(void) {
   }
   ColonizeUnitPool units;
   memset(&units, 0, sizeof(units));
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Colonists");
   units.type_count = 1;
   const int id = units_spawn(&units, 0, 3, 3);
@@ -254,6 +257,7 @@ static int unit_eot_fog_reveal(void) {
 static int unit_needtools0(void) {
   ColonizeColonyPool pool;
   colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
   ColonizeMsgCatalog names;
   assets_msg_init(&names);
   if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT") ||
@@ -352,6 +356,7 @@ static int unit_needtools0(void) {
 static int unit_needtools(void) {
   ColonizeColonyPool pool;
   colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
   ColonizeMsgCatalog names;
   assets_msg_init(&names);
   if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT") ||
@@ -464,6 +469,7 @@ static int unit_needtools(void) {
 static int unit_train_veteran_soldier(void) {
   ColonizeColonyPool pool;
   colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
   snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "College");
   pool.building_type_count = 1;
 
@@ -535,6 +541,7 @@ static int unit_train_veteran_soldier(void) {
 static int unit_trainfail(void) {
   ColonizeColonyPool pool;
   colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
   snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Schoolhouse");
   pool.building_type_count = 1;
 
@@ -599,6 +606,7 @@ static int unit_trainfail(void) {
 static int unit_trainprofession(void) {
   ColonizeColonyPool pool;
   colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
   snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Schoolhouse");
   pool.building_type_count = 1;
 
@@ -678,6 +686,7 @@ static int unit_trainprofession(void) {
 static int unit_traincriminal(void) {
   ColonizeColonyPool pool;
   colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
   snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Schoolhouse");
   pool.building_type_count = 1;
 
@@ -752,6 +761,7 @@ static int unit_traincriminal(void) {
 static int unit_trainindentured(void) {
   ColonizeColonyPool pool;
   colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
   snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Schoolhouse");
   pool.building_type_count = 1;
 
@@ -826,6 +836,7 @@ static int unit_trainindentured(void) {
 static int unit_phase_h_trainprofession(void) {
   ColonizeColonyPool pool;
   colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
   ColonizeColony* col = &pool.colonies[0];
   memset(col, 0, sizeof(*col));
   col->active = true;
@@ -947,6 +958,7 @@ int main(void) {
   /* Production without fields: consume 2 food / colonist. */
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   ColonizeColony* c = &colonies.colonies[0];
   memset(c, 0, sizeof(*c));
   c->active = true;
@@ -984,7 +996,9 @@ int main(void) {
 
   /* Full turn_end advances calendar and refreshes human MP. */
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Scout");
   units.types[0].movement = 4;
@@ -1151,6 +1165,7 @@ int main(void) {
   {
     ColonizeColonyPool pool;
     colonies_init(&pool);
+    colonies_set_occupancy_map(NULL);
     ColonizeMsgCatalog names;
     assets_msg_init(&names);
     if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT") ||
@@ -1287,6 +1302,7 @@ int main(void) {
   {
     ColonizeColonyPool pool;
     colonies_init(&pool);
+    colonies_set_occupancy_map(NULL);
     ColonizeMsgCatalog names;
     assets_msg_init(&names);
     if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT") ||
@@ -1527,6 +1543,7 @@ int main(void) {
 
     ColonizeColonyPool pool;
     colonies_init(&pool);
+    colonies_set_occupancy_map(NULL);
     ColonizeMsgCatalog names;
     assets_msg_init(&names);
     if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT") ||
@@ -1802,6 +1819,7 @@ int main(void) {
     }
     ColonizeColonyPool pool;
     colonies_init(&pool);
+    colonies_set_occupancy_map(NULL);
     ColonizeMsgCatalog names;
     assets_msg_init(&names);
     if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT") ||
@@ -1916,6 +1934,7 @@ int main(void) {
     }
     ColonizeColonyPool pool;
     colonies_init(&pool);
+    colonies_set_occupancy_map(NULL);
     ColonizeMsgCatalog names;
     assets_msg_init(&names);
     if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT") ||
@@ -2029,6 +2048,7 @@ int main(void) {
   {
     ColonizeColonyPool pool;
     colonies_init(&pool);
+    colonies_set_occupancy_map(NULL);
     snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Carpenter's Shop");
     pool.building_type_count = 1;
 
@@ -2087,6 +2107,7 @@ int main(void) {
   {
     ColonizeColonyPool pool;
     colonies_init(&pool);
+    colonies_set_occupancy_map(NULL);
     snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Carpenter's Shop");
     pool.building_type_count = 1;
 
@@ -2149,6 +2170,7 @@ int main(void) {
     }
     ColonizeColonyPool pool;
     colonies_init(&pool);
+    colonies_set_occupancy_map(NULL);
     ColonizeMsgCatalog names;
     assets_msg_init(&names);
     if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT") ||
@@ -2236,6 +2258,7 @@ int main(void) {
   {
     ColonizeColonyPool pool;
     colonies_init(&pool);
+    colonies_set_occupancy_map(NULL);
     snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Church");
     snprintf(pool.building_types[1].name, sizeof(pool.building_types[1].name), "Cathedral");
     pool.building_type_count = 2;
@@ -2412,6 +2435,7 @@ int main(void) {
   {
     ColonizeColonyPool pool;
     colonies_init(&pool);
+    colonies_set_occupancy_map(NULL);
     snprintf(
       pool.building_types[0].name, sizeof(pool.building_types[0].name), "Custom House"
     );
@@ -2557,6 +2581,7 @@ int main(void) {
     }
     ColonizeColonyPool pool;
     colonies_init(&pool);
+    colonies_set_occupancy_map(NULL);
     ColonizeMsgCatalog names;
     assets_msg_init(&names);
     if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT") ||
@@ -2683,6 +2708,7 @@ int main(void) {
   {
     ColonizeColonyPool birth_pool;
     colonies_init(&birth_pool);
+    colonies_set_occupancy_map(NULL);
     ColonizeColony* b = &birth_pool.colonies[0];
     memset(b, 0, sizeof(*b));
     b->active = true;
@@ -2757,6 +2783,7 @@ int main(void) {
   {
     ColonizeColonyPool ai_pool;
     colonies_init(&ai_pool);
+    colonies_set_occupancy_map(NULL);
     ColonizeColony* a = &ai_pool.colonies[0];
     memset(a, 0, sizeof(*a));
     a->active = true;
@@ -2828,6 +2855,7 @@ int main(void) {
   {
     ColonizeColonyPool pool;
     colonies_init(&pool);
+    colonies_set_occupancy_map(NULL);
     snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Town Hall");
     pool.building_type_count = 1;
 
@@ -2940,6 +2968,7 @@ int main(void) {
   {
     ColonizeColonyPool pool;
     colonies_init(&pool);
+    colonies_set_occupancy_map(NULL);
     snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Town Hall");
     pool.building_type_count = 1;
 
@@ -3083,6 +3112,7 @@ int main(void) {
   {
     ColonizeColonyPool pool;
     colonies_init(&pool);
+    colonies_set_occupancy_map(NULL);
     ColonizeColony* c = &pool.colonies[0];
     memset(c, 0, sizeof(*c));
     c->active = true;
@@ -3221,6 +3251,7 @@ int main(void) {
   {
     ColonizeColonyPool starve_pool;
     colonies_init(&starve_pool);
+    colonies_set_occupancy_map(NULL);
     ColonizeColony* s = &starve_pool.colonies[0];
     memset(s, 0, sizeof(*s));
     s->active = true;
@@ -3268,6 +3299,7 @@ int main(void) {
   {
     ColonizeColonyPool zpool;
     colonies_init(&zpool);
+    colonies_set_occupancy_map(NULL);
     ColonizeColony* s = &zpool.colonies[0];
     memset(s, 0, sizeof(*s));
     s->active = true;
@@ -3306,6 +3338,7 @@ int main(void) {
   {
     ColonizeColonyPool pool;
     colonies_init(&pool);
+    colonies_set_occupancy_map(NULL);
     ColonizeColony* s = &pool.colonies[0];
     memset(s, 0, sizeof(*s));
     s->active = true;
@@ -3367,6 +3400,7 @@ int main(void) {
   {
     ColonizeColonyPool pool;
     colonies_init(&pool);
+    colonies_set_occupancy_map(NULL);
     ColonizeColony* s = &pool.colonies[0];
     memset(s, 0, sizeof(*s));
     s->active = true;
@@ -3476,6 +3510,7 @@ int main(void) {
   {
     ColonizeColonyPool pool;
     colonies_init(&pool);
+    colonies_set_occupancy_map(NULL);
     ColonizeColony* col = &pool.colonies[0];
     memset(col, 0, sizeof(*col));
     col->active = true;
@@ -3516,6 +3551,7 @@ int main(void) {
   {
     ColonizeColonyPool pool;
     colonies_init(&pool);
+    colonies_set_occupancy_map(NULL);
     ColonizeColony* col = &pool.colonies[0];
     memset(col, 0, sizeof(*col));
     col->active = true;
@@ -3575,6 +3611,7 @@ int main(void) {
   {
     ColonizeColonyPool pool;
     colonies_init(&pool);
+    colonies_set_occupancy_map(NULL);
     ColonizeColony* col = &pool.colonies[0];
     memset(col, 0, sizeof(*col));
     col->active = true;
@@ -3657,6 +3694,7 @@ int main(void) {
   {
     ColonizeColonyPool pool;
     colonies_init(&pool);
+    colonies_set_occupancy_map(NULL);
     ColonizeColony* col = &pool.colonies[0];
     memset(col, 0, sizeof(*col));
     col->active = true;
@@ -3721,6 +3759,7 @@ int main(void) {
   {
     ColonizeColonyPool pool;
     colonies_init(&pool);
+    colonies_set_occupancy_map(NULL);
     ColonizeColony* col = &pool.colonies[0];
     memset(col, 0, sizeof(*col));
     col->active = true;
@@ -3776,6 +3815,7 @@ int main(void) {
   {
     ColonizeColonyPool pool;
     colonies_init(&pool);
+    colonies_set_occupancy_map(NULL);
     ColonizeColony* ai = &pool.colonies[0];
     memset(ai, 0, sizeof(*ai));
     ai->active = true;
@@ -3888,6 +3928,7 @@ int main(void) {
   {
     ColonizeColonyPool pool;
     colonies_init(&pool);
+    colonies_set_occupancy_map(NULL);
     snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Town Hall");
     pool.building_type_count = 1;
 
@@ -3952,6 +3993,7 @@ int main(void) {
   {
     ColonizeColonyPool pool;
     colonies_init(&pool);
+    colonies_set_occupancy_map(NULL);
     snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Town Hall");
     pool.building_type_count = 1;
 
@@ -4008,6 +4050,7 @@ int main(void) {
   {
     ColonizeColonyPool pool;
     colonies_init(&pool);
+    colonies_set_occupancy_map(NULL);
     for (int n = 0; n < 3; ++n) {
       ColonizeColony* c = &pool.colonies[n];
       memset(c, 0, sizeof(*c));
@@ -4054,6 +4097,7 @@ int main(void) {
   {
     ColonizeColonyPool pool;
     colonies_init(&pool);
+    colonies_set_occupancy_map(NULL);
     snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Schoolhouse");
     pool.building_type_count = 1;
 
@@ -4148,6 +4192,7 @@ int main(void) {
   {
     ColonizeColonyPool pool;
     colonies_init(&pool);
+    colonies_set_occupancy_map(NULL);
     ColonizeColony* col = &pool.colonies[0];
     memset(col, 0, sizeof(*col));
     col->active = true;
@@ -4198,7 +4243,9 @@ int main(void) {
   {
     ColonizeUnitPool units;
     memset(&units, 0, sizeof(units));
+    memset(&units, 0, sizeof(units));
     units_reset(&units);
+    units_set_occupancy_map(NULL);
     snprintf(units.types[0].name, sizeof(units.types[0].name), "Colonists");
     units.type_count = 1;
 
@@ -4246,6 +4293,7 @@ int main(void) {
     memset(&eu, 0, sizeof(eu));
     ColonizeColonyPool pool;
     colonies_init(&pool);
+    colonies_set_occupancy_map(NULL);
     ColonizeColony* col = &pool.colonies[0];
     memset(col, 0, sizeof(*col));
     col->active = true;
@@ -4255,7 +4303,9 @@ int main(void) {
     pool.colony_count = 1;
     ColonizeUnitPool units;
     memset(&units, 0, sizeof(units));
+    memset(&units, 0, sizeof(units));
     units_reset(&units);
+    units_set_occupancy_map(NULL);
     europe_tick_immigration_pressure(&eu, &pool, &units, NULL, 0, NULL);
     if (eu.needed_crosses <= 0) {
       fprintf(stderr, "immigration needed want >0 got %u\n", (unsigned)eu.needed_crosses);
@@ -4387,7 +4437,9 @@ int main(void) {
   {
     ColonizeUnitPool units;
     memset(&units, 0, sizeof(units));
+    memset(&units, 0, sizeof(units));
     units_reset(&units);
+    units_set_occupancy_map(NULL);
     snprintf(units.types[0x11].name, sizeof(units.types[0x11].name), "Frigate");
     units.types[0x11].domain = COLONIZE_UNIT_DOMAIN_SEA;
     units.types[0x11].movement = 6;
@@ -4475,6 +4527,7 @@ int main(void) {
   {
     ColonizeColonyPool pool;
     colonies_init(&pool);
+    colonies_set_occupancy_map(NULL);
     snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Stable");
     pool.building_type_count = 1;
 
@@ -4557,6 +4610,7 @@ int main(void) {
   {
     ColonizeColonyPool pool;
     colonies_init(&pool);
+    colonies_set_occupancy_map(NULL);
     uint16_t year = 1600;
     uint16_t autumn = 0;
     uint32_t turn_number = 200;
@@ -4877,6 +4931,7 @@ int main(void) {
   {
     ColonizeColonyPool pool;
     colonies_init(&pool);
+    colonies_set_occupancy_map(NULL);
     ColonizeColony* col = &pool.colonies[0];
     memset(col, 0, sizeof(*col));
     col->active = true;
@@ -4893,7 +4948,9 @@ int main(void) {
 
     ColonizeUnitPool units;
     memset(&units, 0, sizeof(units));
+    memset(&units, 0, sizeof(units));
     units_reset(&units);
+    units_set_occupancy_map(NULL);
     units.type_count = 1;
     snprintf(units.types[0].name, sizeof(units.types[0].name), "Scout");
     const int uid = units_spawn(&units, 0, 1, 1);
@@ -4924,6 +4981,7 @@ int main(void) {
     col1.stuff.land_combat_strength[0] = 999; /* stale */
     ColonizeColonyPool pool;
     colonies_init(&pool);
+    colonies_set_occupancy_map(NULL);
     ColonizeColony* c = &pool.colonies[0];
     memset(c, 0, sizeof(*c));
     c->active = true;
@@ -4933,7 +4991,9 @@ int main(void) {
 
     ColonizeUnitPool units;
     memset(&units, 0, sizeof(units));
+    memset(&units, 0, sizeof(units));
     units_reset(&units);
+    units_set_occupancy_map(NULL);
     units.type_count = 2;
     snprintf(units.types[0].name, sizeof(units.types[0].name), "Colonists");
     units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
@@ -4977,6 +5037,7 @@ int main(void) {
   {
     ColonizeColonyPool pool;
     colonies_init(&pool);
+    colonies_set_occupancy_map(NULL);
     ColonizeColony* col = &pool.colonies[0];
     memset(col, 0, sizeof(*col));
     col->active = true;
@@ -5039,6 +5100,7 @@ int main(void) {
   {
     ColonizeColonyPool pool;
     colonies_init(&pool);
+    colonies_set_occupancy_map(NULL);
     ColonizeColony* col = &pool.colonies[0];
     memset(col, 0, sizeof(*col));
     col->active = true;
@@ -5095,6 +5157,7 @@ int main(void) {
   {
     ColonizeColonyPool pool;
     colonies_init(&pool);
+    colonies_set_occupancy_map(NULL);
     ColonizeColony* col = &pool.colonies[0];
     memset(col, 0, sizeof(*col));
     col->active = true;
@@ -5166,7 +5229,9 @@ int main(void) {
   {
     ColonizeUnitPool units;
     memset(&units, 0, sizeof(units));
+    memset(&units, 0, sizeof(units));
     units_reset(&units);
+    units_set_occupancy_map(NULL);
     snprintf(units.types[0xd].name, sizeof(units.types[0xd].name), "Caravel");
     units.types[0xd].movement = 4;
     units.types[0xd].defense = 4; /* NAMES combat stand-in (Caravel real=2) */
@@ -5175,6 +5240,7 @@ int main(void) {
 
     ColonizeColonyPool colonies;
     colonies_init(&colonies);
+    colonies_set_occupancy_map(NULL);
     ColonizeColony* col = &colonies.colonies[0];
     memset(col, 0, sizeof(*col));
     col->active = true;
@@ -5247,6 +5313,7 @@ int main(void) {
   {
     ColonizeColonyPool pool;
     colonies_init(&pool);
+    colonies_set_occupancy_map(NULL);
     ColonizeColony* col = &pool.colonies[0];
     memset(col, 0, sizeof(*col));
     col->active = true;

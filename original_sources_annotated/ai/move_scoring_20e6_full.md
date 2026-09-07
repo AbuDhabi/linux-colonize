@@ -4794,6 +4794,18 @@ same adjacency the asm shows.
 Trace env: `AI_20E6_BOARD_TRACE=1` (one line per assembled passenger); the
 berth scan's own line now reads `MARKS` instead of `boards`.
 
+**2026-09-07 valgrind fix:** the raw 2991-2997 stale-mark clear now also runs
+before the assemble call at the `ai_euro_20e6_unload_mask` anchor
+(`ai_euro_20e6_clear_stale_board_marks`, shared with the arrival block). The
+port's unload path (`ai_euro_unload_settle` → unload_mask) reached 10be
+without the arrival block, so a passenger unloaded this turn still carried the
+0a60 housekeeping aboard-stamp (`act_state=1`) and was re-boarded — DOS never
+sees this because every berth act falls through the arrival block's clear
+before 0x3609. Found as the `unit_ai_euro_war` -O0/-O3 split (masked by
+uninitialized test fixture types). The old "marks outlive an act" comment was
+wrong: DOS re-decides marks each berth act (clear + re-scan), never carries
+them.
+
 ### Not ported (recorded, not invented)
 
 - `10be`'s two force-board arms: a member at negative map coords passing the

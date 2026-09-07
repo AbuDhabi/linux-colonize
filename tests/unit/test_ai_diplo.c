@@ -818,7 +818,9 @@ int main(void) {
     free(tw.colony);
 
     ColonizeUnitPool units;
+    memset(&units, 0, sizeof(units));
     units_reset(&units);
+    units_set_occupancy_map(NULL);
     units.type_count = 2;
     snprintf(units.types[0].name, sizeof(units.types[0].name), "Soldier");
     units.types[0].attack = 2;
@@ -837,6 +839,7 @@ int main(void) {
     units.units[ship].nation_id = 0;
     ColonizeColonyPool colonies;
     colonies_init(&colonies);
+    colonies_set_occupancy_map(NULL);
     colonies.colonies[0].active = true;
     colonies.colonies[0].nation_id = 0;
     colonies.colonies[0].population = 4;
@@ -1425,6 +1428,7 @@ int main(void) {
     /* 13b0 (2026-08-27) only runs on a 3180 encounter: adjacent units. */
     static ColonizeUnitPool units_r3;
     units_reset(&units_r3);
+    units_set_occupancy_map(NULL);
     units_r3.type_count = 1;
     snprintf(units_r3.types[0].name, sizeof(units_r3.types[0].name), "Soldier");
     units_r3.types[0].movement = 1;
@@ -2046,7 +2050,9 @@ int main(void) {
     map.terrain[4 * 16 + 3] = 25; /* ocean west of colony (4,4) */
 
     ColonizeUnitPool units;
+    memset(&units, 0, sizeof(units));
     units_reset(&units);
+    units_set_occupancy_map(NULL);
     units.type_count = 1;
     snprintf(units.types[0].name, sizeof(units.types[0].name), "Privateer");
     units.types[0].movement = 4;
@@ -2056,6 +2062,7 @@ int main(void) {
 
     ColonizeColonyPool colonies;
     colonies_init(&colonies);
+    colonies_set_occupancy_map(NULL);
     colonies.colonies[0].active = true;
     colonies.colonies[0].nation_id = 0;
     colonies.colonies[0].x = 4;
@@ -2769,6 +2776,7 @@ int main(void) {
     }
     static ColonizeUnitPool wunits;
     units_reset(&wunits);
+    units_set_occupancy_map(NULL);
     wunits.type_count = 1;
     snprintf(wunits.types[0].name, sizeof(wunits.types[0].name), "Soldiers");
     wunits.types[0].movement = 1;
@@ -2783,6 +2791,7 @@ int main(void) {
     wsol->nation_id = 1;
     static ColonizeColonyPool wcol;
     colonies_init(&wcol);
+    colonies_set_occupancy_map(NULL);
     ColonizeColony* tc = &wcol.colonies[0];
     tc->id = 0;
     tc->active = true;
@@ -2872,6 +2881,7 @@ int main(void) {
     }
     static ColonizeUnitPool eunits;
     units_reset(&eunits);
+    units_set_occupancy_map(NULL);
     eunits.type_count = 1;
     snprintf(eunits.types[0].name, sizeof(eunits.types[0].name), "Scouts");
     eunits.types[0].movement = 4;
@@ -2889,6 +2899,7 @@ int main(void) {
     pb->nation_id = 1;
     static ColonizeColonyPool ecol;
     colonies_init(&ecol);
+    colonies_set_occupancy_map(NULL);
     ColonizeCol1Save e;
     col1_save_init(&e);
     memset(e.nation, 0, sizeof(e.nation));
@@ -2988,6 +2999,7 @@ int main(void) {
     }
     static ColonizeUnitPool qunits;
     units_reset(&qunits);
+    units_set_occupancy_map(NULL);
     qunits.type_count = 1;
     snprintf(qunits.types[0].name, sizeof(qunits.types[0].name), "Dragoons");
     qunits.types[0].movement = 4;
@@ -3002,6 +3014,7 @@ int main(void) {
     pai->nation_id = 1;
     static ColonizeColonyPool qcol;
     colonies_init(&qcol);
+    colonies_set_occupancy_map(NULL);
     ColonizeColony* hc = &qcol.colonies[0]; /* human colony = demand source */
     hc->id = 0;
     hc->active = true;

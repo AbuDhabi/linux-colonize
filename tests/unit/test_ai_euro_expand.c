@@ -82,7 +82,9 @@ static int unit_second_wave(void) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
   units.type_count = 3;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Pioneer");
   units.types[0].movement = 3;
@@ -97,6 +99,7 @@ static int unit_second_wave(void) {
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   /* Existing first colony — second-wave path (colony_count == 1). */
   ColonizeColony* c = &colonies.colonies[0];
   c->id = 0;
@@ -206,7 +209,9 @@ static int unit_second_colony_coastal_prefer(void) {
   map.terrain[7 * 16 + 8] = (uint8_t)(1u | 0x40u); /* plains + minor river (8,7) */
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Pioneer");
   units.types[0].movement = 1;
@@ -214,6 +219,7 @@ static int unit_second_colony_coastal_prefer(void) {
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   ColonizeColony* c = &colonies.colonies[0];
   c->id = 0;
   c->active = true;
@@ -332,7 +338,9 @@ static int unit_scout_explore(void) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Scout");
   units.types[0].movement = 4;
@@ -340,6 +348,7 @@ static int unit_scout_explore(void) {
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   ColonizeColony* c = &colonies.colonies[0];
   c->id = 0;
   c->active = true;
@@ -487,7 +496,9 @@ static int unit_pioneer_tools_delivery(void) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Pioneer");
   units.types[0].movement = 3;
@@ -495,6 +506,7 @@ static int unit_pioneer_tools_delivery(void) {
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   ColonizeColony* c = &colonies.colonies[0];
   c->id = 0;
   c->active = true;
@@ -613,7 +625,9 @@ static int unit_scout_fog_prefer_unseen(void) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Scout");
   units.types[0].movement = 4;
@@ -621,6 +635,7 @@ static int unit_scout_fog_prefer_unseen(void) {
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   ColonizeColony* c = &colonies.colonies[0];
   c->id = 0;
   c->active = true;
@@ -759,7 +774,9 @@ static int unit_multistep_military(void) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Soldier");
   units.types[0].movement = 4;
@@ -769,6 +786,7 @@ static int unit_multistep_military(void) {
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   ColonizeColony* c = &colonies.colonies[0];
   c->id = 0;
   c->active = true;
@@ -896,7 +914,9 @@ static int unit_de_witt_wagon_foreign_trade(void) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
   memset(units.types, 0, sizeof(units.types));
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Wagon Train");
@@ -906,6 +926,7 @@ static int unit_de_witt_wagon_foreign_trade(void) {
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   ColonizeColony* home = &colonies.colonies[0];
   home->id = 0;
   home->active = true;
@@ -1111,7 +1132,9 @@ static int unit_5d04_buy_caravel_colonies_ge6(void) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
   units.type_count = 2;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Pioneer");
   units.types[0].movement = 3;
@@ -1123,6 +1146,7 @@ static int unit_5d04_buy_caravel_colonies_ge6(void) {
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   for (int i = 0; i < 6; ++i) {
     ColonizeColony* c = &colonies.colonies[i];
     c->id = i;
@@ -1238,7 +1262,9 @@ static int unit_5d04_buy_caravel_no_ship(void) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
   units.type_count = 2;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Pioneer");
   units.types[0].movement = 3;
@@ -1250,6 +1276,7 @@ static int unit_5d04_buy_caravel_no_ship(void) {
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   ColonizeColony* c = &colonies.colonies[0];
   c->id = 0;
   c->active = true;
@@ -1373,7 +1400,9 @@ static int unit_5d04_buy_frigate_at_war(void) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
   units.type_count = 5;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Pioneer");
   units.types[0].movement = 3;
@@ -1397,6 +1426,7 @@ static int unit_5d04_buy_frigate_at_war(void) {
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   for (int i = 0; i < 3; ++i) {
     ColonizeColony* c = &colonies.colonies[i];
     c->id = i;
@@ -1517,7 +1547,9 @@ static int unit_5d04_buy_galleon_at_war(void) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
   units.type_count = 4;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Pioneer");
   units.types[0].movement = 3;
@@ -1537,6 +1569,7 @@ static int unit_5d04_buy_galleon_at_war(void) {
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   for (int i = 0; i < 3; ++i) {
     ColonizeColony* c = &colonies.colonies[i];
     c->id = i;
@@ -1655,7 +1688,9 @@ static int unit_5d04_buy_merchantman_cargo_pressure(void) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
   units.type_count = 3;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Pioneer");
   units.types[0].movement = 3;
@@ -1671,6 +1706,7 @@ static int unit_5d04_buy_merchantman_cargo_pressure(void) {
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   for (int i = 0; i < 3; ++i) {
     ColonizeColony* c = &colonies.colonies[i];
     c->id = i;
@@ -1784,7 +1820,9 @@ static int unit_5d04_buy_caravel_ship_full(void) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
   units.type_count = 2;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Pioneer");
   units.types[0].movement = 3;
@@ -1796,6 +1834,7 @@ static int unit_5d04_buy_caravel_ship_full(void) {
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   /* tools_short high so hire wants a Pioneer after second Caravel buy. */
   for (int i = 0; i < 3; ++i) {
     ColonizeColony* c = &colonies.colonies[i];
@@ -1935,7 +1974,9 @@ static int unit_treasury_skip_hire(void) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
   units.type_count = 2;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Pioneer");
   units.types[0].movement = 3;
@@ -1947,6 +1988,7 @@ static int unit_treasury_skip_hire(void) {
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   for (int i = 0; i < 3; ++i) {
     ColonizeColony* c = &colonies.colonies[i];
     c->id = i;
@@ -2052,7 +2094,9 @@ static int unit_transport_europe_sell_trade_goods(void) {
   map.terrain[8 * 16 + 14] = 25;
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Merchantman");
   units.types[0].movement = 4;
@@ -2061,6 +2105,7 @@ static int unit_transport_europe_sell_trade_goods(void) {
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
 
   const int sid = units_spawn(&units, 0, 200, 200);
   ColonizeUnit* ship = units_get(&units, sid);
@@ -2194,7 +2239,9 @@ static int unit_privateer_europe_sell_silver(void) {
   map.terrain[8 * 16 + 14] = 25;
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Privateer");
   units.types[0].movement = 8;
@@ -2203,6 +2250,7 @@ static int unit_privateer_europe_sell_silver(void) {
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
 
   const int sid = units_spawn(&units, 0, 200, 200);
   ColonizeUnit* ship = units_get(&units, sid);
@@ -2321,7 +2369,9 @@ static int unit_transport_europe_sell_multi_cargo(void) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Merchantman");
   units.types[0].movement = 4;
@@ -2330,6 +2380,7 @@ static int unit_transport_europe_sell_multi_cargo(void) {
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
 
   const int sid = units_spawn(&units, 0, 200, 200);
   ColonizeUnit* ship = units_get(&units, sid);
@@ -2460,7 +2511,9 @@ static int unit_transport_europe_sell_skip_boycott(void) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Merchantman");
   units.types[0].movement = 4;
@@ -2469,6 +2522,7 @@ static int unit_transport_europe_sell_skip_boycott(void) {
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
 
   const int sid = units_spawn(&units, 0, 200, 200);
   ColonizeUnit* ship = units_get(&units, sid);
@@ -2655,7 +2709,9 @@ static int unit_cargo_produced_mask_haul_prefer(void) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Wagon Train");
   units.types[0].movement = 2;
@@ -2664,6 +2720,7 @@ static int unit_cargo_produced_mask_haul_prefer(void) {
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   ColonizeColony* supply = &colonies.colonies[0];
   supply->id = 0;
   supply->active = true;
@@ -2798,7 +2855,9 @@ static int unit_specialty_cargo_haul_prefer(void) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
   units.type_count = 2;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Wagon Train");
   units.types[0].movement = 2;
@@ -2810,6 +2869,7 @@ static int unit_specialty_cargo_haul_prefer(void) {
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   ColonizeColony* supply = &colonies.colonies[0];
   supply->id = 0;
   supply->active = true;
@@ -2989,7 +3049,9 @@ static int unit_specialty_flag_a_haul_match(void) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Caravel");
   units.types[0].movement = 4;
@@ -2998,6 +3060,7 @@ static int unit_specialty_flag_a_haul_match(void) {
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   /* Equal MD=4 (same `(d>>2)+1` bucket) from the ship at (5,1). Inventory
    * refreshes specialty from surplus: A lumber surplus → specialty LUMBER;
    * B tools surplus → specialty TOOLS. Both hold 80 RUM so both register on
@@ -3153,7 +3216,9 @@ static int unit_cargo_idle_turns_haul_prefer(void) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Caravel");
   units.types[0].movement = 4;
@@ -3162,6 +3227,7 @@ static int unit_cargo_idle_turns_haul_prefer(void) {
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   /* Equal MD from the ship at (5,1): A idle=0, B idle=20. */
   ColonizeColony* a = &colonies.colonies[0];
   a->id = 0;
@@ -3321,7 +3387,9 @@ static int unit_labor_shortage_join(void) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Free Colonist");
   units.types[0].movement = 1;
@@ -3329,6 +3397,7 @@ static int unit_labor_shortage_join(void) {
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   ColonizeColony* c = &colonies.colonies[0];
   c->id = 0;
   c->active = true;
@@ -3430,7 +3499,9 @@ static int unit_labor_bind_food_short(void) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Free Colonist");
   units.types[0].movement = 1;
@@ -3438,6 +3509,7 @@ static int unit_labor_bind_food_short(void) {
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   ColonizeColony* c = &colonies.colonies[0];
   c->id = 0;
   c->active = true;
@@ -3553,7 +3625,9 @@ static int unit_wagon_tools_delivery(void) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Wagon Train");
   units.types[0].movement = 2;
@@ -3562,6 +3636,7 @@ static int unit_wagon_tools_delivery(void) {
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   ColonizeColony* c = &colonies.colonies[0];
   c->id = 0;
   c->active = true;
@@ -3697,7 +3772,9 @@ static int unit_colony_flags_starvation_labor(void) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Free Colonist");
   units.types[0].movement = 1;
@@ -3705,6 +3782,7 @@ static int unit_colony_flags_starvation_labor(void) {
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   ColonizeColony* c = &colonies.colonies[0];
   c->id = 0;
   c->active = true;
@@ -3810,7 +3888,9 @@ static int unit_colony_ai_flags_mow_colony_alt(void) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
   units.type_count = 1;
   /* DOS census: bit 0x02 = FRIGATE nearby (type 0x11 literal check), not
    * Man-O-War — census_tally.md 2026-08-19 correction, probe live 2026-09-07. */
@@ -3822,6 +3902,7 @@ static int unit_colony_ai_flags_mow_colony_alt(void) {
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   ColonizeColony* c = &colonies.colonies[0];
   c->id = 0;
   c->active = true;
@@ -3926,7 +4007,9 @@ static int unit_build_ai_flags_wants_construction(void) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Free Colonist");
   units.types[0].movement = 1;
@@ -3934,6 +4017,7 @@ static int unit_build_ai_flags_wants_construction(void) {
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   ColonizeColony* c = &colonies.colonies[0];
   c->id = 0;
   c->active = true;
@@ -4042,7 +4126,9 @@ static int unit_construction_labor_stockade(void) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Pioneer");
   units.types[0].movement = 3;
@@ -4050,6 +4136,7 @@ static int unit_construction_labor_stockade(void) {
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Stockade");
   colonies.building_types[0].hammers = 64;
   colonies.building_type_count = 1;
@@ -4185,7 +4272,9 @@ static int unit_master_carpenter_construction_labor(void) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Master Carpenter");
   units.types[0].movement = 3;
@@ -4193,6 +4282,7 @@ static int unit_master_carpenter_construction_labor(void) {
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Stockade");
   colonies.building_types[0].hammers = 64;
   colonies.building_type_count = 1;
@@ -4327,7 +4417,9 @@ static int unit_lumberjack_warehouse_labor(void) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Expert Lumberjack");
   units.types[0].movement = 3;
@@ -4335,6 +4427,7 @@ static int unit_lumberjack_warehouse_labor(void) {
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Warehouse");
   colonies.building_types[0].hammers = 80;
   colonies.building_type_count = 1;
@@ -4467,7 +4560,9 @@ static int unit_stockade_threat_labor(void) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
   units.type_count = 2;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Free Colonist");
   units.types[0].movement = 3;
@@ -4480,6 +4575,7 @@ static int unit_stockade_threat_labor(void) {
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Stockade");
   colonies.building_types[0].hammers = 64;
   colonies.building_type_count = 1;
@@ -4647,7 +4743,9 @@ static int unit_scout_sticky_closer_ring(void) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Scout");
   units.types[0].movement = 4;
@@ -4655,6 +4753,7 @@ static int unit_scout_sticky_closer_ring(void) {
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   ColonizeColony* c = &colonies.colonies[0];
   c->id = 0;
   c->active = true;
@@ -4803,7 +4902,9 @@ static int unit_scout_fog_explore_no_contact(void) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Scout");
   units.types[0].movement = 4;
@@ -4811,6 +4912,7 @@ static int unit_scout_fog_explore_no_contact(void) {
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   ColonizeColony* c = &colonies.colonies[0];
   c->id = 0;
   c->active = true;
@@ -4950,7 +5052,9 @@ static int unit_seasoned_scout_deeper_fog(void) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Scout");
   units.types[0].movement = 4;
@@ -4958,6 +5062,7 @@ static int unit_seasoned_scout_deeper_fog(void) {
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   ColonizeColony* c = &colonies.colonies[0];
   c->id = 0;
   c->active = true;
@@ -5109,7 +5214,9 @@ static int unit_scout_fog_prefer_rumour(void) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Scout");
   units.types[0].movement = 4;
@@ -5117,6 +5224,7 @@ static int unit_scout_fog_prefer_rumour(void) {
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   ColonizeColony* c = &colonies.colonies[0];
   c->id = 0;
   c->active = true;
@@ -5230,7 +5338,9 @@ static int unit_treasure_coast(void) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Treasure");
   units.types[0].movement = 1;
@@ -5238,6 +5348,7 @@ static int unit_treasure_coast(void) {
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   ColonizeColony* c = &colonies.colonies[0];
   c->id = 0;
   c->active = true;
@@ -5364,7 +5475,9 @@ static int unit_cortes_king_galleon_cash(void) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Treasure");
   units.types[0].movement = 1;
@@ -5372,6 +5485,7 @@ static int unit_cortes_king_galleon_cash(void) {
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   ColonizeColony* c = &colonies.colonies[0];
   c->id = 0;
   c->active = true;
@@ -5509,7 +5623,9 @@ static int unit_missionary_contact(void) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Jesuit Missionary");
   units.types[0].movement = 2;
@@ -5517,6 +5633,7 @@ static int unit_missionary_contact(void) {
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   ColonizeColony* c = &colonies.colonies[0];
   c->id = 0;
   c->active = true;
@@ -5667,7 +5784,9 @@ static int unit_missionary_flee_skip(void) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Missionary");
   units.types[0].movement = 2;
@@ -5675,6 +5794,7 @@ static int unit_missionary_flee_skip(void) {
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   ColonizeColony* c = &colonies.colonies[0];
   c->id = 0;
   c->active = true;
@@ -5792,7 +5912,9 @@ static int unit_food_emergency_labor(void) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Pioneer");
   units.types[0].movement = 3;
@@ -5800,6 +5922,7 @@ static int unit_food_emergency_labor(void) {
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   ColonizeColony* c = &colonies.colonies[0];
   c->id = 0;
   c->active = true;
@@ -5920,7 +6043,9 @@ static int unit_expert_farmer_food_labor(void) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Expert Farmer");
   units.types[0].movement = 3;
@@ -5930,6 +6055,7 @@ static int unit_expert_farmer_food_labor(void) {
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   ColonizeColony* c = &colonies.colonies[0];
   c->id = 0;
   c->active = true;
@@ -6051,7 +6177,9 @@ static int unit_free_colonist_food_labor(void) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Free Colonist");
   units.types[0].movement = 3;
@@ -6061,6 +6189,7 @@ static int unit_free_colonist_food_labor(void) {
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   ColonizeColony* c = &colonies.colonies[0];
   c->id = 0;
   c->active = true;
@@ -6178,7 +6307,9 @@ static int unit_tools_short_pioneer_labor(void) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Pioneer");
   units.types[0].movement = 3;
@@ -6186,6 +6317,7 @@ static int unit_tools_short_pioneer_labor(void) {
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   ColonizeColony* c = &colonies.colonies[0];
   c->id = 0;
   c->active = true;
@@ -6323,7 +6455,9 @@ static int unit_treasure_board_sail(void) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
   units.type_count = 2;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Treasure");
   units.types[0].movement = 1;
@@ -6335,6 +6469,7 @@ static int unit_treasure_board_sail(void) {
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   ColonizeColony* c = &colonies.colonies[0];
   c->id = 0;
   c->active = true;
@@ -6487,7 +6622,9 @@ static int unit_treasure_europe_cash(void) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
   units.type_count = 2;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Treasure");
   units.types[0].movement = 1;
@@ -6499,6 +6636,7 @@ static int unit_treasure_europe_cash(void) {
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
 
   const int sid = units_spawn(&units, 1, 200, 200);
   ColonizeUnit* ship = units_get(&units, sid);
@@ -6632,7 +6770,9 @@ static int unit_wagon_haul_tools_short(void) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Wagon Train");
   units.types[0].movement = 2;
@@ -6641,6 +6781,7 @@ static int unit_wagon_haul_tools_short(void) {
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   ColonizeColony* short_c = &colonies.colonies[0];
   short_c->id = 0;
   short_c->active = true;
@@ -6767,7 +6908,9 @@ static int unit_scout_sticky_fog_deeper_unseen(void) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Scout");
   units.types[0].movement = 4;
@@ -6775,6 +6918,7 @@ static int unit_scout_sticky_fog_deeper_unseen(void) {
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   ColonizeColony* c = &colonies.colonies[0];
   c->id = 0;
   c->active = true;
@@ -6923,7 +7067,9 @@ static int unit_ship_trade_haul_tools_short(void) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Caravel");
   units.types[0].movement = 4;
@@ -6932,6 +7078,7 @@ static int unit_ship_trade_haul_tools_short(void) {
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   ColonizeColony* c = &colonies.colonies[0];
   c->id = 0;
   c->active = true;
@@ -7059,7 +7206,9 @@ static int unit_ship_trade_haul_muskets_short(void) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Caravel");
   units.types[0].movement = 4;
@@ -7068,6 +7217,7 @@ static int unit_ship_trade_haul_muskets_short(void) {
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   ColonizeColony* c = &colonies.colonies[0];
   c->id = 0;
   c->active = true;
@@ -7199,7 +7349,9 @@ static int unit_ship_europe_export_silver(void) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Caravel");
   units.types[0].movement = 4;
@@ -7208,6 +7360,7 @@ static int unit_ship_europe_export_silver(void) {
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   ColonizeColony* c = &colonies.colonies[0];
   c->id = 0;
   c->active = true;
@@ -7331,7 +7484,9 @@ static int unit_privateer_europe_loot_sail(void) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Privateer");
   units.types[0].movement = 8;
@@ -7340,6 +7495,7 @@ static int unit_privateer_europe_loot_sail(void) {
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
 
   const int sid = units_spawn(&units, 0, 3, 4);
   ColonizeUnit* ship = units_get(&units, sid);
@@ -7450,7 +7606,9 @@ static int unit_ship_europe_export_load_silver(void) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Caravel");
   units.types[0].movement = 4;
@@ -7459,6 +7617,7 @@ static int unit_ship_europe_export_load_silver(void) {
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   ColonizeColony* c = &colonies.colonies[0];
   c->id = 0;
   c->active = true;
@@ -7608,7 +7767,9 @@ static int unit_galleon_europe_export_load_silver(void) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Galleon");
   units.types[0].movement = 4;
@@ -7617,6 +7778,7 @@ static int unit_galleon_europe_export_load_silver(void) {
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   ColonizeColony* c = &colonies.colonies[0];
   c->id = 0;
   c->active = true;
@@ -7766,7 +7928,9 @@ static int unit_merchantman_europe_export_load_silver(void) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Merchantman");
   units.types[0].movement = 4;
@@ -7775,6 +7939,7 @@ static int unit_merchantman_europe_export_load_silver(void) {
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   ColonizeColony* c = &colonies.colonies[0];
   c->id = 0;
   c->active = true;
@@ -7917,7 +8082,9 @@ static int unit_galleon_trade_haul_tools_short(void) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Galleon");
   units.types[0].movement = 4;
@@ -7926,6 +8093,7 @@ static int unit_galleon_trade_haul_tools_short(void) {
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   ColonizeColony* c = &colonies.colonies[0];
   c->id = 0;
   c->active = true;
@@ -8048,7 +8216,9 @@ static int unit_improve_timer_pioneer_gate(void) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Pioneer");
   units.types[0].movement = 1;
@@ -8056,6 +8226,7 @@ static int unit_improve_timer_pioneer_gate(void) {
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   ColonizeColony* c = &colonies.colonies[0];
   c->id = 0;
   c->active = true;
@@ -8215,7 +8386,9 @@ static int unit_pioneer_plow_improve(void) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Pioneer");
   units.types[0].movement = 1;
@@ -8223,6 +8396,7 @@ static int unit_pioneer_plow_improve(void) {
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   ColonizeColony* c = &colonies.colonies[0];
   c->id = 0;
   c->active = true;
@@ -8366,7 +8540,9 @@ static int unit_lumberjack_field_assign(void) {
   map.terrain[3 * 16 + 4] = 10; /* mixed forest */
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Expert Lumberjack");
   units.types[0].movement = 3;
@@ -8374,6 +8550,7 @@ static int unit_lumberjack_field_assign(void) {
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   ColonizeColony* c = &colonies.colonies[0];
   c->id = 0;
   c->active = true;
@@ -8566,7 +8743,9 @@ static int unit_indian_land_found(void) {
   unit_indian_land_seed_colony(&colonies, nation);
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Pioneer");
   units.types[0].movement = 3;
@@ -8630,6 +8809,7 @@ static int unit_indian_land_found(void) {
   {
     unit_indian_land_seed_colony(&colonies, nation);
     units_reset(&units);
+    units_set_occupancy_map(NULL);
     units.type_count = 1;
     snprintf(units.types[0].name, sizeof(units.types[0].name), "Pioneer");
     units.types[0].movement = 3;
@@ -8704,6 +8884,7 @@ static int unit_indian_land_found(void) {
   {
     unit_indian_land_seed_colony(&colonies, nation);
     units_reset(&units);
+    units_set_occupancy_map(NULL);
     units.type_count = 1;
     snprintf(units.types[0].name, sizeof(units.types[0].name), "Pioneer");
     units.types[0].movement = 3;
@@ -8774,6 +8955,7 @@ static int unit_indian_land_found(void) {
   {
     unit_indian_land_seed_colony(&colonies, nation);
     units_reset(&units);
+    units_set_occupancy_map(NULL);
     units.type_count = 1;
     snprintf(units.types[0].name, sizeof(units.types[0].name), "Pioneer");
     units.types[0].movement = 3;
@@ -8869,7 +9051,9 @@ static int unit_ore_miner_field_assign(void) {
   map.terrain[3 * 16 + 4] = 0x20u;
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Expert Ore Miner");
   units.types[0].movement = 3;
@@ -8877,6 +9061,7 @@ static int unit_ore_miner_field_assign(void) {
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   ColonizeColony* c = &colonies.colonies[0];
   c->id = 0;
   c->active = true;
@@ -8999,7 +9184,9 @@ static int unit_silver_miner_field_assign(void) {
   map.terrain[3 * 16 + 4] = 0xa0u;
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Expert Silver Miner");
   units.types[0].movement = 3;
@@ -9007,6 +9194,7 @@ static int unit_silver_miner_field_assign(void) {
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   ColonizeColony* c = &colonies.colonies[0];
   c->id = 0;
   c->active = true;
@@ -9127,7 +9315,9 @@ static int unit_farmer_field_assign(void) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Expert Farmer");
   units.types[0].movement = 3;
@@ -9135,6 +9325,7 @@ static int unit_farmer_field_assign(void) {
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   ColonizeColony* c = &colonies.colonies[0];
   c->id = 0;
   c->active = true;
@@ -9257,7 +9448,9 @@ static int unit_pioneer_road_on_plowed(void) {
   map_tile_set_plowed(&map, 4, 3, true);
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Pioneer");
   units.types[0].movement = 1;
@@ -9265,6 +9458,7 @@ static int unit_pioneer_road_on_plowed(void) {
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   ColonizeColony* c = &colonies.colonies[0];
   c->id = 0;
   c->active = true;
@@ -9396,7 +9590,9 @@ static int unit_fisherman_field_assign(void) {
   map.terrain[4 * 16 + 3] = 25;
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Expert Fisherman");
   units.types[0].movement = 3;
@@ -9404,6 +9600,7 @@ static int unit_fisherman_field_assign(void) {
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   ColonizeColony* c = &colonies.colonies[0];
   c->id = 0;
   c->active = true;
@@ -9526,7 +9723,9 @@ static int unit_sugar_planter_field_assign(void) {
   map.terrain[3 * 16 + 4] = 5;
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Expert Sugar Planter");
   units.types[0].movement = 3;
@@ -9534,6 +9733,7 @@ static int unit_sugar_planter_field_assign(void) {
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   ColonizeColony* c = &colonies.colonies[0];
   c->id = 0;
   c->active = true;
@@ -9656,7 +9856,9 @@ static int unit_tobacco_planter_field_assign(void) {
   map.terrain[3 * 16 + 4] = 4;
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Expert Tobacco Planter");
   units.types[0].movement = 3;
@@ -9664,6 +9866,7 @@ static int unit_tobacco_planter_field_assign(void) {
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   ColonizeColony* c = &colonies.colonies[0];
   c->id = 0;
   c->active = true;
@@ -9786,7 +9989,9 @@ static int unit_cotton_planter_field_assign(void) {
   map.terrain[3 * 16 + 4] = 3;
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Expert Cotton Planter");
   units.types[0].movement = 3;
@@ -9794,6 +9999,7 @@ static int unit_cotton_planter_field_assign(void) {
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   ColonizeColony* c = &colonies.colonies[0];
   c->id = 0;
   c->active = true;
@@ -9916,7 +10122,9 @@ static int unit_fur_trapper_field_assign(void) {
   map.terrain[3 * 16 + 4] = 10;
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Expert Fur Trapper");
   units.types[0].movement = 3;
@@ -9924,6 +10132,7 @@ static int unit_fur_trapper_field_assign(void) {
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   ColonizeColony* c = &colonies.colonies[0];
   c->id = 0;
   c->active = true;
@@ -10044,10 +10253,13 @@ static int unit_peace_construction_stockade(void) {
   map.terrain[4 * 16 + 3] = 25; /* ocean west → coastal (Docks also buildable) */
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Stockade");
   colonies.building_types[0].hammers = 64;
   colonies.building_types[0].min_population = 3;
@@ -10151,10 +10363,13 @@ static int unit_peace_construction_fort(void) {
   map.terrain[4 * 16 + 3] = 25;
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Stockade");
   colonies.building_types[0].hammers = 64;
   colonies.building_types[0].min_population = 3;
@@ -10261,10 +10476,13 @@ static int unit_peace_construction_fortress(void) {
   map.terrain[4 * 16 + 3] = 25;
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Fort");
   colonies.building_types[0].hammers = 120;
   colonies.building_types[0].min_population = 4;
@@ -10370,10 +10588,13 @@ static int unit_peace_construction_warehouse(void) {
   map.terrain[4 * 16 + 3] = 25; /* coastal — Docks buildable but lower priority */
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Stockade");
   colonies.building_types[0].hammers = 64;
   colonies.building_types[0].min_population = 3;
@@ -10478,10 +10699,13 @@ static int unit_peace_construction_warehouse_expansion(void) {
   map.terrain[4 * 16 + 3] = 25; /* coastal — Docks buildable but lower priority */
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Stockade");
   colonies.building_types[0].hammers = 64;
   colonies.building_types[0].min_population = 3;
@@ -10593,10 +10817,13 @@ static int unit_peace_construction_docks(void) {
   map.terrain[4 * 16 + 3] = 25; /* ocean west → coastal */
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Stockade");
   colonies.building_types[0].hammers = 64;
   colonies.building_types[0].min_population = 3;
@@ -10701,10 +10928,13 @@ static int unit_coastal_drydock_prefer(void) {
   map.terrain[4 * 16 + 3] = 25; /* ocean west of colony → coastal */
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Docks");
   colonies.building_types[0].hammers = 52;
   colonies.building_types[0].min_population = 1;
@@ -10806,10 +11036,13 @@ static int unit_coastal_shipyard_prefer(void) {
   map.terrain[4 * 16 + 3] = 25; /* ocean west of colony → coastal */
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Drydock");
   colonies.building_types[0].hammers = 80;
   colonies.building_types[0].tools_cost = 50;
@@ -10913,10 +11146,13 @@ static int unit_stuyvesant_custom_house_prefer(void) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Custom House");
   colonies.building_types[0].hammers = 160;
   colonies.building_types[0].tools_cost = 50;
@@ -11022,10 +11258,13 @@ static int unit_peace_church_prefer(void) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Stockade");
   colonies.building_types[0].hammers = 64;
   colonies.building_types[0].min_population = 3;
@@ -11130,10 +11369,13 @@ static int unit_war_armory_prefer(void) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Stockade");
   colonies.building_types[0].hammers = 64;
   colonies.building_types[0].min_population = 3;
@@ -11244,10 +11486,13 @@ static int unit_peace_printing_press_prefer(void) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Stockade");
   colonies.building_types[0].hammers = 64;
   colonies.building_types[0].min_population = 3;
@@ -11350,10 +11595,13 @@ static int unit_peace_schoolhouse_prefer(void) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Stockade");
   colonies.building_types[0].hammers = 64;
   colonies.building_types[0].min_population = 3;
@@ -11461,10 +11709,13 @@ static int unit_war_magazine_prefer(void) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Stockade");
   colonies.building_types[0].hammers = 64;
   colonies.building_types[0].min_population = 3;
@@ -11568,10 +11819,13 @@ static int unit_peace_newspaper_prefer(void) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Stockade");
   colonies.building_types[0].hammers = 64;
   colonies.building_types[0].min_population = 3;
@@ -11673,10 +11927,13 @@ static int unit_peace_college_prefer(void) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Stockade");
   colonies.building_types[0].hammers = 64;
   colonies.building_types[0].min_population = 3;
@@ -11778,10 +12035,13 @@ static int unit_peace_cathedral_prefer(void) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Stockade");
   colonies.building_types[0].hammers = 64;
   colonies.building_types[0].min_population = 3;
@@ -11886,10 +12146,13 @@ static int unit_war_arsenal_prefer(void) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Stockade");
   colonies.building_types[0].hammers = 64;
   colonies.building_types[0].min_population = 3;
@@ -11999,10 +12262,13 @@ static int unit_peace_university_prefer(void) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Stockade");
   colonies.building_types[0].hammers = 64;
   colonies.building_types[0].min_population = 3;
@@ -12108,10 +12374,13 @@ static int unit_stable_prefer(void) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Stockade");
   colonies.building_types[0].hammers = 64;
   colonies.building_types[0].min_population = 3;
@@ -12210,10 +12479,13 @@ static int unit_carpenters_shop_prefer(void) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Stockade");
   colonies.building_types[0].hammers = 64;
   colonies.building_types[0].min_population = 3;
@@ -12313,10 +12585,13 @@ static int unit_lumber_mill_prefer(void) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Stockade");
   colonies.building_types[0].hammers = 64;
   colonies.building_types[0].min_population = 3;
@@ -12421,10 +12696,13 @@ static int unit_blacksmiths_house_prefer(void) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Stockade");
   colonies.building_types[0].hammers = 64;
   colonies.building_types[0].min_population = 3;
@@ -12526,10 +12804,13 @@ static int unit_blacksmiths_shop_prefer(void) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Stockade");
   colonies.building_types[0].hammers = 64;
   colonies.building_types[0].min_population = 3;
@@ -12635,10 +12916,13 @@ static int unit_iron_works_prefer(void) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Stockade");
   colonies.building_types[0].hammers = 64;
   colonies.building_types[0].min_population = 3;
@@ -12745,10 +13029,13 @@ static int unit_craft_distillers_house_prefer(void) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Stockade");
   colonies.building_types[0].hammers = 64;
   colonies.building_types[0].min_population = 3;
@@ -12852,10 +13139,13 @@ static int unit_craft_weavers_house_prefer(void) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Stockade");
   colonies.building_types[0].hammers = 64;
   colonies.building_types[0].min_population = 3;
@@ -12954,10 +13244,13 @@ static int unit_craft_tobacconists_house_prefer(void) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Stockade");
   colonies.building_types[0].hammers = 64;
   colonies.building_types[0].min_population = 3;
@@ -13060,10 +13353,13 @@ static int unit_craft_fur_traders_house_prefer(void) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Stockade");
   colonies.building_types[0].hammers = 64;
   colonies.building_types[0].min_population = 3;
@@ -13164,10 +13460,13 @@ static int unit_craft_distillery_prefer(void) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Stockade");
   colonies.building_types[0].hammers = 64;
   colonies.building_types[0].min_population = 3;
@@ -13277,10 +13576,13 @@ static int unit_craft_weavers_shop_prefer(void) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Stockade");
   colonies.building_types[0].hammers = 64;
   colonies.building_types[0].min_population = 3;
@@ -13389,10 +13691,13 @@ static int unit_craft_tobacconist_shop_prefer(void) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Stockade");
   colonies.building_types[0].hammers = 64;
   colonies.building_types[0].min_population = 3;
@@ -13505,10 +13810,13 @@ static int unit_craft_fur_trading_post_prefer(void) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Stockade");
   colonies.building_types[0].hammers = 64;
   colonies.building_types[0].min_population = 3;
@@ -13620,10 +13928,13 @@ static int unit_craft_rum_factory_prefer(void) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Stockade");
   colonies.building_types[0].hammers = 64;
   colonies.building_types[0].min_population = 3;
@@ -13739,10 +14050,13 @@ static int unit_craft_textile_mill_prefer(void) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Stockade");
   colonies.building_types[0].hammers = 64;
   colonies.building_types[0].min_population = 3;
@@ -13851,10 +14165,13 @@ static int unit_craft_cigar_factory_prefer(void) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Stockade");
   colonies.building_types[0].hammers = 64;
   colonies.building_types[0].min_population = 3;
@@ -13971,10 +14288,13 @@ static int unit_craft_fur_factory_prefer(void) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Stockade");
   colonies.building_types[0].hammers = 64;
   colonies.building_types[0].min_population = 3;
@@ -14091,10 +14411,13 @@ static int unit_capitol_prefer(void) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Stockade");
   colonies.building_types[0].hammers = 64;
   colonies.building_types[0].min_population = 3;
@@ -14193,10 +14516,13 @@ static int unit_capitol_expansion_prefer(void) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Capitol");
   colonies.building_types[0].hammers = 80;
   colonies.building_types[0].min_population = 1;
@@ -14307,7 +14633,9 @@ static int unit_wagon_haul_muskets_short(void) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Wagon Train");
   units.types[0].movement = 2;
@@ -14316,6 +14644,7 @@ static int unit_wagon_haul_muskets_short(void) {
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   ColonizeColony* short_c = &colonies.colonies[0];
   short_c->id = 0;
   short_c->active = true;
@@ -14433,7 +14762,9 @@ static int unit_wagon_haul_lumber_short(void) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Wagon Train");
   units.types[0].movement = 2;
@@ -14442,6 +14773,7 @@ static int unit_wagon_haul_lumber_short(void) {
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   ColonizeColony* short_c = &colonies.colonies[0];
   short_c->id = 0;
   short_c->active = true;
@@ -14558,7 +14890,9 @@ static int unit_wagon_haul_ore_short(void) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Wagon Train");
   units.types[0].movement = 2;
@@ -14567,6 +14901,7 @@ static int unit_wagon_haul_ore_short(void) {
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   ColonizeColony* short_c = &colonies.colonies[0];
   short_c->id = 0;
   short_c->active = true;
@@ -14689,7 +15024,9 @@ static int unit_wagon_haul_food_short(void) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Wagon Train");
   units.types[0].movement = 2;
@@ -14698,6 +15035,7 @@ static int unit_wagon_haul_food_short(void) {
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   ColonizeColony* short_c = &colonies.colonies[0];
   short_c->id = 0;
   short_c->active = true;
@@ -14814,7 +15152,9 @@ static int unit_wagon_food_delivery(void) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Wagon Train");
   units.types[0].movement = 2;
@@ -14823,6 +15163,7 @@ static int unit_wagon_food_delivery(void) {
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   ColonizeColony* c = &colonies.colonies[0];
   c->id = 0;
   c->active = true;
@@ -14953,7 +15294,9 @@ static int unit_wagon_food_load_haul(void) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Wagon Train");
   units.types[0].movement = 2;
@@ -14962,6 +15305,7 @@ static int unit_wagon_food_load_haul(void) {
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   /* Surplus FOOD at wagon tile. */
   ColonizeColony* surplus = &colonies.colonies[0];
   surplus->id = 0;
@@ -15118,7 +15462,9 @@ static int unit_wagon_food_prefer_over_tools(void) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Wagon Train");
   units.types[0].movement = 2;
@@ -15127,6 +15473,7 @@ static int unit_wagon_food_prefer_over_tools(void) {
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   ColonizeColony* surplus = &colonies.colonies[0];
   surplus->id = 0;
   surplus->active = true;
@@ -15264,7 +15611,9 @@ static int unit_ship_food_delivery(void) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Caravel");
   units.types[0].movement = 4;
@@ -15273,6 +15622,7 @@ static int unit_ship_food_delivery(void) {
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   ColonizeColony* c = &colonies.colonies[0];
   c->id = 0;
   c->active = true;
@@ -15385,7 +15735,9 @@ static int unit_blacksmith_workplace_assign(void) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Master Blacksmith");
   units.types[0].movement = 3;
@@ -15393,6 +15745,7 @@ static int unit_blacksmith_workplace_assign(void) {
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   snprintf(
     colonies.building_types[0].name,
     sizeof(colonies.building_types[0].name),
@@ -15523,7 +15876,9 @@ static int unit_gunsmith_workplace_assign(void) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Master Gunsmith");
   units.types[0].movement = 3;
@@ -15531,6 +15886,7 @@ static int unit_gunsmith_workplace_assign(void) {
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Armory");
   colonies.building_types[0].hammers = 52;
   colonies.building_type_count = 1;
@@ -15657,7 +16013,9 @@ static int unit_fur_trader_workplace_assign(void) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Master Fur Trader");
   units.types[0].movement = 3;
@@ -15665,6 +16023,7 @@ static int unit_fur_trader_workplace_assign(void) {
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   snprintf(
     colonies.building_types[0].name,
     sizeof(colonies.building_types[0].name),
@@ -15794,7 +16153,9 @@ static int unit_distiller_workplace_assign(void) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Master Distiller");
   units.types[0].movement = 3;
@@ -15802,6 +16163,7 @@ static int unit_distiller_workplace_assign(void) {
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   snprintf(
     colonies.building_types[0].name,
     sizeof(colonies.building_types[0].name),
@@ -15932,7 +16294,9 @@ static int unit_weaver_workplace_assign(void) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Master Weaver");
   units.types[0].movement = 3;
@@ -15940,6 +16304,7 @@ static int unit_weaver_workplace_assign(void) {
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   snprintf(
     colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Weaver's House"
   );
@@ -16068,7 +16433,9 @@ static int unit_tobacconist_workplace_assign(void) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Master Tobacconist");
   units.types[0].movement = 3;
@@ -16076,6 +16443,7 @@ static int unit_tobacconist_workplace_assign(void) {
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   snprintf(
     colonies.building_types[0].name,
     sizeof(colonies.building_types[0].name),
@@ -16206,7 +16574,9 @@ static int unit_statesman_workplace_assign(void) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Elder Statesman");
   units.types[0].movement = 3;
@@ -16214,6 +16584,7 @@ static int unit_statesman_workplace_assign(void) {
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Town Hall");
   colonies.building_types[0].hammers = 0;
   colonies.building_type_count = 1;
@@ -16339,7 +16710,9 @@ static int unit_preacher_workplace_assign(void) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Firebrand Preacher");
   units.types[0].movement = 3;
@@ -16347,6 +16720,7 @@ static int unit_preacher_workplace_assign(void) {
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Church");
   colonies.building_types[0].hammers = 0;
   colonies.building_type_count = 1;
@@ -16472,7 +16846,9 @@ static int unit_teacher_workplace_assign(void) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Expert Teacher");
   units.types[0].movement = 3;
@@ -16480,6 +16856,7 @@ static int unit_teacher_workplace_assign(void) {
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   snprintf(
     colonies.building_types[0].name,
     sizeof(colonies.building_types[0].name),
@@ -16613,7 +16990,9 @@ static int unit_carpenter_workplace_assign(void) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Master Carpenter");
   units.types[0].movement = 3;
@@ -16621,6 +17000,7 @@ static int unit_carpenter_workplace_assign(void) {
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   snprintf(
     colonies.building_types[0].name,
     sizeof(colonies.building_types[0].name),
@@ -16768,7 +17148,9 @@ static int unit_seasoned_sticky_fog_deepen(void) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Scout");
   units.types[0].movement = 4;
@@ -16776,6 +17158,7 @@ static int unit_seasoned_sticky_fog_deepen(void) {
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   ColonizeColony* c = &colonies.colonies[0];
   c->id = 0;
   c->active = true;

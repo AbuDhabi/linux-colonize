@@ -213,7 +213,9 @@ static int test_king_noncombat_never_attacks(void) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
   units.type_count = 2;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Wagon Train");
   units.types[0].movement = 2;
@@ -240,6 +242,7 @@ static int test_king_noncombat_never_attacks(void) {
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   ColonizeColony* c = &colonies.colonies[0];
   c->id = 0;
   c->active = true;
@@ -294,6 +297,7 @@ static int test_king_noncombat_never_attacks(void) {
   }
 
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   free(col1.colony);
   col1.colony = NULL;
   map_free(&map);
@@ -350,7 +354,9 @@ int main(void) {
   map.terrain[5 * 16 + 4] = 25; /* ocean west of colony for MoW */
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
   units.type_count = 9;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Regular");
   units.types[0].movement = 1;
@@ -405,6 +411,7 @@ int main(void) {
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   ColonizeColony* c = &colonies.colonies[0];
   c->id = 0;
   c->active = true;
@@ -5058,6 +5065,7 @@ int main(void) {
 
     ColonizeColonyPool cp;
     colonies_init(&cp);
+    colonies_set_occupancy_map(NULL);
     ColonizeWorldMap emap;
     memset(&emap, 0, sizeof(emap));
     emap.width = 16;
@@ -5074,7 +5082,9 @@ int main(void) {
     }
 
     ColonizeUnitPool eu;
+    memset(&eu, 0, sizeof(eu));
     units_reset(&eu);
+    units_set_occupancy_map(NULL);
 
     ColonizeMsgCatalog game_txt;
     memset(&game_txt, 0, sizeof(game_txt));
@@ -5166,6 +5176,7 @@ int main(void) {
 
     ColonizeColonyPool cp;
     colonies_init(&cp);
+    colonies_set_occupancy_map(NULL);
     ColonizeWorldMap emap;
     memset(&emap, 0, sizeof(emap));
     emap.width = 16;
@@ -5191,7 +5202,9 @@ int main(void) {
     }
 
     ColonizeUnitPool eu;
+    memset(&eu, 0, sizeof(eu));
     units_reset(&eu);
+    units_set_occupancy_map(NULL);
 
     ColonizeMsgCatalog game_txt;
     memset(&game_txt, 0, sizeof(game_txt));
@@ -5286,6 +5299,7 @@ int main(void) {
 
     ColonizeColonyPool cp;
     colonies_init(&cp);
+    colonies_set_occupancy_map(NULL);
     ColonizeWorldMap emap;
     memset(&emap, 0, sizeof(emap));
     emap.width = 16;
@@ -5315,7 +5329,9 @@ int main(void) {
     }
 
     ColonizeUnitPool eu;
+    memset(&eu, 0, sizeof(eu));
     units_reset(&eu);
+    units_set_occupancy_map(NULL);
     /* Keep a crown unit so year<<1850 win path cannot fire. */
     {
       ColonizeUnit* u = &eu.units[0];
@@ -5544,6 +5560,7 @@ int main(void) {
 
     ColonizeColonyPool cp;
     colonies_init(&cp);
+    colonies_set_occupancy_map(NULL);
     ColonizeWorldMap emap;
     memset(&emap, 0, sizeof(emap));
     emap.width = 16;
@@ -5591,7 +5608,9 @@ int main(void) {
     }
 
     ColonizeUnitPool eu;
+    memset(&eu, 0, sizeof(eu));
     units_reset(&eu);
+    units_set_occupancy_map(NULL);
     {
       ColonizeUnit* u = &eu.units[0];
       memset(u, 0, sizeof(*u));
@@ -5748,6 +5767,7 @@ int main(void) {
 
     ColonizeColonyPool cp;
     colonies_init(&cp);
+    colonies_set_occupancy_map(NULL);
     ColonizeWorldMap emap;
     memset(&emap, 0, sizeof(emap));
     emap.width = 16;
@@ -5785,7 +5805,9 @@ int main(void) {
     }
 
     ColonizeUnitPool eu;
+    memset(&eu, 0, sizeof(eu));
     units_reset(&eu);
+    units_set_occupancy_map(NULL);
     {
       ColonizeUnit* u = &eu.units[0];
       memset(u, 0, sizeof(*u));
@@ -5882,6 +5904,7 @@ int main(void) {
 
     ColonizeColonyPool cp;
     colonies_init(&cp);
+    colonies_set_occupancy_map(NULL);
     ColonizeWorldMap emap;
     memset(&emap, 0, sizeof(emap));
     emap.width = 16;
@@ -5910,7 +5933,9 @@ int main(void) {
     }
 
     ColonizeUnitPool eu;
+    memset(&eu, 0, sizeof(eu));
     units_reset(&eu);
+    units_set_occupancy_map(NULL);
     /* No crown units. */
 
     ColonizeMsgCatalog game_txt;
@@ -6038,6 +6063,7 @@ int main(void) {
 
     ColonizeColonyPool cp;
     colonies_init(&cp);
+    colonies_set_occupancy_map(NULL);
     ColonizeWorldMap emap;
     memset(&emap, 0, sizeof(emap));
     emap.width = 16;
@@ -6067,7 +6093,9 @@ int main(void) {
     }
 
     ColonizeUnitPool eu;
+    memset(&eu, 0, sizeof(eu));
     units_reset(&eu);
+    units_set_occupancy_map(NULL);
     {
       ColonizeUnit* u = &eu.units[0];
       memset(u, 0, sizeof(*u));
@@ -6174,6 +6202,7 @@ int main(void) {
 
     ColonizeColonyPool cp;
     colonies_init(&cp);
+    colonies_set_occupancy_map(NULL);
     {
       ColonizeColony* c = &cp.colonies[0];
       memset(c, 0, sizeof(*c));
@@ -6186,7 +6215,9 @@ int main(void) {
       cp.colony_count = 1;
     }
     ColonizeUnitPool eu;
+    memset(&eu, 0, sizeof(eu));
     units_reset(&eu);
+    units_set_occupancy_map(NULL);
 
     ColonizeMsgCatalog game_txt;
     memset(&game_txt, 0, sizeof(game_txt));
@@ -6296,8 +6327,11 @@ int main(void) {
 
     ColonizeColonyPool cp;
     colonies_init(&cp);
+    colonies_set_occupancy_map(NULL);
     ColonizeUnitPool eu;
+    memset(&eu, 0, sizeof(eu));
     units_reset(&eu);
+    units_set_occupancy_map(NULL);
 
     ColonizeMsgCatalog game_txt;
     memset(&game_txt, 0, sizeof(game_txt));
@@ -6390,6 +6424,7 @@ int main(void) {
 
     ColonizeColonyPool cp;
     colonies_init(&cp);
+    colonies_set_occupancy_map(NULL);
     ColonizeWorldMap emap;
     memset(&emap, 0, sizeof(emap));
     emap.width = 16;
@@ -6417,7 +6452,9 @@ int main(void) {
     }
 
     ColonizeUnitPool eu;
+    memset(&eu, 0, sizeof(eu));
     units_reset(&eu);
+    units_set_occupancy_map(NULL);
     {
       ColonizeUnit* u = &eu.units[0];
       memset(u, 0, sizeof(*u));
