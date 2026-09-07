@@ -1128,12 +1128,12 @@ static const ColonizeSpriteSheet* ai_popup_art_sheet(const AiPopupRequest* req) 
   return ai_popup_graphic_sheet(req->graphic_mss, req->graphic_myr);
 }
 
-void ai_popup_art_palette_merge(AiPopupState* st, ColonizePalette* dst) {
-  if (!st || !st->open || !dst) {
-    return;
-  }
-  const ColonizeSpriteSheet* art = ai_popup_art_sheet(&st->current);
-  if (!art || !art->has_palette) {
+const ColonizeSpriteSheet* ai_popup_decoration_sheet(int mss, int myr) {
+  return ai_popup_graphic_sheet(mss, myr);
+}
+
+void ai_popup_sheet_palette_merge(const ColonizeSpriteSheet* art, ColonizePalette* dst) {
+  if (!art || !art->has_palette || !dst) {
     return;
   }
   /*
@@ -1150,6 +1150,13 @@ void ai_popup_art_palette_merge(AiPopupState* st, ColonizePalette* dst) {
     dst->rgb[i][1] = art->palette.rgb[i][1];
     dst->rgb[i][2] = art->palette.rgb[i][2];
   }
+}
+
+void ai_popup_art_palette_merge(AiPopupState* st, ColonizePalette* dst) {
+  if (!st || !st->open || !dst) {
+    return;
+  }
+  ai_popup_sheet_palette_merge(ai_popup_art_sheet(&st->current), dst);
 }
 
 void ai_popup_render(

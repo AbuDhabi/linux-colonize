@@ -2458,9 +2458,14 @@ static void ai_king_tax_hike_apply(ColonizeTurnContext* ctx, int human, int delt
       char body[AI_POPUP_BODY_LEN];
       snprintf(body, sizeof(body),
                "The King, moved by your poverty, lowers taxes to %u%%.", nat->tax_rate);
-      (void)ai_popup_enqueue_ok_ctx(ctx->ai_popups, AI_POPUP_TAG_KING_TAX, human,
-                                    ai_king_crown_nation_col1(ctx->col1_ok ? ctx->col1 : NULL, human), (int)nat->tax_rate,
-                                    NULL, body);
+      if (ai_popup_enqueue_ok_ctx(ctx->ai_popups, AI_POPUP_TAG_KING_TAX, human,
+                                  ai_king_crown_nation_col1(ctx->col1_ok ? ctx->col1 : NULL, human), (int)nat->tax_rate,
+                                  NULL, body)) {
+        /* DOS 3dc8's message-only arm (38fd:402a `MOV word [0x1f5c],0x8`,
+         * then FUN_281f_03fe) wears the King flair too — the port had it on
+         * the @KINGTAX choice only, so a tax CUT lost the portrait. */
+        ai_popup_set_last_portrait(ctx->ai_popups, 8, 0);
+      }
     }
     return;
   }
@@ -2501,9 +2506,13 @@ static void ai_king_tax_hike_apply(ColonizeTurnContext* ctx, int human, int delt
       char body[AI_POPUP_BODY_LEN];
       snprintf(body, sizeof(body), "The King raises taxes to %u%%.", nat->tax_rate);
       sound_play(0x56); /* FUN_38fd_3dc8 tax raise (COLDIG 9 cheering) */
-      (void)ai_popup_enqueue_ok_ctx(ctx->ai_popups, AI_POPUP_TAG_KING_TAX, human,
-                                    ai_king_crown_nation_col1(ctx->col1_ok ? ctx->col1 : NULL, human), (int)nat->tax_rate,
-                                    NULL, body);
+      if (ai_popup_enqueue_ok_ctx(ctx->ai_popups, AI_POPUP_TAG_KING_TAX, human,
+                                  ai_king_crown_nation_col1(ctx->col1_ok ? ctx->col1 : NULL, human), (int)nat->tax_rate,
+                                  NULL, body)) {
+        /* Same 38fd:402a arm — DOS reaches it when no cargo is eligible for
+         * the tea party, and still stands the King beside the message. */
+        ai_popup_set_last_portrait(ctx->ai_popups, 8, 0);
+      }
     }
     return;
   }
@@ -3664,18 +3673,15 @@ static void ai_king_ref_wave(ColonizeTurnContext* ctx) {
     return;
   }
 
-  /* Thin 4d56 ship act: an emptied Man-O-War sails home for the next wave. */
-  if ((int)force[0] + (int)force[1] + (int)force[3] > 0) {
-    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
-      ColonizeUnit* u = &ctx->units->units[i];
-      if (u->active && u->nation_id == crown && ai_king_is_mow(ctx->units, u) &&
-          u->cargo_count == 0 && u->turns_worked > 0) {
-        (void)units_despawn(ctx->units, u->id);
-      } else if (u->active && u->nation_id == crown && ai_king_is_mow(ctx->units, u)) {
-        u->turns_worked = (uint8_t)(u->turns_worked + 1);
-      }
-    }
-  }
+  /*
+   * (2026-09-07) The "emptied Man-O-War sails home" stand-in that used to sit
+   * here — despawn any idle empty crown MoW with turns_worked > 0, bump
+   * turns_worked otherwise — is retired. The real DOS beat is the
+   * FUN_521d_20e6 ship-band tail (raw 89717-89720), ported as
+   * ai_king_mow_sail_home_20e6 and run from the MoW's own act in war_act; see
+   * that function's header. It also frees turns_worked, which DOS uses on AI
+   * units as the 20e6 cower byte (+0x315a), from a king-side second meaning.
+   */
 
   bool exhaust = false;
   bool landed = false;
@@ -5067,9 +5073,14 @@ int ai_king_new_war_event(ColonizeTurnContext* ctx) {
     );
     char body[AI_POPUP_BODY_LEN];
     popup_msg_fill(ctx->messages, "KINGNEWWAR", &tok, fallback, body, sizeof(body));
-    (void)ai_popup_enqueue_ok_ctx(
-      ctx->ai_popups, AI_POPUP_TAG_KING_TAX, human, peer, gold, NULL, body
-    );
+    if (ai_popup_enqueue_ok_ctx(
+          ctx->ai_popups, AI_POPUP_TAG_KING_TAX, human, peer, gold, NULL, body
+        )) {
+      /* DOS 38fd:5b6e `PUSH 0x1134` / 38fd:5b71 `CALLF 291f:0ad4` — 0ad4 is
+       * the King-flair message helper (FUN_6f74_378a: DS:0x1f5c = 8, then
+       * show), so @KINGNEWWAR wears KING.SS like the tax audience does. */
+      ai_popup_set_last_portrait(ctx->ai_popups, 8, 0);
+    }
   }
   col1->nation[human].gold += (uint32_t)gold;
   /* FUN_281f_095c(type 1 Soldier, nation, -20,-20) x count, profession 0x15 = Veteran:
@@ -5084,6 +5095,141 @@ int ai_king_new_war_event(ColonizeTurnContext* ctx) {
   ai_diplo_clear_both(col1, human, peer, AI_DIPLO_PEACE);
   ai_diplo_or_both(col1, human, peer, AI_DIPLO_CROWN_ARMED);
   col1->head.nation_relation[peer] = (int16_t)turn; /* DS:0x53c8[peer] = turn */
+  return 1;
+}
+
+/*
+ * DS:0x9456[nation] — census FUN_4962_0018 (viceroy_unpacked.c:78146 clear,
+ * :78182/:78185 the two increments): the count of that nation's SHIP units
+ * (type 0x0d..0x12) parked on a Europe x-sentinel, i.e. `x - nation == -0xc`
+ * (244+n, "sailing to Europe") or `== -0x10` (240+n, docked in Europe) — see
+ * docs/save_format_map.md row `x`/`y`. DS:0x945a is the land-unit twin
+ * (236+n, already used by the 5d04 hire tail).
+ *
+ * The port has no Europe dock for the crown slot, so a crown hull that
+ * reaches the high seas leaves the map outright (below) and this count is
+ * the number of crown ships still standing ON a high-seas tile, i.e. the
+ * ones mid-crossing.
+ */
+static int ai_king_crown_ships_in_europe_lane(const ColonizeTurnContext* ctx, int crown) {
+  if (!ctx || !ctx->units || !ctx->map) {
+    return 0;
+  }
+  int n = 0;
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    const ColonizeUnit* u = units_get_const(ctx->units, i);
+    if (!u || !u->active || u->nation_id != crown || u->aboard_ship_id >= 0) {
+      continue;
+    }
+    if (!units_is_sea(ctx->units, u->id)) {
+      continue;
+    }
+    if (map_tile_is_high_seas(ctx->map, u->x, u->y)) {
+      n++;
+    }
+  }
+  return n;
+}
+
+/*
+ * The crown Man-O-War's return-home beat — the real DOS one, replacing the
+ * "despawn idle empty crown MoWs at wave start" stand-in that used to sit in
+ * ai_king_ref_wave (and the `4d56 ship act` label it carried: overlay 4d56 is
+ * the Indian AI overlay end to end — see FUNCTION_CATALOG rows 0038…4528 —
+ * and holds no crown code at all).
+ *
+ * The beat lives at the tail of the `FUN_521d_20e6` ship band
+ * (viceroy_unpacked.c:89717-89720; recovered listing
+ * move_scoring_20e6_full.md:2036-2040). Every disjunct below is the DOS
+ * *skip* test, so the arm fires when all of them are false:
+ *
+ *   if (  (DS:0x5382 & 1) == 0                  // not at war
+ *      || unit+0x3146 != 0x12                   // not a Man-O-War
+ *      || iStack_6 != 0                         // orders byte +0x314b is 't'/'i'
+ *      || iStack_a8 != 0                        // 8aac(unit,2)-1: tile stack minus self
+ *      || DS:0x53de != 0                        // MoW pool (expeditionary_force[2]) not empty
+ *      || DS:0x9456[nation] != 0                // a ship of this nation is already in the Europe lane
+ *      || DS:0x53da+0x53dc+0x53e0 == 0 )        // no land pools left
+ *     { ...ordinary ship arms... }
+ *   // else falls through to LAB_521d_3fa6:
+ *   //   FUN_291f_02ea -> FUN_48d3_015e: expanding-ring hunt for a High Seas
+ *   //   tile (class 0x1a, owner nibble < 0 or own nation), bump
+ *   //   DS:0x9456+nation, act_state +0x314c = 3 (or 0xb), latch the tile in
+ *   //   +0x314d/e and stamp orders +0x314b = 0x45 — i.e. sail home.
+ *
+ * Nothing credits a pool: `expeditionary_force[]` is untouched on the way
+ * out. The fleet cadence comes from FUN_43f7_0982's own opening gate
+ * (`force[2] == 0 && crown Man-O-War count (-0x6da2) == 0 -> force[2]++`,
+ * raw 73990-73993), which can only fire once the hull is off the map.
+ *
+ * Port mapping of the two opaque operands:
+ *   - `iStack_6` is set (raw 1144-1149 of the recovered listing) only from
+ *     the 0a60 goal pass's order codes 't' (FOUND) / 'i' (MIL_EXPAND). The
+ *     crown never runs 0a60 in this port (turn.c skips ai_euro_nation_turn
+ *     for the REF slot), so the byte is never written and the term is
+ *     constant 0 here — modelled as such, not invented.
+ *   - `iStack_a8` = FUN_1000_8aac(unit, 2) - 1 = the ship's tile stack minus
+ *     itself (case 2 = TOTAL stack count, ai_euro.c's 8aac table). DOS
+ *     passengers sit at (-2,-2) and never count; the port's sit in
+ *     cargo_ids, so this is the tile scan alone and the caller runs the arm
+ *     only for an empty hull.
+ *
+ * Departure: DOS hands the hull to the Europe lane (x = 244+nation) and the
+ * crown's own Europe dock. The port models no crown dock, so a crown MoW
+ * standing on the high-seas tile it was sent to leaves the map here — the
+ * same net effect (hull gone, no pool credit) the old stand-in produced, but
+ * now on the DOS trigger instead of a turns_worked counter.
+ */
+static int ai_king_mow_sail_home_20e6(ColonizeTurnContext* ctx, ColonizeUnit* u, int crown) {
+  if (!ctx || !ctx->units || !ctx->map || !ctx->col1_ok || !ctx->col1 || !u) {
+    return 0;
+  }
+  /* Reached the crossing: the hull is home (DOS: into the Europe lane). */
+  if (map_tile_is_high_seas(ctx->map, u->x, u->y)) {
+    (void)units_despawn(ctx->units, u->id);
+    return 1;
+  }
+  const uint16_t* force = ctx->col1->head.expeditionary_force;
+  if (force[2] != 0) {
+    return 0; /* DS:0x53de */
+  }
+  if ((int)force[0] + (int)force[1] + (int)force[3] == 0) {
+    return 0; /* DS:0x53da + 0x53dc + 0x53e0 */
+  }
+  if (ai_king_crown_ships_in_europe_lane(ctx, crown) != 0) {
+    return 0; /* DS:0x9456[nation] */
+  }
+  /* iStack_a8: any other unit sharing the ship's tile blocks the beat. */
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    const ColonizeUnit* o = units_get_const(ctx->units, i);
+    if (!o || !o->active || o->id == u->id || o->aboard_ship_id >= 0) {
+      continue;
+    }
+    if (o->x == u->x && o->y == u->y) {
+      return 0;
+    }
+  }
+  int hx = 0;
+  int hy = 0;
+  if (!units_spiral_place_hs_near(ctx->units, ctx->map, u->x, u->y, crown, &hx, &hy)) {
+    return 0;
+  }
+  u->orders = UNITS_ORDER_AI_SAIL; /* +0x314b = 0x45 */
+  u->goto_x = hx;
+  u->goto_y = hy;
+  if (u->moves_left > 0) {
+    const int sdx = (hx > u->x) - (hx < u->x);
+    const int sdy = (hy > u->y) - (hy < u->y);
+    const int nx = u->x + sdx;
+    const int ny = u->y + sdy;
+    if ((sdx != 0 || sdy != 0) && map_tile_is_water(ctx->map, nx, ny) &&
+        units_id_at(ctx->units, nx, ny) < 0) {
+      units_try_move(ctx->units, u->id, ctx->map, nx, ny, ctx->colonies, ctx->rng);
+    }
+    if (u->active && map_tile_is_high_seas(ctx->map, u->x, u->y)) {
+      (void)units_despawn(ctx->units, u->id);
+    }
+  }
   return 1;
 }
 
@@ -5344,6 +5490,16 @@ static void ai_king_war_act(ColonizeTurnContext* ctx) {
      *     embark UI chrome PARKED; 160a letter cinematic Done (core/declaration.c).
      */
     if (ai_king_is_mow(ctx->units, u)) {
+      /*
+       * FUN_521d_20e6 ship-band tail (raw 89717-89720): an empty crown
+       * Man-O-War sails for the High Seas once the MoW pool is spent and land
+       * pools remain. DOS reaches this only after the band's own cargo /
+       * colony-sail arms decline, so it runs here on the idle empty hull —
+       * ahead of the port's coastal-patrol arm, which is the arm it replaces.
+       */
+      if (u->cargo_count == 0 && ai_king_mow_sail_home_20e6(ctx, u, crown)) {
+        continue;
+      }
       int unloaded = 0;
       int land_x = 0;
       int land_y = 0;

@@ -326,8 +326,11 @@ flowchart TD
 
 Village tile / synthetic apply: Trade / Gift / Demand / Teach / Leave
 (`ai_contact_try_village_meet`). Greet `@INDIANHELLO1` / `HELLO2` by cool/hot
-alarm. Thin auto-trade drains Trade Goods from colony / ship / wagon; deep
-bargain matrix `FUN_4d56_2820` **PARKED**.
+alarm. Deep bargain matrix `FUN_4d56_2820` is **ported**, not parked (stale
+row corrected 2026-09-07f): `ai_contact.c:4882-5400` — hold pick, throttle
+table `k_2820_throttle` (`:5066`), want-sort (`:5050`), haggle, gift,
+post-sale buy. Verification rewrite 2026-08-29,
+[`indian_trade_2820.md`](../original_sources_annotated/ai/indian_trade_2820.md).
 
 **Interacting with a village forfeits the unit's remaining MP** (2026-09-04).
 `FUN_4d56_4528`'s common tail (`viceroy_overlays.asm` `OVL13::004c0a`) calls
@@ -425,7 +428,8 @@ Odds / resolve: [combat.md](combat.md).
 ### Ship → village
 
 Not landfall: `@DONTKNOWSHIPS` / `@MADATSHIPS` ([move_enter.md](move_enter.md);
-settlement head `FUN_4d56_4528` warn→Attack Done thin; deep `2820` **PARKED**).
+settlement head `FUN_4d56_4528` warn→Attack Done thin; `2820` ported —
+`ai_contact.c:4882`).
 
 ### Nation turn shell
 
@@ -440,14 +444,14 @@ Aligned with [manual_gap.md](manual_gap.md) §Indians — no new fidelity claims
 
 | Area | Status | Where |
 |------|--------|-------|
-| Villages on map + Braves | Partial | Placement + icons; quiet pulse / growth — [port_plan.md](port_plan.md) T1.23 |
+| Villages on map + Braves | Done to golden | Placement + icons; quiet pulse / growth — T1.23 **closed 2026-09-05**, `golden_ai_turns` TURN1→7 all green ([port_plan.md](port_plan.md)) |
 | First contact WELCOME | Done structural | `ai_contact_*`; thin land grant |
 | Meet / trade / gift / teach | Partial | Village trade `2820` **Done structural** (2026-08-29: hold pick, sell/haggle/gift, `@BADCARGO`/`@BRING`, post-sale buy); gift/teach widgets thin; VGA chrome PARKED |
 | Missions / convert / heresy | Partial | Structural; incite/WARPATH **Done both modes byte-faithful** 2026-09-06 (`indian_incite_417e.md`) |
-| Alarm / raids / wars | Partial | Structural `@RAID*`; village enter warn→Attack Done thin; deep `2820` PARKED |
+| Alarm / raids / wars | Partial | Structural `@RAID*`; village enter warn→Attack Done thin (`2820` itself is ported — `ai_contact.c:4882`) |
 | Capital surrender / Cortes treasure | Done thin | `ai_diplo_*` / `units_*` fallout |
 | Indian×Euro diplo matrix | Done structural | Fuller `153e` unpark; FA UI **PARKED** |
-| `IND*.SS` meet chrome | Missing / PARKED | Ship data present; not loaded |
+| `IND*.SS` meet chrome | Done | Loaded 2026-08-29, placement DOS-literal 2026-09-07e — `ai_popup.c:1020` (`"IND%dA%d.SS"`), `:1259`; see the `IND0A0.SS` row above. (Stale "Missing / not loaded" corrected 2026-09-07f.) |
 
 Annotated deep dives (do not duplicate here):
 

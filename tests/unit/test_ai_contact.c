@@ -6128,6 +6128,10 @@ int main(void) {
   free(map.terrain);
   free(map.layer2);
   free(map.layer3);
+  /* tribe[] was calloc'd by hand above and col1.owned stays 0, so
+   * col1_save_free() will not release it — free it here. */
+  free(col1.tribe);
+  col1.tribe = NULL;
   col1_save_free(&col1);
   fprintf(stderr, "unit_ai_contact: ok (last_raid_kind=%d)\n", ai_contact_last_raid_kind());
 

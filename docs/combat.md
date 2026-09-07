@@ -88,10 +88,13 @@ No `015e` colony / village / terrain / fortify for ships.
 
 1. Base = `004a(mode=0)`
 2. Site multiplier `local_1a`:
-   - **A.** Own Euro colony: bare `2`; Stockade **or** Fort **or** Fortress `4`; Fortress then `<<=1` → `8`.
-     **Open question 2026-09-03:** DOS `015e` colony arm is `(FUN_157e_0008 + 1) * 2` where `0008`
-     counts `038e(0..2)` probes — if those are hierarchical fort tiers, DOS Fort is `6` (×2.5,
-     matching the manual's +150%), not `4`. Port unchanged pending a `038e` peel.
+   - **A.** Own Euro colony: `(FUN_157e_0008 + 1) * 2` → **2 / 4 / 6 / 8** for
+     none / Stockade / Fort / Fortress (viceroy 9009–9011).
+     **Open question closed 2026-09-07:** `0008`'s three `038e(0..2)` probes *are* the
+     fortification chain — the building table at `DS:0x8f82` (stride `0xc`) links each record
+     to its next tier at `+4`, and records 0/1/2 chain `0→1→2→-1` with name ids
+     `0x4b`/`0x4c`/`0x4d`. So Fort is `6` (×2.5 = the manual's +150%), not `4`; the port used
+     to collapse Fort into Stockade's `4`.
    - **B.** Native village (corrected 2026-09-03, viceroy 8989–9002 — the old `(probe+1)*2`
      formula here was the COLONY arm's): `2`; tribe `tech > 1` → `4` (8d02|0x10); capital
      dwelling (tribe rec +3 bit4) → `<<=1` (8d02|0x20)
@@ -374,17 +377,42 @@ dual column. Shown **before** the combat roll (strengths known; no outcome yet).
 - Flag rows (LABELS-shaped, DOS check order): Veteran, Cargo, **Attack
   Bonus** (land ×3/2), Expeditionary Force, Tories/Rebels (WoI support %),
   Ambush (attacker terrain, DOS `0x2e56`) / Terrain (defender `0x2e58`),
-  Colony/Stockade/Fortress, village row labeled with the NAMES **@LEVELS**
+  the **fort-tier** row — label = the topmost built fortification's own name
+  (`FUN_281f_0bdc` = `FUN_15eb_0434(0)` walking the `DS:0x8f82+4` chain), or
+  LABELS `Colony` (`0x2e5a`) with none; value = `(FUN_157e_0008 + 1) * 50`, so
+  Colony +50 / Stockade +100 / **Fort +150** / Fortress +200 —
+  village row labeled with the NAMES **@LEVELS**
   noun by tribe tech — Camp/Village/City, or "Capital" (`@LEVELS` row 5,
   DS:0x964c) when the dwelling is a capital, at +50 / +100 / ×2 (636c bit-8
   row; corrected 2026-09-03 — it never prints the tribe name),
   Artillery In Open, Artillery Vs. Raid,
   Fortified, Spain Bonus, Drake. No roll, no Victory/Defeat.
-- Fatigue −33%/−66% rows (bits `0x100`/`a156&8`) ported 2026-09-04 with the
-  penalty itself — see **Attacker fatigue** below.
-- Not ported from DOS 636c: the 0x400 sprite row (label
-  `0x97de`, unidentified), row icons for terrain/colony/village lines, and
-  the cheat-mode (`0x5383&0x20`) final-weight footer rows.
+- Fatigue −33%/−66% rows (bits `0x100`/`a156&8`, both labelled `0x2e52`)
+  ported 2026-09-04 with the penalty itself — see **Attacker fatigue** below.
+  Placed in DOS's bit-walk position 2026-09-07: they sit **between Cargo and
+  Attack Bonus** (asm `636c:02ff` / `636c:03da`), not at the end of the column,
+  and DOS tests them as two independent `if`s.
+- **Row icons** (ported 2026-09-07). Four flag rows blit a picture at the
+  column's left edge and push their own label right by the indent DOS adds to
+  its label pen (`local_76`) straight after the blit:
+
+  | Row | DOS blit | Sprite | Indent |
+  |-----|----------|--------|--------|
+  | Bombard (`0x8000`) | `FUN_281f_0254` → `1c36_000a` | ICONS.SS: Man-O-War (`DS:0x532e` = `@UNIT` 18 icon) when the colony's `+0x1c` bit `0x40` (coastal) is set or there is no colony, else Artillery (`DS:0x52cc` = `@UNIT` 11) | `0x10` |
+  | Ambush / Terrain (`0x80`) | `FUN_281f_033a` → `1baa_0006` | TERRAIN.SS engagement tile (both columns show the same tile) | `0x11` |
+  | Fort tier (`0x40`) | `FUN_281f_02a8` → `112b_0c64` @100 | ICONS.SS #0–3 + owner flag (`colonies_blit_settlement_icon`) | `0x14` |
+  | Village (`0x8`) | `FUN_281f_02b2` → `112b_0790` @100 | ICONS.SS #10–13 by tribe tech (`112b_0790` reads the `DS:0x84c` per-tech table) | `0x14` |
+
+  `DS:0x83e` is ICONS.SS (loaded from the `'icons'` name at `DS:0x23d6`), and
+  the `@UNIT` icon byte lives at `+2` of the stride-`0xe` unit table `DS:0x5230`.
+- Not ported from DOS 636c: the 0x400 sprite row (ICONS.SS #38 at indent `8`,
+  label `0x97de`, still unidentified) and the cheat-mode (`0x5383&0x20`)
+  final-weight footer rows.
+- **Label mismatch, unfixed:** DOS's WoI support rows read `0x2ec2` / `0x2ec4`
+  = LABELS lines 147/148 "Tory Unrest" / "Rebel Unrest" (the id→line mapping is
+  `id = LABELS line + 312`, anchored on `0x192`=`COMBAT ANALYSIS` line 90,
+  `0x1c8`=`Artillery Vs. Raid` line 144). The port prints "Tories"/"Rebels"
+  (LABELS lines 101/102, which 636c never reads).
 - Roll still uses post-modifier odds weights (`atk` / `def` in
   `roll 1..(atk+def)`); those values are not printed in the header.
 - Input: Esc / Enter / Space / click dismiss

@@ -3503,6 +3503,52 @@ int main(void) {
         return fail("idle empty MoW should step toward human coast water");
       }
     }
+    /*
+     * FUN_521d_20e6 ship-band tail (viceroy_unpacked.c:89717-89720): with the
+     * MoW pool spent (force[2]==0), land pools still stocked, the hull empty
+     * and alone on its tile, the crown Man-O-War sails for the High Seas
+     * (FUN_48d3_015e) and leaves the map — and NO pool is credited on the way
+     * out (0982's own refill gate is what puts the next hull in the water).
+     * Replaces the old "despawn at wave start once turns_worked > 0" stand-in.
+     */
+    {
+      ColonizeUnit* mow = units_get(&units, mow_id);
+      if (!mow || !mow->active) {
+        return fail("MoW sail-home setup needs live Man-O-War");
+      }
+      map.terrain[5 * 16 + 1] = 26; /* High Seas west of the ocean corridor */
+      mow->x = 2;
+      mow->y = 5;
+      mow->cargo_count = 0;
+      mow->moves_left = 4 * UNITS_MP_PER_TILE;
+      mow->orders = UNITS_ORDER_NONE;
+      mow->goto_x = -1;
+      mow->goto_y = -1;
+      /* Land pools stocked, MoW pool spent — the DOS gate's own shape. */
+      memset(col1.head.expeditionary_force, 0, sizeof(col1.head.expeditionary_force));
+      col1.head.expeditionary_force[0] = 3;
+      for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+        ColonizeUnit* u = &units.units[i];
+        if (u->active && u->nation_id == 1 && u->id != mow_id) {
+          u->moves_left = 0;
+          if (u->x == mow->x && u->y == mow->y) {
+            u->x = 1;
+            u->y = 1;
+          }
+        }
+      }
+      ai_king_nation_turn(&ctx);
+      mow = units_get(&units, mow_id);
+      if (mow && mow->active) {
+        fprintf(stderr, "unit_ai_king: MoW still on map at (%d,%d) orders=%d\n", mow->x,
+                mow->y, mow->orders);
+        return fail("empty crown MoW should sail home once force[2] is spent");
+      }
+      if (col1.head.expeditionary_force[2] != 0) {
+        return fail("MoW sailing home must not credit expeditionary_force[2]");
+      }
+      map.terrain[5 * 16 + 1] = 25;
+    }
     decoy_port->active = false;
     colonies.colonies[0].population = 4;
   }

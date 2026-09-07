@@ -262,11 +262,22 @@ segment offsets directly):
    the same `box[+0x26]` and disentangling the 1 px text offset needs the
    `FUN_6f74_0538` text-draw read.
 
-`save_load_dialog.c` renders what are also `+0x54` rows and still uses
-`glyph_h + 1`, so the same 2 px applies there — left alone deliberately: its
-row format came from a bespoke `7562_0052` builder that was not read this
-pass, and changing another screen's calibrated pitch on inference is exactly
-the guess these notes exist to prevent.
+4. **`save_load_dialog.c` — CONFIRMED `+0x54`, ported 2026-09-07.** The
+   handover left this open pending a read of the bespoke `7562_0052` builder.
+   Read: `FUN_7562_0052` emits each slot row with `FUN_291f_0176`
+   (`viceroy_unpacked.c` 119680), and `FUN_291f_0176` is a bare thunk to
+   `FUN_6f74_0a00` (`viceroy_unpacked_2.c` 33285–33289) — the `+0x54` option
+   list — so the slot rows are option rows, not body lines. The box itself
+   comes from `FUN_291f_0182` → `FUN_6f74_32a4` (the script parser) over
+   `GAME.TXT` `@SAVEGAME` / `@LOADGAME`, which declare nothing but
+   `@width=190`, so no `flags & 0x10` and `box[+0x46] = 3`. Pitch is
+   `glyph_h + 3`; the port's `glyph_h + 1` was the same 2 px tight as
+   `ai_popup` had been. Fixed, with hit-testing (`dlg->line_h`) moved onto the
+   option pitch and the selection bar switched to the resolved `1b7c` rect
+   (`x = inner_x + 1`, width `content − 2`, height `glyph_h + 2`) it had been
+   approximating. Same read also re-confirms the slot counts: the two callers
+   pass the row count as the second arg — `030a` → `(0x20f6, 8)` = save,
+   `04e8` → `(0x211a, 10)` = load, matching the port's 8/10.
 
 ## Method notes
 

@@ -1866,3 +1866,44 @@ and `ai_euro_haul_load_amount` deleted; wagon specialty/produced/food-first
 ladder retired. Consumer notes + the ships-only 4393 divergence live in
 `move_scoring_20e6_full.md` §2026-09-07. `0x1734[nation]++` wired 2026-09-07b.
 ctest 58/58, all goldens byte-green.
+
+## Tenth pass (2026-09-07) — `FUN_521d_06ae` neighbour-relation gate ported
+
+The last unported piece of `06ae`'s extras walk (the `≥0` score floor went in
+2026-09-07e) is the per-neighbour claim gate, `viceroy_unpacked.c:87293-87298`:
+
+```
+cVar2 = FUN_281f_06dc(0x281f,iVar3,iVar9);
+iVar4 = (int)cVar2;
+if ((((iVar4 < 0) || (3 < iVar4)) ||
+    ((*(char *)(iVar4 * 0x34 + 0x543f) != '\0' ||
+     (uVar5 = FUN_281f_0a38(0x281f,param_1,iVar4), (uVar5 & 0x40) == 0)))) &&
+   (param_4 != 0)) { /* add 0492*0x10 + explore */ }
+```
+
+Semantics: a neighbour tile contributes **nothing** to a candidate site's score
+when its claimed owner is a Euro nation `0..3` that is **human-controlled**
+(`DS:0x543f + n*0x34 == 0`, control 0/1/2 = human/AI/withdrawn — `turn/year_loop.c:55`)
+**and** the scoring nation is at PEACE with it (`0a38 & 0x40`). AI-owned,
+unmet, at-war and unclaimed (`0xf`) land still counts. Live in
+`ai_goals_pick_founding_tile_ex` (`src/core/ai_goals.c`), inside the `nd`
+neighbour loop, after the `0682` empty test and before the `0492`/explore add.
+
+Traps:
+
+- `FUN_281f_06dc` → `FUN_137f_0200` (`viceroy_unpacked_2.c:5383-5395`) is the
+  **ungated** layer3 high nibble, *not* the layer2-gated `0682`/`06be` pair the
+  rest of `06ae` uses. It returns `0xffff & 0xff = 0xff`, i.e. `−1` only once the
+  caller narrows it to `char` — read it as a raw nibble with `0xf → −1`, and do
+  not route it through `ai_goals_tile_layer2_owner`.
+- `FUN_281f_0a38` → `FUN_15b3_0004` (`viceroy_unpacked_2.c:7752-7761`) has **no
+  self-pair special case**: it reads `euro_relation[self]`, which is never
+  written, so an own-claimed neighbour reads 0 and the gate cannot fire. The
+  port therefore reads `col1->nation[n].euro_relation[owner]` directly —
+  `ai_diplo_read`'s `PEACE|ALLY` self virtual would wrongly fire it.
+
+Still thin in `06ae`: the same inner loop's `FUN_281f_0682 < 0` test is DOS's
+**unit-presence** owner (layer2 bit 0, per the 2026-09-07 `0906` rework), but the
+port still stands in a colony-pool lookup there.
+
+ctest 58/58, all goldens byte-green.

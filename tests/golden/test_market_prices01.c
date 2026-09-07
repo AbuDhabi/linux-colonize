@@ -48,6 +48,7 @@ static int run_pair(const PairSpec* ps) {
     return 1;
   }
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
   if (!units_load_types(&units, &names)) {
     return 1;

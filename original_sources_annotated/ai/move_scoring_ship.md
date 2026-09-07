@@ -7,8 +7,16 @@ Parent: [`move_scoring.md`](move_scoring.md). Annotated stub:
 [`euro_ocean_scoring.c`](euro_ocean_scoring.c). Land OPEN arms:
 [`move_scoring_land.md`](move_scoring_land.md).
 
-**Port status:** mapped; Linux `ai_euro_ocean_score_step` thin. Cargo matrix /
-`−0x6790` deep tables **PARKED**.
+**Port status (revised 2026-09-07f — the old "cargo matrix PARKED" line was
+stale):** mapped; the ocean *step* scorer `ai_euro_ocean_score_step` is still
+thin, but every cargo matrix in this band is ported —
+`ai_euro_20e6_unload_mask`/`_unload_by_mask`, `_delivery_tallies`/
+`_delivery_colony_pick`, `_delivery_sell_tail`, `_load_pick`,
+`_colony_sail_pick`, `_457e_hs_cadence`, `_47b9_dead_end`,
+`_wagon_origin_walk`, `_wagon_village_errand`, `_transport_assemble`
+(`src/core/ai_euro.c`; per-pass write-ups in
+[`move_scoring_20e6_full.md`](move_scoring_20e6_full.md) §2026-09-06b…§2026-09-07e).
+Only `−0x6790`'s exact nation×continent nibble table stays **PARKED**.
 
 ## Gate into ship band
 
@@ -120,7 +128,7 @@ recovered as the NAMES @UNIT bit-string (`k_20e6_type_flags`).
 | `4567` | 89926 | — | Bind colony y → `27f5` goto |
 | `457e` | 89930 | — | Empty ship + sail bit / turn cadence → `3fa6` HS spiral. **Ported live 2026-09-06d** (`ai_euro_20e6_457e_hs_cadence`) |
 | `4701` | 89964 | Wagon/type path | Bind colony → `4567` |
-| `47b9` | 90037 | type `0x0c` / fail paths | **Destroy unit** (`0808` → `FUN_1427_0824`) — wagon/treasure dead ends. **Ported 2026-09-06d** (`ai_euro_20e6_47b9_dead_end`); village-errand + treasure in-colony cash-in arms stay PARKED. See move_scoring_20e6_full.md §2026-09-06d |
+| `47b9` | 90037 | type `0x0c` / fail paths | **Destroy unit** (`0808` → `FUN_1427_0824`) — wagon/treasure dead ends. **Ported 2026-09-06d** (`ai_euro_20e6_47b9_dead_end`). Both follow-on arms are now live too (stale "stay PARKED" corrected 2026-09-07f): wagon village errand `ai_euro_20e6_wagon_village_errand` (`ai_euro.c:5282`, called `:5400`, 2026-09-06f) and treasure in-colony cash-in `ai_euro_20e6_treasure_cash_in` (`ai_euro.c:12088`, 2026-09-07); the treasure *village-delivery* arm was REFUTED, not deferred. See move_scoring_20e6_full.md §2026-09-06d/§2026-09-06f/§2026-09-07 |
 | `48ab`+ | 90047+ | type `0x03` Pioneer-ish | Nearest tribe / tile score (land follow-on; still OPEN) |
 
 Work-queue layout (AI goals): id @ `−0x5f24`, score @ `−0x5f22`, count byte
@@ -130,12 +138,12 @@ Work-queue layout (AI goals): id @ `−0x5f24`, score @ `−0x5f22`, count byte
 
 | Behavior | Linux | OPEN |
 |----------|-------|------|
-| Ocean step toward goto | `ai_euro_ocean_score_step` (HS west/east bias, fort avoid, thin war) | Full `local_9c` unload + colony sail matrix |
+| Ocean step toward goto | `ai_euro_ocean_score_step` (HS west/east bias, fort avoid, thin war) | — (`local_9c` unload + colony sail matrix both ported; see rows below) |
 | HS place | `units_spiral_place_hs_near` / `48d3_0434` | Matches `3fa6` intent |
-| `06ae` unload | Founding peels / landfall table | Live call inside `3558` with `local_9c` mask |
-| Work-queue haul | Thin `4393` distance-normalized pick (`flag_b=1`) + specialty `flag_a` hold match +32 (Series R) | Full 16×6 cargo matrix |
+| `06ae` unload | **Ported 2026-09-06**: `ai_euro_20e6_unload_mask` / `_unload_by_mask` (`ai_euro.c:10536` call site) — the real per-cargo `0x523d & local_9c` rule with the `06ae` drop tile | first-colony beachhead branch + empty-mask best-passenger fallback only |
+| Work-queue haul | `4393` pick is **ships-only 2026-09-07b**, with the `LAB_457e` wagon origin walk live (`ai_euro_20e6_wagon_origin_walk`); queue-decrement tail = `ai_goals_work_consume` | — |
 | Atlantic / cruise tips | `ai_euro_ocean_3558_*` thin ports (soft-tip prior) | Full cargo/colony matrix |
-| Colony sail pick | **Full matrix ported 2026-09-06** (`ai_euro_20e6_colony_sail_pick`, raw 1933-2031: peace pop²/wanted/NEEDS_COLONISTS ±25, war difficulty/garrison/armed-ship ladder; −0x6a0e&7 term omitted, writer undecoded). Old thin Series-O score remains only in the cargo-short path (`ai_euro_nearest_short_coastal_colony`) | — |
+| Colony sail pick | **Full matrix ported 2026-09-06** (`ai_euro_20e6_colony_sail_pick`, raw 1933-2031: peace pop²/wanted/NEEDS_COLONISTS ±25, war difficulty/garrison/armed-ship ladder; −0x6a0e&7 term omitted, writer undecoded). The old thin Series-O `ai_euro_nearest_short_coastal_colony` was **deleted 2026-09-07b** — no callers, no definition in `src/` (stale row corrected 2026-09-07f) | — |
 | `−0x6790` stance | Thin `{0,3,4,6}` + sticky≥2 → mil nibble; war mil unload stance≠0 prefer 4 (Series I); peacetime sticky≥2+stance==4 Brave MD≤3 unload (Series L) | Exact nation×continent nibble table |
 
 ## Related

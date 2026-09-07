@@ -7,6 +7,24 @@ Layer D hygiene for bilateral flags + war/ally policy. Quiet Brave
 Linux: [`src/core/ai_diplo.c`](../../src/core/ai_diplo.c) — **partial structural
 port**. Odd deviations OK; not T3.
 
+> **RETIRED 2026-09-06 (port_plan T2.4) — read before trusting the alliance
+> sections below.** The whole Linux-only Euro alliance machinery was deleted:
+> `ai_diplo_form_alliance` / `ai_diplo_break_alliance[_ctx]`, `ai_diplo_fa_gift`,
+> ally treasury cost / treaty-min / trust penalty / Indian sticky raise /
+> ally-aid / longevity helpers, the `euro_balance` ALLY arms, the treaty-timer
+> ALLY-expiry arm, the DIPLO_ALLIANCE/BREAK CHOICE applies. None of those
+> symbols exist in `src/` any more (grep: zero hits). `AI_DIPLO_ALLY` survives
+> as a constant only (`ai_diplo.h:31`) and is **never set on a Euro pair**
+> (`ai_diplo.h:23`); its one reader is `ai_king.c:4886` (`2244` byte-faithful,
+> self-pair virtual). Kept: tag 22 as a numbering gap, `DIPLO_BREAK` as the
+> `13b0` treaty-cancel OK tag, the AI_TALK ALLY_PICK/ALLY_PAY paid-`@SMITE`
+> stages (real DOS `153e`), and the timer decrement + peace-tweak expiry (real
+> `6d8e` step 4). The sections below headed "Thin alliance treasury + treaty
+> timer", "Thin break-alliance trust penalty", "Thin FA / ally foreign aid" and
+> "Thin FA goodwill gift", the `ally foreign aid + FA gift` leg of the `6d8e`
+> flow sketch, and the dated `Done R*/Marathon*` alliance entries are **history,
+> not current behavior** (stale rows flagged 2026-09-07f).
+
 ## `15b3` bilateral bytes
 
 | Symbol | Thunk | Role |
@@ -43,7 +61,7 @@ seed-100 TURN1→2 while `euro_relation[]` stayed zero (peace).
 |-----|------|-------|
 | `0x01` | WAR_INTENT | `521d_6d8e` planner (1-in-4 while `0x08` up, cooldown 0); `465b` clears after the attack |
 | `0x02` | WAR | attack sites `465b_0000`/`5fef_1b0e`/`684c_08c0`/`6cb2_24b8`; `5bfb_13b0` paid `@SMITE*`; cleared `43f7_0108` (`0xb`), `3844_0442` (`0xbb`) |
-| `0x04` | ALLY (Linux-only on Euro pairs) | DOS uses `0x04` only on Indian pairs: "attack this village?" confirmed (`465b` CHOICE `0x13ad`), cleared by `4cc6_00f2` on cooling |
+| `0x04` | ALLY — **never set on Euro pairs** since T2.4 (2026-09-06); constant only, `ai_diplo.h:23`/`:31` | DOS uses `0x04` only on Indian pairs: "attack this village?" confirmed (`465b` CHOICE `0x13ad`), cleared by `4cc6_00f2` on cooling |
 | `0x10` | crown-arms | `38fd_5930` |
 | `0x20` | MET | `5bfb_022e` first contact, `5bfb_3180`, `43f7_0108` (`0x60` toward human + REF) |
 | `0x40` | PEACE | `5bfb_0182`, `13b0` peace branch, `3844_0442`; cleared at every attack site |
@@ -59,10 +77,10 @@ negotiation. See `ai_port_plan.md` T1.20.
 euro_nation_turn (6d8e)
   §4 treaty timers: 0a38 read + decrement peer timers; peaceful Indian drift
   plan 5d04 / 0342 / 0a60
-  [opportunistic] 10ec → 13b0 (ally −25g + timer≥8) → declare_war_ctx (thin 153e + status);
+  [opportunistic] 10ec → 13b0 (treaty sign/cancel) → declare_war_ctx (thin 153e + status);
                   at-war: Franklin → always peace (skip upkeep/privateer);
-                  else upkeep + privateer spawn-only|PARK 8g; war-fatigue → make_peace_ctx;
-                  ally foreign aid + FA gift (thin 3f41)
+                  else upkeep + privateer spawn-only|PARK 8g; war-fatigue → make_peace_ctx
+                  [ally −25g/aid/FA-gift arms RETIRED T2.4 2026-09-06]
   act 5b66 — combat may declare_war (Franklin pair no-op)
 ```
 
@@ -286,6 +304,11 @@ API / behavior:
   timer+1 still applies when timer==1 (no gold). Ally-aid 10g unchanged.
 
 ## Linux checklist
+
+**Stale-row note 2026-09-07f:** items **6, 7, 8** name functions deleted by
+T2.4 (2026-09-06) — `ai_diplo_form_alliance`, `ai_diplo_break_alliance`,
+`ai_diplo_fa_gift` have zero hits in `src/`. The ally clauses of items 2, 3
+and 11 went with them. The rest of the list is current.
 
 1. `ai_diplo_read` / `write` / `or_both` / `clear_both` — peer-correct bytes
 2. `ai_diplo_treaty_timers` — decrement; on expiry break ally (trust −20g) or peace tweak; peaceful Indian drift

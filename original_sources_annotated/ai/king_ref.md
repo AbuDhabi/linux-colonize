@@ -32,12 +32,12 @@ EOT → 291f_0a66 → 43f7_2424  (SoL refresh + dispatch)
 | `0004` | Pop-weighted SoL | `ai_king_sol_percent` |
 | `1d42` | Royal purse tick → REF pool buys (**not** the tax audience — that is `38fd_5be8`; see "1d42 real port" below) | `ai_king_1d42_royal_purse` (full, 2026-09-06) |
 | `2564` / `1a26` | Declare gate / crown setup | `ai_king_try_declare` (auto when no `ai_popups`; else `@DECLARE` CHOICE Never/Yes → `ai_king_apply_popup_result` / `ai_king_do_declare`; `unknown46[5]`) |
-| `160a` | Independence rename cinematic | thin rename on declare (`country_name`); letter-anim PARKED |
+| `160a` | Independence rename cinematic | rename on declare (`country_name`) + **letter-anim ported 2026-08-30** — `declaration.c` (DOS `local_520` frame counts 10/7, `local_5a` slants, DECOIND.PIK); stale "PARKED" corrected 2026-09-07f, agrees with the "`160a` letter cinematic Done" notes further down |
 | `060a` | Garrison score / landing pick | `ai_king_weakest_port` |
 | `0982` | REF invasion wave | `ai_king_ref_wave` — **full port 2026-08-28** (see "`0982` REF wave — ported" below) |
 | `06a6` | Irregulars when REF empty | `ai_king_ref_wave` (else) |
 | `1528` | Foreign-intervention announce (@INTERVENTION 0x12db, sets `0x5382` bit2; **not** REF arrival — corrected 2026-09-06, see below) | announce block in `ai_king_foreign_intervene_ex`; the wave's own `@INVASION` status/OK lives in `ai_king_ref_wave` |
-| `10f0` | Foreign landing when REF empty + `backup_force` (≤2/call; third @diff≥2; prefer Regular+Dragoon) | `ai_king_foreign_intervene`. Slot mix **Done** Phase 4; coastal roulette + 8-neighbor scorer + per-call caps + Veteran 0x15 **Done** Phase 5. **PARK:** foreign MoW ship |
+| `10f0` | Foreign landing when REF empty + `backup_force` (≤2/call; third @diff≥2; prefer Regular+Dragoon) | `ai_king_foreign_intervene`. Slot mix **Done** Phase 4; coastal roulette + 8-neighbor scorer + per-call caps + Veteran 0x15 **Done** Phase 5. Foreign MoW ship **Done too** (stale PARK corrected 2026-09-07f): `ai_king_10f0_score_tile`/`_pick_spawn` (`ai_king.c:3236`/`:3284`) pick the water tile, `ai_king.c:4220` spawns the type 0x12 hull for the human slot and decrements pool `0x53e6`. Open nit: crown-MoW −999 scorer (below) |
 | `2244` | Peacetime AI-nation self-funded troop gift (**not** a human merc hire — see "`2244`/`2022` — corrected" below) | `ai_king_ai_peacetime_gift` **Done** |
 | `2022` / `1eca` | War act + Continental/vet promote | `ai_king_war_act` (colony-SoL bias; Veteran-profession gate — see `1eca` note below) |
 | `05ea` / `05f4` | Crown colors | `turn.c` (known) |
@@ -379,11 +379,12 @@ multi-ship formation chrome remains PARKED.
   bit — units standing there do not block, they are seized). Order:
   Dragoons up to the cap (2 max when Regulars > 1), then Artillery, then
   Regulars; every landed unit's moves are spent.
-- **Thin**: `08bc` stack strength = Σ defense×8>>4; the `4d56` crown ship act
-  that takes an emptied MoW home is stood in for by despawning idle empty
-  crown MoWs at wave start while land pools remain (so the pool regrows).
-  The invented `force[0]+=1` per-turn "tax crumb" is gone (1d42 only grows
-  pools on tax events).
+- **Thin**: `08bc` stack strength = Σ defense×8>>4. The invented
+  `force[0]+=1` per-turn "tax crumb" is gone (1d42 only grows pools on tax
+  events). ~~The `4d56` crown ship act that takes an emptied MoW home is
+  stood in for by despawning idle empty crown MoWs at wave start.~~
+  **Retired 2026-09-07** — see "MoW return-home is a `20e6` beat" below;
+  there is no `4d56` ship act (overlay `4d56` is Indian AI end to end).
 - **War-act fix found by the headless run**: a third nation's units parked
   inside the target port made `units_foreign_unit_at` return a non-human
   foe and the column sidestepped forever; the step loop now fights the human
@@ -775,11 +776,16 @@ and each invisible to `unit_ai_king`'s synthetic NAMES fixture:
    `@UNIT` ships "Regulars"/"Dragoons"/"Soldiers"/"Scouts"/"Cont. Cav." — only
    Artillery and Man-O-War ever matched, so the land pools never drained.
    Fix in `units_find_type` (accept a trailing `s`/`.` either side).
-2. `1a26`'s fold sets the crown slot `control = 2`; `turn_euro_ai_should_run`
-   then excluded it, so REF units never got a moves refresh (`mp=0` forever).
+2. The port's `1a26` fold used to set the crown slot `control = 2`;
+   `turn_euro_ai_should_run` then excluded it, so REF units never got a moves
+   refresh (`mp=0` forever). (**Correction 2026-09-07:** DOS `1a26` writes
+   `control = 1` — raw 74833 — the crown is a live AI slot; the port matches
+   since bugs.md 234. See "MoW return-home is a `20e6` beat" below.)
 3. With the refresh restored, `ai_euro_nation_turn` ran on the crown *before*
    the king slot and spent every Regular's moves. DOS `2424` dispatches the
-   crown to `2022` instead of the ordinary Euro turn — `turn_euro_nation_is_ref`
+   crown to `2022` **in addition to** the ordinary Euro turn (correction
+   2026-09-07: raw 6394/6407 run both for a `control == 1` slot) —
+   `turn_euro_nation_is_ref`
    (turn.c) now refreshes the crown but skips the Euro AI for it during WoI.
 4. `war_act`'s hunt step used `units_id_at` on the next tile, treating an own
    stack (the REF column itself, a crown wagon train visiting the Dutch port,
@@ -806,8 +812,10 @@ king code from here on (`golden_woi_ref01` asserts the market words survive a
 declare byte-for-byte).
 
 Still fandom-shaped here, not byte-traced: the hunt target scoring, the
-greedy detour (DOS crown units go through the `4d56` unit-act dispatcher),
-`backup_force` reinforcement cadence and re-embark.
+greedy detour (DOS crown units go through the ordinary Euro unit act
+`5b66` → `20e6` — corrected 2026-09-07, the old "`4d56` unit-act dispatcher"
+citation was to the Indian overlay), `backup_force` reinforcement cadence
+and re-embark.
 
 ### The crown's mounted arm is `Cavalry`, not `Dragoons` (2026-09-04, bugs.md)
 
@@ -833,9 +841,9 @@ prefers `"Cavalry"` and only falls back to `"Dragoons"`.
 `0982` opens with the DOS refill gate `pool[2] == 0 && crown Man-O-War count
 (unit_type_counts[crown][0x12], base -0x6db4 stride 0x13) == 0 -> pool[2]++,
 land nothing this turn`, so the fleet cadence is set by *when the last hull
-leaves the map*. The thin `4d56` ship act takes an emptied MoW home only
-after one wave tick has raised its `turns_worked`, giving the normal
-land / hold / refill / land cycle. `turn_route_damaged_ships` used to delete
+leaves the map*. The ship act takes an emptied MoW home (2026-09-07: the
+real `20e6` beat below; before that, a `turns_worked` stand-in), giving the
+normal land / hold / refill / land cycle. `turn_route_damaged_ships` used to delete
 a damaged Tory MoW on the spot, which skipped that tick and brought the
 refill — and the next landing — a full turn *earlier*: under continuous
 bombardment the same fixture lost all 7 colonies in 14 turns versus 15
@@ -844,6 +852,69 @@ hull now waits for the same ship act. Answer to "do they get the damaged ones
 back": not the hull — it is gone once it sails home, and `force[2]` is not
 credited — but the empty-pool refill above means the King is never out of
 Man-O-Wars for more than a turn.
+
+### MoW return-home is a `20e6` beat, and there is no `4d56` crown code (2026-09-07)
+
+Two long-standing citations in this file were wrong. Overlay **`4d56` is the
+Indian AI overlay end to end** — every symbol in it is settlement-record
+CREATE / village growth / Indian nation turn / trade / settlement-enter
+(`FUNCTION_CATALOG.md` rows 2602-2623; `MODULE_MAP.md` row `4d56` = "Indian
+AI / village growth"). It holds no crown ship act and no crown land scoring.
+
+**The real return-home beat** sits at the tail of the `FUN_521d_20e6` ship
+band, `viceroy_unpacked.c:89717-89720` (recovered listing
+`move_scoring_20e6_full.md:2036-2040`). Written as the DOS *skip* test:
+
+```
+if (  (DS:0x5382 & 1) == 0            // not at war
+   || unit+0x3146 != 0x12             // not a Man-O-War
+   || iStack_6 != 0                   // orders +0x314b is 't'/'i' (0a60-tasked)
+   || iStack_a8 != 0                  // 8aac(unit,2)-1 = tile stack minus self
+   || DS:0x53de != 0                  // MoW pool force[2] not empty
+   || DS:0x9456[nation] != 0          // a ship of this nation already in the Europe lane
+   || DS:0x53da+0x53dc+0x53e0 == 0 )  // no land pools left
+  { ...ordinary ship arms... }
+// otherwise: LAB_521d_3fa6 -> FUN_291f_02ea -> FUN_48d3_015e
+```
+
+`FUN_48d3_015e` (raw 77636-77728): expanding ring for a class-**0x1a** High
+Seas tile whose owner (`FUN_281f_0682`) is `< 0` or the ship's own nation;
+on a hit it bumps `DS:0x9456[nation]`, sets act_state `+0x314c` = 3 when the
+nation's control byte `0x543f` is 0 (human) else **0xb**, latches the tile
+into `+0x314d/e` and stamps orders `+0x314b = 0x45`. **No pool is credited
+on the way out** — `expeditionary_force[]` is untouched; the cadence comes
+only from `0982`'s own refill gate (raw 73990-73993).
+
+`DS:0x9456[nation]` is a census field, not a scratch byte: `FUN_4962_0018`
+clears it (raw 78146) and counts the nation's **ships** on a Europe
+x-sentinel — `x - nation == -0xc` (244+n, sailing to Europe) or `== -0x10`
+(240+n, docked) (raw 78182/78185; `docs/save_format_map.md` row `x`/`y`).
+`DS:0x945a` is its land twin (236+n), already used by the `5d04` hire tail.
+
+**Ported** as `ai_king_mow_sail_home_20e6` (`ai_king.c`), run from the MoW's
+own beat in `war_act` on an empty hull, replacing the wave-start
+`turns_worked` despawn. `iStack_6` is constant 0 for the crown (the port
+never runs the `0a60` goal pass on the REF slot, so `+0x314b` is never
+written 't'/'i'); `iStack_a8` is the literal tile-stack scan; `0x9456` is
+modelled as crown ships standing on a high-seas tile, since the port has no
+crown Europe dock and the hull leaves the map when it reaches the crossing.
+
+**And the crown is an ordinary AI nation in DOS.** `1a26` sets the crown
+slot's control byte to **1**, not 2: `*(0x53d2 * 0x34 + 0x543f) = 1` (raw
+74833). Control 2 belongs to `0108`, which DOS calls for the *eliminated*
+Euro powers (raw 73566). The turn loop runs the full Euro AI nation turn
+`FUN_521d_6d8e` for every `control == 1` slot (raw 6394 gates `3844_00f2`,
+which carries `2424`, on `control != 2`; raw 6407 then calls the `6d8e`
+thunk on `control == 1`). So in DOS the REF's units are moved by the
+ordinary Euro unit act (`5b66` → `20e6` land arms) — that is what
+"`4d56` land scoring" in `port_plan.md` was pointing at — while `2022`
+only spawns the wave. The port writes control 1 too (bugs.md 234) but
+`turn_euro_nation_is_ref` (turn.c) still skips `ai_euro_nation_turn` for the
+crown and substitutes `ai_king_war_act`'s own hunt; the two stale comments
+there ("crown slot is withdrawn (control 2)", item 2 of the headless-run
+list above) are wrong about DOS. Closing that divergence = routing crown
+units through the ported `20e6` land arms, i.e. a WoI battle-path rewrite
+with `golden_woi_ref01` re-baselining — a tracked item, not a thin spot.
 
 ## Linux `ai_king_nation_turn` checklist
 

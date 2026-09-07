@@ -58,10 +58,10 @@ Decomp: `viceroy_unpacked.c` **88266–90435** (~2170 lines). Callers: `5b66` vi
 | 88777–88974 | `54f5` / `52aa` | Facing / fog / military −10 / colony pull | quiet **Done**; Euro-side facing/momentum (`unit+0x314f` last-dir) **Done** 2026-08-14 in `ai_euro_score_move` (`s_euro_last_dir`), mirrors already-ported Brave `quiet_score_facing` |
 | 88975–89375 | `5183`…`2a59` | Euro land / combat / explore arms | **Mapped** [`move_scoring_land.md`](move_scoring_land.md); ported 2026-08-27 (T1.18); LAB_52aa odds tail, explore-plane site nibble, `−0x6168` rival strength, `0x4c` village arms, labor loop and ship per-cargo unload closed 2026-09-06 (see move_scoring_20e6_full.md tail) |
 | 89376–89383 | `304c` | Mid gate → ship or continue | — |
-| **89384–89870** | **`3558`** | **Ship band** — holds, probes, `local_9c`, `06ae` unload, colony sail | **Mapped** [`move_scoring_ship.md`](move_scoring_ship.md) + [`euro_ocean_scoring.c`](euro_ocean_scoring.c); thin Linux; matrix **PARKED** |
+| **89384–89870** | **`3558`** | **Ship band** — holds, probes, `local_9c`, `06ae` unload, colony sail | **Mapped** [`move_scoring_ship.md`](move_scoring_ship.md) + [`euro_ocean_scoring.c`](euro_ocean_scoring.c); step scorer still thin, **matrices ported 2026-09-06b…09-07e** (stale PARKED corrected 2026-09-07f — see the ship-md port-status block) |
 | 89866–89870 | `3fa6` | → `48d3_015e` spiral HS / set sail | partial (`units_find_*_high_seas`) |
-| 89871–90036 | `4393` / `4567` / `457e` / `4701` | type ∈ **(0x0c,0x13)** work-queue haul | **Mapped** in ship md; port **PARKED** |
-| 90037–90224 | `47b9` / `48ab` | More ship / wagon follow-ons | **Mapped** in ship md; port **PARKED** |
+| 89871–90036 | `4393` / `4567` / `457e` / `4701` | type ∈ **(0x0c,0x13)** work-queue haul | **Ported** (stale PARKED corrected 2026-09-07f): `4393` ships-only pick + `ai_goals_work_consume` tail, `457e` = `ai_euro_20e6_457e_hs_cadence` / `_wagon_origin_walk`, `4567`/`4701` bind+goto arms at `ai_euro.c:12154-12260` |
+| 90037–90224 | `47b9` / `48ab` | More ship / wagon follow-ons | `47b9` **ported** (`ai_euro_20e6_47b9_dead_end`) + its errand/cash-in arms; `48ab` Pioneer-ish land follow-on still **OPEN** |
 | 90225–90398 | `27f5` / `32e3` / `3356` / `5899` | Commit dir → `FUN_521d_20c6`; ship epilogue | step apply in act |
 | 90399–90435 | `5a78` | Clear / return 0 | — |
 

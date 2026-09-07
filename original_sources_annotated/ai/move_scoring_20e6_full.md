@@ -4808,10 +4808,84 @@ them.
 
 ### Not ported (recorded, not invented)
 
-- `10be`'s two force-board arms: a member at negative map coords passing the
-  `(0x3147 & 0xf) − x == 0x14` owner-nibble Europe-slot check, and the
-  `FUN_13e4_0074(x, y)` tile predicate. Undecoded beyond shape, and neither
-  has a Linux counterpart — Europe units live in the europe pool, never on a
-  map tile list.
 - The recursive `FUN_1427_101c` pre-pass (`+0x314c == 2` ship re-berth, decomp
   8630-8645): out of band, 20e6 never marks `act_state` 2.
+- (The two force-board arms moved out of this list — see 2026-09-07f below.)
+
+## 2026-09-07f — 10be's two force-board arms ported; `FUN_13e4_0074` was never undecoded
+
+### `FUN_13e4_0074` = `ocean_or_high_seas`
+
+`viceroy_unpacked.c:7033`:
+
+```c
+uVar1 = FUN_137f_010e(param_1,param_2);            /* terrain byte at (x,y) */
+if (((uVar1 & 0x1f) != 0x19) && ((uVar1 & 0x1f) != 0x1a)) return 0;
+return 1;
+```
+
+Terrain class **25 (Ocean) / 26 (High Seas)** — the same predicate already
+named in `SYMBOL_MAP.md` (`ai_is_ocean_hs`), used by `ai.c:693`, by the Indian
+claim table (`colonies_indian_claim_tribe_from`, bugs.md 372) and by the 4cc6
+threat ring (`docs/indians.md:278`). Port counterpart: `map_tile_is_water`
+(`map_is_ocean_index` = `MAP_OCEAN_INDEX || MAP_HIGH_SEAS_INDEX`). The 20e6
+notes had simply never connected the two; nothing was undecoded.
+
+### The two arms, from the asm (`viceroy_unpacked.asm:11008-11075`)
+
+The decompile's `local_4`/`bVar4` shuffle hides that the arms are **mutually
+exclusive on the sign of x**, not chained:
+
+| asm | bytes | what |
+|---|---|---|
+| `1427:11d4` | `80bf4c3101` `7503` `bf0100` | `DI = (member+0x314c == 1)` — the MARK arm |
+| `1427:11e1` | `83ff01` `1bc0` `f7d8` | `local_4 = !DI` (the else-guard) |
+| `1427:11ed` | `0bff` `7522` | marked → skip both force arms |
+| `1427:11f0` | `80bf443100` `7d1b` | `x >= 0` → jump to the water arm |
+| `1427:11f6` | `897efe` | **`local_4 = DI` (=0)** — entering arm 1 DISARMS arm 2 |
+| `1427:11f9` | `8a874731` `240f` `2a874431` `3c14` `7507` | `((owner&0xf) − x) != 0x14` → arm 1 boards |
+| `1427:1208` | `80bf4c3101` `7503` | dead re-check (`DI==0` ⇒ `+0x314c != 1`) |
+| `1427:1211` | `837efe00` `741b` | water arm gated on `local_4` |
+| `1427:1219` | `9a7400e413` `0bc0` `7403` `bf0100` | `CALLF FUN_13e4_0074(x,y)` → arm 2 boards |
+| `1427:1264` | `c6874c3101` | every taken arm stamps `+0x314c = 1` before the `0362(member,−2,−2)` park |
+
+**What they mean.** DOS units live in per-coordinate buckets (`+0x315c` prev /
+`+0x315e` next; `FUN_1427_0002` walks to the head, `004a` steps, `0362` =
+`023a` unlink + `02ca` prepend into the destination bucket). 10be walks the
+bucket the ship was in, so **every member shares the ship's coordinates**.
+Therefore:
+
+- **arm 1** fires only when the *ship* is in an off-map bucket, and boards
+  every member of it not resting in its own nation's Europe slot
+  (`x == nation − 0x14`) — i.e. re-attaches units parked at `(−2,−2)` /
+  `(−3,−3)` / `(−4,−4)` when the transport chain is rebuilt;
+- **arm 2** fires only when the ship's *tile* is ocean/high seas, and boards
+  every land member of it unconditionally — a land unit can only be standing
+  on open water because it rides this ship.
+
+Both are **invariant repair, not recruitment**: DOS's way of keeping existing
+passengers attached across the chain rebuild. At a colony berth DOS's own tile
+is the (land) colony tile, so neither arm fires and the mark arm is the only
+one that recruits — which is why the 2026-09-07e mark-only port matched the
+goldens.
+
+### Ported
+
+`ai_euro_20e6_transport_assemble` now runs the literal three-arm predicate;
+new helper `ai_euro_20e6_member_off_map` is DOS's `member+0x3144 < 0` (the
+port's one off-map park is Europe at `(200,100)`, a *positive* sentinel, so
+the faithful test is "not addressable as a map tile"), and the Europe-slot
+exclusion is `ai_euro_in_europe`. The `+0x314c = 1` stamp at the board is live
+too (it previously only ever re-stamped an already-marked unit).
+
+- Trace `AI_20E6_BOARD_TRACE=1` now labels the arm:
+  `via mark` / `via force:offmap` / `via force:water`.
+- **Zero force-arm hits on any golden or unit test** — expected: Linux
+  passengers live in `cargo_ids`/`aboard_ship_id`, which the loop's
+  `aboard_ship_id >= 0` skip already keeps attached, so the arms only cover
+  what that skip does not (an unattached unit in a non-Europe off-map park, or
+  standing on the ship's open-water tile). ctest 58/58, goldens byte-green.
+- **Trap:** worktree checkouts have no `COLONIZE/`, `test-assets*`,
+  `test-saves-*` (all gitignored) — ctest fails 22 tests with
+  "failed to load NAMES.TXT" until those are symlinked from the main
+  checkout. Not a code regression.

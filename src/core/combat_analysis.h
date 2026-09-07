@@ -35,10 +35,29 @@
 #define COMBAT_ANALYSIS_LINE_LEN 40
 #define COMBAT_ANALYSIS_VALUE_LEN 12
 
+/*
+ * Row chrome (FUN_636c_0000): four of the flag rows blit a picture at the
+ * column's left edge and push their own label right by the sprite's width.
+ * DOS indents, from the asm `ADD word ptr [BP + local_76], N` right after each
+ * blit: Bombard 0x10 (636c:0682), Terrain/Ambush 0x11 (636c:0921), colony
+ * 0x14 (636c:0a05), village 0x14 (636c:0b03).
+ */
+typedef enum CombatAnalysisRowIcon {
+  COMBAT_ROW_ICON_NONE = 0,
+  COMBAT_ROW_ICON_UNIT, /* ICONS.SS blit — 636c FUN_281f_0254 → 1c36_000a */
+  COMBAT_ROW_ICON_SETTLEMENT, /* ICONS.SS #0-3 + nation flag — FUN_281f_02a8 */
+  COMBAT_ROW_ICON_VILLAGE, /* ICONS.SS #10-13 by tribe tech — FUN_281f_02b2 */
+  COMBAT_ROW_ICON_TERRAIN /* TERRAIN.SS engagement tile — FUN_281f_033a */
+} CombatAnalysisRowIcon;
+
 /* One modifier row: label left, value right-aligned in the column (DOS 013c/0150). */
 typedef struct CombatAnalysisRow {
   char label[COMBAT_ANALYSIS_LINE_LEN];
   char value[COMBAT_ANALYSIS_VALUE_LEN];
+  int icon_kind; /* CombatAnalysisRowIcon */
+  int icon_sprite; /* sheet index for icon_kind; -1 = nothing to draw */
+  int icon_nation; /* settlement flag recolor; -1 = none */
+  int label_indent; /* DOS local_76 bump for this row's icon */
 } CombatAnalysisRow;
 
 typedef struct ColonizeCombatEngagement {
@@ -111,6 +130,7 @@ void combat_analysis_render(
   const ColonizeFont* font,
   const ColonizeSpriteSheet* wood_tile,
   const ColonizeSpriteSheet* unit_icons,
+  const ColonizeSpriteSheet* terrain, /* TERRAIN.SS for the Ambush/Terrain row icon; may be NULL */
   const ColonizePopupColors* colors,
   uint8_t text_color,
   uint8_t select_color,

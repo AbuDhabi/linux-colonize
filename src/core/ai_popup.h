@@ -410,4 +410,24 @@ int ai_popup_portrait_tier_from_alarm(int alarm);
 void ai_popup_set_last_graphic_mss(AiPopupState* st, int mss);
 void ai_popup_set_last_graphic_myr(AiPopupState* st, int nation);
 
+/*
+ * The MSS{mss} / MYR{myr} decoration sheet itself (lazy load from the portrait
+ * source dir; MYR wins when both are set, as DOS loads it last). Exposed
+ * because the Europe screen's in-place Recruit/Purchase menus are drawn by
+ * game_loop rather than ai_popup, yet DOS decorates them from the same
+ * DS:0x1f5e latch — FUN_38fd_4884 @ 38fd:4948 and FUN_38fd_4b50 @ 38fd:4b5d
+ * both `MOV word [0x1f5e],0x2` before building the list dialog. Returns NULL
+ * when the sheet is absent or the index is out of range.
+ */
+const struct ColonizeSpriteSheet* ai_popup_decoration_sheet(int mss, int myr);
+/*
+ * The reserved-DAC-block merge on its own, for a sheet the caller owns the
+ * lifetime of. ai_popup_art_palette_merge is this applied to the open popup's
+ * art sheet.
+ */
+void ai_popup_sheet_palette_merge(
+  const struct ColonizeSpriteSheet* art,
+  struct ColonizePalette* dst
+);
+
 #endif

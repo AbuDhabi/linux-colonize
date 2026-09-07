@@ -247,10 +247,56 @@ Fountain-of-Youth picks (MSS3) and the Brewster pick (MSS4) in `units.c`
 (`FUN_38fd_4884` writes), MYR via `ai_popup_set_last_graphic_myr` in
 `ai_diplo.c`'s talk helpers (skipped when the section carries its own MSS
 figure, e.g. `@DECLAREWAR`). MYR wins when both are set (DOS loads it last);
-a chief portrait suppresses the MSS/MYR sprite in the port. Not wired: the
-Europe in-screen Recruit/Purchase menus (`game_loop` europe menu, DOS latches
-2/4/3 in `FUN_38fd_4884`/`4b50`) and `FUN_479b_076e`'s idx-5 WoI popup — those
-dialogs don't run through `ai_popup`.
+a chief portrait suppresses the MSS/MYR sprite in the port.
+
+#### Europe in-screen menus + the King helper — closed 2026-09-07
+
+The Europe Recruit/Purchase menus are drawn by `game_loop`, not `ai_popup`, so
+they missed the side-channel. DOS builds them through the *same* generic list
+dialog (`FUN_291f_0182` → `FUN_6f74_32a4`, shown by `FUN_291f_016a` →
+`FUN_6f74_2580`, which is what reads all three latches and calls
+`FUN_6f74_14c6`), latching immediately before it. Asm PUSH/LEA pairs, since
+Ghidra drops these args (`LEA BX,[0x87c]` = `GAME`, `LEA AX,[tag]`):
+
+| DOS site | asm | tag | latch |
+|---|---|---|---|
+| `FUN_38fd_4884(1,0)` FoY pick | `38fd:4910` | `0x10f1` `@LOSTCITY0` | MSS3 — already wired (`units.c`) |
+| `FUN_38fd_4884(0,1)` Brewster | `38fd:4924` | `0x10fb` `@RECRUITCHOOSE` | MSS4 — already wired (`units.c`) |
+| `FUN_38fd_4884(0,0)` Recruit menu | `38fd:4948` | `0x1109` `@RECRUIT` | **MSS2 — wired now** |
+| `FUN_38fd_4b50` Purchase menu | `38fd:4b5d` | `0x1111` `@PURCHASE` | **MSS2 — wired now** |
+| `FUN_38fd_2a92` sail confirm | `38fd:2aba` | `0xffc` `@SAILAWAY` | **MSS0 — wired now** (table row) |
+
+`@KINGRECRUIT` (Train) and the dock `@ARMOPTIONS` menu latch nothing, and DOS
+shows them bare — `original_screenshots/europe/train.png` confirms.
+
+Placement is the same header-driven rule as `ai_popup_render`, now also in
+`europe_menu_layout` (`game_loop.c`): MSS2.SS is 122×84 with
+`place_offset_y=6`, `place_mode=1` (centred), `place_offset_x=0`. That
+reproduces `recruit.png` exactly — its 102 px dialog gives
+`total_h = 84 − 6 + 102 = 180`, `top = (200 − 180)/2 = 10`, so the sprite sits
+at y=10 and the dialog at y=88, which is where the screenshot has them. The
+same pass replaced the port's hardcoded `dialog_y = 16` with DOS's
+`100 − h/2` auto-place (`FUN_6f74_14c6` @ OVL24 `0x16cb`–`0x16f6`);
+`train.png`'s undecorated 180 px dialog lands at y=10 by the same formula.
+The sprite blits **after** the frame (`FUN_6f74_248e`: sprite-last whenever
+`DS:0x1f5c < 0`), and `EUROPE.PIK`'s black 120..251 block takes MSS2's own
+palette entries via `ai_popup_sheet_palette_merge` (merge, never remap).
+
+**KING.SS was a refutation** — the "unwired" note was stale. `DS:0x1f5c = 8`
+has been live since the tax-audience flair fix (`ai_king.c`, KING.SS base +
+KING2.SS frames + palette merge). The asm scan did find three *sites* that
+never got it, all now wired: `FUN_38fd_3dc8`'s message-only arm
+(`38fd:402a MOV word [0x1f5c],0x8`, reached by a tax cut or by "no cargo
+eligible for a tea party"), and the two callers of the King-flair message
+helper `FUN_291f_0ad4` (→ `FUN_6f74_378a`, which latches 8 then shows) —
+`38fd:5b6e PUSH 0x1134` = `@KINGNEWWAR` (`ai_king.c`) and
+`3844:04e1 PUSH 0xf09` = `@LOSENOCOLONIES` (`turn.c`). Those are the only two
+`0ad4` call sites in the image; the five extra ones Ghidra shows in
+`FUN_2f2b_628a`/`6372`/`2f3e` and `FUN_38fd_3694`/`4f6e` are the `5930` body
+re-decoded into neighbouring switch tables (all carry the same `0x1134`), not
+real sites.
+
+Still not wired: `FUN_479b_076e`'s idx-5 WoI popup.
 
 Modal input (`game_loop.c`): early gate before parent hotkeys (E/Q/etc.) —
 pick_music → save_load → options → name_entry → howmuch → cheat_list →

@@ -18,9 +18,14 @@ SCOUT/PATROL, LAB_2912→2a59 explore ring with the raw scoring, LAB_4d2e→5183
 8-direction wander scorer, epilogue one-tile commit. The `0x9870` G-table
 read is `ai_euro_continent_stance_at`; `0x523d` is now known (NAMES @UNIT
 bit-string, MSB-first — see `move_scoring_20e6_full.md` 2026-08-27).
-Remaining thin/OPEN: LAB_52aa attack-odds core, `0x4c` village arms,
-colonist labor loop (LAB_2c..), `0x42`/`0x65` (closed dead, T1.2), ship
-band. Older note: mapped; Linux `ai_euro_score_move` settlement/siege peels +
+Remaining thin/OPEN (revised 2026-09-07f — the first three were closed by the
+2026-09-06 deepening and the row was stale): LAB_52aa attack-odds core
+**ported** (`ai_euro_20e6_attack_term`, `ai_euro.c:11631`, crown==2 halving +
+Soldier/Dragoon colony-mass gate at `:11720`); `0x4c` village arms **ported**
+(`ai_euro_20e6_village_arm`, `:11306`, called `:12637`); colonist labor loop
+**ported** (`ai_euro_20e6_labor_arm`, `:11357`); `0x42`/`0x65` closed dead
+(T1.2); ship band see
+[`move_scoring_ship.md`](move_scoring_ship.md). Older note: mapped; Linux `ai_euro_score_move` settlement/siege peels +
 `ai_euro_land_best_adjacent_foe` Done thin. Full clean whole-function recovery (2215 lines, zero warnings,
 2026-08-14, supersedes the canonical export's tail — see its own header for
 what changed): [`move_scoring_20e6_full.md`](move_scoring_20e6_full.md).
@@ -293,7 +298,7 @@ assumed from the corrupted export's line numbers), then checking that.
 | Found / contact opcodes | Goals via `0a60` / peels | Live `0x42`/`0x65` writes inside `20e6` (T1.2 closed) |
 | `0x4c` village arms | `ai_euro_20e6_village_arm` — **2026-09-06**: Scout (type 5, `state.scouted` clear) → Speak With Chief; plain colonist (profession 0x1c Free / 0x19 Servant, `state.learned` clear) → Live Among The Natives, both via `ai_contact_ai_*_village` | **2026-09-06b**: attitude gate real — record +10 word = `tribe.alarm[nation]` {friction,attacks} (scout ==0, colonist <0x40, `ai_euro_20e6_village_attitude`); only the `FUN_465b_0000` visit-increment writer stays session-local (visited bits) |
 | Colonist labor loop | `ai_euro_20e6_labor_arm` — **2026-09-06**: NEEDS_COLONISTS colony pick (fort capacity 8/12/32 clamp 16, DOS min-score arithmetic verbatim), join via `colonies_admit_unit`, on-colony Pioneer convert (tools=20), off-colony force-explore fall-through | **2026-09-06b**: case 2 byte-decoded = TOTAL stack count (`ai_euro_20e6_stack_count`, `PUSH 0x2` at overlays asm 135593) — the "# military types" body is case 4 |
-| Ship band unload | `ai_euro_20e6_unload_mask` + `_unload_by_mask` — **2026-09-06** per-cargo `0x523d & local_9c` rule with 06ae drop tile | **2026-09-06b**: cargo counts are the real 0d38 modes (Pioneers/mil/Scouts/mode-6), goal fold + iStack_80 explorer clear live, colony-sail matrix ported (`ai_euro_20e6_colony_sail_pick`); **2026-09-06d**: hold-cargo delivery matrix ported (`ai_euro_20e6_delivery_colony_pick`), 4393 queue-decrement tail + work-queue record decoded (`loads`/`military`, `ai_goals_work_consume`), 457e empty-ship HS cadence wired live (`ai_euro_20e6_457e_hs_cadence`), 47b9 wagon/treasure dead-end destroys ported (`ai_euro_20e6_47b9_dead_end`); still thin: village-delivery arms (8d4a, PARKED), ship LOAD-at-colony matrix, sell tail (see move_scoring_20e6_full.md 2026-09-06d) |
+| Ship band unload | `ai_euro_20e6_unload_mask` + `_unload_by_mask` — **2026-09-06** per-cargo `0x523d & local_9c` rule with 06ae drop tile | **2026-09-06b**: cargo counts are the real 0d38 modes (Pioneers/mil/Scouts/mode-6), goal fold + iStack_80 explorer clear live, colony-sail matrix ported (`ai_euro_20e6_colony_sail_pick`); **2026-09-06d**: hold-cargo delivery matrix ported (`ai_euro_20e6_delivery_colony_pick`), 4393 queue-decrement tail + work-queue record decoded (`loads`/`military`, `ai_goals_work_consume`), 457e empty-ship HS cadence wired live (`ai_euro_20e6_457e_hs_cadence`), 47b9 wagon/treasure dead-end destroys ported (`ai_euro_20e6_47b9_dead_end`); **all three of the old "still thin" items closed** (stale row corrected 2026-09-07f): delivery-block sell tail `ai_euro_20e6_delivery_sell_tail` (`ai_euro.c:13292`) and ship LOAD-at-colony matrix `ai_euro_20e6_load_pick` (`:13372`) both 2026-09-06e; the 8d4a wagon village-delivery arm `ai_euro_20e6_wagon_village_errand` (`:5282`) 2026-09-06f, and the *treasure* village-delivery arm was REFUTED 2026-09-07 (8d4a scans are wagon 0xc + Missionary 0x03 only) |
 | Debug `077e` | — | Ignore (AI debug overlay) |
 
 **2026-08-14 investigation note (missionary `0x4c` gate, still correctly

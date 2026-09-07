@@ -79,7 +79,9 @@
  * timer==0 (war aged / fatigue). Reuses unknown26[0..3]; live timers kept. */
 #define AI_DIPLO_WAR_FATIGUE_TIMER 8u
 #define AI_DIPLO_INDIAN_DRIFT_CAP 160u
-#define AI_DIPLO_WAR_INDIAN_HIT 5
+/* AI_DIPLO_WAR_INDIAN_HIT (5) lived here; its only consumer was the Linux-only
+ * Euro-alliance relation hit, retired with T2.4 (2026-09-06). Removed
+ * 2026-09-07. */
 /* At-war gate: relation < 50 (same band as contact alarm≥50 mission block). */
 #define AI_DIPLO_INDIAN_AT_WAR_REL 26 /* alarm > 0x4a (FUN_5bfb_153e hostile tier) */
 /* Very-low deepen: relation < 40 (contact peaceful-gift friction < 40 inverted). */
@@ -3375,10 +3377,6 @@ void ai_diplo_euro_balance(ColonizeTurnContext* ctx, int nation_id) {
       ai_diplo_13b0_treaty_tick(ctx, nation_id, peer);
     }
   }
-}
-
-void ai_diplo_euro_timers(ColonizeTurnContext* ctx, int nation_id) {
-  ai_diplo_treaty_timers(ctx, nation_id);
 }
 
 /* FUN_281f_0a60 -> FUN_15dc_00a2 quartile bucketer, same formula as

@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "core/colony.h"
 #include "core/ui_colors.h"
 #include "core/unit_chrome.h"
 #include "platform/diagnostics.h"
@@ -76,7 +77,41 @@ static void combat_analysis_push_row(
   snprintf(
     row->value, sizeof(row->value), "%+d%%", signed_pct
   );
+  row->icon_kind = COMBAT_ROW_ICON_NONE;
+  row->icon_sprite = -1;
+  row->icon_nation = -1;
+  row->label_indent = 0;
   (*count)++;
+}
+
+/*
+ * Same row, plus the picture DOS blits at the column's left edge before the
+ * label (FUN_636c_0000 draws the icon at the row's top-left and then bumps
+ * local_76 — its label pen — by `indent`).
+ */
+static void combat_analysis_push_row_icon(
+  CombatAnalysisRow* rows,
+  int* count,
+  const char* label,
+  int signed_pct,
+  int icon_kind,
+  int icon_sprite,
+  int icon_nation,
+  int indent
+) {
+  const int at = count ? *count : 0;
+  combat_analysis_push_row(rows, count, label, signed_pct);
+  if (!count || *count <= at) {
+    return; /* row list full */
+  }
+  CombatAnalysisRow* row = &rows[at];
+  if (icon_sprite < 0) {
+    return; /* row still prints, just without chrome */
+  }
+  row->icon_kind = icon_kind;
+  row->icon_sprite = icon_sprite;
+  row->icon_nation = icon_nation;
+  row->label_indent = indent;
 }
 
 /*
@@ -102,6 +137,22 @@ static void combat_analysis_fill_mods(
     const int pct = flags->holds_occupied > 0 ? (flags->holds_occupied * 100) >> 3 : 0;
     combat_analysis_push_row(rows, count, "Cargo", -pct);
   }
+  /*
+   * DOS 636c fatigue rows — bit 0x100 (asm 636c:02ff, value 0x21 = 33) and
+   * a156 bit 3 (asm 636c:03da, value 0x42 = 66), both labelled DS:0x2e52
+   * ("Fatigue", LABELS.TXT line 91). Both use FUN_281f_015a (the minus
+   * formatter, same one Cargo and Artillery In Open take) rather than 0146.
+   * They sit between Cargo and Attack Bonus in DOS's bit walk, not at the end
+   * of the column, and DOS tests them as two independent ifs. Live since the
+   * strength calc models the @HALF penalty: 2 thirds left = x2/3, 1 = x1/3.
+   * Attacker side only — a defender is never charged for being tired.
+   */
+  if (flags->flags & COMBAT_FLAG_FATIGUE_33) {
+    combat_analysis_push_row(rows, count, "Fatigue", -33);
+  }
+  if (flags->flags2 & COMBAT_FLAG_FATIGUE_66) {
+    combat_analysis_push_row(rows, count, "Fatigue", -66);
+  }
   /* LABELS "Attack Bonus" — land ×3/2 (FUN_5fef_1b0e / FUN_636c bit0 walk). */
   if (land_attack_bonus) {
     combat_analysis_push_row(rows, count, "Attack Bonus", 50);
@@ -110,27 +161,60 @@ static void combat_analysis_fill_mods(
    * "Bombard" (the WoI colony-attack support bonus), not "Expeditionary
    * Force" (@MISC 91, the Congress force row). */
   if (flags->flags & COMBAT_FLAG_REF) {
-    combat_analysis_push_row(rows, count, "Bombard", 50);
+    combat_analysis_push_row_icon(
+      rows, count, "Bombard", 50, COMBAT_ROW_ICON_UNIT, flags->bombard_icon, -1, 0x10
+    );
   }
   if (flags->flags2 & COMBAT_FLAG_TORIES) {
     combat_analysis_push_row(rows, count, "Tories", flags->sol_percent);
   } else if (flags->flags2 & COMBAT_FLAG_REBELS) {
     combat_analysis_push_row(rows, count, "Rebels", flags->sol_percent);
   }
-  /* DOS 0x2e56/0x2e58: attacker terrain line reads "Ambush", defender "Terrain". */
+  /*
+   * DOS 0x2e56/0x2e58: attacker terrain line reads "Ambush", defender
+   * "Terrain". 636c blits the engagement tile itself in front of the label
+   * (FUN_281f_033a → FUN_1baa_0006, asm 636c:08c4-0921) and indents by 0x11.
+   */
   if (flags->flags & COMBAT_FLAG_TERRAIN) {
-    combat_analysis_push_row(
-      rows, count, is_attacker ? "Ambush" : "Terrain", flags->terrain_byte * 25
+    combat_analysis_push_row_icon(
+      rows,
+      count,
+      is_attacker ? "Ambush" : "Terrain",
+      flags->terrain_byte * 25,
+      COMBAT_ROW_ICON_TERRAIN,
+      flags->terrain_sprite,
+      -1,
+      0x11
     );
   }
+  /*
+   * DOS 636c colony row (bit 0x40, asm 636c:09db-0a05): the settlement marker
+   * is blitted first (FUN_281f_02a8 → 112b_0c64 at scale 100, indent 0x14),
+   * then the label is the topmost built fortification's own name
+   * (FUN_281f_0bdc = FUN_15eb_0434(0) walking the Stockade→Fort→Fortress
+   * chain through DS:0x8f82+4), or LABELS "Colony" (DS:0x2e5a) when the colony
+   * has none; the value is (FUN_157e_0008 + 1) * 50 — so Fort finally prints
+   * its own +150% tier instead of collapsing into Stockade's +100%.
+   */
   if (flags->flags & COMBAT_FLAG_COLONY) {
-    if (flags->flags & COMBAT_FLAG_FORTRESS) {
-      combat_analysis_push_row(rows, count, "Fortress", 200);
-    } else if (flags->flags & COMBAT_FLAG_STOCKADE) {
-      combat_analysis_push_row(rows, count, "Stockade", 100);
-    } else {
-      combat_analysis_push_row(rows, count, "Colony", 50);
+    static const char* k_fort_tier_names[4] = {"Colony", "Stockade", "Fort", "Fortress"};
+    int tier = flags->fort_tier;
+    if (tier < 0) {
+      tier = 0;
     }
+    if (tier > 3) {
+      tier = 3;
+    }
+    combat_analysis_push_row_icon(
+      rows,
+      count,
+      k_fort_tier_names[tier],
+      (tier + 1) * 50,
+      COMBAT_ROW_ICON_SETTLEMENT,
+      flags->colony_icon,
+      flags->colony_nation,
+      0x14
+    );
   }
   /*
    * DOS 636c village row (bit 8): label = NAMES @LEVELS noun by tribe tech
@@ -146,7 +230,16 @@ static void combat_analysis_fill_mods(
     if (capital) {
       pct *= 2;
     }
-    combat_analysis_push_row(rows, count, label, pct);
+    /*
+     * 636c blits the dwelling first (FUN_281f_02b2 → 112b_0790 at scale 100,
+     * asm 636c:0add-0b03, indent 0x14). 112b_0790 reads the marker id out of
+     * the DS:0x84c per-tech table, which is the same ICONS.SS #10-13 run the
+     * map draws (map_panel.c MAP_PANEL_TRIBE_ICON_BASE).
+     */
+    const int tech = flags->village_n < 0 ? 0 : (flags->village_n > 3 ? 3 : flags->village_n);
+    combat_analysis_push_row_icon(
+      rows, count, label, pct, COMBAT_ROW_ICON_VILLAGE, 10 + tech, -1, 0x14
+    );
   }
   if (flags->flags & COMBAT_FLAG_ARTILLERY) {
     combat_analysis_push_row(rows, count, "Artillery In Open", -75);
@@ -162,16 +255,6 @@ static void combat_analysis_fill_mods(
   }
   if (flags->flags_hi & COMBAT_FLAG_DRAKE) {
     combat_analysis_push_row(rows, count, "Drake", 50);
-  }
-  /*
-   * DOS 636c fatigue rows (bits 0x100 / a156&8), live now that the strength
-   * calc models the @HALF penalty: 2 thirds left = x2/3, 1 third = x1/3.
-   * Attacker side only - a defender is never charged for being tired.
-   */
-  if (flags->flags & COMBAT_FLAG_FATIGUE_33) {
-    combat_analysis_push_row(rows, count, "Fatigue", -33);
-  } else if (flags->flags2 & COMBAT_FLAG_FATIGUE_66) {
-    combat_analysis_push_row(rows, count, "Fatigue", -66);
   }
 }
 
@@ -391,11 +474,49 @@ static void combat_analysis_blit_side(
   );
 }
 
+/*
+ * One flag row's picture (FUN_636c_0000). DOS reaches four different blitters
+ * from the same row loop; the port routes them by CombatAnalysisRowIcon:
+ *   UNIT       FUN_281f_0254 → FUN_1c36_000a, a plain ICONS.SS blit (sprite
+ *              index in AX, x in DX, y pushed) — the Bombard row.
+ *   SETTLEMENT FUN_281f_02a8 → FUN_112b_0c64 at scale 100 — ICONS.SS #0-3
+ *              plus the owner's flag pixels, which is colonies_blit_settlement_icon.
+ *   VILLAGE    FUN_281f_02b2 → FUN_112b_0790 at scale 100 — ICONS.SS #10-13.
+ *   TERRAIN    FUN_281f_033a → FUN_1baa_0006 — the engagement tile from
+ *              TERRAIN.SS. Silently skipped when the sheet is not loaded.
+ */
+static void combat_analysis_blit_row_icon(
+  ColonizeFramebuffer8* fb,
+  const ColonizeSpriteSheet* icons,
+  const ColonizeSpriteSheet* terrain,
+  const CombatAnalysisRow* row,
+  int x,
+  int y,
+  const ColonizePalette* active_palette
+) {
+  if (!fb || !row || row->icon_sprite < 0) {
+    return;
+  }
+  const ColonizeSpriteSheet* sheet =
+    row->icon_kind == COMBAT_ROW_ICON_TERRAIN ? terrain : icons;
+  if (!sheet || row->icon_sprite >= sheet->sprite_count) {
+    return;
+  }
+  if (row->icon_kind == COMBAT_ROW_ICON_SETTLEMENT) {
+    colonies_blit_settlement_icon(
+      sheet, row->icon_sprite, fb, x, y, row->icon_nation, active_palette
+    );
+    return;
+  }
+  ss_blit_sprite(sheet, row->icon_sprite, fb, x, y);
+}
+
 void combat_analysis_render(
   CombatAnalysisDialog* dlg,
   const ColonizeFont* font,
   const ColonizeSpriteSheet* wood_tile,
   const ColonizeSpriteSheet* unit_icons,
+  const ColonizeSpriteSheet* terrain,
   const ColonizePopupColors* colors,
   uint8_t text_color,
   uint8_t select_color,
@@ -433,7 +554,7 @@ void combat_analysis_render(
         col_w = need;
       }
       for (int i = 0; i < count; ++i) {
-        need = font_text_width(font, rows_arr[i].label) + 3 +
+        need = rows_arr[i].label_indent + font_text_width(font, rows_arr[i].label) + 3 +
           font_text_width(font, rows_arr[i].value);
         if (need > col_w) {
           col_w = need;
@@ -527,15 +648,22 @@ void combat_analysis_render(
     const int col_right = side == 0 ? atk_right : def_right;
     for (int i = 0; i < count; ++i) {
       const CombatAnalysisRow* row = &rows_arr[i];
-      const int ry = y0 + i * row_pitch + text_dy;
-      popup_draw_text_shadowed(font, framebuffer, col_x, ry, row->label, text_color);
+      const int row_top = y0 + i * row_pitch;
+      const int ry = row_top + text_dy;
+      /* DOS blits the row's picture at the column's left edge on the row top
+       * (local_76 / local_10), then draws the label local_76 + indent along. */
+      combat_analysis_blit_row_icon(
+        framebuffer, unit_icons, terrain, row, col_x, row_top, active_palette
+      );
+      const int label_x = col_x + row->label_indent;
+      popup_draw_text_shadowed(font, framebuffer, label_x, ry, row->label, text_color);
       const int lw = font_text_width(font, row->label);
       const int vw = font_text_width(font, row->value);
       /* Right-align value at the column edge; a long label pushes it right
        * instead of being overdrawn. */
       int vx = col_right - vw;
-      if (vx < col_x + lw + 3) {
-        vx = col_x + lw + 3;
+      if (vx < label_x + lw + 3) {
+        vx = label_x + lw + 3;
       }
       popup_draw_text_shadowed(font, framebuffer, vx, ry, row->value, text_color);
     }
