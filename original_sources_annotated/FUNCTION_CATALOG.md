@@ -159,7 +159,7 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_12d6_0000` | 4935 | 15 | ui | Mouse-gated blit offscreen (DS:0x2dac/0x2dae) → VGA A000 | inferred |  |
+| `FUN_12d6_0000` | 4935 | 15 | ui | Fizzle present(dur): hide cursor, LFSR-dissolve offscreen (DS:0x2dac/0x2dae) → VGA A000 via 1d1d_0132; unit-death "pixelate" (combat 1b0e tail dur 8, 36fe, 31ea, LCR 65dd) | known |  |
 
 ### Segment `12d8` (1 defs) — sound — BGM / event / SFX gating
 
@@ -836,10 +836,10 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 
 | Symbol | Line | Size | System | Purpose | Confidence | Links |
 |--------|-----:|-----:|--------|---------|------------|-------|
-| `FUN_1d1d_0016` | 18950 | 10 | platform | delay(ms) — sync BIOS 40:40 tick, lazy-calibrate via 00ca, then spin | known | FUN_1d1d_00ca; FUN_1d1d_0132 |
-| `FUN_1d1d_00ca` | 18960 | 23 | platform | Calibrate delay constants (CS:0012/0014) via two 00ff VBLANK timings | known | FUN_1d1d_00ff; FUN_1d1d_0016 |
-| `FUN_1d1d_00ff` | 18983 | 38 | platform | CRT delay calibrate inner: count loops across CGA/VGA status port 3DAh VBLANK | known | FUN_1d1d_00ca |
-| `FUN_1d1d_0132` | 19021 | 11 | platform | Far wrapper → delay(ms) 0016 | inferred | FUN_1d1d_0016 |
+| `FUN_1d1d_0016` | 18950 | 10 | ui | Fizzle screen copy (src_seg, dst_seg, duration): all 64000 mode-13h px in 16-bit LFSR order (poly 0xB400), paced; Ghidra decomp is the mangled "infinite loop" (asm file 0xF5E6). Old "delay(ms)" label wrong (2026-09-07) | known | FUN_1d1d_00ca; FUN_1d1d_0132 |
+| `FUN_1d1d_00ca` | 18960 | 23 | platform | Calibrate fizzle pacing constants (CS:0012/0014) via two 00ff VBLANK timings | known | FUN_1d1d_00ff; FUN_1d1d_0016 |
+| `FUN_1d1d_00ff` | 18983 | 38 | platform | Fizzle calibrate inner: count LFSR pixel copies (dummy dest DI=0xFFFF) per 3DAh VBLANK frame | known | FUN_1d1d_00ca |
+| `FUN_1d1d_0132` | 19021 | 11 | ui | Far wrapper → fizzle copy 0016 (dur, src far ptr, dst far ptr); game entry is FUN_12d6_0000 → thunk FUN_281f_03ea(dur) | known | FUN_1d1d_0016 |
 | `FUN_1d1d_0150` | 19032 | 62 | platform | CRT/_start: INT21 AH=30/4A, BSS/init, 0248 setup, main 281f_0000, exit 030d | known | FUN_1d1d_0248; FUN_1d1d_030d; FUN_281f_0000 |
 | `FUN_1d1d_0223` | 19094 | 107 | platform | abort — cleanup (1242/14c9) then exit vector [0x2774] with code 0xFF | inferred | FUN_1d1d_03d0; FUN_1d1d_1242; FUN_1d1d_14c9 |
 | `FUN_1d1d_0248` | 19201 | 94 | platform | CRT pre-main: hook INT0 (AH=35/25), NO87 env parse, IOCTL AH=44 on std handles, run init tables | known | FUN_1d1d_03bd; FUN_1d1d_0150 |
@@ -1285,7 +1285,7 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_281f_03ca` | 31551 | 10 | thunk | Far thunk → FUN_1262_00f6 (mouse hit-test cursor inside x,y,w,h) | inferred |  |
 | `FUN_281f_03d4` | 31561 | 10 | thunk | Far thunk → FUN_7a05_014e (fatal video teardown then INT10 reset) | inferred |  |
 | `FUN_281f_03e0` | 31571 | 10 | platform | Far thunk → FUN_1ae7_0016 (BIOS INT16 read next key) | inferred |  |
-| `FUN_281f_03ea` | 31581 | 10 | thunk | Far thunk → FUN_12d6_0000 (blit VGA rect from offscreen buffer) | inferred |  |
+| `FUN_281f_03ea` | 31581 | 10 | thunk | Far thunk → FUN_12d6_0000 (fizzle present: LFSR-dissolve offscreen → VGA, dur arg) | known |  |
 | `FUN_281f_03f4` | 31591 | 10 | thunk | Far thunk → FUN_1ade_0004 (VGA retrace + program DAC palette) | inferred |  |
 | `FUN_281f_03fe` | 31601 | 10 | ui | Dialog flush/run thunk→6f74_3744→0998 | inferred | original_sources_annotated/ai/indian_nation_turn.c |
 | `FUN_281f_040a` | 31611 | 10 | thunk | Far thunk → FUN_6f74_37f6 (OR dialog default-flags 0x18 into DS:0x1f56) | inferred |  |
