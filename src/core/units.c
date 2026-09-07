@@ -1551,6 +1551,25 @@ void units_combat_watch_notify(const ColonizeUnitPool* pool, int unit_id, int x,
 }
 
 /*
+ * DOS fizzle present (FUN_12d6_0000 / FUN_281f_03ea) — see units.h. Phase 0
+ * snapshots the pre-outcome frame, phase 1 dissolves to the post-outcome
+ * frame. No-op headless.
+ */
+static ColonizeUnitsDissolveFn g_units_dissolve = NULL;
+static void* g_units_dissolve_user = NULL;
+
+void units_set_combat_dissolve(ColonizeUnitsDissolveFn fn, void* user) {
+  g_units_dissolve = fn;
+  g_units_dissolve_user = user;
+}
+
+static void units_dissolve_notify(int phase) {
+  if (g_units_dissolve) {
+    g_units_dissolve(g_units_dissolve_user, phase);
+  }
+}
+
+/*
  * bugs.md: every combat concludes in isolation — the popups it queued are
  * presented (and answered) before the NEXT combat runs, instead of being
  * hoarded until the whole AI slice ends. The hook is a nested modal loop in
@@ -4306,7 +4325,11 @@ bool units_resolve_lcr_rumour(
     if (nation == human_nation) {
       units_set_bgm_pool(1);
     }
+    /* 65dd:080a tail: only the despawn arm (local_e) redraws 7×7 and presents
+     * with the fizzle (FUN_281f_03ea, 8) — the piece pixelates away. */
+    units_dissolve_notify(0);
     units_despawn(pool, unit_id);
+    units_dissolve_notify(1);
     break;
   case COLONIZE_LCR_BURIAL_MOUNDS: {
     units_play_event_sound(0x33); /* FUN_65dd_0004 65dd:04c0 case 4: queued tune (281f_048e) */
@@ -4586,6 +4609,10 @@ bool units_resolve_land_combat_ff(
 
   const int ambush = (er.atk_flags.flags & COMBAT_FLAG_AMBUSH) != 0;
 
+  /* DOS 1b0e tail: outcome redraw is presented via the fizzle (FUN_281f_03ea
+   * duration 8) — snapshot the "before" frame while both pieces stand. */
+  units_dissolve_notify(0);
+
   if (eng.atk_wins) {
     const int def_x = def->x;
     const int def_y = def->y;
@@ -4694,6 +4721,7 @@ bool units_resolve_land_combat_ff(
      */
     units_mounted_attack_spend_all(pool, attacker_id);
     g_units_last_combat = 1;
+    units_dissolve_notify(1);
     units_combat_pump_popups();
     return true;
   }
@@ -4717,6 +4745,7 @@ bool units_resolve_land_combat_ff(
   }
   units_mounted_attack_spend_all(pool, attacker_id);
   g_units_last_combat = -1;
+  units_dissolve_notify(1);
   units_combat_pump_popups();
   return false;
 }
@@ -4877,6 +4906,10 @@ bool units_resolve_naval_combat_ff(
     }
   }
 
+  /* DOS 1b0e tail fizzle (FUN_281f_03ea, duration 8) — sunk/seized ships
+   * pixelate away like land losers do. Snapshot before the outcome. */
+  units_dissolve_notify(0);
+
   if (eng.atk_wins) {
     units_combat_outcome_popups(
       pool, atk, def, 1, atk->nation_id, def->nation_id, 1, 0, col1
@@ -4945,6 +4978,7 @@ bool units_resolve_naval_combat_ff(
       }
     }
     g_units_last_combat = 1;
+    units_dissolve_notify(1);
     units_combat_pump_popups();
     return true;
   }
@@ -4964,6 +4998,7 @@ bool units_resolve_naval_combat_ff(
     );
   }
   g_units_last_combat = -1;
+  units_dissolve_notify(1);
   units_combat_pump_popups();
   return false;
 }

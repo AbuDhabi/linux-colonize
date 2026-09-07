@@ -912,6 +912,82 @@ static void game_combat_watch(
 }
 
 /*
+ * DOS "fizzle" present — FUN_12d6_0000 behind thunk FUN_281f_03ea. The DOS
+ * combat tail (FUN_5fef_1b0e), the tile-wipe (FUN_5fef_36fe) and the LCR
+ * "vanished without a trace" despawn (FUN_65dd_0004 case 5) all present their
+ * outcome redraw by copying the whole 320×200 offscreen buffer to the VGA in
+ * 16-bit LFSR order (asm at file 0xF5E6: si=1; shr si; on carry si^=0xB400;
+ * copy pixel si-1 while si≤0xFA00 — every one of the 64000 pixels exactly
+ * once), paced over duration 8. Only pixels that CHANGED are visible, so a
+ * destroyed unit on an open tile "pixelates" away while a fight inside a
+ * colony (sprite unchanged) shows nothing — which is exactly the DOS look.
+ *
+ * Phase 0 (before the outcome mutates the pool) renders and stores the
+ * "before" frame; phase 1 renders the "after" frame and animates between the
+ * two. Identical frames (fight out of sight / hidden by a colony) skip the
+ * animation entirely, which also keeps unwatched AI-vs-AI fights instant.
+ */
+static void game_combat_dissolve(void* user, int phase) {
+  ColonizeGameState* game = (ColonizeGameState*)user;
+  static uint8_t s_before[320 * 200];
+  static uint8_t s_work[320 * 200];
+  static bool s_before_ok = false;
+  if (!game || !game->platform) {
+    return;
+  }
+  uint8_t pixels[320 * 200];
+  ColonizeFramebuffer8 fb = {.width = 320, .height = 200, .pixels = pixels};
+  ColonizePalette pal;
+  if (phase == 0) {
+    game_render(game, &fb, &pal);
+    memcpy(s_before, pixels, sizeof(s_before));
+    s_before_ok = true;
+    return;
+  }
+  if (!s_before_ok) {
+    return;
+  }
+  s_before_ok = false;
+  game_render(game, &fb, &pal);
+  if (memcmp(s_before, pixels, sizeof(pixels)) == 0) {
+    return;
+  }
+  memcpy(s_work, s_before, sizeof(s_work));
+  ColonizeFramebuffer8 wfb = {.width = 320, .height = 200, .pixels = s_work};
+  /* DOS duration 8 spreads the 64000 copies over roughly half a second;
+   * 16 presented batches × 28ms reads the same at 60Hz. */
+  const int k_batches = 16;
+  uint16_t lfsr = 1;
+  bool cycled = false;
+  for (int f = 0; f < k_batches && !cycled; ++f) {
+    int budget = 64000 / k_batches;
+    while (budget > 0) {
+      const unsigned carry = lfsr & 1u;
+      lfsr >>= 1;
+      if (carry) {
+        lfsr ^= 0xB400u;
+      }
+      if (lfsr == 1u) { /* full LFSR cycle: every pixel visited */
+        cycled = true;
+        break;
+      }
+      if (lfsr <= 0xFA00u) {
+        const unsigned idx = (unsigned)lfsr - 1u;
+        s_work[idx] = pixels[idx];
+        --budget;
+      }
+    }
+    if (!platform_present(game->platform, &wfb, &pal)) {
+      break;
+    }
+    platform_sleep_ms(28);
+  }
+  /* Final frame exact (the batch split leaves a 64000%16 remainder). */
+  game_render(game, &fb, &pal);
+  platform_present(game->platform, &fb, &pal);
+}
+
+/*
  * bugs.md: every combat concludes in isolation. After a combat resolves,
  * present and answer its queued popups RIGHT NOW in a nested modal loop —
  * the way DOS's blocking dialogs pace the King's turn — instead of hoarding
@@ -7140,6 +7216,7 @@ void game_destroy(ColonizeGameState* game) {
   }
   units_set_move_watch(NULL, NULL);
   units_set_combat_watch(NULL, NULL);
+  units_set_combat_dissolve(NULL, NULL);
   units_set_combat_popup_pump(NULL, NULL);
   combat_analysis_set_presenter(NULL, NULL);
   combat_analysis_close(&game->combat_analysis);
@@ -10009,6 +10086,7 @@ static void game_europe_deliver_bound_ships(ColonizeGameState* game) {
 static void game_finish_end_turn(ColonizeGameState* game, const ColonizeTurnResult* result) {
   units_set_move_watch(NULL, NULL);
   units_set_combat_watch(NULL, NULL);
+  units_set_combat_dissolve(NULL, NULL);
   units_set_combat_popup_pump(NULL, NULL);
   /* turn.c's own FINISH step already picked the first unit needing orders;
    * a hand-off parked during the turn that just ended would skip past it. */
@@ -10103,6 +10181,7 @@ static void game_do_end_turn(ColonizeGameState* game) {
   }
   units_set_move_watch(game_move_watch, game);
   units_set_combat_watch(game_combat_watch, game);
+  units_set_combat_dissolve(game_combat_dissolve, game);
   units_set_combat_popup_pump(game_combat_popup_pump, game);
   turn_processor_start(&game->turn_proc);
   /* Run setup immediately so calendar advances on the same input that ends the turn. */
@@ -11631,6 +11710,7 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
    * it also draws on top of any stack it passes — bugs.md 233.) */
   units_set_move_watch(game_move_watch, game);
   units_set_combat_watch(game_combat_watch, game);
+  units_set_combat_dissolve(game_combat_dissolve, game);
   units_set_combat_popup_pump(game_combat_popup_pump, game);
   /* Same "arm it every frame" rule as the watches: founding and abandoning a
    * colony have to keep layer2's settlement bit current wherever they are
@@ -11693,6 +11773,7 @@ bool game_update(ColonizeGameState* game, const ColonizeInputState* input, uint3
     }
     units_set_move_watch(game_move_watch, game);
     units_set_combat_watch(game_combat_watch, game);
+    units_set_combat_dissolve(game_combat_dissolve, game);
   units_set_combat_popup_pump(game_combat_popup_pump, game);
     ColonizeTurnContext ctx;
     game_fill_turn_context(game, &ctx);

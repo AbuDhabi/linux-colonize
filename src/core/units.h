@@ -738,6 +738,19 @@ void units_set_combat_watch(ColonizeUnitsCombatWatchFn fn, void* user);
 void units_combat_watch_notify(const ColonizeUnitPool* pool, int unit_id, int x, int y);
 
 /*
+ * DOS "fizzle" present (FUN_12d6_0000 behind thunk FUN_281f_03ea): after a
+ * combat outcome (FUN_5fef_1b0e tail), a stack-sweep, or an LCR "vanishes"
+ * despawn (FUN_65dd_0004 case 5), the redrawn frame is copied to the VGA in
+ * 16-bit LFSR order (poly 0xB400, 64000 pixels, duration 8), so a removed
+ * unit's sprite pixelates away in place. The hook fires twice per outcome:
+ * phase 0 before the pool mutates (snapshot the "before" frame), phase 1
+ * after (render the "after" frame and animate the transition). Headless
+ * callers leave it unset.
+ */
+typedef void (*ColonizeUnitsDissolveFn)(void* user, int phase);
+void units_set_combat_dissolve(ColonizeUnitsDissolveFn fn, void* user);
+
+/*
  * bugs.md: combat popups are presented per-combat, not hoarded until the AI
  * slice ends. The hook runs a nested modal loop draining the ai_popup queue
  * after each combat resolution; headless callers leave it unset.
