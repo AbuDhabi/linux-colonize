@@ -214,8 +214,16 @@ typedef struct ColonizeColony {
 } ColonizeColony;
 
 #define COLONIZE_BUILD_AI_WANTS_CONSTRUCTION 0x80u
+/*
+ * DOS colony +0x1b bits 0/1 — FUN_4962_0018 census phase 3 (11×11 box scan
+ * around each own colony): a foreign ship (type 0x0d..0x12, combat byte != 0)
+ * with a short navigable route (FUN_6662_0906 sea flood cost 0..5) sets bit
+ * 0x02 when it is a Frigate (type == 0x11, literal check) and bit 0x01
+ * otherwise. Earlier port naming had bit 0x02 as "Man-O-War" — wrong; census
+ * trace 2026-08-19 (census_tally.md) pinned the 0x11 literal.
+ */
 #define COLONIZE_COLONY_AI_NEARBY_ARMED_SHIP 0x01u
-#define COLONIZE_COLONY_AI_NEARBY_MAN_O_WAR 0x02u
+#define COLONIZE_COLONY_AI_NEARBY_FRIGATE 0x02u
 #define COLONIZE_COLONY_AI_NEEDS_MILITARY 0x04u
 #define COLONIZE_COLONY_AI_NEEDS_COLONISTS 0x10u
 #define COLONIZE_COLONY_AI_NEEDS_GARRISON 0x40u

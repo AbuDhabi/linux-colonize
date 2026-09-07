@@ -63,7 +63,7 @@ Helper: `FUN_4962_0006` — saturating +1 to 255.
 |-----|-------|----------|
 | Full EOT census | `col1_stuff_census_refresh_colony_counts` in SETUP | Colony + unit/combat tallies **Done** thin |
 | Blank-template fill | `col1_stuff_census_fill_blank` | **Partial** |
-| Colony `+0x1b` ship bits | `ai_euro_refresh_colony_ai_flags` | Thin |
+| Colony `+0x1b` ship bits | `ai_euro_refresh_colony_ai_flags` | **Live 2026-09-07c**: real 11×11 Chebyshev box, type 0x0d..0x12 + combat-byte gate, `FUN_6662_0906` sea-flood cost 0..5 (`units_short_sea_route_cost`), Frigate→bit2 (constant renamed `NEARBY_FRIGATE`); `0xa89a`/`0xa89b`/`0x9e52`/`0x9e54` tallies live (`s_ship_pressure`, feed 5d04 crumbs + 20e6 bVar7 Privateer gate) — see move_scoring_20e6_full.md §2026-09-07c |
 | Profession hist `0606` | `turn_tally_professions` → `ctx->profession_tally[4][32]` | **Done** thin (all Euro SETUP) |
 
 ---

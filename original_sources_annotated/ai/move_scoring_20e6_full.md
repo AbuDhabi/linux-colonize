@@ -3659,7 +3659,7 @@ lines 2249-2360 of the recovered C above (`LAB_OVL14_L0000__00457e` …
 | `unit+0x3158` | COL1 unit record byte **+0x14 = `cargo_hold[4]`** — a 2-hold Wagon never uses it, so it is AI scratch (the village-errand slot), same family as the already-known `+0x3154/5/6` cargo-hold scratch | `col1_save.h` record layout |
 | `unit+0x315b` | `profession`; for Treasure (type 0x0a) it is **gold / 100** | `col1_save.h` (`FUN_48d3_06ba`) |
 | `iStack_44` | LAB_3558 per-hold tally's **max cargo id over `id > 0xc \|\| id == 8`** = TradeGoods/Tools/Muskets + Horses; `< 0` = none aboard | raw 1710-1719 |
-| `bVar7` | type gate: `type != 0x12`, Frigate (0x11) also needs its `0x9414 / −0x6db4 / −0x6da4` budget term `< 4` and no `8b74` hit, Privateer (0x10) needs difficulty ≥ 2 or `DS:0x9e52 ≥ 7`; Man-O-War re-allowed on odd unit index or nation `−0x6da2 == 1` | raw 1284-1307 |
+| `bVar7` | type gate, operands fully decoded 2026-09-07c: `type != 0x12`; Frigate (0x11) needs `ship_cargo_totals[n] − 3·unit_type_counts[n][0x11] − unit_type_counts[n][0x10] < 4` AND `FUN_281f_0984`(→`1427_09dc` 8-adj foreign-owner probe) `== 0`; Privateer (0x10) needs `DS:0xa89b ≥ 2 \|\| DS:0x9e52 ≥ 7` (census frigate-pressure tallies — NOT difficulty, the old reading misread 0xa89b); Man-O-War re-allowed on odd unit index or `unit_type_counts[n][0x12] == 1`. `0x9414` = `stuff.ship_cargo_totals`, `0x924c` (−0x6db4, stride 0x13) = `stuff.unit_type_counts[4][19]` — both in the save I/O list (`FUN_1d1d_060c(0x9414,4,..)` / `(0x924c,0x4c,..)`, decomp 120066/120072), zeroed + rebuilt by census `FUN_4962_0018`, incremented at unit CREATE (`364b`, decomp 56941) | raw 1284-1307; decomp 88556-88579 |
 
 `FUN_48d3_015e` decoded in full: expanding ring (radius 1 → `DS:0x853a`)
 for a tile of class **0x1a (High Seas)** whose owner nibble is `< 0` or the
@@ -4594,7 +4594,7 @@ AI side.
 `golden_colony_*`). New trace env: `AI_SET_GOTO_TRACE=1` (every AI goto
 write with unit/orders/target).
 
-### Still thin after this pass (authoritative)
+### Still thin after this pass (superseded by 2026-09-07c below)
 
 - `bVar7`'s Frigate budget term (`0x9414`/`−0x6db4`/`−0x6da4`) and the
   Man-O-War `−0x6da2` nation byte — no decoded writer (carried forward).
@@ -4607,3 +4607,86 @@ write with unit/orders/target).
   dispatcher Europe-export arm, as before.
 - `+0x315a`/`+0x3148`-adjacent AI scratch bytes not named here remain
   unmodelled.
+
+## 2026-09-07c — bVar7 real, cower persistent, ship-pressure census live
+
+### 1. The "no decoded writer" bVar7 operands were census fields all along
+
+Method-note win (grep both sign spellings + check the save I/O list):
+`0x9414` and `0x924c` sit in `FUN_1d1d_060c`'s save read/write rows
+(decomp 120066/120072 — 4 bytes and 0x4c = 4×0x13 bytes), i.e. they are the
+already-ported `stuff.ship_cargo_totals[4]` and
+`stuff.unit_type_counts[4][19]` (census_tally.md had named `0x924c` since
+2026-08-14; the bVar7 doc row just never joined the dots because the 20e6
+sites spell `0x9414` as `−0x6bec` and index the type table via negative
+`−0x6db4`/`−0x6da4`/`−0x6da2` row offsets). Writers: census
+`FUN_4962_0018` zero+rebuild each nation EOT, unit CREATE increment
+(`364b`, decomp 56941), and the berth-boarding debit (`0x9414 −=
+0x5237[type]`, decomp 99573 — the hold-budget debit the port already
+models). Full bVar7 formula live as `ai_euro_20e6_457e_type_gate(ctx, u,
+dos_type)` (both callers: 457e HS cadence + berth boarding gate):
+
+- Frigate: `ship_cargo_totals[n] − 3·frigate_count − privateer_count < 4`
+  AND `!ai_euro_20e6_adjacent_foreign_09dc(...)` — a byte-faithful port of
+  `FUN_1427_09dc` (decomp 7927-7968) including its asymmetric body-compare
+  (adjacent foreign UNIT always hits; adjacent foreign COLONY only on a
+  same-body tile, which at sea means never).
+- Privateer: `DS:0xa89b ≥ 2 || DS:0x9e52 ≥ 7` — the census
+  frigate-pressure tallies, **not difficulty**. The old substitution
+  (`difficulty ≥ 2`) misread `0xa89b`.
+- Man-O-War: odd unit index or `unit_type_counts[n][0x12] == 1`.
+
+### 2. Ship-pressure census (FUN_4962_0018 phase 3) live
+
+`ai_euro_refresh_colony_ai_flags` now runs the DOS probe: 11×11 Chebyshev
+box (the old thin probe used Manhattan ≤ 5), foreign ship type 0x0d..0x12
+with non-zero `0x5236` combat byte, `FUN_6662_0906` sea-flood cost 0..5
+(new exported `units_short_sea_route_cost`, wrapping the existing
+`units_coarse_reach` — same |a−b|<8 window / 225-expansion body). Frigate
+(0x11 literal) → colony `+0x1b` bit 0x02, any other → bit 0x01. **The port
+constant `COLONIZE_COLONY_AI_NEARBY_MAN_O_WAR` was renamed
+`COLONIZE_COLONY_AI_NEARBY_FRIGATE`** — census_tally.md pinned the 0x11
+literal back in 2026-08-19 but the port setter still keyed on the
+Man-O-War display name. Per-colony fold into per-nation tallies
+(`s_ship_pressure[4]`: `0xa89b`/`0x9e52` frigate colonies/pop,
+`0xa89a`/`0x9e54` other) — reset at 0a60 entry (census zero-out, decomp
+78239-42). 5d04 runs before 0a60 in the dispatcher, so its reads see the
+previous turn's tallies — matching DOS, whose census runs at the prior
+EOT.
+
+### 3. 5d04 naval-threat crumbs real → ship-buy abort reachable
+
+`ai_euro_5d04_ph_naval_threat_crumb` (inert 0 stub) replaced by
+`_n(which, nation_id)` reading `s_ship_pressure`. `frigate_threatened` /
+`manowar_threatened` (bVar22/23) can now fire; the ship-buy ladder's raw
+early `return;` (decomp 92540-92548) is reachable and now **propagates**:
+`ai_euro_5d04_nation_planning_structural` returns the abort flag and the
+live `ai_euro_nation_planning` skips its whole thin hire matrix on it, as
+DOS skips the rest of 5d04. The Europe ship-purchase proposer
+(`thunk_FUN_2a1f_0500`) stays a "no candidate" stub — wiring purchases is
+the deliberate 5d04 hire-ladder decision, unchanged.
+
+### 4. Cower counter save-persistent
+
+`+0x315a` is COL1 unit record offset **0x16 = `turns_worked`** — not
+unnamed scratch (the 2026-09-07 "cargo-hold scratch" classification was
+wrong; cargo_hold is +0x10..+0x15). `s_20e6_cower[]` deleted; the cower
+arm bumps/tests `u->turns_worked`, which `col1_bridge` already
+round-trips. The multiplexing with Europe-lane voyage turns and
+trade-route stop packing is DOS's own byte reuse.
+
+### Test evidence
+
+ctest 58/58 (all goldens byte-green). `unit_ai_euro_expand`'s ai-flags
+scenario rewritten from the old MoW-name reading to DOS truth (Frigate on
+real ocean terrain, coastal colony for the flood gate).
+
+### Still thin (authoritative)
+
+- Boarding one-beat timing: DOS marks act_state 1 and boards via the tile
+  stack next beat; Linux boards immediately into cargo_ids. The DOS
+  transport-chain assembly for the marked units is undecoded — a faithful
+  two-phase port would be invention; keep as documented divergence.
+- The 3fa6 stamp stays modelled by the dispatcher Europe-export arm.
+- `+0x3148`-adjacent AI scratch bytes not named in the tables remain
+  unmodelled (`+0x315a` is now resolved = `turns_worked`).

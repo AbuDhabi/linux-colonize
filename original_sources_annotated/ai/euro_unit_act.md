@@ -2614,7 +2614,16 @@ a job inside the golden windows, so none of this moves them); new unit test
 gate, the mill scale, the human alarm (15 at distance 1, difficulty 0) and
 the AI purchase (gold debited, `lands_bought++`, purchased bit, no alarm).
 
-Still thin in case 8 after this pass: the `FUN_281f_09ae`/`0416`/`0652`
+~~Still thin in case 8 after this pass: the `FUN_281f_09ae`/`0416`/`0652`
 @CLEARCUT dialog is the port's own popup rather than a transcribed
 substitution chain; the viewport-recenter / blit calls (`0352`, `09ba`)
-are cosmetic and stay unported.
+are cosmetic and stay unported.~~ **Closed 2026-09-07c as
+output-equivalent, not a gap** — the DOS chain decoded (raw 76797-76801):
+`FUN_281f_09ae(0, add, add>>15)` sets %NUM0 = the lumber amount,
+`FUN_281f_0416(0, colony+2)` sets %STRING0 = the colony name, and
+`FUN_281f_0652(0x1466, 5)` shows tag 0x1466 = @CLEARCUT as popup type 5,
+gated on `0x543f[nation] == 0` (human-controlled nation only). The port's
+`popup_msg_fill("CLEARCUT", tok)` passes exactly those two tokens behind
+the equivalent `g_units_combat_human_nation` gate — same text, same
+values, same audience. The viewport-recenter blits (`0352`/`09ba`) stay
+retired as cosmetic: the port's viewport redraws on its own cadence.

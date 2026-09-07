@@ -532,6 +532,14 @@ bool units_king_galleon_apply_popup(
 );
 bool units_despawn(ColonizeUnitPool* pool, int unit_id);
 int units_id_at(const ColonizeUnitPool* pool, int x, int y);
+/*
+ * FUN_6662_0906 with param_2 = 1 (sea domain): flood cost from (bx,by) to
+ * (ax,ay) inside the |a−b| < 8 window, −1 when unreachable/out of window.
+ * FUN_4962_0018's colony ship-pressure probe gates on cost 0..5.
+ */
+int units_short_sea_route_cost(
+  const ColonizeWorldMap* map, int ax, int ay, int bx, int by
+);
 /* First on-map unit at (x,y) that is neither except_unit_id nor
  * except_nation_id — i.e. "is this tile still contested". Colony-capture
  * call sites must check this before flipping ownership: a won combat only

@@ -8476,13 +8476,15 @@ static int unit_colony_ai_flags_mow_colony_alt(void) {
     return fail("ai-flags alloc map");
   }
   for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = (i % 16 < 2) ? 0 : 1; /* west strip ocean */
+    map.terrain[i] = (i % 16 < 2) ? 25 : 1; /* west strip real ocean (0x19) */
   }
 
   ColonizeUnitPool units;
   units_reset(&units);
   units.type_count = 1;
-  snprintf(units.types[0].name, sizeof(units.types[0].name), "Man-O-War");
+  /* DOS census: bit 0x02 = FRIGATE nearby (type 0x11 literal check), not
+   * Man-O-War — census_tally.md 2026-08-19 correction, probe live 2026-09-07. */
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Frigate");
   units.types[0].movement = 4;
   units.types[0].domain = COLONIZE_UNIT_DOMAIN_SEA;
   units.types[0].attack = 8;
@@ -8494,7 +8496,7 @@ static int unit_colony_ai_flags_mow_colony_alt(void) {
   c->id = 0;
   c->active = true;
   c->nation_id = nation;
-  c->x = 4;
+  c->x = 2; /* coastal: the FUN_6662_0906 sea-flood gate needs a route */
   c->y = 4;
   c->population = 4;
   c->colonist_count = 4;
@@ -8505,14 +8507,14 @@ static int unit_colony_ai_flags_mow_colony_alt(void) {
   colonies.colony_count = 1;
   colonies.next_id = 1;
 
-  /* MoW on water within MD≤5 of colony. */
-  const int sid = units_spawn(&units, 0, 1, 4);
+  /* Frigate on water inside the 11×11 box, short sea route to the colony. */
+  const int sid = units_spawn(&units, 0, 1, 6);
   ColonizeUnit* ship = units_get(&units, sid);
   if (!ship) {
     free(map.terrain);
     free(map.layer2);
     free(map.layer3);
-    return fail("ai-flags spawn MoW");
+    return fail("ai-flags spawn Frigate");
   }
   ship->nation_id = foe;
   ship->moves_left = 4 * UNITS_MP_PER_TILE;
@@ -8542,7 +8544,7 @@ static int unit_colony_ai_flags_mow_colony_alt(void) {
   ai_euro_dispatcher_turn(&ctx, nation);
 
   c = &colonies.colonies[0];
-  if ((c->ai_flags & COLONIZE_COLONY_AI_NEARBY_MAN_O_WAR) == 0) {
+  if ((c->ai_flags & COLONIZE_COLONY_AI_NEARBY_FRIGATE) == 0) {
     fprintf(stderr, "unit_ai_euro_expand: ai_flags=0x%02x (want MoW bit)\n",
             (unsigned)c->ai_flags);
     free(map.terrain);
@@ -8553,7 +8555,7 @@ static int unit_colony_ai_flags_mow_colony_alt(void) {
   int found_alt = 0;
   for (int i = 0; i < 16; ++i) {
     const AiGoalSlot* g = ai_goals_primary(nation, i);
-    if (g && g->code == AI_GOAL_COLONY_ALT && g->x == 4 && g->y == 4 && g->prio >= 8) {
+    if (g && g->code == AI_GOAL_COLONY_ALT && g->x == 2 && g->y == 4 && g->prio >= 8) {
       found_alt = 1;
       break;
     }
