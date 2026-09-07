@@ -7622,8 +7622,16 @@ static int unit_specialty_cargo_haul_prefer(void) {
 
 /*
  * Series R: 4393 specialty match — two equal-distance colonies that BOTH
- * register work, with distinct specialties; the wagon holds only one type →
+ * register work, with distinct specialties; the hauler holds only one type →
  * goto the matching colony. Cite: move_scoring_ship.md thin 4393; Series R.
+ *
+ * 2026-09-07b rewrite: the 4393 queue is SHIPS-ONLY now (DOS gate
+ * `0xc < type < 0x13`, raw :89877; the wagon substitute is retired for the
+ * LAB_457e origin walk), so the consumer under test is a Caravel on an ocean
+ * row, carrying LUMBER (not a delivery cargo, so the delivery matrix stays
+ * out of the way and the laden gate — 1 of 2 holds — does not fire). The
+ * colonies move beside the water; the +32 specialty tie-break must aim the
+ * ship at the LUMBER-specialty colony A.
  *
  * 2026-09-06g rewrite: registration is DOS's `bVar5` now (raw
  * viceroy_unpacked.c:87663 `if (0x4a < local_2a) bVar5 = true;`), not the old
@@ -7662,26 +7670,32 @@ static int unit_specialty_flag_a_haul_match(void) {
     map.terrain[i] = 1;
   }
 
+  /* Ocean row y=1: the ship consumer lives there; both colonies at y=2 are
+   * coastal. */
+  for (int x = 0; x < 16; ++x) {
+    map.terrain[1 * 16 + x] = 25; /* MAP_OCEAN_INDEX */
+  }
+
   ColonizeUnitPool units;
   units_reset(&units);
   units.type_count = 1;
-  snprintf(units.types[0].name, sizeof(units.types[0].name), "Wagon Train");
-  units.types[0].movement = 2;
-  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Caravel");
+  units.types[0].movement = 4;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_SEA;
   units.types[0].cargo = 2;
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
-  /* Equal MD=4 from wagon at (4,4). Inventory refreshes specialty from surplus:
-   * A lumber surplus → specialty LUMBER; B tools surplus → specialty TOOLS.
-   * Both hold 80 RUM so both register on DOS's bVar5 gate (see header).
-   * Wagon holds TOOLS → +32 picks B. */
+  /* Equal MD=4 (same `(d>>2)+1` bucket) from the ship at (5,1). Inventory
+   * refreshes specialty from surplus: A lumber surplus → specialty LUMBER;
+   * B tools surplus → specialty TOOLS. Both hold 80 RUM so both register on
+   * DOS's bVar5 gate (see header). Ship holds LUMBER → +32 picks A. */
   ColonizeColony* a = &colonies.colonies[0];
   a->id = 0;
   a->active = true;
   a->nation_id = nation;
   a->x = 8;
-  a->y = 4;
+  a->y = 2;
   a->population = 3;
   a->colonist_count = 3;
   a->stock[COLONIZE_CARGO_TOOLS] = 0;
@@ -7696,8 +7710,8 @@ static int unit_specialty_flag_a_haul_match(void) {
   b->id = 1;
   b->active = true;
   b->nation_id = nation;
-  b->x = 4;
-  b->y = 8;
+  b->x = 2;
+  b->y = 2;
   b->population = 3;
   b->colonist_count = 3;
   b->stock[COLONIZE_CARGO_LUMBER] = 0;
@@ -7710,22 +7724,22 @@ static int unit_specialty_flag_a_haul_match(void) {
   colonies.colony_count = 2;
   colonies.next_id = 2;
 
-  const int wid = units_spawn(&units, 0, 4, 4);
+  const int wid = units_spawn(&units, 0, 5, 1);
   ColonizeUnit* wagon = units_get(&units, wid);
   if (!wagon) {
     free(map.terrain);
     free(map.layer2);
     free(map.layer3);
-    return fail("flag_a spawn wagon");
+    return fail("flag_a spawn ship");
   }
   wagon->nation_id = nation;
-  wagon->moves_left = 2 * UNITS_MP_PER_TILE;
+  wagon->moves_left = 4 * UNITS_MP_PER_TILE;
   wagon->orders = 0;
-  if (units_load_goods(&units, wid, COLONIZE_CARGO_TOOLS, 20) <= 0) {
+  if (units_load_goods(&units, wid, COLONIZE_CARGO_LUMBER, 20) <= 0) {
     free(map.terrain);
     free(map.layer2);
     free(map.layer3);
-    return fail("flag_a load tools");
+    return fail("flag_a load lumber");
   }
 
   ai_goals_reset();
@@ -7754,11 +7768,19 @@ static int unit_specialty_flag_a_haul_match(void) {
   ai_euro_dispatcher_turn(&ctx, nation);
 
   wagon = units_get(&units, wid);
-  if (!wagon || !wagon->active || !units_orders_follow_goto(wagon->orders) ||
-      wagon->goto_x != 4 || wagon->goto_y != 8) {
+  /* Berth = a water tile beside A (8,2); the pick may also have sailed the
+   * ship onto that berth already this beat. */
+  const int near_a =
+    wagon && wagon->active &&
+    ((units_orders_follow_goto(wagon->orders) && abs(wagon->goto_x - 8) <= 1 &&
+      abs(wagon->goto_y - 2) <= 1) ||
+     (abs(wagon->x - 8) <= 1 && abs(wagon->y - 2) <= 1));
+  if (!near_a) {
     fprintf(
       stderr,
-      "unit_ai_euro_expand: flag_a goto=(%d,%d) orders=%d specA=%u specB=%u\n",
+      "unit_ai_euro_expand: flag_a pos=(%d,%d) goto=(%d,%d) orders=%d specA=%u specB=%u\n",
+      wagon ? wagon->x : -1,
+      wagon ? wagon->y : -1,
       wagon ? wagon->goto_x : -1,
       wagon ? wagon->goto_y : -1,
       wagon ? wagon->orders : -1,
@@ -7768,7 +7790,7 @@ static int unit_specialty_flag_a_haul_match(void) {
     free(map.terrain);
     free(map.layer2);
     free(map.layer3);
-    return fail("expected wagon goto specialty-matching tools short");
+    return fail("expected ship goto specialty-matching lumber colony");
   }
 
   free(map.terrain);
@@ -7810,23 +7832,28 @@ static int unit_cargo_idle_turns_haul_prefer(void) {
     map.terrain[i] = 1;
   }
 
+  /* 2026-09-07b: ships-only 4393 — ocean row y=1, ship consumer at (5,1). */
+  for (int x = 0; x < 16; ++x) {
+    map.terrain[1 * 16 + x] = 25; /* MAP_OCEAN_INDEX */
+  }
+
   ColonizeUnitPool units;
   units_reset(&units);
   units.type_count = 1;
-  snprintf(units.types[0].name, sizeof(units.types[0].name), "Wagon Train");
-  units.types[0].movement = 2;
-  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  snprintf(units.types[0].name, sizeof(units.types[0].name), "Caravel");
+  units.types[0].movement = 4;
+  units.types[0].domain = COLONIZE_UNIT_DOMAIN_SEA;
   units.types[0].cargo = 2;
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
-  /* Equal MD=4 from wagon at (4,4): A idle=0 east, B idle=20 south. */
+  /* Equal MD from the ship at (5,1): A idle=0, B idle=20. */
   ColonizeColony* a = &colonies.colonies[0];
   a->id = 0;
   a->active = true;
   a->nation_id = nation;
   a->x = 8;
-  a->y = 4;
+  a->y = 2;
   a->population = 3;
   a->colonist_count = 3;
   a->stock[COLONIZE_CARGO_TOOLS] = 0;
@@ -7840,8 +7867,8 @@ static int unit_cargo_idle_turns_haul_prefer(void) {
   b->id = 1;
   b->active = true;
   b->nation_id = nation;
-  b->x = 4;
-  b->y = 8;
+  b->x = 2;
+  b->y = 2;
   b->population = 3;
   b->colonist_count = 3;
   b->stock[COLONIZE_CARGO_TOOLS] = 0;
@@ -7853,23 +7880,19 @@ static int unit_cargo_idle_turns_haul_prefer(void) {
   colonies.colony_count = 2;
   colonies.next_id = 2;
 
-  const int wid = units_spawn(&units, 0, 4, 4);
+  const int wid = units_spawn(&units, 0, 5, 1);
   ColonizeUnit* wagon = units_get(&units, wid);
   if (!wagon) {
     free(map.terrain);
     free(map.layer2);
     free(map.layer3);
-    return fail("cargo-idle spawn wagon");
+    return fail("cargo-idle spawn ship");
   }
   wagon->nation_id = nation;
-  wagon->moves_left = 2 * UNITS_MP_PER_TILE;
+  /* One step of MP: enough to commit and move toward the tip, not enough to
+   * reach the berth and bounce through the arrival block this same beat. */
+  wagon->moves_left = 1 * UNITS_MP_PER_TILE;
   wagon->orders = 0;
-  if (units_load_goods(&units, wid, COLONIZE_CARGO_TOOLS, 20) <= 0) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
-    return fail("cargo-idle load tools");
-  }
 
   ai_goals_reset();
 
@@ -7897,8 +7920,12 @@ static int unit_cargo_idle_turns_haul_prefer(void) {
   ai_euro_dispatcher_turn(&ctx, nation);
 
   wagon = units_get(&units, wid);
-  if (!wagon || !wagon->active || !units_orders_follow_goto(wagon->orders) ||
-      wagon->goto_x != 4 || wagon->goto_y != 8) {
+  const int near_b =
+    wagon && wagon->active &&
+    ((units_orders_follow_goto(wagon->orders) && abs(wagon->goto_x - 2) <= 1 &&
+      abs(wagon->goto_y - 2) <= 1) ||
+     (abs(wagon->x - 2) <= 1 && abs(wagon->y - 2) <= 1));
+  if (!near_b) {
     fprintf(
       stderr,
       "unit_ai_euro_expand: cargo-idle goto=(%d,%d) orders=%d idleA=%u idleB=%u\n",
@@ -7911,7 +7938,7 @@ static int unit_cargo_idle_turns_haul_prefer(void) {
     free(map.terrain);
     free(map.layer2);
     free(map.layer3);
-    return fail("expected wagon goto the higher cargo_idle registered colony");
+    return fail("expected ship goto the higher cargo_idle registered colony");
   }
   /* Inventory INC both shorts (cap 0x7f). */
   if (colonies.colonies[0].cargo_idle_turns < 1 ||
@@ -7925,10 +7952,16 @@ static int unit_cargo_idle_turns_haul_prefer(void) {
   /* Unload clears idle. */
   ColonizeColony* dest = &colonies.colonies[1];
   dest->x = 4;
-  dest->y = 4; /* same tile as wagon for transfer */
+  dest->y = 4; /* same tile as the hauler for transfer */
   wagon->x = 4;
   wagon->y = 4;
   dest->cargo_idle_turns = 30;
+  if (units_load_goods(&units, wid, COLONIZE_CARGO_TOOLS, 20) <= 0) {
+    free(map.terrain);
+    free(map.layer2);
+    free(map.layer3);
+    return fail("cargo-idle load tools for unload check");
+  }
   const int moved =
     colonies_transfer_from_unit(&colonies, dest->id, &units, wid, 0, NULL);
   if (moved <= 0 || dest->cargo_idle_turns != 0) {
@@ -11478,8 +11511,11 @@ static int unit_scout_sticky_fog_deeper_unseen(void) {
 }
 
 /*
- * Idle Caravel with goods-hold capacity → AI_SAIL toward tools-short coastal
- * colony water. Cite: euro_unit_act §2d2 cargo haul.
+ * Idle Caravel with goods-hold capacity → AI_SAIL toward the registered
+ * coastal colony's berth (4393 pickup tip). 2026-09-07b: the colony holds 80
+ * RUM so it registers on DOS's bVar5 gate — the old fixture relied on the
+ * retired Linux-only `nearest_short_coastal_colony` scan (a merely SHORT
+ * colony holds nothing to collect and never registers in DOS).
  */
 static int unit_ship_trade_haul_tools_short(void) {
   const int nation = 1;
@@ -11529,6 +11565,7 @@ static int unit_ship_trade_haul_tools_short(void) {
   c->colonist_count = 3;
   c->stock[COLONIZE_CARGO_TOOLS] = 5; /* tools-short */
   c->stock[COLONIZE_CARGO_FOOD] = 40;
+  c->stock[COLONIZE_CARGO_RUM] = 80; /* 80 > 0x4a → bVar5 registers the colony */
   c->building_in_production = -1;
   colonies.colony_count = 1;
   colonies.next_id = 1;
@@ -12501,6 +12538,7 @@ static int unit_galleon_trade_haul_tools_short(void) {
   c->colonist_count = 3;
   c->stock[COLONIZE_CARGO_TOOLS] = 5;
   c->stock[COLONIZE_CARGO_FOOD] = 40;
+  c->stock[COLONIZE_CARGO_RUM] = 80; /* 2026-09-07b: bVar5 registers the colony */
   c->building_in_production = -1;
   colonies.colony_count = 1;
   colonies.next_id = 1;
@@ -19047,298 +19085,10 @@ static int unit_wagon_haul_ore_short(void) {
   return 0;
 }
 
-/*
- * Idle Wagon on inland SILVER surplus (stock>99) → load leave 50 + AI_MOVE
- * nearest own coastal colony (Europe export feeder). Cite: FUN_364b_0688;
- * euro_unit_act §2d / §2d2 Europe export sail.
- */
-static int unit_wagon_europe_export_feeder(void) {
-  const int nation = 1;
-
-  ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
-    return fail("wagon-export alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
-  }
-  map.terrain[4 * 16 + 3] = 25;
-  if (!map_tile_is_coastal(&map, 4, 4)) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
-    return fail("wagon-export coastal colony should be coastal");
-  }
-  if (map_tile_is_coastal(&map, 10, 10)) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
-    return fail("wagon-export inland colony should not be coastal");
-  }
-
-  ColonizeUnitPool units;
-  units_reset(&units);
-  units.type_count = 1;
-  snprintf(units.types[0].name, sizeof(units.types[0].name), "Wagon Train");
-  units.types[0].movement = 2;
-  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
-  units.types[0].cargo = 2;
-
-  ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  ColonizeColony* coast = &colonies.colonies[0];
-  coast->id = 0;
-  coast->active = true;
-  coast->nation_id = nation;
-  coast->x = 4;
-  coast->y = 4;
-  coast->population = 3;
-  coast->colonist_count = 3;
-  coast->stock[COLONIZE_CARGO_TOOLS] = 25;
-  coast->stock[COLONIZE_CARGO_LUMBER] = 25;
-  coast->stock[COLONIZE_CARGO_ORE] = 25;
-  coast->stock[COLONIZE_CARGO_MUSKETS] = 15;
-  coast->stock[COLONIZE_CARGO_HORSES] = 15;
-  coast->stock[COLONIZE_CARGO_FOOD] = 8;
-  coast->building_in_production = -1;
-
-  ColonizeColony* inland = &colonies.colonies[1];
-  inland->id = 1;
-  inland->active = true;
-  inland->nation_id = nation;
-  inland->x = 10;
-  inland->y = 10;
-  inland->population = 3;
-  inland->colonist_count = 3;
-  inland->stock[COLONIZE_CARGO_TOOLS] = 25;
-  inland->stock[COLONIZE_CARGO_LUMBER] = 25;
-  inland->stock[COLONIZE_CARGO_ORE] = 25;
-  inland->stock[COLONIZE_CARGO_MUSKETS] = 15;
-  inland->stock[COLONIZE_CARGO_HORSES] = 15;
-  inland->stock[COLONIZE_CARGO_FOOD] = 8;
-  inland->stock[COLONIZE_CARGO_SILVER] = 150;
-  inland->building_in_production = -1;
-  colonies.colony_count = 2;
-  colonies.next_id = 2;
-
-  const int wid = units_spawn(&units, 0, 10, 10);
-  ColonizeUnit* wagon = units_get(&units, wid);
-  if (!wagon) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
-    return fail("wagon-export spawn");
-  }
-  wagon->nation_id = nation;
-  wagon->moves_left = 2 * UNITS_MP_PER_TILE;
-  wagon->orders = 0;
-
-  ai_goals_reset();
-  ai_goals_upsert_primary(nation, 14, 14, AI_GOAL_FOUND, 5);
-
-  ColonizeCol1Save col1;
-  col1_save_init(&col1);
-  memset(col1.nation, 0, sizeof(col1.nation));
-  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
-  for (int i = 0; i < 4; ++i) {
-    col1.player[i].control = 0;
-    col1.player[i].diplomacy = 0;
-  }
-  col1.nation[nation].gold = 200;
-
-  uint32_t turn = 32;
-  ColonizeTurnContext ctx;
-  memset(&ctx, 0, sizeof(ctx));
-  ctx.turn_number = &turn;
-  ctx.units = &units;
-  ctx.colonies = &colonies;
-  ctx.map = &map;
-  ctx.col1 = &col1;
-  ctx.col1_ok = true;
-  ctx.rng_seed = 42;
-
-  ai_euro_dispatcher_turn(&ctx, nation);
-
-  wagon = units_get(&units, wid);
-  if (!wagon || !wagon->active) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
-    return fail("wagon-export should remain active");
-  }
-  const int loaded = inland->stock[COLONIZE_CARGO_SILVER] == 50 &&
-                     wagon->hold_goods_type[0] == COLONIZE_CARGO_SILVER &&
-                     wagon->hold_goods_amount[0] == 100;
-  const int toward_coast =
-    wagon->orders == UNITS_ORDER_AI_MOVE && wagon->goto_x == 4 && wagon->goto_y == 4;
-  if (!loaded || !toward_coast) {
-    fprintf(
-      stderr,
-      "unit_ai_euro_expand: wagon-export silver=%d hold_t=%d hold_a=%d "
-      "orders=%d goto=(%d,%d)\n",
-      inland->stock[COLONIZE_CARGO_SILVER],
-      wagon->hold_goods_type[0],
-      wagon->hold_goods_amount[0],
-      wagon->orders,
-      wagon->goto_x,
-      wagon->goto_y
-    );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
-    return fail("expected load SILVER leave 50 + AI_MOVE coastal colony");
-  }
-
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
-  fprintf(stderr, "unit_ai_euro_expand: wagon Europe export feeder ok\n");
-  return 0;
-}
-
-/*
- * Wagon on coastal colony with SILVER hold → unload into stock (ship export
- * pickup). Cite: euro_unit_act §2d2 wagon export feeder unload.
- */
-static int unit_wagon_europe_export_unload(void) {
-  const int nation = 1;
-
-  ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
-    return fail("wagon-export-unload alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1;
-  }
-  map.terrain[4 * 16 + 3] = 25;
-  if (!map_tile_is_coastal(&map, 4, 4)) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
-    return fail("wagon-export-unload colony should be coastal");
-  }
-
-  ColonizeUnitPool units;
-  units_reset(&units);
-  units.type_count = 1;
-  snprintf(units.types[0].name, sizeof(units.types[0].name), "Wagon Train");
-  units.types[0].movement = 2;
-  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
-  units.types[0].cargo = 2;
-
-  ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  ColonizeColony* coast = &colonies.colonies[0];
-  coast->id = 0;
-  coast->active = true;
-  coast->nation_id = nation;
-  coast->x = 4;
-  coast->y = 4;
-  coast->population = 3;
-  coast->colonist_count = 3;
-  coast->stock[COLONIZE_CARGO_TOOLS] = 25;
-  coast->stock[COLONIZE_CARGO_LUMBER] = 25;
-  coast->stock[COLONIZE_CARGO_ORE] = 25;
-  coast->stock[COLONIZE_CARGO_MUSKETS] = 15;
-  coast->stock[COLONIZE_CARGO_HORSES] = 15;
-  coast->stock[COLONIZE_CARGO_FOOD] = 8;
-  coast->stock[COLONIZE_CARGO_SILVER] = 0;
-  coast->building_in_production = -1;
-  colonies.colony_count = 1;
-  colonies.next_id = 1;
-
-  const int wid = units_spawn(&units, 0, 4, 4);
-  ColonizeUnit* wagon = units_get(&units, wid);
-  if (!wagon) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
-    return fail("wagon-export-unload spawn");
-  }
-  wagon->nation_id = nation;
-  wagon->moves_left = 2 * UNITS_MP_PER_TILE;
-  wagon->orders = 0;
-  if (units_load_goods(&units, wid, COLONIZE_CARGO_SILVER, 80) <= 0) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
-    return fail("wagon-export-unload load");
-  }
-
-  ai_goals_reset();
-  ai_goals_upsert_primary(nation, 14, 14, AI_GOAL_FOUND, 5);
-
-  ColonizeCol1Save col1;
-  col1_save_init(&col1);
-  memset(col1.nation, 0, sizeof(col1.nation));
-  memset(col1.head.nation_relation, 0, sizeof(col1.head.nation_relation));
-  for (int i = 0; i < 4; ++i) {
-    col1.player[i].control = 0;
-    col1.player[i].diplomacy = 0;
-  }
-  col1.nation[nation].gold = 200;
-
-  uint32_t turn = 32;
-  ColonizeTurnContext ctx;
-  memset(&ctx, 0, sizeof(ctx));
-  ctx.turn_number = &turn;
-  ctx.units = &units;
-  ctx.colonies = &colonies;
-  ctx.map = &map;
-  ctx.col1 = &col1;
-  ctx.col1_ok = true;
-  ctx.rng_seed = 42;
-
-  ai_euro_dispatcher_turn(&ctx, nation);
-
-  wagon = units_get(&units, wid);
-  if (!wagon || !wagon->active) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
-    return fail("wagon-export-unload should remain");
-  }
-  const int unloaded = coast->stock[COLONIZE_CARGO_SILVER] == 80;
-  int still_held = 0;
-  for (int h = 0; h < units_goods_hold_count(&units, wid); ++h) {
-    if (wagon->hold_goods_type[h] == COLONIZE_CARGO_SILVER &&
-        wagon->hold_goods_amount[h] > 0 && wagon->hold_goods_amount[h] < 255) {
-      still_held = 1;
-    }
-  }
-  if (!unloaded || still_held) {
-    fprintf(
-      stderr,
-      "unit_ai_euro_expand: wagon-export-unload silver=%d still_held=%d\n",
-      coast->stock[COLONIZE_CARGO_SILVER],
-      still_held
-    );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
-    return fail("expected wagon unload SILVER into coastal colony stock");
-  }
-
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
-  fprintf(stderr, "unit_ai_euro_expand: wagon Europe export unload ok\n");
-  return 0;
-}
+/* (unit_wagon_europe_export_feeder / _unload removed 2026-09-07b with the
+ * Linux-only wagon Europe-export feeder — DOS's LAB_457e origin walk owns
+ * every off-errand wagon beat; surplus reaches Europe via the ships-only
+ * 4393 pickup queue.) */
 
 /*
  * Idle Wagon with FOOD cargo → AI_MOVE toward food-short colony (tools OK).
@@ -19710,8 +19460,20 @@ static int unit_wagon_food_load_haul(void) {
     }
   }
   const int stock_after = colonies.colonies[0].stock[COLONIZE_CARGO_FOOD];
+  /*
+   * 2026-09-07b: DOS shape. The load matrix takes one hold at the wagon's own
+   * colony, but a wagon never runs cross-colony deliveries — the 4393 queue
+   * is ships-only and the LAB_457e origin walk parks an off-errand wagon at
+   * its bound colony (no villages in this fixture, so the errand clears).
+   * The old assertion (AI_MOVE to the food-short colony at (4,4)) tested the
+   * retired wagon queue substitute.
+   */
+  const int left_home =
+    wagon && wagon->active && (wagon->x != 10 || wagon->y != 10) &&
+    !(wagon->x == 10 && wagon->y == 10);
   if (!wagon || !wagon->active || food_aboard <= 0 || stock_after >= stock_before ||
-      wagon->orders != UNITS_ORDER_AI_MOVE || wagon->goto_x != 4 || wagon->goto_y != 4) {
+      left_home ||
+      (units_orders_follow_goto(wagon->orders) && wagon->goto_x == 4 && wagon->goto_y == 4)) {
     fprintf(
       stderr,
       "unit_ai_euro_expand: food-load stock %d→%d aboard=%d orders=%d goto=(%d,%d)\n",
@@ -19725,7 +19487,7 @@ static int unit_wagon_food_load_haul(void) {
     free(map.terrain);
     free(map.layer2);
     free(map.layer3);
-    return fail("expected wagon FOOD load + AI_MOVE toward food-short");
+    return fail("expected wagon FOOD load + park at bound colony (DOS 457e)");
   }
 
   free(map.terrain);
@@ -21605,12 +21367,6 @@ int main(void) {
     return 1;
   }
   if (unit_wagon_haul_ore_short() != 0) {
-    return 1;
-  }
-  if (unit_wagon_europe_export_feeder() != 0) {
-    return 1;
-  }
-  if (unit_wagon_europe_export_unload() != 0) {
     return 1;
   }
   if (unit_wagon_haul_food_short() != 0) {

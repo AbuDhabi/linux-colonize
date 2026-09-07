@@ -1829,15 +1829,18 @@ shortage represents. DOS-gated colonies keep their computed count.
 | `unit+0x314a` | `ColonizeCol1Unit.origin` (record `+0x06`) — the hauler's home colony |
 | `unit+0x3150` | `ColonizeCol1Unit.holds_occupied` (record `+0x0c`) |
 | `0x5237` | @UNIT stride-0xe hold-capacity column (already named by `0d38` case 0xd) |
-| `*(int*)(nation*2 + 0x1734)` | **count of colonies that registered work-queue work this tick** — the "urgency" term `20e6`'s colony-sail / unload-mask matrices read. Documented, **not rewired**: those matrices currently substitute a NEEDS_GARRISON/MILITARY colony count and the goldens are pinned on it; swapping it is its own scoring change. |
+| `*(int*)(nation*2 + 0x1734)` | **count of colonies that registered work-queue work** — the "urgency" term `20e6`'s colony-sail / unload-mask matrices read. **Rewired 2026-09-07b** (`s_0a60_work_registered` in ai_euro.c): bumped in the bVar5 branch, zeroed only by the 20e6 berth boarding scan (:81295), read by both matrices and the boarding gate. |
 
 ### Stubs / dead ends left
 
 - `bVar17`'s Privateer/Frigate narrowings in the consumer — unresolved
   globals, unreachable in this port (details in the 20e6 doc).
-- Colony `ai_flags` bit7 (the DOS gate on the Missionary `+800` arm) still
-  approximated as always-clear; unchanged from the Third pass.
-- The `0x1734` rewire above.
+- ~~Colony `ai_flags` bit7 / the `+800` arm~~ **closed 2026-09-07b**: bit
+  0x80 = WANTS_PIONEER_WORK (FUN_5952_035e surround scan, live in
+  `ai_euro_refresh_colony_ai_flags`), and the arm's `type == 0x02` is the
+  PIONEER, not the Missionary — both fixed; see
+  `move_scoring_20e6_full.md` §2026-09-07b.
+- ~~The `0x1734` rewire above.~~ **Done 2026-09-07b.**
 
 ### Test evidence
 
@@ -1861,5 +1864,5 @@ moved there from the retired shortage arm. Loads floor-of-1 deleted
 (bVar5 registration always banks ≥1 load). `ai_euro_nearest_haul_short_colony`
 and `ai_euro_haul_load_amount` deleted; wagon specialty/produced/food-first
 ladder retired. Consumer notes + the ships-only 4393 divergence live in
-`move_scoring_20e6_full.md` §2026-09-07. `0x1734[nation]++` still not wired.
+`move_scoring_20e6_full.md` §2026-09-07. `0x1734[nation]++` wired 2026-09-07b.
 ctest 58/58, all goldens byte-green.

@@ -2292,12 +2292,12 @@ bool col1_bridge_capture(
       dst->garrison_request_pending = (src->col1_unknown15 & 0x20u) != 0 ? 1u : 0u;
       dst->bound_in_transit = (src->col1_unknown15 & 0x40u) != 0 ? 1u : 0u;
       dst->ship_damaged = (src->col1_unknown15 & 0x80u) != 0 ? 1u : 0u;
-      /* Natives: origin = home tribe index / 0xff. Euro units carry values
-       * here too in original DOS campaign saves (home colony index, seen on
-       * french-campaign 2026-09-03) — preserve the loaded byte; only a
-       * port-spawned Euro unit gets 0xff. */
+      /* Natives: origin = home tribe index / 0xff. Euro units: home colony
+       * index (COL1 +0x06, the byte 20e6's haul band and colony tick bind) —
+       * col1_origin is now live AI state (spawn inits it to 0xff, the load
+       * matrix / 457e walk / colony tick write it), so export it verbatim. */
       if ((src->nation_id & 0xF) < 4) {
-        dst->origin = src->col1_hold_raw_valid ? src->col1_origin : 0xff;
+        dst->origin = src->col1_origin;
       } else {
         dst->origin =
           (uint8_t)(src->home_tribe_id < 0 || src->home_tribe_id > 255 ? 0xff

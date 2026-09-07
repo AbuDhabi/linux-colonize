@@ -349,6 +349,9 @@ int units_spawn_allow_stack(ColonizeUnitPool* pool, int type_index, int x, int y
   slot->home_tribe_id = -1;
   slot->turns_worked = 0;
   slot->last_dir = 0;
+  /* COL1 +0x06 origin: DOS leaves it unbound at create; 0xff is the "no
+   * home colony / tribe" sentinel every DOS reader tests as < 0. */
+  slot->col1_origin = 0xff;
   slot->col1_unknown15 = 0;
   slot->col1_ai_plan = COL1_UNIT_UNKNOWN16_HI_DEFAULT;
   slot->repair_pending = 0;
@@ -1215,6 +1218,7 @@ static void units_clear_slot(ColonizeUnit* unit) {
   unit->home_tribe_id = -1;
   unit->turns_worked = 0;
   unit->last_dir = 0;
+  unit->col1_origin = 0xff;
   unit->col1_unknown15 = 0;
   unit->col1_ai_plan = 0;
   unit->col1_vis_mask = 0;
@@ -9543,6 +9547,9 @@ static int units_spawn_aboard(ColonizeUnitPool* pool, int type_index, ColonizeUn
   slot->home_tribe_id = -1;
   slot->turns_worked = 0;
   slot->last_dir = 0;
+  /* COL1 +0x06 origin: DOS leaves it unbound at create; 0xff is the "no
+   * home colony / tribe" sentinel every DOS reader tests as < 0. */
+  slot->col1_origin = 0xff;
   slot->col1_unknown15 = 0;
   slot->col1_ai_plan = COL1_UNIT_UNKNOWN16_HI_DEFAULT;
   slot->repair_pending = 0;

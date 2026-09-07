@@ -74,4 +74,11 @@ unsigned char ai_euro_wagon_errand_get(int unit_id);
 void ai_euro_wagon_errand_set(int unit_id, unsigned char value);
 void ai_euro_wagon_errand_clear_all(void);
 
+/*
+ * DS:0x1734[nation] — colonies that registered work-queue work (0a60 bVar5
+ * branch bumps it; only the 20e6 berth boarding scan zeroes it). Exposed for
+ * tests; session-local, not save data.
+ */
+int ai_euro_0a60_work_registered(int nation_id);
+
 #endif

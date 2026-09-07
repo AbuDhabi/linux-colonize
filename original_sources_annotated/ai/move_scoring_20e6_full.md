@@ -4469,3 +4469,141 @@ with live errands (DOS-correct; the port used to drop them).
 - Human-path `game_loop.c game_treasure_gold_from_unit` still mirror-only
   (same hole class as the fixed AI readers).
 - `bVar17`/`bVar7` Privateer/Frigate narrowings — unreachable, closed.
+
+## 2026-09-07b — the authoritative still-thin list closed (single pass, all 9 bullets)
+
+`ctest` + goldens run after the pass (see Test evidence below). Every bullet
+of the 2026-09-07 list is now either ported or retired; the remaining thin
+items are listed at the end of this section.
+
+### 1. `+0x314a` unified onto the real `col1_origin` byte (was two session latches)
+
+`s_20e6_load_colony`/`s_20e6_load_turn` and `s_20e6_haul_bind` are deleted.
+The one DOS byte (COL1 unit +0x06 `origin`) now carries the whole lifecycle:
+
+- spawn inits it 0xff (all three unit-reset sites in `units.c`; DOS reads it
+  as a signed char, so any value >= 0x80 is "unbound");
+- the 20e6 LOAD matrix ship arm writes the source colony (raw 3134-3138),
+  the ship arrival dump clears to 0xff (raw 3008), the 457e wagon walk binds;
+- **the FUN_5952_035e origin refresh is ported** (colony_tick doc raw ~348):
+  every LAND unit standing in a colony with origin unbound is bound to it —
+  the DOS writer that made turn-scoping unnecessary. Lives in
+  `ai_euro_colony_inventory`'s per-colony 035e-thin block;
+- `col1_bridge` capture now exports `col1_origin` verbatim for Euro units
+  (was gated on `col1_hold_raw_valid`, which dropped port-written bindings);
+  apply already imported it. Save-round-trip closed.
+- every reader (4393 pick :89887, delivery-matrix skip raw 2055, adjacent
+  unload guard, wagon shortage-unload guard) reads it persistently — the
+  turn-scoping and the `home_tribe_id` fallback are gone.
+
+### 2. 4393 ships-only; wagon 457e origin walk LIVE (raw 2256-2289)
+
+`ai_euro_20e6_wagon_origin_walk`: at an own colony bind-if-unbound, park when
+bound here (DOS `+0x314b = 0x55` is 20e6's own cache byte, so the park is
+"claim the beat, no goto"); unbound with no own colony on this landmass →
+destroy (the 47b9 arm moved in here); else bind + walk home. Called from
+`ai_euro_try_wagon_haul` in DOS position (after the errand walker); the
+wagon 4393-queue substitute, its has-cargo entry gate, and the wagon-side
+`+0x314a` write (DOS's land arm writes only `+0x3158`) are deleted. The
+arrival dump is now bind-gated (raw 1691: land hauler needs
+`+0x314a == uStack_62`), closing the old "wagon arrival gate looser than
+DOS" bullet — an unbound wagon binds one beat before it first dumps, as in
+DOS. Wagon act chain: de Witt → arrival dump+load+errand → errand walker →
+origin walk; the Europe-export feeder is now unreachable for on-map wagons
+(DOS shape — wagons never fed Europe exports).
+
+### 3. `nearest_short_coastal_colony` retired
+
+Deleted with its call site. DOS ships that fail the 4393 pick fall to the
+457e arms (HS cadence → Europe export → Missionary/explore bands, per the
+raw flow after LAB_457e); the dispatcher chain already routes a declined
+ship exactly there.
+
+### 4. Laden→HS gate unscoped (raw 2166-2168)
+
+The `occupied > 1 || occupied == capacity → decline to Europe-export` gate
+now runs for EVERY untasked ship after the delivery matrix / sell tail
+decline (DOS keys the whole band off `holds_occupied != 0` at LAB_3558
+entry), not just post-arrival. Ships carrying 2+ holds of non-delivery
+cargo route to Europe instead of the queue tip — the DOS routing.
+
+### 5. `0x1734[nation]` REAL (s_0a60_work_registered)
+
+Bumped in 0a60's bVar5 registration branch (:87675), zeroed ONLY by the
+berth boarding scan (:81295) — no other reset, exactly DOS. Rewired into
+the 20e6 unload-mask urgency read and the colony-sail matrix read (both
+previously substituted a NEEDS_GARRISON/MILITARY colony count) and into the
+new boarding scan gate (`< 0x19`). Exposed as
+`ai_euro_0a60_work_registered()` for tests.
+
+### 6. Cower-in-port arm (raw 3018-3023) + berth passenger boarding (raw 3024-3051)
+
+- **Cower**: cargo ship of type <= 0xe at a colony flagged NEARBY_MAN_O_WAR
+  (+0x1b bit 0x02) bumps `+0x315a` (session-local `s_20e6_cower`) and PARKS
+  (orders 0x43) until the counter reaches `10 − capacity` (Caravel 8 beats,
+  Merchantman 6); DOS never resets the byte. Plumbed out of
+  `ship_berth_arrival` as `out_cowered`; the haul beat returns claimed.
+- **Boarding**: gate = bVar7 type gate ∧ `+0x3148 bit 0x20` clear. Walks the
+  colony-tile stack while `0x1734[nation] < 0x19`: an armed land unit
+  (0x5236 combat > 1, orders byte not 'G'/'A') on a stance-0 continent, or a
+  Pioneer (type 2) unless the ship's composite priority (iStack_14 =
+  FUN_521d_0600 of the SHIP) is 0 on a non-0-stance continent. DOS marks
+  act_state 1 and debits the hold budget by 0x5238 size; Linux boards into
+  cargo_ids directly (the ship_cargo_counts stack substitution) and debits
+  the same budget the load matrix then uses. `0x1734[nation] = 0` after the
+  scan.
+
+### 7. Colony `+0x1b` bit 0x80 decoded and LIVE — and the "+800 Missionary" was a PIONEER
+
+Bit 0x80 = **WANTS_PIONEER_WORK**: FUN_5952_035e's surround scan sets it
+when any WORKED ring tile lacks road (`fa_flags & 0x0a == 0`, iStack_6e) or
+any worked farmland tile (terrain class < 8) lacks plow 0x40 (iStack_140).
+Ported into `ai_euro_refresh_colony_ai_flags` (runs right before the
+registration loop, DOS colony-tick position);
+`COLONIZE_COLONY_AI_WANTS_PIONEER_WORK 0x80` in colony.h.
+
+**Mislabel fixed en route:** the 0a60 "+800 Missionary arm" (:87619) tests
+`type == 0x02` — the PIONEER (0x03 is the Missionary, cf. the 8d4a
+mission-owner scan). The port counted Missionaries with the gate
+approximated always-clear; it now counts idle Pioneers gated on bit 0x80
+clear — "a Pioneer with no pioneer work here registers his colony for
+pickup".
+
+### 8. Human treasure reader fixed
+
+`game_loop.c game_treasure_gold_from_unit` delegates to
+`units_treasure_value_gold` (mirror first, COL1 profession byte fallback) —
+the last mirror-only reader of the class the 2026-09-07 wave fixed on the
+AI side.
+
+### Retired with this pass
+
+- `ai_euro_try_wagon_europe_export_feeder` + helpers (Linux-only wagon
+  inland→coast Europe feeder): DOS wagons never fed the export leg — the
+  457e origin walk owns every off-errand wagon beat. Surplus reaches Europe
+  via the ships-only 4393 pickup. Its two test scenarios removed; four other
+  scenarios rewritten from wagon-queue consumers to ship consumers
+  (`test_ai_euro_expand.c` flag_a / cargo-idle / ship+galleon haul,
+  `test_ai_euro_20e6.c` pickup + colony-sail — the sail fixture now carries
+  a Scout so the cargo is not all founders, which is the real DOS gate).
+
+### Test evidence
+
+`ctest` 58/58 after the pass; goldens byte-green (`golden_ai_turns` 6/6,
+`golden_ai_joint`, `golden_ai_mid01`/`late01`, `golden_woi_ref01`,
+`golden_colony_*`). New trace env: `AI_SET_GOTO_TRACE=1` (every AI goto
+write with unit/orders/target).
+
+### Still thin after this pass (authoritative)
+
+- `bVar7`'s Frigate budget term (`0x9414`/`−0x6db4`/`−0x6da4`) and the
+  Man-O-War `−0x6da2` nation byte — no decoded writer (carried forward).
+- `s_20e6_cower` (+0x315a) is session-local, not save-round-tripped (COL1
+  cargo-hold scratch; same class as `+0x3154..6`).
+- Boarding marks act_state 1 in DOS and boards via the tile stack; Linux
+  boards immediately into cargo_ids — a one-beat timing difference when the
+  ship would have left before pickup.
+- The 3fa6 stamp (`orders 0x45`, `DS:0x9456+nation`) stays modelled by the
+  dispatcher Europe-export arm, as before.
+- `+0x315a`/`+0x3148`-adjacent AI scratch bytes not named here remain
+  unmodelled.
