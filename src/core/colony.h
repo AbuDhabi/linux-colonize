@@ -219,6 +219,14 @@ typedef struct ColonizeColony {
 #define COLONIZE_COLONY_AI_NEEDS_MILITARY 0x04u
 #define COLONIZE_COLONY_AI_NEEDS_COLONISTS 0x10u
 #define COLONIZE_COLONY_AI_NEEDS_GARRISON 0x40u
+/*
+ * DOS colony +0x1b bit 0x80 — "worked surround tiles want Pioneer work":
+ * FUN_5952_035e sets it when any worked ring tile lacks road (fa_flags &
+ * 0x0a == 0) or any worked farmland tile (terr class < 8) lacks plow
+ * (& 0x40). FUN_521d_0a60's +800 registration arm counts an idle Pioneer at
+ * the colony only when this is CLEAR (no work here → ship him out).
+ */
+#define COLONIZE_COLONY_AI_WANTS_PIONEER_WORK 0x80u
 #define COLONIZE_COLONY_FLAG_SOL_100 0x02u
 #define COLONIZE_COLONY_FLAG_SOL_50 0x04u
 /*

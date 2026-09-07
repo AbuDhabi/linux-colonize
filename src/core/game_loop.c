@@ -9519,8 +9519,8 @@ static void game_europe_capture_pax_professions(
 }
 
 /*
- * COL1 Treasure gold: cargo_hold[0..1] LE16. ColonizeUnit mirrors those bytes in
- * hold_goods_amount[0] (lo) + [1] (hi) — same field AI euro cash uses.
+ * COL1 Treasure gold: delegated to units_treasure_value_gold (mirror LE16 in
+ * hold_goods_amount[0..1] when set, else COL1 profession byte * 100).
  * Cite: Colonization.pdf Treasure Trains; europe.h cargo_treasure_gold;
  * GAME.TXT @LOOTCASH. Non-Treasure passengers keep 0 (goods holds are not gold).
  *
@@ -9540,9 +9540,9 @@ static int game_treasure_gold_from_unit(
   if (!ut || !ut->name[0] || strstr(ut->name, "Treasure") == NULL) {
     return 0;
   }
-  const unsigned lo = (unsigned)(u->hold_goods_amount[0] & 0xff);
-  const unsigned hi = (unsigned)(u->hold_goods_amount[1] & 0xff);
-  return (int)(lo | (hi << 8));
+  /* Save-loaded Treasures carry only the COL1 profession byte (gold/100);
+   * the shared helper reads the mirror first, then that byte. */
+  return units_treasure_value_gold(u);
 }
 
 static void game_europe_capture_pax_treasure_gold(

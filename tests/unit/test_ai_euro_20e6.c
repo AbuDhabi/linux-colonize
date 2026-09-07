@@ -263,9 +263,17 @@ static int unit_ring_hop_commits_far_goto(void) {
 
 /*
  * LAB_3558 colony-sail matrix (raw 1933-2031): a Caravel at sea carrying a
- * plain colonist (iStack_82 != 0), no land tile adjacent (empty unload
- * mask), one own coastal colony flagged NEEDS_COLONISTS — the peace score
- * commits a goto onto that colony.
+ * plain colonist plus a Scout, no land tile adjacent (empty unload mask),
+ * one own coastal colony flagged NEEDS_COLONISTS — the peace score commits
+ * a goto onto that colony.
+ *
+ * 2026-09-07b: the Scout matters. The raw 1746 goal fold promotes a lone
+ * civilian into the founder count, and DOS's sail gate skips a ship whose
+ * cargo is ALL founders (`pioneers == a8` with an empty mask) — that hull
+ * belongs to the explore/found machinery. The old fixture (colonist only)
+ * passed through `ai_euro_nearest_short_coastal_colony`, a Linux-only
+ * fallback retired with the still-thin list; the Scout makes the DOS gate
+ * itself pass (cargo not all founders), which is what this scenario is for.
  */
 static int unit_colony_sail_targets_needy_colony(void) {
   const int nation = 1;
@@ -293,11 +301,17 @@ static int unit_colony_sail_targets_needy_colony(void) {
   f.colonies.colony_count = 1;
   f.colonies.next_id = 1;
 
+  const int scout_ti = f.units.type_count++;
+  snprintf(f.units.types[scout_ti].name, sizeof(f.units.types[scout_ti].name), "Scout");
+  f.units.types[scout_ti].movement = 4;
+  f.units.types[scout_ti].domain = COLONIZE_UNIT_DOMAIN_LAND;
   const int ship_id = units_spawn(&f.units, 2, 14, 8);
   const int pax_id = units_spawn_allow_stack(&f.units, 0, 14, 8);
+  const int scout_id = units_spawn_allow_stack(&f.units, scout_ti, 14, 8);
   ColonizeUnit* ship = units_get(&f.units, ship_id);
   ColonizeUnit* pax = units_get(&f.units, pax_id);
-  if (!ship || !pax) {
+  ColonizeUnit* scout = units_get(&f.units, scout_id);
+  if (!ship || !pax || !scout) {
     fixture_free(&f);
     return fail("spawn ship/pax");
   }
@@ -305,7 +319,9 @@ static int unit_colony_sail_targets_needy_colony(void) {
   ship->moves_left = 4 * UNITS_MP_PER_TILE;
   ship->orders = 0;
   pax->nation_id = nation;
-  if (!units_board_stacked(&f.units, pax_id, ship_id)) {
+  scout->nation_id = nation;
+  if (!units_board_stacked(&f.units, pax_id, ship_id) ||
+      !units_board_stacked(&f.units, scout_id, ship_id)) {
     fixture_free(&f);
     return fail("board pax");
   }
@@ -888,11 +904,12 @@ static int unit_ship_berth_dumps_whole_hull(void) {
  *               enters the queue at all
  *   rich (8,4), four tiles away: 150 Ore — at/over warehouse capacity so
  *               `local_2a` doubles to 300, clears 0x4a, and registers
- * The wagon must be aimed at the FAR, RICH colony. The distance is what makes
- * this discriminating: with the gate off nothing registers and the wagon
- * falls to the LAB_457e/47b9 arm, which walks it to the NEAREST own colony
- * (5,4) instead. Before the 2026-09-06g gate flip this port registered `poor`
- * (the Linux `haul_short` boolean) and sent the wagon there empty-handed.
+ * 2026-09-07b: DOS's 4393 entry gate is SHIPS-ONLY (`0xc < type < 0x13`,
+ * raw :89877) and the port now follows it — so the queue consumer under test
+ * is a Caravel (ocean row y=3, both colonies coastal), which must sail for
+ * the FAR, RICH colony's berth. The wagon in the same scenario exercises the
+ * LAB_457e origin walk that replaced its queue substitute: unbound, off
+ * colony → bind to the NEAREST own colony (5,4) and walk there.
  */
 static int unit_work_queue_pickup_aims_at_goods_colony(void) {
   const int nation = 1;
@@ -900,14 +917,11 @@ static int unit_work_queue_pickup_aims_at_goods_colony(void) {
   if (fixture_init(&f, nation) != 0) {
     return 1;
   }
-  /*
-   * Distinct turn number. `s_20e6_load_colony` / `s_20e6_load_turn` (the port's
-   * +0x314a latch) are file-static and keyed by unit id, and every other
-   * fixture in this file runs on turn 5 with a unit id 1 — an earlier ship
-   * scenario's latch would otherwise read as "this wagon is bound to colony 0"
-   * and the 4393 pick would correctly skip the very slot under test.
-   */
   f.turn = 9;
+  /* Ocean row so the ship consumer can exist and both colonies are coastal. */
+  for (int x = 0; x < 16; ++x) {
+    f.map.terrain[3 * 16 + x] = 25; /* MAP_OCEAN_INDEX */
+  }
   ColonizeColony* rich = &f.colonies.colonies[0];
   rich->id = 0;
   rich->active = true;
@@ -938,27 +952,54 @@ static int unit_work_queue_pickup_aims_at_goods_colony(void) {
   f.colonies.next_id = 2;
   f.col1.nation[nation].trade.euro_price[COLONIZE_CARGO_ORE] = 3;
 
+  const int sid = units_spawn(&f.units, 2, 4, 3); /* Caravel on the ocean row */
   const int wid = units_spawn(&f.units, 3, 4, 4); /* Wagon Train, empty */
+  ColonizeUnit* sh = units_get(&f.units, sid);
   ColonizeUnit* w = units_get(&f.units, wid);
-  if (!w) {
+  if (!sh || !w) {
     fixture_free(&f);
-    return fail("spawn pickup wagon");
+    return fail("spawn pickup ship/wagon");
   }
+  sh->nation_id = nation;
+  sh->moves_left = 4 * UNITS_MP_PER_TILE;
+  sh->orders = 0;
   w->nation_id = nation;
   w->moves_left = 2 * UNITS_MP_PER_TILE;
   w->orders = 0;
 
   ai_euro_dispatcher_turn(&f.ctx, nation);
 
+  sh = units_get(&f.units, sid);
+  if (!sh || !sh->active) {
+    fixture_free(&f);
+    return fail("pickup ship vanished");
+  }
+  /* Ship: the 4393 pickup tip → berth water beside the rich colony (8,4),
+   * or it already sailed onto that berth this beat. */
+  const int ship_near_rich =
+    (units_orders_follow_goto(sh->orders) && abs(sh->goto_x - 8) <= 1 &&
+     abs(sh->goto_y - 4) <= 1) ||
+    (abs(sh->x - 8) <= 1 && abs(sh->y - 4) <= 1);
+  if (!ship_near_rich) {
+    fprintf(stderr, "pickup ship orders=%d pos=(%d,%d) goto=(%d,%d)\n", sh->orders, sh->x,
+            sh->y, sh->goto_x, sh->goto_y);
+    fixture_free(&f);
+    return fail("work-queue tip should aim the ship at the goods colony");
+  }
   w = units_get(&f.units, wid);
   if (!w || !w->active) {
     fixture_free(&f);
     return fail("pickup wagon vanished");
   }
-  if (w->orders != UNITS_ORDER_AI_MOVE || w->goto_x != 8 || w->goto_y != 4) {
-    fprintf(stderr, "pickup orders=%d goto=(%d,%d)\n", w->orders, w->goto_x, w->goto_y);
+  /* Wagon: LAB_457e origin walk — bind to nearest own colony (5,4), walk. */
+  const int wagon_walks_home =
+    (w->orders == UNITS_ORDER_AI_MOVE && w->goto_x == 5 && w->goto_y == 4) ||
+    (w->x == 5 && w->y == 4);
+  if (!wagon_walks_home) {
+    fprintf(stderr, "pickup wagon orders=%d pos=(%d,%d) goto=(%d,%d)\n", w->orders, w->x, w->y,
+            w->goto_x, w->goto_y);
     fixture_free(&f);
-    return fail("work-queue tip should aim the wagon at the goods colony");
+    return fail("origin walk should aim the wagon at its nearest own colony");
   }
   fixture_free(&f);
   return 0;
