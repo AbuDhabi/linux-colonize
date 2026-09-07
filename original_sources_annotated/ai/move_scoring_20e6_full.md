@@ -4683,10 +4683,32 @@ real ocean terrain, coastal colony for the flood gate).
 
 ### Still thin (authoritative)
 
-- Boarding one-beat timing: DOS marks act_state 1 and boards via the tile
-  stack next beat; Linux boards immediately into cargo_ids. The DOS
-  transport-chain assembly for the marked units is undecoded — a faithful
-  two-phase port would be invention; keep as documented divergence.
+- Boarding one-beat timing — **the assembly is no longer undecoded
+  (2026-09-07d)**, but the immediate-boarding substitution is kept as a
+  deliberate, now-grounded equivalent. The DOS mechanism:
+  `FUN_1427_10be(ship)` (resident, flat `0000:532e`; thunk
+  `FUN_281f_0920`) is the transport-chain assembly — free capacity =
+  `space[type](0x5237) − passenger_count(+0x3150)`; it walks the ship's
+  tile stack and, for every unit with `act_state == 1` (plus two
+  force-board arms: unit at negative map coords with the owner-nibble
+  `0x3147&0xf − x == 0x14` Europe-slot check, and a `FUN_13e4_0074(x,y)`
+  tile predicate — both undecoded beyond shape), debits its `0x5238` size
+  and calls `FUN_1427_0362(unit, 0xfffe, 0xfffe)` — **a DOS passenger is a
+  unit parked at sentinel coords (−2,−2) on the tile-stack lists**, not an
+  entry in a ship-side array. Sibling helpers: `FUN_1427_101c` = board all
+  marked units onto any ship at a tile; `FUN_1427_12f6(unit)` = ship →
+  10be, land → send to (−2,−2); `FUN_1427_12c6(tile, v)` = stamp
+  act_state=v on a whole stack. 20e6 calls 10be at decomp 89411
+  (`FUN_281f_0920(param_1)`, raw ~1745, right after the goal fold / before
+  the 0d38 stack-count queries), i.e. **early in each ship act** — marks
+  set by the berth scan (raw 3024-3051) board at the ship's *next* act
+  (usually the next beat of the same turn, since DOS units act repeatedly
+  while they have moves), and 20e6's raw ~2990 loop (decomp 90233-90238)
+  clears stale act_state-1 marks on the tile before re-marking. Linux
+  collapses mark→assemble into one beat (`units_board` at the berth scan);
+  restructuring to the literal two-phase would have to reconcile the 0a60
+  housekeeping's act_state 1..3 reset with the Linux one-act-per-turn ship
+  loop for no observable difference — deliberately not done.
 - The 3fa6 stamp stays modelled by the dispatcher Europe-export arm.
 - `+0x3148`-adjacent AI scratch bytes not named in the tables remain
   unmodelled (`+0x315a` is now resolved = `turns_worked`).

@@ -1935,6 +1935,9 @@ static int unit_native_tile_attack_alarm(void) {
 
   ColonizeCol1Save col1;
   memset(&col1, 0, sizeof(col1));
+  /* Zeroed founding_father[] reads as "nation 0 holds every FF" — mark all
+   * unclaimed so Pocahontas doesn't halve the 00f2 alarm bump under test. */
+  memset(col1.head.founding_father, 0xff, sizeof(col1.head.founding_father));
   col1.head.difficulty = 2; /* base = 7 */
   static ColonizeCol1Tribe tribe;
   memset(&tribe, 0, sizeof(tribe));

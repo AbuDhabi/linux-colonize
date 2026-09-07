@@ -247,6 +247,63 @@ static const char* ai_contact_euro_name(int euro_nation) {
   return k_euro[euro_nation];
 }
 
+/*
+ * FUN_4cc6_00f2 with its escalation tail (raw 80903-80915) + FUN_4cc6_0000:
+ * apply the alarm delta (halving/clamp/clears/tension tiers live in
+ * ai_diplo_indian_alarm_delta), then — when the pair lands at alarm 100
+ * while formally at PEACE — roll rng(0,10) <= cap+1 (cap = difficulty for
+ * a human-controlled euro, else 1); on success expel that euro's missions
+ * from every tribe of the nation (mission byte → 0xff) and, when any were
+ * cleared and the euro is human, show GAME.TXT @INDIANBURN (DS tag 0x14c8,
+ * %STRING0 = the Indian nation). Replaces the old Linux "burn at alarm
+ * ≥80 every tick" stand-in (2026-09-07d).
+ */
+void ai_contact_alarm_delta_00f2(
+  ColonizeTurnContext* ctx, int nation_id, int euro, int delta
+) {
+  if (!ctx || !ctx->col1) {
+    return;
+  }
+  ai_diplo_indian_alarm_delta(ctx->col1, nation_id, euro, delta);
+  const int idx = nation_id - 4;
+  if (euro < 0 || euro > 3 || idx < 0 || idx >= 8) {
+    return;
+  }
+  const ColonizeCol1Indian* ind = &ctx->col1->indian[idx];
+  if (ind->alarm_by_player[euro] < 100 ||
+      (ind->euro_diplo[euro] & COL1_INDIAN_PEACE_BIT) == 0) {
+    return;
+  }
+  const int human = ctx->col1->player[euro].control == 0;
+  const int cap = human ? (int)ctx->col1->head.difficulty : 1;
+  if (dos_rng_range(ctx->rng, 0, 10) > cap + 1) {
+    return;
+  }
+  int cleared = 0;
+  for (uint16_t ti = 0; ctx->col1->tribe && ti < ctx->col1->head.tribe_count; ++ti) {
+    ColonizeCol1Tribe* t = &ctx->col1->tribe[ti];
+    if ((int)t->nation_id != nation_id || t->mission == COL1_TRIBE_MISSION_NONE) {
+      continue;
+    }
+    if ((int)(t->mission & COL1_TRIBE_MISSION_NATION_MASK) == euro) {
+      t->mission = COL1_TRIBE_MISSION_NONE;
+      cleared = 1;
+    }
+  }
+  if (cleared && human) {
+    PopupMsgTokens tok;
+    memset(&tok, 0, sizeof(tok));
+    tok.string0 = ai_contact_tribe_name(nation_id);
+    char fb[AI_POPUP_BODY_LEN];
+    snprintf(fb, sizeof(fb), "The %s burn your missions!", tok.string0);
+    char body[AI_POPUP_BODY_LEN];
+    popup_msg_fill(ctx->messages, "INDIANBURN", &tok, fb, body, sizeof(body));
+    ai_contact_human_chrome(
+      ctx, euro, AI_POPUP_TAG_CONTACT_RAID, nation_id, "Mission", body
+    );
+  }
+}
+
 int ai_contact_indian_has_peace(
   const ColonizeCol1Save* col1,
   int indian_nation,
@@ -552,7 +609,7 @@ static void ai_contact_apply_welcome_reject(
    * hostile floor (1), not unmet 0 — seed-100 early goldens keep r==0/sticky
    * clear until first contact. Cite: FUN_4cc6_00f2; indian_contact.md.
    */
-  ai_diplo_indian_alarm_delta(ctx->col1, nation_id, e, 100); /* DOS +100 hostility */
+  ai_contact_alarm_delta_00f2(ctx, nation_id, e, 100); /* DOS +100 hostility */
   if (ctx->col1->tribe) {
     for (uint16_t ti = 0; ti < ctx->col1->head.tribe_count; ++ti) {
       ColonizeCol1Tribe* t = &ctx->col1->tribe[ti];
@@ -1166,7 +1223,7 @@ void ai_contact_village_open_hostilities(
   ColonizeCol1Indian* ind = &ctx->col1->indian[indian_nation - 4];
   /* Same at-war floor as welcome reject (FUN_4cc6_00f2 thin). */
   ai_contact_clear_peace(ctx->col1, indian_nation, euro_nation);
-  ai_diplo_indian_alarm_delta(ctx->col1, indian_nation, euro_nation, 100); /* DOS +100 hostility */
+  ai_contact_alarm_delta_00f2(ctx, indian_nation, euro_nation, 100); /* DOS +100 hostility */
   if (ind->alarm_by_player[euro_nation] < 80u) {
     ind->alarm_by_player[euro_nation] = 80u;
   }
@@ -2572,10 +2629,9 @@ static void ai_contact_apply_incite(
     return;
   }
   ai_contact_incite_warfare_chrome(ctx, e, nation_id, e, target);
-  ai_diplo_indian_alarm_delta(
-    ctx->col1, nation_id, target,
-    ai_contact_alarm_bump_amount(ctx->col1, target, 100)
-  );
+  /* Raw +100: the French/Pocahontas halving now lives inside
+   * ai_diplo_indian_alarm_delta, as in DOS 00f2 (2026-09-07d). */
+  ai_contact_alarm_delta_00f2(ctx, nation_id, target, 100);
   nat->gold -= price;
 }
 
@@ -3862,10 +3918,9 @@ int ai_contact_ai_incite_human(
    * placeholder), then gold -= price.
    */
   ai_contact_incite_warfare_chrome(ctx, human, nation_id, e, human);
-  ai_diplo_indian_alarm_delta(
-    ctx->col1, nation_id, human,
-    ai_contact_alarm_bump_amount(ctx->col1, human, 100)
-  );
+  /* Raw +100: the French/Pocahontas halving now lives inside
+   * ai_diplo_indian_alarm_delta, as in DOS 00f2 (2026-09-07d). */
+  ai_contact_alarm_delta_00f2(ctx, nation_id, human, 100);
   nat->gold -= price;
   return 1;
 }
@@ -4453,8 +4508,8 @@ void ai_contact_indian_woi_defect(ColonizeTurnContext* ctx, int nation_id) {
    * Crown (Tory natives). The earlier port had this inverted via the
    * relation_by_indian mis-mapping (2026-08-27).
    */
-  ai_diplo_indian_alarm_delta(ctx->col1, nation_id, human, 100);
-  ai_diplo_indian_alarm_delta(ctx->col1, nation_id, crown, -100);
+  ai_contact_alarm_delta_00f2(ctx, nation_id, human, 100);
+  ai_contact_alarm_delta_00f2(ctx, nation_id, crown, -100);
 
   /*
    * 2026-09-06d correction: the clamp operand is the tribe's **village
@@ -4622,43 +4677,12 @@ void ai_contact_indian_prelude(ColonizeTurnContext* ctx, int nation_id) {
   }
 
   /*
-   * Mission destroy / burn on high alarm (FUN_4cc6_0000; tribe.mission field).
-   * Cite: manual/wiki — alarmed natives may burn missions. Alarm/friction ≥80
-   * + mission present → clear stand-in (0xff). Status thinned; ai_popup Done.
+   * Mission burn: the old Linux "alarm/friction ≥80 each tick" stand-in was
+   * retired 2026-09-07d. DOS burns missions only from FUN_4cc6_00f2's
+   * escalation tail — alarm delta lands the pair at 100 while at PEACE,
+   * difficulty-gated RNG roll — now ported as ai_contact_alarm_delta_00f2
+   * (every ctx-bearing alarm-delta call site routes through it).
    */
-  for (uint16_t i = 0; i < ctx->col1->head.tribe_count; ++i) {
-    ColonizeCol1Tribe* t = &ctx->col1->tribe[i];
-    if ((int)t->nation_id != nation_id) {
-      continue;
-    }
-    if (t->mission == COL1_TRIBE_MISSION_NONE) {
-      continue;
-    }
-    const int euro = (int)(t->mission & COL1_TRIBE_MISSION_NATION_MASK);
-    if (euro < 0 || euro > 3) {
-      continue;
-    }
-    if (t->alarm[euro].friction >= 80 || ind->alarm_by_player[euro] >= 80) {
-      t->mission = 0xff;
-      {
-        char burn_fb[AI_POPUP_BODY_LEN];
-        snprintf(
-          burn_fb,
-          sizeof(burn_fb),
-          "The %s burn your missions!",
-          ai_contact_tribe_name(nation_id)
-        );
-        ai_contact_human_chrome(
-          ctx,
-          euro,
-          AI_POPUP_TAG_CONTACT_RAID,
-          nation_id,
-          "Mission",
-          burn_fb
-        );
-      }
-    }
-  }
 }
 
 /*
@@ -5442,7 +5466,7 @@ static void ai_contact_2820_sell_settle(
     t->sticky_trade_good = 0xff;
   }
   if (s->c4 > 0) {
-    ai_diplo_indian_alarm_delta(ctx->col1, nation_id, e, -2 * s->c4);
+    ai_contact_alarm_delta_00f2(ctx, nation_id, e, -2 * s->c4);
     ai_contact_2820_friction_sub(t, e, qty, qty);
   }
   if (t) {
@@ -5485,7 +5509,7 @@ static void ai_contact_2820_gift_settle(
   }
   if (s->c4 >= 0) {
     s->c4++;
-    ai_diplo_indian_alarm_delta(ctx->col1, nation_id, e, -4 * s->c4);
+    ai_contact_alarm_delta_00f2(ctx, nation_id, e, -4 * s->c4);
     ai_contact_2820_friction_sub(t, e, 2 * qty, qty);
   }
   if (cargo == COLONIZE_CARGO_MUSKETS) {
@@ -5566,7 +5590,7 @@ static int ai_contact_2e92_settle(
   }
   ind->tons[cargo & 15] = (int16_t)(ind->tons[cargo & 15] - qty);
   ai_contact_2e92_give_goods(unit, cargo, qty);
-  ai_diplo_indian_alarm_delta(ctx->col1, nation_id, e, price / 0x19 + 1);
+  ai_contact_alarm_delta_00f2(ctx, nation_id, e, price / 0x19 + 1);
   return 1;
 }
 
@@ -5758,7 +5782,7 @@ static void ai_contact_2820_buy_phase(
     ctx, ind, nation_id, e, goods[best], (int)s->bid[goods[best]], s->buy_qty, &s->rng
   );
   if (!ai_contact_2e92_settle(ctx, ind, t, nation_id, e, unit, goods[best], price, s->buy_qty)) {
-    ai_diplo_indian_alarm_delta(ctx->col1, nation_id, e, 1); /* @NOTENOUGH arm */
+    ai_contact_alarm_delta_00f2(ctx, nation_id, e, 1); /* @NOTENOUGH arm */
   }
   s->active = 0;
 }
@@ -5869,7 +5893,7 @@ static void ai_contact_apply_buy0(
     int alarm_delta = 0;
     const int again = ai_contact_2e92_haggle((int)ctx->col1->head.difficulty, bid, rng, &price, &alarm_delta);
     if (alarm_delta) {
-      ai_diplo_indian_alarm_delta(ctx->col1, nation_id, e, alarm_delta);
+      ai_contact_alarm_delta_00f2(ctx, nation_id, e, alarm_delta);
     }
     if (!again) {
       if (t) {
@@ -5895,7 +5919,7 @@ static void ai_contact_apply_buy0(
   }
   if (!ai_contact_2e92_settle(ctx, ind, t, nation_id, e, unit, cargo, price, qty)) {
     /* @NOTENOUGH 0x15ae; FUN_1000_8f5c(…, 1, 0). */
-    ai_diplo_indian_alarm_delta(ctx->col1, nation_id, e, 1);
+    ai_contact_alarm_delta_00f2(ctx, nation_id, e, 1);
     PopupMsgTokens tok;
     memset(&tok, 0, sizeof(tok));
     tok.number0 = (int)ctx->col1->nation[e].gold;
@@ -6252,7 +6276,7 @@ static void ai_contact_apply_trade_offer(
     if (t) {
       t->sticky_trade_good = (uint8_t)s->cargo;
     }
-    ai_diplo_indian_alarm_delta(ctx->col1, nation_id, e, (s->tier2 >> 1) + 1);
+    ai_contact_alarm_delta_00f2(ctx, nation_id, e, (s->tier2 >> 1) + 1);
     s->active = 0;
     PopupMsgTokens tok;
     memset(&tok, 0, sizeof(tok));
@@ -8372,7 +8396,7 @@ static void ai_contact_live_among_natives(
   const char* fb = NULL;
 
   if (band > 1) {
-    ai_diplo_indian_alarm_delta(ctx->col1, nation_id, e, 3);
+    ai_contact_alarm_delta_00f2(ctx, nation_id, e, 3);
     const uint8_t rel = ctx->col1->indian[nation_id - 4].euro_diplo[e];
     if ((rel & 0x60u) == 0x20u) {
       return; /* met, no peace → DOS returns before the popup */

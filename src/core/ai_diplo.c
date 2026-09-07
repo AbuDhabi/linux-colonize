@@ -3494,10 +3494,23 @@ void ai_diplo_indian_alarm_delta(
    * DS:0x54f6 tension slots (ai_diplo_indian_tension_tier_update). DOS also
    * clears diplo bit 4 / war bit 2 (281f_0a10) on a negative delta once
    * below 75 — not mirrored here (Linux war state lives in euro_diplo).
+   *
+   * 2026-09-07d: the positive-delta halving moved here from the call sites —
+   * DOS does it INSIDE 00f2 (raw 80844-80850): France (euro 1) halves, then
+   * Founding Father 0x10 = Pocahontas halves again (quarter when both).
+   * Callers must pass the RAW delta (ai_contact_alarm_bump_amount pre-halving
+   * at alarm_delta call sites was retired the same pass).
    */
   const int idx = ai_diplo_indian_slot(col1, indian_nation, euro_nation);
   if (idx < 0) {
     return;
+  }
+  if (delta > 0 && euro_nation == 1) {
+    delta >>= 1; /* French national bonus */
+  }
+  if (delta > 0 && euro_nation >= 0 && euro_nation <= 3 &&
+      founding_fathers_nation_has(col1, euro_nation, FF_POCAHONTAS)) {
+    delta >>= 1;
   }
   const int old_v = (int)col1->indian[idx].alarm_by_player[euro_nation];
   int v = old_v + delta;

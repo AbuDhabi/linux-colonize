@@ -1601,7 +1601,7 @@ Navigation: [`MODULE_MAP.md`](MODULE_MAP.md) (segment → system) · [`SYMBOL_MA
 | `FUN_291f_0224` | 34680 | 10 | thunk | Far thunk → FUN_6f74_112a (alloc custom hit-target node at dialog+0x64) | inferred |  |
 | `FUN_291f_0230` | 34690 | 10 | thunk | Far thunk → FUN_6f74_0f3c (append icon/image row to dialog) | inferred |  |
 | `FUN_291f_023c` | 34700 | 10 | thunk | Far thunk → FUN_6f74_06d0 (alloc+init dialog box record) | inferred |  |
-| `FUN_291f_0248` | 34710 | 10 | thunk | Far thunk → FUN_4d56_00e0 (Indian AI act chain →01e2/14fe) | inferred |  |
+| `FUN_291f_0248` | 34710 | 10 | thunk | Far thunk → FUN_4d56_00e0 (tribe settlement destroy) | known |  |
 | `FUN_291f_0254` | 34720 | 10 | thunk | Far thunk → FUN_364b_1e64 (destroy colony; compact table + fix refs) | inferred |  |
 | `FUN_291f_0262` | 34730 | 10 | thunk | Far thunk → FUN_6f74_3704 (Set/clear one bit in dialog checkbox mask (DS:0x1f54)) | inferred |  |
 | `FUN_291f_026e` | 34740 | 10 | thunk | Far thunk → FUN_6f74_36fc (Clear dialog checkbox bitmask (DS:0x1f54)) | inferred |  |
@@ -2601,7 +2601,7 @@ Thin map: [ai/king_ref.md](ai/king_ref.md). Linux: `src/core/ai_king.c`.
 |--------|-----:|-----:|--------|---------|------------|-------|
 | `FUN_4d56_0000` | — | 56 | ai | Tribe worth/init helper: `(flags&4)?tech+1:2*tech+3` (tech=indian[n-4].tech). Candidate 152e/0038 callee via `2a1f:0410`; not live-confirmed (capital growth contradiction) | known | docs/ai_port_plan.md T1.15; src/core/ai.c `ai_tribe_initial_pop` |
 | `FUN_4d56_0038` | 81253 | 39 | ai | Settlement-record CREATE (full-field init); caller is FUN_6a09_0006 only, not a contact-chain helper | confirmed | docs/ai_transcription.md, original_sources_annotated/ai/settlement_record_8d4a.md |
-| `FUN_4d56_00e0` | 81292 | 60 | ai | Chains to 01e2 / 14fe | inferred | docs/ai_transcription.md |
+| `FUN_4d56_00e0` | 81292 | 60 | ai | DESTROY tribe settlement: despawn village-bound Indian units (+0x314a == idx), compact tribe array, tribe_village_counts[n]--, at 0 → extinct bit 0x80 + @EXTINCT 0x14d4, else horse_herds/horse_breeding shrink by field/(−1−remaining) | known | src/core/units.c col1_destroy_tribe_at (2026-09-07d) |
 | `FUN_4d56_01e2` | 81352 | 19 | ai | Thin wrapper to 14fe | inferred | docs/ai_transcription.md |
 | `FUN_4d56_14fe` | 81371 | 16 | ai | Indian unit act / dispatches growth 152e | inferred | ai/indian_nation_turn.c; src/core/ai.c |
 | `FUN_4d56_152e` | 81387 | 156 | ai | Village growth accumulator to pop++ | known | ai/indian_nation_turn.c; src/core/ai.c |
@@ -2617,7 +2617,7 @@ Thin map: [ai/king_ref.md](ai/king_ref.md). Linux: `src/core/ai_king.c`.
 | `FUN_4d56_2f96` | 82839 | 189 | ai | Trade haggle (choice 2): bump offer/tension, resume buy dialog loop | inferred | ai/indian_trade_2820.md |
 | `FUN_4d56_306c` | 83028 | 193 | ai | Trade hard-bargain (choice 3): worse terms + tension, resume loop | inferred | ai/indian_trade_2820.md |
 | `FUN_4d56_311e` | 83221 | 239 | ai | Indian counter-demand: pick tribute goods + priced buy-back dialog | inferred | ai/indian_trade_2820.md |
-| `FUN_4d56_3582` | 83460 | 21 | ai | Small helper after 2820 | inferred | ai/indian_trade_2820.md |
+| `FUN_4d56_3582` | 83460 | 21 | ai | Clamp bound settlement record word (+10+2i, the 8d4a alarm/friction words) at >= 0 | known | ai/indian_trade_2820.md |
 | `FUN_4d56_359c` | 83481 | 30 | ai | Relation-gated Indian attack on unit: kill / warn / displace by RNG | inferred | docs/ai_transcription.md |
 | `FUN_4d56_417e` | 83511 | 188 | ai | Mid-size Indian AI helper | inferred | docs/ai_transcription.md |
 | `FUN_4d56_4528` | 83699 | 3073 | ai | Largest Indian cluster (combat/raid-adjacent) | inferred | ai/indian_settlement_4528.md; indian_raid_outcomes.md |
