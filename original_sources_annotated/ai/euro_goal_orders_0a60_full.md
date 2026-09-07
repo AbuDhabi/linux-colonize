@@ -1847,3 +1847,19 @@ byte-green (`golden_ai_turns` 6/6, `golden_ai_joint`, `golden_colony_*`,
 `git stash` before the change, so all three intermediate failures
 (specialty tie-break, then the Silver export feeder) were confirmed as
 regressions of this pass and fixed rather than pre-existing.
+
+## Ninth pass (2026-09-07) — registration gate flipped to DOS `bVar5`
+
+The retire criterion from "Registration gate: tried again, reverted again"
+is met (pickup consumers live for both hulls: ship load matrix 06e, wagon
+06f), so the gate is DOS's own: Missionary arm ∨ exposed-combat arm ∨
+`0x4a < local_2a` (`viceroy_unpacked.c:87663`; the comparison is on the
+post-adjustment, post-−100 value — the same variable the score multiplies,
+inside the FOOD/LUMBER/TRADE_GOODS skip). `cargo_idle_turns * 8` belongs in
+the registration score (`:87677`, inside `if (bVar5)`, before the clamp) —
+moved there from the retired shortage arm. Loads floor-of-1 deleted
+(bVar5 registration always banks ≥1 load). `ai_euro_nearest_haul_short_colony`
+and `ai_euro_haul_load_amount` deleted; wagon specialty/produced/food-first
+ladder retired. Consumer notes + the ships-only 4393 divergence live in
+`move_scoring_20e6_full.md` §2026-09-07. `0x1734[nation]++` still not wired.
+ctest 58/58, all goldens byte-green.

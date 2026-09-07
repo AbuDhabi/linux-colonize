@@ -4347,3 +4347,125 @@ capital ×6).
   now exist for both hulls (ship 06e, wagon 06f); flipping the gate to
   DOS's `bVar5` and retiring the shortage ladder + short-colony fallback is
   the remaining step, its own pass.
+
+## 2026-09-07 — four-agent thin-spot wave: gate flip, ship dump, treasure cash-in, errand persistence
+
+Four parallel worktree ports, merged together; `ctest` 58/58, all goldens
+byte-green (`golden_ai_turns` 6/6 via `AI_TURNS_ALL=1`, `golden_ai_joint`,
+`golden_ai_mid01`/`late01`, `golden_woi_ref01`) after the merge.
+
+### 1. 0a60 registration gate flipped to DOS `bVar5`; shortage ladder retired
+
+Retire criterion of the 06f list met (pickup consumers exist for both
+hulls), so the gate is now DOS's: Missionary arm (`viceroy_unpacked.c:87622`)
+∨ exposed-combat arm (`:87633`) ∨ `0x4a < local_2a` (`:87663`, the
+post-adjustment post-−100 value — the same variable the score multiplies).
+`cargo_idle_turns * 8` moved into the `if (bVar5)` registration branch
+(`:87677`, unconditional, before the 0x7fff clamp). The loads floor-of-1 is
+gone — a bVar5 colony always banks ≥1 load (`(min(stock,target)+25)/100 ≥ 1`
+whenever the 0x4a arm fires), so the `loads==0` starvation state is
+unreachable. Deleted: `ai_euro_nearest_haul_short_colony`,
+`ai_euro_haul_load_amount` (20/10/pop×2 had no DOS source; the real qty is
+`min(stock,100)` in the load matrix), and `ai_euro_try_wagon_haul`'s
+specialty/produced/food-first ladder. The 4393 pick's
+`unit+0x314a != DS:0x8dc6` slot skip (`:89877/:89887`) is now real (reads
+the load latch; was dead — `home_tribe_id` is −1 on port-spawned units) and
+also guards the one-claim replay, which closes the export-feeder
+self-serve loop with DOS's own rule. Trace envs `AI_0A60_WORK_TRACE`,
+`AI_4393_TRACE`. Tests rewritten to DOS semantics (registering colonies now
+hold goods, not shortages) — 7 scenarios in `test_ai_euro_expand.c` +
+new `unit_work_queue_pickup_aims_at_goods_colony`.
+
+**Documented divergence:** DOS's 4393 entry gate (`:89877`) is SHIPS-ONLY
+(`0xc < type < 0x13`); a DOS wagon falls to `LAB_521d_457e`'s `+0x314a`
+origin walk + `+0x314b = 0x55` sentry, unported. The port keeps wagons on
+the queue as the substitute, carrying the +0x314a anti-self-serve rule.
+
+### 2. Ship whole-hull dump at own-colony berth (raw 3002-3007) — LIVE
+
+The 06e empty-hull-gate substitution replaced by DOS's arrival sequence
+(`ai_euro_20e6_ship_berth_arrival`): unconditional dump of every hold into
+colony stock (verified: no cargo/type exception, `iStack_34` gates only the
+latch-reset lines 3008-3011), load-latch drop + `cargo_idle_turns = 0`,
+then the existing load matrix refills. Precedence settled from raw 1691:
+the arrival block runs FIRST, the delivery matrix then scores the rebuilt
+hull (and skips the berth colony twice over — raw 2053/2055). Required
+consumer also ported: raw 2166-2168 laden gate — ship leaving the berth
+with `occupied > 1 || occupied == capacity` and no delivery destination
+declines the haul beat and falls to the Europe-export arm
+(`LAB_003fa6 = FUN_48d3_015e` HS hunt); without it the dump+load parks the
+ship forever (load matrix strips the colony → colony scores "short" → berth
+is own tile). Port-only shortage-unload arm skipped when the arrival block
+fired (same feedback trap as 06f's wagon fix). Kill switch
+`AI_20E6_SHIP_DUMP=0` restores 06e behaviour (pinned by test both ways);
+trace `AI_20E6_SHIP_DUMP_TRACE`. Zero golden hits (14 arm entries across
+the corpus, no fixture has an idle AI ship beside an own colony).
+Fixture trap: use non-delivery cargo (Ore/Furs) when asserting about this
+block — Muskets/Horses wake the delivery matrix + sell tail and the
+"dump off" baseline empties anyway.
+
+### 3. Treasure in-colony cash-in ported; village-delivery arm REFUTED
+
+`+0x315b` = record `+0x17` `profession` = gold/100, confirmed by two
+readers (20e6 band doc 2317; `FUN_48d3_06ba` Europe landfall `:77985`).
+Arm ported at DOS precedence (first of the treasure band):
+`nation->gold += profession*100` (no Crown cut, no tax, no coastal
+requirement), pre-WoI (`0x5382 & 1 == 0`) popup `0x1786` = `@LOOTFOREIGN`
+(STRING0 = `@NATIONALITY` adjective via `units_combat_nation_label` — NOT
+`country_name`, the New-Spain-Privateer bug class; STRING1 = `@HOMEPORT`),
+no sound (only the Europe cash-in queues 0x24), then destroy. Finding: DOS
+AI treasure ALWAYS insta-cashes at any own colony — the port's AI-side
+ship/Cortes/board/Europe chain has no counterpart in the band and is now
+unreachable for AI treasures (helpers left in place;
+`units_cortes_cash_coastal_treasures` still runs at AI nation-turn setup, a
+Linux-only precedence shared with the human path). Kill switch
+`AI_20E6_TREASURE_CASH=0`; trace `AI_20E6_TREASURE_TRACE`; zero golden hits.
+
+**Village arm refuted:** every `DS:0x8d4a` scan in the 457e/47b9 band
+belongs to type 0xc (wagon errand, ported 06f) or type 0x03 Missionaries
+(doc 2364-2401 mission-owner scan). The treasure block is a closed
+`if (type == '\n')` whose arms all goto out. The 06f thin bullet's
+"wagon/treasure village-delivery arms" was a misattribution on the
+treasure half. Nothing ported, no trigger invented.
+
+**Defect fixed en route:** save-loaded Treasures valued 0 by every
+mirror-only reader (`col1_bridge` fills `hold_goods_amount` only for
+sea/transport hulls; a Treasure is neither). New shared
+`units_treasure_value_gold`: mirror wins when set, else `profession*100`.
+Blind spot documented at the definition: a save Treasure worth exactly
+`profession == UNITS_JOB_NONE`×100 still reads 0.
+
+### 4. Wagon errand latch save-persistent
+
+`+0x3158` = unit array base DS:0x3144 + record `+0x14` = `cargo_hold[4]`,
+Wagon-Train-only AI scratch (every DOS reader gated on `type == 0xc`:
+`:84817/:85154/:82121/:7752`; spawn init clears it only for 0xc). 72-save
+census: type 0xc holds only 0 or 1 (11 latched wagons, all
+`holds_occupied == 1`, French campaign); other land types carry 3 stale
+bytes DOS never reads. Round-trip via `col1_bridge_apply`/`_capture`
+(`ai_euro_wagon_errand_get/_set/_clear_all`), byte stored verbatim; ships
+keep `cargo_hold[4]` as real cargo. French-campaign saves now load wagons
+with live errands (DOS-correct; the port used to drop them).
+
+### Authoritative still-thin list (supersedes the 06f list)
+
+- DOS 4393 is ships-only; wagons kept on the queue as substitute for the
+  unported `LAB_521d_457e` `+0x314a` origin walk + `0x55` sentry (own pass —
+  changes where every idle wagon goes).
+- `ai_euro_nearest_short_coastal_colony` — Linux delivery-direction ship
+  fallback below the tip; fires only on an empty queue.
+- `+0x314a` load latch turn-scoped (DOS persistent; needs
+  `colony_tick_5952_035e`'s `unit->origin = DS:0x8dc6` refresh) and not
+  save-round-tripped.
+- `0x1734[nation]` registered-count neither incremented nor rewired into
+  the 20e6 sail/unload matrices (its own scoring change).
+- Colony `ai_flags` bit7 (Missionary +800 gate) still always-clear.
+- Raw 3018-3023 "cower in port" arm (`+0x315a` counter, colony `+0x1b`
+  bit 0x02, act_state 0x43); raw 3024-3051 passenger boarding at the berth.
+- Raw 2166-2168 laden→HS gate scoped to the arrival block (DOS keys it off
+  holds at `LAB_003558` entry for every ship; unscoping reroutes the band).
+- Wagon side of the raw 1691 arrival gate looser than DOS (no
+  `+0x314a == this colony` bind check in `ai_euro_try_wagon_haul`).
+- Human-path `game_loop.c game_treasure_gold_from_unit` still mirror-only
+  (same hole class as the fixed AI readers).
+- `bVar17`/`bVar7` Privateer/Frigate narrowings — unreachable, closed.

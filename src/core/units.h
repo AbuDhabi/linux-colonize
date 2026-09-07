@@ -441,6 +441,37 @@ int units_cortes_cash_coastal_treasures(
 int units_king_galleon_share_pct(const ColonizeCol1Save* col1, int nation_id);
 
 /*
+ * Gold a Treasure unit is worth. Two representations coexist and this is the
+ * single reader for both:
+ *   - port-spawned (units_spawn_treasure_train): full gold as an LE16 mirror
+ *     in hold_goods_amount[0..1]; wins when set;
+ *   - bridged from a COL1 save: DOS unit +0x315b = record +0x17 (`profession`)
+ *     = gold/100 — FUN_48d3_06ba (viceroy_unpacked.c:77985) and
+ *     FUN_521d_20e6's treasure band both read it that way, and col1_bridge
+ *     fills hold_goods_amount only for sea/wagon hulls, so this byte is all a
+ *     save-loaded Treasure carries.
+ * 0 when neither is set. See the definition for the one 2800-gold blind spot.
+ */
+int units_treasure_value_gold(const ColonizeUnit* treasure);
+
+/*
+ * FUN_521d_20e6 treasure act band, first arm: an AI Treasure standing in an
+ * own colony (DOS iStack_2e == 0 — the caller owns that gate) credits its full
+ * face value to the nation treasury (nation +0x2a, no Crown cut, no Cortes or
+ * galleon term), fires GAME.TXT @LOOTFOREIGN (DOS popup id 0x1786) while
+ * DS:0x5382 bit0 (WoI) is clear, and is then destroyed (LAB_0047b9).
+ * Returns the gold credited; the unit is despawned either way, as in DOS.
+ */
+int units_ai_treasure_cash_in_colony(
+  ColonizeUnitPool* pool,
+  ColonizeCol1Save* col1,
+  int nation_id,
+  int treasure_id,
+  AiPopupState* popups,
+  const ColonizeMsgCatalog* game_txt
+);
+
+/*
  * FUN_465b_0000 trigger + FUN_5fef_1908 body, human nation only (DOS gates on
  * DS:0x543f == 0): each own Treasure standing on an own coastal colony tile.
  * WoI declared → cash full value at once (@CASHTREASURE). Else, if the nation

@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "core/ai_euro.h"
 #include "core/col1_bridge.h"
 #include "core/col1_post_map.h"
 #include "core/col1_save.h"
@@ -2406,6 +2407,213 @@ int main(void) {
       return 1;
     }
     fprintf(stderr, "trade-route cursor survives the col1 bridge both ways ok\n");
+  }
+
+  /*
+   * Wagon village-errand latch (DOS +0x3158 = unit_index*0x1c + 0x3158, unit
+   * array base DS:0x3144 → COL1 record +0x14 = ColonizeCol1Unit.cargo_hold[4])
+   * must round-trip: a wagon the 20e6 load matrix put on a village errand
+   * (viceroy_unpacked.c:84817 writes 1) still has the errand after save+load,
+   * and the same byte on a sea type stays a real cargo hold (DOS only ever
+   * touches +0x3158 for type 0x0c — reads at :85154 / :89943 are behind
+   * `type == '\f'`, spawn-init clear at :7752 likewise).
+   */
+  {
+    ColonizeMsgCatalog names;
+    assets_msg_init(&names);
+    if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT")) {
+      fprintf(stderr, "wagon errand latch: NAMES.TXT load failed\n");
+      return 1;
+    }
+    ColonizeWorldMap map;
+    memset(&map, 0, sizeof(map));
+    if (!map_alloc(&map, COLONIZE_COL1_MAP_W_STD, COLONIZE_COL1_MAP_H_STD, err, sizeof(err))) {
+      fprintf(stderr, "wagon errand latch: map_alloc: %s\n", err);
+      assets_msg_free(&names);
+      return 1;
+    }
+    for (size_t i = 0; i < map.tile_count; ++i) {
+      map.terrain[i] = 1; /* land */
+    }
+    ColonizeCol1Save save;
+    if (!col1_bridge_init_template(&save, map.width, map.height, err, sizeof(err))) {
+      fprintf(stderr, "wagon errand latch: template: %s\n", err);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+
+    ColonizeUnitPool units;
+    units_reset(&units);
+    if (!units_load_types(&units, &names)) {
+      fprintf(stderr, "wagon errand latch: unit types failed\n");
+      col1_save_free(&save);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    const int wagon_t = units_find_type(&units, "Wagon Train");
+    const int galleon_t = units_find_type(&units, "Galleon");
+    if (wagon_t != 0x0c || galleon_t != 0x0f) {
+      fprintf(
+        stderr, "wagon errand latch: NAMES pool types wagon=%d galleon=%d (want 12/15)\n",
+        wagon_t, galleon_t
+      );
+      col1_save_free(&save);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    const int errand = units_spawn(&units, wagon_t, 20, 20);
+    const int plain = units_spawn(&units, wagon_t, 24, 20);
+    const int ship = units_spawn(&units, galleon_t, 22, 20);
+    ColonizeUnit* we = units_get(&units, errand);
+    ColonizeUnit* wp = units_get(&units, plain);
+    ColonizeUnit* sh = units_get(&units, ship);
+    if (!we || !wp || !sh) {
+      fprintf(stderr, "wagon errand latch: spawns failed\n");
+      col1_save_free(&save);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    we->nation_id = 0;
+    wp->nation_id = 0;
+    sh->nation_id = 0;
+    /* Five goods aboard the Galleon: the fifth lands in cargo_hold[4], the
+     * very byte the wagon latch claims on land — it must survive untouched. */
+    for (int h = 0; h < 5; ++h) {
+      sh->hold_goods_type[h] = h;
+      sh->hold_goods_amount[h] = (uint8_t)(10 + h * 10);
+    }
+    /* Simulate the 20e6 load-matrix write (ai_euro.c: s_20e6_wagon_errand). */
+    ai_euro_wagon_errand_set(errand, 1);
+    ai_euro_wagon_errand_set(plain, 0);
+
+    ColonizeColonyPool colonies;
+    colonies_init(&colonies);
+    EuropeScreen europe;
+    memset(&europe, 0, sizeof(europe));
+    europe.cargo_count = 16;
+    if (!col1_bridge_capture(
+          &save, &map, &units, &colonies, &europe, 1492, 0, 1, 0, 20, 20, -1, err, sizeof(err)
+        )) {
+      fprintf(stderr, "wagon errand latch: capture: %s\n", err);
+      col1_save_free(&save);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    int rc = 0;
+    for (uint16_t i = 0; i < save.head.unit_count; ++i) {
+      const ColonizeCol1Unit* cu = &save.unit[i];
+      if (cu->x == 20 && cu->y == 20 && cu->cargo_hold[4] != 1) {
+        fprintf(
+          stderr, "wagon errand latch: capture wrote +0x14=%u on the errand wagon (want 1)\n",
+          (unsigned)cu->cargo_hold[4]
+        );
+        rc = 1;
+      }
+      if (cu->x == 24 && cu->y == 20 && cu->cargo_hold[4] != 0) {
+        fprintf(
+          stderr, "wagon errand latch: capture wrote +0x14=%u on the plain wagon (want 0)\n",
+          (unsigned)cu->cargo_hold[4]
+        );
+        rc = 1;
+      }
+      if (cu->x == 22 && cu->y == 20 && (cu->cargo_hold[4] != 50 || cu->holds_occupied != 5)) {
+        fprintf(
+          stderr, "wagon errand latch: ship hold[4]=%u holds=%u (want 50/5)\n",
+          (unsigned)cu->cargo_hold[4], (unsigned)cu->holds_occupied
+        );
+        rc = 1;
+      }
+    }
+    if (rc != 0) {
+      col1_save_free(&save);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    /* Poison the live latches so only the save can restore them. */
+    ai_euro_wagon_errand_set(errand, 0);
+    ai_euro_wagon_errand_set(plain, 1);
+
+    ColonizeUnitPool units2;
+    units_reset(&units2);
+    if (!units_load_types(&units2, &names)) {
+      fprintf(stderr, "wagon errand latch: unit types (2) failed\n");
+      col1_save_free(&save);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    ColonizeColonyPool colonies2;
+    colonies_init(&colonies2);
+    EuropeScreen europe2;
+    memset(&europe2, 0, sizeof(europe2));
+    europe2.cargo_count = 16;
+    ColonizeWorldMap map2;
+    memset(&map2, 0, sizeof(map2));
+    ColonizeCol1BridgeResult br2;
+    if (!col1_bridge_apply(&save, &map2, &units2, &colonies2, &europe2, &br2, err, sizeof(err))) {
+      fprintf(stderr, "wagon errand latch: apply: %s\n", err);
+      col1_save_free(&save);
+      map_free(&map);
+      assets_msg_free(&names);
+      return 1;
+    }
+    const ColonizeUnit* we2 = NULL;
+    const ColonizeUnit* wp2 = NULL;
+    const ColonizeUnit* sh2 = NULL;
+    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+      const ColonizeUnit* u = units_get_const(&units2, i);
+      if (!u || !u->active) {
+        continue;
+      }
+      if (u->x == 20 && u->y == 20) {
+        we2 = u;
+      } else if (u->x == 24 && u->y == 20) {
+        wp2 = u;
+      } else if (u->x == 22 && u->y == 20) {
+        sh2 = u;
+      }
+    }
+    if (!we2 || !wp2 || !sh2) {
+      fprintf(stderr, "wagon errand latch: apply lost a unit\n");
+      rc = 1;
+    } else {
+      if (ai_euro_wagon_errand_get(we2->id) != 1) {
+        fprintf(
+          stderr, "wagon errand latch: errand dropped by the round trip (got %u)\n",
+          (unsigned)ai_euro_wagon_errand_get(we2->id)
+        );
+        rc = 1;
+      }
+      if (ai_euro_wagon_errand_get(wp2->id) != 0) {
+        fprintf(stderr, "wagon errand latch: plain wagon came back on an errand\n");
+        rc = 1;
+      }
+      if (ai_euro_wagon_errand_get(sh2->id) != 0) {
+        fprintf(stderr, "wagon errand latch: ship must never seed the land latch\n");
+        rc = 1;
+      }
+      if (sh2->hold_goods_amount[4] != 50 || sh2->hold_goods_type[4] != 4) {
+        fprintf(
+          stderr, "wagon errand latch: ship hold 4 came back type=%d amt=%d (want 4/50)\n",
+          sh2->hold_goods_type[4], sh2->hold_goods_amount[4]
+        );
+        rc = 1;
+      }
+    }
+    map_free(&map2);
+    map_free(&map);
+    col1_save_free(&save);
+    assets_msg_free(&names);
+    if (rc != 0) {
+      return 1;
+    }
+    fprintf(stderr, "wagon village-errand latch survives the col1 bridge both ways ok\n");
   }
 
   diag_shutdown();

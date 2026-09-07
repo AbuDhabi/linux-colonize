@@ -7300,13 +7300,35 @@ static int unit_dock_tobacconist_hire(void) {
  */
 
 /*
- * Col1 +0x8d specialty_cargo: wagon surplus load prefers specialty over
- * default tools-first ladder. Cite: FUN_5952_0306; euro_unit_act §2d.
+ * Col1 +0x8d specialty_cargo does NOT steer what a hauler loads. The DOS LOAD
+ * matrix (FUN_521d_20e6 raw 3059-3134) scores by cargo and stock only; the
+ * specialty byte's surviving role is the port's Series R +32 tie-break inside
+ * the 4393 work-queue pick (covered by unit_specialty_flag_a_haul_match).
+ * Second half of this case is a direct FUN_5952_0306 unit test: a
+ * warehouse-full stock clears the specialty.
+ *
+ * 2026-09-06g rewrite. The old fixture asserted the retired Linux ladder's
+ * "specialty first" reorder by expecting 20 LUMBER aboard; cargo 5 is skipped
+ * for every hauler in DOS, so that load cannot happen. The colony keeps its
+ * LUMBER specialty and now also holds 80 ORE, and the assertion is that the
+ * matrix takes the ORE and leaves the specialty Lumber alone.
  */
 
 /*
- * Col1 +0x90 cargo_produced_mask: wagon surplus load prefers produced cargo
- * over default tools-first ladder. Cite: FUN_364b_0688; euro_unit_act §2d.
+ * Col1 +0x90 cargo_produced_mask in the DOS LOAD matrix (FUN_521d_20e6 raw
+ * 3059-3134): the mask gates cargo 0xe/0xf (Tools / Muskets), and that arm is
+ * SHIPS ONLY, so a Wagon Train standing on a colony that produces Tools still
+ * refuses them. Cargo 5 (Lumber) is skipped for every hauler, ship or wagon.
+ * What the wagon does take is the highest-scoring cargo the matrix allows —
+ * here ORE.
+ *
+ * 2026-09-06g rewrite. The old fixture asserted the retired Linux ladder's
+ * "prefer produced surplus" reorder by expecting the wagon to load 20 LUMBER;
+ * DOS never loads Lumber onto anything. Fixture keeps the same shape (a
+ * producing supply colony and a second colony to travel to) with DOS's own
+ * numbers: 80 ORE clears the matrix's `term >= 0x32` floor, TOOLS stay marked
+ * produced so the ships-only rejection is what keeps them off the wagon, and
+ * the far colony holds 80 RUM so it clears the 0x4a work-queue gate.
  */
 static int unit_cargo_produced_mask_haul_prefer(void) {
   const int nation = 1;
@@ -7344,12 +7366,14 @@ static int unit_cargo_produced_mask_haul_prefer(void) {
   supply->y = 4;
   supply->population = 3;
   supply->colonist_count = 3;
-  supply->stock[COLONIZE_CARGO_TOOLS] = 50; /* surplus — default ladder first */
-  supply->stock[COLONIZE_CARGO_LUMBER] = 50; /* surplus — produced */
+  supply->stock[COLONIZE_CARGO_TOOLS] = 50; /* produced, but ships only */
+  supply->stock[COLONIZE_CARGO_LUMBER] = 50; /* cargo 5 — skipped for everyone */
+  supply->stock[COLONIZE_CARGO_ORE] = 80;    /* over the matrix 0x32 floor */
   supply->stock[COLONIZE_CARGO_FOOD] = 5;
   supply->building_in_production = -1;
   supply->specialty_cargo = 0xff;
-  supply->cargo_produced_mask = (uint16_t)(1u << COLONIZE_CARGO_LUMBER);
+  supply->cargo_produced_mask =
+    (uint16_t)((1u << COLONIZE_CARGO_LUMBER) | (1u << COLONIZE_CARGO_TOOLS));
 
   ColonizeColony* shortc = &colonies.colonies[1];
   shortc->id = 1;
@@ -7362,6 +7386,7 @@ static int unit_cargo_produced_mask_haul_prefer(void) {
   shortc->stock[COLONIZE_CARGO_LUMBER] = 0;
   shortc->stock[COLONIZE_CARGO_TOOLS] = 40;
   shortc->stock[COLONIZE_CARGO_FOOD] = 80;
+  shortc->stock[COLONIZE_CARGO_RUM] = 80; /* 80 > 0x4a → bVar5 registers work */
   shortc->building_in_production = -1;
   shortc->specialty_cargo = 0xff;
   colonies.colony_count = 2;
@@ -7406,6 +7431,7 @@ static int unit_cargo_produced_mask_haul_prefer(void) {
   wagon = units_get(&units, wid);
   int lumber_loaded = 0;
   int tools_loaded = 0;
+  int ore_loaded = 0;
   if (wagon && wagon->active) {
     for (int h = 0; h < COLONIZE_UNIT_CARGO_MAX; ++h) {
       if (wagon->hold_goods_amount[h] <= 0 || wagon->hold_goods_amount[h] >= 255) {
@@ -7417,16 +7443,24 @@ static int unit_cargo_produced_mask_haul_prefer(void) {
       if (wagon->hold_goods_type[h] == COLONIZE_CARGO_TOOLS) {
         tools_loaded += wagon->hold_goods_amount[h];
       }
+      if (wagon->hold_goods_type[h] == COLONIZE_CARGO_ORE) {
+        ore_loaded += wagon->hold_goods_amount[h];
+      }
     }
   }
-  if (lumber_loaded < 20 || tools_loaded != 0) {
+  if (ore_loaded < 20 || lumber_loaded != 0 || tools_loaded != 0) {
     fprintf(stderr,
-      "unit_ai_euro_expand: produced lumber=%d tools=%d mask=0x%x\n",
-      lumber_loaded, tools_loaded, (unsigned)colonies.colonies[0].cargo_produced_mask);
+      "unit_ai_euro_expand: produced ore=%d lumber=%d tools=%d mask=0x%x "
+      "active=%d pos=(%d,%d) c0ore=%d c1ore=%d\n",
+      ore_loaded, lumber_loaded, tools_loaded,
+      (unsigned)colonies.colonies[0].cargo_produced_mask,
+      wagon ? (int)wagon->active : -1, wagon ? wagon->x : -1, wagon ? wagon->y : -1,
+      colonies.colonies[0].stock[COLONIZE_CARGO_ORE],
+      colonies.colonies[1].stock[COLONIZE_CARGO_ORE]);
     free(map.terrain);
     free(map.layer2);
     free(map.layer3);
-    return fail("expected wagon to load produced LUMBER over tools surplus");
+    return fail("expected wagon to load ORE, never Lumber or produced Tools");
   }
 
   free(map.terrain);
@@ -7475,8 +7509,9 @@ static int unit_specialty_cargo_haul_prefer(void) {
   supply->y = 4;
   supply->population = 3;
   supply->colonist_count = 3;
-  supply->stock[COLONIZE_CARGO_TOOLS] = 10; /* not surplus */
-  supply->stock[COLONIZE_CARGO_LUMBER] = 50; /* surplus — only specialty candidate */
+  supply->stock[COLONIZE_CARGO_TOOLS] = 10;
+  supply->stock[COLONIZE_CARGO_LUMBER] = 50; /* the specialty — cargo 5, never loaded */
+  supply->stock[COLONIZE_CARGO_ORE] = 80;    /* what the matrix actually takes */
   supply->stock[COLONIZE_CARGO_FOOD] = 5; /* not food surplus (avoids specialty=FOOD) */
   supply->building_in_production = -1;
   supply->specialty_cargo = (uint8_t)COLONIZE_CARGO_LUMBER;
@@ -7492,6 +7527,7 @@ static int unit_specialty_cargo_haul_prefer(void) {
   shortc->stock[COLONIZE_CARGO_LUMBER] = 0;
   shortc->stock[COLONIZE_CARGO_TOOLS] = 40;
   shortc->stock[COLONIZE_CARGO_FOOD] = 80;
+  shortc->stock[COLONIZE_CARGO_RUM] = 80; /* 80 > 0x4a → bVar5 registers work */
   shortc->building_in_production = -1;
   shortc->specialty_cargo = 0xff;
   colonies.colony_count = 2;
@@ -7536,18 +7572,25 @@ static int unit_specialty_cargo_haul_prefer(void) {
 
   wagon = units_get(&units, wid);
   int lumber_loaded = 0;
+  int ore_loaded = 0;
   if (wagon && wagon->active) {
     for (int h = 0; h < COLONIZE_UNIT_CARGO_MAX; ++h) {
-      if (wagon->hold_goods_amount[h] > 0 && wagon->hold_goods_amount[h] < 255 &&
-          wagon->hold_goods_type[h] == COLONIZE_CARGO_LUMBER) {
+      if (wagon->hold_goods_amount[h] <= 0 || wagon->hold_goods_amount[h] >= 255) {
+        continue;
+      }
+      if (wagon->hold_goods_type[h] == COLONIZE_CARGO_LUMBER) {
         lumber_loaded += wagon->hold_goods_amount[h];
+      }
+      if (wagon->hold_goods_type[h] == COLONIZE_CARGO_ORE) {
+        ore_loaded += wagon->hold_goods_amount[h];
       }
     }
   }
-  if (lumber_loaded < 20) {
+  if (ore_loaded < 20 || lumber_loaded != 0) {
     fprintf(
       stderr,
-      "unit_ai_euro_expand: specialty lumber_loaded=%d specialty=%u tools=%d\n",
+      "unit_ai_euro_expand: specialty ore=%d lumber=%d specialty=%u tools=%d\n",
+      ore_loaded,
       lumber_loaded,
       (unsigned)colonies.colonies[0].specialty_cargo,
       colonies.colonies[0].stock[COLONIZE_CARGO_TOOLS]
@@ -7555,7 +7598,7 @@ static int unit_specialty_cargo_haul_prefer(void) {
     free(map.terrain);
     free(map.layer2);
     free(map.layer3);
-    return fail("expected wagon to load specialty LUMBER surplus");
+    return fail("expected wagon to load matrix ORE, not the LUMBER specialty");
   }
 
   /* FUN_5952_0306: warehouse-full clears specialty. */
@@ -7578,9 +7621,21 @@ static int unit_specialty_cargo_haul_prefer(void) {
 }
 
 /*
- * Series R: 4393 specialty match — equal-distance haul shorts with distinct
- * specialty; wagon holds only one type → goto matching colony.
- * Cite: move_scoring_ship.md thin 4393; Series R.
+ * Series R: 4393 specialty match — two equal-distance colonies that BOTH
+ * register work, with distinct specialties; the wagon holds only one type →
+ * goto the matching colony. Cite: move_scoring_ship.md thin 4393; Series R.
+ *
+ * 2026-09-06g rewrite: registration is DOS's `bVar5` now (raw
+ * viceroy_unpacked.c:87663 `if (0x4a < local_2a) bVar5 = true;`), not the old
+ * Linux "is this colony short of a haul cargo" boolean, and the queue is a
+ * PICKUP queue. The old fixture registered both colonies by making each SHORT
+ * of something; a short colony has nothing to collect and no longer registers
+ * at all. Both colonies now hold 80 RUM instead — cargo 9 is counted by the
+ * DOS gate (it is not FOOD/LUMBER/TRADE_GOODS, and unlike TOOLS/MUSKETS needs
+ * no `cargo_produced_mask` bit), 80 > 0x4a arms the gate, and RUM is absent
+ * from `ai_euro.c`'s specialty ladder so it leaves the two specialties (and
+ * therefore the +32 tie-break this test is about) untouched. The assertion is
+ * unchanged: the wagon aims at (4,8).
  *
  * Also the guard for the 2026-09-06d queue-decrement tail: the tip colony's
  * work slot is consumed (and freed) the moment this wagon claims it, and the
@@ -7618,8 +7673,9 @@ static int unit_specialty_flag_a_haul_match(void) {
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
   /* Equal MD=4 from wagon at (4,4). Inventory refreshes specialty from surplus:
-   * A tools-short + lumber surplus → specialty LUMBER; B lumber-short + tools
-   * surplus → specialty TOOLS. Wagon holds TOOLS → +32 picks B. */
+   * A lumber surplus → specialty LUMBER; B tools surplus → specialty TOOLS.
+   * Both hold 80 RUM so both register on DOS's bVar5 gate (see header).
+   * Wagon holds TOOLS → +32 picks B. */
   ColonizeColony* a = &colonies.colonies[0];
   a->id = 0;
   a->active = true;
@@ -7628,9 +7684,10 @@ static int unit_specialty_flag_a_haul_match(void) {
   a->y = 4;
   a->population = 3;
   a->colonist_count = 3;
-  a->stock[COLONIZE_CARGO_TOOLS] = 0; /* short */
+  a->stock[COLONIZE_CARGO_TOOLS] = 0;
   a->stock[COLONIZE_CARGO_LUMBER] = 50; /* surplus → specialty LUMBER (under warehouse) */
   a->stock[COLONIZE_CARGO_FOOD] = 10; /* not FOOD surplus (avoids specialty overwrite) */
+  a->stock[COLONIZE_CARGO_RUM] = 80; /* 80 > 0x4a → bVar5 registers this colony */
   a->building_in_production = -1;
   a->cargo_idle_turns = 0;
   a->specialty_cargo = 0xff;
@@ -7643,9 +7700,10 @@ static int unit_specialty_flag_a_haul_match(void) {
   b->y = 8;
   b->population = 3;
   b->colonist_count = 3;
-  b->stock[COLONIZE_CARGO_LUMBER] = 0; /* short */
+  b->stock[COLONIZE_CARGO_LUMBER] = 0;
   b->stock[COLONIZE_CARGO_TOOLS] = 50; /* surplus → specialty TOOLS (under warehouse) */
   b->stock[COLONIZE_CARGO_FOOD] = 10; /* not FOOD surplus (avoids specialty overwrite) */
+  b->stock[COLONIZE_CARGO_RUM] = 80; /* same, so both slots are eligible */
   b->building_in_production = -1;
   b->cargo_idle_turns = 0;
   b->specialty_cargo = 0xff;
@@ -7721,8 +7779,18 @@ static int unit_specialty_flag_a_haul_match(void) {
 }
 
 /*
- * Col1 +0x8f cargo_idle_turns: haul prefers short colony with higher idle*8
- * score; inventory INC; goods unload clears. Cite: FUN_5952_035e; ~87677/~90249.
+ * Col1 +0x8f cargo_idle_turns: `score += idle * 8` in the 0a60 work-queue
+ * REGISTRATION score (raw viceroy_unpacked.c:87677, inside the `if (bVar5)`
+ * branch), so of two otherwise identical registered colonies the one that has
+ * been waiting longer wins the 4393 tip; inventory INC; goods unload clears.
+ * Cite: FUN_5952_035e; :87677.
+ *
+ * 2026-09-06g rewrite. The old fixture made both colonies merely SHORT and
+ * relied on `ai_euro_nearest_haul_short_colony`'s own `idle*8 − d` score —
+ * a Linux delivery-direction scan that is now deleted, and DOS's idle bonus
+ * was carried only on that Linux arm. Both colonies now hold the same 80 RUM
+ * so they register identically under `bVar5`; the only difference left is
+ * idle 0 vs 20, i.e. exactly the DOS term. Same assertion: goto (4,8).
  */
 static int unit_cargo_idle_turns_haul_prefer(void) {
   const int nation = 1;
@@ -7761,8 +7829,9 @@ static int unit_cargo_idle_turns_haul_prefer(void) {
   a->y = 4;
   a->population = 3;
   a->colonist_count = 3;
-  a->stock[COLONIZE_CARGO_TOOLS] = 0; /* short */
+  a->stock[COLONIZE_CARGO_TOOLS] = 0;
   a->stock[COLONIZE_CARGO_FOOD] = 80;
+  a->stock[COLONIZE_CARGO_RUM] = 80; /* 80 > 0x4a → bVar5 registers work */
   a->building_in_production = -1;
   a->cargo_idle_turns = 0;
   a->specialty_cargo = 0xff;
@@ -7775,8 +7844,9 @@ static int unit_cargo_idle_turns_haul_prefer(void) {
   b->y = 8;
   b->population = 3;
   b->colonist_count = 3;
-  b->stock[COLONIZE_CARGO_TOOLS] = 0; /* short */
+  b->stock[COLONIZE_CARGO_TOOLS] = 0;
   b->stock[COLONIZE_CARGO_FOOD] = 80;
+  b->stock[COLONIZE_CARGO_RUM] = 80; /* identical goods — only idle differs */
   b->building_in_production = -1;
   b->cargo_idle_turns = 20;
   b->specialty_cargo = 0xff;
@@ -7841,7 +7911,7 @@ static int unit_cargo_idle_turns_haul_prefer(void) {
     free(map.terrain);
     free(map.layer2);
     free(map.layer3);
-    return fail("expected wagon goto higher cargo_idle short colony");
+    return fail("expected wagon goto the higher cargo_idle registered colony");
   }
   /* Inventory INC both shorts (cap 0x7f). */
   if (colonies.colonies[0].cargo_idle_turns < 1 ||
@@ -10812,9 +10882,13 @@ static int unit_tools_short_pioneer_labor(void) {
 }
 
 /*
- * Treasure at coastal colony + adjacent ship with space → board + AI_SAIL
- * Europe (eastward). Cite: Colonization.pdf Treasure Trains.
- * Gold cash runs only at Europe / HS (separate unit_treasure_europe_cash).
+ * RETARGETED 2026-09-06 (was "board + AI_SAIL Europe"): FUN_521d_20e6's
+ * treasure act band cashes an AI Treasure standing in ANY own colony before
+ * every other treasure arm (move_scoring_20e6_full.md raw ~2315), and
+ * ai_euro_try_treasure_board_sail only ever fires on that same "standing on
+ * an own coastal colony" state — so the board+sail arm is DOS-unreachable for
+ * an AI Treasure. Same fixture, DOS expectations: treasury += value, unit
+ * destroyed, Galleon left empty and un-tasked.
  */
 static int unit_treasure_board_sail(void) {
   const int nation = 1;
@@ -10884,6 +10958,8 @@ static int unit_treasure_board_sail(void) {
   treasure->nation_id = nation;
   treasure->moves_left = 1 * UNITS_MP_PER_TILE;
   treasure->orders = 0;
+  /* DOS unit+0x315b (COL1 record +0x17 = profession) = gold/100. */
+  treasure->profession = 7; /* 700 gold */
 
   const int sid = units_spawn(&units, 1, 3, 4);
   ColonizeUnit* ship = units_get(&units, sid);
@@ -10925,49 +11001,40 @@ static int unit_treasure_board_sail(void) {
 
   treasure = units_get(&units, tid);
   ship = units_get(&units, sid);
-  if (!treasure || !ship || !ship->active) {
+  if (!ship || !ship->active) {
     free(map.terrain);
     free(map.layer2);
     free(map.layer3);
-    return fail("treasure-sail units missing after turn");
+    return fail("treasure-sail ship missing after turn");
   }
-  if (treasure->aboard_ship_id != sid) {
+  /* LAB_OVL14_L0000__0047b9: the cash-in destroys the Treasure on the spot. */
+  if (treasure && treasure->active) {
     fprintf(
       stderr,
-      "unit_ai_euro_expand: treasure aboard=%d want ship %d pos=(%d,%d)\n",
+      "unit_ai_euro_expand: treasure still alive aboard=%d pos=(%d,%d)\n",
       treasure->aboard_ship_id,
-      sid,
       treasure->x,
       treasure->y
     );
     free(map.terrain);
     free(map.layer2);
     free(map.layer3);
-    return fail("expected Treasure boarded onto Galleon");
+    return fail("expected in-colony Treasure cashed + destroyed (DOS 20e6)");
   }
-  if (ship->orders != UNITS_ORDER_AI_SAIL || ship->goto_x <= ship->x) {
-    fprintf(
-      stderr,
-      "unit_ai_euro_expand: ship orders=%d goto=(%d,%d) pos=(%d,%d)\n",
-      ship->orders,
-      ship->goto_x,
-      ship->goto_y,
-      ship->x,
-      ship->y
-    );
+  if (ship->cargo_count != 0) {
     free(map.terrain);
     free(map.layer2);
     free(map.layer3);
-    return fail("expected Galleon AI_SAIL eastward (Europe stand-in)");
+    return fail("Galleon must stay empty — DOS never ships an AI Treasure");
   }
-  /* Board+sail is not Europe/HS yet — no cash-in; do not invent gold here. */
+  /* nation+0x2a += +0x315b * 100, no Crown cut. */
   const uint32_t gold_after = col1.nation[nation].gold;
   const unsigned gold_delta =
     gold_after >= gold_before ? (unsigned)(gold_after - gold_before) : 0u;
-  if (gold_delta > 80u) {
+  if (gold_delta != 700u) {
     fprintf(
       stderr,
-      "unit_ai_euro_expand: treasure gold %u→%u delta=%u (board/sail not Europe)\n",
+      "unit_ai_euro_expand: treasure gold %u→%u delta=%u want 700\n",
       (unsigned)gold_before,
       (unsigned)gold_after,
       gold_delta
@@ -10975,7 +11042,7 @@ static int unit_treasure_board_sail(void) {
     free(map.terrain);
     free(map.layer2);
     free(map.layer3);
-    return fail("Treasure board/sail must not cash gold before Europe/HS");
+    return fail("expected full-value in-colony Treasure cash-in");
   }
 
   free(map.terrain);
@@ -10983,10 +11050,7 @@ static int unit_treasure_board_sail(void) {
   free(map.layer3);
   fprintf(
     stderr,
-    "unit_ai_euro_expand: treasure board+sail ok (ship AI_SAIL goto=(%d,%d) "
-    "gold_delta=%u)\n",
-    ship->goto_x,
-    ship->goto_y,
+    "unit_ai_euro_expand: treasure in-colony cash-in ok (gold_delta=%u)\n",
     gold_delta
   );
   return 0;
@@ -18609,8 +18673,16 @@ static int unit_capitol_expansion_prefer(void) {
 }
 
 /*
- * Idle Wagon with MUSKETS cargo → AI_MOVE toward muskets-short colony
- * (tools stock OK). Cite: euro_unit_act §2d wagon haul muskets; COLONIZE_CARGO_MUSKETS.
+ * Idle Wagon with MUSKETS cargo → AI_MOVE toward the registered colony (which
+ * is also muskets-short, so the DOS own-colony dump sweep delivers on arrival).
+ * Cite: euro_unit_act §2d wagon haul muskets; COLONIZE_CARGO_MUSKETS.
+ *
+ * 2026-09-06g: the colony now also holds 80 RUM. The work queue registers on
+ * DOS's `bVar5` (goods present, raw viceroy_unpacked.c:87663), not on the old
+ * Linux "is short of a haul cargo" boolean, so a colony with nothing to
+ * collect no longer enters the queue and no hauler is tipped at it. The
+ * assertion is unchanged and still concrete — the wagon is aimed at (4,4),
+ * where `ai_euro_try_wagon_haul`'s own-colony block dumps its MUSKETS.
  */
 static int unit_wagon_haul_muskets_short(void) {
   const int nation = 1;
@@ -18651,6 +18723,7 @@ static int unit_wagon_haul_muskets_short(void) {
   short_c->stock[COLONIZE_CARGO_TOOLS] = 40; /* not tools-short */
   short_c->stock[COLONIZE_CARGO_MUSKETS] = 2; /* muskets-short */
   short_c->stock[COLONIZE_CARGO_FOOD] = 40;
+  short_c->stock[COLONIZE_CARGO_RUM] = 80; /* 80 > 0x4a → bVar5 registers work */
   short_c->building_in_production = -1;
   colonies.colony_count = 1;
   colonies.next_id = 1;
@@ -18773,6 +18846,7 @@ static int unit_wagon_haul_lumber_short(void) {
   short_c->stock[COLONIZE_CARGO_TOOLS] = 40;
   short_c->stock[COLONIZE_CARGO_LUMBER] = 5; /* lumber-short */
   short_c->stock[COLONIZE_CARGO_FOOD] = 40;
+  short_c->stock[COLONIZE_CARGO_RUM] = 80; /* 80 > 0x4a → bVar5 registers work */
   short_c->building_in_production = -1;
   colonies.colony_count = 1;
   colonies.next_id = 1;
@@ -18894,6 +18968,7 @@ static int unit_wagon_haul_ore_short(void) {
   short_c->stock[COLONIZE_CARGO_TOOLS] = 40;
   short_c->stock[COLONIZE_CARGO_ORE] = 5; /* ore-short */
   short_c->stock[COLONIZE_CARGO_FOOD] = 40;
+  short_c->stock[COLONIZE_CARGO_RUM] = 80; /* 80 > 0x4a → bVar5 registers work */
   short_c->building_in_production = -1;
   colonies.colony_count = 1;
   colonies.next_id = 1;
@@ -19511,9 +19586,22 @@ static int unit_wagon_food_delivery(void) {
 }
 
 /*
- * Surplus FOOD colony + empty wagon + distant food-short → load FOOD then
- * AI_MOVE toward short. Cite: Colonization.pdf Wagon Train; 5cf6 food_short
- * surplus = pop*4 (2× short floor).
+ * Surplus FOOD colony + empty wagon + a distant colony that has registered
+ * work → the DOS LOAD matrix takes one hold of FOOD, then the work-queue tip
+ * aims the wagon at the registered colony. Cite: Colonization.pdf Wagon Train;
+ * FUN_521d_20e6 load matrix raw 3059-3134.
+ *
+ * 2026-09-06g rewrite. The old fixture asserted the retired Linux ladder:
+ * 30 FOOD (a "surplus" only by the port's pop*4 rule) loaded by the
+ * tools>lumber>ore>muskets>horses>food ladder, then hauled to whichever
+ * colony was FOOD-short. DOS has neither half — its wagon load arm needs
+ * `term >= 0x32` (raw: `if (iStack_XX < 0x32) score = -1`), so 30 FOOD never
+ * loads, and its work queue is a PICKUP queue that a merely-hungry colony
+ * never enters. Fixture updated to DOS's own numbers: 120 FOOD at the wagon's
+ * colony (over the 0x32 floor, so the matrix takes min(stock,100) = 100), and
+ * 80 RUM at the far colony so it clears the 0x4a registration gate. The
+ * assertions are unchanged and still concrete: food leaves the stock, food is
+ * aboard, and the wagon is aimed at (4,4).
  */
 static int unit_wagon_food_load_haul(void) {
   const int nation = 1;
@@ -19555,7 +19643,7 @@ static int unit_wagon_food_load_haul(void) {
   surplus->stock[COLONIZE_CARGO_TOOLS] = 10; /* not surplus tools */
   surplus->stock[COLONIZE_CARGO_MUSKETS] = 5;
   surplus->stock[COLONIZE_CARGO_HORSES] = 5;
-  surplus->stock[COLONIZE_CARGO_FOOD] = 30; /* surplus vs pop*4=12 */
+  surplus->stock[COLONIZE_CARGO_FOOD] = 120; /* over the DOS matrix 0x32 floor */
   surplus->building_in_production = -1;
   /* Distant food-short. */
   ColonizeColony* hungry = &colonies.colonies[1];
@@ -19568,6 +19656,7 @@ static int unit_wagon_food_load_haul(void) {
   hungry->colonist_count = 4;
   hungry->stock[COLONIZE_CARGO_TOOLS] = 40;
   hungry->stock[COLONIZE_CARGO_FOOD] = 1; /* food-short */
+  hungry->stock[COLONIZE_CARGO_RUM] = 80; /* 80 > 0x4a → bVar5 registers work */
   hungry->building_in_production = -1;
   colonies.colony_count = 2;
   colonies.next_id = 2;
@@ -19651,9 +19740,18 @@ static int unit_wagon_food_load_haul(void) {
 }
 
 /*
- * When food_short>20 and colony has both TOOLS and FOOD surplus, wagon prefers
- * FOOD load first (not tools ladder). Cite: euro_unit_act §2d surplus FOOD
- * deepen; 5cf6 food_short.
+ * A Wagon Train at a colony holding both TOOLS and FOOD loads the FOOD and
+ * never the TOOLS. Cite: FUN_521d_20e6 LOAD matrix raw 3059-3134 — cargo 0xe
+ * (Tools) and 0xf (Muskets) are `iStack_34 != 0` arms, i.e. SHIPS ONLY, and
+ * are skipped for a land hauler even when the colony produces them.
+ *
+ * 2026-09-06g rewrite. The old fixture asserted the retired Linux ladder's
+ * `food_short > 20` reorder (30 FOOD beating 50 TOOLS because the nation's
+ * inventory was hungry). DOS has no such reorder and no such trigger; it
+ * refuses TOOLS to a wagon outright and needs `term >= 0x32` for the FOOD it
+ * does take. Fixture updated to those numbers (120 FOOD; TOOLS additionally
+ * marked as PRODUCED so the ships-only rejection is the only thing keeping
+ * them off the wagon). Assertions unchanged: FOOD aboard, TOOLS not.
  */
 static int unit_wagon_food_prefer_over_tools(void) {
   const int nation = 1;
@@ -19691,8 +19789,9 @@ static int unit_wagon_food_prefer_over_tools(void) {
   surplus->y = 10;
   surplus->population = 3;
   surplus->colonist_count = 3;
-  surplus->stock[COLONIZE_CARGO_TOOLS] = 50; /* surplus tools (≥40) */
-  surplus->stock[COLONIZE_CARGO_FOOD] = 30;  /* surplus food (≥pop*4=12) */
+  surplus->stock[COLONIZE_CARGO_TOOLS] = 50; /* produced below — ships only */
+  surplus->stock[COLONIZE_CARGO_FOOD] = 120; /* over the DOS matrix 0x32 floor */
+  surplus->cargo_produced_mask = (uint16_t)(1u << COLONIZE_CARGO_TOOLS);
   surplus->building_in_production = -1;
   /* Large food deficit → inventory food_short > 20. */
   ColonizeColony* hungry = &colonies.colonies[1];
