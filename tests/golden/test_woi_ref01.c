@@ -73,6 +73,7 @@ int main(void) {
   assets_msg_init(&msgs);
   (void)assets_msg_load_file(&msgs, "COLONIZE/GAME.TXT");
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
   if (!units_load_types(&units, &names)) {
     return 1;

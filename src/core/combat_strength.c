@@ -9,6 +9,11 @@ void combat_side_flags_clear(ColonizeCombatSideFlags* f) {
     return;
   }
   memset(f, 0, sizeof(*f));
+  /* Row-chrome slots are "absent", not "sprite 0". */
+  f->colony_icon = -1;
+  f->colony_nation = -1;
+  f->terrain_sprite = -1;
+  f->bombard_icon = -1;
 }
 
 static int combat_ship_holds_occupied(const ColonizeUnit* u) {
@@ -64,11 +69,6 @@ static int combat_colony_local_1a(
   const ColonizeColony* col,
   ColonizeCombatSideFlags* flags
 ) {
-  /* Bare colony → 2; Stockade+ → 4; Fortress doubles (→8). */
-  int local_1a = 2;
-  if (flags) {
-    flags->flags |= COMBAT_FLAG_COLONY;
-  }
   const int stockade = colonies_find_building(colonies, "Stockade");
   const int fort = colonies_find_building(colonies, "Fort");
   const int fortress = colonies_find_building(colonies, "Fortress");
@@ -77,17 +77,36 @@ static int combat_colony_local_1a(
   const int has_fort = fort >= 0 && fort < COLONIZE_BUILDING_TYPES_MAX && col->has_building[fort];
   const int has_fortress =
     fortress >= 0 && fortress < COLONIZE_BUILDING_TYPES_MAX && col->has_building[fortress];
-  if (has_stockade || has_fort || has_fortress) {
-    local_1a = 4;
-    if (flags) {
-      flags->flags |= COMBAT_FLAG_STOCKADE;
+  /*
+   * FUN_157e_0008 (viceroy_unpacked.c 8893-8908): how many of FUN_15eb_038e(0),
+   * (1), (2) the colony has. Those three ARE the fortification chain — the
+   * building table at DS:0x8f82 (stride 0xc) links each record to its next
+   * tier at +4, and records 0/1/2 chain 0 → 1 → 2 → -1 with name ids
+   * 0x4b/0x4c/0x4d, i.e. Stockade → Fort → Fortress. That closes the
+   * combat.md "Open question 2026-09-03": the colony arm of FUN_157e_015e is
+   * literally `local_1a = (FUN_157e_0008() + 1) * 2` (viceroy 9009-9011), so
+   * the ladder is 2 / 4 / 6 / 8 — a Fort is ×2.5 (+150%, matching the
+   * manual), not the Stockade's ×2. The port previously collapsed Fort into
+   * Stockade's 4, which is also why its analysis row had no Fort tier.
+   */
+  const int tier = (has_stockade ? 1 : 0) + (has_fort ? 1 : 0) + (has_fortress ? 1 : 0);
+  const int local_1a = (tier + 1) * 2;
+  if (flags) {
+    flags->flags |= COMBAT_FLAG_COLONY;
+    if (tier > 0) {
+      flags->flags |= COMBAT_FLAG_STOCKADE; /* "Stockade or better" (8d02|0x10 shape) */
     }
-  }
-  if (has_fortress) {
-    local_1a <<= 1;
-    if (flags) {
+    if (has_fortress) {
       flags->flags |= COMBAT_FLAG_FORTRESS;
     }
+    /*
+     * FUN_636c_0000's colony row prints (tier + 1) * 50% and labels itself
+     * with the topmost built tier (FUN_281f_0bdc = FUN_15eb_0434(0)).
+     */
+    flags->fort_tier = tier;
+    /* 636c draws the settlement marker beside the row (FUN_281f_02a8 → 112b_0c64). */
+    flags->colony_icon = colonies_settlement_icon(colonies, col);
+    flags->colony_nation = col->nation_id;
   }
   return local_1a;
 }
@@ -306,6 +325,8 @@ int combat_engagement_strength(
       if (out_flags && terr_byte != 0) {
         out_flags->flags |= COMBAT_FLAG_TERRAIN;
         out_flags->terrain_byte = terr_byte;
+        /* 636c draws the engagement tile beside the row (FUN_281f_033a → 1baa_0006). */
+        out_flags->terrain_sprite = map_terrain_sprite_at(ctx->map, u->x, u->y);
       }
       goto fortify;
     }
@@ -351,6 +372,7 @@ int combat_engagement_strength(
       if (out_flags && terr_byte != 0) { /* bugs.md 405, same 8d02 &= 0x7f rule */
         out_flags->flags |= COMBAT_FLAG_TERRAIN;
         out_flags->terrain_byte = terr_byte;
+        out_flags->terrain_sprite = map_terrain_sprite_at(ctx->map, u->x, u->y);
       }
     } else if (!skip_stash) {
       /*
@@ -360,6 +382,8 @@ int combat_engagement_strength(
       if (out_flags) {
         out_flags->terrain_stash = terr_byte;
         out_flags->terrain_byte = terr_byte;
+        /* Carried to the attacker column with the stash (land_engage below). */
+        out_flags->terrain_sprite = map_terrain_sprite_at(ctx->map, u->x, u->y);
       }
     }
   }
@@ -414,6 +438,34 @@ int combat_unit_is_combat_role(const ColonizeUnitPool* pool, int unit_id) {
   }
   /* FUN_5fef_0000: skip when type.attack (5236) == 0. */
   return t->attack > 0;
+}
+
+/*
+ * FUN_636c_0000 bit-0x8000 (Bombard) row icon — asm 636c:0637-0681.
+ * DOS: `local_14 = 1; if (colony_at(x,y) >= 0 && (colony[+0x1c] & 0x40) == 0)
+ * local_14 = 0;` then blits DS:0x532e when local_14 else DS:0x52cc. Those two
+ * DS bytes are the @UNIT icon fields of type 18 (Man-O-War) and type 11
+ * (Artillery) — the unit table lives at DS:0x5230 stride 0xe, icon at +2.
+ * Colony flag 0x40 is "coastal", so a landlocked siege reads as artillery.
+ * Returns an ICONS.SS 0-based index, or -1 when the type table is missing.
+ */
+static int combat_bombard_row_icon(const ColonizeCombatStrengthCtx* ctx, int x, int y) {
+  if (!ctx || !ctx->units) {
+    return -1;
+  }
+  int coastal = 1;
+  if (ctx->colonies) {
+    const int cid = colonies_id_at(ctx->colonies, x, y);
+    const ColonizeColony* c = colonies_get(ctx->colonies, cid);
+    if (c && (c->colony_flags & 0x40u) == 0) {
+      coastal = 0;
+    }
+  }
+  const int type_index = coastal ? 18 : 11; /* DS:0x532e / DS:0x52cc */
+  if (type_index >= ctx->units->type_count) {
+    return -1;
+  }
+  return ctx->units->types[type_index].icon_sprite;
 }
 
 static int combat_colony_sol_at(
@@ -606,6 +658,13 @@ void combat_apply_1b0e_peels(
         io->atk_strength += io->atk_strength >> 1;
         io->atk_flags.flags |= COMBAT_FLAG_REF;
         io->atk_flags.flags_hi |= COMBAT_FLAG_REF;
+        /*
+         * 636c bit-0x8000 row icon (asm 636c:0653-0681): the colony record's
+         * +0x1c bit 0x40 (coastal) picks Man-O-War (DS:0x532e = @UNIT type 18
+         * icon byte) over Artillery (DS:0x52cc = @UNIT type 11) — naval
+         * bombardment vs a landed siege train. No colony → Man-O-War.
+         */
+        io->atk_flags.bombard_icon = combat_bombard_row_icon(ctx, def->x, def->y);
       }
       int sol = combat_colony_sol_at(ctx, def->x, def->y);
       if (sol < 0) {
@@ -680,6 +739,8 @@ void combat_land_engage(
       out->atk_flags.flags |= COMBAT_FLAG_TERRAIN;
       out->atk_flags.terrain_byte = stash;
       out->atk_flags.terrain_stash = stash;
+      /* 636c draws the same engagement tile on both columns. */
+      out->atk_flags.terrain_sprite = out->def_flags.terrain_sprite;
     }
   }
   if (out->atk_strength < 0) {

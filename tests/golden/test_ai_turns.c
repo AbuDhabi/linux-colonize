@@ -323,6 +323,7 @@ static int run_step(int from_turn) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
   if (!units_load_types(&units, &names)) {
     fprintf(stderr, "units_load_types failed\n");

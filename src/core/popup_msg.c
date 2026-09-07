@@ -245,6 +245,10 @@ static const PopupMsgGraphicRow k_popup_msg_mss[] = {
   /* MSS0 — admiral: ships, naval combat, sea trade. */
   {"TUTORIAL1", 0},   {"TUTORIAL2", 0},   {"TUTORIAL5", 0},  {"TUTORIAL6", 0},
   {"TUTORIAL11", 0},  {"DISBANDSHIP", 0}, {"TRADENONE", 0},  {"FORTFIRE", 0},
+  /* Europe "shall we set sail?" confirm: FUN_38fd_2a92 @ 38fd:2aba
+   * `SUB DX,DX / MOV word [0x1f5e],DX`, tag `LEA AX,[0xffc]` = @SAILAWAY
+   * (DS string, EXE offset 121248+0xffc) — a direct latch, no 0652 pair. */
+  {"SAILAWAY", 0},
   {"REFIT", 0},       {"SEIZURE", 0},     {"ROUTELOOP", 0},  {"SHIPRUN", 0},
   {"SHIPSLOW", 0},    {"CARGOCAPTURE", 0}, {"SHIPDAMAGE", 0}, {"SHIPSUNK", 0},
   {"EVASIVE", 0},

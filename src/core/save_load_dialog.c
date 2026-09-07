@@ -278,14 +278,27 @@ void save_load_render(
   }
 
   /* DOS 6f74 compositor metrics (same as ai_popup_render): content width =
-   * @width, frame adds 3 px per side, line pitch = glyph height + 1 (6-px
-   * font counts as 5), outer height = text + 12, centred and clamped below
-   * the menu bar. */
+   * @width, frame adds 3 px per side, outer height = text + 12, centred and
+   * clamped below the menu bar.
+   *
+   * Two pitches, off the same glyph height (FUN_6f74_0f16 = font[0], the 6-px
+   * font counting as 5): the prompt is a body line at glyph_h + 1
+   * (FUN_6f74_1198 @ OVL24 0x1234/0x124c), the slot rows are OPTION rows at
+   * glyph_h + box[+0x46] (FUN_6f74_14c6 @ 0x1611-0x1628). FUN_7562_0052
+   * appends each slot row with FUN_291f_0176 (decomp viceroy_unpacked.c
+   * 119680), and FUN_291f_0176 is a straight thunk to FUN_6f74_0a00
+   * (viceroy_unpacked_2.c 33285-33289) — the +0x54 option list — so the save
+   * and load dialogs are +0x54 rows exactly like every ai_popup CHOICE.
+   * box[+0x46] = (flags & 0x10) ? 0 : 3 (FUN_6f74_06d0 @ 0x078a-0x0799), and
+   * GAME.TXT @SAVEGAME/@LOADGAME declare nothing but @width=190, so the box
+   * is framed and the pitch is glyph_h + 3. The port used glyph_h + 1 here,
+   * leaving every slot row 2 px tight. */
   int glyph_h = font ? font->max_height : 6;
   if (glyph_h == 6) {
     glyph_h = 5;
   }
   const int line_h = glyph_h + 1;
+  const int option_h = glyph_h + 3;
   const int pad_x = 2;
   const int title_gap = dlg->prompt[0] ? 2 : 0;
 
@@ -305,7 +318,7 @@ void save_load_render(
   }
   const int dialog_w = content_w + 6;
   const int prompt_h = dlg->prompt[0] ? line_h + title_gap : 0;
-  const int options_h = dlg->option_count * line_h;
+  const int options_h = dlg->option_count * option_h;
   int dialog_h = 12 + prompt_h + options_h;
   if (dialog_h > framebuffer->height) {
     dialog_h = framebuffer->height;
@@ -345,7 +358,8 @@ void save_load_render(
   dlg->dialog_y = dialog_y;
   dlg->dialog_w = dialog_w;
   dlg->dialog_h = dialog_h;
-  dlg->line_h = line_h;
+  /* Hit-testing walks the slot rows, so this is their pitch, not the prompt's. */
+  dlg->line_h = option_h;
 
   /* FONTINTR unbold + black drop-shadow, like every other wood popup. */
   int text_y = inner_y + 3;
@@ -358,10 +372,14 @@ void save_load_render(
   dlg->list_y0 = text_y;
 
   for (int i = 0; i < dlg->option_count; ++i) {
-    const int row_y = text_y + i * line_h;
+    const int row_y = text_y + i * option_h;
     if (i == dlg->selection) {
-      for (int y = row_y - 1; y <= row_y + line_h - 2; ++y) {
-        for (int x = inner_x + 2; x <= inner_x + inner_w - 3; ++x) {
+      /* FUN_6f74_1b7c selection bar (OVL24 0x1c5b-0x1c9b), same rect
+       * ai_popup_render draws: x = box[+0x24] + box[+0x48] - 1 (the two
+       * box[+0x22] terms built at 0x1b86 cancel), width = content - 2,
+       * height = glyph_h + 2. */
+      for (int y = row_y - 1; y <= row_y - 1 + (glyph_h + 2) - 1; ++y) {
+        for (int x = inner_x + pad_x - 1; x <= inner_x + pad_x - 1 + (inner_w - 2) - 1; ++x) {
           if (x >= 0 && y >= 0 && x < framebuffer->width && y < framebuffer->height) {
             framebuffer->pixels[y * framebuffer->width + x] = select_color;
           }

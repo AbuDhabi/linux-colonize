@@ -49,6 +49,27 @@ typedef struct ColonizeCombatSideFlags {
   int village_n; /* village defender: tribe tech level 0..3 (DOS indian+2) */
   int holds_occupied; /* subtracted holds (ships) */
   int sol_percent; /* WoI popular-support % applied */
+  /*
+   * Combat Analysis row chrome (FUN_636c_0000 draw pass). DOS re-derives these
+   * inside the dialog from the colony / village / tile it is handed; the port
+   * snapshots them here because 636c's caller context is gone by render time.
+   *   fort_tier      FUN_157e_0008 — how many of Stockade/Fort/Fortress the
+   *                  colony has (0..3). 636c colony row prints (tier+1)*50%
+   *                  and labels itself with FUN_15eb_0434(0)'s building name.
+   *   colony_icon    ICONS.SS settlement marker drawn beside that row
+   *                  (FUN_112b_0c64 at scale 100); -1 = no row icon.
+   *   colony_nation  nation whose flag that marker is recolored with.
+   *   terrain_sprite TERRAIN.SS tile drawn beside the Ambush/Terrain row
+   *                  (FUN_1baa_0006); -1 = none.
+   *   bombard_icon   ICONS.SS icon on the WoI Bombard row: Man-O-War
+   *                  (DS:0x532e = @UNIT 18 icon) over a coastal colony,
+   *                  else Artillery (DS:0x52cc = @UNIT 11 icon); -1 = none.
+   */
+  int fort_tier;
+  int colony_icon;
+  int colony_nation;
+  int terrain_sprite;
+  int bombard_icon;
 } ColonizeCombatSideFlags;
 
 typedef struct ColonizeCombatStrengthCtx {

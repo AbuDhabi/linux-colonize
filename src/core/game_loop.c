@@ -5701,6 +5701,52 @@ static int europe_draw_prose(
   return cy + line_h;
 }
 
+/*
+ * MSS popup decoration for the open Europe menu (DOS DS:0x1f5e latch).
+ *
+ * DOS builds Recruit and Purchase through the same generic list dialog as
+ * every GAME.TXT popup (FUN_291f_0182 -> FUN_6f74_32a4, shown by
+ * FUN_291f_016a -> FUN_6f74_2580), and latches the decoration index right
+ * before it — asm PUSH/LEA pairs, since Ghidra drops these args:
+ *
+ *   38fd:4948  MOV word [0x1f5e],0x2 / LEA BX,[0x87c] / LEA AX,[0x1109]
+ *              -> FUN_38fd_4884(0,0), tag @RECRUIT       -> MSS2 courtier
+ *   38fd:4b5d  MOV word [0x1f5e],0x2 / LEA BX,[0x87c] / LEA AX,[0x1111]
+ *              -> FUN_38fd_4b50,      tag @PURCHASE      -> MSS2 courtier
+ *
+ * The two other 4884 arms are already wired through ai_popup (units.c):
+ * 38fd:4910 latches 3 with tag 0x10f1 = @LOSTCITY0 (Fountain of Youth) and
+ * 38fd:4924 latches 4 with tag 0x10fb = @RECRUITCHOOSE (Brewster). The Train
+ * dialog (@KINGRECRUIT) and the dock @ARMOPTIONS menu latch nothing, and DOS
+ * accordingly shows them undecorated (original_screenshots/europe/train.png).
+ * FUN_6f74_2580 clears all three latches on exit (LAB_6f74_3018), so the
+ * decoration never leaks to the next dialog.
+ */
+static int europe_menu_mss_index(const ColonizeGameState* game) {
+  if (!game) {
+    return -1;
+  }
+  switch (game->europe.menu) {
+    case EUROPE_MENU_RECRUIT:
+    case EUROPE_MENU_PURCHASE:
+      return 2;
+    default:
+      return -1;
+  }
+}
+
+static const ColonizeSpriteSheet* europe_menu_decoration(const ColonizeGameState* game) {
+  const int mss = europe_menu_mss_index(game);
+  if (mss < 0) {
+    return NULL;
+  }
+  const ColonizeSpriteSheet* sheet = ai_popup_decoration_sheet(mss, -1);
+  if (!sheet || sheet->sprite_count <= 0 || !sheet->sprites[0].pixels) {
+    return NULL;
+  }
+  return sheet;
+}
+
 typedef struct EuropeMenuLayout {
   int rows;
   int dialog_x;
@@ -5714,6 +5760,10 @@ typedef struct EuropeMenuLayout {
   int list_y0;
   int line_h;
   int pad;
+  /* MSS decoration, NULL when this menu has none or it does not fit. */
+  const ColonizeSpriteSheet* graphic;
+  int graphic_x;
+  int graphic_y;
 } EuropeMenuLayout;
 
 static bool europe_menu_layout(
@@ -5769,7 +5819,66 @@ static bool europe_menu_layout(
   out->dialog_w = dialog_w;
   out->dialog_h = dialog_h;
   out->dialog_x = (fb_w - dialog_w) / 2;
-  out->dialog_y = 16;
+  /*
+   * DOS auto-places the list dialog like every other one (FUN_6f74_14c6 @
+   * OVL24 0x16cb-0x16f6: 160 - w/2, 100 - h/2) — the port's fixed y=16 was a
+   * stand-in. Both reference shots agree: recruit.png's 102px-tall dialog
+   * lands at y=88 with the MSS2 figure above it, train.png's 180px-tall one
+   * (no figure) at y=10 = (200-180)/2.
+   */
+  out->dialog_y = (fb_h - dialog_h) / 2;
+
+  /*
+   * Decoration placement, same data-driven rule as ai_popup_render: the
+   * sprite stands ABOVE the dialog with its bottom overlapping the dialog top
+   * by the sheet's place_offset_y; place_mode 0 = at the dialog's left edge
+   * (horizontal overlap place_offset_x), 1 = centred over it, 2 = at the
+   * right edge. The pair is centred vertically as a unit, and DOS drops the
+   * sprite outright when the two together reach the screen height.
+   */
+  out->graphic = europe_menu_decoration(game);
+  out->graphic_x = 0;
+  out->graphic_y = 0;
+  if (out->graphic) {
+    const int gw = out->graphic->sprites[0].width;
+    const int gh = out->graphic->sprites[0].height;
+    int ov_y = out->graphic->place_offset_y;
+    if (ov_y > gh) {
+      ov_y = gh;
+    }
+    const int total_h = gh - ov_y + dialog_h;
+    if (total_h >= fb_h) {
+      out->graphic = NULL; /* DOS: too tall together → no decoration. */
+    } else {
+      int top = (fb_h - total_h) / 2;
+      if (top < 0) {
+        top = 0;
+      }
+      out->graphic_y = top;
+      out->dialog_y = top + gh - ov_y;
+      if (out->graphic->place_mode == 1) {
+        out->graphic_x = (fb_w - gw) / 2;
+      } else {
+        int ov_x = out->graphic->place_offset_x;
+        int total_w = dialog_w + gw - ov_x;
+        if (total_w > fb_w) {
+          ov_x += total_w - fb_w; /* DOS widens the overlap instead. */
+          total_w = fb_w;
+        }
+        const int x0 = (fb_w - total_w) / 2;
+        if (out->graphic->place_mode == 2) {
+          out->dialog_x = x0;
+          out->graphic_x = x0 + dialog_w - ov_x;
+        } else {
+          out->graphic_x = x0;
+          out->dialog_x = x0 + gw - ov_x;
+        }
+      }
+    }
+  }
+  if (out->dialog_y < 0) {
+    out->dialog_y = 0;
+  }
   out->inner_x = out->dialog_x + POPUP_FRAME_INSET;
   out->inner_y = out->dialog_y + POPUP_FRAME_INSET;
   out->list_y0 = out->inner_y + out->pad + out->title_h + 2;
@@ -5909,6 +6018,17 @@ static void europe_render_menu_popup(
       font, framebuffer, inner_x + inner_w - pad - fw,
       lay.list_y0 + rows * line_h, f1, 10
     );
+  }
+
+  /*
+   * The MSS figure goes LAST. DOS FUN_6f74_248e blits the decoration sprite
+   * before the wood frame only when the portrait latch DS:0x1f5c is set;
+   * with 0x1f5c < 0 and 0x1f5e set — which is exactly these two menus — the
+   * blit runs after everything, so the courtier's hands overlap the frame
+   * (original_screenshots/europe/recruit.png, purchase.png).
+   */
+  if (lay.graphic) {
+    ss_blit_sprite(lay.graphic, 0, framebuffer, lay.graphic_x, lay.graphic_y);
   }
 }
 
@@ -14609,6 +14729,13 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
    */
   ai_popup_art_palette_merge((AiPopupState*)&game->ai_popups, palette);
 
+  /* Same reserved-block rule for the Europe Recruit/Purchase menus, which
+   * carry the MSS2 courtier but are drawn by europe_render_menu_popup rather
+   * than ai_popup (EUROPE.PIK leaves 120..251 black; MSS2.SS fills them). */
+  if (game->in_europe) {
+    ai_popup_sheet_palette_merge(europe_menu_decoration(game), palette);
+  }
+
   /* bugs.md 408: SCORE<nn>.SS carries the exploits painting's colours in the
    * DAC slots WOODPAN2.PIK leaves black — same reserved-block rule as the
    * popup art sheets (merge, never remap). */
@@ -15535,6 +15662,8 @@ void game_render(const ColonizeGameState* game, ColonizeFramebuffer8* framebuffe
         popup_font,
         wood,
         game->unit_icons_ok ? &game->unit_icons : NULL,
+        /* Ambush/Terrain row icon: DOS 636c blits the engagement tile itself. */
+        game->terrain_ok ? &game->terrain : NULL,
         &popup_cols,
         COLONIZE_COL_BASIC,
         COLONIZE_COL_SELECT,

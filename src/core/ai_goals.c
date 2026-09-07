@@ -1,5 +1,6 @@
 #include "core/ai_goals.h"
 
+#include "core/ai_diplo.h"
 #include "core/colony.h"
 #include "core/col1_save.h"
 #include "core/map.h"
@@ -671,6 +672,43 @@ int ai_goals_pick_founding_tile_ex(
         /* Neighbor empty of colony (0682 owner < 0 stand-in). */
         if (colonies && colonies_id_at(colonies, hx, hy) >= 0) {
           continue;
+        }
+        /*
+         * Neighbour-relation gate (decomp viceroy_unpacked.c 87293-87298):
+         *
+         *   cVar2 = FUN_281f_06dc(0x281f,iVar3,iVar9);       // raw owner nibble
+         *   iVar4 = (int)cVar2;
+         *   if ((((iVar4 < 0) || (3 < iVar4)) ||
+         *       ((*(char *)(iVar4 * 0x34 + 0x543f) != '\0' ||
+         *        (uVar5 = FUN_281f_0a38(0x281f,param_1,iVar4), (uVar5 & 0x40) == 0)))) &&
+         *      (param_4 != 0)) { ... add ... }
+         *
+         * FUN_281f_06dc → FUN_137f_0200 (decomp 5383-5395) is the *ungated*
+         * layer3 high nibble (0xf → 0xff → −1 once narrowed to char), not the
+         * layer2-gated 0682/06be pair. DS:0x543f+n*0x34 is the player control
+         * byte (0 human / 1 AI / 2 withdrawn; turn/year_loop.c:55).
+         * FUN_281f_0a38 → FUN_15b3_0004 (decomp 7752-7761) reads the raw
+         * euro_relation peer byte for nation < 4; bit 0x40 is PEACE.
+         *
+         * So the neighbour contributes nothing when its claimed owner is a
+         * Euro nation 0..3 that is human-controlled AND we are at peace with
+         * it — the AI does not bank expansion score off a human neighbour's
+         * claimed land while the peace holds. AI-owned or unmet/at-war land
+         * still counts, as does unclaimed (nibble 0xf) land.
+         *
+         * Raw byte on purpose: DOS has no self-pair special case here, and
+         * euro_relation[self] is never written, so an own-claimed tile reads
+         * 0 and the gate never fires. ai_diplo_read's PEACE|ALLY self virtual
+         * would fire it, so it is deliberately not used.
+         */
+        {
+          const int hi = (int)((map_get_layer3(map, hx, hy) >> 4) & 0x0fu);
+          const int howner = hi == 0x0f ? -1 : hi;
+          if (howner >= 0 && howner <= 3 && col1 && nation_id >= 0 && nation_id < 4 &&
+              col1->player[howner].control == 0 &&
+              (col1->nation[nation_id].euro_relation[howner] & AI_DIPLO_PEACE) != 0) {
+            continue;
+          }
         }
         /*
          * DOS: 0492(nation, continent_id)*0x10 + (explore_mask & 0xf).

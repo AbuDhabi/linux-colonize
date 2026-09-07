@@ -163,6 +163,7 @@ static int run_mid01_to_mid02(void) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
   if (!units_load_types(&units, &names)) {
     assets_msg_free(&names);

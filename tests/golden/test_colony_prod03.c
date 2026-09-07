@@ -159,6 +159,7 @@ static int run_pair(const char* path_in, const char* path_exp, const char* label
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
   if (!units_load_types(&units, &names)) {
     fprintf(stderr, "units_load_types failed\n");

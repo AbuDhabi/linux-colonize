@@ -6125,18 +6125,12 @@ static void ai_euro_colony_inventory(ColonizeTurnContext* ctx, int nation_id) {
     if (c->stock[COLONIZE_CARGO_MUSKETS] < 10) {
       inv->muskets_short += 10 - c->stock[COLONIZE_CARGO_MUSKETS];
     }
-    if (c->stock[COLONIZE_CARGO_HORSES] < 10) {
-      inv->horses_short += 10 - c->stock[COLONIZE_CARGO_HORSES];
-    }
     if (c->stock[COLONIZE_CARGO_FOOD] < c->population * 2) {
       inv->food_short += (c->population * 2) - c->stock[COLONIZE_CARGO_FOOD];
     }
     /* Ore shortage (5cf6-shaped): feed Blacksmith / Expert Ore Miner dock hire. */
     if (c->stock[COLONIZE_CARGO_ORE] < 20) {
       inv->ore_short += 20 - c->stock[COLONIZE_CARGO_ORE];
-    }
-    if (c->building_in_production >= 0) {
-      inv->found_flags++;
     }
     /* FUN_5952_035e thin: INC cargo_idle_turns (+0x8f) + improve_timer (+0x8c)
      * cap 0x7f. */
@@ -6215,26 +6209,10 @@ static void ai_euro_unit_inventory(ColonizeTurnContext* ctx, int nation_id) {
     if (!u->active || u->nation_id != nation_id) {
       continue;
     }
-    /* Wagon (transport) on colony tile → found_flags bit stand-in. */
-    if (units_is_transport(ctx->units, u->id) && ctx->colonies) {
-      if (colonies_id_at(ctx->colonies, u->x, u->y) >= 0) {
-        inv->found_flags |= 0x20;
-      }
-    }
-    /* Passenger profession demand. */
-    if (u->aboard_ship_id >= 0 && u->profession >= 0 && u->profession < 16) {
-      if (inv->profession_demand[u->profession] > 0) {
-        inv->profession_demand[u->profession]--;
-      }
-    }
     const char* name = units_display_name(ctx->units, u);
     if (name && strstr(name, "Pioneer") && inv->muskets_short > 0) {
       inv->muskets_short--;
     }
-  }
-  /* Seed profession demand from tools shortage (LABOR hire preference). */
-  if (inv->tools_short > 0 && inv->profession_demand[0] == 0) {
-    inv->profession_demand[0] = inv->tools_short / 20 + 1; /* farmer/labor stand-in */
   }
 }
 
@@ -6522,24 +6500,14 @@ static int ai_euro_try_pioneer_tools_delivery(
 }
 
 /*
- * Europe purchase table Artillery / Caravel gold (europe_init_purchase_table /
- * original_screenshots/europe/purchase.png) — 5d04 war Artillery hire and
- * thin 5c3c Caravel buy when no Europe transport.
+ * The AI_EURO_*_PURCHASE_GOLD / AI_EURO_VETERAN_SOLDIER_TRAIN_GOLD constants
+ * that used to sit here were the Linux-shaped hire matrix's private price
+ * copies; they went unreferenced when that matrix was retired 2026-09-07e and
+ * are removed 2026-09-07. The real prices are the DS:0x978d stride-6 purchase
+ * table transcribed in ai_euro_5d04_propose_ship_buy (k_purchase[6]), and DOS
+ * 5d04 never trains a Veteran in Europe for gold at all (its only Veteran path
+ * is the College bVar5 profession promote).
  */
-#define AI_EURO_ARTILLERY_PURCHASE_GOLD 500
-#define AI_EURO_CARAVEL_PURCHASE_GOLD 1000
-#define AI_EURO_MERCHANTMAN_PURCHASE_GOLD 2000
-#define AI_EURO_GALLEON_PURCHASE_GOLD 3000
-#define AI_EURO_FRIGATE_PURCHASE_GOLD 5000
-
-/*
- * NAMES.TXT @JOB: Soldier → Veteran Soldiers train cost 2000$.
- * Cite: COLONIZE/NAMES.TXT @JOB; Europe train table (not purchase.png).
- * Unreferenced since 2026-09-07e — the Linux-shaped hire matrix that used
- * it is retired; DOS's 5d04 never trains a Veteran in Europe for gold (the
- * hire tail's only Veteran path is the College bVar5 profession promote).
- */
-#define AI_EURO_VETERAN_SOLDIER_TRAIN_GOLD 2000
 
 /* ========================================================================
  * FUN_521d_5d04 — euro_nation_planning, structural port (2026-08-18)
@@ -13584,13 +13552,10 @@ static int ai_euro_20e6_wagon_village_errand(
  * nation turn, exactly as DOS does at :87560-87563. A mark therefore cannot
  * survive a save/load in an observable way and needs no save round-trip.
  *
- * Not ported (recorded, not invented): the two force-board arms — a member at
- * negative map coords passing the `(0x3147 & 0xf) − x == 0x14` owner-nibble
- * Europe-slot check, and the `FUN_13e4_0074(x, y)` tile predicate. Both are
- * undecoded beyond their shape, and neither has a Linux counterpart: Europe
- * units live in the europe pool, never on a map tile list. The recursive
- * `FUN_1427_101c` pre-pass (`+0x314c == 2` ship re-berth) is likewise out of
- * band — 20e6 never marks act_state 2.
+ * The two force-board arms are ported 2026-09-07f — see the board-predicate
+ * comment in the loop below. The recursive `FUN_1427_101c` pre-pass
+ * (`+0x314c == 2` ship re-berth) stays out of band: 20e6 never marks
+ * act_state 2, and `s_0a60_pilot_state` only ever carries 0/1 here.
  *
  * Linux tile substitution: DOS ships berth ON the colony tile, so 10be's own
  * tile stack already holds the marked land units. This port berths ships on
@@ -13638,6 +13603,29 @@ static void ai_euro_20e6_clear_stale_board_marks(
   }
 }
 
+/*
+ * 10be force-board arm 1's coordinate test — DOS `member+0x3144 < 0` (asm
+ * 1427:11f0 `CMP byte [BX+0x3144],0x0` / `JGE`), i.e. the member sits in an
+ * OFF-MAP bucket instead of on a real tile. Every DOS park is a negative x:
+ * (−2,−2) = riding a transport, (−3,−3)/(−4,−4) = the transient parks
+ * `FUN_1427_04d6` and 10be's own 101c pre-pass use, and x = nation − 0x14 =
+ * that nation's Europe slot. The port has one off-map park and spells it with
+ * a positive sentinel (Europe at (200,100), `ai_euro_in_europe`), so the
+ * faithful predicate is "not addressable as a map tile".
+ */
+static int ai_euro_20e6_member_off_map(const ColonizeTurnContext* ctx, const ColonizeUnit* u) {
+  if (!u) {
+    return 0;
+  }
+  if (u->x < 0 || u->y < 0 || ai_euro_in_europe(u->x, u->y)) {
+    return 1;
+  }
+  if (ctx && ctx->map && (u->x >= (int)ctx->map->width || u->y >= (int)ctx->map->height)) {
+    return 1;
+  }
+  return 0;
+}
+
 static int ai_euro_20e6_transport_assemble(
   ColonizeTurnContext* ctx,
   int nation_id,
@@ -13678,8 +13666,74 @@ static int ai_euro_20e6_transport_assemble(
     if (!on_stack) {
       continue;
     }
-    if (s_0a60_pilot_state[ui].act_state != 1) {
-      continue; /* raw 8658: only the act_state-1 board mark */
+    /*
+     * The board predicate — raw 8658-8672, asm 1427:11d4-1231. Three arms,
+     * and the decompile's `local_4`/`bVar4` shuffle hides that the two
+     * force-board arms are mutually exclusive on the SIGN OF x, not chained:
+     *
+     *   1427:11d4  CMP byte [BX+0x314c],0x1 / JNZ  →  DI = 1     ; the MARK
+     *   1427:11e1  CMP DI,1 / SBB AX,AX / NEG AX / MOV local_4,AX ; = !DI
+     *   1427:11ed  OR DI,DI / JNZ 1211                            ; marked → done
+     *   1427:11f0  CMP byte [BX+0x3144],0x0 / JGE 1211            ; x >= 0 → arm 2
+     *   1427:11f6  MOV local_4,DI            ; DI is 0 here, so local_4 = 0:
+     *                                        ; entering arm 1 DISARMS arm 2
+     *   1427:11f9  AL = ([BX+0x3147] & 0xf) − [BX+0x3144]
+     *              CMP AL,0x14 / JNZ 120e    ; not this nation's Europe slot
+     *   1427:1208  CMP byte [BX+0x314c],0x1 / JNZ 1211  ; dead (DI==0 ⇒ !=1)
+     *   1427:120e  DI = 1                                         ; ARM 1 boards
+     *   1427:1211  CMP local_4,0 / JZ 1232
+     *   1427:1219  CALLF FUN_13e4_0074(x, y) / OR AX,AX / JZ 1232
+     *   1427:1230  DI = 1                                         ; ARM 2 boards
+     *
+     * `FUN_13e4_0074` (viceroy_unpacked.c:7033) is `ocean_or_high_seas`:
+     * `uVar1 = FUN_137f_010e(x,y); return (uVar1 & 0x1f) == 0x19 ||
+     * (uVar1 & 0x1f) == 0x1a;` — terrain class 25 (Ocean) / 26 (High Seas),
+     * the same predicate `map_tile_is_water` implements (`map_is_ocean_index`,
+     * MAP_OCEAN_INDEX / MAP_HIGH_SEAS_INDEX) and the same one the Indian
+     * claim table (`colonies_indian_claim_tribe_from`) and the 4cc6 threat
+     * ring already use. It was never undecoded — the 20e6 notes simply had
+     * not connected it to `ai_is_ocean_hs` / `FUN_281f_0768`.
+     *
+     * What the two arms MEAN, given the bucket the loop walks: DOS units are
+     * linked into per-coordinate buckets (+0x315c prev / +0x315e next,
+     * `FUN_1427_0002`/`004a`), and 10be iterates the bucket the ship was in,
+     * so every member shares the ship's coordinates. Therefore:
+     *   arm 1 fires only when the SHIP is in an off-map bucket, and boards
+     *     every member of it that is not resting in its own nation's Europe
+     *     slot — i.e. re-attaches units already parked at (−2,−2)/(−3,−3)/
+     *     (−4,−4) to this hull when the transport chain is rebuilt;
+     *   arm 2 fires only when the ship's TILE is ocean/high seas, and boards
+     *     every land member of that tile unconditionally — a land unit can
+     *     only be standing on open water because it is riding this ship.
+     * Both are therefore invariant repair, not new recruitment: DOS's way of
+     * keeping existing passengers attached. At a colony berth DOS's own tile
+     * is the (land) colony tile, so neither arm fires there and the mark arm
+     * is the only one that recruits — which is why the 2026-09-07e port with
+     * the mark arm alone matched the goldens.
+     *
+     * Linux mapping: passengers live in `cargo_ids`/`aboard_ship_id` rather
+     * than in a shared sentinel bucket, so the units the two arms re-attach
+     * are exactly the ones the `aboard_ship_id >= 0` skip above already keeps
+     * attached — the arms are ported for the cases that skip does NOT cover:
+     * an unattached unit sitting in a non-Europe off-map park (arm 1), or
+     * standing on the ship's open-water tile (arm 2).
+     */
+    int take = (s_0a60_pilot_state[ui].act_state == 1);
+    int arm = 0;
+    if (!take) {
+      if (ai_euro_20e6_member_off_map(ctx, lu)) {
+        /* arm 1: off-map, but not this unit's own Europe slot. */
+        if (!ai_euro_in_europe(lu->x, lu->y)) {
+          take = 1;
+          arm = 1;
+        }
+      } else if (ctx->map && map_tile_is_water(ctx->map, lu->x, lu->y)) {
+        take = 1; /* arm 2: FUN_13e4_0074 — ocean / high seas */
+        arm = 2;
+      }
+    }
+    if (!take) {
+      continue;
     }
     const ColonizeUnitType* lty = units_type(ctx->units, lu->type_index);
     const int size = lty ? lty->space : 1; /* 0x5238[type] */
@@ -13689,12 +13743,14 @@ static int ai_euro_20e6_transport_assemble(
     if (!units_board(ctx->units, ui, ship->id)) {
       continue;
     }
+    s_0a60_pilot_state[ui].act_state = 1; /* asm 1427:1264 `[BX+0x314c] = 1` */
     free_holds -= size;
     boarded++;
     if (trace) {
+      static const char* const arm_name[3] = {"mark", "force:offmap", "force:water"};
       fprintf(
-        stderr, "[10be] ship %d n%d assembles unit %d (size %d, free %d left)\n", ship->id,
-        nation_id, ui, size, free_holds
+        stderr, "[10be] ship %d n%d assembles unit %d via %s (size %d, free %d left)\n", ship->id,
+        nation_id, ui, arm_name[arm], size, free_holds
       );
     }
   }

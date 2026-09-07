@@ -975,6 +975,7 @@ int main(void) {
       ctx_st.messages = &game_txt;
       ai_diplo_declare_war_ctx(&ctx_st, 0, 2);
       ctx_st.messages = NULL;
+      assets_msg_free(&game_txt);
     }
     if (strcmp(status, "The Spain and Holland are now at war.") != 0) {
       fprintf(stderr, "unit_ai_diplo: named war status '%s'\n", status);
@@ -1020,6 +1021,7 @@ int main(void) {
         fprintf(stderr, "unit_ai_diplo: sneak real-catalog status '%s'\n", sneak_buf);
         return fail("@SNEAK should render authentic GAME.TXT text with attacker name");
       }
+      assets_msg_free(&game_txt_sneak);
     }
 
     /* 2026-09-03: the −5 war hit is retired (no DOS declare site touches

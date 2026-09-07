@@ -2704,6 +2704,16 @@ static void turn_route_damaged_ships(ColonizeTurnContext* ctx, int nation) {
  * not the ordinary Euro unit AI. Running ai_euro_nation_turn on it first
  * spent every landed Regular's moves before war_act ever saw them (found
  * 2026-08-28 by a headless WoI run: 40 turns, zero attacks).
+ *
+ * Known divergence, pinned 2026-09-07: DOS does BOTH. `1a26` sets the crown
+ * slot's control byte to 1 (viceroy_unpacked.c:74833 — control 2 is `0108`'s
+ * eliminated powers), and the turn loop runs `3844_00f2` (which carries
+ * `2424`) for every control != 2 slot (raw 6394) and then the full Euro
+ * nation turn `FUN_521d_6d8e` for every control == 1 slot (raw 6407). So in
+ * DOS the REF's units are moved by the ordinary Euro unit act (`5b66` →
+ * `20e6` land arms) after the king beat spawns the wave; war_act's hunt is
+ * the port's substitute for that. Closing it re-baselines golden_woi_ref01 —
+ * tracked as D1 in port_plan.md / king_ref.md.
  */
 static bool turn_euro_nation_is_ref(const ColonizeTurnContext* ctx, int n) {
   return ctx && ctx->col1_ok && ctx->col1 && ai_king_independence_declared(ctx->col1) &&
@@ -3175,7 +3185,12 @@ void turn_run_year_end_chrome(ColonizeTurnContext* ctx, ColonizeTurnResult* out)
         "royal pinky ring.",
         body, sizeof(body)
       );
-      (void)ai_popup_enqueue_ok(ctx->ai_popups, AI_POPUP_TAG_INFO, NULL, body);
+      if (ai_popup_enqueue_ok(ctx->ai_popups, AI_POPUP_TAG_INFO, NULL, body)) {
+        /* DOS 3844:04e1 `PUSH 0xf09` / 3844:04e4 `CALLF 291f:0ad4` — the
+         * King-flair message helper (FUN_6f74_378a latches DS:0x1f5c = 8),
+         * so the dismissal audience stands KING.SS beside the scroll. */
+        ai_popup_set_last_portrait(ctx->ai_popups, 8, 0);
+      }
     }
   }
   if (ctx->status && ctx->status_size > 0) {
@@ -3188,7 +3203,7 @@ static bool turn_euro_ai_should_run(const ColonizeTurnContext* ctx, int nation_i
     return false;
   }
   if (turn_euro_nation_is_ref(ctx, nation_id)) {
-    return true; /* crown slot is withdrawn (control 2) but its REF units still need moves */
+    return true; /* REF slot: its units still need a moves refresh (DOS crown control = 1) */
   }
   uint8_t control = 1;
   if (ctx->col1_ok && ctx->col1) {

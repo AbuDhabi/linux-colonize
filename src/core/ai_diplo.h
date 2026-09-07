@@ -195,9 +195,6 @@ void ai_diplo_treaty_timers(ColonizeTurnContext* ctx, int nation_id);
  * at-war → always offer/conclude peace (fandom; FA 3f41 UI PARKED). */
 void ai_diplo_euro_balance(ColonizeTurnContext* ctx, int nation_id);
 
-/* Alias → ai_diplo_treaty_timers (6d8e timer pass). */
-void ai_diplo_euro_timers(ColonizeTurnContext* ctx, int nation_id);
-
 /*
  * DOS-native Indian nation alarm (FUN_15dc_00e0 read / FUN_4cc6_00f2 write):
  * indian[idx].alarm_by_player[euro], 0..100, HIGH = HOSTILE. Map-gen seeds

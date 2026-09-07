@@ -59,6 +59,7 @@ static int run_fixture(const char* path) {
     return 1;
   }
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
   if (!units_load_types(&units, &names)) {
     fprintf(stderr, "units_load_types failed\n");
