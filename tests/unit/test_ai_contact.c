@@ -255,41 +255,49 @@ int main(void) {
     brave->y = 5;
   }
 
-  /* Prelude mission burn/clear on high alarm (≥80); human status. */
+  /*
+   * Mission expel (DOS 4cc6_00f2 escalation tail + 4cc6_0000, 2026-09-07d):
+   * an alarm delta that lands the pair at 100 while at PEACE rolls
+   * rng(0,10) <= difficulty+1 to burn the euro's missions (@INDIANBURN).
+   * The old "prelude burns at alarm >= 80 each tick" stand-in is retired —
+   * the prelude must NOT clear missions any more.
+   */
   {
     char status_burn[128];
     status_burn[0] = '\0';
     ctx.status = status_burn;
     ctx.status_size = sizeof(status_burn);
     ctx.human_nation = 0;
-    col1.tribe[0].mission = 0;
-    ind->alarm_by_player[0] = 80; /* ≥80 burn threshold (FUN_4cc6_0000) */
+    col1.tribe[0].mission = 0; /* English mission */
+    ind->alarm_by_player[0] = 90;
     col1.tribe[0].alarm[0].friction = 10;
     ai_contact_indian_prelude(&ctx, 4);
-    if (col1.tribe[0].mission != 0xff) {
-      return fail("prelude should clear mission on alarm >= 80");
+    if (col1.tribe[0].mission != 0) {
+      return fail("prelude must not burn missions (00f2 escalation only)");
+    }
+    ind->euro_diplo[0] |= COL1_INDIAN_PEACE_BIT;
+    col1.head.difficulty = 4; /* cap+1 = 5: roll <= 5 of 0..10 */
+    ind->alarm_by_player[0] = 99;
+    int fired = 0;
+    for (int tries = 0; tries < 64 && !fired; ++tries) {
+      ai_contact_alarm_delta_00f2(&ctx, 4, 0, 5);
+      ind->alarm_by_player[0] = 99; /* re-arm below the cap between rolls */
+      fired = col1.tribe[0].mission == 0xff;
+    }
+    if (!fired) {
+      return fail("00f2 escalation should expel missions at alarm 100 + PEACE");
     }
     if (strstr(status_burn, "burn") == NULL || strstr(status_burn, "mission") == NULL) {
       fprintf(stderr, "unit_ai_contact: mission-burn status '%s'\n", status_burn);
-      return fail("prelude mission burn should set status");
+      return fail("mission expel should set @INDIANBURN status");
     }
     if (strstr(status_burn, "Inca") == NULL) {
       fprintf(stderr, "unit_ai_contact: mission-burn status '%s'\n", status_burn);
-      return fail("mission burn should name tribe (@INDIANBURN)");
+      return fail("mission expel should name tribe (@INDIANBURN)");
     }
-    /* Friction ≥80 burn path (alarm alone low): clear mission + status. */
-    col1.tribe[0].mission = 0;
-    ind->alarm_by_player[0] = 10;
-    col1.tribe[0].alarm[0].friction = 80;
-    status_burn[0] = '\0';
-    ai_contact_indian_prelude(&ctx, 4);
-    if (col1.tribe[0].mission != 0xff) {
-      return fail("prelude should clear mission on friction >= 80");
-    }
-    if (strstr(status_burn, "burn") == NULL || strstr(status_burn, "mission") == NULL) {
-      fprintf(stderr, "unit_ai_contact: friction-burn status '%s'\n", status_burn);
-      return fail("prelude friction>=80 mission burn should set status");
-    }
+    ind->euro_diplo[0] = (uint8_t)(ind->euro_diplo[0] & ~COL1_INDIAN_PEACE_BIT);
+    ind->alarm_by_player[0] = 55; /* restore the fixture band for later arms */
+    col1.head.difficulty = 2;
     ctx.status = NULL;
     ctx.status_size = 0;
   }
@@ -3989,17 +3997,25 @@ int main(void) {
     }
 
     /*
-     * Mission burn (≥80): status + CONTACT_RAID OK enqueue.
-     * Cite: FUN_4cc6_0000 / FUN_4d56_1816 prelude.
+     * Mission expel (DOS 4cc6_00f2 escalation + 4cc6_0000, 2026-09-07d):
+     * alarm delta lands at 100 while at PEACE → RNG-gated expel with
+     * @INDIANBURN status + CONTACT_RAID OK enqueue. The prelude itself no
+     * longer burns missions.
      */
     {
       ai_popup_clear(&pop);
       col1.tribe[0].mission = 0;
-      ind->alarm_by_player[0] = 80;
+      ind->alarm_by_player[0] = 99;
+      ind->euro_diplo[0] |= COL1_INDIAN_PEACE_BIT;
       col1.tribe[0].alarm[0].friction = 10;
       st_pop[0] = '\0';
-      ai_contact_indian_prelude(&ctx, 4);
-      if (col1.tribe[0].mission != 0xff) {
+      int fired = 0;
+      for (int tries = 0; tries < 64 && !fired; ++tries) {
+        ai_contact_alarm_delta_00f2(&ctx, 4, 0, 5);
+        ind->alarm_by_player[0] = 99;
+        fired = col1.tribe[0].mission == 0xff;
+      }
+      if (!fired) {
         return fail("popup mission burn should clear mission");
       }
       if (strstr(st_pop, "burn") == NULL) {
@@ -4012,6 +4028,8 @@ int main(void) {
           pop.queue[pop.queue_count - 1].tag != AI_POPUP_TAG_CONTACT_RAID) {
         return fail("mission burn OK should use CONTACT_RAID tag");
       }
+      ind->euro_diplo[0] = (uint8_t)(ind->euro_diplo[0] & ~COL1_INDIAN_PEACE_BIT);
+      ind->alarm_by_player[0] = 10;
     }
 
     /*

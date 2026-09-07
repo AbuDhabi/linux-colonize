@@ -287,6 +287,15 @@ int ai_contact_try_ship_village_unit(
 
 /* FUN_5bfb_0182 peace bit on indian.euro_diplo[euro] (COL1_INDIAN_PEACE_BIT). */
 int ai_contact_indian_has_peace(const ColonizeCol1Save* col1, int indian_nation, int euro_nation);
+
+/*
+ * FUN_4cc6_00f2 with its escalation tail + FUN_4cc6_0000 mission expel:
+ * apply an Indian×Euro alarm delta; when the pair lands at alarm 100 while
+ * at PEACE, a difficulty-gated RNG roll expels that euro's missions from
+ * the nation's tribes (@INDIANBURN for a human euro). Use this over
+ * ai_diplo_indian_alarm_delta whenever a turn context is available.
+ */
+void ai_contact_alarm_delta_00f2(ColonizeTurnContext* ctx, int nation_id, int euro, int delta);
 /* Tribe display name for Indian nation ids 4..11. */
 const char* ai_contact_tribe_name(int nation_id);
 

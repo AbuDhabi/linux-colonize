@@ -130,6 +130,9 @@ static int unit_mid_hire_mil(void) {
   }
   col1.head.difficulty = 0;
   col1.nation[nation].gold = 500;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
   col1.nation[foe].gold = 500;
   ai_diplo_declare_war(&col1, nation, foe);
   if (!ai_diplo_at_war(&col1, nation, foe)) {
@@ -140,6 +143,9 @@ static int unit_mid_hire_mil(void) {
   }
   /* Replenish after war sting so hire_cost (200) is affordable. */
   col1.nation[nation].gold = 500;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
   const uint32_t gold_before = col1.nation[nation].gold;
 
   ai_goals_reset();
@@ -296,6 +302,9 @@ static int unit_naval_war_hunt(void) {
   }
   col1.head.difficulty = 0;
   col1.nation[nation].gold = 100;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
   col1.nation[foe].gold = 100;
   ai_diplo_declare_war(&col1, nation, foe);
   if (!ai_diplo_at_war(&col1, nation, foe)) {
@@ -557,6 +566,9 @@ static int unit_privateer_war_hunt(void) {
   }
   col1.head.difficulty = 0;
   col1.nation[nation].gold = 100;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
   col1.nation[foe].gold = 100;
   ai_diplo_declare_war(&col1, nation, foe);
   if (!ai_diplo_at_war(&col1, nation, foe)) {
@@ -731,6 +743,9 @@ static int unit_privateer_station_keep_hunt(void) {
   }
   col1.head.difficulty = 0;
   col1.nation[nation].gold = 100;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
   col1.nation[foe].gold = 100;
   ai_diplo_declare_war(&col1, nation, foe);
 
@@ -863,6 +878,9 @@ static int unit_land_war_hunt(void) {
   }
   col1.head.difficulty = 0;
   col1.nation[nation].gold = 100;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
   col1.nation[foe].gold = 100;
   ai_diplo_declare_war(&col1, nation, foe);
   if (!ai_diplo_at_war(&col1, nation, foe)) {
@@ -989,6 +1007,9 @@ static int unit_indian_war_capital_hunt(void) {
   col1.player[nation].control = 0;
   col1.head.difficulty = 0;
   col1.nation[nation].gold = 100;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
   /* At war with Indian slot 0 (nation 4). */
   col1.indian[0].alarm_by_player[nation] = 80; /* relation 20 */
   col1.indian[0].euro_diplo[nation] |= COL1_INDIAN_MET_BIT;
@@ -1138,6 +1159,9 @@ static int unit_land_war_hunt_multistep(void) {
   }
   col1.head.difficulty = 0;
   col1.nation[nation].gold = 50;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
   col1.nation[foe].gold = 50;
   ai_diplo_declare_war(&col1, nation, foe);
 
@@ -1272,6 +1296,9 @@ static int unit_continental_army_land_hunt(void) {
   }
   col1.head.difficulty = 0;
   col1.nation[nation].gold = 50;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
   col1.nation[foe].gold = 50;
   ai_diplo_declare_war(&col1, nation, foe);
 
@@ -1406,6 +1433,9 @@ static int unit_continental_cavalry_land_hunt(void) {
   }
   col1.head.difficulty = 0;
   col1.nation[nation].gold = 50;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
   col1.nation[foe].gold = 50;
   ai_diplo_declare_war(&col1, nation, foe);
 
@@ -1549,6 +1579,9 @@ static int unit_sticky_contact_rehunt(void) {
   }
   col1.head.difficulty = 0;
   col1.nation[nation].gold = 50;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
   col1.nation[foe].gold = 50;
   ai_diplo_declare_war(&col1, nation, foe);
 
@@ -1683,6 +1716,9 @@ static int unit_land_adjacent_combat_chain(void) {
   }
   col1.head.difficulty = 0;
   col1.nation[nation].gold = 50;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
   col1.nation[foe].gold = 50;
   ai_diplo_declare_war(&col1, nation, foe);
 
@@ -1814,6 +1850,9 @@ static int unit_land_adjacent_colony_seize(void) {
   }
   col1.head.difficulty = 0;
   col1.nation[nation].gold = 50;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
   col1.nation[foe].gold = 50;
   ai_diplo_declare_war(&col1, nation, foe);
 
@@ -1992,6 +2031,9 @@ static int unit_mid_hire_artillery(void) {
   }
   col1.head.difficulty = 0;
   col1.nation[nation].gold = 500;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
   col1.nation[foe].gold = 500;
   ai_diplo_declare_war(&col1, nation, foe);
   if (!ai_diplo_at_war(&col1, nation, foe)) {
@@ -2001,6 +2043,9 @@ static int unit_mid_hire_artillery(void) {
     return fail("artillery expected war");
   }
   col1.nation[nation].gold = 500;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
   const uint32_t gold_before = col1.nation[nation].gold;
   const int cargo_before = ship->cargo_count;
 
@@ -2165,6 +2210,9 @@ static int unit_land_adjacent_foe_prefer_weak(void) {
   }
   col1.head.difficulty = 0;
   col1.nation[nation].gold = 50;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
   col1.nation[foe_nat].gold = 50;
   ai_diplo_declare_war(&col1, nation, foe_nat);
 
@@ -2317,6 +2365,9 @@ static int unit_land_adjacent_foe_prefer_treasure(void) {
   }
   col1.head.difficulty = 0;
   col1.nation[nation].gold = 50;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
   col1.nation[foe_nat].gold = 50;
   ai_diplo_declare_war(&col1, nation, foe_nat);
 
@@ -2465,6 +2516,9 @@ static int unit_land_hunt_prefer_treasure(void) {
   }
   col1.head.difficulty = 0;
   col1.nation[nation].gold = 50;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
   col1.nation[foe_nat].gold = 50;
   ai_diplo_declare_war(&col1, nation, foe_nat);
 
@@ -2612,6 +2666,9 @@ static int unit_land_hunt_prefer_weak(void) {
   }
   col1.head.difficulty = 0;
   col1.nation[nation].gold = 50;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
   col1.nation[foe_nat].gold = 50;
   ai_diplo_declare_war(&col1, nation, foe_nat);
 
@@ -2769,6 +2826,9 @@ static int unit_land_adjacent_foe_prefer_open_over_stockade(void) {
   }
   col1.head.difficulty = 0;
   col1.nation[nation].gold = 50;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
   col1.nation[foe_nat].gold = 50;
   ai_diplo_declare_war(&col1, nation, foe_nat);
 
@@ -2913,6 +2973,9 @@ static int unit_land_adjacent_foe_prefer_non_veteran(void) {
     col1.player[i].control = 0;
   }
   col1.nation[nation].gold = 50;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
   col1.nation[foe_nat].gold = 50;
   ai_diplo_declare_war(&col1, nation, foe_nat);
 
@@ -3215,6 +3278,9 @@ static int unit_artillery_adjacent_prefer_stockade(void) {
   }
   col1.head.difficulty = 0;
   col1.nation[nation].gold = 50;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
   col1.nation[foe_nat].gold = 50;
   ai_diplo_declare_war(&col1, nation, foe_nat);
 
@@ -3338,6 +3404,9 @@ static int unit_artillery_siege_hunt_prefer_stockade(void) {
   }
   col1.head.difficulty = 0;
   col1.nation[nation].gold = 50;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
   col1.nation[foe_nat].gold = 50;
   ai_diplo_declare_war(&col1, nation, foe_nat);
 
@@ -3460,6 +3529,9 @@ static int unit_dragoon_hunt_prefer_open(void) {
   }
   col1.head.difficulty = 0;
   col1.nation[nation].gold = 50;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
   col1.nation[foe_nat].gold = 50;
   ai_diplo_declare_war(&col1, nation, foe_nat);
 
@@ -3597,6 +3669,9 @@ static int unit_naval_adjacent_foe_prefer_weak(void) {
   }
   col1.head.difficulty = 0;
   col1.nation[nation].gold = 50;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
   col1.nation[foe_nat].gold = 50;
   ai_diplo_declare_war(&col1, nation, foe_nat);
 
@@ -3740,6 +3815,9 @@ static int unit_naval_adjacent_foe_prefer_loaded(void) {
   }
   col1.head.difficulty = 0;
   col1.nation[nation].gold = 50;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
   col1.nation[foe_nat].gold = 50;
   ai_diplo_declare_war(&col1, nation, foe_nat);
 
@@ -3886,6 +3964,9 @@ static int unit_privateer_prefer_cargo_prey(void) {
   }
   col1.head.difficulty = 0;
   col1.nation[nation].gold = 50;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
   col1.nation[foe_nat].gold = 50;
   ai_diplo_declare_war(&col1, nation, foe_nat);
 
@@ -4035,6 +4116,9 @@ static int unit_frigate_prefer_warship(void) {
   }
   col1.head.difficulty = 0;
   col1.nation[nation].gold = 50;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
   col1.nation[foe_nat].gold = 50;
   ai_diplo_declare_war(&col1, nation, foe_nat);
 
@@ -4163,6 +4247,9 @@ static int unit_peace_fortify_border_wake(void) {
   }
   col1.head.difficulty = 0;
   col1.nation[nation].gold = 50;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
   col1.nation[foe].gold = 50;
   /* Peace — no declare_war. */
 
@@ -4302,6 +4389,9 @@ static int unit_peace_dragoon_border_wake(void) {
   }
   col1.head.difficulty = 0;
   col1.nation[nation].gold = 50;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
   col1.nation[foe].gold = 50;
 
   ai_goals_reset();
@@ -4445,6 +4535,9 @@ static int unit_peace_artillery_border_wake(void) {
   }
   col1.head.difficulty = 0;
   col1.nation[nation].gold = 50;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
   col1.nation[foe].gold = 50;
 
   ai_goals_reset();
@@ -4584,6 +4677,9 @@ static int unit_peace_regular_border_wake(void) {
   }
   col1.head.difficulty = 0;
   col1.nation[nation].gold = 50;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
   col1.nation[foe].gold = 50;
 
   ai_goals_reset();
@@ -4733,6 +4829,9 @@ static int unit_peace_continental_army_border_wake(void) {
   }
   col1.head.difficulty = 0;
   col1.nation[nation].gold = 50;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
   col1.nation[foe].gold = 50;
 
   ai_goals_reset();
@@ -4877,6 +4976,9 @@ static int unit_peace_continental_cavalry_border_wake(void) {
   }
   col1.head.difficulty = 0;
   col1.nation[nation].gold = 50;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
   col1.nation[foe].gold = 50;
 
   ai_goals_reset();
@@ -5036,6 +5138,9 @@ static int unit_artillery_treasury_fallback(void) {
   }
   col1.head.difficulty = 0;
   col1.nation[nation].gold = 250;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
   col1.nation[foe].gold = 100;
 
   ai_goals_reset();
@@ -5054,6 +5159,9 @@ static int unit_artillery_treasury_fallback(void) {
 
   /* After war sting: ≥ hire_cost 200, < Artillery purchase 500$. */
   col1.nation[nation].gold = 250;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
   ai_euro_dispatcher_turn(&ctx, nation);
 
   int art_boarded = 0;
@@ -5180,6 +5288,9 @@ static int unit_at_war_tools_prefer_soldier(void) {
   }
   col1.head.difficulty = 0;
   col1.nation[nation].gold = 400;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
   col1.nation[foe].gold = 50;
   ai_diplo_declare_war(&col1, nation, foe);
   if (!ai_diplo_at_war(&col1, nation, foe)) {
@@ -5190,6 +5301,9 @@ static int unit_at_war_tools_prefer_soldier(void) {
   }
   /* Replenish after war sting so hire_cost (200) is affordable. */
   col1.nation[nation].gold = 400;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   ai_goals_reset();
 
@@ -5326,6 +5440,9 @@ static int unit_fortify_wake_hunt(void) {
   }
   col1.head.difficulty = 0;
   col1.nation[nation].gold = 50;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
   col1.nation[foe].gold = 50;
   ai_diplo_declare_war(&col1, nation, foe);
 
@@ -5463,6 +5580,9 @@ static int unit_g_stance_own3_prio7(void) {
   }
   col1.head.difficulty = 0;
   col1.nation[nation].gold = 100;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
   col1.nation[foe].gold = 100;
   ai_diplo_declare_war(&col1, nation, foe);
 
@@ -5579,6 +5699,9 @@ static int unit_g_stance_own4_prio8(void) {
   }
   col1.head.difficulty = 0;
   col1.nation[nation].gold = 100;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
   col1.nation[foe].gold = 100;
   ai_diplo_declare_war(&col1, nation, foe);
 
@@ -5683,6 +5806,9 @@ static int unit_naval_multistep_sail(void) {
     col1.player[i].diplomacy = 0;
   }
   col1.nation[nation].gold = 50;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
   col1.nation[foe].gold = 50;
   ai_diplo_declare_war(&col1, nation, foe);
 
@@ -5839,9 +5965,15 @@ static int unit_mid_hire_mil_colonies_ge6(void) {
   }
   col1.head.difficulty = 0;
   col1.nation[nation].gold = 500;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
   col1.nation[foe].gold = 500;
   ai_diplo_declare_war(&col1, nation, foe);
   col1.nation[nation].gold = 500;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
   const uint32_t gold_before = col1.nation[nation].gold;
 
   ai_goals_reset();
@@ -5987,6 +6119,9 @@ static int unit_mid_hire_dragoon_prefer(void) {
   col1.nation[nation].gold = 800;
   col1.head.difficulty = 0;
   ai_diplo_declare_war(&col1, nation, foe);
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   uint32_t turn = 40; /* even — avoid Artillery prefer_art odd-turn path */
   ColonizeTurnContext ctx;
@@ -6138,8 +6273,26 @@ static int unit_mid_hire_veteran_prefer(void) {
     col1.player[i].diplomacy = 0;
   }
   col1.nation[nation].gold = 2500; /* covers @JOB 2000$ */
+  /* Quiet the live 5d04 planner: has-ship census (no gold floor), full
+   * hold capacity (skips the 5c3c buy ladder), deep colonist bench
+   * (recruit-buy reserve above this scenario's gold). */
+  col1.stuff.ship_counts[nation] = 1;
+  col1.stuff.ship_cargo_totals[nation] = 200;
+  col1.stuff.free_colonist_counts[nation] = 120;
   col1.head.difficulty = 0;
   ai_diplo_declare_war(&col1, nation, foe);
+  /* Quiet the live 5d04 planner fully — gold 2500 could afford the 5c3c
+   * Merchantman arm: census says "has ship + plenty of hold capacity"
+   * (skips the ladder), free-colonist bench raises the recruit-buy reserve
+   * above 2500, muskets stocks block the Artillery dock buy. */
+  col1.stuff.ship_counts[nation] = 1;
+  col1.stuff.ship_cargo_totals[nation] = 200;
+  col1.stuff.free_colonist_counts[nation] = 60;
+  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+    if (colonies.colonies[i].active && colonies.colonies[i].nation_id == nation) {
+      colonies.colonies[i].stock[COLONIZE_CARGO_MUSKETS] = 20;
+    }
+  }
 
   uint32_t turn = 40; /* even — avoid Artillery odd-turn path */
   ColonizeTurnContext ctx;
@@ -6303,6 +6456,9 @@ static int unit_soldier_board_empty_transport(void) {
     col1.player[i].diplomacy = 0;
   }
   col1.nation[nation].gold = 100;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
   col1.head.difficulty = 0;
   ai_diplo_declare_war(&col1, nation, foe);
 
@@ -6455,6 +6611,9 @@ static int unit_dragoon_board_empty_transport(void) {
     col1.player[i].diplomacy = 0;
   }
   col1.nation[nation].gold = 100;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
   col1.head.difficulty = 0;
   ai_diplo_declare_war(&col1, nation, foe);
 
@@ -6600,6 +6759,9 @@ static int unit_regular_board_empty_transport(void) {
   }
   col1.head.difficulty = 0;
   col1.nation[nation].gold = 100;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
   col1.nation[foe].gold = 100;
   ai_diplo_declare_war(&col1, nation, foe);
 
@@ -6746,6 +6908,9 @@ static int unit_continental_army_board_empty_transport(void) {
   }
   col1.head.difficulty = 0;
   col1.nation[nation].gold = 100;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
   col1.nation[foe].gold = 100;
   ai_diplo_declare_war(&col1, nation, foe);
 
@@ -6898,6 +7063,9 @@ static int unit_continental_cavalry_board_empty_transport(void) {
   }
   col1.head.difficulty = 0;
   col1.nation[nation].gold = 100;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
   col1.nation[foe].gold = 100;
   ai_diplo_declare_war(&col1, nation, foe);
 
@@ -7044,6 +7212,9 @@ static int unit_artillery_board_empty_transport(void) {
     col1.player[i].diplomacy = 0;
   }
   col1.nation[nation].gold = 100;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
   col1.head.difficulty = 0;
   ai_diplo_declare_war(&col1, nation, foe);
 
@@ -7216,6 +7387,9 @@ static int unit_unload_military_threatened(void) {
     col1.player[i].diplomacy = 0;
   }
   col1.nation[nation].gold = 100;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
   col1.nation[foe].gold = 50;
   ai_diplo_declare_war(&col1, nation, foe);
 
@@ -7404,6 +7578,9 @@ static int unit_unload_sticky_brave_threatened(void) {
     col1.player[i].diplomacy = 0;
   }
   col1.nation[nation].gold = 100;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
   col1.indian[0].alarm_by_player[nation] = 90; /* relation 25 */
   col1.indian[0].euro_diplo[nation] |= COL1_INDIAN_MET_BIT;
   col1.nation[nation].indian_hostility_sticky = 2;
@@ -7645,6 +7822,9 @@ static int unit_unload_dragoon_threatened(void) {
     col1.player[i].control = 0;
   }
   col1.nation[nation].gold = 100;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
   ai_diplo_declare_war(&col1, nation, foe);
   /* Block Privateer spawn noise. */
   col1.nation[nation].privateer_spawn_mask = (uint8_t)(1u << foe);
@@ -7815,6 +7995,9 @@ static int unit_unload_regular_threatened(void) {
   }
   col1.head.difficulty = 0;
   col1.nation[nation].gold = 50;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
   col1.nation[foe].gold = 50;
   ai_diplo_declare_war(&col1, nation, foe);
 
@@ -7994,6 +8177,9 @@ static int unit_unload_continental_army_threatened(void) {
   }
   col1.head.difficulty = 0;
   col1.nation[nation].gold = 50;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
   col1.nation[foe].gold = 50;
   ai_diplo_declare_war(&col1, nation, foe);
 
@@ -8168,6 +8354,9 @@ static int unit_unload_continental_cavalry_threatened(void) {
   }
   col1.head.difficulty = 0;
   col1.nation[nation].gold = 50;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
   col1.nation[foe].gold = 50;
   ai_diplo_declare_war(&col1, nation, foe);
 
@@ -8297,6 +8486,9 @@ static int unit_garrison_quota_one_fortify(void) {
     col1.player[i].diplomacy = 0;
   }
   col1.nation[nation].gold = 100;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   uint32_t turn = 55;
   ColonizeTurnContext ctx;
@@ -8423,6 +8615,9 @@ static int unit_peace_soldier_fortify_colony(void) {
   }
   /* Peace — no Euro war bits. */
   col1.nation[nation].gold = 100;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   uint32_t turn = 20;
   ColonizeTurnContext ctx;
@@ -8536,6 +8731,9 @@ static int unit_peace_dragoon_fortify_colony(void) {
     col1.player[i].diplomacy = 0;
   }
   col1.nation[nation].gold = 100;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   uint32_t turn = 20;
   ColonizeTurnContext ctx;
@@ -8649,6 +8847,9 @@ static int unit_peace_regular_fortify_colony(void) {
     col1.player[i].diplomacy = 0;
   }
   col1.nation[nation].gold = 100;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   uint32_t turn = 20;
   ColonizeTurnContext ctx;
@@ -8762,6 +8963,9 @@ static int unit_peace_continental_fortify_colony(void) {
     col1.player[i].diplomacy = 0;
   }
   col1.nation[nation].gold = 100;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   uint32_t turn = 20;
   ColonizeTurnContext ctx;
@@ -8875,6 +9079,9 @@ static int unit_peace_continental_cavalry_fortify_colony(void) {
     col1.player[i].diplomacy = 0;
   }
   col1.nation[nation].gold = 100;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   uint32_t turn = 20;
   ColonizeTurnContext ctx;
@@ -8988,6 +9195,9 @@ static int unit_peace_artillery_fortify_colony(void) {
     col1.player[i].diplomacy = 0;
   }
   col1.nation[nation].gold = 100;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   uint32_t turn = 20;
   ColonizeTurnContext ctx;
@@ -9101,6 +9311,9 @@ static int unit_peace_cannon_fortify_colony(void) {
     col1.player[i].diplomacy = 0;
   }
   col1.nation[nation].gold = 100;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   uint32_t turn = 20;
   ColonizeTurnContext ctx;
@@ -9215,6 +9428,9 @@ static int unit_artillery_fortify_colony(void) {
     col1.player[i].diplomacy = 0;
   }
   col1.nation[nation].gold = 100;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
   col1.nation[foe].gold = 50;
   ai_diplo_declare_war(&col1, nation, foe);
   if (!ai_diplo_at_war(&col1, nation, foe)) {
@@ -9378,6 +9594,9 @@ static int unit_war_transport_threatened_colony(void) {
     col1.player[i].diplomacy = 0;
   }
   col1.nation[nation].gold = 100;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
   col1.nation[foe].gold = 100;
   ai_diplo_declare_war(&col1, nation, foe);
   if (!ai_diplo_at_war(&col1, nation, foe)) {
@@ -9548,6 +9767,9 @@ static int unit_war_cargo_fortress_prefer(void) {
     col1.player[i].diplomacy = 0;
   }
   col1.nation[nation].gold = 100;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
   col1.nation[foe].gold = 100;
   ai_diplo_declare_war(&col1, nation, foe);
 
@@ -9717,6 +9939,9 @@ static int unit_mow_war_transport_threatened(void) {
     col1.player[i].diplomacy = 0;
   }
   col1.nation[nation].gold = 100;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
   col1.nation[foe].gold = 100;
   ai_diplo_declare_war(&col1, nation, foe);
   if (!ai_diplo_at_war(&col1, nation, foe)) {
@@ -9900,6 +10125,9 @@ static int unit_frigate_war_transport_threatened(void) {
     col1.player[i].diplomacy = 0;
   }
   col1.nation[nation].gold = 100;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
   col1.nation[foe].gold = 100;
   ai_diplo_declare_war(&col1, nation, foe);
   if (!ai_diplo_at_war(&col1, nation, foe)) {
@@ -10051,6 +10279,9 @@ static int unit_naval_ambush(void) {
   }
   col1.head.difficulty = 0;
   col1.nation[nation].gold = 50;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
   col1.nation[foe_nat].gold = 50;
   /* Deliberately at peace — DOS ambush fires regardless of war state. */
 

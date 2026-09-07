@@ -3,6 +3,7 @@
 #include "core/ai_euro.h"
 #include "core/ai_goals.h"
 #include "core/col1_save.h"
+#include "core/dos_rng.h"
 #include "core/colony.h"
 #include "core/founding_fathers.h"
 #include "core/map.h"
@@ -628,6 +629,9 @@ static int unit_tools_cargo_hire(void) {
   }
   col1.head.difficulty = 0; /* hire_cost = 200 */
   col1.nation[nation].gold = 500;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   ai_goals_reset();
 
@@ -806,6 +810,9 @@ static int unit_lumber_cargo_hire(void) {
   }
   col1.head.difficulty = 0;
   col1.nation[nation].gold = 500;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   ai_goals_reset();
 
@@ -971,6 +978,9 @@ static int unit_food_cargo_hire(void) {
   }
   col1.head.difficulty = 0;
   col1.nation[nation].gold = 500;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   ai_goals_reset();
 
@@ -1135,6 +1145,9 @@ static int unit_horses_cargo_hire(void) {
   }
   col1.head.difficulty = 0;
   col1.nation[nation].gold = 500;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   ai_goals_reset();
 
@@ -1299,6 +1312,9 @@ static int unit_muskets_cargo_hire(void) {
   }
   col1.head.difficulty = 0;
   col1.nation[nation].gold = 500;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   ai_goals_reset();
 
@@ -1449,6 +1465,9 @@ static int unit_tools_mid_threshold_hire(void) {
   }
   col1.head.difficulty = 0;
   col1.nation[nation].gold = 500;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   ai_goals_reset();
 
@@ -1611,6 +1630,9 @@ static int unit_wagon_hire_once_colonies_ge6(void) {
   }
   col1.head.difficulty = 0;
   col1.nation[nation].gold = 800;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   ai_goals_reset();
 
@@ -1743,6 +1765,9 @@ static int unit_wagon_hire_once(void) {
   }
   col1.head.difficulty = 0;
   col1.nation[nation].gold = 800;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   ai_goals_reset();
 
@@ -1799,6 +1824,9 @@ static int unit_wagon_hire_once(void) {
 
   /* Second pass: wagon already owned → Pioneer, not a second wagon. */
   col1.nation[nation].gold = 800;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
   turn = 27;
   /* Keep colonies tools=0 so tools_short stays high after inventory rebuild. */
   ai_euro_dispatcher_turn(&ctx, nation);
@@ -1939,6 +1967,9 @@ static int unit_wagon_hire_lumber_once(void) {
   }
   col1.head.difficulty = 0;
   col1.nation[nation].gold = 800;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   ai_goals_reset();
 
@@ -2082,6 +2113,9 @@ static int unit_wagon_hire_ore_once(void) {
   }
   col1.head.difficulty = 0;
   col1.nation[nation].gold = 800;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   ai_goals_reset();
 
@@ -2222,6 +2256,9 @@ static int unit_wagon_hire_muskets_once(void) {
   }
   col1.head.difficulty = 0;
   col1.nation[nation].gold = 800;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   ai_goals_reset();
 
@@ -2364,6 +2401,9 @@ static int unit_wagon_hire_horses_once(void) {
   }
   col1.head.difficulty = 0;
   col1.nation[nation].gold = 800;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   ai_goals_reset();
 
@@ -2506,6 +2546,9 @@ static int unit_wagon_hire_food_once(void) {
   }
   col1.head.difficulty = 0;
   col1.nation[nation].gold = 800;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   ai_goals_reset();
 
@@ -2812,6 +2855,9 @@ static int unit_multistep_military(void) {
   }
   col1.head.difficulty = 0;
   col1.nation[nation].gold = 50;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
   col1.nation[foe].gold = 50;
   ai_diplo_declare_war(&col1, nation, foe);
 
@@ -2947,6 +2993,9 @@ static int unit_de_witt_wagon_foreign_trade(void) {
   col1.player[nation].control = 0;
   col1.player[foreign].control = 1;
   col1.nation[nation].gold = 100;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   ColonizeTurnContext ctx;
   memset(&ctx, 0, sizeof(ctx));
@@ -3159,6 +3208,9 @@ static int unit_dock_expert_hire(void) {
   }
   col1.head.difficulty = 0;
   col1.nation[nation].gold = 500;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   ai_goals_reset();
 
@@ -3288,6 +3340,10 @@ static int unit_5d04_buy_caravel_colonies_ge6(void) {
    * gold outright (a fixture that leaves exactly 0 can't tell "correctly
    * gated" apart from "spent nothing" and made the test brittle). */
   col1.nation[nation].gold = 1150;
+  /* Truthful census: no ships, no hold capacity — the real FUN_521d_5c3c
+   * ladder's Caravel arm (ship_cargo_totals < 3) fires; the no-ships gold
+   * floor is a no-op at 1150 gold. */
+  col1.stuff.colony_counts[nation] = 6;
 
   ai_goals_reset();
 
@@ -3413,6 +3469,10 @@ static int unit_5d04_buy_caravel_no_ship(void) {
    * exactly 0, so the assertion below can tell "correctly gated by
    * treasury" apart from "spent nothing at all". */
   col1.nation[nation].gold = 1120;
+  /* Truthful census: no ships, no hold capacity — the real FUN_521d_5c3c
+   * ladder's Caravel arm (ship_cargo_totals < 3) fires; the no-ships gold
+   * floor is a no-op at 1120 gold. */
+  col1.stuff.colony_counts[nation] = 1;
 
   ai_goals_reset();
 
@@ -3552,11 +3612,20 @@ static int unit_5d04_buy_frigate_at_war(void) {
   col1.nation[nation].gold = 5000;
   col1.nation[foe].gold = 500;
   ai_diplo_declare_war(&col1, nation, foe);
-  col1.nation[nation].gold = 5000;
+  /* +100 headroom for pre-ladder trickle spends. */
+  col1.nation[nation].gold = 5100;
+  /* Census: small fleet, 3 holds hauled — blocks the 5c3c Caravel arm (<3);
+   * the Frigate arm (armed<8, RNG coin, no clear strongest navy) is the
+   * first affordable buy at 5100 gold. */
+  col1.stuff.ship_counts[nation] = 1;
+  col1.stuff.ship_cargo_totals[nation] = 3;
+  col1.stuff.colony_counts[nation] = 3;
 
   ai_goals_reset();
 
   uint32_t turn = 27;
+  ColonizeDosRng ladder_rng;
+  dos_rng_seed(&ladder_rng, 27182); /* 5c3c Frigate arm is an RNG coin flip */
   ColonizeTurnContext ctx;
   memset(&ctx, 0, sizeof(ctx));
   ctx.turn_number = &turn;
@@ -3565,6 +3634,7 @@ static int unit_5d04_buy_frigate_at_war(void) {
   ctx.map = &map;
   ctx.col1 = &col1;
   ctx.col1_ok = true;
+  ctx.rng = &ladder_rng;
   ctx.rng_seed = 42;
 
   ai_euro_dispatcher_turn(&ctx, nation);
@@ -3682,12 +3752,20 @@ static int unit_5d04_buy_galleon_at_war(void) {
   col1.nation[nation].gold = 3000;
   col1.nation[foe].gold = 500;
   ai_diplo_declare_war(&col1, nation, foe);
-  /* Replenish after war sting. */
-  col1.nation[nation].gold = 3000;
+  /* Replenish after war sting; +100 headroom for pre-ladder trickle spends. */
+  col1.nation[nation].gold = 3100;
+  /* Census: small fleet, 3 holds hauled — blocks the 5c3c Caravel arm (<3),
+   * leaves the Galleon arm (RNG 3-in-4) and Merchantman arm (<0xc) open;
+   * with 3100 gold the Galleon arm is the first affordable buy. */
+  col1.stuff.ship_counts[nation] = 1;
+  col1.stuff.ship_cargo_totals[nation] = 3;
+  col1.stuff.colony_counts[nation] = 3;
 
   ai_goals_reset();
 
   uint32_t turn = 23;
+  ColonizeDosRng ladder_rng;
+  dos_rng_seed(&ladder_rng, 1); /* 5c3c Galleon arm is a 3-in-4 RNG roll */
   ColonizeTurnContext ctx;
   memset(&ctx, 0, sizeof(ctx));
   ctx.turn_number = &turn;
@@ -3696,6 +3774,7 @@ static int unit_5d04_buy_galleon_at_war(void) {
   ctx.map = &map;
   ctx.col1 = &col1;
   ctx.col1_ok = true;
+  ctx.rng = &ladder_rng;
   ctx.rng_seed = 42;
 
   ai_euro_dispatcher_turn(&ctx, nation);
@@ -3806,6 +3885,11 @@ static int unit_5d04_buy_merchantman_cargo_pressure(void) {
   col1.head.difficulty = 0;
   /* After bump ≈2030 → Merchantman 2000 → ~30 < hire_cost → ship only. */
   col1.nation[nation].gold = 2000;
+  /* Census: a small fleet already hauling (3 holds) — blocks the 5c3c
+   * Caravel arm (< 3) while the Merchantman arm (< 0xc) stays open. */
+  col1.stuff.ship_counts[nation] = 1;
+  col1.stuff.ship_cargo_totals[nation] = 3;
+  col1.stuff.colony_counts[nation] = 3;
 
   ai_goals_reset();
 
@@ -3949,7 +4033,14 @@ static int unit_5d04_buy_caravel_ship_full(void) {
   }
   col1.head.difficulty = 0;
   /* bump≈30 + 1300 → buy 1000 → ~330 ≥ hire_cost 200 → Pioneer on new ship. */
-  col1.nation[nation].gold = 1300;
+  col1.nation[nation].gold = 1400; /* buy 1000 + tail cargo load 100 + hire 200 */
+  /* Truthful census: one full Caravel (2 holds), colony pop 2 — the ladder
+   * gate (cargo <= pop_proxy/2 + colonies) passes and the Caravel arm
+   * (ship_cargo_totals < 3) buys the second hull. */
+  col1.stuff.ship_counts[nation] = 1;
+  col1.stuff.ship_cargo_totals[nation] = 2;
+  col1.stuff.colony_counts[nation] = 1;
+  col1.stuff.census_pop_proxy[nation] = 2;
 
   ai_goals_reset();
 
@@ -3967,7 +4058,7 @@ static int unit_5d04_buy_caravel_ship_full(void) {
   ai_euro_dispatcher_turn(&ctx, nation);
 
   int caravel_n = 0;
-  int empty_or_hired_new = 0;
+  int new_in_europe = 0;
   for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
     const ColonizeUnit* u = &units.units[i];
     if (!u->active || u->nation_id != nation) {
@@ -3978,24 +4069,28 @@ static int unit_5d04_buy_caravel_ship_full(void) {
       continue;
     }
     caravel_n++;
-    if (u->id != full_id && (u->x >= 200 || u->y >= 200) && u->cargo_count >= 1) {
-      empty_or_hired_new = 1;
+    if (u->id != full_id && (u->x >= 200 || u->y >= 200)) {
+      new_in_europe = 1;
     }
   }
 
-  if (caravel_n < 2 || !empty_or_hired_new) {
+  /* DOS 5c3c buys the second hull; boarding/loading it happens on the hire
+   * tail's own cadence (this turn it bought 100 tools cargo instead), so
+   * the old "hire aboard the new ship same turn" thin-matrix expectation
+   * is dropped — the purchase itself is the ported behavior. */
+  if (caravel_n < 2 || !new_in_europe) {
     fprintf(
       stderr,
-      "unit_ai_euro_expand: buy-caravel-full n=%d hired_new=%d gold=%u full_cargo=%d\n",
+      "unit_ai_euro_expand: buy-caravel-full n=%d new=%d gold=%u full_cargo=%d\n",
       caravel_n,
-      empty_or_hired_new,
+      new_in_europe,
       (unsigned)col1.nation[nation].gold,
       full->cargo_count
     );
     free(map.terrain);
     free(map.layer2);
     free(map.layer3);
-    return fail("expected second Europe Caravel with hire aboard");
+    return fail("expected second Europe Caravel purchase (5c3c ladder)");
   }
 
   free(map.terrain);
@@ -4076,6 +4171,9 @@ static int unit_treasury_skip_hire(void) {
   }
   col1.head.difficulty = 0; /* hire_cost=200; bump≈30 → still <200 if gold=0 */
   col1.nation[nation].gold = 0;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   ai_goals_reset();
 
@@ -4191,6 +4289,9 @@ static int unit_transport_europe_sell_trade_goods(void) {
     col1.player[i].control = 0;
   }
   col1.nation[nation].gold = 100;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
   col1.nation[nation].tax_rate = (uint8_t)tax;
   const uint32_t gold_before = col1.nation[nation].gold;
 
@@ -4321,6 +4422,9 @@ static int unit_privateer_europe_sell_silver(void) {
     col1.player[i].control = 0;
   }
   col1.nation[nation].gold = 100;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
   col1.nation[nation].tax_rate = (uint8_t)tax;
   const uint32_t gold_before = col1.nation[nation].gold;
 
@@ -4449,6 +4553,9 @@ static int unit_transport_europe_sell_multi_cargo(void) {
     col1.player[i].control = 0;
   }
   col1.nation[nation].gold = 100;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
   col1.nation[nation].tax_rate = (uint8_t)tax;
   const uint32_t gold_before = col1.nation[nation].gold;
 
@@ -4585,6 +4692,9 @@ static int unit_transport_europe_sell_skip_boycott(void) {
     col1.player[i].control = 0;
   }
   col1.nation[nation].gold = 100;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
   col1.nation[nation].tax_rate = (uint8_t)tax;
   col1.nation[nation].boycott_bitmap =
     (uint16_t)(1u << COLONIZE_CARGO_SUGAR); /* king refuse Sugar */
@@ -4757,6 +4867,9 @@ static int unit_dock_farmer_hire(void) {
   }
   col1.head.difficulty = 0;
   col1.nation[nation].gold = 500;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   ai_goals_reset();
 
@@ -4901,6 +5014,9 @@ static int unit_dock_farmer_hire_real_names(void) {
   }
   col1.head.difficulty = 0;
   col1.nation[nation].gold = 500;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   ai_goals_reset();
 
@@ -5053,6 +5169,9 @@ static int unit_dock_carpenter_hire(void) {
   }
   col1.head.difficulty = 0;
   col1.nation[nation].gold = 500;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   ai_goals_reset();
 
@@ -5209,6 +5328,9 @@ static int unit_dock_lumberjack_hire(void) {
   }
   col1.head.difficulty = 0;
   col1.nation[nation].gold = 500;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   ai_goals_reset();
 
@@ -5361,6 +5483,9 @@ static int unit_dock_ore_miner_hire(void) {
   }
   col1.head.difficulty = 0;
   col1.nation[nation].gold = 500;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   ai_goals_reset();
 
@@ -5520,6 +5645,9 @@ static int unit_dock_fisherman_hire(void) {
   }
   col1.head.difficulty = 0;
   col1.nation[nation].gold = 500;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   ai_goals_reset();
 
@@ -5673,6 +5801,9 @@ static int unit_dock_gunsmith_hire(void) {
   }
   col1.head.difficulty = 0;
   col1.nation[nation].gold = 500;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   ai_goals_reset();
 
@@ -5825,6 +5956,9 @@ static int unit_dock_blacksmith_hire(void) {
   }
   col1.head.difficulty = 0;
   col1.nation[nation].gold = 500;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   ai_goals_reset();
 
@@ -5980,6 +6114,9 @@ static int unit_dock_scout_hire(void) {
   }
   col1.head.difficulty = 0;
   col1.nation[nation].gold = 500;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   ai_goals_reset();
 
@@ -6130,6 +6267,9 @@ static int unit_dock_missionary_hire(void) {
   }
   col1.head.difficulty = 0;
   col1.nation[nation].gold = 500;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
   col1.head.tribe_count = 1;
   col1.tribe = calloc(1, sizeof(ColonizeCol1Tribe));
   if (!col1.tribe) {
@@ -6295,6 +6435,9 @@ static int unit_dock_elder_hire(void) {
   }
   col1.head.difficulty = 0;
   col1.nation[nation].gold = 500;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   ai_goals_reset();
 
@@ -6448,6 +6591,9 @@ static int unit_dock_preacher_hire(void) {
   }
   col1.head.difficulty = 0;
   col1.nation[nation].gold = 500;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   ai_goals_reset();
 
@@ -6602,6 +6748,9 @@ static int unit_dock_teacher_hire(void) {
   }
   col1.head.difficulty = 0;
   col1.nation[nation].gold = 500;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   ai_goals_reset();
 
@@ -6760,6 +6909,9 @@ static int unit_dock_distiller_hire(void) {
   }
   col1.head.difficulty = 0;
   col1.nation[nation].gold = 500;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   ai_goals_reset();
 
@@ -6913,6 +7065,9 @@ static int unit_dock_weaver_hire(void) {
   }
   col1.head.difficulty = 0;
   col1.nation[nation].gold = 500;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   ai_goals_reset();
 
@@ -7069,6 +7224,9 @@ static int unit_dock_fur_trader_hire(void) {
   }
   col1.head.difficulty = 0;
   col1.nation[nation].gold = 500;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   ai_goals_reset();
 
@@ -7225,6 +7383,9 @@ static int unit_dock_tobacconist_hire(void) {
   }
   col1.head.difficulty = 0;
   col1.nation[nation].gold = 500;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   ai_goals_reset();
 
@@ -7414,6 +7575,9 @@ static int unit_cargo_produced_mask_haul_prefer(void) {
     col1.player[i].diplomacy = 0;
   }
   col1.nation[nation].gold = 200;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   uint32_t turn = 63;
   ColonizeTurnContext ctx;
@@ -7556,6 +7720,9 @@ static int unit_specialty_cargo_haul_prefer(void) {
     col1.player[i].diplomacy = 0;
   }
   col1.nation[nation].gold = 200;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   uint32_t turn = 60;
   ColonizeTurnContext ctx;
@@ -7753,6 +7920,9 @@ static int unit_specialty_flag_a_haul_match(void) {
     col1.player[i].diplomacy = 0;
   }
   col1.nation[nation].gold = 200;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   uint32_t turn = 62;
   ColonizeTurnContext ctx;
@@ -7905,6 +8075,9 @@ static int unit_cargo_idle_turns_haul_prefer(void) {
     col1.player[i].diplomacy = 0;
   }
   col1.nation[nation].gold = 200;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   uint32_t turn = 61;
   ColonizeTurnContext ctx;
@@ -8050,6 +8223,9 @@ static int unit_labor_shortage_join(void) {
     col1.player[i].diplomacy = 0;
   }
   col1.nation[nation].gold = 200;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   uint32_t turn = 52;
   ColonizeTurnContext ctx;
@@ -8156,6 +8332,9 @@ static int unit_labor_bind_food_short(void) {
     col1.player[i].diplomacy = 0;
   }
   col1.nation[nation].gold = 200;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   uint32_t turn = 20;
   ColonizeTurnContext ctx;
@@ -8277,6 +8456,9 @@ static int unit_wagon_tools_delivery(void) {
     col1.player[i].diplomacy = 0;
   }
   col1.nation[nation].gold = 200;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   uint32_t turn = 21;
   ColonizeTurnContext ctx;
@@ -8416,6 +8598,9 @@ static int unit_colony_flags_starvation_labor(void) {
     col1.player[i].diplomacy = 0;
   }
   col1.nation[nation].gold = 200;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   uint32_t turn = 65;
   ColonizeTurnContext ctx;
@@ -8529,6 +8714,9 @@ static int unit_colony_ai_flags_mow_colony_alt(void) {
     col1.player[i].diplomacy = 0;
   }
   col1.nation[nation].gold = 200;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   uint32_t turn = 64;
   ColonizeTurnContext ctx;
@@ -8639,6 +8827,9 @@ static int unit_build_ai_flags_wants_construction(void) {
     col1.player[i].diplomacy = 0;
   }
   col1.nation[nation].gold = 200;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   uint32_t turn = 62;
   ColonizeTurnContext ctx;
@@ -8757,6 +8948,9 @@ static int unit_construction_labor_stockade(void) {
     col1.player[i].diplomacy = 0;
   }
   col1.nation[nation].gold = 200;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   uint32_t turn = 24;
   ColonizeTurnContext ctx;
@@ -8898,6 +9092,9 @@ static int unit_master_carpenter_construction_labor(void) {
     col1.player[i].diplomacy = 0;
   }
   col1.nation[nation].gold = 200;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   uint32_t turn = 25;
   ColonizeTurnContext ctx;
@@ -9037,6 +9234,9 @@ static int unit_lumberjack_warehouse_labor(void) {
     col1.player[i].diplomacy = 0;
   }
   col1.nation[nation].gold = 200;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   uint32_t turn = 20;
   ColonizeTurnContext ctx;
@@ -9194,6 +9394,9 @@ static int unit_stockade_threat_labor(void) {
     col1.player[i].diplomacy = 0;
   }
   col1.nation[nation].gold = 100;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
   col1.head.difficulty = 0;
   ai_diplo_declare_war(&col1, nation, foe);
 
@@ -9929,6 +10132,9 @@ static int unit_treasure_coast(void) {
     col1.player[i].diplomacy = 0;
   }
   col1.nation[nation].gold = 200;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   uint32_t turn = 20;
   ColonizeTurnContext ctx;
@@ -10060,6 +10266,9 @@ static int unit_cortes_king_galleon_cash(void) {
     col1.head.founding_father[i] = -1;
   }
   col1.nation[nation].gold = 100;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
   col1.nation[nation].tax_rate = (uint8_t)tax;
 
   ai_goals_reset();
@@ -10485,6 +10694,9 @@ static int unit_food_emergency_labor(void) {
     col1.player[i].diplomacy = 0;
   }
   col1.nation[nation].gold = 200;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   uint32_t turn = 20;
   ColonizeTurnContext ctx;
@@ -10614,6 +10826,9 @@ static int unit_expert_farmer_food_labor(void) {
   }
   col1.head.difficulty = 0;
   col1.nation[nation].gold = 200;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   uint32_t turn = 18;
   ColonizeTurnContext ctx;
@@ -10741,6 +10956,9 @@ static int unit_free_colonist_food_labor(void) {
   }
   col1.head.difficulty = 0;
   col1.nation[nation].gold = 200;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   uint32_t turn = 19;
   ColonizeTurnContext ctx;
@@ -10862,6 +11080,9 @@ static int unit_tools_short_pioneer_labor(void) {
     col1.player[i].diplomacy = 0;
   }
   col1.nation[nation].gold = 200;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   uint32_t turn = 22;
   ColonizeTurnContext ctx;
@@ -11019,6 +11240,9 @@ static int unit_treasure_board_sail(void) {
     col1.player[i].diplomacy = 0;
   }
   col1.nation[nation].gold = 200;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
   const uint32_t gold_before = col1.nation[nation].gold;
 
   uint32_t turn = 30;
@@ -11179,6 +11403,9 @@ static int unit_treasure_europe_cash(void) {
   }
   col1.nation[nation].gold = 200;
   col1.nation[nation].tax_rate = (uint8_t)tax;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
   const uint32_t gold_before = col1.nation[nation].gold;
 
   ai_goals_reset();
@@ -11308,6 +11535,9 @@ static int unit_wagon_haul_tools_short(void) {
     col1.player[i].diplomacy = 0;
   }
   col1.nation[nation].gold = 200;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   uint32_t turn = 31;
   ColonizeTurnContext ctx;
@@ -11597,6 +11827,9 @@ static int unit_ship_trade_haul_tools_short(void) {
     col1.player[i].diplomacy = 0;
   }
   col1.nation[nation].gold = 200;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   uint32_t turn = 32;
   ColonizeTurnContext ctx;
@@ -11731,6 +11964,9 @@ static int unit_ship_trade_haul_muskets_short(void) {
     col1.player[i].diplomacy = 0;
   }
   col1.nation[nation].gold = 200;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   uint32_t turn = 32;
   ColonizeTurnContext ctx;
@@ -11873,6 +12109,9 @@ static int unit_ship_europe_export_silver(void) {
     col1.player[i].diplomacy = 0;
   }
   col1.nation[nation].gold = 200;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   uint32_t turn = 32;
   ColonizeTurnContext ctx;
@@ -11983,6 +12222,9 @@ static int unit_privateer_europe_loot_sail(void) {
     col1.player[i].diplomacy = 0;
   }
   col1.nation[nation].gold = 200;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   uint32_t turn = 32;
   ColonizeTurnContext ctx;
@@ -12115,6 +12357,9 @@ static int unit_ship_europe_export_load_silver(void) {
     col1.player[i].diplomacy = 0;
   }
   col1.nation[nation].gold = 200;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
   /* DOS @CARGO start bids: the 20e6 load matrix scores price x stock. */
   seed_dos_start_prices(&col1, nation);
 
@@ -12270,6 +12515,9 @@ static int unit_galleon_europe_export_load_silver(void) {
     col1.player[i].diplomacy = 0;
   }
   col1.nation[nation].gold = 200;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
   /* DOS @CARGO start bids: the 20e6 load matrix scores price x stock. */
   seed_dos_start_prices(&col1, nation);
 
@@ -12425,6 +12673,9 @@ static int unit_merchantman_europe_export_load_silver(void) {
     col1.player[i].diplomacy = 0;
   }
   col1.nation[nation].gold = 200;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
   /* DOS @CARGO start bids: the 20e6 load matrix scores price x stock. */
   seed_dos_start_prices(&col1, nation);
 
@@ -12569,6 +12820,9 @@ static int unit_galleon_trade_haul_tools_short(void) {
     col1.player[i].diplomacy = 0;
   }
   col1.nation[nation].gold = 200;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   uint32_t turn = 32;
   ColonizeTurnContext ctx;
@@ -12699,6 +12953,9 @@ static int unit_improve_timer_pioneer_gate(void) {
     col1.player[i].diplomacy = 0;
   }
   col1.nation[nation].gold = 200;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   uint32_t turn = 23;
   ColonizeTurnContext ctx;
@@ -12865,6 +13122,9 @@ static int unit_pioneer_plow_improve(void) {
     col1.player[i].diplomacy = 0;
   }
   col1.nation[nation].gold = 200;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   uint32_t turn = 22;
   ColonizeTurnContext ctx;
@@ -13014,6 +13274,9 @@ static int unit_lumberjack_field_assign(void) {
     col1.player[i].diplomacy = 0;
   }
   col1.nation[nation].gold = 200;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   uint32_t turn = 23;
   ColonizeTurnContext ctx;
@@ -13150,6 +13413,9 @@ static int unit_indian_land_found(void) {
   col1.head.difficulty = 0;
   memset(&col1.indian[0], 0, sizeof(col1.indian[0]));
   col1.nation[nation].gold = 200;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   ColonizeColonyPool colonies;
   unit_indian_land_seed_colony(&colonies, nation);
@@ -13224,6 +13490,9 @@ static int unit_indian_land_found(void) {
     units.types[0].movement = 3;
     units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
     col1.nation[nation].gold = 500;
+    /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+     * ladder / recruit / Artillery buys naturally inert (blank census). */
+    col1.stuff.ship_counts[nation] = 1;
     col1.indian[0].lands_bought = 0;
     col1.nation[nation].founding_fathers[0] = 0;
     col1.nation[nation].founding_father_count = 0;
@@ -13295,6 +13564,9 @@ static int unit_indian_land_found(void) {
     units.types[0].movement = 3;
     units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
     col1.nation[nation].gold = 10;
+    /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+     * ladder / recruit / Artillery buys naturally inert (blank census). */
+    col1.stuff.ship_counts[nation] = 1;
     col1.indian[0].lands_bought = 0;
     col1.nation[nation].founding_fathers[0] = 0;
     col1.nation[nation].founding_father_count = 0;
@@ -13362,6 +13634,9 @@ static int unit_indian_land_found(void) {
     units.types[0].movement = 3;
     units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
     col1.nation[nation].gold = 200;
+    /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+     * ladder / recruit / Artillery buys naturally inert (blank census). */
+    col1.stuff.ship_counts[nation] = 1;
     col1.indian[0].lands_bought = 0;
     col1.nation[nation].founding_fathers[FF_PETER_MINUIT / 8] |=
       (uint8_t)(1u << (FF_PETER_MINUIT % 8));
@@ -13500,6 +13775,9 @@ static int unit_ore_miner_field_assign(void) {
     col1.player[i].control = 1;
   }
   col1.nation[nation].gold = 200;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   uint32_t turn = 24;
   ColonizeTurnContext ctx;
@@ -13627,6 +13905,9 @@ static int unit_silver_miner_field_assign(void) {
     col1.player[i].control = 1;
   }
   col1.nation[nation].gold = 200;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   uint32_t turn = 24;
   ColonizeTurnContext ctx;
@@ -13752,6 +14033,9 @@ static int unit_farmer_field_assign(void) {
     col1.player[i].control = 1;
   }
   col1.nation[nation].gold = 200;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   uint32_t turn = 25;
   ColonizeTurnContext ctx;
@@ -13876,6 +14160,9 @@ static int unit_pioneer_road_on_plowed(void) {
     col1.player[i].control = 1;
   }
   col1.nation[nation].gold = 200;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   uint32_t turn = 26;
   ColonizeTurnContext ctx;
@@ -14015,6 +14302,9 @@ static int unit_fisherman_field_assign(void) {
     col1.player[i].control = 1;
   }
   col1.nation[nation].gold = 200;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   uint32_t turn = 27;
   ColonizeTurnContext ctx;
@@ -14142,6 +14432,9 @@ static int unit_sugar_planter_field_assign(void) {
     col1.player[i].control = 1;
   }
   col1.nation[nation].gold = 200;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   uint32_t turn = 26;
   ColonizeTurnContext ctx;
@@ -14269,6 +14562,9 @@ static int unit_tobacco_planter_field_assign(void) {
     col1.player[i].control = 1;
   }
   col1.nation[nation].gold = 200;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   uint32_t turn = 27;
   ColonizeTurnContext ctx;
@@ -14396,6 +14692,9 @@ static int unit_cotton_planter_field_assign(void) {
     col1.player[i].control = 1;
   }
   col1.nation[nation].gold = 200;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   uint32_t turn = 28;
   ColonizeTurnContext ctx;
@@ -14523,6 +14822,9 @@ static int unit_fur_trapper_field_assign(void) {
     col1.player[i].control = 1;
   }
   col1.nation[nation].gold = 200;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   uint32_t turn = 29;
   ColonizeTurnContext ctx;
@@ -14644,6 +14946,9 @@ static int unit_peace_construction_stockade(void) {
     col1.player[i].control = 1;
   }
   col1.nation[nation].gold = 200;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   uint32_t turn = 30;
   ColonizeTurnContext ctx;
@@ -14751,6 +15056,9 @@ static int unit_peace_construction_fort(void) {
     col1.player[i].control = 1;
   }
   col1.nation[nation].gold = 200;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   uint32_t turn = 31;
   ColonizeTurnContext ctx;
@@ -14857,6 +15165,9 @@ static int unit_peace_construction_fortress(void) {
     col1.player[i].control = 1;
   }
   col1.nation[nation].gold = 200;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   uint32_t turn = 31;
   ColonizeTurnContext ctx;
@@ -14961,6 +15272,9 @@ static int unit_peace_construction_warehouse(void) {
     col1.player[i].control = 1;
   }
   col1.nation[nation].gold = 200;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   uint32_t turn = 30;
   ColonizeTurnContext ctx;
@@ -15074,6 +15388,9 @@ static int unit_peace_construction_warehouse_expansion(void) {
     col1.player[i].control = 1;
   }
   col1.nation[nation].gold = 200;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   uint32_t turn = 33;
   ColonizeTurnContext ctx;
@@ -15178,6 +15495,9 @@ static int unit_peace_construction_docks(void) {
     col1.player[i].control = 1;
   }
   col1.nation[nation].gold = 200;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   uint32_t turn = 30;
   ColonizeTurnContext ctx;
@@ -15280,6 +15600,9 @@ static int unit_coastal_drydock_prefer(void) {
     col1.player[i].control = 1;
   }
   col1.nation[nation].gold = 200;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   uint32_t turn = 30;
   ColonizeTurnContext ctx;
@@ -15383,6 +15706,9 @@ static int unit_coastal_shipyard_prefer(void) {
     col1.player[i].control = 1;
   }
   col1.nation[nation].gold = 200;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   uint32_t turn = 30;
   ColonizeTurnContext ctx;
@@ -15482,6 +15808,9 @@ static int unit_stuyvesant_custom_house_prefer(void) {
     col1.player[i].control = 1;
   }
   col1.nation[nation].gold = 200;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
   /* NAMES.TXT @FATHERS: Peter Stuyvesant=3 — same gate as game_nation_has_ff. */
   col1.nation[nation].founding_fathers[FF_PETER_STUYVESANT / 8] |=
     (uint8_t)(1u << (FF_PETER_STUYVESANT % 8));
@@ -15595,6 +15924,9 @@ static int unit_peace_church_prefer(void) {
     col1.player[i].control = 1;
   }
   col1.nation[nation].gold = 200;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   uint32_t turn = 31;
   ColonizeTurnContext ctx;
@@ -15701,6 +16033,9 @@ static int unit_war_armory_prefer(void) {
     col1.player[i].control = 1;
   }
   col1.nation[nation].gold = 200;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
   ai_diplo_declare_war(&col1, nation, foe);
   if (!ai_diplo_at_war(&col1, nation, foe)) {
     free(map.terrain);
@@ -15811,6 +16146,9 @@ static int unit_peace_printing_press_prefer(void) {
     col1.player[i].control = 1;
   }
   col1.nation[nation].gold = 200;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   uint32_t turn = 33;
   ColonizeTurnContext ctx;
@@ -15918,6 +16256,9 @@ static int unit_peace_schoolhouse_prefer(void) {
     col1.player[i].control = 1;
   }
   col1.nation[nation].gold = 200;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   uint32_t turn = 34;
   ColonizeTurnContext ctx;
@@ -16023,6 +16364,9 @@ static int unit_war_magazine_prefer(void) {
     col1.player[i].control = 1;
   }
   col1.nation[nation].gold = 200;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
   ai_diplo_declare_war(&col1, nation, foe);
 
   uint32_t turn = 35;
@@ -16126,6 +16470,9 @@ static int unit_peace_newspaper_prefer(void) {
     col1.player[i].control = 1;
   }
   col1.nation[nation].gold = 200;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   uint32_t turn = 36;
   ColonizeTurnContext ctx;
@@ -16228,6 +16575,9 @@ static int unit_peace_college_prefer(void) {
     col1.player[i].control = 1;
   }
   col1.nation[nation].gold = 200;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   uint32_t turn = 37;
   ColonizeTurnContext ctx;
@@ -16330,6 +16680,9 @@ static int unit_peace_cathedral_prefer(void) {
     col1.player[i].control = 1;
   }
   col1.nation[nation].gold = 200;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   uint32_t turn = 38;
   ColonizeTurnContext ctx;
@@ -16440,6 +16793,9 @@ static int unit_war_arsenal_prefer(void) {
     col1.player[i].control = 1;
   }
   col1.nation[nation].gold = 200;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
   col1.head.founding_father[FF_ADAM_SMITH] = (int8_t)nation;
   col1.nation[nation].founding_fathers[0] |= 1u;
   ai_diplo_declare_war(&col1, nation, foe);
@@ -16549,6 +16905,9 @@ static int unit_peace_university_prefer(void) {
     col1.player[i].control = 1;
   }
   col1.nation[nation].gold = 200;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   uint32_t turn = 40;
   ColonizeTurnContext ctx;
@@ -16647,6 +17006,9 @@ static int unit_stable_prefer(void) {
     col1.player[i].control = 1;
   }
   col1.nation[nation].gold = 200;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   uint32_t turn = 41;
   ColonizeTurnContext ctx;
@@ -16748,6 +17110,9 @@ static int unit_carpenters_shop_prefer(void) {
     col1.player[i].control = 1;
   }
   col1.nation[nation].gold = 200;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   uint32_t turn = 40;
   ColonizeTurnContext ctx;
@@ -16852,6 +17217,9 @@ static int unit_lumber_mill_prefer(void) {
     col1.player[i].control = 1;
   }
   col1.nation[nation].gold = 200;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   uint32_t turn = 42;
   ColonizeTurnContext ctx;
@@ -16954,6 +17322,9 @@ static int unit_blacksmiths_house_prefer(void) {
     col1.player[i].control = 1;
   }
   col1.nation[nation].gold = 200;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   uint32_t turn = 40;
   ColonizeTurnContext ctx;
@@ -17061,6 +17432,9 @@ static int unit_blacksmiths_shop_prefer(void) {
     col1.player[i].control = 1;
   }
   col1.nation[nation].gold = 200;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   uint32_t turn = 40;
   ColonizeTurnContext ctx;
@@ -17165,6 +17539,9 @@ static int unit_iron_works_prefer(void) {
     col1.player[i].control = 1;
   }
   col1.nation[nation].gold = 200;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
   col1.head.founding_father[FF_ADAM_SMITH] = (int8_t)nation;
   col1.nation[nation].founding_fathers[0] |= 1u;
 
@@ -17271,6 +17648,9 @@ static int unit_craft_distillers_house_prefer(void) {
     col1.player[i].control = 1;
   }
   col1.nation[nation].gold = 200;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   uint32_t turn = 44;
   ColonizeTurnContext ctx;
@@ -17371,6 +17751,9 @@ static int unit_craft_weavers_house_prefer(void) {
     col1.player[i].control = 1;
   }
   col1.nation[nation].gold = 200;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   uint32_t turn = 44;
   ColonizeTurnContext ctx;
@@ -17474,6 +17857,9 @@ static int unit_craft_tobacconists_house_prefer(void) {
     col1.player[i].control = 1;
   }
   col1.nation[nation].gold = 200;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   uint32_t turn = 44;
   ColonizeTurnContext ctx;
@@ -17575,6 +17961,9 @@ static int unit_craft_fur_traders_house_prefer(void) {
     col1.player[i].control = 1;
   }
   col1.nation[nation].gold = 200;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   uint32_t turn = 44;
   ColonizeTurnContext ctx;
@@ -17684,6 +18073,9 @@ static int unit_craft_distillery_prefer(void) {
     col1.player[i].control = 1;
   }
   col1.nation[nation].gold = 200;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   uint32_t turn = 44;
   ColonizeTurnContext ctx;
@@ -17793,6 +18185,9 @@ static int unit_craft_weavers_shop_prefer(void) {
     col1.player[i].control = 1;
   }
   col1.nation[nation].gold = 200;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   uint32_t turn = 34;
   ColonizeTurnContext ctx;
@@ -17906,6 +18301,9 @@ static int unit_craft_tobacconist_shop_prefer(void) {
     col1.player[i].control = 1;
   }
   col1.nation[nation].gold = 200;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   uint32_t turn = 34;
   ColonizeTurnContext ctx;
@@ -18019,6 +18417,9 @@ static int unit_craft_fur_trading_post_prefer(void) {
     col1.player[i].control = 1;
   }
   col1.nation[nation].gold = 200;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   uint32_t turn = 34;
   ColonizeTurnContext ctx;
@@ -18132,6 +18533,9 @@ static int unit_craft_rum_factory_prefer(void) {
     col1.player[i].control = 1;
   }
   col1.nation[nation].gold = 200;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
   col1.head.founding_father[FF_ADAM_SMITH] = (int8_t)nation;
   col1.nation[nation].founding_fathers[0] |= 1u;
 
@@ -18242,6 +18646,9 @@ static int unit_craft_textile_mill_prefer(void) {
     col1.player[i].control = 1;
   }
   col1.nation[nation].gold = 200;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
   col1.head.founding_father[FF_ADAM_SMITH] = (int8_t)nation;
   col1.nation[nation].founding_fathers[0] |= 1u;
 
@@ -18359,6 +18766,9 @@ static int unit_craft_cigar_factory_prefer(void) {
     col1.player[i].control = 1;
   }
   col1.nation[nation].gold = 200;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
   col1.head.founding_father[FF_ADAM_SMITH] = (int8_t)nation;
   col1.nation[nation].founding_fathers[0] |= 1u;
 
@@ -18474,6 +18884,9 @@ static int unit_craft_fur_factory_prefer(void) {
     col1.player[i].control = 1;
   }
   col1.nation[nation].gold = 200;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
   col1.head.founding_father[FF_ADAM_SMITH] = (int8_t)nation;
   col1.nation[nation].founding_fathers[0] |= 1u;
 
@@ -18576,6 +18989,9 @@ static int unit_capitol_prefer(void) {
     col1.player[i].control = 1;
   }
   col1.nation[nation].gold = 200;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   uint32_t turn = 46;
   ColonizeTurnContext ctx;
@@ -18679,6 +19095,9 @@ static int unit_capitol_expansion_prefer(void) {
     col1.player[i].control = 1;
   }
   col1.nation[nation].gold = 200;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   uint32_t turn = 47;
   ColonizeTurnContext ctx;
@@ -18799,6 +19218,9 @@ static int unit_wagon_haul_muskets_short(void) {
     col1.player[i].diplomacy = 0;
   }
   col1.nation[nation].gold = 200;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   uint32_t turn = 32;
   ColonizeTurnContext ctx;
@@ -18921,6 +19343,9 @@ static int unit_wagon_haul_lumber_short(void) {
     col1.player[i].diplomacy = 0;
   }
   col1.nation[nation].gold = 200;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   uint32_t turn = 32;
   ColonizeTurnContext ctx;
@@ -19043,6 +19468,9 @@ static int unit_wagon_haul_ore_short(void) {
     col1.player[i].diplomacy = 0;
   }
   col1.nation[nation].gold = 200;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   uint32_t turn = 32;
   ColonizeTurnContext ctx;
@@ -19171,6 +19599,9 @@ static int unit_wagon_haul_food_short(void) {
     col1.player[i].diplomacy = 0;
   }
   col1.nation[nation].gold = 200;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   uint32_t turn = 33;
   ColonizeTurnContext ctx;
@@ -19286,6 +19717,9 @@ static int unit_wagon_food_delivery(void) {
     col1.player[i].diplomacy = 0;
   }
   col1.nation[nation].gold = 200;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   uint32_t turn = 34;
   ColonizeTurnContext ctx;
@@ -19437,6 +19871,9 @@ static int unit_wagon_food_load_haul(void) {
     col1.player[i].diplomacy = 0;
   }
   col1.nation[nation].gold = 200;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   uint32_t turn = 35;
   ColonizeTurnContext ctx;
@@ -19595,6 +20032,9 @@ static int unit_wagon_food_prefer_over_tools(void) {
     col1.player[i].diplomacy = 0;
   }
   col1.nation[nation].gold = 200;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   uint32_t turn = 35;
   ColonizeTurnContext ctx;
@@ -19727,6 +20167,9 @@ static int unit_ship_food_delivery(void) {
     col1.player[i].diplomacy = 0;
   }
   col1.nation[nation].gold = 200;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   uint32_t turn = 36;
   ColonizeTurnContext ctx;
@@ -19859,6 +20302,9 @@ static int unit_blacksmith_workplace_assign(void) {
     col1.player[i].diplomacy = 0;
   }
   col1.nation[nation].gold = 200;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   uint32_t turn = 37;
   ColonizeTurnContext ctx;
@@ -19990,6 +20436,9 @@ static int unit_gunsmith_workplace_assign(void) {
     col1.player[i].diplomacy = 0;
   }
   col1.nation[nation].gold = 200;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   uint32_t turn = 38;
   ColonizeTurnContext ctx;
@@ -20125,6 +20574,9 @@ static int unit_fur_trader_workplace_assign(void) {
     col1.player[i].diplomacy = 0;
   }
   col1.nation[nation].gold = 200;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   uint32_t turn = 39;
   ColonizeTurnContext ctx;
@@ -20260,6 +20712,9 @@ static int unit_distiller_workplace_assign(void) {
     col1.player[i].diplomacy = 0;
   }
   col1.nation[nation].gold = 200;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   uint32_t turn = 37;
   ColonizeTurnContext ctx;
@@ -20393,6 +20848,9 @@ static int unit_weaver_workplace_assign(void) {
     col1.player[i].diplomacy = 0;
   }
   col1.nation[nation].gold = 200;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   uint32_t turn = 37;
   ColonizeTurnContext ctx;
@@ -20528,6 +20986,9 @@ static int unit_tobacconist_workplace_assign(void) {
     col1.player[i].diplomacy = 0;
   }
   col1.nation[nation].gold = 200;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   uint32_t turn = 37;
   ColonizeTurnContext ctx;
@@ -20658,6 +21119,9 @@ static int unit_statesman_workplace_assign(void) {
     col1.player[i].diplomacy = 0;
   }
   col1.nation[nation].gold = 200;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   uint32_t turn = 37;
   ColonizeTurnContext ctx;
@@ -20788,6 +21252,9 @@ static int unit_preacher_workplace_assign(void) {
     col1.player[i].diplomacy = 0;
   }
   col1.nation[nation].gold = 200;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   uint32_t turn = 37;
   ColonizeTurnContext ctx;
@@ -20922,6 +21389,9 @@ static int unit_teacher_workplace_assign(void) {
     col1.player[i].diplomacy = 0;
   }
   col1.nation[nation].gold = 200;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   uint32_t turn = 37;
   ColonizeTurnContext ctx;
@@ -21061,6 +21531,9 @@ static int unit_carpenter_workplace_assign(void) {
     col1.player[i].diplomacy = 0;
   }
   col1.nation[nation].gold = 200;
+  /* Quiet the live 5d04 no-ships gold floor; gold < 1000 keeps the 5c3c
+   * ladder / recruit / Artillery buys naturally inert (blank census). */
+  col1.stuff.ship_counts[nation] = 1;
 
   uint32_t turn = 37;
   ColonizeTurnContext ctx;

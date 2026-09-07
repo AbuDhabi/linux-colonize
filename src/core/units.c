@@ -3497,6 +3497,10 @@ int col1_destroy_tribe_at(
   }
   col1->head.tribe_count = (uint16_t)(old_count - 1u);
 
+  /* FUN_4d56_00e0 (raw 81310-81319): units bound to the destroyed village
+   * are DESTROYED with it (any Indian-owned unit whose +0x314a home-village
+   * byte names it), higher indexes shift down. The old port only cleared
+   * the binding to -1. */
   if (units) {
     for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
       ColonizeUnit* u = &units->units[i];
@@ -3504,9 +3508,45 @@ int col1_destroy_tribe_at(
         continue;
       }
       if (u->home_tribe_id == found) {
-        u->home_tribe_id = -1;
+        if (u->nation_id >= 4) {
+          (void)units_despawn(units, u->id);
+        } else {
+          u->home_tribe_id = -1;
+        }
       } else if (u->home_tribe_id > found) {
         u->home_tribe_id--;
+      }
+    }
+  }
+
+  /* FUN_4d56_00e0 tail (raw 81332-81346): decrement the nation's village
+   * count (DS:0x962a); at zero the nation goes EXTINCT (indian +3 bit 0x80,
+   * GAME.TXT @EXTINCT 0x14d4); otherwise the dead village takes its share
+   * of the nation's horses: field += field / (-1 - remaining) for
+   * horse_herds (+8) and horse_breeding (+10). */
+  {
+    const int idx = nation_id - 4;
+    if (idx >= 0 && idx < 8) {
+      uint8_t* vc = &col1->stuff.tribe_village_counts[idx];
+      if (*vc > 0) {
+        (*vc)--;
+      }
+      if (*vc == 0) {
+        col1->indian[idx].extinct = 1;
+        PopupMsgTokens tok;
+        memset(&tok, 0, sizeof(tok));
+        tok.string0 = units_combat_nation_label(col1, nation_id);
+        char fb[160];
+        snprintf(fb, sizeof(fb), "The %s tribe has become extinct!", tok.string0);
+        units_combat_enqueue_tok(
+          AI_POPUP_TAG_COMBAT_COLONY, "EXTINCT", nation_id, -1, 0, &tok, fb
+        );
+      } else {
+        const int div = -1 - (int)*vc;
+        ColonizeCol1Indian* ind = &col1->indian[idx];
+        ind->horse_herds = (uint8_t)((int)ind->horse_herds + (int)ind->horse_herds / div);
+        ind->horse_breeding =
+          (uint16_t)((int)ind->horse_breeding + (int)ind->horse_breeding / div);
       }
     }
   }

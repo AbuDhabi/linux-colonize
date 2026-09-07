@@ -102,6 +102,17 @@ static void fixture_free(Fixture* f) {
   free(f->map.seen);
 }
 
+/* Truthful census ship count for fixtures whose nation owns a ship (the
+ * blank-census "no ships" reading otherwise trips the live 5d04 no-ships
+ * gold floor). Minimal on purpose: with fixture gold < 1000 the 5c3c
+ * ship-buy ladder can't afford anything, blank-census cargo_short blocks
+ * the recruit-slot buy, and ship_cargo_totals==0 blocks the Artillery dock
+ * buy — so this one census byte changes nothing else (including the DOS
+ * RNG draw order). */
+static void quiet_5d04_planner(Fixture* f, int nation) {
+  f->col1.stuff.ship_counts[nation] = 1;
+}
+
 static int cheb(int ax, int ay, int bx, int by) {
   const int dx = ax > bx ? ax - bx : bx - ax;
   const int dy = ay > by ? ay - by : by - ay;
@@ -596,6 +607,7 @@ static int unit_delivery_sell_tail_dumps_cargo(void) {
   if (fixture_init(&f, nation) != 0) {
     return 1;
   }
+  quiet_5d04_planner(&f, nation);
   for (int y = 0; y < 16; ++y) {
     for (int x = 12; x < 16; ++x) {
       f.map.terrain[y * 16 + x] = 25; /* MAP_OCEAN_INDEX */
@@ -1291,6 +1303,7 @@ static int unit_treasure_in_colony_cash_in(void) {
   if (fixture_init(&f, nation) != 0) {
     return 1;
   }
+  quiet_5d04_planner(&f, nation);
   AiPopupState popups;
   ai_popup_init(&popups);
   f.ctx.ai_popups = &popups;
@@ -1375,6 +1388,7 @@ static int unit_treasure_cash_in_silent_under_woi(void) {
   if (fixture_init(&f, nation) != 0) {
     return 1;
   }
+  quiet_5d04_planner(&f, nation);
   AiPopupState popups;
   ai_popup_init(&popups);
   f.ctx.ai_popups = &popups;
@@ -1424,6 +1438,7 @@ static int unit_treasure_outside_colony_not_cashed(void) {
   if (fixture_init(&f, nation) != 0) {
     return 1;
   }
+  quiet_5d04_planner(&f, nation);
   const int ti = treasure_add_type(&f);
   treasure_add_colony(&f, 0, nation, 4, 4);
 

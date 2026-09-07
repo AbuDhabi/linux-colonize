@@ -7433,16 +7433,16 @@ static int ai_euro_tools_cargo_or_colony(
 
 /* DS:0x9796/0x97a8/0x97ae — gold-floor candidates 5d04 uses to clamp a
  * nation's treasury up to a minimum ("catch-up" gold). Values confirmed
- * 2026-08-18 via live DOSBox-X data dump (`D 237D:9790`): 1000/2000/5000
- * respectively — round numbers, static EXE data (no write ever observed),
- * single sample not cross-checked across difficulty/scenario but the
- * round-decimal self-alignment across three different byte offsets makes
- * a coincidental misread very unlikely. */
+ * 2026-08-18 via live DOSBox-X data dump (`D 237D:9790`): 1000/2000/5000.
+ * Identity resolved 2026-09-07d: these are the *price cells* of the
+ * FUN_521d_5c3c Europe purchase table (DS:0x978d stride 6) — Caravel /
+ * Privateer / Frigate — so each floor guarantees the flagged nation can
+ * afford exactly the ship its flag buys. */
 static uint32_t ai_euro_5d04_ph_gold_floor(int which) {
   switch (which) {
-    case 0x9796: return 1000; /* no_ships */
-    case 0x97a8: return 2000; /* manowar_threatened */
-    case 0x97ae: return 5000; /* frigate_threatened */
+    case 0x9796: return 1000; /* no_ships → Caravel price */
+    case 0x97a8: return 2000; /* privateer_threatened → Privateer price */
+    case 0x97ae: return 5000; /* frigate_threatened → Frigate price */
     default: return 0;
   }
 }
@@ -7492,42 +7492,41 @@ static int ai_euro_5d04_ph_naval_threat_crumb_n(int which, int nation_id) {
   }
 }
 
-/* FUN_281f_09fc(building_index) on a scanned colony — "does this colony
- * have building #N" (mechanism confirmed, see header). Kept as a stub
- * rather than wired live: 5d04's own use of the result (bVar5) only feeds
- * the still-deferred hire-ladder section, so wiring it for real would be
- * effort spent on a value nothing downstream reads yet. */
-static int ai_euro_5d04_stub_colony_has_building(
-  const ColonizeColony* colony, int building_index
+static int ai_euro_20e6_dos_type(const ColonizeUnitPool* units, const ColonizeUnit* u);
+
+/* FUN_281f_09fc(0xd) on a scanned colony — building index 0xd = College
+ * (NAMES.TXT @BUILDING file order, cross-checked against index 0x24 =
+ * Lumber Mill in euro_unit_act.md). Real since 2026-09-07d — the bVar5
+ * consumer (hire tail Veteran Soldier promote) is live. */
+static int ai_euro_5d04_colony_has_college(
+  const ColonizeTurnContext* ctx, const ColonizeColony* colony
 ) {
-  (void)colony;
-  (void)building_index;
-  return 0;
+  const int id = colonies_find_building(ctx->colonies, "College");
+  return id >= 0 && colony->has_building[id];
 }
 
-/* FUN_281f_0808 — destroy_unit (identity confirmed, see header). Real
- * mechanism, gating condition now also confirmed (DS:0x5382 bit0 = `woi`,
- * fires on Declare Independence — see header). Still stubbed: destroying
- * a live unit is exactly the side effect "be safe" argues against wiring
- * on a first pass, independent of the bit-identity question that's now
- * settled. Stub: no-op. */
-static void ai_euro_5d04_stub_destroy_unit(int unit_id) {
-  (void)unit_id;
-}
-
-/* First own unit matching the raw body's `(owner==nation) && (type==0x12)`
- * scan — fires post-independence (DS:0x5382 bit0 = `woi`, confirmed, see
- * header); "NEW WORLD wagon" in euro_dispatcher.c's older comment on this
- * call site described the gate, not the unit, and is superseded by the
- * `woi` finding. The unit-type identity itself is still genuinely
- * unresolved (no confirmed DOS-type-id -> Linux-type mapping for id
- * 0x12). Stub: "none found", so the destroy branch below it never fires. */
-static int ai_euro_5d04_stub_find_new_world_wagon(
-  const ColonizeTurnContext* ctx, int nation_id
-) {
-  (void)ctx;
-  (void)nation_id;
-  return -1;
+/* Raw 92412-92423 (WoI arm): destroy the nation's first Man-O-War and
+ * `*(int*)0x53de += 1`. Real since 2026-09-07d — type 0x12 = Man-O-War by
+ * the confirmed @UNIT ship roster (0x0d..0x12; the old "NEW WORLD wagon"
+ * name predates that confirmation), and 0x53de = head.expeditionary_force
+ * [2] (man-o-wars): on Declare Independence the crown seizes the AI
+ * nation's MoW into the REF pool — the increment is genuine reuse, not a
+ * Ghidra misattribution. */
+static void ai_euro_5d04_woi_seize_manowar(ColonizeTurnContext* ctx, int nation_id) {
+  if (!ctx->units) {
+    return;
+  }
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    ColonizeUnit* u = &ctx->units->units[i];
+    if (!u->active || u->nation_id != nation_id) {
+      continue;
+    }
+    if (ai_euro_20e6_dos_type(ctx->units, u) == 0x12) {
+      (void)units_despawn(ctx->units, u->id);
+      ctx->col1->head.expeditionary_force[2]++;
+      return;
+    }
+  }
 }
 
 /*
@@ -7575,23 +7574,24 @@ static void ai_euro_5d04_apply_gold_floor(ColonizeTurnContext* ctx, int nation_i
   }
 }
 
-/* Raw decomp 85900-86064 gate cascade — computed reference values, not yet
- * wired to a mutation (see file header). bVar5/no_ships/frigate_threatened/
- * manowar_threatened/no_clear_navy/cargo_short name the raw bVar5/21/22/23/
- * 24/7 booleans in call order. `frigate_threatened`/`manowar_threatened`
- * were named `weak_vs_euro`/`weak_vs_indian` until 2026-08-19 — renamed once
- * the underlying `0xa89a`-family crumbs turned out to mean "own colonies
- * near a Frigate/Man-O-War," not a rival-strength comparison at all (see
- * `ai_euro_5d04_ph_naval_threat_crumb`'s header). The higher-level
- * "weak/catch-up" framing for what 5d04 *does* with these two flags
- * (gold-floor clamp, gate on turn/gold thresholds) may still be roughly
- * right — that part of the raw logic itself didn't change, only what the
- * inputs feeding it actually measure. */
+/* Raw 92404-92532 gate cascade — live since 2026-09-07d (flags feed the
+ * real ship-buy ladder, the gold floors, and the hire tail's Veteran
+ * promote). bVar5/no_ships/frigate_threatened/privateer_threatened/
+ * no_clear_navy/cargo_short name the raw bVar5/21/22/23/24/7 booleans in
+ * call order. Naming history: weak_vs_euro/weak_vs_indian until
+ * 2026-08-19 (the 0xa89a crumbs are "own colonies near an armed rival
+ * ship", not rival-strength); manowar_threatened until 2026-09-07d (the
+ * bVar23 response is a Privateer purchase). */
 typedef struct Ai5d04PlanningFlags {
   int has_college;       /* bVar5 */
   int no_ships;           /* bVar21 */
   int frigate_threatened;  /* bVar22 */
-  int manowar_threatened;   /* bVar23 */
+  int privateer_threatened; /* bVar23 — buys purchase-table type 4 =
+     Privateer (0x10) at the Privateer gold floor (0x97a8 = its price
+     cell); the type-count gates read unit_type_counts[.][0x10]. Was
+     misnamed manowar_threatened until 2026-09-07d — the 0xa89a crumb is
+     "non-Frigate armed ship nearby" (MoW included), but what the flag
+     *buys* is a Privateer. */
   int no_clear_navy;         /* bVar24 */
   int cargo_short;             /* bVar7 */
 } Ai5d04PlanningFlags;
@@ -7613,31 +7613,16 @@ static Ai5d04PlanningFlags ai_euro_5d04_compute_flags(
   for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
     const ColonizeColony* c = &ctx->colonies->colonies[i];
     if (c->active && c->nation_id == nation_id &&
-        ai_euro_5d04_stub_colony_has_building(c, 0xd)) {
+        ai_euro_5d04_colony_has_college(ctx, c)) {
       f.has_college = 1;
       break;
     }
   }
 
-  /* WoI-bit-gated scan: destroy this nation's first "NEW WORLD wagon" if
-   * one exists (raw 85909-85921). The raw body also does
-   * `*(int*)0x53de = *(int*)0x53de + 1` here — **correction, 2026-08-18**:
-   * a live DOSBox-X capture caught `0x53DE` being `dec`'d, by an unrelated
-   * function, right as each Royal Expeditionary Force wave lands post-
-   * independence; `0x53DA/DC/DE/E0` line up exactly with `col1_save.h`'s
-   * already-documented `expeditionary_force[4]` (regulars/dragoons/
-   * man-o-wars/artillery) — `0x53DE` = index 2, man-o-wars. So this is
-   * very likely NOT an opaque "goal counter" at all, either a genuine odd
-   * DOS reuse (destroying this unit nudges the REF man-o-war pool) or a
-   * Ghidra misattribution in this specific spot (same corruption class as
-   * other `521d`-segment functions elsewhere in this project) — not
-   * re-verified against a fresh disassembly, so the increment is dropped
-   * either way rather than risk mutating REF state on a guess. */
+  /* WoI arm (raw 92412-92423): crown seizes the nation's Man-O-War into
+   * the REF pool — see ai_euro_5d04_woi_seize_manowar's header. */
   if (woi) {
-    const int wagon = ai_euro_5d04_stub_find_new_world_wagon(ctx, nation_id);
-    if (wagon >= 0) {
-      ai_euro_5d04_stub_destroy_unit(wagon);
-    }
+    ai_euro_5d04_woi_seize_manowar(ctx, nation_id);
   }
 
   f.no_ships = stuff->ship_counts[nation_id] == 0;
@@ -7685,14 +7670,11 @@ static Ai5d04PlanningFlags ai_euro_5d04_compute_flags(
   }
 
   /* bVar23: gated on "other-armed-ship"-threatened own colonies (raw
-   * 85953-85971). `0xa89a`/`0x9e54` = count/level-sum for any qualifying
-   * ship type other than Frigate — Man-O-War confirmed to reach this bit;
-   * whether Privateer ever does is unsettled (see
-   * `ai_euro_5d04_ph_naval_threat_crumb`'s header — the sub-gate that
-   * decides "qualifying at all" is non-deterministic, not a fixed type
-   * exclusion). Field kept named `manowar_threatened` since that's the
-   * confirmed/primary case, not a claim it's Man-O-War-exclusive. */
-  f.manowar_threatened = 0;
+   * 92456-92474). `0xa89a`/`0x9e54` = count/level-sum for any qualifying
+   * ship type other than Frigate. The response is a Privateer buy: own
+   * Privateer count (unit_type_counts[.][0x10]) < 2 and the human owns
+   * one — see the flag's own comment in Ai5d04PlanningFlags. */
+  f.privateer_threatened = 0;
   if (((ai_euro_5d04_ph_naval_threat_crumb_n(0xa89a, nation_id) != 0 ||
         ai_euro_5d04_ph_naval_threat_crumb_n(0xa89b, nation_id) != 0)) &&
       local_3c != 0 && !f.frigate_threatened) {
@@ -7706,7 +7688,7 @@ static Ai5d04PlanningFlags ai_euro_5d04_compute_flags(
       reach = 1;
     }
     if (reach && focus_ok) {
-      f.manowar_threatened = stuff->unit_type_counts[nation_id][16] < 2 &&
+      f.privateer_threatened = stuff->unit_type_counts[nation_id][16] < 2 &&
                               stuff->unit_type_counts[focus_nation][16] != 0;
     }
   }
@@ -7727,9 +7709,15 @@ static Ai5d04PlanningFlags ai_euro_5d04_compute_flags(
   f.no_clear_navy =
     f.frigate_threatened || stuff->armed_ship_counts[nation_id] < max_armed || tied > 1;
 
-  /* bVar7: cargo/passenger space short (raw 86025-86029). */
+  /* bVar7: cargo/passenger space short (raw 92528-92532) —
+   * `ship_cargo_totals <= (census_pop_proxy/2 + colony_counts*2)/2`.
+   * −0x6bf0 = DS:0x9410 = census_pop_proxy (misread as colony_pop_totals
+   * until 2026-09-07d; colony_pop_totals is −0x6bf4/0x940c and only feeds
+   * the threat weak-checks above). */
   f.cargo_short =
-    stuff->ship_cargo_totals[nation_id] <= ((pop_half + stuff->colony_counts[nation_id] * 2) >> 1) &&
+    stuff->ship_cargo_totals[nation_id] <=
+      (((stuff->census_pop_proxy[nation_id] >> 1) +
+        stuff->colony_counts[nation_id] * 2) >> 1) &&
     !woi;
 
   return f;
@@ -7742,15 +7730,15 @@ static Ai5d04PlanningFlags ai_euro_5d04_compute_flags(
  * whose result callers were discarding as "reference-only" was exactly
  * the bug that regressed `unit_ai_euro_war` the first time (see memory).
  * `compute_flags` is pure again; this is the deliberate, explicit
- * mutation step, still not called from the live path — a future wiring
- * pass calls this alongside `compute_flags`, not from inside it. */
+ * mutation step — live since 2026-09-07d (the orchestrator calls it right
+ * after `compute_flags`, matching raw 92476-92505 order). */
 static void ai_euro_5d04_apply_naval_gold_floors(
   ColonizeTurnContext* ctx, int nation_id, const Ai5d04PlanningFlags* f
 ) {
   if (f->no_ships) {
     ai_euro_5d04_apply_gold_floor(ctx, nation_id, ai_euro_5d04_ph_gold_floor(0x9796));
   }
-  if (f->manowar_threatened) {
+  if (f->privateer_threatened) {
     ai_euro_5d04_apply_gold_floor(ctx, nation_id, ai_euro_5d04_ph_gold_floor(0x97a8));
   }
   if (f->frigate_threatened) {
@@ -7769,32 +7757,68 @@ static void ai_euro_5d04_apply_naval_gold_floors(
  * at runtime (unit-iteration stubs return "none found"), which is safe
  * by construction, not a workaround — see each stub's own comment. */
 
-/* thunk_FUN_2a1f_0500(type_id, weight_pct) — propose a Europe ship-buy
- * candidate. Type ids 1-5 seen (Caravel..Frigate, 5 buyable ship types —
- * Man-O-War isn't purchasable in real Colonization either); weight is a
- * priority percentage. Stub: never proposes (0 = no candidate). Since
- * 2026-09-07 the naval-threat crumbs are REAL (s_ship_pressure), so
- * frigate_threatened/manowar_threatened can fire — the raw body's
- * `if (local_3e==0 && flag) return;` early-outs are now reachable; this
- * stub returning 0 makes them fire exactly when DOS would have failed to
- * find a candidate too. Wiring real Europe ship purchases stays a 5d04
- * hire-ladder decision (structural port exists, deliberately not live). */
-static int ai_euro_5d04_stub_propose_ship_buy(int type_id, int weight_pct) {
-  (void)type_id;
-  (void)weight_pct;
-  return 0;
+/* thunk_FUN_2a1f_0500 = FUN_521d_5c3c — Europe unit purchase (real port,
+ * 2026-09-07d). Table at DS:0x978d stride 6 ({dos_type, ?, 0xff, price16}),
+ * pinned byte-identical across 3 original_memory_dumps: 0=Artillery/500,
+ * 1=Caravel/1000, 2=Merchantman/2000, 3=Galleon/3000, 4=Privateer/2000,
+ * 5=Frigate/5000 (the "gold floors" 0x9796/0x97a8/0x97ae are this table's
+ * Caravel/Privateer/Frigate price cells). The raw weight_pct arg feeds
+ * FUN_521d_5c38 which is `return 1;` in the retail build — dead, dropped.
+ * Body: gold >= price → spawn table type in Europe (FUN_281f_095c at the
+ * nation's Europe tile), goal target (+0x314d/e) = return_from_europe x/y
+ * (the 0a60/20e6 goal engine re-derives targets on the Linux side),
+ * act_state 1 for land types / 0 for ships, gold -= price, return 1. */
+static int ai_euro_5d04_propose_ship_buy(
+  ColonizeTurnContext* ctx, int nation_id, int type_id
+) {
+  static const struct {
+    const char* name;
+    const char* alt;
+    int price;
+  } k_purchase[6] = {
+    {"Artillery", "Cannon", 500}, {"Caravel", NULL, 1000},
+    {"Merchantman", NULL, 2000},  {"Galleon", NULL, 3000},
+    {"Privateer", NULL, 2000},    {"Frigate", NULL, 5000},
+  };
+  if (!ctx || !ctx->units || !ctx->col1 || type_id < 0 || type_id > 5) {
+    return 0;
+  }
+  ColonizeCol1Nation* nat = &ctx->col1->nation[nation_id];
+  const uint32_t price = (uint32_t)k_purchase[type_id].price;
+  if (nat->gold < price) {
+    return 0;
+  }
+  int lt = units_find_type(ctx->units, k_purchase[type_id].name);
+  if (lt < 0 && k_purchase[type_id].alt) {
+    lt = units_find_type(ctx->units, k_purchase[type_id].alt);
+  }
+  if (lt < 0) {
+    return 0;
+  }
+  const int sid = units_spawn_allow_stack(ctx->units, lt, 200, 100);
+  if (sid < 0) {
+    return 0;
+  }
+  ColonizeUnit* u = units_get(ctx->units, sid);
+  if (!u) {
+    return 0;
+  }
+  units_set_nation(u, nation_id);
+  u->moves_left = 0; /* docked in Europe this turn, as in DOS */
+  nat->gold -= price;
+  if (ctx->europe && nation_id == ctx->human_nation) {
+    ctx->europe->gold = (int)nat->gold;
+  }
+  return 1;
 }
 
 /*
- * Raw 86030-86064: ship-buy candidate ladder, gated on `!woi &&
- * ship_cargo_totals[n] <= census_pop_proxy[n]/2 + colony_counts[n]`.
- * Returns the raw body's `local_3e` (0 = no candidate). `*out_abort` is
- * set when the raw code's early `return;` would fire (frigate/manowar
- * threatened and still no candidate after trying) — always true when it
- * would fire given the stub above, but only reachable at all when those
- * flags are true, which is itself gated on the still-stubbed naval-threat
- * crumbs (see above) — inert end to end today, faithful if that crumb
- * function ever gets wired to something real.
+ * Raw 92533-92567: ship-buy candidate ladder, gated on `!woi &&
+ * ship_cargo_totals[n] <= census_pop_proxy[n]/2 + colony_counts[n]`
+ * (−0x6bf0 = DS:0x9410 = census_pop_proxy — an earlier pass misread it as
+ * colony_pop_totals, fixed 2026-09-07d). Returns the raw body's `local_3e`
+ * (0 = no candidate bought). `*out_abort` is the raw early `return;` —
+ * frigate/privateer threatened and the purchase failed (couldn't afford).
  */
 static int ai_euro_5d04_ship_buy_ladder(
   ColonizeTurnContext* ctx, int nation_id, const Ai5d04PlanningFlags* f, int* out_abort
@@ -7803,43 +7827,43 @@ static int ai_euro_5d04_ship_buy_ladder(
   const ColonizeCol1Head* head = &ctx->col1->head;
   const ColonizeCol1Stuff* stuff = &ctx->col1->stuff;
   const int woi = head->game_options.woi != 0;
-  const int pop_half = stuff->colony_pop_totals[nation_id] >> 1;
+  const int proxy_half = stuff->census_pop_proxy[nation_id] >> 1;
   if (woi || stuff->ship_cargo_totals[nation_id] >
-             (uint32_t)(pop_half + stuff->colony_counts[nation_id])) {
+             (uint32_t)(proxy_half + stuff->colony_counts[nation_id])) {
     return 0;
   }
   int candidate = 0;
   if (f->frigate_threatened) {
-    candidate = ai_euro_5d04_stub_propose_ship_buy(5, 100);
+    candidate = ai_euro_5d04_propose_ship_buy(ctx, nation_id, 5);
   }
   if (candidate == 0 && f->frigate_threatened) {
     *out_abort = 1;
     return 0;
   }
-  if (f->manowar_threatened) {
-    candidate = ai_euro_5d04_stub_propose_ship_buy(4, 100);
+  if (f->privateer_threatened) {
+    candidate = ai_euro_5d04_propose_ship_buy(ctx, nation_id, 4);
   }
-  if (candidate == 0 && f->manowar_threatened) {
+  if (candidate == 0 && f->privateer_threatened) {
     *out_abort = 1;
     return 0;
   }
   if (candidate == 0 && stuff->armed_ship_counts[nation_id] < 8 &&
       dos_rng_range(ctx->rng, 0, 1) != 0 && f->no_clear_navy) {
-    candidate = ai_euro_5d04_stub_propose_ship_buy(5, 0x23);
+    candidate = ai_euro_5d04_propose_ship_buy(ctx, nation_id, 5);
   }
   if (candidate == 0 && dos_rng_range(ctx->rng, 0, 3) != 0) {
-    candidate = ai_euro_5d04_stub_propose_ship_buy(3, 0x32);
+    candidate = ai_euro_5d04_propose_ship_buy(ctx, nation_id, 3);
   }
   if (candidate == 0 && dos_rng_range(ctx->rng, 0, 1) == 0 &&
       stuff->ship_cargo_totals[nation_id] < 0xc) {
-    candidate = ai_euro_5d04_stub_propose_ship_buy(2, 0x14);
+    candidate = ai_euro_5d04_propose_ship_buy(ctx, nation_id, 2);
   }
   if (candidate == 0 && stuff->ship_cargo_totals[nation_id] < 3) {
-    candidate = ai_euro_5d04_stub_propose_ship_buy(1, 0x14);
+    candidate = ai_euro_5d04_propose_ship_buy(ctx, nation_id, 1);
   }
   if (candidate == 0 && stuff->armed_ship_counts[nation_id] < 4 &&
       dos_rng_range(ctx->rng, 0, 3) == 0 && f->no_clear_navy && !f->cargo_short) {
-    candidate = ai_euro_5d04_stub_propose_ship_buy(4, 0x1e);
+    candidate = ai_euro_5d04_propose_ship_buy(ctx, nation_id, 4);
   }
   return candidate;
 }
@@ -8316,13 +8340,14 @@ static void ai_euro_5d04_hire_ladder_tail(
     hs->training_slots_crosses = (int8_t)(need_t > 127 ? 127 : need_t);
   }
 
-  /* raw 86066-86075. */
+  /* Raw 92569-92578: no Artillery on the Europe dock + colonies needing
+   * muskets → buy one (purchase table entry 0, 500 gold), re-query. */
   int local_16 = ai_euro_5d04_cb_list_iter_first(0x0c);
   int local_34 = ai_euro_5d04_cb_wagon_query(local_16);
   if (local_34 == 0 && !woi && hs->training_slots_tools > 0 &&
       dos_rng_range(ctx->rng, 0, 3) == 0 && !f->cargo_short &&
       stuff->ship_cargo_totals[nation_id] > 4) {
-    ai_euro_5d04_stub_propose_ship_buy(0, 0x14);
+    (void)ai_euro_5d04_propose_ship_buy(ctx, nation_id, 0);
     local_16 = ai_euro_5d04_cb_list_iter_first(0x0c);
     local_34 = ai_euro_5d04_cb_wagon_query(local_16);
   }
@@ -8749,18 +8774,13 @@ static void ai_euro_5d04_hire_ladder_tail(
 }
 
 /*
- * FUN_521d_5d04 — full structural port, orchestrator (2026-08-19).
- * Mirrors the raw function's own top-level call order: treasury bump →
- * gate cascade → ship-buy candidate ladder (with its real early-return
- * semantics, raw 86030-86064) → hire-ladder tail (raw 86065-86561). This
- * is the complete port — every raw line from 85872 to 86564 now has a
- * corresponding piece here, real where resolved, stubbed where not (see
- * each piece's own header). NOT wired into the live turn loop: the live
- * path (`ai_euro_nation_planning` below) still only takes the treasury
- * bump. Finishing the port doesn't imply it's safe or correct to flip
- * live — see the ai-5d04-structural-port memory for what's still
- * genuinely unresolved (the two list-iterator callees especially) before
- * that'd be a reasonable next step.
+ * FUN_521d_5d04 — full port, orchestrator (structural 2026-08-19, fully
+ * live 2026-09-07d). Mirrors the raw function's own top-level order:
+ * treasury bump → gate cascade (with the WoI Man-O-War seizure) → naval
+ * gold floors (raw 92476-92505 — applied in DOS, so applied here) →
+ * ship-buy candidate ladder with real FUN_521d_5c3c purchases (raw
+ * 92533-92567) → hire-ladder tail, itself gated on raw 92568
+ * `bought-a-ship || has-ships`.
  */
 /* Returns 1 when the raw body's early `return;` fired (ship-buy ladder abort
  * — reachable since the naval-threat crumbs went live 2026-09-07); the live
@@ -8772,12 +8792,17 @@ static int ai_euro_5d04_nation_planning_structural(ColonizeTurnContext* ctx, int
   }
   ai_euro_5d04_treasury_bump(ctx, nation_id);
   const Ai5d04PlanningFlags f = ai_euro_5d04_compute_flags(ctx, nation_id);
+  ai_euro_5d04_apply_naval_gold_floors(ctx, nation_id, &f);
   int abort_early = 0;
-  ai_euro_5d04_ship_buy_ladder(ctx, nation_id, &f, &abort_early);
+  const int candidate = ai_euro_5d04_ship_buy_ladder(ctx, nation_id, &f, &abort_early);
   if (abort_early) {
     return 1;
   }
-  ai_euro_5d04_hire_ladder_tail(ctx, nation_id, &f);
+  /* Raw 92568 `if (local_3e != 0 || !bVar21)`: a shipless nation that
+   * bought nothing skips the whole hire tail. */
+  if (candidate != 0 || !f.no_ships) {
+    ai_euro_5d04_hire_ladder_tail(ctx, nation_id, &f);
+  }
   return 0;
 }
 
@@ -8789,18 +8814,14 @@ static void ai_euro_nation_planning(ColonizeTurnContext* ctx, int nation_id) {
   AiEuroInventory* inv = ai_goals_inventory(nation_id);
   const int diff = ctx->col1->head.difficulty;
   /*
-   * T3.1 (2026-08-27): the structural 5d04 orchestrator is now the live
-   * entry (treasury bump + flag cascade + ship-buy ladder + hire-ladder
-   * tail). T2.1 established the swap is a no-op by construction while the
-   * tail's two list-iterator stubs return "none" — goldens mid01/late01
-   * and the unit suites confirm zero delta. `apply_naval_gold_floors` stays
-   * reference-only (address-taken to keep it compiled).
+   * T3.1 (2026-08-27): the structural 5d04 orchestrator is the live entry.
+   * 2026-09-07d: fully real — naval gold floors applied, FUN_521d_5c3c
+   * Europe purchases live (the thin ship-buy ladder that used to sit below
+   * is retired; the DOS ladder + Artillery dock buy cover it).
    */
   if (ai_euro_5d04_nation_planning_structural(ctx, nation_id)) {
-    (void)ai_euro_5d04_apply_naval_gold_floors;
-    return; /* DOS raw 86055/86063 early return — skip the whole hire tail */
+    return; /* DOS raw 92541/92547 early return — skip the whole hire tail */
   }
-  (void)ai_euro_5d04_apply_naval_gold_floors;
 
   /*
    * NEW WORLD wagon / mid-game hire matrix — thin 5d04 slice (full ~748 PARKED).
@@ -8840,63 +8861,13 @@ static void ai_euro_nation_planning(ColonizeTurnContext* ctx, int nation_id) {
     }
   }
   /*
-   * Thin 5d04 / 5c3c: when no Europe transport with free passenger space, buy
-   * a ship so the hire/cargo matrix can run — covers no-ship and full-ship
-   * (second transport). Prefer Frigate (5000$) then Galleon (3000$) when at
-   * war; else Merchantman (2000$) when cargo shorts high; else Caravel (1000$).
-   * Skip while colony_count==0: starter fleets are full on Europe exit
-   * (TURN1→2); DOS does not buy a second transport before first landfall.
-   * Wartime Privateer spawn is ai_diplo_euro_balance (not this buy ladder).
-   * Cite: FUN_521d_5c3c / 5d04; europe_init_purchase_table; purchase.png;
-   * euro_unit_act war transport / Frigate hunt; test-saves-ai/TURN2 unit_count.
+   * The Linux-only "buy a transport when none free" thin ladder that sat
+   * here was retired 2026-09-07d: the DOS FUN_521d_5c3c purchase ladder in
+   * the structural orchestrator above is live and owns Europe ship buying
+   * (real gates: census cargo pressure, naval-threat flags, RNG cadence).
+   * No free-passenger-space ship in Europe → the thin hire matrix below
+   * simply has nowhere to put a hire this turn, as in DOS.
    */
-  if (!ship && colonies >= 1 && (int)nat->gold >= AI_EURO_CARAVEL_PURCHASE_GOLD) {
-    const int at_war_buy = ai_euro_at_war_any_peer(ctx->col1, nation_id);
-    const int cargo_pressure =
-      inv &&
-      (inv->tools_short > 30 || inv->lumber_short > 30 || inv->ore_short > 30 ||
-       inv->food_short > 30 || inv->muskets_short > 20 || inv->horses_short > 20);
-    int buy_ty = -1;
-    int buy_gold = AI_EURO_CARAVEL_PURCHASE_GOLD;
-    if (at_war_buy && (int)nat->gold >= AI_EURO_FRIGATE_PURCHASE_GOLD) {
-      buy_ty = units_find_type(ctx->units, "Frigate");
-      if (buy_ty >= 0) {
-        buy_gold = AI_EURO_FRIGATE_PURCHASE_GOLD;
-      }
-    }
-    if (buy_ty < 0 && at_war_buy && (int)nat->gold >= AI_EURO_GALLEON_PURCHASE_GOLD) {
-      buy_ty = units_find_type(ctx->units, "Galleon");
-      if (buy_ty >= 0) {
-        buy_gold = AI_EURO_GALLEON_PURCHASE_GOLD;
-      }
-    }
-    if (buy_ty < 0 && cargo_pressure &&
-        (int)nat->gold >= AI_EURO_MERCHANTMAN_PURCHASE_GOLD) {
-      buy_ty = units_find_type(ctx->units, "Merchantman");
-      if (buy_ty >= 0) {
-        buy_gold = AI_EURO_MERCHANTMAN_PURCHASE_GOLD;
-      }
-    }
-    if (buy_ty < 0) {
-      buy_ty = units_find_type(ctx->units, "Caravel");
-      buy_gold = AI_EURO_CARAVEL_PURCHASE_GOLD;
-    }
-    if (buy_ty >= 0 && (int)nat->gold >= buy_gold) {
-      const int sid = units_spawn_allow_stack(ctx->units, buy_ty, 200, 100);
-      if (sid >= 0) {
-        ColonizeUnit* bought = units_get(ctx->units, sid);
-        if (bought) {
-          units_set_nation(bought, nation_id);
-          bought->moves_left = 0; /* docked Europe — planning hire only */
-          nat->gold -= (uint32_t)buy_gold;
-          if (ctx->europe && nation_id == ctx->human_nation) {
-            ctx->europe->gold = (int)nat->gold;
-          }
-          ship = bought;
-        }
-      }
-    }
-  }
   if (!ship || ship->cargo_count >= units_ship_capacity(ctx->units, ship->id)) {
     return;
   }
