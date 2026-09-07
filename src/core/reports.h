@@ -87,6 +87,16 @@ const char* reports_cargo_display_name(int cargo);
 const char* reports_tribe_display_name(int t);
 const char* reports_nation_adjective_display_name(int nation);
 const char* reports_tribe_level_display_name(uint8_t tech);
+/*
+ * NAMES.TXT @FOUNDING row `type` (0=Trade 1=Exploration 2=Military
+ * 3=Political 4=Religious 5=Independence) — the Founding-Father category
+ * word the Congress debate widget splices into each candidate row
+ * ("<name> (<category> Adviser)", DOS FUN_4345_06d2 @ 3f41-sibling overlay
+ * OVL07 0xc72..0xcfb: the option-row builder appends the @FATHERS name,
+ * DS:0x50 " ", "(" , the DS:0x96e8[type] @FOUNDING word, " ", the
+ * DS:0x2e88 @MISC word and ")"). Static buffer.
+ */
+const char* reports_ff_category_display_name(int type);
 /* LABELS.TXT @MISC line `index` (0-based, non-blank lines) or `fallback`. Static buffer. */
 const char* reports_misc_display_word(int index, const char* fallback);
 

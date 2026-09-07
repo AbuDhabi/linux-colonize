@@ -664,6 +664,17 @@ static int ai_popup_option_at_y(const AiPopupState* st, int mouse_y) {
   return idx;
 }
 
+int ai_popup_choice_row_at(const AiPopupState* st, int mouse_x, int mouse_y) {
+  if (!st || !st->open || st->current.choice_count <= 0) {
+    return -1;
+  }
+  if (mouse_x < st->dialog_x || mouse_y < st->dialog_y ||
+      mouse_x >= st->dialog_x + st->dialog_w || mouse_y >= st->dialog_y + st->dialog_h) {
+    return -1;
+  }
+  return ai_popup_option_at_y(st, mouse_y);
+}
+
 bool ai_popup_handle_input(AiPopupState* st, const ColonizeInputState* input) {
   if (!st || !st->open || !input) {
     return false;
@@ -1160,16 +1171,36 @@ void ai_popup_render(
    * DOS compositor (FUN_6f74_14c6 rects, FUN_6f74_1198 wrap, defaults from
    * FUN_6f74_06d0): the dialog record's content width is @WIDTH (default 80),
    * text wraps inside width − 2·2 (margin +0x48 = 2), the wood frame adds
-   * 3 px per side (+0x46/+0x2a = 3), line pitch is glyph height + 1 where the
-   * 6-px font counts as 5 unless @SMALLFONT is off (FUN_6f74_0f16), and the
-   * outer height is text + 12. Centre = (160 − w/2, 100 − h/2), clamped to
-   * 320×200.
+   * 3 px per side (+0x46/+0x2a = 3), and the outer height is text + 12.
+   * Centre = (160 − w/2, 100 − h/2), clamped to 320×200 — box +0x14 is the
+   * width and +0x16 the height, pinned by FUN_6f74_14c6 @ OVL24 0x16cb–0x16f6
+   * (auto-place does 160 − box[0x14]/2 and 100 − box[0x16]/2, then clamps
+   * against 0x140 and 0xc8).
+   *
+   * DOS runs TWO row pitches off the same glyph height (FUN_6f74_0f16 =
+   * font[0], with the 6-px font counting as 5 unless DS:0x1f8a is set):
+   *   - prompt / body lines: glyph_h + 1 — FUN_6f74_1198 @ 0x1234 and 0x124c
+   *     advance by `call 0xf16` + `inc ax`.
+   *   - option rows (the +0x54 list, which is what FUN_291f_0176 →
+   *     FUN_6f74_0a00 appends to): glyph_h + box[+0x46] — FUN_6f74_14c6 @
+   *     0x1611–0x1628 (`call 0xf16`, `add ax,[es:bx+0x46]`, `imul box[+0x2]`).
+   * box[+0x46] is 3 for every framed dialog: FUN_6f74_06d0 @ 0x078a–0x0799
+   * sets it to `(flags & 0x10) ? 0 : 3` — the same flag 0x10 that drops the
+   * frame entirely (the King-audience case). The port previously used
+   * glyph_h + 1 for both, so every option row sat 2 px tight.
+   *
+   * The third pitch, glyph_h + box[+0x46] + 5 (= glyph_h + 8, FUN_6f74_14c6 @
+   * 0x1649–0x1653), belongs to the +0x60 list — text-entry fields appended by
+   * FUN_6f74_0d44 and painted by FUN_6f74_1e14, only ever built when the
+   * script parser sees DS:0x2008 set. No ai_popup dialog has such a row.
    */
   int glyph_h = font ? font->max_height : 6;
   if (glyph_h == 6) {
     glyph_h = 5;
   }
   const int line_h = glyph_h + 1;
+  /* FUN_6f74_14c6: option rows advance by glyph_h + box[+0x46] (= 3). */
+  const int option_h = glyph_h + 3;
   const int pad_x = 2;
   const int title_gap = req->title[0] ? 2 : 0;
 
@@ -1177,7 +1208,6 @@ void ai_popup_render(
   if (content_w + 6 > framebuffer->width) {
     content_w = framebuffer->width - 6;
   }
-  int dialog_w = content_w + 6;
   const int text_max_w = content_w - 2 * pad_x;
 
   char wrapped[AI_POPUP_WRAP_MAX][AI_POPUP_BODY_LEN];
@@ -1190,20 +1220,46 @@ void ai_popup_render(
     );
   }
 
+  /*
+   * FUN_6f74_14c6: the box grows to the widest emitted option row (same rule
+   * save_load_dialog.c already carries). The prompt is flow-wrapped to the
+   * declared @width first (FUN_6f74_1198), so only the single-line option
+   * rows widen the frame — a no-op for every dialog whose rows already fit,
+   * which is why no existing golden moves. The Congress debate needs it: its
+   * DOS rows are "<father> (<category> Adviser)", wider than @WHICHFREEDOM's
+   * own @width=190.
+   */
+  if (font) {
+    for (int i = 0; i < req->choice_count; ++i) {
+      const int w = popup_markup_text_width(font, req->choices[i]) + 2 * pad_x;
+      if (w > content_w) {
+        content_w = w;
+      }
+    }
+    if (content_w + 6 > framebuffer->width) {
+      content_w = framebuffer->width - 6;
+    }
+  }
+  int dialog_w = content_w + 6;
+
   const int title_h = req->title[0] ? line_h + title_gap : 0;
   const int body_h = wrapped_count * line_h;
-  const int options_h = req->choice_count * line_h;
+  const int options_h = req->choice_count * option_h;
   int dialog_h = 12 + title_h + body_h + options_h;
   if (dialog_h > framebuffer->height) {
     dialog_h = framebuffer->height;
   }
 
   /*
-   * Chief portrait (FUN_6f74_14c6 @ DS:0x1f5c ≥ 0): the sprite stands at the
-   * frame edge — LEFT for tribes 0/3/5/7 (Inca, Iroquois, Apache, Tupi) and
-   * the King (8), RIGHT for the others — the frame widens by sprite_w + 6 and
-   * spans both; the dialog content shifts past the sprite by sprite_w + 3.
-   * Sprite top = 100 − (sprite_h + 3)/2; the frame grows to enclose it.
+   * Chief portrait (FUN_6f74_14c6 @ DS:0x1f5c ≥ 0, OVL24 0x17a0..0x189c):
+   * the sprite stands at the span edge — LEFT for tribes 0/3/5/7 (Inca,
+   * Iroquois, Apache, Tupi) and the King (8), RIGHT for the others — the
+   * combined span is dialog_w + sprite_w + 6, clamped to 320 and centred on
+   * 160. Sprite top = 100 − (sprite_h + 3)/2. The sheet name itself comes
+   * from FUN_6f74_0042: DS:0x1f77 holds the literal "IND0A0" and DOS adds
+   * the tribe to byte 3 and the alarm quartile (FUN_281f_0a60 →
+   * FUN_15dc_00a2 over FUN_281f_030c = DS:0x5b1c alarm vs DS:0x5398) to
+   * byte 5; tribe ≥ 8 takes DS:0x1f72 = "KING" instead.
    */
   const ColonizeSpriteSheet* portrait =
     req->portrait_tribe == 8 ? ai_popup_king_sheet()
@@ -1291,8 +1347,10 @@ void ai_popup_render(
    * floating decorator beside it: the combined span (dialog + sprite + 6) is
    * centred on 160 (DOS +0x18/+0x1c = the save/clip rect, not the frame),
    * the sprite sits at the span edge and the dialog is pushed past it by
-   * sprite_w + 3. Sprite is blitted after the frame so it overlaps the wood
-   * border rather than widening it. */
+   * sprite_w + 6 (left arm), or the sprite sits dialog_w + 3 past the span
+   * start (right arm). The frame never widens to take the sprite in; which
+   * of the two wins where they touch is the draw order below (DOS
+   * FUN_6f74_248e: portrait under the wood, MSS/MYR over it). */
   const int frame_h = dialog_h;
   const int frame_w = dialog_w;
   int frame_y; /* = dialog_y, after the MSS/MYR block may move it */
@@ -1301,21 +1359,30 @@ void ai_popup_render(
   int portrait_x = 0;
   int portrait_y = 0;
   if (portrait) {
-    int overflow = 0;
+    /*
+     * DOS [bp-0x18] starts at −3 (OVL24 0x17bc `mov word [bp-0x18],0xfffd`)
+     * and only becomes span_w − 323 when the span is clamped to 0x140
+     * (0x17d8 `sub ax,0x143`). Both arms subtract it, so the unclamped case
+     * adds a 3px gutter — it is not a plain overflow term.
+     */
+    int shift = -3;
     int span_w = dialog_w + portrait_w + 6;
     if (span_w > framebuffer->width) {
-      overflow = span_w - framebuffer->width;
+      shift = span_w - (framebuffer->width + 3);
       span_w = framebuffer->width;
     }
-    const int span_x = (framebuffer->width - span_w) / 2;
+    /* 0x1823/0x1847: `sar ax,1` / `sub ax,0xa0` / `neg ax` = 160 − span_w/2,
+     * an arithmetic halve of the span — not a halve of the leftover margin. */
+    const int span_x = framebuffer->width / 2 - (span_w >> 1);
     if (portrait_left) {
       portrait_x = span_x;
-      dialog_x = span_x + portrait_w + 3 - overflow;
+      dialog_x = span_x - shift + (portrait_w + 3);
     } else {
       dialog_x = span_x;
-      portrait_x = span_x + dialog_w - overflow;
+      portrait_x = span_x + dialog_w - shift;
     }
-    portrait_y = (framebuffer->height - (portrait_h + 3)) / 2;
+    /* 0x1867: 100 − (sprite_h + 3)/2. */
+    portrait_y = framebuffer->height / 2 - ((portrait_h + 3) >> 1);
     if (portrait_y < MAP_MENU_BAR_H) {
       portrait_y = MAP_MENU_BAR_H;
     }
@@ -1370,6 +1437,27 @@ void ai_popup_render(
     colors = &local_colors;
   }
 
+  /*
+   * Draw order (DOS FUN_6f74_248e, viceroy_unpacked.c:116519):
+   *
+   *   if (DS:0x1f5c >= 0) thunk_2a1f_0ab6(box);   // FUN_6f74_1ae8 sprite blit
+   *   thunk_2a1f_0710(box, +0x10,+0x12,+0x14,+0x16); // FUN_6f74_2278 frame
+   *   ... rows / body / options ...
+   *   if (DS:0x1f5c <  0) thunk_2a1f_0ab6(box);   // same blit, but LAST
+   *
+   * So a chief/King portrait (DS:0x1f5c ≥ 0) goes UNDER the wood frame, and
+   * an MSS/MYR decoration (0x1f5c < 0, 0x1f5e/0x1f60 set) goes OVER it. The
+   * port used to blit both after popup_draw; whenever the span clamp pulls
+   * the dialog back into the sprite (`shift` above) that painted the
+   * portrait on top of wood DOS would have drawn over it.
+   */
+  if (portrait_base) {
+    ss_blit_sprite(portrait_base, 0, framebuffer, portrait_x, portrait_y);
+  }
+  if (portrait) {
+    ss_blit_sprite(portrait, portrait_frame, framebuffer, portrait_x, portrait_y);
+  }
+
   int inner_x = 0;
   int inner_y = 0;
   int inner_w = 0;
@@ -1397,16 +1485,12 @@ void ai_popup_render(
   st->dialog_y = dialog_y;
   st->dialog_w = dialog_w;
   st->dialog_h = dialog_h;
-  st->line_h = line_h;
+  /* Hit-testing walks the OPTION rows, so this is their pitch, not the body's. */
+  st->line_h = option_h;
 
-  if (portrait_base) {
-    ss_blit_sprite(portrait_base, 0, framebuffer, portrait_x, portrait_y);
-  }
-  if (portrait) {
-    ss_blit_sprite(portrait, portrait_frame, framebuffer, portrait_x, portrait_y);
-  }
   if (graphic) {
-    /* After the frame so the figure's head/shoulders overlap the wood top. */
+    /* After the frame so the figure's head/shoulders overlap the wood top
+     * (DOS 248e's second thunk_2a1f_0ab6 arm, DS:0x1f5c < 0). */
     ss_blit_sprite(graphic, 0, framebuffer, graphic_x, graphic_y);
   }
 
@@ -1442,14 +1526,26 @@ void ai_popup_render(
   }
   st->list_y0 = text_y;
   for (int i = 0; i < req->choice_count; ++i) {
-    const int row_y = text_y + i * line_h;
+    const int row_y = text_y + i * option_h;
     if (i == st->selection) {
+      /*
+       * FUN_6f74_1b7c selection bar, OVL24 0x1c5b–0x1c9b. Its x is
+       * `[bp-0x8] − box[+0x22] − 1` where [bp-0x8] was built at 0x1b86 as
+       * `box[+0x24] + box[+0x48] + box[+0x22]` — the two +0x22 terms cancel
+       * exactly, so x = box[+0x24] + box[+0x48] − 1 whatever +0x22 holds.
+       * (An earlier reading of "box+0x24 − 5" dropped that cancellation and
+       * so appeared to escape the frame; it does not, and it needs no +0x5c
+       * header list.) Width = box[+0x20] + 2·(1 − box[+0x48]) = content − 2,
+       * height = glyph_h + 2 (`call 0xf16` then `inc ax` twice at 0x1c61).
+       * box[+0x24] is the content origin (= inner_x), box[+0x48] = 2, and
+       * box[+0x20] is the content width (= inner_w, which is dialog_w − 6).
+       */
       ai_popup_fill_row(
         framebuffer,
-        inner_x + 2,
+        inner_x + pad_x - 1,
         row_y - 1,
-        inner_x + inner_w - 3,
-        row_y + line_h - 2,
+        inner_x + pad_x - 1 + (inner_w - 2) - 1,
+        row_y - 1 + (glyph_h + 2) - 1,
         select_color
       );
     }

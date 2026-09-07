@@ -7,6 +7,7 @@
 #include "core/colony_production.h"
 #include "core/dos_rng.h"
 #include "core/popup_msg.h"
+#include "core/reports.h"
 #include "platform/diagnostics.h"
 #include "core/units.h"
 
@@ -694,6 +695,48 @@ static int ff_debate_pending(const AiPopupState* p) {
   return 0;
 }
 
+/*
+ * DOS Congress-debate option row (FUN_4345_06d2, OVL07_L0040 0xc72..0xcfb —
+ * Ghidra drops the pushed string pointers, ndisasm recovers them):
+ *
+ *   buf[0] = 0
+ *   281f_016e(buf, DS:0x9652 + ff*6)   @FATHERS name
+ *   281f_0178(buf)                     strcat DS:0x50 = " "
+ *   281f_011e(buf)                     strcat DS:0x5e = "("
+ *   281f_016e(buf, DS:0x96e8 + type*2) @FOUNDING category word
+ *   281f_0178(buf)                     " "
+ *   281f_016e(buf, DS:0x2e88)          @MISC 103 = "Adviser"
+ *   281f_0128(buf)                     strcat DS:0x60 = ")"
+ *
+ * i.e. "Adam Smith (Trade Adviser)". The DS word at 0x2e88 is @MISC index
+ * (0x2e88 − 0x2dba)/2 = 103 under the pointer base in docs/popup_tag_ids.md.
+ * Each live lookup returns reports.c's shared scratch buffer, so the parts
+ * are copied out before they are composed.
+ */
+static void ff_debate_row_label(int idx, char* out, size_t out_size) {
+  if (!out || out_size == 0) {
+    return;
+  }
+  if (idx < 0 || idx >= (int)COLONIZE_COL1_FF_COUNT) {
+    out[0] = '\0';
+    return;
+  }
+  char name[48];
+  char category[32];
+  char adviser[32];
+  snprintf(name, sizeof(name), "%s", reports_ff_display_name(idx));
+  snprintf(category, sizeof(category), "%s", reports_ff_category_display_name(k_ff_type[idx]));
+  snprintf(adviser, sizeof(adviser), "%s", reports_misc_display_word(103, "Adviser"));
+  if (name[0] == '\0') {
+    snprintf(name, sizeof(name), "%s", k_ff_short_names[idx]);
+  }
+  if (category[0] == '\0') {
+    snprintf(out, out_size, "%s", name);
+    return;
+  }
+  snprintf(out, out_size, "%s (%s %s)", name, category, adviser);
+}
+
 /* Enqueue the Congress debate CHOICE from the stored slate (dropping any
  * candidate elected elsewhere since). False when no usable slate remains. */
 static bool ff_enqueue_debate_from_slate(
@@ -714,7 +757,7 @@ static bool ff_enqueue_debate_from_slate(
         !ff_available_to(ctx->col1, nation_id, idx)) {
       continue;
     }
-    snprintf(labels[n], sizeof(labels[n]), "%s", k_ff_short_names[idx]);
+    ff_debate_row_label(idx, labels[n], sizeof(labels[n]));
     choice_ptrs[n] = labels[n];
     ids[n] = idx;
     n++;
@@ -729,7 +772,10 @@ static bool ff_enqueue_debate_from_slate(
     ctx->messages,
     "WHICHFREEDOM",
     NULL,
-    "The Continental Congress will expand during its next session. Which Founding Father shall we appoint as its next member?",
+    /* GAME.TXT @WHICHFREEDOM verbatim (fallback only — popup_msg_fill uses
+     * the live section, including its @width=190, whenever assets load). */
+    "The Continental Congress will expand during its next session, Your Excellency.  "
+    "Which Founding Father shall we appoint as its next member?",
     body,
     sizeof(body)
   );

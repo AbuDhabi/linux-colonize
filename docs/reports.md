@@ -29,10 +29,61 @@ report row to jump to the colony/map screen.
 
 Open gaps: leftover hardcoded English with no shipped string ("Villages" on
 F9, port-only empty states, HoF "Nation" + Esc hint). Hall of Fame has no
-golden. Congress page 2 draws all 25 FF portraits from CC-xx.SS sprite
-anchors (the old 10/25 slot table is gone — bugs.md Revere/Drake). F9's
-headband variant (ICONS.SS #113-117) is unidentified, always renders #113.
-Bell-bar glyph is fatter than DOS (10×12 `ICONS.SS` #62 vs a 2×7 mark).
+golden and no reference capture exists in the repo — see the Hall of Fame
+section for exactly what one would have to contain. Congress page 2 draws
+all 25 FF portraits from CC-xx.SS sprite anchors (the old 10/25 slot table
+is gone — bugs.md Revere/Drake).
+
+T5.3 close-out (2026-09-07): the "fat bell glyph" and the "F9 headband is
+always #113" gaps are both closed — see "Proportional fill bars are a DOS
+routine" below, and F9's Icon note. Both fixes are pixel-exact against their
+goldens. Still open on Congress page 1: the rebel/tory split bar (rows
+67-80) and the expeditionary-force tally (rows 100-116) are the *other* two
+entry points into the same `1097` family and are still port approximations
+— together they are ~6.9k of the plate's remaining 10.4k differing pixels.
+
+## Proportional fill bars are a DOS routine, not a spread
+
+Every "row of little icons that fills as a resource accumulates" on a report
+plate is `FUN_1097_0174` (draw loop) over `FUN_1097_0004` (geometry), reached
+through the `FUN_281f_0236` thunk (`281f:023b` JMPFs straight at
+`1097:0174`). Ported verbatim as `reports_draw_dos_icon_bar` (`reports.c`).
+The port's own `reports_draw_icon_bar` — proportional width, icons spread
+evenly across it — is *not* what DOS does and is now only used by the bars
+that have not been traced to a call site yet.
+
+    iw    = sprite width                    (+2 when the flags word has bit 2)
+    step  = clamp((w - iw) / (denom - 1), 1, iw + 1)     (1 when denom < 2)
+    span  = (denom - 1) * step
+    shift = smallest s with (span >> s) <= w - iw        (halve until it fits)
+    rem   = w - ((span >> shift) + iw)
+    count = amount >> shift        den = denom >> shift
+    if (min_w != 0) x += rem >> 1                        (both plates pass 0)
+    per icon: blit at (x, y+1); x += step; acc += rem;
+              while (acc >= den) { acc -= den; ++x; }
+
+Three things the port had wrong and this fixes:
+
+1. **The bar is always the full `w`.** The fill is the *length of the drawn
+   run*, not a proportionally shortened bar. Both plates pass `w = 0x12c`
+   (300).
+2. **The step comes from the denominator, the count from the numerator.**
+   `denom` = what a full bar would hold (needed crosses / bells for the next
+   FF); `amount` = what you have.
+3. **Icons overlap and clip each other.** With a four-digit denominator the
+   step collapses to 1 and `shift` climbs, so DOS draws a dense, mostly
+   self-erasing run.
+
+Number overlay (`1097:028e` → `FUN_1097_00de`): shown when DOS's global
+numbers toggle DS:0x70 is on **or** when `step == 1 && amount > 1` (the
+"fused into an unreadable smear" override). `FUN_1097_00de` bumps its y by 2,
+paints a `(text_width + 1) × 7` black plate at (x, y+2), then draws the
+glyphs at (x+1, y+3) — so from the bar's own origin: plate at
+(start_x + 2, y + 2), text at (start_x + 3, y + 3).
+
+DOS sprite ids in these calls are **1-based over ICONS.SS**: 0x39 → #56
+(cross), 0x3f → #62 (bell), 0x72 → #113 (calm chief). All three are
+independently golden-confirmed.
 
 ## Shared chrome (every F2-F9 report)
 
@@ -56,14 +107,21 @@ Bell-bar glyph is fatter than DOS (10×12 `ICONS.SS` #62 vs a 2×7 mark).
 
 ## F2 - Religious Adviser
 
-- DOS FUN: `FUN_3f41_06d0` (viceroy_unpacked.c:69650, 174 lines) — thunk
-  `FUN_291f_03fe`.
+- DOS FUN: **`FUN_3f41_0618`** (viceroy_unpacked.c:69611, 39 lines) — the
+  F2/F3 pair was **swapped in this doc until 2026-09-07**. `0618` pushes `2`
+  to the plate bring-up (→ `REPORT2.PIK`), formats DS:0x11a9 `"(%d of %d)"`
+  (the recruit-pool / immigrants-en-route line), and draws its fill bar with
+  sprite `0x39` (= ICONS.SS #56, the cross) over `BX = nation+0x2e`
+  (current) / `DX = nation+0x30` (needed). `06d0` does none of that and is
+  the Congress plate — see F3.
 - Background: `REPORT2.PIK`.
 - Data source: nation crosses pool (needed/accumulated split), founding-
   father bitmask for the FF-name tail loop (0x25-entry table at `-0x69ae`),
   immigration/recruit-pool counts (4-slot arrays at `0x53da`/`0x53e2`).
 - Columns/layout: single column — title, crosses proportional fill bar
-  (native x=10,y=27, ICONS.SS#56), two conditional summary lines (recruit
+  (`3f41:0670` pushes x=10, y=25, w=300, min_w=0, split=0, flags=1;
+  ICONS.SS#56; icons blit at y+1=26 — 2026-09-07, was x=10/y=27 with a
+  proportional width), two conditional summary lines (recruit
   pool / immigrants en route — suppressed entirely when zero, not shown as
   "0"), FF-name tail list wrapping across 4 columns.
 - Ordering: crosses bar always first; summary lines conditional.
@@ -73,12 +131,23 @@ Bell-bar glyph is fatter than DOS (10×12 `ICONS.SS` #62 vs a 2×7 mark).
   FF names live from `NAMES.TXT @FATHERS` (`reports_ff_name`, `k_ff_names[]`
   is the no-assets fallback).
 - Port status: Done (golden `religious.png`) —
-  `reports_render_religious` (`reports.c:873`).
+  `reports_render_religious`. The crosses bar itself is **pixel-exact**
+  since 2026-09-07 (0 differing pixels in x=4..79, y=24..41; was 471) after
+  moving it onto `reports_draw_dos_icon_bar`: 25 crosses over a denominator
+  of 128 give step 2 / shift 0 / rem 38, i.e. icon origins 10, 12, 14, 16,
+  19, 21, 23, 26 … — the irregular 3px gaps are the Bresenham remainder, and
+  they are on the golden too. The rest of the plate (FF-name tail) still
+  differs.
 
 ## F3 - Continental Congress
 
-- DOS FUN: page shell `FUN_3f41_0618` (69611, 39 lines) — thunk
-  `FUN_291f_040c`. FF debate/nominate is a separate DOS screen,
+- DOS FUN: **`FUN_3f41_06d0`** (69650, 174 lines) + its Ghidra-split tail
+  `FUN_3f41_0ae6` — corrected 2026-09-07 (this doc had `0618`, which is F2;
+  the F-key→thunk column, not the code, was the thing that was swapped).
+  `06d0` pushes `3` to the plate bring-up (→ `REPORT3.PIK`), calls
+  `FUN_291f_0f66` = `FUN_4345_0982` (bells needed), reads DS:0x53d0
+  (`rebel_sentiment_report`), and draws its fill bar with sprite `0x3f`
+  (= ICONS.SS #62, the bell). FF debate/nominate is a separate DOS screen,
   `FUN_4345_06d2` (73177) via `FUN_2a1f_0000`/`FUN_291f_0f74` — not part of
   the F3 plate itself.
 - Background: page 1 `REPORT3.PIK` (own desk/study — was orphaned in
@@ -88,23 +157,38 @@ Bell-bar glyph is fatter than DOS (10×12 `ICONS.SS` #62 vs a 2×7 mark).
   (`FUN_4345_0982`), `nation.rebel_sentiment`/tory split, expeditionary-
   force pool counts (Regulars/Cavalry/Artillery/Man-O-War), FF-owned
   bitmask for the name list (`FUN_4345_01a6`).
-- Columns/layout: page 1 — bells proportional fill bar (x=6,y=36), rebel/
+- Columns/layout: page 1 — bells proportional fill bar (`3f41:0890` pushes
+  x=4, y=`TEXT1_Y + one text row`, w=300, min_w=0, split=0, flags=1; icons
+  blit at y+1; 2026-09-07, was x=6/y=36 with a proportional width), rebel/
   tory two-icon split bar (flags then crowns, 50-slot budget, x=4,y=71),
   expeditionary-force 4-box natural tally (y=102, ~2.2px/unit), 4-column FF
   name grid (x=8, step=78; `FUN_3f41_0ae6` is the Ghidra-split tail of this
   list). Page 2: full-bleed FF group portrait composite, no text.
 - Ordering: fixed bells -> sentiment -> force -> FF list; page 2 portraits
   paint from CC-xx.SS sprite anchors in `k_ff_portrait_draw_order[]` (all 25).
-- Bells bar icon count (2026-08-30): the bar's `amount` is a raw four-digit
-  pool, not a unit count, so it is **not** the icon count — spreading all of
-  them filled the bar solid black. `reports_draw_icon_bar` takes a
-  `max_icons` cap and the bells site passes `w / REPORTS_CONGRESS_BELLS_PITCH`
-  (5), measured off `continental_p1.png` (pool 1135 / need 1849 → w = 180;
-  marks at x = 24, 29, 34 … 177, 181 = 36 marks, ~4.86px pitch). The REF and
-  crosses bars keep the plain even spread (their golden pitches are 2px and
-  ~7.9px). **Open:** DOS's bell mark is a 2x7 glyph (brown dot over a 1px
-  grey stroke) and is *not* `ICONS.SS` #62 — no `ICONS.SS` sprite is <=4px
-  wide — so the port's 10x12 bell still reads fatter than the golden.
+- Bells bar (**resolved 2026-09-07, T5.3**; supersedes the 2026-08-30
+  "36 bells at a 5px pitch, capped by `max_icons`" reading). The 2×7 mark on
+  `continental_p1.png` is not a separate glyph and there is no missing
+  narrow sprite: it is `ICONS.SS` #62 with its whole body painted over by
+  the *next* bell. Feeding `FUN_1097_0004`'s real geometry (see
+  "Proportional fill bars are a DOS routine") with `amount = min(pool,
+  need) = 1135`, `denom = need = 1849`, `w = 300`, `iw = 10`:
+
+      step = (300-10)/1848 = 0 -> clamped to 1
+      span = 1848,  shift = 3 (1848>>3 = 231 <= 290),  rem = 300-241 = 59
+      count = 1135>>3 = 141 bells,  den = 1849>>3 = 231
+
+  so DOS draws **141** bells from x=4, each 1px on from the last plus a
+  Bresenham +1 every 59/231 of a step. A bell 1px from its neighbour is
+  erased completely; the ~36 that happen to get a 2px gap keep exactly two
+  columns — the leftmost ink pixel of each sprite row (#62 col 2 on rows 3
+  and 9, col 3 on rows 5-8: the brown crown-end over the grey body edge).
+  The last bell has no successor and shows whole. Predicted origins run
+  7, 12, 17 … 175, 179 with three 4px steps; the golden's are identical.
+- Bells clamp: `3f41:07c8` reads the threshold into `local_56`, then
+  `local_68 = min(pool, threshold)` — so an over-full pool cannot overrun
+  the bar. (When DS:0x5382 bit 1 is set the threshold is first raised to
+  `max(pool, threshold)`.)
 - Scroll/paging: 2 pages; any dismiss on page 1 advances to page 2 instead
   of leaving the report; page 2 closes on any click.
 - Click targets: none inside a page; page-advance only.
@@ -114,8 +198,13 @@ Bell-bar glyph is fatter than DOS (10×12 `ICONS.SS` #62 vs a 2×7 mark).
   and "Founding Fathers" (#89) resolve live from `@MISC` (2026-08-28),
   composed with the golden's ":"/spacing; need FONTTINY not FONTSMAL.
 - Port status: Done (golden `continental_p1.png`/`continental_p2.png`,
-  2026-08-25 per port_plan.md) — `reports_render_congress_page1`/`_page2`
-  (`reports.c:970`/`1141`).
+  2026-08-25 per port_plan.md) — `reports_render_congress_page1`/`_page2`.
+  The bells bar (and the "1135" plate/number over it) is **pixel-exact**
+  since 2026-09-07: 0 differing pixels in x=2..189, y=33..45. Page 2 is 10
+  pixels off; page 1 as a whole is 10 369 (was 11 743), of which the
+  rebel/tory bar (rows 67-80, 3 520) and the expeditionary-force tally
+  (rows 100-116, 3 407) are the two remaining `1097`-family widgets that
+  have not been traced to their call sites — the obvious next pass.
 
 ## F4 - Labor Adviser
 
@@ -362,7 +451,8 @@ Bell-bar glyph is fatter than DOS (10×12 `ICONS.SS` #62 vs a 2×7 mark).
   `indian.horse_herds` read raw. Missions = villages whose `mission` byte's
   low nibble equals the viewing nation, not "any mission".
 - Columns/layout: flat unpaginated list, 2-line block per tribe — 16x16
-  headband portrait (ICONS.SS #113, always) + "<PluralTribeName>:"
+  chief portrait at x=10, top = name_y - 3 (ICONS.SS #113 + alarm quartile;
+  see "Chief portrait" below) + "<PluralTribeName>:"
   (NAMES.TXT @TRIBES col 0) + right-aligned tribe level, then a black stats
   line: Villages (always shown) / Missions / Muskets / Horse Herds (each
   skipped when 0). Row0 y=28 step=21.
@@ -377,10 +467,34 @@ Bell-bar glyph is fatter than DOS (10×12 `ICONS.SS` #62 vs a 2×7 mark).
   tribe-level words live from `@LEVELS` (`reports_tribe_level`, 2026-08-26);
   "Missions"/"Horse Herds" from `@MISC`, "Muskets" from `@CARGO`
   (2026-08-28); "Villages" stays hardcoded (no bare-word string shipped).
-- Port status: Done (golden `indian.png`) — `reports_render_indian`
-  (`reports.c:2874`). The muskets x50 formula and mission-nation filter
-  were both real, previously-undocumented DOS behavior found only by
-  reading the decompile line-by-line.
+- Chief portrait (**resolved 2026-09-07, T5.3** — was "variant
+  unidentified, always renders #113"). `3f41:0522`..`3f41:05d2`:
+
+      q = FUN_281f_0a60(FUN_281f_030c(tribe, viewing_nation))
+        = quartile of the Indian->Euro alarm word, cuts 25/50/75
+      if (indian_record[+3] & 0x80)  q = 3        // the `extinct` bit
+      FUN_281f_0254(AX = q + 0x72, ..., DX = x, y)
+
+  `0x72` is a DOS sprite id and those are 1-based over ICONS.SS, so the
+  sheet index is **113 + q** — #113 calm … #116 hostile. (#117 exists but
+  this call site cannot reach it.) The five sprites are byte-identical
+  except for colour 136 spreading through the mouth rows, i.e. one
+  expression ramp, not five tribes. `local_64` — a second, `4 - (alarm mod
+  25)/5` value clamped to 0..4 — is computed in the same block and then
+  never read; it is dead in this function.
+  Golden proof: `indian.png`'s two rows are Arawak (tribe 2) and Cherokee
+  (tribe 4); both have `alarm_by_player[3] == 0` in `dutch-reports.SAV`
+  (the earlier "alarm 0 vs 34-48" note was reading other nations' columns),
+  so both are q=0. A palette-consistency search over (sprite, x, y) picks
+  #113 at x=10, y=25/46 with **0** violations across 226 opaque pixels;
+  #114 scores 2, #117 scores 12, and x=11 scores 120+.
+- Port status: Done (golden `indian.png`) — `reports_render_indian`. Both
+  chief portraits are pixel-exact as of 2026-09-07. Note that `indian.png`
+  itself was captured with a slightly different DAC than the other report
+  goldens — every pixel of the plate is off by a small RGB delta, so a raw
+  RGB diff against it is meaningless (~62k "differences" on a correct
+  render). Compare it by palette consistency (does one port colour map to
+  exactly one golden colour over the region?), not by equality.
 
 ## F10 - Colonization Score
 
@@ -506,9 +620,56 @@ Bell-bar glyph is fatter than DOS (10×12 `ICONS.SS` #62 vs a 2×7 mark).
   matching literal fallbacks; `@INDEPENDENT` republic name from NAMES.TXT
   by the entry's `nation_id`. Separator glyphs (". ", ", ", ": ") are the
   `FUN_281f_01dc/01b4/01be` strcat thunks per FUNCTION_CATALOG.
-- Port status: Done (DOS layout, no golden screenshot to diff against; headless render checked 2026-08-29). Previously "Done thin" — functions and persists correctly, but no golden
-  screenshot exists for this screen (unlike every F2-F10 report), so exact
+- Port status: Done (DOS layout, no golden screenshot to diff against;
+  headless render checked 2026-08-29). Functions and persists correctly, but
+  no golden exists for this screen (unlike every F2-F10 report), so exact
   DOS column widths/positions/chrome are unconfirmed.
-  `reports_render_hall_of_fame` (`reports.c:3483`).
-</content>
-</invoke>
+  `reports_render_hall_of_fame`.
+
+### Why there is still no Hall of Fame golden (T5.3, 2026-09-07)
+
+Searched for reference material and found none. For the record, so nobody
+repeats the search:
+
+- `original_saves/report-screen-goldens/` holds one PNG per F2-F10 plate and
+  nothing for the title-menu screens.
+- `original_screenshots/` contains only `europe/` (4 PNGs).
+- `dosbox-x-dumps/` and `original_memory_dumps/` are debugger text logs and
+  DOSBox save states captured for AI / `VR_B465X` / brave-movement work.
+  None was taken with the Hall of Fame on screen, so none carries a usable
+  VGA framebuffer for it.
+- There is no `HALLFAME.DAT` in `COLONIZE/` — DOS only writes one the first
+  time a game is retired, and this repo's install has never been retired.
+  `COLONIZE/HOF.TXT` is the **port's** own file, not a DOS artefact.
+
+**No golden was invented and no comparison test was wired.** Doing either
+would have meant asserting pixels derived from our own renderer, which is
+exactly the failure mode `report_screens.md` warns about.
+
+What a usable capture has to contain, to be reproducible:
+
+1. A DOS `HALLFAME.DAT` (6 x 42-byte records: `name[24]`, nation, declared,
+   achieved, year, season, difficulty, score, rating, tier — the record
+   `FUN_41f2_14a8` builds at Retire) committed **alongside** the PNG, so the
+   expected text is derivable rather than read off the image. Without the
+   .DAT the screenshot pins layout but not content, and any later change to
+   `game_hof_insert`'s ranking silently invalidates it.
+2. A 640x400 PNG (2x native, same convention as every other golden;
+   `report_screens.md` "Golden screenshots are 2x") of the title-menu Hall
+   of Fame with **at least 5 filled rows**, since DOS shows 5 of its 6 slots
+   and a short table would leave the row pitch and the bottom edge unpinned.
+3. Rows that differ from each other in the branch-y fields, or the branches
+   stay unproven: at least one `declared` entry (the "Free " prefix, @MISC
+   #191) and one not; at least one `achieved` entry (line 2 becomes
+   "President, <@INDEPENDENT>" instead of "Leader, <Nation> Colonies");
+   and at least two different difficulty ranks.
+4. Captured from the **same DOS install** as this repo's `COLONIZE/`, so
+   `LABELS.TXT @MISC` #19/#95/#191..#199 and the `WOODPANL.PIK` palette
+   match. Note the DAC caveat recorded under F9: capture it the same way the
+   F2-F10 goldens were, or a raw RGB diff will be useless.
+
+With that in hand the test is mechanical and should follow the existing
+style: extend `tools/render_report_main.c` with a Hall-of-Fame mode (it
+cannot reach `reports_render_hall_of_fame` today — that call takes a
+`ColonizeHofRow[]`, not a `ColonizeReportId`), load the .DAT through
+`game_hof_load`, render, and diff against the PNG.

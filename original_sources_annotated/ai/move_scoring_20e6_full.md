@@ -4712,3 +4712,94 @@ real ocean terrain, coastal colony for the flood gate).
 - The 3fa6 stamp stays modelled by the dispatcher Europe-export arm.
 - `+0x3148`-adjacent AI scratch bytes not named in the tables remain
   unmodelled (`+0x315a` is now resolved = `turns_worked`).
+
+## 2026-09-07e — the "two-beat boarding" premise REFUTED; 10be ported at its real position
+
+The 2026-09-07c still-thin list's first bullet claimed that marks set by the
+berth scan (raw 3024-3051) board at the ship's **next** act, because
+`FUN_1000_8b10` (= `FUN_281f_0920` → `FUN_1427_10be`) is called at raw ~1720
+and the berth scan sits at raw ~3040, i.e. *earlier in the decompiler's line
+order*. That reading is wrong: the two blocks are in the same basic-block
+chain, and the arrival block runs **before** `LAB_3558`, not after it.
+
+### Control-flow proof (`viceroy_overlays.asm`, not the decompiled C)
+
+| asm line | in-segment | what |
+|---|---|---|
+| 135683 | `LAB_OVL14_L0000__00304c` | raw 1691 arrival gate |
+| 135706 / 135710 / 135721 | `0x3083` / `0x308c` / `0x30a4` | its three `JMP LAB_..._003558` exits (capacity 0 / not at own colony / land hauler not bound here) |
+| 135722 | `0x30a7` | gate FALL-THROUGH = the arrival block: `MOV [BP+0xff5c],AX` / `CALLF FUN_1000_84de`, then the stale-mark clear at `0x30b6` (`CMP byte [BX+0x314c],0x1` → `MOV byte [BX+0x314c],0x0`) |
+| 135980-135986 | `0x32f5` | end of the board-mark scan: `MOV word [BX+0x1734],0x0`, then `JMP LAB_..._00354e` |
+| 136215-136218 | `0x354e` | load-matrix loop test `CMP word [BP+0xff30],0x0` → `JZ LAB_..._003558` |
+| 136221 | `LAB_OVL14_L0000__003558` | XREF list is exactly `0x3083, 0x308c, 0x30a4, 0x3313, 0x3553` — every entry is a *forward* jump out of the gate or out of the arrival block |
+| 136289-136291 | `0x3609` | `PUSH word [BP+0x6]` / `CALLF ram:FUN_1000_8b10`, immediately followed by `PUSH 0x2` / `CALLF FUN_1000_8aac` (the 0d38 batch) |
+
+So one 20e6 ship act at an own-colony berth runs, in this order:
+
+1. clear stale `act_state == 1` on the berth tile stack (raw 2991-2997);
+2. dump every hold, `+0x314a = 0xff`, colony `+0x8f = 0`;
+3. cower arm — the **one** path that skips what follows (stamps orders 0x43,
+   `goto LAB_5899`, i.e. past `0x3558`);
+4. `iStack_d2 = capacity − holds_occupied`;
+5. the raw 3024-3051 scan: `act_state = 1` + `iStack_d2 -= 0x5238[type]` — a
+   MARK and a reservation, no boarding;
+6. `0x1734[nation] = 0`;
+7. the load matrix, consuming what is left of `iStack_d2` one hold per cargo;
+8. fall through `0x354e` → `0x3558` → delivery tallies → **`10be`**, which
+   boards the marked members with `free = 0x5237[type] − +0x3150` — precisely
+   the remainder step 5 reserved and step 7 did not spend;
+9. the 0d38 stack counts, which therefore already see the new passengers.
+
+Ghidra prints the arrival block *after* `LAB_3558` only because every path
+inside the `if` leaves by `goto`, so the block reads as the `if`'s fall-out.
+**Mark and assembly are one act.** The Linux port's "collapsed to one beat"
+substitution was accidentally correct in timing; what it was actually missing
+was the mark/assemble split, the stale-mark clear, and the fact that `10be`
+runs at `LAB_3558` on *every* ship act, not only at a berth.
+
+### Ported (2026-09-07e)
+
+`ai_euro_20e6_transport_assemble` in `src/core/ai_euro.c` is `FUN_1427_10be`
+(decomp 8606-8686): `free = units_ship_free_passenger_slots` (exactly
+`0x5237[type] − +0x3150`), walk the stack, board every member with
+`act_state == 1` whose `0x5238` size fits, debiting `free`. Called at the
+arrival tail (DOS's `0x354e → 0x3558` fall-through) and at the top of
+`ai_euro_20e6_unload_mask`, which is the Linux anchor for `0x3609` — the call
+sits immediately before the `ai_euro_20e6_ship_cargo_counts` 0d38 batch, the
+same adjacency the asm shows.
+
+- The berth scan now only marks (`s_0a60_pilot_state[].act_state = 1`, the
+  `+0x314c` shadow) and debits the budget; `units_board` moved to the sweep.
+- Raw 2991-2997 stale-mark clear is live, over the berth tile stack, all
+  nations (DOS iterates a tile stack, not an owner list).
+- **Sentinel coords never reach the port.** A DOS passenger is a unit parked
+  at `(−2,−2)` via `FUN_1427_0362` on the shared tile lists; Linux keeps
+  passengers in `cargo_ids`, the same substitution
+  `ai_euro_20e6_ship_cargo_counts` / `ai_euro_20e6_stack_settler` already
+  make, so `units_board` *is* the sentinel park and no `(−2,−2)` coordinate is
+  ever written to a unit or a save.
+- **Save persistence: none needed, and that is DOS-faithful.** The mark's
+  whole lifetime is one nation turn —
+  `ai_euro_0a60_unit_housekeeping` resets `act_state` 1/2/3 → 0 for every
+  on-map inset unit at the top of the nation turn, exactly as DOS does at
+  decomp :87560-87563, and that reset runs before the unit loop. A mark
+  therefore cannot survive a save/load observably. In-turn-only semantics,
+  documented at the function.
+- Linux tile substitution: DOS ships berth ON the colony tile so `10be`'s own
+  stack already holds the marked land units; this port berths on adjacent
+  water (`ai_euro_tiles_near`, as the arrival block and the 06e load block
+  already do), so the sweep covers the ship's tile plus the adjacent own
+  colony tile.
+
+Trace env: `AI_20E6_BOARD_TRACE=1` (one line per assembled passenger); the
+berth scan's own line now reads `MARKS` instead of `boards`.
+
+### Not ported (recorded, not invented)
+
+- `10be`'s two force-board arms: a member at negative map coords passing the
+  `(0x3147 & 0xf) − x == 0x14` owner-nibble Europe-slot check, and the
+  `FUN_13e4_0074(x, y)` tile predicate. Undecoded beyond shape, and neither
+  has a Linux counterpart — Europe units live in the europe pool, never on a
+  map tile list.
+- The recursive `FUN_1427_101c` pre-pass (`+0x314c == 2` ship re-berth, decomp
+  8630-8645): out of band, 20e6 never marks `act_state` 2.

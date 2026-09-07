@@ -127,19 +127,39 @@ int ai_goals_best_found_tile_near(
 
 /*
  * FUN_521d_001c — invalidate_nearby_secondary_goals.
- * Clear any nation secondary slot matching `code` within Chebyshev-ish
- * `radius` of (x,y). Distance callee (DOS FUN_281f_037a) is corrupted in the
- * decomp; reuses the already-identified FUN_124c_0040 / ai_dos_dist formula
- * as the closest known analog (same "generic DOS tile distance" family).
+ * Clear any nation secondary slot matching `code` within `radius` of (x,y).
+ * Distance callee resolved 2026-09-07 (FUNCTION_CATALOG row 1278): DOS
+ * FUN_281f_037a is a far thunk to FUN_124c_007c, which takes |dx|,|dy| and
+ * tail-calls FUN_124c_0040 (viceroy_unpacked.c:2759-2792) — the exact
+ * `min>>1 + max` metric this port already used. The catalog's "Manhattan"
+ * blurb is wrong; the body is not |dx|+|dy|. No longer a stand-in.
  */
 void ai_goals_invalidate_nearby_secondary(int nation_id, int code, int x, int y, int radius);
 
 /*
- * Per-nation AI-planning scratch read by FUN_521d_03d0 / 052c. DOS DS
- * fields (-0x6d68/-0x5f48/-0x6bf0/-0x6bec/-0x6a99/-0x6bb2) have no Linux
- * writer yet — all-zero by default reproduces the existing "early game ->
- * urgency 8" stand-in already inlined in ai_euro.c. Exposed so a future
- * pass can wire real data without re-deriving the formulas.
+ * Per-nation AI-planning scratch read by FUN_521d_03d0 / 052c.
+ *
+ * **All six DS fields resolved and wired 2026-09-07** (they used to sit
+ * all-zero, which pinned FUN_521d_03d0 on its `return 8` early-out
+ * forever). Writers traced in the raw decompile:
+ *
+ *   -0x6d68 = DS:0x9298  colony_counts[nation]        FUN_4962_0018 phase 3
+ *                        (viceroy_unpacked.c:78249 `0x9298++` per own colony)
+ *   -0x5f48 = DS:0xa0b8  own colonies whose +0x1b has bit 0x10 set
+ *                        (COLONIZE_COLONY_AI_NEEDS_COLONISTS); zeroed and
+ *                        recounted in FUN_521d_6d8e's own prelude
+ *                        (viceroy_unpacked.c:93109 / 93139-93141)
+ *   -0x6bf0 = DS:0x9410  census_pop_proxy[nation]     FUN_4962_0018
+ *   -0x6bec = DS:0x9414  ship_cargo_totals[nation]    FUN_4962_0018
+ *   -0x6a99 = DS:0x9567  leader trait column 1 (stride-3 @LEADERNAME
+ *                        triple; ai_diplo_leader_trait(ctx, n, 1))
+ *   -0x6bb2 = DS:0x944e  avg_colony_pop[nation] — FUN_4962_0018 accumulates
+ *                        Σ colony pop there and divides by 0x9298 at its
+ *                        tail (viceroy_unpacked.c:78323-78326)
+ *
+ * The first four and the sixth are already kept live per turn by
+ * col1_stuff_census_refresh_colony_counts(); ai_goals_plan_scratch_refresh()
+ * copies them plus the two that have no census home.
  *
  * last_colony_founded_turn (DS nation*0x13c-0x77b2) identity confirmed
  * 2026-08-19 by decompiling thunk_FUN_2a1f_0494's real overlay target
@@ -155,16 +175,29 @@ void ai_goals_invalidate_nearby_secondary(int nation_id, int code, int x, int y,
  * bonus. Set via `ai_goals_note_colony_founded`.
  */
 typedef struct AiNationPlanScratch {
-  uint8_t hire_flag;             /* DS nation-0x6d68 */
-  uint8_t found_flag;            /* DS nation-0x5f48 */
-  uint8_t c_val;                 /* DS nation-0x6bf0 */
-  uint8_t d_val;                 /* DS nation-0x6bec */
-  int8_t e_val;                  /* DS nation*3-0x6a99 (stride 3) */
-  int f_val;                     /* DS nation*2-0x6bb2 (stride 2) */
+  uint8_t colony_count;          /* DS nation-0x6d68 = 0x9298 */
+  uint8_t colonies_wanting_colonists; /* DS nation-0x5f48 = 0xa0b8 */
+  uint8_t census_pop;            /* DS nation-0x6bf0 = 0x9410 */
+  uint8_t ship_cargo_total;      /* DS nation-0x6bec = 0x9414 */
+  int8_t leader_trait1;          /* DS nation*3-0x6a99 = 0x9567 (stride 3) */
+  int avg_colony_pop;            /* DS nation*2-0x6bb2 = 0x944e (stride 2) */
   int last_colony_founded_turn;  /* DS nation*0x13c-0x77b2; 0 = never founded, matches DOS's zero-init */
 } AiNationPlanScratch;
 
 AiNationPlanScratch* ai_goals_plan_scratch(int nation_id);
+
+/*
+ * FUN_521d_6d8e prelude + the FUN_4962_0018 census tables it reads: refill
+ * one nation's plan scratch from live state. `leader_trait1` is DS:0x9567
+ * (ai_diplo_leader_trait(ctx, nation_id, 1)); the caller supplies it so
+ * ai_goals stays free of the turn-context/diplo headers.
+ */
+void ai_goals_plan_scratch_refresh(
+  const ColonizeCol1Save* col1,
+  const ColonizeColonyPool* colonies,
+  int nation_id,
+  int leader_trait1
+);
 
 /* FUN_479b_076e's `-0x77b2` stamp: call when nation_id founds a colony. */
 void ai_goals_note_colony_founded(int nation_id, int turn);
@@ -177,11 +210,18 @@ int ai_goals_founding_expansion_urgency(int nation_id, int total_colony_count);
 
 /*
  * FUN_521d_052c — unit_desirability_score.
- * dist_to_bound_colony is DOS DS:0x8db8, a caller-computed snapshot (nearest/
- * bound-colony distance) — see move_scoring_land.md "0x8db8 identified".
  * unit_type/profession use the DOS raw byte codes (unit +0x2/+0x17).
+ *
+ * `dist_to_bound_colony` used to be a caller-supplied DS:0x8db8 snapshot.
+ * It is not one: DOS's `FUN_281f_0614` is a far thunk to FUN_15eb_0142
+ * (viceroy_unpacked.c:9380-9424), the nearest-colony search itself, and
+ * *that* is what stores the winning distance into DS:0x8db8 — the read one
+ * line later in 052c consumes its own call's output. So the distance is
+ * computed here (nearest own colony **on `continent_id`**), and the param
+ * is gone. `map` is needed for the per-colony continent filter.
  */
 int ai_goals_unit_desirability_score(
+  const ColonizeWorldMap* map,
   const ColonizeColonyPool* colonies,
   int nation_id,
   int unit_x,
@@ -189,7 +229,6 @@ int ai_goals_unit_desirability_score(
   int unit_type,
   int unit_profession,
   int continent_id,
-  int dist_to_bound_colony,
   int turn,
   int total_colony_count
 );
@@ -208,7 +247,6 @@ int ai_goals_composite_unit_priority(
   int unit_y,
   int unit_type,
   int unit_profession,
-  int dist_to_bound_colony,
   int turn,
   int total_colony_count
 );
@@ -247,17 +285,23 @@ int ai_goals_filter_profession_by_distance_wealth(
 );
 
 /*
- * FUN_521d_0906 — probe_adjacent_contact_claim. Scans 8 neighbors sharing
- * (x,y)'s water/high-seas class; asks the shared ownership filter (0896)
- * for a claim id on the first foreign-owned match. *out_side_claim mirrors
- * DOS DS:0x9ea8, a second independent probe via a different (PARKED)
- * ownership accessor. Indian tribe ownership and the armed-cargo
- * top-of-stack defender walk are PARKED (no tile->tribe / tile->unit-stack
- * accessor here yet) — those branches always take their "not found" arm.
+ * FUN_521d_0906 — probe_adjacent_contact_claim. Scans the 8 neighbours that
+ * share (x,y)'s water/high-seas class and stops at the first foreign claim.
+ * Two independent probes per tile, both filtered through 0896:
+ *   FUN_281f_0682 = layer2 bit0, a foreign **unit** stands there. On water
+ *                   the claim only survives if that stack holds an armed
+ *                   ship (type 0x0d..0x12, combat byte != 0).
+ *   FUN_281f_06be = layer2 bit1, a foreign **settlement** stands there. Its
+ *                   result also lands in *out_side_claim (DOS DS:0x9ea8),
+ *                   first value < 4 only.
+ * Both were mis-wired before 2026-09-07 (the colony pool answered the unit
+ * probe, and the settlement probe was hardwired off); see ai_goals.c.
+ * Still thin: 0896's tribe arm — see its own note.
  */
 int ai_goals_probe_adjacent_contact_claim(
   const ColonizeWorldMap* map,
   const ColonizeColonyPool* colonies,
+  const struct ColonizeUnitPool* units,
   int x,
   int y,
   int nation_id,

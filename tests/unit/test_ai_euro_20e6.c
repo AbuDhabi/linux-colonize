@@ -906,6 +906,109 @@ static int unit_ship_berth_dumps_whole_hull(void) {
 }
 
 /*
+ * Berth passenger boarding, the raw 3024-3051 MARK scan handing off to
+ * FUN_1427_10be (ai_euro_20e6_transport_assemble) — one 20e6 act, two phases.
+ *
+ * Control flow, from viceroy_overlays.asm (see move_scoring_20e6_full.md
+ * "2026-09-07e"): the arrival gate at 0x304c falls through into the arrival
+ * block, whose scan stamps act_state = 1 and debits `iStack_d2` WITHOUT
+ * boarding; the load matrix then spends what is left of that budget on goods;
+ * the block falls out at 0x354e into LAB_3558, whose call at 0x3609 is
+ * `FUN_1000_8b10` = 10be, which boards the marked members with
+ * `free = 0x5237[type] − +0x3150` — exactly the remainder the scan reserved.
+ *
+ * Fixture: a 2-hold Caravel berthed at (12,4) beside its own colony (11,4),
+ * with a Pioneer (DOS type 2, size 1) standing in the colony — the scan's
+ * second arm, which marks unless the ship's composite priority is 0 on a
+ * non-0-stance continent (stance is 0 here). The colony stocks only Silver,
+ * so the load matrix has exactly one thing to want.
+ *
+ * The scan's OTHER arm (armed land unit) is deliberately not the subject: a
+ * Soldier standing in an own colony is claimed as labor by the colony
+ * admission loop first and carries order_code 'A', which raw 3033-3037
+ * disqualifies — DOS-correct, and it makes that arm untestable from a
+ * one-colony fixture.
+ *
+ * The assertion is the budget hand-off, which is what a broken split would
+ * lose: the Soldier ends up ABOARD and exactly ONE of the two holds carries
+ * goods. If the scan's reservation did not survive into 10be's own
+ * `capacity − holds_occupied`, the load matrix would take both holds and
+ * units_board would then find zero free passenger slots.
+ */
+static int unit_berth_marks_then_assembles_passenger(void) {
+  const int nation = 1;
+  Fixture f;
+  if (fixture_init(&f, nation) != 0) {
+    return 1;
+  }
+  for (int y = 0; y < 16; ++y) {
+    for (int x = 12; x < 16; ++x) {
+      f.map.terrain[y * 16 + x] = 25; /* MAP_OCEAN_INDEX */
+    }
+  }
+  f.units.type_count = 5;
+  snprintf(f.units.types[4].name, sizeof(f.units.types[4].name), "Pioneer");
+  f.units.types[4].movement = 1;
+  f.units.types[4].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  f.units.types[4].space = 1; /* @UNIT size column (0x5238): one ship slot */
+  quiet_5d04_planner(&f, nation);
+
+  ColonizeColony* c = &f.colonies.colonies[0];
+  c->id = 0;
+  c->active = true;
+  c->nation_id = nation;
+  c->x = 11;
+  c->y = 4;
+  c->population = 3;
+  c->colonist_count = 3;
+  c->stock[COLONIZE_CARGO_FOOD] = 200;   /* no shortage → no labor admission */
+  c->stock[COLONIZE_CARGO_SILVER] = 60;  /* the load matrix's only candidate */
+  c->building_in_production = -1;
+  f.colonies.colony_count = 1;
+  f.colonies.next_id = 1;
+  f.col1.nation[nation].trade.euro_price[COLONIZE_CARGO_SILVER] = 20;
+
+  const int ship_id = units_spawn(&f.units, 2, 12, 4); /* berthed alongside */
+  ColonizeUnit* ship = units_get(&f.units, ship_id);
+  const int sol_id = units_spawn(&f.units, 4, 11, 4);  /* Pioneer in the colony */
+  ColonizeUnit* sol = units_get(&f.units, sol_id);
+  if (!ship || !sol) {
+    fixture_free(&f);
+    return fail("spawn berth boarding units");
+  }
+  ship->nation_id = nation;
+  ship->moves_left = 4 * UNITS_MP_PER_TILE;
+  ship->orders = 0;
+  sol->nation_id = nation;
+  sol->moves_left = UNITS_MP_PER_TILE;
+  sol->orders = 0;
+
+  ai_euro_dispatcher_turn(&f.ctx, nation);
+
+  ship = units_get(&f.units, ship_id);
+  sol = units_get(&f.units, sol_id);
+  if (!ship || !ship->active || !sol || !sol->active) {
+    fixture_free(&f);
+    return fail("berth boarding unit vanished");
+  }
+  int goods_holds = 0;
+  for (int h = 0; h < COLONIZE_UNIT_CARGO_MAX; ++h) {
+    const int amt = ship->hold_goods_amount[h];
+    if (amt > 0 && amt < 255) {
+      goods_holds++;
+    }
+  }
+  if (sol->aboard_ship_id != ship_id || goods_holds != 1) {
+    fprintf(stderr, "pioneer aboard=%d (want %d) goods_holds=%d (want 1)\n",
+            sol->aboard_ship_id, ship_id, goods_holds);
+    fixture_free(&f);
+    return fail("berth mark/10be hand-off did not reserve the passenger hold");
+  }
+  fixture_free(&f);
+  return 0;
+}
+
+/*
  * 0a60 registration gate = DOS's `bVar5` (raw viceroy_unpacked.c:87622 /
  * :87633 / :87663) and the queue it feeds is a PICKUP queue: the 4393 tip
  * aims a hauler at the colony that HAS goods, not at one that is short.
@@ -1510,6 +1613,9 @@ int main(void) {
     return 1;
   }
   if (unit_ship_berth_dumps_whole_hull() != 0) {
+    return 1;
+  }
+  if (unit_berth_marks_then_assembles_passenger() != 0) {
     return 1;
   }
   if (unit_work_queue_pickup_aims_at_goods_colony() != 0) {

@@ -161,9 +161,11 @@ int main(void) {
    *   >= 1 -> promote plain civilians into the founder count
    *   <  1 -> (no FOUND probe) demote Pioneers into civilians
    * 052c is clamped to <= 0, so the sign is decided by 03d0: 8 with the
-   * default all-zero plan scratch, 0 once hire_flag/found_flag are set (the
-   * formula lands on -8 and the negative result returns 0). Pinning both
-   * halves keeps the demote arm reachable-by-construction rather than dead.
+   * default all-zero plan scratch (no colonies yet / none asking for
+   * colonists — DOS's own early-out), 0 once colony_count and
+   * colonies_wanting_colonists are both set (the formula lands on -8 and the
+   * negative result returns 0). Pinning both halves keeps the demote arm
+   * reachable-by-construction rather than dead.
    */
   {
     ai_goals_reset();
@@ -173,25 +175,33 @@ int main(void) {
       return fail("03d0: default plan scratch must give urgency 8");
     }
     const int promote_pio =
-      ai_goals_unit_desirability_score(NULL, 1, 5, 5, pioneer_type, 0, 0, 0, 5, 0) +
+      ai_goals_unit_desirability_score(NULL, NULL, 1, 5, 5, pioneer_type, 0, 0, 5, 0) +
       ai_goals_founding_expansion_urgency(1, 0);
     const int promote_col =
-      ai_goals_unit_desirability_score(NULL, 1, 5, 5, colonist_type, 0, 0, 0, 5, 0) +
+      ai_goals_unit_desirability_score(NULL, NULL, 1, 5, 5, colonist_type, 0, 0, 5, 0) +
       ai_goals_founding_expansion_urgency(1, 0);
     if (promote_pio < 1 || promote_col < 1) {
       return fail("goal fold: default scratch must take the promote arm");
+    }
+    /*
+     * FUN_281f_0c9a → FUN_15eb_0002: profession 0x13 / 0x19..0x1c score -2,
+     * everything else -4. Profession 0 (Free Colonist) must take the -4 arm.
+     */
+    if (ai_goals_unit_desirability_score(NULL, NULL, 1, 5, 5, colonist_type, 0, 0, 5, 0) !=
+        ai_goals_unit_desirability_score(NULL, NULL, 1, 5, 5, colonist_type, 0x1a, 0, 5, 0) - 2) {
+      return fail("052c: 0c9a profession gate must split -4 (generic) vs -2 (0x19..0x1c)");
     }
     AiNationPlanScratch* p = ai_goals_plan_scratch(1);
     if (!p) {
       return fail("plan scratch");
     }
-    p->hire_flag = 1;
-    p->found_flag = 1;
+    p->colony_count = 1;
+    p->colonies_wanting_colonists = 1;
     if (ai_goals_founding_expansion_urgency(1, 0) != 0) {
-      return fail("03d0: hire+found scratch must give urgency 0");
+      return fail("03d0: colony+wanting scratch must give urgency 0");
     }
     const int stale =
-      ai_goals_unit_desirability_score(NULL, 1, 5, 5, pioneer_type, 0, 0, 0, 5, 0) +
+      ai_goals_unit_desirability_score(NULL, NULL, 1, 5, 5, pioneer_type, 0, 0, 5, 0) +
       ai_goals_founding_expansion_urgency(1, 0);
     if (stale >= 1) {
       return fail("goal fold: zero expansion urgency must take the demote arm");

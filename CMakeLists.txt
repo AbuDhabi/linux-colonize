@@ -702,6 +702,8 @@ add_executable(unit_units
   tests/unit/test_units.c
   src/core/units.c
   src/core/unit_stack.c
+  src/core/reports.c
+  src/core/colony_production.c
   src/core/woodcut.c
   src/core/combat_strength.c
   src/core/combat_analysis.c
@@ -752,6 +754,7 @@ add_executable(unit_colonies
   tests/unit/test_colonies.c
   src/core/colony.c
   src/core/colony_craft.c
+  src/core/reports.c
   src/core/colony_production.c
   src/core/colony_yield.c
   src/core/units.c

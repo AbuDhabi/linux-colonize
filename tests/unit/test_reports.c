@@ -130,6 +130,35 @@ int main(void) {
     reports_free(&view);
     return 1;
   }
+  /*
+   * NAMES.TXT @FOUNDING — the category words the DOS Congress-debate widget
+   * (FUN_4345_06d2) splices into each candidate row, and @MISC 103, the
+   * "Adviser" word it appends after them ("<father> (<category> Adviser)").
+   */
+  if (strcmp(reports_ff_category_display_name(0), "Trade") != 0 ||
+      strcmp(reports_ff_category_display_name(4), "Religious") != 0 ||
+      strcmp(reports_ff_category_display_name(5), "Independence") != 0) {
+    fprintf(
+      stderr, "@FOUNDING categories wrong: '%s' / '%s' / '%s'\n",
+      reports_ff_category_display_name(0), reports_ff_category_display_name(4),
+      reports_ff_category_display_name(5)
+    );
+    reports_free(&view);
+    return 1;
+  }
+  if (reports_ff_category_display_name(-1)[0] != '\0' ||
+      reports_ff_category_display_name(6)[0] != '\0') {
+    fprintf(stderr, "@FOUNDING out-of-range should be empty, not NULL/garbage\n");
+    reports_free(&view);
+    return 1;
+  }
+  if (strcmp(reports_misc_display_word(103, "Adviser"), "Adviser") != 0) {
+    fprintf(
+      stderr, "@MISC 103 want 'Adviser' got '%s'\n", reports_misc_display_word(103, "Adviser")
+    );
+    reports_free(&view);
+    return 1;
+  }
   if (reports_ff_display_name(-1) == NULL || reports_ff_display_name(25) == NULL) {
     fprintf(stderr, "FF name out-of-range should return a placeholder, not NULL\n");
     reports_free(&view);

@@ -16,7 +16,8 @@
  * correction.
  *
  * Source: original_sources_decompiled/viceroy_unpacked.c
- *   6d8e ~93073–93325; 0a60 ~87408–88246; 5d04 parked; 5b66 → euro_unit_act.md
+ *   6d8e ~93073–93325; 0a60 ~87408–88246; 5d04 92325–93070 (hire matrix
+ *   92568–93070, ported 2026-09-07e); 5b66 → euro_unit_act.md
  * Linux:  src/core/ai_euro.c — ai_euro_dispatcher_turn
  *         src/core/ai.c — ai_euro_nation_turn / ai_euro_early_turn (seed-100)
  *
@@ -77,10 +78,65 @@ extern int probe_adjacent_contact_claim(int x, int y, int nation_id, int unk);
  * planning_structural` in `ai_euro.c`, raw 85872-86564 end to end) — not
  * wired live, a reference implementation alongside this thin function.
  * See `ai-5d04-structural-port` memory for the resolved-symbol table.
+ *
+ * 2026-09-07e — HIRE MATRIX IS NOW THE DOS ONE. Everything described as
+ * "Linux thin" above is DELETED from ai_euro.c (~765 lines): the invented
+ * `hire_cost = 200 + 25*difficulty` gate, the NAMES-display-string Europe
+ * dock expert ladder (tools/blacksmith/food/fisherman/carpenter/lumberjack/
+ * ore/gunsmith/missionary/scout/elder/preacher/teacher/craft), the
+ * Dragoon/Veteran-Soldier/Artillery war preference, the wagon goods-load
+ * ladder and the `inv->*_short` cargo stand-ins. `euro_nation_planning`
+ * now only calls `ai_euro_5d04_nation_planning_structural`, whose tail
+ * `ai_euro_5d04_hire_ladder_tail` IS the raw 92568-93070 matrix:
+ *   1. raw 92569-92578  Artillery dock buy when Europe has none and
+ *                       DS:0xa0db (colonies wanting muskets) > 0.
+ *   2. raw 92592-92625  recruit-slot swap, priced
+ *                       `base + base*crosses/(-1-needed)` off nation+0x2e/
+ *                       +0x30, with a `census_pop_proxy*30 - turn` reserve.
+ *   3. raw 92629-92805  two-pass Europe-dock loop (pass 0 = units whose
+ *                       profession clears FUN_281f_0c9a, pass 1 = the rest):
+ *                       Colonist + 50 Muskets -> Soldier (type 1), then
+ *                       + 50 Horses -> Dragoon (type 4); Colonist + 100
+ *                       Tools -> Pioneer (type 2); Colonist -> Missionary
+ *                       (type 3) on turn%7 when the nation has none.
+ *   4. raw 92806-92982  colony-demand vs. Europe-capacity purchase loop
+ *                       (Artillery create, then repeated recruit buys until
+ *                       the departing hull is full).
+ *   5. raw 92983-93070  departure loop: bank/sell the inbound hold, then
+ *                       top the hull up from DS:0xa0cc, cargo 15 down to 0.
+ *
+ * DS operands resolved this pass, all from writers outside 5d04:
+ *   `-0x5f48` = DS:0xa0b8[n]  own colonies with `+0x1b` bit 0x10
+ *                            (NEEDS_COLONISTS) - 6d8e raw 93109/93139.
+ *   `-0x6ba6` = DS:0x945a[n]  own LAND units standing in Europe
+ *                            (`+0x3144 - nation == -0x14`) - census
+ *                            FUN_4962_0018 raw 78147/78167.
+ *   `-0x5f34` = DS:0xa0cc[16] per-cargo demand: sum of colonies whose
+ *                            `+0x8d` specialty is that cargo, minus every
+ *                            occupied own-ship hold carrying it - 6d8e raw
+ *                            93107 (memset) / 93122 / 93163. 0xa0bc is an
+ *                            untouched snapshot taken between the two.
+ *   DS:0xa0db                colonies whose specialty is Muskets, plus
+ *                            colonies with `+0xb8` stock[15] == 0.
+ *   DS:0xa0da                colonies with `+0xb6` stock[14] (Tools) == 0,
+ *                            minus own Pioneers (raw 93168) - so it can go
+ *                            negative.
+ *   (DS:0xa0d4 is the same tally for `+0xaa` Horses; 5d04 never reads it.)
+ * Colony stock offsets pinned from the u16 `stock[16]` at colony+0x9a.
+ *
+ * Still thin after this pass: `bVar23` at raw 92589 reads
+ * `*(byte*)(iVar13*0x1c + 0x3148) & 0x20` with `iVar13` already -1 (the
+ * list walk above ran off the end), i.e. DS:0x312c, a byte outside the
+ * unit array - a genuine DOS past-the-end read, kept as constant 0.
+ * The raw affordability test at 92679/93042 multiplies the cargo price by
+ * the stale DS:0x8dc4 musket-lot scratch while the purchase itself is
+ * always 100 units; the port tests against price*100 rather than
+ * reproducing the scratch collision.
  */
 void euro_nation_planning(int nation_id) {
   (void)nation_id;
-  /* OPEN mid matrix — thin war hire + wagon-once / tools>20 in ai_euro.c */
+  /* CLOSED 2026-09-07e — ai_euro_5d04_nation_planning_structural +
+     ai_euro_5d04_hire_ladder_tail in ai_euro.c are the whole function. */
 }
 
 /*
@@ -281,7 +337,7 @@ static int unit_is_ship(uint8_t type) {
  * Linux: ai_euro_nation_turn reseeds, ticks crosses, then
  * ai_euro_dispatcher_turn by default (structural 6d8e). Opt into retired
  * ai_euro_early_turn with AI_EURO_EARLY_FIXTURE=1 (bisect only).
- * Mid-planner **OPEN** (unpark #4): mid 5d04 wagon matrix,
+ * Mid-planner **OPEN** (unpark #4): [5d04 hire matrix CLOSED 2026-09-07e],
  * deep fog CONTACT rings, multi-step land/combat 20e6, deeper 5b66 case-7.
  * Thin done: CONTACT tribe ring MD 2–4; adjacent-foe prefer weak/non-fortified.
  * Full T3 / ocean fixture retirement R5.
@@ -376,7 +432,9 @@ void euro_nation_turn(int nation_id) {
  *     → ai_euro_dispatcher_turn by default (ai_euro.c)
  *     → AI_EURO_EARLY_FIXTURE=1: retired ai_euro_early_turn (bisect only)
  *       treaty timers + ai_diplo_euro_balance (see ai/euro_diplo.md)
- * PORT DEBT → OPEN (unpark #4): mid-game 5d04 wagon matrix, deeper 0a60 E–H,
+ * PORT DEBT → OPEN (unpark #4): [mid-game 5d04 hire matrix CLOSED
+ * 2026-09-07e — the "wagon matrix" was a Linux invention, not a DOS arm],
+ * deeper 0a60 E–H,
  * multi-step 20e6 land/combat, 5b66 case 7 / coastal unload (TURN2→3).
  * Linux thin (5b66): at-war naval hunt — idle ships AI_SAIL → foe sea / coastal
  * colony water; adjacent → try_attack. Full 20e6 naval scoring still PARKED (ocean/T3).

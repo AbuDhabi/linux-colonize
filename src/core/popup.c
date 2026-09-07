@@ -230,15 +230,26 @@ void popup_draw(
   }
 
   if (w >= 5 && h >= 5) {
-    /* Layer 3: bevel inset 2 — light top/right, dark bottom/left. */
+    /*
+     * Layer 3: bevel inset 2 — light top/right, dark bottom/left.
+     *
+     * DOS `FUN_6f74_2278` (6f74:2378..23c4) emits the four runs in a fixed
+     * order, and the order decides the two shared corners: left vline
+     * (`DS:0x1f48` = @COLORS border2) at x+2, then right vline (`DS:0x1f46`
+     * = border1) at x+w-3, both y+2..y+h-3; then the top hline (border1) and
+     * the bottom hline (border2), both spanning x+2..x+w-3. The horizontals
+     * land last, so the TOP-LEFT corner pixel is LIGHT and the bottom-right
+     * is DARK. Drawing top-then-left instead (the port's old order) flipped
+     * that top-left pixel to dark.
+     */
     const int bx0 = x + 2;
     const int by0 = y + 2;
     const int bx1 = x1 - 2;
     const int by1 = y1 - 2;
-    popup_hline(framebuffer, by0, bx0, bx1, colors->light); /* top */
-    popup_vline(framebuffer, bx1, by0, by1, colors->light); /* right */
-    popup_hline(framebuffer, by1, bx0, bx1, colors->dark); /* bottom */
     popup_vline(framebuffer, bx0, by0, by1, colors->dark); /* left */
+    popup_vline(framebuffer, bx1, by0, by1, colors->light); /* right */
+    popup_hline(framebuffer, by0, bx0, bx1, colors->light); /* top */
+    popup_hline(framebuffer, by1, bx0, bx1, colors->dark); /* bottom */
   }
 
   if (w > POPUP_FRAME_INSET * 2 && h > POPUP_FRAME_INSET * 2) {
