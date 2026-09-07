@@ -1203,10 +1203,33 @@ static int ai_euro_type_is_man_o_war_name(const char* name) {
 }
 
 /*
- * FUN_4962_0018 thin: clear ship bits 0x01/0x02, then OR from foreign armed
- * sea units within MD≤5 (MoW → 0x02, else armed → 0x01). Also thin-latch
- * needs_colonists / needs_garrison from pop / garrison_quota.
+ * FUN_4962_0018 census phase 3 (raw 78243-78304), live 2026-09-07: clear ship
+ * bits 0x01/0x02, then for each foreign ship (type 0x0d..0x12, combat byte
+ * != 0) inside the 11×11 box (|dx| ≤ 5 AND |dy| ≤ 5 — Chebyshev, not the
+ * Manhattan the old thin probe used) with a short navigable sea route
+ * (FUN_6662_0906 flood cost 0..5): Frigate (0x11 literal) → bit 0x02, any
+ * other → bit 0x01. Also accumulates the per-nation DS:0xa89b/0x9e52 (count
+ * of own colonies with bit2, Σ their pop) and 0xa89a/0x9e54 (bit1 twin) that
+ * 5d04's naval-threat crumbs and 20e6's bVar7 Privateer gate read. Also
+ * thin-latch needs_colonists / needs_garrison from pop / garrison_quota.
  */
+static int ai_euro_20e6_dos_type(const ColonizeUnitPool* units, const ColonizeUnit* u);
+static int ai_euro_20e6_type_combat(int dos_type);
+
+typedef struct AiEuroShipPressure {
+  uint8_t frigate_colonies; /* DS:0xa89b */
+  uint8_t other_colonies;   /* DS:0xa89a */
+  int frigate_pop;          /* DS:0x9e52 */
+  int other_pop;            /* DS:0x9e54 */
+} AiEuroShipPressure;
+
+static AiEuroShipPressure s_ship_pressure[4];
+
+static void ai_euro_ship_pressure_reset(int nation_id) {
+  if (nation_id >= 0 && nation_id < 4) {
+    memset(&s_ship_pressure[nation_id], 0, sizeof(s_ship_pressure[nation_id]));
+  }
+}
 /*
  * "This colony is eating into its stores" — stock below one turn's
  * consumption (TURN_FOOD_PER_COLONIST = 2 per head). Used to ride in
@@ -1231,7 +1254,7 @@ static void ai_euro_refresh_colony_ai_flags(
     return;
   }
   c->ai_flags = (uint8_t)(c->ai_flags & (uint8_t)~(COLONIZE_COLONY_AI_NEARBY_ARMED_SHIP |
-                                                    COLONIZE_COLONY_AI_NEARBY_MAN_O_WAR |
+                                                    COLONIZE_COLONY_AI_NEARBY_FRIGATE |
                                                     COLONIZE_COLONY_AI_WANTS_PIONEER_WORK));
   /*
    * DOS +0x1b bit 0x80 (FUN_5952_035e surround scan, colony_tick doc ~415/423):
@@ -1265,23 +1288,50 @@ static void ai_euro_refresh_colony_ai_flags(
   if (ctx->units) {
     for (int ui = 0; ui < COLONIZE_UNITS_MAX; ++ui) {
       const ColonizeUnit* u = &ctx->units->units[ui];
-      if (!u->active || u->nation_id == nation_id) {
+      if (!u->active || u->nation_id == nation_id || u->aboard_ship_id >= 0) {
         continue;
       }
-      if (!units_is_sea(ctx->units, u->id)) {
+      /* Raw 78260-78263: 11×11 box, both axes −5..+5. */
+      if (abs(u->x - c->x) > 5 || abs(u->y - c->y) > 5) {
         continue;
       }
-      if (abs(u->x - c->x) + abs(u->y - c->y) > 5) {
+      const int t = ai_euro_20e6_dos_type(ctx->units, u);
+      if (t < 0x0d || t > 0x12) {
+        continue; /* raw 78269-78270: ship roster only */
+      }
+      if (ai_euro_20e6_type_combat(t) == 0) {
+        continue; /* raw 78271: 0x5236 combat byte must be non-zero */
+      }
+      /* Raw 78274-78275: FUN_6662_0906 sea flood, count only cost 0..5
+       * ("short navigable route" — filters land-blocked ships). */
+      const int cost = ctx->map
+        ? units_short_sea_route_cost(ctx->map, u->x, u->y, c->x, c->y)
+        : -1;
+      if (cost < 0 || cost > 5) {
         continue;
       }
-      const ColonizeUnitType* ty = units_type(ctx->units, u->type_index);
-      const char* nm = units_display_name(ctx->units, u);
-      if (ai_euro_type_is_man_o_war_name(nm) ||
-          (ty && ty->name[0] && ai_euro_type_is_man_o_war_name(ty->name))) {
-        c->ai_flags |= COLONIZE_COLONY_AI_NEARBY_MAN_O_WAR;
-      } else if (ty && ty->attack > 0) {
+      if (t == 0x11) {
+        c->ai_flags |= COLONIZE_COLONY_AI_NEARBY_FRIGATE; /* raw 78276-78282 */
+      } else {
         c->ai_flags |= COLONIZE_COLONY_AI_NEARBY_ARMED_SHIP;
       }
+    }
+  }
+  /* Raw 78291-78299: per-colony fold into the nation ship-pressure tallies. */
+  if (nation_id >= 0 && nation_id < 4) {
+    AiEuroShipPressure* sp = &s_ship_pressure[nation_id];
+    const int pop = c->colonist_count > 0 ? c->colonist_count : c->population;
+    if ((c->ai_flags & COLONIZE_COLONY_AI_NEARBY_FRIGATE) != 0) {
+      if (sp->frigate_colonies < 255) {
+        sp->frigate_colonies++;
+      }
+      sp->frigate_pop += pop;
+    }
+    if ((c->ai_flags & COLONIZE_COLONY_AI_NEARBY_ARMED_SHIP) != 0) {
+      if (sp->other_colonies < 255) {
+        sp->other_colonies++;
+      }
+      sp->other_pop += pop;
     }
   }
   if (c->population < 3) {
@@ -5140,7 +5190,7 @@ static int ai_euro_4393_work_queue_haul_pick(
     }
     /* DOS `(colony+0x1b & 2) == 0 || type > 0x0f`: a colony with a Man-O-War
      * nearby is only worked by warship hulls. */
-    if ((c->ai_flags & COLONIZE_COLONY_AI_NEARBY_MAN_O_WAR) != 0 && hauler_type <= 0x0f) {
+    if ((c->ai_flags & COLONIZE_COLONY_AI_NEARBY_FRIGATE) != 0 && hauler_type <= 0x0f) {
       continue;
     }
     const int d = abs(c->x - from_x) + abs(c->y - from_y);
@@ -5207,12 +5257,12 @@ static int ai_euro_4393_work_queue_haul_pick(
 static uint8_t s_20e6_wagon_errand[COLONIZE_UNITS_MAX];
 
 /*
- * DOS unit byte +0x315a — the "cower in port" counter (COL1 cargo-hold
- * scratch, no Linux field → session-local): a cargo ship no bigger than a
- * Merchantman waits at a Man-O-War-threatened colony, bumping this once per
- * beat, until it reaches 10 − hold capacity; DOS never resets it.
+ * DOS unit byte +0x315a — the "cower in port" counter. +0x315a = COL1 unit
+ * record offset 0x16 = `turns_worked` (col1_save.h), which the port already
+ * round-trips (u->turns_worked) — so the counter is save-persistent now, no
+ * session array. The multiplexing with Europe-lane voyage turns and
+ * trade-route stop packing is DOS's own (same byte), not a port shortcut.
  */
-static uint8_t s_20e6_cower[COLONIZE_UNITS_MAX];
 
 /*
  * DS:0x1734[nation] — count of colonies that registered work-queue work,
@@ -7422,13 +7472,24 @@ static uint32_t ai_euro_5d04_ph_gold_floor(int which) {
  * pathfinding gate (one confirmed instrumented positive at peace, zero
  * confirmed instrumented negatives — an earlier "excluded" read came from
  * an unverified report and was retracted), and the underlying cost
- * function (`thunk_FUN_2a1f_05f0`)'s own formula. Still stubbed: the
- * source detector (`colony+0x1b`'s 11×11 ship-probe scan itself, plus
- * this pathfinding sub-gate) has no Linux equivalent computing it yet —
- * wiring this for real needs that first. Inert 0 in the meantime. */
-static int ai_euro_5d04_ph_naval_threat_crumb(int which) {
-  (void)which;
-  return 0;
+ * function (`thunk_FUN_2a1f_05f0`)'s own formula.
+ *
+ * LIVE 2026-09-07: the source detector (the 11×11 ship probe with the
+ * FUN_6662_0906 cost 0..5 sub-gate) now runs in
+ * ai_euro_refresh_colony_ai_flags, accumulating s_ship_pressure per nation
+ * — this crumb reads those tallies. */
+static int ai_euro_5d04_ph_naval_threat_crumb_n(int which, int nation_id) {
+  if (nation_id < 0 || nation_id > 3) {
+    return 0;
+  }
+  const AiEuroShipPressure* sp = &s_ship_pressure[nation_id];
+  switch (which) {
+    case 0xa89b: return (int)sp->frigate_colonies;
+    case 0xa89a: return (int)sp->other_colonies;
+    case 0x9e52: return sp->frigate_pop;
+    case 0x9e54: return sp->other_pop;
+    default: return 0;
+  }
 }
 
 /* FUN_281f_09fc(building_index) on a scanned colony — "does this colony
@@ -7605,12 +7666,12 @@ static Ai5d04PlanningFlags ai_euro_5d04_compute_flags(
    * `0xa89b`/`0x9e52` = Frigate-threat (count, level-sum) — see
    * `ai_euro_5d04_ph_naval_threat_crumb` header for how that's confirmed. */
   f.frigate_threatened = 0;
-  if (!((ai_euro_5d04_ph_naval_threat_crumb(0xa89b) == 0 &&
-         ai_euro_5d04_ph_naval_threat_crumb(0xa89a) == 0) ||
+  if (!((ai_euro_5d04_ph_naval_threat_crumb_n(0xa89b, nation_id) == 0 &&
+         ai_euro_5d04_ph_naval_threat_crumb_n(0xa89a, nation_id) == 0) ||
         local_3c == 0)) {
     int reach_weak_check = 0;
-    if (ai_euro_5d04_ph_naval_threat_crumb(0xa89b) < col_half &&
-        ai_euro_5d04_ph_naval_threat_crumb(0x9e52) < pop_half) {
+    if (ai_euro_5d04_ph_naval_threat_crumb_n(0xa89b, nation_id) < col_half &&
+        ai_euro_5d04_ph_naval_threat_crumb_n(0x9e52, nation_id) < pop_half) {
       if (turn > 200 && nat_gold_ge(ctx, nation_id, 2000)) {
         reach_weak_check = 1;
       }
@@ -7632,12 +7693,12 @@ static Ai5d04PlanningFlags ai_euro_5d04_compute_flags(
    * exclusion). Field kept named `manowar_threatened` since that's the
    * confirmed/primary case, not a claim it's Man-O-War-exclusive. */
   f.manowar_threatened = 0;
-  if (((ai_euro_5d04_ph_naval_threat_crumb(0xa89a) != 0 ||
-        ai_euro_5d04_ph_naval_threat_crumb(0xa89b) != 0)) &&
+  if (((ai_euro_5d04_ph_naval_threat_crumb_n(0xa89a, nation_id) != 0 ||
+        ai_euro_5d04_ph_naval_threat_crumb_n(0xa89b, nation_id) != 0)) &&
       local_3c != 0 && !f.frigate_threatened) {
     int reach = 0;
-    if (ai_euro_5d04_ph_naval_threat_crumb(0xa89a) < col_half &&
-        ai_euro_5d04_ph_naval_threat_crumb(0x9e54) < pop_half) {
+    if (ai_euro_5d04_ph_naval_threat_crumb_n(0xa89a, nation_id) < col_half &&
+        ai_euro_5d04_ph_naval_threat_crumb_n(0x9e54, nation_id) < pop_half) {
       if (turn > 100 && nat_gold_ge(ctx, nation_id, 1000)) {
         reach = 1;
       }
@@ -7711,12 +7772,13 @@ static void ai_euro_5d04_apply_naval_gold_floors(
 /* thunk_FUN_2a1f_0500(type_id, weight_pct) — propose a Europe ship-buy
  * candidate. Type ids 1-5 seen (Caravel..Frigate, 5 buyable ship types —
  * Man-O-War isn't purchasable in real Colonization either); weight is a
- * priority percentage. Stub: never proposes (0 = no candidate), so the
- * raw body's `if (local_3e==0 && flag) return;` early-outs are inert in
- * practice too, since the flags feeding them (frigate_threatened/
- * manowar_threatened) are themselves always false while
- * `ai_euro_5d04_ph_naval_threat_crumb` stays stubbed at 0 — not a special
- * case, just how the whole chain composes safely. */
+ * priority percentage. Stub: never proposes (0 = no candidate). Since
+ * 2026-09-07 the naval-threat crumbs are REAL (s_ship_pressure), so
+ * frigate_threatened/manowar_threatened can fire — the raw body's
+ * `if (local_3e==0 && flag) return;` early-outs are now reachable; this
+ * stub returning 0 makes them fire exactly when DOS would have failed to
+ * find a candidate too. Wiring real Europe ship purchases stays a 5d04
+ * hire-ladder decision (structural port exists, deliberately not live). */
 static int ai_euro_5d04_stub_propose_ship_buy(int type_id, int weight_pct) {
   (void)type_id;
   (void)weight_pct;
@@ -8700,18 +8762,23 @@ static void ai_euro_5d04_hire_ladder_tail(
  * genuinely unresolved (the two list-iterator callees especially) before
  * that'd be a reasonable next step.
  */
-static void ai_euro_5d04_nation_planning_structural(ColonizeTurnContext* ctx, int nation_id) {
+/* Returns 1 when the raw body's early `return;` fired (ship-buy ladder abort
+ * — reachable since the naval-threat crumbs went live 2026-09-07); the live
+ * caller must then skip its thin hire matrix too, as DOS skips the whole
+ * hire ladder. */
+static int ai_euro_5d04_nation_planning_structural(ColonizeTurnContext* ctx, int nation_id) {
   if (!ctx || !ctx->col1 || nation_id < 0 || nation_id >= 4) {
-    return;
+    return 0;
   }
   ai_euro_5d04_treasury_bump(ctx, nation_id);
   const Ai5d04PlanningFlags f = ai_euro_5d04_compute_flags(ctx, nation_id);
   int abort_early = 0;
   ai_euro_5d04_ship_buy_ladder(ctx, nation_id, &f, &abort_early);
   if (abort_early) {
-    return;
+    return 1;
   }
   ai_euro_5d04_hire_ladder_tail(ctx, nation_id, &f);
+  return 0;
 }
 
 static void ai_euro_nation_planning(ColonizeTurnContext* ctx, int nation_id) {
@@ -8729,7 +8796,10 @@ static void ai_euro_nation_planning(ColonizeTurnContext* ctx, int nation_id) {
    * and the unit suites confirm zero delta. `apply_naval_gold_floors` stays
    * reference-only (address-taken to keep it compiled).
    */
-  ai_euro_5d04_nation_planning_structural(ctx, nation_id);
+  if (ai_euro_5d04_nation_planning_structural(ctx, nation_id)) {
+    (void)ai_euro_5d04_apply_naval_gold_floors;
+    return; /* DOS raw 86055/86063 early return — skip the whole hire tail */
+  }
   (void)ai_euro_5d04_apply_naval_gold_floors;
 
   /*
@@ -10669,6 +10739,7 @@ static void ai_euro_colony_goals(ColonizeTurnContext* ctx, int nation_id) {
    * higher LABOR prio so Free Colonist prefers hammers over distant FOUND.
    * Cite: building_production.md Stockade defense; Colonization.pdf fortify;
    * ai_euro_colony_threatened_by_war MD≤3; euro_unit_act §2e / case 0x0b. */
+  ai_euro_ship_pressure_reset(nation_id); /* FUN_4962_0018 raw 78239-78242 */
   if (ctx->colonies) {
     for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
       ColonizeColony* c = &ctx->colonies->colonies[i];
@@ -10701,7 +10772,7 @@ static void ai_euro_colony_goals(ColonizeTurnContext* ctx, int nation_id) {
         }
         ai_goals_upsert_primary(nation_id, c->x, c->y, AI_GOAL_LABOR, labor_prio);
       } else if (c->ai_flags & (COLONIZE_COLONY_AI_NEARBY_ARMED_SHIP |
-                                 COLONIZE_COLONY_AI_NEARBY_MAN_O_WAR)) {
+                                 COLONIZE_COLONY_AI_NEARBY_FRIGATE)) {
         /*
          * Real 0a60 write site (raw decomp, thunk_FUN_2a1f_0470 call #2 in
          * the colony loop): code is actually CONTACT(0), not a distinct
@@ -10719,7 +10790,7 @@ static void ai_euro_colony_goals(ColonizeTurnContext* ctx, int nation_id) {
          * right" fix, 2026-08-18 (root cause of the unit_ai_euro_expand
          * regression from making the goal-consumption tail live).
          */
-        const int mow = (c->ai_flags & COLONIZE_COLONY_AI_NEARBY_MAN_O_WAR) != 0;
+        const int mow = (c->ai_flags & COLONIZE_COLONY_AI_NEARBY_FRIGATE) != 0;
         ai_goals_upsert_primary(
           nation_id,
           c->x,
@@ -13711,14 +13782,22 @@ static int ai_euro_20e6_wagon_origin_walk(
  * FUN_48d3_015e: spiral out for a High Seas tile (terrain 0x1a) that is empty
  * or own, latch it as the goto and stamp orders 0x45 — i.e. sail home.
  *
- * bVar7 (raw 1284-1307): true for every ship type except Man-O-War (0x12),
- * which needs an odd unit index or the nation's −0x6da2 byte; Frigate (0x11)
- * additionally needs its 0x9414/−0x6db4/−0x6da4 budget term < 4 and no
- * FUN_1000_8b74 hit; Privateer (0x10) needs difficulty ≥ 2 or DS:0x9e52 ≥ 7.
- * Only the Man-O-War / Privateer halves are wired here (the Frigate budget
- * bytes have no decoded writer in this port); Caravel/Merchantman/Galleon —
- * every AI transport this cadence actually reaches — are unconditionally true
- * in DOS too, so the substitution cannot change their behaviour.
+ * bVar7 (decomp 88556-88579), full formula live 2026-09-07 — the "budget
+ * bytes with no decoded writer" turned out to be census fields the port
+ * already persists (save I/O rows FUN_1d1d_060c(0x9414,4,..) /
+ * (0x924c,0x4c,..) pinned them): 0x9414 = stuff.ship_cargo_totals,
+ * 0x924c stride-0x13 = stuff.unit_type_counts[4][19], so −0x6da4/−0x6da2 =
+ * counts of type 0x10 (Privateer) / 0x12 (Man-O-War).
+ *   - base: type != 0x12;
+ *   - Frigate (0x11): ship_cargo_totals[n] − 3*frigate_count[n] −
+ *     privateer_count[n] < 4, AND FUN_281f_0984 (→ FUN_1427_09dc, the
+ *     8-adjacent foreign-owner-on-same-body probe) returns 0;
+ *   - Privateer (0x10): DS:0xa89b ≥ 2 || DS:0x9e52 ≥ 7 — those are the
+ *     census frigate-pressure tallies (own colonies with a foreign Frigate
+ *     in reach / their pop sum, s_ship_pressure), NOT difficulty (the old
+ *     substitution misread 0xa89b);
+ *   - Man-O-War (0x12): re-allowed on odd unit index or
+ *     unit_type_counts[n][0x12] == 1.
  *
  * WIRED LIVE (2026-09-06d), in DOS order: the ship act calls this only after
  * the 4393 work-queue haul (ai_euro_try_ship_trade_haul) declines, which is
@@ -13747,13 +13826,95 @@ static int ai_euro_20e6_hs_cadence_enabled(void) {
   return AI_20E6_HS_CADENCE_DEFAULT;
 }
 
-static int ai_euro_20e6_457e_type_gate(const ColonizeTurnContext* ctx, int dos_type, int unit_id) {
-  if (dos_type == 0x12) { /* Man-O-War: (index & 1) or nation −0x6da2 == 1 */
-    return (unit_id & 1) != 0;
+/*
+ * FUN_281f_0984 → FUN_1427_09dc (decomp 7927-7968): walk the 8 neighbours of
+ * (x,y); a tile with a foreign UNIT owner always hits (the body compare is
+ * trivially true on that arm — local_8 is overwritten with the neighbour's
+ * body first); a foreign COLONY hits only when the neighbour tile's body id
+ * equals the probe tile's current body (local_8 is NOT overwritten on that
+ * arm), which for a ship at sea means never (land vs water body). Owner
+ * lookups substituted with pool scans (the DOS layer2/3 presence bits mirror
+ * them).
+ */
+static int ai_euro_20e6_adjacent_foreign_09dc(
+  const ColonizeTurnContext* ctx, int x, int y, int nation_id
+) {
+  if (!ctx || !ctx->map) {
+    return 0;
   }
-  if (dos_type == 0x10) { /* Privateer */
-    const int difficulty = (ctx->col1_ok && ctx->col1) ? (int)ctx->col1->head.difficulty : 0;
-    return difficulty >= 2;
+  static const int dx[8] = {0, 1, 1, 1, 0, -1, -1, -1};
+  static const int dy[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
+  const int own_unit = ctx->units ? units_id_at(ctx->units, x, y) : -1;
+  int own_tile_owner = -1;
+  if (own_unit >= 0) {
+    const ColonizeUnit* ou = units_get_const((ColonizeUnitPool*)ctx->units, own_unit);
+    own_tile_owner = ou ? ou->nation_id : -1;
+  }
+  int local_8 = (int)(map_get_layer3(ctx->map, x, y) & 0x0fu);
+  for (int d = 0; d < 8; ++d) {
+    const int nx = x + dx[d];
+    const int ny = y + dy[d];
+    if (nx < 0 || ny < 0 || nx >= ctx->map->width || ny >= ctx->map->height) {
+      continue;
+    }
+    int b = local_8;
+    if (own_tile_owner < 0) {
+      b = (int)(map_get_layer3(ctx->map, nx, ny) & 0x0fu);
+    }
+    int owner = -1;
+    const int uid = ctx->units ? units_id_at(ctx->units, nx, ny) : -1;
+    if (uid >= 0) {
+      const ColonizeUnit* nu = units_get_const((ColonizeUnitPool*)ctx->units, uid);
+      owner = nu ? nu->nation_id : -1;
+    }
+    int keep = b;
+    if (owner < 0) {
+      const int cid = ctx->colonies ? colonies_id_at(ctx->colonies, nx, ny) : -1;
+      if (cid >= 0) {
+        owner = ctx->colonies->colonies[cid].nation_id;
+      }
+      keep = local_8;
+    }
+    local_8 = keep;
+    if (owner >= 0 && owner != nation_id && b == local_8) {
+      return 1;
+    }
+  }
+  return 0;
+}
+
+/* bVar7 (decomp 88556-88579) — see the HS-cadence header above for the
+ * operand decode. `u` is the acting ship. */
+static int ai_euro_20e6_457e_type_gate(
+  const ColonizeTurnContext* ctx, const ColonizeUnit* u, int dos_type
+) {
+  const int n = u ? u->nation_id : -1;
+  const ColonizeCol1Stuff* stuff =
+    (ctx && ctx->col1_ok && ctx->col1) ? &ctx->col1->stuff : NULL;
+  if (dos_type == 0x12) { /* Man-O-War (decomp 88576-88579) */
+    if (u && (u->id & 1) != 0) {
+      return 1;
+    }
+    return stuff && n >= 0 && n < 4 && stuff->unit_type_counts[n][0x12] == 1;
+  }
+  if (dos_type == 0x11) { /* Frigate (decomp 88557-88566) */
+    if (!stuff || !u || n < 0 || n > 3) {
+      return 0;
+    }
+    const int budget = (int)stuff->ship_cargo_totals[n] -
+                       3 * (int)stuff->unit_type_counts[n][0x11] -
+                       (int)stuff->unit_type_counts[n][0x10];
+    if (budget >= 4) {
+      return 0;
+    }
+    return !ai_euro_20e6_adjacent_foreign_09dc(ctx, u->x, u->y, n);
+  }
+  if (dos_type == 0x10) { /* Privateer (decomp 88567-88574) */
+    if (n < 0 || n > 3) {
+      return 0;
+    }
+    const AiEuroShipPressure* sp = &s_ship_pressure[n];
+    return sp->frigate_colonies >= 2 || sp->frigate_pop >= 7;
   }
   return 1;
 }
@@ -13790,7 +13951,7 @@ static int ai_euro_20e6_457e_hs_cadence(ColonizeTurnContext* ctx, ColonizeUnit* 
       }
     }
   }
-  if (!ai_euro_20e6_457e_type_gate(ctx, s.dos_type, u->id)) {
+  if (!ai_euro_20e6_457e_type_gate(ctx, u, s.dos_type)) {
     return 0;
   }
   const int spare = (s_0a60_pilot_state[u->id].flags & 0x20) != 0; /* unit+0x3148 */
@@ -14385,7 +14546,7 @@ static int ai_euro_20e6_quartile(int v) {
  *   over the 20-tile ring (DS:0xc8/0xde = k_20e6_ring20_dx/dy): in-bounds
  *        tile with presence < 4 → +0x18; Indian-held tile →
  *        quartile(alarm_by_player[tribe][nation]) * 0x10
- * Shared tail: +0x1b bit 0x02 (NEARBY_MAN_O_WAR) and cargo-ship type < 0x10 →
+ * Shared tail: +0x1b bit 0x02 (NEARBY_FRIGATE) and cargo-ship type < 0x10 →
  *   (col5 − 10) * 8; else bit 0x01 (NEARBY_ARMED_SHIP) → (col5 − 10) * 2.
  * Then score /= ((FUN_1000_856a dist >> 2) + 1) and later-ties-win against a
  * best seeded to −1, so a colony must score ≥ −1 to be picked at all
@@ -14486,7 +14647,7 @@ static int ai_euro_20e6_delivery_colony_pick(
         score += ai_euro_20e6_quartile(alarm) * 0x10; /* raw 2103-2106 */
       }
     }
-    if ((c->ai_flags & COLONIZE_COLONY_AI_NEARBY_MAN_O_WAR) != 0) {
+    if ((c->ai_flags & COLONIZE_COLONY_AI_NEARBY_FRIGATE) != 0) {
       if (ship_type < 0x10) {
         score += (ai_euro_20e6_unit_col5(ship_type) - 10) * 8; /* raw 2119-2121 */
       }
@@ -14842,7 +15003,7 @@ static int ai_euro_20e6_wagon_village_errand(
  *
  * Not modelled from this block (recorded, not invented):
  *   - raw 3018-3023: the Caravel/Merchantman "cower in port" arm. When the
- *     colony carries +0x1b bit 0x02 (NEARBY_MAN_O_WAR) and type <= 0xe, DOS
+ *     colony carries +0x1b bit 0x02 (NEARBY_FRIGATE) and type <= 0xe, DOS
  *     bumps unit+0x315a and skips the whole load for the first
  *     (10 − capacity) beats, stamping act_state 0x43. The port has no
  *     +0x315a byte and no act_state channel here.
@@ -14926,25 +15087,27 @@ static int ai_euro_20e6_ship_berth_arrival(
 
   /*
    * Raw 3018-3023 "cower in port" (2026-09-07): a cargo ship no bigger than a
-   * Merchantman (type <= 0xe) at a colony flagged NEARBY_MAN_O_WAR
+   * Merchantman (type <= 0xe) at a colony flagged NEARBY_FRIGATE
    * (+0x1b bit 0x02) bumps its +0x315a counter and parks (orders 0x43,
    * LAB_5899) until the counter reaches 10 − hold capacity (Caravel 8 beats,
    * Merchantman 6). DOS never resets the byte — the wait happens once per
-   * hull. The park skips boarding and the load matrix.
+   * hull. The park skips boarding and the load matrix. +0x315a is the COL1
+   * `turns_worked` byte (unit record offset 0x16), save-round-tripped since
+   * 2026-09-07 — the counter survives save/load as in DOS.
    */
   const int arrival_dos_type = ai_euro_20e6_dos_type(ctx->units, ship);
-  if ((c->ai_flags & COLONIZE_COLONY_AI_NEARBY_MAN_O_WAR) != 0 && arrival_dos_type <= 0x0e) {
-    if (s_20e6_cower[ship->id] < 255) {
-      s_20e6_cower[ship->id]++;
+  if ((c->ai_flags & COLONIZE_COLONY_AI_NEARBY_FRIGATE) != 0 && arrival_dos_type <= 0x0e) {
+    if (ship->turns_worked < 255) {
+      ship->turns_worked++;
     }
-    if ((int)s_20e6_cower[ship->id] < 10 - holds) {
+    if (ship->turns_worked < 10 - holds) {
       if (out_cowered) {
         *out_cowered = 1;
       }
       if (trace) {
         fprintf(
           stderr, "[shipdump] ship %d n%d cowers at colony %d (count %d < %d)\n", ship->id,
-          nation_id, c->id, (int)s_20e6_cower[ship->id], 10 - holds
+          nation_id, c->id, ship->turns_worked, 10 - holds
         );
       }
       return c->id;
@@ -14970,7 +15133,7 @@ static int ai_euro_20e6_ship_berth_arrival(
    * After the scan DOS zeroes 0x1734[nation] (:81295) — the only reset the
    * counter has.
    */
-  if (ai_euro_20e6_457e_type_gate(ctx, arrival_dos_type, ship->id) &&
+  if (ai_euro_20e6_457e_type_gate(ctx, ship, arrival_dos_type) &&
       (s_0a60_pilot_state[ship->id].flags & 0x20) == 0) {
     const int cid = ctx->map ? map_continent_id_at(ctx->map, c->x, c->y) : -1;
     const int stance = ai_euro_continent_stance_at(nation_id, cid);
@@ -17308,7 +17471,7 @@ static int ai_euro_20e6_unit_col5(int dos_type) {
  *   or urgency > 0x13: bit 0x08 → +0x2d else −0xf; else −0x2d
  *   ((−0x6a0e[cid] & 7) * 8 presence term omitted — writer undecoded)
  * Shared: + idle timer (+0x8f = cargo_idle_turns); +0x1b bit 0x02
- *   (NEARBY_MAN_O_WAR) ∧ ship != Frigate → −0x32; else bit 0x01
+ *   (NEARBY_FRIGATE) ∧ ship != Frigate → −0x32; else bit 0x01
  *   (NEARBY_ARMED_SHIP) ∧ ship type < 0x11 → +(col5 − 10)*2;
  *   − ((dist >> 1) + 1); later ties win (DOS <=).
  * Non-coastal colonies are skipped (the raw 8804(...,0xfffe) reachability
@@ -17384,7 +17547,7 @@ static int ai_euro_20e6_colony_sail_pick(
       }
     }
     score += (int)c->cargo_idle_turns; /* +0x8f */
-    if (c->ai_flags & COLONIZE_COLONY_AI_NEARBY_MAN_O_WAR) {
+    if (c->ai_flags & COLONIZE_COLONY_AI_NEARBY_FRIGATE) {
       if (ship_type != 0x11) {
         score -= 0x32;
       }

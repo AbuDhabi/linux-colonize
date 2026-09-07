@@ -7660,6 +7660,12 @@ static int units_coarse_reach(const ColonizeWorldMap* map, int ax, int ay, int b
   return -1;
 }
 
+int units_short_sea_route_cost(
+  const ColonizeWorldMap* map, int ax, int ay, int bx, int by
+) {
+  return units_coarse_reach(map, ax, ay, bx, by, 1);
+}
+
 /* Populator gate (asm OVL21_L0040:8b3-8bb): 0 < cost < 8. */
 static int units_coarse_connected(const ColonizeWorldMap* map, int ax, int ay, int bx, int by, int sea) {
   const int c = units_coarse_reach(map, ax, ay, bx, by, sea);
