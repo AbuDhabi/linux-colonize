@@ -1,7 +1,12 @@
 /* Smoke: FUN_521d_20e6 land arms — patrol return + 8-dir wander step. */
+/* setenv/unsetenv (the AI_20E6_SHIP_DUMP kill-switch case) are POSIX. */
+#ifndef _POSIX_C_SOURCE
+#define _POSIX_C_SOURCE 200809L
+#endif
 #include "core/ai_diplo.h"
 #include "core/ai_euro.h"
 #include "core/ai_goals.h"
+#include "core/ai_popup.h"
 #include "core/col1_save.h"
 #include "core/colony.h"
 #include "core/dos_rng.h"
@@ -729,6 +734,237 @@ static int unit_load_matrix_picks_priced_cargo(void) {
 }
 
 /*
+ * Ship own-colony arrival (raw 2996-3138), the twin of the wagon sequence.
+ *
+ * A 2-hold Caravel berths beside its own colony carrying 80 Ore and 40 Furs.
+ * Neither is a delivery cargo (the raw 1702-1712 tally keeps only 0x0d..0x0f
+ * and 0x08), so the delivery matrix and its sell tail stay out of the way;
+ * the colony is not Ore-short (60 ≥ 20) so the port's Linux "colony is short
+ * of this" unload arm refuses the hull; and the hull is not empty, so the 06e
+ * empty-hull gate refused the load matrix. DOS has none of those rules: raw
+ * 3002-3007 dumps EVERY hold into the colony unconditionally, and only then
+ * does the load matrix score.
+ *
+ * Expected, in order:
+ *   - both holds land in colony stock (Ore 60→140, Furs 0→40);
+ *   - the matrix then fills both holds from the post-dump colony. Silver
+ *     (bid 20 × 60 = 1200) beats Ore (stock 140 ≥ cap 100 → term 140<<1 =
+ *     280, bid 3 → 840) and Furs (bid 4 × 40 = 160); Food / Trade Goods /
+ *     Lumber are skipped outright for ships; Tools and Muskets need
+ *     cargo_produced_mask (unset here); Horses score `(stock − cap) + 0x17`
+ *     = 15 − 100 + 23 < 0 → clamped to 0 → skipped. The second hold then
+ *     takes Ore at qty = min(stock, 100) = 100, leaving the colony 40.
+ *
+ * Run twice: AI_20E6_SHIP_DUMP=0 must reproduce the old substitution exactly
+ * (hull untouched, colony untouched), which pins the kill switch.
+ */
+static int unit_ship_berth_dumps_whole_hull(void) {
+  const int nation = 1;
+  for (int pass = 0; pass < 2; ++pass) {
+    const int dump_on = (pass == 1);
+    if (dump_on) {
+      unsetenv("AI_20E6_SHIP_DUMP");
+    } else {
+      setenv("AI_20E6_SHIP_DUMP", "0", 1);
+    }
+    Fixture f;
+    if (fixture_init(&f, nation) != 0) {
+      unsetenv("AI_20E6_SHIP_DUMP");
+      return 1;
+    }
+    for (int y = 0; y < 16; ++y) {
+      for (int x = 12; x < 16; ++x) {
+        f.map.terrain[y * 16 + x] = 25; /* MAP_OCEAN_INDEX */
+      }
+    }
+    ColonizeColony* c = &f.colonies.colonies[0];
+    c->id = 0;
+    c->active = true;
+    c->nation_id = nation;
+    c->x = 11;
+    c->y = 4;
+    c->population = 3;
+    c->colonist_count = 3;
+    c->stock[COLONIZE_CARGO_FOOD] = 90;        /* ship arm skips cargo 0 */
+    c->stock[COLONIZE_CARGO_TRADE_GOODS] = 80; /* ship arm skips cargo 0xd */
+    c->stock[COLONIZE_CARGO_LUMBER] = 90;      /* cargo 5 skipped for everyone */
+    c->stock[COLONIZE_CARGO_ORE] = 60;
+    c->stock[COLONIZE_CARGO_SILVER] = 60;
+    c->stock[COLONIZE_CARGO_MUSKETS] = 15; /* >= 10: not "short" for the port arm */
+    c->stock[COLONIZE_CARGO_HORSES] = 15;  /* >= 10: not "short" for the port arm */
+    c->stock[COLONIZE_CARGO_FURS] = 0;
+    c->building_in_production = -1;
+    f.colonies.colony_count = 1;
+    f.colonies.next_id = 1;
+
+    /* NAMES.TXT @CARGO start bids. */
+    f.col1.nation[nation].trade.euro_price[COLONIZE_CARGO_FOOD] = 1;
+    f.col1.nation[nation].trade.euro_price[COLONIZE_CARGO_LUMBER] = 2;
+    f.col1.nation[nation].trade.euro_price[COLONIZE_CARGO_ORE] = 3;
+    f.col1.nation[nation].trade.euro_price[COLONIZE_CARGO_SILVER] = 20;
+    f.col1.nation[nation].trade.euro_price[COLONIZE_CARGO_TRADE_GOODS] = 2;
+    f.col1.nation[nation].trade.euro_price[COLONIZE_CARGO_MUSKETS] = 11;
+    f.col1.nation[nation].trade.euro_price[COLONIZE_CARGO_HORSES] = 2;
+    f.col1.nation[nation].trade.euro_price[COLONIZE_CARGO_FURS] = 4;
+
+    const int ship_id = units_spawn(&f.units, 2, 12, 4); /* berthed alongside */
+    ColonizeUnit* ship = units_get(&f.units, ship_id);
+    if (!ship) {
+      fixture_free(&f);
+      unsetenv("AI_20E6_SHIP_DUMP");
+      return fail("spawn ship");
+    }
+    ship->nation_id = nation;
+    ship->moves_left = 4 * UNITS_MP_PER_TILE;
+    ship->orders = 0;
+    if (units_load_goods(&f.units, ship_id, COLONIZE_CARGO_ORE, 80) <= 0 ||
+        units_load_goods(&f.units, ship_id, COLONIZE_CARGO_FURS, 40) <= 0) {
+      fixture_free(&f);
+      unsetenv("AI_20E6_SHIP_DUMP");
+      return fail("load ship holds");
+    }
+
+    ai_euro_dispatcher_turn(&f.ctx, nation);
+
+    ship = units_get(&f.units, ship_id);
+    if (!ship || !ship->active) {
+      fixture_free(&f);
+      unsetenv("AI_20E6_SHIP_DUMP");
+      return fail("ship vanished");
+    }
+    int aboard[COLONIZE_CARGO_COUNT];
+    memset(aboard, 0, sizeof(aboard));
+    for (int h = 0; h < COLONIZE_UNIT_CARGO_MAX; ++h) {
+      const int amt = ship->hold_goods_amount[h];
+      if (amt <= 0 || amt >= 255) {
+        continue;
+      }
+      aboard[ship->hold_goods_type[h]] += amt;
+    }
+    int ok;
+    if (dump_on) {
+      ok = c->stock[COLONIZE_CARGO_ORE] == 40 && c->stock[COLONIZE_CARGO_FURS] == 40 &&
+           c->stock[COLONIZE_CARGO_SILVER] == 0 &&
+           ship->hold_goods_type[0] == COLONIZE_CARGO_SILVER &&
+           aboard[COLONIZE_CARGO_SILVER] == 60 && aboard[COLONIZE_CARGO_ORE] == 100 &&
+           aboard[COLONIZE_CARGO_FURS] == 0;
+    } else {
+      /* Kill switch: 06e substitution — part-loaded hull, matrix never runs. */
+      ok = c->stock[COLONIZE_CARGO_ORE] == 60 && c->stock[COLONIZE_CARGO_FURS] == 0 &&
+           c->stock[COLONIZE_CARGO_SILVER] == 60 && aboard[COLONIZE_CARGO_ORE] == 80 &&
+           aboard[COLONIZE_CARGO_FURS] == 40 && aboard[COLONIZE_CARGO_SILVER] == 0;
+    }
+    if (!ok) {
+      fprintf(
+        stderr,
+        "pass %d (dump %s): colony ore=%d furs=%d silver=%d | aboard ore=%d furs=%d "
+        "silver=%d hold0=%d\n",
+        pass, dump_on ? "on" : "off", (int)c->stock[COLONIZE_CARGO_ORE],
+        (int)c->stock[COLONIZE_CARGO_FURS], (int)c->stock[COLONIZE_CARGO_SILVER],
+        aboard[COLONIZE_CARGO_ORE], aboard[COLONIZE_CARGO_FURS],
+        aboard[COLONIZE_CARGO_SILVER], ship->hold_goods_type[0]
+      );
+      fixture_free(&f);
+      unsetenv("AI_20E6_SHIP_DUMP");
+      return fail(
+        dump_on ? "ship berth did not run the DOS dump+load sequence"
+                : "AI_20E6_SHIP_DUMP=0 did not restore the empty-hull gate"
+      );
+    }
+    fixture_free(&f);
+  }
+  unsetenv("AI_20E6_SHIP_DUMP");
+  return 0;
+}
+
+/*
+ * 0a60 registration gate = DOS's `bVar5` (raw viceroy_unpacked.c:87622 /
+ * :87633 / :87663) and the queue it feeds is a PICKUP queue: the 4393 tip
+ * aims a hauler at the colony that HAS goods, not at one that is short.
+ *
+ * Wagon at (4,4), two own colonies:
+ *   poor (5,4), ONE tile away: 5 Ore / 0 Tools / 1 Food at pop 4 — short of
+ *               everything and holding nothing worth collecting, so it never
+ *               enters the queue at all
+ *   rich (8,4), four tiles away: 150 Ore — at/over warehouse capacity so
+ *               `local_2a` doubles to 300, clears 0x4a, and registers
+ * The wagon must be aimed at the FAR, RICH colony. The distance is what makes
+ * this discriminating: with the gate off nothing registers and the wagon
+ * falls to the LAB_457e/47b9 arm, which walks it to the NEAREST own colony
+ * (5,4) instead. Before the 2026-09-06g gate flip this port registered `poor`
+ * (the Linux `haul_short` boolean) and sent the wagon there empty-handed.
+ */
+static int unit_work_queue_pickup_aims_at_goods_colony(void) {
+  const int nation = 1;
+  Fixture f;
+  if (fixture_init(&f, nation) != 0) {
+    return 1;
+  }
+  /*
+   * Distinct turn number. `s_20e6_load_colony` / `s_20e6_load_turn` (the port's
+   * +0x314a latch) are file-static and keyed by unit id, and every other
+   * fixture in this file runs on turn 5 with a unit id 1 — an earlier ship
+   * scenario's latch would otherwise read as "this wagon is bound to colony 0"
+   * and the 4393 pick would correctly skip the very slot under test.
+   */
+  f.turn = 9;
+  ColonizeColony* rich = &f.colonies.colonies[0];
+  rich->id = 0;
+  rich->active = true;
+  rich->nation_id = nation;
+  rich->x = 8;
+  rich->y = 4;
+  rich->population = 3;
+  rich->colonist_count = 3;
+  rich->stock[COLONIZE_CARGO_ORE] = 150;
+  rich->stock[COLONIZE_CARGO_FOOD] = 40;
+  rich->building_in_production = -1;
+  rich->specialty_cargo = 0xff;
+
+  ColonizeColony* poor = &f.colonies.colonies[1];
+  poor->id = 1;
+  poor->active = true;
+  poor->nation_id = nation;
+  poor->x = 5;
+  poor->y = 4;
+  poor->population = 4;
+  poor->colonist_count = 4;
+  poor->stock[COLONIZE_CARGO_ORE] = 5;
+  poor->stock[COLONIZE_CARGO_TOOLS] = 0;
+  poor->stock[COLONIZE_CARGO_FOOD] = 1; /* food-short, tools-short, ore-short */
+  poor->building_in_production = -1;
+  poor->specialty_cargo = 0xff;
+  f.colonies.colony_count = 2;
+  f.colonies.next_id = 2;
+  f.col1.nation[nation].trade.euro_price[COLONIZE_CARGO_ORE] = 3;
+
+  const int wid = units_spawn(&f.units, 3, 4, 4); /* Wagon Train, empty */
+  ColonizeUnit* w = units_get(&f.units, wid);
+  if (!w) {
+    fixture_free(&f);
+    return fail("spawn pickup wagon");
+  }
+  w->nation_id = nation;
+  w->moves_left = 2 * UNITS_MP_PER_TILE;
+  w->orders = 0;
+
+  ai_euro_dispatcher_turn(&f.ctx, nation);
+
+  w = units_get(&f.units, wid);
+  if (!w || !w->active) {
+    fixture_free(&f);
+    return fail("pickup wagon vanished");
+  }
+  if (w->orders != UNITS_ORDER_AI_MOVE || w->goto_x != 8 || w->goto_y != 4) {
+    fprintf(stderr, "pickup orders=%d goto=(%d,%d)\n", w->orders, w->goto_x, w->goto_y);
+    fixture_free(&f);
+    return fail("work-queue tip should aim the wagon at the goods colony");
+  }
+  fixture_free(&f);
+  return 0;
+}
+
+/*
  * Wagon own-colony arrival (raw 2996-3138): dump, then the LOAD matrix wagon
  * arm — one hold of the cheap-priced surplus (Ore, bid 3 < thr 4, stock ≥
  * 0x32) — then the village-errand latch routes the wagon at the nearest
@@ -973,7 +1209,220 @@ static int unit_wagon_errand_dead_end_destroyed(void) {
   return 0;
 }
 
+/*
+ * FUN_521d_20e6 treasure act band, first arm (move_scoring_20e6_full.md raw
+ * ~2315): a Treasure (DOS type 0x0a) standing in an own colony (iStack_2e ==
+ * 0) credits unit+0x315b * 100 to nation+0x2a with no Crown cut, fires popup
+ * 0x1786 (@LOOTFOREIGN) while DS:0x5382 bit0 is clear, then is destroyed
+ * (LAB_0047b9). Also asserts DOS's *absence* of any human term: the human
+ * nation's own Treasure sitting in its own colony is untouched by the AI
+ * nation's dispatcher turn.
+ */
+static int treasure_add_type(Fixture* f) {
+  const int ti = f->units.type_count++;
+  snprintf(f->units.types[ti].name, sizeof(f->units.types[ti].name), "Treasure");
+  f->units.types[ti].movement = 1;
+  f->units.types[ti].cargo = 0;
+  f->units.types[ti].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  return ti;
+}
+
+static void treasure_add_colony(Fixture* f, int idx, int nation, int x, int y) {
+  ColonizeColony* c = &f->colonies.colonies[idx];
+  c->id = idx;
+  c->active = true;
+  c->nation_id = nation;
+  c->x = x;
+  c->y = y;
+  c->population = 3;
+  c->colonist_count = 3;
+  c->stock[COLONIZE_CARGO_FOOD] = 60;
+  c->building_in_production = -1;
+  if (f->colonies.colony_count <= idx) {
+    f->colonies.colony_count = idx + 1;
+    f->colonies.next_id = idx + 1;
+  }
+}
+
+static int unit_treasure_in_colony_cash_in(void) {
+  const int nation = 1;
+  Fixture f;
+  if (fixture_init(&f, nation) != 0) {
+    return 1;
+  }
+  AiPopupState popups;
+  ai_popup_init(&popups);
+  f.ctx.ai_popups = &popups;
+
+  const int ti = treasure_add_type(&f);
+  treasure_add_colony(&f, 0, nation, 4, 4);
+  treasure_add_colony(&f, 1, f.ctx.human_nation, 10, 10);
+
+  const int tid = units_spawn(&f.units, ti, 4, 4);
+  ColonizeUnit* t = units_get(&f.units, tid);
+  if (!t) {
+    fixture_free(&f);
+    return fail("spawn treasure");
+  }
+  t->nation_id = nation;
+  t->moves_left = 1 * UNITS_MP_PER_TILE;
+  t->orders = 0;
+  t->profession = 9; /* DOS +0x315b: gold/100 → 900 */
+
+  const int hid = units_spawn(&f.units, ti, 10, 10);
+  ColonizeUnit* h = units_get(&f.units, hid);
+  if (!h) {
+    fixture_free(&f);
+    return fail("spawn human treasure");
+  }
+  h->nation_id = f.ctx.human_nation;
+  h->moves_left = 1 * UNITS_MP_PER_TILE;
+  h->orders = 0;
+  h->profession = 5;
+
+  const uint32_t gold_before = f.col1.nation[nation].gold;
+  const uint32_t human_gold_before = f.col1.nation[f.ctx.human_nation].gold;
+
+  ai_euro_dispatcher_turn(&f.ctx, nation);
+
+  t = units_get(&f.units, tid);
+  if (t && t->active) {
+    fprintf(stderr, "treasure alive at (%d,%d)\n", t->x, t->y);
+    fixture_free(&f);
+    return fail("in-colony treasure must be destroyed after the cash-in");
+  }
+  const uint32_t delta = f.col1.nation[nation].gold - gold_before;
+  if (delta != 900u) {
+    fprintf(stderr, "treasury delta=%u want 900\n", (unsigned)delta);
+    fixture_free(&f);
+    return fail("cash-in must credit +0x315b * 100, no Crown cut");
+  }
+  /* Human treasure and treasury untouched by an AI nation's turn. */
+  h = units_get(&f.units, hid);
+  if (!h || !h->active) {
+    fixture_free(&f);
+    return fail("human Treasure must survive an AI nation's dispatcher turn");
+  }
+  if (f.col1.nation[f.ctx.human_nation].gold != human_gold_before) {
+    fixture_free(&f);
+    return fail("human treasury must not move on an AI nation's turn");
+  }
+  /* Pre-WoI: @LOOTFOREIGN enqueued. */
+  int found = 0;
+  for (int i = 0; i < popups.queue_count; ++i) {
+    if (strstr(popups.queue[i].body, "treasure fleet") != NULL) {
+      found = 1;
+    }
+  }
+  if (!found) {
+    fprintf(stderr, "queue_count=%d\n", popups.queue_count);
+    for (int i = 0; i < popups.queue_count; ++i) {
+      fprintf(stderr, "  [%d] %s\n", i, popups.queue[i].body);
+    }
+    fixture_free(&f);
+    return fail("pre-WoI cash-in must enqueue @LOOTFOREIGN");
+  }
+  fixture_free(&f);
+  return 0;
+}
+
+/* Same beat with DS:0x5382 bit0 set: gold and destroy still happen, the
+ * popup does not (raw `if ((*(byte *)0x5382 & 1) == 0)`). */
+static int unit_treasure_cash_in_silent_under_woi(void) {
+  const int nation = 1;
+  Fixture f;
+  if (fixture_init(&f, nation) != 0) {
+    return 1;
+  }
+  AiPopupState popups;
+  ai_popup_init(&popups);
+  f.ctx.ai_popups = &popups;
+  f.col1.head.game_options.woi = 1;
+
+  const int ti = treasure_add_type(&f);
+  treasure_add_colony(&f, 0, nation, 4, 4);
+
+  const int tid = units_spawn(&f.units, ti, 4, 4);
+  ColonizeUnit* t = units_get(&f.units, tid);
+  if (!t) {
+    fixture_free(&f);
+    return fail("spawn treasure (woi)");
+  }
+  t->nation_id = nation;
+  t->moves_left = 1 * UNITS_MP_PER_TILE;
+  t->orders = 0;
+  t->profession = 4; /* 400 */
+
+  const uint32_t gold_before = f.col1.nation[nation].gold;
+  ai_euro_dispatcher_turn(&f.ctx, nation);
+
+  t = units_get(&f.units, tid);
+  if (t && t->active) {
+    fixture_free(&f);
+    return fail("WoI cash-in must still destroy the Treasure");
+  }
+  if (f.col1.nation[nation].gold - gold_before != 400u) {
+    fixture_free(&f);
+    return fail("WoI cash-in must still credit the treasury");
+  }
+  for (int i = 0; i < popups.queue_count; ++i) {
+    if (strstr(popups.queue[i].body, "treasure fleet") != NULL) {
+      fixture_free(&f);
+      return fail("@LOOTFOREIGN must not fire once the WoI flag is set");
+    }
+  }
+  fixture_free(&f);
+  return 0;
+}
+
+/* iStack_2e != 0: a Treasure that is not standing in an own colony falls to
+ * the later arms (bind + goto / rendezvous) and keeps its gold. */
+static int unit_treasure_outside_colony_not_cashed(void) {
+  const int nation = 1;
+  Fixture f;
+  if (fixture_init(&f, nation) != 0) {
+    return 1;
+  }
+  const int ti = treasure_add_type(&f);
+  treasure_add_colony(&f, 0, nation, 4, 4);
+
+  const int tid = units_spawn(&f.units, ti, 9, 9);
+  ColonizeUnit* t = units_get(&f.units, tid);
+  if (!t) {
+    fixture_free(&f);
+    return fail("spawn treasure (outside)");
+  }
+  t->nation_id = nation;
+  t->moves_left = 1 * UNITS_MP_PER_TILE;
+  t->orders = 0;
+  t->profession = 9;
+
+  const uint32_t gold_before = f.col1.nation[nation].gold;
+  ai_euro_dispatcher_turn(&f.ctx, nation);
+
+  t = units_get(&f.units, tid);
+  if (!t || !t->active) {
+    fixture_free(&f);
+    return fail("Treasure away from a colony must not be cashed/destroyed");
+  }
+  if (f.col1.nation[nation].gold != gold_before) {
+    fixture_free(&f);
+    return fail("no treasury credit until the Treasure reaches a colony");
+  }
+  fixture_free(&f);
+  return 0;
+}
+
 int main(void) {
+  if (unit_treasure_in_colony_cash_in() != 0) {
+    return 1;
+  }
+  if (unit_treasure_cash_in_silent_under_woi() != 0) {
+    return 1;
+  }
+  if (unit_treasure_outside_colony_not_cashed() != 0) {
+    return 1;
+  }
   if (unit_wander_step_is_adjacent() != 0) {
     return 1;
   }
@@ -1002,6 +1451,12 @@ int main(void) {
     return 1;
   }
   if (unit_load_matrix_picks_priced_cargo() != 0) {
+    return 1;
+  }
+  if (unit_ship_berth_dumps_whole_hull() != 0) {
+    return 1;
+  }
+  if (unit_work_queue_pickup_aims_at_goods_colony() != 0) {
     return 1;
   }
   if (unit_wagon_load_matrix_starts_village_errand() != 0) {

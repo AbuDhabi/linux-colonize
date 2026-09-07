@@ -732,11 +732,46 @@ static bool units_move_crosses_shore(
 static void units_play_event_sound(int id);
 static void units_set_bgm_pool(int pool);
 static bool units_combat_is_visible(const ColonizeUnitPool* pool, int a_id, int b_id);
+static const char* units_home_port_name(const ColonizeCol1Save* col1, int nation_id);
 
-static int units_king_galleon_treasure_value(const ColonizeUnit* treasure) {
+int units_treasure_value_gold(const ColonizeUnit* treasure) {
+  if (!treasure) {
+    return 0;
+  }
+  /*
+   * Representation A (port-spawned): units_spawn_treasure_train stores the
+   * full gold as an LE16 mirror in hold_goods_amount[0..1] — finer than the
+   * DOS byte, so it wins whenever it is set.
+   */
   const unsigned lo = (unsigned)(treasure->hold_goods_amount[0] & 0xff);
   const unsigned hi = (unsigned)(treasure->hold_goods_amount[1] & 0xff);
-  return (int)(lo | (hi << 8));
+  const int mirror = (int)(lo | (hi << 8));
+  if (mirror > 0) {
+    return mirror;
+  }
+  /*
+   * Representation B (bridged from a COL1 save): DOS keeps a Treasure's value
+   * in unit +0x315b — COL1 unit record +0x17, the `profession` byte — as
+   * gold/100. Both DOS readers agree: FUN_48d3_06ba (Europe landfall cash-in,
+   * viceroy_unpacked.c:77985 `iVar7 = (uint)*(byte *)(iVar6 + 0x315b) * 100`)
+   * and FUN_521d_20e6's treasure act band (move_scoring_20e6_full.md raw
+   * ~2317 `uVar13 = (uint)*(byte *)(param_2 * 0x1c + 0x315b) * 100`).
+   * col1_bridge only fills hold_goods_amount for sea/wagon hulls, so a
+   * save-loaded Treasure carries nothing but this byte and every reader that
+   * looked only at the mirror valued it at 0.
+   *
+   * Blind spot (documented, not invented around): a save Treasure worth
+   * exactly 2800 has profession == UNITS_JOB_NONE and is indistinguishable
+   * from a port-spawned unit that never wrote the byte, so it reads 0.
+   */
+  if (treasure->profession > 0 && treasure->profession != UNITS_JOB_NONE) {
+    return treasure->profession * 100;
+  }
+  return 0;
+}
+
+static int units_king_galleon_treasure_value(const ColonizeUnit* treasure) {
+  return units_treasure_value_gold(treasure);
 }
 
 int units_king_galleon_share_pct(const ColonizeCol1Save* col1, int nation_id) {
@@ -812,6 +847,91 @@ static void units_king_galleon_credit(
     ai_popup_enqueue_ok(popups, AI_POPUP_TAG_INFO, NULL, body);
   }
   (void)units_despawn(pool, treasure_id);
+}
+
+int units_ai_treasure_cash_in_colony(
+  ColonizeUnitPool* pool,
+  ColonizeCol1Save* col1,
+  int nation_id,
+  int treasure_id,
+  AiPopupState* popups,
+  const ColonizeMsgCatalog* game_txt
+) {
+  /*
+   * FUN_521d_20e6 treasure act band, first arm (move_scoring_20e6_full.md raw
+   * ~2315-2331, `if (*(char *)(param_2 * 0x1c + 0x3146) == '\n') { if
+   * (iStack_2e == 0) { ... } }`):
+   *
+   *   uVar13   = (uint)*(byte *)(param_2 * 0x1c + 0x315b) * 100;
+   *   nation+0x2a/+0x2c += uVar13            (32-bit gold, NO Crown cut)
+   *   if ((*(byte *)0x5382 & 1) == 0) {      pre-WoI only
+   *     FUN_1000_8628(0, func_0x00018b94(nation));   STRING0 = @NATIONALITY
+   *     FUN_1000_8628(1, *(word *)(nation*2 + -0x7c74));  STRING1 = @HOMEPORT
+   *     FUN_1000_8b9e(0, uVar13, 0);                 NUMBER0 = the gold
+   *     FUN_1000_8842(0x181f, 0x1786, 2);            popup @LOOTFOREIGN
+   *   }
+   *   goto LAB_OVL14_L0000__0047b9;          FUN_1000_89f8 = destroy_unit
+   *
+   * Resolutions: `-0x72f6` (via func_0x00018b94 = FUN_281f_09a4 →
+   * FUN_15b3_01e0) is the NAMES.TXT @NATIONALITY adjective table, NOT the
+   * player's @COLONYNAME (docs/archive/bugs_resolutions_full_2026-09-05.md
+   * "New Spain Privateer"); `-0x7c74` is the @HOMEPORT table (already the
+   * DS reading behind units_home_port_name / europe.c:2699); popup id 0x1786
+   * is the DS address of the tag string `LOOTFOREIGN` (docs/popup_tag_ids.md
+   * line 183). DOS queues no sound here — 48d3_06ba's FUN_281f_048e(0x24)
+   * Fiddler's Dance belongs to the Europe cash-in, not this one.
+   *
+   * No Crown share and no Cortes / galleon term appear anywhere in this band:
+   * an AI Treasure standing in ANY own colony cashes at full face value.
+   *
+   * Caller owns the "standing in an own colony" gate (DOS iStack_2e == 0);
+   * this function only re-checks ownership of the unit. Returns the gold
+   * credited, 0 when nothing was done (the unit is left alive in that case).
+   */
+  ColonizeUnit* treasure = units_get(pool, treasure_id);
+  if (!pool || !col1 || nation_id < 0 || nation_id > 3 || !treasure || !treasure->active) {
+    return 0;
+  }
+  if (treasure->nation_id != nation_id) {
+    return 0;
+  }
+  const ColonizeUnitType* ty = units_type(pool, treasure->type_index);
+  if (!ty || !ty->name[0] || strstr(ty->name, "Treasure") == NULL) {
+    return 0;
+  }
+  const int value = units_treasure_value_gold(treasure);
+  if (value > 0) {
+    ColonizeCol1Nation* nat = &col1->nation[nation_id];
+    nat->gold += (uint32_t)value; /* DOS nation+0x2a/+0x2c, 32-bit, uncapped */
+  }
+  /* DS:0x5382 bit0 = the War of Independence flag; the popup is pre-WoI only. */
+  if (value > 0 && popups && col1->head.game_options.woi == 0) {
+    PopupMsgTokens tok;
+    memset(&tok, 0, sizeof(tok));
+    tok.string0 = units_combat_nation_label(col1, nation_id);
+    tok.string1 = units_home_port_name(col1, nation_id);
+    tok.number0 = value;
+    tok.has_number0 = true;
+    char body[AI_POPUP_BODY_LEN];
+    char fb[AI_POPUP_BODY_LEN];
+    snprintf(
+      fb,
+      sizeof(fb),
+      "Spies report: %s treasure fleet laden with %d$ arrives in %s.  %s king pleased with booty.",
+      tok.string0,
+      value,
+      tok.string1,
+      tok.string0
+    );
+    if (game_txt) {
+      popup_msg_fill(game_txt, "LOOTFOREIGN", &tok, fb, body, sizeof(body));
+    } else {
+      snprintf(body, sizeof(body), "%s", fb);
+    }
+    ai_popup_enqueue_ok(popups, AI_POPUP_TAG_INFO, NULL, body);
+  }
+  (void)units_despawn(pool, treasure_id); /* LAB_0047b9 → FUN_1427_0824 destroy */
+  return value;
 }
 
 int units_king_galleon_offer_coastal_treasures(

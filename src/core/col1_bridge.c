@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "core/ai_euro.h"
 #include "core/col1_post_map.h"
 #include "core/col1_stuff_census.h"
 #include "core/founding_fathers.h"
@@ -965,6 +966,10 @@ bool col1_bridge_apply(
 
   /* Units */
   units_reset(units);
+  /* The errand latch is keyed by runtime unit id; a load rebuilds the pool
+   * from scratch, so drop every stale latch before the import re-seeds the
+   * wagons this save actually carries (DOS's byte dies with its record). */
+  ai_euro_wagon_errand_clear_all();
   int* id_by_index = NULL;
   if (save->head.unit_count > 0) {
     id_by_index = calloc((size_t)save->head.unit_count, sizeof(int));
@@ -1322,6 +1327,17 @@ bool col1_bridge_apply(
         }
       } else if (src->cargo_hold[5] > 0 && src->cargo_hold[5] <= 100) {
         u->tools = (int)src->cargo_hold[5];
+      }
+      /*
+       * DOS +0x3158 (= unit_index * 0x1c + 0x3158, array base DS:0x3144) is
+       * COL1 record +0x14 = cargo_hold[4] — the Wagon Train village-errand
+       * latch, and DOS only ever touches it for type 0x0c (set
+       * viceroy_unpacked.c:84817, read :85154 behind `type == '\f'`, cleared
+       * :82121 / spawn-init :7752). On every sea type the same byte is a real
+       * cargo hold, so the seed is strictly type-gated. See ai_euro.h.
+       */
+      if (src->type == 0x0c) {
+        ai_euro_wagon_errand_set(id, src->cargo_hold[4]);
       }
       /* Stash raw DOS +0x0c..+0x15 for capture round-trip (see units.h). */
       memcpy(u->col1_hold_raw, &src->holds_occupied, sizeof(u->col1_hold_raw));
@@ -2369,6 +2385,18 @@ bool col1_bridge_capture(
         }
       } else if (src->tools > 0 && src->aboard_ship_id >= 0 && dst->cargo_hold[5] == 0) {
         dst->cargo_hold[5] = (uint8_t)(src->tools <= 100 ? src->tools : 100);
+      }
+      /*
+       * Wagon village-errand latch back into DOS +0x3158 = record +0x14 =
+       * cargo_hold[4] (see the apply side and ai_euro.h for the address
+       * arithmetic). Type-gated exactly as DOS gates it: only 0x0c. A Wagon
+       * Train has 2 holds, so slot 4 is never reached by the goods packing
+       * above; the restored raw byte it overwrites is this same latch, which
+       * apply seeded verbatim, so an untouched DOS wagon round-trips
+       * byte-identically.
+       */
+      if (dst->type == 0x0c) {
+        dst->cargo_hold[4] = (uint8_t)ai_euro_wagon_errand_get(src->id);
       }
       dst->transport_chain.next_unit_idx = -1;
       dst->transport_chain.prev_unit_idx = -1;
