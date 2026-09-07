@@ -13598,6 +13598,46 @@ static int ai_euro_20e6_wagon_village_errand(
  * and the 06e load block make), so the sweep covers the ship's tile plus any
  * adjacent own-colony tile.
  */
+/*
+ * Raw 2991-2997 (asm 0x30a7-0x30d5) stale board-mark clear, shared by the
+ * arrival block and the LAB_3558 anchor. In DOS every act that reaches the
+ * 0x3609 10be call at a colony berth has already fallen through the arrival
+ * block, so 10be never sees a mark that this act's scan did not set. The
+ * 0a60 housekeeping stamps act_state=1 on every aboard passenger at the
+ * nation-turn top; without this clear on the unload path a passenger dropped
+ * ashore this turn still carries that stamp and 10be re-boards it (the
+ * load/unload oscillation the -O3 unit_ai_euro_war failure exposed). Sweep =
+ * ship tile + adjacent own colony tile, the same berth substitution 10be
+ * makes.
+ */
+static void ai_euro_20e6_clear_stale_board_marks(
+  ColonizeTurnContext* ctx,
+  int nation_id,
+  const ColonizeUnit* ship
+) {
+  if (!ctx || !ctx->units || !ship) {
+    return;
+  }
+  for (int ui = 0; ui < COLONIZE_UNITS_MAX; ++ui) {
+    const ColonizeUnit* lu = units_get_const(ctx->units, ui);
+    if (!lu || !lu->active || lu->aboard_ship_id >= 0) {
+      continue;
+    }
+    int on_stack = (lu->x == ship->x && lu->y == ship->y);
+    if (!on_stack && ctx->colonies) {
+      const int cid = colonies_id_at(ctx->colonies, lu->x, lu->y);
+      const ColonizeColony* lc = cid >= 0 ? colonies_get(ctx->colonies, cid) : NULL;
+      if (lc && lc->active && lc->nation_id == nation_id &&
+          ai_euro_tiles_near(ship->x, ship->y, lc->x, lc->y)) {
+        on_stack = 1;
+      }
+    }
+    if (on_stack && s_0a60_pilot_state[ui].act_state == 1) {
+      s_0a60_pilot_state[ui].act_state = 0;
+    }
+  }
+}
+
 static int ai_euro_20e6_transport_assemble(
   ColonizeTurnContext* ctx,
   int nation_id,
@@ -13763,18 +13803,7 @@ static int ai_euro_20e6_ship_berth_arrival(
    * (ships berth ON the colony tile); this port berths on adjacent water, so
    * the colony tile the ship is berthed at is the equivalent stack.
    */
-  for (int ui = 0; ui < COLONIZE_UNITS_MAX; ++ui) {
-    const ColonizeUnit* lu = units_get_const(ctx->units, ui);
-    if (!lu || !lu->active || lu->aboard_ship_id >= 0) {
-      continue;
-    }
-    if ((lu->x != c->x || lu->y != c->y) && (lu->x != ship->x || lu->y != ship->y)) {
-      continue;
-    }
-    if (s_0a60_pilot_state[ui].act_state == 1) {
-      s_0a60_pilot_state[ui].act_state = 0;
-    }
-  }
+  ai_euro_20e6_clear_stale_board_marks(ctx, nation_id, ship);
 
   /* raw 3002-3007: dump every hold into the colony, unconditionally. */
   int dumped = 0;
@@ -15960,9 +15989,14 @@ static int ai_euro_20e6_unload_mask(ColonizeTurnContext* ctx, ColonizeUnit* ship
    * act — the arrival block's fall-through and the three direct `JMP 0x3558`
    * exits of the raw 1691 gate alike. This is that call for the acts that
    * skip the arrival block; the berth path runs its own at the arrival tail
-   * (see ai_euro_20e6_transport_assemble). Marks outlive an act, so a member
-   * the berth budget could not fit boards at a later pass, as in DOS.
+   * (see ai_euro_20e6_transport_assemble). DOS reaches 0x3609 at a colony
+   * berth only via the arrival block's raw 2991-2997 stale-mark clear, so a
+   * mark not set by THIS act's berth scan (e.g. the housekeeping aboard-stamp
+   * on a passenger unloaded earlier this turn) never boards; a member the
+   * budget could not fit is re-marked by the next berth act's scan, not by a
+   * surviving mark.
    */
+  ai_euro_20e6_clear_stale_board_marks(ctx, nation, ship);
   (void)ai_euro_20e6_transport_assemble(ctx, nation, ship);
   int pioneers = 0;
   int mil = 0;

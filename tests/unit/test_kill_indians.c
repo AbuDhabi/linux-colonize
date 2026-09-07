@@ -45,7 +45,9 @@ int main(void) {
   map.layer3[10 * 20 + 12] = (uint8_t)((5u << 4) | 1u);
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
   units.type_count = 1;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Brave");
   units.types[0].movement = 3;

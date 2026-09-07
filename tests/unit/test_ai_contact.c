@@ -100,7 +100,9 @@ int main(void) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
   units.type_count = 2;
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Brave");
   units.types[0].movement = 1; /* NAMES @UNIT; DOS max MP = 3 thirds */
@@ -128,6 +130,7 @@ int main(void) {
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
 
   uint32_t turn = 1;
   ColonizeTurnContext ctx;
@@ -5385,9 +5388,6 @@ int main(void) {
     ctx.ai_popups = NULL;
   }
 
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
   /* FUN_465b_0000 @WHACKINDIANS: ask once while alarm < 0x4b and bit 0x04 clear. */
   {
     AiPopupState wp;
@@ -6125,6 +6125,9 @@ int main(void) {
     assets_msg_free(&game_txt);
   }
 
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
   col1_save_free(&col1);
   fprintf(stderr, "unit_ai_contact: ok (last_raid_kind=%d)\n", ai_contact_last_raid_kind());
 

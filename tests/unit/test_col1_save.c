@@ -757,7 +757,9 @@ int main(void) {
     ColonizeWorldMap map;
     memset(&map, 0, sizeof(map));
     ColonizeUnitPool units;
+    memset(&units, 0, sizeof(units));
     units_reset(&units);
+    units_set_occupancy_map(NULL);
     units.type_count = 23;
     for (int t = 0; t < units.type_count; ++t) {
       snprintf(units.types[t].name, sizeof(units.types[t].name), "T%d", t);
@@ -768,6 +770,7 @@ int main(void) {
     }
     ColonizeColonyPool colonies;
     colonies_init(&colonies);
+    colonies_set_occupancy_map(NULL);
     EuropeScreen europe;
     memset(&europe, 0, sizeof(europe));
     europe.cargo_count = 16;
@@ -854,11 +857,14 @@ int main(void) {
       ColonizeWorldMap map2;
       memset(&map2, 0, sizeof(map2));
       ColonizeUnitPool units2;
+      memset(&units2, 0, sizeof(units2));
       units_reset(&units2);
+      units_set_occupancy_map(NULL);
       units2.type_count = units.type_count;
       memcpy(units2.types, units.types, sizeof(units.types));
       ColonizeColonyPool colonies2;
       colonies_init(&colonies2);
+      colonies_set_occupancy_map(NULL);
       EuropeScreen europe2;
       memset(&europe2, 0, sizeof(europe2));
       europe2.cargo_count = 16;
@@ -914,11 +920,14 @@ int main(void) {
         ColonizeWorldMap map3;
         memset(&map3, 0, sizeof(map3));
         ColonizeUnitPool units3;
+        memset(&units3, 0, sizeof(units3));
         units_reset(&units3);
+        units_set_occupancy_map(NULL);
         units3.type_count = units.type_count;
         memcpy(units3.types, units.types, sizeof(units.types));
         ColonizeColonyPool colonies3;
         colonies_init(&colonies3);
+        colonies_set_occupancy_map(NULL);
         EuropeScreen europe3;
         memset(&europe3, 0, sizeof(europe3));
         europe3.cargo_count = 16;
@@ -963,6 +972,7 @@ int main(void) {
     }
     ColonizeColonyPool colonies;
     colonies_init(&colonies);
+    colonies_set_occupancy_map(NULL);
     if (!colonies_load_buildings(&colonies, &names) || !colonies_load_names(&colonies, "COLONIZE/COLONY.TXT")) {
       fprintf(stderr, "building roundtrip: buildings/names failed\n");
       assets_msg_free(&names);
@@ -1028,7 +1038,9 @@ int main(void) {
       return 1;
     }
     ColonizeUnitPool units;
+    memset(&units, 0, sizeof(units));
     units_reset(&units);
+    units_set_occupancy_map(NULL);
     if (!units_load_types(&units, &names)) {
       fprintf(stderr, "building roundtrip: unit types failed\n");
       map_free(&map);
@@ -1080,10 +1092,13 @@ int main(void) {
     {
       ColonizeColonyPool pool2;
       colonies_init(&pool2);
+      colonies_set_occupancy_map(NULL);
       colonies_load_buildings(&pool2, &names);
       colonies_load_names(&pool2, "COLONIZE/COLONY.TXT");
       ColonizeUnitPool units2;
+      memset(&units2, 0, sizeof(units2));
       units_reset(&units2);
+      units_set_occupancy_map(NULL);
       units_load_types(&units2, &names);
       EuropeScreen europe2;
       memset(&europe2, 0, sizeof(europe2));
@@ -1109,6 +1124,7 @@ int main(void) {
 
     ColonizeColonyPool loaded;
     colonies_init(&loaded);
+    colonies_set_occupancy_map(NULL);
     if (!colonies_load_buildings(&loaded, &names)) {
       fprintf(stderr, "building roundtrip: reload buildings failed\n");
       col1_save_free(&save);
@@ -1119,7 +1135,9 @@ int main(void) {
     ColonizeWorldMap map2;
     memset(&map2, 0, sizeof(map2));
     ColonizeUnitPool units2;
+    memset(&units2, 0, sizeof(units2));
     units_reset(&units2);
+    units_set_occupancy_map(NULL);
     if (!units_load_types(&units2, &names)) {
       fprintf(stderr, "building roundtrip: reload unit types failed\n");
       col1_save_free(&save);
@@ -1193,7 +1211,9 @@ int main(void) {
     ColonizeWorldMap map;
     memset(&map, 0, sizeof(map));
     ColonizeUnitPool units;
+    memset(&units, 0, sizeof(units));
     units_reset(&units);
+    units_set_occupancy_map(NULL);
     units.type_count = 23;
     for (int t = 0; t < units.type_count; ++t) {
       snprintf(units.types[t].name, sizeof(units.types[t].name), "T%d", t);
@@ -1204,6 +1224,7 @@ int main(void) {
     }
     ColonizeColonyPool colonies;
     colonies_init(&colonies);
+    colonies_set_occupancy_map(NULL);
     EuropeScreen europe;
     memset(&europe, 0, sizeof(europe));
     europe.cargo_count = 16;
@@ -1307,7 +1328,9 @@ int main(void) {
       save.tribe = neu;
     }
     ColonizeUnitPool units;
+    memset(&units, 0, sizeof(units));
     units_reset(&units);
+    units_set_occupancy_map(NULL);
     if (!units_load_types(&units, &names)) {
       fprintf(stderr, "newgame export: unit types failed\n");
       col1_save_free(&save);
@@ -1339,6 +1362,7 @@ int main(void) {
     }
     ColonizeColonyPool colonies;
     colonies_init(&colonies);
+    colonies_set_occupancy_map(NULL);
     EuropeScreen europe;
     memset(&europe, 0, sizeof(europe));
     europe.cargo_count = 16;
@@ -1476,6 +1500,7 @@ int main(void) {
     /* Starter fleet + brave: holds_occupied goods-only; native vis_mask 0. */
     {
       units_reset(&units);
+      units_set_occupancy_map(NULL);
       if (!units_load_types(&units, &names)) {
         fprintf(stderr, "fleet export: reload types failed\n");
         units_set_occupancy_map(NULL);
@@ -1759,7 +1784,9 @@ int main(void) {
       return 1;
     }
     ColonizeUnitPool units;
+    memset(&units, 0, sizeof(units));
     units_reset(&units);
+    units_set_occupancy_map(NULL);
     if (!units_load_types(&units, &names)) {
       fprintf(stderr, "dock-garrison: unit types failed\n");
       col1_save_free(&save);
@@ -1792,6 +1819,7 @@ int main(void) {
     }
     ColonizeColonyPool colonies;
     colonies_init(&colonies);
+    colonies_set_occupancy_map(NULL);
     EuropeScreen europe;
     memset(&europe, 0, sizeof(europe));
     europe.cargo_count = 16;
@@ -2096,7 +2124,9 @@ int main(void) {
     ColonizeWorldMap map;
     memset(&map, 0, sizeof(map));
     ColonizeUnitPool units;
+    memset(&units, 0, sizeof(units));
     units_reset(&units);
+    units_set_occupancy_map(NULL);
     units.type_count = 23;
     for (int t = 0; t < units.type_count; ++t) {
       snprintf(units.types[t].name, sizeof(units.types[t].name), "T%d", t);
@@ -2107,6 +2137,7 @@ int main(void) {
     }
     ColonizeColonyPool colonies;
     colonies_init(&colonies);
+    colonies_set_occupancy_map(NULL);
     EuropeScreen europe;
     memset(&europe, 0, sizeof(europe));
     europe.cargo_count = 16;
@@ -2177,9 +2208,12 @@ int main(void) {
     save.nation[save.head.human_player & 3].needed_crosses = 9;
 
     ColonizeUnitPool units;
+    memset(&units, 0, sizeof(units));
     units_reset(&units);
+    units_set_occupancy_map(NULL);
     ColonizeColonyPool colonies;
     colonies_init(&colonies);
+    colonies_set_occupancy_map(NULL);
     EuropeScreen europe;
     memset(&europe, 0, sizeof(europe));
     europe.cargo_count = 16;
@@ -2269,7 +2303,9 @@ int main(void) {
     save.trade_route[2].stop[1].colony_index = 1;
 
     ColonizeUnitPool units;
+    memset(&units, 0, sizeof(units));
     units_reset(&units);
+    units_set_occupancy_map(NULL);
     if (!units_load_types(&units, &names)) {
       fprintf(stderr, "trade-route cursor: unit types failed\n");
       col1_save_free(&save);
@@ -2306,6 +2342,7 @@ int main(void) {
 
     ColonizeColonyPool colonies;
     colonies_init(&colonies);
+    colonies_set_occupancy_map(NULL);
     EuropeScreen europe;
     memset(&europe, 0, sizeof(europe));
     europe.cargo_count = 16;
@@ -2339,7 +2376,9 @@ int main(void) {
     }
 
     ColonizeUnitPool units2;
+    memset(&units2, 0, sizeof(units2));
     units_reset(&units2);
+    units_set_occupancy_map(NULL);
     if (!units_load_types(&units2, &names)) {
       fprintf(stderr, "trade-route cursor: unit types (2) failed\n");
       units_set_occupancy_map(NULL);
@@ -2350,6 +2389,7 @@ int main(void) {
     }
     ColonizeColonyPool colonies2;
     colonies_init(&colonies2);
+    colonies_set_occupancy_map(NULL);
     EuropeScreen europe2;
     memset(&europe2, 0, sizeof(europe2));
     europe2.cargo_count = 16;
@@ -2444,7 +2484,9 @@ int main(void) {
     }
 
     ColonizeUnitPool units;
+    memset(&units, 0, sizeof(units));
     units_reset(&units);
+    units_set_occupancy_map(NULL);
     if (!units_load_types(&units, &names)) {
       fprintf(stderr, "wagon errand latch: unit types failed\n");
       col1_save_free(&save);
@@ -2492,6 +2534,7 @@ int main(void) {
 
     ColonizeColonyPool colonies;
     colonies_init(&colonies);
+    colonies_set_occupancy_map(NULL);
     EuropeScreen europe;
     memset(&europe, 0, sizeof(europe));
     europe.cargo_count = 16;
@@ -2540,7 +2583,9 @@ int main(void) {
     ai_euro_wagon_errand_set(plain, 1);
 
     ColonizeUnitPool units2;
+    memset(&units2, 0, sizeof(units2));
     units_reset(&units2);
+    units_set_occupancy_map(NULL);
     if (!units_load_types(&units2, &names)) {
       fprintf(stderr, "wagon errand latch: unit types (2) failed\n");
       col1_save_free(&save);
@@ -2550,6 +2595,7 @@ int main(void) {
     }
     ColonizeColonyPool colonies2;
     colonies_init(&colonies2);
+    colonies_set_occupancy_map(NULL);
     EuropeScreen europe2;
     memset(&europe2, 0, sizeof(europe2));
     europe2.cargo_count = 16;

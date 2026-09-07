@@ -85,6 +85,7 @@ static int unit_dock_orders_menu(void) {
   }
   ColonizeUnitPool units;
   memset(&units, 0, sizeof(units));
+  memset(&units, 0, sizeof(units));
   if (!units_load_types(&units, &names)) {
     fprintf(stderr, "dock_orders: units_load_types failed\n");
     assets_msg_free(&names);
@@ -203,6 +204,7 @@ static int unit_multi_units_pane_roster(void) {
     return 1;
   }
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   memset(&units, 0, sizeof(units));
   if (!units_load_types(&units, &names)) {
     fprintf(stderr, "multi_units: units_load_types failed\n");
@@ -406,6 +408,7 @@ int main(void) {
 
   ColonizeColonyPool pool;
   colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
   ColonizeMsgCatalog names;
   assets_msg_init(&names);
   if (!assets_msg_load_file(&names, "COLONIZE/NAMES.TXT") || !colonies_load_buildings(&pool, &names)) {
@@ -416,6 +419,7 @@ int main(void) {
   }
 
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   memset(&units, 0, sizeof(units));
   if (!units_load_types(&units, &names)) {
     fprintf(stderr, "units_load_types failed\n");

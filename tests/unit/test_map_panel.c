@@ -316,6 +316,7 @@ int main(void) {
     }
     ColonizeUnitPool units;
     memset(&units, 0, sizeof(units));
+    memset(&units, 0, sizeof(units));
     if (!units_load_types(&units, &names)) {
       assets_msg_free(&names);
       free(pixels);
@@ -421,6 +422,7 @@ int main(void) {
 
     ColonizeColonyPool ccol;
     colonies_init(&ccol);
+    colonies_set_occupancy_map(NULL);
     const int ccid = colonies_found(&ccol, &cmap, 12, 10, 0, 0, 0, 0, 0, 0);
     ColonizeColony* ccolony = colonies_get_mut(&ccol, ccid);
     ccolony->colonist_count = 10;
@@ -605,6 +607,7 @@ int main(void) {
     if (dos_compat_normalize_asset_path("COLONIZE", "NAMES.TXT", names_path, sizeof(names_path)) &&
         assets_msg_load_file(&names, names_path)) {
       ColonizeUnitPool pool;
+      memset(&pool, 0, sizeof(pool));
       memset(&pool, 0, sizeof(pool));
       if (!units_load_types(&pool, &names)) {
         assets_msg_free(&names);

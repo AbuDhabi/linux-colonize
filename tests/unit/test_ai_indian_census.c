@@ -69,6 +69,7 @@ static int test_1b3a_phase3(void) {
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   const int cid = colonies_found(&colonies, &map, 10, 10, 0, 0, 0, 0, 0, 0);
   if (cid < 0) {
     return fail("phase3 colonies_found");
@@ -148,12 +149,15 @@ int main(void) {
     return 1;
   }
   ColonizeUnitPool units;
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
   if (!units_load_types(&units, &names)) {
     return fail("units_load_types");
   }
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   if (!colonies_load_buildings(&colonies, &names)) {
     return fail("colonies_load_buildings");
   }

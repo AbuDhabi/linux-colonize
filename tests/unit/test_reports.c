@@ -9,6 +9,7 @@ int main(void) {
   diag_init(0, NULL);
 
   ColonizeReportsView view;
+  memset(&view, 0, sizeof(view)); /* reports_load frees prior contents */
   char err[256];
   if (!reports_load(&view, "COLONIZE", err, sizeof(err))) {
     fprintf(stderr, "reports_load failed: %s\n", err);

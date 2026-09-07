@@ -33,6 +33,7 @@ static int failures = 0;
 static int unit_hammers_purchased_buy(void) {
   ColonizeColonyPool pool;
   colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
   snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Stockade");
   pool.building_types[0].hammers = 64;
   pool.building_types[0].tools_cost = 0;
@@ -78,6 +79,7 @@ static int unit_hammers_purchased_buy(void) {
 static int unit_warehouse_capitol_levels(void) {
   ColonizeColonyPool pool;
   colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
   snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Warehouse");
   pool.building_types[0].hammers = 10;
   pool.building_types[0].tools_cost = 0;
@@ -208,6 +210,7 @@ static int unit_found_chrome(void) {
   }
   ColonizeColonyPool pool;
   colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
 
   int water = 0, inland = 0, coastal = 0;
   for (int y = 0; y < (int)map.height; ++y) {
@@ -251,6 +254,7 @@ static int unit_found_chrome(void) {
 static int unit_full_chrome(void) {
   ColonizeColonyPool pool;
   colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
   ColonizeColony* col = &pool.colonies[0];
   memset(col, 0, sizeof(*col));
   col->active = true;
@@ -292,6 +296,7 @@ static int unit_full_chrome(void) {
 static int unit_alreadyhave_chrome(void) {
   ColonizeColonyPool pool;
   colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
   ColonizeColony* col = &pool.colonies[0];
   memset(col, 0, sizeof(*col));
   col->active = true;
@@ -351,6 +356,7 @@ static int unit_alreadyhave_chrome(void) {
 static int unit_noteacher_chrome(void) {
   ColonizeColonyPool pool;
   colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
   snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Schoolhouse");
   pool.building_type_count = 1;
 
@@ -425,6 +431,7 @@ static int unit_noteacher_chrome(void) {
 static int unit_more_than_three_chrome(void) {
   ColonizeColonyPool pool;
   colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
   snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Town Hall");
   pool.building_type_count = 1;
 
@@ -492,6 +499,7 @@ static int unit_more_than_three_chrome(void) {
 static int unit_needschool_chrome(void) {
   ColonizeColonyPool pool;
   colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
   snprintf(pool.building_types[0].name, sizeof(pool.building_types[0].name), "Schoolhouse");
   snprintf(pool.building_types[1].name, sizeof(pool.building_types[1].name), "College");
   snprintf(pool.building_types[2].name, sizeof(pool.building_types[2].name), "University");
@@ -598,6 +606,7 @@ static int unit_needschool_chrome(void) {
 static int unit_capture_col1_effects(void) {
   ColonizeColonyPool pool;
   colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
   ColonizeColony* a = &pool.colonies[0];
   ColonizeColony* b = &pool.colonies[1];
   a->active = true;
@@ -676,6 +685,7 @@ int main(void) {
 
   ColonizeColonyPool pool;
   colonies_init(&pool);
+  colonies_set_occupancy_map(NULL);
   CHECK(pool.colony_count == 0, "pool starts empty");
 
   CHECK(colonies_load_names(&pool, "COLONIZE/COLONY.TXT"), "load COLONY.TXT names");
@@ -840,6 +850,7 @@ int main(void) {
   /* Admit outside unit → colonist; eject colonist → outside unit. */
   {
     ColonizeUnitPool units;
+    memset(&units, 0, sizeof(units));
     memset(&units, 0, sizeof(units));
     CHECK(units_load_types(&units, &names), "load unit types for admit/eject");
     const int free_col = units_find_type(&units, "Colonists");
@@ -1497,7 +1508,9 @@ int main(void) {
    */
   {
     ColonizeUnitPool units;
+    memset(&units, 0, sizeof(units));
     units_reset(&units);
+    units_set_occupancy_map(NULL);
     units.type_count = 1;
     snprintf(units.types[0].name, sizeof(units.types[0].name), "Wagon Train");
     units.types[0].movement = 2;
@@ -1549,7 +1562,9 @@ int main(void) {
    */
   {
     ColonizeUnitPool units;
+    memset(&units, 0, sizeof(units));
     units_reset(&units);
+    units_set_occupancy_map(NULL);
     units.type_count = 1;
     snprintf(units.types[0].name, sizeof(units.types[0].name), "Wagon Train");
     units.types[0].movement = 2;
@@ -1627,7 +1642,9 @@ int main(void) {
    */
   {
     ColonizeUnitPool units;
+    memset(&units, 0, sizeof(units));
     units_reset(&units);
+    units_set_occupancy_map(NULL);
     units.type_count = 1;
     snprintf(units.types[0].name, sizeof(units.types[0].name), "Wagon Train");
     units.types[0].movement = 2;

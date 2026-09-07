@@ -41,6 +41,7 @@ static int unit_continental_equip_tier(void) {
   }
   ColonizeUnitPool pool;
   memset(&pool, 0, sizeof(pool));
+  memset(&pool, 0, sizeof(pool));
   if (!units_load_types(&pool, &names)) {
     fprintf(stderr, "cont_equip: units_load_types failed\n");
     assets_msg_free(&names);
@@ -109,6 +110,7 @@ static int unit_clearcut_lumber(void) {
   }
   ColonizeUnitPool pool;
   memset(&pool, 0, sizeof(pool));
+  memset(&pool, 0, sizeof(pool));
   if (!units_load_types(&pool, &names)) {
     fprintf(stderr, "clearcut: units_load_types failed\n");
     assets_msg_free(&names);
@@ -138,6 +140,7 @@ static int unit_clearcut_lumber(void) {
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   ColonizeColony* col = &colonies.colonies[0];
   col->active = true;
   col->id = 1;
@@ -270,6 +273,7 @@ static int unit_useduptools(void) {
   }
   ColonizeUnitPool pool;
   memset(&pool, 0, sizeof(pool));
+  memset(&pool, 0, sizeof(pool));
   if (!units_load_types(&pool, &names)) {
     fprintf(stderr, "usedup: units_load_types failed\n");
     assets_msg_free(&names);
@@ -392,6 +396,7 @@ static int unit_refit_drydock(void) {
   }
   ColonizeUnitPool pool;
   memset(&pool, 0, sizeof(pool));
+  memset(&pool, 0, sizeof(pool));
   if (!units_load_types(&pool, &names)) {
     fprintf(stderr, "refit: units_load_types failed\n");
     assets_msg_free(&names);
@@ -406,6 +411,7 @@ static int unit_refit_drydock(void) {
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Drydock");
   colonies.building_type_count = 1;
   ColonizeColony* col = &colonies.colonies[0];
@@ -483,6 +489,7 @@ static int unit_warehouse_full(void) {
   }
   ColonizeUnitPool pool;
   memset(&pool, 0, sizeof(pool));
+  memset(&pool, 0, sizeof(pool));
   if (!units_load_types(&pool, &names)) {
     fprintf(stderr, "whfull: units_load_types failed\n");
     assets_msg_free(&names);
@@ -497,6 +504,7 @@ static int unit_warehouse_full(void) {
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   ColonizeColony* col = &colonies.colonies[0];
   col->active = true;
   col->id = 1;
@@ -594,6 +602,7 @@ static int unit_pioneer_case8_tail(void) {
   }
   ColonizeUnitPool pool;
   memset(&pool, 0, sizeof(pool));
+  memset(&pool, 0, sizeof(pool));
   if (!units_load_types(&pool, &names)) {
     fprintf(stderr, "case8: units_load_types failed\n");
     assets_msg_free(&names);
@@ -643,6 +652,7 @@ static int unit_pioneer_case8_tail(void) {
 
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   if (!colonies_load_buildings(&colonies, &names)) {
     fprintf(stderr, "case8: colonies_load_buildings failed\n");
     goto done;
@@ -815,6 +825,7 @@ static int unit_pioneer_order_gates(void) {
     return 1;
   }
   ColonizeUnitPool pool;
+  memset(&pool, 0, sizeof(pool));
   memset(&pool, 0, sizeof(pool));
   if (!units_load_types(&pool, &names)) {
     fprintf(stderr, "ordgate: units_load_types failed\n");
@@ -1002,6 +1013,7 @@ static int unit_display_name_free_colonist(void) {
   }
   ColonizeUnitPool pool;
   memset(&pool, 0, sizeof(pool));
+  memset(&pool, 0, sizeof(pool));
   if (!units_load_types(&pool, &names)) {
     fprintf(stderr, "display_name: units_load_types failed\n");
     assets_msg_free(&names);
@@ -1071,6 +1083,7 @@ static int unit_event_sfx_active_id_mock(void) {
  */
 static int unit_combat_sfx_visibility(void) {
   ColonizeUnitPool pool;
+  memset(&pool, 0, sizeof(pool));
   memset(&pool, 0, sizeof(pool));
   pool.type_count = 2;
   snprintf(pool.types[0].name, sizeof(pool.types[0].name), "Soldiers");
@@ -1157,6 +1170,7 @@ static int unit_combat_sfx_visibility(void) {
 static int unit_sea_lane_entry(void) {
   ColonizeUnitPool pool;
   memset(&pool, 0, sizeof(pool));
+  memset(&pool, 0, sizeof(pool));
   pool.type_count = 1;
   snprintf(pool.types[0].name, sizeof(pool.types[0].name), "Caravel");
   pool.types[0].movement = 4;
@@ -1239,6 +1253,7 @@ static int unit_sea_lane_entry(void) {
 static int unit_combat_music_sting(void) {
   ColonizeUnitPool pool;
   memset(&pool, 0, sizeof(pool));
+  memset(&pool, 0, sizeof(pool));
   pool.type_count = 2;
   snprintf(pool.types[0].name, sizeof(pool.types[0].name), "Soldiers");
   pool.types[0].attack = 99; /* attacker always wins: loser stays put, not despawned */
@@ -1318,6 +1333,7 @@ static int unit_king_galleon_offer(void) {
   }
   ColonizeUnitPool pool;
   memset(&pool, 0, sizeof(pool));
+  memset(&pool, 0, sizeof(pool));
   if (!units_load_types(&pool, &names)) {
     fprintf(stderr, "galleon: units_load_types failed\n");
     assets_msg_free(&names);
@@ -1346,6 +1362,7 @@ static int unit_king_galleon_offer(void) {
   }
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   const int cx = 1;
   const int cy = 3;
   if (!map_tile_is_coastal(&map, cx, cy)) {
@@ -1488,11 +1505,14 @@ static int unit_fog_vis_mask_and_snapshot(void) {
   }
   ColonizeUnitPool units;
   memset(&units, 0, sizeof(units));
+  memset(&units, 0, sizeof(units));
   units_reset(&units);
+  units_set_occupancy_map(NULL);
   snprintf(units.types[0].name, sizeof(units.types[0].name), "Colonists");
   units.type_count = 1;
   ColonizeColonyPool colonies;
   colonies_init(&colonies);
+  colonies_set_occupancy_map(NULL);
   units_set_occupancy_map(&map);
 
   const int a = units_spawn(&units, 0, 3, 3);
@@ -1568,7 +1588,9 @@ static int unit_fog_vis_mask_and_snapshot(void) {
   {
     ColonizeUnitPool cpool;
     memset(&cpool, 0, sizeof(cpool));
+    memset(&cpool, 0, sizeof(cpool));
     units_reset(&cpool);
+    units_set_occupancy_map(NULL);
     cpool.type_count = 1;
     snprintf(cpool.types[0].name, sizeof(cpool.types[0].name), "Colonists");
     cpool.types[0].movement = 1;
@@ -1674,6 +1696,7 @@ static int unit_fog_vis_mask_and_snapshot(void) {
 static int unit_flood_river_pair_step(void) {
   ColonizeUnitPool pool;
   memset(&pool, 0, sizeof(pool));
+  memset(&pool, 0, sizeof(pool));
   pool.type_count = 1;
   snprintf(pool.types[0].name, sizeof(pool.types[0].name), "Pioneers");
   pool.types[0].movement = 1;
@@ -1742,6 +1765,7 @@ static int unit_flood_river_pair_step(void) {
  */
 static int unit_wake_passenger_can_land(void) {
   ColonizeUnitPool pool;
+  memset(&pool, 0, sizeof(pool));
   memset(&pool, 0, sizeof(pool));
   pool.type_count = 2;
   snprintf(pool.types[0].name, sizeof(pool.types[0].name), "Caravel");
@@ -1834,6 +1858,7 @@ static int unit_wake_passenger_can_land(void) {
 static int unit_stack_one_click_wakes_and_selects(void) {
   ColonizeUnitPool pool;
   memset(&pool, 0, sizeof(pool));
+  memset(&pool, 0, sizeof(pool));
   pool.type_count = 2;
   snprintf(pool.types[0].name, sizeof(pool.types[0].name), "Caravel");
   pool.types[0].movement = 4;
@@ -1920,6 +1945,7 @@ static int unit_native_tile_attack_alarm(void) {
   }
 
   ColonizeUnitPool pool;
+  memset(&pool, 0, sizeof(pool));
   memset(&pool, 0, sizeof(pool));
   pool.type_count = 2;
   snprintf(pool.types[0].name, sizeof(pool.types[0].name), "Soldiers");
@@ -2102,6 +2128,7 @@ int main(void) {
 
   ColonizeUnitPool pool;
   memset(&pool, 0, sizeof(pool));
+  memset(&pool, 0, sizeof(pool));
   if (!units_load_types(&pool, &names)) {
     fprintf(stderr, "units_load_types failed\n");
     assets_msg_free(&names);
@@ -2193,6 +2220,7 @@ int main(void) {
   {
     ColonizeUnitPool fr;
     memset(&fr, 0, sizeof(fr));
+    memset(&fr, 0, sizeof(fr));
     fr.type_count = pool.type_count;
     memcpy(fr.types, pool.types, sizeof(pool.types));
     const int fid = units_spawn_euro_starter_fleet(&fr, 1, 0, ship->x + 1, ship->y, 40, 10);
@@ -2227,6 +2255,7 @@ int main(void) {
   /* Conquistador (diff 2) Dutch: plain Pioneer + plain Soldier. */
   {
     ColonizeUnitPool hard;
+    memset(&hard, 0, sizeof(hard));
     memset(&hard, 0, sizeof(hard));
     hard.type_count = pool.type_count;
     memcpy(hard.types, pool.types, sizeof(pool.types));
@@ -2748,6 +2777,7 @@ int main(void) {
   {
     ColonizeColonyPool colonies;
     colonies_init(&colonies);
+    colonies_set_occupancy_map(NULL);
     if (!colonies_load_names(&colonies, "COLONIZE/COLONY.TXT") ||
         !colonies_load_buildings(&colonies, &names)) {
       fprintf(stderr, "colony catalogs failed for dock test\n");
@@ -3126,6 +3156,7 @@ int main(void) {
     {
       ColonizeColonyPool colonies_road;
       colonies_init(&colonies_road);
+      colonies_set_occupancy_map(NULL);
       ColonizeColony* c = &colonies_road.colonies[0];
       c->id = 0;
       c->active = true;
@@ -3669,6 +3700,7 @@ int main(void) {
     /* Anchor: need own colony adjacent/on tile — found a tiny colony next to ship. */
     ColonizeColonyPool cpool;
     colonies_init(&cpool);
+    colonies_set_occupancy_map(NULL);
     int cx = -1, cy = -1;
     for (int dy = -1; dy <= 1 && cx < 0; ++dy) {
       for (int dx = -1; dx <= 1 && cx < 0; ++dx) {
@@ -4455,6 +4487,7 @@ int main(void) {
   {
     ColonizeColonyPool colonies;
     colonies_init(&colonies);
+    colonies_set_occupancy_map(NULL);
     ColonizeColony* home = &colonies.colonies[0];
     home->id = 0;
     home->active = true;
@@ -4510,6 +4543,7 @@ int main(void) {
   {
     ColonizeColonyPool colonies;
     colonies_init(&colonies);
+    colonies_set_occupancy_map(NULL);
     snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Stockade");
     snprintf(colonies.building_types[1].name, sizeof(colonies.building_types[1].name), "Fort");
     snprintf(colonies.building_types[2].name, sizeof(colonies.building_types[2].name), "Fortress");
@@ -4770,6 +4804,7 @@ int main(void) {
   {
     ColonizeColonyPool colonies;
     colonies_init(&colonies);
+    colonies_set_occupancy_map(NULL);
     snprintf(colonies.building_types[0].name, sizeof(colonies.building_types[0].name), "Stockade");
     snprintf(colonies.building_types[1].name, sizeof(colonies.building_types[1].name), "Fort");
     snprintf(colonies.building_types[2].name, sizeof(colonies.building_types[2].name), "Fortress");
@@ -5498,6 +5533,7 @@ int main(void) {
     {
       ColonizeColonyPool colonies;
       colonies_init(&colonies);
+      colonies_set_occupancy_map(NULL);
       if (!colonies_load_names(&colonies, "COLONIZE/COLONY.TXT") ||
           !colonies_load_buildings(&colonies, &names)) {
         fprintf(stderr, "enter-probe colonies init failed\n");
@@ -5828,6 +5864,7 @@ int main(void) {
     {
       ColonizeColonyPool cols;
       colonies_init(&cols);
+      colonies_set_occupancy_map(NULL);
       ColonizeColony* col = &cols.colonies[0];
       col->id = 0;
       col->active = true;
@@ -6035,6 +6072,7 @@ int main(void) {
     {
       ColonizeColonyPool cols;
       colonies_init(&cols);
+      colonies_set_occupancy_map(NULL);
       ColonizeColony* col = &cols.colonies[0];
       col->id = 0;
       col->active = true;
@@ -6611,6 +6649,7 @@ int main(void) {
       }
       ColonizeColonyPool colonies;
       colonies_init(&colonies);
+      colonies_set_occupancy_map(NULL);
       if (!colonies_load_names(&colonies, "COLONIZE/COLONY.TXT") ||
           !colonies_load_buildings(&colonies, &names)) {
         fprintf(stderr, "colony-temp-defender colonies init failed\n");
@@ -6839,6 +6878,7 @@ int main(void) {
     {
       ColonizeColonyPool colonies;
       colonies_init(&colonies);
+      colonies_set_occupancy_map(NULL);
       snprintf(colonies.building_types[1].name, sizeof(colonies.building_types[1].name), "Fort");
       snprintf(colonies.building_types[3].name, sizeof(colonies.building_types[3].name), "Drydock");
       colonies.building_type_count = 4;
