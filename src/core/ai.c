@@ -2421,6 +2421,22 @@ void ai_euro_nation_turn(ColonizeTurnContext* ctx, int nation_id) {
   ai_nation_reseed(ctx);
 
   /*
+   * FUN_521d_6d8e prelude (decomp 93109, 93139-93141): rebuild this
+   * nation's planning scratch — DS:0xa0b8 (own colonies flagged
+   * "needs colonists") is recounted here every AI turn, and the four
+   * FUN_4962_0018 census bytes plus the DS:0x9567 leader trait that
+   * FUN_521d_03d0 / 052c read are latched alongside it. Before 2026-09-07
+   * this block was all zeroes, which pinned 03d0 on its `return 8`
+   * early-out for the whole game.
+   */
+  ai_goals_plan_scratch_refresh(
+    ctx->col1_ok ? ctx->col1 : NULL,
+    ctx->colonies,
+    nation_id,
+    ai_diplo_leader_trait(ctx, nation_id, 1)
+  );
+
+  /*
    * FUN_43f7_2244 (King segment, reached via FUN_281f_0668 from this same
    * generic per-AI-Euro-nation turn loop in DOS): peacetime AI-nation
    * self/ally-funded troop gift. Placed before the dispatch-mode branch

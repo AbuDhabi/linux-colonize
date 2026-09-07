@@ -1427,26 +1427,6 @@ static int ai_euro_colony_wants_construction_labor(
          strcmp(bt->name, "Shipyard") == 0 || strcmp(bt->name, "Custom House") == 0;
 }
 
-/* True when any own colony wants on-site carpenter construction LABOR. */
-static int ai_euro_nation_wants_construction_labor(
-  const ColonizeTurnContext* ctx,
-  int nation_id
-) {
-  if (!ctx || !ctx->colonies || nation_id < 0 || nation_id >= 4) {
-    return 0;
-  }
-  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
-    const ColonizeColony* c = &ctx->colonies->colonies[i];
-    if (!c->active || c->nation_id != nation_id) {
-      continue;
-    }
-    if (ai_euro_colony_wants_construction_labor(ctx->colonies, c)) {
-      return 1;
-    }
-  }
-  return 0;
-}
-
 /*
  * Peace construction pick (5d04 / colony planning): idle/empty
  * building_in_production (< 0) → prefer Stockade → Fort → Fortress → Warehouse
@@ -6267,20 +6247,6 @@ static int ai_euro_type_is_wagon_name(const char* name) {
   return strstr(name, "Wagon") != NULL || strstr(name, "Supply Train") != NULL;
 }
 
-static int ai_euro_find_wagon_type(const ColonizeUnitPool* units) {
-  static const char* k_wagon[] = {"Wagon Train", "Supply Train", "Wagon"};
-  if (!units) {
-    return -1;
-  }
-  for (size_t i = 0; i < sizeof(k_wagon) / sizeof(k_wagon[0]); ++i) {
-    const int ty = units_find_type(units, k_wagon[i]);
-    if (ty >= 0) {
-      return ty;
-    }
-  }
-  return -1;
-}
-
 static int ai_euro_nation_has_wagon(const ColonizeUnitPool* units, int nation_id) {
   if (!units) {
     return 0;
@@ -6568,817 +6534,12 @@ static int ai_euro_try_pioneer_tools_delivery(
 
 /*
  * NAMES.TXT @JOB: Soldier → Veteran Soldiers train cost 2000$.
- * Mid-hire uses this when Veteran Soldier type exists but @UNIT cost is 0.
  * Cite: COLONIZE/NAMES.TXT @JOB; Europe train table (not purchase.png).
+ * Unreferenced since 2026-09-07e — the Linux-shaped hire matrix that used
+ * it is retired; DOS's 5d04 never trains a Veteran in Europe for gold (the
+ * hire tail's only Veteran path is the College bVar5 profession promote).
  */
 #define AI_EURO_VETERAN_SOLDIER_TRAIN_GOLD 2000
-
-/* Europe dock plurals / @JOB experts for case-7 tools hire (only if present). */
-static int ai_euro_dock_name_is_tools_expert(const char* name) {
-  if (!name || !name[0]) {
-    return 0;
-  }
-  return strstr(name, "Hardy Pioneer") != NULL || strstr(name, "Expert Pioneer") != NULL ||
-         strstr(name, "Master Carpenter") != NULL;
-}
-
-/* Europe dock Expert Farmer for case-7 food hire (only if present on dock). */
-static int ai_euro_dock_name_is_food_expert(const char* name) {
-  if (!name || !name[0]) {
-    return 0;
-  }
-  return strstr(name, "Expert Farmer") != NULL;
-}
-
-/* Europe dock Expert Fisherman for case-7 coastal food hire. */
-static int ai_euro_dock_name_is_fisherman_expert(const char* name) {
-  if (!name || !name[0]) {
-    return 0;
-  }
-  /* Pool plural is "Expert Fishermen" — not a substring of "Fisherman". */
-  return strstr(name, "Fisherman") != NULL || strstr(name, "Fishermen") != NULL;
-}
-
-/* Europe dock Master Carpenter for case-7 construction hire (only if present). */
-static int ai_euro_dock_name_is_carpenter_expert(const char* name) {
-  if (!name || !name[0]) {
-    return 0;
-  }
-  return strstr(name, "Master Carpenter") != NULL;
-}
-
-/* Europe dock Expert Lumberjack for case-7 lumber hire (only if present). */
-static int ai_euro_dock_name_is_lumberjack_expert(const char* name) {
-  if (!name || !name[0]) {
-    return 0;
-  }
-  return strstr(name, "Expert Lumberjack") != NULL || strstr(name, "Lumberjack") != NULL;
-}
-
-/* Europe dock Expert Ore / Silver Miner for case-7 ore hire (only if present). */
-static int ai_euro_dock_name_is_ore_expert(const char* name) {
-  if (!name || !name[0]) {
-    return 0;
-  }
-  return strstr(name, "Ore Miner") != NULL || strstr(name, "Silver Miner") != NULL;
-}
-
-/* Europe dock Master Gunsmith for case-7 muskets hire (only if present). */
-static int ai_euro_dock_name_is_gunsmith_expert(const char* name) {
-  if (!name || !name[0]) {
-    return 0;
-  }
-  return strstr(name, "Gunsmith") != NULL;
-}
-
-/* Europe dock Master Blacksmith for case-7 tools hire (only if present). */
-static int ai_euro_dock_name_is_blacksmith_expert(const char* name) {
-  if (!name || !name[0]) {
-    return 0;
-  }
-  return strstr(name, "Blacksmith") != NULL;
-}
-
-/* Europe dock Seasoned Scout for case-7 explore/CONTACT hire (only if present). */
-static int ai_euro_dock_name_is_scout_expert(const char* name) {
-  if (!name || !name[0]) {
-    return 0;
-  }
-  return strstr(name, "Seasoned Scout") != NULL ||
-         (strstr(name, "Scout") != NULL && strstr(name, "Seasoned") != NULL);
-}
-
-/* Europe dock Jesuit/Missionary for case-7 convert CONTACT hire. */
-static int ai_euro_dock_name_is_missionary_expert(const char* name) {
-  if (!name || !name[0]) {
-    return 0;
-  }
-  /* Pool plural "Jesuit Missionaries" — not a substring of "Missionary". */
-  return strstr(name, "Missionary") != NULL || strstr(name, "Missionaries") != NULL ||
-         strstr(name, "Jesuit") != NULL;
-}
-
-/* Europe dock Elder Statesman for case-7 liberty-bell hire. */
-static int ai_euro_dock_name_is_elder_expert(const char* name) {
-  if (!name || !name[0]) {
-    return 0;
-  }
-  return strstr(name, "Elder Statesman") != NULL || strstr(name, "Elder Statesmen") != NULL;
-}
-
-/* Europe dock Firebrand Preacher for case-7 crosses hire. */
-static int ai_euro_dock_name_is_preacher_expert(const char* name) {
-  if (!name || !name[0]) {
-    return 0;
-  }
-  return strstr(name, "Firebrand") != NULL || strstr(name, "Preacher") != NULL;
-}
-
-/* Europe dock Expert Teacher for case-7 school hire. */
-static int ai_euro_dock_name_is_teacher_expert(const char* name) {
-  if (!name || !name[0]) {
-    return 0;
-  }
-  return strstr(name, "Teacher") != NULL;
-}
-
-/* Europe dock Master Distiller for case-7 rum craft hire. */
-static int ai_euro_dock_name_is_distiller_expert(const char* name) {
-  if (!name || !name[0]) {
-    return 0;
-  }
-  return strstr(name, "Distiller") != NULL;
-}
-
-/* Europe dock Master Weaver for case-7 cloth craft hire. */
-static int ai_euro_dock_name_is_weaver_expert(const char* name) {
-  if (!name || !name[0]) {
-    return 0;
-  }
-  return strstr(name, "Weaver") != NULL;
-}
-
-/* Europe dock Master Tobacconist for case-7 cigar craft hire. */
-static int ai_euro_dock_name_is_tobacconist_expert(const char* name) {
-  if (!name || !name[0]) {
-    return 0;
-  }
-  return strstr(name, "Tobacconist") != NULL;
-}
-
-/* Europe dock Master Fur Trader for case-7 coats craft hire. */
-static int ai_euro_dock_name_is_fur_trader_expert(const char* name) {
-  if (!name || !name[0]) {
-    return 0;
-  }
-  return strstr(name, "Fur Trader") != NULL;
-}
-
-/*
- * Resolve dock immigrant name → unit type (strip trailing 's' for pool
- * plurals). None of "Expert Farmer" / "Fisherman" / … / "Free Colonist" are
- * real NAMES.TXT @UNIT rows — every specialist is base type "Colonists" with
- * a @JOB profession (units_display_name() flavors the shown name). Each arm
- * below still tries the specialist/base occupation name first (dock pools in
- * some fixtures do define them), then real "Colonists" before the legacy
- * "Free Colonist" fallback, so real NAMES.TXT hires actually resolve instead
- * of silently returning -1. Cite: port_plan.md Phase 3 "Free Colonist" dead-
- * lookup note; the caller (below) copies the dock unit's real profession
- * onto the spawned "Colonists" hire regardless of which arm matched.
- */
-static int ai_euro_type_from_dock_name(const ColonizeUnitPool* units, const char* dock_name) {
-  if (!units || !dock_name || !dock_name[0]) {
-    return -1;
-  }
-  int ty = units_find_type(units, dock_name);
-  if (ty >= 0) {
-    return ty;
-  }
-  char buf[48];
-  snprintf(buf, sizeof(buf), "%s", dock_name);
-  const size_t len = strlen(buf);
-  if (len > 1 && (buf[len - 1] == 's' || buf[len - 1] == 'S')) {
-    buf[len - 1] = '\0';
-    ty = units_find_type(units, buf);
-    if (ty >= 0) {
-      return ty;
-    }
-  }
-  if (strstr(dock_name, "Hardy Pioneer") || strstr(dock_name, "Expert Pioneer")) {
-    ty = units_find_type(units, "Hardy Pioneer");
-    if (ty < 0) {
-      ty = units_find_type(units, "Pioneer");
-    }
-    return ty;
-  }
-  if (strstr(dock_name, "Master Carpenter")) {
-    ty = units_find_type(units, "Master Carpenter");
-    if (ty < 0) {
-      ty = units_find_type(units, "Colonists");
-      if (ty < 0) {
-        ty = units_find_type(units, "Free Colonist");
-      }
-    }
-    return ty;
-  }
-  if (strstr(dock_name, "Expert Farmer")) {
-    ty = units_find_type(units, "Expert Farmer");
-    if (ty < 0) {
-      ty = units_find_type(units, "Farmer");
-    }
-    if (ty < 0) {
-      ty = units_find_type(units, "Colonists");
-      if (ty < 0) {
-        ty = units_find_type(units, "Free Colonist");
-      }
-    }
-    return ty;
-  }
-  if (strstr(dock_name, "Fisherman") || strstr(dock_name, "Fishermen")) {
-    ty = units_find_type(units, "Expert Fisherman");
-    if (ty < 0) {
-      ty = units_find_type(units, "Fisherman");
-    }
-    if (ty < 0) {
-      ty = units_find_type(units, "Colonists");
-      if (ty < 0) {
-        ty = units_find_type(units, "Free Colonist");
-      }
-    }
-    return ty;
-  }
-  if (strstr(dock_name, "Expert Lumberjack") || strstr(dock_name, "Lumberjack")) {
-    ty = units_find_type(units, "Expert Lumberjack");
-    if (ty < 0) {
-      ty = units_find_type(units, "Lumberjack");
-    }
-    if (ty < 0) {
-      ty = units_find_type(units, "Colonists");
-      if (ty < 0) {
-        ty = units_find_type(units, "Free Colonist");
-      }
-    }
-    return ty;
-  }
-  if (strstr(dock_name, "Ore Miner")) {
-    ty = units_find_type(units, "Expert Ore Miner");
-    if (ty < 0) {
-      ty = units_find_type(units, "Ore Miner");
-    }
-    if (ty < 0) {
-      ty = units_find_type(units, "Colonists");
-      if (ty < 0) {
-        ty = units_find_type(units, "Free Colonist");
-      }
-    }
-    return ty;
-  }
-  if (strstr(dock_name, "Silver Miner")) {
-    ty = units_find_type(units, "Expert Silver Miner");
-    if (ty < 0) {
-      ty = units_find_type(units, "Silver Miner");
-    }
-    if (ty < 0) {
-      ty = units_find_type(units, "Colonists");
-      if (ty < 0) {
-        ty = units_find_type(units, "Free Colonist");
-      }
-    }
-    return ty;
-  }
-  if (strstr(dock_name, "Gunsmith")) {
-    ty = units_find_type(units, "Master Gunsmith");
-    if (ty < 0) {
-      ty = units_find_type(units, "Gunsmith");
-    }
-    if (ty < 0) {
-      ty = units_find_type(units, "Colonists");
-      if (ty < 0) {
-        ty = units_find_type(units, "Free Colonist");
-      }
-    }
-    return ty;
-  }
-  if (strstr(dock_name, "Blacksmith")) {
-    ty = units_find_type(units, "Master Blacksmith");
-    if (ty < 0) {
-      ty = units_find_type(units, "Blacksmith");
-    }
-    if (ty < 0) {
-      ty = units_find_type(units, "Colonists");
-      if (ty < 0) {
-        ty = units_find_type(units, "Free Colonist");
-      }
-    }
-    return ty;
-  }
-  if (strstr(dock_name, "Seasoned Scout") ||
-      (strstr(dock_name, "Scout") && strstr(dock_name, "Seasoned"))) {
-    ty = units_find_type(units, "Seasoned Scout");
-    if (ty < 0) {
-      ty = units_find_type(units, "Scout");
-    }
-    if (ty < 0) {
-      ty = units_find_type(units, "Colonists");
-      if (ty < 0) {
-        ty = units_find_type(units, "Free Colonist");
-      }
-    }
-    return ty;
-  }
-  if (strstr(dock_name, "Missionary") || strstr(dock_name, "Missionaries") ||
-      strstr(dock_name, "Jesuit")) {
-    ty = units_find_type(units, "Jesuit Missionary");
-    if (ty < 0) {
-      ty = units_find_type(units, "Missionary");
-    }
-    if (ty < 0) {
-      ty = units_find_type(units, "Colonists");
-      if (ty < 0) {
-        ty = units_find_type(units, "Free Colonist");
-      }
-    }
-    return ty;
-  }
-  if (strstr(dock_name, "Elder Statesman") || strstr(dock_name, "Elder Statesmen")) {
-    ty = units_find_type(units, "Elder Statesman");
-    if (ty < 0) {
-      ty = units_find_type(units, "Statesman");
-    }
-    if (ty < 0) {
-      ty = units_find_type(units, "Colonists");
-      if (ty < 0) {
-        ty = units_find_type(units, "Free Colonist");
-      }
-    }
-    return ty;
-  }
-  if (strstr(dock_name, "Firebrand") || strstr(dock_name, "Preacher")) {
-    ty = units_find_type(units, "Firebrand Preacher");
-    if (ty < 0) {
-      ty = units_find_type(units, "Preacher");
-    }
-    if (ty < 0) {
-      ty = units_find_type(units, "Colonists");
-      if (ty < 0) {
-        ty = units_find_type(units, "Free Colonist");
-      }
-    }
-    return ty;
-  }
-  if (strstr(dock_name, "Teacher")) {
-    ty = units_find_type(units, "Expert Teacher");
-    if (ty < 0) {
-      ty = units_find_type(units, "Teacher");
-    }
-    if (ty < 0) {
-      ty = units_find_type(units, "Colonists");
-      if (ty < 0) {
-        ty = units_find_type(units, "Free Colonist");
-      }
-    }
-    return ty;
-  }
-  if (strstr(dock_name, "Distiller")) {
-    ty = units_find_type(units, "Master Distiller");
-    if (ty < 0) {
-      ty = units_find_type(units, "Distiller");
-    }
-    if (ty < 0) {
-      ty = units_find_type(units, "Colonists");
-      if (ty < 0) {
-        ty = units_find_type(units, "Free Colonist");
-      }
-    }
-    return ty;
-  }
-  if (strstr(dock_name, "Weaver")) {
-    ty = units_find_type(units, "Master Weaver");
-    if (ty < 0) {
-      ty = units_find_type(units, "Weaver");
-    }
-    if (ty < 0) {
-      ty = units_find_type(units, "Colonists");
-      if (ty < 0) {
-        ty = units_find_type(units, "Free Colonist");
-      }
-    }
-    return ty;
-  }
-  if (strstr(dock_name, "Tobacconist")) {
-    ty = units_find_type(units, "Master Tobacconist");
-    if (ty < 0) {
-      ty = units_find_type(units, "Tobacconist");
-    }
-    if (ty < 0) {
-      ty = units_find_type(units, "Colonists");
-      if (ty < 0) {
-        ty = units_find_type(units, "Free Colonist");
-      }
-    }
-    return ty;
-  }
-  if (strstr(dock_name, "Fur Trader")) {
-    ty = units_find_type(units, "Master Fur Trader");
-    if (ty < 0) {
-      ty = units_find_type(units, "Fur Trader");
-    }
-    if (ty < 0) {
-      ty = units_find_type(units, "Colonists");
-      if (ty < 0) {
-        ty = units_find_type(units, "Free Colonist");
-      }
-    }
-    return ty;
-  }
-  return -1;
-}
-
-/* First dock slot matching Hardy/Expert Pioneer or Master Carpenter; -1 if none. */
-static int ai_euro_dock_find_tools_expert(const EuropeScreen* eu) {
-  if (!eu) {
-    return -1;
-  }
-  for (int i = 0; i < eu->dock_count && i < EUROPE_DOCK_MAX; ++i) {
-    if (!eu->dock[i].present) {
-      continue;
-    }
-    if (ai_euro_dock_name_is_tools_expert(eu->dock[i].name)) {
-      return i;
-    }
-  }
-  return -1;
-}
-
-/* First dock slot matching Expert Farmer; -1 if none. */
-static int ai_euro_dock_find_food_expert(const EuropeScreen* eu) {
-  if (!eu) {
-    return -1;
-  }
-  for (int i = 0; i < eu->dock_count && i < EUROPE_DOCK_MAX; ++i) {
-    if (!eu->dock[i].present) {
-      continue;
-    }
-    if (ai_euro_dock_name_is_food_expert(eu->dock[i].name)) {
-      return i;
-    }
-  }
-  return -1;
-}
-
-/* First dock slot matching Expert Fisherman; -1 if none. */
-static int ai_euro_dock_find_fisherman_expert(const EuropeScreen* eu) {
-  if (!eu) {
-    return -1;
-  }
-  for (int i = 0; i < eu->dock_count && i < EUROPE_DOCK_MAX; ++i) {
-    if (!eu->dock[i].present) {
-      continue;
-    }
-    if (ai_euro_dock_name_is_fisherman_expert(eu->dock[i].name)) {
-      return i;
-    }
-  }
-  return -1;
-}
-
-/* True if nation has a coastal own colony (Fisherman field-assign usable). */
-static int ai_euro_nation_has_coastal_colony(ColonizeTurnContext* ctx, int nation_id) {
-  if (!ctx || !ctx->colonies || !ctx->map) {
-    return 0;
-  }
-  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
-    const ColonizeColony* c = &ctx->colonies->colonies[i];
-    if (!c->active || c->nation_id != nation_id) {
-      continue;
-    }
-    if (map_tile_is_coastal(ctx->map, c->x, c->y)) {
-      return 1;
-    }
-  }
-  return 0;
-}
-
-/* First dock slot matching Master Carpenter; -1 if none. */
-static int ai_euro_dock_find_carpenter_expert(const EuropeScreen* eu) {
-  if (!eu) {
-    return -1;
-  }
-  for (int i = 0; i < eu->dock_count && i < EUROPE_DOCK_MAX; ++i) {
-    if (!eu->dock[i].present) {
-      continue;
-    }
-    if (ai_euro_dock_name_is_carpenter_expert(eu->dock[i].name)) {
-      return i;
-    }
-  }
-  return -1;
-}
-
-/* First dock slot matching Expert Lumberjack; -1 if none. */
-static int ai_euro_dock_find_lumberjack_expert(const EuropeScreen* eu) {
-  if (!eu) {
-    return -1;
-  }
-  for (int i = 0; i < eu->dock_count && i < EUROPE_DOCK_MAX; ++i) {
-    if (!eu->dock[i].present) {
-      continue;
-    }
-    if (ai_euro_dock_name_is_lumberjack_expert(eu->dock[i].name)) {
-      return i;
-    }
-  }
-  return -1;
-}
-
-/* First dock slot matching Expert Ore/Silver Miner; -1 if none. */
-static int ai_euro_dock_find_ore_expert(const EuropeScreen* eu) {
-  if (!eu) {
-    return -1;
-  }
-  for (int i = 0; i < eu->dock_count && i < EUROPE_DOCK_MAX; ++i) {
-    if (!eu->dock[i].present) {
-      continue;
-    }
-    if (ai_euro_dock_name_is_ore_expert(eu->dock[i].name)) {
-      return i;
-    }
-  }
-  return -1;
-}
-
-/* First dock slot matching Master Gunsmith; -1 if none. */
-static int ai_euro_dock_find_gunsmith_expert(const EuropeScreen* eu) {
-  if (!eu) {
-    return -1;
-  }
-  for (int i = 0; i < eu->dock_count && i < EUROPE_DOCK_MAX; ++i) {
-    if (!eu->dock[i].present) {
-      continue;
-    }
-    if (ai_euro_dock_name_is_gunsmith_expert(eu->dock[i].name)) {
-      return i;
-    }
-  }
-  return -1;
-}
-
-/* First dock slot matching Master Blacksmith; -1 if none. */
-static int ai_euro_dock_find_blacksmith_expert(const EuropeScreen* eu) {
-  if (!eu) {
-    return -1;
-  }
-  for (int i = 0; i < eu->dock_count && i < EUROPE_DOCK_MAX; ++i) {
-    if (!eu->dock[i].present) {
-      continue;
-    }
-    if (ai_euro_dock_name_is_blacksmith_expert(eu->dock[i].name)) {
-      return i;
-    }
-  }
-  return -1;
-}
-
-/* First dock slot matching Seasoned Scout; -1 if none. */
-static int ai_euro_dock_find_scout_expert(const EuropeScreen* eu) {
-  if (!eu) {
-    return -1;
-  }
-  for (int i = 0; i < eu->dock_count && i < EUROPE_DOCK_MAX; ++i) {
-    if (!eu->dock[i].present) {
-      continue;
-    }
-    if (ai_euro_dock_name_is_scout_expert(eu->dock[i].name)) {
-      return i;
-    }
-  }
-  return -1;
-}
-
-/* First dock slot matching Jesuit/Missionary; -1 if none. */
-static int ai_euro_dock_find_missionary_expert(const EuropeScreen* eu) {
-  if (!eu) {
-    return -1;
-  }
-  for (int i = 0; i < eu->dock_count && i < EUROPE_DOCK_MAX; ++i) {
-    if (!eu->dock[i].present) {
-      continue;
-    }
-    if (ai_euro_dock_name_is_missionary_expert(eu->dock[i].name)) {
-      return i;
-    }
-  }
-  return -1;
-}
-
-/* First dock slot matching Elder Statesman; -1 if none. */
-static int ai_euro_dock_find_elder_expert(const EuropeScreen* eu) {
-  if (!eu) {
-    return -1;
-  }
-  for (int i = 0; i < eu->dock_count && i < EUROPE_DOCK_MAX; ++i) {
-    if (!eu->dock[i].present) {
-      continue;
-    }
-    if (ai_euro_dock_name_is_elder_expert(eu->dock[i].name)) {
-      return i;
-    }
-  }
-  return -1;
-}
-
-/* First dock slot matching Firebrand Preacher; -1 if none. */
-static int ai_euro_dock_find_preacher_expert(const EuropeScreen* eu) {
-  if (!eu) {
-    return -1;
-  }
-  for (int i = 0; i < eu->dock_count && i < EUROPE_DOCK_MAX; ++i) {
-    if (!eu->dock[i].present) {
-      continue;
-    }
-    if (ai_euro_dock_name_is_preacher_expert(eu->dock[i].name)) {
-      return i;
-    }
-  }
-  return -1;
-}
-
-/* First dock slot matching Expert Teacher; -1 if none. */
-static int ai_euro_dock_find_teacher_expert(const EuropeScreen* eu) {
-  if (!eu) {
-    return -1;
-  }
-  for (int i = 0; i < eu->dock_count && i < EUROPE_DOCK_MAX; ++i) {
-    if (!eu->dock[i].present) {
-      continue;
-    }
-    if (ai_euro_dock_name_is_teacher_expert(eu->dock[i].name)) {
-      return i;
-    }
-  }
-  return -1;
-}
-
-/* True if nation has Church or Cathedral (Preacher workplace). */
-static int ai_euro_nation_has_church(ColonizeTurnContext* ctx, int nation_id) {
-  if (!ctx || !ctx->colonies) {
-    return 0;
-  }
-  const int church_id = colonies_find_building(ctx->colonies, "Church");
-  const int cathedral_id = colonies_find_building(ctx->colonies, "Cathedral");
-  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
-    const ColonizeColony* c = &ctx->colonies->colonies[i];
-    if (!c->active || c->nation_id != nation_id) {
-      continue;
-    }
-    if (church_id >= 0 && church_id < COLONIZE_BUILDING_TYPES_MAX && c->has_building[church_id]) {
-      return 1;
-    }
-    if (cathedral_id >= 0 && cathedral_id < COLONIZE_BUILDING_TYPES_MAX &&
-        c->has_building[cathedral_id]) {
-      return 1;
-    }
-  }
-  return 0;
-}
-
-/* True if nation has Schoolhouse, College, or University (Teacher workplace). */
-static int ai_euro_nation_has_school(ColonizeTurnContext* ctx, int nation_id) {
-  if (!ctx || !ctx->colonies) {
-    return 0;
-  }
-  const int school_id = colonies_find_building(ctx->colonies, "Schoolhouse");
-  const int college_id = colonies_find_building(ctx->colonies, "College");
-  const int university_id = colonies_find_building(ctx->colonies, "University");
-  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
-    const ColonizeColony* c = &ctx->colonies->colonies[i];
-    if (!c->active || c->nation_id != nation_id) {
-      continue;
-    }
-    if (school_id >= 0 && school_id < COLONIZE_BUILDING_TYPES_MAX && c->has_building[school_id]) {
-      return 1;
-    }
-    if (college_id >= 0 && college_id < COLONIZE_BUILDING_TYPES_MAX &&
-        c->has_building[college_id]) {
-      return 1;
-    }
-    if (university_id >= 0 && university_id < COLONIZE_BUILDING_TYPES_MAX &&
-        c->has_building[university_id]) {
-      return 1;
-    }
-  }
-  return 0;
-}
-
-/*
- * True if own colony has a craft-chain building and raw stock ≥20 (feed Master
- * Distiller/Weaver/Tobacconist/Fur Trader dock hire). Cite: building_production
- * craft chains; euro_unit_act workplace assign.
- */
-static int ai_euro_nation_wants_craft(
-  ColonizeTurnContext* ctx,
-  int nation_id,
-  const char* const* chain,
-  int cargo_type
-) {
-  if (!ctx || !ctx->colonies || !chain || cargo_type < 0 || cargo_type >= COLONIZE_CARGO_COUNT) {
-    return 0;
-  }
-  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
-    const ColonizeColony* c = &ctx->colonies->colonies[i];
-    if (!c->active || c->nation_id != nation_id) {
-      continue;
-    }
-    if (ai_euro_colony_best_craft_building(ctx->colonies, c, chain) < 0) {
-      continue;
-    }
-    if (c->stock[cargo_type] >= 20) {
-      return 1;
-    }
-  }
-  return 0;
-}
-
-static int ai_euro_dock_find_named_expert(
-  const EuropeScreen* eu,
-  int (*name_is)(const char*)
-) {
-  if (!eu || !name_is) {
-    return -1;
-  }
-  for (int i = 0; i < eu->dock_count && i < EUROPE_DOCK_MAX; ++i) {
-    if (!eu->dock[i].present) {
-      continue;
-    }
-    if (name_is(eu->dock[i].name)) {
-      return i;
-    }
-  }
-  return -1;
-}
-
-/* True if any tribe has no mission (mission==0xff). */
-static int ai_euro_has_unmissioned_tribe(const ColonizeTurnContext* ctx) {
-  if (!ctx || !ctx->col1_ok || !ctx->col1 || !ctx->col1->tribe ||
-      ctx->col1->head.tribe_count == 0) {
-    return 0;
-  }
-  for (uint16_t i = 0; i < ctx->col1->head.tribe_count; ++i) {
-    if (ctx->col1->tribe[i].mission == 0xff) {
-      return 1;
-    }
-  }
-  return 0;
-}
-
-/* Remove dock[idx] (shift); returns 1 on success. */
-static int ai_euro_dock_remove_at(EuropeScreen* eu, int idx) {
-  if (!eu || idx < 0 || idx >= eu->dock_count || idx >= EUROPE_DOCK_MAX) {
-    return 0;
-  }
-  for (int i = idx + 1; i < eu->dock_count; ++i) {
-    eu->dock[i - 1] = eu->dock[i];
-  }
-  eu->dock_count--;
-  if (eu->dock_count >= 0 && eu->dock_count < EUROPE_DOCK_MAX) {
-    memset(&eu->dock[eu->dock_count], 0, sizeof(eu->dock[0]));
-  }
-  return 1;
-}
-
-/* Stock +ship_amt of cargo_type on ship holds, else +colony_amt to nearest own
- * colony (cap 100). Returns delivered. Cite: euro_unit_act §2d tools/lumber
- * cargo stand-in; 5cf6 shortage tallies. */
-static int ai_euro_cargo_or_colony(
-  ColonizeTurnContext* ctx,
-  int nation_id,
-  ColonizeUnit* ship,
-  int cargo_type,
-  int ship_amt,
-  int colony_amt
-) {
-  if (!ctx || !ship || ship_amt <= 0) {
-    return 0;
-  }
-  int delivered = 0;
-  if (units_goods_hold_count(ctx->units, ship->id) > 0) {
-    delivered = units_load_goods(ctx->units, ship->id, cargo_type, ship_amt);
-  }
-  if (delivered <= 0 && ctx->colonies && colony_amt > 0) {
-    ColonizeColony* nearest = NULL;
-    int best_d = -1;
-    for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
-      ColonizeColony* c = &ctx->colonies->colonies[i];
-      if (!c->active || c->nation_id != nation_id) {
-        continue;
-      }
-      const int d = abs(c->x - ship->x) + abs(c->y - ship->y);
-      if (best_d < 0 || d < best_d) {
-        nearest = c;
-        best_d = d;
-      }
-    }
-    if (nearest) {
-      int stock = nearest->stock[cargo_type] + colony_amt;
-      if (stock > 100) {
-        stock = 100;
-      }
-      nearest->stock[cargo_type] = stock;
-      delivered = colony_amt;
-    }
-  }
-  return delivered;
-}
-
-static int ai_euro_tools_cargo_or_colony(
-  ColonizeTurnContext* ctx,
-  int nation_id,
-  ColonizeUnit* ship
-) {
-  return ai_euro_cargo_or_colony(
-    ctx, nation_id, ship, COLONIZE_CARGO_TOOLS, 20, 15
-  );
-}
 
 /* ========================================================================
  * FUN_521d_5d04 — euro_nation_planning, structural port (2026-08-18)
@@ -8260,7 +7421,20 @@ static int ai_euro_5d04_cb_goal_trigger(int code, int a, int b, int c) {
   u->moves_left = 0;
   return (int)(u - ctx->units->units);
 }
-/* FUN_521d_6d8e prelude: DS:0xa0db / 0xa0da per-turn colony-need counts. */
+/*
+ * FUN_521d_6d8e prelude (raw 93107-93172, the writer of every DS byte the
+ * 5d04 hire matrix reads) — decoded 2026-09-07e:
+ *   DS:0xa0db += 1 per own colony whose `+0x8d` specialty_cargo == 0x0f
+ *                (Muskets) and again per own colony whose `+0xb8`
+ *                stock[15] (Muskets) is 0.
+ *   DS:0xa0da += 1 per own colony whose `+0xb6` stock[14] (Tools) is 0,
+ *                then −= 1 per own unit of type 0x02 (Pioneer) — the
+ *                Pioneers already in the field cancel the tools demand.
+ *   (DS:0xa0d4 is the same tally for `+0xaa` stock[8] Horses; 5d04 never
+ *   reads it, so it is not modelled.)
+ * Colony stock offsets pinned from col1_save.h (`stock[16]` u16 @ +0x9a):
+ * +0xaa = 8 Horses, +0xb6 = 14 Tools, +0xb8 = 15 Muskets.
+ */
 static void ai_euro_5d04_cb_colony_needs(int nation_id, int* out_muskets, int* out_tools) {
   int m = 0;
   int t = 0;
@@ -8281,8 +7455,125 @@ static void ai_euro_5d04_cb_colony_needs(int nation_id, int* out_muskets, int* o
       }
     }
   }
+  /* raw 93168-93170: every own Pioneer (@UNIT type 0x02) decrements 0xa0da. */
+  if (s_5d04_ctx && s_5d04_ctx->units) {
+    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+      const ColonizeUnit* u = &s_5d04_ctx->units->units[i];
+      if (!u->active || u->nation_id != nation_id) {
+        continue;
+      }
+      if (ai_euro_5d04_dos_type_of(s_5d04_ctx->units, u->type_index) == 2) {
+        t--;
+      }
+    }
+  }
   *out_muskets = m;
   *out_tools = t;
+}
+
+/*
+ * DS:0xa0b8[nation] (`param_1 + -0x5f48`) — resolved 2026-09-07e from its
+ * sole writer, the FUN_521d_6d8e prelude (raw 93109 zeroes it, raw
+ * 93139-93141 bumps it): the number of this nation's colonies whose AI
+ * byte `+0x1b` has bit 0x10 set — COLONIZE_COLONY_AI_NEEDS_COLONISTS.
+ * (The only other reader, raw 87069 in 0a60, gates on the same "no
+ * colonies OR nobody wants colonists" pair, which corroborates it.)
+ * Replaces the old `inv->found_flags` construction-count stand-in.
+ */
+static int ai_euro_5d04_cb_colonies_wanting_colonists(int nation_id) {
+  int n = 0;
+  if (!s_5d04_ctx || !s_5d04_ctx->colonies) {
+    return 0;
+  }
+  for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+    const ColonizeColony* c = &s_5d04_ctx->colonies->colonies[i];
+    if (c->active && c->nation_id == nation_id &&
+        (c->ai_flags & COLONIZE_COLONY_AI_NEEDS_COLONISTS) != 0) {
+      n++;
+    }
+  }
+  return n > 127 ? 127 : n;
+}
+
+/*
+ * DS:0x945a[nation] (`param_1 + -0x6ba6`) — resolved 2026-09-07e from the
+ * census writer FUN_4962_0018 (raw 78147 zeroes it, raw 78167-78170 bumps
+ * it): a NON-ship unit (`+0x3146` outside 0x0d..0x12) whose map x byte
+ * `+0x3144` satisfies `x - nation == -0x14` is a unit standing on that
+ * nation's Europe dock, so the byte is simply **how many land units this
+ * nation currently has waiting in Europe**. It seeds `local_46`, the
+ * "how badly does a departing ship need cargo" threshold, in the tail's
+ * final loop. (Raw 77748 is the same tally under a different base.)
+ */
+static int ai_euro_5d04_cb_europe_land_units(int nation_id) {
+  int n = 0;
+  if (!s_5d04_ctx || !s_5d04_ctx->units) {
+    return 0;
+  }
+  for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+    const ColonizeUnit* u = &s_5d04_ctx->units->units[i];
+    if (!u->active || u->nation_id != nation_id) {
+      continue;
+    }
+    if (units_is_sea(s_5d04_ctx->units, u->id)) {
+      continue;
+    }
+    if (ai_euro_in_europe(u->x, u->y)) {
+      n++;
+    }
+  }
+  return n > 127 ? 127 : n;
+}
+
+/*
+ * DS:0xa0cc[16] (`local_40 + -0x5f34`) — resolved 2026-09-07e. Built by
+ * the FUN_521d_6d8e prelude, once per nation-turn, immediately before it
+ * calls 5d04 through `thunk_FUN_2a1f_0554`:
+ *   raw 93107  memset(0xa0cc, 0, 0x10)
+ *   raw 93122  per own colony with `+0x8d` >= 0: demand[specialty]++
+ *   raw 93146  memcpy(0xa0bc, 0xa0cc, 0x10)  (untouched snapshot)
+ *   raw 93163  per own SHIP (type 0x0d..0x12), per occupied hold slot
+ *              0..`+0x3150`: demand[hold cargo]--
+ * so it is a **per-cargo demand table**: how many of this nation's
+ * colonies specialise in that cargo, minus how much of it is already
+ * afloat. 5d04's departing-ship loop walks cargo 15..0 and buys 100 of
+ * the first cargo whose demand clears `local_46`, decrementing the cell.
+ * This replaces the old `inv->profession_demand[]` stand-in, which was
+ * profession-indexed but was being read here with a cargo index.
+ */
+static void ai_euro_5d04_cb_cargo_demand(int nation_id, int8_t out[16]) {
+  memset(out, 0, 16 * sizeof(out[0]));
+  if (!s_5d04_ctx) {
+    return;
+  }
+  if (s_5d04_ctx->colonies) {
+    for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+      const ColonizeColony* c = &s_5d04_ctx->colonies->colonies[i];
+      if (!c->active || c->nation_id != nation_id) {
+        continue;
+      }
+      if (c->specialty_cargo < 16) {
+        out[c->specialty_cargo]++;
+      }
+    }
+  }
+  if (s_5d04_ctx->units) {
+    for (int i = 0; i < COLONIZE_UNITS_MAX; ++i) {
+      const ColonizeUnit* u = &s_5d04_ctx->units->units[i];
+      if (!u->active || u->nation_id != nation_id) {
+        continue;
+      }
+      if (!units_is_sea(s_5d04_ctx->units, u->id)) {
+        continue;
+      }
+      for (int h = 0; h < COLONIZE_UNIT_CARGO_MAX; ++h) {
+        if (u->hold_goods_amount[h] > 0 && u->hold_goods_type[h] >= 0 &&
+            u->hold_goods_type[h] < 16) {
+          out[u->hold_goods_type[h]]--;
+        }
+      }
+    }
+  }
 }
 
 /*
@@ -8300,8 +7591,8 @@ typedef struct Ai5d04HireScratch {
   int8_t delay_48;              /* DS nation+0x48 */
   int8_t crosses_bank_whole;    /* DS nation+0x49 */
   int32_t crosses_bank_raw;     /* DS nation+0x4a */
-  int8_t training_slots_tools;   /* DS 0xa0db: own colonies needing muskets (per turn) */
-  int8_t training_slots_crosses; /* DS 0xa0da: own colonies needing tools (per turn) */
+  int8_t colonies_need_muskets;  /* DS 0xa0db (per nation-turn) */
+  int8_t colonies_need_tools;    /* DS 0xa0da (per nation-turn, minus own Pioneers) */
 } Ai5d04HireScratch;
 static Ai5d04HireScratch s_5d04_hire_scratch[4];
 
@@ -8329,22 +7620,25 @@ static void ai_euro_5d04_hire_ladder_tail(
   const int difficulty = (int)head->difficulty;
   const int woi = head->game_options.woi != 0;
   Ai5d04HireScratch* hs = &s_5d04_hire_scratch[nation_id];
-  const AiEuroInventory* inv = ai_goals_inventory(nation_id);
   s_5d04_ctx = ctx;
   s_5d04_nation = nation_id;
   {
     int need_m = 0;
     int need_t = 0;
     ai_euro_5d04_cb_colony_needs(nation_id, &need_m, &need_t);
-    hs->training_slots_tools = (int8_t)(need_m > 127 ? 127 : need_m);
-    hs->training_slots_crosses = (int8_t)(need_t > 127 ? 127 : need_t);
+    if (need_m > 127) { need_m = 127; }
+    if (need_m < -128) { need_m = -128; }
+    if (need_t > 127) { need_t = 127; }
+    if (need_t < -128) { need_t = -128; } /* the Pioneer subtraction can go negative */
+    hs->colonies_need_muskets = (int8_t)need_m;
+    hs->colonies_need_tools = (int8_t)need_t;
   }
 
   /* Raw 92569-92578: no Artillery on the Europe dock + colonies needing
    * muskets → buy one (purchase table entry 0, 500 gold), re-query. */
   int local_16 = ai_euro_5d04_cb_list_iter_first(0x0c);
   int local_34 = ai_euro_5d04_cb_wagon_query(local_16);
-  if (local_34 == 0 && !woi && hs->training_slots_tools > 0 &&
+  if (local_34 == 0 && !woi && hs->colonies_need_muskets > 0 &&
       dos_rng_range(ctx->rng, 0, 3) == 0 && !f->cargo_short &&
       stuff->ship_cargo_totals[nation_id] > 4) {
     (void)ai_euro_5d04_propose_ship_buy(ctx, nation_id, 0);
@@ -8377,19 +7671,25 @@ static void ai_euro_5d04_hire_ladder_tail(
    * DOS's register reuse, not a meaningful read. Structural placeholder. */
   const int unit_flag_bit5 = 0;
   const int has_any_colony = stuff->colony_counts[nation_id] != 0;
-  const int found_flags = inv ? inv->found_flags : 0; /* -0x5f48 */
+  /* raw 92595 `-0x5f48` = DS:0xa0b8[nation] — own colonies flagged
+   * NEEDS_COLONISTS. Real since 2026-09-07e (was `inv->found_flags`). */
+  const int colonies_want_colonists = ai_euro_5d04_cb_colonies_wanting_colonists(nation_id);
   const int expand_signal = has_any_colony && (unit_flag_bit5 || every_third_turn);
 
-  /* raw 86089-86121: gold-spend recruit-slot swap. */
+  /* raw 92592-92625: gold-spend recruit-slot swap (Europe recruit price
+   * falls with accumulated crosses: base + base*crosses/(-1-needed)). */
   if (!woi && !bVar8 && !f->cargo_short &&
       (!has_any_colony ||
        (!unit_flag_bit5 && !every_third_turn &&
         (stuff->colony_counts[nation_id] >> 1) <=
-          found_flags - stuff->free_colonist_counts[nation_id]))) {
+          colonies_want_colonists - stuff->free_colonist_counts[nation_id]))) {
     const int base = ((int)nat->recruit_count - difficulty + 7) * 20;
     const long scaled =
       ((long)base * (long)nat->current_crosses) / (-1L - (long)nat->needed_crosses);
-    int reserve = ((int)stuff->free_colonist_counts[nation_id] * 30 - turn) * 2;
+    /* raw 92601 reads `-0x6bf0` = census_pop_proxy, not free_colonist_counts
+     * (fixed 2026-09-07e — the same −0x6bf0/−0x6bf8 mix-up the ladder gate
+     * had before 2026-09-07d). */
+    int reserve = ((int)stuff->census_pop_proxy[nation_id] * 30 - turn) * 2;
     if (reserve < 0) {
       reserve = 0;
     }
@@ -8435,12 +7735,25 @@ static void ai_euro_5d04_hire_ladder_tail(
                 (!has_any_colony || (!unit_flag_bit5 && !every_third_turn))) {
               const int gate2 = ai_euro_5d04_cb_profession_gate(ai_euro_5d04_cb_unit_profession(idx));
               const int local_c = gate2 != 0;
+              /* raw 92658-92671. Two ways into the muskets training arm
+               * (LAB_521d_6454):
+               *   0xa0db <= 0  → only the LAB_521d_642a body;
+               *   0xa0db >= 1  → RNG(0, local_c+1) == 0 trains outright,
+               *                  and a MISS falls THROUGH into 642a (the
+               *                  raw `goto LAB_521d_642a`) for a second
+               *                  chance. That fall-through was missing
+               *                  before 2026-09-07e. */
               int try_train = 0;
-              if (hs->training_slots_tools <= 0) {
-                if (local_8 != 0 && dos_rng_range(ctx->rng, 0, local_c + 2) == 0 && turn > 99) {
-                  try_train = 1;
-                }
+              int try_642a = 0;
+              if (hs->colonies_need_muskets <= 0) {
+                try_642a = 1;
               } else if (dos_rng_range(ctx->rng, 0, local_c + 1) == 0) {
+                try_train = 1;
+              } else {
+                try_642a = 1;
+              }
+              if (try_642a && local_8 != 0 &&
+                  dos_rng_range(ctx->rng, 0, local_c + 2) == 0 && turn > 99) {
                 try_train = 1;
               }
               if (try_train) {
@@ -8470,7 +7783,7 @@ static void ai_euro_5d04_hire_ladder_tail(
                   }
                   local_8 = 0;
                   bVar10 = 1;
-                  hs->training_slots_tools--;
+                  hs->colonies_need_muskets--;
                   if (f->has_college &&
                       dos_rng_range(
                         ctx->rng, 0,
@@ -8486,8 +7799,9 @@ static void ai_euro_5d04_hire_ladder_tail(
                     nat->gold -= local_1a2;
                     ai_euro_5d04_cb_set_unit_dispatch_byte(idx, 4);
                     if (hs->crosses_bank_raw < 0x32) {
+                      /* raw 92729-92733: DOS only calls FUN_291f_0c14(8,0x32)
+                       * here — the old `= 0x32` write-back was invented. */
                       ai_euro_5d04_cb_set_pool_counter(8, 0x32);
-                      hs->crosses_bank_raw = 0x32;
                     } else {
                       hs->crosses_bank_raw -= 0x32;
                     }
@@ -8499,11 +7813,17 @@ static void ai_euro_5d04_hire_ladder_tail(
                   local_8 - (int)stuff->unit_type_counts[nation_id][2] > 0 &&
                   dos_rng_range(ctx->rng, 0, 2) == 0 &&
                   local_28 == 0) {
-                /* LAB_521d_6454-adjacent: crosses-side training. */
+                /* Tools-side (Pioneer) training, raw 92742-92783.
+                 * raw 92745-92748: past turn 99 the arm is skipped whenever
+                 * RNG(0,2) <= the nation's own Pioneer count
+                 * (`param_1*0x13 + -0x6db2` = unit_type_counts[n][2]) — the
+                 * more Pioneers already in the field, the less likely a new
+                 * one. Fixed 2026-09-07e: the port read free_colonist_counts
+                 * and inverted the sense. */
                 int proceed = 1;
                 if (turn > 99) {
-                  proceed = dos_rng_range(ctx->rng, 0, 2) <=
-                            (int)stuff->free_colonist_counts[nation_id];
+                  proceed = !(dos_rng_range(ctx->rng, 0, 2) <=
+                              (int)stuff->unit_type_counts[nation_id][2]);
                 }
                 if (proceed &&
                     (ai_euro_5d04_cb_profession_gate(ai_euro_5d04_cb_unit_profession(idx)) == 0 ||
@@ -8516,7 +7836,7 @@ static void ai_euro_5d04_hire_ladder_tail(
                     local_28 = local_8;
                     local_8 = 0;
                     bVar10 = 1;
-                    hs->training_slots_crosses--;
+                    hs->colonies_need_tools--;
                     handled = 1;
                   }
                 }
@@ -8532,10 +7852,14 @@ static void ai_euro_5d04_hire_ladder_tail(
                 if (ai_euro_5d04_cb_profession_gate(ai_euro_5d04_cb_unit_profession(idx)) == 0 ||
                     dos_rng_range(ctx->rng, 0, 7) == 0) {
                   ai_euro_5d04_cb_set_unit_dispatch_byte(idx, 3);
-                  /* unit_type_counts[nation][3] is a live-tracked
-                   * sticky-flag reuse in DOS (see header) — not mutated
-                   * here since the array is read-derived (census), not
-                   * writable from this port. */
+                  /* raw 92798-92799: DOS bumps `param_1*0x13 + -0x6db1`
+                   * (= unit_type_counts[n][3], the Missionary row) right
+                   * here, which is what stops a second Missionary in the
+                   * same pass. Mirrored 2026-09-07e; the census pass
+                   * recomputes the row from scratch next turn. */
+                  if (ctx->col1->stuff.unit_type_counts[nation_id][3] < 0xff) {
+                    ctx->col1->stuff.unit_type_counts[nation_id][3]++;
+                  }
                 }
               }
             }
@@ -8684,14 +8008,21 @@ static void ai_euro_5d04_hire_ladder_tail(
     } while (1);
   }
 
-  /* raw 86480-86561: profession-demand bump loop over land units in the
-   * ship-numeric-range (see header — this range's real identity, ship
-   * type vs. something else in this specific loop, is not indepedently
-   * re-confirmed here; kept structurally faithful to the raw body). */
-  /* raw 86480-86486: DS `param_1 + -0x6ba6` (0x945a) — per-nation
-   * Europe-dock proxy counter (census_tally.md item 2), not modeled: 0. */
-  const int seed46 = 0;
+  /* raw 92983-93070: the departing-ship loop — sell/bank the hold, then
+   * top the hull up with the cargo its colonies most want.
+   * raw 92983-92988: `local_46` = DS:0x945a[nation] (land units this
+   * nation has waiting in Europe) + the turn parity bit — real since
+   * 2026-09-07e, was a hard 0. It is the bar a cargo's demand cell has to
+   * clear before the ship buys 100 of it, so the more colonists are
+   * queued on the dock, the pickier the ship gets about goods. */
+  const int seed46 = ai_euro_5d04_cb_europe_land_units(nation_id);
   int local_46 = seed46 + ((turn & 1) != 0);
+  /* raw 93036/93050 `local_40 + -0x5f34` = DS:0xa0cc[16], the per-cargo
+   * demand table 6d8e rebuilds just before calling 5d04. Real since
+   * 2026-09-07e (was `inv->profession_demand[]`, a profession-indexed
+   * array being read with a cargo index). */
+  int8_t cargo_demand[16];
+  ai_euro_5d04_cb_cargo_demand(nation_id, cargo_demand);
   int matched;
   /* DOS drops a departed ship from the Europe stack (FUN_291f_0ec2); Linux
    * leaves it at the Europe coords until the dispatcher's own act teleports
@@ -8713,6 +8044,15 @@ static void ai_euro_5d04_hire_ladder_tail(
       if (!departed[idx2] && ((flags3148 & 0x80) == 0 || dispatch2 == 0x0b) &&
           dispatch2 > 0xc && dispatch2 < 0x13) {
         departed[idx2] = 1;
+        /* raw 92996: a ship leaving Europe drops its colony binding
+         * (`+0x314a` = col1_origin, 0xff = unbound). Ported 2026-09-07e —
+         * the 4393 pick and the 20e6 arrival gate both read this byte. */
+        {
+          ColonizeUnit* wship = ai_euro_5d04_cb_unit(idx2);
+          if (wship) {
+            wship->col1_origin = 0xff;
+          }
+        }
         /* unload/sell loop over hold 0 (raw `while (unit+0x3150 != 0)`). */
         int last_lots = 0; /* DS:0x8dc4 scratch */
         for (int guard = 0; guard < COLONIZE_UNIT_CARGO_MAX + 1; ++guard) {
@@ -8751,14 +8091,11 @@ static void ai_euro_5d04_hire_ladder_tail(
             if (cap == used || f->cargo_short || !has_any_colony) {
               break;
             }
-            if ((local_46 <= (inv ? inv->profession_demand[p] : 0) || expand_signal) &&
+            if ((local_46 <= (int)cargo_demand[p] || expand_signal) &&
                 ((!bVar10 && local_28 == 0) || (cap - used > 2 || expand_signal))) {
               if (nat->gold >= (uint32_t)(ai_euro_5d04_cb_price(p) * 100)) {
                 ai_euro_5d04_cb_apply_bump(idx2, p, 100);
-                AiEuroInventory* winv = ai_goals_inventory(nation_id);
-                if (winv && winv->profession_demand[p] > 0) {
-                  winv->profession_demand[p]--;
-                }
+                cargo_demand[p]--; /* raw 93050 */
               }
             }
           }
@@ -8810,783 +8147,35 @@ static void ai_euro_nation_planning(ColonizeTurnContext* ctx, int nation_id) {
   if (!ctx || !ctx->col1_ok || !ctx->col1 || nation_id < 0 || nation_id >= 4) {
     return;
   }
-  ColonizeCol1Nation* nat = &ctx->col1->nation[nation_id];
-  AiEuroInventory* inv = ai_goals_inventory(nation_id);
-  const int diff = ctx->col1->head.difficulty;
   /*
    * T3.1 (2026-08-27): the structural 5d04 orchestrator is the live entry.
    * 2026-09-07d: fully real — naval gold floors applied, FUN_521d_5c3c
    * Europe purchases live (the thin ship-buy ladder that used to sit below
    * is retired; the DOS ladder + Artillery dock buy cover it).
+   *
+   * 2026-09-07e: the Linux-shaped hire matrix that used to run *after* the
+   * orchestrator is RETIRED (~765 lines). It was an invention, not a port:
+   * a `hire_cost = 200 + 25*difficulty` treasury gate, a Europe-dock expert
+   * ladder keyed on NAMES display strings (tools/blacksmith/food/fisherman/
+   * carpenter/lumberjack/ore/gunsmith/missionary/scout/elder/preacher/
+   * teacher/craft), `units_find_type("Dragoon"/"Veteran Soldier"/...)`
+   * war preferences, a wagon goods-load ladder and `inv->*_short` cargo
+   * stand-ins — none of which exists in FUN_521d_5d04.
+   *
+   * DOS's own hire matrix is the raw 92568-93070 tail, ported in
+   * `ai_euro_5d04_hire_ladder_tail` and called from the orchestrator:
+   *   - Artillery dock buy when none is in Europe and colonies want muskets;
+   *   - the recruit-slot swap priced off accumulated crosses;
+   *   - the two-pass (unskilled-first, skilled-second) Europe-dock loop that
+   *     turns Colonists into Soldiers (50 muskets) → Dragoons (50 horses),
+   *     Pioneers (100 tools) or a Missionary, each with its own DS gate;
+   *   - the recruit-buy loop that fills the departing hull;
+   *   - the departure loop that sells/banks the inbound hold and tops the
+   *     hull up from the DS:0xa0cc per-cargo demand table.
+   * The orchestrator's return value still carries the raw 92541/92547 early
+   * `return;` (ship-buy abort), which now simply ends the pass.
    */
-  if (ai_euro_5d04_nation_planning_structural(ctx, nation_id)) {
-    return; /* DOS raw 92541/92547 early return — skip the whole hire tail */
-  }
-
-  /*
-   * NEW WORLD wagon / mid-game hire matrix — thin 5d04 slice (full ~748 PARKED).
-   * Peace dock/wagon/Pioneer shortage matrix runs at any colony_count
-   * (mid-game ≥6 included). Mid-game still runs Europe ship-buy + wartime
-   * military hire; Free Colonist / Colonist settle spam stays gated at
-   * colonies ≥ 6. At war prefer Soldier/Dragoon; colonies≥2 also Artillery
-   * when type exists. Peace: tools_short>30 / lumber/ore/food>30 /
-   * muskets/horses>20 + Wagon → hire wagon once; else tools_short>20
-   * Pioneer/Hardy + tools cargo (ship +20 / colony +15). Case-7 deepen:
-   * prefer dock experts already on Europe dock (no free spawn fiction).
-   * Treasury gate: skip hire when gold < hire_cost (Artillery 500$).
-   * No free Europe passenger slot → thin buy ladder
-   * (Caravel/Merchantman/Galleon/Frigate). Cite: euro_goals FUN_521d_03d0
-   * colony_count < 0x30 (not hard-stop at 6); euro_dispatcher.c 5d04.
-   */
-  const int colonies = inv ? inv->colony_count : ai_euro_colony_count(ctx->colonies, nation_id);
-  /* Colonist / Soldier Europe hire stand-in already used by this planner. */
-  const int hire_cost = 200 + diff * 25;
-  if ((int)nat->gold < hire_cost) {
-    return; /* 5d04 treasury: too poor for Europe hire / tools-cargo */
-  }
-
-  /* Prefer a Europe ship that still has passenger space. */
-  ColonizeUnit* ship = NULL;
-  for (int i = COLONIZE_UNITS_MAX - 1; i >= 0; --i) {
-    ColonizeUnit* u = &ctx->units->units[i];
-    if (!u->active || u->nation_id != nation_id) {
-      continue;
-    }
-    if (!ai_euro_is_ship_type(ctx->units, u->id) || !ai_euro_in_europe(u->x, u->y)) {
-      continue;
-    }
-    if (u->cargo_count < units_ship_capacity(ctx->units, u->id)) {
-      ship = u;
-      break;
-    }
-  }
-  /*
-   * The Linux-only "buy a transport when none free" thin ladder that sat
-   * here was retired 2026-09-07d: the DOS FUN_521d_5c3c purchase ladder in
-   * the structural orchestrator above is live and owns Europe ship buying
-   * (real gates: census cargo pressure, naval-threat flags, RNG cadence).
-   * No free-passenger-space ship in Europe → the thin hire matrix below
-   * simply has nowhere to put a hire this turn, as in DOS.
-   */
-  if (!ship || ship->cargo_count >= units_ship_capacity(ctx->units, ship->id)) {
-    return;
-  }
-
-  /* At war with any Euro peer → prefer Soldier / Dragoon over settle types.
-   * At-war + tools_short: still Soldier/Dragoon (not Pioneer) when gold covers
-   * hire_cost — peace tools→Pioneer/wagon stays !at_war only.
-   * Mid-hire deepen: own colonies ≥ 3 → prefer Dragoon when type exists
-   * (mounted war unit; same hire_cost as Soldier dock hire). Cite:
-   * euro_dispatcher.c mid-hire; case-7 / 5d04 war arm; fandom Dragoon.
-   * If Dragoon type missing from pool → Soldier path (documented).
-   * Own colonies ≥ 2: prefer Veteran Soldier when type+affordable cost exist
-   * (@UNIT cost, else NAMES @JOB train 2000$). Cite: COLONIZE/NAMES.TXT @JOB
-   * Soldier→Veteran Soldiers 2000$; euro_unit_act §2d mid-hire.
-   * PARK: no Veteran Soldier type in pool / gold < cost → plain Soldier. */
-  int hire_ty = -1;
-  int from_dock = 0;
-  int dock_idx = -1;
-  const int at_war = ai_euro_at_war_any_peer(ctx->col1, nation_id);
-  if (at_war) {
-    static const char* k_dragoon[] = {"Dragoon", "Veteran Dragoon", "Dragoons"};
-    static const char* k_soldier[] = {"Soldier", "Soldiers"};
-    static const char* k_veteran[] = {"Veteran Soldier", "Veteran Soldiers"};
-    int drag_ty = -1;
-    int mil_ty = -1;
-    int vet_ty = -1;
-    int vet_cost = 0;
-    if (colonies >= 3) {
-      for (size_t i = 0; i < sizeof(k_dragoon) / sizeof(k_dragoon[0]) && drag_ty < 0; ++i) {
-        drag_ty = units_find_type(ctx->units, k_dragoon[i]);
-      }
-    }
-    /* ≥2 colonies: Veteran Soldier if type exists and treasury covers cost. */
-    if (colonies >= 2) {
-      for (size_t i = 0; i < sizeof(k_veteran) / sizeof(k_veteran[0]) && vet_ty < 0; ++i) {
-        vet_ty = units_find_type(ctx->units, k_veteran[i]);
-      }
-      if (vet_ty >= 0) {
-        const ColonizeUnitType* vt = units_type(ctx->units, vet_ty);
-        vet_cost = (vt && vt->cost > 0) ? vt->cost : AI_EURO_VETERAN_SOLDIER_TRAIN_GOLD;
-        if ((int)nat->gold < vet_cost) {
-          vet_ty = -1; /* underfunded @JOB / @UNIT cost — Soldier path */
-          vet_cost = 0;
-        }
-      }
-      /* PARK: Veteran Soldier mid-hire needs type in pool + affordable cost
-       * (NAMES @JOB 2000$ or @UNIT cost). Missing → plain Soldier below. */
-    }
-    for (size_t i = 0; i < sizeof(k_soldier) / sizeof(k_soldier[0]) && mil_ty < 0; ++i) {
-      mil_ty = units_find_type(ctx->units, k_soldier[i]);
-    }
-    /* When not preferring Dragoon (colonies<3 or type missing), allow Dragoon
-     * as Soldier-band fallback (prior k_mil order). */
-    if (mil_ty < 0) {
-      for (size_t i = 0; i < sizeof(k_dragoon) / sizeof(k_dragoon[0]) && mil_ty < 0; ++i) {
-        mil_ty = units_find_type(ctx->units, k_dragoon[i]);
-      }
-    }
-    /* Prefer order: Dragoon (≥3) > Veteran (≥2+cost) > Soldier. */
-    if (drag_ty >= 0) {
-      mil_ty = drag_ty;
-    } else if (vet_ty >= 0) {
-      mil_ty = vet_ty;
-    }
-    /* Thin deepen: mid-game Artillery when colonies>=2 and type in pool. */
-    int art_ty = -1;
-    if (colonies >= 2) {
-      art_ty = units_find_type(ctx->units, "Artillery");
-      if (art_ty < 0) {
-        art_ty = units_find_type(ctx->units, "Cannon");
-      }
-    }
-    int mil_aboard = 0;
-    for (int c = 0; c < ship->cargo_count && c < COLONIZE_UNIT_CARGO_MAX; ++c) {
-      const ColonizeUnit* pax = units_get_const(ctx->units, ship->cargo_ids[c]);
-      if (!pax) {
-        continue;
-      }
-      const ColonizeUnitType* ty = units_type(ctx->units, pax->type_index);
-      if (ty && ai_euro_is_military_name(ty->name)) {
-        mil_aboard = 1;
-        break;
-      }
-    }
-    /* Soldier/Dragoon primary; Artillery when mil already boarded or odd turn. */
-    const unsigned turn =
-      (ctx->turn_number && *ctx->turn_number) ? (unsigned)(*ctx->turn_number) : 0u;
-    int prefer_art = art_ty >= 0 && (mil_aboard || (turn & 1u));
-    /*
-     * 5d04 treasury: Artillery needs Europe purchase gold (500$), not the
-     * colonist hire_cost. Fall back to Soldier/Dragoon when underfunded.
-     */
-    if (prefer_art && (int)nat->gold < AI_EURO_ARTILLERY_PURCHASE_GOLD) {
-      prefer_art = 0;
-    }
-    if (prefer_art) {
-      hire_ty = art_ty;
-    } else if (mil_ty >= 0) {
-      hire_ty = mil_ty;
-    } else if (art_ty >= 0 && (int)nat->gold >= AI_EURO_ARTILLERY_PURCHASE_GOLD) {
-      hire_ty = art_ty; /* mil type missing — Artillery still a war option */
-    }
-  }
-  /*
-   * Peace case-7 / 5d04: when tools_short high, prefer Expert/Hardy Pioneer or
-   * Master Carpenter already on Europe dock (NAMES/pool names). Only if present —
-   * do not spawn free experts as fiction. Else wagon / Pioneer matrix below.
-   */
-  if (hire_ty < 0 && inv && !at_war && inv->tools_short > 20 && ctx->europe) {
-    dock_idx = ai_euro_dock_find_tools_expert(ctx->europe);
-    if (dock_idx >= 0) {
-      const int dock_ty =
-        ai_euro_type_from_dock_name(ctx->units, ctx->europe->dock[dock_idx].name);
-      if (dock_ty >= 0) {
-        hire_ty = dock_ty;
-        from_dock = 1;
-      }
-    }
-  }
-  /*
-   * Peace case-7 / 5d04 tools deepen: when tools_short high and Pioneer/Carpenter
-   * dock miss, prefer Master Blacksmith on Europe dock (Ore→Tools workplace).
-   * Cite: europe.c Master Blacksmiths; building_production Blacksmith→Tools;
-   * euro_unit_act Blacksmith workplace assign.
-   */
-  if (hire_ty < 0 && inv && !at_war && inv->tools_short > 20 && ctx->europe) {
-    dock_idx = ai_euro_dock_find_blacksmith_expert(ctx->europe);
-    if (dock_idx >= 0) {
-      const int dock_ty =
-        ai_euro_type_from_dock_name(ctx->units, ctx->europe->dock[dock_idx].name);
-      if (dock_ty >= 0) {
-        hire_ty = dock_ty;
-        from_dock = 1;
-      }
-    }
-  }
-  /*
-   * Peace case-7 / 5d04 food deepen: when food_short high, prefer Expert Farmer
-   * already on Europe dock (consume dock slot; no free spawn). Cite:
-   * europe.c k_pool_cands Expert Farmers; building_production Farmer→Food;
-   * euro_unit_act §2e Expert Farmer food LABOR; Hardy Pioneer dock pattern §2d.
-   */
-  if (hire_ty < 0 && inv && !at_war && inv->food_short > 20 && ctx->europe) {
-    dock_idx = ai_euro_dock_find_food_expert(ctx->europe);
-    if (dock_idx >= 0) {
-      const int dock_ty =
-        ai_euro_type_from_dock_name(ctx->units, ctx->europe->dock[dock_idx].name);
-      if (dock_ty >= 0) {
-        hire_ty = dock_ty;
-        from_dock = 1;
-      }
-    }
-  }
-  /*
-   * Peace case-7 food coastal fallback: food_short high + coastal colony +
-   * Expert Fisherman on Europe dock (when Farmer not hired above). Cite:
-   * terrain_yields Fisherman; euro_unit_act Fisherman field-assign; europe.c
-   * Expert Fishermen pool.
-   */
-  if (hire_ty < 0 && inv && !at_war && inv->food_short > 20 && ctx->europe &&
-      ai_euro_nation_has_coastal_colony(ctx, nation_id)) {
-    dock_idx = ai_euro_dock_find_fisherman_expert(ctx->europe);
-    if (dock_idx >= 0) {
-      const int dock_ty =
-        ai_euro_type_from_dock_name(ctx->units, ctx->europe->dock[dock_idx].name);
-      if (dock_ty >= 0) {
-        hire_ty = dock_ty;
-        from_dock = 1;
-      }
-    }
-  }
-  /*
-   * Peace case-7 / 5d04 construction deepen: when any colony wants carpenter
-   * LABOR (Stockade/Warehouse/Lumber Mill/Drydock/Shipyard incomplete),
-   * prefer Master Carpenter already on Europe dock (consume dock slot; same
-   * hire_cost as Expert Farmer / Hardy Pioneer). Cite: docs/building_production.md
-   * Carpenter→Hammers; europe.c Master Carpenters pool; euro_unit_act §2e;
-   * ai_euro_colony_wants_construction_labor. Only if present on dock.
-   */
-  if (hire_ty < 0 && inv && !at_war && ctx->europe &&
-      ai_euro_nation_wants_construction_labor(ctx, nation_id)) {
-    dock_idx = ai_euro_dock_find_carpenter_expert(ctx->europe);
-    if (dock_idx >= 0) {
-      const int dock_ty =
-        ai_euro_type_from_dock_name(ctx->units, ctx->europe->dock[dock_idx].name);
-      if (dock_ty >= 0) {
-        hire_ty = dock_ty;
-        from_dock = 1;
-      }
-    }
-  }
-  /*
-   * Peace case-7 / 5d04 lumber deepen: when lumber_short high, prefer Expert
-   * Lumberjack already on Europe dock (consume dock slot; same hire_cost as
-   * Expert Farmer / Master Carpenter). Cite: europe.c Expert Lumberjacks pool;
-   * building_production Lumberjack→Lumber; euro_unit_act §2e Expert Lumberjack
-   * LABOR; Hardy Pioneer dock pattern §2d. Only if present on dock.
-   */
-  if (hire_ty < 0 && inv && !at_war && inv->lumber_short > 20 && ctx->europe) {
-    dock_idx = ai_euro_dock_find_lumberjack_expert(ctx->europe);
-    if (dock_idx >= 0) {
-      const int dock_ty =
-        ai_euro_type_from_dock_name(ctx->units, ctx->europe->dock[dock_idx].name);
-      if (dock_ty >= 0) {
-        hire_ty = dock_ty;
-        from_dock = 1;
-      }
-    }
-  }
-  /*
-   * Peace case-7 / 5d04 ore deepen: when ore_short high, prefer Expert Ore /
-   * Silver Miner already on Europe dock (consume dock slot). Cite: europe.c
-   * Expert Ore Miners pool; terrain_yields Ore/Silver; euro_unit_act Ore Miner
-   * field-assign; Hardy Pioneer dock pattern §2d. Only if present on dock.
-   */
-  if (hire_ty < 0 && inv && !at_war && inv->ore_short > 20 && ctx->europe) {
-    dock_idx = ai_euro_dock_find_ore_expert(ctx->europe);
-    if (dock_idx >= 0) {
-      const int dock_ty =
-        ai_euro_type_from_dock_name(ctx->units, ctx->europe->dock[dock_idx].name);
-      if (dock_ty >= 0) {
-        hire_ty = dock_ty;
-        from_dock = 1;
-      }
-    }
-  }
-  /*
-   * Peace case-7 / 5d04 muskets deepen: when muskets_short high, prefer Master
-   * Gunsmith already on Europe dock (consume dock slot). Cite: europe.c Master
-   * Gunsmiths pool; building_production Gunsmith Tools→Muskets (Armory+);
-   * euro_unit_act Gunsmith workplace assign. Only if present on dock.
-   */
-  if (hire_ty < 0 && inv && !at_war && inv->muskets_short > 20 && ctx->europe) {
-    dock_idx = ai_euro_dock_find_gunsmith_expert(ctx->europe);
-    if (dock_idx >= 0) {
-      const int dock_ty =
-        ai_euro_type_from_dock_name(ctx->units, ctx->europe->dock[dock_idx].name);
-      if (dock_ty >= 0) {
-        hire_ty = dock_ty;
-        from_dock = 1;
-      }
-    }
-  }
-  /*
-   * Peace case-7 convert deepen: unmissioned tribe + Jesuit/Missionary on
-   * Europe dock → prefer that type (CONTACT convert). Cite: europe.c Jesuit
-   * Missionaries pool; euro_unit_act §2c6; Colonization.pdf Establishing a
-   * Mission. Prefer before Seasoned Scout when both present.
-   */
-  if (hire_ty < 0 && inv && !at_war && ctx->europe && ai_euro_has_unmissioned_tribe(ctx)) {
-    dock_idx = ai_euro_dock_find_missionary_expert(ctx->europe);
-    if (dock_idx >= 0) {
-      const int dock_ty =
-        ai_euro_type_from_dock_name(ctx->units, ctx->europe->dock[dock_idx].name);
-      if (dock_ty >= 0) {
-        hire_ty = dock_ty;
-        from_dock = 1;
-      }
-    }
-  }
-  /*
-   * Peace case-7 explore deepen: own colonies ≥ 1 + Seasoned Scout on Europe
-   * dock → prefer that type (CONTACT / fog explore). Cite: europe.c Seasoned
-   * Scouts pool; euro_unit_act §2c2 Seasoned Scout fog; Colonization.pdf OTHER.
-   */
-  if (hire_ty < 0 && inv && !at_war && inv->colony_count >= 1 && ctx->europe) {
-    dock_idx = ai_euro_dock_find_scout_expert(ctx->europe);
-    if (dock_idx >= 0) {
-      const int dock_ty =
-        ai_euro_type_from_dock_name(ctx->units, ctx->europe->dock[dock_idx].name);
-      if (dock_ty >= 0) {
-        hire_ty = dock_ty;
-        from_dock = 1;
-      }
-    }
-  }
-  /*
-   * Peace case-7 liberty deepen: own colonies ≥ 1 + Elder Statesman on Europe
-   * dock → prefer that type (Town Hall bells). Cite: europe.c Elder Statesmen;
-   * building_production Elder→Liberty bells; Colonization.pdf SoL.
-   */
-  if (hire_ty < 0 && inv && !at_war && inv->colony_count >= 1 && ctx->europe) {
-    dock_idx = ai_euro_dock_find_elder_expert(ctx->europe);
-    if (dock_idx >= 0) {
-      const int dock_ty =
-        ai_euro_type_from_dock_name(ctx->units, ctx->europe->dock[dock_idx].name);
-      if (dock_ty >= 0) {
-        hire_ty = dock_ty;
-        from_dock = 1;
-      }
-    }
-  }
-  /*
-   * Peace case-7 crosses deepen: Church/Cathedral present + Firebrand Preacher
-   * on Europe dock → prefer that type. Cite: europe.c Firebrand Preachers;
-   * building_production Preacher→Crosses; Colonization.pdf Church.
-   */
-  if (hire_ty < 0 && inv && !at_war && ctx->europe &&
-      ai_euro_nation_has_church(ctx, nation_id)) {
-    dock_idx = ai_euro_dock_find_preacher_expert(ctx->europe);
-    if (dock_idx >= 0) {
-      const int dock_ty =
-        ai_euro_type_from_dock_name(ctx->units, ctx->europe->dock[dock_idx].name);
-      if (dock_ty >= 0) {
-        hire_ty = dock_ty;
-        from_dock = 1;
-      }
-    }
-  }
-  /*
-   * Peace case-7 education deepen: Schoolhouse/College/University present +
-   * Expert Teacher on Europe dock → prefer that type. Cite: europe.c Expert
-   * Teachers; building_production.md Skills Chart job 18; Colonization.pdf
-   * Education / Teacher.
-   */
-  if (hire_ty < 0 && inv && !at_war && ctx->europe &&
-      ai_euro_nation_has_school(ctx, nation_id)) {
-    dock_idx = ai_euro_dock_find_teacher_expert(ctx->europe);
-    if (dock_idx >= 0) {
-      const int dock_ty =
-        ai_euro_type_from_dock_name(ctx->units, ctx->europe->dock[dock_idx].name);
-      if (dock_ty >= 0) {
-        hire_ty = dock_ty;
-        from_dock = 1;
-      }
-    }
-  }
-  /*
-   * Peace case-7 craft deepen: Distiller/Weaver/Tobacconist/Fur Trader on Europe
-   * dock when a colony has the craft building + raw stock≥20. Cite: europe.c
-   * Master Distiller/Weavers/Tobacconists/Fur Traders; building_production craft
-   * chains; euro_unit_act workplace assign.
-   */
-  if (hire_ty < 0 && inv && !at_war && ctx->europe) {
-    static const char* const k_distiller[] = {
-      "Rum Distiller's House", "Rum Distillery", "Rum Factory", NULL
-    };
-    static const char* const k_weaver[] = {
-      "Weaver's House", "Weaver's Shop", "Textile Mill", NULL
-    };
-    static const char* const k_tobacconist[] = {
-      "Tobacconist's House", "Tobacconist's Shop", "Cigar Factory", NULL
-    };
-    static const char* const k_fur_trader[] = {
-      "Fur Trader's House", "Fur Trading Post", "Fur Factory", NULL
-    };
-    typedef struct {
-      int (*name_is)(const char*);
-      const char* const* chain;
-      int cargo;
-    } CraftDock;
-    const CraftDock crafts[] = {
-      {ai_euro_dock_name_is_distiller_expert, k_distiller, COLONIZE_CARGO_SUGAR},
-      {ai_euro_dock_name_is_weaver_expert, k_weaver, COLONIZE_CARGO_COTTON},
-      {ai_euro_dock_name_is_tobacconist_expert, k_tobacconist, COLONIZE_CARGO_TOBACCO},
-      {ai_euro_dock_name_is_fur_trader_expert, k_fur_trader, COLONIZE_CARGO_FURS},
-    };
-    for (size_t ci = 0; ci < sizeof(crafts) / sizeof(crafts[0]) && hire_ty < 0; ++ci) {
-      if (!ai_euro_nation_wants_craft(ctx, nation_id, crafts[ci].chain, crafts[ci].cargo)) {
-        continue;
-      }
-      dock_idx = ai_euro_dock_find_named_expert(ctx->europe, crafts[ci].name_is);
-      if (dock_idx < 0) {
-        continue;
-      }
-      const int dock_ty =
-        ai_euro_type_from_dock_name(ctx->units, ctx->europe->dock[dock_idx].name);
-      if (dock_ty >= 0) {
-        hire_ty = dock_ty;
-        from_dock = 1;
-      }
-    }
-  }
-  /*
-   * Peace thin wagon / supply matrix: Wagon once when tools/lumber/ore_short>30
-   * or muskets/horses_short>20 or food_short>30 (tally caps differ); else
-   * Pioneer/Hardy when tools_short>20; else 5c3c profession_demand → Pioneer.
-   * Cite: euro_unit_act §2d wagon haul / 5cf6; Colonization.pdf Wagon Train.
-   */
-  if (hire_ty < 0 && inv && !at_war) {
-    if ((inv->tools_short > 30 || inv->lumber_short > 30 || inv->ore_short > 30 ||
-         inv->muskets_short > 20 || inv->horses_short > 20 || inv->food_short > 30) &&
-        !ai_euro_nation_has_wagon(ctx->units, nation_id)) {
-      const int wagon_ty = ai_euro_find_wagon_type(ctx->units);
-      if (wagon_ty >= 0) {
-        hire_ty = wagon_ty;
-      }
-    }
-    if (hire_ty < 0 && inv->tools_short > 20) {
-      hire_ty = units_find_type(ctx->units, "Hardy Pioneer");
-      if (hire_ty < 0) {
-        hire_ty = units_find_type(ctx->units, "Pioneer");
-      }
-    }
-  }
-  /* Peace / fallback: 5c3c-shaped profession demand → Pioneer (not at war). */
-  if (hire_ty < 0 && inv && !at_war) {
-    for (int p = 0; p < 16; ++p) {
-      if (inv->profession_demand[p] > 0) {
-        if (inv->tools_short > 0) {
-          hire_ty = units_find_type(ctx->units, "Hardy Pioneer");
-          if (hire_ty < 0) {
-            hire_ty = units_find_type(ctx->units, "Pioneer");
-          }
-        }
-        break;
-      }
-    }
-  }
-  if (hire_ty < 0) {
-    /* Mid-game: ship-buy (+ war hire) only — no Free Colonist settle spam. */
-    if (colonies >= 6) {
-      return;
-    }
-    /*
-     * Real NAMES.TXT @UNIT has no "Free Colonist" / "Colonist" row — the base
-     * laborer type is "Colonists" (profession flavors the display name via
-     * units_display_name()). Try the real name first; keep the old names as
-     * fallback for fixtures that still define them. Cite: port_plan.md Phase 3
-     * "Free Colonist" dead-lookup note.
-     */
-    hire_ty = units_find_type(ctx->units, "Colonists");
-  }
-  if (hire_ty < 0) {
-    hire_ty = units_find_type(ctx->units, "Free Colonist");
-  }
-  if (hire_ty < 0) {
-    hire_ty = units_find_type(ctx->units, "Colonist");
-  }
-  if (hire_ty < 0) {
-    return;
-  }
-
-  /*
-   * Per-type treasury gate before spawn / tools-cargo (5d04 / Europe hire).
-   * Artillery: purchase table 500$. Veteran Soldier: @UNIT cost or @JOB 2000$.
-   * Others: hire_cost already gated above.
-   */
-  {
-    const ColonizeUnitType* pending = units_type(ctx->units, hire_ty);
-    int pay = hire_cost;
-    if (pending &&
-        (strstr(pending->name, "Artillery") != NULL || strstr(pending->name, "Cannon") != NULL)) {
-      pay = AI_EURO_ARTILLERY_PURCHASE_GOLD;
-    } else if (pending && strstr(pending->name, "Veteran") != NULL &&
-               strstr(pending->name, "Soldier") != NULL) {
-      pay = (pending->cost > 0) ? pending->cost : AI_EURO_VETERAN_SOLDIER_TRAIN_GOLD;
-    }
-    if ((int)nat->gold < pay) {
-      return;
-    }
-  }
-
-  /* Same-tile Europe spawn → stacked board (units_board requires adjacency). */
-  const int uid = units_spawn_allow_stack(ctx->units, hire_ty, ship->x, ship->y);
-  if (uid < 0) {
-    return;
-  }
-  ColonizeUnit* pax = units_get(ctx->units, uid);
-  if (!pax) {
-    return;
-  }
-  units_set_nation(pax, nation_id);
-  if (from_dock && ctx->europe && dock_idx >= 0 && dock_idx < ctx->europe->dock_count) {
-    pax->profession = ctx->europe->dock[dock_idx].profession;
-  }
-
-  const ColonizeUnitType* hired = units_type(ctx->units, hire_ty);
-  const int hired_wagon = hired && ai_euro_type_is_wagon_name(hired->name);
-  const int hired_pioneer =
-    hired &&
-    (strstr(hired->name, "Pioneer") != NULL || strstr(hired->name, "Hardy") != NULL);
-  const int hired_artillery =
-    hired &&
-    (strstr(hired->name, "Artillery") != NULL || strstr(hired->name, "Cannon") != NULL);
-  const int hired_veteran_soldier =
-    hired && strstr(hired->name, "Veteran") != NULL && strstr(hired->name, "Soldier") != NULL;
-  int pay = hire_cost;
-  if (hired_artillery) {
-    pay = AI_EURO_ARTILLERY_PURCHASE_GOLD;
-  } else if (hired_veteran_soldier) {
-    pay = (hired->cost > 0) ? hired->cost : AI_EURO_VETERAN_SOLDIER_TRAIN_GOLD;
-    /* Profession bit so display_name is Veteran when type lacks Veteran name. */
-    pax->profession = UNITS_JOB_SOLDIER;
-  }
-
-  /*
-   * Wagon hire: load TOOLS (preferred), else LUMBER, else ORE, else MUSKETS,
-   * else HORSES, else FOOD onto the wagon before boarding. Cite: 5cf6 shorts;
-   * Colonization.pdf Wagon Train; euro_unit_act §2d haul ladder.
-   */
-  int wagon_loaded_tools = 0;
-  int wagon_loaded_lumber = 0;
-  int wagon_loaded_ore = 0;
-  int wagon_loaded_muskets = 0;
-  int wagon_loaded_horses = 0;
-  int wagon_loaded_food = 0;
-  if (hired_wagon && inv) {
-    if (inv->tools_short > 30) {
-      wagon_loaded_tools = units_load_goods(ctx->units, uid, COLONIZE_CARGO_TOOLS, 20);
-    } else if (inv->lumber_short > 30) {
-      wagon_loaded_lumber = units_load_goods(ctx->units, uid, COLONIZE_CARGO_LUMBER, 20);
-    } else if (inv->ore_short > 30) {
-      wagon_loaded_ore = units_load_goods(ctx->units, uid, COLONIZE_CARGO_ORE, 20);
-    } else if (inv->muskets_short > 20) {
-      wagon_loaded_muskets = units_load_goods(ctx->units, uid, COLONIZE_CARGO_MUSKETS, 20);
-    } else if (inv->horses_short > 20) {
-      wagon_loaded_horses = units_load_goods(ctx->units, uid, COLONIZE_CARGO_HORSES, 20);
-    } else if (inv->food_short > 30) {
-      wagon_loaded_food = units_load_goods(ctx->units, uid, COLONIZE_CARGO_FOOD, 20);
-    }
-  }
-
-  if (!units_board_stacked(ctx->units, uid, ship->id)) {
-    units_despawn(ctx->units, uid);
-    return;
-  }
-  /* Consume dock immigrant only after successful board (no free duplicate). */
-  if (from_dock && ctx->europe) {
-    (void)ai_euro_dock_remove_at(ctx->europe, dock_idx);
-  }
-  nat->gold -= (uint32_t)pay;
-  if (ctx->europe && nation_id == ctx->human_nation) {
-    ctx->europe->gold = (int)nat->gold;
-  }
-  if (inv && inv->profession_demand[0] > 0) {
-    inv->profession_demand[0]--;
-  }
-
-  /*
-   * Thin tools-cargo stand-in (threshold lowered from >40 to >20). Pioneer/Hardy:
-   * equip tools + ship hold +20 or nearest-colony +15. Wagon already loaded above;
-   * if wagon TOOLS load failed, fall back to ship/colony delivery.
-   * Master Carpenter dock hire skips tools equip (builder, not pioneer).
-   */
-  if (inv && inv->tools_short > 20) {
-    int delivered = 0;
-    if (hired_wagon) {
-      delivered = wagon_loaded_tools;
-      if (delivered <= 0 && inv->tools_short > 30) {
-        delivered = ai_euro_tools_cargo_or_colony(ctx, nation_id, ship);
-      }
-    } else if (hired_pioneer) {
-      if (pax->tools < UNITS_EQUIP_TOOLS_STEP) {
-        pax->tools = UNITS_EQUIP_TOOLS_STEP;
-      }
-      delivered = ai_euro_tools_cargo_or_colony(ctx, nation_id, ship);
-    } else if (from_dock) {
-      /* Dock carpenter / expert: tools cargo only (no pioneer equip fiction). */
-      delivered = ai_euro_tools_cargo_or_colony(ctx, nation_id, ship);
-    }
-    if (delivered > 0) {
-      if (inv->tools_short > delivered) {
-        inv->tools_short -= delivered;
-      } else {
-        inv->tools_short = 0;
-      }
-    }
-  }
-  /*
-   * Thin lumber/ore cargo stand-in (mirror tools): when matching short >20 and
-   * tools path did not dominate (tools_short≤20), load ship +20 or colony +15.
-   * Cite: euro_unit_act §2d leftover mid-5d04; 5cf6 lumber/ore_short.
-   */
-  if (inv && inv->tools_short <= 20 && inv->lumber_short > 20) {
-    int delivered = 0;
-    if (hired_wagon) {
-      delivered = wagon_loaded_lumber;
-      if (delivered <= 0 && inv->lumber_short > 30) {
-        delivered = ai_euro_cargo_or_colony(
-          ctx, nation_id, ship, COLONIZE_CARGO_LUMBER, 20, 15
-        );
-      }
-    } else {
-      delivered = ai_euro_cargo_or_colony(
-        ctx, nation_id, ship, COLONIZE_CARGO_LUMBER, 20, 15
-      );
-    }
-    if (delivered > 0) {
-      if (inv->lumber_short > delivered) {
-        inv->lumber_short -= delivered;
-      } else {
-        inv->lumber_short = 0;
-      }
-      wagon_loaded_lumber = 0; /* avoid double-trim below */
-    }
-  } else if (inv && inv->tools_short <= 20 && inv->lumber_short <= 20 &&
-             inv->ore_short > 20) {
-    int delivered = 0;
-    if (hired_wagon) {
-      delivered = wagon_loaded_ore;
-      if (delivered <= 0 && inv->ore_short > 30) {
-        delivered =
-          ai_euro_cargo_or_colony(ctx, nation_id, ship, COLONIZE_CARGO_ORE, 20, 15);
-      }
-    } else {
-      delivered =
-        ai_euro_cargo_or_colony(ctx, nation_id, ship, COLONIZE_CARGO_ORE, 20, 15);
-    }
-    if (delivered > 0) {
-      if (inv->ore_short > delivered) {
-        inv->ore_short -= delivered;
-      } else {
-        inv->ore_short = 0;
-      }
-      wagon_loaded_ore = 0;
-    }
-  } else if (
-    inv && inv->tools_short <= 20 && inv->lumber_short <= 20 && inv->ore_short <= 20 &&
-    inv->muskets_short > 20
-  ) {
-    int delivered = 0;
-    if (hired_wagon) {
-      delivered = wagon_loaded_muskets;
-      if (delivered <= 0) {
-        delivered = ai_euro_cargo_or_colony(
-          ctx, nation_id, ship, COLONIZE_CARGO_MUSKETS, 10, 10
-        );
-      }
-    } else {
-      delivered = ai_euro_cargo_or_colony(
-        ctx, nation_id, ship, COLONIZE_CARGO_MUSKETS, 10, 10
-      );
-    }
-    if (delivered > 0) {
-      if (inv->muskets_short > delivered) {
-        inv->muskets_short -= delivered;
-      } else {
-        inv->muskets_short = 0;
-      }
-      wagon_loaded_muskets = 0;
-    }
-  } else if (
-    inv && inv->tools_short <= 20 && inv->lumber_short <= 20 && inv->ore_short <= 20 &&
-    inv->muskets_short <= 20 && inv->horses_short > 20
-  ) {
-    int delivered = 0;
-    if (hired_wagon) {
-      delivered = wagon_loaded_horses;
-      if (delivered <= 0) {
-        delivered = ai_euro_cargo_or_colony(
-          ctx, nation_id, ship, COLONIZE_CARGO_HORSES, 10, 10
-        );
-      }
-    } else {
-      delivered = ai_euro_cargo_or_colony(
-        ctx, nation_id, ship, COLONIZE_CARGO_HORSES, 10, 10
-      );
-    }
-    if (delivered > 0) {
-      if (inv->horses_short > delivered) {
-        inv->horses_short -= delivered;
-      } else {
-        inv->horses_short = 0;
-      }
-      wagon_loaded_horses = 0;
-    }
-  } else if (
-    inv && inv->tools_short <= 20 && inv->lumber_short <= 20 && inv->ore_short <= 20 &&
-    inv->muskets_short <= 20 && inv->horses_short <= 20 && inv->food_short > 20
-  ) {
-    int delivered = 0;
-    if (hired_wagon) {
-      delivered = wagon_loaded_food;
-      if (delivered <= 0 && inv->food_short > 30) {
-        delivered = ai_euro_cargo_or_colony(
-          ctx, nation_id, ship, COLONIZE_CARGO_FOOD, 20, 15
-        );
-      }
-    } else {
-      delivered = ai_euro_cargo_or_colony(
-        ctx, nation_id, ship, COLONIZE_CARGO_FOOD, 20, 15
-      );
-    }
-    if (delivered > 0) {
-      if (inv->food_short > delivered) {
-        inv->food_short -= delivered;
-      } else {
-        inv->food_short = 0;
-      }
-      wagon_loaded_food = 0;
-    }
-  }
-  /* Wagon lumber/ore/muskets load: trim matching inventory short. */
-  if (inv && wagon_loaded_lumber > 0) {
-    if (inv->lumber_short > wagon_loaded_lumber) {
-      inv->lumber_short -= wagon_loaded_lumber;
-    } else {
-      inv->lumber_short = 0;
-    }
-  }
-  if (inv && wagon_loaded_ore > 0) {
-    if (inv->ore_short > wagon_loaded_ore) {
-      inv->ore_short -= wagon_loaded_ore;
-    } else {
-      inv->ore_short = 0;
-    }
-  }
-  if (inv && wagon_loaded_muskets > 0) {
-    if (inv->muskets_short > wagon_loaded_muskets) {
-      inv->muskets_short -= wagon_loaded_muskets;
-    } else {
-      inv->muskets_short = 0;
-    }
-  }
-  if (inv && wagon_loaded_horses > 0) {
-    if (inv->horses_short > wagon_loaded_horses) {
-      inv->horses_short -= wagon_loaded_horses;
-    } else {
-      inv->horses_short = 0;
-    }
-  }
-  if (inv && wagon_loaded_food > 0) {
-    if (inv->food_short > wagon_loaded_food) {
-      inv->food_short -= wagon_loaded_food;
-    } else {
-      inv->food_short = 0;
-    }
-  }
+  (void)ai_euro_5d04_nation_planning_structural(ctx, nation_id);
 }
 
 /* --- 0a60 goal-consumption engine (structural port, live) --------------
@@ -10074,7 +8663,7 @@ static void ai_euro_0a60_unit_housekeeping(ColonizeTurnContext* ctx, int nation_
         }
         int side = 0;
         if (ai_goals_probe_adjacent_contact_claim(
-              ctx->map, ctx->colonies, ux, uy, nation_id, 1, &side
+              ctx->map, ctx->colonies, ctx->units, ux, uy, nation_id, 1, &side
             ) >= 0) {
           st->act_state = 10; /* on-site at a contact claim: no new goal */
         }
@@ -12561,7 +11150,9 @@ static int ai_euro_20e6_stack_combat_0b(ColonizeTurnContext* ctx, int x, int y) 
 /* FUN_OVL14_L0000__0072d6 → FUN_521d_0906 probe, ≥0 = adjacent foreign claim. */
 static int ai_euro_20e6_probe_adjacent(const ColonizeTurnContext* ctx, int x, int y, int nation) {
   int side = -1;
-  return ai_goals_probe_adjacent_contact_claim(ctx->map, ctx->colonies, x, y, nation, 0, &side);
+  return ai_goals_probe_adjacent_contact_claim(
+    ctx->map, ctx->colonies, ctx->units, x, y, nation, 0, &side
+  );
 }
 
 /*
@@ -12621,7 +11212,7 @@ static void ai_euro_20e6_explorer_flag(ColonizeTurnContext* ctx, const ColonizeU
   /* FUN_521d_0600 composite priority must be non-zero (iStack_14). */
   if (ex) {
     const int prio = ai_goals_composite_unit_priority(
-      ctx->map, ctx->colonies, ctx->col1, s->nation, u->x, u->y, t, u->profession, s->home_dist,
+      ctx->map, ctx->colonies, ctx->col1, s->nation, u->x, u->y, t, u->profession,
       s->turn, ai_euro_colony_count(ctx->colonies, s->nation)
     );
     if (prio == 0) {
@@ -14931,6 +13522,146 @@ static int ai_euro_20e6_wagon_village_errand(
 }
 
 /*
+ * FUN_1427_10be — the DOS transport-chain ASSEMBLY step (resident flat
+ * `0000:532e`; 20e6 reaches it through the `FUN_281f_0920` thunk, overlay
+ * `FUN_1000_8b10`). Ported 2026-09-07e; this retires the "boarding is
+ * collapsed into one beat" substitution note.
+ *
+ * Raw body (decomp 8606-8686), the part 20e6 exercises:
+ *
+ *   free = hold_capacity(0x5237[type]) − holds_occupied(+0x3150);
+ *   member = stack_head(0002); if (member == ship) member = next(004a);
+ *   0362(ship, -2, -2);                     // ship joins the carrier list
+ *   while (member >= 0) {
+ *     next = 004a();
+ *     take = (member+0x314c == 1);          // the act_state-1 board mark
+ *     … two force-board arms (see "not ported" below) …
+ *     size = 0x5238[member.type];
+ *     if (size <= free && take) {
+ *       free -= size;
+ *       member+0x314c = 1;
+ *       0362(member, -2, -2);               // parked at the (−2,−2) sentinel
+ *     }
+ *     member = next;
+ *   }
+ *
+ * A DOS passenger is a unit parked at sentinel coords (−2,−2) on the shared
+ * tile-stack lists, not an entry in a ship-side array. Linux keeps passengers
+ * in `cargo_ids` (the same substitution `ai_euro_20e6_ship_cargo_counts` and
+ * `ai_euro_20e6_stack_settler` make), so the sentinel park is `units_board`
+ * and no (−2,−2) coordinate ever reaches the unit pool or the save. Nothing
+ * to round-trip: see the note on the mark's lifetime below.
+ *
+ * TIMING — the mark and the assembly are ONE act, not two (control flow
+ * verified in `viceroy_overlays.asm`, not from the decompiler's line order):
+ *
+ *   LAB_OVL14_L0000__00304c  :135683  arrival gate; three `JMP 0x3558` exits
+ *                                     (:135706 / :135710 / :135721)
+ *   …0x30a7                  :135722  arrival block = the gate's FALL-THROUGH
+ *                                     (stale-mark clear at 0x30b6 :135728,
+ *                                     then dump, cower, the raw 3024-3051
+ *                                     board-MARK scan, load matrix)
+ *   …0x32f5                  :135980  after the scan: `[0x1734+n*2] = 0`,
+ *                                     `JMP 0x354e`
+ *   …0x354e                  :136215  load-matrix loop test → `JZ 0x3558`
+ *   LAB_OVL14_L0000__003558  :136221  the band; XREF list names 0x3083,
+ *                                     0x308c, 0x30a4, 0x3313, 0x3553
+ *   …0x3609                  :136290  `PUSH [BP+6]` / `CALLF FUN_1000_8b10`
+ *                                     immediately before the 0d38 batch
+ *                                     (`PUSH 2` / `8aac`, `PUSH 3`, …)
+ *
+ * So the berth scan marks and, later in the SAME 20e6 call, this sweep
+ * assembles — Ghidra renders the arrival block after `LAB_3558` in text order
+ * only because every path inside the `if` leaves by goto. The budget hand-off
+ * is exact because of that order: the scan reserves `iStack_d2` for the
+ * passengers, the load matrix fills the rest of the holds with goods, and
+ * `free = capacity − holds_occupied` here re-derives precisely the reserved
+ * remainder. The cower arm is the one berth path that never reaches this
+ * sweep (it stamps orders 0x43 and jumps to LAB_5899, past 0x3558).
+ *
+ * The mark's lifetime is one nation turn: `ai_euro_0a60_unit_housekeeping`
+ * resets act_state 1/2/3 → 0 for every on-map inset unit at the top of the
+ * nation turn, exactly as DOS does at :87560-87563. A mark therefore cannot
+ * survive a save/load in an observable way and needs no save round-trip.
+ *
+ * Not ported (recorded, not invented): the two force-board arms — a member at
+ * negative map coords passing the `(0x3147 & 0xf) − x == 0x14` owner-nibble
+ * Europe-slot check, and the `FUN_13e4_0074(x, y)` tile predicate. Both are
+ * undecoded beyond their shape, and neither has a Linux counterpart: Europe
+ * units live in the europe pool, never on a map tile list. The recursive
+ * `FUN_1427_101c` pre-pass (`+0x314c == 2` ship re-berth) is likewise out of
+ * band — 20e6 never marks act_state 2.
+ *
+ * Linux tile substitution: DOS ships berth ON the colony tile, so 10be's own
+ * tile stack already holds the marked land units. This port berths ships on
+ * adjacent water (`ai_euro_tiles_near`, same substitution the arrival block
+ * and the 06e load block make), so the sweep covers the ship's tile plus any
+ * adjacent own-colony tile.
+ */
+static int ai_euro_20e6_transport_assemble(
+  ColonizeTurnContext* ctx,
+  int nation_id,
+  ColonizeUnit* ship
+) {
+  if (!ctx || !ctx->units || !ship || !ship->active || ship->id < 0 ||
+      ship->id >= COLONIZE_UNITS_MAX || nation_id < 0 || nation_id > 3) {
+    return 0;
+  }
+  if (!units_is_sea(ctx->units, ship->id) || ai_euro_in_europe(ship->x, ship->y)) {
+    return 0;
+  }
+  /* free = 0x5237[type] − +0x3150 (capacity less goods holds AND passengers). */
+  int free_holds = units_ship_free_passenger_slots(ctx->units, ship->id);
+  if (free_holds <= 0) {
+    return 0;
+  }
+  const int trace = getenv("AI_20E6_BOARD_TRACE") != NULL;
+  int boarded = 0;
+  for (int ui = 0; ui < COLONIZE_UNITS_MAX && free_holds > 0; ++ui) {
+    ColonizeUnit* lu = units_get(ctx->units, ui);
+    if (!lu || !lu->active || lu->id == ship->id || lu->nation_id != nation_id) {
+      continue;
+    }
+    if (lu->aboard_ship_id >= 0 || units_is_sea(ctx->units, lu->id)) {
+      continue; /* already in a transport chain / not a stack land member */
+    }
+    /* Same tile as the ship, or the adjacent own colony it is berthed at. */
+    int on_stack = (lu->x == ship->x && lu->y == ship->y);
+    if (!on_stack && ctx->colonies) {
+      const int cid = colonies_id_at(ctx->colonies, lu->x, lu->y);
+      const ColonizeColony* lc = cid >= 0 ? colonies_get(ctx->colonies, cid) : NULL;
+      if (lc && lc->active && lc->nation_id == nation_id &&
+          ai_euro_tiles_near(ship->x, ship->y, lc->x, lc->y)) {
+        on_stack = 1;
+      }
+    }
+    if (!on_stack) {
+      continue;
+    }
+    if (s_0a60_pilot_state[ui].act_state != 1) {
+      continue; /* raw 8658: only the act_state-1 board mark */
+    }
+    const ColonizeUnitType* lty = units_type(ctx->units, lu->type_index);
+    const int size = lty ? lty->space : 1; /* 0x5238[type] */
+    if (size > free_holds || size >= 99) {
+      continue;
+    }
+    if (!units_board(ctx->units, ui, ship->id)) {
+      continue;
+    }
+    free_holds -= size;
+    boarded++;
+    if (trace) {
+      fprintf(
+        stderr, "[10be] ship %d n%d assembles unit %d (size %d, free %d left)\n", ship->id,
+        nation_id, ui, size, free_holds
+      );
+    }
+  }
+  return boarded;
+}
+
+/*
  * FUN_521d_20e6 own-colony ARRIVAL block for ships (raw 2996-3138), the ship
  * twin of the wagon sequence shipped 2026-09-06f.
  *
@@ -14956,8 +13687,9 @@ static int ai_euro_20e6_wagon_village_errand(
  * cargo; "delivery matrix first" only ever described a ship away from berth.
  *
  * The block itself:
- *   raw 2991-2997  clear act_state 1 on the colony's units (not modelled —
- *                  the port has no +0x314c act_state channel here)
+ *   raw 2991-2997  clear act_state 1 on the berth tile's units (LIVE since
+ *                  2026-09-07e — the +0x314c channel is the
+ *                  s_0a60_pilot_state act_state shadow)
  *   raw 2999-3001  bind colony uStack_62 / nation uStack_e6
  *   raw 3002-3007  while (holds_occupied) { g = pull hold 0 (8cdc compacts
  *                  and stashes qty in 0x8dc4); colony stock[g] += qty; }
@@ -14972,14 +13704,15 @@ static int ai_euro_20e6_wagon_village_errand(
  *                  cargo per free hold, qty = min(stock, 100).
  *   raw 3127-3131  a load latches unit+0x314a = colony for ships.
  *
- * Not modelled from this block (recorded, not invented):
- *   - raw 3018-3023: the Caravel/Merchantman "cower in port" arm. When the
- *     colony carries +0x1b bit 0x02 (NEARBY_FRIGATE) and type <= 0xe, DOS
- *     bumps unit+0x315a and skips the whole load for the first
- *     (10 − capacity) beats, stamping act_state 0x43. The port has no
- *     +0x315a byte and no act_state channel here.
- *   - raw 3024-3051: the passenger-boarding loop (land units at the colony
- *     with act_state 1 board the ship). The port's embark arms own that.
+ * Both formerly-unmodelled arms of this block are live:
+ *   - raw 3018-3023 "cower in port" (2026-09-07): +0x315a is the COL1
+ *     `turns_worked` byte, save-round-tripped since 2026-09-07c.
+ *   - raw 3024-3051: the passenger-board MARK scan. It only stamps
+ *     act_state = 1 and debits the hold budget; the physical boarding is
+ *     FUN_1427_10be at LAB_3558, ported as
+ *     ai_euro_20e6_transport_assemble and called from the tail of this
+ *     function (DOS's fall-through into 0x3558). See that function's header
+ *     for the asm control-flow proof that mark and assembly are one act.
  *
  * Returns the colony id the ship berthed at (dump attempted), else −1.
  */
@@ -15023,6 +13756,26 @@ static int ai_euro_20e6_ship_berth_arrival(
   if (!c) {
     return -1;
   }
+  /*
+   * Raw 2991-2997 (asm 0x30a7-0x30d5): before anything else, walk the berth
+   * tile's stack and clear every stale act_state == 1 board mark, so this
+   * act's scan re-decides from scratch. DOS iterates the ship's own tile
+   * (ships berth ON the colony tile); this port berths on adjacent water, so
+   * the colony tile the ship is berthed at is the equivalent stack.
+   */
+  for (int ui = 0; ui < COLONIZE_UNITS_MAX; ++ui) {
+    const ColonizeUnit* lu = units_get_const(ctx->units, ui);
+    if (!lu || !lu->active || lu->aboard_ship_id >= 0) {
+      continue;
+    }
+    if ((lu->x != c->x || lu->y != c->y) && (lu->x != ship->x || lu->y != ship->y)) {
+      continue;
+    }
+    if (s_0a60_pilot_state[ui].act_state == 1) {
+      s_0a60_pilot_state[ui].act_state = 0;
+    }
+  }
+
   /* raw 3002-3007: dump every hold into the colony, unconditionally. */
   int dumped = 0;
   for (;;) {
@@ -15091,18 +13844,19 @@ static int ai_euro_20e6_ship_berth_arrival(
   int free_holds = ai_euro_hauler_free_holds(ctx->units, ship);
 
   /*
-   * Raw 3024-3051 passenger boarding at the berth (2026-09-07). Gate: type
-   * gate bVar7 and unit+0x3148 bit 0x20 clear. DOS walks the colony-tile
-   * stack while DS:0x1734[nation] < 0x19 and marks members act_state = 1
-   * (stand still, reserved) with the ship's hold budget debited by the
-   * member's 0x5238 size; the physical boarding is the COL1 transport-chain
-   * stack — Linux carries passengers in cargo_ids, so board directly (the
-   * same substitution ai_euro_20e6_ship_cargo_counts makes). Eligible:
-   * an armed land unit (0x5236 combat > 1, orders byte not 'G'/'A') on a
-   * stance-0 continent; a Pioneer (type 2) unless the ship's composite
-   * priority (iStack_14, FUN_521d_0600) is 0 on a non-0 stance continent.
-   * After the scan DOS zeroes 0x1734[nation] (:81295) — the only reset the
-   * counter has.
+   * Raw 3024-3051 passenger-board MARK scan (2026-09-07; reworked to the
+   * literal mark-then-assemble 2026-09-07e). Gate: type gate bVar7 and
+   * unit+0x3148 bit 0x20 clear. DOS walks the colony-tile stack while
+   * DS:0x1734[nation] < 0x19 and marks members act_state = 1, debiting the
+   * ship's hold budget by the member's 0x5238 size. It does NOT board here:
+   * the budget it leaves is what the load matrix below may fill with goods,
+   * and FUN_1427_10be (ai_euro_20e6_transport_assemble, called at the tail of
+   * this function = DOS's 0x3558 fall-through) then boards exactly the
+   * reserved remainder. Eligible: an armed land unit (0x5236 combat > 1,
+   * orders byte not 'G'/'A') on a stance-0 continent; a Pioneer (type 2)
+   * unless the ship's composite priority (iStack_14, FUN_521d_0600) is 0 on a
+   * non-0 stance continent. After the scan DOS zeroes 0x1734[nation]
+   * (:81295) — the only reset the counter has.
    */
   if (ai_euro_20e6_457e_type_gate(ctx, ship, arrival_dos_type) &&
       (s_0a60_pilot_state[ship->id].flags & 0x20) == 0) {
@@ -15111,7 +13865,7 @@ static int ai_euro_20e6_ship_berth_arrival(
     const int turn = (ctx->turn_number && *ctx->turn_number) ? (int)*ctx->turn_number : 0;
     const int ship_prio = ai_goals_composite_unit_priority(
       ctx->map, ctx->colonies, ctx->col1_ok ? ctx->col1 : NULL, nation_id, ship->x, ship->y,
-      arrival_dos_type, ship->profession, 0, turn,
+      arrival_dos_type, ship->profession, turn,
       ai_euro_colony_count(ctx->colonies, nation_id)
     );
     for (int ui = 0; ui < COLONIZE_UNITS_MAX; ++ui) {
@@ -15146,11 +13900,13 @@ static int ai_euro_20e6_ship_berth_arrival(
         }
         mark = 1;
       }
-      if (mark && units_board(ctx->units, ui, ship->id)) {
+      if (mark) {
+        /* raw 3046-3050: act_state = 1, iStack_d2 -= 0x5238[type]. */
+        s_0a60_pilot_state[ui].act_state = 1;
         free_holds -= space;
         if (trace) {
           fprintf(
-            stderr, "[shipdump] ship %d n%d boards unit %d (type 0x%02x space %d)\n",
+            stderr, "[shipdump] ship %d n%d MARKS unit %d (type 0x%02x space %d)\n",
             ship->id, nation_id, ui, lt, space
           );
         }
@@ -15187,6 +13943,13 @@ static int ai_euro_20e6_ship_berth_arrival(
   if (loaded) {
     ai_euro_20e6_origin_set(ship, c->id);
   }
+  /*
+   * asm 0x354e → 0x3558 → 0x3609: the arrival block falls out of the load
+   * loop straight into LAB_3558, whose first call is FUN_1000_8b10
+   * (= FUN_1427_10be) on this ship. Everything the scan above marked boards
+   * here, in the same act, into the space the load matrix left free.
+   */
+  (void)ai_euro_20e6_transport_assemble(ctx, nation_id, ship);
   if (trace) {
     fprintf(
       stderr, "[shipdump] ship %d n%d colony %d dumped %d loaded %d\n", ship->id, nation_id,
@@ -17163,12 +15926,12 @@ static void ai_euro_20e6_goal_fold(
   const int total_colonies = ctx->colonies ? ctx->colonies->colony_count : 0;
   const int turn = (ctx->turn_number && *ctx->turn_number) ? (int)*ctx->turn_number : 0;
   const int cont = ctx->map ? map_continent_id_at(ctx->map, ship->x, ship->y) : -1;
-  int home_dist = 0;
-  (void)ai_euro_20e6_nearest_colony(ctx, ship->x, ship->y, nation, -1, &home_dist);
+  /* 052c runs its own FUN_15eb_0142 nearest-own-colony-on-continent search
+   * (it owns the DS:0x8db8 write), so no caller-side distance is passed. */
   const int urgency =
     ai_goals_unit_desirability_score(
-      ctx->colonies, nation, ship->x, ship->y, ai_euro_20e6_dos_type(ctx->units, rep),
-      rep->profession, cont, home_dist, turn, total_colonies
+      ctx->map, ctx->colonies, nation, ship->x, ship->y,
+      ai_euro_20e6_dos_type(ctx->units, rep), rep->profession, cont, turn, total_colonies
     ) +
     ai_goals_founding_expansion_urgency(nation, total_colonies);
   if (urgency < 1) {
@@ -17191,6 +15954,16 @@ static int ai_euro_20e6_unload_mask(ColonizeTurnContext* ctx, ColonizeUnit* ship
   if (!ctx->map || nation < 0 || nation > 3) {
     return 0;
   }
+  /*
+   * asm 0x3609: `CALLF FUN_1000_8b10` (FUN_1427_10be) sits immediately before
+   * the 0d38 stack-count batch below, and LAB_3558 is reached on EVERY ship
+   * act — the arrival block's fall-through and the three direct `JMP 0x3558`
+   * exits of the raw 1691 gate alike. This is that call for the acts that
+   * skip the arrival block; the berth path runs its own at the arrival tail
+   * (see ai_euro_20e6_transport_assemble). Marks outlive an act, so a member
+   * the berth budget could not fit boards at a later pass, as in DOS.
+   */
+  (void)ai_euro_20e6_transport_assemble(ctx, nation, ship);
   int pioneers = 0;
   int mil = 0;
   int scouts = 0;

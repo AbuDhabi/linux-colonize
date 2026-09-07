@@ -2645,11 +2645,23 @@ static bool game_handle_modal_input(ColonizeGameState* game, const ColonizeInput
      * father's Colonizopedia entry; closing that page comes straight back
      * to the popup (the persistent slate re-presents it — no reroll).
      */
-    if (input->last_key == COLONIZE_KEY_F1 &&
+    /*
+     * DOS FUN_4345_06d2 arms the dialog's "explain this row" flag (DS:0x1f66
+     * = 1) before FUN_291f_016a, so FUN_6f74_2580's right-button arm returns
+     * the row under the cursor with DS:0x1f68 = 1; 06d2 then calls
+     * FUN_2a1f_0062 (→ FUN_6cb2_1f28, the Colonizopedia founding-father
+     * article) and loops back to rebuild the same dialog. Right-click is the
+     * DOS gesture; F1 below is the port's keyboard equivalent.
+     */
+    if ((input->last_key == COLONIZE_KEY_F1 || input->mouse_right_clicked) &&
         game->ai_popups.current.tag == AI_POPUP_TAG_FF_CONGRESS &&
         game->ai_popups.current.kind == AI_POPUP_KIND_CHOICE) {
       const AiPopupRequest* cur = &game->ai_popups.current;
-      const int sel = game->ai_popups.selection;
+      const int sel = input->mouse_right_clicked
+                        ? ai_popup_choice_row_at(
+                            &game->ai_popups, input->mouse_x, input->mouse_y
+                          )
+                        : game->ai_popups.selection;
       if (sel >= 0 && sel < cur->choice_count) {
         const int ff_index = cur->choice_ids[sel];
         if (ff_index >= 0 && ff_index < PEDIA_FATHER_COUNT) {

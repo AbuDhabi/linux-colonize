@@ -68,10 +68,13 @@ void ai_goals_clear_secondary_slots(int nation_id) {
 }
 
 /*
- * FUN_521d_001c — invalidate_nearby_secondary_goals. Distance callee (DOS
- * FUN_281f_037a) is corrupted in the decomp (no visible body/params); reuses
- * the FUN_124c_0040 / ai_dos_dist formula as the closest known "generic DOS
- * tile distance" analog.
+ * FUN_521d_001c — invalidate_nearby_secondary_goals (decomp 86786-86816).
+ * Distance callee resolved 2026-09-07: FUN_281f_037a is a far thunk to
+ * FUN_124c_007c (decomp 2776-2792), which absolutizes both deltas and tail-
+ * calls FUN_124c_0040 (decomp 2759-2774) = `(min >> 1) + max`. That is
+ * exactly the formula already coded here, so this is now an identity, not a
+ * stand-in. (FUNCTION_CATALOG's "Manhattan |dx|+|dy|" note for 037a is
+ * wrong — 0040's body has the `>>1` term.)
  */
 void ai_goals_invalidate_nearby_secondary(int nation_id, int code, int x, int y, int radius) {
   if (nation_id < 0 || nation_id >= 4) {
@@ -183,6 +186,12 @@ void ai_goals_promote_secondary_to_primary(int nation_id) {
   }
 }
 
+/*
+ * FUN_521d_031c (decomp 86996-87008). DOS writes only `id = 0xffff` for the
+ * 16 slots and leaves score/loads/military stale; every reader (02be's
+ * insert scan, the 4393 consumer) tests `id < 0` first, so clearing the rest
+ * here is observably identical and keeps the port's own dumps clean.
+ */
 void ai_goals_clear_work_queue(void) {
   for (int i = 0; i < AI_WORK_SLOTS; ++i) {
     s_work[i].id = -1;
@@ -433,9 +442,22 @@ int ai_goals_best_found_tile_near(
 
 /*
  * FUN_521d_0492 — colony_count_balance_flags(nation, continent).
- * Live Euro colony × layer3 continent tallies; target = continent_tally_b/12.
- * +2 when no Euro colonies on continent (live sum==0; decomp 947e==summed).
- * +4 when this nation has 0 on continent. Cite: viceroy_unpacked.c ~87098.
+ * Decomp 87098-87136, transcribed literally:
+ *
+ *   target = DS:0x85c8[cont] / 12            (continent_tally_b, word)
+ *   used   = DS:0x947e[cont]                 (village_counts_by_continent)
+ *          + Σ_{n=0..3} DS:0x94e6[n*16+cont] (colony counts per nation)
+ *   flags  = (target > used) ? 1 : (target < used) ? -1 : 0
+ *   flags += 2 when DS:0x947e[cont] == used  (⇔ no Euro colony there)
+ *   flags += 4 when this nation has none there
+ *
+ * FIXED 2026-09-07: the port summed only the four nation colony counts and
+ * dropped the `DS:0x947e[cont]` village base from `used`, which made every
+ * continent look emptier than DOS sees it — the `target > used` arm (the
+ * "expand here" +1) fired on continents DOS already scores 0 or -1. Indian
+ * villages are counted live off `col1->tribe` rather than the saved
+ * `stuff.village_counts_by_continent[]`, which nothing in the port keeps
+ * fresh (it is only used as the census blank-window boundary marker).
  */
 int ai_goals_colony_balance_flags(
   const ColonizeWorldMap* map,
@@ -467,20 +489,35 @@ int ai_goals_colony_balance_flags(
     }
   }
 
-  int sum_on_cont = 0;
+  int euro_on_cont = 0;
   for (int n = 0; n < 4; ++n) {
-    sum_on_cont += nation_cont[n][continent_id];
+    euro_on_cont += nation_cont[n][continent_id];
   }
+
+  /* DS:0x947e[cont] — Indian villages on this continent (live from tribes). */
+  int villages_on_cont = 0;
+  if (map && col1->tribe) {
+    for (uint16_t ti = 0; ti < col1->head.tribe_count; ++ti) {
+      const ColonizeCol1Tribe* t = &col1->tribe[ti];
+      if (t->nation_id < 4) {
+        continue;
+      }
+      if (map_continent_id_at(map, t->x, t->y) == continent_id) {
+        villages_on_cont++;
+      }
+    }
+  }
+  const int used = villages_on_cont + euro_on_cont;
 
   const unsigned target = (unsigned)col1->post_map.continent_tally_b[continent_id] / 12u;
   int flags = 0;
-  if ((int)target > sum_on_cont) {
+  if ((int)target > used) {
     flags = 1;
-  } else if ((int)target < sum_on_cont) {
+  } else if ((int)target < used) {
     flags = -1;
   }
-  /* Decomp: 947e == (947e + Σ94e6) ⇒ Σ nation colonies == 0. Prefer live sum. */
-  if (sum_on_cont == 0) {
+  /* Decomp: 947e == (947e + Σ94e6) ⇔ Σ nation colonies == 0. */
+  if (euro_on_cont == 0) {
     flags += 2;
   }
   if (nation_cont[nation_id][continent_id] == 0) {
@@ -513,7 +550,17 @@ int ai_goals_pick_founding_tile_ex(
     return 0;
   }
   int best_dir = -1;
-  int best_score = INT_MIN;
+  /*
+   * DOS seeds the running best with `local_1a = 0xffff` and compares
+   * `(int)local_1a < (int)local_a` (decomp 87244 / 87310) — signed, so a
+   * candidate must score >= 0 to be taken at all. With `bal` reaching -1
+   * and multiplying by 0x10 per empty neighbour a tile really can land
+   * below that, and the port's INT_MIN seed accepted those. Matching the
+   * -1 floor also means an all-negative ring falls through to DOS's own
+   * default (`local_10 = 8`, i.e. stay) — here, to the ring-2..4 fallback
+   * below, which is a port addition (DOS just returns dir 8).
+   */
+  int best_score = -1;
   int any = 0;
   for (int dir = 0; dir <= 8; ++dir) {
     const int nx = x + k_dir8_dx[dir];
@@ -725,6 +772,67 @@ AiNationPlanScratch* ai_goals_plan_scratch(int nation_id) {
 }
 
 /*
+ * FUN_521d_6d8e prelude (decomp 93109 + 93139-93141) plus the four
+ * FUN_4962_0018 census bytes 03d0 reads. The census half is already
+ * recomputed every turn into col1->stuff by
+ * col1_stuff_census_refresh_colony_counts(); only the DS:0xa0b8
+ * "colonies asking for colonists" count has no census home, and DOS
+ * rebuilds that at the top of each Euro AI nation turn, which is where
+ * this is called from.
+ *
+ * `last_colony_founded_turn` is deliberately NOT touched: its writer is
+ * FUN_479b_076e (ai_goals_note_colony_founded), not the prelude.
+ */
+void ai_goals_plan_scratch_refresh(
+  const ColonizeCol1Save* col1,
+  const ColonizeColonyPool* colonies,
+  int nation_id,
+  int leader_trait1
+) {
+  if (nation_id < 0 || nation_id >= 4) {
+    return;
+  }
+  AiNationPlanScratch* p = &s_plan[nation_id];
+  p->leader_trait1 = (int8_t)leader_trait1;
+  if (col1) {
+    p->colony_count = col1->stuff.colony_counts[nation_id];
+    p->census_pop = col1->stuff.census_pop_proxy[nation_id];
+    p->ship_cargo_total = col1->stuff.ship_cargo_totals[nation_id];
+    /* stuff.avg_colony_pop is 4 packed little-endian u16 (DS:0x944e). */
+    p->avg_colony_pop = (int)col1->stuff.avg_colony_pop[nation_id * 2] |
+                        ((int)col1->stuff.avg_colony_pop[nation_id * 2 + 1] << 8);
+  } else {
+    p->colony_count = 0;
+    p->census_pop = 0;
+    p->ship_cargo_total = 0;
+    p->avg_colony_pop = 0;
+  }
+  int wanting = 0;
+  int live_colonies = 0;
+  if (colonies) {
+    for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+      const ColonizeColony* c = &colonies->colonies[i];
+      if (!c->active || c->nation_id != nation_id) {
+        continue;
+      }
+      live_colonies++;
+      if (c->ai_flags & COLONIZE_COLONY_AI_NEEDS_COLONISTS) {
+        wanting++;
+      }
+    }
+    /*
+     * The census byte is only as fresh as the last between-turns refresh;
+     * a colony founded (or lost) mid-pass would leave 03d0's `colony_count
+     * == 0` early-out reading stale. DOS recounts DS:0x9298 per nation in
+     * the same between-turns sweep, so prefer the live pool whenever a
+     * colony pool is supplied.
+     */
+    p->colony_count = (uint8_t)(live_colonies > 255 ? 255 : live_colonies);
+  }
+  p->colonies_wanting_colonists = (uint8_t)(wanting > 255 ? 255 : wanting);
+}
+
+/*
  * FUN_479b_076e's `nation*0x13c-0x77b2 = DS:0x538e` stamp (case-7 FOUND
  * COLONY handler, viceroy_unpacked.c:77006): record the current turn as
  * this nation's last colony-founding turn, feeding 052c's decay term.
@@ -737,9 +845,17 @@ void ai_goals_note_colony_founded(int nation_id, int turn) {
 }
 
 /*
- * FUN_521d_03d0 — founding_expansion_urgency. Cite: viceroy_unpacked.c ~87058.
- * All-zero scratch (no writer wired yet) takes the hire_flag==0 early return,
- * reproducing today's existing "early game -> 8" stand-in in ai_euro.c.
+ * FUN_521d_03d0 — founding_expansion_urgency. Decomp 87058-87095, literal.
+ *
+ * Scratch is real since 2026-09-07 (see AiNationPlanScratch's header note);
+ * the `return 8` arm is DOS's own early-out for "no colonies yet" or "no
+ * colony is asking for colonists", not a port stand-in, and it is still what
+ * fires through the opening turns.
+ *
+ * Signed-shift note: the two `>> 1` adjust arms are the decompiler's
+ * rendering of `urgency` walking half the remaining gap toward
+ * `ship_cargo_total >> 1`; kept in the raw's exact algebraic form rather
+ * than simplified so it can be diffed against 87076-87081 line for line.
  */
 int ai_goals_founding_expansion_urgency(int nation_id, int total_colony_count) {
   if (nation_id < 0 || nation_id >= 4) {
@@ -747,21 +863,26 @@ int ai_goals_founding_expansion_urgency(int nation_id, int total_colony_count) {
   }
   if (total_colony_count < 0x30) {
     const AiNationPlanScratch* p = &s_plan[nation_id];
-    if (p->hire_flag == 0 || p->found_flag == 0) {
+    if (p->colony_count == 0 || p->colonies_wanting_colonists == 0) {
       return 8;
     }
-    int local_10 = ((int)p->c_val - (int)p->hire_flag) / (4 - (int)p->e_val);
-    const int uv4 = (int)p->d_val >> 1;
+    /* `4 - trait1` with trait1 in {-1,0,1}: divisor is 3..5, never 0. */
+    int divisor = 4 - (int)p->leader_trait1;
+    if (divisor == 0) {
+      divisor = 1;
+    }
+    int local_10 = ((int)p->census_pop - (int)p->colony_count) / divisor;
+    const int uv4 = (int)p->ship_cargo_total >> 1;
     if (uv4 < local_10) {
       local_10 = -(((local_10 - uv4 + 1) >> 1) - local_10);
     } else if (local_10 < uv4) {
       local_10 = local_10 + ((1 - (local_10 - uv4)) >> 1);
     }
-    const int iv2 = (int)p->e_val * 3 - 7;
+    const int iv2 = (int)p->leader_trait1 * 3 - 7;
     const int iv3 = -iv2;
-    const int iv1 = p->f_val;
+    const int iv1 = p->avg_colony_pop;
     if (-iv1 != iv2 && iv1 <= iv3) {
-      local_10 = local_10 + (-1 - (iv3 - iv1)) * (int)p->hire_flag;
+      local_10 = local_10 + (-1 - (iv3 - iv1)) * (int)p->colony_count;
     }
     if (local_10 >= 0) {
       return local_10;
@@ -771,16 +892,83 @@ int ai_goals_founding_expansion_urgency(int nation_id, int total_colony_count) {
 }
 
 /*
- * FUN_521d_052c — unit_desirability_score. Cite: viceroy_unpacked.c ~87139.
- * dist_to_bound_colony is DOS DS:0x8db8 (caller-supplied snapshot, see
- * move_scoring_land.md). FUN_281f_0c9a "needs training" gate is PARKED (reads
- * as false). Tail term identity confirmed 2026-08-19 (see
- * AiNationPlanScratch's own header comment): thunk_2a1f_0494(nation) is
- * founding_expansion_urgency, called here a second time purely as a
- * nonzero gate (not a war flag) for a "(turns since last colony founded)
- * >> 4" decay bonus.
+ * FUN_281f_0614 → FUN_15eb_0142 (decomp 9380-9424): nearest colony of
+ * `nation` (nation < 0 = any) restricted to `continent` (continent < 0 =
+ * any), by the FUN_124c_0040 metric. Returns the colony index, -1 when
+ * none, and writes the winning distance out through `out_dist` (DOS parks
+ * it in DS:0x8db8; 9999 on a miss). DOS's `param_4 == -2` mode (derive the
+ * continent from the probe tile and require colony flag 0x40) has no caller
+ * in this segment and is not modelled.
+ */
+static int ai_goals_nearest_colony_15eb_0142(
+  const ColonizeWorldMap* map,
+  const ColonizeColonyPool* colonies,
+  int x,
+  int y,
+  int nation,
+  int continent,
+  int* out_dist
+) {
+  int best = -1;
+  int best_d = 9999;
+  if (colonies) {
+    for (int i = 0; i < COLONIZE_COLONIES_MAX; ++i) {
+      const ColonizeColony* c = &colonies->colonies[i];
+      if (!c->active) {
+        continue;
+      }
+      if (nation >= 0 && c->nation_id != nation) {
+        continue;
+      }
+      if (continent >= 0) {
+        if (!map || map_continent_id_at(map, c->x, c->y) != continent) {
+          continue;
+        }
+      }
+      int dx = (int)c->x - x;
+      int dy = (int)c->y - y;
+      if (dx < 0) dx = -dx;
+      if (dy < 0) dy = -dy;
+      const int d = (dy < dx) ? (dy >> 1) + dx : (dx >> 1) + dy;
+      if (d <= best_d) { /* DOS uses <=, so the LAST tie wins */
+        best_d = d;
+        best = i;
+      }
+    }
+  }
+  if (out_dist) {
+    *out_dist = best_d;
+  }
+  return best;
+}
+
+/*
+ * FUN_521d_052c — unit_desirability_score. Decomp 87139-87193.
+ *
+ * Two divergences fixed 2026-09-07:
+ *
+ *  1. The distance term. The port took a caller-supplied `home_dist` and
+ *     only spent it when the unit stood exactly on an own colony tile,
+ *     scoring +2 otherwise — so a settler two tiles from home scored the
+ *     same as one on another continent. DOS calls FUN_281f_0614 →
+ *     FUN_15eb_0142(x, y, nation, continent): the *nearest own colony on
+ *     this continent*. Miss (-1) → +2; hit → `DS:0x8db8 / 5 - 1`, and
+ *     DS:0x8db8 is that same call's own output, not an earlier snapshot.
+ *
+ *  2. The type-0 (Colonist) profession term. FUN_281f_0c9a is a far thunk
+ *     to FUN_15eb_0002 (decomp 9298-9307), which returns 0 for profession
+ *     0x13 and 0x19..0x1c and 1 for everything else; 052c then adds -4 on
+ *     nonzero and -2 on zero. The port hardcoded the gate to false, so it
+ *     always took the -2 arm — i.e. the *rarer* one. (ai_euro.c's
+ *     ai_euro_5d04_cb_profession_gate already carries this exact table.)
+ *
+ * Tail term identity confirmed 2026-08-19: thunk_2a1f_0494(nation) is
+ * founding_expansion_urgency, called here a second time purely as a nonzero
+ * gate (not a war flag) for a "(turns since last colony founded) >> 4"
+ * decay bonus.
  */
 int ai_goals_unit_desirability_score(
+  const ColonizeWorldMap* map,
   const ColonizeColonyPool* colonies,
   int nation_id,
   int unit_x,
@@ -788,37 +976,33 @@ int ai_goals_unit_desirability_score(
   int unit_type,
   int unit_profession,
   int continent_id,
-  int dist_to_bound_colony,
   int turn,
   int total_colony_count
 ) {
-  (void)continent_id; /* DOS 0614 continent-gate not replicated — thin exact-tile check only */
   if (nation_id < 0 || nation_id >= 4) {
     return 0;
   }
   const AiNationPlanScratch* p = &s_plan[nation_id];
   int score = 0;
-  if (p->hire_flag != 0) {
-    int owns = -1;
-    if (colonies) {
-      const int idx = colonies_id_at(colonies, unit_x, unit_y);
-      if (idx >= 0 && colonies->colonies[idx].nation_id == nation_id) {
-        owns = idx;
-      }
-    }
-    if (owns < 0) {
+  if (p->colony_count != 0) {
+    int dist = 9999;
+    const int idx = ai_goals_nearest_colony_15eb_0142(
+      map, colonies, unit_x, unit_y, nation_id, continent_id, &dist
+    );
+    if (idx < 0) {
       score = 2;
     } else {
-      score = dist_to_bound_colony / 5 - 1;
+      score = dist / 5 - 1;
     }
   }
   if (unit_type == 2) score += 2;
   if (unit_type == 1) score += -2;
   if (unit_type == 4) score += -3;
   if (unit_type == 0) {
-    /* FUN_281f_0c9a(profession) — PARKED identity, thin false. */
-    const int needs_training = 0;
-    score += needs_training ? -4 : -2;
+    /* FUN_281f_0c9a → FUN_15eb_0002: 0 for {0x13, 0x19..0x1c}, else 1. */
+    const int gate =
+      (unit_profession == 0x13 || (unit_profession >= 0x19 && unit_profession <= 0x1c)) ? 0 : 1;
+    score += gate ? -4 : -2;
     if (unit_profession == 0x1b) {
       score += -0x14;
     }
@@ -847,7 +1031,6 @@ int ai_goals_composite_unit_priority(
   int unit_y,
   int unit_type,
   int unit_profession,
-  int dist_to_bound_colony,
   int turn,
   int total_colony_count
 ) {
@@ -856,8 +1039,8 @@ int ai_goals_composite_unit_priority(
   }
   const int continent = map_continent_id_at(map, unit_x, unit_y);
   const int desirability = ai_goals_unit_desirability_score(
-    colonies, nation_id, unit_x, unit_y, unit_type, unit_profession,
-    continent, dist_to_bound_colony, turn, total_colony_count
+    map, colonies, nation_id, unit_x, unit_y, unit_type, unit_profession,
+    continent, turn, total_colony_count
   );
   const int balance = ai_goals_colony_balance_flags(map, colonies, col1, nation_id, continent);
   const int urgency = ai_goals_founding_expansion_urgency(nation_id, total_colony_count);
@@ -951,21 +1134,70 @@ int ai_goals_filter_profession_by_distance_wealth(
 }
 
 /*
- * FUN_521d_0906 — probe_adjacent_contact_claim. Cite: viceroy_unpacked.c
- * ~87345. Second (DOS DS:0x9ea8) probe and the tribe-owner / armed-cargo
- * defender walk are PARKED (no tile->tribe or tile->unit-stack accessor
- * wired here) — those branches always take their "not found" arm; see
- * ai_goals.h.
+ * DOS layer2 occupancy accessors, resolved 2026-09-07 from the raw 137f
+ * bodies rather than the catalog blurbs:
+ *
+ *   FUN_281f_0682 → FUN_137f_0314 (decomp 6775-6790): in-bounds, layer2 & 1
+ *                   (a unit stands here), then the layer3 owner nibble.
+ *   FUN_281f_06be → FUN_137f_03e4 (decomp 6840-6858): in-bounds, layer2 & 2
+ *                   (a settlement stands here), then the same nibble.
+ *   FUN_281f_06d2 → FUN_137f_0428: 06be, falling back to 0682.
+ *
+ * The port's own MAP_OCCUPANCY_HAS_UNIT/HAS_CITY are 0x01/0x02, matching.
+ * FUN_137f_0200 maps an owner nibble of 0xf to -1.
+ */
+static int ai_goals_tile_layer2_owner(const ColonizeWorldMap* map, int x, int y, unsigned bit) {
+  if (!map || !map->layer2 || !map_coords_inset(map, x, y)) {
+    return -1;
+  }
+  if ((map->layer2[(size_t)y * (size_t)map->width + (size_t)x] & bit) == 0) {
+    return -1;
+  }
+  const int nib = (int)((map_get_layer3(map, x, y) >> 4) & 0x0fu);
+  return nib == 0x0f ? -1 : nib;
+}
+
+/*
+ * FUN_521d_0906 — probe_adjacent_contact_claim. Decomp 87345-87405.
+ *
+ * REWORKED 2026-09-07. The port had the two probes conflated: the primary
+ * probe (`FUN_281f_0682`) was reading the *colony* pool, and the secondary
+ * probe (`FUN_281f_06be`) was hardwired to "nothing found". The raw 137f
+ * bodies say the opposite — 0682 is the **unit-presence** owner (layer2
+ * bit 0) and 06be is the **settlement** owner (layer2 bit 1) — so the port
+ * was answering the settlement question with the unit probe and never
+ * asking the unit question at all.
+ *
+ * Faithful shape now:
+ *   medium = ocean_or_high_seas(x, y)
+ *   for dir in 0..7 while claim < 0:
+ *     if ocean_or_high_seas(n) != medium: skip
+ *     o = 0682(n)                                   // foreign unit adjacent
+ *     if (o >= 0 && o != nation):
+ *        claim = 0896(nation, o, profession, unit_on(n) when o >= 4)
+ *        if (claim >= 0 && medium != 0 && no armed ship in n's stack)
+ *           claim = -1                              // water: armed hull only
+ *     s = 06be(n)                                   // foreign settlement
+ *     if (s >= 0 && s != nation):
+ *        claim = 0896(nation, s, profession, -1)    // DOS assigns claim here
+ *        if (claim < 4 && side < 0) side = claim    // DS:0x9ea8, first only
+ *
+ * Still thin: 0896's tribe arm (owner >= 4) needs the FUN_281f_030c
+ * Indian↔Euro alarm word and the DS:0x54f6 tribe×nation table, both still
+ * PARKED there — with `profession`/has_context 0 at the only call site the
+ * tribe arm returns -1 anyway, so no tribe ever raises a claim.
  */
 int ai_goals_probe_adjacent_contact_claim(
   const ColonizeWorldMap* map,
   const ColonizeColonyPool* colonies,
+  const struct ColonizeUnitPool* units,
   int x,
   int y,
   int nation_id,
   int profession,
   int* out_side_claim
 ) {
+  (void)colonies; /* settlements come off layer2 bit 1, as in DOS */
   int side = -1;
   if (!map) {
     if (out_side_claim) *out_side_claim = side;
@@ -974,7 +1206,7 @@ int ai_goals_probe_adjacent_contact_claim(
   const int origin_water =
     (map_tile_is_water(map, x, y) || map_tile_is_high_seas(map, x, y)) ? 1 : 0;
   int claim = -1;
-  for (int dir = 0; dir < 8; ++dir) {
+  for (int dir = 0; dir < 8 && claim < 0; ++dir) {
     const int nx = x + k_dir8_dx[dir];
     const int ny = y + k_dir8_dy[dir];
     if (!map_coords_inset(map, nx, ny)) {
@@ -985,36 +1217,46 @@ int ai_goals_probe_adjacent_contact_claim(
     if (n_water != origin_water) {
       continue;
     }
-    /* FUN_281f_0682: owner id (0..3 nation, >=4 tribe) — tribe half PARKED. */
-    int owner = -1;
-    if (colonies) {
-      const int idx = colonies_id_at(colonies, nx, ny);
-      if (idx >= 0) {
-        owner = colonies->colonies[idx].nation_id;
-      }
-    }
-    if (claim < 0 && owner >= 0 && owner != nation_id) {
-      /* Tribe (>=4) armed-cargo top-of-stack filter unit index — PARKED. */
-      const int unit_filter = -1;
+    const int owner = ai_goals_tile_layer2_owner(map, nx, ny, MAP_OCCUPANCY_HAS_UNIT);
+    if (owner >= 0 && owner != nation_id) {
+      /* Tribe owners key 0896's wealth lookup off the tile's top unit. */
+      const int unit_filter =
+        (owner >= 4 && units) ? units_id_at(units, nx, ny) : -1;
       claim = ai_goals_filter_profession_by_distance_wealth(
         NULL, 0, nation_id, owner, profession, unit_filter
       );
       if (claim >= 0 && origin_water != 0) {
-        /* Armed-defender walk over the tile's unit stack — PARKED. */
-        const int has_valid_defender = 0;
-        if (!has_valid_defender) {
+        /*
+         * Water arm: DOS walks the tile's stack and keeps the claim only if
+         * some member is a ship type 0x0d..0x12 whose DS:0x5236 combat byte
+         * is nonzero — i.e. an *armed* hull, the same test the FUN_4962_0018
+         * census ship-pressure scan uses (colony.h ..._AI_NEARBY_ARMED_SHIP).
+         */
+        int armed = 0;
+        if (units) {
+          for (int ui = 0; ui < COLONIZE_UNITS_MAX && !armed; ++ui) {
+            const ColonizeUnit* su = units_get_const(units, ui);
+            if (!su || !su->active || su->aboard_ship_id >= 0 || su->x != nx || su->y != ny) {
+              continue;
+            }
+            const ColonizeUnitType* st = units_type(units, su->type_index);
+            if (st && st->domain == COLONIZE_UNIT_DOMAIN_SEA && st->attack > 0) {
+              armed = 1;
+            }
+          }
+        }
+        if (!armed) {
           claim = -1;
         }
       }
     }
-    /* Independent second probe (DOS FUN_281f_06be) — PARKED ownership table. */
-    const int owner_alt = -1;
-    if (owner_alt >= 0 && owner_alt != nation_id) {
-      const int side_claim = ai_goals_filter_profession_by_distance_wealth(
-        NULL, 0, nation_id, owner_alt, profession, -1
+    const int settlement = ai_goals_tile_layer2_owner(map, nx, ny, MAP_OCCUPANCY_HAS_CITY);
+    if (settlement >= 0 && settlement != nation_id) {
+      claim = ai_goals_filter_profession_by_distance_wealth(
+        NULL, 0, nation_id, settlement, profession, -1
       );
-      if (side_claim < 4 && side < 0) {
-        side = side_claim;
+      if (claim < 4 && side < 0) {
+        side = claim;
       }
     }
   }

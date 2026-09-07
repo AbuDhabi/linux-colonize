@@ -2252,6 +2252,15 @@ int main(void) {
               pop.queue_count > 0 ? pop.queue[0].choice_count : -1);
       return fail("expected FF debate CHOICE with ≥2 category candidates");
     }
+    /*
+     * DOS FUN_4345_06d2 builds each option row as
+     * "<@FATHERS name> (<@FOUNDING category> <@MISC 103>)" — the slate is one
+     * candidate per category in category order, so row 0 is always Trade.
+     */
+    if (strstr(pop.queue[0].choices[0], " (Trade Adviser)") == NULL) {
+      fprintf(stderr, "unit_founding_fathers: debate row 0 = '%s'\n", pop.queue[0].choices[0]);
+      return fail("debate row must read '<father> (<category> Adviser)'");
+    }
     const int chosen = pop.queue[0].choice_ids[0];
     pop.has_result = true;
     pop.result_cancelled = false;

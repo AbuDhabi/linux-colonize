@@ -356,6 +356,14 @@ bool ai_popup_move_tag_to_front(AiPopupState* st, AiPopupTag tag);
 
 /* Cancel the OPEN dialog as if Esc was pressed (result_cancelled for a CHOICE). */
 void ai_popup_cancel_current(AiPopupState* st);
+
+/*
+ * Option row (0-based) under a point, or -1 outside the dialog / off the
+ * option list. DOS FUN_6f74_2580 hit-tests the same rows for the right-button
+ * "explain this row" arm (DS:0x1f66 armed → DS:0x1f68 = 1).
+ */
+int ai_popup_choice_row_at(const AiPopupState* st, int mouse_x, int mouse_y);
+
 bool ai_popup_handle_input(AiPopupState* st, const ColonizeInputState* input);
 
 void ai_popup_render(

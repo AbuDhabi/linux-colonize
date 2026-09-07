@@ -35,7 +35,7 @@ Col1 layouts: `ColonizeCol1Tribe` / `ColonizeCol1Indian` — field atlas in
 | `ICONS.SS` **109–112** | Unit blit indices from `@UNIT` icons **110–113** (1-based → 0-based on load) — Braves / Armed / Mtd. Braves / Mtd. Warriors |
 | Minimap | Tribe dots palette **12** ([assets.md](assets.md)) |
 | `REPORT9.PIK` | F9 Indian Adviser |
-| `IND0A0.SS`…`IND7A3.SS` | Shipped 8 nations × 4 alarm tiers (`FUN_15dc_00a2` bands of `alarm_by_player`). **Loaded 2026-08-29** as the chief portrait beside every tribe-addressed contact popup (`ai_popup.c`, `FUN_6f74_0042`); exact DOS placement is D4 |
+| `IND0A0.SS`…`IND7A3.SS` | Shipped 8 nations × 4 alarm tiers (`FUN_15dc_00a2` bands of `alarm_by_player`). **Loaded 2026-08-29** as the chief portrait beside every tribe-addressed contact popup (`ai_popup.c`, `FUN_6f74_0042` — DS:0x1f77 holds the literal `"IND0A0"`, DOS adds the tribe to byte 3 and the quartile to byte 5, so the name is patched in place, never formatted). **Placement made DOS-literal 2026-09-07e** (`FUN_6f74_14c6`, OVL24 `0x17a0..0x189c`): span = `dialog_w + sprite_w + 6` clamped to 320, `span_x = 160 − span_w/2`; sprite LEFT for tribes 0/3/5/7 and the King, RIGHT otherwise; the DOS gutter word starts at **−3** (not 0) and only becomes `span_w − 323` on clamp, so the left arm puts the dialog at `span_x + sprite_w + 6` and the right arm the sprite at `span_x + dialog_w + 3`; sprite top = `100 − (sprite_h + 3)/2`. Sheet dims are the loaded sprite's (DOS `+0x4a/+0x4c` is a runtime field — the `.SS` header carries no bounding box); `KING.SS` and `KING2.SS` are both 79×161, so the port's base/overlay max is a no-op |
 
 Draw order on the main map: colonies → villages → units so stacked units stay
 visible ([assets.md](assets.md)).

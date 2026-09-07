@@ -666,6 +666,26 @@ const char* reports_ff_display_name(int idx) {
   return reports_ff_name(idx);
 }
 
+/*
+ * NAMES.TXT @FOUNDING (the six category words that sit above @FATHERS in the
+ * same file). DOS keeps them as the DS:0x96e8 stride-2 pointer table the
+ * Congress debate builder indexes by @FATHERS type column.
+ */
+static const char* k_ff_category_names[] = {
+  "Trade", "Exploration", "Military", "Political", "Religious", "Independence"
+};
+
+const char* reports_ff_category_display_name(int type) {
+  static char buf[32];
+  const int count = (int)(sizeof(k_ff_category_names) / sizeof(k_ff_category_names[0]));
+  if (type < 0 || type >= count) {
+    return "";
+  }
+  const char* live = reports_names_field("FOUNDING", type, 0);
+  str_copy_trunc(buf, sizeof(buf), live ? live : k_ff_category_names[type]);
+  return buf;
+}
+
 const char* reports_job_display_name(int job) {
   return reports_job_name(job);
 }
@@ -763,19 +783,17 @@ static int reports_colony_rebel_pct(const ColonizeCol1Colony* c) {
   return (int)((c->rebel_dividend * 100u) / c->rebel_divisor);
 }
 
-/* Cross counter (native 320×200 coords; golden religious.png). A real
- * progress bar: full width (needed_crosses, rarely seen — resets on
- * threshold) spans left margin to right margin; current width
- * (current_crosses) is that scaled by current/needed. Crosses pack evenly
- * across the scaled width — the game's standard resource-count template
- * (colony_screen_draw_resource_count), reused here with its own copy since
- * reports.c has no ColonyScreenView. */
-#define REPORTS_CROSS_ICON 56 /* ICONS.SS #56 */
-#define REPORTS_CROSS_X 10
-#define REPORTS_CROSS_Y 27
-#define REPORTS_CROSS_RIGHT_MARGIN 10 /* assumed symmetric with left; never seen at 100% fill */
-#define REPORTS_CROSS_MAX_W (320 - REPORTS_CROSS_X - REPORTS_CROSS_RIGHT_MARGIN)
-#define REPORTS_CROSS_H 11
+/* Cross counter (native 320×200 coords; golden religious.png). The bar box
+ * is always the full 300px: `needed_crosses` sets the step and
+ * `current_crosses` sets how many crosses are actually drawn, so the "fill"
+ * is the length of the drawn run, not a scaled width. Geometry lives in
+ * reports_draw_dos_icon_bar (FUN_1097_0004/0174) — see its header. Corrected
+ * 2026-09-07 (T5.3); the earlier scaled-width spread put the icons at
+ * 10,12,14,16,18,20,… where DOS and the golden have 10,12,14,16,19,21,23,26. */
+#define REPORTS_CROSS_ICON 56 /* ICONS.SS #56 (DOS sprite id 0x39, 1-based) */
+#define REPORTS_CROSS_X 10 /* `3f41:0670` pushes x=10, y=25, w=0x12c */
+#define REPORTS_CROSS_Y 25
+#define REPORTS_CROSS_W 300
 
 static void reports_draw_outlined_number(
   const ColonizeFont* font,
@@ -866,6 +884,147 @@ static void reports_draw_icon_bar(
 }
 
 /*
+ * DOS proportional-fill bar, transcribed from `FUN_1097_0004` (geometry) and
+ * `FUN_1097_0174` (draw loop) — the routine the report plates reach through
+ * the `FUN_281f_0236` thunk (`281f:023b` JMPFs straight at `1097:0174`).
+ *
+ * The shape is *not* "spread `amount` icons over a proportionally shortened
+ * width", which is what `reports_draw_icon_bar` above does. DOS always lays
+ * the bar out across the full `w`, derives its step from the **denominator**
+ * (`denom` = what a full bar would hold) and then draws only `amount` icons,
+ * so the fill is a run length, not a scaled width:
+ *
+ *   iw    = sprite width                       (`+2` when flags&2; unused here)
+ *   step  = clamp((w - iw) / (denom - 1), 1, iw + 1)      (1 when denom < 2)
+ *   span  = (denom - 1) * step
+ *   shift = smallest s with (span >> s) <= w - iw   ("halve until it fits")
+ *   rem   = w - ((span >> shift) + iw)
+ *   count = amount >> shift,  den = denom >> shift
+ *   per icon: blit at (x, y+1); x += step; acc += rem; while (acc >= den)
+ *             { acc -= den; ++x; }                        (Bresenham remainder)
+ *
+ * With a four-digit denominator (Congress liberty bells, need 1849) `step`
+ * collapses to 1 and `shift` reaches 3, so DOS draws 141 bells at a 1–2px
+ * pitch. Every bell whose neighbour lands 1px away is completely painted
+ * over; only the ~36 that get a 2px gap survive, and of those all that shows
+ * is the 2px left edge — the "thin bell mark" on `continental_p1.png` is
+ * ICONS.SS #62 clipped by its own neighbour, not a separate 2×7 glyph.
+ *
+ * Verified call sites (`viceroy_unpacked.asm`, DOS sprite ids are 1-based
+ * over ICONS.SS so 0x39 -> #56 and 0x3f -> #62):
+ *   F2 crosses  `3f41:0670` — x=10, y=25, w=300, min_w=0, split=0, flags=1,
+ *               sprite 0x39, BX = nation+0x2e (current), DX = +0x30 (needed)
+ *   F3 bells    `3f41:0890` — x=4, y=25+font_h+2, w=300, min_w=0, split=0,
+ *               flags=1, sprite 0x3f, BX = min(pool, need), DX = need
+ * Both pass min_w = 0 (so no `x += rem/2` centring) and split = 0 (so the
+ * second, hardcoded-sprite-0x38 overlay pass in `1097:0228` never fires);
+ * neither is implemented here for want of a call site to check it against.
+ *
+ * `flags & 1` (the Bresenham remainder) is set at both sites. The number
+ * overlay follows `1097:028e`: DOS shows it when its global numbers toggle
+ * (DS:0x70) is on *or* when `step == 1 && amount > 1` — the "icons fused
+ * into an unreadable smear" override. DS:0x70 is a colony-screen toggle the
+ * report plates do not carry, so only the override is reproduced: it is what
+ * puts "1135" on the golden bells bar and leaves the golden crosses bar
+ * (step 2) bare.
+ */
+static void reports_draw_dos_icon_bar(
+  const ColonizeReportsView* view,
+  const ColonizeFont* font,
+  ColonizeFramebuffer8* fb,
+  int icon,
+  int x,
+  int y,
+  int w,
+  int min_w,
+  int amount,
+  int denom
+) {
+  /* FUN_1097_0004 bails on a zero count or zero denominator. */
+  if (!view || !view->icons_ok || !fb || amount <= 0 || denom <= 0 || w <= 0) {
+    return;
+  }
+  if (icon < 0 || icon >= view->icons.sprite_count) {
+    return;
+  }
+  const ColonizeSprite* sp = &view->icons.sprites[icon];
+  if (!sp->pixels || sp->width <= 0 || sp->height <= 0) {
+    return;
+  }
+  const int iw = sp->width;
+  const int avail = w - iw;
+  if (avail < 0) {
+    return;
+  }
+  int step = 1;
+  if (denom > 1) {
+    step = avail / (denom - 1);
+    if (step > iw + 1) {
+      step = iw + 1;
+    }
+    if (step < 1) {
+      step = 1;
+    }
+  }
+  const int span = (denom - 1) * step;
+  int shift = 0;
+  while (shift < 15 && (span >> shift) > avail) {
+    ++shift;
+  }
+  const int total = (span >> shift) + iw;
+  const int rem = ((min_w - 1) > total ? min_w : w) - total;
+  int px = x;
+  if (min_w != 0) {
+    px += rem >> 1;
+  }
+  const int start_x = px;
+  const int count = amount >> shift;
+  const int den = denom >> shift;
+  int acc = 0;
+  for (int i = 0; i < count; ++i) {
+    ss_blit_sprite(&view->icons, icon, fb, px, y + 1);
+    px += step;
+    if (den > 0) {
+      acc += rem;
+      while (acc >= den) {
+        acc -= den;
+        ++px;
+      }
+    }
+  }
+  if (font && fb->pixels && step == 1 && amount > 1) {
+    /*
+     * `1097:02ab`: FUN_1097_00de(amount, start_x + 2, y, 15, 1). That helper
+     * bumps its y by 2 on entry (`1097:00eb`), then — because the flag
+     * argument is 1 — paints a plate of (text_width + 1) x 7 at (x, y + 2)
+     * (`1097:011e`, BX = width - 1 + 2, colour arg 0) and finally draws the
+     * glyphs one pixel further down-right (`1097:0160`: AX = x + 1,
+     * DX = y + 1). So: plate at (start_x + 2, y + 2), text at
+     * (start_x + 3, y + 3). Golden-confirmed against the "1135" on
+     * continental_p1.png (white ink from x=8, rows 36..40, over a black
+     * plate spanning rows 35..41, for a bar at x=4, y=33).
+     */
+    char num[12];
+    snprintf(num, sizeof(num), "%d", amount);
+    const int tw = font_text_width(font, num);
+    const int plate_x = start_x + 2;
+    const int plate_y = y + 2;
+    for (int yy = plate_y; yy < plate_y + 7; ++yy) {
+      if (yy < 0 || yy >= fb->height) {
+        continue;
+      }
+      for (int xx = plate_x; xx < plate_x + tw + 1; ++xx) {
+        if (xx < 0 || xx >= fb->width) {
+          continue;
+        }
+        fb->pixels[yy * fb->width + xx] = 0;
+      }
+    }
+    font_draw_text(font, fb, plate_x + 1, plate_y + 1, num, 15);
+  }
+}
+
+/*
  * Two-icon variant (golden: continental_p1.png rebel/tory bar — flags then
  * crowns, back to back, stretched evenly across the shared width; no gap by
  * construction). Mirrors colony_screen_draw_resource_count_pair.
@@ -937,13 +1096,12 @@ static void reports_render_religious(
   if (needed == 0) {
     return;
   }
-  int w = (int)(((uint32_t)REPORTS_CROSS_MAX_W * current) / needed);
-  if (w > REPORTS_CROSS_MAX_W) {
-    w = REPORTS_CROSS_MAX_W;
-  }
-  reports_draw_icon_bar(
-    view, font, fb, REPORTS_CROSS_ICON, REPORTS_CROSS_X, REPORTS_CROSS_Y, w, REPORTS_CROSS_H,
-    (int)current, false, 0
+  /* `3f41:0670`: BX = nation+0x2e (current), DX = nation+0x30 (needed),
+   * sprite 0x39 (= ICONS.SS #56), pushed args x=10, y=25, w=0x12c, min_w=0,
+   * split=0, flags=1. Same routine as the Congress bells bar. */
+  reports_draw_dos_icon_bar(
+    view, font, fb, REPORTS_CROSS_ICON, REPORTS_CROSS_X, REPORTS_CROSS_Y, REPORTS_CROSS_W, 0,
+    (int)current, (int)needed
   );
 }
 
@@ -994,14 +1152,12 @@ static const ColonizeSpriteSheet* reports_ff_portrait_sheet(const char* data_dir
 #define REPORTS_CONGRESS_ICON_ARTILLERY 9 /* @UNIT Artillery icon 10 */
 #define REPORTS_CONGRESS_ICON_MANOWAR 127 /* @UNIT Man-O-War icon 128 */
 
-#define REPORTS_CONGRESS_TEXT1_Y 25 /* "Next Continental Congress Session: (...)" */
-#define REPORTS_CONGRESS_BELLS_X 6
-#define REPORTS_CONGRESS_BELLS_Y 36
-#define REPORTS_CONGRESS_BELLS_RIGHT_MARGIN 20 /* measured; pool rarely reaches need, like crosses */
-#define REPORTS_CONGRESS_BELLS_MAX_W (320 - REPORTS_CONGRESS_BELLS_X - REPORTS_CONGRESS_BELLS_RIGHT_MARGIN)
-#define REPORTS_CONGRESS_BELLS_H 10
-/* Measured off continental_p1.png: one bell per 5px of filled bar. */
-#define REPORTS_CONGRESS_BELLS_PITCH 5
+#define REPORTS_CONGRESS_TEXT1_Y 25 /* "Next Continental Congress Session: (...)" — DOS local_5c init */
+/* `3f41:0890`: x = local_58 (initialised to 4 at 3f41:0709), w = 0x12c,
+ * min_w = 0; the bar's y is the header line's y advanced by one text row
+ * (`ADD local_5c, font_height + 2`) right before the call. */
+#define REPORTS_CONGRESS_BELLS_X 4
+#define REPORTS_CONGRESS_BELLS_W 300
 
 #define REPORTS_CONGRESS_TEXT2_Y 59 /* "Rebel Sentiment: XX%  Tory Sentiment: YY%" */
 #define REPORTS_CONGRESS_SENT_X 4
@@ -1087,32 +1243,27 @@ static void reports_render_congress_page1(
     const unsigned pool = founding_fathers_bells_since_last_elect(human);
     const unsigned need = founding_fathers_bells_needed(col1, human);
     if (need > 0 && pool > 0) {
-      int w = (int)(((uint32_t)REPORTS_CONGRESS_BELLS_MAX_W * pool) / need);
-      if (w > REPORTS_CONGRESS_BELLS_MAX_W) {
-        w = REPORTS_CONGRESS_BELLS_MAX_W;
-      }
-      if (w < 1) {
-        w = 1; /* pool>0 must still show something (at least the number overlay) */
-      }
       /*
-       * The bells "amount" is a raw pool (four digits), not a unit count, so
-       * it is not the icon count: continental_p1.png (pool 1135, need 1849 →
-       * w = 180) puts bell clappers at x = 24, 29, 34 … 177, 181, i.e. 36
-       * bells at a ~4.86px pitch = one per REPORTS_CONGRESS_BELLS_PITCH of
-       * bar. Spreading all 1135 filled the bar solid black instead.
+       * `3f41:07c8`..`3f41:08a4`: DX = the next-FF threshold
+       * (`FUN_4345_0982`), BX = min(pool, threshold) — DOS clamps the drawn
+       * count so an over-full pool cannot run past the bar. The bar itself is
+       * always the full 300px and its step comes from the threshold, so the
+       * fill is the length of the drawn run. On continental_p1.png (pool
+       * 1135, need 1849) that is step 1 / shift 3 / 141 bells from x=4 to
+       * x=179 — of which the 36 that get a 2px gap show their 2px left edge.
        */
-      reports_draw_icon_bar(
+      const unsigned drawn = pool < need ? pool : need;
+      reports_draw_dos_icon_bar(
         view,
         font,
         fb,
         REPORTS_CONGRESS_BELL_ICON,
         REPORTS_CONGRESS_BELLS_X,
-        REPORTS_CONGRESS_BELLS_Y,
-        w,
-        REPORTS_CONGRESS_BELLS_H,
-        (int)pool,
-        true /* golden always shows the pool number, e.g. "1135" */,
-        w / REPORTS_CONGRESS_BELLS_PITCH
+        REPORTS_CONGRESS_TEXT1_Y + step,
+        REPORTS_CONGRESS_BELLS_W,
+        0 /* min_w: no centring */,
+        (int)drawn,
+        (int)need
       );
     }
   }
@@ -3186,9 +3337,14 @@ static void reports_render_foreign(
  */
 #define REPORTS_INDIAN_ROW0_Y 28 /* first tribe name line (golden: indian.png text-color scan) */
 #define REPORTS_INDIAN_ROW_STEP 21
-#define REPORTS_INDIAN_ICON_X 8
-#define REPORTS_INDIAN_ICON_DY (-2) /* icon top = name_y + this */
-#define REPORTS_INDIAN_ICON_SPRITE 113 /* ICONS.SS headband portrait, 16x16 — see comment above */
+/* Icon box, fitted against indian.png by palette-consistency search over
+ * (sprite, x, y): x=10, first row top y=25 is the unique zero-violation fit
+ * (x=11 scores 120+), i.e. icon top = name_y - 3. */
+#define REPORTS_INDIAN_ICON_X 10
+#define REPORTS_INDIAN_ICON_DY (-3) /* icon top = name_y + this */
+/* Calm face; +quartile picks #114..#116 as alarm rises (see the ramp note in
+ * reports_collect_indian_rows). */
+#define REPORTS_INDIAN_ICON_SPRITE 113
 #define REPORTS_INDIAN_NAME_X 30
 #define REPORTS_INDIAN_STATS_DY 9 /* stats line y = name_y + this (FONTINTR name row is 9px) */
 #define REPORTS_INDIAN_VILLAGES_X 40
@@ -3278,11 +3434,23 @@ static int reports_indian_build_rows(
     r->muskets = ((int)ind->muskets + armed_units) * REPORTS_INDIAN_MUSKET_UNIT_SCALE;
     r->horse_herds = ind->horse_herds;
     /*
-     * Chief flair vs alarm (bugs.md), decoded from the raw asm (OVL06
-     * 053d..05d2): sprite = 0x72 (114) + quartile of the Indian↔Euro
-     * alarm word at cuts 25/50/75 (FUN_281f_0a60), forced to the top tier
-     * when the record's +3 bit 0x80 (hostile latch) is set. The earlier
-     * hardcoded #113 was the sixth, unused-by-this-formula portrait.
+     * Chief face vs alarm, decoded from the raw asm (`3f41:0522`..`3f41:05d2`):
+     * `FUN_281f_0254` is handed AX = quartile + 0x72, where the quartile is
+     * `FUN_281f_0a60`(= `FUN_15dc_00a2`, cuts at 25/50/75) over
+     * `FUN_281f_030c` = the Indian->Euro alarm word toward the *viewing*
+     * nation, forced to the top tier when the record's +3 bit 0x80
+     * (`extinct`) is set. The five portraits #113..#117 differ only in the
+     * mouth (colour 136 spreading from a flat line to a full grin), so they
+     * are one expression ramp, not five tribes.
+     *
+     * 0x72 is a DOS sprite id and those are 1-based over ICONS.SS — the same
+     * +1 that makes the F2 crosses bar's 0x39 sheet index #56 and the F3
+     * bells bar's 0x3f index #62, both re-confirmed pixel-exact against
+     * religious.png / continental_p1.png in this pass. So the sheet index is
+     * 113 + quartile, and #113 (not #114) is the calm face: indian.png's two
+     * rows are Arawak and Cherokee, both `alarm_by_player[3] == 0` in
+     * dutch-reports.SAV, and both fit sprite #113 exactly (0 palette
+     * violations over 226 opaque pixels; #114 scores 2, #117 scores 12).
      */
     {
       const int alarm = ai_diplo_indian_alarm(col1, nation_id, human);
@@ -3290,7 +3458,7 @@ static int reports_indian_build_rows(
       if (ind->extinct) {
         q = 3; /* [0x8d4e+3] & 0x80 forces the top tier */
       }
-      r->icon_sprite = 114 + q;
+      r->icon_sprite = REPORTS_INDIAN_ICON_SPRITE + q;
     }
   }
   return n;

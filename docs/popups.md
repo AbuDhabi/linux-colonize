@@ -162,6 +162,50 @@ custom-house/dock-orders titles, plus the pre-existing brace-aware paths
 via `popup_msg_strip_markup` (window-title status via `game_status_text`,
 `colony_screen_set_status`, ai_contact/ai_diplo/ai_euro status lines).
 
+### Wood frame recipe — audited against `FUN_6f74_2278` (2026-09-07)
+
+The dialog frame is **not** ornate art: it is four drawn layers plus a tiled
+brush, and `popup.c`'s `popup_draw` already reproduces all of it. `FUN_6f74_2278`
+(6f74:2278, called from `FUN_6f74_248e` via `thunk_FUN_2a1f_0710` with the box's
+own `+0x10/+0x12/+0x14/+0x16`) emits, for rect `(x, y, w, h)`:
+
+| # | Run | Colour |
+|---|-----|--------|
+| 1 | outline `(x, y)`–`(x+w-1, y+h-1)` | `0` black |
+| 2 | outline `(x+1, y+1)`–`(x+w-2, y+h-2)` | `DS:0x1f44` = @COLORS **border0** (134) |
+| 3 | vline `x+2`, `y+2`..`y+h-3` | `DS:0x1f48` = **border2** (138, dark) |
+| 4 | vline `x+w-3`, same rows | `DS:0x1f46` = **border1** (128, light) |
+| 5 | hline `y+2`, `x+2`..`x+w-3` | border1 |
+| 6 | hline `y+h-3`, same span | border2 |
+| 7 | fill `(x+3, y+3, w-6, h-6)` | brush `DS:0x1f3c/0x1f3e` |
+
+**Trap — the bevel corners are decided by order, not by rule.** The two
+verticals go down first and the horizontals paint over them, so the shared
+top-left pixel is *light* and the bottom-right *dark*. The port drew
+top/right/bottom/left and got the top-left corner dark; fixed 2026-09-07.
+
+`DS:0x1f44/46/48` are copied from the NAMES.TXT `@COLORS` bytes at
+`DS:0x837/0x838/0x839` by `FUN_75c2_0204` — the same border0/1/2 the port
+already uses. `FUN_75c2_024c` is the title-menu variant (mid `0x2e`, border1
+`0xfd`, border2 `0x37`, literal indices, no `@COLORS` read).
+
+The brush is real wood, not a dither. Layer 7 goes through `FUN_6f74_033c`
+(Ghidra mislabels the wrapped near call as `FUN_7b29_47ec`): when the colour
+argument is `7` *and* `DS:0x1f6c` is set it tiles the 32×24 bitmap that
+pointer names, else it is a solid `FUN_281f_00ba` rect. `FUN_75c2_0204` builds
+that bitmap from **WOODTILE.SS sprite 1** (1-based → the port's sprite 0; the
+sheet holds exactly one 32×24 sprite) and points `DS:0x1f6c` at it; the
+title-menu set points at the OPENTILE.SS copy, and `DS:0x82e` holds a third
+built from PARCH.SS. Brush phase is anchored on the box origin, which is what
+`popup_tile_rect` tiling from `(x, y)` reproduces. `TEXTCOLR.TXT`, the only
+other writer of `DS:0x1f3c/0x1f3e`, does not ship — those slots keep their EXE
+defaults, which is why the `7` arm always wins.
+
+Box flag `0x10` (armed by `FUN_6f74_37f6`, `DS:0x1f56 |= 0x18`) drops layers
+1–6 **and** the 3px inset, so the fill covers the whole rect. The King audience
+`FUN_75c2_20e2` arms it — its `@KINGLOSE`/`@KINGWIN` text is frameless over the
+throne art, which `new_game_render_throne_audience` already matches.
+
 ### Popup decorations (MSS/MYR/IND/KING sheets) — shipped 2026-08-31
 
 DOS decorates many popups with a figure sprite. Three latches, all cleared
@@ -185,6 +229,13 @@ the sprite stands **above** the dialog, bottom overlapping the dialog top by
 1 = centred, 2 = right edge; the pair is centred vertically as a unit, and the
 sprite is dropped when the combined height reaches 200 (compositor
 `viceroy_unpacked.c:116068`).
+
+Draw order matters and depends on which latch is set. `FUN_6f74_248e`
+(`viceroy_unpacked.c:116519`) calls the sprite blit `thunk_FUN_2a1f_0ab6`
+(→ `FUN_6f74_1ae8`) **before** the frame when `DS:0x1f5c >= 0` and **after**
+everything when `DS:0x1f5c < 0`: a chief/King portrait sits *under* the wood,
+an MSS/MYR figure *over* it. Fixed in `ai_popup_render` 2026-09-07 (both used
+to blit after the frame).
 
 Port wiring: the (tag → index) pairs were lifted from every constant
 `FUN_281f_0652` PUSH pair in the VICEROY.EXE asm and keyed by section name in
