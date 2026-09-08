@@ -130,6 +130,37 @@ static void combat_analysis_fill_mods(
     return;
   }
 
+  /*
+   * DOS 636c bit 0x400 (asm 636c:01d4-0288) is the FIRST modifier row, ahead
+   * of Veteran: FUN_281f_0254 blits ICONS.SS sprite 0x26 (the literal AX the
+   * asm loads — DOS's 1-based icon space, so 37 here, the @CARGO 15 Muskets
+   * icon, ICONS.SS #22-37 = @CARGO0-15), bumps the label pen by 8, then
+   * labels the row from the pointer at DS:0x97de — the same global the Indian
+   * Adviser (FUN_3f41_010a, asm 3f41:...ff36de97) prints its Muskets tally
+   * with, i.e. NAMES.TXT @CARGO 15 "Muskets".
+   *
+   * The value is 0146 (sign) + 0182 (number 1) and, uniquely on this row, NO
+   * 010a percent suffix — so DOS prints a bare "+1", an additive point of
+   * base combat, not a percentage.
+   *
+   * Trigger (DOS FUN_5fef_1b0e, asm 5fef:1d2f-1d5f): the defender of an
+   * undefended colony is auto-spawned; if the colony's nation has Founding
+   * Father 12 (Paul Revere, FUN_281f_07b4 → FUN_15eb_3960(nation, 0xc)) and
+   * the colony's Muskets stock (colony record +0xb8 = stock[15]) is >= 0x32
+   * (50), DOS swaps the defender graphic to 0x4b, does INC on the base combat
+   * byte and sets 0x8d03 bit 2 = flags bit 0x400. The port models Revere by
+   * ejecting a real Soldier instead (founding_fathers_revere_auto_arm), so
+   * nothing sets this bit yet — see docs/combat.md, trigger left open.
+   */
+  if (flags->flags & COMBAT_FLAG_MUSKETS) {
+    combat_analysis_push_row_icon(
+      rows, count, "Muskets", 1, COMBAT_ROW_ICON_UNIT, COMBAT_ANALYSIS_MUSKETS_ICON, -1, 8
+    );
+    if (*count > 0) {
+      /* Bare "+1": this row has no FUN_281f_010a, so no trailing '%'. */
+      snprintf(rows[*count - 1].value, sizeof(rows[*count - 1].value), "%+d", 1);
+    }
+  }
   if (flags->flags & COMBAT_FLAG_VETERAN) {
     combat_analysis_push_row(rows, count, "Veteran", 50);
   }
@@ -165,10 +196,18 @@ static void combat_analysis_fill_mods(
       rows, count, "Bombard", 50, COMBAT_ROW_ICON_UNIT, flags->bombard_icon, -1, 0x10
     );
   }
+  /*
+   * WoI popular-support rows. DOS 636c reads DS:0x2ec2 (a156 bit 1, asm
+   * 636c:0f56) and DS:0x2ec4 (a156 bit 2, asm 636c:0ff0); by the LABELS
+   * pointer-table base 0x2d9c (addr = 0x2d9c + 2*line, anchored on 0x2e52 =
+   * line 91 "Fatigue" and 0x2e8a = line 119 "Bombard") those are LABELS.TXT
+   * lines 147 / 148 = "Tory Unrest" / "Rebel Unrest". The port used to print
+   * "Tories" / "Rebels" (lines 101 / 102), which 636c never reads.
+   */
   if (flags->flags2 & COMBAT_FLAG_TORIES) {
-    combat_analysis_push_row(rows, count, "Tories", flags->sol_percent);
+    combat_analysis_push_row(rows, count, "Tory Unrest", flags->sol_percent);
   } else if (flags->flags2 & COMBAT_FLAG_REBELS) {
-    combat_analysis_push_row(rows, count, "Rebels", flags->sol_percent);
+    combat_analysis_push_row(rows, count, "Rebel Unrest", flags->sol_percent);
   }
   /*
    * DOS 0x2e56/0x2e58: attacker terrain line reads "Ambush", defender

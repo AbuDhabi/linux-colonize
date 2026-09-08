@@ -142,7 +142,7 @@ static int unit_second_wave(void) {
 
   const int max_turns = 24;
   for (int t = 0; t < max_turns; ++t) {
-    units_end_turn(&units);
+    turn_refresh_moves_for_nation(&units, nation, NULL, &map, &colonies, NULL, NULL);
     ai_euro_dispatcher_turn(&ctx, nation);
     if (count_nation_colonies(&colonies, nation) >= 2) {
       break;

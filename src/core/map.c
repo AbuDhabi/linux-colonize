@@ -1171,10 +1171,6 @@ uint8_t map_terrain_overlay(uint8_t terrain_byte) {
   return (uint8_t)(terrain_byte >> 5);
 }
 
-int map_terrain_base_sprite(uint8_t terrain_byte) {
-  return map_terrain_index_to_sprite(map_decode_terrain_index(terrain_byte));
-}
-
 int map_terrain_sprite_at(const ColonizeWorldMap* map, int x, int y) {
   if (!map) {
     return 0;
@@ -1557,22 +1553,6 @@ void map_phys0_overlay_offset_at(
   }
 }
 
-int map_phys0_overlay_sprite(const ColonizeWorldMap* map, int x, int y) {
-  return map_phys0_overlay_sprite_at(map, x, y, 0);
-}
-
-int map_phys0_forest_sprite(const ColonizeWorldMap* map, int x, int y) {
-  return map_phys0_forest_sprite_at(map, x, y);
-}
-
-int map_phys0_feature_sprite(const ColonizeWorldMap* map, int x, int y) {
-  return map_phys0_overlay_sprite(map, x, y);
-}
-
-int map_terrain_sprite(uint8_t terrain_byte) {
-  return map_terrain_base_sprite(terrain_byte);
-}
-
 bool map_tile_has_rumour(const ColonizeWorldMap* map, int x, int y) {
   return map_has_rumour_at(map, x, y);
 }
@@ -1752,11 +1732,6 @@ int map_phys0_road_layer_sprite_at(const ColonizeWorldMap* map, int x, int y, in
     k++;
   }
   return -1;
-}
-
-/* First road layer (isolated 80 or first directional stub); prefer layer API. */
-int map_phys0_road_sprite_at(const ColonizeWorldMap* map, int x, int y) {
-  return map_phys0_road_layer_sprite_at(map, x, y, 0);
 }
 
 void map_tile_set_road(ColonizeWorldMap* map, int x, int y, bool on) {

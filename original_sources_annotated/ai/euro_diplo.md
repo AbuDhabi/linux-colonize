@@ -371,14 +371,59 @@ and 11 went with them. The rest of the list is current.
   combat) documented as real Privateer cargo path; 8g treasury prize **PARKED
   null-units only**; defensive smoke: Privateer commission INFO OK enqueue
   (status string already smoked). **No further thin diplo unpark.**
-## FA negotiation screen — one unified mechanic, structure confirmed, function not yet found
+## FA negotiation screen — RESOLVED 2026-09-06/09-08, it is `FUN_5bfb_153e`
 
-**2026-08-14, real gap identified via the "ask the user" method**
-(`decomp_inventory.md`): `docs/popups.md` carried a whole cluster of
+> **Resolution note (2026-09-08).** This section was written 2026-08-14 from
+> user testimony, when the owning DOS function was unknown and the working
+> hypothesis was "somewhere in the never-recovered `3f41` segment". Both
+> halves of that hypothesis are wrong and the section is superseded:
+>
+> - The negotiation screen is **`FUN_5bfb_153e`** (`viceroy_unpacked.c`
+>   :97321-98432) — every one of the ~17 entry tags is pushed from inside
+>   that one function. Full transcription:
+>   [`euro_diplo_153e_full.md`](euro_diplo_153e_full.md); ported 2026-09-06
+>   as the `ai_diplo.c` `ai_diplo_153e_encounter` talk machine.
+> - **`3f41` is the F2-F9 adviser-report overlay**, not diplomacy, and it was
+>   never "unrecovered" (`docs/reports.md` names 14 of its 18 functions;
+>   `src/core/reports.c` is the live port). The only `GAME.TXT` tag pushed
+>   anywhere in that segment is `@FOREIGNNOTAVAIL`. See
+>   [`fa_3f41_recon.md`](fa_3f41_recon.md) for the per-function table.
+>
+> Per-tag status (see `fa_3f41_recon.md` for the raw line of each site):
+> `@HELLO*`, `@APOSTATES`, `@HEATHEN`, `@PIRACY`, `@SIEGES`, `@TRIBUTE`,
+> `@WANTSTUFF`, `@PROVOKE`, `@WORTHY`, `@PEACE*`, `@OLDPEACE*`, `@GIVECASH`,
+> `@WAR*`, `@NOTHINGWITHDRAW`, `@MAYBEWITHDRAW`, `@NOTWITHDRAW`,
+> `@WITHDRAW`, `@THREATS`, `@GIFTS`, `@NOCONTACT`, `@ALREADYSMITE`,
+> `@SMITEINDIANS`, `@SMITEEUROPE`, `@UNFORTUNATE`, `@MERCENARY` — **Done**
+> in the 153e port. `@RID`/`@RIDUSA` and the post-tribute `@WARMANLY`
+> (the two remaining legs of the worthy cascade, raw :97954-97982) —
+> **ported 2026-09-08**, see `ai_diplo.c` `AI_TALK_ST_WORTHY`. The `…USA`
+> text variants remain the one deliberate delta (`iStack_9c`,
+> nation flags `-0x77f8 & 4`; unreachable in the port because 153e bails on
+> `head.game_options.woi`).
+>
+> Corrections to the testimony below, from the code:
+> - The MEEK/MANLY tone is **not** a mirror of the peace-offer tone and not a
+>   roll: it is one flag, `iVar6` = "this AI rates itself worthy/strong
+>   enough to threaten you", re-read at every site (raw :97587, port
+>   `k->manly = w.worthy`). One exception found 2026-09-08: showing the
+>   `@GIVECASH` offer overwrites the shared tone buffer with `MEEK`
+>   (raw :98017), so the refusal after an offer is always `@WARMEEK`.
+> - `@PROVOKE` is **not** an independent accumulated-hostility trigger: it is
+>   the first leg of the same in-dialog worthy cascade
+>   (`worthy && at_peace && score >= 0x65`).
+> - `@RID` carries no choices because DOS shows it as a plain OK popup that
+>   changes no relation bit; `%STRING1` is the **target's**
+>   `player.country_name` (`target*0x34 + 0x5426`), not a colony name.
+>
+> Everything below is kept as source material — it is user testimony about
+> observed behaviour, and it matched the code closely.
+
+**2026-08-14, user testimony** (`decomp_inventory.md`, "ask the user"
+method): `docs/popups.md` carried a whole cluster of
 `GAME.TXT` tags as generic "Partial — thin `DIPLO_FA` or status; full
-`3f41` PARKED" boilerplate — but they're **completely unwired**
-(confirmed: zero references anywhere in `src/core/*.c`, not even a thin
-stand-in), not actually implemented at all. Two rounds of asking the user
+`3f41` PARKED" boilerplate — and at the time they were indeed unwired.
+Two rounds of asking the user
 directly revealed this is **one single negotiation screen with multiple
 entry points**, not several separate mechanics — every offer variant
 below is followed by the *same* 4-option response menu ("Go in peace,
@@ -401,8 +446,8 @@ the player initiated contact or the AI did. So this is genuinely one
 coherent encounter-resolution system with many possible opening prompts,
 not several independent mechanics.
 
-**Entry points (the initial offer / situation) — all confirmed unwired,
-zero references anywhere in `src/core/*.c`:**
+**Entry points (the initial offer / situation) — all live in `FUN_5bfb_153e`
+and all ported; the "unwired" note below was true only in 2026-08:**
 - `@HELLOFIRST`/`@HELLOUSA`/`@HELLOAHOY` (sea variant) — first contact
   with another European power (land or sea).
 - `@HELLOMEEK`/`@HELLOMANLY` — subsequent-contact greeting variants
@@ -439,11 +484,11 @@ zero references anywhere in `src/core/*.c`:**
 - `@WANTSTUFF`/`@WANTSTUFFUSA` — same threat-and-overlook shape as
   `@TRIBUTE`, demanding specific goods instead of gold. "We laugh at your
   puny threats." / "We gladly share {N goods}..."
-- `@RID`/`@RIDUSA` — a blunt ultimatum, "leave {colony}/this hemisphere
+- `@RID`/`@RIDUSA` — a blunt ultimatum, "leave {%STRING1}/this hemisphere
   immediately... or we shall drive you into the sea" — no response
-  options shown in `GAME.TXT` at this tag itself; most likely a
-  standalone warning that (like the others) falls through to the shared
-  negotiation menu rather than carrying its own choice.
+  options shown in `GAME.TXT` at this tag itself. *Confirmed 2026-09-08*:
+  it is a plain OK popup and it does fall through to the shared menu;
+  `%STRING1` is the **target's** `player.country_name`, not a colony.
 - Adjacent-military "Demand Withdrawal" — the player-initiated direction,
   confirmed by the user, below.
 
@@ -464,9 +509,11 @@ withdraw. Four outcomes** (user-confirmed, decisive):
    (→ same result as Refuse, "Withdraw or perish, heathen pigs!"/"Oh.
    Never mind then.").
 
-**War-declare outcomes from the shared response menu** (user-confirmed
-for the trigger; the tone-pairing below is my own reasoned-but-unconfirmed
-reading, not independently verified): picking "How much do you value your
+**War-declare outcomes from the shared response menu** (user-confirmed for
+the trigger. The tone-pairing reading below was **refuted** 2026-09-08: the
+tone is the one `worthy` flag, and `@PROVOKE` is the first leg of the same
+in-dialog cascade, not an independent accumulated-hostility trigger — see
+the resolution note at the top of this section): picking "How much do you value your
 worthless lives, heathen swine?" — a threat, not a plain decline — after
 being offered peace triggers a war declaration. User confirms
 `@WARMEEK`/`@WARMANLY` fire in exactly this circumstance ("the other Euro
@@ -485,42 +532,25 @@ direct response to a specific dialog choice; user recalls the tag but not
 precisely when it fires, consistent with this reading (an AI-initiated,
 not player-choice-triggered, declaration).
 
-**Real gap, genuinely not a quick fix, and bigger than it first looked**:
-this is not one small mechanic but a whole unimplemented "AI diplomatic
-pressure events" system — at least 17 distinct entry-point tags (first
-contact, peace offers/greetings at two tone levels, privateer/military
-withdrawal demands in both directions, joint-attack-a-tribe requests,
-treaty-cancellation demands, gold/goods tribute-or-be-driven-out threats,
-a bare ultimatum, and a territory-partition proposal), all funneling into
-one shared response menu, all still zero-referenced anywhere in Linux.
-The underlying DOS function(s) are unknown. Not part of
-`FUN_5bfb_3180`'s already-mapped already-met-adjacency dispatch
-(`euro_diplo_3180_full.md` — checked, no "withdraw"/"demobiliz"/"peace"
-hits), and most likely part of the Foreign Affairs advisor screen
-(`FA`/`3f41` segment, per `docs/popups.md`'s own citation) — a segment
-this project has **never recovered a single function from** (`grep` for
-`FUN_3f41_` in the canonical decompile: zero hits), unlike everything
-else touched this session. Finding it would mean the same from-scratch
-overlay-recovery investment as `153e` or `0a60` originally needed, likely
-larger given the number of distinct branches — not a quick lookup.
-Every formula involved (bribe/tribute amounts, "demobilization cost",
-which specific event fires when, the peace-tone selector, the
-war-declare dispatch) is completely unknown; no candidate function
-traced for any of it.
+**Where it actually lives (2026-09-06/09-08, superseding the two "unknown
+function" paragraphs that stood here).** The whole system — all ~17 entry
+tags, the shared response menu, the bribe/tribute amount, the
+"demobilization cost", the tone selector and the war-declare dispatch — is
+`FUN_5bfb_153e`, reached from `FUN_5bfb_3180`'s adjacency dispatch (which
+this doc had already mapped; the negotiation is the *callee*, which is why
+grepping `3180` for "withdraw"/"peace" found nothing). It is **not** in
+`3f41`, which is the adviser-report overlay. The three formulas the
+paragraphs above called "completely unknown" are transcribed in
+[`fa_3f41_recon.md`](fa_3f41_recon.md) §"The three formulas worth quoting"
+and live in `ai_diplo.c`:
 
-**Not attempted this pass** — the mechanic's *shape* is now fully
-specified (real value, doesn't need re-asking; three separate rounds of
-user testimony nailed down the trigger direction, the fall-through
-architecture, and the specific event texts), but implementing it
-faithfully needs either the real DOS formula (a proper `3f41` recovery
-pass — now a well-scoped, worthwhile target given the size of what it'd
-unlock) or an explicit decision to ship an approximated version, which
-would need the same care as any other "thin first draft" mechanic in
-this project. Flagging as the single largest well-specified gap this
-session surfaced, worth prioritizing over other `3f41`-adjacent leads
-(`12d0`, the FA report UI) if anyone picks up a `3f41` recovery pass —
-this is the part of that segment with confirmed, decisive real-world
-value already in hand.
+| once-unknown | answer | port site |
+|---|---|---|
+| peace-tone selector | `iVar6` = the single `worthy` flag (raw :97587), except `@GIVECASH` forcing MEEK (raw :98017) | `k->manly` |
+| tribute/bribe amount | accumulator → difficulty scale → RNG → 50-gold walk-down → Franklin halve (raw :97514-97580) | `ai_diplo_153e_worthiness_score` |
+| demobilization cost | `(difficulty+2) * border_value * (at_war ? 0x32 : 0x19)`, +50% if worthy, −`own_border*0x32` if sieges paid, Franklin halve, floor 100 | `AI_TALK_ST_PEACEMENU` |
+| war-declare dispatch | the 3-leg worthy cascade `@PROVOKE` / `@WARMANLY` / `@RID` (raw :97954-97982) | `AI_TALK_ST_WORTHY` |
+| threat suppression | `thr = (difficulty−10)*−10`; disarmed while `turn <= thr` | same |
 
 - **Still PARKED (leftovers — no thin unpark left):**
   - FA `3f41` full body/UI (F2–F9 report dialogs; thin ally-aid 10g + FA gift

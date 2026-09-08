@@ -4941,6 +4941,26 @@ static void game_open_report(ColonizeGameState* game, ColonizeReportId id) {
   if (!game) {
     return;
   }
+  /*
+   * DOS gate (FUN_3f41_2548 raw :70792): F8 Foreign Affairs is withdrawn once
+   * the War of Independence has begun — the overlay returns before the plate
+   * load and shows @FOREIGNNOTAVAIL instead, so the screen is never entered.
+   */
+  if (!reports_is_available(id, game->col1_ok ? &game->col1 : NULL)) {
+    const char* tag = reports_unavailable_tag(id);
+    char body[AI_POPUP_BODY_LEN];
+    popup_msg_fill(
+      &game->messages,
+      tag ? tag : "FOREIGNNOTAVAIL",
+      NULL,
+      "The Foreign Affairs Adviser's report is no longer available once the War of "
+      "Independence has begun.",
+      body,
+      sizeof(body)
+    );
+    ai_popup_enqueue_ok(&game->ai_popups, AI_POPUP_TAG_INFO, NULL, body);
+    return;
+  }
   if (id != COLONIZE_REPORT_CONGRESS) {
     game->ff_pedia_after_report = -1;
   }
@@ -5601,31 +5621,46 @@ static const ColonizeFont* europe_menu_font(const ColonizeGameState* game) {
 }
 
 /*
+ * GAME.TXT section that carries this menu's prose — and, on its @width line,
+ * the frame width DOS lays the list dialog out at.
+ */
+static const char* europe_menu_section(int menu) {
+  switch (menu) {
+    case EUROPE_MENU_RECRUIT:
+      return "RECRUIT";
+    case EUROPE_MENU_TRAIN:
+      return "KINGRECRUIT";
+    case EUROPE_MENU_PURCHASE:
+      return "PURCHASE";
+    case EUROPE_MENU_DOCK:
+      return "EUROPEARM";
+    default:
+      return NULL;
+  }
+}
+
+/*
  * Title prose for the open menu, GAME.TXT verbatim with the {highlight}
  * braces kept (drawn in the highlight ink, as DOS does). %NUMBER0 in
  * @RECRUIT is the passage price.
  */
 static void europe_menu_title_prose(const ColonizeGameState* game, char* buf, size_t n) {
   const EuropeScreen* eu = &game->europe;
-  const char* section = NULL;
+  const char* section = europe_menu_section(eu->menu);
   const char* fallback = "";
   switch (eu->menu) {
     case EUROPE_MENU_RECRUIT:
-      section = "RECRUIT";
       fallback = "The following individuals will accompany us to the New World if we "
                  "will pay their passage ({%NUMBER0 gold}).  Whom shall we recruit?";
       break;
     case EUROPE_MENU_TRAIN:
-      section = "KINGRECRUIT";
       fallback = "The {Royal University} can provide us with specialists if we grease "
                  "the right palms.  Which skill shall we request?";
       break;
     case EUROPE_MENU_PURCHASE:
-      section = "PURCHASE";
       fallback = "The following items are available.  Which shall we purchase?";
       break;
     case EUROPE_MENU_DOCK:
-      section = "EUROPEARM";
       fallback = "European dock options:";
       break;
     default:
@@ -5873,7 +5908,17 @@ static bool europe_menu_layout(
     default:
       return false;
   }
-  int dialog_w = 220;
+  /*
+   * Width comes from the menu section's own GAME.TXT @width directive, the
+   * same directive every other popup honours (popup_msg_section_width):
+   * @RECRUIT / @KINGRECRUIT / @PURCHASE / @EUROPEARM all read @width=190.
+   * The port's hardcoded 220 was 30px too wide (that is @RECRUITCHOOSE's
+   * width, the Brewster pick dialog, not these four).
+   */
+  const ColonizeMsgSection* width_sec =
+    assets_msg_find(&game->messages, europe_menu_section(eu->menu));
+  const int msg_w = popup_msg_section_width(width_sec);
+  int dialog_w = msg_w > 0 ? msg_w : 220;
   if (dialog_w > fb_w - 8) {
     dialog_w = fb_w - 8;
   }

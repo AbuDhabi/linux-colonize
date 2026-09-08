@@ -613,7 +613,11 @@ void ai_diplo_indian_capital_surrender(
     return;
   }
   ColonizeCol1Indian* ind = &col1->indian[idx];
-  ind->alarm_by_player[euro_nation] = 0;
+  /* FUN_5fef_1b0e capital-razed arm (raw 101289-101298): alarm is clamped
+   * DOWN to 15 when above (FUN_281f_0d6c(-(alarm-15))), not zeroed. */
+  if (ind->alarm_by_player[euro_nation] > 15u) {
+    ind->alarm_by_player[euro_nation] = 15u;
+  }
   if (col1->tribe) {
     for (uint16_t ti = 0; ti < col1->head.tribe_count; ++ti) {
       ColonizeCol1Tribe* t = &col1->tribe[ti];
@@ -1882,9 +1886,12 @@ Ai153eWorthinessScore ai_diplo_153e_worthiness_score(
  * strcat products (HELLO+FIRST/AHOY/MEEK/MANLY, PEACE+MEEK/MANLY, ...).
  * @WANTSTUFF goods demand ported 2026-09-06 (see the want_* fields and
  * AI_TALK_ST_WANTSTUFF; incl. the byte-verified DOS Furs stale-index bug).
- * Still not modeled: the USA (post-independence) text variants, the
- * LEADER/LEADER2/KINGS/DEEDS name-prep prefixes (folded into single-tag
- * bodies), unit "encounter direction" stamps (+0x314f).
+ * The worthy cascade's other two legs (@WARMANLY post-tribute and @RID)
+ * ported 2026-09-08 — see AI_TALK_ST_WORTHY and ai/fa_3f41_recon.md.
+ * Still not modeled: the USA (post-independence) text variants; the
+ * LEADER/KINGS/DEEDS name-prep prefixes are still folded into single-tag
+ * bodies (LEADER2 is now resolved and used by the @RID/@WARMANLY/WAR+tone
+ * legs, see ai_talk_great_line); unit "encounter direction" stamps (+0x314f).
  * ====================================================================== */
 enum {
   AI_TALK_ST_THIRD = 1,
@@ -1944,6 +1951,40 @@ __attribute__((weak)) const char* ai_contact_tribe_name(int nation_id) {
 static ColonizeCol1Nation* ai_talk_nat(ColonizeTurnContext* ctx, int n) {
   return &ctx->col1->nation[n];
 }
+/*
+ * DOS name-prep thunk `FUN_2a1f_0618(slot, base, nation)` — resolved
+ * 2026-09-08. The DS bases it is called with are the bare words "LEADER",
+ * "LEADER2", "KINGS" and "DEEDS" (VICEROY.EXE DS 0x18bb/0x18c1/0x1938/
+ * 0x1949/0x197c, EXE offset 121248+addr); the thunk prepends "GREAT", so
+ * they resolve to the GAME.TXT sections @GREATLEADER / @GREATLEADER2 /
+ * @GREATKINGS / @GREATDEEDS — four lines each, one per Euro nation
+ * (GAME.TXT:2160-2190). @GREATLEADER2 is "the Queen / the King / the Pope /
+ * the Stadtholder", which is what @RID's and @WARMANLY's %STRING0 is.
+ * Returns NULL when the section is absent (test fixtures ship a stub
+ * GAME.TXT) so callers fall back to the folded nation name.
+ */
+static const char* ai_talk_great_line(ColonizeTurnContext* ctx, const char* section, int nation) {
+  if (!ctx || !ctx->messages || nation < 0 || nation >= 4) {
+    return NULL;
+  }
+  const ColonizeMsgSection* sec = assets_msg_find(ctx->messages, section);
+  if (!sec) {
+    return NULL;
+  }
+  int idx = 0;
+  for (int i = 0; i < sec->line_count; ++i) {
+    const char* line = sec->lines[i];
+    if (!line || line[0] == '\0' || line[0] == ';' || line[0] == '@') {
+      continue;
+    }
+    if (idx == nation) {
+      return line;
+    }
+    idx++;
+  }
+  return NULL;
+}
+
 static const char* ai_talk_name(ColonizeTurnContext* ctx, int n) {
   if (n >= 4 && n <= 11) {
     return ai_contact_tribe_name(n);
@@ -2288,9 +2329,64 @@ static void ai_talk_advance(ColonizeTurnContext* ctx) {
           break;
         }
         if (k->worthy) {
+          /*
+           * The three-leg "worthy" cascade, raw :97954-97982 (cross-checked
+           * against the OVL16 listing, `LAB_OVL16_L0040__0029fc`, in
+           * euro_diplo_153e_full.md:1313-1340). Ghidra inverts the guard
+           * (`if (local_a8 == 0) { if (local_a8 != 0) ... }`); the real shape
+           * is:
+           *   if (worthy && at_peace && score >= 0x65)  -> @PROVOKE, war
+           *   else if (worthy && score == 999)          -> @WARMANLY, war
+           *   else if (worthy)                          -> @RID, no war
+           * Only the @PROVOKE leg was ported before 2026-09-08, so a worthy
+           * AI that had run a @TRIBUTE dialog (which latches score = 999)
+           * silently skipped its war declaration and @RID never fired at all.
+           *
+           * Tokens for the two new legs, from the DOS operands:
+           *   %STRING0 = FUN_2a1f_0618(0, "LEADER2", target) = @GREATLEADER2
+           *              line for the target ("the King", ...)
+           *   %STRING1 = FUN_281f_0416(1, target*0x34 + 0x5426) = the TARGET's
+           *              player.country_name. DS players base is 0x540e
+           *              (player.name; the greeting appends
+           *              param_2*0x34 + 0x540e at raw :97700) and country_name
+           *              sits at +0x18 = 0x5426; anchored independently on
+           *              unknown06 at nation*0x34 + 0x543e (col1_save.h) and
+           *              on COLONY00.SAV (head 158 bytes, players at file
+           *              0x9e, country_name at 0xb6, DS base 0x5370).
+           *              ai_diplo_rival_name already returns country_name.
+           */
+          const char* leader2 = ai_talk_great_line(ctx, "GREATLEADER2", t);
+          PopupMsgTokens tr = tok;
+          tr.string0 = leader2 ? leader2 : ai_talk_name(ctx, t);
+          tr.string1 = ai_talk_name(ctx, t);
           if (ai_talk_peace(ctx, h, t) && k->score >= 0x65) {
             ai_talk_ok(ctx, "PROVOKE", &tok, "\"We can no longer tolerate your foul provocations. Prepare for WAR!\"");
             ai_diplo_clear_both(col1, h, t, AI_DIPLO_PEACE);
+          } else if (k->score == 999) {
+            /*
+             * Post-@TRIBUTE war declaration. DOS pushes the literal DS tag
+             * 0x1940 "WARMANLY" here — no MEEK variant and no +USA suffix,
+             * unlike the WAR+tone site in the @GIVECASH tail.
+             */
+            ai_talk_ok(
+              ctx, "WARMANLY", &tr,
+              "\"You reject our generous offer? Then in the name of %STRING0 we shall wipe "
+              "you from the face of the New World. Prepare for WAR!\""
+            );
+            ai_diplo_clear_both(col1, h, t, AI_DIPLO_PEACE);
+          } else {
+            /*
+             * @RID (+ "USA" when the target has declared independence — the
+             * USA text variants are the machine-wide documented delta, see
+             * the file header; 153e also bails on head.game_options.woi, so
+             * the suffix is unreachable in the port).  Ultimatum only: DOS
+             * changes no relation bit on this leg.
+             */
+            ai_talk_ok(
+              ctx, "RID", &tr,
+              "\"In the name of %STRING0, we order you to leave %STRING1 immediately. "
+              "If you do not, we shall drive you into the sea.\""
+            );
           }
           k->stage = AI_TALK_ST_PEACEMENU;
           break;
@@ -2329,7 +2425,19 @@ static void ai_talk_advance(ColonizeTurnContext* ctx) {
           }
         }
         if (!ai_talk_peace(ctx, h, t)) {
-          ai_talk_ok(ctx, k->manly ? "WARMANLY" : "WARMEEK", &tok, "\"Then prepare for WAR!\"");
+          /*
+           * WAR+tone tail, raw :98040-98047. DOS pushes the same operand pair
+           * as the @RID/@WARMANLY legs above — 0618(0,"LEADER2",target) and
+           * 0416(1, target*0x34 + 0x5426) — so %STRING1 is the TARGET's
+           * country_name ("...drive you from the shores of {%STRING1}"), not
+           * the human's (which is what the shared `tok` carries). Fixed
+           * 2026-09-08 with the cascade port.
+           */
+          const char* wl2 = ai_talk_great_line(ctx, "GREATLEADER2", t);
+          PopupMsgTokens tw = tok;
+          tw.string0 = wl2 ? wl2 : ai_talk_name(ctx, t);
+          tw.string1 = ai_talk_name(ctx, t);
+          ai_talk_ok(ctx, k->manly ? "WARMANLY" : "WARMEEK", &tw, "\"Then prepare for WAR!\"");
         }
         break;
       }
@@ -2564,7 +2672,20 @@ static void ai_talk_resume(ColonizeTurnContext* ctx, int stage, int choice) {
         ai_diplo_or_both(col1, h, t, (uint8_t)(AI_DIPLO_PEACE | AI_DIPLO_MET));
         ai_talk_gold(ctx, t, h, k->pending_gold);
       } else if (!ai_talk_peace(ctx, h, t)) {
-        ai_talk_ok(ctx, k->manly ? "WARMANLY" : "WARMEEK", &tok, "\"Then prepare for WAR!\"");
+        /*
+         * raw :98017 (`FUN_1d1d_07e4(local_80, 0x196a)`, same line in the
+         * OVL16 listing at euro_diplo_153e_full.md:1377): showing the
+         * @GIVECASH offer overwrites the shared tone buffer with "MEEK", and
+         * the WAR tag built at :98041 appends that buffer — so the refusal
+         * after an offer is ALWAYS @WARMEEK, whatever the encounter tone.
+         * (The no-offer path above still uses the greeting tone.) %STRING0/1
+         * per the 0618/0416 operands, as in the cascade legs.
+         */
+        const char* gl2 = ai_talk_great_line(ctx, "GREATLEADER2", t);
+        PopupMsgTokens tw = tok;
+        tw.string0 = gl2 ? gl2 : ai_talk_name(ctx, t);
+        tw.string1 = ai_talk_name(ctx, t);
+        ai_talk_ok(ctx, "WARMEEK", &tw, "\"Then prepare for WAR!\"");
       }
       k->stage = AI_TALK_ST_PEACEMENU;
       ai_talk_advance(ctx);

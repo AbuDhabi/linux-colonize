@@ -269,16 +269,27 @@ int ai_goals_stack_settler_pick(
 );
 
 /*
- * FUN_521d_0896 — filter_profession_by_distance_wealth. `profession` here
- * is DOS's overloaded "owner id" (0..3 nation, >=4 Indian tribe index) or a
- * true profession code depending on caller; for owner ids 0..3 the >3 gate
- * never fires so the value passes through unchanged (see FUN_521d_0906).
- * The two Indian-range gates (FUN_281f_030c relation/alarm lookup, DS:0x54f6
- * wealth table) are PARKED — no Linux accessor wired, so they read as 0.
+ * FUN_521d_0896 — the Indian **hostility gate** (name kept for catalog /
+ * SYMBOL_MAP continuity; "filter_profession_by_distance_wealth" was an
+ * inferred label and both halves of it are wrong). `profession` here is
+ * DOS's overloaded "owner id" (0..3 nation, >=4 Indian nation id) — for
+ * owner ids 0..3 the >3 gate never fires so the value passes through
+ * unchanged (see FUN_521d_0906).
+ *
+ * Both Indian-range reads wired 2026-09-08 (decomp 87319-87340):
+ *   alarm  = FUN_281f_030c(owner - 4, nation)  = ai_diplo_indian_alarm
+ *   gate   = alarm > 0x4a
+ *   if (unit_index >= 0 && DS:0x54f6[unit.home_tribe_id][nation] > 0x7f)
+ *            gate = true
+ *   return gate ? owner : -1
+ * i.e. an adjacent native raises a contact claim only when that nation is
+ * already hostile (alarm > 74) or the specific village carries a grudge
+ * (tension > 127). `col1` may be NULL — both reads then answer 0, the
+ * pre-2026-09-08 parked behaviour.
  */
 int ai_goals_filter_profession_by_distance_wealth(
-  const ColonizeCol1Unit* units,
-  int unit_count,
+  const ColonizeCol1Save* col1,
+  const struct ColonizeUnitPool* units,
   int nation_id,
   int profession,
   int has_context,
@@ -297,12 +308,14 @@ int ai_goals_filter_profession_by_distance_wealth(
  *                   first value < 4 only.
  * Both were mis-wired before 2026-09-07 (the colony pool answered the unit
  * probe, and the settlement probe was hardwired off); see ai_goals.c.
- * Still thin: 0896's tribe arm — see its own note.
+ * 0896's tribe arm is live since 2026-09-08 (alarm + DS:0x54f6 tension);
+ * `col1` feeds it and may be NULL.
  */
 int ai_goals_probe_adjacent_contact_claim(
   const ColonizeWorldMap* map,
   const ColonizeColonyPool* colonies,
   const struct ColonizeUnitPool* units,
+  const ColonizeCol1Save* col1,
   int x,
   int y,
   int nation_id,

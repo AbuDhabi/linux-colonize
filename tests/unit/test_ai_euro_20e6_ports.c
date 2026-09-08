@@ -201,10 +201,16 @@ static int ship_goods_holds(const ColonizeUnit* ship) {
  * "both aboard" is only reachable if the scan's budget survived into 10be.
  * AI_20E6_SHIP_DUMP_TRACE on this fixture shows the DOS shape exactly:
  *   MARKS unit 2 / MARKS unit 3 / (no [load] line) / assembles 2 / assembles 3.
- * The dispatcher's outer any_acted loop then gives the ship a SECOND act, in
- * which the (passenger-blind) `ai_euro_hauler_free_holds` does take a hold of
- * Silver; that is a separate question from the mark→assemble hand-off, so the
- * assertion here is about the passengers only.
+ *
+ * The dispatcher's outer any_acted loop then gives the ship a SECOND act, and
+ * that act must find NO free hull: the two Pioneers fill the Caravel. Until
+ * 2026-09-08 it seeded its budget from `ai_euro_hauler_free_holds` (goods
+ * holds only) and took a hold of Silver, leaving 2 passengers AND 1 cargo on a
+ * 2-slot hull. DOS cannot reach that state: it re-derives the chain every
+ * berth act (stale-mark clear → re-mark → re-debit `iStack_d2`), so the load
+ * matrix never sees hull a passenger is sitting in. The port charges the
+ * passengers directly instead (`ai_euro_20e6_ship_hold_budget`), which is why
+ * the goods-hold count is asserted 0 below.
  */
 static int assemble_boards_whole_reserved_hull(void) {
   const int nation = 1;
@@ -254,6 +260,13 @@ static int assemble_boards_whole_reserved_hull(void) {
             b->aboard_ship_id, ship_id, ship_id, ship_goods_holds(ship));
     fixture_free(&f);
     return fail("10be did not board the whole reserved hull");
+  }
+  /* Combined passengers + goods must respect the 2-slot hull (see header). */
+  if (ship_goods_holds(ship) != 0) {
+    fprintf(stderr, "goods_holds=%d with %d passengers on a 2-slot hull\n",
+            ship_goods_holds(ship), ship->cargo_count);
+    fixture_free(&f);
+    return fail("load matrix spent hull the passengers already occupy");
   }
   fixture_free(&f);
   return 0;
@@ -759,13 +772,13 @@ static int sell_tail_falls_through_to_work_queue(void) {
  *     matter (10be boards on the mark alone). Reaching the sweep directly
  *     would need a production seam that does not exist today.
  *
- *   - Observation, not asserted: after the two-passenger case boards both
- *     Pioneers, the dispatcher's outer any_acted loop gives the ship a second
- *     act in which `ai_euro_hauler_free_holds` (goods holds only) hands the
- *     load matrix a hold, leaving a 2-slot Caravel carrying 2 passengers AND
- *     1 cargo hold. DOS's `+0x3150` counts passengers and goods together
- *     (see ai_euro_20e6_transport_assemble's own header), so this looks like
- *     a real divergence — but fixing it is production work, not test work.
+ *   - The passenger/goods capacity divergence this file used to only record.
+ *     FIXED 2026-09-08 and now asserted inside case 1a: the berth act seeds
+ *     its budget from `ai_euro_20e6_ship_hold_budget`, which subtracts the
+ *     `0x5238` size of every passenger already in `cargo_ids` on top of the
+ *     occupied goods holds. (DOS's `+0x3150` is goods-only — `FUN_15eb_30b8`
+ *     bumps it, `317c` decrements it — but DOS re-marks and re-reserves its
+ *     passengers on every berth act, so the totals match.)
  */
 
 int main(void) {

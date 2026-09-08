@@ -14,7 +14,7 @@
  * the declare-year latch and FUN_281f_04ac(3)).
  *
  * DOS shows DECOIND.PIK (the unsigned parchment + quill) and writes the
- * human player's country_name (DS:0x53f6 + slot*0x34 + 0x18, i.e. the
+ * human player's country_name (DS:0x540e + slot*0x34 + 0x18, i.e. the
  * "United Colonies" rename 1a26 has just done) across the signature line as
  * an animated quill stroke: one DEC-UPP{A..Z}.SS / DEC-LOW{a..z}.SS sprite
  * sheet per letter, played frame by frame, then DEC-SQIG.SS as the closing

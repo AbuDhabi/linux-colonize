@@ -2046,6 +2046,182 @@ static int unit_native_tile_attack_alarm(void) {
   return rc;
 }
 
+/*
+ * FUN_5fef_1b0e residue, 2026-09-08.
+ *  a) capture arm raw 100937-100948 — the 8-neighbour owner-nibble claim the
+ *     prize brings with it, skipping any tile that already holds a unit or a
+ *     settlement (FUN_281f_06d2 gate).
+ *  b) the `local_a6` alarm vent, raw 101043-101196 — natives that beat an
+ *     undefended colony vent `difficulty − 10`, and the whole table is gated
+ *     on NOT already being at war with that European.
+ */
+static int unit_capture_ring_and_alarm_vent(void) {
+  int rc = 0;
+  ColonizeWorldMap map;
+  memset(&map, 0, sizeof(map));
+  map.width = 8;
+  map.height = 8;
+  map.tile_count = 64;
+  map.terrain = calloc(64, 1);
+  map.layer2 = calloc(64, 1);
+  map.layer3 = calloc(64, 1);
+  if (!map.terrain || !map.layer2 || !map.layer3) {
+    return 1;
+  }
+  for (int i = 0; i < 64; ++i) {
+    map.terrain[i] = 2;    /* plains */
+    map.layer3[i] = 0xf0u; /* owner nibble 15 = unowned */
+  }
+
+  ColonizeUnitPool pool;
+  memset(&pool, 0, sizeof(pool));
+  pool.type_count = 2;
+  snprintf(pool.types[0].name, sizeof(pool.types[0].name), "Soldiers");
+  pool.types[0].attack = 99;
+  pool.types[0].defense = 99;
+  pool.types[0].movement = 1;
+  pool.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
+  snprintf(pool.types[1].name, sizeof(pool.types[1].name), "Braves");
+  pool.types[1].attack = 99;
+  pool.types[1].defense = 1;
+  pool.types[1].movement = 1;
+  pool.types[1].domain = COLONIZE_UNIT_DOMAIN_LAND;
+
+  ColonizeColonyPool colonies;
+  colonies_init(&colonies);
+  units_set_occupancy_map(&map);
+  colonies_set_occupancy_map(&map);
+  const int cid = colonies_found(&colonies, &map, 4, 4, 1, -1, UNITS_JOB_NONE, 0, 0, 0);
+  if (cid < 0) {
+    fprintf(stderr, "capture_ring: colonies_found failed\n");
+    rc = 1;
+    goto done;
+  }
+
+  ColonizeDosRng rng;
+  dos_rng_seed(&rng, 11);
+  units_set_combat_popups(NULL, NULL); /* headless: no @CAPTURED, no colony zoom */
+
+  /* (a) Euro nation 0 walks into nation 1's undefended colony. A bystander on
+   *     (5,5) must keep its own stamp; every other neighbour flips to 0. */
+  {
+    units_set_ff_col1(NULL); /* no col1 → no Revere/temp defender, plain walk-in */
+    const int bystander = units_spawn_allow_stack(&pool, 0, 5, 5);
+    units_set_nation(units_get(&pool, bystander), 2);
+    const int aid = units_spawn_allow_stack(&pool, 0, 3, 4);
+    units_set_nation(units_get(&pool, aid), 0);
+    units_get(&pool, aid)->moves_left = UNITS_MP_PER_TILE;
+    if (!units_try_move(&pool, aid, &map, 4, 4, &colonies, &rng)) {
+      fprintf(stderr, "capture_ring: walk-in move refused\n");
+      rc = 1;
+    } else if (colonies_get(&colonies, cid)->nation_id != 0) {
+      fprintf(stderr, "capture_ring: colony not captured\n");
+      rc = 1;
+    } else {
+      static const int k_dx[8] = {0, 1, 1, 1, 0, -1, -1, -1};
+      static const int k_dy[8] = {-1, -1, 0, 1, 1, 1, 0, -1};
+      for (int d = 0; d < 8 && rc == 0; ++d) {
+        const int tx = 4 + k_dx[d];
+        const int ty = 4 + k_dy[d];
+        const int owner = (map.layer3[ty * map.width + tx] >> 4) & 0x0f;
+        const int want = (tx == 5 && ty == 5) ? 2 : 0;
+        if (owner != want) {
+          fprintf(stderr, "capture_ring: (%d,%d) owner %d want %d\n", tx, ty, owner, want);
+          rc = 1;
+        }
+      }
+    }
+    /* Clear the tile again so (b) is a walk-in, not a fight with the captor. */
+    (void)units_despawn(&pool, aid);
+    units_occupancy_notify_moved(&pool, 4, 4, -1, -1);
+  }
+
+  /* (b) Native beats an undefended colony: alarm vents `difficulty - 10`,
+   *     and the raider's tension row is discharged. */
+  if (rc == 0) {
+    ColonizeCol1Save col1;
+    memset(&col1, 0, sizeof(col1));
+    memset(col1.head.founding_father, 0xff, sizeof(col1.head.founding_father));
+    col1.head.difficulty = 3;
+    col1.head.tribe_count = 0;
+    col1.player[0].control = 0; /* human victim → the difficulty term applies */
+    col1.indian[0].alarm_by_player[0] = 40;
+    static int16_t tension[4];
+    memset(tension, 0, sizeof(tension));
+    tension[0] = 200;
+    col1.indian_tension = tension;
+    col1.head.tribe_count = 1;
+    static ColonizeCol1Tribe tribe;
+    memset(&tribe, 0, sizeof(tribe));
+    tribe.nation_id = 4;
+    col1.tribe = &tribe;
+    units_set_ff_col1(&col1);
+    units_set_combat_human_nation(0);
+
+    ColonizeColony* col = colonies_get_mut(&colonies, cid);
+    col->nation_id = 0;
+    col->population = 3;
+    col->colonist_count = 3;
+
+    const int bid = units_spawn_allow_stack(&pool, 1, 3, 4);
+    ColonizeUnit* brave = units_get(&pool, bid);
+    units_set_nation(brave, 4);
+    brave->home_tribe_id = 0;
+    brave->moves_left = UNITS_MP_PER_TILE;
+    (void)units_try_move(&pool, bid, &map, 4, 4, &colonies, &rng);
+
+    /* difficulty 3 − 10 = −7 → 40 - 7 = 33. */
+    if (col1.indian[0].alarm_by_player[0] != 33) {
+      fprintf(
+        stderr, "alarm_vent: undefended-colony alarm %u want 33\n",
+        (unsigned)col1.indian[0].alarm_by_player[0]
+      );
+      rc = 1;
+    }
+    if (tension[0] != 0) {
+      fprintf(stderr, "alarm_vent: tension %u want 0\n", (unsigned)tension[0]);
+      rc = 1;
+    }
+
+    /* War bit set (FUN_15b3_0004 & 2): DOS gives no relief at all. */
+    if (rc == 0) {
+      col1.indian[0].alarm_by_player[0] = 40;
+      col1.indian[0].euro_diplo[0] |= COL1_INDIAN_WAR_BIT;
+      col->population = 3;
+      col->colonist_count = 3;
+      const int b2 = units_spawn_allow_stack(&pool, 1, 3, 4);
+      ColonizeUnit* br2 = units_get(&pool, b2);
+      units_set_nation(br2, 4);
+      br2->home_tribe_id = 0;
+      br2->moves_left = UNITS_MP_PER_TILE;
+      (void)units_try_move(&pool, b2, &map, 4, 4, &colonies, &rng);
+      if (col1.indian[0].alarm_by_player[0] != 40) {
+        fprintf(
+          stderr, "alarm_vent: at-war alarm %u want 40 (no vent)\n",
+          (unsigned)col1.indian[0].alarm_by_player[0]
+        );
+        rc = 1;
+      }
+    }
+    units_set_ff_col1(NULL);
+    units_set_combat_human_nation(-1);
+    col1.tribe = NULL;
+    col1.indian_tension = NULL;
+  }
+
+done:
+  units_set_occupancy_map(NULL);
+  colonies_set_occupancy_map(NULL);
+  units_set_combat_colonies(NULL);
+  free(map.terrain);
+  free(map.layer2);
+  free(map.layer3);
+  if (rc == 0) {
+    fprintf(stderr, "unit_units: capture ring + 1b0e alarm vent ok\n");
+  }
+  return rc;
+}
+
 int main(void) {
   diag_init(0, NULL);
 
@@ -2097,6 +2273,10 @@ int main(void) {
     return 1;
   }
   if (unit_native_tile_attack_alarm() != 0) {
+    diag_shutdown();
+    return 1;
+  }
+  if (unit_capture_ring_and_alarm_vent() != 0) {
     diag_shutdown();
     return 1;
   }
@@ -3461,12 +3641,16 @@ int main(void) {
       assets_msg_free(&names);
       return 1;
     } else {
-      units_end_turn(&pool);
+      /* Stand in for the engine's per-nation MP refresh
+       * (turn_refresh_moves_for_nation); this target does not link turn.c. */
       walker = units_get(&pool, uid);
+      if (walker) {
+        walker->moves_left = units_max_mp(&pool, uid);
+      }
       const int refreshed = walker ? walker->moves_left : 0;
       const int px = walker ? walker->x : -1;
       const int py = walker ? walker->y : -1;
-      units_advance_all_goto(&pool, &map, NULL);
+      units_advance_goto(&pool, uid, &map, NULL, NULL);
       walker = units_get(&pool, uid);
       if (!walker) {
         fprintf(stderr, "walker missing after resume\n");
@@ -3882,7 +4066,7 @@ int main(void) {
       assets_msg_free(&names);
       return 1;
     }
-    units_despawn(&pool, aid);
+    (void)units_despawn(&pool, aid);
   }
 
   /* units_follow_unit + advance one step (Brave escort API). */
@@ -5899,7 +6083,7 @@ int main(void) {
         fprintf(stderr, "phase2 Spanish ambush flag missing\n");
         return 1;
       }
-      units_despawn(&pool, aid);
+      (void)units_despawn(&pool, aid);
       units_despawn(&pool, did);
       units_set_combat_colonies(NULL);
       fprintf(stderr, "unit_units: Spanish ambush peel ok\n");
@@ -5981,7 +6165,7 @@ int main(void) {
           );
           return 1;
         }
-        units_despawn(&pool, aid);
+        (void)units_despawn(&pool, aid);
         units_despawn(&pool, did);
       }
 
@@ -6019,7 +6203,7 @@ int main(void) {
           );
           return 1;
         }
-        units_despawn(&pool, aid);
+        (void)units_despawn(&pool, aid);
         units_despawn(&pool, did);
       }
 
@@ -6058,7 +6242,7 @@ int main(void) {
           );
           return 1;
         }
-        units_despawn(&pool, aid);
+        (void)units_despawn(&pool, aid);
         units_despawn(&pool, did);
       }
 
@@ -6145,7 +6329,7 @@ int main(void) {
           fprintf(stderr, "woi-ref rebel: atk want 57 got %d\n", er.atk_strength);
           return 1;
         }
-        units_despawn(&pool, aid);
+        (void)units_despawn(&pool, aid);
         units_despawn(&pool, did);
       }
 
@@ -6181,7 +6365,7 @@ int main(void) {
           fprintf(stderr, "woi-ref crown: atk want 50 got %d\n", er.atk_strength);
           return 1;
         }
-        units_despawn(&pool, aid);
+        (void)units_despawn(&pool, aid);
         units_despawn(&pool, did);
       }
 
@@ -6204,7 +6388,7 @@ int main(void) {
           fprintf(stderr, "woi-ref field: REF must not apply off colony\n");
           return 1;
         }
-        units_despawn(&pool, aid);
+        (void)units_despawn(&pool, aid);
         units_despawn(&pool, did);
       }
 
@@ -6295,7 +6479,7 @@ int main(void) {
           return 1;
         }
       }
-      units_despawn(&pool, aid);
+      (void)units_despawn(&pool, aid);
       units_despawn(&pool, did);
       fprintf(stderr, "unit_units: capture-alive ok\n");
     }
@@ -6340,7 +6524,7 @@ int main(void) {
           fprintf(stderr, "phase2 native win should destroy pioneer (not capture)\n");
           return 1;
         }
-        units_despawn(&pool, aid);
+        (void)units_despawn(&pool, aid);
       }
       {
         const int aid = units_spawn_allow_stack(&pool, brave, 43, 43);
@@ -6369,7 +6553,7 @@ int main(void) {
           );
           return 1;
         }
-        units_despawn(&pool, aid);
+        (void)units_despawn(&pool, aid);
         units_despawn(&pool, did);
       }
       fprintf(stderr, "unit_units: native destroy-pioneer / demote-soldier ok\n");
@@ -6406,7 +6590,7 @@ int main(void) {
         fprintf(stderr, "phase2 weaker ship should survive damaged\n");
         return 1;
       }
-      units_despawn(&pool, aid);
+      (void)units_despawn(&pool, aid);
       units_despawn(&pool, did);
       fprintf(stderr, "unit_units: naval damage-escape ok\n");
     }
@@ -6468,7 +6652,7 @@ int main(void) {
         assets_msg_free(&game_txt);
         return 1;
       }
-      units_despawn(&pool, aid);
+      (void)units_despawn(&pool, aid);
       if (units_get(&pool, did) && units_get(&pool, did)->active) {
         units_despawn(&pool, did);
       }
@@ -6612,7 +6796,7 @@ int main(void) {
         return 1;
       }
 
-      units_despawn(&pool, aid);
+      (void)units_despawn(&pool, aid);
       units_set_ff_col1(NULL);
       units_set_combat_human_nation(-1);
       units_set_native_fallout_context(NULL, NULL, -1);
@@ -6726,10 +6910,219 @@ int main(void) {
         }
       }
 
-      units_despawn(&pool, aid);
+      (void)units_despawn(&pool, aid);
       units_set_ff_col1(NULL);
       units_set_combat_human_nation(-1);
       fprintf(stderr, "unit_units: undefended colony token militia ok\n");
+    }
+
+    /*
+     * FUN_5fef_1b0e port-ship fate + DS:0x54f6 discharge (2026-09-08).
+     *
+     * (1) A foreign hull berthed in a colony is invisible to a land assault:
+     *     FUN_5fef_0000's domain gate (raw 99190-99196) skips it as a
+     *     defender, and the capture arm (raw 100905-101034) never touches the
+     *     unit array. So the town falls with the ship still in it, still
+     *     flying the loser's flag — not sunk, not seized.
+     * (2) FUN_5fef_1b0e site 1 (raw 101039-101041): a native attacker that
+     *     resolves against a European clears indian_tension[tribe][euro],
+     *     unless it LOST at a colony (DOS routes that to FUN_5fef_0f14).
+     */
+    {
+      const int soldier3 = units_find_type(&pool, "Soldiers");
+      const int frig3 = units_find_type(&pool, "Frigate");
+      const int brave3 = units_find_type(&pool, "Braves");
+      if (soldier3 < 0 || frig3 < 0 || brave3 < 0) {
+        fprintf(stderr, "1b0e-port-ship types missing\n");
+        return 1;
+      }
+      int cx = -1, cy = -1;
+      for (int y = 2; y < (int)map.height - 3 && cx < 0; ++y) {
+        for (int x = 2; x < (int)map.width - 3 && cx < 0; ++x) {
+          if (map_tile_is_land(&map, x, y) && map_tile_is_land(&map, x + 1, y) &&
+              units_id_at(&pool, x, y) < 0 && units_id_at(&pool, x + 1, y) < 0) {
+            cx = x + 1;
+            cy = y;
+          }
+        }
+      }
+      if (cx < 0) {
+        fprintf(stderr, "1b0e-port-ship no land pair\n");
+        return 1;
+      }
+      ColonizeColonyPool colonies;
+      colonies_init(&colonies);
+      colonies_set_occupancy_map(NULL);
+      if (!colonies_load_names(&colonies, "COLONIZE/COLONY.TXT") ||
+          !colonies_load_buildings(&colonies, &names)) {
+        fprintf(stderr, "1b0e-port-ship colonies init failed\n");
+        return 1;
+      }
+      const int cid = colonies_found(&colonies, &map, cx, cy, 1, -1, UNITS_JOB_NONE, 0, 0, 0);
+      ColonizeColony* col = colonies_get_mut(&colonies, cid);
+      if (cid < 0 || !col) {
+        fprintf(stderr, "1b0e-port-ship found rival colony failed\n");
+        return 1;
+      }
+      col->nation_id = 1;
+      col->population = 1;
+      col->colonist_count = 1;
+      col->colonists[0].active = true;
+
+      ColonizeCol1Save c1;
+      memset(&c1, 0, sizeof(c1));
+      c1.player[0].control = 0;
+      c1.player[1].control = 1;
+
+      /* Rival Frigate berthed in the port (armed: attack > 0, so the
+       * non-combat seizure sweep leaves it alone). */
+      const int ship = units_spawn_allow_stack(&pool, frig3, cx, cy);
+      ColonizeUnit* sv = units_get(&pool, ship);
+      if (!sv) {
+        fprintf(stderr, "1b0e-port-ship frigate spawn failed\n");
+        return 1;
+      }
+      sv->nation_id = 1;
+
+      const int aid = units_spawn(&pool, soldier3, cx - 1, cy);
+      ColonizeUnit* a = units_get(&pool, aid);
+      if (!a) {
+        fprintf(stderr, "1b0e-port-ship attacker spawn failed\n");
+        return 1;
+      }
+      a->nation_id = 0;
+      a->moves_left = 5 * UNITS_MP_PER_TILE;
+      pool.types[soldier3].attack = 8;
+      pool.types[soldier3].defense = 1;
+
+      units_set_ff_col1(&c1);
+      units_set_combat_human_nation(0);
+      units_set_occupancy_map(&map);
+
+      if (!units_try_move(&pool, aid, &map, cx, cy, &colonies, NULL)) {
+        fprintf(
+          stderr,
+          "1b0e-port-ship attack should win (enter=%d combat=%d)\n",
+          (int)units_last_enter_reason(),
+          units_last_combat_outcome()
+        );
+        units_set_ff_col1(NULL);
+        return 1;
+      }
+      col = colonies_get_mut(&colonies, cid);
+      if (!col || col->nation_id != 0) {
+        fprintf(stderr, "1b0e-port-ship berthed hull must not block the capture\n");
+        units_set_ff_col1(NULL);
+        return 1;
+      }
+      sv = units_get(&pool, ship);
+      if (!sv || !sv->active) {
+        fprintf(stderr, "1b0e-port-ship DOS does not sink the berthed hull\n");
+        units_set_ff_col1(NULL);
+        return 1;
+      }
+      if (sv->nation_id != 1 || sv->x != cx || sv->y != cy) {
+        fprintf(
+          stderr,
+          "1b0e-port-ship DOS does not seize/move the berthed hull (nation %d at %d,%d)\n",
+          sv->nation_id, sv->x, sv->y
+        );
+        units_set_ff_col1(NULL);
+        return 1;
+      }
+      units_despawn(&pool, ship);
+      (void)units_despawn(&pool, aid);
+
+      /* --- DS:0x54f6 discharge, site 1 --- */
+      int16_t tension[2 * 4];
+      ColonizeCol1Tribe tribes[2];
+      memset(tension, 0, sizeof(tension));
+      memset(tribes, 0, sizeof(tribes));
+      tribes[0].nation_id = 4;
+      tribes[1].nation_id = 4;
+      c1.tribe = tribes;
+      c1.head.tribe_count = 2;
+      c1.indian_tension = tension;
+
+      /* Open ground: native attacker wins → tension[tribe 0][euro 1] = 0. */
+      units_set_combat_colonies(&colonies);
+      tension[0 * 4 + 1] = 96;
+      {
+        const int bx = cx - 3;
+        const int by = cy;
+        const int bid = units_spawn_allow_stack(&pool, brave3, bx, by);
+        const int vid = units_spawn_allow_stack(&pool, soldier3, bx, by);
+        ColonizeUnit* b = units_get(&pool, bid);
+        ColonizeUnit* v = units_get(&pool, vid);
+        if (!b || !v) {
+          fprintf(stderr, "1b0e-tension open-ground spawn failed\n");
+          units_set_ff_col1(NULL);
+          return 1;
+        }
+        b->nation_id = 4;
+        b->home_tribe_id = 0;
+        v->nation_id = 1;
+        pool.types[brave3].attack = 8;
+        pool.types[soldier3].defense = 1;
+        if (!units_resolve_land_combat_ff(&pool, bid, vid, NULL, &c1)) {
+          fprintf(stderr, "1b0e-tension brave should win on open ground\n");
+          units_set_ff_col1(NULL);
+          return 1;
+        }
+        if (tension[0 * 4 + 1] != 0) {
+          fprintf(
+            stderr,
+            "1b0e-tension open-ground win must clear the slot, got %d\n",
+            (int)tension[0 * 4 + 1]
+          );
+          units_set_ff_col1(NULL);
+          return 1;
+        }
+        units_despawn(&pool, bid);
+      }
+
+      /* Colony tile + native attacker LOSES: DOS hands the clear to
+       * FUN_5fef_0f14's raid path, so this site leaves the slot alone. */
+      tension[1 * 4 + 1] = 77;
+      {
+        const int bid = units_spawn_allow_stack(&pool, brave3, cx, cy);
+        const int vid = units_spawn_allow_stack(&pool, soldier3, cx, cy);
+        ColonizeUnit* b = units_get(&pool, bid);
+        ColonizeUnit* v = units_get(&pool, vid);
+        if (!b || !v) {
+          fprintf(stderr, "1b0e-tension colony spawn failed\n");
+          units_set_ff_col1(NULL);
+          return 1;
+        }
+        b->nation_id = 4;
+        b->home_tribe_id = 1;
+        v->nation_id = 1;
+        pool.types[brave3].attack = 0;
+        pool.types[soldier3].defense = 8;
+        if (units_resolve_land_combat_ff(&pool, bid, vid, NULL, &c1)) {
+          fprintf(stderr, "1b0e-tension brave should lose at the colony\n");
+          units_set_ff_col1(NULL);
+          return 1;
+        }
+        if (tension[1 * 4 + 1] != 77) {
+          fprintf(
+            stderr,
+            "1b0e-tension colony loss must NOT clear the slot, got %d\n",
+            (int)tension[1 * 4 + 1]
+          );
+          units_set_ff_col1(NULL);
+          return 1;
+        }
+        units_despawn(&pool, vid);
+      }
+
+      c1.tribe = NULL;
+      c1.indian_tension = NULL;
+      c1.head.tribe_count = 0;
+      units_set_combat_colonies(NULL);
+      units_set_ff_col1(NULL);
+      units_set_combat_human_nation(-1);
+      fprintf(stderr, "unit_units: 1b0e port-ship fate + DS:0x54f6 discharge ok\n");
     }
 
     /* Treasure ransom Accept credits gold; Refuse does not. */
@@ -6794,7 +7187,7 @@ int main(void) {
         fprintf(stderr, "ransom Accept want gold 110 got %u\n", c1.nation[0].gold);
         return 1;
       }
-      units_despawn(&pool, aid);
+      (void)units_despawn(&pool, aid);
       fprintf(stderr, "unit_units: treasure ransom Accept/Refuse ok\n");
     }
 
@@ -6867,7 +7260,7 @@ int main(void) {
         fprintf(stderr, "SEIZURE popup missing (queue=%d)\n", pops.queue_count);
         return 1;
       }
-      units_despawn(&pool, aid);
+      (void)units_despawn(&pool, aid);
       if (units_get(&pool, did) && units_get(&pool, did)->active) {
         units_despawn(&pool, did);
       }

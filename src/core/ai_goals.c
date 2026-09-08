@@ -1134,34 +1134,74 @@ int ai_goals_stack_settler_pick(
 }
 
 /*
- * FUN_521d_0896 — filter_profession_by_distance_wealth. Cite:
- * viceroy_unpacked.c ~87319. `profession` is DOS's overloaded owner id
- * (0..3 = nation, >=4 = Indian tribe index) reused as a profession code by
- * the caller (see FUN_521d_0906) — the >3 gate is a no-op for real nation
- * ids, matching by construction. FUN_281f_030c relation/alarm lookup and the
- * DS:0x54f6 wealth table are PARKED (no Linux accessor).
+ * FUN_521d_0896 — the Indian hostility gate. Cite: viceroy_unpacked.c
+ * 87319-87340, raw body:
+ *
+ *   if (3 < param_2) {
+ *     if (param_3 == 0) return -1;
+ *     iVar2 = FUN_281f_030c(0x521d, param_2 + -4, param_1);
+ *     bVar1 = 0x4a < iVar2;
+ *     if ((-1 < param_4) &&
+ *        (0x7f < *(int *)((*(char *)(param_4 * 0x1c + 0x314a) * 9 + param_1)
+ *                         * 2 + 0x54f6))) bVar1 = true;
+ *     if (!bVar1) return -1;
+ *   }
+ *   return param_2;
+ *
+ * Ghidra prepends the far-call segment word, so the real argument order at
+ * FUN_521d_0906's two call sites (`thunk_FUN_2a1f_056c(0x281f, param_3,
+ * iVar5, param_4, local_10)`) is:
+ *   param_1 = acting Euro nation      -> nation_id
+ *   param_2 = the adjacent tile's owner id (0..3 Euro, >=4 Indian nation)
+ *                                     -> profession (DOS's overload)
+ *   param_3 = 0906's own param_4 flag -> has_context
+ *   param_4 = unit index on that tile -> unit_index (-1 for Euro owners
+ *             and for the settlement probe)
+ *
+ * The two reads, both wired 2026-09-08 (previously PARKED as 0):
+ *   FUN_281f_030c -> FUN_15dc_00e0 = DS:0x5b1c[indian][euro], the Indian
+ *     nation's alarm toward that Euro (ai_diplo_indian_alarm, HIGH =
+ *     HOSTILE). `0x4a < alarm` — strictly greater than 74.
+ *   DS:0x54f6 = the grudge/tension table (ColonizeCol1Save.indian_tension,
+ *     docs/indians.md "third layer"), keyed by the *tile unit's* home
+ *     settlement id (DOS unit +0x06 / DS:0x314a = ColonizeUnit
+ *     .home_tribe_id) x the acting Euro nation. DOS strides that table by
+ *     9; the port stores it packed x4 (only euro 0..3 has a confirmed
+ *     touch site — col1_save.h) and every other port site keys it the same
+ *     way, so reuse that indexing here. `0x7f < tension` — over 127.
+ *
+ * So: an adjacent native only raises a contact claim when the nation is
+ * already hostile OR that particular village carries a grudge. `has_context`
+ * 0 rejects outright — that is the 20e6 explorer-flag probe, which is why no
+ * tribe has ever raised a claim there.
  */
 int ai_goals_filter_profession_by_distance_wealth(
-  const ColonizeCol1Unit* units,
-  int unit_count,
+  const ColonizeCol1Save* col1,
+  const struct ColonizeUnitPool* units,
   int nation_id,
   int profession,
   int has_context,
   int unit_index
 ) {
-  (void)nation_id;
   if (profession > 3) {
     if (!has_context) {
       return -1;
     }
-    /* FUN_281f_030c(nation, profession-4) — PARKED identity. */
-    const int relation_or_dist = 0;
-    int gate = relation_or_dist > 0x4a;
-    if (!gate && unit_index >= 0 && units && unit_index < unit_count) {
-      /* DS:0x54f6 wealth/tribute table [origin*9+nation], int16 — PARKED. */
-      const int wealth = 0;
-      if (wealth > 0x7f) {
-        gate = 1;
+    /* FUN_281f_030c(profession - 4, nation) — accessor takes 4..11 raw. */
+    const int alarm = (col1 && nation_id >= 0 && nation_id < 4)
+      ? ai_diplo_indian_alarm(col1, profession, nation_id)
+      : 0;
+    int gate = alarm > 0x4a;
+    if (!gate && unit_index >= 0 && units && col1 && col1->indian_tension &&
+        nation_id >= 0 && nation_id < 4) {
+      const ColonizeUnit* tu = units_get_const(units, unit_index);
+      const int home = tu ? tu->home_tribe_id : -1;
+      if (home >= 0 && home < (int)col1->head.tribe_count) {
+        const int tension =
+          (int)col1->indian_tension[(size_t)home * COLONIZE_COL1_NATION_COUNT + (size_t)nation_id];
+        if (tension > 0x7f) {
+          gate = 1;
+        }
       }
     }
     if (!gate) {
@@ -1220,15 +1260,17 @@ static int ai_goals_tile_layer2_owner(const ColonizeWorldMap* map, int x, int y,
  *        claim = 0896(nation, s, profession, -1)    // DOS assigns claim here
  *        if (claim < 4 && side < 0) side = claim    // DS:0x9ea8, first only
  *
- * Still thin: 0896's tribe arm (owner >= 4) needs the FUN_281f_030c
- * Indian↔Euro alarm word and the DS:0x54f6 tribe×nation table, both still
- * PARKED there — with `profession`/has_context 0 at the only call site the
- * tribe arm returns -1 anyway, so no tribe ever raises a claim.
+ * 0896's tribe arm (owner >= 4) went live 2026-09-08: it now really reads
+ * the FUN_281f_030c Indian↔Euro alarm word and the DS:0x54f6 tension table
+ * (see that function). The 20e6 explorer-flag probe passes has_context 0, so
+ * only the 0a60 tile-housekeeping probe (has_context 1) can raise a tribe
+ * claim.
  */
 int ai_goals_probe_adjacent_contact_claim(
   const ColonizeWorldMap* map,
   const ColonizeColonyPool* colonies,
   const struct ColonizeUnitPool* units,
+  const ColonizeCol1Save* col1,
   int x,
   int y,
   int nation_id,
@@ -1257,11 +1299,11 @@ int ai_goals_probe_adjacent_contact_claim(
     }
     const int owner = ai_goals_tile_layer2_owner(map, nx, ny, MAP_OCCUPANCY_HAS_UNIT);
     if (owner >= 0 && owner != nation_id) {
-      /* Tribe owners key 0896's wealth lookup off the tile's top unit. */
+      /* Tribe owners key 0896's tension lookup off the tile's top unit. */
       const int unit_filter =
         (owner >= 4 && units) ? units_id_at(units, nx, ny) : -1;
       claim = ai_goals_filter_profession_by_distance_wealth(
-        NULL, 0, nation_id, owner, profession, unit_filter
+        col1, units, nation_id, owner, profession, unit_filter
       );
       if (claim >= 0 && origin_water != 0) {
         /*
@@ -1291,7 +1333,7 @@ int ai_goals_probe_adjacent_contact_claim(
     const int settlement = ai_goals_tile_layer2_owner(map, nx, ny, MAP_OCCUPANCY_HAS_CITY);
     if (settlement >= 0 && settlement != nation_id) {
       claim = ai_goals_filter_profession_by_distance_wealth(
-        NULL, 0, nation_id, settlement, profession, -1
+        col1, units, nation_id, settlement, profession, -1
       );
       if (claim < 4 && side < 0) {
         side = claim;

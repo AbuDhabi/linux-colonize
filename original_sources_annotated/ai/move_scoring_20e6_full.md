@@ -4808,8 +4808,9 @@ them.
 
 ### Not ported (recorded, not invented)
 
-- The recursive `FUN_1427_101c` pre-pass (`+0x314c == 2` ship re-berth, decomp
-  8630-8645): out of band, 20e6 never marks `act_state` 2.
+- ~~The recursive `FUN_1427_101c` pre-pass (`+0x314c == 2` ship re-berth,
+  decomp 8630-8645)~~ — **closed 2026-09-08, see below: `act_state 2` is the
+  human trade-route order, unreachable from any AI path.**
 - (The two force-board arms moved out of this list — see 2026-09-07f below.)
 
 ## 2026-09-07f — 10be's two force-board arms ported; `FUN_13e4_0074` was never undecoded
@@ -4889,3 +4890,133 @@ too (it previously only ever re-stamped an already-marked unit).
   `test-saves-*` (all gitignored) — ctest fails 22 tests with
   "failed to load NAMES.TXT" until those are symlinked from the main
   checkout. Not a code regression.
+
+## 2026-09-08 — `FUN_1427_101c` closed (not ported); the passenger/goods capacity divergence fixed
+
+### 1. `act_state == 2` = the human TRADE ROUTE order; `101c` is out of band
+
+The 2026-09-07e "Not ported" list carried the recursive `FUN_1427_101c`
+pre-pass on the guess that "20e6 never marks act_state 2". Traced, that guess
+is right for the wrong reason — 2 is not an AI value at all.
+
+**Who writes 2.** Exhaustive grep of `+0x314c` writes in
+`viceroy_unpacked.c` gives values 0, 1, 3, 5, 7, 8, 9, 10, plus a
+save/restore pair (:60741/:60777) and `FUN_1427_12c6`'s `param_2`. The **only**
+site that writes 2 is `FUN_2b5a_1e66` (:42863):
+
+| line | what |
+|---|---|
+| 42827 | `if (DS:0x53a0 == 0)` → popup `0xa2d` and return — `0x53a0` is `trade_route_count` (`docs/save_format_map.md:117`) |
+| 42833 | kind = 2 for a ship type `0x0d..0x12`, else 1 |
+| 42836 | `FUN_291f_02dc` = far thunk → `FUN_647e_0796`, the route/colony list picker |
+| 42863 | `+0x314c = 2` |
+| 42864 | `FUN_291f_02b2` = far thunk → `FUN_479b_0bd0`, the goto-colony / route body |
+
+i.e. the human "assign this unit to a trade route" order. `FUN_1427_12c6`
+(stamp act_state over a whole tile stack) is the only indirect writer and its
+sole caller — :75718 through thunk `FUN_281f_08f8` — passes 1.
+
+**Why the AI can never carry it.** No AI path assigns trade routes, and
+`FUN_521d_0a60`'s unit housekeeping resets `act_state` 1/2/3 → 0 (and >9 with
+`+0x314b != '1'`) for every on-map unit at the top of the nation turn
+(:87558-87562, already live as `ai_euro_0a60_unit_housekeeping`). A captured or
+loaded unit is therefore 0 by the time 20e6 sees it. Two independent reasons.
+
+**What 101c actually is** (raw 8566-8601, asm `1427:101c-10bd` — the decompile
+reads like an infinite loop only because Ghidra hides that `10be` moves its own
+`param_1`):
+
+```
+101c(head):
+  04d6(head, 0)                     ; reorder the tile stack (transports first,
+                                    ; then type 0x0a, then 0x5238 size 6..1)
+  x,y = coords of stack head
+  loop:
+    scan the (x,y) bucket for a unit of type 0x0d..0x12
+    found  -> 10be(that ship)       ; asm 1427:11b1 `PUSH -2 / PUSH -2 / PUSH SI`
+                                    ; parks the SHIP ITSELF plus its marked
+                                    ; members at (−2,−2) — that is what makes
+                                    ; the rescan terminate
+             restart the scan
+    none   -> ret = 005c(x, y)      ; leftover non-ship head, or −1
+              040c(last_ship, x, y) ; flush the whole (−2,−2) chain back
+              return ret
+```
+
+So it is a **tile-stack transport-chain rebuild**, and `10be` uses only its
+return value: for a trade-route ship at sea (`+0x314c == 2`, not in its own
+Europe slot, `FUN_137f_03e4` tile_tribe_owner `< 0`) the ship parks at
+(−4,−4), 101c rebuilds every *other* transport chain on the tile, and the ship
+gets a real `free` budget **only if loose units are still left over** —
+otherwise `bVar11` stays false and `local_8` stays 0, so it boards nobody.
+
+**Verdict: Outcome B, not ported.** Nothing here has a port counterpart: the
+port has no per-coordinate unit buckets, no (−2,−2)/(−3,−3)/(−4,−4) parks and
+no stack reorder — passengers live in `cargo_ids` (the substitution
+`ai_euro_20e6_transport_assemble` documents), and
+`ai_euro_20e6_transport_assemble` is only ever called from AI ship acts
+(`ai_euro_20e6_ship_berth_arrival` tail, `ai_euro_20e6_unload_mask` head).
+Recorded in full at that function's header in `src/core/ai_euro.c`.
+
+**Also pinned on the way** (these were assumed, now read): `FUN_1427_0362(u,
+x, y)` writes **bytes** into `+0x3144`/`+0x3145` via `023a` unlink + `02ca`
+prepend, so `0xfffe` really is the tile (−2,−2); `FUN_1427_040c(u, x, y)` moves
+the *entire* stack `u` belongs to; `FUN_1427_04d6(u, flag)` is the stack
+reorder that stages through (−3,−3). And every direct `10be` caller is followed
+by `FUN_281f_0948` (= `040c`) to flush the chain back — :42648, :60759, :77755,
+:77890, :89424 (the 20e6 one, right after the `0d38` batch), :97804, :104642.
+
+### 2. Caravel carried 2 passengers **and** a cargo hold — fixed
+
+`tests/unit/test_ai_euro_20e6_ports.c` recorded this as "a real divergence, but
+fixing it is production work".
+
+**What `+0x3150` is.** Not "passengers and goods together", as the old note
+guessed — it is the **goods hold count only**, the length of the packed hold
+arrays (`+0x3151..` cargo-type nibbles, two per byte; `+0x3154..` amounts):
+
+| decomp | what |
+|---|---|
+| 13244 `FUN_15eb_2ff2(u, i)` | hold `i`'s cargo type, `-1` when `i >= +0x3150` |
+| 13301 `FUN_15eb_30b8` | add goods: `if (+0x3150 < 0x5237[type]) { write nibble+amount; +0x3150++ }` |
+| 13339 `FUN_15eb_317c` | remove hold `i`: compact the tail down, `+0x3150--` |
+| 13367 `FUN_15eb_3208` | free room = `0x5237[type] − +0x3150`, ×100 units |
+
+Nothing about boarding touches it: `10be`'s board arm debits only its local
+`local_8` and calls `0362(member, −2, −2)`.
+
+**Why DOS still cannot overfill.** DOS re-derives the chain on *every* berth
+act. The arrival block's stale-mark clear (raw 2991-2997) strips
+`act_state == 1` from everything standing on the berth tile — including last
+act's passengers, which `040c` flushed back onto that tile — and the raw
+3024-3051 scan then re-marks them and re-debits `iStack_d2` by their `0x5238`
+size. The goods matrix that follows therefore never sees hull a passenger is
+sitting in. `0a60`'s own "hull full" test is the same arithmetic from the other
+side: `0x5237[type] == +0x3150` (:87511-87514).
+
+**The port's divergence.** Passengers persist in `cargo_ids`, so the port's
+mark scan correctly skips them (`aboard_ship_id >= 0`) — and with them the
+reservation DOS renews each act. `ai_euro_20e6_ship_berth_arrival` seeded its
+budget from `ai_euro_hauler_free_holds` (goods holds only), so a 2-slot Caravel
+that boarded two Pioneers in act 1 got a budget of 2 again in act 2 and loaded
+Silver.
+
+**Fix** (`src/core/ai_euro.c`, ai_euro.c-only — `units.c`'s
+`units_ship_free_passenger_slots` was already correct and is untouched):
+
+- new `ai_euro_20e6_ship_hold_budget(units, ship)` = `ai_euro_hauler_free_holds`
+  minus the `ColonizeUnitType.space` (`0x5238`) of every unit in `cargo_ids`,
+  clamped at 0;
+- both load-matrix seeds use it: the arrival block (raw 3012-3016) and the
+  `AI_20E6_SHIP_DUMP=0` fallback block (raw 3020-3023);
+- `ai_euro_hauler_free_holds` itself is left literal (`0x5237 − +0x3150`) — it
+  is also the 4393 work-queue decrement quantity, where DOS reads the goods
+  count and nothing else.
+
+Test: `assemble_boards_whole_reserved_hull` now also asserts
+`ship_goods_holds(ship) == 0` after the full dispatcher turn, and the file's
+"not covered" note is retired.
+
+**Not fixed here (reported, not touched):** nothing — the fix belongs wholly to
+`ai_euro.c`. `units_board` / `units_ship_free_passenger_slots` already charge
+`cargo_count` + occupied goods holds against `units_ship_capacity`.

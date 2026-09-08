@@ -4829,8 +4829,10 @@ int main(void) {
 /* alarm pinned above (was relation write) */
     col1.indian[0].euro_diplo[0] |= COL1_INDIAN_MET_BIT;
     ai_contact_indian_capital_surrender(&col1, 4, 0);
-    if (ind->alarm_by_player[0] != 0 || col1.tribe[0].alarm[0].friction != 0) {
-      return fail("capital surrender should clear alarm/friction");
+    /* FUN_5fef_1b0e capital-razed arm (raw 101289-101298): alarm is clamped
+     * DOWN to 15, not zeroed. */
+    if (ind->alarm_by_player[0] != 15 || col1.tribe[0].alarm[0].friction != 0) {
+      return fail("capital surrender should clamp alarm to 15 / clear friction");
     }
     if (col1.tribe[0].alarm[0].attacks != 0) {
       return fail("capital surrender should clear attack counter");
@@ -4838,8 +4840,8 @@ int main(void) {
     if (!ai_contact_indian_has_peace(&col1, 4, 0)) {
       return fail("capital surrender should set peace bit");
     }
-    if (ai_diplo_indian_relation(&col1, 4, 0) < 96) {
-      return fail("capital surrender should floor relation to peaceful");
+    if (ai_diplo_indian_relation(&col1, 4, 0) < 85) {
+      return fail("capital surrender should land relation at 100-15");
     }
     /* Remaining villages must not become / stay capital (fandom). */
     col1.tribe[0].state.capital = 1;

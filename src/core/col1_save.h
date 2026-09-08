@@ -1008,9 +1008,10 @@ typedef struct ColonizeCol1Save {
    * tier-crossing clamp); ai_contact.c's ai_contact_indian_raids also clears
    * a slot to 0 on every raid resolution (FUN_5fef_0f14 tail,
    * viceroy_unpacked.c:100034 — unconditional, all loot kinds incl.
-   * "Nothing"). No Linux reader yet — DOS's own read sites
-   * (FUN_521d_0896 hostility gate, viceroy_unpacked.c:87333) are Euro-AI
-   * goal-scoring, out of Indian/contact domain; left for that owner.
+   * "Nothing"); units.c clears on empty-tile combat + capital raze
+   * (FUN_5fef_1b0e). Read live 2026-09-08: FUN_521d_0896 hostility gate
+   * (viceroy_unpacked.c:87333) in ai_goals.c contact-claim scoring; the
+   * map-chrome tier read (FUN_112b_0790) stays a stand-in — docs/indians.md.
    */
   int16_t* indian_tension;
   ColonizeCol1Indian indian[COLONIZE_COL1_INDIAN_COUNT];

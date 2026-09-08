@@ -104,6 +104,18 @@ const char* reports_misc_display_word(int index, const char* fallback);
 bool reports_id_from_fkey(int fkey_number /*1..10*/, ColonizeReportId* out_id);
 
 /*
+ * DOS availability gate for a report screen. Only F8 Foreign Affairs has one:
+ * FUN_3f41_2548's first statement (raw viceroy_unpacked.c:70792) is
+ * `if ((*(byte *)0x5382 & 1) != 0) { FUN_281f_0652(0x3f41, 0x11b6, 1); return; }`
+ * — DS:0x5382 bit0 = head.game_options.woi, DS string 0x11b6 =
+ * "FOREIGNNOTAVAIL". DOS returns before the plate load, so the screen is
+ * never entered; the caller shows the @FOREIGNNOTAVAIL popup instead
+ * (`reports_unavailable_tag` names the GAME.TXT section). Ported 2026-09-08.
+ */
+bool reports_is_available(ColonizeReportId id, const ColonizeCol1Save* col1);
+const char* reports_unavailable_tag(ColonizeReportId id);
+
+/*
  * Bottom-right "OK" button every F2–F9 report shares (native 320×200 coords).
  * F10 Colonization Score has no OK button (Retire/exit is separate); neither
  * does Congress page 2 (golden: continental_p2.png — full-bleed photo, no chrome).

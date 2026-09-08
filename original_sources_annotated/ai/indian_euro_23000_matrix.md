@@ -190,10 +190,18 @@ pieces:
    storage (`ColonizeCol1Save.indian_tension`, runtime-only, not part of
    the persisted col1 record — see `col1_save.h`'s field doc) + the
    write formula, both in `ai_diplo.c`'s `ai_diplo_indian_relation_delta`
-   / `ai_diplo_indian_tension_tier_update`. **Still no Linux reader** —
-   DOS's own read sites (`FUN_521d_0896` Euro-AI goal-scoring hostility
-   gate; a `>>5` 4-tier relations-report icon) are outside Indian/contact
-   domain, left for whoever owns `ai_euro.c`/reports.
+   / `ai_diplo_indian_tension_tier_update`. **Reader wired 2026-09-08**:
+   `FUN_521d_0896` (the Euro-AI hostility gate,
+   `viceroy_unpacked.c:87319-87340`) is ported in `ai_goals.c` as
+   `ai_goals_filter_profession_by_distance_wealth` — an adjacent native
+   raises a contact claim only when `FUN_281f_030c` alarm `> 0x4a` **or**
+   `DS:0x54f6[tile-unit's +0x06 home settlement][acting Euro] > 0x7f`.
+   The other two DOS reads (`FUN_112b_0790`'s `>>5` 4-tier village-chrome
+   icon, whose Linux stand-in in `map_panel.c` sources the tier from
+   `tribe.alarm` instead; and `FUN_5952_035e`'s parked colony threat
+   accumulator at `viceroy_unpacked.c:94967`) are recorded but deliberately
+   unported — see `docs/indians.md`'s "Read side wired 2026-09-08" block for
+   the raw bodies and the golden-pixel reason.
 2. **Max-relation mission-clear branch** (else branch, `iVar5>=100 &&`
    peace bit set): `local_66 = difficulty` if the Euro side is human else
    `1`; roll `RNG(0,10)`; if `roll <= local_66+1`, call
