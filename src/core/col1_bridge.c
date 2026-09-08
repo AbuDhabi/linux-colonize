@@ -1184,7 +1184,10 @@ bool col1_bridge_apply(
             mu->col1_hold_raw_valid = 1;
             mu->col1_origin = src->origin;
             mu->col1_facing_pad = src->facing_pad;
-            mu->last_dir = (int)src->facing;
+            /* DOS facing is the full byte at unit+0x0b: values >= 8 (pad
+             * bits set; 8 = stayed last act) disable the AI facing term —
+             * reconstruct them instead of collapsing to direction 0. */
+            mu->last_dir = (int)(src->facing | ((unsigned)src->facing_pad << 3));
             mu->goto_x = 0;
             mu->goto_y = 0;
             mu->moves_left = 0;
@@ -1289,7 +1292,8 @@ bool col1_bridge_apply(
                   (src->ship_damaged ? 0x80u : 0u));
       u->col1_ai_plan = src->ai_plan;
       u->col1_vis_mask = src->vis_mask;
-      u->last_dir = (int)src->facing;
+      /* Full DOS facing byte (see europe-dock load above): >= 8 = no facing bias. */
+      u->last_dir = (int)(src->facing | ((unsigned)src->facing_pad << 3));
       /*
        * Commodity holds: ships/wagons only. Land pioneers store tools in
        * cargo_hold[5] (DOS unit+0x15) — not a goods slot.

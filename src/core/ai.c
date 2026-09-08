@@ -262,6 +262,28 @@ static int ai_asm_stay_sync_enabled(void) {
   return 1;
 }
 
+/* AI_PEEL_AUDIT=1: classify each firing peel row against both branch scorers. */
+static int ai_peel_audit_enabled(void) {
+  static int cached = -1;
+  if (cached < 0) {
+    const char* e = getenv("AI_PEEL_AUDIT");
+    cached = (e && e[0] == '1') ? 1 : 0;
+  }
+  return cached;
+}
+
+static int ai_peel_audit_argmax(const int score[8]) {
+  int best = -0x3e7;
+  int dir = 8;
+  for (int d = 0; d < 8; ++d) {
+    if (score[d] > best) {
+      best = score[d];
+      dir = d;
+    }
+  }
+  return dir;
+}
+
 /* AI_NO_BRAVE_PEELS=1: skip seed-100 dir peels (audit how many quiet misses remain). */
 static int ai_brave_peels_disabled(void) {
   static int cached = -1;
@@ -3656,6 +3678,12 @@ static int ai_native_pick_dir_asm(
   const int unit_river = (int)(ai_terrain_at(map, x, y) & 0x40u) != 0;
   int accepted = 0;
   int rejected = 0;
+  /* Peel-audit scratch: both branch totals per dir (AI_PEEL_AUDIT=1). */
+  int audit_seen[8];
+  int audit_unseen[8];
+  for (int i = 0; i < 8; ++i) {
+    audit_seen[i] = audit_unseen[i] = -0x3e7;
+  }
   const int dump4753 =
     ai_lcg_audit_enabled() && nation_id == 7 && x == 47 && y == 53;
   /* All 13 seed-100 init peels (+ Apache fog probe) for AI_LCG_AUDIT term diffs. */
@@ -3671,9 +3699,43 @@ static int ai_native_pick_dir_asm(
      (nation_id == 9 && x == 33 && y == 54) || (nation_id == 9 && x == 30 && y == 50) ||
      (nation_id == 10 && x == 48 && y == 42) || (nation_id == 10 && x == 47 && y == 39) ||
      (nation_id == 11 && x == 32 && y == 31));
-  const int dump = dump4753 || dump_miss || ai_score_at_match(nation_id, x, y);
+  const int dump = dump4753 || dump_miss || ai_score_at_match(nation_id, x, y) ||
+                   (ai_peel_audit_enabled() && s_ai_seed100_midturn_turn > 0);
   s_ai_lcg_pick_burns = 0;
   s_ai_lcg_in_pick = 1;
+
+  /*
+   * DOS unit+0x3147 high nibble: per-Euro "currently observed" cache —
+   * cleared+recomputed on the unit's own move (adjacency + sight-ring
+   * writers), NOT the sticky explored-fog plane. The port's
+   * col1_vis_mask carries exactly this nibble (units_vis_mask_after_move /
+   * units_reveal_tile_effects), so read the mover's mask directly.
+   */
+  int unit_seen_by_any = 0;
+  {
+    const int mover = ai_unit_index_on_tile(units, x, y);
+    if (mover >= 0) {
+      unit_seen_by_any = (units->units[mover].col1_vis_mask & 0x0fu) != 0;
+    }
+  }
+  /*
+   * local_ec (521d:4d46, computed once per act): the whole fog band — far
+   * probe +8, ship +4, and the −2 owner/presence ring (56ce jumps straight
+   * to the keep-max when 0) — is DISABLED when the adjacent-foreign-claim
+   * probe (FUN_2a1f_047c → 521d_0906) returns >= 0 at the unit's own tile.
+   * Braves' @UNIT combat byte is nonzero (DS:0x5236[19] = 1), so the
+   * rescue clause for unarmed land types never fires and the probe alone
+   * decides.
+   */
+  int fog_enable = 1;
+  {
+    int side = -1;
+    if (ai_goals_probe_adjacent_contact_claim(
+          map, s_ai_native_colonies, units, s_ai_native_col1, x, y, nation_id, 0,
+          &side) >= 0) {
+      fog_enable = 0;
+    }
+  }
 
   if (dump) {
     fprintf(
@@ -3744,52 +3806,61 @@ static int ai_native_pick_dir_asm(
      * field is very likely just a cached mirror of that same fog-of-war
      * plane (same bit layout), not independently verified byte-for-byte.
      */
-    int unit_seen_by_any = 0;
-    for (int sn = 0; sn < 4; ++sn) {
-      if (map_tile_seen_by(map, x, y, sn)) {
-        unit_seen_by_any = 1;
-        break;
-      }
-    }
-
     int base;
     int score;
     int terr_delta = 0;
-    if (!unit_seen_by_any) {
-      base = ai_rng_range(rng, 1, 3);
-      score = base;
+    /* One raw 15-bit draw feeds either branch's range map (same LCG burn
+     * either way — lets AI_PEEL_AUDIT score both branches per dir). */
+    const uint32_t rraw = ai_rng_next_counted(rng);
+    if (s_ai_lcg_in_pick) {
+      s_ai_lcg_pick_burns++;
+    }
+    /* Unseen branch: RNG(1,3); river/fa pair +1, else -terr cost. */
+    int score_unseen = 1 + (int)((3u * rraw) >> 15);
+    int terr_unseen = 0;
+    {
       const int dest_river = (int)(ai_terrain_at(map, nx, ny) & 0x40u) != 0;
       const int dest_fa = ai_mask_fa_flags(map, nx, ny) != 0;
       const int cardinal = (d & 1) == 0;
       if ((unit_river && dest_river && cardinal) || (unit_fa && dest_fa)) {
-        terr_delta = 1;
-        score += 1;
+        terr_unseen = 1;
       } else {
         const int terr = ai_dos_terr_class(map, nx, ny) & 31;
-        terr_delta = -map_dos_terr_cost_byte(terr);
-        score += terr_delta;
+        terr_unseen = -map_dos_terr_cost_byte(terr);
       }
-    } else {
-      /*
-       * "Seen" branch (RNG(1,5), not RNG(1,3)) — real DOS table read
-       * confirmed live (map_dos_terr_found_score_byte / DS:0x2f77, same
-       * stride-16 records map_dos_terr_cost_byte already uses at +0).
-       * Gate (FUN_1000_89d0 / FUN_1000_88cc traced 2026-08-13): add the
-       * scaled table term unless dest already holds a unit AND is owned by
-       * this same nation (own-tile stacking discouragement); the outer
-       * ownership reject above already excludes foreign-owned dest tiles,
-       * so in practice this reduces to "dest is unowned" for anything that
-       * reaches here.
-       */
-      base = ai_rng_range(rng, 1, 5);
-      score = base;
+      score_unseen += terr_unseen;
+    }
+    /*
+     * "Seen" branch (RNG(1,5), not RNG(1,3)) — real DOS table read
+     * confirmed live (map_dos_terr_found_score_byte / DS:0x2f77, same
+     * stride-16 records map_dos_terr_cost_byte already uses at +0).
+     * Gate (FUN_1000_89d0 / FUN_1000_88cc traced 2026-08-13): add the
+     * scaled table term unless dest already holds a unit AND is owned by
+     * this same nation (own-tile stacking discouragement); the outer
+     * ownership reject above already excludes foreign-owned dest tiles,
+     * so in practice this reduces to "dest is unowned" for anything that
+     * reaches here.
+     */
+    int score_seen = 1 + (int)((5u * rraw) >> 15);
+    int terr_seen = 0;
+    {
       const int dest_has_unit = units_id_at(units, nx, ny) >= 0;
       if (!dest_has_unit || own != nation_id) {
         const int terr = ai_dos_terr_class(map, nx, ny) & 31;
-        terr_delta = map_dos_terr_found_score_byte(terr) << 2;
-        score += terr_delta;
+        terr_seen = map_dos_terr_found_score_byte(terr) << 2;
+        score_seen += terr_seen;
       }
     }
+    if (!unit_seen_by_any) {
+      base = 1 + (int)((3u * rraw) >> 15);
+      score = score_unseen;
+      terr_delta = terr_unseen;
+    } else {
+      base = 1 + (int)((5u * rraw) >> 15);
+      score = score_seen;
+      terr_delta = terr_seen;
+    }
+    const int score_pre_gate = score;
     int gate = 0;
     int face_delta = 0;
     int fog_p8 = 0;
@@ -3799,6 +3870,9 @@ static int ai_native_pick_dir_asm(
       score = ai_native_foreign_euro_pull(map, units, x, y, nation_id, nx, ny, score);
     } else if (ai_lab_54f5_gate(map, units, nx, ny, nation_id)) {
       gate = 1;
+      /* 521d:54f5 facing guard: the unit byte +0x314f enters the term only
+       * when 0 <= v < 8 — the value 8 is written on every stay (521d:5899)
+       * and means "no facing bias", it is NOT direction 0. */
       if (last_dir >= 0 && last_dir <= 7) {
         int diff = last_dir - d;
         if (diff < 1) {
@@ -3810,9 +3884,17 @@ static int ai_native_pick_dir_asm(
         face_delta = diff * diff * -2;
         score += face_delta;
       }
-      score = ai_quiet_fog_explore_ex(
-        map, score, x, y, d, nation_id, &fog_p8, &fog_m2
-      );
+      if (fog_enable) {
+        score = ai_quiet_fog_explore_ex(
+          map, score, x, y, d, nation_id, &fog_p8, &fog_m2
+        );
+      }
+    }
+    {
+      /* Post-branch delta (face/fog/pull) applies to either branch total. */
+      const int post = score - score_pre_gate;
+      audit_unseen[d] = score_unseen + post;
+      audit_seen[d] = score_seen + post;
     }
     if (dump) {
       const int far_x = x + k_ai_dir8_dx[d] * 4;
@@ -3821,7 +3903,8 @@ static int ai_native_pick_dir_asm(
         stderr,
         "AI_SCORE_DUMP asm d=%d dest=(%d,%d) base=%d terr=%+d gate=%d face=%+d "
         "fog8=%+d fogm2=%+d total=%d far=(%d,%d) far_ocean=%d far_inset=%d "
-        "l2u=%02x l2d=%02x tu=%02x td=%02x\n",
+        "l2u=%02x l2d=%02x tu=%02x td=%02x b3=%d b5=%d tU=%+d tS=%+d own=%d dhu=%d "
+        "ownnib=%d pull=%d\n",
         d,
         nx,
         ny,
@@ -3839,7 +3922,15 @@ static int ai_native_pick_dir_asm(
         ai_layer2_at(map, x, y),
         ai_layer2_at(map, nx, ny),
         ai_terrain_at(map, x, y),
-        ai_terrain_at(map, nx, ny)
+        ai_terrain_at(map, nx, ny),
+        1 + (int)((3u * rraw) >> 15),
+        1 + (int)((5u * rraw) >> 15),
+        terr_unseen,
+        terr_seen,
+        own,
+        units_id_at(units, nx, ny) >= 0,
+        ai_owner_nibble(map, nx, ny),
+        foreign_euro_pull
       );
     }
     if (score > best_score) {
@@ -3912,7 +4003,11 @@ static int ai_native_pick_dir_asm(
      * Mid-turn dir peels (AI_STEP_AUDIT triage, fog-axis fix does not shrink):
      *   river / multi-step first pick: 6
      *   cascade / mis-key fixes: 2
-     *   scoring holdouts (quiet terms at matched LCG): 105
+     *   scoring holdouts (quiet terms at matched LCG): 99 (2026-09-08:
+     *     6 rows retired after the vis-mask seen gate + local_ec fog gate +
+     *     facing byte-8 fixes; AI_PEEL_AUDIT=1 classifies every firing row
+     *     against both seen/unseen branch scorers — rerun it after any
+     *     scorer change and delete rows reported picked==golden)
      * Drop only when quiet formula (or inputs) catch golden without peels.
      */
     static const struct {
@@ -3927,7 +4022,6 @@ static int ai_native_pick_dir_asm(
   {2, 8, 18, 37, 5}, /* Arawak SW -> (17,38) */
   {2, 8, 7, 41, 0}, /* after Arawak multi-step LCG */
   {4, 9, 33, 50, 4}, /* Cherokee river S */
-  {4, 9, 33, 51, 4}, /* Cherokee S -> (33,52) */
   {1, 4, 11, 29, 3},
   {1, 6, 19, 9, 6},
   {1, 6, 41, 20, 6},
@@ -3958,7 +4052,6 @@ static int ai_native_pick_dir_asm(
   {2, 8, 20, 41, 5},
   {2, 9, 29, 50, 5},
   {2, 10, 47, 37, 5},
-  {2, 11, 27, 33, 4}, /* S -> (27,34); scoring picked E→(28,33) */
   {2, 11, 28, 34, 3},
   {3, 4, 7, 31, 4},
   {3, 4, 9, 25, 0},
@@ -3968,7 +4061,6 @@ static int ai_native_pick_dir_asm(
   {3, 6, 39, 20, 1}, /* NE -> (40,19); was N collapsing with (38,20) */
   {3, 6, 48, 5, 6},
   {3, 7, 45, 61, 5},
-  {3, 7, 46, 53, 3},
   {3, 7, 47, 57, 6},
   {3, 8, 13, 49, 6},
   {3, 8, 15, 35, 5},
@@ -4016,7 +4108,6 @@ static int ai_native_pick_dir_asm(
   {5, 9, 29, 51, 0},
   {5, 9, 35, 52, 0},
   {5, 10, 46, 38, 1},
-  {5, 10, 49, 42, 2},
   {5, 11, 30, 33, 2},
   {6, 4, 9, 26, 2},
   {6, 4, 10, 29, 4},
@@ -4024,7 +4115,6 @@ static int ai_native_pick_dir_asm(
   {6, 4, 14, 22, 1},
   {6, 6, 40, 21, 0},
   {6, 6, 48, 17, 4},
-  {6, 7, 46, 54, 4},
   {6, 7, 48, 59, 6},
   {6, 8, 9, 42, 5},
   {6, 8, 12, 37, 4},
@@ -4034,13 +4124,28 @@ static int ai_native_pick_dir_asm(
   {6, 9, 33, 53, 3},
   {6, 10, 47, 37, 0},
   {6, 10, 50, 40, 7},
-  {6, 10, 50, 42, 1},
   {6, 11, 27, 34, 1}, /* NE -> (28,33); was S colliding */
     };
     for (size_t i = 0; i < sizeof(k_mid_peels) / sizeof(k_mid_peels[0]); ++i) {
       if (k_mid_peels[i].turn == s_ai_seed100_midturn_turn &&
           k_mid_peels[i].nation_id == nation_id && k_mid_peels[i].x == x &&
           k_mid_peels[i].y == y) {
+        if (ai_peel_audit_enabled()) {
+          fprintf(
+            stderr,
+            "AI_PEEL_AUDIT turn=%d n=%d xy=(%d,%d) golden=%d picked=%d "
+            "unseen_best=%d seen_best=%d gate_now=%d\n",
+            s_ai_seed100_midturn_turn,
+            nation_id,
+            x,
+            y,
+            k_mid_peels[i].dir,
+            best_dir,
+            ai_peel_audit_argmax(audit_unseen),
+            ai_peel_audit_argmax(audit_seen),
+            unit_seen_by_any
+          );
+        }
         best_dir = k_mid_peels[i].dir;
         break;
       }
@@ -4521,7 +4626,9 @@ static void ai_native_nation_pulse(
           steps
         );
       }
-      const int last_dir = (u->last_dir >= 0 && u->last_dir <= 7) ? u->last_dir : 0;
+      /* DOS reads unit+0x314f raw; values outside 0..7 (8 = stayed last
+       * act) legitimately disable the facing term — do NOT clamp to 0. */
+      const int last_dir = u->last_dir;
       s_ai_native_home_dist = ai_dos_dist(u->x - hx, u->y - hy); /* DS:0x8db8 */
       const int dir = ai_native_pick_dir(
         rng, map, units, u->x, u->y, nation_id, hx, hy, last_dir, tech
@@ -4529,10 +4636,11 @@ static void ai_native_nation_pulse(
       if (dir < 0 || dir > 7) {
         /*
          * Stay (dir == 8). 021a:11b9 writes the picked dir into the facing
-         * byte (COL1 +0x0b) unconditionally — 8 lands as facing 0 (low 3
-         * bits) + pad bit0.
+         * byte (COL1 +0x0b) unconditionally — the full byte value 8 (facing
+         * bits 0 + pad bit0 in the save split). Keep last_dir = 8 in memory:
+         * 521d:54f5 skips the facing term for any byte >= 8.
          */
-        u->last_dir = 0;
+        u->last_dir = 8;
         u->col1_facing_pad = 1;
         /*
          * 021a:11cd orders latch: stay -> 5 (FORTIFY), repeat stay -> 6
@@ -4603,6 +4711,9 @@ static void ai_native_nation_pulse(
         u->x = nx;
         u->y = ny;
         units_occupancy_notify_moved(units, step_ox, step_oy, nx, ny);
+        /* 465b commit tail clears+recomputes unit+0x3147's observed nibble
+         * (FUN_281f_08da / 084e / 07fe) on every step — braves included. */
+        units_vis_mask_after_move(units, map, u->id, nx, ny);
       }
       u->moves_left = spent + cost;
       /*

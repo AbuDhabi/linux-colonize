@@ -271,8 +271,16 @@ chrome only (P11/D4).
   thirds (exhausted land units export 0), map panel shows fractions.
   `golden_ai_turns` byte-identical to baseline. 465b_05ca shore force-to-max
   **ported 2026-09-04** (`units_move_crosses_shore`, `units.c:6484`; applied
-  at `units.c:6339` land + `9250` ship). Still not modelled: NULL-rng
-  partial-MP gamble (`units.c:6327` denies instead of rolling).
+  at `units.c:6339` land + `9250` ship). Partial-MP gamble **verified ported
+  2026-09-08** (`units_try_move` `units.c:~6940`: range(1,cost) ≤ remaining,
+  spent==0 free step, attack never denied; `units_can_afford_move_cost` is a
+  pathfinder pre-filter with no DOS equivalent — its deny is deliberate, a
+  roll there would burn extra LCG draws). The DOS "NULL-rng" is
+  `FUN_281f_04ca` = Borland `randomize()` (srand from BIOS tick 0040:006C)
+  fired before the foreign clause whenever the cheap clauses fail — a
+  wall-clock reseed, non-reproducible even in DOS; intentionally NOT ported
+  (would break seeded determinism). See
+  `original_sources_annotated/ai/move_spent.c` Section 5 note.
 - [x] P5.7 [user] closed 2026-09-03 — declare-to-win playthrough passed.
 
 ### P6 — Player ↔ Europe trade, complete
@@ -443,7 +451,7 @@ Partial rows are mostly contact/order-gate/FA-thin/save-load titles.
 |---|----------|----------------|-------------------|
 | ~~D1~~ | ~~Rival Europeans behaving like DOS~~ | **CLOSED 2026-09-07g** — `5d04` fully live (DOS hire ladder, invented matrix deleted), `0a60`/`20e6` structurally done with cargo/boarding/census arms live, crown slot runs the full Euro turn; `golden_ai_joint`/`turns`/`mid01`/`late01`/`woi_ref01` all live gates | Residue = punch list below, not a phase |
 | ~~D2~~ | ~~Indian behavior 1:1~~ | **CLOSED at logic level 2026-09-08** — `2820` (2026-08-29 rewrite), `2154`, `4528` all 9 human + 7 AI arms, `152e`/`1816`/`1b3a`/`021a` Done; VGA meet chrome stays D4 | Residue = punch list below |
-| D3 | Known-seed determinism with DOS | **Gates live** (T1.23/T3.3 closed 2026-09-05, 60/60 green). Open residue = documented PORT DEBT: 3 `k_mid_peels` rows (`ai.c` ~3930), brave-wander `home_dist` golden-fit term, NULL-rng partial-MP gamble (`units.c` ~6327) | None required for playability |
+| D3 | Known-seed determinism with DOS | **Gates live** (T1.23/T3.3 closed 2026-09-05, 60/60 green). Open residue = documented PORT DEBT: `k_mid_peels` rows (`ai.c` ~3930), brave-wander `home_dist` golden-fit term (emp picker only). Partial-MP gamble closed 2026-09-08 (already ported; DOS "NULL-rng" = wall-clock reseed, intentionally skipped) | None required for playability |
 | D4 | Pixel-perfect graphics / VGA-identical chrome (dialogs, TRADE/FA editors, king letter). Congress F3 plates are **Done** to goldens; `DECLARAT.PIK` is unused leftover (signing uses DECOIND.PIK) | old W5.1–W5.3, T5.x | Content + layout correct (P2, P11); frames may stay port-drawn |
 | D5 | Fully faithful music (SC-55 timbre parity, per-driver quirks) | [assets.md](assets.md) | P3 "passable" bar |
 | ~~D6~~ | ~~Present-but-unused digital SFX (`COLDIG.BIN`)~~ | [assets.md](assets.md) | **Undeferred and closed 2026-08-29** — P3.2 / P3.7 both `[x]`. Playback + every reachable push site wired; ids `0x4c`/`0x50`/`0x51`/`0x55`/`0x5c` have no DOS push site. Retire coin-tier stays PARK (difficulty.md) |
@@ -490,9 +498,37 @@ list, not from the inventory.
   duplicate (DS:0x54f6 = the settlement record's `attitude[4]` word =
   `tribe.alarm[]`, already live); array retired, all consumers repointed
   (see indians.md).
-- [ ] **D3 determinism debt** — retire the `k_mid_peels` rows (~115 by now,
-  ai.c ~3930) + the brave-wander `home_dist` golden-fit term by deepening
-  the real scorer; model the NULL-rng partial-MP gamble (`units.c` ~6327).
+- [ ] **D3 determinism debt** — retire the `k_mid_peels` rows (99 + 6
+  river/2 cascade left, ai.c ~3930) by deepening the quiet scorer; the emp
+  `home_dist` term stays quarantined in the debug-only emp picker.
+  Partial-MP gamble sub-item CLOSED 2026-09-08: already ported in
+  `units_try_move`; "NULL-rng" was the `FUN_281f_04ca` BIOS-tick
+  `randomize()` reseed, intentionally not ported (see P5.8 note).
+  2026-09-08 scorer pass (6 rows retired, all asm-verified from raw
+  521d:4ea9..5a78; 60/60 green):
+  - seen-branch gate = mover's `col1_vis_mask` (DOS unit+0x3147 observed
+    nibble — live cache cleared+recomputed each move, NOT the explored-fog
+    plane; all 7 writers traced); AI brave steps now recompute it via
+    `units_vis_mask_after_move` (DOS 465b commit tail).
+  - facing input read raw: byte 8 (written on every stay, 521d:5899) means
+    "no facing term" (54f5 guard is signed 0..7) — load reconstructs the
+    full DOS facing byte (`facing | facing_pad<<3`, col1_bridge), the old
+    clamp-to-North removed. Dormant in the TURN fixtures (no byte-8 braves)
+    but live in real play.
+  - fog band gated by local_ec (521d:4d46/56ce): adjacent-foreign-claim
+    probe ≥ 0 kills +8/+4/−2 entirely; Braves' combat byte is 1 so the
+    rescue clause never fires (annotated stub said 0 — drift, fixed).
+  - Euro 20e6 fog ring −2 accessor fixed to `map_tile_owner_or_presence`
+    (DOS 0682, unit bit only; was tribe_or_presence = city tiles too).
+  - verified matching: tie-break strict `>` first-wins, ring walks FAR-tile
+    neighbours, coarse index math, −2 accessor identity.
+  Tooling: `AI_PEEL_AUDIT=1` classifies every firing peel row against both
+  seen/unseen branch scorers (dual-branch scoring from one LCG draw);
+  rerun after any scorer change and delete rows reporting picked==golden.
+  Remaining 99 holdouts: neither branch reproduces golden with matched
+  LCG; per-row single-term toggles are ambiguous/overfit — next real step
+  is DOS-side evidence (DOSBox trace of 20e6 score terms), not more
+  static fitting.
 - [ ] **Human-colony `5952_035e` tick** — the ported threat seed runs only
   in the Euro-AI colony pass; DOS runs the colony tick for every nation.
   Recorded 2026-09-08c (threat-seed port report).
