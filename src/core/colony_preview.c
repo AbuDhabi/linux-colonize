@@ -7,6 +7,7 @@
 #include "core/colony_production.h"
 #include "core/colony_yield.h"
 #include "core/founding_fathers.h"
+#include "core/turn.h"
 
 int colony_preview_best_job(const ColonizeWorldMap* map, int x, int y) {
   int best_job = -1;
@@ -263,23 +264,47 @@ void colony_preview_compute(
      * Autumn fixture showed the preview promising +16 hammers that never
      * arrive. Whether DOS's own Production tab hides them in Autumn is
      * unconfirmed; matching the tick is the P4.10 bar. */
-    if (hammers_add > 0 && (!col1 || col1->head.autumn == 0)) {
-      int hammers = hammers_add;
+    if (hammers_add > 0) {
       out->hammers_capacity = hammers_add;
-      /*
-       * bugs.md (hammers_lumber.SAV): the REAL tick spends this same turn's
-       * Lumberjack output too (its clamp runs after field production lands
-       * in stock — turn.c "same-turn production IS spendable"), so the cap
-       * here is stock + this tick's field lumber. The old stock-only cap
-       * made the hammers row vanish from the Production tab whenever
-       * storage ran low even though the tick was banking hammers fine.
-       */
-      const int lumber_avail =
-        colony->stock[COLONIZE_CARGO_LUMBER] + out->field_gross[COLONIZE_CARGO_LUMBER];
-      if (hammers > lumber_avail) {
-        hammers = lumber_avail;
+      /* The preview predicts the NEXT tick, and the EOT flow advances the
+       * calendar BEFORE production runs (turn.c TURN setup stamps
+       * head.autumn first) — so from an Autumn save the tick runs as Spring
+       * and BANKS hammers (real-DOS dutch2-t0 Autumn 1630 -> t1 Spring
+       * 1631: New Amsterdam 32->48 etc.), while from a post-1600 Spring
+       * save it runs as Autumn and banks nothing (the 2026-08-16
+       * byte-for-byte-unchanged observation). The old gate read the save's
+       * own season and had this exactly backwards. */
+      const bool next_tick_is_autumn =
+        col1 && col1->head.autumn == 0 && col1->head.year >= TURN_BIANNUAL_YEAR;
+      if (next_tick_is_autumn) {
+        /* Frozen tick: `hammers` stays 0; the flag keeps the pane showing
+         * plain potential instead of a bogus red lumber shortfall
+         * (player-reported: the hammers row must appear whenever a
+         * carpenter works the shop, every season). */
+        out->hammers_frozen = true;
+      } else {
+        int hammers = hammers_add;
+        /*
+         * bugs.md (hammers_lumber.SAV): the REAL tick spends this same turn's
+         * Lumberjack output too (its clamp runs after field production lands
+         * in stock — turn.c "same-turn production IS spendable"), so the cap
+         * here is stock + this tick's field lumber. The old stock-only cap
+         * made the hammers row vanish from the Production tab whenever
+         * storage ran low even though the tick was banking hammers fine.
+         */
+        const int lumber_avail =
+          colony->stock[COLONIZE_CARGO_LUMBER] + out->field_gross[COLONIZE_CARGO_LUMBER];
+        if (hammers > lumber_avail) {
+          hammers = lumber_avail;
+        }
+        out->hammers = hammers;
+        /* The tick's carpenter spend (turn.c debits stock 1:1 after field
+         * production lands) — goods[] is the net warehouse delta, so it must
+         * carry the debit too (can go negative: spending stored lumber).
+         * The old backwards gate hid this: preview hammers and the tick's
+         * spend were zero together, so the missing debit never showed. */
+        out->goods[COLONIZE_CARGO_LUMBER] -= hammers;
       }
-      out->hammers = hammers;
     }
   }
 }

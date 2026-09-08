@@ -894,8 +894,8 @@ int main(void) {
     }
   }
   for (int y = COLONY_MIDDLE_Y; y < COLONY_BOTTOM_SEPARATOR_Y; ++y) {
-    if (pixels[y * 320 + COLONY_VIEWPORT_W] != 0) {
-      fprintf(stderr, "expected black vertical separator at x=%d y=%d\n", COLONY_VIEWPORT_W, y);
+    if (pixels[y * 320 + (COLONY_MINIMAP_SECTION_X - 1)] != 0) {
+      fprintf(stderr, "expected black vertical separator at x=%d y=%d\n", COLONY_MINIMAP_SECTION_X - 1, y);
       if (phys0_ok) {
         ss_free(&phys0);
       }
@@ -907,9 +907,10 @@ int main(void) {
     }
   }
 
-  /* 3×3 minimap centered in the WOODTILE section with equal L/R and T/B margins. */
+  /* 3×3 minimap at golden origin (223,31): both margins derive from the
+   * section height (extra width of the 120-wide section stays on the right). */
   const int grid_px = COLONY_MINIMAP_GRID * COLONY_MINIMAP_TILE;
-  const int margin_x = (COLONY_MINIMAP_SECTION_W - grid_px) / 2;
+  const int margin_x = (COLONY_MINIMAP_SECTION_H - grid_px) / 2;
   const int margin_y = (COLONY_MINIMAP_SECTION_H - grid_px) / 2;
   if (margin_x != margin_y || margin_x < 1) {
     fprintf(

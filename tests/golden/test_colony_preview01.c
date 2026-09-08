@@ -102,6 +102,17 @@ static int run_fixture(const char* path) {
     s->building = col->building_in_production;
   }
 
+  /* Live EOT advances the calendar BEFORE production (turn.c TURN setup
+   * stamps head.autumn first), and the preview predicts that post-advance
+   * tick — real-DOS dutch2-t0 (Autumn 1630) -> t1 (Spring 1631) banks
+   * hammers (New Amsterdam 32->48). Mirror the season flip here or the
+   * hammers comparison tests the wrong tick. */
+  if (save.head.year >= TURN_BIANNUAL_YEAR) {
+    save.head.autumn = save.head.autumn ? 0 : 1;
+  } else {
+    save.head.autumn = 0;
+  }
+
   ColonizeDosRng rng;
   dos_rng_seed(&rng, 100u);
   ColonizeTurnResult out;
@@ -124,6 +135,9 @@ static int run_fixture(const char* path) {
       const int want = (c == COLONIZE_CARGO_FOOD) ? s->preview.food_net : s->preview.goods[c];
       if (c == COLONIZE_CARGO_FOOD && pop_changed) {
         continue;
+      }
+      if (c == COLONIZE_CARGO_TOOLS && built) {
+        continue; /* completion consumed the building's tools_cost */
       }
       if (col->stock[c] == s->cap[c] && s->stock[c] + want >= s->cap[c]) {
         continue; /* clamped at warehouse cap (also over-cap stock clamped down) */

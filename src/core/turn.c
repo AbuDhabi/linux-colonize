@@ -1341,6 +1341,14 @@ static void turn_produce_one_colony(
    * that Autumn turn with `hammers` byte-for-byte unchanged from Spring.
    * Regular field/craft goods production is NOT seasonal (stock changed
    * normally on the same turn) — only hammers freezes on Autumn.
+   *
+   * "Autumn" here is the POST-advance season: EOT advances the calendar
+   * before this runs (TURN setup stamps head.autumn first), so the tick
+   * leaving an Autumn-displayed turn runs as Spring and DOES bank —
+   * real-DOS dutch2-t0 (Autumn 1630) -> t1 (Spring 1631): New Amsterdam
+   * hammers 32->48, Isabella 6->18, etc. (2026-09-08; the user also
+   * confirmed DOS renders the hammers row in Autumn). colony_preview.c
+   * mirrors this next-tick reading.
    */
   if (!col1 || col1->head.autumn == 0) {
     const int sol_b = colony_prod_sol_bonus(col1, colony);
