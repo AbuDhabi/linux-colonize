@@ -30,6 +30,8 @@ bool units_advance_goto_one_step(
 );
 static void units_occupancy_refresh_tile(ColonizeUnitPool* pool, int x, int y, int except_id);
 static void units_map_set_owner_nibble(ColonizeWorldMap* map, int x, int y, int nation_or_ff);
+static void units_mp_charge(const ColonizeUnitPool* pool, ColonizeUnit* u, int cost);
+static void units_mp_exhaust(const ColonizeUnitPool* pool, ColonizeUnit* u);
 static ColonizeWorldMap* g_units_occupancy_map = NULL;
 
 static void units_trim(char* s) {
@@ -4747,7 +4749,8 @@ static void units_mounted_attack_spend_all(ColonizeUnitPool* pool, int attacker_
     (n && (strstr(n, "Dragoon") || strstr(n, "Cavalry") || strstr(n, "Cav.") ||
            strstr(n, "Scout") || strstr(n, "Mtd") || strstr(n, "Mounted")));
   if (mounted) {
-    a->moves_left = 0;
+    /* Natives keep the SPENT byte: drain = spent := max, not 0 (audit). */
+    units_mp_exhaust(pool, a);
   }
 }
 
@@ -6297,6 +6300,38 @@ int units_remaining_mp(const ColonizeUnitPool* pool, int unit_id) {
   return u->moves_left < 0 ? 0 : u->moves_left;
 }
 
+/*
+ * Writer counterparts of units_remaining_mp — every MP charge/exhaust on a
+ * unit that may be native has to go through these, since natives grow the
+ * SPENT byte toward max while Euros shrink REMAINING toward 0 (smell audit
+ * 2026-09-08 cross-cutting item: raw moves_left writes inverted the charge
+ * for natives — a drain became a refresh).
+ */
+static void units_mp_charge(const ColonizeUnitPool* pool, ColonizeUnit* u, int cost) {
+  if (!u || cost <= 0) {
+    return;
+  }
+  const int max_mp = units_max_mp(pool, u->id);
+  if (u->nation_id >= 4) {
+    u->moves_left += cost;
+    if (u->moves_left > max_mp) {
+      u->moves_left = max_mp;
+    }
+  } else {
+    u->moves_left -= cost;
+    if (u->moves_left < 0) {
+      u->moves_left = 0;
+    }
+  }
+}
+
+static void units_mp_exhaust(const ColonizeUnitPool* pool, ColonizeUnit* u) {
+  if (!u) {
+    return;
+  }
+  u->moves_left = (u->nation_id >= 4) ? units_max_mp(pool, u->id) : 0;
+}
+
 int units_max_mp(const ColonizeUnitPool* pool, int unit_id) {
   const ColonizeUnit* u = units_get_const(pool, unit_id);
   const ColonizeUnitType* type = u ? units_type(pool, u->type_index) : NULL;
@@ -6352,14 +6387,15 @@ int units_move_cost(
 
 bool units_can_afford_move_cost(const ColonizeUnitPool* pool, int unit_id, int cost) {
   const ColonizeUnit* unit = units_get_const(pool, unit_id);
-  if (!unit || !unit->active || unit->moves_left <= 0) {
+  const int remaining = units_remaining_mp(pool, unit_id);
+  if (!unit || !unit->active || remaining <= 0) {
     return false;
   }
-  if (cost <= unit->moves_left) {
+  if (cost <= remaining) {
     return true;
   }
   /* Full allotment remaining (DOS: spent MP byte == 0) → always allow. */
-  if (unit->moves_left >= units_max_mp(pool, unit_id)) {
+  if (remaining >= units_max_mp(pool, unit_id)) {
     return true;
   }
   /* Partial overspend needs an RNG roll in units_try_move — not guaranteed. */
@@ -6586,7 +6622,7 @@ bool units_try_move(
   if (unit->aboard_ship_id >= 0) {
     return false;
   }
-  if (unit->moves_left <= 0) {
+  if (units_remaining_mp(pool, unit_id) <= 0) {
     g_units_last_enter_reason = COLONIZE_ENTER_NO_MP;
     return false;
   }
@@ -6829,8 +6865,7 @@ bool units_try_move(
       ColonizeUnit* atk_mp = units_get(pool, unit_id);
       if (atk_mp && atk_mp->active) {
         const int cost = units_move_cost(pool, unit_id, map, dest_x, dest_y);
-        const int drain = cost + 3;
-        atk_mp->moves_left = (atk_mp->moves_left > drain) ? atk_mp->moves_left - drain : 0;
+        units_mp_charge(pool, atk_mp, cost + 3);
       }
       return false;
     }
@@ -6844,19 +6879,16 @@ bool units_try_move(
      */
     if (village_nation >= 4 && unit->nation_id >= 0 && unit->nation_id <= 3) {
       const int cost = units_move_cost(pool, unit_id, map, dest_x, dest_y);
-      const int remaining = unit->moves_left;
+      const int remaining = units_remaining_mp(pool, unit_id);
       const int max_mp = units_max_mp(pool, unit_id);
       if (cost > remaining && remaining < max_mp && rng) {
         const int roll = dos_rng_range(rng, 1, cost > 0 ? cost : 1);
         if (roll > remaining) {
-          unit->moves_left = 0;
+          units_mp_exhaust(pool, unit);
           return false;
         }
       }
-      unit->moves_left = remaining - cost;
-      if (unit->moves_left < 0) {
-        unit->moves_left = 0;
-      }
+      units_mp_charge(pool, unit, cost);
       if (unit->orders == UNITS_ORDER_SENTRY || unit->orders == UNITS_ORDER_FORTIFY ||
           unit->orders == UNITS_ORDER_FORTIFIED) {
         unit->orders = UNITS_ORDER_NONE;
@@ -6880,7 +6912,7 @@ bool units_try_move(
     if (reason == COLONIZE_ENTER_COMBAT_LAND &&
         (!colonies || colonies_id_at(colonies, dest_x, dest_y) < 0)) {
       const int drain = units_move_cost(pool, unit_id, map, dest_x, dest_y) + 3;
-      unit->moves_left = (unit->moves_left > drain) ? unit->moves_left - drain : 0;
+      units_mp_charge(pool, unit, drain);
       if (unit->orders == UNITS_ORDER_SENTRY || unit->orders == UNITS_ORDER_FORTIFY ||
           unit->orders == UNITS_ORDER_FORTIFIED) {
         unit->orders = UNITS_ORDER_NONE;
@@ -6930,7 +6962,7 @@ combat_entry_resolved:
 
   const int cost =
     units_move_cost(pool, unit_id, map, dest_x, dest_y) + combat_attack_mp_surcharge;
-  const int remaining = unit->moves_left;
+  const int remaining = units_remaining_mp(pool, unit_id);
   const int max_mp = units_max_mp(pool, unit_id);
   const bool full_mp = remaining >= max_mp;
 
@@ -6960,13 +6992,10 @@ combat_entry_resolved:
    * DOS adds the full terrain cost to spent MP before the allow/deny gate for
    * non-combat moves — including failed partial-overspend rolls.
    */
-  unit->moves_left = remaining - cost;
-  if (unit->moves_left < 0) {
-    unit->moves_left = 0;
-  }
+  units_mp_charge(pool, unit, cost);
   /* DOS 465b_05ca: crossing the shoreline outside a colony spends the lot. */
   if (units_move_crosses_shore(map, colonies, unit->x, unit->y, dest_x, dest_y)) {
-    unit->moves_left = 0;
+    units_mp_exhaust(pool, unit);
   }
   if (!allow) {
     return false;
@@ -8651,7 +8680,8 @@ bool units_next_goto_step(
         }
       }
       if (hit) {
-        const bool moved_this_turn = u->moves_left < units_max_mp(pool, unit_id);
+        const bool moved_this_turn =
+          units_remaining_mp(pool, unit_id) < units_max_mp(pool, unit_id);
         const bool reversal =
           moved_this_turn && unit_id >= 0 && unit_id < COLONIZE_UNITS_MAX &&
           units_dir8_index(*out_x - u->x, *out_y - u->y) == (s_units_goto_last_dir[unit_id] ^ 4);
@@ -8699,7 +8729,7 @@ bool units_advance_goto_one_step(
     }
     return false;
   }
-  if (u->moves_left <= 0) {
+  if (units_remaining_mp(pool, unit_id) <= 0) {
     return false;
   }
   const int ox = u->x;

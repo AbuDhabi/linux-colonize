@@ -726,7 +726,20 @@ int europe_buy_price(const EuropeScreen* eu, int cargo_type);
  * the harbor sale). Returns the net treasury credit. */
 int europe_net_after_tax(int gross, int tax_percent);
 int europe_sell_proceeds(const EuropeScreen* eu, int cargo_type, int amount);
-int europe_sell_hold(EuropeScreen* eu, int harbor_index, int hold_index);
+/*
+ * Harbor sell of one hold. Net proceeds go to eu->gold; the withheld tax goes
+ * to col1->nation[seller_nation].royal_money — DOS writes `nation+0x22 += tax`
+ * on every sale arm (same write as the Custom House arm and the boycott
+ * buy-back). `col1` may be NULL (tests / no save bound), in which case only
+ * gold moves. Smell audit #51.
+ */
+int europe_sell_hold(
+  EuropeScreen* eu,
+  struct ColonizeCol1Save* col1,
+  int seller_nation,
+  int harbor_index,
+  int hold_index
+);
 /*
  * FUN_38fd_1dfa (sell) / FUN_38fd_1d80 (buy) volume ledger, exact:
  *   term = (amount << volatility) + 1d44(amount)
@@ -801,10 +814,13 @@ int europe_tick_immigration_pressure(
  * No harbor UI — proceeds via europe_sell_proceeds (bid × amount × (100−tax)/100).
  * Cite: Colonization.pdf Europe buy/sell + tax; same Crown cut as harbor
  * europe_sell_hold / GAME.TXT tax rate path. Clears the hold on success.
+ * The withheld tax is credited to the hold owner's royal_money (DOS
+ * `nation+0x22 += tax`); `col1` may be NULL. Smell audit #51.
  * Returns gold credited (0 if empty/invalid).
  */
 int europe_sell_unit_hold(
   EuropeScreen* eu,
+  struct ColonizeCol1Save* col1,
   ColonizeUnitPool* units,
   int unit_id,
   int hold_index

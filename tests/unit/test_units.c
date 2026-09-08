@@ -2165,7 +2165,7 @@ static int unit_capture_ring_and_alarm_vent(void) {
     ColonizeUnit* brave = units_get(&pool, bid);
     units_set_nation(brave, 4);
     brave->home_tribe_id = 0;
-    brave->moves_left = UNITS_MP_PER_TILE;
+    brave->moves_left = 0; /* natives: SPENT byte — 0 = fresh full allotment */
     (void)units_try_move(&pool, bid, &map, 4, 4, &colonies, &rng);
 
     /* difficulty 3 − 10 = −7 → 40 - 7 = 33. */
@@ -2193,7 +2193,7 @@ static int unit_capture_ring_and_alarm_vent(void) {
       ColonizeUnit* br2 = units_get(&pool, b2);
       units_set_nation(br2, 4);
       br2->home_tribe_id = 0;
-      br2->moves_left = UNITS_MP_PER_TILE;
+      br2->moves_left = 0; /* spent byte: fresh */
       (void)units_try_move(&pool, b2, &map, 4, 4, &colonies, &rng);
       if (col1.indian[0].alarm_by_player[0] != 40) {
         fprintf(
@@ -2382,6 +2382,23 @@ static int handicap_atk(
   return er.atk_strength;
 }
 
+/* Same, for the colony-tile tail's defender arm (raw 100561-100563). */
+static int handicap_def(
+  const ColonizeCombatStrengthCtx* ctx,
+  int attacker_id,
+  int defender_id,
+  int def_in
+) {
+  ColonizeCombatEngageResult er;
+  memset(&er, 0, sizeof(er));
+  combat_side_flags_clear(&er.atk_flags);
+  combat_side_flags_clear(&er.def_flags);
+  er.atk_strength = 100;
+  er.def_strength = def_in;
+  combat_apply_1b0e_resolve_handicaps(ctx, attacker_id, defender_id, &er);
+  return er.def_strength;
+}
+
 /*
  * FUN_5fef_1b0e difficulty-handicap group (raw 100534-100556), called directly:
  * combat_apply_1b0e_resolve_handicaps(). Table-driven cover of the three DOS
@@ -2565,6 +2582,99 @@ static int unit_1b0e_resolve_handicaps(void) {
       fprintf(stderr, "1b0e-handicap: combat_auto_defender() stuck on\n");
       rc = 1;
     }
+  }
+
+  /*
+   * Colony-tile tail, raw 100557-100564. It sits OUTSIDE the `0x53a6 < 2`
+   * gate, so drive it at Conquistador where blocks A/B/C are all silent and
+   * only this pair can move a number.
+   *   (a) native attacker (3 < uVar16) vs a nation on its last colony → 0;
+   *   (b) human Euro defender whose colony holds ≥ half the nation's
+   *       colonists → defence + (4 − difficulty) * 4.
+   * Both read the FUN_4962_0018 census bytes DS:0x9298 / DS:0x940c, mirrored
+   * as col1->stuff.colony_counts / colony_pop_totals.
+   */
+  if (rc == 0) {
+    c1.head.difficulty = 2;
+    c1.head.turn = 10;
+    c1.head.game_options.woi = 0;
+    col->population = 3;
+    col->colonist_count = 3;
+    c1.stuff.colony_pop_totals[0] = 0;
+
+    struct {
+      const char* label;
+      uint8_t counts0;
+      int attacker;
+      int defender;
+      int want;
+    } shield[] = {
+      /* Last colony + native attacker: zeroed outright. */
+      {"tail(a) last colony vs native", 1, a_native, d_human_on, 0},
+      /* Two colonies left: no shield. */
+      {"tail(a) two colonies", 2, a_native, d_human_on, 100},
+      /* `3 < uVar16` — a European attacker is never shielded. */
+      {"tail(a) euro attacker", 1, a_ai, d_human_on, 100},
+      /* `-1 < iVar18` — no colony under the defender, no tail. */
+      {"tail(a) no colony", 1, a_native, d_human_off, 100},
+    };
+    for (size_t i = 0; i < sizeof(shield) / sizeof(shield[0]) && rc == 0; ++i) {
+      c1.stuff.colony_counts[0] = shield[i].counts0;
+      const int got = handicap_atk(&ctx, shield[i].attacker, shield[i].defender, 100);
+      if (got != shield[i].want) {
+        fprintf(
+          stderr,
+          "1b0e-handicap [%s]: atk 100 -> %d, want %d\n",
+          shield[i].label,
+          got,
+          shield[i].want
+        );
+        rc = 1;
+      }
+    }
+    c1.stuff.colony_counts[0] = 2; /* keep the shield out of the defence cases */
+
+    if (rc == 0) {
+      /* 6 >> 1 = 3 <= pop 3 → +(4−2)*4 = +8 at Conquistador. */
+      c1.stuff.colony_pop_totals[0] = 6;
+      int got = handicap_def(&ctx, a_native, d_human_on, 64);
+      if (got != 72) {
+        fprintf(stderr, "1b0e-handicap [tail(b) half]: def 64 -> %d, want 72\n", got);
+        rc = 1;
+      }
+      /* 8 >> 1 = 4 > pop 3 → silent. */
+      c1.stuff.colony_pop_totals[0] = 8;
+      got = handicap_def(&ctx, a_native, d_human_on, 64);
+      if (rc == 0 && got != 64) {
+        fprintf(stderr, "1b0e-handicap [tail(b) under half]: def 64 -> %d, want 64\n", got);
+        rc = 1;
+      }
+      /* Difficulty scales it: Discoverer pays +16. */
+      c1.stuff.colony_pop_totals[0] = 6;
+      c1.head.difficulty = 0;
+      got = handicap_def(&ctx, a_native, d_human_on, 64);
+      if (rc == 0 && got != 80) {
+        fprintf(stderr, "1b0e-handicap [tail(b) diff0]: def 64 -> %d, want 80\n", got);
+        rc = 1;
+      }
+      /* 0x543f control byte: an AI-run nation gets nothing. */
+      c1.player[0].control = 1;
+      got = handicap_def(&ctx, a_native, d_human_on, 64);
+      c1.player[0].control = 0;
+      if (rc == 0 && got != 64) {
+        fprintf(stderr, "1b0e-handicap [tail(b) ai defender]: def 64 -> %d, want 64\n", got);
+        rc = 1;
+      }
+      /* No colony under the defender: no defence bonus either. */
+      got = handicap_def(&ctx, a_native, d_human_off, 64);
+      if (rc == 0 && got != 64) {
+        fprintf(stderr, "1b0e-handicap [tail(b) no colony]: def 64 -> %d, want 64\n", got);
+        rc = 1;
+      }
+    }
+    c1.stuff.colony_counts[0] = 0;
+    c1.stuff.colony_pop_totals[0] = 0;
+    c1.head.difficulty = 0;
   }
 
   units_set_occupancy_map(NULL);
@@ -5193,6 +5303,39 @@ int main(void) {
         return 1;
       }
       units_despawn(&pool, vid);
+
+      /*
+       * Veteran DRAGOONS carry profession 0x17, never 0x15 — FUN_157e_004a
+       * grants them the same +50%. (Regression: the peel used to test 0x15
+       * only, so every veteran dragoon fought as a green one.)
+       */
+      const int dti = units_find_type(&pool, "Dragoons");
+      if (dti < 0) {
+        fprintf(stderr, "vet-dragoon: Dragoons type missing\n");
+        return 1;
+      }
+      const int did2 = units_spawn_allow_stack(&pool, dti, 6, 7);
+      ColonizeUnit* du = units_get(&pool, did2);
+      if (!du) {
+        fprintf(stderr, "vet-dragoon spawn failed\n");
+        return 1;
+      }
+      du->nation_id = 0;
+      pool.types[dti].defense = 2;
+      ColonizeCombatSideFlags dfl;
+      du->profession = UNITS_JOB_NONE;
+      const int green = combat_unit_base_x8(&sctx, did2, 0, &dfl);
+      if (green != 16 || (dfl.flags & COMBAT_FLAG_VETERAN) != 0) {
+        fprintf(stderr, "green dragoon want 16 no-flag got %d flags=%x\n", green, dfl.flags);
+        return 1;
+      }
+      du->profession = UNITS_JOB_DRAGOON;
+      const int vet = combat_unit_base_x8(&sctx, did2, 0, &dfl);
+      if (vet != 24 || (dfl.flags & COMBAT_FLAG_VETERAN) == 0) {
+        fprintf(stderr, "vet dragoon want 24+flag got %d flags=%x\n", vet, dfl.flags);
+        return 1;
+      }
+      units_despawn(&pool, did2);
     }
 
     /* Combat Analysis gate. */

@@ -36,7 +36,15 @@
 /* Fatigue: attacker below one whole movement point (DOS 1b0e ~100374). */
 #define COMBAT_FLAG_FATIGUE_33 0x0100u /* 0x8d01 bit0 — 2 thirds left, ×2/3 */
 #define COMBAT_FLAG_FATIGUE_66 0x0008u /* a156 bit3 — 1 third left, ×1/3 */
-#define COMBAT_FLAG_VILLAGE_CAPITAL 0x0008u /* flags2 (DOS 8d02 bit5): capital doubles local_1a */
+/*
+ * Capital village doubling marker. DOS carries it as 8d02 bit5, but the port's
+ * flags2 word is a156-shaped (bits 0..3 = arty-colony / Tories / Rebels /
+ * fatigue-66), so parking it on 0x0008 aliased a156 bit3 and made every attack
+ * on a capital village print a phantom "Fatigue −66%" row. Relocated to the
+ * first free flags2 bit; it is a render-time hint only (nothing serializes
+ * flags2 into a save), so the bit value is port-internal.
+ */
+#define COMBAT_FLAG_VILLAGE_CAPITAL 0x0010u /* flags2 free bit (DOS 8d02 bit5) */
 
 typedef struct ColonizeCombatSideFlags {
   uint16_t flags; /* low word (0x8d00 / 0x8d02) */

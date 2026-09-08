@@ -1349,7 +1349,12 @@ static bool elect_commit(
   }
   ColonizeCol1Save* col1 = ctx->col1;
   ColonizeCol1Nation* nat = &col1->nation[nation_id];
-  col1->head.founding_father[idx] = (int8_t)nation_id;
+  /* Write-once first-claimer record: DOS FUN_4345_0342 does `if (entry < 0)
+   * entry = nation` (verified vs dutch-reports.SAV); smell audit #82. The
+   * per-nation bitmask below is the real ownership. */
+  if (col1->head.founding_father[idx] < 0) {
+    col1->head.founding_father[idx] = (int8_t)nation_id;
+  }
   nat->founding_fathers[idx / 8] |= (uint8_t)(1u << (idx % 8));
   if (nat->founding_father_count < 65535u) {
     nat->founding_father_count++;
