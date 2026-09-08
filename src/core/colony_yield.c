@@ -20,7 +20,7 @@ static const int k_unforesed[8][COLONIZE_FIELD_JOB_COUNT] = {
   /* Tundra */ {2, 0, 0, 0, 0, 0, 2, 0, 0},
   /* Desert */ {1, 0, 0, 1, 0, 0, 2, 0, 0},
   /* Plains */ {4, 0, 0, 2, 0, 0, 1, 0, 0},
-  /* Prairie */ {3, 0, 0, 3, 0, 0, 0, 0, 0},
+  /* Prairie */ {2, 0, 0, 3, 0, 0, 0, 0, 0},
   /* Grassland */ {2, 0, 3, 0, 0, 0, 0, 0, 0},
   /* Savannah */ {3, 3, 0, 0, 0, 0, 0, 0, 0},
   /* Marsh */ {2, 0, 2, 0, 0, 0, 2, 0, 0},

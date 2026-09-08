@@ -625,10 +625,11 @@ static void turn_produce_one_colony(
       }
     }
 
-    /* Coastal colonies can fish water surrounds; inland colonies require Docks */
-    bool has_docks = (colony->colony_flags & COLONIZE_COLONY_FLAG_COASTAL) != 0 ||
-                     map_tile_is_coastal(map, colony->x, colony->y);
-    if (!has_docks) {
+    /* Docks (or Drydock/Shipyard) gates Fisherman yield — FUN_15eb_18ec
+     * ~11925-11939; coastal placement alone is not enough. Must match
+     * colony_preview.c / colony_screen.c / game_loop.c checks. */
+    bool has_docks = false;
+    {
       for (int bi = 0; bi < pool->building_type_count && bi < COLONIZE_BUILDING_TYPES_MAX; ++bi) {
         if (!colony->has_building[bi]) {
           continue;

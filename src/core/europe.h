@@ -741,6 +741,20 @@ int europe_sell_hold(
   int hold_index
 );
 /*
+ * Partial sale from one hold (shift+drag split, '-' key). Same full path as
+ * europe_sell_hold — boycott gate, tax credit, sale status, volume price
+ * move — for `amount` tons; the hold keeps the remainder (type cleared when
+ * emptied). Returns net proceeds, 0 if nothing sold. Smell audit #52/#53.
+ */
+int europe_sell_hold_partial(
+  EuropeScreen* eu,
+  struct ColonizeCol1Save* col1,
+  int seller_nation,
+  int harbor_index,
+  int hold_index,
+  int amount
+);
+/*
  * FUN_38fd_1dfa (sell) / FUN_38fd_1d80 (buy) volume ledger, exact:
  *   term = (amount << volatility) + 1d44(amount)
  *   1d44 = (difficulty − 2)·16·amount/100 when the seller is human,

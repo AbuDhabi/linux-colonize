@@ -3095,6 +3095,55 @@ int europe_sell_hold(
   return gained;
 }
 
+int europe_sell_hold_partial(
+  EuropeScreen* eu,
+  struct ColonizeCol1Save* col1,
+  int seller_nation,
+  int harbor_index,
+  int hold_index,
+  int amount
+) {
+  if (!eu || harbor_index < 0 || harbor_index >= eu->harbor_ships) {
+    return 0;
+  }
+  if (hold_index < 0 || hold_index >= EUROPE_SHIP_CARGO_MAX) {
+    return 0;
+  }
+  EuropeHarborShip* ship = &eu->harbor[harbor_index];
+  const int held = ship->hold_goods_amount[hold_index];
+  const int ctype = ship->hold_goods_type[hold_index];
+  if (held <= 0 || held >= 255 || amount <= 0) {
+    return 0;
+  }
+  const int amt = amount < held ? amount : held;
+  if (europe_cargo_boycotted(eu, ctype)) {
+    const char* cname =
+      (ctype >= 0 && ctype < eu->cargo_count) ? eu->cargo[ctype].name : "That cargo";
+    snprintf(
+      eu->status, sizeof(eu->status), "%s is boycotted — cannot trade in Europe.", cname
+    );
+    return 0;
+  }
+  const int gained = europe_sell_proceeds(eu, ctype, amt);
+  eu->gold += gained;
+  europe_credit_sale_tax(col1, seller_nation, europe_sell_price(eu, ctype) * amt, gained);
+  ship->hold_goods_amount[hold_index] = (uint8_t)(held - amt);
+  if (ship->hold_goods_amount[hold_index] == 0) {
+    ship->hold_goods_type[hold_index] = 255;
+  }
+  europe_push_sale_status(eu, ctype, amt, gained);
+  europe_apply_volume_price(eu, ctype, amt, 0);
+  const char* cname =
+    (ctype >= 0 && ctype < eu->cargo_count) ? eu->cargo[ctype].name : "cargo";
+  snprintf(eu->status, sizeof(eu->status), "Sold %d %s for %d$.", amt, cname, gained);
+  diag_info(
+    "EUROPE sold %d/%d %s from %s: bid=%d tax=%d%% proceeds=%d gold=%d",
+    amt, held, cname, ship->name[0] ? ship->name : "ship",
+    europe_sell_price(eu, ctype), eu->tax_percent, gained, eu->gold
+  );
+  return gained;
+}
+
 /*
  * FUN_364b_0636: Custom House may auto-sell this cargo type.
  * Deny Food(0), Horses(8), Tools(0xe), Muskets(0xf).
