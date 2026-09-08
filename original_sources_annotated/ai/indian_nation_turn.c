@@ -42,9 +42,38 @@ static const int k_dir8_dy[9] = {-1, -1, 0, 1, 1, 1, 0, -1, 0};
 /*
  * Ghidra: func_0x0004219b (CALL from 14fe) | indian_pick_dir
  *
- * ASM at 14fe: near CALL into overlay-labeled 41f2 trampoline (Ghidra collision);
- * quiet NEW WORLD body is LAB_521d_4ea9 → quiet_brave_pick_dir_asm.
- * Returns 0..7 move dir, or 8 = stay/exhaust.
+ * CORRECTED 2026-09-08. The near CALL at 4d56:1506 (`e8 32 37`) targets
+ * 4d56:4c3b, entry 6 of overlay 0x0C's JMPF stub table -> record 281f:23d4 ->
+ * **FUN_4d56_021a**, NOT anything in 41f2 (Ghidra resolves this overlay's
+ * near calls against the wrong segment). FUN_4d56_021a occupies
+ * 4d56:021a..14fd (4836 bytes, one ENTER/one RETF) and Ghidra emitted the
+ * whole span as undefined `??` bytes, which is why docs/port_plan.md calls
+ * `FUN_4d56_021a` "not a real symbol". It is real; disassemble the span with
+ * ndisasm at origin 0x21a.
+ *
+ * 021a is the whole Indian unit decision routine (alarm/contact gates, raid
+ * dispatch via 2a1f:0192 / 2a1f:0210, arm/mount upgrade, dir scoring loop).
+ * The quiet NEW WORLD scoring body LAB_521d_4ea9 sits one level BELOW it:
+ * 021a reaches the 521d scorer through thunk 291f:012c at 021a:1182.
+ *
+ * Returns 0..7 move dir, 8 = stay/exhaust (021a has already called
+ * FUN_281f_0934 itself at 021a:14e6 in that case), or -1 after destroying the
+ * unit (021a:0337..0365: u+0x314a home village < 0 or >= DS:0x539a ->
+ * FUN_281f_0808(unit), return -1).
+ *
+ * Other 021a facts (WIRED in ai_native_nation_pulse 2026-09-08, same day —
+ * per-attempt turns_worked + 0x14 cap, full-byte facing, homeless despawn,
+ * arm/mount; see src/core/ai.c inline citations):
+ *   021a:11b9  u+0x314f (COL1 +0x0b `facing`) = picked dir, ALWAYS — the stay
+ *              value 8 lands there too and reads back &7 == 0.
+ *   021a:11cd  dir == 8 -> u+0x314c (`orders`) latches 5, then 6 on a repeat
+ *              stay; 021a:126e any move resets it to 0.
+ *   021a:11ef  on a stay, when FUN_281f_06be(u.x,u.y) == the unit's own
+ *              nation: if (int8)indian+7 muskets > 0 and type is 0x13 or
+ *              0x15 -> ++type, and rng_range(0, DS:0x53a6) == 0 -> --muskets;
+ *              then if indian+0x0a horse_breeding >= 0x19 and
+ *              FUN_281f_090c(unit) <= 3 -> type += 2, horse_breeding -= 0x19.
+ *              (Field-upgrade path; the 152e spawn path uses 0x31/0x32.)
  */
 int indian_pick_dir(int unit_index) {
   ViceroyUnit* u = VICEROY_UNIT_AT(unit_index);
@@ -73,24 +102,56 @@ void step_unit_in_dir(int unit_index, int dir) {
  * loop: 4d56:1ac4 is PUSH CS; CALL 4c31 — overlay-local stub JMPF 1a1f:03bc →
  * bank record 281f:23bc → 14fe. Ghidra places the label inside FUN_41f2_0266
  * because the record's JMPF has a reloc-0000 segment (see
- * turn/mid_pass_indian_rank.md for the full stub map). Structure of 14fe:
+ * turn/mid_pass_indian_rank.md for the full stub map). Structure of 14fe
+ * (4d56:14fe..152c, verified byte-for-byte 2026-09-08):
  *
- *   dir = indian_pick_dir(unit)
- *   if dir == 8: unit_exhaust_mp(unit); return
- *   else: step_unit_in_dir(unit, dir)   // 2a1f_0150 → 465b
+ *   dir = indian_pick_dir(unit)          // near CALL 4c3b -> FUN_4d56_021a
+ *   if dir != 8: step_unit_in_dir(unit, dir)   // 2a1f_0150 -> 465b, and this
+ *                                              // arm also takes dir == -1
+ *   else if dir >= 0: unit_exhaust_mp(unit)    // OR AX,AX / JL is dead code,
+ *                                              // dir is 8 on this arm
  *
- * Alarmed / raid / mission branches: PARKED (2154/2820/4528 — not this path).
+ * The exhaust is a duplicate: 021a already ran FUN_281f_0934 at 021a:14e6
+ * before returning 8. Alarmed / raid / mission branches are inside 021a, not
+ * here (2154/2820/4528 reached via 2a1f:0192 / 2a1f:0210).
  */
 void indian_unit_act(int unit_index) {
   int dir = indian_pick_dir(unit_index);
-  if (dir == 8) {
-    unit_exhaust_mp(unit_index);
+  if (dir != 8) {
+    /* DOS steps with whatever came back, dir == -1 included (the unit is
+     * already despawned by then, so the step lands on a freed slot). */
+    step_unit_in_dir(unit_index, dir);
     return;
   }
-  if (dir < 0 || dir > 7) {
-    return;
+  unit_exhaust_mp(unit_index);
+}
+
+/*
+ * Ghidra: FUN_4d56_01e2 | indian_wipe_tribe_settlements
+ *
+ * Raw viceroy_unpacked.c:81352, asm 4d56:01e2..0219. Razes every settlement of
+ * one Indian slot: nation = param_1 + 4, then walk the tribe array DOWNWARD
+ * (i = DS:0x539a - 1 .. 0, base DS:0x54ec, stride 0x12) and, for each row whose
+ * +2 nation byte matches, `PUSH i; PUSH CS; CALL 4c22` -> record 281f:1248 ->
+ * FUN_4d56_00e0(i). Descending order is load-bearing: 00e0 compacts the array.
+ *
+ * 2026-09-08: DEAD CODE in the shipped VICEROY.EXE. 01e2 is absent from
+ * overlay 0x0C's 15-entry export stub table (4d56:4c22..4c6c), no near
+ * CALL/JMP anywhere in segment 4d56 resolves to 0x01e2, and no overlay bank
+ * record JMPFs to it. Nothing calls it; nothing to port. (docs/port_plan.md's
+ * "per-tribe act plumbing" description of 01e2 is wrong.) Linux's
+ * col1_kill_indian_nation is a wider Linux-only helper, not a port of this.
+ */
+void indian_wipe_tribe_settlements(int indian_index) {
+  int nation = indian_index + 4;
+  int tribe_count = 0; /* live: *(int *)VICEROY_DS_TRIBE_COUNT (0x539a) */
+  for (int i = tribe_count - 1; i >= 0; --i) {
+    ViceroyTribe* tr = VICEROY_TRIBE_AT(i);
+    if ((int)tr->nation_id == nation) {
+      /* FUN_4d56_00e0 — Linux col1_destroy_tribe_at. */
+      (void)i;
+    }
   }
-  step_unit_in_dir(unit_index, dir);
 }
 
 /* Ghidra: FUN_4d56_152e | village_growth_accum — Linux
@@ -159,18 +220,29 @@ static void indian_alarm_prelude_parked(int indian_index) {
  *      Also: §4's clamp is on **muskets** (indian+7, signed), not alarm.
  *      Linux: ai_contact_indian_relation_tick (all three), verified against
  *      real TURN7.SAV by `unit_ai_indian_census`.
- *   7. Clear act_counter for all units of this nation
- *   8. Act loop (ASM 4d56:1a8c..1b12):
+ *   7. Clear act_counter for all units of this nation (4d56:1a6c..1a8a;
+ *      act_counter = unit +0x315a = COL1 unit +0x16 `turns_worked`; the match
+ *      is on (u+0x3147 & 0xf) == DS:0x5394, the live nation byte)
+ *   8. Act loop (ASM 4d56:1a8c..1b1a):
  *        do {
+ *          ui_pump()                      // 281f:0470, top of every restart
  *          acted = 0
- *          for u in units while !acted:
- *            while unit_has_moves_remaining(u):
- *              act_counter++
- *              if act_counter <= 0x14:  // ASM CMP 0x14 / JBE
- *                indian_unit_act(u); acted = 1; break
+ *          for (i = 0; !acted && i < unit_count; ++i):
+ *            while unit_has_moves_remaining(i):   // 281f:097a, AX-register arg
+ *              ++act_counter
+ *              if act_counter <= 0x14:  // ASM CMP 0x14 / JNA
+ *                indian_unit_act(i); acted = 1     // then re-tests the SAME
+ *                                                  // unit; the for-loop only
+ *                                                  // exits at the next
+ *                                                  // iteration boundary
  *              else:
- *                unit_exhaust_mp(u); act_counter = 0
+ *                unit_exhaust_mp(i); act_counter = 0
  *        } while (acted)
+ *      The counter is bumped once per ATTEMPT, before indian_unit_act, so a
+ *      unit that only ever stays still ends the turn with act_counter >= 1.
+ *      unit_has_moves_remaining = FUN_281f_097a -> FUN_1427_13b0 (raw :8766):
+ *      index in range, (int8)u+0x3144 >= 0, nation nibble == DS:0x5394,
+ *      (u+0x3148 & 0x80) == 0 || u+0x3146 == 0x0b, and u+0x3149 < max MP.
  *
  * Spent residuals (phase 17–18):
  *   Quiet path: 14fe → (dir!=8) 2a1f_0150 → 465b ADD (+ ocean force ruled out).

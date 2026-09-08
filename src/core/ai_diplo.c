@@ -720,19 +720,70 @@ static uint8_t* ai_diplo_timer_byte(ColonizeCol1Save* col1, int nation, int peer
   return &col1->nation[nation].treaty_timer[peer];
 }
 
+/*
+ * FUN_15b3_0004 / FUN_15b3_0032 (decomp 9056-9082; older comments in this
+ * tree cite 7752-7761 — line drift, same bodies) are dual-mode accessors
+ * over the FULL 0..11 nation space (4 Euro + 8 Indian) on BOTH sides of the
+ * pair. The peer argument is a raw byte index into a 12-wide row, so the
+ * four quadrants land in four different Linux fields — byte-audited
+ * 2026-09-08:
+ *
+ *   nation < 4  : *(peer + nation*0x13c − 0x77c4).
+ *     The nation record base is DS −0x77f8 (col1_save.h nation_flags, +0),
+ *     so −0x77c4 == +0x34 == nation[].euro_relation[].
+ *     peer 0..3  → nation[nation].euro_relation[peer].
+ *     peer 4..11 → the SAME row runs straight past euro_relation[4] into
+ *                  +0x38 == nation[nation].relation_by_indian[peer−4].
+ *                  Live in DOS: viceroy_overlays.c:55515
+ *                  `FUN_1000_8c28(self, tribe+4) & 0x20` (has this Euro
+ *                  nation met any tribe) and euro_diplo_153e_full.md's
+ *                  `FUN_1000_8c28(self, tribe+4) & 2` war-bit read. This is
+ *                  why every DOS save shows relation_by_indian as exactly
+ *                  0x60 (MET|PEACE) once contacted and 0 before.
+ *                  (FUN_1000_8c28 == FUN_281f_0a38 == this accessor's thunk:
+ *                  FUN_1000_X = 281f_(X−0x81f0), 0x8c28−0x81f0 = 0xa38.)
+ *
+ *   nation >= 4 : *(peer + nation*0x4e + 23000).
+ *     DS:0x8d4e holds the pointer to the 78-byte (0x4e) indian[] array,
+ *     which sits at 23254, and 23000 + (t+4)*0x4e == 23254 + t*0x4e + 0x3a,
+ *     i.e. euro_diplo (+0x3a) of indian[t]. sizeof(ColonizeCol1Indian)
+ *     == 0x4e exactly, so the stride matches byte for byte.
+ *     peer 0..3  → indian[nation−4].euro_diplo[peer].
+ *     peer 4..11 → indian[nation−4].unknown33_pad[peer−4] (+0x3e..+0x45) —
+ *                  the Indian×Indian quadrant. No DOS call site reaches it
+ *                  (the pad is confirmed-dead, 2026-08-24), but the
+ *                  addressing is transcribed rather than rejected so the
+ *                  accessor is total over 0..11 the way DOS is.
+ *
+ * DOS does no bounds check at all; the port keeps one at 0..11 because the
+ * four backing arrays are separate objects here, not one flat DS window.
+ */
+#define AI_DIPLO_SLOT_COUNT 12
+
 static uint8_t* ai_diplo_flag_byte(ColonizeCol1Save* col1, int nation, int peer) {
-  if (!col1 || nation < 0 || nation >= 4 || peer < 0 || peer >= 4 || nation == peer) {
+  if (!col1 || nation < 0 || nation >= AI_DIPLO_SLOT_COUNT || peer < 0 ||
+      peer >= AI_DIPLO_SLOT_COUNT || nation == peer) {
     return NULL;
   }
-  /* FUN_15b3 / DS −0x77c4 — mapped Col1 euro_relation[peer]. */
-  return &col1->nation[nation].euro_relation[peer];
+  if (nation < 4) {
+    return peer < 4 ? &col1->nation[nation].euro_relation[peer]
+                    : &col1->nation[nation].relation_by_indian[peer - 4];
+  }
+  return peer < 4 ? &col1->indian[nation - 4].euro_diplo[peer]
+                  : &col1->indian[nation - 4].unknown33_pad[peer - 4];
 }
 
 static const uint8_t* ai_diplo_flag_byte_const(const ColonizeCol1Save* col1, int nation, int peer) {
-  if (!col1 || nation < 0 || nation >= 4 || peer < 0 || peer >= 4 || nation == peer) {
+  if (!col1 || nation < 0 || nation >= AI_DIPLO_SLOT_COUNT || peer < 0 ||
+      peer >= AI_DIPLO_SLOT_COUNT || nation == peer) {
     return NULL;
   }
-  return &col1->nation[nation].euro_relation[peer];
+  if (nation < 4) {
+    return peer < 4 ? &col1->nation[nation].euro_relation[peer]
+                    : &col1->nation[nation].relation_by_indian[peer - 4];
+  }
+  return peer < 4 ? &col1->indian[nation - 4].euro_diplo[peer]
+                  : &col1->indian[nation - 4].unknown33_pad[peer - 4];
 }
 
 /* Mirror WAR/ALLY into nation_relation for legacy readers (derived only). */
@@ -759,10 +810,19 @@ static void ai_diplo_mirror_relation_summary(ColonizeCol1Save* col1, int nation)
 }
 
 uint8_t ai_diplo_read(const ColonizeCol1Save* col1, int nation_a, int nation_b) {
-  if (!col1 || nation_a < 0 || nation_a >= 4 || nation_b < 0 || nation_b >= 4) {
+  /* decomp 9056-9066 (FUN_15b3_0004): both sides span 0..11, see the
+   * four-quadrant map on ai_diplo_flag_byte. 2026-09-08: the range was 0..3
+   * before this pass, so the Indian half of the accessor was unreachable. */
+  if (!col1 || nation_a < 0 || nation_a >= AI_DIPLO_SLOT_COUNT || nation_b < 0 ||
+      nation_b >= AI_DIPLO_SLOT_COUNT) {
     return 0;
   }
   if (nation_a == nation_b) {
+    /* Linux virtual: DOS has no self-pair case (it would address
+     * euro_relation[n][n], which nothing ever writes and every DOS save
+     * leaves 0). Kept because live callers read "self is at peace/allied"
+     * off it; ai_goals.c's 20e6 land-claim gate deliberately bypasses this
+     * accessor for the byte-faithful read. */
     return AI_DIPLO_PEACE | AI_DIPLO_ALLY;
   }
   const uint8_t* f = ai_diplo_flag_byte_const(col1, nation_a, nation_b);
@@ -775,10 +835,15 @@ uint8_t ai_diplo_read(const ColonizeCol1Save* col1, int nation_a, int nation_b) 
 }
 
 void ai_diplo_write(ColonizeCol1Save* col1, int nation_a, int nation_b, uint8_t value) {
-  if (!col1 || nation_a < 0 || nation_a >= 4 || nation_b < 0 || nation_b >= 4) {
+  /* decomp 9069-9082 (FUN_15b3_0032): stores the LOW BYTE of the word arg at
+   * the same dual-mode address FUN_15b3_0004 reads, and returns the word
+   * unchanged. No caller of the port needs the return, so this stays void. */
+  if (!col1 || nation_a < 0 || nation_a >= AI_DIPLO_SLOT_COUNT || nation_b < 0 ||
+      nation_b >= AI_DIPLO_SLOT_COUNT) {
     return;
   }
   if (nation_a == nation_b) {
+    /* Paired with ai_diplo_read's self virtual — see there. */
     return;
   }
   uint8_t* f = ai_diplo_flag_byte(col1, nation_a, nation_b);
@@ -789,33 +854,43 @@ void ai_diplo_write(ColonizeCol1Save* col1, int nation_a, int nation_b, uint8_t 
   ai_diplo_mirror_relation_summary(col1, nation_a);
 }
 
+/*
+ * decomp 9084-9099 (FUN_15b3_0066). DOS order is read(a,b) → write(a,b) →
+ * read(b,a) → write(b,a); the two addresses never alias for a != b, so the
+ * port's ordering is free, but it is transcribed literally anyway.
+ *
+ * The tail `if ((uVar2 & bits) != (bits & uVar1)) FUN_281f_077e(0x15b3,
+ * 0x202, ...)` is a dead symmetry assert: both operands are the *written*
+ * values (FUN_15b3_0032 returns its word argument), so after OR-ing the same
+ * mask into both directions the masked halves are always equal. Nothing to
+ * port. Same for 00d0's 0x212 assert.
+ *
+ * DOS returns the (a,b) post-value; every call site discards it (42413,
+ * 73554/73555, 74825, 75593, 80819, 80858/80861), so this stays void.
+ */
 void ai_diplo_or_both(ColonizeCol1Save* col1, int nation_a, int nation_b, uint8_t bits) {
   if (!col1 || nation_a == nation_b) {
     return;
   }
-  uint8_t a = (uint8_t)(ai_diplo_read(col1, nation_a, nation_b) | bits);
-  uint8_t b = (uint8_t)(ai_diplo_read(col1, nation_b, nation_a) | bits);
-  ai_diplo_write(col1, nation_a, nation_b, a);
-  ai_diplo_write(col1, nation_b, nation_a, b);
+  ai_diplo_write(col1, nation_a, nation_b, (uint8_t)(ai_diplo_read(col1, nation_a, nation_b) | bits));
+  ai_diplo_write(col1, nation_b, nation_a, (uint8_t)(ai_diplo_read(col1, nation_b, nation_a) | bits));
 }
 
+/* decomp 9102-9117 (FUN_15b3_00d0): the AND-NOT twin of 0066, same shape. */
 void ai_diplo_clear_both(ColonizeCol1Save* col1, int nation_a, int nation_b, uint8_t bits) {
   if (!col1 || nation_a == nation_b) {
     return;
   }
-  uint8_t a = (uint8_t)(ai_diplo_read(col1, nation_a, nation_b) & (uint8_t)~bits);
-  uint8_t b = (uint8_t)(ai_diplo_read(col1, nation_b, nation_a) & (uint8_t)~bits);
-  /* Store raw result (0 = unread default on next read). */
-  uint8_t* fa = ai_diplo_flag_byte(col1, nation_a, nation_b);
-  uint8_t* fb = ai_diplo_flag_byte(col1, nation_b, nation_a);
-  if (fa) {
-    *fa = a;
-  }
-  if (fb) {
-    *fb = b;
-  }
-  ai_diplo_mirror_relation_summary(col1, nation_a);
-  ai_diplo_mirror_relation_summary(col1, nation_b);
+  /* Store the raw result (0 = unwritten/unmet on the next read), same as the
+   * OR side — 2026-09-08 this stopped hand-rolling the store so both
+   * directions pick up ai_diplo_write's dual-mode addressing and its
+   * player.diplomacy mirror. */
+  ai_diplo_write(
+    col1, nation_a, nation_b, (uint8_t)(ai_diplo_read(col1, nation_a, nation_b) & (uint8_t)~bits)
+  );
+  ai_diplo_write(
+    col1, nation_b, nation_a, (uint8_t)(ai_diplo_read(col1, nation_b, nation_a) & (uint8_t)~bits)
+  );
 }
 
 int ai_diplo_at_war(const ColonizeCol1Save* col1, int nation_a, int nation_b) {
@@ -2797,8 +2872,10 @@ static void ai_talk_resume(ColonizeTurnContext* ctx, int stage, int choice) {
         if (col1->nation[h].gold < (uint32_t)k->ally_cost) {
           ai_talk_ok(ctx, "UNFORTUNATE", &tok, "\"Unfortunately you cannot afford that.\"");
         } else {
+          /* decomp 98373-98379: 0a10(t, p, 0x40) clear-both runs for BOTH
+           * victim kinds (the port used to clear only on the Euro arm). */
+          ai_diplo_clear_both(col1, t, p, AI_DIPLO_PEACE);
           if (p < 4) {
-            ai_diplo_clear_both(col1, t, p, AI_DIPLO_PEACE);
             /* raw :98393: nation[pick].euro_relation[target] |= WAR — the
              * PICKED nation's byte toward the hired smiter, same direction
              * as the APOSTATES arm (was written (t,p) before 2026-09-06). */
@@ -2807,8 +2884,12 @@ static void ai_talk_resume(ColonizeTurnContext* ctx, int stage, int choice) {
               *f = (uint8_t)(*f | AI_DIPLO_WAR);
             }
           } else {
-            col1->indian[p - 4].euro_diplo[t] =
-              (uint8_t)((col1->indian[p - 4].euro_diplo[t] & (uint8_t)~COL1_INDIAN_PEACE_BIT) | COL1_INDIAN_WAR_BIT);
+            /* decomp 98378: or_both(t, p, 2) — WAR set in BOTH directions,
+             * including nation[t].relation_by_indian[p-4]. This is the
+             * Euro-side Indian war-bit SETTER the 153e `& 2` read pairs
+             * with (the 2026-09-08 single-side euro_diplo write undersold
+             * it). */
+            ai_diplo_or_both(col1, t, p, AI_DIPLO_WAR);
           }
           ai_talk_ok(ctx, "MERCENARY", &tok, "\"It is done. We march against them.\"");
           ai_talk_gold(ctx, h, t, k->ally_cost);
@@ -3631,11 +3712,17 @@ void ai_diplo_indian_alarm_delta(
   }
   col1->indian[idx].alarm_by_player[euro_nation] = (uint16_t)v;
   if (delta < 0) {
-    /* FUN_4cc6_00f2: 281f_0a10(tribe+4, euro, 4) on any cooling; (…, 2) below 75. */
-    uint8_t* d = &col1->indian[idx].euro_diplo[euro_nation];
-    *d = (uint8_t)(*d & (uint8_t)~COL1_INDIAN_ATTACK_CONFIRMED_BIT);
+    /*
+     * FUN_4cc6_00f2: 281f_0a10(tribe+4, euro, 4) on any cooling; (…, 2)
+     * below 75. 0a10 = FUN_15b3_00d0 clear-BOTH-directions — until
+     * 2026-09-08 the port cleared only the Indian-side euro_diplo byte and
+     * left nation[].relation_by_indian stale (dual-mode accessor landed the
+     * same day). Golden-neutral: relation_by_indian is 0x60 post-contact and
+     * neither bit 4 nor bit 2 is set in it there.
+     */
+    ai_diplo_clear_both(col1, idx + 4, euro_nation, COL1_INDIAN_ATTACK_CONFIRMED_BIT);
     if (v < 0x4b) {
-      *d = (uint8_t)(*d & (uint8_t)~COL1_INDIAN_WAR_BIT);
+      ai_diplo_clear_both(col1, idx + 4, euro_nation, COL1_INDIAN_WAR_BIT);
     }
   }
   ai_diplo_indian_tension_tier_update(col1, indian_nation, euro_nation, old_v, v, delta);

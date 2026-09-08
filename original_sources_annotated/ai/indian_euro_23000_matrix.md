@@ -4,6 +4,22 @@
 9056-9082`), the dual-mode accessor `euro_diplo.md` already cites for the
 Indian branch (`nation ≥ 4`): `*(peer + nation*0x4e + 23000)`.
 
+**Correction, 2026-09-08 (quartet byte-audit, `euro_diplo.md` §"`15b3`
+quartet byte-audit"):** the `23000` table is not a distinct object — it is
+the `indian[]` array addressed from a different base. `DS:0x8d4e` holds the
+pointer to that array, it lives at `23254`, `sizeof(ColonizeCol1Indian) ==
+0x4e` exactly, and `23000 + (t+4)*0x4e == 23254 + t*0x4e + 0x3a` =
+`indian[t].euro_diplo`. So this doc's "already-ported Linux mirror"
+conclusion was right, and its arithmetic reason is now closed too. Byte 12+
+of each row (`peer ≥ 4`, the Indian×Indian quadrant) is `unknown33_pad[8]`
+at `+0x3e..+0x45` — the same "no evidence of ever being touched" finding,
+now with a name. Symmetrically, the **Euro** branch's `peer ≥ 4` half is
+`nation[].relation_by_indian[peer−4]` (the row runs past `euro_relation[4]`
+at `+0x34` into `+0x38`), which is why 55515's `FUN_1000_8c28(self,tribe+4)
+& 0x20` works — so this doc's "not `relation_by_indian`" line is true of the
+Indian branch only, and `relation_by_indian` is the *Euro* branch's Indian
+half. Full 12×12 quadrant table in `euro_diplo.md`.
+
 ## Headline finding
 
 **This is not a record with named fields — it's a `[12][12]` (or `[8][12]`

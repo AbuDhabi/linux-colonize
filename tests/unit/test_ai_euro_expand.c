@@ -62,255 +62,17 @@ static int count_nation_colonies(const ColonizeColonyPool* colonies, int nation_
   return n;
 }
 
-/* Second-wave settle via ai_euro_dispatcher_turn (colony_count 1→2). */
-static int unit_second_wave(void) {
-  const int nation = 1;
-
-  ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
-    return fail("alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1; /* plains land */
-  }
-
-  ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
-  units.type_count = 3;
-  snprintf(units.types[0].name, sizeof(units.types[0].name), "Pioneer");
-  units.types[0].movement = 3;
-  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
-  snprintf(units.types[1].name, sizeof(units.types[1].name), "Caravel");
-  units.types[1].movement = 4;
-  units.types[1].domain = COLONIZE_UNIT_DOMAIN_SEA;
-  units.types[1].cargo = 2;
-  snprintf(units.types[2].name, sizeof(units.types[2].name), "Free Colonist");
-  units.types[2].movement = 1;
-  units.types[2].domain = COLONIZE_UNIT_DOMAIN_LAND;
-
-  ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
-  /* Existing first colony — second-wave path (colony_count == 1). */
-  ColonizeColony* c = &colonies.colonies[0];
-  c->id = 0;
-  c->active = true;
-  c->nation_id = nation;
-  c->x = 4;
-  c->y = 4;
-  c->population = 3;
-  c->colonist_count = 3;
-  c->stock[COLONIZE_CARGO_TOOLS] = 40;
-  c->stock[COLONIZE_CARGO_FOOD] = 40;
-  c->building_in_production = -1;
-  colonies.colony_count = 1;
-  colonies.next_id = 1;
-
-  /* Idle pioneer near colony expand FOUND (pick_founding_tile → north (4,3)). */
-  const int pid = units_spawn(&units, 0, 4, 5);
-  ColonizeUnit* pioneer = units_get(&units, pid);
-  if (!pioneer) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
-    return fail("spawn pioneer");
-  }
-  pioneer->nation_id = nation;
-  pioneer->moves_left = 3 * UNITS_MP_PER_TILE;
-  pioneer->orders = 0;
-
-  ai_goals_reset();
-
-  uint32_t turn = 10;
-  ColonizeTurnContext ctx;
-  memset(&ctx, 0, sizeof(ctx));
-  ctx.turn_number = &turn;
-  ctx.units = &units;
-  ctx.colonies = &colonies;
-  ctx.map = &map;
-  ctx.col1_ok = false;
-  ctx.rng_seed = 42; /* not seed-100 fixture */
-
-  const int max_turns = 24;
-  for (int t = 0; t < max_turns; ++t) {
-    turn_refresh_moves_for_nation(&units, nation, NULL, &map, &colonies, NULL, NULL);
-    ai_euro_dispatcher_turn(&ctx, nation);
-    if (count_nation_colonies(&colonies, nation) >= 2) {
-      break;
-    }
-  }
-
-  const int final_n = count_nation_colonies(&colonies, nation);
-  /* Accept second colony, or (fallback) pioneer parked on a foundable expand tile. */
-  int ok = (final_n >= 2);
-  if (!ok && pioneer->active &&
-      colonies_can_found(&colonies, &map, pioneer->x, pioneer->y) &&
-      (pioneer->x != 4 || pioneer->y != 5) && /* moved off spawn */
-      (pioneer->x != c->x || pioneer->y != c->y)) {
-    ok = 1;
-  }
-  if (!ok) {
-    fprintf(
-      stderr,
-      "unit_ai_euro_expand: colonies=%d pioneer=(%d,%d) active=%d\n",
-      final_n,
-      pioneer->active ? pioneer->x : -1,
-      pioneer->active ? pioneer->y : -1,
-      pioneer->active
-    );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
-    return fail("expected colony_count>=2 or found-at-tile after move");
-  }
-
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
-  fprintf(stderr, "unit_ai_euro_expand: second-wave ok (colonies=%d)\n", final_n);
-  return 0;
-}
-
 /*
- * Second+ colony FOUND via 06ae: when colony_count>=1, prefer coastal foundable
- * over richer inland (river) tile. Cite: ai_euro_pick_founding_tile coastal +6;
- * fandom Docks coastal gate.
+ * 2026-09-08 — 2 more scenarios RETIRED with the Linux-shaped 06ae extras
+ * they were written against (`unit_second_wave`, ring-2..4 rescan founding
+ * around an existing colony; `unit_second_colony_coastal_prefer`, the +10/+40
+ * coastal bias). DOS's 06ae scores only DS:0x2f77[class] + 0492*0x10 + the
+ * 074a nibble over the 3x3 ring, and every tile within Chebyshev 1 of a
+ * colony is unfoundable, so a colony-origin ring scan can never yield a
+ * second-colony site; DOS seeds second colonies from the 3180 map scan
+ * instead. DOS-side founding coverage lives in the goldens
+ * (golden_ai_turns / golden_ai_joint), byte-green across the swap.
  */
-static int unit_second_colony_coastal_prefer(void) {
-  const int nation = 1;
-
-  ColonizeWorldMap map;
-  memset(&map, 0, sizeof(map));
-  map.width = 16;
-  map.height = 16;
-  map.tile_count = 256;
-  map.terrain = calloc(256, 1);
-  map.layer2 = calloc(256, 1);
-  map.layer3 = calloc(256, 1);
-  if (!map.terrain || !map.layer2 || !map.layer3) {
-    return fail("coastal-found alloc map");
-  }
-  for (int i = 0; i < 256; ++i) {
-    map.terrain[i] = 1; /* plains */
-  }
-  /* Ocean south of (8,9) → (8,9) coastal; inland north (8,7) gets river (+3).
-   * Dir0 scans north first — without coastal bias river would win; with bias
-   * coastal south must beat it. */
-  map.terrain[10 * 16 + 8] = 25; /* ocean at (8,10) */
-  map.terrain[7 * 16 + 8] = (uint8_t)(1u | 0x40u); /* plains + minor river (8,7) */
-
-  ColonizeUnitPool units;
-  memset(&units, 0, sizeof(units));
-  units_reset(&units);
-  units_set_occupancy_map(NULL);
-  units.type_count = 1;
-  snprintf(units.types[0].name, sizeof(units.types[0].name), "Pioneer");
-  units.types[0].movement = 1;
-  units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
-
-  ColonizeColonyPool colonies;
-  colonies_init(&colonies);
-  colonies_set_occupancy_map(NULL);
-  ColonizeColony* c = &colonies.colonies[0];
-  c->id = 0;
-  c->active = true;
-  c->nation_id = nation;
-  c->x = 8;
-  c->y = 8;
-  c->population = 3;
-  c->colonist_count = 3;
-  c->stock[COLONIZE_CARGO_TOOLS] = 40;
-  c->stock[COLONIZE_CARGO_FOOD] = 40;
-  c->building_in_production = -1;
-  colonies.colony_count = 1;
-  colonies.next_id = 1;
-
-  const int pid = units_spawn(&units, 0, 8, 8);
-  ColonizeUnit* pioneer = units_get(&units, pid);
-  if (!pioneer) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
-    return fail("coastal-found spawn pioneer");
-  }
-  pioneer->nation_id = nation;
-  pioneer->moves_left = 0; /* plan only — inspect FOUND goal */
-  pioneer->orders = 0;
-
-  if (!map_tile_is_coastal(&map, 8, 9)) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
-    return fail("coastal-found setup: (8,9) should be coastal");
-  }
-  if (map_tile_is_coastal(&map, 8, 7)) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
-    return fail("coastal-found setup: (8,7) should be inland");
-  }
-
-  ai_goals_reset();
-
-  uint32_t turn = 12;
-  ColonizeTurnContext ctx;
-  memset(&ctx, 0, sizeof(ctx));
-  ctx.turn_number = &turn;
-  ctx.units = &units;
-  ctx.colonies = &colonies;
-  ctx.map = &map;
-  ctx.col1_ok = false;
-  ctx.rng_seed = 42;
-
-  ai_euro_dispatcher_turn(&ctx, nation);
-
-  int found_x = -1;
-  int found_y = -1;
-  for (int i = 0; i < AI_PRIMARY_SLOTS; ++i) {
-    const AiGoalSlot* g = ai_goals_primary(nation, i);
-    if (g && g->code == AI_GOAL_FOUND) {
-      found_x = (int)g->x;
-      found_y = (int)g->y;
-      break;
-    }
-  }
-
-  if (found_x == 8 && found_y == 7) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
-    return fail("expected coastal FOUND over inland river (8,7)");
-  }
-  if (found_x < 0 || !map_tile_is_coastal(&map, found_x, found_y)) {
-    fprintf(
-      stderr,
-      "unit_ai_euro_expand: coastal FOUND got=(%d,%d) coastal=%d inland7=%d\n",
-      found_x,
-      found_y,
-      found_x >= 0 ? map_tile_is_coastal(&map, found_x, found_y) : 0,
-      map_tile_is_coastal(&map, 8, 7)
-    );
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
-    return fail("expected coastal FOUND (06ae + coastal bias) over inland");
-  }
-
-  free(map.terrain);
-  free(map.layer2);
-  free(map.layer3);
-  fprintf(stderr, "unit_ai_euro_expand: second-colony coastal FOUND ok\n");
-  return 0;
-}
 
 /*
  * CONTACT scout rings (unpark #4): peaceful nation with own≥1 colony + Scout +
@@ -8751,20 +8513,14 @@ static int unit_indian_land_found(void) {
   units.types[0].movement = 3;
   units.types[0].domain = COLONIZE_UNIT_DOMAIN_LAND;
 
-  /* Plan-only: discover expand FOUND from colony (4,4). */
-  const int probe = units_spawn(&units, 0, 4, 5);
-  ColonizeUnit* pu = units_get(&units, probe);
-  if (!pu) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
-    return fail("indian-land probe spawn");
-  }
-  pu->nation_id = nation;
-  pu->orders = 0;
-  pu->moves_left = 0;
-
-  ai_goals_reset();
+  /*
+   * 2026-09-08: the expand-FOUND-around-own-colony writer this phase used
+   * to probe was a Linux invention and is deleted (DOS 0a60 writes FOUND
+   * only at village-adjacent ocean beachheads on colony-free continents,
+   * decomp 88049, and next to foreign colonies, decomp 87983 — both
+   * ported). The FOUND goal is now seeded directly; this scenario's subject
+   * is the Indian homeland purchase, not goal production.
+   */
   uint32_t turn = 40;
   ColonizeTurnContext ctx;
   memset(&ctx, 0, sizeof(ctx));
@@ -8775,24 +8531,9 @@ static int unit_indian_land_found(void) {
   ctx.col1 = &col1;
   ctx.col1_ok = true;
   ctx.rng_seed = 11;
-  ai_euro_dispatcher_turn(&ctx, nation);
 
-  int fx = -1;
-  int fy = -1;
-  for (int i = 0; i < AI_PRIMARY_SLOTS; ++i) {
-    const AiGoalSlot* g = ai_goals_primary(nation, i);
-    if (g && g->code == AI_GOAL_FOUND) {
-      fx = g->x;
-      fy = g->y;
-      break;
-    }
-  }
-  if (fx < 0) {
-    free(map.terrain);
-    free(map.layer2);
-    free(map.layer3);
-    return fail("indian-land: no expand FOUND from stocked colony");
-  }
+  const int fx = 10;
+  const int fy = 10;
 
   /* Park tribe on expand FOUND → homeland; founder stands there. */
   tribe.x = (uint8_t)fx;
@@ -8835,6 +8576,7 @@ static int unit_indian_land_found(void) {
     founder->moves_left = 3 * UNITS_MP_PER_TILE;
 
     ai_goals_reset();
+    ai_goals_upsert_secondary(nation, fx, fy, AI_GOAL_FOUND, 2);
     turn = 41;
     const uint32_t gold0 = col1.nation[nation].gold;
     ai_euro_dispatcher_turn(&ctx, nation);
@@ -8923,6 +8665,7 @@ static int unit_indian_land_found(void) {
     ctx.status_size = sizeof(status);
 
     ai_goals_reset();
+    ai_goals_upsert_secondary(nation, fx, fy, AI_GOAL_FOUND, 2);
     turn = 42;
     ai_euro_dispatcher_turn(&ctx, nation);
 
@@ -8994,6 +8737,7 @@ static int unit_indian_land_found(void) {
     founder->moves_left = 3 * UNITS_MP_PER_TILE;
 
     ai_goals_reset();
+    ai_goals_upsert_secondary(nation, fx, fy, AI_GOAL_FOUND, 2);
     turn = 43;
     ai_euro_dispatcher_turn(&ctx, nation);
 
@@ -17263,14 +17007,8 @@ static int unit_seasoned_sticky_fog_deepen(void) {
 }
 
 int main(void) {
-  if (unit_second_wave() != 0) {
-    return 1;
-  }
   /* Series R before known Seasoned+sticky early-exit (pre-existing). */
   if (unit_specialty_flag_a_haul_match() != 0) {
-    return 1;
-  }
-  if (unit_second_colony_coastal_prefer() != 0) {
     return 1;
   }
   if (unit_scout_explore() != 0) {

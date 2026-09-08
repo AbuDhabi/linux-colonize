@@ -601,7 +601,16 @@ typedef struct ColonizeCol1Nation {
   uint8_t euro_relation[4]; /* −0x77c4 peer bytes / FUN_15b3_* */
   uint8_t relation_by_indian[8]; /* +0x38; NOT a scalar: in every DOS save it is
      exactly 0x60 (MET|PEACE) once contacted, else 0 — a flag byte. The real
-     Indian×Euro scalar is indian[].alarm_by_player (2026-08-27). */
+     Indian×Euro scalar is indian[].alarm_by_player (2026-08-27).
+     Identified 2026-09-08 (15b3 quartet byte-audit, ai/euro_diplo.md): this
+     is not a separate array at all — FUN_15b3_0004/0032's Euro branch
+     (`peer + nation*0x13c − 0x77c4`) puts NO bound on `peer`, so the 12-wide
+     row starting at euro_relation[0] runs straight into this field for
+     peer 4..11. `relation_by_indian[t]` IS `FUN_1000_8c28(self, t+4)` —
+     hence the 0x60, same MET/PEACE encoding as euro_relation, and DOS also
+     reads bit 0x02 (WAR) here (viceroy_overlays.c:55515; 153e's
+     `FUN_1000_8c28(self,tribe+4) & 2`). Linux never sets that WAR bit yet
+     — see euro_diplo.md's "Left thin" item. */
   /*
    * Linux diplo stand-ins (exact DS PARKED, deliberately NOT touched this
    * pass — this union is live, load-bearing gameplay code across

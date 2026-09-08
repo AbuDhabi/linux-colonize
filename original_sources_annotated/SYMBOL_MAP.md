@@ -36,7 +36,8 @@ Phase 1 AI-critical symbols + Euro early-settle Layer D + between-turns
 | `FUN_4d56_152e` | `village_growth_accum` | `ai/indian_nation_turn.c` | `ai_grow_villages` |
 | `FUN_4d56_1816` | `indian_nation_turn` | `ai/indian_nation_turn.c` | `ai_indian_nation_turn` |
 | `FUN_4d56_14fe` / `func_0x00042191` | `indian_unit_act` (14fe; Ghidra 42191 overlay collision) | `ai/indian_nation_turn.c` | quiet path in `ai_native_nation_pulse` |
-| `func_0x0004219b` | `indian_pick_dir` | `ai/indian_nation_turn.c` | → `quiet_brave_pick_dir_asm` |
+| `func_0x0004219b` = **`FUN_4d56_021a`** (stub `4c3b`) | `indian_pick_dir` — real body is `4d56:021a..14fd`, 4836 bytes, emitted by Ghidra as `??` bytes; reaches the `521d` scorer via thunk `291f:012c` at `021a:1182` | `ai/indian_nation_turn.c` | PARKED; Linux calls `quiet_brave_pick_dir_asm` directly (one level too low) |
+| `FUN_4d56_01e2` | `indian_wipe_tribe_settlements` — descending tribe-array walk calling `00e0`; **dead code**, nothing reaches it (2026-09-08) | `ai/indian_nation_turn.c` | none (`col1_kill_indian_nation` is a Linux invention) |
 | (callgraph) | — | `ai/brave_spent_callgraph.md` | spent `0x3149` writers |
 | quiet `20e6` / `LAB_521d_4ea9` | `quiet_brave_pick_dir_asm` | `ai/quiet_brave_scoring.c` | `ai_native_pick_dir_asm` via `AI_QUIET_ASM=1` |
 | Init A/B dumps | `AI_LCG_AUDIT` / `AI_AB` / `AI_SCORE_DUMP` | `src/core/ai.c` | phase 7–8: fog `+8` flips `(47,53)`; far tiles AGREE SAV |

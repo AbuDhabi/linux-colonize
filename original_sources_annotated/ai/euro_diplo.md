@@ -27,20 +27,25 @@ port**. Odd deviations OK; not T3.
 
 ## `15b3` bilateral bytes
 
-| Symbol | Thunk | Role |
-|--------|-------|------|
-| `FUN_15b3_0004` | `281f_0a38` | Read peer byte |
-| `FUN_15b3_0032` | — | Write peer byte |
-| `FUN_15b3_0066` | `281f_0a10` sibling | OR both directions; assert symmetry |
-| `FUN_15b3_00d0` | `281f_0a10` | Clear both directions |
+| Symbol | Thunk | Role | Port |
+|--------|-------|------|------|
+| `FUN_15b3_0004` | `281f_0a38` (= `FUN_1000_8c28`) | Read peer byte | **Done** 2026-09-08 — `ai_diplo_read` |
+| `FUN_15b3_0032` | — | Write peer byte | **Done** 2026-09-08 — `ai_diplo_write` |
+| `FUN_15b3_0066` | `switchD_2000:da9f::caseD_10` | OR both directions; dead symmetry assert | **Done** 2026-09-08 — `ai_diplo_or_both` |
+| `FUN_15b3_00d0` | `281f_0a10` | Clear both directions; dead symmetry assert | **Done** 2026-09-08 — `ai_diplo_clear_both` |
 
-Decomp addressing:
+Decomp addressing (`viceroy_unpacked.c:9056-9117`; older citations of
+`7752-7761` in this tree are line drift, same bodies):
 
 - **Euro** (`nation < 4`): `*(peer + nation * 0x13c − 0x77c4)`
-- **Indian** (`nation ≥ 4`): `*(peer + nation * 0x4e + 23000)` — full matrix **PORT DEBT** on Linux
-  (still true 2026-08-14 — see the `−0x77c4` note further down for what
-  this blocks: `FUN_4cc6_0092`'s Indian-nation-elimination handler; full
-  map of this table now in [`indian_euro_23000_matrix.md`](indian_euro_23000_matrix.md))
+- **Indian** (`nation ≥ 4`): `*(peer + nation * 0x4e + 23000)`
+
+Both sides of the pair span the whole **0..11** nation space and `peer` is a
+raw index into a **12-wide row**, so the accessor is a 12×12 matrix spread
+over four quadrants — all four resolved to live Linux fields 2026-09-08, see
+the dated note at the end of this file. **PORT DEBT retired** (the old
+"Indian branch has no Linux mirror" framing was stale twice over; full map
+of the Indian half in [`indian_euro_23000_matrix.md`](indian_euro_23000_matrix.md)).
 
 Linux Euro×Euro stand-in (316-byte / `0x13c` nation record):
 
@@ -212,6 +217,103 @@ has no Linux mirror yet, and it's unclear which of that record's 78 bytes
 are meaningful vs. reserved. Real next-step candidate, but a new-struct
 project (comparable to the `0x8d4a` settlement-record pass), not a quick
 follow-up — flagging rather than guessing at the table layout.
+**Superseded 2026-09-08 — see the byte-audit note directly below; the
+"no Linux mirror / new-struct project" conclusion was wrong on both counts.**
+
+### `15b3` quartet byte-audit — Done 2026-09-08
+
+Four DOS bodies read in full (`viceroy_unpacked.c:9056-9117`, cross-read
+against the thunk bodies at `33044`/`33054`/`33094` and `43826`). Result:
+the accessor is **one 12×12 relation matrix in four quadrants**, and every
+quadrant already has a Linux field — nothing new to model.
+
+| DOS address | Quadrant | Linux field |
+|---|---|---|
+| `peer + nation*0x13c − 0x77c4`, `peer<4` | Euro × Euro | `nation[n].euro_relation[peer]` |
+| same row, `peer 4..11` | Euro × Indian | `nation[n].relation_by_indian[peer−4]` |
+| `peer + nation*0x4e + 23000`, `peer<4` | Indian × Euro | `indian[n−4].euro_diplo[peer]` |
+| same row, `peer 4..11` | Indian × Indian | `indian[n−4].unknown33_pad[peer−4]` (dead) |
+
+Arithmetic, both branches:
+
+- Nation record base is DS `−0x77f8` (`nation_flags`, `+0` — already named in
+  `col1_save.h`), so `−0x77c4` = `+0x34` = `euro_relation[4]`, which is
+  immediately followed by `+0x38` `relation_by_indian[8]`. The row is 12
+  contiguous bytes; `peer` never gets a `<4` guard in DOS. Live proof:
+  `viceroy_overlays.c:55515` `FUN_1000_8c28(self, tribe+4) & 0x20` (loop
+  `tribe` 0..7 → "has this Euro nation met any tribe") and
+  `euro_diplo_153e_full.md`'s `FUN_1000_8c28(self, tribe+4) & 2`. **That is
+  what `relation_by_indian` is** — it explains `col1_save.h`'s standing
+  observation that every DOS save holds exactly `0x60` (MET|PEACE) there
+  once contacted and `0` before.
+- `DS:0x8d4e` holds the *pointer* to the `indian[]` array (hence the
+  `*(int*)0x8d4e + N` idiom all over these docs), the array sits at `23254`,
+  and `sizeof(ColonizeCol1Indian) == 0x4e` exactly. So
+  `23000 + (t+4)*0x4e == 23254 + t*0x4e + 0x3a` = `indian[t].euro_diplo`.
+  The `23000` table was never a separate struct — it is the `indian[]`
+  array addressed from a different base, which is why `ai_contact.c` /
+  `ai.c` / `units.c` have been reading and writing the correct bytes all
+  along without knowing it.
+
+`0066`/`00d0` really do touch both directions (`read(a,b) → write(a,b) →
+read(b,a) → write(b,a)`), and their trailing
+`FUN_281f_077e(0x15b3,0x202/0x212,…)` symmetry assert is **dead code**: both
+operands are the values `FUN_15b3_0032` just returned (it returns its word
+argument unchanged), so after OR-ing / AND-NOT-ing the same mask into both
+directions the masked halves are always equal. Nothing to port. Their return
+value (the `(a,b)` post-value) is discarded at every call site
+(`42413`, `73554/73555`, `74825`, `75593`, `80819`, `80858/80861`), so the
+Linux `void` signatures stand.
+
+Port change: `ai_diplo_flag_byte`/`_const` are now the four-quadrant map and
+the quartet's range check widened `0..3` → `0..11` (`src/core/ai_diplo.c`).
+**No caller behavior changed** — every live caller of
+`ai_diplo_read`/`write`/`or_both`/`clear_both` and of the internal
+`ai_diplo_flag_byte` was audited and pre-guards both sides to `0..3`
+(`ai_euro.c:246/3203/8710/8993/12783/17578`, `ai_diplo.c:2153/2576/2604/
+2805/3101`, `ai_king.c` crown slot is `ai_king_crown_nation_col1` → always
+`0..3`, `colony.c:1915` colony owners, `ai_contact.c:1362`), so the widened
+branch is reachable only by new callers. `ai_diplo_clear_both` also stopped
+hand-rolling its store and now goes through `ai_diplo_write` like the OR
+side. The self-pair virtual (`read` returns `PEACE|ALLY`, `write` is a
+no-op) is a **deliberate Linux substitution kept as-is** — DOS has no
+self-pair case at all, `euro_relation[n][n]` is never written and reads 0;
+`ai_goals.c`'s 20e6 land-claim gate already bypasses the accessor for the
+byte-faithful read, and `ai_king` 2244 relies on the virtual.
+
+**Left thin (one item, deliberately not fixed blind):**
+`ai_euro_20e6_diplo` (`src/core/ai_euro.c:10711`) is a caller-side
+re-implementation of this accessor and takes the **wrong quadrant** for
+`other ≥ 4`: DOS's `FUN_1000_8c28(euro, tribe+4)` reads
+`nation[euro].relation_by_indian[tribe]`, but the port synthesises
+`MET` + a WAR bit derived from `ai_diplo_indian_at_war`. Routing it through
+the now-dual-mode `ai_diplo_read` would be byte-faithful but is a live
+regression until `relation_by_indian`'s WAR bit (`0x02`) is actually
+maintained on the Linux side — today only `ai_contact.c:529` (`= 96`) and
+`ai.c:4879` (`= 0`) ever write that row, so the real byte carries no war
+information and the three 20e6 consumers (`ai_euro.c:11892/11910/11949`,
+one of them the golden-sensitive `(rel & 0x60) != 0x20` neighbour penalty)
+would silently change. Correct order of work: wire the `0x02`/`0x40` writes
+on `relation_by_indian` at the Indian war/peace sites first, then delete the
+synthesiser. Flagged, not guessed.
+
+**CLOSED later the same day (2026-09-08).** The writers were wired in the
+prescribed order and the synthesiser deleted:
+- `4cc6_00f2` cooling clears (`0a10` bit 4 / bit 2 below 75) routed through
+  `ai_diplo_clear_both` (`ai_diplo.c` alarm_delta) — 0a10 IS clear-both.
+- Peace set/clear helpers (`ai_contact.c`) routed through
+  `ai_diplo_or_both`/`_clear_both` (break = `4cc6_0092` decomp 80819).
+- The `153e` paid-smite commit fixed to the DOS shape (decomp 98373-98379):
+  clear-both PEACE for BOTH victim kinds, Euro victim one-directional
+  `|= WAR`, Indian victim `or_both(t, p, WAR)` — the Euro-side
+  `relation_by_indian` WAR setter that pairs with the `& 2` read.
+- `@WHACKINDIANS` bit-4 latch = `caseD_10` or-both (decomp 75611), fixed in
+  `game_loop.c`. (Trick: Ghidra names the 15b3_0066 OR-both thunk
+  `switchD_2000:da9f::caseD_10` — grep that, not the FUN name.)
+- `ai_euro_20e6_diplo` now returns raw `ai_diplo_read` over 0..11. Fixes the
+  neighbour penalty: DOS `(rel & 0x60) != 0x20` skips peaceful-met tribes
+  (byte 0x60); the synthetic bare `MET` wrongly penalised them.
+ctest 60/60, goldens byte-green.
 
 ### Thin alliance treasury + treaty timer (Linux)
 

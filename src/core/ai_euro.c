@@ -605,14 +605,13 @@ static int ai_euro_ocean_3558_empty_cruise_tip(
  * replacing the seed tile's *validation* from a single point-check (fail
  * outright if that one tile is water/HS/non-foundable) with
  * `ai_goals_pick_founding_tile_ex` — the already byte-faithful DOS `06ae`
- * port, which scores the seed's 8 neighbors + stay and, failing that, its
- * own already-built ring-2..4 fallback (see `ai_goals.c`), using the real
- * terrain-founding byte and the same coastal=40 first-colony bias
- * `ai_euro_pick_founding_tile` already applies elsewhere. Previously-
- * succeeding seeds are unaffected (same tile, same result); only seeds
- * whose exact point used to fail outright can now succeed via a nearby
- * tile — fixes "adj 06ae still misses some coastal first towns" (R0)
- * without inventing new geometry or touching any call site.
+ * port, which scores the seed's 8 neighbors + stay using the real
+ * terrain-founding byte. Previously-succeeding seeds are unaffected (same
+ * tile, same result); only seeds whose exact point used to fail outright can
+ * now succeed via a nearby tile — fixes "adj 06ae still misses some coastal
+ * first towns" (R0) without inventing new geometry or touching any call site.
+ * (2026-09-08: the ring-2..4 fallback and the coastal=40 bias this paragraph
+ * used to lean on are gone — both were Linux inventions absent from 06ae.)
  */
 static int ai_euro_06ae_first_colony_from_landfall(
   const ColonizeWorldMap* map,
@@ -678,7 +677,6 @@ static int ai_euro_06ae_first_colony_from_landfall(
     fy,
     /*score_extras=*/0,
     /*wagon_filter=*/0,
-    /*coastal_bonus=*/40,
     out_x,
     out_y
   );
@@ -2888,37 +2886,35 @@ static int ai_euro_land_is_passive_orders(const ColonizeUnit* u) {
 }
 
 /*
- * FUN_521d_06ae founding pick with coastal prefer (first colony and later).
- * Bias score toward map_tile_is_coastal foundable tiles (Docks / port access —
- * fandom Docks coastal gate; lose-all-ports war rule). First-colony FOUND XY
- * still comes from landfall latitude geometry when 06ae adj from ship/staging
- * misses Quebec/NA/Isabella (inland higher 2f77). Cite: euro_goals.c;
- * move_scoring.md §06ae; docs/fandom_col1994.md Docks + Independence port colonies.
+ * FUN_521d_06ae founding pick. The Linux coastal preference (+40 first colony,
+ * +10 later) and its `colony_count` argument were removed 2026-09-08: DOS's
+ * 06ae scores only DS:0x2f77[terrain class] + 0492*0x10 + the 074a nibble
+ * (decomp 87286-87304), and a flat +10 swamped the 0..6 terrain byte.
+ * `units` is now passed for real so DOS's 06d2/08bc occupant + wagon-XOR gate
+ * runs on this path too — it used to be handed NULL, which disabled the gate
+ * everywhere except the landfall caller. Cite: euro_goals.c; move_scoring.md §06ae.
  */
 static int ai_euro_pick_founding_tile(
   const ColonizeWorldMap* map,
   const ColonizeColonyPool* colonies,
   const ColonizeCol1Save* col1,
+  const ColonizeUnitPool* units,
   int nation_id,
   int x,
   int y,
-  int colony_count,
   int* out_x,
   int* out_y
 ) {
-  /* First colony: coastal≥40 + west bias in goals; later towns coastal=10. */
-  const int coastal = (colony_count <= 0) ? 40 : 10;
   return ai_goals_pick_founding_tile_ex(
     map,
     colonies,
     col1,
-    /*units=*/NULL,
+    units,
     nation_id,
     x,
     y,
     /*score_extras=*/1,
     /*wagon_filter=*/0,
-    /*coastal_bonus=*/coastal,
     out_x,
     out_y
   );
@@ -9411,25 +9407,22 @@ static void ai_euro_colony_goals(ColonizeTurnContext* ctx, int nation_id) {
           break;
         }
       }
-      /* Expand: FOUND via 06ae around colony (coastal prefer when count≥1). */
-      int fx = 0;
-      int fy = 0;
-      const int own_n =
-        inv ? inv->colony_count : ai_euro_colony_count(ctx->colonies, nation_id);
-      if (ai_euro_pick_founding_tile(
-            ctx->map,
-            ctx->colonies,
-            ctx->col1_ok ? ctx->col1 : NULL,
-            nation_id,
-            c->x,
-            c->y,
-            own_n,
-            &fx,
-            &fy)) {
-        if (fx != c->x || fy != c->y) {
-          ai_goals_upsert_primary(nation_id, fx, fy, AI_GOAL_FOUND, 2);
-        }
-      }
+      /*
+       * NO expand-FOUND seed here — REFUTED 2026-09-08. The old "FOUND via
+       * 06ae around colony" row (and the ring-2..4 rescan that made it
+       * functional) was a Linux invention: 06ae's only DOS callers are the
+       * 20e6 ship unload placement (decomp 89587) and the landing block
+       * (~85045), and the full FUN_521d_016a call-site enumeration shows
+       * DOS writes FOUND (code 1) primaries in exactly two producers, both
+       * ported — the 0a60 per-village ocean-beachhead producer, gated on NO
+       * own colony on that continent (decomp 88049, one per continent via
+       * the 0x173c/0x173e masks), and the foreign-colony producer's
+       * FOUND-or-MIL_EXPAND arm (decomp 87983). DOS AI never seeds a
+       * second colony around an existing one; same-landmass growth comes
+       * from the foreign-colony arm and the labor loop. (The 95081+
+       * decompile block is a duplicate pass over the same 0a60 body —
+       * positive vs negative DS spellings, same LAB_521d_0ef0.)
+       */
       /*
        * 0a60 work-queue haul score, real formula (raw decomp ~lines
        * 528-604 of the colony loop, `thunk_FUN_2a1f_0524` =
@@ -9800,10 +9793,10 @@ static void ai_euro_colony_goals(ColonizeTurnContext* ctx, int nation_id) {
                   ctx->map,
                   ctx->colonies,
                   ctx->col1_ok ? ctx->col1 : NULL,
+                  ctx->units,
                   nation_id,
                   (int)t->x,
                   (int)t->y,
-                  own,
                   &fx,
                   &fy)) {
               ai_goals_upsert_secondary(nation_id, fx, fy, AI_GOAL_FOUND, 1);
@@ -9922,16 +9915,14 @@ static void ai_euro_colony_goals(ColonizeTurnContext* ctx, int nation_id) {
       int fx = 0;
       int fy = 0;
       {
-        const int own_f =
-          inv ? inv->colony_count : ai_euro_colony_count(ctx->colonies, nation_id);
         if (ai_euro_pick_founding_tile(
               ctx->map,
               ctx->colonies,
               ctx->col1_ok ? ctx->col1 : NULL,
+              ctx->units,
               nation_id,
               t->x,
               t->y,
-              own_f,
               &fx,
               &fy)) {
           ai_goals_upsert_secondary(nation_id, fx, fy, AI_GOAL_FOUND, 2);
@@ -10031,10 +10022,10 @@ static void ai_euro_colony_goals(ColonizeTurnContext* ctx, int nation_id) {
                   ctx->map,
                   ctx->colonies,
                   ctx->col1,
+                  ctx->units,
                   nation_id,
                   target->x,
                   target->y,
-                  own,
                   &fx,
                   &fy)) {
               ai_goals_upsert_secondary(nation_id, fx, fy, AI_GOAL_FOUND, 3);
@@ -10063,16 +10054,14 @@ static void ai_euro_colony_goals(ColonizeTurnContext* ctx, int nation_id) {
           if (ctx->col1_ok && ctx->col1 && ctx->col1->tribe &&
               ctx->col1->head.tribe_count > 0) {
             const ColonizeCol1Tribe* t0 = &ctx->col1->tribe[0];
-            const int own_g =
-              inv ? inv->colony_count : ai_euro_colony_count(ctx->colonies, nation_id);
             if (ai_euro_pick_founding_tile(
                   ctx->map,
                   ctx->colonies,
                   ctx->col1_ok ? ctx->col1 : NULL,
+                  ctx->units,
                   nation_id,
                   (int)t0->x,
                   (int)t0->y,
-                  own_g,
                   &tx,
                   &ty)) {
               have_t = 1;
@@ -10137,10 +10126,10 @@ static void ai_euro_colony_goals(ColonizeTurnContext* ctx, int nation_id) {
                      ctx->map,
                      ctx->colonies,
                      ctx->col1_ok ? ctx->col1 : NULL,
+                     ctx->units,
                      nation_id,
                      u->x,
                      u->y,
-                     colonies,
                      &fx,
                      &fy)) {
           have = 1;
@@ -10707,24 +10696,21 @@ static int ai_euro_20e6_owner_nibble(const ColonizeWorldMap* map, int x, int y) 
   return n == 0xf ? -1 : n;
 }
 
-/* FUN_1000_8c28 / FUN_15b3_0004 diplomacy byte, Euro or Indian counterpart. */
+/*
+ * FUN_1000_8c28 / FUN_15b3_0004 diplomacy byte, Euro or Indian counterpart.
+ * 2026-09-08: the Indian-side synthesizer (MET assumed + WAR from
+ * ai_diplo_indian_at_war) is gone — ai_diplo_read is dual-mode now and
+ * nation[].relation_by_indian is live-maintained (contact 0x60, 4cc6_00f2
+ * clear-both cooling, 153e smite or_both WAR, @WHACKINDIANS or_both bit 4),
+ * so the raw byte IS the DOS read. Fixes the neighbour penalty consumer:
+ * DOS `(rel & 0x60) != 0x20` skips peaceful-met tribes (byte 0x60); the
+ * synthesizer's bare MET (0x20) wrongly penalised them.
+ */
 static int ai_euro_20e6_diplo(const ColonizeCol1Save* col1, int nation, int other) {
-  if (!col1 || nation < 0 || nation > 3 || other < 0) {
+  if (!col1 || nation < 0 || nation > 3 || other < 0 || other > 11) {
     return 0;
   }
-  if (other < 4) {
-    return (int)ai_diplo_read(col1, nation, other);
-  }
-  if (other > 11) {
-    return 0;
-  }
-  /* Indian side: WAR bit synthesised from the thin relation gate (no raw byte
-   * accessor exposes the DOS Indian×Euro flag byte here). MET assumed. */
-  int f = AI_DIPLO_MET;
-  if (ai_diplo_indian_at_war(col1, nation, other - 4)) {
-    f |= AI_DIPLO_WAR;
-  }
-  return f;
+  return (int)ai_diplo_read(col1, nation, other);
 }
 
 /* FUN_1000_856a / FUN_124c_007c distance between two tiles. */
@@ -11502,7 +11488,11 @@ static int ai_euro_land_explore_scan_target(
     radius = 1;
   }
   const int own_here = ai_euro_20e6_own_colonies_on(ctx, nation_id, s.cid);
-  const int explore_goal = ai_goals_max_primary_prio(nation_id, u->x, u->y, 6);
+  /* Raw 89078 `0116(nation, x, y, 6)` — the primary-table explore probe.
+   * DOS hoists it above the do-loop; hoisting is unobservable because the only
+   * other code-6 op in the loop (`001c`, wired at the LAB_2912 entry in
+   * ai_euro_20e6_land_act) touches the *secondary* table. */
+  const int explore_goal = ai_goals_max_primary_prio(nation_id, u->x, u->y, AI_GOAL_EXPLORE);
   int best = -999;
   int best_nib = 0;
   int bx = u->x;
@@ -11644,6 +11634,29 @@ static int ai_euro_land_explore_scan_target(
   if (best_nib <= 0) {
     return 0;
   }
+  /*
+   * DOS raw 89270-89280 / asm 002e10-002e72:
+   *     if (best_nib > 0) {
+   *       if (iStack_6a) { ...move to (bx,by), or act_state = 7 when here... }
+   *       else 0214(nation, x + dx[dir], y + dy[dir], 6, 2);   // raw 89278
+   *     }
+   * **The `else` is unreachable.** `iStack_6a` is the explorer flag at
+   * [BP-0x68]; the whole scan is entered only through
+   * `CMP word [BP-0x68],0 / JNZ 0029b6` (asm 135058-135060) and nothing
+   * between 0029b6 and 002e1a writes that slot — verified by scanning every
+   * `[BP + -0x68]` reference across the 20e6 body (writes only in the
+   * prologue flag block and at raw 89361, both outside the range). So the
+   * second `CMP word [BP-0x68],0` at 002e1a (asm 135468, same four bytes
+   * `83 7e 98 00`) can never take the JZ, and `0072f4`/`0214` at 002e4a is
+   * compiler-preserved dead code — its only call site anywhere in the game
+   * (grep of both decompiles + both asm listings: one hit each for
+   * `thunk_FUN_2a1f_04c4` / `FUN_OVL14_L0000__0072f4`).
+   * Consequence: goal code 6 is never written to either table in DOS, so
+   * `explore_goal` above is a constant 0 in DOS too and the `+0x10` bonus at
+   * the explorer arm never fires. NOT ported deliberately — wiring it would
+   * manufacture goals DOS does not have and, via 0342's promote, feed the
+   * primary table on the next nation turn.
+   */
   if (bx == u->x && by == u->y) {
     return 0; /* DOS: act_state=7 (found here) — left to the founding arms */
   }
@@ -12622,8 +12635,8 @@ static int ai_euro_move_scoring_gate(ColonizeTurnContext* ctx, ColonizeUnit* u, 
       int lx = 0;
       int ly = 0;
       if (ai_euro_pick_founding_tile(
-            ctx->map, ctx->colonies, ctx->col1_ok ? ctx->col1 : NULL, nation_id, u->x, u->y,
-            0, &lx, &ly
+            ctx->map, ctx->colonies, ctx->col1_ok ? ctx->col1 : NULL, ctx->units,
+            nation_id, u->x, u->y, &lx, &ly
           )) {
         ai_goals_upsert_primary(nation_id, lx, ly, AI_GOAL_FOUND, 7);
         fx = lx;
@@ -12653,6 +12666,22 @@ static int ai_euro_move_scoring_gate(ColonizeTurnContext* ctx, ColonizeUnit* u, 
     ai_euro_20e6_explorer_flag(ctx, u, &s);
     if (ai_euro_20e6_patrol_arm(ctx, u, &s)) {
       return 0;
+    }
+    /*
+     * LAB_521d_2912 entry, raw 89078-89082 (asm viceroy_overlays.asm:135003-
+     * 135020, byte-checked): the explore-goal read `0116(nation, x, y, 6)`
+     * then, for explorers only, `001c(nation, 6, x, y, radius = 0)` — the
+     * unit clears the *secondary* explore goal standing on the tile it has
+     * just reached. The read lives inside the ring scan below (it is only
+     * consumed there); this is the write half.
+     *
+     * Faithful but inert, in DOS as here: nothing ever puts code 6 into the
+     * secondary table (the sole `0214` code-6 writer is unreachable — see
+     * ai_euro_land_explore_scan_target's tail), so the scan finds no match.
+     * Kept because it is a real, reachable DOS call at this exact position.
+     */
+    if (s.explorer) {
+      ai_goals_invalidate_nearby_secondary(nation_id, AI_GOAL_EXPLORE, u->x, u->y, 0);
     }
     /* DOS order: LAB_277a fall-through → 0x4c village arms → 2912 ring →
      * colonist labor loop (raw runs it inside the ring do-loop; same effect
@@ -16124,7 +16153,15 @@ static void ai_euro_20e6_goal_fold(
   }
   const int total_colonies = ctx->colonies ? ctx->colonies->colony_count : 0;
   const int turn = (ctx->turn_number && *ctx->turn_number) ? (int)*ctx->turn_number : 0;
-  const int cont = ctx->map ? map_continent_id_at(ctx->map, ship->x, ship->y) : -1;
+  /*
+   * DOS 89432: `thunk_FUN_2a1f_053c(0x281f, uVar11, local_68, 0xffff)` — the
+   * continent argument is the **0xffff = any** sentinel, not the ship's tile.
+   * The port used to pass map_continent_id_at(ship->x, ship->y); the ship sits
+   * on water, so that is a water-region id no land colony can match, 15eb_0142
+   * always missed and the score was pinned to the +2 miss constant instead of
+   * dist/5 - 1. ai_goals_nearest_colony_15eb_0142 spells "any" as continent < 0.
+   */
+  const int cont = -1;
   /* 052c runs its own FUN_15eb_0142 nearest-own-colony-on-continent search
    * (it owns the DS:0x8db8 write), so no caller-side distance is passed. */
   const int urgency =
@@ -17080,10 +17117,10 @@ static int ai_euro_resolve_first_found_tile(
             ctx->map,
             ctx->colonies,
             ctx->col1_ok ? ctx->col1 : NULL,
+            ctx->units,
             nation_id,
             sx,
             sy,
-            0,
             &live_x,
             &live_y
           )) {
@@ -17167,8 +17204,8 @@ static int ai_euro_try_first_colony_land(ColonizeTurnContext* ctx, ColonizeUnit*
       int lx = 0;
       int ly = 0;
       if (ai_euro_pick_founding_tile(
-            ctx->map, ctx->colonies, ctx->col1_ok ? ctx->col1 : NULL, nation_id, u->x, u->y,
-            0, &lx, &ly
+            ctx->map, ctx->colonies, ctx->col1_ok ? ctx->col1 : NULL, ctx->units,
+            nation_id, u->x, u->y, &lx, &ly
           )) {
         if (u->x == lx && u->y == ly) {
           if (colonies_can_found(ctx->colonies, ctx->map, lx, ly)) {

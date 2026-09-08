@@ -67,8 +67,9 @@ void ai_indian_midpass_claim_worked_tiles(ColonizeTurnContext* ctx);
 
 /*
  * Where `unit_id` stood when this turn's native Brave pulse began, i.e. before
- * FUN_4d56_14fe walked it. Returns 0 for a unit the current pulse never
- * touched, leaving the out params alone.
+ * FUN_4d56_14fe walked it (14fe itself is only dispatch: dir = FUN_4d56_021a,
+ * then step or exhaust). Returns 0 for a unit the current pulse never touched,
+ * leaving the out params alone.
  *
  * DOS drives every Indian-side contact off the move itself: FUN_465b's tail
  * runs FUN_281f_0984 -> FUN_5bfb_3180 -> FUN_5bfb_022e for the tile the Brave

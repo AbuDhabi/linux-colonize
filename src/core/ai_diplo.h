@@ -43,9 +43,12 @@
  * caution was built on `153e` call sites that turned out to read a
  * *different* table (`FUN_1000_8c28` is a raw-byte accessor confirmed via
  * its own decompile, `FUN_0000_5b34`: nation param <4 reads exactly
- * `euro_relation`, but >=4 reads a wholly separate Indian-side flags
- * table at absolute `23000`, stride `0x4e` — the misleading citations
- * were Indian-range calls, not Euro-Euro ones). The real Euro-Euro bit-2
+ * `euro_relation`, but >=4 reads the Indian-side flags row at absolute
+ * `23000`, stride `0x4e` — the misleading citations were Indian-range
+ * calls, not Euro-Euro ones; "wholly separate table" corrected 2026-09-08,
+ * `23000 + (t+4)*0x4e` is exactly `indian[t].euro_diplo`, and the Euro
+ * branch's own `peer >= 4` half is `nation[].relation_by_indian[peer-4]`
+ * — see ai_diplo.c's quadrant map). The real Euro-Euro bit-2
  * sites in `153e` (direct `-0x77c4` reads, no accessor) are consistent
  * with plain `PEACE`: discounts negotiation "worthiness" when already
  * peaceful, and gets set alongside establishing contact (mirrors this
@@ -152,6 +155,16 @@ int ai_diplo_leader_trait(const ColonizeTurnContext* ctx, int nation, int column
  */
 int ai_diplo_153e_encounter(ColonizeTurnContext* ctx, int human, int target, int unit_id);
 
+/*
+ * FUN_15b3_0004 / 0032 / 0066 / 00d0 (decomp 9056-9117). Byte-audited
+ * 2026-09-08: both sides take the FULL 0..11 nation space (4 Euro + 8
+ * Indian) and the pair resolves to one of four Linux fields —
+ * nation[].euro_relation[] / nation[].relation_by_indian[] /
+ * indian[].euro_diplo[] / indian[].unknown33_pad[] — see the quadrant map
+ * on ai_diplo_flag_byte in ai_diplo.c. Out-of-range reads 0 / writes nothing.
+ * Self-pair is a Linux virtual (read → PEACE|ALLY, write → no-op); DOS has
+ * no self case, so byte-faithful callers must go to the field directly.
+ */
 uint8_t ai_diplo_read(const ColonizeCol1Save* col1, int nation_a, int nation_b);
 void ai_diplo_write(ColonizeCol1Save* col1, int nation_a, int nation_b, uint8_t value);
 void ai_diplo_or_both(ColonizeCol1Save* col1, int nation_a, int nation_b, uint8_t bits);

@@ -10,7 +10,9 @@ FUN_4d56_1816 indian_nation_turn
   └─ while unit_has_moves_remaining (097a → 1427_13b0)
        └─ indian_unit_act   [behavioral target of Ghidra func_0x00042191]
             │   ASM body: FUN_4d56_14fe (Ghidra abs 42191 collides with 41f2)
-            ├─ indian_pick_dir  (4219b / quiet LAB_521d_4ea9)
+            ├─ indian_pick_dir  (stub 4c3b → FUN_4d56_021a; the quiet
+            │                     LAB_521d_4ea9 scorer sits one level below
+            │                     it, reached via thunk 291f:012c)
             ├─ dir==8 → unit_exhaust_mp (0934 → 1427_155e)   [stay]
             └─ dir!=8 → step_unit_in_dir (2a1f_0150 → 465b_0c1e)
                  └─ FUN_465b_0000 move_spent_add
